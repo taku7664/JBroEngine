@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug_Game|Web">
+      <Configuration>Debug_Game</Configuration>
+      <Platform>Web</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release_Game|Web">
+      <Configuration>Release_Game</Configuration>
+      <Platform>Web</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <Keyword>MakeFileProj</Keyword>
+    <ProjectGuid>{B8767D1E-46CB-4E62-9F3D-E5C8B8F0D1A7}</ProjectGuid>
+    <RootNamespace>WebBuild</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug_Game|Web'" Label="Configuration">
+    <ConfigurationType>Makefile</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release_Game|Web'" Label="Configuration">
+    <ConfigurationType>Makefile</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings" />
+  <ImportGroup Label="Shared" />
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug_Game|Web'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release_Game|Web'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug_Game|Web'">
+    <NMakeBuildCommandLine>$(MSBuildProjectDirectory)\build_web_debug.bat</NMakeBuildCommandLine>
+    <NMakeReBuildCommandLine>$(MSBuildProjectDirectory)\build_web_debug.bat</NMakeReBuildCommandLine>
+    <NMakeCleanCommandLine>if exist "$(MSBuildProjectDirectory)\..\..\Build\Web\Debug" rmdir /S /Q "$(MSBuildProjectDirectory)\..\..\Build\Web\Debug"</NMakeCleanCommandLine>
+    <NMakeOutput>$(MSBuildProjectDirectory)\..\..\Build\Web\Debug\index.html</NMakeOutput>
+    <NMakePreprocessorDefinitions>JBRO_PLATFORM_WEB;JBRO_GAME</NMakePreprocessorDefinitions>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release_Game|Web'">
+    <NMakeBuildCommandLine>$(MSBuildProjectDirectory)\build_web_release.bat</NMakeBuildCommandLine>
+    <NMakeReBuildCommandLine>$(MSBuildProjectDirectory)\build_web_release.bat</NMakeReBuildCommandLine>
+    <NMakeCleanCommandLine>if exist "$(MSBuildProjectDirectory)\..\..\Build\Web\Release" rmdir /S /Q "$(MSBuildProjectDirectory)\..\..\Build\Web\Release"</NMakeCleanCommandLine>
+    <NMakeOutput>$(MSBuildProjectDirectory)\..\..\Build\Web\Release\index.html</NMakeOutput>
+    <NMakePreprocessorDefinitions>JBRO_PLATFORM_WEB;JBRO_GAME</NMakePreprocessorDefinitions>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Include="build_web_debug.bat" />
+    <None Include="build_web_release.bat" />
+    <None Include="web_debug_sources.rsp" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets" />
+</Project>

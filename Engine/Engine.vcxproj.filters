@@ -1,0 +1,737 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx</Extensions>
+    </Filter>
+    <Filter Include="Source\Application">
+      <UniqueIdentifier>{E8597662-BE6B-44F3-9B22-15631520C36F}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Core">
+      <UniqueIdentifier>{86BC20B5-4E7A-4228-B6AB-0D9D5F1B7F51}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Core\Asset">
+      <UniqueIdentifier>{F4525F1A-59C2-4D41-8D04-3A58E36380D9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Core\Module">
+      <UniqueIdentifier>{FB1A1628-8377-4F91-862E-517A89BFE6F7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Core\Time">
+      <UniqueIdentifier>{4A87C91F-3622-4CC2-9045-0A0819323F58}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Core\Platform">
+      <UniqueIdentifier>{60E34F68-BAF8-43F5-8196-4C072A9DB8D0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Core\Platform\Web">
+      <UniqueIdentifier>{88A8A1F0-A0B1-4C23-A0C7-D4819F468E22}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Core\Platform\Windows">
+      <UniqueIdentifier>{85E6B88C-A5E5-407B-AC3A-7B0D17A08A81}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Core\RHI">
+      <UniqueIdentifier>{F8E6E896-1B78-44E6-A0B6-97DFF8FD8841}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Core\RHI\D3D11">
+      <UniqueIdentifier>{7F209C1C-C90E-4FB0-8228-83E76E5878C9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Core\RHI\WebGPU">
+      <UniqueIdentifier>{32A4AE3B-2419-483E-99D5-C8773730565B}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Core\Renderer">
+      <UniqueIdentifier>{877167BD-8E69-4E24-8324-81F6E5E8F4F5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\GameFramework">
+      <UniqueIdentifier>{2D615011-5902-45DE-84E7-A4316B0B7A7D}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\GameFramework\ECS">
+      <UniqueIdentifier>{5DC65041-1BD7-403E-A036-7E0B4F46E575}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\GameFramework\Object">
+      <UniqueIdentifier>{CB4D3B4F-A745-4D9C-B139-B9504C11E2F4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\GameFramework\Rendering">
+      <UniqueIdentifier>{742220BF-234E-42DB-9431-29A0CFD5392C}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\GameFramework\Scene">
+      <UniqueIdentifier>{D37B3D6A-8F6C-4F5B-A2B6-B3F11DB6D209}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\GameFramework\System">
+      <UniqueIdentifier>{40B3E72D-E6C9-42ED-A7D0-73F47B61C4F1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Editor">
+      <UniqueIdentifier>{C5D861B8-9046-45C9-8C2F-F117C2E8038F}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\ThirdParty">
+      <UniqueIdentifier>{C9940E68-1D45-4D69-B3B0-1C7F7F874C8E}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;inl;inc</Extensions>
+    </Filter>
+    <Filter Include="Header\Application">
+      <UniqueIdentifier>{B3E41250-A3B4-49AD-8835-F6B346B41C77}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\Core">
+      <UniqueIdentifier>{2936498F-B933-441E-8B8E-0B0106B884BE}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\Core\Asset">
+      <UniqueIdentifier>{D4478531-B79C-485A-9894-2C5E7040F295}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\Core\Module">
+      <UniqueIdentifier>{DE2723B7-D661-4BCE-8070-07787F3B948E}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\Core\Time">
+      <UniqueIdentifier>{9D52AE9D-1B3F-43C7-B0B6-904838458417}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\Core\Platform">
+      <UniqueIdentifier>{2F9F9F1F-26CD-433D-9D3C-4189E64702B8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\Core\Platform\Web">
+      <UniqueIdentifier>{1A606819-1D74-403C-A2D8-60A611B89D26}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\Core\Platform\Windows">
+      <UniqueIdentifier>{8A851A03-0747-4022-A3D7-2FD6F0670F76}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\Core\RHI">
+      <UniqueIdentifier>{7F5190CE-59EF-4F40-9FEB-19862C9E7A69}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\Core\RHI\D3D11">
+      <UniqueIdentifier>{49DDABBC-0879-4655-A366-D9FF297551AB}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\Core\RHI\WebGPU">
+      <UniqueIdentifier>{B5B73667-A56D-4C59-99A8-529715465CFD}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\Core\Renderer">
+      <UniqueIdentifier>{3D06AC59-4AF6-48E3-BE58-1B040F3EEDE5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\Core\Game">
+      <UniqueIdentifier>{5E27ED0F-AC65-4359-B5E2-49EEDDD75F31}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\GameFramework">
+      <UniqueIdentifier>{E9FA30BC-D0C7-47D1-AEF0-5403E88CCF22}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\GameFramework\Component">
+      <UniqueIdentifier>{AE65A60B-34B9-4DF9-A248-108F96E83C8E}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\GameFramework\ECS">
+      <UniqueIdentifier>{79F5674C-F55A-4E78-B664-F036098727C1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\GameFramework\Object">
+      <UniqueIdentifier>{56C0E51E-8DB5-43B5-9417-65F6C7E3F0FA}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\GameFramework\Rendering">
+      <UniqueIdentifier>{8A9E6E3B-9326-422A-9497-62E86B812D71}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\GameFramework\Scene">
+      <UniqueIdentifier>{C4E6D094-340C-48B0-BE3A-D077549BA85C}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\GameFramework\System">
+      <UniqueIdentifier>{B0885D21-31EF-46CA-A713-086F75CFF585}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\Editor">
+      <UniqueIdentifier>{347B7536-3117-4839-879A-D55F95700889}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\ThirdParty">
+      <UniqueIdentifier>{593E57EE-1E0E-40E1-99F4-4320A7E01C0A}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Core\FileSystem">
+      <UniqueIdentifier>{137BEA12-5FD4-4DD8-B7D1-957C95209A13}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Core\Input">
+      <UniqueIdentifier>{B0972FB2-62A5-4868-9B57-70002A88856E}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Core\Thread">
+      <UniqueIdentifier>{A40AB456-334D-4F5A-8459-6D233F63DCC2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\GameFramework\Physics2D">
+      <UniqueIdentifier>{16BC64C2-0B71-4512-A64C-80AD4B9BF49B}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\Core\FileSystem">
+      <UniqueIdentifier>{FACBFEDF-5F87-4033-BE54-808BD9623BC8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\Core\Input">
+      <UniqueIdentifier>{6E5AD630-BAEA-4650-8C05-D5713E97D2E0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\Core\Thread">
+      <UniqueIdentifier>{4E8BB584-856F-44FB-BD31-98E12C743509}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\GameFramework\Physics2D">
+      <UniqueIdentifier>{557649F1-7C94-4449-AEE6-974AE2FC625D}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\GameFramework\Component">
+      <UniqueIdentifier>{F98FA019-B0D3-4B24-900B-33FB5B2F1EB1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\GameFramework\Component">
+      <UniqueIdentifier>{34457611-F645-49EA-8F50-5BC23FEACF17}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\GameFramework\Reflection">
+      <UniqueIdentifier>{416DEACE-EA32-4190-B6B1-ADD9892BAC79}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\GameFramework\Reflection">
+      <UniqueIdentifier>{44A9FD6C-7931-4738-95FF-B1172775A63C}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\GameFramework\Scripting">
+      <UniqueIdentifier>{035F402E-CF0E-4941-90B1-DA01A194BB07}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\GameFramework\Scripting">
+      <UniqueIdentifier>{1A6D3343-6CD7-4561-AFF7-78928C9F91B4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\GameFramework\Prefab">
+      <UniqueIdentifier>{E0823F05-1515-48E9-9511-BF2DBDCE2448}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\GameFramework\Prefab">
+      <UniqueIdentifier>{0899FB62-1F4E-4C45-AC44-F754F0157980}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Framework.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="pch.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Application\Application.h">
+      <Filter>Header\Application</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Asset\AssetManager.h">
+      <Filter>Header\Core\Asset</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Asset\AssetMetaFile.h">
+      <Filter>Header\Core\Asset</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Asset\AssetPath.h">
+      <Filter>Header\Core\Asset</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Asset\AssetRegistry.h">
+      <Filter>Header\Core\Asset</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Asset\AssetTypes.h">
+      <Filter>Header\Core\Asset</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Asset\FileAsset.h">
+      <Filter>Header\Core\Asset</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Asset\IAsset.h">
+      <Filter>Header\Core\Asset</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Asset\IAssetLoader.h">
+      <Filter>Header\Core\Asset</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Asset\IAssetManager.h">
+      <Filter>Header\Core\Asset</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Asset\IAssetRegistry.h">
+      <Filter>Header\Core\Asset</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Asset\MaterialAsset.h">
+      <Filter>Header\Core\Asset</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Asset\SpriteAsset.h">
+      <Filter>Header\Core\Asset</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Asset\TextureAsset.h">
+      <Filter>Header\Core\Asset</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Core.h">
+      <Filter>Header\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Engine.h">
+      <Filter>Header\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\EngineContext.h">
+      <Filter>Header\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Game\GameModuleTypes.h">
+      <Filter>Header\Core\Game</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Game\IGameModule.h">
+      <Filter>Header\Core\Game</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Module\Module.h">
+      <Filter>Header\Core\Module</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Platform\IPlatform.h">
+      <Filter>Header\Core\Platform</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Platform\IRenderSurface.h">
+      <Filter>Header\Core\Platform</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Platform\PlatformDefines.h">
+      <Filter>Header\Core\Platform</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Platform\PlatformTypes.h">
+      <Filter>Header\Core\Platform</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Platform\Web\WebCanvasSurface.h">
+      <Filter>Header\Core\Platform\Web</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Platform\Web\WebPlatform.h">
+      <Filter>Header\Core\Platform\Web</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Platform\Windows\WindowsPlatform.h">
+      <Filter>Header\Core\Platform\Windows</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Platform\Windows\WindowsRenderSurface.h">
+      <Filter>Header\Core\Platform\Windows</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Platform\RenderSurfaceTypes.h">
+      <Filter>Header\Core\Platform</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\RHI\D3D11\D3D11CommandContext.h">
+      <Filter>Header\Core\RHI\D3D11</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\RHI\D3D11\D3D11Buffer.h">
+      <Filter>Header\Core\RHI\D3D11</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\RHI\D3D11\D3D11GraphicsPipeline.h">
+      <Filter>Header\Core\RHI\D3D11</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\RHI\D3D11\D3D11Program.h">
+      <Filter>Header\Core\RHI\D3D11</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\RHI\D3D11\D3D11Sampler.h">
+      <Filter>Header\Core\RHI\D3D11</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\RHI\D3D11\D3D11RHIDevice.h">
+      <Filter>Header\Core\RHI\D3D11</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\RHI\D3D11\D3D11Swapchain.h">
+      <Filter>Header\Core\RHI\D3D11</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\RHI\D3D11\D3D11Texture.h">
+      <Filter>Header\Core\RHI\D3D11</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\RHI\EmptyRHIDevice.h">
+      <Filter>Header\Core\RHI</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\RHI\IRHIBuffer.h">
+      <Filter>Header\Core\RHI</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\RHI\IRHICommandContext.h">
+      <Filter>Header\Core\RHI</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\RHI\IRHIDevice.h">
+      <Filter>Header\Core\RHI</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\RHI\IRHIGraphicsPipeline.h">
+      <Filter>Header\Core\RHI</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\RHI\IRHIProgram.h">
+      <Filter>Header\Core\RHI</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\RHI\IRHISampler.h">
+      <Filter>Header\Core\RHI</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\RHI\IRHISwapchain.h">
+      <Filter>Header\Core\RHI</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\RHI\IRHITexture.h">
+      <Filter>Header\Core\RHI</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\RHI\RHICommandTypes.h">
+      <Filter>Header\Core\RHI</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\RHI\RHIGraphicsTypes.h">
+      <Filter>Header\Core\RHI</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\RHI\RHIResource.h">
+      <Filter>Header\Core\RHI</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\RHI\RHITypes.h">
+      <Filter>Header\Core\RHI</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\RHI\WebGPU\WebGPUBuffer.h">
+      <Filter>Header\Core\RHI\WebGPU</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\RHI\WebGPU\WebGPUCommandContext.h">
+      <Filter>Header\Core\RHI\WebGPU</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\RHI\WebGPU\WebGPUCommon.h">
+      <Filter>Header\Core\RHI\WebGPU</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\RHI\WebGPU\WebGPUGraphicsPipeline.h">
+      <Filter>Header\Core\RHI\WebGPU</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\RHI\WebGPU\WebGPURHIDevice.h">
+      <Filter>Header\Core\RHI\WebGPU</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\RHI\WebGPU\WebGPUProgram.h">
+      <Filter>Header\Core\RHI\WebGPU</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\RHI\WebGPU\WebGPUSampler.h">
+      <Filter>Header\Core\RHI\WebGPU</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\RHI\WebGPU\WebGPUSwapchain.h">
+      <Filter>Header\Core\RHI\WebGPU</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\RHI\WebGPU\WebGPUTexture.h">
+      <Filter>Header\Core\RHI\WebGPU</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Renderer\Forward2DRenderer.h">
+      <Filter>Header\Core\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Renderer\IRenderer.h">
+      <Filter>Header\Core\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Renderer\IRenderMaterial.h">
+      <Filter>Header\Core\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Renderer\IRenderMesh.h">
+      <Filter>Header\Core\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Renderer\IRenderResource.h">
+      <Filter>Header\Core\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Renderer\IRenderScene.h">
+      <Filter>Header\Core\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Renderer\RenderResources2D.h">
+      <Filter>Header\Core\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Renderer\RenderScene.h">
+      <Filter>Header\Core\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Renderer\RendererTypes.h">
+      <Filter>Header\Core\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Time\Time.h">
+      <Filter>Header\Core\Time</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Component\Camera2D.h">
+      <Filter>Header\GameFramework\Component</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Component\SpriteRenderer2D.h">
+      <Filter>Header\GameFramework\Component</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Component\TransformHierarchy2D.h">
+      <Filter>Header\GameFramework\Component</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Component\Transform2D.h">
+      <Filter>Header\GameFramework\Component</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\ECS\ComponentPool.h">
+      <Filter>Header\GameFramework\ECS</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\ECS\EntityManager.h">
+      <Filter>Header\GameFramework\ECS</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\ECS\EntityTypes.h">
+      <Filter>Header\GameFramework\ECS</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Object\GameObject.h">
+      <Filter>Header\GameFramework\Object</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Component\GameObject.h">
+      <Filter>Header\GameFramework\Object</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Component\PrefabInstance.h">
+      <Filter>Header\GameFramework\Component</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Prefab\PrefabSerializer.h">
+      <Filter>Header\GameFramework\Prefab</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Prefab\PrefabTypes.h">
+      <Filter>Header\GameFramework\Prefab</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Rendering\SpriteRenderSystem.h">
+      <Filter>Header\GameFramework\Rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Scene\Scene.h">
+      <Filter>Header\GameFramework\Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Scene\SceneManager.h">
+      <Filter>Header\GameFramework\Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Scene\SceneSerializer.h">
+      <Filter>Header\GameFramework\Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Scene\SceneSnapshot.h">
+      <Filter>Header\GameFramework\Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Scene\SceneTypes.h">
+      <Filter>Header\GameFramework\Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\System\GameSystem.h">
+      <Filter>Header\GameFramework\System</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Component\Light2D.h">
+      <Filter>Header\GameFramework\Component</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Physics2D\Physics2DTypes.h">
+      <Filter>Header\GameFramework\Physics2D</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Input\IInputMessageHandler.h">
+      <Filter>Header\Core\Input</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\FileSystem\FileSystem.h">
+      <Filter>Header\Core\FileSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Input\InputTypes.h">
+      <Filter>Header\Core\Input</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Physics2D\Physics2DGeometry.h">
+      <Filter>Header\GameFramework\Physics2D</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Thread\ThreadService.h">
+      <Filter>Header\Core\Thread</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\FileSystem\FileSystemTypes.h">
+      <Filter>Header\Core\FileSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Thread\ThreadTypes.h">
+      <Filter>Header\Core\Thread</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Physics2D\Physics2DSystem.h">
+      <Filter>Header\GameFramework\Physics2D</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Input\Input.h">
+      <Filter>Header\Core\Input</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Component\Physics2DComponents.h">
+      <Filter>Header\GameFramework\Component</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Component\ScriptComponent.h">
+      <Filter>Header\GameFramework\Component</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Component\BuiltinComponentRegistry.h">
+      <Filter>Header\GameFramework\Component</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Reflection\ReflectionTypes.h">
+      <Filter>Header\GameFramework\Reflection</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Reflection\ReflectionRegistry.h">
+      <Filter>Header\GameFramework\Reflection</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Scripting\GameScript.h">
+      <Filter>Header\GameFramework\Scripting</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Scripting\ScriptSystem.h">
+      <Filter>Header\GameFramework\Scripting</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\FileSystem\FileWatcherTypes.h">
+      <Filter>Header\Editor</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\FileSystem\IFileWatcher.h">
+      <Filter>Header\Editor</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\FileSystem\Windows\WindowsFileWatcher.h">
+      <Filter>Header\Editor</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\LiveCompile\CompilePipeline.h">
+      <Filter>Header\Editor</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\LiveCompile\IDynamicLibrary.h">
+      <Filter>Header\Editor</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\LiveCompile\ICompilePipeline.h">
+      <Filter>Header\Editor</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\LiveCompile\ILiveCompileManager.h">
+      <Filter>Header\Editor</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\LiveCompile\LiveCompileManager.h">
+      <Filter>Header\Editor</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\LiveCompile\LiveCompileTypes.h">
+      <Filter>Header\Editor</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\LiveCompile\Windows\WindowsDynamicLibrary.h">
+      <Filter>Header\Editor</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\Project\ProjectManager.h">
+      <Filter>Header\Editor</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\Project\ProjectTypes.h">
+      <Filter>Header\Editor</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="pch.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Application\Application.cpp">
+      <Filter>Source\Application</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Asset\AssetManager.cpp">
+      <Filter>Source\Core\Asset</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Asset\AssetMetaFile.cpp">
+      <Filter>Source\Core\Asset</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Asset\AssetPath.cpp">
+      <Filter>Source\Core\Asset</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Asset\AssetRegistry.cpp">
+      <Filter>Source\Core\Asset</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Asset\FileAsset.cpp">
+      <Filter>Source\Core\Asset</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Asset\MaterialAsset.cpp">
+      <Filter>Source\Core\Asset</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Asset\SpriteAsset.cpp">
+      <Filter>Source\Core\Asset</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Asset\TextureAsset.cpp">
+      <Filter>Source\Core\Asset</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Engine.cpp">
+      <Filter>Source\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Module\Module.cpp">
+      <Filter>Source\Core\Module</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Platform\Web\WebCanvasSurface.cpp">
+      <Filter>Source\Core\Platform\Web</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Platform\Web\WebPlatform.cpp">
+      <Filter>Source\Core\Platform\Web</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Platform\Windows\WindowsPlatform.cpp">
+      <Filter>Source\Core\Platform\Windows</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Platform\Windows\WindowsRenderSurface.cpp">
+      <Filter>Source\Core\Platform\Windows</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\RHI\D3D11\D3D11CommandContext.cpp">
+      <Filter>Source\Core\RHI\D3D11</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\RHI\D3D11\D3D11Buffer.cpp">
+      <Filter>Source\Core\RHI\D3D11</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\RHI\D3D11\D3D11GraphicsPipeline.cpp">
+      <Filter>Source\Core\RHI\D3D11</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\RHI\D3D11\D3D11Program.cpp">
+      <Filter>Source\Core\RHI\D3D11</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\RHI\D3D11\D3D11Sampler.cpp">
+      <Filter>Source\Core\RHI\D3D11</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\RHI\D3D11\D3D11RHIDevice.cpp">
+      <Filter>Source\Core\RHI\D3D11</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\RHI\D3D11\D3D11Swapchain.cpp">
+      <Filter>Source\Core\RHI\D3D11</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\RHI\D3D11\D3D11Texture.cpp">
+      <Filter>Source\Core\RHI\D3D11</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\RHI\EmptyRHIDevice.cpp">
+      <Filter>Source\Core\RHI</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\RHI\WebGPU\WebGPUBuffer.cpp">
+      <Filter>Source\Core\RHI\WebGPU</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\RHI\WebGPU\WebGPUCommandContext.cpp">
+      <Filter>Source\Core\RHI\WebGPU</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\RHI\WebGPU\WebGPUGraphicsPipeline.cpp">
+      <Filter>Source\Core\RHI\WebGPU</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\RHI\WebGPU\WebGPURHIDevice.cpp">
+      <Filter>Source\Core\RHI\WebGPU</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\RHI\WebGPU\WebGPUProgram.cpp">
+      <Filter>Source\Core\RHI\WebGPU</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\RHI\WebGPU\WebGPUSampler.cpp">
+      <Filter>Source\Core\RHI\WebGPU</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\RHI\WebGPU\WebGPUSwapchain.cpp">
+      <Filter>Source\Core\RHI\WebGPU</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\RHI\WebGPU\WebGPUTexture.cpp">
+      <Filter>Source\Core\RHI\WebGPU</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Renderer\Forward2DRenderer.cpp">
+      <Filter>Source\Core\Renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Renderer\RenderResources2D.cpp">
+      <Filter>Source\Core\Renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Renderer\RenderScene.cpp">
+      <Filter>Source\Core\Renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Time\Time.cpp">
+      <Filter>Source\Core\Time</Filter>
+    </ClCompile>
+    <ClCompile Include="GameFramework\ECS\EntityManager.cpp">
+      <Filter>Source\GameFramework\ECS</Filter>
+    </ClCompile>
+    <ClCompile Include="GameFramework\Object\GameObject.cpp">
+      <Filter>Source\GameFramework\Object</Filter>
+    </ClCompile>
+    <ClCompile Include="GameFramework\Component\GameObjectComponent.cpp">
+      <Filter>Source\GameFramework\Object</Filter>
+    </ClCompile>
+    <ClCompile Include="GameFramework\Prefab\PrefabSerializer.cpp">
+      <Filter>Source\GameFramework\Prefab</Filter>
+    </ClCompile>
+    <ClCompile Include="GameFramework\Rendering\SpriteRenderSystem.cpp">
+      <Filter>Source\GameFramework\Rendering</Filter>
+    </ClCompile>
+    <ClCompile Include="GameFramework\Scene\Scene.cpp">
+      <Filter>Source\GameFramework\Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="GameFramework\Scene\SceneManager.cpp">
+      <Filter>Source\GameFramework\Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="GameFramework\Scene\SceneSerializer.cpp">
+      <Filter>Source\GameFramework\Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="GameFramework\Scene\SceneSnapshot.cpp">
+      <Filter>Source\GameFramework\Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="GameFramework\System\GameSystem.cpp">
+      <Filter>Source\GameFramework\System</Filter>
+    </ClCompile>
+    <ClCompile Include="GameFramework\Physics2D\Physics2DSystem.cpp">
+      <Filter>Source\GameFramework\Physics2D</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Thread\ThreadService.cpp">
+      <Filter>Source\Core\Thread</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Input\Input.cpp">
+      <Filter>Source\Core\Input</Filter>
+    </ClCompile>
+    <ClCompile Include="GameFramework\Physics2D\Physics2DGeometry.cpp">
+      <Filter>Source\GameFramework\Physics2D</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\FileSystem\FileSystem.cpp">
+      <Filter>Source\Core\FileSystem</Filter>
+    </ClCompile>
+    <ClCompile Include="GameFramework\Component\BuiltinComponentRegistry.cpp">
+      <Filter>Source\GameFramework\Component</Filter>
+    </ClCompile>
+    <ClCompile Include="GameFramework\Reflection\ReflectionRegistry.cpp">
+      <Filter>Source\GameFramework\Reflection</Filter>
+    </ClCompile>
+    <ClCompile Include="GameFramework\Scripting\GameScript.cpp">
+      <Filter>Source\GameFramework\Scripting</Filter>
+    </ClCompile>
+    <ClCompile Include="GameFramework\Scripting\ScriptSystem.cpp">
+      <Filter>Source\GameFramework\Scripting</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\FileSystem\Windows\WindowsFileWatcher.cpp">
+      <Filter>Source\Editor</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\LiveCompile\CompilePipeline.cpp">
+      <Filter>Source\Editor</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\LiveCompile\LiveCompileManager.cpp">
+      <Filter>Source\Editor</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\LiveCompile\Windows\WindowsDynamicLibrary.cpp">
+      <Filter>Source\Editor</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\Project\ProjectManager.cpp">
+      <Filter>Source\Editor</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>

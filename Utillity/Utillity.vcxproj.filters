@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Memory">
+      <UniqueIdentifier>{799C89E0-281D-49D7-9D34-E36594356E23}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="소스 파일">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="헤더 파일">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="리소스 파일">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Types">
+      <UniqueIdentifier>{9af64c5f-847d-40c5-a981-971c18cfc0eb}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Defines">
+      <UniqueIdentifier>{10e1168b-7d64-479a-b0b7-1ba5d4287c0d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Funcs">
+      <UniqueIdentifier>{ac381e03-9655-4826-9694-1b5e27396e1f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Utillity">
+      <UniqueIdentifier>{17b11351-b01d-464b-adb6-19564be6eaf0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Error">
+      <UniqueIdentifier>{281c8637-ad28-492d-a714-72ed556216fe}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Types\Pointer">
+      <UniqueIdentifier>{e68423f4-6c10-4e1d-b397-bbb908b44219}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="File">
+      <UniqueIdentifier>{b15debc0-3cb6-4ee8-aea5-31f149015a4f}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Framework.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="pch.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="Types.h">
+      <Filter>Types</Filter>
+    </ClInclude>
+    <ClInclude Include="Vector2T.h">
+      <Filter>Types</Filter>
+    </ClInclude>
+    <ClInclude Include="Matrix3x2.h">
+      <Filter>Types</Filter>
+    </ClInclude>
+    <ClInclude Include="SizeT.h">
+      <Filter>Types</Filter>
+    </ClInclude>
+    <ClInclude Include="RectT.h">
+      <Filter>Types</Filter>
+    </ClInclude>
+    <ClInclude Include="Defines.h">
+      <Filter>Defines</Filter>
+    </ClInclude>
+    <ClInclude Include="Funcs.h">
+      <Filter>Funcs</Filter>
+    </ClInclude>
+    <ClInclude Include="Memory\AllocatorTypes.h">
+      <Filter>Memory</Filter>
+    </ClInclude>
+    <ClInclude Include="Memory\BlockPoolAllocator.h">
+      <Filter>Memory</Filter>
+    </ClInclude>
+    <ClInclude Include="Memory\IAllocator.h">
+      <Filter>Memory</Filter>
+    </ClInclude>
+    <ClInclude Include="Memory\MallocAllocator.h">
+      <Filter>Memory</Filter>
+    </ClInclude>
+    <ClInclude Include="Utillities.h">
+      <Filter>Utillity</Filter>
+    </ClInclude>
+    <ClInclude Include="BitFlag.h">
+      <Filter>Types</Filter>
+    </ClInclude>
+    <ClInclude Include="StringUtillity.h">
+      <Filter>Utillity</Filter>
+    </ClInclude>
+    <ClInclude Include="Error.h">
+      <Filter>Error</Filter>
+    </ClInclude>
+    <ClInclude Include="SafePtr.h">
+      <Filter>Types\Pointer</Filter>
+    </ClInclude>
+    <ClInclude Include="File\FilePath.h">
+      <Filter>File</Filter>
+    </ClInclude>
+    <ClInclude Include="File\FileUtillities.h">
+      <Filter>File</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Utillity.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="pch.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="Vector2T.cpp">
+      <Filter>Types</Filter>
+    </ClCompile>
+    <ClCompile Include="SizeT.cpp">
+      <Filter>Types</Filter>
+    </ClCompile>
+    <ClCompile Include="RectT.cpp">
+      <Filter>Types</Filter>
+    </ClCompile>
+    <ClCompile Include="BitFlag.cpp">
+      <Filter>Types</Filter>
+    </ClCompile>
+    <ClCompile Include="StringUtillity.cpp">
+      <Filter>Utillity</Filter>
+    </ClCompile>
+    <ClCompile Include="Error.cpp">
+      <Filter>Error</Filter>
+    </ClCompile>
+    <ClCompile Include="Memory\BlockPoolAllocator.cpp">
+      <Filter>Memory</Filter>
+    </ClCompile>
+    <ClCompile Include="Memory\MallocAllocator.cpp">
+      <Filter>Memory</Filter>
+    </ClCompile>
+    <ClCompile Include="File\FilePath.cpp">
+      <Filter>File</Filter>
+    </ClCompile>
+    <ClCompile Include="File\FileUtillities.cpp">
+      <Filter>File</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>

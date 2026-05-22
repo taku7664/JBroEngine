@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JBroEngine Web</title>
+  <style>
+    html,
+    body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #111318;
+    }
+
+    #jbro-root {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+    }
+
+    #jbro-canvas {
+      width: 1280px;
+      height: 720px;
+      max-width: 100vw;
+      max-height: 100vh;
+      background: #151820;
+      outline: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="jbro-root">
+    <canvas id="jbro-canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
+  </div>
+
+  <script>
+    var Module = {
+      canvas: (function () {
+        return document.getElementById('jbro-canvas');
+      })(),
+      preRun: [function () {
+        if (!navigator.gpu) {
+          console.error('WebGPU is not available in this browser.');
+          return;
+        }
+
+        Module.addRunDependency('jbro-webgpu-device');
+        navigator.gpu.requestAdapter()
+          .then(function (adapter) {
+            if (!adapter) {
+              throw new Error('WebGPU adapter was not found.');
+            }
+            return adapter.requestDevice();
+          })
+          .then(function (device) {
+            Module.preinitializedWebGPUDevice = device;
+            Module.removeRunDependency('jbro-webgpu-device');
+          })
+          .catch(function (error) {
+            console.error(error);
+            Module.removeRunDependency('jbro-webgpu-device');
+          });
+      }],
+      print: function (text) {
+        console.log(text);
+      },
+      printErr: function (text) {
+        console.error(text);
+      }
+    };
+  </script>
+  {{{ SCRIPT }}}
+</body>
+</html>

@@ -1,0 +1,34 @@
+#pragma once
+
+#include "Core/Platform/IRenderSurface.h"
+
+#if JBRO_PLATFORM_WINDOWS
+using HWND = struct HWND__*;
+using UINT = unsigned int;
+using WPARAM = unsigned __int64;
+using LPARAM = __int64;
+using LRESULT = __int64;
+#endif
+
+class CWindowsRenderSurface final : public IRenderSurface
+{
+public:
+	bool Create(const RenderSurfaceCreateDesc& desc) override;
+	void Destroy() override;
+	void PollEvents(PlatformEvent& platformEvent) override;
+
+	RenderSurfaceSize GetSize() const override;
+	NativeSurfaceHandle GetNativeSurfaceHandle() const override;
+	void SetNativeMessageHandler(NativeSurfaceMessageHandler handler) override;
+
+private:
+#if JBRO_PLATFORM_WINDOWS
+	static LRESULT __stdcall WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
+#endif
+
+private:
+	RenderSurfaceCreateDesc m_desc;
+	NativeSurfaceMessageHandler m_nativeMessageHandler;
+	void* m_nativeHandle = nullptr;
+	bool m_isCreated = false;
+};
