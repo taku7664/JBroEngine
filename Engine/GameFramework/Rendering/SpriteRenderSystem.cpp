@@ -16,28 +16,7 @@
 #include "GameFramework/Component/TransformHierarchy2D.h"
 #include "GameFramework/Component/GameObject.h"
 #include "GameFramework/Scene/Scene.h"
-
-namespace
-{
-	Matrix3x2 CalculateWorldTransform(const CScene& scene, EntityId entity)
-	{
-		const Transform2D* transform = scene.GetComponent<Transform2D>(entity);
-		Matrix3x2 worldTransform = transform ? transform->ToMatrix3x2() : Matrix3x2::Identity();
-
-		EntityId parent = scene.GetParent(entity);
-		while (INVALID_ENTITY_ID != parent)
-		{
-			const Transform2D* parentTransform = scene.GetComponent<Transform2D>(parent);
-			if (parentTransform)
-			{
-				worldTransform = worldTransform * parentTransform->ToMatrix3x2();
-			}
-			parent = scene.GetParent(parent);
-		}
-
-		return worldTransform;
-	}
-}
+#include "GameFramework/Scene/SceneTransformUtils.h"
 
 CSpriteRenderSystem::CSpriteRenderSystem(IRenderScene* renderScene)
 	: m_renderScene(renderScene)
@@ -71,7 +50,7 @@ void CSpriteRenderSystem::OnUpdate(CScene& scene)
 	scene.ForEach<GameObject, Transform2D, SpriteRenderer2D>(
 		[this, &scene](EntityId entity, const GameObject& gameObject, const Transform2D&, SpriteRenderer2D& sprite)
 		{
-			if (false == gameObject.IsActive)
+			if (false == gameObject.IsActive || false == sprite.IsEnabled)
 			{
 				return;
 			}
@@ -125,7 +104,8 @@ void CSpriteRenderSystem::OnUpdate(CScene& scene)
 			item.Material = material;
 			item.Queue = material->GetRenderQueue();
 			item.LayerMask = sprite.LayerMask;
-			item.Transform = CalculateWorldTransform(scene, entity);
+			const Matrix3x2 spriteLocalTransform = Matrix3x2::Transform(sprite.Offset, 0.0f, sprite.Size);
+			item.Transform = spriteLocalTransform * GetWorldTransform(scene, entity);
 			for (int i = 0; i < 4; ++i)
 			{
 				item.Color[i] = sprite.Color[i];

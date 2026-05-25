@@ -16,6 +16,7 @@ public:
 	void SetRenderScene(IRenderScene* renderScene);
 	void SetDependencies(IAssetManager* assetManager, IRHIDevice* rhiDevice, IRenderer* renderer);
 	IRenderScene* GetRenderScene() const;
+	bool ShouldUpdateInEditMode() const override { return true; }
 
 protected:
 	void OnUpdate(CScene& scene) override;

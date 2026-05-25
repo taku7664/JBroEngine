@@ -33,6 +33,12 @@ void CD3D11CommandContext::BindNativeContext(ID3D11DeviceContext* deviceContext,
 	m_renderTargetView = renderTargetView;
 	m_renderSurfaceSize = renderSurfaceSize;
 }
+
+void CD3D11CommandContext::UpdateNativeRenderTarget(ID3D11RenderTargetView* renderTargetView, const RenderSurfaceSize& renderSurfaceSize)
+{
+	m_renderTargetView  = renderTargetView;
+	m_renderSurfaceSize = renderSurfaceSize;
+}
 #endif
 
 void CD3D11CommandContext::BeginFrame()
@@ -242,6 +248,27 @@ void CD3D11CommandContext::SetSampler(ERHIProgramStage stage, std::uint32_t slot
 	(void)stage;
 	(void)slot;
 	(void)sampler;
+#endif
+}
+
+void CD3D11CommandContext::SetViewport(float x, float y, float width, float height,
+                                        float minDepth, float maxDepth)
+{
+#if JBRO_PLATFORM_WINDOWS
+	if (nullptr == m_deviceContext)
+	{
+		return;
+	}
+	D3D11_VIEWPORT vp = {};
+	vp.TopLeftX = x;
+	vp.TopLeftY = y;
+	vp.Width    = (width  > 0.0f) ? width  : 1.0f;
+	vp.Height   = (height > 0.0f) ? height : 1.0f;
+	vp.MinDepth = minDepth;
+	vp.MaxDepth = maxDepth;
+	m_deviceContext->RSSetViewports(1, &vp);
+#else
+	(void)x; (void)y; (void)width; (void)height; (void)minDepth; (void)maxDepth;
 #endif
 }
 

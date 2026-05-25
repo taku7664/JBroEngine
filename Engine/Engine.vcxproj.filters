@@ -38,6 +38,9 @@
     <Filter Include="Source\Core\RHI\WebGPU">
       <UniqueIdentifier>{32A4AE3B-2419-483E-99D5-C8773730565B}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source\Core\Debug">
+      <UniqueIdentifier>{C3E5F792-4B6D-5A8E-DA9F-2E3F4D5C6B7A}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Source\Core\Renderer">
       <UniqueIdentifier>{877167BD-8E69-4E24-8324-81F6E5E8F4F5}</UniqueIdentifier>
     </Filter>
@@ -102,6 +105,9 @@
     <Filter Include="Header\Core\RHI\WebGPU">
       <UniqueIdentifier>{B5B73667-A56D-4C59-99A8-529715465CFD}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header\Core\Debug">
+      <UniqueIdentifier>{A1C3F891-2D4B-4E7F-B8C5-0D1E2F3A4B5C}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Header\Core\Renderer">
       <UniqueIdentifier>{3D06AC59-4AF6-48E3-BE58-1B040F3EEDE5}</UniqueIdentifier>
     </Filter>
@@ -147,6 +153,9 @@
     <Filter Include="Source\Core\Thread">
       <UniqueIdentifier>{A40AB456-334D-4F5A-8459-6D233F63DCC2}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source\GameFramework\Debug">
+      <UniqueIdentifier>{D4F6E893-5C7E-6B9F-EB0A-3F4E5D6C7B8A}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Source\GameFramework\Physics2D">
       <UniqueIdentifier>{16BC64C2-0B71-4512-A64C-80AD4B9BF49B}</UniqueIdentifier>
     </Filter>
@@ -158,6 +167,15 @@
     </Filter>
     <Filter Include="Header\Core\Thread">
       <UniqueIdentifier>{4E8BB584-856F-44FB-BD31-98E12C743509}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Core\Logging">
+      <UniqueIdentifier>{29D05E8C-F216-4F8C-B8C5-A4E58B466948}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\Core\Logging">
+      <UniqueIdentifier>{38C3E9AD-BD1B-4894-9F18-BBB2A4525F14}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\GameFramework\Debug">
+      <UniqueIdentifier>{B2D4E681-3A5C-4F8D-C9E7-1F2D3E4A5B6C}</UniqueIdentifier>
     </Filter>
     <Filter Include="Header\GameFramework\Physics2D">
       <UniqueIdentifier>{557649F1-7C94-4449-AEE6-974AE2FC625D}</UniqueIdentifier>
@@ -180,11 +198,35 @@
     <Filter Include="Source\GameFramework\Scripting">
       <UniqueIdentifier>{1A6D3343-6CD7-4561-AFF7-78928C9F91B4}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header\GameFramework\Transform">
+      <UniqueIdentifier>{B2E4A7C1-3F58-4D9A-B3C2-6E7A1F2D8B45}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\GameFramework\Transform">
+      <UniqueIdentifier>{C3F5B8D2-4A69-5E0B-C4D3-7F8B2G3E9C56}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Source\GameFramework\Prefab">
       <UniqueIdentifier>{E0823F05-1515-48E9-9511-BF2DBDCE2448}</UniqueIdentifier>
     </Filter>
     <Filter Include="Header\GameFramework\Prefab">
       <UniqueIdentifier>{0899FB62-1F4E-4C45-AC44-F754F0157980}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Core\Network">
+      <UniqueIdentifier>{B1A3F742-9C1E-4D5A-B823-1F2C3A4B5D6E}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Core\Network\Windows">
+      <UniqueIdentifier>{C2B4G853-AD2F-5E6B-C934-2G3D4B5C6E7F}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Core\Network\Web">
+      <UniqueIdentifier>{D3C5H964-BE3G-6F7C-DA45-3H4E5C6D7F8G}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\Core\Network">
+      <UniqueIdentifier>{E4D6I075-CF4H-7G8D-EB56-4I5F6D7E8G9H}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\Core\Network\Windows">
+      <UniqueIdentifier>{F5E7J186-DG5I-8H9E-FC67-5J6G7E8F9H0I}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\Core\Network\Web">
+      <UniqueIdentifier>{G6F8K297-EH6J-9I0F-GD78-6K7H8F9G0I1J}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -371,6 +413,18 @@
     <ClInclude Include="Core\RHI\WebGPU\WebGPUTexture.h">
       <Filter>Header\Core\RHI\WebGPU</Filter>
     </ClInclude>
+    <ClInclude Include="Core\Debug\DebugDraw.h">
+      <Filter>Header\Core\Debug</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Debug\DebugDraw2D.h">
+      <Filter>Header\Core\Debug</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Debug\DebugRenderer.h">
+      <Filter>Header\Core\Debug</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Debug\DebugRenderer2D.h">
+      <Filter>Header\Core\Debug</Filter>
+    </ClInclude>
     <ClInclude Include="Core\Renderer\Forward2DRenderer.h">
       <Filter>Header\Core\Renderer</Filter>
     </ClInclude>
@@ -479,11 +533,41 @@
     <ClInclude Include="Core\Thread\ThreadService.h">
       <Filter>Header\Core\Thread</Filter>
     </ClInclude>
+    <ClInclude Include="Core\Network\NetworkTypes.h">
+      <Filter>Header\Core\Network</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Network\INetworkTransport.h">
+      <Filter>Header\Core\Network</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Network\INetworkManager.h">
+      <Filter>Header\Core\Network</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Network\NetworkManager.h">
+      <Filter>Header\Core\Network</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Network\Windows\WinSockTransport.h">
+      <Filter>Header\Core\Network\Windows</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Network\Web\WebSocketTransport.h">
+      <Filter>Header\Core\Network\Web</Filter>
+    </ClInclude>
     <ClInclude Include="Core\FileSystem\FileSystemTypes.h">
       <Filter>Header\Core\FileSystem</Filter>
     </ClInclude>
     <ClInclude Include="Core\Thread\ThreadTypes.h">
       <Filter>Header\Core\Thread</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Logging\Logger.h">
+      <Filter>Header\Core\Logging</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Logging\LoggerInternal.h">
+      <Filter>Header\Core\Logging</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Logging\LoggerTypes.h">
+      <Filter>Header\Core\Logging</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Debug\SceneDebugDrawSystem.h">
+      <Filter>Header\GameFramework\Debug</Filter>
     </ClInclude>
     <ClInclude Include="GameFramework\Physics2D\Physics2DSystem.h">
       <Filter>Header\GameFramework\Physics2D</Filter>
@@ -511,6 +595,12 @@
     </ClInclude>
     <ClInclude Include="GameFramework\Scripting\ScriptSystem.h">
       <Filter>Header\GameFramework\Scripting</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Component\WorldTransform2D.h">
+      <Filter>Header\GameFramework\Component</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Transform\TransformSystem.h">
+      <Filter>Header\GameFramework\Transform</Filter>
     </ClInclude>
     <ClInclude Include="Editor\FileSystem\FileWatcherTypes.h">
       <Filter>Header\Editor</Filter>
@@ -540,6 +630,9 @@
       <Filter>Header\Editor</Filter>
     </ClInclude>
     <ClInclude Include="Editor\LiveCompile\Windows\WindowsDynamicLibrary.h">
+      <Filter>Header\Editor</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\ScriptModule\ScriptModuleLoader.h">
       <Filter>Header\Editor</Filter>
     </ClInclude>
     <ClInclude Include="Editor\Project\ProjectManager.h">
@@ -582,6 +675,15 @@
     </ClCompile>
     <ClCompile Include="Core\Engine.cpp">
       <Filter>Source\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Network\NetworkManager.cpp">
+      <Filter>Source\Core\Network</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Network\Windows\WinSockTransport.cpp">
+      <Filter>Source\Core\Network\Windows</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Network\Web\WebSocketTransport.cpp">
+      <Filter>Source\Core\Network\Web</Filter>
     </ClCompile>
     <ClCompile Include="Core\Module\Module.cpp">
       <Filter>Source\Core\Module</Filter>
@@ -649,6 +751,18 @@
     <ClCompile Include="Core\RHI\WebGPU\WebGPUTexture.cpp">
       <Filter>Source\Core\RHI\WebGPU</Filter>
     </ClCompile>
+    <ClCompile Include="Core\Debug\DebugDraw.cpp">
+      <Filter>Source\Core\Debug</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Debug\DebugDraw2D.cpp">
+      <Filter>Source\Core\Debug</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Debug\DebugRenderer.cpp">
+      <Filter>Source\Core\Debug</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Debug\DebugRenderer2D.cpp">
+      <Filter>Source\Core\Debug</Filter>
+    </ClCompile>
     <ClCompile Include="Core\Renderer\Forward2DRenderer.cpp">
       <Filter>Source\Core\Renderer</Filter>
     </ClCompile>
@@ -691,6 +805,9 @@
     <ClCompile Include="GameFramework\System\GameSystem.cpp">
       <Filter>Source\GameFramework\System</Filter>
     </ClCompile>
+    <ClCompile Include="GameFramework\Debug\SceneDebugDrawSystem.cpp">
+      <Filter>Source\GameFramework\Debug</Filter>
+    </ClCompile>
     <ClCompile Include="GameFramework\Physics2D\Physics2DSystem.cpp">
       <Filter>Source\GameFramework\Physics2D</Filter>
     </ClCompile>
@@ -699,6 +816,9 @@
     </ClCompile>
     <ClCompile Include="Core\Input\Input.cpp">
       <Filter>Source\Core\Input</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Logging\Logger.cpp">
+      <Filter>Source\Core\Logging</Filter>
     </ClCompile>
     <ClCompile Include="GameFramework\Physics2D\Physics2DGeometry.cpp">
       <Filter>Source\GameFramework\Physics2D</Filter>
@@ -718,6 +838,9 @@
     <ClCompile Include="GameFramework\Scripting\ScriptSystem.cpp">
       <Filter>Source\GameFramework\Scripting</Filter>
     </ClCompile>
+    <ClCompile Include="GameFramework\Transform\TransformSystem.cpp">
+      <Filter>Source\GameFramework\Transform</Filter>
+    </ClCompile>
     <ClCompile Include="Editor\FileSystem\Windows\WindowsFileWatcher.cpp">
       <Filter>Source\Editor</Filter>
     </ClCompile>
@@ -728,6 +851,9 @@
       <Filter>Source\Editor</Filter>
     </ClCompile>
     <ClCompile Include="Editor\LiveCompile\Windows\WindowsDynamicLibrary.cpp">
+      <Filter>Source\Editor</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\ScriptModule\ScriptModuleLoader.cpp">
       <Filter>Source\Editor</Filter>
     </ClCompile>
     <ClCompile Include="Editor\Project\ProjectManager.cpp">

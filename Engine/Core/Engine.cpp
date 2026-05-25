@@ -4,6 +4,8 @@
 #include "Core/Core.h"
 #include "Core/FileSystem/FileSystem.h"
 #include "Core/Input/Input.h"
+#include "Core/Logging/Logger.h"
+#include "Core/Logging/LoggerInternal.h"
 #include "Core/Module/Module.h"
 #include "Core/Asset/AssetManager.h"
 #include "Core/Asset/FileAsset.h"
@@ -23,6 +25,14 @@
 #include "Core/RHI/EmptyRHIDevice.h"
 #include "Core/Thread/ThreadService.h"
 #include "Core/Time/Time.h"
+#include "Core/Network/NetworkManager.h"
+#include "Core/Network/INetworkManager.h"
+#include "Core/Debug/DebugDraw2D.h"
+#if JBRO_PLATFORM_WINDOWS
+#include "Core/Network/Windows/WinSockTransport.h"
+#elif JBRO_PLATFORM_WEB
+#include "Core/Network/Web/WebSocketTransport.h"
+#endif
 #include "GameFramework/Component/BuiltinComponentRegistry.h"
 #include "GameFramework/Reflection/ReflectionRegistry.h"
 #include "GameFramework/Scene/SceneManager.h"
@@ -106,6 +116,18 @@ void CEngine::Finalize()
 		m_assetManager.Reset();
 	}
 
+	Core::Network = nullptr;
+	if (m_networkManager)
+	{
+		m_networkManager->Finalize();
+		m_networkManager.Reset();
+	}
+
+	// DebugDraw2D must be cleared before scene manager so any scene-system
+	// destructors that draw debug primitives don't hit a dangling pointer.
+	Core::DebugDraw2D = nullptr;
+	m_debugDraw.Reset();
+
 	Core::SceneManager = nullptr;
 	m_sceneManager.Reset();
 	Core::Thread = nullptr;
@@ -116,6 +138,8 @@ void CEngine::Finalize()
 	}
 	Core::Reflection = nullptr;
 	m_reflectionRegistry.Reset();
+	Core::Logger = nullptr;
+	m_logger.Reset();
 	Core::FileSystem = nullptr;
 	if (m_fileSystem)
 	{
@@ -206,8 +230,9 @@ bool CEngine::InitializeCoreServices()
 	m_fileSystem = MakeOwnerPtr<CFileSystem>();
 	m_threadService = MakeOwnerPtr<CThreadService>();
 	m_reflectionRegistry = MakeOwnerPtr<CReflectionRegistry>();
+	m_logger = MakeOwnerPtr<CLogger>();
 	m_sceneManager = MakeOwnerPtr<CSceneManager>();
-	if (!m_time || !m_input || !m_fileSystem || !m_threadService || !m_reflectionRegistry || !m_sceneManager)
+	if (!m_time || !m_input || !m_fileSystem || !m_threadService || !m_reflectionRegistry || !m_logger || !m_sceneManager)
 	{
 		return false;
 	}
@@ -222,14 +247,49 @@ bool CEngine::InitializeCoreServices()
 		return false;
 	}
 
+	m_debugDraw = MakeOwnerPtr<CDebugDraw2D>();
+
 	Core::Time = m_time.GetSafePtr();
 	Core::Input = m_input.GetSafePtr();
 	Core::FileSystem = m_fileSystem.GetSafePtr();
 	Core::Thread = m_threadService.GetSafePtr();
 	Core::Reflection = m_reflectionRegistry.GetSafePtr();
+	Core::Logger = m_logger.GetSafePtr();
 	Core::SceneManager = m_sceneManager.GetSafePtr();
+	Core::DebugDraw2D = m_debugDraw.GetSafePtr();
+	CSystemLog::Info("Core services initialized.");
 
 	RegisterBuiltinComponents(*m_reflectionRegistry);
+	return true;
+}
+
+bool CEngine::InitializeNetwork()
+{
+	if (m_networkManager)
+	{
+		return true; // Already initialized.
+	}
+
+	OwnerPtr<INetworkTransport> transport;
+#if JBRO_PLATFORM_WINDOWS
+	transport = MakeOwnerPtr<CWinSockTransport>();
+#elif JBRO_PLATFORM_WEB
+	transport = MakeOwnerPtr<CWebSocketTransport>();
+#else
+	CSystemLog::Warning("InitializeNetwork: unsupported platform.");
+	return false;
+#endif
+
+	m_networkManager = MakeOwnerPtr<CNetworkManager>(std::move(transport));
+	if (!m_networkManager || false == m_networkManager->Initialize())
+	{
+		m_networkManager.Reset();
+		return false;
+	}
+
+	Core::Network = m_networkManager.GetSafePtr();
+	m_context.NetworkManager = m_networkManager.GetSafePtr();
+	CSystemLog::Info("Network initialized.");
 	return true;
 }
 
@@ -310,6 +370,12 @@ bool CEngine::InitializeRenderer()
 
 void CEngine::BeginFrame()
 {
+	// Clear debug draw commands accumulated in the previous frame.
+	if (m_debugDraw)
+	{
+		m_debugDraw->Clear();
+	}
+
 	if (m_time)
 	{
 		m_time->BeginFrame();
@@ -349,6 +415,10 @@ void CEngine::UpdateCoreServices()
 	{
 		m_sceneManager->Update();
 	}
+	if (m_networkManager)
+	{
+		m_networkManager->Update();
+	}
 }
 
 void CEngine::PrepareRenderModules()
@@ -369,6 +439,23 @@ void CEngine::RenderFrame()
 		return;
 	}
 
+	// ── Window resize detection ────────────────────────────────────────────────
+	// Query the actual client area size each frame.  When it differs from the
+	// last known size, call HandleSurfaceResize so the swapchain buffers and the
+	// command context's render-target view are updated before we render.
+	if (SafePtr<IRenderSurface> surface = GetMainRenderSurface())
+	{
+		const RenderSurfaceSize currentSize = surface->GetSize();
+		if (currentSize.Width  > 0 && currentSize.Height > 0 &&
+		    (currentSize.Width  != m_lastSurfaceWidth ||
+		     currentSize.Height != m_lastSurfaceHeight))
+		{
+			m_rhiDevice->HandleSurfaceResize(currentSize);
+			m_lastSurfaceWidth  = currentSize.Width;
+			m_lastSurfaceHeight = currentSize.Height;
+		}
+	}
+
 	m_rhiDevice->BeginFrame();
 	PrepareRenderModules();
 
@@ -383,6 +470,10 @@ void CEngine::RenderFrame()
 		commandContext->BeginRenderPass(renderPassDesc);
 		if (m_renderer && m_renderScene)
 		{
+			if (SafePtr<IRenderSurface> mainRenderSurface = GetMainRenderSurface())
+			{
+				m_renderer->SetRenderTargetSize(mainRenderSurface->GetSize());
+			}
 			m_renderer->Render(*m_renderScene);
 			m_renderScene->Clear();
 		}
@@ -428,16 +519,18 @@ void CEngine::FillRenderSurfaceDesc(RHIDesc& desc) const
 
 void CEngine::SyncContext()
 {
-	m_context.Platform = GetPlatform();
+	m_context.Platform          = GetPlatform();
 	m_context.MainRenderSurface = GetMainRenderSurface();
-	m_context.RHIDevice = GetRHIDevice();
-	m_context.AssetManager = GetAssetManager();
-	m_context.Renderer = GetRenderer();
-	m_context.RenderScene = GetRenderScene();
-	m_context.Time = m_time ? m_time.GetSafePtr() : nullptr;
-	m_context.Input = m_input ? m_input.GetSafePtr() : nullptr;
-	m_context.SceneManager = m_sceneManager ? m_sceneManager.GetSafePtr() : nullptr;
-	m_context.FileSystem = m_fileSystem ? m_fileSystem.GetSafePtr() : nullptr;
-	m_context.Thread = m_threadService ? m_threadService.GetSafePtr() : nullptr;
-	m_context.Reflection = m_reflectionRegistry ? m_reflectionRegistry.GetSafePtr() : nullptr;
+	m_context.RHIDevice         = GetRHIDevice();
+	m_context.AssetManager      = GetAssetManager();
+	m_context.Renderer          = GetRenderer();
+	m_context.RenderScene       = GetRenderScene();
+	m_context.Time              = m_time              ? m_time.GetSafePtr()              : nullptr;
+	m_context.Input             = m_input             ? m_input.GetSafePtr()             : nullptr;
+	m_context.SceneManager      = m_sceneManager      ? m_sceneManager.GetSafePtr()      : nullptr;
+	m_context.FileSystem        = m_fileSystem        ? m_fileSystem.GetSafePtr()        : nullptr;
+	m_context.Thread            = m_threadService     ? m_threadService.GetSafePtr()     : nullptr;
+	m_context.Reflection        = m_reflectionRegistry ? m_reflectionRegistry.GetSafePtr() : nullptr;
+	m_context.Logger            = m_logger            ? m_logger.GetSafePtr()            : nullptr;
+	m_context.NetworkManager    = m_networkManager    ? m_networkManager.GetSafePtr()    : nullptr;
 }

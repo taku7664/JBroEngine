@@ -1,7 +1,10 @@
 #include "pch.h"
 #include "SceneManager.h"
 
+#include "Core/Core.h"
+#include "Core/Time/Time.h"
 #include "GameFramework/Scene/Scene.h"
+#include "GameFramework/Scene/SceneSerializer.h"
 
 CSceneManager::~CSceneManager()
 {
@@ -97,16 +100,96 @@ bool CSceneManager::GetLoadedSceneNames(std::vector<std::string>& outNames) cons
 	return true;
 }
 
+void CSceneManager::PlaySimulation()
+{
+	if (ESceneSimulationState::Edit == m_simulationState && m_activeScene)
+	{
+		CSceneSerializer serializer;
+		m_playModeSnapshot.clear();
+		serializer.SerializeToText(*m_activeScene, m_playModeSnapshot);
+	}
+
+	m_simulationState = ESceneSimulationState::Playing;
+}
+
+void CSceneManager::PauseSimulation()
+{
+	if (ESceneSimulationState::Playing == m_simulationState)
+	{
+		m_simulationState = ESceneSimulationState::Paused;
+	}
+}
+
+void CSceneManager::StopSimulation()
+{
+	if (ESceneSimulationState::Edit != m_simulationState && m_activeScene && false == m_playModeSnapshot.empty())
+	{
+		CSceneSerializer serializer;
+		serializer.DeserializeFromText(*m_activeScene, m_playModeSnapshot.c_str());
+	}
+
+	m_playModeSnapshot.clear();
+	m_simulationState    = ESceneSimulationState::Edit;
+	m_fixedAccumulator   = 0.0f;
+}
+
+bool CSceneManager::IsSimulationPlaying() const
+{
+	return ESceneSimulationState::Playing == m_simulationState;
+}
+
+bool CSceneManager::IsSimulationPaused() const
+{
+	return ESceneSimulationState::Paused == m_simulationState;
+}
+
+ESceneSimulationState CSceneManager::GetSimulationState() const
+{
+	return m_simulationState;
+}
+
 void CSceneManager::Update()
 {
-	if (m_activeScene)
+	if (!m_activeScene)
 	{
-		m_activeScene->Update();
+		return;
 	}
+
+	const bool isPlaying = IsSimulationPlaying();
+
+	// ── Fixed update loop ────────────────────────────────────────────────────
+	// Accumulates scaled delta time and steps the physics + FixedUpdate at a
+	// consistent interval regardless of frame rate.
+	// Only runs during active simulation (not in Edit or Paused state).
+	if (isPlaying && Core::Time)
+	{
+		const float fixedDelta = Core::Time->GetFixedDeltaSeconds();
+		m_fixedAccumulator += Core::Time->GetDeltaSeconds();
+
+		// Spiral-of-death guard: cap accumulator to 8 fixed steps.
+		// If the game hiccups, we lose fixed-update steps rather than
+		// trying to catch up indefinitely and freezing the frame.
+		const float maxAccumulator = fixedDelta * 8.0f;
+		if (m_fixedAccumulator > maxAccumulator)
+		{
+			m_fixedAccumulator = maxAccumulator;
+		}
+
+		while (m_fixedAccumulator >= fixedDelta)
+		{
+			m_activeScene->FixedUpdate();
+			m_fixedAccumulator -= fixedDelta;
+		}
+	}
+
+	// ── Variable update ──────────────────────────────────────────────────────
+	m_activeScene->Update(isPlaying);
 }
 
 void CSceneManager::Clear()
 {
 	m_activeScene = nullptr;
 	m_scenes.clear();
+	m_simulationState = ESceneSimulationState::Edit;
+	m_playModeSnapshot.clear();
 }

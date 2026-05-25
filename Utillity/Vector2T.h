@@ -104,7 +104,7 @@ struct Vector2
 
 	static double Distance(const Vector2& a, const Vector2& b)
 	{
-		return (a - b).LengthSqrt();
+		return (a - b).Length();
 	}
 
 	static Vector2 Lerp(const Vector2& a, const Vector2& b, T t)

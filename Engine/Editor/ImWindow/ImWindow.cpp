@@ -132,6 +132,14 @@ void CImWindow::Destroy()
 	}
 }
 
+void CImWindow::Focus()
+{
+	if (m_bIsAlive)
+	{
+		ImGui::SetWindowFocus(m_title.c_str());
+	}
+}
+
 void CImWindow::InitializeDockLayout( ImGuiDir dir )
 {
 	m_initDockLayoutDirection = dir;
@@ -321,13 +329,14 @@ void CImWindow::HandleBegin()
 	m_bBeginResult = ImGui::Begin(label, isAlive, flags);
 
 	m_imWindow = ImGui::GetCurrentWindow();
-	if (m_bBeginResult && ImGui::BeginMenuBar())
+
+	OnPostBegin();
+
+	if (m_bBeginResult && m_imguiFlags.Has(ImGuiWindowFlags_MenuBar) && ImGui::BeginMenuBar())
 	{
 		OnMenuBar();
 		ImGui::EndMenuBar();
 	}
-
-	OnPostBegin();
 }
 
 void CImWindow::HandleRender()

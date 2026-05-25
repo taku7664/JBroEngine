@@ -7,3 +7,10 @@ enum class ESceneSerializeResult
 	IoError,
 	ParseError
 };
+
+enum class ESceneSimulationState
+{
+	Edit,
+	Playing,
+	Paused,
+};

@@ -14,11 +14,14 @@ class IAssetManager;
 class IRenderer;
 class IRenderScene;
 class CSceneManager;
+class CNetworkManager;
+class CDebugDraw2D;
 class CTime;
 class CInput;
 class CFileSystem;
 class CThreadService;
 class CReflectionRegistry;
+class CLogger;
 
 class CEngine final : public EnableSafeFromThis<CEngine>
 {
@@ -38,13 +41,17 @@ public:
 	void InitializeModule(CModule& module, const char* moduleName);
 	void FinalizeModule(CModule& module);
 
-	const EngineContext& GetContext() const;
-	SafePtr<IPlatform> GetPlatform() const;
+	// Optional subsystem — call after Initialize() to enable networking.
+	// Safe to call multiple times; subsequent calls are no-ops.
+	bool InitializeNetwork();
+
+	const EngineContext&    GetContext()           const;
+	SafePtr<IPlatform>      GetPlatform()          const;
 	SafePtr<IRenderSurface> GetMainRenderSurface() const;
-	SafePtr<IRHIDevice> GetRHIDevice() const;
-	SafePtr<IAssetManager> GetAssetManager() const;
-	SafePtr<IRenderer> GetRenderer() const;
-	SafePtr<IRenderScene> GetRenderScene() const;
+	SafePtr<IRHIDevice>     GetRHIDevice()         const;
+	SafePtr<IAssetManager>  GetAssetManager()      const;
+	SafePtr<IRenderer>      GetRenderer()          const;
+	SafePtr<IRenderScene>   GetRenderScene()       const;
 
 private:
 	bool InitializePlatform();
@@ -62,18 +69,25 @@ private:
 	void SyncContext();
 
 private:
-	OwnerPtr<IPlatform> m_platform;
-	OwnerPtr<IRHIDevice> m_rhiDevice;
-	OwnerPtr<IAssetManager> m_assetManager;
-	OwnerPtr<IRenderer> m_renderer;
-	OwnerPtr<IRenderScene> m_renderScene;
-	OwnerPtr<CTime> m_time;
-	OwnerPtr<CInput> m_input;
-	OwnerPtr<CFileSystem> m_fileSystem;
-	OwnerPtr<CThreadService> m_threadService;
+	OwnerPtr<IPlatform>           m_platform;
+	OwnerPtr<IRHIDevice>          m_rhiDevice;
+	OwnerPtr<IAssetManager>       m_assetManager;
+	OwnerPtr<IRenderer>           m_renderer;
+	OwnerPtr<IRenderScene>        m_renderScene;
+	OwnerPtr<CTime>               m_time;
+	OwnerPtr<CInput>              m_input;
+	OwnerPtr<CFileSystem>         m_fileSystem;
+	OwnerPtr<CThreadService>      m_threadService;
 	OwnerPtr<CReflectionRegistry> m_reflectionRegistry;
-	OwnerPtr<CSceneManager> m_sceneManager;
-	std::vector<CModule*> m_modules;
-	EngineContext m_context;
-	bool m_isInitialized = false;
+	OwnerPtr<CLogger>             m_logger;
+	OwnerPtr<CSceneManager>       m_sceneManager;
+	OwnerPtr<CNetworkManager>     m_networkManager;   // null until InitializeNetwork()
+	OwnerPtr<CDebugDraw2D>        m_debugDraw;
+	std::vector<CModule*>         m_modules;
+	EngineContext                 m_context;
+	bool                          m_isInitialized = false;
+
+	// Track the last known surface size to detect window resize each frame.
+	int m_lastSurfaceWidth  = 0;
+	int m_lastSurfaceHeight = 0;
 };

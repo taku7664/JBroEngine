@@ -8,5 +8,6 @@ public:
 
 private:
 	void OnCreate() override;
+	void OnRenderStay() override;
 	void OnMenuBar() override;
 };

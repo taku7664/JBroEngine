@@ -1,6 +1,9 @@
 #include "pch.h"
 #include "ImEditor.h"
 
+#include "Core/Core.h"
+#include "Core/Debug/DebugDraw2D.h"
+#include "Core/Debug/DebugRenderer2D.h"
 #include "Core/EngineContext.h"
 #include "Core/Renderer/IRenderer.h"
 #include "Core/Renderer/IRenderScene.h"
@@ -149,6 +152,11 @@ SafePtr<CProjectManager> CImEditor::GetProjectManager() const
 	return m_projectManager.GetSafePtr();
 }
 
+const EngineContext* CImEditor::GetEditorEngineContext() const
+{
+	return GetEngineContext();
+}
+
 void CImEditor::RequestSceneViewRenderTarget(std::uint32_t width, std::uint32_t height)
 {
 	m_sceneViewRequested = 0 != width && 0 != height;
@@ -160,9 +168,16 @@ void CImEditor::RequestSceneViewRenderTarget(std::uint32_t width, std::uint32_t 
 	if (m_sceneViewWidth != width || m_sceneViewHeight != height)
 	{
 		m_sceneViewRenderTarget.Reset();
-		m_sceneViewWidth = width;
+		m_sceneViewWidth  = width;
 		m_sceneViewHeight = height;
 	}
+}
+
+void CImEditor::SetSceneViewCamera(float posX, float posY, float orthographicSize)
+{
+	m_sceneViewCamX    = posX;
+	m_sceneViewCamY    = posY;
+	m_sceneViewCamSize = orthographicSize > 0.0f ? orthographicSize : 5.0f;
 }
 
 SafePtr<IRHITexture> CImEditor::GetSceneViewRenderTarget() const
@@ -176,8 +191,42 @@ void* CImEditor::GetSceneViewTextureID() const
 	{
 		return nullptr;
 	}
-
 	return m_sceneViewRenderTarget->GetNativeHandle().ShaderResourceView;
+}
+
+void CImEditor::RequestGameViewRenderTarget(std::uint32_t width, std::uint32_t height)
+{
+	m_gameViewRequested = 0 != width && 0 != height;
+	if (false == m_gameViewRequested)
+	{
+		// No camera this frame — destroy the RT so GetGameViewTextureID() returns null
+		// and GameViewTool shows the "No Camera" overlay instead of a stale image.
+		m_gameViewRenderTarget.Reset();
+		m_gameViewWidth  = 0;
+		m_gameViewHeight = 0;
+		return;
+	}
+
+	if (m_gameViewWidth != width || m_gameViewHeight != height)
+	{
+		m_gameViewRenderTarget.Reset();
+		m_gameViewWidth  = width;
+		m_gameViewHeight = height;
+	}
+}
+
+void CImEditor::SetGameViewCameras(const std::vector<GameCameraDesc>& cameras)
+{
+	m_gameViewCameras = cameras;
+}
+
+void* CImEditor::GetGameViewTextureID() const
+{
+	if (false == static_cast<bool>(m_gameViewRenderTarget))
+	{
+		return nullptr;
+	}
+	return m_gameViewRenderTarget->GetNativeHandle().ShaderResourceView;
 }
 
 void CImEditor::OpenPopup(const ImPopupDesc& desc)
@@ -200,10 +249,31 @@ void CImEditor::OnPostInitialize()
             m_projectManager->Initialize(*engineContext);
         }
     }
+
+    // Initialize the GPU debug renderer.
+    if (const EngineContext* engineContext = GetEngineContext())
+    {
+        if (engineContext->RHIDevice.IsValid())
+        {
+            m_debugRenderer = MakeOwnerPtr<CDebugRenderer2D>();
+            if (m_debugRenderer)
+            {
+                if (false == m_debugRenderer->Initialize(engineContext->RHIDevice))
+                {
+                    m_debugRenderer.Reset();
+                }
+            }
+        }
+    }
 }
 
 void CImEditor::OnPreFinalize()
 {
+    if (m_debugRenderer)
+    {
+        m_debugRenderer->Finalize();
+        m_debugRenderer.Reset();
+    }
     if (m_projectManager)
     {
         m_projectManager->Finalize();
@@ -232,29 +302,11 @@ void CImEditor::OnUpdate()
 
 void CImEditor::OnPrepareRender()
 {
-	if (false == m_sceneViewRequested)
-	{
-		return;
-	}
-
 	const EngineContext* engineContext = GetEngineContext();
-	if (nullptr == engineContext || false == engineContext->RHIDevice.IsValid() || false == engineContext->Renderer.IsValid() || false == engineContext->RenderScene.IsValid())
-	{
-		return;
-	}
-
-	if (false == static_cast<bool>(m_sceneViewRenderTarget))
-	{
-		RHITexture2DDesc textureDesc;
-		textureDesc.Width = m_sceneViewWidth;
-		textureDesc.Height = m_sceneViewHeight;
-		textureDesc.Format = ERHITextureFormat::RGBA8;
-		textureDesc.BindFlags = static_cast<RHITextureBindFlags>(ERHITextureBindFlag::ShaderResource) |
-			static_cast<RHITextureBindFlags>(ERHITextureBindFlag::RenderTarget);
-		m_sceneViewRenderTarget = engineContext->RHIDevice->CreateTexture2D(textureDesc, nullptr);
-	}
-
-	if (false == static_cast<bool>(m_sceneViewRenderTarget))
+	if (nullptr == engineContext ||
+	    false == engineContext->RHIDevice.IsValid() ||
+	    false == engineContext->Renderer.IsValid() ||
+	    false == engineContext->RenderScene.IsValid())
 	{
 		return;
 	}
@@ -265,14 +317,127 @@ void CImEditor::OnPrepareRender()
 		return;
 	}
 
-	RenderPassDesc renderPassDesc;
-	renderPassDesc.ColorAttachment.Target = m_sceneViewRenderTarget.GetSafePtr();
-	renderPassDesc.ColorAttachment.LoadOp = ERHILoadOp::Clear;
-	renderPassDesc.ColorAttachment.StoreOp = ERHIStoreOp::Store;
-	renderPassDesc.ColorAttachment.ClearColor = Color{ 0.08f, 0.09f, 0.11f, 1.0f };
-	commandContext->BeginRenderPass(renderPassDesc);
-	engineContext->Renderer->Render(*engineContext->RenderScene);
-	commandContext->EndRenderPass();
+	auto EnsureRT = [&](OwnerPtr<IRHITexture>& rt, std::uint32_t w, std::uint32_t h) -> bool
+	{
+		if (false == static_cast<bool>(rt))
+		{
+			RHITexture2DDesc desc;
+			desc.Width     = w;
+			desc.Height    = h;
+			desc.Format    = ERHITextureFormat::RGBA8;
+			desc.BindFlags = static_cast<RHITextureBindFlags>(ERHITextureBindFlag::ShaderResource) |
+			                 static_cast<RHITextureBindFlags>(ERHITextureBindFlag::RenderTarget);
+			rt = engineContext->RHIDevice->CreateTexture2D(desc, nullptr);
+		}
+		return static_cast<bool>(rt);
+	};
+
+	// ── Scene view (editor camera) ────────────────────────────────────────────────
+	// Clear colour alpha = 0 so the RT background is transparent.  Sprite pixels
+	// are written opaque.  SceneViewTool draws a solid grey rect and then composites
+	// this texture with AddImage — the grid (submitted to IDebugDraw2D by SceneViewTool
+	// earlier in the frame) is rendered into the RT here, after the sprite pass,
+	// so it appears on top of empty areas but is correctly occluded by sprites.
+	if (m_sceneViewRequested && EnsureRT(m_sceneViewRenderTarget, m_sceneViewWidth, m_sceneViewHeight))
+	{
+		RenderPassDesc rpDesc;
+		rpDesc.ColorAttachment.Target     = m_sceneViewRenderTarget.GetSafePtr();
+		rpDesc.ColorAttachment.LoadOp     = ERHILoadOp::Clear;
+		rpDesc.ColorAttachment.StoreOp    = ERHIStoreOp::Store;
+		rpDesc.ColorAttachment.ClearColor = Color{ 0.08f, 0.09f, 0.11f, 0.0f };
+		commandContext->BeginRenderPass(rpDesc);
+
+		engineContext->Renderer->SetRenderTargetSize(
+			RenderSurfaceSize{ static_cast<int>(m_sceneViewWidth), static_cast<int>(m_sceneViewHeight) });
+		engineContext->Renderer->SetViewCamera(m_sceneViewCamX, m_sceneViewCamY, m_sceneViewCamSize);
+		engineContext->Renderer->Render(*engineContext->RenderScene);
+
+		// Render debug primitives (grid, colliders, camera frusta, etc.) into the same RT.
+		if (m_debugRenderer && Core::DebugDraw2D.IsValid())
+		{
+			m_debugRenderer->Render(
+				commandContext,
+				*Core::DebugDraw2D,
+				m_sceneViewCamX, m_sceneViewCamY, m_sceneViewCamSize,
+				static_cast<int>(m_sceneViewWidth),
+				static_cast<int>(m_sceneViewHeight));
+		}
+
+		commandContext->EndRenderPass();
+	}
+
+	// ── Game view (multi-camera) ───────────────────────────────────────────────────
+	// Cameras are sorted by Priority (ascending) by GameViewTool.
+	//
+	// Rendering strategy:
+	//   1. Clear the entire RT to transparent (0,0,0,0) once.
+	//   2. For each camera: begin a Load pass → set sub-viewport → FillViewportColor
+	//      (clears that sub-area with the camera's own ClearColor including alpha) →
+	//      SetViewCameraEx (stretch + rotation) → Render scene.
+	//
+	// FillViewportColor draws a full-NDC quad that directly overwrites all RGBA channels,
+	// so alpha is correctly written per camera.  Alpha=0 areas remain transparent in
+	// the final ImGui game-view composite.
+	if (m_gameViewRequested && EnsureRT(m_gameViewRenderTarget, m_gameViewWidth, m_gameViewHeight))
+	{
+		const float rtW = static_cast<float>(m_gameViewWidth);
+		const float rtH = static_cast<float>(m_gameViewHeight);
+
+		// Step 1: Clear entire RT to fully transparent.
+		{
+			RenderPassDesc rpDesc;
+			rpDesc.ColorAttachment.Target     = m_gameViewRenderTarget.GetSafePtr();
+			rpDesc.ColorAttachment.LoadOp     = ERHILoadOp::Clear;
+			rpDesc.ColorAttachment.StoreOp    = ERHIStoreOp::Store;
+			rpDesc.ColorAttachment.ClearColor = Color{ 0.0f, 0.0f, 0.0f, 0.0f };
+			commandContext->BeginRenderPass(rpDesc);
+			commandContext->EndRenderPass();
+		}
+
+		// Step 2: Render each camera into its sub-viewport.
+		for (const GameCameraDesc& cam : m_gameViewCameras)
+		{
+			const float vpX = cam.ViewportX * rtW;
+			const float vpY = cam.ViewportY * rtH;
+			const float vpW = std::max(cam.ViewportW * rtW, 1.0f);
+			const float vpH = std::max(cam.ViewportH * rtH, 1.0f);
+
+			RenderPassDesc rpDesc;
+			rpDesc.ColorAttachment.Target  = m_gameViewRenderTarget.GetSafePtr();
+			rpDesc.ColorAttachment.LoadOp  = ERHILoadOp::Load;
+			rpDesc.ColorAttachment.StoreOp = ERHIStoreOp::Store;
+
+			commandContext->BeginRenderPass(rpDesc);
+			// Set sub-viewport for this camera.
+			commandContext->SetViewport(vpX, vpY, vpW, vpH);
+
+			engineContext->Renderer->SetRenderTargetSize(
+				RenderSurfaceSize{ static_cast<int>(vpW), static_cast<int>(vpH) });
+
+			// Clear this camera's viewport area with its own ClearColor (alpha included).
+			// FillViewportColor draws a full-NDC quad → direct RGBA overwrite, no blending.
+			// alpha ≤ 0 (1/255)이면 스킵 → 이전 카메라가 그린 내용을 보존(멀티카메라 합성).
+			if (cam.ClearColor[3] > (1.0f / 255.0f))
+			{
+				engineContext->Renderer->FillViewportColor(
+					cam.ClearColor[0], cam.ClearColor[1],
+					cam.ClearColor[2], cam.ClearColor[3]);
+			}
+
+			// SetViewCameraEx: explicit halfW/halfH + rotation → stretch rendering.
+			//   scaleX → halfW (가로), scaleY → halfH (세로), cos/sinR → 회전.
+			engineContext->Renderer->SetViewCameraEx(
+				cam.PosX, cam.PosY,
+				cam.OrthoSizeX, cam.OrthoSize,
+				cam.CosR, cam.SinR);
+			engineContext->Renderer->Render(*engineContext->RenderScene);
+
+			commandContext->EndRenderPass();
+		}
+	}
+
+	// Reset camera to default so the main swapchain render is unaffected.
+	engineContext->Renderer->SetViewCamera(0.0f, 0.0f, 1.0f);
 }
 
 void CImEditor::OnRender()
@@ -305,6 +470,7 @@ bool CImEditor::InitializeImGui()
         style.WindowRounding = 0.0f;
         style.Colors[ImGuiCol_WindowBg].w = 1.0f;
     }
+    style.WindowMinSize = ImVec2(60.0f, 30.0f);
 
     ImFontConfig fontConfig;
     fontConfig.OversampleH = 3;

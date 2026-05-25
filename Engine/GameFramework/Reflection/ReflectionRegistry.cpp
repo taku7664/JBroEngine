@@ -81,13 +81,28 @@ const ScriptTypeInfo* CReflectionRegistry::GetScriptType(std::size_t index) cons
 bool CReflectionRegistry::AddComponent(CScene& scene, EntityId entity, TypeId typeId) const
 {
 	const ComponentTypeInfo* typeInfo = FindComponent(typeId);
-	return typeInfo && typeInfo->CanAddToEntity && typeInfo->AddToEntity && typeInfo->AddToEntity(scene, entity);
+	if (!typeInfo || !typeInfo->CanAddToEntity) return false;
+	// For types that allow duplicates, AddComponent behaves like AddNewComponent
+	// when called from the editor (duplicates are managed by the command layer).
+	return typeInfo->AddToEntity && typeInfo->AddToEntity(scene, entity);
+}
+
+bool CReflectionRegistry::AddNewComponent(CScene& scene, EntityId entity, TypeId typeId) const
+{
+	const ComponentTypeInfo* typeInfo = FindComponent(typeId);
+	return typeInfo && typeInfo->CanAddToEntity && typeInfo->AddNewToEntity && typeInfo->AddNewToEntity(scene, entity);
 }
 
 bool CReflectionRegistry::RemoveComponent(CScene& scene, EntityId entity, TypeId typeId) const
 {
 	const ComponentTypeInfo* typeInfo = FindComponent(typeId);
 	return typeInfo && typeInfo->RemoveFromEntity && typeInfo->RemoveFromEntity(scene, entity);
+}
+
+bool CReflectionRegistry::RemoveSpecificComponent(CScene& scene, EntityId entity, TypeId typeId, void* component) const
+{
+	const ComponentTypeInfo* typeInfo = FindComponent(typeId);
+	return typeInfo && typeInfo->RemoveSpecificFromEntity && typeInfo->RemoveSpecificFromEntity(scene, entity, component);
 }
 
 bool CReflectionRegistry::HasComponent(const CScene& scene, EntityId entity, TypeId typeId) const
@@ -106,6 +121,15 @@ const void* CReflectionRegistry::GetComponentAddress(const CScene& scene, Entity
 {
 	const ComponentTypeInfo* typeInfo = FindComponent(typeId);
 	return typeInfo && typeInfo->GetConstAddress ? typeInfo->GetConstAddress(scene, entity) : nullptr;
+}
+
+void CReflectionRegistry::GetAllComponentAddresses(CScene& scene, EntityId entity, TypeId typeId, std::vector<void*>& out) const
+{
+	const ComponentTypeInfo* typeInfo = FindComponent(typeId);
+	if (typeInfo && typeInfo->GetAllAddresses)
+	{
+		typeInfo->GetAllAddresses(scene, entity, out);
+	}
 }
 
 void* CReflectionRegistry::GetPropertyAddress(void* component, const ReflectPropertyInfo& property)
@@ -162,6 +186,46 @@ ComponentTypeInfo* CReflectionRegistry::RegisterComponentInternal(ComponentTypeI
 	m_componentIdByName.emplace(typeInfo.Type.Name, typeInfo.Type.Id);
 	m_componentTypes.push_back(std::move(typeInfo));
 	return &m_componentTypes.back();
+}
+
+bool CReflectionRegistry::UnregisterScript(TypeId typeId)
+{
+	auto itIdx = m_scriptIndexById.find(typeId);
+	if (itIdx == m_scriptIndexById.end())
+	{
+		return false;
+	}
+
+	const std::size_t removeIdx = itIdx->second;
+	const std::string removeName = m_scriptTypes[removeIdx].Type.Name ? m_scriptTypes[removeIdx].Type.Name : "";
+
+	// 이름 맵에서 제거
+	m_scriptIdByName.erase(removeName);
+
+	// 벡터에서 스왑-팝
+	const std::size_t lastIdx = m_scriptTypes.size() - 1;
+	if (removeIdx != lastIdx)
+	{
+		// 마지막 요소를 삭제할 자리로 이동
+		m_scriptTypes[removeIdx] = std::move(m_scriptTypes[lastIdx]);
+		// 인덱스 맵 업데이트
+		const TypeId movedId = m_scriptTypes[removeIdx].Type.Id;
+		m_scriptIndexById[movedId] = removeIdx;
+	}
+
+	m_scriptTypes.pop_back();
+	m_scriptIndexById.erase(typeId);
+	return true;
+}
+
+CGameScript* CReflectionRegistry::CreateScriptInstance(TypeId typeId) const
+{
+	const ScriptTypeInfo* info = FindScript(typeId);
+	if (nullptr == info || nullptr == info->CreateInstance)
+	{
+		return nullptr;
+	}
+	return info->CreateInstance();
 }
 
 bool CReflectionRegistry::RegisterScriptInternal(ScriptTypeInfo&& typeInfo)

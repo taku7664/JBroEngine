@@ -35,6 +35,7 @@ public:
 	BitFlag& GetCustomWindowFlags() override;
 
 	void Destroy() override;
+	void Focus() override;
 
 	void InitializeDockLayout(ImGuiDir dir) override;
 	ImGuiWindow* GetImGuiWindow() override;

@@ -8,6 +8,7 @@ CImDockWindow::CImDockWindow(ImGuiID id, ImGuiID parentId)
 	, m_splitedID({ 0 })
 	, m_splitRatio({ 0.0f })
 	, m_bNeedRebuildDockLayout(true)
+	, m_bUseDocking(true)
 {
 	m_mainDockID = ImHashStr("DockSpace", 0, GetID());
 	m_imWndClass.ClassId = m_mainDockID;
@@ -117,22 +118,29 @@ bool CImDockWindow::HasChildImWindow(ImGuiID id) const
 
 void CImDockWindow::OnPreBegin()
 {
+	m_bUseDocking = !m_customDockFlags[IMDOCKWINDOW_FLAG_NO_DOCKING];
+
 	PushDockStyle();
 }
 
 void CImDockWindow::OnPostBegin()
 {
+	PopDockStyle();
+	if (false == m_bUseDocking)
+	{
+		return;
+	}
 	bool isBeginDockBuild = false;
 	isBeginDockBuild = BeginBuildDockLayout();
 
 	SubmitDockSpace();
-	PopDockStyle();
 
-	for(std::size_t i = 0; i < m_childImWindowVector.size(); ++i)
+	for (std::size_t i = 0; i < m_childImWindowVector.size(); ++i)
 	{
-		if(SafePtr<CImWindow>& childWnd = m_childImWindowVector[i])
+
+		if (SafePtr<CImWindow>& childWnd = m_childImWindowVector[i])
 		{
-			if(isBeginDockBuild)
+			if (isBeginDockBuild)
 			{
 				const char* label = childWnd->GetTitle();
 				const ImGuiDir dockDir = childWnd->m_initDockLayoutDirection;
@@ -141,7 +149,7 @@ void CImDockWindow::OnPostBegin()
 				{
 					splitID = m_mainSplitedID;
 				}
-				ImGui::DockBuilderDockWindow(label , splitID);
+				ImGui::DockBuilderDockWindow(label, splitID);
 			}
 			childWnd->Update();
 		}
@@ -153,24 +161,16 @@ void CImDockWindow::OnPostBegin()
 	}
 }
 
-void CImDockWindow::OnPostEnd()
-{
-}
-
 void CImDockWindow::SubmitDockSpace()
 {
 	//////////////////////////////////////////
 	// Sumit the DockSpace
 	//////////////////////////////////////////
 	ImGuiIO& io = ImGui::GetIO();
-	ImGuiStyle& style = ImGui::GetStyle();
-	float       minWinSizeX = style.WindowMinSize.x;
-	style.WindowMinSize.x = 370.0f;
 	if ( io.ConfigFlags & ImGuiConfigFlags_DockingEnable )
 	{
 		ImGui::DockSpace(m_mainDockID , ImVec2(0.0f , 0.0f) , m_imguiDockFlags.operator int(), &m_imWndClass);
 	}
-	style.WindowMinSize.x = minWinSizeX;
 }
 
 bool CImDockWindow::BeginBuildDockLayout()

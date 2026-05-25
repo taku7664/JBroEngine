@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Core/Asset/AssetTypes.h"
+#include "Engine/Core/Asset/AssetTypes.h"
 
 class CAssetPath final
 {

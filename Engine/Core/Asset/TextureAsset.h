@@ -2,6 +2,7 @@
 
 #include "Core/Asset/IAsset.h"
 #include "Core/Asset/IAssetLoader.h"
+#include "Core/Asset/SpriteAsset.h"
 #include "Core/RHI/IRHITexture.h"
 
 class IRHIDevice;
@@ -19,14 +20,19 @@ public:
 	std::uint32_t GetWidth() const;
 	std::uint32_t GetHeight() const;
 	const std::vector<std::uint8_t>& GetPixels() const;
+	const SpriteImportOptions& GetSpriteImportOptions() const;
+	const std::vector<SpriteFrame>& GetSpriteFrames() const;
 	SafePtr<IRHITexture> GetGpuTexture() const;
 	bool EnsureGpuTexture(IRHIDevice& device);
+	void SetSpriteImportData(const SpriteImportOptions& options, std::vector<SpriteFrame>&& frames);
 
 private:
 	AssetMetaData m_metaData;
 	std::uint32_t m_width = 0;
 	std::uint32_t m_height = 0;
 	std::vector<std::uint8_t> m_pixels;
+	SpriteImportOptions m_spriteImportOptions;
+	std::vector<SpriteFrame> m_spriteFrames;
 	OwnerPtr<IRHITexture> m_gpuTexture;
 	EAssetLoadState m_loadState = EAssetLoadState::Loaded;
 };

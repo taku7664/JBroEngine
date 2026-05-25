@@ -36,6 +36,19 @@ void CTime::SetTimeScale(float timeScale)
 	m_timeScale = timeScale < 0.0f ? 0.0f : timeScale;
 }
 
+float CTime::GetFixedDeltaSeconds() const
+{
+	return m_fixedDeltaSeconds;
+}
+
+void CTime::SetFixedDeltaSeconds(float fixedDelta)
+{
+	// Clamp to a sane range (1000 Hz min ~ 1 Hz max).
+	if (fixedDelta < 0.001f) fixedDelta = 0.001f;
+	if (fixedDelta > 1.0f)   fixedDelta = 1.0f;
+	m_fixedDeltaSeconds = fixedDelta;
+}
+
 void CTime::Reset()
 {
 	m_lastFrameTime = std::chrono::steady_clock::now();

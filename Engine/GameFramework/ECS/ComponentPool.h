@@ -1,189 +1,270 @@
 #pragma once
 
 #include "GameFramework/ECS/EntityTypes.h"
-#include "Memory/BlockPoolAllocator.h"
 #include "Utillity/Framework.h"
 
-#include <cassert>
 #include <cstddef>
-#include <new>
 #include <type_traits>
 #include <utility>
 #include <vector>
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  IComponentPool
+// ─────────────────────────────────────────────────────────────────────────────
 
 class IComponentPool
 {
 public:
 	virtual ~IComponentPool() = default;
 
-public:
-	virtual void RemoveEntity(EntityId entity) = 0;
-	virtual bool HasEntity(EntityId entity) const = 0;
-	virtual void Clear() = 0;
+	virtual void        RemoveEntity(EntityId entity) = 0;
+	virtual bool        HasEntity(EntityId entity) const = 0;
+	virtual void        FlushPendingRemoves() = 0;
+	virtual void        Clear() = 0;
 	virtual std::size_t GetComponentCount() const = 0;
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+//  CComponentPool<T>
+//
+//  Storage: packed dense vector — contiguous memory, cache-friendly ForEach.
+//
+//  Pointer contract:
+//    T* returned by Add / Get is valid until the next call that causes
+//    m_dense to reallocate (i.e. Add beyond reserved capacity) or until
+//    FlushPendingRemoves executes a swap-and-pop.
+//    → Pre-reserve at scene load to eliminate reallocation during gameplay.
+//    → FlushPendingRemoves is called by CScene at the end of every Update,
+//      after all systems and scripts have finished running for the frame.
+//    → Scripts and systems may safely cache T* within a frame.
+//
+//  Multi-component per entity: DISABLED.
+//    AddNew behaves identically to Add (idempotent, returns existing).
+//    GetAll fills at most one element. RemoveSpecific delegates to RemoveEntity.
+//
+//  Removal: deferred (enqueued, not applied immediately).
+//    Components of entities queued for removal remain visible in ForEachActive
+//    until FlushPendingRemoves is called.  This gives one frame of grace,
+//    which is acceptable for all standard game-loop uses.
+// ─────────────────────────────────────────────────────────────────────────────
+
 template<typename T>
-// Component pools are internal World storage. They may use STL/type metadata
-// because they are not part of the live-compile DLL boundary contract.
 class CComponentPool final : public IComponentPool
 {
 public:
-	explicit CComponentPool(std::size_t blocksPerChunk = DEFAULT_BLOCKS_PER_CHUNK)
-		: m_allocator(sizeof(T), alignof(T), blocksPerChunk)
-	{
-	}
+	CComponentPool() = default;
+	~CComponentPool() override = default;
 
-	~CComponentPool() override
-	{
-		Clear();
-	}
-
-	CComponentPool(const CComponentPool&) = delete;
+	CComponentPool(const CComponentPool&)            = delete;
 	CComponentPool& operator=(const CComponentPool&) = delete;
 
-public:
+	// ── Add / AddNew ──────────────────────────────────────────────────────────
+
+	// Returns the existing instance if the entity already has one;
+	// otherwise constructs a new one in-place.
 	template<typename... Args>
 	T* Add(EntityId entity, Args&&... args)
 	{
-		if (T* component = Get(entity))
-		{
-			return component;
-		}
-
-		EnsureSparseSize(entity);
-
-		void* memory = m_allocator.Allocate(sizeof(T), alignof(T));
-		if (nullptr == memory)
+		if (!IsValidEntityId(entity))
 		{
 			return nullptr;
 		}
 
-		T* component = new(memory) T(std::forward<Args>(args)...);
-		m_sparse[GetEntityIndex(entity)] = m_components.size() + 1;
+		if (T* existing = Get(entity))
+		{
+			return existing;
+		}
+
+		EnsureSparseSize(entity);
+
+		const std::size_t denseIdx = m_dense.size();
+		m_dense.emplace_back(std::forward<Args>(args)...);
 		m_entities.push_back(entity);
-		m_components.push_back(component);
-		return component;
+		m_sparse[GetEntityIndex(entity)] = denseIdx + 1;
+
+		return &m_dense.back();
 	}
 
+	// Multi-component disabled — identical to Add.
+	template<typename... Args>
+	T* AddNew(EntityId entity, Args&&... args)
+	{
+		return Add(entity, std::forward<Args>(args)...);
+	}
+
+	// ── Removal ───────────────────────────────────────────────────────────────
+
+	// Enqueues the entity for removal at the next FlushPendingRemoves.
+	// Safe to call during ForEachActive or mid-frame.
 	void RemoveEntity(EntityId entity) override
 	{
-		const std::size_t denseIndex = GetDenseIndex(entity);
-		if (INVALID_DENSE_INDEX == denseIndex)
+		const std::uint32_t EI = GetEntityIndex(entity);
+		if (EI >= static_cast<std::uint32_t>(m_sparse.size()) || m_sparse[EI] == 0u)
 		{
 			return;
 		}
-
-		const std::size_t lastIndex = m_components.size() - 1;
-		T* removed = m_components[denseIndex];
-		removed->~T();
-		m_allocator.Free(removed, sizeof(T));
-
-		if (denseIndex != lastIndex)
-		{
-			m_components[denseIndex] = m_components[lastIndex];
-			m_entities[denseIndex] = m_entities[lastIndex];
-			m_sparse[GetEntityIndex(m_entities[denseIndex])] = denseIndex + 1;
-		}
-
-		m_components.pop_back();
-		m_entities.pop_back();
-		m_sparse[GetEntityIndex(entity)] = 0;
+		m_pendingRemove.push_back(entity);
 	}
 
+	// Multi-component disabled — delegates to RemoveEntity.
+	bool RemoveSpecific(EntityId entity, T* /*comp*/)
+	{
+		const std::uint32_t EI = GetEntityIndex(entity);
+		if (EI >= static_cast<std::uint32_t>(m_sparse.size()) || m_sparse[EI] == 0u)
+		{
+			return false;
+		}
+		m_pendingRemove.push_back(entity);
+		return true;
+	}
+
+	// Applies all queued removals via swap-and-pop.
+	// Call once per frame, after all systems and scripts have finished.
+	void FlushPendingRemoves() override
+	{
+		for (const EntityId entity : m_pendingRemove)
+		{
+			RemoveNow(entity);
+		}
+		m_pendingRemove.clear();
+	}
+
+	// ── Query ─────────────────────────────────────────────────────────────────
+
+	// O(1) sparse lookup.
 	bool HasEntity(EntityId entity) const override
 	{
-		return nullptr != Get(entity);
+		const std::uint32_t EI = GetEntityIndex(entity);
+		return EI < static_cast<std::uint32_t>(m_sparse.size()) && m_sparse[EI] != 0u;
 	}
 
+	// Returns the component pointer, or nullptr.
 	T* Get(EntityId entity)
 	{
-		const std::size_t denseIndex = GetDenseIndex(entity);
-		return INVALID_DENSE_INDEX == denseIndex ? nullptr : m_components[denseIndex];
+		const std::uint32_t EI = GetEntityIndex(entity);
+		if (EI >= static_cast<std::uint32_t>(m_sparse.size()) || m_sparse[EI] == 0u)
+		{
+			return nullptr;
+		}
+		return &m_dense[m_sparse[EI] - 1u];
 	}
 
 	const T* Get(EntityId entity) const
 	{
-		const std::size_t denseIndex = GetDenseIndex(entity);
-		return INVALID_DENSE_INDEX == denseIndex ? nullptr : m_components[denseIndex];
+		const std::uint32_t EI = GetEntityIndex(entity);
+		if (EI >= static_cast<std::uint32_t>(m_sparse.size()) || m_sparse[EI] == 0u)
+		{
+			return nullptr;
+		}
+		return &m_dense[m_sparse[EI] - 1u];
 	}
+
+	// Multi-component disabled — fills at most one element.
+	void GetAll(EntityId entity, std::vector<T*>& out)
+	{
+		if (T* comp = Get(entity))
+		{
+			out.push_back(comp);
+		}
+	}
+
+	void GetAll(EntityId entity, std::vector<const T*>& out) const
+	{
+		if (const T* comp = Get(entity))
+		{
+			out.push_back(comp);
+		}
+	}
+
+	// ── Iteration ─────────────────────────────────────────────────────────────
+
+	// Iterates every live component in dense order.
+	// Components pending removal are still included until FlushPendingRemoves.
+	template<typename Func>
+	void ForEachActive(Func&& func)
+	{
+		const std::size_t count = m_dense.size();
+		for (std::size_t i = 0; i < count; ++i)
+		{
+			func(m_entities[i], m_dense[i]);
+		}
+	}
+
+	template<typename Func>
+	void ForEachActive(Func&& func) const
+	{
+		const std::size_t count = m_dense.size();
+		for (std::size_t i = 0; i < count; ++i)
+		{
+			func(m_entities[i], m_dense[i]);
+		}
+	}
+
+	// ── Misc ──────────────────────────────────────────────────────────────────
 
 	void Clear() override
 	{
-		for (T* component : m_components)
-		{
-			if (component)
-			{
-				component->~T();
-				m_allocator.Free(component, sizeof(T));
-			}
-		}
-
-		m_components.clear();
+		m_dense.clear();
 		m_entities.clear();
 		m_sparse.clear();
+		m_pendingRemove.clear();
 	}
 
 	std::size_t GetComponentCount() const override
 	{
-		return m_components.size();
+		return m_dense.size();
 	}
 
-	const std::vector<EntityId>& GetEntities() const
+	// Pre-allocate to prevent reallocation (and T* invalidation) during gameplay.
+	// Call at scene load with the expected maximum entity count.
+	void Reserve(std::size_t capacity)
 	{
-		return m_entities;
-	}
-
-	const AllocatorStats& GetAllocatorStats() const
-	{
-		return m_allocator.GetStats();
+		m_dense.reserve(capacity);
+		m_entities.reserve(capacity);
 	}
 
 private:
 	void EnsureSparseSize(EntityId entity)
 	{
-		const std::size_t index = static_cast<std::size_t>(GetEntityIndex(entity));
-		if (index >= m_sparse.size())
+		const std::uint32_t idx = GetEntityIndex(entity);
+		if (idx >= static_cast<std::uint32_t>(m_sparse.size()))
 		{
-			m_sparse.resize(index + 1, 0);
+			m_sparse.resize(idx + 1u, 0u);
 		}
 	}
 
-	std::size_t GetDenseIndex(EntityId entity) const
+	// Immediate swap-and-pop removal. Only called from FlushPendingRemoves.
+	void RemoveNow(EntityId entity)
 	{
-		if (false == IsValidEntityId(entity))
+		const std::uint32_t EI = GetEntityIndex(entity);
+		if (EI >= static_cast<std::uint32_t>(m_sparse.size()) || m_sparse[EI] == 0u)
 		{
-			return INVALID_DENSE_INDEX;
+			return; // already removed (duplicate in queue)
 		}
 
-		const std::size_t index = static_cast<std::size_t>(GetEntityIndex(entity));
-		if (index >= m_sparse.size())
+		const std::uint32_t denseIdx = m_sparse[EI] - 1u;
+		const std::uint32_t lastIdx  = static_cast<std::uint32_t>(m_dense.size()) - 1u;
+
+		if (denseIdx != lastIdx)
 		{
-			return INVALID_DENSE_INDEX;
+			// Move the last element into the vacated slot.
+			m_dense[denseIdx]    = std::move(m_dense[lastIdx]);
+			m_entities[denseIdx] = m_entities[lastIdx];
+
+			// Update the sparse entry for the element that just moved.
+			m_sparse[GetEntityIndex(m_entities[denseIdx])] = denseIdx + 1;
 		}
 
-		const std::size_t densePlusOne = m_sparse[index];
-		if (0 == densePlusOne)
-		{
-			return INVALID_DENSE_INDEX;
-		}
-
-		const std::size_t denseIndex = densePlusOne - 1;
-		if (denseIndex >= m_entities.size() || m_entities[denseIndex] != entity)
-		{
-			return INVALID_DENSE_INDEX;
-		}
-
-		return denseIndex;
+		m_dense.pop_back();
+		m_entities.pop_back();
+		m_sparse[EI] = 0;
 	}
 
 private:
-	static constexpr std::size_t DEFAULT_BLOCKS_PER_CHUNK = 256;
-	static constexpr std::size_t INVALID_DENSE_INDEX = static_cast<std::size_t>(-1);
-
-private:
-	CBlockPoolAllocator m_allocator;
-	std::vector<EntityId> m_entities;
-	std::vector<T*> m_components;
-	std::vector<std::size_t> m_sparse;
+	std::vector<T>             m_dense;         // contiguous component storage
+	std::vector<EntityId>      m_entities;      // dense index → EntityId (for swap-and-pop)
+	std::vector<std::uint32_t> m_sparse;        // entityIndex → dense index + 1  (0 = absent)
+	                                            // uint32_t: dense index fits in 32 bits,
+	                                            // halves sparse array memory vs size_t on x64
+	std::vector<EntityId>      m_pendingRemove; // entities queued for end-of-frame removal
 };

@@ -15,6 +15,30 @@ bool CD3D11Swapchain::Initialize(const RenderSurfaceDesc& surfaceDesc)
 void CD3D11Swapchain::Resize(const RenderSurfaceSize& size)
 {
 	m_surfaceDesc.Size = size;
+#if JBRO_PLATFORM_WINDOWS
+	if (nullptr == m_swapchain || nullptr == m_device || size.Width <= 0 || size.Height <= 0)
+	{
+		return;
+	}
+
+	// DXGI requires the RTV to be released before ResizeBuffers.
+	if (m_renderTargetView)
+	{
+		m_renderTargetView->Release();
+		m_renderTargetView = nullptr;
+	}
+
+	// 0 = keep buffer count, DXGI_FORMAT_UNKNOWN = keep current format.
+	m_swapchain->ResizeBuffers(
+		0,
+		static_cast<UINT>(size.Width),
+		static_cast<UINT>(size.Height),
+		DXGI_FORMAT_UNKNOWN,
+		0);
+
+	// Recreate the back-buffer RTV with the new size.
+	CreateBackBufferView();
+#endif
 }
 
 void CD3D11Swapchain::Present()

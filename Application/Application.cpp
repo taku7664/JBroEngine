@@ -21,13 +21,6 @@ void CGameApplication::OnPostInitialize()
 		{
 			Editor::RootDockWindow = m_editor->CreateImWindow<CRootDockWindow>("RootDockWindow");
 		}
-		{
-			Editor::MainDockWindow = m_editor->CreateImWindow<CMainDockWindow>("MainDockWindow");
-			if (Editor::RootDockWindow && Editor::MainDockWindow)
-			{
-				Editor::RootDockWindow->AddChildImWindow(Editor::MainDockWindow);
-			}
-		}
 	}
 #endif
 }

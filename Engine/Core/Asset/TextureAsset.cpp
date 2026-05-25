@@ -51,6 +51,22 @@ const std::vector<std::uint8_t>& CTextureAsset::GetPixels() const
 	return m_pixels;
 }
 
+const SpriteImportOptions& CTextureAsset::GetSpriteImportOptions() const
+{
+	return m_spriteImportOptions;
+}
+
+const std::vector<SpriteFrame>& CTextureAsset::GetSpriteFrames() const
+{
+	return m_spriteFrames;
+}
+
+void CTextureAsset::SetSpriteImportData(const SpriteImportOptions& options, std::vector<SpriteFrame>&& frames)
+{
+	m_spriteImportOptions = options;
+	m_spriteFrames = std::move(frames);
+}
+
 SafePtr<IRHITexture> CTextureAsset::GetGpuTexture() const
 {
 	return m_gpuTexture.GetSafePtr();
@@ -111,7 +127,10 @@ OwnerPtr<IAsset> CTextureAssetLoader::Load(const AssetLoadDesc& desc)
 	std::memcpy(data.data(), pixels, byteCount);
 	stbi_image_free(pixels);
 
-	return MakeOwnerPtr<CTextureAsset>(*desc.MetaData, static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height), std::move(data));
+	OwnerPtr<CTextureAsset> texture = MakeOwnerPtr<CTextureAsset>(*desc.MetaData, static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height), std::move(data));
+	const SpriteImportOptions options = CSpriteImportOptions::FromYaml(desc.MetaData->ImportOptionsYaml);
+	texture->SetSpriteImportData(options, CSpriteImportOptions::BuildFrames(texture->GetWidth(), texture->GetHeight(), options));
+	return texture;
 }
 
 void CTextureAssetLoader::Unload(IAsset& asset)

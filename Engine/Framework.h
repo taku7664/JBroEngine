@@ -33,6 +33,8 @@
 #include <format>
 #include <filesystem>
 #include <fstream>
+#include <cmath>
+#include <algorithm>
 
 #if JBRO_PLATFORM_WINDOWS
 #include <d3d11.h>
@@ -56,9 +58,14 @@
 #include "Utillity/Framework.h"
 
 #include "Core/Core.h"
+#include "Core/Debug/DebugDraw2D.h"
+#include "Core/Debug/DebugDraw.h"
+#include "Core/Debug/DebugRenderer2D.h"
+#include "Core/Debug/DebugRenderer.h"
 #include "Core/FileSystem/FileSystem.h"
 #include "Core/Input/Input.h"
 #include "Core/Input/IInputMessageHandler.h"
+#include "Core/Logging/Logger.h"
 #include "Core/Module/Module.h"
 #include "Core/Game/GameModuleTypes.h"
 #include "Core/Game/IGameModule.h"
@@ -77,6 +84,8 @@
 #include "Core/RHI/IRHISampler.h"
 #include "Core/Thread/ThreadService.h"
 #include "Core/Time/Time.h"
+#include "Core/Network/NetworkTypes.h"
+#include "Core/Network/INetworkManager.h"
 #include "Core/Engine.h"
 #include "Core/Renderer/RenderScene.h"
 #include "Core/Renderer/RenderResources2D.h"
@@ -107,6 +116,7 @@
 #include "GameFramework/Reflection/ReflectionRegistry.h"
 #include "GameFramework/Scripting/GameScript.h"
 #include "GameFramework/Scripting/ScriptSystem.h"
+#include "GameFramework/Debug/SceneDebugDrawSystem.h"
 #include "GameFramework/Physics2D/Physics2DTypes.h"
 #include "GameFramework/Physics2D/Physics2DGeometry.h"
 #include "GameFramework/Physics2D/Physics2DSystem.h"
@@ -120,6 +130,7 @@
 #include "Editor/ImWindow/ImCustomWindow.h"
 #include "Editor/ImWindow/ImPopupWindow.h"
 #include "Editor/ImEditor.h"
+#include "Editor/ImItem/ImText.h"
 #endif
 
 #include "Application/Application.h"

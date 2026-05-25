@@ -47,6 +47,8 @@ class EnableSafeFromThis
 {
 	template<typename>
 	friend class OwnerPtr;
+	template<typename TObject>
+	friend void SafePtrDetail::BindSafeFromThisControlBlock(TObject* ptr, SafePtrDetail::ControlBlock* block);
 
 public:
 	SafePtr<T> SafeFromThis()

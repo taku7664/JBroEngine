@@ -482,6 +482,30 @@ OwnerPtr<IRHIGraphicsPipeline> CD3D11RHIDevice::CreateGraphicsPipeline(const RHI
 #endif
 }
 
+void CD3D11RHIDevice::HandleSurfaceResize(const RenderSurfaceSize& size)
+{
+#if JBRO_PLATFORM_WINDOWS
+	if (!m_rhiSwapchain || size.Width <= 0 || size.Height <= 0)
+	{
+		return;
+	}
+
+	// Resize the DXGI swapchain buffers and recreate the back-buffer RTV.
+	m_rhiSwapchain->Resize(size);
+
+	// Propagate the new RTV and size to the immediate command context so that
+	// BeginRenderPass (with no explicit target) binds the correct back buffer.
+	CD3D11Swapchain*     d3dSwapchain = static_cast<CD3D11Swapchain*>(m_rhiSwapchain.Get());
+	CD3D11CommandContext* d3dContext  = static_cast<CD3D11CommandContext*>(m_immediateCommandContext.Get());
+	if (d3dSwapchain && d3dContext)
+	{
+		d3dContext->UpdateNativeRenderTarget(d3dSwapchain->GetRenderTargetView(), size);
+	}
+#else
+	(void)size;
+#endif
+}
+
 SafePtr<IRHISwapchain> CD3D11RHIDevice::GetSwapchain() const
 {
 	return m_rhiSwapchain.GetSafePtr();

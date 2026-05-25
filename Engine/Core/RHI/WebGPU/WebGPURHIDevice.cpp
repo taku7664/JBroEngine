@@ -393,7 +393,7 @@ OwnerPtr<IRHIGraphicsPipeline> CWebGPURHIDevice::CreateGraphicsPipeline(const RH
 	bindEntries[0].binding = 0;
 	bindEntries[0].visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment;
 	bindEntries[0].buffer.type = WGPUBufferBindingType_Uniform;
-	bindEntries[0].buffer.minBindingSize = sizeof(float) * 8;
+	bindEntries[0].buffer.minBindingSize = sizeof(float) * 16;
 	bindEntries[1].binding = 1;
 	bindEntries[1].visibility = WGPUShaderStage_Fragment;
 	bindEntries[1].texture.sampleType = WGPUTextureSampleType_Float;

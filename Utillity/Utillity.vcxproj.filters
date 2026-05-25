@@ -84,6 +84,9 @@
     <ClInclude Include="BitFlag.h">
       <Filter>Types</Filter>
     </ClInclude>
+    <ClInclude Include="Layout2D.h">
+      <Filter>Types</Filter>
+    </ClInclude>
     <ClInclude Include="StringUtillity.h">
       <Filter>Utillity</Filter>
     </ClInclude>

@@ -368,6 +368,10 @@
     <ClInclude Include="Core\RHI\WebGPU\WebGPUSampler.h" />
     <ClInclude Include="Core\RHI\WebGPU\WebGPUSwapchain.h" />
     <ClInclude Include="Core\RHI\WebGPU\WebGPUTexture.h" />
+    <ClInclude Include="Core\Debug\DebugDraw.h" />
+    <ClInclude Include="Core\Debug\DebugDraw2D.h" />
+    <ClInclude Include="Core\Debug\DebugRenderer.h" />
+    <ClInclude Include="Core\Debug\DebugRenderer2D.h" />
     <ClInclude Include="Core\Renderer\Forward2DRenderer.h" />
     <ClInclude Include="Core\Renderer\IRenderer.h" />
     <ClInclude Include="Core\Renderer\IRenderMaterial.h" />
@@ -419,6 +423,7 @@
     <ClInclude Include="Editor\LiveCompile\LiveCompileManager.h" />
     <ClInclude Include="Editor\LiveCompile\LiveCompileTypes.h" />
     <ClInclude Include="Editor\LiveCompile\Windows\WindowsDynamicLibrary.h" />
+    <ClInclude Include="Editor\ScriptModule\ScriptModuleLoader.h" />
     <ClInclude Include="Editor\Project\ProjectManager.h" />
     <ClInclude Include="Editor\Project\ProjectTypes.h" />
     <ClInclude Include="Framework.h" />
@@ -476,10 +481,20 @@
     <ClInclude Include="Core\Input\Input.h" />
     <ClInclude Include="Core\Input\InputTypes.h" />
     <ClInclude Include="Core\Input\IInputMessageHandler.h" />
+    <ClInclude Include="Core\Logging\Logger.h" />
+    <ClInclude Include="Core\Logging\LoggerInternal.h" />
+    <ClInclude Include="Core\Logging\LoggerTypes.h" />
     <ClInclude Include="Core\Thread\ThreadService.h" />
     <ClInclude Include="Core\Thread\ThreadTypes.h" />
+    <ClInclude Include="Core\Network\NetworkTypes.h" />
+    <ClInclude Include="Core\Network\INetworkTransport.h" />
+    <ClInclude Include="Core\Network\INetworkManager.h" />
+    <ClInclude Include="Core\Network\NetworkManager.h" />
+    <ClInclude Include="Core\Network\Windows\WinSockTransport.h" />
+    <ClInclude Include="Core\Network\Web\WebSocketTransport.h" />
     <ClInclude Include="GameFramework\Component\Light2D.h" />
     <ClInclude Include="GameFramework\Physics2D\Physics2DGeometry.h" />
+    <ClInclude Include="GameFramework\Debug\SceneDebugDrawSystem.h" />
     <ClInclude Include="GameFramework\Physics2D\Physics2DSystem.h" />
     <ClInclude Include="GameFramework\Physics2D\Physics2DTypes.h" />
     <ClInclude Include="GameFramework\Component\Physics2DComponents.h" />
@@ -489,6 +504,8 @@
     <ClInclude Include="GameFramework\Reflection\ReflectionRegistry.h" />
     <ClInclude Include="GameFramework\Scripting\GameScript.h" />
     <ClInclude Include="GameFramework\Scripting\ScriptSystem.h" />
+    <ClInclude Include="GameFramework\Component\WorldTransform2D.h" />
+    <ClInclude Include="GameFramework\Transform\TransformSystem.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Application\Application.cpp" />
@@ -501,6 +518,9 @@
     <ClCompile Include="Core\Asset\SpriteAsset.cpp" />
     <ClCompile Include="Core\Asset\TextureAsset.cpp" />
     <ClCompile Include="Core\Engine.cpp" />
+    <ClCompile Include="Core\Network\NetworkManager.cpp" />
+    <ClCompile Include="Core\Network\Windows\WinSockTransport.cpp" />
+    <ClCompile Include="Core\Network\Web\WebSocketTransport.cpp" />
     <ClCompile Include="Core\Module\Module.cpp" />
     <ClCompile Include="Core\Platform\Web\WebCanvasSurface.cpp" />
     <ClCompile Include="Core\Platform\Web\WebPlatform.cpp" />
@@ -523,6 +543,10 @@
     <ClCompile Include="Core\RHI\WebGPU\WebGPUSampler.cpp" />
     <ClCompile Include="Core\RHI\WebGPU\WebGPUSwapchain.cpp" />
     <ClCompile Include="Core\RHI\WebGPU\WebGPUTexture.cpp" />
+    <ClCompile Include="Core\Debug\DebugDraw.cpp" />
+    <ClCompile Include="Core\Debug\DebugDraw2D.cpp" />
+    <ClCompile Include="Core\Debug\DebugRenderer.cpp" />
+    <ClCompile Include="Core\Debug\DebugRenderer2D.cpp" />
     <ClCompile Include="Core\Renderer\Forward2DRenderer.cpp" />
     <ClCompile Include="Core\Renderer\RenderResources2D.cpp" />
     <ClCompile Include="Core\Renderer\RenderScene.cpp" />
@@ -580,6 +604,9 @@
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="Editor\LiveCompile\Windows\WindowsDynamicLibrary.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Editor\ScriptModule\ScriptModuleLoader.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="Editor\Project\ProjectManager.cpp">
@@ -653,13 +680,16 @@
     </ClCompile>
     <ClCompile Include="Core\FileSystem\FileSystem.cpp" />
     <ClCompile Include="Core\Input\Input.cpp" />
+    <ClCompile Include="Core\Logging\Logger.cpp" />
     <ClCompile Include="Core\Thread\ThreadService.cpp" />
     <ClCompile Include="GameFramework\Physics2D\Physics2DGeometry.cpp" />
+    <ClCompile Include="GameFramework\Debug\SceneDebugDrawSystem.cpp" />
     <ClCompile Include="GameFramework\Physics2D\Physics2DSystem.cpp" />
     <ClCompile Include="GameFramework\Component\BuiltinComponentRegistry.cpp" />
     <ClCompile Include="GameFramework\Reflection\ReflectionRegistry.cpp" />
     <ClCompile Include="GameFramework\Scripting\GameScript.cpp" />
     <ClCompile Include="GameFramework\Scripting\ScriptSystem.cpp" />
+    <ClCompile Include="GameFramework\Transform\TransformSystem.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Utillity\Utillity.vcxproj">

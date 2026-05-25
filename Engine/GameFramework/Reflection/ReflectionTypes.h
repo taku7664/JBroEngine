@@ -23,12 +23,14 @@ enum class EReflectPropertyType
 	Int32,
 	UInt32,
 	Float,
+	AngleDegrees,  // float (radians) stored in memory, displayed/edited as degrees in inspector
 	String,
 	Vector2Float,
 	ColorFloat4,
 	AssetGuid,
 	EntityId,
-	Enum
+	Enum,
+	Layout2D  // Normalized(x,y) + Pixel(x,y) — maps to struct Layout2D
 };
 
 struct ReflectTypeInfo
@@ -58,7 +60,9 @@ struct ComponentRegisterDesc
 	const char* Name = nullptr;
 	const char* DisplayName = nullptr;
 	const char* Category = nullptr;
-	bool CanAddToEntity = true;
+	bool CanAddToEntity  = true;
+	// When true, AddNewComponent is used so the same entity can hold multiple instances.
+	bool AllowDuplicates = false;
 };
 
 struct ScriptRegisterDesc

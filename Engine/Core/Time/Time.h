@@ -25,9 +25,11 @@ public:
 	float GetElapsedSeconds() const;
 	float GetUnscaledElapsedSeconds() const;
 	float GetTimeScale() const;
+	float GetFixedDeltaSeconds() const;
 	std::uint64_t GetFrameCount() const;
 
 	void SetTimeScale(float timeScale);
+	void SetFixedDeltaSeconds(float fixedDelta);
 	void Reset();
 
 private:
@@ -40,6 +42,7 @@ private:
 	float m_elapsedSeconds = 0.0f;
 	float m_unscaledElapsedSeconds = 0.0f;
 	float m_timeScale = 1.0f;
+	float m_fixedDeltaSeconds = 0.02f; // 50 Hz default
 	std::uint64_t m_frameCount = 0;
 	bool m_hasStarted = false;
 };

@@ -22,6 +22,10 @@ public:
 	virtual void EndFrame() = 0;
 	virtual void Finalize() = 0;
 
+	// Called when the main render surface is resized.  Concrete implementations
+	// should resize the swapchain buffers and update any cached render-target views.
+	virtual void HandleSurfaceResize(const RenderSurfaceSize& size) { (void)size; }
+
 	virtual OwnerPtr<IRHIBuffer> CreateBuffer(const RHIBufferDesc& desc, const void* initialData) = 0;
 	virtual OwnerPtr<IRHITexture> CreateTexture2D(const RHITexture2DDesc& desc, const void* initialData) = 0;
 	virtual OwnerPtr<IRHISampler> CreateSampler(const RHISamplerDesc& desc) = 0;

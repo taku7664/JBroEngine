@@ -1,7 +1,11 @@
 #include "pch.h"
 #include "HierarchyTool.h"
 
+#include "Editor/Command/EditorSceneCommands.h"
+#include "Editor/EditorComponentMenu.h"
 #include "Editor/Editor.h"
+#include "Editor/Main/SceneViewTool.h"
+#include "Engine/Core/Core.h"
 
 #include <functional>
 #include <unordered_map>
@@ -35,12 +39,30 @@ void CHierarchyTool::OnRenderStay()
 		return;
 	}
 
+	auto drawBackgroundPopup = [&]()
+	{
+		if (ImGui::BeginPopupContextWindow("HierarchyBackgroundContext", ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems))
+		{
+			if (ImGui::MenuItem("Add Object"))
+			{
+				OwnerPtr<CCreateGameObjectCommand> command = MakeOwnerPtr<CCreateGameObjectCommand>(activeScene, "GameObject");
+				CCreateGameObjectCommand* rawCommand = command.Get();
+				if (Editor::CommandManager.ExecuteCommand(std::move(command)) && rawCommand)
+				{
+					Editor::SelectEntity(rawCommand->GetEntity());
+				}
+			}
+			ImGui::EndPopup();
+		}
+	};
+
 	SceneSnapshot snapshot;
 	activeScene->BuildSnapshot(snapshot);
 	if (snapshot.Objects.empty())
 	{
 		ImGui::TextDisabled("Scene is empty.");
 		Editor::ClearSelection();
+		drawBackgroundPopup();
 		return;
 	}
 
@@ -85,6 +107,23 @@ void CHierarchyTool::OnRenderStay()
 			Editor::SelectEntity(object.Entity);
 		}
 
+		// 더블클릭 → 에디터 카메라가 해당 오브젝트를 포커싱
+		if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+		{
+			Editor::SelectEntity(object.Entity);
+			if (Editor::SceneView)
+			{
+				Editor::SceneView->FocusOnEntity(object.Entity, *activeScene);
+			}
+		}
+
+		if (ImGui::BeginPopupContextItem("HierarchyObjectContext"))
+		{
+			Editor::SelectEntity(object.Entity);
+			EditorComponentMenu::DrawAddComponentMenu(*activeScene, object.Entity);
+			ImGui::EndPopup();
+		}
+
 		if (hasChildren && isOpen)
 		{
 			for (std::size_t childIndex : childIt->second)
@@ -99,4 +138,6 @@ void CHierarchyTool::OnRenderStay()
 	{
 		drawObject(rootIndex);
 	}
+
+	drawBackgroundPopup();
 }

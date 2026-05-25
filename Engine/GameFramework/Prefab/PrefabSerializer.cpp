@@ -157,8 +157,11 @@ void CPrefabSerializer::CopyComponents(const CScene& sourceScene, EntityId sourc
 	{
 		if (SpriteRenderer2D* target = targetObject.AddComponent<SpriteRenderer2D>())
 		{
+			target->IsEnabled = source->IsEnabled;
 			target->SpriteGuid = source->SpriteGuid;
 			target->MaterialGuid = source->MaterialGuid;
+			target->Size = source->Size;
+			target->Offset = source->Offset;
 			target->Color[0] = source->Color[0];
 			target->Color[1] = source->Color[1];
 			target->Color[2] = source->Color[2];
@@ -192,12 +195,24 @@ void CPrefabSerializer::CopyComponents(const CScene& sourceScene, EntityId sourc
 		}
 	}
 
-	if (const PolygonCollider2D* source = sourceScene.GetComponent<PolygonCollider2D>(sourceEntity))
+	// Copy all polygon collider instances (AllowDuplicates type).
 	{
-		if (PolygonCollider2D* target = targetObject.AddComponent<PolygonCollider2D>())
+		const std::vector<const PolygonCollider2D*> sources = sourceScene.GetAllComponents<PolygonCollider2D>(sourceEntity);
+		for (const PolygonCollider2D* source : sources)
 		{
-			*target = *source;
-			target->WorldPoints.clear();
+			if (nullptr == source)
+			{
+				continue;
+			}
+			const bool alreadyHasOne = targetObject.HasComponent<PolygonCollider2D>();
+			PolygonCollider2D* target = alreadyHasOne
+				? targetObject.AddNewComponent<PolygonCollider2D>()
+				: targetObject.AddComponent<PolygonCollider2D>();
+			if (target)
+			{
+				*target = *source;
+				target->WorldPoints.clear();
+			}
 		}
 	}
 

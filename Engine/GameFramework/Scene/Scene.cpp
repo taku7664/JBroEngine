@@ -13,9 +13,16 @@
 #include "GameFramework/Physics2D/Physics2DSystem.h"
 #include "GameFramework/Scene/SceneSnapshot.h"
 #include "GameFramework/Scripting/ScriptSystem.h"
+#include "GameFramework/Transform/TransformSystem.h"
 
 CScene::CScene()
 {
+	m_transformSystem = MakeOwnerPtr<CTransformSystem>();
+	if (m_transformSystem)
+	{
+		m_transformSystem->Initialize(*this);
+	}
+
 	m_physicsSystem = MakeOwnerPtr<CPhysics2DSystem>();
 	if (m_physicsSystem)
 	{
@@ -52,11 +59,11 @@ bool CScene::DestroyEntity(EntityId entity)
 		return false;
 	}
 
-	for (auto& pair : m_componentPools)
+	for (auto& entry : m_componentPools)
 	{
-		if (pair.second)
+		if (entry.Pool)
 		{
-			pair.second->RemoveEntity(entity);
+			entry.Pool->RemoveEntity(entity);
 		}
 	}
 
@@ -115,8 +122,11 @@ void CScene::BuildSnapshot(SceneSnapshot& snapshot) const
 			if (const SpriteRenderer2D* sprite = GetComponent<SpriteRenderer2D>(entity))
 			{
 				object.HasSpriteRenderer = true;
+				object.SpriteRendererEnabled = sprite->IsEnabled;
 				object.SpriteGuid = sprite->SpriteGuid;
 				object.MaterialGuid = sprite->MaterialGuid;
+				object.SpriteSize = sprite->Size;
+				object.SpriteOffset = sprite->Offset;
 				object.Color[0] = sprite->Color[0];
 				object.Color[1] = sprite->Color[1];
 				object.Color[2] = sprite->Color[2];
@@ -143,11 +153,14 @@ void CScene::BuildSnapshot(SceneSnapshot& snapshot) const
 				object.Rigidbody = *rigidbody;
 			}
 
-			if (const PolygonCollider2D* polygonCollider = GetComponent<PolygonCollider2D>(entity))
+			for (const PolygonCollider2D* polygonCollider : GetAllComponents<PolygonCollider2D>(entity))
 			{
-				object.HasPolygonCollider = true;
-				object.PolygonCollider = *polygonCollider;
-				object.PolygonCollider.WorldPoints.clear();
+				if (polygonCollider)
+				{
+					PolygonCollider2D snap = *polygonCollider;
+					snap.WorldPoints.clear();
+					object.PolygonColliders.push_back(snap);
+				}
 			}
 
 			if (const CircleCollider2D* circleCollider = GetComponent<CircleCollider2D>(entity))
@@ -247,22 +260,64 @@ bool CScene::IsDescendantOf(EntityId entity, EntityId possibleAncestor) const
 	return false;
 }
 
-void CScene::Update()
+void CScene::Update(bool isSimulationPlaying)
 {
-	UpdateSystems();
-	UpdateScripts();
+	UpdateSystems(isSimulationPlaying);
+	if (isSimulationPlaying)
+	{
+		UpdateScripts();
+	}
+	// Apply all deferred component removals after every system and script
+	// has finished running for this frame.
+	FlushPendingRemovesAllPools();
 }
 
-void CScene::UpdateSystems()
+void CScene::Update()
 {
+	Update(true);
+}
+
+void CScene::FixedUpdate()
+{
+	// 1. Physics — runs at fixed timestep (called by SceneManager accumulator).
 	if (m_physicsSystem)
 	{
-		m_physicsSystem->Update(*this);
+		m_physicsSystem->FixedUpdate(*this);
 	}
 
+	// 2. User-registered systems that implement OnFixedUpdate.
 	for (OwnerPtr<CGameSystem>& system : m_systems)
 	{
 		if (system)
+		{
+			system->FixedUpdate(*this);
+		}
+	}
+
+	// 3. Script FixedUpdate (only scripts that are already started).
+	if (m_scriptSystem)
+	{
+		m_scriptSystem->FixedUpdate(*this);
+	}
+
+	// 4. Flush deferred removals at the end of each fixed step.
+	FlushPendingRemovesAllPools();
+}
+
+void CScene::UpdateSystems(bool isSimulationPlaying)
+{
+	// 1. Transform cache — always runs first so every downstream system
+	//    reads up-to-date WorldTransform2D (including physics results from FixedUpdate).
+	if (m_transformSystem)
+	{
+		m_transformSystem->Update(*this);
+	}
+
+	// 2. User-registered systems.
+	//    Physics has moved to FixedUpdate; only non-physics systems run here.
+	for (OwnerPtr<CGameSystem>& system : m_systems)
+	{
+		if (system && (isSimulationPlaying || system->ShouldUpdateInEditMode()))
 		{
 			system->Update(*this);
 		}
@@ -277,6 +332,27 @@ void CScene::UpdateScripts()
 	}
 }
 
+void CScene::FlushPendingRemovesAllPools()
+{
+	for (auto& entry : m_componentPools)
+	{
+		if (entry.Pool)
+		{
+			entry.Pool->FlushPendingRemoves();
+		}
+	}
+}
+
+CPhysics2DSystem* CScene::GetPhysics2DSystem()
+{
+	return m_physicsSystem.Get();
+}
+
+const CPhysics2DSystem* CScene::GetPhysics2DSystem() const
+{
+	return m_physicsSystem.Get();
+}
+
 void CScene::Clear()
 {
 	for (OwnerPtr<CGameSystem>& system : m_systems)
@@ -288,6 +364,12 @@ void CScene::Clear()
 	}
 
 	m_systems.clear();
+	if (m_transformSystem)
+	{
+		m_transformSystem->Finalize(*this);
+		m_transformSystem->Initialize(*this);
+	}
+
 	if (m_physicsSystem)
 	{
 		m_physicsSystem->Finalize(*this);

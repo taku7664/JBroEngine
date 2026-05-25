@@ -8,6 +8,12 @@ class CForward2DRenderer final : public IRenderer
 {
 public:
 	bool Initialize(const RendererDesc& desc) override;
+	void SetRenderTargetSize(const RenderSurfaceSize& size) override;
+	void SetViewCamera(float posX, float posY, float orthographicSize) override;
+	void SetViewCameraEx(float posX, float posY, float halfW, float halfH, float cosR = 1.0f, float sinR = 0.0f) override;
+	// Draw a full-viewport quad in NDC space with the given color (direct overwrite, no blend).
+	// Call after BeginRenderPass+SetViewport to clear a sub-viewport area.
+	void FillViewportColor(float r, float g, float b, float a) override;
 	void Render(IRenderScene& scene) override;
 	void Finalize() override;
 
@@ -29,5 +35,17 @@ private:
 	OwnerPtr<IRHIGraphicsPipeline> m_spritePipeline;
 	OwnerPtr<IRHISampler> m_defaultSampler;
 	OwnerPtr<IRenderMesh> m_quadMesh;
+	RenderSurfaceSize m_renderTargetSize;
+	// View camera (set per render pass via SetViewCamera / SetViewCameraEx)
+	float m_viewCamX      = 0.0f;
+	float m_viewCamY      = 0.0f;
+	float m_viewCamSize   = 1.0f;  // orthographic half-height; used when m_useExplicitSize == false
+	float m_viewCamHalfW  = 1.0f;  // explicit half-width  (stretch mode)
+	float m_viewCamHalfH  = 1.0f;  // explicit half-height (stretch mode)
+	float m_viewCamCosR   = 1.0f;  // camera rotation cosine (explicit mode)
+	float m_viewCamSinR   = 0.0f;  // camera rotation sine   (explicit mode)
+	bool  m_useExplicitSize = false; // true → use halfW/halfH/cosR/sinR directly
+	// 1×1 white texture used by FillViewportColor
+	OwnerPtr<IRHITexture> m_whiteTexture;
 	bool m_isInitialized = false;
 };

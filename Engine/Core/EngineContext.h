@@ -14,19 +14,27 @@ class CInput;
 class CFileSystem;
 class CThreadService;
 class CReflectionRegistry;
+class CLogger;
+class INetworkManager;
+class IDebugDraw2D;
 
 struct EngineContext
 {
-	SafePtr<IPlatform> Platform;
-	SafePtr<IRenderSurface> MainRenderSurface;
-	SafePtr<IRHIDevice> RHIDevice;
-	SafePtr<IAssetManager> AssetManager;
-	SafePtr<IRenderer> Renderer;
-	SafePtr<IRenderScene> RenderScene;
-	SafePtr<CTime> Time;
-	SafePtr<CInput> Input;
-	SafePtr<CSceneManager> SceneManager;
-	SafePtr<CFileSystem> FileSystem;
-	SafePtr<CThreadService> Thread;
+	SafePtr<IPlatform>          Platform;
+	SafePtr<IRenderSurface>     MainRenderSurface;
+	SafePtr<IRHIDevice>         RHIDevice;
+	SafePtr<IAssetManager>      AssetManager;
+	SafePtr<IRenderer>          Renderer;
+	SafePtr<IRenderScene>       RenderScene;
+	SafePtr<CTime>              Time;
+	SafePtr<CInput>             Input;
+	SafePtr<CSceneManager>      SceneManager;
+	SafePtr<CFileSystem>        FileSystem;
+	SafePtr<CThreadService>     Thread;
 	SafePtr<CReflectionRegistry> Reflection;
+	SafePtr<CLogger>            Logger;
+	// Optional — null until CEngine::InitializeNetwork() is called.
+	SafePtr<INetworkManager>    NetworkManager;
+	// 2D debug draw.  Always valid after engine initialization.
+	SafePtr<IDebugDraw2D>       DebugDraw2D;
 };

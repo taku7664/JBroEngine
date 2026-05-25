@@ -22,6 +22,16 @@ void CGameSystem::Update(CScene& scene)
 	OnUpdate(scene);
 }
 
+void CGameSystem::FixedUpdate(CScene& scene)
+{
+	if (false == m_isInitialized)
+	{
+		return;
+	}
+
+	OnFixedUpdate(scene);
+}
+
 void CGameSystem::Finalize(CScene& scene)
 {
 	if (false == m_isInitialized)

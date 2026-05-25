@@ -16,6 +16,7 @@ public:
 	void BeginFrame() override;
 	void EndFrame() override;
 	void Finalize() override;
+	void HandleSurfaceResize(const RenderSurfaceSize& size) override;
 
 	OwnerPtr<IRHIBuffer> CreateBuffer(const RHIBufferDesc& desc, const void* initialData) override;
 	OwnerPtr<IRHITexture> CreateTexture2D(const RHITexture2DDesc& desc, const void* initialData) override;

@@ -20,7 +20,6 @@ public:
 private:
 	void OnPreBegin() override;
 	void OnPostBegin() override;
-	void OnPostEnd() override;
 
 	void SubmitDockSpace();
 	bool BeginBuildDockLayout();
@@ -37,6 +36,7 @@ protected:
 	BitFlag	m_imguiDockFlags;
 	BitFlag	m_customDockFlags;
 	bool	m_bNeedRebuildDockLayout;
+	bool    m_bUseDocking;
 
 	std::vector<SafePtr<CImWindow>> m_childImWindowVector;
 	ImGui::Utillity::StyleBuilder m_dockStyleBuilder;

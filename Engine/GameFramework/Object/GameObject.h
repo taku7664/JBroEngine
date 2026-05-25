@@ -52,6 +52,18 @@ public:
 		return m_scene->AddComponent<T>(m_entity, std::forward<Args>(args)...);
 	}
 
+	// Always creates a new instance (use for AllowDuplicates component types).
+	template<typename T, typename... Args>
+	T* AddNewComponent(Args&&... args)
+	{
+		if (false == IsValid())
+		{
+			return nullptr;
+		}
+
+		return m_scene->AddNewComponent<T>(m_entity, std::forward<Args>(args)...);
+	}
+
 	template<typename T>
 	void RemoveComponent()
 	{

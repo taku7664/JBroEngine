@@ -23,8 +23,11 @@ struct SceneObjectSnapshot
 	Transform2D Transform;
 
 	bool HasSpriteRenderer = false;
+	bool SpriteRendererEnabled = true;
 	AssetGuid SpriteGuid = INVALID_ASSET_GUID;
 	AssetGuid MaterialGuid = INVALID_ASSET_GUID;
+	Vector2<float> SpriteSize = Vector2<float>(1.0f, 1.0f);
+	Vector2<float> SpriteOffset = Vector2<float>(0.0f, 0.0f);
 	float Color[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
 	std::int32_t SortOrder = 0;
 	RenderLayerMask LayerMask = 0xffffffffu;
@@ -38,8 +41,9 @@ struct SceneObjectSnapshot
 	bool HasRigidbody = false;
 	Rigidbody2D Rigidbody;
 
-	bool HasPolygonCollider = false;
-	PolygonCollider2D PolygonCollider;
+	// An entity may hold multiple PolygonCollider2D components (AllowDuplicates=true).
+	// An empty vector means no polygon collider on this entity.
+	std::vector<PolygonCollider2D> PolygonColliders;
 
 	bool HasCircleCollider = false;
 	CircleCollider2D CircleCollider;

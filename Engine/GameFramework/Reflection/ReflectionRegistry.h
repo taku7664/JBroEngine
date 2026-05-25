@@ -2,33 +2,45 @@
 
 #include "GameFramework/Reflection/ReflectionTypes.h"
 #include "GameFramework/Scene/Scene.h"
+#include "GameFramework/Scripting/GameScript.h"
 #include "Utillity/SafePtr.h"
 
 #include <functional>
 #include <type_traits>
 #include <unordered_map>
 
-using ComponentAddFunc = bool(*)(CScene& scene, EntityId entity);
-using ComponentRemoveFunc = bool(*)(CScene& scene, EntityId entity);
-using ComponentHasFunc = bool(*)(const CScene& scene, EntityId entity);
-using ComponentAddressFunc = void* (*)(CScene& scene, EntityId entity);
-using ConstComponentAddressFunc = const void* (*)(const CScene& scene, EntityId entity);
+using ComponentAddFunc              = bool(*)(CScene& scene, EntityId entity);
+using ComponentAddNewFunc           = bool(*)(CScene& scene, EntityId entity);
+using ComponentRemoveFunc           = bool(*)(CScene& scene, EntityId entity);
+using ComponentRemoveSpecificFunc   = bool(*)(CScene& scene, EntityId entity, void* component);
+using ComponentHasFunc              = bool(*)(const CScene& scene, EntityId entity);
+using ComponentAddressFunc          = void*       (*)(CScene& scene, EntityId entity);
+using ConstComponentAddressFunc     = const void* (*)(const CScene& scene, EntityId entity);
+using ComponentGetAllAddressesFunc  = void(*)(CScene& scene, EntityId entity, std::vector<void*>& out);
+
+// 스크립트 인스턴스 팩토리 함수 타입
+using CreateScriptFunc = CGameScript*(*)();
 
 struct ComponentTypeInfo
 {
 	ReflectTypeInfo Type;
 	std::vector<ReflectPropertyInfo> Properties;
-	ComponentAddFunc AddToEntity = nullptr;
-	ComponentRemoveFunc RemoveFromEntity = nullptr;
-	ComponentHasFunc HasComponent = nullptr;
-	ComponentAddressFunc GetAddress = nullptr;
-	ConstComponentAddressFunc GetConstAddress = nullptr;
-	bool CanAddToEntity = true;
+	ComponentAddFunc             AddToEntity              = nullptr; // idempotent
+	ComponentAddNewFunc          AddNewToEntity           = nullptr; // always creates
+	ComponentRemoveFunc          RemoveFromEntity         = nullptr; // removes all instances
+	ComponentRemoveSpecificFunc  RemoveSpecificFromEntity = nullptr; // removes one instance
+	ComponentHasFunc             HasComponent             = nullptr;
+	ComponentAddressFunc         GetAddress               = nullptr; // returns first instance
+	ConstComponentAddressFunc    GetConstAddress          = nullptr;
+	ComponentGetAllAddressesFunc GetAllAddresses          = nullptr;
+	bool CanAddToEntity    = true;
+	bool AllowDuplicates   = false;
 };
 
 struct ScriptTypeInfo
 {
-	ReflectTypeInfo Type;
+	ReflectTypeInfo  Type;
+	CreateScriptFunc CreateInstance = nullptr; // 스크립트 인스턴스 생성 팩토리
 };
 
 class CComponentRegistration final
@@ -62,11 +74,20 @@ public:
 	std::size_t GetScriptTypeCount() const;
 	const ScriptTypeInfo* GetScriptType(std::size_t index) const;
 
+	// DLL 언로드 시 해당 DLL이 등록한 스크립트 타입을 제거합니다.
+	bool UnregisterScript(TypeId typeId);
+
+	// 등록된 스크립트 타입의 인스턴스를 생성합니다. 호출자가 소유권을 가집니다.
+	CGameScript* CreateScriptInstance(TypeId typeId) const;
+
 	bool AddComponent(CScene& scene, EntityId entity, TypeId typeId) const;
+	bool AddNewComponent(CScene& scene, EntityId entity, TypeId typeId) const;
 	bool RemoveComponent(CScene& scene, EntityId entity, TypeId typeId) const;
+	bool RemoveSpecificComponent(CScene& scene, EntityId entity, TypeId typeId, void* component) const;
 	bool HasComponent(const CScene& scene, EntityId entity, TypeId typeId) const;
 	void* GetComponentAddress(CScene& scene, EntityId entity, TypeId typeId) const;
 	const void* GetComponentAddress(const CScene& scene, EntityId entity, TypeId typeId) const;
+	void GetAllComponentAddresses(CScene& scene, EntityId entity, TypeId typeId, std::vector<void*>& out) const;
 
 	static void* GetPropertyAddress(void* component, const ReflectPropertyInfo& property);
 	static const void* GetPropertyAddress(const void* component, const ReflectPropertyInfo& property);
@@ -98,9 +119,13 @@ CComponentRegistration CReflectionRegistry::RegisterComponent(const ComponentReg
 	typeInfo.Type.Kind = EReflectTypeKind::Component;
 	typeInfo.Type.Size = sizeof(T);
 	typeInfo.Type.Alignment = alignof(T);
-	typeInfo.CanAddToEntity = desc.CanAddToEntity;
+	typeInfo.CanAddToEntity  = desc.CanAddToEntity;
+	typeInfo.AllowDuplicates = desc.AllowDuplicates;
 	typeInfo.AddToEntity = [](CScene& scene, EntityId entity) -> bool {
 		return nullptr != scene.AddComponent<T>(entity);
+	};
+	typeInfo.AddNewToEntity = [](CScene& scene, EntityId entity) -> bool {
+		return nullptr != scene.AddNewComponent<T>(entity);
 	};
 	typeInfo.RemoveFromEntity = [](CScene& scene, EntityId entity) -> bool {
 		if (false == scene.HasComponent<T>(entity))
@@ -109,6 +134,9 @@ CComponentRegistration CReflectionRegistry::RegisterComponent(const ComponentReg
 		}
 		scene.RemoveComponent<T>(entity);
 		return true;
+	};
+	typeInfo.RemoveSpecificFromEntity = [](CScene& scene, EntityId entity, void* component) -> bool {
+		return scene.RemoveSpecificComponent<T>(entity, static_cast<T*>(component));
 	};
 	typeInfo.HasComponent = [](const CScene& scene, EntityId entity) -> bool {
 		return scene.HasComponent<T>(entity);
@@ -119,6 +147,12 @@ CComponentRegistration CReflectionRegistry::RegisterComponent(const ComponentReg
 	typeInfo.GetConstAddress = [](const CScene& scene, EntityId entity) -> const void* {
 		return scene.GetComponent<T>(entity);
 	};
+	typeInfo.GetAllAddresses = [](CScene& scene, EntityId entity, std::vector<void*>& out) {
+		for (T* ptr : scene.GetAllComponents<T>(entity))
+		{
+			out.push_back(ptr);
+		}
+	};
 
 	ComponentTypeInfo* registeredType = RegisterComponentInternal(std::move(typeInfo));
 	return CComponentRegistration(registeredType);
@@ -127,6 +161,9 @@ CComponentRegistration CReflectionRegistry::RegisterComponent(const ComponentReg
 template<typename T>
 bool CReflectionRegistry::RegisterScript(const ScriptRegisterDesc& desc)
 {
+	static_assert(std::is_base_of_v<CGameScript, T>, "Script types must derive from CGameScript.");
+	static_assert(std::is_default_constructible_v<T>, "Script types must be default constructible.");
+
 	ScriptTypeInfo typeInfo;
 	typeInfo.Type.Id = MakeTypeId(desc.Name);
 	typeInfo.Type.Name = desc.Name;
@@ -135,5 +172,6 @@ bool CReflectionRegistry::RegisterScript(const ScriptRegisterDesc& desc)
 	typeInfo.Type.Kind = EReflectTypeKind::Script;
 	typeInfo.Type.Size = sizeof(T);
 	typeInfo.Type.Alignment = alignof(T);
+	typeInfo.CreateInstance = []() -> CGameScript* { return new T(); };
 	return RegisterScriptInternal(std::move(typeInfo));
 }

@@ -8,3 +8,4 @@ typedef const wchar_t CWChar;
 #include "SizeT.h"
 #include "RectT.h"
 #include "BitFlag.h"
+#include "Layout2D.h"

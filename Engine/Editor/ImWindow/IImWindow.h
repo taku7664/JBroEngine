@@ -22,6 +22,7 @@ public:
 	virtual BitFlag& GetCustomWindowFlags() = 0;
 
 	virtual void Destroy() = 0;
+	virtual void Focus() = 0;
 
 	virtual void InitializeDockLayout(ImGuiDir dir) = 0;
 	virtual ImGuiWindow* GetImGuiWindow() = 0;
@@ -36,6 +37,8 @@ protected:
 
     virtual void OnPreBegin()       = 0;
     virtual void OnPostBegin()      = 0;
+	// Called while CImWindow owns an active ImGui menu bar scope.
+	// Implementations must not call BeginMenuBar() or EndMenuBar().
     virtual void OnMenuBar()        = 0;
 
     virtual void OnFocusEnter()     = 0;

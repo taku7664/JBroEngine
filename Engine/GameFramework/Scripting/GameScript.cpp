@@ -5,6 +5,7 @@ void CGameScript::Bind(CScene& scene, EntityId entity)
 {
 	m_scene = &scene;
 	m_entity = entity;
+	m_isBound = true;
 }
 
 CScene* CGameScript::GetScene() const
@@ -54,6 +55,16 @@ void CGameScript::Update()
 	OnUpdate();
 }
 
+void CGameScript::FixedUpdate()
+{
+	if (false == m_isStarted)
+	{
+		return;
+	}
+
+	OnFixedUpdate();
+}
+
 void CGameScript::Destroy()
 {
 	if (m_isCreated)
@@ -63,11 +74,17 @@ void CGameScript::Destroy()
 
 	m_isCreated = false;
 	m_isStarted = false;
-	m_scene = nullptr;
-	m_entity = INVALID_ENTITY_ID;
+	m_isBound   = false;
+	m_scene     = nullptr;
+	m_entity    = INVALID_ENTITY_ID;
 }
 
 bool CGameScript::IsStarted() const
 {
 	return m_isStarted;
+}
+
+bool CGameScript::IsBound() const
+{
+	return m_isBound;
 }

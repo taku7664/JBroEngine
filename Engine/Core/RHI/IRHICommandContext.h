@@ -27,6 +27,10 @@ public:
 	virtual void SetConstantBuffer(ERHIProgramStage stage, std::uint32_t slot, SafePtr<IRHIBuffer> buffer) = 0;
 	virtual void SetTexture(ERHIProgramStage stage, std::uint32_t slot, SafePtr<IRHITexture> texture) = 0;
 	virtual void SetSampler(ERHIProgramStage stage, std::uint32_t slot, SafePtr<IRHISampler> sampler) = 0;
+	// Override the current viewport after BeginRenderPass.
+	// Coordinates are in pixels; minDepth/maxDepth default to [0, 1].
+	virtual void SetViewport(float x, float y, float width, float height,
+	                         float minDepth = 0.0f, float maxDepth = 1.0f) {}
 	virtual void Draw(std::uint32_t vertexCount, std::uint32_t firstVertex) = 0;
 	virtual void DrawIndexed(std::uint32_t indexCount, std::uint32_t firstIndex, std::uint32_t baseVertex) = 0;
 };

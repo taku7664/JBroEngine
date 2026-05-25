@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Utillity/SafePtr.h"
+#include "GameFramework/Scene/SceneTypes.h"
 
 #include <string>
 #include <unordered_map>
@@ -26,10 +27,19 @@ public:
 	SafePtr<CScene> FindScene(const char* name) const;
 	std::size_t GetLoadedSceneCount() const;
 	bool GetLoadedSceneNames(std::vector<std::string>& outNames) const;
+	void PlaySimulation();
+	void PauseSimulation();
+	void StopSimulation();
+	bool IsSimulationPlaying() const;
+	bool IsSimulationPaused() const;
+	ESceneSimulationState GetSimulationState() const;
 	void Update();
 	void Clear();
 
 private:
 	std::unordered_map<std::string, OwnerPtr<CScene>> m_scenes;
 	SafePtr<CScene> m_activeScene;
+	ESceneSimulationState m_simulationState = ESceneSimulationState::Edit;
+	std::string m_playModeSnapshot;
+	float m_fixedAccumulator = 0.0f;
 };
