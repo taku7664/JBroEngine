@@ -425,6 +425,9 @@
     <ClInclude Include="Core\Debug\DebugRenderer2D.h">
       <Filter>Header\Core\Debug</Filter>
     </ClInclude>
+    <ClInclude Include="Core\Debug\OutlineRenderer2D.h">
+      <Filter>Header\Core\Debug</Filter>
+    </ClInclude>
     <ClInclude Include="Core\Renderer\Forward2DRenderer.h">
       <Filter>Header\Core\Renderer</Filter>
     </ClInclude>
@@ -761,6 +764,9 @@
       <Filter>Source\Core\Debug</Filter>
     </ClCompile>
     <ClCompile Include="Core\Debug\DebugRenderer2D.cpp">
+      <Filter>Source\Core\Debug</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Debug\OutlineRenderer2D.cpp">
       <Filter>Source\Core\Debug</Filter>
     </ClCompile>
     <ClCompile Include="Core\Renderer\Forward2DRenderer.cpp">

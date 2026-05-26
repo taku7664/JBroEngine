@@ -3,6 +3,7 @@
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
 
 #include "Editor/Command/EditorCommandManager.h"
+#include "Engine/GameFramework/Component/Transform2D.h"
 #include "Engine/GameFramework/ECS/EntityTypes.h"
 #include "Engine/GameFramework/Reflection/ReflectionTypes.h"
 
@@ -32,7 +33,9 @@ private:
 class CCreateGameObjectCommand final : public IEditorCommand
 {
 public:
-	CCreateGameObjectCommand(SafePtr<CScene> scene, const char* name);
+	// parent == INVALID_ENTITY_ID 이면 루트에 생성, 그 외에는 parent 의 자식으로 생성.
+	CCreateGameObjectCommand(SafePtr<CScene> scene, const char* name,
+	                         EntityId parent = INVALID_ENTITY_ID);
 	~CCreateGameObjectCommand() override = default;
 
 	const char* GetName() const override;
@@ -44,8 +47,9 @@ public:
 private:
 	SafePtr<CScene> m_scene;
 	std::string m_name;
-	EntityId m_entity = INVALID_ENTITY_ID;
-	bool m_created = false;
+	EntityId m_parent  = INVALID_ENTITY_ID;
+	EntityId m_entity  = INVALID_ENTITY_ID;
+	bool     m_created = false;
 };
 
 class CSetComponentPropertyCommand final : public IEditorCommand
@@ -79,6 +83,31 @@ private:
 	std::size_t m_instanceIndex = 0;
 	std::vector<std::uint8_t> m_oldValue;
 	std::vector<std::uint8_t> m_newValue;
+};
+
+// SetParent 와 WorldStay(로컬 Transform 자동 보정)를 함께 처리하는 커맨드.
+// Undo: 이전 부모 관계 + 이전 로컬 Transform 복원.
+// Redo: 새 부모 관계 + 계산된 새 로컬 Transform 재적용.
+class CSetParentCommand final : public IEditorCommand
+{
+public:
+	// newParent = INVALID_ENTITY_ID 이면 부모 해제(루트로 이동).
+	CSetParentCommand(SafePtr<CScene> scene, EntityId child, EntityId newParent);
+	~CSetParentCommand() override = default;
+
+	const char* GetName() const override;
+	bool Execute() override;
+	void Undo() override;
+	void Redo() override;
+
+private:
+	SafePtr<CScene> m_scene;
+	EntityId        m_child          = INVALID_ENTITY_ID;
+	EntityId        m_oldParent      = INVALID_ENTITY_ID;
+	EntityId        m_newParent      = INVALID_ENTITY_ID;
+	Transform2D     m_oldLocalTransform;
+	Transform2D     m_newLocalTransform;
+	bool            m_executed       = false;
 };
 
 #endif

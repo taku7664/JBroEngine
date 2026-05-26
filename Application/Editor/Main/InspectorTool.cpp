@@ -3,7 +3,7 @@
 
 #include "Editor/Editor.h"
 #include "Editor/Command/EditorSceneCommands.h"
-#include "Editor/EditorComponentMenu.h"
+#include "Editor/Helper/EditorGuiDrawHelpers.h"
 #include "Engine/Core/Asset/AssetMetaFile.h"
 #include "Engine/Core/Asset/IAssetManager.h"
 #include "Engine/Core/Asset/IAssetRegistry.h"
@@ -41,24 +41,25 @@ namespace
 		return Editor::ImEditor ? Editor::ImEditor->GetProjectManager() : nullptr;
 	}
 
-	bool DrawPropertyEditor(void* field, const ReflectPropertyInfo& property)
+	bool DrawPropertyEditor(void* field, const ReflectPropertyInfo& property, bool drawLabel = true)
 	{
 		if (nullptr == field || false == property.IsEditable)
 		{
 			return false;
 		}
 
-		const char* label = property.DisplayName ? property.DisplayName : property.Name;
+		ImGui::Utillity::IDGroup idGroup(field);
+
 		switch (property.Type)
 		{
 		case EReflectPropertyType::Bool:
-			return ImGui::Checkbox(label, static_cast<bool*>(field));
+			return ImGui::Checkbox("", static_cast<bool*>(field));
 		case EReflectPropertyType::Int32:
-			return ImGui::InputScalar(label, ImGuiDataType_S32, field);
+			return ImGui::InputScalar("", ImGuiDataType_S32, field);
 		case EReflectPropertyType::UInt32:
-			return ImGui::InputScalar(label, ImGuiDataType_U32, field);
+			return ImGui::InputScalar("", ImGuiDataType_U32, field);
 		case EReflectPropertyType::Float:
-			return ImGui::DragFloat(label, static_cast<float*>(field), 0.01f);
+			return ImGui::DragFloat("", static_cast<float*>(field), 0.01f);
 		case EReflectPropertyType::AngleDegrees:
 		{
 			// 내부 저장값은 Radians, Inspector에서는 Degrees로 표시/편집.
@@ -66,7 +67,7 @@ namespace
 			constexpr float kRad2Deg = 180.0f / 3.14159265358979323846f;
 			constexpr float kDeg2Rad = 3.14159265358979323846f / 180.0f;
 			float deg = *rad * kRad2Deg;
-			if (ImGui::DragFloat(label, &deg, 0.5f, 0.0f, 0.0f, "%.2f deg"))
+			if (ImGui::DragFloat("", &deg, 0.5f, 0.0f, 0.0f, "%.2f deg"))
 			{
 				*rad = deg * kDeg2Rad;
 				return true;
@@ -74,13 +75,13 @@ namespace
 			return false;
 		}
 		case EReflectPropertyType::Vector2Float:
-			return ImGui::DragFloat2(label, static_cast<float*>(field), 0.01f);
+			return ImGui::DragFloat2("", static_cast<float*>(field), 0.01f);
 		case EReflectPropertyType::ColorFloat4:
-			return ImGui::ColorEdit4(label, static_cast<float*>(field));
+			return ImGui::ColorEdit4("", static_cast<float*>(field));
 		case EReflectPropertyType::String:
 			if (property.ElementCount > 0)
 			{
-				return ImGui::InputText(label, static_cast<char*>(field), property.ElementCount);
+				return ImGui::InputText("", static_cast<char*>(field), property.ElementCount);
 			}
 			return false;
 		case EReflectPropertyType::AssetGuid:
@@ -89,7 +90,7 @@ namespace
 			char buffer[GUID_BUFFER_LENGTH] = {};
 			const std::string guidText = guid->generic_string();
 			strncpy_s(buffer, guidText.c_str(), GUID_BUFFER_LENGTH - 1);
-			if (ImGui::InputText(label, buffer, GUID_BUFFER_LENGTH))
+			if (ImGui::InputText("", buffer, GUID_BUFFER_LENGTH))
 			{
 				*guid = File::Guid(buffer);
 				return true;
@@ -97,13 +98,13 @@ namespace
 			return false;
 		}
 		case EReflectPropertyType::EntityId:
-			return ImGui::InputScalar(label, ImGuiDataType_U64, field);
+			return ImGui::InputScalar("", ImGuiDataType_U64, field);
 		case EReflectPropertyType::Enum:
 		{
 			std::int32_t value = 0;
 			const std::size_t copySize = std::min(property.Size, sizeof(value));
 			std::memcpy(&value, field, copySize);
-			if (ImGui::InputInt(label, &value))
+			if (ImGui::InputInt("", &value))
 			{
 				std::memcpy(field, &value, copySize);
 				return true;
@@ -117,12 +118,12 @@ namespace
 			Layout2D* layout = static_cast<Layout2D*>(field);
 			bool changed = false;
 
-			ImGui::PushID(label);
-			ImGui::TextUnformatted(label);
+			ImGui::PushID("");
+			ImGui::TextUnformatted("");
 			ImGui::Indent(8.0f);
 
-			const std::string normLabel = std::string("N##") + label;
-			const std::string pixLabel  = std::string("P##") + label;
+			const std::string normLabel = std::string("N##") + "";
+			const std::string pixLabel  = std::string("P##") + "";
 
 			float norm[2] = { layout->Normalized.x, layout->Normalized.y };
 			if (ImGui::DragFloat2(normLabel.c_str(), norm, 0.01f,
@@ -151,7 +152,7 @@ namespace
 			return changed;
 		}
 		default:
-			ImGui::TextDisabled("%s: unsupported", label);
+			ImGui::TextDisabled("%s: unsupported", "");
 			return false;
 		}
 	}
@@ -278,6 +279,119 @@ namespace
 		DrawReadOnlyVector2("Bounds Size", collider.Size);
 		DrawReadOnlyVector2("World AABB Min", aabb.Min);
 		DrawReadOnlyVector2("World AABB Max", aabb.Max);
+	}
+
+	// ── GetComponentIsEnabled ────────────────────────────────────────────────
+	// 컴포넌트의 IsEnabled 값을 반환. IsEnabled 프로퍼티가 없으면 true.
+	bool GetComponentIsEnabled(void* component, const ComponentTypeInfo& typeInfo)
+	{
+		for (const ReflectPropertyInfo& prop : typeInfo.Properties)
+		{
+			if (prop.Type == EReflectPropertyType::Bool &&
+			    prop.Name && 0 == strcmp(prop.Name, "IsEnabled"))
+			{
+				void* field = CReflectionRegistry::GetPropertyAddress(component, prop);
+				if (field) return *static_cast<bool*>(field);
+				break;
+			}
+		}
+		return true;
+	}
+
+	// ── DrawIsEnabledCheckbox ─────────────────────────────────────────────────
+	//   sameLineAfter=true  → "##enabled" 체크박스 + SameLine() (CollapsingHeader 왼쪽)
+	//   sameLineAfter=false → "IsEnabled" 라벨 체크박스 + Separator  (탭 최상단 단독)
+	void DrawIsEnabledCheckbox(
+		CScene& scene, EntityId selectedEntity,
+		const ComponentTypeInfo& componentType,
+		std::size_t instanceIdx, void* component, bool sameLineAfter)
+	{
+		const ReflectPropertyInfo* enabledProp = nullptr;
+		for (const ReflectPropertyInfo& prop : componentType.Properties)
+		{
+			if (prop.Type == EReflectPropertyType::Bool &&
+				prop.Name && 0 == strcmp(prop.Name, "IsEnabled"))
+			{
+				enabledProp = &prop;
+				break;
+			}
+		}
+		if (!enabledProp) return;
+
+		void* enabledField = CReflectionRegistry::GetPropertyAddress(component, *enabledProp);
+		if (!enabledField) return;
+
+		bool oldEnabled = *static_cast<bool*>(enabledField);
+		bool newEnabled = oldEnabled;
+		const char* label = sameLineAfter ? "##enabled" : "IsEnabled##enabled";
+		if (ImGui::Checkbox(label, &newEnabled) && newEnabled != oldEnabled)
+		{
+			*static_cast<bool*>(enabledField) = newEnabled;
+			std::vector<std::uint8_t> oldVal = { static_cast<std::uint8_t>(oldEnabled) };
+			std::vector<std::uint8_t> newVal = { static_cast<std::uint8_t>(newEnabled) };
+			Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CSetComponentPropertyCommand>(
+				scene.SafeFromThis(), selectedEntity,
+				componentType.Type.Id, enabledProp->Offset,
+				std::move(oldVal), std::move(newVal), instanceIdx));
+		}
+		if (sameLineAfter)
+			ImGui::SameLine();
+		else
+			ImGui::Separator();
+	}
+
+	// ── DrawComponentProperties ───────────────────────────────────────────────
+	// IsEnabled·non-editable 프로퍼티를 제외하고 에디터 + 특수 디버그 섹션 렌더링.
+	void DrawComponentProperties(
+		CScene& scene, EntityId selectedEntity,
+		const ComponentTypeInfo& componentType,
+		std::size_t instanceIdx, void* component)
+	{
+		ImGui::Utillity::TextEx leftText;
+		leftText.UseHoveredToolTip(true);
+
+		for (const ReflectPropertyInfo& property : componentType.Properties)
+		{
+			if (property.Name && 0 == strcmp(property.Name, "IsEnabled"))
+				continue;
+			if (!property.IsEditable)
+				continue;
+
+			ImGui::Utillity::FormLayout layout("##component_properties", 4.0f, {2.0f, 1.0f}, 60.0f);
+
+			void* field = CReflectionRegistry::GetPropertyAddress(component, property);
+			std::vector<std::uint8_t> oldValue(property.Size);
+			if (field && property.Size > 0)
+				std::memcpy(oldValue.data(), field, property.Size);
+
+			const char* label = property.DisplayName ? property.DisplayName : property.Name;
+			layout.Row([&]() { leftText.Show(label); }, [&]() {
+					const bool	changed = DrawPropertyEditor(field, property);
+					if (changed && field && property.Size > 0)
+					{
+						std::vector<std::uint8_t> newValue(property.Size);
+						std::memcpy(newValue.data(), field, property.Size);
+						if (oldValue != newValue)
+						{
+							Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CSetComponentPropertyCommand>(
+								scene.SafeFromThis(), selectedEntity,
+								componentType.Type.Id, property.Offset,
+								std::move(oldValue), std::move(newValue), instanceIdx));
+						}
+					}
+				}
+			);
+		}
+
+		// 특수 디버그 섹션
+		if (componentType.Type.Id == CReflectionRegistry::MakeTypeId("Transform2D"))
+			DrawTransformMatrixReadOnly(*static_cast<Transform2D*>(component));
+		else if (componentType.Type.Id == CReflectionRegistry::MakeTypeId("Rigidbody2D"))
+			DrawRigidbodyDebug(scene, selectedEntity, *static_cast<Rigidbody2D*>(component));
+		else if (componentType.Type.Id == CReflectionRegistry::MakeTypeId("CircleCollider2D"))
+			DrawCircleColliderDebug(scene, selectedEntity, *static_cast<CircleCollider2D*>(component));
+		else if (componentType.Type.Id == CReflectionRegistry::MakeTypeId("PolygonCollider2D"))
+			DrawPolygonColliderDebug(scene, selectedEntity, *static_cast<PolygonCollider2D*>(component));
 	}
 
 	bool SaveSpriteImportOptions(const AssetMetaData& metaData, const SpriteImportOptions& options)
@@ -417,6 +531,8 @@ namespace
 void CInspectorTool::OnCreate()
 {
 	SetTitle("Inspector");
+	// 스크롤은 허용하되 스크롤바는 표시하지 않음
+	m_imguiFlags |= ImGuiWindowFlags_NoScrollbar;
 }
 
 void CInspectorTool::OnDestroy()
@@ -429,6 +545,9 @@ void CInspectorTool::OnUpdate()
 
 void CInspectorTool::OnRenderStay()
 {
+	// 매 프레임 초기화: 컴포넌트 미표시 상태가 기본값
+	m_activeComponentTypeName = nullptr;
+
 	CScene* scene = GetActiveScene();
 	if (nullptr == scene)
 	{
@@ -440,16 +559,10 @@ void CInspectorTool::OnRenderStay()
 	if (INVALID_ENTITY_ID == selectedEntity || false == scene->IsAlive(selectedEntity))
 	{
 		if (DrawSelectedAssetInspector())
-		{
 			return;
-		}
-
 		ImGui::TextDisabled("No entity selected.");
 		return;
 	}
-
-	ImGui::Text("Entity: %llu", static_cast<unsigned long long>(selectedEntity));
-	ImGui::Separator();
 
 	if (false == Core::Reflection.IsValid())
 	{
@@ -459,150 +572,200 @@ void CInspectorTool::OnRenderStay()
 
 	CReflectionRegistry& reflection = *Core::Reflection;
 
-	EditorComponentMenu::DrawAddComponentButton(*scene, selectedEntity);
+	// ── 컴포넌트 수집 ─────────────────────────────────────────────────────────
+	// TransformHierarchy2D / WorldTransform2D: 엔진 내부 → 비노출
+	// GameObject: 상단 인라인 표시, 목록 제외
+	// 나머지 전체: 좌측 목록에 표시
+	struct ComponentEntry
+	{
+		const ComponentTypeInfo* typeInfo;
+		std::size_t              typeIndex;
+		std::vector<void*>       instances;
+	};
 
-	ImGui::Separator();
+	ComponentEntry*             goEntry = nullptr; // GameObject (목록 밖)
+	std::vector<ComponentEntry> allEntries;        // 임시 보관 (포인터 안정성)
 
 	for (std::size_t i = 0; i < reflection.GetComponentTypeCount(); ++i)
 	{
-		const ComponentTypeInfo* componentType = reflection.GetComponentType(i);
-		if (nullptr == componentType || false == reflection.HasComponent(*scene, selectedEntity, componentType->Type.Id))
-		{
+		const ComponentTypeInfo* ct = reflection.GetComponentType(i);
+		if (!ct || !reflection.HasComponent(*scene, selectedEntity, ct->Type.Id))
 			continue;
-		}
 
-		// Collect all instances (1 for normal components, N for AllowDuplicates types).
-		std::vector<void*> allInstances;
-		reflection.GetAllComponentAddresses(*scene, selectedEntity, componentType->Type.Id, allInstances);
-		if (allInstances.empty())
-		{
+		std::vector<void*> instances;
+		reflection.GetAllComponentAddresses(*scene, selectedEntity, ct->Type.Id, instances);
+		if (instances.empty())
 			continue;
-		}
 
-		const char* displayName = componentType->Type.DisplayName ? componentType->Type.DisplayName : componentType->Type.Name;
-		const bool hasMultiple = allInstances.size() > 1;
+		const char* name = ct->Type.Name ? ct->Type.Name : "";
+		if (strcmp(name, "TransformHierarchy2D") == 0 ||
+		    strcmp(name, "WorldTransform2D") == 0)
+			continue;
 
-		for (std::size_t instanceIdx = 0; instanceIdx < allInstances.size(); ++instanceIdx)
+		allEntries.push_back({ ct, i, std::move(instances) });
+	}
+
+	// GameObject 분리
+	for (auto& e : allEntries)
+	{
+		const char* name = e.typeInfo->Type.Name ? e.typeInfo->Type.Name : "";
+		if (strcmp(name, "GameObject") == 0)
 		{
-			void* component = allInstances[instanceIdx];
-			if (nullptr == component)
-			{
-				continue;
-			}
+			goEntry = &e;
+			break;
+		}
+	}
 
-			// Unique ImGui ID per component type + instance.
-			ImGui::PushID(static_cast<int>(i * 1000 + instanceIdx));
+	// ── GameObject 인라인 표시 (헤더 없음) ─────────────────────────────────────
+	ImGui::Text("Entity: %llu", static_cast<unsigned long long>(selectedEntity));
+	EditorGuiDrawHelpers::DrawAddComponentButton(*scene, selectedEntity);
 
-			// --- IsEnabled inline checkbox (Unity-style: left of the header) ---
-			const ReflectPropertyInfo* enabledProp = nullptr;
-			for (const ReflectPropertyInfo& prop : componentType->Properties)
-			{
-				if (prop.Type == EReflectPropertyType::Bool && prop.Name && 0 == strcmp(prop.Name, "IsEnabled"))
-				{
-					enabledProp = &prop;
-					break;
-				}
-			}
-
-			if (enabledProp)
-			{
-				void* enabledField = CReflectionRegistry::GetPropertyAddress(component, *enabledProp);
-				if (enabledField)
-				{
-					bool oldEnabled = *static_cast<bool*>(enabledField);
-					bool newEnabled = oldEnabled;
-					if (ImGui::Checkbox("##enabled", &newEnabled) && newEnabled != oldEnabled)
-					{
-						*static_cast<bool*>(enabledField) = newEnabled;
-						std::vector<std::uint8_t> oldVal = { static_cast<std::uint8_t>(oldEnabled) };
-						std::vector<std::uint8_t> newVal = { static_cast<std::uint8_t>(newEnabled) };
-						Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CSetComponentPropertyCommand>(
-							scene->SafeFromThis(),
-							selectedEntity,
-							componentType->Type.Id,
-							enabledProp->Offset,
-							std::move(oldVal),
-							std::move(newVal),
-							instanceIdx));
-					}
-					ImGui::SameLine();
-				}
-			}
-
-			// --- Collapsing header with optional [N] suffix ---
-			char headerLabel[256];
-			if (hasMultiple)
-			{
-				snprintf(headerLabel, sizeof(headerLabel), "%s [%zu]", displayName, instanceIdx);
-			}
-			else
-			{
-				snprintf(headerLabel, sizeof(headerLabel), "%s", displayName);
-			}
-
-			ImGui::Utillity::StyleBuilder styleBuilder;
-			styleBuilder.PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(4.0f, 2.0f));
-			if (ImGui::CollapsingHeader(headerLabel, ImGuiTreeNodeFlags_DefaultOpen))
-			{
-				styleBuilder.PopStyle();
-				for (const ReflectPropertyInfo& property : componentType->Properties)
-				{
-					// IsEnabled is rendered as the inline header checkbox; skip it here.
-					if (property.Name && 0 == strcmp(property.Name, "IsEnabled"))
-					{
-						continue;
-					}
-
-					if (false == property.IsEditable)
-					{
-						continue;
-					}
-
-					void* field = CReflectionRegistry::GetPropertyAddress(component, property);
-					std::vector<std::uint8_t> oldValue(property.Size);
-					if (field && property.Size > 0)
-					{
-						std::memcpy(oldValue.data(), field, property.Size);
-					}
-
-					const bool changed = DrawPropertyEditor(field, property);
-					if (changed && field && property.Size > 0)
-					{
-						std::vector<std::uint8_t> newValue(property.Size);
-						std::memcpy(newValue.data(), field, property.Size);
-						if (oldValue != newValue)
-						{
-							Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CSetComponentPropertyCommand>(
-								scene->SafeFromThis(),
-								selectedEntity,
-								componentType->Type.Id,
-								property.Offset,
-								std::move(oldValue),
-								std::move(newValue),
-								instanceIdx));
-						}
-					}
-				}
-
-				if (componentType->Type.Id == CReflectionRegistry::MakeTypeId("Transform2D"))
-				{
-					DrawTransformMatrixReadOnly(*static_cast<Transform2D*>(component));
-				}
-				else if (componentType->Type.Id == CReflectionRegistry::MakeTypeId("Rigidbody2D"))
-				{
-					DrawRigidbodyDebug(*scene, selectedEntity, *static_cast<Rigidbody2D*>(component));
-				}
-				else if (componentType->Type.Id == CReflectionRegistry::MakeTypeId("CircleCollider2D"))
-				{
-					DrawCircleColliderDebug(*scene, selectedEntity, *static_cast<CircleCollider2D*>(component));
-				}
-				else if (componentType->Type.Id == CReflectionRegistry::MakeTypeId("PolygonCollider2D"))
-				{
-					DrawPolygonColliderDebug(*scene, selectedEntity, *static_cast<PolygonCollider2D*>(component));
-				}
-			}
-
+	if (goEntry && !goEntry->instances.empty())
+	{
+		void* comp = goEntry->instances[0];
+		if (comp)
+		{
+			ImGui::Spacing();
+			ImGui::PushID(static_cast<int>(goEntry->typeIndex * 1000));
+			DrawIsEnabledCheckbox(*scene, selectedEntity, *goEntry->typeInfo, 0, comp, false);
+			DrawComponentProperties(*scene, selectedEntity, *goEntry->typeInfo, 0, comp);
 			ImGui::PopID();
 		}
 	}
+	ImGui::Separator();
+	ImGui::Spacing();
+
+	// ── 목록 항목 빌드 (GameObject 제외) ──────────────────────────────────────
+	struct ListEntry
+	{
+		std::string     label;
+		ComponentEntry* compEntry = nullptr;
+		std::size_t     instIdx   = 0;
+	};
+
+	std::vector<ListEntry> listItems;
+	for (auto& e : allEntries)
+	{
+		const char* name = e.typeInfo->Type.Name ? e.typeInfo->Type.Name : "";
+		if (strcmp(name, "GameObject") == 0)
+			continue; // 상단 인라인 처리됨
+
+		const char* displayName =
+			e.typeInfo->Type.DisplayName ? e.typeInfo->Type.DisplayName : e.typeInfo->Type.Name;
+		const bool hasMultiple = e.instances.size() > 1;
+
+		for (std::size_t instIdx = 0; instIdx < e.instances.size(); ++instIdx)
+		{
+			ListEntry le;
+			if (hasMultiple)
+				le.label = std::string(displayName) + " [" + std::to_string(instIdx) + "]";
+			else
+				le.label = displayName;
+			le.compEntry = &e;
+			le.instIdx   = instIdx;
+			listItems.push_back(std::move(le));
+		}
+	}
+
+	if (listItems.empty())
+	{
+		ImGui::TextDisabled("No other components.");
+		return;
+	}
+
+	// 엔티티 변경 시 인덱스 범위 보정
+	if (m_selectedTabIndex >= static_cast<int>(listItems.size()))
+		m_selectedTabIndex = 0;
+
+	// 현재 선택된 탭의 컴포넌트 타입 이름 캐시 (SceneViewTool 등 외부 시스템이 참조)
+	m_activeComponentTypeName =
+		listItems[static_cast<std::size_t>(m_selectedTabIndex)].compEntry->typeInfo->Type.Name;
+
+	// ── 레이아웃: 좌측 리스트 | 드래그 구분선 | 우측 컨텐츠 ──────────────────
+	constexpr float SPLITTER_W = 5.0f;
+	constexpr float MIN_RATIO  = 0.15f;
+	constexpr float MAX_RATIO  = 0.80f;
+
+	const float availW   = ImGui::GetContentRegionAvail().x;
+	const float contentH = ImGui::GetContentRegionAvail().y;
+	const float leftW    = availW * m_splitRatio - SPLITTER_W * 0.5f;
+	const float rightW   = availW - leftW - SPLITTER_W;
+
+	// ── 좌측 패널: 컴포넌트 이름 목록 ──────────────────────────────────────────
+	const ImVec4 disabledTextCol = ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled);
+
+	ImGui::BeginChild("##InspectorList",
+	    ImVec2(leftW, contentH), true, ImGuiWindowFlags_NoScrollbar);
+	{
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4.0f, 1.0f));
+		for (int idx = 0; idx < static_cast<int>(listItems.size()); ++idx)
+		{
+			const ListEntry& item     = listItems[static_cast<std::size_t>(idx)];
+			const bool       selected = (m_selectedTabIndex == idx);
+
+			// IsEnabled 확인 → 비활성화 컴포넌트는 dim 색상
+			const ComponentEntry& ce = *item.compEntry;
+			void* firstInst = (item.instIdx < ce.instances.size()) ? ce.instances[item.instIdx] : nullptr;
+			const bool isEnabled = firstInst
+			    ? GetComponentIsEnabled(firstInst, *ce.typeInfo)
+			    : true;
+
+			if (!isEnabled)
+				ImGui::PushStyleColor(ImGuiCol_Text, disabledTextCol);
+
+			// ID 충돌 방지: 인덱스 접미사
+			char selLabel[256];
+			snprintf(selLabel, sizeof(selLabel), "%s##si%d", item.label.c_str(), idx);
+
+			if (ImGui::Selectable(selLabel, selected,
+			        ImGuiSelectableFlags_SpanAllColumns,
+			        ImVec2(0.0f, 0.0f)))
+			{
+				m_selectedTabIndex = idx;
+			}
+
+			if (!isEnabled)
+				ImGui::PopStyleColor();
+		}
+		ImGui::PopStyleVar();
+	}
+	ImGui::EndChild();
+
+	// ── 드래그 구분선 ───────────────────────────────────────────────────────────
+	ImGui::SameLine(0.0f, 0.0f);
+	{
+		ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+		ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.4f, 0.6f, 1.0f, 0.3f));
+		ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(0.4f, 0.6f, 1.0f, 0.5f));
+		ImGui::Button("##InspSplitter", ImVec2(SPLITTER_W, contentH));
+		ImGui::PopStyleColor(3);
+
+		if (ImGui::IsItemActive())
+		{
+			m_splitRatio += ImGui::GetIO().MouseDelta.x / availW;
+			m_splitRatio  = std::clamp(m_splitRatio, MIN_RATIO, MAX_RATIO);
+		}
+		if (ImGui::IsItemHovered() || ImGui::IsItemActive())
+			ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
+	}
+
+	// ── 우측 패널: 선택된 컴포넌트 내용 ──────────────────────────────────────────
+	ImGui::SameLine(0.0f, 0.0f);
+	ImGui::BeginChild("##InspectorContent",
+	    ImVec2(rightW, contentH), false, ImGuiWindowFlags_NoScrollbar);
+	{
+		const ListEntry&  sel     = listItems[static_cast<std::size_t>(m_selectedTabIndex)];
+		ComponentEntry&   e       = *sel.compEntry;
+		const std::size_t instIdx = sel.instIdx;
+		void* comp = (instIdx < e.instances.size()) ? e.instances[instIdx] : nullptr;
+
+		if (comp)
+		{
+			ImGui::PushID(static_cast<int>(e.typeIndex * 1000 + instIdx));
+			DrawIsEnabledCheckbox(*scene, selectedEntity, *e.typeInfo, instIdx, comp, false);
+			DrawComponentProperties(*scene, selectedEntity, *e.typeInfo, instIdx, comp);
+			ImGui::PopID();
+		}
+	}
+	ImGui::EndChild();
 }

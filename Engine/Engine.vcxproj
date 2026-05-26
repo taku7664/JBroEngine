@@ -372,6 +372,7 @@
     <ClInclude Include="Core\Debug\DebugDraw2D.h" />
     <ClInclude Include="Core\Debug\DebugRenderer.h" />
     <ClInclude Include="Core\Debug\DebugRenderer2D.h" />
+    <ClInclude Include="Core\Debug\OutlineRenderer2D.h" />
     <ClInclude Include="Core\Renderer\Forward2DRenderer.h" />
     <ClInclude Include="Core\Renderer\IRenderer.h" />
     <ClInclude Include="Core\Renderer\IRenderMaterial.h" />
@@ -547,6 +548,7 @@
     <ClCompile Include="Core\Debug\DebugDraw2D.cpp" />
     <ClCompile Include="Core\Debug\DebugRenderer.cpp" />
     <ClCompile Include="Core\Debug\DebugRenderer2D.cpp" />
+    <ClCompile Include="Core\Debug\OutlineRenderer2D.cpp" />
     <ClCompile Include="Core\Renderer\Forward2DRenderer.cpp" />
     <ClCompile Include="Core\Renderer\RenderResources2D.cpp" />
     <ClCompile Include="Core\Renderer\RenderScene.cpp" />

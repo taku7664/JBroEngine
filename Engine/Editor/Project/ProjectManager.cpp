@@ -21,6 +21,7 @@ namespace
 	constexpr const char* PROJECT_KEY_SCENE_CAM_SIZE    = "SceneViewCamSize";
 	constexpr const char* PROJECT_KEY_SCRIPT_DLL_PATH   = "ScriptDllPath";
 	constexpr const char* PROJECT_KEY_LAST_SCENE_PATH   = "LastOpenedScenePath";
+	constexpr const char* PROJECT_KEY_PIXELS_PER_UNIT   = "PixelsPerUnit";
 	constexpr const char* ASSETS_DIRECTORY_NAME         = "Assets";
 }
 
@@ -120,6 +121,13 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 		lastOpenedScenePath = root[PROJECT_KEY_LAST_SCENE_PATH].as<std::string>("");
 	}
 
+	float pixelsPerUnit = 100.0f;
+	if (root[PROJECT_KEY_PIXELS_PER_UNIT])
+	{
+		pixelsPerUnit = root[PROJECT_KEY_PIXELS_PER_UNIT].as<float>(100.0f);
+		if (pixelsPerUnit < 1.0f) pixelsPerUnit = 1.0f;
+	}
+
 	std::filesystem::path rootRelativePath = ".";
 	if (root[PROJECT_KEY_ROOT_PATH])
 	{
@@ -162,6 +170,7 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 	m_info.SceneViewCamSize = sceneViewCamSize;
 	m_info.ScriptDllPath       = scriptDllPath;
 	m_info.LastOpenedScenePath = lastOpenedScenePath;
+	m_info.PixelsPerUnit       = pixelsPerUnit;
 
 	if (false == m_assetManager->SetAssetRootPath(m_info.AssetPath.generic_string().c_str()))
 	{
@@ -493,6 +502,16 @@ void CProjectManager::SetResolution(std::uint32_t width, std::uint32_t height)
 	m_info.ResolutionHeight = (height > 0) ? height : 1080;
 }
 
+float CProjectManager::GetPixelsPerUnit() const
+{
+	return m_info.PixelsPerUnit;
+}
+
+void CProjectManager::SetPixelsPerUnit(float ppu)
+{
+	m_info.PixelsPerUnit = (ppu >= 1.0f) ? ppu : 100.0f;
+}
+
 float CProjectManager::GetSceneViewCamX() const
 {
 	return m_info.SceneViewCamX;
@@ -598,6 +617,7 @@ bool CProjectManager::SaveProject() const
 	out << YAML::Key << PROJECT_KEY_SCENE_CAM_X     << YAML::Value << m_info.SceneViewCamX;
 	out << YAML::Key << PROJECT_KEY_SCENE_CAM_Y     << YAML::Value << m_info.SceneViewCamY;
 	out << YAML::Key << PROJECT_KEY_SCENE_CAM_SIZE  << YAML::Value << m_info.SceneViewCamSize;
+	out << YAML::Key << PROJECT_KEY_PIXELS_PER_UNIT << YAML::Value << m_info.PixelsPerUnit;
 	if (false == m_info.ScriptDllPath.empty())
 	{
 		out << YAML::Key << PROJECT_KEY_SCRIPT_DLL_PATH << YAML::Value << m_info.ScriptDllPath;

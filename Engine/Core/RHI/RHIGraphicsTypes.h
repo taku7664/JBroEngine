@@ -128,6 +128,13 @@ struct RHIVertexElementDesc
 	std::uint32_t Offset = 0;
 };
 
+enum class ERHIBlendMode
+{
+    Opaque,        // 블렌딩 없음 (기본값)
+    AlphaBlend,    // src.a × src.rgb + (1-src.a) × dst.rgb  (스프라이트용)
+    Additive,      // src.rgb + dst.rgb
+};
+
 struct RHIGraphicsPipelineDesc
 {
 	SafePtr<class IRHIProgram> VertexProgram;
@@ -135,4 +142,5 @@ struct RHIGraphicsPipelineDesc
 	const RHIVertexElementDesc* VertexElements = nullptr;
 	std::uint32_t VertexElementCount = 0;
 	ERHIPrimitiveTopology PrimitiveTopology = ERHIPrimitiveTopology::TriangleList;
+	ERHIBlendMode BlendMode = ERHIBlendMode::Opaque;
 };

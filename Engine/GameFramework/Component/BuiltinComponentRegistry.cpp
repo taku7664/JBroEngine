@@ -87,7 +87,7 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 		.AddProperty("LocalCenter", EReflectPropertyType::Vector2Float, offsetof(PolygonCollider2D, LocalCenter), sizeof(Vector2<float>))
 		.AddProperty("VertexCount", EReflectPropertyType::UInt32, offsetof(PolygonCollider2D, VertexCount), sizeof(std::uint32_t))
 		.AddProperty("Size", EReflectPropertyType::Vector2Float, offsetof(PolygonCollider2D, Size), sizeof(Vector2<float>))
-		.AddProperty("RotationRadians", EReflectPropertyType::AngleDegrees, offsetof(PolygonCollider2D, RotationRadians), sizeof(float))
+		.AddProperty("Rotation", EReflectPropertyType::AngleDegrees, offsetof(PolygonCollider2D, RotationRadians), sizeof(float))
 		.AddProperty("IsTrigger", EReflectPropertyType::Bool, offsetof(PolygonCollider2D, IsTrigger), sizeof(bool))
 		.AddProperty("IsConvex", EReflectPropertyType::Bool, offsetof(PolygonCollider2D, IsConvex), sizeof(bool));
 

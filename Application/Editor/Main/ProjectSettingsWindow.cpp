@@ -26,7 +26,7 @@ void CProjectSettingsWindow::OnCreate()
 
     m_windowFlags = IMWINDOW_FLAG_NONE;
 
-    SetSize({ 460.0f, 260.0f });
+    SetSize({ 460.0f, 320.0f });
     SetVisible(false);
 }
 
@@ -38,6 +38,7 @@ void CProjectSettingsWindow::OnShow()
     {
         m_editResW = static_cast<int>(pm->GetResolutionWidth());
         m_editResH = static_cast<int>(pm->GetResolutionHeight());
+        m_editPPU  = pm->GetPixelsPerUnit();
 
         // DLL 경로 버퍼 초기화
         const std::string& dllPath = pm->GetScriptDllPath();
@@ -60,6 +61,17 @@ void CProjectSettingsWindow::OnRenderStay()
     // 0 이하 값 방지
     if (m_editResW < 1) m_editResW = 1;
     if (m_editResH < 1) m_editResH = 1;
+
+    // ── 좌표계 섹션 ───────────────────────────────────────────────────
+    ImGui::Spacing();
+    ImGui::SeparatorText(Utillity::U8(u8"좌표계"));
+
+    ImGui::SetNextItemWidth(160.0f);
+    ImGui::DragFloat(Utillity::U8(u8"픽셀 / 유닛 (PPU)"), &m_editPPU, 1.0f, 1.0f, 10000.0f, "%.1f");
+    if (m_editPPU < 1.0f) m_editPPU = 1.0f;
+    ImGui::TextDisabled(
+        Utillity::U8(u8"  1 유닛 = %.1f px  |  1 px ≈ %.5f 유닛"),
+        m_editPPU, 1.0f / m_editPPU);
 
     // ── 스크립트 DLL 섹션 ─────────────────────────────────────────────
     ImGui::Spacing();
@@ -121,6 +133,7 @@ void CProjectSettingsWindow::OnRenderStay()
             pm->SetResolution(
                 static_cast<std::uint32_t>(m_editResW),
                 static_cast<std::uint32_t>(m_editResH));
+            pm->SetPixelsPerUnit(m_editPPU);
             pm->SetScriptDllPath(m_dllPathBuf.data());
         }
         SetVisible(false);

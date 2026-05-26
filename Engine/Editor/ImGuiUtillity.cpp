@@ -28,21 +28,6 @@ void ImGui::Utillity::TextWithVerticalSeparator( const char* text , float startX
 	ImGui::SetNextItemWidth( availX );
 }
 
-ImVec4 ImGui::Utillity::ColorFromGuid( const GUID& guid )
-{
-	float r = guid.Data1 % 256 / 255.0f;
-	float g = guid.Data2 % 256 / 255.0f;
-	float b = guid.Data3 % 256 / 255.0f;
-
-	// Keep generated colors in a visible brightness range.
-	const float minBrightness = 0.5f;
-	r = minBrightness + r * ( 1.0f - minBrightness );
-	g = minBrightness + g * ( 1.0f - minBrightness );
-	b = minBrightness + b * ( 1.0f - minBrightness );
-
-	return ImVec4( r , g , b , 1.0f);
-}
-
 bool ImGui::Utillity::HoveredToolTip( const char* toolTip , int flags)
 {
 	bool isHovered = ImGui::IsItemHovered(flags);

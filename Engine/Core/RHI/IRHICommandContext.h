@@ -25,6 +25,8 @@ public:
 	virtual void SetVertexBuffer(std::uint32_t slot, SafePtr<IRHIBuffer> buffer, std::uint32_t stride, std::uint32_t offset) = 0;
 	virtual void SetIndexBuffer(SafePtr<IRHIBuffer> buffer) = 0;
 	virtual void SetConstantBuffer(ERHIProgramStage stage, std::uint32_t slot, SafePtr<IRHIBuffer> buffer) = 0;
+	// Upload new data into an existing DEFAULT-usage buffer (D3D11: UpdateSubresource).
+	virtual void UpdateBuffer(SafePtr<IRHIBuffer> buffer, const void* data, std::size_t size) {}
 	virtual void SetTexture(ERHIProgramStage stage, std::uint32_t slot, SafePtr<IRHITexture> texture) = 0;
 	virtual void SetSampler(ERHIProgramStage stage, std::uint32_t slot, SafePtr<IRHISampler> sampler) = 0;
 	// Override the current viewport after BeginRenderPass.

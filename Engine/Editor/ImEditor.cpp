@@ -4,6 +4,8 @@
 #include "Core/Core.h"
 #include "Core/Debug/DebugDraw2D.h"
 #include "Core/Debug/DebugRenderer2D.h"
+#include "Core/Debug/OutlineRenderer2D.h"
+#include "Core/Renderer/Forward2DRenderer.h"
 #include "Core/EngineContext.h"
 #include "Core/Renderer/IRenderer.h"
 #include "Core/Renderer/IRenderScene.h"
@@ -250,7 +252,7 @@ void CImEditor::OnPostInitialize()
         }
     }
 
-    // Initialize the GPU debug renderer.
+    // Initialize GPU debug/outline renderers.
     if (const EngineContext* engineContext = GetEngineContext())
     {
         if (engineContext->RHIDevice.IsValid())
@@ -259,9 +261,14 @@ void CImEditor::OnPostInitialize()
             if (m_debugRenderer)
             {
                 if (false == m_debugRenderer->Initialize(engineContext->RHIDevice))
-                {
                     m_debugRenderer.Reset();
-                }
+            }
+
+            m_outlineRenderer = MakeOwnerPtr<COutlineRenderer2D>();
+            if (m_outlineRenderer)
+            {
+                if (false == m_outlineRenderer->Initialize(engineContext->RHIDevice))
+                    m_outlineRenderer.Reset();
             }
         }
     }
@@ -269,6 +276,11 @@ void CImEditor::OnPostInitialize()
 
 void CImEditor::OnPreFinalize()
 {
+    if (m_outlineRenderer)
+    {
+        m_outlineRenderer->Finalize();
+        m_outlineRenderer.Reset();
+    }
     if (m_debugRenderer)
     {
         m_debugRenderer->Finalize();
@@ -284,6 +296,36 @@ void CImEditor::OnPreFinalize()
 
 void CImEditor::OnPostFinalize()
 {
+}
+
+// ── Scene view focus context ────────────────────────────────────────────────
+
+void CImEditor::SetSceneViewFocusContext(std::vector<EntityId> contextEntities)
+{
+    m_sceneViewFocusActive = !contextEntities.empty();
+    m_sceneViewFocusEntities.clear();
+    for (EntityId e : contextEntities) m_sceneViewFocusEntities.insert(e);
+}
+
+void CImEditor::ClearSceneViewFocusContext()
+{
+    m_sceneViewFocusActive = false;
+    m_sceneViewFocusEntities.clear();
+}
+
+// ── Scene view selection ────────────────────────────────────────────────────
+
+void CImEditor::SetSceneViewSelection(std::vector<EntityId> selectedEntities)
+{
+    m_sceneViewHasSelection = !selectedEntities.empty();
+    m_sceneViewSelectedEntities.clear();
+    for (EntityId e : selectedEntities) m_sceneViewSelectedEntities.insert(e);
+}
+
+void CImEditor::ClearSceneViewSelection()
+{
+    m_sceneViewHasSelection = false;
+    m_sceneViewSelectedEntities.clear();
 }
 
 void CImEditor::OnBeginFrame()
@@ -333,13 +375,40 @@ void CImEditor::OnPrepareRender()
 	};
 
 	// ── Scene view (editor camera) ────────────────────────────────────────────────
-	// Clear colour alpha = 0 so the RT background is transparent.  Sprite pixels
-	// are written opaque.  SceneViewTool draws a solid grey rect and then composites
-	// this texture with AddImage — the grid (submitted to IDebugDraw2D by SceneViewTool
-	// earlier in the frame) is rendered into the RT here, after the sprite pass,
-	// so it appears on top of empty areas but is correctly occluded by sprites.
+	//
+	// RT 파이프라인 순서:
+	//   ① 그리드 (DebugDraw, Entity==INVALID)
+	//   ② 스프라이트 전체
+	//   ③ [포커스 모드] 흰 반투명 오버레이 + 포커스 스프라이트 + 포커스 콜라이더
+	//      [루트 모드] 모든 콜라이더 (Entity!=INVALID)
+	//   ④ [선택 아웃라인] Alpha Dilation 셰이더
 	if (m_sceneViewRequested && EnsureRT(m_sceneViewRenderTarget, m_sceneViewWidth, m_sceneViewHeight))
 	{
+		const int viewW = static_cast<int>(m_sceneViewWidth);
+		const int viewH = static_cast<int>(m_sceneViewHeight);
+		const float camX    = m_sceneViewCamX;
+		const float camY    = m_sceneViewCamY;
+		const float camSize = m_sceneViewCamSize;
+
+		engineContext->Renderer->SetRenderTargetSize(RenderSurfaceSize{ viewW, viewH });
+		engineContext->Renderer->SetViewCamera(camX, camY, camSize);
+
+		// ── Step 0: 선택 마스크 패스 (아웃라인용, BeginRenderPass 밖) ─────────────
+		if (m_sceneViewHasSelection && m_outlineRenderer && !m_sceneViewSelectedEntities.empty())
+		{
+			if (CForward2DRenderer* fwd = dynamic_cast<CForward2DRenderer*>(engineContext->Renderer.TryGet()))
+			{
+				m_outlineRenderer->RenderMask(
+					commandContext, *fwd, *engineContext->RenderScene,
+					m_sceneViewSelectedEntities,
+					camX, camY, camSize, viewW, viewH);
+				// 카메라 설정 복원 (RenderMask 내부에서 변경됨)
+				engineContext->Renderer->SetRenderTargetSize(RenderSurfaceSize{ viewW, viewH });
+				engineContext->Renderer->SetViewCamera(camX, camY, camSize);
+			}
+		}
+
+		// ── Step 1~4: 메인 씬 패스 ───────────────────────────────────────────────
 		RenderPassDesc rpDesc;
 		rpDesc.ColorAttachment.Target     = m_sceneViewRenderTarget.GetSafePtr();
 		rpDesc.ColorAttachment.LoadOp     = ERHILoadOp::Clear;
@@ -347,20 +416,55 @@ void CImEditor::OnPrepareRender()
 		rpDesc.ColorAttachment.ClearColor = Color{ 0.08f, 0.09f, 0.11f, 0.0f };
 		commandContext->BeginRenderPass(rpDesc);
 
-		engineContext->Renderer->SetRenderTargetSize(
-			RenderSurfaceSize{ static_cast<int>(m_sceneViewWidth), static_cast<int>(m_sceneViewHeight) });
-		engineContext->Renderer->SetViewCamera(m_sceneViewCamX, m_sceneViewCamY, m_sceneViewCamSize);
-		engineContext->Renderer->Render(*engineContext->RenderScene);
-
-		// Render debug primitives (grid, colliders, camera frusta, etc.) into the same RT.
+		// ① 그리드 (전역 DebugDraw, Entity==INVALID)
 		if (m_debugRenderer && Core::DebugDraw2D.IsValid())
 		{
-			m_debugRenderer->Render(
+			m_debugRenderer->RenderGlobal(
+				commandContext, *Core::DebugDraw2D,
+				camX, camY, camSize, viewW, viewH);
+		}
+
+		// ② 스프라이트 전체
+		engineContext->Renderer->Render(*engineContext->RenderScene);
+
+		if (m_sceneViewFocusActive && !m_sceneViewFocusEntities.empty())
+		{
+			// ③ 포커스 모드: 흰 오버레이 → 포커스 스프라이트 → 포커스 콜라이더
+			engineContext->Renderer->FillViewportColor(1.0f, 1.0f, 1.0f, 0.7f);
+
+			if (CForward2DRenderer* fwd = dynamic_cast<CForward2DRenderer*>(engineContext->Renderer.TryGet()))
+			{
+				fwd->RenderFiltered(*engineContext->RenderScene, m_sceneViewFocusEntities);
+			}
+
+			if (m_debugRenderer && Core::DebugDraw2D.IsValid())
+			{
+				m_debugRenderer->RenderEntities(
+					commandContext, *Core::DebugDraw2D,
+					camX, camY, camSize, viewW, viewH,
+					&m_sceneViewFocusEntities);
+			}
+		}
+		else
+		{
+			// ③ 루트 모드: 모든 콜라이더 (Entity!=INVALID)
+			if (m_debugRenderer && Core::DebugDraw2D.IsValid())
+			{
+				m_debugRenderer->RenderEntities(
+					commandContext, *Core::DebugDraw2D,
+					camX, camY, camSize, viewW, viewH,
+					nullptr);
+			}
+		}
+
+		// ④ 선택 아웃라인 합성 (Alpha Dilation)
+		if (m_sceneViewHasSelection && m_outlineRenderer && !m_sceneViewSelectedEntities.empty())
+		{
+			m_outlineRenderer->RenderOutline(
 				commandContext,
-				*Core::DebugDraw2D,
-				m_sceneViewCamX, m_sceneViewCamY, m_sceneViewCamSize,
-				static_cast<int>(m_sceneViewWidth),
-				static_cast<int>(m_sceneViewHeight));
+				1.0f, 1.0f, 0.0f, 1.0f, // 노란색 아웃라인
+				2.0f,                     // 2픽셀 두께
+				viewW, viewH);
 		}
 
 		commandContext->EndRenderPass();

@@ -5,8 +5,6 @@ CImDockWindow::CImDockWindow(ImGuiID id, ImGuiID parentId)
 	: CImWindow(id, parentId)
 	, m_mainDockID(0)
 	, m_mainSplitedID(0)
-	, m_splitedID({ 0 })
-	, m_splitRatio({ 0.0f })
 	, m_bNeedRebuildDockLayout(true)
 	, m_bUseDocking(true)
 {
@@ -27,9 +25,37 @@ CImDockWindow::~CImDockWindow()
 	}
 }
 
+namespace
+{
+	// ImGuiDir → 슬롯 이름 변환 (SetDockLayout 하위 호환용)
+	const char* DirToSlotName(ImGuiDir dir)
+	{
+		switch (dir)
+		{
+		case ImGuiDir_Left:  return "Left";
+		case ImGuiDir_Right: return "Right";
+		case ImGuiDir_Up:    return "Up";
+		case ImGuiDir_Down:  return "Down";
+		default:             return "Main";
+		}
+	}
+}
+
+void CImDockWindow::AddDockSplit(const char* fromSlot, ImGuiDir dir, float ratio, const char* newSlot)
+{
+	DockSplitDef def;
+	def.fromSlot  = fromSlot ? fromSlot : "";
+	def.direction = dir;
+	def.ratio     = ratio;
+	def.newSlot   = newSlot ? newSlot : "";
+	m_splitDefs.push_back(std::move(def));
+	m_bNeedRebuildDockLayout = true;
+}
+
 void CImDockWindow::SetDockLayout(ImGuiDir dir, float splitRatio)
 {
-	m_splitRatio[dir] = splitRatio;
+	// 하위 호환: 루트("")에서 분할, 방향명을 슬롯명으로 사용
+	AddDockSplit("", dir, splitRatio, DirToSlotName(dir));
 }
 
 BitFlag& CImDockWindow::GetImGuiDockFlags()
@@ -137,19 +163,40 @@ void CImDockWindow::OnPostBegin()
 
 	for (std::size_t i = 0; i < m_childImWindowVector.size(); ++i)
 	{
-
 		if (SafePtr<CImWindow>& childWnd = m_childImWindowVector[i])
 		{
 			if (isBeginDockBuild)
 			{
 				const char* label = childWnd->GetTitle();
-				const ImGuiDir dockDir = childWnd->m_initDockLayoutDirection;
-				ImGuiID splitID = (dockDir >= 0 && dockDir < ImGuiDir_COUNT) ? m_splitedID[dockDir] : m_mainSplitedID;
-				if (0 == splitID)
+
+				ImGuiID targetID = m_mainSplitedID;
+
+				if (childWnd->m_initDockSlotIsSet)
 				{
-					splitID = m_mainSplitedID;
+					// 슬롯 이름으로 탐색 (InitializeDockLayout(const char*) 사용 시)
+					// 빈 문자열 ""은 루트/중앙 슬롯을 명시적으로 지정
+					auto it = m_slotMap.find(childWnd->m_initDockSlot);
+					if (it != m_slotMap.end() && it->second != 0)
+					{
+						targetID = it->second;
+					}
 				}
-				ImGui::DockBuilderDockWindow(label, splitID);
+				else
+				{
+					// 방향 기반 탐색 (InitializeDockLayout(ImGuiDir) 하위 호환)
+					const ImGuiDir dockDir = childWnd->m_initDockLayoutDirection;
+					if (dockDir >= 0 && dockDir < ImGuiDir_COUNT)
+					{
+						const char* dirSlot = DirToSlotName(dockDir);
+						auto it = m_slotMap.find(dirSlot);
+						if (it != m_slotMap.end() && it->second != 0)
+						{
+							targetID = it->second;
+						}
+					}
+				}
+
+				ImGui::DockBuilderDockWindow(label, targetID);
 			}
 			childWnd->Update();
 		}
@@ -178,29 +225,53 @@ bool CImDockWindow::BeginBuildDockLayout()
 	if (true == m_bNeedRebuildDockLayout)
     {
 		m_bNeedRebuildDockLayout = false;
+		m_slotMap.clear();
+
         ImGui::DockBuilderRemoveNode(m_mainDockID);
         ImGui::DockBuilderAddNode(m_mainDockID, ImGuiDockNodeFlags_DockSpace | m_imguiDockFlags.Get());
 		if (m_imWindow)
 		{
 			ImGui::DockBuilderSetNodeSize(m_mainDockID, m_imWindow->Size);
 		}
-        ImGuiID mainId = m_mainDockID;
 
-		for(int i = 0; i < ImGuiDir_COUNT; ++i)
+		// 루트 슬롯 ("") 을 mainDockID로 초기화
+		m_slotMap[""] = m_mainDockID;
+
+		// 등록 순서대로 분할 적용
+		for (const DockSplitDef& def : m_splitDefs)
 		{
-			if(m_splitRatio[i] > 0.0f)
+			if (def.ratio <= 0.0f)
 			{
-				ImGuiID id = ImGui::DockBuilderSplitNode(
-					mainId,
-					(ImGuiDir)i,
-					m_splitRatio[i],
-					NULL,
-					&mainId
-				);
-				m_splitedID[i] = id;
+				continue;
+			}
+
+			// 소스 슬롯 조회 (없으면 루트)
+			auto srcIt = m_slotMap.find(def.fromSlot);
+			if (srcIt == m_slotMap.end() || srcIt->second == 0)
+			{
+				continue;
+			}
+
+			ImGuiID& sourceID = srcIt->second;   // 나머지(remainder)가 여기에 덮어쓰임
+			ImGuiID  newID    = 0;
+
+			ImGui::DockBuilderSplitNode(
+				sourceID,         // 분할할 노드 (out: 나머지로 갱신)
+				def.direction,    // 방향
+				def.ratio,        // 새 슬롯 비율
+				&newID,           // [out] 새로 분리된 노드 ID
+				&sourceID         // [in/out] 나머지 노드 ID
+			);
+
+			// 새 슬롯 등록
+			if (!def.newSlot.empty())
+			{
+				m_slotMap[def.newSlot] = newID;
 			}
 		}
-		m_mainSplitedID = mainId;
+
+		// 루트 슬롯 ("")의 최종 remainder = mainSplitedID
+		m_mainSplitedID = m_slotMap[""];
         return true;
     }
     return false;

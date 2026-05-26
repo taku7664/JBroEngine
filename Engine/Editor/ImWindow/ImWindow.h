@@ -38,6 +38,7 @@ public:
 	void Focus() override;
 
 	void InitializeDockLayout(ImGuiDir dir) override;
+	void InitializeDockLayout(const char* slot) override;
 	ImGuiWindow* GetImGuiWindow() override;
 
 public:
@@ -102,6 +103,8 @@ protected:
 	bool				m_bBeginResult;
 
 	ImGuiDir			m_initDockLayoutDirection;
+	std::string			m_initDockSlot;         // 슬롯 기반 도킹 레이아웃 이름 ("" = main)
+	bool				m_initDockSlotIsSet;    // InitializeDockLayout(const char*) 호출 여부
 	float				m_smoothWindowTick;
 	float				m_smoothWindowCount;
 	ImVec2				m_startWindowSize;

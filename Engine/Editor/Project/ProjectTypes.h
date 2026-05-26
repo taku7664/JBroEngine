@@ -25,6 +25,9 @@ struct ProjectInfo
 	float SceneViewCamY    = 0.0f;
 	float SceneViewCamSize = 5.0f;
 
+	// 좌표계 단위: 1 월드 유닛 = PixelsPerUnit 픽셀
+	float PixelsPerUnit = 100.0f;
+
 	// 스크립트 DLL 경로 (프로젝트 루트 기준 상대경로 또는 절대경로)
 	std::string ScriptDllPath;
 

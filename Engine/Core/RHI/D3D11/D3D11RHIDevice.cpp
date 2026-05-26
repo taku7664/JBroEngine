@@ -459,13 +459,23 @@ OwnerPtr<IRHIGraphicsPipeline> CD3D11RHIDevice::CreateGraphicsPipeline(const RHI
 		inputElements.push_back(d3dElement);
 	}
 
+	// VertexElementCount == 0: SV_VertexID 전용 셰이더 (풀스크린 삼각형 등).
+	// CreateInputLayout에 NumElements=0을 전달하면 E_INVALIDARG가 반환되므로,
+	// inputLayout = nullptr로 두고 IASetInputLayout(nullptr)을 호출하면 된다.
 	ID3D11InputLayout* inputLayout = nullptr;
-	result = m_device->CreateInputLayout(inputElements.data(), static_cast<UINT>(inputElements.size()), vertexProgram->GetBytecode()->GetBufferPointer(), vertexProgram->GetBytecode()->GetBufferSize(), &inputLayout);
-	if (FAILED(result) || nullptr == inputLayout)
+	if (!inputElements.empty())
 	{
-		vertexShader->Release();
-		pixelShader->Release();
-		return nullptr;
+		result = m_device->CreateInputLayout(
+			inputElements.data(), static_cast<UINT>(inputElements.size()),
+			vertexProgram->GetBytecode()->GetBufferPointer(),
+			vertexProgram->GetBytecode()->GetBufferSize(),
+			&inputLayout);
+		if (FAILED(result) || nullptr == inputLayout)
+		{
+			vertexShader->Release();
+			pixelShader->Release();
+			return nullptr;
+		}
 	}
 
 	if (m_deviceContext)
@@ -473,8 +483,41 @@ OwnerPtr<IRHIGraphicsPipeline> CD3D11RHIDevice::CreateGraphicsPipeline(const RHI
 		m_deviceContext->IASetPrimitiveTopology(ToD3DTopology(desc.PrimitiveTopology));
 	}
 
+	// ── BlendState 생성 ─────────────────────────────────────────────────────
+	ID3D11BlendState* blendState = nullptr;
+	if (desc.BlendMode != ERHIBlendMode::Opaque)
+	{
+		D3D11_BLEND_DESC blendDesc = {};
+		blendDesc.AlphaToCoverageEnable = FALSE;
+		blendDesc.IndependentBlendEnable = FALSE;
+		D3D11_RENDER_TARGET_BLEND_DESC& rt = blendDesc.RenderTarget[0];
+		rt.BlendEnable = TRUE;
+		rt.RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+		if (desc.BlendMode == ERHIBlendMode::AlphaBlend)
+		{
+			rt.SrcBlend       = D3D11_BLEND_SRC_ALPHA;
+			rt.DestBlend      = D3D11_BLEND_INV_SRC_ALPHA;
+			rt.BlendOp        = D3D11_BLEND_OP_ADD;
+			rt.SrcBlendAlpha  = D3D11_BLEND_ONE;
+			rt.DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+			rt.BlendOpAlpha   = D3D11_BLEND_OP_ADD;
+		}
+		else // Additive
+		{
+			rt.SrcBlend       = D3D11_BLEND_SRC_ALPHA;
+			rt.DestBlend      = D3D11_BLEND_ONE;
+			rt.BlendOp        = D3D11_BLEND_OP_ADD;
+			rt.SrcBlendAlpha  = D3D11_BLEND_ZERO;
+			rt.DestBlendAlpha = D3D11_BLEND_ONE;
+			rt.BlendOpAlpha   = D3D11_BLEND_OP_ADD;
+		}
+		m_device->CreateBlendState(&blendDesc, &blendState);
+	}
+
 	OwnerPtr<CD3D11GraphicsPipeline> pipeline = MakeOwnerPtr<CD3D11GraphicsPipeline>(desc);
 	pipeline->BindNativePipeline(inputLayout, vertexShader, pixelShader);
+	if (blendState)
+		pipeline->SetBlendState(blendState); // pipeline이 소유권 획득
 	return pipeline;
 #else
 	(void)desc;

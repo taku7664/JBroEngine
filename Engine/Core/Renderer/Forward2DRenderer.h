@@ -4,6 +4,9 @@
 #include "Core/RHI/IRHIGraphicsPipeline.h"
 #include "Core/RHI/IRHISampler.h"
 
+#include "GameFramework/ECS/EntityTypes.h"
+#include <unordered_set>
+
 class CForward2DRenderer final : public IRenderer
 {
 public:
@@ -15,6 +18,8 @@ public:
 	// Call after BeginRenderPass+SetViewport to clear a sub-viewport area.
 	void FillViewportColor(float r, float g, float b, float a) override;
 	void Render(IRenderScene& scene) override;
+	// 지정 엔티티 집합에 속하는 RenderItem만 렌더링 (포커스 오버레이 / 마스크 패스용).
+	void RenderFiltered(IRenderScene& scene, const std::unordered_set<EntityId>& entities);
 	void Finalize() override;
 
 	bool CreateGpuResource(IRenderResource& resource) override;

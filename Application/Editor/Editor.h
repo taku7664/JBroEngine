@@ -7,6 +7,9 @@
 #include "File/FilePath.h"
 #include "Utillity/SafePtr.h"
 
+#include <algorithm>
+#include <vector>
+
 class CImEditor;
 class CRootDockWindow;
 class CMainDockWindow;
@@ -33,20 +36,72 @@ public:
 	inline static SafePtr<CProjectSettingsWindow>	ProjectSettings = nullptr;
 	inline static CEditorCommandManager				CommandManager;
 
+	// ── 단일 선택: 이전 다중 선택 초기화 후 entity 하나만 선택 ──────────────
 	static void SelectEntity(EntityId entity)
 	{
-		m_selectedEntity = entity;
+		m_selectedEntities.clear();
+		m_primarySelectedEntity = entity;
+		if (entity != INVALID_ENTITY_ID)
+			m_selectedEntities.push_back(entity);
 		ClearAssetSelection();
+	}
+
+	// ── 다중 선택: entities 목록 전체 선택 (첫 항목이 primary) ───────────────
+	static void SelectEntities(std::vector<EntityId> entities)
+	{
+		m_selectedEntities = std::move(entities);
+		m_primarySelectedEntity = m_selectedEntities.empty()
+			? INVALID_ENTITY_ID : m_selectedEntities.front();
+		ClearAssetSelection();
+	}
+
+	// ── 개별 추가 (Ctrl+Click용): 이미 선택돼 있으면 무시 ────────────────────
+	static void AddToSelection(EntityId entity)
+	{
+		if (entity == INVALID_ENTITY_ID) return;
+		if (!IsSelected(entity))
+		{
+			m_selectedEntities.push_back(entity);
+			if (m_primarySelectedEntity == INVALID_ENTITY_ID)
+				m_primarySelectedEntity = entity;
+		}
+		ClearAssetSelection();
+	}
+
+	// ── 개별 제거 ─────────────────────────────────────────────────────────────
+	static void RemoveFromSelection(EntityId entity)
+	{
+		auto it = std::find(m_selectedEntities.begin(), m_selectedEntities.end(), entity);
+		if (it != m_selectedEntities.end())
+			m_selectedEntities.erase(it);
+		if (m_primarySelectedEntity == entity)
+			m_primarySelectedEntity = m_selectedEntities.empty()
+				? INVALID_ENTITY_ID : m_selectedEntities.front();
+	}
+
+	// ── 선택 여부 확인 ────────────────────────────────────────────────────────
+	static bool IsSelected(EntityId entity)
+	{
+		return std::find(m_selectedEntities.begin(),
+		                 m_selectedEntities.end(), entity) != m_selectedEntities.end();
+	}
+
+	// ── 전체 선택 목록 (outline 렌더링, 다중 처리 등) ─────────────────────────
+	static const std::vector<EntityId>& GetSelectedEntities()
+	{
+		return m_selectedEntities;
+	}
+
+	// ── Primary 선택 엔티티 (Inspector 표시, 하위 호환성 유지) ────────────────
+	static EntityId GetSelectedEntity()
+	{
+		return m_primarySelectedEntity;
 	}
 
 	static void ClearSelection()
 	{
-		m_selectedEntity = INVALID_ENTITY_ID;
-	}
-
-	static EntityId GetSelectedEntity()
-	{
-		return m_selectedEntity;
+		m_selectedEntities.clear();
+		m_primarySelectedEntity = INVALID_ENTITY_ID;
 	}
 
 	static void SelectAsset(const File::Guid& guid, const File::Path& path)
@@ -82,10 +137,11 @@ public:
 	}
 
 private:
-	inline static EntityId	m_selectedEntity = INVALID_ENTITY_ID;
-	inline static File::Path m_activeScenePath = File::NULL_PATH;
-	inline static File::Guid m_selectedAssetGuid = File::NULL_GUID;
-	inline static File::Path m_selectedAssetPath = File::NULL_PATH;
+	inline static EntityId              m_primarySelectedEntity = INVALID_ENTITY_ID;
+	inline static std::vector<EntityId> m_selectedEntities;
+	inline static File::Path            m_activeScenePath   = File::NULL_PATH;
+	inline static File::Guid            m_selectedAssetGuid = File::NULL_GUID;
+	inline static File::Path            m_selectedAssetPath = File::NULL_PATH;
 };
 
 #endif

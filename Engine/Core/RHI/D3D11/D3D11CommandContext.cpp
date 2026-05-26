@@ -67,6 +67,14 @@ void CD3D11CommandContext::BeginRenderPass(const RenderPassDesc& desc)
 		}
 	}
 
+	// RTV 세팅 전에 PS SRV 슬롯을 전부 해제한다.
+	// 이전 패스에서 SRV 슬롯에 묶인 텍스처를 RTV 로 사용하려 하면
+	// D3D11이 DEVICE_OMSETRENDERTARGETS_HAZARD 경고를 발생시키기 때문이다.
+	{
+		ID3D11ShaderResourceView* nullSRVs[8] = {};
+		m_deviceContext->PSSetShaderResources(0, 8, nullSRVs);
+	}
+
 	m_deviceContext->OMSetRenderTargets(1, &renderTargetView, nullptr);
 	D3D11_VIEWPORT viewport = {};
 	viewport.TopLeftX = 0.0f;
@@ -94,6 +102,15 @@ void CD3D11CommandContext::BeginRenderPass(const RenderPassDesc& desc)
 
 void CD3D11CommandContext::EndRenderPass()
 {
+#if JBRO_PLATFORM_WINDOWS
+	if (nullptr == m_deviceContext) return;
+
+	// 패스가 끝나면 PS SRV 슬롯을 비운다.
+	// 이 텍스처들을 다음 패스에서 RTV 로 승격할 때
+	// DEVICE_OMSETRENDERTARGETS_HAZARD 가 발생하지 않도록 하기 위함이다.
+	ID3D11ShaderResourceView* nullSRVs[8] = {};
+	m_deviceContext->PSSetShaderResources(0, 8, nullSRVs);
+#endif
 }
 
 void CD3D11CommandContext::EndFrame()
@@ -118,6 +135,10 @@ void CD3D11CommandContext::SetGraphicsPipeline(SafePtr<IRHIGraphicsPipeline> pip
 	m_deviceContext->IASetPrimitiveTopology(ToD3DTopology(d3dPipeline->GetDesc().PrimitiveTopology));
 	m_deviceContext->VSSetShader(d3dPipeline->GetVertexShader(), nullptr, 0);
 	m_deviceContext->PSSetShader(d3dPipeline->GetPixelShader(), nullptr, 0);
+
+	// BlendState 적용 (nullptr = 불투명 기본값으로 리셋)
+	const float blendFactor[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+	m_deviceContext->OMSetBlendState(d3dPipeline->GetBlendState(), blendFactor, 0xFFFFFFFF);
 #else
 	(void)pipeline;
 #endif
@@ -196,6 +217,28 @@ void CD3D11CommandContext::SetConstantBuffer(ERHIProgramStage stage, std::uint32
 	(void)stage;
 	(void)slot;
 	(void)buffer;
+#endif
+}
+
+void CD3D11CommandContext::UpdateBuffer(SafePtr<IRHIBuffer> buffer, const void* data, std::size_t size)
+{
+#if JBRO_PLATFORM_WINDOWS
+	if (nullptr == m_deviceContext || false == buffer.IsValid() || nullptr == data || 0 == size)
+	{
+		return;
+	}
+
+	CD3D11Buffer* d3dBuffer = static_cast<CD3D11Buffer*>(buffer.TryGet());
+	if (nullptr == d3dBuffer || nullptr == d3dBuffer->GetNativeBuffer())
+	{
+		return;
+	}
+
+	m_deviceContext->UpdateSubresource(d3dBuffer->GetNativeBuffer(), 0, nullptr, data, 0, 0);
+#else
+	(void)buffer;
+	(void)data;
+	(void)size;
 #endif
 }
 

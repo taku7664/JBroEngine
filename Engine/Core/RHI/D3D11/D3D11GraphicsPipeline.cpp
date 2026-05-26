@@ -33,6 +33,11 @@ CD3D11GraphicsPipeline::~CD3D11GraphicsPipeline()
 		m_pixelShader->Release();
 		m_pixelShader = nullptr;
 	}
+	if (m_blendState)
+	{
+		m_blendState->Release();
+		m_blendState = nullptr;
+	}
 #endif
 }
 
@@ -44,9 +49,16 @@ const RHIGraphicsPipelineDesc& CD3D11GraphicsPipeline::GetDesc() const
 #if JBRO_PLATFORM_WINDOWS
 void CD3D11GraphicsPipeline::BindNativePipeline(ID3D11InputLayout* inputLayout, ID3D11VertexShader* vertexShader, ID3D11PixelShader* pixelShader)
 {
-	m_inputLayout = inputLayout;
+	m_inputLayout  = inputLayout;
 	m_vertexShader = vertexShader;
-	m_pixelShader = pixelShader;
+	m_pixelShader  = pixelShader;
+}
+
+void CD3D11GraphicsPipeline::SetBlendState(ID3D11BlendState* blendState)
+{
+	if (m_blendState)
+		m_blendState->Release();
+	m_blendState = blendState;
 }
 
 ID3D11InputLayout* CD3D11GraphicsPipeline::GetInputLayout() const
@@ -62,5 +74,10 @@ ID3D11VertexShader* CD3D11GraphicsPipeline::GetVertexShader() const
 ID3D11PixelShader* CD3D11GraphicsPipeline::GetPixelShader() const
 {
 	return m_pixelShader;
+}
+
+ID3D11BlendState* CD3D11GraphicsPipeline::GetBlendState() const
+{
+	return m_blendState;
 }
 #endif

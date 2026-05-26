@@ -33,6 +33,10 @@ public:
 	std::uint32_t GetResolutionHeight() const;
 	void SetResolution(std::uint32_t width, std::uint32_t height);
 
+	// 좌표계 단위 (PPU: Pixels Per Unit)
+	float GetPixelsPerUnit() const;
+	void  SetPixelsPerUnit(float ppu);
+
 	// 씬 뷰 에디터 카메라 (저장/복원용)
 	float GetSceneViewCamX()    const;
 	float GetSceneViewCamY()    const;

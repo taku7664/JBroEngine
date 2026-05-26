@@ -111,6 +111,7 @@ void CSpriteRenderSystem::OnUpdate(CScene& scene)
 				item.Color[i] = sprite.Color[i];
 			}
 			item.SortOrder = sprite.SortOrder;
+			item.Entity    = entity;
 			m_renderScene->Submit(item);
 		});
 }

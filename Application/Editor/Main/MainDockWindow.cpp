@@ -10,10 +10,30 @@ void CMainDockWindow::OnCreate()
     m_imguiFlags = ImGuiWindowFlags_MenuBar;
     m_windowFlags = IMWINDOW_FLAG_NO_CLOSE_BUTTON;
     m_imguiDockFlags = ImGuiDockNodeFlags_NoWindowMenuButton | ImGuiDockNodeFlags_NoCloseButton;
-	SetDockLayout(ImGuiDir_Right, 0.25f);
-	SetDockLayout(ImGuiDir_Down, 0.70f);
-	SetDockLayout(ImGuiDir_Left, 0.20f);
-	SetDockLayout(ImGuiDir_Up, 0.50f);
+
+	// ─── 레이아웃 정의 (등록 순서대로 적용) ────────────────────────────────
+	//
+	//  ┌──────────────────────────────┬───────────────┐
+	//  │                              │               │
+	//  │  SceneView | GameView (탭)   │  Hierarchy    │
+	//  │                              │               │
+	//  │                              ├───────────────┤
+	//  │                              │               │
+	//  ├──────────────────────────────┤  Inspector    │
+	//  │  AssetBrowser | Log (탭)     │               │
+	//  └──────────────────────────────┴───────────────┘
+	//
+	// Step 1: 루트("")를 Right(25%) 방향으로 분할
+	//         → "Right" = 오른쪽 패널, "" = 나머지(중앙+하단)
+	AddDockSplit("",      ImGuiDir_Right, 0.25f, "Right");
+
+	// Step 2: 중앙("")을 Down(22%) 방향으로 분할
+	//         → "Bottom" = 하단 스트립, "" = 나머지(SceneView 영역)
+	AddDockSplit("",      ImGuiDir_Down,  0.35f, "Bottom");
+
+	// Step 3: 오른쪽("Right")을 Down(50%) 방향으로 분할
+	//         → "RightBottom" = Inspector, "Right" = Hierarchy
+	AddDockSplit("Right", ImGuiDir_Down,  0.50f, "RightBottom");
 
     SetTitle("Main");
 
@@ -25,30 +45,30 @@ void CMainDockWindow::OnCreate()
 	Editor::AssetBrowser = Editor::ImEditor->CreateImWindow<CAssetBrowserTool>("AssetBrowser", id);
 	Editor::LogTool      = Editor::ImEditor->CreateImWindow<CLogTool>         ("Log",          id);
 
-	if (Editor::Hierarchy)
-	{
-		Editor::Hierarchy->InitializeDockLayout(ImGuiDir_Left);
-	}
-	if (Editor::Inspector)
-	{
-		Editor::Inspector->InitializeDockLayout(ImGuiDir_Right);
-	}
+	// 슬롯 이름으로 창 배치
 	if (Editor::SceneView)
 	{
-		Editor::SceneView->InitializeDockLayout(ImGuiDir_None);
+		Editor::SceneView->InitializeDockLayout("");        // 중앙 영역
 	}
 	if (Editor::GameView)
 	{
-		// GameView docks next to SceneView (same center area — becomes a tab).
-		Editor::GameView->InitializeDockLayout(ImGuiDir_None);
+		Editor::GameView->InitializeDockLayout("");         // SceneView와 탭으로 합침
 	}
 	if (Editor::AssetBrowser)
 	{
-		Editor::AssetBrowser->InitializeDockLayout(ImGuiDir_Down);
+		Editor::AssetBrowser->InitializeDockLayout("Bottom");
 	}
 	if (Editor::LogTool)
 	{
-		Editor::LogTool->InitializeDockLayout(ImGuiDir_Down);
+		Editor::LogTool->InitializeDockLayout("Bottom");    // AssetBrowser와 탭으로 합침
+	}
+	if (Editor::Hierarchy)
+	{
+		Editor::Hierarchy->InitializeDockLayout("Right");   // Step3 후 나머지
+	}
+	if (Editor::Inspector)
+	{
+		Editor::Inspector->InitializeDockLayout("RightBottom");
 	}
 }
 

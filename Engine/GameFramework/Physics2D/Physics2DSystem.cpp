@@ -17,9 +17,21 @@ namespace
 {
 	// ── Solver 상수 ───────────────────────────────────────────────────────────────
 	//
-	// POSITION_CORRECTION_PERCENT:
-	//   한 스텝에서 침투량의 몇 %를 보정할지.  너무 높으면 과보정(떨림),
-	//   너무 낮으면 물체가 서서히 가라앉음.  0.2 ≈ 5프레임에 걸쳐 완전히 보정.
+	// Box2D / Godot / PhysX 공통 설계 원칙:
+	//   velocity solver 와 position solver 는 완전히 분리된다.
+	//   velocity solver 는 순수하게 속도 impulse 만 처리한다.
+	//   위치 오차(침투) 교정은 오직 position solver 에서만 position 을 직접 이동시킨다.
+	//   두 solver 를 섞으면 "교정 속도가 실제 velocity 에 누적되어 영구 drift" 가 발생한다.
+	//
+	// POSITION_CORRECTION_PERCENT (Box2D 의 b2_baumgarte 에 해당):
+	//   한 iteration 에서 침투량의 몇 %를 위치 직접 보정할지.
+	//
+	//   ★ 안전 조건: positionIterations × PERCENT < 1.0
+	//     iterations 간 manifold.Penetration 이 갱신되지 않으므로
+	//     총 보정량 = iterations × PERCENT × (d - slop).
+	//     이 값이 침투량 d 를 초과하면 표면을 통과해 매 프레임 진동(떨림)이 발생한다.
+	//     positionIterations=2 기준 → PERCENT < 0.5 필수.
+	//     0.4 선택: 2 × 0.4 = 0.8 < 1.0 ✓,  sub-step=2 결합 시 스텝당 수렴률 ≈ 84%.
 	//
 	// POSITION_CORRECTION_SLOP:
 	//   이 이하의 침투는 무시.  미세한 수치 오차로 인한 보정 진동 방지.
@@ -29,7 +41,7 @@ namespace
 	//   정지 물체가 미세하게 튀는 현상 방지.
 	//
 	constexpr float MIN_PHYSICS_DELTA_SECONDS      = 0.0001f;
-	constexpr float POSITION_CORRECTION_PERCENT    = 0.2f;
+	constexpr float POSITION_CORRECTION_PERCENT    = 0.4f;
 	constexpr float POSITION_CORRECTION_SLOP       = 0.01f;
 	constexpr float RESTITUTION_VELOCITY_THRESHOLD = 1.0f;
 	constexpr float MIN_NORMAL_LENGTH_SQ           = 0.000001f;
@@ -579,6 +591,9 @@ int  CPhysics2DSystem::GetVelocityIterations() const  { return m_velocityIterati
 void CPhysics2DSystem::SetPositionIterations(int it)  { m_positionIterations = std::max(1, it); }
 int  CPhysics2DSystem::GetPositionIterations() const  { return m_positionIterations; }
 
+void CPhysics2DSystem::SetNumSubSteps(int steps)      { m_numSubSteps = std::max(1, steps); }
+int  CPhysics2DSystem::GetNumSubSteps() const         { return m_numSubSteps; }
+
 const std::vector<Physics2DManifold>& CPhysics2DSystem::GetManifolds() const { return m_manifolds; }
 
 // ── Fixed-step 진입점 ─────────────────────────────────────────────────────────
@@ -592,7 +607,17 @@ void CPhysics2DSystem::OnFixedUpdate(CScene& scene)
 		DetectContacts(scene);
 		return;
 	}
-	Step(scene, fixedDelta);
+
+	// Sub-step: 고정 스텝을 N등분한다.
+	//   - 각 스텝의 이동량이 1/N으로 줄어 감지 시점의 초기 침투량이 줄어든다.
+	//   - Baumgarte bias = β/dt × penetration 이므로 dt가 작아질수록 교정력이 강해진다.
+	//   - 둘이 결합하면 "침투 발생 자체가 감소" + "발생한 침투의 수렴이 빨라짐" 두 효과를 동시에 얻는다.
+	const int   numSubSteps = std::max(1, m_numSubSteps);
+	const float subDt       = fixedDelta / static_cast<float>(numSubSteps);
+	for (int sub = 0; sub < numSubSteps; ++sub)
+	{
+		Step(scene, subDt);
+	}
 }
 
 void CPhysics2DSystem::Step(CScene& scene, float deltaSeconds)
@@ -879,9 +904,15 @@ void CPhysics2DSystem::DetectContacts(CScene& scene)
 }
 
 // ── 속도 해소 ─────────────────────────────────────────────────────────────────
-// 매니폴드 단위로 순회하되, impulse는 접촉점별로 독립 계산한다.
-// 두 접촉점이 서로 다른 모멘트 암(ra, rb)을 가지므로
-// 각각 계산하는 것이 회전 정확도에 유리하다.
+// Box2D / Godot / PhysX 공통 설계: velocity solver 는 순수하게 속도만 처리한다.
+// 위치 오차(침투) 교정은 ResolveContactPosition 에서만 수행한다.
+//
+// velocity solver 에 position bias 를 섞으면:
+//   - 교정 속도가 body.Velocity 에 영구 누적
+//   - 정지 접촉에서 tiny velocity 가 제거되지 않아 한 방향으로 계속 drift 발생
+//
+// 매니폴드 단위로 순회하되, impulse 는 접촉점별로 독립 계산한다.
+// 두 접촉점이 서로 다른 모멘트 암(ra, rb)을 가지므로 각각 계산이 회전 정확도에 유리하다.
 
 void CPhysics2DSystem::ResolveContactVelocity(CScene& scene)
 {
@@ -928,7 +959,7 @@ void CPhysics2DSystem::ResolveContactVelocity(CScene& scene)
 			const Vector2<float> vA          = GetContactVelocity(bodyA, centerA, contactPoint);
 			const Vector2<float> vB          = GetContactVelocity(bodyB, centerB, contactPoint);
 			const float          velAlongN   = Dot(vB - vA, normal);
-			if (velAlongN >= 0.0f) continue; // 분리 중 — 건너뜀
+			if (velAlongN >= 0.0f) continue; // 이미 분리 중 — 건너뜀
 
 			// 저속 충돌에서 반발 없음 (미세 진동 방지)
 			const float restitution = (-velAlongN > RESTITUTION_VELOCITY_THRESHOLD)

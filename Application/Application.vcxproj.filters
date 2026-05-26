@@ -39,7 +39,7 @@
     <ClInclude Include="Editor\Command\EditorSceneCommands.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
-    <ClInclude Include="Editor\EditorComponentMenu.h">
+    <ClInclude Include="Editor\Helper\EditorGuiDrawHelpers.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="Editor\Main\MainDockWindow.h">
@@ -60,6 +60,12 @@
     <ClInclude Include="Editor\Main\SceneViewTool.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
+    <ClInclude Include="Editor\Main\SceneViewContour.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\Main\SceneViewEditContext.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
     <ClInclude Include="Editor\Main\GameViewTool.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
@@ -78,6 +84,9 @@
     <ClInclude Include="Editor\Main\ProjectSettingsWindow.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
+    <ClInclude Include="Editor\Helper\ImGuiHelper.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Application.cpp">
@@ -92,7 +101,7 @@
     <ClCompile Include="Editor\Command\EditorSceneCommands.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
-    <ClCompile Include="Editor\EditorComponentMenu.cpp">
+    <ClCompile Include="Editor\Helper\EditorGuiDrawHelpers.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="Editor\EditorDragDrop.cpp">
@@ -113,6 +122,12 @@
     <ClCompile Include="Editor\Main\SceneViewTool.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
+    <ClCompile Include="Editor\Main\SceneViewContour.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\Main\SceneViewEditContext.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
     <ClCompile Include="Editor\Main\GameViewTool.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
@@ -129,6 +144,9 @@
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="Editor\Main\ProjectSettingsWindow.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\Helper\ImGuiHelper.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
   </ItemGroup>

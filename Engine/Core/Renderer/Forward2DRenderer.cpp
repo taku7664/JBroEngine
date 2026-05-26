@@ -322,6 +322,94 @@ void CForward2DRenderer::Render(IRenderScene& scene)
 	}
 }
 
+void CForward2DRenderer::RenderFiltered(IRenderScene& scene, const std::unordered_set<EntityId>& entities)
+{
+	if (false == m_isInitialized || false == m_rhiDevice.IsValid()) return;
+	if (!m_spritePipeline || !m_quadMesh) return;
+	if (entities.empty()) return;
+
+	if (CRenderScene* concreteScene = dynamic_cast<CRenderScene*>(&scene))
+		concreteScene->Sort();
+
+	SafePtr<IRHICommandContext> commandContext = m_rhiDevice->GetImmediateCommandContext();
+	if (false == commandContext.IsValid()) return;
+
+	const float width  = static_cast<float>(m_renderTargetSize.Width);
+	const float height = static_cast<float>(m_renderTargetSize.Height);
+	const float aspect = (width > 0.0f && height > 0.0f) ? width / height : 1.0f;
+
+	float halfW, halfH, cosR, sinR;
+	if (m_useExplicitSize)
+	{
+		halfW = m_viewCamHalfW; halfH = m_viewCamHalfH;
+		cosR  = m_viewCamCosR;  sinR  = m_viewCamSinR;
+	}
+	else
+	{
+		const float size = m_viewCamSize > 0.0f ? m_viewCamSize : 1.0f;
+		halfW = size * aspect; halfH = size; cosR = 1.0f; sinR = 0.0f;
+	}
+
+	const float camX = m_viewCamX, camY = m_viewCamY;
+
+	const RenderItem* items = scene.GetRenderItems();
+	const std::uint32_t itemCount = scene.GetRenderItemCount();
+	for (std::uint32_t i = 0; i < itemCount; ++i)
+	{
+		const RenderItem& item = items[i];
+
+		// ── 엔티티 필터 ──────────────────────────────────────────────────────────
+		if (entities.find(item.Entity) == entities.end()) continue;
+
+		if (false == item.Mesh.IsValid() || false == item.Material.IsValid()) continue;
+
+		SafePtr<IRHIGraphicsPipeline> pipeline = item.Material->GetPipeline();
+		if (false == pipeline.IsValid()) pipeline = m_spritePipeline.GetSafePtr();
+
+		SafePtr<IRHISampler> sampler = item.Material->GetSampler();
+		if (false == sampler.IsValid()) sampler = m_defaultSampler.GetSafePtr();
+
+		SafePtr<IRHITexture> texture = item.Material->GetTexture();
+		if (false == texture.IsValid()) continue;
+
+		SpriteConstants constants;
+		constants.TransformRow0[0] = item.Transform.M11;
+		constants.TransformRow0[1] = item.Transform.M21;
+		constants.TransformRow0[2] = item.Transform.Dx;
+		constants.TransformRow0[3] = 0.0f;
+		constants.TransformRow1[0] = item.Transform.M12;
+		constants.TransformRow1[1] = item.Transform.M22;
+		constants.TransformRow1[2] = item.Transform.Dy;
+		constants.TransformRow1[3] = 0.0f;
+		for (int c = 0; c < 4; ++c) constants.Color[c] = item.Color[c];
+
+		constants.ViewRow0[0] =  cosR / halfW;
+		constants.ViewRow0[1] =  sinR / halfW;
+		constants.ViewRow0[2] = -(cosR * camX + sinR * camY) / halfW;
+		constants.ViewRow0[3] = 0.0f;
+		constants.ViewRow1[0] = -sinR / halfH;
+		constants.ViewRow1[1] =  cosR / halfH;
+		constants.ViewRow1[2] =  (sinR * camX - cosR * camY) / halfH;
+		constants.ViewRow1[3] = 0.0f;
+
+		RHIBufferDesc cbDesc;
+		cbDesc.SizeInBytes = sizeof(SpriteConstants);
+		cbDesc.Usage = ERHIBufferUsage::Default;
+		cbDesc.BindFlags = static_cast<RHIBindFlags>(ERHIBindFlag::ConstantBuffer);
+		OwnerPtr<IRHIBuffer> cb = m_rhiDevice->CreateBuffer(cbDesc, &constants);
+		if (!cb) continue;
+
+		commandContext->SetGraphicsPipeline(pipeline);
+		commandContext->SetVertexBuffer(0, item.Mesh->GetVertexBuffer(), sizeof(SpriteVertex), 0);
+		commandContext->SetIndexBuffer(item.Mesh->GetIndexBuffer());
+		commandContext->SetConstantBuffer(ERHIProgramStage::Vertex, 0, cb.GetSafePtr());
+		commandContext->SetConstantBuffer(ERHIProgramStage::Pixel,  0, cb.GetSafePtr());
+		commandContext->SetTexture(ERHIProgramStage::Pixel, 0, texture);
+		commandContext->SetSampler(ERHIProgramStage::Pixel, 0, sampler);
+		commandContext->DrawIndexed(item.Mesh->GetIndexCount(), 0, 0);
+	}
+}
+
 void CForward2DRenderer::FillViewportColor(float r, float g, float b, float a)
 {
 	if (!m_spritePipeline || !m_quadMesh || !m_whiteTexture || !m_rhiDevice.IsValid())
@@ -445,6 +533,7 @@ bool CForward2DRenderer::CreateSpritePipeline()
 	pipelineDesc.VertexElements = elements;
 	pipelineDesc.VertexElementCount = 2;
 	pipelineDesc.PrimitiveTopology = ERHIPrimitiveTopology::TriangleList;
+	pipelineDesc.BlendMode = ERHIBlendMode::AlphaBlend; // 스프라이트 투명도 지원
 	m_spritePipeline = m_rhiDevice->CreateGraphicsPipeline(pipelineDesc);
 	return static_cast<bool>(m_spritePipeline);
 }

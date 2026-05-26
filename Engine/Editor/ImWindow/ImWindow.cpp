@@ -20,6 +20,7 @@ CImWindow::CImWindow(ImGuiID id, ImGuiID parentId)
 	, m_bIsAlive(true)
 	, m_bBeginResult(false)
 	, m_initDockLayoutDirection(ImGuiDir_None)
+	, m_initDockSlotIsSet(false)
 	, m_bIsVisible({true, true})
 	, m_bIsLock({false, false})
 	, m_bIsFocused({false, false})
@@ -143,6 +144,13 @@ void CImWindow::Focus()
 void CImWindow::InitializeDockLayout( ImGuiDir dir )
 {
 	m_initDockLayoutDirection = dir;
+	m_initDockSlotIsSet = false;
+}
+
+void CImWindow::InitializeDockLayout( const char* slot )
+{
+	m_initDockSlot    = slot ? slot : "";
+	m_initDockSlotIsSet = true;
 }
 
 ImGuiWindow* CImWindow::GetImGuiWindow()

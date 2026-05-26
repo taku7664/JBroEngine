@@ -1,10 +1,14 @@
 #pragma once
 
 #include <cstdint>
+#include <unordered_set>
 #include <vector>
+
+#include "GameFramework/ECS/EntityTypes.h"
 
 class CProjectManager;
 class CDebugRenderer2D;
+class COutlineRenderer2D;
 class IRHITexture;
 
 // ── GameCameraDesc ─────────────────────────────────────────────────────────────
@@ -66,6 +70,16 @@ public:
 	std::uint32_t GetSceneViewWidth()  const { return m_sceneViewWidth;  }
 	std::uint32_t GetSceneViewHeight() const { return m_sceneViewHeight; }
 
+	// 포커스 오버레이: 흰 반투명 박스 + 포커스 스프라이트/콜라이더 재렌더 (RT 파이프라인).
+	// SceneViewTool이 매 프레임 호출.
+	void SetSceneViewFocusContext(std::vector<EntityId> contextEntities);
+	void ClearSceneViewFocusContext();
+
+	// 선택 아웃라인: 셰이더 기반 Alpha Dilation (RT 파이프라인).
+	// SceneViewTool이 매 프레임 호출.
+	void SetSceneViewSelection(std::vector<EntityId> selectedEntities);
+	void ClearSceneViewSelection();
+
 	// Game view (multi-camera)
 	void RequestGameViewRenderTarget(std::uint32_t width, std::uint32_t height);
 	// Submit all active game cameras for this frame (sorted by Priority, ascending).
@@ -119,7 +133,17 @@ private:
 	std::vector<GameCameraDesc> m_gameViewCameras;
 
 	// GPU renderer for IDebugDraw2D primitives — renders into scene RT.
-	OwnerPtr<CDebugRenderer2D> m_debugRenderer;
+	OwnerPtr<CDebugRenderer2D>  m_debugRenderer;
+	// GPU Alpha-Dilation 아웃라인 렌더러.
+	OwnerPtr<COutlineRenderer2D> m_outlineRenderer;
+
+	// 포커스 오버레이 상태 (SceneViewTool → ImEditor)
+	bool                         m_sceneViewFocusActive = false;
+	std::unordered_set<EntityId> m_sceneViewFocusEntities;
+
+	// 선택 아웃라인 상태
+	bool                         m_sceneViewHasSelection = false;
+	std::unordered_set<EntityId> m_sceneViewSelectedEntities;
 };
 
 template<typename T>

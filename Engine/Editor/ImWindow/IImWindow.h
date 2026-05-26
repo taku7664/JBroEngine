@@ -25,6 +25,7 @@ public:
 	virtual void Focus() = 0;
 
 	virtual void InitializeDockLayout(ImGuiDir dir) = 0;
+	virtual void InitializeDockLayout(const char* slot) = 0;
 	virtual ImGuiWindow* GetImGuiWindow() = 0;
 
 protected:
