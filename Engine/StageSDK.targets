@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  StageSDK.targets — Engine 빌드 후 SDK 폴더에 공개 헤더 + lib 를 스테이징합니다.
+  Engine.vcxproj 마지막 줄에서 import 됩니다.
+
+  유지보수 규칙:
+    - 새 공개 디렉토리가 생기면 _SDKHeader ItemGroup 에 한 줄 추가.
+    - 기존 공개 디렉토리 안에 헤더를 추가하면 자동으로 SDK 에 포함됩니다.
+    - 내부 구현 전용 디렉토리(RHI, Renderer, Platform 등)는 목록에 넣지 않습니다.
+
+  출력:
+    SDK/Include/GameFramework/...
+    SDK/Include/Core/...
+    SDK/Include/Utillity/...   (Utillity 전체 복사)
+    SDK/Lib/{Debug|Release}/Engine.lib
+    SDK/Lib/{Debug|Release}/Utillity.lib
+-->
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <!-- ── 경로 정의 ────────────────────────────────────────────────── -->
+  <PropertyGroup>
+    <_EngineDir>$(MSBuildThisFileDirectory)</_EngineDir>
+    <_RepoRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../'))</_RepoRoot>
+    <_SDKInc>$(_RepoRoot)SDK\Include\</_SDKInc>
+    <_SDKLib>$(_RepoRoot)SDK\Lib\</_SDKLib>
+    <_UtillityDir>$(_RepoRoot)Utillity\</_UtillityDir>
+
+    <!-- 엔진 구성명(Debug/Debug_Game/Release/Release_Game) → SDK Lib 서브폴더 정규화 -->
+    <_SDKLibConfig Condition="$(Configuration.Contains('Debug'))">Debug</_SDKLibConfig>
+    <_SDKLibConfig Condition="$(Configuration.Contains('Release'))">Release</_SDKLibConfig>
+  </PropertyGroup>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       공개 헤더 목록
+       새 공개 디렉토리가 생기면 여기에 한 줄만 추가하면 됩니다.
+       디렉토리 안에 헤더를 추가하면 **\*.h 글로브로 자동 포함됩니다.
+       ══════════════════════════════════════════════════════════════ -->
+  <ItemGroup>
+    <!-- GameFramework: 게임 스크립트에서 직접 사용하는 공개 모듈 -->
+    <_SDKHeader Include="$(_EngineDir)GameFramework\Scripting\**\*.h"   DestDir="GameFramework\Scripting" />
+    <_SDKHeader Include="$(_EngineDir)GameFramework\Reflection\**\*.h"  DestDir="GameFramework\Reflection" />
+    <_SDKHeader Include="$(_EngineDir)GameFramework\Component\**\*.h"   DestDir="GameFramework\Component" />
+    <_SDKHeader Include="$(_EngineDir)GameFramework\Scene\**\*.h"       DestDir="GameFramework\Scene" />
+    <_SDKHeader Include="$(_EngineDir)GameFramework\ECS\**\*.h"         DestDir="GameFramework\ECS" />
+    <_SDKHeader Include="$(_EngineDir)GameFramework\System\**\*.h"      DestDir="GameFramework\System" />
+    <_SDKHeader Include="$(_EngineDir)GameFramework\Physics2D\**\*.h"   DestDir="GameFramework\Physics2D" />
+    <_SDKHeader Include="$(_EngineDir)GameFramework\Object\**\*.h"      DestDir="GameFramework\Object" />
+
+    <!-- Core: 타입 정의 / 인터페이스만 포함된 공개 모듈 -->
+    <!-- RHI, Renderer(구현), Platform(구현), Network 등은 의도적으로 제외 -->
+    <_SDKHeader Include="$(_EngineDir)Core\Core.h"           DestDir="Core" />
+    <_SDKHeader Include="$(_EngineDir)Core\EngineCore.h"     DestDir="Core" />
+    <_SDKHeader Include="$(_EngineDir)Core\Debug\**\*.h"     DestDir="Core\Debug" />
+    <_SDKHeader Include="$(_EngineDir)Engine\EngineAPI.h"    DestDir="Engine" />
+    <_SDKHeader Include="$(_EngineDir)Core\Input\**\*.h"    DestDir="Core\Input" />
+    <_SDKHeader Include="$(_EngineDir)Core\Logging\**\*.h"  DestDir="Core\Logging" />
+    <_SDKHeader Include="$(_EngineDir)Core\Game\**\*.h"     DestDir="Core\Game" />
+    <_SDKHeader Include="$(_EngineDir)Core\Asset\**\*.h"    DestDir="Core\Asset" />
+    <_SDKHeader Include="$(_EngineDir)Core\Renderer\**\*.h" DestDir="Core\Renderer" />
+  </ItemGroup>
+
+  <!-- Utillity 전체 글로브 (파일 구조 그대로 유지) -->
+  <ItemGroup>
+    <_SDKUtilHeader Include="$(_UtillityDir)**\*.h" />
+  </ItemGroup>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       StageSDK 타겟
+       ══════════════════════════════════════════════════════════════ -->
+  <Target Name="StageSDK" AfterTargets="Build" Condition="'$(_SDKLibConfig)' != ''">
+
+    <!--
+      공개 헤더 복사.
+      %(RecursiveDir) = 각 디렉토리 글로브 베이스 이후의 하위 경로 → 서브디렉토리 구조 유지.
+      예) GameFramework\Scripting\Sub\Foo.h → SDK\Include\GameFramework\Scripting\Sub\Foo.h
+    -->
+    <Copy SourceFiles="@(_SDKHeader)"
+          DestinationFolder="$(_SDKInc)%(_SDKHeader.DestDir)\%(RecursiveDir)"
+          SkipUnchangedFiles="true" />
+
+    <!-- Utillity 전체 복사 (원본 디렉토리 구조 유지) -->
+    <Copy SourceFiles="@(_SDKUtilHeader)"
+          DestinationFolder="$(_SDKInc)Utillity\%(RecursiveDir)"
+          SkipUnchangedFiles="true" />
+
+    <!-- Engine.lib / Utillity.lib → SDK/Lib/{Debug|Release}/ -->
+    <MakeDir Directories="$(_SDKLib)$(_SDKLibConfig)\" />
+    <Copy SourceFiles="$(OutDir)$(TargetName).lib"
+          DestinationFolder="$(_SDKLib)$(_SDKLibConfig)\"
+          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(OutDir)Utillity.lib"
+          DestinationFolder="$(_SDKLib)$(_SDKLibConfig)\"
+          SkipUnchangedFiles="true"
+          Condition="Exists('$(OutDir)Utillity.lib')" />
+
+    <Message Text="[SDK Stage] $(Configuration) → SDK\Include\ + SDK\Lib\$(_SDKLibConfig)\Engine.lib, Utillity.lib"
+             Importance="high" />
+  </Target>
+
+</Project>

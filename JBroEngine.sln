@@ -10,7 +10,10 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Utillity", "Utillity\Utilli
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "WebBuild", "BuildScripts\Web\WebBuild.vcxproj", "{B8767D1E-46CB-4E62-9F3D-E5C8B8F0D1A7}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "GameCode", "GameCode\GameCode.vcxproj", "{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "GameScriptSample", "Samples\GameScriptSample\GameScriptSample.vcxproj", "{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}"
+	ProjectSection(ProjectDependencies) = postProject
+		{5D2895FA-D410-489E-A334-D61CFE6C33A3} = {5D2895FA-D410-489E-A334-D61CFE6C33A3}
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

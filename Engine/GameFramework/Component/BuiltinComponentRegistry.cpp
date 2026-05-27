@@ -82,18 +82,13 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 		.AddProperty("RestingLinearVelocityThreshold", EReflectPropertyType::Float, offsetof(Rigidbody2D, RestingLinearVelocityThreshold), sizeof(float))
 		.AddProperty("RestingAngularVelocityThreshold", EReflectPropertyType::Float, offsetof(Rigidbody2D, RestingAngularVelocityThreshold), sizeof(float));
 
-	registry.RegisterComponent<PolygonCollider2D>({ "PolygonCollider2D", "Polygon Collider 2D", "Physics", true, true })
+	registry.RegisterComponent<PolygonCollider2D>({ "PolygonCollider2D", "Polygon Collider 2D", "Physics", true })
 		.AddProperty("IsEnabled", EReflectPropertyType::Bool, offsetof(PolygonCollider2D, IsEnabled), sizeof(bool))
-		.AddProperty("LocalCenter", EReflectPropertyType::Vector2Float, offsetof(PolygonCollider2D, LocalCenter), sizeof(Vector2<float>))
 		.AddProperty("VertexCount", EReflectPropertyType::UInt32, offsetof(PolygonCollider2D, VertexCount), sizeof(std::uint32_t))
-		.AddProperty("Size", EReflectPropertyType::Vector2Float, offsetof(PolygonCollider2D, Size), sizeof(Vector2<float>))
-		.AddProperty("Rotation", EReflectPropertyType::AngleDegrees, offsetof(PolygonCollider2D, RotationRadians), sizeof(float))
-		.AddProperty("IsTrigger", EReflectPropertyType::Bool, offsetof(PolygonCollider2D, IsTrigger), sizeof(bool))
-		.AddProperty("IsConvex", EReflectPropertyType::Bool, offsetof(PolygonCollider2D, IsConvex), sizeof(bool));
+		.AddProperty("IsTrigger", EReflectPropertyType::Bool, offsetof(PolygonCollider2D, IsTrigger), sizeof(bool));
 
-	registry.RegisterComponent<CircleCollider2D>({ "CircleCollider2D", "Circle Collider 2D", "Physics", true, true })
+	registry.RegisterComponent<CircleCollider2D>({ "CircleCollider2D", "Circle Collider 2D", "Physics", true })
 		.AddProperty("IsEnabled", EReflectPropertyType::Bool, offsetof(CircleCollider2D, IsEnabled), sizeof(bool))
-		.AddProperty("LocalCenter", EReflectPropertyType::Vector2Float, offsetof(CircleCollider2D, LocalCenter), sizeof(Vector2<float>))
 		.AddProperty("Radius", EReflectPropertyType::Float, offsetof(CircleCollider2D, Radius), sizeof(float))
 		.AddProperty("IsTrigger", EReflectPropertyType::Bool, offsetof(CircleCollider2D, IsTrigger), sizeof(bool));
 

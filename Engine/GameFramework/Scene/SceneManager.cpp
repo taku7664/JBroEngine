@@ -100,6 +100,17 @@ bool CSceneManager::GetLoadedSceneNames(std::vector<std::string>& outNames) cons
 	return true;
 }
 
+void CSceneManager::DestroyScriptInstances()
+{
+	for (auto& pair : m_scenes)
+	{
+		if (pair.second)
+		{
+			pair.second->DestroyScriptInstances();
+		}
+	}
+}
+
 void CSceneManager::PlaySimulation()
 {
 	if (ESceneSimulationState::Edit == m_simulationState && m_activeScene)

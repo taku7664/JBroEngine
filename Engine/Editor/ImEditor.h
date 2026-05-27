@@ -161,6 +161,7 @@ inline SafePtr<T> CImEditor::CreateImWindow(const char* key, ImGuiID parentId)
 	{
 		OwnerPtr<T> newWindow = MakeOwnerPtr<T>(hashedID, parentId);
 		SafePtr<T> result = newWindow.GetSafePtr();
+		result->SetStableID(key);
 		m_imWindowTable[hashedID] = std::move(newWindow);
 		if (CImDockWindow* parent = dynamic_cast<CImDockWindow*>(FindImWindow(parentId).TryGet()))
 		{

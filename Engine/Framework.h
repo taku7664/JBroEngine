@@ -65,6 +65,7 @@
 #include "Core/FileSystem/FileSystem.h"
 #include "Core/Input/Input.h"
 #include "Core/Input/IInputMessageHandler.h"
+#include "Core/Localization/LocalizationManager.h"
 #include "Core/Logging/Logger.h"
 #include "Core/Module/Module.h"
 #include "Core/Game/GameModuleTypes.h"
@@ -131,6 +132,7 @@
 #include "Editor/ImWindow/ImPopupWindow.h"
 #include "Editor/ImEditor.h"
 #include "Editor/ImItem/ImText.h"
+#include "Editor/ImItem/ImTree.h"
 #endif
 
 #include "Application/Application.h"

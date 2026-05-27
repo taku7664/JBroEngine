@@ -1,19 +1,16 @@
 #include "pch.h"
 #include "ImEditor.h"
 
-#include "Core/Core.h"
 #include "Core/Debug/DebugDraw2D.h"
 #include "Core/Debug/DebugRenderer2D.h"
 #include "Core/Debug/OutlineRenderer2D.h"
 #include "Core/Renderer/Forward2DRenderer.h"
-#include "Core/EngineContext.h"
 #include "Core/Renderer/IRenderer.h"
 #include "Core/Renderer/IRenderScene.h"
 #include "Core/RHI/IRHICommandContext.h"
 #include "Core/RHI/IRHIDevice.h"
 #include "Core/RHI/IRHITexture.h"
 #include "Editor/Project/ProjectManager.h"
-#include "ThirdParty/imgui/imgui_impl_win32.h"
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
@@ -276,6 +273,14 @@ void CImEditor::OnPostInitialize()
 
 void CImEditor::OnPreFinalize()
 {
+    if (m_projectManager && m_projectManager->IsProjectLoaded())
+    {
+        if (Core::Localization.IsValid())
+        {
+            m_projectManager->SetEditorLocaleCode(Core::Localization->GetCurrentLocale());
+        }
+    }
+
     if (m_outlineRenderer)
     {
         m_outlineRenderer->Finalize();

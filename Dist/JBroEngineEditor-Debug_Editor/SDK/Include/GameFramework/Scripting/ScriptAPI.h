@@ -1,0 +1,57 @@
+#pragma once
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  ScriptAPI.h  ─  스크립트 작성자를 위한 단일 진입점 헤더
+//
+//  스크립트 파일에서 아래 한 줄만 include 하면 모든 엔진 API 가 사용 가능합니다.
+//
+//    #include "GameFramework/Scripting/ScriptAPI.h"
+//
+//  제공 내용:
+//    - CGameScript 기반 클래스 (상속 대상)
+//    - SCRIPT_CLASS / REFLECT_FIELD 매크로
+//    - Vector2<float> REFLECT_FIELD 지원
+//    - 씬/엔티티 접근 (GetScene(), GetEntity())
+//    - 자주 사용하는 컴포넌트 타입
+//    - 입력 시스템
+//    - 수학 유틸리티
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// ── 기반 클래스 + 매크로 ──────────────────────────────────────────────────────
+#include "GameFramework/Scripting/GameScript.h"
+#include "GameFramework/Scripting/ScriptMacros.h"
+
+// ── 수학 ────────────────────────────────────────────────────────────────────
+#include "Utillity/Vector2T.h"
+
+// Vector2<float> → REFLECT_FIELD 지원 (ScriptMacros.h 가 먼저 정의된 이후)
+template<> inline EReflectPropertyType ScriptFieldTypeOf<Vector2<float>>()
+{
+	return EReflectPropertyType::Vector2Float;
+}
+
+// ── 씬 / 엔티티 ──────────────────────────────────────────────────────────────
+#include "GameFramework/Scene/Scene.h"
+#include "GameFramework/ECS/EntityTypes.h"
+
+// ── 자주 사용하는 컴포넌트 ────────────────────────────────────────────────────
+#include "GameFramework/Component/Transform2D.h"
+#include "GameFramework/Component/Physics2DComponents.h"
+#include "GameFramework/Component/SpriteRenderer2D.h"
+#include "GameFramework/Component/GameObject.h"
+
+// ── 입력 ────────────────────────────────────────────────────────────────────
+#include "Core/Input/Input.h"
+
+// ── 로깅 (legacy, Log::Info 등 직접 호출용) ────────────────────────────────
+#include "Core/Logging/Logger.h"
+
+// ── Engine core service bundle — Engine.Debug / Engine.SceneManager 등 ──────
+// GameScript DLL 은 Initialize 시점에 호스트 EngineCore 를 복사받아 사용합니다.
+#include "Core/EngineCore.h"
+#include "Core/Debug/Debug.h"
+
+// ── 표준 라이브러리 ───────────────────────────────────────────────────────────
+#include <cmath>
+#include <cstdint>
+#include <string>

@@ -6,5 +6,5 @@ class CCompilePipeline final : public ICompilePipeline
 {
 public:
 	LiveCompileResult Compile(const LiveCompileDesc& desc) override;
+	std::future<LiveCompileResult> CompileAsync(LiveCompileDesc desc) override;
 };
-

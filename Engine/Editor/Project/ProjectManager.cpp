@@ -2,12 +2,19 @@
 #include "ProjectManager.h"
 
 #include "Core/Asset/AssetPath.h"
-#include "Core/Asset/IAssetManager.h"
 #include "Core/EngineContext.h"
+#include "Core/Logging/LoggerInternal.h"
 #include "Core/Game/GameModuleTypes.h"
+#include "Core/EngineCore.h"
+#include "File/FileUtillities.h"
+#include "Editor/Project/GameScriptProjectGenerator.h"
+#include "Editor/LiveCompile/LiveCompileManager.h"
 #include "Editor/ScriptModule/ScriptModuleLoader.h"
-#include "GameFramework/Reflection/ReflectionRegistry.h"
+#include "GameFramework/Scene/SceneManager.h"
 #include "yaml-cpp/yaml.h"
+
+#include <chrono>
+#include <cstdlib>
 
 namespace
 {
@@ -20,9 +27,185 @@ namespace
 	constexpr const char* PROJECT_KEY_SCENE_CAM_Y       = "SceneViewCamY";
 	constexpr const char* PROJECT_KEY_SCENE_CAM_SIZE    = "SceneViewCamSize";
 	constexpr const char* PROJECT_KEY_SCRIPT_DLL_PATH   = "ScriptDllPath";
+	constexpr const char* PROJECT_KEY_SCRIPT_SOURCE_DIR  = "ScriptSourceDirectory";
+	constexpr const char* PROJECT_KEY_SCRIPT_BUILD_CMD   = "ScriptBuildCommand";
+	constexpr const char* PROJECT_KEY_SCRIPT_OUTPUT_DLL  = "ScriptOutputLibraryPath";
+	constexpr const char* PROJECT_KEY_SCRIPT_INTERMEDIATE = "ScriptIntermediateDirectory";
+	constexpr const char* PROJECT_KEY_SCRIPT_BUILD_CONFIG = "ScriptBuildConfiguration";
+	constexpr const char* PROJECT_KEY_SCRIPT_AUTO_REBUILD_ENABLED = "ScriptAutoRebuildEnabled";
+	constexpr const char* PROJECT_KEY_LEGACY_LIVE_COMPILE_ENABLED = "LiveCompileEnabled";
 	constexpr const char* PROJECT_KEY_LAST_SCENE_PATH   = "LastOpenedScenePath";
 	constexpr const char* PROJECT_KEY_PIXELS_PER_UNIT   = "PixelsPerUnit";
+	constexpr const char* PROJECT_KEY_EDITOR_LOCALE     = "EditorLocale";
+	constexpr const char* PROJECT_KEY_IMGUI_INI         = "ImGuiIniSettings";
+	constexpr const char* CONTENTS_DIRECTORY_NAME       = "Contents";
 	constexpr const char* ASSETS_DIRECTORY_NAME         = "Assets";
+	constexpr const char* SCRIPTS_DIRECTORY_NAME        = "Scripts";
+
+	std::string QuoteCommandPath(const std::filesystem::path& path)
+	{
+		std::string value = path.string();
+		std::replace(value.begin(), value.end(), '\\', '/');
+		return "\"" + value + "\"";
+	}
+
+	bool FindExistingPath(const std::vector<std::filesystem::path>& candidates, std::filesystem::path& outPath)
+	{
+		std::error_code errorCode;
+		for (const std::filesystem::path& candidate : candidates)
+		{
+			if (std::filesystem::exists(candidate, errorCode))
+			{
+				outPath = candidate;
+				return true;
+			}
+			errorCode.clear();
+		}
+		return false;
+	}
+
+	std::filesystem::path GetEnvironmentPath(const char* name)
+	{
+		char* value = nullptr;
+		std::size_t length = 0;
+		if (0 != _dupenv_s(&value, &length, name) || nullptr == value)
+		{
+			return {};
+		}
+
+		std::filesystem::path result(value);
+		std::free(value);
+		return result;
+	}
+
+	std::filesystem::path FindMSBuildPath()
+	{
+		std::vector<std::filesystem::path> candidates;
+
+		const std::filesystem::path vsInstallDir = GetEnvironmentPath("VSINSTALLDIR");
+		if (false == vsInstallDir.empty())
+		{
+			candidates.push_back(vsInstallDir / "MSBuild" / "Current" / "Bin" / "MSBuild.exe");
+		}
+
+		const std::filesystem::path programFilesX86 = GetEnvironmentPath("ProgramFiles(x86)");
+		const std::filesystem::path programFiles = GetEnvironmentPath("ProgramFiles");
+		const std::vector<std::filesystem::path> roots =
+		{
+			programFilesX86,
+			programFiles
+		};
+		const char* editions[] =
+		{
+			"Community",
+			"Professional",
+			"Enterprise",
+			"BuildTools"
+		};
+
+		for (const std::filesystem::path& root : roots)
+		{
+			if (root.empty())
+			{
+				continue;
+			}
+			for (const char* edition : editions)
+			{
+				candidates.push_back(root / "Microsoft Visual Studio" / "2022" / edition / "MSBuild" / "Current" / "Bin" / "MSBuild.exe");
+			}
+		}
+
+		std::filesystem::path msbuildPath;
+		if (FindExistingPath(candidates, msbuildPath))
+		{
+			return msbuildPath;
+		}
+
+		return "MSBuild.exe";
+	}
+
+	std::filesystem::path ResolveLiveCompileBasePath(const ProjectInfo& info)
+	{
+		const std::filesystem::path rootSourceProject = info.RootPath / info.ScriptSourceDirectory / "GameScript.vcxproj";
+		const std::filesystem::path originSourceProject = info.OriginPath / info.ScriptSourceDirectory / "GameScript.vcxproj";
+
+		std::error_code errorCode;
+		if (std::filesystem::exists(rootSourceProject, errorCode))
+		{
+			return info.RootPath;
+		}
+		errorCode.clear();
+		if (std::filesystem::exists(originSourceProject, errorCode))
+		{
+			return info.OriginPath;
+		}
+
+		return false == info.RootPath.empty() ? info.RootPath : info.OriginPath;
+	}
+
+	std::filesystem::path ResolveLiveCompilePath(const std::filesystem::path& basePath, const std::string& path)
+	{
+		std::filesystem::path resolved(path);
+		if (resolved.is_absolute())
+		{
+			return resolved;
+		}
+		return basePath / resolved;
+	}
+
+	std::string BuildDefaultLiveCompileCommand(const ProjectInfo& info, const std::filesystem::path& basePath)
+	{
+		const std::filesystem::path projectPath = ResolveLiveCompilePath(basePath, info.ScriptSourceDirectory) / "GameScript.vcxproj";
+		const std::filesystem::path msbuildPath = FindMSBuildPath();
+		const std::filesystem::path solutionDir = basePath;
+		const char* configuration = EScriptBuildConfiguration::Release == info.ScriptBuildConfiguration ? "Release" : "Debug";
+
+		std::string solutionDirValue = solutionDir.string();
+		if (false == solutionDirValue.empty() && solutionDirValue.back() != '\\' && solutionDirValue.back() != '/')
+		{
+			solutionDirValue += "\\";
+		}
+
+		return QuoteCommandPath(msbuildPath)
+			+ " " + QuoteCommandPath(projectPath)
+			+ " /p:Configuration=" + configuration
+			+ " /p:Platform=x64"
+			+ " /p:SolutionDir=" + QuoteCommandPath(solutionDirValue)
+			+ " /p:JBroLiveCompileStamp=" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())
+			+ " /m"
+			+ " /v:minimal"
+			+ " /nr:false";
+	}
+
+	EScriptBuildConfiguration ParseScriptBuildConfiguration(const std::string& value)
+	{
+		if (value == "Release")
+		{
+			return EScriptBuildConfiguration::Release;
+		}
+		return EScriptBuildConfiguration::Debug;
+	}
+
+	const char* ToString(EScriptBuildConfiguration configuration)
+	{
+		return EScriptBuildConfiguration::Release == configuration ? "Release" : "Debug";
+	}
+
+	void LogLiveCompileFailure(const char* title, const LiveCompileResult& result)
+	{
+		CSystemLog::Error(title);
+
+		std::istringstream stream(result.Message);
+		std::string line;
+		while (std::getline(stream, line))
+		{
+			if (line.empty())
+			{
+				continue;
+			}
+			CSystemLog::Error(std::string("  ") + line);
+		}
+	}
 }
 
 bool CProjectManager::Initialize(const EngineContext& context)
@@ -30,6 +213,7 @@ bool CProjectManager::Initialize(const EngineContext& context)
 	m_assetManager  = context.AssetManager;
 	m_assetWatcher  = MakeOwnerPtr<CWindowsFileWatcher>();
 	m_scriptLoader  = MakeOwnerPtr<CScriptModuleLoader>();
+	m_liveCompileManager = MakeOwnerPtr<CLiveCompileManager>();
 	m_engineContext = &context;
 	m_info.OriginPath = File::Path(std::filesystem::current_path());
 	m_isInitialized = m_assetManager.IsValid() && static_cast<bool>(m_assetWatcher);
@@ -40,10 +224,61 @@ void CProjectManager::Finalize()
 {
 	CloseProject();
 	m_scriptLoader.Reset();
+	m_liveCompileManager.Reset();
 	m_assetWatcher.Reset();
 	m_assetManager  = nullptr;
 	m_engineContext = nullptr;
 	m_isInitialized = false;
+}
+
+bool CProjectManager::CreateProject(const File::Path& parentFolder, const std::string& projectName)
+{
+	if (false == m_isInitialized || parentFolder.empty() || projectName.empty())
+	{
+		return false;
+	}
+
+	// 프로젝트 루트: {parentFolder}/{projectName}/
+	const std::filesystem::path projectRoot = parentFolder / projectName;
+	const std::filesystem::path contentsDir = projectRoot / CONTENTS_DIRECTORY_NAME;
+	const std::filesystem::path assetsDir   = contentsDir / ASSETS_DIRECTORY_NAME;
+	const std::filesystem::path scriptsDir  = contentsDir / SCRIPTS_DIRECTORY_NAME;
+
+	std::error_code ec;
+	std::filesystem::create_directories(assetsDir, ec);
+	if (ec)
+	{
+		return false;
+	}
+	std::filesystem::create_directories(scriptsDir, ec);
+	if (ec)
+	{
+		return false;
+	}
+
+	// .Jproject 파일 기본 내용: 루트 경로 = ".", 나머지 기본값
+	const std::filesystem::path projectFile = projectRoot / (projectName + PROJECT_EXTENSION);
+	{
+		YAML::Emitter out;
+		out << YAML::BeginMap;
+		out << YAML::Key << PROJECT_KEY_VERSION     << YAML::Value << 1;
+		out << YAML::Key << PROJECT_KEY_ROOT_PATH   << YAML::Value << ".";
+		out << YAML::Key << PROJECT_KEY_RES_WIDTH   << YAML::Value << 1920;
+		out << YAML::Key << PROJECT_KEY_RES_HEIGHT  << YAML::Value << 1080;
+		out << YAML::EndMap;
+
+		std::ofstream file(projectFile, std::ios::out | std::ios::trunc);
+		if (false == file.is_open())
+		{
+			return false;
+		}
+		file << out.c_str();
+	}
+
+	// LoadProject 로 이어서 초기화 (Contents 폴더 + 스크립트 프로젝트 파일 생성 포함)
+	ProjectLoadDesc loadDesc;
+	loadDesc.ProjectFilePath = File::Path(projectFile);
+	return LoadProject(loadDesc);
 }
 
 bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
@@ -115,10 +350,60 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 		scriptDllPath = root[PROJECT_KEY_SCRIPT_DLL_PATH].as<std::string>("");
 	}
 
+	std::string scriptSourceDirectory = CONTENTS_DIRECTORY_NAME;
+
+	std::string scriptBuildCommand;
+	if (root[PROJECT_KEY_SCRIPT_BUILD_CMD])
+	{
+		scriptBuildCommand = root[PROJECT_KEY_SCRIPT_BUILD_CMD].as<std::string>("");
+	}
+
+	std::string scriptOutputLibraryPath = "x64/Debug/GameScript.dll";
+	if (root[PROJECT_KEY_SCRIPT_OUTPUT_DLL])
+	{
+		scriptOutputLibraryPath = root[PROJECT_KEY_SCRIPT_OUTPUT_DLL].as<std::string>("x64/Debug/GameScript.dll");
+	}
+
+	std::string scriptIntermediateDirectory = "Build/Intermediate/LiveCompile";
+	if (root[PROJECT_KEY_SCRIPT_INTERMEDIATE])
+	{
+		scriptIntermediateDirectory = root[PROJECT_KEY_SCRIPT_INTERMEDIATE].as<std::string>("Build/Intermediate/LiveCompile");
+	}
+
+	EScriptBuildConfiguration scriptBuildConfiguration = EScriptBuildConfiguration::Debug;
+	if (root[PROJECT_KEY_SCRIPT_BUILD_CONFIG])
+	{
+		scriptBuildConfiguration = ParseScriptBuildConfiguration(root[PROJECT_KEY_SCRIPT_BUILD_CONFIG].as<std::string>("Debug"));
+	}
+
+	bool scriptAutoRebuildEnabled = false;
+	if (root[PROJECT_KEY_SCRIPT_AUTO_REBUILD_ENABLED])
+	{
+		scriptAutoRebuildEnabled = root[PROJECT_KEY_SCRIPT_AUTO_REBUILD_ENABLED].as<bool>(false);
+	}
+	else if (root[PROJECT_KEY_LEGACY_LIVE_COMPILE_ENABLED])
+	{
+		scriptAutoRebuildEnabled = root[PROJECT_KEY_LEGACY_LIVE_COMPILE_ENABLED].as<bool>(false);
+	}
+
 	std::string lastOpenedScenePath;
 	if (root[PROJECT_KEY_LAST_SCENE_PATH])
 	{
 		lastOpenedScenePath = root[PROJECT_KEY_LAST_SCENE_PATH].as<std::string>("");
+	}
+
+	std::string editorLocaleCode = (m_engineContext && m_engineContext->Localization.IsValid())
+		? m_engineContext->Localization->GetDefaultLocale()
+		: "ko-KR";
+	if (root[PROJECT_KEY_EDITOR_LOCALE])
+	{
+		editorLocaleCode = root[PROJECT_KEY_EDITOR_LOCALE].as<std::string>(editorLocaleCode);
+	}
+
+	std::string imguiIniSettings;
+	if (root[PROJECT_KEY_IMGUI_INI])
+	{
+		imguiIniSettings = root[PROJECT_KEY_IMGUI_INI].as<std::string>("");
 	}
 
 	float pixelsPerUnit = 100.0f;
@@ -145,34 +430,61 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 		projectRootPath = std::filesystem::absolute(projectPath.parent_path() / rootRelativePath);
 	}
 
-	std::filesystem::path assetPath = projectRootPath / ASSETS_DIRECTORY_NAME;
-	if (std::filesystem::exists(assetPath, errorCode) && false == std::filesystem::is_directory(assetPath, errorCode))
-	{
-		return false;
-	}
+	std::filesystem::path contentPath = projectRootPath / CONTENTS_DIRECTORY_NAME;
+	std::filesystem::path assetPath   = contentPath / ASSETS_DIRECTORY_NAME;
+	std::filesystem::path scriptPath  = contentPath / SCRIPTS_DIRECTORY_NAME;
 
-	std::filesystem::create_directories(assetPath, errorCode);
-	if (errorCode)
+	std::filesystem::create_directories(contentPath, errorCode);
+	if (errorCode || false == std::filesystem::is_directory(contentPath, errorCode))
 	{
 		return false;
 	}
+	errorCode.clear();
+	std::filesystem::create_directories(assetPath, errorCode);
+	if (errorCode || false == std::filesystem::is_directory(assetPath, errorCode))
+	{
+		return false;
+	}
+	errorCode.clear();
+	std::filesystem::create_directories(scriptPath, errorCode);
+	if (errorCode || false == std::filesystem::is_directory(scriptPath, errorCode))
+	{
+		return false;
+	}
+	errorCode.clear();
 
 	CloseProject();
 
 	m_info.Version          = version;
 	m_info.ProjectFilePath  = File::Path(projectPath);
 	m_info.RootPath         = File::Path(projectRootPath);
+	m_info.ContentPath      = File::Path(contentPath);
 	m_info.AssetPath        = File::Path(assetPath);
+	m_info.ScriptPath       = File::Path(scriptPath);
 	m_info.ResolutionWidth  = (resolutionWidth  > 0) ? resolutionWidth  : 1920;
 	m_info.ResolutionHeight = (resolutionHeight > 0) ? resolutionHeight : 1080;
 	m_info.SceneViewCamX    = sceneViewCamX;
 	m_info.SceneViewCamY    = sceneViewCamY;
 	m_info.SceneViewCamSize = sceneViewCamSize;
-	m_info.ScriptDllPath       = scriptDllPath;
+	m_info.ScriptDllPath    = scriptDllPath;
+	m_info.ScriptSourceDirectory = scriptSourceDirectory;
+	m_info.ScriptBuildCommand = scriptBuildCommand;
+	m_info.ScriptOutputLibraryPath = scriptOutputLibraryPath;
+	m_info.ScriptIntermediateDirectory = scriptIntermediateDirectory;
+	m_info.ScriptBuildConfiguration = scriptBuildConfiguration;
+	m_info.ScriptAutoRebuildEnabled = scriptAutoRebuildEnabled;
 	m_info.LastOpenedScenePath = lastOpenedScenePath;
 	m_info.PixelsPerUnit       = pixelsPerUnit;
+	m_info.EditorLocaleCode    = editorLocaleCode;
+	m_info.ImGuiIniSettings    = imguiIniSettings;
 
 	if (false == m_assetManager->SetAssetRootPath(m_info.AssetPath.generic_string().c_str()))
+	{
+		return false;
+	}
+
+	CGameScriptProjectGenerator gameScriptProjectGenerator;
+	if (false == gameScriptProjectGenerator.EnsureProject(m_info))
 	{
 		return false;
 	}
@@ -196,12 +508,47 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 
 	m_isProjectLoaded = true;
 	MarkAssetDatabaseChanged();
+
+	if (m_engineContext && m_engineContext->Localization.IsValid())
+	{
+		if (false == m_engineContext->Localization->SetCurrentLocale(m_info.EditorLocaleCode))
+		{
+			m_info.EditorLocaleCode = m_engineContext->Localization->GetCurrentLocale();
+		}
+	}
+	if (false == m_info.ImGuiIniSettings.empty())
+	{
+		ImGui::LoadIniSettingsFromMemory(m_info.ImGuiIniSettings.c_str(), m_info.ImGuiIniSettings.size());
+	}
+	if (m_liveCompileManager)
+	{
+		if (m_liveCompileManager->Initialize(BuildLiveCompileDesc()))
+		{
+			const LiveCompileResult result = m_liveCompileManager->RebuildAndReload();
+			if (result.Succeeded)
+			{
+				CSystemLog::Info("Script module loaded.");
+			}
+			else
+			{
+				LogLiveCompileFailure("Script module load failed.", result);
+			}
+		}
+		else
+		{
+			CSystemLog::Error("Script live compile initialization failed.");
+		}
+	}
 	return true;
 }
 
 void CProjectManager::CloseProject()
 {
 	// 스크립트 DLL 먼저 언로드 (씬보다 먼저)
+	if (m_liveCompileManager)
+	{
+		m_liveCompileManager->Finalize();
+	}
 	if (m_scriptLoader)
 	{
 		m_scriptLoader->Unload();
@@ -214,9 +561,19 @@ void CProjectManager::CloseProject()
 	m_isProjectLoaded = false;
 	m_info.ProjectFilePath = File::NULL_PATH;
 	m_info.RootPath        = File::NULL_PATH;
+	m_info.ContentPath     = File::NULL_PATH;
 	m_info.AssetPath       = File::NULL_PATH;
-	m_info.ScriptDllPath       = {};
+	m_info.ScriptPath      = File::NULL_PATH;
+	m_info.ScriptDllPath   = {};
+	m_info.ScriptSourceDirectory = CONTENTS_DIRECTORY_NAME;
+	m_info.ScriptBuildCommand = {};
+	m_info.ScriptOutputLibraryPath = "x64/Debug/GameScript.dll";
+	m_info.ScriptIntermediateDirectory = "Build/Intermediate/LiveCompile";
+	m_info.ScriptBuildConfiguration = EScriptBuildConfiguration::Debug;
+	m_info.ScriptAutoRebuildEnabled = false;
 	m_info.LastOpenedScenePath = {};
+	m_info.ImGuiIniSettings    = {};
+	m_lastOpenedScriptIdePath = File::NULL_PATH;
 	MarkAssetDatabaseChanged();
 }
 
@@ -232,6 +589,15 @@ void CProjectManager::Tick()
 	if (m_assetWatcher->TakeEvents(events))
 	{
 		ProcessAssetEvents(events);
+	}
+
+	if (m_liveCompileManager)
+	{
+		const bool shouldScanScripts =
+			m_info.ScriptAutoRebuildEnabled &&
+			m_engineContext &&
+			m_engineContext->ApplicationFocusGained;
+		m_liveCompileManager->Tick(shouldScanScripts);
 	}
 }
 
@@ -255,9 +621,24 @@ const File::Path& CProjectManager::GetRootPath() const
 	return m_info.RootPath;
 }
 
+const File::Path& CProjectManager::GetContentPath() const
+{
+	return m_info.ContentPath;
+}
+
+const File::Path& CProjectManager::GetContentFolder() const
+{
+	return m_info.ContentPath;
+}
+
 const File::Path& CProjectManager::GetAssetPath() const
 {
 	return m_info.AssetPath;
+}
+
+const File::Path& CProjectManager::GetScriptPath() const
+{
+	return m_info.ScriptPath;
 }
 
 std::uint64_t CProjectManager::GetAssetDatabaseRevision() const
@@ -544,6 +925,80 @@ void CProjectManager::SetScriptDllPath(const std::string& path)
 	m_info.ScriptDllPath = path;
 }
 
+const std::string& CProjectManager::GetScriptSourceDirectory() const
+{
+	return m_info.ScriptSourceDirectory;
+}
+
+void CProjectManager::SetScriptSourceDirectory(const std::string& path)
+{
+	(void)path;
+	m_info.ScriptSourceDirectory = CONTENTS_DIRECTORY_NAME;
+}
+
+const std::string& CProjectManager::GetScriptBuildCommand() const
+{
+	return m_info.ScriptBuildCommand;
+}
+
+void CProjectManager::SetScriptBuildCommand(const std::string& command)
+{
+	m_info.ScriptBuildCommand = command;
+}
+
+const std::string& CProjectManager::GetScriptOutputLibraryPath() const
+{
+	return m_info.ScriptOutputLibraryPath;
+}
+
+void CProjectManager::SetScriptOutputLibraryPath(const std::string& path)
+{
+	m_info.ScriptOutputLibraryPath = path;
+}
+
+const std::string& CProjectManager::GetScriptIntermediateDirectory() const
+{
+	return m_info.ScriptIntermediateDirectory;
+}
+
+void CProjectManager::SetScriptIntermediateDirectory(const std::string& path)
+{
+	m_info.ScriptIntermediateDirectory = path;
+}
+
+EScriptBuildConfiguration CProjectManager::GetScriptBuildConfiguration() const
+{
+	return m_info.ScriptBuildConfiguration;
+}
+
+void CProjectManager::SetScriptBuildConfiguration(EScriptBuildConfiguration configuration)
+{
+	m_info.ScriptBuildConfiguration = configuration;
+	m_info.ScriptOutputLibraryPath = std::string("x64/")
+		+ ToString(configuration)
+		+ "/GameScript.dll";
+}
+
+bool CProjectManager::IsScriptAutoRebuildEnabled() const
+{
+	return m_info.ScriptAutoRebuildEnabled;
+}
+
+void CProjectManager::SetScriptAutoRebuildEnabled(bool enabled)
+{
+	m_info.ScriptAutoRebuildEnabled = enabled;
+}
+
+bool CProjectManager::IsLiveCompileEnabled() const
+{
+	return IsScriptAutoRebuildEnabled();
+}
+
+void CProjectManager::SetLiveCompileEnabled(bool enabled)
+{
+	SetScriptAutoRebuildEnabled(enabled);
+}
+
 const std::string& CProjectManager::GetLastOpenedScenePath() const
 {
 	return m_info.LastOpenedScenePath;
@@ -552,6 +1007,26 @@ const std::string& CProjectManager::GetLastOpenedScenePath() const
 void CProjectManager::SetLastOpenedScenePath(const std::string& relativePath)
 {
 	m_info.LastOpenedScenePath = relativePath;
+}
+
+const std::string& CProjectManager::GetEditorLocaleCode() const
+{
+	return m_info.EditorLocaleCode;
+}
+
+void CProjectManager::SetEditorLocaleCode(const std::string& localeCode)
+{
+	m_info.EditorLocaleCode = localeCode;
+}
+
+const std::string& CProjectManager::GetImGuiIniSettings() const
+{
+	return m_info.ImGuiIniSettings;
+}
+
+void CProjectManager::SetImGuiIniSettings(const std::string& iniSettings)
+{
+	m_info.ImGuiIniSettings = iniSettings;
 }
 
 bool CProjectManager::LoadScriptModule()
@@ -574,22 +1049,17 @@ bool CProjectManager::LoadScriptModule()
 		dllPath = m_info.RootPath / dllPath;
 	}
 
-	// GameModuleContext 구성
-	GameModuleContext context;
-	if (m_engineContext)
-	{
-		context.Platform          = m_engineContext->Platform.TryGet();
-		context.MainRenderSurface = m_engineContext->MainRenderSurface.TryGet();
-		context.RHIDevice         = m_engineContext->RHIDevice.TryGet();
-		context.AssetManager      = m_assetManager.TryGet();
-		context.Reflection        = m_engineContext->Reflection.TryGet();
-	}
+	GameModuleContext context = BuildGameModuleContext();
 
 	return m_scriptLoader->Load(dllPath.string().c_str(), context);
 }
 
 void CProjectManager::UnloadScriptModule()
 {
+	if (m_engineContext && m_engineContext->SceneManager)
+	{
+		m_engineContext->SceneManager->DestroyScriptInstances();
+	}
 	if (m_scriptLoader)
 	{
 		m_scriptLoader->Unload();
@@ -599,6 +1069,202 @@ void CProjectManager::UnloadScriptModule()
 bool CProjectManager::IsScriptModuleLoaded() const
 {
 	return static_cast<bool>(m_scriptLoader) && m_scriptLoader->IsLoaded();
+}
+
+bool CProjectManager::StartLiveCompile()
+{
+	if (false == m_isProjectLoaded || !m_liveCompileManager)
+	{
+		return false;
+	}
+
+	m_info.ScriptAutoRebuildEnabled = true;
+	if (false == m_liveCompileManager->Initialize(BuildLiveCompileDesc()))
+	{
+		CSystemLog::Error("Script live compile initialization failed.");
+		return false;
+	}
+
+	const LiveCompileResult result = m_liveCompileManager->RebuildAndReload();
+	if (false == result.Succeeded)
+	{
+		LogLiveCompileFailure("Script module load failed.", result);
+		return false;
+	}
+
+	CSystemLog::Info("Script module loaded.");
+	return true;
+}
+
+void CProjectManager::StopLiveCompile()
+{
+	m_info.ScriptAutoRebuildEnabled = false;
+	if (m_liveCompileManager)
+	{
+		m_liveCompileManager->Finalize();
+	}
+}
+
+bool CProjectManager::RebuildScriptModule()
+{
+	if (false == m_isProjectLoaded || !m_liveCompileManager)
+	{
+		return false;
+	}
+
+	if (ELiveCompileState::Idle == m_liveCompileManager->GetState()
+		|| ELiveCompileState::Failed == m_liveCompileManager->GetState())
+	{
+		if (false == m_liveCompileManager->Initialize(BuildLiveCompileDesc()))
+		{
+			return false;
+		}
+	}
+
+	LiveCompileResult result = m_liveCompileManager->RebuildAndReload();
+	if (result.Succeeded)
+	{
+		CSystemLog::Info("Script module reloaded.");
+	}
+	else
+	{
+		LogLiveCompileFailure("Script module reload failed.", result);
+	}
+	return result.Succeeded;
+}
+
+bool CProjectManager::IsLiveCompileLoaded() const
+{
+	return m_liveCompileManager && ELiveCompileState::Loaded == m_liveCompileManager->GetState();
+}
+
+ELiveCompileState CProjectManager::GetLiveCompileState() const
+{
+	return m_liveCompileManager ? m_liveCompileManager->GetState() : ELiveCompileState::Idle;
+}
+
+GameModuleContext CProjectManager::BuildGameModuleContext() const
+{
+	GameModuleContext context;
+	context.HostEngine = &Engine;
+	return context;
+}
+
+LiveCompileDesc CProjectManager::BuildLiveCompileDesc() const
+{
+	LiveCompileDesc desc;
+	const std::filesystem::path basePath = ResolveLiveCompileBasePath(m_info);
+	const std::string outputLibraryPath = std::string("x64/")
+		+ ToString(m_info.ScriptBuildConfiguration)
+		+ "/GameScript.dll";
+	desc.SourceDirectory = m_info.ScriptPath.string();
+	desc.OutputLibraryPath = ResolveLiveCompilePath(basePath, outputLibraryPath).string();
+	desc.IntermediateDirectory = ResolveLiveCompilePath(basePath, m_info.ScriptIntermediateDirectory).string();
+	desc.BuildCommand = BuildDefaultLiveCompileCommand(m_info, basePath);
+	desc.ModuleContext = BuildGameModuleContext();
+	return desc;
+}
+
+// ── VS 연동 헬퍼 ──────────────────────────────────────────────────────────────
+File::Path CProjectManager::FindScriptSolutionPath() const
+{
+	if (false == m_isProjectLoaded)
+	{
+		return File::NULL_PATH;
+	}
+
+	// 검색 후보: ScriptSourceDirectory, 그 부모, RootPath 순.
+	const std::filesystem::path basePath = ResolveLiveCompileBasePath(m_info);
+	const std::filesystem::path scriptDir = ResolveLiveCompilePath(basePath, m_info.ScriptSourceDirectory);
+
+	const std::filesystem::path candidates[] = {
+		scriptDir,
+		scriptDir.parent_path(),
+		basePath,
+	};
+
+	std::error_code errorCode;
+	for (const std::filesystem::path& dir : candidates)
+	{
+		if (dir.empty() || false == std::filesystem::exists(dir, errorCode))
+		{
+			errorCode.clear();
+			continue;
+		}
+		for (const std::filesystem::directory_entry& entry : std::filesystem::directory_iterator(dir, errorCode))
+		{
+			if (errorCode)
+			{
+				errorCode.clear();
+				break;
+			}
+			if (entry.is_regular_file(errorCode) && entry.path().extension() == ".sln")
+			{
+				return File::Path(entry.path());
+			}
+			errorCode.clear();
+		}
+	}
+	return File::NULL_PATH;
+}
+
+File::Path CProjectManager::FindScriptVcxprojPath() const
+{
+	if (false == m_isProjectLoaded)
+	{
+		return File::NULL_PATH;
+	}
+
+	const std::filesystem::path basePath = ResolveLiveCompileBasePath(m_info);
+	const std::filesystem::path vcxprojPath = ResolveLiveCompilePath(basePath, m_info.ScriptSourceDirectory) / "GameScript.vcxproj";
+	std::error_code errorCode;
+	if (std::filesystem::exists(vcxprojPath, errorCode))
+	{
+		return File::Path(vcxprojPath);
+	}
+	return File::NULL_PATH;
+}
+
+void CProjectManager::OpenScriptInIde(const File::Path& filePath) const
+{
+	(void)filePath;
+
+	// 스크립트 파일 자체를 열지 않고 프로젝트만 연다.
+	// 같은 프로젝트를 반복 더블클릭할 때 ShellExecute 가 Visual Studio 인스턴스를
+	// 계속 늘리는 것을 막기 위해 프로젝트 단위로 한 번만 요청한다.
+	const File::Path slnPath = FindScriptSolutionPath();
+	File::Path idePath = slnPath;
+	if (idePath.empty())
+	{
+		idePath = FindScriptVcxprojPath();
+	}
+
+	if (idePath.empty())
+	{
+		return;
+	}
+
+	std::error_code errorCode;
+	const std::filesystem::path normalizedPath = std::filesystem::weakly_canonical(idePath, errorCode);
+	if (!errorCode && m_lastOpenedScriptIdePath == File::Path(normalizedPath))
+	{
+		return;
+	}
+	if (errorCode)
+	{
+		errorCode.clear();
+		if (m_lastOpenedScriptIdePath == idePath)
+		{
+			return;
+		}
+		m_lastOpenedScriptIdePath = idePath;
+	}
+	else
+	{
+		m_lastOpenedScriptIdePath = File::Path(normalizedPath);
+	}
+
+	File::OpenFile(idePath);
 }
 
 bool CProjectManager::SaveProject() const
@@ -618,6 +1284,13 @@ bool CProjectManager::SaveProject() const
 	out << YAML::Key << PROJECT_KEY_SCENE_CAM_Y     << YAML::Value << m_info.SceneViewCamY;
 	out << YAML::Key << PROJECT_KEY_SCENE_CAM_SIZE  << YAML::Value << m_info.SceneViewCamSize;
 	out << YAML::Key << PROJECT_KEY_PIXELS_PER_UNIT << YAML::Value << m_info.PixelsPerUnit;
+	out << YAML::Key << PROJECT_KEY_EDITOR_LOCALE   << YAML::Value << m_info.EditorLocaleCode;
+	out << YAML::Key << PROJECT_KEY_SCRIPT_SOURCE_DIR << YAML::Value << m_info.ScriptSourceDirectory;
+	out << YAML::Key << PROJECT_KEY_SCRIPT_BUILD_CMD << YAML::Value << m_info.ScriptBuildCommand;
+	out << YAML::Key << PROJECT_KEY_SCRIPT_OUTPUT_DLL << YAML::Value << m_info.ScriptOutputLibraryPath;
+	out << YAML::Key << PROJECT_KEY_SCRIPT_INTERMEDIATE << YAML::Value << m_info.ScriptIntermediateDirectory;
+	out << YAML::Key << PROJECT_KEY_SCRIPT_BUILD_CONFIG << YAML::Value << ToString(m_info.ScriptBuildConfiguration);
+	out << YAML::Key << PROJECT_KEY_SCRIPT_AUTO_REBUILD_ENABLED << YAML::Value << m_info.ScriptAutoRebuildEnabled;
 	if (false == m_info.ScriptDllPath.empty())
 	{
 		out << YAML::Key << PROJECT_KEY_SCRIPT_DLL_PATH << YAML::Value << m_info.ScriptDllPath;
@@ -625,6 +1298,10 @@ bool CProjectManager::SaveProject() const
 	if (false == m_info.LastOpenedScenePath.empty())
 	{
 		out << YAML::Key << PROJECT_KEY_LAST_SCENE_PATH << YAML::Value << m_info.LastOpenedScenePath;
+	}
+	if (false == m_info.ImGuiIniSettings.empty())
+	{
+		out << YAML::Key << PROJECT_KEY_IMGUI_INI << YAML::Value << YAML::Literal << m_info.ImGuiIniSettings;
 	}
 	out << YAML::EndMap;
 

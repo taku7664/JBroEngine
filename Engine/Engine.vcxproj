@@ -124,37 +124,50 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
+  <!-- ────────────────────────────────────────────────────────────────────
+       Engine은 StaticLibrary — OutDir은 ProjectReference가 자동으로 추적하므로
+       기본값을 유지하고 IntDir만 Build\Intermediate\... 로 통일.
+       이렇게 두면 .obj/.pch는 한 곳에 모이고 .lib 링킹은 깨지지 않음.
+       ──────────────────────────────────────────────────────────────────── -->
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
     <PublicIncludeDirectories>$(ProjectDir)ThirdParty\;</PublicIncludeDirectories>
+    <IntDir>$(SolutionDir)Build\Intermediate\Engine\Debug_Editor\$(Platform)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug_Game|Win32'">
     <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
     <PublicIncludeDirectories>$(ProjectDir)ThirdParty\;</PublicIncludeDirectories>
+    <IntDir>$(SolutionDir)Build\Intermediate\Engine\Debug_Game\$(Platform)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
     <PublicIncludeDirectories>$(ProjectDir)ThirdParty\;</PublicIncludeDirectories>
+    <IntDir>$(SolutionDir)Build\Intermediate\Engine\Release_Editor\$(Platform)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release_Game|Win32'">
     <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
     <PublicIncludeDirectories>$(ProjectDir)ThirdParty\;</PublicIncludeDirectories>
+    <IntDir>$(SolutionDir)Build\Intermediate\Engine\Release_Game\$(Platform)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
     <PublicIncludeDirectories>$(ProjectDir)ThirdParty\;</PublicIncludeDirectories>
+    <IntDir>$(SolutionDir)Build\Intermediate\Engine\Debug_Editor\$(Platform)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug_Game|x64'">
     <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
     <PublicIncludeDirectories>$(ProjectDir)ThirdParty\;</PublicIncludeDirectories>
+    <IntDir>$(SolutionDir)Build\Intermediate\Engine\Debug_Game\$(Platform)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
     <PublicIncludeDirectories>$(ProjectDir)ThirdParty\;</PublicIncludeDirectories>
+    <IntDir>$(SolutionDir)Build\Intermediate\Engine\Release_Editor\$(Platform)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release_Game|x64'">
     <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
     <PublicIncludeDirectories>$(ProjectDir)ThirdParty\;</PublicIncludeDirectories>
+    <IntDir>$(SolutionDir)Build\Intermediate\Engine\Release_Game\$(Platform)\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -324,7 +337,10 @@
     <ClInclude Include="Core\Asset\SpriteAsset.h" />
     <ClInclude Include="Core\Asset\TextureAsset.h" />
     <ClInclude Include="Core\Core.h" />
+    <ClInclude Include="Core\Debug\Debug.h" />
     <ClInclude Include="Core\Engine.h" />
+    <ClInclude Include="Core\EngineCore.h" />
+    <ClInclude Include="Engine\EngineAPI.h" />
     <ClInclude Include="Core\EngineContext.h" />
     <ClInclude Include="Core\Game\GameModuleTypes.h" />
     <ClInclude Include="Core\Game\IGameModule.h" />
@@ -404,7 +420,6 @@
     <ClInclude Include="GameFramework\System\GameSystem.h" />
     <ClInclude Include="Editor\ImEditor.h" />
     <ClInclude Include="Editor\ImGuiUtillity.h" />
-    <ClInclude Include="Editor\ImItem\ImButton.h" />
     <ClInclude Include="Editor\ImItem\ImText.h" />
     <ClInclude Include="Editor\ImWindow\IImPopupWindow.h" />
     <ClInclude Include="Editor\ImWindow\IImWindow.h" />
@@ -425,9 +440,11 @@
     <ClInclude Include="Editor\LiveCompile\LiveCompileTypes.h" />
     <ClInclude Include="Editor\LiveCompile\Windows\WindowsDynamicLibrary.h" />
     <ClInclude Include="Editor\ScriptModule\ScriptModuleLoader.h" />
+    <ClInclude Include="Editor\Project\GameScriptProjectGenerator.h" />
     <ClInclude Include="Editor\Project\ProjectManager.h" />
     <ClInclude Include="Editor\Project\ProjectTypes.h" />
     <ClInclude Include="Framework.h" />
+    <ClInclude Include="Editor\ImItem\ImTree.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="ThirdParty\imconfig.h" />
     <ClInclude Include="ThirdParty\imgui\imconfig.h" />
@@ -482,6 +499,7 @@
     <ClInclude Include="Core\Input\Input.h" />
     <ClInclude Include="Core\Input\InputTypes.h" />
     <ClInclude Include="Core\Input\IInputMessageHandler.h" />
+    <ClInclude Include="Core\Localization\LocalizationManager.h" />
     <ClInclude Include="Core\Logging\Logger.h" />
     <ClInclude Include="Core\Logging\LoggerInternal.h" />
     <ClInclude Include="Core\Logging\LoggerTypes.h" />
@@ -518,7 +536,10 @@
     <ClCompile Include="Core\Asset\MaterialAsset.cpp" />
     <ClCompile Include="Core\Asset\SpriteAsset.cpp" />
     <ClCompile Include="Core\Asset\TextureAsset.cpp" />
+    <ClCompile Include="Core\Debug\Debug.cpp" />
     <ClCompile Include="Core\Engine.cpp" />
+    <ClCompile Include="Core\EngineCore.cpp" />
+    <ClCompile Include="Engine\EngineAPI.cpp" />
     <ClCompile Include="Core\Network\NetworkManager.cpp" />
     <ClCompile Include="Core\Network\Windows\WinSockTransport.cpp" />
     <ClCompile Include="Core\Network\Web\WebSocketTransport.cpp" />
@@ -569,9 +590,6 @@
     <ClCompile Include="Editor\ImGuiUtillity.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="Editor\ImItem\ImButton.cpp">
-      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
-    </ClCompile>
     <ClCompile Include="Editor\ImItem\ImText.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
@@ -611,7 +629,13 @@
     <ClCompile Include="Editor\ScriptModule\ScriptModuleLoader.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
+    <ClCompile Include="Editor\Project\GameScriptProjectGenerator.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="Editor\Project\ProjectManager.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Editor\ImItem\ImTree.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="pch.cpp">
@@ -682,6 +706,7 @@
     </ClCompile>
     <ClCompile Include="Core\FileSystem\FileSystem.cpp" />
     <ClCompile Include="Core\Input\Input.cpp" />
+    <ClCompile Include="Core\Localization\LocalizationManager.cpp" />
     <ClCompile Include="Core\Logging\Logger.cpp" />
     <ClCompile Include="Core\Thread\ThreadService.cpp" />
     <ClCompile Include="GameFramework\Physics2D\Physics2DGeometry.cpp" />
@@ -701,4 +726,6 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
+  <!-- SDK 스테이징: 빌드 후 공개 헤더 + Engine.lib 를 SDK/ 폴더로 복사 -->
+  <Import Project="$(MSBuildProjectDirectory)\StageSDK.targets" />
 </Project>

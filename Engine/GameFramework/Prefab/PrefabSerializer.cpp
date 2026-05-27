@@ -195,24 +195,13 @@ void CPrefabSerializer::CopyComponents(const CScene& sourceScene, EntityId sourc
 		}
 	}
 
-	// Copy all polygon collider instances (AllowDuplicates type).
+	// 단일 인스턴스 ECS: PolygonCollider2D 는 엔티티당 최대 1개.
+	if (const PolygonCollider2D* source = sourceScene.GetComponent<PolygonCollider2D>(sourceEntity))
 	{
-		const std::vector<const PolygonCollider2D*> sources = sourceScene.GetAllComponents<PolygonCollider2D>(sourceEntity);
-		for (const PolygonCollider2D* source : sources)
+		if (PolygonCollider2D* target = targetObject.AddComponent<PolygonCollider2D>())
 		{
-			if (nullptr == source)
-			{
-				continue;
-			}
-			const bool alreadyHasOne = targetObject.HasComponent<PolygonCollider2D>();
-			PolygonCollider2D* target = alreadyHasOne
-				? targetObject.AddNewComponent<PolygonCollider2D>()
-				: targetObject.AddComponent<PolygonCollider2D>();
-			if (target)
-			{
-				*target = *source;
-				target->WorldPoints.clear();
-			}
+			*target = *source;
+			target->WorldPoints.clear();
 		}
 	}
 

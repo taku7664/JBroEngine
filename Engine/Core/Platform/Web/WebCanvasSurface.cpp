@@ -22,7 +22,9 @@ void CWebCanvasSurface::Destroy()
 
 void CWebCanvasSurface::PollEvents(PlatformEvent& platformEvent)
 {
-	(void)platformEvent;
+	platformEvent.IsFocused = true;
+	platformEvent.FocusGained = false;
+	platformEvent.FocusLost = false;
 }
 
 RenderSurfaceSize CWebCanvasSurface::GetSize() const

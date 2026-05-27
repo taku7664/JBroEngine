@@ -7,6 +7,9 @@ public:
 	virtual ImGuiID GetOwnerID() const = 0;
 
     virtual void SetTitle(const char* title) = 0;
+    // 매 프레임 Loc::Text(key)로 타이틀을 자동 갱신.
+    // 키가 비어있으면 자동 갱신 해제. 도구는 OnCreate에서 한 번만 호출하면 됨.
+    virtual void SetLocalizedTitleKey(const char* key) = 0;
     virtual const char* GetTitle() const = 0;
 
     virtual void SetSize(ImVec2 size, bool delay = true) = 0;

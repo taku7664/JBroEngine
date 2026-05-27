@@ -16,12 +16,14 @@ class IRenderScene;
 class CSceneManager;
 class CNetworkManager;
 class CDebugDraw2D;
+class CDebug;
 class CTime;
 class CInput;
 class CFileSystem;
 class CThreadService;
 class CReflectionRegistry;
 class CLogger;
+class CLocalizationManager;
 
 class CEngine final : public EnableSafeFromThis<CEngine>
 {
@@ -80,12 +82,17 @@ private:
 	OwnerPtr<CThreadService>      m_threadService;
 	OwnerPtr<CReflectionRegistry> m_reflectionRegistry;
 	OwnerPtr<CLogger>             m_logger;
+	OwnerPtr<CDebug>              m_debug;
+	OwnerPtr<CLocalizationManager> m_localization;
 	OwnerPtr<CSceneManager>       m_sceneManager;
 	OwnerPtr<CNetworkManager>     m_networkManager;   // null until InitializeNetwork()
 	OwnerPtr<CDebugDraw2D>        m_debugDraw;
 	std::vector<CModule*>         m_modules;
 	EngineContext                 m_context;
 	bool                          m_isInitialized = false;
+	bool                          m_isApplicationFocused = true;
+	bool                          m_applicationFocusGained = false;
+	bool                          m_applicationFocusLost = false;
 
 	// Track the last known surface size to detect window resize each frame.
 	int m_lastSurfaceWidth  = 0;

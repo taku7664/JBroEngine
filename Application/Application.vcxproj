@@ -122,6 +122,47 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
+  <!-- ────────────────────────────────────────────────────────────────────
+       OutDir/IntDir 일관성 규칙:
+         Debug         = Editor 빌드 (JBRO_EDITOR)     → Build\Debug_Editor\
+         Debug_Game    = Game-only 빌드 (JBRO_GAME)    → Build\Debug_Game\
+         Release       = Editor 빌드                    → Build\Release_Editor\
+         Release_Game  = Game-only 빌드                 → Build\Release_Game\
+       Intermediate는 Build\Intermediate\<Project>\<Config>\<Platform>\ 패턴 통일.
+       Win32은 사용하지 않지만 sln에 등록돼 있어 정의는 유지.
+       ──────────────────────────────────────────────────────────────────── -->
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <OutDir>$(SolutionDir)Build\Debug_Editor\</OutDir>
+    <IntDir>$(SolutionDir)Build\Intermediate\Application\Debug_Editor\$(Platform)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <OutDir>$(SolutionDir)Build\Debug_Editor\</OutDir>
+    <IntDir>$(SolutionDir)Build\Intermediate\Application\Debug_Editor\$(Platform)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug_Game|Win32'">
+    <OutDir>$(SolutionDir)Build\Debug_Game\</OutDir>
+    <IntDir>$(SolutionDir)Build\Intermediate\Application\Debug_Game\$(Platform)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug_Game|x64'">
+    <OutDir>$(SolutionDir)Build\Debug_Game\</OutDir>
+    <IntDir>$(SolutionDir)Build\Intermediate\Application\Debug_Game\$(Platform)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <OutDir>$(SolutionDir)Build\Release_Editor\</OutDir>
+    <IntDir>$(SolutionDir)Build\Intermediate\Application\Release_Editor\$(Platform)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <OutDir>$(SolutionDir)Build\Release_Editor\</OutDir>
+    <IntDir>$(SolutionDir)Build\Intermediate\Application\Release_Editor\$(Platform)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release_Game|Win32'">
+    <OutDir>$(SolutionDir)Build\Release_Game\</OutDir>
+    <IntDir>$(SolutionDir)Build\Intermediate\Application\Release_Game\$(Platform)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release_Game|x64'">
+    <OutDir>$(SolutionDir)Build\Release_Game\</OutDir>
+    <IntDir>$(SolutionDir)Build\Intermediate\Application\Release_Game\$(Platform)\</IntDir>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
@@ -262,31 +303,35 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="Application.h" />
+    <ClInclude Include="Editor\Main\AssetBrowser\AssetHandler.h" />
     <ClInclude Include="Editor\Command\EditorFileCommands.h" />
     <ClInclude Include="Editor\Command\EditorCommandManager.h" />
     <ClInclude Include="Editor\Command\EditorSceneCommands.h" />
     <ClInclude Include="Editor\Helper\EditorGuiDrawHelpers.h" />
     <ClInclude Include="Editor\EditorDragDrop.h" />
-    <ClInclude Include="Editor\Main\AssetBrowserTool.h" />
+    <ClInclude Include="Editor\Main\AssetBrowser\AssetBrowserTool.h" />
     <ClInclude Include="Editor\Editor.h" />
     <ClInclude Include="Editor\Main\MainDockWindow.h" />
     <ClInclude Include="framework.h" />
-    <ClInclude Include="Editor\Main\HierarchyTool.h" />
-    <ClInclude Include="Editor\Main\InspectorTool.h" />
+    <ClInclude Include="Editor\Main\Hierarchy\HierarchyTool.h" />
+    <ClInclude Include="Editor\Main\Inspector\InspectorTool.h" />
     <ClInclude Include="Editor\Helper\ImGuiHelper.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="Editor\RootDockWindow.h" />
-    <ClInclude Include="Editor\Main\SceneViewTool.h" />
-    <ClInclude Include="Editor\Main\SceneViewContour.h" />
-    <ClInclude Include="Editor\Main\SceneViewEditContext.h" />
-    <ClInclude Include="Editor\Main\GameViewTool.h" />
-    <ClInclude Include="Editor\Main\LogTool.h" />
+    <ClInclude Include="Editor\Main\SceneView\SceneViewTool.h" />
+    <ClInclude Include="Editor\Main\SceneView\SceneViewContour.h" />
+    <ClInclude Include="Editor\Main\SceneView\SceneViewEditContext.h" />
+    <ClInclude Include="Editor\Main\GameView\GameViewTool.h" />
+    <ClInclude Include="Editor\Main\Log\LogTool.h" />
     <ClInclude Include="Editor\Main\ProjectSettingsWindow.h" />
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Application.cpp" />
+    <ClCompile Include="Editor\Main\AssetBrowser\AssetHandler.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="Editor\Command\EditorFileCommands.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
@@ -302,39 +347,42 @@
     <ClCompile Include="Editor\EditorDragDrop.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="Editor\Main\AssetBrowserTool.cpp">
+    <ClCompile Include="Editor\Main\AssetBrowser\AssetBrowserTool.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="Editor\Main\MainDockWindow.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="Editor\Main\LogTool.cpp">
+    <ClCompile Include="Editor\Main\Log\LogTool.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="Entry\WindowsMain.cpp" />
-    <ClCompile Include="Editor\Main\HierarchyTool.cpp">
+    <ClCompile Include="Editor\Main\Hierarchy\HierarchyTool.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="Editor\Main\InspectorTool.cpp">
+    <ClCompile Include="Editor\Main\Inspector\InspectorTool.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="Editor\Helper\ImGuiHelper.cpp" />
+    <ClCompile Include="Editor\Helper\ImGuiHelper.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="Editor\RootDockWindow.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="Editor\Main\SceneViewTool.cpp">
+    <ClCompile Include="Editor\Main\SceneView\SceneViewTool.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="Editor\Main\SceneViewContour.cpp">
+    <ClCompile Include="Editor\Main\SceneView\SceneViewContour.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="Editor\Main\SceneViewEditContext.cpp">
+    <ClCompile Include="Editor\Main\SceneView\SceneViewEditContext.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="Editor\Main\GameViewTool.cpp">
+    <ClCompile Include="Editor\Main\GameView\GameViewTool.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="Editor\Main\ProjectSettingsWindow.cpp">

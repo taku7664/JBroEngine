@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  JBroEngine.props — MSBuild Property Sheet
+  ===========================================================
+  게임 프로젝트의 .vcxproj 에서 아래 한 줄로 엔진 SDK를 참조합니다.
+
+    <Import Project="{editor_exe_dir}\SDK\JBroEngine.props" />
+
+  이 파일은 editor exe 기준 상대경로로 SDK 루트를 계산하므로
+  하드코딩 없이 개발 환경/배포 환경 모두에서 동작합니다.
+-->
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <!-- ── SDK 루트 경로 계산 ──────────────────────────────────────────── -->
+  <!-- 이 props 파일은 SDK/ 폴더 안에 있으므로 부모 디렉토리가 엔진 루트 -->
+  <PropertyGroup>
+    <JBroEngineRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../'))</JBroEngineRoot>
+    <JBroEngineSDK>$(JBroEngineRoot)SDK\</JBroEngineSDK>
+  </PropertyGroup>
+
+  <!-- ── 컴파일러 / 링커 설정 ─────────────────────────────────────────── -->
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <!--
+        Include 경로 두 개:
+          1. SDK\Include                → #include "GameFramework/..."  #include "Core/..."  #include "Utillity/..."
+          2. SDK\Include\Utillity       → #include "File/FilePath.h"   #include "SafePtr.h" 등 Utillity 하위 직접 참조
+      -->
+      <AdditionalIncludeDirectories>
+        $(JBroEngineSDK)Include;$(JBroEngineSDK)Include\Utillity;%(AdditionalIncludeDirectories)
+      </AdditionalIncludeDirectories>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <PreprocessorDefinitions>JBRO_PLATFORM_WINDOWS;JBRO_GAME;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <Link>
+      <!--
+        $(Configuration) 은 게임 프로젝트의 빌드 구성명 그대로 사용.
+        엔진 Post-Build 에서 Debug/Release 로 정규화해서 SDK\Lib\Debug\ 에 복사함.
+      -->
+      <AdditionalLibraryDirectories>
+        $(JBroEngineSDK)Lib\$(Configuration);%(AdditionalLibraryDirectories)
+      </AdditionalLibraryDirectories>
+      <AdditionalDependencies>Engine.lib;Utillity.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+
+</Project>

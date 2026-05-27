@@ -113,6 +113,10 @@ void CWindowsRenderSurface::Destroy()
 void CWindowsRenderSurface::PollEvents(PlatformEvent& platformEvent)
 {
 #if JBRO_PLATFORM_WINDOWS
+	platformEvent.IsFocused = m_isFocused;
+	platformEvent.FocusGained = false;
+	platformEvent.FocusLost = false;
+
 	MSG msg = {};
 	while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
 	{
@@ -125,6 +129,12 @@ void CWindowsRenderSurface::PollEvents(PlatformEvent& platformEvent)
 		TranslateMessage(&msg);
 		DispatchMessage(&msg);
 	}
+
+	platformEvent.IsFocused = m_isFocused;
+	platformEvent.FocusGained = m_focusGained;
+	platformEvent.FocusLost = m_focusLost;
+	m_focusGained = false;
+	m_focusLost = false;
 #else
 	(void)platformEvent;
 #endif
@@ -184,6 +194,17 @@ LRESULT CALLBACK CWindowsRenderSurface::WindowProc(HWND hwnd, UINT message, WPAR
 
 	switch (message)
 	{
+	case WM_ACTIVATEAPP:
+	{
+		const bool isFocused = (FALSE != wParam);
+		if (renderSurface && renderSurface->m_isFocused != isFocused)
+		{
+			renderSurface->m_isFocused = isFocused;
+			renderSurface->m_focusGained = isFocused;
+			renderSurface->m_focusLost = !isFocused;
+		}
+		break;
+	}
 	case WM_KEYDOWN:
 	case WM_SYSKEYDOWN:
 	{

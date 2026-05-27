@@ -1,0 +1,114 @@
+#pragma once
+
+#include "GameFramework/Reflection/ReflectionTypes.h"
+
+#include <cstddef>
+#include <cstdint>
+#include <vector>
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  스크립트 리플렉션 시스템
+//
+//  사용 방법:
+//    class MyScript : public CGameScript
+//    {
+//        SCRIPT_CLASS(MyScript)                    // 클래스 최상단에 한 번
+//    public:
+//        REFLECT_FIELD(float,       Speed,     5.0f)   // Inspector 노출 + 씬 직렬화
+//        REFLECT_FIELD(bool,        IsGrounded, false)
+//        REFLECT_FIELD(std::int32_t, MaxJumps,  2)
+//
+//        int m_internalTimer = 0;  // 일반 멤버: Inspector 미노출, 리로드 시 초기화
+//    };
+//
+//  지원 타입: bool, int32_t, uint32_t, float
+//             Vector2<float>  (ScriptAPI.h 를 #include 해야 사용 가능)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// ── ScriptReflectEntry ────────────────────────────────────────────────────────
+// REFLECT_FIELD 매크로가 등록하는 단일 필드 메타데이터.
+// RegisterScript<T>() 가 읽어 ScriptTypeInfo::Properties 를 자동 구성한다.
+//
+// Offset 대신 GetFieldPtr 를 사용하는 이유:
+//   REFLECT_FIELD 는 클래스 본문(불완전 타입) 내부에서 확장되므로
+//   offsetof(ScriptSelfType, FieldName) 이 C2079 컴파일 오류를 일으킨다.
+//   GetFieldPtr 는 static 초기화 시점(클래스 완성 후)에 실행되는 람다이므로
+//   항상 안전하게 멤버 주소를 반환할 수 있다.
+struct ScriptReflectEntry
+{
+	const char*          Name         = nullptr;
+	EReflectPropertyType Type         = EReflectPropertyType::Float;
+	void*              (*GetFieldPtr)(void*) = nullptr;  // &static_cast<T*>(obj)->Field
+	std::size_t          Size         = 0;
+	std::size_t          ElementCount = 1;
+};
+
+// ── ScriptFieldTypeOf<T>() ────────────────────────────────────────────────────
+// C++ 타입 → EReflectPropertyType 매핑.
+// 지원하지 않는 타입을 REFLECT_FIELD 에 사용하면 컴파일 오류가 발생한다.
+// Vector2<float> 특수화는 ScriptAPI.h(Vector2T.h 포함 후)에서 제공된다.
+template<typename T> inline EReflectPropertyType ScriptFieldTypeOf()
+{
+	static_assert(sizeof(T) == 0,
+		"REFLECT_FIELD: unsupported type. "
+		"Supported: bool, int32_t, uint32_t, float, Vector2<float>. "
+		"Include ScriptAPI.h for Vector2<float> support.");
+	return EReflectPropertyType::Float;
+}
+template<> inline EReflectPropertyType ScriptFieldTypeOf<bool>()              { return EReflectPropertyType::Bool; }
+template<> inline EReflectPropertyType ScriptFieldTypeOf<std::int32_t>()      { return EReflectPropertyType::Int32; }
+template<> inline EReflectPropertyType ScriptFieldTypeOf<std::uint32_t>()     { return EReflectPropertyType::UInt32; }
+template<> inline EReflectPropertyType ScriptFieldTypeOf<float>()             { return EReflectPropertyType::Float; }
+
+// ── SCRIPT_CLASS(T) ───────────────────────────────────────────────────────────
+// 스크립트 클래스 본문 최상단에 한 번 기재한다.
+//
+//   using ScriptSelfType = T
+//     → REFLECT_FIELD 내부에서 offsetof(ScriptSelfType, member) 에 사용.
+//
+//   static GetReflectEntries()
+//     → 이 클래스의 REFLECT_FIELD 목록을 반환. RegisterScript<T>() 가 읽는다.
+//     → 함수-로컬 정적 벡터이므로 클래스별로 독립된 목록을 가진다.
+#define SCRIPT_CLASS(T)                                                          \
+public:                                                                          \
+	using ScriptSelfType = T;                                                    \
+	static std::vector<ScriptReflectEntry>& GetReflectEntries()                  \
+	{                                                                            \
+		static std::vector<ScriptReflectEntry> s_entries;                        \
+		return s_entries;                                                        \
+	}
+
+// ── REFLECT_FIELD(CppType, FieldName, DefaultValue) ──────────────────────────
+// 멤버 변수를 선언하고 리플렉션 시스템에 등록한다.
+//
+// 효과:
+//   1. Inspector 에 해당 필드가 자동으로 표시된다.
+//   2. 씬 파일 저장/로드 시 값이 자동으로 직렬화된다.
+//   3. 라이브 리로드(DLL 교체) 후에도 값이 유지된다.
+//
+// 주의:
+//   - SCRIPT_CLASS(T) 선언 이후에만 사용 가능하다.
+//   - inline static 멤버는 C++17 이상이 필요하다.
+//   - GetFieldPtr 람다는 클래스가 완성된 뒤 static 초기화 시점에 실행되므로
+//     불완전 타입 문제(C2079)가 발생하지 않는다.
+#define REFLECT_FIELD(CppType, FieldName, DefaultValue)                          \
+public:                                                                          \
+	CppType FieldName = (DefaultValue);                                          \
+private:                                                                         \
+	template<typename TScript>                                                   \
+	static void* _srefl_get_##FieldName(void* _obj)                              \
+	{                                                                            \
+		return &static_cast<TScript*>(_obj)->FieldName;                          \
+	}                                                                            \
+	inline static const bool _srefl_##FieldName = []() -> bool                  \
+	{                                                                            \
+		ScriptSelfType::GetReflectEntries().push_back(ScriptReflectEntry{        \
+			#FieldName,                                                          \
+			ScriptFieldTypeOf<CppType>(),                                        \
+			&_srefl_get_##FieldName<ScriptSelfType>,                             \
+			sizeof(CppType),                                                     \
+			1                                                                    \
+		});                                                                      \
+		return true;                                                             \
+	}();                                                                         \
+public:

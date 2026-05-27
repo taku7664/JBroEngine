@@ -40,6 +40,11 @@ IRenderScene* CSpriteRenderSystem::GetRenderScene() const
 	return m_renderScene;
 }
 
+void CSpriteRenderSystem::ClearMaterialCache()
+{
+	m_materialCache.clear();
+}
+
 void CSpriteRenderSystem::OnUpdate(CScene& scene)
 {
 	if (nullptr == m_renderScene)
@@ -90,7 +95,7 @@ void CSpriteRenderSystem::OnUpdate(CScene& scene)
 					material = generatedMaterial.GetSafePtr();
 					sprite.Mesh = mesh;
 					sprite.Material = material;
-					sprite.RuntimeMaterial = std::move(generatedMaterial);
+					m_materialCache[entity] = std::move(generatedMaterial);
 				}
 			}
 

@@ -1,4 +1,8 @@
-#pragma once
+﻿#pragma once
+
+#include <limits>
+#include <string>
+#include <type_traits>
 
 namespace ImGui
 {
@@ -20,11 +24,19 @@ namespace ImGui
 		enum class CheckMarkType { Check, X, Circle, };
 		bool Checkbox(const char* label, bool* v, CheckMarkType checkType = CheckMarkType::Check);
 
+		bool VerticalSplitter(const char* id, float& ratio, ImVec2 availSpace,
+			const float minRatio = 0.15f, const float maxRatio = 0.8f,
+			float thickness = 1.0f);
+
+		// 로딩 스피너. radius<=0 이면 프레임 높이의 절반으로 자동 산정(지름 = 프레임 높이).
+		// 내부에서 ImGui::Dummy 로 커서를 전진시키므로 다음 위젯은 SameLine 호출만 해주면 됨.
+		void LoadingSpinner(float radius = 0.0f, ImVec4 color = ImVec4(1, 1, 1, 1));
+
 		class StyleBuilder
 		{
 		public:
 			StyleBuilder() = default;
-			~StyleBuilder() { PopStyle(); }
+			~StyleBuilder();
 
 		public:
 			template <typename T>
@@ -39,19 +51,7 @@ namespace ImGui
 				ImGui::PushStyleColor( idx , color );
 				++m_pushStyleColCount;
 			}
-			void PopStyle()
-			{
-				if ( m_pushStyleVarCount > 0 )
-				{
-					ImGui::PopStyleVar( m_pushStyleVarCount );
-					m_pushStyleVarCount = 0;
-				}
-				if ( m_pushStyleColCount > 0 )
-				{
-					ImGui::PopStyleColor( m_pushStyleColCount );
-					m_pushStyleColCount = 0;
-				}
-			}
+			void PopStyle();
 
 		private:
 			int m_pushStyleVarCount = 0;
@@ -61,15 +61,8 @@ namespace ImGui
 		class DisableScope
 		{
 		public:
-			DisableScope(bool disable = true) 
-				: m_disabled(disable)
-			{ 
-				if ( m_disabled ) ImGui::BeginDisabled(); 
-			}
-			~DisableScope() 
-			{
-				if ( m_disabled ) ImGui::EndDisabled();
-			}
+			DisableScope(bool disable = true);
+			~DisableScope();
 
 			inline bool IsDisabled() const { return m_disabled; }
 
@@ -80,43 +73,8 @@ namespace ImGui
 		class FormLayout
 		{
 		public:
-			FormLayout(const char* id, float spacing = 4.0f, ImVec2 padding = ImVec2(2.0f, 1.0f), float labelWidth = 0.0f)
-				: m_spacing(spacing)
-				, m_labelWidth(labelWidth)
-			{
-
-				const ImGuiTableFlags tableFlags =
-					ImGuiTableFlags_SizingStretchProp |
-					ImGuiTableFlags_NoSavedSettings |
-					ImGuiTableFlags_NoBordersInBody |
-					ImGuiTableFlags_NoPadOuterX;
-
-				m_isOpen = ImGui::BeginTable(id, 2, tableFlags);
-
-				if (m_isOpen)
-				{
-					m_styleBuilder.PushStyleVar(ImGuiStyleVar_CellPadding, padding);
-
-					const ImGuiTableColumnFlags labelColumnFlags =
-						ImGuiTableColumnFlags_WidthFixed;
-
-					const ImGuiTableColumnFlags fieldColumnFlags =
-						ImGuiTableColumnFlags_WidthStretch;
-
-					// labelWidth == 0.0f 이면 ImGui가 라벨 컬럼 폭을 자동 계산합니다.
-					// labelWidth != 0.0f 이면 지정한 고정 폭을 사용합니다.
-					ImGui::TableSetupColumn("Label", labelColumnFlags, m_labelWidth);
-					ImGui::TableSetupColumn("Field", fieldColumnFlags);
-				}
-			}
-
-			~FormLayout()
-			{
-				if (m_isOpen)
-				{
-					ImGui::EndTable();
-				}
-			}
+			FormLayout(const char* id, float spacing = 4.0f, ImVec2 padding = ImVec2(2.0f, 1.0f), float labelWidth = 0.0f);
+			~FormLayout();
 
 			FormLayout(const FormLayout&) = delete;
 			FormLayout& operator=(const FormLayout&) = delete;
@@ -152,10 +110,7 @@ namespace ImGui
 				rightFunc();
 			}
 
-			bool IsOpen() const
-			{
-				return m_isOpen;
-			}
+			bool IsOpen() const;
 
 		private:
 			bool m_isOpen = false;
@@ -170,52 +125,68 @@ namespace ImGui
 		{
 			public:
 			IDGroup() = default;
-			IDGroup(const char* strId)
+			IDGroup(const char* strId);
+			IDGroup(int intId);
+			IDGroup(const void* ptrId);
+			template<typename T, typename = std::enable_if_t<std::is_integral_v<T> && false == std::is_same_v<std::decay_t<T>, bool>>>
+			IDGroup(T intId)
 			{
-				ImGui::PushID(strId);
+				PushIntegralId(intId);
 			}
-			IDGroup(int intId)
-			{
-				ImGui::PushID(intId);
-			}
-			IDGroup(const void* ptrId)
-			{
-				ImGui::PushID(ptrId);
-			}
-			~IDGroup()
-			{
-				ImGui::PopID();
-			}
+			~IDGroup();
 			IDGroup(const IDGroup&) = delete;
 			IDGroup& operator=(const IDGroup&) = delete;
 			IDGroup(IDGroup&&) = delete;
 			IDGroup& operator=(IDGroup&&) = delete;
+
+		private:
+			template<typename T>
+			void PushIntegralId(T intId)
+			{
+				if constexpr (std::is_signed_v<T>)
+				{
+					const long long value = static_cast<long long>(intId);
+					if (value >= static_cast<long long>(std::numeric_limits<int>::min())
+						&& value <= static_cast<long long>(std::numeric_limits<int>::max()))
+					{
+						ImGui::PushID(static_cast<int>(value));
+						m_hasId = true;
+						return;
+					}
+				}
+				else
+				{
+					const unsigned long long value = static_cast<unsigned long long>(intId);
+					if (value <= static_cast<unsigned long long>(std::numeric_limits<int>::max()))
+					{
+						ImGui::PushID(static_cast<int>(value));
+						m_hasId = true;
+						return;
+					}
+				}
+
+				m_largeNumericId = std::to_string(intId);
+				ImGui::PushID(m_largeNumericId.c_str());
+				m_hasId = true;
+			}
+
+		private:
+			bool m_hasId = false;
+			std::string m_largeNumericId;
 		};
 
 		class TextEx
 		{
 		public:
-			void Show(const char* text)
-			{
-				ImGui::TextUnformatted(text);
-				if (m_useTooltip)
-				{
-					HoveredToolTip(text, m_hoveredFlags);
-				}
-			}
+			void Show(const char* text);
 
-			TextEx& UseHoveredToolTip(bool use = true, ImGuiHoveredFlags flags = ImGuiHoveredFlags_None)
-			{
-				m_useTooltip = use;
-				m_hoveredFlags = flags;
-				return *this;
-			}
+			TextEx& UseHoveredToolTip(bool use = true, ImGuiHoveredFlags flags = ImGuiHoveredFlags_None);
 
 		private:
 			bool m_useTooltip = false;
 			ImGuiHoveredFlags m_hoveredFlags = ImGuiHoveredFlags_None;
 		};
-    }
+	}
 	void RenderXMark( ImDrawList* drawList , ImVec2 min , ImVec2 max , float thickness = 2.0f );
 	void RenderCircleMark(ImDrawList* drawList, ImVec2 min, ImVec2 max, float thickness = 2.0f);
 }

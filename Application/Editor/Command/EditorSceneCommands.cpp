@@ -5,6 +5,8 @@
 
 #include "Engine/Core/Core.h"
 #include "Engine/Core/Logging/LoggerInternal.h"
+#include "Engine/GameFramework/Component/Physics2DComponents.h"
+#include "Engine/GameFramework/Component/ScriptComponent.h"
 #include "Engine/GameFramework/Component/Transform2D.h"
 #include "Engine/GameFramework/Object/GameObject.h"
 #include "Engine/GameFramework/Reflection/ReflectionRegistry.h"
@@ -39,26 +41,13 @@ bool CAddComponentCommand::Execute()
 		return false;
 	}
 
-	if (typeInfo->AllowDuplicates)
+	// 단일 인스턴스 ECS: 이미 같은 타입이 붙어 있으면 추가 불가
+	if (reflection.HasComponent(*m_scene, m_entity, m_componentTypeId))
 	{
-		// Always create a fresh instance; track the pointer for targeted undo.
-		m_added = reflection.AddNewComponent(*m_scene, m_entity, m_componentTypeId);
-		if (m_added)
-		{
-			std::vector<void*> all;
-			reflection.GetAllComponentAddresses(*m_scene, m_entity, m_componentTypeId, all);
-			m_addedComponent = all.empty() ? nullptr : all.back();
-		}
+		return false;
 	}
-	else
-	{
-		if (reflection.HasComponent(*m_scene, m_entity, m_componentTypeId))
-		{
-			return false;
-		}
-		m_added = reflection.AddComponent(*m_scene, m_entity, m_componentTypeId);
-		m_addedComponent = nullptr;
-	}
+	m_added = reflection.AddComponent(*m_scene, m_entity, m_componentTypeId);
+	m_addedComponent = nullptr;
 
 	if (false == m_added)
 	{
@@ -92,6 +81,184 @@ void CAddComponentCommand::Redo()
 	{
 		Execute();
 	}
+}
+
+CAddScriptComponentCommand::CAddScriptComponentCommand(SafePtr<CScene> scene, EntityId entity, TypeId scriptTypeId)
+	: m_scene(scene)
+	, m_entity(entity)
+	, m_scriptTypeId(scriptTypeId)
+{
+}
+
+const char* CAddScriptComponentCommand::GetName() const
+{
+	return "Add Script Component";
+}
+
+bool CAddScriptComponentCommand::Execute()
+{
+	if (false == m_scene.IsValid() || false == Core::Reflection.IsValid() || false == m_scene->IsAlive(m_entity))
+	{
+		return false;
+	}
+
+	CReflectionRegistry& reflection = *Core::Reflection;
+	if (nullptr == reflection.FindScript(m_scriptTypeId))
+	{
+		CSystemLog::Warning("Failed to add script component. Script type is not registered.");
+		return false;
+	}
+
+	const ComponentTypeInfo* scriptComponentType = reflection.FindComponentByName("ScriptComponent");
+	if (nullptr == scriptComponentType)
+	{
+		CSystemLog::Warning("Failed to add script component. ScriptComponent is not registered.");
+		return false;
+	}
+
+	m_scriptComponentTypeId = scriptComponentType->Type.Id;
+	m_added = reflection.AddNewComponent(*m_scene, m_entity, m_scriptComponentTypeId);
+	if (false == m_added)
+	{
+		CSystemLog::Warning("Failed to add script component.");
+		return false;
+	}
+
+	std::vector<void*> all;
+	reflection.GetAllComponentAddresses(*m_scene, m_entity, m_scriptComponentTypeId, all);
+	m_addedComponent = all.empty() ? nullptr : all.back();
+
+	ScriptComponent* scriptComponent = static_cast<ScriptComponent*>(m_addedComponent);
+	if (nullptr == scriptComponent)
+	{
+		CSystemLog::Warning("Failed to resolve added script component.");
+		return false;
+	}
+
+	scriptComponent->ScriptTypeId = m_scriptTypeId;
+	scriptComponent->ResetInstance();
+	scriptComponent->PendingFields.clear();
+	return true;
+}
+
+void CAddScriptComponentCommand::Undo()
+{
+	if (false == m_added || false == m_scene.IsValid() || false == Core::Reflection.IsValid() || false == m_scene->IsAlive(m_entity))
+	{
+		return;
+	}
+
+	if (m_addedComponent && m_scriptComponentTypeId != INVALID_TYPE_ID)
+	{
+		Core::Reflection->RemoveSpecificComponent(*m_scene, m_entity, m_scriptComponentTypeId, m_addedComponent);
+	}
+
+	m_addedComponent = nullptr;
+	m_added = false;
+}
+
+void CAddScriptComponentCommand::Redo()
+{
+	if (false == m_added)
+	{
+		Execute();
+	}
+}
+
+CSetScriptTypeCommand::CSetScriptTypeCommand(SafePtr<CScene> scene, EntityId entity, std::size_t instanceIndex, TypeId newScriptTypeId)
+	: m_scene(scene)
+	, m_entity(entity)
+	, m_instanceIndex(instanceIndex)
+	, m_newScriptTypeId(newScriptTypeId)
+{
+	if (m_scene.IsValid() && Core::Reflection.IsValid() && m_scene->IsAlive(m_entity))
+	{
+		const ComponentTypeInfo* scriptComponentType = Core::Reflection->FindComponentByName("ScriptComponent");
+		if (scriptComponentType)
+		{
+			m_scriptComponentTypeId = scriptComponentType->Type.Id;
+
+			std::vector<void*> all;
+			Core::Reflection->GetAllComponentAddresses(*m_scene, m_entity, m_scriptComponentTypeId, all);
+			if (m_instanceIndex < all.size())
+			{
+				ScriptComponent* scriptComponent = static_cast<ScriptComponent*>(all[m_instanceIndex]);
+				if (scriptComponent)
+				{
+					m_oldScriptTypeId = scriptComponent->ScriptTypeId;
+				}
+			}
+		}
+	}
+}
+
+const char* CSetScriptTypeCommand::GetName() const
+{
+	return "Set Script Type";
+}
+
+bool CSetScriptTypeCommand::Execute()
+{
+	if (m_newScriptTypeId != INVALID_TYPE_ID && Core::Reflection && nullptr == Core::Reflection->FindScript(m_newScriptTypeId))
+	{
+		return false;
+	}
+
+	m_executed = Apply(m_newScriptTypeId);
+	return m_executed;
+}
+
+void CSetScriptTypeCommand::Undo()
+{
+	if (m_executed)
+	{
+		Apply(m_oldScriptTypeId);
+		m_executed = false;
+	}
+}
+
+void CSetScriptTypeCommand::Redo()
+{
+	if (false == m_executed)
+	{
+		m_executed = Apply(m_newScriptTypeId);
+	}
+}
+
+bool CSetScriptTypeCommand::Apply(TypeId scriptTypeId)
+{
+	if (false == m_scene.IsValid() || false == Core::Reflection.IsValid() || false == m_scene->IsAlive(m_entity))
+	{
+		return false;
+	}
+
+	if (m_scriptComponentTypeId == INVALID_TYPE_ID)
+	{
+		const ComponentTypeInfo* scriptComponentType = Core::Reflection->FindComponentByName("ScriptComponent");
+		if (nullptr == scriptComponentType)
+		{
+			return false;
+		}
+		m_scriptComponentTypeId = scriptComponentType->Type.Id;
+	}
+
+	std::vector<void*> all;
+	Core::Reflection->GetAllComponentAddresses(*m_scene, m_entity, m_scriptComponentTypeId, all);
+	if (m_instanceIndex >= all.size())
+	{
+		return false;
+	}
+
+	ScriptComponent* scriptComponent = static_cast<ScriptComponent*>(all[m_instanceIndex]);
+	if (nullptr == scriptComponent)
+	{
+		return false;
+	}
+
+	scriptComponent->ResetInstance();
+	scriptComponent->ScriptTypeId = scriptTypeId;
+	scriptComponent->PendingFields.clear();
+	return true;
 }
 
 CCreateGameObjectCommand::CCreateGameObjectCommand(SafePtr<CScene> scene, const char* name,
@@ -355,6 +522,71 @@ void CSetParentCommand::Redo()
 	}
 
 	m_executed = true;
+}
+
+// ── CModifyPolygonVerticesCommand ─────────────────────────────────────────────
+
+CModifyPolygonVerticesCommand::CModifyPolygonVerticesCommand(
+	SafePtr<CScene>             scene,
+	EntityId                    entity,
+	std::vector<Vector2<float>> newPoints)
+	: m_scene(scene)
+	, m_entity(entity)
+	, m_newPoints(std::move(newPoints))
+{
+	// 현재 상태 스냅샷 (Undo 복원용)
+	if (m_scene.IsValid() && m_scene->IsAlive(entity))
+	{
+		const PolygonCollider2D* poly = m_scene->GetComponent<PolygonCollider2D>(entity);
+		if (poly)
+		{
+			m_oldPoints = poly->LocalPoints;
+			// LocalPoints 가 비어있으면 절차적 포인트를 스냅샷으로 저장 (Undo 시 복원용)
+			if (m_oldPoints.empty())
+				poly->BuildLocalPoints(m_oldPoints);
+		}
+	}
+}
+
+const char* CModifyPolygonVerticesCommand::GetName() const
+{
+	return "Modify Polygon Vertices";
+}
+
+bool CModifyPolygonVerticesCommand::Execute()
+{
+	m_executed = Apply(m_newPoints);
+	return m_executed;
+}
+
+void CModifyPolygonVerticesCommand::Undo()
+{
+	if (m_executed)
+		Apply(m_oldPoints);
+}
+
+void CModifyPolygonVerticesCommand::Redo()
+{
+	if (!m_executed)
+		m_executed = Apply(m_newPoints);
+}
+
+bool CModifyPolygonVerticesCommand::Apply(
+	const std::vector<Vector2<float>>& points)
+{
+	if (!m_scene.IsValid() || !m_scene->IsAlive(m_entity))
+		return false;
+
+	PolygonCollider2D* poly = m_scene->GetComponent<PolygonCollider2D>(m_entity);
+	if (!poly)
+		return false;
+
+	poly->LocalPoints = points;
+	// 절차적 파라미터가 바뀐 게 아니므로 NeedsProceduralRebuild 는 false 유지.
+	// 단, LocalPoints 가 바뀌었으므로 볼록 분해 dirty 플래그를 설정한다.
+	poly->MarkProceduralBuilt();
+	poly->m_convexDirty = true;
+	return true;
 }
 
 #endif

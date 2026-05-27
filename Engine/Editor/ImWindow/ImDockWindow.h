@@ -32,6 +32,7 @@ public:
 
 	BitFlag& GetImGuiDockFlags();
 	BitFlag& GetCustomDockFlags();
+	void UseStoredDockLayout();
 
 	bool				AddChildImWindow(SafePtr<IImWindow> child);
 	void				RemoveChildImWindow(ImGuiID id);
@@ -53,7 +54,7 @@ protected:
 	ImGuiID m_mainSplitedID;
 
 	std::vector<DockSplitDef>					m_splitDefs;
-	std::unordered_map<std::string, ImGuiID>	m_slotMap;   // 슬롯명 → DockNode ID (빌드 후 유효)
+	std::unordered_map<std::string, ImGuiID>	m_slotMap;
 
 	BitFlag	m_imguiDockFlags;
 	BitFlag	m_customDockFlags;

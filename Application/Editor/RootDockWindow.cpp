@@ -3,7 +3,8 @@
 
 #include "Editor/Editor.h"
 #include "Editor/Main/ProjectSettingsWindow.h"
-#include "Editor/Main/SceneViewTool.h"
+#include "Editor/Main/MainDockWindow.h"
+#include "Editor/Main/SceneView/SceneViewTool.h"
 #include "Engine/Core/Core.h"
 #include "Engine/Core/EngineContext.h"
 #include "Engine/Core/Logging/LoggerInternal.h"
@@ -141,6 +142,15 @@ namespace
 				}
 			}
 
+			if (Core::Localization.IsValid())
+			{
+				pm->SetEditorLocaleCode(Core::Localization->GetCurrentLocale());
+			}
+
+			std::size_t imguiIniSize = 0;
+			const char* imguiIni = ImGui::SaveIniSettingsToMemory(&imguiIniSize);
+			pm->SetImGuiIniSettings((nullptr != imguiIni && imguiIniSize > 0) ? std::string(imguiIni, imguiIniSize) : std::string());
+
 			if (pm->SaveProject())
 			{
 				CSystemLog::Info("Project saved.");
@@ -172,7 +182,7 @@ void CRootDockWindow::OnCreate()
     m_customDockFlags =
 		IMDOCKWINDOW_FLAG_NO_DOCKING | IMDOCKWINDOW_FLAG_FULLSCREEN | IMDOCKWINDOW_FLAG_PADDING;
 
-    SetTitle("Root");
+    SetLocalizedTitleKey("window.root");
 
     // 프로젝트 세팅 창 (플로팅, 처음에는 숨김)
     if (Editor::ImEditor)
@@ -188,15 +198,103 @@ void CRootDockWindow::OnRenderStay()
 
 	if (projectManager && false == projectManager->IsProjectLoaded())
 	{
-		ImText(Utillity::U8(u8"프로젝트를 열려면, 상단 메뉴에서 [파일] > [프로젝트 열기]를 선택하세요."), ImText::Align::Center);
+		ImText(Loc::Text("root.no_project_loaded"), ImText::Align::Center);
+	}
+}
+
+void CRootDockWindow::OpenNewProjectPopup(const File::Path& parentFolder)
+{
+	m_newProjectParentFolder = parentFolder;
+	m_newProjectNameBuf.fill(0);
+	m_newProjectError.clear();
+	ImGui::OpenPopup("##new_project_popup");
+
+	ImPopupDesc desc;
+	desc.Title = Loc::Text("menu.file.new_project");
+	desc.OnRenderStayFunc = [this](IImPopupWindow& popup)
+	{
+		RenderNewProjectPopup(popup);
+		};
+	Editor::ImEditor->OpenPopup(desc);
+}
+
+void CRootDockWindow::RenderNewProjectPopup(IImPopupWindow& popup)
+{
+	//ImGui::SetNextWindowSize(ImVec2(400.0f, 0.0f), ImGuiCond_Always);
+	//ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+
+	ImGui::SeparatorText(Loc::Text("menu.file.new_project"));
+
+	ImGui::Spacing();
+	ImGui::Text("%s: %s", Loc::Text("new_project.location"), m_newProjectParentFolder.string().c_str());
+	ImGui::Spacing();
+
+	ImGui::SetNextItemWidth(-1.0f);
+	const bool enterPressed = ImGui::InputText(
+		"##project_name",
+		m_newProjectNameBuf.data(),
+		m_newProjectNameBuf.size(),
+		ImGuiInputTextFlags_EnterReturnsTrue);
+
+	ImGui::TextDisabled("%s", Loc::Text("new_project.name_label"));
+
+	if (false == m_newProjectError.empty())
+	{
+		ImGui::Spacing();
+		ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1.0f), "%s", m_newProjectError.c_str());
+	}
+
+	ImGui::Spacing();
+	ImGui::Separator();
+	ImGui::Spacing();
+
+	const bool canCreate = m_newProjectNameBuf[0] != '\0';
+
+	if ((enterPressed || ImGui::Button(Loc::Text("common.create"), ImVec2(120.0f, 0.0f))) && canCreate)
+	{
+		SafePtr<CProjectManager> pm = Editor::ImEditor ? Editor::ImEditor->GetProjectManager() : nullptr;
+		if (pm.IsValid())
+		{
+			const std::string projectName(m_newProjectNameBuf.data());
+			if (pm->CreateProject(m_newProjectParentFolder, projectName))
+			{
+				m_customDockFlags -= IMDOCKWINDOW_FLAG_NO_DOCKING;
+				Editor::MainDockWindow = Editor::ImEditor->CreateImWindow<CMainDockWindow>("MainDockWindow");
+				if (Editor::RootDockWindow && Editor::MainDockWindow)
+				{
+					Editor::RootDockWindow->AddChildImWindow(DynamicSafePtrCast<IImWindow>(Editor::MainDockWindow));
+				}
+				popup.Close();
+			}
+			else
+			{
+				m_newProjectError = Loc::Text("new_project.create_failed");
+			}
+		}
+	}
+
+	ImGui::SameLine();
+
+	if (ImGui::Button(Loc::Text("common.cancel"), ImVec2(120.0f, 0.0f)))
+	{
+		popup.Close();
 	}
 }
 
 void CRootDockWindow::OnMenuBar()
 {
-	if (ImGui::BeginMenu(Utillity::U8(u8"파일")))
+	if (ImGui::BeginMenu(Loc::Text("menu.file")))
 	{
-		if (ImGui::MenuItem(Utillity::U8(u8"프로젝트 열기")))
+		if (ImGui::MenuItem(Loc::Text("menu.file.new_project")))
+		{
+			File::Path parentFolder;
+			if (File::ShowOpenFolderDialog(nullptr, L"프로젝트를 만들 폴더 선택", L"", parentFolder))
+			{
+				OpenNewProjectPopup(parentFolder);
+			}
+		}
+		ImGui::Separator();
+		if (ImGui::MenuItem(Loc::Text("menu.file.open_project")))
 		{
 			File::Path projectPath;
 			if (File::ShowOpenFileDialog(
@@ -217,7 +315,11 @@ void CRootDockWindow::OnMenuBar()
 						Editor::MainDockWindow = Editor::ImEditor->CreateImWindow<CMainDockWindow>("MainDockWindow");
 						if (Editor::RootDockWindow && Editor::MainDockWindow)
 						{
-							Editor::RootDockWindow->AddChildImWindow(Editor::MainDockWindow);
+							Editor::RootDockWindow->AddChildImWindow(DynamicSafePtrCast<IImWindow>(Editor::MainDockWindow));
+						}
+						if (Editor::MainDockWindow && false == projectManager->GetImGuiIniSettings().empty())
+						{
+							Editor::MainDockWindow->UseStoredDockLayout();
 						}
 
 						// 프로젝트에 저장된 씬뷰 카메라 위치 복원
@@ -235,16 +337,16 @@ void CRootDockWindow::OnMenuBar()
 				}
 			}
 		}
-		if (ImGui::MenuItem(Utillity::U8(u8"프로젝트 저장")))
+		if (ImGui::MenuItem(Loc::Text("menu.file.save_project")))
 		{
 			SaveCurrentEditorState();
 		}
 		ImGui::EndMenu();
 	}
 
-	if (ImGui::BeginMenu(Utillity::U8(u8"설정")))
+	if (ImGui::BeginMenu(Loc::Text("menu.settings")))
 	{
-		if (ImGui::MenuItem(Utillity::U8(u8"프로젝트 세팅")))
+		if (ImGui::MenuItem(Loc::Text("menu.settings.project_settings")))
 		{
 			if (Editor::ProjectSettings)
 			{
@@ -252,6 +354,116 @@ void CRootDockWindow::OnMenuBar()
 			}
 		}
 		ImGui::EndMenu();
+	}
+
+	//ImGui::Begin("StyleEditor", nullptr, ImGuiWindowFlags_NoDocking);
+	//ImGui::ShowStyleEditor();
+	//ImGui::End();
+
+	// 메뉴바 우측에 스크립트 빌드 상태 (스피너 + 텍스트). 다른 메뉴는 전부 좌측에 채우고,
+	// 이 호출이 마지막이라 남은 공간 끝에 우측 정렬로 그려진다.
+	DrawLiveCompileMenuBarStatus();
+}
+
+void CRootDockWindow::DrawLiveCompileMenuBarStatus()
+{
+	SafePtr<CProjectManager> pm = Editor::ImEditor ? Editor::ImEditor->GetProjectManager() : nullptr;
+	if (false == pm.IsValid())
+	{
+		return;
+	}
+
+	const ELiveCompileState state = pm->GetLiveCompileState();
+
+	// ── 상태 전이 감지 ────────────────────────────────────────────────────────
+	if (state != m_lastCompileState)
+	{
+		if (state == ELiveCompileState::Compiling)
+		{
+			m_compileElapsedSeconds = 0.0f;
+		}
+		else if (m_lastCompileState == ELiveCompileState::Compiling &&
+		         (state == ELiveCompileState::Loaded || state == ELiveCompileState::Failed))
+		{
+			// 컴파일 → 완료/실패 전이 시점에 잔존 타이머 설정
+			m_resultLingerSuccess   = (state == ELiveCompileState::Loaded);
+			m_resultLingerRemaining = m_resultLingerSuccess ? 1.5f : 6.0f;
+		}
+		m_lastCompileState = state;
+	}
+
+	// ── 시간 누적 ─────────────────────────────────────────────────────────────
+	const float dt = ImGui::GetIO().DeltaTime;
+	if (state == ELiveCompileState::Compiling)
+	{
+		m_compileElapsedSeconds += dt;
+	}
+	if (m_resultLingerRemaining > 0.0f)
+	{
+		m_resultLingerRemaining -= dt;
+		if (m_resultLingerRemaining < 0.0f)
+		{
+			m_resultLingerRemaining = 0.0f;
+		}
+	}
+
+	const bool showSpinner = (state == ELiveCompileState::Compiling);
+	const bool showResult  = (m_resultLingerRemaining > 0.0f);
+	if (false == showSpinner && false == showResult)
+	{
+		return;
+	}
+
+	// ── 라벨/색상 결정 ────────────────────────────────────────────────────────
+	char  label[96];
+	ImVec4 textColor;
+	if (showSpinner)
+	{
+		std::snprintf(label, sizeof(label), "%s  %.1fs",
+		              Loc::Text("script.status.building"),
+		              m_compileElapsedSeconds);
+		textColor = ImVec4(0.95f, 0.85f, 0.4f, 1.0f);
+	}
+	else if (m_resultLingerSuccess)
+	{
+		std::snprintf(label, sizeof(label), "%s", Loc::Text("script.status.loaded"));
+		textColor = ImVec4(0.4f, 0.9f, 0.5f, 1.0f);
+	}
+	else
+	{
+		std::snprintf(label, sizeof(label), "%s", Loc::Text("script.status.failed"));
+		textColor = ImVec4(0.95f, 0.45f, 0.45f, 1.0f);
+	}
+
+	// ── 우측 정렬: 그릴 영역 너비를 계산해서 cursor 를 끝에서 빼서 배치 ───────
+	const float spinnerW   = showSpinner ? ImGui::GetFrameHeight() : 0.0f;
+	const float gap        = showSpinner ? 8.0f : 0.0f;
+	const float textW      = ImGui::CalcTextSize(label).x;
+	const float marginR    = 12.0f;
+	const float totalW     = spinnerW + gap + textW + marginR;
+
+	// 메뉴바는 horizontal layout — 현재 cursor 이후의 남은 너비에서 totalW 만큼 빼고 우측 정렬
+	const float avail = ImGui::GetContentRegionAvail().x;
+	if (avail > totalW)
+	{
+		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (avail - totalW));
+	}
+
+	if (showSpinner)
+	{
+		ImGui::Utillity::LoadingSpinner(0.0f, textColor);
+		ImGui::SameLine(0.0f, gap);
+	}
+	ImGui::AlignTextToFramePadding();
+	ImGui::TextColored(textColor, "%s", label);
+
+	// 실패 시 클릭하면 ProjectSettings 창 열기 (자세한 메시지 확인 유도)
+	if (showResult && false == m_resultLingerSuccess && ImGui::IsItemClicked(ImGuiMouseButton_Left))
+	{
+		if (Editor::ProjectSettings)
+		{
+			Editor::ProjectSettings->SetVisible(true);
+		}
 	}
 }
 

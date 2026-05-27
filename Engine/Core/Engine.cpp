@@ -2,10 +2,13 @@
 #include "Engine.h"
 
 #include "Core/Core.h"
+#include "Core/EngineCore.h"
+#include "Core/Debug/Debug.h"
 #include "Core/FileSystem/FileSystem.h"
 #include "Core/Input/Input.h"
 #include "Core/Logging/Logger.h"
 #include "Core/Logging/LoggerInternal.h"
+#include "Core/Localization/LocalizationManager.h"
 #include "Core/Module/Module.h"
 #include "Core/Asset/AssetManager.h"
 #include "Core/Asset/FileAsset.h"
@@ -88,6 +91,11 @@ bool CEngine::Update()
 		m_platform->PollEvents(platformEvent);
 	}
 
+	m_isApplicationFocused = platformEvent.IsFocused;
+	m_applicationFocusGained = platformEvent.FocusGained;
+	m_applicationFocusLost = platformEvent.FocusLost;
+	SyncContext();
+
 	if (platformEvent.WantsExit)
 	{
 		return false;
@@ -116,7 +124,9 @@ void CEngine::Finalize()
 		m_assetManager.Reset();
 	}
 
+	Engine = EngineCore{};
 	Core::Network = nullptr;
+	Core::Debug = nullptr;
 	if (m_networkManager)
 	{
 		m_networkManager->Finalize();
@@ -140,6 +150,13 @@ void CEngine::Finalize()
 	m_reflectionRegistry.Reset();
 	Core::Logger = nullptr;
 	m_logger.Reset();
+	m_debug.Reset();
+	Core::Localization = nullptr;
+	if (m_localization)
+	{
+		m_localization->Finalize();
+	}
+	m_localization.Reset();
 	Core::FileSystem = nullptr;
 	if (m_fileSystem)
 	{
@@ -231,8 +248,10 @@ bool CEngine::InitializeCoreServices()
 	m_threadService = MakeOwnerPtr<CThreadService>();
 	m_reflectionRegistry = MakeOwnerPtr<CReflectionRegistry>();
 	m_logger = MakeOwnerPtr<CLogger>();
+	m_debug = MakeOwnerPtr<CDebug>();
+	m_localization = MakeOwnerPtr<CLocalizationManager>();
 	m_sceneManager = MakeOwnerPtr<CSceneManager>();
-	if (!m_time || !m_input || !m_fileSystem || !m_threadService || !m_reflectionRegistry || !m_logger || !m_sceneManager)
+	if (!m_time || !m_input || !m_fileSystem || !m_threadService || !m_reflectionRegistry || !m_logger || !m_debug || !m_localization || !m_sceneManager)
 	{
 		return false;
 	}
@@ -255,8 +274,21 @@ bool CEngine::InitializeCoreServices()
 	Core::Thread = m_threadService.GetSafePtr();
 	Core::Reflection = m_reflectionRegistry.GetSafePtr();
 	Core::Logger = m_logger.GetSafePtr();
+	Core::Debug = m_debug.GetSafePtr();
+	m_localization->Initialize(m_fileSystem.GetSafePtr());
+	Core::Localization = m_localization.GetSafePtr();
 	Core::SceneManager = m_sceneManager.GetSafePtr();
 	Core::DebugDraw2D = m_debugDraw.GetSafePtr();
+	Engine.Debug = Core::Debug;
+	Engine.Time = Core::Time;
+	Engine.Input = Core::Input;
+	Engine.FileSystem = Core::FileSystem;
+	Engine.Thread = Core::Thread;
+	Engine.Reflection = Core::Reflection;
+	Engine.Logger = Core::Logger;
+	Engine.Localization = Core::Localization;
+	Engine.SceneManager = Core::SceneManager;
+	Engine.DebugDraw2D = Core::DebugDraw2D;
 	CSystemLog::Info("Core services initialized.");
 
 	RegisterBuiltinComponents(*m_reflectionRegistry);
@@ -288,6 +320,7 @@ bool CEngine::InitializeNetwork()
 	}
 
 	Core::Network = m_networkManager.GetSafePtr();
+	Engine.Network = Core::Network;
 	m_context.NetworkManager = m_networkManager.GetSafePtr();
 	CSystemLog::Info("Network initialized.");
 	return true;
@@ -532,5 +565,9 @@ void CEngine::SyncContext()
 	m_context.Thread            = m_threadService     ? m_threadService.GetSafePtr()     : nullptr;
 	m_context.Reflection        = m_reflectionRegistry ? m_reflectionRegistry.GetSafePtr() : nullptr;
 	m_context.Logger            = m_logger            ? m_logger.GetSafePtr()            : nullptr;
+	m_context.Localization      = m_localization      ? m_localization.GetSafePtr()      : nullptr;
 	m_context.NetworkManager    = m_networkManager    ? m_networkManager.GetSafePtr()    : nullptr;
+	m_context.IsApplicationFocused = m_isApplicationFocused;
+	m_context.ApplicationFocusGained = m_applicationFocusGained;
+	m_context.ApplicationFocusLost = m_applicationFocusLost;
 }

@@ -1,6 +1,17 @@
 #include "pch.h"
 #include "MainDockWindow.h"
 
+#include "Editor/Editor.h"
+#include "Editor/Main/AssetBrowser/AssetBrowserTool.h"
+#include "Editor/Main/GameView/GameViewTool.h"
+#include "Editor/Main/Hierarchy/HierarchyTool.h"
+#include "Editor/Main/Inspector/InspectorTool.h"
+#include "Editor/Main/Log/LogTool.h"
+#include "Editor/Main/SceneView/SceneViewTool.h"
+#include "Engine/Core/Core.h"
+#include "Engine/Editor/ImEditor.h"
+#include "Engine/GameFramework/Scene/SceneManager.h"
+
 void CMainDockWindow::OnCreate()
 {
     m_imWndClass.ClassId = ImHashStr("MainDockID");
@@ -35,7 +46,7 @@ void CMainDockWindow::OnCreate()
 	//         → "RightBottom" = Inspector, "Right" = Hierarchy
 	AddDockSplit("Right", ImGuiDir_Down,  0.50f, "RightBottom");
 
-    SetTitle("Main");
+    SetLocalizedTitleKey("window.main");
 
 	ImGuiID id = GetID();
 	Editor::Hierarchy    = Editor::ImEditor->CreateImWindow<CHierarchyTool>   ("Hierarchy",    id);
@@ -74,7 +85,7 @@ void CMainDockWindow::OnCreate()
 
 void CMainDockWindow::OnMenuBar()
 {
-	if (ImGui::BeginMenu(Utillity::U8(u8"시뮬레이션")))
+	if (ImGui::BeginMenu(Loc::Text("menu.simulation")))
 	{
 		SafePtr<CSceneManager> sceneManager = Core::SceneManager;
 		const bool canUseSimulation = sceneManager.IsValid();
@@ -85,7 +96,7 @@ void CMainDockWindow::OnMenuBar()
 		{
 			ImGui::BeginDisabled();
 		}
-		if (ImGui::MenuItem(Utillity::U8(u8"실행")))
+		if (ImGui::MenuItem(Loc::Text("menu.simulation.play")))
 		{
 			sceneManager->PlaySimulation();
 			if (Editor::GameView)
@@ -102,7 +113,7 @@ void CMainDockWindow::OnMenuBar()
 		{
 			ImGui::BeginDisabled();
 		}
-		if (ImGui::MenuItem(Utillity::U8(u8"일시정지")))
+		if (ImGui::MenuItem(Loc::Text("menu.simulation.pause")))
 		{
 			sceneManager->PauseSimulation();
 		}
@@ -115,7 +126,7 @@ void CMainDockWindow::OnMenuBar()
 		{
 			ImGui::BeginDisabled();
 		}
-		if (ImGui::MenuItem(Utillity::U8(u8"중단")))
+		if (ImGui::MenuItem(Loc::Text("menu.simulation.stop")))
 		{
 			sceneManager->StopSimulation();
 		}
@@ -127,13 +138,13 @@ void CMainDockWindow::OnMenuBar()
 		ImGui::EndMenu();
 	}
 
-	if (ImGui::BeginMenu(Utillity::U8(u8"편집")))
+	if (ImGui::BeginMenu(Loc::Text("menu.edit")))
 	{
 		if (false == Editor::CommandManager.CanUndo())
 		{
 			ImGui::BeginDisabled();
 		}
-		if (ImGui::MenuItem("Undo", "Ctrl+Z"))
+		if (ImGui::MenuItem(Loc::Text("menu.edit.undo"), "Ctrl+Z"))
 		{
 			Editor::CommandManager.Undo();
 		}
@@ -146,7 +157,7 @@ void CMainDockWindow::OnMenuBar()
 		{
 			ImGui::BeginDisabled();
 		}
-		if (ImGui::MenuItem("Redo", "Ctrl+Y"))
+		if (ImGui::MenuItem(Loc::Text("menu.edit.redo"), "Ctrl+Y"))
 		{
 			Editor::CommandManager.Redo();
 		}
@@ -157,10 +168,19 @@ void CMainDockWindow::OnMenuBar()
 		ImGui::EndMenu();
 	}
 
-	if (ImGui::BeginMenu(Utillity::U8(u8"씬")))
+	if (ImGui::BeginMenu(Loc::Text("menu.window")))
 	{
-		if (ImGui::MenuItem(Utillity::U8(u8"새로운 씬 만들기")))
+		for(SafePtr<CImWindow>& child : m_childImWindowVector)
 		{
+			if (child.IsValid())
+			{
+				const char* title = child->GetTitle();
+				bool isVisible = child->GetVisible();
+				if (ImGui::MenuItem(title, nullptr, isVisible))
+				{
+					child->SetVisible(!isVisible);
+				}
+			}
 		}
 		ImGui::EndMenu();
 	}

@@ -1,6 +1,12 @@
 #include "pch.h"
 #include "ReflectionRegistry.h"
 
+#include <cstdlib>
+
+#if defined(_MSC_VER)
+#include <malloc.h>
+#endif
+
 CComponentRegistration::CComponentRegistration(ComponentTypeInfo* typeInfo)
 	: m_typeInfo(typeInfo)
 {
@@ -139,6 +145,13 @@ void* CReflectionRegistry::GetPropertyAddress(void* component, const ReflectProp
 		return nullptr;
 	}
 
+	// Script 프로퍼티는 GetFieldPtr 를 통해 접근한다 (불완전 타입 문제 회피).
+	// Component 프로퍼티는 AddProperty() 에서 계산된 Offset 을 사용한다.
+	if (nullptr != property.GetFieldPtr)
+	{
+		return property.GetFieldPtr(component);
+	}
+
 	return static_cast<void*>(static_cast<std::uint8_t*>(component) + property.Offset);
 }
 
@@ -147,6 +160,13 @@ const void* CReflectionRegistry::GetPropertyAddress(const void* component, const
 	if (nullptr == component)
 	{
 		return nullptr;
+	}
+
+	if (nullptr != property.GetFieldPtr)
+	{
+		// GetFieldPtr 는 void* 를 받으므로 const_cast 가 필요하다.
+		// 반환값은 const void* 로 사용되므로 실제 쓰기는 발생하지 않는다.
+		return property.GetFieldPtr(const_cast<void*>(component));
 	}
 
 	return static_cast<const void*>(static_cast<const std::uint8_t*>(component) + property.Offset);
@@ -218,14 +238,36 @@ bool CReflectionRegistry::UnregisterScript(TypeId typeId)
 	return true;
 }
 
-CGameScript* CReflectionRegistry::CreateScriptInstance(TypeId typeId) const
+ScriptInstanceHandle CReflectionRegistry::CreateScriptInstance(TypeId typeId) const
 {
+	ScriptInstanceHandle handle;
 	const ScriptTypeInfo* info = FindScript(typeId);
 	if (nullptr == info || nullptr == info->CreateInstance)
 	{
-		return nullptr;
+		return handle;
 	}
-	return info->CreateInstance();
+
+	handle.Instance = info->CreateInstance(&m_scriptHostApi);
+	handle.DestroyInstance = info->DestroyInstance;
+	handle.HostApi = &m_scriptHostApi;
+	return handle;
+}
+
+void CReflectionRegistry::DestroyScriptInstance(ScriptInstanceHandle& instance) const
+{
+	if (instance.Instance && instance.DestroyInstance)
+	{
+		instance.DestroyInstance(instance.Instance, instance.HostApi ? instance.HostApi : &m_scriptHostApi);
+	}
+
+	instance.Instance = nullptr;
+	instance.DestroyInstance = nullptr;
+	instance.HostApi = nullptr;
+}
+
+const GameModuleHostApi* CReflectionRegistry::GetScriptHostApi() const
+{
+	return &m_scriptHostApi;
 }
 
 bool CReflectionRegistry::RegisterScriptInternal(ScriptTypeInfo&& typeInfo)
@@ -240,4 +282,32 @@ bool CReflectionRegistry::RegisterScriptInternal(ScriptTypeInfo&& typeInfo)
 	m_scriptIdByName.emplace(typeInfo.Type.Name, typeInfo.Type.Id);
 	m_scriptTypes.push_back(std::move(typeInfo));
 	return true;
+}
+
+void* CReflectionRegistry::AllocateScriptMemory(std::size_t size, std::size_t alignment)
+{
+	const std::size_t effectiveSize = std::max<std::size_t>(size, 1);
+	const std::size_t effectiveAlignment = std::max<std::size_t>(alignment, alignof(void*));
+
+#if defined(_MSC_VER)
+	return _aligned_malloc(effectiveSize, effectiveAlignment);
+#else
+	const std::size_t remainder = effectiveSize % effectiveAlignment;
+	const std::size_t alignedSize = 0 == remainder ? effectiveSize : effectiveSize + (effectiveAlignment - remainder);
+	return std::aligned_alloc(effectiveAlignment, alignedSize);
+#endif
+}
+
+void CReflectionRegistry::FreeScriptMemory(void* ptr, std::size_t, std::size_t)
+{
+	if (nullptr == ptr)
+	{
+		return;
+	}
+
+#if defined(_MSC_VER)
+	_aligned_free(ptr);
+#else
+	std::free(ptr);
+#endif
 }

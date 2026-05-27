@@ -219,8 +219,28 @@ SafePtr<CLogger> Log::GetLogger()
 	return Core::Logger;
 }
 
+namespace
+{
+	// dll 마다 별도로 존재하는 static (Engine.lib 정적 링크 특성).
+	// SetHostLogger 가 호출되면 해당 dll/exe 안에서만 라우팅이 활성화된다.
+	CLogger* g_hostLogger = nullptr;
+}
+
+void Log::SetHostLogger(CLogger* logger)
+{
+	g_hostLogger = logger;
+}
+
 void Log::WriteExternal(ELogLevel level, std::string_view message)
 {
+	// 1) 호스트가 주입한 logger (DLL → 호스트 경로)
+	if (g_hostLogger)
+	{
+		g_hostLogger->Write(ELogSource::External, level, message);
+		return;
+	}
+
+	// 2) 자기 모듈의 Core::Logger
 	SafePtr<CLogger> logger = GetLogger();
 	if (logger)
 	{
@@ -228,6 +248,7 @@ void Log::WriteExternal(ELogLevel level, std::string_view message)
 		return;
 	}
 
+	// 3) Fallback (stderr / OutputDebugString)
 	FallbackWrite(ELogSource::External, level, message);
 }
 

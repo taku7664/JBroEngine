@@ -30,5 +30,8 @@ private:
 	RenderSurfaceCreateDesc m_desc;
 	NativeSurfaceMessageHandler m_nativeMessageHandler;
 	void* m_nativeHandle = nullptr;
+	bool m_isFocused = true;
+	bool m_focusGained = false;
+	bool m_focusLost = false;
 	bool m_isCreated = false;
 };

@@ -5,10 +5,47 @@
 #include "Editor/LiveCompile/IDynamicLibrary.h"
 #include "Editor/LiveCompile/Windows/WindowsDynamicLibrary.h"
 
+#include <cstdlib>
+
+#if defined(_MSC_VER)
+#include <malloc.h>
+#endif
+
+namespace
+{
+	void* AllocateModuleMemory(std::size_t size, std::size_t alignment)
+	{
+		const std::size_t effectiveSize = std::max<std::size_t>(size, 1);
+		const std::size_t effectiveAlignment = std::max<std::size_t>(alignment, alignof(void*));
+#if defined(_MSC_VER)
+		return _aligned_malloc(effectiveSize, effectiveAlignment);
+#else
+		const std::size_t remainder = effectiveSize % effectiveAlignment;
+		const std::size_t alignedSize = 0 == remainder ? effectiveSize : effectiveSize + (effectiveAlignment - remainder);
+		return std::aligned_alloc(effectiveAlignment, alignedSize);
+#endif
+	}
+
+	void FreeModuleMemory(void* ptr, std::size_t, std::size_t)
+	{
+		if (nullptr == ptr)
+		{
+			return;
+		}
+#if defined(_MSC_VER)
+		_aligned_free(ptr);
+#else
+		std::free(ptr);
+#endif
+	}
+}
+
 CScriptModuleLoader::CScriptModuleLoader()
 {
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
 	m_library = MakeOwnerPtr<CWindowsDynamicLibrary>();
+	m_hostApi.Allocate = &AllocateModuleMemory;
+	m_hostApi.Free = &FreeModuleMemory;
 #endif
 }
 
@@ -46,7 +83,7 @@ bool CScriptModuleLoader::Load(const char* dllPath, const GameModuleContext& con
 		return false;
 	}
 
-	IGameModule* module = createFunc();
+	IGameModule* module = createFunc(&m_hostApi);
 	if (nullptr == module)
 	{
 		m_library->Unload();
@@ -55,7 +92,7 @@ bool CScriptModuleLoader::Load(const char* dllPath, const GameModuleContext& con
 
 	if (false == module->Initialize(context))
 	{
-		destroyFunc(module);
+		destroyFunc(module, &m_hostApi);
 		m_library->Unload();
 		return false;
 	}
@@ -79,7 +116,7 @@ void CScriptModuleLoader::Unload()
 		m_gameModule->Finalize();
 		if (m_destroyGameModule)
 		{
-			m_destroyGameModule(m_gameModule);
+			m_destroyGameModule(m_gameModule, &m_hostApi);
 		}
 		m_gameModule        = nullptr;
 		m_destroyGameModule = nullptr;

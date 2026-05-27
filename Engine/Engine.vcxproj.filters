@@ -174,6 +174,12 @@
     <Filter Include="Header\Core\Logging">
       <UniqueIdentifier>{38C3E9AD-BD1B-4894-9F18-BBB2A4525F14}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source\Core\Localization">
+      <UniqueIdentifier>{3DBF3C75-458D-4BD5-9C8E-B963D51C76F1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\Core\Localization">
+      <UniqueIdentifier>{C34E7C69-1736-4C48-A5D5-8A356340F280}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Header\GameFramework\Debug">
       <UniqueIdentifier>{B2D4E681-3A5C-4F8D-C9E7-1F2D3E4A5B6C}</UniqueIdentifier>
     </Filter>
@@ -281,8 +287,17 @@
     <ClInclude Include="Core\Core.h">
       <Filter>Header\Core</Filter>
     </ClInclude>
+    <ClInclude Include="Core\Debug\Debug.h">
+      <Filter>Header\Core</Filter>
+    </ClInclude>
     <ClInclude Include="Core\Engine.h">
       <Filter>Header\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\EngineCore.h">
+      <Filter>Header\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\EngineAPI.h">
+      <Filter>Header</Filter>
     </ClInclude>
     <ClInclude Include="Core\EngineContext.h">
       <Filter>Header\Core</Filter>
@@ -569,6 +584,9 @@
     <ClInclude Include="Core\Logging\LoggerTypes.h">
       <Filter>Header\Core\Logging</Filter>
     </ClInclude>
+    <ClInclude Include="Core\Localization\LocalizationManager.h">
+      <Filter>Header\Core\Localization</Filter>
+    </ClInclude>
     <ClInclude Include="GameFramework\Debug\SceneDebugDrawSystem.h">
       <Filter>Header\GameFramework\Debug</Filter>
     </ClInclude>
@@ -638,11 +656,194 @@
     <ClInclude Include="Editor\ScriptModule\ScriptModuleLoader.h">
       <Filter>Header\Editor</Filter>
     </ClInclude>
+    <ClInclude Include="Editor\Project\GameScriptProjectGenerator.h">
+      <Filter>Header\Editor</Filter>
+    </ClInclude>
     <ClInclude Include="Editor\Project\ProjectManager.h">
       <Filter>Header\Editor</Filter>
     </ClInclude>
     <ClInclude Include="Editor\Project\ProjectTypes.h">
       <Filter>Header\Editor</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\ImEditor.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\ImGuiUtillity.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\ImItem\ImText.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\ImWindow\IImPopupWindow.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\ImWindow\IImWindow.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\ImWindow\ImCustomWindow.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\ImWindow\ImDockWindow.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\ImWindow\ImPopupWindow.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\ImWindow\ImWindow.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\ImWindow\ImWindowContext.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\ImWindow\ImWindowFlag.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\imconfig.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\imgui\imconfig.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\imgui\imgui.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\imgui\imgui_impl_dx11.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\imgui\imgui_impl_win32.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\imgui\imgui_internal.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\imgui\imgui_stdlib.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\imgui\imstb_rectpack.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\imgui\imstb_textedit.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\imgui\imstb_truetype.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\yaml-cpp\anchor.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\yaml-cpp\binary.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\yaml-cpp\contrib\anchordict.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\yaml-cpp\contrib\graphbuilder.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\yaml-cpp\depthguard.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\yaml-cpp\dll.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\yaml-cpp\emitfromevents.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\yaml-cpp\emitter.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\yaml-cpp\emitterdef.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\yaml-cpp\emittermanip.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\yaml-cpp\emitterstyle.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\yaml-cpp\eventhandler.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\yaml-cpp\exceptions.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\yaml-cpp\fptostring.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\yaml-cpp\mark.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\yaml-cpp\node\convert.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\yaml-cpp\node\detail\impl.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\yaml-cpp\node\detail\iterator.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\yaml-cpp\node\detail\iterator_fwd.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\yaml-cpp\node\detail\memory.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\yaml-cpp\node\detail\node.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\yaml-cpp\node\detail\node_data.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\yaml-cpp\node\detail\node_iterator.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\yaml-cpp\node\detail\node_ref.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\yaml-cpp\node\emit.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\yaml-cpp\node\impl.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\yaml-cpp\node\iterator.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\yaml-cpp\node\node.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\yaml-cpp\node\parse.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\yaml-cpp\node\ptr.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\yaml-cpp\node\type.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\yaml-cpp\noexcept.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\yaml-cpp\null.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\yaml-cpp\ostream_wrapper.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\yaml-cpp\parser.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\yaml-cpp\stlemitter.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\yaml-cpp\traits.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\yaml-cpp\yaml.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\ImItem\ImTree.h">
+      <Filter>Header</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -676,8 +877,17 @@
     <ClCompile Include="Core\Asset\TextureAsset.cpp">
       <Filter>Source\Core\Asset</Filter>
     </ClCompile>
+    <ClCompile Include="Core\Debug\Debug.cpp">
+      <Filter>Source\Core</Filter>
+    </ClCompile>
     <ClCompile Include="Core\Engine.cpp">
       <Filter>Source\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\EngineCore.cpp">
+      <Filter>Source\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\EngineAPI.cpp">
+      <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="Core\Network\NetworkManager.cpp">
       <Filter>Source\Core\Network</Filter>
@@ -826,6 +1036,9 @@
     <ClCompile Include="Core\Logging\Logger.cpp">
       <Filter>Source\Core\Logging</Filter>
     </ClCompile>
+    <ClCompile Include="Core\Localization\LocalizationManager.cpp">
+      <Filter>Source\Core\Localization</Filter>
+    </ClCompile>
     <ClCompile Include="GameFramework\Physics2D\Physics2DGeometry.cpp">
       <Filter>Source\GameFramework\Physics2D</Filter>
     </ClCompile>
@@ -862,8 +1075,68 @@
     <ClCompile Include="Editor\ScriptModule\ScriptModuleLoader.cpp">
       <Filter>Source\Editor</Filter>
     </ClCompile>
+    <ClCompile Include="Editor\Project\GameScriptProjectGenerator.cpp">
+      <Filter>Source\Editor</Filter>
+    </ClCompile>
     <ClCompile Include="Editor\Project\ProjectManager.cpp">
       <Filter>Source\Editor</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\ImEditor.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\ImGuiUtillity.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\ImItem\ImText.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\ImWindow\IImPopupWindow.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\ImWindow\IImWindow.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\ImWindow\ImCustomWindow.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\ImWindow\ImDockWindow.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\ImWindow\ImPopupWindow.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\ImWindow\ImWindow.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\ImWindow\ImWindowContext.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="ThirdParty\imgui\imgui.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="ThirdParty\imgui\imgui_demo.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="ThirdParty\imgui\imgui_draw.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="ThirdParty\imgui\imgui_impl_dx11.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="ThirdParty\imgui\imgui_impl_win32.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="ThirdParty\imgui\imgui_stdlib.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="ThirdParty\imgui\imgui_tables.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="ThirdParty\imgui\imgui_widgets.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\ImItem\ImTree.cpp">
+      <Filter>Source</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

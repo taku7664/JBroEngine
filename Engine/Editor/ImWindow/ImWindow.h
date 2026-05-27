@@ -20,7 +20,10 @@ public:
 	ImGuiID GetOwnerID() const final override;
 
     void SetTitle(const char* title) override;
+    void SetLocalizedTitleKey(const char* key) override;
     const char* GetTitle() const override;
+	void SetStableID(const char* stableID);
+	const char* GetImGuiLabel() const;
 
     void SetSize(ImVec2 size, bool delay = true) override;
 	ImVec2 GetSize() const override;
@@ -87,6 +90,9 @@ private:
 
 protected:
     std::string         m_title;
+	std::string			m_localizedTitleKey;   // 비어있지 않으면 HandleUpdate에서 Loc::Text(key)로 m_title 갱신
+	std::string			m_stableID;
+	mutable std::string	m_imguiLabel;
     ImGuiID             m_hashedID;
 	ImGuiID				m_ownerID;
 	ImGuiID				m_dockID;

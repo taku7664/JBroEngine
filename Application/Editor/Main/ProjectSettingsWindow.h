@@ -1,6 +1,5 @@
 #pragma once
 
-#include <array>
 #include <string>
 
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
@@ -20,10 +19,10 @@ private:
     int   m_editResW = 1920;
     int   m_editResH = 1080;
     float m_editPPU  = 100.0f;
+    int   m_selectedLocaleIndex = 0;
 
-    // 스크립트 DLL 경로 편집 버퍼
-    static constexpr int DLL_PATH_BUF_SIZE = 512;
-    std::array<char, DLL_PATH_BUF_SIZE> m_dllPathBuf = {};
+    int m_scriptBuildConfiguration = 0;
+    bool m_scriptAutoRebuildEnabled = false;
 };
 
 #endif

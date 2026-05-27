@@ -9,15 +9,47 @@
 
 namespace
 {
-    SafePtr<CProjectManager> GetProjectManager()
+    SafePtr<CProjectManager> GetProjectManagerForSettings()
     {
         return Editor::ImEditor ? Editor::ImEditor->GetProjectManager() : nullptr;
+    }
+
+    const char* ToScriptStateText(ELiveCompileState state)
+    {
+        switch (state)
+        {
+        case ELiveCompileState::Idle:
+            return Loc::Text("script.status.idle");
+        case ELiveCompileState::Compiling:
+            return Loc::Text("script.status.building");
+        case ELiveCompileState::Loaded:
+            return Loc::Text("script.status.loaded");
+        case ELiveCompileState::Failed:
+            return Loc::Text("script.status.failed");
+        default:
+            return Loc::Text("script.status.unknown");
+        }
+    }
+
+    ImVec4 ToScriptStateColor(ELiveCompileState state)
+    {
+        switch (state)
+        {
+        case ELiveCompileState::Loaded:
+            return ImVec4(0.4f, 0.9f, 0.5f, 1.0f);
+        case ELiveCompileState::Failed:
+            return ImVec4(0.95f, 0.35f, 0.3f, 1.0f);
+        case ELiveCompileState::Compiling:
+            return ImVec4(0.9f, 0.75f, 0.35f, 1.0f);
+        default:
+            return ImVec4(0.7f, 0.7f, 0.7f, 1.0f);
+        }
     }
 }
 
 void CProjectSettingsWindow::OnCreate()
 {
-    SetTitle(Utillity::U8(u8"프로젝트 세팅"));
+    SetLocalizedTitleKey("window.project_settings");
 
     m_imguiFlags =
         ImGuiWindowFlags_NoDocking |
@@ -26,37 +58,51 @@ void CProjectSettingsWindow::OnCreate()
 
     m_windowFlags = IMWINDOW_FLAG_NONE;
 
-    SetSize({ 460.0f, 320.0f });
+    SetSize({ 560.0f, 520.0f });
     SetVisible(false);
 }
 
 void CProjectSettingsWindow::OnShow()
 {
     // 창이 열릴 때마다 현재 프로젝트 설정값으로 초기화합니다.
-    SafePtr<CProjectManager> pm = GetProjectManager();
+    SafePtr<CProjectManager> pm = GetProjectManagerForSettings();
     if (pm)
     {
         m_editResW = static_cast<int>(pm->GetResolutionWidth());
         m_editResH = static_cast<int>(pm->GetResolutionHeight());
         m_editPPU  = pm->GetPixelsPerUnit();
 
-        // DLL 경로 버퍼 초기화
-        const std::string& dllPath = pm->GetScriptDllPath();
-        std::snprintf(m_dllPathBuf.data(), m_dllPathBuf.size(), "%s", dllPath.c_str());
+        m_scriptBuildConfiguration = EScriptBuildConfiguration::Release == pm->GetScriptBuildConfiguration() ? 1 : 0;
+        m_scriptAutoRebuildEnabled = pm->IsScriptAutoRebuildEnabled();
+    }
+
+    if (Core::Localization.IsValid())
+    {
+        const std::vector<LocalizationLocaleInfo>& locales = Core::Localization->GetSupportedLocales();
+        const std::string& currentLocale = Core::Localization->GetCurrentLocale();
+        m_selectedLocaleIndex = 0;
+        for (std::size_t i = 0; i < locales.size(); ++i)
+        {
+            if (locales[i].Code == currentLocale)
+            {
+                m_selectedLocaleIndex = static_cast<int>(i);
+                break;
+            }
+        }
     }
 }
 
 void CProjectSettingsWindow::OnRenderStay()
 {
-    SafePtr<CProjectManager> pm = GetProjectManager();
+    SafePtr<CProjectManager> pm = GetProjectManagerForSettings();
 
     // ── 해상도 섹션 ──────────────────────────────────────────────────
-    ImGui::SeparatorText(Utillity::U8(u8"해상도"));
+    ImGui::SeparatorText(Loc::Text("project_settings.resolution"));
 
     ImGui::SetNextItemWidth(160.0f);
-    ImGui::InputInt(Utillity::U8(u8"너비 (px)"),  &m_editResW);
+    ImGui::InputInt(Loc::Text("project_settings.width_px"),  &m_editResW);
     ImGui::SetNextItemWidth(160.0f);
-    ImGui::InputInt(Utillity::U8(u8"높이 (px)"), &m_editResH);
+    ImGui::InputInt(Loc::Text("project_settings.height_px"), &m_editResH);
 
     // 0 이하 값 방지
     if (m_editResW < 1) m_editResW = 1;
@@ -64,59 +110,91 @@ void CProjectSettingsWindow::OnRenderStay()
 
     // ── 좌표계 섹션 ───────────────────────────────────────────────────
     ImGui::Spacing();
-    ImGui::SeparatorText(Utillity::U8(u8"좌표계"));
+    ImGui::SeparatorText(Loc::Text("project_settings.coordinates"));
 
     ImGui::SetNextItemWidth(160.0f);
-    ImGui::DragFloat(Utillity::U8(u8"픽셀 / 유닛 (PPU)"), &m_editPPU, 1.0f, 1.0f, 10000.0f, "%.1f");
+    ImGui::DragFloat(Loc::Text("project_settings.pixels_per_unit"), &m_editPPU, 1.0f, 1.0f, 10000.0f, "%.1f");
     if (m_editPPU < 1.0f) m_editPPU = 1.0f;
     ImGui::TextDisabled(
-        Utillity::U8(u8"  1 유닛 = %.1f px  |  1 px ≈ %.5f 유닛"),
+        Loc::Text("project_settings.ppu_help"),
         m_editPPU, 1.0f / m_editPPU);
 
-    // ── 스크립트 DLL 섹션 ─────────────────────────────────────────────
+    // ── Script 섹션 ─────────────────────────────────────────────────
     ImGui::Spacing();
-    ImGui::SeparatorText(Utillity::U8(u8"스크립트 DLL"));
+    ImGui::SeparatorText(Loc::Text("project_settings.script"));
 
-    ImGui::SetNextItemWidth(300.0f);
-    ImGui::InputText("##DllPath", m_dllPathBuf.data(), m_dllPathBuf.size());
-    ImGui::SameLine();
-    if (ImGui::Button(Utillity::U8(u8"찾기")))
+    if (pm)
     {
-        File::Path chosenPath;
-        if (File::ShowOpenFileDialog(
-            nullptr,
-            L"스크립트 DLL 선택",
-            L"",
-            { { L"Dynamic Library", L"*.dll" }, { L"All Files", L"*.*" } },
-            chosenPath))
-        {
-            const std::string pathStr = chosenPath.string();
-            std::snprintf(m_dllPathBuf.data(), m_dllPathBuf.size(), "%s", pathStr.c_str());
-        }
+        const std::string scriptPath = pm->GetScriptPath().generic_string();
+        ImGui::TextDisabled("%s: %s", Loc::Text("project_settings.user_scripts"), scriptPath.c_str());
     }
+    ImGui::SetNextItemWidth(180.0f);
+    const char* scriptConfigs[] = { "Debug", "Release" };
+    ImGui::Combo(Loc::Text("project_settings.script_build"), &m_scriptBuildConfiguration, scriptConfigs, IM_ARRAYSIZE(scriptConfigs));
+    ImGui::TextDisabled("%s", Loc::Text("project_settings.script_build_help"));
 
-    // DLL 로드 상태 표시
-    const bool dllLoaded = pm && pm->IsScriptModuleLoaded();
-    ImGui::TextColored(
-        dllLoaded ? ImVec4(0.4f, 0.9f, 0.5f, 1.0f) : ImVec4(0.7f, 0.7f, 0.7f, 1.0f),
-        dllLoaded ? Utillity::U8(u8"● DLL 로드됨") : Utillity::U8(u8"○ DLL 미로드"));
+    const ELiveCompileState liveState = pm ? pm->GetLiveCompileState() : ELiveCompileState::Idle;
+    ImGui::TextColored(ToScriptStateColor(liveState), ToScriptStateText(liveState));
 
-    ImGui::SameLine();
-    if (ImGui::Button(Utillity::U8(u8"로드")))
+    if (ImGui::Checkbox(Loc::Text("project_settings.script_auto_rebuild"), &m_scriptAutoRebuildEnabled))
     {
         if (pm)
         {
-            pm->SetScriptDllPath(m_dllPathBuf.data());
-            const bool ok = pm->LoadScriptModule();
-            (void)ok;
+            pm->SetScriptAutoRebuildEnabled(m_scriptAutoRebuildEnabled);
         }
     }
-    ImGui::SameLine();
-    if (ImGui::Button(Utillity::U8(u8"언로드")))
+    ImGui::TextDisabled("%s", Loc::Text("project_settings.script_auto_rebuild_help"));
+
+    if (ImGui::Button(Loc::Text("project_settings.script_rebuild")))
     {
         if (pm)
         {
-            pm->UnloadScriptModule();
+            pm->SetScriptBuildConfiguration(1 == m_scriptBuildConfiguration
+                ? EScriptBuildConfiguration::Release
+                : EScriptBuildConfiguration::Debug);
+            pm->RebuildScriptModule();
+        }
+    }
+    ImGui::SameLine();
+    if (ImGui::Button(Loc::Text("common.unload")))
+    {
+        if (pm)
+        {
+            pm->StopLiveCompile();
+        }
+    }
+
+    ImGui::Spacing();
+    ImGui::SeparatorText(Loc::Text("project_settings.localization"));
+
+    if (Core::Localization.IsValid())
+    {
+        const std::vector<LocalizationLocaleInfo>& locales = Core::Localization->GetSupportedLocales();
+        if (false == locales.empty())
+        {
+            if (m_selectedLocaleIndex < 0 || m_selectedLocaleIndex >= static_cast<int>(locales.size()))
+            {
+                m_selectedLocaleIndex = 0;
+            }
+
+            ImGui::SetNextItemWidth(220.0f);
+            const LocalizationLocaleInfo& selectedLocale = locales[static_cast<std::size_t>(m_selectedLocaleIndex)];
+            if (ImGui::BeginCombo(Loc::Text("project_settings.language"), selectedLocale.DisplayName.c_str()))
+            {
+                for (std::size_t i = 0; i < locales.size(); ++i)
+                {
+                    const bool selected = static_cast<int>(i) == m_selectedLocaleIndex;
+                    if (ImGui::Selectable(locales[i].DisplayName.c_str(), selected))
+                    {
+                        m_selectedLocaleIndex = static_cast<int>(i);
+                    }
+                    if (selected)
+                    {
+                        ImGui::SetItemDefaultFocus();
+                    }
+                }
+                ImGui::EndCombo();
+            }
         }
     }
 
@@ -125,7 +203,7 @@ void CProjectSettingsWindow::OnRenderStay()
     ImGui::Spacing();
 
     // ── 버튼 ──────────────────────────────────────────────────────────
-    if (ImGui::Button(Utillity::U8(u8"적용"), { 100.0f, 0.0f }))
+    if (ImGui::Button(Loc::Text("common.apply"), { 100.0f, 0.0f }))
     {
         if (pm)
         {
@@ -134,14 +212,29 @@ void CProjectSettingsWindow::OnRenderStay()
                 static_cast<std::uint32_t>(m_editResW),
                 static_cast<std::uint32_t>(m_editResH));
             pm->SetPixelsPerUnit(m_editPPU);
-            pm->SetScriptDllPath(m_dllPathBuf.data());
+            pm->SetScriptBuildConfiguration(1 == m_scriptBuildConfiguration
+                ? EScriptBuildConfiguration::Release
+                : EScriptBuildConfiguration::Debug);
+            pm->SetScriptAutoRebuildEnabled(m_scriptAutoRebuildEnabled);
+        }
+        if (Core::Localization.IsValid())
+        {
+            const std::vector<LocalizationLocaleInfo>& locales = Core::Localization->GetSupportedLocales();
+            if (m_selectedLocaleIndex >= 0 && m_selectedLocaleIndex < static_cast<int>(locales.size()))
+            {
+                const std::string& localeCode = locales[static_cast<std::size_t>(m_selectedLocaleIndex)].Code;
+                if (Core::Localization->SetCurrentLocale(localeCode) && pm)
+                {
+                    pm->SetEditorLocaleCode(localeCode);
+                }
+            }
         }
         SetVisible(false);
     }
 
     ImGui::SameLine();
 
-    if (ImGui::Button(Utillity::U8(u8"취소"), { 100.0f, 0.0f }))
+    if (ImGui::Button(Loc::Text("common.cancel"), { 100.0f, 0.0f }))
     {
         SetVisible(false);
     }

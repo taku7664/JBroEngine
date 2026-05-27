@@ -7,6 +7,8 @@
 #include "Engine/GameFramework/ECS/EntityTypes.h"
 #include "Engine/GameFramework/Reflection/ReflectionTypes.h"
 
+#include <vector>
+
 class CScene;
 
 class CAddComponentCommand final : public IEditorCommand
@@ -28,6 +30,50 @@ private:
 	// Non-null when the component type allows duplicates; points to the specific
 	// instance that was created so Undo can remove exactly that one.
 	void* m_addedComponent = nullptr;
+};
+
+class CAddScriptComponentCommand final : public IEditorCommand
+{
+public:
+	CAddScriptComponentCommand(SafePtr<CScene> scene, EntityId entity, TypeId scriptTypeId);
+	~CAddScriptComponentCommand() override = default;
+
+	const char* GetName() const override;
+	bool Execute() override;
+	void Undo() override;
+	void Redo() override;
+
+private:
+	SafePtr<CScene> m_scene;
+	EntityId m_entity = INVALID_ENTITY_ID;
+	TypeId m_scriptTypeId = INVALID_TYPE_ID;
+	TypeId m_scriptComponentTypeId = INVALID_TYPE_ID;
+	void* m_addedComponent = nullptr;
+	bool m_added = false;
+};
+
+class CSetScriptTypeCommand final : public IEditorCommand
+{
+public:
+	CSetScriptTypeCommand(SafePtr<CScene> scene, EntityId entity, std::size_t instanceIndex, TypeId newScriptTypeId);
+	~CSetScriptTypeCommand() override = default;
+
+	const char* GetName() const override;
+	bool Execute() override;
+	void Undo() override;
+	void Redo() override;
+
+private:
+	bool Apply(TypeId scriptTypeId);
+
+private:
+	SafePtr<CScene> m_scene;
+	EntityId m_entity = INVALID_ENTITY_ID;
+	std::size_t m_instanceIndex = 0;
+	TypeId m_oldScriptTypeId = INVALID_TYPE_ID;
+	TypeId m_newScriptTypeId = INVALID_TYPE_ID;
+	TypeId m_scriptComponentTypeId = INVALID_TYPE_ID;
+	bool m_executed = false;
 };
 
 class CCreateGameObjectCommand final : public IEditorCommand
@@ -108,6 +154,34 @@ private:
 	Transform2D     m_oldLocalTransform;
 	Transform2D     m_newLocalTransform;
 	bool            m_executed       = false;
+};
+
+// PolygonCollider2D 의 버텍스 목록을 통째로 교체하는 커맨드.
+// Execute / Redo: newPoints 를 LocalPoints 에 적용 + dirty 캐시 마킹.
+// Undo         : 이전 LocalPoints 복원 + dirty 캐시 마킹.
+class CModifyPolygonVerticesCommand final : public IEditorCommand
+{
+public:
+	CModifyPolygonVerticesCommand(
+		SafePtr<CScene>                   scene,
+		EntityId                          entity,
+		std::vector<Vector2<float>>       newPoints);
+	~CModifyPolygonVerticesCommand() override = default;
+
+	const char* GetName() const override;
+	bool Execute() override;
+	void Undo()    override;
+	void Redo()    override;
+
+private:
+	bool Apply(const std::vector<Vector2<float>>& points);
+
+private:
+	SafePtr<CScene>               m_scene;
+	EntityId                      m_entity   = INVALID_ENTITY_ID;
+	std::vector<Vector2<float>>   m_oldPoints;
+	std::vector<Vector2<float>>   m_newPoints;
+	bool                          m_executed = false;
 };
 
 #endif

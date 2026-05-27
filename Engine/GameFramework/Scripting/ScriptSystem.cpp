@@ -1,15 +1,121 @@
 #include "pch.h"
 #include "ScriptSystem.h"
 
+#include "Core/Core.h"
+#include "Core/Logging/LoggerInternal.h"
 #include "GameFramework/Component/ScriptComponent.h"
+#include "GameFramework/Reflection/ReflectionRegistry.h"
 #include "GameFramework/Scene/Scene.h"
 
+#include <cstring>
+
+namespace
+{
+	// ── ApplyPendingFields ────────────────────────────────────────────────────
+	// ScriptComponent::PendingFields 를 인스턴스에 적용한다.
+	// 이름으로 프로퍼티를 찾아 raw bytes 를 memcpy 하므로,
+	// DLL 교체로 오프셋이 바뀌어도 안전하게 복원된다.
+	void ApplyPendingFields(ScriptComponent& script, const ScriptTypeInfo& typeInfo)
+	{
+		if (script.PendingFields.empty() || nullptr == script.Instance)
+		{
+			return;
+		}
+
+		for (const ScriptPendingField& pending : script.PendingFields)
+		{
+			for (const ReflectPropertyInfo& prop : typeInfo.Properties)
+			{
+				if (nullptr == prop.Name || pending.Name != prop.Name)
+				{
+					continue;
+				}
+				if (pending.Data.size() != prop.Size)
+				{
+					// 타입/크기가 바뀐 경우 무시 (기본값 유지)
+					break;
+				}
+
+				void* field = CReflectionRegistry::GetPropertyAddress(script.Instance, prop);
+				if (nullptr == field)
+				{
+					break;
+				}
+				std::memcpy(field, pending.Data.data(), prop.Size);
+				break;
+			}
+		}
+
+		script.PendingFields.clear();
+	}
+}
+
+// ── OnUpdate ──────────────────────────────────────────────────────────────────
+// 2-pass 구조:
+//   Pass 1: 인스턴스 지연 생성 + Bind + Start(OnStart). 새로 시작한 스크립트는
+//           이번 프레임에 OnUpdate 까지 받지 않고 다음 프레임부터 받는다.
+//           (모든 스크립트의 OnStart 가 끝난 다음에 OnUpdate 가 도는 시맨틱.)
+//   Pass 2: IsStarted 인 스크립트만 OnUpdate.
+//
+// 진단 로그:
+//   - ScriptTypeId 가 유효하지만 CreateScriptInstance 가 실패한 경우
+//     (entity, typeId) 당 1회만 경고. DLL 로드 실패/등록 누락의 가장 흔한 증상.
 void CScriptSystem::OnUpdate(CScene& scene)
 {
+	// ── Pass 1: 인스턴스 보장 + Bind + Start ──────────────────────────────────
 	scene.ForEach<ScriptComponent>(
-		[&scene](EntityId entity, ScriptComponent& script)
+		[&](EntityId entity, ScriptComponent& script)
 		{
-			if (false == script.IsEnabled || !script.Instance)
+			if (false == script.IsEnabled)
+			{
+				return;
+			}
+
+			if (INVALID_TYPE_ID == script.ScriptTypeId)
+			{
+				return;
+			}
+
+			// 인스턴스 지연 생성
+			if (nullptr == script.Instance)
+			{
+				if (false == Core::Reflection.IsValid())
+				{
+					return;
+				}
+
+				ScriptInstanceHandle handle = Core::Reflection->CreateScriptInstance(script.ScriptTypeId);
+				if (nullptr == handle.Instance)
+				{
+					const EntityTypeKey key{ entity, script.ScriptTypeId };
+					if (m_warnedFailedCreate.insert(key).second)
+					{
+						const ScriptTypeInfo* info = Core::Reflection->FindScript(script.ScriptTypeId);
+						const char* name = (info && info->Type.Name) ? info->Type.Name : "<unknown>";
+						CSystemLog::Warning(std::format(
+							"ScriptSystem: CreateScriptInstance failed (entity={}, type={}, typeId={}). "
+							"DLL not loaded, type not registered, or allocator failure.",
+							static_cast<unsigned long long>(entity),
+							name,
+							static_cast<unsigned long long>(script.ScriptTypeId)));
+					}
+					return;
+				}
+
+				script.SetInstance(std::move(handle));
+
+				// PendingFields 적용: OnStart 호출 전에 값을 복원한다.
+				if (false == script.PendingFields.empty())
+				{
+					const ScriptTypeInfo* typeInfo = Core::Reflection->FindScript(script.ScriptTypeId);
+					if (typeInfo)
+					{
+						ApplyPendingFields(script, *typeInfo);
+					}
+				}
+			}
+
+			if (nullptr == script.Instance)
 			{
 				return;
 			}
@@ -18,18 +124,42 @@ void CScriptSystem::OnUpdate(CScene& scene)
 			{
 				script.Instance->Bind(scene, entity);
 			}
+
+			// OnStart 만 호출 (OnUpdate 는 Pass 2 에서)
+			if (false == script.Instance->IsStarted())
+			{
+				script.Instance->Start();
+			}
+		});
+
+	// ── Pass 2: 이미 시작된 스크립트만 OnUpdate ───────────────────────────────
+	scene.ForEach<ScriptComponent>(
+		[](EntityId, ScriptComponent& script)
+		{
+			if (false == script.IsEnabled || nullptr == script.Instance)
+			{
+				return;
+			}
+
+			if (false == script.Instance->IsStarted())
+			{
+				return; // 이번 프레임에 막 Start 된 경우 다음 프레임부터 OnUpdate
+			}
+
+			// GameScript::Update 는 미시작 시 Start 를 호출하지만
+			// 위에서 IsStarted 를 보장했으므로 OnUpdate 만 돈다.
 			script.Instance->Update();
 		});
 }
 
 void CScriptSystem::OnFixedUpdate(CScene& scene)
 {
-	// Only runs on scripts that have already been started (via Update).
-	// Scripts not yet started are skipped — they will catch up in Update.
+	// OnStart() 가 완료된 스크립트만 FixedUpdate 를 받는다.
+	// 아직 시작되지 않은 스크립트는 OnUpdate 에서 따라잡는다.
 	scene.ForEach<ScriptComponent>(
-		[](EntityId entity, ScriptComponent& script)
+		[](EntityId, ScriptComponent& script)
 		{
-			if (false == script.IsEnabled || !script.Instance)
+			if (false == script.IsEnabled || nullptr == script.Instance)
 			{
 				return;
 			}

@@ -20,6 +20,8 @@ class CInspectorTool;
 class CAssetBrowserTool;
 class CLogTool;
 class CProjectSettingsWindow;
+class CProjectManager;
+class CScene;
 
 struct Editor
 {
@@ -143,5 +145,59 @@ private:
 	inline static File::Guid            m_selectedAssetGuid = File::NULL_GUID;
 	inline static File::Path            m_selectedAssetPath = File::NULL_PATH;
 };
+
+inline SafePtr<CProjectManager> GetProjectManager()
+{
+	return Editor::ImEditor ? Editor::ImEditor->GetProjectManager() : nullptr;
+}
+
+inline CScene* GetActiveScene()
+{
+	if (false == Core::SceneManager.IsValid())
+	{
+		return nullptr;
+	}
+
+	SafePtr<CScene> activeScene = Core::SceneManager->GetActiveScene();
+	return activeScene.TryGet();
+}
+
+inline std::string ToUtf8(const std::filesystem::path& path)
+{
+	const auto text = path.generic_u8string();
+	return std::string(reinterpret_cast<const char*>(text.c_str()), text.size());
+}
+
+inline std::string ToLower(std::string text)
+{
+	std::transform(text.begin(), text.end(), text.begin(), [](unsigned char ch) {
+		return static_cast<char>(std::tolower(ch));
+		});
+	return text;
+}
+
+inline std::time_t ToTimeT(std::filesystem::file_time_type fileTime)
+{
+	const auto systemTime = std::chrono::time_point_cast<std::chrono::system_clock::duration>(
+		fileTime - std::filesystem::file_time_type::clock::now() + std::chrono::system_clock::now());
+	return std::chrono::system_clock::to_time_t(systemTime);
+}
+
+inline const char* GetTypeName(EAssetType type)
+{
+	switch (type)
+	{
+	case EAssetType::Texture: return "Texture";
+	case EAssetType::Sprite: return "Sprite";
+	case EAssetType::Mesh: return "Mesh";
+	case EAssetType::Material: return "Material";
+	case EAssetType::Shader: return "Shader";
+	case EAssetType::Scene: return "Scene";
+	case EAssetType::Prefab: return "Prefab";
+	case EAssetType::Script: return "Script";
+	case EAssetType::Custom: return "Custom";
+	default: return "Unknown";
+	}
+}
 
 #endif

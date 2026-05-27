@@ -6,6 +6,7 @@
 bool CFileSystem::Initialize(const char* rootPath, EFileSystemAccess access)
 {
 	m_access = access;
+	m_originPath = std::filesystem::current_path().generic_string();
 	if (nullptr != rootPath && '\0' != rootPath[0])
 	{
 		m_rootPath = std::filesystem::path(rootPath).generic_string();
@@ -89,6 +90,11 @@ bool CFileSystem::ReadAllText(const char* relativePath, std::string& outText) co
 
 	outText.assign(reinterpret_cast<const char*>(result.Bytes.data()), result.Bytes.size());
 	return true;
+}
+
+const std::string& CFileSystem::GetOriginPath() const
+{
+	return m_originPath;
 }
 
 const std::string& CFileSystem::GetRootPath() const

@@ -68,6 +68,11 @@ BitFlag& CImDockWindow::GetCustomDockFlags()
 	return m_customDockFlags;
 }
 
+void CImDockWindow::UseStoredDockLayout()
+{
+	m_bNeedRebuildDockLayout = false;
+}
+
 bool CImDockWindow::AddChildImWindow(SafePtr<IImWindow> child)
 {
 	if (false == child.IsValid())
@@ -167,7 +172,7 @@ void CImDockWindow::OnPostBegin()
 		{
 			if (isBeginDockBuild)
 			{
-				const char* label = childWnd->GetTitle();
+				const char* label = childWnd->GetImGuiLabel();
 
 				ImGuiID targetID = m_mainSplitedID;
 

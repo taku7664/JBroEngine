@@ -57,34 +57,37 @@
     <ClInclude Include="Editor\EditorDragDrop.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
-    <ClInclude Include="Editor\Main\SceneViewTool.h">
+    <ClInclude Include="Editor\Main\SceneView\SceneViewTool.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
-    <ClInclude Include="Editor\Main\SceneViewContour.h">
+    <ClInclude Include="Editor\Main\SceneView\SceneViewContour.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
-    <ClInclude Include="Editor\Main\SceneViewEditContext.h">
+    <ClInclude Include="Editor\Main\SceneView\SceneViewEditContext.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
-    <ClInclude Include="Editor\Main\GameViewTool.h">
+    <ClInclude Include="Editor\Main\GameView\GameViewTool.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
-    <ClInclude Include="Editor\Main\InspectorTool.h">
+    <ClInclude Include="Editor\Main\Inspector\InspectorTool.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
-    <ClInclude Include="Editor\Main\HierarchyTool.h">
+    <ClInclude Include="Editor\Main\Hierarchy\HierarchyTool.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
-    <ClInclude Include="Editor\Main\AssetBrowserTool.h">
+    <ClInclude Include="Editor\Main\AssetBrowser\AssetBrowserTool.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
-    <ClInclude Include="Editor\Main\LogTool.h">
+    <ClInclude Include="Editor\Main\Log\LogTool.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="Editor\Main\ProjectSettingsWindow.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="Editor\Helper\ImGuiHelper.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\Main\AssetBrowser\AssetHandler.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
   </ItemGroup>
@@ -119,34 +122,37 @@
     <ClCompile Include="Editor\RootDockWindow.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
-    <ClCompile Include="Editor\Main\SceneViewTool.cpp">
+    <ClCompile Include="Editor\Main\SceneView\SceneViewTool.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
-    <ClCompile Include="Editor\Main\SceneViewContour.cpp">
+    <ClCompile Include="Editor\Main\SceneView\SceneViewContour.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
-    <ClCompile Include="Editor\Main\SceneViewEditContext.cpp">
+    <ClCompile Include="Editor\Main\SceneView\SceneViewEditContext.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
-    <ClCompile Include="Editor\Main\GameViewTool.cpp">
+    <ClCompile Include="Editor\Main\GameView\GameViewTool.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
-    <ClCompile Include="Editor\Main\InspectorTool.cpp">
+    <ClCompile Include="Editor\Main\Inspector\InspectorTool.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
-    <ClCompile Include="Editor\Main\HierarchyTool.cpp">
+    <ClCompile Include="Editor\Main\Hierarchy\HierarchyTool.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
-    <ClCompile Include="Editor\Main\AssetBrowserTool.cpp">
+    <ClCompile Include="Editor\Main\AssetBrowser\AssetBrowserTool.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
-    <ClCompile Include="Editor\Main\LogTool.cpp">
+    <ClCompile Include="Editor\Main\Log\LogTool.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="Editor\Main\ProjectSettingsWindow.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="Editor\Helper\ImGuiHelper.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\Main\AssetBrowser\AssetHandler.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
   </ItemGroup>

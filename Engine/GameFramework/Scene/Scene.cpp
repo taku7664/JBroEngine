@@ -6,6 +6,7 @@
 #include "GameFramework/Component/Light2D.h"
 #include "GameFramework/Component/Physics2DComponents.h"
 #include "GameFramework/Component/PrefabInstance.h"
+#include "GameFramework/Component/ScriptComponent.h"
 #include "GameFramework/Component/SpriteRenderer2D.h"
 #include "GameFramework/Component/TransformHierarchy2D.h"
 #include "GameFramework/Object/GameObject.h"
@@ -330,6 +331,15 @@ void CScene::UpdateScripts()
 	{
 		m_scriptSystem->Update(*this);
 	}
+}
+
+void CScene::DestroyScriptInstances()
+{
+	ForEach<ScriptComponent>(
+		[](EntityId, ScriptComponent& script)
+		{
+			script.ResetInstance();
+		});
 }
 
 void CScene::FlushPendingRemovesAllPools()

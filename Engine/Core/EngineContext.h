@@ -15,6 +15,7 @@ class CFileSystem;
 class CThreadService;
 class CReflectionRegistry;
 class CLogger;
+class CLocalizationManager;
 class INetworkManager;
 class IDebugDraw2D;
 
@@ -33,8 +34,13 @@ struct EngineContext
 	SafePtr<CThreadService>     Thread;
 	SafePtr<CReflectionRegistry> Reflection;
 	SafePtr<CLogger>            Logger;
+	SafePtr<CLocalizationManager> Localization;
 	// Optional — null until CEngine::InitializeNetwork() is called.
 	SafePtr<INetworkManager>    NetworkManager;
 	// 2D debug draw.  Always valid after engine initialization.
 	SafePtr<IDebugDraw2D>       DebugDraw2D;
+
+	bool IsApplicationFocused = true;
+	bool ApplicationFocusGained = false;
+	bool ApplicationFocusLost = false;
 };

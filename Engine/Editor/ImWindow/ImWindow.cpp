@@ -3,6 +3,7 @@
 
 CImWindow::CImWindow(ImGuiID id, ImGuiID parentId)
 	: m_title("new frame")
+	, m_stableID(std::to_string(id))
 	, m_hashedID(id)
 	, m_ownerID(parentId)
 	, m_dockID(0)
@@ -64,6 +65,26 @@ const char* CImWindow::GetTitle() const
 void CImWindow::SetTitle(const char* title)
 {
 	m_title = title ? title : "";
+}
+
+void CImWindow::SetLocalizedTitleKey(const char* key)
+{
+	m_localizedTitleKey = (key && key[0] != '\0') ? key : std::string();
+	if (false == m_localizedTitleKey.empty())
+	{
+		m_title = Loc::Text(m_localizedTitleKey.c_str());
+	}
+}
+
+void CImWindow::SetStableID(const char* stableID)
+{
+	m_stableID = (nullptr != stableID && '\0' != stableID[0]) ? stableID : std::to_string(m_hashedID);
+}
+
+const char* CImWindow::GetImGuiLabel() const
+{
+	m_imguiLabel = m_title + "###" + m_stableID;
+	return m_imguiLabel.c_str();
 }
 
 void CImWindow::SetSize(ImVec2 size, bool delay)
@@ -137,7 +158,7 @@ void CImWindow::Focus()
 {
 	if (m_bIsAlive)
 	{
-		ImGui::SetWindowFocus(m_title.c_str());
+		ImGui::SetWindowFocus(GetImGuiLabel());
 	}
 }
 
@@ -276,6 +297,12 @@ void CImWindow::HandleUpdate()
 	{
 		ImGui::PushID(this);
 
+		// 로컬라이즈 키가 설정된 경우 매 프레임 타이틀 갱신 (언어 전환 즉시 반영)
+		if (false == m_localizedTitleKey.empty())
+		{
+			m_title = Loc::Text(m_localizedTitleKey.c_str());
+		}
+
 		InitializeWindowRect();
 		UpdateWindowState();
 		UpdateWindowRect();
@@ -326,7 +353,6 @@ void CImWindow::HandleBegin()
 {
 	OnPreBegin();
 
-	const char* label		= m_title.c_str();
 	bool*		isAlive		= m_windowFlags.Has(IMWINDOW_FLAG_NO_CLOSE_BUTTON) ? nullptr : &m_bIsAlive;
 	ImGuiWindowFlags flags	= static_cast<ImGuiWindowFlags>(m_imguiFlags.Get() | ImGuiWindowFlags_NoCollapse);
 
@@ -334,7 +360,7 @@ void CImWindow::HandleBegin()
 	{
 		ImGui::SetNextWindowClass(&m_ownerWindow->m_imWndClass);
 	}
-	m_bBeginResult = ImGui::Begin(label, isAlive, flags);
+	m_bBeginResult = ImGui::Begin(GetImGuiLabel(), isAlive, flags);
 
 	m_imWindow = ImGui::GetCurrentWindow();
 

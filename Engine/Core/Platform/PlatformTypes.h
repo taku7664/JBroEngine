@@ -19,6 +19,9 @@ struct PlatformDesc
 struct PlatformEvent
 {
 	bool WantsExit = false;
+	bool IsFocused = true;
+	bool FocusGained = false;
+	bool FocusLost = false;
 };
 
 enum class EPlatformType

@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(cd \"c:\\\\Users\\\\박주형\\\\source\\\\repos\\\\JBroEngine\"; $env:PATH = \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\Community\\\\MSBuild\\\\Current\\\\Bin;\" + $env:PATH; msbuild JBroEngine.sln /p:Configuration=Debug_Editor /p:Platform=x64 /t:Engine /m /nologo /v:minimal 2>&1)"
+    ]
+  }
+}
