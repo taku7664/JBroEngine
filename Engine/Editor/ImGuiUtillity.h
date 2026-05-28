@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <limits>
 #include <string>
@@ -8,15 +8,8 @@ namespace ImGui
 {
     namespace Utillity
     {
-        /// <summary>
-        /// Returns whether the ImGui window can draw items.
-        /// </summary>
         bool IsWindowDrawable(ImGuiWindow* window = nullptr);
 
-		/// <summary>
-		/// <para>Draws text followed by a vertical separator.</para>
-		/// <para>startX can override the separator position.</para>
-		/// </summary>
 		void TextWithVerticalSeparator(const char* text, float startX = FLT_MAX);
 
 		bool HoveredToolTip(const char* toolTip, ImGuiHoveredFlags flags = ImGuiHoveredFlags_None);
@@ -28,8 +21,6 @@ namespace ImGui
 			const float minRatio = 0.15f, const float maxRatio = 0.8f,
 			float thickness = 1.0f);
 
-		// 로딩 스피너. radius<=0 이면 프레임 높이의 절반으로 자동 산정(지름 = 프레임 높이).
-		// 내부에서 ImGui::Dummy 로 커서를 전진시키므로 다음 위젯은 SameLine 호출만 해주면 됨.
 		void LoadingSpinner(float radius = 0.0f, ImVec4 color = ImVec4(1, 1, 1, 1));
 
 		class StyleBuilder

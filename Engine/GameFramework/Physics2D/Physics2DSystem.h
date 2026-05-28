@@ -40,6 +40,12 @@ private:
 	void ResolveContactVelocity(CScene& scene);   // 속도 impulse — 접촉점별 (velocity only)
 	void ResolveContactPosition(CScene& scene);   // 위치 보정    — 매니폴드별 1회
 	void StabilizeRestingContacts(CScene& scene);
+	void DrawManifoldDebugLines();                // 매니폴드 normal/contact 시각화 (fixed step 종료 후 1회)
+
+	// 직전 step 의 매니폴드와 매칭해 누적 impulse 복원 + warm-start 적용.
+	// DetectContacts 직후 호출되어 m_manifolds 의 AccumulatedXxxImpulse 를 prev 에서 복원,
+	// 그 시점에 body 에 warm-start impulse 한 번 적용.
+	void MatchAndWarmStart(CScene& scene);
 
 private:
 	Vector2<float>                  m_gravity             = Vector2<float>(0.0f, -9.8f);
@@ -48,4 +54,6 @@ private:
 	int                             m_numSubSteps         = 4;
 	float                           m_maxLinearVelocity   = 30.0f;
 	std::vector<Physics2DManifold>  m_manifolds;
+	// 직전 sub-step 의 매니폴드 — Contact persistence 매칭에 사용.
+	std::vector<Physics2DManifold>  m_prevManifolds;
 };

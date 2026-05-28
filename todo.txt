@@ -1,0 +1,4 @@
+TODO:
+- CLogTool에 필터를 하나라도 키는 순간 터짐 -> ImGuiListClipper의 Step내에서 continue는 비허용하기 때문. Step()을 넘기 전에 이미 m_entries가 필터링 되어있어야 한다.
+
+- 

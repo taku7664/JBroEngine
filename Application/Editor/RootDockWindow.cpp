@@ -463,6 +463,7 @@ void CRootDockWindow::DrawLiveCompileMenuBarStatus()
 		if (Editor::ProjectSettings)
 		{
 			Editor::ProjectSettings->SetVisible(true);
+			Editor::ProjectSettings->Focus();
 		}
 	}
 }

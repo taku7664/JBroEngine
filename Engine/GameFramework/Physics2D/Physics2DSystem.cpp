@@ -1,7 +1,9 @@
-﻿#include "pch.h"
+#include "pch.h"
 #include "Physics2DSystem.h"
 
 #include "Core/Core.h"
+#include "Core/Debug/DebugDraw2D.h"
+#include "Core/Logging/LoggerInternal.h"
 #include "Core/Time/Time.h"
 #include "GameFramework/Component/Physics2DComponents.h"
 #include "GameFramework/Component/Transform2D.h"
@@ -13,6 +15,23 @@
 #include <cmath>
 #include <cstring>
 #include <limits>
+#include <unordered_map>
+
+#if defined(_WIN32)
+#include <windows.h>   // OutputDebugStringA — LogTool 안 떠도 VS Output 창에서 확인 가능
+#endif
+
+// 충돌 텍스트 진단 — Core::Logger + VS Output 으로 매 fixed step 1회 덤프.
+// LogTool 자체에 안 떠도 OutputDebugStringA 로 항상 보장.  0: 비활성.
+#ifndef JBRO_PHYSICS_DEBUG_LOG
+#define JBRO_PHYSICS_DEBUG_LOG 1
+#endif
+
+// 충돌 시각화 — DebugDraw2D 로 매니폴드 normal 화살표 + contact point 그림.
+// 씬뷰에서 normal 방향이 잘못 정렬되는지 즉시 확인 가능.  0: 비활성.
+#ifndef JBRO_PHYSICS_DEBUG_DRAW
+#define JBRO_PHYSICS_DEBUG_DRAW 1
+#endif
 
 namespace
 {
@@ -42,10 +61,33 @@ namespace
 	//   정지 물체가 미세하게 튀는 현상 방지.
 	//
 	constexpr float MIN_PHYSICS_DELTA_SECONDS      = 0.0001f;
-	constexpr float POSITION_CORRECTION_PERCENT    = 0.6f;   // 이전 0.4 → 침투 수렴 가속
-	constexpr float POSITION_CORRECTION_SLOP       = 0.005f; // 이전 0.01 → 얕은 침투도 보정
+	// 안전 조건(파일 상단 주석): positionIterations × PERCENT < 1.0.
+	// positionIterations 기본 2 → PERCENT < 0.5 필수.
+	// 0.6 사용 시 누적 보정 = 1.2 → 표면을 통과해 반대 방향으로 분리되는 버그 발생.
+	constexpr float POSITION_CORRECTION_PERCENT    = 0.4f;
+	constexpr float POSITION_CORRECTION_SLOP       = 0.005f;
 	constexpr float RESTITUTION_VELOCITY_THRESHOLD = 1.0f;
 	constexpr float MIN_NORMAL_LENGTH_SQ           = 0.000001f;
+
+	// 매니폴드 생성 컷오프 — 이보다 얕은 침투는 매니폴드 자체를 만들지 않음.
+	//
+	// ResolveContactPosition 은 max(pen - SLOP, 0) 으로 보정량을 계산하므로
+	// SLOP 이하 침투는 보정량이 0 인데도 매니폴드는 만들어져 시각화/velocity solver 진입.
+	// 그러면 매 sub-step 마다 검출/소멸이 반복되며 화살표가 순간이동하듯 떨린다.
+	// SLOP 이하는 "사실상 분리됨" 으로 간주하고 매니폴드 자체 skip.
+	// (이전 SLOP*0.5 는 너무 낮아 효과 없었음 — 실제 침투가 SLOP 근처에서 진동.)
+	constexpr float MANIFOLD_PENETRATION_CUTOFF    = POSITION_CORRECTION_SLOP;
+
+	// Friction normal impulse floor — resting contact 에서 누적 normalImp 가 매우 작을 때도
+	// minimum friction 을 보장한다. 매 sub-step 작은 침투가 반복되며 누적이 못 자라는 환경
+	// 보완. 1kg body × gravity(9.8) × subDt(0.005) ≈ 0.05 의 1/10 정도가 적당.
+	constexpr float FRICTION_NORMAL_IMPULSE_FLOOR  = 0.005f;
+
+	// Resting tangential velocity threshold — contact 가 있는 body 의 tangent (미끄러짐)
+	// 속도가 이 이하이면 강제로 0 처리. 작은 friction + 작은 마찰의 한쪽 누적으로 인한
+	// 등속 운동(사용자가 본 "왼쪽으로 일정히 감") 차단. 자유낙하/비접촉 sliding 시에는
+	// LastContactCount == 0 이라 영향 없음.
+	constexpr float RESTING_TANGENT_VELOCITY       = 0.3f;
 
 	// ── 수학 유틸 ─────────────────────────────────────────────────────────────────
 
@@ -128,6 +170,35 @@ namespace
 		}
 
 		return center / static_cast<float>(points.size());
+	}
+
+	// 면적 가중 centroid. 산술 평균과 달리 폴리곤 형상에 적합한 reference point.
+	// 비대칭/오목 폴리곤에서 OrientNormal 정렬 안정성 확보용.
+	// 면적이 0(축퇴) 이면 산술 평균으로 폴백.
+	Vector2<float> CalculateCentroid(const std::vector<Vector2<float>>& points)
+	{
+		const std::size_t N = points.size();
+		if (N < 3)
+		{
+			return CalculateCenter(points);
+		}
+
+		Vector2<float> c(0.0f, 0.0f);
+		float twiceArea = 0.0f;
+		for (std::size_t i = 0; i < N; ++i)
+		{
+			const Vector2<float>& p0 = points[i];
+			const Vector2<float>& p1 = points[(i + 1) % N];
+			const float cross = p0.x * p1.y - p1.x * p0.y;
+			twiceArea += cross;
+			c.x += (p0.x + p1.x) * cross;
+			c.y += (p0.y + p1.y) * cross;
+		}
+		if (std::abs(twiceArea) < 1e-6f)
+		{
+			return CalculateCenter(points);
+		}
+		return c / (3.0f * twiceArea);
 	}
 
 	float CalculateSignedArea(const std::vector<Vector2<float>>& points)
@@ -843,8 +914,24 @@ namespace
 		transform.Position += WorldVectorToParentLocal(scene, entity, worldDelta);
 	}
 
+	// Body 의 회전 중심(center of mass 근사) 을 반환.
+	//
+	// ★ 비대칭 폴리곤에서 entity origin 을 회전 중심으로 쓰면 Cross(ra, impulse) 가
+	//   잘못된 토크를 만들어 angular velocity 가 누적된다 → linear velocity 도 같이 폭주.
+	// 콜라이더가 있으면 그 면적 가중 centroid 를 사용 (질량 균등 분포 가정).
+	// 콜라이더가 없으면 entity origin 폴백 (회전 안 함 / kinematic 케이스).
 	Vector2<float> GetBodyWorldCenter(const CScene& scene, EntityId entity)
 	{
+		if (const PolygonCollider2D* poly = scene.GetComponent<PolygonCollider2D>(entity);
+			poly && poly->IsEnabled && poly->WorldPoints.size() >= 3)
+		{
+			return CalculateCentroid(poly->WorldPoints);
+		}
+		if (const CircleCollider2D* circle = scene.GetComponent<CircleCollider2D>(entity);
+			circle && circle->IsEnabled)
+		{
+			return circle->WorldCenter;
+		}
 		const Matrix3x2 worldTransform = CalculateWorldTransformNow(scene, entity);
 		return worldTransform.TransformPoint(Vector2<float>(0.0f, 0.0f));
 	}
@@ -913,8 +1000,18 @@ namespace
 	struct ContactManifold2D
 	{
 		Vector2<float> Points[2];
+		std::uint32_t  FeatureIds[2] = { 0xFFFFFFFFu, 0xFFFFFFFFu };
 		int            Count = 0;
 	};
+
+	// Polygon-vs-polygon FeatureId 인코딩 — reference face / incident face / contact 순서.
+	// 같은 두 face 조합에서 검출된 contact 는 같은 ID 를 받아 prev 매니폴드와 매칭 가능.
+	constexpr std::uint32_t MakePolyFeatureId(int refIdx, int incIdx, int contactOrder)
+	{
+		return (static_cast<std::uint32_t>(refIdx) << 16)
+		     | (static_cast<std::uint32_t>(incIdx) << 4)
+		     |  static_cast<std::uint32_t>(contactOrder & 0xF);
+	}
 
 	int ClipSegment(const Vector2<float>& p0, const Vector2<float>& p1,
 	                const Vector2<float>& planeNormal, float planeOffset,
@@ -950,8 +1047,9 @@ namespace
 		auto Fallback = [&]() -> ContactManifold2D
 		{
 			ContactManifold2D m;
-			m.Points[0] = (SupportPoint(a, normal) + SupportPoint(b, -normal)) * 0.5f;
-			m.Count     = 1;
+			m.Points[0]     = (SupportPoint(a, normal) + SupportPoint(b, -normal)) * 0.5f;
+			m.FeatureIds[0] = 0xFFFFFFFFu; // fallback contact 는 매칭 불가
+			m.Count         = 1;
 			return m;
 		};
 
@@ -1025,7 +1123,11 @@ namespace
 		{
 			if (Dot(rNorm, seg[i]) - refOffset <= 0.02f && manifold.Count < 2)
 			{
-				manifold.Points[manifold.Count++] = seg[i];
+				manifold.Points[manifold.Count]     = seg[i];
+				// (refIdx, incIdx, segment ordinal) 로 contact 식별.
+				// 두 폴리곤이 같은 face 조합 + 같은 순서 contact 면 다음 step 에서 같은 id.
+				manifold.FeatureIds[manifold.Count] = MakePolyFeatureId(refIdx, incIdx, i);
+				manifold.Count++;
 			}
 		}
 
@@ -1244,18 +1346,115 @@ void CPhysics2DSystem::OnFixedUpdate(CScene& scene)
 	//   - Baumgarte bias = β/dt × penetration 이므로 dt가 작아질수록 교정력이 강해진다.
 	//   - 둘이 결합하면 "침투 발생 자체가 감소" + "발생한 침투의 수렴이 빨라짐" 두 효과를 동시에 얻는다.
 	const int   numSubSteps = std::max(1, m_numSubSteps);
-	const float subDt       = fixedDelta / static_cast<float>(numSubSteps);
+	const float subDt = fixedDelta / static_cast<float>(numSubSteps);
 	for (int sub = 0; sub < numSubSteps; ++sub)
 	{
 		Step(scene, subDt);
+	}
+
+	// 콜라이더 월드 좌표만 최종 동기화 (다음 frame 쿼리/렌더용).
+	// 매니폴드는 마지막 sub-step 결과 그대로 둠 — AccumulatedImpulse 가 다음 frame 의
+	// MatchAndWarmStart 로 전달되어야 함. 통합 detect 호출 시 AccumulatedImpulse 가
+	// 0 으로 리셋되어 warm-start 메커니즘 자체가 무력화되므로 제거.
+	UpdateColliderBounds(scene);
+
+#if JBRO_PHYSICS_DEBUG_DRAW
+	// 마지막 Step 의 마지막 DetectContacts 결과 = 다음 프레임 시작 시점의 매니폴드.
+	// 이 한 상태만 시각화하여 화살표가 sub-step 사이에 진동하지 않음.
+	DrawManifoldDebugLines();
+#endif
+
+#if JBRO_PHYSICS_DEBUG_LOG
+	// ── 동적 body 의 fixed step 단위 velocity 변화 추적 ────────────────────────
+	// 마찰/iteration 무관하게 한 방향 velocity 가 누적되면 매니폴드 normal 자체가
+	// 한쪽으로 편향되어 매 sub-step 새 impulse 가 적용되는 contact persistence 부재 케이스.
+	// dv 와 LastContactNormal 의 부호 일치를 보면 normal impulse 누적 여부 확인 가능.
+	{
+		static int s_bodyLogCnt = 0;
+		static std::unordered_map<EntityId, Vector2<float>> s_prevVel;
+		if (++s_bodyLogCnt >= 60)
+		{
+			s_bodyLogCnt = 0;
+			scene.ForEach<Rigidbody2D>([&](EntityId e, Rigidbody2D& body)
+				{
+					if (false == body.IsEnabled || EPhysics2DBodyType::Dynamic != body.BodyType) return;
+
+					const auto it = s_prevVel.find(e);
+					const Vector2<float> prev = (it != s_prevVel.end()) ? it->second : Vector2<float>(0.0f, 0.0f);
+					const Vector2<float> dv = body.Velocity - prev;
+					s_prevVel[e] = body.Velocity;
+
+					// velocity 또는 dv 의 절대값이 의미 있는 크기일 때만 로그 (조용한 body 무시).
+					if (body.Velocity.LengthSqrt() < 0.01f && dv.LengthSqrt() < 0.001f) return;
+
+					const std::string line = std::format(
+						"[Phys-Body] id={} v=({:+.3f},{:+.3f}) dv=({:+.4f},{:+.4f}) "
+						"contacts={} normImp={:.3f} fricImp={:.3f} angVel={:+.3f} "
+						"lastN=({:+.2f},{:+.2f})",
+						static_cast<unsigned long long>(e),
+						body.Velocity.x, body.Velocity.y,
+						dv.x, dv.y,
+						body.LastContactCount,
+						body.LastNormalImpulse,
+						body.LastFrictionImpulse,
+						body.AngularVelocity,
+						body.LastContactNormal.x, body.LastContactNormal.y);
+					CSystemLog::Info(line);
+#if defined(_WIN32)
+					OutputDebugStringA((line + "\n").c_str());
+#endif
+				});
+		}
+	}
+#endif
+}
+
+void CPhysics2DSystem::DrawManifoldDebugLines()
+{
+	if (false == Core::DebugDraw2D.IsValid())
+	{
+		return;
+	}
+
+	IDebugDraw2D& dd = *Core::DebugDraw2D;
+	constexpr DebugColor kPointCol  = DebugColorRGBA(255, 230,  60, 255);  // 노랑 contact point
+	constexpr DebugColor kNormalCol = DebugColorRGBA(255,  60, 220, 255);  // 마젠타 normal
+	constexpr DebugColor kHeadCol   = DebugColorRGBA(255, 100, 255, 255);
+
+	for (const Physics2DManifold& m : m_manifolds)
+	{
+		const float arrowLen = std::max(m.Penetration * 4.0f, 0.25f);
+		for (int ci = 0; ci < m.ContactCount; ++ci)
+		{
+			const Vector2<float>& cp  = m.ContactPoints[ci];
+			const Vector2<float>  tip = cp + m.Normal * arrowLen;
+
+			dd.DrawCircle(cp, 0.04f, kPointCol, 1.5f, 12);
+			dd.DrawLine(cp, tip, kNormalCol, 1.5f);
+
+			// 화살표 머리 (V 모양)
+			const Vector2<float> back = -m.Normal * (arrowLen * 0.25f);
+			const Vector2<float> perp(-m.Normal.y, m.Normal.x);
+			const Vector2<float> headL = tip + back + perp * (arrowLen * 0.15f);
+			const Vector2<float> headR = tip + back - perp * (arrowLen * 0.15f);
+			dd.DrawLine(tip, headL, kHeadCol, 1.5f);
+			dd.DrawLine(tip, headR, kHeadCol, 1.5f);
+		}
 	}
 }
 
 void CPhysics2DSystem::Step(CScene& scene, float deltaSeconds)
 {
+	// 직전 sub-step 의 매니폴드를 prev 로 보존 — contact persistence 매칭에 사용.
+	m_prevManifolds.swap(m_manifolds);
+	m_manifolds.clear();
+
 	IntegrateBodies(scene, deltaSeconds);
 	UpdateColliderBounds(scene);
 	DetectContacts(scene);
+
+	// prev 매니폴드와 매칭 → 누적 impulse 복원 + body 에 warm-start impulse 적용.
+	MatchAndWarmStart(scene);
 
 	for (int i = 0; i < m_velocityIterations; ++i)
 	{
@@ -1268,11 +1467,6 @@ void CPhysics2DSystem::Step(CScene& scene, float deltaSeconds)
 	}
 
 	StabilizeRestingContacts(scene);
-
-	// 스텝 종료 후 collider/매니폴드 재빌드.
-	// 스크립트, 디버그 렌더링, 다음 FixedUpdate 쿼리에서 최신 상태를 읽는다.
-	UpdateColliderBounds(scene);
-	DetectContacts(scene);
 }
 
 // ── 적분 ──────────────────────────────────────────────────────────────────────
@@ -1334,6 +1528,16 @@ void CPhysics2DSystem::IntegrateBodies(CScene& scene, float deltaSeconds)
 			{
 				body.Velocity = body.Velocity * (m_maxLinearVelocity / std::sqrt(speedSq));
 			}
+		}
+
+		// ── 각속도 클램프 — 회전 폭주 방지 ───────────────────────────────────────
+		// 비대칭 폴리곤 + 잘못된 회전 중심이 만든 angular impulse 누적이 spin out 으로
+		// 이어지는 것을 차단. Box2D b2_maxRotation 과 유사한 안전망.
+		// 4π/s (=2회전/초) 가 일반 게임 캐릭터 기준 충분히 큰 상한.
+		{
+			constexpr float MAX_ANGULAR_VELOCITY = 4.0f * 3.14159265f;
+			if (body.AngularVelocity >  MAX_ANGULAR_VELOCITY) body.AngularVelocity =  MAX_ANGULAR_VELOCITY;
+			if (body.AngularVelocity < -MAX_ANGULAR_VELOCITY) body.AngularVelocity = -MAX_ANGULAR_VELOCITY;
 		}
 
 		ApplyVelocityToTransform(scene, entity, transform, body, deltaSeconds);
@@ -1613,9 +1817,12 @@ void CPhysics2DSystem::DetectContacts(CScene& scene)
 			}
 
 			if (!hit) continue;
+			// 얕은 침투 컷오프 — 시각적 떨림 + 미세 매니폴드 폭주 방지
+			if (bestPen <= MANIFOLD_PENETRATION_CUTOFF) continue;
 
-			const Vector2<float> centerA = CalculateCenter(a->WorldPoints);
-			const Vector2<float> centerB = CalculateCenter(b->WorldPoints);
+			// 면적 가중 centroid — 비대칭/오목 폴리곤에서 산술 평균은 reference 부적합.
+			const Vector2<float> centerA = CalculateCentroid(a->WorldPoints);
+			const Vector2<float> centerB = CalculateCentroid(b->WorldPoints);
 			OrientNormal(bestNormal, centerA, centerB);
 
 			Physics2DManifold manifold;
@@ -1628,7 +1835,10 @@ void CPhysics2DSystem::DetectContacts(CScene& scene)
 			const ContactManifold2D cm = BuildPolygonManifold(a->WorldPoints, b->WorldPoints, bestNormal);
 			manifold.ContactCount = cm.Count;
 			for (int mi = 0; mi < cm.Count; ++mi)
+			{
 				manifold.ContactPoints[mi] = cm.Points[mi];
+				manifold.FeatureIds[mi]    = cm.FeatureIds[mi];
+			}
 
 			m_manifolds.push_back(manifold);
 		}
@@ -1650,6 +1860,8 @@ void CPhysics2DSystem::DetectContacts(CScene& scene)
 			Vector2<float> normal, contactPoint;
 			float          penetration;
 			if (!TestCircleCircle(*a, *b, normal, contactPoint, penetration)) continue;
+			// 얕은 침투 컷오프 — 시각적 떨림 + 미세 매니폴드 폭주 방지
+			if (penetration <= MANIFOLD_PENETRATION_CUTOFF) continue;
 
 			// TestCircleCircle이 반환한 normal은 이미 A→B 방향이지만 일관성을 위해 호출
 			OrientNormal(normal, a->WorldCenter, b->WorldCenter);
@@ -1661,6 +1873,7 @@ void CPhysics2DSystem::DetectContacts(CScene& scene)
 			manifold.Penetration      = penetration;
 			manifold.IsTrigger        = a->IsTrigger || b->IsTrigger;
 			manifold.ContactPoints[0] = contactPoint;
+			manifold.FeatureIds[0]    = 0;   // circle-circle 은 contact 1개로 항상 동일 id
 			manifold.ContactCount     = 1;
 
 			m_manifolds.push_back(manifold);
@@ -1723,8 +1936,11 @@ void CPhysics2DSystem::DetectContacts(CScene& scene)
 			}
 
 			if (!bestHit) continue;
+			// 얕은 침투 컷오프 — 시각적 떨림 + 미세 매니폴드 폭주 방지
+			if (bestPen <= MANIFOLD_PENETRATION_CUTOFF) continue;
 
-			const Vector2<float> centerA = CalculateCenter(polygon->WorldPoints);
+			// 면적 가중 centroid — 비대칭/오목 폴리곤 정렬 안정성.
+			const Vector2<float> centerA = CalculateCentroid(polygon->WorldPoints);
 			OrientNormal(bestNormal, centerA, circle->WorldCenter);
 
 			Physics2DManifold manifold;
@@ -1736,27 +1952,247 @@ void CPhysics2DSystem::DetectContacts(CScene& scene)
 			manifold.ContactPoints[0] = bestContactPoint.LengthSqrt() > MIN_NORMAL_LENGTH_SQ
 				? bestContactPoint
 				: circle->WorldCenter - bestNormal * circle->WorldRadius;
+			manifold.FeatureIds[0]    = 0;   // polygon-circle 도 contact 1개로 항상 동일 id
 			manifold.ContactCount     = 1;
 
 			m_manifolds.push_back(manifold);
 		}
 	}
+
+	// ── 같은 (A,B) 페어 매니폴드 병합 ─────────────────────────────────────────
+	// 한 entity 쌍이 polygon-vs-polygon 검출 + polygon-vs-circle 검출 등으로 매니폴드
+	// 여러 개 생성되면 normal/penetration 이 모순될 수 있다. iteration 간 침투 재계산을
+	// 하지 않으므로 ResolveContactPosition 이 모순된 normal 을 합산해 잘못된 방향 분리.
+	// 같은 페어를 하나로 병합 — 가장 깊은 침투 매니폴드를 base 로, 나머지의 contact point 만
+	// 추가(최대 2개). normal 안정성을 위해 base 의 normal 그대로 사용.
+	if (m_manifolds.size() > 1)
+	{
+		std::unordered_map<std::uint64_t, std::size_t> firstIndexOfPair;
+		std::vector<Physics2DManifold> merged;
+		merged.reserve(m_manifolds.size());
+
+		for (const Physics2DManifold& m : m_manifolds)
+		{
+			const std::uint64_t lo  = std::min(static_cast<std::uint64_t>(m.A), static_cast<std::uint64_t>(m.B));
+			const std::uint64_t hi  = std::max(static_cast<std::uint64_t>(m.A), static_cast<std::uint64_t>(m.B));
+			const std::uint64_t key = (lo << 32) | hi;
+
+			auto it = firstIndexOfPair.find(key);
+			if (it == firstIndexOfPair.end())
+			{
+				firstIndexOfPair[key] = merged.size();
+				merged.push_back(m);
+				continue;
+			}
+
+			Physics2DManifold& dst = merged[it->second];
+
+			// 더 깊은 침투 매니폴드의 normal/penetration 으로 교체.
+			// 이렇게 해야 normal 이 max-pen 쪽으로 안정적으로 정렬.
+			if (m.Penetration > dst.Penetration)
+			{
+				// 이전 dst 의 contact 들을 보존 (FeatureId/누적 impulse 포함).
+				const int      savedCount       = dst.ContactCount;
+				Vector2<float> savedPts[2]      = { dst.ContactPoints[0], dst.ContactPoints[1] };
+				std::uint32_t  savedFeat[2]     = { dst.FeatureIds[0], dst.FeatureIds[1] };
+				float          savedAccN[2]     = { dst.AccumulatedNormalImpulse[0],   dst.AccumulatedNormalImpulse[1]   };
+				float          savedAccF[2]     = { dst.AccumulatedFrictionImpulse[0], dst.AccumulatedFrictionImpulse[1] };
+
+				dst = m;
+
+				for (int i = 0; i < savedCount && dst.ContactCount < 2; ++i)
+				{
+					const int k = dst.ContactCount;
+					dst.ContactPoints[k]              = savedPts[i];
+					dst.FeatureIds[k]                 = savedFeat[i];
+					dst.AccumulatedNormalImpulse[k]   = savedAccN[i];
+					dst.AccumulatedFrictionImpulse[k] = savedAccF[i];
+					++dst.ContactCount;
+				}
+			}
+			else
+			{
+				// m 의 contact 들을 dst 뒤에 추가 (최대 2개).
+				for (int i = 0; i < m.ContactCount && dst.ContactCount < 2; ++i)
+				{
+					const int k = dst.ContactCount;
+					dst.ContactPoints[k]              = m.ContactPoints[i];
+					dst.FeatureIds[k]                 = m.FeatureIds[i];
+					dst.AccumulatedNormalImpulse[k]   = m.AccumulatedNormalImpulse[i];
+					dst.AccumulatedFrictionImpulse[k] = m.AccumulatedFrictionImpulse[i];
+					++dst.ContactCount;
+				}
+			}
+
+			// 트리거 플래그 OR 합성.
+			dst.IsTrigger = dst.IsTrigger || m.IsTrigger;
+		}
+
+		m_manifolds = std::move(merged);
+	}
+
+#if JBRO_PHYSICS_DEBUG_LOG
+	// ── 텍스트 진단: CSystemLog (LogTool) + OutputDebugStringA (VS Output) 동시 출력 ──
+	// Engine.Debug SafePtr 가 invalid 한 케이스에도 무조건 출력되도록 raw 경로 사용.
+	// FixedUpdate 빈도 × sub-step × 2(detect 호출) 라 매번 찍으면 폭주 → 1초당 1회로 throttle.
+	{
+		static int s_logFrameCounter = 0;
+		if (++s_logFrameCounter >= 60)
+		{
+			s_logFrameCounter = 0;
+
+			if (m_manifolds.empty())
+			{
+				constexpr const char* emptyMsg = "[Physics] no manifolds this frame";
+				CSystemLog::Info(emptyMsg);
+		#if defined(_WIN32)
+				OutputDebugStringA("[Physics] no manifolds this frame\n");
+		#endif
+			}
+
+			std::unordered_map<std::uint64_t, int> pairCount;
+			for (const Physics2DManifold& m : m_manifolds)
+			{
+				const std::uint64_t lo  = std::min(static_cast<std::uint64_t>(m.A), static_cast<std::uint64_t>(m.B));
+				const std::uint64_t hi  = std::max(static_cast<std::uint64_t>(m.A), static_cast<std::uint64_t>(m.B));
+				pairCount[(lo << 32) | hi]++;
+			}
+
+			for (const Physics2DManifold& m : m_manifolds)
+			{
+				const std::string line = std::format(
+					"[Physics] A={} B={} n=({:.3f},{:.3f}) pen={:.4f} ctc={} trigger={}",
+					static_cast<unsigned long long>(m.A),
+					static_cast<unsigned long long>(m.B),
+					m.Normal.x, m.Normal.y,
+					m.Penetration, m.ContactCount,
+					m.IsTrigger ? 1 : 0);
+				CSystemLog::Info(line);
+		#if defined(_WIN32)
+				OutputDebugStringA((line + "\n").c_str());
+		#endif
+			}
+			for (const auto& [key, count] : pairCount)
+			{
+				if (count > 1)
+				{
+					const std::uint32_t a = static_cast<std::uint32_t>(key >> 32);
+					const std::uint32_t b = static_cast<std::uint32_t>(key & 0xFFFFFFFFu);
+					const std::string warn = std::format(
+						"[Physics] duplicate manifolds: pair=({},{}) count={}", a, b, count);
+					CSystemLog::Warning(warn);
+		#if defined(_WIN32)
+					OutputDebugStringA((warn + "\n").c_str());
+		#endif
+				}
+			}
+		}
+	}
+#endif
+
+	// 디버그 시각화는 OnFixedUpdate 끝에서 한 번만 호출 (DrawManifoldDebugLines).
+	// DetectContacts 는 한 fixed step 안에서 sub-step × 2 회 호출되므로 매번 그리면
+	// 같은 매니폴드가 여러 번 덮어쓰여져 화살표가 시각적으로 떨린다.
 }
 
-// ── 속도 해소 ─────────────────────────────────────────────────────────────────
-// Box2D / Godot / PhysX 공통 설계: velocity solver 는 순수하게 속도만 처리한다.
-// 위치 오차(침투) 교정은 ResolveContactPosition 에서만 수행한다.
+// ── Contact persistence: 직전 step 매니폴드와 매칭 + warm-start ──────────────
+// 같은 (A,B) 페어 + 같은 FeatureId 인 contact 가 직전 step 에도 있었으면,
+// 그 contact 의 누적 normal/friction impulse 를 복원하고 한 번 body 에 적용 (warm-start).
+// 효과:
+//   - friction clamp 가 매 step 새로 시작되지 않고 누적값 기준으로 동작 → friction 정상
+//   - 정지 접촉이 빠르게 수렴 (warm-start 가 거의 정답에 가까운 초기값 제공)
+//   - velocity solver iteration 수가 적어도 수렴
+void CPhysics2DSystem::MatchAndWarmStart(CScene& scene)
+{
+	if (m_prevManifolds.empty() || m_manifolds.empty())
+	{
+		return;
+	}
+
+	// 직전 매니폴드를 (페어, contactIndex) → (normalImp, frictionImp) 룩업 테이블로 변환.
+	// FeatureId 가 0xFFFFFFFFu(매칭 불가) 인 contact 는 skip.
+	struct PrevImpulse { float Norm; float Fric; };
+	struct PrevKey
+	{
+		std::uint64_t Pair;       // (lo<<32) | hi
+		std::uint32_t FeatureId;
+		bool operator==(const PrevKey& o) const { return Pair == o.Pair && FeatureId == o.FeatureId; }
+	};
+	struct PrevKeyHash
+	{
+		std::size_t operator()(const PrevKey& k) const noexcept
+		{
+			return std::hash<std::uint64_t>{}(k.Pair) ^ (std::hash<std::uint32_t>{}(k.FeatureId) << 1);
+		}
+	};
+
+	std::unordered_map<PrevKey, PrevImpulse, PrevKeyHash> prevTable;
+	prevTable.reserve(m_prevManifolds.size() * 2);
+
+	for (const Physics2DManifold& pm : m_prevManifolds)
+	{
+		const std::uint64_t lo  = std::min(static_cast<std::uint64_t>(pm.A), static_cast<std::uint64_t>(pm.B));
+		const std::uint64_t hi  = std::max(static_cast<std::uint64_t>(pm.A), static_cast<std::uint64_t>(pm.B));
+		const std::uint64_t key = (lo << 32) | hi;
+		for (int i = 0; i < pm.ContactCount; ++i)
+		{
+			if (pm.FeatureIds[i] == 0xFFFFFFFFu) continue;
+			prevTable[PrevKey{ key, pm.FeatureIds[i] }] = { pm.AccumulatedNormalImpulse[i], pm.AccumulatedFrictionImpulse[i] };
+		}
+	}
+
+	// 새 매니폴드와 매칭 + warm-start impulse 적용.
+	for (Physics2DManifold& m : m_manifolds)
+	{
+		if (m.IsTrigger || m.ContactCount <= 0) continue;
+
+		const std::uint64_t lo  = std::min(static_cast<std::uint64_t>(m.A), static_cast<std::uint64_t>(m.B));
+		const std::uint64_t hi  = std::max(static_cast<std::uint64_t>(m.A), static_cast<std::uint64_t>(m.B));
+		const std::uint64_t key = (lo << 32) | hi;
+
+		Rigidbody2D* bodyA = scene.GetComponent<Rigidbody2D>(m.A);
+		Rigidbody2D* bodyB = scene.GetComponent<Rigidbody2D>(m.B);
+		const Vector2<float> normal  = NormalizeSafe(m.Normal);
+		const Vector2<float> tangent(-normal.y, normal.x);
+		const Vector2<float> centerA = GetBodyWorldCenter(scene, m.A);
+		const Vector2<float> centerB = GetBodyWorldCenter(scene, m.B);
+
+		for (int ci = 0; ci < m.ContactCount; ++ci)
+		{
+			// 새 contact 는 누적 impulse 0 으로 시작.
+			m.AccumulatedNormalImpulse[ci]   = 0.0f;
+			m.AccumulatedFrictionImpulse[ci] = 0.0f;
+
+			if (m.FeatureIds[ci] == 0xFFFFFFFFu) continue;
+
+			auto it = prevTable.find(PrevKey{ key, m.FeatureIds[ci] });
+			if (it == prevTable.end()) continue;
+
+			// 매칭됨 — 누적 impulse 복원 + body 에 warm-start impulse 적용 (한 번만).
+			m.AccumulatedNormalImpulse[ci]   = it->second.Norm;
+			m.AccumulatedFrictionImpulse[ci] = it->second.Fric;
+
+			const Vector2<float> warm = normal * it->second.Norm + tangent * it->second.Fric;
+			ApplyImpulse(bodyA, centerA, -warm, m.ContactPoints[ci]);
+			ApplyImpulse(bodyB, centerB,  warm, m.ContactPoints[ci]);
+		}
+	}
+}
+
+// ── 속도 해소 (Sequential Impulse, accumulated + clamped) ───────────────────
+// Box2D / Erin Catto 의 정석 패턴:
+//   1. 각 iteration 에서 delta impulse 계산
+//   2. 누적 impulse 에 더하고 clamp (normal: [0,∞), friction: [-mu*accN, +mu*accN])
+//   3. delta = newAccum - oldAccum 만큼만 body 에 적용
 //
-// velocity solver 에 position bias 를 섞으면:
-//   - 교정 속도가 body.Velocity 에 영구 누적
-//   - 정지 접촉에서 tiny velocity 가 제거되지 않아 한 방향으로 계속 drift 발생
-//
-// 매니폴드 단위로 순회하되, impulse 는 접촉점별로 독립 계산한다.
-// 두 접촉점이 서로 다른 모멘트 암(ra, rb)을 가지므로 각각 계산이 회전 정확도에 유리하다.
+// 매 sub-step 마다 누적 impulse 가 초기화되던 이전 코드와 달리, 누적 impulse 는
+// 매니폴드에 보존되어 MatchAndWarmStart 에서 다음 step 으로 전달된다.
+// → friction clamp 가 매 step 0 부터 시작하지 않고 점차 커진 누적 normal 기준으로
+//    동작하므로 friction 이 실제로 효과적으로 작용.
 
 void CPhysics2DSystem::ResolveContactVelocity(CScene& scene)
 {
-	for (const Physics2DManifold& manifold : m_manifolds)
+	for (Physics2DManifold& manifold : m_manifolds)
 	{
 		if (manifold.IsTrigger || manifold.ContactCount <= 0) continue;
 
@@ -1767,7 +2203,8 @@ void CPhysics2DSystem::ResolveContactVelocity(CScene& scene)
 		Rigidbody2D* bodyA = scene.GetComponent<Rigidbody2D>(manifold.A);
 		Rigidbody2D* bodyB = scene.GetComponent<Rigidbody2D>(manifold.B);
 
-		const Vector2<float> normal = NormalizeSafe(manifold.Normal);
+		const Vector2<float> normal  = NormalizeSafe(manifold.Normal);
+		const Vector2<float> tangent(-normal.y, normal.x);
 
 		const float invMassA   = GetInverseMass(bodyA);
 		const float invMassB   = GetInverseMass(bodyB);
@@ -1782,6 +2219,8 @@ void CPhysics2DSystem::ResolveContactVelocity(CScene& scene)
 
 		const float restitutionA = bodyA ? bodyA->Restitution : 0.0f;
 		const float restitutionB = bodyB ? bodyB->Restitution : 0.0f;
+		const float friction     = std::sqrt(std::max(0.0f,
+		    GetSurfaceFriction(bodyA) * GetSurfaceFriction(bodyB)));
 
 		for (int ci = 0; ci < manifold.ContactCount; ++ci)
 		{
@@ -1789,57 +2228,74 @@ void CPhysics2DSystem::ResolveContactVelocity(CScene& scene)
 			const Vector2<float>  ra = contactPoint - centerA;
 			const Vector2<float>  rb = contactPoint - centerB;
 
-			const float raCrossN  = Cross(ra, normal);
-			const float rbCrossN  = Cross(rb, normal);
+			// ── Normal impulse (incremental + clamp ≥ 0) ───────────────────
+			const float raCrossN    = Cross(ra, normal);
+			const float rbCrossN    = Cross(rb, normal);
 			const float normalDenom = invMassSum
 			    + raCrossN * raCrossN * invInertiaA
 			    + rbCrossN * rbCrossN * invInertiaB;
-			if (normalDenom <= 0.0f) continue;
+			if (normalDenom > 0.0f)
+			{
+				const Vector2<float> vA        = GetContactVelocity(bodyA, centerA, contactPoint);
+				const Vector2<float> vB        = GetContactVelocity(bodyB, centerB, contactPoint);
+				const float          velAlongN = Dot(vB - vA, normal);
 
-			const Vector2<float> vA          = GetContactVelocity(bodyA, centerA, contactPoint);
-			const Vector2<float> vB          = GetContactVelocity(bodyB, centerB, contactPoint);
-			const float          velAlongN   = Dot(vB - vA, normal);
-			if (velAlongN >= 0.0f) continue; // 이미 분리 중 — 건너뜀
+				// restitution: 저속 충돌은 0 (미세 진동 방지)
+				const float restitution = (-velAlongN > RESTITUTION_VELOCITY_THRESHOLD)
+				                          ? std::max(restitutionA, restitutionB) : 0.0f;
 
-			// 저속 충돌에서 반발 없음 (미세 진동 방지)
-			const float restitution = (-velAlongN > RESTITUTION_VELOCITY_THRESHOLD)
-			                          ? std::max(restitutionA, restitutionB) : 0.0f;
+				// delta impulse 계산
+				const float deltaMag = -(1.0f + restitution) * velAlongN / normalDenom;
 
-			const float          impulseMag = -(1.0f + restitution) * velAlongN / normalDenom;
-			const Vector2<float> impulse    = normal * impulseMag;
+				// 누적 impulse 에 더하고 [0, ∞) 로 clamp
+				const float oldAcc = manifold.AccumulatedNormalImpulse[ci];
+				const float newAcc = std::max(0.0f, oldAcc + deltaMag);
+				const float applyMag = newAcc - oldAcc;
+				manifold.AccumulatedNormalImpulse[ci] = newAcc;
 
-			AddImpulseDebug(bodyA, centerA, -impulse, normal, contactPoint, false);
-			AddImpulseDebug(bodyB, centerB,  impulse, normal, contactPoint, false);
-			ApplyImpulse(bodyA, centerA, -impulse, contactPoint);
-			ApplyImpulse(bodyB, centerB,  impulse, contactPoint);
+				if (std::abs(applyMag) > 0.0f)
+				{
+					const Vector2<float> impulse = normal * applyMag;
+					AddImpulseDebug(bodyA, centerA, -impulse, normal, contactPoint, false);
+					AddImpulseDebug(bodyB, centerB,  impulse, normal, contactPoint, false);
+					ApplyImpulse(bodyA, centerA, -impulse, contactPoint);
+					ApplyImpulse(bodyB, centerB,  impulse, contactPoint);
+				}
+			}
 
-			// ── 마찰 ──────────────────────────────────────────────────────────
-			// normal impulse 적용 이후 속도를 재샘플해 정확한 접선 방향 획득
-			const Vector2<float> relVelAfter =
-			    GetContactVelocity(bodyB, centerB, contactPoint) -
-			    GetContactVelocity(bodyA, centerA, contactPoint);
-			Vector2<float> tangent = relVelAfter - normal * Dot(relVelAfter, normal);
-			if (tangent.LengthSqrt() <= MIN_NORMAL_LENGTH_SQ) continue;
-
-			tangent.Normalize();
-			const float raCrossT     = Cross(ra, tangent);
-			const float rbCrossT     = Cross(rb, tangent);
+			// ── Friction impulse (incremental + clamp |.| ≤ mu * accumN) ───
+			const float raCrossT    = Cross(ra, tangent);
+			const float rbCrossT    = Cross(rb, tangent);
 			const float tangentDenom = invMassSum
 			    + raCrossT * raCrossT * invInertiaA
 			    + rbCrossT * rbCrossT * invInertiaB;
-			if (tangentDenom <= 0.0f) continue;
+			if (tangentDenom > 0.0f)
+			{
+				const Vector2<float> vA = GetContactVelocity(bodyA, centerA, contactPoint);
+				const Vector2<float> vB = GetContactVelocity(bodyB, centerB, contactPoint);
+				const float velAlongT = Dot(vB - vA, tangent);
 
-			float frictionMag    = -Dot(relVelAfter, tangent) / tangentDenom;
-			const float friction = std::sqrt(std::max(0.0f,
-			    GetSurfaceFriction(bodyA) * GetSurfaceFriction(bodyB)));
-			frictionMag = std::clamp(frictionMag,
-			    -impulseMag * friction, impulseMag * friction);
+				const float deltaMag = -velAlongT / tangentDenom;
 
-			const Vector2<float> frictionImpulse = tangent * frictionMag;
-			AddImpulseDebug(bodyA, centerA, -frictionImpulse, normal, contactPoint, true);
-			AddImpulseDebug(bodyB, centerB,  frictionImpulse, normal, contactPoint, true);
-			ApplyImpulse(bodyA, centerA, -frictionImpulse, contactPoint);
-			ApplyImpulse(bodyB, centerB,  frictionImpulse, contactPoint);
+				// 누적 friction 을 mu * accumN 으로 clamp.
+				// floor 적용 — resting contact 에서 normalImp 가 0 에 가까울 때도 minimum 보장.
+				const float accNForFriction = std::max(
+				    manifold.AccumulatedNormalImpulse[ci], FRICTION_NORMAL_IMPULSE_FLOOR);
+				const float frictionMax = friction * accNForFriction;
+				const float oldAcc = manifold.AccumulatedFrictionImpulse[ci];
+				const float newAcc = std::clamp(oldAcc + deltaMag, -frictionMax, +frictionMax);
+				const float applyMag = newAcc - oldAcc;
+				manifold.AccumulatedFrictionImpulse[ci] = newAcc;
+
+				if (std::abs(applyMag) > 0.0f)
+				{
+					const Vector2<float> frictionImpulse = tangent * applyMag;
+					AddImpulseDebug(bodyA, centerA, -frictionImpulse, normal, contactPoint, true);
+					AddImpulseDebug(bodyB, centerB,  frictionImpulse, normal, contactPoint, true);
+					ApplyImpulse(bodyA, centerA, -frictionImpulse, contactPoint);
+					ApplyImpulse(bodyB, centerB,  frictionImpulse, contactPoint);
+				}
+			}
 		}
 	}
 }
@@ -1847,6 +2303,9 @@ void CPhysics2DSystem::ResolveContactVelocity(CScene& scene)
 // ── 위치 보정 ─────────────────────────────────────────────────────────────────
 // 반드시 매니폴드 단위(쌍 단위)로 1회만 적용한다.
 // 접촉점 수에 무관하게 침투 보정량은 항상 동일 — 다중 접촉점에서 과보정 없음.
+//
+// 같은 (A,B) 페어의 중복 매니폴드는 DetectContacts 끝에서 이미 1개로 병합되므로
+// 여기서는 모든 매니폴드에 standard 보정만 적용한다.
 
 void CPhysics2DSystem::ResolveContactPosition(CScene& scene)
 {
@@ -1866,9 +2325,9 @@ void CPhysics2DSystem::ResolveContactPosition(CScene& scene)
 		const float invMassSum = invMassA + invMassB;
 		if (invMassSum <= 0.0f) continue;
 
-		const Vector2<float> normal         = NormalizeSafe(manifold.Normal);
-		const float          corrDepth      = std::max(manifold.Penetration - POSITION_CORRECTION_SLOP, 0.0f);
-		const Vector2<float> correction     = normal * (corrDepth / invMassSum * POSITION_CORRECTION_PERCENT);
+		const Vector2<float> normal     = NormalizeSafe(manifold.Normal);
+		const float          corrDepth  = std::max(manifold.Penetration - POSITION_CORRECTION_SLOP, 0.0f);
+		const Vector2<float> correction = normal * (corrDepth / invMassSum * POSITION_CORRECTION_PERCENT);
 
 		ApplyCorrectionToTransform(scene, manifold.A, *transformA, bodyA, -correction * invMassA);
 		ApplyCorrectionToTransform(scene, manifold.B, *transformB, bodyB,  correction * invMassB);
@@ -1902,6 +2361,22 @@ void CPhysics2DSystem::StabilizeRestingContacts(CScene& scene)
 		{
 			body.Velocity = Vector2<float>(0.0f, 0.0f);
 			body.Force    = Vector2<float>(0.0f, 0.0f);
+		}
+
+		// Tangential (미끄러짐) 속도가 작으면 강제 0.
+		// contact normal 방향(예: 위) 의 속도는 유지하되 그 수직 방향(미끄러짐) 만 제거.
+		// 작은 friction 누적의 일관된 한쪽 편향이 등속 운동을 만드는 사용자 케이스 차단.
+		{
+			const Vector2<float> n = NormalizeSafe(body.LastContactNormal, Vector2<float>(0.0f, 0.0f));
+			if (n.LengthSqrt() > MIN_NORMAL_LENGTH_SQ)
+			{
+				const float          velAlongN = Dot(body.Velocity, n);
+				const Vector2<float> tangent   = body.Velocity - n * velAlongN;
+				if (tangent.LengthSqrt() <= RESTING_TANGENT_VELOCITY * RESTING_TANGENT_VELOCITY)
+				{
+					body.Velocity = n * velAlongN;
+				}
+			}
 		}
 	});
 }

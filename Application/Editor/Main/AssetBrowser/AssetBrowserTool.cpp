@@ -545,7 +545,14 @@ void CAssetBrowserTool::DrawBrowserColumns()
 	ImGui::BeginChild("AssetBrowserBody", ImVec2(0.0f, 0.0f), false);
 
 	ImGui::BeginChild("AssetBrowserFolderTree", ImVec2(availSpace.x * splitRatio, 0.0f), true);
-	DrawFolderTree();
+	if (ImGui::CollapsingHeader(Loc::Text("asset_browser.contents_folders"), ImGuiTreeNodeFlags_DefaultOpen))
+	{
+		DrawFolderTree();
+
+	}
+	if (ImGui::CollapsingHeader(Loc::Text("asset_browser.favorite_folders"), ImGuiTreeNodeFlags_DefaultOpen))
+	{
+	}
 	ImGui::EndChild();
 
 	ImGui::Utillity::VerticalSplitter("##InspSplitter", splitRatio, availSpace, MIN_RATIO, MAX_RATIO, SPLITTER_W);
@@ -647,16 +654,20 @@ void CAssetBrowserTool::DrawEntries()
 
 void CAssetBrowserTool::DrawListEntries()
 {
-	const ImGuiTableFlags flags = ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable | ImGuiTableFlags_ScrollY;
-	if (false == ImGui::BeginTable("AssetBrowserList", 4, flags, ImVec2(0.0f, 0.0f)))
+	const ImGuiTableFlags flags =
+		ImGuiTableFlags_BordersInnerV |
+		ImGuiTableFlags_Resizable |
+		ImGuiTableFlags_ScrollY |
+		ImGuiTableFlags_NoBordersInBody;
+	if (false == ImGui::BeginTable("AssetBrowserList", 4, flags, ImVec2(700.0f, 0.0f)))
 	{
 		return;
 	}
 
-	ImGui::TableSetupColumn(Loc::Text("common.name"), ImGuiTableColumnFlags_WidthStretch);
-	ImGui::TableSetupColumn(Loc::Text("common.type"), ImGuiTableColumnFlags_WidthFixed, 90.0f);
-	ImGui::TableSetupColumn(Loc::Text("common.guid"), ImGuiTableColumnFlags_WidthFixed, 220.0f);
-	ImGui::TableSetupColumn(Loc::Text("common.modified"), ImGuiTableColumnFlags_WidthFixed, 150.0f);
+	ImGui::TableSetupColumn(Loc::Text("common.name"), ImGuiTableColumnFlags_WidthFixed, 250.0f);
+	ImGui::TableSetupColumn(Loc::Text("common.type"), ImGuiTableColumnFlags_WidthFixed, 60.0f);
+	ImGui::TableSetupColumn(Loc::Text("common.modified"), ImGuiTableColumnFlags_WidthFixed, 80.0f);
+	ImGui::TableSetupColumn(Loc::Text("common.guid"), ImGuiTableColumnFlags_WidthStretch);
 	ImGui::TableHeadersRow();
 
 	ImGuiListClipper clipper;
@@ -699,10 +710,10 @@ void CAssetBrowserTool::DrawListEntries()
 			ImGui::TableSetColumnIndex(1);
 			ImGui::TextUnformatted(entry.IsDirectory ? Loc::Text("common.folder") : GetTypeName(entry.Type));
 			ImGui::TableSetColumnIndex(2);
-			ImGui::TextUnformatted(entry.Guid.IsNull() ? "-" : ToUtf8(entry.Guid).c_str());
+			ImGui::TextUnformatted(entry.IsDirectory ? "-" : entry.ModifiedTimeText.c_str());
 			ImGui::TableSetColumnIndex(3);
 			// 캐시된 ModifiedTimeText 사용 — 매 프레임 localtime/strftime 호출 제거
-			ImGui::TextUnformatted(entry.IsDirectory ? "-" : entry.ModifiedTimeText.c_str());
+			ImGui::TextUnformatted(entry.Guid.IsNull() ? "-" : ToUtf8(entry.Guid).c_str());
 			ImGui::PopID();
 		}
 	}

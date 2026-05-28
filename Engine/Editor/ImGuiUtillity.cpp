@@ -343,7 +343,9 @@ void ImGui::Utillity::LoadingSpinner(float radius, ImVec4 color)
 {
 	if (radius <= 0.0f)
 	{
-		radius = ImGui::GetFrameHeight() * 0.5f;
+		ImGuiStyle& style = ImGui::GetStyle();
+		float paddingY = style.FramePadding.y;
+		radius = ImGui::GetFrameHeight() * 0.5f - paddingY;
 	}
 
 	const ImVec2 cursorScreen = ImGui::GetCursorScreenPos();
