@@ -25,6 +25,7 @@
 
 #include <array>
 #include <chrono>
+#include <cwctype>
 #include <fstream>
 #include <memory>
 #include <sstream>
@@ -186,6 +187,25 @@ namespace
 		return false;
 	}
 
+	// std::string 버퍼용 InputText + invalid 시 빨간 프레임 외곽선.
+	// (ImGui::Utillity::ValidatedInputText 가 제거된 뒤의 로컬 대체.)
+	bool ValidatedStringInput(const char* id, std::string* buffer, bool invalid,
+	                          ImGuiInputTextFlags flags = 0)
+	{
+		if (invalid)
+		{
+			ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.85f, 0.20f, 0.20f, 1.0f));
+			ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.5f);
+		}
+		const bool changed = ImGui::InputText(id, buffer, flags);
+		if (invalid)
+		{
+			ImGui::PopStyleVar();
+			ImGui::PopStyleColor();
+		}
+		return changed;
+	}
+
 	const char* GetEntryIcon(const AssetBrowserEntry& entry)
 	{
 		if (entry.IsDirectory)
@@ -276,11 +296,13 @@ namespace
 	void BeginAssetDragDropSource(const AssetBrowserEntry& entry)
 	{
 		EditorDragDrop::AssetPayloadDesc desc;
-		desc.Guid = entry.Guid;
-		desc.RelativePath = entry.RelativePath;
-		desc.Type = entry.Type;
-		desc.IsDirectory = entry.IsDirectory;
-		desc.PreviewLabel = entry.DisplayNameUtf8.c_str();
+		desc.Guid              = entry.Guid;
+		desc.RelativePath      = entry.RelativePath;
+		desc.Type              = entry.Type;
+		desc.IsDirectory       = entry.IsDirectory;
+		desc.PreviewLabel      = entry.DisplayNameUtf8.c_str();
+		desc.PreviewTextureID  = GetSpriteImTexture(entry.Thumbnail);
+		desc.PreviewSize       = 56.0f;
 		EditorDragDrop::BeginAssetDragDropSource(desc);
 	}
 }
@@ -859,7 +881,10 @@ void CAssetBrowserTool::DrawBrowserColumns()
 	ImGui::BeginChild("AssetBrowserEntries", ImVec2(0.0f, 0.0f), true);
 	DrawEntries();
 	// 빈 공간 우클릭(다른 entry 위에서가 아닐 때) — body 통합 팝업 호출.
-	if (ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup)
+	// ChildWindows 플래그가 없으면 리스트 모드의 ScrollY 테이블이 내부 child 를
+	// 만들어 부모 윈도우 hover 판정에서 누락된다.
+	if (ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup
+	                         | ImGuiHoveredFlags_ChildWindows)
 	    && false == ImGui::IsAnyItemHovered()
 	    && ImGui::IsMouseClicked(ImGuiMouseButton_Right))
 	{
@@ -1004,7 +1029,7 @@ void CAssetBrowserTool::DrawListEntries()
 			{
 				ImGui::SetKeyboardFocusHere();
 				ImGui::SetNextItemWidth(-FLT_MIN);
-				if (ImGui::Utillity::ValidatedInputText("##Rename", &m_renameBuffer,
+				if (ValidatedStringInput("##Rename", &m_renameBuffer,
 				        /*invalid*/ m_renameBuffer.empty(),
 				        ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll))
 				{
@@ -1095,7 +1120,7 @@ void CAssetBrowserTool::DrawIconEntries()
 					}
 					ImGui::SetKeyboardFocusHere();
 					ImGui::SetNextItemWidth(cellW);
-					if (ImGui::Utillity::ValidatedInputText("##Rename", &m_renameBuffer,
+					if (ValidatedStringInput("##Rename", &m_renameBuffer,
 				        /*invalid*/ m_renameBuffer.empty(),
 				        ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll))
 					{
@@ -1508,7 +1533,7 @@ void CAssetBrowserTool::ShowNewScriptPopup(const File::Path& parentFolder)
 	{
 		ImGui::TextUnformatted(Loc::Text("asset_browser.script_popup.class_name"));
 		ImGui::SetNextItemWidth(-FLT_MIN);
-		ImGui::Utillity::ValidatedInputText(
+		ValidatedStringInput(
 			"##script_class_name", &state->ClassName,
 			/*invalid*/ state->ClassName.empty());
 
@@ -1516,7 +1541,10 @@ void CAssetBrowserTool::ShowNewScriptPopup(const File::Path& parentFolder)
 		ImGui::TextUnformatted(Loc::Text("asset_browser.script_popup.properties"));
 
 		// 각 행: 타입 Combo + 이름 InputText. List 위젯이 + / - 버튼과 외곽 박스 담당.
-		ImGui::Utillity::List<NewScriptProperty>(
+		ImGui::Utillity::StyleBuilder styleBuilder;
+		styleBuilder.PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(3.0f, 3.0f));
+		styleBuilder.PushStyleVar(ImGuiStyleVar_FrameRounding, 2.0f);
+		ImList<NewScriptProperty>(
 			"##script_props", state->Properties,
 			[](NewScriptProperty& p, int /*idx*/)
 			{
@@ -1535,10 +1563,14 @@ void CAssetBrowserTool::ShowNewScriptPopup(const File::Path& parentFolder)
 					static_cast<int>(SCRIPT_PROP_TYPES.size()));
 				ImGui::SameLine(0.0f, 4.0f);
 				ImGui::SetNextItemWidth(halfW);
-				ImGui::Utillity::ValidatedInputText("##name", &p.Name,
-					/*invalid*/ p.Name.empty());
+				ImInputText input;
+				input.SetText(p.Name);
+				input.SetHintText(Loc::Text("asset_browser.script_popup.property_hint"));
+				input(ImGuiInputTextFlags_None, p.Name.empty());
+				p.Name = input;
 			},
 			NewScriptProperty{});
+		styleBuilder.PopStyle();
 
 		ImGui::Spacing();
 		ImGui::Separator();
@@ -1640,7 +1672,32 @@ void CAssetBrowserTool::CommitRename(const File::Path& sourcePath)
 		return;
 	}
 
-	File::Path targetPath = sourcePath.parent_path() / File::Path(Utillity::U8ToWString(m_renameBuffer));
+	// 새 이름의 마지막 확장자가 원본과 정확히 같지 않으면 원본 확장자를 강제 부여한다.
+	// 예: 원본이 NewScene.jscene 일 때
+	//   "test.Jscene" → 그대로
+	//   "test"        → "test.jscene"
+	//   "test.dd"     → "test.dd.jscene"
+	// 폴더 rename (원본 확장자 없음) 인 경우엔 변경 없이 그대로.
+	std::wstring inputName = Utillity::U8ToWString(m_renameBuffer);
+	const std::wstring originalExt = sourcePath.extension().wstring();
+	if (false == originalExt.empty())
+	{
+		const std::filesystem::path inputAsPath(inputName);
+		const std::wstring inputExt = inputAsPath.extension().wstring();
+		// 대소문자 무시 비교.
+		auto lower = [](std::wstring s)
+		{
+			std::transform(s.begin(), s.end(), s.begin(),
+				[](wchar_t c) { return static_cast<wchar_t>(::towlower(c)); });
+			return s;
+		};
+		if (lower(inputExt) != lower(originalExt))
+		{
+			inputName += originalExt;
+		}
+	}
+
+	File::Path targetPath = sourcePath.parent_path() / File::Path(inputName);
 	QueueOperation({ EPendingOperationType::Rename, sourcePath, targetPath });
 	CancelRename();
 }

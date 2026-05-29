@@ -1,8 +1,5 @@
 #pragma once
-
 #include "Core/FileSystem/FileSystemTypes.h"
-#include "File/FilePath.h"
-#include "Utillity/SafePtr.h"
 
 class CFileSystem final : public EnableSafeFromThis<CFileSystem>
 {

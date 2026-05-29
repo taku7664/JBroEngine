@@ -6,7 +6,6 @@
 #include "GameFramework/Component/ScriptComponent.h"
 #include "GameFramework/Reflection/ReflectionRegistry.h"
 #include "GameFramework/Scene/Scene.h"
-#include "File/FilePath.h"
 
 #include <cstring>
 

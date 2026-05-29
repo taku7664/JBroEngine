@@ -48,11 +48,11 @@
 
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
 #define IMGUI_DEFINE_MATH_OPERATORS
-#include "imgui/imgui.h"
-#include "imgui/imgui_impl_dx11.h"
-#include "imgui/imgui_impl_win32.h"
-#include "imgui/imgui_internal.h"
-#include "imgui/imgui_stdlib.h"
+#include "ThirdParty/imgui/imgui.h"
+#include "ThirdParty/imgui/imgui_impl_dx11.h"
+#include "ThirdParty/imgui/imgui_impl_win32.h"
+#include "ThirdParty/imgui/imgui_internal.h"
+#include "ThirdParty/imgui/imgui_stdlib.h"
 #endif
 
 #include "Utillity/Framework.h"
@@ -125,6 +125,9 @@
 
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
 #include "Editor/ImGuiUtillity.h"
+#include "Editor/ImItem/ImText.h"
+#include "Editor/ImItem/ImTree.h"
+#include "Editor/ImItem/ImList.h"
 #include "Editor/ImWindow/ImWindowFlag.h"
 #include "Editor/ImWindow/ImWindowContext.h"
 #include "Editor/ImWindow/ImWindow.h"
@@ -132,8 +135,6 @@
 #include "Editor/ImWindow/ImCustomWindow.h"
 #include "Editor/ImWindow/ImPopupWindow.h"
 #include "Editor/ImEditor.h"
-#include "Editor/ImItem/ImText.h"
-#include "Editor/ImItem/ImTree.h"
 #endif
 
 #include "Application/Application.h"

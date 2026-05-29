@@ -432,8 +432,8 @@ namespace
 		const ComponentTypeInfo& componentType,
 		std::size_t instanceIdx, void* component)
 	{
-		ImGui::Utillity::TextEx leftText;
-		leftText.UseHoveredToolTip(true);
+		ImText leftText;
+		leftText.SetHoveredTooltip(true);
 
 		for (const ReflectPropertyInfo& property : componentType.Properties)
 		{
@@ -450,7 +450,7 @@ namespace
 				std::memcpy(oldValue.data(), field, property.Size);
 
 			const std::string label = LocalizedPropertyLabel(property);
-			layout.Row([&]() { leftText.Show(label.c_str()); }, [&]() {
+			layout.Row([&]() { leftText(label.c_str()); }, [&]() {
 					const bool	changed = DrawPropertyEditor(field, property);
 					if (changed && field && property.Size > 0)
 					{
@@ -939,8 +939,8 @@ void CInspectorTool::OnRenderStay()
 						ImGui::Spacing();
 						ImGui::SeparatorText(displayName);
 
-						ImGui::Utillity::TextEx leftLabel;
-						leftLabel.UseHoveredToolTip(true);
+						ImText leftLabel;
+						leftLabel.SetHoveredTooltip(true);
 
 						for (const ReflectPropertyInfo& prop : scriptInfo->Properties)
 						{
@@ -953,7 +953,7 @@ void CInspectorTool::OnRenderStay()
 								: (prop.Name ? prop.Name : "");
 
 							layout.Row(
-								[&]() { leftLabel.Show(label.c_str()); },
+								[&]() { leftLabel(label.c_str()); },
 								[&]() { DrawPropertyEditor(field, prop, false); }
 							);
 						}

@@ -140,7 +140,10 @@ void CProjectSettingsWindow::OnRenderStay()
     {
         if (pm)
         {
+            // 토글 시 메모리뿐 아니라 .Jproject 에도 즉시 반영 — Apply 없이 닫아도
+            // 다음 세션에서 같은 상태가 유지되도록.
             pm->SetScriptAutoRebuildEnabled(m_scriptAutoRebuildEnabled);
+            pm->SaveProject();
         }
     }
     ImGui::TextDisabled("%s", Loc::Text("project_settings.script_auto_rebuild_help"));
@@ -216,6 +219,7 @@ void CProjectSettingsWindow::OnRenderStay()
                 ? EScriptBuildConfiguration::Release
                 : EScriptBuildConfiguration::Debug);
             pm->SetScriptAutoRebuildEnabled(m_scriptAutoRebuildEnabled);
+            pm->SaveProject();
         }
         if (Core::Localization.IsValid())
         {

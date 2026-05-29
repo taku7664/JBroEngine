@@ -1,7 +1,5 @@
 #pragma once
 
-#include "File/FilePath.h"
-
 #include <vector>
 
 enum class EFileWatchEventType

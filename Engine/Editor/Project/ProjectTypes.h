@@ -1,6 +1,5 @@
 #pragma once
 
-#include "File/FilePath.h"
 #include <string>
 
 struct ProjectLoadDesc

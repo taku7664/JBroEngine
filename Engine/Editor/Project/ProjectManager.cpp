@@ -5,7 +5,6 @@
 #include "Core/EngineCore.h"
 #include "Core/Logging/LoggerInternal.h"
 #include "Core/Game/GameModuleTypes.h"
-#include "File/FileUtillities.h"
 #include "Editor/Project/GameScriptProjectGenerator.h"
 #include "Editor/LiveCompile/LiveCompileManager.h"
 #include "Editor/ScriptModule/ScriptModuleLoader.h"
@@ -1281,8 +1280,10 @@ File::Path CProjectManager::FindScriptVcxprojPath() const
 
 void CProjectManager::OpenScriptInIde(const File::Path& filePath) const
 {
-	// 1) 솔루션(.sln) 우선, 없으면 .vcxproj 로 폴백.  같은 솔루션을 반복 더블클릭할 때
-	//    Visual Studio 인스턴스가 계속 늘어나는 것을 막기 위해 첫 호출에서만 연다.
+	// 솔루션(.sln) 우선, 없으면 .vcxproj 로 폴백.  매 호출마다 OpenFile 을 실행한다 —
+	// VS 는 이미 같은 솔루션을 열어둔 상태면 새 인스턴스를 띄우지 않고 기존 윈도우를
+	// 활성화하며, 닫아둔 상태면 다시 연다.  영구 캐시로 path 를 기억해서 한 번 열린
+	// 뒤 영원히 skip 하면 사용자가 VS 를 종료한 다음에 재오픈을 못 한다.
 	const File::Path slnPath = FindScriptSolutionPath();
 	File::Path idePath = slnPath.empty() ? FindScriptVcxprojPath() : slnPath;
 	if (idePath.empty() && filePath.empty())
@@ -1292,18 +1293,11 @@ void CProjectManager::OpenScriptInIde(const File::Path& filePath) const
 
 	if (false == idePath.empty())
 	{
-		std::error_code errorCode;
-		const std::filesystem::path normalizedPath = std::filesystem::weakly_canonical(idePath, errorCode);
-		const File::Path key = errorCode ? idePath : File::Path(normalizedPath);
-		if (m_lastOpenedScriptIdePath != key)
-		{
-			m_lastOpenedScriptIdePath = key;
-			File::OpenFile(idePath);
-		}
+		File::OpenFile(idePath);
 	}
 
-	// 2) 사용자가 특정 스크립트(.cpp/.h)를 더블클릭한 경우, 그 파일도 함께 열어 활성 탭으로.
-	//    이미 솔루션이 열려 있으면 OS 가 같은 VS 인스턴스에서 새 탭으로 띄운다.
+	// 사용자가 특정 스크립트(.cpp/.h)를 더블클릭한 경우 그 파일도 함께 열어 활성 탭으로.
+	// 이미 솔루션이 열려 있으면 OS 가 같은 VS 인스턴스에서 새 탭으로 띄운다.
 	if (false == filePath.empty())
 	{
 		std::error_code ec;

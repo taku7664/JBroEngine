@@ -1,8 +1,6 @@
 #pragma once
 
 #include "LoggerTypes.h"
-#include "File/FilePath.h"
-#include "Utillity/SafePtr.h"
 
 #include <mutex>
 #include <string_view>

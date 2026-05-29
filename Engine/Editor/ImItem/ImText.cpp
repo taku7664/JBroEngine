@@ -1,45 +1,8 @@
 #include "pch.h"
 #include "ImText.h"
+#include <algorithm>
 
-ImText::ImText(const char* text)
-	: m_scale(1.0f)
-	, m_align(Align::Left)
-{
-	if (text)
-	{
-		operator()(text);
-	}
-}
-
-ImText::ImText(const char* text, Align align)
-	: m_scale(1.0f)
-	, m_align(align)
-{
-	if (text)
-	{
-		operator()(text);
-	}
-}
-
-ImText::ImText(const char* text, float scale, Align align)
-	: m_scale(scale)
-	, m_align(align)
-{
-	if (text)
-	{
-		operator()(text);
-	}
-}
-
-ImText::ImText( Align align )
-	: m_scale(1.0f)
-	, m_align(align)
-{
-}
-
-ImText::ImText( float scale , Align align )
-	: m_scale( scale )
-	, m_align( align )
+ImText::ImText()
 {
 }
 
@@ -47,50 +10,161 @@ ImText::~ImText()
 {
 }
 
-void ImText::operator()( const char* text )
+ImText& ImText::SetAlign(Align align)
 {
-	operator()( text , m_scale , m_align );
+	m_align = align;
+	return *this;
 }
 
-void ImText::operator()( const char* text , Align align )
+ImText& ImText::SetScale(float scale)
 {
-	operator()( text , m_scale , align );
+	m_scale = scale;
+	return *this;
 }
 
-void ImText::operator()( const char* text , float scale , Align align )
+ImText& ImText::SetHoveredTooltip(bool use, ImGuiHoveredFlags flags)
 {
-	if ( scale > 0 )
-	{
-		ImGuiWindow* window = ImGui::GetCurrentWindow();
-		float old = window->FontWindowScale;
-		ImGui::SetWindowFontScale( scale );
-
-		float windowWidth = ImGui::GetWindowSize().x;
-		float textWidth = ImGui::CalcTextSize( text ).x;
-		float weight = 0.0f;
-		ImVec2 spacing = ImVec2( 0 , 0 );
-
-		switch ( align )
-		{
-		case Align::Left:
-			weight = 0.0f;
-			spacing = ImGui::GetStyle().ItemSpacing;
-			break;
-		case Align::Right:
-			weight = 1.0f;
-			spacing = -ImGui::GetStyle().ItemSpacing;
-			break;
-		case Align::Center:
-			weight = 0.5f;
-			break;
-		default:
-			break;
-		}
-
-		ImGui::SetCursorPosX( spacing.x + ( windowWidth - textWidth ) * weight );
-		ImGui::Text( "%s" , text );
-
-		ImGui::SetWindowFontScale( old );
-	}
+	m_hovered = { use, flags };
+	return *this;
 }
 
+ImText& ImText::UseSeparator(bool use)
+{
+	m_bUseSeparator = use;
+	return *this;
+}
+
+void ImText::operator()(const char* text)
+{
+    // Always render text. If scale <= 0, fallback to 1.0f
+    const float scale = (m_scale > 0.0f) ? m_scale : 1.0f;
+
+    ImGuiWindow* window = ImGui::GetCurrentWindow();
+    float old = window->FontWindowScale;
+    ImGui::SetWindowFontScale(scale);
+
+    // Use content region width so alignment respects padding/scrolling
+    float regionWidth = ImGui::GetContentRegionAvail().x;
+    float textWidth = ImGui::CalcTextSize(text).x * scale;
+    float weight = 0.0f;
+    ImVec2 spacing = ImVec2(0, 0);
+
+    switch (m_align)
+    {
+    case Align::Left:
+        weight = 0.0f;
+        spacing = ImGui::GetStyle().ItemSpacing;
+        break;
+    case Align::Right:
+        weight = 1.0f;
+        spacing = -ImGui::GetStyle().ItemSpacing;
+        break;
+    case Align::Center:
+        weight = 0.5f;
+        break;
+    default:
+        break;
+    }
+
+    // Compute cursor X based on available region
+    const float availX = ImGui::GetCursorPosX();
+    ImGui::SetCursorPosX(availX + spacing.x + (regionWidth - textWidth) * weight);
+
+    if (m_bUseSeparator)
+    {
+        ImGui::SeparatorText(text);
+    }
+    else
+    {
+        ImGui::TextUnformatted(text);
+    }
+
+    // Tooltip when hovered
+    if (m_hovered.first && ImGui::IsItemHovered(m_hovered.second))
+    {
+        ImGui::BeginTooltip();
+        ImGui::TextUnformatted(text);
+        ImGui::EndTooltip();
+    }
+
+    ImGui::SetWindowFontScale(old);
+}
+
+ImInputText& ImInputText::SetMaxLength(size_t maxLength)
+{
+    m_maxLength = maxLength;
+    if (m_buffer.size() > m_maxLength)
+    {
+        m_buffer.resize(m_maxLength);
+    }
+    m_buffer.reserve(std::max(m_buffer.size(), m_maxLength));
+    return *this;
+}
+
+ImInputText& ImInputText::SetHintText(const char* hintStr)
+{
+    m_hint = hintStr;
+    return *this;
+}
+
+const char* ImInputText::GetBuffer() const
+{
+    return m_buffer.c_str();
+}
+
+bool ImInputText::operator()(ImGuiInputTextFlags flags, bool invalid)
+{
+    if (invalid)
+    {
+        const ImVec4 red(0.85f, 0.20f, 0.20f, 1.0f);
+        ImGui::PushStyleColor(ImGuiCol_Border, red);
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.5f);
+    }
+    ImGui::PushID(this);
+    const bool changed = (m_hint.empty())
+        ? ImGui::InputText("##iminputtext", &m_buffer, flags)
+        : ImGui::InputTextWithHint("##iminputtext", m_hint.c_str(), &m_buffer, flags);
+
+    // enforce max length after editing
+    if (m_maxLength != ULLONG_MAX && m_buffer.size() > m_maxLength)
+    {
+        m_buffer.resize(m_maxLength);
+    }
+    if (invalid)
+    {
+        ImGui::PopStyleVar();
+        ImGui::PopStyleColor();
+    }
+    ImGui::PopID();
+    return changed;
+}
+
+ImInputText::ImInputText(size_t maxLength)
+    : m_maxLength(maxLength)
+{
+    if (m_maxLength != ULLONG_MAX)
+        m_buffer.reserve(m_maxLength);
+}
+
+ImInputText::operator const char* ()
+{
+    return GetBuffer();
+}
+
+ImInputText& ImInputText::SetText(const std::string& text)
+{
+    m_buffer = text;
+    if (m_buffer.size() > m_maxLength)
+        m_buffer.resize(m_maxLength);
+    return *this;
+}
+
+void ImInputText::Clear()
+{
+    m_buffer.clear();
+}
+
+const std::string& ImInputText::GetString() const
+{
+    return m_buffer;
+}

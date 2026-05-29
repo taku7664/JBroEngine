@@ -1,7 +1,5 @@
 #pragma once
 
-#include "imgui/imgui_internal.h"
-
 struct ImTreeDrawContext
 {
     ImRect RowRect;

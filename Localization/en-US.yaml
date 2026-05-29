@@ -90,6 +90,7 @@ Entries:
   asset_browser.script_popup.title: New Script
   asset_browser.script_popup.class_name: Class Name
   asset_browser.script_popup.properties: Properties
+  asset_browser.script_popup.property_hint: Property name
   asset_browser.compile_fail.title: Script Compile Failed
   asset_browser.compile_fail.description: The automatic compile has failed. Build log is shown below.
   asset_browser.add_asset: Add Asset

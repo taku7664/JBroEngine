@@ -197,7 +197,7 @@ void CRootDockWindow::OnRenderStay()
 
 	if (projectManager && false == projectManager->IsProjectLoaded())
 	{
-		ImText(Loc::Text("root.no_project_loaded"), ImText::Align::Center);
+		//ImText(Loc::Text("root.no_project_loaded"), ImText::Align::Center);
 	}
 }
 

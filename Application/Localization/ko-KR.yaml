@@ -90,6 +90,7 @@ Entries:
   asset_browser.script_popup.title: 새 스크립트
   asset_browser.script_popup.class_name: 클래스 이름
   asset_browser.script_popup.properties: 프로퍼티
+  asset_browser.script_popup.property_hint: 프로퍼티 이름
   asset_browser.compile_fail.title: 스크립트 컴파일 실패
   asset_browser.compile_fail.description: 자동 컴파일이 실패했습니다. 빌드 로그는 아래와 같습니다.
   asset_browser.add_asset: 에셋 추가

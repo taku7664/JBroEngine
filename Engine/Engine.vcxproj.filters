@@ -725,33 +725,6 @@
     <ClInclude Include="ThirdParty\imconfig.h">
       <Filter>Header</Filter>
     </ClInclude>
-    <ClInclude Include="ThirdParty\imgui\imconfig.h">
-      <Filter>Header</Filter>
-    </ClInclude>
-    <ClInclude Include="ThirdParty\imgui\imgui.h">
-      <Filter>Header</Filter>
-    </ClInclude>
-    <ClInclude Include="ThirdParty\imgui\imgui_impl_dx11.h">
-      <Filter>Header</Filter>
-    </ClInclude>
-    <ClInclude Include="ThirdParty\imgui\imgui_impl_win32.h">
-      <Filter>Header</Filter>
-    </ClInclude>
-    <ClInclude Include="ThirdParty\imgui\imgui_internal.h">
-      <Filter>Header</Filter>
-    </ClInclude>
-    <ClInclude Include="ThirdParty\imgui\imgui_stdlib.h">
-      <Filter>Header</Filter>
-    </ClInclude>
-    <ClInclude Include="ThirdParty\imgui\imstb_rectpack.h">
-      <Filter>Header</Filter>
-    </ClInclude>
-    <ClInclude Include="ThirdParty\imgui\imstb_textedit.h">
-      <Filter>Header</Filter>
-    </ClInclude>
-    <ClInclude Include="ThirdParty\imgui\imstb_truetype.h">
-      <Filter>Header</Filter>
-    </ClInclude>
     <ClInclude Include="ThirdParty\yaml-cpp\anchor.h">
       <Filter>Header</Filter>
     </ClInclude>
@@ -867,6 +840,36 @@
       <Filter>Header</Filter>
     </ClInclude>
     <ClInclude Include="Editor\ImItem\ImTree.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\ImItem\ImList.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\imgui\imconfig.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\imgui\imgui.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\imgui\imgui_impl_dx11.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\imgui\imgui_impl_win32.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\imgui\imgui_internal.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\imgui\imgui_stdlib.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\imgui\imstb_rectpack.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\imgui\imstb_textedit.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\imgui\imstb_truetype.h">
       <Filter>Header</Filter>
     </ClInclude>
   </ItemGroup>
@@ -1144,6 +1147,12 @@
     <ClCompile Include="Editor\ImWindow\ImWindowContext.cpp">
       <Filter>Source</Filter>
     </ClCompile>
+    <ClCompile Include="Editor\ImItem\ImTree.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\ImItem\ImList.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
     <ClCompile Include="ThirdParty\imgui\imgui.cpp">
       <Filter>Source</Filter>
     </ClCompile>
@@ -1166,9 +1175,6 @@
       <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="ThirdParty\imgui\imgui_widgets.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="Editor\ImItem\ImTree.cpp">
       <Filter>Source</Filter>
     </ClCompile>
   </ItemGroup>

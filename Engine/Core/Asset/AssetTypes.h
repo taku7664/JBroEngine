@@ -1,6 +1,10 @@
 #pragma once
 
-#include "File/FilePath.h"
+// File::Guid / File::NULL_GUID 정의 — SDK 사용자가 PCH 없이도 빌드 가능하도록
+// transitive 가 아닌 직접 include 로 보장.
+// 경로는 Engine($(SolutionDir) 기준) / SDK(SDK/Include 기준) 양쪽에서 모두 통하도록
+// "Utillity/..." prefix 를 사용.
+#include "Utillity/File/FilePath.h"
 
 #include <cstdint>
 #include <string>
