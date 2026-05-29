@@ -18,23 +18,33 @@ public:
 	bool ImportAsset(const AssetImportDesc& desc, AssetMetaData* outMetaData = nullptr) override;
 	bool LoadRegistryFromMetaFiles() override;
 	bool RefreshAssetRegistry() override;
-	bool SetAssetRootPath(const char* assetRootPath) override;
-	const char* GetAssetRootPath() const override;
-	bool ResolveAssetPath(const char* path, std::string& outResolvedPath) const override;
+	bool SetAssetRootPath(const File::Path& assetRootPath) override;
+	const File::Path& GetAssetRootPath() const override;
+	bool ResolveAssetPath(const File::Path& path, File::Path& outResolvedPath) const override;
 
 	SafePtr<IAsset> FindLoadedAsset(const AssetGuid& guid) const override;
 	SafePtr<IAsset> LoadAsset(const AssetGuid& guid) override;
-	SafePtr<IAsset> LoadAssetByPath(const char* path) override;
+	SafePtr<IAsset> LoadAssetByPath(const File::Path& path) override;
 	SafePtr<IAsset> ReloadAsset(const AssetGuid& guid) override;
-	SafePtr<IAsset> ReloadAssetByPath(const char* path) override;
+	SafePtr<IAsset> ReloadAssetByPath(const File::Path& path) override;
 	void UnloadAsset(const AssetGuid& guid) override;
+	bool UnregisterAssetByPath(const File::Path& path, bool unloadIfLoaded) override;
 	bool BuildAssetPackage(const AssetPackageBuildDesc& desc) override;
-	bool LoadPackedAssetManifest(const char* manifestPath) override;
+	bool LoadPackedAssetManifest(const File::Path& manifestPath) override;
+
+	bool RegisterAssetByPath(const File::Path& path, EAssetType type, bool isPersistent) override;
+	bool SetAssetPersistent(const AssetGuid& guid, bool isPersistent) override;
+	void UnloadNonPersistentAssets() override;
 
 private:
 	IAssetLoader* FindLoader(EAssetType type) const;
 	bool RegisterMetaData(const AssetMetaData& metaData);
+	OwnerPtr<IAsset> LoadAssetInternal(const AssetMetaData& metaData);
 	AssetGuid MakeUniqueAssetGuid() const;
+	// path 정규화 후 그것을 GUID 문자열로 사용 — 같은 path = 같은 GUID.
+	// 일반 import GUID(UUID 형식)와 형태가 달라 충돌 없음.
+	static AssetGuid MakePathBasedGuid(const File::Path& path);
+	// 전체 unload — Finalize 에서만 사용.
 	void UnloadAllAssets();
 	static const File::Path& ResolvePathFromActiveRegistry(const File::Guid& guid);
 	static const File::Guid& ResolveGuidFromActiveRegistry(const File::Path& path);
@@ -43,6 +53,6 @@ private:
 	CAssetRegistry m_registry;
 	std::unordered_map<EAssetType, OwnerPtr<IAssetLoader>> m_loaderTable;
 	std::unordered_map<AssetGuid, OwnerPtr<IAsset>> m_loadedAssetTable;
-	std::string m_assetRootPath = "Assets";
+	File::Path m_assetRootPath = "Assets";
 	bool m_isInitialized = false;
 };

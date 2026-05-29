@@ -23,16 +23,32 @@ public:
 	virtual bool ImportAsset(const AssetImportDesc& desc, AssetMetaData* outMetaData = nullptr) = 0;
 	virtual bool LoadRegistryFromMetaFiles() = 0;
 	virtual bool RefreshAssetRegistry() = 0;
-	virtual bool SetAssetRootPath(const char* assetRootPath) = 0;
-	virtual const char* GetAssetRootPath() const = 0;
-	virtual bool ResolveAssetPath(const char* path, std::string& outResolvedPath) const = 0;
+	virtual bool SetAssetRootPath(const File::Path& assetRootPath) = 0;
+	virtual const File::Path& GetAssetRootPath() const = 0;
+	virtual bool ResolveAssetPath(const File::Path& path, File::Path& outResolvedPath) const = 0;
 
 	virtual SafePtr<IAsset> FindLoadedAsset(const AssetGuid& guid) const = 0;
 	virtual SafePtr<IAsset> LoadAsset(const AssetGuid& guid) = 0;
-	virtual SafePtr<IAsset> LoadAssetByPath(const char* path) = 0;
+	virtual SafePtr<IAsset> LoadAssetByPath(const File::Path& path) = 0;
 	virtual SafePtr<IAsset> ReloadAsset(const AssetGuid& guid) = 0;
-	virtual SafePtr<IAsset> ReloadAssetByPath(const char* path) = 0;
+
+	// ── path-only 등록 (.Jmeta 없이) ──────────────────────────────────────────
+	// 자산을 path + type 만으로 in-memory registry 에 등록한다. .Jmeta 디스크 저장 X.
+	// GUID 는 path 기반 deterministic — 같은 path = 같은 GUID, 재실행/재등록 시에도 안정.
+	// isPersistent 는 라이프사이클 플래그(아래 SetAssetPersistent 와 직교).
+	virtual bool RegisterAssetByPath(const File::Path& path, EAssetType type, bool isPersistent) = 0;
+
+	// ── Persistent 플래그 토글 (라이프사이클 제어) ──────────────────────────
+	// 이미 등록된 자산의 IsPersistent 를 켜거나 끈다.
+	// 등록 방식(.Jmeta 유무) 과는 무관 — 일반 import 자산도 persistent 로 표시할 수 있다.
+	virtual bool SetAssetPersistent(const AssetGuid& guid, bool isPersistent) = 0;
+
+	// IsPersistent == false 인 자산만 unload + registry 에서 제거.
+	// 프로젝트 닫힘 등 "한 작업 단위 끝" 시점에 호출. Persistent 자산은 보존된다.
+	virtual void UnloadNonPersistentAssets() = 0;
+	virtual SafePtr<IAsset> ReloadAssetByPath(const File::Path& path) = 0;
 	virtual void UnloadAsset(const AssetGuid& guid) = 0;
+	virtual bool UnregisterAssetByPath(const File::Path& path, bool unloadIfLoaded) = 0;
 	virtual bool BuildAssetPackage(const AssetPackageBuildDesc& desc) = 0;
-	virtual bool LoadPackedAssetManifest(const char* manifestPath) = 0;
+	virtual bool LoadPackedAssetManifest(const File::Path& manifestPath) = 0;
 };

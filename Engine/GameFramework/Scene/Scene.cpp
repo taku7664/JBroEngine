@@ -363,6 +363,16 @@ const CPhysics2DSystem* CScene::GetPhysics2DSystem() const
 	return m_physicsSystem.Get();
 }
 
+void CScene::SetReferencedAssets(std::vector<AssetGuid> referencedAssets)
+{
+	m_referencedAssets = std::move(referencedAssets);
+}
+
+const std::vector<AssetGuid>& CScene::GetReferencedAssets() const
+{
+	return m_referencedAssets;
+}
+
 void CScene::Clear()
 {
 	for (OwnerPtr<CGameSystem>& system : m_systems)
@@ -398,6 +408,7 @@ void CScene::ClearObjects()
 {
 	m_componentPools.clear();
 	m_entityManager.Clear();
+	m_referencedAssets.clear();
 }
 
 bool CScene::AttachToParent(EntityId child, EntityId parent)

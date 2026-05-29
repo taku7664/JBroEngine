@@ -36,9 +36,9 @@ namespace
 	}
 }
 
-bool CAssetMetaFile::Load(const char* path, AssetMetaData& outMetaData)
+bool CAssetMetaFile::Load(const File::Path& path, AssetMetaData& outMetaData)
 {
-	if (nullptr == path)
+	if (path.empty())
 	{
 		return false;
 	}
@@ -105,9 +105,9 @@ bool CAssetMetaFile::Load(const char* path, AssetMetaData& outMetaData)
 	return true;
 }
 
-bool CAssetMetaFile::Save(const char* path, const AssetMetaData& metaData)
+bool CAssetMetaFile::Save(const File::Path& path, const AssetMetaData& metaData)
 {
-	if (nullptr == path)
+	if (path.empty())
 	{
 		return false;
 	}
@@ -220,8 +220,6 @@ const char* CAssetMetaFile::ToString(EAssetType type)
 {
 	switch (type)
 	{
-	case EAssetType::Texture:
-		return "Texture";
 	case EAssetType::Sprite:
 		return "Sprite";
 	case EAssetType::Mesh:
@@ -245,7 +243,8 @@ const char* CAssetMetaFile::ToString(EAssetType type)
 
 EAssetType CAssetMetaFile::ParseType(const std::string& value)
 {
-	if (value == "Texture") return EAssetType::Texture;
+	// Texture 폐기 — 기존 .Jmeta 호환을 위해 Sprite 로 자동 매핑.
+	if (value == "Texture") return EAssetType::Sprite;
 	if (value == "Sprite") return EAssetType::Sprite;
 	if (value == "Mesh") return EAssetType::Mesh;
 	if (value == "Material") return EAssetType::Material;

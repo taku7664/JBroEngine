@@ -9,12 +9,12 @@
 #include "Core/Logging/Logger.h"
 #include "Core/Logging/LoggerInternal.h"
 #include "Core/Localization/LocalizationManager.h"
+#include "Core/Resource/ResourceRegistry.h"
 #include "Core/Module/Module.h"
 #include "Core/Asset/AssetManager.h"
 #include "Core/Asset/FileAsset.h"
 #include "Core/Asset/MaterialAsset.h"
 #include "Core/Asset/SpriteAsset.h"
-#include "Core/Asset/TextureAsset.h"
 #include "Core/Platform/IPlatform.h"
 #include "Core/Platform/IRenderSurface.h"
 #include "Core/Renderer/Forward2DRenderer.h"
@@ -26,7 +26,9 @@
 #include "Core/RHI/D3D11/D3D11RHIDevice.h"
 #include "Core/RHI/WebGPU/WebGPURHIDevice.h"
 #include "Core/RHI/EmptyRHIDevice.h"
-#include "Core/Thread/ThreadService.h"
+#include "Core/Task/TaskManager.h"
+#include "Core/Random/RandomService.h"
+#include "Core/Math/MathService.h"
 #include "Core/Time/Time.h"
 #include "Core/Network/NetworkManager.h"
 #include "Core/Network/INetworkManager.h"
@@ -73,12 +75,25 @@ bool CEngine::Initialize()
 		return false;
 	}
 
+	// AssetManager 가 준비된 직후 ResourceRegistry 를 부트스트랩.
+	// Resources/resources.yaml 에 기술된 영구 리소스를 persistent 로 등록 + 즉시 로드한다.
+	m_resourceRegistry = MakeOwnerPtr<CResourceRegistry>();
+	if (m_resourceRegistry)
+	{
+		m_resourceRegistry->Initialize(File::Path("Resources"),
+		                               File::Path("resources.yaml"),
+		                               m_assetManager.GetSafePtr(),
+		                               m_rhiDevice.GetSafePtr());
+		Core::ResourceRegistry   = m_resourceRegistry.GetSafePtr();
+		Engine.ResourceRegistry  = Core::ResourceRegistry;
+	}
+
 	if (false == InitializeRenderer())
 	{
 		return false;
 	}
 
-	SyncContext();
+	SyncEngineCore();
 	m_isInitialized = true;
 	return true;
 }
@@ -94,7 +109,7 @@ bool CEngine::Update()
 	m_isApplicationFocused = platformEvent.IsFocused;
 	m_applicationFocusGained = platformEvent.FocusGained;
 	m_applicationFocusLost = platformEvent.FocusLost;
-	SyncContext();
+	SyncEngineCore();
 
 	if (platformEvent.WantsExit)
 	{
@@ -118,6 +133,23 @@ void CEngine::Finalize()
 	}
 	m_renderScene.Reset();
 
+	Core::TaskManager = nullptr;
+	if (m_taskManager)
+	{
+		m_taskManager->Finalize();
+		m_taskManager.Reset();
+	}
+
+	// ResourceRegistry 가 AssetManager 보다 먼저 정리되어야 한다 — 보유 중인 SafePtr<IAsset>
+	// 가 AssetManager 의 객체를 참조하기 때문.
+	Core::ResourceRegistry = nullptr;
+	if (m_resourceRegistry)
+	{
+		m_resourceRegistry->Finalize();
+		m_resourceRegistry.Reset();
+	}
+
+	Core::AssetManager = nullptr;
 	if (m_assetManager)
 	{
 		m_assetManager->Finalize();
@@ -140,12 +172,10 @@ void CEngine::Finalize()
 
 	Core::SceneManager = nullptr;
 	m_sceneManager.Reset();
-	Core::Thread = nullptr;
-	if (m_threadService)
-	{
-		m_threadService->Finalize();
-		m_threadService.Reset();
-	}
+	Core::Random = nullptr;
+	m_randomService.Reset();
+	Core::Math = nullptr;
+	m_mathService.Reset();
 	Core::Reflection = nullptr;
 	m_reflectionRegistry.Reset();
 	Core::Logger = nullptr;
@@ -180,18 +210,18 @@ void CEngine::Finalize()
 		m_platform.Reset();
 	}
 
-	SyncContext();
+	SyncEngineCore();
 	m_isInitialized = false;
 }
 
 void CEngine::InitializeModule(CModule& module, const char* moduleName)
 {
-	SyncContext();
+	SyncEngineCore();
 	if (std::find(m_modules.begin(), m_modules.end(), &module) == m_modules.end())
 	{
 		m_modules.push_back(&module);
 	}
-	module.Initialize(moduleName, m_context);
+	module.Initialize(moduleName, Engine);
 }
 
 void CEngine::FinalizeModule(CModule& module)
@@ -200,9 +230,9 @@ void CEngine::FinalizeModule(CModule& module)
 	m_modules.erase(std::remove(m_modules.begin(), m_modules.end(), &module), m_modules.end());
 }
 
-const EngineContext& CEngine::GetContext() const
+const EngineCore& CEngine::GetEngineCore() const
 {
-	return m_context;
+	return Engine;
 }
 
 SafePtr<IPlatform> CEngine::GetPlatform() const
@@ -245,23 +275,25 @@ bool CEngine::InitializeCoreServices()
 	m_time = MakeOwnerPtr<CTime>();
 	m_input = MakeOwnerPtr<CInput>();
 	m_fileSystem = MakeOwnerPtr<CFileSystem>();
-	m_threadService = MakeOwnerPtr<CThreadService>();
+	m_taskManager = MakeOwnerPtr<CTaskManager>();
+	m_randomService = MakeOwnerPtr<CRandomService>();
+	m_mathService = MakeOwnerPtr<CMathService>();
 	m_reflectionRegistry = MakeOwnerPtr<CReflectionRegistry>();
 	m_logger = MakeOwnerPtr<CLogger>();
 	m_debug = MakeOwnerPtr<CDebug>();
 	m_localization = MakeOwnerPtr<CLocalizationManager>();
 	m_sceneManager = MakeOwnerPtr<CSceneManager>();
-	if (!m_time || !m_input || !m_fileSystem || !m_threadService || !m_reflectionRegistry || !m_logger || !m_debug || !m_localization || !m_sceneManager)
+	if (!m_time || !m_input || !m_fileSystem || !m_taskManager || !m_randomService || !m_mathService || !m_reflectionRegistry || !m_logger || !m_debug || !m_localization || !m_sceneManager)
 	{
 		return false;
 	}
 
 	m_time->Reset();
-	if (false == m_fileSystem->Initialize("Assets", EFileSystemAccess::ReadWrite))
+	if (false == m_fileSystem->Initialize(File::Path("Assets"), EFileSystemAccess::ReadWrite))
 	{
 		return false;
 	}
-	if (false == m_threadService->Initialize())
+	if (false == m_taskManager->Initialize())
 	{
 		return false;
 	}
@@ -271,7 +303,9 @@ bool CEngine::InitializeCoreServices()
 	Core::Time = m_time.GetSafePtr();
 	Core::Input = m_input.GetSafePtr();
 	Core::FileSystem = m_fileSystem.GetSafePtr();
-	Core::Thread = m_threadService.GetSafePtr();
+	Core::TaskManager = m_taskManager.GetSafePtr();
+	Core::Random = m_randomService.GetSafePtr();
+	Core::Math = m_mathService.GetSafePtr();
 	Core::Reflection = m_reflectionRegistry.GetSafePtr();
 	Core::Logger = m_logger.GetSafePtr();
 	Core::Debug = m_debug.GetSafePtr();
@@ -283,7 +317,9 @@ bool CEngine::InitializeCoreServices()
 	Engine.Time = Core::Time;
 	Engine.Input = Core::Input;
 	Engine.FileSystem = Core::FileSystem;
-	Engine.Thread = Core::Thread;
+	Engine.TaskManager = Core::TaskManager;
+	Engine.Random = Core::Random;
+	Engine.Math = Core::Math;
 	Engine.Reflection = Core::Reflection;
 	Engine.Logger = Core::Logger;
 	Engine.Localization = Core::Localization;
@@ -321,7 +357,7 @@ bool CEngine::InitializeNetwork()
 
 	Core::Network = m_networkManager.GetSafePtr();
 	Engine.Network = Core::Network;
-	m_context.NetworkManager = m_networkManager.GetSafePtr();
+	SyncEngineCore();
 	CSystemLog::Info("Network initialized.");
 	return true;
 }
@@ -370,7 +406,7 @@ bool CEngine::InitializeAssetManager()
 {
 	m_assetManager = MakeOwnerPtr<CAssetManager>();
 	AssetManagerDesc desc;
-	desc.AssetRootPath = "Assets";
+	desc.AssetRootPath = File::Path("Assets");
 	if (!m_assetManager || false == m_assetManager->Initialize(desc))
 	{
 		return false;
@@ -381,7 +417,6 @@ bool CEngine::InitializeAssetManager()
 	m_assetManager->RegisterLoader(MakeOwnerPtr<CFileAssetLoader>(EAssetType::Shader));
 	m_assetManager->RegisterLoader(MakeOwnerPtr<CFileAssetLoader>(EAssetType::Script));
 	m_assetManager->RegisterLoader(MakeOwnerPtr<CFileAssetLoader>(EAssetType::Custom));
-	m_assetManager->RegisterLoader(MakeOwnerPtr<CTextureAssetLoader>());
 	m_assetManager->RegisterLoader(MakeOwnerPtr<CSpriteAssetLoader>());
 	m_assetManager->RegisterLoader(MakeOwnerPtr<CMaterialAssetLoader>());
 	return true;
@@ -417,9 +452,9 @@ void CEngine::BeginFrame()
 	{
 		m_input->BeginFrame();
 	}
-	if (m_threadService)
+	if (m_taskManager)
 	{
-		m_threadService->ExecuteMainThreadTasks();
+		m_taskManager->DrainMainThreadCallbacks();
 	}
 
 	for (CModule* module : m_modules)
@@ -550,24 +585,45 @@ void CEngine::FillRenderSurfaceDesc(RHIDesc& desc) const
 	desc.Surface.Size = mainRenderSurface->GetSize();
 }
 
-void CEngine::SyncContext()
+void CEngine::SyncEngineCore()
 {
-	m_context.Platform          = GetPlatform();
-	m_context.MainRenderSurface = GetMainRenderSurface();
-	m_context.RHIDevice         = GetRHIDevice();
-	m_context.AssetManager      = GetAssetManager();
-	m_context.Renderer          = GetRenderer();
-	m_context.RenderScene       = GetRenderScene();
-	m_context.Time              = m_time              ? m_time.GetSafePtr()              : nullptr;
-	m_context.Input             = m_input             ? m_input.GetSafePtr()             : nullptr;
-	m_context.SceneManager      = m_sceneManager      ? m_sceneManager.GetSafePtr()      : nullptr;
-	m_context.FileSystem        = m_fileSystem        ? m_fileSystem.GetSafePtr()        : nullptr;
-	m_context.Thread            = m_threadService     ? m_threadService.GetSafePtr()     : nullptr;
-	m_context.Reflection        = m_reflectionRegistry ? m_reflectionRegistry.GetSafePtr() : nullptr;
-	m_context.Logger            = m_logger            ? m_logger.GetSafePtr()            : nullptr;
-	m_context.Localization      = m_localization      ? m_localization.GetSafePtr()      : nullptr;
-	m_context.NetworkManager    = m_networkManager    ? m_networkManager.GetSafePtr()    : nullptr;
-	m_context.IsApplicationFocused = m_isApplicationFocused;
-	m_context.ApplicationFocusGained = m_applicationFocusGained;
-	m_context.ApplicationFocusLost = m_applicationFocusLost;
+	Engine.Platform = GetPlatform();
+	Engine.MainRenderSurface = GetMainRenderSurface();
+	Engine.RHIDevice = GetRHIDevice();
+	Engine.AssetManager = GetAssetManager();
+	Engine.Renderer = GetRenderer();
+	Engine.RenderScene = GetRenderScene();
+	Engine.Debug = m_debug ? m_debug.GetSafePtr() : nullptr;
+	Engine.Time = m_time ? m_time.GetSafePtr() : nullptr;
+	Engine.Input = m_input ? m_input.GetSafePtr() : nullptr;
+	Engine.SceneManager = m_sceneManager ? m_sceneManager.GetSafePtr() : nullptr;
+	Engine.FileSystem = m_fileSystem ? m_fileSystem.GetSafePtr() : nullptr;
+	Engine.TaskManager = m_taskManager ? m_taskManager.GetSafePtr() : nullptr;
+	Engine.Random = m_randomService ? m_randomService.GetSafePtr() : nullptr;
+	Engine.Math = m_mathService ? m_mathService.GetSafePtr() : nullptr;
+	Engine.Reflection = m_reflectionRegistry ? m_reflectionRegistry.GetSafePtr() : nullptr;
+	Engine.Logger = m_logger ? m_logger.GetSafePtr() : nullptr;
+	Engine.Localization = m_localization ? m_localization.GetSafePtr() : nullptr;
+	Engine.ResourceRegistry = m_resourceRegistry ? m_resourceRegistry.GetSafePtr() : nullptr;
+	Engine.Network = m_networkManager ? m_networkManager.GetSafePtr() : nullptr;
+	Engine.DebugDraw2D = m_debugDraw ? m_debugDraw.GetSafePtr() : nullptr;
+	Engine.IsApplicationFocused = m_isApplicationFocused;
+	Engine.ApplicationFocusGained = m_applicationFocusGained;
+	Engine.ApplicationFocusLost = m_applicationFocusLost;
+
+	Core::Time = Engine.Time;
+	Core::Input = Engine.Input;
+	Core::SceneManager = Engine.SceneManager;
+	Core::FileSystem = Engine.FileSystem;
+	Core::AssetManager = Engine.AssetManager;
+	Core::TaskManager = Engine.TaskManager;
+	Core::Random = Engine.Random;
+	Core::Math = Engine.Math;
+	Core::Reflection = Engine.Reflection;
+	Core::Logger = Engine.Logger;
+	Core::Localization = Engine.Localization;
+	Core::ResourceRegistry = Engine.ResourceRegistry;
+	Core::Network = Engine.Network;
+	Core::DebugDraw2D = Engine.DebugDraw2D;
+	Core::Debug = Engine.Debug;
 }

@@ -31,10 +31,17 @@ public:
 	LiveCompileResult RebuildAndReload() override;
 	IGameModule* GetGameModule() const override;
 	ELiveCompileState GetState() const override;
+	std::string ConsumeLastFailureMessage() override;
 
 private:
 	File::Path MakeLoadableLibraryPath() const;
 	void DestroyCurrentModule();
+
+	// 오래된 stamp 폴더(IntermediateDirectory/Debug/<stamp>, Release/<stamp>)와
+	// IntermediateDirectory 안의 GameScript_<serial>.dll 들을 LastWriteTime
+	// 기준으로 정렬해 keepMostRecent 개만 남기고 정리한다.
+	// 잠금된(현재 로드중) 파일은 자동으로 skip.
+	void CleanupOldArtifacts(int keepMostRecent) const;
 
 	// ── 핫리로드 스크립트 필드 스냅샷 ──────────────────────────────────────
 	// DestroyCurrentModule() 호출 전에 찍고, 새 모듈 로드 후 복원한다.
@@ -68,4 +75,7 @@ private:
 
 	// 핫리로드 간 스크립트 필드 유지용 스냅샷
 	std::vector<ScriptFieldSnapshot> m_scriptSnapshots;
+
+	// 마지막 실패 메시지 (소비형 — Consume 호출 시 비워짐).
+	std::string m_lastFailureMessage;
 };

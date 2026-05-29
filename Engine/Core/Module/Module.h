@@ -1,6 +1,6 @@
 #pragma once
 
-struct EngineContext;
+struct EngineCore;
 
 class CModule abstract
 {
@@ -14,10 +14,10 @@ public:
 	CModule& operator=(CModule&&) = delete;
 
 protected:
-	const EngineContext* GetEngineContext() const;
+	const EngineCore* GetEngineCore() const;
 
 private:
-	void Initialize(const char* moduleName, const EngineContext& context);
+	void Initialize(const char* moduleName, const EngineCore& engineCore);
 	void Finalize();
 	void BeginFrame();
 	void Update();
@@ -37,6 +37,6 @@ private:
 
 private:
 	std::string m_moduleName;
-	const EngineContext* m_engineContext = nullptr;
+	const EngineCore* m_engineCore = nullptr;
 };
 

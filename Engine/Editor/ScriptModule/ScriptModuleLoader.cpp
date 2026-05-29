@@ -54,10 +54,10 @@ CScriptModuleLoader::~CScriptModuleLoader()
 	Unload();
 }
 
-bool CScriptModuleLoader::Load(const char* dllPath, const GameModuleContext& context)
+bool CScriptModuleLoader::Load(const File::Path& dllPath, const GameModuleContext& context)
 {
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
-	if (nullptr == dllPath || '\0' == dllPath[0])
+	if (dllPath.empty())
 	{
 		return false;
 	}
@@ -69,7 +69,9 @@ bool CScriptModuleLoader::Load(const char* dllPath, const GameModuleContext& con
 		m_library = MakeOwnerPtr<CWindowsDynamicLibrary>();
 	}
 
-	if (false == m_library->Load(dllPath))
+	// 한글 사용자 경로 안전 처리 — wstring 으로 wide path 그대로 전달.
+	const std::wstring dllPathString = dllPath.wstring();
+	if (false == m_library->Load(dllPathString.c_str()))
 	{
 		return false;
 	}

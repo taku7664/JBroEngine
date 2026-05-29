@@ -80,14 +80,27 @@ void CImEditor::Update()
             }
         }
     }
-    if (false == m_imPopupWindowQueue.empty())
+    // 팝업 큐 처리. ImGui::OpenPopup / BeginPopupModal 의 stack 동작 때문에
+    // 한 프레임에 하나의 모달만 정상적으로 활성화된다 — FIFO 로 처리.
+    // 1) 외부 ClosePopup 으로 dead 표시된 항목은 Render 이전에 정리.
+    while (false == m_popups.empty() && (!m_popups.front() || false == m_popups.front()->IsAlive()))
     {
-        CImPopupWindow& popup = m_imPopupWindowQueue.front();
-        if (false == popup.Render())
+        m_popups.pop_front();
+    }
+    // 2) front 만 Render. Render 가 false 를 반환하면 그 자리에서 pop_front
+    //    하여 다음 프레임에 다음 항목이 활성화된다.
+    if (false == m_popups.empty())
+    {
+        if (false == m_popups.front()->Render())
         {
-            m_imPopupWindowQueue.pop();
+            m_popups.pop_front();
         }
     }
+    // 3) 대기 항목 중에도 외부에서 close 된 게 있을 수 있으므로 한 번 더 청소.
+    m_popups.erase(
+        std::remove_if(m_popups.begin(), m_popups.end(),
+            [](const OwnerPtr<CImPopupWindow>& p) { return !p || false == p->IsAlive(); }),
+        m_popups.end());
 
     while (false == m_delayEventQueue.empty())
     {
@@ -151,9 +164,9 @@ SafePtr<CProjectManager> CImEditor::GetProjectManager() const
 	return m_projectManager.GetSafePtr();
 }
 
-const EngineContext* CImEditor::GetEditorEngineContext() const
+const EngineCore* CImEditor::GetEditorEngineCore() const
 {
-	return GetEngineContext();
+	return GetEngineCore();
 }
 
 void CImEditor::RequestSceneViewRenderTarget(std::uint32_t width, std::uint32_t height)
@@ -228,9 +241,63 @@ void* CImEditor::GetGameViewTextureID() const
 	return m_gameViewRenderTarget->GetNativeHandle().ShaderResourceView;
 }
 
-void CImEditor::OpenPopup(const ImPopupDesc& desc)
+PopupHandle CImEditor::OpenPopup(const ImPopupDesc& desc)
 {
-    m_imPopupWindowQueue.push(desc);
+    // Id 가 비어있지 않으면 같은 Id 의 활성 팝업이 있는지 확인 후 재활용.
+    if (false == desc.Id.empty())
+    {
+        for (const OwnerPtr<CImPopupWindow>& p : m_popups)
+        {
+            if (p && p->IsAlive() && p->GetId() == desc.Id)
+            {
+                return p->GetHandle();
+            }
+        }
+    }
+
+    const PopupHandle handle = m_nextPopupHandle++;
+    if (INVALID_POPUP_HANDLE == m_nextPopupHandle) ++m_nextPopupHandle; // 0 회피(64bit 사실상 발생 X)
+
+    OwnerPtr<CImPopupWindow> popup = MakeOwnerPtr<CImPopupWindow>(handle, desc);
+    if (!popup)
+    {
+        return INVALID_POPUP_HANDLE;
+    }
+    m_popups.push_back(std::move(popup));
+    return handle;
+}
+
+void CImEditor::ClosePopup(PopupHandle handle)
+{
+    if (INVALID_POPUP_HANDLE == handle) return;
+    for (const OwnerPtr<CImPopupWindow>& p : m_popups)
+    {
+        if (p && p->GetHandle() == handle)
+        {
+            p->Close();
+            return;
+        }
+    }
+}
+
+bool CImEditor::IsPopupOpen(PopupHandle handle) const
+{
+    if (INVALID_POPUP_HANDLE == handle) return false;
+    for (const OwnerPtr<CImPopupWindow>& p : m_popups)
+    {
+        if (p && p->GetHandle() == handle) return p->IsAlive();
+    }
+    return false;
+}
+
+bool CImEditor::IsPopupOpenById(std::string_view id) const
+{
+    if (id.empty()) return false;
+    for (const OwnerPtr<CImPopupWindow>& p : m_popups)
+    {
+        if (p && p->IsAlive() && p->GetId() == id) return true;
+    }
+    return false;
 }
 
 void CImEditor::OnPreInitialize()
@@ -243,28 +310,28 @@ void CImEditor::OnPostInitialize()
     m_projectManager = MakeOwnerPtr<CProjectManager>();
     if (m_projectManager)
     {
-        if (const EngineContext* engineContext = GetEngineContext())
+        if (const EngineCore* engineCore = GetEngineCore())
         {
-            m_projectManager->Initialize(*engineContext);
+            m_projectManager->Initialize(*engineCore);
         }
     }
 
     // Initialize GPU debug/outline renderers.
-    if (const EngineContext* engineContext = GetEngineContext())
+    if (const EngineCore* engineCore = GetEngineCore())
     {
-        if (engineContext->RHIDevice.IsValid())
+        if (engineCore->RHIDevice.IsValid())
         {
             m_debugRenderer = MakeOwnerPtr<CDebugRenderer2D>();
             if (m_debugRenderer)
             {
-                if (false == m_debugRenderer->Initialize(engineContext->RHIDevice))
+                if (false == m_debugRenderer->Initialize(engineCore->RHIDevice))
                     m_debugRenderer.Reset();
             }
 
             m_outlineRenderer = MakeOwnerPtr<COutlineRenderer2D>();
             if (m_outlineRenderer)
             {
-                if (false == m_outlineRenderer->Initialize(engineContext->RHIDevice))
+                if (false == m_outlineRenderer->Initialize(engineCore->RHIDevice))
                     m_outlineRenderer.Reset();
             }
         }
@@ -349,16 +416,16 @@ void CImEditor::OnUpdate()
 
 void CImEditor::OnPrepareRender()
 {
-	const EngineContext* engineContext = GetEngineContext();
-	if (nullptr == engineContext ||
-	    false == engineContext->RHIDevice.IsValid() ||
-	    false == engineContext->Renderer.IsValid() ||
-	    false == engineContext->RenderScene.IsValid())
+	const EngineCore* engineCore = GetEngineCore();
+	if (nullptr == engineCore ||
+	    false == engineCore->RHIDevice.IsValid() ||
+	    false == engineCore->Renderer.IsValid() ||
+	    false == engineCore->RenderScene.IsValid())
 	{
 		return;
 	}
 
-	SafePtr<IRHICommandContext> commandContext = engineContext->RHIDevice->GetImmediateCommandContext();
+	SafePtr<IRHICommandContext> commandContext = engineCore->RHIDevice->GetImmediateCommandContext();
 	if (false == commandContext.IsValid())
 	{
 		return;
@@ -374,7 +441,7 @@ void CImEditor::OnPrepareRender()
 			desc.Format    = ERHITextureFormat::RGBA8;
 			desc.BindFlags = static_cast<RHITextureBindFlags>(ERHITextureBindFlag::ShaderResource) |
 			                 static_cast<RHITextureBindFlags>(ERHITextureBindFlag::RenderTarget);
-			rt = engineContext->RHIDevice->CreateTexture2D(desc, nullptr);
+			rt = engineCore->RHIDevice->CreateTexture2D(desc, nullptr);
 		}
 		return static_cast<bool>(rt);
 	};
@@ -395,21 +462,21 @@ void CImEditor::OnPrepareRender()
 		const float camY    = m_sceneViewCamY;
 		const float camSize = m_sceneViewCamSize;
 
-		engineContext->Renderer->SetRenderTargetSize(RenderSurfaceSize{ viewW, viewH });
-		engineContext->Renderer->SetViewCamera(camX, camY, camSize);
+		engineCore->Renderer->SetRenderTargetSize(RenderSurfaceSize{ viewW, viewH });
+		engineCore->Renderer->SetViewCamera(camX, camY, camSize);
 
 		// ── Step 0: 선택 마스크 패스 (아웃라인용, BeginRenderPass 밖) ─────────────
 		if (m_sceneViewHasSelection && m_outlineRenderer && !m_sceneViewSelectedEntities.empty())
 		{
-			if (CForward2DRenderer* fwd = dynamic_cast<CForward2DRenderer*>(engineContext->Renderer.TryGet()))
+			if (CForward2DRenderer* fwd = dynamic_cast<CForward2DRenderer*>(engineCore->Renderer.TryGet()))
 			{
 				m_outlineRenderer->RenderMask(
-					commandContext, *fwd, *engineContext->RenderScene,
+					commandContext, *fwd, *engineCore->RenderScene,
 					m_sceneViewSelectedEntities,
 					camX, camY, camSize, viewW, viewH);
 				// 카메라 설정 복원 (RenderMask 내부에서 변경됨)
-				engineContext->Renderer->SetRenderTargetSize(RenderSurfaceSize{ viewW, viewH });
-				engineContext->Renderer->SetViewCamera(camX, camY, camSize);
+				engineCore->Renderer->SetRenderTargetSize(RenderSurfaceSize{ viewW, viewH });
+				engineCore->Renderer->SetViewCamera(camX, camY, camSize);
 			}
 		}
 
@@ -430,16 +497,16 @@ void CImEditor::OnPrepareRender()
 		}
 
 		// ② 스프라이트 전체
-		engineContext->Renderer->Render(*engineContext->RenderScene);
+		engineCore->Renderer->Render(*engineCore->RenderScene);
 
 		if (m_sceneViewFocusActive && !m_sceneViewFocusEntities.empty())
 		{
 			// ③ 포커스 모드: 흰 오버레이 → 포커스 스프라이트 → 포커스 콜라이더
-			engineContext->Renderer->FillViewportColor(1.0f, 1.0f, 1.0f, 0.7f);
+			engineCore->Renderer->FillViewportColor(1.0f, 1.0f, 1.0f, 0.7f);
 
-			if (CForward2DRenderer* fwd = dynamic_cast<CForward2DRenderer*>(engineContext->Renderer.TryGet()))
+			if (CForward2DRenderer* fwd = dynamic_cast<CForward2DRenderer*>(engineCore->Renderer.TryGet()))
 			{
-				fwd->RenderFiltered(*engineContext->RenderScene, m_sceneViewFocusEntities);
+				fwd->RenderFiltered(*engineCore->RenderScene, m_sceneViewFocusEntities);
 			}
 
 			if (m_debugRenderer && Core::DebugDraw2D.IsValid())
@@ -520,7 +587,7 @@ void CImEditor::OnPrepareRender()
 			// Set sub-viewport for this camera.
 			commandContext->SetViewport(vpX, vpY, vpW, vpH);
 
-			engineContext->Renderer->SetRenderTargetSize(
+			engineCore->Renderer->SetRenderTargetSize(
 				RenderSurfaceSize{ static_cast<int>(vpW), static_cast<int>(vpH) });
 
 			// Clear this camera's viewport area with its own ClearColor (alpha included).
@@ -528,25 +595,25 @@ void CImEditor::OnPrepareRender()
 			// alpha ≤ 0 (1/255)이면 스킵 → 이전 카메라가 그린 내용을 보존(멀티카메라 합성).
 			if (cam.ClearColor[3] > (1.0f / 255.0f))
 			{
-				engineContext->Renderer->FillViewportColor(
+				engineCore->Renderer->FillViewportColor(
 					cam.ClearColor[0], cam.ClearColor[1],
 					cam.ClearColor[2], cam.ClearColor[3]);
 			}
 
 			// SetViewCameraEx: explicit halfW/halfH + rotation → stretch rendering.
 			//   scaleX → halfW (가로), scaleY → halfH (세로), cos/sinR → 회전.
-			engineContext->Renderer->SetViewCameraEx(
+			engineCore->Renderer->SetViewCameraEx(
 				cam.PosX, cam.PosY,
 				cam.OrthoSizeX, cam.OrthoSize,
 				cam.CosR, cam.SinR);
-			engineContext->Renderer->Render(*engineContext->RenderScene);
+			engineCore->Renderer->Render(*engineCore->RenderScene);
 
 			commandContext->EndRenderPass();
 		}
 	}
 
 	// Reset camera to default so the main swapchain render is unaffected.
-	engineContext->Renderer->SetViewCamera(0.0f, 0.0f, 1.0f);
+	engineCore->Renderer->SetViewCamera(0.0f, 0.0f, 1.0f);
 }
 
 void CImEditor::OnRender()
@@ -556,8 +623,8 @@ void CImEditor::OnRender()
 
 bool CImEditor::InitializeImGui()
 {
-    const EngineContext* engineContext = GetEngineContext();
-    if (nullptr == engineContext)
+    const EngineCore* engineCore = GetEngineCore();
+    if (nullptr == engineCore)
     {
         return false;
     }
@@ -600,9 +667,9 @@ bool CImEditor::InitializeImGui()
     ImGui_ImplWin32_EnableDpiAwareness();
 
     HWND hwnd = nullptr;
-    if (engineContext->MainRenderSurface)
+    if (engineCore->MainRenderSurface)
     {
-        const NativeSurfaceHandle nativeSurfaceHandle = engineContext->MainRenderSurface->GetNativeSurfaceHandle();
+        const NativeSurfaceHandle nativeSurfaceHandle = engineCore->MainRenderSurface->GetNativeSurfaceHandle();
         if (ERenderSurfaceType::Win32Hwnd == nativeSurfaceHandle.SurfaceType)
         {
             hwnd = static_cast<HWND>(nativeSurfaceHandle.Handle);
@@ -622,9 +689,9 @@ bool CImEditor::InitializeImGui()
         return false;
     }
 
-    if (engineContext->MainRenderSurface)
+    if (engineCore->MainRenderSurface)
     {
-        engineContext->MainRenderSurface->SetNativeMessageHandler(
+        engineCore->MainRenderSurface->SetNativeMessageHandler(
             [](const NativeSurfaceMessage& message, std::intptr_t& result) {
                 result = ImGui_ImplWin32_WndProcHandler(
                     static_cast<HWND>(message.SurfaceHandle),
@@ -637,9 +704,9 @@ bool CImEditor::InitializeImGui()
 
     ID3D11Device* d3dDevice = nullptr;
     ID3D11DeviceContext* d3dDeviceContext = nullptr;
-    if (engineContext->RHIDevice)
+    if (engineCore->RHIDevice)
     {
-        const RHINativeDeviceDesc nativeDeviceDesc = engineContext->RHIDevice->GetNativeDeviceDesc();
+        const RHINativeDeviceDesc nativeDeviceDesc = engineCore->RHIDevice->GetNativeDeviceDesc();
         d3dDevice = static_cast<ID3D11Device*>(nativeDeviceDesc.Device);
         d3dDeviceContext = static_cast<ID3D11DeviceContext*>(nativeDeviceDesc.DeviceContext);
     }
@@ -689,11 +756,11 @@ bool CImEditor::InitializeImGui()
 
 void CImEditor::FinalizeImGui()
 {
-    if (const EngineContext* engineContext = GetEngineContext())
+    if (const EngineCore* engineCore = GetEngineCore())
     {
-        if (engineContext->MainRenderSurface)
+        if (engineCore->MainRenderSurface)
         {
-            engineContext->MainRenderSurface->SetNativeMessageHandler(nullptr);
+            engineCore->MainRenderSurface->SetNativeMessageHandler(nullptr);
         }
     }
 

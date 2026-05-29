@@ -3,13 +3,13 @@
 
 #include "Core/Asset/AssetPath.h"
 
-bool CFileSystem::Initialize(const char* rootPath, EFileSystemAccess access)
+bool CFileSystem::Initialize(const File::Path& rootPath, EFileSystemAccess access)
 {
 	m_access = access;
-	m_originPath = std::filesystem::current_path().generic_string();
-	if (nullptr != rootPath && '\0' != rootPath[0])
+	m_originPath = File::Path(std::filesystem::current_path().generic_string());
+	if (false == rootPath.empty())
 	{
-		m_rootPath = std::filesystem::path(rootPath).generic_string();
+		m_rootPath = File::Path(rootPath.generic_string());
 	}
 
 	m_isInitialized = true;
@@ -21,23 +21,23 @@ void CFileSystem::Finalize()
 	m_isInitialized = false;
 }
 
-bool CFileSystem::ResolvePath(const char* relativePath, std::string& outResolvedPath) const
+bool CFileSystem::ResolvePath(const File::Path& relativePath, File::Path& outResolvedPath) const
 {
 	std::string normalizedPath;
-	if (false == CAssetPath::NormalizeRelativePath(relativePath, normalizedPath))
+	if (false == CAssetPath::NormalizeRelativePath(relativePath.generic_string().c_str(), normalizedPath))
 	{
 		return false;
 	}
 
 	std::filesystem::path resolvedPath(m_rootPath);
 	resolvedPath /= std::filesystem::path(normalizedPath);
-	outResolvedPath = resolvedPath.generic_string();
+	outResolvedPath = File::Path(resolvedPath.generic_string());
 	return true;
 }
 
-bool CFileSystem::Exists(const char* relativePath) const
+bool CFileSystem::Exists(const File::Path& relativePath) const
 {
-	std::string resolvedPath;
+	File::Path resolvedPath;
 	if (false == ResolvePath(relativePath, resolvedPath))
 	{
 		return false;
@@ -47,10 +47,10 @@ bool CFileSystem::Exists(const char* relativePath) const
 	return std::filesystem::exists(resolvedPath, errorCode);
 }
 
-bool CFileSystem::ReadAllBytes(const char* relativePath, FileReadResult& outResult) const
+bool CFileSystem::ReadAllBytes(const File::Path& relativePath, FileReadResult& outResult) const
 {
 	outResult = {};
-	std::string resolvedPath;
+	File::Path resolvedPath;
 	if (false == ResolvePath(relativePath, resolvedPath))
 	{
 		return false;
@@ -74,7 +74,7 @@ bool CFileSystem::ReadAllBytes(const char* relativePath, FileReadResult& outResu
 	return true;
 }
 
-bool CFileSystem::ReadAllText(const char* relativePath, std::string& outText) const
+bool CFileSystem::ReadAllText(const File::Path& relativePath, std::string& outText) const
 {
 	FileReadResult result;
 	if (false == ReadAllBytes(relativePath, result))
@@ -92,12 +92,12 @@ bool CFileSystem::ReadAllText(const char* relativePath, std::string& outText) co
 	return true;
 }
 
-const std::string& CFileSystem::GetOriginPath() const
+const File::Path& CFileSystem::GetOriginPath() const
 {
 	return m_originPath;
 }
 
-const std::string& CFileSystem::GetRootPath() const
+const File::Path& CFileSystem::GetRootPath() const
 {
 	return m_rootPath;
 }

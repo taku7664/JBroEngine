@@ -2,6 +2,7 @@
 #include "SceneManager.h"
 
 #include "Core/Core.h"
+#include "Core/Asset/IAssetManager.h"
 #include "Core/Time/Time.h"
 #include "GameFramework/Scene/Scene.h"
 #include "GameFramework/Scene/SceneSerializer.h"
@@ -64,6 +65,7 @@ bool CSceneManager::SetActiveScene(const char* name)
 		return false;
 	}
 
+	PreloadReferencedAssets(*scene);
 	m_activeScene = scene;
 	return true;
 }
@@ -82,6 +84,19 @@ SafePtr<CScene> CSceneManager::FindScene(const char* name) const
 
 	auto it = m_scenes.find(name);
 	return it != m_scenes.end() ? it->second.GetSafePtr() : nullptr;
+}
+
+void CSceneManager::PreloadReferencedAssets(const CScene& scene) const
+{
+	if (false == Core::AssetManager.IsValid())
+	{
+		return;
+	}
+
+	for (const AssetGuid& guid : scene.GetReferencedAssets())
+	{
+		Core::AssetManager->LoadAsset(guid);
+	}
 }
 
 std::size_t CSceneManager::GetLoadedSceneCount() const

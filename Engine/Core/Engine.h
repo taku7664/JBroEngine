@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Core/EngineContext.h"
+#include "Core/EngineCore.h"
 #include "Core/Platform/PlatformTypes.h"
 #include "Core/RHI/RHITypes.h"
 
@@ -20,10 +20,13 @@ class CDebug;
 class CTime;
 class CInput;
 class CFileSystem;
-class CThreadService;
+class CTaskManager;
+class CRandomService;
+class CMathService;
 class CReflectionRegistry;
 class CLogger;
 class CLocalizationManager;
+class CResourceRegistry;
 
 class CEngine final : public EnableSafeFromThis<CEngine>
 {
@@ -47,7 +50,7 @@ public:
 	// Safe to call multiple times; subsequent calls are no-ops.
 	bool InitializeNetwork();
 
-	const EngineContext&    GetContext()           const;
+	const EngineCore&       GetEngineCore()        const;
 	SafePtr<IPlatform>      GetPlatform()          const;
 	SafePtr<IRenderSurface> GetMainRenderSurface() const;
 	SafePtr<IRHIDevice>     GetRHIDevice()         const;
@@ -68,7 +71,7 @@ private:
 	void RenderFrame();
 	void EndFrame();
 	void FillRenderSurfaceDesc(RHIDesc& desc) const;
-	void SyncContext();
+	void SyncEngineCore();
 
 private:
 	OwnerPtr<IPlatform>           m_platform;
@@ -79,16 +82,18 @@ private:
 	OwnerPtr<CTime>               m_time;
 	OwnerPtr<CInput>              m_input;
 	OwnerPtr<CFileSystem>         m_fileSystem;
-	OwnerPtr<CThreadService>      m_threadService;
+	OwnerPtr<CTaskManager>        m_taskManager;
+	OwnerPtr<CRandomService>      m_randomService;
+	OwnerPtr<CMathService>        m_mathService;
 	OwnerPtr<CReflectionRegistry> m_reflectionRegistry;
 	OwnerPtr<CLogger>             m_logger;
 	OwnerPtr<CDebug>              m_debug;
 	OwnerPtr<CLocalizationManager> m_localization;
+	OwnerPtr<CResourceRegistry>    m_resourceRegistry;
 	OwnerPtr<CSceneManager>       m_sceneManager;
 	OwnerPtr<CNetworkManager>     m_networkManager;   // null until InitializeNetwork()
 	OwnerPtr<CDebugDraw2D>        m_debugDraw;
 	std::vector<CModule*>         m_modules;
-	EngineContext                 m_context;
 	bool                          m_isInitialized = false;
 	bool                          m_isApplicationFocused = true;
 	bool                          m_applicationFocusGained = false;

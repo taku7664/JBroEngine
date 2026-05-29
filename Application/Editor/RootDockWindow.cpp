@@ -6,7 +6,7 @@
 #include "Editor/Main/MainDockWindow.h"
 #include "Editor/Main/SceneView/SceneViewTool.h"
 #include "Engine/Core/Core.h"
-#include "Engine/Core/EngineContext.h"
+#include "Engine/Core/EngineCore.h"
 #include "Engine/Core/Logging/LoggerInternal.h"
 #include "Engine/Editor/ImEditor.h"
 #include "Engine/Editor/Project/ProjectManager.h"
@@ -52,10 +52,10 @@ namespace
 		}
 
 		CSceneSerializer serializer;
-		const std::string absolutePathStr = absolutePath.string();
-		if (ESceneSerializeResult::Success == serializer.LoadFromFile(*scene, absolutePathStr.c_str()))
+		if (ESceneSerializeResult::Success == serializer.LoadFromFile(*scene, File::Path(absolutePath)))
 		{
-			if (const EngineContext* context = Editor::ImEditor ? Editor::ImEditor->GetEditorEngineContext() : nullptr)
+			Core::SceneManager->PreloadReferencedAssets(*scene);
+			if (const EngineCore* context = Editor::ImEditor ? Editor::ImEditor->GetEditorEngineCore() : nullptr)
 			{
 				CSpriteRenderSystem* spriteSystem = scene->FindSystem<CSpriteRenderSystem>();
 				if (nullptr == spriteSystem)
@@ -93,8 +93,7 @@ namespace
 			if (scene.IsValid() && false == Editor::GetActiveScenePath().empty())
 			{
 				CSceneSerializer serializer;
-				const std::string scenePath = Editor::GetActiveScenePath().string();
-				if (ESceneSerializeResult::Success == serializer.SaveToFile(*scene, scenePath.c_str()))
+				if (ESceneSerializeResult::Success == serializer.SaveToFile(*scene, Editor::GetActiveScenePath()))
 				{
 					Editor::CommandManager.MarkSaved();
 					sceneSaved = true;
@@ -467,4 +466,3 @@ void CRootDockWindow::DrawLiveCompileMenuBarStatus()
 		}
 	}
 }
-

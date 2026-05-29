@@ -6,6 +6,7 @@
 #include "GameFramework/Component/ScriptComponent.h"
 #include "GameFramework/Reflection/ReflectionRegistry.h"
 #include "GameFramework/Scene/Scene.h"
+#include "File/FilePath.h"
 
 #include <cstring>
 
@@ -33,7 +34,10 @@ namespace
 				if (pending.Data.size() != prop.Size)
 				{
 					// 타입/크기가 바뀐 경우 무시 (기본값 유지)
-					break;
+					if (EReflectPropertyType::AssetGuid != pending.Type || EReflectPropertyType::AssetGuid != prop.Type)
+					{
+						break;
+					}
 				}
 
 				void* field = CReflectionRegistry::GetPropertyAddress(script.Instance, prop);
@@ -41,7 +45,14 @@ namespace
 				{
 					break;
 				}
-				std::memcpy(field, pending.Data.data(), prop.Size);
+				if (EReflectPropertyType::AssetGuid == prop.Type && EReflectPropertyType::AssetGuid == pending.Type)
+				{
+					*static_cast<File::Guid*>(field) = File::Guid(pending.Text);
+				}
+				else
+				{
+					std::memcpy(field, pending.Data.data(), prop.Size);
+				}
 				break;
 			}
 		}

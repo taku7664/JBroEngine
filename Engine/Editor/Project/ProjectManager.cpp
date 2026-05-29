@@ -2,10 +2,9 @@
 #include "ProjectManager.h"
 
 #include "Core/Asset/AssetPath.h"
-#include "Core/EngineContext.h"
+#include "Core/EngineCore.h"
 #include "Core/Logging/LoggerInternal.h"
 #include "Core/Game/GameModuleTypes.h"
-#include "Core/EngineCore.h"
 #include "File/FileUtillities.h"
 #include "Editor/Project/GameScriptProjectGenerator.h"
 #include "Editor/LiveCompile/LiveCompileManager.h"
@@ -166,13 +165,18 @@ namespace
 			solutionDirValue += "\\";
 		}
 
+		// /m (멀티 프로세스 빌드) 제거 — Player.cpp 등 소량의 cpp 만 빌드하므로 의미가 없고,
+		// 자식 MSBuild 노드가 좀비로 남아 mspdbsrv 잠금 경합을 일으키는 원인이 된다.
+		// CL_MPCount=1 로 cl.exe 의 multi-process compilation 도 강제 비활성화.
+		// /nr:false : node reuse 비활성 — 빌드 종료 시 MSBuild 노드 즉시 종료.
 		return QuoteCommandPath(msbuildPath)
 			+ " " + QuoteCommandPath(projectPath)
 			+ " /p:Configuration=" + configuration
 			+ " /p:Platform=x64"
 			+ " /p:SolutionDir=" + QuoteCommandPath(solutionDirValue)
 			+ " /p:JBroLiveCompileStamp=" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())
-			+ " /m"
+			+ " /p:CL_MPCount=1"
+			+ " /p:UseMultiToolTask=false"
 			+ " /v:minimal"
 			+ " /nr:false";
 	}
@@ -208,13 +212,13 @@ namespace
 	}
 }
 
-bool CProjectManager::Initialize(const EngineContext& context)
+bool CProjectManager::Initialize(const EngineCore& context)
 {
 	m_assetManager  = context.AssetManager;
 	m_assetWatcher  = MakeOwnerPtr<CWindowsFileWatcher>();
 	m_scriptLoader  = MakeOwnerPtr<CScriptModuleLoader>();
 	m_liveCompileManager = MakeOwnerPtr<CLiveCompileManager>();
-	m_engineContext = &context;
+	m_engineCore = &context;
 	m_info.OriginPath = File::Path(std::filesystem::current_path());
 	m_isInitialized = m_assetManager.IsValid() && static_cast<bool>(m_assetWatcher);
 	return m_isInitialized;
@@ -227,7 +231,7 @@ void CProjectManager::Finalize()
 	m_liveCompileManager.Reset();
 	m_assetWatcher.Reset();
 	m_assetManager  = nullptr;
-	m_engineContext = nullptr;
+	m_engineCore = nullptr;
 	m_isInitialized = false;
 }
 
@@ -261,10 +265,12 @@ bool CProjectManager::CreateProject(const File::Path& parentFolder, const std::s
 	{
 		YAML::Emitter out;
 		out << YAML::BeginMap;
-		out << YAML::Key << PROJECT_KEY_VERSION     << YAML::Value << 1;
-		out << YAML::Key << PROJECT_KEY_ROOT_PATH   << YAML::Value << ".";
-		out << YAML::Key << PROJECT_KEY_RES_WIDTH   << YAML::Value << 1920;
-		out << YAML::Key << PROJECT_KEY_RES_HEIGHT  << YAML::Value << 1080;
+		out << YAML::Key << PROJECT_KEY_VERSION                    << YAML::Value << 1;
+		out << YAML::Key << PROJECT_KEY_ROOT_PATH                  << YAML::Value << ".";
+		out << YAML::Key << PROJECT_KEY_RES_WIDTH                  << YAML::Value << 1920;
+		out << YAML::Key << PROJECT_KEY_RES_HEIGHT                 << YAML::Value << 1080;
+		// 새 프로젝트는 자동 리빌드 기본 ON. 키를 명시 저장해 로드 시 default 의존 X.
+		out << YAML::Key << PROJECT_KEY_SCRIPT_AUTO_REBUILD_ENABLED << YAML::Value << true;
 		out << YAML::EndMap;
 
 		std::ofstream file(projectFile, std::ios::out | std::ios::trunc);
@@ -376,14 +382,14 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 		scriptBuildConfiguration = ParseScriptBuildConfiguration(root[PROJECT_KEY_SCRIPT_BUILD_CONFIG].as<std::string>("Debug"));
 	}
 
-	bool scriptAutoRebuildEnabled = false;
+	bool scriptAutoRebuildEnabled = true;   // 기본값 — 프로젝트 파일에 키가 없을 때 적용
 	if (root[PROJECT_KEY_SCRIPT_AUTO_REBUILD_ENABLED])
 	{
-		scriptAutoRebuildEnabled = root[PROJECT_KEY_SCRIPT_AUTO_REBUILD_ENABLED].as<bool>(false);
+		scriptAutoRebuildEnabled = root[PROJECT_KEY_SCRIPT_AUTO_REBUILD_ENABLED].as<bool>(true);
 	}
 	else if (root[PROJECT_KEY_LEGACY_LIVE_COMPILE_ENABLED])
 	{
-		scriptAutoRebuildEnabled = root[PROJECT_KEY_LEGACY_LIVE_COMPILE_ENABLED].as<bool>(false);
+		scriptAutoRebuildEnabled = root[PROJECT_KEY_LEGACY_LIVE_COMPILE_ENABLED].as<bool>(true);
 	}
 
 	std::string lastOpenedScenePath;
@@ -392,8 +398,8 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 		lastOpenedScenePath = root[PROJECT_KEY_LAST_SCENE_PATH].as<std::string>("");
 	}
 
-	std::string editorLocaleCode = (m_engineContext && m_engineContext->Localization.IsValid())
-		? m_engineContext->Localization->GetDefaultLocale()
+	std::string editorLocaleCode = (m_engineCore && m_engineCore->Localization.IsValid())
+		? m_engineCore->Localization->GetDefaultLocale()
 		: "ko-KR";
 	if (root[PROJECT_KEY_EDITOR_LOCALE])
 	{
@@ -478,7 +484,7 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 	m_info.EditorLocaleCode    = editorLocaleCode;
 	m_info.ImGuiIniSettings    = imguiIniSettings;
 
-	if (false == m_assetManager->SetAssetRootPath(m_info.AssetPath.generic_string().c_str()))
+	if (false == m_assetManager->SetAssetRootPath(m_info.AssetPath))
 	{
 		return false;
 	}
@@ -509,11 +515,11 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 	m_isProjectLoaded = true;
 	MarkAssetDatabaseChanged();
 
-	if (m_engineContext && m_engineContext->Localization.IsValid())
+	if (m_engineCore && m_engineCore->Localization.IsValid())
 	{
-		if (false == m_engineContext->Localization->SetCurrentLocale(m_info.EditorLocaleCode))
+		if (false == m_engineCore->Localization->SetCurrentLocale(m_info.EditorLocaleCode))
 		{
-			m_info.EditorLocaleCode = m_engineContext->Localization->GetCurrentLocale();
+			m_info.EditorLocaleCode = m_engineCore->Localization->GetCurrentLocale();
 		}
 	}
 	if (false == m_info.ImGuiIniSettings.empty())
@@ -558,6 +564,13 @@ void CProjectManager::CloseProject()
 	{
 		m_assetWatcher->Stop();
 	}
+
+	// 프로젝트 자산만 정리. Persistent 로 표시된 자산(엔진/에디터 영구 리소스 등)은 보존.
+	if (m_assetManager.IsValid())
+	{
+		m_assetManager->UnloadNonPersistentAssets();
+	}
+
 	m_isProjectLoaded = false;
 	m_info.ProjectFilePath = File::NULL_PATH;
 	m_info.RootPath        = File::NULL_PATH;
@@ -593,11 +606,10 @@ void CProjectManager::Tick()
 
 	if (m_liveCompileManager)
 	{
-		const bool shouldScanScripts =
-			m_info.ScriptAutoRebuildEnabled &&
-			m_engineContext &&
-			m_engineContext->ApplicationFocusGained;
-		m_liveCompileManager->Tick(shouldScanScripts);
+		// ApplicationFocusGained 는 "획득 한 프레임" 만 true 인 transient 플래그라
+		// 자동 리빌드 게이트로 부적합 — 디바운스 0.5s 가 흐르기 전에 게이트가 닫혀
+		// 빌드가 시작되지 못한다. 단순히 ScriptAutoRebuildEnabled 만 전달.
+		m_liveCompileManager->Tick(m_info.ScriptAutoRebuildEnabled);
 	}
 }
 
@@ -685,8 +697,29 @@ void CProjectManager::ProcessAssetEvent(const FileWatchEvent& event)
 
 	if (EFileWatchEventType::Deleted == event.Type)
 	{
-		m_assetManager->RefreshAssetRegistry();
-		MarkAssetDatabaseChanged();
+		std::string relativePath;
+		if (MakeAssetRelativePath(event.Path, relativePath))
+		{
+			File::Path registryPath(relativePath);
+			if (CAssetPath::IsMetaPath(registryPath.generic_string().c_str()))
+			{
+				registryPath = File::Path(CAssetPath::StripMetaExtension(registryPath.generic_string().c_str()));
+				const File::Path assetAbsolutePath = m_info.AssetPath / registryPath;
+				std::error_code ec;
+				if (std::filesystem::exists(assetAbsolutePath, ec))
+				{
+					if (ImportOrReloadAsset(assetAbsolutePath))
+					{
+						MarkAssetDatabaseChanged();
+					}
+					return;
+				}
+			}
+			if (m_assetManager->UnregisterAssetByPath(registryPath, true))
+			{
+				MarkAssetDatabaseChanged();
+			}
+		}
 		return;
 	}
 
@@ -715,10 +748,25 @@ bool CProjectManager::ImportOrReloadAsset(const File::Path& absolutePath)
 		return false;
 	}
 
+	// 자산 타입별 임포터 이름. 인스펙터의 "임포터" 필드에 그대로 표시되므로
+	// "Default" 같은 모호한 표기 대신 타입명을 사용.
+	const char* importerName = "Default";
+	switch (type)
+	{
+	case EAssetType::Sprite:   importerName = "Sprite";   break;
+	case EAssetType::Material: importerName = "Material"; break;
+	case EAssetType::Shader:   importerName = "Shader";   break;
+	case EAssetType::Scene:    importerName = "Scene";    break;
+	case EAssetType::Prefab:   importerName = "Prefab";   break;
+	case EAssetType::Script:   importerName = "Script";   break;
+	case EAssetType::Mesh:     importerName = "Mesh";     break;
+	default:                   importerName = "Default";  break;
+	}
+
 	AssetImportDesc importDesc;
 	importDesc.Type = type;
-	importDesc.Path = relativePath.c_str();
-	importDesc.Importer = "Default";
+	importDesc.Path = File::Path(relativePath);
+	importDesc.Importer = importerName;
 	AssetMetaData metaData;
 	if (m_assetManager->ImportAsset(importDesc, &metaData))
 	{
@@ -760,7 +808,8 @@ EAssetType CProjectManager::DetectAssetType(const File::Path& relativePath) cons
 
 	if (extension == ".png" || extension == ".jpg" || extension == ".jpeg" || extension == ".bmp" || extension == ".tga")
 	{
-		return EAssetType::Texture;
+		// 통합 이후 이미지 파일은 항상 Sprite (None/CellCount/CellSize 모드로 슬라이스 옵션).
+		return EAssetType::Sprite;
 	}
 	if (extension == ".jscene")
 	{
@@ -1051,14 +1100,14 @@ bool CProjectManager::LoadScriptModule()
 
 	GameModuleContext context = BuildGameModuleContext();
 
-	return m_scriptLoader->Load(dllPath.string().c_str(), context);
+	return m_scriptLoader->Load(dllPath, context);
 }
 
 void CProjectManager::UnloadScriptModule()
 {
-	if (m_engineContext && m_engineContext->SceneManager)
+	if (m_engineCore && m_engineCore->SceneManager)
 	{
-		m_engineContext->SceneManager->DestroyScriptInstances();
+		m_engineCore->SceneManager->DestroyScriptInstances();
 	}
 	if (m_scriptLoader)
 	{
@@ -1141,6 +1190,11 @@ bool CProjectManager::IsLiveCompileLoaded() const
 ELiveCompileState CProjectManager::GetLiveCompileState() const
 {
 	return m_liveCompileManager ? m_liveCompileManager->GetState() : ELiveCompileState::Idle;
+}
+
+std::string CProjectManager::ConsumeLastLiveCompileFailure()
+{
+	return m_liveCompileManager ? m_liveCompileManager->ConsumeLastFailureMessage() : std::string{};
 }
 
 GameModuleContext CProjectManager::BuildGameModuleContext() const
@@ -1227,44 +1281,37 @@ File::Path CProjectManager::FindScriptVcxprojPath() const
 
 void CProjectManager::OpenScriptInIde(const File::Path& filePath) const
 {
-	(void)filePath;
-
-	// 스크립트 파일 자체를 열지 않고 프로젝트만 연다.
-	// 같은 프로젝트를 반복 더블클릭할 때 ShellExecute 가 Visual Studio 인스턴스를
-	// 계속 늘리는 것을 막기 위해 프로젝트 단위로 한 번만 요청한다.
+	// 1) 솔루션(.sln) 우선, 없으면 .vcxproj 로 폴백.  같은 솔루션을 반복 더블클릭할 때
+	//    Visual Studio 인스턴스가 계속 늘어나는 것을 막기 위해 첫 호출에서만 연다.
 	const File::Path slnPath = FindScriptSolutionPath();
-	File::Path idePath = slnPath;
-	if (idePath.empty())
-	{
-		idePath = FindScriptVcxprojPath();
-	}
-
-	if (idePath.empty())
+	File::Path idePath = slnPath.empty() ? FindScriptVcxprojPath() : slnPath;
+	if (idePath.empty() && filePath.empty())
 	{
 		return;
 	}
 
-	std::error_code errorCode;
-	const std::filesystem::path normalizedPath = std::filesystem::weakly_canonical(idePath, errorCode);
-	if (!errorCode && m_lastOpenedScriptIdePath == File::Path(normalizedPath))
+	if (false == idePath.empty())
 	{
-		return;
-	}
-	if (errorCode)
-	{
-		errorCode.clear();
-		if (m_lastOpenedScriptIdePath == idePath)
+		std::error_code errorCode;
+		const std::filesystem::path normalizedPath = std::filesystem::weakly_canonical(idePath, errorCode);
+		const File::Path key = errorCode ? idePath : File::Path(normalizedPath);
+		if (m_lastOpenedScriptIdePath != key)
 		{
-			return;
+			m_lastOpenedScriptIdePath = key;
+			File::OpenFile(idePath);
 		}
-		m_lastOpenedScriptIdePath = idePath;
-	}
-	else
-	{
-		m_lastOpenedScriptIdePath = File::Path(normalizedPath);
 	}
 
-	File::OpenFile(idePath);
+	// 2) 사용자가 특정 스크립트(.cpp/.h)를 더블클릭한 경우, 그 파일도 함께 열어 활성 탭으로.
+	//    이미 솔루션이 열려 있으면 OS 가 같은 VS 인스턴스에서 새 탭으로 띄운다.
+	if (false == filePath.empty())
+	{
+		std::error_code ec;
+		if (std::filesystem::exists(filePath, ec))
+		{
+			File::OpenFile(filePath);
+		}
+	}
 }
 
 bool CProjectManager::SaveProject() const

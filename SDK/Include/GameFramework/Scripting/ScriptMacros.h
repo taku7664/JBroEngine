@@ -10,11 +10,11 @@
 //  스크립트 리플렉션 시스템
 //
 //  사용 방법:
-//    class MyScript : public CGameScript
+//    JBRO_SCRIPT MyScript : public CGameScript       // 'class' 대신 JBRO_SCRIPT
 //    {
-//        SCRIPT_CLASS(MyScript)                    // 클래스 최상단에 한 번
+//        SCRIPT_CLASS(MyScript)                       // 클래스 최상단에 한 번
 //    public:
-//        REFLECT_FIELD(float,       Speed,     5.0f)   // Inspector 노출 + 씬 직렬화
+//        REFLECT_FIELD(float,       Speed,     5.0f)  // Inspector 노출 + 씬 직렬화
 //        REFLECT_FIELD(bool,        IsGrounded, false)
 //        REFLECT_FIELD(std::int32_t, MaxJumps,  2)
 //
@@ -23,7 +23,20 @@
 //
 //  지원 타입: bool, int32_t, uint32_t, float
 //             Vector2<float>  (ScriptAPI.h 를 #include 해야 사용 가능)
+//
+//  JBRO_SCRIPT 매크로:
+//    - 컴파일러에는 단순한 'class' 별칭이라 동작에 영향 없음.
+//    - 프로젝트 생성기(GameScriptProjectGenerator)가 이 키워드를 찾아
+//      Scripts/*.h 의 스크립트 클래스를 자동 등록한다.
+//    - 다중 상속 / 깊은 상속 트리에서도 마커 한 줄로 의도를 명시할 수 있다.
+//    - struct 는 지원하지 않는다. 반드시 class 만 사용.
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// ── JBRO_SCRIPT ──────────────────────────────────────────────────────────────
+// 스크립트 클래스 선언부의 'class' 자리에 사용한다.
+// 빌드 전 단계의 헤더 스캐너가 이 토큰을 grep 하여 GeneratedScriptRegistry.cpp 를
+// 자동 생성한다 — 유저는 RegisterScript 호출을 직접 작성하지 않아도 된다.
+#define JBRO_SCRIPT class
 
 // ── ScriptReflectEntry ────────────────────────────────────────────────────────
 // REFLECT_FIELD 매크로가 등록하는 단일 필드 메타데이터.

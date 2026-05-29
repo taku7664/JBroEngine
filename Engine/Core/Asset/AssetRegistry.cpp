@@ -6,7 +6,7 @@
 bool CAssetRegistry::RegisterAsset(const AssetMetaData& metaData)
 {
 	std::string normalizedPath;
-	if (metaData.Guid.IsNull() || false == CAssetPath::NormalizeRelativePath(metaData.Path.generic_string().c_str(), normalizedPath))
+	if (metaData.Guid.IsNull() || false == CAssetPath::NormalizeAssetKey(metaData.Path.generic_string().c_str(), normalizedPath))
 	{
 		return false;
 	}
@@ -53,6 +53,20 @@ void CAssetRegistry::Clear()
 	m_pathToGuidTable.clear();
 }
 
+void CAssetRegistry::ClearNonPersistent()
+{
+	for (auto it = m_assetTable.begin(); it != m_assetTable.end(); )
+	{
+		if (it->second.IsPersistent)
+		{
+			++it;
+			continue;
+		}
+		m_pathToGuidTable.erase(it->second.Path);
+		it = m_assetTable.erase(it);
+	}
+}
+
 const AssetMetaData* CAssetRegistry::FindAsset(const AssetGuid& guid) const
 {
 	auto it = m_assetTable.find(guid);
@@ -64,10 +78,10 @@ const AssetMetaData* CAssetRegistry::FindAsset(const AssetGuid& guid) const
 	return &it->second;
 }
 
-const AssetMetaData* CAssetRegistry::FindAssetByPath(const char* path) const
+const AssetMetaData* CAssetRegistry::FindAssetByPath(const File::Path& path) const
 {
 	std::string normalizedPath;
-	if (false == CAssetPath::NormalizeRelativePath(path, normalizedPath))
+	if (false == CAssetPath::NormalizeAssetKey(path.generic_string().c_str(), normalizedPath))
 	{
 		return nullptr;
 	}

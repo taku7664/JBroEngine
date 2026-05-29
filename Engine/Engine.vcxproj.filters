@@ -150,8 +150,14 @@
     <Filter Include="Source\Core\Input">
       <UniqueIdentifier>{B0972FB2-62A5-4868-9B57-70002A88856E}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source\Core\Thread">
+    <Filter Include="Source\Core\Task">
       <UniqueIdentifier>{A40AB456-334D-4F5A-8459-6D233F63DCC2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Core\Random">
+      <UniqueIdentifier>{6F11F6A7-49D4-4C50-9C98-7C58ECF94C90}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Core\Math">
+      <UniqueIdentifier>{DCA9516E-850F-4EDA-9640-F96C8311E6B0}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source\GameFramework\Debug">
       <UniqueIdentifier>{D4F6E893-5C7E-6B9F-EB0A-3F4E5D6C7B8A}</UniqueIdentifier>
@@ -165,8 +171,14 @@
     <Filter Include="Header\Core\Input">
       <UniqueIdentifier>{6E5AD630-BAEA-4650-8C05-D5713E97D2E0}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Header\Core\Thread">
+    <Filter Include="Header\Core\Task">
       <UniqueIdentifier>{4E8BB584-856F-44FB-BD31-98E12C743509}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\Core\Random">
+      <UniqueIdentifier>{4A0DB279-A603-4FA2-B55E-89159232F08A}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\Core\Math">
+      <UniqueIdentifier>{EF2E1836-496B-4142-95A7-27B4E39287B3}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source\Core\Logging">
       <UniqueIdentifier>{29D05E8C-F216-4F8C-B8C5-A4E58B466948}</UniqueIdentifier>
@@ -179,6 +191,12 @@
     </Filter>
     <Filter Include="Header\Core\Localization">
       <UniqueIdentifier>{C34E7C69-1736-4C48-A5D5-8A356340F280}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Core\Resource">
+      <UniqueIdentifier>{A1B2C3D4-1111-2222-3333-444455556666}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\Core\Resource">
+      <UniqueIdentifier>{A1B2C3D4-7777-8888-9999-AAAABBBBCCCC}</UniqueIdentifier>
     </Filter>
     <Filter Include="Header\GameFramework\Debug">
       <UniqueIdentifier>{B2D4E681-3A5C-4F8D-C9E7-1F2D3E4A5B6C}</UniqueIdentifier>
@@ -281,9 +299,6 @@
     <ClInclude Include="Core\Asset\SpriteAsset.h">
       <Filter>Header\Core\Asset</Filter>
     </ClInclude>
-    <ClInclude Include="Core\Asset\TextureAsset.h">
-      <Filter>Header\Core\Asset</Filter>
-    </ClInclude>
     <ClInclude Include="Core\Core.h">
       <Filter>Header\Core</Filter>
     </ClInclude>
@@ -296,14 +311,11 @@
     <ClInclude Include="Core\EngineCore.h">
       <Filter>Header\Core</Filter>
     </ClInclude>
-    <ClInclude Include="Engine\EngineAPI.h">
-      <Filter>Header</Filter>
-    </ClInclude>
-    <ClInclude Include="Core\EngineContext.h">
-      <Filter>Header\Core</Filter>
-    </ClInclude>
     <ClInclude Include="Core\Game\GameModuleTypes.h">
       <Filter>Header\Core\Game</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Math\MathService.h">
+      <Filter>Header\Core\Math</Filter>
     </ClInclude>
     <ClInclude Include="Core\Game\IGameModule.h">
       <Filter>Header\Core\Game</Filter>
@@ -470,6 +482,21 @@
     <ClInclude Include="Core\Renderer\RendererTypes.h">
       <Filter>Header\Core\Renderer</Filter>
     </ClInclude>
+    <ClInclude Include="Core\Random\RandomService.h">
+      <Filter>Header\Core\Random</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Task\Task.h">
+      <Filter>Header\Core\Task</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Task\TaskGroup.h">
+      <Filter>Header\Core\Task</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Task\TaskManager.h">
+      <Filter>Header\Core\Task</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Task\TaskTypes.h">
+      <Filter>Header\Core\Task</Filter>
+    </ClInclude>
     <ClInclude Include="Core\Time\Time.h">
       <Filter>Header\Core\Time</Filter>
     </ClInclude>
@@ -548,9 +575,6 @@
     <ClInclude Include="GameFramework\Physics2D\Physics2DGeometry.h">
       <Filter>Header\GameFramework\Physics2D</Filter>
     </ClInclude>
-    <ClInclude Include="Core\Thread\ThreadService.h">
-      <Filter>Header\Core\Thread</Filter>
-    </ClInclude>
     <ClInclude Include="Core\Network\NetworkTypes.h">
       <Filter>Header\Core\Network</Filter>
     </ClInclude>
@@ -572,9 +596,6 @@
     <ClInclude Include="Core\FileSystem\FileSystemTypes.h">
       <Filter>Header\Core\FileSystem</Filter>
     </ClInclude>
-    <ClInclude Include="Core\Thread\ThreadTypes.h">
-      <Filter>Header\Core\Thread</Filter>
-    </ClInclude>
     <ClInclude Include="Core\Logging\Logger.h">
       <Filter>Header\Core\Logging</Filter>
     </ClInclude>
@@ -586,6 +607,9 @@
     </ClInclude>
     <ClInclude Include="Core\Localization\LocalizationManager.h">
       <Filter>Header\Core\Localization</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Resource\ResourceRegistry.h">
+      <Filter>Header\Core\Resource</Filter>
     </ClInclude>
     <ClInclude Include="GameFramework\Debug\SceneDebugDrawSystem.h">
       <Filter>Header\GameFramework\Debug</Filter>
@@ -874,9 +898,6 @@
     <ClCompile Include="Core\Asset\SpriteAsset.cpp">
       <Filter>Source\Core\Asset</Filter>
     </ClCompile>
-    <ClCompile Include="Core\Asset\TextureAsset.cpp">
-      <Filter>Source\Core\Asset</Filter>
-    </ClCompile>
     <ClCompile Include="Core\Debug\Debug.cpp">
       <Filter>Source\Core</Filter>
     </ClCompile>
@@ -886,8 +907,8 @@
     <ClCompile Include="Core\EngineCore.cpp">
       <Filter>Source\Core</Filter>
     </ClCompile>
-    <ClCompile Include="Engine\EngineAPI.cpp">
-      <Filter>Source</Filter>
+    <ClCompile Include="Core\Math\MathService.cpp">
+      <Filter>Source\Core\Math</Filter>
     </ClCompile>
     <ClCompile Include="Core\Network\NetworkManager.cpp">
       <Filter>Source\Core\Network</Filter>
@@ -988,6 +1009,18 @@
     <ClCompile Include="Core\Renderer\RenderScene.cpp">
       <Filter>Source\Core\Renderer</Filter>
     </ClCompile>
+    <ClCompile Include="Core\Random\RandomService.cpp">
+      <Filter>Source\Core\Random</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Task\Task.cpp">
+      <Filter>Source\Core\Task</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Task\TaskGroup.cpp">
+      <Filter>Source\Core\Task</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Task\TaskManager.cpp">
+      <Filter>Source\Core\Task</Filter>
+    </ClCompile>
     <ClCompile Include="Core\Time\Time.cpp">
       <Filter>Source\Core\Time</Filter>
     </ClCompile>
@@ -1027,9 +1060,6 @@
     <ClCompile Include="GameFramework\Physics2D\Physics2DSystem.cpp">
       <Filter>Source\GameFramework\Physics2D</Filter>
     </ClCompile>
-    <ClCompile Include="Core\Thread\ThreadService.cpp">
-      <Filter>Source\Core\Thread</Filter>
-    </ClCompile>
     <ClCompile Include="Core\Input\Input.cpp">
       <Filter>Source\Core\Input</Filter>
     </ClCompile>
@@ -1038,6 +1068,9 @@
     </ClCompile>
     <ClCompile Include="Core\Localization\LocalizationManager.cpp">
       <Filter>Source\Core\Localization</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Resource\ResourceRegistry.cpp">
+      <Filter>Source\Core\Resource</Filter>
     </ClCompile>
     <ClCompile Include="GameFramework\Physics2D\Physics2DGeometry.cpp">
       <Filter>Source\GameFramework\Physics2D</Filter>

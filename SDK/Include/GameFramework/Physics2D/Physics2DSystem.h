@@ -30,7 +30,6 @@ public:
 	const std::vector<Physics2DManifold>& GetManifolds() const;
 
 protected:
-	void OnUpdate(CScene& scene) override;
 	void OnFixedUpdate(CScene& scene) override;
 
 private:

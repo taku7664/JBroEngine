@@ -6,7 +6,7 @@
 #include "Editor/Editor.h"
 #include "Engine/Core/Asset/IAssetManager.h"
 #include "Engine/Core/Asset/SpriteAsset.h"
-#include "Engine/Core/Asset/TextureAsset.h"
+#include "Engine/Core/Asset/SpriteAsset.h"
 #include "Engine/GameFramework/Component/GameObject.h"
 #include "Engine/GameFramework/Component/SpriteRenderer2D.h"
 #include "Engine/GameFramework/Component/Transform2D.h"
@@ -72,12 +72,12 @@ namespace
 
     // ── 텍스처 해석 헬퍼 ─────────────────────────────────────────────────────
     //
-    // SpriteGuid 는 CSpriteAsset 또는 CTextureAsset 을 직접 가리킬 수 있음.
-    // 두 경우 모두 CTextureAsset* + 프레임 UV/픽셀 rect 를 반환.
+    // SpriteGuid 는 CSpriteAsset 을 가리킨다 (이전 CTextureAsset 통합됨).
+    // CSpriteAsset* + 프레임 UV/픽셀 rect 를 반환.
 
     struct ResolvedTexture
     {
-        const CTextureAsset* tex = nullptr;
+        const CSpriteAsset* tex = nullptr;
         float u0 = 0.0f, v0 = 0.0f, u1 = 1.0f, v1 = 1.0f; // AddImageQuad UV
         std::uint32_t fX = 0, fY = 0, fW = 0, fH = 0;       // 픽셀 샘플링 rect
         bool IsValid() const { return tex != nullptr && fW > 0 && fH > 0; }
@@ -91,54 +91,32 @@ namespace
         if (spriteGuid == INVALID_ASSET_GUID) return {};
 
         SafePtr<IAsset> assetPtr = mgr.FindLoadedAsset(spriteGuid);
-        if (!assetPtr) return {};
+        if (!assetPtr || EAssetType::Sprite != assetPtr->GetAssetType()) return {};
 
         ResolvedTexture r;
+        r.tex = static_cast<const CSpriteAsset*>(assetPtr.TryGet());
+        if (!r.tex) return {};
 
-        if (EAssetType::Texture == assetPtr->GetAssetType())
+        r.fW = r.tex->GetWidth();
+        r.fH = r.tex->GetHeight();
+
+        const auto& frames = r.tex->GetFrames();
+        if (frameIndex < frames.size())
         {
-            // SpriteGuid 가 텍스처를 직접 가리킴
-            r.tex = static_cast<const CTextureAsset*>(assetPtr.TryGet());
-            if (!r.tex) return {};
-            r.fW = r.tex->GetWidth();
-            r.fH = r.tex->GetHeight();
-            // u0=0,v0=0,u1=1,v1=1 은 기본값 그대로
-        }
-        else if (EAssetType::Sprite == assetPtr->GetAssetType())
-        {
-            const CSpriteAsset* sd = static_cast<const CSpriteAsset*>(assetPtr.TryGet());
-            if (!sd || sd->TextureGuid == INVALID_ASSET_GUID) return {};
-
-            SafePtr<IAsset> txPtr = mgr.FindLoadedAsset(sd->TextureGuid);
-            if (!txPtr || EAssetType::Texture != txPtr->GetAssetType()) return {};
-            r.tex = static_cast<const CTextureAsset*>(txPtr.TryGet());
-            if (!r.tex) return {};
-
-            r.fW = r.tex->GetWidth();
-            r.fH = r.tex->GetHeight();
-
-            if (frameIndex < sd->Frames.size())
+            const auto& f = frames[frameIndex];
+            r.fX = f.X; r.fY = f.Y;
+            if (f.Width  > 0) r.fW = f.Width;
+            if (f.Height > 0) r.fH = f.Height;
+            const float tw = static_cast<float>(r.tex->GetWidth());
+            const float th = static_cast<float>(r.tex->GetHeight());
+            if (tw > 0.0f && th > 0.0f)
             {
-                const auto& f = sd->Frames[frameIndex];
-                r.fX = f.X; r.fY = f.Y;
-                if (f.Width  > 0) r.fW = f.Width;
-                if (f.Height > 0) r.fH = f.Height;
-                const float tw = static_cast<float>(r.tex->GetWidth());
-                const float th = static_cast<float>(r.tex->GetHeight());
-                if (tw > 0.0f && th > 0.0f)
-                {
-                    r.u0 = static_cast<float>(f.X) / tw;
-                    r.v0 = static_cast<float>(f.Y) / th;
-                    r.u1 = r.u0 + static_cast<float>(f.Width)  / tw;
-                    r.v1 = r.v0 + static_cast<float>(f.Height) / th;
-                }
+                r.u0 = static_cast<float>(f.X) / tw;
+                r.v0 = static_cast<float>(f.Y) / th;
+                r.u1 = r.u0 + static_cast<float>(f.Width)  / tw;
+                r.v1 = r.v0 + static_cast<float>(f.Height) / th;
             }
         }
-        else
-        {
-            return {};
-        }
-
         if (!r.tex || r.tex->GetPixels().empty() || r.fW == 0 || r.fH == 0)
             return {};
         return r;

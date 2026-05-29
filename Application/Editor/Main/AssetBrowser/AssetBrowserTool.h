@@ -6,6 +6,8 @@
 
 #include <ctime>
 
+class CSpriteAsset;
+
 struct AssetBrowserEntry
 {
 	File::Path AbsolutePath;
@@ -25,6 +27,12 @@ struct AssetBrowserEntry
 	std::string AbsolutePathUtf8;       // PushID 키 (안정적 unique id)
 	std::string DisplayNameLowerUtf8;   // 검색 필터(toLower) 비교용
 	std::string ModifiedTimeText;       // "%F %T" 포맷된 시각
+
+	// 썸네일 / 아이콘.
+	// - 이미지 파일(.png/.jpg/...): 해당 SpriteAsset 을 직접 로드해 프리뷰로 사용.
+	// - 그 외(폴더/스크립트/씬/...): Core::ResourceRegistry 의 영구 아이콘을 참조.
+	// 두 경우 모두 SafePtr 만 보관하므로 entry 사본은 가볍다.
+	SafePtr<CSpriteAsset> Thumbnail;
 };
 
 class CAssetBrowserTool : public CImWindow
@@ -81,7 +89,15 @@ private:
 		Delete,
 		CopyPath,
 		Open,
-		OpenInExplorer
+		OpenInExplorer,
+		Duplicate,
+		// 루트가 Scripts 일 때 컨텍스트 메뉴에서 호출.
+		// TargetPath 는 사용하지 않고 Path 는 부모 폴더 절대경로.
+		CreateScript,
+		// 루트가 Assets 일 때.  Path 는 부모 폴더, TargetPath 는 새 파일명(상대).
+		CreateScene,
+		CreateMaterial,
+		CreatePrefab
 	};
 
 	struct PendingOperation
@@ -106,14 +122,31 @@ private:
 	void DrawEntries();
 	void DrawListEntries();
 	void DrawIconEntries();
-	void DrawEntryContextMenu(const AssetBrowserEntry& entry);
-	void DrawBackgroundContextMenu();
+	// SceneView 의 ##SVCtxMenu 와 동일한 패턴 — 우클릭 시점에 컨텍스트 상태만
+	// 세팅하고 단일 OpenPopup 호출. BeginPopup 내부에서 상태별 섹션 분기.
+	//
+	// 폴더 트리(좌측 패널)와 브라우저 바디(우측 entry 영역)는 의미가 다르므로
+	// 팝업 ID 를 분리한다 — 한쪽 팝업이 열린 상태에서 다른 패널 우클릭 시
+	// 두 팝업이 동시에 살아있다가 깔끔히 교체되도록.
+	void DrawBrowserBodyContextMenu();
+	void DrawFolderTreeContextMenu();
+
+	void OpenBodyContextMenuForEntry(const AssetBrowserEntry& entry);
+	void OpenBodyContextMenuForBackground();
+	void OpenFolderTreeContextMenu(const File::Path& folderPath);
 	void DrawDeleteConfirmPopup();
 
 	void SelectEntry(const AssetBrowserEntry& entry);
 	void OpenEntry(const AssetBrowserEntry& entry);
 	void StartRename(const AssetBrowserEntry& entry);
+	// 갓 만든 파일에 대해 entry 가 등장하기 전이라도 rename 모드를 예약한다.
+	// 다음 RefreshCurrentFolderEntries 후 InputText 가 자동으로 활성화된다.
+	void StartRenameForNewPath(const File::Path& path);
 	void CancelRename();
+	// CreateScript 우클릭 동작 — ImEditor::OpenPopup 으로 신규 스크립트 입력 모달.
+	void ShowNewScriptPopup(const File::Path& parentFolder);
+	// LiveCompile 실패 메시지를 컴파일러 출력 + 복사/확인 버튼과 함께 모달로 표시.
+	void ShowScriptCompileFailurePopup(std::string message);
 	void CommitRename(const File::Path& sourcePath);
 	void QueueOperation(const PendingOperation& operation);
 
@@ -150,6 +183,17 @@ private:
 	std::string m_renameBuffer;
 	File::Path m_renamingPath;
 	File::Path m_deleteTargetPath;
+
+	// ── 컨텍스트 메뉴 상태 ────────────────────────────────────────────────────
+	// Body 팝업: entry 우클릭 시 m_bodyCtxEntryPath = entry.AbsolutePath,
+	//            빈공간 우클릭 시 m_bodyCtxEntryPath = NULL_PATH.
+	// Tree 팝업: 폴더 우클릭 시 m_treeCtxFolderPath = 해당 폴더.
+	// OpenPopup 은 다음 프레임에 적용되므로, 직접 호출 대신 *Requested 플래그를
+	// 세팅하고 DrawXxxContextMenu 첫 부분에서 OpenPopup 을 일괄 실행한다.
+	File::Path m_bodyCtxEntryPath;
+	File::Path m_treeCtxFolderPath;
+	bool       m_bodyCtxOpenRequested = false;
+	bool       m_treeCtxOpenRequested = false;
 
 	EViewMode m_viewMode = EViewMode::Icon;
 	ESortMode m_sortMode = ESortMode::Name;

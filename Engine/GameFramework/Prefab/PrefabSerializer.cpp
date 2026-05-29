@@ -69,9 +69,9 @@ EPrefabSerializeResult CPrefabSerializer::DeserializePrefabFromText(CScene& scen
 	return firstRoot.IsValid() ? EPrefabSerializeResult::Success : EPrefabSerializeResult::ParseError;
 }
 
-EPrefabSerializeResult CPrefabSerializer::SavePrefabToFile(const CScene& scene, EntityId root, const char* path) const
+EPrefabSerializeResult CPrefabSerializer::SavePrefabToFile(const CScene& scene, EntityId root, const File::Path& path) const
 {
-	if (nullptr == path)
+	if (path.empty())
 	{
 		return EPrefabSerializeResult::InvalidArgument;
 	}
@@ -93,9 +93,9 @@ EPrefabSerializeResult CPrefabSerializer::SavePrefabToFile(const CScene& scene, 
 	return EPrefabSerializeResult::Success;
 }
 
-EPrefabSerializeResult CPrefabSerializer::LoadPrefabFromFile(CScene& scene, const char* path, CGameObject* outRoot) const
+EPrefabSerializeResult CPrefabSerializer::LoadPrefabFromFile(CScene& scene, const File::Path& path, CGameObject* outRoot) const
 {
-	if (nullptr == path)
+	if (path.empty())
 	{
 		return EPrefabSerializeResult::InvalidArgument;
 	}

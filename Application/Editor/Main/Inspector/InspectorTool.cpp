@@ -8,7 +8,8 @@
 #include "Engine/Core/Asset/IAssetManager.h"
 #include "Engine/Core/Asset/IAssetRegistry.h"
 #include "Engine/Core/Asset/SpriteAsset.h"
-#include "Engine/Core/Asset/TextureAsset.h"
+#include "Engine/Core/Resource/ResourceRegistry.h"
+#include "Engine/Core/RHI/IRHITexture.h"
 #include "Engine/Editor/ImEditor.h"
 #include "Engine/Editor/Project/ProjectManager.h"
 #include "Engine/GameFramework/Component/Physics2DComponents.h"
@@ -29,6 +30,44 @@ namespace
 	using EditorGuiDrawHelpers::GetScriptDisplayName;
 	using EditorGuiDrawHelpers::LocalizedComponentLabel;
 	using EditorGuiDrawHelpers::LocalizedPropertyLabel;
+
+	// 컴포넌트 타입 이름 → ResourceRegistry 아이콘 키.
+	// 매핑이 없으면 nullptr — 호출부에서 자리(Dummy)만 비우고 이미지는 그리지 않는다.
+	const char* GetComponentIconKey(const char* typeName)
+	{
+		if (nullptr == typeName) return nullptr;
+		if (0 == strcmp(typeName, "Transform2D"))            return "icon-transform";
+		if (0 == strcmp(typeName, "Camera2D"))               return "icon-camera";
+		if (0 == strcmp(typeName, "Rigidbody2D"))            return "icon-rigidbody";
+		if (0 == strcmp(typeName, "CircleCollider2D"))       return "icon-circle-collider";
+		if (0 == strcmp(typeName, "PolygonCollider2D"))      return "icon-polygon-collider";
+		if (0 == strcmp(typeName, "ScriptComponent"))        return "icon-script";
+		if (0 == strcmp(typeName, "GameObject"))             return "icon-object";
+		return nullptr;
+	}
+
+	ImTextureID GetComponentIconTexture(const char* typeName)
+	{
+		if (false == Core::ResourceRegistry.IsValid()) return 0;
+		const char* key = GetComponentIconKey(typeName);
+		if (nullptr == key) return 0;
+		SafePtr<CSpriteAsset> sprite = Core::ResourceRegistry->GetSprite(key);
+		if (false == sprite.IsValid()) return 0;
+		SafePtr<IRHITexture> tex = sprite->GetGpuTexture();
+		if (false == tex.IsValid()) return 0;
+		return reinterpret_cast<ImTextureID>(tex->GetNativeHandle().ShaderResourceView);
+	}
+
+	// ScriptComponent 인스턴스에서 등록된 스크립트의 표시 이름을 가져온다.
+	// 미등록(INVALID_TYPE_ID) 또는 reflection 미준비 시 nullptr.
+	const char* GetScriptInstanceDisplayName(void* compInstance)
+	{
+		if (nullptr == compInstance || false == Core::Reflection.IsValid()) return nullptr;
+		ScriptComponent* sc = static_cast<ScriptComponent*>(compInstance);
+		if (INVALID_TYPE_ID == sc->ScriptTypeId) return nullptr;
+		const ScriptTypeInfo* info = Core::Reflection->FindScript(sc->ScriptTypeId);
+		return info ? GetScriptDisplayName(info) : nullptr;
+	}
 
 	void DrawScriptTypeSelector(CScene& scene, EntityId entity, std::size_t instanceIndex, ScriptComponent& scriptComponent)
 	{
@@ -449,15 +488,15 @@ namespace
 			return false;
 		}
 
-		std::string resolvedMetaPath;
-		if (false == assetManager->ResolveAssetPath(metaData.MetaPath.generic_string().c_str(), resolvedMetaPath))
+		File::Path resolvedMetaPath;
+		if (false == assetManager->ResolveAssetPath(metaData.MetaPath, resolvedMetaPath))
 		{
 			return false;
 		}
 
 		AssetMetaData updatedMetaData = metaData;
 		updatedMetaData.ImportOptionsYaml = CSpriteImportOptions::ToYaml(options);
-		if (false == CAssetMetaFile::Save(resolvedMetaPath.c_str(), updatedMetaData))
+		if (false == CAssetMetaFile::Save(resolvedMetaPath, updatedMetaData))
 		{
 			return false;
 		}
@@ -469,34 +508,86 @@ namespace
 
 	void DrawSpriteImportOptions(const AssetMetaData& metaData)
 	{
-		SpriteImportOptions options = CSpriteImportOptions::FromYaml(metaData.ImportOptionsYaml);
-		int rowCount = static_cast<int>(options.RowCount);
+		// 매 프레임 디스크 yaml 로 덮어쓰면 사용자가 ImGui 에서 만진 값이 1프레임 만에 reset 된다.
+		// 자산이 바뀔 때(혹은 처음)만 디스크 값에서 로드하고, 그 외에는 편집 중 값을 그대로 유지.
+		// SaveSpriteImportOptions 가 디스크에 쓴 뒤에도 캐시 값과 디스크 값이 동일하므로 무해.
+		static AssetGuid           s_cachedGuid;
+		static SpriteImportOptions s_options;
+		static bool                s_dirty = false;
+		if (s_cachedGuid != metaData.Guid)
+		{
+			s_cachedGuid = metaData.Guid;
+			s_options    = CSpriteImportOptions::FromYaml(metaData.ImportOptionsYaml);
+			s_dirty      = false;
+		}
+		SpriteImportOptions& options = s_options;
+		int rowCount    = static_cast<int>(options.RowCount);
 		int columnCount = static_cast<int>(options.ColumnCount);
-		int marginX = static_cast<int>(options.MarginX);
-		int marginY = static_cast<int>(options.MarginY);
-		int gapX = static_cast<int>(options.GapX);
-		int gapY = static_cast<int>(options.GapY);
+		int cellWidth   = static_cast<int>(options.CellWidth);
+		int cellHeight  = static_cast<int>(options.CellHeight);
+		int marginX     = static_cast<int>(options.MarginX);
+		int marginY     = static_cast<int>(options.MarginY);
+		int gapX        = static_cast<int>(options.GapX);
+		int gapY        = static_cast<int>(options.GapY);
 
 		ImGui::SeparatorText(Loc::Text("inspector.sprite_import_options"));
 
 		ImGui::Utillity::FormLayout layout("##sprite_import_options");
 		bool changed = false;
-		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.row_count")); }, [&]() { changed |= ImGui::InputInt(Loc::Text("##inspector.row_count"), &rowCount); });
-		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.column_count")); }, [&]() { changed |= ImGui::InputInt(Loc::Text("##inspector.column_count"), &columnCount); });
-		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.margin_x")); }, [&]() { changed |= ImGui::InputInt(Loc::Text("##inspector.margin_x"), &marginX); });
-		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.margin_y")); }, [&]() { changed |= ImGui::InputInt(Loc::Text("##inspector.margin_y"), &marginY); });
-		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.gap_x")); }, [&]() { changed |= ImGui::InputInt(Loc::Text("##inspector.gap_x"), &gapX); });
-		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.gap_y")); }, [&]() { changed |= ImGui::InputInt(Loc::Text("##inspector.gap_y"), &gapY); });
-		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.pivot_x")); }, [&]() { changed |= ImGui::DragFloat(Loc::Text("##inspector.pivot_x"), &options.PivotX, 0.01f, 0.0f, 1.0f); });
-		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.pivot_y")); }, [&]() { changed |= ImGui::DragFloat(Loc::Text("##inspector.pivot_y"), &options.PivotY, 0.01f, 0.0f, 1.0f); });
-		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.pixels_per_unit")); }, [&]() { changed |= ImGui::DragFloat(Loc::Text("##inspector.pixels_per_unit"), &options.PixelsPerUnit, 1.0f, 1.0f, 10000.0f); });
 
-		options.RowCount = static_cast<std::uint32_t>(std::max(1, rowCount));
+		// ── 슬라이스 모드 콤보 ─────────────────────────────────────────────────
+		const char* sliceItems[] = {
+			Loc::Text("inspector.slice_type.none"),
+			Loc::Text("inspector.slice_type.automatic"),
+			Loc::Text("inspector.slice_type.cell_size"),
+			Loc::Text("inspector.slice_type.cell_count"),
+		};
+		int sliceTypeIndex = static_cast<int>(options.SliceType);
+		layout.Row(
+			[&]() { ImGui::TextUnformatted(Loc::Text("inspector.slice_type")); },
+			[&]()
+			{
+				if (ImGui::Combo("##inspector.slice_type", &sliceTypeIndex, sliceItems, IM_ARRAYSIZE(sliceItems)))
+				{
+					changed = true;
+				}
+			});
+		options.SliceType = static_cast<ESpriteSliceType>(sliceTypeIndex);
+
+		// ── 모드별 입력란 ─────────────────────────────────────────────────────
+		if (ESpriteSliceType::CellCount == options.SliceType)
+		{
+			layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.row_count")); },    [&]() { changed |= ImGui::InputInt("##inspector.row_count", &rowCount); });
+			layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.column_count")); }, [&]() { changed |= ImGui::InputInt("##inspector.column_count", &columnCount); });
+		}
+		else if (ESpriteSliceType::CellSize == options.SliceType)
+		{
+			layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.cell_width")); },  [&]() { changed |= ImGui::InputInt("##inspector.cell_width", &cellWidth); });
+			layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.cell_height")); }, [&]() { changed |= ImGui::InputInt("##inspector.cell_height", &cellHeight); });
+		}
+
+		// ── 그리드/여백 (None/Automatic 에서는 의미 없으므로 슬라이스 모드일 때만) ─
+		if (ESpriteSliceType::CellSize == options.SliceType || ESpriteSliceType::CellCount == options.SliceType)
+		{
+			layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.margin_x")); }, [&]() { changed |= ImGui::InputInt("##inspector.margin_x", &marginX); });
+			layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.margin_y")); }, [&]() { changed |= ImGui::InputInt("##inspector.margin_y", &marginY); });
+			layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.gap_x")); },    [&]() { changed |= ImGui::InputInt("##inspector.gap_x", &gapX); });
+			layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.gap_y")); },    [&]() { changed |= ImGui::InputInt("##inspector.gap_y", &gapY); });
+		}
+
+		// ── 공용: 피벗/PPU ────────────────────────────────────────────────────
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.pivot_x")); },         [&]() { changed |= ImGui::DragFloat("##inspector.pivot_x", &options.PivotX, 0.01f, 0.0f, 1.0f); });
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.pivot_y")); },         [&]() { changed |= ImGui::DragFloat("##inspector.pivot_y", &options.PivotY, 0.01f, 0.0f, 1.0f); });
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.pixels_per_unit")); }, [&]() { changed |= ImGui::DragFloat("##inspector.pixels_per_unit", &options.PixelsPerUnit, 1.0f, 1.0f, 10000.0f); });
+
+		options.RowCount    = static_cast<std::uint32_t>(std::max(1, rowCount));
 		options.ColumnCount = static_cast<std::uint32_t>(std::max(1, columnCount));
-		options.MarginX = static_cast<std::uint32_t>(std::max(0, marginX));
-		options.MarginY = static_cast<std::uint32_t>(std::max(0, marginY));
-		options.GapX = static_cast<std::uint32_t>(std::max(0, gapX));
-		options.GapY = static_cast<std::uint32_t>(std::max(0, gapY));
+		options.CellWidth   = static_cast<std::uint32_t>(std::max(1, cellWidth));
+		options.CellHeight  = static_cast<std::uint32_t>(std::max(1, cellHeight));
+		options.MarginX     = static_cast<std::uint32_t>(std::max(0, marginX));
+		options.MarginY     = static_cast<std::uint32_t>(std::max(0, marginY));
+		options.GapX        = static_cast<std::uint32_t>(std::max(0, gapX));
+		options.GapY        = static_cast<std::uint32_t>(std::max(0, gapY));
 
 		SafePtr<CProjectManager> projectManager = GetProjectManager();
 		SafePtr<IAssetManager> assetManager = projectManager ? projectManager->GetAssetManager() : nullptr;
@@ -506,11 +597,11 @@ namespace
 		{
 			if (SafePtr<IAsset> loadedAsset = assetManager->LoadAsset(metaData.Guid))
 			{
-				if (EAssetType::Texture == loadedAsset->GetAssetType())
+				if (EAssetType::Sprite == loadedAsset->GetAssetType())
 				{
-					CTextureAsset* textureAsset = static_cast<CTextureAsset*>(loadedAsset.TryGet());
-					textureWidth = textureAsset ? textureAsset->GetWidth() : 0;
-					textureHeight = textureAsset ? textureAsset->GetHeight() : 0;
+					CSpriteAsset* spriteAsset = static_cast<CSpriteAsset*>(loadedAsset.TryGet());
+					textureWidth = spriteAsset ? spriteAsset->GetWidth() : 0;
+					textureHeight = spriteAsset ? spriteAsset->GetHeight() : 0;
 				}
 			}
 		}
@@ -525,13 +616,18 @@ namespace
 
 		if (changed)
 		{
-			ImGui::TextDisabled(Loc::Text("inspector.options_changed"));
+			s_dirty = true;
 		}
 
+		ImGui::BeginDisabled(false == s_dirty);
 		if (ImGui::Button(Loc::Text("inspector.apply_sprite_import_options")))
 		{
-			SaveSpriteImportOptions(metaData, options);
+			if (SaveSpriteImportOptions(metaData, options))
+			{
+				s_dirty = false;
+			}
 		}
+		ImGui::EndDisabled();
 	}
 
 	bool DrawSelectedAssetInspector()
@@ -563,7 +659,7 @@ namespace
 		ImGui::Text("%s: %s", Loc::Text("common.importer"), metaData->Importer.c_str());
 		ImGui::Separator();
 
-		if (EAssetType::Texture == metaData->Type || EAssetType::Sprite == metaData->Type)
+		if (EAssetType::Sprite == metaData->Type)
 		{
 			DrawSpriteImportOptions(*metaData);
 		}
@@ -698,11 +794,22 @@ void CInspectorTool::OnRenderStay()
 		if (strcmp(name, "GameObject") == 0)
 			continue; // 상단 인라인 처리됨
 
-		const std::string displayName = LocalizedComponentLabel(*e.typeInfo);
+		const std::string baseDisplayName = LocalizedComponentLabel(*e.typeInfo);
 		const bool hasMultiple = e.instances.size() > 1;
+		const bool isScriptComponent = (name && 0 == strcmp(name, "ScriptComponent"));
 
 		for (std::size_t instIdx = 0; instIdx < e.instances.size(); ++instIdx)
 		{
+			std::string displayName = baseDisplayName;
+			// ScriptComponent: "ScriptComponent" 대신 등록된 스크립트 이름을 라벨로.
+			if (isScriptComponent && instIdx < e.instances.size())
+			{
+				if (const char* scriptName = GetScriptInstanceDisplayName(e.instances[instIdx]))
+				{
+					displayName = scriptName;
+				}
+			}
+
 			ListEntry le;
 			if (hasMultiple)
 				le.label = displayName + " [" + std::to_string(instIdx) + "]";
@@ -758,6 +865,19 @@ void CInspectorTool::OnRenderStay()
 
 			if (!isEnabled)
 				ImGui::PushStyleColor(ImGuiCol_Text, disabledTextCol);
+
+			// 아이콘 + 이름. 아이콘이 없으면 이름만 표시(자리는 비워 정렬 유지).
+			const ImTextureID iconTex = GetComponentIconTexture(ce.typeInfo->Type.Name);
+			const float       lineH   = ImGui::GetTextLineHeight();
+			if (0 != iconTex)
+			{
+				ImGui::Image(iconTex, ImVec2(lineH, lineH));
+			}
+			else
+			{
+				ImGui::Dummy(ImVec2(lineH, lineH));
+			}
+			ImGui::SameLine();
 
 			// ID 충돌 방지: 인덱스 접미사
 			char selLabel[256];

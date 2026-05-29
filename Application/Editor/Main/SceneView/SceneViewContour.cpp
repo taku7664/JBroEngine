@@ -3,7 +3,7 @@
 
 #include "Engine/Core/Asset/IAssetManager.h"
 #include "Engine/Core/Asset/SpriteAsset.h"
-#include "Engine/Core/Asset/TextureAsset.h"
+#include "Engine/Core/Asset/SpriteAsset.h"
 #include "Engine/GameFramework/Component/GameObject.h"
 #include "Engine/GameFramework/Component/SpriteRenderer2D.h"
 #include "Engine/GameFramework/Component/Transform2D.h"
@@ -251,12 +251,12 @@ namespace
         return result;
     }
 
-    // ── SpriteGuid → CTextureAsset + 프레임 rect 해석 ────────────────────────
-    // SpriteGuid 는 CSpriteAsset 또는 CTextureAsset 을 직접 가리킬 수 있음.
+    // ── SpriteGuid → CSpriteAsset + 프레임 rect 해석 ────────────────────────
+    // 통합 후 SpriteGuid 는 CSpriteAsset 만 가리킨다.
 
     struct ResolvedTex
     {
-        const CTextureAsset* tex = nullptr;
+        const CSpriteAsset* tex = nullptr;
         std::uint32_t fX = 0, fY = 0, fW = 0, fH = 0;
         bool IsValid() const { return tex != nullptr && fW > 0 && fH > 0; }
     };
@@ -268,37 +268,24 @@ namespace
     {
         if (spriteGuid == INVALID_ASSET_GUID) return {};
         SafePtr<IAsset> asset = mgr.FindLoadedAsset(spriteGuid);
-        if (!asset) return {};
+        if (!asset || EAssetType::Sprite != asset->GetAssetType()) return {};
 
         ResolvedTex r;
-        if (EAssetType::Texture == asset->GetAssetType())
-        {
-            r.tex = static_cast<const CTextureAsset*>(asset.TryGet());
-            if (!r.tex) return {};
-            r.fW = r.tex->GetWidth();
-            r.fH = r.tex->GetHeight();
-        }
-        else if (EAssetType::Sprite == asset->GetAssetType())
-        {
-            const CSpriteAsset* sd = static_cast<const CSpriteAsset*>(asset.TryGet());
-            if (!sd || sd->TextureGuid == INVALID_ASSET_GUID) return {};
-            SafePtr<IAsset> txAsset = mgr.FindLoadedAsset(sd->TextureGuid);
-            if (!txAsset || EAssetType::Texture != txAsset->GetAssetType()) return {};
-            r.tex = static_cast<const CTextureAsset*>(txAsset.TryGet());
-            if (!r.tex) return {};
-            r.fW = r.tex->GetWidth();
-            r.fH = r.tex->GetHeight();
-            if (frameIndex < sd->Frames.size())
-            {
-                const auto& f = sd->Frames[frameIndex];
-                r.fX = f.X; r.fY = f.Y;
-                if (f.Width  > 0) r.fW = f.Width;
-                if (f.Height > 0) r.fH = f.Height;
-            }
-        }
-        else return {};
+        r.tex = static_cast<const CSpriteAsset*>(asset.TryGet());
+        if (!r.tex) return {};
+        r.fW = r.tex->GetWidth();
+        r.fH = r.tex->GetHeight();
 
-        if (!r.tex || r.tex->GetPixels().empty() || r.fW == 0 || r.fH == 0) return {};
+        const auto& frames = r.tex->GetFrames();
+        if (frameIndex < frames.size())
+        {
+            const auto& f = frames[frameIndex];
+            r.fX = f.X; r.fY = f.Y;
+            if (f.Width  > 0) r.fW = f.Width;
+            if (f.Height > 0) r.fH = f.Height;
+        }
+
+        if (r.tex->GetPixels().empty() || r.fW == 0 || r.fH == 0) return {};
         return r;
     }
 

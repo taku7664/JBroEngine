@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Core/Asset/AssetTypes.h"
 #include "GameFramework/ECS/ComponentPool.h"
 #include "GameFramework/ECS/EntityManager.h"
 #include "GameFramework/System/GameSystem.h"
@@ -218,6 +219,8 @@ public:
 	void FlushPendingRemovesAllPools();
 	CPhysics2DSystem* GetPhysics2DSystem();
 	const CPhysics2DSystem* GetPhysics2DSystem() const;
+	void SetReferencedAssets(std::vector<AssetGuid> referencedAssets);
+	const std::vector<AssetGuid>& GetReferencedAssets() const;
 	void ClearObjects();
 	void Clear();
 
@@ -358,4 +361,5 @@ private:
 	OwnerPtr<CTransformSystem> m_transformSystem; // runs first — caches WorldTransform2D
 	OwnerPtr<CPhysics2DSystem> m_physicsSystem;
 	OwnerPtr<CScriptSystem>    m_scriptSystem;
+	std::vector<AssetGuid>     m_referencedAssets;
 };

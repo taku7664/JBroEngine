@@ -1,6 +1,9 @@
 #include "pch.h"
 #include "AssetPath.h"
 
+#include <algorithm>
+#include <cctype>
+
 bool CAssetPath::NormalizeRelativePath(const char* path, std::string& outPath)
 {
 	outPath.clear();
@@ -76,6 +79,37 @@ bool CAssetPath::IsValidRelativePath(const char* path)
 {
 	std::string normalized;
 	return NormalizeRelativePath(path, normalized);
+}
+
+bool CAssetPath::IsAbsoluteAssetPath(const char* path)
+{
+	if (nullptr == path) return false;
+	std::string s(path);
+	for (char& ch : s) { if ('\\' == ch) ch = '/'; }
+	return HasDrivePrefix(s);
+}
+
+bool CAssetPath::NormalizeAssetKey(const char* path, std::string& outPath)
+{
+	outPath.clear();
+	if (nullptr == path || '\0' == path[0])
+	{
+		return false;
+	}
+
+	// 절대경로(드라이브 접두사 포함) — 슬래시 변환 + 소문자만 적용해 그대로 키로 사용.
+	// 외부 path-based 자산(.Jmeta 없이 직접 등록)을 지원한다.
+	if (IsAbsoluteAssetPath(path))
+	{
+		outPath.assign(path);
+		for (char& ch : outPath) { if ('\\' == ch) ch = '/'; }
+		std::transform(outPath.begin(), outPath.end(), outPath.begin(),
+			[](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+		return false == outPath.empty();
+	}
+
+	// 상대경로 — 기존 NormalizeRelativePath 규칙.
+	return NormalizeRelativePath(path, outPath);
 }
 
 std::string CAssetPath::MakeMetaPath(const char* normalizedPath)

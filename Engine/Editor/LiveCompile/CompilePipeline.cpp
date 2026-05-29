@@ -73,6 +73,21 @@ namespace
 			("JBroEngine_LiveCompile_" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".log");
 	}
 
+	// UTF-8 → UTF-16 변환.  사용자명/프로젝트 경로에 한글 같은 non-ASCII 가 있을 때
+	// CreateProcessA 가 시스템 ANSI 코드페이지(CP949 등)로 잘못 해석하는 문제를
+	// 피하기 위해 CreateProcessW 를 쓰고, 명령줄/경로 모두 wide 문자열로 전달한다.
+	std::wstring Utf8ToWide(const std::string& utf8)
+	{
+		if (utf8.empty()) return {};
+		const int requiredSize = MultiByteToWideChar(CP_UTF8, 0, utf8.data(),
+			static_cast<int>(utf8.size()), nullptr, 0);
+		if (requiredSize <= 0) return {};
+		std::wstring out(static_cast<std::size_t>(requiredSize), L'\0');
+		MultiByteToWideChar(CP_UTF8, 0, utf8.data(),
+			static_cast<int>(utf8.size()), out.data(), requiredSize);
+		return out;
+	}
+
 	bool RunProcessToLog(const std::string& commandLine, const std::filesystem::path& logPath, std::int32_t& outExitCode, std::string& outError)
 	{
 		SECURITY_ATTRIBUTES securityAttributes = {};
@@ -95,18 +110,20 @@ namespace
 			return false;
 		}
 
-		STARTUPINFOA startupInfo = {};
-		startupInfo.cb = sizeof(STARTUPINFOA);
+		STARTUPINFOW startupInfo = {};
+		startupInfo.cb = sizeof(STARTUPINFOW);
 		startupInfo.dwFlags = STARTF_USESTDHANDLES;
 		startupInfo.hStdOutput = outputHandle;
 		startupInfo.hStdError = outputHandle;
 		startupInfo.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
 
 		PROCESS_INFORMATION processInfo = {};
-		std::vector<char> mutableCommand(commandLine.begin(), commandLine.end());
-		mutableCommand.push_back('\0');
+		std::wstring wideCommand = Utf8ToWide(commandLine);
+		// CreateProcessW 의 lpCommandLine 은 in-place 변경이 가능해야 하므로 buffer 확보.
+		std::vector<wchar_t> mutableCommand(wideCommand.begin(), wideCommand.end());
+		mutableCommand.push_back(L'\0');
 
-		const BOOL created = CreateProcessA(
+		const BOOL created = CreateProcessW(
 			nullptr,
 			mutableCommand.data(),
 			nullptr,

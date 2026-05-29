@@ -51,12 +51,14 @@
     <_SDKHeader Include="$(_EngineDir)Core\Core.h"           DestDir="Core" />
     <_SDKHeader Include="$(_EngineDir)Core\EngineCore.h"     DestDir="Core" />
     <_SDKHeader Include="$(_EngineDir)Core\Debug\**\*.h"     DestDir="Core\Debug" />
-    <_SDKHeader Include="$(_EngineDir)Engine\EngineAPI.h"    DestDir="Engine" />
     <_SDKHeader Include="$(_EngineDir)Core\Input\**\*.h"    DestDir="Core\Input" />
     <_SDKHeader Include="$(_EngineDir)Core\Logging\**\*.h"  DestDir="Core\Logging" />
     <_SDKHeader Include="$(_EngineDir)Core\Game\**\*.h"     DestDir="Core\Game" />
     <_SDKHeader Include="$(_EngineDir)Core\Asset\**\*.h"    DestDir="Core\Asset" />
     <_SDKHeader Include="$(_EngineDir)Core\Renderer\**\*.h" DestDir="Core\Renderer" />
+    <_SDKHeader Include="$(_EngineDir)Core\Task\**\*.h"     DestDir="Core\Task" />
+    <_SDKHeader Include="$(_EngineDir)Core\Random\**\*.h"   DestDir="Core\Random" />
+    <_SDKHeader Include="$(_EngineDir)Core\Math\**\*.h"     DestDir="Core\Math" />
   </ItemGroup>
 
   <!-- Utillity 전체 글로브 (파일 구조 그대로 유지) -->

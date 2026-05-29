@@ -1,12 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  GameScript.vcxproj.template
-  ----------------------------
-  CGameScriptProjectGenerator reads this file and replaces only:
-    {PROJECT_NAME}
-    {PROJECT_GUID}
-    {ENGINE_PROPS}
--->
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -69,12 +61,11 @@
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
       <AdditionalIncludeDirectories>$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
-      <ProgramDataBaseFileName>$(IntDir)$(TargetName).compile.pdb</ProgramDataBaseFileName>
+      <DebugInformationFormat>OldStyle</DebugInformationFormat>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
-      <ProgramDatabaseFile>$(IntDir)$(TargetName).pdb</ProgramDatabaseFile>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -91,12 +82,10 @@
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
       <AdditionalIncludeDirectories>$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
-      <ProgramDataBaseFileName>$(IntDir)$(TargetName).compile.pdb</ProgramDataBaseFileName>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
-      <ProgramDatabaseFile>$(IntDir)$(TargetName).pdb</ProgramDatabaseFile>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -105,15 +94,13 @@
     </ClCompile>
     <ClCompile Include="GameModule.cpp" />
     <ClCompile Include="GeneratedScriptRegistry.cpp" />
-    <ClCompile Include="Scripts\*.cpp" />
-  </ItemGroup>
+{SCRIPT_CPP_FILES}  </ItemGroup>
   <ItemGroup>
     <ClInclude Include="GameScriptApi.h" />
     <ClInclude Include="GameModuleEntry.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="GeneratedScriptRegistry.h" />
-    <ClInclude Include="Scripts\*.h" />
-  </ItemGroup>
+{SCRIPT_H_FILES}  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />
 </Project>

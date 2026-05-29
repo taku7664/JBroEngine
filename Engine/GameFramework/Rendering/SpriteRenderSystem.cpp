@@ -3,7 +3,7 @@
 
 #include "Core/Asset/IAssetManager.h"
 #include "Core/Asset/SpriteAsset.h"
-#include "Core/Asset/TextureAsset.h"
+#include "Core/Asset/SpriteAsset.h"
 #include "Core/Renderer/Forward2DRenderer.h"
 #include "Core/Renderer/IRenderMaterial.h"
 #include "Core/Renderer/IRenderMesh.h"
@@ -65,31 +65,20 @@ void CSpriteRenderSystem::OnUpdate(CScene& scene)
 			CForward2DRenderer* forwardRenderer = dynamic_cast<CForward2DRenderer*>(m_renderer);
 			if ((false == mesh.IsValid() || false == material.IsValid()) && m_assetManager && m_rhiDevice && forwardRenderer)
 			{
+				// SpriteGuid 는 CSpriteAsset 을 가리킨다 (이전 CTextureAsset 통합됨).
 				SafePtr<IAsset> asset = m_assetManager->LoadAsset(sprite.SpriteGuid);
-				CTextureAsset* textureAsset = nullptr;
-				if (asset && EAssetType::Texture == asset->GetAssetType())
+				CSpriteAsset* spriteAsset = nullptr;
+				if (asset && EAssetType::Sprite == asset->GetAssetType())
 				{
-					textureAsset = static_cast<CTextureAsset*>(asset.TryGet());
-				}
-				else if (asset && EAssetType::Sprite == asset->GetAssetType())
-				{
-					CSpriteAsset* spriteAsset = static_cast<CSpriteAsset*>(asset.TryGet());
-					if (spriteAsset)
-					{
-						SafePtr<IAsset> texture = m_assetManager->LoadAsset(spriteAsset->TextureGuid);
-						if (texture && EAssetType::Texture == texture->GetAssetType())
-						{
-							textureAsset = static_cast<CTextureAsset*>(texture.TryGet());
-						}
-					}
+					spriteAsset = static_cast<CSpriteAsset*>(asset.TryGet());
 				}
 
-				if (textureAsset && textureAsset->EnsureGpuTexture(*m_rhiDevice))
+				if (spriteAsset && spriteAsset->EnsureGpuTexture(*m_rhiDevice))
 				{
 					mesh = forwardRenderer->GetQuadMesh();
 					OwnerPtr<CRenderMaterial> generatedMaterial = MakeOwnerPtr<CRenderMaterial>(
 						forwardRenderer->GetSpritePipeline(),
-						textureAsset->GetGpuTexture(),
+						spriteAsset->GetGpuTexture(),
 						forwardRenderer->GetDefaultSampler(),
 						ERenderQueue::Transparent);
 					material = generatedMaterial.GetSafePtr();

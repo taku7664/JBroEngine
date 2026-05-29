@@ -77,7 +77,12 @@ void CHierarchyTool::OnRenderStay()
 	}
 
 	// ── 드래그 중 "루트로 이동" 드롭 존 (상단) ─────────────────────────────────
-	const bool isDragging = (ImGui::GetDragDropPayload() != nullptr);
+	// 다른 위젯의 드래그(예: ImGui::Utillity::List 의 reorder)가 진행 중일 때도
+	// GetDragDropPayload 는 nullptr 이 아니다. payload 타입이 HIERARCHY_ENTITY 인
+	// 경우에만 unparent 드롭 존을 표시한다.
+	const ImGuiPayload* currentDragPayload = ImGui::GetDragDropPayload();
+	const bool isDragging = currentDragPayload != nullptr
+	                      && currentDragPayload->IsDataType("HIERARCHY_ENTITY");
 	if (isDragging)
 	{
 		ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.25f, 0.45f, 0.25f, 0.55f));

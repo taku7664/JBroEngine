@@ -48,10 +48,10 @@ void CSceneAssetOpenHandler::Open(CAssetBrowserTool&, const AssetBrowserEntry& e
 	}
 
 	CSceneSerializer serializer;
-	const std::string path = entry.AbsolutePath.string();
-	if (ESceneSerializeResult::Success == serializer.LoadFromFile(*scene, path.c_str()))
+	if (ESceneSerializeResult::Success == serializer.LoadFromFile(*scene, entry.AbsolutePath))
 	{
-		if (const EngineContext* context = Editor::ImEditor ? Editor::ImEditor->GetEditorEngineContext() : nullptr)
+		Core::SceneManager->PreloadReferencedAssets(*scene);
+		if (const EngineCore* context = Editor::ImEditor ? Editor::ImEditor->GetEditorEngineCore() : nullptr)
 		{
 			CSpriteRenderSystem* spriteSystem = scene->FindSystem<CSpriteRenderSystem>();
 			if (nullptr == spriteSystem)

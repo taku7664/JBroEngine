@@ -13,7 +13,6 @@ inline const AssetGuid INVALID_ASSET_GUID = File::NULL_GUID;
 enum class EAssetType
 {
 	Unknown,
-	Texture,
 	Sprite,
 	Mesh,
 	Material,
@@ -44,26 +43,30 @@ struct AssetMetaData
 	std::string DisplayName;
 	std::string Importer;
 	std::string ImportOptionsYaml;
+
+	// true 면 UnloadNonPersistentAssets() 시 보존된다.
+	// 등록 방식(.Jmeta / path-only) 과는 직교 — 어느 방식이든 플래그로 라이프사이클 제어.
+	bool IsPersistent = false;
 };
 
 struct AssetLoadDesc
 {
 	AssetGuid Guid = INVALID_ASSET_GUID;
 	EAssetType Type = EAssetType::Unknown;
-	const char* Path = nullptr;
-	const char* ResolvedPath = nullptr;
+	File::Path Path;
+	File::Path ResolvedPath;
 	const AssetMetaData* MetaData = nullptr;
 };
 
 struct AssetManagerDesc
 {
-	const char* AssetRootPath = "Assets";
+	File::Path AssetRootPath = "Assets";
 };
 
 struct AssetImportDesc
 {
 	EAssetType Type = EAssetType::Unknown;
-	const char* Path = nullptr;
+	File::Path Path;
 	const char* DisplayName = nullptr;
 	const char* Importer = nullptr;
 };
@@ -75,6 +78,6 @@ struct AssetRegistrySnapshot
 
 struct AssetPackageBuildDesc
 {
-	const char* OutputManifestPath = nullptr;
-	const char* OutputBlobPath = nullptr;
+	File::Path OutputManifestPath;
+	File::Path OutputBlobPath;
 };

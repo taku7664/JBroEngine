@@ -3,7 +3,7 @@
 
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
 
-bool CWindowsDynamicLibrary::Load(const char* path)
+bool CWindowsDynamicLibrary::Load(const wchar_t* path)
 {
 	Unload();
 
@@ -12,7 +12,7 @@ bool CWindowsDynamicLibrary::Load(const char* path)
 		return false;
 	}
 
-	m_handle = LoadLibraryA(path);
+	m_handle = LoadLibraryW(path);
 	return nullptr != m_handle;
 }
 
@@ -42,7 +42,7 @@ bool CWindowsDynamicLibrary::IsLoaded() const
 
 #else
 
-bool CWindowsDynamicLibrary::Load(const char* path)
+bool CWindowsDynamicLibrary::Load(const wchar_t* path)
 {
 	(void)path;
 	return false;

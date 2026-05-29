@@ -187,7 +187,6 @@ inline const char* GetTypeName(EAssetType type)
 {
 	switch (type)
 	{
-	case EAssetType::Texture: return "Texture";
 	case EAssetType::Sprite: return "Sprite";
 	case EAssetType::Mesh: return "Mesh";
 	case EAssetType::Material: return "Material";

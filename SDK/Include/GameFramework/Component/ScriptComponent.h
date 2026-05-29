@@ -17,6 +17,8 @@
 struct ScriptPendingField
 {
 	std::string           Name; // 프로퍼티 이름 (타입 변경 사이에서도 이름으로 매칭)
+	EReflectPropertyType  Type = EReflectPropertyType::Float;
+	std::string           Text; // non-trivial reflected values such as AssetGuid
 	std::vector<uint8_t>  Data; // 원본 필드의 raw bytes (크기 = ReflectPropertyInfo::Size)
 };
 

@@ -56,7 +56,7 @@ bool CFileAssetLoader::CanLoad(const AssetLoadDesc& desc) const
 {
 	return EAssetType::Unknown != m_supportedType
 		&& desc.Type == m_supportedType
-		&& nullptr != desc.ResolvedPath
+		&& false == desc.ResolvedPath.empty()
 		&& nullptr != desc.MetaData;
 }
 

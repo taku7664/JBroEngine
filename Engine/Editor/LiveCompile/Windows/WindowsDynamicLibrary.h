@@ -5,7 +5,7 @@
 class CWindowsDynamicLibrary final : public IDynamicLibrary
 {
 public:
-	bool Load(const char* path) override;
+	bool Load(const wchar_t* path) override;
 	void Unload() override;
 	void* GetSymbol(const char* name) const override;
 	bool IsLoaded() const override;

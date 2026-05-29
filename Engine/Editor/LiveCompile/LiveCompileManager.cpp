@@ -10,9 +10,13 @@
 #include "GameFramework/Scene/SceneManager.h"
 #include "Editor/LiveCompile/CompilePipeline.h"
 #include "Editor/LiveCompile/Windows/WindowsDynamicLibrary.h"
+#include "Core/Logging/LoggerInternal.h"
 
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
+#include <vector>
 
 #if defined(_MSC_VER)
 #include <malloc.h>
@@ -83,8 +87,86 @@ bool CLiveCompileManager::Initialize(const LiveCompileDesc& desc)
 		m_sourceWatcher->Watch(watcherDesc);
 	}
 
+	// 누적된 stamp 폴더 / 핫리로드 DLL 정리.  최근 10 빌드만 유지.
+	CleanupOldArtifacts(10);
+
 	m_state = ELiveCompileState::Idle;
 	return true;
+}
+
+void CLiveCompileManager::CleanupOldArtifacts(int keepMostRecent) const
+{
+	if (m_desc.IntermediateDirectory.empty()) return;
+	if (keepMostRecent < 1) keepMostRecent = 1;
+
+	std::error_code ec;
+	const std::filesystem::path root(m_desc.IntermediateDirectory);
+	if (false == std::filesystem::exists(root, ec) || ec)
+	{
+		return;
+	}
+
+	auto pruneByMTime = [](std::vector<std::filesystem::path> entries, int keep)
+	{
+		std::sort(entries.begin(), entries.end(),
+			[](const std::filesystem::path& a, const std::filesystem::path& b)
+			{
+				std::error_code e1, e2;
+				const auto ta = std::filesystem::last_write_time(a, e1);
+				const auto tb = std::filesystem::last_write_time(b, e2);
+				if (e1 || e2) return false;
+				return ta > tb;   // 최신순
+			});
+		for (std::size_t i = static_cast<std::size_t>(keep); i < entries.size(); ++i)
+		{
+			std::error_code re;
+			std::filesystem::remove_all(entries[i], re);
+			// 잠금된 파일(현재 로드된 DLL 등) 은 제거 실패 — 무시.
+		}
+	};
+
+	// 1) IntermediateDirectory 직속 GameScript_<serial>.dll / .pdb / .ilk 등 정리
+	{
+		std::vector<std::filesystem::path> reloadFiles;
+		for (const auto& entry : std::filesystem::directory_iterator(root, ec))
+		{
+			if (ec) { ec.clear(); break; }
+			if (entry.is_regular_file(ec))
+			{
+				const std::string name = entry.path().filename().generic_string();
+				// "GameScript_<숫자>" prefix 검사 — Loadable DLL 패밀리.
+				if (name.rfind("GameScript_", 0) == 0)
+				{
+					reloadFiles.push_back(entry.path());
+				}
+			}
+			ec.clear();
+		}
+		pruneByMTime(std::move(reloadFiles), keepMostRecent);
+	}
+
+	// 2) IntermediateDirectory/Debug, Release 안의 stamp 폴더 정리
+	const char* configurations[] = { "Debug", "Release" };
+	for (const char* cfg : configurations)
+	{
+		const std::filesystem::path cfgDir = root / cfg;
+		if (false == std::filesystem::exists(cfgDir, ec))
+		{
+			ec.clear();
+			continue;
+		}
+		std::vector<std::filesystem::path> stampFolders;
+		for (const auto& entry : std::filesystem::directory_iterator(cfgDir, ec))
+		{
+			if (ec) { ec.clear(); break; }
+			if (entry.is_directory(ec))
+			{
+				stampFolders.push_back(entry.path());
+			}
+			ec.clear();
+		}
+		pruneByMTime(std::move(stampFolders), keepMostRecent);
+	}
 }
 
 void CLiveCompileManager::Finalize()
@@ -113,9 +195,24 @@ void CLiveCompileManager::Finalize()
 	m_isDirty = false;
 }
 
-void CLiveCompileManager::Tick(bool scanSourceChanges)
+void CLiveCompileManager::Tick(bool autoRebuildEnabled)
 {
-	if (scanSourceChanges && m_sourceWatcher)
+	// 진행 중인 비동기 컴파일은 항상 폴링 — 자동 리빌드가 OFF 로 바뀌어도
+	// 직전에 시작된 컴파일은 마무리되어야 DLL 이 안전하게 교체된다.
+	if (m_pendingCompile.valid())
+	{
+		PollAsyncCompile();
+	}
+
+	// 자동 리빌드 OFF 면 새 변경 감지/빌드 시작을 모두 멈춤.
+	// (m_isDirty 는 reset 하지 않는다 — ON 으로 다시 켜면 누적분 처리.
+	//  주의: 이 함수는 호출 시점이 매 프레임이라 reset 하면 디바운스가 안 흘러간다.)
+	if (false == autoRebuildEnabled)
+	{
+		return;
+	}
+
+	if (m_sourceWatcher)
 	{
 		m_sourceWatcher->Poll();
 		std::vector<FileWatchEvent> events;
@@ -126,13 +223,7 @@ void CLiveCompileManager::Tick(bool scanSourceChanges)
 		}
 	}
 
-	// 1) 진행 중인 비동기 컴파일 폴링 → 완료 시 메인 스레드에서 DLL 교체
-	if (m_pendingCompile.valid())
-	{
-		PollAsyncCompile();
-	}
-
-	// 2) 디바운스 경과 + 컴파일 진행 중 아니면 새 빌드 시작
+	// 디바운스 경과 + 컴파일 진행 중 아니면 새 빌드 시작
 	if (m_isDirty && false == m_pendingCompile.valid())
 	{
 		const std::chrono::duration<float> elapsed =
@@ -197,16 +288,29 @@ void CLiveCompileManager::PollAsyncCompile()
 
 	LiveCompileResult result = m_pendingCompile.get();
 	m_pendingCompile = {};
-	ApplyCompileResult(std::move(result));
+	LiveCompileResult applied = ApplyCompileResult(std::move(result));
+	// 자동(파일변경 트리거) 컴파일 실패도 시스템 로그에 명시적으로 남긴다.
+	// (수동 RebuildScriptModule 경로는 호출자가 직접 LogLiveCompileFailure 를 호출.)
+	if (false == applied.Succeeded)
+	{
+		CSystemLog::Error("Script auto-compile failed.");
+	}
 }
 
 // 메인 스레드 전용: 컴파일 결과를 받아 DLL 교체 + 모듈 재로드 + 스냅샷 복원.
 // 워커 스레드에서 절대 호출하면 안 됨 (Reflection/SceneManager 접근).
+// 함수 끝의 모든 실패 경로에서 같은 처리(상태 = Failed + 메시지 저장)를 보장하기 위한
+// 헬퍼.  RAII / NRVO 에 의존하지 않고 명시적으로 호출.
+#define MARK_FAILURE() do { \
+    m_state              = ELiveCompileState::Failed; \
+    m_lastFailureMessage = result.Message; \
+} while(0)
+
 LiveCompileResult CLiveCompileManager::ApplyCompileResult(LiveCompileResult result)
 {
 	if (false == result.Succeeded)
 	{
-		m_state = ELiveCompileState::Failed;
+		MARK_FAILURE();
 		return result;
 	}
 
@@ -214,7 +318,7 @@ LiveCompileResult CLiveCompileManager::ApplyCompileResult(LiveCompileResult resu
 	{
 		result.Succeeded = false;
 		result.Message   = "LiveCompile is not initialized.";
-		m_state          = ELiveCompileState::Failed;
+		MARK_FAILURE();
 		return result;
 	}
 
@@ -228,7 +332,7 @@ LiveCompileResult CLiveCompileManager::ApplyCompileResult(LiveCompileResult resu
 	{
 		result.Succeeded = false;
 		result.Message   = errorCode.message();
-		m_state          = ELiveCompileState::Failed;
+		MARK_FAILURE();
 		return result;
 	}
 
@@ -237,11 +341,13 @@ LiveCompileResult CLiveCompileManager::ApplyCompileResult(LiveCompileResult resu
 	DestroyCurrentModule();
 	m_dynamicLibrary->Unload();
 
-	if (false == m_dynamicLibrary->Load(loadablePath.string().c_str()))
+	// .string() 은 시스템 ANSI(CP949 등) 변환 — 한글 사용자 경로에서 깨진다.
+	// wstring() 으로 wide path 를 그대로 LoadLibraryW 에 전달.
+	if (false == m_dynamicLibrary->Load(loadablePath.wstring().c_str()))
 	{
 		result.Succeeded = false;
 		result.Message   = "Failed to load compiled game module.";
-		m_state          = ELiveCompileState::Failed;
+		MARK_FAILURE();
 		return result;
 	}
 
@@ -251,7 +357,7 @@ LiveCompileResult CLiveCompileManager::ApplyCompileResult(LiveCompileResult resu
 	{
 		result.Succeeded = false;
 		result.Message   = "Game module exports were not found.";
-		m_state          = ELiveCompileState::Failed;
+		MARK_FAILURE();
 		return result;
 	}
 
@@ -261,7 +367,7 @@ LiveCompileResult CLiveCompileManager::ApplyCompileResult(LiveCompileResult resu
 		DestroyCurrentModule();
 		result.Succeeded = false;
 		result.Message   = "Game module initialization failed.";
-		m_state          = ELiveCompileState::Failed;
+		MARK_FAILURE();
 		return result;
 	}
 
@@ -281,6 +387,13 @@ IGameModule* CLiveCompileManager::GetGameModule() const
 ELiveCompileState CLiveCompileManager::GetState() const
 {
 	return m_state;
+}
+
+std::string CLiveCompileManager::ConsumeLastFailureMessage()
+{
+	std::string out;
+	out.swap(m_lastFailureMessage);
+	return out;
 }
 
 File::Path CLiveCompileManager::MakeLoadableLibraryPath() const

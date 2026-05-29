@@ -9,12 +9,12 @@
 class IAssetManager;
 class CScriptModuleLoader;
 class CLiveCompileManager;
-struct EngineContext;
+struct EngineCore;
 
 class CProjectManager final : public EnableSafeFromThis<CProjectManager>
 {
 public:
-	bool Initialize(const EngineContext& context);
+	bool Initialize(const EngineCore& context);
 	void Finalize();
 
 	// 새 프로젝트 생성: {parentFolder}/{projectName}/ 디렉토리를 만들고
@@ -91,6 +91,11 @@ public:
 	bool IsLiveCompileLoaded() const;
 	ELiveCompileState GetLiveCompileState() const;
 
+	// 마지막 LiveCompile 실패의 풀 메시지(컴파일러 출력 포함).  소비형 — 한 번
+	// 가져가면 자동으로 비워진다.  AssetBrowser 등 UI 가 매 프레임 폴링하여
+	// 새 실패가 생기면 즉시 팝업으로 표시할 때 사용.
+	std::string ConsumeLastLiveCompileFailure();
+
 	// .Jproject 파일로 현재 설정을 저장합니다.
 	bool SaveProject() const;
 
@@ -125,11 +130,12 @@ private:
 	OwnerPtr<CScriptModuleLoader> m_scriptLoader;
 	OwnerPtr<CLiveCompileManager> m_liveCompileManager;
 	ProjectInfo                  m_info;
-	// EngineContext 포인터는 스크립트 모듈 로드 시 GameModuleContext 구성에 사용합니다.
-	const EngineContext*         m_engineContext = nullptr;
+	// EngineCore 포인터는 스크립트 모듈 로드 시 GameModuleContext 구성에 사용합니다.
+	const EngineCore*            m_engineCore = nullptr;
 	std::uint64_t                m_assetDatabaseRevision = 0;
 	mutable File::Path           m_lastOpenedScriptIdePath;
+	// 마지막 LiveCompile 실패 메시지 (소비형 — ConsumeLastLiveCompileFailure 로 회수).
+	std::string                  m_lastLiveCompileFailure;
 	bool                         m_isInitialized = false;
 	bool                         m_isProjectLoaded = false;
 };
-

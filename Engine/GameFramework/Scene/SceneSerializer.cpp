@@ -17,6 +17,7 @@
 #include "yaml-cpp/yaml.h"
 
 #include <cstring>
+#include <algorithm>
 #include <fstream>
 #include <sstream>
 #include <unordered_map>
@@ -110,6 +111,53 @@ namespace
 		}
 	}
 
+	void AddReferencedAsset(std::vector<AssetGuid>& referencedAssets, const File::Guid& guid)
+	{
+		if (guid.IsNull())
+		{
+			return;
+		}
+
+		if (std::find(referencedAssets.begin(), referencedAssets.end(), guid) == referencedAssets.end())
+		{
+			referencedAssets.push_back(guid);
+		}
+	}
+
+	YAML::Node WriteReferencedAssets(const std::vector<AssetGuid>& referencedAssets)
+	{
+		YAML::Node node(YAML::NodeType::Sequence);
+		for (const AssetGuid& guid : referencedAssets)
+		{
+			if (false == guid.IsNull())
+			{
+				node.push_back(guid.generic_string());
+			}
+		}
+		return node;
+	}
+
+	std::vector<AssetGuid> ReadReferencedAssets(const YAML::Node& node)
+	{
+		std::vector<AssetGuid> referencedAssets;
+		if (!node || false == node.IsSequence())
+		{
+			return referencedAssets;
+		}
+
+		for (const YAML::Node& assetNode : node)
+		{
+			try
+			{
+				AddReferencedAsset(referencedAssets, File::Guid(assetNode.as<std::string>()));
+			}
+			catch (const YAML::Exception&)
+			{
+			}
+		}
+		return referencedAssets;
+	}
+
 	// Layout2D 직렬화 헬퍼
 	YAML::Node WriteLayout2D(const Layout2D& layout)
 	{
@@ -152,7 +200,7 @@ namespace
 	// ── 리플렉션 기반 제네릭 직렬화 ──────────────────────────────────────────
 
 	// 등록된 모든 프로퍼티를 EReflectPropertyType에 따라 YAML로 직렬화합니다.
-	YAML::Node WriteComponentReflected(const void* ptr, const ComponentTypeInfo& typeInfo)
+	YAML::Node WriteComponentReflected(const void* ptr, const ComponentTypeInfo& typeInfo, std::vector<AssetGuid>* referencedAssets = nullptr)
 	{
 		YAML::Node node(YAML::NodeType::Map);
 		for (const ReflectPropertyInfo& prop : typeInfo.Properties)
@@ -184,7 +232,14 @@ namespace
 				}
 				break;
 			case EReflectPropertyType::AssetGuid:
-				node[prop.Name] = static_cast<const File::Guid*>(field)->generic_string();
+				{
+					const File::Guid& guid = *static_cast<const File::Guid*>(field);
+					node[prop.Name] = guid.generic_string();
+					if (referencedAssets)
+					{
+						AddReferencedAsset(*referencedAssets, guid);
+					}
+				}
 				break;
 			case EReflectPropertyType::Enum:
 				{
@@ -296,7 +351,7 @@ namespace
 		if (ti) ReadComponentReflected(node, &transform, *ti);
 	}
 
-	YAML::Node WriteSpriteRenderer(const SceneObjectSnapshot& object)
+	YAML::Node WriteSpriteRenderer(const SceneObjectSnapshot& object, std::vector<AssetGuid>& referencedAssets)
 	{
 		const ComponentTypeInfo* ti = GetTypeInfo("SpriteRenderer2D");
 		if (!ti) return YAML::Node(YAML::NodeType::Map);
@@ -311,7 +366,7 @@ namespace
 		std::memcpy(temp.Color, object.Color, sizeof(temp.Color));
 		temp.SortOrder    = object.SortOrder;
 		temp.LayerMask    = object.LayerMask;
-		return WriteComponentReflected(&temp, *ti);
+		return WriteComponentReflected(&temp, *ti, &referencedAssets);
 	}
 
 	void ReadSpriteRenderer(const YAML::Node& node, SpriteRenderer2D& sprite)
@@ -430,7 +485,7 @@ namespace
 
 	// REFLECT_FIELD 로 등록된 프로퍼티들을 YAML Map 으로 직렬화한다.
 	// 인스턴스가 nullptr 이면 빈 노드를 반환한다.
-	YAML::Node WriteScriptFields(const CGameScript* instance, const ScriptTypeInfo& typeInfo)
+	YAML::Node WriteScriptFields(const CGameScript* instance, const ScriptTypeInfo& typeInfo, std::vector<AssetGuid>* referencedAssets = nullptr)
 	{
 		YAML::Node node(YAML::NodeType::Map);
 		if (nullptr == instance)
@@ -464,6 +519,16 @@ namespace
 			case EReflectPropertyType::Vector2Float:
 				node[prop.Name] = WriteVector2(*static_cast<const Vector2<float>*>(field));
 				break;
+			case EReflectPropertyType::AssetGuid:
+				{
+					const File::Guid& guid = *static_cast<const File::Guid*>(field);
+					node[prop.Name] = guid.generic_string();
+					if (referencedAssets)
+					{
+						AddReferencedAsset(*referencedAssets, guid);
+					}
+				}
+				break;
 			default:
 				break;
 			}
@@ -477,7 +542,8 @@ namespace
 	void ReadScriptFields(
 		const YAML::Node& node,
 		std::vector<ScriptPendingField>& out,
-		const ScriptTypeInfo& typeInfo)
+		const ScriptTypeInfo& typeInfo,
+		std::vector<AssetGuid>* referencedAssets = nullptr)
 	{
 		for (const ReflectPropertyInfo& prop : typeInfo.Properties)
 		{
@@ -488,7 +554,11 @@ namespace
 
 			ScriptPendingField pending;
 			pending.Name = prop.Name;
-			pending.Data.resize(prop.Size, 0);
+			pending.Type = prop.Type;
+			if (EReflectPropertyType::AssetGuid != prop.Type)
+			{
+				pending.Data.resize(prop.Size, 0);
+			}
 
 			try
 			{
@@ -526,6 +596,15 @@ namespace
 					std::memcpy(pending.Data.data(), &v, sizeof(v));
 					break;
 				}
+				case EReflectPropertyType::AssetGuid:
+				{
+					pending.Text = node[prop.Name].as<std::string>("");
+					if (referencedAssets)
+					{
+						AddReferencedAsset(*referencedAssets, File::Guid(pending.Text));
+					}
+					break;
+				}
 				default:
 					continue; // 지원하지 않는 타입은 기본값 유지
 				}
@@ -544,6 +623,7 @@ ESceneSerializeResult CSceneSerializer::SerializeToText(const CScene& scene, std
 {
 	SceneSnapshot snapshot;
 	scene.BuildSnapshot(snapshot);
+	std::vector<AssetGuid> referencedAssets;
 
 	std::unordered_map<EntityId, std::size_t> entityToIndex;
 	for (std::size_t i = 0; i < snapshot.Objects.size(); ++i)
@@ -572,7 +652,7 @@ ESceneSerializeResult CSceneSerializer::SerializeToText(const CScene& scene, std
 		}
 		if (object.HasSpriteRenderer)
 		{
-			components["SpriteRenderer2D"] = WriteSpriteRenderer(object);
+			components["SpriteRenderer2D"] = WriteSpriteRenderer(object, referencedAssets);
 		}
 		if (object.HasCamera)
 		{
@@ -603,6 +683,7 @@ ESceneSerializeResult CSceneSerializer::SerializeToText(const CScene& scene, std
 		{
 			YAML::Node prefab(YAML::NodeType::Map);
 			prefab["SourcePrefabGuid"] = object.SourcePrefabGuid.generic_string();
+			AddReferencedAsset(referencedAssets, object.SourcePrefabGuid);
 			components["PrefabInstance"] = prefab;
 		}
 
@@ -626,7 +707,7 @@ ESceneSerializeResult CSceneSerializer::SerializeToText(const CScene& scene, std
 						// 인스턴스가 있으면 현재 값, 없으면 PendingFields 를 재직렬화
 						if (scriptComp->Instance)
 						{
-							scriptNode["Fields"] = WriteScriptFields(scriptComp->Instance, *scriptInfo);
+							scriptNode["Fields"] = WriteScriptFields(scriptComp->Instance, *scriptInfo, &referencedAssets);
 						}
 						else if (!scriptComp->PendingFields.empty())
 						{
@@ -634,13 +715,14 @@ ESceneSerializeResult CSceneSerializer::SerializeToText(const CScene& scene, std
 							YAML::Node fields(YAML::NodeType::Map);
 							for (const ScriptPendingField& pf : scriptComp->PendingFields)
 							{
-								if (pf.Data.empty()) continue;
 								// 타입 정보로 올바른 YAML 값 복원
 								for (const ReflectPropertyInfo& prop : scriptInfo->Properties)
 								{
-									if (prop.Name && pf.Name == prop.Name && pf.Data.size() == prop.Size)
+									if (prop.Name && pf.Name == prop.Name &&
+										((EReflectPropertyType::AssetGuid == pf.Type && EReflectPropertyType::AssetGuid == prop.Type) ||
+										pf.Data.size() == prop.Size))
 									{
-										const void* src = pf.Data.data();
+										const void* src = pf.Data.empty() ? nullptr : pf.Data.data();
 										switch (prop.Type)
 										{
 										case EReflectPropertyType::Bool:
@@ -654,6 +736,10 @@ ESceneSerializeResult CSceneSerializer::SerializeToText(const CScene& scene, std
 											fields[prop.Name] = *static_cast<const float*>(src); break;
 										case EReflectPropertyType::Vector2Float:
 											fields[prop.Name] = WriteVector2(*static_cast<const Vector2<float>*>(src)); break;
+										case EReflectPropertyType::AssetGuid:
+											fields[prop.Name] = pf.Text;
+											AddReferencedAsset(referencedAssets, File::Guid(pf.Text));
+											break;
 										default: break;
 										}
 										break;
@@ -679,11 +765,13 @@ ESceneSerializeResult CSceneSerializer::SerializeToText(const CScene& scene, std
 	}
 
 	root["Objects"] = objects;
+	root["ReferencedAssets"] = WriteReferencedAssets(referencedAssets);
 
 	YAML::Emitter emitter;
 	emitter << root;
 	outText = emitter.c_str();
 	outText.push_back('\n');
+	const_cast<CScene&>(scene).SetReferencedAssets(std::move(referencedAssets));
 	return ESceneSerializeResult::Success;
 }
 
@@ -722,6 +810,7 @@ ESceneSerializeResult CSceneSerializer::DeserializeFromText(CScene& scene, const
 	}
 
 	scene.ClearObjects();
+	std::vector<AssetGuid> referencedAssets = ReadReferencedAssets(root["ReferencedAssets"]);
 
 	std::vector<CGameObject> objects;
 	std::vector<int> parentIndices;
@@ -753,6 +842,8 @@ ESceneSerializeResult CSceneSerializer::DeserializeFromText(CScene& scene, const
 				if (SpriteRenderer2D* sprite = object.AddComponent<SpriteRenderer2D>())
 				{
 					ReadSpriteRenderer(spriteNode, *sprite);
+					AddReferencedAsset(referencedAssets, sprite->SpriteGuid);
+					AddReferencedAsset(referencedAssets, sprite->MaterialGuid);
 				}
 			}
 
@@ -811,6 +902,7 @@ ESceneSerializeResult CSceneSerializer::DeserializeFromText(CScene& scene, const
 				if (PrefabInstance* prefab = object.AddComponent<PrefabInstance>())
 				{
 					prefab->SourcePrefabGuid = File::Guid(ReadValueOr<std::string>(prefabNode, "SourcePrefabGuid", ""));
+					AddReferencedAsset(referencedAssets, prefab->SourcePrefabGuid);
 				}
 			}
 
@@ -833,7 +925,7 @@ ESceneSerializeResult CSceneSerializer::DeserializeFromText(CScene& scene, const
 							// PendingFields 에 보관했다가 생성 시 적용한다.
 							if (const YAML::Node fieldsNode = scriptNode["Fields"])
 							{
-								ReadScriptFields(fieldsNode, sc->PendingFields, *info);
+								ReadScriptFields(fieldsNode, sc->PendingFields, *info, &referencedAssets);
 							}
 						}
 						else
@@ -876,12 +968,13 @@ ESceneSerializeResult CSceneSerializer::DeserializeFromText(CScene& scene, const
 		}
 	}
 
+	scene.SetReferencedAssets(std::move(referencedAssets));
 	return ESceneSerializeResult::Success;
 }
 
-ESceneSerializeResult CSceneSerializer::SaveToFile(const CScene& scene, const char* path) const
+ESceneSerializeResult CSceneSerializer::SaveToFile(const CScene& scene, const File::Path& path) const
 {
-	if (nullptr == path)
+	if (path.empty())
 	{
 		return ESceneSerializeResult::InvalidArgument;
 	}
@@ -899,9 +992,9 @@ ESceneSerializeResult CSceneSerializer::SaveToFile(const CScene& scene, const ch
 	return ESceneSerializeResult::Success;
 }
 
-ESceneSerializeResult CSceneSerializer::LoadFromFile(CScene& scene, const char* path) const
+ESceneSerializeResult CSceneSerializer::LoadFromFile(CScene& scene, const File::Path& path) const
 {
-	if (nullptr == path)
+	if (path.empty())
 	{
 		return ESceneSerializeResult::InvalidArgument;
 	}

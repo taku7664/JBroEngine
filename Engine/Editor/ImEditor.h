@@ -10,6 +10,7 @@ class CProjectManager;
 class CDebugRenderer2D;
 class COutlineRenderer2D;
 class IRHITexture;
+struct EngineCore;
 
 // ── GameCameraDesc ─────────────────────────────────────────────────────────────
 // Describes one active game camera submitted by GameViewTool each frame.
@@ -58,8 +59,18 @@ public:
 	template<typename T>
 	SafePtr<T>			FindImWindow(ImGuiID id);
 
-	void OpenPopup(const ImPopupDesc& desc);
-	const EngineContext* GetEditorEngineContext() const;
+	// 새 모달 팝업을 등록한다.
+	//   - desc.Id 가 비어있지 않고 이미 같은 Id 의 팝업이 살아있으면
+	//     기존 핸들을 그대로 반환한다 (중복 방지).
+	//   - 그 외에는 새 인스턴스를 만들고 신규 핸들을 반환한다.
+	//   - 실패 시 INVALID_POPUP_HANDLE 반환.
+	PopupHandle OpenPopup(const ImPopupDesc& desc);
+	// 핸들로 명시 종료. 살아있지 않으면 no-op.
+	void        ClosePopup(PopupHandle handle);
+	bool        IsPopupOpen(PopupHandle handle) const;
+	// Id 가 비어있지 않은 팝업 중 동일 Id 가 활성인지 검사.
+	bool        IsPopupOpenById(std::string_view id) const;
+	const EngineCore* GetEditorEngineCore() const;
 	SafePtr<CProjectManager> GetProjectManager() const;
 
 	// Scene view (editor camera)
@@ -111,7 +122,13 @@ private:
 
 	std::unordered_map<ImGuiID, OwnerPtr<CImWindow>> m_imWindowTable;
 	std::vector<CImWindow*>		m_imWindowVector;
-	std::queue<CImPopupWindow>	m_imPopupWindowQueue;
+	// 팝업 큐. ImGui::OpenPopup 의 stack 동작 특성상 모달은 한 번에 하나만
+	// 정상 처리되므로 FIFO 로 유지한다.
+	//   - front()      : 현재 활성 팝업 (매 프레임 Render)
+	//   - 그 뒤         : 대기 — 앞 팝업이 닫히는 즉시 활성화
+	//   - !IsAlive()   : ClosePopup 으로 외부 종료된 항목 (Render 이전에 정리)
+	std::deque<OwnerPtr<CImPopupWindow>> m_popups;
+	PopupHandle                           m_nextPopupHandle = 1;
 
 	std::queue<std::function<void()>> m_delayEventQueue;
 	OwnerPtr<CProjectManager> m_projectManager;

@@ -45,7 +45,7 @@ struct ProjectInfo
 	std::string ScriptOutputLibraryPath = "x64/Debug/GameScript.dll";
 	std::string ScriptIntermediateDirectory = "Build/Intermediate/LiveCompile";
 	EScriptBuildConfiguration ScriptBuildConfiguration = EScriptBuildConfiguration::Debug;
-	bool ScriptAutoRebuildEnabled = false;
+	bool ScriptAutoRebuildEnabled = true;
 
 	// 마지막으로 열었던 씬 경로 (Assets 폴더 기준 상대경로)
 	std::string LastOpenedScenePath;

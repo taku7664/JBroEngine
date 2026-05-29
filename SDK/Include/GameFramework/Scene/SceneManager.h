@@ -25,6 +25,8 @@ public:
 	bool SetActiveScene(const char* name);
 	SafePtr<CScene> GetActiveScene() const;
 	SafePtr<CScene> FindScene(const char* name) const;
+	// 씬이 참조하는 모든 에셋을 동기적으로 로드. 호출 후엔 모든 에셋이 메모리에 상주.
+	void PreloadReferencedAssets(const CScene& scene) const;
 	std::size_t GetLoadedSceneCount() const;
 	bool GetLoadedSceneNames(std::vector<std::string>& outNames) const;
 	void DestroyScriptInstances();

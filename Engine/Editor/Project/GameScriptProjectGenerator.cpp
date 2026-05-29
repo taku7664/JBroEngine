@@ -178,7 +178,11 @@ namespace
 			return scripts;
 		}
 
-		const std::regex scriptClassRegex(R"(SCRIPT_CLASS\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\))");
+		// "JBRO_SCRIPT <ClassName>" 뒤에 (선택적 'final') + ':' 또는 '{' 가 와야 정의로 인정.
+		// forward declaration("JBRO_SCRIPT Foo;") 은 자연스럽게 제외된다.
+		// 다중 상속 / 깊은 상속 트리는 마커가 의도를 명시하므로 정규식이 추적할 필요 없음.
+		const std::regex scriptClassRegex(
+			R"(\bJBRO_SCRIPT\s+(?:final\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*(?::|\{))");
 		for (const std::filesystem::directory_entry& entry : std::filesystem::recursive_directory_iterator(scriptPath, errorCode))
 		{
 			if (errorCode)
@@ -204,9 +208,12 @@ namespace
 				continue;
 			}
 
-			std::string text((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-			std::smatch match;
-			if (std::regex_search(text, match, scriptClassRegex) && match.size() >= 2)
+			const std::string text((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+
+			// 같은 헤더에 여러 JBRO_SCRIPT 클래스가 있을 수 있으므로 전체를 순회.
+			auto begin = std::sregex_iterator(text.begin(), text.end(), scriptClassRegex);
+			auto end   = std::sregex_iterator();
+			for (auto it = begin; it != end; ++it)
 			{
 				ScriptClassDesc desc;
 				desc.HeaderPath = std::filesystem::relative(entry.path(), projectInfo.ContentPath, errorCode);
@@ -215,7 +222,7 @@ namespace
 					errorCode.clear();
 					desc.HeaderPath = entry.path().filename();
 				}
-				desc.ClassName = match[1].str();
+				desc.ClassName = (*it)[1].str();
 				scripts.push_back(desc);
 			}
 		}
@@ -251,12 +258,22 @@ bool CGameScriptProjectGenerator::EnsureProject(const ProjectInfo& projectInfo) 
 
 	bool succeeded = true;
 	RemoveStaleGeneratedFiles(contentPath);
+
+	// DefaultScript 가 디스크에 존재해야 BuildProjectFile 의 Scripts 폴더 스캔이
+	// 그것을 vcxproj 에 포함시킨다.  따라서 스크립트 템플릿을 먼저 만들고
+	// 그 다음에 vcxproj/sln/registry 를 생성한다.
+	succeeded &= WriteFileIfMissing(scriptsPath / "DefaultScript.h", BuildDefaultScriptHeader());
+	succeeded &= WriteFileIfMissing(scriptsPath / "DefaultScript.cpp", BuildDefaultScriptSource());
+
 	const std::string projectFile = BuildProjectFile(projectInfo);
 	if (projectFile.empty())
 	{
 		return false;
 	}
 	succeeded &= WriteGeneratedFile(contentPath / "GameScript.vcxproj", projectFile);
+	// .sln 도 함께 생성해 두면 VS 가 "임시 솔루션 저장하시겠습니까?" 를 묻지 않는다.
+	// 사용자가 GameScript.vcxproj 대신 GameScript.sln 을 열면 명시적 솔루션으로 working.
+	succeeded &= WriteGeneratedFile(contentPath / "GameScript.sln", BuildSolutionFile(projectInfo));
 	succeeded &= WriteGeneratedFile(contentPath / "pch.h", BuildPchHeader());
 	succeeded &= WriteGeneratedFile(contentPath / "pch.cpp", BuildPchSource());
 	succeeded &= WriteGeneratedFile(contentPath / "GameScriptApi.h", BuildGameScriptApiHeader());
@@ -264,8 +281,6 @@ bool CGameScriptProjectGenerator::EnsureProject(const ProjectInfo& projectInfo) 
 	succeeded &= WriteGeneratedFile(contentPath / "GameModule.cpp", BuildGameModuleSource());
 	succeeded &= WriteGeneratedFile(contentPath / "GeneratedScriptRegistry.h", BuildGeneratedRegistryHeader());
 	succeeded &= WriteGeneratedFile(contentPath / "GeneratedScriptRegistry.cpp", BuildGeneratedRegistrySource(projectInfo));
-	succeeded &= WriteFileIfMissing(scriptsPath / "DefaultScript.h", BuildDefaultScriptHeader());
-	succeeded &= WriteFileIfMissing(scriptsPath / "DefaultScript.cpp", BuildDefaultScriptSource());
 	return succeeded;
 }
 
@@ -342,7 +357,84 @@ std::string CGameScriptProjectGenerator::BuildProjectFile(const ProjectInfo& pro
 	ReplaceAll(text, "{PROJECT_NAME}", GetProjectName(projectInfo));
 	ReplaceAll(text, "{PROJECT_GUID}", FormatVisualStudioGuid(MakeStableProjectGuid(projectInfo)));
 	ReplaceAll(text, "{ENGINE_PROPS}", propsPath.string());
+
+	// ── Scripts/ 폴더 스캔 후 .cpp / .h 목록을 명시적으로 삽입 ────────────────
+	// MSBuild 가 wildcard Include 를 경고하므로 (VC 프로젝트 형식에서는 비지원),
+	// EnsureProject 호출 시점에 실제 파일을 나열해 vcxproj 에 박아 넣는다.
+	std::ostringstream cppList, hList;
+	if (false == projectInfo.ScriptPath.empty())
+	{
+		std::error_code errorCode;
+		if (std::filesystem::exists(projectInfo.ScriptPath, errorCode))
+		{
+			std::vector<std::filesystem::path> cppFiles;
+			std::vector<std::filesystem::path> hFiles;
+			for (const std::filesystem::directory_entry& entry
+			     : std::filesystem::recursive_directory_iterator(projectInfo.ScriptPath, errorCode))
+			{
+				if (errorCode) { errorCode.clear(); break; }
+				if (false == entry.is_regular_file(errorCode)) { errorCode.clear(); continue; }
+				const std::filesystem::path ext = entry.path().extension();
+				std::filesystem::path rel = std::filesystem::relative(
+					entry.path(), projectInfo.ContentPath, errorCode);
+				if (errorCode) { errorCode.clear(); rel = entry.path().filename(); }
+				if      (ext == ".cpp" || ext == ".cc") cppFiles.push_back(std::move(rel));
+				else if (ext == ".h" || ext == ".hpp")  hFiles.push_back(std::move(rel));
+			}
+			auto pathLess = [](const std::filesystem::path& a, const std::filesystem::path& b)
+				{ return a.generic_string() < b.generic_string(); };
+			std::sort(cppFiles.begin(), cppFiles.end(), pathLess);
+			std::sort(hFiles.begin(),   hFiles.end(),   pathLess);
+
+			for (const std::filesystem::path& p : cppFiles)
+			{
+				// vcxproj 는 백슬래시 경로 선호.
+				std::string s = p.generic_string();
+				for (char& c : s) if (c == '/') c = '\\';
+				cppList << "    <ClCompile Include=\"" << s << "\" />\r\n";
+			}
+			for (const std::filesystem::path& p : hFiles)
+			{
+				std::string s = p.generic_string();
+				for (char& c : s) if (c == '/') c = '\\';
+				hList << "    <ClInclude Include=\"" << s << "\" />\r\n";
+			}
+		}
+	}
+	ReplaceAll(text, "{SCRIPT_CPP_FILES}", cppList.str());
+	ReplaceAll(text, "{SCRIPT_H_FILES}",   hList.str());
 	return text;
+}
+
+std::string CGameScriptProjectGenerator::BuildSolutionFile(const ProjectInfo& projectInfo) const
+{
+	// C++ 프로젝트 타입 GUID — VS 가 .vcxproj 를 인식할 때 쓰는 고정값.
+	constexpr const char* CPP_PROJECT_TYPE_GUID = "{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}";
+	const std::string projectGuid = FormatVisualStudioGuid(MakeStableProjectGuid(projectInfo));
+	const std::string projectName = GetProjectName(projectInfo);
+
+	std::ostringstream out;
+	out << "Microsoft Visual Studio Solution File, Format Version 12.00\r\n";
+	out << "# Visual Studio Version 17\r\n";
+	out << "Project(\"" << CPP_PROJECT_TYPE_GUID << "\") = \""
+	    << projectName << "\", \"GameScript.vcxproj\", \"" << projectGuid << "\"\r\n";
+	out << "EndProject\r\n";
+	out << "Global\r\n";
+	out << "\tGlobalSection(SolutionConfigurationPlatforms) = preSolution\r\n";
+	out << "\t\tDebug|x64 = Debug|x64\r\n";
+	out << "\t\tRelease|x64 = Release|x64\r\n";
+	out << "\tEndGlobalSection\r\n";
+	out << "\tGlobalSection(ProjectConfigurationPlatforms) = postSolution\r\n";
+	out << "\t\t" << projectGuid << ".Debug|x64.ActiveCfg = Debug|x64\r\n";
+	out << "\t\t" << projectGuid << ".Debug|x64.Build.0 = Debug|x64\r\n";
+	out << "\t\t" << projectGuid << ".Release|x64.ActiveCfg = Release|x64\r\n";
+	out << "\t\t" << projectGuid << ".Release|x64.Build.0 = Release|x64\r\n";
+	out << "\tEndGlobalSection\r\n";
+	out << "\tGlobalSection(SolutionProperties) = preSolution\r\n";
+	out << "\t\tHideSolutionNode = FALSE\r\n";
+	out << "\tEndGlobalSection\r\n";
+	out << "EndGlobal\r\n";
+	return out.str();
 }
 
 std::string CGameScriptProjectGenerator::BuildPchHeader() const
@@ -532,7 +624,7 @@ std::string CGameScriptProjectGenerator::BuildDefaultScriptHeader() const
 
 #include "GameFramework/Scripting/ScriptAPI.h"
 
-class CDefaultScript final : public CGameScript
+JBRO_SCRIPT CDefaultScript final : public CGameScript
 {
 	SCRIPT_CLASS(CDefaultScript)
 

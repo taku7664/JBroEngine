@@ -16,6 +16,7 @@ private:
 	void RemoveStaleGeneratedFiles(const std::filesystem::path& contentPath) const;
 	bool WriteTextFile(const std::filesystem::path& path, const std::string& content) const;
 	std::string BuildProjectFile(const ProjectInfo& projectInfo) const;
+	std::string BuildSolutionFile(const ProjectInfo& projectInfo) const;
 	std::string BuildPchHeader() const;
 	std::string BuildPchSource() const;
 	std::string BuildGameScriptApiHeader() const;

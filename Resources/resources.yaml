@@ -1,0 +1,32 @@
+# ── 에디터/엔진 영구 리소스 매니페스트 ─────────────────────────────────────────
+#
+# 형식:
+#   resources:
+#     <key>:
+#       path: <Resources 폴더 기준 상대경로>
+#       type: <Sprite | Mesh | Material | Shader | Scene | Prefab | Script | Custom>
+#         (생략 가능 — 확장자에서 자동 추론)
+#
+# 사용 (코드):
+#   SafePtr<CSpriteAsset> icon = Core::ResourceRegistry->GetSprite("icon-folder");
+#   const File::Path& p        = Core::ResourceRegistry->GetPath  ("icon-folder");
+#
+# 등록되는 자산은 모두 IsPersistent = true 로 마킹되므로
+# 프로젝트 닫힘(UnloadNonPersistentAssets) 후에도 살아남는다.
+
+resources:
+  # ── AssetBrowser 아이콘 ─────────────────────────────────────────────────────
+  icon-folder:           { path: "Resources/folder.png" }
+  icon-file:             { path: "Resources/file.png" }
+  icon-file-default:     { path: "Resources/file_default.png" }
+  icon-scene:            { path: "Resources/scene.png" }
+  icon-script:           { path: "Resources/script.png" }
+  icon-material:         { path: "Resources/material.png" }
+  icon-object:           { path: "Resources/object.png" }
+
+  # ── 컴포넌트 아이콘 ─────────────────────────────────────────────────────────
+  icon-camera:           { path: "Resources/camera.png" }
+  icon-transform:        { path: "Resources/transform.png" }
+  icon-rigidbody:        { path: "Resources/rigidbody.png" }
+  icon-circle-collider:  { path: "Resources/cirlce_colider.png" }
+  icon-polygon-collider: { path: "Resources/polygon_collider.png" }
