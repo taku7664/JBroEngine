@@ -1,6 +1,8 @@
 #include "pch.h"
 #include "MainDockWindow.h"
 
+#include "Engine/Editor/ImWindow/ImWindowFlag.h"
+
 #include "Editor/Editor.h"
 #include "Editor/Main/AssetBrowser/AssetBrowserTool.h"
 #include "Editor/Main/GameView/GameViewTool.h"

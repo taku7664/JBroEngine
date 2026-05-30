@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Engine/Editor/ImWindow/ImWindow.h"
+
 class CInspectorTool : public CImWindow
 {
 public:

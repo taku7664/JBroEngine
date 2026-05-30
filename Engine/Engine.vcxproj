@@ -337,6 +337,7 @@
     <ClInclude Include="Core\Asset\MaterialAsset.h" />
     <ClInclude Include="Core\Asset\SpriteAsset.h" />
     <ClInclude Include="Core\Core.h" />
+    <ClInclude Include="Core\CoreAll.h" />
     <ClInclude Include="Core\Debug\Debug.h" />
     <ClInclude Include="Core\Engine.h" />
     <ClInclude Include="Core\EngineCore.h" />
@@ -450,6 +451,7 @@
     <ClInclude Include="Framework.h" />
     <ClInclude Include="Editor\ImItem\ImTree.h" />
     <ClInclude Include="Editor\ImItem\ImList.h" />
+    <ClInclude Include="Editor\ImItem\ImSplitter.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="ThirdParty\imconfig.h" />
     <ClInclude Include="ThirdParty\imgui\imconfig.h" />
@@ -525,7 +527,10 @@
     <ClInclude Include="GameFramework\Component\BuiltinComponentRegistry.h" />
     <ClInclude Include="GameFramework\Reflection\ReflectionTypes.h" />
     <ClInclude Include="GameFramework\Reflection\ReflectionRegistry.h" />
+    <ClInclude Include="GameFramework\GameFrameworkAll.h" />
     <ClInclude Include="GameFramework\Scripting\GameScript.h" />
+    <ClInclude Include="GameFramework\Scripting\ScriptAPI.h" />
+    <ClInclude Include="GameFramework\Scripting\ScriptAPI_Physics.h" />
     <ClInclude Include="GameFramework\Scripting\ScriptSystem.h" />
     <ClInclude Include="GameFramework\Component\WorldTransform2D.h" />
     <ClInclude Include="GameFramework\Transform\TransformSystem.h" />
@@ -646,6 +651,7 @@
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="Editor\ImItem\ImList.cpp" />
+    <ClCompile Include="Editor\ImItem\ImSplitter.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug_Game|x64'">Create</PrecompiledHeader>

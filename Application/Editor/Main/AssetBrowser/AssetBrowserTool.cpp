@@ -16,6 +16,11 @@
 #include "Engine/Core/RHI/IRHIDevice.h"
 #include "Engine/Core/RHI/IRHITexture.h"
 #include "Engine/Editor/ImGuiUtillity.h"
+#include "Engine/Editor/ImEditor.h"
+#include "Engine/Editor/ImItem/ImTree.h"
+#include "Engine/Editor/ImItem/ImSplitter.h"
+#include "Engine/Editor/ImItem/ImText.h"
+#include "Engine/Editor/ImItem/ImList.h"
 #include "Engine/Editor/ImWindow/ImWindowContext.h"
 #include "Engine/Editor/ImWindow/IImPopupWindow.h"
 #include "Engine/Core/Logging/LoggerInternal.h"
@@ -215,12 +220,18 @@ namespace
 
 		switch (entry.Type)
 		{
-		case EAssetType::Sprite: return "[SPR]";
-		case EAssetType::Material: return "[MAT]";
-		case EAssetType::Scene: return "[SCN]";
-		case EAssetType::Prefab: return "[PFB]";
-		case EAssetType::Script: return "[SCR]";
-		default: return "[FILE]";
+		case EAssetType::Sprite:
+			return "[SPR]";
+		case EAssetType::Material:
+			return "[MAT]";
+		case EAssetType::Scene:
+			return "[SCN]";
+		case EAssetType::Prefab:
+			return "[PFB]";
+		case EAssetType::Script:
+			return "[SCR]";
+		default:
+			return "[FILE]";
 		}
 	}
 
@@ -231,11 +242,16 @@ namespace
 		if (entry.IsDirectory) return "icon-folder";
 		switch (entry.Type)
 		{
-		case EAssetType::Scene:    return "icon-scene";
-		case EAssetType::Script:   return "icon-script";
-		case EAssetType::Material: return "icon-material";
-		case EAssetType::Prefab:   return "icon-object";
-		default:                   return "icon-file-default";
+		case EAssetType::Scene:
+			return "icon-scene";
+		case EAssetType::Script:
+			return "icon-script";
+		case EAssetType::Material:
+			return "icon-material";
+		case EAssetType::Prefab:
+			return "icon-object";
+		default:
+			return "icon-file-default";
 		}
 	}
 
@@ -248,9 +264,11 @@ namespace
 	// SpriteAsset 의 GPU 텍스처 핸들 → ImTextureID.  GPU 텍스처 없으면 0 반환.
 	ImTextureID GetSpriteImTexture(const SafePtr<CSpriteAsset>& sprite)
 	{
-		if (false == sprite.IsValid())                  return 0;
+		if (false == sprite.IsValid())
+			return 0;
 		SafePtr<IRHITexture> tex = sprite->GetGpuTexture();
-		if (false == tex.IsValid())                     return 0;
+		if (false == tex.IsValid())
+			return 0;
 		void* srv = tex->GetNativeHandle().ShaderResourceView;
 		return reinterpret_cast<ImTextureID>(srv);
 	}
@@ -876,7 +894,16 @@ void CAssetBrowserTool::DrawBrowserColumns()
 	}
 	ImGui::EndChild();
 
-	ImGui::Utillity::VerticalSplitter("##InspSplitter", splitRatio, availSpace, MIN_RATIO, MAX_RATIO, SPLITTER_W);
+    // Use pixel-based splitter: compute region origin and current pixel position
+    {
+        const ImVec2 regionMin = ImGui::GetCursorScreenPos();
+        float splitPos = availSpace.x * splitRatio; // current pixel position from regionMin.x
+        if (VerticalSplitter("##InspSplitter", splitPos, regionMin, availSpace, SPLITTER_W))
+        {
+            // convert back to ratio and clamp to previous min/max ratio
+            splitRatio = std::clamp(splitPos / std::max(availSpace.x, 1.0f), MIN_RATIO, MAX_RATIO);
+        }
+    }
 
 	ImGui::BeginChild("AssetBrowserEntries", ImVec2(0.0f, 0.0f), true);
 	DrawEntries();

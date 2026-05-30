@@ -1,6 +1,8 @@
 #include "pch.h"
 #include "RootDockWindow.h"
 
+#include "Engine/Editor/ImWindow/ImWindowFlag.h"
+
 #include "Editor/Editor.h"
 #include "Editor/Main/ProjectSettingsWindow.h"
 #include "Editor/Main/MainDockWindow.h"

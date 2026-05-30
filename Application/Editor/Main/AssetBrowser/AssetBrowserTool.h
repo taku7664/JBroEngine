@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Engine/Core/Asset/AssetTypes.h"
+#include "Engine/Editor/ImWindow/ImWindow.h"   // CImWindow 기반 클래스
 #include "File/FilePath.h"
 #include "Utillity/SafePtr.h"
 

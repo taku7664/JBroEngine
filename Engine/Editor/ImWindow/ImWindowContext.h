@@ -1,5 +1,11 @@
 #pragma once
 
+#include <cstdint>
+#include <functional>
+#include <string>
+
+#include "ThirdParty/imgui/imgui.h"   // ImVec2, ImGuiWindowFlags
+
 class IImPopupWindow;
 
 // ── PopupHandle ──────────────────────────────────────────────────────────────

@@ -1,6 +1,8 @@
 #include "pch.h"
 #include "ProjectSettingsWindow.h"
 
+#include "Engine/Editor/ImWindow/ImWindowFlag.h"
+
 #include "Editor/Editor.h"
 #include "Engine/Editor/ImEditor.h"
 #include "Engine/Editor/Project/ProjectManager.h"

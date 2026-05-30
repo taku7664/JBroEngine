@@ -2,6 +2,10 @@
 
 #include "Engine/Framework.h"
 
+#if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
+#include "Engine/Editor/ImEditor.h"   // OwnerPtr<CImEditor> 멤버
+#endif
+
 class CGameApplication : public CApplication
 {
 public:

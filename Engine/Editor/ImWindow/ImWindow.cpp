@@ -1,6 +1,9 @@
 #include "pch.h"
 #include "ImWindow.h"
 
+#include "Editor/ImWindow/ImWindowFlag.h"   // IMWINDOW_FLAG_*
+#include "Editor/ImGuiUtillity.h"            // ImGui::Utillity::*
+
 CImWindow::CImWindow(ImGuiID id, ImGuiID parentId)
 	: m_title("new frame")
 	, m_stableID(std::to_string(id))

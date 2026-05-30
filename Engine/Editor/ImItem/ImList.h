@@ -1,5 +1,11 @@
 #pragma once
 
+#include <utility>
+#include <vector>
+
+#include "ThirdParty/imgui/imgui.h"
+#include "Editor/ImGuiUtillity.h"   // ImGui::Utillity::StyleBuilder, DisableScope
+
 enum EImListFlags
 {
     IMLIST_FLAGS_NONE = 0,

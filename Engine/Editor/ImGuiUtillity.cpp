@@ -107,7 +107,6 @@ ImGui::Utillity::IDGroup::~IDGroup()
 	}
 }
 
-
 bool ImGui::Utillity::IsWindowDrawable(ImGuiWindow* window)
 {
     if (!window)
@@ -118,24 +117,7 @@ bool ImGui::Utillity::IsWindowDrawable(ImGuiWindow* window)
     return !window->SkipItems;
 }
 
-void ImGui::Utillity::TextWithVerticalSeparator( const char* text , float startX )
-{
-	ImGui::Text( text );
-	if ( FLT_MAX == startX )
-	{
-		startX = ImGui::GetCursorPosX();
-		startX += ImGui::CalcTextSize( text ).x;
-		startX += ImGui::GetStyle().ItemSpacing.x;
-	}
-	ImGui::SameLine( startX );
-	ImGui::SeparatorEx( ImGuiSeparatorFlags_Vertical );
-	ImGui::SameLine();
-
-	float availX = ImGui::GetContentRegionAvail().x;
-	ImGui::SetNextItemWidth( availX );
-}
-
-bool ImGui::Utillity::HoveredToolTip( const char* toolTip , int flags)
+bool ImGui::Utillity::HoveredToolTip(const char* toolTip , ImGuiHoveredFlags flags)
 {
 	bool isHovered = ImGui::IsItemHovered(flags);
 	if (isHovered)
@@ -145,90 +127,24 @@ bool ImGui::Utillity::HoveredToolTip( const char* toolTip , int flags)
 	return isHovered;
 }
 
-bool ImGui::Utillity::VerticalSplitter(
-	const char* id,
-	float& ratio,
-	ImVec2 availSpace,
-	const float minRatio,
-	const float maxRatio,
-	float thickness)
-{
-	ImGui::SameLine(0.0f, 0.0f);
 
-	IDGroup idGroup(id);
-
-	const float width = std::max(availSpace.x, 1.0f);
-
-	const ImGuiID grabOffsetKey = ImGui::GetID("##VerticalSplitterGrabOffsetX");
-	const ImGuiID containerMinKey = ImGui::GetID("##VerticalSplitterContainerMinX");
-	const ImGuiID dragWidthKey = ImGui::GetID("##VerticalSplitterDragWidth");
-
-	ImGuiStorage* storage = ImGui::GetStateStorage();
-
-	{
-		StyleBuilder styleBuilder;
-		styleBuilder.PushStyleColor(ImGuiCol_Button, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
-		styleBuilder.PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.4f, 0.6f, 1.0f, 0.3f));
-		styleBuilder.PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.4f, 0.6f, 1.0f, 0.5f));
-
-		ImGui::Button("##InspSplitter", ImVec2(thickness, availSpace.y));
-		ImGui::SameLine(0.0f, 0.0f);
-	}
-
-	if (ImGui::IsItemHovered() || ImGui::IsItemActive())
-	{
-		ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
-	}
-
-	if (ImGui::IsItemActivated())
-	{
-		const ImVec2 splitterMin = ImGui::GetItemRectMin();
-
-		const float mouseX = ImGui::GetMousePos().x;
-
-		// 스플리터 내부에서 어디를 잡았는지 저장
-		const float grabOffsetX = mouseX - splitterMin.x;
-
-		// 현재 ratio 기준으로 전체 컨테이너 시작 X를 역산
-		const float containerMinX = splitterMin.x - ratio * width;
-
-		storage->SetFloat(grabOffsetKey, grabOffsetX);
-		storage->SetFloat(containerMinKey, containerMinX);
-		storage->SetFloat(dragWidthKey, width);
-	}
-
-	if (ImGui::IsItemActive())
-	{
-		const float mouseX = ImGui::GetMousePos().x;
-
-		const float grabOffsetX = storage->GetFloat(grabOffsetKey, 0.0f);
-		const float containerMinX = storage->GetFloat(containerMinKey, 0.0f);
-		const float dragWidth = std::max(storage->GetFloat(dragWidthKey, width), 1.0f);
-
-		ratio = (mouseX - grabOffsetX - containerMinX) / dragWidth;
-		ratio = std::clamp(ratio, minRatio, maxRatio);
-
-		return true;
-	}
-
-	return false;
-}
 
 void ImGui::Utillity::LoadingSpinner(float radius, ImVec4 color)
 {
+	ImGuiStyle& style = ImGui::GetStyle();
+	ImVec2 padding = style.FramePadding;
+
 	if (radius <= 0.0f)
 	{
-		ImGuiStyle& style = ImGui::GetStyle();
-		float paddingY = style.FramePadding.y;
-		radius = ImGui::GetFrameHeight() * 0.5f - paddingY;
+		radius = ImGui::GetFrameHeight() * 0.5f - padding.y;
 	}
 
 	const ImVec2 cursorScreen = ImGui::GetCursorScreenPos();
-	const ImVec2 center(cursorScreen.x + radius, cursorScreen.y + radius);
+	const ImVec2 center = cursorScreen + padding + ImVec2(radius, radius);
 
 	constexpr int   segments         = 20;
 	constexpr int   visibleSegments  = segments - 4; // 꼬리 잘라서 회전 방향이 보이도록
-	constexpr float kSpinSpeed       = 3.0f;
+	constexpr float kSpinSpeed       = 5.0f;
 	constexpr float kLineThickness   = 2.0f;
 
 	const float start       = static_cast<float>(ImGui::GetTime()) * kSpinSpeed;

@@ -1,6 +1,8 @@
 #include "pch.h"
 #include "ImDockWindow.h"
 
+#include "Editor/ImWindow/ImWindowFlag.h"   // IMDOCKWINDOW_FLAG_*
+
 CImDockWindow::CImDockWindow(ImGuiID id, ImGuiID parentId)
 	: CImWindow(id, parentId)
 	, m_mainDockID(0)

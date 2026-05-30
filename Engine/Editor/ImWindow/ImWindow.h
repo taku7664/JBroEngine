@@ -1,6 +1,9 @@
 #pragma once
 #include "IImWindow.h"
 
+#include <string>
+#include "Utillity/SafePtr.h"     // EnableSafeFromThis
+
 class CImDockWindow;
 
 class CImWindow : public IImWindow, public EnableSafeFromThis<CImWindow>

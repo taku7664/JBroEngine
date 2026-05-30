@@ -1,6 +1,12 @@
 #pragma once
 #include "IImPopupWindow.h"
 
+#include <functional>
+#include <string>
+
+#include "Utillity/BitFlag.h"
+#include "ThirdParty/imgui/imgui.h"   // ImVec2
+
 class CImPopupWindow : public IImPopupWindow
 {
 public:

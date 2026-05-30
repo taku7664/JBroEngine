@@ -1,5 +1,8 @@
 #pragma once
 
+#include "ThirdParty/imgui/imgui.h"          // ImRect, ImGuiTreeNodeFlags, ImVec2
+#include "ThirdParty/imgui/imgui_internal.h" // ImRect
+
 struct ImTreeDrawContext
 {
     ImRect RowRect;

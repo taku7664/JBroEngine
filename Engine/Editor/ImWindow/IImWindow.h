@@ -1,5 +1,10 @@
 #pragma once
 
+// UINT / ImGuiID / ImVec2 / ImGuiDir / ImGuiWindow / BitFlag — 인터페이스 시그니처에 사용.
+#include <Windows.h>
+#include "ThirdParty/imgui/imgui.h"
+#include "Utillity/BitFlag.h"
+
 class IImWindow
 {
 public:

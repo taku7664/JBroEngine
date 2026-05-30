@@ -4,19 +4,18 @@
 #include <string>
 #include <type_traits>
 
+#include "ThirdParty/imgui/imgui.h"
+#include "ThirdParty/imgui/imgui_internal.h"   // ImGuiWindow
+
 namespace ImGui
 {
     namespace Utillity
     {
         bool IsWindowDrawable(ImGuiWindow* window = nullptr);
 
-		void TextWithVerticalSeparator(const char* text, float startX = FLT_MAX);
-
 		bool HoveredToolTip(const char* toolTip, ImGuiHoveredFlags flags = ImGuiHoveredFlags_None);
 
-		bool VerticalSplitter(const char* id, float& ratio, ImVec2 availSpace,
-			const float minRatio = 0.15f, const float maxRatio = 0.8f,
-			float thickness = 1.0f);
+		
 
 		void LoadingSpinner(float radius = 0.0f, ImVec4 color = ImVec4(1, 1, 1, 1));
 

@@ -36,9 +36,13 @@ template<> inline EReflectPropertyType ScriptFieldTypeOf<Vector2<float>>()
 
 // ── 자주 사용하는 컴포넌트 ────────────────────────────────────────────────────
 #include "GameFramework/Component/Transform2D.h"
-#include "GameFramework/Component/Physics2DComponents.h"
 #include "GameFramework/Component/SpriteRenderer2D.h"
 #include "GameFramework/Component/GameObject.h"
+#include "GameFramework/Component/Camera2D.h"
+// Physics2D 관련 컴포넌트(Rigidbody2D / 콜라이더)는 ScriptAPI_Physics.h 로 분리.
+
+// ── 자산 ────────────────────────────────────────────────────────────────────
+#include "Core/Asset/AssetTypes.h"
 
 // ── 입력 ────────────────────────────────────────────────────────────────────
 #include "Core/Input/Input.h"
@@ -50,8 +54,14 @@ template<> inline EReflectPropertyType ScriptFieldTypeOf<Vector2<float>>()
 // GameScript DLL 은 Initialize 시점에 호스트 EngineCore 를 복사받아 사용합니다.
 #include "Core/EngineCore.h"
 #include "Core/Debug/Debug.h"
+#include "Core/Time/Time.h"
 
-// ── 표준 라이브러리 ───────────────────────────────────────────────────────────
+// ── 표준 라이브러리 (스크립트에서 매우 자주 쓰임) ─────────────────────────
 #include <cmath>
 #include <cstdint>
 #include <string>
+#include <string_view>
+#include <vector>
+#include <unordered_map>
+#include <functional>
+#include <memory>

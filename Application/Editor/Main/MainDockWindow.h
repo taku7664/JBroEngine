@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Engine/Editor/ImWindow/ImDockWindow.h"
+
 class CMainDockWindow : public CImDockWindow
 {
 public:

@@ -1,5 +1,11 @@
 #pragma once
 
+#include "ImWindow.h"
+#include "Editor/ImGuiUtillity.h"   // ImGui::Utillity::StyleBuilder — 멤버
+
+#include <string>
+#include <vector>
+
 class CImDockWindow : public CImWindow
 {
 public:

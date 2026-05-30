@@ -1,6 +1,10 @@
 #include "pch.h"
 #include "InspectorTool.h"
 
+#include "Engine/Editor/ImItem/ImText.h"
+#include "Engine/Editor/ImItem/ImSplitter.h"
+#include "Engine/Editor/ImGuiUtillity.h"
+
 #include "Editor/Editor.h"
 #include "Editor/Command/EditorSceneCommands.h"
 #include "Editor/Helper/EditorGuiDrawHelpers.h"
@@ -898,7 +902,14 @@ void CInspectorTool::OnRenderStay()
 	ImGui::EndChild();
 
 	// ── 드래그 구분선 ───────────────────────────────────────────────────────────
-	ImGui::Utillity::VerticalSplitter("##InspSplitter", m_splitRatio, availSpace, MIN_RATIO, MAX_RATIO, SPLITTER_W);
+    {
+        const ImVec2 regionMin = ImGui::GetCursorScreenPos();
+        float splitPos = availSpace.x * m_splitRatio;
+        if (::VerticalSplitter("##InspSplitter", splitPos, regionMin, availSpace, SPLITTER_W))
+        {
+            m_splitRatio = std::clamp(splitPos / std::max(availSpace.x, 1.0f), MIN_RATIO, MAX_RATIO);
+        }
+    }
 
 	// ── 우측 패널: 선택된 컴포넌트 내용 ──────────────────────────────────────────
 	ImGui::BeginChild("##InspectorContent",

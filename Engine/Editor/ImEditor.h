@@ -1,10 +1,22 @@
 #pragma once
 
 #include <cstdint>
+#include <deque>
+#include <functional>
+#include <queue>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
+#include "Core/Module/Module.h"
 #include "GameFramework/ECS/EntityTypes.h"
+
+// ImEditor 의 멤버에서 사용하는 ImWindow 패밀리 — self-contained 보장.
+#include "Editor/ImWindow/IImWindow.h"
+#include "Editor/ImWindow/ImWindow.h"
+#include "Editor/ImWindow/ImDockWindow.h"
+#include "Editor/ImWindow/ImPopupWindow.h"
+#include "Editor/ImWindow/ImWindowContext.h"   // PopupHandle
 
 class CProjectManager;
 class CDebugRenderer2D;

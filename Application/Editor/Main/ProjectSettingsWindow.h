@@ -4,6 +4,8 @@
 
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
 
+#include "Engine/Editor/ImWindow/ImCustomWindow.h"
+
 class CProjectSettingsWindow : public CImCustomWindow
 {
 public:

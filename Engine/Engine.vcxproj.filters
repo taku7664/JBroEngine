@@ -872,6 +872,9 @@
     <ClInclude Include="ThirdParty\imgui\imstb_truetype.h">
       <Filter>Header</Filter>
     </ClInclude>
+    <ClInclude Include="Editor\ImItem\ImSplitter.h">
+      <Filter>Header</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp">
@@ -1175,6 +1178,9 @@
       <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="ThirdParty\imgui\imgui_widgets.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\ImItem\ImSplitter.cpp">
       <Filter>Source</Filter>
     </ClCompile>
   </ItemGroup>

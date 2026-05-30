@@ -1,6 +1,8 @@
 #include "pch.h"
 #include "HierarchyTool.h"
 
+#include "Engine/Editor/ImItem/ImTree.h"
+
 #include "Editor/Command/EditorSceneCommands.h"
 #include "Editor/Helper/EditorGuiDrawHelpers.h"
 #include "Editor/Editor.h"

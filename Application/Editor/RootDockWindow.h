@@ -1,6 +1,8 @@
 #pragma once
 
 #include "Editor/LiveCompile/LiveCompileTypes.h"
+#include "Engine/Editor/ImWindow/ImDockWindow.h"   // CImDockWindow 기반 클래스
+#include "Engine/Editor/ImWindow/IImPopupWindow.h" // IImPopupWindow 시그니처
 #include "File/FilePath.h"
 #include <array>
 

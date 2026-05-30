@@ -1,5 +1,11 @@
 #pragma once
 
+#include <climits>     // ULLONG_MAX
+#include <string>
+#include <utility>
+
+#include "ThirdParty/imgui/imgui.h"   // ImGuiHoveredFlags, ImGuiInputTextFlags
+
 class ImText
 {
 public:

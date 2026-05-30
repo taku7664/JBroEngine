@@ -3,6 +3,8 @@
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
 
 #include "Engine/GameFramework/ECS/EntityTypes.h"
+#include "Engine/GameFramework/Scene/SceneManager.h"   // CSceneManager 사용
+#include "Engine/Editor/ImEditor.h"   // CImEditor 사용
 #include "Editor/Command/EditorCommandManager.h"
 #include "File/FilePath.h"
 #include "Utillity/SafePtr.h"
