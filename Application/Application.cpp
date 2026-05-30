@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "Application.h" 
 #include "Editor/Editor.h"
-
+#include "Editor/Helper/ImGuiHelper.h"
 void CGameApplication::OnPreInitialize()
 {
 }
@@ -17,9 +17,9 @@ void CGameApplication::OnPostInitialize()
 		if (m_editor)
 		{
 			engine->InitializeModule(*m_editor, "ImEditor");
-		}
-		{
 			Editor::RootDockWindow = m_editor->CreateImWindow<CRootDockWindow>("RootDockWindow");
+			ImGuiHelper::SetDarkThemeColor();
+			ImGuiHelper::SetDefaultThemeStyle();
 		}
 	}
 #endif

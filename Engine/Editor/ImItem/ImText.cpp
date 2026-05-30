@@ -25,6 +25,22 @@ ImText& ImText::SetScale(float scale)
 ImText& ImText::SetHoveredTooltip(bool use, ImGuiHoveredFlags flags)
 {
 	m_hovered = { use, flags };
+	m_hoveredCustomTooltip.clear();
+	return *this;
+}
+
+ImText& ImText::SetHoveredTooltip(const char* tooltipText, ImGuiHoveredFlags flags)
+{
+	if (nullptr == tooltipText || '\0' == tooltipText[0])
+	{
+		m_hovered = { false, flags };
+		m_hoveredCustomTooltip.clear();
+	}
+	else
+	{
+		m_hovered = { true, flags };
+		m_hoveredCustomTooltip = tooltipText;
+	}
 	return *this;
 }
 
@@ -79,11 +95,11 @@ void ImText::operator()(const char* text)
         ImGui::TextUnformatted(text);
     }
 
-    // Tooltip when hovered
+    // Tooltip when hovered — 커스텀 설명이 있으면 그것을, 없으면 라벨 텍스트 그대로.
     if (m_hovered.first && ImGui::IsItemHovered(m_hovered.second))
     {
         ImGui::BeginTooltip();
-        ImGui::TextUnformatted(text);
+        ImGui::TextUnformatted(m_hoveredCustomTooltip.empty() ? text : m_hoveredCustomTooltip.c_str());
         ImGui::EndTooltip();
     }
 

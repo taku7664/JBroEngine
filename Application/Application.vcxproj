@@ -325,6 +325,9 @@
     <ClInclude Include="Editor\Main\GameView\GameViewTool.h" />
     <ClInclude Include="Editor\Main\Log\LogTool.h" />
     <ClInclude Include="Editor\Main\ProjectSettingsWindow.h" />
+    <ClInclude Include="Editor\Main\Importer\ImporterWindowBase.h" />
+    <ClInclude Include="Editor\Main\Importer\SpriteImporterWindow.h" />
+    <ClInclude Include="Editor\Main\Importer\AudioImporterWindow.h" />
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
@@ -386,6 +389,15 @@
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="Editor\Main\ProjectSettingsWindow.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Editor\Main\Importer\ImporterWindowBase.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Editor\Main\Importer\SpriteImporterWindow.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Editor\Main\Importer\AudioImporterWindow.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
   </ItemGroup>

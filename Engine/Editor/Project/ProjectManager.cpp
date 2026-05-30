@@ -753,6 +753,7 @@ bool CProjectManager::ImportOrReloadAsset(const File::Path& absolutePath)
 	switch (type)
 	{
 	case EAssetType::Sprite:   importerName = "Sprite";   break;
+	case EAssetType::Audio:    importerName = "Audio";    break;
 	case EAssetType::Material: importerName = "Material"; break;
 	case EAssetType::Shader:   importerName = "Shader";   break;
 	case EAssetType::Scene:    importerName = "Scene";    break;
@@ -825,6 +826,10 @@ EAssetType CProjectManager::DetectAssetType(const File::Path& relativePath) cons
 	if (extension == ".cpp" || extension == ".h" || extension == ".hpp")
 	{
 		return EAssetType::Script;
+	}
+	if (extension == ".wav" || extension == ".mp3" || extension == ".flac" || extension == ".ogg")
+	{
+		return EAssetType::Audio;
 	}
 
 	return EAssetType::Custom;

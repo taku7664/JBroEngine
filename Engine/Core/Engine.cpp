@@ -13,6 +13,7 @@
 #include "Core/Module/Module.h"
 #include "Core/Asset/AssetManager.h"
 #include "Core/Asset/FileAsset.h"
+#include "Core/Asset/AudioAsset.h"
 #include "Core/Asset/MaterialAsset.h"
 #include "Core/Asset/SpriteAsset.h"
 #include "Core/Platform/IPlatform.h"
@@ -419,6 +420,7 @@ bool CEngine::InitializeAssetManager()
 	m_assetManager->RegisterLoader(MakeOwnerPtr<CFileAssetLoader>(EAssetType::Custom));
 	m_assetManager->RegisterLoader(MakeOwnerPtr<CSpriteAssetLoader>());
 	m_assetManager->RegisterLoader(MakeOwnerPtr<CMaterialAssetLoader>());
+	m_assetManager->RegisterLoader(MakeOwnerPtr<CAudioAssetLoader>());
 	return true;
 }
 

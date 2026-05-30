@@ -174,7 +174,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_WINDOW;JBRO_PLATFORM_WINDOWS;JBRO_EDITOR;_DEBUG;_LIB;YAML_CPP_STATIC_DEFINE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_WINDOW;JBRO_PLATFORM_WINDOWS;JBRO_EDITOR;_DEBUG;_LIB;YAML_CPP_STATIC_DEFINE;JBRO_HAS_MINIAUDIO=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
@@ -192,7 +192,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_WINDOW;JBRO_PLATFORM_WINDOWS;JBRO_GAME;_DEBUG;_LIB;YAML_CPP_STATIC_DEFINE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_WINDOW;JBRO_PLATFORM_WINDOWS;JBRO_GAME;_DEBUG;_LIB;YAML_CPP_STATIC_DEFINE;JBRO_HAS_MINIAUDIO=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
@@ -212,7 +212,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_WINDOW;JBRO_PLATFORM_WINDOWS;JBRO_EDITOR;RELEASE;NDEBUG;_LIB;YAML_CPP_STATIC_DEFINE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_WINDOW;JBRO_PLATFORM_WINDOWS;JBRO_EDITOR;RELEASE;NDEBUG;_LIB;YAML_CPP_STATIC_DEFINE;JBRO_HAS_MINIAUDIO=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
@@ -232,7 +232,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_WINDOW;JBRO_PLATFORM_WINDOWS;JBRO_GAME;RELEASE;NDEBUG;_LIB;YAML_CPP_STATIC_DEFINE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_WINDOW;JBRO_PLATFORM_WINDOWS;JBRO_GAME;RELEASE;NDEBUG;_LIB;YAML_CPP_STATIC_DEFINE;JBRO_HAS_MINIAUDIO=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
@@ -250,7 +250,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_WINDOW;JBRO_PLATFORM_WINDOWS;JBRO_EDITOR;_DEBUG;_LIB;YAML_CPP_STATIC_DEFINE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_WINDOW;JBRO_PLATFORM_WINDOWS;JBRO_EDITOR;_DEBUG;_LIB;YAML_CPP_STATIC_DEFINE;JBRO_HAS_MINIAUDIO=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
@@ -268,7 +268,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_WINDOW;JBRO_PLATFORM_WINDOWS;JBRO_GAME;_DEBUG;_LIB;YAML_CPP_STATIC_DEFINE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_WINDOW;JBRO_PLATFORM_WINDOWS;JBRO_GAME;_DEBUG;_LIB;YAML_CPP_STATIC_DEFINE;JBRO_HAS_MINIAUDIO=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
@@ -288,7 +288,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_WINDOW;JBRO_PLATFORM_WINDOWS;JBRO_EDITOR;RELEASE;NDEBUG;_LIB;YAML_CPP_STATIC_DEFINE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_WINDOW;JBRO_PLATFORM_WINDOWS;JBRO_EDITOR;RELEASE;NDEBUG;_LIB;YAML_CPP_STATIC_DEFINE;JBRO_HAS_MINIAUDIO=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
@@ -308,7 +308,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_WINDOW;JBRO_PLATFORM_WINDOWS;JBRO_GAME;RELEASE;NDEBUG;_LIB;YAML_CPP_STATIC_DEFINE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_WINDOW;JBRO_PLATFORM_WINDOWS;JBRO_GAME;RELEASE;NDEBUG;_LIB;YAML_CPP_STATIC_DEFINE;JBRO_HAS_MINIAUDIO=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
@@ -334,8 +334,17 @@
     <ClInclude Include="Core\Asset\IAssetLoader.h" />
     <ClInclude Include="Core\Asset\IAssetManager.h" />
     <ClInclude Include="Core\Asset\IAssetRegistry.h" />
+    <ClInclude Include="Core\Asset\AudioAsset.h" />
     <ClInclude Include="Core\Asset\MaterialAsset.h" />
     <ClInclude Include="Core\Asset\SpriteAsset.h" />
+    <ClInclude Include="Core\Audio\AudioTypes.h" />
+    <ClInclude Include="Core\Audio\IAudioBus.h" />
+    <ClInclude Include="Core\Audio\IAudioDevice.h" />
+    <ClInclude Include="Core\Audio\IAudioEffect.h" />
+    <ClInclude Include="Core\Audio\IAudioListener.h" />
+    <ClInclude Include="Core\Audio\IAudioPlayer.h" />
+    <ClInclude Include="Core\Audio\EmptyAudio\EmptyAudioDevice.h" />
+    <ClInclude Include="Core\Audio\MiniAudio\MiniAudioDevice.h" />
     <ClInclude Include="Core\Core.h" />
     <ClInclude Include="Core\CoreAll.h" />
     <ClInclude Include="Core\Debug\Debug.h" />
@@ -456,6 +465,7 @@
     <ClInclude Include="ThirdParty\imconfig.h" />
     <ClInclude Include="ThirdParty\imgui\imconfig.h" />
     <ClInclude Include="ThirdParty\imgui\imgui.h" />
+    <ClInclude Include="ThirdParty\miniaudio\miniaudio.h" />
     <ClInclude Include="ThirdParty\imgui\imgui_impl_dx11.h" />
     <ClInclude Include="ThirdParty\imgui\imgui_impl_win32.h" />
     <ClInclude Include="ThirdParty\imgui\imgui_internal.h" />
@@ -542,8 +552,14 @@
     <ClCompile Include="Core\Asset\AssetPath.cpp" />
     <ClCompile Include="Core\Asset\AssetRegistry.cpp" />
     <ClCompile Include="Core\Asset\FileAsset.cpp" />
+    <ClCompile Include="Core\Asset\AudioAsset.cpp" />
     <ClCompile Include="Core\Asset\MaterialAsset.cpp" />
     <ClCompile Include="Core\Asset\SpriteAsset.cpp" />
+    <ClCompile Include="Core\Audio\EmptyAudio\EmptyAudioDevice.cpp" />
+    <ClCompile Include="Core\Audio\MiniAudio\MiniAudioDevice.cpp" />
+    <ClCompile Include="Core\Audio\MiniAudio\miniaudio_impl.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="Core\Debug\Debug.cpp" />
     <ClCompile Include="Core\Engine.cpp" />
     <ClCompile Include="Core\EngineCore.cpp" />

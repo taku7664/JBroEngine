@@ -24,6 +24,7 @@ enum class EAssetType
 	Scene,
 	Prefab,
 	Script,
+	Audio,
 	Custom
 };
 

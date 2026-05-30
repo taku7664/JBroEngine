@@ -24,6 +24,27 @@ Entries:
   menu.edit.undo: 되돌리기
   menu.edit.redo: 다시 실행
   menu.window: 창
+  menu.editor: 에디터
+  menu.importer: 임포터
+  menu.window.editor: 에디터
+  menu.window.importer: 임포터
+  menu.importer.sprite: 스프라이트 임포터
+  menu.importer.audio: 사운드 임포터
+
+  importer.source_file: 대상 파일 경로
+  importer.source_hint: 지원 확장자
+  importer.destination: 에셋 출력 경로 (Assets 폴더 기준 상대)
+  importer.destination_hint: 예시 — Sounds/bgm.wav / Textures/player.png
+  importer.options: 임포트 옵션
+  importer.import: 임포트
+  importer.success: 임포트 완료.
+  importer.no_project: 프로젝트가 열려있지 않습니다.
+  importer.error.source_not_found: 대상 파일을 찾을 수 없습니다.
+  importer.error.unsupported_extension: 지원하지 않는 확장자입니다.
+  importer.error.create_directory_failed: 출력 폴더 생성 실패
+  importer.error.import_failed: 임포트 실패
+  importer.sprite.title: 스프라이트 임포터
+  importer.audio.title: 사운드 임포터
 
   common.apply: 적용
   common.create: 만들기
@@ -73,6 +94,16 @@ Entries:
   project_settings.script_auto_rebuild_help: 에디터가 다시 포커스될 때 스크립트 변경을 확인하고 자동으로 다시 빌드합니다.
   project_settings.script_rebuild: 다시 빌드
   project_settings.localization: 로컬라이징
+
+  project_settings.category.general: 일반
+  project_settings.category.script: 스크립트
+  project_settings.category.localization: 로컬라이징
+  project_settings.category.audio: 사운드
+  project_settings.audio: 사운드
+  project_settings.audio.master_volume: 마스터 볼륨
+  project_settings.audio.buses_help: 버스(채널) 별 볼륨/효과 설정은 추후 추가될 예정입니다.
+  project_settings.localization_unavailable: 로컬라이저를 사용할 수 없습니다.
+  project_settings.localization_no_locales: 사용 가능한 언어가 없습니다.
   project_settings.language: 언어
 
   asset_browser.no_project_loaded: 프로젝트가 로드되지 않았습니다.
@@ -147,6 +178,26 @@ Entries:
   inspector.pivot_y: 피벗 Y
   inspector.pixels_per_unit: 픽셀 / 유닛
   inspector.apply_sprite_import_options: 스프라이트 임포트 옵션 적용
+
+  inspector.audio_import_options: 사운드 임포트 옵션
+  inspector.apply_audio_import_options: 사운드 임포트 옵션 적용
+  inspector.audio.mode: 모드
+  inspector.audio.mode.decompressed: 메모리 디코딩
+  inspector.audio.mode.streaming: 스트리밍
+  inspector.audio.default_bus: 기본 버스
+  inspector.audio.bus.master: 마스터
+  inspector.audio.bus.music: 음악
+  inspector.audio.bus.sfx: 효과음
+  inspector.audio.bus.voice: 음성
+  inspector.audio.bus.ui: UI
+  inspector.audio.bus.custom: 사용자 정의
+  inspector.audio.default_volume: 기본 볼륨
+  inspector.audio.loop: 반복 재생
+  inspector.audio.is_3d: 3D 음향
+  inspector.audio.min_distance: 최소 거리
+  inspector.audio.max_distance: 최대 거리
+  inspector.audio.format: 포맷
+  inspector.audio.duration: 길이
   inspector.asset_manager_unavailable: 에셋 매니저를 사용할 수 없습니다.
   inspector.selected_asset_not_registered: 선택한 에셋이 등록되어 있지 않습니다.
   inspector.no_editable_import_options: 이 에셋 타입에는 편집 가능한 임포트 옵션이 없습니다.
@@ -277,3 +328,45 @@ Entries:
   script.status.loaded: 스크립트 로드됨
   script.status.failed: 스크립트 실패
   script.status.unknown: 스크립트 상태 알 수 없음
+
+  # ── 설명 툴팁 (FormLayout 의 라벨 hover 시 표시) ──────────────────
+  importer.source_file.desc: 디스크에 있는 원본 파일의 절대 경로입니다. 이 파일이 프로젝트 Assets 폴더로 복사됩니다.
+  importer.destination.desc: Assets 폴더 기준 상대 경로입니다. 확장자가 없거나 다르면 원본 확장자가 자동 부여됩니다.
+  importer.import.desc: 원본 파일을 출력 경로로 복사하고, 같은 위치에 .Jmeta 메타파일을 생성합니다.
+
+  project_settings.script_state: 스크립트 상태
+
+  project_settings.width_px.desc: 게임 렌더 타깃의 가로 픽셀 수입니다.
+  project_settings.height_px.desc: 게임 렌더 타깃의 세로 픽셀 수입니다.
+  project_settings.pixels_per_unit.desc: 1 월드 유닛이 차지하는 픽셀 수. 스프라이트·물리 좌표 변환에 사용됩니다.
+  project_settings.user_scripts.desc: 사용자 스크립트 소스가 저장되는 폴더 경로입니다.
+  project_settings.script_build.desc: 스크립트 DLL 을 빌드할 구성. Debug 는 디버깅용, Release 는 배포용입니다.
+  project_settings.script_state.desc: 라이브 컴파일 모듈의 현재 상태입니다.
+  project_settings.script_auto_rebuild.desc: 에디터가 다시 포커스될 때 스크립트 소스 변경을 감지해 자동으로 다시 빌드합니다.
+  project_settings.script_rebuild.desc: 지금 즉시 스크립트 DLL 을 빌드하고 다시 로드합니다.
+  project_settings.script_unload.desc: 현재 로드된 스크립트 DLL 을 언로드합니다.
+  project_settings.language.desc: 에디터 UI 에 사용할 언어를 선택합니다.
+  project_settings.audio.master_volume.desc: 게임 전체 사운드 출력의 최종 게인입니다. 0.0~2.0 범위 (1.0 = 원본 크기).
+  project_settings.apply.desc: 변경된 설정을 프로젝트에 저장하고 창을 닫습니다.
+  project_settings.cancel.desc: 변경 사항을 버리고 창을 닫습니다.
+
+  inspector.slice_type.desc: 스프라이트 시트를 어떻게 잘라낼지 결정합니다. None=단일 프레임, Automatic=자동 감지, CellSize/CellCount=수동 격자.
+  inspector.row_count.desc: 격자 분할 시 행(가로 줄) 개수입니다.
+  inspector.column_count.desc: 격자 분할 시 열(세로 줄) 개수입니다.
+  inspector.cell_width.desc: 한 셀의 가로 픽셀 크기.
+  inspector.cell_height.desc: 한 셀의 세로 픽셀 크기.
+  inspector.margin_x.desc: 시트 좌/우 가장자리 여백 (px).
+  inspector.margin_y.desc: 시트 상/하 가장자리 여백 (px).
+  inspector.gap_x.desc: 셀 사이의 가로 간격 (px).
+  inspector.gap_y.desc: 셀 사이의 세로 간격 (px).
+  inspector.pivot_x.desc: 스프라이트의 회전·정렬 기준점 X (0=좌, 1=우, 0.5=중앙).
+  inspector.pivot_y.desc: 스프라이트의 회전·정렬 기준점 Y (0=하, 1=상, 0.5=중앙).
+  inspector.pixels_per_unit.desc: 이 스프라이트의 1 월드 유닛당 픽셀 수.
+
+  inspector.audio.mode.desc: Decompressed=메모리에 통째로 디코딩(짧은 효과음 권장), Streaming=디스크에서 점진 디코딩(긴 BGM 권장).
+  inspector.audio.default_bus.desc: 이 사운드가 기본으로 출력될 버스(채널)입니다. 컴포넌트에서 인스턴스 단위로 오버라이드할 수 있습니다.
+  inspector.audio.default_volume.desc: 재생 시작 시 적용될 기본 볼륨입니다. 컴포넌트가 따로 지정하지 않으면 이 값을 사용합니다.
+  inspector.audio.loop.desc: 재생 종료 후 자동으로 처음부터 다시 시작합니다. 컴포넌트에서 오버라이드할 수 있습니다.
+  inspector.audio.is_3d.desc: 켜면 청취자(AudioListener)와의 거리에 따라 볼륨이 감쇠됩니다. UI/BGM 은 꺼두세요.
+  inspector.audio.min_distance.desc: 이 거리 이내에서는 최대 볼륨으로 재생됩니다.
+  inspector.audio.max_distance.desc: 이 거리를 넘어서면 들리지 않습니다. (Min ≤ Max)

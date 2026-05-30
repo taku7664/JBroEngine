@@ -22,6 +22,8 @@ class CInspectorTool;
 class CAssetBrowserTool;
 class CLogTool;
 class CProjectSettingsWindow;
+class CSpriteImporterWindow;
+class CAudioImporterWindow;
 class CProjectManager;
 class CScene;
 
@@ -38,6 +40,8 @@ public:
 	inline static SafePtr<CAssetBrowserTool>		AssetBrowser = nullptr;
 	inline static SafePtr<CLogTool>					LogTool = nullptr;
 	inline static SafePtr<CProjectSettingsWindow>	ProjectSettings = nullptr;
+	inline static SafePtr<CSpriteImporterWindow>	SpriteImporter = nullptr;
+	inline static SafePtr<CAudioImporterWindow>		AudioImporter  = nullptr;
 	inline static CEditorCommandManager				CommandManager;
 
 	// ── 단일 선택: 이전 다중 선택 초기화 후 entity 하나만 선택 ──────────────
@@ -196,6 +200,7 @@ inline const char* GetTypeName(EAssetType type)
 	case EAssetType::Scene: return "Scene";
 	case EAssetType::Prefab: return "Prefab";
 	case EAssetType::Script: return "Script";
+	case EAssetType::Audio:  return "Audio";
 	case EAssetType::Custom: return "Custom";
 	default: return "Unknown";
 	}

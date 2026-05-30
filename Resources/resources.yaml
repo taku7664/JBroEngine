@@ -23,6 +23,8 @@ resources:
   icon-script:           { path: "Resources/script.png" }
   icon-material:         { path: "Resources/material.png" }
   icon-object:           { path: "Resources/object.png" }
+  # 사운드 자산 — 전용 아이콘 추가 전까지 file 기본 아이콘으로 폴백.
+  icon-audio:            { path: "Resources/file.png" }
 
   # ── 컴포넌트 아이콘 ─────────────────────────────────────────────────────────
   icon-camera:           { path: "Resources/camera.png" }

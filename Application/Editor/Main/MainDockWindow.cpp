@@ -10,6 +10,8 @@
 #include "Editor/Main/Inspector/InspectorTool.h"
 #include "Editor/Main/Log/LogTool.h"
 #include "Editor/Main/SceneView/SceneViewTool.h"
+#include "Editor/Main/Importer/SpriteImporterWindow.h"
+#include "Editor/Main/Importer/AudioImporterWindow.h"
 #include "Engine/Core/Core.h"
 #include "Engine/Editor/ImEditor.h"
 #include "Engine/GameFramework/Scene/SceneManager.h"
@@ -83,10 +85,19 @@ void CMainDockWindow::OnCreate()
 	{
 		Editor::Inspector->InitializeDockLayout("RightBottom");
 	}
+
+	// ── 임포터 윈도우 — 도킹 안 하고 자유 떠 다니는 다이얼로그.
+	// 메뉴바 "임포터" 에서 SetVisible(true) 로 띄운다.
+	Editor::SpriteImporter = Editor::ImEditor->CreateImWindow<CSpriteImporterWindow>("SpriteImporter", 0);
+	Editor::AudioImporter  = Editor::ImEditor->CreateImWindow<CAudioImporterWindow> ("AudioImporter",  0);
 }
 
 void CMainDockWindow::OnMenuBar()
 {
+	// ShowDemoWindow 안에 있는 ImGui::ShowExampleAppAssetsBrowser()를 참고해서 에셋 브라우저 드로우를 개선.
+	// 드래깅이나 다중 선택을 통해 다중 선택이 가능해야함
+	ImGui::ShowDemoWindow();
+
 	if (ImGui::BeginMenu(Loc::Text("menu.simulation")))
 	{
 		SafePtr<CSceneManager> sceneManager = Core::SceneManager;
@@ -170,20 +181,41 @@ void CMainDockWindow::OnMenuBar()
 		ImGui::EndMenu();
 	}
 
+	// ── "창" 메뉴 — "에디터" + "임포터" 서브메뉴 ──────────────────────────
 	if (ImGui::BeginMenu(Loc::Text("menu.window")))
 	{
-		for(SafePtr<CImWindow>& child : m_childImWindowVector)
+		// 에디터 — 도킹된 자식 윈도우(인스펙터/씬뷰/하이라키 등) 토글
+		if (ImGui::BeginMenu(Loc::Text("menu.window.editor")))
 		{
-			if (child.IsValid())
+			for (SafePtr<CImWindow>& child : m_childImWindowVector)
 			{
-				const char* title = child->GetTitle();
-				bool isVisible = child->GetVisible();
-				if (ImGui::MenuItem(title, nullptr, isVisible))
+				if (child.IsValid())
 				{
-					child->SetVisible(!isVisible);
+					const char* title = child->GetTitle();
+					bool isVisible = child->GetVisible();
+					if (ImGui::MenuItem(title, nullptr, isVisible))
+					{
+						child->SetVisible(!isVisible);
+					}
 				}
 			}
+			ImGui::EndMenu();
 		}
+
+		// 임포터 — 자산 임포트 다이얼로그 윈도우
+		if (ImGui::BeginMenu(Loc::Text("menu.window.importer")))
+		{
+			if (ImGui::MenuItem(Loc::Text("menu.importer.sprite")))
+			{
+				if (Editor::SpriteImporter) Editor::SpriteImporter->SetVisible(true);
+			}
+			if (ImGui::MenuItem(Loc::Text("menu.importer.audio")))
+			{
+				if (Editor::AudioImporter) Editor::AudioImporter->SetVisible(true);
+			}
+			ImGui::EndMenu();
+		}
+
 		ImGui::EndMenu();
 	}
 }

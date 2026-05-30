@@ -37,6 +37,8 @@ EAssetType CResourceRegistry::InferTypeFromExtension(const File::Path& path)
 	if (ext == ".jprefab")                             return EAssetType::Prefab;
 	if (ext == ".jmat")                                return EAssetType::Material;
 	if (ext == ".hlsl" || ext == ".shader")            return EAssetType::Shader;
+	if (ext == ".wav" || ext == ".mp3"
+	    || ext == ".flac" || ext == ".ogg")            return EAssetType::Audio;
 	return EAssetType::Custom;
 }
 

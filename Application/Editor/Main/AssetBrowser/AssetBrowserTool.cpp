@@ -250,6 +250,8 @@ namespace
 			return "icon-material";
 		case EAssetType::Prefab:
 			return "icon-object";
+		case EAssetType::Audio:
+			return "icon-audio";
 		default:
 			return "icon-file-default";
 		}

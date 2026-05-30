@@ -22,6 +22,9 @@ public:
 	ImText& SetAlign(Align align);
 	ImText& SetScale(float scale);
 	ImText& SetHoveredTooltip(bool use, ImGuiHoveredFlags flags = ImGuiHoveredFlags_None);
+	// 라벨과 다른 설명을 툴팁으로 보여주고 싶을 때.
+	// nullptr 또는 빈 문자열 → 툴팁 비활성.
+	ImText& SetHoveredTooltip(const char* tooltipText, ImGuiHoveredFlags flags = ImGuiHoveredFlags_None);
 	ImText& UseSeparator(bool use);
 
 	void operator()( const char* text );
@@ -31,6 +34,7 @@ private:
 	Align	m_align			= Align::Left;
 	bool	m_bUseSeparator = false;
 	std::pair<bool, ImGuiHoveredFlags> m_hovered = { false, ImGuiHoveredFlags_None };
+	std::string m_hoveredCustomTooltip;
 };
 
 class ImInputText

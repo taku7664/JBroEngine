@@ -12,6 +12,7 @@
 #include "Engine/Core/Asset/IAssetManager.h"
 #include "Engine/Core/Asset/IAssetRegistry.h"
 #include "Engine/Core/Asset/SpriteAsset.h"
+#include "Engine/Core/Asset/AudioAsset.h"
 #include "Engine/Core/Resource/ResourceRegistry.h"
 #include "Engine/Core/RHI/IRHITexture.h"
 #include "Engine/Editor/ImEditor.h"
@@ -634,6 +635,144 @@ namespace
 		ImGui::EndDisabled();
 	}
 
+	// ── 사운드 자산 임포트 옵션 ──────────────────────────────────────────────
+	bool SaveAudioImportOptions(const AssetMetaData& metaData, const AudioImportOptions& options)
+	{
+		SafePtr<CProjectManager> projectManager = GetProjectManager();
+		SafePtr<IAssetManager>   assetManager   = projectManager ? projectManager->GetAssetManager() : nullptr;
+		if (false == assetManager.IsValid()) return false;
+
+		File::Path resolvedMetaPath;
+		if (false == assetManager->ResolveAssetPath(metaData.MetaPath, resolvedMetaPath)) return false;
+
+		AssetMetaData updatedMetaData = metaData;
+		updatedMetaData.ImportOptionsYaml = CAudioImportOptions::ToYaml(options);
+		if (false == CAssetMetaFile::Save(resolvedMetaPath, updatedMetaData)) return false;
+
+		assetManager->RefreshAssetRegistry();
+		assetManager->ReloadAsset(updatedMetaData.Guid);
+		return true;
+	}
+
+	void DrawAudioImportOptions(const AssetMetaData& metaData)
+	{
+		// SpriteImportOptions 와 동일한 캐시 + dirty 패턴.
+		static AssetGuid          s_cachedGuid;
+		static AudioImportOptions s_options;
+		static bool               s_dirty = false;
+		if (s_cachedGuid != metaData.Guid)
+		{
+			s_cachedGuid = metaData.Guid;
+			s_options    = CAudioImportOptions::FromYaml(metaData.ImportOptionsYaml);
+			s_dirty      = false;
+		}
+		AudioImportOptions& options = s_options;
+
+		ImGui::SeparatorText(Loc::Text("inspector.audio_import_options"));
+
+		ImGui::Utillity::FormLayout layout("##audio_import_options");
+		bool changed = false;
+
+		// ── 임포트 모드 (Decompressed / Streaming) ─────────────────────────
+		const char* modeItems[] = {
+			Loc::Text("inspector.audio.mode.decompressed"),
+			Loc::Text("inspector.audio.mode.streaming"),
+		};
+		int modeIndex = static_cast<int>(options.Mode);
+		layout.Row(
+			[&]() { ImGui::TextUnformatted(Loc::Text("inspector.audio.mode")); },
+			[&]()
+			{
+				if (ImGui::Combo("##inspector.audio.mode", &modeIndex, modeItems, IM_ARRAYSIZE(modeItems)))
+				{
+					changed = true;
+				}
+			});
+		options.Mode = static_cast<EAudioImportMode>(modeIndex);
+
+		// ── 기본 버스 (Master / Music / SFX / Voice / UI / Custom) ─────────
+		const char* busItems[] = {
+			Loc::Text("inspector.audio.bus.master"),
+			Loc::Text("inspector.audio.bus.music"),
+			Loc::Text("inspector.audio.bus.sfx"),
+			Loc::Text("inspector.audio.bus.voice"),
+			Loc::Text("inspector.audio.bus.ui"),
+			Loc::Text("inspector.audio.bus.custom"),
+		};
+		int busIndex = static_cast<int>(options.DefaultBus);
+		layout.Row(
+			[&]() { ImGui::TextUnformatted(Loc::Text("inspector.audio.default_bus")); },
+			[&]()
+			{
+				if (ImGui::Combo("##inspector.audio.bus", &busIndex, busItems, IM_ARRAYSIZE(busItems)))
+				{
+					changed = true;
+				}
+			});
+		options.DefaultBus = static_cast<EAudioBusKind>(busIndex);
+
+		// ── 기본 볼륨 / 루프 ──────────────────────────────────────────────
+		layout.Row(
+			[&]() { ImGui::TextUnformatted(Loc::Text("inspector.audio.default_volume")); },
+			[&]() { changed |= ImGui::DragFloat("##inspector.audio.default_volume", &options.DefaultVolume, 0.01f, 0.0f, 2.0f); });
+		layout.Row(
+			[&]() { ImGui::TextUnformatted(Loc::Text("inspector.audio.loop")); },
+			[&]() { changed |= ImGui::Checkbox("##inspector.audio.loop", &options.Loop); });
+
+		// ── 3D 음향 ────────────────────────────────────────────────────────
+		layout.Row(
+			[&]() { ImGui::TextUnformatted(Loc::Text("inspector.audio.is_3d")); },
+			[&]() { changed |= ImGui::Checkbox("##inspector.audio.is_3d", &options.Is3D); });
+		if (options.Is3D)
+		{
+			layout.Row(
+				[&]() { ImGui::TextUnformatted(Loc::Text("inspector.audio.min_distance")); },
+				[&]() { changed |= ImGui::DragFloat("##inspector.audio.min_distance", &options.MinDistance, 0.1f, 0.0f, 10000.0f); });
+			layout.Row(
+				[&]() { ImGui::TextUnformatted(Loc::Text("inspector.audio.max_distance")); },
+				[&]() { changed |= ImGui::DragFloat("##inspector.audio.max_distance", &options.MaxDistance, 0.1f, 0.0f, 10000.0f); });
+			if (options.MinDistance < 0.0f) options.MinDistance = 0.0f;
+			if (options.MaxDistance < options.MinDistance) options.MaxDistance = options.MinDistance;
+		}
+
+		// ── 정보 (포맷 / 길이) ─────────────────────────────────────────────
+		SafePtr<CProjectManager> projectManager = GetProjectManager();
+		SafePtr<IAssetManager>   assetManager   = projectManager ? projectManager->GetAssetManager() : nullptr;
+		if (assetManager)
+		{
+			if (SafePtr<IAsset> loadedAsset = assetManager->LoadAsset(metaData.Guid))
+			{
+				if (EAssetType::Audio == loadedAsset->GetAssetType())
+				{
+					CAudioAsset* audioAsset = static_cast<CAudioAsset*>(loadedAsset.TryGet());
+					if (audioAsset)
+					{
+						const AudioFormatInfo& fmt = audioAsset->GetFormat();
+						ImGui::TextDisabled("%s: %u Hz / %u ch",
+							Loc::Text("inspector.audio.format"),
+							fmt.SampleRate,
+							static_cast<unsigned int>(fmt.Channels));
+						ImGui::TextDisabled("%s: %.2f s",
+							Loc::Text("inspector.audio.duration"),
+							audioAsset->GetDurationSeconds());
+					}
+				}
+			}
+		}
+
+		if (changed) s_dirty = true;
+
+		ImGui::BeginDisabled(false == s_dirty);
+		if (ImGui::Button(Loc::Text("inspector.apply_audio_import_options")))
+		{
+			if (SaveAudioImportOptions(metaData, options))
+			{
+				s_dirty = false;
+			}
+		}
+		ImGui::EndDisabled();
+	}
+
 	bool DrawSelectedAssetInspector()
 	{
 		const File::Guid& selectedGuid = Editor::GetSelectedAssetGuid();
@@ -666,6 +805,10 @@ namespace
 		if (EAssetType::Sprite == metaData->Type)
 		{
 			DrawSpriteImportOptions(*metaData);
+		}
+		else if (EAssetType::Audio == metaData->Type)
+		{
+			DrawAudioImportOptions(*metaData);
 		}
 		else
 		{
