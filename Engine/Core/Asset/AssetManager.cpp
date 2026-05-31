@@ -91,6 +91,8 @@ bool CAssetManager::ImportAsset(const AssetImportDesc& desc, AssetMetaData* outM
 		return false;
 	}
 
+	std::lock_guard lock(m_mutex);
+
 	if (const AssetMetaData* registeredMetaData = m_registry.FindAssetByPath(File::Path(normalizedPath)))
 	{
 		if (nullptr != outMetaData)
@@ -162,6 +164,7 @@ bool CAssetManager::LoadRegistryFromMetaFiles()
 #if JBRO_PLATFORM_WEB
 	return true;
 #else
+	std::lock_guard lock(m_mutex);
 	// Persistent 항목(외부 ResourceRegistry 등록 자산)은 그대로 두고, 프로젝트 메타만 재구축.
 	m_registry.ClearNonPersistent();
 
@@ -227,6 +230,7 @@ bool CAssetManager::LoadRegistryFromMetaFiles()
 
 bool CAssetManager::RefreshAssetRegistry()
 {
+	std::lock_guard lock(m_mutex);
 	// Persistent 자산(엔진/에디터 영구 리소스)은 프로젝트 재바인딩 중에도 보존되어야 한다.
 	// 보존하지 않으면 ResourceRegistry 가 보유한 SafePtr 가 모두 Alive=false 가 되어 GetSprite 가 invalid 를 반환.
 	UnloadNonPersistentAssets();
@@ -240,6 +244,7 @@ bool CAssetManager::SetAssetRootPath(const File::Path& assetRootPath)
 		return false;
 	}
 
+	std::lock_guard lock(m_mutex);
 	m_assetRootPath = File::Path(assetRootPath.generic_string());
 	return RefreshAssetRegistry();
 }
@@ -272,6 +277,7 @@ bool CAssetManager::ResolveAssetPath(const File::Path& path, File::Path& outReso
 
 SafePtr<IAsset> CAssetManager::FindLoadedAsset(const AssetGuid& guid) const
 {
+	std::lock_guard lock(m_mutex);
 	auto it = m_loadedAssetTable.find(guid);
 	if (it == m_loadedAssetTable.end())
 	{
@@ -283,9 +289,12 @@ SafePtr<IAsset> CAssetManager::FindLoadedAsset(const AssetGuid& guid) const
 
 SafePtr<IAsset> CAssetManager::LoadAsset(const AssetGuid& guid)
 {
-	if (SafePtr<IAsset> loadedAsset = FindLoadedAsset(guid))
+	std::lock_guard lock(m_mutex);
+
+	auto it = m_loadedAssetTable.find(guid);
+	if (it != m_loadedAssetTable.end())
 	{
-		return loadedAsset;
+		return it->second.GetSafePtr();
 	}
 
 	const AssetMetaData* metaData = m_registry.FindAsset(guid);
@@ -318,6 +327,7 @@ SafePtr<IAsset> CAssetManager::LoadAssetByPath(const File::Path& path)
 
 SafePtr<IAsset> CAssetManager::ReloadAsset(const AssetGuid& guid)
 {
+	std::lock_guard lock(m_mutex);
 	UnloadAsset(guid);
 	return LoadAsset(guid);
 }
@@ -335,6 +345,7 @@ SafePtr<IAsset> CAssetManager::ReloadAssetByPath(const File::Path& path)
 
 void CAssetManager::UnloadAsset(const AssetGuid& guid)
 {
+	std::lock_guard lock(m_mutex);
 	auto assetIt = m_loadedAssetTable.find(guid);
 	if (assetIt == m_loadedAssetTable.end())
 	{
@@ -351,6 +362,7 @@ void CAssetManager::UnloadAsset(const AssetGuid& guid)
 
 bool CAssetManager::UnregisterAssetByPath(const File::Path& path, bool unloadIfLoaded)
 {
+	std::lock_guard lock(m_mutex);
 	const AssetMetaData* metaData = m_registry.FindAssetByPath(path);
 	if (nullptr == metaData)
 	{
@@ -364,6 +376,44 @@ bool CAssetManager::UnregisterAssetByPath(const File::Path& path, bool unloadIfL
 	}
 
 	return m_registry.UnregisterAsset(guid);
+}
+
+bool CAssetManager::MoveAssetPath(const File::Path& oldPath, const File::Path& newPath)
+{
+	std::lock_guard lock(m_mutex);
+
+	const AssetMetaData* oldMeta = m_registry.FindAssetByPath(oldPath);
+	if (nullptr == oldMeta)
+	{
+		return false;
+	}
+
+	// 새 경로에 이미 자산이 등록돼 있으면 — 같은 자산(이미 갱신됨)이면 성공으로,
+	// 다른 자산이면 충돌이므로 실패로 처리한다.
+	if (const AssetMetaData* existing = m_registry.FindAssetByPath(newPath))
+	{
+		return existing->Guid == oldMeta->Guid;
+	}
+
+	std::string normalizedNewPath;
+	if (false == CAssetPath::NormalizeRelativePath(newPath.generic_string().c_str(), normalizedNewPath))
+	{
+		return false;
+	}
+
+	// UnregisterAsset 이후 oldMeta 포인터는 무효해지므로 미리 복사한다.
+	AssetMetaData moved = *oldMeta;
+	moved.Path     = File::Path(normalizedNewPath);
+	moved.MetaPath = File::Path(CAssetPath::MakeMetaPath(normalizedNewPath.c_str()));
+
+	// 레지스트리 항목만 새 경로로 교체한다 — m_loadedAssetTable(로드된 데이터)은
+	// 건드리지 않으므로 같은 GUID 로 로드돼 있던 에셋 객체/GPU 리소스가 살아있고,
+	// 이를 참조하던 스프라이트/오디오 등 라이브 핸들이 그대로 유효하다.
+	if (false == m_registry.UnregisterAsset(moved.Guid))
+	{
+		return false;
+	}
+	return m_registry.RegisterAsset(moved);
 }
 
 bool CAssetManager::BuildAssetPackage(const AssetPackageBuildDesc& desc)
@@ -494,6 +544,8 @@ bool CAssetManager::RegisterAssetByPath(const File::Path& path, EAssetType type,
 		return false;
 	}
 
+	std::lock_guard lock(m_mutex);
+
 	// 이미 등록된 path 면 idempotent — Persistent 플래그만 갱신.
 	if (const AssetMetaData* existing = m_registry.FindAssetByPath(path))
 	{
@@ -518,6 +570,7 @@ bool CAssetManager::RegisterAssetByPath(const File::Path& path, EAssetType type,
 
 bool CAssetManager::SetAssetPersistent(const AssetGuid& guid, bool isPersistent)
 {
+	std::lock_guard lock(m_mutex);
 	const AssetMetaData* existing = m_registry.FindAsset(guid);
 	if (nullptr == existing)
 	{
@@ -536,6 +589,7 @@ bool CAssetManager::SetAssetPersistent(const AssetGuid& guid, bool isPersistent)
 
 void CAssetManager::UnloadNonPersistentAssets()
 {
+	std::lock_guard lock(m_mutex);
 	// 1) 로드된 자산 중 non-persistent 만 unload.
 	for (auto it = m_loadedAssetTable.begin(); it != m_loadedAssetTable.end(); )
 	{
@@ -567,6 +621,7 @@ void CAssetManager::UnloadNonPersistentAssets()
 
 void CAssetManager::UnloadAllAssets()
 {
+	std::lock_guard lock(m_mutex);
 	for (auto& assetPair : m_loadedAssetTable)
 	{
 		if (IAssetLoader* loader = FindLoader(assetPair.second->GetAssetType()))

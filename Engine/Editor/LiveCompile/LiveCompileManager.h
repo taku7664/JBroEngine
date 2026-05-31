@@ -5,6 +5,7 @@
 #include "GameFramework/Component/ScriptComponent.h"
 
 #include <chrono>
+#include <functional>
 #include <future>
 #include <string>
 #include <unordered_map>
@@ -32,6 +33,12 @@ public:
 	IGameModule* GetGameModule() const override;
 	ELiveCompileState GetState() const override;
 	std::string ConsumeLastFailureMessage() override;
+
+	// 빌드 직전(매 컴파일 시작 전)에 호출되는 훅. ProjectManager 가 여기에 스크립트
+	// 프로젝트 재생성(EnsureProject)을 걸어두면, 헤더를 어떻게 편집하든(프로퍼티
+	// 추가/이름변경/삭제, 외부 파일 추가/삭제) 빌드 직전에 레지스트리/vcxproj 가
+	// 항상 디스크 상태와 동기화된다.
+	void SetPreBuildCallback(std::function<void()> callback) { m_preBuildCallback = std::move(callback); }
 
 private:
 	File::Path MakeLoadableLibraryPath() const;
@@ -78,4 +85,7 @@ private:
 
 	// 마지막 실패 메시지 (소비형 — Consume 호출 시 비워짐).
 	std::string m_lastFailureMessage;
+
+	// 빌드 직전 훅(스크립트 프로젝트 재생성 등). 메인 스레드에서 동기 호출.
+	std::function<void()> m_preBuildCallback;
 };

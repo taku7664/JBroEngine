@@ -5,8 +5,14 @@
 
 #include "ThirdParty/miniaudio/miniaudio.h"
 
+#include <algorithm>
 #include <unordered_map>
 #include <vector>
+
+#if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  CMiniAudioDevice 구현 — 골격
@@ -18,7 +24,8 @@
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 // ── Player ─────────────────────────────────────────────────────────────────
-class CMiniAudioPlayer final : public IAudioPlayer
+// 빈 스텁 — Desc 기반 CreatePlayer 가 아직 자산 PCM 라우팅을 채우지 못한 동안 사용.
+class CMiniAudioPlayerStub final : public IAudioPlayer
 {
 public:
 	void Play()  override {}
@@ -38,6 +45,168 @@ public:
 	void SetSpatial (const AudioSpatialParams&) override {}
 	void AttachEffect(SafePtr<IAudioEffect>) override {}
 	void DetachAllEffects() override {}
+};
+
+// 파일 경로 기반 실제 Player — 에디터 미리듣기에 사용.
+// 소멸 시 ma_sound_uninit 으로 리소스를 반드시 해제한다 (스트림/디코더/콜백 모두).
+class CMiniAudioFilePlayer final : public IAudioPlayer
+{
+public:
+	CMiniAudioFilePlayer(ma_engine* engine, const char* filePathUtf8)
+		: m_engine(engine)
+	{
+		if (nullptr == engine || nullptr == filePathUtf8) return;
+		// STREAM 플래그를 쓰면 ma_sound_get_length_in_seconds 가 0 을 반환해
+		// 인스펙터의 슬라이더가 표시되지 않는다. 프리뷰는 전체 디코딩 비용을 감수.
+		// (NO_SPATIALIZATION = 2D 처럼 평면 출력, 위치 무관)
+		const ma_uint32 flags = MA_SOUND_FLAG_DECODE | MA_SOUND_FLAG_NO_SPATIALIZATION;
+
+#if defined(_WIN32)
+		// 사용자 폴더에 비-ASCII(예: 한글) 가 있으면 ma_sound_init_from_file 의 char* 경로가
+		// 시스템 코드페이지로 해석돼 파일 열기 실패 → 무음. UTF-8 입력을 wide 로 변환해 _w 변종 사용.
+		const int wlen = MultiByteToWideChar(CP_UTF8, 0, filePathUtf8, -1, nullptr, 0);
+		if (wlen > 0)
+		{
+			std::wstring wpath(static_cast<std::size_t>(wlen), L'\0');
+			MultiByteToWideChar(CP_UTF8, 0, filePathUtf8, -1, wpath.data(), wlen);
+			// MultiByteToWideChar 가 null 종단도 포함시켰으므로 resize 로 잘라낸다.
+			if (false == wpath.empty() && L'\0' == wpath.back()) wpath.pop_back();
+			if (MA_SUCCESS == ma_sound_init_from_file_w(engine, wpath.c_str(), flags, nullptr, nullptr, &m_sound))
+			{
+				m_initialized = true;
+				return;
+			}
+		}
+#endif
+
+		if (MA_SUCCESS == ma_sound_init_from_file(engine, filePathUtf8, flags, nullptr, nullptr, &m_sound))
+		{
+			m_initialized = true;
+		}
+	}
+
+	~CMiniAudioFilePlayer() override
+	{
+		Cleanup();
+	}
+
+	void Play() override
+	{
+		if (false == m_initialized) return;
+		if (ma_sound_at_end(&m_sound))
+		{
+			ma_sound_seek_to_pcm_frame(&m_sound, 0);
+		}
+		ma_sound_start(&m_sound);
+	}
+
+	void Pause() override
+	{
+		if (m_initialized) ma_sound_stop(&m_sound);
+	}
+
+	void Stop() override
+	{
+		if (false == m_initialized) return;
+		ma_sound_stop(&m_sound);
+		ma_sound_seek_to_pcm_frame(&m_sound, 0);
+	}
+
+	bool IsPlaying() const override
+	{
+		return m_initialized && MA_TRUE == ma_sound_is_playing(&m_sound);
+	}
+
+	bool IsEnded() const override
+	{
+		return false == m_initialized || MA_TRUE == ma_sound_at_end(&m_sound);
+	}
+
+	void PlayAt(double) override { Play(); }
+
+	std::uint64_t GetPositionFrames() const override
+	{
+		if (false == m_initialized) return 0;
+		ma_uint64 cursor = 0;
+		ma_sound_get_cursor_in_pcm_frames(const_cast<ma_sound*>(&m_sound), &cursor);
+		return cursor;
+	}
+
+	double GetPositionSeconds() const override
+	{
+		if (false == m_initialized) return 0.0;
+		float seconds = 0.0f;
+		ma_sound_get_cursor_in_seconds(const_cast<ma_sound*>(&m_sound), &seconds);
+		return static_cast<double>(seconds);
+	}
+
+	double GetDurationSeconds() const override
+	{
+		if (false == m_initialized) return 0.0;
+		float seconds = 0.0f;
+		ma_sound_get_length_in_seconds(const_cast<ma_sound*>(&m_sound), &seconds);
+		return static_cast<double>(seconds);
+	}
+
+	void Seek(std::uint64_t frame) override
+	{
+		if (m_initialized) ma_sound_seek_to_pcm_frame(&m_sound, frame);
+	}
+
+	void SeekSeconds(double seconds) override
+	{
+		if (false == m_initialized) return;
+		ma_uint64 totalFrames = 0;
+		if (MA_SUCCESS != ma_sound_get_length_in_pcm_frames(&m_sound, &totalFrames) || 0 == totalFrames)
+		{
+			IAudioPlayer::SeekSeconds(seconds);
+			return;
+		}
+		float lengthSec = 0.0f;
+		if (MA_SUCCESS != ma_sound_get_length_in_seconds(&m_sound, &lengthSec) || lengthSec <= 0.0f)
+		{
+			IAudioPlayer::SeekSeconds(seconds);
+			return;
+		}
+		const double frac = std::max(0.0, std::min(1.0, seconds / static_cast<double>(lengthSec)));
+		const ma_uint64 target = static_cast<ma_uint64>(frac * totalFrames);
+		ma_sound_seek_to_pcm_frame(&m_sound, target);
+	}
+
+	void SetVolume(float v) override
+	{
+		if (m_initialized) ma_sound_set_volume(&m_sound, v);
+	}
+
+	void SetPitch(float p) override
+	{
+		if (m_initialized) ma_sound_set_pitch(&m_sound, p);
+	}
+
+	void SetLoop(bool loop) override
+	{
+		if (m_initialized) ma_sound_set_looping(&m_sound, loop ? MA_TRUE : MA_FALSE);
+	}
+
+	void SetPosition(AudioVec3) override {}
+	void SetSpatial (const AudioSpatialParams&) override {}
+	void AttachEffect(SafePtr<IAudioEffect>) override {}
+	void DetachAllEffects() override {}
+
+	bool IsInitialized() const { return m_initialized; }
+
+private:
+	void Cleanup()
+	{
+		if (false == m_initialized) return;
+		ma_sound_stop(&m_sound);
+		ma_sound_uninit(&m_sound);
+		m_initialized = false;
+	}
+
+	ma_engine* m_engine = nullptr;
+	ma_sound   m_sound{};
+	bool       m_initialized = false;
 };
 
 // ── Listener ────────────────────────────────────────────────────────────────
@@ -132,7 +301,22 @@ void CMiniAudioDevice::Tick(float)
 OwnerPtr<IAudioPlayer> CMiniAudioDevice::CreatePlayer(const AudioPlayerDesc&)
 {
 	// PR A 단계: 빈 player 만 반환. 실제 ma_sound 생성은 자산 PR(B) 에서.
-	return MakeOwnerPtr<CMiniAudioPlayer>();
+	return MakeOwnerPtr<CMiniAudioPlayerStub>();
+}
+
+OwnerPtr<IAudioPlayer> CMiniAudioDevice::CreatePlayerFromFile(const char* filePathUtf8)
+{
+	if (!m_impl || false == m_impl->EngineInitialized || nullptr == filePathUtf8)
+	{
+		return MakeOwnerPtr<CMiniAudioPlayerStub>();
+	}
+	OwnerPtr<CMiniAudioFilePlayer> player = MakeOwnerPtr<CMiniAudioFilePlayer>(&m_impl->Engine, filePathUtf8);
+	if (false == player->IsInitialized())
+	{
+		// 로딩 실패해도 stub 으로 폴백 — 호출자는 IsPlaying/IsEnded 만으로 안전하게 처리 가능.
+		return MakeOwnerPtr<CMiniAudioPlayerStub>();
+	}
+	return player;
 }
 
 OwnerPtr<IAudioBus> CMiniAudioDevice::CreateBus(EAudioBusKind kind)

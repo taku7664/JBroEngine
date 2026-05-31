@@ -29,11 +29,13 @@
 #include "StringUtillity.h"
 
 #include <array>
+#include <cctype>
 #include <chrono>
 #include <cwctype>
 #include <fstream>
 #include <memory>
 #include <sstream>
+#include <unordered_set>
 
 namespace
 {
@@ -107,11 +109,13 @@ namespace
 
 	// ScriptMacros.h 가 지원하는 REFLECT_FIELD 타입 목록.
 	// Combo 의 표시 라벨 ↔ C++ 타입 토큰.
-	constexpr std::array<std::pair<const char*, const char*>, 4> SCRIPT_PROP_TYPES = {{
+	constexpr std::array<std::pair<const char*, const char*>, 6> SCRIPT_PROP_TYPES = {{
 		{ "bool",     "bool"            },
 		{ "int32",    "std::int32_t"    },
 		{ "uint32",   "std::uint32_t"   },
 		{ "float",    "float"           },
+		{ "vector2",  "Vector2<float>"  },
+		{ "asset",    "AssetGuid"       },
 	}};
 
 	std::string DefaultValueFor(int typeIndex)
@@ -122,8 +126,52 @@ namespace
 		case 1: return "0";
 		case 2: return "0u";
 		case 3: return "0.0f";
+		case 4: return "{}";   // Vector2<float> → {0, 0}
+		case 5: return "{}";   // AssetGuid → null
 		default: return "{}";
 		}
+	}
+
+	// 유효한 C++ 식별자인지 — 첫 글자는 알파/밑줄, 이후 알파넘/밑줄.
+	bool IsValidCppIdentifier(const std::string& s)
+	{
+		if (s.empty()) return false;
+		const unsigned char first = static_cast<unsigned char>(s[0]);
+		if (false == (std::isalpha(first) || s[0] == '_')) return false;
+		for (char c : s)
+		{
+			const unsigned char ch = static_cast<unsigned char>(c);
+			if (false == (std::isalnum(ch) || c == '_')) return false;
+		}
+		return true;
+	}
+
+	// 프로퍼티 이름이 스크립트에서 예약된(라이프사이클/베이스) 이름과 충돌하는지.
+	bool IsReservedScriptName(const std::string& name)
+	{
+		static const std::array<const char*, 7> kReserved = {
+			"OnCreate", "OnStart", "OnUpdate", "OnFixedUpdate", "OnDestroy", "GetOwner", "GetScene"
+		};
+		for (const char* r : kReserved)
+		{
+			if (name == r) return true;
+		}
+		return false;
+	}
+
+	// UI 검증: 프로퍼티 이름이 무효(빈 값/식별자 아님/예약어)이거나 목록 내 중복인지.
+	bool IsPropNameInvalid(const std::string& name, const std::vector<NewScriptProperty>& all)
+	{
+		if (name.empty() || false == IsValidCppIdentifier(name) || IsReservedScriptName(name))
+		{
+			return true;
+		}
+		int count = 0;
+		for (const NewScriptProperty& p : all)
+		{
+			if (p.Name == name) ++count;
+		}
+		return count > 1;
 	}
 
 	std::string MakeScriptHeader(const std::string& className,
@@ -134,19 +182,24 @@ namespace
 		out << "#include \"GameFramework/Scripting/ScriptAPI.h\"\n\n";
 		out << "JBRO_SCRIPT " << className << " final : public CGameScript\n";
 		out << "{\n";
-		out << "\tSCRIPT_CLASS(" << className << ")\n";
+		out << "public:\n";
 		if (false == props.empty())
 		{
-			out << "\n";
+			// JPROP 어트리뷰트 방식으로 자동 등록(헤더 스캐너가 파싱). 안전망: 어떤 입력이
+			// 와도 유효한 C++ 가 나오도록 무효 식별자/예약어/중복 이름은 건너뛴다.
+			std::unordered_set<std::string> usedNames;
 			for (const NewScriptProperty& p : props)
 			{
 				if (p.TypeIndex < 0 || p.TypeIndex >= static_cast<int>(SCRIPT_PROP_TYPES.size())) continue;
+				if (false == IsValidCppIdentifier(p.Name) || IsReservedScriptName(p.Name)) continue;
+				if (false == usedNames.insert(p.Name).second) continue;   // 중복 이름 스킵
 				const char* typeToken = SCRIPT_PROP_TYPES[p.TypeIndex].second;
-				out << "\tREFLECT_FIELD(" << typeToken << ", "
-				    << p.Name << ", " << DefaultValueFor(p.TypeIndex) << ")\n";
+				out << "\tJPROP() " << typeToken << " "
+				    << p.Name << " = " << DefaultValueFor(p.TypeIndex) << ";\n";
 			}
+			out << "\n";
 		}
-		out << "\nprotected:\n";
+		out << "protected:\n";
 		out << "\tvoid OnCreate() override;\n";
 		out << "\tvoid OnStart() override;\n";
 		out << "\tvoid OnUpdate() override;\n";
@@ -313,7 +366,8 @@ namespace
 		}
 	}
 
-	void BeginAssetDragDropSource(const AssetBrowserEntry& entry)
+	// 드래그 소스 시작. 드래그가 활성화되면 true 반환(호출부가 m_dragPrimaryPath 기록).
+	bool BeginAssetDragDropSource(const AssetBrowserEntry& entry)
 	{
 		EditorDragDrop::AssetPayloadDesc desc;
 		desc.Guid              = entry.Guid;
@@ -323,7 +377,7 @@ namespace
 		desc.PreviewLabel      = entry.DisplayNameUtf8.c_str();
 		desc.PreviewTextureID  = GetSpriteImTexture(entry.Thumbnail);
 		desc.PreviewSize       = 56.0f;
-		EditorDragDrop::BeginAssetDragDropSource(desc);
+		return EditorDragDrop::BeginAssetDragDropSource(desc);
 	}
 }
 
@@ -428,6 +482,7 @@ void CAssetBrowserTool::SetFocusFolderPath(const File::Path& path, bool pushHist
 
 	m_focusFolderPath = path;
 	m_selectedEntryPath = File::NULL_PATH;
+	m_selection.Clear();   // 폴더가 바뀌면 다중 선택 초기화
 	CancelRename();
 	m_entriesDirty = true;
 }
@@ -438,6 +493,10 @@ void CAssetBrowserTool::ResetProjectState()
 	m_scriptRootPath = File::NULL_PATH;
 	m_focusFolderPath = File::NULL_PATH;
 	m_selectedEntryPath = File::NULL_PATH;
+	m_selection.Clear();
+	m_dragPrimaryPath = File::NULL_PATH;
+	m_clipboardPaths.clear();
+	m_clipboardIsCut = false;
 	m_entries.clear();
 	m_filteredEntryIndices.clear();
 	m_folderChildrenCache.clear();
@@ -446,7 +505,7 @@ void CAssetBrowserTool::ResetProjectState()
 	m_pendingOperations.clear();
 	m_searchText.clear();
 	m_lastSearchText.clear();
-	m_deleteTargetPath = File::NULL_PATH;
+	m_deleteTargets.clear();
 	m_requestDeletePopup = false;
 	CancelRename();
 	m_seenAssetDatabaseRevision = 0;
@@ -539,6 +598,8 @@ void CAssetBrowserTool::RefreshCurrentFolderEntries()
 		// 렌더 핫패스용 캐시 (PushID 키, 검색 비교용)
 		browserEntry.AbsolutePathUtf8     = ToUtf8(absolutePath);
 		browserEntry.DisplayNameLowerUtf8 = ToLower(browserEntry.DisplayNameUtf8);
+		// 다중 선택 저장소 식별자 — 경로 해시로 프레임/리프레시 간 안정.
+		browserEntry.SelectionId = ImHashStr(browserEntry.AbsolutePathUtf8.c_str());
 
 		if (false == isDirectory)
 		{
@@ -645,6 +706,9 @@ void CAssetBrowserTool::ProcessPendingOperations()
 	std::vector<PendingOperation> operations = std::move(m_pendingOperations);
 	m_pendingOperations.clear();
 
+	// 스크립트 트리(.cpp/.h)가 바뀌면 GameScript 프로젝트(.vcxproj 명시 목록)를 재생성해야 한다.
+	bool scriptTreeChanged = false;
+
 	for (const PendingOperation& operation : operations)
 	{
 		// Asset / Script 두 루트 모두 허용. 단 Asset DB 명령(생성/이름변경/삭제)은
@@ -659,23 +723,50 @@ void CAssetBrowserTool::ProcessPendingOperations()
 		switch (operation.Type)
 		{
 		case EPendingOperationType::CreateFolder:
-			if (insideAssetRoot)
-			{
-				Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CCreateFolderCommand>(operation.Path), "__AssetDatabase");
-			}
+			// Asset / Script 루트 어디서든 폴더 생성 허용(IsInsideAnyRoot 는 위에서 보장).
+			Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CCreateFolderCommand>(operation.Path), "__AssetDatabase");
 			break;
 		case EPendingOperationType::Rename:
-			if (insideAssetRoot && IsInsideAssetRoot(operation.TargetPath))
+		{
+			// 같은 루트(Asset 또는 Script) 안에서의 이름변경만 허용.
+			const bool sameRoot = (IsInsideAssetRoot(operation.Path)  && IsInsideAssetRoot(operation.TargetPath))
+			                   || (IsInsideScriptRoot(operation.Path) && IsInsideScriptRoot(operation.TargetPath));
+			if (sameRoot)
 			{
-				Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CRenamePathCommand>(operation.Path, operation.TargetPath, m_assetRootPath), "__AssetDatabase");
+				const File::Path& root = insideAssetRoot ? m_assetRootPath : m_scriptRootPath;
+				Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CRenamePathCommand>(operation.Path, operation.TargetPath, root), "__AssetDatabase");
+				if (false == insideAssetRoot) scriptTreeChanged = true;
 			}
 			break;
+		}
 		case EPendingOperationType::Delete:
-			if (insideAssetRoot)
+		{
+			// Asset / Script 루트 모두 삭제 허용(예전엔 Asset 루트만 가능했다).
+			const File::Path& root = insideAssetRoot ? m_assetRootPath : m_scriptRootPath;
+			Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CDeletePathCommand>(operation.Path, root), "__AssetDatabase");
+			if (false == insideAssetRoot)
 			{
-				Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CDeletePathCommand>(operation.Path, m_assetRootPath), "__AssetDatabase");
+				scriptTreeChanged = true;
+				// 스크립트 소스는 .cpp/.h 한 쌍 — 짝 파일도 함께 삭제해 고아 헤더로 인한
+				// 링크 에러를 막는다.
+				const std::string ext = operation.Path.extension().generic_string();
+				std::vector<const char*> siblingExts;
+				if (ext == ".cpp" || ext == ".cc" || ext == ".cxx")      siblingExts = { ".h", ".hpp", ".hxx" };
+				else if (ext == ".h" || ext == ".hpp" || ext == ".hxx")  siblingExts = { ".cpp", ".cc", ".cxx" };
+				for (const char* se : siblingExts)
+				{
+					File::Path sibling = operation.Path;
+					sibling.replace_extension(se);
+					if (std::filesystem::exists(sibling, errorCode))
+					{
+						Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CDeletePathCommand>(sibling, root), "__AssetDatabase");
+						break;
+					}
+					errorCode.clear();
+				}
 			}
 			break;
+		}
 		case EPendingOperationType::CopyPath:
 			File::CopyPathToClipBoard(operation.Path);
 			break;
@@ -747,8 +838,88 @@ void CAssetBrowserTool::ProcessPendingOperations()
 			break;
 		}
 
+		case EPendingOperationType::MoveInto:
+		{
+			// operation.Path = 원본, operation.TargetPath = 대상 폴더.
+			if (false == CanPlaceInto(operation.Path, operation.TargetPath, /*isMove*/ true)) break;
+			const File::Path dst = operation.TargetPath / operation.Path.filename();
+			// Asset root 내 이동은 커맨드(메타 동반 + 언두). Script root 내 이동은 단순 파일 이동.
+			if (IsInsideAssetRoot(operation.Path))
+			{
+				Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CRenamePathCommand>(operation.Path, dst, m_assetRootPath), "__AssetDatabase");
+			}
+			else
+			{
+				std::filesystem::create_directories(dst.parent_path(), errorCode);
+				errorCode.clear();
+				if (false == std::filesystem::exists(dst, errorCode))
+				{
+					std::filesystem::rename(operation.Path, dst, errorCode);
+				}
+				errorCode.clear();
+			}
+			break;
+		}
+
+		case EPendingOperationType::CopyInto:
+		{
+			// operation.Path = 원본, operation.TargetPath = 대상 폴더. 폴더 자신/하위 금지.
+			if (false == CanPlaceInto(operation.Path, operation.TargetPath, /*isMove*/ false)) break;
+			if (std::filesystem::is_directory(operation.Path, errorCode))
+			{
+				// 폴더는 고유 이름으로 재귀 복사한 뒤, 복사본 안의 .Jmeta 를 제거한다.
+				// (단일 Duplicate 와 동일한 이유 — 메타를 남기면 원본과 GUID 가 충돌하므로
+				//  AssetWatcher 가 새 GUID 로 재임포트하도록 메타를 떼어낸다.)
+				errorCode.clear();
+				const File::Path dst = MakeUniqueFilePath(operation.TargetPath, ToUtf8(operation.Path.filename()), "");
+				if (false == dst.empty())
+				{
+					std::filesystem::copy(operation.Path, dst,
+						std::filesystem::copy_options::recursive, errorCode);
+					errorCode.clear();
+					for (const std::filesystem::directory_entry& sub :
+					     std::filesystem::recursive_directory_iterator(dst, errorCode))
+					{
+						if (errorCode) { errorCode.clear(); continue; }
+						if (CAssetPath::IsMetaPath(sub.path().generic_string().c_str()))
+						{
+							std::filesystem::remove(sub.path(), errorCode);
+							errorCode.clear();
+						}
+					}
+				}
+				errorCode.clear();
+				break;
+			}
+			errorCode.clear();
+			if (false == std::filesystem::is_regular_file(operation.Path, errorCode))
+			{
+				errorCode.clear();
+				break;
+			}
+			errorCode.clear();
+			const std::string stem = ToUtf8(operation.Path.stem());
+			const std::string ext  = operation.Path.has_extension() ? operation.Path.extension().generic_string() : std::string{};
+			const File::Path dst = MakeUniqueFilePath(operation.TargetPath, stem, ext);
+			if (false == dst.empty())
+			{
+				CopyFileOnce(operation.Path, dst);
+			}
+			break;
+		}
+
 		default:
 			break;
+		}
+	}
+
+	// 스크립트 파일이 추가/삭제/이동되었으면 GameScript 프로젝트를 재생성해 vcxproj
+	// 소스 목록과 생성 레지스트리를 디스크 상태와 일치시킨다(빌드 정합성).
+	if (scriptTreeChanged)
+	{
+		if (SafePtr<CProjectManager> pm = Editor::ImEditor ? Editor::ImEditor->GetProjectManager() : nullptr)
+		{
+			pm->RegenerateScriptProject();
 		}
 	}
 
@@ -885,29 +1056,34 @@ void CAssetBrowserTool::DrawBrowserColumns()
 
 	ImGui::BeginChild("AssetBrowserBody", ImVec2(0.0f, 0.0f), false);
 
+	// 좌측 패널 = "콘텐츠"(폴더 트리) + "즐겨찾기"(추후 구현) CollapsingHeader.
+	// (두 키는 로컬라이제이션에 추가해 두었다 — 이전엔 키가 없어 깨졌던 것.)
 	ImGui::BeginChild("AssetBrowserFolderTree", ImVec2(availSpace.x * splitRatio, 0.0f), true);
 	if (ImGui::CollapsingHeader(Loc::Text("asset_browser.contents_folders"), ImGuiTreeNodeFlags_DefaultOpen))
 	{
 		DrawFolderTree();
-
 	}
 	if (ImGui::CollapsingHeader(Loc::Text("asset_browser.favorite_folders"), ImGuiTreeNodeFlags_DefaultOpen))
 	{
+		// 즐겨찾기 폴더 목록 — 추후 구현 예정.
 	}
 	ImGui::EndChild();
 
-    // Use pixel-based splitter: compute region origin and current pixel position
-    {
-        const ImVec2 regionMin = ImGui::GetCursorScreenPos();
-        float splitPos = availSpace.x * splitRatio; // current pixel position from regionMin.x
-        if (VerticalSplitter("##InspSplitter", splitPos, regionMin, availSpace, SPLITTER_W))
-        {
-            // convert back to ratio and clamp to previous min/max ratio
-            splitRatio = std::clamp(splitPos / std::max(availSpace.x, 1.0f), MIN_RATIO, MAX_RATIO);
-        }
-    }
+	// 픽셀 기반 스플리터 — 영역 원점과 현재 픽셀 위치를 계산해 비율로 환산.
+	{
+		const ImVec2 regionMin = ImGui::GetCursorScreenPos();
+		float splitPos = availSpace.x * splitRatio;   // regionMin.x 기준 현재 픽셀 위치
+		if (VerticalSplitter("##InspSplitter", splitPos, regionMin, availSpace, SPLITTER_W))
+		{
+			splitRatio = std::clamp(splitPos / std::max(availSpace.x, 1.0f), MIN_RATIO, MAX_RATIO);
+		}
+	}
 
-	ImGui::BeginChild("AssetBrowserEntries", ImVec2(0.0f, 0.0f), true);
+	// NoMove 필수: 이게 없으면 빈 공간 좌클릭이 "윈도우 이동" ActiveId 를 선점해
+	// EndMultiSelect 의 박스 선택 시작 조건(g.ActiveId == 0)이 깨져 드래그 박스 선택이
+	// 전혀 시작되지 않는다. (ShowExampleAppAssetsBrowser 의 child 도 동일 플래그 사용.)
+	ImGui::BeginChild("AssetBrowserEntries", ImVec2(0.0f, 0.0f),
+	                  ImGuiChildFlags_Borders, ImGuiWindowFlags_NoMove);
 	DrawEntries();
 	// 빈 공간 우클릭(다른 entry 위에서가 아닐 때) — body 통합 팝업 호출.
 	// ChildWindows 플래그가 없으면 리스트 모드의 ScrollY 테이블이 내부 child 를
@@ -967,6 +1143,14 @@ void CAssetBrowserTool::DrawFolderTreeNode(const File::Path& folderPath)
 	{
 		OpenFolderTreeContextMenu(folderPath);
 	}
+	// 트리 노드도 드롭 타겟 — 이 폴더로 에셋 이동.
+	{
+		EditorDragDrop::AssetPayload payload;
+		if (EditorDragDrop::AcceptAssetDragDropPayload(payload))
+		{
+			DropAssetsIntoFolder(folderPath);
+		}
+	}
 
 	if (isClicked)
 	{
@@ -1007,6 +1191,11 @@ void CAssetBrowserTool::DrawFolderTreeNode(const File::Path& folderPath)
 
 void CAssetBrowserTool::DrawEntries()
 {
+	// 다중 선택은 List/Icon 모두 ImGui Multi-Select API 로 처리한다.
+	// 각 뷰가 BeginMultiSelect/EndMultiSelect 로 m_selection 을 갱신하고,
+	// 사용자 입력으로 선택이 바뀐 프레임이면 여기서 Editor 선택을 동기화한다.
+	m_selectionChangedThisFrame = false;
+
 	if (m_viewMode == EViewMode::List)
 	{
 		DrawListEntries();
@@ -1015,16 +1204,24 @@ void CAssetBrowserTool::DrawEntries()
 	{
 		DrawIconEntries();
 	}
+
+	if (m_selectionChangedThisFrame)
+	{
+		SyncEditorSelection();
+	}
 }
 
 void CAssetBrowserTool::DrawListEntries()
 {
+	const int itemCount = static_cast<int>(m_filteredEntryIndices.size());
+
 	const ImGuiTableFlags flags =
 		ImGuiTableFlags_BordersInnerV |
 		ImGuiTableFlags_Resizable |
 		ImGuiTableFlags_ScrollY |
 		ImGuiTableFlags_NoBordersInBody;
-	if (false == ImGui::BeginTable("AssetBrowserList", 4, flags, ImVec2(700.0f, 0.0f)))
+	// 폭은 0 → 패널을 가득 채움. (이전엔 700px 하드코딩으로 패널을 못 채우는 버그였음.)
+	if (false == ImGui::BeginTable("AssetBrowserList", 4, flags, ImVec2(0.0f, 0.0f)))
 	{
 		return;
 	}
@@ -1033,125 +1230,58 @@ void CAssetBrowserTool::DrawListEntries()
 	ImGui::TableSetupColumn(Loc::Text("common.type"), ImGuiTableColumnFlags_WidthFixed, 60.0f);
 	ImGui::TableSetupColumn(Loc::Text("common.modified"), ImGuiTableColumnFlags_WidthFixed, 80.0f);
 	ImGui::TableSetupColumn(Loc::Text("common.guid"), ImGuiTableColumnFlags_WidthStretch);
+	ImGui::TableSetupScrollFreeze(0, 1);   // 헤더 행 고정
 	ImGui::TableHeadersRow();
 
-	ImGuiListClipper clipper;
-	clipper.Begin(static_cast<int>(m_filteredEntryIndices.size()));
-	while (clipper.Step())
+	// 풀로우 선택이므로 BoxSelect1d. Esc/빈공간 클릭으로 선택 해제.
+	// NoSelectOnRightClick: 우클릭 선택은 OpenBodyContextMenuForEntry 가 직접 관리
+	// (다중 선택 위에서 우클릭 시 선택 유지 → 다중 삭제 가능).
+	// (테이블은 자체 ScrollY 자식을 가지므로 BeginMultiSelect 를 테이블 안에서 호출해야
+	//  박스 선택/빈공간 클릭 스코프가 스크롤 영역과 일치한다 — ImGui 표준 패턴.)
+	const ImGuiMultiSelectFlags msFlags =
+		ImGuiMultiSelectFlags_ClearOnEscape |
+		ImGuiMultiSelectFlags_ClearOnClickVoid |
+		ImGuiMultiSelectFlags_NoSelectOnRightClick |
+		ImGuiMultiSelectFlags_BoxSelect1d;
+	ImGuiMultiSelectIO* io = ImGui::BeginMultiSelect(msFlags, m_selection.Size, itemCount);
+	m_selection.UserData = this;
+	m_selection.AdapterIndexToStorageId = [](ImGuiSelectionBasicStorage* self, int idx) -> ImGuiID
 	{
-		for (int row = clipper.DisplayStart; row < clipper.DisplayEnd; ++row)
+		CAssetBrowserTool* browser = static_cast<CAssetBrowserTool*>(self->UserData);
+		return browser->m_entries[browser->m_filteredEntryIndices[static_cast<std::size_t>(idx)]].SelectionId;
+	};
+	ApplyMultiSelectRequests(io);
+
+	{
+		ImGuiListClipper clipper;
+		clipper.Begin(itemCount);
+		if (io->RangeSrcItem != -1)
 		{
-			AssetBrowserEntry& entry = m_entries[m_filteredEntryIndices[static_cast<std::size_t>(row)]];
-			ImGui::PushID(entry.AbsolutePathUtf8.c_str()); // 캐시된 utf8 사용
-			ImGui::TableNextRow();
-			ImGui::TableSetColumnIndex(0);
-
-			const bool selected = entry.AbsolutePath == m_selectedEntryPath;
-			const ImTextureID iconTex = GetSpriteImTexture(entry.Thumbnail);
-			const float       lineH   = ImGui::GetTextLineHeight();
-			if (0 != iconTex)
-			{
-				ImGui::Image(iconTex, ImVec2(lineH, lineH));
-				ImGui::SameLine();
-			}
-			if (m_isRenaming && entry.AbsolutePath == m_renamingPath)
-			{
-				ImGui::SetKeyboardFocusHere();
-				ImGui::SetNextItemWidth(-FLT_MIN);
-				if (ValidatedStringInput("##Rename", &m_renameBuffer,
-				        /*invalid*/ m_renameBuffer.empty(),
-				        ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll))
-				{
-					CommitRename(entry.AbsolutePath);
-				}
-				if (ImGui::IsKeyPressed(ImGuiKey_Escape))
-				{
-					CancelRename();
-				}
-			}
-			else
-			{
-				const std::string label = (0 != iconTex)
-					? entry.DisplayNameUtf8
-					: std::format("{} {}", GetEntryIcon(entry), entry.DisplayNameUtf8);
-				if (ImGui::Selectable(label.c_str(), selected, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowDoubleClick))
-				{
-					SelectEntry(entry);
-					if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
-					{
-						OpenEntry(entry);
-					}
-				}
-			}
-			// 우클릭: 통합 컨텍스트 메뉴 호출(SceneView 와 동일 패턴)
-			if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Right))
-			{
-				OpenBodyContextMenuForEntry(entry);
-			}
-			BeginAssetDragDropSource(entry);
-
-			ImGui::TableSetColumnIndex(1);
-			ImGui::TextUnformatted(entry.IsDirectory ? Loc::Text("common.folder") : GetTypeName(entry.Type));
-			ImGui::TableSetColumnIndex(2);
-			ImGui::TextUnformatted(entry.IsDirectory ? "-" : entry.ModifiedTimeText.c_str());
-			ImGui::TableSetColumnIndex(3);
-			// 캐시된 ModifiedTimeText 사용 — 매 프레임 localtime/strftime 호출 제거
-			ImGui::TextUnformatted(entry.Guid.IsNull() ? "-" : ToUtf8(entry.Guid).c_str());
-			ImGui::PopID();
+			clipper.IncludeItemByIndex(static_cast<int>(io->RangeSrcItem)); // Shift 범위 기준 행은 clip 제외
 		}
-	}
-
-	ImGui::EndTable();
-}
-
-void CAssetBrowserTool::DrawIconEntries()
-{
-	const ImVec2 available = ImGui::GetContentRegionAvail();
-	const int columnCount = std::max(1, static_cast<int>(available.x / ICON_CELL_WIDTH));
-	const int rowCount = static_cast<int>((m_filteredEntryIndices.size() + static_cast<std::size_t>(columnCount) - 1) / static_cast<std::size_t>(columnCount));
-
-	ImGuiListClipper clipper;
-	clipper.Begin(rowCount, ICON_CELL_HEIGHT);
-	while (clipper.Step())
-	{
-		for (int row = clipper.DisplayStart; row < clipper.DisplayEnd; ++row)
+		while (clipper.Step())
 		{
-			for (int column = 0; column < columnCount; ++column)
+			for (int row = clipper.DisplayStart; row < clipper.DisplayEnd; ++row)
 			{
-				const std::size_t index = static_cast<std::size_t>(row * columnCount + column);
-				if (index >= m_filteredEntryIndices.size())
-				{
-					break;
-				}
-
-				AssetBrowserEntry& entry = m_entries[m_filteredEntryIndices[index]];
+				AssetBrowserEntry& entry = m_entries[m_filteredEntryIndices[static_cast<std::size_t>(row)]];
 				ImGui::PushID(entry.AbsolutePathUtf8.c_str()); // 캐시된 utf8 사용
-				const bool selected = entry.AbsolutePath == m_selectedEntryPath;
-				const ImTextureID iconTex   = GetSpriteImTexture(entry.Thumbnail);
-				const float       cellW     = ICON_CELL_WIDTH  - 8.0f;
-				const float       cellH     = ICON_CELL_HEIGHT - 8.0f;
-				const float       imageSize = 56.0f;
-				const ImVec2      cursor    = ImGui::GetCursorScreenPos();
+				ImGui::TableNextRow();
+				ImGui::TableSetColumnIndex(0);
 
+				const ImTextureID iconTex = GetSpriteImTexture(entry.Thumbnail);
+				const float       lineH   = ImGui::GetTextLineHeight();
+				if (0 != iconTex)
+				{
+					ImGui::Image(iconTex, ImVec2(lineH, lineH));
+					ImGui::SameLine();
+				}
 				if (m_isRenaming && entry.AbsolutePath == m_renamingPath)
 				{
-					ImGui::BeginGroup();
-					if (0 != iconTex)
-					{
-						const float padX = (cellW - imageSize) * 0.5f;
-						ImGui::Dummy(ImVec2(padX, 0.0f));
-						ImGui::SameLine();
-						ImGui::Image(iconTex, ImVec2(imageSize, imageSize));
-					}
-					else
-					{
-						ImGui::TextUnformatted(GetEntryIcon(entry));
-					}
 					ImGui::SetKeyboardFocusHere();
-					ImGui::SetNextItemWidth(cellW);
+					ImGui::SetNextItemWidth(-FLT_MIN);
 					if (ValidatedStringInput("##Rename", &m_renameBuffer,
-				        /*invalid*/ m_renameBuffer.empty(),
-				        ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll))
+					        /*invalid*/ m_renameBuffer.empty(),
+					        ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll))
 					{
 						CommitRename(entry.AbsolutePath);
 					}
@@ -1159,68 +1289,208 @@ void CAssetBrowserTool::DrawIconEntries()
 					{
 						CancelRename();
 					}
-					ImGui::EndGroup();
 				}
 				else
 				{
-					// 셀 전체를 덮는 Selectable 로 클릭/더블클릭 처리한 뒤,
-					// 같은 영역 위에 이미지+이름을 덮어 그린다.
-					if (ImGui::Selectable("##cell", selected, ImGuiSelectableFlags_AllowDoubleClick, ImVec2(cellW, cellH)))
+					const bool selected = m_selection.Contains(entry.SelectionId);
+					const std::string label = (0 != iconTex)
+						? entry.DisplayNameUtf8
+						: std::format("{} {}", GetEntryIcon(entry), entry.DisplayNameUtf8);
+					ImGui::SetNextItemSelectionUserData(row);
+					ImGui::Selectable(label.c_str(), selected, ImGuiSelectableFlags_SpanAllColumns);
+					if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
 					{
-						SelectEntry(entry);
-						if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
-						{
-							OpenEntry(entry);
-						}
+						OpenEntry(entry);
 					}
+					// 우클릭: 통합 컨텍스트 메뉴(SceneView 와 동일 패턴)
 					if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Right))
 					{
 						OpenBodyContextMenuForEntry(entry);
 					}
-					BeginAssetDragDropSource(entry);
-
-					ImDrawList* draw = ImGui::GetWindowDrawList();
-					const float padX = (cellW - imageSize) * 0.5f;
-					if (0 != iconTex)
+					if (BeginAssetDragDropSource(entry))
 					{
-						const ImVec2 imgMin(cursor.x + padX, cursor.y + 4.0f);
-						const ImVec2 imgMax(imgMin.x + imageSize, imgMin.y + imageSize);
-						draw->AddImage(iconTex, imgMin, imgMax);
+						m_dragPrimaryPath = entry.AbsolutePath;
 					}
-					else
+					// 폴더 행이면 드롭 타겟 — 이 폴더로 에셋 이동.
+					if (entry.IsDirectory)
 					{
-						draw->AddText(ImVec2(cursor.x + 4.0f, cursor.y + 4.0f),
-						              ImGui::GetColorU32(ImGuiCol_Text),
-						              GetEntryIcon(entry));
+						EditorDragDrop::AssetPayload payload;
+						if (EditorDragDrop::AcceptAssetDragDropPayload(payload))
+						{
+							DropAssetsIntoFolder(entry.AbsolutePath);
+						}
 					}
-					// 이름은 이미지 아래.
-					const ImVec2 textSize = ImGui::CalcTextSize(entry.DisplayNameUtf8.c_str(), nullptr, false, cellW);
-					const ImVec2 textPos(cursor.x + (cellW - std::min(textSize.x, cellW)) * 0.5f,
-					                     cursor.y + 4.0f + imageSize + 2.0f);
-					draw->AddText(nullptr, 0.0f,
-					              textPos, ImGui::GetColorU32(ImGuiCol_Text),
-					              entry.DisplayNameUtf8.c_str(), nullptr,
-					              cellW);
-
-					// Selectable 이후의 컨텍스트/드래그소스 위 블록에서 이미 처리. 아래 fall-through 막기.
-					ImGui::PopID();
-					if (column + 1 < columnCount)
-					{
-						ImGui::SameLine();
-					}
-					continue;
 				}
-				// 여기 도달하는 분기는 rename 중인 entry — 우클릭 메뉴/드래그 X.
-				BeginAssetDragDropSource(entry);
+
+				ImGui::TableSetColumnIndex(1);
+				ImGui::TextUnformatted(entry.IsDirectory ? Loc::Text("common.folder") : GetTypeName(entry.Type));
+				ImGui::TableSetColumnIndex(2);
+				// 캐시된 ModifiedTimeText 사용 — 매 프레임 localtime/strftime 호출 제거
+				ImGui::TextUnformatted(entry.IsDirectory ? "-" : entry.ModifiedTimeText.c_str());
+				ImGui::TableSetColumnIndex(3);
+				ImGui::TextUnformatted(entry.Guid.IsNull() ? "-" : ToUtf8(entry.Guid).c_str());
 				ImGui::PopID();
-
-				if (column + 1 < columnCount)
-				{
-					ImGui::SameLine();
-				}
 			}
 		}
 	}
+
+	io = ImGui::EndMultiSelect();
+	ApplyMultiSelectRequests(io);
+
+	ImGui::EndTable();
+}
+
+void CAssetBrowserTool::DrawIconEntries()
+{
+	// ShowExampleAppAssetsBrowser() 패턴: 셀을 SetCursorScreenPos 로 명시 배치하고
+	// 빈 Selectable + drawlist 오버레이로 그린다. BoxSelect2d 는 클리핑된 항목의
+	// 가로 경계까지 갱신해야 하므로 명시적 좌표 배치가 정확도에 유리하다.
+	const int itemCount   = static_cast<int>(m_filteredEntryIndices.size());
+	const ImVec2 available = ImGui::GetContentRegionAvail();
+	const int columnCount  = std::max(1, static_cast<int>(available.x / ICON_CELL_WIDTH));
+	const int rowCount     = (itemCount + columnCount - 1) / columnCount;
+
+	const float  cellW     = ICON_CELL_WIDTH  - 8.0f;
+	const float  cellH     = ICON_CELL_HEIGHT - 8.0f;
+	const float  imageSize = 56.0f;
+
+	// 드래그(박스 선택, 2D) + Ctrl/Shift 다중 선택. Esc/빈공간 클릭으로 해제.
+	// NoSelectOnRightClick: 우클릭 선택은 OpenBodyContextMenuForEntry 가 직접 관리.
+	const ImGuiMultiSelectFlags msFlags =
+		ImGuiMultiSelectFlags_ClearOnEscape |
+		ImGuiMultiSelectFlags_ClearOnClickVoid |
+		ImGuiMultiSelectFlags_NoSelectOnRightClick |
+		ImGuiMultiSelectFlags_BoxSelect2d |
+		ImGuiMultiSelectFlags_NavWrapX;
+	ImGuiMultiSelectIO* io = ImGui::BeginMultiSelect(msFlags, m_selection.Size, itemCount);
+	m_selection.UserData = this;
+	m_selection.AdapterIndexToStorageId = [](ImGuiSelectionBasicStorage* self, int idx) -> ImGuiID
+	{
+		CAssetBrowserTool* browser = static_cast<CAssetBrowserTool*>(self->UserData);
+		return browser->m_entries[browser->m_filteredEntryIndices[static_cast<std::size_t>(idx)]].SelectionId;
+	};
+	ApplyMultiSelectRequests(io);
+
+	ImDrawList* draw = ImGui::GetWindowDrawList();
+	const ImVec2 startPos = ImGui::GetCursorScreenPos();
+
+	ImGuiListClipper clipper;
+	clipper.Begin(rowCount, ICON_CELL_HEIGHT);
+	if (io->RangeSrcItem != -1)
+	{
+		clipper.IncludeItemByIndex(static_cast<int>(io->RangeSrcItem) / columnCount); // Shift 범위 기준 라인 clip 제외
+	}
+	while (clipper.Step())
+	{
+		for (int row = clipper.DisplayStart; row < clipper.DisplayEnd; ++row)
+		{
+			for (int column = 0; column < columnCount; ++column)
+			{
+				const int displayIndex = row * columnCount + column;
+				if (displayIndex >= itemCount)
+				{
+					break;
+				}
+
+				AssetBrowserEntry& entry = m_entries[m_filteredEntryIndices[static_cast<std::size_t>(displayIndex)]];
+				ImGui::PushID(entry.AbsolutePathUtf8.c_str()); // 캐시된 utf8 사용
+
+				const ImVec2 cellPos(startPos.x + column * ICON_CELL_WIDTH,
+				                     startPos.y + row    * ICON_CELL_HEIGHT);
+				ImGui::SetCursorScreenPos(cellPos);
+
+				const ImTextureID iconTex = GetSpriteImTexture(entry.Thumbnail);
+				const bool isRenamingThis = m_isRenaming && entry.AbsolutePath == m_renamingPath;
+
+				if (isRenamingThis)
+				{
+					// rename 중인 셀은 Multi-Select 대상에서 빼고(InputText 가 점유),
+					// 아이콘 아래에 입력창만 띄운다.
+					if (0 != iconTex)
+					{
+						const ImVec2 imgMin(cellPos.x + (cellW - imageSize) * 0.5f, cellPos.y + 4.0f);
+						draw->AddImage(iconTex, imgMin, ImVec2(imgMin.x + imageSize, imgMin.y + imageSize));
+					}
+					ImGui::SetCursorScreenPos(ImVec2(cellPos.x, cellPos.y + 4.0f + imageSize + 2.0f));
+					ImGui::SetKeyboardFocusHere();
+					ImGui::SetNextItemWidth(cellW);
+					if (ValidatedStringInput("##Rename", &m_renameBuffer,
+					        /*invalid*/ m_renameBuffer.empty(),
+					        ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll))
+					{
+						CommitRename(entry.AbsolutePath);
+					}
+					if (ImGui::IsKeyPressed(ImGuiKey_Escape))
+					{
+						CancelRename();
+					}
+					ImGui::PopID();
+					continue;
+				}
+
+				// 셀 전체를 덮는 Selectable(다중 선택 단위) + 그 위에 아이콘/이름 오버레이.
+				// 가시성은 Selectable 이 커서를 움직이기 전, cellPos 기준으로 캡처.
+				const bool itemVisible = ImGui::IsRectVisible(ImVec2(cellW, cellH));
+				bool selected = m_selection.Contains(entry.SelectionId);
+				ImGui::SetNextItemSelectionUserData(displayIndex);
+				ImGui::Selectable("##cell", selected, ImGuiSelectableFlags_None, ImVec2(cellW, cellH));
+				if (ImGui::IsItemToggledSelection())
+				{
+					selected = !selected; // 색상 즉시 반영(EndMultiSelect 요청 기다리지 않음)
+				}
+				if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+				{
+					OpenEntry(entry);
+				}
+				if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+				{
+					OpenBodyContextMenuForEntry(entry);
+				}
+				if (BeginAssetDragDropSource(entry))
+				{
+					m_dragPrimaryPath = entry.AbsolutePath;
+				}
+				// 폴더 셀이면 드롭 타겟 — 이 폴더로 에셋 이동.
+				if (entry.IsDirectory)
+				{
+					EditorDragDrop::AssetPayload payload;
+					if (EditorDragDrop::AcceptAssetDragDropPayload(payload))
+					{
+						DropAssetsIntoFolder(entry.AbsolutePath);
+					}
+				}
+
+				// BoxSelect2d 는 세로 클리핑이 헐거울 수 있어 렌더는 별도 가시성 검사.
+				if (itemVisible)
+				{
+					const float padX = (cellW - imageSize) * 0.5f;
+					if (0 != iconTex)
+					{
+						const ImVec2 imgMin(cellPos.x + padX, cellPos.y + 4.0f);
+						draw->AddImage(iconTex, imgMin, ImVec2(imgMin.x + imageSize, imgMin.y + imageSize));
+					}
+					else
+					{
+						draw->AddText(ImVec2(cellPos.x + 4.0f, cellPos.y + 4.0f),
+						              ImGui::GetColorU32(ImGuiCol_Text), GetEntryIcon(entry));
+					}
+					// 이름은 이미지 아래 가운데 정렬. 선택 시 강조색.
+					const ImU32 textCol = ImGui::GetColorU32(selected ? ImGuiCol_Text : ImGuiCol_TextDisabled);
+					const ImVec2 textSize = ImGui::CalcTextSize(entry.DisplayNameUtf8.c_str(), nullptr, false, cellW);
+					const ImVec2 textPos(cellPos.x + (cellW - std::min(textSize.x, cellW)) * 0.5f,
+					                     cellPos.y + 4.0f + imageSize + 2.0f);
+					draw->AddText(nullptr, 0.0f, textPos, textCol,
+					              entry.DisplayNameUtf8.c_str(), nullptr, cellW);
+				}
+
+				ImGui::PopID();
+			}
+		}
+	}
+	clipper.End();
+
+	io = ImGui::EndMultiSelect();
+	ApplyMultiSelectRequests(io);
 }
 
 // ── 컨텍스트 메뉴 열기 헬퍼 ─────────────────────────────────────────────────
@@ -1229,7 +1499,12 @@ void CAssetBrowserTool::DrawIconEntries()
 // 각 DrawXxxContextMenu 의 첫머리에서 일괄 실행한다.
 void CAssetBrowserTool::OpenBodyContextMenuForEntry(const AssetBrowserEntry& entry)
 {
-	SelectEntry(entry);
+	// 이미 다중 선택에 포함된 항목을 우클릭하면 선택을 유지(다중 삭제 등).
+	// 선택 밖 항목을 우클릭하면 그 항목만 단일 선택으로 교체.
+	if (false == m_selection.Contains(entry.SelectionId))
+	{
+		SelectEntry(entry);
+	}
 	m_bodyCtxEntryPath     = entry.AbsolutePath;
 	m_bodyCtxOpenRequested = true;
 }
@@ -1303,6 +1578,15 @@ void CAssetBrowserTool::DrawBrowserBodyContextMenu()
 
 		if (targetEntry)
 		{
+			// 다중 선택 여부 — 단일 전용 동작(이름변경/복제)은 1개일 때만 노출.
+			const int selectedCount = m_selection.Size;
+			const bool multiSelected = selectedCount > 1;
+			if (multiSelected)
+			{
+				ImGui::Text(Loc::Text("asset_browser.selection_count"), selectedCount);
+				ImGui::Separator();
+			}
+
 			if (ImGui::MenuItem(Loc::Text("common.open")))
 			{
 				OpenEntry(*targetEntry);
@@ -1316,18 +1600,43 @@ void CAssetBrowserTool::DrawBrowserBodyContextMenu()
 				QueueOperation({ EPendingOperationType::CopyPath, targetEntry->AbsolutePath, File::NULL_PATH });
 			}
 			ImGui::Separator();
-			if (ImGui::MenuItem(Loc::Text("common.rename")))
+			if (false == multiSelected && ImGui::MenuItem(Loc::Text("common.rename")))
 			{
 				StartRename(*targetEntry);
 			}
-			if (false == targetEntry->IsDirectory
+			if (false == multiSelected && false == targetEntry->IsDirectory
 			    && ImGui::MenuItem(Loc::Text("common.duplicate")))
 			{
 				QueueOperation({ EPendingOperationType::Duplicate, targetEntry->AbsolutePath, File::NULL_PATH });
 			}
+
+			// ── 잘라내기 / 복사 / 붙여넣기 ──────────────────────────────────
+			ImGui::Separator();
+			if (ImGui::MenuItem(Loc::Text("common.cut")))
+			{
+				CutToClipboard(CollectOperationTargets(targetEntry->AbsolutePath));
+			}
+			if (ImGui::MenuItem(Loc::Text("common.copy")))
+			{
+				CopyToClipboard(CollectOperationTargets(targetEntry->AbsolutePath));
+			}
+			// 폴더 우클릭이면 그 폴더로, 파일이면 현재 폴더로 붙여넣기.
+			{
+				const File::Path pasteFolder = targetEntry->IsDirectory ? targetEntry->AbsolutePath : m_focusFolderPath;
+				ImGui::BeginDisabled(m_clipboardPaths.empty());
+				if (ImGui::MenuItem(Loc::Text("common.paste")))
+				{
+					PasteIntoFolder(pasteFolder);
+				}
+				ImGui::EndDisabled();
+			}
+
+			ImGui::Separator();
 			if (ImGui::MenuItem(Loc::Text("common.delete")))
 			{
-				m_deleteTargetPath = targetEntry->AbsolutePath;
+				// 우클릭 대상이 다중 선택에 포함돼 있으면 선택 전체를, 아니면 대상 1개를 삭제.
+				m_deleteTargets = multiSelected ? CollectSelectedPaths()
+				                                : std::vector<File::Path>{ targetEntry->AbsolutePath };
 				m_requestDeletePopup = true;
 			}
 		}
@@ -1370,6 +1679,12 @@ void CAssetBrowserTool::DrawBrowserBodyContextMenu()
 		{
 			QueueOperation({ EPendingOperationType::CreateFolder, m_focusFolderPath / File::Path("New Folder"), File::NULL_PATH });
 		}
+		ImGui::BeginDisabled(m_clipboardPaths.empty());
+		if (ImGui::MenuItem(Loc::Text("common.paste")))
+		{
+			PasteIntoFolder(m_focusFolderPath);
+		}
+		ImGui::EndDisabled();
 		if (ImGui::MenuItem(Loc::Text("common.refresh")))
 		{
 			m_folderChildrenCache.clear();
@@ -1461,6 +1776,12 @@ void CAssetBrowserTool::DrawFolderTreeContextMenu()
 	{
 		QueueOperation({ EPendingOperationType::CreateFolder, folder / File::Path("New Folder"), File::NULL_PATH });
 	}
+	ImGui::BeginDisabled(m_clipboardPaths.empty());
+	if (ImGui::MenuItem(Loc::Text("common.paste")))
+	{
+		PasteIntoFolder(folder);
+	}
+	ImGui::EndDisabled();
 
 	// 루트 자체에는 rename/delete 위험하므로 비루트 폴더에만 노출.
 	if (false == isRootSelf)
@@ -1468,7 +1789,7 @@ void CAssetBrowserTool::DrawFolderTreeContextMenu()
 		ImGui::Separator();
 		if (ImGui::MenuItem(Loc::Text("common.delete")))
 		{
-			m_deleteTargetPath = folder;
+			m_deleteTargets = { folder };
 			m_requestDeletePopup = true;
 		}
 	}
@@ -1489,19 +1810,27 @@ void CAssetBrowserTool::DrawDeleteConfirmPopup()
 	if (ImGui::BeginPopupModal(POPUP_ID, nullptr, ImGuiWindowFlags_AlwaysAutoResize))
 	{
 		ImGui::TextUnformatted(Loc::Text("asset_browser.delete_confirm"));
-		ImGui::TextUnformatted(ToUtf8(m_deleteTargetPath).c_str());
+		// 대상 목록을 모두 표시(다중 삭제 시 무엇을 지우는지 명확히).
+		for (const File::Path& target : m_deleteTargets)
+		{
+			ImGui::BulletText("%s", ToUtf8(target).c_str());
+		}
 		ImGui::Separator();
 
 		if (ImGui::Button(Loc::Text("common.delete")))
 		{
-			QueueOperation({ EPendingOperationType::Delete, m_deleteTargetPath, File::NULL_PATH });
-			m_deleteTargetPath = File::NULL_PATH;
+			for (const File::Path& target : m_deleteTargets)
+			{
+				QueueOperation({ EPendingOperationType::Delete, target, File::NULL_PATH });
+			}
+			m_deleteTargets.clear();
+			m_selection.Clear();
 			ImGui::CloseCurrentPopup();
 		}
 		ImGui::SameLine();
 		if (ImGui::Button(Loc::Text("common.cancel")) || ImGui::IsKeyPressed(ImGuiKey_Escape))
 		{
-			m_deleteTargetPath = File::NULL_PATH;
+			m_deleteTargets.clear();
 			ImGui::CloseCurrentPopup();
 		}
 
@@ -1511,9 +1840,186 @@ void CAssetBrowserTool::DrawDeleteConfirmPopup()
 
 void CAssetBrowserTool::SelectEntry(const AssetBrowserEntry& entry)
 {
+	// 단일 선택으로 교체.
+	m_selection.Clear();
+	m_selection.SetItemSelected(entry.SelectionId, true);
 	m_selectedEntryPath = entry.AbsolutePath;
 	Editor::ClearSelection();
 	Editor::SelectAsset(entry.Guid, entry.AbsolutePath);
+}
+
+void CAssetBrowserTool::ApplyMultiSelectRequests(ImGuiMultiSelectIO* io)
+{
+	if (nullptr == io)
+	{
+		return;
+	}
+	// 요청이 있으면 사용자 입력으로 선택이 바뀐 것 → 이번 프레임 끝에 Editor 동기화.
+	if (io->Requests.Size > 0)
+	{
+		m_selectionChangedThisFrame = true;
+	}
+	m_selection.ApplyRequests(io);
+}
+
+void CAssetBrowserTool::SyncEditorSelection()
+{
+	// 단일 선택 → 해당 에셋을 Inspector 대상으로. 다중/0 → 에셋 선택 해제.
+	const AssetBrowserEntry* primary = nullptr;
+	int count = 0;
+	for (const AssetBrowserEntry& entry : m_entries)
+	{
+		if (m_selection.Contains(entry.SelectionId))
+		{
+			primary = &entry;
+			if (++count > 1)
+			{
+				break;
+			}
+		}
+	}
+
+	Editor::ClearSelection();
+	if (1 == count && primary)
+	{
+		m_selectedEntryPath = primary->AbsolutePath;
+		Editor::SelectAsset(primary->Guid, primary->AbsolutePath);
+	}
+	else
+	{
+		m_selectedEntryPath = File::NULL_PATH;
+		Editor::ClearAssetSelection();
+	}
+}
+
+std::vector<File::Path> CAssetBrowserTool::CollectSelectedPaths() const
+{
+	std::vector<File::Path> paths;
+	paths.reserve(static_cast<std::size_t>(m_selection.Size));
+	for (const AssetBrowserEntry& entry : m_entries)
+	{
+		if (m_selection.Contains(entry.SelectionId))
+		{
+			paths.push_back(entry.AbsolutePath);
+		}
+	}
+	return paths;
+}
+
+std::vector<File::Path> CAssetBrowserTool::CollectOperationTargets(const File::Path& contextEntryPath) const
+{
+	// 우클릭 대상이 다중 선택 안에 있으면 선택 전체, 아니면 그 항목만.
+	std::vector<File::Path> selected = CollectSelectedPaths();
+	const bool contextInSelection = std::any_of(selected.begin(), selected.end(),
+		[&](const File::Path& p) { return p == contextEntryPath; });
+	if (contextInSelection && selected.size() > 1)
+	{
+		return selected;
+	}
+	if (false == contextEntryPath.empty())
+	{
+		return { contextEntryPath };
+	}
+	return selected;
+}
+
+void CAssetBrowserTool::DropAssetsIntoFolder(const File::Path& targetFolder)
+{
+	if (targetFolder.empty())
+	{
+		return;
+	}
+
+	// 드래그된 항목이 선택에 포함돼 있으면 선택 전체를, 아니면 그 항목만 이동.
+	const std::vector<File::Path> sources = CollectOperationTargets(m_dragPrimaryPath);
+	for (const File::Path& source : sources)
+	{
+		if (CanPlaceInto(source, targetFolder, /*isMove*/ true))
+		{
+			QueueOperation({ EPendingOperationType::MoveInto, source, targetFolder });
+		}
+	}
+	m_dragPrimaryPath = File::NULL_PATH;
+}
+
+void CAssetBrowserTool::CutToClipboard(std::vector<File::Path> paths)
+{
+	m_clipboardPaths = std::move(paths);
+	m_clipboardIsCut = true;
+}
+
+void CAssetBrowserTool::CopyToClipboard(std::vector<File::Path> paths)
+{
+	m_clipboardPaths = std::move(paths);
+	m_clipboardIsCut = false;
+}
+
+void CAssetBrowserTool::PasteIntoFolder(const File::Path& targetFolder)
+{
+	if (targetFolder.empty() || m_clipboardPaths.empty())
+	{
+		return;
+	}
+
+	const EPendingOperationType op = m_clipboardIsCut
+		? EPendingOperationType::MoveInto
+		: EPendingOperationType::CopyInto;
+	for (const File::Path& source : m_clipboardPaths)
+	{
+		// 복사는 같은 폴더 사본을 허용해야 하므로 이동(cut)만 이 시점에 거른다.
+		// (복사 유효성은 ProcessPendingOperations 의 CopyInto 에서 CanPlaceInto(isMove=false) 로 재검증.)
+		if (m_clipboardIsCut && false == CanPlaceInto(source, targetFolder, /*isMove*/ true))
+		{
+			continue;
+		}
+		QueueOperation({ op, source, targetFolder });
+	}
+
+	// 잘라내기는 1회성 — 붙여넣은 뒤 비운다. 복사는 반복 붙여넣기 가능하도록 유지.
+	if (m_clipboardIsCut)
+	{
+		m_clipboardPaths.clear();
+		m_clipboardIsCut = false;
+	}
+}
+
+bool CAssetBrowserTool::CanPlaceInto(const File::Path& source, const File::Path& targetFolder, bool isMove) const
+{
+	if (source.empty() || targetFolder.empty())
+	{
+		return false;
+	}
+	// 같은 루트 안에서만 허용(Asset↔Asset, Script↔Script).
+	const bool sameAssetRoot  = IsInsideAssetRoot(source)  && IsInsideAssetRoot(targetFolder);
+	const bool sameScriptRoot = IsInsideScriptRoot(source) && IsInsideScriptRoot(targetFolder);
+	if (false == sameAssetRoot && false == sameScriptRoot)
+	{
+		return false;
+	}
+	// 이동은 이미 그 폴더에 있으면 금지(복사는 같은 폴더 사본을 허용).
+	if (isMove && source.parent_path() == targetFolder)
+	{
+		return false;
+	}
+	// 폴더를 자기 자신 또는 그 하위로 배치 금지.
+	const std::filesystem::path relative = std::filesystem::path(targetFolder).lexically_relative(source);
+	if (false == relative.empty())
+	{
+		bool insideSource = (relative == std::filesystem::path("."));
+		if (false == insideSource)
+		{
+			insideSource = true;
+			for (const std::filesystem::path& part : relative)
+			{
+				if (part == "..") { insideSource = false; break; }
+			}
+		}
+		if (insideSource)
+		{
+			return false;
+		}
+	}
+	return true;
 }
 
 void CAssetBrowserTool::OpenEntry(const AssetBrowserEntry& entry)
@@ -1562,9 +2068,10 @@ void CAssetBrowserTool::ShowNewScriptPopup(const File::Path& parentFolder)
 	{
 		ImGui::TextUnformatted(Loc::Text("asset_browser.script_popup.class_name"));
 		ImGui::SetNextItemWidth(-FLT_MIN);
+		const bool classNameInvalid = false == IsValidCppIdentifier(state->ClassName);
 		ValidatedStringInput(
 			"##script_class_name", &state->ClassName,
-			/*invalid*/ state->ClassName.empty());
+			/*invalid*/ classNameInvalid);
 
 		ImGui::Spacing();
 		ImGui::TextUnformatted(Loc::Text("asset_browser.script_popup.properties"));
@@ -1575,7 +2082,7 @@ void CAssetBrowserTool::ShowNewScriptPopup(const File::Path& parentFolder)
 		styleBuilder.PushStyleVar(ImGuiStyleVar_FrameRounding, 2.0f);
 		ImList<NewScriptProperty>(
 			"##script_props", state->Properties,
-			[](NewScriptProperty& p, int /*idx*/)
+			[state](NewScriptProperty& p, int /*idx*/)
 			{
 				// Combo 와 InputText 를 가로로 배치 — 각각 절반 폭.
 				const float fullW = ImGui::CalcItemWidth();
@@ -1595,23 +2102,30 @@ void CAssetBrowserTool::ShowNewScriptPopup(const File::Path& parentFolder)
 				ImInputText input;
 				input.SetText(p.Name);
 				input.SetHintText(Loc::Text("asset_browser.script_popup.property_hint"));
-				input(ImGuiInputTextFlags_None, p.Name.empty());
+				// 무효(빈 값/식별자 아님/예약어/중복) 이름은 빨간 프레임으로 표시.
+				input(ImGuiInputTextFlags_None, IsPropNameInvalid(p.Name, state->Properties));
 				p.Name = input;
 			},
 			NewScriptProperty{});
 		styleBuilder.PopStyle();
 
+		// 무효 사유 안내(중복/식별자) — 사용자가 왜 생성이 막히는지 알 수 있게.
+		bool allPropsValid = true;
+		for (const NewScriptProperty& p : state->Properties)
+		{
+			if (IsPropNameInvalid(p.Name, state->Properties)) { allPropsValid = false; break; }
+		}
+		if (false == allPropsValid)
+		{
+			ImGui::TextColored(ImVec4(0.95f, 0.45f, 0.45f, 1.0f), "%s", Loc::Text("asset_browser.script_popup.invalid_props"));
+		}
+
 		ImGui::Spacing();
 		ImGui::Separator();
 
 		// ── 하단 버튼 ─────────────────────────────────────────────────────
-		// 모든 프로퍼티 이름이 비어있지 않아야 생성 가능.
-		bool allPropsValid = true;
-		for (const NewScriptProperty& p : state->Properties)
-		{
-			if (p.Name.empty()) { allPropsValid = false; break; }
-		}
-		const bool canCreate = false == state->ClassName.empty() && allPropsValid;
+		// 클래스명이 유효 식별자이고, 모든 프로퍼티 이름이 유효+유일해야 생성 가능.
+		const bool canCreate = false == classNameInvalid && allPropsValid;
 		ImGui::BeginDisabled(false == canCreate);
 		if (ImGui::Button(Loc::Text("common.create")))
 		{
@@ -1622,6 +2136,11 @@ void CAssetBrowserTool::ShowNewScriptPopup(const File::Path& parentFolder)
 				WriteTextFile(hPath,   MakeScriptHeader(state->ClassName, state->Properties));
 				WriteTextFile(cppPath, MakeScriptSource(state->ClassName, headerFile));
 				self->m_entriesDirty = true;
+				// 새 스크립트가 빌드에 즉시 포함되도록 GameScript 프로젝트를 재생성.
+				if (SafePtr<CProjectManager> pm = Editor::ImEditor ? Editor::ImEditor->GetProjectManager() : nullptr)
+				{
+					pm->RegenerateScriptProject();
+				}
 			}
 			popup.Close();
 		}
@@ -1843,16 +2362,4 @@ bool CAssetBrowserTool::ShouldShowPath(const File::Path& absolutePath, bool isDi
 	}
 
 	return false == CAssetPath::IsMetaPath(absolutePath.generic_string().c_str());
-}
-
-const AssetBrowserEntry* CAssetBrowserTool::FindSelectedEntry() const
-{
-	for (const AssetBrowserEntry& entry : m_entries)
-	{
-		if (entry.AbsolutePath == m_selectedEntryPath)
-		{
-			return &entry;
-		}
-	}
-	return nullptr;
 }

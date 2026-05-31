@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "InspectorTool.h"
+#include "AssetInspectorPreview.h"
 
 #include "Engine/Editor/ImItem/ImText.h"
 #include "Engine/Editor/ImItem/ImSplitter.h"
@@ -19,6 +20,7 @@
 #include "Engine/Editor/Project/ProjectManager.h"
 #include "Engine/GameFramework/Component/Physics2DComponents.h"
 #include "Engine/GameFramework/Component/ScriptComponent.h"
+#include "Engine/GameFramework/Scripting/ScriptSystem.h"
 #include "Engine/GameFramework/Component/Transform2D.h"
 #include "Engine/GameFramework/Physics2D/Physics2DSystem.h"
 #include "Engine/GameFramework/Physics2D/Physics2DTypes.h"
@@ -140,10 +142,20 @@ namespace
 		case EReflectPropertyType::Bool:
 			return ImGui::Checkbox("", static_cast<bool*>(field));
 		case EReflectPropertyType::Int32:
+			if (property.HasRange)
+			{
+				return ImGui::SliderInt("", static_cast<int*>(field),
+					static_cast<int>(property.RangeMin), static_cast<int>(property.RangeMax));
+			}
 			return ImGui::InputScalar("", ImGuiDataType_S32, field);
 		case EReflectPropertyType::UInt32:
 			return ImGui::InputScalar("", ImGuiDataType_U32, field);
 		case EReflectPropertyType::Float:
+			if (property.HasRange)
+			{
+				// JPROP(Range(min,max)) → 슬라이더 + 클램프.
+				return ImGui::SliderFloat("", static_cast<float*>(field), property.RangeMin, property.RangeMax);
+			}
 			return ImGui::DragFloat("", static_cast<float*>(field), 0.01f);
 		case EReflectPropertyType::AngleDegrees:
 		{
@@ -796,6 +808,13 @@ namespace
 			return true;
 		}
 
+		// ── 맨 위 미리보기 영역 (Sprite=이미지, Audio=Play/Stop 등) ─────────
+		// DrawTopPreview 가 핸들러의 Enter/Stay/Exit 라이프사이클을 자체적으로 관리.
+		if (AssetInspectorPreview::DrawTopPreview(*metaData))
+		{
+			ImGui::Separator();
+		}
+
 		ImGui::Text("%s: %s", Loc::Text("common.asset"), metaData->DisplayName.c_str());
 		ImGui::Text("%s: %s", Loc::Text("common.guid"), metaData->Guid.generic_string().c_str());
 		ImGui::Text("%s: %s", Loc::Text("common.path"), metaData->Path.generic_string().c_str());
@@ -828,6 +847,8 @@ void CInspectorTool::OnCreate()
 
 void CInspectorTool::OnDestroy()
 {
+	// 미리보기 핸들러가 잡고 있던 리소스(특히 오디오 디바이스/플레이어) 해제.
+	AssetInspectorPreview::ShutdownAll();
 }
 
 void CInspectorTool::OnUpdate()
@@ -842,6 +863,7 @@ void CInspectorTool::OnRenderStay()
 	CScene* scene = GetActiveScene();
 	if (nullptr == scene)
 	{
+		AssetInspectorPreview::NotifyInspectionLost();
 		ImGui::TextDisabled(Loc::Text("inspector.no_active_scene"));
 		return;
 	}
@@ -851,9 +873,14 @@ void CInspectorTool::OnRenderStay()
 	{
 		if (DrawSelectedAssetInspector())
 			return;
+		// 자산도 엔티티도 없음 — 활성 미리보기 핸들러 정리.
+		AssetInspectorPreview::NotifyInspectionLost();
 		ImGui::TextDisabled(Loc::Text("inspector.no_entity_selected"));
 		return;
 	}
+
+	// 엔티티가 선택됐다 — 자산 미리보기 영역은 그리지 않는다. 활성 핸들러 정리.
+	AssetInspectorPreview::NotifyInspectionLost();
 
 	if (false == Core::Reflection.IsValid())
 	{
@@ -1079,6 +1106,13 @@ void CInspectorTool::OnRenderStay()
 				if (scriptComp)
 				{
 					DrawScriptTypeSelector(*scene, selectedEntity, instIdx, *scriptComp);
+
+					// 에디트 모드에서도 프로퍼티를 보이고 편집할 수 있도록 인스턴스를 보장한다.
+					// (DLL 로드 + 타입 등록이 되어 있으면 생성됨. Bind/Start 는 플레이 때만.)
+					if (nullptr == scriptComp->Instance)
+					{
+						CScriptSystem::EnsureEditTimeInstance(*scriptComp);
+					}
 				}
 
 				if (scriptComp && scriptComp->Instance && Core::Reflection.IsValid())
@@ -1096,10 +1130,18 @@ void CInspectorTool::OnRenderStay()
 						ImText leftLabel;
 						leftLabel.SetHoveredTooltip(true);
 
+						const char* currentCategory = nullptr;
 						for (const ReflectPropertyInfo& prop : scriptInfo->Properties)
 						{
 							void* field = CReflectionRegistry::GetPropertyAddress(scriptComp->Instance, prop);
 						if (nullptr == field) { continue; }
+
+							// JPROP(Category("..")) → 카테고리가 바뀔 때 구분 헤더.
+							if (prop.Category && (nullptr == currentCategory || 0 != strcmp(currentCategory, prop.Category)))
+							{
+								currentCategory = prop.Category;
+								ImGui::SeparatorText(currentCategory);
+							}
 
 							ImGui::Utillity::FormLayout layout("##script_fields", 4.0f, {2.0f, 1.0f}, 60.0f);
 							const std::string label = prop.DisplayName
@@ -1107,7 +1149,14 @@ void CInspectorTool::OnRenderStay()
 								: (prop.Name ? prop.Name : "");
 
 							layout.Row(
-								[&]() { leftLabel(label.c_str()); },
+								[&]() {
+									leftLabel(label.c_str());
+									// JPROP(Tooltip("..")) → 라벨 호버 시 설명.
+									if (prop.Tooltip && ImGui::IsItemHovered())
+									{
+										ImGui::SetTooltip("%s", prop.Tooltip);
+									}
+								},
 								[&]() { DrawPropertyEditor(field, prop, false); }
 							);
 						}

@@ -5,6 +5,8 @@
 #include "Core/Asset/IAssetLoader.h"
 #include "Core/Asset/IAsset.h"
 
+#include <mutex>
+
 class CAssetManager final : public IAssetManager
 {
 public:
@@ -29,6 +31,7 @@ public:
 	SafePtr<IAsset> ReloadAssetByPath(const File::Path& path) override;
 	void UnloadAsset(const AssetGuid& guid) override;
 	bool UnregisterAssetByPath(const File::Path& path, bool unloadIfLoaded) override;
+	bool MoveAssetPath(const File::Path& oldPath, const File::Path& newPath) override;
 	bool BuildAssetPackage(const AssetPackageBuildDesc& desc) override;
 	bool LoadPackedAssetManifest(const File::Path& manifestPath) override;
 
@@ -50,6 +53,9 @@ private:
 	static const File::Guid& ResolveGuidFromActiveRegistry(const File::Path& path);
 
 private:
+	// 워커 스레드에서 ImportAsset/ReloadAsset 가 동시에 호출될 수 있으므로 protect.
+	// ReloadAsset → UnloadAsset → LoadAsset 같은 재귀 진입을 허용하기 위해 recursive_mutex.
+	mutable std::recursive_mutex m_mutex;
 	CAssetRegistry m_registry;
 	std::unordered_map<EAssetType, OwnerPtr<IAssetLoader>> m_loaderTable;
 	std::unordered_map<AssetGuid, OwnerPtr<IAsset>> m_loadedAssetTable;

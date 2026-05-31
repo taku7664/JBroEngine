@@ -57,6 +57,8 @@ Entries:
   common.rename: 이름 변경
   common.duplicate: 복제
   common.copy: 복사
+  common.cut: 잘라내기
+  common.paste: 붙여넣기
   common.ok: 확인
   common.refresh: 새로고침
   common.filter: 필터
@@ -122,6 +124,7 @@ Entries:
   asset_browser.script_popup.class_name: 클래스 이름
   asset_browser.script_popup.properties: 프로퍼티
   asset_browser.script_popup.property_hint: 프로퍼티 이름
+  asset_browser.script_popup.invalid_props: 프로퍼티 이름이 유효하지 않거나 중복됩니다 (유효한 C++ 식별자, 서로 다른 이름이어야 합니다).
   asset_browser.compile_fail.title: 스크립트 컴파일 실패
   asset_browser.compile_fail.description: 자동 컴파일이 실패했습니다. 빌드 로그는 아래와 같습니다.
   asset_browser.add_asset: 에셋 추가
@@ -130,6 +133,9 @@ Entries:
   asset_browser.add_asset.prefab: 프리팹
   asset_browser.tree.focus_here: 이 폴더로 이동
   asset_browser.delete_confirm: 선택한 에셋 항목을 삭제하시겠습니까?
+  asset_browser.selection_count: "선택: %d개"
+  asset_browser.contents_folders: 콘텐츠
+  asset_browser.favorite_folders: 즐겨찾기
 
   hierarchy.scene_manager_unavailable: SceneManager를 사용할 수 없습니다.
   hierarchy.no_active_scene: 활성 씬이 없습니다.
@@ -370,3 +376,37 @@ Entries:
   inspector.audio.is_3d.desc: 켜면 청취자(AudioListener)와의 거리에 따라 볼륨이 감쇠됩니다. UI/BGM 은 꺼두세요.
   inspector.audio.min_distance.desc: 이 거리 이내에서는 최대 볼륨으로 재생됩니다.
   inspector.audio.max_distance.desc: 이 거리를 넘어서면 들리지 않습니다. (Min ≤ Max)
+
+  inspector.audio.preview.play: 재생
+  inspector.audio.preview.stop: 정지
+  inspector.audio.preview.play.desc: 에디터 미리듣기로 이 사운드를 처음부터 재생합니다.
+  inspector.audio.preview.stop.desc: 미리듣기를 정지하고 player 자원을 즉시 해제합니다.
+  inspector.audio.preview.streaming_no_waveform: 스트리밍 모드 — 파형 미리보기를 표시할 수 없습니다.
+
+  project.loading.title: 프로젝트 로드 중
+  project.loading.body: 프로젝트를 불러오는 중입니다. 잠시만 기다려주세요...
+  project.loading.task.script_build: 스크립트 빌드
+  project.loading.task.load_assets: 리소스 로드
+
+  reconcile.title: 자산 정합성 점검
+  reconcile.summary: 프로젝트를 여는 동안 자산 메타데이터를 점검하고 복구했습니다.
+  reconcile.generated: 메타 생성
+  reconcile.recovered: GUID 복구
+  reconcile.relinked: 이동 재링크
+  reconcile.dup_resolved: 중복 GUID 해소
+  reconcile.orphan: 고아 메타 격리
+  reconcile.failed: 등록 실패
+
+  # ── 사운드 컴포넌트 ───────────────────────────────────────────────
+  editor.category.Audio: 사운드
+  editor.component.AudioListener: 오디오 리스너
+  editor.component.AudioPlayer:   오디오 플레이어
+  editor.property.MasterVolume: 마스터 볼륨
+  editor.property.AudioGuid:    사운드 자산
+  editor.property.Volume:       볼륨
+  editor.property.Pitch:        피치
+  editor.property.Loop:         반복 재생
+  editor.property.Is3D:         3D 음향
+  editor.property.MinDistance:  최소 거리
+  editor.property.MaxDistance:  최대 거리
+  editor.property.PlayOnStart:  시작 시 재생

@@ -6,6 +6,7 @@ CImPopupWindow::CImPopupWindow(PopupHandle handle, const ImPopupDesc& desc)
 	, m_id( desc.Id )
 	, m_bIsRendered( false )
 	, m_bIsOpen( true )
+	, m_bShowCloseButton( desc.ShowCloseButton )
 	, m_initSize( desc.InitSize )
 	, m_title( desc.Title )
 	, m_flags( desc.Flags )
@@ -29,7 +30,9 @@ bool CImPopupWindow::Render()
 	{
 		ImGui::SetNextWindowSize( m_initSize );
 	}
-	if (ImGui::BeginPopupModal( m_title.c_str(), &m_bIsOpen , m_flags.Get() ))
+	// p_open == nullptr 일 때 ImGui 가 타이틀바의 X 버튼을 그리지 않는다.
+	bool* pOpen = m_bShowCloseButton ? &m_bIsOpen : nullptr;
+	if (ImGui::BeginPopupModal( m_title.c_str(), pOpen, m_flags.Get() ))
 	{
 		if ( m_renderEnterFunc && false == m_bIsRendered )
 		{

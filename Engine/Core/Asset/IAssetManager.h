@@ -49,6 +49,13 @@ public:
 	virtual SafePtr<IAsset> ReloadAssetByPath(const File::Path& path) = 0;
 	virtual void UnloadAsset(const AssetGuid& guid) = 0;
 	virtual bool UnregisterAssetByPath(const File::Path& path, bool unloadIfLoaded) = 0;
+
+	// ── 자산 이동/이름변경 — 등록 경로만 교체 ────────────────────────────────
+	// oldPath 로 등록된 자산의 경로를 newPath 로 갱신한다. GUID 와 이미 메모리에
+	// 로드된 에셋 데이터(GPU 텍스처/오디오 버퍼 등)는 그대로 유지되므로, 그 GUID 를
+	// 참조하던 스프라이트/오디오 등 라이브 핸들이 끊기지 않는다. (unload + reimport
+	// 가 아니라 in-place 경로 교체.)  newPath 에 이미 다른 자산이 있으면 실패한다.
+	virtual bool MoveAssetPath(const File::Path& oldPath, const File::Path& newPath) = 0;
 	virtual bool BuildAssetPackage(const AssetPackageBuildDesc& desc) = 0;
 	virtual bool LoadPackedAssetManifest(const File::Path& manifestPath) = 0;
 };

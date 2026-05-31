@@ -256,6 +256,11 @@ LiveCompileResult CLiveCompileManager::RebuildAndReload()
 		return ApplyCompileResult(std::move(pending));
 	}
 
+	// 빌드 직전 스크립트 프로젝트 재생성(레지스트리/vcxproj ↔ 디스크 동기화).
+	if (m_preBuildCallback)
+	{
+		m_preBuildCallback();
+	}
 	m_state = ELiveCompileState::Compiling;
 	m_compileStartedAt = std::chrono::steady_clock::now();
 	LiveCompileResult result = m_compilePipeline->Compile(m_desc);
@@ -267,6 +272,12 @@ void CLiveCompileManager::StartAsyncCompile()
 	if (!m_compilePipeline)
 	{
 		return;
+	}
+	// 빌드 직전 스크립트 프로젝트 재생성 — 헤더 편집(프로퍼티 추가/이름변경/삭제,
+	// 외부 파일 추가/삭제)을 항상 레지스트리/vcxproj 에 반영한 뒤 컴파일한다.
+	if (m_preBuildCallback)
+	{
+		m_preBuildCallback();
 	}
 	m_state = ELiveCompileState::Compiling;
 	m_compileStartedAt = std::chrono::steady_clock::now();
@@ -464,15 +475,29 @@ void CLiveCompileManager::TakeScriptSnapshot()
 
 			for (const ReflectPropertyInfo& prop : info->Properties)
 			{
-				ScriptPendingField field;
-				field.Name = prop.Name ? prop.Name : "";
-				field.Data.resize(prop.Size);
 				const void* src = CReflectionRegistry::GetPropertyAddress(static_cast<const void*>(script.Instance), prop);
 				if (nullptr == src)
 				{
 					continue;
 				}
-				std::memcpy(field.Data.data(), src, prop.Size);
+
+				ScriptPendingField field;
+				field.Name = prop.Name ? prop.Name : "";
+				field.Type = prop.Type;   // 복원 시 ApplyPendingFields 가 타입별로 올바르게 적용하도록.
+
+				if (EReflectPropertyType::AssetGuid == prop.Type)
+				{
+					// File::Guid 는 std::filesystem::path 파생(내부 포인터 보유) — raw memcpy 금지.
+					// 문자열로 보존하고 복원 시 재구성한다. (memcpy 하면 path 내부 포인터를
+					// 얕은 복사해 이중 해제/액세스 위반으로 이어진다.)
+					field.Text = static_cast<const File::Guid*>(src)->generic_string();
+				}
+				else
+				{
+					// trivially-copyable 타입(bool/int/uint/float/Vector2)만 raw bytes 로 보존.
+					field.Data.resize(prop.Size);
+					std::memcpy(field.Data.data(), src, prop.Size);
+				}
 				snapshot.Fields.push_back(std::move(field));
 			}
 

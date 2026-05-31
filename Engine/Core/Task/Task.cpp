@@ -1,9 +1,10 @@
 #include "pch.h"
 #include "Task.h"
 
-CTask::CTask(TaskId id, std::string name, TaskFunction function)
+CTask::CTask(TaskId id, std::string name, TaskFunction function, std::string description)
 	: m_id(id)
 	, m_name(std::move(name))
+	, m_description(std::move(description))
 	, m_function(std::move(function))
 {
 }
@@ -16,6 +17,11 @@ TaskId CTask::GetId() const
 const std::string& CTask::GetName() const
 {
 	return m_name;
+}
+
+const std::string& CTask::GetDescription() const
+{
+	return m_description;
 }
 
 ETaskState CTask::GetState() const

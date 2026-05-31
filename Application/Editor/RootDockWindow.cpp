@@ -13,6 +13,7 @@
 #include "Engine/Editor/ImEditor.h"
 #include "Engine/Editor/Project/ProjectManager.h"
 #include "Engine/Editor/Project/ProjectTypes.h"
+#include "Engine/GameFramework/Audio/AudioSystem.h"
 #include "Engine/GameFramework/Rendering/SpriteRenderSystem.h"
 #include "Engine/GameFramework/Scene/SceneSerializer.h"
 #include "File/FileUtillities.h"
@@ -71,6 +72,18 @@ namespace
 						context->AssetManager.TryGet(),
 						context->RHIDevice.TryGet(),
 						context->Renderer.TryGet());
+				}
+
+				CAudioSystem* audioSystem = scene->FindSystem<CAudioSystem>();
+				if (nullptr == audioSystem)
+				{
+					audioSystem = scene->AddSystem<CAudioSystem>(
+						context->Audio, context->AssetManager);
+				}
+				if (nullptr != audioSystem)
+				{
+					audioSystem->SetDevice(context->Audio);
+					audioSystem->SetAssetManager(context->AssetManager);
 				}
 			}
 			Core::SceneManager->SetActiveScene(lastScenePath.c_str());
@@ -200,6 +213,209 @@ void CRootDockWindow::OnRenderStay()
 	if (projectManager && false == projectManager->IsProjectLoaded())
 	{
 		//ImText(Loc::Text("root.no_project_loaded"), ImText::Align::Center);
+	}
+
+	// 비동기 자산 로드 진행 중이면 프로그레스 팝업을 띄운다 (idempotent).
+	EnsureProjectLoadingPopup();
+
+	// 프로젝트 로드 직후(전이 감지) 자산 정합성 요약을 1회 평가.
+	MaybeShowReconcileSummary();
+
+	// 비동기 프로젝트 로드가 끝나면, 그때 마지막 씬을 메인 스레드에서 로드한다.
+	// (자산 임포트/스크립트 빌드 태스크 완료 후라 참조 에셋이 모두 준비된 상태.)
+	if (m_pendingLoadLastScene)
+	{
+		if (false == projectManager.IsValid() || false == projectManager->IsProjectLoaded())
+		{
+			m_pendingLoadLastScene = false;   // 프로젝트가 닫혔거나 로드 실패 — 취소.
+		}
+		else if (false == projectManager->HasLoadingTasks())
+		{
+			m_pendingLoadLastScene = false;
+			TryLoadLastScene(projectManager);
+		}
+	}
+}
+
+// 같은 Id 의 팝업이 이미 열려 있으면 OpenPopup 은 기존 핸들을 그대로 반환하므로
+// 매 프레임 호출해도 안전 (중복 생성 X).
+void CRootDockWindow::EnsureProjectLoadingPopup()
+{
+	if (false == Editor::ImEditor.IsValid())
+		return;
+
+	SafePtr<CProjectManager> pm = Editor::ImEditor->GetProjectManager();
+	if (false == pm.IsValid() || false == pm->HasLoadingTasks())
+	{
+		return;
+	}
+
+	ImPopupDesc desc;
+	desc.Title           = Loc::Text("project.loading.title");
+	desc.Id              = "##project_loading_popup";
+	desc.Kind            = EImPopupKind::Modal;
+	desc.Flags           = ImGuiWindowFlags_NoResize
+	                     | ImGuiWindowFlags_NoMove
+	                     | ImGuiWindowFlags_NoCollapse
+	                     | ImGuiWindowFlags_NoSavedSettings;
+	desc.InitSize        = ImVec2(420.0f, 0.0f);   // 폭 고정 + 높이 자동 — Auto resize 미사용.
+	desc.ShowCloseButton = false;
+	desc.OnRenderStayFunc = [this](IImPopupWindow& popup)
+	{
+		RenderProjectLoadingPopup(popup);
+	};
+
+	m_loadingPopupHandle = Editor::ImEditor->OpenPopup(desc);
+}
+
+void CRootDockWindow::MaybeShowReconcileSummary()
+{
+	SafePtr<CProjectManager> pm = Editor::ImEditor ? Editor::ImEditor->GetProjectManager() : nullptr;
+	const bool loaded = pm.IsValid() && pm->IsProjectLoaded();
+
+	// 프로젝트 닫힘 → 다음 로드를 위해 전이 플래그 리셋.
+	if (false == loaded)
+	{
+		m_wasProjectLoaded = false;
+		return;
+	}
+
+	// 로드 전이(false→true)를 잡아 1회만 평가.
+	if (m_wasProjectLoaded)
+	{
+		return;
+	}
+	m_wasProjectLoaded = true;
+
+	const AssetReconcileReport& r = pm->GetLastReconcileReport();
+	// 사용자가 알아야 할 "치유"가 있었을 때만 팝업. 깨끗하면 조용히 지나간다.
+	const bool notable = (r.MetaGenerated + r.GuidRecovered + r.Relinked + r.DuplicateResolved + r.OrphanQuarantined + r.Failed) > 0;
+	if (false == notable)
+	{
+		return;
+	}
+
+	m_reconcileSummary = r;
+
+	ImPopupDesc desc;
+	desc.Title           = Loc::Text("reconcile.title");
+	desc.Id              = "##asset_reconcile_summary";
+	desc.Kind            = EImPopupKind::Modal;
+	desc.InitSize        = ImVec2(440.0f, 0.0f);
+	desc.ShowCloseButton = true;
+	desc.OnRenderStayFunc = [this](IImPopupWindow& popup)
+	{
+		RenderReconcileSummaryPopup(popup);
+	};
+	Editor::ImEditor->OpenPopup(desc);
+}
+
+void CRootDockWindow::RenderReconcileSummaryPopup(IImPopupWindow& popup)
+{
+	const AssetReconcileReport& r = m_reconcileSummary;
+
+	ImGui::TextWrapped("%s", Loc::Text("reconcile.summary"));
+	ImGui::Spacing();
+	ImGui::Separator();
+	ImGui::Spacing();
+
+	auto row = [](const char* labelKey, int value, const ImVec4& color)
+	{
+		if (value <= 0) return;
+		ImGui::TextColored(color, "%s", Loc::Text(labelKey));
+		ImGui::SameLine(220.0f);
+		ImGui::Text("%d", value);
+	};
+
+	const ImVec4 good(0.40f, 0.85f, 0.40f, 1.0f);
+	const ImVec4 warn(0.95f, 0.80f, 0.35f, 1.0f);
+	const ImVec4 bad (0.90f, 0.35f, 0.35f, 1.0f);
+
+	row("reconcile.generated",  r.MetaGenerated,     good);
+	row("reconcile.recovered",  r.GuidRecovered,     good);
+	row("reconcile.relinked",   r.Relinked,          good);
+	row("reconcile.dup_resolved", r.DuplicateResolved, warn);
+	row("reconcile.orphan",     r.OrphanQuarantined, warn);
+	row("reconcile.failed",     r.Failed,            bad);
+
+	ImGui::Spacing();
+	ImGui::Separator();
+	ImGui::Spacing();
+	if (ImGui::Button(Loc::Text("common.ok"), ImVec2(120.0f, 0.0f)))
+	{
+		popup.Close();
+	}
+}
+
+void CRootDockWindow::RenderProjectLoadingPopup(IImPopupWindow& popup)
+{
+	SafePtr<CProjectManager> pm = Editor::ImEditor ? Editor::ImEditor->GetProjectManager() : nullptr;
+	if (false == pm.IsValid())
+	{
+		popup.Close();
+		return;
+	}
+
+	const std::uint32_t done  = pm->GetLoadCompletedCount();
+	const std::uint32_t total = pm->GetLoadTotalCount();
+	const float         frac  = pm->GetLoadProgress01();
+
+	ImGui::TextUnformatted(Loc::Text("project.loading.body"));
+	ImGui::Spacing();
+
+	char overlay[64];
+	std::snprintf(overlay, sizeof(overlay), "%u / %u", done, total);
+	ImGui::ProgressBar(frac, ImVec2(-FLT_MIN, 0.0f), overlay);
+
+	// ── 작업 목록 — 프로그레스 바 아래에 각 태스크를 나열 ──────────────────
+	// 완료 태스크는 초록색, 미완료는 빨간색. 각 항목 앞에 LoadingSpinner 를 그린다.
+	const std::vector<TaskProgressInfo> tasks = pm->GetLoadTaskSnapshot();
+	if (false == tasks.empty())
+	{
+		ImGui::Spacing();
+		ImGui::Separator();
+		ImGui::Spacing();
+
+		const ImVec4 completedColor(0.40f, 0.85f, 0.40f, 1.0f); // 초록
+		const ImVec4 pendingColor  (0.90f, 0.35f, 0.35f, 1.0f); // 빨강
+		const float  spinnerGap    = ImGui::GetStyle().ItemInnerSpacing.x;
+
+		// 항목이 많아도 팝업이 과도하게 커지지 않도록 스크롤 영역으로 감싼다.
+		const float  rowHeight   = ImGui::GetFrameHeightWithSpacing();
+		const float  visibleRows = tasks.size() < 8 ? static_cast<float>(tasks.size()) : 8.0f;
+		const float  listHeight  = visibleRows * rowHeight;
+		if (ImGui::BeginChild("##project_loading_tasks", ImVec2(0.0f, listHeight), false))
+		{
+			for (std::size_t i = 0; i < tasks.size(); ++i)
+			{
+				const TaskProgressInfo& info = tasks[i];
+				const ImVec4& color = info.Completed ? completedColor : pendingColor;
+
+				ImGui::PushID(static_cast<int>(i));
+				// 완료 태스크는 체크(✓), 진행 중 태스크는 스피너.
+				if (info.Completed)
+				{
+					ImGui::Utillity::CheckMark(0.0f, color);
+				}
+				else
+				{
+					ImGui::Utillity::LoadingSpinner(0.0f, color);
+				}
+				ImGui::SameLine(0.0f, spinnerGap);
+				ImGui::AlignTextToFramePadding();
+				const char* label = false == info.Description.empty() ? info.Description.c_str() : info.Name.c_str();
+				ImGui::TextColored(color, "%s", label);
+				ImGui::PopID();
+			}
+		}
+		ImGui::EndChild();
+	}
+
+	// 모든 작업이 끝나면 자동 닫기.
+	if (false == pm->HasLoadingTasks())
+	{
+		popup.Close();
+		m_loadingPopupHandle = INVALID_POPUP_HANDLE;
 	}
 }
 
@@ -332,8 +548,11 @@ void CRootDockWindow::OnMenuBar()
 								projectManager->GetSceneViewCamSize());
 						}
 
-						// 마지막으로 열었던 씬 자동 로드
-						TryLoadLastScene(projectManager);
+						// 마지막으로 열었던 씬 자동 로드 — 비동기 자산 로드가 끝난 뒤로 지연.
+						// (여기서 동기 호출하면 PreloadReferencedAssets 가 메인 스레드를 막아
+						//  비동기 로드가 무의미해지고 에디터가 프리즈된다. OnRenderStay 에서
+						//  HasLoadingTasks()==false 가 되면 처리한다.)
+						m_pendingLoadLastScene = true;
 					}
 				}
 			}

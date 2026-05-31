@@ -96,12 +96,13 @@ SafePtr<CTaskGroup> CTaskManager::CreateTaskGroup(const char* name)
 	return safeGroup;
 }
 
-SafePtr<CTask> CTaskManager::CreateTask(const char* name, CTask::TaskFunction function)
+SafePtr<CTask> CTaskManager::CreateTask(const char* name, CTask::TaskFunction function, const char* description)
 {
-	return CreateTask(name, std::move(function), nullptr);
+	// nullptr 그룹은 SafePtr 로 명시 구성 — const char* 오버로드와의 모호성 회피.
+	return CreateTask(name, std::move(function), SafePtr<CTaskGroup>(nullptr), description);
 }
 
-SafePtr<CTask> CTaskManager::CreateTask(const char* name, CTask::TaskFunction function, SafePtr<CTaskGroup> group)
+SafePtr<CTask> CTaskManager::CreateTask(const char* name, CTask::TaskFunction function, SafePtr<CTaskGroup> group, const char* description)
 {
 	if (false == m_isInitialized || false == static_cast<bool>(function))
 	{
@@ -109,7 +110,8 @@ SafePtr<CTask> CTaskManager::CreateTask(const char* name, CTask::TaskFunction fu
 	}
 
 	std::string taskName = (nullptr != name && '\0' != name[0]) ? name : "Task";
-	OwnerPtr<CTask> task = MakeOwnerPtr<CTask>(NextTaskId(), std::move(taskName), std::move(function));
+	std::string taskDescription = (nullptr != description) ? description : "";
+	OwnerPtr<CTask> task = MakeOwnerPtr<CTask>(NextTaskId(), std::move(taskName), std::move(function), std::move(taskDescription));
 	task->SetGroup(group);
 	SafePtr<CTask> safeTask = task.GetSafePtr();
 	CTask* rawTask = task.Get();

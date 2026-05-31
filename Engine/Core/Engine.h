@@ -11,6 +11,7 @@ class IPlatform;
 class IRenderSurface;
 class IRHIDevice;
 class IAssetManager;
+class IAudioDevice;
 class IRenderer;
 class IRenderScene;
 class CSceneManager;
@@ -57,12 +58,14 @@ public:
 	SafePtr<IAssetManager>  GetAssetManager()      const;
 	SafePtr<IRenderer>      GetRenderer()          const;
 	SafePtr<IRenderScene>   GetRenderScene()       const;
+	SafePtr<IAudioDevice>   GetAudioDevice()       const;
 
 private:
 	bool InitializePlatform();
 	bool InitializeRHI();
 	bool InitializeAssetManager();
 	bool InitializeRenderer();
+	bool InitializeAudio();
 	bool InitializeCoreServices();
 	void BeginFrame();
 	void UpdateModules();
@@ -79,6 +82,7 @@ private:
 	OwnerPtr<IAssetManager>       m_assetManager;
 	OwnerPtr<IRenderer>           m_renderer;
 	OwnerPtr<IRenderScene>        m_renderScene;
+	OwnerPtr<IAudioDevice>        m_audioDevice;
 	OwnerPtr<CTime>               m_time;
 	OwnerPtr<CInput>              m_input;
 	OwnerPtr<CFileSystem>         m_fileSystem;

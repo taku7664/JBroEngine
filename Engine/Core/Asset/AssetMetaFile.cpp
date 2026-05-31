@@ -207,6 +207,18 @@ bool CAssetMetaFile::LoadYaml(std::istream& stream, AssetMetaData& outMetaData)
 	}
 	metaData.Type = ParseType(typeText);
 
+	// 자가 복구 — 과거에 EAssetType::Audio 가 ToString/ParseType 분기에 빠져
+	// 디스크에 "Type: Unknown" 으로 저장된 .Jmeta 가 있을 수 있다. Importer 문자열로
+	// 추정 가능하면 Type 을 회복해 인스펙터 등 dispatch 가 정상 작동하도록.
+	if (EAssetType::Unknown == metaData.Type && false == metaData.Importer.empty())
+	{
+		const EAssetType inferred = ParseType(metaData.Importer);
+		if (EAssetType::Unknown != inferred)
+		{
+			metaData.Type = inferred;
+		}
+	}
+
 	if (root[YAML_KEY_IMPORT_OPTIONS])
 	{
 		metaData.ImportOptionsYaml = YAML::Dump(root[YAML_KEY_IMPORT_OPTIONS]);
@@ -234,6 +246,8 @@ const char* CAssetMetaFile::ToString(EAssetType type)
 		return "Prefab";
 	case EAssetType::Script:
 		return "Script";
+	case EAssetType::Audio:
+		return "Audio";
 	case EAssetType::Custom:
 		return "Custom";
 	default:
@@ -252,6 +266,7 @@ EAssetType CAssetMetaFile::ParseType(const std::string& value)
 	if (value == "Scene") return EAssetType::Scene;
 	if (value == "Prefab") return EAssetType::Prefab;
 	if (value == "Script") return EAssetType::Script;
+	if (value == "Audio")  return EAssetType::Audio;
 	if (value == "Custom") return EAssetType::Custom;
 	return EAssetType::Unknown;
 }

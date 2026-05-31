@@ -11,6 +11,8 @@ bool CAssetRegistry::RegisterAsset(const AssetMetaData& metaData)
 		return false;
 	}
 
+	std::lock_guard lock(m_mutex);
+
 	if (m_assetTable.contains(metaData.Guid))
 	{
 		return false;
@@ -36,6 +38,8 @@ bool CAssetRegistry::RegisterAsset(const AssetMetaData& metaData)
 
 bool CAssetRegistry::UnregisterAsset(const AssetGuid& guid)
 {
+	std::lock_guard lock(m_mutex);
+
 	auto it = m_assetTable.find(guid);
 	if (it == m_assetTable.end())
 	{
@@ -49,12 +53,14 @@ bool CAssetRegistry::UnregisterAsset(const AssetGuid& guid)
 
 void CAssetRegistry::Clear()
 {
+	std::lock_guard lock(m_mutex);
 	m_assetTable.clear();
 	m_pathToGuidTable.clear();
 }
 
 void CAssetRegistry::ClearNonPersistent()
 {
+	std::lock_guard lock(m_mutex);
 	for (auto it = m_assetTable.begin(); it != m_assetTable.end(); )
 	{
 		if (it->second.IsPersistent)
@@ -69,6 +75,7 @@ void CAssetRegistry::ClearNonPersistent()
 
 const AssetMetaData* CAssetRegistry::FindAsset(const AssetGuid& guid) const
 {
+	std::lock_guard lock(m_mutex);
 	auto it = m_assetTable.find(guid);
 	if (it == m_assetTable.end())
 	{
@@ -86,17 +93,24 @@ const AssetMetaData* CAssetRegistry::FindAssetByPath(const File::Path& path) con
 		return nullptr;
 	}
 
+	std::lock_guard lock(m_mutex);
 	auto pathIt = m_pathToGuidTable.find(File::Path(normalizedPath));
 	if (pathIt == m_pathToGuidTable.end())
 	{
 		return nullptr;
 	}
 
-	return FindAsset(pathIt->second);
+	auto it = m_assetTable.find(pathIt->second);
+	if (it == m_assetTable.end())
+	{
+		return nullptr;
+	}
+	return &it->second;
 }
 
 void CAssetRegistry::BuildSnapshot(AssetRegistrySnapshot& outSnapshot) const
 {
+	std::lock_guard lock(m_mutex);
 	outSnapshot.Assets.clear();
 	outSnapshot.Assets.reserve(m_assetTable.size());
 	for (const auto& assetPair : m_assetTable)

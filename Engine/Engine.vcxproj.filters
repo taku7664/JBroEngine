@@ -686,6 +686,9 @@
     <ClInclude Include="Editor\Project\ProjectManager.h">
       <Filter>Header\Editor</Filter>
     </ClInclude>
+    <ClInclude Include="Editor\Project\AssetDatabase.h">
+      <Filter>Header\Editor</Filter>
+    </ClInclude>
     <ClInclude Include="Editor\Project\ProjectTypes.h">
       <Filter>Header\Editor</Filter>
     </ClInclude>
@@ -1118,6 +1121,9 @@
       <Filter>Source\Editor</Filter>
     </ClCompile>
     <ClCompile Include="Editor\Project\ProjectManager.cpp">
+      <Filter>Source\Editor</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\Project\AssetDatabase.cpp">
       <Filter>Source\Editor</Filter>
     </ClCompile>
     <ClCompile Include="Editor\ImEditor.cpp">

@@ -78,6 +78,11 @@ public:
 	template<typename T>
 	bool RegisterScript(const ScriptRegisterDesc& desc);
 
+	// JPROP codegen 용 — 명시적 프로퍼티 목록(offset 기반)으로 등록한다.
+	// REFLECT_FIELD 의 GetReflectEntries 정적초기화 매직을 쓰지 않는다.
+	template<typename T>
+	bool RegisterScript(const ScriptRegisterDesc& desc, const std::vector<ScriptPropertyDesc>& properties);
+
 	const ComponentTypeInfo* FindComponent(TypeId typeId) const;
 	const ComponentTypeInfo* FindComponentByName(const char* name) const;
 	std::size_t GetComponentTypeCount() const;
@@ -242,6 +247,55 @@ bool CReflectionRegistry::RegisterScript(const ScriptRegisterDesc& desc)
 			prop.IsEditable   = true;
 			typeInfo.Properties.push_back(prop);
 		}
+	}
+
+	return RegisterScriptInternal(std::move(typeInfo));
+}
+
+template<typename T>
+bool CReflectionRegistry::RegisterScript(const ScriptRegisterDesc& desc, const std::vector<ScriptPropertyDesc>& properties)
+{
+	static_assert(std::is_base_of_v<CGameScript, T>, "Script types must derive from CGameScript.");
+	static_assert(std::is_default_constructible_v<T>, "Script types must be default constructible.");
+
+	ScriptTypeInfo typeInfo;
+	typeInfo.Type.Id          = MakeTypeId(desc.Name);
+	typeInfo.Type.Name        = desc.Name;
+	typeInfo.Type.DisplayName = desc.DisplayName ? desc.DisplayName : desc.Name;
+	typeInfo.Type.Category    = desc.Category;
+	typeInfo.Type.Kind        = EReflectTypeKind::Script;
+	typeInfo.Type.Size        = sizeof(T);
+	typeInfo.Type.Alignment   = alignof(T);
+
+	typeInfo.CreateInstance = [](const GameModuleHostApi* hostApi) -> CGameScript* {
+		if (nullptr == hostApi || nullptr == hostApi->Allocate) { return nullptr; }
+		void* memory = hostApi->Allocate(sizeof(T), alignof(T));
+		if (nullptr == memory) { return nullptr; }
+		return new (memory) T();
+	};
+	typeInfo.DestroyInstance = [](CGameScript* script, const GameModuleHostApi* hostApi) {
+		if (nullptr == script) { return; }
+		static_cast<T*>(script)->~T();
+		if (hostApi && hostApi->Free) { hostApi->Free(script, sizeof(T), alignof(T)); }
+	};
+
+	for (const ScriptPropertyDesc& d : properties)
+	{
+		ReflectPropertyInfo prop;
+		prop.Name         = d.Name;
+		prop.DisplayName  = d.DisplayName ? d.DisplayName : d.Name;
+		prop.Type         = d.Type;
+		prop.Offset       = d.Offset;            // 생성 파일이 offsetof 로 계산 (GetFieldPtr 미사용)
+		prop.Size         = d.Size;
+		prop.ElementCount = d.ElementCount ? d.ElementCount : 1;
+		prop.IsEditable   = true;
+		prop.Tooltip      = d.Tooltip;
+		prop.Category     = d.Category;
+		prop.HasRange     = d.HasRange;
+		prop.RangeMin     = d.RangeMin;
+		prop.RangeMax     = d.RangeMax;
+		prop.Serialize    = d.Serialize;
+		typeInfo.Properties.push_back(prop);
 	}
 
 	return RegisterScriptInternal(std::move(typeInfo));

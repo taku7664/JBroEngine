@@ -27,6 +27,9 @@
 #include "Core/RHI/D3D11/D3D11RHIDevice.h"
 #include "Core/RHI/WebGPU/WebGPURHIDevice.h"
 #include "Core/RHI/EmptyRHIDevice.h"
+#include "Core/Audio/IAudioDevice.h"
+#include "Core/Audio/MiniAudio/MiniAudioDevice.h"
+#include "Core/Audio/EmptyAudio/EmptyAudioDevice.h"
 #include "Core/Task/TaskManager.h"
 #include "Core/Random/RandomService.h"
 #include "Core/Math/MathService.h"
@@ -75,6 +78,9 @@ bool CEngine::Initialize()
 	{
 		return false;
 	}
+
+	// 오디오 디바이스 — 실패해도 엔진 자체는 계속 동작하도록 (조용한 게임).
+	InitializeAudio();
 
 	// AssetManager 가 준비된 직후 ResourceRegistry 를 부트스트랩.
 	// Resources/resources.yaml 에 기술된 영구 리소스를 persistent 로 등록 + 즉시 로드한다.
@@ -199,6 +205,12 @@ void CEngine::Finalize()
 	Core::Time = nullptr;
 	m_time.Reset();
 
+	if (m_audioDevice)
+	{
+		m_audioDevice->Finalize();
+		m_audioDevice.Reset();
+	}
+
 	if (m_rhiDevice)
 	{
 		m_rhiDevice->Finalize();
@@ -254,6 +266,11 @@ SafePtr<IRenderSurface> CEngine::GetMainRenderSurface() const
 SafePtr<IRHIDevice> CEngine::GetRHIDevice() const
 {
 	return m_rhiDevice.GetSafePtr();
+}
+
+SafePtr<IAudioDevice> CEngine::GetAudioDevice() const
+{
+	return m_audioDevice.GetSafePtr();
 }
 
 SafePtr<IAssetManager> CEngine::GetAssetManager() const
@@ -424,6 +441,32 @@ bool CEngine::InitializeAssetManager()
 	return true;
 }
 
+bool CEngine::InitializeAudio()
+{
+	AudioDeviceDesc desc;
+
+#if defined(JBRO_HAS_MINIAUDIO) && JBRO_HAS_MINIAUDIO
+	{
+		OwnerPtr<CMiniAudioDevice> mini = MakeOwnerPtr<CMiniAudioDevice>();
+		if (mini && mini->Initialize(desc))
+		{
+			m_audioDevice = std::move(mini);
+			return true;
+		}
+	}
+#endif
+
+	// 폴백 — 빈 디바이스. 게임은 무음이 되지만 컴포넌트/시스템은 안전하게 동작.
+	OwnerPtr<CEmptyAudioDevice> empty = MakeOwnerPtr<CEmptyAudioDevice>();
+	if (empty)
+	{
+		empty->Initialize(desc);
+		m_audioDevice = std::move(empty);
+		return true;
+	}
+	return false;
+}
+
 bool CEngine::InitializeRenderer()
 {
 	m_renderScene = MakeOwnerPtr<CRenderScene>();
@@ -481,6 +524,12 @@ void CEngine::UpdateModules()
 
 void CEngine::UpdateCoreServices()
 {
+	// 오디오 디바이스 tick — ended player GC, marker dispatch 등을 백엔드가 처리.
+	if (m_audioDevice)
+	{
+		const float dt = m_time ? m_time->GetDeltaSeconds() : 0.0f;
+		m_audioDevice->Tick(dt);
+	}
 	if (m_sceneManager)
 	{
 		m_sceneManager->Update();
@@ -593,6 +642,7 @@ void CEngine::SyncEngineCore()
 	Engine.MainRenderSurface = GetMainRenderSurface();
 	Engine.RHIDevice = GetRHIDevice();
 	Engine.AssetManager = GetAssetManager();
+	Engine.Audio = GetAudioDevice();
 	Engine.Renderer = GetRenderer();
 	Engine.RenderScene = GetRenderScene();
 	Engine.Debug = m_debug ? m_debug.GetSafePtr() : nullptr;

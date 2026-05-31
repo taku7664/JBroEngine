@@ -25,11 +25,14 @@ public:
 
 	TaskId GetId() const;
 	const std::string& GetName() const;
-	SafePtr<CTask> CreateTask(const char* name, CTask::TaskFunction function);
+	// description 은 UI 표시용 작업 이름. nullptr 이면 빈 문자열로 저장된다.
+	SafePtr<CTask> CreateTask(const char* name, CTask::TaskFunction function, const char* description = nullptr);
 	std::uint32_t GetTotalTaskCount() const;
 	std::uint32_t GetCompletedTaskCount() const;
 	float GetProgress01() const;
 	bool IsCompleted() const;
+	// 현재 그룹에 속한 각 태스크의 (이름/설명/완료여부) 스냅샷. UI 진행률 목록 표시용.
+	std::vector<TaskProgressInfo> GetTaskProgressSnapshot() const;
 
 public:
 	GroupCallback AllCompletedCallback;

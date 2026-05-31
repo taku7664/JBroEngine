@@ -94,9 +94,7 @@ void CMainDockWindow::OnCreate()
 
 void CMainDockWindow::OnMenuBar()
 {
-	// ShowDemoWindow 안에 있는 ImGui::ShowExampleAppAssetsBrowser()를 참고해서 에셋 브라우저 드로우를 개선.
-	// 드래깅이나 다중 선택을 통해 다중 선택이 가능해야함
-	ImGui::ShowDemoWindow();
+	//ImGui::ShowDemoWindow();
 
 	if (ImGui::BeginMenu(Loc::Text("menu.simulation")))
 	{

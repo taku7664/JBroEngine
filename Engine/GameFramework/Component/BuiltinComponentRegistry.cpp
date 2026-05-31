@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "BuiltinComponentRegistry.h"
 
+#include "GameFramework/Component/AudioComponents.h"
 #include "GameFramework/Component/Camera2D.h"
 #include "GameFramework/Component/GameObject.h"
 #include "GameFramework/Component/Light2D.h"
@@ -97,4 +98,19 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 
 	registry.RegisterComponent<ScriptComponent>({ "ScriptComponent", "Script Component", "Scripting", true })
 		.AddProperty("IsEnabled", EReflectPropertyType::Bool, offsetof(ScriptComponent, IsEnabled), sizeof(bool));
+
+	registry.RegisterComponent<AudioListener>({ "AudioListener", "Audio Listener", "Audio", true })
+		.AddProperty("IsEnabled",    EReflectPropertyType::Bool,  offsetof(AudioListener, IsEnabled),    sizeof(bool))
+		.AddProperty("MasterVolume", EReflectPropertyType::Float, offsetof(AudioListener, MasterVolume), sizeof(float));
+
+	registry.RegisterComponent<AudioPlayer>({ "AudioPlayer", "Audio Player", "Audio", true })
+		.AddProperty("IsEnabled",   EReflectPropertyType::Bool,      offsetof(AudioPlayer, IsEnabled),   sizeof(bool))
+		.AddProperty("AudioGuid",   EReflectPropertyType::AssetGuid, offsetof(AudioPlayer, AudioGuid),   sizeof(AssetGuid))
+		.AddProperty("Volume",      EReflectPropertyType::Float,     offsetof(AudioPlayer, Volume),      sizeof(float))
+		.AddProperty("Pitch",       EReflectPropertyType::Float,     offsetof(AudioPlayer, Pitch),       sizeof(float))
+		.AddProperty("Loop",        EReflectPropertyType::Bool,      offsetof(AudioPlayer, Loop),        sizeof(bool))
+		.AddProperty("Is3D",        EReflectPropertyType::Bool,      offsetof(AudioPlayer, Is3D),        sizeof(bool))
+		.AddProperty("MinDistance", EReflectPropertyType::Float,     offsetof(AudioPlayer, MinDistance), sizeof(float))
+		.AddProperty("MaxDistance", EReflectPropertyType::Float,     offsetof(AudioPlayer, MaxDistance), sizeof(float))
+		.AddProperty("PlayOnStart", EReflectPropertyType::Bool,      offsetof(AudioPlayer, PlayOnStart), sizeof(bool));
 }

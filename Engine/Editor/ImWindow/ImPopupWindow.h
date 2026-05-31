@@ -27,6 +27,7 @@ private:
 	std::string	m_id;
 	bool		m_bIsRendered;
 	bool		m_bIsOpen;
+	bool		m_bShowCloseButton;
 	ImVec2		m_initSize;
 	std::string m_title;
 	BitFlag		m_flags;

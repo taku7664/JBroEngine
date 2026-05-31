@@ -38,6 +38,30 @@
 // 자동 생성한다 — 유저는 RegisterScript 호출을 직접 작성하지 않아도 된다.
 #define JBRO_SCRIPT class
 
+// ── JPROP(...) ───────────────────────────────────────────────────────────────
+// 멤버 변수 바로 앞에 붙이는 "어트리뷰트 마커". 컴파일러에는 아무 토큰도 아니지만
+// (확장 결과가 비어 있음), 빌드 전 헤더 스캐너가 이 마커 + 뒤따르는 멤버 선언을
+// 파싱해 GeneratedScriptRegistry.cpp 에 등록 코드를 자동 생성한다.
+//
+//   JBRO_SCRIPT MyScript final : public CGameScript
+//   {
+//       JPROP() float Speed = 5.0f;
+//       JPROP(Name("이동 속도"), Range(0, 100), Tooltip("초당 이동"), Category("Movement"))
+//       float MoveSpeed = 3.0f;
+//       JPROP() AssetGuid Icon;       // 에셋 picker
+//   };
+//
+// 지원 어트리뷰트:
+//   Name("..")      — 인스펙터 표시 이름(멤버 이름과 분리)
+//   Tooltip("..")   — 마우스오버 설명
+//   Category("..")  — 인스펙터 그룹 헤더
+//   Range(min, max) — 슬라이더 + 값 클램프
+//   NoSerialize     — 인스펙터엔 노출하되 씬 파일에는 저장/복원하지 않음(런타임 전용)
+// 지원 타입: bool, std::int32_t, std::uint32_t, float, Vector2<float>,
+//            std::string, AssetGuid
+// (SCRIPT_CLASS / REFLECT_FIELD 없이 JPROP 만으로 충분하다. REFLECT_FIELD 는 레거시 호환.)
+#define JPROP(...)
+
 // ── ScriptReflectEntry ────────────────────────────────────────────────────────
 // REFLECT_FIELD 매크로가 등록하는 단일 필드 메타데이터.
 // RegisterScript<T>() 가 읽어 ScriptTypeInfo::Properties 를 자동 구성한다.

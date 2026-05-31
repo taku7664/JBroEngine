@@ -57,6 +57,8 @@ Entries:
   common.rename: Rename
   common.duplicate: Duplicate
   common.copy: Copy
+  common.cut: Cut
+  common.paste: Paste
   common.ok: OK
   common.refresh: Refresh
   common.filter: Filter
@@ -122,6 +124,7 @@ Entries:
   asset_browser.script_popup.class_name: Class Name
   asset_browser.script_popup.properties: Properties
   asset_browser.script_popup.property_hint: Property name
+  asset_browser.script_popup.invalid_props: Property names are invalid or duplicated (must be valid, unique C++ identifiers).
   asset_browser.compile_fail.title: Script Compile Failed
   asset_browser.compile_fail.description: The automatic compile has failed. Build log is shown below.
   asset_browser.add_asset: Add Asset
@@ -130,6 +133,9 @@ Entries:
   asset_browser.add_asset.prefab: Prefab
   asset_browser.tree.focus_here: Open This Folder
   asset_browser.delete_confirm: Delete selected asset entry?
+  asset_browser.selection_count: "Selected: %d items"
+  asset_browser.contents_folders: Contents
+  asset_browser.favorite_folders: Favorites
 
   hierarchy.scene_manager_unavailable: SceneManager is not available.
   hierarchy.no_active_scene: No active scene.
@@ -370,3 +376,36 @@ Entries:
   inspector.audio.is_3d.desc: When on, volume attenuates with distance from the AudioListener. Turn this off for UI/BGM.
   inspector.audio.min_distance.desc: Plays at full volume within this distance.
   inspector.audio.max_distance.desc: Beyond this distance the sound becomes inaudible. (Min ≤ Max)
+
+  inspector.audio.preview.play: Play
+  inspector.audio.preview.stop: Stop
+  inspector.audio.preview.play.desc: Preview this sound from the start using the editor's preview device.
+  inspector.audio.preview.stop.desc: Stop the preview and release the player resources immediately.
+  inspector.audio.preview.streaming_no_waveform: Streaming mode — waveform preview is unavailable.
+
+  project.loading.title: Loading Project
+  project.loading.body: Loading project. Please wait...
+  project.loading.task.script_build: Building Scripts
+  project.loading.task.load_assets: Loading Resources
+
+  reconcile.title: Asset Reconcile
+  reconcile.summary: Asset metadata was verified and repaired while opening the project.
+  reconcile.generated: Meta generated
+  reconcile.recovered: GUID recovered
+  reconcile.relinked: Relinked (moved)
+  reconcile.dup_resolved: Duplicate GUID resolved
+  reconcile.orphan: Orphan meta quarantined
+  reconcile.failed: Registration failed
+
+  editor.category.Audio: Audio
+  editor.component.AudioListener: Audio Listener
+  editor.component.AudioPlayer:   Audio Player
+  editor.property.MasterVolume: Master Volume
+  editor.property.AudioGuid:    Audio Asset
+  editor.property.Volume:       Volume
+  editor.property.Pitch:        Pitch
+  editor.property.Loop:         Loop
+  editor.property.Is3D:         3D Sound
+  editor.property.MinDistance:  Min Distance
+  editor.property.MaxDistance:  Max Distance
+  editor.property.PlayOnStart:  Play On Start

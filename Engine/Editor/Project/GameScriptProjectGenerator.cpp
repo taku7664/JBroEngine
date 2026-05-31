@@ -3,6 +3,7 @@
 
 #include "Core/Logging/LoggerInternal.h"
 
+#include <algorithm>
 #include <cctype>
 #include <fstream>
 #include <iomanip>
@@ -14,11 +15,107 @@
 
 namespace
 {
+	// JPROP 으로 파싱된 스크립트 프로퍼티 1개.
+	struct ScriptPropParse
+	{
+		std::string Name;
+		std::string CppType;        // "float", "Vector2<float>", "AssetGuid" ...
+		std::string EnumType;       // "EReflectPropertyType::Float" ...
+		std::string DisplayName;    // Name("..")
+		std::string Tooltip;        // Tooltip("..")
+		std::string Category;       // Category("..")
+		bool        HasRange = false;
+		std::string RangeMin;
+		std::string RangeMax;
+		bool        NoSerialize = false;   // JPROP(NoSerialize) — 인스펙터 노출, 씬 저장 제외
+	};
+
 	struct ScriptClassDesc
 	{
 		std::filesystem::path HeaderPath;
 		std::string ClassName;
+		std::vector<ScriptPropParse> Props;   // JPROP 멤버 (없으면 레거시 REFLECT_FIELD 경로)
 	};
+
+	// C++ 타입 토큰 → EReflectPropertyType. 미지원이면 false.
+	bool MapScriptPropType(std::string cppType, std::string& outEnum)
+	{
+		// 공백 제거(예: "Vector2 < float >" → "Vector2<float>").
+		cppType.erase(std::remove_if(cppType.begin(), cppType.end(),
+			[](unsigned char c) { return std::isspace(c); }), cppType.end());
+
+		if (cppType == "bool")                                         { outEnum = "EReflectPropertyType::Bool";          return true; }
+		if (cppType == "int" || cppType == "int32_t" || cppType == "std::int32_t")     { outEnum = "EReflectPropertyType::Int32";  return true; }
+		if (cppType == "uint32_t" || cppType == "std::uint32_t" || cppType == "unsignedint") { outEnum = "EReflectPropertyType::UInt32"; return true; }
+		if (cppType == "float")                                        { outEnum = "EReflectPropertyType::Float";         return true; }
+		if (cppType == "Vector2<float>")                               { outEnum = "EReflectPropertyType::Vector2Float";  return true; }
+		if (cppType == "AssetGuid" || cppType == "File::Guid")         { outEnum = "EReflectPropertyType::AssetGuid";      return true; }
+		return false;
+	}
+
+	// JPROP(...) 어트리뷰트 인자에서 메타데이터를 추출한다.
+	void ParseScriptPropAttributes(const std::string& args, ScriptPropParse& out)
+	{
+		// 주의: 패턴 안의 )"( 시퀀스가 기본 R"(...)" 구분자를 조기 종료시키므로
+		// 커스텀 구분자 R"rx(...)rx" 를 사용한다.
+		std::smatch m;
+		if (std::regex_search(args, m, std::regex(R"rx(Name\s*\(\s*"([^"]*)"\s*\))rx")))      out.DisplayName = m[1].str();
+		if (std::regex_search(args, m, std::regex(R"rx(Tooltip\s*\(\s*"([^"]*)"\s*\))rx")))   out.Tooltip     = m[1].str();
+		if (std::regex_search(args, m, std::regex(R"rx(Category\s*\(\s*"([^"]*)"\s*\))rx")))  out.Category    = m[1].str();
+		if (std::regex_search(args, m, std::regex(R"rx(Range\s*\(\s*([-0-9.eEfF]+)\s*,\s*([-0-9.eEfF]+)\s*\))rx")))
+		{
+			out.HasRange = true;
+			out.RangeMin = m[1].str();
+			out.RangeMax = m[2].str();
+		}
+		if (std::regex_search(args, m, std::regex(R"rx(\bNoSerialize\b)rx")))
+		{
+			out.NoSerialize = true;
+		}
+	}
+
+	// C++ 문자열 리터럴용 이스케이프(따옴표/백슬래시). UTF-8 그대로 보존.
+	std::string EscapeCppString(const std::string& s)
+	{
+		std::string out;
+		out.reserve(s.size() + 2);
+		for (char c : s)
+		{
+			if (c == '\\' || c == '"') out.push_back('\\');
+			out.push_back(c);
+		}
+		return out;
+	}
+
+	// JPROP(...) 어트리뷰트 인자에서 알 수 없는(오타) 어트리뷰트를 로그로 경고한다.
+	// 빌드당 1회만 도는 codegen 경로라 비용은 사실상 0.
+	void WarnUnknownJpropAttributes(const std::string& args, const std::string& className, const std::string& propName)
+	{
+		// 문자열 리터럴 내용 제거 — 그 안의 식별자(예: 한글 라벨)를 어트리뷰트로 오인하지 않게.
+		std::string stripped;
+		stripped.reserve(args.size());
+		bool inString = false;
+		for (char c : args)
+		{
+			if (c == '"') { inString = !inString; continue; }
+			if (false == inString) stripped.push_back(c);
+		}
+
+		static const char* const kKnown[] = { "Name", "Tooltip", "Category", "Range", "NoSerialize" };
+		const std::regex identRegex(R"([A-Za-z_]\w*)");
+		for (auto it = std::sregex_iterator(stripped.begin(), stripped.end(), identRegex);
+			it != std::sregex_iterator(); ++it)
+		{
+			const std::string token = it->str();
+			bool known = false;
+			for (const char* k : kKnown) { if (token == k) { known = true; break; } }
+			if (false == known)
+			{
+				CSystemLog::Warning("[JPROP] " + className + "." + propName
+					+ ": 알 수 없는 어트리뷰트 '" + token + "' (무시됨). 사용 가능: Name, Tooltip, Category, Range, NoSerialize.");
+			}
+		}
+	}
 
 	std::filesystem::path ResolveEnginePropsPath(const ProjectInfo& projectInfo)
 	{
@@ -178,17 +275,20 @@ namespace
 			return scripts;
 		}
 
-		// "JBRO_SCRIPT <ClassName>" 뒤에 (선택적 'final') + ':' 또는 '{' 가 와야 정의로 인정.
-		// forward declaration("JBRO_SCRIPT Foo;") 은 자연스럽게 제외된다.
-		// 다중 상속 / 깊은 상속 트리는 마커가 의도를 명시하므로 정규식이 추적할 필요 없음.
+		// "JBRO_SCRIPT <ClassName> [final] (':' 또는 '{')" 형태를 정의로 인정한다.
+		// 주의: C++ 의 'final' 은 클래스명 "뒤"에 온다(JBRO_SCRIPT Foo final : ...).
+		// (예전 정규식은 final 을 이름 "앞"에서 찾아, final 을 쓰는 모든 스크립트가
+		//  스캔에서 누락 → 레지스트리가 비어 "등록된 스크립트 없음" 이 떴다.)
+		// forward declaration("JBRO_SCRIPT Foo;") 은 ';' 라 자연스럽게 제외된다.
 		const std::regex scriptClassRegex(
-			R"(\bJBRO_SCRIPT\s+(?:final\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*(?::|\{))");
+			R"(\bJBRO_SCRIPT\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:final\b\s*)?(?::|\{))");
 		for (const std::filesystem::directory_entry& entry : std::filesystem::recursive_directory_iterator(scriptPath, errorCode))
 		{
 			if (errorCode)
 			{
+				// 한 항목 오류로 전체 스캔을 중단하지 않는다(잠긴/권한거부 파일 건너뜀).
 				errorCode.clear();
-				break;
+				continue;
 			}
 			if (false == entry.is_regular_file(errorCode))
 			{
@@ -210,20 +310,94 @@ namespace
 
 			const std::string text((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
 
-			// 같은 헤더에 여러 JBRO_SCRIPT 클래스가 있을 수 있으므로 전체를 순회.
-			auto begin = std::sregex_iterator(text.begin(), text.end(), scriptClassRegex);
-			auto end   = std::sregex_iterator();
-			for (auto it = begin; it != end; ++it)
+			// 이 파일의 클래스 정의 위치들을 수집한다(여러 클래스 가능).
+			struct LocalClass { std::size_t Pos; ScriptClassDesc Desc; };
+			std::vector<LocalClass> localClasses;
+			for (auto it = std::sregex_iterator(text.begin(), text.end(), scriptClassRegex);
+				it != std::sregex_iterator(); ++it)
 			{
-				ScriptClassDesc desc;
-				desc.HeaderPath = std::filesystem::relative(entry.path(), projectInfo.ContentPath, errorCode);
-				if (errorCode)
+				LocalClass lc;
+				lc.Pos = static_cast<std::size_t>(it->position(0));
+				lc.Desc.HeaderPath = std::filesystem::relative(entry.path(), projectInfo.ContentPath, errorCode);
+				if (errorCode) { errorCode.clear(); lc.Desc.HeaderPath = entry.path().filename(); }
+				lc.Desc.ClassName = (*it)[1].str();
+				localClasses.push_back(std::move(lc));
+			}
+
+			// JPROP(<attrs>) <type> <name> [= default] ;  — attrs 는 한 단계 중첩 괄호 허용
+			// (예: Range(0,100)). 각 JPROP 은 바로 앞에 선언된 클래스에 귀속시킨다.
+			static const std::regex jpropRegex(
+				R"(\bJPROP\s*\(((?:[^()]|\([^()]*\))*)\)\s*([A-Za-z_][A-Za-z0-9_:]*(?:\s*<[^>]*>)?)\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:=\s*[^;]*?)?\s*;)");
+			const std::string fileName = entry.path().filename().generic_string();
+
+			// 파싱 성공/실패를 비교하기 위해 파일 내 JPROP 마커 총 개수를 센다.
+			// (sregex_iterator 는 regex 포인터를 보관하므로 임시 regex 금지 — named 사용.)
+			static const std::regex jpropMarkerRegex(R"(\bJPROP\s*\()");
+			std::size_t markerCount = 0;
+			for (auto it = std::sregex_iterator(text.begin(), text.end(), jpropMarkerRegex);
+				it != std::sregex_iterator(); ++it) { ++markerCount; }
+
+			std::size_t matchedCount = 0;
+			for (auto it = std::sregex_iterator(text.begin(), text.end(), jpropRegex);
+				it != std::sregex_iterator(); ++it)
+			{
+				++matchedCount;
+				const std::size_t pos = static_cast<std::size_t>(it->position(0));
+				ScriptPropParse prop;
+				prop.CppType = (*it)[2].str();
+				prop.Name    = (*it)[3].str();
+
+				// 귀속 클래스를 먼저 찾는다(로그 메시지에 클래스명 포함).
+				LocalClass* owner = nullptr;
+				for (LocalClass& lc : localClasses)
 				{
-					errorCode.clear();
-					desc.HeaderPath = entry.path().filename();
+					if (lc.Pos < pos && (nullptr == owner || lc.Pos > owner->Pos)) owner = &lc;
 				}
-				desc.ClassName = (*it)[1].str();
-				scripts.push_back(desc);
+				const std::string ownerName = owner ? owner->Desc.ClassName : std::string("<global>");
+
+				// 어트리뷰트 오타 검출.
+				WarnUnknownJpropAttributes((*it)[1].str(), ownerName, prop.Name);
+
+				// 미지원 타입 — 등록 제외 + 경고.
+				if (false == MapScriptPropType(prop.CppType, prop.EnumType))
+				{
+					CSystemLog::Warning("[JPROP] " + ownerName + "." + prop.Name
+						+ ": 지원하지 않는 타입 '" + prop.CppType + "' — 제외됨. 지원: bool, int32_t, uint32_t, float, Vector2<float>, AssetGuid.");
+					continue;
+				}
+				ParseScriptPropAttributes((*it)[1].str(), prop);
+
+				if (nullptr == owner)
+				{
+					CSystemLog::Warning("[JPROP] '" + prop.Name + "': 어느 JBRO_SCRIPT 클래스에도 속하지 않음 — 제외됨.");
+					continue;
+				}
+
+				// 같은 클래스 내 이름 중복 검출 — 중복 등록을 막는다.
+				bool duplicate = false;
+				for (const ScriptPropParse& existing : owner->Desc.Props)
+				{
+					if (existing.Name == prop.Name) { duplicate = true; break; }
+				}
+				if (duplicate)
+				{
+					CSystemLog::Warning("[JPROP] " + ownerName + ": 프로퍼티 이름 중복 '" + prop.Name + "' — 두 번째는 제외됨.");
+					continue;
+				}
+
+				owner->Desc.Props.push_back(std::move(prop));
+			}
+
+			// JPROP 마커는 있는데 파싱 못 한 게 있으면(문법 오류 등) 경고.
+			if (matchedCount < markerCount)
+			{
+				CSystemLog::Warning("[JPROP] " + fileName + ": JPROP 마커 "
+					+ std::to_string(markerCount - matchedCount) + "개를 해석하지 못함 — 문법 확인: JPROP(attrs) <타입> <이름>;");
+			}
+
+			for (LocalClass& lc : localClasses)
+			{
+				scripts.push_back(std::move(lc.Desc));
 			}
 		}
 
@@ -296,6 +470,22 @@ bool CGameScriptProjectGenerator::WriteFileIfMissing(const std::filesystem::path
 
 bool CGameScriptProjectGenerator::WriteGeneratedFile(const std::filesystem::path& path, const std::string& content) const
 {
+	// 내용이 이미 같으면 다시 쓰지 않는다 — 파일 수정시각(mtime)을 보존해
+	// MSBuild 의 불필요한 재컴파일을 막는다. (매 빌드 직전 재생성을 해도, 실제로
+	// 바뀐 파일만 갱신되므로 증분 빌드가 빠르게 유지된다.)
+	std::error_code errorCode;
+	if (std::filesystem::exists(path, errorCode))
+	{
+		std::ifstream existing(path, std::ios::in | std::ios::binary);
+		if (existing.is_open())
+		{
+			const std::string current((std::istreambuf_iterator<char>(existing)), std::istreambuf_iterator<char>());
+			if (current == content)
+			{
+				return true;   // 변경 없음 — 쓰기 생략.
+			}
+		}
+	}
 	return WriteTextFile(path, content);
 }
 
@@ -579,6 +769,9 @@ std::string CGameScriptProjectGenerator::BuildGeneratedRegistrySource(const Proj
 #include "GeneratedScriptRegistry.h"
 
 #include "GameFramework/Reflection/ReflectionRegistry.h"
+
+#include <cstddef>
+#include <vector>
 )";
 
 	for (const ScriptClassDesc& script : scripts)
@@ -594,11 +787,35 @@ void RegisterGeneratedScripts(CReflectionRegistry& registry)
 
 	for (const ScriptClassDesc& script : scripts)
 	{
-		out << "\tregistry.RegisterScript<" << script.ClassName << ">({\r\n";
-		out << "\t\t\"" << script.ClassName << "\",\r\n";
-		out << "\t\t\"" << script.ClassName << "\",\r\n";
-		out << "\t\t\"GameScript\"\r\n";
-		out << "\t});\r\n";
+		if (script.Props.empty())
+		{
+			// 레거시(REFLECT_FIELD 또는 프로퍼티 없음) — GetReflectEntries 경로로 등록.
+			out << "\tregistry.RegisterScript<" << script.ClassName << ">({ \""
+				<< script.ClassName << "\", \"" << script.ClassName << "\", \"GameScript\" });\r\n";
+			continue;
+		}
+
+		// JPROP 방식 — 명시적 프로퍼티 목록(offset/메타데이터)으로 등록.
+		out << "\tregistry.RegisterScript<" << script.ClassName << ">(\r\n";
+		out << "\t\tScriptRegisterDesc{ \"" << script.ClassName << "\", \"" << script.ClassName << "\", \"GameScript\" },\r\n";
+		out << "\t\tstd::vector<ScriptPropertyDesc>{\r\n";
+		for (const ScriptPropParse& p : script.Props)
+		{
+			const std::string display  = p.DisplayName.empty() ? std::string("nullptr") : ("\"" + EscapeCppString(p.DisplayName) + "\"");
+			const std::string tooltip  = p.Tooltip.empty()     ? std::string("nullptr") : ("\"" + EscapeCppString(p.Tooltip) + "\"");
+			const std::string category = p.Category.empty()    ? std::string("nullptr") : ("\"" + EscapeCppString(p.Category) + "\"");
+			const std::string hasRange = p.HasRange ? "true" : "false";
+			const std::string rmin     = p.HasRange ? p.RangeMin : "0.0f";
+			const std::string rmax     = p.HasRange ? p.RangeMax : "0.0f";
+			const std::string serialize = p.NoSerialize ? "false" : "true";
+			out << "\t\t\tScriptPropertyDesc{ \"" << p.Name << "\", " << p.EnumType
+				<< ", offsetof(" << script.ClassName << ", " << p.Name << ")"
+				<< ", sizeof(" << p.CppType << "), 1, "
+				<< display << ", " << tooltip << ", " << category << ", "
+				<< hasRange << ", static_cast<float>(" << rmin << "), static_cast<float>(" << rmax << ")"
+				<< ", " << serialize << " },\r\n";
+		}
+		out << "\t\t});\r\n";
 	}
 
 	out << R"(}

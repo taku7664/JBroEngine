@@ -18,8 +18,9 @@ public:
 	void Finalize();
 
 	SafePtr<CTaskGroup> CreateTaskGroup(const char* name);
-	SafePtr<CTask> CreateTask(const char* name, CTask::TaskFunction function);
-	SafePtr<CTask> CreateTask(const char* name, CTask::TaskFunction function, SafePtr<CTaskGroup> group);
+	// description 은 UI 표시용 작업 이름. nullptr 이면 빈 문자열로 저장된다.
+	SafePtr<CTask> CreateTask(const char* name, CTask::TaskFunction function, const char* description = nullptr);
+	SafePtr<CTask> CreateTask(const char* name, CTask::TaskFunction function, SafePtr<CTaskGroup> group, const char* description = nullptr);
 
 	TaskId PostMainThreadTask(std::function<void()> task);
 	void DrainMainThreadCallbacks();

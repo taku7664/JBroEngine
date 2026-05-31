@@ -16,8 +16,13 @@ namespace ImGui
 		bool HoveredToolTip(const char* toolTip, ImGuiHoveredFlags flags = ImGuiHoveredFlags_None);
 
 		
-
 		void LoadingSpinner(float radius = 0.0f, ImVec4 color = ImVec4(1, 1, 1, 1));
+		void LoadingSpinnerEx(float radius, float thickness, float spinSpeed, ImVec4 color);
+
+		// 체크(✓) 아이콘을 그린다. radius <= 0 이면 LoadingSpinner 와 동일하게 프레임
+		// 높이 기준으로 자동 계산하므로 두 위젯을 같은 줄에서 자연스럽게 교체할 수 있다.
+		// 커서를 LoadingSpinner 와 동일한 크기만큼 전진시킨다(SameLine 으로 이어붙임).
+		void CheckMark(float radius = 0.0f, ImVec4 color = ImVec4(1, 1, 1, 1));
 
 		class StyleBuilder
 		{

@@ -495,6 +495,10 @@ namespace
 
 		for (const ReflectPropertyInfo& prop : typeInfo.Properties)
 		{
+			if (false == prop.Serialize)
+			{
+				continue;   // JPROP(NoSerialize) — 씬 파일에 저장하지 않는다.
+			}
 			const void* field = CReflectionRegistry::GetPropertyAddress(static_cast<const void*>(instance), prop);
 			if (nullptr == field)
 			{
@@ -547,6 +551,10 @@ namespace
 	{
 		for (const ReflectPropertyInfo& prop : typeInfo.Properties)
 		{
+			if (false == prop.Serialize)
+			{
+				continue;   // JPROP(NoSerialize) — 씬에서 복원하지 않는다.
+			}
 			if (!node[prop.Name])
 			{
 				continue;
@@ -631,8 +639,6 @@ ESceneSerializeResult CSceneSerializer::SerializeToText(const CScene& scene, std
 		entityToIndex.emplace(snapshot.Objects[i].Entity, i);
 	}
 
-	YAML::Node root(YAML::NodeType::Map);
-	root["Version"] = SCENE_FILE_VERSION;
 	YAML::Node objects(YAML::NodeType::Sequence);
 
 	for (const SceneObjectSnapshot& object : snapshot.Objects)
@@ -764,8 +770,12 @@ ESceneSerializeResult CSceneSerializer::SerializeToText(const CScene& scene, std
 		objects.push_back(objectNode);
 	}
 
-	root["Objects"] = objects;
+	// ReferencedAssets 를 파일 상단(Version 바로 뒤, Objects 앞)에 배치한다 — 사람이
+	// 씬 파일을 열었을 때 어떤 에셋을 참조하는지 바로 확인할 수 있도록.
+	YAML::Node root(YAML::NodeType::Map);
+	root["Version"] = SCENE_FILE_VERSION;
 	root["ReferencedAssets"] = WriteReferencedAssets(referencedAssets);
+	root["Objects"] = objects;
 
 	YAML::Emitter emitter;
 	emitter << root;
@@ -990,6 +1000,32 @@ ESceneSerializeResult CSceneSerializer::SaveToFile(const CScene& scene, const Fi
 
 	file << text;
 	return ESceneSerializeResult::Success;
+}
+
+std::vector<AssetGuid> CSceneSerializer::ReadReferencedAssetsFromFile(const File::Path& path) const
+{
+	std::vector<AssetGuid> result;
+	if (path.empty())
+	{
+		return result;
+	}
+
+	YAML::Node root;
+	try
+	{
+		root = YAML::LoadFile(path.string());
+	}
+	catch (const YAML::Exception&)
+	{
+		return result;
+	}
+
+	if (!root || false == root.IsMap())
+	{
+		return result;
+	}
+
+	return ReadReferencedAssets(root["ReferencedAssets"]);
 }
 
 ESceneSerializeResult CSceneSerializer::LoadFromFile(CScene& scene, const File::Path& path) const

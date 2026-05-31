@@ -19,10 +19,11 @@ public:
 	using TaskCallback = std::function<void()>;
 
 public:
-	CTask(TaskId id, std::string name, TaskFunction function);
+	CTask(TaskId id, std::string name, TaskFunction function, std::string description = {});
 
 	TaskId GetId() const;
 	const std::string& GetName() const;
+	const std::string& GetDescription() const;
 	ETaskState GetState() const;
 	bool IsFinished() const;
 	bool IsCancelRequested() const;
@@ -42,6 +43,7 @@ private:
 private:
 	TaskId m_id = INVALID_TASK_ID;
 	std::string m_name;
+	std::string m_description;
 	TaskFunction m_function;
 	SafePtr<CTaskGroup> m_group;
 	std::atomic<ETaskState> m_state = ETaskState::Pending;

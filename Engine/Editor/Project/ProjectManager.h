@@ -3,13 +3,33 @@
 #include "Engine/Editor/FileSystem/Windows/WindowsFileWatcher.h"
 #include "Engine/Editor/LiveCompile/LiveCompileTypes.h"
 #include "Engine/Editor/Project/ProjectTypes.h"
+#include "Engine/Editor/Project/AssetDatabase.h"
 #include "Engine/Core/Asset/AssetTypes.h"
+#include "Engine/Core/Task/TaskTypes.h"
 #include "Utillity/SafePtr.h"
+
+#include <chrono>
+#include <functional>
+#include <string>
+#include <vector>
 
 class IAssetManager;
 class CScriptModuleLoader;
 class CLiveCompileManager;
+class CTaskGroup;
 struct EngineCore;
+
+// 자산 정합성(reconcile) 패스 결과 요약 — 프로젝트 로드 시 무엇을 치유했는지.
+struct AssetReconcileReport
+{
+	int Registered        = 0;   // 레지스트리에 등록된 자산 수
+	int MetaGenerated     = 0;   // .Jmeta 가 없어 새로 생성(새 GUID)
+	int GuidRecovered     = 0;   // 메타 분실/손상을 복구 캐시로 같은 GUID 복구(제자리)
+	int Relinked          = 0;   // 이동된 자산을 해시로 추적해 같은 GUID 재링크
+	int DuplicateResolved = 0;   // 중복 GUID 를 결정적으로 재발급
+	int OrphanQuarantined = 0;   // raw 없는 고아 .Jmeta 격리
+	int Failed            = 0;   // 등록 실패
+};
 
 class CProjectManager final : public EnableSafeFromThis<CProjectManager>
 {
@@ -26,6 +46,17 @@ public:
 	void Tick();
 
 	bool IsProjectLoaded() const;
+
+	// ── 비동기 자산 로드 진행률 ─────────────────────────────────────────
+	// LoadProject 가 디스크의 모든 자산을 CTaskManager 로 병렬 임포트하는 동안
+	// 아래 메서드들로 UI 가 프로그레스를 표시할 수 있다.  완료되면 자동으로
+	// nullptr 가 된다.
+	bool          HasLoadingTasks() const;
+	float         GetLoadProgress01() const;
+	std::uint32_t GetLoadCompletedCount() const;
+	std::uint32_t GetLoadTotalCount() const;
+	// 로드 중인 각 태스크의 (이름/설명/완료여부) 스냅샷 — 진행률 팝업의 작업 목록 표시용.
+	std::vector<TaskProgressInfo> GetLoadTaskSnapshot() const;
 	const File::Path& GetOriginPath() const;
 	const File::Path& GetProjectFilePath() const;
 	const File::Path& GetRootPath() const;
@@ -36,6 +67,9 @@ public:
 	std::uint64_t GetAssetDatabaseRevision() const;
 	SafePtr<IAssetManager> GetAssetManager() const;
 	void BuildAssetRegistrySnapshot(AssetRegistrySnapshot& outSnapshot) const;
+
+	// 마지막 프로젝트 로드 시 수행한 자산 정합성 패스 결과(에디터 리포트 패널용).
+	const AssetReconcileReport& GetLastReconcileReport() const;
 
 	// 프로젝트 해상도
 	std::uint32_t GetResolutionWidth()  const;
@@ -88,6 +122,9 @@ public:
 	bool StartLiveCompile();
 	void StopLiveCompile();
 	bool RebuildScriptModule();
+	// 스크립트 파일 추가/삭제 후 GameScript 프로젝트(.vcxproj·생성 파일)를 재생성한다.
+	// vcxproj 가 소스 목록을 명시적으로 들고 있어, 파일 변경 후 빌드 정합성을 위해 필요.
+	bool RegenerateScriptProject() const;
 	bool IsLiveCompileLoaded() const;
 	ELiveCompileState GetLiveCompileState() const;
 
@@ -113,14 +150,34 @@ public:
 private:
 	void ProcessAssetEvents(const std::vector<FileWatchEvent>& events);
 	void ProcessAssetEvent(const FileWatchEvent& event);
-	bool ImportOrReloadAsset(const File::Path& absolutePath);
+	// loadData=true: 메타 등록 + 데이터 로드(ReloadAsset). false: 메타 등록만(데이터 미로드).
+	bool ImportOrReloadAsset(const File::Path& absolutePath, bool loadData = true);
+	// 마지막 씬(상대경로)이 참조하는 에셋 GUID 를 전이적으로 수집한다(프리팹 참조 포함).
+	std::vector<AssetGuid> CollectSceneLoadAssets(const std::string& sceneRelativePath) const;
 	bool IsImportableAssetPath(const File::Path& absolutePath) const;
 	bool MakeAssetRelativePath(const File::Path& absolutePath, std::string& outRelativePath) const;
 	EAssetType DetectAssetType(const File::Path& relativePath) const;
 	bool TrySyncRenamedAssetMeta(const File::Path& createdAssetPath, const std::vector<FileWatchEvent>& events);
+	// 이동/이름변경(Deleted(old)+Created(new) 쌍)을 감지해 .Jmeta 를 동반 이동하고
+	// 레지스트리 경로만 in-place 갱신한다(언로드 X → 로드된 에셋/라이브 참조 보존).
+	// 처리했으면 true 와 함께 outOldAssetPath 에 원본 경로를 채운다.
+	bool TryHandleAssetRename(const File::Path& createdAssetPath, const std::vector<FileWatchEvent>& events, File::Path& outOldAssetPath);
 	bool TryGetMetaPathForAsset(const File::Path& assetPath, File::Path& outMetaPath) const;
 	bool MoveMetaForRenamedAsset(const File::Path& oldAssetPath, const File::Path& newAssetPath) const;
 	void MarkAssetDatabaseChanged();
+
+	// ── 자산 정합성(reconcile) + 복구 캐시 ──────────────────────────────────
+	File::Path GetAssetDbPath() const;
+	// 타입별 임포터 표시 이름(인스펙터 "임포터" 필드).
+	static const char* ImporterNameForType(EAssetType type);
+	// Assets 트리 1회 정합성 패스 — 메타 생성/GUID 복구/중복 해소/고아 격리 + 레지스트리 등록.
+	AssetReconcileReport ReconcileAssets();
+	// raw 없는 고아 .Jmeta 를 Intermediate/AssetQuarantine 로 이동(되돌릴 수 있게).
+	bool QuarantineOrphanMeta(const File::Path& metaAbsolutePath, const std::string& assetRelativePath);
+	// 메타가 없을 때 복구 캐시로 같은 GUID 의 사이드카 메타를 먼저 써 둔다(런타임 복구).
+	void EnsureRecoveredSidecarMeta(const File::Path& absolutePath, const std::string& relativePath, EAssetType type, const char* importerName, const File::Path& metaPath);
+	// 복구 캐시 항목 갱신(경로/해시/메타 필드).
+	void UpdateAssetDbEntry(const AssetMetaData& metaData, const File::Path& absolutePath, const std::string& relativePath);
 	GameModuleContext BuildGameModuleContext() const;
 	LiveCompileDesc BuildLiveCompileDesc() const;
 
@@ -133,9 +190,20 @@ private:
 	// EngineCore 포인터는 스크립트 모듈 로드 시 GameModuleContext 구성에 사용합니다.
 	const EngineCore*            m_engineCore = nullptr;
 	std::uint64_t                m_assetDatabaseRevision = 0;
+	// 자산 복구 캐시(비권위적). reconcile/런타임 임포트가 갱신, CloseProject 에서 저장.
+	CAssetDatabase               m_assetDb;
+	bool                         m_assetDbDirty = false;
+	AssetReconcileReport         m_lastReconcileReport;
+	// 파일 워처 폴링 스로틀(전체 트리 walk 비용 완화).
+	std::chrono::steady_clock::time_point m_lastWatchPollTime{};
 	mutable File::Path           m_lastOpenedScriptIdePath;
 	// 마지막 LiveCompile 실패 메시지 (소비형 — ConsumeLastLiveCompileFailure 로 회수).
 	std::string                  m_lastLiveCompileFailure;
+	// 비동기 자산 로드 — LoadProject 가 set, 모든 작업 완료 시 main thread 콜백에서 reset.
+	SafePtr<CTaskGroup>          m_loadTaskGroup;
+	// LoadProject 완료 시점에 실행되어야 하는 후처리 (live compile init 등).
+	// CTaskGroup 의 AllCompletedCallback 안에서 호출.
+	std::function<void()>        m_postLoadAction;
 	bool                         m_isInitialized = false;
 	bool                         m_isProjectLoaded = false;
 };

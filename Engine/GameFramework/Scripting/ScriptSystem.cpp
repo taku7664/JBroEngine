@@ -60,6 +60,38 @@ namespace
 	}
 }
 
+void CScriptSystem::EnsureEditTimeInstance(ScriptComponent& script)
+{
+	if (nullptr != script.Instance)
+	{
+		return;
+	}
+	if (INVALID_TYPE_ID == script.ScriptTypeId || false == Core::Reflection.IsValid())
+	{
+		return;
+	}
+
+	const ScriptTypeInfo* typeInfo = Core::Reflection->FindScript(script.ScriptTypeId);
+	if (nullptr == typeInfo)
+	{
+		return;   // DLL 미로드/등록 누락 — 인스펙터는 "대기 중" 으로 둔다.
+	}
+
+	ScriptInstanceHandle handle = Core::Reflection->CreateScriptInstance(script.ScriptTypeId);
+	if (nullptr == handle.Instance)
+	{
+		return;
+	}
+
+	script.SetInstance(std::move(handle));
+
+	// 저장돼 있던 값(PendingFields)을 인스턴스에 복원. Bind/Start 는 하지 않는다.
+	if (false == script.PendingFields.empty())
+	{
+		ApplyPendingFields(script, *typeInfo);
+	}
+}
+
 // ── OnUpdate ──────────────────────────────────────────────────────────────────
 // 2-pass 구조:
 //   Pass 1: 인스턴스 지연 생성 + Bind + Start(OnStart). 새로 시작한 스크립트는

@@ -7,6 +7,7 @@ class IPlatform;
 class IRenderSurface;
 class IRHIDevice;
 class IAssetManager;
+class IAudioDevice;
 class IRenderer;
 class IRenderScene;
 class CFileSystem;
@@ -31,6 +32,7 @@ struct EngineCore
 	SafePtr<IRenderSurface>       MainRenderSurface;
 	SafePtr<IRHIDevice>           RHIDevice;
 	SafePtr<IAssetManager>        AssetManager;
+	SafePtr<IAudioDevice>         Audio;
 	SafePtr<IRenderer>            Renderer;
 	SafePtr<IRenderScene>         RenderScene;
 	SafePtr<CDebug>               Debug;

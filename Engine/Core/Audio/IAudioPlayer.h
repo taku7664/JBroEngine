@@ -42,6 +42,19 @@ public:
 
 	// 특정 frame 으로 점프
 	virtual void Seek(std::uint64_t frame) = 0;
+	// 특정 초 위치로 점프. 기본 구현은 sample rate 가정으로 Seek 호출 — 정확한 변환은 backend 가 override.
+	virtual void SeekSeconds(double seconds)
+	{
+		const double dur = GetDurationSeconds();
+		if (dur <= 0.0) return;
+		const std::uint64_t curFrame = GetPositionFrames();
+		const double        curSec   = GetPositionSeconds();
+		if (curSec > 0.0 && curFrame > 0)
+		{
+			const double framesPerSec = static_cast<double>(curFrame) / curSec;
+			Seek(static_cast<std::uint64_t>(seconds * framesPerSec));
+		}
+	}
 
 	// ── 볼륨 / 피치 / 루프 ─────────────────────────────────────────────────
 	virtual void SetVolume(float volume) = 0;

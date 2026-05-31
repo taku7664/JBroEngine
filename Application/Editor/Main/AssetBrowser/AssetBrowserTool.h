@@ -2,6 +2,7 @@
 
 #include "Engine/Core/Asset/AssetTypes.h"
 #include "Engine/Editor/ImWindow/ImWindow.h"   // CImWindow 기반 클래스
+#include "ThirdParty/imgui/imgui.h"            // ImGuiSelectionBasicStorage, ImGuiID (다중 선택)
 #include "File/FilePath.h"
 #include "Utillity/SafePtr.h"
 
@@ -21,6 +22,11 @@ struct AssetBrowserEntry
 	bool IsDirectory = false;
 	bool HasMeta = false;
 	bool IsImportable = false;
+
+	// 다중 선택 저장소(ImGuiSelectionBasicStorage)용 안정적 식별자.
+	// RefreshCurrentFolderEntries 에서 AbsolutePathUtf8 의 해시로 1회 채운다.
+	// 경로 기반이라 같은 폴더 리프레시 후에도 동일 → 선택이 보존된다.
+	ImGuiID SelectionId = 0;
 
 	// ── 렌더 핫패스에서 사용되는 캐시 필드 ────────────────────────────────────
 	// RefreshCurrentFolderEntries 가 entry 생성 시 한 번만 채운다.
@@ -98,7 +104,11 @@ private:
 		// 루트가 Assets 일 때.  Path 는 부모 폴더, TargetPath 는 새 파일명(상대).
 		CreateScene,
 		CreateMaterial,
-		CreatePrefab
+		CreatePrefab,
+		// 드래그&드롭 이동 / 잘라내기-붙여넣기.  Path = 원본, TargetPath = 대상 폴더.
+		MoveInto,
+		// 복사-붙여넣기.  Path = 원본, TargetPath = 대상 폴더.
+		CopyInto
 	};
 
 	struct PendingOperation
@@ -137,7 +147,31 @@ private:
 	void OpenFolderTreeContextMenu(const File::Path& folderPath);
 	void DrawDeleteConfirmPopup();
 
+	// 단일 선택으로 교체(우클릭/프로그램적 선택). 기존 다중 선택을 모두 지운다.
 	void SelectEntry(const AssetBrowserEntry& entry);
+	// BeginMultiSelect/EndMultiSelect 가 돌려준 요청을 m_selection 에 반영하고,
+	// 사용자 상호작용으로 선택이 바뀐 프레임이면 Editor 선택 동기화를 예약한다.
+	void ApplyMultiSelectRequests(ImGuiMultiSelectIO* io);
+	// m_selection → Editor 선택 반영. 단일=SelectAsset, 다중/0=에셋 선택 해제.
+	void SyncEditorSelection();
+	// m_selection 에 포함된 엔트리들의 절대경로 목록(삭제 등 다중 처리용).
+	std::vector<File::Path> CollectSelectedPaths() const;
+
+	// ── 이동 / 잘라내기 / 복사 / 붙여넣기 ──────────────────────────────────────
+	// 우클릭 대상이 다중 선택에 포함돼 있으면 선택 전체를, 아니면 그 항목만 반환.
+	std::vector<File::Path> CollectOperationTargets(const File::Path& contextEntryPath) const;
+	// 드래그된 항목(m_dragPrimaryPath)이 선택에 포함되면 선택 전체를, 아니면 그 항목만
+	// targetFolder 로 이동(MoveInto) 큐잉.
+	void DropAssetsIntoFolder(const File::Path& targetFolder);
+	// paths 를 잘라내기/복사 클립보드에 적재.
+	void CutToClipboard(std::vector<File::Path> paths);
+	void CopyToClipboard(std::vector<File::Path> paths);
+	// 클립보드 항목을 targetFolder 로 이동(cut)/복사(copy).  cut 은 적용 후 비운다.
+	void PasteIntoFolder(const File::Path& targetFolder);
+	// source 를 targetFolder 에 배치 가능한지. 공통: 같은 루트 + 폴더 자신/하위 금지.
+	// isMove==true 면 "이미 그 폴더에 있음"도 금지(이동). 복사는 같은 폴더 사본을 허용.
+	bool CanPlaceInto(const File::Path& source, const File::Path& targetFolder, bool isMove) const;
+
 	void OpenEntry(const AssetBrowserEntry& entry);
 	void StartRename(const AssetBrowserEntry& entry);
 	// 갓 만든 파일에 대해 entry 가 등장하기 전이라도 rename 모드를 예약한다.
@@ -162,7 +196,6 @@ private:
 	bool ResolveRoot(const File::Path& path, File::Path& outRoot, File::Path& outRelative) const;
 	bool MakeAssetRelativePath(const File::Path& absolutePath, File::Path& outRelativePath) const;
 	bool ShouldShowPath(const File::Path& absolutePath, bool isDirectory) const;
-	const AssetBrowserEntry* FindSelectedEntry() const;
 
 private:
 	CAssetOpenDispatcher m_openDispatcher;
@@ -170,7 +203,20 @@ private:
 	File::Path m_assetRootPath;
 	File::Path m_scriptRootPath;
 	File::Path m_focusFolderPath;
+	// primary(활성) 선택 — Inspector 표시/이름변경 대상. 다중 선택의 대표 1개.
 	File::Path m_selectedEntryPath;
+
+	// 다중 선택 저장소. id = AssetBrowserEntry::SelectionId.
+	// ImGui Multi-Select(Box/Ctrl/Shift) 결과가 여기에 누적된다.
+	ImGuiSelectionBasicStorage m_selection;
+	// 이번 프레임 선택이 사용자 입력으로 바뀌었는지 — EndMultiSelect 후 Editor 동기화 트리거.
+	bool m_selectionChangedThisFrame = false;
+
+	// 드래그 시작된 항목의 절대경로 — 폴더 드롭 시 이동 소스 판정에 사용.
+	File::Path m_dragPrimaryPath;
+	// 잘라내기/복사 클립보드. m_clipboardIsCut == true 면 이동(붙여넣기 후 비움), false 면 복사.
+	std::vector<File::Path> m_clipboardPaths;
+	bool m_clipboardIsCut = false;
 
 	std::vector<AssetBrowserEntry> m_entries;
 	std::vector<std::size_t> m_filteredEntryIndices;
@@ -183,7 +229,8 @@ private:
 	std::string m_lastSearchText;
 	std::string m_renameBuffer;
 	File::Path m_renamingPath;
-	File::Path m_deleteTargetPath;
+	// 삭제 확인 팝업 대상 — 다중 선택 삭제를 위해 목록으로 보관.
+	std::vector<File::Path> m_deleteTargets;
 
 	// ── 컨텍스트 메뉴 상태 ────────────────────────────────────────────────────
 	// Body 팝업: entry 우클릭 시 m_bodyCtxEntryPath = entry.AbsolutePath,

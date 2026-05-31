@@ -21,9 +21,9 @@ const std::string& CTaskGroup::GetName() const
 	return m_name;
 }
 
-SafePtr<CTask> CTaskGroup::CreateTask(const char* name, CTask::TaskFunction function)
+SafePtr<CTask> CTaskGroup::CreateTask(const char* name, CTask::TaskFunction function, const char* description)
 {
-	return m_manager ? m_manager->CreateTask(name, std::move(function), SafeFromThis()) : nullptr;
+	return m_manager ? m_manager->CreateTask(name, std::move(function), SafeFromThis(), description) : nullptr;
 }
 
 std::uint32_t CTaskGroup::GetTotalTaskCount() const
@@ -47,6 +47,26 @@ bool CTaskGroup::IsCompleted() const
 {
 	const std::uint32_t total = GetTotalTaskCount();
 	return total > 0 && GetCompletedTaskCount() >= total;
+}
+
+std::vector<TaskProgressInfo> CTaskGroup::GetTaskProgressSnapshot() const
+{
+	std::vector<TaskProgressInfo> snapshot;
+	std::lock_guard lock(m_mutex);
+	snapshot.reserve(m_tasks.size());
+	for (const SafePtr<CTask>& task : m_tasks)
+	{
+		if (false == task.IsValid())
+		{
+			continue;
+		}
+		TaskProgressInfo info;
+		info.Name        = task->GetName();
+		info.Description  = task->GetDescription();
+		info.Completed    = task->IsFinished();
+		snapshot.push_back(std::move(info));
+	}
+	return snapshot;
 }
 
 void CTaskGroup::AddTask(SafePtr<CTask> task)

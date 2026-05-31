@@ -32,6 +32,8 @@ struct ImPopupDesc
 	EImPopupKind		Kind = EImPopupKind::Modal;
 	ImGuiWindowFlags	Flags = ImGuiWindowFlags_None;
 	ImVec2				InitSize = ImVec2( 0 , 0 );
+	// false 이면 타이틀바의 X(닫기) 버튼이 사라진다 — 사용자는 코드(Close)로만 닫을 수 있음.
+	bool				ShowCloseButton = true;
 	std::function<void(IImPopupWindow&)> OnRenderEnterFunc = nullptr;
 	std::function<void(IImPopupWindow&)> OnRenderStayFunc = nullptr;
 	std::function<void(IImPopupWindow&)> OnRenderExitFunc = nullptr;

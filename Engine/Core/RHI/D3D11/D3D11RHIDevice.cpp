@@ -113,8 +113,12 @@ bool CD3D11RHIDevice::Initialize(const RHIDesc& desc)
 		return false;
 	}
 
+	// Flip-model 스왑체인 — DXGI 의 권장 모드. 요구사항:
+	//   - BufferCount >= 2
+	//   - SampleDesc.Count == 1 (MSAA 백버퍼 직접 불가, RT 따로 만들어 resolve)
+	//   - Format: R8G8B8A8_UNORM / B8G8R8A8_UNORM / R8G8B8A8_UNORM_SRGB(별도 RTV) / R16G16B16A16_FLOAT
 	DXGI_SWAP_CHAIN_DESC swapchainDesc = {};
-	swapchainDesc.BufferCount = 1;
+	swapchainDesc.BufferCount = 2;
 	swapchainDesc.BufferDesc.Width = static_cast<UINT>(desc.Surface.Size.Width);
 	swapchainDesc.BufferDesc.Height = static_cast<UINT>(desc.Surface.Size.Height);
 	swapchainDesc.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -123,7 +127,7 @@ bool CD3D11RHIDevice::Initialize(const RHIDesc& desc)
 	swapchainDesc.SampleDesc.Count = 1;
 	swapchainDesc.SampleDesc.Quality = 0;
 	swapchainDesc.Windowed = TRUE;
-	swapchainDesc.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
+	swapchainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
 
 	UINT createDeviceFlags = 0;
 	if (desc.EnableDebugLayer)

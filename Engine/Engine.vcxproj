@@ -425,6 +425,8 @@
     <ClInclude Include="GameFramework\Component\PrefabInstance.h" />
     <ClInclude Include="GameFramework\Prefab\PrefabSerializer.h" />
     <ClInclude Include="GameFramework\Prefab\PrefabTypes.h" />
+    <ClInclude Include="GameFramework\Audio\AudioSystem.h" />
+    <ClInclude Include="GameFramework\Component\AudioComponents.h" />
     <ClInclude Include="GameFramework\Rendering\SpriteRenderSystem.h" />
     <ClInclude Include="GameFramework\Scene\Scene.h" />
     <ClInclude Include="GameFramework\Scene\SceneManager.h" />
@@ -434,6 +436,8 @@
     <ClInclude Include="GameFramework\System\GameSystem.h" />
     <ClInclude Include="Editor\ImEditor.h" />
     <ClInclude Include="Editor\ImGuiUtillity.h" />
+    <ClInclude Include="Editor\ImItem\ImAudioVisualizer.h" />
+    <ClInclude Include="Editor\ImItem\ImSpectrumVisualizer.h" />
     <ClInclude Include="Editor\ImItem\ImText.h" />
     <ClInclude Include="Editor\ImWindow\IImPopupWindow.h" />
     <ClInclude Include="Editor\ImWindow\IImWindow.h" />
@@ -456,6 +460,7 @@
     <ClInclude Include="Editor\ScriptModule\ScriptModuleLoader.h" />
     <ClInclude Include="Editor\Project\GameScriptProjectGenerator.h" />
     <ClInclude Include="Editor\Project\ProjectManager.h" />
+    <ClInclude Include="Editor\Project\AssetDatabase.h" />
     <ClInclude Include="Editor\Project\ProjectTypes.h" />
     <ClInclude Include="Framework.h" />
     <ClInclude Include="Editor\ImItem\ImTree.h" />
@@ -606,6 +611,7 @@
     <ClCompile Include="GameFramework\Object\GameObject.cpp" />
     <ClCompile Include="GameFramework\Component\GameObjectComponent.cpp" />
     <ClCompile Include="GameFramework\Prefab\PrefabSerializer.cpp" />
+    <ClCompile Include="GameFramework\Audio\AudioSystem.cpp" />
     <ClCompile Include="GameFramework\Rendering\SpriteRenderSystem.cpp" />
     <ClCompile Include="GameFramework\Scene\Scene.cpp" />
     <ClCompile Include="GameFramework\Scene\SceneManager.cpp" />
@@ -616,6 +622,12 @@
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="Editor\ImGuiUtillity.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Editor\ImItem\ImAudioVisualizer.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Editor\ImItem\ImSpectrumVisualizer.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="Editor\ImItem\ImText.cpp">
@@ -661,6 +673,9 @@
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="Editor\Project\ProjectManager.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Editor\Project\AssetDatabase.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="Editor\ImItem\ImTree.cpp">
