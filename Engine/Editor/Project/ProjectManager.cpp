@@ -47,6 +47,7 @@ namespace
 	constexpr const char* PROJECT_KEY_PIXELS_PER_UNIT   = "PixelsPerUnit";
 	constexpr const char* PROJECT_KEY_EDITOR_LOCALE     = "EditorLocale";
 	constexpr const char* PROJECT_KEY_IMGUI_INI         = "ImGuiIniSettings";
+	constexpr const char* PROJECT_KEY_WATCH_IGNORE      = "AssetWatchIgnorePatterns";
 	constexpr const char* PROJECT_KEY_BUILD             = "Build";
 	constexpr const char* PROJECT_KEY_BUILD_PRODUCT_NAME = "ProductName";
 	constexpr const char* PROJECT_KEY_BUILD_TARGET_PLATFORM = "TargetPlatform";
@@ -374,6 +375,42 @@ namespace
 			CSystemLog::Error(std::string("  ") + line);
 		}
 	}
+
+	// glob 매칭 — '*'(0+ 문자), '?'(임의 1 문자). 백트래킹 단순 구현.
+	// 패턴은 보통 짧고(파일명 수준) 자산 import 핫패스가 아니므로 단순 재귀로 충분.
+	bool GlobMatch(const char* pattern, const char* text)
+	{
+		while (*pattern)
+		{
+			if ('*' == *pattern)
+			{
+				while ('*' == *(pattern + 1)) ++pattern;        // 연속 '*' 압축
+				if ('\0' == *(pattern + 1)) return true;        // 패턴 끝의 '*' — 무엇이든 매칭
+				for (const char* t = text; *t; ++t)
+				{
+					if (GlobMatch(pattern + 1, t)) return true;
+				}
+				return GlobMatch(pattern + 1, text);            // text 끝까지 와도 '*' 가 빈 매칭 가능
+			}
+			if ('\0' == *text) return false;
+			if ('?' != *pattern && *pattern != *text) return false;
+			++pattern; ++text;
+		}
+		return '\0' == *text;
+	}
+
+	// 한 경로가 패턴 집합 중 하나에라도 매칭되는지. 패턴은 파일명 또는 (슬래시 포함 시) 상대경로에 매칭.
+	bool MatchAnyPattern(const std::vector<std::string>& patterns, const std::string& fileName, const std::string& relativePath)
+	{
+		for (const std::string& pattern : patterns)
+		{
+			if (pattern.empty()) continue;
+			// 슬래시가 들어있는 패턴은 상대경로 전체에, 아니면 파일명에 매칭.
+			const std::string& target = (pattern.find('/') != std::string::npos) ? relativePath : fileName;
+			if (GlobMatch(pattern.c_str(), target.c_str())) return true;
+		}
+		return false;
+	}
 }
 
 bool CProjectManager::Initialize(const EngineCore& context)
@@ -596,6 +633,19 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 		imguiIniSettings = root[PROJECT_KEY_IMGUI_INI].as<std::string>("");
 	}
 
+	// AssetWatchIgnorePatterns — 키가 있으면 그 값으로 덮어쓰고, 없으면 ProjectInfo 의 기본값(임시파일 패턴) 유지.
+	std::vector<std::string> assetWatchIgnorePatterns;
+	bool hasAssetWatchIgnorePatterns = false;
+	if (root[PROJECT_KEY_WATCH_IGNORE] && root[PROJECT_KEY_WATCH_IGNORE].IsSequence())
+	{
+		hasAssetWatchIgnorePatterns = true;
+		for (const YAML::Node& patternNode : root[PROJECT_KEY_WATCH_IGNORE])
+		{
+			std::string pattern = patternNode.as<std::string>("");
+			if (false == pattern.empty()) assetWatchIgnorePatterns.push_back(std::move(pattern));
+		}
+	}
+
 	float pixelsPerUnit = 100.0f;
 	if (root[PROJECT_KEY_PIXELS_PER_UNIT])
 	{
@@ -670,6 +720,11 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 	m_info.PixelsPerUnit       = pixelsPerUnit;
 	m_info.EditorLocaleCode    = editorLocaleCode;
 	m_info.ImGuiIniSettings    = imguiIniSettings;
+	if (hasAssetWatchIgnorePatterns)
+	{
+		m_info.AssetWatchIgnorePatterns = std::move(assetWatchIgnorePatterns);
+	}
+	// else: ProjectInfo 의 기본값(*.tmp 등 임시 파일 패턴) 그대로 유지.
 
 	if (false == m_assetManager->SetAssetRootPath(m_info.AssetPath))
 	{
@@ -1603,6 +1658,17 @@ void CProjectManager::ProcessAssetEvent(const FileWatchEvent& event)
 		return;
 	}
 
+	// .Jmeta 의 Created/Modified 는 자기-반향(에디터가 직접 쓴 .Jmeta 를 워처가 다시 잡는 케이스).
+	// 자산 옵션은 IAsset::ApplyImportOptions 경로로 메모리에 in-place 갱신되므로 워처 처리 불필요.
+	// 외부 .Jmeta 변경(git pull 등) 동기화는 현재 지원 범위 밖 — tasks/asset-system-followups.md P9 참조.
+	// 단 Deleted .Jmeta 는 아래 분기에서 별도로 처리 (raw 살아있으면 메타 재생성).
+	if (EFileWatchEventType::Deleted != event.Type
+		&& false == event.Path.empty()
+		&& CAssetPath::IsMetaPath(event.Path.generic_string().c_str()))
+	{
+		return;
+	}
+
 	if (EFileWatchEventType::Deleted == event.Type)
 	{
 		std::string relativePath;
@@ -1693,6 +1759,12 @@ bool CProjectManager::ImportOrReloadAsset(const File::Path& absolutePath, bool l
 bool CProjectManager::IsImportableAssetPath(const File::Path& absolutePath) const
 {
 	if (absolutePath.empty() || CAssetPath::IsMetaPath(absolutePath.generic_string().c_str()))
+	{
+		return false;
+	}
+
+	// 사용자 설정의 무시 패턴(예: *.tmp, ~$*, *.swp)에 매칭되면 자산 import 시도하지 않는다.
+	if (IsAssetPathIgnored(absolutePath))
 	{
 		return false;
 	}
@@ -1860,6 +1932,36 @@ void CProjectManager::SetPixelsPerUnit(float ppu)
 	m_info.PixelsPerUnit = (ppu >= 1.0f) ? ppu : 100.0f;
 	// 런타임(스프라이트 폴백)도 즉시 반영 — ProjectSettings Apply 등에서 호출되면 다음 프레임부터 렌더 반영.
 	Engine.PixelsPerUnit = m_info.PixelsPerUnit;
+}
+
+const std::vector<std::string>& CProjectManager::GetAssetWatchIgnorePatterns() const
+{
+	return m_info.AssetWatchIgnorePatterns;
+}
+
+void CProjectManager::SetAssetWatchIgnorePatterns(std::vector<std::string> patterns)
+{
+	m_info.AssetWatchIgnorePatterns = std::move(patterns);
+}
+
+bool CProjectManager::IsAssetPathIgnored(const File::Path& absoluteOrRelativePath) const
+{
+	if (absoluteOrRelativePath.empty()) return false;
+	if (m_info.AssetWatchIgnorePatterns.empty()) return false;
+
+	const std::string fileName = absoluteOrRelativePath.filename().generic_string();
+
+	// 상대경로 산출 — AssetPath 기준. 실패 시 절대경로의 generic 문자열을 사용 (그 경우 슬래시 패턴은 매칭 약함).
+	std::string relativePath;
+	if (false == m_info.AssetPath.empty())
+	{
+		std::error_code ec;
+		std::filesystem::path rel = std::filesystem::relative(absoluteOrRelativePath, m_info.AssetPath, ec);
+		if (!ec) relativePath = rel.generic_string();
+	}
+	if (relativePath.empty()) relativePath = absoluteOrRelativePath.generic_string();
+
+	return MatchAnyPattern(m_info.AssetWatchIgnorePatterns, fileName, relativePath);
 }
 
 float CProjectManager::GetSceneViewCamX() const
@@ -2305,6 +2407,13 @@ bool CProjectManager::SaveProject(std::string* outError) const
 	{
 		out << YAML::Key << PROJECT_KEY_LAST_SCENE_PATH << YAML::Value << m_info.LastOpenedScenePath;
 	}
+	out << YAML::Key << PROJECT_KEY_WATCH_IGNORE << YAML::Value;
+	out << YAML::BeginSeq;
+	for (const std::string& pattern : m_info.AssetWatchIgnorePatterns)
+	{
+		out << pattern;
+	}
+	out << YAML::EndSeq;
 	if (false == m_info.ImGuiIniSettings.empty())
 	{
 		out << YAML::Key << PROJECT_KEY_IMGUI_INI << YAML::Value << YAML::Literal << m_info.ImGuiIniSettings;

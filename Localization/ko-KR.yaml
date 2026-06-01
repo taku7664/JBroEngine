@@ -101,6 +101,10 @@ Entries:
   project_settings.category.script: 스크립트
   project_settings.category.localization: 로컬라이징
   project_settings.category.audio: 사운드
+  project_settings.category.asset_watcher: 자산 워처
+  project_settings.asset_watcher.title: 자산 워처 무시 패턴
+  project_settings.asset_watcher.desc: 한 줄당 하나의 glob 패턴. 매칭된 파일은 자산 import 시도에서 제외됩니다.
+  project_settings.asset_watcher.syntax_hint: "예: *.tmp, ~$*, Temp/*.png. '*'=0+ 문자, '?'=임의 1 문자. 슬래시(/) 포함 패턴은 상대경로 전체에 매칭, 아니면 파일명에만 매칭."
   project_settings.audio: 사운드
   project_settings.audio.master_volume: 마스터 볼륨
   project_settings.audio.buses_help: 버스(채널) 별 볼륨/효과 설정은 추후 추가될 예정입니다.

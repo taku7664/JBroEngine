@@ -119,6 +119,13 @@ public:
 	const std::string& GetImGuiIniSettings() const;
 	void               SetImGuiIniSettings(const std::string& iniSettings);
 
+	// 자산 워처 무시 패턴 — glob (* / ?). 외부 도구 임시 파일(*.tmp, ~$*, *.swp 등) 을
+	// 자산 import 시도에서 거른다. 사용자가 ProjectSettings 의 "Asset Watcher" 카테고리에서 편집.
+	const std::vector<std::string>& GetAssetWatchIgnorePatterns() const;
+	void                            SetAssetWatchIgnorePatterns(std::vector<std::string> patterns);
+	// 경로(절대 또는 상대) 가 현재 무시 패턴 중 하나에라도 매칭되는지.
+	bool IsAssetPathIgnored(const File::Path& absoluteOrRelativePath) const;
+
 	// 스크립트 DLL 로드/언로드
 	bool LoadScriptModule();
 	void UnloadScriptModule();

@@ -90,5 +90,17 @@ struct ProjectInfo
 	// 프로젝트별 에디터 상태
 	std::string EditorLocaleCode = "ko-KR";
 	std::string ImGuiIniSettings;
+
+	// 자산 워처 무시 패턴 — glob (* / ?) 한 줄당 하나의 패턴.
+	// 패턴은 Assets 폴더 기준 상대경로 또는 파일명에 매칭된다.
+	// 외부 도구 임시 파일(*.tmp, ~$*, *.swp 등) 을 자산 import 시도에서 거른다.
+	// 사용자는 ProjectSettings 의 "Asset Watcher" 카테고리에서 직접 편집 가능.
+	std::vector<std::string> AssetWatchIgnorePatterns = {
+		"*.tmp",
+		"*.swp",
+		"~$*",
+		".DS_Store",
+		"Thumbs.db",
+	};
 };
 

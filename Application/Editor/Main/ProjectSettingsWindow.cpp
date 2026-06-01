@@ -78,6 +78,7 @@ void CProjectSettingsWindow::OnShow()
 
         m_scriptBuildConfiguration = EScriptBuildConfiguration::Release == pm->GetScriptBuildConfiguration() ? 1 : 0;
         m_scriptAutoRebuildEnabled = pm->IsScriptAutoRebuildEnabled();
+        m_editAssetWatchIgnorePatterns = pm->GetAssetWatchIgnorePatterns();
     }
 
     if (Core::Localization.IsValid())
@@ -137,10 +138,11 @@ void CProjectSettingsWindow::DrawCategoryList(float)
 {
     struct CategoryEntry { ECategory Kind; const char* LocKey; };
     static const CategoryEntry kCategories[] = {
-        { ECategory::General,      "project_settings.category.general"      },
-        { ECategory::Script,       "project_settings.category.script"       },
-        { ECategory::Localization, "project_settings.category.localization" },
-        { ECategory::Audio,        "project_settings.category.audio"        },
+        { ECategory::General,      "project_settings.category.general"       },
+        { ECategory::Script,       "project_settings.category.script"        },
+        { ECategory::Localization, "project_settings.category.localization"  },
+        { ECategory::Audio,        "project_settings.category.audio"         },
+        { ECategory::AssetWatcher, "project_settings.category.asset_watcher" },
     };
 
     for (const CategoryEntry& entry : kCategories)
@@ -161,6 +163,7 @@ void CProjectSettingsWindow::DrawCategoryContent(float)
     case ECategory::Script:       DrawCategoryScript();       break;
     case ECategory::Localization: DrawCategoryLocalization(); break;
     case ECategory::Audio:        DrawCategoryAudio();        break;
+    case ECategory::AssetWatcher: DrawCategoryAssetWatcher(); break;
     default: break;
     }
 }
@@ -363,6 +366,67 @@ void CProjectSettingsWindow::DrawCategoryAudio()
     // 추가 UI 가 들어간다.
 }
 
+void CProjectSettingsWindow::DrawCategoryAssetWatcher()
+{
+    ImGui::SeparatorText(Loc::Text("project_settings.asset_watcher.title"));
+    ImGui::TextWrapped("%s", Loc::Text("project_settings.asset_watcher.desc"));
+    ImGui::Spacing();
+
+    // 한 줄 = 하나의 패턴. 임시 버퍼 문자열 ↔ 벡터 변환.
+    // 매 프레임 동기화하지 않고 사용자가 직접 편집 후 Apply 누를 때 ProjectManager 에 set.
+    static std::string s_buffer;
+    static const std::vector<std::string>* s_lastVec = nullptr;
+    if (&m_editAssetWatchIgnorePatterns != s_lastVec)
+    {
+        s_buffer.clear();
+        for (const std::string& line : m_editAssetWatchIgnorePatterns)
+        {
+            s_buffer += line;
+            s_buffer.push_back('\n');
+        }
+        s_lastVec = &m_editAssetWatchIgnorePatterns;
+    }
+
+    const ImVec2 boxSize(ImGui::GetContentRegionAvail().x, ImGui::GetTextLineHeightWithSpacing() * 14.0f);
+    s_buffer.reserve(s_buffer.size() + 1024);
+    if (ImGui::InputTextMultiline("##ps.asset_watcher.patterns",
+        s_buffer.data(), s_buffer.capacity(),
+        boxSize, ImGuiInputTextFlags_CallbackResize,
+        [](ImGuiInputTextCallbackData* data) -> int
+        {
+            if (data->EventFlag == ImGuiInputTextFlags_CallbackResize)
+            {
+                std::string* buf = static_cast<std::string*>(data->UserData);
+                buf->resize(data->BufTextLen);
+                data->Buf = buf->data();
+            }
+            return 0;
+        }, &s_buffer))
+    {
+        // 편집됨 — 다음 프레임에 벡터로 재파싱.
+        m_editAssetWatchIgnorePatterns.clear();
+        std::size_t start = 0;
+        for (std::size_t i = 0; i <= s_buffer.size(); ++i)
+        {
+            if (i == s_buffer.size() || '\n' == s_buffer[i] || '\r' == s_buffer[i])
+            {
+                if (i > start)
+                {
+                    std::string line(s_buffer, start, i - start);
+                    // 양끝 공백 트림
+                    while (false == line.empty() && (line.front() == ' ' || line.front() == '\t')) line.erase(line.begin());
+                    while (false == line.empty() && (line.back()  == ' ' || line.back()  == '\t')) line.pop_back();
+                    if (false == line.empty()) m_editAssetWatchIgnorePatterns.push_back(std::move(line));
+                }
+                start = i + 1;
+            }
+        }
+    }
+
+    ImGui::Spacing();
+    ImGui::TextDisabled("%s", Loc::Text("project_settings.asset_watcher.syntax_hint"));
+}
+
 void CProjectSettingsWindow::DrawFooterButtons()
 {
     SafePtr<CProjectManager> pm = GetProjectManagerForSettings();
@@ -384,6 +448,7 @@ void CProjectSettingsWindow::DrawFooterButtons()
             pm->SetScriptBuildConfiguration(1 == m_scriptBuildConfiguration
                 ? EScriptBuildConfiguration::Release : EScriptBuildConfiguration::Debug);
             pm->SetScriptAutoRebuildEnabled(m_scriptAutoRebuildEnabled);
+            pm->SetAssetWatchIgnorePatterns(m_editAssetWatchIgnorePatterns);
         }
         if (Core::Localization.IsValid())
         {

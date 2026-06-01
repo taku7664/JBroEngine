@@ -101,6 +101,10 @@ Entries:
   project_settings.category.script: Script
   project_settings.category.localization: Localization
   project_settings.category.audio: Audio
+  project_settings.category.asset_watcher: Asset Watcher
+  project_settings.asset_watcher.title: Asset Watch Ignore Patterns
+  project_settings.asset_watcher.desc: One glob pattern per line. Matching files are excluded from asset import.
+  project_settings.asset_watcher.syntax_hint: "e.g. *.tmp, ~$*, Temp/*.png. '*' matches 0+ chars, '?' any single char. Patterns containing '/' match the relative path; otherwise the file name only."
   project_settings.audio: Audio
   project_settings.audio.master_volume: Master Volume
   project_settings.audio.buses_help: Per-bus (channel) volume / effect controls coming soon.

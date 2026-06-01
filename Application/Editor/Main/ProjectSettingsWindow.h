@@ -7,6 +7,7 @@
 #include "Engine/Editor/ImWindow/ImCustomWindow.h"
 
 #include <string>
+#include <vector>
 
 class CProjectSettingsWindow : public CImCustomWindow
 {
@@ -21,6 +22,7 @@ public:
         Script,         // 빌드 구성, 자동 리빌드
         Localization,   // 언어
         Audio,          // 마스터 볼륨, 버스 (향후 확장)
+        AssetWatcher,   // 자산 워처 무시 패턴
         Count
     };
 
@@ -38,6 +40,7 @@ private:
     void DrawCategoryScript();
     void DrawCategoryLocalization();
     void DrawCategoryAudio();
+    void DrawCategoryAssetWatcher();
 
     // 하단 Apply / Cancel
     void DrawFooterButtons();
@@ -54,6 +57,10 @@ private:
 
     // 오디오 (향후 PR D 의 CAudioService 와 연동)
     float m_masterVolume = 1.0f;
+
+    // 자산 워처 무시 패턴 — 한 줄당 하나의 glob 패턴 (예: *.tmp, ~$*).
+    // Apply 시 ProjectManager 에 set.
+    std::vector<std::string> m_editAssetWatchIgnorePatterns;
 
     // UI 상태
     ECategory m_selectedCategory = ECategory::General;
