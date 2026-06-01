@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Editor/Build/GameBuildManager.h"          // CGameBuildManager, GameBuildSnapshot
 #include "Editor/LiveCompile/LiveCompileTypes.h"
 #include "Engine/Editor/ImWindow/ImDockWindow.h"   // CImDockWindow 기반 클래스
 #include "Engine/Editor/ImWindow/IImPopupWindow.h" // IImPopupWindow 시그니처
@@ -34,6 +35,12 @@ private:
 	// 메뉴바 우측에 스크립트 빌드 상태(스피너 + 텍스트) 표시
 	void DrawLiveCompileMenuBarStatus();
 
+	void StartGameBuild();
+	void OpenBuildBlockedPopup(std::string message);
+	void RenderBuildBlockedPopup(IImPopupWindow& popup);
+	void EnsureBuildProgressPopup();
+	void RenderBuildProgressPopup(IImPopupWindow& popup);
+
 	File::Path m_newProjectParentFolder;
 	std::array<char, 128> m_newProjectNameBuf = {};
 	std::string m_newProjectError;
@@ -58,4 +65,12 @@ private:
 	// 자산 정합성 요약 팝업 1회 표시용 — 프로젝트 로드 전이(false→true) 감지.
 	bool              m_wasProjectLoaded        = false;
 	AssetReconcileReport m_reconcileSummary     = {};
+
+	// ── 게임 빌드(패키징) ─────────────────────────────────────────────────────
+	// StartGameBuild 가 백그라운드 워커를 띄우고, 진행 상황은 OpenPopup 으로 띄운
+	// 모달 팝업(m_buildPopupHandle)에서 GetSnapshot() 으로 폴링해 표시한다.
+	CGameBuildManager m_buildManager;
+	PopupHandle       m_buildPopupHandle        = INVALID_POPUP_HANDLE;
+	PopupHandle       m_buildBlockedPopupHandle = INVALID_POPUP_HANDLE;
+	std::string       m_buildBlockedMessage;
 };

@@ -109,6 +109,10 @@ public:
 	const std::string& GetLastOpenedScenePath() const;
 	void               SetLastOpenedScenePath(const std::string& relativePath);
 
+	// 게임 빌드본 생성 설정
+	const ProjectBuildSettings& GetBuildSettings() const;
+	void SetBuildSettings(const ProjectBuildSettings& settings);
+
 	// 프로젝트별 에디터 상태
 	const std::string& GetEditorLocaleCode() const;
 	void               SetEditorLocaleCode(const std::string& localeCode);
@@ -134,7 +138,7 @@ public:
 	std::string ConsumeLastLiveCompileFailure();
 
 	// .Jproject 파일로 현재 설정을 저장합니다.
-	bool SaveProject() const;
+	bool SaveProject(std::string* outError = nullptr) const;
 
 	// ── Visual Studio 연동 ────────────────────────────────────────────────────
 	// 스크립트 소스 디렉토리 기준으로 .sln / .vcxproj 를 찾는다.

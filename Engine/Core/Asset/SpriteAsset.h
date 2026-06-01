@@ -43,7 +43,8 @@ struct SpriteImportOptions
 	// 피벗 / PPU
 	float PivotX        = 0.5f;
 	float PivotY        = 0.5f;
-	float PixelsPerUnit = 100.0f;
+	// 0 이면 프로젝트 세팅의 Default PPU 로 폴백(자산별 미지정). 0 보다 크면 그 값으로 오버라이드.
+	float PixelsPerUnit = 0.0f;
 };
 
 struct SpriteFrame
@@ -101,6 +102,10 @@ public:
 	const SpriteImportOptions&     GetImportOptions() const;
 	const std::vector<SpriteFrame>& GetFrames() const;
 	void SetImportData(const SpriteImportOptions& options, std::vector<SpriteFrame>&& frames);
+
+	// 자산이 실제 사용할 PPU. 임포트 옵션의 PixelsPerUnit 가 0 이면 fallback 사용.
+	// fallback 은 보통 프로젝트의 Default PPU. 둘 다 0 이하면 1.0f 로 안전 폴백.
+	float GetEffectivePixelsPerUnit(float fallback) const;
 
 private:
 	AssetMetaData               m_metaData;

@@ -14,6 +14,7 @@ Engine/Core/Asset/AudioAsset.cpp
 Engine/Core/Asset/FileAsset.cpp
 Engine/Core/Asset/MaterialAsset.cpp
 Engine/Core/Asset/SpriteAsset.cpp
+Engine/Core/Build/BuildManifest.cpp
 Engine/Core/Audio/EmptyAudio/EmptyAudioDevice.cpp
 Engine/Core/Debug/Debug.cpp
 Engine/Core/Debug/DebugDraw.cpp
@@ -21,6 +22,7 @@ Engine/Core/Debug/DebugDraw2D.cpp
 Engine/Core/Engine.cpp
 Engine/Core/EngineCore.cpp
 Engine/Core/FileSystem/FileSystem.cpp
+Engine/Core/Game/GameModuleLoader.cpp
 Engine/Core/Input/Input.cpp
 Engine/Core/Logging/Logger.cpp
 Engine/Core/Math/MathService.cpp

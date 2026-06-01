@@ -1,10 +1,12 @@
 #pragma once
 
-#include <string>
+#include "Engine/Editor/Project/ProjectTypes.h"
 
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
 
 #include "Engine/Editor/ImWindow/ImCustomWindow.h"
+
+#include <string>
 
 class CProjectSettingsWindow : public CImCustomWindow
 {
@@ -48,6 +50,7 @@ private:
 
     int   m_scriptBuildConfiguration = 0;
     bool  m_scriptAutoRebuildEnabled = false;
+    std::string m_errorMessage;
 
     // 오디오 (향후 PR D 의 CAudioService 와 연동)
     float m_masterVolume = 1.0f;

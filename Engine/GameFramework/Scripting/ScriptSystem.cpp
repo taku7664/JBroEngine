@@ -15,7 +15,11 @@ namespace
 	// ScriptComponent::PendingFields 를 인스턴스에 적용한다.
 	// 이름으로 프로퍼티를 찾아 raw bytes 를 memcpy 하므로,
 	// DLL 교체로 오프셋이 바뀌어도 안전하게 복원된다.
-	void ApplyPendingFields(ScriptComponent& script, const ScriptTypeInfo& typeInfo)
+	// clearAfter=false 면 적용 후 PendingFields 를 보존한다. 에디트타임 미리보기
+	// 인스턴스가 PendingFields 를 소비해버리면, Play 진입 시 새로 만들어지는 인스턴스가
+	// 복원할 값을 잃기 때문(= Ref/Asset 등이 Play 에서 비어버리는 버그). 에디트타임에는
+	// 보존하고, 실제 Play 의 지연 생성 경로에서만 소비(clear)한다.
+	void ApplyPendingFields(ScriptComponent& script, const ScriptTypeInfo& typeInfo, bool clearAfter = true)
 	{
 		if (script.PendingFields.empty() || nullptr == script.Instance)
 		{
@@ -30,11 +34,18 @@ namespace
 				{
 					continue;
 				}
+				// Text 로 보존되는 타입들(raw Data 미사용): AssetGuid(File::Guid), Ref(RefBase POD 버퍼), String.
+				const bool assetGuidPair =
+					(EReflectPropertyType::AssetGuid == pending.Type && EReflectPropertyType::AssetGuid == prop.Type);
+				const bool refPair =
+					(EReflectPropertyType::Ref       == pending.Type && EReflectPropertyType::Ref       == prop.Type);
+				const bool stringPair =
+					(EReflectPropertyType::String    == pending.Type && EReflectPropertyType::String    == prop.Type);
+
 				if (pending.Data.size() != prop.Size)
 				{
-					// 타입/크기가 바뀐 경우 무시 (기본값 유지)
-					if ((EReflectPropertyType::AssetGuid != pending.Type || EReflectPropertyType::AssetGuid != prop.Type)
-						&& (EReflectPropertyType::String != pending.Type || EReflectPropertyType::String != prop.Type))
+					// 타입/크기가 바뀐 경우 무시 (기본값 유지). 단 Text 기반은 예외.
+					if (false == assetGuidPair && false == refPair && false == stringPair)
 					{
 						break;
 					}
@@ -45,11 +56,16 @@ namespace
 				{
 					break;
 				}
-				if (EReflectPropertyType::AssetGuid == prop.Type && EReflectPropertyType::AssetGuid == pending.Type)
+				if (assetGuidPair)
 				{
 					*static_cast<File::Guid*>(field) = File::Guid(pending.Text);
 				}
-				else if (EReflectPropertyType::String == prop.Type && EReflectPropertyType::String == pending.Type)
+				else if (refPair)
+				{
+					// Ref 는 POD 버퍼 — 호스트가 써도 게임 DLL 이 동일 바이트로 읽는다.
+					static_cast<RefBase*>(field)->SetGuidText(pending.Text.c_str());
+				}
+				else if (stringPair)
 				{
 					*static_cast<std::string*>(field) = pending.Text;
 				}
@@ -61,7 +77,10 @@ namespace
 			}
 		}
 
-		script.PendingFields.clear();
+		if (clearAfter)
+		{
+			script.PendingFields.clear();
+		}
 	}
 }
 
@@ -91,9 +110,11 @@ void CScriptSystem::EnsureEditTimeInstance(ScriptComponent& script)
 	script.SetInstance(std::move(handle));
 
 	// 저장돼 있던 값(PendingFields)을 인스턴스에 복원. Bind/Start 는 하지 않는다.
+	// clearAfter=false: 에디트타임 미리보기는 PendingFields 를 소비하지 않는다.
+	// (Play 진입 시 새 인스턴스가 같은 값을 복원할 수 있어야 함.)
 	if (false == script.PendingFields.empty())
 	{
-		ApplyPendingFields(script, *typeInfo);
+		ApplyPendingFields(script, *typeInfo, /*clearAfter*/ false);
 	}
 }
 

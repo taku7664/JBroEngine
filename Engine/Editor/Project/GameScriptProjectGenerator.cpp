@@ -28,6 +28,9 @@ namespace
 		std::string RangeMin;
 		std::string RangeMax;
 		bool        NoSerialize = false;   // JPROP(NoSerialize) — 인스펙터 노출, 씬 저장 제외
+
+		bool        IsRef = false;         // Ref<X> 필드인가
+		std::string RefTypeName;           // 드롭 필터/표시용 단순 타입명("X", 네임스페이스 제거)
 	};
 
 	struct ScriptClassDesc
@@ -55,7 +58,25 @@ namespace
 		if (cppType == "Vector2")                                      { outEnum = "EReflectPropertyType::Vector2Float";  return true; }
 		if (cppType == "Rect")                                         { outEnum = "EReflectPropertyType::RectFloat";     return true; }
 		if (cppType == "Asset" || cppType == "AssetGuid" || cppType == "File::Guid") { outEnum = "EReflectPropertyType::AssetGuid"; return true; }
+		// Ref<X> — 오브젝트/컴포넌트/스크립트/에셋 참조. 카테고리/타입명은 호출부에서 추출.
+		if (cppType.rfind("Ref<", 0) == 0 && cppType.back() == '>') { outEnum = "EReflectPropertyType::Ref"; return true; }
 		return false;
+	}
+
+	// "Ref<Game::Foo>" → 단순 타입명 "Foo" (드롭 필터/표시용). Ref 가 아니면 빈 문자열.
+	std::string ExtractRefSimpleTypeName(const std::string& cppType)
+	{
+		const std::size_t lt = cppType.find('<');
+		const std::size_t gt = cppType.rfind('>');
+		if (lt == std::string::npos || gt == std::string::npos || gt <= lt + 1)
+		{
+			return std::string();
+		}
+		std::string inner = cppType.substr(lt + 1, gt - lt - 1);
+		inner.erase(std::remove_if(inner.begin(), inner.end(),
+			[](unsigned char c) { return std::isspace(c); }), inner.end());
+		const std::size_t colon = inner.rfind("::");
+		return (colon == std::string::npos) ? inner : inner.substr(colon + 2);
 	}
 
 	// JPROP(...) 어트리뷰트 인자에서 메타데이터를 추출한다.
@@ -367,8 +388,13 @@ namespace
 				if (false == MapScriptPropType(prop.CppType, prop.EnumType))
 				{
 					CSystemLog::Warning("[JPROP] " + ownerName + "." + prop.Name
-						+ ": unsupported type '" + prop.CppType + "' - excluded. Supported: Bool, Int, UInt, Float, Degree, Radian, String, Vector2, Rect, Asset.");
+						+ ": unsupported type '" + prop.CppType + "' - excluded. Supported: Bool, Int, UInt, Float, Degree, Radian, String, Vector2, Rect, Asset, Ref<T>.");
 					continue;
+				}
+				if (prop.EnumType == "EReflectPropertyType::Ref")
+				{
+					prop.IsRef       = true;
+					prop.RefTypeName = ExtractRefSimpleTypeName(prop.CppType);
 				}
 				ParseScriptPropAttributes((*it)[1].str(), prop);
 
@@ -818,7 +844,13 @@ void RegisterGeneratedScripts(CReflectionRegistry& registry)
 				<< ", sizeof(" << p.CppType << "), 1, "
 				<< display << ", " << tooltip << ", " << category << ", "
 				<< hasRange << ", static_cast<float>(" << rmin << "), static_cast<float>(" << rmax << ")"
-				<< ", " << serialize << " },\r\n";
+				<< ", " << serialize;
+			// Ref<T> 는 카테고리(컴파일타임 상수)와 단순 타입명을 추가로 채운다.
+			if (p.IsRef)
+			{
+				out << ", " << p.CppType << "::Category, \"" << EscapeCppString(p.RefTypeName) << "\"";
+			}
+			out << " },\r\n";
 		}
 		out << "\t\t});\r\n";
 	}

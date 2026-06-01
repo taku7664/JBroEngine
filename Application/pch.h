@@ -21,5 +21,6 @@
 #include "Editor/Main/GameView/GameViewTool.h"
 #include "Editor/Main/Log/LogTool.h"
 #include "Editor/Main/Hierarchy/HierarchyTool.h"
+#include "Editor/Main/BuildSettingsWindow.h"
 #include "Editor/Main/ProjectSettingsWindow.h"
 #endif

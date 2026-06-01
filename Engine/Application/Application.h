@@ -15,6 +15,8 @@ public:
 public:
 	virtual void OnPreInitialize() = 0;
 	virtual void OnPostInitialize() = 0;
+	virtual void OnPreTick() {}
+	virtual void OnPostTick() {}
 	virtual void OnPreFinalize() = 0;
 	virtual void OnPostFinalize() = 0;
 

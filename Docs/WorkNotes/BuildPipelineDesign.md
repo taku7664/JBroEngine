@@ -8,7 +8,7 @@
 
 ## Non-negotiable Direction
 - Treat `.Jproject` as an editor/project-authoring file.
-- Treat `build_manifest.json` as the runtime contract.
+- Treat `build_manifest.jbmanifest` as the runtime contract.
 - Treat cooked assets as the cross-platform input.
 - Treat platform packaging as the final platform-specific step.
 - Do not let Windows DLL/live-compile assumptions leak into Web or mobile.
@@ -32,14 +32,14 @@ Builder
   -> write build report
 
 Runtime
-  -> load build_manifest.json
+  -> load build_manifest.jbmanifest
   -> mount cooked assets
   -> load or bind game scripts
   -> open startup scene
 ```
 
 ## First Implementation Target
-- Add `BuildScripts/BuildGame.ps1`.
+- Use existing `BuildScripts/BuildGame.ps1` as the build entrypoint.
 - Support Windows first:
   - `-Project <path-to-.Jproject>`
   - `-Platform Windows`
@@ -51,7 +51,7 @@ Dist/Games/<ProjectName>-Windows-Release/
   <ProjectName>.exe
   GameScript.dll
   Content/
-    build_manifest.json
+    build_manifest.jbmanifest
     Packs/
       base.jbp
   ThirdParty/
@@ -179,7 +179,7 @@ Payload Blocks
 10. Encrypt payload blocks.
 11. Write pack payloads and index.
 12. Sign or MAC header/index/payload hashes.
-13. Write `build_manifest.json`.
+13. Write `build_manifest.jbmanifest`.
 14. Verify by reopening the pack through the runtime reader.
 
 ## Pack Runtime Direction
@@ -284,7 +284,7 @@ This reduces the need to expose source paths while still allowing a transitional
 - Add a pack-level build id and content hash so clean rebuild differences are explainable.
 - Keep one manifest-level list of mounted packs:
 ```text
-build_manifest.json
+build_manifest.jbmanifest
   packs:
     - id: base
       path: Content/Packs/base.jbp
@@ -430,7 +430,7 @@ Suggested profiles:
 - Output folder has no editor-only files.
 - Output folder has no SDK.
 - Output folder has no editor localization.
-- `build_manifest.json` is valid JSON and all referenced files exist.
+- `build_manifest.jbmanifest` has a valid binary header/payload and all referenced files exist.
 - Pack file opens through the runtime reader.
 - Pack verification fails when one byte is modified.
 - Pack verification fails when index entries are reordered or edited.
@@ -441,16 +441,57 @@ Suggested profiles:
 - Web build pipeline still uses the same cook manifest shape.
 
 ## Deferred Work
-1. Add `BuildSettings` to project data.
-2. Add `BuildScripts/BuildGame.ps1`.
-3. Add runtime `build_manifest.json` loader.
-4. Add `.jbp` pack writer and reader.
+1. Add `BuildSettings` to project data. Done on 2026-06-01.
+2. Add `BuildScripts/BuildGame.ps1`. Done before this pass; verified on 2026-06-01.
+3. Add runtime `build_manifest.jbmanifest` loader. Done on 2026-06-01 and corrected on 2026-06-02 for packed asset mount, Windows dynamic script module, and startup scene boot.
+4. Extend `.jbp` pack writer and reader from structural B+ pack to protected release pack.
 5. Add output verifier.
-6. Add Windows script DLL staging.
+6. Add Windows script DLL staging. Present in `BuildGame.ps1`; needs end-to-end package test with a real project.
 7. Add pack integrity/signature check.
 8. Add platform profile interface.
 9. Add static script binding path for Web/mobile.
 10. Add editor Build window that calls the builder and shows logs.
+
+## Asset Packing Remaining Work After B+ Pass
+- Replace FNV-only validation with release-grade authenticated integrity.
+  - Add `CryptoProvider` and `PackKeyProvider`.
+  - Use authenticated encryption or MAC/signature over header, index, and payload hashes.
+  - Release builds must fail if pack encryption/integrity policy is disabled.
+- Move from raw source payloads to cooked payloads by asset type.
+  - Texture/sprite: platform-ready cooked texture or sprite payload.
+  - Audio: decompressed/streaming policy based cooked audio payload.
+  - Scene/prefab: runtime serialization payload that does not require source project layout.
+- Add pack dependency graph input.
+  - Build scene list.
+  - Startup scene.
+  - Recursive referenced assets.
+  - Explicit always-include/addressable labels.
+  - Missing/cyclic reference diagnostics.
+- Add multi-pack layout.
+  - `base.jbp`
+  - optional scene packs
+  - optional DLC/update packs
+  - deterministic pack id and mount order.
+- Extend runtime `build_manifest.jbmanifest` pack mount loading.
+  - Loose and single pack mount paths are recognized.
+  - Add multi-pack `packs[]` mount order when protected packs replace loose mounts.
+  - startup scene.
+  - script mode.
+  - target platform/configuration.
+- Add pack verification tooling.
+  - Reopen generated pack.
+  - Verify every entry offset/size/hash.
+  - Corrupt one byte in a temp copy and confirm verification fails.
+  - Confirm release output has no loose source assets.
+- Replace temp-file fallback over time.
+  - Keep fallback only for loaders/backends that require real file paths.
+  - Prefer memory payload or stream adapters for normal runtime loading.
+- Add debug metadata separation.
+  - Original path/name/human-readable labels stay out of release pack/index.
+  - Optional encrypted debug metadata file can be emitted only by explicit build option.
+- Add Web/mobile policy.
+  - Web can share pack format but must not assume key secrecy.
+  - Mobile pack location and writable cache behavior must be profile-driven.
 
 ## Current Design Decision
 - Start with actual pack files for game builds.
@@ -459,3 +500,209 @@ Suggested profiles:
 - Keep editor build UI thin.
 - Keep cooked asset contract platform-neutral.
 - Keep script loading platform-specific behind one provider interface.
+
+## Next Build Steps Excluding Asset Packing
+Asset packing is implemented as a structural B+ foundation, but it is not yet the release-protection gate. The immediate Windows game build pipeline can proceed without depending on final protected asset packing.
+
+Immediate order:
+1. Add build settings to project data. Done on 2026-06-01.
+2. Add `BuildScripts/BuildGame.ps1`. Already exists; verified on 2026-06-01.
+3. Build `Release_Game|x64`. Implemented by `BuildGame.ps1`; verified with `C:/Users/박주형/Desktop/Project/Project.Jproject` on 2026-06-01.
+4. Build/stage Windows `GameScript.dll`. Implemented by `BuildGame.ps1`; verified on 2026-06-01.
+5. Write `build_manifest.jbmanifest`. Implemented by `BuildGame.ps1`; verified on 2026-06-02.
+6. Stage runtime output folder. Implemented by `BuildGame.ps1`; verified on 2026-06-01.
+7. Verify no editor-only files are included. Partially implemented by root artifact checks; recursive/runtime dependency verification remains.
+8. Runtime `build_manifest.jbmanifest` loader. Done for current packed Windows packages.
+
+### Build Settings Scope
+Build settings should describe the runtime build, not editor state.
+
+Minimum fields:
+- `ProductName`
+- `TargetPlatform`
+- `BuildConfiguration`
+- `OutputDirectory`
+- `StartupScene`
+- `BuildScenes`
+- `ResolutionWidth`
+- `ResolutionHeight`
+- `ScriptMode`
+- `ScriptProjectPath`
+- `ScriptBuildConfiguration`
+- `ScriptOutputLibraryPath`
+
+Script build settings mean:
+- which script project/solution to build
+- which configuration to build, usually `Release`
+- where the built script module is expected
+- how the runtime should bind scripts
+
+For Windows desktop the first script mode is:
+```text
+ScriptMode = DynamicLibrary
+ScriptOutputLibraryPath = GameScript.dll
+```
+
+For Web/mobile this must not assume dynamic DLL loading:
+```text
+ScriptMode = Static
+```
+
+### Build Scene List
+The build scene list is not only for asset packing.
+
+It is needed to:
+- validate that the startup scene is part of the shipped game
+- prevent editor-only/test scenes from shipping accidentally
+- define deterministic game content for the build
+- allow future scene-specific loading screens or scene pack groups
+- let the builder fail early when a referenced scene is missing
+- keep Web/mobile packaging explicit instead of scanning arbitrary project folders
+
+If the project is tiny, the editor can provide a convenience option such as "include all scenes under Assets/Scenes", but the saved build settings should still materialize that as an explicit scene list.
+
+### 2026-06-01 Build Settings Implementation
+- Added `ProjectBuildSettings` to project data.
+- Added build target enums:
+  - `EBuildTargetPlatform`
+  - `EBuildConfiguration`
+  - `EBuildScriptMode`
+- `.Jproject` now stores a `Build:` block with:
+  - `ProductName`
+  - `TargetPlatform`
+  - `BuildConfiguration`
+  - `OutputDirectory`
+  - `StartupScene`
+  - `BuildScenes`
+  - `ScriptMode`
+  - `ScriptProjectPath`
+  - `ScriptBuildConfiguration`
+  - `ScriptOutputLibraryPath`
+- Existing projects without a `Build:` block receive defaults on load.
+- Non-Windows target platforms normalize script mode to `Static`.
+
+### 2026-06-01 BuildGame.ps1 Verification
+- `BuildScripts/BuildGame.ps1` already exists and is the current package entrypoint.
+- It parses the project `Build:` block, validates startup/build scenes, builds `Debug_Game` or `Release_Game`, builds the dynamic script project, stages `Application.exe` as `<ProductName>.exe`, stages `GameScript.dll`, writes `Content/build_manifest.jbmanifest`, and writes `Content/game_assets.jbpack`.
+- Current output does not stage loose assets under `Content/Assets`.
+- The script currently accepts `Windows` and `Web` in the parameter set, but explicitly blocks non-Windows packaging. Mobile/Web should be added through platform packager profiles, not by adding editor dependencies.
+- The project reader is a small YAML-shaped parser, not a full YAML parser. If the `.Jproject` format grows nested build settings, move this parsing into a shared build settings reader or emit a normalized build descriptor from the editor.
+- Remaining non-asset build work: recursive editor-only output verification, platform profile interface, static script binding path for Web/mobile, and an editor Build window that calls this script.
+
+### 2026-06-01 Runtime Manifest Loader Implementation
+- Added `Core/Build/BuildManifest` for loading `Content/build_manifest.jbmanifest`.
+- Default manifest lookup checks the current working directory and, on Windows, the executable directory.
+- Runtime game startup now mounts manifest asset mounts before scene load.
+- `Loose` mounts set `AssetManager` root to the staged asset folder.
+- `Pack` mounts call the current pack reader path, but multi-pack protected release policy is still deferred.
+- Added `Core/Game/GameModuleLoader` so game builds can load `GameScript.dll` without depending on editor/live-compile code.
+- Non-editor `CGameApplication` now loads the script module, deserializes the startup scene, activates it, and starts simulation from the manifest.
+- Web source list includes the manifest loader and game module loader. Web build still requires Emscripten; local verification currently stops at `emcc was not found`.
+- Verified builds:
+  - `Debug_Game|x64`
+  - `Release_Game|x64`
+  - `Debug_Editor|x64`
+  - `Release_Editor|x64`
+
+### 2026-06-01 Windows Package End-to-End Verification
+- Real project used: `C:/Users/박주형/Desktop/Project/Project.Jproject`.
+- Build command:
+```powershell
+powershell -ExecutionPolicy Bypass -File BuildScripts/BuildGame.ps1 `
+  -Project "C:/Users/박주형/Desktop/Project/Project.Jproject" `
+  -Platform Windows `
+  -Configuration Release `
+  -OutputRoot "$env:TEMP/JBroEngineProjectBuild" `
+  -Clean
+```
+- Output package: `%TEMP%/JBroEngineProjectBuild/Project-Windows-Release`.
+- Verified output files:
+  - `Project.exe`
+  - `GameScript.dll`
+  - `Content/build_manifest.jbmanifest`
+  - `Content/game_assets.jbpack`
+- Manifest output:
+  - `startupScene`: `test.JScene`
+  - `buildScenes`: `test.JScene`
+  - binary manifest defaults the runtime asset mount to `Pack`, `Content/game_assets.jbpack`
+  - `scriptMode`: `DynamicLibrary`
+  - `scriptModule`: `GameScript.dll`
+- Recursive package scan found no `SDK`, `Localization`, or `Editor` directories/files.
+- Smoke-launched `Project.exe` with working directory outside the package. It stayed alive for 5 seconds without a non-zero exit, then was terminated by the verifier.
+- Note: `Project.Jproject` currently has no explicit `Build:` block, so `BuildGame.ps1` used defaults plus `LastOpenedScenePath`. The editor should eventually save explicit build settings for deterministic builds.
+
+### 2026-06-01 Editor Build Settings UI
+- Build settings must be a separate editor window, not a category inside Project Settings.
+- Added `Settings > Build Settings` in `RootDockWindow`; it opens the standalone Build Settings window.
+- The window follows the Project Settings category layout: left category list, splitter, right category content.
+- Path fields use editor file/folder picker buttons through `ImGui::Utillity`; users should not be expected to type paths manually.
+- Categories:
+  - General: product name, target platform, build configuration.
+  - Scenes: startup scene, build scene list, use current scene, scene file picker.
+  - Output: output folder picker, final package path preview.
+- Removed direct script project / script DLL / script configuration controls from the UI.
+- Script build values are derived from existing project rules:
+  - `CProjectManager::RegenerateScriptProject()`
+  - `CProjectManager::FindScriptVcxprojPath()`
+  - game build configuration drives script build configuration
+  - Windows uses `DynamicLibrary`; Web/mobile are normalized to `Static`
+- Apply writes values through `ProjectManager::SetBuildSettings()` and then `SaveProject()`, so normalization stays inside `ProjectManager`.
+- Added Korean and English localization keys for the new menu/window/form labels.
+
+### 2026-06-01 Editor Build Execution
+- Added an editor-only game build runner that is separate from the settings window.
+- Added `File > Build` to `RootDockWindow`.
+- Build execution shows an `ImPopupDesc` modal progress window similar to project loading:
+  - progress bar
+  - per-task spinner/check/failure state
+  - failure message and log open button
+  - success opens the output package folder
+- Build tasks:
+  - save current scene/project state
+  - normalize build settings
+  - validate startup/build scenes
+  - regenerate script project
+  - build `Debug_Game` or `Release_Game`
+  - build Windows `GameScript.dll`
+  - stage exe, DLL, `Content/game_assets.jbpack`, and `Content/build_manifest.jbmanifest`
+  - verify forbidden root artifacts (`SDK`, `Editor`, `Localization`) are absent
+- Current implemented editor build target is Windows package output. Web/mobile remain represented in settings but are not packaged by the Windows editor runner.
+- Verified:
+  - `Debug_Editor|x64`
+  - `Debug_Game|x64`
+  - `Release_Game|x64`
+  - real project package via `BuildScripts/BuildGame.ps1`
+  - package smoke launch stayed alive for 5 seconds
+
+### 2026-06-02 Build Settings / Dialog / Pack Correction
+- Build settings persistence is Apply-only.
+  - `CBuildSettingsWindow` tracks dirty UI state.
+  - Apply writes through `ProjectManager::SetBuildSettings()` and `SaveProject(&error)`.
+  - If saving fails, the Build Settings window stays open and the in-memory build settings are restored to the previous saved values.
+  - `File > Build` does not silently save dirty build settings. It opens Build Settings and blocks until Apply succeeds.
+- File dialogs use one path.
+  - Windows editor startup initializes the main thread as STA.
+  - `FileUtillities` uses `IFileDialog` for file, multi-file, save-file, and folder picking.
+  - RootDock and Build Settings pass an explicit owner through `ImGui::Utillity::GetDialogOwnerHandle()`.
+  - The previous `RPC_E_CHANGED_MODE` thread-recursive fallback is removed.
+- Startup scene is an explicit build setting.
+  - The editor runner and `BuildGame.ps1` no longer infer `Build.StartupScene` from `LastOpenedScenePath`.
+  - Empty startup scene fails the Windows package build.
+- Current Windows package output is now pack-first:
+  - `<ProductName>.exe`
+  - `GameScript.dll`
+  - `Content/game_assets.jbpack`
+  - `Content/build_manifest.jbmanifest`
+- Current Windows package output must not contain:
+  - loose `Content/Assets`
+  - `SDK`
+  - `Editor`
+  - `Localization`
+- Older notes in this document that mention loose `Content/Assets` or `Loose` mounts describe the intermediate design and are superseded for the current Windows package pipeline.
+- Verified on 2026-06-02:
+  - `Debug_Editor|x64`
+  - `Debug_Game|x64`
+  - `Release_Game|x64`
+  - `BuildScripts/BuildGame.ps1` against `C:/Users/박주형/Desktop/Project/Project.Jproject` with temp output.
+  - Package scan confirmed no loose assets or editor-only root folders.
+  - Smoke screenshot confirmed the packaged game renders the scene instead of a blank screen.

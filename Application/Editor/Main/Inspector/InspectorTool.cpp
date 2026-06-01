@@ -8,7 +8,11 @@
 
 #include "Editor/Editor.h"
 #include "Editor/Command/EditorSceneCommands.h"
+#include "Editor/EditorDragDrop.h"
 #include "Editor/Helper/EditorGuiDrawHelpers.h"
+#include "Engine/GameFramework/Component/GameObject.h"
+#include "Engine/GameFramework/Object/Ref.h"
+#include "Engine/GameFramework/Reflection/ReflectionRegistry.h"
 #include "Engine/Core/Asset/AssetMetaFile.h"
 #include "Engine/Core/Asset/IAssetManager.h"
 #include "Engine/Core/Asset/IAssetRegistry.h"
@@ -131,6 +135,118 @@ namespace
 			});
 	}
 
+	// ── Ref<T> 프로퍼티 헬퍼 ──────────────────────────────────────────────────
+	// 드래그된 HIERARCHY_COMPONENT 페이로드의 타입명(컴포넌트/스크립트) 조회.
+	const char* ResolveDraggedTypeName(const EditorDragDrop::HierarchyComponentPayload& comp)
+	{
+		if (false == Core::Reflection.IsValid())
+		{
+			return nullptr;
+		}
+		if (comp.IsScript)
+		{
+			const ScriptTypeInfo* s = Core::Reflection->FindScript(comp.TypeId);
+			return s ? s->Type.Name : nullptr;
+		}
+		const ComponentTypeInfo* c = Core::Reflection->FindComponent(comp.TypeId);
+		return c ? c->Type.Name : nullptr;
+	}
+
+	// Ref 의 현재 대상 표시 라벨.
+	std::string BuildRefDisplayLabel(const RefBase& ref, const ReflectPropertyInfo& property)
+	{
+		const char* typeName = property.RefTypeName ? property.RefTypeName : "Ref";
+		if (ref.IsNull())
+		{
+			return std::string(Loc::Text("inspector.ref_none")) + "  [" + typeName + "]";
+		}
+		const File::Guid guid(ref.GuidText());
+		if (ERefCategory::Asset == property.RefCategory)
+		{
+			const File::Path& path = File::ResolvePath(guid);
+			const std::string name = path.IsNull()
+				? std::string(ref.GuidText())
+				: path.filename().generic_string();
+			return name + "  [" + typeName + "]";
+		}
+		// 오브젝트/컴포넌트/스크립트 — InstanceGuid → 오브젝트 이름.
+		if (CScene* scene = GetActiveScene())
+		{
+			const EntityId e = scene->FindEntityByInstanceGuid(guid);
+			if (INVALID_ENTITY_ID != e)
+			{
+				if (const GameObject* go = scene->GetComponent<GameObject>(e))
+				{
+					return std::string(go->Name) + "  [" + typeName + "]";
+				}
+			}
+		}
+		return std::string(Loc::Text("inspector.ref_missing")) + "  [" + typeName + "]";
+	}
+
+	// Ref 의 드롭 타깃 처리. 변경되면 true. (호출 시점은 위젯 바로 다음.)
+	bool ApplyRefDrop(RefBase& ref, const ReflectPropertyInfo& property)
+	{
+		// 에셋 참조 — 에셋 브라우저 페이로드(AcceptAssetDragDropPayload 가 자체 Begin/End).
+		if (ERefCategory::Asset == property.RefCategory)
+		{
+			EditorDragDrop::AssetPayload payload;
+			if (EditorDragDrop::AcceptAssetDragDropPayload(payload))
+			{
+				ref.SetGuidText(EditorDragDrop::GetGuid(payload).generic_string().c_str());
+				return true;
+			}
+			return false;
+		}
+
+		// 오브젝트/컴포넌트/스크립트 — 하이어라키 페이로드.
+		CScene* scene = GetActiveScene();
+		if (nullptr == scene || false == ImGui::BeginDragDropTarget())
+		{
+			return false;
+		}
+		bool changed = false;
+
+		const bool wantsGameObject =
+			property.RefTypeName && 0 == strcmp(property.RefTypeName, "GameObject");
+
+		if (wantsGameObject)
+		{
+			// 오브젝트 자체를 드래그(HIERARCHY_ENTITY).
+			if (const ImGuiPayload* p =
+				ImGui::AcceptDragDropPayload(EditorDragDrop::HIERARCHY_ENTITY_PAYLOAD))
+			{
+				const EntityId e = *static_cast<const EntityId*>(p->Data);
+				if (const GameObject* go = scene->GetComponent<GameObject>(e))
+				{
+					ref.SetGuidText(go->InstanceGuid.generic_string().c_str());
+					changed = true;
+				}
+			}
+		}
+		else if (const ImGuiPayload* p =
+			ImGui::AcceptDragDropPayload(EditorDragDrop::HIERARCHY_COMPONENT_PAYLOAD))
+		{
+			// 컴포넌트/스크립트 — 카테고리·타입명이 일치할 때만 수락.
+			const auto* comp = static_cast<const EditorDragDrop::HierarchyComponentPayload*>(p->Data);
+			const bool categoryOk =
+				(ERefCategory::Script == property.RefCategory) == comp->IsScript;
+			const char* draggedType = ResolveDraggedTypeName(*comp);
+			if (categoryOk && draggedType && property.RefTypeName
+				&& 0 == strcmp(draggedType, property.RefTypeName))
+			{
+				if (const GameObject* go = scene->GetComponent<GameObject>(comp->Entity))
+				{
+					ref.SetGuidText(go->InstanceGuid.generic_string().c_str());
+					changed = true;
+				}
+			}
+		}
+
+		ImGui::EndDragDropTarget();
+		return changed;
+	}
+
 	bool DrawPropertyEditor(void* field, const ReflectPropertyInfo& property, bool drawLabel = true)
 	{
 		if (nullptr == field || false == property.IsEditable)
@@ -222,6 +338,37 @@ namespace
 				return true;
 			}
 			return false;
+		}
+		case EReflectPropertyType::Ref:
+		{
+			// Ref<T> 는 ReadOnly + 드래그-드랍 전용. field == &Ref<T> == &RefBase(POD guid 버퍼).
+			RefBase* ref = static_cast<RefBase*>(field);
+			bool changed = false;
+
+			const std::string label = BuildRefDisplayLabel(*ref, property);
+			const float clearW = ImGui::GetFrameHeight();
+			const float fullW  = ImGui::GetContentRegionAvail().x;
+			const float fieldW = std::max(1.0f, fullW - clearW - ImGui::GetStyle().ItemSpacing.x);
+
+			// 직접 편집 불가 표시 — 버튼처럼 보이되 클릭 동작은 없음(드롭 타깃만).
+			ImGui::PushStyleColor(ImGuiCol_Button,        ImGui::GetStyleColorVec4(ImGuiCol_FrameBg));
+			ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImGui::GetStyleColorVec4(ImGuiCol_FrameBg));
+			ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImGui::GetStyleColorVec4(ImGuiCol_FrameBg));
+			ImGui::Button(label.c_str(), ImVec2(fieldW, 0.0f));
+			ImGui::PopStyleColor(3);
+
+			if (ApplyRefDrop(*ref, property))
+			{
+				changed = true;
+			}
+
+			ImGui::SameLine();
+			if (ImGui::Button("X", ImVec2(clearW, 0.0f)) && false == ref->IsNull())
+			{
+				ref->Clear();
+				changed = true;
+			}
+			return changed;
 		}
 		case EReflectPropertyType::EntityId:
 			return ImGui::InputScalar("", ImGuiDataType_U64, field);
@@ -622,10 +769,24 @@ namespace
 			layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.gap_y")); },    [&]() { changed |= ImGui::InputInt("##inspector.gap_y", &gapY); });
 		}
 
+		SafePtr<CProjectManager> projectManager = GetProjectManager();
+		const float projectPPU = projectManager ? projectManager->GetPixelsPerUnit() : 0.0f;
+
 		// ── 공용: 피벗/PPU ────────────────────────────────────────────────────
 		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.pivot_x")); },         [&]() { changed |= ImGui::DragFloat("##inspector.pivot_x", &options.PivotX, 0.01f, 0.0f, 1.0f); });
 		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.pivot_y")); },         [&]() { changed |= ImGui::DragFloat("##inspector.pivot_y", &options.PivotY, 0.01f, 0.0f, 1.0f); });
-		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.pixels_per_unit")); }, [&]() { changed |= ImGui::DragFloat("##inspector.pixels_per_unit", &options.PixelsPerUnit, 1.0f, 1.0f, 10000.0f); });
+		layout.Row(
+			[&]() { ImGui::TextUnformatted(Loc::Text("inspector.pixels_per_unit")); },
+			[&]() {
+				// 0 = 프로젝트 기본값 사용. 0 보다 큰 값이면 그 값으로 오버라이드.
+				changed |= ImGui::DragFloat("##inspector.pixels_per_unit", &options.PixelsPerUnit, 1.0f, 0.0f, 10000.0f);
+				if (options.PixelsPerUnit <= 0.0f)
+				{
+					ImGui::SameLine();
+					ImGui::TextDisabled("%.1f %s", projectPPU, Loc::Text("inspector.ppu.project_default_suffix"));
+				}
+			}
+		);
 
 		options.RowCount    = static_cast<std::uint32_t>(std::max(1, rowCount));
 		options.ColumnCount = static_cast<std::uint32_t>(std::max(1, columnCount));
@@ -636,7 +797,6 @@ namespace
 		options.GapX        = static_cast<std::uint32_t>(std::max(0, gapX));
 		options.GapY        = static_cast<std::uint32_t>(std::max(0, gapY));
 
-		SafePtr<CProjectManager> projectManager = GetProjectManager();
 		SafePtr<IAssetManager> assetManager = projectManager ? projectManager->GetAssetManager() : nullptr;
 		std::uint32_t textureWidth = 0;
 		std::uint32_t textureHeight = 0;
@@ -1034,6 +1194,21 @@ void CInspectorTool::OnRenderStay()
 	// 엔티티 변경 시 인덱스 범위 보정
 	if (m_selectedTabIndex >= static_cast<int>(listItems.size()))
 		m_selectedTabIndex = 0;
+
+	// 하이어라키에서 컴포넌트를 클릭하면(포커스 힌트) 해당 탭으로 전환한다.
+	if (false == Editor::GetFocusComponent().empty())
+	{
+		for (int idx = 0; idx < static_cast<int>(listItems.size()); ++idx)
+		{
+			const char* typeName = listItems[static_cast<std::size_t>(idx)].compEntry->typeInfo->Type.Name;
+			if (typeName && Editor::GetFocusComponent() == typeName)
+			{
+				m_selectedTabIndex = idx;
+				break;
+			}
+		}
+		Editor::ClearFocusComponent();
+	}
 
 	// 현재 선택된 탭의 컴포넌트 타입 이름 캐시 (SceneViewTool 등 외부 시스템이 참조)
 	m_activeComponentTypeName =

@@ -3,8 +3,10 @@
 
 #include "Engine/Core/Asset/AssetMetaFile.h"
 #include "Engine/Core/Asset/AssetPath.h"
+#include "Engine/Editor/ImEditor.h"
 #include "Engine/Editor/ImGuiUtillity.h"
 #include "Engine/Editor/ImItem/ImText.h"
+#include "Engine/Editor/Project/ProjectManager.h"
 
 #include <filesystem>
 
@@ -71,7 +73,20 @@ void CSpriteImporterWindow::DrawImportOptions()
 	}
 	RowWithTooltip(layout, "inspector.pivot_x",         "inspector.pivot_x.desc",         [&]() { ImGui::DragFloat("##importer.pivot_x", &m_options.PivotX, 0.01f, 0.0f, 1.0f); });
 	RowWithTooltip(layout, "inspector.pivot_y",         "inspector.pivot_y.desc",         [&]() { ImGui::DragFloat("##importer.pivot_y", &m_options.PivotY, 0.01f, 0.0f, 1.0f); });
-	RowWithTooltip(layout, "inspector.pixels_per_unit", "inspector.pixels_per_unit.desc", [&]() { ImGui::DragFloat("##importer.ppu",     &m_options.PixelsPerUnit, 1.0f, 1.0f, 10000.0f); });
+	{
+		SafePtr<CProjectManager> projectManager = Editor::ImEditor ? Editor::ImEditor->GetProjectManager() : nullptr;
+		const float projectPPU = projectManager ? projectManager->GetPixelsPerUnit() : 0.0f;
+		RowWithTooltip(layout, "inspector.pixels_per_unit", "inspector.pixels_per_unit.desc",
+			[&]() {
+				// 0 = 프로젝트 기본값 사용. 0 보다 큰 값이면 그 값으로 오버라이드.
+				ImGui::DragFloat("##importer.ppu", &m_options.PixelsPerUnit, 1.0f, 0.0f, 10000.0f);
+				if (m_options.PixelsPerUnit <= 0.0f)
+				{
+					ImGui::SameLine();
+					ImGui::TextDisabled("%.1f %s", projectPPU, Loc::Text("inspector.ppu.project_default_suffix"));
+				}
+			});
+	}
 
 	m_options.RowCount    = static_cast<std::uint32_t>(std::max(1, rowCount));
 	m_options.ColumnCount = static_cast<std::uint32_t>(std::max(1, columnCount));

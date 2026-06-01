@@ -70,10 +70,8 @@ bool CSceneManager::SetActiveScene(const char* name)
 	return true;
 }
 
-SafePtr<CScene> CSceneManager::GetActiveScene() const
-{
-	return m_activeScene;
-}
+// GetActiveScene() 은 SceneManager.h 에 인라인으로 정의됨(DLL 링크 클로저에서
+// SceneManager.obj → SceneSerializer.obj → yaml-cpp 연쇄 풀을 끊기 위함).
 
 SafePtr<CScene> CSceneManager::FindScene(const char* name) const
 {

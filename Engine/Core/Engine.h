@@ -3,6 +3,7 @@
 #include "Core/EngineCore.h"
 #include "Core/Platform/PlatformTypes.h"
 #include "Core/RHI/RHITypes.h"
+#include "GameFramework/Rendering/GameCamera.h"
 
 #include <vector>
 
@@ -43,6 +44,9 @@ public:
 	bool Initialize();
 	bool Update();
 	void Finalize();
+	void SetPlatformDesc(const PlatformDesc& desc);
+	void SetMainClearColor(const Color& color);
+	void SetGameRenderCameras(std::vector<GameRenderCameraDesc> cameras);
 
 	void InitializeModule(CModule& module, const char* moduleName);
 	void FinalizeModule(CModule& module);
@@ -100,6 +104,9 @@ private:
 	OwnerPtr<CNetworkManager>     m_networkManager;   // null until InitializeNetwork()
 	OwnerPtr<CDebugDraw2D>        m_debugDraw;
 	std::vector<CModule*>         m_modules;
+	std::vector<GameRenderCameraDesc> m_gameRenderCameras;
+	PlatformDesc                  m_platformDesc;
+	Color                         m_mainClearColor = Color{ 0.08f, 0.09f, 0.11f, 1.0f };
 	bool                          m_isInitialized = false;
 	bool                          m_isApplicationFocused = true;
 	bool                          m_applicationFocusGained = false;

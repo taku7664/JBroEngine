@@ -6,9 +6,14 @@
 #include "Editor/Command/EditorSceneCommands.h"
 #include "Editor/Helper/EditorGuiDrawHelpers.h"
 #include "Editor/Editor.h"
+#include "Editor/EditorDragDrop.h"
 #include "Editor/Main/SceneView/SceneViewTool.h"
 #include "Engine/Core/Core.h"
+#include "Engine/GameFramework/Reflection/ReflectionRegistry.h"
+#include "Engine/GameFramework/Component/ScriptComponent.h"
 
+#include <cstdint>
+#include <cstring>
 #include <functional>
 #include <unordered_map>
 
@@ -110,6 +115,102 @@ void CHierarchyTool::OnRenderStay()
 		ImGui::Separator();
 	}
 
+	// ── 선택된 오브젝트의 컴포넌트/스크립트 리스트 (드래그 소스) ─────────────────
+	// 각 항목을 드래그하면 "HIERARCHY_COMPONENT" 페이로드가 실린다 →
+	// Ref<T> 프로퍼티(인스펙터)의 드롭 타깃이 받아 참조를 설정한다.
+	auto drawComponentDragList = [&](EntityId entity)
+	{
+		if (false == Core::Reflection.IsValid())
+		{
+			return;
+		}
+
+		// 컴포넌트 리스트 항목 색상 — 진한 주황(활성) / 더 어두운 주황(비활성).
+		const ImVec4 colorEnabled (0.85f, 0.50f, 0.15f, 1.0f);
+		const ImVec4 colorDisabled(0.50f, 0.30f, 0.10f, 1.0f);
+
+		// 컴포넌트의 IsEnabled bool 프로퍼티를 읽는다(없으면 항상 활성).
+		auto isComponentEnabled = [](void* comp, const ComponentTypeInfo& ti) -> bool
+		{
+			if (nullptr == comp) return true;
+			for (const ReflectPropertyInfo& prop : ti.Properties)
+			{
+				if (EReflectPropertyType::Bool == prop.Type && prop.Name && 0 == std::strcmp(prop.Name, "IsEnabled"))
+				{
+					if (void* field = CReflectionRegistry::GetPropertyAddress(comp, prop))
+						return *static_cast<bool*>(field);
+					break;
+				}
+			}
+			return true;
+		};
+
+		// 한 항목을 ImTree 리프 노드로 렌더한다 — 일반 Selectable 대신 ImTree 를 써야
+		// 커스텀 트리의 들여쓰기 보정과 자식 연결선(DrawLinesToNodes)에 동기화된다.
+		auto drawItem = [&](const char* label, const ImVec4& color,
+		                    EntityId ent, TypeId typeId, bool isScript, const char* focusName)
+		{
+			ImGui::Utillity::IDGroup itemId(static_cast<const void*>(label));
+			const ImGuiTreeNodeFlags leafFlags =
+				ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen |
+				ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_DrawLinesToNodes;
+
+			ImGui::PushStyleColor(ImGuiCol_Text, color);
+			ImTree(label, leafFlags);
+			ImGui::PopStyleColor();
+
+			// 클릭(Release) → 인스펙터에서 해당 컴포넌트 탭으로 포커스.
+			if (ImGui::IsItemHovered() && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+			{
+				Editor::SelectEntity(ent);
+				Editor::SetFocusComponent(focusName);
+			}
+			if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceAllowNullID))
+			{
+				EditorDragDrop::HierarchyComponentPayload ref{ ent, typeId, isScript };
+				ImGui::SetDragDropPayload(EditorDragDrop::HIERARCHY_COMPONENT_PAYLOAD, &ref, sizeof(ref));
+				ImGui::Text("%s", label);
+				ImGui::EndDragDropSource();
+			}
+		};
+
+		// 일반 컴포넌트
+		for (std::size_t i = 0; i < Core::Reflection->GetComponentTypeCount(); ++i)
+		{
+			const ComponentTypeInfo* typeInfo = Core::Reflection->GetComponentType(i);
+			if (nullptr == typeInfo || nullptr == typeInfo->Type.Name)
+			{
+				continue;
+			}
+			// 구조용/내부 컴포넌트와 ScriptComponent(컨테이너)는 노출하지 않는다.
+			// (실제 스크립트는 아래에서 따로 나열한다.)
+			if (0 == std::strcmp(typeInfo->Type.Name, "GameObject")) continue;
+			if (0 == std::strcmp(typeInfo->Type.Name, "TransformHierarchy2D")) continue;
+			if (0 == std::strcmp(typeInfo->Type.Name, "ScriptComponent")) continue;
+			if (false == Core::Reflection->HasComponent(*activeScene, entity, typeInfo->Type.Id))
+			{
+				continue;
+			}
+
+			void* comp = Core::Reflection->GetComponentAddress(*activeScene, entity, typeInfo->Type.Id);
+			const bool enabled = isComponentEnabled(comp, *typeInfo);
+			const char* label = typeInfo->Type.DisplayName ? typeInfo->Type.DisplayName : typeInfo->Type.Name;
+			drawItem(label, enabled ? colorEnabled : colorDisabled, entity, typeInfo->Type.Id, false, typeInfo->Type.Name);
+		}
+
+		// 스크립트 (ScriptComponent.Instance 의 타입)
+		if (ScriptComponent* scriptComp = activeScene->GetComponent<ScriptComponent>(entity))
+		{
+			if (INVALID_TYPE_ID != scriptComp->ScriptTypeId)
+			{
+				const ScriptTypeInfo* scriptInfo = Core::Reflection->FindScript(scriptComp->ScriptTypeId);
+				const char* label = (scriptInfo && scriptInfo->Type.Name) ? scriptInfo->Type.Name : "Script";
+				drawItem(label, scriptComp->IsEnabled ? colorEnabled : colorDisabled,
+				         entity, scriptComp->ScriptTypeId, true, "ScriptComponent");
+			}
+		}
+	};
+
 	// ── 트리 노드 재귀 렌더링 ────────────────────────────────────────────────────
 	std::function<void(std::size_t)> drawObject = [&](std::size_t objectIndex)
 	{
@@ -133,8 +234,13 @@ void CHierarchyTool::OnRenderStay()
 		const char* name = object.Name[0] ? object.Name : "GameObject";
 		const bool isOpen = ImTree(name, flags);
 
-		// ── 클릭으로 선택 (트리 토글 클릭 제외) ─────────────────────────────
-		if (ImGui::IsItemClicked(ImGuiMouseButton_Left) && !ImGui::IsItemToggledOpen())
+		// ── 클릭으로 선택 (Release 기준) ───────────────────────────────────
+		// Press 가 아니라 Release 에서 선택한다. Press 로 선택하면 드래그를 시작하는
+		// 순간 선택이 바뀌어 인스펙터가 갱신되고, 드래그-드랍 대상(Ref 프로퍼티)이
+		// 사라져 드롭을 못 한다. Release 기준이면: 단순 클릭은 선택, 드래그는
+		// 아이템 밖에서 떼지므로(IsItemHovered=false) 선택이 일어나지 않는다.
+		if (ImGui::IsItemHovered() && ImGui::IsMouseReleased(ImGuiMouseButton_Left)
+			&& !ImGui::IsItemToggledOpen())
 		{
 			Editor::SelectEntity(object.Entity);
 		}
@@ -154,7 +260,7 @@ void CHierarchyTool::OnRenderStay()
 		// ── Drag Source ───────────────────────────────────────────────────────
 		if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceAllowNullID))
 		{
-			ImGui::SetDragDropPayload("HIERARCHY_ENTITY", &object.Entity, sizeof(EntityId));
+			ImGui::SetDragDropPayload(EditorDragDrop::HIERARCHY_ENTITY_PAYLOAD, &object.Entity, sizeof(EntityId));
 			ImGui::Text(Loc::Text("hierarchy.move_format"), name);
 			ImGui::EndDragDropSource();
 		}
@@ -196,6 +302,26 @@ void CHierarchyTool::OnRenderStay()
 
 			EditorGuiDrawHelpers::DrawAddComponentMenu(*activeScene, object.Entity);
 			ImGui::EndPopup();
+		}
+
+		// ── 선택된 오브젝트: 컴포넌트 리스트를 자식보다 "위"에 표시 ───────────
+		// 트리를 펼치지 않아도(선택만 돼도) 펼쳐진 것처럼 아래에 컴포넌트 리스트를
+		// 나열한다. 트리를 펼쳤으면 컴포넌트 리스트가 자식 목록보다 위에 온다.
+		if (Editor::IsSelected(object.Entity))
+		{
+			// 컴포넌트 항목을 자식과 같은 깊이에 놓는다. ImTree 가 이미 한 단계 push
+			// 했으면(펼친 노드) 그대로, 아니면(리프/접힘) 수동 TreePush 해서 커스텀
+			// 트리의 들여쓰기·연결선 보정이 컴포넌트 리프에도 동일하게 적용되게 한다.
+			const bool alreadyPushed = isOpen && hasChildren;
+			if (false == alreadyPushed)
+			{
+				ImGui::TreePush(reinterpret_cast<const void*>(static_cast<std::uintptr_t>(object.Entity)));
+			}
+			drawComponentDragList(object.Entity);
+			if (false == alreadyPushed)
+			{
+				ImGui::TreePop();
+			}
 		}
 
 		// ── 자식 노드 재귀 렌더링 ────────────────────────────────────────────

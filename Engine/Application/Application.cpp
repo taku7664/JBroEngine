@@ -35,11 +35,13 @@ bool CApplication::TickApplication()
 		return false;
 	}
 
+	OnPreTick();
 	if (!m_engine || false == m_engine->Update())
 	{
 		Quit();
 		return false;
 	}
+	OnPostTick();
 
 	return true;
 }

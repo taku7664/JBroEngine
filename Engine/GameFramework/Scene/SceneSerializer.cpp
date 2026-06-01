@@ -303,6 +303,18 @@ namespace
 					}
 				}
 				break;
+			case EReflectPropertyType::Ref:
+				{
+					// Ref<T> 의 저장부는 RefBase 의 고정 길이 char 버퍼(POD).
+					const RefBase* ref = static_cast<const RefBase*>(field);
+					node[prop.Name] = std::string(ref->GuidText());
+					// 에셋 참조일 때만 referencedAssets 에 등록(오브젝트/컴포넌트/스크립트는 InstanceGuid).
+					if (referencedAssets && ERefCategory::Asset == prop.RefCategory)
+					{
+						AddReferencedAsset(*referencedAssets, File::Guid(ref->GuidText()));
+					}
+				}
+				break;
 			case EReflectPropertyType::Enum:
 				{
 					int val = 0;
@@ -369,6 +381,13 @@ namespace
 					std::string s;
 					if (ReadValue(node, prop.Name, s))
 						*static_cast<File::Guid*>(field) = File::Guid(s);
+				}
+				break;
+			case EReflectPropertyType::Ref:
+				{
+					std::string s;
+					if (ReadValue(node, prop.Name, s))
+						static_cast<RefBase*>(field)->SetGuidText(s.c_str());
 				}
 				break;
 			case EReflectPropertyType::Enum:
@@ -608,6 +627,16 @@ namespace
 					}
 				}
 				break;
+			case EReflectPropertyType::Ref:
+				{
+					const RefBase* ref = static_cast<const RefBase*>(field);
+					node[prop.Name] = std::string(ref->GuidText());
+					if (referencedAssets && ERefCategory::Asset == prop.RefCategory)
+					{
+						AddReferencedAsset(*referencedAssets, File::Guid(ref->GuidText()));
+					}
+				}
+				break;
 			case EReflectPropertyType::String:
 				node[prop.Name] = *static_cast<const std::string*>(field);
 				break;
@@ -641,7 +670,10 @@ namespace
 			ScriptPendingField pending;
 			pending.Name = prop.Name;
 			pending.Type = prop.Type;
-			if (EReflectPropertyType::AssetGuid != prop.Type && EReflectPropertyType::String != prop.Type)
+			// AssetGuid/Ref(File::Guid)·String 은 Text 로 보존 — raw Data 미사용.
+			if (EReflectPropertyType::AssetGuid != prop.Type
+				&& EReflectPropertyType::Ref != prop.Type
+				&& EReflectPropertyType::String != prop.Type)
 			{
 				pending.Data.resize(prop.Size, 0);
 			}
@@ -706,6 +738,15 @@ namespace
 					}
 					break;
 				}
+				case EReflectPropertyType::Ref:
+				{
+					pending.Text = node[prop.Name].as<std::string>("");
+					if (referencedAssets && ERefCategory::Asset == prop.RefCategory)
+					{
+						AddReferencedAsset(*referencedAssets, File::Guid(pending.Text));
+					}
+					break;
+				}
 				case EReflectPropertyType::String:
 				{
 					pending.Text = node[prop.Name].as<std::string>("");
@@ -743,6 +784,10 @@ ESceneSerializeResult CSceneSerializer::SerializeToText(const CScene& scene, std
 	{
 		YAML::Node objectNode(YAML::NodeType::Map);
 		objectNode["Name"] = object.Name;
+		if (false == object.InstanceGuid.IsNull())
+		{
+			objectNode["InstanceGuid"] = object.InstanceGuid.generic_string();
+		}
 		objectNode["Active"] = object.IsActive;
 		objectNode["Layer"] = object.Layer;
 
@@ -824,6 +869,7 @@ ESceneSerializeResult CSceneSerializer::SerializeToText(const CScene& scene, std
 								{
 									if (prop.Name && pf.Name == prop.Name &&
 										((EReflectPropertyType::AssetGuid == pf.Type && EReflectPropertyType::AssetGuid == prop.Type) ||
+										(EReflectPropertyType::Ref == pf.Type && EReflectPropertyType::Ref == prop.Type) ||
 										pf.Data.size() == prop.Size))
 									{
 										const void* src = pf.Data.empty() ? nullptr : pf.Data.data();
@@ -849,6 +895,13 @@ ESceneSerializeResult CSceneSerializer::SerializeToText(const CScene& scene, std
 										case EReflectPropertyType::AssetGuid:
 											fields[prop.Name] = pf.Text;
 											AddReferencedAsset(referencedAssets, File::Guid(pf.Text));
+											break;
+										case EReflectPropertyType::Ref:
+											fields[prop.Name] = pf.Text;
+											if (ERefCategory::Asset == prop.RefCategory)
+											{
+												AddReferencedAsset(referencedAssets, File::Guid(pf.Text));
+											}
 											break;
 										case EReflectPropertyType::String:
 											fields[prop.Name] = pf.Text;
@@ -942,6 +995,14 @@ ESceneSerializeResult CSceneSerializer::DeserializeFromText(CScene& scene, const
 		CGameObject object = scene.CreateGameObject(name.c_str());
 		object.SetActive(ReadValueOr<bool>(objectNode, "Active", true));
 		object.SetLayer(ReadValueOr<std::uint32_t>(objectNode, "Layer", 0));
+		// 저장된 안정 식별자가 있으면 복원(없으면 CreateGameObject 가 발급한 새 GUID 유지).
+		{
+			const std::string instanceGuid = ReadValueOr<std::string>(objectNode, "InstanceGuid", "");
+			if (false == instanceGuid.empty())
+			{
+				scene.SetGameObjectInstanceGuid(object.GetEntityId(), File::Guid(instanceGuid));
+			}
+		}
 
 		const YAML::Node components = objectNode["Components"];
 		if (components && components.IsMap())

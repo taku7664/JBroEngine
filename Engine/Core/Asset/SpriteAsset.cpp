@@ -102,6 +102,13 @@ void CSpriteAsset::SetImportData(const SpriteImportOptions& options, std::vector
 	m_frames = std::move(frames);
 }
 
+float CSpriteAsset::GetEffectivePixelsPerUnit(float fallback) const
+{
+	if (m_importOptions.PixelsPerUnit > 0.0f) return m_importOptions.PixelsPerUnit;
+	if (fallback > 0.0f) return fallback;
+	return 1.0f;
+}
+
 // ── CSpriteImportOptions ─────────────────────────────────────────────────────
 
 SpriteImportOptions CSpriteImportOptions::FromYaml(const std::string& yamlText)

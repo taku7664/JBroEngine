@@ -9,13 +9,16 @@ Entries:
   window.asset_browser: Asset Browser
   window.log: Log
   window.project_settings: Project Settings
+  window.build_settings: Build Settings
 
   menu.file: File
   menu.file.new_project: New Project
   menu.file.open_project: Open Project
   menu.file.save_project: Save Project
+  menu.file.build: Build
   menu.settings: Settings
   menu.settings.project_settings: Project Settings
+  menu.settings.build_settings: Build Settings
   menu.simulation: Simulation
   menu.simulation.play: Play
   menu.simulation.pause: Pause
@@ -101,12 +104,44 @@ Entries:
   project_settings.category.script: Script
   project_settings.category.localization: Localization
   project_settings.category.audio: Audio
+  build_settings.no_project: No project loaded.
+  build_settings.category.general: General
+  build_settings.category.scenes: Scenes
+  build_settings.category.output: Output
+  build_settings.general: General
+  build_settings.product_name: Product Name
+  build_settings.target_platform: Target Platform
+  build_settings.configuration: Build Configuration
+  build_settings.output: Output
+  build_settings.output_directory: Output Directory
+  build_settings.scenes: Scenes
+  build_settings.startup_scene: Startup Scene
+  build_settings.use_current_scene: Use Current Scene
+  build_settings.build_scenes: Build Scenes
+  build_settings.add_scene: Add Scene
+  build_settings.package_preview: Package Path
+  build_settings.select_startup_scene: Select Startup Scene
+  build_settings.select_output_directory: Select Build Output Folder
+  build_settings.save_failed: Failed to save build settings.
+  build_settings.apply_required: Apply Build Settings
+  build_settings.apply_required_body: Build settings have unsaved changes. Press Apply in the Build Settings window, then build again.
+  build.progress.title: Game Build
+  build.progress.body: Creating game build.
+  build.progress.validate: Validate build settings
+  build.progress.engine: Build engine game target
+  build.progress.scripts: Build script DLL
+  build.progress.package: Create package
+  build.progress.verify: Verify output
+  build.progress.succeeded: Build completed.
+  build.progress.failed: Build failed.
+  build.progress.open_log: Open Log
   project_settings.audio: Audio
   project_settings.audio.master_volume: Master Volume
   project_settings.audio.buses_help: Per-bus (channel) volume / effect controls coming soon.
   project_settings.localization_unavailable: Localization service unavailable.
   project_settings.localization_no_locales: No locales available.
   project_settings.language: Language
+  project_settings.save_failed: Failed to save project settings.
 
   asset_browser.no_project_loaded: No project loaded.
   asset_browser.open_project_hint: Use File > Open Project to load a .Jproject file.
@@ -160,6 +195,8 @@ Entries:
   inspector.add_child_object: Add Child Object
   inspector.normalized: Normalized
   inspector.pixel: Pixel
+  inspector.ref_none: (None)
+  inspector.ref_missing: (Missing)
   inspector.unsupported: unsupported
   inspector.matrix_3x2: Matrix 3x2
   inspector.physics_contacts: Physics Contacts
@@ -183,6 +220,7 @@ Entries:
   inspector.pivot_x: Pivot X
   inspector.pivot_y: Pivot Y
   inspector.pixels_per_unit: Pixels Per Unit
+  inspector.ppu.project_default_suffix: (project default)
   inspector.apply_sprite_import_options: Apply Sprite Import Options
 
   inspector.audio_import_options: Audio Import Options
@@ -351,6 +389,15 @@ Entries:
   project_settings.script_auto_rebuild.desc: When the editor regains focus, detect script source changes and rebuild automatically.
   project_settings.script_rebuild.desc: Build the script DLL right now and reload it.
   project_settings.script_unload.desc: Unload the currently loaded script DLL.
+  build_settings.product_name.desc: Product name used for the output package folder and executable name.
+  build_settings.target_platform.desc: Target platform for the game package.
+  build_settings.configuration.desc: Engine game build configuration. Maps to Debug_Game or Release_Game.
+  build_settings.output_directory.desc: Output directory for the game package. Paths inside the project are saved relative to the project root.
+  build_settings.startup_scene.desc: Scene opened when the game starts. Files inside Assets are saved relative to the Assets folder.
+  build_settings.use_current_scene.desc: Set the currently opened scene as the startup scene and add it to build scenes.
+  build_settings.package_preview.desc: Final package folder for the current settings.
+  build_settings.apply.desc: Save changed build settings to the project and close the window.
+  build_settings.cancel.desc: Discard changes and close the window.
   project_settings.language.desc: Pick the language used by the editor UI.
   project_settings.audio.master_volume.desc: Final gain applied to the whole game's audio output. Range 0.0~2.0 (1.0 = original).
   project_settings.apply.desc: Save the changed settings to the project and close the window.

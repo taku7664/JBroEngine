@@ -214,6 +214,14 @@ private:
 
 	// 드래그 시작된 항목의 절대경로 — 폴더 드롭 시 이동 소스 판정에 사용.
 	File::Path m_dragPrimaryPath;
+
+	// 박스 선택(고무줄 다중 선택)은 "빈 공간"에서 드래그를 시작할 때만 켠다.
+	// 아이템 셀 위에서 누르면 단일 에셋 드래그-드랍(Ref 드롭 타깃용)이 동작해야 하므로
+	// 그 드래그 동안에는 BoxSelect 플래그를 빼야 ImGui 가 박스 선택으로 드래그를 가로채지 않는다.
+	// press 가 아이템 위였는지는 "직전 프레임에 항목이 호버되어 있었는지"로 판정한다(공개 API).
+	bool m_entryHoveredThisFrame = false;
+	bool m_entryHoveredPrevFrame = false;
+	bool m_boxSelectFromVoid     = true;
 	// 잘라내기/복사 클립보드. m_clipboardIsCut == true 면 이동(붙여넣기 후 비움), false 면 복사.
 	std::vector<File::Path> m_clipboardPaths;
 	bool m_clipboardIsCut = false;

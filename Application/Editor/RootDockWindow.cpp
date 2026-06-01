@@ -4,6 +4,7 @@
 #include "Engine/Editor/ImWindow/ImWindowFlag.h"
 
 #include "Editor/Editor.h"
+#include "Editor/Main/BuildSettingsWindow.h"
 #include "Editor/Main/ProjectSettingsWindow.h"
 #include "Editor/Main/MainDockWindow.h"
 #include "Editor/Main/SceneView/SceneViewTool.h"
@@ -11,6 +12,7 @@
 #include "Engine/Core/EngineCore.h"
 #include "Engine/Core/Logging/LoggerInternal.h"
 #include "Engine/Editor/ImEditor.h"
+#include "Engine/Editor/ImGuiUtillity.h"
 #include "Engine/Editor/Project/ProjectManager.h"
 #include "Engine/Editor/Project/ProjectTypes.h"
 #include "Engine/GameFramework/Audio/AudioSystem.h"
@@ -165,13 +167,14 @@ namespace
 			const char* imguiIni = ImGui::SaveIniSettingsToMemory(&imguiIniSize);
 			pm->SetImGuiIniSettings((nullptr != imguiIni && imguiIniSize > 0) ? std::string(imguiIni, imguiIniSize) : std::string());
 
-			if (pm->SaveProject())
+			std::string saveError;
+			if (pm->SaveProject(&saveError))
 			{
 				CSystemLog::Info("Project saved.");
 			}
 			else
 			{
-				CSystemLog::Error("Project save failed.");
+				CSystemLog::Error(false == saveError.empty() ? std::string("Project save failed: ") + saveError : "Project save failed.");
 			}
 		}
 
@@ -203,6 +206,8 @@ void CRootDockWindow::OnCreate()
     {
         Editor::ProjectSettings =
             Editor::ImEditor->CreateImWindow<CProjectSettingsWindow>("ProjectSettings", 0);
+        Editor::BuildSettings =
+            Editor::ImEditor->CreateImWindow<CBuildSettingsWindow>("BuildSettings", 0);
     }
 }
 
@@ -217,6 +222,9 @@ void CRootDockWindow::OnRenderStay()
 
 	// 비동기 자산 로드 진행 중이면 프로그레스 팝업을 띄운다 (idempotent).
 	EnsureProjectLoadingPopup();
+
+	// 게임 빌드(패키징) 진행 중이면 진행 팝업을 띄운다 (idempotent — 빌드 아니면 즉시 반환).
+	EnsureBuildProgressPopup();
 
 	// 프로젝트 로드 직후(전이 감지) 자산 정합성 요약을 1회 평가.
 	MaybeShowReconcileSummary();
@@ -421,17 +429,27 @@ void CRootDockWindow::RenderProjectLoadingPopup(IImPopupWindow& popup)
 
 void CRootDockWindow::OpenNewProjectPopup(const File::Path& parentFolder)
 {
+	if (false == Editor::ImEditor.IsValid())
+	{
+		return;
+	}
+
 	m_newProjectParentFolder = parentFolder;
 	m_newProjectNameBuf.fill(0);
 	m_newProjectError.clear();
-	ImGui::OpenPopup("##new_project_popup");
 
+	// 프로젝트 표준 팝업 시스템(IImPopupWindow)으로 제어한다. 원시 ImGui::OpenPopup 은
+	// 이 시스템과 맞지 않아 사용하지 않는다. 동일 Id 면 OpenPopup 이 중복 생성하지 않는다.
 	ImPopupDesc desc;
-	desc.Title = Loc::Text("menu.file.new_project");
+	desc.Title            = Loc::Text("menu.file.new_project");
+	desc.Id               = "##new_project_popup";
+	desc.Kind             = EImPopupKind::Modal;
+	desc.InitSize         = ImVec2(400.0f, 0.0f);
+	desc.ShowCloseButton  = true;
 	desc.OnRenderStayFunc = [this](IImPopupWindow& popup)
 	{
 		RenderNewProjectPopup(popup);
-		};
+	};
 	Editor::ImEditor->OpenPopup(desc);
 }
 
@@ -505,7 +523,8 @@ void CRootDockWindow::OnMenuBar()
 		if (ImGui::MenuItem(Loc::Text("menu.file.new_project")))
 		{
 			File::Path parentFolder;
-			if (File::ShowOpenFolderDialog(nullptr, L"프로젝트를 만들 폴더 선택", L"", parentFolder))
+			const std::wstring title = Utillity::U8ToWString(Loc::Text("file_dialog.new_project_folder_title"));
+			if (File::ShowOpenFolderDialog(ImGui::Utillity::GetDialogOwnerHandle(), title.c_str(), L"", parentFolder))
 			{
 				OpenNewProjectPopup(parentFolder);
 			}
@@ -514,11 +533,13 @@ void CRootDockWindow::OnMenuBar()
 		if (ImGui::MenuItem(Loc::Text("menu.file.open_project")))
 		{
 			File::Path projectPath;
+			const std::wstring title = Utillity::U8ToWString(Loc::Text("file_dialog.open_project_title"));
+			const std::wstring filterName = Utillity::U8ToWString(Loc::Text("file_dialog.filter.jbro_project"));
 			if (File::ShowOpenFileDialog(
-				nullptr,
-				L"프로젝트 열기",
+				ImGui::Utillity::GetDialogOwnerHandle(),
+				title.c_str(),
 				L"",
-				{ { L"JBro Project", L"*.Jproject" }, { L"All Files", L"*.*" } },
+				{ { filterName.c_str(), L"*.Jproject" }, { L"All Files", L"*.*" } },
 				projectPath))
 			{
 				SafePtr<CProjectManager> projectManager = Editor::ImEditor ? Editor::ImEditor->GetProjectManager() : nullptr;
@@ -561,6 +582,21 @@ void CRootDockWindow::OnMenuBar()
 		{
 			SaveCurrentEditorState();
 		}
+
+		SafePtr<CProjectManager> pm = Editor::ImEditor ? Editor::ImEditor->GetProjectManager() : nullptr;
+		const bool canBuild = pm.IsValid() && pm->IsProjectLoaded() && false == m_buildManager.IsRunning();
+		if (false == canBuild)
+		{
+			ImGui::BeginDisabled();
+		}
+		if (ImGui::MenuItem(Loc::Text("menu.file.build")))
+		{
+			StartGameBuild();
+		}
+		if (false == canBuild)
+		{
+			ImGui::EndDisabled();
+		}
 		ImGui::EndMenu();
 	}
 
@@ -571,6 +607,13 @@ void CRootDockWindow::OnMenuBar()
 			if (Editor::ProjectSettings)
 			{
 				Editor::ProjectSettings->SetVisible(true);
+			}
+		}
+		if (ImGui::MenuItem(Loc::Text("menu.settings.build_settings")))
+		{
+			if (Editor::BuildSettings)
+			{
+				Editor::BuildSettings->SetVisible(true);
 			}
 		}
 		ImGui::EndMenu();
@@ -684,6 +727,196 @@ void CRootDockWindow::DrawLiveCompileMenuBarStatus()
 		{
 			Editor::ProjectSettings->SetVisible(true);
 			Editor::ProjectSettings->Focus();
+		}
+	}
+}
+
+void CRootDockWindow::StartGameBuild()
+{
+	SafePtr<CProjectManager> pm = Editor::ImEditor ? Editor::ImEditor->GetProjectManager() : nullptr;
+	if (Editor::BuildSettings && Editor::BuildSettings->HasUnsavedChanges())
+	{
+		Editor::BuildSettings->SetVisible(true);
+		Editor::BuildSettings->Focus();
+		OpenBuildBlockedPopup(Loc::Text("build_settings.apply_required_body"));
+		return;
+	}
+	if (false == m_buildManager.StartBuild(pm))
+	{
+		EnsureBuildProgressPopup();
+		return;
+	}
+	EnsureBuildProgressPopup();
+}
+
+void CRootDockWindow::OpenBuildBlockedPopup(std::string message)
+{
+	if (false == Editor::ImEditor.IsValid())
+	{
+		return;
+	}
+
+	m_buildBlockedMessage = std::move(message);
+	ImPopupDesc desc;
+	desc.Title = Loc::Text("build_settings.apply_required");
+	desc.Id = "##build_settings_apply_required_popup";
+	desc.Kind = EImPopupKind::Modal;
+	desc.InitSize = ImVec2(420.0f, 0.0f);
+	desc.ShowCloseButton = true;
+	desc.OnRenderStayFunc = [this](IImPopupWindow& popup)
+		{
+			RenderBuildBlockedPopup(popup);
+		};
+	m_buildBlockedPopupHandle = Editor::ImEditor->OpenPopup(desc);
+}
+
+void CRootDockWindow::RenderBuildBlockedPopup(IImPopupWindow& popup)
+{
+	ImGui::TextWrapped("%s", m_buildBlockedMessage.c_str());
+	ImGui::Spacing();
+	if (ImGui::Button(Loc::Text("common.ok"), ImVec2(120.0f, 0.0f)))
+	{
+		popup.Close();
+		m_buildBlockedPopupHandle = INVALID_POPUP_HANDLE;
+	}
+}
+
+void CRootDockWindow::EnsureBuildProgressPopup()
+{
+	if (false == Editor::ImEditor.IsValid())
+	{
+		return;
+	}
+
+	const GameBuildSnapshot snapshot = m_buildManager.GetSnapshot();
+	if (snapshot.State == EGameBuildState::Idle)
+	{
+		return;
+	}
+
+	if (Editor::ImEditor->IsPopupOpen(m_buildPopupHandle))
+	{
+		return;
+	}
+
+	ImPopupDesc desc;
+	desc.Title = Loc::Text("build.progress.title");
+	desc.Id = "##game_build_progress_popup";
+	desc.Kind = EImPopupKind::Modal;
+	desc.Flags = ImGuiWindowFlags_NoResize
+		| ImGuiWindowFlags_NoMove
+		| ImGuiWindowFlags_NoCollapse
+		| ImGuiWindowFlags_NoSavedSettings;
+	desc.InitSize = ImVec2(460.0f, 0.0f);
+	desc.ShowCloseButton = false;
+	desc.OnRenderStayFunc = [this](IImPopupWindow& popup)
+		{
+			RenderBuildProgressPopup(popup);
+		};
+	m_buildPopupHandle = Editor::ImEditor->OpenPopup(desc);
+}
+
+void CRootDockWindow::RenderBuildProgressPopup(IImPopupWindow& popup)
+{
+	GameBuildSnapshot snapshot = m_buildManager.GetSnapshot();
+
+	const float progress = snapshot.TotalCount > 0 ? snapshot.Progress01 : 0.0f;
+	char overlay[64];
+	std::snprintf(overlay, sizeof(overlay), "%u / %u", snapshot.CompletedCount, snapshot.TotalCount);
+
+	ImGui::TextUnformatted(Loc::Text("build.progress.body"));
+	ImGui::Spacing();
+	ImGui::ProgressBar(progress, ImVec2(-FLT_MIN, 0.0f), overlay);
+
+	if (false == snapshot.Tasks.empty())
+	{
+		ImGui::Spacing();
+		ImGui::Separator();
+		ImGui::Spacing();
+
+		const ImVec4 completedColor(0.40f, 0.85f, 0.40f, 1.0f);
+		const ImVec4 runningColor(0.95f, 0.85f, 0.4f, 1.0f);
+		const ImVec4 failedColor(0.90f, 0.35f, 0.35f, 1.0f);
+		const ImVec4 pendingColor(0.65f, 0.65f, 0.65f, 1.0f);
+		const float spinnerGap = ImGui::GetStyle().ItemInnerSpacing.x;
+		const float rowHeight = ImGui::GetFrameHeightWithSpacing();
+		const float visibleRows = snapshot.Tasks.size() < 8 ? static_cast<float>(snapshot.Tasks.size()) : 8.0f;
+		const float listHeight = visibleRows * rowHeight;
+
+		if (ImGui::BeginChild("##game_build_tasks", ImVec2(0.0f, listHeight), false))
+		{
+			for (std::size_t i = 0; i < snapshot.Tasks.size(); ++i)
+			{
+				const GameBuildTaskProgress& task = snapshot.Tasks[i];
+				ImGui::PushID(static_cast<int>(i));
+
+				ImVec4 color = pendingColor;
+				if (task.State == EGameBuildTaskState::Completed) color = completedColor;
+				else if (task.State == EGameBuildTaskState::Running) color = runningColor;
+				else if (task.State == EGameBuildTaskState::Failed) color = failedColor;
+
+				if (task.State == EGameBuildTaskState::Completed)
+				{
+					ImGui::Utillity::CheckMark(0.0f, color);
+				}
+				else if (task.State == EGameBuildTaskState::Running)
+				{
+					ImGui::Utillity::LoadingSpinner(0.0f, color);
+				}
+				else
+				{
+					ImGui::Dummy(ImVec2(ImGui::GetFrameHeight(), ImGui::GetFrameHeight()));
+				}
+				ImGui::SameLine(0.0f, spinnerGap);
+				ImGui::AlignTextToFramePadding();
+				const char* label = false == task.Description.empty() ? task.Description.c_str() : task.Name.c_str();
+				ImGui::TextColored(color, "%s", label);
+				ImGui::PopID();
+			}
+		}
+		ImGui::EndChild();
+	}
+
+	if (snapshot.State == EGameBuildState::Succeeded)
+	{
+		if (false == snapshot.OutputOpened && false == snapshot.PackageDirectory.empty())
+		{
+			File::OpenFile(snapshot.PackageDirectory);
+			m_buildManager.MarkOutputOpened();
+			snapshot.OutputOpened = true;
+		}
+		ImGui::Spacing();
+		ImGui::TextColored(ImVec4(0.40f, 0.85f, 0.40f, 1.0f), "%s", Loc::Text("build.progress.succeeded"));
+		ImGui::TextWrapped("%s", snapshot.PackageDirectory.generic_string().c_str());
+		ImGui::Spacing();
+		if (ImGui::Button(Loc::Text("common.ok"), ImVec2(120.0f, 0.0f)))
+		{
+			popup.Close();
+			m_buildPopupHandle = INVALID_POPUP_HANDLE;
+			m_buildManager.ClearResult();
+		}
+	}
+	else if (snapshot.State == EGameBuildState::Failed)
+	{
+		ImGui::Spacing();
+		ImGui::TextColored(ImVec4(0.90f, 0.35f, 0.35f, 1.0f), "%s", Loc::Text("build.progress.failed"));
+		if (false == snapshot.Message.empty())
+		{
+			ImGui::TextWrapped("%s", snapshot.Message.c_str());
+		}
+		if (false == snapshot.LogPath.empty())
+		{
+			if (ImGui::Button(Loc::Text("build.progress.open_log"), ImVec2(120.0f, 0.0f)))
+			{
+				File::OpenFile(snapshot.LogPath);
+			}
+			ImGui::SameLine();
+		}
+		if (ImGui::Button(Loc::Text("common.ok"), ImVec2(120.0f, 0.0f)))
+		{
+			popup.Close();
+			m_buildPopupHandle = INVALID_POPUP_HANDLE;
+			m_buildManager.ClearResult();
 		}
 	}
 }

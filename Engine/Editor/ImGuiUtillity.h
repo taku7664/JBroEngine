@@ -3,9 +3,13 @@
 #include <limits>
 #include <string>
 #include <type_traits>
+#include <vector>
 
 #include "ThirdParty/imgui/imgui.h"
 #include "ThirdParty/imgui/imgui_internal.h"   // ImGuiWindow
+#if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
+#include "Utillity/File/FileUtillities.h"
+#endif
 
 namespace ImGui
 {
@@ -14,6 +18,33 @@ namespace ImGui
         bool IsWindowDrawable(ImGuiWindow* window = nullptr);
 
 		bool HoveredToolTip(const char* toolTip, ImGuiHoveredFlags flags = ImGuiHoveredFlags_None);
+
+#if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
+		File::FileDialogOwnerHandle GetDialogOwnerHandle(File::FileDialogOwnerHandle owner = nullptr);
+
+		bool BrowseFolderButton(
+			const char* id,
+			std::string& inOutPath,
+			const wchar_t* title,
+			const wchar_t* initialDirectory = L"",
+			File::FileDialogOwnerHandle owner = nullptr);
+
+		bool BrowseFileButton(
+			const char* id,
+			std::string& inOutPath,
+			const wchar_t* title,
+			const wchar_t* initialDirectory,
+			std::vector<File::FileDialogFilter> filters,
+			File::FileDialogOwnerHandle owner = nullptr);
+
+		bool BrowseFilesButton(
+			const char* id,
+			std::vector<File::Path>& outPaths,
+			const wchar_t* title,
+			const wchar_t* initialDirectory,
+			std::vector<File::FileDialogFilter> filters,
+			File::FileDialogOwnerHandle owner = nullptr);
+#endif
 
 		
 		void LoadingSpinner(float radius = 0.0f, ImVec4 color = ImVec4(1, 1, 1, 1));

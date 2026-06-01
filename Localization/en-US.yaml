@@ -183,6 +183,7 @@ Entries:
   inspector.pivot_x: Pivot X
   inspector.pivot_y: Pivot Y
   inspector.pixels_per_unit: Pixels Per Unit
+  inspector.ppu.project_default_suffix: (project default)
   inspector.apply_sprite_import_options: Apply Sprite Import Options
 
   inspector.audio_import_options: Audio Import Options

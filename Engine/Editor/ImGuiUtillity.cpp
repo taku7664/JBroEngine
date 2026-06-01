@@ -1,6 +1,17 @@
 #include "pch.h"
 #include "ImGuiUtillity.h"
 
+#if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
+namespace
+{
+	std::string ToUtf8PathString(const File::Path& path)
+	{
+		const auto text = path.generic_u8string();
+		return std::string(reinterpret_cast<const char*>(text.c_str()), text.size());
+	}
+}
+#endif
+
 ImGui::Utillity::StyleBuilder::~StyleBuilder()
 {
 	PopStyle();
@@ -126,6 +137,86 @@ bool ImGui::Utillity::HoveredToolTip(const char* toolTip , ImGuiHoveredFlags fla
 	}
 	return isHovered;
 }
+
+#if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
+File::FileDialogOwnerHandle ImGui::Utillity::GetDialogOwnerHandle(File::FileDialogOwnerHandle owner)
+{
+	if (owner)
+	{
+		return owner;
+	}
+	if (ImGuiViewport* viewport = ImGui::GetMainViewport())
+	{
+		if (viewport->PlatformHandleRaw)
+		{
+			return viewport->PlatformHandleRaw;
+		}
+		return viewport->PlatformHandle;
+	}
+	return nullptr;
+}
+
+bool ImGui::Utillity::BrowseFolderButton(
+	const char* id,
+	std::string& inOutPath,
+	const wchar_t* title,
+	const wchar_t* initialDirectory,
+	File::FileDialogOwnerHandle owner)
+{
+	if (false == ImGui::SmallButton(id))
+	{
+		return false;
+	}
+
+	File::Path selectedPath;
+	if (false == File::ShowOpenFolderDialog(GetDialogOwnerHandle(owner), title, initialDirectory, selectedPath))
+	{
+		return false;
+	}
+
+	inOutPath = ToUtf8PathString(selectedPath);
+	return true;
+}
+
+bool ImGui::Utillity::BrowseFileButton(
+	const char* id,
+	std::string& inOutPath,
+	const wchar_t* title,
+	const wchar_t* initialDirectory,
+	std::vector<File::FileDialogFilter> filters,
+	File::FileDialogOwnerHandle owner)
+{
+	if (false == ImGui::SmallButton(id))
+	{
+		return false;
+	}
+
+	File::Path selectedPath;
+	if (false == File::ShowOpenFileDialog(GetDialogOwnerHandle(owner), title, initialDirectory, std::move(filters), selectedPath))
+	{
+		return false;
+	}
+
+	inOutPath = ToUtf8PathString(selectedPath);
+	return true;
+}
+
+bool ImGui::Utillity::BrowseFilesButton(
+	const char* id,
+	std::vector<File::Path>& outPaths,
+	const wchar_t* title,
+	const wchar_t* initialDirectory,
+	std::vector<File::FileDialogFilter> filters,
+	File::FileDialogOwnerHandle owner)
+{
+	if (false == ImGui::SmallButton(id))
+	{
+		return false;
+	}
+
+	return File::ShowOpenFileDialog(GetDialogOwnerHandle(owner), title, initialDirectory, std::move(filters), outPaths);
+}
+#endif
 
 
 

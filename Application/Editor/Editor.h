@@ -21,6 +21,7 @@ class CGameViewTool;
 class CInspectorTool;
 class CAssetBrowserTool;
 class CLogTool;
+class CBuildSettingsWindow;
 class CProjectSettingsWindow;
 class CSpriteImporterWindow;
 class CAudioImporterWindow;
@@ -39,6 +40,7 @@ public:
 	inline static SafePtr<CInspectorTool>			Inspector = nullptr;
 	inline static SafePtr<CAssetBrowserTool>		AssetBrowser = nullptr;
 	inline static SafePtr<CLogTool>					LogTool = nullptr;
+	inline static SafePtr<CBuildSettingsWindow>		BuildSettings = nullptr;
 	inline static SafePtr<CProjectSettingsWindow>	ProjectSettings = nullptr;
 	inline static SafePtr<CSpriteImporterWindow>	SpriteImporter = nullptr;
 	inline static SafePtr<CAudioImporterWindow>		AudioImporter  = nullptr;
@@ -144,12 +146,29 @@ public:
 		return m_activeScenePath;
 	}
 
+	// ── 인스펙터 컴포넌트 포커스 힌트 ─────────────────────────────────────────
+	// 하이어라키에서 컴포넌트를 클릭하면 그 타입 이름을 설정한다. 인스펙터는 다음
+	// 렌더에서 해당 컴포넌트 탭을 선택하고 힌트를 비운다.
+	static void SetFocusComponent(const char* typeName)
+	{
+		m_focusComponentName = (typeName != nullptr) ? typeName : "";
+	}
+	static const std::string& GetFocusComponent()
+	{
+		return m_focusComponentName;
+	}
+	static void ClearFocusComponent()
+	{
+		m_focusComponentName.clear();
+	}
+
 private:
 	inline static EntityId              m_primarySelectedEntity = INVALID_ENTITY_ID;
 	inline static std::vector<EntityId> m_selectedEntities;
 	inline static File::Path            m_activeScenePath   = File::NULL_PATH;
 	inline static File::Guid            m_selectedAssetGuid = File::NULL_GUID;
 	inline static File::Path            m_selectedAssetPath = File::NULL_PATH;
+	inline static std::string           m_focusComponentName;
 };
 
 inline SafePtr<CProjectManager> GetProjectManager()

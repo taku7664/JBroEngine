@@ -24,6 +24,8 @@ public:
 	void SetConstantBuffer(ERHIProgramStage stage, std::uint32_t slot, SafePtr<IRHIBuffer> buffer) override;
 	void SetTexture(ERHIProgramStage stage, std::uint32_t slot, SafePtr<IRHITexture> texture) override;
 	void SetSampler(ERHIProgramStage stage, std::uint32_t slot, SafePtr<IRHISampler> sampler) override;
+	void SetViewport(float x, float y, float width, float height,
+	                 float minDepth = 0.0f, float maxDepth = 1.0f) override;
 	void Draw(std::uint32_t vertexCount, std::uint32_t firstVertex) override;
 	void DrawIndexed(std::uint32_t indexCount, std::uint32_t firstIndex, std::uint32_t baseVertex) override;
 

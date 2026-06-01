@@ -43,6 +43,7 @@
 #include "Core/Network/Web/WebSocketTransport.h"
 #endif
 #include "GameFramework/Component/BuiltinComponentRegistry.h"
+#include "GameFramework/Rendering/GameCamera.h"
 #include "GameFramework/Reflection/ReflectionRegistry.h"
 #include "GameFramework/Scene/SceneManager.h"
 
@@ -247,6 +248,25 @@ void CEngine::FinalizeModule(CModule& module)
 	m_modules.erase(std::remove(m_modules.begin(), m_modules.end(), &module), m_modules.end());
 }
 
+void CEngine::SetPlatformDesc(const PlatformDesc& desc)
+{
+	if (m_isInitialized)
+	{
+		return;
+	}
+	m_platformDesc = desc;
+}
+
+void CEngine::SetMainClearColor(const Color& color)
+{
+	m_mainClearColor = color;
+}
+
+void CEngine::SetGameRenderCameras(std::vector<GameRenderCameraDesc> cameras)
+{
+	m_gameRenderCameras = std::move(cameras);
+}
+
 const EngineCore& CEngine::GetEngineCore() const
 {
 	return Engine;
@@ -406,9 +426,8 @@ bool CEngine::InitializePlatform()
 	return false;
 #endif
 
-	PlatformDesc desc;
-	desc.IsEditor = JBRO_EDITOR != 0;
-	return m_platform && m_platform->Initialize(desc);
+	m_platformDesc.IsEditor = JBRO_EDITOR != 0;
+	return m_platform && m_platform->Initialize(m_platformDesc);
 }
 
 bool CEngine::InitializeRHI()
@@ -597,21 +616,43 @@ void CEngine::RenderFrame()
 	SafePtr<IRHICommandContext> commandContext = m_rhiDevice->GetImmediateCommandContext();
 	if (commandContext)
 	{
-		RenderPassDesc renderPassDesc;
-		renderPassDesc.ColorAttachment.LoadOp = ERHILoadOp::Clear;
-		renderPassDesc.ColorAttachment.StoreOp = ERHIStoreOp::Store;
-		renderPassDesc.ColorAttachment.ClearColor = Color{ 0.08f, 0.09f, 0.11f, 1.0f };
-
-		commandContext->BeginRenderPass(renderPassDesc);
-		if (m_renderer && m_renderScene)
+		if (m_renderer && m_renderScene && false == m_gameRenderCameras.empty())
 		{
 			if (SafePtr<IRenderSurface> mainRenderSurface = GetMainRenderSurface())
 			{
-				m_renderer->SetRenderTargetSize(mainRenderSurface->GetSize());
+				RenderGameCameraStack(
+					*commandContext,
+					*m_renderer,
+					*m_renderScene,
+					m_gameRenderCameras,
+					mainRenderSurface->GetSize());
+				m_renderScene->Clear();
 			}
-			m_renderer->Render(*m_renderScene);
-			m_renderScene->Clear();
 		}
+		else
+		{
+			RenderPassDesc renderPassDesc;
+			renderPassDesc.ColorAttachment.LoadOp = ERHILoadOp::Clear;
+			renderPassDesc.ColorAttachment.StoreOp = ERHIStoreOp::Store;
+			renderPassDesc.ColorAttachment.ClearColor = m_mainClearColor;
+
+			commandContext->BeginRenderPass(renderPassDesc);
+			if (m_renderer && m_renderScene)
+			{
+				if (SafePtr<IRenderSurface> mainRenderSurface = GetMainRenderSurface())
+				{
+					m_renderer->SetRenderTargetSize(mainRenderSurface->GetSize());
+				}
+				m_renderer->Render(*m_renderScene);
+				m_renderScene->Clear();
+			}
+			commandContext->EndRenderPass();
+		}
+
+		RenderPassDesc moduleRenderPassDesc;
+		moduleRenderPassDesc.ColorAttachment.LoadOp = ERHILoadOp::Load;
+		moduleRenderPassDesc.ColorAttachment.StoreOp = ERHIStoreOp::Store;
+		commandContext->BeginRenderPass(moduleRenderPassDesc);
 		for (CModule* module : m_modules)
 		{
 			if (module)

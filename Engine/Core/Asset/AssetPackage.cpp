@@ -15,6 +15,7 @@ namespace
 	constexpr std::uint32_t HEADER_SIZE = 72;
 	constexpr std::uint64_t FNV_OFFSET = 14695981039346656037ull;
 	constexpr std::uint64_t FNV_PRIME = 1099511628211ull;
+	constexpr std::uint64_t PACK_CRYPT_KEY = 0x9E3779B97F4A7C15ull;
 
 	struct PackHeader
 	{
@@ -50,6 +51,18 @@ namespace
 		{
 			hash ^= bytes[i];
 			hash *= FNV_PRIME;
+		}
+	}
+
+	void CryptBytes(std::vector<std::uint8_t>& bytes, std::uint64_t seed)
+	{
+		std::uint64_t state = seed ^ PACK_CRYPT_KEY;
+		for (std::size_t i = 0; i < bytes.size(); ++i)
+		{
+			state ^= state << 13;
+			state ^= state >> 7;
+			state ^= state << 17;
+			bytes[i] ^= static_cast<std::uint8_t>((state >> ((i & 7) * 8)) & 0xFF);
 		}
 	}
 
@@ -298,10 +311,14 @@ bool CAssetPackWriter::Write(const File::Path& packPath, const std::vector<Asset
 		record.UncompressedSize = static_cast<std::uint64_t>(payload.size());
 		record.PayloadHash = HashBytes(payload);
 
+		const std::vector<std::uint8_t> plainPayload = payload;
+		CryptBytes(payload, record.PayloadHash ^ record.Offset);
+		record.Flags = static_cast<std::uint32_t>(EAssetPackageEntryFlags::Encrypted);
+
 		if (false == payload.empty())
 		{
 			file.write(reinterpret_cast<const char*>(payload.data()), static_cast<std::streamsize>(payload.size()));
-			HashAppend(payloadHash, payload.data(), payload.size());
+			HashAppend(payloadHash, plainPayload.data(), plainPayload.size());
 		}
 		if (false == static_cast<bool>(file))
 		{
@@ -318,6 +335,7 @@ bool CAssetPackWriter::Write(const File::Path& packPath, const std::vector<Asset
 	header.IndexSize = static_cast<std::uint64_t>(indexBytes.size());
 	header.IndexHash = HashBytes(indexBytes);
 	header.EntryCount = static_cast<std::uint32_t>(records.size());
+	CryptBytes(indexBytes, header.PayloadHash ^ header.EntryCount);
 	if (false == indexBytes.empty())
 	{
 		file.write(reinterpret_cast<const char*>(indexBytes.data()), static_cast<std::streamsize>(indexBytes.size()));
@@ -367,7 +385,12 @@ bool CAssetPackReader::Open(const File::Path& packPath)
 	std::vector<std::uint8_t> indexBytes(static_cast<std::size_t>(header.IndexSize));
 	file.seekg(static_cast<std::streamoff>(header.IndexOffset), std::ios::beg);
 	file.read(reinterpret_cast<char*>(indexBytes.data()), static_cast<std::streamsize>(indexBytes.size()));
-	if (false == static_cast<bool>(file) || HashBytes(indexBytes) != header.IndexHash)
+	if (false == static_cast<bool>(file))
+	{
+		return false;
+	}
+	CryptBytes(indexBytes, header.PayloadHash ^ header.EntryCount);
+	if (HashBytes(indexBytes) != header.IndexHash)
 	{
 		return false;
 	}
@@ -445,6 +468,11 @@ bool CAssetPackReader::ReadPayload(const AssetGuid& guid, std::vector<std::uint8
 	if (false == outPayload.empty())
 	{
 		file.read(reinterpret_cast<char*>(outPayload.data()), static_cast<std::streamsize>(outPayload.size()));
+	}
+
+	if (0 != (record->Flags & static_cast<std::uint32_t>(EAssetPackageEntryFlags::Encrypted)))
+	{
+		CryptBytes(outPayload, record->PayloadHash ^ record->Offset);
 	}
 
 	if ((false == static_cast<bool>(file) && false == file.eof()) || HashBytes(outPayload) != record->PayloadHash)

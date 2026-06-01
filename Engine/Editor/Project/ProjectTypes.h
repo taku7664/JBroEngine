@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 struct ProjectLoadDesc
 {
@@ -11,6 +12,40 @@ enum class EScriptBuildConfiguration
 {
 	Debug,
 	Release
+};
+
+enum class EBuildTargetPlatform
+{
+	Windows,
+	Web,
+	Android,
+	IOS
+};
+
+enum class EBuildConfiguration
+{
+	Debug,
+	Release
+};
+
+enum class EBuildScriptMode
+{
+	DynamicLibrary,
+	Static
+};
+
+struct ProjectBuildSettings
+{
+	std::string ProductName;
+	EBuildTargetPlatform TargetPlatform = EBuildTargetPlatform::Windows;
+	EBuildConfiguration BuildConfiguration = EBuildConfiguration::Release;
+	std::string OutputDirectory = "Dist/Games";
+	std::string StartupScene;
+	std::vector<std::string> BuildScenes;
+	EBuildScriptMode ScriptMode = EBuildScriptMode::DynamicLibrary;
+	std::string ScriptProjectPath = "Contents/GameScript.vcxproj";
+	EScriptBuildConfiguration ScriptBuildConfiguration = EScriptBuildConfiguration::Release;
+	std::string ScriptOutputLibraryPath = "GameScript.dll";
 };
 
 struct ProjectInfo
@@ -48,6 +83,9 @@ struct ProjectInfo
 
 	// 마지막으로 열었던 씬 경로 (Assets 폴더 기준 상대경로)
 	std::string LastOpenedScenePath;
+
+	// 게임 빌드본 생성 설정. 에디터 상태/LiveCompile 설정과 분리한다.
+	ProjectBuildSettings BuildSettings;
 
 	// 프로젝트별 에디터 상태
 	std::string EditorLocaleCode = "ko-KR";

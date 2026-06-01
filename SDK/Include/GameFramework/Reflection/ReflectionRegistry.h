@@ -295,6 +295,8 @@ bool CReflectionRegistry::RegisterScript(const ScriptRegisterDesc& desc, const s
 		prop.RangeMin     = d.RangeMin;
 		prop.RangeMax     = d.RangeMax;
 		prop.Serialize    = d.Serialize;
+		prop.RefCategory  = d.RefCategory;
+		prop.RefTypeName  = d.RefTypeName;
 		typeInfo.Properties.push_back(prop);
 	}
 

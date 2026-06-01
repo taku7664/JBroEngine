@@ -147,6 +147,15 @@
     <Filter Include="Header\Core\Game">
       <UniqueIdentifier>{5E27ED0F-AC65-4359-B5E2-49EEDDD75F31}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header\Core\Build">
+      <UniqueIdentifier>{6F38F2F0-4E88-4B2E-B438-11D9C8CC6A0B}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Core\Build">
+      <UniqueIdentifier>{C6244E80-4092-4D1E-899C-85069A02202E}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Core\Game">
+      <UniqueIdentifier>{86C45320-87E1-4F23-AF9F-C5E94D7A2F6E}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Header\GameFramework">
       <UniqueIdentifier>{E9FA30BC-D0C7-47D1-AEF0-5403E88CCF22}</UniqueIdentifier>
     </Filter>
@@ -425,6 +434,12 @@
     <ClInclude Include="Core\Game\GameModuleTypes.h">
       <Filter>Header\Core\Game</Filter>
     </ClInclude>
+    <ClInclude Include="Core\Game\GameModuleLoader.h">
+      <Filter>Header\Core\Game</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Build\BuildManifest.h">
+      <Filter>Header\Core\Build</Filter>
+    </ClInclude>
     <ClInclude Include="Core\Math\MathService.h">
       <Filter>Header\Core\Math</Filter>
     </ClInclude>
@@ -635,6 +650,9 @@
     <ClInclude Include="GameFramework\Object\GameObject.h">
       <Filter>Header\GameFramework\Object</Filter>
     </ClInclude>
+    <ClInclude Include="GameFramework\Object\Ref.h">
+      <Filter>Header\GameFramework\Object</Filter>
+    </ClInclude>
     <ClInclude Include="GameFramework\Component\GameObject.h">
       <Filter>Header\GameFramework\Object</Filter>
     </ClInclude>
@@ -646,6 +664,9 @@
     </ClInclude>
     <ClInclude Include="GameFramework\Prefab\PrefabTypes.h">
       <Filter>Header\GameFramework\Prefab</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Rendering\GameCamera.h">
+      <Filter>Header\GameFramework\Rendering</Filter>
     </ClInclude>
     <ClInclude Include="GameFramework\Rendering\SpriteRenderSystem.h">
       <Filter>Header\GameFramework\Rendering</Filter>
@@ -1165,11 +1186,17 @@
     <ClCompile Include="GameFramework\Object\GameObject.cpp">
       <Filter>Source\GameFramework\Object</Filter>
     </ClCompile>
+    <ClCompile Include="GameFramework\Object\Ref.cpp">
+      <Filter>Source\GameFramework\Object</Filter>
+    </ClCompile>
     <ClCompile Include="GameFramework\Component\GameObjectComponent.cpp">
       <Filter>Source\GameFramework\Object</Filter>
     </ClCompile>
     <ClCompile Include="GameFramework\Prefab\PrefabSerializer.cpp">
       <Filter>Source\GameFramework\Prefab</Filter>
+    </ClCompile>
+    <ClCompile Include="GameFramework\Rendering\GameCamera.cpp">
+      <Filter>Source\GameFramework\Rendering</Filter>
     </ClCompile>
     <ClCompile Include="GameFramework\Rendering\SpriteRenderSystem.cpp">
       <Filter>Source\GameFramework\Rendering</Filter>
@@ -1206,6 +1233,12 @@
     </ClCompile>
     <ClCompile Include="Core\Resource\ResourceRegistry.cpp">
       <Filter>Source\Core\Resource</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Build\BuildManifest.cpp">
+      <Filter>Source\Core\Build</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Game\GameModuleLoader.cpp">
+      <Filter>Source\Core\Game</Filter>
     </ClCompile>
     <ClCompile Include="GameFramework\Physics2D\Physics2DGeometry.cpp">
       <Filter>Source\GameFramework\Physics2D</Filter>

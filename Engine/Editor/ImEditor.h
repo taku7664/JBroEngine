@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "Core/Module/Module.h"
+#include "GameFramework/Rendering/GameCamera.h"
 #include "GameFramework/ECS/EntityTypes.h"
 
 // ImEditor 의 멤버에서 사용하는 ImWindow 패밀리 — self-contained 보장.
@@ -23,34 +24,6 @@ class CDebugRenderer2D;
 class COutlineRenderer2D;
 class IRHITexture;
 struct EngineCore;
-
-// ── GameCameraDesc ─────────────────────────────────────────────────────────────
-// Describes one active game camera submitted by GameViewTool each frame.
-// Cameras are sorted by Priority (ascending) before being passed here;
-// the first camera clears the RT, subsequent cameras load it.
-struct GameCameraDesc
-{
-	float        PosX        = 0.0f;
-	float        PosY        = 0.0f;
-	// Orthographic half-extents in world units.
-	// OrthoSize  = half-height (Y axis).
-	// OrthoSizeX = half-width  (X axis).  Used for stretch rendering via SetViewCameraEx.
-	// When both are provided, the renderer bypasses viewport-aspect derivation so
-	// scaleX / scaleY independently control how much of the world is visible.
-	float        OrthoSize   = 5.0f;
-	float        OrthoSizeX  = 5.0f;
-	// Camera rotation extracted from world transform (cos / sin of rotation angle).
-	float        CosR        = 1.0f;
-	float        SinR        = 0.0f;
-	// Normalized viewport rect within the game-view RT [0, 1].
-	float        ViewportX   = 0.0f;
-	float        ViewportY   = 0.0f;
-	float        ViewportW   = 1.0f;
-	float        ViewportH   = 1.0f;
-	float        ClearColor[4] = { 0.08f, 0.09f, 0.11f, 1.0f };
-	std::int32_t Priority    = 0;
-	bool         IsMainCamera = false;
-};
 
 class CImEditor : public CModule
 {
@@ -106,7 +79,7 @@ public:
 	// Game view (multi-camera)
 	void RequestGameViewRenderTarget(std::uint32_t width, std::uint32_t height);
 	// Submit all active game cameras for this frame (sorted by Priority, ascending).
-	void SetGameViewCameras(const std::vector<GameCameraDesc>& cameras);
+	void SetGameViewCameras(const std::vector<GameRenderCameraDesc>& cameras);
 	void* GetGameViewTextureID() const;
 	std::uint32_t GetGameViewWidth()  const { return m_gameViewWidth;  }
 	std::uint32_t GetGameViewHeight() const { return m_gameViewHeight; }
@@ -159,7 +132,7 @@ private:
 	std::uint32_t              m_gameViewWidth    = 0;
 	std::uint32_t              m_gameViewHeight   = 0;
 	bool                       m_gameViewRequested = false;
-	std::vector<GameCameraDesc> m_gameViewCameras;
+	std::vector<GameRenderCameraDesc> m_gameViewCameras;
 
 	// GPU renderer for IDebugDraw2D primitives — renders into scene RT.
 	OwnerPtr<CDebugRenderer2D>  m_debugRenderer;

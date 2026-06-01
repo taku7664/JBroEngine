@@ -227,7 +227,7 @@ void CImEditor::RequestGameViewRenderTarget(std::uint32_t width, std::uint32_t h
 	}
 }
 
-void CImEditor::SetGameViewCameras(const std::vector<GameCameraDesc>& cameras)
+void CImEditor::SetGameViewCameras(const std::vector<GameRenderCameraDesc>& cameras)
 {
 	m_gameViewCameras = cameras;
 }
@@ -543,77 +543,16 @@ void CImEditor::OnPrepareRender()
 	}
 
 	// ── Game view (multi-camera) ───────────────────────────────────────────────────
-	// Cameras are sorted by Priority (ascending) by GameViewTool.
-	//
-	// Rendering strategy:
-	//   1. Clear the entire RT to transparent (0,0,0,0) once.
-	//   2. For each camera: begin a Load pass → set sub-viewport → FillViewportColor
-	//      (clears that sub-area with the camera's own ClearColor including alpha) →
-	//      SetViewCameraEx (stretch + rotation) → Render scene.
-	//
-	// FillViewportColor draws a full-NDC quad that directly overwrites all RGBA channels,
-	// so alpha is correctly written per camera.  Alpha=0 areas remain transparent in
-	// the final ImGui game-view composite.
 	if (m_gameViewRequested && EnsureRT(m_gameViewRenderTarget, m_gameViewWidth, m_gameViewHeight))
 	{
-		const float rtW = static_cast<float>(m_gameViewWidth);
-		const float rtH = static_cast<float>(m_gameViewHeight);
-
-		// Step 1: Clear entire RT to fully transparent.
-		{
-			RenderPassDesc rpDesc;
-			rpDesc.ColorAttachment.Target     = m_gameViewRenderTarget.GetSafePtr();
-			rpDesc.ColorAttachment.LoadOp     = ERHILoadOp::Clear;
-			rpDesc.ColorAttachment.StoreOp    = ERHIStoreOp::Store;
-			rpDesc.ColorAttachment.ClearColor = Color{ 0.0f, 0.0f, 0.0f, 0.0f };
-			commandContext->BeginRenderPass(rpDesc);
-			commandContext->EndRenderPass();
-		}
-
-		// Step 2: Render each camera into its sub-viewport.
-		for (const GameCameraDesc& cam : m_gameViewCameras)
-		{
-			const float vpX = cam.ViewportX * rtW;
-			const float vpY = cam.ViewportY * rtH;
-			const float vpW = std::max(cam.ViewportW * rtW, 1.0f);
-			const float vpH = std::max(cam.ViewportH * rtH, 1.0f);
-
-			RenderPassDesc rpDesc;
-			rpDesc.ColorAttachment.Target  = m_gameViewRenderTarget.GetSafePtr();
-			rpDesc.ColorAttachment.LoadOp  = ERHILoadOp::Load;
-			rpDesc.ColorAttachment.StoreOp = ERHIStoreOp::Store;
-
-			commandContext->BeginRenderPass(rpDesc);
-			// Set sub-viewport for this camera.
-			commandContext->SetViewport(vpX, vpY, vpW, vpH);
-
-			engineCore->Renderer->SetRenderTargetSize(
-				RenderSurfaceSize{ static_cast<int>(vpW), static_cast<int>(vpH) });
-
-			// Clear this camera's viewport area with its own ClearColor (alpha included).
-			// FillViewportColor draws a full-NDC quad → direct RGBA overwrite, no blending.
-			// alpha ≤ 0 (1/255)이면 스킵 → 이전 카메라가 그린 내용을 보존(멀티카메라 합성).
-			if (cam.ClearColor[3] > (1.0f / 255.0f))
-			{
-				engineCore->Renderer->FillViewportColor(
-					cam.ClearColor[0], cam.ClearColor[1],
-					cam.ClearColor[2], cam.ClearColor[3]);
-			}
-
-			// SetViewCameraEx: explicit halfW/halfH + rotation → stretch rendering.
-			//   scaleX → halfW (가로), scaleY → halfH (세로), cos/sinR → 회전.
-			engineCore->Renderer->SetViewCameraEx(
-				cam.PosX, cam.PosY,
-				cam.OrthoSizeX, cam.OrthoSize,
-				cam.CosR, cam.SinR);
-			engineCore->Renderer->Render(*engineCore->RenderScene);
-
-			commandContext->EndRenderPass();
-		}
+		RenderGameCameraStack(
+			*commandContext,
+			*engineCore->Renderer,
+			*engineCore->RenderScene,
+			m_gameViewCameras,
+			RenderSurfaceSize{ static_cast<int>(m_gameViewWidth), static_cast<int>(m_gameViewHeight) },
+			m_gameViewRenderTarget.GetSafePtr());
 	}
-
-	// Reset camera to default so the main swapchain render is unaffected.
-	engineCore->Renderer->SetViewCamera(0.0f, 0.0f, 1.0f);
 }
 
 void CImEditor::OnRender()

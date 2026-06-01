@@ -9,13 +9,16 @@ Entries:
   window.asset_browser: 에셋 브라우저
   window.log: 로그
   window.project_settings: 프로젝트 세팅
+  window.build_settings: 빌드 세팅
 
   menu.file: 파일
   menu.file.new_project: 새 프로젝트
   menu.file.open_project: 프로젝트 열기
   menu.file.save_project: 프로젝트 저장
+  menu.file.build: 빌드
   menu.settings: 설정
   menu.settings.project_settings: 프로젝트 세팅
+  menu.settings.build_settings: 빌드 세팅
   menu.simulation: 시뮬레이션
   menu.simulation.play: 실행
   menu.simulation.pause: 일시정지
@@ -101,12 +104,44 @@ Entries:
   project_settings.category.script: 스크립트
   project_settings.category.localization: 로컬라이징
   project_settings.category.audio: 사운드
+  build_settings.no_project: 프로젝트가 열려있지 않습니다.
+  build_settings.category.general: 일반
+  build_settings.category.scenes: 씬
+  build_settings.category.output: 출력
+  build_settings.general: 일반
+  build_settings.product_name: 제품 이름
+  build_settings.target_platform: 대상 플랫폼
+  build_settings.configuration: 빌드 구성
+  build_settings.output: 출력
+  build_settings.output_directory: 출력 폴더
+  build_settings.scenes: 씬
+  build_settings.startup_scene: 시작 씬
+  build_settings.use_current_scene: 현재 씬 사용
+  build_settings.build_scenes: 빌드 씬 목록
+  build_settings.add_scene: 씬 추가
+  build_settings.package_preview: 패키지 경로
+  build_settings.select_startup_scene: 시작 씬 선택
+  build_settings.select_output_directory: 빌드 출력 폴더 선택
+  build_settings.save_failed: 빌드 설정 저장에 실패했습니다.
+  build_settings.apply_required: 빌드 설정 적용 필요
+  build_settings.apply_required_body: 빌드 설정에 저장되지 않은 변경 사항이 있습니다. 빌드 세팅 창에서 적용을 누른 뒤 다시 빌드하세요.
+  build.progress.title: 게임 빌드
+  build.progress.body: 게임 빌드를 생성하는 중입니다.
+  build.progress.validate: 빌드 설정 검증
+  build.progress.engine: 엔진 게임 빌드
+  build.progress.scripts: 스크립트 DLL 빌드
+  build.progress.package: 패키지 생성
+  build.progress.verify: 산출물 검증
+  build.progress.succeeded: 빌드가 완료되었습니다.
+  build.progress.failed: 빌드에 실패했습니다.
+  build.progress.open_log: 로그 열기
   project_settings.audio: 사운드
   project_settings.audio.master_volume: 마스터 볼륨
   project_settings.audio.buses_help: 버스(채널) 별 볼륨/효과 설정은 추후 추가될 예정입니다.
   project_settings.localization_unavailable: 로컬라이저를 사용할 수 없습니다.
   project_settings.localization_no_locales: 사용 가능한 언어가 없습니다.
   project_settings.language: 언어
+  project_settings.save_failed: 프로젝트 설정 저장에 실패했습니다.
 
   asset_browser.no_project_loaded: 프로젝트가 로드되지 않았습니다.
   asset_browser.open_project_hint: File > Open Project에서 .Jproject 파일을 여세요.
@@ -160,6 +195,8 @@ Entries:
   inspector.add_child_object: 자식 오브젝트 추가
   inspector.normalized: 정규화
   inspector.pixel: 픽셀
+  inspector.ref_none: (없음)
+  inspector.ref_missing: (유실됨)
   inspector.unsupported: 지원 안 함
   inspector.matrix_3x2: Matrix 3x2
   inspector.physics_contacts: 물리 접촉
@@ -183,6 +220,7 @@ Entries:
   inspector.pivot_x: 피벗 X
   inspector.pivot_y: 피벗 Y
   inspector.pixels_per_unit: 픽셀 / 유닛
+  inspector.ppu.project_default_suffix: (프로젝트 기본값)
   inspector.apply_sprite_import_options: 스프라이트 임포트 옵션 적용
 
   inspector.audio_import_options: 사운드 임포트 옵션
@@ -351,6 +389,15 @@ Entries:
   project_settings.script_auto_rebuild.desc: 에디터가 다시 포커스될 때 스크립트 소스 변경을 감지해 자동으로 다시 빌드합니다.
   project_settings.script_rebuild.desc: 지금 즉시 스크립트 DLL 을 빌드하고 다시 로드합니다.
   project_settings.script_unload.desc: 현재 로드된 스크립트 DLL 을 언로드합니다.
+  build_settings.product_name.desc: 빌드 산출물 폴더와 실행 파일 이름에 사용할 제품 이름입니다.
+  build_settings.target_platform.desc: 게임 빌드를 생성할 대상 플랫폼입니다.
+  build_settings.configuration.desc: 엔진 게임 빌드 구성입니다. Debug_Game 또는 Release_Game에 대응합니다.
+  build_settings.output_directory.desc: 게임 패키지가 생성될 출력 폴더입니다. 프로젝트 내부 경로는 프로젝트 루트 기준 상대 경로로 저장합니다.
+  build_settings.startup_scene.desc: 게임 시작 시 열 씬입니다. Assets 폴더 내부 파일은 Assets 기준 상대 경로로 저장합니다.
+  build_settings.use_current_scene.desc: 현재 열려있는 씬을 시작 씬으로 설정하고 빌드 씬 목록에 추가합니다.
+  build_settings.package_preview.desc: 현재 설정으로 생성될 최종 패키지 폴더입니다.
+  build_settings.apply.desc: 변경된 빌드 설정을 프로젝트에 저장하고 창을 닫습니다.
+  build_settings.cancel.desc: 변경 사항을 버리고 창을 닫습니다.
   project_settings.language.desc: 에디터 UI 에 사용할 언어를 선택합니다.
   project_settings.audio.master_volume.desc: 게임 전체 사운드 출력의 최종 게인입니다. 0.0~2.0 범위 (1.0 = 원본 크기).
   project_settings.apply.desc: 변경된 설정을 프로젝트에 저장하고 창을 닫습니다.

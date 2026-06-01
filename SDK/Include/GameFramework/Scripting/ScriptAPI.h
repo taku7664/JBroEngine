@@ -83,6 +83,10 @@ template<> inline EReflectPropertyType ScriptFieldTypeOf<File::Guid>()
 #include "GameFramework/Component/Camera2D.h"
 // Physics2D 관련 컴포넌트(Rigidbody2D / 콜라이더)는 ScriptAPI_Physics.h 로 분리.
 
+// ── 참조: Ref<T> (오브젝트/컴포넌트/스크립트/에셋) ───────────────────────────
+//   JPROP() Ref<GameObject> Target;  처럼 선언하면 인스펙터에서 드래그-드랍으로 지정.
+#include "GameFramework/Object/Ref.h"
+
 // ── 자산 ────────────────────────────────────────────────────────────────────
 #include "Core/Asset/AssetTypes.h"
 

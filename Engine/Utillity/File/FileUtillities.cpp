@@ -8,28 +8,66 @@
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
-#include <commdlg.h>
 #include <shellapi.h>
 #include <shlobj.h>
+#include <shobjidl.h>
 
 #include "Utillity/String/StringUtillity.h"
 #endif
 
 namespace
 {
-	std::wstring BuildFilterString(const std::vector<File::FileDialogFilter>& filters)
+#if defined(_WIN32)
+	template<typename T>
+	void SafeRelease(T*& ptr)
 	{
-		std::wstring result;
+		if (ptr)
+		{
+			ptr->Release();
+			ptr = nullptr;
+		}
+	}
+
+	class ComInitializeScope
+	{
+	public:
+		ComInitializeScope()
+		{
+			m_hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+			m_shouldUninitialize = SUCCEEDED(m_hr);
+		}
+
+		~ComInitializeScope()
+		{
+			if (m_shouldUninitialize)
+			{
+				CoUninitialize();
+			}
+		}
+
+		bool CanUseCom() const
+		{
+			return SUCCEEDED(m_hr);
+		}
+
+	private:
+		HRESULT m_hr = E_FAIL;
+		bool m_shouldUninitialize = false;
+	};
+	std::vector<COMDLG_FILTERSPEC> BuildFilterSpecs(const std::vector<File::FileDialogFilter>& filters)
+	{
+		std::vector<COMDLG_FILTERSPEC> result;
+		result.reserve(filters.size());
 		for (const File::FileDialogFilter& filter : filters)
 		{
-			result += filter.first ? filter.first : L"";
-			result.push_back(L'\0');
-			result += filter.second ? filter.second : L"";
-			result.push_back(L'\0');
+			result.push_back(COMDLG_FILTERSPEC{
+				filter.first ? filter.first : L"",
+				filter.second ? filter.second : L"*.*"
+			});
 		}
-		result.push_back(L'\0');
 		return result;
 	}
+#endif
 }
 
 namespace File
@@ -188,76 +226,147 @@ namespace File
 	{
 		out.clear();
 #if defined(_WIN32)
-		if (0 != (desc.Flags & DIRECTORY_DIALOG_FLAG_PICK_FOLDER))
-		{
-			BROWSEINFOW browseInfo = {};
-			browseInfo.hwndOwner = static_cast<HWND>(desc.Owner);
-			browseInfo.lpszTitle = desc.Title;
-			browseInfo.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
+		const bool pickFolder = 0 != (desc.Flags & DIRECTORY_DIALOG_FLAG_PICK_FOLDER);
+		const bool saveFile = 0 != (desc.Flags & DIRECTORY_DIALOG_FLAG_SAVE_FILE);
+		const bool allowMultiSelect = 0 != (desc.Flags & DIRECTORY_DIALOG_FLAG_ALLOW_MULTISELECT);
 
-			PIDLIST_ABSOLUTE itemList = SHBrowseForFolderW(&browseInfo);
-			if (nullptr == itemList)
-			{
-				return false;
-			}
-
-			wchar_t path[MAX_PATH] = {};
-			const bool succeeded = SHGetPathFromIDListW(itemList, path) == TRUE;
-			CoTaskMemFree(itemList);
-			if (succeeded)
-			{
-				out.emplace_back(path);
-			}
-			return succeeded;
-		}
-
-		std::vector<wchar_t> fileBuffer(65536, L'\0');
-		if (desc.DefaultFileName && desc.DefaultFileName[0] != L'\0')
-		{
-			wcsncpy_s(fileBuffer.data(), fileBuffer.size(), desc.DefaultFileName, _TRUNCATE);
-		}
-
-		std::wstring filterString = BuildFilterString(desc.Filters);
-		OPENFILENAMEW openFileName = {};
-		openFileName.lStructSize = sizeof(openFileName);
-		openFileName.hwndOwner = static_cast<HWND>(desc.Owner);
-		openFileName.lpstrTitle = desc.Title;
-		openFileName.lpstrInitialDir = desc.InitialDirectory;
-		openFileName.lpstrFilter = filterString.empty() ? nullptr : filterString.c_str();
-		openFileName.lpstrFile = fileBuffer.data();
-		openFileName.nMaxFile = static_cast<DWORD>(fileBuffer.size());
-		openFileName.Flags = OFN_EXPLORER | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
-		if (0 != (desc.Flags & DIRECTORY_DIALOG_FLAG_OPEN_FILE))
-		{
-			openFileName.Flags |= OFN_FILEMUSTEXIST;
-		}
-		if (0 != (desc.Flags & DIRECTORY_DIALOG_FLAG_ALLOW_MULTISELECT))
-		{
-			openFileName.Flags |= OFN_ALLOWMULTISELECT;
-		}
-
-		const BOOL succeeded = 0 != (desc.Flags & DIRECTORY_DIALOG_FLAG_SAVE_FILE)
-			? GetSaveFileNameW(&openFileName)
-			: GetOpenFileNameW(&openFileName);
-		if (FALSE == succeeded)
+		ComInitializeScope comScope;
+		if (false == comScope.CanUseCom())
 		{
 			return false;
 		}
 
-		const wchar_t* cursor = fileBuffer.data();
-		std::wstring first = cursor;
-		cursor += first.size() + 1;
-		if (*cursor == L'\0')
+		IFileDialog* dialog = nullptr;
+		HRESULT hr = CoCreateInstance(
+			saveFile ? CLSID_FileSaveDialog : CLSID_FileOpenDialog,
+			nullptr,
+			CLSCTX_INPROC_SERVER,
+			IID_PPV_ARGS(&dialog));
+		if (FAILED(hr) || nullptr == dialog)
 		{
-			out.emplace_back(first);
-			return true;
+			return false;
 		}
 
-		while (*cursor != L'\0')
+		DWORD options = 0;
+		if (SUCCEEDED(dialog->GetOptions(&options)))
 		{
-			out.emplace_back(std::filesystem::path(first) / cursor);
-			cursor += wcslen(cursor) + 1;
+			options |= FOS_FORCEFILESYSTEM | FOS_NOCHANGEDIR;
+			if (pickFolder)
+			{
+				options |= FOS_PICKFOLDERS | FOS_PATHMUSTEXIST;
+			}
+			else if (saveFile)
+			{
+				options |= FOS_OVERWRITEPROMPT | FOS_PATHMUSTEXIST;
+			}
+			else
+			{
+				options |= FOS_FILEMUSTEXIST | FOS_PATHMUSTEXIST;
+				if (allowMultiSelect)
+				{
+					options |= FOS_ALLOWMULTISELECT;
+				}
+			}
+			dialog->SetOptions(options);
 		}
+
+		if (desc.Title && desc.Title[0] != L'\0')
+		{
+			dialog->SetTitle(desc.Title);
+		}
+		if (desc.InitialDirectory && desc.InitialDirectory[0] != L'\0')
+		{
+			IShellItem* initialFolder = nullptr;
+			if (SUCCEEDED(SHCreateItemFromParsingName(desc.InitialDirectory, nullptr, IID_PPV_ARGS(&initialFolder)))
+				&& nullptr != initialFolder)
+			{
+				dialog->SetFolder(initialFolder);
+				SafeRelease(initialFolder);
+			}
+		}
+		if (desc.DefaultFileName && desc.DefaultFileName[0] != L'\0')
+		{
+			dialog->SetFileName(desc.DefaultFileName);
+		}
+		if (false == pickFolder && false == desc.Filters.empty())
+		{
+			std::vector<COMDLG_FILTERSPEC> filterSpecs = BuildFilterSpecs(desc.Filters);
+			dialog->SetFileTypes(static_cast<UINT>(filterSpecs.size()), filterSpecs.data());
+			dialog->SetFileTypeIndex(1);
+		}
+
+		HWND owner = static_cast<HWND>(desc.Owner);
+		if (nullptr == owner)
+		{
+			owner = GetActiveWindow();
+		}
+		hr = dialog->Show(owner);
+		if (FAILED(hr))
+		{
+			SafeRelease(dialog);
+			return false;
+		}
+
+		if (allowMultiSelect && false == saveFile && false == pickFolder)
+		{
+			IFileOpenDialog* openDialog = nullptr;
+			hr = dialog->QueryInterface(IID_PPV_ARGS(&openDialog));
+			if (FAILED(hr) || nullptr == openDialog)
+			{
+				SafeRelease(dialog);
+				return false;
+			}
+
+			IShellItemArray* results = nullptr;
+			hr = openDialog->GetResults(&results);
+			if (FAILED(hr) || nullptr == results)
+			{
+				SafeRelease(openDialog);
+				SafeRelease(dialog);
+				return false;
+			}
+
+			DWORD count = 0;
+			results->GetCount(&count);
+			for (DWORD i = 0; i < count; ++i)
+			{
+				IShellItem* item = nullptr;
+				if (SUCCEEDED(results->GetItemAt(i, &item)) && nullptr != item)
+				{
+					PWSTR path = nullptr;
+					if (SUCCEEDED(item->GetDisplayName(SIGDN_FILESYSPATH, &path)) && nullptr != path)
+					{
+						out.emplace_back(path);
+						CoTaskMemFree(path);
+					}
+					SafeRelease(item);
+				}
+			}
+
+			SafeRelease(results);
+			SafeRelease(openDialog);
+			SafeRelease(dialog);
+			return false == out.empty();
+		}
+
+		IShellItem* result = nullptr;
+		hr = dialog->GetResult(&result);
+		if (FAILED(hr) || nullptr == result)
+		{
+			SafeRelease(dialog);
+			return false;
+		}
+
+		PWSTR path = nullptr;
+		hr = result->GetDisplayName(SIGDN_FILESYSPATH, &path);
+		if (SUCCEEDED(hr) && nullptr != path)
+		{
+			out.emplace_back(path);
+			CoTaskMemFree(path);
+		}
+
+		SafeRelease(result);
+		SafeRelease(dialog);
 		return false == out.empty();
 #else
 		(void)desc;

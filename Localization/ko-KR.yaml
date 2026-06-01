@@ -183,6 +183,7 @@ Entries:
   inspector.pivot_x: 피벗 X
   inspector.pivot_y: 피벗 Y
   inspector.pixels_per_unit: 픽셀 / 유닛
+  inspector.ppu.project_default_suffix: (프로젝트 기본값)
   inspector.apply_sprite_import_options: 스프라이트 임포트 옵션 적용
 
   inspector.audio_import_options: 사운드 임포트 옵션

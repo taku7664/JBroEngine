@@ -9,8 +9,6 @@
 #include "Editor/Editor.h"
 #include "Engine/Editor/ImEditor.h"
 #include "Engine/Editor/Project/ProjectManager.h"
-#include "Utillity/File/FileUtillities.h"
-#include "Utillity/String/StringUtillity.h"
 
 namespace
 {
@@ -68,6 +66,8 @@ void CProjectSettingsWindow::OnCreate()
 
 void CProjectSettingsWindow::OnShow()
 {
+    m_errorMessage.clear();
+
     // 창이 열릴 때마다 현재 프로젝트 설정값으로 초기화합니다.
     SafePtr<CProjectManager> pm = GetProjectManagerForSettings();
     if (pm)
@@ -261,7 +261,15 @@ void CProjectSettingsWindow::DrawCategoryScript()
                     if (pm)
                     {
                         pm->SetScriptAutoRebuildEnabled(m_scriptAutoRebuildEnabled);
-                        pm->SaveProject();
+                        std::string error;
+                        if (false == pm->SaveProject(&error))
+                        {
+                            m_errorMessage = false == error.empty() ? error : Loc::Text("project_settings.save_failed");
+                        }
+                        else
+                        {
+                            m_errorMessage.clear();
+                        }
                     }
                 }
             });
@@ -359,6 +367,11 @@ void CProjectSettingsWindow::DrawFooterButtons()
 {
     SafePtr<CProjectManager> pm = GetProjectManagerForSettings();
 
+    if (false == m_errorMessage.empty())
+    {
+        ImGui::TextColored(ImVec4(0.95f, 0.35f, 0.30f, 1.0f), "%s", m_errorMessage.c_str());
+    }
+
     const bool applied = ImGui::Button(Loc::Text("common.apply"), { 100.0f, 0.0f });
     ImGui::Utillity::HoveredToolTip(Loc::Text("project_settings.apply.desc"));
     if (applied)
@@ -371,7 +384,6 @@ void CProjectSettingsWindow::DrawFooterButtons()
             pm->SetScriptBuildConfiguration(1 == m_scriptBuildConfiguration
                 ? EScriptBuildConfiguration::Release : EScriptBuildConfiguration::Debug);
             pm->SetScriptAutoRebuildEnabled(m_scriptAutoRebuildEnabled);
-            pm->SaveProject();
         }
         if (Core::Localization.IsValid())
         {
@@ -385,7 +397,16 @@ void CProjectSettingsWindow::DrawFooterButtons()
                 }
             }
         }
-        SetVisible(false);
+        std::string error;
+        if (false == pm.IsValid() || false == pm->SaveProject(&error))
+        {
+            m_errorMessage = false == error.empty() ? error : Loc::Text("project_settings.save_failed");
+        }
+        else
+        {
+            m_errorMessage.clear();
+            SetVisible(false);
+        }
     }
     ImGui::SameLine();
     const bool cancelled = ImGui::Button(Loc::Text("common.cancel"), { 100.0f, 0.0f });

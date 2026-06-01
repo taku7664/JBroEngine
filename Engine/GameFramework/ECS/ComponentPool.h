@@ -23,6 +23,11 @@ public:
 	virtual void        FlushPendingRemoves() = 0;
 	virtual void        Clear() = 0;
 	virtual std::size_t GetComponentCount() const = 0;
+
+	// 타입소거 접근자 — Ref<T> 해석 등 컴파일타임에 T 를 모르는 코드에서
+	// type_index 로 풀을 찾은 뒤 컴포넌트 주소를 void* 로 얻기 위해 사용한다.
+	// (호출자가 올바른 타입으로 static_cast 책임짐.)
+	virtual void*       GetRawComponent(EntityId entity) = 0;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -162,6 +167,11 @@ public:
 			return nullptr;
 		}
 		return &m_dense[m_sparse[EI] - 1u];
+	}
+
+	void* GetRawComponent(EntityId entity) override
+	{
+		return Get(entity);
 	}
 
 	// Multi-component disabled — fills at most one element.

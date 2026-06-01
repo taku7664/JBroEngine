@@ -87,7 +87,53 @@ CGameObject CScene::CreateGameObject(const char* name)
 	AddComponent<GameObject>(entity, name);
 	AddComponent<Transform2D>(entity);
 	AddComponent<TransformHierarchy2D>(entity);
+	// 안정적 식별자 발급 (씬 로드 시에는 직렬화된 값으로 덮어씀).
+	if (GameObject* gameObject = GetComponent<GameObject>(entity))
+	{
+		gameObject->InstanceGuid = File::GenerateGuid();
+	}
 	return CGameObject(*this, entity);
+}
+
+EntityId CScene::FindEntityByInstanceGuid(const File::Guid& guid) const
+{
+	if (guid.IsNull())
+	{
+		return INVALID_ENTITY_ID;
+	}
+	EntityId found = INVALID_ENTITY_ID;
+	const_cast<CScene*>(this)->ForEach<GameObject>(
+		[&](EntityId entity, const GameObject& gameObject)
+		{
+			if (found == INVALID_ENTITY_ID && gameObject.InstanceGuid == guid)
+			{
+				found = entity;
+			}
+		});
+	return found;
+}
+
+void CScene::SetGameObjectInstanceGuid(EntityId entity, const File::Guid& guid)
+{
+	if (GameObject* gameObject = GetComponent<GameObject>(entity))
+	{
+		gameObject->InstanceGuid = guid;
+	}
+}
+
+void* CScene::GetComponentRaw(EntityId entity, std::type_index type)
+{
+	if (false == IsAlive(entity))
+	{
+		return nullptr;
+	}
+	auto it = std::lower_bound(m_componentPools.begin(), m_componentPools.end(), type,
+		[](const PoolEntry& e, const std::type_index& k) { return e.Key < k; });
+	if (it == m_componentPools.end() || it->Key != type)
+	{
+		return nullptr;
+	}
+	return it->Pool->GetRawComponent(entity);
 }
 
 bool CScene::DestroyGameObject(const CGameObject& gameObject)
@@ -109,6 +155,7 @@ void CScene::BuildSnapshot(SceneSnapshot& snapshot) const
 		{
 			SceneObjectSnapshot object;
 			object.Entity = entity;
+			object.InstanceGuid = gameObject.InstanceGuid;
 			gameObject.CopyNameTo(object.Name, GameObject::MAX_NAME_LENGTH + 1);
 			object.IsActive = gameObject.IsActive;
 			object.Layer = gameObject.Layer;

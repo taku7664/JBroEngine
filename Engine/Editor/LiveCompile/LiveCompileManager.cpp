@@ -487,10 +487,14 @@ void CLiveCompileManager::TakeScriptSnapshot()
 
 				if (EReflectPropertyType::AssetGuid == prop.Type)
 				{
-					// File::Guid 는 std::filesystem::path 파생(내부 포인터 보유) — raw memcpy 금지.
-					// 문자열로 보존하고 복원 시 재구성한다. (memcpy 하면 path 내부 포인터를
-					// 얕은 복사해 이중 해제/액세스 위반으로 이어진다.)
+					// AssetGuid 는 File::Guid(= std::filesystem::path 파생, 내부 포인터 보유) —
+					// raw memcpy 금지. 문자열로 보존하고 복원 시 재구성한다.
 					field.Text = static_cast<const File::Guid*>(src)->generic_string();
+				}
+				else if (EReflectPropertyType::Ref == prop.Type)
+				{
+					// Ref 는 RefBase 의 POD 버퍼 — 문자열로 그대로 읽는다.
+					field.Text = static_cast<const RefBase*>(src)->GuidText();
 				}
 				else if (EReflectPropertyType::String == prop.Type)
 				{

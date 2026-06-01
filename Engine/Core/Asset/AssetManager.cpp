@@ -436,6 +436,10 @@ bool CAssetManager::BuildAssetPackage(const AssetPackageBuildDesc& desc)
 	packageEntries.reserve(snapshot.Assets.size());
 	for (const AssetMetaData& metaData : snapshot.Assets)
 	{
+		if (metaData.IsPersistent)
+		{
+			continue;
+		}
 		if (metaData.Guid.IsNull() || EAssetType::Unknown == metaData.Type)
 		{
 			return false;

@@ -310,6 +310,7 @@
   <ItemGroup>
     <ClInclude Include="Application.h" />
     <ClInclude Include="Editor\Main\AssetBrowser\AssetHandler.h" />
+    <ClInclude Include="Editor\Build\GameBuildManager.h" />
     <ClInclude Include="Editor\Command\EditorFileCommands.h" />
     <ClInclude Include="Editor\Command\EditorCommandManager.h" />
     <ClInclude Include="Editor\Command\EditorSceneCommands.h" />
@@ -330,6 +331,7 @@
     <ClInclude Include="Editor\Main\SceneView\SceneViewEditContext.h" />
     <ClInclude Include="Editor\Main\GameView\GameViewTool.h" />
     <ClInclude Include="Editor\Main\Log\LogTool.h" />
+    <ClInclude Include="Editor\Main\BuildSettingsWindow.h" />
     <ClInclude Include="Editor\Main\ProjectSettingsWindow.h" />
     <ClInclude Include="Editor\Main\Importer\ImporterWindowBase.h" />
     <ClInclude Include="Editor\Main\Importer\SpriteImporterWindow.h" />
@@ -340,6 +342,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Application.cpp" />
+    <ClCompile Include="Editor\Build\GameBuildManager.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="Editor\Main\AssetBrowser\AssetHandler.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
@@ -395,6 +400,9 @@
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="Editor\Main\GameView\GameViewTool.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Editor\Main\BuildSettingsWindow.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="Editor\Main\ProjectSettingsWindow.cpp">

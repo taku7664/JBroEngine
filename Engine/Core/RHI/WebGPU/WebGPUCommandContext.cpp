@@ -187,6 +187,31 @@ void CWebGPUCommandContext::SetSampler(ERHIProgramStage, std::uint32_t, SafePtr<
 #endif
 }
 
+void CWebGPUCommandContext::SetViewport(float x, float y, float width, float height, float minDepth, float maxDepth)
+{
+#if JBRO_PLATFORM_WEB
+	if (nullptr == m_renderPass)
+	{
+		return;
+	}
+	wgpuRenderPassEncoderSetViewport(
+		m_renderPass,
+		x,
+		y,
+		width > 0.0f ? width : 1.0f,
+		height > 0.0f ? height : 1.0f,
+		minDepth,
+		maxDepth);
+#else
+	(void)x;
+	(void)y;
+	(void)width;
+	(void)height;
+	(void)minDepth;
+	(void)maxDepth;
+#endif
+}
+
 void CWebGPUCommandContext::Draw(std::uint32_t vertexCount, std::uint32_t firstVertex)
 {
 #if JBRO_PLATFORM_WEB

@@ -14,6 +14,7 @@
 struct SceneObjectSnapshot
 {
 	EntityId Entity = INVALID_ENTITY_ID;
+	File::Guid InstanceGuid;   // 오브젝트 안정 식별자 (Ref<T> 직렬화 키)
 	char Name[GameObject::MAX_NAME_LENGTH + 1] = {};
 	bool IsActive = true;
 	std::uint32_t Layer = 0;

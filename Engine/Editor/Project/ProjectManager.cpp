@@ -19,6 +19,7 @@
 #include "yaml-cpp/yaml.h"
 
 #include <atomic>
+#include <algorithm>
 #include <chrono>
 #include <cstdlib>
 #include <memory>
@@ -46,6 +47,17 @@ namespace
 	constexpr const char* PROJECT_KEY_PIXELS_PER_UNIT   = "PixelsPerUnit";
 	constexpr const char* PROJECT_KEY_EDITOR_LOCALE     = "EditorLocale";
 	constexpr const char* PROJECT_KEY_IMGUI_INI         = "ImGuiIniSettings";
+	constexpr const char* PROJECT_KEY_BUILD             = "Build";
+	constexpr const char* PROJECT_KEY_BUILD_PRODUCT_NAME = "ProductName";
+	constexpr const char* PROJECT_KEY_BUILD_TARGET_PLATFORM = "TargetPlatform";
+	constexpr const char* PROJECT_KEY_BUILD_CONFIGURATION = "BuildConfiguration";
+	constexpr const char* PROJECT_KEY_BUILD_OUTPUT_DIR = "OutputDirectory";
+	constexpr const char* PROJECT_KEY_BUILD_STARTUP_SCENE = "StartupScene";
+	constexpr const char* PROJECT_KEY_BUILD_SCENES = "BuildScenes";
+	constexpr const char* PROJECT_KEY_BUILD_SCRIPT_MODE = "ScriptMode";
+	constexpr const char* PROJECT_KEY_BUILD_SCRIPT_PROJECT = "ScriptProjectPath";
+	constexpr const char* PROJECT_KEY_BUILD_SCRIPT_CONFIG = "ScriptBuildConfiguration";
+	constexpr const char* PROJECT_KEY_BUILD_SCRIPT_OUTPUT = "ScriptOutputLibraryPath";
 	constexpr const char* CONTENTS_DIRECTORY_NAME       = "Contents";
 	constexpr const char* ASSETS_DIRECTORY_NAME         = "Assets";
 	constexpr const char* SCRIPTS_DIRECTORY_NAME        = "Scripts";
@@ -204,6 +216,149 @@ namespace
 		return EScriptBuildConfiguration::Release == configuration ? "Release" : "Debug";
 	}
 
+	EBuildTargetPlatform ParseBuildTargetPlatform(const std::string& value)
+	{
+		if (value == "Web") return EBuildTargetPlatform::Web;
+		if (value == "Android") return EBuildTargetPlatform::Android;
+		if (value == "IOS") return EBuildTargetPlatform::IOS;
+		return EBuildTargetPlatform::Windows;
+	}
+
+	const char* ToString(EBuildTargetPlatform platform)
+	{
+		switch (platform)
+		{
+		case EBuildTargetPlatform::Web: return "Web";
+		case EBuildTargetPlatform::Android: return "Android";
+		case EBuildTargetPlatform::IOS: return "IOS";
+		default: return "Windows";
+		}
+	}
+
+	EBuildConfiguration ParseBuildConfiguration(const std::string& value)
+	{
+		if (value == "Debug") return EBuildConfiguration::Debug;
+		return EBuildConfiguration::Release;
+	}
+
+	const char* ToString(EBuildConfiguration configuration)
+	{
+		return EBuildConfiguration::Debug == configuration ? "Debug" : "Release";
+	}
+
+	EBuildScriptMode ParseBuildScriptMode(const std::string& value)
+	{
+		if (value == "Static") return EBuildScriptMode::Static;
+		return EBuildScriptMode::DynamicLibrary;
+	}
+
+	const char* ToString(EBuildScriptMode mode)
+	{
+		return EBuildScriptMode::Static == mode ? "Static" : "DynamicLibrary";
+	}
+
+	ProjectBuildSettings MakeDefaultBuildSettings(const std::filesystem::path& projectPath, const std::string& startupScene)
+	{
+		ProjectBuildSettings settings;
+		settings.ProductName = projectPath.stem().string();
+		settings.TargetPlatform = EBuildTargetPlatform::Windows;
+		settings.BuildConfiguration = EBuildConfiguration::Release;
+		settings.OutputDirectory = "Dist/Games";
+		settings.StartupScene = startupScene;
+		if (false == startupScene.empty())
+		{
+			settings.BuildScenes.push_back(startupScene);
+		}
+		settings.ScriptMode = EBuildScriptMode::DynamicLibrary;
+		settings.ScriptProjectPath = std::string(CONTENTS_DIRECTORY_NAME) + "/GameScript.vcxproj";
+		settings.ScriptBuildConfiguration = EScriptBuildConfiguration::Release;
+		settings.ScriptOutputLibraryPath = "GameScript.dll";
+		return settings;
+	}
+
+	void NormalizeBuildSettings(ProjectBuildSettings& settings, const std::filesystem::path& projectPath)
+	{
+		if (settings.ProductName.empty())
+		{
+			settings.ProductName = projectPath.stem().string();
+		}
+		if (settings.OutputDirectory.empty())
+		{
+			settings.OutputDirectory = "Dist/Games";
+		}
+		if (settings.ScriptProjectPath.empty())
+		{
+			settings.ScriptProjectPath = std::string(CONTENTS_DIRECTORY_NAME) + "/GameScript.vcxproj";
+		}
+		settings.ScriptBuildConfiguration = EBuildConfiguration::Debug == settings.BuildConfiguration
+			? EScriptBuildConfiguration::Debug
+			: EScriptBuildConfiguration::Release;
+		if (settings.ScriptOutputLibraryPath.empty())
+		{
+			settings.ScriptOutputLibraryPath = EBuildScriptMode::DynamicLibrary == settings.ScriptMode
+				? "GameScript.dll"
+				: "";
+		}
+		if (settings.BuildScenes.empty() && false == settings.StartupScene.empty())
+		{
+			settings.BuildScenes.push_back(settings.StartupScene);
+		}
+		if (false == settings.StartupScene.empty()
+			&& std::find(settings.BuildScenes.begin(), settings.BuildScenes.end(), settings.StartupScene) == settings.BuildScenes.end())
+		{
+			settings.BuildScenes.insert(settings.BuildScenes.begin(), settings.StartupScene);
+		}
+		if (EBuildTargetPlatform::Windows != settings.TargetPlatform)
+		{
+			settings.ScriptMode = EBuildScriptMode::Static;
+			settings.ScriptProjectPath.clear();
+			settings.ScriptOutputLibraryPath.clear();
+		}
+		else
+		{
+			settings.ScriptMode = EBuildScriptMode::DynamicLibrary;
+			settings.ScriptProjectPath = std::string(CONTENTS_DIRECTORY_NAME) + "/GameScript.vcxproj";
+			settings.ScriptOutputLibraryPath = "GameScript.dll";
+		}
+	}
+
+	ProjectBuildSettings ReadBuildSettings(const YAML::Node& root, const std::filesystem::path& projectPath, const std::string& startupScene)
+	{
+		ProjectBuildSettings settings = MakeDefaultBuildSettings(projectPath, startupScene);
+		const YAML::Node buildNode = root[PROJECT_KEY_BUILD];
+		if (false == static_cast<bool>(buildNode) || false == buildNode.IsMap())
+		{
+			return settings;
+		}
+
+		settings.ProductName = buildNode[PROJECT_KEY_BUILD_PRODUCT_NAME].as<std::string>(settings.ProductName);
+		settings.TargetPlatform = ParseBuildTargetPlatform(buildNode[PROJECT_KEY_BUILD_TARGET_PLATFORM].as<std::string>(ToString(settings.TargetPlatform)));
+		settings.BuildConfiguration = ParseBuildConfiguration(buildNode[PROJECT_KEY_BUILD_CONFIGURATION].as<std::string>(ToString(settings.BuildConfiguration)));
+		settings.OutputDirectory = buildNode[PROJECT_KEY_BUILD_OUTPUT_DIR].as<std::string>(settings.OutputDirectory);
+		settings.StartupScene = buildNode[PROJECT_KEY_BUILD_STARTUP_SCENE].as<std::string>(settings.StartupScene);
+		settings.ScriptMode = ParseBuildScriptMode(buildNode[PROJECT_KEY_BUILD_SCRIPT_MODE].as<std::string>(ToString(settings.ScriptMode)));
+		settings.ScriptProjectPath = buildNode[PROJECT_KEY_BUILD_SCRIPT_PROJECT].as<std::string>(settings.ScriptProjectPath);
+		settings.ScriptBuildConfiguration = ParseScriptBuildConfiguration(buildNode[PROJECT_KEY_BUILD_SCRIPT_CONFIG].as<std::string>(ToString(settings.ScriptBuildConfiguration)));
+		settings.ScriptOutputLibraryPath = buildNode[PROJECT_KEY_BUILD_SCRIPT_OUTPUT].as<std::string>(settings.ScriptOutputLibraryPath);
+
+		settings.BuildScenes.clear();
+		const YAML::Node scenesNode = buildNode[PROJECT_KEY_BUILD_SCENES];
+		if (scenesNode && scenesNode.IsSequence())
+		{
+			for (const YAML::Node& sceneNode : scenesNode)
+			{
+				const std::string scene = sceneNode.as<std::string>("");
+				if (false == scene.empty())
+				{
+					settings.BuildScenes.push_back(scene);
+				}
+			}
+		}
+
+		NormalizeBuildSettings(settings, projectPath);
+		return settings;
+	}
+
 	void LogLiveCompileFailure(const char* title, const LiveCompileResult& result)
 	{
 		CSystemLog::Error(title);
@@ -286,6 +441,20 @@ bool CProjectManager::CreateProject(const File::Path& parentFolder, const std::s
 		out << YAML::Key << PROJECT_KEY_RES_HEIGHT                 << YAML::Value << 1080;
 		// 새 프로젝트는 자동 리빌드 기본 ON. 키를 명시 저장해 로드 시 default 의존 X.
 		out << YAML::Key << PROJECT_KEY_SCRIPT_AUTO_REBUILD_ENABLED << YAML::Value << true;
+		ProjectBuildSettings buildSettings = MakeDefaultBuildSettings(projectFile, "");
+		out << YAML::Key << PROJECT_KEY_BUILD << YAML::Value;
+		out << YAML::BeginMap;
+		out << YAML::Key << PROJECT_KEY_BUILD_PRODUCT_NAME << YAML::Value << buildSettings.ProductName;
+		out << YAML::Key << PROJECT_KEY_BUILD_TARGET_PLATFORM << YAML::Value << ToString(buildSettings.TargetPlatform);
+		out << YAML::Key << PROJECT_KEY_BUILD_CONFIGURATION << YAML::Value << ToString(buildSettings.BuildConfiguration);
+		out << YAML::Key << PROJECT_KEY_BUILD_OUTPUT_DIR << YAML::Value << buildSettings.OutputDirectory;
+		out << YAML::Key << PROJECT_KEY_BUILD_STARTUP_SCENE << YAML::Value << buildSettings.StartupScene;
+		out << YAML::Key << PROJECT_KEY_BUILD_SCENES << YAML::Value << YAML::BeginSeq << YAML::EndSeq;
+		out << YAML::Key << PROJECT_KEY_BUILD_SCRIPT_MODE << YAML::Value << ToString(buildSettings.ScriptMode);
+		out << YAML::Key << PROJECT_KEY_BUILD_SCRIPT_PROJECT << YAML::Value << buildSettings.ScriptProjectPath;
+		out << YAML::Key << PROJECT_KEY_BUILD_SCRIPT_CONFIG << YAML::Value << ToString(buildSettings.ScriptBuildConfiguration);
+		out << YAML::Key << PROJECT_KEY_BUILD_SCRIPT_OUTPUT << YAML::Value << buildSettings.ScriptOutputLibraryPath;
+		out << YAML::EndMap;
 		out << YAML::EndMap;
 
 		std::ofstream file(projectFile, std::ios::out | std::ios::trunc);
@@ -434,6 +603,8 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 		if (pixelsPerUnit < 1.0f) pixelsPerUnit = 1.0f;
 	}
 
+	ProjectBuildSettings buildSettings = ReadBuildSettings(root, projectPath, lastOpenedScenePath);
+
 	std::filesystem::path rootRelativePath = ".";
 	if (root[PROJECT_KEY_ROOT_PATH])
 	{
@@ -495,6 +666,7 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 	m_info.ScriptBuildConfiguration = scriptBuildConfiguration;
 	m_info.ScriptAutoRebuildEnabled = scriptAutoRebuildEnabled;
 	m_info.LastOpenedScenePath = lastOpenedScenePath;
+	m_info.BuildSettings       = buildSettings;
 	m_info.PixelsPerUnit       = pixelsPerUnit;
 	m_info.EditorLocaleCode    = editorLocaleCode;
 	m_info.ImGuiIniSettings    = imguiIniSettings;
@@ -572,6 +744,9 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 
 	// 프로젝트 자체는 로드된 상태로 표시 — 인스펙터/AssetBrowser 등이 점진적으로 채워진다.
 	m_isProjectLoaded = true;
+
+	// 자산(스프라이트) 폴백 PPU 를 런타임 측에서도 보이게. 스프라이트가 처음 렌더되기 전에 채운다.
+	Engine.PixelsPerUnit = m_info.PixelsPerUnit;
 
 	// ── 마지막 씬이 참조하는 에셋만 수집 (프리팹 참조까지 전이적으로 확장) ──
 	// 씬 파일의 ReferencedAssets 목록을 기반으로, 프리팹이면 그 프리팹의 참조까지
@@ -760,6 +935,7 @@ void CProjectManager::CloseProject()
 	m_info.ScriptBuildConfiguration = EScriptBuildConfiguration::Debug;
 	m_info.ScriptAutoRebuildEnabled = false;
 	m_info.LastOpenedScenePath = {};
+	m_info.BuildSettings = ProjectBuildSettings{};
 	m_info.ImGuiIniSettings    = {};
 	m_lastOpenedScriptIdePath = File::NULL_PATH;
 	MarkAssetDatabaseChanged();
@@ -1682,6 +1858,8 @@ float CProjectManager::GetPixelsPerUnit() const
 void CProjectManager::SetPixelsPerUnit(float ppu)
 {
 	m_info.PixelsPerUnit = (ppu >= 1.0f) ? ppu : 100.0f;
+	// 런타임(스프라이트 폴백)도 즉시 반영 — ProjectSettings Apply 등에서 호출되면 다음 프레임부터 렌더 반영.
+	Engine.PixelsPerUnit = m_info.PixelsPerUnit;
 }
 
 float CProjectManager::GetSceneViewCamX() const
@@ -1798,6 +1976,17 @@ const std::string& CProjectManager::GetLastOpenedScenePath() const
 void CProjectManager::SetLastOpenedScenePath(const std::string& relativePath)
 {
 	m_info.LastOpenedScenePath = relativePath;
+}
+
+const ProjectBuildSettings& CProjectManager::GetBuildSettings() const
+{
+	return m_info.BuildSettings;
+}
+
+void CProjectManager::SetBuildSettings(const ProjectBuildSettings& settings)
+{
+	m_info.BuildSettings = settings;
+	NormalizeBuildSettings(m_info.BuildSettings, m_info.ProjectFilePath);
 }
 
 const std::string& CProjectManager::GetEditorLocaleCode() const
@@ -2061,10 +2250,14 @@ void CProjectManager::OpenScriptInIde(const File::Path& filePath) const
 	}
 }
 
-bool CProjectManager::SaveProject() const
+bool CProjectManager::SaveProject(std::string* outError) const
 {
 	if (false == m_isProjectLoaded || m_info.ProjectFilePath.empty())
 	{
+		if (outError)
+		{
+			*outError = "Project is not loaded.";
+		}
 		return false;
 	}
 
@@ -2085,6 +2278,25 @@ bool CProjectManager::SaveProject() const
 	out << YAML::Key << PROJECT_KEY_SCRIPT_INTERMEDIATE << YAML::Value << m_info.ScriptIntermediateDirectory;
 	out << YAML::Key << PROJECT_KEY_SCRIPT_BUILD_CONFIG << YAML::Value << ToString(m_info.ScriptBuildConfiguration);
 	out << YAML::Key << PROJECT_KEY_SCRIPT_AUTO_REBUILD_ENABLED << YAML::Value << m_info.ScriptAutoRebuildEnabled;
+	out << YAML::Key << PROJECT_KEY_BUILD << YAML::Value;
+	out << YAML::BeginMap;
+	out << YAML::Key << PROJECT_KEY_BUILD_PRODUCT_NAME << YAML::Value << m_info.BuildSettings.ProductName;
+	out << YAML::Key << PROJECT_KEY_BUILD_TARGET_PLATFORM << YAML::Value << ToString(m_info.BuildSettings.TargetPlatform);
+	out << YAML::Key << PROJECT_KEY_BUILD_CONFIGURATION << YAML::Value << ToString(m_info.BuildSettings.BuildConfiguration);
+	out << YAML::Key << PROJECT_KEY_BUILD_OUTPUT_DIR << YAML::Value << m_info.BuildSettings.OutputDirectory;
+	out << YAML::Key << PROJECT_KEY_BUILD_STARTUP_SCENE << YAML::Value << m_info.BuildSettings.StartupScene;
+	out << YAML::Key << PROJECT_KEY_BUILD_SCENES << YAML::Value;
+	out << YAML::BeginSeq;
+	for (const std::string& scene : m_info.BuildSettings.BuildScenes)
+	{
+		out << scene;
+	}
+	out << YAML::EndSeq;
+	out << YAML::Key << PROJECT_KEY_BUILD_SCRIPT_MODE << YAML::Value << ToString(m_info.BuildSettings.ScriptMode);
+	out << YAML::Key << PROJECT_KEY_BUILD_SCRIPT_PROJECT << YAML::Value << m_info.BuildSettings.ScriptProjectPath;
+	out << YAML::Key << PROJECT_KEY_BUILD_SCRIPT_CONFIG << YAML::Value << ToString(m_info.BuildSettings.ScriptBuildConfiguration);
+	out << YAML::Key << PROJECT_KEY_BUILD_SCRIPT_OUTPUT << YAML::Value << m_info.BuildSettings.ScriptOutputLibraryPath;
+	out << YAML::EndMap;
 	if (false == m_info.ScriptDllPath.empty())
 	{
 		out << YAML::Key << PROJECT_KEY_SCRIPT_DLL_PATH << YAML::Value << m_info.ScriptDllPath;
@@ -2102,8 +2314,24 @@ bool CProjectManager::SaveProject() const
 	std::ofstream file(m_info.ProjectFilePath, std::ios::out | std::ios::trunc);
 	if (false == file.is_open())
 	{
+		if (outError)
+		{
+			*outError = "Failed to open project file for writing: " + m_info.ProjectFilePath.generic_string();
+		}
 		return false;
 	}
 	file << out.c_str();
+	if (false == static_cast<bool>(file))
+	{
+		if (outError)
+		{
+			*outError = "Failed to write project file: " + m_info.ProjectFilePath.generic_string();
+		}
+		return false;
+	}
+	if (outError)
+	{
+		outError->clear();
+	}
 	return true;
 }

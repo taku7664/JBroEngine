@@ -107,19 +107,22 @@ namespace
 		File::Path                     ParentFolder;
 	};
 
-	// ScriptMacros.h 가 지원하는 REFLECT_FIELD 타입 목록.
+	// JPROP 코드젠이 지원하는 타입 목록.
 	// Combo 의 표시 라벨 ↔ C++ 타입 토큰.
-	constexpr std::array<std::pair<const char*, const char*>, 10> SCRIPT_PROP_TYPES = {{
-		{ "bool",     "Bool"            },
-		{ "int64",    "Int"             },
-		{ "uint32",   "UInt"            },
-		{ "float",    "Float"           },
-		{ "degree",   "Degree"          },
-		{ "radian",   "Radian"          },
-		{ "string",   "String"          },
-		{ "vector2",  "Vector2"         },
-		{ "rect",     "Rect"            },
-		{ "asset",    "Asset"           },
+	// Ref<GameObject> 는 가장 흔한 참조 케이스로 제공한다. 다른 대상(컴포넌트/스크립트/
+	// 에셋)은 생성된 헤더에서 <GameObject> 부분만 바꾸면 된다(예: Ref<SpriteRenderer2D>).
+	constexpr std::array<std::pair<const char*, const char*>, 11> SCRIPT_PROP_TYPES = {{
+		{ "bool",            "Bool"            },
+		{ "int64",           "Int"             },
+		{ "uint32",          "UInt"            },
+		{ "float",           "Float"           },
+		{ "degree",          "Degree"          },
+		{ "radian",          "Radian"          },
+		{ "string",          "String"          },
+		{ "vector2",         "Vector2"         },
+		{ "rect",            "Rect"            },
+		{ "asset",           "Asset"           },
+		{ "ref<GameObject>", "Ref<GameObject>" },
 	}};
 
 	std::string DefaultValueFor(int typeIndex)
@@ -136,6 +139,7 @@ namespace
 		case 7: return "{}";   // Vector2 -> {0, 0}
 		case 8: return "{}";   // Rect -> {0, 0, 0, 0}
 		case 9: return "{}";   // Asset -> null
+		case 10: return "{}";  // Ref<GameObject> -> null
 		default: return "{}";
 		}
 	}
@@ -1246,11 +1250,22 @@ void CAssetBrowserTool::DrawListEntries()
 	// (다중 선택 위에서 우클릭 시 선택 유지 → 다중 삭제 가능).
 	// (테이블은 자체 ScrollY 자식을 가지므로 BeginMultiSelect 를 테이블 안에서 호출해야
 	//  박스 선택/빈공간 클릭 스코프가 스크롤 영역과 일치한다 — ImGui 표준 패턴.)
-	const ImGuiMultiSelectFlags msFlags =
+	// BoxSelect1d 는 "빈 공간에서 누른 경우"에만 켠다 — 아이템 행 위에서 누른 드래그는
+	// 단일 에셋 드래그-드랍이어야 하기 때문(m_boxSelectFromVoid 참고, 아이콘 뷰와 동일 규칙).
+	m_entryHoveredThisFrame = false;
+	if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+	{
+		m_boxSelectFromVoid = !m_entryHoveredPrevFrame;
+	}
+	// 빈 공간 클릭으로는 선택을 해제하지 않는다(ClearOnClickVoid 제외) — 인스펙터
+	// 포커스가 사라지는 게 더 불편하다는 사용자 피드백. 선택 해제는 Esc 로만.
+	ImGuiMultiSelectFlags msFlags =
 		ImGuiMultiSelectFlags_ClearOnEscape |
-		ImGuiMultiSelectFlags_ClearOnClickVoid |
-		ImGuiMultiSelectFlags_NoSelectOnRightClick |
-		ImGuiMultiSelectFlags_BoxSelect1d;
+		ImGuiMultiSelectFlags_NoSelectOnRightClick;
+	if (m_boxSelectFromVoid)
+	{
+		msFlags |= ImGuiMultiSelectFlags_BoxSelect1d;
+	}
 	ImGuiMultiSelectIO* io = ImGui::BeginMultiSelect(msFlags, m_selection.Size, itemCount);
 	m_selection.UserData = this;
 	m_selection.AdapterIndexToStorageId = [](ImGuiSelectionBasicStorage* self, int idx) -> ImGuiID
@@ -1306,6 +1321,10 @@ void CAssetBrowserTool::DrawListEntries()
 						: std::format("{} {}", GetEntryIcon(entry), entry.DisplayNameUtf8);
 					ImGui::SetNextItemSelectionUserData(row);
 					ImGui::Selectable(label.c_str(), selected, ImGuiSelectableFlags_SpanAllColumns);
+					if (ImGui::IsItemHovered())
+					{
+						m_entryHoveredThisFrame = true; // 다음 프레임 박스 선택 가부 판정용
+					}
 					if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
 					{
 						OpenEntry(entry);
@@ -1345,6 +1364,8 @@ void CAssetBrowserTool::DrawListEntries()
 	io = ImGui::EndMultiSelect();
 	ApplyMultiSelectRequests(io);
 
+	m_entryHoveredPrevFrame = m_entryHoveredThisFrame;
+
 	ImGui::EndTable();
 }
 
@@ -1364,12 +1385,23 @@ void CAssetBrowserTool::DrawIconEntries()
 
 	// 드래그(박스 선택, 2D) + Ctrl/Shift 다중 선택. Esc/빈공간 클릭으로 해제.
 	// NoSelectOnRightClick: 우클릭 선택은 OpenBodyContextMenuForEntry 가 직접 관리.
-	const ImGuiMultiSelectFlags msFlags =
+	// BoxSelect2d 는 "빈 공간에서 누른 경우"에만 켠다 — 아이템 위에서 누른 드래그는
+	// 단일 에셋 드래그-드랍이어야 하기 때문(아래 m_boxSelectFromVoid 참고).
+	m_entryHoveredThisFrame = false;
+	if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+	{
+		m_boxSelectFromVoid = !m_entryHoveredPrevFrame;
+	}
+	// 빈 공간 클릭으로는 선택을 해제하지 않는다(ClearOnClickVoid 제외) — 인스펙터
+	// 포커스가 사라지는 게 더 불편하다는 사용자 피드백. 선택 해제는 Esc 로만.
+	ImGuiMultiSelectFlags msFlags =
 		ImGuiMultiSelectFlags_ClearOnEscape |
-		ImGuiMultiSelectFlags_ClearOnClickVoid |
 		ImGuiMultiSelectFlags_NoSelectOnRightClick |
-		ImGuiMultiSelectFlags_BoxSelect2d |
 		ImGuiMultiSelectFlags_NavWrapX;
+	if (m_boxSelectFromVoid)
+	{
+		msFlags |= ImGuiMultiSelectFlags_BoxSelect2d;
+	}
 	ImGuiMultiSelectIO* io = ImGui::BeginMultiSelect(msFlags, m_selection.Size, itemCount);
 	m_selection.UserData = this;
 	m_selection.AdapterIndexToStorageId = [](ImGuiSelectionBasicStorage* self, int idx) -> ImGuiID
@@ -1446,6 +1478,10 @@ void CAssetBrowserTool::DrawIconEntries()
 				{
 					selected = !selected; // 색상 즉시 반영(EndMultiSelect 요청 기다리지 않음)
 				}
+				if (ImGui::IsItemHovered())
+				{
+					m_entryHoveredThisFrame = true; // 다음 프레임 박스 선택 가부 판정용
+				}
 				if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
 				{
 					OpenEntry(entry);
@@ -1499,6 +1535,8 @@ void CAssetBrowserTool::DrawIconEntries()
 
 	io = ImGui::EndMultiSelect();
 	ApplyMultiSelectRequests(io);
+
+	m_entryHoveredPrevFrame = m_entryHoveredThisFrame;
 }
 
 // ── 컨텍스트 메뉴 열기 헬퍼 ─────────────────────────────────────────────────

@@ -41,6 +41,11 @@ public:
 	bool DestroyGameObject(const CGameObject& gameObject);
 	void BuildSnapshot(SceneSnapshot& snapshot) const;
 
+	// ── 오브젝트 안정 식별자(InstanceGuid) ↔ 엔티티 ──────────────────────────
+	// Ref<T> 가 직렬화된 GUID 로 런타임 엔티티를 해석할 때 사용한다.
+	EntityId FindEntityByInstanceGuid(const File::Guid& guid) const;
+	void     SetGameObjectInstanceGuid(EntityId entity, const File::Guid& guid);
+
 	bool SetParent(EntityId child, EntityId parent);
 	bool ClearParent(EntityId child);
 	EntityId GetParent(EntityId entity) const;
@@ -105,6 +110,11 @@ public:
 		const CComponentPool<T>* pool = FindComponentPool<T>();
 		return pool ? pool->Get(entity) : nullptr;
 	}
+
+	// 타입소거 컴포넌트 접근 — Ref<T> 처럼 컴파일타임에 T 를 알 수 없는 코드(또는
+	// 게임 DLL 경계)에서 type_index 로 풀을 찾아 컴포넌트 주소를 void* 로 얻는다.
+	// MSVC 의 type_info 는 모듈 경계를 넘어 이름 비교로 일치하므로 DLL 에서도 동작.
+	void* GetComponentRaw(EntityId entity, std::type_index type);
 
 	// Returns all instances of T for this entity.
 	template<typename T>

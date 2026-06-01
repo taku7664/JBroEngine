@@ -39,6 +39,9 @@
     <ClInclude Include="Editor\Command\EditorSceneCommands.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
+    <ClInclude Include="Editor\Build\GameBuildManager.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
     <ClInclude Include="Editor\Helper\EditorGuiDrawHelpers.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
@@ -81,6 +84,9 @@
     <ClInclude Include="Editor\Main\Log\LogTool.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
+    <ClInclude Include="Editor\Main\BuildSettingsWindow.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
     <ClInclude Include="Editor\Main\ProjectSettingsWindow.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
@@ -93,6 +99,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Application.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\Build\GameBuildManager.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="Editor\Command\EditorCommandManager.cpp">
@@ -144,6 +153,9 @@
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="Editor\Main\Log\LogTool.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\Main\BuildSettingsWindow.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="Editor\Main\ProjectSettingsWindow.cpp">

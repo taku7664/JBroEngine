@@ -14,7 +14,9 @@
 #include "Editor/Main/Importer/AudioImporterWindow.h"
 #include "Engine/Core/Core.h"
 #include "Engine/Editor/ImEditor.h"
+#include "Engine/Editor/Project/ProjectManager.h"
 #include "Engine/GameFramework/Scene/SceneManager.h"
+#include "Utillity/File/FileUtillities.h"
 
 void CMainDockWindow::OnCreate()
 {
@@ -94,7 +96,7 @@ void CMainDockWindow::OnCreate()
 
 void CMainDockWindow::OnMenuBar()
 {
-	//ImGui::ShowDemoWindow();
+	ImGui::ShowDemoWindow();
 
 	if (ImGui::BeginMenu(Loc::Text("menu.simulation")))
 	{

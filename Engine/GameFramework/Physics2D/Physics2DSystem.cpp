@@ -22,9 +22,9 @@
 #endif
 
 // 충돌 텍스트 진단 — Core::Logger + VS Output 으로 매 fixed step 1회 덤프.
-// LogTool 자체에 안 떠도 OutputDebugStringA 로 항상 보장.  0: 비활성.
+// LogTool 자체에 안 떠도 OutputDebugStringA 로 항상 보장.  0: 비활성(기본).
 #ifndef JBRO_PHYSICS_DEBUG_LOG
-#define JBRO_PHYSICS_DEBUG_LOG 1
+#define JBRO_PHYSICS_DEBUG_LOG 0
 #endif
 
 // 충돌 시각화 — DebugDraw2D 로 매니폴드 normal 화살표 + contact point 그림.

@@ -346,12 +346,14 @@
     <ClInclude Include="Core\Audio\IAudioPlayer.h" />
     <ClInclude Include="Core\Audio\EmptyAudio\EmptyAudioDevice.h" />
     <ClInclude Include="Core\Audio\MiniAudio\MiniAudioDevice.h" />
+    <ClInclude Include="Core\Build\BuildManifest.h" />
     <ClInclude Include="Core\Core.h" />
     <ClInclude Include="Core\CoreAll.h" />
     <ClInclude Include="Core\Debug\Debug.h" />
     <ClInclude Include="Core\Engine.h" />
     <ClInclude Include="Core\EngineCore.h" />
     <ClInclude Include="Core\Game\GameModuleTypes.h" />
+    <ClInclude Include="Core\Game\GameModuleLoader.h" />
     <ClInclude Include="Core\Math\MathService.h" />
     <ClInclude Include="Core\Game\IGameModule.h" />
     <ClInclude Include="Core\Module\Module.h" />
@@ -422,12 +424,14 @@
     <ClInclude Include="GameFramework\ECS\EntityManager.h" />
     <ClInclude Include="GameFramework\ECS\EntityTypes.h" />
     <ClInclude Include="GameFramework\Object\GameObject.h" />
+    <ClInclude Include="GameFramework\Object\Ref.h" />
     <ClInclude Include="GameFramework\Component\GameObject.h" />
     <ClInclude Include="GameFramework\Component\PrefabInstance.h" />
     <ClInclude Include="GameFramework\Prefab\PrefabSerializer.h" />
     <ClInclude Include="GameFramework\Prefab\PrefabTypes.h" />
     <ClInclude Include="GameFramework\Audio\AudioSystem.h" />
     <ClInclude Include="GameFramework\Component\AudioComponents.h" />
+    <ClInclude Include="GameFramework\Rendering\GameCamera.h" />
     <ClInclude Include="GameFramework\Rendering\SpriteRenderSystem.h" />
     <ClInclude Include="GameFramework\Scene\Scene.h" />
     <ClInclude Include="GameFramework\Scene\SceneManager.h" />
@@ -591,6 +595,7 @@
     <ClCompile Include="Core\Asset\AudioAsset.cpp" />
     <ClCompile Include="Core\Asset\MaterialAsset.cpp" />
     <ClCompile Include="Core\Asset\SpriteAsset.cpp" />
+    <ClCompile Include="Core\Build\BuildManifest.cpp" />
     <ClCompile Include="Core\Audio\EmptyAudio\EmptyAudioDevice.cpp" />
     <ClCompile Include="Core\Audio\MiniAudio\MiniAudioDevice.cpp" />
     <ClCompile Include="Core\Audio\MiniAudio\miniaudio_impl.cpp">
@@ -599,6 +604,7 @@
     <ClCompile Include="Core\Debug\Debug.cpp" />
     <ClCompile Include="Core\Engine.cpp" />
     <ClCompile Include="Core\EngineCore.cpp" />
+    <ClCompile Include="Core\Game\GameModuleLoader.cpp" />
     <ClCompile Include="Core\Math\MathService.cpp" />
     <ClCompile Include="Core\Network\NetworkManager.cpp" />
     <ClCompile Include="Core\Network\Windows\WinSockTransport.cpp" />
@@ -640,9 +646,11 @@
     <ClCompile Include="Core\Time\Time.cpp" />
     <ClCompile Include="GameFramework\ECS\EntityManager.cpp" />
     <ClCompile Include="GameFramework\Object\GameObject.cpp" />
+    <ClCompile Include="GameFramework\Object\Ref.cpp" />
     <ClCompile Include="GameFramework\Component\GameObjectComponent.cpp" />
     <ClCompile Include="GameFramework\Prefab\PrefabSerializer.cpp" />
     <ClCompile Include="GameFramework\Audio\AudioSystem.cpp" />
+    <ClCompile Include="GameFramework\Rendering\GameCamera.cpp" />
     <ClCompile Include="GameFramework\Rendering\SpriteRenderSystem.cpp" />
     <ClCompile Include="GameFramework\Scene\Scene.cpp" />
     <ClCompile Include="GameFramework\Scene\SceneManager.cpp" />
