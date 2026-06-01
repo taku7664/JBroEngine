@@ -695,8 +695,12 @@ namespace
 			return false;
 		}
 
-		assetManager->RefreshAssetRegistry();
-		assetManager->ReloadAsset(updatedMetaData.Guid);
+		// 자산이 이미 로드되어 있으면 자산이 자기 ImportOptions 를 in-place 갱신.
+		// 자산 객체는 destroy 되지 않으므로 외부 SafePtr(씬/인스펙터 미리보기 등) 가 살아남는다.
+		if (SafePtr<IAsset> loaded = assetManager->FindLoadedAsset(updatedMetaData.Guid))
+		{
+			loaded->ApplyImportOptions(updatedMetaData.ImportOptionsYaml);
+		}
 		return true;
 	}
 
@@ -851,8 +855,12 @@ namespace
 		updatedMetaData.ImportOptionsYaml = CAudioImportOptions::ToYaml(options);
 		if (false == CAssetMetaFile::Save(resolvedMetaPath, updatedMetaData)) return false;
 
-		assetManager->RefreshAssetRegistry();
-		assetManager->ReloadAsset(updatedMetaData.Guid);
+		// 자산이 이미 로드되어 있으면 자산이 자기 ImportOptions 를 in-place 갱신.
+		// 자산 객체는 destroy 되지 않으므로 외부 SafePtr(미리듣기 등) 가 살아남는다.
+		if (SafePtr<IAsset> loaded = assetManager->FindLoadedAsset(updatedMetaData.Guid))
+		{
+			loaded->ApplyImportOptions(updatedMetaData.ImportOptionsYaml);
+		}
 		return true;
 	}
 

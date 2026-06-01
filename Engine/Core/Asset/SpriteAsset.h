@@ -88,6 +88,7 @@ public:
 	EAssetType GetAssetType() const override;
 	EAssetLoadState GetLoadState() const override;
 	const AssetMetaData& GetMetaData() const override;
+	void ApplyImportOptions(const std::string& importOptionsYaml) override;
 
 	// 픽셀/크기
 	std::uint32_t GetWidth()  const;

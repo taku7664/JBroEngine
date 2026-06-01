@@ -109,6 +109,15 @@ float CSpriteAsset::GetEffectivePixelsPerUnit(float fallback) const
 	return 1.0f;
 }
 
+void CSpriteAsset::ApplyImportOptions(const std::string& importOptionsYaml)
+{
+	// 픽셀 데이터/GPU 텍스처는 그대로. 옵션 + frames 만 in-place 갱신.
+	// 향후 GPU 텍스처 재생성이 필요한 옵션(Premultiply/ColorSpace/Mipmap 등) 도입 시 분기 추가.
+	SpriteImportOptions newOptions = CSpriteImportOptions::FromYaml(importOptionsYaml);
+	std::vector<SpriteFrame> newFrames = CSpriteImportOptions::BuildFrames(m_width, m_height, newOptions);
+	SetImportData(newOptions, std::move(newFrames));
+}
+
 // ── CSpriteImportOptions ─────────────────────────────────────────────────────
 
 SpriteImportOptions CSpriteImportOptions::FromYaml(const std::string& yamlText)

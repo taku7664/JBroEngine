@@ -65,15 +65,18 @@ void CSpriteRenderSystem::OnUpdate(CScene& scene)
 			CForward2DRenderer* forwardRenderer = dynamic_cast<CForward2DRenderer*>(m_renderer);
 
 			// SpriteGuid 는 CSpriteAsset 을 가리킨다 (이전 CTextureAsset 통합됨).
-			// PPU 기반 자연 크기 계산을 위해 매 프레임 자산을 fetch — AssetManager 는 캐시 hit 처리.
-			CSpriteAsset* spriteAsset = nullptr;
-			if (m_assetManager)
+			// 자산 캐시 — SpriteGuid 가 바뀌었거나 캐시된 SafePtr 가 죽었을 때만 LoadAsset 호출.
+			// 정상 흐름에서는 매 프레임 AssetManager mutex 진입을 피한다.
+			if (sprite.CachedSpriteGuid != sprite.SpriteGuid || false == sprite.SpriteAssetCache.IsValid())
 			{
-				SafePtr<IAsset> asset = m_assetManager->LoadAsset(sprite.SpriteGuid);
-				if (asset && EAssetType::Sprite == asset->GetAssetType())
-				{
-					spriteAsset = static_cast<CSpriteAsset*>(asset.TryGet());
-				}
+				sprite.SpriteAssetCache = m_assetManager ? m_assetManager->LoadAsset(sprite.SpriteGuid) : nullptr;
+				sprite.CachedSpriteGuid = sprite.SpriteGuid;
+			}
+
+			CSpriteAsset* spriteAsset = nullptr;
+			if (sprite.SpriteAssetCache.IsValid() && EAssetType::Sprite == sprite.SpriteAssetCache->GetAssetType())
+			{
+				spriteAsset = static_cast<CSpriteAsset*>(sprite.SpriteAssetCache.TryGet());
 			}
 
 			if ((false == mesh.IsValid() || false == material.IsValid()) && m_rhiDevice && forwardRenderer)

@@ -232,9 +232,10 @@ bool CAssetManager::LoadRegistryFromMetaFiles()
 bool CAssetManager::RefreshAssetRegistry()
 {
 	std::lock_guard lock(m_mutex);
-	// Persistent 자산(엔진/에디터 영구 리소스)은 프로젝트 재바인딩 중에도 보존되어야 한다.
-	// 보존하지 않으면 ResourceRegistry 가 보유한 SafePtr 가 모두 Alive=false 가 되어 GetSprite 가 invalid 를 반환.
-	UnloadNonPersistentAssets();
+	// 디스크의 .Jmeta 들을 다시 스캔해 레지스트리를 갱신한다.
+	// 자산 데이터(이미 로드된 IAsset 객체) 는 건드리지 않는다 — 사용 중 자산을 보호.
+	// 비-영구 자산을 통째로 unload 가 필요한 호출자(프로젝트 재바인딩 등) 는
+	// UnloadNonPersistentAssets() 를 먼저 명시적으로 호출한다.
 	return LoadRegistryFromMetaFiles();
 }
 
@@ -247,7 +248,9 @@ bool CAssetManager::SetAssetRootPath(const File::Path& assetRootPath)
 
 	std::lock_guard lock(m_mutex);
 	m_assetRootPath = File::Path(assetRootPath.generic_string());
-	return RefreshAssetRegistry();
+	// 프로젝트 재바인딩 — 옛 비-영구 자산은 새 루트와 무관하므로 통째로 unload 후 재스캔.
+	UnloadNonPersistentAssets();
+	return LoadRegistryFromMetaFiles();
 }
 
 const File::Path& CAssetManager::GetAssetRootPath() const

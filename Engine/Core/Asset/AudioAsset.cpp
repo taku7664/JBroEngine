@@ -56,6 +56,14 @@ const AssetMetaData& CAudioAsset::GetMetaData()  const { return m_metaData; }
 const AudioImportOptions& CAudioAsset::GetImportOptions() const { return m_importOptions; }
 void CAudioAsset::SetImportOptions(const AudioImportOptions& options) { m_importOptions = options; }
 
+void CAudioAsset::ApplyImportOptions(const std::string& importOptionsYaml)
+{
+	// PCM/StreamPath/포맷은 그대로. 임포트 옵션만 in-place 갱신.
+	// Mode (Decompressed↔Streaming) 같은 데이터 재구성이 필요한 변경이 도입되면
+	// 자산이 자기 내부에서 in-place 재디코드/재로드를 책임진다 (여기서 분기 추가).
+	SetImportOptions(CAudioImportOptions::FromYaml(importOptionsYaml));
+}
+
 const AudioFormatInfo& CAudioAsset::GetFormat()           const { return m_format; }
 std::uint64_t          CAudioAsset::GetTotalFrames()      const { return m_totalFrames; }
 

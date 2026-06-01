@@ -53,6 +53,7 @@ public:
 	EAssetType           GetAssetType() const override;
 	EAssetLoadState      GetLoadState() const override;
 	const AssetMetaData& GetMetaData()  const override;
+	void                 ApplyImportOptions(const std::string& importOptionsYaml) override;
 
 	// 임포트 옵션
 	const AudioImportOptions&        GetImportOptions() const;
