@@ -19,6 +19,7 @@ namespace
 	constexpr std::uint64_t FNV_PRIME = 1099511628211ull;
 	constexpr const char* DEFAULT_PACK_PATH = "Content/game_assets.jbpack";
 	constexpr const char* DEFAULT_SCRIPT_MODULE = "GameScript.dll";
+	constexpr float DEFAULT_PIXELS_PER_UNIT = 100.0f;
 
 	File::Path ToCanonicalPath(const std::filesystem::path& path);
 
@@ -148,8 +149,19 @@ namespace
 		mount.Required = true;
 		manifest.AssetMounts.push_back(std::move(mount));
 
-		manifest.ScriptMode = "DynamicLibrary";
-		manifest.ScriptModule = DEFAULT_SCRIPT_MODULE;
+		if (manifest.ScriptMode.empty())
+		{
+			manifest.ScriptMode = "DynamicLibrary";
+		}
+		if (manifest.ScriptMode == "DynamicLibrary" && manifest.ScriptModule.empty())
+		{
+			manifest.ScriptModule = DEFAULT_SCRIPT_MODULE;
+		}
+	}
+
+	float NormalizePixelsPerUnit(float pixelsPerUnit)
+	{
+		return pixelsPerUnit >= 1.0f ? pixelsPerUnit : DEFAULT_PIXELS_PER_UNIT;
 	}
 
 	bool LoadBinaryManifest(const File::Path& manifestPath, BuildManifest& outManifest, std::string* outError)
@@ -203,6 +215,28 @@ namespace
 			|| false == ReadString(payload, cursor, outManifest.StartupSceneGuid))
 		{
 			SetError(outError, "Binary build manifest payload is invalid.");
+			return false;
+		}
+		outManifest.PixelsPerUnit = DEFAULT_PIXELS_PER_UNIT;
+		if (cursor < payload.size() && false == ReadPod(payload, cursor, outManifest.PixelsPerUnit))
+		{
+			SetError(outError, "Binary build manifest pixels-per-unit payload is invalid.");
+			return false;
+		}
+		outManifest.PixelsPerUnit = NormalizePixelsPerUnit(outManifest.PixelsPerUnit);
+		if (cursor < payload.size() && false == ReadString(payload, cursor, outManifest.TargetPlatform))
+		{
+			SetError(outError, "Binary build manifest target platform payload is invalid.");
+			return false;
+		}
+		if (cursor < payload.size() && false == ReadString(payload, cursor, outManifest.ScriptMode))
+		{
+			SetError(outError, "Binary build manifest script mode payload is invalid.");
+			return false;
+		}
+		if (cursor < payload.size() && false == ReadString(payload, cursor, outManifest.ScriptModule))
+		{
+			SetError(outError, "Binary build manifest script module payload is invalid.");
 			return false;
 		}
 
@@ -383,6 +417,7 @@ bool CBuildManifestLoader::LoadFromFile(const File::Path& manifestPath, BuildMan
 	outManifest.ScriptModule = ReadValueOr<std::string>(root, "scriptModule", "");
 	outManifest.EngineVersion = ReadValueOr<std::string>(root, "engineVersion", "");
 	outManifest.BuildTimeUtc = ReadValueOr<std::string>(root, "buildTimeUtc", "");
+	outManifest.PixelsPerUnit = NormalizePixelsPerUnit(ReadValueOr<float>(root, "pixelsPerUnit", DEFAULT_PIXELS_PER_UNIT));
 
 	if (const YAML::Node scenes = root["buildScenes"]; scenes && scenes.IsSequence())
 	{
@@ -476,6 +511,11 @@ bool CBuildManifestLoader::WriteBinaryFile(const File::Path& manifestPath, const
 	WritePod(payload, width);
 	WritePod(payload, height);
 	WriteString(payload, manifest.StartupSceneGuid);
+	const float pixelsPerUnit = NormalizePixelsPerUnit(manifest.PixelsPerUnit);
+	WritePod(payload, pixelsPerUnit);
+	WriteString(payload, manifest.TargetPlatform);
+	WriteString(payload, manifest.ScriptMode);
+	WriteString(payload, manifest.ScriptModule);
 
 	const std::uint32_t payloadSize = static_cast<std::uint32_t>(payload.size());
 	const std::uint64_t payloadHash = HashBytes(payload);

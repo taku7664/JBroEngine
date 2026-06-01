@@ -39,18 +39,18 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug_Game|Web'">
-    <NMakeBuildCommandLine>$(MSBuildProjectDirectory)\build_web_debug.bat</NMakeBuildCommandLine>
-    <NMakeReBuildCommandLine>$(MSBuildProjectDirectory)\build_web_debug.bat</NMakeReBuildCommandLine>
-    <NMakeCleanCommandLine>if exist "$(MSBuildProjectDirectory)\..\..\Build\Web\Debug" rmdir /S /Q "$(MSBuildProjectDirectory)\..\..\Build\Web\Debug"</NMakeCleanCommandLine>
-    <NMakeOutput>$(MSBuildProjectDirectory)\..\..\Build\Web\Debug\index.html</NMakeOutput>
-    <NMakePreprocessorDefinitions>JBRO_PLATFORM_WEB;JBRO_GAME</NMakePreprocessorDefinitions>
+    <NMakeBuildCommandLine>$(MSBuildProjectDirectory)\build_web_debug.bat "$(JBRO_PROJECT_FILE)"</NMakeBuildCommandLine>
+    <NMakeReBuildCommandLine>$(MSBuildProjectDirectory)\build_web_debug.bat "$(JBRO_PROJECT_FILE)"</NMakeReBuildCommandLine>
+    <NMakeCleanCommandLine>echo Set JBRO_PROJECT_FILE and run BuildWeb.ps1 -Clean to clean the configured Web package.</NMakeCleanCommandLine>
+    <NMakeOutput></NMakeOutput>
+    <NMakePreprocessorDefinitions>JBRO_PLATFORM_WEB;JBRO_GAME;YAML_CPP_STATIC_DEFINE</NMakePreprocessorDefinitions>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release_Game|Web'">
-    <NMakeBuildCommandLine>$(MSBuildProjectDirectory)\build_web_release.bat</NMakeBuildCommandLine>
-    <NMakeReBuildCommandLine>$(MSBuildProjectDirectory)\build_web_release.bat</NMakeReBuildCommandLine>
-    <NMakeCleanCommandLine>if exist "$(MSBuildProjectDirectory)\..\..\Build\Web\Release" rmdir /S /Q "$(MSBuildProjectDirectory)\..\..\Build\Web\Release"</NMakeCleanCommandLine>
-    <NMakeOutput>$(MSBuildProjectDirectory)\..\..\Build\Web\Release\index.html</NMakeOutput>
-    <NMakePreprocessorDefinitions>JBRO_PLATFORM_WEB;JBRO_GAME</NMakePreprocessorDefinitions>
+    <NMakeBuildCommandLine>$(MSBuildProjectDirectory)\build_web_release.bat "$(JBRO_PROJECT_FILE)"</NMakeBuildCommandLine>
+    <NMakeReBuildCommandLine>$(MSBuildProjectDirectory)\build_web_release.bat "$(JBRO_PROJECT_FILE)"</NMakeReBuildCommandLine>
+    <NMakeCleanCommandLine>echo Set JBRO_PROJECT_FILE and run BuildWeb.ps1 -Clean to clean the configured Web package.</NMakeCleanCommandLine>
+    <NMakeOutput></NMakeOutput>
+    <NMakePreprocessorDefinitions>JBRO_PLATFORM_WEB;JBRO_GAME;YAML_CPP_STATIC_DEFINE</NMakePreprocessorDefinitions>
   </PropertyGroup>
   <ItemGroup>
     <None Include="build_web_debug.bat" />

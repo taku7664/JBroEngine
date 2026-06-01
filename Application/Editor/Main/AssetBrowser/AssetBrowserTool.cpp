@@ -8,6 +8,7 @@
 #include "Engine/Editor/Project/ProjectManager.h"
 #include "Engine/Core/Core.h"
 #include "Engine/Core/EngineCore.h"
+#include "Engine/GameFramework/Reflection/ReflectionRegistry.h" // 스크립트 타입 목록(팝업 Ref 옵션)
 #include "Engine/Core/Asset/AssetPath.h"
 #include "Engine/Core/Asset/IAssetManager.h"
 #include "Engine/Core/Asset/IAssetRegistry.h"
@@ -97,7 +98,8 @@ namespace
 	// ── 스크립트 추가 팝업의 입력 상태 ─────────────────────────────────────
 	struct NewScriptProperty
 	{
-		int         TypeIndex = 3;   // 기본값 = float
+		std::string TypeToken = "Float";       // 1차 콤보 선택. "Ref" 면 참조(RefTarget 사용).
+		std::string RefTarget = "GameObject";  // TypeToken=="Ref" 일 때 참조 대상 타입.
 		std::string Name      = "";
 	};
 	struct NewScriptInput
@@ -107,41 +109,59 @@ namespace
 		File::Path                     ParentFolder;
 	};
 
-	// JPROP 코드젠이 지원하는 타입 목록.
-	// Combo 의 표시 라벨 ↔ C++ 타입 토큰.
-	// Ref<GameObject> 는 가장 흔한 참조 케이스로 제공한다. 다른 대상(컴포넌트/스크립트/
-	// 에셋)은 생성된 헤더에서 <GameObject> 부분만 바꾸면 된다(예: Ref<SpriteRenderer2D>).
-	constexpr std::array<std::pair<const char*, const char*>, 11> SCRIPT_PROP_TYPES = {{
-		{ "bool",            "Bool"            },
-		{ "int64",           "Int"             },
-		{ "uint32",          "UInt"            },
-		{ "float",           "Float"           },
-		{ "degree",          "Degree"          },
-		{ "radian",          "Radian"          },
-		{ "string",          "String"          },
-		{ "vector2",         "Vector2"         },
-		{ "rect",            "Rect"            },
-		{ "asset",           "Asset"           },
-		{ "ref<GameObject>", "Ref<GameObject>" },
-	}};
+	// 1차 콤보: 기본 타입 토큰 (라벨=토큰, PascalCase). "Ref" 는 참조 — 2차 콤보로 대상 선택.
+	// Int/UInt 는 64비트(나중에 32비트가 필요하면 Int32/UInt32 를 따로 명시).
+	constexpr std::array<const char*, 11> SCRIPT_BASE_TYPES = {
+		"Bool", "Int", "UInt", "Float", "Degree", "Radian",
+		"String", "Vector2", "Rect", "Asset", "Ref",
+	};
 
-	std::string DefaultValueFor(int typeIndex)
+	// 2차 콤보(Ref 대상): GameObject + 등록된 컴포넌트 + 등록된 스크립트.
+	std::vector<std::string> BuildRefTargets()
 	{
-		switch (typeIndex)
+		std::vector<std::string> out = { "GameObject" };
+		if (Core::Reflection.IsValid())
 		{
-		case 0: return "false";
-		case 1: return "0";
-		case 2: return "0u";
-		case 3: return "0.0f";
-		case 4: return "Degree(0.0f)";
-		case 5: return "Radian(0.0f)";
-		case 6: return "\"\"";
-		case 7: return "{}";   // Vector2 -> {0, 0}
-		case 8: return "{}";   // Rect -> {0, 0, 0, 0}
-		case 9: return "{}";   // Asset -> null
-		case 10: return "{}";  // Ref<GameObject> -> null
-		default: return "{}";
+			for (std::size_t i = 0; i < Core::Reflection->GetComponentTypeCount(); ++i)
+			{
+				const ComponentTypeInfo* ti = Core::Reflection->GetComponentType(i);
+				if (nullptr == ti || nullptr == ti->Type.Name) continue;
+				const char* n = ti->Type.Name;
+				if (0 == std::strcmp(n, "GameObject")) continue;            // 위에서 이미 추가
+				if (0 == std::strcmp(n, "TransformHierarchy2D")) continue;  // 내부용
+				if (0 == std::strcmp(n, "ScriptComponent")) continue;       // 컨테이너
+				out.push_back(n);
+			}
+			for (std::size_t i = 0; i < Core::Reflection->GetScriptTypeCount(); ++i)
+			{
+				const ScriptTypeInfo* si = Core::Reflection->GetScriptType(i);
+				if (nullptr == si || nullptr == si->Type.Name) continue;
+				out.push_back(si->Type.Name);
+			}
 		}
+		return out;
+	}
+
+	// 프로퍼티 → 생성 헤더에 쓸 최종 C++ 타입 토큰.
+	std::string FinalTypeToken(const NewScriptProperty& p)
+	{
+		if (p.TypeToken == "Ref")
+		{
+			return "Ref<" + p.RefTarget + ">";
+		}
+		return p.TypeToken;
+	}
+
+	std::string DefaultValueForToken(const std::string& finalToken)
+	{
+		if (finalToken == "Bool")   return "false";
+		if (finalToken == "Int")    return "0";
+		if (finalToken == "UInt")   return "0u";
+		if (finalToken == "Float")  return "0.0f";
+		if (finalToken == "Degree") return "Degree(0.0f)";
+		if (finalToken == "Radian") return "Radian(0.0f)";
+		if (finalToken == "String") return "\"\"";
+		return "{}";   // Vector2 / Rect / Asset / Ref<...>
 	}
 
 	// 유효한 C++ 식별자인지 — 첫 글자는 알파/밑줄, 이후 알파넘/밑줄.
@@ -191,7 +211,29 @@ namespace
 	{
 		std::ostringstream out;
 		out << "#pragma once\n\n";
-		out << "#include \"GameFramework/Scripting/ScriptAPI.h\"\n\n";
+		out << "#include \"GameFramework/Scripting/ScriptAPI.h\"\n";
+		// Ref<X> 는 대상 타입 X 의 헤더가 필요 — 대상별로 include 를 자동 추가한다.
+		//   스크립트  → "Scripts/<X>.h"
+		//   컴포넌트  → "GameFramework/Component/<X>.h" (대부분 개별 헤더. 그룹 헤더 타입은 직접 수정 필요)
+		//   GameObject→ ScriptAPI 가 이미 include (추가 불필요)
+		{
+			std::unordered_set<std::string> includes;
+			for (const NewScriptProperty& p : props)
+			{
+				if (p.TypeToken != "Ref" || p.RefTarget.empty() || p.RefTarget == className) continue;
+				if (p.RefTarget == "GameObject") continue;
+				const bool isScript = Core::Reflection.IsValid()
+					&& nullptr != Core::Reflection->FindScriptByName(p.RefTarget.c_str());
+				includes.insert(isScript
+					? ("Scripts/" + p.RefTarget + ".h")
+					: ("GameFramework/Component/" + p.RefTarget + ".h"));
+			}
+			for (const std::string& inc : includes)
+			{
+				out << "#include \"" << inc << "\"\n";
+			}
+		}
+		out << "\n";
 		out << "JBRO_SCRIPT " << className << " final : public CGameScript\n";
 		out << "{\n";
 		out << "public:\n";
@@ -202,12 +244,11 @@ namespace
 			std::unordered_set<std::string> usedNames;
 			for (const NewScriptProperty& p : props)
 			{
-				if (p.TypeIndex < 0 || p.TypeIndex >= static_cast<int>(SCRIPT_PROP_TYPES.size())) continue;
 				if (false == IsValidCppIdentifier(p.Name) || IsReservedScriptName(p.Name)) continue;
 				if (false == usedNames.insert(p.Name).second) continue;   // 중복 이름 스킵
-				const char* typeToken = SCRIPT_PROP_TYPES[p.TypeIndex].second;
-				out << "\tJPROP() " << typeToken << " "
-				    << p.Name << " = " << DefaultValueFor(p.TypeIndex) << ";\n";
+				const std::string token = FinalTypeToken(p);
+				out << "\tJPROP() " << token << " "
+				    << p.Name << " = " << DefaultValueForToken(token) << ";\n";
 			}
 			out << "\n";
 		}
@@ -2130,21 +2171,48 @@ void CAssetBrowserTool::ShowNewScriptPopup(const File::Path& parentFolder)
 			"##script_props", state->Properties,
 			[state](NewScriptProperty& p, int /*idx*/)
 			{
-				// Combo 와 InputText 를 가로로 배치 — 각각 절반 폭.
+				// 가로 배치: [타입 콤보][(Ref면) 대상 콤보][이름 인풋].
+				// Ref 면 3열, 아니면 2열로 폭을 나눈다.
+				const bool  isRef = (p.TypeToken == "Ref");
 				const float fullW = ImGui::CalcItemWidth();
-				const float halfW = fullW * 0.5f - 4.0f;
+				const float cols  = isRef ? 3.0f : 2.0f;
+				const float colW  = fullW / cols - 4.0f;
 
-				const char* items[SCRIPT_PROP_TYPES.size()];
-				for (size_t i = 0; i < SCRIPT_PROP_TYPES.size(); ++i)
+				// 1차 콤보: 기본 타입.
+				int typeCur = 0;
+				for (int i = 0; i < static_cast<int>(SCRIPT_BASE_TYPES.size()); ++i)
 				{
-					items[i] = SCRIPT_PROP_TYPES[i].first;
+					if (p.TypeToken == SCRIPT_BASE_TYPES[i]) { typeCur = i; break; }
+				}
+				ImGui::SetNextItemWidth(colW);
+				if (ImGui::Combo("##type", &typeCur, SCRIPT_BASE_TYPES.data(),
+					static_cast<int>(SCRIPT_BASE_TYPES.size())))
+				{
+					p.TypeToken = SCRIPT_BASE_TYPES[typeCur];
 				}
 
-				ImGui::SetNextItemWidth(halfW);
-				ImGui::Combo("##type", &p.TypeIndex, items,
-					static_cast<int>(SCRIPT_PROP_TYPES.size()));
+				// 2차 콤보: Ref 대상(오브젝트/컴포넌트/스크립트).
+				if (p.TypeToken == "Ref")
+				{
+					const std::vector<std::string> targets = BuildRefTargets();
+					std::vector<const char*> tLabels;
+					tLabels.reserve(targets.size());
+					int tCur = 0;
+					for (int i = 0; i < static_cast<int>(targets.size()); ++i)
+					{
+						tLabels.push_back(targets[i].c_str());
+						if (targets[i] == p.RefTarget) tCur = i;
+					}
+					ImGui::SameLine(0.0f, 4.0f);
+					ImGui::SetNextItemWidth(colW);
+					if (ImGui::Combo("##reftarget", &tCur, tLabels.data(), static_cast<int>(tLabels.size())))
+					{
+						p.RefTarget = targets[tCur];
+					}
+				}
+
 				ImGui::SameLine(0.0f, 4.0f);
-				ImGui::SetNextItemWidth(halfW);
+				ImGui::SetNextItemWidth(colW);
 				ImInputText input;
 				input.SetText(p.Name);
 				input.SetHintText(Loc::Text("asset_browser.script_popup.property_hint"));

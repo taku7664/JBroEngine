@@ -277,6 +277,8 @@ namespace
 			return ImGui::InputScalar("", ImGuiDataType_S64, field);
 		case EReflectPropertyType::UInt32:
 			return ImGui::InputScalar("", ImGuiDataType_U32, field);
+		case EReflectPropertyType::UInt64:
+			return ImGui::InputScalar("", ImGuiDataType_U64, field);
 		case EReflectPropertyType::Float:
 			if (property.HasRange)
 			{

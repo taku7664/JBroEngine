@@ -124,6 +124,7 @@ bool CGameApplication::InitializeRuntimeGame()
 	}
 	m_runtimeRenderWidth = static_cast<float>(manifest.ResolutionWidth > 0 ? manifest.ResolutionWidth : 1);
 	m_runtimeRenderHeight = static_cast<float>(manifest.ResolutionHeight > 0 ? manifest.ResolutionHeight : 1);
+	::Engine.PixelsPerUnit = manifest.PixelsPerUnit >= 1.0f ? manifest.PixelsPerUnit : 100.0f;
 
 	if (false == MountRuntimeAssets(manifest))
 	{

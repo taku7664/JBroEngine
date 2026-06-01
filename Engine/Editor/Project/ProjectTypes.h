@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Core/Asset/AssetTypes.h"
+
 #include <string>
 #include <vector>
 
@@ -46,6 +48,7 @@ struct ProjectBuildSettings
 	std::string ScriptProjectPath = "Contents/GameScript.vcxproj";
 	EScriptBuildConfiguration ScriptBuildConfiguration = EScriptBuildConfiguration::Release;
 	std::string ScriptOutputLibraryPath = "GameScript.dll";
+	AssetGuid WindowsIconGuid = INVALID_ASSET_GUID;
 };
 
 struct ProjectInfo
@@ -103,4 +106,3 @@ struct ProjectInfo
 		"Thumbs.db",
 	};
 };
-

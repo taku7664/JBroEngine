@@ -131,6 +131,10 @@ ImVec2 CImWindow::GetPosition() const
 void CImWindow::SetVisible( bool b )
 {
 	m_bIsVisible.first = b;
+	if (m_bIsFirstTick)
+	{
+		m_bIsVisible.second = b;
+	}
 }
 
 bool CImWindow::GetVisible() const
@@ -307,7 +311,6 @@ void CImWindow::HandleUpdate()
 		}
 
 		InitializeWindowRect();
-		UpdateWindowState();
 		UpdateWindowRect();
 
 		OnUpdate();
@@ -346,6 +349,7 @@ void CImWindow::HandleUpdate()
 				OnClose();
 			}
 		}
+		UpdateWindowState();
 		ImGui::PopID();
 
 		m_bIsFirstTick = false;

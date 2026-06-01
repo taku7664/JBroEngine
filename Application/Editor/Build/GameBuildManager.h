@@ -79,10 +79,12 @@ private:
 		EBuildConfiguration BuildConfiguration = EBuildConfiguration::Release;
 		std::uint32_t ResolutionWidth = 1920;
 		std::uint32_t ResolutionHeight = 1080;
+		float PixelsPerUnit = 100.0f;
 		std::string OutputDirectory;
 		std::string StartupScene;
 		std::string StartupSceneGuid;
 		std::vector<std::string> BuildScenes;
+		AssetGuid WindowsIconGuid = INVALID_ASSET_GUID;
 		File::Path OutputRoot;
 		File::Path PackageDirectory;
 		File::Path LogPath;
@@ -101,6 +103,7 @@ private:
 	bool BuildScriptModule(const BuildDesc& desc, File::Path& outScriptDll, std::string& outError) const;
 	bool StagePackage(const BuildDesc& desc, const File::Path& scriptDll, std::string& outError) const;
 	bool VerifyPackage(const BuildDesc& desc, bool requiresScriptDll, std::string& outError) const;
+	bool ApplyWindowsIconToExecutable(const BuildDesc& desc, const File::Path& executablePath, std::string& outError) const;
 
 	File::Path FindMSBuildPath() const;
 	bool RunCommandToLog(const std::wstring& command, const File::Path& logPath, std::string& outError) const;

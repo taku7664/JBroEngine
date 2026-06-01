@@ -30,6 +30,7 @@ struct BuildManifest
 	std::vector<std::string> BuildScenes;
 	int ResolutionWidth = 0;
 	int ResolutionHeight = 0;
+	float PixelsPerUnit = 100.0f;
 	std::vector<BuildAssetMount> AssetMounts;
 	std::string ScriptMode;
 	std::string ScriptModule;

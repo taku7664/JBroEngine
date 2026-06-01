@@ -42,6 +42,11 @@ private:
 	bool ApplyToProject(std::string* outError);
 	void MarkDirty();
 
+	void DrawWindowsIconSelector();
+	bool SelectWindowsIcon(std::string* outError);
+	bool ImportWindowsIconAsset(const File::Path& selectedPath, AssetGuid& outGuid, std::string* outError) const;
+	const AssetMetaData* FindWindowsIconMeta() const;
+
 	std::string NormalizePathForProject(const std::string& selectedPath, const File::Path& basePath) const;
 	std::string NormalizePathForProject(const File::Path& selectedPath, const File::Path& basePath) const;
 	std::string MakePackagePreview() const;
@@ -57,6 +62,7 @@ private:
 	std::string m_outputDirectory;
 	std::string m_startupScene;
 	std::vector<std::string> m_buildScenes;
+	AssetGuid m_windowsIconGuid = INVALID_ASSET_GUID;
 	bool m_loadedFromProject = false;
 	bool m_dirty = false;
 	std::string m_errorMessage;

@@ -50,7 +50,8 @@ namespace
 		if (cppType == "Bool" || cppType == "bool")                    { outEnum = "EReflectPropertyType::Bool";          return true; }
 		if (cppType == "Int" || cppType == "int64_t" || cppType == "std::int64_t" || cppType == "longlong") { outEnum = "EReflectPropertyType::Int64"; return true; }
 		if (cppType == "int" || cppType == "int32_t" || cppType == "std::int32_t") { outEnum = "EReflectPropertyType::Int32";  return true; }
-		if (cppType == "UInt" || cppType == "uint32_t" || cppType == "std::uint32_t" || cppType == "unsignedint") { outEnum = "EReflectPropertyType::UInt32"; return true; }
+		if (cppType == "UInt" || cppType == "uint64_t" || cppType == "std::uint64_t") { outEnum = "EReflectPropertyType::UInt64"; return true; }
+		if (cppType == "uint32_t" || cppType == "std::uint32_t" || cppType == "unsignedint") { outEnum = "EReflectPropertyType::UInt32"; return true; }
 		if (cppType == "Float" || cppType == "float")                  { outEnum = "EReflectPropertyType::Float";         return true; }
 		if (cppType == "Degree")                                       { outEnum = "EReflectPropertyType::Degree";        return true; }
 		if (cppType == "Radian")                                       { outEnum = "EReflectPropertyType::Radian";        return true; }

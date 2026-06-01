@@ -2,6 +2,9 @@
 #include "BuildSettingsWindow.h"
 
 #include "Editor/Editor.h"
+#include "Engine/Core/Asset/IAssetManager.h"
+#include "Engine/Core/Asset/IAssetRegistry.h"
+#include "Engine/Core/Core.h"
 #include "Engine/Editor/ImGuiUtillity.h"
 #include "Engine/Editor/ImItem/ImSplitter.h"
 #include "Engine/Editor/ImItem/ImText.h"
@@ -9,8 +12,12 @@
 #include "Engine/Editor/Project/ProjectManager.h"
 #include "Utillity/String/StringUtillity.h"
 
+#include <cwctype>
+
 namespace
 {
+	const File::Path WINDOWS_ICON_ASSET_PATH = "Package/Windows/AppIcon.ico";
+
 	int ToIndex(EBuildTargetPlatform platform)
 	{
 		switch (platform)
@@ -90,6 +97,45 @@ namespace
 		return true;
 	}
 
+	bool TryMakeRelativeSubPath(const File::Path& path, const File::Path& root, File::Path& outRelative)
+	{
+		if (path.empty() || root.empty())
+		{
+			return false;
+		}
+
+		std::error_code ec;
+		const File::Path absolutePath = std::filesystem::weakly_canonical(path, ec);
+		if (ec)
+		{
+			return false;
+		}
+		ec.clear();
+		const File::Path absoluteRoot = std::filesystem::weakly_canonical(root, ec);
+		if (ec)
+		{
+			return false;
+		}
+
+		const File::Path relativePath = std::filesystem::relative(absolutePath, absoluteRoot, ec);
+		if (ec || false == IsSubPath(relativePath))
+		{
+			return false;
+		}
+
+		outRelative = relativePath;
+		return true;
+	}
+
+	bool HasIcoExtension(const File::Path& path)
+	{
+		std::wstring extension = path.extension().wstring();
+		std::transform(extension.begin(), extension.end(), extension.begin(), [](wchar_t ch) {
+			return static_cast<wchar_t>(std::towlower(ch));
+		});
+		return extension == L".ico";
+	}
+
 	std::string MakeBrowseId(const char* suffix)
 	{
 		std::string id = Loc::Text("common.browse");
@@ -162,6 +208,10 @@ void CBuildSettingsWindow::OnRenderStay()
 	{
 		ImGui::TextDisabled("%s", Loc::Text("build_settings.no_project"));
 		return;
+	}
+	if (false == m_loadedFromProject && false == m_dirty)
+	{
+		LoadFromProject();
 	}
 
 	constexpr float SPLITTER_W = 3.0f;
@@ -264,6 +314,71 @@ void CBuildSettingsWindow::DrawGeneralCategory()
 				MarkDirty();
 			}
 		});
+
+	layout.Row(
+		[&]() {
+			ImText label;
+			label.SetHoveredTooltip(Loc::Text("build_settings.windows_icon.desc"));
+			label(Loc::Text("build_settings.windows_icon"));
+		},
+		[&]() {
+			DrawWindowsIconSelector();
+		});
+}
+
+void CBuildSettingsWindow::DrawWindowsIconSelector()
+{
+	const AssetMetaData* iconMeta = FindWindowsIconMeta();
+	const bool hasIcon = nullptr != iconMeta && false == m_windowsIconGuid.IsNull();
+	const char* caption = hasIcon ? "ICO" : "+";
+	const ImVec2 buttonSize(72.0f, 72.0f);
+	const ImVec2 start = ImGui::GetCursorScreenPos();
+	const std::string id = std::string("##build.windows_icon_button");
+
+	ImGui::InvisibleButton(id.c_str(), buttonSize);
+	const bool clicked = ImGui::IsItemClicked(ImGuiMouseButton_Left);
+	ImDrawList* drawList = ImGui::GetWindowDrawList();
+	const ImU32 bg = ImGui::GetColorU32(hasIcon ? ImGuiCol_FrameBgActive : ImGuiCol_FrameBg);
+	const ImU32 border = ImGui::GetColorU32(ImGuiCol_Border);
+	drawList->AddRectFilled(start, ImVec2(start.x + buttonSize.x, start.y + buttonSize.y), bg, 4.0f);
+	drawList->AddRect(start, ImVec2(start.x + buttonSize.x, start.y + buttonSize.y), border, 4.0f);
+	const ImVec2 textSize = ImGui::CalcTextSize(caption);
+	drawList->AddText(
+		ImVec2(start.x + (buttonSize.x - textSize.x) * 0.5f, start.y + (buttonSize.y - textSize.y) * 0.5f),
+		ImGui::GetColorU32(ImGuiCol_Text),
+		caption);
+	ImGui::Utillity::HoveredToolTip(Loc::Text("build_settings.windows_icon.desc"));
+
+	if (clicked)
+	{
+		std::string error;
+		if (SelectWindowsIcon(&error))
+		{
+			MarkDirty();
+		}
+		else if (false == error.empty())
+		{
+			m_errorMessage = error;
+		}
+	}
+
+	ImGui::SameLine();
+	ImGui::BeginGroup();
+	if (hasIcon)
+	{
+		ImGui::TextWrapped("%s", ToUtf8PathString(iconMeta->Path).c_str());
+		ImGui::TextDisabled("%s", m_windowsIconGuid.generic_string().c_str());
+		if (ImGui::SmallButton(Loc::Text("common.delete")))
+		{
+			m_windowsIconGuid = INVALID_ASSET_GUID;
+			MarkDirty();
+		}
+	}
+	else
+	{
+		ImGui::TextDisabled("%s", Loc::Text("build_settings.windows_icon.empty"));
+	}
+	ImGui::EndGroup();
 }
 
 void CBuildSettingsWindow::DrawScenesCategory()
@@ -448,6 +563,7 @@ void CBuildSettingsWindow::LoadFromProject()
 	m_outputDirectory = build.OutputDirectory;
 	m_startupScene = build.StartupScene;
 	m_buildScenes = build.BuildScenes;
+	m_windowsIconGuid = build.WindowsIconGuid;
 	m_loadedFromProject = true;
 	m_dirty = false;
 	m_errorMessage.clear();
@@ -470,6 +586,7 @@ bool CBuildSettingsWindow::ApplyToProject(std::string* outError)
 	buildSettings.OutputDirectory = m_outputDirectory;
 	buildSettings.StartupScene = m_startupScene;
 	buildSettings.BuildScenes = m_buildScenes;
+	buildSettings.WindowsIconGuid = m_windowsIconGuid;
 
 	if (buildSettings.TargetPlatform == EBuildTargetPlatform::Windows)
 	{
@@ -495,6 +612,107 @@ bool CBuildSettingsWindow::ApplyToProject(std::string* outError)
 	}
 	LoadFromProject();
 	return true;
+}
+
+bool CBuildSettingsWindow::SelectWindowsIcon(std::string* outError)
+{
+	File::Path selectedPath;
+	const std::wstring title = Utillity::U8ToWString(Loc::Text("build_settings.select_windows_icon"));
+	if (false == File::ShowOpenFileDialog(
+		ImGui::Utillity::GetDialogOwnerHandle(),
+		title.c_str(),
+		GetAssetDialogPath().c_str(),
+		{ { L"Windows Icon", L"*.ico" } },
+		selectedPath))
+	{
+		return false;
+	}
+
+	AssetGuid selectedGuid = INVALID_ASSET_GUID;
+	if (false == ImportWindowsIconAsset(selectedPath, selectedGuid, outError))
+	{
+		return false;
+	}
+
+	m_windowsIconGuid = selectedGuid;
+	return true;
+}
+
+bool CBuildSettingsWindow::ImportWindowsIconAsset(const File::Path& selectedPath, AssetGuid& outGuid, std::string* outError) const
+{
+	outGuid = INVALID_ASSET_GUID;
+	if (false == HasIcoExtension(selectedPath))
+	{
+		if (outError) *outError = Loc::Text("build_settings.windows_icon.invalid");
+		return false;
+	}
+
+	SafePtr<CProjectManager> pm = GetProjectManagerForBuildSettings();
+	SafePtr<IAssetManager> assetManager = Core::AssetManager;
+	if (false == pm.IsValid() || false == assetManager.IsValid())
+	{
+		if (outError) *outError = Loc::Text("build_settings.no_project");
+		return false;
+	}
+
+	File::Path relativeAssetPath;
+	if (false == TryMakeRelativeSubPath(selectedPath, pm->GetAssetPath(), relativeAssetPath))
+	{
+		const File::Path targetPath = pm->GetAssetPath() / WINDOWS_ICON_ASSET_PATH;
+		std::error_code ec;
+		std::filesystem::create_directories(targetPath.parent_path(), ec);
+		if (ec)
+		{
+			if (outError) *outError = ec.message();
+			return false;
+		}
+
+		const File::Path absoluteSelected = std::filesystem::absolute(selectedPath, ec);
+		ec.clear();
+		const File::Path absoluteTarget = std::filesystem::absolute(targetPath, ec);
+		if (absoluteSelected != absoluteTarget)
+		{
+			std::filesystem::copy_file(selectedPath, targetPath, std::filesystem::copy_options::overwrite_existing, ec);
+			if (ec)
+			{
+				if (outError) *outError = ec.message();
+				return false;
+			}
+		}
+		relativeAssetPath = WINDOWS_ICON_ASSET_PATH;
+	}
+
+	AssetImportDesc importDesc;
+	importDesc.Type = EAssetType::Custom;
+	importDesc.Path = File::Path(relativeAssetPath.generic_string());
+	importDesc.DisplayName = "AppIcon";
+	importDesc.Importer = "WindowsIcon";
+
+	AssetMetaData metaData;
+	if (false == assetManager->ImportAsset(importDesc, &metaData))
+	{
+		if (outError) *outError = Loc::Text("build_settings.windows_icon.import_failed");
+		return false;
+	}
+	assetManager->RefreshAssetRegistry();
+
+	const AssetMetaData* registeredMeta = assetManager->GetRegistry().FindAssetByPath(importDesc.Path);
+	outGuid = registeredMeta ? registeredMeta->Guid : metaData.Guid;
+	if (outGuid.IsNull())
+	{
+		if (outError) *outError = Loc::Text("build_settings.windows_icon.import_failed");
+		return false;
+	}
+	return true;
+}
+
+const AssetMetaData* CBuildSettingsWindow::FindWindowsIconMeta() const
+{
+	if (m_windowsIconGuid.IsNull() || false == Core::AssetManager.IsValid())
+	{
+		return nullptr;
+	}
+	return Core::AssetManager->GetRegistry().FindAsset(m_windowsIconGuid);
 }
 
 bool CBuildSettingsWindow::HasUnsavedChanges() const

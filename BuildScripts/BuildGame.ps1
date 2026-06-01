@@ -76,6 +76,7 @@ function Read-JBroProject {
         RootPath = "."
         ResolutionWidth = 1920
         ResolutionHeight = 1080
+        PixelsPerUnit = 100.0
         LastOpenedScenePath = ""
         Build = [ordered]@{
             ProductName = [System.IO.Path]::GetFileNameWithoutExtension($ProjectPath)
@@ -88,6 +89,7 @@ function Read-JBroProject {
             ScriptProjectPath = "Contents/GameScript.vcxproj"
             ScriptBuildConfiguration = "Release"
             ScriptOutputLibraryPath = "GameScript.dll"
+            WindowsIconGuid = ""
         }
     }
 
@@ -114,6 +116,7 @@ function Read-JBroProject {
                 "RootPath" { $projectInfo.RootPath = $value }
                 "ResolutionWidth" { $projectInfo.ResolutionWidth = [int]$value }
                 "ResolutionHeight" { $projectInfo.ResolutionHeight = [int]$value }
+                "PixelsPerUnit" { $projectInfo.PixelsPerUnit = [float]$value }
                 "LastOpenedScenePath" { $projectInfo.LastOpenedScenePath = $value }
                 "Build" { $inBuild = $true }
             }
@@ -142,6 +145,9 @@ function Read-JBroProject {
     if ($projectInfo.Build.BuildScenes.Count -eq 0 -and
         -not [string]::IsNullOrWhiteSpace($projectInfo.Build.StartupScene)) {
         $projectInfo.Build.BuildScenes += $projectInfo.Build.StartupScene
+    }
+    if ($projectInfo.PixelsPerUnit -lt 1.0) {
+        $projectInfo.PixelsPerUnit = 100.0
     }
 
     return $projectInfo
@@ -518,7 +524,11 @@ function Write-JBroBuildManifest {
         [Parameter(Mandatory=$true)][string]$StartupSceneGuid,
         [string]$StartupScene = "",
         [int]$Width = 1280,
-        [int]$Height = 720
+        [int]$Height = 720,
+        [float]$PixelsPerUnit = 100.0,
+        [string]$TargetPlatform = "",
+        [string]$ScriptMode = "",
+        [string]$ScriptModule = ""
     )
 
     $source = @"
@@ -526,7 +536,7 @@ using System;
 using System.IO;
 using System.Text;
 
-public static class JBroBuildManifestWriter
+public static class JBroBuildManifestWriterV2
 {
     const ulong FnvOffset = 14695981039346656037UL;
     const ulong FnvPrime = 1099511628211UL;
@@ -563,7 +573,7 @@ public static class JBroBuildManifestWriter
         }
     }
 
-    public static void WriteFile(string path, int width, int height, string startupSceneGuid, string startupScene)
+    public static void WriteFile(string path, int width, int height, string startupSceneGuid, string startupScene, float pixelsPerUnit, string targetPlatform, string scriptMode, string scriptModule)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path));
         byte[] payload;
@@ -573,6 +583,11 @@ public static class JBroBuildManifestWriter
             payloadWriter.Write(width);
             payloadWriter.Write(height);
             WriteString(payloadWriter, startupSceneGuid);
+            float safePixelsPerUnit = pixelsPerUnit >= 1.0f ? pixelsPerUnit : 100.0f;
+            payloadWriter.Write(safePixelsPerUnit);
+            WriteString(payloadWriter, targetPlatform);
+            WriteString(payloadWriter, scriptMode);
+            WriteString(payloadWriter, scriptModule);
             payloadWriter.Flush();
             payload = ms.ToArray();
         }
@@ -591,10 +606,10 @@ public static class JBroBuildManifestWriter
     }
 }
 "@
-    if (-not ("JBroBuildManifestWriter" -as [type])) {
+    if (-not ("JBroBuildManifestWriterV2" -as [type])) {
         Add-Type -TypeDefinition $source -Language CSharp
     }
-    [JBroBuildManifestWriter]::WriteFile($ManifestPath, $Width, $Height, $StartupSceneGuid, $StartupScene)
+    [JBroBuildManifestWriterV2]::WriteFile($ManifestPath, $Width, $Height, $StartupSceneGuid, $StartupScene, $PixelsPerUnit, $TargetPlatform, $ScriptMode, $ScriptModule)
 }
 
 function Find-JBroAssetGuid {
@@ -612,8 +627,239 @@ function Find-JBroAssetGuid {
     return $meta.Guid
 }
 
-if ($Platform -ne "Windows") {
-    throw "BuildGame.ps1 currently stages Windows packages only. Keep this script as the platform entrypoint; add platform packagers instead of adding editor dependencies."
+function Find-JBroAssetMetaByGuid {
+    param(
+        [Parameter(Mandatory=$true)][string]$AssetRoot,
+        [Parameter(Mandatory=$true)][string]$Guid
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Guid)) {
+        return $null
+    }
+
+    foreach ($metaFile in Get-ChildItem -LiteralPath $AssetRoot -Recurse -Filter "*.Jmeta" -File) {
+        $meta = Read-JBroMeta -MetaPath $metaFile.FullName -AssetRoot $AssetRoot
+        if ($meta -and $meta.Guid -eq $Guid) {
+            return $meta
+        }
+    }
+    return $null
+}
+
+function Set-WindowsExecutableIcon {
+    param(
+        [Parameter(Mandatory=$true)][string]$ExePath,
+        [Parameter(Mandatory=$true)][string]$IconPath
+    )
+
+    $source = @"
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.IO;
+using System.Runtime.InteropServices;
+
+public static class JBroWindowsIconResourceUpdater
+{
+    const int RT_ICON = 3;
+    const int RT_GROUP_ICON = 14;
+    const ushort IconResourceBase = 200;
+    const ushort IdiAppIcon = 107;
+    const ushort IdiSmall = 108;
+    const ushort KoreanDefaultLanguage = 0x0412;
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    static extern IntPtr BeginUpdateResource(string pFileName, bool bDeleteExistingResources);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    static extern bool UpdateResource(IntPtr hUpdate, IntPtr lpType, IntPtr lpName, ushort wLanguage, byte[] lpData, uint cbData);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    static extern bool EndUpdateResource(IntPtr hUpdate, bool fDiscard);
+
+    static IntPtr MakeIntResource(int value)
+    {
+        return new IntPtr(value);
+    }
+
+    static ushort ReadU16(byte[] bytes, int offset)
+    {
+        return (ushort)(bytes[offset] | (bytes[offset + 1] << 8));
+    }
+
+    static uint ReadU32(byte[] bytes, int offset)
+    {
+        return (uint)(bytes[offset] | (bytes[offset + 1] << 8) | (bytes[offset + 2] << 16) | (bytes[offset + 3] << 24));
+    }
+
+    static void WriteU16(BinaryWriter writer, ushort value)
+    {
+        writer.Write(value);
+    }
+
+    static void WriteU32(BinaryWriter writer, uint value)
+    {
+        writer.Write(value);
+    }
+
+    static void ThrowLastWin32(string message)
+    {
+        throw new Win32Exception(Marshal.GetLastWin32Error(), message);
+    }
+
+    public static void Apply(string exePath, string iconPath)
+    {
+        byte[] iconBytes = File.ReadAllBytes(iconPath);
+        if (iconBytes.Length < 6 || ReadU16(iconBytes, 0) != 0 || ReadU16(iconBytes, 2) != 1)
+        {
+            throw new InvalidDataException("Invalid .ico header: " + iconPath);
+        }
+
+        ushort iconCount = ReadU16(iconBytes, 4);
+        if (iconCount == 0 || iconBytes.Length < 6 + iconCount * 16)
+        {
+            throw new InvalidDataException("Invalid .ico entry table: " + iconPath);
+        }
+
+        IntPtr update = BeginUpdateResource(exePath, false);
+        if (update == IntPtr.Zero)
+        {
+            ThrowLastWin32("BeginUpdateResource failed");
+        }
+
+        bool success = false;
+        try
+        {
+            byte[] groupBytes;
+            using (var ms = new MemoryStream())
+            using (var writer = new BinaryWriter(ms))
+            {
+                WriteU16(writer, 0);
+                WriteU16(writer, 1);
+                WriteU16(writer, iconCount);
+
+                for (ushort i = 0; i < iconCount; ++i)
+                {
+                    int entryOffset = 6 + i * 16;
+                    uint imageSize = ReadU32(iconBytes, entryOffset + 8);
+                    uint imageOffset = ReadU32(iconBytes, entryOffset + 12);
+                    if (imageSize == 0 || imageOffset > iconBytes.Length || imageSize > iconBytes.Length - imageOffset)
+                    {
+                        throw new InvalidDataException("Invalid .ico image payload: " + iconPath);
+                    }
+
+                    ushort resourceId = (ushort)(IconResourceBase + i);
+                    byte[] payload = new byte[(int)imageSize];
+                    Buffer.BlockCopy(iconBytes, (int)imageOffset, payload, 0, (int)imageSize);
+                    if (!UpdateResource(update, MakeIntResource(RT_ICON), MakeIntResource(resourceId), KoreanDefaultLanguage, payload, (uint)payload.Length))
+                    {
+                        ThrowLastWin32("UpdateResource(RT_ICON) failed");
+                    }
+
+                    writer.Write(iconBytes[entryOffset + 0]);
+                    writer.Write(iconBytes[entryOffset + 1]);
+                    writer.Write(iconBytes[entryOffset + 2]);
+                    writer.Write(iconBytes[entryOffset + 3]);
+                    WriteU16(writer, ReadU16(iconBytes, entryOffset + 4));
+                    WriteU16(writer, ReadU16(iconBytes, entryOffset + 6));
+                    WriteU32(writer, imageSize);
+                    WriteU16(writer, resourceId);
+                }
+                groupBytes = ms.ToArray();
+            }
+
+            foreach (ushort groupId in new ushort[] { IdiAppIcon, IdiSmall })
+            {
+                if (!UpdateResource(update, MakeIntResource(RT_GROUP_ICON), MakeIntResource(groupId), KoreanDefaultLanguage, groupBytes, (uint)groupBytes.Length))
+                {
+                    ThrowLastWin32("UpdateResource(RT_GROUP_ICON) failed");
+                }
+            }
+            success = true;
+        }
+        finally
+        {
+            if (!EndUpdateResource(update, !success))
+            {
+                ThrowLastWin32("EndUpdateResource failed");
+            }
+        }
+    }
+}
+"@
+
+    if (-not ("JBroWindowsIconResourceUpdater" -as [type])) {
+        Add-Type -TypeDefinition $source -Language CSharp
+    }
+    [JBroWindowsIconResourceUpdater]::Apply($ExePath, $IconPath)
+}
+
+function Find-Emcc {
+    $command = Get-Command "emcc" -ErrorAction SilentlyContinue
+    if ($command) {
+        return $command.Source
+    }
+    throw "emcc was not found. Run emsdk_env.bat first."
+}
+
+function Invoke-WebApplicationBuild {
+    param(
+        [Parameter(Mandatory=$true)][string]$PackageDir,
+        [Parameter(Mandatory=$true)][string]$PackageContentDir,
+        [Parameter(Mandatory=$true)][string]$Configuration
+    )
+
+    $emcc = Find-Emcc
+    $sourceList = Join-Path $repoRoot "BuildScripts\Web\web_game_sources.txt"
+    $shellFile = Join-Path $repoRoot "PlatformBuild\Web\shell.html"
+    if (-not (Test-Path -LiteralPath $sourceList -PathType Leaf)) {
+        throw "Web source list was not found: $sourceList"
+    }
+    if (-not (Test-Path -LiteralPath $shellFile -PathType Leaf)) {
+        throw "Web shell template was not found: $shellFile"
+    }
+
+    $outputHtml = Join-Path $PackageDir "index.html"
+    $optimizationArgs = if ($Configuration -eq "Debug") {
+        @("-O0", "-gsource-map", "-sASSERTIONS=1")
+    } else {
+        @("-O2", "-sASSERTIONS=0")
+    }
+
+    $arguments = @(
+        "@BuildScripts\Web\web_game_sources.txt",
+        "-I.",
+        "-IEngine",
+        "-IEngine\ThirdParty",
+        "-IEngine\ThirdParty\yaml-cpp\src",
+        "-std=c++20",
+        "-DJBRO_PLATFORM_WEB",
+        "-DJBRO_GAME",
+        "-DYAML_CPP_STATIC_DEFINE"
+    )
+    $arguments += $optimizationArgs
+    $arguments += @(
+        "--use-port=emdawnwebgpu",
+        "-sALLOW_MEMORY_GROWTH=1",
+        "-sASYNCIFY=1",
+        "--preload-file",
+        ("{0}@/Content" -f $PackageContentDir),
+        "--shell-file",
+        $shellFile,
+        "-o",
+        $outputHtml
+    )
+
+    Push-Location $repoRoot
+    try {
+        & $emcc @arguments
+        if ($LASTEXITCODE -ne 0) {
+            throw "Web application build failed. ExitCode=$LASTEXITCODE"
+        }
+    }
+    finally {
+        Pop-Location
+    }
 }
 
 $projectPath = (Resolve-Path -LiteralPath $Project).Path
@@ -664,57 +910,70 @@ foreach ($scene in $scenesToValidate) {
         throw "Build scene was not found under Contents/Assets: $scene"
     }
 }
-if (-not $SkipEngineBuild) {
-    Write-Host "Building engine/application: $engineConfiguration|x64"
-    & $msbuild $solutionPath /m /p:Configuration=$engineConfiguration /p:Platform=x64 /v:minimal /nr:false
-    if ($LASTEXITCODE -ne 0) {
-        throw "Engine game build failed. ExitCode=$LASTEXITCODE"
-    }
-}
 
+$applicationDest = $null
 $scriptDllSource = $null
-if ($projectInfo.Build.ScriptMode -eq "DynamicLibrary") {
-    $scriptProjectPath = $projectInfo.Build.ScriptProjectPath
-    if (-not [System.IO.Path]::IsPathRooted($scriptProjectPath)) {
-        $scriptProjectPath = Join-Path $projectRoot $scriptProjectPath
-    }
-    $scriptProjectPath = [System.IO.Path]::GetFullPath($scriptProjectPath)
-
-    if (-not $SkipScriptBuild) {
-        if (-not (Test-Path -LiteralPath $scriptProjectPath)) {
-            throw "Script project was not found: $scriptProjectPath"
-        }
-        Write-Host "Building script module: $scriptConfiguration|x64"
-        & $msbuild $scriptProjectPath /m /p:Configuration=$scriptConfiguration /p:Platform=x64 /v:minimal /nr:false
+if ($Platform -eq "Windows") {
+    if (-not $SkipEngineBuild) {
+        Write-Host "Building engine/application: $engineConfiguration|x64"
+        & $msbuild $solutionPath /m /p:Configuration=$engineConfiguration /p:Platform=x64 /v:minimal /nr:false
         if ($LASTEXITCODE -ne 0) {
-            throw "GameScript build failed. ExitCode=$LASTEXITCODE"
+            throw "Engine game build failed. ExitCode=$LASTEXITCODE"
         }
     }
 
-    $scriptOutput = $projectInfo.Build.ScriptOutputLibraryPath
-    if ([string]::IsNullOrWhiteSpace($scriptOutput)) {
-        $scriptOutput = "GameScript.dll"
-    }
+    $scriptDllSource = $null
+    if ($projectInfo.Build.ScriptMode -eq "DynamicLibrary") {
+        $scriptProjectPath = $projectInfo.Build.ScriptProjectPath
+        if (-not [System.IO.Path]::IsPathRooted($scriptProjectPath)) {
+            $scriptProjectPath = Join-Path $projectRoot $scriptProjectPath
+        }
+        $scriptProjectPath = [System.IO.Path]::GetFullPath($scriptProjectPath)
 
-    $scriptOutputCandidates = @()
-    if ([System.IO.Path]::IsPathRooted($scriptOutput)) {
-        $scriptOutputCandidates += $scriptOutput
-    } else {
-        $scriptOutputCandidates += (Join-Path $projectRoot $scriptOutput)
-        $scriptOutputCandidates += (Join-Path $projectRoot ("x64\{0}\{1}" -f $scriptConfiguration, [System.IO.Path]::GetFileName($scriptOutput)))
-        $scriptOutputCandidates += (Join-Path (Split-Path -Parent $scriptProjectPath) ("..\x64\{0}\{1}" -f $scriptConfiguration, [System.IO.Path]::GetFileName($scriptOutput)))
-    }
+        if (-not $SkipScriptBuild) {
+            if (-not (Test-Path -LiteralPath $scriptProjectPath)) {
+                throw "Script project was not found: $scriptProjectPath"
+            }
+            Write-Host "Building script module: $scriptConfiguration|x64"
+            & $msbuild $scriptProjectPath /m /p:Configuration=$scriptConfiguration /p:Platform=x64 /v:minimal /nr:false
+            if ($LASTEXITCODE -ne 0) {
+                throw "GameScript build failed. ExitCode=$LASTEXITCODE"
+            }
+        }
 
-    foreach ($candidate in $scriptOutputCandidates) {
-        $fullCandidate = [System.IO.Path]::GetFullPath($candidate)
-        if (Test-Path -LiteralPath $fullCandidate) {
-            $scriptDllSource = $fullCandidate
-            break
+        $scriptOutput = $projectInfo.Build.ScriptOutputLibraryPath
+        if ([string]::IsNullOrWhiteSpace($scriptOutput)) {
+            $scriptOutput = "GameScript.dll"
+        }
+
+        $scriptOutputCandidates = @()
+        if ([System.IO.Path]::IsPathRooted($scriptOutput)) {
+            $scriptOutputCandidates += $scriptOutput
+        } else {
+            $scriptOutputCandidates += (Join-Path $projectRoot $scriptOutput)
+            $scriptOutputCandidates += (Join-Path $projectRoot ("x64\{0}\{1}" -f $scriptConfiguration, [System.IO.Path]::GetFileName($scriptOutput)))
+            $scriptOutputCandidates += (Join-Path (Split-Path -Parent $scriptProjectPath) ("..\x64\{0}\{1}" -f $scriptConfiguration, [System.IO.Path]::GetFileName($scriptOutput)))
+        }
+
+        foreach ($candidate in $scriptOutputCandidates) {
+            $fullCandidate = [System.IO.Path]::GetFullPath($candidate)
+            if (Test-Path -LiteralPath $fullCandidate) {
+                $scriptDllSource = $fullCandidate
+                break
+            }
+        }
+        if (-not $scriptDllSource) {
+            throw "GameScript output dll was not found. Checked: $($scriptOutputCandidates -join '; ')"
         }
     }
-    if (-not $scriptDllSource) {
-        throw "GameScript output dll was not found. Checked: $($scriptOutputCandidates -join '; ')"
+
+    $applicationSource = Join-Path $repoRoot ("Build\{0}\Application.exe" -f $engineConfiguration)
+    if (-not (Test-Path -LiteralPath $applicationSource)) {
+        throw "Application.exe was not found: $applicationSource"
     }
+    $applicationDest = Join-Path $packageDir ("{0}.exe" -f $productName)
+} elseif ($Platform -ne "Web") {
+    throw "Unsupported target platform: $Platform"
 }
 
 if ($Clean) {
@@ -723,26 +982,34 @@ if ($Clean) {
 New-Item -ItemType Directory -Force -Path $packageDir | Out-Null
 New-Item -ItemType Directory -Force -Path $packageContentDir | Out-Null
 
-$applicationSource = Join-Path $repoRoot ("Build\{0}\Application.exe" -f $engineConfiguration)
-if (-not (Test-Path -LiteralPath $applicationSource)) {
-    throw "Application.exe was not found: $applicationSource"
-}
-$applicationDest = Join-Path $packageDir ("{0}.exe" -f $productName)
-Copy-Item -LiteralPath $applicationSource -Destination $applicationDest -Force
+if ($Platform -eq "Windows") {
+    Copy-Item -LiteralPath $applicationSource -Destination $applicationDest -Force
 
-if ($IncludeSymbols) {
-    $applicationPdb = [System.IO.Path]::ChangeExtension($applicationSource, ".pdb")
-    if (Test-Path -LiteralPath $applicationPdb) {
-        Copy-Item -LiteralPath $applicationPdb -Destination (Join-Path $packageDir ("{0}.pdb" -f $productName)) -Force
+    if (-not [string]::IsNullOrWhiteSpace($projectInfo.Build.WindowsIconGuid)) {
+        $iconMeta = Find-JBroAssetMetaByGuid -AssetRoot $assetPath -Guid $projectInfo.Build.WindowsIconGuid
+        if (-not $iconMeta) {
+            throw "Windows icon asset GUID is not registered: $($projectInfo.Build.WindowsIconGuid)"
+        }
+        if ([System.IO.Path]::GetExtension($iconMeta.AssetPath).ToLowerInvariant() -ne ".ico") {
+            throw "Windows icon asset must be an .ico file: $($iconMeta.AssetPath)"
+        }
+        Set-WindowsExecutableIcon -ExePath $applicationDest -IconPath $iconMeta.AssetPath
     }
-}
 
-if ($scriptDllSource) {
-    Copy-Item -LiteralPath $scriptDllSource -Destination (Join-Path $packageDir "GameScript.dll") -Force
     if ($IncludeSymbols) {
-        $scriptPdb = [System.IO.Path]::ChangeExtension($scriptDllSource, ".pdb")
-        if (Test-Path -LiteralPath $scriptPdb) {
-            Copy-Item -LiteralPath $scriptPdb -Destination (Join-Path $packageDir "GameScript.pdb") -Force
+        $applicationPdb = [System.IO.Path]::ChangeExtension($applicationSource, ".pdb")
+        if (Test-Path -LiteralPath $applicationPdb) {
+            Copy-Item -LiteralPath $applicationPdb -Destination (Join-Path $packageDir ("{0}.pdb" -f $productName)) -Force
+        }
+    }
+
+    if ($scriptDllSource) {
+        Copy-Item -LiteralPath $scriptDllSource -Destination (Join-Path $packageDir "GameScript.dll") -Force
+        if ($IncludeSymbols) {
+            $scriptPdb = [System.IO.Path]::ChangeExtension($scriptDllSource, ".pdb")
+            if (Test-Path -LiteralPath $scriptPdb) {
+                Copy-Item -LiteralPath $scriptPdb -Destination (Join-Path $packageDir "GameScript.pdb") -Force
+            }
         }
     }
 }
@@ -757,20 +1024,43 @@ if (-not [string]::IsNullOrWhiteSpace($projectInfo.Build.StartupScene)) {
 }
 
 $manifestPath = Join-Path $packageContentDir "build_manifest.jbmanifest"
+$manifestScriptMode = if ($Platform -eq "Web") { "Static" } else { "DynamicLibrary" }
+$manifestScriptModule = if ($Platform -eq "Web") { "" } else { "GameScript.dll" }
 Write-JBroBuildManifest `
     -ManifestPath $manifestPath `
     -StartupSceneGuid $startupSceneGuid `
     -StartupScene $projectInfo.Build.StartupScene `
     -Width ([int]$projectInfo.ResolutionWidth) `
-    -Height ([int]$projectInfo.ResolutionHeight)
+    -Height ([int]$projectInfo.ResolutionHeight) `
+    -PixelsPerUnit ([float]$projectInfo.PixelsPerUnit) `
+    -TargetPlatform $Platform `
+    -ScriptMode $manifestScriptMode `
+    -ScriptModule $manifestScriptModule
 
 Assert-RootArtifactMissing -PackageDir $packageDir -Names @("SDK", "Localization", "Editor")
 
-if (-not (Test-Path -LiteralPath $applicationDest)) {
-    throw "Package verification failed: executable missing."
-}
-if ($projectInfo.Build.ScriptMode -eq "DynamicLibrary" -and -not (Test-Path -LiteralPath (Join-Path $packageDir "GameScript.dll"))) {
-    throw "Package verification failed: GameScript.dll missing."
+if ($Platform -eq "Windows") {
+    if (-not (Test-Path -LiteralPath $applicationDest)) {
+        throw "Package verification failed: executable missing."
+    }
+    if ($projectInfo.Build.ScriptMode -eq "DynamicLibrary" -and -not (Test-Path -LiteralPath (Join-Path $packageDir "GameScript.dll"))) {
+        throw "Package verification failed: GameScript.dll missing."
+    }
+} elseif ($Platform -eq "Web") {
+    Invoke-WebApplicationBuild -PackageDir $packageDir -PackageContentDir $packageContentDir -Configuration $Configuration
+
+    if (-not (Test-Path -LiteralPath (Join-Path $packageDir "index.html"))) {
+        throw "Web package verification failed: index.html missing."
+    }
+    if (-not (Test-Path -LiteralPath (Join-Path $packageDir "index.js"))) {
+        throw "Web package verification failed: index.js missing."
+    }
+    if (-not (Test-Path -LiteralPath (Join-Path $packageDir "index.wasm"))) {
+        throw "Web package verification failed: index.wasm missing."
+    }
+    if (Test-Path -LiteralPath (Join-Path $packageDir "GameScript.dll")) {
+        throw "Web package verification failed: GameScript.dll must not exist."
+    }
 }
 if (-not (Test-Path -LiteralPath $manifestPath)) {
     throw "Package verification failed: build_manifest.jbmanifest missing."
@@ -782,4 +1072,4 @@ if (Test-Path -LiteralPath (Join-Path $packageContentDir "Assets")) {
     throw "Package verification failed: loose asset folder must not exist."
 }
 
-Write-Host "Packaged Windows game: $packageDir"
+Write-Host "Packaged $Platform game: $packageDir"

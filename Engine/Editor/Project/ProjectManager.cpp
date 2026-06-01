@@ -59,6 +59,7 @@ namespace
 	constexpr const char* PROJECT_KEY_BUILD_SCRIPT_PROJECT = "ScriptProjectPath";
 	constexpr const char* PROJECT_KEY_BUILD_SCRIPT_CONFIG = "ScriptBuildConfiguration";
 	constexpr const char* PROJECT_KEY_BUILD_SCRIPT_OUTPUT = "ScriptOutputLibraryPath";
+	constexpr const char* PROJECT_KEY_BUILD_WINDOWS_ICON_GUID = "WindowsIconGuid";
 	constexpr const char* CONTENTS_DIRECTORY_NAME       = "Contents";
 	constexpr const char* ASSETS_DIRECTORY_NAME         = "Assets";
 	constexpr const char* SCRIPTS_DIRECTORY_NAME        = "Scripts";
@@ -274,6 +275,7 @@ namespace
 		settings.ScriptProjectPath = std::string(CONTENTS_DIRECTORY_NAME) + "/GameScript.vcxproj";
 		settings.ScriptBuildConfiguration = EScriptBuildConfiguration::Release;
 		settings.ScriptOutputLibraryPath = "GameScript.dll";
+		settings.WindowsIconGuid = INVALID_ASSET_GUID;
 		return settings;
 	}
 
@@ -341,6 +343,7 @@ namespace
 		settings.ScriptProjectPath = buildNode[PROJECT_KEY_BUILD_SCRIPT_PROJECT].as<std::string>(settings.ScriptProjectPath);
 		settings.ScriptBuildConfiguration = ParseScriptBuildConfiguration(buildNode[PROJECT_KEY_BUILD_SCRIPT_CONFIG].as<std::string>(ToString(settings.ScriptBuildConfiguration)));
 		settings.ScriptOutputLibraryPath = buildNode[PROJECT_KEY_BUILD_SCRIPT_OUTPUT].as<std::string>(settings.ScriptOutputLibraryPath);
+		settings.WindowsIconGuid = AssetGuid(buildNode[PROJECT_KEY_BUILD_WINDOWS_ICON_GUID].as<std::string>(settings.WindowsIconGuid.generic_string()));
 
 		settings.BuildScenes.clear();
 		const YAML::Node scenesNode = buildNode[PROJECT_KEY_BUILD_SCENES];
@@ -491,6 +494,7 @@ bool CProjectManager::CreateProject(const File::Path& parentFolder, const std::s
 		out << YAML::Key << PROJECT_KEY_BUILD_SCRIPT_PROJECT << YAML::Value << buildSettings.ScriptProjectPath;
 		out << YAML::Key << PROJECT_KEY_BUILD_SCRIPT_CONFIG << YAML::Value << ToString(buildSettings.ScriptBuildConfiguration);
 		out << YAML::Key << PROJECT_KEY_BUILD_SCRIPT_OUTPUT << YAML::Value << buildSettings.ScriptOutputLibraryPath;
+		out << YAML::Key << PROJECT_KEY_BUILD_WINDOWS_ICON_GUID << YAML::Value << buildSettings.WindowsIconGuid.generic_string();
 		out << YAML::EndMap;
 		out << YAML::EndMap;
 
@@ -642,6 +646,9 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 		for (const YAML::Node& patternNode : root[PROJECT_KEY_WATCH_IGNORE])
 		{
 			std::string pattern = patternNode.as<std::string>("");
+			// 외부 편집/CRLF 혼선 대비 — 트레일링 \r, 양끝 공백 트림.
+			while (false == pattern.empty() && (pattern.back() == '\r' || pattern.back() == ' ' || pattern.back() == '\t')) pattern.pop_back();
+			while (false == pattern.empty() && (pattern.front() == ' ' || pattern.front() == '\t')) pattern.erase(pattern.begin());
 			if (false == pattern.empty()) assetWatchIgnorePatterns.push_back(std::move(pattern));
 		}
 	}
@@ -1498,6 +1505,12 @@ void CProjectManager::ProcessAssetEvents(const std::vector<FileWatchEvent>& even
 		{
 			continue;
 		}
+		// 무시 패턴 매칭(임시 파일 등)은 rename 매칭 자체에서 제외 — 임시 파일이 잠시
+		// REMOVED/CREATED 로 나타나도 자산 rename 으로 잘못 짝지어지지 않게 한다.
+		if (IsAssetPathIgnored(event.Path))
+		{
+			continue;
+		}
 		if (event.Path.empty() || CAssetPath::IsMetaPath(event.Path.generic_string().c_str()))
 		{
 			continue;
@@ -1581,6 +1594,11 @@ bool CProjectManager::TryHandleAssetRename(const File::Path& createdAssetPath, c
 	for (const FileWatchEvent& event : events)
 	{
 		if (EFileWatchEventType::Deleted != event.Type || event.Path.empty() || CAssetPath::IsMetaPath(event.Path.generic_string().c_str()))
+		{
+			continue;
+		}
+		// 무시 패턴(임시 파일 등) 인 삭제는 rename 후보에서 제외.
+		if (IsAssetPathIgnored(event.Path))
 		{
 			continue;
 		}
@@ -1845,6 +1863,11 @@ bool CProjectManager::TrySyncRenamedAssetMeta(const File::Path& createdAssetPath
 	for (const FileWatchEvent& event : events)
 	{
 		if (EFileWatchEventType::Deleted != event.Type || event.Path.empty() || CAssetPath::IsMetaPath(event.Path.generic_string().c_str()))
+		{
+			continue;
+		}
+		// 무시 패턴 매칭된 삭제는 rename 매칭 후보에서 제외.
+		if (IsAssetPathIgnored(event.Path))
 		{
 			continue;
 		}
@@ -2398,6 +2421,7 @@ bool CProjectManager::SaveProject(std::string* outError) const
 	out << YAML::Key << PROJECT_KEY_BUILD_SCRIPT_PROJECT << YAML::Value << m_info.BuildSettings.ScriptProjectPath;
 	out << YAML::Key << PROJECT_KEY_BUILD_SCRIPT_CONFIG << YAML::Value << ToString(m_info.BuildSettings.ScriptBuildConfiguration);
 	out << YAML::Key << PROJECT_KEY_BUILD_SCRIPT_OUTPUT << YAML::Value << m_info.BuildSettings.ScriptOutputLibraryPath;
+	out << YAML::Key << PROJECT_KEY_BUILD_WINDOWS_ICON_GUID << YAML::Value << m_info.BuildSettings.WindowsIconGuid.generic_string();
 	out << YAML::EndMap;
 	if (false == m_info.ScriptDllPath.empty())
 	{

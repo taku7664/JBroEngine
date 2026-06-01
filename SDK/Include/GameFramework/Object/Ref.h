@@ -46,9 +46,6 @@ namespace RefDetail
 
 	// AssetGuid → 활성 에셋 매니저에서 로드/조회한 IAsset*.
 	IAsset* ResolveAsset(const char* assetGuid);
-
-	// [임시 진단] Get() 진입 시 DLL 이 보는 버퍼 내용/IsNull.
-	void DiagGet(const char* guidBuf, bool isNull);
 }
 
 template<typename T>
@@ -72,7 +69,6 @@ public:
 	// 대상이 없거나(삭제/미로드) 타입이 맞지 않으면 nullptr.
 	T* Get() const
 	{
-		RefDetail::DiagGet(Guid, IsNull());   // [임시 진단]
 		if (IsNull())
 		{
 			return nullptr;

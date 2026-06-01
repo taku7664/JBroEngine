@@ -45,7 +45,7 @@ template<> inline EReflectPropertyType ScriptFieldTypeOf<Int>()
 }
 template<> inline EReflectPropertyType ScriptFieldTypeOf<UInt>()
 {
-	return EReflectPropertyType::UInt32;
+	return EReflectPropertyType::UInt64;
 }
 template<> inline EReflectPropertyType ScriptFieldTypeOf<Float>()
 {

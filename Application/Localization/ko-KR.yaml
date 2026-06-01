@@ -114,6 +114,10 @@ Entries:
   build_settings.category.output: 출력
   build_settings.general: 일반
   build_settings.product_name: 제품 이름
+  build_settings.windows_icon: 응용프로그램 아이콘
+  build_settings.windows_icon.empty: 아이콘 없음
+  build_settings.windows_icon.invalid: Windows 아이콘은 .ico 파일만 사용할 수 있습니다.
+  build_settings.windows_icon.import_failed: Windows 아이콘 자산 등록에 실패했습니다.
   build_settings.target_platform: 대상 플랫폼
   build_settings.configuration: 빌드 구성
   build_settings.output: 출력
@@ -125,6 +129,7 @@ Entries:
   build_settings.add_scene: 씬 추가
   build_settings.package_preview: 패키지 경로
   build_settings.select_startup_scene: 시작 씬 선택
+  build_settings.select_windows_icon: Windows 아이콘 선택
   build_settings.select_output_directory: 빌드 출력 폴더 선택
   build_settings.save_failed: 빌드 설정 저장에 실패했습니다.
   build_settings.apply_required: 빌드 설정 적용 필요
@@ -394,6 +399,7 @@ Entries:
   project_settings.script_rebuild.desc: 지금 즉시 스크립트 DLL 을 빌드하고 다시 로드합니다.
   project_settings.script_unload.desc: 현재 로드된 스크립트 DLL 을 언로드합니다.
   build_settings.product_name.desc: 빌드 산출물 폴더와 실행 파일 이름에 사용할 제품 이름입니다.
+  build_settings.windows_icon.desc: Windows 패키지 exe에 적용할 .ico 자산입니다. 외부 파일을 선택하면 Assets/Package/Windows/AppIcon.ico로 복사한 뒤 GUID를 저장합니다.
   build_settings.target_platform.desc: 게임 빌드를 생성할 대상 플랫폼입니다.
   build_settings.configuration.desc: 엔진 게임 빌드 구성입니다. Debug_Game 또는 Release_Game에 대응합니다.
   build_settings.output_directory.desc: 게임 패키지가 생성될 출력 폴더입니다. 프로젝트 내부 경로는 프로젝트 루트 기준 상대 경로로 저장합니다.

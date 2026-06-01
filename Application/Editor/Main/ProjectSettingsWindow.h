@@ -61,6 +61,8 @@ private:
     // 자산 워처 무시 패턴 — 한 줄당 하나의 glob 패턴 (예: *.tmp, ~$*).
     // Apply 시 ProjectManager 에 set.
     std::vector<std::string> m_editAssetWatchIgnorePatterns;
+    // InputTextMultiline 의 백킹 버퍼. OnShow 에서 패턴 벡터로부터 재구축한다.
+    std::string m_assetWatchIgnoreBuffer;
 
     // UI 상태
     ECategory m_selectedCategory = ECategory::General;

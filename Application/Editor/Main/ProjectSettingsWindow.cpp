@@ -79,6 +79,14 @@ void CProjectSettingsWindow::OnShow()
         m_scriptBuildConfiguration = EScriptBuildConfiguration::Release == pm->GetScriptBuildConfiguration() ? 1 : 0;
         m_scriptAutoRebuildEnabled = pm->IsScriptAutoRebuildEnabled();
         m_editAssetWatchIgnorePatterns = pm->GetAssetWatchIgnorePatterns();
+
+        // InputTextMultiline 백킹 버퍼를 패턴 벡터로부터 재구축 (프로젝트 전환 시 stale 방지).
+        m_assetWatchIgnoreBuffer.clear();
+        for (const std::string& line : m_editAssetWatchIgnorePatterns)
+        {
+            m_assetWatchIgnoreBuffer += line;
+            m_assetWatchIgnoreBuffer.push_back('\n');
+        }
     }
 
     if (Core::Localization.IsValid())
@@ -372,25 +380,12 @@ void CProjectSettingsWindow::DrawCategoryAssetWatcher()
     ImGui::TextWrapped("%s", Loc::Text("project_settings.asset_watcher.desc"));
     ImGui::Spacing();
 
-    // 한 줄 = 하나의 패턴. 임시 버퍼 문자열 ↔ 벡터 변환.
-    // 매 프레임 동기화하지 않고 사용자가 직접 편집 후 Apply 누를 때 ProjectManager 에 set.
-    static std::string s_buffer;
-    static const std::vector<std::string>* s_lastVec = nullptr;
-    if (&m_editAssetWatchIgnorePatterns != s_lastVec)
-    {
-        s_buffer.clear();
-        for (const std::string& line : m_editAssetWatchIgnorePatterns)
-        {
-            s_buffer += line;
-            s_buffer.push_back('\n');
-        }
-        s_lastVec = &m_editAssetWatchIgnorePatterns;
-    }
-
+    // 백킹 버퍼는 멤버(m_assetWatchIgnoreBuffer) — OnShow 에서 패턴 벡터로부터 재구축됨.
+    // 편집 발생 시 다음 프레임에 벡터로 재파싱.
     const ImVec2 boxSize(ImGui::GetContentRegionAvail().x, ImGui::GetTextLineHeightWithSpacing() * 14.0f);
-    s_buffer.reserve(s_buffer.size() + 1024);
+    m_assetWatchIgnoreBuffer.reserve(m_assetWatchIgnoreBuffer.size() + 1024);
     if (ImGui::InputTextMultiline("##ps.asset_watcher.patterns",
-        s_buffer.data(), s_buffer.capacity(),
+        m_assetWatchIgnoreBuffer.data(), m_assetWatchIgnoreBuffer.capacity(),
         boxSize, ImGuiInputTextFlags_CallbackResize,
         [](ImGuiInputTextCallbackData* data) -> int
         {
@@ -401,19 +396,17 @@ void CProjectSettingsWindow::DrawCategoryAssetWatcher()
                 data->Buf = buf->data();
             }
             return 0;
-        }, &s_buffer))
+        }, &m_assetWatchIgnoreBuffer))
     {
-        // 편집됨 — 다음 프레임에 벡터로 재파싱.
         m_editAssetWatchIgnorePatterns.clear();
         std::size_t start = 0;
-        for (std::size_t i = 0; i <= s_buffer.size(); ++i)
+        for (std::size_t i = 0; i <= m_assetWatchIgnoreBuffer.size(); ++i)
         {
-            if (i == s_buffer.size() || '\n' == s_buffer[i] || '\r' == s_buffer[i])
+            if (i == m_assetWatchIgnoreBuffer.size() || '\n' == m_assetWatchIgnoreBuffer[i] || '\r' == m_assetWatchIgnoreBuffer[i])
             {
                 if (i > start)
                 {
-                    std::string line(s_buffer, start, i - start);
-                    // 양끝 공백 트림
+                    std::string line(m_assetWatchIgnoreBuffer, start, i - start);
                     while (false == line.empty() && (line.front() == ' ' || line.front() == '\t')) line.erase(line.begin());
                     while (false == line.empty() && (line.back()  == ' ' || line.back()  == '\t')) line.pop_back();
                     if (false == line.empty()) m_editAssetWatchIgnorePatterns.push_back(std::move(line));

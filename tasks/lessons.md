@@ -21,3 +21,19 @@ Pattern:
 
 Rule:
 - 이미 화면에 잘 뜨는 로그와 **같은 채널/레벨**(이 프로젝트는 `CSystemLog::Info`)로 진단을 보낸다. 안 보이면 "코드 미실행"이 아니라 "채널 차이"부터 의심한다.
+
+## Lesson: 실제 사용자 프로젝트 검증은 출력 루트를 임시 폴더로 강제한다
+
+Pattern:
+- 빌드 파이프라인 검증 중 실제 프로젝트 파일을 사용하면서 `Build.OutputDirectory` 기본값을 그대로 둬,
+  사용자 프로젝트 아래 `Dist/Games/...` 에 검증 패키지를 생성했다.
+- 사용자는 출력 폴더 설정 문제를 보고 있었는데, 검증 산출물이 같은 기본 위치에 생겨 원인 파악을 더 혼란스럽게 만들었다.
+
+Rule:
+- 실제 프로젝트 `C:\Users\박주형\Desktop\Project\Project.Jproject` 로 패키징 검증을 할 때는
+  항상 명시적인 임시 `-OutputRoot` 를 사용한다.
+- 에디터 빌드 경로를 검증해야 해 출력 경로 설정 자체가 대상이면, 사용자 프로젝트 파일을 직접 바꾸지 말고
+  임시 `.Jproject` 사본과 임시 출력 폴더로 저장/로드/패키징 왕복을 확인한다.
+
+Example:
+- `BuildGame.ps1 -Project <temp .Jproject> -OutputRoot $env:TEMP/JBroBuildTest/Out -SkipEngineBuild -SkipScriptBuild -Clean`

@@ -274,6 +274,9 @@ namespace
 			case EReflectPropertyType::UInt32:
 				node[prop.Name] = *static_cast<const std::uint32_t*>(field);
 				break;
+			case EReflectPropertyType::UInt64:
+				node[prop.Name] = *static_cast<const std::uint64_t*>(field);
+				break;
 			case EReflectPropertyType::Float:
 			case EReflectPropertyType::Degree:
 			case EReflectPropertyType::Radian:
@@ -356,6 +359,9 @@ namespace
 				break;
 			case EReflectPropertyType::UInt32:
 				ReadValue(node, prop.Name, *static_cast<std::uint32_t*>(field));
+				break;
+			case EReflectPropertyType::UInt64:
+				ReadValue(node, prop.Name, *static_cast<std::uint64_t*>(field));
 				break;
 			case EReflectPropertyType::Float:
 			case EReflectPropertyType::Degree:
@@ -605,6 +611,9 @@ namespace
 			case EReflectPropertyType::UInt32:
 				node[prop.Name] = *static_cast<const std::uint32_t*>(field);
 				break;
+			case EReflectPropertyType::UInt64:
+				node[prop.Name] = *static_cast<const std::uint64_t*>(field);
+				break;
 			case EReflectPropertyType::Float:
 			case EReflectPropertyType::Degree:
 			case EReflectPropertyType::Radian:
@@ -703,6 +712,12 @@ namespace
 				case EReflectPropertyType::UInt32:
 				{
 					std::uint32_t v = node[prop.Name].as<std::uint32_t>(0);
+					std::memcpy(pending.Data.data(), &v, sizeof(v));
+					break;
+				}
+				case EReflectPropertyType::UInt64:
+				{
+					std::uint64_t v = node[prop.Name].as<std::uint64_t>(0);
 					std::memcpy(pending.Data.data(), &v, sizeof(v));
 					break;
 				}
@@ -883,6 +898,8 @@ ESceneSerializeResult CSceneSerializer::SerializeToText(const CScene& scene, std
 											fields[prop.Name] = *static_cast<const std::int64_t*>(src); break;
 										case EReflectPropertyType::UInt32:
 											fields[prop.Name] = *static_cast<const std::uint32_t*>(src); break;
+										case EReflectPropertyType::UInt64:
+											fields[prop.Name] = *static_cast<const std::uint64_t*>(src); break;
 										case EReflectPropertyType::Float:
 										case EReflectPropertyType::Degree:
 										case EReflectPropertyType::Radian:

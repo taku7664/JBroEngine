@@ -308,3 +308,5 @@ For trivial tasks, answer directly.
 - 수정 보고는 중요한 항목마다 코드를 읽고 "어떻게 생각했고 / 어떤 반례를 찾았고 / 어떻게 고쳤다" 흐름으로 남길 것.
 - 직렬화는 JSON보다 YAML/바이너리 방향을 우선한다.
 - 임시 bool 플래그 추가로 회피 금지
+- **게임 스크립트 DLL에서 `Core::` 전역(`Core::SceneManager`/`Core::AssetManager` 등)은 비어있다(null).** `BindEngineCore` 는 전역 `Engine`(EngineCore)만 채우고 `Core::` 는 호스트에서만 설정된다. DLL 안에서 도는 코드(스크립트 + DLL에 링크되는 Engine.lib 코드 예: `Ref.cpp`)는 반드시 **`Engine.X`** 를 써야 한다. `Core::X` 금지.
+- **호스트↔게임 DLL 경계를 넘는 데이터(스크립트 인스턴스 필드, 경계 함수 인자)는 POD 여야 한다.** `std::string`/`std::filesystem::path`/`File::Guid`/STL 컨테이너를 그대로 공유하면 ABI/레이아웃 불일치로 깨진다(호스트가 쓴 값을 DLL이 빈 값으로 읽음). guid 류는 고정 크기 char 버퍼로 저장한다(예: `Ref<T>`의 `RefBase { char Guid[64]; }`).

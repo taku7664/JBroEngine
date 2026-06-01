@@ -4,6 +4,7 @@
 #include "Editor/Editor.h"
 #include "Editor/Main/SceneView/SceneViewTool.h"
 #include "Engine/Core/Asset/IAssetManager.h"
+#include "Engine/Core/Asset/IAssetRegistry.h"
 #include "Engine/Core/Build/BuildManifest.h"
 #include "Engine/Core/Core.h"
 #include "Engine/Editor/Project/ProjectManager.h"
@@ -13,6 +14,7 @@
 
 #include <array>
 #include <chrono>
+#include <cwctype>
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
@@ -20,6 +22,7 @@
 #include <iomanip>
 #include <sstream>
 #include <system_error>
+#include <vector>
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -248,6 +251,197 @@ namespace
 		const AssetMetaData* metaData = assetManager->GetRegistry().FindAssetByPath(assetPath);
 		return metaData ? metaData->Guid : INVALID_ASSET_GUID;
 	}
+
+	std::string GetLastWindowsErrorMessage(const char* prefix)
+	{
+		const DWORD errorCode = GetLastError();
+		if (0 == errorCode)
+		{
+			return prefix;
+		}
+
+		LPWSTR buffer = nullptr;
+		const DWORD length = FormatMessageW(
+			FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+			nullptr,
+			errorCode,
+			MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+			reinterpret_cast<LPWSTR>(&buffer),
+			0,
+			nullptr);
+
+		std::string result = prefix;
+		result += " (";
+		result += std::to_string(errorCode);
+		result += ")";
+		if (0 != length && nullptr != buffer)
+		{
+			result += ": ";
+			result += Utillity::WStringToU8(buffer);
+		}
+		if (nullptr != buffer)
+		{
+			LocalFree(buffer);
+		}
+		return result;
+	}
+
+	bool ReadFileBytes(const File::Path& path, std::vector<std::uint8_t>& outBytes, std::string& outError)
+	{
+		std::ifstream file(path, std::ios::binary);
+		if (false == file.is_open())
+		{
+			outError = "Failed to open file: " + ToUtf8PathString(path);
+			return false;
+		}
+
+		file.seekg(0, std::ios::end);
+		const std::streamoff size = file.tellg();
+		if (size <= 0)
+		{
+			outError = "File is empty: " + ToUtf8PathString(path);
+			return false;
+		}
+		file.seekg(0, std::ios::beg);
+
+		outBytes.resize(static_cast<std::size_t>(size));
+		file.read(reinterpret_cast<char*>(outBytes.data()), size);
+		if (false == file.good())
+		{
+			outError = "Failed to read file: " + ToUtf8PathString(path);
+			return false;
+		}
+		return true;
+	}
+
+	std::uint16_t ReadU16LE(const std::vector<std::uint8_t>& bytes, std::size_t offset)
+	{
+		return static_cast<std::uint16_t>(bytes[offset] | (bytes[offset + 1] << 8));
+	}
+
+	std::uint32_t ReadU32LE(const std::vector<std::uint8_t>& bytes, std::size_t offset)
+	{
+		return static_cast<std::uint32_t>(bytes[offset])
+			| (static_cast<std::uint32_t>(bytes[offset + 1]) << 8)
+			| (static_cast<std::uint32_t>(bytes[offset + 2]) << 16)
+			| (static_cast<std::uint32_t>(bytes[offset + 3]) << 24);
+	}
+
+	void AppendU16LE(std::vector<std::uint8_t>& bytes, std::uint16_t value)
+	{
+		bytes.push_back(static_cast<std::uint8_t>(value & 0xFF));
+		bytes.push_back(static_cast<std::uint8_t>((value >> 8) & 0xFF));
+	}
+
+	void AppendU32LE(std::vector<std::uint8_t>& bytes, std::uint32_t value)
+	{
+		bytes.push_back(static_cast<std::uint8_t>(value & 0xFF));
+		bytes.push_back(static_cast<std::uint8_t>((value >> 8) & 0xFF));
+		bytes.push_back(static_cast<std::uint8_t>((value >> 16) & 0xFF));
+		bytes.push_back(static_cast<std::uint8_t>((value >> 24) & 0xFF));
+	}
+
+	bool UpdateExecutableIconResource(const File::Path& executablePath, const File::Path& iconPath, std::string& outError)
+	{
+		constexpr WORD ICON_RESOURCE_BASE = 200;
+		constexpr WORD IDI_APP_ICON = 107;
+		constexpr WORD IDI_SMALL = 108;
+		constexpr WORD ICON_LANGUAGE = MAKELANGID(LANG_KOREAN, SUBLANG_DEFAULT);
+
+		std::vector<std::uint8_t> iconBytes;
+		if (false == ReadFileBytes(iconPath, iconBytes, outError))
+		{
+			return false;
+		}
+		if (iconBytes.size() < 6 || ReadU16LE(iconBytes, 0) != 0 || ReadU16LE(iconBytes, 2) != 1)
+		{
+			outError = "Invalid .ico header: " + ToUtf8PathString(iconPath);
+			return false;
+		}
+
+		const std::uint16_t iconCount = ReadU16LE(iconBytes, 4);
+		if (0 == iconCount || iconBytes.size() < 6ull + static_cast<std::size_t>(iconCount) * 16ull)
+		{
+			outError = "Invalid .ico entry table: " + ToUtf8PathString(iconPath);
+			return false;
+		}
+
+		HANDLE updateHandle = BeginUpdateResourceW(executablePath.wstring().c_str(), FALSE);
+		if (nullptr == updateHandle)
+		{
+			outError = GetLastWindowsErrorMessage("BeginUpdateResourceW failed");
+			return false;
+		}
+
+		std::vector<std::uint8_t> groupBytes;
+		AppendU16LE(groupBytes, 0);
+		AppendU16LE(groupBytes, 1);
+		AppendU16LE(groupBytes, iconCount);
+
+		bool success = true;
+		for (std::uint16_t i = 0; i < iconCount; ++i)
+		{
+			const std::size_t entryOffset = 6ull + static_cast<std::size_t>(i) * 16ull;
+			const std::uint32_t imageSize = ReadU32LE(iconBytes, entryOffset + 8);
+			const std::uint32_t imageOffset = ReadU32LE(iconBytes, entryOffset + 12);
+			if (0 == imageSize || imageOffset > iconBytes.size() || imageSize > iconBytes.size() - imageOffset)
+			{
+				outError = "Invalid .ico image payload: " + ToUtf8PathString(iconPath);
+				success = false;
+				break;
+			}
+
+			const WORD resourceId = static_cast<WORD>(ICON_RESOURCE_BASE + i);
+			if (FALSE == UpdateResourceW(
+				updateHandle,
+				RT_ICON,
+				MAKEINTRESOURCEW(resourceId),
+				ICON_LANGUAGE,
+				iconBytes.data() + imageOffset,
+				imageSize))
+			{
+				outError = GetLastWindowsErrorMessage("UpdateResourceW(RT_ICON) failed");
+				success = false;
+				break;
+			}
+
+			groupBytes.push_back(iconBytes[entryOffset + 0]);
+			groupBytes.push_back(iconBytes[entryOffset + 1]);
+			groupBytes.push_back(iconBytes[entryOffset + 2]);
+			groupBytes.push_back(iconBytes[entryOffset + 3]);
+			AppendU16LE(groupBytes, ReadU16LE(iconBytes, entryOffset + 4));
+			AppendU16LE(groupBytes, ReadU16LE(iconBytes, entryOffset + 6));
+			AppendU32LE(groupBytes, imageSize);
+			AppendU16LE(groupBytes, resourceId);
+		}
+
+		if (success)
+		{
+			const WORD groupIds[] = { IDI_APP_ICON, IDI_SMALL };
+			for (WORD groupId : groupIds)
+			{
+				if (FALSE == UpdateResourceW(
+					updateHandle,
+					RT_GROUP_ICON,
+					MAKEINTRESOURCEW(groupId),
+					ICON_LANGUAGE,
+					groupBytes.data(),
+					static_cast<DWORD>(groupBytes.size())))
+				{
+					outError = GetLastWindowsErrorMessage("UpdateResourceW(RT_GROUP_ICON) failed");
+					success = false;
+					break;
+				}
+			}
+		}
+
+		if (FALSE == EndUpdateResourceW(updateHandle, success ? FALSE : TRUE))
+		{
+			outError = GetLastWindowsErrorMessage("EndUpdateResourceW failed");
+			return false;
+		}
+		return success;
+	}
 }
 
 CGameBuildManager::~CGameBuildManager()
@@ -347,10 +541,12 @@ bool CGameBuildManager::StartBuild(SafePtr<CProjectManager> projectManager)
 	desc.BuildConfiguration = settings.BuildConfiguration;
 	desc.ResolutionWidth = projectManager->GetResolutionWidth();
 	desc.ResolutionHeight = projectManager->GetResolutionHeight();
+	desc.PixelsPerUnit = projectManager->GetPixelsPerUnit();
 	desc.OutputDirectory = settings.OutputDirectory;
 	desc.StartupScene = settings.StartupScene;
 	desc.StartupSceneGuid = FindAssetGuidByPath(File::Path(Utillity::U8ToWString(settings.StartupScene))).generic_string();
 	desc.BuildScenes = settings.BuildScenes;
+	desc.WindowsIconGuid = settings.WindowsIconGuid;
 	desc.OutputRoot = ResolveOutputRoot(desc.ProjectRoot, settings.OutputDirectory);
 	desc.PackageDirectory = desc.OutputRoot / (desc.ProductName + "-" + ToString(desc.TargetPlatform) + "-" + ToString(desc.BuildConfiguration));
 	desc.LogPath = desc.ProjectRoot / "Build" / "Logs" / "EditorGameBuild.log";
@@ -603,6 +799,10 @@ bool CGameBuildManager::StagePackage(const BuildDesc& desc, const File::Path& sc
 		outError = "Failed to copy Application.exe: " + ec.message();
 		return false;
 	}
+	if (false == ApplyWindowsIconToExecutable(desc, applicationDest, outError))
+	{
+		return false;
+	}
 
 	std::filesystem::copy_file(scriptDll, desc.PackageDirectory / "GameScript.dll", std::filesystem::copy_options::overwrite_existing, ec);
 	if (ec)
@@ -628,10 +828,14 @@ bool CGameBuildManager::StagePackage(const BuildDesc& desc, const File::Path& sc
 
 	BuildManifest manifest;
 	manifest.Version = 1;
+	manifest.TargetPlatform = ToString(desc.TargetPlatform);
 	manifest.StartupScene = desc.StartupScene;
 	manifest.StartupSceneGuid = desc.StartupSceneGuid;
 	manifest.ResolutionWidth = static_cast<int>(desc.ResolutionWidth);
 	manifest.ResolutionHeight = static_cast<int>(desc.ResolutionHeight);
+	manifest.PixelsPerUnit = desc.PixelsPerUnit;
+	manifest.ScriptMode = "DynamicLibrary";
+	manifest.ScriptModule = "GameScript.dll";
 	std::string manifestError;
 	if (false == CBuildManifestLoader::WriteBinaryFile(packageContent / "build_manifest.jbmanifest", manifest, &manifestError))
 	{
@@ -639,6 +843,48 @@ bool CGameBuildManager::StagePackage(const BuildDesc& desc, const File::Path& sc
 		return false;
 	}
 	return true;
+}
+
+bool CGameBuildManager::ApplyWindowsIconToExecutable(const BuildDesc& desc, const File::Path& executablePath, std::string& outError) const
+{
+	(void)desc;
+	if (desc.WindowsIconGuid.IsNull())
+	{
+		return true;
+	}
+
+	SafePtr<IAssetManager> assetManager = Core::AssetManager;
+	if (false == assetManager.IsValid())
+	{
+		outError = "AssetManager is not available for resolving Windows icon.";
+		return false;
+	}
+
+	const AssetMetaData* iconMeta = assetManager->GetRegistry().FindAsset(desc.WindowsIconGuid);
+	if (nullptr == iconMeta)
+	{
+		outError = "Windows icon asset GUID is not registered: " + desc.WindowsIconGuid.generic_string();
+		return false;
+	}
+
+	File::Path iconPath;
+	if (false == assetManager->ResolveAssetPath(iconMeta->Path, iconPath))
+	{
+		outError = "Failed to resolve Windows icon asset path: " + iconMeta->Path.generic_string();
+		return false;
+	}
+
+	std::wstring extension = iconPath.extension().wstring();
+	std::transform(extension.begin(), extension.end(), extension.begin(), [](wchar_t ch) {
+		return static_cast<wchar_t>(std::towlower(ch));
+	});
+	if (extension != L".ico")
+	{
+		outError = "Windows icon asset must be an .ico file: " + ToUtf8PathString(iconPath);
+		return false;
+	}
+
+	return UpdateExecutableIconResource(executablePath, iconPath, outError);
 }
 
 bool CGameBuildManager::VerifyPackage(const BuildDesc& desc, bool requiresScriptDll, std::string& outError) const

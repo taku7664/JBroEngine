@@ -114,6 +114,10 @@ Entries:
   build_settings.category.output: Output
   build_settings.general: General
   build_settings.product_name: Product Name
+  build_settings.windows_icon: Application Icon
+  build_settings.windows_icon.empty: No icon
+  build_settings.windows_icon.invalid: Windows icon must be an .ico file.
+  build_settings.windows_icon.import_failed: Failed to import Windows icon asset.
   build_settings.target_platform: Target Platform
   build_settings.configuration: Build Configuration
   build_settings.output: Output
@@ -125,6 +129,7 @@ Entries:
   build_settings.add_scene: Add Scene
   build_settings.package_preview: Package Path
   build_settings.select_startup_scene: Select Startup Scene
+  build_settings.select_windows_icon: Select Windows Icon
   build_settings.select_output_directory: Select Build Output Folder
   build_settings.save_failed: Failed to save build settings.
   build_settings.apply_required: Apply Build Settings
@@ -394,6 +399,7 @@ Entries:
   project_settings.script_rebuild.desc: Build the script DLL right now and reload it.
   project_settings.script_unload.desc: Unload the currently loaded script DLL.
   build_settings.product_name.desc: Product name used for the output package folder and executable name.
+  build_settings.windows_icon.desc: .ico asset applied to the Windows package executable. External files are copied to Assets/Package/Windows/AppIcon.ico, then the asset GUID is saved.
   build_settings.target_platform.desc: Target platform for the game package.
   build_settings.configuration.desc: Engine game build configuration. Maps to Debug_Game or Release_Game.
   build_settings.output_directory.desc: Output directory for the game package. Paths inside the project are saved relative to the project root.

@@ -23,6 +23,7 @@ enum class EReflectPropertyType
 	Int32,
 	Int64,
 	UInt32,
+	UInt64,
 	Float,
 	Degree,
 	Radian,
