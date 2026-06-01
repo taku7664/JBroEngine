@@ -13,7 +13,7 @@
 #include "GameFramework/Component/WorldTransform2D.h"
 #include "GameFramework/ECS/EntityTypes.h"
 #include "GameFramework/Scene/Scene.h"
-#include "Utillity/Matrix3x2.h"
+#include "Utillity/Math/Matrix3x2.h"
 
 inline Matrix3x2 GetWorldTransform(const CScene& scene, EntityId entity)
 {

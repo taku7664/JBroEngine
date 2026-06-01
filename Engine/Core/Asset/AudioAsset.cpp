@@ -180,9 +180,19 @@ EAssetType CAudioAssetLoader::GetSupportedType() const
 
 bool CAudioAssetLoader::CanLoad(const AssetLoadDesc& desc) const
 {
+	if (EAssetType::Audio != desc.Type || nullptr == desc.MetaData)
+	{
+		return false;
+	}
+
+	const AudioImportOptions importOpts = CAudioImportOptions::FromYaml(desc.MetaData->ImportOptionsYaml);
+	if (desc.HasMemoryPayload())
+	{
+		return EAudioImportMode::Streaming != importOpts.Mode || false == desc.ResolvedPath.empty();
+	}
+
 	return EAssetType::Audio == desc.Type
 	    && false == desc.ResolvedPath.empty()
-	    && nullptr != desc.MetaData
 	    && IsSupportedAudioExtension(desc.ResolvedPath);
 }
 
@@ -195,14 +205,22 @@ OwnerPtr<IAsset> CAudioAssetLoader::Load(const AssetLoadDesc& desc)
 
 #if defined(JBRO_HAS_MINIAUDIO) && JBRO_HAS_MINIAUDIO
 
-	// 한글 사용자 경로 안전 처리 — wstring → UTF-8 → ma_decoder_init_file.
-	// miniaudio 는 path 를 UTF-8 로 해석한다 (Windows 빌드는 자동으로 wchar 변환).
-	const std::string utf8Path = desc.ResolvedPath.string();
-
 	// 디코더 설정 — F32 / 2ch / 48kHz 로 정규화. backend(ma_engine) 와 포맷 일치.
 	ma_decoder_config decoderConfig = ma_decoder_config_init(ma_format_f32, 2, 48000);
 	ma_decoder decoder;
-	if (MA_SUCCESS != ma_decoder_init_file(utf8Path.c_str(), &decoderConfig, &decoder))
+	ma_result initResult = MA_ERROR;
+	if (desc.HasMemoryPayload())
+	{
+		initResult = ma_decoder_init_memory(desc.MemoryPayload.data(), desc.MemoryPayload.size(), &decoderConfig, &decoder);
+	}
+	else
+	{
+		// 한글 사용자 경로 안전 처리 — wstring → UTF-8 → ma_decoder_init_file.
+		// miniaudio 는 path 를 UTF-8 로 해석한다 (Windows 빌드는 자동으로 wchar 변환).
+		const std::string utf8Path = desc.ResolvedPath.string();
+		initResult = ma_decoder_init_file(utf8Path.c_str(), &decoderConfig, &decoder);
+	}
+	if (MA_SUCCESS != initResult)
 	{
 		return nullptr;
 	}

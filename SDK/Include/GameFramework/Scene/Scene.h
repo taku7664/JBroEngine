@@ -4,7 +4,7 @@
 #include "GameFramework/ECS/ComponentPool.h"
 #include "GameFramework/ECS/EntityManager.h"
 #include "GameFramework/System/GameSystem.h"
-#include "Utillity/SafePtr.h"
+#include "Utillity/Pointer/SafePtr.h"
 
 #include <algorithm>
 #include <typeindex>

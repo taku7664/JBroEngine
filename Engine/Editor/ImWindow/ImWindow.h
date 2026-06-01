@@ -2,7 +2,7 @@
 #include "IImWindow.h"
 
 #include <string>
-#include "Utillity/SafePtr.h"     // EnableSafeFromThis
+#include "Utillity/Pointer/SafePtr.h"     // EnableSafeFromThis
 
 class CImDockWindow;
 

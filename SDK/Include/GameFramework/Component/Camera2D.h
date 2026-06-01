@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cstdint>
-#include "Utillity/Layout2D.h"
+#include "Utillity/Math/Layout2D.h"
 
 enum class ECameraProjectionMode2D
 {
@@ -25,8 +25,8 @@ struct Camera2D
 	//   Size     : 뷰포트의 픽셀 크기
 	//              기본값 (1,1)(0,0) → 전체 해상도
 	// ──────────────────────────────────────────────────────────────────
-	Layout2D Position = { Vector2<float>(0.0f, 0.0f), Vector2<float>(0.0f, 0.0f) };
-	Layout2D Size     = { Vector2<float>(1.0f, 1.0f), Vector2<float>(0.0f, 0.0f) };
+	Layout2D Position = { Vector2(0.0f, 0.0f), Vector2(0.0f, 0.0f) };
+	Layout2D Size     = { Vector2(1.0f, 1.0f), Vector2(0.0f, 0.0f) };
 
 	float ClearColor[4] = { 0.08f, 0.09f, 0.11f, 1.0f };
 	std::uint32_t LayerMask = 0xffffffffu;

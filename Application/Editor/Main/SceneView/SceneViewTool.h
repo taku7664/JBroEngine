@@ -2,7 +2,7 @@
 
 #include "Engine/Editor/ImWindow/ImWindow.h"
 #include "Engine/GameFramework/ECS/EntityTypes.h"
-#include "Utillity/Vector2T.h"
+#include "Utillity/Math/Vector2T.h"
 
 #include "SceneViewEditContext.h"
 
@@ -15,7 +15,7 @@ public:
     virtual ~CSceneViewTool() = default;
 
     // 에디터 카메라 상태 getter (저장용: target 값 반환)
-    Vector2<float> GetEditorCameraPos()  const { return m_targetCameraPos; }
+    Vector2 GetEditorCameraPos()  const { return m_targetCameraPos; }
     float          GetEditorCameraSize() const { return m_targetCameraSize; }
 
     // 에디터 카메라 즉시 이동 (프로젝트 로드 시 적용)
@@ -42,9 +42,9 @@ private:
     // ── 에디터 카메라 ─────────────────────────────────────────────────────────
     // target: 입력으로 즉시 수정, display: target 을 향해 부드럽게 보간.
     // CAMERA_SMOOTH_SPEED 는 SceneViewTool.cpp 에서 조절합니다.
-    Vector2<float> m_targetCameraPos  = Vector2<float>(0.0f, 0.0f);
+    Vector2 m_targetCameraPos  = Vector2(0.0f, 0.0f);
     float          m_targetCameraSize = 5.0f;
-    Vector2<float> m_cameraPos        = Vector2<float>(0.0f, 0.0f);
+    Vector2 m_cameraPos        = Vector2(0.0f, 0.0f);
     float          m_cameraSize       = 5.0f;
 
     // ── Flash-like 포커스 내비게이션 ────────────────────────────────────────
@@ -64,8 +64,8 @@ private:
     // Layer 2.8: 버텍스 핸들을 드래그해 위치를 편집한다.
     EntityId               m_dragPolyEntity      = INVALID_ENTITY_ID;
     int                    m_dragVertexIndex      = -1;
-    std::vector<Vector2<float>> m_dragPreviewPts; // 드래그 중 미리보기 포인트
-    std::vector<Vector2<float>> m_dragOldPts;     // 드래그 시작 시점 스냅샷 (Undo용)
+    std::vector<Vector2> m_dragPreviewPts; // 드래그 중 미리보기 포인트
+    std::vector<Vector2> m_dragOldPts;     // 드래그 시작 시점 스냅샷 (Undo용)
 
     // ── 엣지/버텍스 클릭 소비 ─────────────────────────────────────────────────
     // Layer 2.8 에서 핸들 조작이 처리됐을 때 입력 블록의 씬 선택을 억제한다.

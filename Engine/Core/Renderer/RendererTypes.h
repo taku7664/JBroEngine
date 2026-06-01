@@ -2,8 +2,8 @@
 
 #include <cstdint>
 
-#include "Utillity/SafePtr.h"
-#include "Utillity/Matrix3x2.h"
+#include "Utillity/Pointer/SafePtr.h"
+#include "Utillity/Math/Matrix3x2.h"
 #include "GameFramework/ECS/EntityTypes.h"
 
 class IRHIDevice;

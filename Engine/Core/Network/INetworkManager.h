@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Core/Network/NetworkTypes.h"
-#include "Utillity/SafePtr.h"
+#include "Utillity/Pointer/SafePtr.h"
 
 #include <cstdint>
 #include <functional>

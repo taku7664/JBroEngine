@@ -21,11 +21,15 @@ enum class EReflectPropertyType
 {
 	Bool,
 	Int32,
+	Int64,
 	UInt32,
 	Float,
+	Degree,
+	Radian,
 	AngleDegrees,  // float (radians) stored in memory, displayed/edited as degrees in inspector
 	String,
 	Vector2Float,
+	RectFloat,
 	ColorFloat4,
 	AssetGuid,
 	EntityId,

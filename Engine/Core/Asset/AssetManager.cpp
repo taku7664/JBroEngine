@@ -36,6 +36,7 @@ bool CAssetManager::Initialize(const AssetManagerDesc& desc)
 void CAssetManager::Finalize()
 {
 	UnloadAllAssets();
+	m_packReader.Reset();
 	m_loaderTable.clear();
 	m_registry.Clear();
 	if (GActiveAssetManager == this)
@@ -422,7 +423,8 @@ bool CAssetManager::BuildAssetPackage(const AssetPackageBuildDesc& desc)
 	(void)desc;
 	return false;
 #else
-	if (desc.OutputManifestPath.empty())
+	const File::Path packPath = false == desc.OutputBlobPath.empty() ? desc.OutputBlobPath : desc.OutputManifestPath;
+	if (packPath.empty())
 	{
 		return false;
 	}
@@ -430,29 +432,105 @@ bool CAssetManager::BuildAssetPackage(const AssetPackageBuildDesc& desc)
 	AssetRegistrySnapshot snapshot;
 	m_registry.BuildSnapshot(snapshot);
 
-	std::ofstream manifest(desc.OutputManifestPath, std::ios::binary);
-	if (false == manifest.is_open())
+	std::vector<AssetPackageBuildEntry> packageEntries;
+	packageEntries.reserve(snapshot.Assets.size());
+	for (const AssetMetaData& metaData : snapshot.Assets)
+	{
+		if (metaData.Guid.IsNull() || EAssetType::Unknown == metaData.Type)
+		{
+			return false;
+		}
+
+		File::Path resolvedPath;
+		if (false == ResolveAssetPath(metaData.Path, resolvedPath))
+		{
+			return false;
+		}
+		std::error_code errorCode;
+		if (false == std::filesystem::exists(resolvedPath, errorCode) || false == std::filesystem::is_regular_file(resolvedPath, errorCode))
+		{
+			return false;
+		}
+
+		packageEntries.push_back(AssetPackageBuildEntry{ metaData, resolvedPath });
+	}
+
+	if (false == CAssetPackWriter::Write(packPath, packageEntries))
 	{
 		return false;
 	}
 
-	manifest << "version: 1\n";
-	manifest << "assets:\n";
-	for (const AssetMetaData& metaData : snapshot.Assets)
+	if (false == desc.OutputManifestPath.empty() && desc.OutputManifestPath != packPath)
 	{
-		manifest << "  - guid: " << metaData.Guid.generic_string() << "\n";
-		manifest << "    type: " << static_cast<int>(metaData.Type) << "\n";
-		manifest << "    path: " << metaData.Path.generic_string() << "\n";
+		std::filesystem::path manifestPath(desc.OutputManifestPath);
+		if (manifestPath.has_parent_path())
+		{
+			std::error_code errorCode;
+			std::filesystem::create_directories(manifestPath.parent_path(), errorCode);
+			if (errorCode)
+			{
+				return false;
+			}
+		}
+
+		std::ofstream manifest(desc.OutputManifestPath, std::ios::binary | std::ios::trunc);
+		if (false == manifest.is_open())
+		{
+			return false;
+		}
+		manifest << "{\n";
+		manifest << "  \"version\": 1,\n";
+		manifest << "  \"packs\": [\n";
+		manifest << "    { \"id\": \"" << std::filesystem::path(packPath).stem().generic_string()
+			<< "\", \"path\": \"" << std::filesystem::path(packPath).filename().generic_string()
+			<< "\", \"required\": true }\n";
+		manifest << "  ]\n";
+		manifest << "}\n";
 	}
 
-	(void)desc.OutputBlobPath;
 	return true;
 #endif
 }
 
 bool CAssetManager::LoadPackedAssetManifest(const File::Path& manifestPath)
 {
-	(void)manifestPath;
+	if (manifestPath.empty())
+	{
+		return false;
+	}
+
+	OwnerPtr<CAssetPackReader> packReader = MakeOwnerPtr<CAssetPackReader>();
+	if (!packReader || false == packReader->Open(manifestPath))
+	{
+		return false;
+	}
+
+	std::vector<AssetRecord> records;
+	packReader->BuildRecords(records);
+	for (const AssetRecord& record : records)
+	{
+		AssetMetaData metaData;
+		metaData.Guid = record.Guid;
+		metaData.Type = record.Type;
+		metaData.Version = record.Version;
+		metaData.Path = File::Path(std::string("__packed/") + record.Guid.generic_string());
+		metaData.MetaPath = File::NULL_PATH;
+		metaData.DisplayName = record.Guid.generic_string();
+		metaData.Importer = record.Importer;
+		metaData.ImportOptionsYaml = record.ImportOptionsYaml;
+		metaData.IsPersistent = false;
+
+		if (nullptr != m_registry.FindAsset(metaData.Guid))
+		{
+			continue;
+		}
+		if (false == m_registry.RegisterAsset(metaData))
+		{
+			return false;
+		}
+	}
+
+	m_packReader = std::move(packReader);
 	return true;
 }
 
@@ -497,11 +575,21 @@ OwnerPtr<IAsset> CAssetManager::LoadAssetInternal(const AssetMetaData& metaData)
 	desc.MetaData = &metaData;
 
 	File::Path resolvedPath;
-	if (false == ResolveAssetPath(metaData.Path, resolvedPath))
+	const bool hasPackedPayload = m_packReader && m_packReader->ReadPayload(metaData.Guid, desc.MemoryPayload);
+	if (false == hasPackedPayload && false == ResolveAssetPath(metaData.Path, resolvedPath))
 	{
 		return nullptr;
 	}
 	desc.ResolvedPath = resolvedPath;
+
+	if (!loader->CanLoad(desc) && hasPackedPayload && m_packReader)
+	{
+		File::Path materializedPath;
+		if (m_packReader->MaterializePayload(metaData.Guid, materializedPath))
+		{
+			desc.ResolvedPath = materializedPath;
+		}
+	}
 
 	if (!loader->CanLoad(desc))
 	{

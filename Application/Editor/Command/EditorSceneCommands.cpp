@@ -529,7 +529,7 @@ void CSetParentCommand::Redo()
 CModifyPolygonVerticesCommand::CModifyPolygonVerticesCommand(
 	SafePtr<CScene>             scene,
 	EntityId                    entity,
-	std::vector<Vector2<float>> newPoints)
+	std::vector<Vector2> newPoints)
 	: m_scene(scene)
 	, m_entity(entity)
 	, m_newPoints(std::move(newPoints))
@@ -572,7 +572,7 @@ void CModifyPolygonVerticesCommand::Redo()
 }
 
 bool CModifyPolygonVerticesCommand::Apply(
-	const std::vector<Vector2<float>>& points)
+	const std::vector<Vector2>& points)
 {
 	if (!m_scene.IsValid() || !m_scene->IsAlive(m_entity))
 		return false;

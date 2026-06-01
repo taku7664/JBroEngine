@@ -26,8 +26,8 @@ struct SceneObjectSnapshot
 	bool SpriteRendererEnabled = true;
 	AssetGuid SpriteGuid = INVALID_ASSET_GUID;
 	AssetGuid MaterialGuid = INVALID_ASSET_GUID;
-	Vector2<float> SpriteSize = Vector2<float>(1.0f, 1.0f);
-	Vector2<float> SpriteOffset = Vector2<float>(0.0f, 0.0f);
+	Vector2 SpriteSize = Vector2(1.0f, 1.0f);
+	Vector2 SpriteOffset = Vector2(0.0f, 0.0f);
 	float Color[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
 	std::int32_t SortOrder = 0;
 	RenderLayerMask LayerMask = 0xffffffffu;

@@ -25,9 +25,12 @@
 #include "Engine/GameFramework/Physics2D/Physics2DSystem.h"
 #include "Engine/GameFramework/Physics2D/Physics2DTypes.h"
 #include "Engine/GameFramework/Scene/SceneTransformUtils.h"
+#include "Utillity/Math/RectT.h"
+#include "Utillity/Types/EngineTypes.h"
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <cstring>
 
 namespace
@@ -148,6 +151,14 @@ namespace
 					static_cast<int>(property.RangeMin), static_cast<int>(property.RangeMax));
 			}
 			return ImGui::InputScalar("", ImGuiDataType_S32, field);
+		case EReflectPropertyType::Int64:
+			if (property.HasRange)
+			{
+				std::int64_t min = static_cast<std::int64_t>(property.RangeMin);
+				std::int64_t max = static_cast<std::int64_t>(property.RangeMax);
+				return ImGui::SliderScalar("", ImGuiDataType_S64, field, &min, &max);
+			}
+			return ImGui::InputScalar("", ImGuiDataType_S64, field);
 		case EReflectPropertyType::UInt32:
 			return ImGui::InputScalar("", ImGuiDataType_U32, field);
 		case EReflectPropertyType::Float:
@@ -157,12 +168,16 @@ namespace
 				return ImGui::SliderFloat("", static_cast<float*>(field), property.RangeMin, property.RangeMax);
 			}
 			return ImGui::DragFloat("", static_cast<float*>(field), 0.01f);
+		case EReflectPropertyType::Degree:
+			return ImGui::DragFloat("", static_cast<float*>(field), 0.5f, 0.0f, 0.0f, "%.2f deg");
+		case EReflectPropertyType::Radian:
+			return ImGui::DragFloat("", static_cast<float*>(field), 0.01f, 0.0f, 0.0f, "%.2f rad");
 		case EReflectPropertyType::AngleDegrees:
 		{
 			// 내부 저장값은 Radians, Inspector에서는 Degrees로 표시/편집.
 			float* rad = static_cast<float*>(field);
-			constexpr float kRad2Deg = 180.0f / 3.14159265358979323846f;
-			constexpr float kDeg2Rad = 3.14159265358979323846f / 180.0f;
+			constexpr float kRad2Deg = RAD_TO_DEG;
+			constexpr float kDeg2Rad = DEG_TO_RAD;
 			float deg = *rad * kRad2Deg;
 			if (ImGui::DragFloat("", &deg, 0.5f, 0.0f, 0.0f, "%.2f deg"))
 			{
@@ -173,14 +188,28 @@ namespace
 		}
 		case EReflectPropertyType::Vector2Float:
 			return ImGui::DragFloat2("", static_cast<float*>(field), 0.01f);
+		case EReflectPropertyType::RectFloat:
+		{
+			Rect* rect = static_cast<Rect*>(field);
+			float values[4] = { rect->Left, rect->Top, rect->Right, rect->Bottom };
+			if (ImGui::DragFloat4("", values, 0.01f))
+			{
+				rect->Left = values[0];
+				rect->Top = values[1];
+				rect->Right = values[2];
+				rect->Bottom = values[3];
+				return true;
+			}
+			return false;
+		}
 		case EReflectPropertyType::ColorFloat4:
 			return ImGui::ColorEdit4("", static_cast<float*>(field));
 		case EReflectPropertyType::String:
-			if (property.ElementCount > 0)
+			if (property.ElementCount > 1)
 			{
 				return ImGui::InputText("", static_cast<char*>(field), property.ElementCount);
 			}
-			return false;
+			return ImGui::InputText("", static_cast<std::string*>(field));
 		case EReflectPropertyType::AssetGuid:
 		{
 			File::Guid* guid = static_cast<File::Guid*>(field);
@@ -267,7 +296,7 @@ namespace
 		ImGui::EndDisabled();
 	}
 
-	void DrawReadOnlyVector2(const char* label, const Vector2<float>& value)
+	void DrawReadOnlyVector2(const char* label, const Vector2& value)
 	{
 		float vector[2] = { value.x, value.y };
 		ImGui::BeginDisabled();
@@ -339,7 +368,7 @@ namespace
 	void DrawCircleColliderDebug(const CScene& scene, EntityId selectedEntity, const CircleCollider2D& collider)
 	{
 		const Matrix3x2 worldTransform = GetWorldTransform(scene, selectedEntity);
-		const Vector2<float> worldCenter = worldTransform.TransformPoint(Vector2<float>(0.0f, 0.0f));
+		const Vector2 worldCenter = worldTransform.TransformPoint(Vector2(0.0f, 0.0f));
 		const float scaleX = std::sqrt(worldTransform.M11 * worldTransform.M11 + worldTransform.M12 * worldTransform.M12);
 		const float scaleY = std::sqrt(worldTransform.M21 * worldTransform.M21 + worldTransform.M22 * worldTransform.M22);
 		const float worldRadius = collider.Radius * std::max(scaleX, scaleY);
@@ -351,8 +380,8 @@ namespace
 
 	void DrawPolygonColliderDebug(const CScene& scene, EntityId selectedEntity, const PolygonCollider2D& collider)
 	{
-		std::vector<Vector2<float>> generatedPoints;
-		const std::vector<Vector2<float>>* localPoints = &collider.LocalPoints;
+		std::vector<Vector2> generatedPoints;
+		const std::vector<Vector2>* localPoints = &collider.LocalPoints;
 		if (localPoints->empty())
 		{
 			collider.BuildLocalPoints(generatedPoints);
@@ -363,12 +392,12 @@ namespace
 		if (false == localPoints->empty())
 		{
 			const Matrix3x2 worldTransform = GetWorldTransform(scene, selectedEntity);
-			Vector2<float> firstPoint = worldTransform.TransformPoint((*localPoints)[0]);
+			Vector2 firstPoint = worldTransform.TransformPoint((*localPoints)[0]);
 			aabb.Min = firstPoint;
 			aabb.Max = firstPoint;
-			for (const Vector2<float>& localPoint : *localPoints)
+			for (const Vector2& localPoint : *localPoints)
 			{
-				const Vector2<float> worldPoint = worldTransform.TransformPoint(localPoint);
+				const Vector2 worldPoint = worldTransform.TransformPoint(localPoint);
 				aabb.Min.x = std::min(aabb.Min.x, worldPoint.x);
 				aabb.Min.y = std::min(aabb.Min.y, worldPoint.y);
 				aabb.Max.x = std::max(aabb.Max.x, worldPoint.x);
@@ -463,13 +492,14 @@ namespace
 
 			void* field = CReflectionRegistry::GetPropertyAddress(component, property);
 			std::vector<std::uint8_t> oldValue(property.Size);
-			if (field && property.Size > 0)
+			const bool canRawUndo = !(property.Type == EReflectPropertyType::String && property.ElementCount <= 1);
+			if (canRawUndo && field && property.Size > 0)
 				std::memcpy(oldValue.data(), field, property.Size);
 
 			const std::string label = LocalizedPropertyLabel(property);
 			layout.Row([&]() { leftText(label.c_str()); }, [&]() {
 					const bool	changed = DrawPropertyEditor(field, property);
-					if (changed && field && property.Size > 0)
+					if (changed && canRawUndo && field && property.Size > 0)
 					{
 						std::vector<std::uint8_t> newValue(property.Size);
 						std::memcpy(newValue.data(), field, property.Size);

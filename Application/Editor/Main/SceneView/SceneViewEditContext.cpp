@@ -27,9 +27,9 @@ namespace
     }
 
     ImVec2 WorldToViewport(
-        const Vector2<float>& worldPt,
+        const Vector2& worldPt,
         const ImVec2& vpMin, const ImVec2& vpSize,
-        const Vector2<float>& camPos, float camSize)
+        const Vector2& camPos, float camSize)
     {
         const float aspect = GetAspect(vpSize);
         const float ndcX   = (worldPt.x - camPos.x) / (camSize * aspect);
@@ -134,7 +134,7 @@ void CSceneViewEditContext::Validate(const CScene& scene)
 
 EntityId CSceneViewEditContext::Pick(
     const CScene& scene,
-    const Vector2<float>& worldPt,
+    const Vector2& worldPt,
     IAssetManager* assetMgr) const
 {
     EntityId pickedSprite  = INVALID_ENTITY_ID;
@@ -159,7 +159,7 @@ EntityId CSceneViewEditContext::Pick(
             Matrix3x2 inv;
             if (!spriteMat.TryInvert(inv)) return;
 
-            const Vector2<float> local = inv.TransformPoint(worldPt);
+            const Vector2 local = inv.TransformPoint(worldPt);
             if (local.x < -0.5f || local.x > 0.5f ||
                 local.y < -0.5f || local.y > 0.5f) return;
 
@@ -209,8 +209,8 @@ EntityId CSceneViewEditContext::Pick(
 
 std::vector<EntityId> CSceneViewEditContext::PickBox(
     const CScene& scene,
-    const Vector2<float>& worldMin,
-    const Vector2<float>& worldMax,
+    const Vector2& worldMin,
+    const Vector2& worldMax,
     IAssetManager* assetMgr) const
 {
     std::unordered_set<EntityId> foundSet;
@@ -232,7 +232,7 @@ std::vector<EntityId> CSceneViewEditContext::PickBox(
             const Matrix3x2 entityWorldMat = GetWorldTransform(scene, entity);
 
             // ── 꼭짓점 계산 ──────────────────────────────────────────────────────
-            Vector2<float> corners[4];
+            Vector2 corners[4];
 
             const SpriteRenderer2D* sprite = scene.GetComponent<SpriteRenderer2D>(entity);
             if (sprite && sprite->IsEnabled)

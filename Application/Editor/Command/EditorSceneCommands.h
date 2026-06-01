@@ -165,7 +165,7 @@ public:
 	CModifyPolygonVerticesCommand(
 		SafePtr<CScene>                   scene,
 		EntityId                          entity,
-		std::vector<Vector2<float>>       newPoints);
+		std::vector<Vector2>       newPoints);
 	~CModifyPolygonVerticesCommand() override = default;
 
 	const char* GetName() const override;
@@ -174,13 +174,13 @@ public:
 	void Redo()    override;
 
 private:
-	bool Apply(const std::vector<Vector2<float>>& points);
+	bool Apply(const std::vector<Vector2>& points);
 
 private:
 	SafePtr<CScene>               m_scene;
 	EntityId                      m_entity   = INVALID_ENTITY_ID;
-	std::vector<Vector2<float>>   m_oldPoints;
-	std::vector<Vector2<float>>   m_newPoints;
+	std::vector<Vector2>   m_oldPoints;
+	std::vector<Vector2>   m_newPoints;
 	bool                          m_executed = false;
 };
 

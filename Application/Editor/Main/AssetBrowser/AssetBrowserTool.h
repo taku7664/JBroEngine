@@ -3,8 +3,8 @@
 #include "Engine/Core/Asset/AssetTypes.h"
 #include "Engine/Editor/ImWindow/ImWindow.h"   // CImWindow 기반 클래스
 #include "ThirdParty/imgui/imgui.h"            // ImGuiSelectionBasicStorage, ImGuiID (다중 선택)
-#include "File/FilePath.h"
-#include "Utillity/SafePtr.h"
+#include "Utillity/File/FilePath.h"
+#include "Utillity/Pointer/SafePtr.h"
 
 #include <ctime>
 

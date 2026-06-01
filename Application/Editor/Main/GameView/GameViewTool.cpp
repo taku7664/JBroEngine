@@ -54,8 +54,8 @@ namespace
 				const Matrix3x2 wt = GetWorldTransform(scene, entity);
 
 				// Layout2D → 픽셀 위치 / 크기 계산
-				const Vector2<float> posPixel  = cam.Position.Resolve(resW, resH);
-				      Vector2<float> sizePixel = cam.Size.Resolve(resW, resH);
+				const Vector2 posPixel  = cam.Position.Resolve(resW, resH);
+				      Vector2 sizePixel = cam.Size.Resolve(resW, resH);
 				if (sizePixel.x < 1.0f) sizePixel.x = 1.0f;
 				if (sizePixel.y < 1.0f) sizePixel.y = 1.0f;
 

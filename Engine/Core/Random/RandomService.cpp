@@ -42,8 +42,8 @@ float CRandomService::RangeFloat(float minInclusive, float maxInclusive)
 	return distribution(m_engine);
 }
 
-Vector2<float> CRandomService::UnitVector2()
+Vector2 CRandomService::UnitVector2()
 {
 	const float angle = RangeFloat(0.0f, 6.28318530718f);
-	return Vector2<float>{ std::cos(angle), std::sin(angle) };
+	return Vector2{ std::cos(angle), std::sin(angle) };
 }

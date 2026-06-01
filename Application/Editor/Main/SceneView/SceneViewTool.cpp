@@ -32,15 +32,15 @@ namespace
         return vpSize.y > 0.0f ? vpSize.x / vpSize.y : 1.0f;
     }
 
-    Vector2<float> ViewportToWorld(
+    Vector2 ViewportToWorld(
         const ImVec2& vpPt,
         const ImVec2& vpMin, const ImVec2& vpSize,
-        const Vector2<float>& camPos, float camSize)
+        const Vector2& camPos, float camSize)
     {
         const float ndcX = ((vpPt.x - vpMin.x) / vpSize.x) * 2.0f - 1.0f;
         const float ndcY = 1.0f - ((vpPt.y - vpMin.y) / vpSize.y) * 2.0f;
         const float aspect = GetAspect(vpSize);
-        return Vector2<float>(
+        return Vector2(
             ndcX * camSize * aspect + camPos.x,
             ndcY * camSize          + camPos.y);
     }
@@ -73,9 +73,9 @@ namespace
     // ── 좌표 변환 (World → Viewport) ─────────────────────────────────────────
 
     ImVec2 WorldToViewport(
-        const Vector2<float>& world,
+        const Vector2& world,
         const ImVec2& vpMin, const ImVec2& vpSize,
-        const Vector2<float>& camPos, float camSize)
+        const Vector2& camPos, float camSize)
     {
         const float aspect = GetAspect(vpSize);
         const float ndcX = (world.x - camPos.x) / (camSize * aspect);
@@ -183,7 +183,7 @@ namespace
         const float labelYPos = vpMin.y + vpSize.y - STRIP_SIZE + (STRIP_SIZE - labelFontSize) * 0.5f;
         const float labelXPos = vpMin.x + 3.0f;
 
-        const Vector2<float> camPosV{ camX, camY };
+        const Vector2 camPosV{ camX, camY };
 
         const float step = CalcGridStep(camSize);
 
@@ -245,8 +245,8 @@ namespace
 
 void CSceneViewTool::SetEditorCamera(float x, float y, float size)
 {
-    m_targetCameraPos  = Vector2<float>(x, y);
-    m_cameraPos        = Vector2<float>(x, y);
+    m_targetCameraPos  = Vector2(x, y);
+    m_cameraPos        = Vector2(x, y);
     m_targetCameraSize = (size > 0.0f) ? size : 5.0f;
     m_cameraSize       = m_targetCameraSize;
 }
@@ -256,7 +256,7 @@ void CSceneViewTool::FocusOnEntity(EntityId entity, const CScene& scene)
     if (INVALID_ENTITY_ID == entity) return;
 
     const Matrix3x2      worldTransform = GetWorldTransform(scene, entity);
-    const Vector2<float> worldPos       = worldTransform.TransformPoint(Vector2<float>(0.0f, 0.0f));
+    const Vector2 worldPos       = worldTransform.TransformPoint(Vector2(0.0f, 0.0f));
 
     const float scaleX = std::sqrt(
         worldTransform.M11 * worldTransform.M11 + worldTransform.M12 * worldTransform.M12);
@@ -460,7 +460,7 @@ void CSceneViewTool::OnRenderStay()
                     if (!gizmoScene->IsAlive(e)) continue;
 
                     const Matrix3x2      worldTf  = GetWorldTransform(*gizmoScene, e);
-                    const Vector2<float> worldPos = worldTf.TransformPoint({0.0f, 0.0f});
+                    const Vector2 worldPos = worldTf.TransformPoint({0.0f, 0.0f});
                     // 픽셀 스냅: D3D11 래스터라이저의 픽셀 중심은 N+0.5f 이므로
                     // floor 후 +0.5f 를 더해 항상 픽셀 중심에 정렬한다.
                     const ImVec2 raw = WorldToViewport(worldPos, vpMin, vpSize, m_cameraPos, m_cameraSize);
@@ -531,7 +531,7 @@ void CSceneViewTool::OnRenderStay()
                 dl->PushClipRect(vpMin, vpMin + vpSize, true);
 
                 // ── 화면 좌표 변환 (픽셀 스냅 없음 — 콜라이더는 sub-pixel 정밀도) ──
-                auto toScr = [&](const Vector2<float>& wp) -> ImVec2
+                auto toScr = [&](const Vector2& wp) -> ImVec2
                 {
                     return WorldToViewport(wp, vpMin, vpSize, m_cameraPos, m_cameraSize);
                 };
@@ -554,7 +554,7 @@ void CSceneViewTool::OnRenderStay()
                         const bool isFocused = isSel && circleTabActive;
 
                         const Matrix3x2      wt      = GetWorldTransform(*colScene, entity);
-                        const Vector2<float> wCenter = wt.TransformPoint(Vector2<float>(0.0f, 0.0f));
+                        const Vector2 wCenter = wt.TransformPoint(Vector2(0.0f, 0.0f));
                         const float sx = std::sqrt(wt.M11*wt.M11 + wt.M12*wt.M12);
                         const float sy = std::sqrt(wt.M21*wt.M21 + wt.M22*wt.M22);
                         const float wRadius = col.Radius * std::max(sx, sy);
@@ -592,8 +592,8 @@ void CSceneViewTool::OnRenderStay()
 
                         // 드래그 미리보기 또는 실제 포인트
                         // 우선순위: 드래그 중 미리보기 > LocalPoints(이미 빌드됨) > 절차적 빌드
-                        const std::vector<Vector2<float>>* pLocalPts = nullptr;
-                        std::vector<Vector2<float>> builtPts;
+                        const std::vector<Vector2>* pLocalPts = nullptr;
+                        std::vector<Vector2> builtPts;
                         if (isFocused && m_dragPolyEntity == entity && m_dragVertexIndex >= 0)
                         {
                             pLocalPts = &m_dragPreviewPts;
@@ -659,10 +659,10 @@ void CSceneViewTool::OnRenderStay()
                         if (draggingThisEntity)
                         {
                             // 드래그 중: 마우스 월드 좌표 → 로컬 포인트 업데이트
-                            const Vector2<float> mouseWorld =
+                            const Vector2 mouseWorld =
                                 ViewportToWorld(mousePos, vpMin, vpSize, m_cameraPos, m_cameraSize);
                             Matrix3x2 wtInv;
-                            Vector2<float> localMouse = mouseWorld;
+                            Vector2 localMouse = mouseWorld;
                             if (wt.TryInvert(wtInv))
                                 localMouse = wtInv.TransformPoint(mouseWorld);
 
@@ -776,21 +776,21 @@ void CSceneViewTool::OnRenderStay()
                             else if (closestEdge >= 0)
                             {
                                 // 엣지 클릭: 새 버텍스 삽입
-                                const Vector2<float> insertWorld =
+                                const Vector2 insertWorld =
                                     ViewportToWorld(insertScrPos, vpMin, vpSize,
                                                    m_cameraPos, m_cameraSize);
                                 Matrix3x2 wtInv;
-                                Vector2<float> insertLocal = insertWorld;
+                                Vector2 insertLocal = insertWorld;
                                 if (wt.TryInvert(wtInv))
                                     insertLocal = wtInv.TransformPoint(insertWorld);
 
                                 // 현재 실제 포인트 취득 (LocalPoints 우선, 없으면 절차적 빌드)
-                                std::vector<Vector2<float>> curPts;
+                                std::vector<Vector2> curPts;
                                 if (!col.LocalPoints.empty())
                                     curPts = col.LocalPoints;
                                 else
                                     col.BuildLocalPoints(curPts);
-                                std::vector<Vector2<float>> newPts;
+                                std::vector<Vector2> newPts;
                                 newPts.reserve(curPts.size() + 1);
                                 for (int i = 0; i < static_cast<int>(curPts.size()); ++i)
                                 {
@@ -835,12 +835,12 @@ void CSceneViewTool::OnRenderStay()
         if (wheel != 0.0f)
         {
             const ImVec2 mousePos = ImGui::GetIO().MousePos;
-            const Vector2<float> worldBefore =
+            const Vector2 worldBefore =
                 ViewportToWorld(mousePos, vpMin, vpSize,
                                 m_targetCameraPos, m_targetCameraSize);
             m_targetCameraSize *= std::powf(0.85f, wheel);
             m_targetCameraSize  = std::clamp(m_targetCameraSize, 0.01f, 2000.0f);
-            const Vector2<float> worldAfter =
+            const Vector2 worldAfter =
                 ViewportToWorld(mousePos, vpMin, vpSize,
                                 m_targetCameraPos, m_targetCameraSize);
             m_targetCameraPos.x += worldBefore.x - worldAfter.x;
@@ -912,10 +912,10 @@ void CSceneViewTool::OnRenderStay()
                     std::max(m_dragStartScrn.y, m_dragCurrentScrn.y));
 
                 // 화면 → 월드 변환 (Y축 반전 주의: screen top = world high Y)
-                const Vector2<float> boxWorldMin =
+                const Vector2 boxWorldMin =
                     ViewportToWorld(ImVec2(rMinS.x, rMaxS.y),
                                     vpMin, vpSize, m_cameraPos, m_cameraSize);
-                const Vector2<float> boxWorldMax =
+                const Vector2 boxWorldMax =
                     ViewportToWorld(ImVec2(rMaxS.x, rMinS.y),
                                     vpMin, vpSize, m_cameraPos, m_cameraSize);
 
@@ -960,7 +960,7 @@ void CSceneViewTool::OnRenderStay()
                     {
                         m_editCtx.Validate(*scene);
 
-                        const Vector2<float> worldPt =
+                        const Vector2 worldPt =
                             ViewportToWorld(ImGui::GetIO().MousePos,
                                             vpMin, vpSize, m_cameraPos, m_cameraSize);
 
@@ -1040,7 +1040,7 @@ void CSceneViewTool::OnRenderStay()
                     if (scene)
                     {
                         m_editCtx.Validate(*scene);
-                        const Vector2<float> worldPt =
+                        const Vector2 worldPt =
                             ViewportToWorld(ImGui::GetIO().MousePos,
                                             vpMin, vpSize, m_cameraPos, m_cameraSize);
                         const EntityId picked = m_editCtx.Pick(*scene, worldPt, assetMgr);
@@ -1113,7 +1113,7 @@ void CSceneViewTool::OnRenderStay()
                 {
                     if (ImGui::MenuItem(Loc::Text("scene_view.vertex.delete")))
                     {
-                        std::vector<Vector2<float>> newPts = delPoly->LocalPoints;
+                        std::vector<Vector2> newPts = delPoly->LocalPoints;
                         newPts.erase(newPts.begin() + m_deleteVtxIndex);
                         Editor::CommandManager.ExecuteCommand(
                             MakeOwnerPtr<CModifyPolygonVerticesCommand>(
@@ -1280,8 +1280,8 @@ void CSceneViewTool::OnRenderStay()
                     }
                 }
 
-                const Vector2<float> posPixel  = cam->Position.Resolve(resW, resH);
-                      Vector2<float> sizePixel = cam->Size.Resolve(resW, resH);
+                const Vector2 posPixel  = cam->Position.Resolve(resW, resH);
+                      Vector2 sizePixel = cam->Size.Resolve(resW, resH);
                 if (sizePixel.x < 1.0f) sizePixel.x = resW;
                 if (sizePixel.y < 1.0f) sizePixel.y = resH;
 

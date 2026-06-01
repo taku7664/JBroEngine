@@ -2,7 +2,7 @@
 
 #include "Engine/Core/Asset/AssetTypes.h"
 #include "Engine/GameFramework/ECS/EntityTypes.h"
-#include "Utillity/Vector2T.h"
+#include "Utillity/Math/Vector2T.h"
 
 #include <cstdint>
 #include <string>
@@ -33,7 +33,7 @@ public:
     // 로컬 스프라이트 공간 컨투어 목록 획득.
     // 각 컨투어: x,y ∈ [-0.5, 0.5], y-up, 원점 = 스프라이트 중앙.
     // 없으면 픽셀 경계 트레이싱 후 캐시에 저장. 실패 시 nullptr.
-    const std::vector<std::vector<Vector2<float>>>* GetOrBuild(
+    const std::vector<std::vector<Vector2>>* GetOrBuild(
         IAssetManager& assetMgr,
         const AssetGuid& spriteGuid,
         std::uint32_t frameIndex);
@@ -46,10 +46,10 @@ public:
         IAssetManager* assetMgr,
         const std::vector<EntityId>& selectedEntities,
         const ImVec2& vpMin, const ImVec2& vpSize,
-        const Vector2<float>& camPos, float camSize);
+        const Vector2& camPos, float camSize);
 
 private:
     // Key: L"<guid_wstring>:<frameIndex>"
     // Value: 컨투어 폴리곤 목록 (1개의 스프라이트가 여러 독립 영역을 가질 수 있음)
-    std::unordered_map<std::wstring, std::vector<std::vector<Vector2<float>>>> m_cache;
+    std::unordered_map<std::wstring, std::vector<std::vector<Vector2>>> m_cache;
 };

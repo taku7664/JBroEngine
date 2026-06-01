@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Core/Audio/AudioTypes.h"
-#include "Utillity/SafePtr.h"
+#include "Utillity/Pointer/SafePtr.h"
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  IAudioEffect ─ DSP 효과 (reverb / LP / HP / compressor / ...)

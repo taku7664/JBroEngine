@@ -16,8 +16,8 @@
 #include "Engine/GameFramework/Audio/AudioSystem.h"
 #include "Engine/GameFramework/Rendering/SpriteRenderSystem.h"
 #include "Engine/GameFramework/Scene/SceneSerializer.h"
-#include "File/FileUtillities.h"
-#include "StringUtillity.h"
+#include "Utillity/File/FileUtillities.h"
+#include "Utillity/String/StringUtillity.h"
 
 namespace
 {
@@ -136,7 +136,7 @@ namespace
 			// 씬뷰 카메라 현재 상태를 ProjectManager에 기록
 			if (Editor::SceneView)
 			{
-				const Vector2<float> camPos  = Editor::SceneView->GetEditorCameraPos();
+				const Vector2 camPos  = Editor::SceneView->GetEditorCameraPos();
 				const float          camSize = Editor::SceneView->GetEditorCameraSize();
 				pm->SetSceneViewCamera(camPos.x, camPos.y, camSize);
 			}

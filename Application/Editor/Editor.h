@@ -6,8 +6,8 @@
 #include "Engine/GameFramework/Scene/SceneManager.h"   // CSceneManager 사용
 #include "Engine/Editor/ImEditor.h"   // CImEditor 사용
 #include "Editor/Command/EditorCommandManager.h"
-#include "File/FilePath.h"
-#include "Utillity/SafePtr.h"
+#include "Utillity/File/FilePath.h"
+#include "Utillity/Pointer/SafePtr.h"
 
 #include <algorithm>
 #include <vector>

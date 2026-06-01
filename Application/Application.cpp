@@ -1,7 +1,9 @@
 #include "pch.h"
 #include "Application.h" 
+#if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
 #include "Editor/Editor.h"
 #include "Editor/Helper/ImGuiHelper.h"
+#endif
 void CGameApplication::OnPreInitialize()
 {
 }

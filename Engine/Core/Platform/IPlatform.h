@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Utillity/SafePtr.h"
+#include "Utillity/Pointer/SafePtr.h"
 #include "Core/Platform/PlatformTypes.h"
 #include "Core/Platform/IRenderSurface.h"
 

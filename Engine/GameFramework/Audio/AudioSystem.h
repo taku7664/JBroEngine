@@ -2,7 +2,7 @@
 
 #include "GameFramework/ECS/EntityTypes.h"
 #include "GameFramework/System/GameSystem.h"
-#include "Utillity/SafePtr.h"
+#include "Utillity/Pointer/SafePtr.h"
 
 #include <unordered_map>
 #include <unordered_set>

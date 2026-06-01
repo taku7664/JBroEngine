@@ -23,9 +23,9 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 		.AddProperty("Layer", EReflectPropertyType::UInt32, offsetof(GameObject, Layer), sizeof(std::uint32_t));
 
 	registry.RegisterComponent<Transform2D>({ "Transform2D", "Transform 2D", "Common", false })
-		.AddProperty("Position", EReflectPropertyType::Vector2Float, offsetof(Transform2D, Position), sizeof(Vector2<float>))
+		.AddProperty("Position", EReflectPropertyType::Vector2Float, offsetof(Transform2D, Position), sizeof(Vector2))
 		.AddProperty("RotationRadians", EReflectPropertyType::AngleDegrees, offsetof(Transform2D, RotationRadians), sizeof(float))
-		.AddProperty("Scale", EReflectPropertyType::Vector2Float, offsetof(Transform2D, Scale), sizeof(Vector2<float>));
+		.AddProperty("Scale", EReflectPropertyType::Vector2Float, offsetof(Transform2D, Scale), sizeof(Vector2));
 
 	registry.RegisterComponent<TransformHierarchy2D>({ "TransformHierarchy2D", "Transform Hierarchy 2D", "Common", false });
 
@@ -33,8 +33,8 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 		.AddProperty("IsEnabled", EReflectPropertyType::Bool, offsetof(SpriteRenderer2D, IsEnabled), sizeof(bool))
 		.AddProperty("SpriteGuid", EReflectPropertyType::AssetGuid, offsetof(SpriteRenderer2D, SpriteGuid), sizeof(AssetGuid))
 		.AddProperty("MaterialGuid", EReflectPropertyType::AssetGuid, offsetof(SpriteRenderer2D, MaterialGuid), sizeof(AssetGuid))
-		.AddProperty("Size", EReflectPropertyType::Vector2Float, offsetof(SpriteRenderer2D, Size), sizeof(Vector2<float>))
-		.AddProperty("Offset", EReflectPropertyType::Vector2Float, offsetof(SpriteRenderer2D, Offset), sizeof(Vector2<float>))
+		.AddProperty("Size", EReflectPropertyType::Vector2Float, offsetof(SpriteRenderer2D, Size), sizeof(Vector2))
+		.AddProperty("Offset", EReflectPropertyType::Vector2Float, offsetof(SpriteRenderer2D, Offset), sizeof(Vector2))
 		.AddProperty("Color", EReflectPropertyType::ColorFloat4, offsetof(SpriteRenderer2D, Color), sizeof(float), 4)
 		.AddProperty("SortOrder", EReflectPropertyType::Int32, offsetof(SpriteRenderer2D, SortOrder), sizeof(std::int32_t))
 		.AddProperty("LayerMask", EReflectPropertyType::UInt32, offsetof(SpriteRenderer2D, LayerMask), sizeof(RenderLayerMask));
@@ -64,8 +64,8 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 	registry.RegisterComponent<Rigidbody2D>({ "Rigidbody2D", "Rigidbody 2D", "Physics", true })
 		.AddProperty("IsEnabled", EReflectPropertyType::Bool, offsetof(Rigidbody2D, IsEnabled), sizeof(bool))
 		.AddProperty("BodyType", EReflectPropertyType::Enum, offsetof(Rigidbody2D, BodyType), sizeof(EPhysics2DBodyType))
-		.AddProperty("Velocity", EReflectPropertyType::Vector2Float, offsetof(Rigidbody2D, Velocity), sizeof(Vector2<float>))
-		.AddProperty("Force", EReflectPropertyType::Vector2Float, offsetof(Rigidbody2D, Force), sizeof(Vector2<float>))
+		.AddProperty("Velocity", EReflectPropertyType::Vector2Float, offsetof(Rigidbody2D, Velocity), sizeof(Vector2))
+		.AddProperty("Force", EReflectPropertyType::Vector2Float, offsetof(Rigidbody2D, Force), sizeof(Vector2))
 		.AddProperty("AngularVelocity", EReflectPropertyType::Float, offsetof(Rigidbody2D, AngularVelocity), sizeof(float))
 		.AddProperty("Torque", EReflectPropertyType::Float, offsetof(Rigidbody2D, Torque), sizeof(float))
 		.AddProperty("Mass", EReflectPropertyType::Float, offsetof(Rigidbody2D, Mass), sizeof(float))

@@ -2,7 +2,7 @@
 
 #include "Core/Asset/AssetTypes.h"
 #include "Core/Renderer/RendererTypes.h"
-#include "Utillity/Vector2T.h"
+#include "Utillity/Math/Vector2T.h"
 
 #include <cstdint>
 
@@ -18,8 +18,8 @@ struct SpriteRenderer2D
 	// 직렬화/복사 대상이 아닙니다.
 	SafePtr<IRenderMesh> Mesh;
 	SafePtr<IRenderMaterial> Material;
-	Vector2<float> Size = Vector2<float>(1.0f, 1.0f);
-	Vector2<float> Offset = Vector2<float>(0.0f, 0.0f);
+	Vector2 Size = Vector2(1.0f, 1.0f);
+	Vector2 Offset = Vector2(0.0f, 0.0f);
 	float Color[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
 	std::int32_t SortOrder = 0;
 	RenderLayerMask LayerMask = 0xffffffffu;

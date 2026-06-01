@@ -13,7 +13,6 @@
     SDK/Include/Core/...
     SDK/Include/Utillity/...   (Utillity 전체 복사)
     SDK/Lib/{Debug|Release}/Engine.lib
-    SDK/Lib/{Debug|Release}/Utillity.lib
 -->
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
 
@@ -23,7 +22,7 @@
     <_RepoRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../'))</_RepoRoot>
     <_SDKInc>$(_RepoRoot)SDK\Include\</_SDKInc>
     <_SDKLib>$(_RepoRoot)SDK\Lib\</_SDKLib>
-    <_UtillityDir>$(_RepoRoot)Utillity\</_UtillityDir>
+    <_UtillityDir>$(_EngineDir)Utillity\</_UtillityDir>
 
     <!-- 엔진 구성명(Debug/Debug_Game/Release/Release_Game) → SDK Lib 서브폴더 정규화 -->
     <_SDKLibConfig Condition="$(Configuration.Contains('Debug'))">Debug</_SDKLibConfig>
@@ -80,7 +79,7 @@
     <!--
       공개 헤더 복사.
       %(RecursiveDir) = 각 디렉토리 글로브 베이스 이후의 하위 경로 → 서브디렉토리 구조 유지.
-      예) GameFramework\Scripting\Sub\Foo.h → SDK\Include\GameFramework\Scripting\Sub\Foo.h
+      예) GameFramework\Scripting\Sub\Foo.h -> SDK\Include\GameFramework\Scripting\Sub\Foo.h
     -->
     <Copy SourceFiles="@(_SDKHeader)"
           DestinationFolder="$(_SDKInc)%(_SDKHeader.DestDir)\%(RecursiveDir)"
@@ -91,17 +90,13 @@
           DestinationFolder="$(_SDKInc)Utillity\%(RecursiveDir)"
           SkipUnchangedFiles="true" />
 
-    <!-- Engine.lib / Utillity.lib → SDK/Lib/{Debug|Release}/ -->
+    <!-- Engine.lib -> SDK/Lib/{Debug|Release}/ -->
     <MakeDir Directories="$(_SDKLib)$(_SDKLibConfig)\" />
     <Copy SourceFiles="$(OutDir)$(TargetName).lib"
           DestinationFolder="$(_SDKLib)$(_SDKLibConfig)\"
           SkipUnchangedFiles="true" />
-    <Copy SourceFiles="$(OutDir)Utillity.lib"
-          DestinationFolder="$(_SDKLib)$(_SDKLibConfig)\"
-          SkipUnchangedFiles="true"
-          Condition="Exists('$(OutDir)Utillity.lib')" />
 
-    <Message Text="[SDK Stage] $(Configuration) → SDK\Include\ + SDK\Lib\$(_SDKLibConfig)\Engine.lib, Utillity.lib"
+    <Message Text="[SDK Stage] $(Configuration) -> SDK\Include\ + SDK\Lib\$(_SDKLibConfig)\Engine.lib"
              Importance="high" />
   </Target>
 

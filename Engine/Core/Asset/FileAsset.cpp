@@ -56,7 +56,7 @@ bool CFileAssetLoader::CanLoad(const AssetLoadDesc& desc) const
 {
 	return EAssetType::Unknown != m_supportedType
 		&& desc.Type == m_supportedType
-		&& false == desc.ResolvedPath.empty()
+		&& (false == desc.ResolvedPath.empty() || desc.HasMemoryPayload())
 		&& nullptr != desc.MetaData;
 }
 
@@ -65,6 +65,12 @@ OwnerPtr<IAsset> CFileAssetLoader::Load(const AssetLoadDesc& desc)
 	if (false == CanLoad(desc))
 	{
 		return nullptr;
+	}
+
+	if (desc.HasMemoryPayload())
+	{
+		std::vector<std::uint8_t> data = desc.MemoryPayload;
+		return MakeOwnerPtr<CFileAsset>(*desc.MetaData, std::move(data));
 	}
 
 	std::ifstream file(desc.ResolvedPath, std::ios::binary);

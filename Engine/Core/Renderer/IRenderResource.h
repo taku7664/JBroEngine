@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Utillity/SafePtr.h"
+#include "Utillity/Pointer/SafePtr.h"
 
 class IRenderResource : public EnableSafeFromThis<IRenderResource>
 {

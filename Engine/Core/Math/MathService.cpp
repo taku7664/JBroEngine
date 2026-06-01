@@ -21,7 +21,7 @@ float CMathService::Lerp(float a, float b, float t) const
 	return a + (b - a) * t;
 }
 
-Matrix3x2 CMathService::Compose2D(const Vector2<float>& position, float rotationRadians, const Vector2<float>& scale) const
+Matrix3x2 CMathService::Compose2D(const Vector2& position, float rotationRadians, const Vector2& scale) const
 {
 	return Matrix3x2::Transform(position, rotationRadians, scale);
 }

@@ -2,7 +2,7 @@
 
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
 
-#include "Utillity/SafePtr.h"
+#include "Utillity/Pointer/SafePtr.h"
 
 #include <cstdint>
 #include <string>

@@ -1,6 +1,39 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
+    <Filter Include="Header\Utillity">
+      <UniqueIdentifier>{90F8896B-8655-4E5A-9365-7E83B47CB61D}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\Utillity\Base">
+      <UniqueIdentifier>{D97D8842-9442-41B1-8E73-0F898F7E1ED6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\Utillity\File">
+      <UniqueIdentifier>{476C889E-341E-4F6B-A19E-C85E686FCE2D}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\Utillity\Math">
+      <UniqueIdentifier>{B14E9B2A-4F2C-4A67-86D8-5D8A2E81A436}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\Utillity\Pointer">
+      <UniqueIdentifier>{4D109C46-919B-4CA7-B13B-96C2C892DC03}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\Utillity\String">
+      <UniqueIdentifier>{17AC5169-67C3-4E05-8467-CE340195A4B5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\Utillity\Types">
+      <UniqueIdentifier>{03A95F6C-06D4-4C69-B5EF-B477E753B870}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Utillity">
+      <UniqueIdentifier>{57E30C00-9B50-492D-B264-326D78496743}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Utillity\Base">
+      <UniqueIdentifier>{5D04895C-4F54-4CE0-A602-C6096EA82AA1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Utillity\File">
+      <UniqueIdentifier>{1D1C5D3E-D031-4496-B409-80D38C436C76}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Utillity\String">
+      <UniqueIdentifier>{40C5D1AD-DA1E-4D31-B582-71C9CFF9F7B4}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Source">
       <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
       <Extensions>cpp;c;cc;cxx;c++;cppm;ixx</Extensions>
@@ -260,6 +293,81 @@
     <ClInclude Include="pch.h">
       <Filter>Header</Filter>
     </ClInclude>
+    <ClInclude Include="Utillity\Framework.h">
+      <Filter>Header\Utillity</Filter>
+    </ClInclude>
+    <ClInclude Include="Utillity\Base\BitFlag.h">
+      <Filter>Header\Utillity\Base</Filter>
+    </ClInclude>
+    <ClInclude Include="Utillity\Base\Defines.h">
+      <Filter>Header\Utillity\Base</Filter>
+    </ClInclude>
+    <ClInclude Include="Utillity\Base\Error.h">
+      <Filter>Header\Utillity\Base</Filter>
+    </ClInclude>
+    <ClInclude Include="Utillity\Base\Utillities.h">
+      <Filter>Header\Utillity\Base</Filter>
+    </ClInclude>
+    <ClInclude Include="Utillity\File\FilePath.h">
+      <Filter>Header\Utillity\File</Filter>
+    </ClInclude>
+    <ClInclude Include="Utillity\File\FileUtillities.h">
+      <Filter>Header\Utillity\File</Filter>
+    </ClInclude>
+    <ClInclude Include="Utillity\Math\Layout2D.h">
+      <Filter>Header\Utillity\Math</Filter>
+    </ClInclude>
+    <ClInclude Include="Utillity\Math\Matrix3x2.h">
+      <Filter>Header\Utillity\Math</Filter>
+    </ClInclude>
+    <ClInclude Include="Utillity\Math\RectT.h">
+      <Filter>Header\Utillity\Math</Filter>
+    </ClInclude>
+    <ClInclude Include="Utillity\Math\SizeT.h">
+      <Filter>Header\Utillity\Math</Filter>
+    </ClInclude>
+    <ClInclude Include="Utillity\Math\Vector2T.h">
+      <Filter>Header\Utillity\Math</Filter>
+    </ClInclude>
+    <ClInclude Include="Utillity\Pointer\SafePtr.h">
+      <Filter>Header\Utillity\Pointer</Filter>
+    </ClInclude>
+    <ClInclude Include="Utillity\String\StringUtillity.h">
+      <Filter>Header\Utillity\String</Filter>
+    </ClInclude>
+    <ClInclude Include="Utillity\Types\AngleConstants.h">
+      <Filter>Header\Utillity\Types</Filter>
+    </ClInclude>
+    <ClInclude Include="Utillity\Types\Asset.h">
+      <Filter>Header\Utillity\Types</Filter>
+    </ClInclude>
+    <ClInclude Include="Utillity\Types\Bool.h">
+      <Filter>Header\Utillity\Types</Filter>
+    </ClInclude>
+    <ClInclude Include="Utillity\Types\Degree.h">
+      <Filter>Header\Utillity\Types</Filter>
+    </ClInclude>
+    <ClInclude Include="Utillity\Types\EngineTypes.h">
+      <Filter>Header\Utillity\Types</Filter>
+    </ClInclude>
+    <ClInclude Include="Utillity\Types\Float.h">
+      <Filter>Header\Utillity\Types</Filter>
+    </ClInclude>
+    <ClInclude Include="Utillity\Types\Int.h">
+      <Filter>Header\Utillity\Types</Filter>
+    </ClInclude>
+    <ClInclude Include="Utillity\Types\Radian.h">
+      <Filter>Header\Utillity\Types</Filter>
+    </ClInclude>
+    <ClInclude Include="Utillity\Types\String.h">
+      <Filter>Header\Utillity\Types</Filter>
+    </ClInclude>
+    <ClInclude Include="Utillity\Types\Types.h">
+      <Filter>Header\Utillity\Types</Filter>
+    </ClInclude>
+    <ClInclude Include="Utillity\Types\UInt.h">
+      <Filter>Header\Utillity\Types</Filter>
+    </ClInclude>
     <ClInclude Include="Application\Application.h">
       <Filter>Header\Application</Filter>
     </ClInclude>
@@ -267,6 +375,9 @@
       <Filter>Header\Core\Asset</Filter>
     </ClInclude>
     <ClInclude Include="Core\Asset\AssetMetaFile.h">
+      <Filter>Header\Core\Asset</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Asset\AssetPackage.h">
       <Filter>Header\Core\Asset</Filter>
     </ClInclude>
     <ClInclude Include="Core\Asset\AssetPath.h">
@@ -883,6 +994,18 @@
     <ClCompile Include="pch.cpp">
       <Filter>Source</Filter>
     </ClCompile>
+    <ClCompile Include="Utillity\Base\Error.cpp">
+      <Filter>Source\Utillity\Base</Filter>
+    </ClCompile>
+    <ClCompile Include="Utillity\File\FilePath.cpp">
+      <Filter>Source\Utillity\File</Filter>
+    </ClCompile>
+    <ClCompile Include="Utillity\File\FileUtillities.cpp">
+      <Filter>Source\Utillity\File</Filter>
+    </ClCompile>
+    <ClCompile Include="Utillity\String\StringUtillity.cpp">
+      <Filter>Source\Utillity\String</Filter>
+    </ClCompile>
     <ClCompile Include="Application\Application.cpp">
       <Filter>Source\Application</Filter>
     </ClCompile>
@@ -890,6 +1013,9 @@
       <Filter>Source\Core\Asset</Filter>
     </ClCompile>
     <ClCompile Include="Core\Asset\AssetMetaFile.cpp">
+      <Filter>Source\Core\Asset</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Asset\AssetPackage.cpp">
       <Filter>Source\Core\Asset</Filter>
     </ClCompile>
     <ClCompile Include="Core\Asset\AssetPath.cpp">

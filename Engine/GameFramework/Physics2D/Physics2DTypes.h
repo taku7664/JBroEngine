@@ -1,7 +1,7 @@
 #pragma once
 
 #include "GameFramework/ECS/EntityTypes.h"
-#include "Utillity/Vector2T.h"
+#include "Utillity/Math/Vector2T.h"
 
 #include <cstdint>
 
@@ -20,8 +20,8 @@ enum class EPhysics2DColliderType
 
 struct PhysicsAABB2D
 {
-	Vector2<float> Min = Vector2<float>(0.0f, 0.0f);
-	Vector2<float> Max = Vector2<float>(0.0f, 0.0f);
+	Vector2 Min = Vector2(0.0f, 0.0f);
+	Vector2 Max = Vector2(0.0f, 0.0f);
 };
 
 // 두 엔티티 사이의 충돌 매니폴드.
@@ -43,10 +43,10 @@ struct Physics2DManifold
 	EntityId A = INVALID_ENTITY_ID;
 	EntityId B = INVALID_ENTITY_ID;
 
-	Vector2<float> Normal      = Vector2<float>(0.0f, 0.0f);
+	Vector2 Normal      = Vector2(0.0f, 0.0f);
 	float          Penetration = 0.0f;
 
-	Vector2<float> ContactPoints[2] = {};
+	Vector2 ContactPoints[2] = {};
 	int            ContactCount     = 0;
 
 	// Contact 식별자 — 같은 페어의 다음 step 매니폴드와 매칭에 사용.

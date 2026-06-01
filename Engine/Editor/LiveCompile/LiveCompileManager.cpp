@@ -492,6 +492,10 @@ void CLiveCompileManager::TakeScriptSnapshot()
 					// 얕은 복사해 이중 해제/액세스 위반으로 이어진다.)
 					field.Text = static_cast<const File::Guid*>(src)->generic_string();
 				}
+				else if (EReflectPropertyType::String == prop.Type)
+				{
+					field.Text = *static_cast<const std::string*>(src);
+				}
 				else
 				{
 					// trivially-copyable 타입(bool/int/uint/float/Vector2)만 raw bytes 로 보존.

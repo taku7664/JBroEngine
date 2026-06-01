@@ -234,7 +234,7 @@ EAssetType CSpriteAssetLoader::GetSupportedType() const
 bool CSpriteAssetLoader::CanLoad(const AssetLoadDesc& desc) const
 {
 	return EAssetType::Sprite == desc.Type
-	    && false == desc.ResolvedPath.empty()
+	    && (false == desc.ResolvedPath.empty() || desc.HasMemoryPayload())
 	    && nullptr != desc.MetaData;
 }
 
@@ -243,8 +243,22 @@ OwnerPtr<IAsset> CSpriteAssetLoader::Load(const AssetLoadDesc& desc)
 	if (false == CanLoad(desc)) return nullptr;
 
 	int w = 0, h = 0, channels = 0;
-	const std::string resolved = desc.ResolvedPath.string();
-	stbi_uc* pixels = stbi_load(resolved.c_str(), &w, &h, &channels, 4);
+	stbi_uc* pixels = nullptr;
+	if (desc.HasMemoryPayload())
+	{
+		pixels = stbi_load_from_memory(
+			desc.MemoryPayload.data(),
+			static_cast<int>(desc.MemoryPayload.size()),
+			&w,
+			&h,
+			&channels,
+			4);
+	}
+	else
+	{
+		const std::string resolved = desc.ResolvedPath.string();
+		pixels = stbi_load(resolved.c_str(), &w, &h, &channels, 4);
+	}
 	if (nullptr == pixels || w <= 0 || h <= 0)
 	{
 		if (pixels) stbi_image_free(pixels);

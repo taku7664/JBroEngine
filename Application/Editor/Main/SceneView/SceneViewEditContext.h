@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Engine/GameFramework/ECS/EntityTypes.h"
-#include "Utillity/Vector2T.h"
+#include "Utillity/Math/Vector2T.h"
 #include <vector>
 
 class CScene;
@@ -37,7 +37,7 @@ public:
     //  없으면 INVALID_ENTITY_ID
     EntityId Pick(
         const CScene& scene,
-        const Vector2<float>& worldPt,
+        const Vector2& worldPt,
         IAssetManager* assetMgr) const;
 
     // 드래그 박스 선택: [worldMin, worldMax] 안에 오브젝트가 "완전히" 포함된
@@ -48,8 +48,8 @@ public:
     //  포커스 모드 → m_context 의 직계 자식 (또는 m_context 자신)
     std::vector<EntityId> PickBox(
         const CScene& scene,
-        const Vector2<float>& worldMin,
-        const Vector2<float>& worldMax,
+        const Vector2& worldMin,
+        const Vector2& worldMax,
         IAssetManager* assetMgr = nullptr) const;
 
     // 더블 클릭 on 오브젝트:

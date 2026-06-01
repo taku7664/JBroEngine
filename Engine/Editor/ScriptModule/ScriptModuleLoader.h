@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Core/Game/GameModuleTypes.h"
-#include "Utillity/SafePtr.h"
+#include "Utillity/Pointer/SafePtr.h"
 
 class IDynamicLibrary;
 class IGameModule;

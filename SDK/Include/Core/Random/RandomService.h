@@ -1,7 +1,7 @@
 #pragma once
 
-#include "Utillity/SafePtr.h"
-#include "Utillity/Vector2T.h"
+#include "Utillity/Pointer/SafePtr.h"
+#include "Utillity/Math/Vector2T.h"
 
 #include <mutex>
 #include <random>
@@ -15,7 +15,7 @@ public:
 	std::uint32_t GetSeed() const;
 	int RangeInt(int minInclusive, int maxInclusive);
 	float RangeFloat(float minInclusive, float maxInclusive);
-	Vector2<float> UnitVector2();
+	Vector2 UnitVector2();
 
 private:
 	mutable std::mutex m_mutex;

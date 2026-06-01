@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Core/Input/IInputMessageHandler.h"
-#include "Utillity/SafePtr.h"
+#include "Utillity/Pointer/SafePtr.h"
 
 #include <array>
 #include <vector>

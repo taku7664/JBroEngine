@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Core/Task/TaskTypes.h"
-#include "Utillity/SafePtr.h"
+#include "Utillity/Pointer/SafePtr.h"
 
 #include <atomic>
 #include <functional>

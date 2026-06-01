@@ -3,21 +3,21 @@
 
 #include <cmath>
 
-std::vector<Vector2<float>> CPhysics2DGeometry::CreateBoxPoints(float width, float height)
+std::vector<Vector2> CPhysics2DGeometry::CreateBoxPoints(float width, float height)
 {
 	const float halfWidth = width * 0.5f;
 	const float halfHeight = height * 0.5f;
 	return {
-		Vector2<float>(-halfWidth, -halfHeight),
-		Vector2<float>(halfWidth, -halfHeight),
-		Vector2<float>(halfWidth, halfHeight),
-		Vector2<float>(-halfWidth, halfHeight)
+		Vector2(-halfWidth, -halfHeight),
+		Vector2(halfWidth, -halfHeight),
+		Vector2(halfWidth, halfHeight),
+		Vector2(-halfWidth, halfHeight)
 	};
 }
 
-std::vector<Vector2<float>> CPhysics2DGeometry::CreateRegularPolygonPoints(float radius, std::uint32_t vertexCount)
+std::vector<Vector2> CPhysics2DGeometry::CreateRegularPolygonPoints(float radius, std::uint32_t vertexCount)
 {
-	std::vector<Vector2<float>> points;
+	std::vector<Vector2> points;
 	if (vertexCount < 3 || radius <= 0.0f)
 	{
 		return points;

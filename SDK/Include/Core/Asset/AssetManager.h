@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Core/Asset/AssetRegistry.h"
+#include "Core/Asset/AssetPackage.h"
 #include "Core/Asset/IAssetManager.h"
 #include "Core/Asset/IAssetLoader.h"
 #include "Core/Asset/IAsset.h"
@@ -59,6 +60,7 @@ private:
 	CAssetRegistry m_registry;
 	std::unordered_map<EAssetType, OwnerPtr<IAssetLoader>> m_loaderTable;
 	std::unordered_map<AssetGuid, OwnerPtr<IAsset>> m_loadedAssetTable;
+	OwnerPtr<CAssetPackReader> m_packReader;
 	File::Path m_assetRootPath = "Assets";
 	bool m_isInitialized = false;
 };

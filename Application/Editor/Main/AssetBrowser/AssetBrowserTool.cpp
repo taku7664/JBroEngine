@@ -25,8 +25,8 @@
 #include "Engine/Editor/ImWindow/IImPopupWindow.h"
 #include "Engine/Core/Logging/LoggerInternal.h"
 #include "Engine/GameFramework/Rendering/SpriteRenderSystem.h"
-#include "File/FileUtillities.h"
-#include "StringUtillity.h"
+#include "Utillity/File/FileUtillities.h"
+#include "Utillity/String/StringUtillity.h"
 
 #include <array>
 #include <cctype>
@@ -109,13 +109,17 @@ namespace
 
 	// ScriptMacros.h 가 지원하는 REFLECT_FIELD 타입 목록.
 	// Combo 의 표시 라벨 ↔ C++ 타입 토큰.
-	constexpr std::array<std::pair<const char*, const char*>, 6> SCRIPT_PROP_TYPES = {{
-		{ "bool",     "bool"            },
-		{ "int32",    "std::int32_t"    },
-		{ "uint32",   "std::uint32_t"   },
-		{ "float",    "float"           },
-		{ "vector2",  "Vector2<float>"  },
-		{ "asset",    "AssetGuid"       },
+	constexpr std::array<std::pair<const char*, const char*>, 10> SCRIPT_PROP_TYPES = {{
+		{ "bool",     "Bool"            },
+		{ "int64",    "Int"             },
+		{ "uint32",   "UInt"            },
+		{ "float",    "Float"           },
+		{ "degree",   "Degree"          },
+		{ "radian",   "Radian"          },
+		{ "string",   "String"          },
+		{ "vector2",  "Vector2"         },
+		{ "rect",     "Rect"            },
+		{ "asset",    "Asset"           },
 	}};
 
 	std::string DefaultValueFor(int typeIndex)
@@ -126,8 +130,12 @@ namespace
 		case 1: return "0";
 		case 2: return "0u";
 		case 3: return "0.0f";
-		case 4: return "{}";   // Vector2<float> → {0, 0}
-		case 5: return "{}";   // AssetGuid → null
+		case 4: return "Degree(0.0f)";
+		case 5: return "Radian(0.0f)";
+		case 6: return "\"\"";
+		case 7: return "{}";   // Vector2 -> {0, 0}
+		case 8: return "{}";   // Rect -> {0, 0, 0, 0}
+		case 9: return "{}";   // Asset -> null
 		default: return "{}";
 		}
 	}

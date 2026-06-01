@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <cstddef>
 
-#include "Utillity/SafePtr.h"
+#include "Utillity/Pointer/SafePtr.h"
 
 using RHIBindFlags = std::uint32_t;
 using RHITextureBindFlags = std::uint32_t;

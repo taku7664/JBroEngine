@@ -1,7 +1,7 @@
 #pragma once
 
 #include "GameFramework/Physics2D/Physics2DTypes.h"
-#include "Utillity/Vector2T.h"
+#include "Utillity/Math/Vector2T.h"
 
 #include <cmath>
 #include <cstdint>
@@ -11,8 +11,8 @@ struct Rigidbody2D
 {
 	bool IsEnabled = true;
 	EPhysics2DBodyType BodyType = EPhysics2DBodyType::Dynamic;
-	Vector2<float> Velocity = Vector2<float>(0.0f, 0.0f);
-	Vector2<float> Force = Vector2<float>(0.0f, 0.0f);
+	Vector2 Velocity = Vector2(0.0f, 0.0f);
+	Vector2 Force = Vector2(0.0f, 0.0f);
 	float AngularVelocity = 0.0f;
 	float Torque = 0.0f;
 	float Mass = 1.0f;
@@ -32,8 +32,8 @@ struct Rigidbody2D
 	float RestingLinearVelocityThreshold = 0.05f;
 	float RestingAngularVelocityThreshold = 0.1f;
 	std::uint32_t LastContactCount = 0;
-	Vector2<float> LastContactNormal = Vector2<float>(0.0f, 0.0f);
-	Vector2<float> LastContactPoint = Vector2<float>(0.0f, 0.0f);
+	Vector2 LastContactNormal = Vector2(0.0f, 0.0f);
+	Vector2 LastContactPoint = Vector2(0.0f, 0.0f);
 	float LastNormalImpulse = 0.0f;
 	float LastFrictionImpulse = 0.0f;
 	float LastAngularImpulse = 0.0f;
@@ -55,8 +55,8 @@ struct Rigidbody2D
 // Physics2DSystem 이 Ear Clipping 으로 생성하며, SAT 는 이 단위로 수행된다.
 struct ConvexPiece2D
 {
-	std::vector<Vector2<float>> LocalPoints;   // 삼각형 3 꼭짓점 (로컬 공간)
-	std::vector<Vector2<float>> WorldPoints;   // 삼각형 3 꼭짓점 (월드 공간)
+	std::vector<Vector2> LocalPoints;   // 삼각형 3 꼭짓점 (로컬 공간)
+	std::vector<Vector2> WorldPoints;   // 삼각형 3 꼭짓점 (월드 공간)
 	std::vector<bool> BoundaryEdges;           // 원본 폴리곤 외곽 엣지이면 true, 삼각분해 내부 대각선이면 false
 	PhysicsAABB2D               WorldBounds;   // 브로드 페이즈용 AABB
 };
@@ -68,8 +68,8 @@ struct PolygonCollider2D
 	// LocalPoints: 커스텀 버텍스 편집 또는 Physics2DSystem 이 빌드한 포인트.
 	// Physics2DSystem 은 절차적 파라미터(VertexCount)가 변경된 경우에만 재빌드한다(dirty 캐시).
 	// 에디터가 LocalPoints 를 직접 수정하면 다음 파라미터 변경 전까지 해당 포인트가 그대로 유지된다.
-	std::vector<Vector2<float>> LocalPoints;
-	std::vector<Vector2<float>> WorldPoints;
+	std::vector<Vector2> LocalPoints;
+	std::vector<Vector2> WorldPoints;
 	PhysicsAABB2D WorldAABB;
 	bool IsTrigger = false;
 
@@ -102,7 +102,7 @@ struct PolygonCollider2D
 	// BuildLocalPoints: 절차적 생성 결과를 outPoints 에 기록한다.
 	// 크기는 항상 단위 크기(반지름 0.5)를 사용하며, 실제 크기는 Transform2D Scale 로 제어한다.
 	// Physics2DSystem 은 NeedsProceduralRebuild() 가 true 일 때만 이 함수를 호출한다.
-	void BuildLocalPoints(std::vector<Vector2<float>>& outPoints) const
+	void BuildLocalPoints(std::vector<Vector2>& outPoints) const
 	{
 		const std::uint32_t N = VertexCount < 3 ? 3 : VertexCount;
 		constexpr float hw = 0.5f;
@@ -143,7 +143,7 @@ struct PolygonCollider2D
 struct CircleCollider2D
 {
 	bool IsEnabled = true;
-	Vector2<float> WorldCenter = Vector2<float>(0.0f, 0.0f);
+	Vector2 WorldCenter = Vector2(0.0f, 0.0f);
 	float Radius = 0.5f;
 	float WorldRadius = 0.5f;
 	PhysicsAABB2D WorldAABB;

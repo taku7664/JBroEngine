@@ -2,7 +2,7 @@
 
 #include "Core/Audio/AudioTypes.h"
 #include "Core/Audio/IAudioPlayer.h"   // AudioPlayerDesc
-#include "Utillity/SafePtr.h"
+#include "Utillity/Pointer/SafePtr.h"
 
 #include <cstdint>
 #include <functional>

@@ -55,7 +55,7 @@
   <ItemGroup>
     <None Include="build_web_debug.bat" />
     <None Include="build_web_release.bat" />
-    <None Include="web_debug_sources.rsp" />
+    <None Include="web_game_sources.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />

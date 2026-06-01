@@ -188,12 +188,16 @@ void CEngine::Finalize()
 	Core::Logger = nullptr;
 	m_logger.Reset();
 	m_debug.Reset();
+#if JBRO_EDITOR
 	Core::Localization = nullptr;
 	if (m_localization)
 	{
 		m_localization->Finalize();
 	}
 	m_localization.Reset();
+#else
+	Core::Localization = nullptr;
+#endif
 	Core::FileSystem = nullptr;
 	if (m_fileSystem)
 	{
@@ -299,12 +303,20 @@ bool CEngine::InitializeCoreServices()
 	m_reflectionRegistry = MakeOwnerPtr<CReflectionRegistry>();
 	m_logger = MakeOwnerPtr<CLogger>();
 	m_debug = MakeOwnerPtr<CDebug>();
+#if JBRO_EDITOR
 	m_localization = MakeOwnerPtr<CLocalizationManager>();
+#endif
 	m_sceneManager = MakeOwnerPtr<CSceneManager>();
-	if (!m_time || !m_input || !m_fileSystem || !m_taskManager || !m_randomService || !m_mathService || !m_reflectionRegistry || !m_logger || !m_debug || !m_localization || !m_sceneManager)
+	if (!m_time || !m_input || !m_fileSystem || !m_taskManager || !m_randomService || !m_mathService || !m_reflectionRegistry || !m_logger || !m_debug || !m_sceneManager)
 	{
 		return false;
 	}
+#if JBRO_EDITOR
+	if (!m_localization)
+	{
+		return false;
+	}
+#endif
 
 	m_time->Reset();
 	if (false == m_fileSystem->Initialize(File::Path("Assets"), EFileSystemAccess::ReadWrite))
@@ -327,8 +339,12 @@ bool CEngine::InitializeCoreServices()
 	Core::Reflection = m_reflectionRegistry.GetSafePtr();
 	Core::Logger = m_logger.GetSafePtr();
 	Core::Debug = m_debug.GetSafePtr();
+#if JBRO_EDITOR
 	m_localization->Initialize(m_fileSystem.GetSafePtr());
 	Core::Localization = m_localization.GetSafePtr();
+#else
+	Core::Localization = nullptr;
+#endif
 	Core::SceneManager = m_sceneManager.GetSafePtr();
 	Core::DebugDraw2D = m_debugDraw.GetSafePtr();
 	Engine.Debug = Core::Debug;
@@ -655,7 +671,11 @@ void CEngine::SyncEngineCore()
 	Engine.Math = m_mathService ? m_mathService.GetSafePtr() : nullptr;
 	Engine.Reflection = m_reflectionRegistry ? m_reflectionRegistry.GetSafePtr() : nullptr;
 	Engine.Logger = m_logger ? m_logger.GetSafePtr() : nullptr;
+#if JBRO_EDITOR
 	Engine.Localization = m_localization ? m_localization.GetSafePtr() : nullptr;
+#else
+	Engine.Localization = nullptr;
+#endif
 	Engine.ResourceRegistry = m_resourceRegistry ? m_resourceRegistry.GetSafePtr() : nullptr;
 	Engine.Network = m_networkManager ? m_networkManager.GetSafePtr() : nullptr;
 	Engine.DebugDraw2D = m_debugDraw ? m_debugDraw.GetSafePtr() : nullptr;

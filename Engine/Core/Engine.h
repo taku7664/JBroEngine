@@ -92,7 +92,9 @@ private:
 	OwnerPtr<CReflectionRegistry> m_reflectionRegistry;
 	OwnerPtr<CLogger>             m_logger;
 	OwnerPtr<CDebug>              m_debug;
+#if JBRO_EDITOR
 	OwnerPtr<CLocalizationManager> m_localization;
+#endif
 	OwnerPtr<CResourceRegistry>    m_resourceRegistry;
 	OwnerPtr<CSceneManager>       m_sceneManager;
 	OwnerPtr<CNetworkManager>     m_networkManager;   // null until InitializeNetwork()

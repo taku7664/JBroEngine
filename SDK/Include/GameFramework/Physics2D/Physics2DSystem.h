@@ -6,8 +6,8 @@
 class CPhysics2DSystem final : public CGameSystem
 {
 public:
-	void SetGravity(const Vector2<float>& gravity);
-	const Vector2<float>& GetGravity() const;
+	void SetGravity(const Vector2& gravity);
+	const Vector2& GetGravity() const;
 
 	// Velocity-solver 반복 횟수.  높을수록 쌓인 물체 안정성/마찰 정확도↑, CPU↑.  기본: 8
 	void SetVelocityIterations(int iterations);
@@ -48,7 +48,7 @@ private:
 	void MatchAndWarmStart(CScene& scene);
 
 private:
-	Vector2<float>                  m_gravity             = Vector2<float>(0.0f, -9.8f);
+	Vector2                  m_gravity             = Vector2(0.0f, -9.8f);
 	int                             m_velocityIterations  = 8;
 	int                             m_positionIterations  = 2;
 	int                             m_numSubSteps         = 4;

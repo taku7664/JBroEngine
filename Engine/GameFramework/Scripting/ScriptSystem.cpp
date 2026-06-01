@@ -33,7 +33,8 @@ namespace
 				if (pending.Data.size() != prop.Size)
 				{
 					// 타입/크기가 바뀐 경우 무시 (기본값 유지)
-					if (EReflectPropertyType::AssetGuid != pending.Type || EReflectPropertyType::AssetGuid != prop.Type)
+					if ((EReflectPropertyType::AssetGuid != pending.Type || EReflectPropertyType::AssetGuid != prop.Type)
+						&& (EReflectPropertyType::String != pending.Type || EReflectPropertyType::String != prop.Type))
 					{
 						break;
 					}
@@ -47,6 +48,10 @@ namespace
 				if (EReflectPropertyType::AssetGuid == prop.Type && EReflectPropertyType::AssetGuid == pending.Type)
 				{
 					*static_cast<File::Guid*>(field) = File::Guid(pending.Text);
+				}
+				else if (EReflectPropertyType::String == prop.Type && EReflectPropertyType::String == pending.Type)
+				{
+					*static_cast<std::string*>(field) = pending.Text;
 				}
 				else
 				{

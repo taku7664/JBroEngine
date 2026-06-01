@@ -5,7 +5,7 @@
 #include "GameFramework/Component/TransformHierarchy2D.h"
 #include "GameFramework/Component/WorldTransform2D.h"
 #include "GameFramework/Scene/Scene.h"
-#include "Utillity/Matrix3x2.h"
+#include "Utillity/Math/Matrix3x2.h"
 
 namespace
 {

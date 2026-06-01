@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Core/Asset/AssetTypes.h"
-#include "Utillity/SafePtr.h"
+#include "Utillity/Pointer/SafePtr.h"
 
 #include <string>
 #include <string_view>

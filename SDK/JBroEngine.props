@@ -24,7 +24,7 @@
       <!--
         Include 경로 두 개:
           1. SDK\Include                → #include "GameFramework/..."  #include "Core/..."  #include "Utillity/..."
-          2. SDK\Include\Utillity       → #include "File/FilePath.h"   #include "SafePtr.h" 등 Utillity 하위 직접 참조
+          2. SDK\Include\Utillity       -> #include "File/FilePath.h" 등 Utillity 하위 직접 참조
       -->
       <AdditionalIncludeDirectories>
         $(JBroEngineSDK)Include;$(JBroEngineSDK)Include\Utillity;%(AdditionalIncludeDirectories)
@@ -41,7 +41,7 @@
       <AdditionalLibraryDirectories>
         $(JBroEngineSDK)Lib\$(Configuration);%(AdditionalLibraryDirectories)
       </AdditionalLibraryDirectories>
-      <AdditionalDependencies>Engine.lib;Utillity.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>Engine.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
 

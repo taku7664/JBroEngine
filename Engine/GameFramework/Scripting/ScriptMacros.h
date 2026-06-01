@@ -21,8 +21,8 @@
 //        int m_internalTimer = 0;  // 일반 멤버: Inspector 미노출, 리로드 시 초기화
 //    };
 //
-//  지원 타입: bool, int32_t, uint32_t, float
-//             Vector2<float>  (ScriptAPI.h 를 #include 해야 사용 가능)
+//  지원 타입: Bool, Int, UInt, Float, Degree, Radian, String, Asset, Vector2, Rect
+//             (ScriptAPI.h 를 #include 해야 사용 가능)
 //
 //  JBRO_SCRIPT 매크로:
 //    - 컴파일러에는 단순한 'class' 별칭이라 동작에 영향 없음.
@@ -57,8 +57,8 @@
 //   Category("..")  — 인스펙터 그룹 헤더
 //   Range(min, max) — 슬라이더 + 값 클램프
 //   NoSerialize     — 인스펙터엔 노출하되 씬 파일에는 저장/복원하지 않음(런타임 전용)
-// 지원 타입: bool, std::int32_t, std::uint32_t, float, Vector2<float>,
-//            std::string, AssetGuid
+// 지원 타입: Bool, Int, UInt, Float, Degree, Radian, String, Vector2, Rect, Asset
+//            레거시 표기(bool, std::int32_t, std::int64_t, std::uint32_t, float, Vector2, AssetGuid)도 허용
 // (SCRIPT_CLASS / REFLECT_FIELD 없이 JPROP 만으로 충분하다. REFLECT_FIELD 는 레거시 호환.)
 #define JPROP(...)
 
@@ -83,17 +83,18 @@ struct ScriptReflectEntry
 // ── ScriptFieldTypeOf<T>() ────────────────────────────────────────────────────
 // C++ 타입 → EReflectPropertyType 매핑.
 // 지원하지 않는 타입을 REFLECT_FIELD 에 사용하면 컴파일 오류가 발생한다.
-// Vector2<float> 특수화는 ScriptAPI.h(Vector2T.h 포함 후)에서 제공된다.
+// 엔진 타입 특수화는 ScriptAPI.h(EngineTypes.h / Vector2T.h 포함 후)에서 제공된다.
 template<typename T> inline EReflectPropertyType ScriptFieldTypeOf()
 {
 	static_assert(sizeof(T) == 0,
 		"REFLECT_FIELD: unsupported type. "
-		"Supported: bool, int32_t, uint32_t, float, Vector2<float>. "
-		"Include ScriptAPI.h for Vector2<float> support.");
+		"Supported: Bool, Int, UInt, Float, Degree, Radian, String, Vector2, Rect, Asset. "
+		"Include ScriptAPI.h for engine type support.");
 	return EReflectPropertyType::Float;
 }
 template<> inline EReflectPropertyType ScriptFieldTypeOf<bool>()              { return EReflectPropertyType::Bool; }
 template<> inline EReflectPropertyType ScriptFieldTypeOf<std::int32_t>()      { return EReflectPropertyType::Int32; }
+template<> inline EReflectPropertyType ScriptFieldTypeOf<std::int64_t>()      { return EReflectPropertyType::Int64; }
 template<> inline EReflectPropertyType ScriptFieldTypeOf<std::uint32_t>()     { return EReflectPropertyType::UInt32; }
 template<> inline EReflectPropertyType ScriptFieldTypeOf<float>()             { return EReflectPropertyType::Float; }
 

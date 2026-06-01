@@ -5,7 +5,7 @@
 #include "Core/Game/GameModuleTypes.h"
 #include "GameFramework/Scene/Scene.h"
 #include "GameFramework/Scripting/GameScript.h"
-#include "Utillity/SafePtr.h"
+#include "Utillity/Pointer/SafePtr.h"
 
 #include <functional>
 #include <type_traits>

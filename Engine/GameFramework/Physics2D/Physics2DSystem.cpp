@@ -91,24 +91,24 @@ namespace
 
 	// ── 수학 유틸 ─────────────────────────────────────────────────────────────────
 
-	float Dot(const Vector2<float>& a, const Vector2<float>& b)
+	float Dot(const Vector2& a, const Vector2& b)
 	{
 		return a.x * b.x + a.y * b.y;
 	}
 
-	float Cross(const Vector2<float>& a, const Vector2<float>& b)
+	float Cross(const Vector2& a, const Vector2& b)
 	{
 		return a.x * b.y - a.y * b.x;
 	}
 
-	Vector2<float> Cross(float scalar, const Vector2<float>& v)
+	Vector2 Cross(float scalar, const Vector2& v)
 	{
-		return Vector2<float>(-scalar * v.y, scalar * v.x);
+		return Vector2(-scalar * v.y, scalar * v.x);
 	}
 
 	// 영벡터에서 NaN을 반환하지 않는 안전한 정규화.
-	Vector2<float> NormalizeSafe(const Vector2<float>& v,
-	                             const Vector2<float>& fallback = Vector2<float>(1.0f, 0.0f))
+	Vector2 NormalizeSafe(const Vector2& v,
+	                             const Vector2& fallback = Vector2(1.0f, 0.0f))
 	{
 		const float lenSq = v.LengthSqrt();
 		if (lenSq <= MIN_NORMAL_LENGTH_SQ)
@@ -120,9 +120,9 @@ namespace
 
 	// 법선을 A→B 방향으로 정렬한다.
 	// 실제 충돌한 콜라이더 중심을 직접 전달해 GetColliderCenter 우회 (8순위 수정).
-	void OrientNormal(Vector2<float>& normal,
-	                  const Vector2<float>& centerA,
-	                  const Vector2<float>& centerB)
+	void OrientNormal(Vector2& normal,
+	                  const Vector2& centerA,
+	                  const Vector2& centerB)
 	{
 		if (Dot(centerB - centerA, normal) < 0.0f)
 		{
@@ -136,7 +136,7 @@ namespace
 		    && a.Min.y <= b.Max.y && a.Max.y >= b.Min.y;
 	}
 
-	PhysicsAABB2D CalculateAABB(const std::vector<Vector2<float>>& points)
+	PhysicsAABB2D CalculateAABB(const std::vector<Vector2>& points)
 	{
 		PhysicsAABB2D aabb;
 		if (points.empty())
@@ -146,7 +146,7 @@ namespace
 
 		aabb.Min = points[0];
 		aabb.Max = points[0];
-		for (const Vector2<float>& point : points)
+		for (const Vector2& point : points)
 		{
 			aabb.Min.x = std::min(aabb.Min.x, point.x);
 			aabb.Min.y = std::min(aabb.Min.y, point.y);
@@ -156,15 +156,15 @@ namespace
 		return aabb;
 	}
 
-	Vector2<float> CalculateCenter(const std::vector<Vector2<float>>& points)
+	Vector2 CalculateCenter(const std::vector<Vector2>& points)
 	{
-		Vector2<float> center(0.0f, 0.0f);
+		Vector2 center(0.0f, 0.0f);
 		if (points.empty())
 		{
 			return center;
 		}
 
-		for (const Vector2<float>& point : points)
+		for (const Vector2& point : points)
 		{
 			center += point;
 		}
@@ -175,7 +175,7 @@ namespace
 	// 면적 가중 centroid. 산술 평균과 달리 폴리곤 형상에 적합한 reference point.
 	// 비대칭/오목 폴리곤에서 OrientNormal 정렬 안정성 확보용.
 	// 면적이 0(축퇴) 이면 산술 평균으로 폴백.
-	Vector2<float> CalculateCentroid(const std::vector<Vector2<float>>& points)
+	Vector2 CalculateCentroid(const std::vector<Vector2>& points)
 	{
 		const std::size_t N = points.size();
 		if (N < 3)
@@ -183,12 +183,12 @@ namespace
 			return CalculateCenter(points);
 		}
 
-		Vector2<float> c(0.0f, 0.0f);
+		Vector2 c(0.0f, 0.0f);
 		float twiceArea = 0.0f;
 		for (std::size_t i = 0; i < N; ++i)
 		{
-			const Vector2<float>& p0 = points[i];
-			const Vector2<float>& p1 = points[(i + 1) % N];
+			const Vector2& p0 = points[i];
+			const Vector2& p1 = points[(i + 1) % N];
 			const float cross = p0.x * p1.y - p1.x * p0.y;
 			twiceArea += cross;
 			c.x += (p0.x + p1.x) * cross;
@@ -201,20 +201,20 @@ namespace
 		return c / (3.0f * twiceArea);
 	}
 
-	float CalculateSignedArea(const std::vector<Vector2<float>>& points)
+	float CalculateSignedArea(const std::vector<Vector2>& points)
 	{
 		float area = 0.0f;
 		const std::size_t count = points.size();
 		for (std::size_t i = 0; i < count; ++i)
 		{
-			const Vector2<float>& a = points[i];
-			const Vector2<float>& b = points[(i + 1) % count];
+			const Vector2& a = points[i];
+			const Vector2& b = points[(i + 1) % count];
 			area += a.x * b.y - b.x * a.y;
 		}
 		return area * 0.5f;
 	}
 
-	bool IsConvexPolygon(const std::vector<Vector2<float>>& points)
+	bool IsConvexPolygon(const std::vector<Vector2>& points)
 	{
 		const std::size_t count = points.size();
 		if (count < 4)
@@ -225,9 +225,9 @@ namespace
 		float sign = 0.0f;
 		for (std::size_t i = 0; i < count; ++i)
 		{
-			const Vector2<float>& a = points[i];
-			const Vector2<float>& b = points[(i + 1) % count];
-			const Vector2<float>& c = points[(i + 2) % count];
+			const Vector2& a = points[i];
+			const Vector2& b = points[(i + 1) % count];
+			const Vector2& c = points[(i + 2) % count];
 			const float cross = Cross(b - a, c - b);
 			if (std::abs(cross) <= MIN_NORMAL_LENGTH_SQ)
 			{
@@ -246,14 +246,14 @@ namespace
 		return true;
 	}
 
-	bool PointInPolygon(const Vector2<float>& point, const std::vector<Vector2<float>>& polygon)
+	bool PointInPolygon(const Vector2& point, const std::vector<Vector2>& polygon)
 	{
 		bool inside = false;
 		const std::size_t count = polygon.size();
 		for (std::size_t i = 0, j = count - 1; i < count; j = i++)
 		{
-			const Vector2<float>& a = polygon[i];
-			const Vector2<float>& b = polygon[j];
+			const Vector2& a = polygon[i];
+			const Vector2& b = polygon[j];
 			const bool crosses = ((a.y > point.y) != (b.y > point.y))
 				&& (point.x < (b.x - a.x) * (point.y - a.y) / ((b.y - a.y) + 0.0000001f) + a.x);
 			if (crosses)
@@ -264,15 +264,15 @@ namespace
 		return inside;
 	}
 
-	Vector2<float> GetPolygonOutwardNormal(const std::vector<Vector2<float>>& polygon, std::size_t edgeIndex)
+	Vector2 GetPolygonOutwardNormal(const std::vector<Vector2>& polygon, std::size_t edgeIndex)
 	{
-		const Vector2<float>& a = polygon[edgeIndex];
-		const Vector2<float>& b = polygon[(edgeIndex + 1) % polygon.size()];
-		const Vector2<float> edge = b - a;
+		const Vector2& a = polygon[edgeIndex];
+		const Vector2& b = polygon[(edgeIndex + 1) % polygon.size()];
+		const Vector2 edge = b - a;
 		const bool isCcw = CalculateSignedArea(polygon) >= 0.0f;
-		const Vector2<float> outward = isCcw
-			? Vector2<float>(edge.y, -edge.x)
-			: Vector2<float>(-edge.y, edge.x);
+		const Vector2 outward = isCcw
+			? Vector2(edge.y, -edge.x)
+			: Vector2(-edge.y, edge.x);
 		return NormalizeSafe(outward);
 	}
 
@@ -303,15 +303,15 @@ namespace
 			: Matrix3x2::Identity();
 	}
 
-	Vector2<float> TransformVector(const Matrix3x2& matrix, const Vector2<float>& vector)
+	Vector2 TransformVector(const Matrix3x2& matrix, const Vector2& vector)
 	{
-		return Vector2<float>(
+		return Vector2(
 			vector.x * matrix.M11 + vector.y * matrix.M21,
 			vector.x * matrix.M12 + vector.y * matrix.M22
 		);
 	}
 
-	Vector2<float> WorldVectorToParentLocal(const CScene& scene, EntityId entity, const Vector2<float>& worldVector)
+	Vector2 WorldVectorToParentLocal(const CScene& scene, EntityId entity, const Vector2& worldVector)
 	{
 		Matrix3x2 parentWorld = CalculateParentWorldTransformNow(scene, entity);
 		Matrix3x2 parentWorldInverse;
@@ -322,7 +322,7 @@ namespace
 		return TransformVector(parentWorldInverse, worldVector);
 	}
 
-	std::uint64_t HashLocalPoints(const std::vector<Vector2<float>>& points)
+	std::uint64_t HashLocalPoints(const std::vector<Vector2>& points)
 	{
 		constexpr std::uint64_t FNV_OFFSET = 14695981039346656037ull;
 		constexpr std::uint64_t FNV_PRIME  = 1099511628211ull;
@@ -335,7 +335,7 @@ namespace
 		};
 
 		Mix(static_cast<std::uint32_t>(points.size()));
-		for (const Vector2<float>& point : points)
+		for (const Vector2& point : points)
 		{
 			std::uint32_t xBits = 0;
 			std::uint32_t yBits = 0;
@@ -347,11 +347,11 @@ namespace
 		return hash;
 	}
 
-	Vector2<float> SupportPoint(const std::vector<Vector2<float>>& points, const Vector2<float>& dir)
+	Vector2 SupportPoint(const std::vector<Vector2>& points, const Vector2& dir)
 	{
 		float maxDot = -std::numeric_limits<float>::max();
-		Vector2<float> best = points[0];
-		for (const Vector2<float>& p : points)
+		Vector2 best = points[0];
+		for (const Vector2& p : points)
 		{
 			const float d = Dot(p, dir);
 			if (d > maxDot)
@@ -363,12 +363,12 @@ namespace
 		return best;
 	}
 
-	void ProjectPolygon(const std::vector<Vector2<float>>& points, const Vector2<float>& axis,
+	void ProjectPolygon(const std::vector<Vector2>& points, const Vector2& axis,
 	                    float& outMin, float& outMax)
 	{
 		outMin = Dot(points[0], axis);
 		outMax = outMin;
-		for (const Vector2<float>& point : points)
+		for (const Vector2& point : points)
 		{
 			const float proj = Dot(point, axis);
 			outMin = std::min(outMin, proj);
@@ -383,34 +383,34 @@ namespace
 			|| (*boundaryEdges)[edgeIndex];
 	}
 
-	bool TestPolygonSAT(const std::vector<Vector2<float>>& a, const std::vector<Vector2<float>>& b,
+	bool TestPolygonSAT(const std::vector<Vector2>& a, const std::vector<Vector2>& b,
 	                    const std::vector<bool>* aBoundaryEdges, const std::vector<bool>* bBoundaryEdges,
-	                    Vector2<float>& outNormal, float& outPenetration)
+	                    Vector2& outNormal, float& outPenetration)
 	{
 		// 모든 엣지(대각선 포함)로 분리 축 검사 — 겹침 없으면 즉시 false.
 		// 접촉 법선/침투값은 경계(Boundary) 엣지 중 최소 침투 축에서만 선택.
 		// 이렇게 해야 내부 대각선이 법선 후보로 잘못 선택되는 것을 막는다.
 		float              boundaryMinPen     = std::numeric_limits<float>::max();
-		Vector2<float>     boundaryBestNormal = {};
+		Vector2     boundaryBestNormal = {};
 		bool               hasBoundaryAxis    = false;
 
 		for (int shape = 0; shape < 2; ++shape)
 		{
-			const std::vector<Vector2<float>>& points        = (shape == 0) ? a : b;
+			const std::vector<Vector2>& points        = (shape == 0) ? a : b;
 			const std::vector<bool>*           boundaryEdges = (shape == 0) ? aBoundaryEdges : bBoundaryEdges;
 
 			for (std::size_t i = 0; i < points.size(); ++i)
 			{
-				const Vector2<float>& p0        = points[i];
-				const Vector2<float>& p1        = points[(i + 1) % points.size()];
-				const Vector2<float>  edge      = p1 - p0;
-				const Vector2<float>  perpRaw(-edge.y, edge.x);
+				const Vector2& p0        = points[i];
+				const Vector2& p1        = points[(i + 1) % points.size()];
+				const Vector2  edge      = p1 - p0;
+				const Vector2  perpRaw(-edge.y, edge.x);
 				const float           perpLenSq = perpRaw.LengthSqrt();
 				if (perpLenSq <= MIN_NORMAL_LENGTH_SQ)
 				{
 					continue; // 길이 0 엣지 — 법선 계산 불가, 건너뜀
 				}
-				const Vector2<float> axis = perpRaw * (1.0f / std::sqrt(perpLenSq));
+				const Vector2 axis = perpRaw * (1.0f / std::sqrt(perpLenSq));
 
 				float minA, maxA, minB, maxB;
 				ProjectPolygon(a, axis, minA, maxA);
@@ -441,16 +441,16 @@ namespace
 		return true;
 	}
 
-	bool TestPolygonSAT(const std::vector<Vector2<float>>& a, const std::vector<Vector2<float>>& b,
-	                    Vector2<float>& outNormal, float& outPenetration)
+	bool TestPolygonSAT(const std::vector<Vector2>& a, const std::vector<Vector2>& b,
+	                    Vector2& outNormal, float& outPenetration)
 	{
 		return TestPolygonSAT(a, b, nullptr, nullptr, outNormal, outPenetration);
 	}
 
-	Vector2<float> ClosestPointOnSegment(const Vector2<float>& point,
-	                                     const Vector2<float>& a, const Vector2<float>& b)
+	Vector2 ClosestPointOnSegment(const Vector2& point,
+	                                     const Vector2& a, const Vector2& b)
 	{
-		const Vector2<float> ab       = b - a;
+		const Vector2 ab       = b - a;
 		const float          lengthSq = ab.LengthSqrt();
 		if (lengthSq <= MIN_NORMAL_LENGTH_SQ)
 		{
@@ -463,13 +463,13 @@ namespace
 	struct BoundaryHit2D
 	{
 		bool Hit = false;
-		Vector2<float> Normal = Vector2<float>(1.0f, 0.0f);
-		Vector2<float> Point = Vector2<float>(0.0f, 0.0f);
+		Vector2 Normal = Vector2(1.0f, 0.0f);
+		Vector2 Point = Vector2(0.0f, 0.0f);
 		float Penetration = 0.0f;
 	};
 
-	BoundaryHit2D FindClosestBoundaryHit(const std::vector<Vector2<float>>& polygon,
-	                                     const Vector2<float>& point,
+	BoundaryHit2D FindClosestBoundaryHit(const std::vector<Vector2>& polygon,
+	                                     const Vector2& point,
 	                                     bool pointInside)
 	{
 		BoundaryHit2D result;
@@ -480,12 +480,12 @@ namespace
 
 		float bestDistanceSq = std::numeric_limits<float>::max();
 		std::size_t bestEdge = 0;
-		Vector2<float> bestPoint = polygon[0];
+		Vector2 bestPoint = polygon[0];
 		for (std::size_t i = 0; i < polygon.size(); ++i)
 		{
-			const Vector2<float>& a = polygon[i];
-			const Vector2<float>& b = polygon[(i + 1) % polygon.size()];
-			const Vector2<float> closest = ClosestPointOnSegment(point, a, b);
+			const Vector2& a = polygon[i];
+			const Vector2& b = polygon[(i + 1) % polygon.size()];
+			const Vector2 closest = ClosestPointOnSegment(point, a, b);
 			const float distanceSq = (point - closest).LengthSqrt();
 			if (distanceSq < bestDistanceSq)
 			{
@@ -496,11 +496,11 @@ namespace
 		}
 
 		const float distance = std::sqrt(bestDistanceSq);
-		Vector2<float> normal = pointInside
+		Vector2 normal = pointInside
 			? GetPolygonOutwardNormal(polygon, bestEdge)
 			: NormalizeSafe(point - bestPoint, GetPolygonOutwardNormal(polygon, bestEdge));
 
-		const Vector2<float> outward = GetPolygonOutwardNormal(polygon, bestEdge);
+		const Vector2 outward = GetPolygonOutwardNormal(polygon, bestEdge);
 		if (Dot(normal, outward) < 0.0f)
 		{
 			normal = -normal;
@@ -513,19 +513,19 @@ namespace
 		return result;
 	}
 
-	bool TrySegmentIntersection(const Vector2<float>& a0, const Vector2<float>& a1,
-	                            const Vector2<float>& b0, const Vector2<float>& b1,
-	                            Vector2<float>& outPoint)
+	bool TrySegmentIntersection(const Vector2& a0, const Vector2& a1,
+	                            const Vector2& b0, const Vector2& b1,
+	                            Vector2& outPoint)
 	{
-		const Vector2<float> r = a1 - a0;
-		const Vector2<float> s = b1 - b0;
+		const Vector2 r = a1 - a0;
+		const Vector2 s = b1 - b0;
 		const float denom = Cross(r, s);
 		if (std::abs(denom) <= MIN_NORMAL_LENGTH_SQ)
 		{
 			return false;
 		}
 
-		const Vector2<float> diff = b0 - a0;
+		const Vector2 diff = b0 - a0;
 		const float t = Cross(diff, s) / denom;
 		const float u = Cross(diff, r) / denom;
 		if (t < 0.0f || t > 1.0f || u < 0.0f || u > 1.0f)
@@ -538,7 +538,7 @@ namespace
 	}
 
 	bool TestBoundaryPolygonCircle(const PolygonCollider2D& polygon, const CircleCollider2D& circle,
-	                               Vector2<float>& outNormal, Vector2<float>& outContactPoint,
+	                               Vector2& outNormal, Vector2& outContactPoint,
 	                               float& outPenetration)
 	{
 		if (polygon.WorldPoints.size() < 3 || circle.WorldRadius <= 0.0f)
@@ -567,18 +567,18 @@ namespace
 		return outPenetration > 0.0f;
 	}
 
-	bool TestBoundaryPolygonPolygonOneWay(const std::vector<Vector2<float>>& boundaryPolygon,
-	                                      const std::vector<Vector2<float>>& testPolygon,
-	                                      Vector2<float>& outNormal,
-	                                      Vector2<float>& outContactPoint,
+	bool TestBoundaryPolygonPolygonOneWay(const std::vector<Vector2>& boundaryPolygon,
+	                                      const std::vector<Vector2>& testPolygon,
+	                                      Vector2& outNormal,
+	                                      Vector2& outContactPoint,
 	                                      float& outPenetration)
 	{
 		bool hitAny = false;
 		float bestPenetration = -std::numeric_limits<float>::max();
-		Vector2<float> bestNormal(1.0f, 0.0f);
-		Vector2<float> bestPoint(0.0f, 0.0f);
+		Vector2 bestNormal(1.0f, 0.0f);
+		Vector2 bestPoint(0.0f, 0.0f);
 
-		for (const Vector2<float>& point : testPolygon)
+		for (const Vector2& point : testPolygon)
 		{
 			if (!PointInPolygon(point, boundaryPolygon))
 			{
@@ -604,13 +604,13 @@ namespace
 		{
 			for (std::size_t bi = 0; bi < boundaryPolygon.size(); ++bi)
 			{
-				const Vector2<float>& ba = boundaryPolygon[bi];
-				const Vector2<float>& bb = boundaryPolygon[(bi + 1) % boundaryPolygon.size()];
+				const Vector2& ba = boundaryPolygon[bi];
+				const Vector2& bb = boundaryPolygon[(bi + 1) % boundaryPolygon.size()];
 				for (std::size_t ti = 0; ti < testPolygon.size(); ++ti)
 				{
-					const Vector2<float>& ta = testPolygon[ti];
-					const Vector2<float>& tb = testPolygon[(ti + 1) % testPolygon.size()];
-					Vector2<float> intersection;
+					const Vector2& ta = testPolygon[ti];
+					const Vector2& tb = testPolygon[(ti + 1) % testPolygon.size()];
+					Vector2 intersection;
 					if (!TrySegmentIntersection(ba, bb, ta, tb, intersection))
 					{
 						continue;
@@ -636,17 +636,17 @@ namespace
 	}
 
 	bool TestBoundaryPolygonPolygon(const PolygonCollider2D& a, const PolygonCollider2D& b,
-	                                Vector2<float>& outNormal,
-	                                Vector2<float>& outContactPoint,
+	                                Vector2& outNormal,
+	                                Vector2& outContactPoint,
 	                                float& outPenetration)
 	{
-		Vector2<float> nAB;
-		Vector2<float> pAB;
+		Vector2 nAB;
+		Vector2 pAB;
 		float penAB = 0.0f;
 		const bool hitAB = TestBoundaryPolygonPolygonOneWay(a.WorldPoints, b.WorldPoints, nAB, pAB, penAB);
 
-		Vector2<float> nBA;
-		Vector2<float> pBA;
+		Vector2 nBA;
+		Vector2 pBA;
 		float penBA = 0.0f;
 		const bool hitBA = TestBoundaryPolygonPolygonOneWay(b.WorldPoints, a.WorldPoints, nBA, pBA, penBA);
 
@@ -671,10 +671,10 @@ namespace
 	}
 
 	bool TestCircleCircle(const CircleCollider2D& a, const CircleCollider2D& b,
-	                      Vector2<float>& outNormal, Vector2<float>& outContactPoint,
+	                      Vector2& outNormal, Vector2& outContactPoint,
 	                      float& outPenetration)
 	{
-		const Vector2<float> delta      = b.WorldCenter - a.WorldCenter;
+		const Vector2 delta      = b.WorldCenter - a.WorldCenter;
 		const float          distanceSq = delta.LengthSqrt();
 		const float          radiusSum  = a.WorldRadius + b.WorldRadius;
 		if (distanceSq > radiusSum * radiusSum)
@@ -683,7 +683,7 @@ namespace
 		}
 
 		const float distance = std::sqrt(distanceSq);
-		outNormal       = (distance > 0.0f) ? delta / distance : Vector2<float>(1.0f, 0.0f);
+		outNormal       = (distance > 0.0f) ? delta / distance : Vector2(1.0f, 0.0f);
 		outContactPoint = a.WorldCenter + outNormal * (a.WorldRadius - (radiusSum - distance) * 0.5f);
 		outPenetration  = radiusSum - distance;
 		return true;
@@ -691,34 +691,34 @@ namespace
 
 	// 볼록 폴리곤 점 목록과 원의 충돌 (SAT).
 	// PolygonCollider2D 전체가 아닌 단일 볼록 점 집합을 받는 버전.
-	bool TestConvexPointsCircle(const std::vector<Vector2<float>>& polyPts,
+	bool TestConvexPointsCircle(const std::vector<Vector2>& polyPts,
 	                            const std::vector<bool>* boundaryEdges,
 	                            const CircleCollider2D& circle,
-	                            Vector2<float>& outNormal, float& outPenetration)
+	                            Vector2& outNormal, float& outPenetration)
 	{
 		if (polyPts.size() < 3) return false;
 
 		outPenetration = std::numeric_limits<float>::max();
 		bool bestAxisIsBoundary = true;
 
-		Vector2<float> closestPt  = polyPts[0];
+		Vector2 closestPt  = polyPts[0];
 		float          closestDSq = std::numeric_limits<float>::max();
 
 		for (std::size_t i = 0; i < polyPts.size(); ++i)
 		{
-			const Vector2<float>& p0 = polyPts[i];
-			const Vector2<float>& p1 = polyPts[(i + 1) % polyPts.size()];
+			const Vector2& p0 = polyPts[i];
+			const Vector2& p1 = polyPts[(i + 1) % polyPts.size()];
 
-			const Vector2<float> segPt = ClosestPointOnSegment(circle.WorldCenter, p0, p1);
+			const Vector2 segPt = ClosestPointOnSegment(circle.WorldCenter, p0, p1);
 			const float          dSq   = (circle.WorldCenter - segPt).LengthSqrt();
 			if (dSq < closestDSq) { closestDSq = dSq; closestPt = segPt; }
 
-			const Vector2<float> edge      = p1 - p0;
-			const Vector2<float> perpRaw(-edge.y, edge.x);
+			const Vector2 edge      = p1 - p0;
+			const Vector2 perpRaw(-edge.y, edge.x);
 			const float          perpLenSq = perpRaw.LengthSqrt();
 			if (perpLenSq <= MIN_NORMAL_LENGTH_SQ) continue;
 
-			const Vector2<float> axis = perpRaw * (1.0f / std::sqrt(perpLenSq));
+			const Vector2 axis = perpRaw * (1.0f / std::sqrt(perpLenSq));
 			float minP, maxP;
 			ProjectPolygon(polyPts, axis, minP, maxP);
 			const float cProj   = Dot(circle.WorldCenter, axis);
@@ -733,10 +733,10 @@ namespace
 			}
 		}
 
-		const Vector2<float> vAxisRaw = circle.WorldCenter - closestPt;
+		const Vector2 vAxisRaw = circle.WorldCenter - closestPt;
 		if (vAxisRaw.LengthSqrt() > MIN_NORMAL_LENGTH_SQ)
 		{
-			const Vector2<float> vAxis = NormalizeSafe(vAxisRaw);
+			const Vector2 vAxis = NormalizeSafe(vAxisRaw);
 			float minP, maxP;
 			ProjectPolygon(polyPts, vAxis, minP, maxP);
 			const float cProj   = Dot(circle.WorldCenter, vAxis);
@@ -754,7 +754,7 @@ namespace
 	}
 
 	bool TestPolygonCircle(const PolygonCollider2D& polygon, const CircleCollider2D& circle,
-	                       Vector2<float>& outNormal, float& outPenetration)
+	                       Vector2& outNormal, float& outPenetration)
 	{
 		if (polygon.WorldPoints.size() < 3)
 		{
@@ -763,15 +763,15 @@ namespace
 
 		outPenetration = std::numeric_limits<float>::max();
 
-		Vector2<float> closestPolygonPoint = polygon.WorldPoints[0];
+		Vector2 closestPolygonPoint = polygon.WorldPoints[0];
 		float          closestDistanceSq   = std::numeric_limits<float>::max();
 
 		for (std::size_t i = 0; i < polygon.WorldPoints.size(); ++i)
 		{
-			const Vector2<float>& p0 = polygon.WorldPoints[i];
-			const Vector2<float>& p1 = polygon.WorldPoints[(i + 1) % polygon.WorldPoints.size()];
+			const Vector2& p0 = polygon.WorldPoints[i];
+			const Vector2& p1 = polygon.WorldPoints[(i + 1) % polygon.WorldPoints.size()];
 
-			const Vector2<float> segPoint = ClosestPointOnSegment(circle.WorldCenter, p0, p1);
+			const Vector2 segPoint = ClosestPointOnSegment(circle.WorldCenter, p0, p1);
 			const float          segDistSq = (circle.WorldCenter - segPoint).LengthSqrt();
 			if (segDistSq < closestDistanceSq)
 			{
@@ -779,14 +779,14 @@ namespace
 				closestPolygonPoint = segPoint;
 			}
 
-			const Vector2<float> edge      = p1 - p0;
-			const Vector2<float> perpRaw(-edge.y, edge.x);
+			const Vector2 edge      = p1 - p0;
+			const Vector2 perpRaw(-edge.y, edge.x);
 			const float          perpLenSq = perpRaw.LengthSqrt();
 			if (perpLenSq <= MIN_NORMAL_LENGTH_SQ)
 			{
 				continue;
 			}
-			const Vector2<float> axis = perpRaw * (1.0f / std::sqrt(perpLenSq));
+			const Vector2 axis = perpRaw * (1.0f / std::sqrt(perpLenSq));
 
 			float minP, maxP;
 			ProjectPolygon(polygon.WorldPoints, axis, minP, maxP);
@@ -805,10 +805,10 @@ namespace
 		}
 
 		// 가장 가까운 폴리곤 점 → 원 중심 축 (꼭짓점 접촉 처리)
-		const Vector2<float> vertexAxisRaw = circle.WorldCenter - closestPolygonPoint;
+		const Vector2 vertexAxisRaw = circle.WorldCenter - closestPolygonPoint;
 		if (vertexAxisRaw.LengthSqrt() > MIN_NORMAL_LENGTH_SQ)
 		{
-			const Vector2<float> vertexAxis = NormalizeSafe(vertexAxisRaw);
+			const Vector2 vertexAxis = NormalizeSafe(vertexAxisRaw);
 			float minP, maxP;
 			ProjectPolygon(polygon.WorldPoints, vertexAxis, minP, maxP);
 			const float circleProj = Dot(circle.WorldCenter, vertexAxis);
@@ -832,7 +832,7 @@ namespace
 
 	// ── 폴리곤 관성 ───────────────────────────────────────────────────────────────
 
-	float CalculatePolygonInertia(const std::vector<Vector2<float>>& localPoints, float mass)
+	float CalculatePolygonInertia(const std::vector<Vector2>& localPoints, float mass)
 	{
 		if (localPoints.size() < 3 || mass <= 0.0f)
 		{
@@ -845,8 +845,8 @@ namespace
 
 		for (std::size_t i = 0; i < N; ++i)
 		{
-			const Vector2<float>& p0    = localPoints[i];
-			const Vector2<float>& p1    = localPoints[(i + 1) % N];
+			const Vector2& p0    = localPoints[i];
+			const Vector2& p1    = localPoints[(i + 1) % N];
 			const float           cross = std::abs(Cross(p0, p1));
 			area    += cross;
 			inertia += cross * (p0.x * p0.x + p0.y * p0.y
@@ -888,7 +888,7 @@ namespace
 
 	void ApplyVelocityToTransform(const CScene& scene, EntityId entity, Transform2D& transform, Rigidbody2D& body, float dt)
 	{
-		Vector2<float> worldDelta = body.Velocity * dt;
+		Vector2 worldDelta = body.Velocity * dt;
 		if (body.FreezePositionX) { worldDelta.x = 0.0f; body.Velocity.x = 0.0f; }
 		if (body.FreezePositionY) { worldDelta.y = 0.0f; body.Velocity.y = 0.0f; }
 		transform.Position += WorldVectorToParentLocal(scene, entity, worldDelta);
@@ -903,9 +903,9 @@ namespace
 	}
 
 	void ApplyCorrectionToTransform(const CScene& scene, EntityId entity, Transform2D& transform, Rigidbody2D* body,
-	                                const Vector2<float>& correction)
+	                                const Vector2& correction)
 	{
-		Vector2<float> worldDelta = correction;
+		Vector2 worldDelta = correction;
 		if (body)
 		{
 			if (body->FreezePositionX) worldDelta.x = 0.0f;
@@ -920,7 +920,7 @@ namespace
 	//   잘못된 토크를 만들어 angular velocity 가 누적된다 → linear velocity 도 같이 폭주.
 	// 콜라이더가 있으면 그 면적 가중 centroid 를 사용 (질량 균등 분포 가정).
 	// 콜라이더가 없으면 entity origin 폴백 (회전 안 함 / kinematic 케이스).
-	Vector2<float> GetBodyWorldCenter(const CScene& scene, EntityId entity)
+	Vector2 GetBodyWorldCenter(const CScene& scene, EntityId entity)
 	{
 		if (const PolygonCollider2D* poly = scene.GetComponent<PolygonCollider2D>(entity);
 			poly && poly->IsEnabled && poly->WorldPoints.size() >= 3)
@@ -933,24 +933,24 @@ namespace
 			return circle->WorldCenter;
 		}
 		const Matrix3x2 worldTransform = CalculateWorldTransformNow(scene, entity);
-		return worldTransform.TransformPoint(Vector2<float>(0.0f, 0.0f));
+		return worldTransform.TransformPoint(Vector2(0.0f, 0.0f));
 	}
 
-	Vector2<float> GetContactVelocity(const Rigidbody2D* body,
-	                                  const Vector2<float>& bodyCenter,
-	                                  const Vector2<float>& contactPoint)
+	Vector2 GetContactVelocity(const Rigidbody2D* body,
+	                                  const Vector2& bodyCenter,
+	                                  const Vector2& contactPoint)
 	{
 		if (nullptr == body)
 		{
-			return Vector2<float>(0.0f, 0.0f);
+			return Vector2(0.0f, 0.0f);
 		}
 		return body->Velocity + Cross(body->AngularVelocity, contactPoint - bodyCenter);
 	}
 
-	void AddImpulseDebug(Rigidbody2D* body, const Vector2<float>& bodyCenter,
-	                     const Vector2<float>& impulse,
-	                     const Vector2<float>& contactNormal,
-	                     const Vector2<float>& contactPoint,
+	void AddImpulseDebug(Rigidbody2D* body, const Vector2& bodyCenter,
+	                     const Vector2& impulse,
+	                     const Vector2& contactNormal,
+	                     const Vector2& contactPoint,
 	                     bool isFriction)
 	{
 		if (nullptr == body || !body->IsEnabled || EPhysics2DBodyType::Dynamic != body->BodyType)
@@ -971,8 +971,8 @@ namespace
 		}
 	}
 
-	void ApplyImpulse(Rigidbody2D* body, const Vector2<float>& bodyCenter,
-	                  const Vector2<float>& impulse, const Vector2<float>& contactPoint)
+	void ApplyImpulse(Rigidbody2D* body, const Vector2& bodyCenter,
+	                  const Vector2& impulse, const Vector2& contactPoint)
 	{
 		if (nullptr == body || !body->IsEnabled || EPhysics2DBodyType::Dynamic != body->BodyType)
 		{
@@ -982,7 +982,7 @@ namespace
 		const float inverseMass = GetInverseMass(body);
 		if (inverseMass > 0.0f)
 		{
-			Vector2<float> linear = impulse * inverseMass;
+			Vector2 linear = impulse * inverseMass;
 			if (body->FreezePositionX) linear.x = 0.0f;
 			if (body->FreezePositionY) linear.y = 0.0f;
 			body->Velocity += linear;
@@ -999,7 +999,7 @@ namespace
 
 	struct ContactManifold2D
 	{
-		Vector2<float> Points[2];
+		Vector2 Points[2];
 		std::uint32_t  FeatureIds[2] = { 0xFFFFFFFFu, 0xFFFFFFFFu };
 		int            Count = 0;
 	};
@@ -1013,9 +1013,9 @@ namespace
 		     |  static_cast<std::uint32_t>(contactOrder & 0xF);
 	}
 
-	int ClipSegment(const Vector2<float>& p0, const Vector2<float>& p1,
-	                const Vector2<float>& planeNormal, float planeOffset,
-	                Vector2<float> out[2])
+	int ClipSegment(const Vector2& p0, const Vector2& p1,
+	                const Vector2& planeNormal, float planeOffset,
+	                Vector2 out[2])
 	{
 		const float d0 = Dot(p0, planeNormal) - planeOffset;
 		const float d1 = Dot(p1, planeNormal) - planeOffset;
@@ -1026,19 +1026,19 @@ namespace
 		return k;
 	}
 
-	Vector2<float> GetFaceOutwardNormal(const std::vector<Vector2<float>>& poly,
-	                                    const Vector2<float>& polyCenter, int i)
+	Vector2 GetFaceOutwardNormal(const std::vector<Vector2>& poly,
+	                                    const Vector2& polyCenter, int i)
 	{
 		const int            N     = static_cast<int>(poly.size());
-		const Vector2<float> edge  = poly[(i + 1) % N] - poly[i];
-		const Vector2<float> leftN(-edge.y, edge.x);
-		const Vector2<float> mid  = (poly[i] + poly[(i + 1) % N]) * 0.5f;
+		const Vector2 edge  = poly[(i + 1) % N] - poly[i];
+		const Vector2 leftN(-edge.y, edge.x);
+		const Vector2 mid  = (poly[i] + poly[(i + 1) % N]) * 0.5f;
 		return (Dot(leftN, mid - polyCenter) >= 0.0f) ? leftN : -leftN;
 	}
 
-	ContactManifold2D BuildPolygonManifold(const std::vector<Vector2<float>>& a,
-	                                       const std::vector<Vector2<float>>& b,
-	                                       const Vector2<float>& normal)
+	ContactManifold2D BuildPolygonManifold(const std::vector<Vector2>& a,
+	                                       const std::vector<Vector2>& b,
+	                                       const Vector2& normal)
 	{
 		const int NA = static_cast<int>(a.size());
 		const int NB = static_cast<int>(b.size());
@@ -1055,8 +1055,8 @@ namespace
 
 		if (NA < 2 || NB < 2) return Fallback();
 
-		const Vector2<float> centerA = CalculateCenter(a);
-		const Vector2<float> centerB = CalculateCenter(b);
+		const Vector2 centerA = CalculateCenter(a);
+		const Vector2 centerB = CalculateCenter(b);
 
 		// 1. A에서 reference face 선택 (normal과 가장 정렬된 면)
 		float bestDot = -std::numeric_limits<float>::max();
@@ -1066,12 +1066,12 @@ namespace
 			const float d = Dot(GetFaceOutwardNormal(a, centerA, i), normal);
 			if (d > bestDot) { bestDot = d; refIdx = i; }
 		}
-		const Vector2<float>& rv0    = a[refIdx];
-		const Vector2<float>& rv1    = a[(refIdx + 1) % NA];
-		const Vector2<float>  rEdge  = rv1 - rv0;
+		const Vector2& rv0    = a[refIdx];
+		const Vector2& rv1    = a[(refIdx + 1) % NA];
+		const Vector2  rEdge  = rv1 - rv0;
 		const float           rLenSq = rEdge.LengthSqrt();
 		if (rLenSq <= MIN_NORMAL_LENGTH_SQ) return Fallback();
-		const Vector2<float> rDir = rEdge * (1.0f / std::sqrt(rLenSq));
+		const Vector2 rDir = rEdge * (1.0f / std::sqrt(rLenSq));
 
 		// 2. B에서 incident face 선택 (normal과 가장 반대인 면)
 		float worstDot = std::numeric_limits<float>::max();
@@ -1081,12 +1081,12 @@ namespace
 			const float d = Dot(GetFaceOutwardNormal(b, centerB, i), normal);
 			if (d < worstDot) { worstDot = d; incIdx = i; }
 		}
-		Vector2<float> seg[2] = { b[incIdx], b[(incIdx + 1) % NB] };
+		Vector2 seg[2] = { b[incIdx], b[(incIdx + 1) % NB] };
 		int segCount = 2;
 
 		// 3. 두 측면 평면으로 incident 선분 클리핑
 		{
-			Vector2<float> tmp[2];
+			Vector2 tmp[2];
 			const int cnt = ClipSegment(seg[0], seg[1], rDir, Dot(rDir, rv0), tmp);
 			segCount = cnt;
 			if (cnt > 0) seg[0] = tmp[0];
@@ -1095,7 +1095,7 @@ namespace
 		if (segCount == 0) return Fallback();
 
 		{
-			Vector2<float> tmp[2];
+			Vector2 tmp[2];
 			int cnt = 0;
 			if (segCount == 2)
 			{
@@ -1113,9 +1113,9 @@ namespace
 		if (segCount == 0) return Fallback();
 
 		// 4. reference face 뒤쪽에 있는 점만 유효한 접촉점으로 채택
-		const Vector2<float> rNormRaw = GetFaceOutwardNormal(a, centerA, refIdx);
+		const Vector2 rNormRaw = GetFaceOutwardNormal(a, centerA, refIdx);
 		const float          rNormLen = std::sqrt(rNormRaw.LengthSqrt());
-		const Vector2<float> rNorm    = (rNormLen > 1e-6f) ? rNormRaw * (1.0f / rNormLen) : normal;
+		const Vector2 rNorm    = (rNormLen > 1e-6f) ? rNormRaw * (1.0f / rNormLen) : normal;
 		const float          refOffset = Dot(rNorm, rv0);
 
 		ContactManifold2D manifold;
@@ -1147,24 +1147,24 @@ namespace
 	// outTriangles: [A0, B0, C0,  A1, B1, C1, ...] 형식으로 꼭짓점을 기록한다.
 
 	// 부호 있는 넓이 (> 0 이면 CCW)
-	float SignedArea(const std::vector<Vector2<float>>& pts, const std::vector<int>& idx)
+	float SignedArea(const std::vector<Vector2>& pts, const std::vector<int>& idx)
 	{
 		float area = 0.0f;
 		const int n = static_cast<int>(idx.size());
 		for (int i = 0; i < n; ++i)
 		{
-			const Vector2<float>& p0 = pts[idx[i]];
-			const Vector2<float>& p1 = pts[idx[(i + 1) % n]];
+			const Vector2& p0 = pts[idx[i]];
+			const Vector2& p1 = pts[idx[(i + 1) % n]];
 			area += p0.x * p1.y - p1.x * p0.y;
 		}
 		return area * 0.5f;
 	}
 
 	// 점 P가 삼각형 ABC 안에 있는지 (경계 포함)
-	bool PointInTriangle(const Vector2<float>& p,
-	                     const Vector2<float>& a,
-	                     const Vector2<float>& b,
-	                     const Vector2<float>& c)
+	bool PointInTriangle(const Vector2& p,
+	                     const Vector2& a,
+	                     const Vector2& b,
+	                     const Vector2& c)
 	{
 		const float d1 = Cross(b - a, p - a);
 		const float d2 = Cross(c - b, p - b);
@@ -1174,15 +1174,15 @@ namespace
 		return !(hasNeg && hasPos);
 	}
 
-	bool PointsEqual(const Vector2<float>& a, const Vector2<float>& b)
+	bool PointsEqual(const Vector2& a, const Vector2& b)
 	{
 		constexpr float POINT_EPSILON = 0.0001f;
 		return std::abs(a.x - b.x) <= POINT_EPSILON
 			&& std::abs(a.y - b.y) <= POINT_EPSILON;
 	}
 
-	bool IsOriginalPolygonEdge(const std::vector<Vector2<float>>& polygon,
-	                           const Vector2<float>& a, const Vector2<float>& b)
+	bool IsOriginalPolygonEdge(const std::vector<Vector2>& polygon,
+	                           const Vector2& a, const Vector2& b)
 	{
 		if (polygon.size() < 2)
 		{
@@ -1191,8 +1191,8 @@ namespace
 
 		for (std::size_t i = 0; i < polygon.size(); ++i)
 		{
-			const Vector2<float>& p0 = polygon[i];
-			const Vector2<float>& p1 = polygon[(i + 1) % polygon.size()];
+			const Vector2& p0 = polygon[i];
+			const Vector2& p1 = polygon[(i + 1) % polygon.size()];
 			if ((PointsEqual(a, p0) && PointsEqual(b, p1))
 			    || (PointsEqual(a, p1) && PointsEqual(b, p0)))
 			{
@@ -1203,8 +1203,8 @@ namespace
 	}
 
 	void TriangulateEarClip(
-		const std::vector<Vector2<float>>& pts,
-		std::vector<std::array<Vector2<float>, 3>>& outTriangles)
+		const std::vector<Vector2>& pts,
+		std::vector<std::array<Vector2, 3>>& outTriangles)
 	{
 		const int n = static_cast<int>(pts.size());
 		if (n < 3) return;
@@ -1228,9 +1228,9 @@ namespace
 				const int prev = (i + remaining - 1) % remaining;
 				const int next = (i + 1) % remaining;
 
-				const Vector2<float>& A = pts[idx[prev]];
-				const Vector2<float>& B = pts[idx[i]];
-				const Vector2<float>& C = pts[idx[next]];
+				const Vector2& A = pts[idx[prev]];
+				const Vector2& B = pts[idx[i]];
+				const Vector2& C = pts[idx[next]];
 
 				// 볼록 꼭짓점 판정 (CCW 기준: Cross(AB, BC) > 0)
 				const float cross = Cross(B - A, C - B);
@@ -1278,7 +1278,7 @@ namespace
 		collider.ConvexPieces.clear();
 		if (collider.LocalPoints.size() < 3) return;
 
-		std::vector<std::array<Vector2<float>, 3>> tris;
+		std::vector<std::array<Vector2, 3>> tris;
 		TriangulateEarClip(collider.LocalPoints, tris);
 
 		collider.ConvexPieces.reserve(tris.size());
@@ -1312,8 +1312,8 @@ namespace
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
-void CPhysics2DSystem::SetGravity(const Vector2<float>& gravity)             { m_gravity = gravity; }
-const Vector2<float>& CPhysics2DSystem::GetGravity() const                  { return m_gravity; }
+void CPhysics2DSystem::SetGravity(const Vector2& gravity)             { m_gravity = gravity; }
+const Vector2& CPhysics2DSystem::GetGravity() const                  { return m_gravity; }
 
 void CPhysics2DSystem::SetVelocityIterations(int it)  { m_velocityIterations = std::max(1, it); }
 int  CPhysics2DSystem::GetVelocityIterations() const  { return m_velocityIterations; }
@@ -1371,7 +1371,7 @@ void CPhysics2DSystem::OnFixedUpdate(CScene& scene)
 	// dv 와 LastContactNormal 의 부호 일치를 보면 normal impulse 누적 여부 확인 가능.
 	{
 		static int s_bodyLogCnt = 0;
-		static std::unordered_map<EntityId, Vector2<float>> s_prevVel;
+		static std::unordered_map<EntityId, Vector2> s_prevVel;
 		if (++s_bodyLogCnt >= 60)
 		{
 			s_bodyLogCnt = 0;
@@ -1380,8 +1380,8 @@ void CPhysics2DSystem::OnFixedUpdate(CScene& scene)
 					if (false == body.IsEnabled || EPhysics2DBodyType::Dynamic != body.BodyType) return;
 
 					const auto it = s_prevVel.find(e);
-					const Vector2<float> prev = (it != s_prevVel.end()) ? it->second : Vector2<float>(0.0f, 0.0f);
-					const Vector2<float> dv = body.Velocity - prev;
+					const Vector2 prev = (it != s_prevVel.end()) ? it->second : Vector2(0.0f, 0.0f);
+					const Vector2 dv = body.Velocity - prev;
 					s_prevVel[e] = body.Velocity;
 
 					// velocity 또는 dv 의 절대값이 의미 있는 크기일 때만 로그 (조용한 body 무시).
@@ -1426,17 +1426,17 @@ void CPhysics2DSystem::DrawManifoldDebugLines()
 		const float arrowLen = std::max(m.Penetration * 4.0f, 0.25f);
 		for (int ci = 0; ci < m.ContactCount; ++ci)
 		{
-			const Vector2<float>& cp  = m.ContactPoints[ci];
-			const Vector2<float>  tip = cp + m.Normal * arrowLen;
+			const Vector2& cp  = m.ContactPoints[ci];
+			const Vector2  tip = cp + m.Normal * arrowLen;
 
 			dd.DrawCircle(cp, 0.04f, kPointCol, 1.5f, 12);
 			dd.DrawLine(cp, tip, kNormalCol, 1.5f);
 
 			// 화살표 머리 (V 모양)
-			const Vector2<float> back = -m.Normal * (arrowLen * 0.25f);
-			const Vector2<float> perp(-m.Normal.y, m.Normal.x);
-			const Vector2<float> headL = tip + back + perp * (arrowLen * 0.15f);
-			const Vector2<float> headR = tip + back - perp * (arrowLen * 0.15f);
+			const Vector2 back = -m.Normal * (arrowLen * 0.25f);
+			const Vector2 perp(-m.Normal.y, m.Normal.x);
+			const Vector2 headL = tip + back + perp * (arrowLen * 0.15f);
+			const Vector2 headR = tip + back - perp * (arrowLen * 0.15f);
 			dd.DrawLine(tip, headL, kHeadCol, 1.5f);
 			dd.DrawLine(tip, headR, kHeadCol, 1.5f);
 		}
@@ -1476,8 +1476,8 @@ void CPhysics2DSystem::IntegrateBodies(CScene& scene, float deltaSeconds)
 	scene.ForEach<Transform2D, Rigidbody2D>([this, &scene, deltaSeconds](EntityId entity, Transform2D& transform, Rigidbody2D& body)
 	{
 		body.LastContactCount    = 0;
-		body.LastContactNormal   = Vector2<float>(0.0f, 0.0f);
-		body.LastContactPoint    = Vector2<float>(0.0f, 0.0f);
+		body.LastContactNormal   = Vector2(0.0f, 0.0f);
+		body.LastContactPoint    = Vector2(0.0f, 0.0f);
 		body.LastNormalImpulse   = 0.0f;
 		body.LastFrictionImpulse = 0.0f;
 		body.LastAngularImpulse  = 0.0f;
@@ -1541,7 +1541,7 @@ void CPhysics2DSystem::IntegrateBodies(CScene& scene, float deltaSeconds)
 		}
 
 		ApplyVelocityToTransform(scene, entity, transform, body, deltaSeconds);
-		body.Force  = Vector2<float>(0.0f, 0.0f);
+		body.Force  = Vector2(0.0f, 0.0f);
 		body.Torque = 0.0f;
 	});
 }
@@ -1585,7 +1585,7 @@ void CPhysics2DSystem::UpdateColliderBounds(CScene& scene)
 		// ── 전체 WorldPoints 갱신 ────────────────────────────────────────────────
 		collider.WorldPoints.clear();
 		collider.WorldPoints.reserve(collider.LocalPoints.size());
-		for (const Vector2<float>& p : collider.LocalPoints)
+		for (const Vector2& p : collider.LocalPoints)
 		{
 			collider.WorldPoints.push_back(wt.TransformPoint(p));
 		}
@@ -1609,13 +1609,13 @@ void CPhysics2DSystem::UpdateColliderBounds(CScene& scene)
 	{
 		if (!collider.IsEnabled) return;
 		const Matrix3x2 wt    = CalculateWorldTransformNow(scene, entity);
-		collider.WorldCenter  = wt.TransformPoint(Vector2<float>(0.0f, 0.0f));
+		collider.WorldCenter  = wt.TransformPoint(Vector2(0.0f, 0.0f));
 		const float scaleX    = std::sqrt(wt.M11 * wt.M11 + wt.M12 * wt.M12);
 		const float scaleY    = std::sqrt(wt.M21 * wt.M21 + wt.M22 * wt.M22);
 		collider.WorldRadius  = collider.Radius * std::max(scaleX, scaleY);
 		const float r         = collider.WorldRadius;
-		collider.WorldAABB.Min = Vector2<float>(collider.WorldCenter.x - r, collider.WorldCenter.y - r);
-		collider.WorldAABB.Max = Vector2<float>(collider.WorldCenter.x + r, collider.WorldCenter.y + r);
+		collider.WorldAABB.Min = Vector2(collider.WorldCenter.x - r, collider.WorldCenter.y - r);
+		collider.WorldAABB.Max = Vector2(collider.WorldCenter.x + r, collider.WorldCenter.y + r);
 	});
 
 	// Pass 2: 동적 Rigidbody 관성 누산 — 엔티티의 모든 콜라이더 기여 합산
@@ -1707,7 +1707,7 @@ void CPhysics2DSystem::DetectContacts(CScene& scene)
 			const bool aIsConvex = IsConvexPolygon(a->WorldPoints);
 			const bool bIsConvex = IsConvexPolygon(b->WorldPoints);
 
-			Vector2<float> bestNormal;
+			Vector2 bestNormal;
 			float          bestPen = 0.0f;
 			bool           hit     = false;
 
@@ -1751,7 +1751,7 @@ void CPhysics2DSystem::DetectContacts(CScene& scene)
 							if (pa.WorldPoints.size() < 3) continue;
 							if (!IntersectsAABB(pa.WorldBounds, b->WorldAABB)) continue;
 
-							Vector2<float> n; float pen = 0.0f;
+							Vector2 n; float pen = 0.0f;
 							// B 는 볼록 전체 → BoundaryEdges nullptr (전 엣지 경계)
 							if (!TestPolygonSAT(pa.WorldPoints, b->WorldPoints,
 							                   &pa.BoundaryEdges, nullptr, n, pen)) continue;
@@ -1776,7 +1776,7 @@ void CPhysics2DSystem::DetectContacts(CScene& scene)
 							if (pb.WorldPoints.size() < 3) continue;
 							if (!IntersectsAABB(a->WorldAABB, pb.WorldBounds)) continue;
 
-							Vector2<float> n; float pen = 0.0f;
+							Vector2 n; float pen = 0.0f;
 							// A 는 볼록 전체 → BoundaryEdges nullptr
 							if (!TestPolygonSAT(a->WorldPoints, pb.WorldPoints,
 							                   nullptr, &pb.BoundaryEdges, n, pen)) continue;
@@ -1804,7 +1804,7 @@ void CPhysics2DSystem::DetectContacts(CScene& scene)
 								if (pb.WorldPoints.size() < 3) continue;
 								if (!IntersectsAABB(pa.WorldBounds, pb.WorldBounds)) continue;
 
-								Vector2<float> n; float pen = 0.0f;
+								Vector2 n; float pen = 0.0f;
 								if (!TestPolygonSAT(pa.WorldPoints, pb.WorldPoints,
 								                   &pa.BoundaryEdges, &pb.BoundaryEdges, n, pen)) continue;
 
@@ -1821,8 +1821,8 @@ void CPhysics2DSystem::DetectContacts(CScene& scene)
 			if (bestPen <= MANIFOLD_PENETRATION_CUTOFF) continue;
 
 			// 면적 가중 centroid — 비대칭/오목 폴리곤에서 산술 평균은 reference 부적합.
-			const Vector2<float> centerA = CalculateCentroid(a->WorldPoints);
-			const Vector2<float> centerB = CalculateCentroid(b->WorldPoints);
+			const Vector2 centerA = CalculateCentroid(a->WorldPoints);
+			const Vector2 centerB = CalculateCentroid(b->WorldPoints);
 			OrientNormal(bestNormal, centerA, centerB);
 
 			Physics2DManifold manifold;
@@ -1857,7 +1857,7 @@ void CPhysics2DSystem::DetectContacts(CScene& scene)
 			CircleCollider2D* b = circles[j].second;
 			if (!IntersectsAABB(a->WorldAABB, b->WorldAABB)) continue;
 
-			Vector2<float> normal, contactPoint;
+			Vector2 normal, contactPoint;
 			float          penetration;
 			if (!TestCircleCircle(*a, *b, normal, contactPoint, penetration)) continue;
 			// 얕은 침투 컷오프 — 시각적 떨림 + 미세 매니폴드 폭주 방지
@@ -1891,13 +1891,13 @@ void CPhysics2DSystem::DetectContacts(CScene& scene)
 
 			bool        bestHit  = false;
 			float       bestPen  = std::numeric_limits<float>::max();
-			Vector2<float> bestNormal;
-			Vector2<float> bestContactPoint;
+			Vector2 bestNormal;
+			Vector2 bestContactPoint;
 
 			if (IsConvexPolygon(polygon->WorldPoints))
 			{
 				// 볼록 폴리곤: 전체 WorldPoints 직접 SAT
-				Vector2<float> n; float pen;
+				Vector2 n; float pen;
 				if (TestPolygonCircle(*polygon, *circle, n, pen))
 				{
 					bestPen = pen; bestNormal = n; bestHit = true;
@@ -1912,7 +1912,7 @@ void CPhysics2DSystem::DetectContacts(CScene& scene)
 					if (piece.WorldPoints.size() < 3) continue;
 					if (!IntersectsAABB(piece.WorldBounds, circle->WorldAABB)) continue;
 
-					Vector2<float> n; float pen;
+					Vector2 n; float pen;
 					if (!TestConvexPointsCircle(piece.WorldPoints, &piece.BoundaryEdges, *circle, n, pen))
 						continue;
 
@@ -1927,7 +1927,7 @@ void CPhysics2DSystem::DetectContacts(CScene& scene)
 				// ConvexPiece 없을 경우 폴백
 				if (!bestHit && polygon->ConvexPieces.empty())
 				{
-					Vector2<float> n; float pen;
+					Vector2 n; float pen;
 					if (TestPolygonCircle(*polygon, *circle, n, pen))
 					{
 						bestPen = pen; bestNormal = n; bestHit = true;
@@ -1940,7 +1940,7 @@ void CPhysics2DSystem::DetectContacts(CScene& scene)
 			if (bestPen <= MANIFOLD_PENETRATION_CUTOFF) continue;
 
 			// 면적 가중 centroid — 비대칭/오목 폴리곤 정렬 안정성.
-			const Vector2<float> centerA = CalculateCentroid(polygon->WorldPoints);
+			const Vector2 centerA = CalculateCentroid(polygon->WorldPoints);
 			OrientNormal(bestNormal, centerA, circle->WorldCenter);
 
 			Physics2DManifold manifold;
@@ -1993,7 +1993,7 @@ void CPhysics2DSystem::DetectContacts(CScene& scene)
 			{
 				// 이전 dst 의 contact 들을 보존 (FeatureId/누적 impulse 포함).
 				const int      savedCount       = dst.ContactCount;
-				Vector2<float> savedPts[2]      = { dst.ContactPoints[0], dst.ContactPoints[1] };
+				Vector2 savedPts[2]      = { dst.ContactPoints[0], dst.ContactPoints[1] };
 				std::uint32_t  savedFeat[2]     = { dst.FeatureIds[0], dst.FeatureIds[1] };
 				float          savedAccN[2]     = { dst.AccumulatedNormalImpulse[0],   dst.AccumulatedNormalImpulse[1]   };
 				float          savedAccF[2]     = { dst.AccumulatedFrictionImpulse[0], dst.AccumulatedFrictionImpulse[1] };
@@ -2152,10 +2152,10 @@ void CPhysics2DSystem::MatchAndWarmStart(CScene& scene)
 
 		Rigidbody2D* bodyA = scene.GetComponent<Rigidbody2D>(m.A);
 		Rigidbody2D* bodyB = scene.GetComponent<Rigidbody2D>(m.B);
-		const Vector2<float> normal  = NormalizeSafe(m.Normal);
-		const Vector2<float> tangent(-normal.y, normal.x);
-		const Vector2<float> centerA = GetBodyWorldCenter(scene, m.A);
-		const Vector2<float> centerB = GetBodyWorldCenter(scene, m.B);
+		const Vector2 normal  = NormalizeSafe(m.Normal);
+		const Vector2 tangent(-normal.y, normal.x);
+		const Vector2 centerA = GetBodyWorldCenter(scene, m.A);
+		const Vector2 centerB = GetBodyWorldCenter(scene, m.B);
 
 		for (int ci = 0; ci < m.ContactCount; ++ci)
 		{
@@ -2172,7 +2172,7 @@ void CPhysics2DSystem::MatchAndWarmStart(CScene& scene)
 			m.AccumulatedNormalImpulse[ci]   = it->second.Norm;
 			m.AccumulatedFrictionImpulse[ci] = it->second.Fric;
 
-			const Vector2<float> warm = normal * it->second.Norm + tangent * it->second.Fric;
+			const Vector2 warm = normal * it->second.Norm + tangent * it->second.Fric;
 			ApplyImpulse(bodyA, centerA, -warm, m.ContactPoints[ci]);
 			ApplyImpulse(bodyB, centerB,  warm, m.ContactPoints[ci]);
 		}
@@ -2203,8 +2203,8 @@ void CPhysics2DSystem::ResolveContactVelocity(CScene& scene)
 		Rigidbody2D* bodyA = scene.GetComponent<Rigidbody2D>(manifold.A);
 		Rigidbody2D* bodyB = scene.GetComponent<Rigidbody2D>(manifold.B);
 
-		const Vector2<float> normal  = NormalizeSafe(manifold.Normal);
-		const Vector2<float> tangent(-normal.y, normal.x);
+		const Vector2 normal  = NormalizeSafe(manifold.Normal);
+		const Vector2 tangent(-normal.y, normal.x);
 
 		const float invMassA   = GetInverseMass(bodyA);
 		const float invMassB   = GetInverseMass(bodyB);
@@ -2214,8 +2214,8 @@ void CPhysics2DSystem::ResolveContactVelocity(CScene& scene)
 		const float invInertiaA = GetInverseInertia(bodyA);
 		const float invInertiaB = GetInverseInertia(bodyB);
 
-		const Vector2<float> centerA = GetBodyWorldCenter(scene, manifold.A);
-		const Vector2<float> centerB = GetBodyWorldCenter(scene, manifold.B);
+		const Vector2 centerA = GetBodyWorldCenter(scene, manifold.A);
+		const Vector2 centerB = GetBodyWorldCenter(scene, manifold.B);
 
 		const float restitutionA = bodyA ? bodyA->Restitution : 0.0f;
 		const float restitutionB = bodyB ? bodyB->Restitution : 0.0f;
@@ -2224,9 +2224,9 @@ void CPhysics2DSystem::ResolveContactVelocity(CScene& scene)
 
 		for (int ci = 0; ci < manifold.ContactCount; ++ci)
 		{
-			const Vector2<float>& contactPoint = manifold.ContactPoints[ci];
-			const Vector2<float>  ra = contactPoint - centerA;
-			const Vector2<float>  rb = contactPoint - centerB;
+			const Vector2& contactPoint = manifold.ContactPoints[ci];
+			const Vector2  ra = contactPoint - centerA;
+			const Vector2  rb = contactPoint - centerB;
 
 			// ── Normal impulse (incremental + clamp ≥ 0) ───────────────────
 			const float raCrossN    = Cross(ra, normal);
@@ -2236,8 +2236,8 @@ void CPhysics2DSystem::ResolveContactVelocity(CScene& scene)
 			    + rbCrossN * rbCrossN * invInertiaB;
 			if (normalDenom > 0.0f)
 			{
-				const Vector2<float> vA        = GetContactVelocity(bodyA, centerA, contactPoint);
-				const Vector2<float> vB        = GetContactVelocity(bodyB, centerB, contactPoint);
+				const Vector2 vA        = GetContactVelocity(bodyA, centerA, contactPoint);
+				const Vector2 vB        = GetContactVelocity(bodyB, centerB, contactPoint);
 				const float          velAlongN = Dot(vB - vA, normal);
 
 				// restitution: 저속 충돌은 0 (미세 진동 방지)
@@ -2255,7 +2255,7 @@ void CPhysics2DSystem::ResolveContactVelocity(CScene& scene)
 
 				if (std::abs(applyMag) > 0.0f)
 				{
-					const Vector2<float> impulse = normal * applyMag;
+					const Vector2 impulse = normal * applyMag;
 					AddImpulseDebug(bodyA, centerA, -impulse, normal, contactPoint, false);
 					AddImpulseDebug(bodyB, centerB,  impulse, normal, contactPoint, false);
 					ApplyImpulse(bodyA, centerA, -impulse, contactPoint);
@@ -2271,8 +2271,8 @@ void CPhysics2DSystem::ResolveContactVelocity(CScene& scene)
 			    + rbCrossT * rbCrossT * invInertiaB;
 			if (tangentDenom > 0.0f)
 			{
-				const Vector2<float> vA = GetContactVelocity(bodyA, centerA, contactPoint);
-				const Vector2<float> vB = GetContactVelocity(bodyB, centerB, contactPoint);
+				const Vector2 vA = GetContactVelocity(bodyA, centerA, contactPoint);
+				const Vector2 vB = GetContactVelocity(bodyB, centerB, contactPoint);
 				const float velAlongT = Dot(vB - vA, tangent);
 
 				const float deltaMag = -velAlongT / tangentDenom;
@@ -2289,7 +2289,7 @@ void CPhysics2DSystem::ResolveContactVelocity(CScene& scene)
 
 				if (std::abs(applyMag) > 0.0f)
 				{
-					const Vector2<float> frictionImpulse = tangent * applyMag;
+					const Vector2 frictionImpulse = tangent * applyMag;
 					AddImpulseDebug(bodyA, centerA, -frictionImpulse, normal, contactPoint, true);
 					AddImpulseDebug(bodyB, centerB,  frictionImpulse, normal, contactPoint, true);
 					ApplyImpulse(bodyA, centerA, -frictionImpulse, contactPoint);
@@ -2325,9 +2325,9 @@ void CPhysics2DSystem::ResolveContactPosition(CScene& scene)
 		const float invMassSum = invMassA + invMassB;
 		if (invMassSum <= 0.0f) continue;
 
-		const Vector2<float> normal     = NormalizeSafe(manifold.Normal);
+		const Vector2 normal     = NormalizeSafe(manifold.Normal);
 		const float          corrDepth  = std::max(manifold.Penetration - POSITION_CORRECTION_SLOP, 0.0f);
-		const Vector2<float> correction = normal * (corrDepth / invMassSum * POSITION_CORRECTION_PERCENT);
+		const Vector2 correction = normal * (corrDepth / invMassSum * POSITION_CORRECTION_PERCENT);
 
 		ApplyCorrectionToTransform(scene, manifold.A, *transformA, bodyA, -correction * invMassA);
 		ApplyCorrectionToTransform(scene, manifold.B, *transformB, bodyB,  correction * invMassB);
@@ -2359,19 +2359,19 @@ void CPhysics2DSystem::StabilizeRestingContacts(CScene& scene)
 		}
 		if (body.Velocity.LengthSqrt() <= linThresh * linThresh)
 		{
-			body.Velocity = Vector2<float>(0.0f, 0.0f);
-			body.Force    = Vector2<float>(0.0f, 0.0f);
+			body.Velocity = Vector2(0.0f, 0.0f);
+			body.Force    = Vector2(0.0f, 0.0f);
 		}
 
 		// Tangential (미끄러짐) 속도가 작으면 강제 0.
 		// contact normal 방향(예: 위) 의 속도는 유지하되 그 수직 방향(미끄러짐) 만 제거.
 		// 작은 friction 누적의 일관된 한쪽 편향이 등속 운동을 만드는 사용자 케이스 차단.
 		{
-			const Vector2<float> n = NormalizeSafe(body.LastContactNormal, Vector2<float>(0.0f, 0.0f));
+			const Vector2 n = NormalizeSafe(body.LastContactNormal, Vector2(0.0f, 0.0f));
 			if (n.LengthSqrt() > MIN_NORMAL_LENGTH_SQ)
 			{
 				const float          velAlongN = Dot(body.Velocity, n);
-				const Vector2<float> tangent   = body.Velocity - n * velAlongN;
+				const Vector2 tangent   = body.Velocity - n * velAlongN;
 				if (tangent.LengthSqrt() <= RESTING_TANGENT_VELOCITY * RESTING_TANGENT_VELOCITY)
 				{
 					body.Velocity = n * velAlongN;

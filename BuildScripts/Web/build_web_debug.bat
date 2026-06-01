@@ -9,7 +9,6 @@ set PRELOAD_ARGS=
 if exist Assets (
     set PRELOAD_ARGS=--preload-file Assets@/Assets
 )
-
 where emcc >nul 2>nul
 if errorlevel 1 (
     echo emcc was not found. Run emsdk_env.bat first.
@@ -17,11 +16,10 @@ if errorlevel 1 (
     exit /b 1
 )
 
-emcc @BuildScripts\Web\web_debug_sources.rsp ^
+emcc @BuildScripts\Web\web_game_sources.txt ^
     -I. ^
     -IEngine ^
     -IEngine\ThirdParty ^
-    -IUtillity ^
     -std=c++20 ^
     -DJBRO_PLATFORM_WEB ^
     -DJBRO_GAME ^

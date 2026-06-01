@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-#include "Utillity/SafePtr.h"
+#include "Utillity/Pointer/SafePtr.h"
 #include "Core/RHI/RHICommandTypes.h"
 #include "Core/RHI/RHIGraphicsTypes.h"   // ERHIProgramStage
 

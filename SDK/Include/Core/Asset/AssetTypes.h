@@ -61,6 +61,9 @@ struct AssetLoadDesc
 	File::Path Path;
 	File::Path ResolvedPath;
 	const AssetMetaData* MetaData = nullptr;
+	std::vector<std::uint8_t> MemoryPayload;
+
+	bool HasMemoryPayload() const { return false == MemoryPayload.empty(); }
 };
 
 struct AssetManagerDesc

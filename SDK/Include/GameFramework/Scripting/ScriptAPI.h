@@ -10,7 +10,7 @@
 //  제공 내용:
 //    - CGameScript 기반 클래스 (상속 대상)
 //    - SCRIPT_CLASS / REFLECT_FIELD 매크로
-//    - Vector2<float> REFLECT_FIELD 지원
+//    - Vector2 REFLECT_FIELD 지원
 //    - 씬/엔티티 접근 (GetScene(), GetEntity())
 //    - 자주 사용하는 컴포넌트 타입
 //    - 입력 시스템
@@ -22,12 +22,54 @@
 #include "GameFramework/Scripting/ScriptMacros.h"
 
 // ── 수학 ────────────────────────────────────────────────────────────────────
-#include "Utillity/Vector2T.h"
+#include "Utillity/Math/Vector2T.h"
+#include "Utillity/Math/RectT.h"
+#include "Utillity/Types/EngineTypes.h"
 
-// Vector2<float> → REFLECT_FIELD 지원 (ScriptMacros.h 가 먼저 정의된 이후)
-template<> inline EReflectPropertyType ScriptFieldTypeOf<Vector2<float>>()
+// Vector2 → REFLECT_FIELD 지원 (ScriptMacros.h 가 먼저 정의된 이후)
+template<> inline EReflectPropertyType ScriptFieldTypeOf<Vector2>()
 {
 	return EReflectPropertyType::Vector2Float;
+}
+template<> inline EReflectPropertyType ScriptFieldTypeOf<Rect>()
+{
+	return EReflectPropertyType::RectFloat;
+}
+template<> inline EReflectPropertyType ScriptFieldTypeOf<Bool>()
+{
+	return EReflectPropertyType::Bool;
+}
+template<> inline EReflectPropertyType ScriptFieldTypeOf<Int>()
+{
+	return EReflectPropertyType::Int64;
+}
+template<> inline EReflectPropertyType ScriptFieldTypeOf<UInt>()
+{
+	return EReflectPropertyType::UInt32;
+}
+template<> inline EReflectPropertyType ScriptFieldTypeOf<Float>()
+{
+	return EReflectPropertyType::Float;
+}
+template<> inline EReflectPropertyType ScriptFieldTypeOf<Degree>()
+{
+	return EReflectPropertyType::Degree;
+}
+template<> inline EReflectPropertyType ScriptFieldTypeOf<Radian>()
+{
+	return EReflectPropertyType::Radian;
+}
+template<> inline EReflectPropertyType ScriptFieldTypeOf<String>()
+{
+	return EReflectPropertyType::String;
+}
+template<> inline EReflectPropertyType ScriptFieldTypeOf<Asset>()
+{
+	return EReflectPropertyType::AssetGuid;
+}
+template<> inline EReflectPropertyType ScriptFieldTypeOf<File::Guid>()
+{
+	return EReflectPropertyType::AssetGuid;
 }
 
 // ── 씬 / 엔티티 ──────────────────────────────────────────────────────────────

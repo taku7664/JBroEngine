@@ -19,7 +19,7 @@ namespace
 	struct ScriptPropParse
 	{
 		std::string Name;
-		std::string CppType;        // "float", "Vector2<float>", "AssetGuid" ...
+		std::string CppType;        // "Float", "Vector2", "Asset" ...
 		std::string EnumType;       // "EReflectPropertyType::Float" ...
 		std::string DisplayName;    // Name("..")
 		std::string Tooltip;        // Tooltip("..")
@@ -40,16 +40,21 @@ namespace
 	// C++ 타입 토큰 → EReflectPropertyType. 미지원이면 false.
 	bool MapScriptPropType(std::string cppType, std::string& outEnum)
 	{
-		// 공백 제거(예: "Vector2 < float >" → "Vector2<float>").
+		// 공백 제거(예: "Vector2" -> "Vector2").
 		cppType.erase(std::remove_if(cppType.begin(), cppType.end(),
 			[](unsigned char c) { return std::isspace(c); }), cppType.end());
 
-		if (cppType == "bool")                                         { outEnum = "EReflectPropertyType::Bool";          return true; }
-		if (cppType == "int" || cppType == "int32_t" || cppType == "std::int32_t")     { outEnum = "EReflectPropertyType::Int32";  return true; }
-		if (cppType == "uint32_t" || cppType == "std::uint32_t" || cppType == "unsignedint") { outEnum = "EReflectPropertyType::UInt32"; return true; }
-		if (cppType == "float")                                        { outEnum = "EReflectPropertyType::Float";         return true; }
-		if (cppType == "Vector2<float>")                               { outEnum = "EReflectPropertyType::Vector2Float";  return true; }
-		if (cppType == "AssetGuid" || cppType == "File::Guid")         { outEnum = "EReflectPropertyType::AssetGuid";      return true; }
+		if (cppType == "Bool" || cppType == "bool")                    { outEnum = "EReflectPropertyType::Bool";          return true; }
+		if (cppType == "Int" || cppType == "int64_t" || cppType == "std::int64_t" || cppType == "longlong") { outEnum = "EReflectPropertyType::Int64"; return true; }
+		if (cppType == "int" || cppType == "int32_t" || cppType == "std::int32_t") { outEnum = "EReflectPropertyType::Int32";  return true; }
+		if (cppType == "UInt" || cppType == "uint32_t" || cppType == "std::uint32_t" || cppType == "unsignedint") { outEnum = "EReflectPropertyType::UInt32"; return true; }
+		if (cppType == "Float" || cppType == "float")                  { outEnum = "EReflectPropertyType::Float";         return true; }
+		if (cppType == "Degree")                                       { outEnum = "EReflectPropertyType::Degree";        return true; }
+		if (cppType == "Radian")                                       { outEnum = "EReflectPropertyType::Radian";        return true; }
+		if (cppType == "String")                                       { outEnum = "EReflectPropertyType::String";        return true; }
+		if (cppType == "Vector2")                                      { outEnum = "EReflectPropertyType::Vector2Float";  return true; }
+		if (cppType == "Rect")                                         { outEnum = "EReflectPropertyType::RectFloat";     return true; }
+		if (cppType == "Asset" || cppType == "AssetGuid" || cppType == "File::Guid") { outEnum = "EReflectPropertyType::AssetGuid"; return true; }
 		return false;
 	}
 
@@ -112,7 +117,7 @@ namespace
 			if (false == known)
 			{
 				CSystemLog::Warning("[JPROP] " + className + "." + propName
-					+ ": 알 수 없는 어트리뷰트 '" + token + "' (무시됨). 사용 가능: Name, Tooltip, Category, Range, NoSerialize.");
+					+ ": unknown attribute '" + token + "' (ignored). Available: Name, Tooltip, Category, Range, NoSerialize.");
 			}
 		}
 	}
@@ -362,14 +367,14 @@ namespace
 				if (false == MapScriptPropType(prop.CppType, prop.EnumType))
 				{
 					CSystemLog::Warning("[JPROP] " + ownerName + "." + prop.Name
-						+ ": 지원하지 않는 타입 '" + prop.CppType + "' — 제외됨. 지원: bool, int32_t, uint32_t, float, Vector2<float>, AssetGuid.");
+						+ ": unsupported type '" + prop.CppType + "' - excluded. Supported: Bool, Int, UInt, Float, Degree, Radian, String, Vector2, Rect, Asset.");
 					continue;
 				}
 				ParseScriptPropAttributes((*it)[1].str(), prop);
 
 				if (nullptr == owner)
 				{
-					CSystemLog::Warning("[JPROP] '" + prop.Name + "': 어느 JBRO_SCRIPT 클래스에도 속하지 않음 — 제외됨.");
+					CSystemLog::Warning("[JPROP] '" + prop.Name + "': not inside any JBRO_SCRIPT class - excluded.");
 					continue;
 				}
 
@@ -381,7 +386,7 @@ namespace
 				}
 				if (duplicate)
 				{
-					CSystemLog::Warning("[JPROP] " + ownerName + ": 프로퍼티 이름 중복 '" + prop.Name + "' — 두 번째는 제외됨.");
+					CSystemLog::Warning("[JPROP] " + ownerName + ": duplicate property name '" + prop.Name + "' - second one excluded.");
 					continue;
 				}
 
@@ -391,8 +396,8 @@ namespace
 			// JPROP 마커는 있는데 파싱 못 한 게 있으면(문법 오류 등) 경고.
 			if (matchedCount < markerCount)
 			{
-				CSystemLog::Warning("[JPROP] " + fileName + ": JPROP 마커 "
-					+ std::to_string(markerCount - matchedCount) + "개를 해석하지 못함 — 문법 확인: JPROP(attrs) <타입> <이름>;");
+				CSystemLog::Warning("[JPROP] " + fileName + ": failed to parse "
+					+ std::to_string(markerCount - matchedCount) + " JPROP marker(s) - check syntax: JPROP(attrs) <type> <name>;");
 			}
 
 			for (LocalClass& lc : localClasses)

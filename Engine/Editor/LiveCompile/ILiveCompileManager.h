@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Editor/LiveCompile/LiveCompileTypes.h"
-#include "Utillity/SafePtr.h"
+#include "Utillity/Pointer/SafePtr.h"
 
 class ICompilePipeline;
 class IDynamicLibrary;

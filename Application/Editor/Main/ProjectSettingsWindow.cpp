@@ -9,8 +9,8 @@
 #include "Editor/Editor.h"
 #include "Engine/Editor/ImEditor.h"
 #include "Engine/Editor/Project/ProjectManager.h"
-#include "File/FileUtillities.h"
-#include "StringUtillity.h"
+#include "Utillity/File/FileUtillities.h"
+#include "Utillity/String/StringUtillity.h"
 
 namespace
 {

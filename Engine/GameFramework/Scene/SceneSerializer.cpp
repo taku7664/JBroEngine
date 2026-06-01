@@ -14,6 +14,7 @@
 #include "GameFramework/Reflection/ReflectionRegistry.h"
 #include "GameFramework/Scene/Scene.h"
 #include "GameFramework/Scene/SceneSnapshot.h"
+#include "Utillity/Math/RectT.h"
 #include "yaml-cpp/yaml.h"
 
 #include <cstring>
@@ -53,7 +54,7 @@ namespace
 		return value;
 	}
 
-	YAML::Node WriteVector2(const Vector2<float>& value)
+	YAML::Node WriteVector2(const Vector2& value)
 	{
 		YAML::Node node(YAML::NodeType::Sequence);
 		node.push_back(value.x);
@@ -61,7 +62,7 @@ namespace
 		return node;
 	}
 
-	bool ReadVector2(const YAML::Node& node, Vector2<float>& outValue)
+	bool ReadVector2(const YAML::Node& node, Vector2& outValue)
 	{
 		if (!node || false == node.IsSequence() || node.size() < 2)
 		{
@@ -72,6 +73,37 @@ namespace
 		{
 			outValue.x = node[0].as<float>();
 			outValue.y = node[1].as<float>();
+			return true;
+		}
+		catch (const YAML::Exception&)
+		{
+			return false;
+		}
+	}
+
+	YAML::Node WriteRect(const Rect& value)
+	{
+		YAML::Node node(YAML::NodeType::Sequence);
+		node.push_back(value.Left);
+		node.push_back(value.Top);
+		node.push_back(value.Right);
+		node.push_back(value.Bottom);
+		return node;
+	}
+
+	bool ReadRect(const YAML::Node& node, Rect& outValue)
+	{
+		if (!node || false == node.IsSequence() || node.size() < 4)
+		{
+			return false;
+		}
+
+		try
+		{
+			outValue.Left = node[0].as<float>();
+			outValue.Top = node[1].as<float>();
+			outValue.Right = node[2].as<float>();
+			outValue.Bottom = node[3].as<float>();
 			return true;
 		}
 		catch (const YAML::Exception&)
@@ -158,6 +190,28 @@ namespace
 		return referencedAssets;
 	}
 
+	std::string ReadStringField(const void* field, const ReflectPropertyInfo& prop)
+	{
+		if (prop.ElementCount > 1)
+		{
+			return std::string(static_cast<const char*>(field));
+		}
+		return *static_cast<const std::string*>(field);
+	}
+
+	void WriteStringField(void* field, const ReflectPropertyInfo& prop, const std::string& value)
+	{
+		if (prop.ElementCount > 1)
+		{
+			const std::size_t cap = prop.ElementCount;
+			const std::size_t len = std::min(value.size(), cap - 1);
+			std::memcpy(field, value.c_str(), len);
+			static_cast<char*>(field)[len] = '\0';
+			return;
+		}
+		*static_cast<std::string*>(field) = value;
+	}
+
 	// Layout2D 직렬화 헬퍼
 	YAML::Node WriteLayout2D(const Layout2D& layout)
 	{
@@ -214,15 +268,23 @@ namespace
 			case EReflectPropertyType::Int32:
 				node[prop.Name] = *static_cast<const std::int32_t*>(field);
 				break;
+			case EReflectPropertyType::Int64:
+				node[prop.Name] = *static_cast<const std::int64_t*>(field);
+				break;
 			case EReflectPropertyType::UInt32:
 				node[prop.Name] = *static_cast<const std::uint32_t*>(field);
 				break;
 			case EReflectPropertyType::Float:
+			case EReflectPropertyType::Degree:
+			case EReflectPropertyType::Radian:
 			case EReflectPropertyType::AngleDegrees:
 				node[prop.Name] = *static_cast<const float*>(field);
 				break;
 			case EReflectPropertyType::Vector2Float:
-				node[prop.Name] = WriteVector2(*static_cast<const Vector2<float>*>(field));
+				node[prop.Name] = WriteVector2(*static_cast<const Vector2*>(field));
+				break;
+			case EReflectPropertyType::RectFloat:
+				node[prop.Name] = WriteRect(*static_cast<const Rect*>(field));
 				break;
 			case EReflectPropertyType::ColorFloat4:
 				{
@@ -252,7 +314,7 @@ namespace
 				node[prop.Name] = WriteLayout2D(*static_cast<const Layout2D*>(field));
 				break;
 			case EReflectPropertyType::String:
-				node[prop.Name] = std::string(static_cast<const char*>(field));
+				node[prop.Name] = ReadStringField(field, prop);
 				break;
 			default:
 				break;
@@ -277,15 +339,23 @@ namespace
 			case EReflectPropertyType::Int32:
 				ReadValue(node, prop.Name, *static_cast<std::int32_t*>(field));
 				break;
+			case EReflectPropertyType::Int64:
+				ReadValue(node, prop.Name, *static_cast<std::int64_t*>(field));
+				break;
 			case EReflectPropertyType::UInt32:
 				ReadValue(node, prop.Name, *static_cast<std::uint32_t*>(field));
 				break;
 			case EReflectPropertyType::Float:
+			case EReflectPropertyType::Degree:
+			case EReflectPropertyType::Radian:
 			case EReflectPropertyType::AngleDegrees:
 				ReadValue(node, prop.Name, *static_cast<float*>(field));
 				break;
 			case EReflectPropertyType::Vector2Float:
-				ReadVector2(node[prop.Name], *static_cast<Vector2<float>*>(field));
+				ReadVector2(node[prop.Name], *static_cast<Vector2*>(field));
+				break;
+			case EReflectPropertyType::RectFloat:
+				ReadRect(node[prop.Name], *static_cast<Rect*>(field));
 				break;
 			case EReflectPropertyType::ColorFloat4:
 				{
@@ -317,10 +387,7 @@ namespace
 					std::string s;
 					if (ReadValue(node, prop.Name, s))
 					{
-						const std::size_t cap = prop.ElementCount > 0 ? prop.ElementCount : prop.Size;
-						const std::size_t len = std::min(s.size(), cap - 1);
-						std::memcpy(field, s.c_str(), len);
-						static_cast<char*>(field)[len] = '\0';
+						WriteStringField(field, prop, s);
 					}
 				}
 				break;
@@ -442,7 +509,7 @@ namespace
 		YAML::Node node = ti ? WriteComponentReflected(&collider, *ti) : YAML::Node(YAML::NodeType::Map);
 		// LocalPoints: 레지스트리 미등록 vector 필드
 		YAML::Node points(YAML::NodeType::Sequence);
-		for (const Vector2<float>& pt : collider.LocalPoints)
+		for (const Vector2& pt : collider.LocalPoints)
 			points.push_back(WriteVector2(pt));
 		node["LocalPoints"] = points;
 		return node;
@@ -459,7 +526,7 @@ namespace
 		{
 			for (const YAML::Node& ptNode : points)
 			{
-				Vector2<float> pt;
+				Vector2 pt;
 				if (ReadVector2(ptNode, pt))
 					collider.LocalPoints.push_back(pt);
 			}
@@ -513,15 +580,23 @@ namespace
 			case EReflectPropertyType::Int32:
 				node[prop.Name] = *static_cast<const std::int32_t*>(field);
 				break;
+			case EReflectPropertyType::Int64:
+				node[prop.Name] = *static_cast<const std::int64_t*>(field);
+				break;
 			case EReflectPropertyType::UInt32:
 				node[prop.Name] = *static_cast<const std::uint32_t*>(field);
 				break;
 			case EReflectPropertyType::Float:
+			case EReflectPropertyType::Degree:
+			case EReflectPropertyType::Radian:
 			case EReflectPropertyType::AngleDegrees:
 				node[prop.Name] = *static_cast<const float*>(field);
 				break;
 			case EReflectPropertyType::Vector2Float:
-				node[prop.Name] = WriteVector2(*static_cast<const Vector2<float>*>(field));
+				node[prop.Name] = WriteVector2(*static_cast<const Vector2*>(field));
+				break;
+			case EReflectPropertyType::RectFloat:
+				node[prop.Name] = WriteRect(*static_cast<const Rect*>(field));
 				break;
 			case EReflectPropertyType::AssetGuid:
 				{
@@ -532,6 +607,9 @@ namespace
 						AddReferencedAsset(*referencedAssets, guid);
 					}
 				}
+				break;
+			case EReflectPropertyType::String:
+				node[prop.Name] = *static_cast<const std::string*>(field);
 				break;
 			default:
 				break;
@@ -563,7 +641,7 @@ namespace
 			ScriptPendingField pending;
 			pending.Name = prop.Name;
 			pending.Type = prop.Type;
-			if (EReflectPropertyType::AssetGuid != prop.Type)
+			if (EReflectPropertyType::AssetGuid != prop.Type && EReflectPropertyType::String != prop.Type)
 			{
 				pending.Data.resize(prop.Size, 0);
 			}
@@ -584,6 +662,12 @@ namespace
 					std::memcpy(pending.Data.data(), &v, sizeof(v));
 					break;
 				}
+				case EReflectPropertyType::Int64:
+				{
+					std::int64_t v = node[prop.Name].as<std::int64_t>(0);
+					std::memcpy(pending.Data.data(), &v, sizeof(v));
+					break;
+				}
 				case EReflectPropertyType::UInt32:
 				{
 					std::uint32_t v = node[prop.Name].as<std::uint32_t>(0);
@@ -591,6 +675,8 @@ namespace
 					break;
 				}
 				case EReflectPropertyType::Float:
+				case EReflectPropertyType::Degree:
+				case EReflectPropertyType::Radian:
 				case EReflectPropertyType::AngleDegrees:
 				{
 					float v = node[prop.Name].as<float>(0.0f);
@@ -599,8 +685,15 @@ namespace
 				}
 				case EReflectPropertyType::Vector2Float:
 				{
-					Vector2<float> v;
+					Vector2 v;
 					ReadVector2(node[prop.Name], v);
+					std::memcpy(pending.Data.data(), &v, sizeof(v));
+					break;
+				}
+				case EReflectPropertyType::RectFloat:
+				{
+					Rect v;
+					ReadRect(node[prop.Name], v);
 					std::memcpy(pending.Data.data(), &v, sizeof(v));
 					break;
 				}
@@ -611,6 +704,11 @@ namespace
 					{
 						AddReferencedAsset(*referencedAssets, File::Guid(pending.Text));
 					}
+					break;
+				}
+				case EReflectPropertyType::String:
+				{
+					pending.Text = node[prop.Name].as<std::string>("");
 					break;
 				}
 				default:
@@ -735,16 +833,25 @@ ESceneSerializeResult CSceneSerializer::SerializeToText(const CScene& scene, std
 											fields[prop.Name] = *static_cast<const bool*>(src); break;
 										case EReflectPropertyType::Int32:
 											fields[prop.Name] = *static_cast<const std::int32_t*>(src); break;
+										case EReflectPropertyType::Int64:
+											fields[prop.Name] = *static_cast<const std::int64_t*>(src); break;
 										case EReflectPropertyType::UInt32:
 											fields[prop.Name] = *static_cast<const std::uint32_t*>(src); break;
 										case EReflectPropertyType::Float:
+										case EReflectPropertyType::Degree:
+										case EReflectPropertyType::Radian:
 										case EReflectPropertyType::AngleDegrees:
 											fields[prop.Name] = *static_cast<const float*>(src); break;
 										case EReflectPropertyType::Vector2Float:
-											fields[prop.Name] = WriteVector2(*static_cast<const Vector2<float>*>(src)); break;
+											fields[prop.Name] = WriteVector2(*static_cast<const Vector2*>(src)); break;
+										case EReflectPropertyType::RectFloat:
+											fields[prop.Name] = WriteRect(*static_cast<const Rect*>(src)); break;
 										case EReflectPropertyType::AssetGuid:
 											fields[prop.Name] = pf.Text;
 											AddReferencedAsset(referencedAssets, File::Guid(pf.Text));
+											break;
+										case EReflectPropertyType::String:
+											fields[prop.Name] = pf.Text;
 											break;
 										default: break;
 										}

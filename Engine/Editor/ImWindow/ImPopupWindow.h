@@ -4,7 +4,7 @@
 #include <functional>
 #include <string>
 
-#include "Utillity/BitFlag.h"
+#include "Utillity/Base/BitFlag.h"
 #include "ThirdParty/imgui/imgui.h"   // ImVec2
 
 class CImPopupWindow : public IImPopupWindow

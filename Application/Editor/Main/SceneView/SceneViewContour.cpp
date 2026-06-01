@@ -30,9 +30,9 @@ namespace
     }
 
     ImVec2 WorldToViewport(
-        const Vector2<float>& worldPt,
+        const Vector2& worldPt,
         const ImVec2& vpMin, const ImVec2& vpSize,
-        const Vector2<float>& camPos, float camSize)
+        const Vector2& camPos, float camSize)
     {
         const float aspect = GetAspect(vpSize);
         const float ndcX   = (worldPt.x - camPos.x) / (camSize * aspect);
@@ -45,9 +45,9 @@ namespace
     // ── Douglas-Peucker polygon simplification ────────────────────────────────
 
     float PtLineDist(
-        const Vector2<float>& p,
-        const Vector2<float>& a,
-        const Vector2<float>& b)
+        const Vector2& p,
+        const Vector2& a,
+        const Vector2& b)
     {
         const float dx = b.x - a.x;
         const float dy = b.y - a.y;
@@ -58,7 +58,7 @@ namespace
     }
 
     void DPSimplify(
-        const std::vector<Vector2<float>>& pts,
+        const std::vector<Vector2>& pts,
         int lo, int hi,
         float eps,
         std::vector<bool>& keep)
@@ -82,8 +82,8 @@ namespace
     // 직선 구간의 중복 점만 제거하는 경량 D-P (1픽셀 허용 오차).
     // 모서리·오목 경계는 보존됩니다.
     // 직선 구간의 중간 점만 제거 (콜리니어 압축).
-    std::vector<Vector2<float>> SimplifyContour(
-        const std::vector<Vector2<float>>& pts,
+    std::vector<Vector2> SimplifyContour(
+        const std::vector<Vector2>& pts,
         float epsLocal)
     {
         const int n = static_cast<int>(pts.size());
@@ -93,7 +93,7 @@ namespace
         keep[0] = keep[n - 1] = true;
         DPSimplify(pts, 0, n - 1, epsLocal, keep);
 
-        std::vector<Vector2<float>> out;
+        std::vector<Vector2> out;
         out.reserve(n);
         for (int i = 0; i < n; ++i)
             if (keep[i]) out.push_back(pts[i]);
@@ -113,7 +113,7 @@ namespace
     // 여러 분리 컨투어 지원 (무기, 머리카락 등 독립 영역)
     // 좌표: x,y ∈ [-0.5, 0.5], y-up, 원점 = 스프라이트 중앙
 
-    std::vector<std::vector<Vector2<float>>> TraceAlphaContours(
+    std::vector<std::vector<Vector2>> TraceAlphaContours(
         const std::vector<std::uint8_t>& pixels,
         std::uint32_t texW,
         std::uint32_t frameX, std::uint32_t frameY,
@@ -194,7 +194,7 @@ namespace
         // 모서리·오목 경계는 보존하여 픽셀 경계를 촘촘히 따름.
         const float eps = 1.0f / static_cast<float>(std::max(frameW, frameH));
 
-        std::vector<std::vector<Vector2<float>>> result;
+        std::vector<std::vector<Vector2>> result;
 
         for (auto& [startCorner, startToList] : edgesMap)
         {
@@ -202,7 +202,7 @@ namespace
             {
                 if (usedEdges.count(mkEdgeKey(startCorner, startNext))) continue;
 
-                std::vector<Vector2<float>> raw;
+                std::vector<Vector2> raw;
                 raw.reserve(64);
 
                 std::uint32_t cur      = startCorner;
@@ -293,7 +293,7 @@ namespace
 
 // ── CSceneViewContour implementation ─────────────────────────────────────────
 
-const std::vector<std::vector<Vector2<float>>>* CSceneViewContour::GetOrBuild(
+const std::vector<std::vector<Vector2>>* CSceneViewContour::GetOrBuild(
     IAssetManager& assetMgr,
     const AssetGuid& spriteGuid,
     std::uint32_t frameIndex)
@@ -320,7 +320,7 @@ void CSceneViewContour::DrawOutlinesImGui(
     IAssetManager* assetMgr,
     const std::vector<EntityId>& selectedEntities,
     const ImVec2& vpMin, const ImVec2& vpSize,
-    const Vector2<float>& camPos, float camSize)
+    const Vector2& camPos, float camSize)
 {
     if (!dl || selectedEntities.empty()) return;
 
@@ -336,14 +336,14 @@ void CSceneViewContour::DrawOutlinesImGui(
             Matrix3x2::Transform(sprite.Offset, 0.0f, sprite.Size)
             * GetWorldTransform(scene, entity);
 
-        const std::vector<std::vector<Vector2<float>>>* contours = nullptr;
+        const std::vector<std::vector<Vector2>>* contours = nullptr;
         if (assetMgr && sprite.SpriteGuid != INVALID_ASSET_GUID)
             contours = GetOrBuild(*assetMgr, sprite.SpriteGuid, 0);
 
         if (!contours || contours->empty())
         {
             // OBB fallback
-            const Vector2<float> corners[4] = {
+            const Vector2 corners[4] = {
                 spriteMat.TransformPoint({-0.5f,  0.5f}),
                 spriteMat.TransformPoint({ 0.5f,  0.5f}),
                 spriteMat.TransformPoint({ 0.5f, -0.5f}),
