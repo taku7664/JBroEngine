@@ -406,7 +406,9 @@
     <ClInclude Include="Core\Renderer\IRenderMaterial.h" />
     <ClInclude Include="Core\Renderer\IRenderMesh.h" />
     <ClInclude Include="Core\Renderer\IRenderResource.h" />
+    <ClInclude Include="Core\Renderer\IRenderResourceCache.h" />
     <ClInclude Include="Core\Renderer\IRenderScene.h" />
+    <ClInclude Include="Core\Renderer\RenderResourceCache.h" />
     <ClInclude Include="Core\Renderer\RenderResources2D.h" />
     <ClInclude Include="Core\Renderer\RenderScene.h" />
     <ClInclude Include="Core\Renderer\RendererTypes.h" />
@@ -637,6 +639,7 @@
     <ClCompile Include="Core\Debug\DebugRenderer2D.cpp" />
     <ClCompile Include="Core\Debug\OutlineRenderer2D.cpp" />
     <ClCompile Include="Core\Renderer\Forward2DRenderer.cpp" />
+    <ClCompile Include="Core\Renderer\RenderResourceCache.cpp" />
     <ClCompile Include="Core\Renderer\RenderResources2D.cpp" />
     <ClCompile Include="Core\Renderer\RenderScene.cpp" />
     <ClCompile Include="Core\Random\RandomService.cpp" />

@@ -99,4 +99,6 @@ public:
 	bool              CanLoad(const AssetLoadDesc& desc) const override;
 	OwnerPtr<IAsset>  Load   (const AssetLoadDesc& desc) override;
 	void              Unload (IAsset& asset) override;
+	// in-place reload: 임포트 옵션만 갱신 (PCM/Stream raw 변경은 현재 미지원 — 향후 확장).
+	bool              ReloadInto(IAsset& existing, const AssetMetaData& metaData) override;
 };

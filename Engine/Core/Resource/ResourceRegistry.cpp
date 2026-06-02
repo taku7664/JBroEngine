@@ -3,7 +3,6 @@
 
 #include "Core/Asset/IAssetManager.h"
 #include "Core/Asset/SpriteAsset.h"
-#include "Core/RHI/IRHIDevice.h"
 #include "yaml-cpp/yaml.h"
 
 #include <algorithm>
@@ -44,8 +43,7 @@ EAssetType CResourceRegistry::InferTypeFromExtension(const File::Path& path)
 
 bool CResourceRegistry::Initialize(const File::Path& rootDirectory,
                                    const File::Path& manifestFile,
-                                   SafePtr<IAssetManager> assetManager,
-                                   SafePtr<IRHIDevice>    rhiDevice)
+                                   SafePtr<IAssetManager> assetManager)
 {
 	if (false == assetManager.IsValid())
 	{
@@ -129,18 +127,7 @@ bool CResourceRegistry::Initialize(const File::Path& rootDirectory,
 			entry.Asset = m_assetManager->LoadAssetByPath(entry.Path);
 		}
 
-		// Sprite 자산이면 GPU 텍스처도 즉시 생성 — UI(ImGui::Image) 가 첫 호출부터
-		// 유효한 텍스처를 받도록 보장.
-		if (entry.Asset.IsValid()
-		    && EAssetType::Sprite == entry.Asset->GetAssetType()
-		    && rhiDevice.IsValid())
-		{
-			SafePtr<CSpriteAsset> sprite = DynamicSafePtrCast<CSpriteAsset>(entry.Asset);
-			if (sprite.IsValid())
-			{
-				sprite->EnsureGpuTexture(*rhiDevice);
-			}
-		}
+		// GPU 텍스처는 첫 사용 시점에 RenderResourceCache 가 lazy 생성한다 (여기서는 등록만).
 
 		m_entries.emplace(std::move(key), std::move(entry));
 	}
@@ -155,18 +142,18 @@ void CResourceRegistry::Finalize()
 	m_rootDirectory = File::NULL_PATH;
 }
 
-SafePtr<IAsset> CResourceRegistry::Get(std::string_view key) const
+IAsset* CResourceRegistry::Get(std::string_view key) const
 {
 	auto it = m_entries.find(std::string(key));
-	return it != m_entries.end() ? it->second.Asset : SafePtr<IAsset>();
+	return it != m_entries.end() ? it->second.Asset.Get() : nullptr;
 }
 
-SafePtr<CSpriteAsset> CResourceRegistry::GetSprite(std::string_view key) const
+CSpriteAsset* CResourceRegistry::GetSprite(std::string_view key) const
 {
-	SafePtr<IAsset> asset = Get(key);
-	if (false == asset.IsValid()) return SafePtr<CSpriteAsset>();
-	if (EAssetType::Sprite != asset->GetAssetType()) return SafePtr<CSpriteAsset>();
-	return DynamicSafePtrCast<CSpriteAsset>(asset);
+	IAsset* asset = Get(key);
+	if (nullptr == asset) return nullptr;
+	if (EAssetType::Sprite != asset->GetAssetType()) return nullptr;
+	return static_cast<CSpriteAsset*>(asset);
 }
 
 const File::Path& CResourceRegistry::GetPath(std::string_view key) const

@@ -19,6 +19,7 @@
 #include "Core/Platform/IPlatform.h"
 #include "Core/Platform/IRenderSurface.h"
 #include "Core/Renderer/Forward2DRenderer.h"
+#include "Core/Renderer/RenderResourceCache.h"
 #include "Core/Renderer/RenderScene.h"
 #include "Core/Platform/Windows/WindowsPlatform.h"
 #include "Core/Platform/Web/WebPlatform.h"
@@ -511,6 +512,8 @@ bool CEngine::InitializeRenderer()
 		return false;
 	}
 
+	m_renderResourceCache = MakeOwnerPtr<CRenderResourceCache>(GetRHIDevice());
+
 	RendererDesc desc;
 	desc.RHIDevice = GetRHIDevice();
 	return m_renderer->Initialize(desc);
@@ -702,6 +705,7 @@ void CEngine::SyncEngineCore()
 	Engine.Audio = GetAudioDevice();
 	Engine.Renderer = GetRenderer();
 	Engine.RenderScene = GetRenderScene();
+	Engine.RenderResourceCache = m_renderResourceCache ? m_renderResourceCache.GetSafePtr() : nullptr;
 	Engine.Debug = m_debug ? m_debug.GetSafePtr() : nullptr;
 	Engine.Time = m_time ? m_time.GetSafePtr() : nullptr;
 	Engine.Input = m_input ? m_input.GetSafePtr() : nullptr;

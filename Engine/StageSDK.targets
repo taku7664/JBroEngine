@@ -96,7 +96,18 @@
           DestinationFolder="$(_SDKLib)$(_SDKLibConfig)\"
           SkipUnchangedFiles="true" />
 
-    <Message Text="[SDK Stage] $(Configuration) -> SDK\Include\ + SDK\Lib\$(_SDKLibConfig)\Engine.lib"
+    <!-- yaml-cpp prebuilt lib -> SDK/Lib/{Debug|Release}/
+         Engine.lib 가 yaml-cpp 심볼을 외부로 남기므로 게임 DLL 도 함께 링크해야 한다. -->
+    <Copy SourceFiles="$(_EngineDir)ThirdParty\lib\yaml-cppd.lib"
+          DestinationFolder="$(_SDKLib)Debug\"
+          SkipUnchangedFiles="true"
+          Condition="'$(_SDKLibConfig)'=='Debug'" />
+    <Copy SourceFiles="$(_EngineDir)ThirdParty\lib\yaml-cpp.lib"
+          DestinationFolder="$(_SDKLib)Release\"
+          SkipUnchangedFiles="true"
+          Condition="'$(_SDKLibConfig)'=='Release'" />
+
+    <Message Text="[SDK Stage] $(Configuration) -> SDK\Include\ + SDK\Lib\$(_SDKLibConfig)\Engine.lib + yaml-cpp"
              Importance="high" />
   </Target>
 

@@ -90,11 +90,11 @@ namespace
     {
         if (spriteGuid == INVALID_ASSET_GUID) return {};
 
-        SafePtr<IAsset> assetPtr = mgr.FindLoadedAsset(spriteGuid);
+        AssetRef<IAsset> assetPtr = mgr.FindLoadedAsset(spriteGuid);
         if (!assetPtr || EAssetType::Sprite != assetPtr->GetAssetType()) return {};
 
         ResolvedTexture r;
-        r.tex = static_cast<const CSpriteAsset*>(assetPtr.TryGet());
+        r.tex = static_cast<const CSpriteAsset*>(assetPtr.Get());
         if (!r.tex) return {};
 
         r.fW = r.tex->GetWidth();

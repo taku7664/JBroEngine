@@ -4,6 +4,9 @@
 #include "Core/Core.h"
 #include "Core/Asset/AssetMetaFile.h"
 #include "Core/Asset/AssetPath.h"
+#include "Core/Asset/AssetRef.inl"
+#include "Core/Asset/AudioAsset.h"
+#include "Core/Asset/SpriteAsset.h"
 
 #include <algorithm>
 #include <cwctype>
@@ -279,71 +282,93 @@ bool CAssetManager::ResolveAssetPath(const File::Path& path, File::Path& outReso
 	return true;
 }
 
-SafePtr<IAsset> CAssetManager::FindLoadedAsset(const AssetGuid& guid) const
+AssetRef<IAsset> CAssetManager::FindLoadedAsset(const AssetGuid& guid)
 {
 	std::lock_guard lock(m_mutex);
 	auto it = m_loadedAssetTable.find(guid);
-	if (it == m_loadedAssetTable.end())
-	{
-		return nullptr;
-	}
-
-	return it->second.GetSafePtr();
+	if (it == m_loadedAssetTable.end()) return AssetRef<IAsset>();
+	return AssetRef<IAsset>(SafeFromThis(), guid, it->second.Get());
 }
 
-SafePtr<IAsset> CAssetManager::LoadAsset(const AssetGuid& guid)
+AssetRef<IAsset> CAssetManager::LoadAsset(const AssetGuid& guid)
 {
 	std::lock_guard lock(m_mutex);
 
 	auto it = m_loadedAssetTable.find(guid);
 	if (it != m_loadedAssetTable.end())
 	{
-		return it->second.GetSafePtr();
+		return AssetRef<IAsset>(SafeFromThis(), guid, it->second.Get());
 	}
 
 	const AssetMetaData* metaData = m_registry.FindAsset(guid);
-	if (nullptr == metaData)
-	{
-		return nullptr;
-	}
+	if (nullptr == metaData) return AssetRef<IAsset>();
 
 	OwnerPtr<IAsset> asset = LoadAssetInternal(*metaData);
-	if (!asset)
-	{
-		return nullptr;
-	}
+	if (!asset) return AssetRef<IAsset>();
 
-	SafePtr<IAsset> safeAsset = asset.GetSafePtr();
+	IAsset* raw = asset.Get();
 	m_loadedAssetTable.emplace(guid, std::move(asset));
-	return safeAsset;
+	return AssetRef<IAsset>(SafeFromThis(), guid, raw);
 }
 
-SafePtr<IAsset> CAssetManager::LoadAssetByPath(const File::Path& path)
+AssetRef<IAsset> CAssetManager::LoadAssetByPath(const File::Path& path)
 {
 	const AssetMetaData* metaData = m_registry.FindAssetByPath(path);
-	if (nullptr == metaData)
-	{
-		return nullptr;
-	}
-
+	if (nullptr == metaData) return AssetRef<IAsset>();
 	return LoadAsset(metaData->Guid);
 }
 
-SafePtr<IAsset> CAssetManager::ReloadAsset(const AssetGuid& guid)
+AssetRef<IAsset> CAssetManager::ReloadAsset(const AssetGuid& guid)
 {
 	std::lock_guard lock(m_mutex);
-	UnloadAsset(guid);
-	return LoadAsset(guid);
-}
 
-SafePtr<IAsset> CAssetManager::ReloadAssetByPath(const File::Path& path)
-{
-	const AssetMetaData* metaData = m_registry.FindAssetByPath(path);
-	if (nullptr == metaData)
+	// in-place data swap 시도 — 자산이 이미 로드되어 있고 loader 가 ReloadInto 를 지원하면
+	// 같은 객체에 새 디스크 상태를 덮어쓴다. 외부 AssetRef / 머티리얼 캐시가 모두 살아남는다.
+	auto it = m_loadedAssetTable.find(guid);
+	if (it != m_loadedAssetTable.end())
 	{
-		return nullptr;
+		const AssetMetaData* meta = m_registry.FindAsset(guid);
+		if (meta)
+		{
+			if (IAssetLoader* loader = FindLoader(it->second->GetAssetType()))
+			{
+				if (loader->ReloadInto(*it->second, *meta))
+				{
+					return AssetRef<IAsset>(SafeFromThis(), guid, it->second.Get());
+				}
+			}
+		}
 	}
 
+	// fallback — in-place 가 안 되거나 자산이 없으면 unload (use-count 무시 강제) + load.
+	// 외부 AssetRef 의 m_asset 캐시가 dangling 되지만 ReleaseUseCount 는 GUID 기반이라
+	// AssetRef 소멸 시 정상 ref-- 수행. 다음 LoadAsset 호출자가 새 객체를 얻는다.
+	auto assetIt = m_loadedAssetTable.find(guid);
+	if (assetIt != m_loadedAssetTable.end())
+	{
+		if (IAssetLoader* loader = FindLoader(assetIt->second->GetAssetType()))
+		{
+			loader->Unload(*assetIt->second);
+		}
+		m_loadedAssetTable.erase(assetIt);
+	}
+
+	// 직접 LoadAsset 흐름 (재진입 대신 인라인).
+	const AssetMetaData* metaData = m_registry.FindAsset(guid);
+	if (nullptr == metaData) return AssetRef<IAsset>();
+
+	OwnerPtr<IAsset> asset = LoadAssetInternal(*metaData);
+	if (!asset) return AssetRef<IAsset>();
+
+	IAsset* raw = asset.Get();
+	m_loadedAssetTable.emplace(guid, std::move(asset));
+	return AssetRef<IAsset>(SafeFromThis(), guid, raw);
+}
+
+AssetRef<IAsset> CAssetManager::ReloadAssetByPath(const File::Path& path)
+{
+	const AssetMetaData* metaData = m_registry.FindAssetByPath(path);
+	if (nullptr == metaData) return AssetRef<IAsset>();
 	return ReloadAsset(metaData->Guid);
 }
 
@@ -352,6 +377,14 @@ void CAssetManager::UnloadAsset(const AssetGuid& guid)
 	std::lock_guard lock(m_mutex);
 	auto assetIt = m_loadedAssetTable.find(guid);
 	if (assetIt == m_loadedAssetTable.end())
+	{
+		return;
+	}
+
+	// use-count > 0 인 자산은 사용 중 — unload 거부.
+	// AssetRef 들이 다 죽으면 자연스럽게 다음 unload 시점에 정리됨.
+	auto useIt = m_useCountTable.find(guid);
+	if (useIt != m_useCountTable.end() && useIt->second > 0)
 	{
 		return;
 	}
@@ -685,11 +718,19 @@ bool CAssetManager::SetAssetPersistent(const AssetGuid& guid, bool isPersistent)
 void CAssetManager::UnloadNonPersistentAssets()
 {
 	std::lock_guard lock(m_mutex);
-	// 1) 로드된 자산 중 non-persistent 만 unload.
+	// 1) 로드된 자산 중 non-persistent + use-count == 0 인 것만 unload.
+	//    use-count > 0 (씬/인스펙터가 사용 중) 인 자산은 보호.
 	for (auto it = m_loadedAssetTable.begin(); it != m_loadedAssetTable.end(); )
 	{
 		const AssetMetaData* meta = m_registry.FindAsset(it->first);
 		if (meta && meta->IsPersistent)
+		{
+			++it;
+			continue;
+		}
+
+		auto useIt = m_useCountTable.find(it->first);
+		if (useIt != m_useCountTable.end() && useIt->second > 0)
 		{
 			++it;
 			continue;
@@ -703,15 +744,39 @@ void CAssetManager::UnloadNonPersistentAssets()
 	}
 
 	// 2) Registry 에서 non-persistent 제거. snapshot 후 순회 (erase 안전성).
+	//    use-count > 0 인 자산은 레지스트리에서도 보호 (불러올 수 있어야 함).
 	AssetRegistrySnapshot snapshot;
 	m_registry.BuildSnapshot(snapshot);
 	for (const AssetMetaData& meta : snapshot.Assets)
 	{
-		if (false == meta.IsPersistent)
-		{
-			m_registry.UnregisterAsset(meta.Guid);
-		}
+		if (meta.IsPersistent) continue;
+		auto useIt = m_useCountTable.find(meta.Guid);
+		if (useIt != m_useCountTable.end() && useIt->second > 0) continue;
+		m_registry.UnregisterAsset(meta.Guid);
 	}
+}
+
+// AssetRef<T> 의 멤버 함수 instantiation — 사용처 .cpp 가 AssetRef.inl 을 별도 include 하지
+// 않아도 링크 단계에서 해소되도록, 자주 쓰이는 T 들을 여기서 명시적으로 instantiate.
+template class AssetRef<IAsset>;
+template class AssetRef<CSpriteAsset>;
+template class AssetRef<CAudioAsset>;
+template AssetRef<CSpriteAsset> StaticAssetRefCast<CSpriteAsset>(const AssetRef<IAsset>&);
+template AssetRef<CAudioAsset>  StaticAssetRefCast<CAudioAsset>(const AssetRef<IAsset>&);
+
+void CAssetManager::AcquireAssetUseCount(const AssetGuid& guid)
+{
+	std::lock_guard lock(m_mutex);
+	++m_useCountTable[guid];
+}
+
+void CAssetManager::ReleaseAssetUseCount(const AssetGuid& guid)
+{
+	std::lock_guard lock(m_mutex);
+	auto it = m_useCountTable.find(guid);
+	if (it == m_useCountTable.end()) return;
+	if (it->second > 0) --it->second;
+	if (0 == it->second) m_useCountTable.erase(it);
 }
 
 void CAssetManager::UnloadAllAssets()

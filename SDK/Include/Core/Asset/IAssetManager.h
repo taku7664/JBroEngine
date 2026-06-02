@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Core/Asset/AssetRef.h"
 #include "Core/Asset/AssetTypes.h"
 #include "Utillity/Pointer/SafePtr.h"
 
@@ -27,10 +28,10 @@ public:
 	virtual const File::Path& GetAssetRootPath() const = 0;
 	virtual bool ResolveAssetPath(const File::Path& path, File::Path& outResolvedPath) const = 0;
 
-	virtual SafePtr<IAsset> FindLoadedAsset(const AssetGuid& guid) const = 0;
-	virtual SafePtr<IAsset> LoadAsset(const AssetGuid& guid) = 0;
-	virtual SafePtr<IAsset> LoadAssetByPath(const File::Path& path) = 0;
-	virtual SafePtr<IAsset> ReloadAsset(const AssetGuid& guid) = 0;
+	virtual AssetRef<IAsset> FindLoadedAsset(const AssetGuid& guid) = 0;
+	virtual AssetRef<IAsset> LoadAsset(const AssetGuid& guid) = 0;
+	virtual AssetRef<IAsset> LoadAssetByPath(const File::Path& path) = 0;
+	virtual AssetRef<IAsset> ReloadAsset(const AssetGuid& guid) = 0;
 
 	// ── path-only 등록 (.Jmeta 없이) ──────────────────────────────────────────
 	// 자산을 path + type 만으로 in-memory registry 에 등록한다. .Jmeta 디스크 저장 X.
@@ -46,7 +47,7 @@ public:
 	// IsPersistent == false 인 자산만 unload + registry 에서 제거.
 	// 프로젝트 닫힘 등 "한 작업 단위 끝" 시점에 호출. Persistent 자산은 보존된다.
 	virtual void UnloadNonPersistentAssets() = 0;
-	virtual SafePtr<IAsset> ReloadAssetByPath(const File::Path& path) = 0;
+	virtual AssetRef<IAsset> ReloadAssetByPath(const File::Path& path) = 0;
 	virtual void UnloadAsset(const AssetGuid& guid) = 0;
 	virtual bool UnregisterAssetByPath(const File::Path& path, bool unloadIfLoaded) = 0;
 
@@ -58,4 +59,11 @@ public:
 	virtual bool MoveAssetPath(const File::Path& oldPath, const File::Path& newPath) = 0;
 	virtual bool BuildAssetPackage(const AssetPackageBuildDesc& desc) = 0;
 	virtual bool LoadPackedAssetManifest(const File::Path& manifestPath) = 0;
+
+	// ── 자산 use-count (AssetRef 가 호출) ────────────────────────────────────
+	// AssetRef<T> 가 생성/소멸될 때 자동 호출. 사용자가 직접 부르지 않음.
+	// use-count > 0 인 자산은 Unload / UnloadNonPersistentAssets 에서 스킵된다.
+	// ReloadAsset 은 in-place data swap 이므로 use-count 와 무관.
+	virtual void AcquireAssetUseCount(const AssetGuid& guid) = 0;
+	virtual void ReleaseAssetUseCount(const AssetGuid& guid) = 0;
 };

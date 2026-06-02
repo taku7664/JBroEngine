@@ -292,8 +292,8 @@ bool CGameApplication::LoadRuntimeStartupScene(const BuildManifest& manifest)
 	ESceneSerializeResult loadResult = ESceneSerializeResult::IoError;
 	if (false == startupSceneGuid.IsNull())
 	{
-		SafePtr<IAsset> sceneAsset = assetManager->LoadAsset(startupSceneGuid);
-		const CFileAsset* fileAsset = sceneAsset.IsValid() ? dynamic_cast<const CFileAsset*>(sceneAsset.TryGet()) : nullptr;
+		AssetRef<IAsset> sceneAsset = assetManager->LoadAsset(startupSceneGuid);
+		const CFileAsset* fileAsset = sceneAsset.IsValid() ? dynamic_cast<const CFileAsset*>(sceneAsset.Get()) : nullptr;
 		if (nullptr != fileAsset)
 		{
 			std::string_view sceneText = fileAsset->GetText();

@@ -8,6 +8,7 @@
 #include "Engine/Editor/Project/ProjectManager.h"
 #include "Engine/Core/Core.h"
 #include "Engine/Core/EngineCore.h"
+#include "Engine/Core/Renderer/IRenderResourceCache.h"
 #include "Engine/GameFramework/Reflection/ReflectionRegistry.h" // 스크립트 타입 목록(팝업 Ref 옵션)
 #include "Engine/Core/Asset/AssetPath.h"
 #include "Engine/Core/Asset/IAssetManager.h"
@@ -369,16 +370,22 @@ namespace
 		    || ext == ".bmp" || ext == ".tga";
 	}
 
-	// SpriteAsset 의 GPU 텍스처 핸들 → ImTextureID.  GPU 텍스처 없으면 0 반환.
-	ImTextureID GetSpriteImTexture(const SafePtr<CSpriteAsset>& sprite)
+	// SpriteAsset 의 GPU 텍스처 핸들 → ImTextureID. cache 에 없으면 lazy 생성.
+	ImTextureID GetSpriteImTexture(CSpriteAsset* sprite)
 	{
-		if (false == sprite.IsValid())
-			return 0;
-		SafePtr<IRHITexture> tex = sprite->GetGpuTexture();
-		if (false == tex.IsValid())
-			return 0;
+		if (nullptr == sprite) return 0;
+		if (false == Engine.RenderResourceCache.IsValid()) return 0;
+		SafePtr<IRHITexture> tex = Engine.RenderResourceCache->AcquireSpriteTexture(sprite->GetGuid(), *sprite);
+		if (false == tex.IsValid()) return 0;
 		void* srv = tex->GetNativeHandle().ShaderResourceView;
 		return reinterpret_cast<ImTextureID>(srv);
+	}
+
+	// AssetBrowserEntry 의 두 가지 썸네일 소스(AssetRef 또는 ResourceRegistry raw) 중 라이브한 쪽 반환.
+	CSpriteAsset* PickEntryThumbnail(const AssetBrowserEntry& entry)
+	{
+		if (entry.Thumbnail.IsValid()) return entry.Thumbnail.Get();
+		return entry.ThumbnailRaw;
 	}
 
 	// entry 에 SafePtr<CSpriteAsset> 썸네일을 채워둔다 (RefreshCurrentFolderEntries 에서 1회).
@@ -399,23 +406,24 @@ namespace
 			if (assetManager.IsValid())
 			{
 				assetManager->RegisterAssetByPath(entry.AbsolutePath, EAssetType::Sprite, /*isPersistent*/ false);
-				SafePtr<IAsset> asset = assetManager->LoadAssetByPath(entry.AbsolutePath);
+				AssetRef<IAsset> asset = assetManager->LoadAssetByPath(entry.AbsolutePath);
 				if (asset.IsValid() && EAssetType::Sprite == asset->GetAssetType())
 				{
-					entry.Thumbnail = DynamicSafePtrCast<CSpriteAsset>(asset);
+					entry.Thumbnail = StaticAssetRefCast<CSpriteAsset>(asset);
 				}
 			}
 		}
 
-		if (false == entry.Thumbnail.IsValid())
+		if (false == entry.Thumbnail.IsValid() && nullptr == entry.ThumbnailRaw)
 		{
-			entry.Thumbnail = Core::ResourceRegistry->GetSprite(GetIconResourceKey(entry));
+			entry.ThumbnailRaw = Core::ResourceRegistry->GetSprite(GetIconResourceKey(entry));
 		}
 
-		// GPU 텍스처가 아직 없으면 lazy 생성.
-		if (entry.Thumbnail.IsValid() && Engine.RHIDevice.IsValid())
+		// GPU 텍스처가 아직 없으면 lazy 생성 (cache 경유).
+		CSpriteAsset* thumb = entry.Thumbnail.IsValid() ? entry.Thumbnail.Get() : entry.ThumbnailRaw;
+		if (thumb && Engine.RenderResourceCache.IsValid())
 		{
-			entry.Thumbnail->EnsureGpuTexture(*Engine.RHIDevice);
+			Engine.RenderResourceCache->AcquireSpriteTexture(thumb->GetGuid(), *thumb);
 		}
 	}
 
@@ -428,7 +436,7 @@ namespace
 		desc.Type              = entry.Type;
 		desc.IsDirectory       = entry.IsDirectory;
 		desc.PreviewLabel      = entry.DisplayNameUtf8.c_str();
-		desc.PreviewTextureID  = GetSpriteImTexture(entry.Thumbnail);
+		desc.PreviewTextureID  = GetSpriteImTexture(PickEntryThumbnail(entry));
 		desc.PreviewSize       = 56.0f;
 		return EditorDragDrop::BeginAssetDragDropSource(desc);
 	}
@@ -1332,7 +1340,7 @@ void CAssetBrowserTool::DrawListEntries()
 				ImGui::TableNextRow();
 				ImGui::TableSetColumnIndex(0);
 
-				const ImTextureID iconTex = GetSpriteImTexture(entry.Thumbnail);
+				const ImTextureID iconTex = GetSpriteImTexture(PickEntryThumbnail(entry));
 				const float       lineH   = ImGui::GetTextLineHeight();
 				if (0 != iconTex)
 				{
@@ -1480,7 +1488,7 @@ void CAssetBrowserTool::DrawIconEntries()
 				                     startPos.y + row    * ICON_CELL_HEIGHT);
 				ImGui::SetCursorScreenPos(cellPos);
 
-				const ImTextureID iconTex = GetSpriteImTexture(entry.Thumbnail);
+				const ImTextureID iconTex = GetSpriteImTexture(PickEntryThumbnail(entry));
 				const bool isRenamingThis = m_isRenaming && entry.AbsolutePath == m_renamingPath;
 
 				if (isRenamingThis)

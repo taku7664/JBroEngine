@@ -1,8 +1,6 @@
 #include "pch.h"
 #include "SpriteAsset.h"
 
-#include "Core/RHI/IRHIDevice.h"
-
 #include "yaml-cpp/yaml.h"
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -69,30 +67,6 @@ std::uint32_t CSpriteAsset::GetWidth()  const { return m_width; }
 std::uint32_t CSpriteAsset::GetHeight() const { return m_height; }
 const std::vector<std::uint8_t>& CSpriteAsset::GetPixels() const { return m_pixels; }
 
-SafePtr<IRHITexture> CSpriteAsset::GetGpuTexture() const
-{
-	return m_gpuTexture.GetSafePtr();
-}
-
-bool CSpriteAsset::EnsureGpuTexture(IRHIDevice& device)
-{
-	if (m_gpuTexture)
-	{
-		return true;
-	}
-	if (m_pixels.empty() || 0 == m_width || 0 == m_height)
-	{
-		return false;
-	}
-
-	RHITexture2DDesc desc;
-	desc.Width  = m_width;
-	desc.Height = m_height;
-	desc.Format = ERHITextureFormat::RGBA8;
-	m_gpuTexture = device.CreateTexture2D(desc, m_pixels.data());
-	return static_cast<bool>(m_gpuTexture);
-}
-
 const SpriteImportOptions& CSpriteAsset::GetImportOptions() const { return m_importOptions; }
 const std::vector<SpriteFrame>& CSpriteAsset::GetFrames() const { return m_frames; }
 
@@ -100,6 +74,15 @@ void CSpriteAsset::SetImportData(const SpriteImportOptions& options, std::vector
 {
 	m_importOptions = options;
 	m_frames = std::move(frames);
+}
+
+void CSpriteAsset::ReplacePixels(std::uint32_t width, std::uint32_t height, std::vector<std::uint8_t>&& pixels)
+{
+	m_width  = width;
+	m_height = height;
+	m_pixels = std::move(pixels);
+	// GPU 텍스처는 RenderResourceCache 가 따로 invalidate 한다 (자산이 GPU 를 소유하지 않음).
+	// reload 경로(CAssetManager::ReloadAsset)가 cache->InvalidateSpriteTexture(guid) 호출.
 }
 
 float CSpriteAsset::GetEffectivePixelsPerUnit(float fallback) const
@@ -302,4 +285,39 @@ OwnerPtr<IAsset> CSpriteAssetLoader::Load(const AssetLoadDesc& desc)
 void CSpriteAssetLoader::Unload(IAsset& asset)
 {
 	(void)asset;
+}
+
+bool CSpriteAssetLoader::ReloadInto(IAsset& existing, const AssetMetaData& metaData)
+{
+	if (EAssetType::Sprite != existing.GetAssetType()) return false;
+	CSpriteAsset& sprite = static_cast<CSpriteAsset&>(existing);
+
+	// 1) raw 파일 재로드. 디스크에 파일이 없거나 디코드 실패면 옵션만 갱신하고 픽셀은 보존.
+	bool pixelsReplaced = false;
+	if (false == metaData.Path.empty())
+	{
+		const std::string resolved = metaData.Path.string();
+		int w = 0, h = 0, channels = 0;
+		stbi_uc* pixels = stbi_load(resolved.c_str(), &w, &h, &channels, 4);
+		if (pixels && w > 0 && h > 0)
+		{
+			const std::size_t byteCount = static_cast<std::size_t>(w) * h * 4;
+			std::vector<std::uint8_t> data(byteCount);
+			std::memcpy(data.data(), pixels, byteCount);
+			sprite.ReplacePixels(
+				static_cast<std::uint32_t>(w),
+				static_cast<std::uint32_t>(h),
+				std::move(data));
+			pixelsReplaced = true;
+		}
+		if (pixels) stbi_image_free(pixels);
+	}
+
+	// 2) ImportOptions + frames 재계산. 픽셀 폭/높이가 바뀌었으면 frames 도 새 크기에 맞춰짐.
+	const SpriteImportOptions options = CSpriteImportOptions::FromYaml(metaData.ImportOptionsYaml);
+	sprite.SetImportData(options, CSpriteImportOptions::BuildFrames(
+		sprite.GetWidth(), sprite.GetHeight(), options));
+
+	(void)pixelsReplaced;
+	return true;
 }

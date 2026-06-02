@@ -8,6 +8,7 @@
 #include "Engine/Core/Asset/SpriteAsset.h"
 #include "Engine/Core/Asset/AudioAsset.h"
 #include "Engine/Core/EngineCore.h"
+#include "Engine/Core/Renderer/IRenderResourceCache.h"
 #include "Engine/Core/Localization/LocalizationManager.h"
 #include "Engine/Core/RHI/IRHIDevice.h"
 #include "Engine/Core/RHI/IRHITexture.h"
@@ -45,22 +46,22 @@ namespace
             SafePtr<IAssetManager> am = GetAssetManager();
             if (false == am.IsValid()) return false;
 
-            SafePtr<IAsset> asset = am->LoadAsset(metaData.Guid);
+            AssetRef<IAsset> asset = am->LoadAsset(metaData.Guid);
             if (false == asset.IsValid() || EAssetType::Sprite != asset->GetAssetType())
             {
                 return false;
             }
 
-            CSpriteAsset* sprite = static_cast<CSpriteAsset*>(asset.TryGet());
+            CSpriteAsset* sprite = static_cast<CSpriteAsset*>(asset.Get());
             const std::uint32_t w = sprite->GetWidth();
             const std::uint32_t h = sprite->GetHeight();
             if (0 == w || 0 == h) return false;
 
-            if (Engine.RHIDevice.IsValid())
+            SafePtr<IRHITexture> tex = nullptr;
+            if (Engine.RenderResourceCache.IsValid())
             {
-                sprite->EnsureGpuTexture(*Engine.RHIDevice);
+                tex = Engine.RenderResourceCache->AcquireSpriteTexture(sprite->GetGuid(), *sprite);
             }
-            SafePtr<IRHITexture> tex = sprite->GetGpuTexture();
             if (false == tex.IsValid()) return false;
 
             const void* srv = tex->GetNativeHandle().ShaderResourceView;
@@ -110,10 +111,10 @@ namespace
             SafePtr<IAssetManager> am = GetAssetManager();
             if (false == am.IsValid()) return;
 
-            SafePtr<IAsset> asset = am->LoadAsset(metaData.Guid);
+            AssetRef<IAsset> asset = am->LoadAsset(metaData.Guid);
             if (false == asset.IsValid() || EAssetType::Audio != asset->GetAssetType()) return;
 
-            CAudioAsset* audio = static_cast<CAudioAsset*>(asset.TryGet());
+            CAudioAsset* audio = static_cast<CAudioAsset*>(asset.Get());
             if (audio->IsStreaming())
             {
                 m_isStreaming = true;

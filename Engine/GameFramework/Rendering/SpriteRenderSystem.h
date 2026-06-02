@@ -9,6 +9,7 @@
 class IRenderScene;
 class IRenderMaterial;
 class IRenderer;
+class IRenderResourceCache;
 class IAssetManager;
 class IRHIDevice;
 class CForward2DRenderer;

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Core/Asset/AssetRef.h"
 #include "Core/Asset/AssetTypes.h"
 #include "Utillity/Pointer/SafePtr.h"
 
@@ -35,9 +36,10 @@ public:
 	                SafePtr<IRHIDevice>    rhiDevice);
 	void Finalize();
 
-	// 키 → 자산. 등록되지 않은 키면 nullptr.
-	SafePtr<IAsset>        Get      (std::string_view key) const;
-	SafePtr<CSpriteAsset>  GetSprite(std::string_view key) const;
+	// 키 → 자산. 등록되지 않은 키면 nullptr. ResourceRegistry 가 strong AssetRef 로
+	// 보유하므로 반환된 포인터는 ResourceRegistry 가 살아있는 동안 안전.
+	IAsset*        Get      (std::string_view key) const;
+	CSpriteAsset*  GetSprite(std::string_view key) const;
 
 	// 키 → 절대경로. 등록되지 않은 키면 File::NULL_PATH.
 	const File::Path& GetPath(std::string_view key) const;
@@ -49,7 +51,7 @@ private:
 	{
 		File::Path       Path;          // 절대경로 (rootDirectory + relative)
 		EAssetType       Type = EAssetType::Unknown;
-		SafePtr<IAsset>  Asset;         // AssetManager 로드 결과 캐시
+		AssetRef<IAsset> Asset;         // AssetManager 로드 결과 캐시 (strong ref — 영구 보호)
 	};
 
 	// 확장자에서 자산 타입 추론.

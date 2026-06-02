@@ -104,6 +104,10 @@ public:
 	const std::vector<SpriteFrame>& GetFrames() const;
 	void SetImportData(const SpriteImportOptions& options, std::vector<SpriteFrame>&& frames);
 
+	// raw 픽셀까지 in-place 교체. GPU 텍스처는 invalidate (다음 EnsureGpuTexture 가 재생성).
+	// width/height/pixels 가 새 디스크 상태로 덮어씌워진다.
+	void ReplacePixels(std::uint32_t width, std::uint32_t height, std::vector<std::uint8_t>&& pixels);
+
 	// 자산이 실제 사용할 PPU. 임포트 옵션의 PixelsPerUnit 가 0 이면 fallback 사용.
 	// fallback 은 보통 프로젝트의 Default PPU. 둘 다 0 이하면 1.0f 로 안전 폴백.
 	float GetEffectivePixelsPerUnit(float fallback) const;
@@ -127,4 +131,6 @@ public:
 	bool CanLoad(const AssetLoadDesc& desc) const override;
 	OwnerPtr<IAsset> Load(const AssetLoadDesc& desc) override;
 	void Unload(IAsset& asset) override;
+	// in-place reload: 메타 옵션 + raw 파일 재로드 모두 같은 자산 객체에 반영.
+	bool ReloadInto(IAsset& existing, const AssetMetaData& metaData) override;
 };

@@ -7,6 +7,7 @@
 #include "Core/Renderer/Forward2DRenderer.h"
 #include "Core/Renderer/IRenderMaterial.h"
 #include "Core/Renderer/IRenderMesh.h"
+#include "Core/Renderer/IRenderResourceCache.h"
 #include "Core/Renderer/IRenderScene.h"
 #include "Core/Renderer/RenderResources2D.h"
 #include "Core/Renderer/RendererTypes.h"
@@ -65,28 +66,34 @@ void CSpriteRenderSystem::OnUpdate(CScene& scene)
 			CForward2DRenderer* forwardRenderer = dynamic_cast<CForward2DRenderer*>(m_renderer);
 
 			// SpriteGuid 는 CSpriteAsset 을 가리킨다 (이전 CTextureAsset 통합됨).
-			// 자산 캐시 — SpriteGuid 가 바뀌었거나 캐시된 SafePtr 가 죽었을 때만 LoadAsset 호출.
-			// 정상 흐름에서는 매 프레임 AssetManager mutex 진입을 피한다.
+			// 자산 캐시 — SpriteGuid 가 바뀌었거나 캐시가 죽었을 때만 LoadAsset 호출.
+			// AssetRef 가 strong 이라 캐시가 살아있는 동안 자산이 unload 되지 않음.
 			if (sprite.CachedSpriteGuid != sprite.SpriteGuid || false == sprite.SpriteAssetCache.IsValid())
 			{
-				sprite.SpriteAssetCache = m_assetManager ? m_assetManager->LoadAsset(sprite.SpriteGuid) : nullptr;
+				if (m_assetManager) sprite.SpriteAssetCache = m_assetManager->LoadAsset(sprite.SpriteGuid);
+				else                sprite.SpriteAssetCache.Reset();
 				sprite.CachedSpriteGuid = sprite.SpriteGuid;
 			}
 
 			CSpriteAsset* spriteAsset = nullptr;
 			if (sprite.SpriteAssetCache.IsValid() && EAssetType::Sprite == sprite.SpriteAssetCache->GetAssetType())
 			{
-				spriteAsset = static_cast<CSpriteAsset*>(sprite.SpriteAssetCache.TryGet());
+				spriteAsset = static_cast<CSpriteAsset*>(sprite.SpriteAssetCache.Get());
 			}
 
 			if ((false == mesh.IsValid() || false == material.IsValid()) && m_rhiDevice && forwardRenderer)
 			{
-				if (spriteAsset && spriteAsset->EnsureGpuTexture(*m_rhiDevice))
+				SafePtr<IRHITexture> gpuTexture = nullptr;
+				if (spriteAsset && Engine.RenderResourceCache.IsValid())
+				{
+					gpuTexture = Engine.RenderResourceCache->AcquireSpriteTexture(spriteAsset->GetGuid(), *spriteAsset);
+				}
+				if (gpuTexture.IsValid())
 				{
 					mesh = forwardRenderer->GetQuadMesh();
 					OwnerPtr<CRenderMaterial> generatedMaterial = MakeOwnerPtr<CRenderMaterial>(
 						forwardRenderer->GetSpritePipeline(),
-						spriteAsset->GetGpuTexture(),
+						gpuTexture,
 						forwardRenderer->GetDefaultSampler(),
 						ERenderQueue::Transparent);
 					material = generatedMaterial.GetSafePtr();

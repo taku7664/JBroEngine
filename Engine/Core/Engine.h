@@ -15,6 +15,7 @@ class IAssetManager;
 class IAudioDevice;
 class IRenderer;
 class IRenderScene;
+class IRenderResourceCache;
 class CSceneManager;
 class CNetworkManager;
 class CDebugDraw2D;
@@ -86,6 +87,7 @@ private:
 	OwnerPtr<IAssetManager>       m_assetManager;
 	OwnerPtr<IRenderer>           m_renderer;
 	OwnerPtr<IRenderScene>        m_renderScene;
+	OwnerPtr<IRenderResourceCache> m_renderResourceCache;
 	OwnerPtr<IAudioDevice>        m_audioDevice;
 	OwnerPtr<CTime>               m_time;
 	OwnerPtr<CInput>              m_input;

@@ -18,6 +18,8 @@
 #include "Engine/Core/Asset/IAssetRegistry.h"
 #include "Engine/Core/Asset/SpriteAsset.h"
 #include "Engine/Core/Asset/AudioAsset.h"
+#include "Engine/Core/EngineCore.h"
+#include "Engine/Core/Renderer/IRenderResourceCache.h"
 #include "Engine/Core/Resource/ResourceRegistry.h"
 #include "Engine/Core/RHI/IRHITexture.h"
 #include "Engine/Editor/ImEditor.h"
@@ -65,9 +67,10 @@ namespace
 		if (false == Core::ResourceRegistry.IsValid()) return 0;
 		const char* key = GetComponentIconKey(typeName);
 		if (nullptr == key) return 0;
-		SafePtr<CSpriteAsset> sprite = Core::ResourceRegistry->GetSprite(key);
-		if (false == sprite.IsValid()) return 0;
-		SafePtr<IRHITexture> tex = sprite->GetGpuTexture();
+CSpriteAsset* sprite = Core::ResourceRegistry->GetSprite(key);
+		if (nullptr == sprite) return 0;
+		if (false == Engine.RenderResourceCache.IsValid()) return 0;
+		SafePtr<IRHITexture> tex = Engine.RenderResourceCache->AcquireSpriteTexture(sprite->GetGuid(), *sprite);
 		if (false == tex.IsValid()) return 0;
 		return reinterpret_cast<ImTextureID>(tex->GetNativeHandle().ShaderResourceView);
 	}
@@ -699,7 +702,7 @@ namespace
 
 		// 자산이 이미 로드되어 있으면 자산이 자기 ImportOptions 를 in-place 갱신.
 		// 자산 객체는 destroy 되지 않으므로 외부 SafePtr(씬/인스펙터 미리보기 등) 가 살아남는다.
-		if (SafePtr<IAsset> loaded = assetManager->FindLoadedAsset(updatedMetaData.Guid))
+		if (AssetRef<IAsset> loaded = assetManager->FindLoadedAsset(updatedMetaData.Guid))
 		{
 			loaded->ApplyImportOptions(updatedMetaData.ImportOptionsYaml);
 		}
@@ -808,11 +811,11 @@ namespace
 		std::uint32_t textureHeight = 0;
 		if (assetManager)
 		{
-			if (SafePtr<IAsset> loadedAsset = assetManager->LoadAsset(metaData.Guid))
+			if (AssetRef<IAsset> loadedAsset = assetManager->LoadAsset(metaData.Guid))
 			{
 				if (EAssetType::Sprite == loadedAsset->GetAssetType())
 				{
-					CSpriteAsset* spriteAsset = static_cast<CSpriteAsset*>(loadedAsset.TryGet());
+					CSpriteAsset* spriteAsset = static_cast<CSpriteAsset*>(loadedAsset.Get());
 					textureWidth = spriteAsset ? spriteAsset->GetWidth() : 0;
 					textureHeight = spriteAsset ? spriteAsset->GetHeight() : 0;
 				}
@@ -859,7 +862,7 @@ namespace
 
 		// 자산이 이미 로드되어 있으면 자산이 자기 ImportOptions 를 in-place 갱신.
 		// 자산 객체는 destroy 되지 않으므로 외부 SafePtr(미리듣기 등) 가 살아남는다.
-		if (SafePtr<IAsset> loaded = assetManager->FindLoadedAsset(updatedMetaData.Guid))
+		if (AssetRef<IAsset> loaded = assetManager->FindLoadedAsset(updatedMetaData.Guid))
 		{
 			loaded->ApplyImportOptions(updatedMetaData.ImportOptionsYaml);
 		}
@@ -952,11 +955,11 @@ namespace
 		SafePtr<IAssetManager>   assetManager   = projectManager ? projectManager->GetAssetManager() : nullptr;
 		if (assetManager)
 		{
-			if (SafePtr<IAsset> loadedAsset = assetManager->LoadAsset(metaData.Guid))
+			if (AssetRef<IAsset> loadedAsset = assetManager->LoadAsset(metaData.Guid))
 			{
 				if (EAssetType::Audio == loadedAsset->GetAssetType())
 				{
-					CAudioAsset* audioAsset = static_cast<CAudioAsset*>(loadedAsset.TryGet());
+					CAudioAsset* audioAsset = static_cast<CAudioAsset*>(loadedAsset.Get());
 					if (audioAsset)
 					{
 						const AudioFormatInfo& fmt = audioAsset->GetFormat();

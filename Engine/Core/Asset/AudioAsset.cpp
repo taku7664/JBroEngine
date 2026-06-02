@@ -287,3 +287,12 @@ void CAudioAssetLoader::Unload(IAsset& asset)
 {
 	(void)asset;   // CAudioAsset 의 PCM vector / 경로 string 은 소멸자 자동 해제
 }
+
+bool CAudioAssetLoader::ReloadInto(IAsset& existing, const AssetMetaData& metaData)
+{
+	if (EAssetType::Audio != existing.GetAssetType()) return false;
+	CAudioAsset& audio = static_cast<CAudioAsset&>(existing);
+	// 옵션만 in-place 갱신. PCM/Stream raw 재로드는 현재 범위 외.
+	audio.SetImportOptions(CAudioImportOptions::FromYaml(metaData.ImportOptionsYaml));
+	return true;
+}

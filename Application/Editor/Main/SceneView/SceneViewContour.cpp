@@ -267,11 +267,11 @@ namespace
         std::uint32_t frameIndex)
     {
         if (spriteGuid == INVALID_ASSET_GUID) return {};
-        SafePtr<IAsset> asset = mgr.FindLoadedAsset(spriteGuid);
+        AssetRef<IAsset> asset = mgr.FindLoadedAsset(spriteGuid);
         if (!asset || EAssetType::Sprite != asset->GetAssetType()) return {};
 
         ResolvedTex r;
-        r.tex = static_cast<const CSpriteAsset*>(asset.TryGet());
+        r.tex = static_cast<const CSpriteAsset*>(asset.Get());
         if (!r.tex) return {};
         r.fW = r.tex->GetWidth();
         r.fH = r.tex->GetHeight();

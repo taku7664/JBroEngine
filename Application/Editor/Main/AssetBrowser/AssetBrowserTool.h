@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Engine/Core/Asset/AssetRef.h"
 #include "Engine/Core/Asset/AssetTypes.h"
 #include "Engine/Editor/ImWindow/ImWindow.h"   // CImWindow 기반 클래스
 #include "ThirdParty/imgui/imgui.h"            // ImGuiSelectionBasicStorage, ImGuiID (다중 선택)
@@ -36,10 +37,11 @@ struct AssetBrowserEntry
 	std::string ModifiedTimeText;       // "%F %T" 포맷된 시각
 
 	// 썸네일 / 아이콘.
-	// - 이미지 파일(.png/.jpg/...): 해당 SpriteAsset 을 직접 로드해 프리뷰로 사용.
-	// - 그 외(폴더/스크립트/씬/...): Core::ResourceRegistry 의 영구 아이콘을 참조.
-	// 두 경우 모두 SafePtr 만 보관하므로 entry 사본은 가볍다.
-	SafePtr<CSpriteAsset> Thumbnail;
+	// - 이미지 파일(.png/.jpg/...): 해당 SpriteAsset 을 직접 로드해 프리뷰. AssetRef 가 strong ref 로 보호.
+	// - 그 외(폴더/스크립트/씬/...): Core::ResourceRegistry 의 영구 아이콘 raw pointer (ResourceRegistry 가 영구 보유).
+	// 둘 중 하나만 유효 — Thumbnail.IsValid() 가 true 면 직접 로드, false 면 ThumbnailRaw 사용.
+	AssetRef<CSpriteAsset> Thumbnail;
+	CSpriteAsset*          ThumbnailRaw = nullptr;
 };
 
 class CAssetBrowserTool : public CImWindow

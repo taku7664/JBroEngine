@@ -65,10 +65,12 @@ IAsset* RefDetail::ResolveAsset(const char* assetGuid)
 	}
 	const File::Guid guid(assetGuid);
 	// 이미 로드돼 있으면 그것을, 아니면 로드한다(LoadAsset 은 멱등).
-	SafePtr<IAsset> asset = Engine.AssetManager->FindLoadedAsset(guid);
-	if (false == static_cast<bool>(asset))
+	// 주의: 여기서 반환되는 raw pointer 는 호출자가 strong ref 를 유지하지 않으므로
+	// 자산이 unload 될 수 있다. 스크립트가 이 포인터를 매번 다시 받는다는 가정 하에 동작.
+	AssetRef<IAsset> asset = Engine.AssetManager->FindLoadedAsset(guid);
+	if (false == asset.IsValid())
 	{
 		asset = Engine.AssetManager->LoadAsset(guid);
 	}
-	return asset.TryGet();
+	return asset.Get();
 }

@@ -41,7 +41,13 @@
       <AdditionalLibraryDirectories>
         $(JBroEngineSDK)Lib\$(Configuration);%(AdditionalLibraryDirectories)
       </AdditionalLibraryDirectories>
-      <AdditionalDependencies>Engine.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <!--
+        Engine.lib 는 yaml-cpp 심볼을 외부 참조로 남긴다(헤더만 보고 컴파일됨).
+        그래서 Engine.lib 를 끌어쓰는 모든 모듈은 yaml-cpp 도 같이 링크해야 한다.
+        Debug 구성은 yaml-cppd.lib, 그 외는 yaml-cpp.lib.
+      -->
+      <AdditionalDependencies Condition="'$(Configuration)'=='Debug'">Engine.lib;yaml-cppd.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies Condition="'$(Configuration)'!='Debug'">Engine.lib;yaml-cpp.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
 
