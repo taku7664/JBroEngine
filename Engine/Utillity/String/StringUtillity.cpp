@@ -1,8 +1,14 @@
 #include "pch.h"
 #include "Utillity/String/StringUtillity.h"
 
+#if !JBRO_PLATFORM_WINDOWS
+#include <codecvt>
+#include <locale>
+#endif
+
 namespace Utillity
 {
+#if JBRO_PLATFORM_WINDOWS
 	std::string WCharToString(const wchar_t* wstr)
 	{
 		if (!wstr)
@@ -170,5 +176,67 @@ namespace Utillity
 		utf8_str.pop_back();
 		return utf8_str;
 	}
+#else
+	namespace
+	{
+		std::string WideToUtf8(std::wstring_view text)
+		{
+			try
+			{
+				std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
+				return converter.to_bytes(text.data(), text.data() + text.size());
+			}
+			catch (const std::range_error&)
+			{
+				return {};
+			}
+		}
+
+		std::wstring Utf8ToWide(std::string_view text)
+		{
+			try
+			{
+				std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
+				return converter.from_bytes(text.data(), text.data() + text.size());
+			}
+			catch (const std::range_error&)
+			{
+				return {};
+			}
+		}
+	}
+
+	std::string WCharToString(const wchar_t* wstr)
+	{
+		return nullptr == wstr ? std::string() : WideToUtf8(wstr);
+	}
+
+	bool WCharToString(const wchar_t* wstr, std::string& out)
+	{
+		out = WCharToString(wstr);
+		return nullptr != wstr;
+	}
+
+	std::wstring CharToWString(const char* str)
+	{
+		return nullptr == str ? std::wstring() : Utf8ToWide(str);
+	}
+
+	bool CharToWString(const char* str, std::wstring& out)
+	{
+		out = CharToWString(str);
+		return nullptr != str;
+	}
+
+	std::wstring U8ToWString(std::string_view utf8_str)
+	{
+		return Utf8ToWide(utf8_str);
+	}
+
+	std::string WStringToU8(std::wstring_view wstring)
+	{
+		return WideToUtf8(wstring);
+	}
+#endif
 
 }

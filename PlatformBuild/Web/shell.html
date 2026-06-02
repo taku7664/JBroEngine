@@ -30,14 +30,78 @@
       background: #151820;
       outline: none;
     }
+
+    #jbro-error-log {
+      display: none;
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      max-width: min(720px, calc(100vw - 24px));
+      max-height: 40vh;
+      overflow: auto;
+      padding: 10px 12px;
+      border: 1px solid #7f3131;
+      background: rgba(20, 8, 8, 0.92);
+      color: #ffd6d6;
+      font: 12px/1.45 Consolas, monospace;
+      white-space: pre-wrap;
+      z-index: 10;
+    }
   </style>
 </head>
 <body>
   <div id="jbro-root">
     <canvas id="jbro-canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
   </div>
+  <pre id="jbro-error-log"></pre>
 
   <script>
+    var jbroErrorLog = document.getElementById('jbro-error-log');
+    var jbroOriginalConsoleError = console.error.bind(console);
+
+    function jbroFormatError(value) {
+      if (value && value.stack) {
+        return value.stack;
+      }
+      if (value && value.message) {
+        return value.message;
+      }
+      return String(value);
+    }
+
+    function jbroShowError(value) {
+      var text = jbroFormatError(value);
+      if (jbroErrorLog) {
+        jbroErrorLog.style.display = 'block';
+        jbroErrorLog.textContent += (jbroErrorLog.textContent ? '\n' : '') + text;
+      }
+      jbroOriginalConsoleError(value);
+    }
+
+    function jbroShouldDisplayError(text) {
+      return text.indexOf('WebGPU:') >= 0 ||
+        text.indexOf('[ERROR]') >= 0 ||
+        text.indexOf('[CRITICAL]') >= 0 ||
+        text.indexOf('Unhandled promise rejection') >= 0;
+    }
+
+    console.error = function () {
+      var text = Array.prototype.map.call(arguments, jbroFormatError).join(' ');
+      if (jbroShouldDisplayError(text)) {
+        jbroShowError(text);
+      } else {
+        jbroOriginalConsoleError(text);
+      }
+    };
+
+    window.addEventListener('error', function (event) {
+      jbroShowError(event.error || event.message);
+    });
+
+    window.addEventListener('unhandledrejection', function (event) {
+      jbroShowError(event.reason || 'Unhandled promise rejection');
+    });
+
     var Module = {
       canvas: (function () {
         return document.getElementById('jbro-canvas');
@@ -57,6 +121,9 @@
             return adapter.requestDevice();
           })
           .then(function (device) {
+            device.addEventListener('uncapturederror', function (event) {
+              jbroShowError('WebGPU: ' + jbroFormatError(event.error));
+            });
             Module.preinitializedWebGPUDevice = device;
             Module.removeRunDependency('jbro-webgpu-device');
           })

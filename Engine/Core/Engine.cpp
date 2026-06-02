@@ -91,8 +91,7 @@ bool CEngine::Initialize()
 	{
 		m_resourceRegistry->Initialize(File::Path("Resources"),
 		                               File::Path("resources.yaml"),
-		                               m_assetManager.GetSafePtr(),
-		                               m_rhiDevice.GetSafePtr());
+		                               m_assetManager.GetSafePtr());
 		Core::ResourceRegistry   = m_resourceRegistry.GetSafePtr();
 		Engine.ResourceRegistry  = Core::ResourceRegistry;
 	}

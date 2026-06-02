@@ -121,7 +121,6 @@ template<typename Key, bool Streamable>
 struct streamable_to_string {
   static std::string impl(const Key& key) {
     std::stringstream ss;
-    ss.imbue(std::locale::classic());
     ss << key;
     return ss.str();
   }

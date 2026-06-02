@@ -12,6 +12,7 @@ public:
 	~CGameModuleLoader();
 
 	bool LoadDynamicLibrary(const File::Path& libraryPath, const GameModuleContext& context);
+	bool LoadStaticModule(CreateGameModuleFunc createFunc, DestroyGameModuleFunc destroyFunc, const GameModuleContext& context, const char* moduleName = nullptr);
 	void Tick();
 	void Unload();
 

@@ -18,10 +18,6 @@ void CWebGPUSwapchain::Resize(const RenderSurfaceSize& size)
 void CWebGPUSwapchain::Present()
 {
 #if JBRO_PLATFORM_WEB
-	if (m_surface)
-	{
-		wgpuSurfacePresent(m_surface);
-	}
 	ReleaseCurrentTexture();
 #endif
 }
@@ -80,6 +76,13 @@ WGPUTextureView CWebGPUSwapchain::AcquireCurrentTextureView()
 
 	m_currentTexture = surfaceTexture.texture;
 	WGPUTextureViewDescriptor viewDesc = {};
+	viewDesc.format = m_format;
+	viewDesc.dimension = WGPUTextureViewDimension_2D;
+	viewDesc.baseMipLevel = 0;
+	viewDesc.mipLevelCount = 1;
+	viewDesc.baseArrayLayer = 0;
+	viewDesc.arrayLayerCount = 1;
+	viewDesc.aspect = WGPUTextureAspect_All;
 	m_currentTextureView = wgpuTextureCreateView(m_currentTexture, &viewDesc);
 	return m_currentTextureView;
 }

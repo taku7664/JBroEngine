@@ -11,7 +11,6 @@
 class IAsset;
 class CSpriteAsset;
 class IAssetManager;
-class IRHIDevice;
 
 // ── CResourceRegistry ────────────────────────────────────────────────────────
 // "Resources/resources.yaml" 매니페스트 기반의 키→자산 매핑.
@@ -29,11 +28,10 @@ public:
 	// rootDirectory: Resources 폴더 경로 (예: 실행파일 옆 "Resources/")
 	// manifestFile : 매니페스트 파일 (보통 "resources.yaml")
 	// assetManager : 등록 대상 AssetManager.
-	// rhiDevice 가 유효하면 등록된 Sprite 자산의 GPU 텍스처도 즉시 생성한다.
+	// GPU 텍스처는 첫 사용 시점(RenderResourceCache::AcquireSpriteTexture)에 lazy 생성된다.
 	bool Initialize(const File::Path& rootDirectory,
 	                const File::Path& manifestFile,
-	                SafePtr<IAssetManager> assetManager,
-	                SafePtr<IRHIDevice>    rhiDevice);
+	                SafePtr<IAssetManager> assetManager);
 	void Finalize();
 
 	// 키 → 자산. 등록되지 않은 키면 nullptr. ResourceRegistry 가 strong AssetRef 로

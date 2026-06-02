@@ -2,7 +2,7 @@
 
 struct EngineCore;
 
-class CModule abstract
+class CModule
 {
 	friend class CEngine;
 public:

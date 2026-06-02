@@ -80,6 +80,22 @@ namespace
 		return result;
 	}
 
+	File::Path ResolveEmsdkRoot()
+	{
+		const std::wstring envRoot = GetEnvironmentVariableValue(L"EMSDK");
+		if (false == envRoot.empty() && std::filesystem::exists(File::Path(envRoot) / L"emsdk_env.bat"))
+		{
+			return File::Path(envRoot);
+		}
+
+		const File::Path defaultRoot = L"C:/emsdk";
+		if (std::filesystem::exists(defaultRoot / L"emsdk_env.bat"))
+		{
+			return defaultRoot;
+		}
+		return File::NULL_PATH;
+	}
+
 	std::string SanitizeFileName(std::string value)
 	{
 		static constexpr char invalid[] = "<>:\"/\\|?*";
@@ -489,18 +505,6 @@ bool CGameBuildManager::StartBuild(SafePtr<CProjectManager> projectManager)
 	settings.ScriptBuildConfiguration = EBuildConfiguration::Debug == settings.BuildConfiguration
 		? EScriptBuildConfiguration::Debug
 		: EScriptBuildConfiguration::Release;
-	if (settings.TargetPlatform != EBuildTargetPlatform::Windows)
-	{
-		std::lock_guard lock(m_mutex);
-		m_state = EGameBuildState::Failed;
-		m_message = "Only Windows package build is implemented in the editor right now.";
-		m_tasks.clear();
-		m_completedCount = 0;
-		m_packageDirectory.clear();
-		m_logPath.clear();
-		return false;
-	}
-
 	if (settings.StartupScene.empty())
 	{
 		std::lock_guard lock(m_mutex);
@@ -551,13 +555,36 @@ bool CGameBuildManager::StartBuild(SafePtr<CProjectManager> projectManager)
 	desc.PackageDirectory = desc.OutputRoot / (desc.ProductName + "-" + ToString(desc.TargetPlatform) + "-" + ToString(desc.BuildConfiguration));
 	desc.LogPath = desc.ProjectRoot / "Build" / "Logs" / "EditorGameBuild.log";
 
-	std::vector<GameBuildTaskProgress> tasks = {
-		{ "Validate", Loc::Text("build.progress.validate"), EGameBuildTaskState::Pending },
-		{ "BuildEngine", Loc::Text("build.progress.engine"), EGameBuildTaskState::Pending },
-		{ "BuildScripts", Loc::Text("build.progress.scripts"), EGameBuildTaskState::Pending },
-		{ "Package", Loc::Text("build.progress.package"), EGameBuildTaskState::Pending },
-		{ "Verify", Loc::Text("build.progress.verify"), EGameBuildTaskState::Pending },
-	};
+	std::vector<GameBuildTaskProgress> tasks;
+	if (EBuildTargetPlatform::Web == settings.TargetPlatform)
+	{
+		tasks = {
+			{ "Validate", Loc::Text("build.progress.validate"), EGameBuildTaskState::Pending },
+			{ "BuildWeb", Loc::Text("build.progress.web"), EGameBuildTaskState::Pending },
+			{ "Verify", Loc::Text("build.progress.verify"), EGameBuildTaskState::Pending },
+		};
+	}
+	else if (EBuildTargetPlatform::Windows == settings.TargetPlatform)
+	{
+		tasks = {
+			{ "Validate", Loc::Text("build.progress.validate"), EGameBuildTaskState::Pending },
+			{ "BuildEngine", Loc::Text("build.progress.engine"), EGameBuildTaskState::Pending },
+			{ "BuildScripts", Loc::Text("build.progress.scripts"), EGameBuildTaskState::Pending },
+			{ "Package", Loc::Text("build.progress.package"), EGameBuildTaskState::Pending },
+			{ "Verify", Loc::Text("build.progress.verify"), EGameBuildTaskState::Pending },
+		};
+	}
+	else
+	{
+		std::lock_guard lock(m_mutex);
+		m_state = EGameBuildState::Failed;
+		m_message = "Only Windows and Web package builds are implemented in the editor right now.";
+		m_tasks.clear();
+		m_completedCount = 0;
+		m_packageDirectory.clear();
+		m_logPath.clear();
+		return false;
+	}
 
 	JoinWorker();
 	ResetForStart(desc, std::move(tasks));
@@ -641,10 +668,18 @@ void CGameBuildManager::WorkerMain(BuildDesc desc)
 	};
 
 	if (false == runStep(0, [&]() { return ValidateScenes(desc, error); })) return;
-	if (false == runStep(1, [&]() { return BuildEngineGame(desc, error); })) return;
-	if (false == runStep(2, [&]() { return BuildScriptModule(desc, scriptDll, error); })) return;
-	if (false == runStep(3, [&]() { return StagePackage(desc, scriptDll, error); })) return;
-	if (false == runStep(4, [&]() { return VerifyPackage(desc, true, error); })) return;
+	if (EBuildTargetPlatform::Web == desc.TargetPlatform)
+	{
+		if (false == runStep(1, [&]() { return BuildWebPackage(desc, error); })) return;
+		if (false == runStep(2, [&]() { return VerifyWebPackage(desc, error); })) return;
+	}
+	else
+	{
+		if (false == runStep(1, [&]() { return BuildEngineGame(desc, error); })) return;
+		if (false == runStep(2, [&]() { return BuildScriptModule(desc, scriptDll, error); })) return;
+		if (false == runStep(3, [&]() { return StagePackage(desc, scriptDll, error); })) return;
+		if (false == runStep(4, [&]() { return VerifyPackage(desc, true, error); })) return;
+	}
 
 	SetFinished(EGameBuildState::Succeeded, "Build completed.");
 }
@@ -772,6 +807,32 @@ bool CGameBuildManager::BuildScriptModule(const BuildDesc& desc, File::Path& out
 		return false;
 	}
 	return true;
+}
+
+bool CGameBuildManager::BuildWebPackage(const BuildDesc& desc, std::string& outError) const
+{
+	const File::Path scriptPath = desc.RepoRoot / "BuildScripts" / "BuildWeb.ps1";
+	if (false == std::filesystem::exists(scriptPath))
+	{
+		outError = "BuildWeb.ps1 was not found: " + ToUtf8PathString(scriptPath);
+		return false;
+	}
+
+	std::wstring command =
+		L"powershell.exe -NoProfile -ExecutionPolicy Bypass -File " +
+		Quote(scriptPath.wstring()) +
+		L" -Project " + Quote(desc.ProjectFilePath.wstring()) +
+		L" -Configuration " + Utillity::U8ToWString(ToString(desc.BuildConfiguration)) +
+		L" -OutputRoot " + Quote(desc.OutputRoot.wstring()) +
+		L" -Clean";
+
+	const File::Path emsdkRoot = ResolveEmsdkRoot();
+	if (false == emsdkRoot.empty())
+	{
+		command += L" -EmsdkRoot " + Quote(emsdkRoot.wstring());
+	}
+
+	return RunCommandToLog(command, desc.LogPath, outError);
 }
 
 bool CGameBuildManager::StagePackage(const BuildDesc& desc, const File::Path& scriptDll, std::string& outError) const
@@ -912,6 +973,62 @@ bool CGameBuildManager::VerifyPackage(const BuildDesc& desc, bool requiresScript
 	if (false == std::filesystem::exists(assetPack))
 	{
 		outError = "Asset pack is missing.";
+		return false;
+	}
+	if (std::filesystem::exists(desc.PackageDirectory / "Content" / "Assets"))
+	{
+		outError = "Loose asset folder must not exist in package.";
+		return false;
+	}
+
+	const std::array<const char*, 3> forbidden = { "SDK", "Editor", "Localization" };
+	for (const char* name : forbidden)
+	{
+		if (std::filesystem::exists(desc.PackageDirectory / name))
+		{
+			outError = std::string("Forbidden editor-only artifact found: ") + name;
+			return false;
+		}
+	}
+	return true;
+}
+
+bool CGameBuildManager::VerifyWebPackage(const BuildDesc& desc, std::string& outError) const
+{
+	const File::Path html = desc.PackageDirectory / "index.html";
+	const File::Path js = desc.PackageDirectory / "index.js";
+	const File::Path wasm = desc.PackageDirectory / "index.wasm";
+	const File::Path manifest = desc.PackageDirectory / "Content" / "build_manifest.jbmanifest";
+	const File::Path assetPack = desc.PackageDirectory / "Content" / "game_assets.jbpack";
+
+	if (false == std::filesystem::exists(html))
+	{
+		outError = "Web package index.html is missing.";
+		return false;
+	}
+	if (false == std::filesystem::exists(js))
+	{
+		outError = "Web package index.js is missing.";
+		return false;
+	}
+	if (false == std::filesystem::exists(wasm))
+	{
+		outError = "Web package index.wasm is missing.";
+		return false;
+	}
+	if (false == std::filesystem::exists(manifest))
+	{
+		outError = "build_manifest.jbmanifest is missing.";
+		return false;
+	}
+	if (false == std::filesystem::exists(assetPack))
+	{
+		outError = "Asset pack is missing.";
+		return false;
+	}
+	if (std::filesystem::exists(desc.PackageDirectory / "GameScript.dll"))
+	{
+		outError = "GameScript.dll must not exist in a Web package.";
 		return false;
 	}
 	if (std::filesystem::exists(desc.PackageDirectory / "Content" / "Assets"))

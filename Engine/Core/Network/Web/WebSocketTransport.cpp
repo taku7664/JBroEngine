@@ -125,7 +125,7 @@ bool CWebSocketTransport::Send(
 	       emscripten_websocket_send_binary(
 	           m_socket,
 	           const_cast<void*>(data),
-	           static_cast<EM_UINT>(size));
+	           size);
 }
 
 void CWebSocketTransport::SetOnConnected(FOnTransportConnected callback)

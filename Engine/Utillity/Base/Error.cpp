@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "Error.h"
 
+#if JBRO_PLATFORM_WINDOWS
 void Error::ThrowWithHResult(HRESULT hr, const std::source_location & location)
 {
     if (FAILED(hr))
@@ -24,3 +25,4 @@ void Error::ThrowWithLastError(const std::source_location& location)
     );
     throw ::std::runtime_error(msg);
 }
+#endif

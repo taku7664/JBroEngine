@@ -23,6 +23,7 @@ class CMathService;
 class CTime;
 class IDebugDraw2D;
 class INetworkManager;
+class IRenderResourceCache;
 
 // 엔진/스크립트 공용 서비스 번들.
 // DLL 경계에는 이 struct 하나만 복사하고, 각 서비스 객체의 소유권은 엔진이 유지합니다.
@@ -35,6 +36,7 @@ struct EngineCore
 	SafePtr<IAudioDevice>         Audio;
 	SafePtr<IRenderer>            Renderer;
 	SafePtr<IRenderScene>         RenderScene;
+	SafePtr<IRenderResourceCache> RenderResourceCache;
 	SafePtr<CDebug>               Debug;
 	SafePtr<CTime>                Time;
 	SafePtr<CInput>               Input;

@@ -33,6 +33,7 @@ Engine/Core/Platform/Web/WebCanvasSurface.cpp
 Engine/Core/Platform/Web/WebPlatform.cpp
 Engine/Core/Random/RandomService.cpp
 Engine/Core/Renderer/Forward2DRenderer.cpp
+Engine/Core/Renderer/RenderResourceCache.cpp
 Engine/Core/Renderer/RenderResources2D.cpp
 Engine/Core/Renderer/RenderScene.cpp
 Engine/Core/Resource/ResourceRegistry.cpp
@@ -54,10 +55,12 @@ Engine/GameFramework/Component/BuiltinComponentRegistry.cpp
 Engine/GameFramework/Component/GameObjectComponent.cpp
 Engine/GameFramework/ECS/EntityManager.cpp
 Engine/GameFramework/Object/GameObject.cpp
+Engine/GameFramework/Object/Ref.cpp
 Engine/GameFramework/Physics2D/Physics2DGeometry.cpp
 Engine/GameFramework/Physics2D/Physics2DSystem.cpp
 Engine/GameFramework/Prefab/PrefabSerializer.cpp
 Engine/GameFramework/Reflection/ReflectionRegistry.cpp
+Engine/GameFramework/Rendering/GameCamera.cpp
 Engine/GameFramework/Rendering/SpriteRenderSystem.cpp
 Engine/GameFramework/Scene/Scene.cpp
 Engine/GameFramework/Scene/SceneManager.cpp

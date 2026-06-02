@@ -101,8 +101,10 @@ private:
 	bool ValidateScenes(const BuildDesc& desc, std::string& outError) const;
 	bool BuildEngineGame(const BuildDesc& desc, std::string& outError) const;
 	bool BuildScriptModule(const BuildDesc& desc, File::Path& outScriptDll, std::string& outError) const;
+	bool BuildWebPackage(const BuildDesc& desc, std::string& outError) const;
 	bool StagePackage(const BuildDesc& desc, const File::Path& scriptDll, std::string& outError) const;
 	bool VerifyPackage(const BuildDesc& desc, bool requiresScriptDll, std::string& outError) const;
+	bool VerifyWebPackage(const BuildDesc& desc, std::string& outError) const;
 	bool ApplyWindowsIconToExecutable(const BuildDesc& desc, const File::Path& executablePath, std::string& outError) const;
 
 	File::Path FindMSBuildPath() const;

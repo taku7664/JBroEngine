@@ -2,12 +2,9 @@
 
 #include "Core/Asset/IAsset.h"
 #include "Core/Asset/IAssetLoader.h"
-#include "Core/RHI/IRHITexture.h"
 
 #include <string>
 #include <vector>
-
-class IRHIDevice;
 
 // ── Sprite slice 모드 ─────────────────────────────────────────────────────────
 // None      : 슬라이스 없음 — 전체 이미지를 1 프레임으로 사용.
@@ -95,17 +92,13 @@ public:
 	std::uint32_t GetHeight() const;
 	const std::vector<std::uint8_t>& GetPixels() const;
 
-	// GPU 텍스처 (lazy create)
-	SafePtr<IRHITexture> GetGpuTexture() const;
-	bool                 EnsureGpuTexture(IRHIDevice& device);
-
 	// 슬라이스 정보
 	const SpriteImportOptions&     GetImportOptions() const;
 	const std::vector<SpriteFrame>& GetFrames() const;
 	void SetImportData(const SpriteImportOptions& options, std::vector<SpriteFrame>&& frames);
 
-	// raw 픽셀까지 in-place 교체. GPU 텍스처는 invalidate (다음 EnsureGpuTexture 가 재생성).
-	// width/height/pixels 가 새 디스크 상태로 덮어씌워진다.
+	// raw 픽셀까지 in-place 교체. width/height/pixels 가 새 디스크 상태로 덮어씌워진다.
+	// GPU 텍스처는 RenderResourceCache 가 따로 invalidate 해야 한다(이 자산은 GPU 를 소유하지 않음).
 	void ReplacePixels(std::uint32_t width, std::uint32_t height, std::vector<std::uint8_t>&& pixels);
 
 	// 자산이 실제 사용할 PPU. 임포트 옵션의 PixelsPerUnit 가 0 이면 fallback 사용.
@@ -119,7 +112,6 @@ private:
 	std::vector<std::uint8_t>   m_pixels;
 	SpriteImportOptions         m_importOptions;
 	std::vector<SpriteFrame>    m_frames;
-	OwnerPtr<IRHITexture>       m_gpuTexture;
 	EAssetLoadState             m_loadState = EAssetLoadState::Loaded;
 };
 

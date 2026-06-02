@@ -1,70 +1,61 @@
 # TODO
 
 ## Goal
-Web 빌드가 YAML 기반 scene/import option 코드를 링크할 수 있도록 yaml-cpp Web compile source 를 준비한다.
+Web build 에서 sprite 색상이 파랗게 보이는 RGBA/BGRA 채널 오류를 수정하고, 모바일 플랫폼 추가 계획을 문서화한다.
 
 ## Confirmed Facts
-- Web source list 에 `SceneSerializer.cpp`, `SpriteAsset.cpp`, `AudioAsset.cpp`, `AssetMetaFile.cpp`, `BuildManifest.cpp` 가 포함되어 있다.
-- 이 파일들은 현재 `yaml-cpp` API 를 사용한다.
-- repo 의 기존 yaml-cpp 구성은 header 와 Windows `.lib` 중심이며, Web/wasm 에서 Windows `.lib` 는 사용할 수 없다.
-- 현재 asset pack 은 cooked scene/import payload 가 아니라 raw source/import option 을 담으므로 Web runtime 에도 YAML parser 가 필요하다.
+- RHI public texture format 은 현재 `ERHITextureFormat::RGBA8` 하나다.
+- WebGPU `CreateTexture2D()` 는 `RHITexture2DDesc::Format` 을 보지 않고 항상 `WGPUTextureFormat_BGRA8Unorm` 으로 texture 를 만든다.
+- Web screenshot 에서 캐릭터의 노란/살색 계열이 파랗게 보인다.
+- Web swapchain 은 BGRA8 surface 를 사용할 수 있지만, asset texture upload 는 RGBA8 payload 와 맞아야 한다.
 
 ## Assumptions
-- 이번 단계에서는 기존 raw scene/import option 런타임 동작을 유지한다.
-- cooked payload 로 YAML runtime 의존성을 제거하는 작업은 후속 단계로 둔다.
-- yaml-cpp source 는 기존 header 와 호환되는 공식 0.8.0 tag 기준으로 보강한다.
+- sprite/image payload 는 RGBA8 순서다. 이 가정은 RHI enum 이름과 stb 계열 image load 관례, Web 에서 빨강/파랑이 뒤집힌 증상으로 뒷받침된다.
+- 이번 수정은 WebGPU texture upload 포맷만 고치고, RHI 포맷 enum 확장은 별도 과제로 둔다.
+- 모바일 계획은 구현이 아니라 플랫폼 추가 전 설계/작업 분류 문서다.
 
 ## Success Criteria
-- `Engine/ThirdParty/yaml-cpp/src/*.cpp` 가 존재한다.
-- `BuildScripts/Web/web_game_sources.txt` 에 yaml-cpp 구현 cpp 가 포함된다.
-- Web `emcc` 호출에 `YAML_CPP_STATIC_DEFINE` 과 yaml-cpp private source include path 가 들어간다.
-- 기존 Windows `.lib` 링크 경로는 건드리지 않는다.
+- WebGPU asset texture 는 RGBA8 로 생성된다.
+- Web build 가 다시 성공한다.
+- 브라우저 WebGPU 오류 오버레이가 표시되지 않는다.
+- 모바일 플랫폼 추가 계획 문서가 상세 단계/계약/리스크/검증 항목을 포함한다.
 
 ## Plan
-- [x] 기존 header 와 공식 yaml-cpp 0.8.0 header 호환성을 확인한다.
-- [x] yaml-cpp 0.8.0 `src` 와 `LICENSE` 를 ThirdParty 에 보강한다.
-- [x] Web source list 에 yaml-cpp cpp 를 추가한다.
-- [x] `BuildGame.ps1` Web emcc arguments 에 yaml-cpp include/define 을 추가한다.
-- [x] `WebBuild.vcxproj` NMake preprocessor definitions 를 갱신한다.
-- [x] 문서와 검증을 갱신한다.
+- [x] WebGPU texture format mapping 을 추가한다.
+- [x] Web package 를 재빌드하고 HTTP/브라우저 상태를 확인한다.
+- [x] `Debug_Game|x64` 와 diff check 를 실행한다.
+- [x] 모바일 플랫폼 추가 계획 문서를 작성한다.
+- [x] `tasks/BuildPipelineDesign.md` 에 Web texture format 주의점을 갱신한다.
 
 ## Verification
-- [x] `web_game_sources.txt` 모든 파일 존재 확인
-- [x] `BuildGame.ps1` PowerShell parse
-- [x] `WebBuild.vcxproj` XML parse
+- [x] `BuildWeb.ps1 -Project ... -Configuration Release -OutputRoot ... -Clean`
+- [x] Web package HTTP response check
+- [x] 브라우저 오류 오버레이 확인
+- [x] `Debug_Game|x64` build
 - [x] `git diff --check`
-- [ ] 실제 `emcc` Web build
 
 ## Review
 ### Read / Thought / Counterexample / Fix
-- 코드를 읽었고: Web source list 가 YAML 의존 파일들을 포함하는데, ThirdParty 에는 yaml-cpp Windows `.lib` 만 있고 wasm 으로 컴파일할 source 가 없었다.
-- 어떻게 생각했고: 지금 단계에서 cooked payload 로 바로 전환하면 scene/import pipeline 전체가 커지므로, 기존 raw payload 계약을 유지하면서 Web build 를 살리는 쪽이 더 작은 변경이다.
-- 어떤 반례를 찾았고: `emcc` 가 설치되어 있어도 yaml-cpp 구현이 없으면 `YAML::Load`, `YAML::Emitter` 같은 symbol link 에서 실패한다.
-- 어떻게 고쳤다: 공식 yaml-cpp 0.8.0 source 를 `Engine/ThirdParty/yaml-cpp/src` 에 보강하고, Web source list 와 emcc include/define 을 맞췄다.
+- 코드를 읽었고: `ERHITextureFormat` 은 현재 `RGBA8` 하나인데 WebGPU `CreateTexture2D()` 는 항상 `BGRA8Unorm` texture 를 생성하고 있었다.
+- 어떻게 생각했고: screenshot 의 파란 sprite 는 clear color 문제가 아니라 RGBA payload 를 BGRA texture 로 해석한 red/blue channel swap 증상과 일치한다.
+- 어떤 반례를 찾았고: WebGPU swapchain 은 `BGRA8Unorm` 이 맞을 수 있으므로 surface format 까지 RGBA 로 바꾸면 안 된다.
+- 어떻게 고쳤다: swapchain format 은 유지하고, asset texture 생성만 `RHITexture2DDesc::Format` 을 `WGPUTextureFormat_RGBA8Unorm` 으로 매핑하게 했다.
 
 ### Changed
-- `Engine/ThirdParty/yaml-cpp/src/*`
-  - Web/wasm 컴파일용 yaml-cpp 0.8.0 구현 source 를 추가했다.
-- `Engine/ThirdParty/yaml-cpp/LICENSE`
-  - yaml-cpp MIT license 를 함께 추가했다.
-- `BuildScripts/Web/web_game_sources.txt`
-  - yaml-cpp 구현 cpp 를 Web build 입력에 추가했다.
-- `BuildScripts/BuildGame.ps1`
-  - Web emcc arguments 에 `-IEngine\ThirdParty\yaml-cpp\src` 와 `-DYAML_CPP_STATIC_DEFINE` 을 추가했다.
-- `BuildScripts/Web/WebBuild.vcxproj`
-  - NMake preprocessor definitions 에 `YAML_CPP_STATIC_DEFINE` 을 추가했다.
+- `Engine/Core/RHI/WebGPU/WebGPURHIDevice.cpp`
+  - `ERHITextureFormat::RGBA8` -> `WGPUTextureFormat_RGBA8Unorm` 매핑 추가.
+  - asset texture 생성 시 하드코딩된 `BGRA8Unorm` 제거.
 - `tasks/BuildPipelineDesign.md`
-  - Web YAML dependency 와 장기 cooked payload 방향을 기록했다.
+  - WebGPU swapchain format 과 asset texture format 을 분리해야 한다는 주의점 추가.
+- `tasks/MobilePlatformPlan.md`
+  - Android/iOS 모바일 플랫폼 추가 계획 작성.
 
 ### Verified
-- `web_game_sources.txt` 의 모든 경로가 실제 파일인지 확인했다.
-- `BuildGame.ps1` PowerShell parse 성공.
-- `WebBuild.vcxproj` XML parse 성공.
+- 실제 프로젝트 `C:\Users\박주형\Desktop\Project\Project.Jproject` Web Release 빌드 성공.
+- `http://127.0.0.1:8123/` 에서 Web package 핵심 파일 HEAD 응답 200 확인.
+- 새 브라우저 탭에서 오류 오버레이 `display: none`, 오류 텍스트 비어 있음을 확인.
+- `Debug_Game|x64` 빌드 성공.
 - `git diff --check` 통과. CRLF 경고만 존재.
 
 ### Not Verified
-- 실제 Web build 는 현재 셸에서 `emcc` 를 찾지 못해 실행하지 못했다. `emsdk_env.bat` 적용 후 재검증해야 한다.
-
-### Risks
-- yaml-cpp 를 wasm 에 직접 포함하므로 Web binary size 는 증가한다.
-- cooked scene/import payload 가 완성되면 Web runtime 에서 YAML parser 를 제거하는 쪽이 장기적으로 더 좋다.
+- WebGPU canvas 픽셀 색상 자동 판독/스크린샷은 도구 한계가 있어 육안 최종 확인이 필요하다.

@@ -9,6 +9,7 @@ param(
     [string]$Configuration = "Release",
 
     [string]$OutputRoot = "",
+    [string]$EmsdkRoot = "",
     [switch]$IncludeSymbols,
     [switch]$SkipEngineBuild,
     [switch]$SkipScriptBuild,
@@ -20,6 +21,43 @@ $ErrorActionPreference = "Stop"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = (Resolve-Path (Join-Path $scriptDir "..")).Path
 $solutionPath = Join-Path $repoRoot "JBroEngine.sln"
+
+function Import-EmsdkEnvironment {
+    param([string]$RootOrEnvBat)
+
+    if ([string]::IsNullOrWhiteSpace($RootOrEnvBat)) {
+        if ($env:EMSDK) {
+            $RootOrEnvBat = $env:EMSDK
+        } elseif (Test-Path -LiteralPath "C:\emsdk\emsdk_env.bat" -PathType Leaf) {
+            $RootOrEnvBat = "C:\emsdk"
+        } else {
+            return
+        }
+    }
+
+    $envBat = $RootOrEnvBat
+    if (Test-Path -LiteralPath $envBat -PathType Container) {
+        $envBat = Join-Path $envBat "emsdk_env.bat"
+    }
+    if (-not (Test-Path -LiteralPath $envBat -PathType Leaf)) {
+        throw "emsdk_env.bat was not found: $envBat"
+    }
+
+    $output = & cmd.exe /d /c "`"$envBat`" >nul && set"
+    if ($LASTEXITCODE -ne 0) {
+        throw "emsdk_env.bat failed: $envBat"
+    }
+
+    foreach ($line in $output) {
+        $index = $line.IndexOf('=')
+        if ($index -le 0) {
+            continue
+        }
+        $name = $line.Substring(0, $index)
+        $value = $line.Substring($index + 1)
+        [System.Environment]::SetEnvironmentVariable($name, $value, [System.EnvironmentVariableTarget]::Process)
+    }
+}
 
 function Find-MSBuild {
     $candidates = @()
@@ -806,9 +844,12 @@ function Invoke-WebApplicationBuild {
     param(
         [Parameter(Mandatory=$true)][string]$PackageDir,
         [Parameter(Mandatory=$true)][string]$PackageContentDir,
+        [Parameter(Mandatory=$true)][string]$ContentPath,
+        [string]$EmsdkRoot = "",
         [Parameter(Mandatory=$true)][string]$Configuration
     )
 
+    Import-EmsdkEnvironment -RootOrEnvBat $EmsdkRoot
     $emcc = Find-Emcc
     $sourceList = Join-Path $repoRoot "BuildScripts\Web\web_game_sources.txt"
     $shellFile = Join-Path $repoRoot "PlatformBuild\Web\shell.html"
@@ -819,7 +860,14 @@ function Invoke-WebApplicationBuild {
         throw "Web shell template was not found: $shellFile"
     }
 
-    $outputHtml = Join-Path $PackageDir "index.html"
+    $tempRoot = Join-Path $env:SystemDrive ("JBroWebBuildTemp\" + [guid]::NewGuid().ToString("N"))
+    $tempOutputDir = Join-Path $tempRoot "Out"
+    $tempContentDir = Join-Path $tempRoot "Content"
+    New-Item -ItemType Directory -Path $tempOutputDir -Force | Out-Null
+    New-Item -ItemType Directory -Path $tempContentDir -Force | Out-Null
+    Copy-Item -Path (Join-Path $PackageContentDir "*") -Destination $tempContentDir -Recurse -Force
+
+    $outputHtml = Join-Path $tempOutputDir "index.html"
     $optimizationArgs = if ($Configuration -eq "Debug") {
         @("-O0", "-gsource-map", "-sASSERTIONS=1")
     } else {
@@ -829,21 +877,45 @@ function Invoke-WebApplicationBuild {
     $arguments = @(
         "@BuildScripts\Web\web_game_sources.txt",
         "-I.",
+        "-IApplication",
         "-IEngine",
         "-IEngine\ThirdParty",
         "-IEngine\ThirdParty\yaml-cpp\src",
+        "-I$ContentPath",
+        ("-I{0}" -f (Join-Path $ContentPath "Scripts")),
         "-std=c++20",
         "-DJBRO_PLATFORM_WEB",
         "-DJBRO_GAME",
         "-DYAML_CPP_STATIC_DEFINE"
     )
     $arguments += $optimizationArgs
+
+    $scriptSources = @()
+    foreach ($relativeSource in @("pch.cpp", "GameModule.cpp", "GeneratedScriptRegistry.cpp")) {
+        $candidate = Join-Path $ContentPath $relativeSource
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+            $scriptSources += $candidate
+        }
+    }
+    $scriptRoot = Join-Path $ContentPath "Scripts"
+    if (Test-Path -LiteralPath $scriptRoot -PathType Container) {
+        $scriptSources += Get-ChildItem -LiteralPath $scriptRoot -Recurse -Filter "*.cpp" -File |
+            Sort-Object FullName |
+            ForEach-Object { $_.FullName }
+    }
+    if ($scriptSources.Count -gt 0) {
+        Write-Host "Including Web static script sources: $($scriptSources.Count)"
+        $arguments += $scriptSources
+    } else {
+        Write-Host "No Web static script sources were found under Contents."
+    }
+
     $arguments += @(
         "--use-port=emdawnwebgpu",
         "-sALLOW_MEMORY_GROWTH=1",
         "-sASYNCIFY=1",
         "--preload-file",
-        ("{0}@/Content" -f $PackageContentDir),
+        ("{0}@/Content" -f $tempContentDir),
         "--shell-file",
         $shellFile,
         "-o",
@@ -856,9 +928,24 @@ function Invoke-WebApplicationBuild {
         if ($LASTEXITCODE -ne 0) {
             throw "Web application build failed. ExitCode=$LASTEXITCODE"
         }
+
+        Get-ChildItem -LiteralPath $tempOutputDir -Filter "index.*" -File |
+            ForEach-Object {
+                Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $PackageDir $_.Name) -Force
+            }
     }
     finally {
         Pop-Location
+        if ((Test-Path -LiteralPath $tempRoot) -and $tempRoot.StartsWith((Join-Path $env:SystemDrive "JBroWebBuildTemp"), [System.StringComparison]::OrdinalIgnoreCase)) {
+            Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        $tempParent = Join-Path $env:SystemDrive "JBroWebBuildTemp"
+        if (Test-Path -LiteralPath $tempParent) {
+            $hasChildren = Get-ChildItem -LiteralPath $tempParent -Force -ErrorAction SilentlyContinue | Select-Object -First 1
+            if (-not $hasChildren) {
+                Remove-Item -LiteralPath $tempParent -Force -ErrorAction SilentlyContinue
+            }
+        }
     }
 }
 
@@ -1047,7 +1134,7 @@ if ($Platform -eq "Windows") {
         throw "Package verification failed: GameScript.dll missing."
     }
 } elseif ($Platform -eq "Web") {
-    Invoke-WebApplicationBuild -PackageDir $packageDir -PackageContentDir $packageContentDir -Configuration $Configuration
+    Invoke-WebApplicationBuild -PackageDir $packageDir -PackageContentDir $packageContentDir -ContentPath $contentPath -EmsdkRoot $EmsdkRoot -Configuration $Configuration
 
     if (-not (Test-Path -LiteralPath (Join-Path $packageDir "index.html"))) {
         throw "Web package verification failed: index.html missing."

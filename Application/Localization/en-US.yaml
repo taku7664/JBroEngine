@@ -139,6 +139,7 @@ Entries:
   build.progress.validate: Validate build settings
   build.progress.engine: Build engine game target
   build.progress.scripts: Build script DLL
+  build.progress.web: Build Web package
   build.progress.package: Create package
   build.progress.verify: Verify output
   build.progress.succeeded: Build completed.

@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "Application.h"
 
 #if JBRO_PLATFORM_WEB
 #include <emscripten.h>

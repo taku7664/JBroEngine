@@ -99,6 +99,34 @@ bool CGameModuleLoader::LoadDynamicLibrary(const File::Path& libraryPath, const 
 #endif
 }
 
+bool CGameModuleLoader::LoadStaticModule(CreateGameModuleFunc createFunc, DestroyGameModuleFunc destroyFunc, const GameModuleContext& context, const char* moduleName)
+{
+	if (nullptr == createFunc || nullptr == destroyFunc)
+	{
+		return false;
+	}
+
+	Unload();
+
+	IGameModule* module = createFunc(&m_hostApi);
+	if (nullptr == module)
+	{
+		return false;
+	}
+
+	if (false == module->Initialize(context))
+	{
+		destroyFunc(module, &m_hostApi);
+		return false;
+	}
+
+	m_gameModule = module;
+	m_destroyGameModule = destroyFunc;
+	m_libraryHandle = nullptr;
+	m_loadedPath = moduleName ? File::Path(moduleName) : File::Path("__static_game_module");
+	return true;
+}
+
 void CGameModuleLoader::Tick()
 {
 	if (m_gameModule)
@@ -109,7 +137,6 @@ void CGameModuleLoader::Tick()
 
 void CGameModuleLoader::Unload()
 {
-#if JBRO_PLATFORM_WINDOWS
 	if (m_gameModule)
 	{
 		m_gameModule->Finalize();
@@ -121,14 +148,13 @@ void CGameModuleLoader::Unload()
 		m_destroyGameModule = nullptr;
 	}
 
+#if JBRO_PLATFORM_WINDOWS
 	if (m_libraryHandle)
 	{
 		FreeLibrary(static_cast<HMODULE>(m_libraryHandle));
 		m_libraryHandle = nullptr;
 	}
 #else
-	m_gameModule = nullptr;
-	m_destroyGameModule = nullptr;
 	m_libraryHandle = nullptr;
 #endif
 	m_loadedPath.clear();

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Core/Renderer/IRenderResourceCache.h"
-#include "Utillity/Pointer/OwnerPtr.h"
+#include "Utillity/Pointer/SafePtr.h"
 
 #include <unordered_map>
 

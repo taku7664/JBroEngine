@@ -149,6 +149,9 @@ void CLogger::Write(ELogSource source, ELogLevel level, std::string_view message
 
 #if JBRO_PLATFORM_WINDOWS
 	OutputDebugStringA((formattedMessage + "\n").c_str());
+#elif JBRO_PLATFORM_WEB
+	std::fwrite(formattedMessage.data(), 1, formattedMessage.size(), stderr);
+	std::fwrite("\n", 1, 1, stderr);
 #endif
 }
 

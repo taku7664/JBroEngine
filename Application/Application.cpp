@@ -23,6 +23,11 @@
 #include <algorithm>
 #endif
 
+#if !JBRO_EDITOR && JBRO_PLATFORM_WEB
+extern "C" IGameModule* CreateGameModule(const GameModuleHostApi* hostApi) __attribute__((weak));
+extern "C" void DestroyGameModule(IGameModule* module, const GameModuleHostApi* hostApi) __attribute__((weak));
+#endif
+
 void CGameApplication::OnPreInitialize()
 {
 #if !JBRO_EDITOR
@@ -217,6 +222,32 @@ bool CGameApplication::LoadRuntimeScriptModule(const BuildManifest& manifest)
 {
 	if (manifest.ScriptMode.empty() || manifest.ScriptMode == "Static")
 	{
+#if JBRO_PLATFORM_WEB
+		if (nullptr == CreateGameModule || nullptr == DestroyGameModule)
+		{
+			CSystemLog::Warning("Runtime static script module was not linked. Continuing without project scripts.");
+			return true;
+		}
+
+		m_gameModuleLoader = MakeOwnerPtr<CGameModuleLoader>();
+		if (!m_gameModuleLoader)
+		{
+			CSystemLog::Error("Runtime static script module loader allocation failed.");
+			return false;
+		}
+
+		CEngine* engine = GetEngine();
+		GameModuleContext context;
+		context.HostEngine = engine ? &engine->GetEngineCore() : nullptr;
+		if (false == m_gameModuleLoader->LoadStaticModule(&CreateGameModule, &DestroyGameModule, context, "StaticGameScript"))
+		{
+			CSystemLog::Error("Runtime static script module initialization failed.");
+			m_gameModuleLoader.Reset();
+			return false;
+		}
+
+		CSystemLog::Info("Runtime static script module initialized.");
+#endif
 		return true;
 	}
 

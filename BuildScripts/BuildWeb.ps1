@@ -6,6 +6,7 @@ param(
     [string]$Configuration = "Release",
 
     [string]$OutputRoot = "",
+    [string]$EmsdkRoot = "",
     [switch]$Clean
 )
 
@@ -17,17 +18,20 @@ if (-not (Test-Path -LiteralPath $buildGameScript -PathType Leaf)) {
     throw "BuildGame.ps1 was not found: $buildGameScript"
 }
 
-$arguments = @(
-    "-Project", $Project,
-    "-Platform", "Web",
-    "-Configuration", $Configuration
-)
+$arguments = @{
+    Project = $Project
+    Platform = "Web"
+    Configuration = $Configuration
+}
 
 if (-not [string]::IsNullOrWhiteSpace($OutputRoot)) {
-    $arguments += @("-OutputRoot", $OutputRoot)
+    $arguments.OutputRoot = $OutputRoot
+}
+if (-not [string]::IsNullOrWhiteSpace($EmsdkRoot)) {
+    $arguments.EmsdkRoot = $EmsdkRoot
 }
 if ($Clean) {
-    $arguments += "-Clean"
+    $arguments.Clean = $true
 }
 
 & $buildGameScript @arguments

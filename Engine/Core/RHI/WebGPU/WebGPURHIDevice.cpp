@@ -104,6 +104,16 @@ namespace
 	{
 		return ERHIAddressMode::Repeat == mode ? WGPUAddressMode_Repeat : WGPUAddressMode_ClampToEdge;
 	}
+
+	WGPUTextureFormat ToWebGPUTextureFormat(ERHITextureFormat format)
+	{
+		switch (format)
+		{
+		case ERHITextureFormat::RGBA8:
+		default:
+			return WGPUTextureFormat_RGBA8Unorm;
+		}
+	}
 }
 #endif
 
@@ -126,8 +136,8 @@ bool CWebGPURHIDevice::Initialize(const RHIDesc& desc)
 		canvasSelector = static_cast<const char*>(desc.Surface.NativeHandle.Handle);
 	}
 
-	WGPUSurfaceSourceCanvasHTMLSelector_Emscripten canvasSource = {};
-	canvasSource.chain.sType = WGPUSType_SurfaceSourceCanvasHTMLSelector_Emscripten;
+	WGPUEmscriptenSurfaceSourceCanvasHTMLSelector canvasSource = {};
+	canvasSource.chain.sType = WGPUSType_EmscriptenSurfaceSourceCanvasHTMLSelector;
 	canvasSource.selector = MakeStringView(canvasSelector);
 
 	WGPUSurfaceDescriptor surfaceDesc = {};
@@ -269,7 +279,7 @@ OwnerPtr<IRHITexture> CWebGPURHIDevice::CreateTexture2D(const RHITexture2DDesc& 
 	textureDesc.size.depthOrArrayLayers = 1;
 	textureDesc.mipLevelCount = 1;
 	textureDesc.sampleCount = 1;
-	textureDesc.format = WGPUTextureFormat_BGRA8Unorm;
+	textureDesc.format = ToWebGPUTextureFormat(desc.Format);
 	textureDesc.usage = ToWebGPUTextureUsage(desc.BindFlags);
 	WGPUTexture texture = wgpuDeviceCreateTexture(m_device, &textureDesc);
 	if (nullptr == texture)
@@ -279,13 +289,13 @@ OwnerPtr<IRHITexture> CWebGPURHIDevice::CreateTexture2D(const RHITexture2DDesc& 
 
 	if (initialData)
 	{
-		WGPUImageCopyTexture destination = {};
+		WGPUTexelCopyTextureInfo destination = {};
 		destination.texture = texture;
 		destination.mipLevel = 0;
 		destination.origin = WGPUOrigin3D{ 0, 0, 0 };
 		destination.aspect = WGPUTextureAspect_All;
 
-		WGPUTextureDataLayout layout = {};
+		WGPUTexelCopyBufferLayout layout = {};
 		layout.offset = 0;
 		layout.bytesPerRow = desc.Width * 4;
 		layout.rowsPerImage = desc.Height;
@@ -298,6 +308,13 @@ OwnerPtr<IRHITexture> CWebGPURHIDevice::CreateTexture2D(const RHITexture2DDesc& 
 	}
 
 	WGPUTextureViewDescriptor viewDesc = {};
+	viewDesc.format = textureDesc.format;
+	viewDesc.dimension = WGPUTextureViewDimension_2D;
+	viewDesc.baseMipLevel = 0;
+	viewDesc.mipLevelCount = 1;
+	viewDesc.baseArrayLayer = 0;
+	viewDesc.arrayLayerCount = 1;
+	viewDesc.aspect = WGPUTextureAspect_All;
 	WGPUTextureView textureView = wgpuTextureCreateView(texture, &viewDesc);
 	if (nullptr == textureView)
 	{
@@ -330,6 +347,7 @@ OwnerPtr<IRHISampler> CWebGPURHIDevice::CreateSampler(const RHISamplerDesc& desc
 	samplerDesc.magFilter = ToWebGPUFilter(desc.Filter);
 	samplerDesc.minFilter = ToWebGPUFilter(desc.Filter);
 	samplerDesc.mipmapFilter = WGPUMipmapFilterMode_Nearest;
+	samplerDesc.maxAnisotropy = 1;
 	WGPUSampler sampler = wgpuDeviceCreateSampler(m_device, &samplerDesc);
 	if (nullptr == sampler)
 	{
@@ -393,7 +411,7 @@ OwnerPtr<IRHIGraphicsPipeline> CWebGPURHIDevice::CreateGraphicsPipeline(const RH
 	bindEntries[0].binding = 0;
 	bindEntries[0].visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment;
 	bindEntries[0].buffer.type = WGPUBufferBindingType_Uniform;
-	bindEntries[0].buffer.minBindingSize = sizeof(float) * 16;
+	bindEntries[0].buffer.minBindingSize = 0;
 	bindEntries[1].binding = 1;
 	bindEntries[1].visibility = WGPUShaderStage_Fragment;
 	bindEntries[1].texture.sampleType = WGPUTextureSampleType_Float;
@@ -444,6 +462,33 @@ OwnerPtr<IRHIGraphicsPipeline> CWebGPURHIDevice::CreateGraphicsPipeline(const RH
 	WGPUColorTargetState colorTarget = {};
 	colorTarget.format = WGPUTextureFormat_BGRA8Unorm;
 	colorTarget.writeMask = WGPUColorWriteMask_All;
+	WGPUBlendState blendState = {};
+	WGPUBlendComponent colorBlend = {};
+	WGPUBlendComponent alphaBlend = {};
+	if (ERHIBlendMode::AlphaBlend == desc.BlendMode)
+	{
+		colorBlend.srcFactor = WGPUBlendFactor_SrcAlpha;
+		colorBlend.dstFactor = WGPUBlendFactor_OneMinusSrcAlpha;
+		colorBlend.operation = WGPUBlendOperation_Add;
+		alphaBlend.srcFactor = WGPUBlendFactor_One;
+		alphaBlend.dstFactor = WGPUBlendFactor_OneMinusSrcAlpha;
+		alphaBlend.operation = WGPUBlendOperation_Add;
+		blendState.color = colorBlend;
+		blendState.alpha = alphaBlend;
+		colorTarget.blend = &blendState;
+	}
+	else if (ERHIBlendMode::Additive == desc.BlendMode)
+	{
+		colorBlend.srcFactor = WGPUBlendFactor_SrcAlpha;
+		colorBlend.dstFactor = WGPUBlendFactor_One;
+		colorBlend.operation = WGPUBlendOperation_Add;
+		alphaBlend.srcFactor = WGPUBlendFactor_Zero;
+		alphaBlend.dstFactor = WGPUBlendFactor_One;
+		alphaBlend.operation = WGPUBlendOperation_Add;
+		blendState.color = colorBlend;
+		blendState.alpha = alphaBlend;
+		colorTarget.blend = &blendState;
+	}
 
 	WGPUFragmentState fragmentState = {};
 	fragmentState.module = pixelProgram->GetShaderModule();
