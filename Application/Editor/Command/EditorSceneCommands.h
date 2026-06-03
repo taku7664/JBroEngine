@@ -4,17 +4,21 @@
 
 #include "Editor/Command/EditorCommandManager.h"
 #include "Engine/GameFramework/Component/Transform2D.h"
-#include "Engine/GameFramework/Scene/SceneTypes.h"
 #include "Engine/GameFramework/Reflection/ReflectionTypes.h"
+#include "Utillity/File/FilePath.h" // File::Guid (오브젝트 안정 식별자 = InstanceGuid)
 
 #include <vector>
 
 class CScene;
+class CGameObject;
+
+// 명령은 오브젝트를 InstanceGuid 로 보관한다(포인터/정수 id 아님).
+// 파괴→undo→redo 로 오브젝트가 재생성돼 주소가 바뀌어도 guid 로 안전하게 재해석된다.
 
 class CAddComponentCommand final : public IEditorCommand
 {
 public:
-	CAddComponentCommand(SafePtr<CScene> scene, ObjectId entity, TypeId componentTypeId);
+	CAddComponentCommand(SafePtr<CScene> scene, CGameObject* object, TypeId componentTypeId);
 	~CAddComponentCommand() override = default;
 
 	const char* GetName() const override;
@@ -24,18 +28,15 @@ public:
 
 private:
 	SafePtr<CScene> m_scene;
-	ObjectId m_entity = INVALID_OBJECT_ID;
+	File::Guid m_objectGuid;
 	TypeId m_componentTypeId = INVALID_TYPE_ID;
 	bool m_added = false;
-	// Non-null when the component type allows duplicates; points to the specific
-	// instance that was created so Undo can remove exactly that one.
-	void* m_addedComponent = nullptr;
 };
 
 class CAddScriptComponentCommand final : public IEditorCommand
 {
 public:
-	CAddScriptComponentCommand(SafePtr<CScene> scene, ObjectId entity, TypeId scriptTypeId);
+	CAddScriptComponentCommand(SafePtr<CScene> scene, CGameObject* object, TypeId scriptTypeId);
 	~CAddScriptComponentCommand() override = default;
 
 	const char* GetName() const override;
@@ -45,7 +46,7 @@ public:
 
 private:
 	SafePtr<CScene> m_scene;
-	ObjectId m_entity = INVALID_OBJECT_ID;
+	File::Guid m_objectGuid;
 	TypeId m_scriptTypeId = INVALID_TYPE_ID;
 	TypeId m_scriptComponentTypeId = INVALID_TYPE_ID;
 	void* m_addedComponent = nullptr;
@@ -55,7 +56,7 @@ private:
 class CSetScriptTypeCommand final : public IEditorCommand
 {
 public:
-	CSetScriptTypeCommand(SafePtr<CScene> scene, ObjectId entity, std::size_t instanceIndex, TypeId newScriptTypeId);
+	CSetScriptTypeCommand(SafePtr<CScene> scene, CGameObject* object, std::size_t instanceIndex, TypeId newScriptTypeId);
 	~CSetScriptTypeCommand() override = default;
 
 	const char* GetName() const override;
@@ -68,7 +69,7 @@ private:
 
 private:
 	SafePtr<CScene> m_scene;
-	ObjectId m_entity = INVALID_OBJECT_ID;
+	File::Guid m_objectGuid;
 	std::size_t m_instanceIndex = 0;
 	TypeId m_oldScriptTypeId = INVALID_TYPE_ID;
 	TypeId m_newScriptTypeId = INVALID_TYPE_ID;
@@ -79,22 +80,23 @@ private:
 class CCreateGameObjectCommand final : public IEditorCommand
 {
 public:
-	// parent == INVALID_OBJECT_ID 이면 루트에 생성, 그 외에는 parent 의 자식으로 생성.
+	// parent == nullptr 이면 루트에 생성, 그 외에는 parent 의 자식으로 생성.
 	CCreateGameObjectCommand(SafePtr<CScene> scene, const char* name,
-	                         ObjectId parent = INVALID_OBJECT_ID);
+	                         CGameObject* parent = nullptr);
 	~CCreateGameObjectCommand() override = default;
 
 	const char* GetName() const override;
 	bool Execute() override;
 	void Undo() override;
 	void Redo() override;
-	ObjectId GetEntity() const;
+	// 생성된 오브젝트(없으면 nullptr). 호출자가 선택 처리에 사용.
+	CGameObject* GetEntity() const;
 
 private:
 	SafePtr<CScene> m_scene;
 	std::string m_name;
-	ObjectId m_parent  = INVALID_OBJECT_ID;
-	ObjectId m_entity  = INVALID_OBJECT_ID;
+	File::Guid m_parentGuid; // null = 루트
+	File::Guid m_objectGuid; // 생성된 오브젝트의 안정 식별자(redo 시 동일 guid 강제)
 	bool     m_created = false;
 };
 
@@ -103,13 +105,11 @@ class CSetComponentPropertyCommand final : public IEditorCommand
 public:
 	CSetComponentPropertyCommand(
 		SafePtr<CScene> scene,
-		ObjectId entity,
+		CGameObject* object,
 		TypeId componentTypeId,
 		std::size_t propertyOffset,
 		std::vector<std::uint8_t> oldValue,
 		std::vector<std::uint8_t> newValue,
-		// For component types that allow duplicates, pass the 0-based instance index
-		// so undo/redo modifies the correct instance rather than always the first one.
 		std::size_t instanceIndex = 0);
 	~CSetComponentPropertyCommand() override = default;
 
@@ -123,7 +123,7 @@ private:
 
 private:
 	SafePtr<CScene> m_scene;
-	ObjectId m_entity = INVALID_OBJECT_ID;
+	File::Guid m_objectGuid;
 	TypeId m_componentTypeId = INVALID_TYPE_ID;
 	std::size_t m_propertyOffset = 0;
 	std::size_t m_instanceIndex = 0;
@@ -137,8 +137,8 @@ private:
 class CSetParentCommand final : public IEditorCommand
 {
 public:
-	// newParent = INVALID_OBJECT_ID 이면 부모 해제(루트로 이동).
-	CSetParentCommand(SafePtr<CScene> scene, ObjectId child, ObjectId newParent);
+	// newParent = nullptr 이면 부모 해제(루트로 이동).
+	CSetParentCommand(SafePtr<CScene> scene, CGameObject* child, CGameObject* newParent);
 	~CSetParentCommand() override = default;
 
 	const char* GetName() const override;
@@ -148,9 +148,9 @@ public:
 
 private:
 	SafePtr<CScene> m_scene;
-	ObjectId        m_child          = INVALID_OBJECT_ID;
-	ObjectId        m_oldParent      = INVALID_OBJECT_ID;
-	ObjectId        m_newParent      = INVALID_OBJECT_ID;
+	File::Guid      m_childGuid;
+	File::Guid      m_oldParentGuid; // null = 루트
+	File::Guid      m_newParentGuid; // null = 루트
 	Transform2D     m_oldLocalTransform;
 	Transform2D     m_newLocalTransform;
 	bool            m_executed       = false;
@@ -164,7 +164,7 @@ class CModifyPolygonVerticesCommand final : public IEditorCommand
 public:
 	CModifyPolygonVerticesCommand(
 		SafePtr<CScene>                   scene,
-		ObjectId                          entity,
+		CGameObject*                      object,
 		std::vector<Vector2>       newPoints);
 	~CModifyPolygonVerticesCommand() override = default;
 
@@ -178,7 +178,7 @@ private:
 
 private:
 	SafePtr<CScene>               m_scene;
-	ObjectId                      m_entity   = INVALID_OBJECT_ID;
+	File::Guid                    m_objectGuid;
 	std::vector<Vector2>   m_oldPoints;
 	std::vector<Vector2>   m_newPoints;
 	bool                          m_executed = false;

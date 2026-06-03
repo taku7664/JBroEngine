@@ -4,6 +4,7 @@
 
 #include "Engine/GameFramework/Scene/SceneTypes.h"
 #include "Engine/GameFramework/Scene/SceneManager.h"   // CSceneManager 사용
+#include "Engine/GameFramework/Object/GameObject.h"    // CGameObject (선택 = SafePtr)
 #include "Engine/Editor/ImEditor.h"   // CImEditor 사용
 #include "Editor/Command/EditorCommandManager.h"
 #include "Utillity/File/FilePath.h"
@@ -46,75 +47,83 @@ public:
 	inline static SafePtr<CAudioImporterWindow>		AudioImporter  = nullptr;
 	inline static CEditorCommandManager				CommandManager;
 
-	// ── 단일 선택: 이전 다중 선택 초기화 후 entity 하나만 선택 ──────────────
-	static void SelectEntity(ObjectId entity)
+	// ── 단일 선택: 이전 다중 선택 초기화 후 오브젝트 하나만 선택 ──────────────
+	static void SelectEntity(CGameObject* object)
 	{
-		m_selectedEntities.clear();
-		m_primarySelectedEntity = entity;
-		if (entity != INVALID_OBJECT_ID)
-			m_selectedEntities.push_back(entity);
+		m_selectedObjects.clear();
+		m_primarySelected = object ? object->SafeFromThis() : SafePtr<CGameObject>();
+		if (object)
+			m_selectedObjects.push_back(m_primarySelected);
 		ClearAssetSelection();
 		ClearScriptSelection();
 	}
 
-	// ── 다중 선택: entities 목록 전체 선택 (첫 항목이 primary) ───────────────
-	static void SelectEntities(std::vector<ObjectId> entities)
+	// ── 다중 선택: objects 목록 전체 선택 (첫 항목이 primary) ────────────────
+	static void SelectEntities(std::vector<CGameObject*> objects)
 	{
-		m_selectedEntities = std::move(entities);
-		m_primarySelectedEntity = m_selectedEntities.empty()
-			? INVALID_OBJECT_ID : m_selectedEntities.front();
+		m_selectedObjects.clear();
+		for (CGameObject* o : objects)
+			if (o) m_selectedObjects.push_back(o->SafeFromThis());
+		m_primarySelected = m_selectedObjects.empty()
+			? SafePtr<CGameObject>() : m_selectedObjects.front();
 		ClearAssetSelection();
 		ClearScriptSelection();
 	}
 
 	// ── 개별 추가 (Ctrl+Click용): 이미 선택돼 있으면 무시 ────────────────────
-	static void AddToSelection(ObjectId entity)
+	static void AddToSelection(CGameObject* object)
 	{
-		if (entity == INVALID_OBJECT_ID) return;
-		if (!IsSelected(entity))
+		if (nullptr == object) return;
+		if (!IsSelected(object))
 		{
-			m_selectedEntities.push_back(entity);
-			if (m_primarySelectedEntity == INVALID_OBJECT_ID)
-				m_primarySelectedEntity = entity;
+			m_selectedObjects.push_back(object->SafeFromThis());
+			if (!m_primarySelected.IsValid())
+				m_primarySelected = object->SafeFromThis();
 		}
 		ClearAssetSelection();
 		ClearScriptSelection();
 	}
 
 	// ── 개별 제거 ─────────────────────────────────────────────────────────────
-	static void RemoveFromSelection(ObjectId entity)
+	static void RemoveFromSelection(const CGameObject* object)
 	{
-		auto it = std::find(m_selectedEntities.begin(), m_selectedEntities.end(), entity);
-		if (it != m_selectedEntities.end())
-			m_selectedEntities.erase(it);
-		if (m_primarySelectedEntity == entity)
-			m_primarySelectedEntity = m_selectedEntities.empty()
-				? INVALID_OBJECT_ID : m_selectedEntities.front();
+		auto it = std::find_if(m_selectedObjects.begin(), m_selectedObjects.end(),
+			[object](const SafePtr<CGameObject>& s) { return s.TryGet() == object; });
+		if (it != m_selectedObjects.end())
+			m_selectedObjects.erase(it);
+		if (m_primarySelected.TryGet() == object)
+			m_primarySelected = m_selectedObjects.empty()
+				? SafePtr<CGameObject>() : m_selectedObjects.front();
 	}
 
 	// ── 선택 여부 확인 ────────────────────────────────────────────────────────
-	static bool IsSelected(ObjectId entity)
+	static bool IsSelected(const CGameObject* object)
 	{
-		return std::find(m_selectedEntities.begin(),
-		                 m_selectedEntities.end(), entity) != m_selectedEntities.end();
+		return std::find_if(m_selectedObjects.begin(), m_selectedObjects.end(),
+			[object](const SafePtr<CGameObject>& s) { return s.TryGet() == object; })
+			!= m_selectedObjects.end();
 	}
 
-	// ── 전체 선택 목록 (outline 렌더링, 다중 처리 등) ─────────────────────────
-	static const std::vector<ObjectId>& GetSelectedEntities()
+	// ── 전체 선택 목록 (outline 렌더링, 다중 처리 등). 살아있는 것만 반환 ─────
+	static std::vector<CGameObject*> GetSelectedEntities()
 	{
-		return m_selectedEntities;
+		std::vector<CGameObject*> out;
+		out.reserve(m_selectedObjects.size());
+		for (const SafePtr<CGameObject>& s : m_selectedObjects)
+			if (CGameObject* o = s.TryGet()) out.push_back(o);
+		return out;
 	}
 
-	// ── Primary 선택 엔티티 (Inspector 표시, 하위 호환성 유지) ────────────────
-	static ObjectId GetSelectedEntity()
+	// ── Primary 선택 오브젝트 (Inspector 표시). 파괴됐으면 nullptr ────────────
+	static CGameObject* GetSelectedEntity()
 	{
-		return m_primarySelectedEntity;
+		return m_primarySelected.TryGet();
 	}
 
 	static void ClearSelection()
 	{
-		m_selectedEntities.clear();
-		m_primarySelectedEntity = INVALID_OBJECT_ID;
+		m_selectedObjects.clear();
+		m_primarySelected = SafePtr<CGameObject>();
 	}
 
 	static void SelectAsset(const File::Guid& guid, const File::Path& path)
@@ -187,8 +196,8 @@ public:
 	}
 
 private:
-	inline static ObjectId              m_primarySelectedEntity = INVALID_OBJECT_ID;
-	inline static std::vector<ObjectId> m_selectedEntities;
+	inline static SafePtr<CGameObject>              m_primarySelected;
+	inline static std::vector<SafePtr<CGameObject>> m_selectedObjects;
 	inline static File::Path            m_activeScenePath   = File::NULL_PATH;
 	inline static File::Guid            m_selectedAssetGuid = File::NULL_GUID;
 	inline static File::Path            m_selectedAssetPath = File::NULL_PATH;

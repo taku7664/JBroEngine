@@ -475,8 +475,8 @@ void CLiveCompileManager::TakeScriptSnapshot()
 			}
 
 			ScriptFieldSnapshot snapshot;
-			snapshot.Entity   = owner->GetId();
-			snapshot.TypeName = info->Type.Name ? info->Type.Name : "";
+			snapshot.OwnerGuid = owner->InstanceGuid;
+			snapshot.TypeName  = info->Type.Name ? info->Type.Name : "";
 
 			for (const ReflectPropertyInfo& prop : info->Properties)
 			{
@@ -545,7 +545,7 @@ void CLiveCompileManager::RestoreScriptSnapshot()
 
 	for (ScriptFieldSnapshot& snapshot : m_scriptSnapshots)
 	{
-		CGameObject* owner = scene->FindObjectById(snapshot.Entity);
+		CGameObject* owner = scene->FindByInstanceGuid(snapshot.OwnerGuid).TryGet();
 		ScriptComponent* sc = owner ? owner->GetComponent<ScriptComponent>() : nullptr;
 		if (!sc)
 		{

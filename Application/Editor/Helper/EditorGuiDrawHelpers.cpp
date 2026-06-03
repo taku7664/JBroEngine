@@ -20,9 +20,9 @@ namespace
 		       0 == std::strcmp(componentType->Type.Name, "ScriptComponent");
 	}
 
-	bool DrawScriptList(CScene& scene, ObjectId entity, CReflectionRegistry& reflection)
+	bool DrawScriptList(CScene& scene, CGameObject* object, CReflectionRegistry& reflection)
 	{
-		if (nullptr == scene.FindObjectById(entity))
+		if (nullptr == object)
 		{
 			return false;
 		}
@@ -48,16 +48,15 @@ namespace
 			{
 				added = Editor::CommandManager.ExecuteCommand(
 					MakeOwnerPtr<CAddScriptComponentCommand>(
-						scene.SafeFromThis(), entity, scriptType->Type.Id));
+						scene.SafeFromThis(), object, scriptType->Type.Id));
 			}
 		}
 
 		return added;
 	}
 
-	bool DrawComponentList(CScene& scene, ObjectId entity)
+	bool DrawComponentList(CScene& scene, CGameObject* object)
 	{
-		CGameObject* object = scene.FindObjectById(entity);
 		if (false == Core::Reflection.IsValid() || nullptr == object)
 		{
 			ImGui::TextDisabled(Loc::Text("inspector.no_component_registry"));
@@ -104,7 +103,7 @@ namespace
 					{
 						Editor::CommandManager.ExecuteCommand(
 						    MakeOwnerPtr<CAddComponentCommand>(
-						        scene.SafeFromThis(), entity, componentType->Type.Id));
+						        scene.SafeFromThis(), object, componentType->Type.Id));
 						added = true;
 					}
 				}
@@ -114,7 +113,7 @@ namespace
 
 		if (ImGui::BeginMenu(Loc::Text("inspector.script_menu")))
 		{
-			added = DrawScriptList(scene, entity, reflection) || added;
+			added = DrawScriptList(scene, object, reflection) || added;
 			ImGui::EndMenu();
 		}
 
@@ -157,18 +156,18 @@ std::string EditorGuiDrawHelpers::LocalizedCategoryLabel(const char* category)
 	return Loc::TextOr(key.c_str(), safe);
 }
 
-bool EditorGuiDrawHelpers::DrawAddComponentMenu(CScene& scene, ObjectId entity)
+bool EditorGuiDrawHelpers::DrawAddComponentMenu(CScene& scene, CGameObject* object)
 {
 	if (ImGui::BeginMenu(Loc::Text("inspector.add_component")))
 	{
-		const bool added = DrawComponentList(scene, entity);
+		const bool added = DrawComponentList(scene, object);
 		ImGui::EndMenu();
 		return added;
 	}
 	return false;
 }
 
-bool EditorGuiDrawHelpers::DrawAddComponentButton(CScene& scene, ObjectId entity)
+bool EditorGuiDrawHelpers::DrawAddComponentButton(CScene& scene, CGameObject* object)
 {
 	bool added = false;
 	if (ImGui::Button(Loc::Text("inspector.add_component")))
@@ -178,16 +177,16 @@ bool EditorGuiDrawHelpers::DrawAddComponentButton(CScene& scene, ObjectId entity
 
 	if (ImGui::BeginPopup("AddComponentPopup"))
 	{
-		added = DrawComponentList(scene, entity);
+		added = DrawComponentList(scene, object);
 		ImGui::EndPopup();
 	}
 	return added;
 }
 
-bool EditorGuiDrawHelpers::DrawAddObjectMenu(CScene& scene, ObjectId parent)
+bool EditorGuiDrawHelpers::DrawAddObjectMenu(CScene& scene, CGameObject* parent)
 {
 	// parent 유무에 따라 레이블 변경
-	const char* label = (parent != INVALID_OBJECT_ID)
+	const char* label = (nullptr != parent)
 	                        ? Loc::Text("inspector.add_child_object")
 	                        : Loc::Text("inspector.add_object");
 
@@ -202,6 +201,12 @@ bool EditorGuiDrawHelpers::DrawAddObjectMenu(CScene& scene, ObjectId parent)
 		}
 		return true;
 	}
+	return false;
+}
+
+bool EditorGuiDrawHelpers::DrawRemoveObjectMenu(CScene& scene, CGameObject* object)
+{
+	(void)scene; (void)object;
 	return false;
 }
 

@@ -1,10 +1,11 @@
 #pragma once
 
-#include "Engine/GameFramework/Scene/SceneTypes.h"
 #include "Utillity/Math/Vector2T.h"
+#include "Utillity/Pointer/SafePtr.h"
 #include <vector>
 
 class CScene;
+class CGameObject;
 class IAssetManager;
 struct ImDrawList;
 struct ImVec2;
@@ -13,8 +14,8 @@ struct ImVec2;
 //
 //  포커스 내비게이션 상태 및 오버레이 렌더링 담당.
 //
-//  루트 모드  (m_context == INVALID_OBJECT_ID) : 씬 최상위 레벨 탐색
-//  포커스 모드 (m_context 유효)               : 해당 엔티티 "안" 에서 직계 자식 탐색
+//  루트 모드  (m_context == nullptr) : 씬 최상위 레벨 탐색
+//  포커스 모드 (m_context 유효)      : 해당 오브젝트 "안" 에서 직계 자식 탐색
 //
 //  단일 클릭               → 현재 레벨에서 엔티티 선택 (컨텍스트 변경 없음)
 //  더블 클릭 on 오브젝트   → 자식 있는 경우 진입 + 카메라 포커싱
@@ -23,19 +24,19 @@ struct ImVec2;
 class CSceneViewEditContext
 {
 public:
-    ObjectId GetContext() const { return m_context; }
-    bool     IsActive()   const { return m_context != INVALID_OBJECT_ID; }
+    CGameObject* GetContext() const { return m_context.TryGet(); }
+    bool         IsActive()   const { return m_context.IsValid(); }
 
-    void Clear() { m_context = INVALID_OBJECT_ID; }
+    void Clear() { m_context = SafePtr<CGameObject>(); }
 
-    // m_context 가 이미 죽은 엔티티면 INVALID 로 초기화.
+    // m_context 가 이미 죽은 오브젝트면 초기화.
     void Validate(const CScene& scene);
 
-    // 현재 컨텍스트 레벨에서 worldPt 에 가장 위에 있는 엔티티 반환.
-    //  루트 모드 → 루트 조상 엔티티
-    //  포커스 모드 → m_context 의 직계 자식 엔티티
-    //  없으면 INVALID_OBJECT_ID
-    ObjectId Pick(
+    // 현재 컨텍스트 레벨에서 worldPt 에 가장 위에 있는 오브젝트 반환.
+    //  루트 모드 → 루트 조상 오브젝트
+    //  포커스 모드 → m_context 의 직계 자식 오브젝트
+    //  없으면 nullptr
+    CGameObject* Pick(
         const CScene& scene,
         const Vector2& worldPt,
         IAssetManager* assetMgr) const;
@@ -46,7 +47,7 @@ public:
     //  - 스프라이트 없음 → 1×1 단위 OBB (Transform 기준)
     //  루트 모드 → 루트 조상 엔티티
     //  포커스 모드 → m_context 의 직계 자식 (또는 m_context 자신)
-    std::vector<ObjectId> PickBox(
+    std::vector<CGameObject*> PickBox(
         const CScene& scene,
         const Vector2& worldMin,
         const Vector2& worldMax,
@@ -56,14 +57,14 @@ public:
     //   - m_context = picked (자식 유무 무관, 항상 진입)
     //   - 선택(Editor::SelectEntities)은 호출자(SceneViewTool)가 담당
     //   - 반환값 = 카메라가 포커싱할 엔티티 (항상 picked 반환)
-    ObjectId OnDoubleClick(const CScene& scene, ObjectId picked);
+    CGameObject* OnDoubleClick(const CScene& scene, CGameObject* picked);
 
     // 더블 클릭 on 빈 공간:
     //   - m_context = m_context 의 부모 (루트면 INVALID)
     //   - 반환값 = 탈출한 엔티티 (호출자가 SelectEntities + FocusOnEntity에 사용)
-    //             루트에서 탈출할 게 없으면 INVALID_OBJECT_ID
-    ObjectId OnDoubleClickEmpty(const CScene& scene);
+    //             루트에서 탈출할 게 없으면 nullptr
+    CGameObject* OnDoubleClickEmpty(const CScene& scene);
 
 private:
-    ObjectId m_context = INVALID_OBJECT_ID;
+    SafePtr<CGameObject> m_context;
 };

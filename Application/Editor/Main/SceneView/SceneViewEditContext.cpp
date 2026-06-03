@@ -42,41 +42,34 @@ namespace
     // ── 계층 탐색 헬퍼 ────────────────────────────────────────────────────────
 
     // 씬 루트까지 올라가서 최상위 조상 반환
-    ObjectId GetRootAncestor(const CScene& scene, ObjectId entity)
+    CGameObject* GetRootAncestor(CGameObject* obj)
     {
-        if (entity == INVALID_OBJECT_ID) return INVALID_OBJECT_ID;
-        CGameObject* cur = const_cast<CScene&>(scene).FindObjectById(entity);
-        if (!cur) return INVALID_OBJECT_ID;
-        while (CGameObject* parent = cur->GetParent().TryGet())
-            cur = parent;
-        return cur->GetId();
+        if (!obj) return nullptr;
+        while (CGameObject* parent = obj->GetParent().TryGet())
+            obj = parent;
+        return obj;
     }
 
-    // context의 직계 자식 중 target을 포함(또는 target 자신)하는 엔티티 반환.
-    // target이 context의 자손이 아니면 INVALID_OBJECT_ID.
-    ObjectId GetDirectChildOfContext(const CScene& scene, ObjectId context, ObjectId target)
+    // context의 직계 자식 중 target을 포함(또는 target 자신)하는 오브젝트 반환.
+    // target이 context의 자손이 아니면 nullptr.
+    CGameObject* GetDirectChildOfContext(CGameObject* context, CGameObject* target)
     {
-        if (target == INVALID_OBJECT_ID || context == INVALID_OBJECT_ID)
-            return INVALID_OBJECT_ID;
-        CGameObject* cur = const_cast<CScene&>(scene).FindObjectById(target);
+        if (!target || !context) return nullptr;
+        CGameObject* cur = target;
         while (cur)
         {
-            CGameObject*   parent   = cur->GetParent().TryGet();
-            const ObjectId parentId = parent ? parent->GetId() : INVALID_OBJECT_ID;
-            if (parentId == context) return cur->GetId();
-            if (parentId == INVALID_OBJECT_ID) return INVALID_OBJECT_ID;
+            CGameObject* parent = cur->GetParent().TryGet();
+            if (parent == context) return cur;
+            if (!parent) return nullptr;
             cur = parent;
         }
-        return INVALID_OBJECT_ID;
+        return nullptr;
     }
 
-    // entity 가 ancestor 의 자손인지 (id 기반).
-    bool IsDescendantOfId(const CScene& scene, ObjectId entity, ObjectId ancestor)
+    // obj 가 ancestor 의 자손인지.
+    bool IsDescendantOfObj(const CGameObject* obj, const CGameObject* ancestor)
     {
-        CScene&      s    = const_cast<CScene&>(scene);
-        CGameObject* obj  = s.FindObjectById(entity);
-        CGameObject* anc  = s.FindObjectById(ancestor);
-        return obj && anc && obj->IsDescendantOf(*anc);
+        return obj && ancestor && obj->IsDescendantOf(*ancestor);
     }
 
     // ── 텍스처 해석 헬퍼 ─────────────────────────────────────────────────────
@@ -137,29 +130,31 @@ namespace
 
 void CSceneViewEditContext::Validate(const CScene& scene)
 {
-    if (m_context != INVALID_OBJECT_ID && nullptr == const_cast<CScene&>(scene).FindObjectById(m_context))
-        m_context = INVALID_OBJECT_ID;
+    (void)scene;
+    // SafePtr 가 파괴된 오브젝트를 자동으로 null 로 만든다 — TryGet 으로 확정만.
+    if (m_context.IsValid() && nullptr == m_context.TryGet())
+        m_context = SafePtr<CGameObject>();
 }
 
-ObjectId CSceneViewEditContext::Pick(
+CGameObject* CSceneViewEditContext::Pick(
     const CScene& scene,
     const Vector2& worldPt,
     IAssetManager* assetMgr) const
 {
-    ObjectId pickedSprite  = INVALID_OBJECT_ID;
-    std::int32_t pickedOrd = std::numeric_limits<std::int32_t>::min();
+    CGameObject* context     = m_context.TryGet();
+    CGameObject* pickedObject = nullptr;
+    std::int32_t pickedOrd   = std::numeric_limits<std::int32_t>::min();
 
     const_cast<CScene&>(scene).ForEach<SpriteRenderer2D>(
         [&](SpriteRenderer2D& sprite)
         {
             CGameObject* owner = sprite.GetOwner();
             if (!owner || !owner->IsActive || !sprite.IsEnabled) return;
-            const ObjectId entity = owner->GetId();
 
             // 포커스 모드: m_context 자신 또는 그 자손만 대상
-            if (m_context != INVALID_OBJECT_ID)
+            if (context)
             {
-                if (entity != m_context && !IsDescendantOfId(scene, entity, m_context)) return;
+                if (owner != context && !IsDescendantOfObj(owner, context)) return;
             }
 
             // OBB 히트 테스트
@@ -197,33 +192,34 @@ ObjectId CSceneViewEditContext::Pick(
                 }
             }
 
-            if (pickedSprite == INVALID_OBJECT_ID || sprite.SortOrder >= pickedOrd)
+            if (nullptr == pickedObject || sprite.SortOrder >= pickedOrd)
             {
-                pickedSprite = entity;
+                pickedObject = owner;
                 pickedOrd    = sprite.SortOrder;
             }
         });
 
-    if (pickedSprite == INVALID_OBJECT_ID) return INVALID_OBJECT_ID;
+    if (nullptr == pickedObject) return nullptr;
 
-    // 컨텍스트 레벨에 맞는 엔티티 반환
-    if (m_context == INVALID_OBJECT_ID)
-        return GetRootAncestor(scene, pickedSprite);
+    // 컨텍스트 레벨에 맞는 오브젝트 반환
+    if (nullptr == context)
+        return GetRootAncestor(pickedObject);
 
     // m_context 자신을 클릭한 경우: GetDirectChildOfContext는 자신을 탐색 불가 → 직접 반환
-    if (pickedSprite == m_context)
-        return m_context;
+    if (pickedObject == context)
+        return context;
 
-    return GetDirectChildOfContext(scene, m_context, pickedSprite);
+    return GetDirectChildOfContext(context, pickedObject);
 }
 
-std::vector<ObjectId> CSceneViewEditContext::PickBox(
+std::vector<CGameObject*> CSceneViewEditContext::PickBox(
     const CScene& scene,
     const Vector2& worldMin,
     const Vector2& worldMax,
     IAssetManager* assetMgr) const
 {
-    std::unordered_set<ObjectId> foundSet;
+    CGameObject* context = m_context.TryGet();
+    std::unordered_set<CGameObject*> foundSet;
 
     // 전체 오브젝트 순회:
     //   - SpriteRenderer2D 있음 → 불투명 픽셀 tight AABB (없으면 OBB 폴백)
@@ -232,12 +228,11 @@ std::vector<ObjectId> CSceneViewEditContext::PickBox(
         [&](CGameObject& object)
         {
             if (!object.IsActive) return;
-            const ObjectId entity = object.GetId();
 
             // 컨텍스트 필터
-            if (m_context != INVALID_OBJECT_ID)
+            if (context)
             {
-                if (entity != m_context && !IsDescendantOfId(scene, entity, m_context)) return;
+                if (&object != context && !IsDescendantOfObj(&object, context)) return;
             }
 
             const Matrix3x2 entityWorldMat = GetWorldTransform(object);
@@ -330,43 +325,42 @@ std::vector<ObjectId> CSceneViewEditContext::PickBox(
                     return;
             }
 
-            // ── 컨텍스트 레벨 엔티티로 매핑 ─────────────────────────────────
-            ObjectId contextEntity = INVALID_OBJECT_ID;
-            if (m_context == INVALID_OBJECT_ID)
-                contextEntity = GetRootAncestor(scene, entity);
-            else if (entity == m_context)
-                contextEntity = entity;
+            // ── 컨텍스트 레벨 오브젝트로 매핑 ─────────────────────────────────
+            CGameObject* contextObject = nullptr;
+            if (nullptr == context)
+                contextObject = GetRootAncestor(&object);
+            else if (&object == context)
+                contextObject = &object;
             else
-                contextEntity = GetDirectChildOfContext(scene, m_context, entity);
+                contextObject = GetDirectChildOfContext(context, &object);
 
-            if (contextEntity != INVALID_OBJECT_ID)
-                foundSet.insert(contextEntity);
+            if (contextObject)
+                foundSet.insert(contextObject);
         });
 
-    return std::vector<ObjectId>(foundSet.begin(), foundSet.end());
+    return std::vector<CGameObject*>(foundSet.begin(), foundSet.end());
 }
 
-ObjectId CSceneViewEditContext::OnDoubleClick(const CScene& /*scene*/, ObjectId picked)
+CGameObject* CSceneViewEditContext::OnDoubleClick(const CScene& /*scene*/, CGameObject* picked)
 {
-    if (picked == INVALID_OBJECT_ID) return INVALID_OBJECT_ID;
+    if (nullptr == picked) return nullptr;
 
-    // 자식 유무와 무관하게 항상 해당 엔티티 컨텍스트로 진입.
+    // 자식 유무와 무관하게 항상 해당 오브젝트 컨텍스트로 진입.
     // 선택 처리(Editor::SelectEntities)는 호출자(SceneViewTool)가 담당.
-    m_context = picked;
+    m_context = picked->SafeFromThis();
 
     return picked; // 호출자가 FocusOnEntity 에 전달
 }
 
-ObjectId CSceneViewEditContext::OnDoubleClickEmpty(const CScene& scene)
+CGameObject* CSceneViewEditContext::OnDoubleClickEmpty(const CScene& /*scene*/)
 {
-    if (m_context == INVALID_OBJECT_ID)
-        return INVALID_OBJECT_ID; // 이미 루트, 탈출할 컨텍스트 없음
+    CGameObject* ctxObj = m_context.TryGet();
+    if (nullptr == ctxObj)
+        return nullptr; // 이미 루트, 탈출할 컨텍스트 없음
 
-    const ObjectId exited = m_context;             // 방금 탈출한 엔티티
-    CGameObject*   ctxObj = const_cast<CScene&>(scene).FindObjectById(m_context);
-    CGameObject*   parent = ctxObj ? ctxObj->GetParent().TryGet() : nullptr;
-    m_context = parent ? parent->GetId() : INVALID_OBJECT_ID; // 한 뎁스 위로 (루트면 INVALID)
-    return exited;
+    CGameObject* parent = ctxObj->GetParent().TryGet();
+    m_context = parent ? parent->SafeFromThis() : SafePtr<CGameObject>(); // 한 뎁스 위로
+    return ctxObj; // 방금 탈출한 오브젝트
 }
 
 // DrawOverlay 는 RT 파이프라인(ImEditor)으로 이전됨. 구현 제거.

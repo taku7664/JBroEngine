@@ -380,11 +380,11 @@ void CImEditor::OnPostFinalize()
 
 // ── Scene view focus context ────────────────────────────────────────────────
 
-void CImEditor::SetSceneViewFocusContext(std::vector<ObjectId> contextEntities)
+void CImEditor::SetSceneViewFocusContext(std::vector<const void*> contextObjects)
 {
-    m_sceneViewFocusActive = !contextEntities.empty();
+    m_sceneViewFocusActive = !contextObjects.empty();
     m_sceneViewFocusEntities.clear();
-    for (ObjectId e : contextEntities) m_sceneViewFocusEntities.insert(e);
+    for (const void* o : contextObjects) m_sceneViewFocusEntities.insert(o);
 }
 
 void CImEditor::ClearSceneViewFocusContext()
@@ -395,11 +395,11 @@ void CImEditor::ClearSceneViewFocusContext()
 
 // ── Scene view selection ────────────────────────────────────────────────────
 
-void CImEditor::SetSceneViewSelection(std::vector<ObjectId> selectedEntities)
+void CImEditor::SetSceneViewSelection(std::vector<const void*> selectedObjects)
 {
-    m_sceneViewHasSelection = !selectedEntities.empty();
+    m_sceneViewHasSelection = !selectedObjects.empty();
     m_sceneViewSelectedEntities.clear();
-    for (ObjectId e : selectedEntities) m_sceneViewSelectedEntities.insert(e);
+    for (const void* o : selectedObjects) m_sceneViewSelectedEntities.insert(o);
 }
 
 void CImEditor::ClearSceneViewSelection()
@@ -609,7 +609,20 @@ bool CImEditor::InitializeImGui()
         0,
     };
     ImFont* mainFont = io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\malgun.ttf", 15.0f, &fontConfig, customRanges);
-    (void)mainFont;
+
+	// FontAwesome 아이콘 폰트 추가 (글꼴 파일은 프로젝트 루트에 위치한다고 가정)
+    File::Path fontPath = Core::FileSystem->GetOriginPath() / "Font Awesome 7 Free-Solid-900.otf";
+    if (true == std::filesystem::exists(fontPath.generic_string()))
+    {
+        static const ImWchar icons_ranges[] = { 0xf000, 0xf8ff, 0 }; // FontAwesome 유니코드 범위
+        ImFontConfig  config;
+
+        config.MergeMode = true;
+        config.PixelSnapH = true;
+
+        ImFontAtlas* atlas = io.Fonts;
+        ImFont* iconFont = atlas->AddFontFromFileTTF(fontPath.string().c_str(), 15.0f, &config, icons_ranges);
+    }
 
     ImGui_ImplWin32_EnableDpiAwareness();
 

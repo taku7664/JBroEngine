@@ -50,24 +50,26 @@ namespace
     // root 엔티티 + 모든 자손을 벡터로 반환. 다중 선택에서 Ctrl+Click 토글,
     // 단일 클릭(부모 = 자식 전부 포함) 등에 사용.
 
-    std::vector<ObjectId> CollectSubtree(const CScene& scene, ObjectId root)
+    // CGameObject* → SafePtr (null 안전). 에디터 상호작용 상태 보관용.
+    SafePtr<CGameObject> AsSafe(CGameObject* o)
     {
-        if (root == INVALID_OBJECT_ID) return {};
-        CScene&               s = const_cast<CScene&>(scene);
-        std::vector<ObjectId> result;
-        std::vector<ObjectId> stack = { root };
+        return o ? o->SafeFromThis() : SafePtr<CGameObject>();
+    }
+
+    std::vector<CGameObject*> CollectSubtree(const CScene& /*scene*/, CGameObject* root)
+    {
+        if (nullptr == root) return {};
+        std::vector<CGameObject*> result;
+        std::vector<CGameObject*> stack = { root };
         while (!stack.empty())
         {
-            const ObjectId cur = stack.back();
+            CGameObject* cur = stack.back();
             stack.pop_back();
             result.push_back(cur);
-            if (CGameObject* obj = s.FindObjectById(cur))
+            for (const SafePtr<CGameObject>& child : cur->GetChildren())
             {
-                for (const SafePtr<CGameObject>& child : obj->GetChildren())
-                {
-                    if (CGameObject* childObj = child.TryGet())
-                        stack.push_back(childObj->GetId());
-                }
+                if (CGameObject* childObj = child.TryGet())
+                    stack.push_back(childObj);
             }
         }
         return result;
@@ -254,12 +256,10 @@ void CSceneViewTool::SetEditorCamera(float x, float y, float size)
     m_cameraSize       = m_targetCameraSize;
 }
 
-void CSceneViewTool::FocusOnEntity(ObjectId entity, const CScene& scene)
+void CSceneViewTool::FocusOnEntity(CGameObject* object, const CScene& scene)
 {
-    if (INVALID_OBJECT_ID == entity) return;
-
-    CGameObject* object = const_cast<CScene&>(scene).FindObjectById(entity);
-    if (!object) return;
+    (void)scene;
+    if (nullptr == object) return;
 
     const Matrix3x2      worldTransform = GetWorldTransform(*object);
     const Vector2 worldPos       = worldTransform.TransformPoint(Vector2(0.0f, 0.0f));
@@ -289,15 +289,15 @@ void CSceneViewTool::FocusOnEntity(ObjectId entity, const CScene& scene)
     m_targetCameraSize = newSize;
 }
 
-void CSceneViewTool::SetFocusContext(ObjectId entity, const CScene& scene)
+void CSceneViewTool::SetFocusContext(CGameObject* object, const CScene& scene)
 {
-    if (INVALID_OBJECT_ID == entity) return;
+    if (nullptr == object) return;
 
-    // 편집 컨텍스트를 entity로 전환 (씬뷰 더블클릭과 동일한 경로)
-    m_editCtx.OnDoubleClick(scene, entity);
+    // 편집 컨텍스트를 object로 전환 (씬뷰 더블클릭과 동일한 경로)
+    m_editCtx.OnDoubleClick(scene, object);
 
-    // 카메라도 해당 엔티티 위치로 이동
-    FocusOnEntity(entity, scene);
+    // 카메라도 해당 오브젝트 위치로 이동
+    FocusOnEntity(object, scene);
 }
 
 void CSceneViewTool::ClearEditContext()
@@ -461,9 +461,8 @@ void CSceneViewTool::OnRenderStay()
                 constexpr ImU32 WHITE      = IM_COL32(255, 255, 255, 225);
                 constexpr ImU32 RED        = IM_COL32(255,  60,  60, 235);
 
-                for (ObjectId e : Editor::GetSelectedEntities())
+                for (CGameObject* obj : Editor::GetSelectedEntities())
                 {
-                    CGameObject* obj = gizmoScene->FindObjectById(e);
                     if (!obj) continue;
 
                     const Matrix3x2      worldTf  = GetWorldTransform(*obj);
@@ -530,7 +529,7 @@ void CSceneViewTool::OnRenderStay()
                 constexpr ImU32 HANDLE_SHAD   = IM_COL32(  0,   0,   0, 120);
                 constexpr float EDGE_HIT_DIST = 8.0f;
 
-                const ObjectId selEnt = Editor::GetSelectedEntity();
+                CGameObject* const selObj = Editor::GetSelectedEntity();
                 const float pixPerWorld = vpSize.y / (2.0f * m_cameraSize);
                 const bool mouseInVp =
                     ImGui::IsMouseHoveringRect(vpMin, vpMin + vpSize, false) && !toggleHovered;
@@ -558,9 +557,9 @@ void CSceneViewTool::OnRenderStay()
                         if (!col.IsEnabled) return;
                         CGameObject* owner = col.GetOwner();
                         if (!owner) return;
-                        const ObjectId entity = owner->GetId();
+                        CGameObject* const entity = owner;
 
-                        const bool isSel     = (entity == selEnt);
+                        const bool isSel     = (entity == selObj);
                         const bool isFocused = isSel && circleTabActive;
 
                         const Matrix3x2      wt      = GetWorldTransform(*owner);
@@ -596,9 +595,9 @@ void CSceneViewTool::OnRenderStay()
                         if (!col.IsEnabled) return;
                         CGameObject* owner = col.GetOwner();
                         if (!owner) return;
-                        const ObjectId entity = owner->GetId();
+                        CGameObject* const entity = owner;
 
-                        const bool isSel     = (entity == selEnt);
+                        const bool isSel     = (entity == selObj);
                         const bool isFocused = isSel && polyTabActive;
 
                         const Matrix3x2 wt = GetWorldTransform(*owner);
@@ -607,7 +606,7 @@ void CSceneViewTool::OnRenderStay()
                         // 우선순위: 드래그 중 미리보기 > LocalPoints(이미 빌드됨) > 절차적 빌드
                         const std::vector<Vector2>* pLocalPts = nullptr;
                         std::vector<Vector2> builtPts;
-                        if (isFocused && m_dragPolyEntity == entity && m_dragVertexIndex >= 0)
+                        if (isFocused && m_dragPolyEntity.TryGet() == entity && m_dragVertexIndex >= 0)
                         {
                             pLocalPts = &m_dragPreviewPts;
                         }
@@ -667,7 +666,7 @@ void CSceneViewTool::OnRenderStay()
                         const ImVec2 mousePos = ImGui::GetIO().MousePos;
 
                         // ── 버텍스 드래그 처리 ────────────────────────────────
-                        bool draggingThisEntity = (m_dragPolyEntity == entity && m_dragVertexIndex >= 0);
+                        bool draggingThisEntity = (m_dragPolyEntity.TryGet() == entity && m_dragVertexIndex >= 0);
 
                         if (draggingThisEntity)
                         {
@@ -690,7 +689,7 @@ void CSceneViewTool::OnRenderStay()
                                         MakeOwnerPtr<CModifyPolygonVerticesCommand>(
                                             colScene, entity, m_dragPreviewPts));
                                 }
-                                m_dragPolyEntity  = INVALID_OBJECT_ID;
+                                m_dragPolyEntity  = nullptr;
                                 m_dragVertexIndex = -1;
                                 m_dragPreviewPts.clear();
                                 m_dragOldPts.clear();
@@ -761,11 +760,11 @@ void CSceneViewTool::OnRenderStay()
                         if (mouseInVp && closestVtx >= 0 && !draggingThisEntity
                             && ImGui::IsItemClicked(ImGuiMouseButton_Right))
                         {
-                            m_deleteVtxEntity  = entity;
+                            m_deleteVtxEntity  = entity->SafeFromThis();
                             m_deleteVtxIndex   = closestVtx;
                             // 씬 컨텍스트 메뉴와 동일한 ID — 상태를 세팅하고 오픈
-                            m_contextMenuEntity = INVALID_OBJECT_ID;
-                            m_contextMenuParent = INVALID_OBJECT_ID;
+                            m_contextMenuEntity = nullptr;
+                            m_contextMenuParent = nullptr;
                             ImGui::OpenPopup("##SVCtxMenu");
                             m_suppressNextClick = true;
                             m_rightClickPending = false; // 씬 컨텍스트 메뉴 중복 억제
@@ -782,7 +781,7 @@ void CSceneViewTool::OnRenderStay()
                                 else
                                     col.BuildLocalPoints(m_dragOldPts);
                                 m_dragPreviewPts  = m_dragOldPts;
-                                m_dragPolyEntity  = entity;
+                                m_dragPolyEntity  = entity->SafeFromThis();
                                 m_dragVertexIndex = closestVtx;
                                 m_suppressNextClick = true;
                             }
@@ -938,12 +937,12 @@ void CSceneViewTool::OnRenderStay()
                     if (scene)
                     {
                         m_editCtx.Validate(*scene);
-                        const std::vector<ObjectId> picked =
+                        const std::vector<CGameObject*> picked =
                             m_editCtx.PickBox(*scene, boxWorldMin, boxWorldMax, assetMgr);
 
-                        std::vector<ObjectId> toSelect;
+                        std::vector<CGameObject*> toSelect;
                         toSelect.reserve(picked.size() * 4);
-                        for (ObjectId e : picked)
+                        for (CGameObject* e : picked)
                         {
                             const bool isSelfInFocus =
                                 m_editCtx.IsActive() && (e == m_editCtx.GetContext());
@@ -979,24 +978,24 @@ void CSceneViewTool::OnRenderStay()
 
                         if (m_clickPendingDouble)
                         {
-                            const ObjectId picked = m_editCtx.Pick(*scene, worldPt, assetMgr);
-                            if (picked != INVALID_OBJECT_ID)
+                            CGameObject* picked = m_editCtx.Pick(*scene, worldPt, assetMgr);
+                            if (nullptr != picked)
                             {
                                 const bool wasSelfInFocus =
                                     m_editCtx.IsActive() && (picked == m_editCtx.GetContext());
-                                const ObjectId toFocus = m_editCtx.OnDoubleClick(*scene, picked);
+                                CGameObject* toFocus = m_editCtx.OnDoubleClick(*scene, picked);
                                 if (wasSelfInFocus)
                                     Editor::SelectEntities({ picked });
                                 else
                                     Editor::SelectEntities(CollectSubtree(*scene, picked));
-                                if (toFocus != INVALID_OBJECT_ID)
+                                if (nullptr != toFocus)
                                     FocusOnEntity(toFocus, *scene);
                             }
                             else
                             {
-                                // 빈 공간 더블클릭: 한 뎁스 탈출 + 탈출한 엔티티 선택 & 포커싱
-                                const ObjectId exited = m_editCtx.OnDoubleClickEmpty(*scene);
-                                if (exited != INVALID_OBJECT_ID)
+                                // 빈 공간 더블클릭: 한 뎁스 탈출 + 탈출한 오브젝트 선택 & 포커싱
+                                CGameObject* exited = m_editCtx.OnDoubleClickEmpty(*scene);
+                                if (nullptr != exited)
                                 {
                                     Editor::SelectEntities(CollectSubtree(*scene, exited));
                                     FocusOnEntity(exited, *scene);
@@ -1010,21 +1009,21 @@ void CSceneViewTool::OnRenderStay()
                         else
                         {
                             // ── 단일 클릭: 선택 + 컨텍스트 메뉴 ───────────────
-                            const ObjectId picked = m_editCtx.Pick(*scene, worldPt, assetMgr);
-                            if (picked != INVALID_OBJECT_ID)
+                            CGameObject* picked = m_editCtx.Pick(*scene, worldPt, assetMgr);
+                            if (nullptr != picked)
                             {
                                 const bool isSelfInFocus =
                                     m_editCtx.IsActive() && (picked == m_editCtx.GetContext());
 
                                 if (ImGui::GetIO().KeyCtrl)
                                 {
-                                    std::vector<ObjectId> targets =
-                                        isSelfInFocus ? std::vector<ObjectId>{ picked }
+                                    std::vector<CGameObject*> targets =
+                                        isSelfInFocus ? std::vector<CGameObject*>{ picked }
                                                       : CollectSubtree(*scene, picked);
                                     if (Editor::IsSelected(picked))
-                                        for (ObjectId e : targets) Editor::RemoveFromSelection(e);
+                                        for (CGameObject* e : targets) Editor::RemoveFromSelection(e);
                                     else
-                                        for (ObjectId e : targets) Editor::AddToSelection(e);
+                                        for (CGameObject* e : targets) Editor::AddToSelection(e);
                                 }
                                 else
                                 {
@@ -1056,8 +1055,8 @@ void CSceneViewTool::OnRenderStay()
                         const Vector2 worldPt =
                             ViewportToWorld(ImGui::GetIO().MousePos,
                                             vpMin, vpSize, m_cameraPos, m_cameraSize);
-                        const ObjectId picked = m_editCtx.Pick(*scene, worldPt, assetMgr);
-                        if (picked != INVALID_OBJECT_ID)
+                        CGameObject* picked = m_editCtx.Pick(*scene, worldPt, assetMgr);
+                        if (nullptr != picked)
                         {
                             // 오브젝트 우클릭 → 선택 후 컨텍스트 메뉴
                             const bool isSelfInFocus =
@@ -1066,19 +1065,19 @@ void CSceneViewTool::OnRenderStay()
                                 Editor::SelectEntities({ picked });
                             else
                                 Editor::SelectEntities(CollectSubtree(*scene, picked));
-                            m_contextMenuEntity = picked;
-                            m_contextMenuParent = picked;
+                            m_contextMenuEntity = AsSafe(picked);
+                            m_contextMenuParent = AsSafe(picked);
                         }
                         else
                         {
-                            // 빈 공간 우클릭: 포커스 중이면 포커스 엔티티를 부모로
-                            m_contextMenuEntity = INVALID_OBJECT_ID;
+                            // 빈 공간 우클릭: 포커스 중이면 포커스 오브젝트를 부모로
+                            m_contextMenuEntity = nullptr;
                             m_contextMenuParent = m_editCtx.IsActive()
-                                ? m_editCtx.GetContext()
-                                : INVALID_OBJECT_ID;
+                                ? AsSafe(m_editCtx.GetContext())
+                                : SafePtr<CGameObject>();
                         }
                         // 씬 오브젝트/빈공간 메뉴: 버텍스 섹션 상태 초기화
-                        m_deleteVtxEntity = INVALID_OBJECT_ID;
+                        m_deleteVtxEntity = nullptr;
                         m_deleteVtxIndex  = -1;
                         ImGui::OpenPopup("##SVCtxMenu");
                     }
@@ -1100,7 +1099,7 @@ void CSceneViewTool::OnRenderStay()
     // ── 씬뷰 컨텍스트 메뉴 (단일 팝업 ID로 모든 우클릭 통합) ──────────────────
     //
     // 열리는 경우:
-    //   1. 포커스 폴리곤 버텍스 우클릭 → m_deleteVtxEntity/Index 세팅
+    //   1. 포커스 폴리곤 버텍스 우클릭   → m_deleteVtxEntity/Index 세팅
     //   2. 오브젝트 우클릭              → m_contextMenuEntity/Parent 세팅
     //   3. 빈 공간 우클릭               → m_contextMenuParent 세팅
     // 각 섹션은 세팅된 상태가 유효할 때만 표시된다.
@@ -1111,10 +1110,8 @@ void CSceneViewTool::OnRenderStay()
         if (popupScene)
         {
             // ── 섹션 1: 버텍스 삭제 ─────────────────────────────────────────
-            CGameObject* vtxObj = popupScene->FindObjectById(m_deleteVtxEntity);
-            const bool vtxValid = m_deleteVtxEntity != INVALID_OBJECT_ID
-                                && vtxObj
-                                && m_deleteVtxIndex >= 0;
+            CGameObject* vtxObj = m_deleteVtxEntity.TryGet();
+            const bool vtxValid = vtxObj && m_deleteVtxIndex >= 0;
             if (vtxValid)
             {
                 const PolygonCollider2D* delPoly =
@@ -1131,7 +1128,7 @@ void CSceneViewTool::OnRenderStay()
                         newPts.erase(newPts.begin() + m_deleteVtxIndex);
                         Editor::CommandManager.ExecuteCommand(
                             MakeOwnerPtr<CModifyPolygonVerticesCommand>(
-                                popupScene, m_deleteVtxEntity, std::move(newPts)));
+                                popupScene, vtxObj, std::move(newPts)));
                     }
                 }
                 else
@@ -1141,28 +1138,27 @@ void CSceneViewTool::OnRenderStay()
 
                 // 씬 오브젝트 메뉴도 같이 표시될 경우를 위한 구분선
                 const bool hasSceneSection =
-                    m_contextMenuEntity != INVALID_OBJECT_ID
-                    || m_contextMenuParent != INVALID_OBJECT_ID;
+                    m_contextMenuEntity.IsValid()
+                    || m_contextMenuParent.IsValid();
                 if (hasSceneSection)
                     ImGui::Separator();
             }
 
             // ── 섹션 2: 오브젝트 / 빈공간 메뉴 ─────────────────────────────
-            const bool entityValid =
-                m_contextMenuEntity != INVALID_OBJECT_ID &&
-                nullptr != popupScene->FindObjectById(m_contextMenuEntity);
+            CGameObject* menuObject = m_contextMenuEntity.TryGet();
+            CGameObject* menuParent = m_contextMenuParent.TryGet();
 
-            if (entityValid)
+            if (nullptr != menuObject)
             {
                 // 오브젝트 우클릭: "Add Child Object" + "Add Component ▶"
-                EditorGuiDrawHelpers::DrawAddObjectMenu(*popupScene, m_contextMenuEntity);
+                EditorGuiDrawHelpers::DrawAddObjectMenu(*popupScene, menuObject);
                 ImGui::Separator();
-                EditorGuiDrawHelpers::DrawAddComponentMenu(*popupScene, m_contextMenuEntity);
+                EditorGuiDrawHelpers::DrawAddComponentMenu(*popupScene, menuObject);
             }
-            else if (!vtxValid || m_contextMenuParent != INVALID_OBJECT_ID)
+            else if (!vtxValid || menuParent)
             {
                 // 빈 공간 우클릭 (버텍스 전용 팝업이 아닐 때 or 부모가 지정된 경우)
-                EditorGuiDrawHelpers::DrawAddObjectMenu(*popupScene, m_contextMenuParent);
+                EditorGuiDrawHelpers::DrawAddObjectMenu(*popupScene, menuParent);
             }
         }
         ImGui::EndPopup();
@@ -1170,7 +1166,7 @@ void CSceneViewTool::OnRenderStay()
     else
     {
         // 팝업이 닫히면 버텍스 삭제 상태 초기화
-        m_deleteVtxEntity = INVALID_OBJECT_ID;
+        m_deleteVtxEntity = nullptr;
         m_deleteVtxIndex  = -1;
     }
 
@@ -1187,9 +1183,10 @@ void CSceneViewTool::OnRenderStay()
             m_editCtx.Validate(*scene);
             if (m_editCtx.IsActive())
             {
-                auto contextEntities = CollectSubtree(*scene, m_editCtx.GetContext());
+                std::vector<CGameObject*> subtree = CollectSubtree(*scene, m_editCtx.GetContext());
+                std::vector<const void*>  contextKeys(subtree.begin(), subtree.end());
                 if (Editor::ImEditor)
-                    Editor::ImEditor->SetSceneViewFocusContext(std::move(contextEntities));
+                    Editor::ImEditor->SetSceneViewFocusContext(std::move(contextKeys));
             }
             else
             {
@@ -1202,13 +1199,11 @@ void CSceneViewTool::OnRenderStay()
         }
 
         // 선택 아웃라인
-        const auto& sel = Editor::GetSelectedEntities();
+        const std::vector<CGameObject*> sel = Editor::GetSelectedEntities();
         if (!sel.empty() && scene)
         {
-            std::vector<ObjectId> alive;
-            alive.reserve(sel.size());
-            for (ObjectId e : sel)
-                if (scene->FindObjectById(e)) alive.push_back(e);
+            // GetSelectedEntities 가 이미 살아있는 것만 반환 — 포인터 키로 변환.
+            std::vector<const void*> alive(sel.begin(), sel.end());
             if (Editor::ImEditor)
                 Editor::ImEditor->SetSceneViewSelection(std::move(alive));
         }
@@ -1241,14 +1236,14 @@ void CSceneViewTool::OnRenderStay()
                 hasScene ? Loc::Text("scene_view.overlay.active_scene")
                          : Loc::Text("scene_view.overlay.no_active_scene"));
 
-    const ObjectId selectedEntity = Editor::GetSelectedEntity();
-    char selText[96] = {};
-    if (selectedEntity == INVALID_OBJECT_ID)
+    CGameObject* selectedObject = Editor::GetSelectedEntity();
+    char selText[128] = {};
+    if (nullptr == selectedObject)
         std::snprintf(selText, sizeof(selText), "%s", Loc::Text("scene_view.overlay.selected_none"));
     else
         std::snprintf(selText, sizeof(selText),
                       Loc::Text("scene_view.overlay.selected_format"),
-                      static_cast<unsigned long long>(selectedEntity));
+                      selectedObject->GetName());
     dl->AddText(textPos + ImVec2(0.0f, 20.0f), IM_COL32(150, 158, 170, 255), selText);
 
     char camText[128] = {};
@@ -1260,9 +1255,10 @@ void CSceneViewTool::OnRenderStay()
     if (m_editCtx.IsActive())
     {
         char ctxText[128] = {};
+        CGameObject* ctxObj = m_editCtx.GetContext();
         std::snprintf(ctxText, sizeof(ctxText),
                       Loc::Text("scene_view.overlay.focus_format"),
-                      static_cast<unsigned long long>(m_editCtx.GetContext()));
+                      ctxObj ? ctxObj->GetName() : "");
         dl->AddText(textPos + ImVec2(0.0f, 60.0f),
                     IM_COL32(255, 220, 50, 200), ctxText);
     }
@@ -1275,13 +1271,12 @@ void CSceneViewTool::OnRenderStay()
         const bool cameraTabActive =
             inspTypeCam && std::strcmp(inspTypeCam, "Camera2D") == 0;
 
-    if (cameraTabActive && selectedEntity != INVALID_OBJECT_ID && Core::SceneManager)
+    if (cameraTabActive && nullptr != selectedObject && Core::SceneManager)
     {
         SafePtr<CScene> sceneForVP = Core::SceneManager->GetActiveScene();
         if (sceneForVP)
         {
-            CGameObject*    camObj = sceneForVP->FindObjectById(selectedEntity);
-            const Camera2D* cam    = camObj ? camObj->GetComponent<Camera2D>() : nullptr;
+            const Camera2D* cam    = selectedObject->GetComponent<Camera2D>();
             if (cam)
             {
                 float resW = 1920.0f, resH = 1080.0f;

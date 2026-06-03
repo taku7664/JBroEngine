@@ -73,12 +73,12 @@ public:
 
 	// 포커스 오버레이: 흰 반투명 박스 + 포커스 스프라이트/콜라이더 재렌더 (RT 파이프라인).
 	// SceneViewTool이 매 프레임 호출.
-	void SetSceneViewFocusContext(std::vector<ObjectId> contextEntities);
+	void SetSceneViewFocusContext(std::vector<const void*> contextObjects);
 	void ClearSceneViewFocusContext();
 
 	// 선택 아웃라인: 셰이더 기반 Alpha Dilation (RT 파이프라인).
 	// SceneViewTool이 매 프레임 호출.
-	void SetSceneViewSelection(std::vector<ObjectId> selectedEntities);
+	void SetSceneViewSelection(std::vector<const void*> selectedObjects);
 	void ClearSceneViewSelection();
 
 	// Game view (multi-camera)
@@ -145,12 +145,13 @@ private:
 	OwnerPtr<COutlineRenderer2D> m_outlineRenderer;
 
 	// 포커스 오버레이 상태 (SceneViewTool → ImEditor)
-	bool                         m_sceneViewFocusActive = false;
-	std::unordered_set<ObjectId> m_sceneViewFocusEntities;
+	// 키 = 오브젝트 주소(불투명). 렌더 필터 집합 비교 전용 — 역참조 안 함.
+	bool                            m_sceneViewFocusActive = false;
+	std::unordered_set<const void*> m_sceneViewFocusEntities;
 
 	// 선택 아웃라인 상태
-	bool                         m_sceneViewHasSelection = false;
-	std::unordered_set<ObjectId> m_sceneViewSelectedEntities;
+	bool                            m_sceneViewHasSelection = false;
+	std::unordered_set<const void*> m_sceneViewSelectedEntities;
 };
 
 template<typename T>

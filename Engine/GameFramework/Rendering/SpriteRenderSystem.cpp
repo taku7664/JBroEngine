@@ -143,7 +143,7 @@ void CSpriteRenderSystem::OnUpdate(CScene& scene)
 				item.Color[i] = sprite.Color[i];
 			}
 			item.SortOrder = sprite.SortOrder;
-			item.Entity    = owner->GetId();
+			item.Entity    = owner; // 불투명 키(주소). 렌더러는 집합 비교만, 역참조 안 함.
 			m_renderScene->Submit(item);
 		});
 }

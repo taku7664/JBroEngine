@@ -17,17 +17,22 @@
 
 namespace
 {
-	// 명령은 오브젝트를 불투명 id(ObjectId == CGameObject::GetId)로 보관한다.
-	// 실제 조작 시점에 활성 씬에서 다시 해석한다(파괴/리로드 후에도 안전한 모델).
-	CGameObject* Resolve(const SafePtr<CScene>& scene, ObjectId id)
+	// 명령은 오브젝트를 InstanceGuid 로 보관한다(포인터/정수 id 아님).
+	// 실제 조작 시점에 활성 씬에서 guid 로 다시 해석한다(파괴→재생성 후에도 안전).
+	CGameObject* Resolve(const SafePtr<CScene>& scene, const File::Guid& guid)
 	{
-		return scene.IsValid() ? scene->FindObjectById(id) : nullptr;
+		return scene.IsValid() ? scene->FindByInstanceGuid(guid).TryGet() : nullptr;
+	}
+
+	File::Guid GuidOf(const CGameObject* object)
+	{
+		return object ? object->InstanceGuid : File::Guid();
 	}
 }
 
-CAddComponentCommand::CAddComponentCommand(SafePtr<CScene> scene, ObjectId entity, TypeId componentTypeId)
+CAddComponentCommand::CAddComponentCommand(SafePtr<CScene> scene, CGameObject* object, TypeId componentTypeId)
 	: m_scene(scene)
-	, m_entity(entity)
+	, m_objectGuid(GuidOf(object))
 	, m_componentTypeId(componentTypeId)
 {
 }
@@ -39,7 +44,7 @@ const char* CAddComponentCommand::GetName() const
 
 bool CAddComponentCommand::Execute()
 {
-	CGameObject* object = Resolve(m_scene, m_entity);
+	CGameObject* object = Resolve(m_scene, m_objectGuid);
 	if (nullptr == object || false == Core::Reflection.IsValid())
 	{
 		return false;
@@ -57,7 +62,6 @@ bool CAddComponentCommand::Execute()
 		return false;
 	}
 	m_added = reflection.AddComponent(*m_scene, *object, m_componentTypeId);
-	m_addedComponent = nullptr;
 
 	if (false == m_added)
 	{
@@ -68,14 +72,13 @@ bool CAddComponentCommand::Execute()
 
 void CAddComponentCommand::Undo()
 {
-	CGameObject* object = Resolve(m_scene, m_entity);
+	CGameObject* object = Resolve(m_scene, m_objectGuid);
 	if (false == m_added || nullptr == object || false == Core::Reflection.IsValid())
 	{
 		return;
 	}
 
 	Core::Reflection->RemoveComponent(*m_scene, *object, m_componentTypeId);
-	m_addedComponent = nullptr;
 	m_added = false;
 }
 
@@ -87,9 +90,9 @@ void CAddComponentCommand::Redo()
 	}
 }
 
-CAddScriptComponentCommand::CAddScriptComponentCommand(SafePtr<CScene> scene, ObjectId entity, TypeId scriptTypeId)
+CAddScriptComponentCommand::CAddScriptComponentCommand(SafePtr<CScene> scene, CGameObject* object, TypeId scriptTypeId)
 	: m_scene(scene)
-	, m_entity(entity)
+	, m_objectGuid(GuidOf(object))
 	, m_scriptTypeId(scriptTypeId)
 {
 }
@@ -101,7 +104,7 @@ const char* CAddScriptComponentCommand::GetName() const
 
 bool CAddScriptComponentCommand::Execute()
 {
-	CGameObject* object = Resolve(m_scene, m_entity);
+	CGameObject* object = Resolve(m_scene, m_objectGuid);
 	if (nullptr == object || false == Core::Reflection.IsValid())
 	{
 		return false;
@@ -150,7 +153,7 @@ bool CAddScriptComponentCommand::Execute()
 
 void CAddScriptComponentCommand::Undo()
 {
-	CGameObject* object = Resolve(m_scene, m_entity);
+	CGameObject* object = Resolve(m_scene, m_objectGuid);
 	if (false == m_added || nullptr == object || false == Core::Reflection.IsValid())
 	{
 		return;
@@ -173,13 +176,12 @@ void CAddScriptComponentCommand::Redo()
 	}
 }
 
-CSetScriptTypeCommand::CSetScriptTypeCommand(SafePtr<CScene> scene, ObjectId entity, std::size_t instanceIndex, TypeId newScriptTypeId)
+CSetScriptTypeCommand::CSetScriptTypeCommand(SafePtr<CScene> scene, CGameObject* object, std::size_t instanceIndex, TypeId newScriptTypeId)
 	: m_scene(scene)
-	, m_entity(entity)
+	, m_objectGuid(GuidOf(object))
 	, m_instanceIndex(instanceIndex)
 	, m_newScriptTypeId(newScriptTypeId)
 {
-	CGameObject* object = Resolve(m_scene, m_entity);
 	if (object)
 	{
 		if (ScriptComponent* scriptComponent = object->GetComponent<ScriptComponent>())
@@ -224,7 +226,7 @@ void CSetScriptTypeCommand::Redo()
 
 bool CSetScriptTypeCommand::Apply(TypeId scriptTypeId)
 {
-	CGameObject* object = Resolve(m_scene, m_entity);
+	CGameObject* object = Resolve(m_scene, m_objectGuid);
 	if (nullptr == object)
 	{
 		return false;
@@ -243,10 +245,10 @@ bool CSetScriptTypeCommand::Apply(TypeId scriptTypeId)
 }
 
 CCreateGameObjectCommand::CCreateGameObjectCommand(SafePtr<CScene> scene, const char* name,
-                                                   ObjectId parent)
+                                                   CGameObject* parent)
 	: m_scene(scene)
 	, m_name(name ? name : "GameObject")
-	, m_parent(parent)
+	, m_parentGuid(GuidOf(parent))
 {
 }
 
@@ -264,12 +266,25 @@ bool CCreateGameObjectCommand::Execute()
 
 	CGameObject* gameObject = m_scene->CreateGameObject(m_name.c_str());
 	m_created = (nullptr != gameObject);
-	m_entity  = m_created ? gameObject->GetId() : INVALID_OBJECT_ID;
+	if (false == m_created)
+	{
+		return false;
+	}
+
+	// redo(재생성)면 첫 생성 때의 guid 를 강제 복원해 이후 명령이 동일 오브젝트로 해석되게 한다.
+	if (false == m_objectGuid.IsNull())
+	{
+		m_scene->SetObjectInstanceGuid(*gameObject, m_objectGuid);
+	}
+	else
+	{
+		m_objectGuid = gameObject->InstanceGuid;
+	}
 
 	// parent 지정 시 자식으로 등록.
-	if (m_created && m_parent != INVALID_OBJECT_ID)
+	if (false == m_parentGuid.IsNull())
 	{
-		if (CGameObject* parent = m_scene->FindObjectById(m_parent))
+		if (CGameObject* parent = Resolve(m_scene, m_parentGuid))
 		{
 			gameObject->SetParent(*parent);
 		}
@@ -280,7 +295,7 @@ bool CCreateGameObjectCommand::Execute()
 
 void CCreateGameObjectCommand::Undo()
 {
-	CGameObject* object = Resolve(m_scene, m_entity);
+	CGameObject* object = Resolve(m_scene, m_objectGuid);
 	if (m_created && object)
 	{
 		m_scene->DestroyGameObject(object);
@@ -296,21 +311,21 @@ void CCreateGameObjectCommand::Redo()
 	}
 }
 
-ObjectId CCreateGameObjectCommand::GetEntity() const
+CGameObject* CCreateGameObjectCommand::GetEntity() const
 {
-	return m_entity;
+	return Resolve(m_scene, m_objectGuid);
 }
 
 CSetComponentPropertyCommand::CSetComponentPropertyCommand(
 	SafePtr<CScene> scene,
-	ObjectId entity,
+	CGameObject* object,
 	TypeId componentTypeId,
 	std::size_t propertyOffset,
 	std::vector<std::uint8_t> oldValue,
 	std::vector<std::uint8_t> newValue,
 	std::size_t instanceIndex)
 	: m_scene(scene)
-	, m_entity(entity)
+	, m_objectGuid(GuidOf(object))
 	, m_componentTypeId(componentTypeId)
 	, m_propertyOffset(propertyOffset)
 	, m_instanceIndex(instanceIndex)
@@ -341,7 +356,7 @@ void CSetComponentPropertyCommand::Redo()
 
 bool CSetComponentPropertyCommand::WriteValue(const std::vector<std::uint8_t>& value)
 {
-	CGameObject* object = Resolve(m_scene, m_entity);
+	CGameObject* object = Resolve(m_scene, m_objectGuid);
 	if (value.empty() || nullptr == object || false == Core::Reflection.IsValid())
 	{
 		return false;
@@ -375,17 +390,17 @@ namespace
 	}
 } // anonymous namespace
 
-CSetParentCommand::CSetParentCommand(SafePtr<CScene> scene, ObjectId child, ObjectId newParent)
+CSetParentCommand::CSetParentCommand(SafePtr<CScene> scene, CGameObject* child, CGameObject* newParent)
 	: m_scene(scene)
-	, m_child(child)
-	, m_newParent(newParent)
+	, m_childGuid(GuidOf(child))
+	, m_newParentGuid(GuidOf(newParent))
 {
 	// 생성 시점에 현재 부모와 로컬 Transform 스냅샷 — Undo 복원용.
-	if (CGameObject* childObject = Resolve(m_scene, child))
+	if (child)
 	{
-		CGameObject* oldParent = childObject->GetParent().TryGet();
-		m_oldParent = oldParent ? oldParent->GetId() : INVALID_OBJECT_ID;
-		m_oldLocalTransform = childObject->GetTransform();
+		CGameObject* oldParent = child->GetParent().TryGet();
+		m_oldParentGuid = GuidOf(oldParent);
+		m_oldLocalTransform = child->GetTransform();
 	}
 }
 
@@ -396,22 +411,22 @@ const char* CSetParentCommand::GetName() const
 
 namespace
 {
-	// child 의 부모를 newParent(0 이면 루트)로 설정. 성공 시 true.
-	bool ApplyParent(CScene& scene, CGameObject& child, ObjectId newParent)
+	// child 의 부모를 newParent(null guid 면 루트)로 설정. 성공 시 true.
+	bool ApplyParent(CScene& scene, CGameObject& child, const File::Guid& newParentGuid)
 	{
-		if (INVALID_OBJECT_ID == newParent)
+		if (newParentGuid.IsNull())
 		{
 			child.ClearParent();
 			return true;
 		}
-		CGameObject* parent = scene.FindObjectById(newParent);
+		CGameObject* parent = scene.FindByInstanceGuid(newParentGuid).TryGet();
 		return parent ? child.SetParent(*parent) : false;
 	}
 }
 
 bool CSetParentCommand::Execute()
 {
-	CGameObject* childObject = Resolve(m_scene, m_child);
+	CGameObject* childObject = Resolve(m_scene, m_childGuid);
 	if (nullptr == childObject)
 	{
 		return false;
@@ -420,10 +435,10 @@ bool CSetParentCommand::Execute()
 
 	// ── WorldStay: SetParent 이전 world transform 캡처 ───────────────────────
 	const Matrix3x2 childWorld = GetWorldTransform(*childObject);
-	CGameObject* newParentObject = (m_newParent != INVALID_OBJECT_ID) ? scene.FindObjectById(m_newParent) : nullptr;
+	CGameObject* newParentObject = m_newParentGuid.IsNull() ? nullptr : scene.FindByInstanceGuid(m_newParentGuid).TryGet();
 	const Matrix3x2 newParentWorld = newParentObject ? GetWorldTransform(*newParentObject) : Matrix3x2::Identity();
 
-	if (false == ApplyParent(scene, *childObject, m_newParent))
+	if (false == ApplyParent(scene, *childObject, m_newParentGuid))
 	{
 		return false;   // 사이클/자기자신 등 거부
 	}
@@ -447,26 +462,26 @@ bool CSetParentCommand::Execute()
 
 void CSetParentCommand::Undo()
 {
-	CGameObject* childObject = Resolve(m_scene, m_child);
+	CGameObject* childObject = Resolve(m_scene, m_childGuid);
 	if (false == m_executed || nullptr == childObject)
 	{
 		return;
 	}
 
-	ApplyParent(*m_scene, *childObject, m_oldParent);
+	ApplyParent(*m_scene, *childObject, m_oldParentGuid);
 	childObject->GetTransform() = m_oldLocalTransform;
 	m_executed = false;
 }
 
 void CSetParentCommand::Redo()
 {
-	CGameObject* childObject = Resolve(m_scene, m_child);
+	CGameObject* childObject = Resolve(m_scene, m_childGuid);
 	if (m_executed || nullptr == childObject)
 	{
 		return;
 	}
 
-	ApplyParent(*m_scene, *childObject, m_newParent);
+	ApplyParent(*m_scene, *childObject, m_newParentGuid);
 	childObject->GetTransform() = m_newLocalTransform;
 	m_executed = true;
 }
@@ -475,14 +490,14 @@ void CSetParentCommand::Redo()
 
 CModifyPolygonVerticesCommand::CModifyPolygonVerticesCommand(
 	SafePtr<CScene>             scene,
-	ObjectId                    entity,
+	CGameObject*                object,
 	std::vector<Vector2> newPoints)
 	: m_scene(scene)
-	, m_entity(entity)
+	, m_objectGuid(GuidOf(object))
 	, m_newPoints(std::move(newPoints))
 {
 	// 현재 상태 스냅샷 (Undo 복원용).
-	if (CGameObject* object = Resolve(m_scene, entity))
+	if (object)
 	{
 		if (const PolygonCollider2D* poly = object->GetComponent<PolygonCollider2D>())
 		{
@@ -521,7 +536,7 @@ void CModifyPolygonVerticesCommand::Redo()
 bool CModifyPolygonVerticesCommand::Apply(
 	const std::vector<Vector2>& points)
 {
-	CGameObject* object = Resolve(m_scene, m_entity);
+	CGameObject* object = Resolve(m_scene, m_objectGuid);
 	if (nullptr == object)
 		return false;
 

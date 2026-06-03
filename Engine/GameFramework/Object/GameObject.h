@@ -51,10 +51,6 @@ public:
 	Transform2D      Local;
 	WorldTransform2D World;
 
-	// 렌더러 픽킹 등 프레임 내 불투명 식별자. 풀 슬롯 주소가 안정적이므로 객체
-	// 수명 동안 유일·불변(직렬화 키는 InstanceGuid, 이건 런타임 전용).
-	std::uint64_t GetId() const { return reinterpret_cast<std::uintptr_t>(this); }
-
 	const char* GetName() const { return Name.c_str(); }
 	void        SetName(const char* name) { Name = name ? name : ""; }
 	bool        IsActiveSelf() const { return IsActive; }

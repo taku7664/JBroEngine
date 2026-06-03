@@ -318,19 +318,19 @@ void CSceneViewContour::DrawOutlinesImGui(
     ImDrawList* dl,
     const CScene& scene,
     IAssetManager* assetMgr,
-    const std::vector<ObjectId>& selectedEntities,
+    const std::vector<CGameObject*>& selectedObjects,
     const ImVec2& vpMin, const ImVec2& vpSize,
     const Vector2& camPos, float camSize)
 {
-    if (!dl || selectedEntities.empty()) return;
+    if (!dl || selectedObjects.empty()) return;
 
-    // 다중 선택 시 동일 스프라이트 엔티티에 대한 중복 렌더링 방지.
+    // 다중 선택 시 동일 스프라이트 오브젝트에 대한 중복 렌더링 방지.
     // 부모·자식 모두 선택된 경우도 정상 처리됨.
-    std::unordered_set<ObjectId> processed;
+    std::unordered_set<const CGameObject*> processed;
 
-    auto drawOneSprite = [&](ObjectId entity, const CGameObject& object, const SpriteRenderer2D& sprite)
+    auto drawOneSprite = [&](const CGameObject& object, const SpriteRenderer2D& sprite)
     {
-        if (!processed.insert(entity).second) return; // 이미 처리됨
+        if (!processed.insert(&object).second) return; // 이미 처리됨
 
         const Matrix3x2 spriteMat =
             Matrix3x2::Transform(sprite.Offset, 0.0f, sprite.Size)
@@ -382,16 +382,14 @@ void CSceneViewContour::DrawOutlinesImGui(
     //
     // 포커스 모드에서 자식 클릭: selectedEntities = CollectSubtree(child)
     //   → 자식 + 자식의 모든 자손 각각의 스프라이트를 그림.
-    for (ObjectId entity : selectedEntities)
+    (void)scene;
+    for (CGameObject* object : selectedObjects)
     {
-        if (entity == INVALID_OBJECT_ID) continue;
-
-        CGameObject* object = const_cast<CScene&>(scene).FindObjectById(entity);
         if (!object || !object->IsActive) continue;
 
         const SpriteRenderer2D* sprite = object->GetComponent<SpriteRenderer2D>();
         if (!sprite || !sprite->IsEnabled) continue;
 
-        drawOneSprite(entity, *object, *sprite);
+        drawOneSprite(*object, *sprite);
     }
 }

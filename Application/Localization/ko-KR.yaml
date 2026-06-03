@@ -395,9 +395,9 @@ Entries:
   scene_view.overlay.active_scene: 활성 씬
   scene_view.overlay.no_active_scene: 활성 씬 없음
   scene_view.overlay.selected_none: "선택: 없음"
-  scene_view.overlay.selected_format: "선택: %llu"
+  scene_view.overlay.selected_format: "선택: %s"
   scene_view.overlay.camera_format: "카메라 (%.2f, %.2f) | 크기 %.2f"
-  scene_view.overlay.focus_format: "포커스: %llu  [빈 공간 더블클릭으로 빠져나오기]"
+  scene_view.overlay.focus_format: "포커스: %s  [빈 공간 더블클릭으로 빠져나오기]"
   scene_view.overlay.viewport_selected_camera: 뷰포트 (선택된 카메라)
 
   game_view.status.playing: 실행 중

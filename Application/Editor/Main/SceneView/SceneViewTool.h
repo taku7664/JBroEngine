@@ -1,12 +1,13 @@
 #pragma once
 
 #include "Engine/Editor/ImWindow/ImWindow.h"
-#include "Engine/GameFramework/Scene/SceneTypes.h"
 #include "Utillity/Math/Vector2T.h"
+#include "Utillity/Pointer/SafePtr.h"
 
 #include "SceneViewEditContext.h"
 
 class CScene;
+class CGameObject;
 
 class CSceneViewTool : public CImWindow
 {
@@ -16,18 +17,18 @@ public:
 
     // 에디터 카메라 상태 getter (저장용: target 값 반환)
     Vector2 GetEditorCameraPos()  const { return m_targetCameraPos; }
-    float          GetEditorCameraSize() const { return m_targetCameraSize; }
+    float   GetEditorCameraSize() const { return m_targetCameraSize; }
 
     // 에디터 카메라 즉시 이동 (프로젝트 로드 시 적용)
     void SetEditorCamera(float x, float y, float size);
 
-    // 지정 엔티티를 화면 중앙에 포커싱 (카메라 이동만)
-    void FocusOnEntity(ObjectId entity, const CScene& scene);
+    // 지정 오브젝트를 화면 중앙에 포커싱 (카메라 이동만)
+    void FocusOnEntity(CGameObject* object, const CScene& scene);
 
-    // 하이어라키 더블클릭용: 편집 컨텍스트를 entity로 전환 + 카메라 이동
+    // 하이어라키 더블클릭용: 편집 컨텍스트를 object로 전환 + 카메라 이동
     // 씬뷰 내 더블클릭과 동일하게 m_editCtx 를 갱신하므로,
-    // 이후 씬뷰 클릭은 entity 컨텍스트(직계 자식) 기준으로 동작함
-    void SetFocusContext(ObjectId entity, const CScene& scene);
+    // 이후 씬뷰 클릭은 object 컨텍스트(직계 자식) 기준으로 동작함
+    void SetFocusContext(CGameObject* object, const CScene& scene);
 
     // Flash-like 포커스 컨텍스트 초기화 (씬 변경, 프로젝트 닫기 시 호출)
     void ClearEditContext();
@@ -62,24 +63,24 @@ private:
 
     // ── 폴리곤 버텍스 드래그 상태 ────────────────────────────────────────────
     // Layer 2.8: 버텍스 핸들을 드래그해 위치를 편집한다.
-    ObjectId               m_dragPolyEntity      = INVALID_OBJECT_ID;
-    int                    m_dragVertexIndex      = -1;
-    std::vector<Vector2> m_dragPreviewPts; // 드래그 중 미리보기 포인트
-    std::vector<Vector2> m_dragOldPts;     // 드래그 시작 시점 스냅샷 (Undo용)
+    SafePtr<CGameObject>    m_dragPolyEntity;
+    int                     m_dragVertexIndex      = -1;
+    std::vector<Vector2>    m_dragPreviewPts; // 드래그 중 미리보기 포인트
+    std::vector<Vector2>    m_dragOldPts;     // 드래그 시작 시점 스냅샷 (Undo용)
 
     // ── 엣지/버텍스 클릭 소비 ─────────────────────────────────────────────────
     // Layer 2.8 에서 핸들 조작이 처리됐을 때 입력 블록의 씬 선택을 억제한다.
     bool m_suppressNextClick = false;
 
     // ── 버텍스 삭제 팝업 ─────────────────────────────────────────────────────
-    ObjectId m_deleteVtxEntity = INVALID_OBJECT_ID;
+    SafePtr<CGameObject> m_deleteVtxEntity;
     int      m_deleteVtxIndex  = -1;
 
     // ── 컨텍스트 메뉴 ────────────────────────────────────────────────────────
-    // 우클릭(드래그 아님) 시 피킹된 엔티티. INVALID = 빈 공간 클릭.
-    ObjectId m_contextMenuEntity  = INVALID_OBJECT_ID;
-    // "Add Object" 생성 시 사용할 부모. 빈 공간 + 포커스 중이면 포커스 엔티티.
-    ObjectId m_contextMenuParent  = INVALID_OBJECT_ID;
+    // 우클릭(드래그 아님) 시 피킹된 오브젝트. null = 빈 공간 클릭.
+    SafePtr<CGameObject> m_contextMenuEntity;
+    // "Add Object" 생성 시 사용할 부모. 빈 공간 + 포커스 중이면 포커스 오브젝트.
+    SafePtr<CGameObject> m_contextMenuParent;
     bool     m_rightClickPending  = false; // 우클릭 대기 (드래그로 전환되면 취소됨)
     bool     m_rightDragging      = false; // 우클릭 드래그(팬) 중
 };

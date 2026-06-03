@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Engine/Core/Asset/AssetTypes.h"
-#include "Engine/GameFramework/Scene/SceneTypes.h"
 #include "Utillity/Math/Vector2T.h"
 
 #include <cstdint>
@@ -10,6 +9,7 @@
 #include <vector>
 
 class CScene;
+class CGameObject;
 class IAssetManager;
 class IDebugDraw2D;
 struct ImDrawList;
@@ -44,7 +44,7 @@ public:
         ImDrawList* dl,
         const CScene& scene,
         IAssetManager* assetMgr,
-        const std::vector<ObjectId>& selectedEntities,
+        const std::vector<CGameObject*>& selectedObjects,
         const ImVec2& vpMin, const ImVec2& vpSize,
         const Vector2& camPos, float camSize);
 

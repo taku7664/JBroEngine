@@ -56,7 +56,7 @@ void CHierarchyTool::OnRenderStay()
 		if (ImGui::BeginPopupContextWindow("HierarchyBackgroundContext",
 		    ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems))
 		{
-			EditorGuiDrawHelpers::DrawAddObjectMenu(*activeScene, INVALID_OBJECT_ID);
+			EditorGuiDrawHelpers::DrawAddObjectMenu(*activeScene, nullptr);
 			ImGui::EndPopup();
 		}
 	};
@@ -72,13 +72,13 @@ void CHierarchyTool::OnRenderStay()
 		return;
 	}
 
-	std::unordered_map<ObjectId, std::vector<std::size_t>> childrenByParent;
+	std::unordered_map<const CGameObject*, std::vector<std::size_t>> childrenByParent;
 	std::vector<std::size_t> rootIndices;
 	for (std::size_t i = 0; i < objects.size(); ++i)
 	{
 		if (CGameObject* parent = objects[i]->GetParent().TryGet())
 		{
-			childrenByParent[parent->GetId()].push_back(i);
+			childrenByParent[parent].push_back(i);
 		}
 		else
 		{
@@ -105,13 +105,12 @@ void CHierarchyTool::OnRenderStay()
 			const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("HIERARCHY_ENTITY");
 			if (payload)
 			{
-				ObjectId dragged = *static_cast<const ObjectId*>(payload->Data);
-				CGameObject* draggedObj = activeScene->FindObjectById(dragged);
+				CGameObject* draggedObj = *static_cast<CGameObject* const*>(payload->Data);
 				if (draggedObj && draggedObj->GetParent().IsValid())
 				{
-					auto cmd = MakeOwnerPtr<CSetParentCommand>(activeScene, dragged, INVALID_OBJECT_ID);
+					auto cmd = MakeOwnerPtr<CSetParentCommand>(activeScene, draggedObj, nullptr);
 					Editor::CommandManager.ExecuteCommand(std::move(cmd));
-					Editor::SelectEntity(dragged);
+					Editor::SelectEntity(draggedObj);
 				}
 			}
 			ImGui::EndDragDropTarget();
@@ -125,8 +124,7 @@ void CHierarchyTool::OnRenderStay()
 		ImGui::Utillity::IDGroup idGroup(objectIndex); // 고유 ID 스코프 (인덱스 기반)
 
 		CGameObject* obj = objects[objectIndex];
-		const ObjectId entityId = obj->GetId();
-		const auto childIt  = childrenByParent.find(entityId);
+		const auto childIt  = childrenByParent.find(obj);
 		const bool hasChildren = (childIt != childrenByParent.end() && !childIt->second.empty());
 
 		ImGuiTreeNodeFlags flags =
@@ -136,7 +134,7 @@ void CHierarchyTool::OnRenderStay()
 		{
 			flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
 		}
-		if (Editor::IsSelected(entityId))
+		if (Editor::IsSelected(obj))
 		{
 			flags |= ImGuiTreeNodeFlags_Selected;
 		}
@@ -152,7 +150,7 @@ void CHierarchyTool::OnRenderStay()
 		if (ImGui::IsItemHovered() && ImGui::IsMouseReleased(ImGuiMouseButton_Left)
 			&& !ImGui::IsItemToggledOpen())
 		{
-			Editor::SelectEntity(entityId);
+			Editor::SelectEntity(obj);
 		}
 
 		// ── 더블클릭 → 씬뷰 포커스 컨텍스트 전환 ──────────────────────────────
@@ -160,17 +158,17 @@ void CHierarchyTool::OnRenderStay()
 		// FocusOnEntity(카메라만) 대신 SetFocusContext(컨텍스트 + 카메라)를 호출.
 		if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
 		{
-			Editor::SelectEntity(entityId);
+			Editor::SelectEntity(obj);
 			if (Editor::SceneView)
 			{
-				Editor::SceneView->SetFocusContext(entityId, *activeScene);
+				Editor::SceneView->SetFocusContext(obj, *activeScene);
 			}
 		}
 
 		// ── Drag Source ───────────────────────────────────────────────────────
 		if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceAllowNullID))
 		{
-			ImGui::SetDragDropPayload(EditorDragDrop::HIERARCHY_ENTITY_PAYLOAD, &entityId, sizeof(ObjectId));
+			ImGui::SetDragDropPayload(EditorDragDrop::HIERARCHY_ENTITY_PAYLOAD, &obj, sizeof(CGameObject*));
 			ImGui::Text(Loc::Text("hierarchy.move_format"), name);
 			ImGui::EndDragDropSource();
 		}
@@ -181,16 +179,15 @@ void CHierarchyTool::OnRenderStay()
 			const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("HIERARCHY_ENTITY");
 			if (payload)
 			{
-				ObjectId dragged = *static_cast<const ObjectId*>(payload->Data);
-				CGameObject* draggedObj = activeScene->FindObjectById(dragged);
+				CGameObject* draggedObj = *static_cast<CGameObject* const*>(payload->Data);
 				// 자기 자신 및 사이클 방지
-				const bool valid = (dragged != entityId) && draggedObj
+				const bool valid = (draggedObj != obj) && draggedObj
 				    && !obj->IsDescendantOf(*draggedObj);
 				if (valid)
 				{
-					auto cmd = MakeOwnerPtr<CSetParentCommand>(activeScene, dragged, entityId);
+					auto cmd = MakeOwnerPtr<CSetParentCommand>(activeScene, draggedObj, obj);
 					Editor::CommandManager.ExecuteCommand(std::move(cmd));
-					Editor::SelectEntity(dragged);
+					Editor::SelectEntity(draggedObj);
 				}
 			}
 			ImGui::EndDragDropTarget();
@@ -199,19 +196,19 @@ void CHierarchyTool::OnRenderStay()
 		// ── 우클릭 컨텍스트 메뉴 ──────────────────────────────────────────────
 		if (ImGui::BeginPopupContextItem("HierarchyObjectContext"))
 		{
-			Editor::SelectEntity(entityId);
+			Editor::SelectEntity(obj);
 
 			if (obj->GetParent().IsValid())
 			{
 				if (ImGui::MenuItem(Loc::Text("hierarchy.unparent")))
 				{
-					auto cmd = MakeOwnerPtr<CSetParentCommand>(activeScene, entityId, INVALID_OBJECT_ID);
+					auto cmd = MakeOwnerPtr<CSetParentCommand>(activeScene, obj, nullptr);
 					Editor::CommandManager.ExecuteCommand(std::move(cmd));
 				}
 				ImGui::Separator();
 			}
 
-			EditorGuiDrawHelpers::DrawAddComponentMenu(*activeScene, entityId);
+			EditorGuiDrawHelpers::DrawAddComponentMenu(*activeScene, obj);
 			ImGui::EndPopup();
 		}
 
@@ -248,13 +245,12 @@ void CHierarchyTool::OnRenderStay()
 				const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("HIERARCHY_ENTITY");
 				if (payload)
 				{
-					ObjectId dragged = *static_cast<const ObjectId*>(payload->Data);
-					CGameObject* draggedObj = activeScene->FindObjectById(dragged);
+					CGameObject* draggedObj = *static_cast<CGameObject* const*>(payload->Data);
 					if (draggedObj && draggedObj->GetParent().IsValid())
 					{
-						auto cmd = MakeOwnerPtr<CSetParentCommand>(activeScene, dragged, INVALID_OBJECT_ID);
+						auto cmd = MakeOwnerPtr<CSetParentCommand>(activeScene, draggedObj, nullptr);
 						Editor::CommandManager.ExecuteCommand(std::move(cmd));
-						Editor::SelectEntity(dragged);
+						Editor::SelectEntity(draggedObj);
 					}
 				}
 				ImGui::EndDragDropTarget();

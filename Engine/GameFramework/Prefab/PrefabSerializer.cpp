@@ -14,16 +14,15 @@
 #include <fstream>
 #include <sstream>
 
-EPrefabSerializeResult CPrefabSerializer::SerializePrefabToText(const CScene& scene, std::uint64_t root, std::string& outText) const
+EPrefabSerializeResult CPrefabSerializer::SerializePrefabToText(const CScene& scene, const CGameObject* root, std::string& outText) const
 {
-	CGameObject* rootObject = const_cast<CScene&>(scene).FindObjectById(root);
-	if (nullptr == rootObject)
+	if (nullptr == root)
 	{
 		return EPrefabSerializeResult::InvalidArgument;
 	}
 
 	CScene prefabScene;
-	CloneHierarchy(scene, prefabScene, *rootObject);
+	CloneHierarchy(scene, prefabScene, *root);
 
 	CSceneSerializer serializer;
 	return ConvertSceneResult(static_cast<int>(serializer.SerializeToText(prefabScene, outText)));
@@ -67,7 +66,7 @@ EPrefabSerializeResult CPrefabSerializer::DeserializePrefabFromText(CScene& scen
 	return firstRoot ? EPrefabSerializeResult::Success : EPrefabSerializeResult::ParseError;
 }
 
-EPrefabSerializeResult CPrefabSerializer::SavePrefabToFile(const CScene& scene, std::uint64_t root, const File::Path& path) const
+EPrefabSerializeResult CPrefabSerializer::SavePrefabToFile(const CScene& scene, const CGameObject* root, const File::Path& path) const
 {
 	if (path.empty())
 	{

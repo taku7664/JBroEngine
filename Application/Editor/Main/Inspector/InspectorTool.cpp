@@ -90,7 +90,7 @@ CSpriteAsset* sprite = Core::ResourceRegistry->GetSprite(key);
 		return info ? GetScriptDisplayName(info) : nullptr;
 	}
 
-	void DrawScriptTypeSelector(CScene& scene, ObjectId entity, std::size_t instanceIndex, ScriptComponent& scriptComponent)
+	void DrawScriptTypeSelector(CScene& scene, CGameObject* object, std::size_t instanceIndex, ScriptComponent& scriptComponent)
 	{
 		if (false == Core::Reflection.IsValid())
 		{
@@ -130,7 +130,7 @@ CSpriteAsset* sprite = Core::ResourceRegistry->GetSprite(key);
 						{
 							Editor::CommandManager.ExecuteCommand(
 								MakeOwnerPtr<CSetScriptTypeCommand>(
-									scene.SafeFromThis(), entity, instanceIndex, scriptType->Type.Id));
+									scene.SafeFromThis(), object, instanceIndex, scriptType->Type.Id));
 						}
 						if (selected)
 						{
@@ -144,6 +144,59 @@ CSpriteAsset* sprite = Core::ResourceRegistry->GetSprite(key);
 
 	// ── Ref<T> 프로퍼티 헬퍼 ──────────────────────────────────────────────────
 	// 드래그된 HIERARCHY_COMPONENT 페이로드의 타입명(컴포넌트/스크립트) 조회.
+	// 오브젝트를 컴포넌트/스크립트 Ref 프로퍼티에 드롭했을 때, 타입이 맞는 첫 컴포넌트를 찾는다.
+	//  · Script Ref     : RefTypeName 과 등록 스크립트 타입명이 일치하는 첫 ScriptComponent.
+	//  · Component Ref  : GetTypeName() 이 RefTypeName 과 일치하는 첫 컴포넌트.
+	// 없으면 nullptr. RefTypeName 이 비어 있으면 카테고리만 맞으면 첫 인스턴스를 돌려준다.
+	CComponent* FindFirstComponentForRef(CGameObject& object, const ReflectPropertyInfo& property)
+	{
+		const bool wantScript = (ERefCategory::Script == property.RefCategory);
+		const char* wantType  = property.RefTypeName;
+
+		for (const SafePtr<CComponent>& cref : object.GetComponents())
+		{
+			CComponent* comp = cref.TryGet();
+			if (nullptr == comp)
+			{
+				continue;
+			}
+
+			if (wantScript)
+			{
+				ScriptComponent* sc = dynamic_cast<ScriptComponent*>(comp);
+				if (nullptr == sc)
+				{
+					continue;
+				}
+				if (nullptr == wantType || '\0' == wantType[0])
+				{
+					return sc;   // 타입 미지정 — 첫 스크립트.
+				}
+				if (Core::Reflection.IsValid())
+				{
+					const ScriptTypeInfo* info = Core::Reflection->FindScript(sc->ScriptTypeId);
+					if (info && info->Type.Name && 0 == strcmp(info->Type.Name, wantType))
+					{
+						return sc;
+					}
+				}
+			}
+			else
+			{
+				if (dynamic_cast<ScriptComponent*>(comp))
+				{
+					continue;   // 컴포넌트 Ref 는 스크립트 컨테이너를 건너뛴다.
+				}
+				const char* tn = comp->GetTypeName();
+				if (nullptr == wantType || '\0' == wantType[0] || (tn && 0 == strcmp(tn, wantType)))
+				{
+					return comp;
+				}
+			}
+		}
+		return nullptr;
+	}
+
 	const char* ResolveDraggedTypeName(const EditorDragDrop::HierarchyComponentPayload& comp)
 	{
 		if (false == Core::Reflection.IsValid())
@@ -219,8 +272,7 @@ CSpriteAsset* sprite = Core::ResourceRegistry->GetSprite(key);
 			if (const ImGuiPayload* p =
 				ImGui::AcceptDragDropPayload(EditorDragDrop::HIERARCHY_ENTITY_PAYLOAD))
 			{
-				const ObjectId e = *static_cast<const ObjectId*>(p->Data);
-				if (CGameObject* obj = scene->FindObjectById(e))
+				if (CGameObject* obj = *static_cast<CGameObject* const*>(p->Data))
 				{
 					ref.SetGuidText(obj->InstanceGuid.generic_string().c_str());
 					changed = true;
@@ -228,19 +280,17 @@ CSpriteAsset* sprite = Core::ResourceRegistry->GetSprite(key);
 			}
 		}
 		else if (const ImGuiPayload* p =
-			ImGui::AcceptDragDropPayload(EditorDragDrop::HIERARCHY_COMPONENT_PAYLOAD))
+			ImGui::AcceptDragDropPayload(EditorDragDrop::HIERARCHY_ENTITY_PAYLOAD))
 		{
-			// 컴포넌트/스크립트 — 카테고리·타입명이 일치할 때만 수락.
-			const auto* comp = static_cast<const EditorDragDrop::HierarchyComponentPayload*>(p->Data);
-			const bool categoryOk =
-				(ERefCategory::Script == property.RefCategory) == comp->IsScript;
-			const char* draggedType = ResolveDraggedTypeName(*comp);
-			if (categoryOk && draggedType && property.RefTypeName
-				&& 0 == strcmp(draggedType, property.RefTypeName))
+			// 컴포넌트/스크립트 Ref — 오브젝트를 드롭하면 그 오브젝트의 타입이 맞는 첫
+			// 컴포넌트를 참조로 설정한다. (오브젝트 guid + 컴포넌트 guid) 쌍을 저장한다.
+			if (CGameObject* obj = *static_cast<CGameObject* const*>(p->Data))
 			{
-				if (CGameObject* obj = scene->FindObjectById(comp->Entity))
+				CComponent* match = FindFirstComponentForRef(*obj, property);
+				if (match)
 				{
 					ref.SetGuidText(obj->InstanceGuid.generic_string().c_str());
+					ref.SetComponentGuidText(match->InstanceGuid.generic_string().c_str());
 					changed = true;
 				}
 			}
@@ -491,7 +541,7 @@ CSpriteAsset* sprite = Core::ResourceRegistry->GetSprite(key);
 		ImGui::EndDisabled();
 	}
 
-	void DrawPhysicsContactDebug(const CScene& scene, ObjectId selectedEntity)
+	void DrawPhysicsContactDebug(const CScene& scene, const CGameObject* selectedObject)
 	{
 		const CPhysics2DSystem* physicsSystem = scene.GetPhysics2DSystem();
 		if (nullptr == physicsSystem)
@@ -504,8 +554,8 @@ CSpriteAsset* sprite = Core::ResourceRegistry->GetSprite(key);
 		for (const Physics2DManifold& manifold : physicsSystem->GetManifolds())
 		{
 			const bool involvesSelected =
-				(manifold.A && manifold.A->GetId() == selectedEntity) ||
-				(manifold.B && manifold.B->GetId() == selectedEntity);
+				(manifold.A == selectedObject) ||
+				(manifold.B == selectedObject);
 			if (false == involvesSelected)
 			{
 				continue;
@@ -525,7 +575,7 @@ CSpriteAsset* sprite = Core::ResourceRegistry->GetSprite(key);
 		}
 	}
 
-	void DrawRigidbodyDebug(const CScene& scene, ObjectId selectedEntity, const Rigidbody2D& rigidbody)
+	void DrawRigidbodyDebug(const CScene& scene, const CGameObject* selectedObject, const Rigidbody2D& rigidbody)
 	{
 		ImGui::SeparatorText(Loc::Text("inspector.rigidbody_debug"));
 		const float inverseMass = rigidbody.Mass > 0.0f ? 1.0f / rigidbody.Mass : 0.0f;
@@ -538,12 +588,12 @@ CSpriteAsset* sprite = Core::ResourceRegistry->GetSprite(key);
 		DrawReadOnlyFloat(Loc::Text("inspector.rigidbody.last_normal_impulse"), rigidbody.LastNormalImpulse);
 		DrawReadOnlyFloat(Loc::Text("inspector.rigidbody.last_friction_impulse"), rigidbody.LastFrictionImpulse);
 		DrawReadOnlyFloat(Loc::Text("inspector.rigidbody.last_angular_impulse"), rigidbody.LastAngularImpulse);
-		DrawPhysicsContactDebug(scene, selectedEntity);
+		DrawPhysicsContactDebug(scene, selectedObject);
 	}
 
-	void DrawCircleColliderDebug(const CScene& scene, ObjectId selectedEntity, const CircleCollider2D& collider)
+	void DrawCircleColliderDebug(const CScene& scene, const CGameObject* selectedObject, const CircleCollider2D& collider)
 	{
-		CGameObject* selectedObject = const_cast<CScene&>(scene).FindObjectById(selectedEntity);
+		(void)scene;
 		const Matrix3x2 worldTransform = selectedObject ? GetWorldTransform(*selectedObject) : Matrix3x2::Identity();
 		const Vector2 worldCenter = worldTransform.TransformPoint(Vector2(0.0f, 0.0f));
 		const float scaleX = std::sqrt(worldTransform.M11 * worldTransform.M11 + worldTransform.M12 * worldTransform.M12);
@@ -555,8 +605,9 @@ CSpriteAsset* sprite = Core::ResourceRegistry->GetSprite(key);
 		DrawReadOnlyFloat(Loc::Text("inspector.collider.world_radius"), worldRadius);
 	}
 
-	void DrawPolygonColliderDebug(const CScene& scene, ObjectId selectedEntity, const PolygonCollider2D& collider)
+	void DrawPolygonColliderDebug(const CScene& scene, const CGameObject* selectedObject, const PolygonCollider2D& collider)
 	{
+		(void)scene;
 		std::vector<Vector2> generatedPoints;
 		const std::vector<Vector2>* localPoints = &collider.LocalPoints;
 		if (localPoints->empty())
@@ -568,7 +619,6 @@ CSpriteAsset* sprite = Core::ResourceRegistry->GetSprite(key);
 		PhysicsAABB2D aabb;
 		if (false == localPoints->empty())
 		{
-			CGameObject* selectedObject = const_cast<CScene&>(scene).FindObjectById(selectedEntity);
 			const Matrix3x2 worldTransform = selectedObject ? GetWorldTransform(*selectedObject) : Matrix3x2::Identity();
 			Vector2 firstPoint = worldTransform.TransformPoint((*localPoints)[0]);
 			aabb.Min = firstPoint;
@@ -611,7 +661,7 @@ CSpriteAsset* sprite = Core::ResourceRegistry->GetSprite(key);
 	//   sameLineAfter=true  → "##enabled" 체크박스 + SameLine() (CollapsingHeader 왼쪽)
 	//   sameLineAfter=false → "IsEnabled" 라벨 체크박스 + Separator  (탭 최상단 단독)
 	void DrawIsEnabledCheckbox(
-		CScene& scene, ObjectId selectedEntity,
+		CScene& scene, CGameObject* selectedObject,
 		const ComponentTypeInfo& componentType,
 		std::size_t instanceIdx, void* component, bool sameLineAfter)
 	{
@@ -639,7 +689,7 @@ CSpriteAsset* sprite = Core::ResourceRegistry->GetSprite(key);
 			std::vector<std::uint8_t> oldVal = { static_cast<std::uint8_t>(oldEnabled) };
 			std::vector<std::uint8_t> newVal = { static_cast<std::uint8_t>(newEnabled) };
 			Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CSetComponentPropertyCommand>(
-				scene.SafeFromThis(), selectedEntity,
+				scene.SafeFromThis(), selectedObject,
 				componentType.Type.Id, enabledProp->Offset,
 				std::move(oldVal), std::move(newVal), instanceIdx));
 		}
@@ -652,7 +702,7 @@ CSpriteAsset* sprite = Core::ResourceRegistry->GetSprite(key);
 	// ── DrawComponentProperties ───────────────────────────────────────────────
 	// IsEnabled·non-editable 프로퍼티를 제외하고 에디터 + 특수 디버그 섹션 렌더링.
 	void DrawComponentProperties(
-		CScene& scene, ObjectId selectedEntity,
+		CScene& scene, CGameObject* selectedObject,
 		const ComponentTypeInfo& componentType,
 		std::size_t instanceIdx, void* component)
 	{
@@ -684,7 +734,7 @@ CSpriteAsset* sprite = Core::ResourceRegistry->GetSprite(key);
 						if (oldValue != newValue)
 						{
 							Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CSetComponentPropertyCommand>(
-								scene.SafeFromThis(), selectedEntity,
+								scene.SafeFromThis(), selectedObject,
 								componentType.Type.Id, property.Offset,
 								std::move(oldValue), std::move(newValue), instanceIdx));
 						}
@@ -697,11 +747,11 @@ CSpriteAsset* sprite = Core::ResourceRegistry->GetSprite(key);
 		if (componentType.Type.Id == CReflectionRegistry::MakeTypeId("Transform2D"))
 			DrawTransformMatrixReadOnly(*static_cast<Transform2D*>(component));
 		else if (componentType.Type.Id == CReflectionRegistry::MakeTypeId("Rigidbody2D"))
-			DrawRigidbodyDebug(scene, selectedEntity, *static_cast<Rigidbody2D*>(component));
+			DrawRigidbodyDebug(scene, selectedObject, *static_cast<Rigidbody2D*>(component));
 		else if (componentType.Type.Id == CReflectionRegistry::MakeTypeId("CircleCollider2D"))
-			DrawCircleColliderDebug(scene, selectedEntity, *static_cast<CircleCollider2D*>(component));
+			DrawCircleColliderDebug(scene, selectedObject, *static_cast<CircleCollider2D*>(component));
 		else if (componentType.Type.Id == CReflectionRegistry::MakeTypeId("PolygonCollider2D"))
-			DrawPolygonColliderDebug(scene, selectedEntity, *static_cast<PolygonCollider2D*>(component));
+			DrawPolygonColliderDebug(scene, selectedObject, *static_cast<PolygonCollider2D*>(component));
 	}
 
 	bool SaveSpriteImportOptions(const AssetMetaData& metaData, const SpriteImportOptions& options)
@@ -1211,9 +1261,7 @@ void CInspectorTool::OnRenderStay()
 		return;
 	}
 
-	const ObjectId selectedEntity = Editor::GetSelectedEntity();
-	CGameObject*   selectedObject =
-	    (INVALID_OBJECT_ID == selectedEntity) ? nullptr : scene->FindObjectById(selectedEntity);
+	CGameObject* selectedObject = Editor::GetSelectedEntity();
 	if (nullptr == selectedObject)
 	{
 		// 스크립트 .h 선택 — 스키마 에디터.
@@ -1256,19 +1304,20 @@ void CInspectorTool::OnRenderStay()
 	for (std::size_t i = 0; i < reflection.GetComponentTypeCount(); ++i)
 	{
 		const ComponentTypeInfo* ct = reflection.GetComponentType(i);
-		if (!ct || !reflection.HasComponent(*selectedObject, ct->Type.Id))
+		if (!ct)
 			continue;
 
-		void* addr = reflection.GetComponentAddress(*selectedObject, ct->Type.Id);
-		if (nullptr == addr)
+		// 멀티 컴포넌트: 같은 타입 인스턴스를 전부 모은다(없으면 스킵).
+		std::vector<void*> instances = reflection.GetComponentAddresses(*selectedObject, ct->Type.Id);
+		if (instances.empty())
 			continue;
 
-		allEntries.push_back({ ct, i, std::vector<void*>{ addr } });
+		allEntries.push_back({ ct, i, std::move(instances) });
 	}
 
 	// ── GameObject 인라인 표시 (CGameObject 직접 편집) ──────────────────────────
-	ImGui::Text("%s: %llu", Loc::Text("common.entity"), static_cast<unsigned long long>(selectedEntity));
-	EditorGuiDrawHelpers::DrawAddComponentButton(*scene, selectedEntity);
+	ImGui::TextUnformatted(selectedObject->GetName());
+	EditorGuiDrawHelpers::DrawAddComponentButton(*scene, selectedObject);
 
 	ImGui::Spacing();
 	{
@@ -1445,8 +1494,8 @@ void CInspectorTool::OnRenderStay()
 		if (comp)
 		{
 			ImGui::PushID(static_cast<int>(e.typeIndex * 1000 + instIdx));
-			DrawIsEnabledCheckbox(*scene, selectedEntity, *e.typeInfo, instIdx, comp, false);
-			DrawComponentProperties(*scene, selectedEntity, *e.typeInfo, instIdx, comp);
+			DrawIsEnabledCheckbox(*scene, selectedObject, *e.typeInfo, instIdx, comp, false);
+			DrawComponentProperties(*scene, selectedObject, *e.typeInfo, instIdx, comp);
 
 			// ── ScriptComponent: REFLECT_FIELD 자동 표시 ──────────────────────
 			// ScriptComponent 의 ComponentTypeInfo::Properties 에는 IsEnabled 만 있다.
@@ -1457,7 +1506,7 @@ void CInspectorTool::OnRenderStay()
 				ScriptComponent* scriptComp = static_cast<ScriptComponent*>(comp);
 				if (scriptComp)
 				{
-					DrawScriptTypeSelector(*scene, selectedEntity, instIdx, *scriptComp);
+					DrawScriptTypeSelector(*scene, selectedObject, instIdx, *scriptComp);
 
 					// 에디트 모드에서도 프로퍼티를 보이고 편집할 수 있도록 인스턴스를 보장한다.
 					// (DLL 로드 + 타입 등록이 되어 있으면 생성됨. Bind/Start 는 플레이 때만.)

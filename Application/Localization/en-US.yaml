@@ -395,9 +395,9 @@ Entries:
   scene_view.overlay.active_scene: Active Scene
   scene_view.overlay.no_active_scene: No Active Scene
   scene_view.overlay.selected_none: "Selected: None"
-  scene_view.overlay.selected_format: "Selected: %llu"
+  scene_view.overlay.selected_format: "Selected: %s"
   scene_view.overlay.camera_format: "Cam (%.2f, %.2f) | Size %.2f"
-  scene_view.overlay.focus_format: "Focus: %llu  [Dbl-click empty to exit]"
+  scene_view.overlay.focus_format: "Focus: %s  [Dbl-click empty to exit]"
   scene_view.overlay.viewport_selected_camera: Viewport (Selected Camera)
 
   game_view.status.playing: Playing

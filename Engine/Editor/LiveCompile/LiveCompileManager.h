@@ -3,6 +3,7 @@
 #include "Editor/FileSystem/Windows/WindowsFileWatcher.h"
 #include "Editor/LiveCompile/ILiveCompileManager.h"
 #include "GameFramework/Component/ScriptComponent.h"
+#include "Utillity/File/FilePath.h" // File::Guid (오브젝트 안정 식별자)
 
 #include <chrono>
 #include <functional>
@@ -15,8 +16,8 @@
 // 핫리로드 직전, 스크립트 인스턴스의 REFLECT_FIELD 값을 보존한다.
 struct ScriptFieldSnapshot
 {
-	ObjectId                        Entity;
-	std::string                     TypeName; // 재로드 후 이름으로 타입 재탐색
+	File::Guid                      OwnerGuid; // 오브젝트 안정 식별자(주소 아님 — 리로드 넘어 유효)
+	std::string                     TypeName;  // 재로드 후 이름으로 타입 재탐색
 	std::vector<ScriptPendingField> Fields;
 };
 
