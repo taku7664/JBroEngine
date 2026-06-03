@@ -12,16 +12,14 @@
 #include "Core/Audio/IAudioPlayer.h"
 #include "Core/Audio/MiniAudio/MiniAudioDevice.h"
 #include "GameFramework/Component/AudioComponents.h"
-#include "GameFramework/Component/GameObject.h"
-#include "GameFramework/Component/Transform2D.h"
+#include "GameFramework/Object/GameObject.h"
 #include "GameFramework/Scene/Scene.h"
-#include "GameFramework/Scene/SceneTransformUtils.h"
 
 namespace
 {
-	AudioVec3 ExtractWorldPosition(const CScene& scene, EntityId entity)
+	AudioVec3 ExtractWorldPosition(const CGameObject& object)
 	{
-		const Matrix3x2 m = GetWorldTransform(scene, entity);
+		const Matrix3x2& m = object.GetWorld().Matrix;
 		AudioVec3 v;
 		v.X = m.Dx;   // translation x
 		v.Y = m.Dy;   // translation y
@@ -78,31 +76,36 @@ void CAudioSystem::OnUpdate(CScene& scene)
 	// ── 1) Listener — 첫 번째 활성 청취자만 사용 ────────────────────────
 	SafePtr<IAudioListener> primary = m_device->GetPrimaryListener();
 	bool listenerSet = false;
-	scene.ForEach<GameObject, Transform2D, AudioListener>(
-		[&](EntityId entity, const GameObject& go, const Transform2D&, AudioListener& listener)
+	scene.ForEach<AudioListener>(
+		[&](AudioListener& listener)
 		{
 			if (listenerSet) return;
-			if (false == go.IsActive || false == listener.IsEnabled) return;
+			CGameObject* owner = listener.GetOwner();
+			if (nullptr == owner || false == owner->IsActive || false == listener.IsEnabled) return;
 			if (primary.IsValid())
 			{
-				primary->SetPosition(ExtractWorldPosition(scene, entity));
+				primary->SetPosition(ExtractWorldPosition(*owner));
 				primary->SetMasterVolume(listener.MasterVolume);
 			}
 			listenerSet = true;
 		});
 
 	// ── 2) Player — 컴포넌트별 인스턴스 생성/동기/해제 ─────────────────
-	std::unordered_set<EntityId> seen;
+	std::unordered_set<const void*> seen;
 
-	scene.ForEach<GameObject, AudioPlayer>(
-		[&](EntityId entity, const GameObject& go, AudioPlayer& player)
+	scene.ForEach<AudioPlayer>(
+		[&](AudioPlayer& player)
 		{
-			seen.insert(entity);
+			CGameObject* owner = player.GetOwner();
+			if (nullptr == owner) return;
 
-			const bool effectivelyEnabled = go.IsActive && player.IsEnabled
+			const void* key = &player;
+			seen.insert(key);
+
+			const bool effectivelyEnabled = owner->IsActive && player.IsEnabled
 				&& false == player.AudioGuid.IsNull();
 
-			auto it = m_instances.find(entity);
+			auto it = m_instances.find(key);
 
 			if (false == effectivelyEnabled)
 			{
@@ -165,7 +168,7 @@ void CAudioSystem::OnUpdate(CScene& scene)
 					inst.Player->Play();
 				}
 
-				it = m_instances.emplace(entity, std::move(inst)).first;
+				it = m_instances.emplace(key, std::move(inst)).first;
 			}
 
 			// 매 프레임 갱신 — 인스턴스별 오버라이드를 player 에 반영.
@@ -198,10 +201,8 @@ void CAudioSystem::OnUpdate(CScene& scene)
 					spatial.MaxDistance = player.MaxDistance;
 					it->second.Player->SetSpatial(spatial);
 
-					if (scene.HasComponent<Transform2D>(entity))
-					{
-						it->second.Player->SetPosition(ExtractWorldPosition(scene, entity));
-					}
+					// Transform 은 이제 GameObject 의 멤버라 항상 존재.
+					it->second.Player->SetPosition(ExtractWorldPosition(*owner));
 				}
 
 				// non-loop 자산이 끝까지 재생됐다면 인스턴스 해제 — GC.

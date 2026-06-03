@@ -1,6 +1,5 @@
 #pragma once
 
-#include "GameFramework/ECS/EntityTypes.h"
 #include "GameFramework/System/GameSystem.h"
 #include "Utillity/Pointer/SafePtr.h"
 
@@ -36,7 +35,7 @@ private:
 	IRHIDevice*    m_rhiDevice    = nullptr;
 	IRenderer*     m_renderer     = nullptr;
 
-	// 엔티티별 런타임 생성 머티리얼 소유권 캐시.
+	// 컴포넌트별 런타임 생성 머티리얼 소유권 캐시(키 = SpriteRenderer2D 주소).
 	// SpriteRenderer2D 컴포넌트는 여기서 발급한 SafePtr 만 보관합니다.
-	std::unordered_map<EntityId, OwnerPtr<IRenderMaterial>> m_materialCache;
+	std::unordered_map<const void*, OwnerPtr<IRenderMaterial>> m_materialCache;
 };

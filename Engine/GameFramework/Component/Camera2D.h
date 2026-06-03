@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include "GameFramework/Component/Component.h"
 #include "Utillity/Math/Layout2D.h"
 
 enum class ECameraProjectionMode2D
@@ -9,9 +10,10 @@ enum class ECameraProjectionMode2D
 	PerspectiveReady
 };
 
-struct Camera2D
+class Camera2D final : public CComponent
 {
-	bool IsEnabled = true;
+	JBRO_COMPONENT(Camera2D)
+public:
 	ECameraProjectionMode2D ProjectionMode = ECameraProjectionMode2D::Orthographic;
 	float OrthographicSize = 10.0f;
 	float PerspectiveFovDegrees = 60.0f;

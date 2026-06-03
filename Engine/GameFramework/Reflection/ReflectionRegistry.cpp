@@ -84,58 +84,35 @@ const ScriptTypeInfo* CReflectionRegistry::GetScriptType(std::size_t index) cons
 	return index < m_scriptTypes.size() ? &m_scriptTypes[index] : nullptr;
 }
 
-bool CReflectionRegistry::AddComponent(CScene& scene, EntityId entity, TypeId typeId) const
+bool CReflectionRegistry::AddComponent(CScene& scene, CGameObject& object, TypeId typeId) const
 {
 	const ComponentTypeInfo* typeInfo = FindComponent(typeId);
-	if (!typeInfo || !typeInfo->CanAddToEntity) return false;
-	// For types that allow duplicates, AddComponent behaves like AddNewComponent
-	// when called from the editor (duplicates are managed by the command layer).
-	return typeInfo->AddToEntity && typeInfo->AddToEntity(scene, entity);
+	if (!typeInfo || !typeInfo->CanAddToObject) return false;
+	return typeInfo->AddToObject && typeInfo->AddToObject(scene, object);
 }
 
-bool CReflectionRegistry::AddNewComponent(CScene& scene, EntityId entity, TypeId typeId) const
+bool CReflectionRegistry::RemoveComponent(CScene& scene, CGameObject& object, TypeId typeId) const
 {
 	const ComponentTypeInfo* typeInfo = FindComponent(typeId);
-	return typeInfo && typeInfo->CanAddToEntity && typeInfo->AddNewToEntity && typeInfo->AddNewToEntity(scene, entity);
+	return typeInfo && typeInfo->RemoveFromObject && typeInfo->RemoveFromObject(scene, object);
 }
 
-bool CReflectionRegistry::RemoveComponent(CScene& scene, EntityId entity, TypeId typeId) const
+bool CReflectionRegistry::HasComponent(const CGameObject& object, TypeId typeId) const
 {
 	const ComponentTypeInfo* typeInfo = FindComponent(typeId);
-	return typeInfo && typeInfo->RemoveFromEntity && typeInfo->RemoveFromEntity(scene, entity);
+	return typeInfo && typeInfo->HasComponent && typeInfo->HasComponent(object);
 }
 
-bool CReflectionRegistry::RemoveSpecificComponent(CScene& scene, EntityId entity, TypeId typeId, void* component) const
+void* CReflectionRegistry::GetComponentAddress(CGameObject& object, TypeId typeId) const
 {
 	const ComponentTypeInfo* typeInfo = FindComponent(typeId);
-	return typeInfo && typeInfo->RemoveSpecificFromEntity && typeInfo->RemoveSpecificFromEntity(scene, entity, component);
+	return typeInfo && typeInfo->GetAddress ? typeInfo->GetAddress(object) : nullptr;
 }
 
-bool CReflectionRegistry::HasComponent(const CScene& scene, EntityId entity, TypeId typeId) const
+const void* CReflectionRegistry::GetComponentAddress(const CGameObject& object, TypeId typeId) const
 {
 	const ComponentTypeInfo* typeInfo = FindComponent(typeId);
-	return typeInfo && typeInfo->HasComponent && typeInfo->HasComponent(scene, entity);
-}
-
-void* CReflectionRegistry::GetComponentAddress(CScene& scene, EntityId entity, TypeId typeId) const
-{
-	const ComponentTypeInfo* typeInfo = FindComponent(typeId);
-	return typeInfo && typeInfo->GetAddress ? typeInfo->GetAddress(scene, entity) : nullptr;
-}
-
-const void* CReflectionRegistry::GetComponentAddress(const CScene& scene, EntityId entity, TypeId typeId) const
-{
-	const ComponentTypeInfo* typeInfo = FindComponent(typeId);
-	return typeInfo && typeInfo->GetConstAddress ? typeInfo->GetConstAddress(scene, entity) : nullptr;
-}
-
-void CReflectionRegistry::GetAllComponentAddresses(CScene& scene, EntityId entity, TypeId typeId, std::vector<void*>& out) const
-{
-	const ComponentTypeInfo* typeInfo = FindComponent(typeId);
-	if (typeInfo && typeInfo->GetAllAddresses)
-	{
-		typeInfo->GetAllAddresses(scene, entity, out);
-	}
+	return typeInfo && typeInfo->GetConstAddress ? typeInfo->GetConstAddress(object) : nullptr;
 }
 
 void* CReflectionRegistry::GetPropertyAddress(void* component, const ReflectPropertyInfo& property)

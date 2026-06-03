@@ -1,43 +1,13 @@
 #pragma once
 
-// Shared utility so every system that needs world-space transforms calls the
-// same function instead of duplicating CalculateWorldTransform locally.
-//
-// Fast path: if CTransformSystem has already run this frame, each entity has a
-// WorldTransform2D component containing the pre-computed matrix — O(1) lookup.
-//
-// Fallback: walk the parent chain directly.  Used when TransformSystem has not
-// been added to the scene (e.g. in unit tests or one-off tool scenes).
+// World 변환은 CGameObject 의 World 멤버(CTransformSystem 이 매 프레임 캐싱)에서 읽는다.
+// 물리(FixedUpdate)는 캐시가 stale 일 수 있어 자체 on-demand 계산을 쓴다 — 이 헬퍼는
+// Update 단계 소비자(렌더/카메라/에디터)용이다.
 
-#include "GameFramework/Component/Transform2D.h"
-#include "GameFramework/Component/WorldTransform2D.h"
-#include "GameFramework/ECS/EntityTypes.h"
-#include "GameFramework/Scene/Scene.h"
+#include "GameFramework/Object/GameObject.h"
 #include "Utillity/Math/Matrix3x2.h"
 
-inline Matrix3x2 GetWorldTransform(const CScene& scene, EntityId entity)
+inline Matrix3x2 GetWorldTransform(const CGameObject& object)
 {
-	// ── Fast path: cached by CTransformSystem ────────────────────────────────
-	const WorldTransform2D* cached = scene.GetComponent<WorldTransform2D>(entity);
-	if (cached)
-	{
-		return cached->Matrix;
-	}
-
-	// ── Fallback: traverse parent chain ──────────────────────────────────────
-	const Transform2D* transform = scene.GetComponent<Transform2D>(entity);
-	Matrix3x2 worldTransform = transform ? transform->ToMatrix3x2() : Matrix3x2::Identity();
-
-	EntityId parent = scene.GetParent(entity);
-	while (INVALID_ENTITY_ID != parent)
-	{
-		const Transform2D* parentTransform = scene.GetComponent<Transform2D>(parent);
-		if (parentTransform)
-		{
-			worldTransform = worldTransform * parentTransform->ToMatrix3x2();
-		}
-		parent = scene.GetParent(parent);
-	}
-
-	return worldTransform;
+	return object.GetWorld().Matrix;
 }

@@ -13,11 +13,8 @@
 #include "Core/Renderer/RendererTypes.h"
 #include "Core/RHI/IRHIDevice.h"
 #include "GameFramework/Component/SpriteRenderer2D.h"
-#include "GameFramework/Component/Transform2D.h"
-#include "GameFramework/Component/TransformHierarchy2D.h"
-#include "GameFramework/Component/GameObject.h"
+#include "GameFramework/Object/GameObject.h"
 #include "GameFramework/Scene/Scene.h"
-#include "GameFramework/Scene/SceneTransformUtils.h"
 
 CSpriteRenderSystem::CSpriteRenderSystem(IRenderScene* renderScene)
 	: m_renderScene(renderScene)
@@ -53,13 +50,15 @@ void CSpriteRenderSystem::OnUpdate(CScene& scene)
 		return;
 	}
 
-	scene.ForEach<GameObject, Transform2D, SpriteRenderer2D>(
-		[this, &scene](EntityId entity, const GameObject& gameObject, const Transform2D&, SpriteRenderer2D& sprite)
+	scene.ForEach<SpriteRenderer2D>(
+		[this](SpriteRenderer2D& sprite)
 		{
-			if (false == gameObject.IsActive || false == sprite.IsEnabled)
+			CGameObject* owner = sprite.GetOwner();
+			if (nullptr == owner || false == owner->IsActive || false == sprite.IsEnabled)
 			{
 				return;
 			}
+			const void* cacheKey = &sprite;
 
 			SafePtr<IRenderMesh> mesh = sprite.Mesh;
 			SafePtr<IRenderMaterial> material = sprite.Material;
@@ -89,7 +88,7 @@ void CSpriteRenderSystem::OnUpdate(CScene& scene)
 				material.Reset();
 				sprite.Mesh.Reset();
 				sprite.Material.Reset();
-				m_materialCache.erase(entity);
+				m_materialCache.erase(cacheKey);
 				sprite.CachedPixelGeneration = spriteAsset->GetPixelGeneration();
 			}
 
@@ -111,7 +110,7 @@ void CSpriteRenderSystem::OnUpdate(CScene& scene)
 					material = generatedMaterial.GetSafePtr();
 					sprite.Mesh = mesh;
 					sprite.Material = material;
-					m_materialCache[entity] = std::move(generatedMaterial);
+					m_materialCache[cacheKey] = std::move(generatedMaterial);
 				}
 			}
 
@@ -138,13 +137,13 @@ void CSpriteRenderSystem::OnUpdate(CScene& scene)
 			item.Queue = material->GetRenderQueue();
 			item.LayerMask = sprite.LayerMask;
 			const Matrix3x2 spriteLocalTransform = Matrix3x2::Transform(sprite.Offset, 0.0f, finalSize);
-			item.Transform = spriteLocalTransform * GetWorldTransform(scene, entity);
+			item.Transform = spriteLocalTransform * owner->GetWorld().Matrix;
 			for (int i = 0; i < 4; ++i)
 			{
 				item.Color[i] = sprite.Color[i];
 			}
 			item.SortOrder = sprite.SortOrder;
-			item.Entity    = entity;
+			item.Entity    = owner->GetId();
 			m_renderScene->Submit(item);
 		});
 }

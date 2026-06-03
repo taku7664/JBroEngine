@@ -132,7 +132,7 @@ void CScriptSystem::OnUpdate(CScene& scene)
 {
 	// ── Pass 1: 인스턴스 보장 + Bind + Start ──────────────────────────────────
 	scene.ForEach<ScriptComponent>(
-		[&](EntityId entity, ScriptComponent& script)
+		[&](ScriptComponent& script)
 		{
 			if (false == script.IsEnabled)
 			{
@@ -140,6 +140,12 @@ void CScriptSystem::OnUpdate(CScene& scene)
 			}
 
 			if (INVALID_TYPE_ID == script.ScriptTypeId)
+			{
+				return;
+			}
+
+			CGameObject* owner = script.GetOwner();
+			if (nullptr == owner)
 			{
 				return;
 			}
@@ -155,15 +161,15 @@ void CScriptSystem::OnUpdate(CScene& scene)
 				ScriptInstanceHandle handle = Core::Reflection->CreateScriptInstance(script.ScriptTypeId);
 				if (nullptr == handle.Instance)
 				{
-					const EntityTypeKey key{ entity, script.ScriptTypeId };
+					const ObjectTypeKey key{ owner, script.ScriptTypeId };
 					if (m_warnedFailedCreate.insert(key).second)
 					{
 						const ScriptTypeInfo* info = Core::Reflection->FindScript(script.ScriptTypeId);
 						const char* name = (info && info->Type.Name) ? info->Type.Name : "<unknown>";
 						CSystemLog::Warning(std::format(
-							"ScriptSystem: CreateScriptInstance failed (entity={}, type={}, typeId={}). "
+							"ScriptSystem: CreateScriptInstance failed (object={}, type={}, typeId={}). "
 							"DLL not loaded, type not registered, or allocator failure.",
-							static_cast<unsigned long long>(entity),
+							owner->GetName(),
 							name,
 							static_cast<unsigned long long>(script.ScriptTypeId)));
 					}
@@ -190,7 +196,7 @@ void CScriptSystem::OnUpdate(CScene& scene)
 
 			if (false == script.Instance->IsBound())
 			{
-				script.Instance->Bind(scene, entity);
+				script.Instance->Bind(scene, *owner);
 			}
 
 			// OnStart 만 호출 (OnUpdate 는 Pass 2 에서)
@@ -202,7 +208,7 @@ void CScriptSystem::OnUpdate(CScene& scene)
 
 	// ── Pass 2: 이미 시작된 스크립트만 OnUpdate ───────────────────────────────
 	scene.ForEach<ScriptComponent>(
-		[](EntityId, ScriptComponent& script)
+		[](ScriptComponent& script)
 		{
 			if (false == script.IsEnabled || nullptr == script.Instance)
 			{
@@ -225,7 +231,7 @@ void CScriptSystem::OnFixedUpdate(CScene& scene)
 	// OnStart() 가 완료된 스크립트만 FixedUpdate 를 받는다.
 	// 아직 시작되지 않은 스크립트는 OnUpdate 에서 따라잡는다.
 	scene.ForEach<ScriptComponent>(
-		[](EntityId, ScriptComponent& script)
+		[](ScriptComponent& script)
 		{
 			if (false == script.IsEnabled || nullptr == script.Instance)
 			{

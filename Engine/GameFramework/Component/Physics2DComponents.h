@@ -1,5 +1,6 @@
 #pragma once
 
+#include "GameFramework/Component/Component.h"
 #include "GameFramework/Physics2D/Physics2DTypes.h"
 #include "Utillity/Math/Vector2T.h"
 
@@ -7,9 +8,10 @@
 #include <cstdint>
 #include <vector>
 
-struct Rigidbody2D
+class Rigidbody2D final : public CComponent
 {
-	bool IsEnabled = true;
+	JBRO_COMPONENT(Rigidbody2D)
+public:
 	EPhysics2DBodyType BodyType = EPhysics2DBodyType::Dynamic;
 	Vector2 Velocity = Vector2(0.0f, 0.0f);
 	Vector2 Force = Vector2(0.0f, 0.0f);
@@ -61,9 +63,10 @@ struct ConvexPiece2D
 	PhysicsAABB2D               WorldBounds;   // 브로드 페이즈용 AABB
 };
 
-struct PolygonCollider2D
+class PolygonCollider2D final : public CComponent
 {
-	bool IsEnabled = true;
+	JBRO_COMPONENT(PolygonCollider2D)
+public:
 	std::uint32_t VertexCount = 4;
 	// LocalPoints: 커스텀 버텍스 편집 또는 Physics2DSystem 이 빌드한 포인트.
 	// Physics2DSystem 은 절차적 파라미터(VertexCount)가 변경된 경우에만 재빌드한다(dirty 캐시).
@@ -140,9 +143,10 @@ struct PolygonCollider2D
 	}
 };
 
-struct CircleCollider2D
+class CircleCollider2D final : public CComponent
 {
-	bool IsEnabled = true;
+	JBRO_COMPONENT(CircleCollider2D)
+public:
 	Vector2 WorldCenter = Vector2(0.0f, 0.0f);
 	float Radius = 0.5f;
 	float WorldRadius = 0.5f;

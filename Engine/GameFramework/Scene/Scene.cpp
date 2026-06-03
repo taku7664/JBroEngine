@@ -1,20 +1,12 @@
 #include "pch.h"
 #include "Scene.h"
 
-#include "GameFramework/Component/Transform2D.h"
-#include "GameFramework/Component/Camera2D.h"
-#include "GameFramework/Component/Light2D.h"
-#include "GameFramework/Component/Physics2DComponents.h"
-#include "GameFramework/Component/PrefabInstance.h"
 #include "GameFramework/Component/ScriptComponent.h"
-#include "GameFramework/Component/SpriteRenderer2D.h"
-#include "GameFramework/Component/TransformHierarchy2D.h"
-#include "GameFramework/Object/GameObject.h"
-#include "GameFramework/Component/GameObject.h"
 #include "GameFramework/Physics2D/Physics2DSystem.h"
-#include "GameFramework/Scene/SceneSnapshot.h"
 #include "GameFramework/Scripting/ScriptSystem.h"
 #include "GameFramework/Transform/TransformSystem.h"
+
+#include <vector>
 
 CScene::CScene()
 {
@@ -42,282 +34,97 @@ CScene::~CScene()
 	Clear();
 }
 
-EntityId CScene::CreateEntity()
+CGameObject* CScene::CreateGameObject(const char* name)
 {
-	return m_entityManager.CreateEntity();
+	const File::Guid guid = File::GenerateGuid();
+	return m_objectPool.Allocate(*this, name, guid);
 }
 
-bool CScene::DestroyEntity(EntityId entity)
+bool CScene::DestroyGameObject(CGameObject* gameObject)
 {
-	if (false == IsAlive(entity))
+	if (nullptr == gameObject || gameObject->GetScene() != this)
 	{
 		return false;
 	}
-
-	DestroyEntityHierarchy(entity);
-	if (false == m_entityManager.DestroyEntity(entity))
-	{
-		return false;
-	}
-
-	for (auto& entry : m_componentPools)
-	{
-		if (entry.Pool)
-		{
-			entry.Pool->RemoveEntity(entity);
-		}
-	}
-
+	// 지연 파괴 — 순회 중 즉시 해제 금지. flush 에서 실제 파괴.
+	m_pendingDestroyObjects.push_back(gameObject->SafeFromThis());
 	return true;
 }
 
-bool CScene::IsAlive(EntityId entity) const
+void CScene::DestroyObjectRecursive(CGameObject* object)
 {
-	return m_entityManager.IsAlive(entity);
-}
-
-std::size_t CScene::GetAliveEntityCount() const
-{
-	return m_entityManager.GetAliveCount();
-}
-
-CGameObject CScene::CreateGameObject(const char* name)
-{
-	const EntityId entity = CreateEntity();
-	AddComponent<GameObject>(entity, name);
-	AddComponent<Transform2D>(entity);
-	AddComponent<TransformHierarchy2D>(entity);
-	// 안정적 식별자 발급 (씬 로드 시에는 직렬화된 값으로 덮어씀).
-	if (GameObject* gameObject = GetComponent<GameObject>(entity))
+	if (nullptr == object)
 	{
-		gameObject->InstanceGuid = File::GenerateGuid();
+		return;
 	}
-	return CGameObject(*this, entity);
+
+	// 자식 먼저 파괴 (리스트가 바뀌므로 복사본 순회).
+	const std::vector<SafePtr<CGameObject>> children = object->GetChildren();
+	for (const SafePtr<CGameObject>& child : children)
+	{
+		if (CGameObject* childObject = child.TryGet())
+		{
+			DestroyObjectRecursive(childObject);
+		}
+	}
+
+	object->ClearParent();
+
+	// 컴포넌트 해제 (복사본 순회 — DestroyComponent 가 owner 리스트에서 탈착).
+	const std::vector<SafePtr<CComponent>> components = object->GetComponents();
+	for (const SafePtr<CComponent>& component : components)
+	{
+		if (CComponent* raw = component.TryGet())
+		{
+			DestroyComponent(raw);
+		}
+	}
+
+	m_objectPool.Free(object);
 }
 
-EntityId CScene::FindEntityByInstanceGuid(const File::Guid& guid) const
+void CScene::DestroyComponent(CComponent* component)
+{
+	if (nullptr == component)
+	{
+		return;
+	}
+
+	if (CGameObject* owner = component->GetOwner())
+	{
+		owner->DetachComponent(component);
+	}
+
+	const std::type_index key(typeid(*component));
+	auto it = std::lower_bound(m_componentPools.begin(), m_componentPools.end(), key,
+		[](const PoolEntry& e, const std::type_index& k) { return e.Key < k; });
+	if (it != m_componentPools.end() && it->Key == key && it->Pool)
+	{
+		it->Pool->FreeBase(component);
+	}
+}
+
+SafePtr<CGameObject> CScene::FindByInstanceGuid(const File::Guid& guid)
 {
 	if (guid.IsNull())
 	{
-		return INVALID_ENTITY_ID;
-	}
-	EntityId found = INVALID_ENTITY_ID;
-	const_cast<CScene*>(this)->ForEach<GameObject>(
-		[&](EntityId entity, const GameObject& gameObject)
-		{
-			if (found == INVALID_ENTITY_ID && gameObject.InstanceGuid == guid)
-			{
-				found = entity;
-			}
-		});
-	return found;
-}
-
-void CScene::SetGameObjectInstanceGuid(EntityId entity, const File::Guid& guid)
-{
-	if (GameObject* gameObject = GetComponent<GameObject>(entity))
-	{
-		gameObject->InstanceGuid = guid;
-	}
-}
-
-void* CScene::GetComponentRaw(EntityId entity, std::type_index type)
-{
-	if (false == IsAlive(entity))
-	{
 		return nullptr;
 	}
-	auto it = std::lower_bound(m_componentPools.begin(), m_componentPools.end(), type,
-		[](const PoolEntry& e, const std::type_index& k) { return e.Key < k; });
-	if (it == m_componentPools.end() || it->Key != type)
+
+	SafePtr<CGameObject> result;
+	m_objectPool.ForEachLive([&](CGameObject& object)
 	{
-		return nullptr;
-	}
-	return it->Pool->GetRawComponent(entity);
-}
-
-bool CScene::DestroyGameObject(const CGameObject& gameObject)
-{
-	if (gameObject.GetScene() != this)
-	{
-		return false;
-	}
-
-	return DestroyEntity(gameObject.GetEntityId());
-}
-
-void CScene::BuildSnapshot(SceneSnapshot& snapshot) const
-{
-	snapshot.Clear();
-
-	ForEach<GameObject>(
-		[this, &snapshot](EntityId entity, const GameObject& gameObject)
+		if (false == result.IsValid() && object.InstanceGuid == guid)
 		{
-			SceneObjectSnapshot object;
-			object.Entity = entity;
-			object.InstanceGuid = gameObject.InstanceGuid;
-			gameObject.CopyNameTo(object.Name, GameObject::MAX_NAME_LENGTH + 1);
-			object.IsActive = gameObject.IsActive;
-			object.Layer = gameObject.Layer;
-			object.Parent = GetParent(entity);
-
-			if (const Transform2D* transform = GetComponent<Transform2D>(entity))
-			{
-				object.HasTransform = true;
-				object.Transform = *transform;
-			}
-
-			if (const SpriteRenderer2D* sprite = GetComponent<SpriteRenderer2D>(entity))
-			{
-				object.HasSpriteRenderer = true;
-				object.SpriteRendererEnabled = sprite->IsEnabled;
-				object.SpriteGuid = sprite->SpriteGuid;
-				object.MaterialGuid = sprite->MaterialGuid;
-				object.SpriteSize = sprite->Size;
-				object.SpriteOffset = sprite->Offset;
-				object.Color[0] = sprite->Color[0];
-				object.Color[1] = sprite->Color[1];
-				object.Color[2] = sprite->Color[2];
-				object.Color[3] = sprite->Color[3];
-				object.SortOrder = sprite->SortOrder;
-				object.LayerMask = sprite->LayerMask;
-			}
-
-			if (const Camera2D* camera = GetComponent<Camera2D>(entity))
-			{
-				object.HasCamera = true;
-				object.Camera = *camera;
-			}
-
-			if (const Light2D* light = GetComponent<Light2D>(entity))
-			{
-				object.HasLight = true;
-				object.Light = *light;
-			}
-
-			if (const AudioPlayer* audioPlayer = GetComponent<AudioPlayer>(entity))
-			{
-				object.HasAudioPlayer = true;
-				object.AudioPlayerData = *audioPlayer;
-			}
-
-			if (const AudioListener* audioListener = GetComponent<AudioListener>(entity))
-			{
-				object.HasAudioListener = true;
-				object.AudioListenerData = *audioListener;
-			}
-
-			if (const Rigidbody2D* rigidbody = GetComponent<Rigidbody2D>(entity))
-			{
-				object.HasRigidbody = true;
-				object.Rigidbody = *rigidbody;
-			}
-
-			for (const PolygonCollider2D* polygonCollider : GetAllComponents<PolygonCollider2D>(entity))
-			{
-				if (polygonCollider)
-				{
-					PolygonCollider2D snap = *polygonCollider;
-					snap.WorldPoints.clear();
-					object.PolygonColliders.push_back(snap);
-				}
-			}
-
-			if (const CircleCollider2D* circleCollider = GetComponent<CircleCollider2D>(entity))
-			{
-				object.HasCircleCollider = true;
-				object.CircleCollider = *circleCollider;
-			}
-
-			if (const PrefabInstance* prefabInstance = GetComponent<PrefabInstance>(entity))
-			{
-				object.HasPrefabInstance = true;
-				object.SourcePrefabGuid = prefabInstance->SourcePrefabGuid;
-			}
-
-			snapshot.Objects.push_back(object);
-		});
-}
-
-bool CScene::SetParent(EntityId child, EntityId parent)
-{
-	if (false == IsAlive(child))
-	{
-		return false;
-	}
-
-	if (INVALID_ENTITY_ID == parent)
-	{
-		return ClearParent(child);
-	}
-
-	if (child == parent || false == IsAlive(parent) || IsDescendantOf(parent, child))
-	{
-		return false;
-	}
-
-	if (nullptr == GetComponent<TransformHierarchy2D>(child))
-	{
-		AddComponent<TransformHierarchy2D>(child);
-	}
-	if (nullptr == GetComponent<TransformHierarchy2D>(parent))
-	{
-		AddComponent<TransformHierarchy2D>(parent);
-	}
-
-	DetachFromParent(child);
-	return AttachToParent(child, parent);
-}
-
-bool CScene::ClearParent(EntityId child)
-{
-	if (false == IsAlive(child))
-	{
-		return false;
-	}
-
-	DetachFromParent(child);
-	return true;
-}
-
-EntityId CScene::GetParent(EntityId entity) const
-{
-	const TransformHierarchy2D* hierarchy = GetComponent<TransformHierarchy2D>(entity);
-	return hierarchy ? hierarchy->Parent : INVALID_ENTITY_ID;
-}
-
-EntityId CScene::GetFirstChild(EntityId entity) const
-{
-	const TransformHierarchy2D* hierarchy = GetComponent<TransformHierarchy2D>(entity);
-	return hierarchy ? hierarchy->FirstChild : INVALID_ENTITY_ID;
-}
-
-EntityId CScene::GetNextSibling(EntityId entity) const
-{
-	const TransformHierarchy2D* hierarchy = GetComponent<TransformHierarchy2D>(entity);
-	return hierarchy ? hierarchy->NextSibling : INVALID_ENTITY_ID;
-}
-
-EntityId CScene::GetPrevSibling(EntityId entity) const
-{
-	const TransformHierarchy2D* hierarchy = GetComponent<TransformHierarchy2D>(entity);
-	return hierarchy ? hierarchy->PrevSibling : INVALID_ENTITY_ID;
-}
-
-bool CScene::IsDescendantOf(EntityId entity, EntityId possibleAncestor) const
-{
-	EntityId current = GetParent(entity);
-	while (INVALID_ENTITY_ID != current)
-	{
-		if (current == possibleAncestor)
-		{
-			return true;
+			result = object.SafeFromThis();
 		}
+	});
+	return result;
+}
 
-		current = GetParent(current);
-	}
-
-	return false;
+void CScene::SetObjectInstanceGuid(CGameObject& object, const File::Guid& guid)
+{
+	object.InstanceGuid = guid;
 }
 
 void CScene::Update(bool isSimulationPlaying)
@@ -327,9 +134,7 @@ void CScene::Update(bool isSimulationPlaying)
 	{
 		UpdateScripts();
 	}
-	// Apply all deferred component removals after every system and script
-	// has finished running for this frame.
-	FlushPendingRemovesAllPools();
+	FlushPendingDestroys();
 }
 
 void CScene::Update()
@@ -339,13 +144,11 @@ void CScene::Update()
 
 void CScene::FixedUpdate()
 {
-	// 1. Physics — runs at fixed timestep (called by SceneManager accumulator).
 	if (m_physicsSystem)
 	{
 		m_physicsSystem->FixedUpdate(*this);
 	}
 
-	// 2. User-registered systems that implement OnFixedUpdate.
 	for (OwnerPtr<CGameSystem>& system : m_systems)
 	{
 		if (system)
@@ -354,27 +157,52 @@ void CScene::FixedUpdate()
 		}
 	}
 
-	// 3. Script FixedUpdate (only scripts that are already started).
 	if (m_scriptSystem)
 	{
 		m_scriptSystem->FixedUpdate(*this);
 	}
 
-	// 4. Flush deferred removals at the end of each fixed step.
-	FlushPendingRemovesAllPools();
+	FlushPendingDestroys();
+}
+
+void CScene::FlushPendingDestroys()
+{
+	// 컴포넌트 먼저(개별 RemoveComponent), 그다음 오브젝트(자식 재귀 포함).
+	// SafePtr 가 null 이면 이미 다른 경로로 파괴된 것 → 스킵.
+	if (false == m_pendingDestroyComponents.empty())
+	{
+		std::vector<SafePtr<CComponent>> pending;
+		pending.swap(m_pendingDestroyComponents);
+		for (const SafePtr<CComponent>& ref : pending)
+		{
+			if (CComponent* component = ref.TryGet())
+			{
+				DestroyComponent(component);
+			}
+		}
+	}
+
+	if (false == m_pendingDestroyObjects.empty())
+	{
+		std::vector<SafePtr<CGameObject>> pending;
+		pending.swap(m_pendingDestroyObjects);
+		for (const SafePtr<CGameObject>& ref : pending)
+		{
+			if (CGameObject* object = ref.TryGet())
+			{
+				DestroyObjectRecursive(object);
+			}
+		}
+	}
 }
 
 void CScene::UpdateSystems(bool isSimulationPlaying)
 {
-	// 1. Transform cache — always runs first so every downstream system
-	//    reads up-to-date WorldTransform2D (including physics results from FixedUpdate).
 	if (m_transformSystem)
 	{
 		m_transformSystem->Update(*this);
 	}
 
-	// 2. User-registered systems.
-	//    Physics has moved to FixedUpdate; only non-physics systems run here.
 	for (OwnerPtr<CGameSystem>& system : m_systems)
 	{
 		if (system && (isSimulationPlaying || system->ShouldUpdateInEditMode()))
@@ -394,8 +222,6 @@ void CScene::UpdateScripts()
 
 void CScene::NotifySimulationStop()
 {
-	// 시뮬레이션 중 시작된 재생/상태를 시스템이 정리. Finalize 와 달리 시스템은
-	// 살아있으므로 다음 Play 에서 재초기화 없이 그대로 동작한다.
 	for (OwnerPtr<CGameSystem>& system : m_systems)
 	{
 		if (system)
@@ -407,22 +233,10 @@ void CScene::NotifySimulationStop()
 
 void CScene::DestroyScriptInstances()
 {
-	ForEach<ScriptComponent>(
-		[](EntityId, ScriptComponent& script)
-		{
-			script.ResetInstance();
-		});
-}
-
-void CScene::FlushPendingRemovesAllPools()
-{
-	for (auto& entry : m_componentPools)
+	ForEach<ScriptComponent>([](ScriptComponent& script)
 	{
-		if (entry.Pool)
-		{
-			entry.Pool->FlushPendingRemoves();
-		}
-	}
+		script.ResetInstance();
+	});
 }
 
 CPhysics2DSystem* CScene::GetPhysics2DSystem()
@@ -445,6 +259,24 @@ const std::vector<AssetGuid>& CScene::GetReferencedAssets() const
 	return m_referencedAssets;
 }
 
+void CScene::ClearObjects()
+{
+	m_pendingDestroyComponents.clear();
+	m_pendingDestroyObjects.clear();
+
+	// 컴포넌트 풀 먼저 해제 → 오브젝트 풀 해제(상호참조 없이 안전).
+	for (PoolEntry& entry : m_componentPools)
+	{
+		if (entry.Pool)
+		{
+			entry.Pool->Clear();
+		}
+	}
+	m_componentPools.clear();
+	m_objectPool.Clear();
+	m_referencedAssets.clear();
+}
+
 void CScene::Clear()
 {
 	for (OwnerPtr<CGameSystem>& system : m_systems)
@@ -454,95 +286,23 @@ void CScene::Clear()
 			system->Finalize(*this);
 		}
 	}
-
 	m_systems.clear();
+
 	if (m_transformSystem)
 	{
 		m_transformSystem->Finalize(*this);
 		m_transformSystem->Initialize(*this);
 	}
-
 	if (m_physicsSystem)
 	{
 		m_physicsSystem->Finalize(*this);
 		m_physicsSystem->Initialize(*this);
 	}
-
 	if (m_scriptSystem)
 	{
 		m_scriptSystem->Finalize(*this);
 		m_scriptSystem->Initialize(*this);
 	}
+
 	ClearObjects();
-}
-
-void CScene::ClearObjects()
-{
-	m_componentPools.clear();
-	m_entityManager.Clear();
-	m_referencedAssets.clear();
-}
-
-bool CScene::AttachToParent(EntityId child, EntityId parent)
-{
-	TransformHierarchy2D* childHierarchy = GetComponent<TransformHierarchy2D>(child);
-	TransformHierarchy2D* parentHierarchy = GetComponent<TransformHierarchy2D>(parent);
-	if (nullptr == childHierarchy || nullptr == parentHierarchy)
-	{
-		return false;
-	}
-
-	const EntityId oldFirstChild = parentHierarchy->FirstChild;
-	childHierarchy->Parent = parent;
-	childHierarchy->PrevSibling = INVALID_ENTITY_ID;
-	childHierarchy->NextSibling = oldFirstChild;
-	parentHierarchy->FirstChild = child;
-
-	if (TransformHierarchy2D* oldFirstChildHierarchy = GetComponent<TransformHierarchy2D>(oldFirstChild))
-	{
-		oldFirstChildHierarchy->PrevSibling = child;
-	}
-
-	return true;
-}
-
-void CScene::DetachFromParent(EntityId child)
-{
-	TransformHierarchy2D* childHierarchy = GetComponent<TransformHierarchy2D>(child);
-	if (nullptr == childHierarchy || INVALID_ENTITY_ID == childHierarchy->Parent)
-	{
-		return;
-	}
-
-	TransformHierarchy2D* parentHierarchy = GetComponent<TransformHierarchy2D>(childHierarchy->Parent);
-	if (parentHierarchy && parentHierarchy->FirstChild == child)
-	{
-		parentHierarchy->FirstChild = childHierarchy->NextSibling;
-	}
-
-	if (TransformHierarchy2D* prevSibling = GetComponent<TransformHierarchy2D>(childHierarchy->PrevSibling))
-	{
-		prevSibling->NextSibling = childHierarchy->NextSibling;
-	}
-
-	if (TransformHierarchy2D* nextSibling = GetComponent<TransformHierarchy2D>(childHierarchy->NextSibling))
-	{
-		nextSibling->PrevSibling = childHierarchy->PrevSibling;
-	}
-
-	childHierarchy->Parent = INVALID_ENTITY_ID;
-	childHierarchy->PrevSibling = INVALID_ENTITY_ID;
-	childHierarchy->NextSibling = INVALID_ENTITY_ID;
-}
-
-void CScene::DestroyEntityHierarchy(EntityId entity)
-{
-	TransformHierarchy2D* hierarchy = GetComponent<TransformHierarchy2D>(entity);
-	while (hierarchy && INVALID_ENTITY_ID != hierarchy->FirstChild)
-	{
-		DestroyEntity(hierarchy->FirstChild);
-		hierarchy = GetComponent<TransformHierarchy2D>(entity);
-	}
-
-	DetachFromParent(entity);
 }

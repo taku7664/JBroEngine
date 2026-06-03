@@ -5,8 +5,7 @@
 #include "Core/Renderer/IRenderScene.h"
 #include "Core/Renderer/IRenderer.h"
 #include "GameFramework/Component/Camera2D.h"
-#include "GameFramework/Component/GameObject.h"
-#include "GameFramework/Component/Transform2D.h"
+#include "GameFramework/Object/GameObject.h"
 #include "GameFramework/Scene/Scene.h"
 #include "GameFramework/Scene/SceneTransformUtils.h"
 
@@ -19,15 +18,16 @@ std::vector<GameRenderCameraDesc> CollectGameRenderCameras(const CScene& scene, 
 	renderHeight = std::max(renderHeight, 1.0f);
 
 	std::vector<GameRenderCameraDesc> cameras;
-	scene.ForEach<GameObject, Transform2D, Camera2D>(
-		[&](EntityId entity, const GameObject& gameObject, const Transform2D&, const Camera2D& camera)
+	scene.ForEach<Camera2D>(
+		[&](const Camera2D& camera)
 		{
-			if (false == gameObject.IsActive || false == camera.IsEnabled)
+			const CGameObject* owner = camera.GetOwner();
+			if (nullptr == owner || false == owner->IsActive || false == camera.IsEnabled)
 			{
 				return;
 			}
 
-			const Matrix3x2 worldTransform = GetWorldTransform(scene, entity);
+			const Matrix3x2 worldTransform = GetWorldTransform(*owner);
 			const Vector2 posPixel = camera.Position.Resolve(renderWidth, renderHeight);
 			Vector2 sizePixel = camera.Size.Resolve(renderWidth, renderHeight);
 			sizePixel.x = std::max(sizePixel.x, 1.0f);

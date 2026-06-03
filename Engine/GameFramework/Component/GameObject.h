@@ -1,26 +1,11 @@
 #pragma once
 
-#include "Utillity/File/FilePath.h"   // File::Guid
+// ⚠ DEPRECATED — 옛 `struct GameObject`(Name/IsActive/Layer/InstanceGuid 보유 컴포넌트)는
+// 다형성 전환으로 폐지되었다. 해당 데이터는 이제 실체 객체 `CGameObject`
+// (GameFramework/Object/GameObject.h)의 멤버다.
+//
+// 이 헤더는 인클루드 경로 호환을 위해 한시적으로 남겨둔 스텁이다.
+// `GameObject` 타입을 참조하던 코드는 `CGameObject` 사용으로 교체할 것.
+// (전환 완료 후 이 파일과 모든 #include 를 제거한다.)
 
-#include <cstddef>
-#include <cstdint>
-
-struct GameObject
-{
-	static constexpr std::size_t MAX_NAME_LENGTH = 63;
-
-	GameObject();
-	explicit GameObject(const char* name);
-
-	void SetName(const char* name);
-	void CopyNameTo(char* buffer, std::size_t bufferLength) const;
-
-	char Name[MAX_NAME_LENGTH + 1];
-	bool IsActive = true;
-	std::uint32_t Layer = 0;
-
-	// 오브젝트의 "안정적 식별자". 씬 저장/로드 사이에서도 유지되며, 다른 오브젝트가
-	// 이 오브젝트(또는 그 컴포넌트/스크립트)를 Ref<T> 로 참조할 때의 직렬화 키가 된다.
-	// CScene::CreateGameObject 에서 발급하고, 씬 파일에 함께 저장된다.
-	File::Guid InstanceGuid;
-};
+#include "GameFramework/Object/GameObject.h"

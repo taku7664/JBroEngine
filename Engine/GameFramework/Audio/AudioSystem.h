@@ -1,6 +1,6 @@
 #pragma once
 
-#include "GameFramework/ECS/EntityTypes.h"
+#include "Core/Asset/AssetTypes.h"
 #include "GameFramework/System/GameSystem.h"
 #include "Utillity/Pointer/SafePtr.h"
 
@@ -54,5 +54,6 @@ private:
 
 	SafePtr<IAudioDevice>  m_device;
 	SafePtr<IAssetManager> m_assetManager;
-	std::unordered_map<EntityId, PlayerInstance> m_instances;
+	// 키 = AudioPlayer 컴포넌트 주소(풀 슬롯 안정).
+	std::unordered_map<const void*, PlayerInstance> m_instances;
 };

@@ -276,30 +276,30 @@ namespace
 		return NormalizeSafe(outward);
 	}
 
-	Matrix3x2 CalculateWorldTransformNow(const CScene& scene, EntityId entity)
+	// Transform 은 CGameObject 의 멤버(Local). 부모 사슬을 걸어 월드 행렬을 즉석 계산.
+	// (물리는 FixedUpdate 에서 도는데 World 캐시는 Update 단계 산출물이라 stale 가능 →
+	//  물리는 항상 on-demand 계산을 쓴다.)
+	Matrix3x2 CalculateWorldTransformNow(const CGameObject* object)
 	{
-		const Transform2D* transform = scene.GetComponent<Transform2D>(entity);
-		Matrix3x2 worldTransform = transform ? transform->ToMatrix3x2() : Matrix3x2::Identity();
-
-		EntityId parent = scene.GetParent(entity);
-		while (INVALID_ENTITY_ID != parent)
+		if (nullptr == object)
 		{
-			const Transform2D* parentTransform = scene.GetComponent<Transform2D>(parent);
-			if (parentTransform)
-			{
-				worldTransform = worldTransform * parentTransform->ToMatrix3x2();
-			}
-			parent = scene.GetParent(parent);
+			return Matrix3x2::Identity();
 		}
-
+		Matrix3x2 worldTransform = object->GetTransform().ToMatrix3x2();
+		const CGameObject* parent = object->GetParent().TryGet();
+		while (nullptr != parent)
+		{
+			worldTransform = worldTransform * parent->GetTransform().ToMatrix3x2();
+			parent = parent->GetParent().TryGet();
+		}
 		return worldTransform;
 	}
 
-	Matrix3x2 CalculateParentWorldTransformNow(const CScene& scene, EntityId entity)
+	Matrix3x2 CalculateParentWorldTransformNow(const CGameObject* object)
 	{
-		const EntityId parent = scene.GetParent(entity);
-		return parent != INVALID_ENTITY_ID
-			? CalculateWorldTransformNow(scene, parent)
+		const CGameObject* parent = object ? object->GetParent().TryGet() : nullptr;
+		return parent
+			? CalculateWorldTransformNow(parent)
 			: Matrix3x2::Identity();
 	}
 
@@ -311,9 +311,9 @@ namespace
 		);
 	}
 
-	Vector2 WorldVectorToParentLocal(const CScene& scene, EntityId entity, const Vector2& worldVector)
+	Vector2 WorldVectorToParentLocal(const CGameObject* object, const Vector2& worldVector)
 	{
-		Matrix3x2 parentWorld = CalculateParentWorldTransformNow(scene, entity);
+		Matrix3x2 parentWorld = CalculateParentWorldTransformNow(object);
 		Matrix3x2 parentWorldInverse;
 		if (false == parentWorld.TryInvert(parentWorldInverse))
 		{
@@ -886,12 +886,12 @@ namespace
 		return body ? std::max(0.0f, body->Friction) : 1.0f;
 	}
 
-	void ApplyVelocityToTransform(const CScene& scene, EntityId entity, Transform2D& transform, Rigidbody2D& body, float dt)
+	void ApplyVelocityToTransform(const CGameObject* object, Transform2D& transform, Rigidbody2D& body, float dt)
 	{
 		Vector2 worldDelta = body.Velocity * dt;
 		if (body.FreezePositionX) { worldDelta.x = 0.0f; body.Velocity.x = 0.0f; }
 		if (body.FreezePositionY) { worldDelta.y = 0.0f; body.Velocity.y = 0.0f; }
-		transform.Position += WorldVectorToParentLocal(scene, entity, worldDelta);
+		transform.Position += WorldVectorToParentLocal(object, worldDelta);
 
 		if (body.FreezeRotation)
 		{
@@ -902,7 +902,7 @@ namespace
 		transform.RotationRadians += body.AngularVelocity * dt;
 	}
 
-	void ApplyCorrectionToTransform(const CScene& scene, EntityId entity, Transform2D& transform, Rigidbody2D* body,
+	void ApplyCorrectionToTransform(const CGameObject* object, Transform2D& transform, Rigidbody2D* body,
 	                                const Vector2& correction)
 	{
 		Vector2 worldDelta = correction;
@@ -911,7 +911,7 @@ namespace
 			if (body->FreezePositionX) worldDelta.x = 0.0f;
 			if (body->FreezePositionY) worldDelta.y = 0.0f;
 		}
-		transform.Position += WorldVectorToParentLocal(scene, entity, worldDelta);
+		transform.Position += WorldVectorToParentLocal(object, worldDelta);
 	}
 
 	// Body 의 회전 중심(center of mass 근사) 을 반환.
@@ -920,19 +920,19 @@ namespace
 	//   잘못된 토크를 만들어 angular velocity 가 누적된다 → linear velocity 도 같이 폭주.
 	// 콜라이더가 있으면 그 면적 가중 centroid 를 사용 (질량 균등 분포 가정).
 	// 콜라이더가 없으면 entity origin 폴백 (회전 안 함 / kinematic 케이스).
-	Vector2 GetBodyWorldCenter(const CScene& scene, EntityId entity)
+	Vector2 GetBodyWorldCenter(const CGameObject* object)
 	{
-		if (const PolygonCollider2D* poly = scene.GetComponent<PolygonCollider2D>(entity);
+		if (const PolygonCollider2D* poly = object->GetComponent<PolygonCollider2D>();
 			poly && poly->IsEnabled && poly->WorldPoints.size() >= 3)
 		{
 			return CalculateCentroid(poly->WorldPoints);
 		}
-		if (const CircleCollider2D* circle = scene.GetComponent<CircleCollider2D>(entity);
+		if (const CircleCollider2D* circle = object->GetComponent<CircleCollider2D>();
 			circle && circle->IsEnabled)
 		{
 			return circle->WorldCenter;
 		}
-		const Matrix3x2 worldTransform = CalculateWorldTransformNow(scene, entity);
+		const Matrix3x2 worldTransform = CalculateWorldTransformNow(object);
 		return worldTransform.TransformPoint(Vector2(0.0f, 0.0f));
 	}
 
@@ -1371,14 +1371,15 @@ void CPhysics2DSystem::OnFixedUpdate(CScene& scene)
 	// dv 와 LastContactNormal 의 부호 일치를 보면 normal impulse 누적 여부 확인 가능.
 	{
 		static int s_bodyLogCnt = 0;
-		static std::unordered_map<EntityId, Vector2> s_prevVel;
+		static std::unordered_map<const void*, Vector2> s_prevVel;
 		if (++s_bodyLogCnt >= 60)
 		{
 			s_bodyLogCnt = 0;
-			scene.ForEach<Rigidbody2D>([&](EntityId e, Rigidbody2D& body)
+			scene.ForEach<Rigidbody2D>([&](Rigidbody2D& body)
 				{
 					if (false == body.IsEnabled || EPhysics2DBodyType::Dynamic != body.BodyType) return;
 
+					const void* e = &body;
 					const auto it = s_prevVel.find(e);
 					const Vector2 prev = (it != s_prevVel.end()) ? it->second : Vector2(0.0f, 0.0f);
 					const Vector2 dv = body.Velocity - prev;
@@ -1391,7 +1392,7 @@ void CPhysics2DSystem::OnFixedUpdate(CScene& scene)
 						"[Phys-Body] id={} v=({:+.3f},{:+.3f}) dv=({:+.4f},{:+.4f}) "
 						"contacts={} normImp={:.3f} fricImp={:.3f} angVel={:+.3f} "
 						"lastN=({:+.2f},{:+.2f})",
-						static_cast<unsigned long long>(e),
+						reinterpret_cast<std::uintptr_t>(e),
 						body.Velocity.x, body.Velocity.y,
 						dv.x, dv.y,
 						body.LastContactCount,
@@ -1473,8 +1474,12 @@ void CPhysics2DSystem::Step(CScene& scene, float deltaSeconds)
 
 void CPhysics2DSystem::IntegrateBodies(CScene& scene, float deltaSeconds)
 {
-	scene.ForEach<Transform2D, Rigidbody2D>([this, &scene, deltaSeconds](EntityId entity, Transform2D& transform, Rigidbody2D& body)
+	scene.ForEach<Rigidbody2D>([this, deltaSeconds](Rigidbody2D& body)
 	{
+		CGameObject* owner = body.GetOwner();
+		if (nullptr == owner) return;
+		Transform2D& transform = owner->GetTransform();
+
 		body.LastContactCount    = 0;
 		body.LastContactNormal   = Vector2(0.0f, 0.0f);
 		body.LastContactPoint    = Vector2(0.0f, 0.0f);
@@ -1489,7 +1494,7 @@ void CPhysics2DSystem::IntegrateBodies(CScene& scene, float deltaSeconds)
 
 		if (EPhysics2DBodyType::Kinematic == body.BodyType)
 		{
-			ApplyVelocityToTransform(scene, entity, transform, body, deltaSeconds);
+			ApplyVelocityToTransform(owner, transform, body, deltaSeconds);
 			return;
 		}
 
@@ -1540,7 +1545,7 @@ void CPhysics2DSystem::IntegrateBodies(CScene& scene, float deltaSeconds)
 			if (body.AngularVelocity < -MAX_ANGULAR_VELOCITY) body.AngularVelocity = -MAX_ANGULAR_VELOCITY;
 		}
 
-		ApplyVelocityToTransform(scene, entity, transform, body, deltaSeconds);
+		ApplyVelocityToTransform(owner, transform, body, deltaSeconds);
 		body.Force  = Vector2(0.0f, 0.0f);
 		body.Torque = 0.0f;
 	});
@@ -1551,7 +1556,7 @@ void CPhysics2DSystem::IntegrateBodies(CScene& scene, float deltaSeconds)
 void CPhysics2DSystem::UpdateColliderBounds(CScene& scene)
 {
 	// Pass 1a: 폴리곤 월드 기하
-	scene.ForEach<PolygonCollider2D>([&scene](EntityId entity, PolygonCollider2D& collider)
+	scene.ForEach<PolygonCollider2D>([](PolygonCollider2D& collider)
 	{
 		if (!collider.IsEnabled)
 		{
@@ -1559,7 +1564,7 @@ void CPhysics2DSystem::UpdateColliderBounds(CScene& scene)
 			collider.ConvexPieces.clear();
 			return;
 		}
-		const Matrix3x2 wt = CalculateWorldTransformNow(scene, entity);
+		const Matrix3x2 wt = CalculateWorldTransformNow(collider.GetOwner());
 
 		// ── 절차적 재빌드 ────────────────────────────────────────────────────────
 		// 절차적 파라미터(VertexCount/Size/Rotation/Center)가 변경된 경우에만 재빌드.
@@ -1605,10 +1610,10 @@ void CPhysics2DSystem::UpdateColliderBounds(CScene& scene)
 	});
 
 	// Pass 1b: 원 월드 기하
-	scene.ForEach<CircleCollider2D>([&scene](EntityId entity, CircleCollider2D& collider)
+	scene.ForEach<CircleCollider2D>([](CircleCollider2D& collider)
 	{
 		if (!collider.IsEnabled) return;
-		const Matrix3x2 wt    = CalculateWorldTransformNow(scene, entity);
+		const Matrix3x2 wt    = CalculateWorldTransformNow(collider.GetOwner());
 		collider.WorldCenter  = wt.TransformPoint(Vector2(0.0f, 0.0f));
 		const float scaleX    = std::sqrt(wt.M11 * wt.M11 + wt.M12 * wt.M12);
 		const float scaleY    = std::sqrt(wt.M21 * wt.M21 + wt.M22 * wt.M22);
@@ -1619,27 +1624,29 @@ void CPhysics2DSystem::UpdateColliderBounds(CScene& scene)
 	});
 
 	// Pass 2: 동적 Rigidbody 관성 누산 — 엔티티의 모든 콜라이더 기여 합산
-	scene.ForEach<Rigidbody2D>([&scene](EntityId entity, Rigidbody2D& body)
+	scene.ForEach<Rigidbody2D>([](Rigidbody2D& body)
 	{
 		if (!body.IsEnabled || EPhysics2DBodyType::Dynamic != body.BodyType || body.Mass <= 0.0f)
 		{
 			return;
 		}
+		CGameObject* owner = body.GetOwner();
+		if (nullptr == owner) return;
 
 		float totalInertia = 0.0f;
 		bool  hasShape     = false;
 
-		for (PolygonCollider2D* poly : scene.GetAllComponents<PolygonCollider2D>(entity))
+		if (PolygonCollider2D* poly = owner->GetComponent<PolygonCollider2D>())
 		{
-			if (poly && poly->IsEnabled && !poly->LocalPoints.empty())
+			if (poly->IsEnabled && !poly->LocalPoints.empty())
 			{
 				const float contrib = CalculatePolygonInertia(poly->LocalPoints, body.Mass);
 				if (contrib > 0.0f) { totalInertia += contrib; hasShape = true; }
 			}
 		}
-		for (CircleCollider2D* circle : scene.GetAllComponents<CircleCollider2D>(entity))
+		if (CircleCollider2D* circle = owner->GetComponent<CircleCollider2D>())
 		{
-			if (circle && circle->IsEnabled && circle->WorldRadius > 0.0f)
+			if (circle->IsEnabled && circle->WorldRadius > 0.0f)
 			{
 				totalInertia += 0.5f * body.Mass * circle->WorldRadius * circle->WorldRadius;
 				hasShape = true;
@@ -1663,21 +1670,21 @@ void CPhysics2DSystem::DetectContacts(CScene& scene)
 {
 	m_manifolds.clear();
 
-	std::vector<std::pair<EntityId, PolygonCollider2D*>> polygons;
-	scene.ForEach<PolygonCollider2D>([&polygons](EntityId entity, PolygonCollider2D& c)
+	std::vector<std::pair<CGameObject*, PolygonCollider2D*>> polygons;
+	scene.ForEach<PolygonCollider2D>([&polygons](PolygonCollider2D& c)
 	{
 		if (c.IsEnabled && c.WorldPoints.size() >= 3)
 		{
-			polygons.emplace_back(entity, &c);
+			polygons.emplace_back(c.GetOwner(), &c);
 		}
 	});
 
-	std::vector<std::pair<EntityId, CircleCollider2D*>> circles;
-	scene.ForEach<CircleCollider2D>([&circles](EntityId entity, CircleCollider2D& c)
+	std::vector<std::pair<CGameObject*, CircleCollider2D*>> circles;
+	scene.ForEach<CircleCollider2D>([&circles](CircleCollider2D& c)
 	{
 		if (c.IsEnabled)
 		{
-			circles.emplace_back(entity, &c);
+			circles.emplace_back(c.GetOwner(), &c);
 		}
 	});
 
@@ -1696,8 +1703,8 @@ void CPhysics2DSystem::DetectContacts(CScene& scene)
 	{
 		for (std::size_t j = i + 1; j < polygons.size(); ++j)
 		{
-			const EntityId ea = polygons[i].first;
-			const EntityId eb = polygons[j].first;
+			CGameObject* ea = polygons[i].first;
+			CGameObject* eb = polygons[j].first;
 			if (ea == eb) continue;
 
 			PolygonCollider2D* a = polygons[i].second;
@@ -1849,8 +1856,8 @@ void CPhysics2DSystem::DetectContacts(CScene& scene)
 	{
 		for (std::size_t j = i + 1; j < circles.size(); ++j)
 		{
-			const EntityId ea = circles[i].first;
-			const EntityId eb = circles[j].first;
+			CGameObject* ea = circles[i].first;
+			CGameObject* eb = circles[j].first;
 			if (ea == eb) continue;
 
 			CircleCollider2D* a = circles[i].second;
@@ -1973,8 +1980,8 @@ void CPhysics2DSystem::DetectContacts(CScene& scene)
 
 		for (const Physics2DManifold& m : m_manifolds)
 		{
-			const std::uint64_t lo  = std::min(static_cast<std::uint64_t>(m.A), static_cast<std::uint64_t>(m.B));
-			const std::uint64_t hi  = std::max(static_cast<std::uint64_t>(m.A), static_cast<std::uint64_t>(m.B));
+			const std::uint64_t lo  = std::min(reinterpret_cast<std::uintptr_t>(m.A), reinterpret_cast<std::uintptr_t>(m.B));
+			const std::uint64_t hi  = std::max(reinterpret_cast<std::uintptr_t>(m.A), reinterpret_cast<std::uintptr_t>(m.B));
 			const std::uint64_t key = (lo << 32) | hi;
 
 			auto it = firstIndexOfPair.find(key);
@@ -2053,8 +2060,8 @@ void CPhysics2DSystem::DetectContacts(CScene& scene)
 			std::unordered_map<std::uint64_t, int> pairCount;
 			for (const Physics2DManifold& m : m_manifolds)
 			{
-				const std::uint64_t lo  = std::min(static_cast<std::uint64_t>(m.A), static_cast<std::uint64_t>(m.B));
-				const std::uint64_t hi  = std::max(static_cast<std::uint64_t>(m.A), static_cast<std::uint64_t>(m.B));
+				const std::uint64_t lo  = std::min(reinterpret_cast<std::uintptr_t>(m.A), reinterpret_cast<std::uintptr_t>(m.B));
+				const std::uint64_t hi  = std::max(reinterpret_cast<std::uintptr_t>(m.A), reinterpret_cast<std::uintptr_t>(m.B));
 				pairCount[(lo << 32) | hi]++;
 			}
 
@@ -2062,8 +2069,8 @@ void CPhysics2DSystem::DetectContacts(CScene& scene)
 			{
 				const std::string line = std::format(
 					"[Physics] A={} B={} n=({:.3f},{:.3f}) pen={:.4f} ctc={} trigger={}",
-					static_cast<unsigned long long>(m.A),
-					static_cast<unsigned long long>(m.B),
+					reinterpret_cast<std::uintptr_t>(m.A),
+					reinterpret_cast<std::uintptr_t>(m.B),
 					m.Normal.x, m.Normal.y,
 					m.Penetration, m.ContactCount,
 					m.IsTrigger ? 1 : 0);
@@ -2131,8 +2138,8 @@ void CPhysics2DSystem::MatchAndWarmStart(CScene& scene)
 
 	for (const Physics2DManifold& pm : m_prevManifolds)
 	{
-		const std::uint64_t lo  = std::min(static_cast<std::uint64_t>(pm.A), static_cast<std::uint64_t>(pm.B));
-		const std::uint64_t hi  = std::max(static_cast<std::uint64_t>(pm.A), static_cast<std::uint64_t>(pm.B));
+		const std::uint64_t lo  = std::min(reinterpret_cast<std::uintptr_t>(pm.A), reinterpret_cast<std::uintptr_t>(pm.B));
+		const std::uint64_t hi  = std::max(reinterpret_cast<std::uintptr_t>(pm.A), reinterpret_cast<std::uintptr_t>(pm.B));
 		const std::uint64_t key = (lo << 32) | hi;
 		for (int i = 0; i < pm.ContactCount; ++i)
 		{
@@ -2146,16 +2153,16 @@ void CPhysics2DSystem::MatchAndWarmStart(CScene& scene)
 	{
 		if (m.IsTrigger || m.ContactCount <= 0) continue;
 
-		const std::uint64_t lo  = std::min(static_cast<std::uint64_t>(m.A), static_cast<std::uint64_t>(m.B));
-		const std::uint64_t hi  = std::max(static_cast<std::uint64_t>(m.A), static_cast<std::uint64_t>(m.B));
+		const std::uint64_t lo  = std::min(reinterpret_cast<std::uintptr_t>(m.A), reinterpret_cast<std::uintptr_t>(m.B));
+		const std::uint64_t hi  = std::max(reinterpret_cast<std::uintptr_t>(m.A), reinterpret_cast<std::uintptr_t>(m.B));
 		const std::uint64_t key = (lo << 32) | hi;
 
-		Rigidbody2D* bodyA = scene.GetComponent<Rigidbody2D>(m.A);
-		Rigidbody2D* bodyB = scene.GetComponent<Rigidbody2D>(m.B);
+		Rigidbody2D* bodyA = m.A ? m.A->GetComponent<Rigidbody2D>() : nullptr;
+		Rigidbody2D* bodyB = m.B ? m.B->GetComponent<Rigidbody2D>() : nullptr;
 		const Vector2 normal  = NormalizeSafe(m.Normal);
 		const Vector2 tangent(-normal.y, normal.x);
-		const Vector2 centerA = GetBodyWorldCenter(scene, m.A);
-		const Vector2 centerB = GetBodyWorldCenter(scene, m.B);
+		const Vector2 centerA = GetBodyWorldCenter(m.A);
+		const Vector2 centerB = GetBodyWorldCenter(m.B);
 
 		for (int ci = 0; ci < m.ContactCount; ++ci)
 		{
@@ -2196,12 +2203,12 @@ void CPhysics2DSystem::ResolveContactVelocity(CScene& scene)
 	{
 		if (manifold.IsTrigger || manifold.ContactCount <= 0) continue;
 
-		Transform2D* transformA = scene.GetComponent<Transform2D>(manifold.A);
-		Transform2D* transformB = scene.GetComponent<Transform2D>(manifold.B);
+		Transform2D* transformA = manifold.A ? &manifold.A->GetTransform() : nullptr;
+		Transform2D* transformB = manifold.B ? &manifold.B->GetTransform() : nullptr;
 		if (!transformA || !transformB) continue;
 
-		Rigidbody2D* bodyA = scene.GetComponent<Rigidbody2D>(manifold.A);
-		Rigidbody2D* bodyB = scene.GetComponent<Rigidbody2D>(manifold.B);
+		Rigidbody2D* bodyA = manifold.A ? manifold.A->GetComponent<Rigidbody2D>() : nullptr;
+		Rigidbody2D* bodyB = manifold.B ? manifold.B->GetComponent<Rigidbody2D>() : nullptr;
 
 		const Vector2 normal  = NormalizeSafe(manifold.Normal);
 		const Vector2 tangent(-normal.y, normal.x);
@@ -2214,8 +2221,8 @@ void CPhysics2DSystem::ResolveContactVelocity(CScene& scene)
 		const float invInertiaA = GetInverseInertia(bodyA);
 		const float invInertiaB = GetInverseInertia(bodyB);
 
-		const Vector2 centerA = GetBodyWorldCenter(scene, manifold.A);
-		const Vector2 centerB = GetBodyWorldCenter(scene, manifold.B);
+		const Vector2 centerA = GetBodyWorldCenter(manifold.A);
+		const Vector2 centerB = GetBodyWorldCenter(manifold.B);
 
 		const float restitutionA = bodyA ? bodyA->Restitution : 0.0f;
 		const float restitutionB = bodyB ? bodyB->Restitution : 0.0f;
@@ -2313,12 +2320,12 @@ void CPhysics2DSystem::ResolveContactPosition(CScene& scene)
 	{
 		if (manifold.IsTrigger) continue;
 
-		Transform2D* transformA = scene.GetComponent<Transform2D>(manifold.A);
-		Transform2D* transformB = scene.GetComponent<Transform2D>(manifold.B);
+		Transform2D* transformA = manifold.A ? &manifold.A->GetTransform() : nullptr;
+		Transform2D* transformB = manifold.B ? &manifold.B->GetTransform() : nullptr;
 		if (!transformA || !transformB) continue;
 
-		Rigidbody2D* bodyA = scene.GetComponent<Rigidbody2D>(manifold.A);
-		Rigidbody2D* bodyB = scene.GetComponent<Rigidbody2D>(manifold.B);
+		Rigidbody2D* bodyA = manifold.A ? manifold.A->GetComponent<Rigidbody2D>() : nullptr;
+		Rigidbody2D* bodyB = manifold.B ? manifold.B->GetComponent<Rigidbody2D>() : nullptr;
 
 		const float invMassA   = GetInverseMass(bodyA);
 		const float invMassB   = GetInverseMass(bodyB);
@@ -2329,8 +2336,8 @@ void CPhysics2DSystem::ResolveContactPosition(CScene& scene)
 		const float          corrDepth  = std::max(manifold.Penetration - POSITION_CORRECTION_SLOP, 0.0f);
 		const Vector2 correction = normal * (corrDepth / invMassSum * POSITION_CORRECTION_PERCENT);
 
-		ApplyCorrectionToTransform(scene, manifold.A, *transformA, bodyA, -correction * invMassA);
-		ApplyCorrectionToTransform(scene, manifold.B, *transformB, bodyB,  correction * invMassB);
+		ApplyCorrectionToTransform(manifold.A, *transformA, bodyA, -correction * invMassA);
+		ApplyCorrectionToTransform(manifold.B, *transformB, bodyB,  correction * invMassB);
 	}
 }
 
@@ -2338,7 +2345,7 @@ void CPhysics2DSystem::ResolveContactPosition(CScene& scene)
 
 void CPhysics2DSystem::StabilizeRestingContacts(CScene& scene)
 {
-	scene.ForEach<Transform2D, Rigidbody2D>([](EntityId, Transform2D&, Rigidbody2D& body)
+	scene.ForEach<Rigidbody2D>([](Rigidbody2D& body)
 	{
 		if (!body.StabilizeRestingContacts
 		    || !body.IsEnabled

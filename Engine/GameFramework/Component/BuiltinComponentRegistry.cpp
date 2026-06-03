@@ -3,34 +3,21 @@
 
 #include "GameFramework/Component/AudioComponents.h"
 #include "GameFramework/Component/Camera2D.h"
-#include "GameFramework/Component/GameObject.h"
 #include "GameFramework/Component/Light2D.h"
 #include "GameFramework/Component/Physics2DComponents.h"
 #include "GameFramework/Component/PrefabInstance.h"
 #include "GameFramework/Component/ScriptComponent.h"
 #include "GameFramework/Component/SpriteRenderer2D.h"
-#include "GameFramework/Component/Transform2D.h"
-#include "GameFramework/Component/TransformHierarchy2D.h"
 #include "GameFramework/Reflection/ReflectionRegistry.h"
 
 #include <cstddef>
 
+// GameObject(Name/Active/Layer) 와 Transform2D 는 더 이상 컴포넌트가 아니다(CGameObject 멤버).
+// 인스펙터/직렬화는 이를 오브젝트 헤더로 직접 처리한다. 계층도 CGameObject 멤버(폐지된
+// TransformHierarchy2D 없음). 컴포넌트 공통 IsEnabled 는 CComponent 베이스 → 제네릭 처리.
 void RegisterBuiltinComponents(CReflectionRegistry& registry)
 {
-	registry.RegisterComponent<GameObject>({ "GameObject", "Game Object", "Common", false })
-		.AddProperty("Name", EReflectPropertyType::String, offsetof(GameObject, Name), sizeof(GameObject::Name), GameObject::MAX_NAME_LENGTH + 1)
-		.AddProperty("IsActive", EReflectPropertyType::Bool, offsetof(GameObject, IsActive), sizeof(bool))
-		.AddProperty("Layer", EReflectPropertyType::UInt32, offsetof(GameObject, Layer), sizeof(std::uint32_t));
-
-	registry.RegisterComponent<Transform2D>({ "Transform2D", "Transform 2D", "Common", false })
-		.AddProperty("Position", EReflectPropertyType::Vector2Float, offsetof(Transform2D, Position), sizeof(Vector2))
-		.AddProperty("RotationRadians", EReflectPropertyType::AngleDegrees, offsetof(Transform2D, RotationRadians), sizeof(float))
-		.AddProperty("Scale", EReflectPropertyType::Vector2Float, offsetof(Transform2D, Scale), sizeof(Vector2));
-
-	registry.RegisterComponent<TransformHierarchy2D>({ "TransformHierarchy2D", "Transform Hierarchy 2D", "Common", false });
-
 	registry.RegisterComponent<SpriteRenderer2D>({ "SpriteRenderer2D", "Sprite Renderer 2D", "Rendering", true })
-		.AddProperty("IsEnabled", EReflectPropertyType::Bool, offsetof(SpriteRenderer2D, IsEnabled), sizeof(bool))
 		.AddProperty("SpriteGuid", EReflectPropertyType::AssetGuid, offsetof(SpriteRenderer2D, SpriteGuid), sizeof(AssetGuid))
 		.AddProperty("MaterialGuid", EReflectPropertyType::AssetGuid, offsetof(SpriteRenderer2D, MaterialGuid), sizeof(AssetGuid))
 		.AddProperty("Size", EReflectPropertyType::Vector2Float, offsetof(SpriteRenderer2D, Size), sizeof(Vector2))
@@ -40,7 +27,6 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 		.AddProperty("LayerMask", EReflectPropertyType::UInt32, offsetof(SpriteRenderer2D, LayerMask), sizeof(RenderLayerMask));
 
 	registry.RegisterComponent<Camera2D>({ "Camera2D", "Camera 2D", "Rendering", true })
-		.AddProperty("IsEnabled", EReflectPropertyType::Bool, offsetof(Camera2D, IsEnabled), sizeof(bool))
 		.AddProperty("ProjectionMode", EReflectPropertyType::Enum, offsetof(Camera2D, ProjectionMode), sizeof(ECameraProjectionMode2D))
 		.AddProperty("OrthographicSize", EReflectPropertyType::Float, offsetof(Camera2D, OrthographicSize), sizeof(float))
 		.AddProperty("PerspectiveFovDegrees", EReflectPropertyType::Float, offsetof(Camera2D, PerspectiveFovDegrees), sizeof(float))
@@ -62,7 +48,6 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 		.AddProperty("CastShadows", EReflectPropertyType::Bool, offsetof(Light2D, CastShadows), sizeof(bool));
 
 	registry.RegisterComponent<Rigidbody2D>({ "Rigidbody2D", "Rigidbody 2D", "Physics", true })
-		.AddProperty("IsEnabled", EReflectPropertyType::Bool, offsetof(Rigidbody2D, IsEnabled), sizeof(bool))
 		.AddProperty("BodyType", EReflectPropertyType::Enum, offsetof(Rigidbody2D, BodyType), sizeof(EPhysics2DBodyType))
 		.AddProperty("Velocity", EReflectPropertyType::Vector2Float, offsetof(Rigidbody2D, Velocity), sizeof(Vector2))
 		.AddProperty("Force", EReflectPropertyType::Vector2Float, offsetof(Rigidbody2D, Force), sizeof(Vector2))
@@ -84,27 +69,22 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 		.AddProperty("RestingAngularVelocityThreshold", EReflectPropertyType::Float, offsetof(Rigidbody2D, RestingAngularVelocityThreshold), sizeof(float));
 
 	registry.RegisterComponent<PolygonCollider2D>({ "PolygonCollider2D", "Polygon Collider 2D", "Physics", true })
-		.AddProperty("IsEnabled", EReflectPropertyType::Bool, offsetof(PolygonCollider2D, IsEnabled), sizeof(bool))
 		.AddProperty("VertexCount", EReflectPropertyType::UInt32, offsetof(PolygonCollider2D, VertexCount), sizeof(std::uint32_t))
 		.AddProperty("IsTrigger", EReflectPropertyType::Bool, offsetof(PolygonCollider2D, IsTrigger), sizeof(bool));
 
 	registry.RegisterComponent<CircleCollider2D>({ "CircleCollider2D", "Circle Collider 2D", "Physics", true })
-		.AddProperty("IsEnabled", EReflectPropertyType::Bool, offsetof(CircleCollider2D, IsEnabled), sizeof(bool))
 		.AddProperty("Radius", EReflectPropertyType::Float, offsetof(CircleCollider2D, Radius), sizeof(float))
 		.AddProperty("IsTrigger", EReflectPropertyType::Bool, offsetof(CircleCollider2D, IsTrigger), sizeof(bool));
 
 	registry.RegisterComponent<PrefabInstance>({ "PrefabInstance", "Prefab Instance", "Prefab", false })
 		.AddProperty("SourcePrefabGuid", EReflectPropertyType::AssetGuid, offsetof(PrefabInstance, SourcePrefabGuid), sizeof(AssetGuid));
 
-	registry.RegisterComponent<ScriptComponent>({ "ScriptComponent", "Script Component", "Scripting", true })
-		.AddProperty("IsEnabled", EReflectPropertyType::Bool, offsetof(ScriptComponent, IsEnabled), sizeof(bool));
+	registry.RegisterComponent<ScriptComponent>({ "ScriptComponent", "Script Component", "Scripting", true });
 
 	registry.RegisterComponent<AudioListener>({ "AudioListener", "Audio Listener", "Audio", true })
-		.AddProperty("IsEnabled",    EReflectPropertyType::Bool,  offsetof(AudioListener, IsEnabled),    sizeof(bool))
 		.AddProperty("MasterVolume", EReflectPropertyType::Float, offsetof(AudioListener, MasterVolume), sizeof(float));
 
 	registry.RegisterComponent<AudioPlayer>({ "AudioPlayer", "Audio Player", "Audio", true })
-		.AddProperty("IsEnabled",   EReflectPropertyType::Bool,      offsetof(AudioPlayer, IsEnabled),   sizeof(bool))
 		.AddProperty("AudioGuid",   EReflectPropertyType::AssetGuid, offsetof(AudioPlayer, AudioGuid),   sizeof(AssetGuid))
 		.AddProperty("EffectGuid",  EReflectPropertyType::AssetGuid, offsetof(AudioPlayer, EffectGuid),  sizeof(AssetGuid))
 		.AddProperty("Volume",      EReflectPropertyType::Float,     offsetof(AudioPlayer, Volume),      sizeof(float))
