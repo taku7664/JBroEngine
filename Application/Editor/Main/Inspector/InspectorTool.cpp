@@ -179,13 +179,9 @@ CSpriteAsset* sprite = Core::ResourceRegistry->GetSprite(key);
 		// 오브젝트/컴포넌트/스크립트 — InstanceGuid → 오브젝트 이름.
 		if (CScene* scene = GetActiveScene())
 		{
-			const EntityId e = scene->FindEntityByInstanceGuid(guid);
-			if (INVALID_ENTITY_ID != e)
+			if (CGameObject* obj = scene->FindByInstanceGuid(guid).TryGet())
 			{
-				if (const GameObject* go = scene->GetComponent<GameObject>(e))
-				{
-					return std::string(go->Name) + "  [" + typeName + "]";
-				}
+				return std::string(obj->GetName()) + "  [" + typeName + "]";
 			}
 		}
 		return std::string(Loc::Text("inspector.ref_missing")) + "  [" + typeName + "]";
@@ -224,9 +220,9 @@ CSpriteAsset* sprite = Core::ResourceRegistry->GetSprite(key);
 				ImGui::AcceptDragDropPayload(EditorDragDrop::HIERARCHY_ENTITY_PAYLOAD))
 			{
 				const EntityId e = *static_cast<const EntityId*>(p->Data);
-				if (const GameObject* go = scene->GetComponent<GameObject>(e))
+				if (CGameObject* obj = scene->FindObjectById(e))
 				{
-					ref.SetGuidText(go->InstanceGuid.generic_string().c_str());
+					ref.SetGuidText(obj->InstanceGuid.generic_string().c_str());
 					changed = true;
 				}
 			}
@@ -242,9 +238,9 @@ CSpriteAsset* sprite = Core::ResourceRegistry->GetSprite(key);
 			if (categoryOk && draggedType && property.RefTypeName
 				&& 0 == strcmp(draggedType, property.RefTypeName))
 			{
-				if (const GameObject* go = scene->GetComponent<GameObject>(comp->Entity))
+				if (CGameObject* obj = scene->FindObjectById(comp->Entity))
 				{
-					ref.SetGuidText(go->InstanceGuid.generic_string().c_str());
+					ref.SetGuidText(obj->InstanceGuid.generic_string().c_str());
 					changed = true;
 				}
 			}
@@ -509,7 +505,10 @@ CSpriteAsset* sprite = Core::ResourceRegistry->GetSprite(key);
 		Physics2DManifold lastManifold;
 		for (const Physics2DManifold& manifold : physicsSystem->GetManifolds())
 		{
-			if (manifold.A != selectedEntity && manifold.B != selectedEntity)
+			const bool involvesSelected =
+				(manifold.A && manifold.A->GetId() == selectedEntity) ||
+				(manifold.B && manifold.B->GetId() == selectedEntity);
+			if (false == involvesSelected)
 			{
 				continue;
 			}
@@ -546,7 +545,8 @@ CSpriteAsset* sprite = Core::ResourceRegistry->GetSprite(key);
 
 	void DrawCircleColliderDebug(const CScene& scene, EntityId selectedEntity, const CircleCollider2D& collider)
 	{
-		const Matrix3x2 worldTransform = GetWorldTransform(scene, selectedEntity);
+		CGameObject* selectedObject = const_cast<CScene&>(scene).FindObjectById(selectedEntity);
+		const Matrix3x2 worldTransform = selectedObject ? GetWorldTransform(*selectedObject) : Matrix3x2::Identity();
 		const Vector2 worldCenter = worldTransform.TransformPoint(Vector2(0.0f, 0.0f));
 		const float scaleX = std::sqrt(worldTransform.M11 * worldTransform.M11 + worldTransform.M12 * worldTransform.M12);
 		const float scaleY = std::sqrt(worldTransform.M21 * worldTransform.M21 + worldTransform.M22 * worldTransform.M22);
@@ -570,7 +570,8 @@ CSpriteAsset* sprite = Core::ResourceRegistry->GetSprite(key);
 		PhysicsAABB2D aabb;
 		if (false == localPoints->empty())
 		{
-			const Matrix3x2 worldTransform = GetWorldTransform(scene, selectedEntity);
+			CGameObject* selectedObject = const_cast<CScene&>(scene).FindObjectById(selectedEntity);
+			const Matrix3x2 worldTransform = selectedObject ? GetWorldTransform(*selectedObject) : Matrix3x2::Identity();
 			Vector2 firstPoint = worldTransform.TransformPoint((*localPoints)[0]);
 			aabb.Min = firstPoint;
 			aabb.Max = firstPoint;
