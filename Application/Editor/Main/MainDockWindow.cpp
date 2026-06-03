@@ -153,7 +153,10 @@ void CMainDockWindow::OnMenuBar()
 
 	if (ImGui::BeginMenu(Loc::Text("menu.edit")))
 	{
-		if (false == Editor::CommandManager.CanUndo())
+		// Begin/EndDisabled 는 같은 조건값을 써야 한다. Undo()/Redo() 가 스택을
+		// 비우면 CanUndo/CanRedo 가 호출 도중 바뀌므로, 프레임 시작값을 캡처해 쓴다.
+		const bool canUndo = Editor::CommandManager.CanUndo();
+		if (false == canUndo)
 		{
 			ImGui::BeginDisabled();
 		}
@@ -161,12 +164,13 @@ void CMainDockWindow::OnMenuBar()
 		{
 			Editor::CommandManager.Undo();
 		}
-		if (false == Editor::CommandManager.CanUndo())
+		if (false == canUndo)
 		{
 			ImGui::EndDisabled();
 		}
 
-		if (false == Editor::CommandManager.CanRedo())
+		const bool canRedo = Editor::CommandManager.CanRedo();
+		if (false == canRedo)
 		{
 			ImGui::BeginDisabled();
 		}
@@ -174,7 +178,7 @@ void CMainDockWindow::OnMenuBar()
 		{
 			Editor::CommandManager.Redo();
 		}
-		if (false == Editor::CommandManager.CanRedo())
+		if (false == canRedo)
 		{
 			ImGui::EndDisabled();
 		}
