@@ -54,17 +54,31 @@ enum class ERefCategory : std::uint8_t
 struct RefBase
 {
 	static constexpr std::size_t GuidCapacity = 64;
-	char Guid[GuidCapacity] = {};   // null-종료 guid 문자열
+
+	// Guid          = 주 대상 식별자.
+	//                   · Object/Script → 오브젝트 InstanceGuid
+	//                   · Asset         → AssetGuid
+	//                   · Component     → 소유 오브젝트의 InstanceGuid
+	// ComponentGuid = 컴포넌트 카테고리 전용 보조 식별자(= 컴포넌트 InstanceGuid).
+	//                   한 오브젝트에 같은 타입 컴포넌트가 여럿일 때 특정 1개를 지목한다.
+	//                   다른 카테고리에선 비어 있다.
+	char Guid[GuidCapacity] = {};            // null-종료 guid 문자열
+	char ComponentGuid[GuidCapacity] = {};
 
 	bool        IsNull()    const { return '\0' == Guid[0]; }
-	void        Clear()           { Guid[0] = '\0'; }
+	void        Clear()           { Guid[0] = '\0'; ComponentGuid[0] = '\0'; }
 	const char* GuidText()  const { return Guid; }
-	void        SetGuidText(const char* text)
+	const char* ComponentGuidText() const { return ComponentGuid; }
+	void        SetGuidText(const char* text)          { CopyGuid(Guid, text); }
+	void        SetComponentGuidText(const char* text) { CopyGuid(ComponentGuid, text); }
+
+private:
+	static void CopyGuid(char (&dst)[GuidCapacity], const char* text)
 	{
-		if (nullptr == text) { Guid[0] = '\0'; return; }
+		if (nullptr == text) { dst[0] = '\0'; return; }
 		std::size_t i = 0;
-		for (; i + 1 < GuidCapacity && '\0' != text[i]; ++i) { Guid[i] = text[i]; }
-		Guid[i] = '\0';
+		for (; i + 1 < GuidCapacity && '\0' != text[i]; ++i) { dst[i] = text[i]; }
+		dst[i] = '\0';
 	}
 };
 

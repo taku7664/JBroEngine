@@ -90,6 +90,9 @@ void CScene::DestroyComponent(CComponent* component)
 		return;
 	}
 
+	// 파괴 훅 — 아직 컴포넌트/owner 가 유효한 시점에 자신의 정리(물리월드 등록 해제 등) 수행.
+	component->OnDestroy();
+
 	if (CGameObject* owner = component->GetOwner())
 	{
 		owner->DetachComponent(component);

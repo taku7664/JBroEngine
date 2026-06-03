@@ -101,6 +101,21 @@ public:
 	template<typename T>
 	bool HasComponent() const { return nullptr != GetComponent<T>(); }
 
+	// 같은 타입 컴포넌트 전부(멀티 컴포넌트). 첫 1개만 필요하면 GetComponent<T>.
+	template<typename T>
+	std::vector<T*> GetComponents()
+	{
+		std::vector<T*> result;
+		for (const SafePtr<CComponent>& c : m_components)
+		{
+			if (T* typed = dynamic_cast<T*>(c.TryGet()))
+			{
+				result.push_back(typed);
+			}
+		}
+		return result;
+	}
+
 	const std::vector<SafePtr<CComponent>>& GetComponents() const { return m_components; }
 
 	// 타입소거 컴포넌트 조회 — Ref<T> 처럼 컴파일타임에 T 를 모르는 코드(또는 DLL 경계)에서
@@ -111,6 +126,44 @@ public:
 		{
 			CComponent* comp = c.TryGet();
 			if (comp && std::type_index(typeid(*comp)) == type)
+			{
+				return comp;
+			}
+		}
+		return nullptr;
+	}
+
+	// 컴포넌트 InstanceGuid 로 특정 1개를 찾는다(멀티 컴포넌트 지목). 같은 오브젝트에 같은
+	// 타입이 여럿이어도 guid 로 구분된다. componentGuid 가 비어 있으면 타입 첫 매치로 폴백
+	// (컴포넌트 guid 가 없던 구 데이터/단일 인스턴스 호환). 반환 주소는 단일 상속이라 곧 T*.
+	void* FindComponentRawByGuid(const File::Guid& componentGuid, std::type_index type)
+	{
+		if (componentGuid.IsNull())
+		{
+			return FindComponentRaw(type);
+		}
+		for (const SafePtr<CComponent>& c : m_components)
+		{
+			CComponent* comp = c.TryGet();
+			if (comp && std::type_index(typeid(*comp)) == type && comp->InstanceGuid == componentGuid)
+			{
+				return comp;
+			}
+		}
+		return nullptr;
+	}
+
+	// 컴포넌트 guid 로 특정 컴포넌트 자체를 찾는다(타입 무관). 스크립트 Ref 해석 등에 사용.
+	CComponent* FindComponentByGuid(const File::Guid& componentGuid)
+	{
+		if (componentGuid.IsNull())
+		{
+			return nullptr;
+		}
+		for (const SafePtr<CComponent>& c : m_components)
+		{
+			CComponent* comp = c.TryGet();
+			if (comp && comp->InstanceGuid == componentGuid)
 			{
 				return comp;
 			}

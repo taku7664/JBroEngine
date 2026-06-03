@@ -25,15 +25,15 @@ namespace
 
 // 경계엔 const char*(POD) 만 들어온다 — File::Guid 는 여기 Engine.lib 내부에서만 구성.
 
-void* RefDetail::ResolveComponent(const char* instanceGuid, std::type_index componentType)
+void* RefDetail::ResolveComponent(const char* objectGuid, const char* componentGuid, std::type_index componentType)
 {
 	CScene* scene = ActiveScene();
 	if (nullptr == scene)
 	{
 		return nullptr;
 	}
-	CGameObject* object = scene->FindByInstanceGuid(File::Guid(instanceGuid)).TryGet();
-	return object ? object->FindComponentRaw(componentType) : nullptr;
+	CGameObject* object = scene->FindByInstanceGuid(File::Guid(objectGuid)).TryGet();
+	return object ? object->FindComponentRawByGuid(File::Guid(componentGuid), componentType) : nullptr;
 }
 
 CGameObject* RefDetail::ResolveObject(const char* instanceGuid)
@@ -46,20 +46,23 @@ CGameObject* RefDetail::ResolveObject(const char* instanceGuid)
 	return scene->FindByInstanceGuid(File::Guid(instanceGuid)).TryGet();
 }
 
-CGameScript* RefDetail::ResolveScript(const char* instanceGuid)
+CGameScript* RefDetail::ResolveScript(const char* objectGuid, const char* componentGuid)
 {
 	CScene* scene = ActiveScene();
 	if (nullptr == scene)
 	{
 		return nullptr;
 	}
-	CGameObject* object = scene->FindByInstanceGuid(File::Guid(instanceGuid)).TryGet();
+	CGameObject* object = scene->FindByInstanceGuid(File::Guid(objectGuid)).TryGet();
 	if (nullptr == object)
 	{
 		return nullptr;
 	}
-	// 오브젝트당 ScriptComponent 는 단일.
-	ScriptComponent* scriptComp = object->GetComponent<ScriptComponent>();
+	// 컴포넌트 guid 로 특정 ScriptComponent 지목(멀티 스크립트). guid 가 비어 있으면 첫 매치.
+	const File::Guid compGuid(componentGuid);
+	ScriptComponent* scriptComp = compGuid.IsNull()
+		? object->GetComponent<ScriptComponent>()
+		: dynamic_cast<ScriptComponent*>(object->FindComponentByGuid(compGuid));
 	return scriptComp ? scriptComp->Instance : nullptr;
 }
 

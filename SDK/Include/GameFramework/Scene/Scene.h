@@ -45,22 +45,24 @@ public:
 	template<typename Fn> void ForEachObject(Fn&& fn) const { m_objectPool.ForEachLive(std::forward<Fn>(fn)); }
 
 	// ── 컴포넌트 ──────────────────────────────────────────────────────────────
-	// 단일 인스턴스: 같은 타입이 이미 있으면 그것을 반환한다.
+	// 멀티 인스턴스: 같은 타입을 여러 개 부착할 수 있다. 매 호출마다 새 컴포넌트를 만든다.
+	// 각 컴포넌트는 고유 InstanceGuid 를 받아 Ref<T> 가 특정 1개를 지목할 수 있다.
 	template<typename T, typename... Args>
 	T* AddComponent(CGameObject& object, Args&&... args)
 	{
 		static_assert(std::is_base_of_v<CComponent, T>, "T must derive from CComponent.");
-		if (T* existing = object.GetComponent<T>())
-		{
-			return existing;
-		}
 		T* component = GetOrCreatePool<T>().Allocate(std::forward<Args>(args)...);
 		if (nullptr == component)
 		{
 			return nullptr;
 		}
 		component->Owner = object.SafeFromThis();
+		if (component->InstanceGuid.IsNull())
+		{
+			component->InstanceGuid = File::GenerateGuid();
+		}
 		object.AttachComponent(component->SafeFromThis());
+		component->OnCreate();
 		return component;
 	}
 

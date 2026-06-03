@@ -39,14 +39,17 @@ namespace RefDetail
 	// Ref.cpp 에서 정의 — 무거운 헤더(Scene/Core/AssetManager)를 헤더로 끌어오지 않는다.
 	// 경계엔 POD(const char*) 만 넘긴다 — File::Guid 는 Ref.cpp 내부에서만 구성.
 
-	// InstanceGuid → 활성 씬의 엔티티에서 type_index 로 컴포넌트 주소(void*) 해석.
-	void* ResolveComponent(const char* instanceGuid, std::type_index componentType);
+	// (오브젝트 guid + 컴포넌트 guid) → 활성 씬의 그 오브젝트에서 컴포넌트 guid 로 특정
+	// 컴포넌트를 찾고, 타입이 맞으면 주소(void*)를 반환. 같은 타입이 여럿이어도 1개 지목.
+	// 컴포넌트 guid 가 비어 있으면(구 데이터) 타입 첫 매치로 폴백.
+	void* ResolveComponent(const char* objectGuid, const char* componentGuid, std::type_index componentType);
 
 	// InstanceGuid → 활성 씬의 오브젝트(CGameObject*) 자체.
 	CGameObject* ResolveObject(const char* instanceGuid);
 
-	// InstanceGuid → 활성 씬 엔티티의 ScriptComponent.Instance(CGameScript*).
-	CGameScript* ResolveScript(const char* instanceGuid);
+	// (오브젝트 guid + 컴포넌트 guid) → 그 오브젝트의 특정 ScriptComponent.Instance(CGameScript*).
+	// 컴포넌트 guid 가 비어 있으면 첫 ScriptComponent 로 폴백.
+	CGameScript* ResolveScript(const char* objectGuid, const char* componentGuid);
 
 	// AssetGuid → 활성 에셋 매니저에서 로드/조회한 IAsset*.
 	IAsset* ResolveAsset(const char* assetGuid);
@@ -66,9 +69,16 @@ public:
 	explicit Ref(const File::Guid& guid) { SetGuid(guid); }
 
 	// ── 식별자 접근 ────────────────────────────────────────────────────────────
-	// IsNull()/Clear()/GuidText()/SetGuidText() 는 RefBase 제공.
+	// IsNull()/Clear()/GuidText()/ComponentGuidText()/SetGuidText()/SetComponentGuidText() 는 RefBase 제공.
 	File::Guid GetGuid() const { return File::Guid(Guid); }
 	void       SetGuid(const File::Guid& guid) { SetGuidText(guid.generic_string().c_str()); }
+
+	// 컴포넌트/스크립트 Ref 지정: 소유 오브젝트 guid + 대상 컴포넌트 guid 를 함께 설정한다.
+	void SetComponentGuid(const File::Guid& objectGuid, const File::Guid& componentGuid)
+	{
+		SetGuidText(objectGuid.generic_string().c_str());
+		SetComponentGuidText(componentGuid.generic_string().c_str());
+	}
 
 	// ── 해석 ───────────────────────────────────────────────────────────────────
 	// 대상이 없거나(삭제/미로드) 타입이 맞지 않으면 nullptr.
@@ -85,7 +95,8 @@ public:
 		}
 		else if constexpr (ERefCategory::Script == Category)
 		{
-			return dynamic_cast<T*>(RefDetail::ResolveScript(Guid));
+			// 스크립트 — (오브젝트 guid + 컴포넌트 guid) 로 특정 ScriptComponent 의 Instance.
+			return dynamic_cast<T*>(RefDetail::ResolveScript(Guid, ComponentGuid));
 		}
 		else if constexpr (ERefCategory::Object == Category)
 		{
@@ -94,8 +105,8 @@ public:
 		}
 		else
 		{
-			// 컴포넌트 — 풀에서 받은 void* 는 실제로 T* 이다.
-			return static_cast<T*>(RefDetail::ResolveComponent(Guid, std::type_index(typeid(T))));
+			// 컴포넌트 — (오브젝트 guid + 컴포넌트 guid) 로 특정 1개. void* 는 실제 T*.
+			return static_cast<T*>(RefDetail::ResolveComponent(Guid, ComponentGuid, std::type_index(typeid(T))));
 		}
 	}
 
@@ -104,6 +115,9 @@ public:
 	T*        operator->() const { return Get(); }
 	T&        operator*()  const { return *Get(); }
 
-	bool operator==(const Ref& rhs) const { return 0 == std::strcmp(Guid, rhs.Guid); }
-	bool operator!=(const Ref& rhs) const { return 0 != std::strcmp(Guid, rhs.Guid); }
+	bool operator==(const Ref& rhs) const
+	{
+		return 0 == std::strcmp(Guid, rhs.Guid) && 0 == std::strcmp(ComponentGuid, rhs.ComponentGuid);
+	}
+	bool operator!=(const Ref& rhs) const { return !(*this == rhs); }
 };

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Utillity/File/FilePath.h"
 #include "Utillity/Pointer/SafePtr.h"
 
 class CGameObject;
@@ -25,14 +26,18 @@ public:
 	bool                 IsEnabled = true;
 	SafePtr<CGameObject> Owner;
 
+	// 컴포넌트의 안정 식별자. Ref<T> 가 (오브젝트 guid + 컴포넌트 guid) 쌍으로 특정 1개를
+	// 지목하므로, 같은 타입 컴포넌트가 한 오브젝트에 여러 개 있어도 구분된다.
+	// CScene::AddComponent 가 부여하고 직렬화가 보존한다(런타임 키가 아니라 영속 키).
+	File::Guid InstanceGuid;
+
 	// 직렬화/인스펙터 타입 키 (리플렉션 레지스트리에 등록된 이름과 일치해야 함).
 	virtual const char* GetTypeName() const = 0;
 
-	// 라이프사이클 (기본 no-op).
+	// 라이프사이클 (기본 no-op). 엔진 컴포넌트는 System 이 구동하므로 Update 류 훅이 없다.
+	// 부착/탈착 시점에만 컴포넌트 자신이 처리할 동작(물리월드 등록/해제 등)을 위해 둘만 둔다.
+	// CScene::AddComponent → OnCreate, CScene::DestroyComponent → OnDestroy.
 	virtual void OnCreate() {}
-	virtual void OnStart() {}
-	virtual void OnUpdate(float /*deltaSeconds*/) {}
-	virtual void OnFixedUpdate(float /*fixedDeltaSeconds*/) {}
 	virtual void OnDestroy() {}
 
 	CGameObject* GetOwner() const { return Owner.TryGet(); }
