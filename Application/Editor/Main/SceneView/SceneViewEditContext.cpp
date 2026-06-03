@@ -45,13 +45,11 @@ namespace
     EntityId GetRootAncestor(const CScene& scene, EntityId entity)
     {
         if (entity == INVALID_ENTITY_ID) return INVALID_ENTITY_ID;
-        EntityId cur = entity;
-        for (;;)
-        {
-            const EntityId parent = scene.GetParent(cur);
-            if (parent == INVALID_ENTITY_ID) return cur;
+        CGameObject* cur = const_cast<CScene&>(scene).FindObjectById(entity);
+        if (!cur) return INVALID_ENTITY_ID;
+        while (CGameObject* parent = cur->GetParent().TryGet())
             cur = parent;
-        }
+        return cur->GetId();
     }
 
     // context의 직계 자식 중 target을 포함(또는 target 자신)하는 엔티티 반환.
@@ -60,14 +58,25 @@ namespace
     {
         if (target == INVALID_ENTITY_ID || context == INVALID_ENTITY_ID)
             return INVALID_ENTITY_ID;
-        EntityId cur = target;
-        for (;;)
+        CGameObject* cur = const_cast<CScene&>(scene).FindObjectById(target);
+        while (cur)
         {
-            const EntityId parent = scene.GetParent(cur);
-            if (parent == context) return cur;
-            if (parent == INVALID_ENTITY_ID) return INVALID_ENTITY_ID;
+            CGameObject*   parent   = cur->GetParent().TryGet();
+            const EntityId parentId = parent ? parent->GetId() : INVALID_ENTITY_ID;
+            if (parentId == context) return cur->GetId();
+            if (parentId == INVALID_ENTITY_ID) return INVALID_ENTITY_ID;
             cur = parent;
         }
+        return INVALID_ENTITY_ID;
+    }
+
+    // entity 가 ancestor 의 자손인지 (id 기반).
+    bool IsDescendantOfId(const CScene& scene, EntityId entity, EntityId ancestor)
+    {
+        CScene&      s    = const_cast<CScene&>(scene);
+        CGameObject* obj  = s.FindObjectById(entity);
+        CGameObject* anc  = s.FindObjectById(ancestor);
+        return obj && anc && obj->IsDescendantOf(*anc);
     }
 
     // ── 텍스처 해석 헬퍼 ─────────────────────────────────────────────────────
@@ -128,7 +137,7 @@ namespace
 
 void CSceneViewEditContext::Validate(const CScene& scene)
 {
-    if (m_context != INVALID_ENTITY_ID && !scene.IsAlive(m_context))
+    if (m_context != INVALID_ENTITY_ID && nullptr == const_cast<CScene&>(scene).FindObjectById(m_context))
         m_context = INVALID_ENTITY_ID;
 }
 
@@ -140,22 +149,23 @@ EntityId CSceneViewEditContext::Pick(
     EntityId pickedSprite  = INVALID_ENTITY_ID;
     std::int32_t pickedOrd = std::numeric_limits<std::int32_t>::min();
 
-    scene.ForEach<SpriteRenderer2D, GameObject, Transform2D>(
-        [&](EntityId entity, const SpriteRenderer2D& sprite,
-            const GameObject& go, const Transform2D&)
+    const_cast<CScene&>(scene).ForEach<SpriteRenderer2D>(
+        [&](SpriteRenderer2D& sprite)
         {
-            if (!go.IsActive || !sprite.IsEnabled) return;
+            CGameObject* owner = sprite.GetOwner();
+            if (!owner || !owner->IsActive || !sprite.IsEnabled) return;
+            const EntityId entity = owner->GetId();
 
             // 포커스 모드: m_context 자신 또는 그 자손만 대상
             if (m_context != INVALID_ENTITY_ID)
             {
-                if (entity != m_context && !scene.IsDescendantOf(entity, m_context)) return;
+                if (entity != m_context && !IsDescendantOfId(scene, entity, m_context)) return;
             }
 
             // OBB 히트 테스트
             const Matrix3x2 spriteMat =
                 Matrix3x2::Transform(sprite.Offset, 0.0f, sprite.Size)
-                * GetWorldTransform(scene, entity);
+                * GetWorldTransform(*owner);
             Matrix3x2 inv;
             if (!spriteMat.TryInvert(inv)) return;
 
@@ -215,26 +225,27 @@ std::vector<EntityId> CSceneViewEditContext::PickBox(
 {
     std::unordered_set<EntityId> foundSet;
 
-    // Transform2D + GameObject 전체 순회:
+    // 전체 오브젝트 순회:
     //   - SpriteRenderer2D 있음 → 불투명 픽셀 tight AABB (없으면 OBB 폴백)
     //   - SpriteRenderer2D 없음 → 1×1 단위 OBB (엔티티 로컬 공간 기준)
-    scene.ForEach<Transform2D, GameObject>(
-        [&](EntityId entity, const Transform2D&, const GameObject& go)
+    const_cast<CScene&>(scene).ForEachObject(
+        [&](CGameObject& object)
         {
-            if (!go.IsActive) return;
+            if (!object.IsActive) return;
+            const EntityId entity = object.GetId();
 
             // 컨텍스트 필터
             if (m_context != INVALID_ENTITY_ID)
             {
-                if (entity != m_context && !scene.IsDescendantOf(entity, m_context)) return;
+                if (entity != m_context && !IsDescendantOfId(scene, entity, m_context)) return;
             }
 
-            const Matrix3x2 entityWorldMat = GetWorldTransform(scene, entity);
+            const Matrix3x2 entityWorldMat = GetWorldTransform(object);
 
             // ── 꼭짓점 계산 ──────────────────────────────────────────────────────
             Vector2 corners[4];
 
-            const SpriteRenderer2D* sprite = scene.GetComponent<SpriteRenderer2D>(entity);
+            const SpriteRenderer2D* sprite = object.GetComponent<SpriteRenderer2D>();
             if (sprite && sprite->IsEnabled)
             {
                 const Matrix3x2 spriteMat =
@@ -352,7 +363,9 @@ EntityId CSceneViewEditContext::OnDoubleClickEmpty(const CScene& scene)
         return INVALID_ENTITY_ID; // 이미 루트, 탈출할 컨텍스트 없음
 
     const EntityId exited = m_context;             // 방금 탈출한 엔티티
-    m_context = scene.GetParent(m_context);        // 한 뎁스 위로 (루트면 INVALID)
+    CGameObject*   ctxObj = const_cast<CScene&>(scene).FindObjectById(m_context);
+    CGameObject*   parent = ctxObj ? ctxObj->GetParent().TryGet() : nullptr;
+    m_context = parent ? parent->GetId() : INVALID_ENTITY_ID; // 한 뎁스 위로 (루트면 INVALID)
     return exited;
 }
 

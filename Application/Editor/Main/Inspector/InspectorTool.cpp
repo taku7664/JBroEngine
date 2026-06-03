@@ -1214,7 +1214,9 @@ void CInspectorTool::OnRenderStay()
 	}
 
 	const EntityId selectedEntity = Editor::GetSelectedEntity();
-	if (INVALID_ENTITY_ID == selectedEntity || false == scene->IsAlive(selectedEntity))
+	CGameObject*   selectedObject =
+	    (INVALID_ENTITY_ID == selectedEntity) ? nullptr : scene->FindObjectById(selectedEntity);
+	if (nullptr == selectedObject)
 	{
 		// 스크립트 .h 선택 — 스키마 에디터.
 		if (DrawSelectedScriptInspector())
@@ -1242,9 +1244,8 @@ void CInspectorTool::OnRenderStay()
 	CReflectionRegistry& reflection = *Core::Reflection;
 
 	// ── 컴포넌트 수집 ─────────────────────────────────────────────────────────
-	// TransformHierarchy2D / WorldTransform2D: 엔진 내부 → 비노출
-	// GameObject: 상단 인라인 표시, 목록 제외
-	// 나머지 전체: 좌측 목록에 표시
+	// GameObject/Transform 은 더 이상 컴포넌트가 아님(CGameObject 멤버) → 상단 인라인.
+	// 나머지 전체: 좌측 목록에 표시. 단일 인스턴스(타입당 1개).
 	struct ComponentEntry
 	{
 		const ComponentTypeInfo* typeInfo;
@@ -1252,54 +1253,41 @@ void CInspectorTool::OnRenderStay()
 		std::vector<void*>       instances;
 	};
 
-	ComponentEntry*             goEntry = nullptr; // GameObject (목록 밖)
-	std::vector<ComponentEntry> allEntries;        // 임시 보관 (포인터 안정성)
+	std::vector<ComponentEntry> allEntries; // 임시 보관 (포인터 안정성)
 
 	for (std::size_t i = 0; i < reflection.GetComponentTypeCount(); ++i)
 	{
 		const ComponentTypeInfo* ct = reflection.GetComponentType(i);
-		if (!ct || !reflection.HasComponent(*scene, selectedEntity, ct->Type.Id))
+		if (!ct || !reflection.HasComponent(*selectedObject, ct->Type.Id))
 			continue;
 
-		std::vector<void*> instances;
-		reflection.GetAllComponentAddresses(*scene, selectedEntity, ct->Type.Id, instances);
-		if (instances.empty())
+		void* addr = reflection.GetComponentAddress(*selectedObject, ct->Type.Id);
+		if (nullptr == addr)
 			continue;
 
-		const char* name = ct->Type.Name ? ct->Type.Name : "";
-		if (strcmp(name, "TransformHierarchy2D") == 0 ||
-		    strcmp(name, "WorldTransform2D") == 0)
-			continue;
-
-		allEntries.push_back({ ct, i, std::move(instances) });
+		allEntries.push_back({ ct, i, std::vector<void*>{ addr } });
 	}
 
-	// GameObject 분리
-	for (auto& e : allEntries)
-	{
-		const char* name = e.typeInfo->Type.Name ? e.typeInfo->Type.Name : "";
-		if (strcmp(name, "GameObject") == 0)
-		{
-			goEntry = &e;
-			break;
-		}
-	}
-
-	// ── GameObject 인라인 표시 (헤더 없음) ─────────────────────────────────────
+	// ── GameObject 인라인 표시 (CGameObject 직접 편집) ──────────────────────────
 	ImGui::Text("%s: %llu", Loc::Text("common.entity"), static_cast<unsigned long long>(selectedEntity));
 	EditorGuiDrawHelpers::DrawAddComponentButton(*scene, selectedEntity);
 
-	if (goEntry && !goEntry->instances.empty())
+	ImGui::Spacing();
 	{
-		void* comp = goEntry->instances[0];
-		if (comp)
-		{
-			ImGui::Spacing();
-			ImGui::PushID(static_cast<int>(goEntry->typeIndex * 1000));
-			DrawIsEnabledCheckbox(*scene, selectedEntity, *goEntry->typeInfo, 0, comp, false);
-			DrawComponentProperties(*scene, selectedEntity, *goEntry->typeInfo, 0, comp);
-			ImGui::PopID();
-		}
+		bool active = selectedObject->IsActive;
+		if (ImGui::Checkbox(Loc::TextOr("editor.property.IsActive", "Active"), &active))
+			selectedObject->SetActive(active);
+
+		char nameBuf[256];
+		snprintf(nameBuf, sizeof(nameBuf), "%s", selectedObject->GetName());
+		ImGui::SetNextItemWidth(-FLT_MIN);
+		if (ImGui::InputText("##go_name", nameBuf, sizeof(nameBuf)))
+			selectedObject->SetName(nameBuf);
+
+		int layer = static_cast<int>(selectedObject->Layer);
+		ImGui::SetNextItemWidth(120.0f);
+		if (ImGui::InputInt(Loc::TextOr("editor.property.Layer", "Layer"), &layer))
+			selectedObject->Layer = static_cast<std::uint32_t>(layer < 0 ? 0 : layer);
 	}
 	ImGui::Separator();
 	ImGui::Spacing();

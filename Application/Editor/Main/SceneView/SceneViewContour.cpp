@@ -328,13 +328,13 @@ void CSceneViewContour::DrawOutlinesImGui(
     // 부모·자식 모두 선택된 경우도 정상 처리됨.
     std::unordered_set<EntityId> processed;
 
-    auto drawOneSprite = [&](EntityId entity, const SpriteRenderer2D& sprite)
+    auto drawOneSprite = [&](EntityId entity, const CGameObject& object, const SpriteRenderer2D& sprite)
     {
         if (!processed.insert(entity).second) return; // 이미 처리됨
 
         const Matrix3x2 spriteMat =
             Matrix3x2::Transform(sprite.Offset, 0.0f, sprite.Size)
-            * GetWorldTransform(scene, entity);
+            * GetWorldTransform(object);
 
         const std::vector<std::vector<Vector2>>* contours = nullptr;
         if (assetMgr && sprite.SpriteGuid != INVALID_ASSET_GUID)
@@ -386,12 +386,12 @@ void CSceneViewContour::DrawOutlinesImGui(
     {
         if (entity == INVALID_ENTITY_ID) continue;
 
-        const SpriteRenderer2D* sprite = scene.GetComponent<SpriteRenderer2D>(entity);
+        CGameObject* object = const_cast<CScene&>(scene).FindObjectById(entity);
+        if (!object || !object->IsActive) continue;
+
+        const SpriteRenderer2D* sprite = object->GetComponent<SpriteRenderer2D>();
         if (!sprite || !sprite->IsEnabled) continue;
 
-        const GameObject* go = scene.GetComponent<GameObject>(entity);
-        if (!go || !go->IsActive) continue;
-
-        drawOneSprite(entity, *sprite);
+        drawOneSprite(entity, *object, *sprite);
     }
 }

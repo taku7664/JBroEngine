@@ -53,6 +53,7 @@ namespace
     std::vector<EntityId> CollectSubtree(const CScene& scene, EntityId root)
     {
         if (root == INVALID_ENTITY_ID) return {};
+        CScene&               s = const_cast<CScene&>(scene);
         std::vector<EntityId> result;
         std::vector<EntityId> stack = { root };
         while (!stack.empty())
@@ -60,11 +61,13 @@ namespace
             const EntityId cur = stack.back();
             stack.pop_back();
             result.push_back(cur);
-            EntityId child = scene.GetFirstChild(cur);
-            while (child != INVALID_ENTITY_ID)
+            if (CGameObject* obj = s.FindObjectById(cur))
             {
-                stack.push_back(child);
-                child = scene.GetNextSibling(child);
+                for (const SafePtr<CGameObject>& child : obj->GetChildren())
+                {
+                    if (CGameObject* childObj = child.TryGet())
+                        stack.push_back(childObj->GetId());
+                }
             }
         }
         return result;
@@ -255,7 +258,10 @@ void CSceneViewTool::FocusOnEntity(EntityId entity, const CScene& scene)
 {
     if (INVALID_ENTITY_ID == entity) return;
 
-    const Matrix3x2      worldTransform = GetWorldTransform(scene, entity);
+    CGameObject* object = const_cast<CScene&>(scene).FindObjectById(entity);
+    if (!object) return;
+
+    const Matrix3x2      worldTransform = GetWorldTransform(*object);
     const Vector2 worldPos       = worldTransform.TransformPoint(Vector2(0.0f, 0.0f));
 
     const float scaleX = std::sqrt(
@@ -264,7 +270,7 @@ void CSceneViewTool::FocusOnEntity(EntityId entity, const CScene& scene)
         worldTransform.M21 * worldTransform.M21 + worldTransform.M22 * worldTransform.M22);
 
     float halfExtent = 0.5f;
-    const SpriteRenderer2D* sprite = scene.GetComponent<SpriteRenderer2D>(entity);
+    const SpriteRenderer2D* sprite = object->GetComponent<SpriteRenderer2D>();
     if (sprite && sprite->IsEnabled)
     {
         const float wx = sprite->Size.x * scaleX;
@@ -457,9 +463,10 @@ void CSceneViewTool::OnRenderStay()
 
                 for (EntityId e : Editor::GetSelectedEntities())
                 {
-                    if (!gizmoScene->IsAlive(e)) continue;
+                    CGameObject* obj = gizmoScene->FindObjectById(e);
+                    if (!obj) continue;
 
-                    const Matrix3x2      worldTf  = GetWorldTransform(*gizmoScene, e);
+                    const Matrix3x2      worldTf  = GetWorldTransform(*obj);
                     const Vector2 worldPos = worldTf.TransformPoint({0.0f, 0.0f});
                     // 픽셀 스냅: D3D11 래스터라이저의 픽셀 중심은 N+0.5f 이므로
                     // floor 후 +0.5f 를 더해 항상 픽셀 중심에 정렬한다.
@@ -545,15 +552,18 @@ void CSceneViewTool::OnRenderStay()
                 // ════════════════════════════════════════════════════════════
                 // A) Circle Colliders
                 // ════════════════════════════════════════════════════════════
-                colScene->ForEach<Transform2D, CircleCollider2D>(
-                    [&](EntityId entity, const Transform2D&, const CircleCollider2D& col)
+                colScene->ForEach<CircleCollider2D>(
+                    [&](CircleCollider2D& col)
                     {
                         if (!col.IsEnabled) return;
+                        CGameObject* owner = col.GetOwner();
+                        if (!owner) return;
+                        const EntityId entity = owner->GetId();
 
                         const bool isSel     = (entity == selEnt);
                         const bool isFocused = isSel && circleTabActive;
 
-                        const Matrix3x2      wt      = GetWorldTransform(*colScene, entity);
+                        const Matrix3x2      wt      = GetWorldTransform(*owner);
                         const Vector2 wCenter = wt.TransformPoint(Vector2(0.0f, 0.0f));
                         const float sx = std::sqrt(wt.M11*wt.M11 + wt.M12*wt.M12);
                         const float sy = std::sqrt(wt.M21*wt.M21 + wt.M22*wt.M22);
@@ -580,15 +590,18 @@ void CSceneViewTool::OnRenderStay()
                 // ════════════════════════════════════════════════════════════
                 // B) Polygon Colliders
                 // ════════════════════════════════════════════════════════════
-                colScene->ForEach<Transform2D, PolygonCollider2D>(
-                    [&](EntityId entity, const Transform2D&, const PolygonCollider2D& col)
+                colScene->ForEach<PolygonCollider2D>(
+                    [&](PolygonCollider2D& col)
                     {
                         if (!col.IsEnabled) return;
+                        CGameObject* owner = col.GetOwner();
+                        if (!owner) return;
+                        const EntityId entity = owner->GetId();
 
                         const bool isSel     = (entity == selEnt);
                         const bool isFocused = isSel && polyTabActive;
 
-                        const Matrix3x2 wt = GetWorldTransform(*colScene, entity);
+                        const Matrix3x2 wt = GetWorldTransform(*owner);
 
                         // 드래그 미리보기 또는 실제 포인트
                         // 우선순위: 드래그 중 미리보기 > LocalPoints(이미 빌드됨) > 절차적 빌드
@@ -1098,13 +1111,14 @@ void CSceneViewTool::OnRenderStay()
         if (popupScene)
         {
             // ── 섹션 1: 버텍스 삭제 ─────────────────────────────────────────
+            CGameObject* vtxObj = popupScene->FindObjectById(m_deleteVtxEntity);
             const bool vtxValid = m_deleteVtxEntity != INVALID_ENTITY_ID
-                                && popupScene->IsAlive(m_deleteVtxEntity)
+                                && vtxObj
                                 && m_deleteVtxIndex >= 0;
             if (vtxValid)
             {
                 const PolygonCollider2D* delPoly =
-                    popupScene->GetComponent<PolygonCollider2D>(m_deleteVtxEntity);
+                    vtxObj->GetComponent<PolygonCollider2D>();
                 const int ptCount = delPoly
                     ? static_cast<int>(delPoly->LocalPoints.size()) : 0;
                 const bool canDelete = ptCount > 3 && m_deleteVtxIndex < ptCount;
@@ -1136,7 +1150,7 @@ void CSceneViewTool::OnRenderStay()
             // ── 섹션 2: 오브젝트 / 빈공간 메뉴 ─────────────────────────────
             const bool entityValid =
                 m_contextMenuEntity != INVALID_ENTITY_ID &&
-                popupScene->IsAlive(m_contextMenuEntity);
+                nullptr != popupScene->FindObjectById(m_contextMenuEntity);
 
             if (entityValid)
             {
@@ -1194,7 +1208,7 @@ void CSceneViewTool::OnRenderStay()
             std::vector<EntityId> alive;
             alive.reserve(sel.size());
             for (EntityId e : sel)
-                if (scene->IsAlive(e)) alive.push_back(e);
+                if (scene->FindObjectById(e)) alive.push_back(e);
             if (Editor::ImEditor)
                 Editor::ImEditor->SetSceneViewSelection(std::move(alive));
         }
@@ -1266,7 +1280,8 @@ void CSceneViewTool::OnRenderStay()
         SafePtr<CScene> sceneForVP = Core::SceneManager->GetActiveScene();
         if (sceneForVP)
         {
-            const Camera2D* cam = sceneForVP->GetComponent<Camera2D>(selectedEntity);
+            CGameObject*    camObj = sceneForVP->FindObjectById(selectedEntity);
+            const Camera2D* cam    = camObj ? camObj->GetComponent<Camera2D>() : nullptr;
             if (cam)
             {
                 float resW = 1920.0f, resH = 1080.0f;
