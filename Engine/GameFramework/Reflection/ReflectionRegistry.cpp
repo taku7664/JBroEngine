@@ -115,6 +115,12 @@ const void* CReflectionRegistry::GetComponentAddress(const CGameObject& object, 
 	return typeInfo && typeInfo->GetConstAddress ? typeInfo->GetConstAddress(object) : nullptr;
 }
 
+std::vector<void*> CReflectionRegistry::GetComponentAddresses(CGameObject& object, TypeId typeId) const
+{
+	const ComponentTypeInfo* typeInfo = FindComponent(typeId);
+	return typeInfo && typeInfo->GetAddresses ? typeInfo->GetAddresses(object) : std::vector<void*>();
+}
+
 void* CReflectionRegistry::GetPropertyAddress(void* component, const ReflectPropertyInfo& property)
 {
 	if (nullptr == component)

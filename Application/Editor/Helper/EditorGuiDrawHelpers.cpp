@@ -6,8 +6,12 @@
 #include "Editor/Command/EditorSceneCommands.h"
 #include "Editor/Editor.h"
 #include "Engine/Core/Core.h"
+#include "Engine/GameFramework/Component/Component.h"
+#include "Engine/GameFramework/Object/GameObject.h"
 #include "Engine/GameFramework/Reflection/ReflectionRegistry.h"
 #include "Engine/GameFramework/Scene/Scene.h"
+#include "Engine/GameFramework/Serialization/ComponentSerializer.h"
+#include "Engine/GameFramework/Serialization/ObjectSerializer.h"
 
 #include <cstring>
 
@@ -223,6 +227,85 @@ bool EditorGuiDrawHelpers::DrawRemoveObjectMenu(CScene& scene, CGameObject* obje
 			Editor::RemoveFromSelection(object);
 		}
 		return true;
+	}
+	return false;
+}
+
+// ── 복사 / 붙여넣기 ──────────────────────────────────────────────────────────
+
+bool EditorGuiDrawHelpers::DrawCopyObjectMenuItem(const CGameObject& object)
+{
+	if (ImGui::MenuItem(Loc::TextOr("editor.menu.copy_object", "Copy Object")))
+	{
+		const std::string text = Serialization::SerializeObject(object);
+		ImGui::SetClipboardText(text.c_str());
+		return true;
+	}
+	return false;
+}
+
+bool EditorGuiDrawHelpers::DrawPasteObjectMenuItem(CScene& scene)
+{
+	const char* clip = ImGui::GetClipboardText();
+	if (nullptr == clip || false == Serialization::LooksLikeObject(clip))
+	{
+		return false;   // 클립보드가 오브젝트가 아니면 메뉴를 숨긴다.
+	}
+	if (ImGui::MenuItem(Loc::TextOr("editor.menu.paste_object", "Paste Object")))
+	{
+		if (CGameObject* pasted = Serialization::DeserializeObject(scene, clip))
+		{
+			// 복사본은 원본과 다른 새 InstanceGuid 를 받아야 한다 — 직렬화에 박힌 원본
+			// guid 를 그대로 쓰면 씬에 같은 guid 가 둘이 되어 Ref 해석이 깨진다.
+			pasted->InstanceGuid = File::GenerateGuid();
+			for (const SafePtr<CComponent>& cref : pasted->GetComponents())
+			{
+				if (CComponent* comp = cref.TryGet())
+				{
+					comp->InstanceGuid = File::GenerateGuid();
+				}
+			}
+			Editor::SelectEntity(pasted);
+			return true;
+		}
+	}
+	return false;
+}
+
+bool EditorGuiDrawHelpers::DrawCopyComponentMenuItem(const CComponent& component)
+{
+	if (ImGui::MenuItem(Loc::TextOr("editor.menu.copy_component", "Copy Component")))
+	{
+		const std::string text = Serialization::SerializeComponent(component);
+		if (false == text.empty())
+		{
+			ImGui::SetClipboardText(text.c_str());
+		}
+		return true;
+	}
+	return false;
+}
+
+bool EditorGuiDrawHelpers::DrawPasteComponentMenuItem(CGameObject& object)
+{
+	const char* clip = ImGui::GetClipboardText();
+	if (nullptr == clip || false == Serialization::LooksLikeComponent(clip))
+	{
+		return false;   // 클립보드가 컴포넌트가 아니면 메뉴를 숨긴다.
+	}
+	if (ImGui::MenuItem(Loc::TextOr("editor.menu.paste_component", "Paste Component")))
+	{
+		if (Serialization::DeserializeComponentInto(object, clip))
+		{
+			// 새 컴포넌트(방금 부착된 마지막 것)는 새 InstanceGuid 를 받아야 한다 —
+			// 원본 guid 를 그대로 쓰면 Ref 지목이 원본/복사본 사이에서 충돌한다.
+			const std::vector<CComponent*> all = object.GetComponents<CComponent>();
+			if (false == all.empty() && all.back())
+			{
+				all.back()->InstanceGuid = File::GenerateGuid();
+			}
+			return true;
+		}
 	}
 	return false;
 }

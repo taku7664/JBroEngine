@@ -31,6 +31,20 @@ namespace EditorGuiDrawHelpers
 
 	bool DrawRemoveObjectMenu(CScene& scene, CGameObject* object);
 
+	// ── 복사 / 붙여넣기 (직렬화 기반, 클립보드 경유) ───────────────────────────
+	// 오브젝트/컴포넌트를 직렬화 문자열로 클립보드에 복사하고, 붙여넣기는 클립보드
+	// 텍스트를 역직렬화한다. Paste 메뉴는 클립보드 내용이 맞는 종류일 때만 표시한다.
+
+	// 오브젝트를 클립보드로 복사하는 MenuItem.
+	bool DrawCopyObjectMenuItem(const CGameObject& object);
+	// 클립보드의 오브젝트를 scene 에 붙여넣는 MenuItem(클립보드가 오브젝트일 때만 표시).
+	bool DrawPasteObjectMenuItem(CScene& scene);
+
+	// 컴포넌트를 클립보드로 복사하는 MenuItem.
+	bool DrawCopyComponentMenuItem(const class CComponent& component);
+	// 클립보드의 컴포넌트를 object 에 붙여넣는 MenuItem(클립보드가 컴포넌트일 때만 표시).
+	bool DrawPasteComponentMenuItem(CGameObject& object);
+
 	// ── 리플렉션 → 로컬라이즈 라벨 ─────────────────────────────────────────────
 	// 셋 다 키 없으면 fallback(DisplayName → Name) 반환.
 

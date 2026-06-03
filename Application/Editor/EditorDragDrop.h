@@ -15,15 +15,7 @@ namespace EditorDragDrop
 	// ── 하이어라키 드래그-드랍 페이로드 (Ref 프로퍼티 드롭 타깃이 받는다) ──────────
 	// 오브젝트 1개를 드래그: CGameObject* (드래그 중 생존하는 raw 포인터) 가 실린다.
 	constexpr const char* HIERARCHY_ENTITY_PAYLOAD = "HIERARCHY_ENTITY";
-	// 컴포넌트/스크립트를 드래그: 아래 구조가 실린다.
-	constexpr const char* HIERARCHY_COMPONENT_PAYLOAD = "HIERARCHY_COMPONENT";
 
-	struct HierarchyComponentPayload
-	{
-		CGameObject* Object   = nullptr; // 드래그 중 생존하는 raw 포인터
-		TypeId       TypeId   = INVALID_TYPE_ID;
-		bool         IsScript = false;   // true = 스크립트(ScriptComponent.Instance), false = 일반 컴포넌트
-	};
 	constexpr std::size_t MAX_GUID_TEXT_LENGTH = 64;
 	constexpr std::size_t MAX_PATH_TEXT_LENGTH = 260;
 

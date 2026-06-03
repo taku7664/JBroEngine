@@ -205,6 +205,10 @@ Entries:
   hierarchy.unparent: Unparent
   hierarchy.delete_object: Delete Object
   inspector.remove_component: Remove Component
+  editor.menu.copy_object: Copy Object
+  editor.menu.paste_object: Paste Object
+  editor.menu.copy_component: Copy Component
+  editor.menu.paste_component: Paste Component
 
   inspector.no_active_scene: No active scene.
   inspector.no_entity_selected: No entity selected.

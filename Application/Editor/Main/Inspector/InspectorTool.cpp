@@ -197,21 +197,6 @@ CSpriteAsset* sprite = Core::ResourceRegistry->GetSprite(key);
 		return nullptr;
 	}
 
-	const char* ResolveDraggedTypeName(const EditorDragDrop::HierarchyComponentPayload& comp)
-	{
-		if (false == Core::Reflection.IsValid())
-		{
-			return nullptr;
-		}
-		if (comp.IsScript)
-		{
-			const ScriptTypeInfo* s = Core::Reflection->FindScript(comp.TypeId);
-			return s ? s->Type.Name : nullptr;
-		}
-		const ComponentTypeInfo* c = Core::Reflection->FindComponent(comp.TypeId);
-		return c ? c->Type.Name : nullptr;
-	}
-
 	// Ref 의 현재 대상 표시 라벨.
 	std::string BuildRefDisplayLabel(const RefBase& ref, const ReflectPropertyInfo& property)
 	{
@@ -1473,6 +1458,13 @@ void CInspectorTool::OnRenderStay()
 			snprintf(ctxId, sizeof(ctxId), "##compctx%d", idx);
 			if (ImGui::BeginPopupContextItem(ctxId))
 			{
+				// 복사/붙여넣기 — firstInst 는 단일 상속이라 곧 CComponent* 다.
+				if (CComponent* comp = static_cast<CComponent*>(firstInst))
+				{
+					EditorGuiDrawHelpers::DrawCopyComponentMenuItem(*comp);
+				}
+				EditorGuiDrawHelpers::DrawPasteComponentMenuItem(*selectedObject);
+				ImGui::Separator();
 				if (ImGui::MenuItem(Loc::Text("inspector.remove_component")))
 				{
 					Editor::CommandManager.ExecuteCommand(

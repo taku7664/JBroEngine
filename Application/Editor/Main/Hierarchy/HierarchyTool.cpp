@@ -57,6 +57,7 @@ void CHierarchyTool::OnRenderStay()
 		    ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems))
 		{
 			EditorGuiDrawHelpers::DrawAddObjectMenu(*activeScene, nullptr);
+			EditorGuiDrawHelpers::DrawPasteObjectMenuItem(*activeScene);
 			ImGui::EndPopup();
 		}
 	};
@@ -209,6 +210,9 @@ void CHierarchyTool::OnRenderStay()
 			}
 
 			EditorGuiDrawHelpers::DrawAddComponentMenu(*activeScene, obj);
+			ImGui::Separator();
+			EditorGuiDrawHelpers::DrawCopyObjectMenuItem(*obj);
+			EditorGuiDrawHelpers::DrawPasteObjectMenuItem(*activeScene);
 			ImGui::Separator();
 			EditorGuiDrawHelpers::DrawRemoveObjectMenu(*activeScene, obj);
 			ImGui::EndPopup();

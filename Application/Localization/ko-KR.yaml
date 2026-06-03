@@ -205,6 +205,10 @@ Entries:
   hierarchy.unparent: 부모 해제
   hierarchy.delete_object: 오브젝트 삭제
   inspector.remove_component: 컴포넌트 제거
+  editor.menu.copy_object: 오브젝트 복사
+  editor.menu.paste_object: 오브젝트 붙여넣기
+  editor.menu.copy_component: 컴포넌트 복사
+  editor.menu.paste_component: 컴포넌트 붙여넣기
 
   inspector.no_active_scene: 활성 씬이 없습니다.
   inspector.no_entity_selected: 선택한 엔티티가 없습니다.

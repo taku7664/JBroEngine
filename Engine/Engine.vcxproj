@@ -445,6 +445,8 @@
     <ClInclude Include="GameFramework\Scene\Scene.h" />
     <ClInclude Include="GameFramework\Scene\SceneManager.h" />
     <ClInclude Include="GameFramework\Scene\SceneSerializer.h" />
+    <ClInclude Include="GameFramework\Serialization\ComponentSerializer.h" />
+    <ClInclude Include="GameFramework\Serialization\ObjectSerializer.h" />
     <ClInclude Include="GameFramework\Scene\SceneTypes.h" />
     <ClInclude Include="GameFramework\Object\ObjectPool.h" />
     <ClInclude Include="GameFramework\Component\Component.h" />
@@ -478,6 +480,7 @@
     <ClInclude Include="Editor\Project\AssetDatabase.h" />
     <ClInclude Include="Editor\Project\ProjectTypes.h" />
     <ClInclude Include="Framework.h" />
+    <ClInclude Include="Editor\ImItem\ImButton.h" />
     <ClInclude Include="Utillity\Base\BitFlag.h" />
     <ClInclude Include="Utillity\Base\Defines.h" />
     <ClInclude Include="Utillity\Base\Error.h" />
@@ -592,6 +595,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Application\Application.cpp" />
+    <ClCompile Include="Editor\ImItem\ImButton.cpp" />
     <ClCompile Include="Utillity\Base\Error.cpp" />
     <ClCompile Include="Utillity\File\FilePath.cpp" />
     <ClCompile Include="Utillity\File\FileUtillities.cpp" />
@@ -675,6 +679,8 @@
     <ClCompile Include="GameFramework\Scene\Scene.cpp" />
     <ClCompile Include="GameFramework\Scene\SceneManager.cpp" />
     <ClCompile Include="GameFramework\Scene\SceneSerializer.cpp" />
+    <ClCompile Include="GameFramework\Serialization\ComponentSerializer.cpp" />
+    <ClCompile Include="GameFramework\Serialization\ObjectSerializer.cpp" />
     <ClCompile Include="GameFramework\System\GameSystem.cpp" />
     <ClCompile Include="Editor\ImEditor.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>

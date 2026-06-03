@@ -63,6 +63,8 @@ Engine/GameFramework/Rendering/SpriteRenderSystem.cpp
 Engine/GameFramework/Scene/Scene.cpp
 Engine/GameFramework/Scene/SceneManager.cpp
 Engine/GameFramework/Scene/SceneSerializer.cpp
+Engine/GameFramework/Serialization/ComponentSerializer.cpp
+Engine/GameFramework/Serialization/ObjectSerializer.cpp
 Engine/GameFramework/Scene/SceneSnapshot.cpp
 Engine/GameFramework/Scripting/GameScript.cpp
 Engine/GameFramework/Scripting/ScriptSystem.cpp
