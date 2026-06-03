@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Core/Asset/IAsset.h"               // IAsset (is_base_of, dynamic_cast)
+#include "GameFramework/Object/GameObject.h"  // CGameObject (is_base_of, Object 카테고리)
 #include "GameFramework/Reflection/ReflectionTypes.h" // ERefCategory, RefBase (단일 정의)
 #include "GameFramework/Scripting/GameScript.h" // CGameScript (is_base_of, dynamic_cast)
 #include "Utillity/File/FilePath.h"           // File::Guid
@@ -41,6 +42,9 @@ namespace RefDetail
 	// InstanceGuid → 활성 씬의 엔티티에서 type_index 로 컴포넌트 주소(void*) 해석.
 	void* ResolveComponent(const char* instanceGuid, std::type_index componentType);
 
+	// InstanceGuid → 활성 씬의 오브젝트(CGameObject*) 자체.
+	CGameObject* ResolveObject(const char* instanceGuid);
+
 	// InstanceGuid → 활성 씬 엔티티의 ScriptComponent.Instance(CGameScript*).
 	CGameScript* ResolveScript(const char* instanceGuid);
 
@@ -55,6 +59,7 @@ public:
 	static constexpr ERefCategory Category =
 		std::is_base_of_v<IAsset, T>      ? ERefCategory::Asset  :
 		std::is_base_of_v<CGameScript, T> ? ERefCategory::Script :
+		std::is_base_of_v<CGameObject, T> ? ERefCategory::Object :
 		                                    ERefCategory::Component;
 
 	Ref() = default;
@@ -82,9 +87,14 @@ public:
 		{
 			return dynamic_cast<T*>(RefDetail::ResolveScript(Guid));
 		}
+		else if constexpr (ERefCategory::Object == Category)
+		{
+			// GameObject(CGameObject) 자체 — InstanceGuid 로 오브젝트 해석.
+			return static_cast<T*>(RefDetail::ResolveObject(Guid));
+		}
 		else
 		{
-			// 컴포넌트(및 GameObject) — 풀에서 받은 void* 는 실제로 T* 이다.
+			// 컴포넌트 — 풀에서 받은 void* 는 실제로 T* 이다.
 			return static_cast<T*>(RefDetail::ResolveComponent(Guid, std::type_index(typeid(T))));
 		}
 	}

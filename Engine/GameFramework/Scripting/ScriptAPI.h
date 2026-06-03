@@ -76,6 +76,10 @@ template<> inline EReflectPropertyType ScriptFieldTypeOf<File::Guid>()
 #include "GameFramework/Scene/Scene.h"
 #include "GameFramework/Object/GameObject.h"
 
+// 스크립트 작성자용 별칭: 실체 타입은 CGameObject 지만 스크립트에선 GameObject 로 쓴다.
+//   JPROP() Ref<GameObject> Target;  /  GetGameObject() 반환형 등.
+using GameObject = CGameObject;
+
 // ── 자주 사용하는 컴포넌트 ────────────────────────────────────────────────────
 #include "GameFramework/Component/Transform2D.h"
 #include "GameFramework/Component/SpriteRenderer2D.h"

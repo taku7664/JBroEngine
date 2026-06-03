@@ -36,6 +36,16 @@ void* RefDetail::ResolveComponent(const char* instanceGuid, std::type_index comp
 	return object ? object->FindComponentRaw(componentType) : nullptr;
 }
 
+CGameObject* RefDetail::ResolveObject(const char* instanceGuid)
+{
+	CScene* scene = ActiveScene();
+	if (nullptr == scene)
+	{
+		return nullptr;
+	}
+	return scene->FindByInstanceGuid(File::Guid(instanceGuid)).TryGet();
+}
+
 CGameScript* RefDetail::ResolveScript(const char* instanceGuid)
 {
 	CScene* scene = ActiveScene();

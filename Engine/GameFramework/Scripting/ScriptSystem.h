@@ -7,7 +7,7 @@
 #include <cstdint>
 #include <unordered_set>
 
-struct ScriptComponent;
+class ScriptComponent;
 
 class CScriptSystem final : public CGameSystem
 {

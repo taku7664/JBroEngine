@@ -46,6 +46,7 @@ enum class ERefCategory : std::uint8_t
 	Component,
 	Script,
 	Asset,
+	Object, // CGameObject 자체 참조(컴포넌트 아님) — InstanceGuid 로 오브젝트 해석
 };
 
 // Ref<T> 의 직렬화/저장부(타입소거 공통 레이아웃).
