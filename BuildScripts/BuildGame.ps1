@@ -2,7 +2,7 @@ param(
     [Parameter(Mandatory=$true)]
     [string]$Project,
 
-    [ValidateSet("Windows", "Web")]
+    [ValidateSet("Windows", "Web", "Android", "IOS")]
     [string]$Platform = "Windows",
 
     [ValidateSet("Debug", "Release")]
@@ -128,6 +128,13 @@ function Read-JBroProject {
             ScriptBuildConfiguration = "Release"
             ScriptOutputLibraryPath = "GameScript.dll"
             WindowsIconGuid = ""
+            AndroidApplicationId = "com.jbro.game"
+            AndroidMinSdkVersion = 26
+            AndroidTargetSdkVersion = 35
+            AndroidAbi = "arm64-v8a"
+            IOSBundleIdentifier = "com.jbro.game"
+            IOSTeamId = ""
+            IOSMinimumOSVersion = "15.0"
         }
     }
 
@@ -981,6 +988,10 @@ $msbuild = Find-MSBuild
 Write-Host "Project: $projectPath"
 Write-Host "Package: $packageDir"
 
+if ($Platform -eq "Android" -or $Platform -eq "IOS") {
+    throw "Mobile package build is not implemented yet. Platform=$Platform. The project settings and platform contract are recognized, but Android/iOS native packaging is a later step."
+}
+
 if ([string]::IsNullOrWhiteSpace($projectInfo.Build.StartupScene)) {
     throw "Startup scene is not configured. Set Build.StartupScene in the project build settings."
 }
@@ -1111,8 +1122,8 @@ if (-not [string]::IsNullOrWhiteSpace($projectInfo.Build.StartupScene)) {
 }
 
 $manifestPath = Join-Path $packageContentDir "build_manifest.jbmanifest"
-$manifestScriptMode = if ($Platform -eq "Web") { "Static" } else { "DynamicLibrary" }
-$manifestScriptModule = if ($Platform -eq "Web") { "" } else { "GameScript.dll" }
+$manifestScriptMode = if ($Platform -eq "Windows") { "DynamicLibrary" } else { "Static" }
+$manifestScriptModule = if ($Platform -eq "Windows") { "GameScript.dll" } else { "" }
 Write-JBroBuildManifest `
     -ManifestPath $manifestPath `
     -StartupSceneGuid $startupSceneGuid `

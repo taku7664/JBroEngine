@@ -2,6 +2,7 @@
 #include "AssetHandler.h"
 
 #include "Editor/Editor.h"
+#include "Editor/Main/Inspector/EffectEditorWindow.h"
 #include "Engine/Editor/ImEditor.h"
 #include "Engine/Editor/Project/ProjectManager.h"
 #include "Engine/Core/Logging/LoggerInternal.h"
@@ -111,4 +112,16 @@ void CScriptAssetOpenHandler::Open(CAssetBrowserTool&, const AssetBrowserEntry& 
 		return;
 	}
 	projectManager->OpenScriptInIde(File::NULL_PATH);
+}
+
+// ── EffectAssetOpenHandler ───────────────────────────────────────────────────
+bool CEffectAssetOpenHandler::CanOpen(const AssetBrowserEntry& entry) const
+{
+	return false == entry.IsDirectory
+		&& (EAssetType::AudioEffect == entry.Type || entry.ExtensionUtf8 == ".jfx");
+}
+
+void CEffectAssetOpenHandler::Open(CAssetBrowserTool&, const AssetBrowserEntry& entry)
+{
+	EffectEditorWindow::Open(entry.Guid, entry.DisplayNameUtf8);
 }

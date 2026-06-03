@@ -12,6 +12,7 @@
 #include "Engine/Editor/Project/ProjectManager.h"
 #include "Utillity/String/StringUtillity.h"
 
+#include <algorithm>
 #include <cwctype>
 
 namespace
@@ -247,6 +248,9 @@ void CBuildSettingsWindow::DrawCategoryList(float)
 		{ ECategory::General, "build_settings.category.general" },
 		{ ECategory::Scenes,  "build_settings.category.scenes"  },
 		{ ECategory::Output,  "build_settings.category.output"  },
+		{ ECategory::Windows, "build_settings.category.windows" },
+		{ ECategory::Android, "build_settings.category.android" },
+		{ ECategory::IOS,     "build_settings.category.ios"     },
 	};
 
 	for (const CategoryEntry& entry : categories)
@@ -265,6 +269,9 @@ void CBuildSettingsWindow::DrawCategoryContent(float)
 	case ECategory::General: DrawGeneralCategory(); break;
 	case ECategory::Scenes:  DrawScenesCategory();  break;
 	case ECategory::Output:  DrawOutputCategory();  break;
+	case ECategory::Windows: DrawWindowsCategory(); break;
+	case ECategory::Android: DrawAndroidCategory(); break;
+	case ECategory::IOS:     DrawIOSCategory();     break;
 	default: break;
 	}
 }
@@ -315,6 +322,17 @@ void CBuildSettingsWindow::DrawGeneralCategory()
 			}
 		});
 
+}
+
+void CBuildSettingsWindow::DrawWindowsCategory()
+{
+	ImGui::SeparatorText(Loc::Text("build_settings.windows"));
+	if (ToBuildTargetPlatform(m_targetPlatform) != EBuildTargetPlatform::Windows)
+	{
+		ImGui::TextDisabled("%s", Loc::Text("build_settings.platform_inactive"));
+	}
+
+	ImGui::Utillity::FormLayout layout("##build_settings_windows", 4.0f, { 2.0f, 1.0f }, 170.0f);
 	layout.Row(
 		[&]() {
 			ImText label;
@@ -323,6 +341,120 @@ void CBuildSettingsWindow::DrawGeneralCategory()
 		},
 		[&]() {
 			DrawWindowsIconSelector();
+		});
+}
+
+void CBuildSettingsWindow::DrawAndroidCategory()
+{
+	ImGui::SeparatorText(Loc::Text("build_settings.android"));
+	if (ToBuildTargetPlatform(m_targetPlatform) != EBuildTargetPlatform::Android)
+	{
+		ImGui::TextDisabled("%s", Loc::Text("build_settings.platform_inactive"));
+	}
+
+	ImGui::Utillity::FormLayout layout("##build_settings_android", 4.0f, { 2.0f, 1.0f }, 170.0f);
+	layout.Row(
+		[&]() {
+			ImText label;
+			label.SetHoveredTooltip(Loc::Text("build_settings.android_application_id.desc"));
+			label(Loc::Text("build_settings.android_application_id"));
+		},
+		[&]() {
+			if (ImGui::InputText("##build.android_application_id", &m_androidApplicationId))
+			{
+				MarkDirty();
+			}
+		});
+
+	layout.Row(
+		[&]() {
+			ImText label;
+			label.SetHoveredTooltip(Loc::Text("build_settings.android_min_sdk.desc"));
+			label(Loc::Text("build_settings.android_min_sdk"));
+		},
+		[&]() {
+			if (ImGui::InputInt("##build.android_min_sdk", &m_androidMinSdkVersion))
+			{
+				MarkDirty();
+			}
+		});
+
+	layout.Row(
+		[&]() {
+			ImText label;
+			label.SetHoveredTooltip(Loc::Text("build_settings.android_target_sdk.desc"));
+			label(Loc::Text("build_settings.android_target_sdk"));
+		},
+		[&]() {
+			if (ImGui::InputInt("##build.android_target_sdk", &m_androidTargetSdkVersion))
+			{
+				MarkDirty();
+			}
+		});
+
+	layout.Row(
+		[&]() {
+			ImText label;
+			label.SetHoveredTooltip(Loc::Text("build_settings.android_abi.desc"));
+			label(Loc::Text("build_settings.android_abi"));
+		},
+		[&]() {
+			const char* abis[] = { "arm64-v8a", "x86_64" };
+			int current = m_androidAbi == "x86_64" ? 1 : 0;
+			if (ImGui::Combo("##build.android_abi", &current, abis, IM_ARRAYSIZE(abis)))
+			{
+				m_androidAbi = abis[current];
+				MarkDirty();
+			}
+		});
+}
+
+void CBuildSettingsWindow::DrawIOSCategory()
+{
+	ImGui::SeparatorText(Loc::Text("build_settings.ios"));
+	if (ToBuildTargetPlatform(m_targetPlatform) != EBuildTargetPlatform::IOS)
+	{
+		ImGui::TextDisabled("%s", Loc::Text("build_settings.platform_inactive"));
+	}
+
+	ImGui::Utillity::FormLayout layout("##build_settings_ios", 4.0f, { 2.0f, 1.0f }, 170.0f);
+	layout.Row(
+		[&]() {
+			ImText label;
+			label.SetHoveredTooltip(Loc::Text("build_settings.ios_bundle_identifier.desc"));
+			label(Loc::Text("build_settings.ios_bundle_identifier"));
+		},
+		[&]() {
+			if (ImGui::InputText("##build.ios_bundle_identifier", &m_iosBundleIdentifier))
+			{
+				MarkDirty();
+			}
+		});
+
+	layout.Row(
+		[&]() {
+			ImText label;
+			label.SetHoveredTooltip(Loc::Text("build_settings.ios_team_id.desc"));
+			label(Loc::Text("build_settings.ios_team_id"));
+		},
+		[&]() {
+			if (ImGui::InputText("##build.ios_team_id", &m_iosTeamId))
+			{
+				MarkDirty();
+			}
+		});
+
+	layout.Row(
+		[&]() {
+			ImText label;
+			label.SetHoveredTooltip(Loc::Text("build_settings.ios_minimum_os.desc"));
+			label(Loc::Text("build_settings.ios_minimum_os"));
+		},
+		[&]() {
+			if (ImGui::InputText("##build.ios_minimum_os", &m_iosMinimumOSVersion))
+			{
+				MarkDirty();
+			}
 		});
 }
 
@@ -564,6 +696,13 @@ void CBuildSettingsWindow::LoadFromProject()
 	m_startupScene = build.StartupScene;
 	m_buildScenes = build.BuildScenes;
 	m_windowsIconGuid = build.WindowsIconGuid;
+	m_androidApplicationId = build.AndroidApplicationId;
+	m_androidMinSdkVersion = static_cast<int>(build.AndroidMinSdkVersion);
+	m_androidTargetSdkVersion = static_cast<int>(build.AndroidTargetSdkVersion);
+	m_androidAbi = build.AndroidAbi;
+	m_iosBundleIdentifier = build.IOSBundleIdentifier;
+	m_iosTeamId = build.IOSTeamId;
+	m_iosMinimumOSVersion = build.IOSMinimumOSVersion;
 	m_loadedFromProject = true;
 	m_dirty = false;
 	m_errorMessage.clear();
@@ -587,6 +726,13 @@ bool CBuildSettingsWindow::ApplyToProject(std::string* outError)
 	buildSettings.StartupScene = m_startupScene;
 	buildSettings.BuildScenes = m_buildScenes;
 	buildSettings.WindowsIconGuid = m_windowsIconGuid;
+	buildSettings.AndroidApplicationId = m_androidApplicationId;
+	buildSettings.AndroidMinSdkVersion = static_cast<std::uint32_t>(std::max(1, m_androidMinSdkVersion));
+	buildSettings.AndroidTargetSdkVersion = static_cast<std::uint32_t>(std::max(1, m_androidTargetSdkVersion));
+	buildSettings.AndroidAbi = m_androidAbi;
+	buildSettings.IOSBundleIdentifier = m_iosBundleIdentifier;
+	buildSettings.IOSTeamId = m_iosTeamId;
+	buildSettings.IOSMinimumOSVersion = m_iosMinimumOSVersion;
 
 	if (buildSettings.TargetPlatform == EBuildTargetPlatform::Windows)
 	{

@@ -35,6 +35,10 @@ public:
 	// ── 생성 ───────────────────────────────────────────────────────────────
 	virtual OwnerPtr<IAudioPlayer>  CreatePlayer (const AudioPlayerDesc& desc) = 0;
 	virtual OwnerPtr<IAudioBus>     CreateBus    (EAudioBusKind kind) = 0;
+
+	// 디바이스가 소유하는 표준 믹싱 버스(Master/Music/SFX/Voice/UI)를 반환.
+	// player 라우팅·카테고리 볼륨 제어의 진입점. Custom 은 CreateBus 로 별도 생성.
+	virtual SafePtr<IAudioBus>      GetBus       (EAudioBusKind kind) = 0;
 	virtual OwnerPtr<IAudioEffect>  CreateEffect (EAudioEffectKind kind) = 0;
 
 	// 씬당 활성 1개 (backend 가 소유). 게임 측 AudioListener 컴포넌트가

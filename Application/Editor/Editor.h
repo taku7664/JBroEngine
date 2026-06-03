@@ -54,6 +54,7 @@ public:
 		if (entity != INVALID_ENTITY_ID)
 			m_selectedEntities.push_back(entity);
 		ClearAssetSelection();
+		ClearScriptSelection();
 	}
 
 	// ── 다중 선택: entities 목록 전체 선택 (첫 항목이 primary) ───────────────
@@ -63,6 +64,7 @@ public:
 		m_primarySelectedEntity = m_selectedEntities.empty()
 			? INVALID_ENTITY_ID : m_selectedEntities.front();
 		ClearAssetSelection();
+		ClearScriptSelection();
 	}
 
 	// ── 개별 추가 (Ctrl+Click용): 이미 선택돼 있으면 무시 ────────────────────
@@ -76,6 +78,7 @@ public:
 				m_primarySelectedEntity = entity;
 		}
 		ClearAssetSelection();
+		ClearScriptSelection();
 	}
 
 	// ── 개별 제거 ─────────────────────────────────────────────────────────────
@@ -118,6 +121,7 @@ public:
 	{
 		m_selectedAssetGuid = guid;
 		m_selectedAssetPath = path;
+		ClearScriptSelection();
 	}
 
 	static void ClearAssetSelection()
@@ -134,6 +138,26 @@ public:
 	static const File::Path& GetSelectedAssetPath()
 	{
 		return m_selectedAssetPath;
+	}
+
+	// ── 스크립트 파일(.h) 선택 ────────────────────────────────────────────────
+	// 스크립트 루트의 .h 는 에셋 guid 가 없으므로 별도 선택 상태로 인스펙터가 스키마
+	// 에디터를 띄운다. 엔티티/에셋 선택과 상호 배타.
+	static void SelectScriptFile(const File::Path& path)
+	{
+		ClearSelection();         // 엔티티 선택 해제
+		ClearAssetSelection();    // 에셋 선택 해제
+		m_selectedScriptPath = path;
+	}
+
+	static void ClearScriptSelection()
+	{
+		m_selectedScriptPath = File::NULL_PATH;
+	}
+
+	static const File::Path& GetSelectedScriptPath()
+	{
+		return m_selectedScriptPath;
 	}
 
 	static void SetActiveScenePath(const File::Path& path)
@@ -168,6 +192,7 @@ private:
 	inline static File::Path            m_activeScenePath   = File::NULL_PATH;
 	inline static File::Guid            m_selectedAssetGuid = File::NULL_GUID;
 	inline static File::Path            m_selectedAssetPath = File::NULL_PATH;
+	inline static File::Path            m_selectedScriptPath = File::NULL_PATH;
 	inline static std::string           m_focusComponentName;
 };
 

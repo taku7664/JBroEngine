@@ -66,6 +66,7 @@ const AssetMetaData& CSpriteAsset::GetMetaData() const { return m_metaData; }
 std::uint32_t CSpriteAsset::GetWidth()  const { return m_width; }
 std::uint32_t CSpriteAsset::GetHeight() const { return m_height; }
 const std::vector<std::uint8_t>& CSpriteAsset::GetPixels() const { return m_pixels; }
+std::uint32_t CSpriteAsset::GetPixelGeneration() const { return m_pixelGeneration; }
 
 const SpriteImportOptions& CSpriteAsset::GetImportOptions() const { return m_importOptions; }
 const std::vector<SpriteFrame>& CSpriteAsset::GetFrames() const { return m_frames; }
@@ -81,6 +82,7 @@ void CSpriteAsset::ReplacePixels(std::uint32_t width, std::uint32_t height, std:
 	m_width  = width;
 	m_height = height;
 	m_pixels = std::move(pixels);
+	++m_pixelGeneration;
 	// GPU 텍스처는 RenderResourceCache 가 따로 invalidate 한다 (자산이 GPU 를 소유하지 않음).
 	// reload 경로(CAssetManager::ReloadAsset)가 cache->InvalidateSpriteTexture(guid) 호출.
 }

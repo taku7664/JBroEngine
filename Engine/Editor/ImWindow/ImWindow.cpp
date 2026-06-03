@@ -23,6 +23,7 @@ CImWindow::CImWindow(ImGuiID id, ImGuiID parentId)
 	, m_bIsFirstTick(true)
 	, m_bIsAlive(true)
 	, m_bBeginResult(false)
+	, m_bRequestFocus(false)
 	, m_initDockLayoutDirection(ImGuiDir_None)
 	, m_initDockSlotIsSet(false)
 	, m_bIsVisible({true, true})
@@ -163,9 +164,12 @@ void CImWindow::Destroy()
 
 void CImWindow::Focus()
 {
+	// SetWindowFocus(name) 은 FindWindowByName=ImHashStr(전체 label) 로 윈도우를 찾는다.
+	// title 이 바뀌면(로컬라이즈/SetTitle) name 해시가 달라져 매칭이 실패한다.
+	// 대신 다음 Begin 직전에 SetNextWindowFocus 로 그 윈도우를 직접 포커스한다.
 	if (m_bIsAlive)
 	{
-		ImGui::SetWindowFocus(GetImGuiLabel());
+		m_bRequestFocus = true;
 	}
 }
 
@@ -366,6 +370,12 @@ void CImWindow::HandleBegin()
 	if(m_ownerWindow)
 	{
 		ImGui::SetNextWindowClass(&m_ownerWindow->m_imWndClass);
+	}
+	// Focus() 요청이 있었으면 이 Begin 윈도우를 직접 포커스(도킹 탭 활성).
+	if (m_bRequestFocus)
+	{
+		m_bRequestFocus = false;
+		ImGui::SetNextWindowFocus();
 	}
 	m_bBeginResult = ImGui::Begin(GetImGuiLabel(), isAlive, flags);
 

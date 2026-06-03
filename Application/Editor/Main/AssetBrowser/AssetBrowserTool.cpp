@@ -5,6 +5,8 @@
 #include "Editor/Editor.h"
 #include "Editor/Command/EditorFileCommands.h"
 #include "Editor/EditorDragDrop.h"
+#include "Editor/Script/ScriptSchema.h"
+#include "Editor/Script/ScriptSchemaWidgets.h"
 #include "Engine/Editor/Project/ProjectManager.h"
 #include "Engine/Core/Core.h"
 #include "Engine/Core/EngineCore.h"
@@ -91,79 +93,27 @@ namespace
 	    "Material:\n"
 	    "  Shader: \"\"\n"
 	    "  Properties: {}\n";
+	constexpr std::string_view EMPTY_EFFECT_YAML =
+	    "Effect:\n"
+	    "  Kind: Reverb\n"
+	    "  Parameters: {}\n";
 	constexpr std::string_view EMPTY_PREFAB_YAML =
 	    "Prefab:\n"
 	    "  Root: 0\n"
 	    "  Entities: []\n";
 
+	// 스크립트 프로퍼티 스키마(타입 토큰/Ref 대상/파싱·기록)는 ScriptSchema 모듈 공유.
+	using ScriptSchema::Property;
+
 	// ── 스크립트 추가 팝업의 입력 상태 ─────────────────────────────────────
-	struct NewScriptProperty
-	{
-		std::string TypeToken = "Float";       // 1차 콤보 선택. "Ref" 면 참조(RefTarget 사용).
-		std::string RefTarget = "GameObject";  // TypeToken=="Ref" 일 때 참조 대상 타입.
-		std::string Name      = "";
-	};
 	struct NewScriptInput
 	{
-		std::string                    ClassName    = "NewScript";
-		std::vector<NewScriptProperty> Properties;
-		File::Path                     ParentFolder;
+		std::string                       ClassName    = "NewScript";
+		std::vector<ScriptSchema::Property> Properties;
+		File::Path                        ParentFolder;
 	};
 
-	// 1차 콤보: 기본 타입 토큰 (라벨=토큰, PascalCase). "Ref" 는 참조 — 2차 콤보로 대상 선택.
-	// Int/UInt 는 64비트(나중에 32비트가 필요하면 Int32/UInt32 를 따로 명시).
-	constexpr std::array<const char*, 11> SCRIPT_BASE_TYPES = {
-		"Bool", "Int", "UInt", "Float", "Degree", "Radian",
-		"String", "Vector2", "Rect", "Asset", "Ref",
-	};
-
-	// 2차 콤보(Ref 대상): GameObject + 등록된 컴포넌트 + 등록된 스크립트.
-	std::vector<std::string> BuildRefTargets()
-	{
-		std::vector<std::string> out = { "GameObject" };
-		if (Core::Reflection.IsValid())
-		{
-			for (std::size_t i = 0; i < Core::Reflection->GetComponentTypeCount(); ++i)
-			{
-				const ComponentTypeInfo* ti = Core::Reflection->GetComponentType(i);
-				if (nullptr == ti || nullptr == ti->Type.Name) continue;
-				const char* n = ti->Type.Name;
-				if (0 == std::strcmp(n, "GameObject")) continue;            // 위에서 이미 추가
-				if (0 == std::strcmp(n, "TransformHierarchy2D")) continue;  // 내부용
-				if (0 == std::strcmp(n, "ScriptComponent")) continue;       // 컨테이너
-				out.push_back(n);
-			}
-			for (std::size_t i = 0; i < Core::Reflection->GetScriptTypeCount(); ++i)
-			{
-				const ScriptTypeInfo* si = Core::Reflection->GetScriptType(i);
-				if (nullptr == si || nullptr == si->Type.Name) continue;
-				out.push_back(si->Type.Name);
-			}
-		}
-		return out;
-	}
-
-	// 프로퍼티 → 생성 헤더에 쓸 최종 C++ 타입 토큰.
-	std::string FinalTypeToken(const NewScriptProperty& p)
-	{
-		if (p.TypeToken == "Ref")
-		{
-			return "Ref<" + p.RefTarget + ">";
-		}
-		return p.TypeToken;
-	}
-
-	std::string DefaultValueForToken(const std::string& finalToken)
-	{
-		if (finalToken == "Bool")   return "false";
-		if (finalToken == "Int")    return "0";
-		if (finalToken == "UInt")   return "0u";
-		if (finalToken == "Float")  return "0.0f";
-		if (finalToken == "Degree") return "Degree(0.0f)";
-		if (finalToken == "Radian") return "Radian(0.0f)";
-		if (finalToken == "String") return "\"\"";
-		return "{}";   // Vector2 / Rect / Asset / Ref<...>
-	}
+	// 검색 필터 콤보 / 타입+Ref 콤보는 ScriptSchemaUI(공유 위젯) 사용.
 
 	// 유효한 C++ 식별자인지 — 첫 글자는 알파/밑줄, 이후 알파넘/밑줄.
 	bool IsValidCppIdentifier(const std::string& s)
@@ -193,14 +143,14 @@ namespace
 	}
 
 	// UI 검증: 프로퍼티 이름이 무효(빈 값/식별자 아님/예약어)이거나 목록 내 중복인지.
-	bool IsPropNameInvalid(const std::string& name, const std::vector<NewScriptProperty>& all)
+	bool IsPropNameInvalid(const std::string& name, const std::vector<Property>& all)
 	{
 		if (name.empty() || false == IsValidCppIdentifier(name) || IsReservedScriptName(name))
 		{
 			return true;
 		}
 		int count = 0;
-		for (const NewScriptProperty& p : all)
+		for (const Property& p : all)
 		{
 			if (p.Name == name) ++count;
 		}
@@ -208,26 +158,21 @@ namespace
 	}
 
 	std::string MakeScriptHeader(const std::string& className,
-	                             const std::vector<NewScriptProperty>& props)
+	                             const std::vector<Property>& props)
 	{
 		std::ostringstream out;
 		out << "#pragma once\n\n";
 		out << "#include \"GameFramework/Scripting/ScriptAPI.h\"\n";
-		// Ref<X> 는 대상 타입 X 의 헤더가 필요 — 대상별로 include 를 자동 추가한다.
-		//   스크립트  → "Scripts/<X>.h"
-		//   컴포넌트  → "GameFramework/Component/<X>.h" (대부분 개별 헤더. 그룹 헤더 타입은 직접 수정 필요)
-		//   GameObject→ ScriptAPI 가 이미 include (추가 불필요)
+		// Ref<X> 는 대상 타입 X 의 헤더가 필요 — 2차 콤보가 정해 둔 RefInclude 를 그대로 추가한다.
+		//   스크립트  → "Scripts/<X>.h" / 컴포넌트 → "GameFramework/Component/<X>.h"
+		//   에셋      → "Core/Asset/<X>.h" / GameObject → 불필요(ScriptAPI 가 이미 include)
 		{
 			std::unordered_set<std::string> includes;
-			for (const NewScriptProperty& p : props)
+			for (const Property& p : props)
 			{
-				if (p.TypeToken != "Ref" || p.RefTarget.empty() || p.RefTarget == className) continue;
-				if (p.RefTarget == "GameObject") continue;
-				const bool isScript = Core::Reflection.IsValid()
-					&& nullptr != Core::Reflection->FindScriptByName(p.RefTarget.c_str());
-				includes.insert(isScript
-					? ("Scripts/" + p.RefTarget + ".h")
-					: ("GameFramework/Component/" + p.RefTarget + ".h"));
+				if (false == ScriptSchema::IsRefToken(p.TypeToken) || p.RefInclude.empty()) continue;
+				if (p.RefTarget == className) continue;   // 자기 자신 스크립트 참조 — 자가 포함 방지
+				includes.insert(p.RefInclude);
 			}
 			for (const std::string& inc : includes)
 			{
@@ -243,13 +188,11 @@ namespace
 			// JPROP 어트리뷰트 방식으로 자동 등록(헤더 스캐너가 파싱). 안전망: 어떤 입력이
 			// 와도 유효한 C++ 가 나오도록 무효 식별자/예약어/중복 이름은 건너뛴다.
 			std::unordered_set<std::string> usedNames;
-			for (const NewScriptProperty& p : props)
+			for (const Property& p : props)
 			{
 				if (false == IsValidCppIdentifier(p.Name) || IsReservedScriptName(p.Name)) continue;
 				if (false == usedNames.insert(p.Name).second) continue;   // 중복 이름 스킵
-				const std::string token = FinalTypeToken(p);
-				out << "\tJPROP() " << token << " "
-				    << p.Name << " = " << DefaultValueForToken(token) << ";\n";
+				out << ScriptSchema::FormatJpropLine(p) << "\n";
 			}
 			out << "\n";
 		}
@@ -331,6 +274,8 @@ namespace
 			return "[SPR]";
 		case EAssetType::Material:
 			return "[MAT]";
+		case EAssetType::AudioEffect:
+			return "[FX]";
 		case EAssetType::Scene:
 			return "[SCN]";
 		case EAssetType::Prefab:
@@ -359,6 +304,8 @@ namespace
 			return "icon-object";
 		case EAssetType::Audio:
 			return "icon-audio";
+		case EAssetType::AudioEffect:
+			return "icon-material";   // 전용 아이콘 추가 전까지 material 아이콘 재사용
 		default:
 			return "icon-file-default";
 		}
@@ -391,7 +338,9 @@ namespace
 	// entry 에 SafePtr<CSpriteAsset> 썸네일을 채워둔다 (RefreshCurrentFolderEntries 에서 1회).
 	// - 폴더/씬/스크립트 등: ResourceRegistry 의 아이콘
 	// - 이미지 파일      : 해당 파일 자체를 path-based persistent 자산으로 로드
-	void PopulateEntryThumbnail(AssetBrowserEntry& entry, SafePtr<IAssetManager> assetManager)
+	void PopulateEntryThumbnail(AssetBrowserEntry& entry,
+	                            SafePtr<IAssetManager> assetManager,
+	                            SafePtr<CProjectManager> projectManager)
 	{
 		if (false == Core::ResourceRegistry.IsValid())
 		{
@@ -400,13 +349,26 @@ namespace
 
 		if (false == entry.IsDirectory && IsImageExtension(entry.ExtensionUtf8))
 		{
-			// 이미지면 해당 파일의 SpriteAsset 을 직접 로드해 프리뷰로 쓴다.
-			// .Jmeta 없이도 path 기반 등록 가능하도록 RegisterAssetByPath 사용 — persistent 가
-			// 아닌 일반 등록(false)으로 두어 프로젝트 닫힘 시 함께 내려가게 한다.
+			// 이미지면 해당 파일의 SpriteAsset 을 프리뷰로 쓴다.
+			// 프로젝트 자산 루트 안에 있으면 ProjectManager 가 이미 등록한 상대경로 자산을 공유한다
+			// (워처 → ReloadAsset 이 같은 GUID 로 흐르도록 키 공간을 일치시킨다).
+			// 외부 파일이면 절대경로로 path-based 등록 (persistent 아님).
 			if (assetManager.IsValid())
 			{
-				assetManager->RegisterAssetByPath(entry.AbsolutePath, EAssetType::Sprite, /*isPersistent*/ false);
-				AssetRef<IAsset> asset = assetManager->LoadAssetByPath(entry.AbsolutePath);
+				AssetRef<IAsset> asset;
+				if (projectManager.IsValid())
+				{
+					std::string relPath;
+					if (projectManager->TryMakeProjectAssetRelativePath(entry.AbsolutePath, relPath))
+					{
+						asset = assetManager->LoadAssetByPath(File::Path(relPath));
+					}
+				}
+				if (false == asset.IsValid())
+				{
+					assetManager->RegisterAssetByPath(entry.AbsolutePath, EAssetType::Sprite, /*isPersistent*/ false);
+					asset = assetManager->LoadAssetByPath(entry.AbsolutePath);
+				}
 				if (asset.IsValid() && EAssetType::Sprite == asset->GetAssetType())
 				{
 					entry.Thumbnail = StaticAssetRefCast<CSpriteAsset>(asset);
@@ -469,6 +431,7 @@ void CAssetBrowserTool::OnCreate()
 	// Default 는 catch-all 이므로 항상 마지막.
 	m_openDispatcher.RegisterHandler(MakeOwnerPtr<CSceneAssetOpenHandler>());
 	m_openDispatcher.RegisterHandler(MakeOwnerPtr<CScriptAssetOpenHandler>());
+	m_openDispatcher.RegisterHandler(MakeOwnerPtr<CEffectAssetOpenHandler>());
 	m_openDispatcher.RegisterHandler(MakeOwnerPtr<CDefaultAssetOpenHandler>());
 }
 
@@ -702,7 +665,7 @@ void CAssetBrowserTool::RefreshCurrentFolderEntries()
 			}
 		}
 
-		PopulateEntryThumbnail(browserEntry, assetManager);
+		PopulateEntryThumbnail(browserEntry, assetManager, projectManager);
 		m_entries.push_back(std::move(browserEntry));
 	}
 
@@ -875,6 +838,16 @@ void CAssetBrowserTool::ProcessPendingOperations()
 			if (false == insideAssetRoot) break;
 			File::Path dst = MakeUniqueFilePath(operation.Path, "NewMaterial", ".jmat");
 			if (false == dst.empty() && WriteTextFile(dst, EMPTY_MATERIAL_YAML))
+			{
+				StartRenameForNewPath(dst);
+			}
+			break;
+		}
+		case EPendingOperationType::CreateEffect:
+		{
+			if (false == insideAssetRoot) break;
+			File::Path dst = MakeUniqueFilePath(operation.Path, "NewEffect", ".jfx");
+			if (false == dst.empty() && WriteTextFile(dst, EMPTY_EFFECT_YAML))
 			{
 				StartRenameForNewPath(dst);
 			}
@@ -1266,9 +1239,26 @@ void CAssetBrowserTool::DrawEntries()
 		DrawIconEntries();
 	}
 
+	// 인스펙터 동기화는 "보류 후 커밋". 멀티셀렉트는 보통 press 프레임에 선택을 커밋하므로
+	// 그 프레임에 바로 반영하면, 그 항목을 잡고 드래그할 때 인스펙터가 드래그 대상으로 바뀌어
+	// (혹은 비어) Ref<Asset> 드롭 타깃이 사라진다. 그래서:
+	//   - 선택이 바뀌면 보류 표시
+	//   - 드래그-드랍이 시작되면 보류 취소(인스펙터는 직전 대상 유지 → 드롭 가능)
+	//   - 마우스를 뗀(드래그 아님) 프레임에 커밋 → 일반 클릭은 정상 포커스
 	if (m_selectionChangedThisFrame)
 	{
+		m_pendingSelectionSync = true;
+	}
+	if (ImGui::IsDragDropActive())
+	{
+		m_pendingSelectionSync = false;
+	}
+	if (m_pendingSelectionSync
+		&& false == ImGui::IsMouseDown(ImGuiMouseButton_Left)
+		&& false == ImGui::IsDragDropActive())
+	{
 		SyncEditorSelection();
+		m_pendingSelectionSync = false;
 	}
 }
 
@@ -1761,6 +1751,10 @@ void CAssetBrowserTool::DrawBrowserBodyContextMenu()
 				{
 					QueueOperation({ EPendingOperationType::CreateMaterial, m_focusFolderPath, File::NULL_PATH });
 				}
+				if (ImGui::MenuItem(Loc::Text("asset_browser.add_asset.effect")))
+				{
+					QueueOperation({ EPendingOperationType::CreateEffect, m_focusFolderPath, File::NULL_PATH });
+				}
 				if (ImGui::MenuItem(Loc::Text("asset_browser.add_asset.prefab")))
 				{
 					QueueOperation({ EPendingOperationType::CreatePrefab, m_focusFolderPath, File::NULL_PATH });
@@ -1859,6 +1853,10 @@ void CAssetBrowserTool::DrawFolderTreeContextMenu()
 			if (ImGui::MenuItem(Loc::Text("asset_browser.add_asset.material")))
 			{
 				QueueOperation({ EPendingOperationType::CreateMaterial, folder, File::NULL_PATH });
+			}
+			if (ImGui::MenuItem(Loc::Text("asset_browser.add_asset.effect")))
+			{
+				QueueOperation({ EPendingOperationType::CreateEffect, folder, File::NULL_PATH });
 			}
 			if (ImGui::MenuItem(Loc::Text("asset_browser.add_asset.prefab")))
 			{
@@ -1978,12 +1976,26 @@ void CAssetBrowserTool::SyncEditorSelection()
 	if (1 == count && primary)
 	{
 		m_selectedEntryPath = primary->AbsolutePath;
-		Editor::SelectAsset(primary->Guid, primary->AbsolutePath);
+
+		// 스크립트 루트의 .h/.hpp 는 에셋 guid 가 없다 → 스크립트 파일 선택으로 라우팅
+		// (인스펙터가 스키마 에디터를 띄움). 그 외는 일반 에셋 선택.
+		const bool isScriptHeader =
+			(primary->ExtensionUtf8 == ".h" || primary->ExtensionUtf8 == ".hpp")
+			&& IsInsideScriptRoot(primary->AbsolutePath);
+		if (isScriptHeader)
+		{
+			Editor::SelectScriptFile(primary->AbsolutePath);
+		}
+		else
+		{
+			Editor::SelectAsset(primary->Guid, primary->AbsolutePath);
+		}
 	}
 	else
 	{
 		m_selectedEntryPath = File::NULL_PATH;
 		Editor::ClearAssetSelection();
+		Editor::ClearScriptSelection();
 	}
 }
 
@@ -2171,69 +2183,18 @@ void CAssetBrowserTool::ShowNewScriptPopup(const File::Path& parentFolder)
 		ImGui::Spacing();
 		ImGui::TextUnformatted(Loc::Text("asset_browser.script_popup.properties"));
 
-		// 각 행: 타입 Combo + 이름 InputText. List 위젯이 + / - 버튼과 외곽 박스 담당.
-		ImGui::Utillity::StyleBuilder styleBuilder;
-		styleBuilder.PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(3.0f, 3.0f));
-		styleBuilder.PushStyleVar(ImGuiStyleVar_FrameRounding, 2.0f);
-		ImList<NewScriptProperty>(
+		// 프로퍼티 목록 — 인스펙터 스키마 에디터와 공유. 생성 시엔 이름 편집 가능.
+		ImList<Property>(
 			"##script_props", state->Properties,
-			[state](NewScriptProperty& p, int /*idx*/)
+			[state](Property& p, int /*idx*/)
 			{
-				// 가로 배치: [타입 콤보][(Ref면) 대상 콤보][이름 인풋].
-				// Ref 면 3열, 아니면 2열로 폭을 나눈다.
-				const bool  isRef = (p.TypeToken == "Ref");
-				const float fullW = ImGui::CalcItemWidth();
-				const float cols  = isRef ? 3.0f : 2.0f;
-				const float colW  = fullW / cols - 4.0f;
-
-				// 1차 콤보: 기본 타입.
-				int typeCur = 0;
-				for (int i = 0; i < static_cast<int>(SCRIPT_BASE_TYPES.size()); ++i)
-				{
-					if (p.TypeToken == SCRIPT_BASE_TYPES[i]) { typeCur = i; break; }
-				}
-				ImGui::SetNextItemWidth(colW);
-				if (ImGui::Combo("##type", &typeCur, SCRIPT_BASE_TYPES.data(),
-					static_cast<int>(SCRIPT_BASE_TYPES.size())))
-				{
-					p.TypeToken = SCRIPT_BASE_TYPES[typeCur];
-				}
-
-				// 2차 콤보: Ref 대상(오브젝트/컴포넌트/스크립트).
-				if (p.TypeToken == "Ref")
-				{
-					const std::vector<std::string> targets = BuildRefTargets();
-					std::vector<const char*> tLabels;
-					tLabels.reserve(targets.size());
-					int tCur = 0;
-					for (int i = 0; i < static_cast<int>(targets.size()); ++i)
-					{
-						tLabels.push_back(targets[i].c_str());
-						if (targets[i] == p.RefTarget) tCur = i;
-					}
-					ImGui::SameLine(0.0f, 4.0f);
-					ImGui::SetNextItemWidth(colW);
-					if (ImGui::Combo("##reftarget", &tCur, tLabels.data(), static_cast<int>(tLabels.size())))
-					{
-						p.RefTarget = targets[tCur];
-					}
-				}
-
-				ImGui::SameLine(0.0f, 4.0f);
-				ImGui::SetNextItemWidth(colW);
-				ImInputText input;
-				input.SetText(p.Name);
-				input.SetHintText(Loc::Text("asset_browser.script_popup.property_hint"));
-				// 무효(빈 값/식별자 아님/예약어/중복) 이름은 빨간 프레임으로 표시.
-				input(ImGuiInputTextFlags_None, IsPropNameInvalid(p.Name, state->Properties));
-				p.Name = input;
+				ScriptSchemaUI::DrawPropertyRow(p, IsPropNameInvalid(p.Name, state->Properties), /*nameReadOnly*/ false);
 			},
-			NewScriptProperty{});
-		styleBuilder.PopStyle();
+			Property{});
 
 		// 무효 사유 안내(중복/식별자) — 사용자가 왜 생성이 막히는지 알 수 있게.
 		bool allPropsValid = true;
-		for (const NewScriptProperty& p : state->Properties)
+		for (const Property& p : state->Properties)
 		{
 			if (IsPropNameInvalid(p.Name, state->Properties)) { allPropsValid = false; break; }
 		}
@@ -2247,7 +2208,7 @@ void CAssetBrowserTool::ShowNewScriptPopup(const File::Path& parentFolder)
 
 		// ── 하단 버튼 ─────────────────────────────────────────────────────
 		// 클래스명이 유효 식별자이고, 모든 프로퍼티 이름이 유효+유일해야 생성 가능.
-		const bool canCreate = false == classNameInvalid && allPropsValid;
+		const bool canCreate = (false == classNameInvalid && allPropsValid);
 		ImGui::BeginDisabled(false == canCreate);
 		if (ImGui::Button(Loc::Text("common.create")))
 		{

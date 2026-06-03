@@ -43,6 +43,16 @@ void CGameSystem::Finalize(CScene& scene)
 	m_isInitialized = false;
 }
 
+void CGameSystem::SimulationStop(CScene& scene)
+{
+	if (false == m_isInitialized)
+	{
+		return;
+	}
+
+	OnSimulationStop(scene);
+}
+
 bool CGameSystem::IsInitialized() const
 {
 	return m_isInitialized;

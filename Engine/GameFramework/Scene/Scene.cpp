@@ -195,6 +195,18 @@ void CScene::BuildSnapshot(SceneSnapshot& snapshot) const
 				object.Light = *light;
 			}
 
+			if (const AudioPlayer* audioPlayer = GetComponent<AudioPlayer>(entity))
+			{
+				object.HasAudioPlayer = true;
+				object.AudioPlayerData = *audioPlayer;
+			}
+
+			if (const AudioListener* audioListener = GetComponent<AudioListener>(entity))
+			{
+				object.HasAudioListener = true;
+				object.AudioListenerData = *audioListener;
+			}
+
 			if (const Rigidbody2D* rigidbody = GetComponent<Rigidbody2D>(entity))
 			{
 				object.HasRigidbody = true;
@@ -377,6 +389,19 @@ void CScene::UpdateScripts()
 	if (m_scriptSystem)
 	{
 		m_scriptSystem->Update(*this);
+	}
+}
+
+void CScene::NotifySimulationStop()
+{
+	// 시뮬레이션 중 시작된 재생/상태를 시스템이 정리. Finalize 와 달리 시스템은
+	// 살아있으므로 다음 Play 에서 재초기화 없이 그대로 동작한다.
+	for (OwnerPtr<CGameSystem>& system : m_systems)
+	{
+		if (system)
+		{
+			system->SimulationStop(*this);
+		}
 	}
 }
 

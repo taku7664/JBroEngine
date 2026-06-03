@@ -1,6 +1,10 @@
 #pragma once
 
 #include "Engine/Core/Asset/AssetTypes.h"   // AssetGuid
+#include "Engine/Core/Audio/AudioTypes.h"   // EAudioEffectKind
+
+#include <map>
+#include <string>
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  EditorAudioPreview ─ 에디터 전용 사운드 미리듣기 서비스
@@ -23,6 +27,11 @@ namespace EditorAudioPreview
 
     // absPathUtf8 파일을 처음부터 재생. 이전 미리듣기는 자동 정지·해제.
     void PlayFile(const char* absPathUtf8, const AssetGuid& guid);
+
+    // 효과(reverb 등)를 적용해 재생 — 효과 에디터 미리듣기용.
+    // kind/params 로 효과 노드를 만들어 player 에 부착한다.
+    void PlayFileWithEffect(const char* absPathUtf8, const AssetGuid& guid,
+                            EAudioEffectKind kind, const std::map<std::string, float>& params);
 
     // 현재 재생을 정지하고 player 를 해제한다. 안전하게 여러 번 호출 가능.
     void Stop();

@@ -112,6 +112,14 @@ void CImEditor::Update()
     }
 }
 
+void CImEditor::QueueDeferred(std::function<void()> fn)
+{
+    if (fn)
+    {
+        m_delayEventQueue.push(std::move(fn));
+    }
+}
+
 void CImEditor::DestroyImWindow(ImGuiID id)
 {
     m_delayEventQueue.push([this, id]() {

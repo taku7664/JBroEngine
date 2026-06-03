@@ -92,6 +92,10 @@ public:
 	std::uint32_t GetHeight() const;
 	const std::vector<std::uint8_t>& GetPixels() const;
 
+	// 픽셀 갱신 카운터. ReplacePixels 호출마다 증가.
+	// 소비자(예: SpriteRenderSystem) 가 마지막으로 본 값과 비교해 변경을 감지한다.
+	std::uint32_t GetPixelGeneration() const;
+
 	// 슬라이스 정보
 	const SpriteImportOptions&     GetImportOptions() const;
 	const std::vector<SpriteFrame>& GetFrames() const;
@@ -112,6 +116,7 @@ private:
 	std::vector<std::uint8_t>   m_pixels;
 	SpriteImportOptions         m_importOptions;
 	std::vector<SpriteFrame>    m_frames;
+	std::uint32_t               m_pixelGeneration = 0;
 	EAssetLoadState             m_loadState = EAssetLoadState::Loaded;
 };
 

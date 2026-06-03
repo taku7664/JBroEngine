@@ -28,5 +28,7 @@ enum class EPlatformType
 {
 	Unknown,
 	Windows,
-	Web
+	Web,
+	Android,
+	IOS
 };

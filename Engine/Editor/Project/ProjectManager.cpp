@@ -21,6 +21,7 @@
 #include <atomic>
 #include <algorithm>
 #include <chrono>
+#include <cctype>
 #include <cstdlib>
 #include <memory>
 #include <unordered_set>
@@ -60,6 +61,13 @@ namespace
 	constexpr const char* PROJECT_KEY_BUILD_SCRIPT_CONFIG = "ScriptBuildConfiguration";
 	constexpr const char* PROJECT_KEY_BUILD_SCRIPT_OUTPUT = "ScriptOutputLibraryPath";
 	constexpr const char* PROJECT_KEY_BUILD_WINDOWS_ICON_GUID = "WindowsIconGuid";
+	constexpr const char* PROJECT_KEY_BUILD_ANDROID_APPLICATION_ID = "AndroidApplicationId";
+	constexpr const char* PROJECT_KEY_BUILD_ANDROID_MIN_SDK = "AndroidMinSdkVersion";
+	constexpr const char* PROJECT_KEY_BUILD_ANDROID_TARGET_SDK = "AndroidTargetSdkVersion";
+	constexpr const char* PROJECT_KEY_BUILD_ANDROID_ABI = "AndroidAbi";
+	constexpr const char* PROJECT_KEY_BUILD_IOS_BUNDLE_ID = "IOSBundleIdentifier";
+	constexpr const char* PROJECT_KEY_BUILD_IOS_TEAM_ID = "IOSTeamId";
+	constexpr const char* PROJECT_KEY_BUILD_IOS_MINIMUM_OS = "IOSMinimumOSVersion";
 	constexpr const char* CONTENTS_DIRECTORY_NAME       = "Contents";
 	constexpr const char* ASSETS_DIRECTORY_NAME         = "Assets";
 	constexpr const char* SCRIPTS_DIRECTORY_NAME        = "Scripts";
@@ -69,6 +77,27 @@ namespace
 		std::string value = path.string();
 		std::replace(value.begin(), value.end(), '\\', '/');
 		return "\"" + value + "\"";
+	}
+
+	std::string MakeDefaultBundleIdentifier(const std::string& productName)
+	{
+		std::string name;
+		for (unsigned char ch : productName)
+		{
+			if (std::isalnum(ch))
+			{
+				name.push_back(static_cast<char>(std::tolower(ch)));
+			}
+		}
+		if (name.empty())
+		{
+			name = "game";
+		}
+		if (std::isdigit(static_cast<unsigned char>(name.front())))
+		{
+			name.insert(name.begin(), 'g');
+		}
+		return "com.jbro." + name;
 	}
 
 	bool FindExistingPath(const std::vector<std::filesystem::path>& candidates, std::filesystem::path& outPath)
@@ -276,6 +305,8 @@ namespace
 		settings.ScriptBuildConfiguration = EScriptBuildConfiguration::Release;
 		settings.ScriptOutputLibraryPath = "GameScript.dll";
 		settings.WindowsIconGuid = INVALID_ASSET_GUID;
+		settings.AndroidApplicationId = MakeDefaultBundleIdentifier(settings.ProductName);
+		settings.IOSBundleIdentifier = settings.AndroidApplicationId;
 		return settings;
 	}
 
@@ -288,6 +319,30 @@ namespace
 		if (settings.OutputDirectory.empty())
 		{
 			settings.OutputDirectory = "Dist/Games";
+		}
+		if (settings.AndroidApplicationId.empty())
+		{
+			settings.AndroidApplicationId = MakeDefaultBundleIdentifier(settings.ProductName);
+		}
+		if (settings.AndroidMinSdkVersion < 23)
+		{
+			settings.AndroidMinSdkVersion = 23;
+		}
+		if (settings.AndroidTargetSdkVersion < settings.AndroidMinSdkVersion)
+		{
+			settings.AndroidTargetSdkVersion = settings.AndroidMinSdkVersion;
+		}
+		if (settings.AndroidAbi.empty())
+		{
+			settings.AndroidAbi = "arm64-v8a";
+		}
+		if (settings.IOSBundleIdentifier.empty())
+		{
+			settings.IOSBundleIdentifier = settings.AndroidApplicationId;
+		}
+		if (settings.IOSMinimumOSVersion.empty())
+		{
+			settings.IOSMinimumOSVersion = "15.0";
 		}
 		if (settings.ScriptProjectPath.empty())
 		{
@@ -344,6 +399,13 @@ namespace
 		settings.ScriptBuildConfiguration = ParseScriptBuildConfiguration(buildNode[PROJECT_KEY_BUILD_SCRIPT_CONFIG].as<std::string>(ToString(settings.ScriptBuildConfiguration)));
 		settings.ScriptOutputLibraryPath = buildNode[PROJECT_KEY_BUILD_SCRIPT_OUTPUT].as<std::string>(settings.ScriptOutputLibraryPath);
 		settings.WindowsIconGuid = AssetGuid(buildNode[PROJECT_KEY_BUILD_WINDOWS_ICON_GUID].as<std::string>(settings.WindowsIconGuid.generic_string()));
+		settings.AndroidApplicationId = buildNode[PROJECT_KEY_BUILD_ANDROID_APPLICATION_ID].as<std::string>(settings.AndroidApplicationId);
+		settings.AndroidMinSdkVersion = buildNode[PROJECT_KEY_BUILD_ANDROID_MIN_SDK].as<std::uint32_t>(settings.AndroidMinSdkVersion);
+		settings.AndroidTargetSdkVersion = buildNode[PROJECT_KEY_BUILD_ANDROID_TARGET_SDK].as<std::uint32_t>(settings.AndroidTargetSdkVersion);
+		settings.AndroidAbi = buildNode[PROJECT_KEY_BUILD_ANDROID_ABI].as<std::string>(settings.AndroidAbi);
+		settings.IOSBundleIdentifier = buildNode[PROJECT_KEY_BUILD_IOS_BUNDLE_ID].as<std::string>(settings.IOSBundleIdentifier);
+		settings.IOSTeamId = buildNode[PROJECT_KEY_BUILD_IOS_TEAM_ID].as<std::string>(settings.IOSTeamId);
+		settings.IOSMinimumOSVersion = buildNode[PROJECT_KEY_BUILD_IOS_MINIMUM_OS].as<std::string>(settings.IOSMinimumOSVersion);
 
 		settings.BuildScenes.clear();
 		const YAML::Node scenesNode = buildNode[PROJECT_KEY_BUILD_SCENES];
@@ -492,10 +554,17 @@ bool CProjectManager::CreateProject(const File::Path& parentFolder, const std::s
 		out << YAML::Key << PROJECT_KEY_BUILD_SCENES << YAML::Value << YAML::BeginSeq << YAML::EndSeq;
 		out << YAML::Key << PROJECT_KEY_BUILD_SCRIPT_MODE << YAML::Value << ToString(buildSettings.ScriptMode);
 		out << YAML::Key << PROJECT_KEY_BUILD_SCRIPT_PROJECT << YAML::Value << buildSettings.ScriptProjectPath;
-		out << YAML::Key << PROJECT_KEY_BUILD_SCRIPT_CONFIG << YAML::Value << ToString(buildSettings.ScriptBuildConfiguration);
-		out << YAML::Key << PROJECT_KEY_BUILD_SCRIPT_OUTPUT << YAML::Value << buildSettings.ScriptOutputLibraryPath;
-		out << YAML::Key << PROJECT_KEY_BUILD_WINDOWS_ICON_GUID << YAML::Value << buildSettings.WindowsIconGuid.generic_string();
-		out << YAML::EndMap;
+	out << YAML::Key << PROJECT_KEY_BUILD_SCRIPT_CONFIG << YAML::Value << ToString(buildSettings.ScriptBuildConfiguration);
+	out << YAML::Key << PROJECT_KEY_BUILD_SCRIPT_OUTPUT << YAML::Value << buildSettings.ScriptOutputLibraryPath;
+	out << YAML::Key << PROJECT_KEY_BUILD_WINDOWS_ICON_GUID << YAML::Value << buildSettings.WindowsIconGuid.generic_string();
+	out << YAML::Key << PROJECT_KEY_BUILD_ANDROID_APPLICATION_ID << YAML::Value << buildSettings.AndroidApplicationId;
+	out << YAML::Key << PROJECT_KEY_BUILD_ANDROID_MIN_SDK << YAML::Value << buildSettings.AndroidMinSdkVersion;
+	out << YAML::Key << PROJECT_KEY_BUILD_ANDROID_TARGET_SDK << YAML::Value << buildSettings.AndroidTargetSdkVersion;
+	out << YAML::Key << PROJECT_KEY_BUILD_ANDROID_ABI << YAML::Value << buildSettings.AndroidAbi;
+	out << YAML::Key << PROJECT_KEY_BUILD_IOS_BUNDLE_ID << YAML::Value << buildSettings.IOSBundleIdentifier;
+	out << YAML::Key << PROJECT_KEY_BUILD_IOS_TEAM_ID << YAML::Value << buildSettings.IOSTeamId;
+	out << YAML::Key << PROJECT_KEY_BUILD_IOS_MINIMUM_OS << YAML::Value << buildSettings.IOSMinimumOSVersion;
+	out << YAML::EndMap;
 		out << YAML::EndMap;
 
 		std::ofstream file(projectFile, std::ios::out | std::ios::trunc);
@@ -1201,6 +1270,7 @@ const char* CProjectManager::ImporterNameForType(EAssetType type)
 	case EAssetType::Prefab:   return "Prefab";
 	case EAssetType::Script:   return "Script";
 	case EAssetType::Mesh:     return "Mesh";
+	case EAssetType::AudioEffect: return "AudioEffect";
 	default:                   return "Default";
 	}
 }
@@ -1803,6 +1873,21 @@ bool CProjectManager::MakeAssetRelativePath(const File::Path& absolutePath, std:
 	return CAssetPath::NormalizeRelativePath(relativePath.generic_string().c_str(), outRelativePath);
 }
 
+bool CProjectManager::TryMakeProjectAssetRelativePath(const File::Path& absolutePath, std::string& outRelativePath) const
+{
+	if (false == MakeAssetRelativePath(absolutePath, outRelativePath))
+	{
+		return false;
+	}
+	// 결과가 ".." 로 시작하면 자산 루트 밖.
+	if (outRelativePath.size() >= 2 && '.' == outRelativePath[0] && '.' == outRelativePath[1])
+	{
+		outRelativePath.clear();
+		return false;
+	}
+	return true;
+}
+
 EAssetType CProjectManager::DetectAssetType(const File::Path& relativePath) const
 {
 	std::string extension = relativePath.extension().generic_string();
@@ -1823,6 +1908,10 @@ EAssetType CProjectManager::DetectAssetType(const File::Path& relativePath) cons
 	{
 		return EAssetType::Prefab;
 	}
+	if (extension == ".jmat")
+	{
+		return EAssetType::Material;
+	}
 	if (extension == ".hlsl" || extension == ".wgsl" || extension == ".glsl")
 	{
 		return EAssetType::Shader;
@@ -1834,6 +1923,10 @@ EAssetType CProjectManager::DetectAssetType(const File::Path& relativePath) cons
 	if (extension == ".wav" || extension == ".mp3" || extension == ".flac" || extension == ".ogg")
 	{
 		return EAssetType::Audio;
+	}
+	if (extension == ".jfx")
+	{
+		return EAssetType::AudioEffect;
 	}
 
 	return EAssetType::Custom;
@@ -2422,6 +2515,13 @@ bool CProjectManager::SaveProject(std::string* outError) const
 	out << YAML::Key << PROJECT_KEY_BUILD_SCRIPT_CONFIG << YAML::Value << ToString(m_info.BuildSettings.ScriptBuildConfiguration);
 	out << YAML::Key << PROJECT_KEY_BUILD_SCRIPT_OUTPUT << YAML::Value << m_info.BuildSettings.ScriptOutputLibraryPath;
 	out << YAML::Key << PROJECT_KEY_BUILD_WINDOWS_ICON_GUID << YAML::Value << m_info.BuildSettings.WindowsIconGuid.generic_string();
+	out << YAML::Key << PROJECT_KEY_BUILD_ANDROID_APPLICATION_ID << YAML::Value << m_info.BuildSettings.AndroidApplicationId;
+	out << YAML::Key << PROJECT_KEY_BUILD_ANDROID_MIN_SDK << YAML::Value << m_info.BuildSettings.AndroidMinSdkVersion;
+	out << YAML::Key << PROJECT_KEY_BUILD_ANDROID_TARGET_SDK << YAML::Value << m_info.BuildSettings.AndroidTargetSdkVersion;
+	out << YAML::Key << PROJECT_KEY_BUILD_ANDROID_ABI << YAML::Value << m_info.BuildSettings.AndroidAbi;
+	out << YAML::Key << PROJECT_KEY_BUILD_IOS_BUNDLE_ID << YAML::Value << m_info.BuildSettings.IOSBundleIdentifier;
+	out << YAML::Key << PROJECT_KEY_BUILD_IOS_TEAM_ID << YAML::Value << m_info.BuildSettings.IOSTeamId;
+	out << YAML::Key << PROJECT_KEY_BUILD_IOS_MINIMUM_OS << YAML::Value << m_info.BuildSettings.IOSMinimumOSVersion;
 	out << YAML::EndMap;
 	if (false == m_info.ScriptDllPath.empty())
 	{

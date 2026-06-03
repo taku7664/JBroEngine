@@ -68,6 +68,11 @@ public:
 	SafePtr<IAssetManager> GetAssetManager() const;
 	void BuildAssetRegistrySnapshot(AssetRegistrySnapshot& outSnapshot) const;
 
+	// 절대경로가 프로젝트 자산 루트 아래면 상대경로로 변환해 true 반환.
+	// AssetBrowser 등 외부 코드가 ProjectManager 가 등록한 자산을 공유하기 위해 사용.
+	// 프로젝트 밖이면 false (호출자가 절대경로 fallback 등록을 결정).
+	bool TryMakeProjectAssetRelativePath(const File::Path& absolutePath, std::string& outRelativePath) const;
+
 	// 마지막 프로젝트 로드 시 수행한 자산 정합성 패스 결과(에디터 리포트 패널용).
 	const AssetReconcileReport& GetLastReconcileReport() const;
 

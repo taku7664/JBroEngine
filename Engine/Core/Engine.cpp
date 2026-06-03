@@ -14,6 +14,7 @@
 #include "Core/Asset/AssetManager.h"
 #include "Core/Asset/FileAsset.h"
 #include "Core/Asset/AudioAsset.h"
+#include "Core/Asset/AudioEffectAsset.h"
 #include "Core/Asset/MaterialAsset.h"
 #include "Core/Asset/SpriteAsset.h"
 #include "Core/Platform/IPlatform.h"
@@ -21,12 +22,14 @@
 #include "Core/Renderer/Forward2DRenderer.h"
 #include "Core/Renderer/RenderResourceCache.h"
 #include "Core/Renderer/RenderScene.h"
+#include "Core/Platform/Mobile/MobilePlatform.h"
 #include "Core/Platform/Windows/WindowsPlatform.h"
 #include "Core/Platform/Web/WebPlatform.h"
 #include "Core/RHI/IRHICommandContext.h"
 #include "Core/RHI/IRHIDevice.h"
 #include "Core/RHI/D3D11/D3D11RHIDevice.h"
 #include "Core/RHI/WebGPU/WebGPURHIDevice.h"
+#include "Core/RHI/Vulkan/VulkanRHIDevice.h"
 #include "Core/RHI/EmptyRHIDevice.h"
 #include "Core/Audio/IAudioDevice.h"
 #include "Core/Audio/MiniAudio/MiniAudioDevice.h"
@@ -162,6 +165,14 @@ void CEngine::Finalize()
 	{
 		m_assetManager->Finalize();
 		m_assetManager.Reset();
+	}
+
+	// AssetManager 가 unload 시 cache->Release 를 호출하므로 cache 는 그 이후에 폐기한다.
+	// rhiDevice 가 살아있을 때 GPU 객체가 정상 폐기되도록 rhiDevice 보다 먼저 비운다.
+	if (m_renderResourceCache)
+	{
+		m_renderResourceCache->Clear();
+		m_renderResourceCache.Reset();
 	}
 
 	Engine = EngineCore{};
@@ -420,6 +431,8 @@ bool CEngine::InitializePlatform()
 {
 #if JBRO_PLATFORM_WEB
 	m_platform = MakeOwnerPtr<CWebPlatform>();
+#elif JBRO_PLATFORM_MOBILE
+	m_platform = MakeOwnerPtr<CMobilePlatform>();
 #elif JBRO_PLATFORM_WINDOWS
 	m_platform = MakeOwnerPtr<CWindowsPlatform>();
 #else
@@ -434,6 +447,8 @@ bool CEngine::InitializeRHI()
 {
 #if JBRO_PLATFORM_WEB
 	m_rhiDevice = MakeOwnerPtr<CWebGPURHIDevice>();
+#elif JBRO_PLATFORM_MOBILE
+	m_rhiDevice = MakeOwnerPtr<CVulkanRHIDevice>();
 #elif JBRO_PLATFORM_WINDOWS
 	m_rhiDevice = MakeOwnerPtr<CD3D11RHIDevice>();
 #else
@@ -443,6 +458,8 @@ bool CEngine::InitializeRHI()
 	RHIDesc desc;
 #if JBRO_PLATFORM_WEB
 	desc.Api = ERHIApi::WebGPU;
+#elif JBRO_PLATFORM_MOBILE
+	desc.Api = ERHIApi::Vulkan;
 #elif JBRO_PLATFORM_WINDOWS
 	desc.Api = ERHIApi::D3D11;
 #else
@@ -473,6 +490,7 @@ bool CEngine::InitializeAssetManager()
 	m_assetManager->RegisterLoader(MakeOwnerPtr<CSpriteAssetLoader>());
 	m_assetManager->RegisterLoader(MakeOwnerPtr<CMaterialAssetLoader>());
 	m_assetManager->RegisterLoader(MakeOwnerPtr<CAudioAssetLoader>());
+	m_assetManager->RegisterLoader(MakeOwnerPtr<CAudioEffectAssetLoader>());
 	return true;
 }
 

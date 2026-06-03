@@ -225,6 +225,8 @@ public:
 	void Update();
 	void UpdateSystems(bool isSimulationPlaying);
 	void UpdateScripts();
+	// 시뮬레이션 정지 — 모든 시스템에 정리 신호(재생 중 사운드 등 해제).
+	void NotifySimulationStop();
 	void DestroyScriptInstances();
 	void FlushPendingRemovesAllPools();
 	CPhysics2DSystem* GetPhysics2DSystem();

@@ -106,6 +106,7 @@ private:
 		// 루트가 Assets 일 때.  Path 는 부모 폴더, TargetPath 는 새 파일명(상대).
 		CreateScene,
 		CreateMaterial,
+		CreateEffect,
 		CreatePrefab,
 		// 드래그&드롭 이동 / 잘라내기-붙여넣기.  Path = 원본, TargetPath = 대상 폴더.
 		MoveInto,
@@ -213,6 +214,9 @@ private:
 	ImGuiSelectionBasicStorage m_selection;
 	// 이번 프레임 선택이 사용자 입력으로 바뀌었는지 — EndMultiSelect 후 Editor 동기화 트리거.
 	bool m_selectionChangedThisFrame = false;
+	// 선택 변경을 인스펙터에 반영 보류 중 — 마우스를 떼는(드래그 아님) 순간 커밋.
+	// 드래그-드랍이 시작되면 취소하여 인스펙터가 직전 대상을 유지(에셋을 Ref 슬롯에 드롭 가능).
+	bool m_pendingSelectionSync = false;
 
 	// 드래그 시작된 항목의 절대경로 — 폴더 드롭 시 이동 소스 판정에 사용.
 	File::Path m_dragPrimaryPath;

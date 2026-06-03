@@ -40,6 +40,11 @@ public:
 	template<typename T>
 	SafePtr<T>			CreateImWindow(const char* key, ImGuiID parentId = 0);
 	void				DestroyImWindow(ImGuiID id);
+
+	// 콜백을 다음 Update 끝(윈도우 순회 이후)으로 지연 실행한다.
+	// 윈도우 draw/순회 도중에 CreateImWindow 를 호출하면 m_imWindowVector 가
+	// 재할당되어 순회 중인 반복자가 무효화되므로(크래시), 생성류는 이걸로 미룬다.
+	void				QueueDeferred(std::function<void()> fn);
 	SafePtr<IImWindow>  FindImWindow(ImGuiID id);
 	template<typename T>
 	SafePtr<T>			FindImWindow(ImGuiID id);

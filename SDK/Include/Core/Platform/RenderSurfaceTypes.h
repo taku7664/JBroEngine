@@ -21,7 +21,8 @@ enum class ERenderSurfaceType
 {
 	None,
 	Win32Hwnd,
-	HtmlCanvas
+	HtmlCanvas,
+	MobileNativeSurface
 };
 
 struct NativeSurfaceHandle

@@ -112,6 +112,9 @@ Entries:
   build_settings.category.general: 일반
   build_settings.category.scenes: 씬
   build_settings.category.output: 출력
+  build_settings.category.windows: Windows
+  build_settings.category.android: Android
+  build_settings.category.ios: iOS
   build_settings.general: 일반
   build_settings.product_name: 제품 이름
   build_settings.windows_icon: 응용프로그램 아이콘
@@ -121,6 +124,17 @@ Entries:
   build_settings.target_platform: 대상 플랫폼
   build_settings.configuration: 빌드 구성
   build_settings.output: 출력
+  build_settings.windows: Windows
+  build_settings.android: Android
+  build_settings.ios: iOS
+  build_settings.platform_inactive: 현재 선택된 대상 플랫폼은 아니지만 설정은 저장됩니다.
+  build_settings.android_application_id: Application ID
+  build_settings.android_min_sdk: 최소 SDK
+  build_settings.android_target_sdk: 대상 SDK
+  build_settings.android_abi: ABI
+  build_settings.ios_bundle_identifier: Bundle ID
+  build_settings.ios_team_id: Team ID
+  build_settings.ios_minimum_os: 최소 iOS
   build_settings.output_directory: 출력 폴더
   build_settings.scenes: 씬
   build_settings.startup_scene: 시작 씬
@@ -175,6 +189,7 @@ Entries:
   asset_browser.add_asset: 에셋 추가
   asset_browser.add_asset.scene: 씬
   asset_browser.add_asset.material: 머티리얼
+  asset_browser.add_asset.effect: 사운드 효과
   asset_browser.add_asset.prefab: 프리팹
   asset_browser.tree.focus_here: 이 폴더로 이동
   asset_browser.delete_confirm: 선택한 에셋 항목을 삭제하시겠습니까?
@@ -235,6 +250,13 @@ Entries:
 
   inspector.audio_import_options: 사운드 임포트 옵션
   inspector.apply_audio_import_options: 사운드 임포트 옵션 적용
+  inspector.effect.title: 사운드 효과
+  inspector.effect.kind: 효과 종류
+  inspector.effect.apply: 효과 적용
+  inspector.effect.open_in_window: 효과 편집은 전용 창에서 합니다 (.jfx 더블클릭 또는 아래 버튼).
+  inspector.effect.open_editor: 효과 에디터 열기
+  inspector.effect.preview: 미리듣기
+  inspector.effect.preview.hint: 오디오 자산을 위 슬롯에 드래그한 뒤 재생하세요.
   inspector.audio.mode: 모드
   inspector.audio.mode.decompressed: 메모리 디코딩
   inspector.audio.mode.streaming: 스트리밍
@@ -255,6 +277,38 @@ Entries:
   inspector.asset_manager_unavailable: 에셋 매니저를 사용할 수 없습니다.
   inspector.selected_asset_not_registered: 선택한 에셋이 등록되어 있지 않습니다.
   inspector.no_editable_import_options: 이 에셋 타입에는 편집 가능한 임포트 옵션이 없습니다.
+  inspector.script_class: 클래스
+  inspector.script_not_parsed: 이 .h 에서 JBRO_SCRIPT 클래스를 찾지 못했습니다.
+  inspector.script_category_hint: 카테고리
+  inspector.script_apply_ok: 적용됨 — 스크립트 프로젝트 재생성.
+  inspector.script_apply_fail: 적용 실패 — .h 를 기록하지 못했습니다.
+
+  script_prop.type_tooltip: 프로퍼티 값 타입. Ref<Component>/Ref<Asset> 는 옆 콤보에서 대상 종류를 고릅니다.
+  script_prop.reftarget_tooltip: 참조 대상 타입(컴포넌트/스크립트 또는 에셋 종류).
+  script_prop.name: 이름
+  script_prop.name_hint: 프로퍼티 이름
+  script_prop.name_tooltip: C++ 필드 이름. 유효한 식별자여야 하고 중복/예약어는 안 됩니다.
+  script_prop.menu_tooltip: 부가 설정 — 표시 이름 / 카테고리 / 툴팁 / 직렬화 / 범위.
+  script_prop.display_name: 표시 이름
+  script_prop.display_name_hint: 인스펙터 표시 이름
+  script_prop.display_name_tooltip: 인스펙터에 보일 이름(Name 어트리뷰트). 비우면 변수명 사용. C++ 멤버명과 별개.
+  script_prop.category: 카테고리
+  script_prop.category_tooltip: 인스펙터에서 프로퍼티를 묶는 그룹 이름.
+  script_prop.category_hint: 그룹 이름
+  script_prop.tooltip: 툴팁
+  script_prop.tooltip_tooltip: 인스펙터에서 이 프로퍼티에 마우스를 올리면 보일 설명.
+  script_prop.tooltip_hint: 설명
+  script_prop.serialize: 직렬화
+  script_prop.serialize_tooltip: 끄면 인스펙터엔 보이지만 씬 파일에 저장하지 않습니다(NoSerialize).
+  script_prop.range: 범위 제한
+  script_prop.range_tooltip: 켜면 숫자 입력을 min~max 로 제한합니다(Range).
+  script_prop.range_min: 최소
+  script_prop.range_max: 최대
+  script_prop.col_type: 타입
+  script_prop.col_name: 이름
+  script_prop.add_element: + 요소 추가
+  script_prop.reorder_tooltip: 드래그해서 순서 변경.
+  script_prop.remove_tooltip: 이 프로퍼티 제거.
 
   log.auto_scroll: 자동 스크롤
   log.level.trace: Trace
@@ -403,6 +457,13 @@ Entries:
   build_settings.windows_icon.desc: Windows 패키지 exe에 적용할 .ico 자산입니다. 외부 파일을 선택하면 Assets/Package/Windows/AppIcon.ico로 복사한 뒤 GUID를 저장합니다.
   build_settings.target_platform.desc: 게임 빌드를 생성할 대상 플랫폼입니다.
   build_settings.configuration.desc: 엔진 게임 빌드 구성입니다. Debug_Game 또는 Release_Game에 대응합니다.
+  build_settings.android_application_id.desc: "Android 패키지의 고유 applicationId입니다. 예: com.company.game"
+  build_settings.android_min_sdk.desc: Android 앱이 지원할 최소 SDK 버전입니다.
+  build_settings.android_target_sdk.desc: Android 앱이 대상으로 하는 SDK 버전입니다. 최소 SDK보다 낮으면 저장 시 보정됩니다.
+  build_settings.android_abi.desc: Android 네이티브 라이브러리를 만들 ABI입니다. 1차 모바일 목표는 arm64-v8a입니다.
+  build_settings.ios_bundle_identifier.desc: "iOS 앱 번들 식별자입니다. 예: com.company.game"
+  build_settings.ios_team_id.desc: Apple Developer Team ID입니다. 서명 단계에서 사용합니다.
+  build_settings.ios_minimum_os.desc: iOS 앱이 지원할 최소 OS 버전입니다.
   build_settings.output_directory.desc: 게임 패키지가 생성될 출력 폴더입니다. 프로젝트 내부 경로는 프로젝트 루트 기준 상대 경로로 저장합니다.
   build_settings.startup_scene.desc: 게임 시작 시 열 씬입니다. Assets 폴더 내부 파일은 Assets 기준 상대 경로로 저장합니다.
   build_settings.use_current_scene.desc: 현재 열려있는 씬을 시작 씬으로 설정하고 빌드 씬 목록에 추가합니다.
@@ -461,6 +522,7 @@ Entries:
   editor.component.AudioPlayer:   오디오 플레이어
   editor.property.MasterVolume: 마스터 볼륨
   editor.property.AudioGuid:    사운드 자산
+  editor.property.EffectGuid:   효과
   editor.property.Volume:       볼륨
   editor.property.Pitch:        피치
   editor.property.Loop:         반복 재생

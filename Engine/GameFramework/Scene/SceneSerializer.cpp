@@ -4,6 +4,7 @@
 #include "Core/Core.h"
 #include "GameFramework/Component/Camera2D.h"
 #include "GameFramework/Component/Light2D.h"
+#include "GameFramework/Component/AudioComponents.h"
 #include "GameFramework/Component/Physics2DComponents.h"
 #include "GameFramework/Component/PrefabInstance.h"
 #include "GameFramework/Component/ScriptComponent.h"
@@ -512,6 +513,33 @@ namespace
 		light.OuterAngleRadians = ReadValueOr<float>(node, "OuterAngleRadians", light.OuterAngleRadians);
 	}
 
+	YAML::Node WriteAudioPlayer(const AudioPlayer& audioPlayer, std::vector<AssetGuid>& referencedAssets)
+	{
+		const ComponentTypeInfo* ti = GetTypeInfo("AudioPlayer");
+		if (!ti) return YAML::Node(YAML::NodeType::Map);
+		// 리플렉션은 등록 프로퍼티(AudioGuid/EffectGuid/Volume...)만 직렬화 — 런타임 캐시 멤버는 무시.
+		return WriteComponentReflected(&audioPlayer, *ti, &referencedAssets);
+	}
+
+	void ReadAudioPlayer(const YAML::Node& node, AudioPlayer& audioPlayer)
+	{
+		const ComponentTypeInfo* ti = GetTypeInfo("AudioPlayer");
+		if (ti) ReadComponentReflected(node, &audioPlayer, *ti);
+	}
+
+	YAML::Node WriteAudioListener(const AudioListener& audioListener)
+	{
+		const ComponentTypeInfo* ti = GetTypeInfo("AudioListener");
+		if (!ti) return YAML::Node(YAML::NodeType::Map);
+		return WriteComponentReflected(&audioListener, *ti);
+	}
+
+	void ReadAudioListener(const YAML::Node& node, AudioListener& audioListener)
+	{
+		const ComponentTypeInfo* ti = GetTypeInfo("AudioListener");
+		if (ti) ReadComponentReflected(node, &audioListener, *ti);
+	}
+
 	YAML::Node WriteRigidbody(const Rigidbody2D& rigidbody)
 	{
 		const ComponentTypeInfo* ti = GetTypeInfo("Rigidbody2D");
@@ -826,6 +854,14 @@ ESceneSerializeResult CSceneSerializer::SerializeToText(const CScene& scene, std
 		{
 			components["Light2D"] = WriteLight(object.Light);
 		}
+		if (object.HasAudioPlayer)
+		{
+			components["AudioPlayer"] = WriteAudioPlayer(object.AudioPlayerData, referencedAssets);
+		}
+		if (object.HasAudioListener)
+		{
+			components["AudioListener"] = WriteAudioListener(object.AudioListenerData);
+		}
 		if (object.HasRigidbody)
 		{
 			components["Rigidbody2D"] = WriteRigidbody(object.Rigidbody);
@@ -1055,6 +1091,24 @@ ESceneSerializeResult CSceneSerializer::DeserializeFromText(CScene& scene, const
 				if (Light2D* light = object.AddComponent<Light2D>())
 				{
 					ReadLight(lightNode, *light);
+				}
+			}
+
+			if (const YAML::Node audioPlayerNode = components["AudioPlayer"])
+			{
+				if (AudioPlayer* audioPlayer = object.AddComponent<AudioPlayer>())
+				{
+					ReadAudioPlayer(audioPlayerNode, *audioPlayer);
+					AddReferencedAsset(referencedAssets, audioPlayer->AudioGuid);
+					AddReferencedAsset(referencedAssets, audioPlayer->EffectGuid);
+				}
+			}
+
+			if (const YAML::Node audioListenerNode = components["AudioListener"])
+			{
+				if (AudioListener* audioListener = object.AddComponent<AudioListener>())
+				{
+					ReadAudioListener(audioListenerNode, *audioListener);
 				}
 			}
 

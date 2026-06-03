@@ -110,6 +110,7 @@ protected:
 	bool				m_bIsFirstTick;
 	bool				m_bIsAlive;
 	bool				m_bBeginResult;
+	bool				m_bRequestFocus;   // Focus() 요청 — 다음 Begin 직전에 SetNextWindowFocus
 
 	ImGuiDir			m_initDockLayoutDirection;
 	std::string			m_initDockSlot;         // 슬롯 기반 도킹 레이아웃 이름 ("" = main)

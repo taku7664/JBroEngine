@@ -81,6 +81,18 @@ void CSpriteRenderSystem::OnUpdate(CScene& scene)
 				spriteAsset = static_cast<CSpriteAsset*>(sprite.SpriteAssetCache.Get());
 			}
 
+			// 자산 픽셀이 reload 되었으면 캐시된 Mesh/Material 의 텍스처 참조가 죽었을 수 있다.
+			// pixelGeneration 이 증가하면 invalidate → 아래 분기에서 새 GPU 텍스처로 재생성.
+			if (spriteAsset && spriteAsset->GetPixelGeneration() != sprite.CachedPixelGeneration)
+			{
+				mesh.Reset();
+				material.Reset();
+				sprite.Mesh.Reset();
+				sprite.Material.Reset();
+				m_materialCache.erase(entity);
+				sprite.CachedPixelGeneration = spriteAsset->GetPixelGeneration();
+			}
+
 			if ((false == mesh.IsValid() || false == material.IsValid()) && m_rhiDevice && forwardRenderer)
 			{
 				SafePtr<IRHITexture> gpuTexture = nullptr;

@@ -29,13 +29,18 @@ bool ImList(const char* id, std::vector<T>& items,
     bool changed = false;
     ImGui::PushID(id);
 
+    // 컴팩트: 행 간격 최소.
+    ImGui::Utillity::StyleBuilder compact;
+    compact.PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(style.ItemSpacing.x, 1.0f));
+    compact.PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(style.FramePadding.x, 2.0f));
+
     // 박스 외곽
     const ImGuiChildFlags childFlags = ImGuiChildFlags_Borders | ImGuiChildFlags_AutoResizeY;
     ImGui::BeginChild("##list_body", ImVec2(0.0f, 0.0f), childFlags);
 
     constexpr float ROW_HANDLE_W = 14.0f;
     constexpr float ROW_REMOVE_W = 22.0f;
-    constexpr float SLOT_HEIGHT = 6.0f;
+    constexpr float SLOT_HEIGHT = 3.0f;
     // 드래그 페이로드 식별자 — 같은 List 인스턴스 안에서만 유효하게
     // 호출자의 id 를 함께 사용한다.
     constexpr const char* DRAG_PAYLOAD = "JBRO_LIST_REORDER";
@@ -61,7 +66,7 @@ bool ImList(const char* id, std::vector<T>& items,
                     moveFrom = *static_cast<const int*>(p->Data);
                     moveTo = slotIndex;
                 }
-                // hover 시 시각적 가이드 라인
+                // hover 시 시각적 가이드 라인 — 2px, 슬롯 정중앙.
                 ImGui::GetWindowDrawList()->AddLine(
                     ImVec2(cursor.x, cursor.y + SLOT_HEIGHT * 0.5f),
                     ImVec2(cursor.x + availW, cursor.y + SLOT_HEIGHT * 0.5f),
@@ -81,20 +86,20 @@ bool ImList(const char* id, std::vector<T>& items,
         const float     frameHeight = ImGui::GetFrameHeight();
         const float		rowAvailW = ImGui::GetContentRegionAvail().x;
         const float		contentW = rowAvailW - ROW_HANDLE_W - ROW_REMOVE_W - 8.0f;
-        const ImVec2    bodyStartCursor = ImGui::GetCursorPos() + style.WindowPadding;
+        const ImVec2    bodyStartCursor = ImGui::GetCursorPos();
 
         // 좌측 핸들 — 드래그 소스. 핸들만 잡아야 콘텐츠의 일반 InputText 와
-        // 충돌하지 않는다.
+        // 충돌하지 않는다. 행 높이는 콘텐츠(프레임)와 동일하게 — 컴팩트.
         const char* selectableLabel = "=";
-        ImVec2 bodySize = ImVec2(availSpace.x, frameHeight + style.WindowPadding.y * 2);
+        ImVec2 bodySize = ImVec2(availSpace.x, frameHeight);
         ImGui::Selectable("##row_body", false, ImGuiSelectableFlags_AllowOverlap, bodySize);
         {	// DragDrop Start
             ImGui::Utillity::StyleBuilder styleBuilder;
             styleBuilder.PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
             styleBuilder.PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
             styleBuilder.PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-            auto flags = ImGuiDragDropFlags_AcceptNoDrawDefaultRect | ImGuiDragDropFlags_SourceNoHoldToOpenOthers;
-            if (ImGui::BeginDragDropSource(flags))
+            auto dragFlags = ImGuiDragDropFlags_AcceptNoDrawDefaultRect | ImGuiDragDropFlags_SourceNoHoldToOpenOthers;
+            if (ImGui::BeginDragDropSource(dragFlags))
             {
                 styleBuilder.PopStyle();
                 int srcIdx = i;
@@ -108,6 +113,7 @@ bool ImList(const char* id, std::vector<T>& items,
         }
         const ImVec2 bodyEndCursor = ImGui::GetCursorPos();
         ImGui::SetCursorPos(bodyStartCursor);
+        ImGui::AlignTextToFramePadding();
         ImGui::TextUnformatted(selectableLabel);
         ImGui::SameLine();
 
@@ -129,9 +135,6 @@ bool ImList(const char* id, std::vector<T>& items,
             bool isHovered = false;
             {
                 ImGui::Utillity::StyleBuilder styleBuilder;
-                //styleBuilder.PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-                //styleBuilder.PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0));
-                //styleBuilder.PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0, 0, 0, 0));
                 if (ImGui::InvisibleButton("##x_button", textSize + style.FramePadding * 2))
                 {
                     removeIndex = i;
@@ -169,8 +172,6 @@ bool ImList(const char* id, std::vector<T>& items,
         changed = true;
     }
 
-    // 하단 + / - 버튼 직전에 한 줄 분량의 약간의 공간을 두어
-    // 마지막 슬롯과 버튼이 너무 붙지 않도록 한다.
     if (ImGui::Selectable("+ Add Element", false, ImGuiSelectableFlags_None))
     {
         items.push_back(defaultValue);
@@ -178,5 +179,6 @@ bool ImList(const char* id, std::vector<T>& items,
     }
     ImGui::EndChild();
     ImGui::PopID();
+    compact.PopStyle();
     return changed;
 }

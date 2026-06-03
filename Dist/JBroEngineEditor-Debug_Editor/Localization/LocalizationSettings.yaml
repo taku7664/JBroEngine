@@ -1,7 +1,0 @@
-DefaultLocale: ko-KR
-FallbackLocale: en-US
-SupportedLocales:
-  - Code: ko-KR
-    DisplayName: 한국어
-  - Code: en-US
-    DisplayName: English

@@ -24,6 +24,9 @@ private:
 		General,
 		Scenes,
 		Output,
+		Windows,
+		Android,
+		IOS,
 		Count
 	};
 
@@ -36,6 +39,9 @@ private:
 	void DrawGeneralCategory();
 	void DrawScenesCategory();
 	void DrawOutputCategory();
+	void DrawWindowsCategory();
+	void DrawAndroidCategory();
+	void DrawIOSCategory();
 	void DrawFooterButtons();
 
 	void LoadFromProject();
@@ -63,6 +69,13 @@ private:
 	std::string m_startupScene;
 	std::vector<std::string> m_buildScenes;
 	AssetGuid m_windowsIconGuid = INVALID_ASSET_GUID;
+	std::string m_androidApplicationId;
+	int m_androidMinSdkVersion = 26;
+	int m_androidTargetSdkVersion = 35;
+	std::string m_androidAbi;
+	std::string m_iosBundleIdentifier;
+	std::string m_iosTeamId;
+	std::string m_iosMinimumOSVersion;
 	bool m_loadedFromProject = false;
 	bool m_dirty = false;
 	std::string m_errorMessage;

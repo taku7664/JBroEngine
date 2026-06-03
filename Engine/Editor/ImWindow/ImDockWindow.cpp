@@ -172,7 +172,13 @@ void CImDockWindow::OnPostBegin()
 	{
 		if (SafePtr<CImWindow>& childWnd = m_childImWindowVector[i])
 		{
-			if (isBeginDockBuild)
+			// 도킹 (재)지정 필요: 레이아웃 재빌드 중이거나, child 가 이번 프레임에
+			// hidden→visible 로 전이(창 메뉴로 다시 켠 경우). 후자를 처리 안 하면
+			// child 가 어느 dock node 에도 안 붙어 빈 떠다니는 윈도우로 떠서
+			// "다시 안 켜지는" 것처럼 보인다.
+			const bool justBecameVisible =
+				childWnd->m_bIsVisible.first && (childWnd->m_bIsVisible.first != childWnd->m_bIsVisible.second);
+			if (isBeginDockBuild || justBecameVisible)
 			{
 				const char* label = childWnd->GetImGuiLabel();
 

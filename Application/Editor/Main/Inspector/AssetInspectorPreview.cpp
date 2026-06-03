@@ -114,6 +114,11 @@ namespace
             AssetRef<IAsset> asset = am->LoadAsset(metaData.Guid);
             if (false == asset.IsValid() || EAssetType::Audio != asset->GetAssetType()) return;
 
+            // 미리듣기로 디코딩한 자산 PCM 은 AssetManager 캐시에 영구 보관된다(자동 GC 없음).
+            // 프리뷰는 일회성이므로 OnExit 에서 직접 UnloadAsset 으로 놓아준다 — 안 그러면
+            // 미리듣기할 때마다 디코딩된 PCM 이 누적된다(계단식 메모리 증가).
+            m_loadedGuid = metaData.Guid;
+
             CAudioAsset* audio = static_cast<CAudioAsset*>(asset.Get());
             if (audio->IsStreaming())
             {
@@ -241,15 +246,29 @@ namespace
         {
             // 자원 즉시 해제 — 인스펙터 포커스가 떠나면 player / spectrum 모두 정리.
             EditorAudioPreview::Stop();
+            // 스펙트럼은 자산 PCM 포인터를 직접 참조하므로 UnloadAsset 보다 먼저 Unbind 해야
+            // dangling 을 피한다. (visualizer 는 peak 사본이라 순서 무관하지만 함께 정리.)
             m_spectrum.Unbind();
             m_visualizer.Clear();
             m_isStreaming = false;
+
+            // 미리듣기가 LoadAsset 으로 캐시에 올린 자산을 놓아준다.
+            // use-count>0 (인스펙터/씬 등 다른 사용자) 이면 UnloadAsset 가드가 알아서 거부 — 안전.
+            if (false == m_loadedGuid.IsNull())
+            {
+                if (SafePtr<IAssetManager> am = GetAssetManager())
+                {
+                    am->UnloadAsset(m_loadedGuid);
+                }
+                m_loadedGuid = File::NULL_GUID;
+            }
         }
 
     private:
         ImAudioVisualizer    m_visualizer;
         ImSpectrumVisualizer m_spectrum;
         bool                 m_isStreaming = false;
+        AssetGuid            m_loadedGuid  = File::NULL_GUID;
     };
 
     // ── Registry ─────────────────────────────────────────────────────────────

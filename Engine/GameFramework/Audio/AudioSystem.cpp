@@ -2,9 +2,12 @@
 #include "AudioSystem.h"
 
 #include "Core/Asset/AudioAsset.h"
+#include "Core/Asset/AudioEffectAsset.h"
 #include "Core/Asset/IAssetManager.h"
+#include "Core/Asset/IAssetRegistry.h"
 #include "Core/Audio/AudioTypes.h"
 #include "Core/Audio/IAudioDevice.h"
+#include "Core/Audio/IAudioEffect.h"
 #include "Core/Audio/IAudioListener.h"
 #include "Core/Audio/IAudioPlayer.h"
 #include "Core/Audio/MiniAudio/MiniAudioDevice.h"
@@ -24,6 +27,29 @@ namespace
 		v.Y = m.Dy;   // translation y
 		v.Z = 0.0f;
 		return v;
+	}
+
+	// EffectGuid 의 효과 에셋을 읽어 효과 노드를 만들고 player 에 부착한다.
+	// 반환: 생성된 효과(player 보다 오래 살려야 하므로 호출자가 소유). 실패 시 null.
+	OwnerPtr<IAudioEffect> BuildAndAttachEffect(IAudioDevice& device, IAssetManager& am,
+	                                            IAudioPlayer& player, const AssetGuid& effectGuid)
+	{
+		const AssetMetaData* meta = am.GetRegistry().FindAsset(effectGuid);
+		if (nullptr == meta || EAssetType::AudioEffect != meta->Type) return nullptr;
+
+		AssetRef<IAsset> asset = am.LoadAsset(effectGuid);
+		if (false == asset.IsValid() || EAssetType::AudioEffect != asset->GetAssetType()) return nullptr;
+		CAudioEffectAsset* effectAsset = static_cast<CAudioEffectAsset*>(asset.Get());
+
+		OwnerPtr<IAudioEffect> effect = device.CreateEffect(effectAsset->GetKind());
+		if (false == bool(effect)) return nullptr;
+
+		for (const auto& kv : effectAsset->GetParameters())
+		{
+			effect->SetParameter(kv.first.c_str(), kv.second);
+		}
+		player.AttachEffect(effect.GetSafePtr());
+		return effect;
 	}
 }
 
@@ -148,6 +174,22 @@ void CAudioSystem::OnUpdate(CScene& scene)
 				it->second.Player->SetVolume(player.Volume);
 				it->second.Player->SetPitch (player.Pitch);
 				it->second.Player->SetLoop  (player.Loop);
+
+				// 효과(EffectGuid) 동기 — 바뀌었을 때만 재구성.
+				if (it->second.EffectGuid != player.EffectGuid)
+				{
+					it->second.Effect.Reset();   // 이전 효과 해제 (DetachAll 은 AttachEffect 가 처리).
+					if (player.EffectGuid.IsNull())
+					{
+						it->second.Player->DetachAllEffects();
+					}
+					else if (m_assetManager.IsValid() && m_device.IsValid())
+					{
+						it->second.Effect = BuildAndAttachEffect(*m_device.TryGet(), *m_assetManager.TryGet(), *it->second.Player, player.EffectGuid);
+					}
+					it->second.EffectGuid = player.EffectGuid;
+				}
+
 				if (player.Is3D)
 				{
 					AudioSpatialParams spatial;
@@ -189,6 +231,17 @@ void CAudioSystem::OnUpdate(CScene& scene)
 void CAudioSystem::OnFinalize(CScene&)
 {
 	// 씬 종료 — 모든 player 정리.
+	for (auto& kv : m_instances)
+	{
+		if (kv.second.Player) kv.second.Player->Stop();
+	}
+	m_instances.clear();
+}
+
+void CAudioSystem::OnSimulationStop(CScene&)
+{
+	// 시뮬레이션 정지 — 재생 중이던 player 를 모두 정지·해제한다.
+	// 편집 모드에선 OnUpdate 가 안 돌아 자동 GC 가 없으므로 여기서 명시 정리.
 	for (auto& kv : m_instances)
 	{
 		if (kv.second.Player) kv.second.Player->Stop();

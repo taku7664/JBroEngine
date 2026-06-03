@@ -1,6 +1,10 @@
 #pragma once
 
-#if defined(__INTELLISENSE__) && !defined(JBRO_PLATFORM_WINDOWS) && !defined(JBRO_PLATFORM_WEB)
+#if defined(__ANDROID__) && !defined(JBRO_PLATFORM_ANDROID)
+#define JBRO_PLATFORM_ANDROID
+#endif
+
+#if defined(__INTELLISENSE__) && !defined(JBRO_PLATFORM_WINDOWS) && !defined(JBRO_PLATFORM_WEB) && !defined(JBRO_PLATFORM_ANDROID) && !defined(JBRO_PLATFORM_IOS)
 #define JBRO_PLATFORM_WINDOWS
 #endif
 
@@ -22,6 +26,26 @@
 #define JBRO_PLATFORM_WINDOWS 0
 #endif
 
+#if defined(JBRO_PLATFORM_ANDROID)
+#undef JBRO_PLATFORM_ANDROID
+#define JBRO_PLATFORM_ANDROID 1
+#else
+#define JBRO_PLATFORM_ANDROID 0
+#endif
+
+#if defined(JBRO_PLATFORM_IOS)
+#undef JBRO_PLATFORM_IOS
+#define JBRO_PLATFORM_IOS 1
+#else
+#define JBRO_PLATFORM_IOS 0
+#endif
+
+#if JBRO_PLATFORM_ANDROID || JBRO_PLATFORM_IOS
+#define JBRO_PLATFORM_MOBILE 1
+#else
+#define JBRO_PLATFORM_MOBILE 0
+#endif
+
 #if defined(JBRO_EDITOR)
 #undef JBRO_EDITOR
 #define JBRO_EDITOR 1
@@ -36,7 +60,7 @@
 #define JBRO_GAME 0
 #endif
 
-#if !JBRO_PLATFORM_WINDOWS && !JBRO_PLATFORM_WEB
+#if !JBRO_PLATFORM_WINDOWS && !JBRO_PLATFORM_WEB && !JBRO_PLATFORM_MOBILE
 #define JBRO_PLATFORM_UNKNOWN 1
 #else
 #define JBRO_PLATFORM_UNKNOWN 0

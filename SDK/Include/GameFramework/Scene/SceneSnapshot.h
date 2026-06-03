@@ -4,6 +4,7 @@
 #include "GameFramework/Component/Transform2D.h"
 #include "GameFramework/Component/Camera2D.h"
 #include "GameFramework/Component/Light2D.h"
+#include "GameFramework/Component/AudioComponents.h"
 #include "GameFramework/Component/Physics2DComponents.h"
 #include "GameFramework/Component/PrefabInstance.h"
 #include "GameFramework/ECS/EntityTypes.h"
@@ -38,6 +39,12 @@ struct SceneObjectSnapshot
 
 	bool HasLight = false;
 	Light2D Light;
+
+	bool HasAudioPlayer = false;
+	AudioPlayer AudioPlayerData;
+
+	bool HasAudioListener = false;
+	AudioListener AudioListenerData;
 
 	bool HasRigidbody = false;
 	Rigidbody2D Rigidbody;

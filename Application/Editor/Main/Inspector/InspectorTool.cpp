@@ -1,10 +1,14 @@
 #include "pch.h"
 #include "InspectorTool.h"
 #include "AssetInspectorPreview.h"
+#include "EffectEditorWindow.h"
 
 #include "Engine/Editor/ImItem/ImText.h"
 #include "Engine/Editor/ImItem/ImSplitter.h"
+#include "Engine/Editor/ImItem/ImList.h"
 #include "Engine/Editor/ImGuiUtillity.h"
+#include "Editor/Script/ScriptSchema.h"
+#include "Editor/Script/ScriptSchemaWidgets.h"
 
 #include "Editor/Editor.h"
 #include "Editor/Command/EditorSceneCommands.h"
@@ -250,6 +254,36 @@ CSpriteAsset* sprite = Core::ResourceRegistry->GetSprite(key);
 		return changed;
 	}
 
+	// 공유 참조-필드 위젯 — 에셋/오브젝트/컴포넌트/스크립트 참조 모두 같은 모양.
+	// 시각(ReadOnly 버튼 + X 클리어)은 여기 한 곳. 드롭 수락/클리어는 저장부별 콜백으로 주입.
+	//   accept(): 자체 Begin/End 드롭 타깃 처리, 변경 시 true.
+	//   clear():  값 비우기.
+	template <typename AcceptFn, typename ClearFn>
+	bool DrawReferenceField(const std::string& label, bool isNull, AcceptFn&& accept, ClearFn&& clear)
+	{
+		bool changed = false;
+		const float clearW = ImGui::GetFrameHeight();
+		const float fullW  = ImGui::GetContentRegionAvail().x;
+		const float fieldW = std::max(1.0f, fullW - clearW - ImGui::GetStyle().ItemSpacing.x);
+
+		// 직접 편집 불가 표시 — 버튼처럼 보이되 클릭 동작 없음(드롭 타깃 전용).
+		ImGui::PushStyleColor(ImGuiCol_Button,        ImGui::GetStyleColorVec4(ImGuiCol_FrameBg));
+		ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImGui::GetStyleColorVec4(ImGuiCol_FrameBg));
+		ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImGui::GetStyleColorVec4(ImGuiCol_FrameBg));
+		ImGui::Button((label + "##reffield").c_str(), ImVec2(fieldW, 0.0f));
+		ImGui::PopStyleColor(3);
+
+		if (accept()) changed = true;   // 콜백이 Begin/EndDragDropTarget 까지 처리
+
+		ImGui::SameLine();
+		if (ImGui::Button("X", ImVec2(clearW, 0.0f)) && false == isNull)
+		{
+			clear();
+			changed = true;
+		}
+		return changed;
+	}
+
 	bool DrawPropertyEditor(void* field, const ReflectPropertyInfo& property, bool drawLabel = true)
 	{
 		if (nullptr == field || false == property.IsEditable)
@@ -333,47 +367,40 @@ CSpriteAsset* sprite = Core::ResourceRegistry->GetSprite(key);
 			return ImGui::InputText("", static_cast<std::string*>(field));
 		case EReflectPropertyType::AssetGuid:
 		{
+			// 에셋 참조(엔진 컴포넌트의 File::Guid). 공유 위젯 + 에셋 페이로드만 수락.
 			File::Guid* guid = static_cast<File::Guid*>(field);
-			char buffer[GUID_BUFFER_LENGTH] = {};
-			const std::string guidText = guid->generic_string();
-			strncpy_s(buffer, guidText.c_str(), GUID_BUFFER_LENGTH - 1);
-			if (ImGui::InputText("", buffer, GUID_BUFFER_LENGTH))
+			std::string label;
+			if (guid->IsNull())
 			{
-				*guid = File::Guid(buffer);
-				return true;
+				label = Loc::Text("inspector.ref_none");
 			}
-			return false;
+			else
+			{
+				const File::Path& path = File::ResolvePath(*guid);
+				label = path.IsNull() ? guid->generic_string() : path.filename().generic_string();
+			}
+			return DrawReferenceField(
+				label, guid->IsNull(),
+				[&]() -> bool
+				{
+					EditorDragDrop::AssetPayload payload;
+					if (EditorDragDrop::AcceptAssetDragDropPayload(payload))
+					{
+						*guid = EditorDragDrop::GetGuid(payload);
+						return true;
+					}
+					return false;
+				},
+				[&]() { *guid = File::NULL_GUID; });
 		}
 		case EReflectPropertyType::Ref:
 		{
-			// Ref<T> 는 ReadOnly + 드래그-드랍 전용. field == &Ref<T> == &RefBase(POD guid 버퍼).
+			// Ref<T>(스크립트 POD RefBase). 공유 위젯 + 카테고리별 페이로드 수락(ApplyRefDrop).
 			RefBase* ref = static_cast<RefBase*>(field);
-			bool changed = false;
-
-			const std::string label = BuildRefDisplayLabel(*ref, property);
-			const float clearW = ImGui::GetFrameHeight();
-			const float fullW  = ImGui::GetContentRegionAvail().x;
-			const float fieldW = std::max(1.0f, fullW - clearW - ImGui::GetStyle().ItemSpacing.x);
-
-			// 직접 편집 불가 표시 — 버튼처럼 보이되 클릭 동작은 없음(드롭 타깃만).
-			ImGui::PushStyleColor(ImGuiCol_Button,        ImGui::GetStyleColorVec4(ImGuiCol_FrameBg));
-			ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImGui::GetStyleColorVec4(ImGuiCol_FrameBg));
-			ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImGui::GetStyleColorVec4(ImGuiCol_FrameBg));
-			ImGui::Button(label.c_str(), ImVec2(fieldW, 0.0f));
-			ImGui::PopStyleColor(3);
-
-			if (ApplyRefDrop(*ref, property))
-			{
-				changed = true;
-			}
-
-			ImGui::SameLine();
-			if (ImGui::Button("X", ImVec2(clearW, 0.0f)) && false == ref->IsNull())
-			{
-				ref->Clear();
-				changed = true;
-			}
-			return changed;
+			return DrawReferenceField(
+				BuildRefDisplayLabel(*ref, property), ref->IsNull(),
+				[&]() { return ApplyRefDrop(*ref, property); },
+				[&]() { ref->Clear(); });
 		}
 		case EReflectPropertyType::EntityId:
 			return ImGui::InputScalar("", ImGuiDataType_U64, field);
@@ -988,6 +1015,110 @@ CSpriteAsset* sprite = Core::ResourceRegistry->GetSprite(key);
 		ImGui::EndDisabled();
 	}
 
+
+	// 이름이 무효(식별자 아님/예약어/목록 내 중복)인지.
+	bool IsSchemaNameInvalid(const std::string& name, const std::vector<ScriptSchema::Property>& all)
+	{
+		if (false == ScriptSchema::IsValidIdentifier(name) || ScriptSchema::IsReservedName(name))
+		{
+			return true;
+		}
+		int sameCount = 0;
+		for (const ScriptSchema::Property& o : all) { if (o.Name == name) ++sameCount; }
+		return sameCount > 1;
+	}
+
+	// 스크립트 .h 선택 시 — 프로퍼티 스키마 편집(타입/이름/⋮메뉴/순서/추가삭제) + Apply.
+	bool DrawSelectedScriptInspector()
+	{
+		const File::Path& path = Editor::GetSelectedScriptPath();
+		if (path.IsNull())
+		{
+			return false;
+		}
+
+		// 선택이 바뀐 프레임에만 .h 를 파싱해 작업본을 채운다(편집 중 덮어쓰기 방지).
+		static File::Path                          s_loadedPath;
+		static bool                                s_parseOk = false;
+		static std::string                         s_className;
+		static std::vector<ScriptSchema::Property> s_props;
+		static std::string                         s_status;
+
+		if (path != s_loadedPath)
+		{
+			s_loadedPath = path;
+			s_status.clear();
+			const ScriptSchema::ParsedScript parsed = ScriptSchema::ParseHeaderFile(path);
+			s_parseOk   = parsed.Found;
+			s_className = parsed.ClassName;
+			s_props     = parsed.Properties;
+		}
+
+		ImGui::Text("%s: %s", Loc::Text("common.path"), path.filename().generic_string().c_str());
+		if (false == s_parseOk)
+		{
+			ImGui::TextDisabled(Loc::Text("inspector.script_not_parsed"));
+			return true;
+		}
+		ImGui::Text("%s: %s", Loc::Text("inspector.script_class"), s_className.c_str());
+		ImGui::Separator();
+		ImGui::TextUnformatted(Loc::Text("asset_browser.script_popup.properties"));
+
+		// ── 프로퍼티 목록(공유 행 위젯). 인스펙터에선 이름 read-only ──
+		ImList<ScriptSchema::Property>(
+			"##script_schema", s_props,
+			[](ScriptSchema::Property& p, int /*idx*/)
+			{
+				ScriptSchemaUI::DrawPropertyRow(p, IsSchemaNameInvalid(p.Name, s_props), /*nameReadOnly*/ true);
+			},
+			ScriptSchema::Property{});
+
+		// 전체 유효성(모든 이름이 유효+유일).
+		bool allValid = true;
+		for (const ScriptSchema::Property& p : s_props)
+		{
+			if (IsSchemaNameInvalid(p.Name, s_props)) { allValid = false; break; }
+		}
+		if (false == allValid)
+		{
+			ImGui::TextColored(ImVec4(0.95f, 0.45f, 0.45f, 1.0f), "%s",
+				Loc::Text("asset_browser.script_popup.invalid_props"));
+		}
+
+		ImGui::Spacing();
+		ImGui::Separator();
+
+		// ── Apply / Reload ────────────────────────────────────────────────────
+		ImGui::BeginDisabled(false == allValid);
+		if (ImGui::Button(Loc::Text("common.apply")))
+		{
+			if (ScriptSchema::WriteHeaderFile(path, s_className, s_props))
+			{
+				if (SafePtr<CProjectManager> pm = GetProjectManager())
+				{
+					pm->RegenerateScriptProject();
+				}
+				s_status     = Loc::Text("inspector.script_apply_ok");
+				s_loadedPath = File::NULL_PATH;   // 정규화된 파일 재파싱
+			}
+			else
+			{
+				s_status = Loc::Text("inspector.script_apply_fail");
+			}
+		}
+		ImGui::EndDisabled();
+		ImGui::SameLine();
+		if (ImGui::Button(Loc::Text("common.refresh")))
+		{
+			s_loadedPath = File::NULL_PATH;   // 디스크에서 다시 읽기(편집 취소)
+		}
+		if (false == s_status.empty())
+		{
+			ImGui::TextDisabled("%s", s_status.c_str());
+		}
+		return true;
+	}
+
 	bool DrawSelectedAssetInspector()
 	{
 		const File::Guid& selectedGuid = Editor::GetSelectedAssetGuid();
@@ -1032,6 +1163,16 @@ CSpriteAsset* sprite = Core::ResourceRegistry->GetSprite(key);
 		{
 			DrawAudioImportOptions(*metaData);
 		}
+		else if (EAssetType::AudioEffect == metaData->Type)
+		{
+			// 효과 편집은 전용 독윈도우에서 한다. 인스펙터엔 안내 + 에디터 열기 버튼.
+			ImGui::TextDisabled(Loc::Text("inspector.effect.open_in_window"));
+			ImGui::Spacing();
+			if (ImGui::Button(Loc::Text("inspector.effect.open_editor"), ImVec2(-FLT_MIN, 0.0f)))
+			{
+				EffectEditorWindow::Open(metaData->Guid, metaData->DisplayName);
+			}
+		}
 		else
 		{
 			ImGui::TextDisabled(Loc::Text("inspector.no_editable_import_options"));
@@ -1074,6 +1215,12 @@ void CInspectorTool::OnRenderStay()
 	const EntityId selectedEntity = Editor::GetSelectedEntity();
 	if (INVALID_ENTITY_ID == selectedEntity || false == scene->IsAlive(selectedEntity))
 	{
+		// 스크립트 .h 선택 — 스키마 에디터.
+		if (DrawSelectedScriptInspector())
+		{
+			AssetInspectorPreview::NotifyInspectionLost();
+			return;
+		}
 		if (DrawSelectedAssetInspector())
 			return;
 		// 자산도 엔티티도 없음 — 활성 미리보기 핸들러 정리.

@@ -2,11 +2,13 @@
 #include "AssetManager.h"
 
 #include "Core/Core.h"
+#include "Core/EngineCore.h"
 #include "Core/Asset/AssetMetaFile.h"
 #include "Core/Asset/AssetPath.h"
 #include "Core/Asset/AssetRef.inl"
 #include "Core/Asset/AudioAsset.h"
 #include "Core/Asset/SpriteAsset.h"
+#include "Core/Renderer/IRenderResourceCache.h"
 
 #include <algorithm>
 #include <cwctype>
@@ -332,8 +334,21 @@ AssetRef<IAsset> CAssetManager::ReloadAsset(const AssetGuid& guid)
 		{
 			if (IAssetLoader* loader = FindLoader(it->second->GetAssetType()))
 			{
-				if (loader->ReloadInto(*it->second, *meta))
+				// meta.Path 는 상대경로(프로젝트 자산) 또는 절대(외부 자산).
+				// loader 는 디스크 접근 시 그대로 쓰므로 여기서 resolve 한 사본을 넘긴다.
+				AssetMetaData resolvedMeta = *meta;
+				File::Path resolvedPath;
+				if (ResolveAssetPath(meta->Path, resolvedPath))
 				{
+					resolvedMeta.Path = resolvedPath;
+				}
+				if (loader->ReloadInto(*it->second, resolvedMeta))
+				{
+					// 픽셀만 바뀐 경우 — cache 에게 GPU 텍스처 재생성 요구.
+					if (Engine.RenderResourceCache.IsValid())
+					{
+						Engine.RenderResourceCache->InvalidateSpriteTexture(guid);
+					}
 					return AssetRef<IAsset>(SafeFromThis(), guid, it->second.Get());
 				}
 			}
@@ -351,6 +366,10 @@ AssetRef<IAsset> CAssetManager::ReloadAsset(const AssetGuid& guid)
 			loader->Unload(*assetIt->second);
 		}
 		m_loadedAssetTable.erase(assetIt);
+		if (Engine.RenderResourceCache.IsValid())
+		{
+			Engine.RenderResourceCache->ReleaseSpriteTexture(guid);
+		}
 	}
 
 	// 직접 LoadAsset 흐름 (재진입 대신 인라인).
@@ -395,6 +414,10 @@ void CAssetManager::UnloadAsset(const AssetGuid& guid)
 	}
 
 	m_loadedAssetTable.erase(assetIt);
+	if (Engine.RenderResourceCache.IsValid())
+	{
+		Engine.RenderResourceCache->ReleaseSpriteTexture(guid);
+	}
 }
 
 bool CAssetManager::UnregisterAssetByPath(const File::Path& path, bool unloadIfLoaded)
@@ -740,7 +763,12 @@ void CAssetManager::UnloadNonPersistentAssets()
 		{
 			loader->Unload(*it->second);
 		}
+		const AssetGuid unloadedGuid = it->first;
 		it = m_loadedAssetTable.erase(it);
+		if (Engine.RenderResourceCache.IsValid())
+		{
+			Engine.RenderResourceCache->ReleaseSpriteTexture(unloadedGuid);
+		}
 	}
 
 	// 2) Registry 에서 non-persistent 제거. snapshot 후 순회 (erase 안전성).

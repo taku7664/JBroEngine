@@ -40,7 +40,8 @@ enum class ERHIProgramLanguage
 	Unknown,
 	HLSL,
 	WGSL,
-	GLSL
+	GLSL,
+	SPIRV
 };
 
 enum class ERHIPrimitiveTopology
@@ -118,6 +119,7 @@ struct RHIProgramDesc
 	ERHIProgramLanguage Language = ERHIProgramLanguage::Unknown;
 	const char* EntryPoint = nullptr;
 	const char* Source = nullptr;
+	std::size_t SourceSize = 0;
 };
 
 struct RHIVertexElementDesc

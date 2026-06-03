@@ -7,7 +7,8 @@ enum class ERHIApi
 	None,
 	D3D11,
 	WebGPU,
-	WebGL2
+	WebGL2,
+	Vulkan
 };
 
 struct RenderSurfaceDesc

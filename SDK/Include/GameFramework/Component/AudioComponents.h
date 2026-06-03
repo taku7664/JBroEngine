@@ -1,6 +1,9 @@
 #pragma once
 
+#include "Core/Asset/AssetRef.h"     // AssetRef (런타임 효과 에셋 캐시)
 #include "Core/Asset/AssetTypes.h"   // AssetGuid
+
+class IAsset;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  AudioListener / AudioPlayer 컴포넌트
@@ -28,6 +31,14 @@ struct AudioPlayer
 
 	// 재생할 사운드 자산.
 	AssetGuid AudioGuid;
+
+	// DSP 효과 에셋(reverb 등). null 이면 효과 없음. 스프라이트의 MaterialGuid 와 동형.
+	AssetGuid EffectGuid = INVALID_ASSET_GUID;
+
+	// 효과 에셋 런타임 캐시 + strong ref — 사용 중 자산 unload 방지.
+	// EffectGuid 가 바뀌면 CachedEffectGuid 비교로 무효화. 직렬화/복사 대상 아님.
+	AssetRef<IAsset> EffectAssetCache;
+	AssetGuid        CachedEffectGuid = INVALID_ASSET_GUID;
 
 	// ── 인스턴스 단위 오버라이드 ──────────────────────────────────────────
 	// 임포트 옵션의 동명 필드를 인스턴스 단위로 덮어쓴다.

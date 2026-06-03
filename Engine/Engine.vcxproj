@@ -336,6 +336,7 @@
     <ClInclude Include="Core\Asset\IAssetManager.h" />
     <ClInclude Include="Core\Asset\IAssetRegistry.h" />
     <ClInclude Include="Core\Asset\AudioAsset.h" />
+    <ClInclude Include="Core\Asset\AudioEffectAsset.h" />
     <ClInclude Include="Core\Asset\MaterialAsset.h" />
     <ClInclude Include="Core\Asset\SpriteAsset.h" />
     <ClInclude Include="Core\Audio\AudioTypes.h" />
@@ -359,6 +360,8 @@
     <ClInclude Include="Core\Module\Module.h" />
     <ClInclude Include="Core\Platform\IPlatform.h" />
     <ClInclude Include="Core\Platform\IRenderSurface.h" />
+    <ClInclude Include="Core\Platform\Mobile\MobilePlatform.h" />
+    <ClInclude Include="Core\Platform\Mobile\MobileRenderSurface.h" />
     <ClInclude Include="Core\Platform\PlatformDefines.h" />
     <ClInclude Include="Core\Platform\PlatformTypes.h" />
     <ClInclude Include="Core\Platform\Web\WebCanvasSurface.h" />
@@ -375,6 +378,15 @@
     <ClInclude Include="Core\RHI\D3D11\D3D11Swapchain.h" />
     <ClInclude Include="Core\RHI\D3D11\D3D11Texture.h" />
     <ClInclude Include="Core\RHI\EmptyRHIDevice.h" />
+    <ClInclude Include="Core\RHI\Vulkan\VulkanBuffer.h" />
+    <ClInclude Include="Core\RHI\Vulkan\VulkanCommandContext.h" />
+    <ClInclude Include="Core\RHI\Vulkan\VulkanCommon.h" />
+    <ClInclude Include="Core\RHI\Vulkan\VulkanGraphicsPipeline.h" />
+    <ClInclude Include="Core\RHI\Vulkan\VulkanProgram.h" />
+    <ClInclude Include="Core\RHI\Vulkan\VulkanRHIDevice.h" />
+    <ClInclude Include="Core\RHI\Vulkan\VulkanSampler.h" />
+    <ClInclude Include="Core\RHI\Vulkan\VulkanSwapchain.h" />
+    <ClInclude Include="Core\RHI\Vulkan\VulkanTexture.h" />
     <ClInclude Include="Core\RHI\IRHIBuffer.h" />
     <ClInclude Include="Core\RHI\IRHICommandContext.h" />
     <ClInclude Include="Core\RHI\IRHIDevice.h" />
@@ -595,6 +607,7 @@
     <ClCompile Include="Core\Asset\AssetRegistry.cpp" />
     <ClCompile Include="Core\Asset\FileAsset.cpp" />
     <ClCompile Include="Core\Asset\AudioAsset.cpp" />
+    <ClCompile Include="Core\Asset\AudioEffectAsset.cpp" />
     <ClCompile Include="Core\Asset\MaterialAsset.cpp" />
     <ClCompile Include="Core\Asset\SpriteAsset.cpp" />
     <ClCompile Include="Core\Build\BuildManifest.cpp" />
@@ -612,6 +625,8 @@
     <ClCompile Include="Core\Network\Windows\WinSockTransport.cpp" />
     <ClCompile Include="Core\Network\Web\WebSocketTransport.cpp" />
     <ClCompile Include="Core\Module\Module.cpp" />
+    <ClCompile Include="Core\Platform\Mobile\MobilePlatform.cpp" />
+    <ClCompile Include="Core\Platform\Mobile\MobileRenderSurface.cpp" />
     <ClCompile Include="Core\Platform\Web\WebCanvasSurface.cpp" />
     <ClCompile Include="Core\Platform\Web\WebPlatform.cpp" />
     <ClCompile Include="Core\Platform\Windows\WindowsPlatform.cpp" />
@@ -625,6 +640,14 @@
     <ClCompile Include="Core\RHI\D3D11\D3D11Swapchain.cpp" />
     <ClCompile Include="Core\RHI\D3D11\D3D11Texture.cpp" />
     <ClCompile Include="Core\RHI\EmptyRHIDevice.cpp" />
+    <ClCompile Include="Core\RHI\Vulkan\VulkanBuffer.cpp" />
+    <ClCompile Include="Core\RHI\Vulkan\VulkanCommandContext.cpp" />
+    <ClCompile Include="Core\RHI\Vulkan\VulkanGraphicsPipeline.cpp" />
+    <ClCompile Include="Core\RHI\Vulkan\VulkanProgram.cpp" />
+    <ClCompile Include="Core\RHI\Vulkan\VulkanRHIDevice.cpp" />
+    <ClCompile Include="Core\RHI\Vulkan\VulkanSampler.cpp" />
+    <ClCompile Include="Core\RHI\Vulkan\VulkanSwapchain.cpp" />
+    <ClCompile Include="Core\RHI\Vulkan\VulkanTexture.cpp" />
     <ClCompile Include="Core\RHI\WebGPU\WebGPUBuffer.cpp" />
     <ClCompile Include="Core\RHI\WebGPU\WebGPUCommandContext.cpp" />
     <ClCompile Include="Core\RHI\WebGPU\WebGPUGraphicsPipeline.cpp" />

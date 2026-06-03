@@ -307,6 +307,15 @@
       <AdditionalDependencies>yaml-cpp.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
+  <!-- 모든 구성 공통: 빌드 후 로컬라이징 yaml 을 출력 폴더로 복사(실행 시 cwd/Localization 을 읽음).
+       소스(Application/Localization) 단일 출처를 출력과 항상 동기화 → stale 방지. -->
+  <ItemDefinitionGroup>
+    <PostBuildEvent>
+      <Command>xcopy /Y /I /E "$(ProjectDir)Localization" "$(OutDir)Localization\" &gt; nul
+xcopy /Y /I /E "$(ProjectDir)Localization" "$(SolutionDir)Localization\" &gt; nul</Command>
+      <Message>Sync Localization to OutDir and SolutionDir</Message>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="Application.h" />
     <ClInclude Include="Editor\Main\AssetBrowser\AssetHandler.h" />
@@ -317,6 +326,8 @@
     <ClInclude Include="Editor\Helper\EditorGuiDrawHelpers.h" />
     <ClInclude Include="Editor\EditorDragDrop.h" />
     <ClInclude Include="Editor\Main\AssetBrowser\AssetBrowserTool.h" />
+    <ClInclude Include="Editor\Script\ScriptSchema.h" />
+    <ClInclude Include="Editor\Script\ScriptSchemaWidgets.h" />
     <ClInclude Include="Editor\Editor.h" />
     <ClInclude Include="Editor\Main\MainDockWindow.h" />
     <ClInclude Include="framework.h" />
@@ -338,6 +349,8 @@
     <ClInclude Include="Editor\Main\Importer\AudioImporterWindow.h" />
     <ClInclude Include="Editor\Main\Inspector\AssetInspectorPreview.h" />
     <ClInclude Include="Editor\Main\Inspector\EditorAudioPreview.h" />
+    <ClInclude Include="Editor\Main\Inspector\EffectEditorWidget.h" />
+    <ClInclude Include="Editor\Main\Inspector\EffectEditorWindow.h" />
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
@@ -366,6 +379,9 @@
     <ClCompile Include="Editor\Main\AssetBrowser\AssetBrowserTool.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Editor\Script\ScriptSchema.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="Editor\Main\MainDockWindow.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
@@ -421,6 +437,12 @@
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="Editor\Main\Inspector\EditorAudioPreview.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Editor\Main\Inspector\EffectEditorWidget.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Editor\Main\Inspector\EffectEditorWindow.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
   </ItemGroup>

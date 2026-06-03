@@ -146,6 +146,13 @@ void CSceneManager::PauseSimulation()
 
 void CSceneManager::StopSimulation()
 {
+	// 스냅샷 복원 전에 시스템 정리 — 시뮬 중 시작된 사운드 등을 해제한다.
+	// (편집 모드에선 시스템 Update 가 안 돌아 player GC 가 일어나지 않으므로 명시 정리 필요.)
+	if (ESceneSimulationState::Edit != m_simulationState && m_activeScene)
+	{
+		m_activeScene->NotifySimulationStop();
+	}
+
 	if (ESceneSimulationState::Edit != m_simulationState && m_activeScene && false == m_playModeSnapshot.empty())
 	{
 		CSceneSerializer serializer;

@@ -7,6 +7,11 @@
 #include "ThirdParty/miniaudio/miniaudio.h"
 #endif
 
+#if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
+
 #include <algorithm>
 #include <cstring>
 
@@ -223,10 +228,25 @@ OwnerPtr<IAsset> CAudioAssetLoader::Load(const AssetLoadDesc& desc)
 	}
 	else
 	{
-		// 한글 사용자 경로 안전 처리 — wstring → UTF-8 → ma_decoder_init_file.
-		// miniaudio 는 path 를 UTF-8 로 해석한다 (Windows 빌드는 자동으로 wchar 변환).
+		// 경로 인코딩 주의: ma_decoder_init_file(char*) 는 내부 fopen/stb_vorbis 가 모두
+		// 시스템 코드페이지로 경로를 해석한다 (OGG 는 stb_vorbis_open_filename 직행).
+		// 한글 등 비-ASCII 경로가 깨져 파일 열기 실패 → 무음/PCM 0. Windows 에서는
+		// UTF-8 → wide 로 변환해 _w 변종을 사용한다.
+		initResult = MA_ERROR;
+#if defined(_WIN32)
+		const std::string utf8Path = desc.ResolvedPath.generic_string();
+		const int wlen = MultiByteToWideChar(CP_UTF8, 0, utf8Path.c_str(), -1, nullptr, 0);
+		if (wlen > 0)
+		{
+			std::wstring wpath(static_cast<std::size_t>(wlen), L'\0');
+			MultiByteToWideChar(CP_UTF8, 0, utf8Path.c_str(), -1, wpath.data(), wlen);
+			if (false == wpath.empty() && L'\0' == wpath.back()) wpath.pop_back();
+			initResult = ma_decoder_init_file_w(wpath.c_str(), &decoderConfig, &decoder);
+		}
+#else
 		const std::string utf8Path = desc.ResolvedPath.string();
 		initResult = ma_decoder_init_file(utf8Path.c_str(), &decoderConfig, &decoder);
+#endif
 	}
 	if (MA_SUCCESS != initResult)
 	{
@@ -256,16 +276,42 @@ OwnerPtr<IAsset> CAudioAssetLoader::Load(const AssetLoadDesc& desc)
 
 	// Decompressed — 전체를 메모리로 디코딩
 	const std::size_t bytesPerFrame = format.Channels * sizeof(float);
-	std::vector<std::uint8_t> pcm(static_cast<std::size_t>(totalFrames) * bytesPerFrame);
 
+	std::vector<std::uint8_t> pcm;
 	ma_uint64 framesRead = 0;
-	ma_decoder_read_pcm_frames(&decoder, pcm.data(), totalFrames, &framesRead);
-	ma_decoder_uninit(&decoder);
 
-	if (framesRead < totalFrames)
+	if (totalFrames > 0)
 	{
-		pcm.resize(static_cast<std::size_t>(framesRead) * bytesPerFrame);
+		// 길이를 알 수 있는 일반 경로 — 한 번에 읽는다.
+		pcm.resize(static_cast<std::size_t>(totalFrames) * bytesPerFrame);
+		ma_decoder_read_pcm_frames(&decoder, pcm.data(), totalFrames, &framesRead);
+		if (framesRead < totalFrames)
+		{
+			pcm.resize(static_cast<std::size_t>(framesRead) * bytesPerFrame);
+		}
 	}
+	else
+	{
+		// 길이 추정 실패(totalFrames==0) 폴백 — stb_vorbis 가 끝 페이지 granule 을 못
+		// 읽거나(손상/패딩된 OGG), wide/VFS 경로로 열려 push mode 가 된 경우.
+		// 실제 디코딩은 길이와 독립이므로 청크 단위로 EOF 까지 읽으면 PCM 이 채워진다.
+		constexpr ma_uint64 CHUNK_FRAMES = 4096;
+		std::vector<std::uint8_t> chunk(static_cast<std::size_t>(CHUNK_FRAMES) * bytesPerFrame);
+		for (;;)
+		{
+			ma_uint64 got = 0;
+			const ma_result r = ma_decoder_read_pcm_frames(&decoder, chunk.data(), CHUNK_FRAMES, &got);
+			if (got > 0)
+			{
+				const std::size_t bytes = static_cast<std::size_t>(got) * bytesPerFrame;
+				pcm.insert(pcm.end(), chunk.begin(), chunk.begin() + bytes);
+				framesRead += got;
+			}
+			// EOF 또는 더 못 읽음 — 종료.
+			if (r != MA_SUCCESS || got < CHUNK_FRAMES) break;
+		}
+	}
+	ma_decoder_uninit(&decoder);
 
 	OwnerPtr<CAudioAsset> asset = MakeOwnerPtr<CAudioAsset>(
 		*desc.MetaData,

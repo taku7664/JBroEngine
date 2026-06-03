@@ -516,6 +516,17 @@ bool CGameBuildManager::StartBuild(SafePtr<CProjectManager> projectManager)
 		m_logPath.clear();
 		return false;
 	}
+	if (EBuildTargetPlatform::Android == settings.TargetPlatform || EBuildTargetPlatform::IOS == settings.TargetPlatform)
+	{
+		std::lock_guard lock(m_mutex);
+		m_state = EGameBuildState::Failed;
+		m_message = std::string(ToString(settings.TargetPlatform)) + " package build is not implemented yet. Mobile settings are saved, but native packaging is a later step.";
+		m_tasks.clear();
+		m_completedCount = 0;
+		m_packageDirectory.clear();
+		m_logPath.clear();
+		return false;
+	}
 
 	if (false == projectManager->RegenerateScriptProject())
 	{
@@ -578,7 +589,7 @@ bool CGameBuildManager::StartBuild(SafePtr<CProjectManager> projectManager)
 	{
 		std::lock_guard lock(m_mutex);
 		m_state = EGameBuildState::Failed;
-		m_message = "Only Windows and Web package builds are implemented in the editor right now.";
+		m_message = "Unsupported package target.";
 		m_tasks.clear();
 		m_completedCount = 0;
 		m_packageDirectory.clear();

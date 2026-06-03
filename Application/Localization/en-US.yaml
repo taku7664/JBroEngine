@@ -112,6 +112,9 @@ Entries:
   build_settings.category.general: General
   build_settings.category.scenes: Scenes
   build_settings.category.output: Output
+  build_settings.category.windows: Windows
+  build_settings.category.android: Android
+  build_settings.category.ios: iOS
   build_settings.general: General
   build_settings.product_name: Product Name
   build_settings.windows_icon: Application Icon
@@ -121,6 +124,17 @@ Entries:
   build_settings.target_platform: Target Platform
   build_settings.configuration: Build Configuration
   build_settings.output: Output
+  build_settings.windows: Windows
+  build_settings.android: Android
+  build_settings.ios: iOS
+  build_settings.platform_inactive: The current target platform is different, but these settings are still saved.
+  build_settings.android_application_id: Application ID
+  build_settings.android_min_sdk: Min SDK
+  build_settings.android_target_sdk: Target SDK
+  build_settings.android_abi: ABI
+  build_settings.ios_bundle_identifier: Bundle ID
+  build_settings.ios_team_id: Team ID
+  build_settings.ios_minimum_os: Minimum iOS
   build_settings.output_directory: Output Directory
   build_settings.scenes: Scenes
   build_settings.startup_scene: Startup Scene
@@ -175,6 +189,7 @@ Entries:
   asset_browser.add_asset: Add Asset
   asset_browser.add_asset.scene: Scene
   asset_browser.add_asset.material: Material
+  asset_browser.add_asset.effect: Sound Effect
   asset_browser.add_asset.prefab: Prefab
   asset_browser.tree.focus_here: Open This Folder
   asset_browser.delete_confirm: Delete selected asset entry?
@@ -235,6 +250,13 @@ Entries:
 
   inspector.audio_import_options: Audio Import Options
   inspector.apply_audio_import_options: Apply Audio Import Options
+  inspector.effect.title: Sound Effect
+  inspector.effect.kind: Effect Kind
+  inspector.effect.apply: Apply Effect
+  inspector.effect.open_in_window: Edit effects in a dedicated window (double-click .jfx or button below).
+  inspector.effect.open_editor: Open Effect Editor
+  inspector.effect.preview: Preview
+  inspector.effect.preview.hint: Drag an audio asset into the slot above, then play.
   inspector.audio.mode: Mode
   inspector.audio.mode.decompressed: Decompressed
   inspector.audio.mode.streaming: Streaming
@@ -255,6 +277,38 @@ Entries:
   inspector.asset_manager_unavailable: Asset manager is not available.
   inspector.selected_asset_not_registered: Selected asset is not registered.
   inspector.no_editable_import_options: No editable import options for this asset type.
+  inspector.script_class: Class
+  inspector.script_not_parsed: No JBRO_SCRIPT class found in this .h.
+  inspector.script_category_hint: Category
+  inspector.script_apply_ok: Applied - script project regenerated.
+  inspector.script_apply_fail: Apply failed - could not write .h.
+
+  script_prop.type_tooltip: Property value type. For Ref<Component>/Ref<Asset>, pick the target kind in the next combo.
+  script_prop.reftarget_tooltip: Reference target type (component/script, or asset kind).
+  script_prop.name: Name
+  script_prop.name_hint: Property name
+  script_prop.name_tooltip: C++ field name. Must be a valid identifier, no duplicates or reserved names.
+  script_prop.menu_tooltip: More options - Display name / Category / Tooltip / Serialize / Range.
+  script_prop.display_name: Display name
+  script_prop.display_name_hint: Inspector display name
+  script_prop.display_name_tooltip: Name shown in inspector (Name attribute). Empty = use variable name. Separate from the C++ member name.
+  script_prop.category: Category
+  script_prop.category_tooltip: Group name used to cluster properties in the inspector.
+  script_prop.category_hint: Group name
+  script_prop.tooltip: Tooltip
+  script_prop.tooltip_tooltip: Description shown when hovering this property in the inspector.
+  script_prop.tooltip_hint: Description
+  script_prop.serialize: Serialize
+  script_prop.serialize_tooltip: Off = shown in inspector but not saved to the scene file (NoSerialize).
+  script_prop.range: Limit range
+  script_prop.range_tooltip: On = clamp numeric input to min..max (Range).
+  script_prop.range_min: Min
+  script_prop.range_max: Max
+  script_prop.col_type: Type
+  script_prop.col_name: Name
+  script_prop.add_element: + Add Element
+  script_prop.reorder_tooltip: Drag to reorder.
+  script_prop.remove_tooltip: Remove this property.
 
   log.auto_scroll: Auto Scroll
   log.level.trace: Trace
@@ -403,6 +457,13 @@ Entries:
   build_settings.windows_icon.desc: .ico asset applied to the Windows package executable. External files are copied to Assets/Package/Windows/AppIcon.ico, then the asset GUID is saved.
   build_settings.target_platform.desc: Target platform for the game package.
   build_settings.configuration.desc: Engine game build configuration. Maps to Debug_Game or Release_Game.
+  build_settings.android_application_id.desc: "Unique Android applicationId. Example: com.company.game"
+  build_settings.android_min_sdk.desc: Minimum Android SDK version supported by the app.
+  build_settings.android_target_sdk.desc: Target Android SDK version. It is normalized if it is lower than Min SDK.
+  build_settings.android_abi.desc: Android native library ABI. The first mobile target is arm64-v8a.
+  build_settings.ios_bundle_identifier.desc: "iOS app bundle identifier. Example: com.company.game"
+  build_settings.ios_team_id.desc: Apple Developer Team ID used by signing.
+  build_settings.ios_minimum_os.desc: Minimum iOS version supported by the app.
   build_settings.output_directory.desc: Output directory for the game package. Paths inside the project are saved relative to the project root.
   build_settings.startup_scene.desc: Scene opened when the game starts. Files inside Assets are saved relative to the Assets folder.
   build_settings.use_current_scene.desc: Set the currently opened scene as the startup scene and add it to build scenes.
@@ -460,6 +521,7 @@ Entries:
   editor.component.AudioPlayer:   Audio Player
   editor.property.MasterVolume: Master Volume
   editor.property.AudioGuid:    Audio Asset
+  editor.property.EffectGuid:   Effect
   editor.property.Volume:       Volume
   editor.property.Pitch:        Pitch
   editor.property.Loop:         Loop

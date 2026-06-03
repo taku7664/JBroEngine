@@ -25,7 +25,9 @@ enum class EAssetType
 	Prefab,
 	Script,
 	Audio,
-	Custom
+	Custom,
+	// Custom 뒤에 추가 — 기존 타입의 정수값(빌드 스크립트/직렬화) 보존.
+	AudioEffect
 };
 
 enum class EAssetLoadState

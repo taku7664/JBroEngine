@@ -9,6 +9,7 @@
 
 class IAudioDevice;
 class IAudioPlayer;
+class IAudioEffect;
 class IAssetManager;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -40,12 +41,15 @@ public:
 protected:
 	void OnUpdate  (CScene& scene) override;
 	void OnFinalize(CScene& scene) override;
+	void OnSimulationStop(CScene& scene) override;
 
 private:
 	struct PlayerInstance
 	{
 		OwnerPtr<IAudioPlayer> Player;
 		AssetGuid              SourceGuid;   // 자산이 바뀌면 인스턴스를 재생성하기 위해.
+		OwnerPtr<IAudioEffect> Effect;       // 부착된 효과(EffectGuid). player 보다 오래 살아야.
+		AssetGuid              EffectGuid;    // 효과가 바뀌면 재구성.
 	};
 
 	SafePtr<IAudioDevice>  m_device;
