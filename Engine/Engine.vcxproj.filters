@@ -677,17 +677,8 @@
     <ClInclude Include="GameFramework\Component\SpriteRenderer2D.h">
       <Filter>Header\GameFramework\Component</Filter>
     </ClInclude>
-    <ClInclude Include="GameFramework\Component\TransformHierarchy2D.h">
-      <Filter>Header\GameFramework\Component</Filter>
-    </ClInclude>
     <ClInclude Include="GameFramework\Component\Transform2D.h">
       <Filter>Header\GameFramework\Component</Filter>
-    </ClInclude>
-    <ClInclude Include="GameFramework\ECS\ComponentPool.h">
-      <Filter>Header\GameFramework\ECS</Filter>
-    </ClInclude>
-    <ClInclude Include="GameFramework\ECS\EntityManager.h">
-      <Filter>Header\GameFramework\ECS</Filter>
     </ClInclude>
     <ClInclude Include="GameFramework\ECS\EntityTypes.h">
       <Filter>Header\GameFramework\ECS</Filter>
@@ -696,9 +687,6 @@
       <Filter>Header\GameFramework\Object</Filter>
     </ClInclude>
     <ClInclude Include="GameFramework\Object\Ref.h">
-      <Filter>Header\GameFramework\Object</Filter>
-    </ClInclude>
-    <ClInclude Include="GameFramework\Component\GameObject.h">
       <Filter>Header\GameFramework\Object</Filter>
     </ClInclude>
     <ClInclude Include="GameFramework\Component\PrefabInstance.h">
@@ -1317,9 +1305,6 @@
     </ClCompile>
     <ClCompile Include="Core\Time\Time.cpp">
       <Filter>Source\Core\Time</Filter>
-    </ClCompile>
-    <ClCompile Include="GameFramework\ECS\EntityManager.cpp">
-      <Filter>Source\GameFramework\ECS</Filter>
     </ClCompile>
     <ClCompile Include="GameFramework\Object\GameObject.cpp">
       <Filter>Source\GameFramework\Object</Filter>

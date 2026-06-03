@@ -14,7 +14,7 @@
 #include "Editor/Command/EditorSceneCommands.h"
 #include "Editor/EditorDragDrop.h"
 #include "Editor/Helper/EditorGuiDrawHelpers.h"
-#include "Engine/GameFramework/Component/GameObject.h"
+#include "Engine/GameFramework/Object/GameObject.h"
 #include "Engine/GameFramework/Object/Ref.h"
 #include "Engine/GameFramework/Reflection/ReflectionRegistry.h"
 #include "Engine/Core/Asset/AssetMetaFile.h"

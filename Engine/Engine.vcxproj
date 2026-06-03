@@ -432,14 +432,10 @@
     <ClInclude Include="Core\Time\Time.h" />
     <ClInclude Include="GameFramework\Component\Camera2D.h" />
     <ClInclude Include="GameFramework\Component\SpriteRenderer2D.h" />
-    <ClInclude Include="GameFramework\Component\TransformHierarchy2D.h" />
     <ClInclude Include="GameFramework\Component\Transform2D.h" />
-    <ClInclude Include="GameFramework\ECS\ComponentPool.h" />
-    <ClInclude Include="GameFramework\ECS\EntityManager.h" />
     <ClInclude Include="GameFramework\ECS\EntityTypes.h" />
     <ClInclude Include="GameFramework\Object\GameObject.h" />
     <ClInclude Include="GameFramework\Object\Ref.h" />
-    <ClInclude Include="GameFramework\Component\GameObject.h" />
     <ClInclude Include="GameFramework\Component\PrefabInstance.h" />
     <ClInclude Include="GameFramework\Prefab\PrefabSerializer.h" />
     <ClInclude Include="GameFramework\Prefab\PrefabTypes.h" />
@@ -671,7 +667,6 @@
     <ClCompile Include="Core\Task\TaskGroup.cpp" />
     <ClCompile Include="Core\Task\TaskManager.cpp" />
     <ClCompile Include="Core\Time\Time.cpp" />
-    <ClCompile Include="GameFramework\ECS\EntityManager.cpp" />
     <ClCompile Include="GameFramework\Object\GameObject.cpp" />
     <ClCompile Include="GameFramework\Object\Ref.cpp" />
     <ClCompile Include="GameFramework\Prefab\PrefabSerializer.cpp" />

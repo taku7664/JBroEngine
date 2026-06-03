@@ -12,10 +12,8 @@
 //  스크립트 사용자는 이 헤더가 아니라 ScriptAPI.h 를 쓰면 된다.
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-// ── ECS / Scene ─────────────────────────────────────────────────────────────
-#include "GameFramework/ECS/EntityTypes.h"
-#include "GameFramework/ECS/EntityManager.h"
-#include "GameFramework/ECS/ComponentPool.h"
+// ── Scene / Object ──────────────────────────────────────────────────────────
+#include "GameFramework/ECS/EntityTypes.h" // EntityId(불투명 uint64 식별자)만 잔존
 #include "GameFramework/System/GameSystem.h"
 #include "GameFramework/Scene/SceneTypes.h"
 #include "GameFramework/Scene/SceneSerializer.h"
@@ -23,9 +21,7 @@
 #include "GameFramework/Scene/Scene.h"
 
 // ── 자주 쓰이는 컴포넌트들 ────────────────────────────────────────────────
-#include "GameFramework/Component/GameObject.h"
 #include "GameFramework/Component/Transform2D.h"
-#include "GameFramework/Component/TransformHierarchy2D.h"
 #include "GameFramework/Component/WorldTransform2D.h"
 #include "GameFramework/Component/SpriteRenderer2D.h"
 #include "GameFramework/Component/Camera2D.h"
