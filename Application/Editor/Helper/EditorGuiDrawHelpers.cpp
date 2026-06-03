@@ -22,7 +22,7 @@ namespace
 
 	bool DrawScriptList(CScene& scene, EntityId entity, CReflectionRegistry& reflection)
 	{
-		if (false == scene.IsAlive(entity))
+		if (nullptr == scene.FindObjectById(entity))
 		{
 			return false;
 		}
@@ -57,7 +57,8 @@ namespace
 
 	bool DrawComponentList(CScene& scene, EntityId entity)
 	{
-		if (false == Core::Reflection.IsValid() || false == scene.IsAlive(entity))
+		CGameObject* object = scene.FindObjectById(entity);
+		if (false == Core::Reflection.IsValid() || nullptr == object)
 		{
 			ImGui::TextDisabled(Loc::Text("inspector.no_component_registry"));
 			return false;
@@ -66,11 +67,11 @@ namespace
 		bool added = false;
 		CReflectionRegistry& reflection = *Core::Reflection;
 
-		// 단일 인스턴스 ECS: 아직 부착되지 않은 타입만 메뉴에 노출
+		// 단일 인스턴스: 아직 부착되지 않은 타입만 메뉴에 노출
 		auto isAvailable = [&](const ComponentTypeInfo* t) -> bool
 		{
-			return t->CanAddToEntity &&
-			       false == reflection.HasComponent(scene, entity, t->Type.Id);
+			return t->CanAddToObject &&
+			       false == reflection.HasComponent(*object, t->Type.Id);
 		};
 
 		std::vector<std::string> categories;

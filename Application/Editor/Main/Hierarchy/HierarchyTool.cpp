@@ -11,6 +11,10 @@
 #include "Engine/Core/Core.h"
 #include "Engine/GameFramework/Reflection/ReflectionRegistry.h"
 #include "Engine/GameFramework/Component/ScriptComponent.h"
+#include "Engine/GameFramework/Object/GameObject.h"
+#include "Engine/GameFramework/Scene/Scene.h"
+
+#include <vector>
 
 #include <cstdint>
 #include <cstring>
@@ -57,9 +61,10 @@ void CHierarchyTool::OnRenderStay()
 		}
 	};
 
-	SceneSnapshot snapshot;
-	activeScene->BuildSnapshot(snapshot);
-	if (snapshot.Objects.empty())
+	// ── 활성 오브젝트 수집 + 계층 인덱스 빌드(id 기반) ──────────────────────────
+	std::vector<CGameObject*> objects;
+	activeScene->ForEachObject([&objects](CGameObject& o){ objects.push_back(&o); });
+	if (objects.empty())
 	{
 		ImGui::TextDisabled(Loc::Text("hierarchy.scene_empty"));
 		Editor::ClearSelection();
@@ -67,19 +72,17 @@ void CHierarchyTool::OnRenderStay()
 		return;
 	}
 
-	// ── 계층 인덱스 빌드 ────────────────────────────────────────────────────────
 	std::unordered_map<EntityId, std::vector<std::size_t>> childrenByParent;
 	std::vector<std::size_t> rootIndices;
-	for (std::size_t i = 0; i < snapshot.Objects.size(); ++i)
+	for (std::size_t i = 0; i < objects.size(); ++i)
 	{
-		const SceneObjectSnapshot& object = snapshot.Objects[i];
-		if (INVALID_ENTITY_ID == object.Parent)
+		if (CGameObject* parent = objects[i]->GetParent().TryGet())
 		{
-			rootIndices.push_back(i);
+			childrenByParent[parent->GetId()].push_back(i);
 		}
 		else
 		{
-			childrenByParent[object.Parent].push_back(i);
+			rootIndices.push_back(i);
 		}
 	}
 
@@ -103,7 +106,8 @@ void CHierarchyTool::OnRenderStay()
 			if (payload)
 			{
 				EntityId dragged = *static_cast<const EntityId*>(payload->Data);
-				if (activeScene->GetParent(dragged) != INVALID_ENTITY_ID)
+				CGameObject* draggedObj = activeScene->FindObjectById(dragged);
+				if (draggedObj && draggedObj->GetParent().IsValid())
 				{
 					auto cmd = MakeOwnerPtr<CSetParentCommand>(activeScene, dragged, INVALID_ENTITY_ID);
 					Editor::CommandManager.ExecuteCommand(std::move(cmd));
@@ -124,25 +128,20 @@ void CHierarchyTool::OnRenderStay()
 		{
 			return;
 		}
+		CGameObject* object = activeScene->FindObjectById(entity);
+		if (nullptr == object)
+		{
+			return;
+		}
 
 		// 컴포넌트 리스트 항목 색상 — 진한 주황(활성) / 더 어두운 주황(비활성).
 		const ImVec4 colorEnabled (0.85f, 0.50f, 0.15f, 1.0f);
 		const ImVec4 colorDisabled(0.50f, 0.30f, 0.10f, 1.0f);
 
-		// 컴포넌트의 IsEnabled bool 프로퍼티를 읽는다(없으면 항상 활성).
-		auto isComponentEnabled = [](void* comp, const ComponentTypeInfo& ti) -> bool
+		// IsEnabled 는 CComponent 베이스 공통 필드.
+		auto isComponentEnabled = [](void* comp) -> bool
 		{
-			if (nullptr == comp) return true;
-			for (const ReflectPropertyInfo& prop : ti.Properties)
-			{
-				if (EReflectPropertyType::Bool == prop.Type && prop.Name && 0 == std::strcmp(prop.Name, "IsEnabled"))
-				{
-					if (void* field = CReflectionRegistry::GetPropertyAddress(comp, prop))
-						return *static_cast<bool*>(field);
-					break;
-				}
-			}
-			return true;
+			return comp ? static_cast<CComponent*>(comp)->IsEnabled : true;
 		};
 
 		// 한 항목을 ImTree 리프 노드로 렌더한다 — 일반 Selectable 대신 ImTree 를 써야
@@ -187,19 +186,19 @@ void CHierarchyTool::OnRenderStay()
 			if (0 == std::strcmp(typeInfo->Type.Name, "GameObject")) continue;
 			if (0 == std::strcmp(typeInfo->Type.Name, "TransformHierarchy2D")) continue;
 			if (0 == std::strcmp(typeInfo->Type.Name, "ScriptComponent")) continue;
-			if (false == Core::Reflection->HasComponent(*activeScene, entity, typeInfo->Type.Id))
+			if (false == Core::Reflection->HasComponent(*object, typeInfo->Type.Id))
 			{
 				continue;
 			}
 
-			void* comp = Core::Reflection->GetComponentAddress(*activeScene, entity, typeInfo->Type.Id);
-			const bool enabled = isComponentEnabled(comp, *typeInfo);
+			void* comp = Core::Reflection->GetComponentAddress(*object, typeInfo->Type.Id);
+			const bool enabled = isComponentEnabled(comp);
 			const char* label = typeInfo->Type.DisplayName ? typeInfo->Type.DisplayName : typeInfo->Type.Name;
 			drawItem(label, enabled ? colorEnabled : colorDisabled, entity, typeInfo->Type.Id, false, typeInfo->Type.Name);
 		}
 
 		// 스크립트 (ScriptComponent.Instance 의 타입)
-		if (ScriptComponent* scriptComp = activeScene->GetComponent<ScriptComponent>(entity))
+		if (ScriptComponent* scriptComp = object->GetComponent<ScriptComponent>())
 		{
 			if (INVALID_TYPE_ID != scriptComp->ScriptTypeId)
 			{
@@ -216,8 +215,9 @@ void CHierarchyTool::OnRenderStay()
 	{
 		ImGui::Utillity::IDGroup idGroup(objectIndex); // 고유 ID 스코프 (인덱스 기반)
 
-		const SceneObjectSnapshot& object = snapshot.Objects[objectIndex];
-		const auto childIt  = childrenByParent.find(object.Entity);
+		CGameObject* obj = objects[objectIndex];
+		const EntityId entityId = obj->GetId();
+		const auto childIt  = childrenByParent.find(entityId);
 		const bool hasChildren = (childIt != childrenByParent.end() && !childIt->second.empty());
 
 		ImGuiTreeNodeFlags flags =
@@ -227,11 +227,12 @@ void CHierarchyTool::OnRenderStay()
 		{
 			flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
 		}
-		if (Editor::IsSelected(object.Entity))
+		if (Editor::IsSelected(entityId))
 		{
 			flags |= ImGuiTreeNodeFlags_Selected;
 		}
-		const char* name = object.Name[0] ? object.Name : "GameObject";
+		const char* objName = obj->GetName();
+		const char* name = (objName && objName[0]) ? objName : "GameObject";
 		const bool isOpen = ImTree(name, flags);
 
 		// ── 클릭으로 선택 (Release 기준) ───────────────────────────────────
@@ -242,7 +243,7 @@ void CHierarchyTool::OnRenderStay()
 		if (ImGui::IsItemHovered() && ImGui::IsMouseReleased(ImGuiMouseButton_Left)
 			&& !ImGui::IsItemToggledOpen())
 		{
-			Editor::SelectEntity(object.Entity);
+			Editor::SelectEntity(entityId);
 		}
 
 		// ── 더블클릭 → 씬뷰 포커스 컨텍스트 전환 ──────────────────────────────
@@ -250,17 +251,17 @@ void CHierarchyTool::OnRenderStay()
 		// FocusOnEntity(카메라만) 대신 SetFocusContext(컨텍스트 + 카메라)를 호출.
 		if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
 		{
-			Editor::SelectEntity(object.Entity);
+			Editor::SelectEntity(entityId);
 			if (Editor::SceneView)
 			{
-				Editor::SceneView->SetFocusContext(object.Entity, *activeScene);
+				Editor::SceneView->SetFocusContext(entityId, *activeScene);
 			}
 		}
 
 		// ── Drag Source ───────────────────────────────────────────────────────
 		if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceAllowNullID))
 		{
-			ImGui::SetDragDropPayload(EditorDragDrop::HIERARCHY_ENTITY_PAYLOAD, &object.Entity, sizeof(EntityId));
+			ImGui::SetDragDropPayload(EditorDragDrop::HIERARCHY_ENTITY_PAYLOAD, &entityId, sizeof(EntityId));
 			ImGui::Text(Loc::Text("hierarchy.move_format"), name);
 			ImGui::EndDragDropSource();
 		}
@@ -272,12 +273,13 @@ void CHierarchyTool::OnRenderStay()
 			if (payload)
 			{
 				EntityId dragged = *static_cast<const EntityId*>(payload->Data);
+				CGameObject* draggedObj = activeScene->FindObjectById(dragged);
 				// 자기 자신 및 사이클 방지
-				const bool valid = (dragged != object.Entity)
-				    && !activeScene->IsDescendantOf(object.Entity, dragged);
+				const bool valid = (dragged != entityId) && draggedObj
+				    && !obj->IsDescendantOf(*draggedObj);
 				if (valid)
 				{
-					auto cmd = MakeOwnerPtr<CSetParentCommand>(activeScene, dragged, object.Entity);
+					auto cmd = MakeOwnerPtr<CSetParentCommand>(activeScene, dragged, entityId);
 					Editor::CommandManager.ExecuteCommand(std::move(cmd));
 					Editor::SelectEntity(dragged);
 				}
@@ -288,26 +290,26 @@ void CHierarchyTool::OnRenderStay()
 		// ── 우클릭 컨텍스트 메뉴 ──────────────────────────────────────────────
 		if (ImGui::BeginPopupContextItem("HierarchyObjectContext"))
 		{
-			Editor::SelectEntity(object.Entity);
+			Editor::SelectEntity(entityId);
 
-			if (object.Parent != INVALID_ENTITY_ID)
+			if (obj->GetParent().IsValid())
 			{
 				if (ImGui::MenuItem(Loc::Text("hierarchy.unparent")))
 				{
-					auto cmd = MakeOwnerPtr<CSetParentCommand>(activeScene, object.Entity, INVALID_ENTITY_ID);
+					auto cmd = MakeOwnerPtr<CSetParentCommand>(activeScene, entityId, INVALID_ENTITY_ID);
 					Editor::CommandManager.ExecuteCommand(std::move(cmd));
 				}
 				ImGui::Separator();
 			}
 
-			EditorGuiDrawHelpers::DrawAddComponentMenu(*activeScene, object.Entity);
+			EditorGuiDrawHelpers::DrawAddComponentMenu(*activeScene, entityId);
 			ImGui::EndPopup();
 		}
 
 		// ── 선택된 오브젝트: 컴포넌트 리스트를 자식보다 "위"에 표시 ───────────
 		// 트리를 펼치지 않아도(선택만 돼도) 펼쳐진 것처럼 아래에 컴포넌트 리스트를
 		// 나열한다. 트리를 펼쳤으면 컴포넌트 리스트가 자식 목록보다 위에 온다.
-		if (Editor::IsSelected(object.Entity))
+		if (Editor::IsSelected(entityId))
 		{
 			// 컴포넌트 항목을 자식과 같은 깊이에 놓는다. ImTree 가 이미 한 단계 push
 			// 했으면(펼친 노드) 그대로, 아니면(리프/접힘) 수동 TreePush 해서 커스텀
@@ -315,9 +317,9 @@ void CHierarchyTool::OnRenderStay()
 			const bool alreadyPushed = isOpen && hasChildren;
 			if (false == alreadyPushed)
 			{
-				ImGui::TreePush(reinterpret_cast<const void*>(static_cast<std::uintptr_t>(object.Entity)));
+				ImGui::TreePush(reinterpret_cast<const void*>(static_cast<std::uintptr_t>(entityId)));
 			}
-			drawComponentDragList(object.Entity);
+			drawComponentDragList(entityId);
 			if (false == alreadyPushed)
 			{
 				ImGui::TreePop();
@@ -355,7 +357,8 @@ void CHierarchyTool::OnRenderStay()
 				if (payload)
 				{
 					EntityId dragged = *static_cast<const EntityId*>(payload->Data);
-					if (activeScene->GetParent(dragged) != INVALID_ENTITY_ID)
+					CGameObject* draggedObj = activeScene->FindObjectById(dragged);
+					if (draggedObj && draggedObj->GetParent().IsValid())
 					{
 						auto cmd = MakeOwnerPtr<CSetParentCommand>(activeScene, dragged, INVALID_ENTITY_ID);
 						Editor::CommandManager.ExecuteCommand(std::move(cmd));
