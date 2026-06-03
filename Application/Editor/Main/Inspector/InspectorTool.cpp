@@ -1467,6 +1467,20 @@ void CInspectorTool::OnRenderStay()
 
 			if (!isEnabled)
 				ImGui::PopStyleColor();
+
+			// 우클릭 → 컴포넌트 제거 (style color 복원 후, item 은 직전 Selectable).
+			char ctxId[32];
+			snprintf(ctxId, sizeof(ctxId), "##compctx%d", idx);
+			if (ImGui::BeginPopupContextItem(ctxId))
+			{
+				if (ImGui::MenuItem(Loc::Text("inspector.remove_component")))
+				{
+					Editor::CommandManager.ExecuteCommand(
+						MakeOwnerPtr<CRemoveComponentCommand>(
+							scene->SafeFromThis(), selectedObject, ce.typeInfo->Type.Id));
+				}
+				ImGui::EndPopup();
+			}
 		}
 		ImGui::PopStyleVar();
 	}

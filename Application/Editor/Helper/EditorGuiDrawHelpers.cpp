@@ -206,7 +206,24 @@ bool EditorGuiDrawHelpers::DrawAddObjectMenu(CScene& scene, CGameObject* parent)
 
 bool EditorGuiDrawHelpers::DrawRemoveObjectMenu(CScene& scene, CGameObject* object)
 {
-	(void)scene; (void)object;
+	if (nullptr == object)
+	{
+		return false;
+	}
+
+	if (ImGui::MenuItem(Loc::Text("hierarchy.delete_object")))
+	{
+		const bool wasSelected = Editor::IsSelected(object);
+		Editor::CommandManager.ExecuteCommand(
+			MakeOwnerPtr<CDeleteGameObjectCommand>(scene.SafeFromThis(), object));
+		// 삭제된 오브젝트가 선택돼 있었으면 선택 해제(다음 프레임 파괴 → SafePtr null 이지만
+		// 즉시 정리해 인스펙터 잔상 방지).
+		if (wasSelected)
+		{
+			Editor::RemoveFromSelection(object);
+		}
+		return true;
+	}
 	return false;
 }
 

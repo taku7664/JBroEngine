@@ -203,6 +203,8 @@ Entries:
   hierarchy.drop_here_to_unparent: "  여기에 드롭하면 부모 해제  "
   hierarchy.move_format: "이동: %s"
   hierarchy.unparent: 부모 해제
+  hierarchy.delete_object: 오브젝트 삭제
+  inspector.remove_component: 컴포넌트 제거
 
   inspector.no_active_scene: 활성 씬이 없습니다.
   inspector.no_entity_selected: 선택한 엔티티가 없습니다.

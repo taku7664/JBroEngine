@@ -203,6 +203,8 @@ Entries:
   hierarchy.drop_here_to_unparent: "  Drop here to unparent  "
   hierarchy.move_format: "Move: %s"
   hierarchy.unparent: Unparent
+  hierarchy.delete_object: Delete Object
+  inspector.remove_component: Remove Component
 
   inspector.no_active_scene: No active scene.
   inspector.no_entity_selected: No entity selected.

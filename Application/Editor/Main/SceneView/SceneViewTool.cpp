@@ -1150,10 +1150,12 @@ void CSceneViewTool::OnRenderStay()
 
             if (nullptr != menuObject)
             {
-                // 오브젝트 우클릭: "Add Child Object" + "Add Component ▶"
+                // 오브젝트 우클릭: "Add Child Object" + "Add Component ▶" + "Delete"
                 EditorGuiDrawHelpers::DrawAddObjectMenu(*popupScene, menuObject);
                 ImGui::Separator();
                 EditorGuiDrawHelpers::DrawAddComponentMenu(*popupScene, menuObject);
+                ImGui::Separator();
+                EditorGuiDrawHelpers::DrawRemoveObjectMenu(*popupScene, menuObject);
             }
             else if (!vtxValid || menuParent)
             {

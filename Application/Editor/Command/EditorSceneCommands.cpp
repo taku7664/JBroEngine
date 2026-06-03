@@ -12,6 +12,8 @@
 #include "Engine/GameFramework/Reflection/ReflectionRegistry.h"
 #include "Engine/GameFramework/Scene/Scene.h"
 #include "Engine/GameFramework/Scene/SceneTransformUtils.h"
+#include "Engine/GameFramework/Serialization/ComponentSerializer.h"
+#include "Engine/GameFramework/Prefab/PrefabSerializer.h"
 
 #include <cmath>
 
@@ -371,6 +373,129 @@ bool CSetComponentPropertyCommand::WriteValue(const std::vector<std::uint8_t>& v
 
 	std::memcpy(static_cast<std::uint8_t*>(component) + m_propertyOffset, value.data(), value.size());
 	return true;
+}
+
+// ── CDeleteGameObjectCommand ──────────────────────────────────────────────────
+
+CDeleteGameObjectCommand::CDeleteGameObjectCommand(SafePtr<CScene> scene, CGameObject* object)
+	: m_scene(scene)
+	, m_objectGuid(GuidOf(object))
+{
+	if (object && m_scene.IsValid())
+	{
+		m_parentGuid = GuidOf(object->GetParent().TryGet());
+		CPrefabSerializer serializer;
+		serializer.SerializePrefabToText(*m_scene, object, m_snapshot);
+	}
+}
+
+const char* CDeleteGameObjectCommand::GetName() const
+{
+	return "Delete GameObject";
+}
+
+bool CDeleteGameObjectCommand::Execute()
+{
+	CGameObject* object = Resolve(m_scene, m_objectGuid);
+	if (nullptr == object)
+	{
+		return false;
+	}
+	m_deleted = m_scene->DestroyGameObject(object);
+	return m_deleted;
+}
+
+void CDeleteGameObjectCommand::Undo()
+{
+	if (false == m_deleted || false == m_scene.IsValid() || m_snapshot.empty())
+	{
+		return;
+	}
+
+	// 직렬화는 InstanceGuid 를 보존하므로 복원된 오브젝트는 동일 guid → 이후 redo/refs 일관.
+	CPrefabSerializer serializer;
+	CGameObject* root = nullptr;
+	if (EPrefabSerializeResult::Success !=
+	    serializer.DeserializePrefabFromText(*m_scene, m_snapshot.c_str(), &root))
+	{
+		return;
+	}
+
+	// 부모 복원(null = 루트).
+	if (root && false == m_parentGuid.IsNull())
+	{
+		if (CGameObject* parent = Resolve(m_scene, m_parentGuid))
+		{
+			root->SetParent(*parent);
+		}
+	}
+	m_deleted = false;
+}
+
+void CDeleteGameObjectCommand::Redo()
+{
+	if (false == m_deleted)
+	{
+		Execute();
+	}
+}
+
+// ── CRemoveComponentCommand ───────────────────────────────────────────────────
+
+CRemoveComponentCommand::CRemoveComponentCommand(SafePtr<CScene> scene, CGameObject* object, TypeId componentTypeId)
+	: m_scene(scene)
+	, m_objectGuid(GuidOf(object))
+	, m_componentTypeId(componentTypeId)
+{
+	// 제거 전 스냅샷 — undo 시 재부착+값 복원.
+	if (object && Core::Reflection.IsValid())
+	{
+		if (void* addr = Core::Reflection->GetComponentAddress(*object, m_componentTypeId))
+		{
+			// 컴포넌트는 CComponent 를 단일 1차 베이스(offset 0)로 상속 → reinterpret 안전.
+			m_snapshot = Serialization::SerializeComponent(*reinterpret_cast<CComponent*>(addr));
+		}
+	}
+}
+
+const char* CRemoveComponentCommand::GetName() const
+{
+	return "Remove Component";
+}
+
+bool CRemoveComponentCommand::RemoveNow()
+{
+	CGameObject* object = Resolve(m_scene, m_objectGuid);
+	if (nullptr == object || false == Core::Reflection.IsValid())
+	{
+		return false;
+	}
+	return Core::Reflection->RemoveComponent(*m_scene, *object, m_componentTypeId);
+}
+
+bool CRemoveComponentCommand::Execute()
+{
+	m_removed = RemoveNow();
+	return m_removed;
+}
+
+void CRemoveComponentCommand::Undo()
+{
+	CGameObject* object = Resolve(m_scene, m_objectGuid);
+	if (false == m_removed || nullptr == object || m_snapshot.empty())
+	{
+		return;
+	}
+	Serialization::DeserializeComponentInto(*object, m_snapshot.c_str());
+	m_removed = false;
+}
+
+void CRemoveComponentCommand::Redo()
+{
+	if (false == m_removed)
+	{
+		m_removed = RemoveNow();
+	}
 }
 
 // ── CSetParentCommand ─────────────────────────────────────────────────────────

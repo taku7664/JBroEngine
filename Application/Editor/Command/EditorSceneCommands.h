@@ -131,6 +131,48 @@ private:
 	std::vector<std::uint8_t> m_newValue;
 };
 
+// 오브젝트(+서브트리) 삭제. Undo 는 직렬화 스냅샷(프리팹 텍스트)으로 복원.
+class CDeleteGameObjectCommand final : public IEditorCommand
+{
+public:
+	CDeleteGameObjectCommand(SafePtr<CScene> scene, CGameObject* object);
+	~CDeleteGameObjectCommand() override = default;
+
+	const char* GetName() const override;
+	bool Execute() override;
+	void Undo() override;
+	void Redo() override;
+
+private:
+	SafePtr<CScene> m_scene;
+	File::Guid  m_objectGuid;  // 삭제 대상(redo 재삭제·undo 후 재해석 키)
+	File::Guid  m_parentGuid;  // 복원 시 재부모(null = 루트)
+	std::string m_snapshot;    // 서브트리 직렬화(undo 복원용)
+	bool        m_deleted = false;
+};
+
+// 컴포넌트 1개 제거. Undo 는 직렬화 스냅샷으로 재부착+값 복원.
+class CRemoveComponentCommand final : public IEditorCommand
+{
+public:
+	CRemoveComponentCommand(SafePtr<CScene> scene, CGameObject* object, TypeId componentTypeId);
+	~CRemoveComponentCommand() override = default;
+
+	const char* GetName() const override;
+	bool Execute() override;
+	void Undo() override;
+	void Redo() override;
+
+private:
+	bool RemoveNow();
+
+	SafePtr<CScene> m_scene;
+	File::Guid  m_objectGuid;
+	TypeId      m_componentTypeId = INVALID_TYPE_ID;
+	std::string m_snapshot;     // 제거 전 컴포넌트 직렬화(undo 복원용)
+	bool        m_removed = false;
+};
+
 // SetParent 와 WorldStay(로컬 Transform 자동 보정)를 함께 처리하는 커맨드.
 // Undo: 이전 부모 관계 + 이전 로컬 Transform 복원.
 // Redo: 새 부모 관계 + 계산된 새 로컬 Transform 재적용.

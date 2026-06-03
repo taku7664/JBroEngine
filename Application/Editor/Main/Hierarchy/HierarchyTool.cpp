@@ -209,6 +209,8 @@ void CHierarchyTool::OnRenderStay()
 			}
 
 			EditorGuiDrawHelpers::DrawAddComponentMenu(*activeScene, obj);
+			ImGui::Separator();
+			EditorGuiDrawHelpers::DrawRemoveObjectMenu(*activeScene, obj);
 			ImGui::EndPopup();
 		}
 
