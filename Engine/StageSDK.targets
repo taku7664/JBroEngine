@@ -40,7 +40,6 @@
     <_SDKHeader Include="$(_EngineDir)GameFramework\Reflection\**\*.h"  DestDir="GameFramework\Reflection" />
     <_SDKHeader Include="$(_EngineDir)GameFramework\Component\**\*.h"   DestDir="GameFramework\Component" />
     <_SDKHeader Include="$(_EngineDir)GameFramework\Scene\**\*.h"       DestDir="GameFramework\Scene" />
-    <_SDKHeader Include="$(_EngineDir)GameFramework\ECS\**\*.h"         DestDir="GameFramework\ECS" />
     <_SDKHeader Include="$(_EngineDir)GameFramework\System\**\*.h"      DestDir="GameFramework\System" />
     <_SDKHeader Include="$(_EngineDir)GameFramework\Physics2D\**\*.h"   DestDir="GameFramework\Physics2D" />
     <_SDKHeader Include="$(_EngineDir)GameFramework\Object\**\*.h"      DestDir="GameFramework\Object" />

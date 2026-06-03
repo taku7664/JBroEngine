@@ -86,9 +86,6 @@
     <Filter Include="Source\GameFramework">
       <UniqueIdentifier>{2D615011-5902-45DE-84E7-A4316B0B7A7D}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source\GameFramework\ECS">
-      <UniqueIdentifier>{5DC65041-1BD7-403E-A036-7E0B4F46E575}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Source\GameFramework\Object">
       <UniqueIdentifier>{CB4D3B4F-A745-4D9C-B139-B9504C11E2F4}</UniqueIdentifier>
     </Filter>
@@ -173,9 +170,6 @@
     </Filter>
     <Filter Include="Header\GameFramework\Component">
       <UniqueIdentifier>{AE65A60B-34B9-4DF9-A248-108F96E83C8E}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header\GameFramework\ECS">
-      <UniqueIdentifier>{79F5674C-F55A-4E78-B664-F036098727C1}</UniqueIdentifier>
     </Filter>
     <Filter Include="Header\GameFramework\Object">
       <UniqueIdentifier>{56C0E51E-8DB5-43B5-9417-65F6C7E3F0FA}</UniqueIdentifier>
@@ -679,9 +673,6 @@
     </ClInclude>
     <ClInclude Include="GameFramework\Component\Transform2D.h">
       <Filter>Header\GameFramework\Component</Filter>
-    </ClInclude>
-    <ClInclude Include="GameFramework\ECS\EntityTypes.h">
-      <Filter>Header\GameFramework\ECS</Filter>
     </ClInclude>
     <ClInclude Include="GameFramework\Object\GameObject.h">
       <Filter>Header\GameFramework\Object</Filter>

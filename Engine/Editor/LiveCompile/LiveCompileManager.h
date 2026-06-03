@@ -15,7 +15,7 @@
 // 핫리로드 직전, 스크립트 인스턴스의 REFLECT_FIELD 값을 보존한다.
 struct ScriptFieldSnapshot
 {
-	EntityId                        Entity;
+	ObjectId                        Entity;
 	std::string                     TypeName; // 재로드 후 이름으로 타입 재탐색
 	std::vector<ScriptPendingField> Fields;
 };

@@ -20,7 +20,7 @@ namespace
 		       0 == std::strcmp(componentType->Type.Name, "ScriptComponent");
 	}
 
-	bool DrawScriptList(CScene& scene, EntityId entity, CReflectionRegistry& reflection)
+	bool DrawScriptList(CScene& scene, ObjectId entity, CReflectionRegistry& reflection)
 	{
 		if (nullptr == scene.FindObjectById(entity))
 		{
@@ -55,7 +55,7 @@ namespace
 		return added;
 	}
 
-	bool DrawComponentList(CScene& scene, EntityId entity)
+	bool DrawComponentList(CScene& scene, ObjectId entity)
 	{
 		CGameObject* object = scene.FindObjectById(entity);
 		if (false == Core::Reflection.IsValid() || nullptr == object)
@@ -157,7 +157,7 @@ std::string EditorGuiDrawHelpers::LocalizedCategoryLabel(const char* category)
 	return Loc::TextOr(key.c_str(), safe);
 }
 
-bool EditorGuiDrawHelpers::DrawAddComponentMenu(CScene& scene, EntityId entity)
+bool EditorGuiDrawHelpers::DrawAddComponentMenu(CScene& scene, ObjectId entity)
 {
 	if (ImGui::BeginMenu(Loc::Text("inspector.add_component")))
 	{
@@ -168,7 +168,7 @@ bool EditorGuiDrawHelpers::DrawAddComponentMenu(CScene& scene, EntityId entity)
 	return false;
 }
 
-bool EditorGuiDrawHelpers::DrawAddComponentButton(CScene& scene, EntityId entity)
+bool EditorGuiDrawHelpers::DrawAddComponentButton(CScene& scene, ObjectId entity)
 {
 	bool added = false;
 	if (ImGui::Button(Loc::Text("inspector.add_component")))
@@ -184,10 +184,10 @@ bool EditorGuiDrawHelpers::DrawAddComponentButton(CScene& scene, EntityId entity
 	return added;
 }
 
-bool EditorGuiDrawHelpers::DrawAddObjectMenu(CScene& scene, EntityId parent)
+bool EditorGuiDrawHelpers::DrawAddObjectMenu(CScene& scene, ObjectId parent)
 {
 	// parent 유무에 따라 레이블 변경
-	const char* label = (parent != INVALID_ENTITY_ID)
+	const char* label = (parent != INVALID_OBJECT_ID)
 	                        ? Loc::Text("inspector.add_child_object")
 	                        : Loc::Text("inspector.add_object");
 

@@ -3,7 +3,7 @@
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
 
 #include "Engine/Core/Asset/AssetTypes.h"
-#include "Engine/GameFramework/ECS/EntityTypes.h"      // EntityId
+#include "Engine/GameFramework/Scene/SceneTypes.h"      // ObjectId
 #include "Engine/GameFramework/Reflection/ReflectionTypes.h" // TypeId
 #include "Utillity/File/FilePath.h"
 
@@ -12,14 +12,14 @@ namespace EditorDragDrop
 	constexpr const char* ASSET_PAYLOAD_TYPE = "JBRO_ASSET";
 
 	// ── 하이어라키 드래그-드랍 페이로드 (Ref 프로퍼티 드롭 타깃이 받는다) ──────────
-	// 오브젝트 1개를 드래그: EntityId 가 실린다.
+	// 오브젝트 1개를 드래그: ObjectId 가 실린다.
 	constexpr const char* HIERARCHY_ENTITY_PAYLOAD = "HIERARCHY_ENTITY";
 	// 컴포넌트/스크립트를 드래그: 아래 구조가 실린다.
 	constexpr const char* HIERARCHY_COMPONENT_PAYLOAD = "HIERARCHY_COMPONENT";
 
 	struct HierarchyComponentPayload
 	{
-		EntityId Entity   = INVALID_ENTITY_ID;
+		ObjectId Entity   = INVALID_OBJECT_ID;
 		TypeId   TypeId   = INVALID_TYPE_ID;
 		bool     IsScript = false;   // true = 스크립트(ScriptComponent.Instance), false = 일반 컴포넌트
 	};

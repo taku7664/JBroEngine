@@ -52,8 +52,6 @@ Engine/Core/Task/TaskManager.cpp
 Engine/Core/Time/Time.cpp
 Engine/GameFramework/Audio/AudioSystem.cpp
 Engine/GameFramework/Component/BuiltinComponentRegistry.cpp
-Engine/GameFramework/Component/GameObjectComponent.cpp
-Engine/GameFramework/ECS/EntityManager.cpp
 Engine/GameFramework/Object/GameObject.cpp
 Engine/GameFramework/Object/Ref.cpp
 Engine/GameFramework/Physics2D/Physics2DGeometry.cpp

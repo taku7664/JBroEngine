@@ -1,7 +1,6 @@
 #pragma once
 
 #include "GameFramework/System/GameSystem.h"
-#include "GameFramework/ECS/EntityTypes.h"
 #include "GameFramework/Reflection/ReflectionTypes.h"
 
 #include <cstdint>

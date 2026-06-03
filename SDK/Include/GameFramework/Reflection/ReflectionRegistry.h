@@ -11,14 +11,13 @@
 #include <type_traits>
 #include <unordered_map>
 
-using ComponentAddFunc              = bool(*)(CScene& scene, EntityId entity);
-using ComponentAddNewFunc           = bool(*)(CScene& scene, EntityId entity);
-using ComponentRemoveFunc           = bool(*)(CScene& scene, EntityId entity);
-using ComponentRemoveSpecificFunc   = bool(*)(CScene& scene, EntityId entity, void* component);
-using ComponentHasFunc              = bool(*)(const CScene& scene, EntityId entity);
-using ComponentAddressFunc          = void*       (*)(CScene& scene, EntityId entity);
-using ConstComponentAddressFunc     = const void* (*)(const CScene& scene, EntityId entity);
-using ComponentGetAllAddressesFunc  = void(*)(CScene& scene, EntityId entity, std::vector<void*>& out);
+class CGameObject;
+
+using ComponentAddFunc              = bool(*)(CScene& scene, CGameObject& object);
+using ComponentRemoveFunc           = bool(*)(CScene& scene, CGameObject& object);
+using ComponentHasFunc              = bool(*)(const CGameObject& object);
+using ComponentAddressFunc          = void*       (*)(CGameObject& object);
+using ConstComponentAddressFunc     = const void* (*)(const CGameObject& object);
 
 // 스크립트 인스턴스 팩토리 함수 타입
 using CreateScriptFunc = CGameScript*(*)(const GameModuleHostApi* hostApi);
@@ -38,15 +37,12 @@ struct ComponentTypeInfo
 {
 	ReflectTypeInfo Type;
 	std::vector<ReflectPropertyInfo> Properties;
-	ComponentAddFunc             AddToEntity              = nullptr;
-	ComponentAddNewFunc          AddNewToEntity           = nullptr; // alias of AddToEntity
-	ComponentRemoveFunc          RemoveFromEntity         = nullptr;
-	ComponentRemoveSpecificFunc  RemoveSpecificFromEntity = nullptr; // delegates to RemoveFromEntity
-	ComponentHasFunc             HasComponent             = nullptr;
-	ComponentAddressFunc         GetAddress               = nullptr;
-	ConstComponentAddressFunc    GetConstAddress          = nullptr;
-	ComponentGetAllAddressesFunc GetAllAddresses          = nullptr; // fills at most one element
-	bool CanAddToEntity = true;
+	ComponentAddFunc          AddToObject     = nullptr;
+	ComponentRemoveFunc       RemoveFromObject = nullptr;
+	ComponentHasFunc          HasComponent    = nullptr;
+	ComponentAddressFunc      GetAddress      = nullptr;
+	ConstComponentAddressFunc GetConstAddress = nullptr;
+	bool CanAddToObject = true;
 };
 
 struct ScriptTypeInfo
@@ -101,14 +97,11 @@ public:
 	void DestroyScriptInstance(ScriptInstanceHandle& instance) const;
 	const GameModuleHostApi* GetScriptHostApi() const;
 
-	bool AddComponent(CScene& scene, EntityId entity, TypeId typeId) const;
-	bool AddNewComponent(CScene& scene, EntityId entity, TypeId typeId) const;
-	bool RemoveComponent(CScene& scene, EntityId entity, TypeId typeId) const;
-	bool RemoveSpecificComponent(CScene& scene, EntityId entity, TypeId typeId, void* component) const;
-	bool HasComponent(const CScene& scene, EntityId entity, TypeId typeId) const;
-	void* GetComponentAddress(CScene& scene, EntityId entity, TypeId typeId) const;
-	const void* GetComponentAddress(const CScene& scene, EntityId entity, TypeId typeId) const;
-	void GetAllComponentAddresses(CScene& scene, EntityId entity, TypeId typeId, std::vector<void*>& out) const;
+	bool AddComponent(CScene& scene, CGameObject& object, TypeId typeId) const;
+	bool RemoveComponent(CScene& scene, CGameObject& object, TypeId typeId) const;
+	bool HasComponent(const CGameObject& object, TypeId typeId) const;
+	void* GetComponentAddress(CGameObject& object, TypeId typeId) const;
+	const void* GetComponentAddress(const CGameObject& object, TypeId typeId) const;
 
 	static void* GetPropertyAddress(void* component, const ReflectPropertyInfo& property);
 	static const void* GetPropertyAddress(const void* component, const ReflectPropertyInfo& property);
@@ -143,38 +136,26 @@ CComponentRegistration CReflectionRegistry::RegisterComponent(const ComponentReg
 	typeInfo.Type.Kind = EReflectTypeKind::Component;
 	typeInfo.Type.Size = sizeof(T);
 	typeInfo.Type.Alignment = alignof(T);
-	typeInfo.CanAddToEntity = desc.CanAddToEntity;
-	typeInfo.AddToEntity = [](CScene& scene, EntityId entity) -> bool {
-		return nullptr != scene.AddComponent<T>(entity);
+	typeInfo.CanAddToObject = desc.CanAddToEntity;
+	typeInfo.AddToObject = [](CScene& scene, CGameObject& object) -> bool {
+		return nullptr != scene.AddComponent<T>(object);
 	};
-	typeInfo.AddNewToEntity = [](CScene& scene, EntityId entity) -> bool {
-		return nullptr != scene.AddNewComponent<T>(entity);
-	};
-	typeInfo.RemoveFromEntity = [](CScene& scene, EntityId entity) -> bool {
-		if (false == scene.HasComponent<T>(entity))
+	typeInfo.RemoveFromObject = [](CScene& scene, CGameObject& object) -> bool {
+		if (false == object.HasComponent<T>())
 		{
 			return false;
 		}
-		scene.RemoveComponent<T>(entity);
+		scene.RemoveComponent<T>(object);
 		return true;
 	};
-	typeInfo.RemoveSpecificFromEntity = [](CScene& scene, EntityId entity, void* component) -> bool {
-		return scene.RemoveSpecificComponent<T>(entity, static_cast<T*>(component));
+	typeInfo.HasComponent = [](const CGameObject& object) -> bool {
+		return object.HasComponent<T>();
 	};
-	typeInfo.HasComponent = [](const CScene& scene, EntityId entity) -> bool {
-		return scene.HasComponent<T>(entity);
+	typeInfo.GetAddress = [](CGameObject& object) -> void* {
+		return object.GetComponent<T>();
 	};
-	typeInfo.GetAddress = [](CScene& scene, EntityId entity) -> void* {
-		return scene.GetComponent<T>(entity);
-	};
-	typeInfo.GetConstAddress = [](const CScene& scene, EntityId entity) -> const void* {
-		return scene.GetComponent<T>(entity);
-	};
-	typeInfo.GetAllAddresses = [](CScene& scene, EntityId entity, std::vector<void*>& out) {
-		for (T* ptr : scene.GetAllComponents<T>(entity))
-		{
-			out.push_back(ptr);
-		}
+	typeInfo.GetConstAddress = [](const CGameObject& object) -> const void* {
+		return object.GetComponent<T>();
 	};
 
 	ComponentTypeInfo* registeredType = RegisterComponentInternal(std::move(typeInfo));

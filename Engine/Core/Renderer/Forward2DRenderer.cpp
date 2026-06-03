@@ -322,11 +322,11 @@ void CForward2DRenderer::Render(IRenderScene& scene)
 	}
 }
 
-void CForward2DRenderer::RenderFiltered(IRenderScene& scene, const std::unordered_set<EntityId>& entities)
+void CForward2DRenderer::RenderFiltered(IRenderScene& scene, const std::unordered_set<RenderObjectId>& objects)
 {
 	if (false == m_isInitialized || false == m_rhiDevice.IsValid()) return;
 	if (!m_spritePipeline || !m_quadMesh) return;
-	if (entities.empty()) return;
+	if (objects.empty()) return;
 
 	if (CRenderScene* concreteScene = dynamic_cast<CRenderScene*>(&scene))
 		concreteScene->Sort();
@@ -358,8 +358,8 @@ void CForward2DRenderer::RenderFiltered(IRenderScene& scene, const std::unordere
 	{
 		const RenderItem& item = items[i];
 
-		// ── 엔티티 필터 ──────────────────────────────────────────────────────────
-		if (entities.find(item.Entity) == entities.end()) continue;
+		// ── 오브젝트 필터 ─────────────────────────────────────────────────────────
+		if (objects.find(item.Entity) == objects.end()) continue;
 
 		if (false == item.Mesh.IsValid() || false == item.Material.IsValid()) continue;
 

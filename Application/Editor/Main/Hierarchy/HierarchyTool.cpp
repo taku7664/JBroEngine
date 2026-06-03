@@ -56,7 +56,7 @@ void CHierarchyTool::OnRenderStay()
 		if (ImGui::BeginPopupContextWindow("HierarchyBackgroundContext",
 		    ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems))
 		{
-			EditorGuiDrawHelpers::DrawAddObjectMenu(*activeScene, INVALID_ENTITY_ID);
+			EditorGuiDrawHelpers::DrawAddObjectMenu(*activeScene, INVALID_OBJECT_ID);
 			ImGui::EndPopup();
 		}
 	};
@@ -72,7 +72,7 @@ void CHierarchyTool::OnRenderStay()
 		return;
 	}
 
-	std::unordered_map<EntityId, std::vector<std::size_t>> childrenByParent;
+	std::unordered_map<ObjectId, std::vector<std::size_t>> childrenByParent;
 	std::vector<std::size_t> rootIndices;
 	for (std::size_t i = 0; i < objects.size(); ++i)
 	{
@@ -105,11 +105,11 @@ void CHierarchyTool::OnRenderStay()
 			const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("HIERARCHY_ENTITY");
 			if (payload)
 			{
-				EntityId dragged = *static_cast<const EntityId*>(payload->Data);
+				ObjectId dragged = *static_cast<const ObjectId*>(payload->Data);
 				CGameObject* draggedObj = activeScene->FindObjectById(dragged);
 				if (draggedObj && draggedObj->GetParent().IsValid())
 				{
-					auto cmd = MakeOwnerPtr<CSetParentCommand>(activeScene, dragged, INVALID_ENTITY_ID);
+					auto cmd = MakeOwnerPtr<CSetParentCommand>(activeScene, dragged, INVALID_OBJECT_ID);
 					Editor::CommandManager.ExecuteCommand(std::move(cmd));
 					Editor::SelectEntity(dragged);
 				}
@@ -122,7 +122,7 @@ void CHierarchyTool::OnRenderStay()
 	// ── 선택된 오브젝트의 컴포넌트/스크립트 리스트 (드래그 소스) ─────────────────
 	// 각 항목을 드래그하면 "HIERARCHY_COMPONENT" 페이로드가 실린다 →
 	// Ref<T> 프로퍼티(인스펙터)의 드롭 타깃이 받아 참조를 설정한다.
-	auto drawComponentDragList = [&](EntityId entity)
+	auto drawComponentDragList = [&](ObjectId entity)
 	{
 		if (false == Core::Reflection.IsValid())
 		{
@@ -147,7 +147,7 @@ void CHierarchyTool::OnRenderStay()
 		// 한 항목을 ImTree 리프 노드로 렌더한다 — 일반 Selectable 대신 ImTree 를 써야
 		// 커스텀 트리의 들여쓰기 보정과 자식 연결선(DrawLinesToNodes)에 동기화된다.
 		auto drawItem = [&](const char* label, const ImVec4& color,
-		                    EntityId ent, TypeId typeId, bool isScript, const char* focusName)
+		                    ObjectId ent, TypeId typeId, bool isScript, const char* focusName)
 		{
 			ImGui::Utillity::IDGroup itemId(static_cast<const void*>(label));
 			const ImGuiTreeNodeFlags leafFlags =
@@ -216,7 +216,7 @@ void CHierarchyTool::OnRenderStay()
 		ImGui::Utillity::IDGroup idGroup(objectIndex); // 고유 ID 스코프 (인덱스 기반)
 
 		CGameObject* obj = objects[objectIndex];
-		const EntityId entityId = obj->GetId();
+		const ObjectId entityId = obj->GetId();
 		const auto childIt  = childrenByParent.find(entityId);
 		const bool hasChildren = (childIt != childrenByParent.end() && !childIt->second.empty());
 
@@ -261,7 +261,7 @@ void CHierarchyTool::OnRenderStay()
 		// ── Drag Source ───────────────────────────────────────────────────────
 		if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceAllowNullID))
 		{
-			ImGui::SetDragDropPayload(EditorDragDrop::HIERARCHY_ENTITY_PAYLOAD, &entityId, sizeof(EntityId));
+			ImGui::SetDragDropPayload(EditorDragDrop::HIERARCHY_ENTITY_PAYLOAD, &entityId, sizeof(ObjectId));
 			ImGui::Text(Loc::Text("hierarchy.move_format"), name);
 			ImGui::EndDragDropSource();
 		}
@@ -272,7 +272,7 @@ void CHierarchyTool::OnRenderStay()
 			const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("HIERARCHY_ENTITY");
 			if (payload)
 			{
-				EntityId dragged = *static_cast<const EntityId*>(payload->Data);
+				ObjectId dragged = *static_cast<const ObjectId*>(payload->Data);
 				CGameObject* draggedObj = activeScene->FindObjectById(dragged);
 				// 자기 자신 및 사이클 방지
 				const bool valid = (dragged != entityId) && draggedObj
@@ -296,7 +296,7 @@ void CHierarchyTool::OnRenderStay()
 			{
 				if (ImGui::MenuItem(Loc::Text("hierarchy.unparent")))
 				{
-					auto cmd = MakeOwnerPtr<CSetParentCommand>(activeScene, entityId, INVALID_ENTITY_ID);
+					auto cmd = MakeOwnerPtr<CSetParentCommand>(activeScene, entityId, INVALID_OBJECT_ID);
 					Editor::CommandManager.ExecuteCommand(std::move(cmd));
 				}
 				ImGui::Separator();
@@ -356,11 +356,11 @@ void CHierarchyTool::OnRenderStay()
 				const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("HIERARCHY_ENTITY");
 				if (payload)
 				{
-					EntityId dragged = *static_cast<const EntityId*>(payload->Data);
+					ObjectId dragged = *static_cast<const ObjectId*>(payload->Data);
 					CGameObject* draggedObj = activeScene->FindObjectById(dragged);
 					if (draggedObj && draggedObj->GetParent().IsValid())
 					{
-						auto cmd = MakeOwnerPtr<CSetParentCommand>(activeScene, dragged, INVALID_ENTITY_ID);
+						auto cmd = MakeOwnerPtr<CSetParentCommand>(activeScene, dragged, INVALID_OBJECT_ID);
 						Editor::CommandManager.ExecuteCommand(std::move(cmd));
 						Editor::SelectEntity(dragged);
 					}

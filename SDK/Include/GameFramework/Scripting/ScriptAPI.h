@@ -11,7 +11,7 @@
 //    - CGameScript 기반 클래스 (상속 대상)
 //    - SCRIPT_CLASS / REFLECT_FIELD 매크로
 //    - Vector2 REFLECT_FIELD 지원
-//    - 씬/엔티티 접근 (GetScene(), GetEntity())
+//    - 씬/오브젝트 접근 (GetScene(), GetGameObject(), GetComponent<T>())
 //    - 자주 사용하는 컴포넌트 타입
 //    - 입력 시스템
 //    - 수학 유틸리티
@@ -72,14 +72,17 @@ template<> inline EReflectPropertyType ScriptFieldTypeOf<File::Guid>()
 	return EReflectPropertyType::AssetGuid;
 }
 
-// ── 씬 / 엔티티 ──────────────────────────────────────────────────────────────
+// ── 씬 / 오브젝트 ────────────────────────────────────────────────────────────
 #include "GameFramework/Scene/Scene.h"
-#include "GameFramework/ECS/EntityTypes.h"
+#include "GameFramework/Object/GameObject.h"
+
+// 스크립트 작성자용 별칭: 실체 타입은 CGameObject 지만 스크립트에선 GameObject 로 쓴다.
+//   JPROP() Ref<GameObject> Target;  /  GetGameObject() 반환형 등.
+using GameObject = CGameObject;
 
 // ── 자주 사용하는 컴포넌트 ────────────────────────────────────────────────────
 #include "GameFramework/Component/Transform2D.h"
 #include "GameFramework/Component/SpriteRenderer2D.h"
-#include "GameFramework/Component/GameObject.h"
 #include "GameFramework/Component/Camera2D.h"
 // Physics2D 관련 컴포넌트(Rigidbody2D / 콜라이더)는 ScriptAPI_Physics.h 로 분리.
 

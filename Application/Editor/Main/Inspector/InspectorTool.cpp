@@ -90,7 +90,7 @@ CSpriteAsset* sprite = Core::ResourceRegistry->GetSprite(key);
 		return info ? GetScriptDisplayName(info) : nullptr;
 	}
 
-	void DrawScriptTypeSelector(CScene& scene, EntityId entity, std::size_t instanceIndex, ScriptComponent& scriptComponent)
+	void DrawScriptTypeSelector(CScene& scene, ObjectId entity, std::size_t instanceIndex, ScriptComponent& scriptComponent)
 	{
 		if (false == Core::Reflection.IsValid())
 		{
@@ -219,7 +219,7 @@ CSpriteAsset* sprite = Core::ResourceRegistry->GetSprite(key);
 			if (const ImGuiPayload* p =
 				ImGui::AcceptDragDropPayload(EditorDragDrop::HIERARCHY_ENTITY_PAYLOAD))
 			{
-				const EntityId e = *static_cast<const EntityId*>(p->Data);
+				const ObjectId e = *static_cast<const ObjectId*>(p->Data);
 				if (CGameObject* obj = scene->FindObjectById(e))
 				{
 					ref.SetGuidText(obj->InstanceGuid.generic_string().c_str());
@@ -398,8 +398,6 @@ CSpriteAsset* sprite = Core::ResourceRegistry->GetSprite(key);
 				[&]() { return ApplyRefDrop(*ref, property); },
 				[&]() { ref->Clear(); });
 		}
-		case EReflectPropertyType::EntityId:
-			return ImGui::InputScalar("", ImGuiDataType_U64, field);
 		case EReflectPropertyType::Enum:
 		{
 			std::int32_t value = 0;
@@ -493,7 +491,7 @@ CSpriteAsset* sprite = Core::ResourceRegistry->GetSprite(key);
 		ImGui::EndDisabled();
 	}
 
-	void DrawPhysicsContactDebug(const CScene& scene, EntityId selectedEntity)
+	void DrawPhysicsContactDebug(const CScene& scene, ObjectId selectedEntity)
 	{
 		const CPhysics2DSystem* physicsSystem = scene.GetPhysics2DSystem();
 		if (nullptr == physicsSystem)
@@ -527,7 +525,7 @@ CSpriteAsset* sprite = Core::ResourceRegistry->GetSprite(key);
 		}
 	}
 
-	void DrawRigidbodyDebug(const CScene& scene, EntityId selectedEntity, const Rigidbody2D& rigidbody)
+	void DrawRigidbodyDebug(const CScene& scene, ObjectId selectedEntity, const Rigidbody2D& rigidbody)
 	{
 		ImGui::SeparatorText(Loc::Text("inspector.rigidbody_debug"));
 		const float inverseMass = rigidbody.Mass > 0.0f ? 1.0f / rigidbody.Mass : 0.0f;
@@ -543,7 +541,7 @@ CSpriteAsset* sprite = Core::ResourceRegistry->GetSprite(key);
 		DrawPhysicsContactDebug(scene, selectedEntity);
 	}
 
-	void DrawCircleColliderDebug(const CScene& scene, EntityId selectedEntity, const CircleCollider2D& collider)
+	void DrawCircleColliderDebug(const CScene& scene, ObjectId selectedEntity, const CircleCollider2D& collider)
 	{
 		CGameObject* selectedObject = const_cast<CScene&>(scene).FindObjectById(selectedEntity);
 		const Matrix3x2 worldTransform = selectedObject ? GetWorldTransform(*selectedObject) : Matrix3x2::Identity();
@@ -557,7 +555,7 @@ CSpriteAsset* sprite = Core::ResourceRegistry->GetSprite(key);
 		DrawReadOnlyFloat(Loc::Text("inspector.collider.world_radius"), worldRadius);
 	}
 
-	void DrawPolygonColliderDebug(const CScene& scene, EntityId selectedEntity, const PolygonCollider2D& collider)
+	void DrawPolygonColliderDebug(const CScene& scene, ObjectId selectedEntity, const PolygonCollider2D& collider)
 	{
 		std::vector<Vector2> generatedPoints;
 		const std::vector<Vector2>* localPoints = &collider.LocalPoints;
@@ -613,7 +611,7 @@ CSpriteAsset* sprite = Core::ResourceRegistry->GetSprite(key);
 	//   sameLineAfter=true  → "##enabled" 체크박스 + SameLine() (CollapsingHeader 왼쪽)
 	//   sameLineAfter=false → "IsEnabled" 라벨 체크박스 + Separator  (탭 최상단 단독)
 	void DrawIsEnabledCheckbox(
-		CScene& scene, EntityId selectedEntity,
+		CScene& scene, ObjectId selectedEntity,
 		const ComponentTypeInfo& componentType,
 		std::size_t instanceIdx, void* component, bool sameLineAfter)
 	{
@@ -654,7 +652,7 @@ CSpriteAsset* sprite = Core::ResourceRegistry->GetSprite(key);
 	// ── DrawComponentProperties ───────────────────────────────────────────────
 	// IsEnabled·non-editable 프로퍼티를 제외하고 에디터 + 특수 디버그 섹션 렌더링.
 	void DrawComponentProperties(
-		CScene& scene, EntityId selectedEntity,
+		CScene& scene, ObjectId selectedEntity,
 		const ComponentTypeInfo& componentType,
 		std::size_t instanceIdx, void* component)
 	{
@@ -1213,9 +1211,9 @@ void CInspectorTool::OnRenderStay()
 		return;
 	}
 
-	const EntityId selectedEntity = Editor::GetSelectedEntity();
+	const ObjectId selectedEntity = Editor::GetSelectedEntity();
 	CGameObject*   selectedObject =
-	    (INVALID_ENTITY_ID == selectedEntity) ? nullptr : scene->FindObjectById(selectedEntity);
+	    (INVALID_OBJECT_ID == selectedEntity) ? nullptr : scene->FindObjectById(selectedEntity);
 	if (nullptr == selectedObject)
 	{
 		// 스크립트 .h 선택 — 스키마 에디터.

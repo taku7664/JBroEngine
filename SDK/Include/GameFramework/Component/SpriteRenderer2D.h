@@ -3,6 +3,7 @@
 #include "Core/Asset/AssetRef.h"
 #include "Core/Asset/AssetTypes.h"
 #include "Core/Renderer/RendererTypes.h"
+#include "GameFramework/Component/Component.h"
 #include "Utillity/Math/Vector2T.h"
 
 #include <cstdint>
@@ -12,9 +13,10 @@ class IAsset;
 class IRenderMaterial;
 class IRenderMesh;
 
-struct SpriteRenderer2D
+class SpriteRenderer2D final : public CComponent
 {
-	bool IsEnabled = true;
+	JBRO_COMPONENT(SpriteRenderer2D)
+public:
 	AssetGuid SpriteGuid = INVALID_ASSET_GUID;
 	AssetGuid MaterialGuid = INVALID_ASSET_GUID;
 	// Mesh/Material 은 SpriteRenderSystem 이 매 프레임 채우는 런타임 캐시입니다.

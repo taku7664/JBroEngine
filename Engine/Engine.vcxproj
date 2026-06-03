@@ -433,7 +433,6 @@
     <ClInclude Include="GameFramework\Component\Camera2D.h" />
     <ClInclude Include="GameFramework\Component\SpriteRenderer2D.h" />
     <ClInclude Include="GameFramework\Component\Transform2D.h" />
-    <ClInclude Include="GameFramework\ECS\EntityTypes.h" />
     <ClInclude Include="GameFramework\Object\GameObject.h" />
     <ClInclude Include="GameFramework\Object\Ref.h" />
     <ClInclude Include="GameFramework\Component\PrefabInstance.h" />

@@ -1,27 +1,25 @@
 #pragma once
 
 #include "Core/Asset/AssetTypes.h"
-#include "GameFramework/ECS/ComponentPool.h"
-#include "GameFramework/ECS/EntityManager.h"
+#include "GameFramework/Component/Component.h"
+#include "GameFramework/Object/GameObject.h"
+#include "GameFramework/Object/ObjectPool.h"
 #include "GameFramework/System/GameSystem.h"
+#include "Utillity/File/FilePath.h"
 #include "Utillity/Pointer/SafePtr.h"
 
 #include <algorithm>
-#include <typeindex>
 #include <type_traits>
-#include <tuple>
+#include <typeindex>
 #include <utility>
 #include <vector>
 
-class CGameObject;
 class CPhysics2DSystem;
 class CScriptSystem;
 class CTransformSystem;
-struct SceneSnapshot;
 
-// CScene is a GameScript-owned runtime object. Do not pass CScene, component
-// pointers, or system pointers across live-compile DLL boundaries; expose POD
-// snapshots when editor inspection is needed.
+// CScene 은 GameScript 가 소유하는 런타임 객체다. CScene/GameObject/Component 포인터를
+// 라이브 컴파일 DLL 경계로 그대로 넘기지 말 것(안전참조는 SafePtr, 직렬화는 리플렉션).
 class CScene final : public EnableSafeFromThis<CScene>
 {
 public:
@@ -31,158 +29,84 @@ public:
 	CScene(const CScene&) = delete;
 	CScene& operator=(const CScene&) = delete;
 
-public:
-	EntityId CreateEntity();
-	bool DestroyEntity(EntityId entity);
-	bool IsAlive(EntityId entity) const;
-	std::size_t GetAliveEntityCount() const;
+	// ── 오브젝트 ──────────────────────────────────────────────────────────────
+	CGameObject* CreateGameObject(const char* name = nullptr);
+	bool         DestroyGameObject(CGameObject* gameObject);
+	std::size_t  GetObjectCount() const { return m_objectPool.GetLiveCount(); }
 
-	CGameObject CreateGameObject(const char* name = nullptr);
-	bool DestroyGameObject(const CGameObject& gameObject);
-	void BuildSnapshot(SceneSnapshot& snapshot) const;
+	// InstanceGuid → 활성 오브젝트(Ref<T> 직렬화 키 해석).
+	SafePtr<CGameObject> FindByInstanceGuid(const File::Guid& guid);
+	void                 SetObjectInstanceGuid(CGameObject& object, const File::Guid& guid);
 
-	// ── 오브젝트 안정 식별자(InstanceGuid) ↔ 엔티티 ──────────────────────────
-	// Ref<T> 가 직렬화된 GUID 로 런타임 엔티티를 해석할 때 사용한다.
-	EntityId FindEntityByInstanceGuid(const File::Guid& guid) const;
-	void     SetGameObjectInstanceGuid(EntityId entity, const File::Guid& guid);
+	// 불투명 id(CGameObject::GetId) → 오브젝트. 에디터 선택/픽킹·프리팹 루트 해석용.
+	CGameObject* FindObjectById(std::uint64_t id);
 
-	bool SetParent(EntityId child, EntityId parent);
-	bool ClearParent(EntityId child);
-	EntityId GetParent(EntityId entity) const;
-	EntityId GetFirstChild(EntityId entity) const;
-	EntityId GetNextSibling(EntityId entity) const;
-	EntityId GetPrevSibling(EntityId entity) const;
-	bool IsDescendantOf(EntityId entity, EntityId possibleAncestor) const;
+	template<typename Fn> void ForEachObject(Fn&& fn)       { m_objectPool.ForEachLive(std::forward<Fn>(fn)); }
+	template<typename Fn> void ForEachObject(Fn&& fn) const { m_objectPool.ForEachLive(std::forward<Fn>(fn)); }
 
-	// Add or return existing (singleton-per-entity semantics).
+	// ── 컴포넌트 ──────────────────────────────────────────────────────────────
+	// 단일 인스턴스: 같은 타입이 이미 있으면 그것을 반환한다.
 	template<typename T, typename... Args>
-	T* AddComponent(EntityId entity, Args&&... args)
+	T* AddComponent(CGameObject& object, Args&&... args)
 	{
-		if (false == IsAlive(entity))
+		static_assert(std::is_base_of_v<CComponent, T>, "T must derive from CComponent.");
+		if (T* existing = object.GetComponent<T>())
+		{
+			return existing;
+		}
+		T* component = GetOrCreatePool<T>().Allocate(std::forward<Args>(args)...);
+		if (nullptr == component)
 		{
 			return nullptr;
 		}
-
-		return GetOrCreateComponentPool<T>().Add(entity, std::forward<Args>(args)...);
+		component->Owner = object.SafeFromThis();
+		object.AttachComponent(component->SafeFromThis());
+		return component;
 	}
 
-	// Always creates a new instance (multi-component semantics).
-	template<typename T, typename... Args>
-	T* AddNewComponent(EntityId entity, Args&&... args)
-	{
-		if (false == IsAlive(entity))
-		{
-			return nullptr;
-		}
-
-		return GetOrCreateComponentPool<T>().AddNew(entity, std::forward<Args>(args)...);
-	}
-
-	// Removes ALL instances of T for this entity.
 	template<typename T>
-	void RemoveComponent(EntityId entity)
+	void RemoveComponent(CGameObject& object)
 	{
-		if (CComponentPool<T>* pool = FindComponentPool<T>())
+		static_assert(std::is_base_of_v<CComponent, T>, "T must derive from CComponent.");
+		if (T* component = object.GetComponent<T>())
 		{
-			pool->RemoveEntity(entity);
+			// 지연 파괴 — 순회 중 즉시 해제 금지(슬롯 무효화 회피). flush 에서 처리.
+			m_pendingDestroyComponents.push_back(component->SafeFromThis());
 		}
 	}
 
-	// Removes a specific instance by pointer.
 	template<typename T>
-	bool RemoveSpecificComponent(EntityId entity, T* component)
-	{
-		CComponentPool<T>* pool = FindComponentPool<T>();
-		return pool ? pool->RemoveSpecific(entity, component) : false;
-	}
-
-	// Returns the first (oldest) instance, or nullptr.
+	T* GetComponent(CGameObject& object) { return object.GetComponent<T>(); }
 	template<typename T>
-	T* GetComponent(EntityId entity)
-	{
-		CComponentPool<T>* pool = FindComponentPool<T>();
-		return pool ? pool->Get(entity) : nullptr;
-	}
+	const T* GetComponent(const CGameObject& object) const { return object.GetComponent<T>(); }
 
-	template<typename T>
-	const T* GetComponent(EntityId entity) const
+	// 타입별 풀 순회(시스템용). fn(T&).
+	template<typename T, typename Fn>
+	void ForEach(Fn&& fn)
 	{
-		const CComponentPool<T>* pool = FindComponentPool<T>();
-		return pool ? pool->Get(entity) : nullptr;
-	}
-
-	// 타입소거 컴포넌트 접근 — Ref<T> 처럼 컴파일타임에 T 를 알 수 없는 코드(또는
-	// 게임 DLL 경계)에서 type_index 로 풀을 찾아 컴포넌트 주소를 void* 로 얻는다.
-	// MSVC 의 type_info 는 모듈 경계를 넘어 이름 비교로 일치하므로 DLL 에서도 동작.
-	void* GetComponentRaw(EntityId entity, std::type_index type);
-
-	// Returns all instances of T for this entity.
-	template<typename T>
-	std::vector<T*> GetAllComponents(EntityId entity)
-	{
-		std::vector<T*> result;
-		if (CComponentPool<T>* pool = FindComponentPool<T>())
+		if (TObjectPool<T>* pool = FindPool<T>())
 		{
-			pool->GetAll(entity, result);
+			pool->ForEachLive(std::forward<Fn>(fn));
 		}
-		return result;
 	}
 
-	template<typename T>
-	std::vector<const T*> GetAllComponents(EntityId entity) const
+	template<typename T, typename Fn>
+	void ForEach(Fn&& fn) const
 	{
-		std::vector<const T*> result;
-		if (const CComponentPool<T>* pool = FindComponentPool<T>())
+		if (const TObjectPool<T>* pool = FindPool<T>())
 		{
-			pool->GetAll(entity, result);
+			pool->ForEachLive(std::forward<Fn>(fn));
 		}
-		return result;
 	}
 
-	template<typename T>
-	bool HasComponent(EntityId entity) const
-	{
-		return nullptr != GetComponent<T>(entity);
-	}
+	// 타입소거 컴포넌트 해제(GameObject 파괴 경로에서 사용). 동적 타입으로 풀 식별.
+	void DestroyComponent(CComponent* component);
 
-	// ForEach iterates every live (entity, primaryComp, ...) tuple.
-	// The *primary* component is taken directly from the pool (covers multi-instance).
-	// Secondary components are looked up via GetComponent (returns first instance).
-	template<typename... TComponents, typename TFunction>
-	void ForEach(TFunction&& function)
-	{
-		static_assert(sizeof...(TComponents) > 0, "ForEach requires at least one component type.");
-		using TPrimary = std::tuple_element_t<0, std::tuple<TComponents...>>;
-
-		CComponentPool<TPrimary>* primaryPool = FindComponentPool<TPrimary>();
-		if (nullptr == primaryPool)
-		{
-			return;
-		}
-
-		ForEachImpl<TComponents...>(*primaryPool, std::forward<TFunction>(function));
-	}
-
-	template<typename... TComponents, typename TFunction>
-	void ForEach(TFunction&& function) const
-	{
-		static_assert(sizeof...(TComponents) > 0, "ForEach requires at least one component type.");
-		using TPrimary = std::tuple_element_t<0, std::tuple<TComponents...>>;
-
-		const CComponentPool<TPrimary>* primaryPool = FindComponentPool<TPrimary>();
-		if (nullptr == primaryPool)
-		{
-			return;
-		}
-
-		ForEachImpl<TComponents...>(*primaryPool, std::forward<TFunction>(function));
-	}
-
+	// ── 시스템 / 업데이트 ─────────────────────────────────────────────────────
 	template<typename TSystem, typename... Args>
 	TSystem* AddSystem(Args&&... args)
 	{
 		static_assert(std::is_base_of_v<CGameSystem, TSystem>, "TSystem must derive from CGameSystem.");
-
 		OwnerPtr<TSystem> system = MakeOwnerPtr<TSystem>(std::forward<Args>(args)...);
 		TSystem* rawSystem = system.Get();
 		rawSystem->Initialize(*this);
@@ -194,27 +118,11 @@ public:
 	TSystem* FindSystem()
 	{
 		static_assert(std::is_base_of_v<CGameSystem, TSystem>, "TSystem must derive from CGameSystem.");
-
 		for (OwnerPtr<CGameSystem>& system : m_systems)
 		{
-			if (TSystem* typedSystem = dynamic_cast<TSystem*>(system.Get()))
+			if (TSystem* typed = dynamic_cast<TSystem*>(system.Get()))
 			{
-				return typedSystem;
-			}
-		}
-		return nullptr;
-	}
-
-	template<typename TSystem>
-	const TSystem* FindSystem() const
-	{
-		static_assert(std::is_base_of_v<CGameSystem, TSystem>, "TSystem must derive from CGameSystem.");
-
-		for (const OwnerPtr<CGameSystem>& system : m_systems)
-		{
-			if (const TSystem* typedSystem = dynamic_cast<const TSystem*>(system.Get()))
-			{
-				return typedSystem;
+				return typed;
 			}
 		}
 		return nullptr;
@@ -225,10 +133,10 @@ public:
 	void Update();
 	void UpdateSystems(bool isSimulationPlaying);
 	void UpdateScripts();
-	// 시뮬레이션 정지 — 모든 시스템에 정리 신호(재생 중 사운드 등 해제).
+	// 지연 파괴 큐 처리 — 모든 시스템/스크립트 순회가 끝난 뒤 호출(슬롯 무효화 회피).
+	void FlushPendingDestroys();
 	void NotifySimulationStop();
 	void DestroyScriptInstances();
-	void FlushPendingRemovesAllPools();
 	CPhysics2DSystem* GetPhysics2DSystem();
 	const CPhysics2DSystem* GetPhysics2DSystem() const;
 	void SetReferencedAssets(std::vector<AssetGuid> referencedAssets);
@@ -237,141 +145,100 @@ public:
 	void Clear();
 
 private:
-	// ── ForEach implementation ─────────────────────────────────────────────
-	// Splits TComponents into TFirst (iterated directly from pool) and TRest
-	// (looked up by GetComponent for each entity).
-
-	template<typename TFirst, typename... TRest, typename TFunction>
-	void ForEachImpl(CComponentPool<TFirst>& pool, TFunction&& function)
+	// ── 타입별 컴포넌트 풀 (타입소거) ─────────────────────────────────────────
+	class IComponentPool
 	{
-		if constexpr (sizeof...(TRest) == 0)
-		{
-			// Single-component path: no secondary lookup needed.
-			pool.ForEachActive([&](EntityId entity, TFirst& first)
-			{
-				function(entity, first);
-			});
-		}
-		else
-		{
-			// Cache secondary pool pointers once outside the loop.
-			// This avoids 2 * sizeof...(TRest) hash-map lookups per entity.
-			auto secondaryPools = std::make_tuple(FindComponentPool<TRest>()...);
-
-			// Early-out: if any required component type has no pool, nothing matches.
-			if (!((std::get<CComponentPool<TRest>*>(secondaryPools) != nullptr) && ...))
-			{
-				return;
-			}
-
-			pool.ForEachActive([&](EntityId entity, TFirst& first)
-			{
-				// HasEntity is O(1) sparse-array check — no hash-map lookup.
-				if ((std::get<CComponentPool<TRest>*>(secondaryPools)->HasEntity(entity) && ...))
-				{
-					function(entity, first, *std::get<CComponentPool<TRest>*>(secondaryPools)->Get(entity)...);
-				}
-			});
-		}
-	}
-
-	template<typename TFirst, typename... TRest, typename TFunction>
-	void ForEachImpl(const CComponentPool<TFirst>& pool, TFunction&& function) const
-	{
-		if constexpr (sizeof...(TRest) == 0)
-		{
-			pool.ForEachActive([&](EntityId entity, const TFirst& first)
-			{
-				function(entity, first);
-			});
-		}
-		else
-		{
-			auto secondaryPools = std::make_tuple(FindComponentPool<TRest>()...);
-
-			if (!((std::get<const CComponentPool<TRest>*>(secondaryPools) != nullptr) && ...))
-			{
-				return;
-			}
-
-			pool.ForEachActive([&](EntityId entity, const TFirst& first)
-			{
-				if ((std::get<const CComponentPool<TRest>*>(secondaryPools)->HasEntity(entity) && ...))
-				{
-					function(entity, first, *std::get<const CComponentPool<TRest>*>(secondaryPools)->Get(entity)...);
-				}
-			});
-		}
-	}
-
-	// ── Pool management ────────────────────────────────────────────────────
-	//
-	// m_componentPools is a sorted flat vector of (type_index, pool) pairs.
-	// Binary search gives O(log N) lookup with contiguous memory — no hashing.
-	// Typical component-type count per scene is < 30, so cache-friendliness
-	// of a flat vector beats the hash-table overhead.
+	public:
+		virtual ~IComponentPool() = default;
+		virtual void FreeBase(CComponent* component) = 0;
+		virtual void Clear() = 0;
+	};
 
 	template<typename T>
-	CComponentPool<T>* FindComponentPool()
+	class TComponentPool final : public IComponentPool
 	{
-		const std::type_index key(typeid(T));
-		auto it = std::lower_bound(m_componentPools.begin(), m_componentPools.end(), key,
-			[](const PoolEntry& e, const std::type_index& k) { return e.Key < k; });
-		if (it == m_componentPools.end() || it->Key != key)
-		{
-			return nullptr;
-		}
-		return static_cast<CComponentPool<T>*>(it->Pool.Get());
-	}
+	public:
+		TObjectPool<T> Pool;
+		void FreeBase(CComponent* component) override { Pool.Free(static_cast<T*>(component)); }
+		void Clear() override { Pool.Clear(); }
+	};
 
-	template<typename T>
-	const CComponentPool<T>* FindComponentPool() const
-	{
-		const std::type_index key(typeid(T));
-		auto it = std::lower_bound(m_componentPools.begin(), m_componentPools.end(), key,
-			[](const PoolEntry& e, const std::type_index& k) { return e.Key < k; });
-		if (it == m_componentPools.end() || it->Key != key)
-		{
-			return nullptr;
-		}
-		return static_cast<const CComponentPool<T>*>(it->Pool.Get());
-	}
-
-	template<typename T>
-	CComponentPool<T>& GetOrCreateComponentPool()
-	{
-		const std::type_index key(typeid(T));
-		auto it = std::lower_bound(m_componentPools.begin(), m_componentPools.end(), key,
-			[](const PoolEntry& e, const std::type_index& k) { return e.Key < k; });
-		if (it != m_componentPools.end() && it->Key == key)
-		{
-			return *static_cast<CComponentPool<T>*>(it->Pool.Get());
-		}
-
-		OwnerPtr<CComponentPool<T>> pool = MakeOwnerPtr<CComponentPool<T>>();
-		CComponentPool<T>* rawPool = pool.Get();
-		m_componentPools.insert(it, PoolEntry{ key, std::move(pool) });
-		return *rawPool;
-	}
-
-private:
-	bool AttachToParent(EntityId child, EntityId parent);
-	void DetachFromParent(EntityId child);
-	void DestroyEntityHierarchy(EntityId entity);
-
-private:
-	// Sorted by Key — binary search for O(log N) pool lookup.
 	struct PoolEntry
 	{
 		std::type_index          Key;
 		OwnerPtr<IComponentPool> Pool;
 	};
 
-	CEntityManager             m_entityManager;
-	std::vector<PoolEntry>     m_componentPools;  // sorted flat vector (Fix #2)
+	template<typename T>
+	TObjectPool<T>& GetOrCreatePool()
+	{
+		const std::type_index key(typeid(T));
+		auto it = std::lower_bound(m_componentPools.begin(), m_componentPools.end(), key,
+			[](const PoolEntry& e, const std::type_index& k) { return e.Key < k; });
+		if (it != m_componentPools.end() && it->Key == key)
+		{
+			return static_cast<TComponentPool<T>*>(it->Pool.Get())->Pool;
+		}
+		OwnerPtr<TComponentPool<T>> wrap = MakeOwnerPtr<TComponentPool<T>>();
+		TObjectPool<T>& poolRef = wrap->Pool;
+		m_componentPools.insert(it, PoolEntry{ key, OwnerPtr<IComponentPool>(std::move(wrap)) });
+		return poolRef;
+	}
+
+	template<typename T>
+	TObjectPool<T>* FindPool()
+	{
+		const std::type_index key(typeid(T));
+		auto it = std::lower_bound(m_componentPools.begin(), m_componentPools.end(), key,
+			[](const PoolEntry& e, const std::type_index& k) { return e.Key < k; });
+		if (it == m_componentPools.end() || it->Key != key)
+		{
+			return nullptr;
+		}
+		return &static_cast<TComponentPool<T>*>(it->Pool.Get())->Pool;
+	}
+
+	template<typename T>
+	const TObjectPool<T>* FindPool() const
+	{
+		const std::type_index key(typeid(T));
+		auto it = std::lower_bound(m_componentPools.begin(), m_componentPools.end(), key,
+			[](const PoolEntry& e, const std::type_index& k) { return e.Key < k; });
+		if (it == m_componentPools.end() || it->Key != key)
+		{
+			return nullptr;
+		}
+		return &static_cast<const TComponentPool<T>*>(it->Pool.Get())->Pool;
+	}
+
+	void DestroyObjectRecursive(CGameObject* object);
+
+private:
+	TObjectPool<CGameObject>           m_objectPool;
+	std::vector<PoolEntry>             m_componentPools;   // sorted by Key
+	OwnerPtr<CTransformSystem>         m_transformSystem;
+	OwnerPtr<CPhysics2DSystem>         m_physicsSystem;
+	OwnerPtr<CScriptSystem>            m_scriptSystem;
 	std::vector<OwnerPtr<CGameSystem>> m_systems;
-	OwnerPtr<CTransformSystem> m_transformSystem; // runs first — caches WorldTransform2D
-	OwnerPtr<CPhysics2DSystem> m_physicsSystem;
-	OwnerPtr<CScriptSystem>    m_scriptSystem;
-	std::vector<AssetGuid>     m_referencedAssets;
+	std::vector<AssetGuid>             m_referencedAssets;
+
+	// 지연 파괴 큐(SafePtr 보유 → 부모 재귀로 이미 죽은 항목은 TryGet null 로 스킵).
+	std::vector<SafePtr<CGameObject>>  m_pendingDestroyObjects;
+	std::vector<SafePtr<CComponent>>   m_pendingDestroyComponents;
 };
+
+// ── CGameObject 템플릿 메서드 정의 (CScene 완전형 필요) ──────────────────────
+template<typename T, typename... Args>
+T* CGameObject::AddComponent(Args&&... args)
+{
+	return m_scene ? m_scene->AddComponent<T>(*this, std::forward<Args>(args)...) : nullptr;
+}
+
+template<typename T>
+void CGameObject::RemoveComponent()
+{
+	if (m_scene)
+	{
+		m_scene->RemoveComponent<T>(*this);
+	}
+}

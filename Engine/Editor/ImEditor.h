@@ -10,7 +10,7 @@
 
 #include "Core/Module/Module.h"
 #include "GameFramework/Rendering/GameCamera.h"
-#include "GameFramework/ECS/EntityTypes.h"
+#include "GameFramework/Scene/SceneTypes.h"
 
 // ImEditor 의 멤버에서 사용하는 ImWindow 패밀리 — self-contained 보장.
 #include "Editor/ImWindow/IImWindow.h"
@@ -73,12 +73,12 @@ public:
 
 	// 포커스 오버레이: 흰 반투명 박스 + 포커스 스프라이트/콜라이더 재렌더 (RT 파이프라인).
 	// SceneViewTool이 매 프레임 호출.
-	void SetSceneViewFocusContext(std::vector<EntityId> contextEntities);
+	void SetSceneViewFocusContext(std::vector<ObjectId> contextEntities);
 	void ClearSceneViewFocusContext();
 
 	// 선택 아웃라인: 셰이더 기반 Alpha Dilation (RT 파이프라인).
 	// SceneViewTool이 매 프레임 호출.
-	void SetSceneViewSelection(std::vector<EntityId> selectedEntities);
+	void SetSceneViewSelection(std::vector<ObjectId> selectedEntities);
 	void ClearSceneViewSelection();
 
 	// Game view (multi-camera)
@@ -146,11 +146,11 @@ private:
 
 	// 포커스 오버레이 상태 (SceneViewTool → ImEditor)
 	bool                         m_sceneViewFocusActive = false;
-	std::unordered_set<EntityId> m_sceneViewFocusEntities;
+	std::unordered_set<ObjectId> m_sceneViewFocusEntities;
 
 	// 선택 아웃라인 상태
 	bool                         m_sceneViewHasSelection = false;
-	std::unordered_set<EntityId> m_sceneViewSelectedEntities;
+	std::unordered_set<ObjectId> m_sceneViewSelectedEntities;
 };
 
 template<typename T>

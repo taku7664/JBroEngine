@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Engine/Core/Asset/AssetTypes.h"
-#include "Engine/GameFramework/ECS/EntityTypes.h"
+#include "Engine/GameFramework/Scene/SceneTypes.h"
 #include "Utillity/Math/Vector2T.h"
 
 #include <cstdint>
@@ -44,7 +44,7 @@ public:
         ImDrawList* dl,
         const CScene& scene,
         IAssetManager* assetMgr,
-        const std::vector<EntityId>& selectedEntities,
+        const std::vector<ObjectId>& selectedEntities,
         const ImVec2& vpMin, const ImVec2& vpSize,
         const Vector2& camPos, float camSize);
 

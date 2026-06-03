@@ -2,6 +2,7 @@
 
 #include "Core/Asset/AssetRef.h"     // AssetRef (런타임 효과 에셋 캐시)
 #include "Core/Asset/AssetTypes.h"   // AssetGuid
+#include "GameFramework/Component/Component.h"
 
 class IAsset;
 
@@ -19,16 +20,17 @@ class IAsset;
 //      컴포넌트의 동명 필드가 매 프레임 player 에 적용되므로 인스턴스별 오버라이드가 된다.
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-struct AudioListener
+class AudioListener final : public CComponent
 {
-	bool  IsEnabled    = true;
+	JBRO_COMPONENT(AudioListener)
+public:
 	float MasterVolume = 1.0f;   // 청취자 전체 게인 (Project Audio Master 와 곱).
 };
 
-struct AudioPlayer
+class AudioPlayer final : public CComponent
 {
-	bool      IsEnabled = true;
-
+	JBRO_COMPONENT(AudioPlayer)
+public:
 	// 재생할 사운드 자산.
 	AssetGuid AudioGuid;
 

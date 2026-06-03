@@ -13,7 +13,6 @@
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 // ── Scene / Object ──────────────────────────────────────────────────────────
-#include "GameFramework/ECS/EntityTypes.h" // EntityId(불투명 uint64 식별자)만 잔존
 #include "GameFramework/System/GameSystem.h"
 #include "GameFramework/Scene/SceneTypes.h"
 #include "GameFramework/Scene/SceneSerializer.h"

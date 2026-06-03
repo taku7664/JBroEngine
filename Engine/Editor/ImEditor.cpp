@@ -380,11 +380,11 @@ void CImEditor::OnPostFinalize()
 
 // ── Scene view focus context ────────────────────────────────────────────────
 
-void CImEditor::SetSceneViewFocusContext(std::vector<EntityId> contextEntities)
+void CImEditor::SetSceneViewFocusContext(std::vector<ObjectId> contextEntities)
 {
     m_sceneViewFocusActive = !contextEntities.empty();
     m_sceneViewFocusEntities.clear();
-    for (EntityId e : contextEntities) m_sceneViewFocusEntities.insert(e);
+    for (ObjectId e : contextEntities) m_sceneViewFocusEntities.insert(e);
 }
 
 void CImEditor::ClearSceneViewFocusContext()
@@ -395,11 +395,11 @@ void CImEditor::ClearSceneViewFocusContext()
 
 // ── Scene view selection ────────────────────────────────────────────────────
 
-void CImEditor::SetSceneViewSelection(std::vector<EntityId> selectedEntities)
+void CImEditor::SetSceneViewSelection(std::vector<ObjectId> selectedEntities)
 {
     m_sceneViewHasSelection = !selectedEntities.empty();
     m_sceneViewSelectedEntities.clear();
-    for (EntityId e : selectedEntities) m_sceneViewSelectedEntities.insert(e);
+    for (ObjectId e : selectedEntities) m_sceneViewSelectedEntities.insert(e);
 }
 
 void CImEditor::ClearSceneViewSelection()

@@ -318,7 +318,7 @@ void CSceneViewContour::DrawOutlinesImGui(
     ImDrawList* dl,
     const CScene& scene,
     IAssetManager* assetMgr,
-    const std::vector<EntityId>& selectedEntities,
+    const std::vector<ObjectId>& selectedEntities,
     const ImVec2& vpMin, const ImVec2& vpSize,
     const Vector2& camPos, float camSize)
 {
@@ -326,9 +326,9 @@ void CSceneViewContour::DrawOutlinesImGui(
 
     // 다중 선택 시 동일 스프라이트 엔티티에 대한 중복 렌더링 방지.
     // 부모·자식 모두 선택된 경우도 정상 처리됨.
-    std::unordered_set<EntityId> processed;
+    std::unordered_set<ObjectId> processed;
 
-    auto drawOneSprite = [&](EntityId entity, const CGameObject& object, const SpriteRenderer2D& sprite)
+    auto drawOneSprite = [&](ObjectId entity, const CGameObject& object, const SpriteRenderer2D& sprite)
     {
         if (!processed.insert(entity).second) return; // 이미 처리됨
 
@@ -382,9 +382,9 @@ void CSceneViewContour::DrawOutlinesImGui(
     //
     // 포커스 모드에서 자식 클릭: selectedEntities = CollectSubtree(child)
     //   → 자식 + 자식의 모든 자손 각각의 스프라이트를 그림.
-    for (EntityId entity : selectedEntities)
+    for (ObjectId entity : selectedEntities)
     {
-        if (entity == INVALID_ENTITY_ID) continue;
+        if (entity == INVALID_OBJECT_ID) continue;
 
         CGameObject* object = const_cast<CScene&>(scene).FindObjectById(entity);
         if (!object || !object->IsActive) continue;

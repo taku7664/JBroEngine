@@ -17,15 +17,15 @@
 
 namespace
 {
-	// 명령은 오브젝트를 불투명 id(EntityId == CGameObject::GetId)로 보관한다.
+	// 명령은 오브젝트를 불투명 id(ObjectId == CGameObject::GetId)로 보관한다.
 	// 실제 조작 시점에 활성 씬에서 다시 해석한다(파괴/리로드 후에도 안전한 모델).
-	CGameObject* Resolve(const SafePtr<CScene>& scene, EntityId id)
+	CGameObject* Resolve(const SafePtr<CScene>& scene, ObjectId id)
 	{
 		return scene.IsValid() ? scene->FindObjectById(id) : nullptr;
 	}
 }
 
-CAddComponentCommand::CAddComponentCommand(SafePtr<CScene> scene, EntityId entity, TypeId componentTypeId)
+CAddComponentCommand::CAddComponentCommand(SafePtr<CScene> scene, ObjectId entity, TypeId componentTypeId)
 	: m_scene(scene)
 	, m_entity(entity)
 	, m_componentTypeId(componentTypeId)
@@ -87,7 +87,7 @@ void CAddComponentCommand::Redo()
 	}
 }
 
-CAddScriptComponentCommand::CAddScriptComponentCommand(SafePtr<CScene> scene, EntityId entity, TypeId scriptTypeId)
+CAddScriptComponentCommand::CAddScriptComponentCommand(SafePtr<CScene> scene, ObjectId entity, TypeId scriptTypeId)
 	: m_scene(scene)
 	, m_entity(entity)
 	, m_scriptTypeId(scriptTypeId)
@@ -173,7 +173,7 @@ void CAddScriptComponentCommand::Redo()
 	}
 }
 
-CSetScriptTypeCommand::CSetScriptTypeCommand(SafePtr<CScene> scene, EntityId entity, std::size_t instanceIndex, TypeId newScriptTypeId)
+CSetScriptTypeCommand::CSetScriptTypeCommand(SafePtr<CScene> scene, ObjectId entity, std::size_t instanceIndex, TypeId newScriptTypeId)
 	: m_scene(scene)
 	, m_entity(entity)
 	, m_instanceIndex(instanceIndex)
@@ -243,7 +243,7 @@ bool CSetScriptTypeCommand::Apply(TypeId scriptTypeId)
 }
 
 CCreateGameObjectCommand::CCreateGameObjectCommand(SafePtr<CScene> scene, const char* name,
-                                                   EntityId parent)
+                                                   ObjectId parent)
 	: m_scene(scene)
 	, m_name(name ? name : "GameObject")
 	, m_parent(parent)
@@ -264,10 +264,10 @@ bool CCreateGameObjectCommand::Execute()
 
 	CGameObject* gameObject = m_scene->CreateGameObject(m_name.c_str());
 	m_created = (nullptr != gameObject);
-	m_entity  = m_created ? gameObject->GetId() : INVALID_ENTITY_ID;
+	m_entity  = m_created ? gameObject->GetId() : INVALID_OBJECT_ID;
 
 	// parent 지정 시 자식으로 등록.
-	if (m_created && m_parent != INVALID_ENTITY_ID)
+	if (m_created && m_parent != INVALID_OBJECT_ID)
 	{
 		if (CGameObject* parent = m_scene->FindObjectById(m_parent))
 		{
@@ -296,14 +296,14 @@ void CCreateGameObjectCommand::Redo()
 	}
 }
 
-EntityId CCreateGameObjectCommand::GetEntity() const
+ObjectId CCreateGameObjectCommand::GetEntity() const
 {
 	return m_entity;
 }
 
 CSetComponentPropertyCommand::CSetComponentPropertyCommand(
 	SafePtr<CScene> scene,
-	EntityId entity,
+	ObjectId entity,
 	TypeId componentTypeId,
 	std::size_t propertyOffset,
 	std::vector<std::uint8_t> oldValue,
@@ -375,7 +375,7 @@ namespace
 	}
 } // anonymous namespace
 
-CSetParentCommand::CSetParentCommand(SafePtr<CScene> scene, EntityId child, EntityId newParent)
+CSetParentCommand::CSetParentCommand(SafePtr<CScene> scene, ObjectId child, ObjectId newParent)
 	: m_scene(scene)
 	, m_child(child)
 	, m_newParent(newParent)
@@ -384,7 +384,7 @@ CSetParentCommand::CSetParentCommand(SafePtr<CScene> scene, EntityId child, Enti
 	if (CGameObject* childObject = Resolve(m_scene, child))
 	{
 		CGameObject* oldParent = childObject->GetParent().TryGet();
-		m_oldParent = oldParent ? oldParent->GetId() : INVALID_ENTITY_ID;
+		m_oldParent = oldParent ? oldParent->GetId() : INVALID_OBJECT_ID;
 		m_oldLocalTransform = childObject->GetTransform();
 	}
 }
@@ -397,9 +397,9 @@ const char* CSetParentCommand::GetName() const
 namespace
 {
 	// child 의 부모를 newParent(0 이면 루트)로 설정. 성공 시 true.
-	bool ApplyParent(CScene& scene, CGameObject& child, EntityId newParent)
+	bool ApplyParent(CScene& scene, CGameObject& child, ObjectId newParent)
 	{
-		if (INVALID_ENTITY_ID == newParent)
+		if (INVALID_OBJECT_ID == newParent)
 		{
 			child.ClearParent();
 			return true;
@@ -420,7 +420,7 @@ bool CSetParentCommand::Execute()
 
 	// ── WorldStay: SetParent 이전 world transform 캡처 ───────────────────────
 	const Matrix3x2 childWorld = GetWorldTransform(*childObject);
-	CGameObject* newParentObject = (m_newParent != INVALID_ENTITY_ID) ? scene.FindObjectById(m_newParent) : nullptr;
+	CGameObject* newParentObject = (m_newParent != INVALID_OBJECT_ID) ? scene.FindObjectById(m_newParent) : nullptr;
 	const Matrix3x2 newParentWorld = newParentObject ? GetWorldTransform(*newParentObject) : Matrix3x2::Identity();
 
 	if (false == ApplyParent(scene, *childObject, m_newParent))
@@ -475,7 +475,7 @@ void CSetParentCommand::Redo()
 
 CModifyPolygonVerticesCommand::CModifyPolygonVerticesCommand(
 	SafePtr<CScene>             scene,
-	EntityId                    entity,
+	ObjectId                    entity,
 	std::vector<Vector2> newPoints)
 	: m_scene(scene)
 	, m_entity(entity)

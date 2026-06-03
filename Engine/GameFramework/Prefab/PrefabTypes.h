@@ -1,6 +1,6 @@
 #pragma once
 
-#include "GameFramework/ECS/EntityTypes.h"
+#include "GameFramework/Scene/SceneTypes.h"
 #include "GameFramework/Reflection/ReflectionTypes.h"
 
 #include <string>
@@ -15,7 +15,7 @@ enum class EPrefabSerializeResult
 
 struct PrefabPropertyOverride
 {
-	EntityId TargetEntity = INVALID_ENTITY_ID;
+	ObjectId TargetObject = INVALID_OBJECT_ID;
 	TypeId ComponentType = INVALID_TYPE_ID;
 	std::string PropertyName;
 	std::string SerializedValue;

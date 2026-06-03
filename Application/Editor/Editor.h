@@ -2,7 +2,7 @@
 
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
 
-#include "Engine/GameFramework/ECS/EntityTypes.h"
+#include "Engine/GameFramework/Scene/SceneTypes.h"
 #include "Engine/GameFramework/Scene/SceneManager.h"   // CSceneManager 사용
 #include "Engine/Editor/ImEditor.h"   // CImEditor 사용
 #include "Editor/Command/EditorCommandManager.h"
@@ -47,34 +47,34 @@ public:
 	inline static CEditorCommandManager				CommandManager;
 
 	// ── 단일 선택: 이전 다중 선택 초기화 후 entity 하나만 선택 ──────────────
-	static void SelectEntity(EntityId entity)
+	static void SelectEntity(ObjectId entity)
 	{
 		m_selectedEntities.clear();
 		m_primarySelectedEntity = entity;
-		if (entity != INVALID_ENTITY_ID)
+		if (entity != INVALID_OBJECT_ID)
 			m_selectedEntities.push_back(entity);
 		ClearAssetSelection();
 		ClearScriptSelection();
 	}
 
 	// ── 다중 선택: entities 목록 전체 선택 (첫 항목이 primary) ───────────────
-	static void SelectEntities(std::vector<EntityId> entities)
+	static void SelectEntities(std::vector<ObjectId> entities)
 	{
 		m_selectedEntities = std::move(entities);
 		m_primarySelectedEntity = m_selectedEntities.empty()
-			? INVALID_ENTITY_ID : m_selectedEntities.front();
+			? INVALID_OBJECT_ID : m_selectedEntities.front();
 		ClearAssetSelection();
 		ClearScriptSelection();
 	}
 
 	// ── 개별 추가 (Ctrl+Click용): 이미 선택돼 있으면 무시 ────────────────────
-	static void AddToSelection(EntityId entity)
+	static void AddToSelection(ObjectId entity)
 	{
-		if (entity == INVALID_ENTITY_ID) return;
+		if (entity == INVALID_OBJECT_ID) return;
 		if (!IsSelected(entity))
 		{
 			m_selectedEntities.push_back(entity);
-			if (m_primarySelectedEntity == INVALID_ENTITY_ID)
+			if (m_primarySelectedEntity == INVALID_OBJECT_ID)
 				m_primarySelectedEntity = entity;
 		}
 		ClearAssetSelection();
@@ -82,31 +82,31 @@ public:
 	}
 
 	// ── 개별 제거 ─────────────────────────────────────────────────────────────
-	static void RemoveFromSelection(EntityId entity)
+	static void RemoveFromSelection(ObjectId entity)
 	{
 		auto it = std::find(m_selectedEntities.begin(), m_selectedEntities.end(), entity);
 		if (it != m_selectedEntities.end())
 			m_selectedEntities.erase(it);
 		if (m_primarySelectedEntity == entity)
 			m_primarySelectedEntity = m_selectedEntities.empty()
-				? INVALID_ENTITY_ID : m_selectedEntities.front();
+				? INVALID_OBJECT_ID : m_selectedEntities.front();
 	}
 
 	// ── 선택 여부 확인 ────────────────────────────────────────────────────────
-	static bool IsSelected(EntityId entity)
+	static bool IsSelected(ObjectId entity)
 	{
 		return std::find(m_selectedEntities.begin(),
 		                 m_selectedEntities.end(), entity) != m_selectedEntities.end();
 	}
 
 	// ── 전체 선택 목록 (outline 렌더링, 다중 처리 등) ─────────────────────────
-	static const std::vector<EntityId>& GetSelectedEntities()
+	static const std::vector<ObjectId>& GetSelectedEntities()
 	{
 		return m_selectedEntities;
 	}
 
 	// ── Primary 선택 엔티티 (Inspector 표시, 하위 호환성 유지) ────────────────
-	static EntityId GetSelectedEntity()
+	static ObjectId GetSelectedEntity()
 	{
 		return m_primarySelectedEntity;
 	}
@@ -114,7 +114,7 @@ public:
 	static void ClearSelection()
 	{
 		m_selectedEntities.clear();
-		m_primarySelectedEntity = INVALID_ENTITY_ID;
+		m_primarySelectedEntity = INVALID_OBJECT_ID;
 	}
 
 	static void SelectAsset(const File::Guid& guid, const File::Path& path)
@@ -187,8 +187,8 @@ public:
 	}
 
 private:
-	inline static EntityId              m_primarySelectedEntity = INVALID_ENTITY_ID;
-	inline static std::vector<EntityId> m_selectedEntities;
+	inline static ObjectId              m_primarySelectedEntity = INVALID_OBJECT_ID;
+	inline static std::vector<ObjectId> m_selectedEntities;
 	inline static File::Path            m_activeScenePath   = File::NULL_PATH;
 	inline static File::Guid            m_selectedAssetGuid = File::NULL_GUID;
 	inline static File::Path            m_selectedAssetPath = File::NULL_PATH;

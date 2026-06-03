@@ -1,7 +1,5 @@
 #pragma once
 
-#include "GameFramework/ECS/EntityTypes.h"
-
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -33,7 +31,6 @@ enum class EReflectPropertyType
 	RectFloat,
 	ColorFloat4,
 	AssetGuid,
-	EntityId,
 	Enum,
 	Layout2D,  // Normalized(x,y) + Pixel(x,y) — maps to struct Layout2D
 	Ref        // Ref<T> — 오브젝트/컴포넌트/스크립트/에셋 참조. RefCategory/RefTypeName 참고.
@@ -46,6 +43,7 @@ enum class ERefCategory : std::uint8_t
 	Component,
 	Script,
 	Asset,
+	Object, // CGameObject 자체 참조(컴포넌트 아님) — InstanceGuid 로 오브젝트 해석
 };
 
 // Ref<T> 의 직렬화/저장부(타입소거 공통 레이아웃).

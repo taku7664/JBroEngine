@@ -1,5 +1,6 @@
 #pragma once
 
+#include "GameFramework/Component/Component.h"
 #include "GameFramework/Reflection/ReflectionTypes.h"
 #include "GameFramework/Reflection/ReflectionRegistry.h"
 #include "GameFramework/Scripting/GameScript.h"
@@ -25,31 +26,20 @@ struct ScriptPendingField
 // ── ScriptComponent ───────────────────────────────────────────────────────────
 // 엔티티에 부착되는 스크립트 컴포넌트.
 // ScriptTypeId 로 등록된 타입을 지정하며, 인스턴스는 ScriptSystem 이 지연 생성한다.
-struct ScriptComponent
+class ScriptComponent final : public CComponent
 {
+	JBRO_COMPONENT(ScriptComponent)
+public:
 	ScriptComponent() = default;
-	~ScriptComponent()
+	~ScriptComponent() override
 	{
 		ResetInstance();
 	}
 
 	ScriptComponent(const ScriptComponent&) = delete;
 	ScriptComponent& operator=(const ScriptComponent&) = delete;
-
-	ScriptComponent(ScriptComponent&& rhs) noexcept
-	{
-		MoveFrom(rhs);
-	}
-
-	ScriptComponent& operator=(ScriptComponent&& rhs) noexcept
-	{
-		if (this != &rhs)
-		{
-			ResetInstance();
-			MoveFrom(rhs);
-		}
-		return *this;
-	}
+	ScriptComponent(ScriptComponent&&) = delete;
+	ScriptComponent& operator=(ScriptComponent&&) = delete;
 
 	void SetInstance(ScriptInstanceHandle&& handle)
 	{
@@ -74,28 +64,13 @@ struct ScriptComponent
 	}
 
 	// ── 기본 필드 ──────────────────────────────────────────────────────────
+	// IsEnabled 는 CComponent 베이스가 보유.
 	TypeId            ScriptTypeId    = INVALID_TYPE_ID;
 	CGameScript*      Instance        = nullptr;
 	DestroyScriptFunc DestroyInstance = nullptr;
 	const GameModuleHostApi* HostApi  = nullptr;
-	bool              IsEnabled       = true;
 
 	// ── 지연 복원 필드 ─────────────────────────────────────────────────────
 	// 씬 로드 또는 핫리로드 후 인스턴스 생성 시 ScriptSystem 이 적용하고 비운다.
 	std::vector<ScriptPendingField> PendingFields;
-
-private:
-	void MoveFrom(ScriptComponent& rhs)
-	{
-		ScriptTypeId    = rhs.ScriptTypeId;
-		Instance        = rhs.Instance;
-		DestroyInstance = rhs.DestroyInstance;
-		HostApi         = rhs.HostApi;
-		IsEnabled       = rhs.IsEnabled;
-		PendingFields   = std::move(rhs.PendingFields);
-
-		rhs.Instance        = nullptr;
-		rhs.DestroyInstance = nullptr;
-		rhs.HostApi         = nullptr;
-	}
 };

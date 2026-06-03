@@ -1,6 +1,5 @@
 #pragma once
 
-#include "Utillity/Pointer/SafePtr.h"
 #include "Utillity/Math/Vector2T.h"
 
 #include <mutex>

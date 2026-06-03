@@ -1,7 +1,5 @@
 #pragma once
 
-#include "GameFramework/ECS/EntityTypes.h"
-
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -33,7 +31,6 @@ enum class EReflectPropertyType
 	RectFloat,
 	ColorFloat4,
 	AssetGuid,
-	EntityId,
 	Enum,
 	Layout2D,  // Normalized(x,y) + Pixel(x,y) — maps to struct Layout2D
 	Ref        // Ref<T> — 오브젝트/컴포넌트/스크립트/에셋 참조. RefCategory/RefTypeName 참고.

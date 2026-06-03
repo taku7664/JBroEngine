@@ -1,9 +1,10 @@
 #pragma once
 
-#include "GameFramework/ECS/EntityTypes.h"
 #include "Utillity/Math/Vector2T.h"
 
 #include <cstdint>
+
+class CGameObject;
 
 enum class EPhysics2DBodyType
 {
@@ -40,8 +41,9 @@ struct PhysicsAABB2D
 //   ResolveContactVelocity 가 매 iter delta impulse 를 누적, 다음 step warm-start 에 사용.
 struct Physics2DManifold
 {
-	EntityId A = INVALID_ENTITY_ID;
-	EntityId B = INVALID_ENTITY_ID;
+	// 충돌한 두 오브젝트(풀 슬롯 주소 안정 → 프레임 내 핸들로 안전).
+	CGameObject* A = nullptr;
+	CGameObject* B = nullptr;
 
 	Vector2 Normal      = Vector2(0.0f, 0.0f);
 	float          Penetration = 0.0f;
