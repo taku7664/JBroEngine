@@ -15,6 +15,16 @@
 
 #include <cmath>
 
+namespace
+{
+	// 명령은 오브젝트를 불투명 id(EntityId == CGameObject::GetId)로 보관한다.
+	// 실제 조작 시점에 활성 씬에서 다시 해석한다(파괴/리로드 후에도 안전한 모델).
+	CGameObject* Resolve(const SafePtr<CScene>& scene, EntityId id)
+	{
+		return scene.IsValid() ? scene->FindObjectById(id) : nullptr;
+	}
+}
+
 CAddComponentCommand::CAddComponentCommand(SafePtr<CScene> scene, EntityId entity, TypeId componentTypeId)
 	: m_scene(scene)
 	, m_entity(entity)
@@ -29,24 +39,24 @@ const char* CAddComponentCommand::GetName() const
 
 bool CAddComponentCommand::Execute()
 {
-	if (false == m_scene.IsValid() || false == Core::Reflection.IsValid() || false == m_scene->IsAlive(m_entity))
+	CGameObject* object = Resolve(m_scene, m_entity);
+	if (nullptr == object || false == Core::Reflection.IsValid())
 	{
 		return false;
 	}
 
 	CReflectionRegistry& reflection = *Core::Reflection;
-	const ComponentTypeInfo* typeInfo = reflection.FindComponent(m_componentTypeId);
-	if (nullptr == typeInfo)
+	if (nullptr == reflection.FindComponent(m_componentTypeId))
 	{
 		return false;
 	}
 
-	// 단일 인스턴스 ECS: 이미 같은 타입이 붙어 있으면 추가 불가
-	if (reflection.HasComponent(*m_scene, m_entity, m_componentTypeId))
+	// 단일 인스턴스: 이미 같은 타입이 붙어 있으면 추가 불가.
+	if (reflection.HasComponent(*object, m_componentTypeId))
 	{
 		return false;
 	}
-	m_added = reflection.AddComponent(*m_scene, m_entity, m_componentTypeId);
+	m_added = reflection.AddComponent(*m_scene, *object, m_componentTypeId);
 	m_addedComponent = nullptr;
 
 	if (false == m_added)
@@ -58,26 +68,20 @@ bool CAddComponentCommand::Execute()
 
 void CAddComponentCommand::Undo()
 {
-	if (false == m_added || false == m_scene.IsValid() || false == Core::Reflection.IsValid() || false == m_scene->IsAlive(m_entity))
+	CGameObject* object = Resolve(m_scene, m_entity);
+	if (false == m_added || nullptr == object || false == Core::Reflection.IsValid())
 	{
 		return;
 	}
 
-	if (m_addedComponent)
-	{
-		Core::Reflection->RemoveSpecificComponent(*m_scene, m_entity, m_componentTypeId, m_addedComponent);
-		m_addedComponent = nullptr;
-	}
-	else
-	{
-		Core::Reflection->RemoveComponent(*m_scene, m_entity, m_componentTypeId);
-	}
+	Core::Reflection->RemoveComponent(*m_scene, *object, m_componentTypeId);
+	m_addedComponent = nullptr;
 	m_added = false;
 }
 
 void CAddComponentCommand::Redo()
 {
-	if (false == m_added && m_scene && Core::Reflection && m_scene->IsAlive(m_entity))
+	if (false == m_added)
 	{
 		Execute();
 	}
@@ -97,7 +101,8 @@ const char* CAddScriptComponentCommand::GetName() const
 
 bool CAddScriptComponentCommand::Execute()
 {
-	if (false == m_scene.IsValid() || false == Core::Reflection.IsValid() || false == m_scene->IsAlive(m_entity))
+	CGameObject* object = Resolve(m_scene, m_entity);
+	if (nullptr == object || false == Core::Reflection.IsValid())
 	{
 		return false;
 	}
@@ -117,17 +122,18 @@ bool CAddScriptComponentCommand::Execute()
 	}
 
 	m_scriptComponentTypeId = scriptComponentType->Type.Id;
-	m_added = reflection.AddNewComponent(*m_scene, m_entity, m_scriptComponentTypeId);
-	if (false == m_added)
+
+	// 단일 인스턴스: 이미 ScriptComponent 가 있으면 그것을 재사용, 없으면 추가.
+	if (false == reflection.HasComponent(*object, m_scriptComponentTypeId))
 	{
-		CSystemLog::Warning("Failed to add script component.");
-		return false;
+		if (false == reflection.AddComponent(*m_scene, *object, m_scriptComponentTypeId))
+		{
+			CSystemLog::Warning("Failed to add script component.");
+			return false;
+		}
 	}
 
-	std::vector<void*> all;
-	reflection.GetAllComponentAddresses(*m_scene, m_entity, m_scriptComponentTypeId, all);
-	m_addedComponent = all.empty() ? nullptr : all.back();
-
+	m_addedComponent = reflection.GetComponentAddress(*object, m_scriptComponentTypeId);
 	ScriptComponent* scriptComponent = static_cast<ScriptComponent*>(m_addedComponent);
 	if (nullptr == scriptComponent)
 	{
@@ -138,19 +144,21 @@ bool CAddScriptComponentCommand::Execute()
 	scriptComponent->ScriptTypeId = m_scriptTypeId;
 	scriptComponent->ResetInstance();
 	scriptComponent->PendingFields.clear();
+	m_added = true;
 	return true;
 }
 
 void CAddScriptComponentCommand::Undo()
 {
-	if (false == m_added || false == m_scene.IsValid() || false == Core::Reflection.IsValid() || false == m_scene->IsAlive(m_entity))
+	CGameObject* object = Resolve(m_scene, m_entity);
+	if (false == m_added || nullptr == object || false == Core::Reflection.IsValid())
 	{
 		return;
 	}
 
-	if (m_addedComponent && m_scriptComponentTypeId != INVALID_TYPE_ID)
+	if (m_scriptComponentTypeId != INVALID_TYPE_ID)
 	{
-		Core::Reflection->RemoveSpecificComponent(*m_scene, m_entity, m_scriptComponentTypeId, m_addedComponent);
+		Core::Reflection->RemoveComponent(*m_scene, *object, m_scriptComponentTypeId);
 	}
 
 	m_addedComponent = nullptr;
@@ -171,23 +179,12 @@ CSetScriptTypeCommand::CSetScriptTypeCommand(SafePtr<CScene> scene, EntityId ent
 	, m_instanceIndex(instanceIndex)
 	, m_newScriptTypeId(newScriptTypeId)
 {
-	if (m_scene.IsValid() && Core::Reflection.IsValid() && m_scene->IsAlive(m_entity))
+	CGameObject* object = Resolve(m_scene, m_entity);
+	if (object)
 	{
-		const ComponentTypeInfo* scriptComponentType = Core::Reflection->FindComponentByName("ScriptComponent");
-		if (scriptComponentType)
+		if (ScriptComponent* scriptComponent = object->GetComponent<ScriptComponent>())
 		{
-			m_scriptComponentTypeId = scriptComponentType->Type.Id;
-
-			std::vector<void*> all;
-			Core::Reflection->GetAllComponentAddresses(*m_scene, m_entity, m_scriptComponentTypeId, all);
-			if (m_instanceIndex < all.size())
-			{
-				ScriptComponent* scriptComponent = static_cast<ScriptComponent*>(all[m_instanceIndex]);
-				if (scriptComponent)
-				{
-					m_oldScriptTypeId = scriptComponent->ScriptTypeId;
-				}
-			}
+			m_oldScriptTypeId = scriptComponent->ScriptTypeId;
 		}
 	}
 }
@@ -227,29 +224,13 @@ void CSetScriptTypeCommand::Redo()
 
 bool CSetScriptTypeCommand::Apply(TypeId scriptTypeId)
 {
-	if (false == m_scene.IsValid() || false == Core::Reflection.IsValid() || false == m_scene->IsAlive(m_entity))
+	CGameObject* object = Resolve(m_scene, m_entity);
+	if (nullptr == object)
 	{
 		return false;
 	}
 
-	if (m_scriptComponentTypeId == INVALID_TYPE_ID)
-	{
-		const ComponentTypeInfo* scriptComponentType = Core::Reflection->FindComponentByName("ScriptComponent");
-		if (nullptr == scriptComponentType)
-		{
-			return false;
-		}
-		m_scriptComponentTypeId = scriptComponentType->Type.Id;
-	}
-
-	std::vector<void*> all;
-	Core::Reflection->GetAllComponentAddresses(*m_scene, m_entity, m_scriptComponentTypeId, all);
-	if (m_instanceIndex >= all.size())
-	{
-		return false;
-	}
-
-	ScriptComponent* scriptComponent = static_cast<ScriptComponent*>(all[m_instanceIndex]);
+	ScriptComponent* scriptComponent = object->GetComponent<ScriptComponent>();
 	if (nullptr == scriptComponent)
 	{
 		return false;
@@ -281,14 +262,17 @@ bool CCreateGameObjectCommand::Execute()
 		return false;
 	}
 
-	CGameObject gameObject = m_scene->CreateGameObject(m_name.c_str());
-	m_entity  = gameObject.GetEntityId();
-	m_created = gameObject.IsValid();
+	CGameObject* gameObject = m_scene->CreateGameObject(m_name.c_str());
+	m_created = (nullptr != gameObject);
+	m_entity  = m_created ? gameObject->GetId() : INVALID_ENTITY_ID;
 
-	// parent 지정 시 자식으로 등록 (새 오브젝트는 항등 Transform이므로 WorldStay 불필요)
-	if (m_created && m_parent != INVALID_ENTITY_ID && m_scene->IsAlive(m_parent))
+	// parent 지정 시 자식으로 등록.
+	if (m_created && m_parent != INVALID_ENTITY_ID)
 	{
-		m_scene->SetParent(m_entity, m_parent);
+		if (CGameObject* parent = m_scene->FindObjectById(m_parent))
+		{
+			gameObject->SetParent(*parent);
+		}
 	}
 
 	return m_created;
@@ -296,9 +280,10 @@ bool CCreateGameObjectCommand::Execute()
 
 void CCreateGameObjectCommand::Undo()
 {
-	if (m_created && m_scene && m_scene->IsAlive(m_entity))
+	CGameObject* object = Resolve(m_scene, m_entity);
+	if (m_created && object)
 	{
-		m_scene->DestroyEntity(m_entity);
+		m_scene->DestroyGameObject(object);
 		m_created = false;
 	}
 }
@@ -356,23 +341,14 @@ void CSetComponentPropertyCommand::Redo()
 
 bool CSetComponentPropertyCommand::WriteValue(const std::vector<std::uint8_t>& value)
 {
-	if (value.empty() || false == m_scene.IsValid() || false == Core::Reflection.IsValid() || false == m_scene->IsAlive(m_entity))
+	CGameObject* object = Resolve(m_scene, m_entity);
+	if (value.empty() || nullptr == object || false == Core::Reflection.IsValid())
 	{
 		return false;
 	}
 
-	void* component = nullptr;
-	if (m_instanceIndex == 0)
-	{
-		component = Core::Reflection->GetComponentAddress(*m_scene, m_entity, m_componentTypeId);
-	}
-	else
-	{
-		std::vector<void*> all;
-		Core::Reflection->GetAllComponentAddresses(*m_scene, m_entity, m_componentTypeId, all);
-		component = m_instanceIndex < all.size() ? all[m_instanceIndex] : nullptr;
-	}
-
+	// 단일 인스턴스 — instanceIndex 는 항상 0.
+	void* component = Core::Reflection->GetComponentAddress(*object, m_componentTypeId);
 	if (nullptr == component)
 	{
 		return false;
@@ -386,12 +362,7 @@ bool CSetComponentPropertyCommand::WriteValue(const std::vector<std::uint8_t>& v
 
 namespace
 {
-	// World matrix → Transform2D 분해.
-	// 전제: scale > 0, shear 없음 (일반적인 2D 게임 오브젝트 조건).
-	// M = Scale * Rotation * Translation 구조:
-	//   M11 = sx·cos(r),  M12 = sx·sin(r)
-	//   M21 = -sy·sin(r), M22 = sy·cos(r)
-	//   Dx = tx,          Dy = ty
+	// World matrix → Transform2D 분해. 전제: scale > 0, shear 없음.
 	Transform2D DecomposeMatrix(const Matrix3x2& m)
 	{
 		Transform2D t;
@@ -409,15 +380,12 @@ CSetParentCommand::CSetParentCommand(SafePtr<CScene> scene, EntityId child, Enti
 	, m_child(child)
 	, m_newParent(newParent)
 {
-	// 생성 시점에 현재 부모와 로컬 Transform 스냅샷 — Undo 복원용
-	if (m_scene.IsValid() && m_scene->IsAlive(child))
+	// 생성 시점에 현재 부모와 로컬 Transform 스냅샷 — Undo 복원용.
+	if (CGameObject* childObject = Resolve(m_scene, child))
 	{
-		m_oldParent = m_scene->GetParent(child);
-		const Transform2D* t = m_scene->GetComponent<Transform2D>(child);
-		if (t)
-		{
-			m_oldLocalTransform = *t;
-		}
+		CGameObject* oldParent = childObject->GetParent().TryGet();
+		m_oldParent = oldParent ? oldParent->GetId() : INVALID_ENTITY_ID;
+		m_oldLocalTransform = childObject->GetTransform();
 	}
 }
 
@@ -426,101 +394,80 @@ const char* CSetParentCommand::GetName() const
 	return "Set Parent";
 }
 
+namespace
+{
+	// child 의 부모를 newParent(0 이면 루트)로 설정. 성공 시 true.
+	bool ApplyParent(CScene& scene, CGameObject& child, EntityId newParent)
+	{
+		if (INVALID_ENTITY_ID == newParent)
+		{
+			child.ClearParent();
+			return true;
+		}
+		CGameObject* parent = scene.FindObjectById(newParent);
+		return parent ? child.SetParent(*parent) : false;
+	}
+}
+
 bool CSetParentCommand::Execute()
 {
-	if (!m_scene.IsValid() || !m_scene->IsAlive(m_child))
+	CGameObject* childObject = Resolve(m_scene, m_child);
+	if (nullptr == childObject)
 	{
 		return false;
 	}
 	CScene& scene = *m_scene;
 
-	// ── WorldStay ────────────────────────────────────────────────────────────
-	// SetParent 이전에 world transform 을 캡처한다.
-	// SetParent 이후에는 캐시(WorldTransform2D)가 갱신되지 않아 잘못된 값을 반환할 수 있다.
-	const Matrix3x2 childWorld     = GetWorldTransform(scene, m_child);
-	const Matrix3x2 newParentWorld = (m_newParent != INVALID_ENTITY_ID)
-	                                 ? GetWorldTransform(scene, m_newParent)
-	                                 : Matrix3x2::Identity();
+	// ── WorldStay: SetParent 이전 world transform 캡처 ───────────────────────
+	const Matrix3x2 childWorld = GetWorldTransform(*childObject);
+	CGameObject* newParentObject = (m_newParent != INVALID_ENTITY_ID) ? scene.FindObjectById(m_newParent) : nullptr;
+	const Matrix3x2 newParentWorld = newParentObject ? GetWorldTransform(*newParentObject) : Matrix3x2::Identity();
 
-	// ── 부모 관계 변경 ────────────────────────────────────────────────────────
-	if (!scene.SetParent(m_child, m_newParent))
+	if (false == ApplyParent(scene, *childObject, m_newParent))
 	{
-		// 자기 자신 또는 사이클 등 CScene 내부에서 거부
-		return false;
+		return false;   // 사이클/자기자신 등 거부
 	}
 
-	// ── 새 로컬 Transform 계산 ────────────────────────────────────────────────
-	// childWorld = newLocal × newParentWorld
-	// → newLocal = childWorld × inverse(newParentWorld)
-	Matrix3x2 newLocal;
-	if (m_newParent != INVALID_ENTITY_ID)
+	// childWorld = newLocal × newParentWorld → newLocal = childWorld × inverse(newParentWorld)
+	Matrix3x2 newLocal = childWorld;
+	if (newParentObject)
 	{
 		Matrix3x2 parentInv;
 		if (newParentWorld.TryInvert(parentInv))
 		{
 			newLocal = childWorld * parentInv;
 		}
-		else
-		{
-			// 부모 행렬이 특이행렬(scale=0 등) — 안전 폴백: 월드 위치 그대로
-			newLocal = childWorld;
-		}
-	}
-	else
-	{
-		// 루트로 이동: 로컬 = 월드
-		newLocal = childWorld;
 	}
 
 	m_newLocalTransform = DecomposeMatrix(newLocal);
-
-	// ── Transform2D 기록 ──────────────────────────────────────────────────────
-	Transform2D* transform = scene.GetComponent<Transform2D>(m_child);
-	if (transform)
-	{
-		*transform = m_newLocalTransform;
-	}
-
+	childObject->GetTransform() = m_newLocalTransform;
 	m_executed = true;
 	return true;
 }
 
 void CSetParentCommand::Undo()
 {
-	if (!m_executed || !m_scene.IsValid() || !m_scene->IsAlive(m_child))
+	CGameObject* childObject = Resolve(m_scene, m_child);
+	if (false == m_executed || nullptr == childObject)
 	{
 		return;
 	}
-	CScene& scene = *m_scene;
 
-	// 부모 관계 복원 (WorldStay 없이 — 구 로컬 Transform 을 그대로 쓴다)
-	scene.SetParent(m_child, m_oldParent);
-
-	Transform2D* transform = scene.GetComponent<Transform2D>(m_child);
-	if (transform)
-	{
-		*transform = m_oldLocalTransform;
-	}
-
+	ApplyParent(*m_scene, *childObject, m_oldParent);
+	childObject->GetTransform() = m_oldLocalTransform;
 	m_executed = false;
 }
 
 void CSetParentCommand::Redo()
 {
-	if (m_executed || !m_scene.IsValid() || !m_scene->IsAlive(m_child))
+	CGameObject* childObject = Resolve(m_scene, m_child);
+	if (m_executed || nullptr == childObject)
 	{
 		return;
 	}
-	CScene& scene = *m_scene;
 
-	scene.SetParent(m_child, m_newParent);
-
-	Transform2D* transform = scene.GetComponent<Transform2D>(m_child);
-	if (transform)
-	{
-		*transform = m_newLocalTransform;
-	}
-
+	ApplyParent(*m_scene, *childObject, m_newParent);
+	childObject->GetTransform() = m_newLocalTransform;
 	m_executed = true;
 }
 
@@ -534,16 +481,16 @@ CModifyPolygonVerticesCommand::CModifyPolygonVerticesCommand(
 	, m_entity(entity)
 	, m_newPoints(std::move(newPoints))
 {
-	// 현재 상태 스냅샷 (Undo 복원용)
-	if (m_scene.IsValid() && m_scene->IsAlive(entity))
+	// 현재 상태 스냅샷 (Undo 복원용).
+	if (CGameObject* object = Resolve(m_scene, entity))
 	{
-		const PolygonCollider2D* poly = m_scene->GetComponent<PolygonCollider2D>(entity);
-		if (poly)
+		if (const PolygonCollider2D* poly = object->GetComponent<PolygonCollider2D>())
 		{
 			m_oldPoints = poly->LocalPoints;
-			// LocalPoints 가 비어있으면 절차적 포인트를 스냅샷으로 저장 (Undo 시 복원용)
 			if (m_oldPoints.empty())
+			{
 				poly->BuildLocalPoints(m_oldPoints);
+			}
 		}
 	}
 }
@@ -574,16 +521,15 @@ void CModifyPolygonVerticesCommand::Redo()
 bool CModifyPolygonVerticesCommand::Apply(
 	const std::vector<Vector2>& points)
 {
-	if (!m_scene.IsValid() || !m_scene->IsAlive(m_entity))
+	CGameObject* object = Resolve(m_scene, m_entity);
+	if (nullptr == object)
 		return false;
 
-	PolygonCollider2D* poly = m_scene->GetComponent<PolygonCollider2D>(m_entity);
+	PolygonCollider2D* poly = object->GetComponent<PolygonCollider2D>();
 	if (!poly)
 		return false;
 
 	poly->LocalPoints = points;
-	// 절차적 파라미터가 바뀐 게 아니므로 NeedsProceduralRebuild 는 false 유지.
-	// 단, LocalPoints 가 바뀌었으므로 볼록 분해 dirty 플래그를 설정한다.
 	poly->MarkProceduralBuilt();
 	poly->m_convexDirty = true;
 	return true;
