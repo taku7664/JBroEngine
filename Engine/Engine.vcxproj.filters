@@ -1055,6 +1055,69 @@
     <ClInclude Include="Editor\ImItem\ImSplitter.h">
       <Filter>Header</Filter>
     </ClInclude>
+    <ClInclude Include="Core\Asset\AudioAsset.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Asset\AudioEffectAsset.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Audio\AudioTypes.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Audio\IAudioBus.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Audio\IAudioDevice.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Audio\IAudioEffect.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Audio\IAudioListener.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Audio\IAudioPlayer.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Audio\EmptyAudio\EmptyAudioDevice.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Audio\MiniAudio\MiniAudioDevice.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\CoreAll.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Renderer\IRenderResourceCache.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Renderer\RenderResourceCache.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Audio\AudioSystem.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Component\AudioComponents.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\ImItem\ImAudioVisualizer.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\ImItem\ImSpectrumVisualizer.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\miniaudio\miniaudio.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\GameFrameworkAll.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Scripting\ScriptAPI.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Scripting\ScriptAPI_Physics.h">
+      <Filter>Header</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp">
@@ -1264,9 +1327,6 @@
     <ClCompile Include="GameFramework\Object\Ref.cpp">
       <Filter>Source\GameFramework\Object</Filter>
     </ClCompile>
-    <ClCompile Include="GameFramework\Component\GameObjectComponent.cpp">
-      <Filter>Source\GameFramework\Object</Filter>
-    </ClCompile>
     <ClCompile Include="GameFramework\Prefab\PrefabSerializer.cpp">
       <Filter>Source\GameFramework\Prefab</Filter>
     </ClCompile>
@@ -1421,6 +1481,33 @@
       <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="Editor\ImItem\ImSplitter.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Asset\AudioAsset.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Asset\AudioEffectAsset.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Audio\EmptyAudio\EmptyAudioDevice.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Audio\MiniAudio\MiniAudioDevice.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Audio\MiniAudio\miniaudio_impl.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Renderer\RenderResourceCache.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="GameFramework\Audio\AudioSystem.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\ImItem\ImAudioVisualizer.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\ImItem\ImSpectrumVisualizer.cpp">
       <Filter>Source</Filter>
     </ClCompile>
   </ItemGroup>

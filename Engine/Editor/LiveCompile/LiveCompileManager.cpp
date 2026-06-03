@@ -456,9 +456,14 @@ void CLiveCompileManager::TakeScriptSnapshot()
 	}
 
 	scene->ForEach<ScriptComponent>(
-		[&](EntityId entity, ScriptComponent& script)
+		[&](ScriptComponent& script)
 		{
 			if (!script.Instance || script.ScriptTypeId == INVALID_TYPE_ID)
+			{
+				return;
+			}
+			CGameObject* owner = script.GetOwner();
+			if (nullptr == owner)
 			{
 				return;
 			}
@@ -470,7 +475,7 @@ void CLiveCompileManager::TakeScriptSnapshot()
 			}
 
 			ScriptFieldSnapshot snapshot;
-			snapshot.Entity   = entity;
+			snapshot.Entity   = owner->GetId();
 			snapshot.TypeName = info->Type.Name ? info->Type.Name : "";
 
 			for (const ReflectPropertyInfo& prop : info->Properties)
@@ -540,7 +545,8 @@ void CLiveCompileManager::RestoreScriptSnapshot()
 
 	for (ScriptFieldSnapshot& snapshot : m_scriptSnapshots)
 	{
-		ScriptComponent* sc = scene->GetComponent<ScriptComponent>(snapshot.Entity);
+		CGameObject* owner = scene->FindObjectById(snapshot.Entity);
+		ScriptComponent* sc = owner ? owner->GetComponent<ScriptComponent>() : nullptr;
 		if (!sc)
 		{
 			continue;

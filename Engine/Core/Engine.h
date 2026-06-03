@@ -101,7 +101,7 @@ private:
 #if JBRO_EDITOR
 	OwnerPtr<CLocalizationManager> m_localization;
 #endif
-	OwnerPtr<CResourceRegistry>    m_resourceRegistry;
+	OwnerPtr<CResourceRegistry>   m_resourceRegistry;
 	OwnerPtr<CSceneManager>       m_sceneManager;
 	OwnerPtr<CNetworkManager>     m_networkManager;   // null until InitializeNetwork()
 	OwnerPtr<CDebugDraw2D>        m_debugDraw;

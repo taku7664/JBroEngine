@@ -127,6 +127,23 @@ void CScene::SetObjectInstanceGuid(CGameObject& object, const File::Guid& guid)
 	object.InstanceGuid = guid;
 }
 
+CGameObject* CScene::FindObjectById(std::uint64_t id)
+{
+	if (0 == id)
+	{
+		return nullptr;
+	}
+	CGameObject* found = nullptr;
+	m_objectPool.ForEachLive([&](CGameObject& object)
+	{
+		if (nullptr == found && object.GetId() == id)
+		{
+			found = &object;
+		}
+	});
+	return found;
+}
+
 void CScene::Update(bool isSimulationPlaying)
 {
 	UpdateSystems(isSimulationPlaying);

@@ -450,8 +450,9 @@
     <ClInclude Include="GameFramework\Scene\Scene.h" />
     <ClInclude Include="GameFramework\Scene\SceneManager.h" />
     <ClInclude Include="GameFramework\Scene\SceneSerializer.h" />
-    <ClInclude Include="GameFramework\Scene\SceneSnapshot.h" />
     <ClInclude Include="GameFramework\Scene\SceneTypes.h" />
+    <ClInclude Include="GameFramework\Object\ObjectPool.h" />
+    <ClInclude Include="GameFramework\Component\Component.h" />
     <ClInclude Include="GameFramework\System\GameSystem.h" />
     <ClInclude Include="Editor\ImEditor.h" />
     <ClInclude Include="Editor\ImGuiUtillity.h" />
@@ -673,7 +674,6 @@
     <ClCompile Include="GameFramework\ECS\EntityManager.cpp" />
     <ClCompile Include="GameFramework\Object\GameObject.cpp" />
     <ClCompile Include="GameFramework\Object\Ref.cpp" />
-    <ClCompile Include="GameFramework\Component\GameObjectComponent.cpp" />
     <ClCompile Include="GameFramework\Prefab\PrefabSerializer.cpp" />
     <ClCompile Include="GameFramework\Audio\AudioSystem.cpp" />
     <ClCompile Include="GameFramework\Rendering\GameCamera.cpp" />
@@ -681,7 +681,6 @@
     <ClCompile Include="GameFramework\Scene\Scene.cpp" />
     <ClCompile Include="GameFramework\Scene\SceneManager.cpp" />
     <ClCompile Include="GameFramework\Scene\SceneSerializer.cpp" />
-    <ClCompile Include="GameFramework\Scene\SceneSnapshot.cpp" />
     <ClCompile Include="GameFramework\System\GameSystem.cpp" />
     <ClCompile Include="Editor\ImEditor.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>

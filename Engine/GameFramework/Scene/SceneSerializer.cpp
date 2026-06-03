@@ -11,10 +11,8 @@
 #include "GameFramework/Component/SpriteRenderer2D.h"
 #include "GameFramework/Component/Transform2D.h"
 #include "GameFramework/Object/GameObject.h"
-#include "GameFramework/Component/GameObject.h"
 #include "GameFramework/Reflection/ReflectionRegistry.h"
 #include "GameFramework/Scene/Scene.h"
-#include "GameFramework/Scene/SceneSnapshot.h"
 #include "Utillity/Math/RectT.h"
 #include "yaml-cpp/yaml.h"
 
@@ -431,35 +429,30 @@ namespace
 
 	// ── 컴포넌트별 직렬화 (제네릭 + 예외 처리) ──────────────────────────────
 
+	// Transform2D 는 더 이상 컴포넌트가 아니라 CGameObject 멤버 → 레지스트리 없이 직접 직렬화.
 	YAML::Node WriteTransform(const Transform2D& transform)
 	{
-		const ComponentTypeInfo* ti = GetTypeInfo("Transform2D");
-		if (!ti) return YAML::Node(YAML::NodeType::Map);
-		return WriteComponentReflected(&transform, *ti);
+		YAML::Node node(YAML::NodeType::Map);
+		node["Position"]        = WriteVector2(transform.Position);
+		node["RotationRadians"] = transform.RotationRadians;
+		node["Scale"]           = WriteVector2(transform.Scale);
+		return node;
 	}
 
 	void ReadTransform(const YAML::Node& node, Transform2D& transform)
 	{
-		const ComponentTypeInfo* ti = GetTypeInfo("Transform2D");
-		if (ti) ReadComponentReflected(node, &transform, *ti);
+		if (!node) return;
+		ReadVector2(node["Position"], transform.Position);
+		ReadValue(node, "RotationRadians", transform.RotationRadians);
+		ReadVector2(node["Scale"], transform.Scale);
 	}
 
-	YAML::Node WriteSpriteRenderer(const SceneObjectSnapshot& object, std::vector<AssetGuid>& referencedAssets)
+	YAML::Node WriteSpriteRenderer(const SpriteRenderer2D& sprite, std::vector<AssetGuid>& referencedAssets)
 	{
 		const ComponentTypeInfo* ti = GetTypeInfo("SpriteRenderer2D");
 		if (!ti) return YAML::Node(YAML::NodeType::Map);
-		// SpriteRenderer2D 는 복사 불가 멤버(OwnerPtr)를 포함하므로 직렬화 가능 필드만
-		// 임시 구조체로 조립한 뒤 리플렉션 직렬화에 넘긴다.
-		SpriteRenderer2D temp;
-		temp.IsEnabled    = object.SpriteRendererEnabled;
-		temp.SpriteGuid   = object.SpriteGuid;
-		temp.MaterialGuid = object.MaterialGuid;
-		temp.Size         = object.SpriteSize;
-		temp.Offset       = object.SpriteOffset;
-		std::memcpy(temp.Color, object.Color, sizeof(temp.Color));
-		temp.SortOrder    = object.SortOrder;
-		temp.LayerMask    = object.LayerMask;
-		return WriteComponentReflected(&temp, *ti, &referencedAssets);
+		// 등록 프로퍼티(직렬화 대상)만 기록 — 비복사 런타임 캐시(Mesh/Material/AssetRef)는 미등록이라 무시.
+		return WriteComponentReflected(&sprite, *ti, &referencedAssets);
 	}
 
 	void ReadSpriteRenderer(const YAML::Node& node, SpriteRenderer2D& sprite)
@@ -811,172 +804,164 @@ namespace
 
 ESceneSerializeResult CSceneSerializer::SerializeToText(const CScene& scene, std::string& outText) const
 {
-	SceneSnapshot snapshot;
-	scene.BuildSnapshot(snapshot);
 	std::vector<AssetGuid> referencedAssets;
 
-	std::unordered_map<EntityId, std::size_t> entityToIndex;
-	for (std::size_t i = 0; i < snapshot.Objects.size(); ++i)
+	// 결정적 순서 + 부모 인덱스 매핑(ParentIndex 직렬화용).
+	std::vector<CGameObject*> objectList;
+	const_cast<CScene&>(scene).ForEachObject([&objectList](CGameObject& o){ objectList.push_back(&o); });
+	std::unordered_map<const CGameObject*, int> indexOf;
+	for (std::size_t i = 0; i < objectList.size(); ++i)
 	{
-		entityToIndex.emplace(snapshot.Objects[i].Entity, i);
+		indexOf.emplace(objectList[i], static_cast<int>(i));
 	}
+
+	// 스크립트 컴포넌트 노드 — 인스턴스 현재값 우선, 없으면 PendingFields 재직렬화.
+	auto writeScript = [&](ScriptComponent* sc) -> YAML::Node
+	{
+		YAML::Node scriptNode(YAML::NodeType::Map);
+		if (nullptr == sc || INVALID_TYPE_ID == sc->ScriptTypeId || false == static_cast<bool>(Core::Reflection))
+		{
+			return scriptNode;
+		}
+		const ScriptTypeInfo* scriptInfo = Core::Reflection->FindScript(sc->ScriptTypeId);
+		if (scriptInfo && scriptInfo->Type.Name)
+		{
+			scriptNode["Type"]      = scriptInfo->Type.Name;
+			scriptNode["IsEnabled"] = sc->IsEnabled;
+			if (!scriptInfo->Properties.empty())
+			{
+				if (sc->Instance)
+				{
+					scriptNode["Fields"] = WriteScriptFields(sc->Instance, *scriptInfo, &referencedAssets);
+				}
+				else if (!sc->PendingFields.empty())
+				{
+					YAML::Node fields(YAML::NodeType::Map);
+					for (const ScriptPendingField& pf : sc->PendingFields)
+					{
+						for (const ReflectPropertyInfo& prop : scriptInfo->Properties)
+						{
+							if (prop.Name && pf.Name == prop.Name &&
+								((EReflectPropertyType::AssetGuid == pf.Type && EReflectPropertyType::AssetGuid == prop.Type) ||
+								(EReflectPropertyType::Ref == pf.Type && EReflectPropertyType::Ref == prop.Type) ||
+								pf.Data.size() == prop.Size))
+							{
+								const void* src = pf.Data.empty() ? nullptr : pf.Data.data();
+								switch (prop.Type)
+								{
+								case EReflectPropertyType::Bool:   fields[prop.Name] = *static_cast<const bool*>(src); break;
+								case EReflectPropertyType::Int32:  fields[prop.Name] = *static_cast<const std::int32_t*>(src); break;
+								case EReflectPropertyType::Int64:  fields[prop.Name] = *static_cast<const std::int64_t*>(src); break;
+								case EReflectPropertyType::UInt32: fields[prop.Name] = *static_cast<const std::uint32_t*>(src); break;
+								case EReflectPropertyType::UInt64: fields[prop.Name] = *static_cast<const std::uint64_t*>(src); break;
+								case EReflectPropertyType::Float:
+								case EReflectPropertyType::Degree:
+								case EReflectPropertyType::Radian:
+								case EReflectPropertyType::AngleDegrees:
+									fields[prop.Name] = *static_cast<const float*>(src); break;
+								case EReflectPropertyType::Vector2Float:
+									fields[prop.Name] = WriteVector2(*static_cast<const Vector2*>(src)); break;
+								case EReflectPropertyType::RectFloat:
+									fields[prop.Name] = WriteRect(*static_cast<const Rect*>(src)); break;
+								case EReflectPropertyType::AssetGuid:
+									fields[prop.Name] = pf.Text;
+									AddReferencedAsset(referencedAssets, File::Guid(pf.Text));
+									break;
+								case EReflectPropertyType::Ref:
+									fields[prop.Name] = pf.Text;
+									if (ERefCategory::Asset == prop.RefCategory)
+									{
+										AddReferencedAsset(referencedAssets, File::Guid(pf.Text));
+									}
+									break;
+								case EReflectPropertyType::String:
+									fields[prop.Name] = pf.Text;
+									break;
+								default: break;
+								}
+								break;
+							}
+						}
+					}
+					scriptNode["Fields"] = fields;
+				}
+			}
+		}
+		else
+		{
+			scriptNode["TypeId"]    = sc->ScriptTypeId;
+			scriptNode["IsEnabled"] = sc->IsEnabled;
+		}
+		return scriptNode;
+	};
 
 	YAML::Node objects(YAML::NodeType::Sequence);
 
-	for (const SceneObjectSnapshot& object : snapshot.Objects)
+	for (CGameObject* obj : objectList)
 	{
 		YAML::Node objectNode(YAML::NodeType::Map);
-		objectNode["Name"] = object.Name;
-		if (false == object.InstanceGuid.IsNull())
+		objectNode["Name"] = obj->Name;
+		if (false == obj->InstanceGuid.IsNull())
 		{
-			objectNode["InstanceGuid"] = object.InstanceGuid.generic_string();
+			objectNode["InstanceGuid"] = obj->InstanceGuid.generic_string();
 		}
-		objectNode["Active"] = object.IsActive;
-		objectNode["Layer"] = object.Layer;
+		objectNode["Active"] = obj->IsActive;
+		objectNode["Layer"]  = obj->Layer;
 
-		const auto parentIt = entityToIndex.find(object.Parent);
-		objectNode["ParentIndex"] = parentIt == entityToIndex.end() ? -1 : static_cast<int>(parentIt->second);
+		CGameObject* parent = obj->GetParent().TryGet();
+		const auto parentIt = parent ? indexOf.find(parent) : indexOf.end();
+		objectNode["ParentIndex"] = (parentIt != indexOf.end()) ? parentIt->second : -1;
 
+		// Transform 은 컴포넌트가 아니라 오브젝트 멤버 → 객체 노드에 직접 기록.
+		objectNode["Transform2D"] = WriteTransform(obj->Local);
+
+		// 컴포넌트는 다형성 — GetTypeName 으로 분기. 등록 프로퍼티는 리플렉션 직렬화,
+		// 비반영 추가 필드(Light 각도/Polygon 포인트 등)는 per-type 헬퍼가 처리.
 		YAML::Node components(YAML::NodeType::Map);
-		if (object.HasTransform)
+		for (const SafePtr<CComponent>& cref : obj->GetComponents())
 		{
-			components["Transform2D"] = WriteTransform(object.Transform);
-		}
-		if (object.HasSpriteRenderer)
-		{
-			components["SpriteRenderer2D"] = WriteSpriteRenderer(object, referencedAssets);
-		}
-		if (object.HasCamera)
-		{
-			components["Camera2D"] = WriteCamera(object.Camera);
-		}
-		if (object.HasLight)
-		{
-			components["Light2D"] = WriteLight(object.Light);
-		}
-		if (object.HasAudioPlayer)
-		{
-			components["AudioPlayer"] = WriteAudioPlayer(object.AudioPlayerData, referencedAssets);
-		}
-		if (object.HasAudioListener)
-		{
-			components["AudioListener"] = WriteAudioListener(object.AudioListenerData);
-		}
-		if (object.HasRigidbody)
-		{
-			components["Rigidbody2D"] = WriteRigidbody(object.Rigidbody);
-		}
-		if (false == object.PolygonColliders.empty())
-		{
-			YAML::Node collidersSeq(YAML::NodeType::Sequence);
-			for (const PolygonCollider2D& collider : object.PolygonColliders)
+			CComponent* c = cref.TryGet();
+			if (nullptr == c)
 			{
-				collidersSeq.push_back(WritePolygonCollider(collider));
+				continue;
 			}
-			components["PolygonColliders"] = collidersSeq;
-		}
-		if (object.HasCircleCollider)
-		{
-			components["CircleCollider2D"] = WriteCircleCollider(object.CircleCollider);
-		}
-		if (object.HasPrefabInstance)
-		{
-			YAML::Node prefab(YAML::NodeType::Map);
-			prefab["SourcePrefabGuid"] = object.SourcePrefabGuid.generic_string();
-			AddReferencedAsset(referencedAssets, object.SourcePrefabGuid);
-			components["PrefabInstance"] = prefab;
-		}
+			const char* tn = c->GetTypeName();
 
-		// ── ScriptComponent 직렬화 ──────────────────────────────────────────
-		// SceneSnapshot 이 스크립트를 포함하지 않으므로 씬을 직접 조회한다.
-		if (Core::Reflection)
-		{
-			CScene& mutableScene = const_cast<CScene&>(scene);
-			ScriptComponent* scriptComp = mutableScene.GetComponent<ScriptComponent>(object.Entity);
-			if (scriptComp && scriptComp->ScriptTypeId != INVALID_TYPE_ID)
+			if (0 == std::strcmp(tn, "ScriptComponent"))
 			{
-				YAML::Node scriptNode(YAML::NodeType::Map);
-				const ScriptTypeInfo* scriptInfo = Core::Reflection->FindScript(scriptComp->ScriptTypeId);
-				if (scriptInfo && scriptInfo->Type.Name)
+				ScriptComponent* sc = static_cast<ScriptComponent*>(c);
+				if (sc->ScriptTypeId != INVALID_TYPE_ID)
 				{
-					scriptNode["Type"]      = scriptInfo->Type.Name;
-					scriptNode["IsEnabled"] = scriptComp->IsEnabled;
-
-					if (!scriptInfo->Properties.empty())
-					{
-						// 인스턴스가 있으면 현재 값, 없으면 PendingFields 를 재직렬화
-						if (scriptComp->Instance)
-						{
-							scriptNode["Fields"] = WriteScriptFields(scriptComp->Instance, *scriptInfo, &referencedAssets);
-						}
-						else if (!scriptComp->PendingFields.empty())
-						{
-							// 아직 인스턴스가 없는 경우(DLL 미로드 등) — PendingFields 로 보존
-							YAML::Node fields(YAML::NodeType::Map);
-							for (const ScriptPendingField& pf : scriptComp->PendingFields)
-							{
-								// 타입 정보로 올바른 YAML 값 복원
-								for (const ReflectPropertyInfo& prop : scriptInfo->Properties)
-								{
-									if (prop.Name && pf.Name == prop.Name &&
-										((EReflectPropertyType::AssetGuid == pf.Type && EReflectPropertyType::AssetGuid == prop.Type) ||
-										(EReflectPropertyType::Ref == pf.Type && EReflectPropertyType::Ref == prop.Type) ||
-										pf.Data.size() == prop.Size))
-									{
-										const void* src = pf.Data.empty() ? nullptr : pf.Data.data();
-										switch (prop.Type)
-										{
-										case EReflectPropertyType::Bool:
-											fields[prop.Name] = *static_cast<const bool*>(src); break;
-										case EReflectPropertyType::Int32:
-											fields[prop.Name] = *static_cast<const std::int32_t*>(src); break;
-										case EReflectPropertyType::Int64:
-											fields[prop.Name] = *static_cast<const std::int64_t*>(src); break;
-										case EReflectPropertyType::UInt32:
-											fields[prop.Name] = *static_cast<const std::uint32_t*>(src); break;
-										case EReflectPropertyType::UInt64:
-											fields[prop.Name] = *static_cast<const std::uint64_t*>(src); break;
-										case EReflectPropertyType::Float:
-										case EReflectPropertyType::Degree:
-										case EReflectPropertyType::Radian:
-										case EReflectPropertyType::AngleDegrees:
-											fields[prop.Name] = *static_cast<const float*>(src); break;
-										case EReflectPropertyType::Vector2Float:
-											fields[prop.Name] = WriteVector2(*static_cast<const Vector2*>(src)); break;
-										case EReflectPropertyType::RectFloat:
-											fields[prop.Name] = WriteRect(*static_cast<const Rect*>(src)); break;
-										case EReflectPropertyType::AssetGuid:
-											fields[prop.Name] = pf.Text;
-											AddReferencedAsset(referencedAssets, File::Guid(pf.Text));
-											break;
-										case EReflectPropertyType::Ref:
-											fields[prop.Name] = pf.Text;
-											if (ERefCategory::Asset == prop.RefCategory)
-											{
-												AddReferencedAsset(referencedAssets, File::Guid(pf.Text));
-											}
-											break;
-										case EReflectPropertyType::String:
-											fields[prop.Name] = pf.Text;
-											break;
-										default: break;
-										}
-										break;
-									}
-								}
-							}
-							scriptNode["Fields"] = fields;
-						}
-					}
+					components["Script"] = writeScript(sc);
 				}
-				else
-				{
-					// 타입 정보 없음(DLL 미로드): TypeId 해시를 문자열로 보존
-					scriptNode["TypeId"]    = scriptComp->ScriptTypeId;
-					scriptNode["IsEnabled"] = scriptComp->IsEnabled;
-				}
-				components["Script"] = scriptNode;
+				continue;
 			}
+			if (0 == std::strcmp(tn, "PolygonCollider2D"))
+			{
+				// 기존 포맷 호환: 시퀀스 "PolygonColliders"(단일 원소).
+				YAML::Node pn = WritePolygonCollider(*static_cast<PolygonCollider2D*>(c));
+				pn["IsEnabled"] = c->IsEnabled;
+				YAML::Node seq(YAML::NodeType::Sequence);
+				seq.push_back(pn);
+				components["PolygonColliders"] = seq;
+				continue;
+			}
+
+			YAML::Node cn;
+			if      (0 == std::strcmp(tn, "SpriteRenderer2D")) cn = WriteSpriteRenderer(*static_cast<SpriteRenderer2D*>(c), referencedAssets);
+			else if (0 == std::strcmp(tn, "Camera2D"))         cn = WriteCamera(*static_cast<Camera2D*>(c));
+			else if (0 == std::strcmp(tn, "Light2D"))          cn = WriteLight(*static_cast<Light2D*>(c));
+			else if (0 == std::strcmp(tn, "AudioPlayer"))      cn = WriteAudioPlayer(*static_cast<AudioPlayer*>(c), referencedAssets);
+			else if (0 == std::strcmp(tn, "AudioListener"))    cn = WriteAudioListener(*static_cast<AudioListener*>(c));
+			else if (0 == std::strcmp(tn, "Rigidbody2D"))      cn = WriteRigidbody(*static_cast<Rigidbody2D*>(c));
+			else if (0 == std::strcmp(tn, "CircleCollider2D")) cn = WriteCircleCollider(*static_cast<CircleCollider2D*>(c));
+			else
+			{
+				const ComponentTypeInfo* ti = GetTypeInfo(tn);
+				cn = ti ? WriteComponentReflected(c, *ti, &referencedAssets) : YAML::Node(YAML::NodeType::Map);
+			}
+			cn["IsEnabled"] = c->IsEnabled;   // 공통 enable 플래그(CComponent 베이스).
+			components[tn] = cn;
 		}
 
 		objectNode["Components"] = components;
@@ -1035,7 +1020,7 @@ ESceneSerializeResult CSceneSerializer::DeserializeFromText(CScene& scene, const
 	scene.ClearObjects();
 	std::vector<AssetGuid> referencedAssets = ReadReferencedAssets(root["ReferencedAssets"]);
 
-	std::vector<CGameObject> objects;
+	std::vector<CGameObject*> objects;
 	std::vector<int> parentIndices;
 	for (const YAML::Node& objectNode : objectsNode)
 	{
@@ -1045,15 +1030,19 @@ ESceneSerializeResult CSceneSerializer::DeserializeFromText(CScene& scene, const
 		}
 
 		const std::string name = ReadValueOr<std::string>(objectNode, "Name", "GameObject");
-		CGameObject object = scene.CreateGameObject(name.c_str());
-		object.SetActive(ReadValueOr<bool>(objectNode, "Active", true));
-		object.SetLayer(ReadValueOr<std::uint32_t>(objectNode, "Layer", 0));
+		CGameObject* object = scene.CreateGameObject(name.c_str());
+		if (nullptr == object)
+		{
+			return ESceneSerializeResult::ParseError;
+		}
+		object->SetActive(ReadValueOr<bool>(objectNode, "Active", true));
+		object->Layer = ReadValueOr<std::uint32_t>(objectNode, "Layer", 0);
 		// 저장된 안정 식별자가 있으면 복원(없으면 CreateGameObject 가 발급한 새 GUID 유지).
 		{
 			const std::string instanceGuid = ReadValueOr<std::string>(objectNode, "InstanceGuid", "");
 			if (false == instanceGuid.empty())
 			{
-				scene.SetGameObjectInstanceGuid(object.GetEntityId(), File::Guid(instanceGuid));
+				object->InstanceGuid = File::Guid(instanceGuid);
 			}
 		}
 
@@ -1062,17 +1051,15 @@ ESceneSerializeResult CSceneSerializer::DeserializeFromText(CScene& scene, const
 		{
 			if (const YAML::Node transformNode = components["Transform2D"])
 			{
-				if (Transform2D* transform = object.GetTransform())
-				{
-					ReadTransform(transformNode, *transform);
-				}
+				ReadTransform(transformNode, object->GetTransform());
 			}
 
 			if (const YAML::Node spriteNode = components["SpriteRenderer2D"])
 			{
-				if (SpriteRenderer2D* sprite = object.AddComponent<SpriteRenderer2D>())
+				if (SpriteRenderer2D* sprite = object->AddComponent<SpriteRenderer2D>())
 				{
 					ReadSpriteRenderer(spriteNode, *sprite);
+					sprite->IsEnabled = ReadValueOr<bool>(spriteNode, "IsEnabled", true);
 					AddReferencedAsset(referencedAssets, sprite->SpriteGuid);
 					AddReferencedAsset(referencedAssets, sprite->MaterialGuid);
 				}
@@ -1080,25 +1067,28 @@ ESceneSerializeResult CSceneSerializer::DeserializeFromText(CScene& scene, const
 
 			if (const YAML::Node cameraNode = components["Camera2D"])
 			{
-				if (Camera2D* camera = object.AddComponent<Camera2D>())
+				if (Camera2D* camera = object->AddComponent<Camera2D>())
 				{
 					ReadCamera(cameraNode, *camera);
+					camera->IsEnabled = ReadValueOr<bool>(cameraNode, "IsEnabled", true);
 				}
 			}
 
 			if (const YAML::Node lightNode = components["Light2D"])
 			{
-				if (Light2D* light = object.AddComponent<Light2D>())
+				if (Light2D* light = object->AddComponent<Light2D>())
 				{
 					ReadLight(lightNode, *light);
+					light->IsEnabled = ReadValueOr<bool>(lightNode, "IsEnabled", true);
 				}
 			}
 
 			if (const YAML::Node audioPlayerNode = components["AudioPlayer"])
 			{
-				if (AudioPlayer* audioPlayer = object.AddComponent<AudioPlayer>())
+				if (AudioPlayer* audioPlayer = object->AddComponent<AudioPlayer>())
 				{
 					ReadAudioPlayer(audioPlayerNode, *audioPlayer);
+					audioPlayer->IsEnabled = ReadValueOr<bool>(audioPlayerNode, "IsEnabled", true);
 					AddReferencedAsset(referencedAssets, audioPlayer->AudioGuid);
 					AddReferencedAsset(referencedAssets, audioPlayer->EffectGuid);
 				}
@@ -1106,49 +1096,53 @@ ESceneSerializeResult CSceneSerializer::DeserializeFromText(CScene& scene, const
 
 			if (const YAML::Node audioListenerNode = components["AudioListener"])
 			{
-				if (AudioListener* audioListener = object.AddComponent<AudioListener>())
+				if (AudioListener* audioListener = object->AddComponent<AudioListener>())
 				{
 					ReadAudioListener(audioListenerNode, *audioListener);
+					audioListener->IsEnabled = ReadValueOr<bool>(audioListenerNode, "IsEnabled", true);
 				}
 			}
 
 			if (const YAML::Node rigidbodyNode = components["Rigidbody2D"])
 			{
-				if (Rigidbody2D* rigidbody = object.AddComponent<Rigidbody2D>())
+				if (Rigidbody2D* rigidbody = object->AddComponent<Rigidbody2D>())
 				{
 					ReadRigidbody(rigidbodyNode, *rigidbody);
+					rigidbody->IsEnabled = ReadValueOr<bool>(rigidbodyNode, "IsEnabled", true);
 				}
 			}
 
-			// 단일 인스턴스 ECS: PolygonCollider2D 는 엔티티당 1개.
-			// 기존 시퀀스 포맷("PolygonColliders") 호환을 위해 첫 항목만 사용.
-			// 레거시 단일 포맷("PolygonCollider2D") 도 함께 지원.
+			// 단일 인스턴스: PolygonCollider2D 는 오브젝트당 1개.
+			// 기존 시퀀스 포맷("PolygonColliders") 첫 항목 사용 + 레거시 단일 포맷 지원.
 			if (const YAML::Node seqNode = components["PolygonColliders"]; seqNode && seqNode.IsSequence() && seqNode.size() > 0)
 			{
-				if (PolygonCollider2D* collider = object.AddComponent<PolygonCollider2D>())
+				if (PolygonCollider2D* collider = object->AddComponent<PolygonCollider2D>())
 				{
 					ReadPolygonCollider(seqNode[0], *collider);
+					collider->IsEnabled = ReadValueOr<bool>(seqNode[0], "IsEnabled", true);
 				}
 			}
 			else if (const YAML::Node polygonNode = components["PolygonCollider2D"])
 			{
-				if (PolygonCollider2D* collider = object.AddComponent<PolygonCollider2D>())
+				if (PolygonCollider2D* collider = object->AddComponent<PolygonCollider2D>())
 				{
 					ReadPolygonCollider(polygonNode, *collider);
+					collider->IsEnabled = ReadValueOr<bool>(polygonNode, "IsEnabled", true);
 				}
 			}
 
 			if (const YAML::Node circleNode = components["CircleCollider2D"])
 			{
-				if (CircleCollider2D* collider = object.AddComponent<CircleCollider2D>())
+				if (CircleCollider2D* collider = object->AddComponent<CircleCollider2D>())
 				{
 					ReadCircleCollider(circleNode, *collider);
+					collider->IsEnabled = ReadValueOr<bool>(circleNode, "IsEnabled", true);
 				}
 			}
 
 			if (const YAML::Node prefabNode = components["PrefabInstance"])
 			{
-				if (PrefabInstance* prefab = object.AddComponent<PrefabInstance>())
+				if (PrefabInstance* prefab = object->AddComponent<PrefabInstance>())
 				{
 					prefab->SourcePrefabGuid = File::Guid(ReadValueOr<std::string>(prefabNode, "SourcePrefabGuid", ""));
 					AddReferencedAsset(referencedAssets, prefab->SourcePrefabGuid);
@@ -1158,7 +1152,7 @@ ESceneSerializeResult CSceneSerializer::DeserializeFromText(CScene& scene, const
 			// ── ScriptComponent 역직렬화 ────────────────────────────────────
 			if (const YAML::Node scriptNode = components["Script"])
 			{
-				ScriptComponent* sc = object.AddComponent<ScriptComponent>();
+				ScriptComponent* sc = object->AddComponent<ScriptComponent>();
 				if (sc)
 				{
 					sc->IsEnabled = ReadValueOr<bool>(scriptNode, "IsEnabled", true);
@@ -1211,7 +1205,7 @@ ESceneSerializeResult CSceneSerializer::DeserializeFromText(CScene& scene, const
 			return ESceneSerializeResult::ParseError;
 		}
 
-		if (false == objects[i].SetParent(objects[static_cast<std::size_t>(parentIndex)]))
+		if (false == objects[i]->SetParent(*objects[static_cast<std::size_t>(parentIndex)]))
 		{
 			return ESceneSerializeResult::ParseError;
 		}

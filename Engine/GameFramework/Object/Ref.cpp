@@ -32,12 +32,8 @@ void* RefDetail::ResolveComponent(const char* instanceGuid, std::type_index comp
 	{
 		return nullptr;
 	}
-	const EntityId entity = scene->FindEntityByInstanceGuid(File::Guid(instanceGuid));
-	if (INVALID_ENTITY_ID == entity)
-	{
-		return nullptr;
-	}
-	return scene->GetComponentRaw(entity, componentType);
+	CGameObject* object = scene->FindByInstanceGuid(File::Guid(instanceGuid)).TryGet();
+	return object ? object->FindComponentRaw(componentType) : nullptr;
 }
 
 CGameScript* RefDetail::ResolveScript(const char* instanceGuid)
@@ -47,13 +43,13 @@ CGameScript* RefDetail::ResolveScript(const char* instanceGuid)
 	{
 		return nullptr;
 	}
-	const EntityId entity = scene->FindEntityByInstanceGuid(File::Guid(instanceGuid));
-	if (INVALID_ENTITY_ID == entity)
+	CGameObject* object = scene->FindByInstanceGuid(File::Guid(instanceGuid)).TryGet();
+	if (nullptr == object)
 	{
 		return nullptr;
 	}
-	// 엔티티당 ScriptComponent 는 단일(멀티 컴포넌트 비활성).
-	ScriptComponent* scriptComp = scene->GetComponent<ScriptComponent>(entity);
+	// 오브젝트당 ScriptComponent 는 단일.
+	ScriptComponent* scriptComp = object->GetComponent<ScriptComponent>();
 	return scriptComp ? scriptComp->Instance : nullptr;
 }
 

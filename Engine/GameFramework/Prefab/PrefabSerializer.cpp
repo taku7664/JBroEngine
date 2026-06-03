@@ -1,36 +1,35 @@
 #include "pch.h"
 #include "PrefabSerializer.h"
 
-#include "GameFramework/Component/Camera2D.h"
-#include "GameFramework/Component/GameObject.h"
+#include "Core/Core.h"
 #include "GameFramework/Component/Light2D.h"
 #include "GameFramework/Component/Physics2DComponents.h"
-#include "GameFramework/Component/PrefabInstance.h"
-#include "GameFramework/Component/SpriteRenderer2D.h"
-#include "GameFramework/Component/Transform2D.h"
 #include "GameFramework/Object/GameObject.h"
+#include "GameFramework/Reflection/ReflectionRegistry.h"
 #include "GameFramework/Scene/Scene.h"
 #include "GameFramework/Scene/SceneSerializer.h"
-#include "GameFramework/Scene/SceneTypes.h"
+#include "Utillity/File/FilePath.h"
 
+#include <cstring>
 #include <fstream>
 #include <sstream>
 
-EPrefabSerializeResult CPrefabSerializer::SerializePrefabToText(const CScene& scene, EntityId root, std::string& outText) const
+EPrefabSerializeResult CPrefabSerializer::SerializePrefabToText(const CScene& scene, std::uint64_t root, std::string& outText) const
 {
-	if (false == scene.IsAlive(root))
+	CGameObject* rootObject = const_cast<CScene&>(scene).FindObjectById(root);
+	if (nullptr == rootObject)
 	{
 		return EPrefabSerializeResult::InvalidArgument;
 	}
 
 	CScene prefabScene;
-	CloneHierarchy(scene, prefabScene, root);
+	CloneHierarchy(scene, prefabScene, *rootObject);
 
 	CSceneSerializer serializer;
 	return ConvertSceneResult(static_cast<int>(serializer.SerializeToText(prefabScene, outText)));
 }
 
-EPrefabSerializeResult CPrefabSerializer::DeserializePrefabFromText(CScene& scene, const char* text, CGameObject* outRoot) const
+EPrefabSerializeResult CPrefabSerializer::DeserializePrefabFromText(CScene& scene, const char* text, CGameObject** outRoot) const
 {
 	if (nullptr == text)
 	{
@@ -45,17 +44,16 @@ EPrefabSerializeResult CPrefabSerializer::DeserializePrefabFromText(CScene& scen
 		return ConvertSceneResult(static_cast<int>(sceneResult));
 	}
 
-	CGameObject firstRoot;
-	prefabScene.ForEach<GameObject>(
-		[&](EntityId entity, const GameObject&)
+	CGameObject* firstRoot = nullptr;
+	prefabScene.ForEachObject(
+		[&](CGameObject& object)
 		{
-			if (INVALID_ENTITY_ID != prefabScene.GetParent(entity))
+			if (object.GetParent().IsValid())
 			{
-				return;
+				return;   // 루트만 클론(자식은 재귀로).
 			}
-
-			CGameObject clonedRoot = CloneHierarchy(prefabScene, scene, entity);
-			if (false == firstRoot.IsValid())
+			CGameObject* clonedRoot = CloneHierarchy(prefabScene, scene, object);
+			if (nullptr == firstRoot)
 			{
 				firstRoot = clonedRoot;
 			}
@@ -66,10 +64,10 @@ EPrefabSerializeResult CPrefabSerializer::DeserializePrefabFromText(CScene& scen
 		*outRoot = firstRoot;
 	}
 
-	return firstRoot.IsValid() ? EPrefabSerializeResult::Success : EPrefabSerializeResult::ParseError;
+	return firstRoot ? EPrefabSerializeResult::Success : EPrefabSerializeResult::ParseError;
 }
 
-EPrefabSerializeResult CPrefabSerializer::SavePrefabToFile(const CScene& scene, EntityId root, const File::Path& path) const
+EPrefabSerializeResult CPrefabSerializer::SavePrefabToFile(const CScene& scene, std::uint64_t root, const File::Path& path) const
 {
 	if (path.empty())
 	{
@@ -93,7 +91,7 @@ EPrefabSerializeResult CPrefabSerializer::SavePrefabToFile(const CScene& scene, 
 	return EPrefabSerializeResult::Success;
 }
 
-EPrefabSerializeResult CPrefabSerializer::LoadPrefabFromFile(CScene& scene, const File::Path& path, CGameObject* outRoot) const
+EPrefabSerializeResult CPrefabSerializer::LoadPrefabFromFile(CScene& scene, const File::Path& path, CGameObject** outRoot) const
 {
 	if (path.empty())
 	{
@@ -111,113 +109,114 @@ EPrefabSerializeResult CPrefabSerializer::LoadPrefabFromFile(CScene& scene, cons
 	return DeserializePrefabFromText(scene, buffer.str().c_str(), outRoot);
 }
 
-CGameObject CPrefabSerializer::CloneHierarchy(const CScene& sourceScene, CScene& targetScene, EntityId sourceEntity)
+CGameObject* CPrefabSerializer::CloneHierarchy(const CScene& /*sourceScene*/, CScene& targetScene, const CGameObject& sourceObject)
 {
-	const GameObject* sourceGameObject = sourceScene.GetComponent<GameObject>(sourceEntity);
-	CGameObject targetObject = targetScene.CreateGameObject(sourceGameObject ? sourceGameObject->Name : nullptr);
-	if (false == targetObject.IsValid())
+	CGameObject* targetObject = targetScene.CreateGameObject(sourceObject.GetName());
+	if (nullptr == targetObject)
 	{
-		return targetObject;
+		return nullptr;
 	}
 
-	if (sourceGameObject)
-	{
-		targetObject.SetActive(sourceGameObject->IsActive);
-		targetObject.SetLayer(sourceGameObject->Layer);
-	}
+	targetObject->SetActive(sourceObject.IsActive);
+	targetObject->Layer = sourceObject.Layer;
 
-	CopyComponents(sourceScene, sourceEntity, targetObject);
+	CopyComponents(sourceObject, *targetObject);
 
-	EntityId child = sourceScene.GetFirstChild(sourceEntity);
-	while (INVALID_ENTITY_ID != child)
+	for (const SafePtr<CGameObject>& childRef : sourceObject.GetChildren())
 	{
-		const EntityId nextSibling = sourceScene.GetNextSibling(child);
-		CGameObject clonedChild = CloneHierarchy(sourceScene, targetScene, child);
-		if (clonedChild.IsValid())
+		if (const CGameObject* child = childRef.TryGet())
 		{
-			clonedChild.SetParent(targetObject);
+			CGameObject* clonedChild = CloneHierarchy(*targetObject->GetScene(), targetScene, *child);
+			if (clonedChild)
+			{
+				clonedChild->SetParent(*targetObject);
+			}
 		}
-		child = nextSibling;
 	}
 
 	return targetObject;
 }
 
-void CPrefabSerializer::CopyComponents(const CScene& sourceScene, EntityId sourceEntity, CGameObject& targetObject)
+void CPrefabSerializer::CopyComponents(const CGameObject& sourceObject, CGameObject& targetObject)
 {
-	if (const Transform2D* source = sourceScene.GetComponent<Transform2D>(sourceEntity))
+	// Transform 은 오브젝트 멤버 — 직접 복사.
+	targetObject.GetTransform() = sourceObject.GetTransform();
+
+	CScene* targetScene = targetObject.GetScene();
+	if (nullptr == targetScene || false == static_cast<bool>(Core::Reflection))
 	{
-		if (Transform2D* target = targetObject.GetTransform())
-		{
-			*target = *source;
-		}
+		return;
 	}
 
-	if (const SpriteRenderer2D* source = sourceScene.GetComponent<SpriteRenderer2D>(sourceEntity))
+	for (const SafePtr<CComponent>& cref : sourceObject.GetComponents())
 	{
-		if (SpriteRenderer2D* target = targetObject.AddComponent<SpriteRenderer2D>())
+		const CComponent* src = cref.TryGet();
+		if (nullptr == src)
 		{
-			target->IsEnabled = source->IsEnabled;
-			target->SpriteGuid = source->SpriteGuid;
-			target->MaterialGuid = source->MaterialGuid;
-			target->Size = source->Size;
-			target->Offset = source->Offset;
-			target->Color[0] = source->Color[0];
-			target->Color[1] = source->Color[1];
-			target->Color[2] = source->Color[2];
-			target->Color[3] = source->Color[3];
-			target->SortOrder = source->SortOrder;
-			target->LayerMask = source->LayerMask;
+			continue;
 		}
-	}
-
-	if (const Camera2D* source = sourceScene.GetComponent<Camera2D>(sourceEntity))
-	{
-		if (Camera2D* target = targetObject.AddComponent<Camera2D>())
+		const char* name = src->GetTypeName();
+		if (0 == std::strcmp(name, "ScriptComponent"))
 		{
-			*target = *source;
+			continue;   // 프리팹은 스크립트 인스턴스를 복제하지 않는다(기존 동작 유지).
 		}
-	}
 
-	if (const Light2D* source = sourceScene.GetComponent<Light2D>(sourceEntity))
-	{
-		if (Light2D* target = targetObject.AddComponent<Light2D>())
+		const ComponentTypeInfo* ti = Core::Reflection->FindComponentByName(name);
+		if (nullptr == ti)
 		{
-			*target = *source;
+			continue;
 		}
-	}
-
-	if (const Rigidbody2D* source = sourceScene.GetComponent<Rigidbody2D>(sourceEntity))
-	{
-		if (Rigidbody2D* target = targetObject.AddComponent<Rigidbody2D>())
+		if (false == Core::Reflection->AddComponent(*targetScene, targetObject, ti->Type.Id))
 		{
-			*target = *source;
+			continue;
 		}
-	}
-
-	// 단일 인스턴스 ECS: PolygonCollider2D 는 엔티티당 최대 1개.
-	if (const PolygonCollider2D* source = sourceScene.GetComponent<PolygonCollider2D>(sourceEntity))
-	{
-		if (PolygonCollider2D* target = targetObject.AddComponent<PolygonCollider2D>())
+		CComponent* dst = static_cast<CComponent*>(Core::Reflection->GetComponentAddress(targetObject, ti->Type.Id));
+		if (nullptr == dst)
 		{
-			*target = *source;
-			target->WorldPoints.clear();
+			continue;
 		}
-	}
 
-	if (const CircleCollider2D* source = sourceScene.GetComponent<CircleCollider2D>(sourceEntity))
-	{
-		if (CircleCollider2D* target = targetObject.AddComponent<CircleCollider2D>())
+		// 등록 프로퍼티만 복사(런타임 캐시/비복사 멤버는 건드리지 않는다).
+		// ⚠ `*dst = *src` 는 CComponent 베이스(Owner SafePtr / ControlBlock)까지 복사해 깨지므로 금지.
+		for (const ReflectPropertyInfo& prop : ti->Properties)
 		{
-			*target = *source;
+			const void* sf = static_cast<const char*>(static_cast<const void*>(src)) + prop.Offset;
+			void*       df = static_cast<char*>(static_cast<void*>(dst)) + prop.Offset;
+			if (EReflectPropertyType::AssetGuid == prop.Type)
+			{
+				*static_cast<File::Guid*>(df) = *static_cast<const File::Guid*>(sf);
+			}
+			else if (EReflectPropertyType::String == prop.Type)
+			{
+				if (prop.ElementCount > 1) std::memcpy(df, sf, prop.Size * prop.ElementCount);
+				else *static_cast<std::string*>(df) = *static_cast<const std::string*>(sf);
+			}
+			else
+			{
+				std::memcpy(df, sf, prop.Size * (prop.ElementCount ? prop.ElementCount : 1));
+			}
 		}
-	}
+		dst->IsEnabled = src->IsEnabled;
 
-	if (const PrefabInstance* source = sourceScene.GetComponent<PrefabInstance>(sourceEntity))
-	{
-		if (PrefabInstance* target = targetObject.AddComponent<PrefabInstance>())
+		// 비반영 추가 필드(직렬화 예외와 동일).
+		if (0 == std::strcmp(name, "Light2D"))
 		{
-			*target = *source;
+			static_cast<Light2D*>(dst)->InnerAngleRadians = static_cast<const Light2D*>(src)->InnerAngleRadians;
+			static_cast<Light2D*>(dst)->OuterAngleRadians = static_cast<const Light2D*>(src)->OuterAngleRadians;
+		}
+		else if (0 == std::strcmp(name, "PolygonCollider2D"))
+		{
+			PolygonCollider2D* d = static_cast<PolygonCollider2D*>(dst);
+			const PolygonCollider2D* s = static_cast<const PolygonCollider2D*>(src);
+			d->LocalPoints = s->LocalPoints;
+			d->WorldPoints.clear();
+			d->m_convexDirty = true;
+		}
+		else if (0 == std::strcmp(name, "Rigidbody2D"))
+		{
+			Rigidbody2D* d = static_cast<Rigidbody2D*>(dst);
+			d->SetMass(d->Mass);
+			d->SetInertia(d->Inertia);
 		}
 	}
 }

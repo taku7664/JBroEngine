@@ -18,7 +18,6 @@
 #include "GameFramework/ECS/ComponentPool.h"
 #include "GameFramework/System/GameSystem.h"
 #include "GameFramework/Scene/SceneTypes.h"
-#include "GameFramework/Scene/SceneSnapshot.h"
 #include "GameFramework/Scene/SceneSerializer.h"
 #include "GameFramework/Scene/SceneManager.h"
 #include "GameFramework/Scene/Scene.h"

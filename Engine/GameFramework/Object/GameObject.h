@@ -8,6 +8,8 @@
 
 #include <cstdint>
 #include <string>
+#include <typeindex>
+#include <typeinfo>
 #include <vector>
 
 class CScene;
@@ -100,6 +102,21 @@ public:
 	bool HasComponent() const { return nullptr != GetComponent<T>(); }
 
 	const std::vector<SafePtr<CComponent>>& GetComponents() const { return m_components; }
+
+	// 타입소거 컴포넌트 조회 — Ref<T> 처럼 컴파일타임에 T 를 모르는 코드(또는 DLL 경계)에서
+	// 동적 타입(type_index)으로 컴포넌트 주소를 얻는다. 단일 상속이라 반환 주소 == T*.
+	void* FindComponentRaw(std::type_index type)
+	{
+		for (const SafePtr<CComponent>& c : m_components)
+		{
+			CComponent* comp = c.TryGet();
+			if (comp && std::type_index(typeid(*comp)) == type)
+			{
+				return comp;
+			}
+		}
+		return nullptr;
+	}
 
 	// scene 의 AddComponent/RemoveComponent 가 호출하는 부착/탈착 훅.
 	void AttachComponent(const SafePtr<CComponent>& component) { m_components.push_back(component); }

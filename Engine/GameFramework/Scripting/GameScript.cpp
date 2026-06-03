@@ -1,10 +1,10 @@
 #include "pch.h"
 #include "GameScript.h"
 
-void CGameScript::Bind(CScene& scene, EntityId entity)
+void CGameScript::Bind(CScene& scene, CGameObject& object)
 {
 	m_scene = &scene;
-	m_entity = entity;
+	m_owner = object.SafeFromThis();
 	m_isBound = true;
 }
 
@@ -13,9 +13,9 @@ CScene* CGameScript::GetScene() const
 	return m_scene;
 }
 
-EntityId CGameScript::GetEntity() const
+CGameObject* CGameScript::GetGameObject() const
 {
-	return m_entity;
+	return m_owner.TryGet();
 }
 
 void CGameScript::Create()
@@ -76,7 +76,7 @@ void CGameScript::Destroy()
 	m_isStarted = false;
 	m_isBound   = false;
 	m_scene     = nullptr;
-	m_entity    = INVALID_ENTITY_ID;
+	m_owner.Reset();
 }
 
 bool CGameScript::IsStarted() const
