@@ -470,10 +470,10 @@ Project.app/Project
 - Android Activity/JNI/lifecycle bridge
 - iOS Xcode template
 - iOS signing/project generation
-- Vulkan 실제 모바일 RHI backend
 - 모바일 파일 시스템 bundle/persistent path abstraction
 - 모바일 touch/soft keyboard/audio lifecycle
-- Vulkan descriptor set / texture upload / shader cook 완성
+- Vulkan render target runtime validation smoke
+- Vulkan shader cook pipeline 자동화
 - Android NDK Vulkan compile 검증
 - iOS MoltenVK compile/link 검증
 
@@ -482,7 +482,8 @@ Project.app/Project
 - 모바일은 이제 UI/프로젝트 파일/빌드 스크립트/엔진 플랫폼 타입에서 정식 타깃으로 인식됩니다.
 - 모바일 compile 경로는 Vulkan RHI 를 선택합니다.
 - 하지만 Android/iOS 실행 산출물을 만들 수 있는 단계는 아닙니다.
-- Vulkan backend 는 객체 계층과 주요 생성 경로를 갖췄지만, descriptor set/texture upload/shader cook 이 남아 실제 sprite rendering 완료 단계는 아닙니다.
+- Vulkan backend 는 객체 계층, descriptor set, texture initial upload, vertex input mapping, 기본 sprite SPIR-V shader, clear/store offscreen render target path, render target `Load` 보존 경로, optional validation/debug utils 를 갖췄습니다.
+- 다만 Android/iOS 실기기 검증, Vulkan runtime smoke, shader asset cook 자동화는 아직 완료되지 않았습니다.
 - 다음 단계는 Android Debug APK 를 먼저 목표로 `PlatformBuild/Android` template 과 native entry/lifecycle 을 붙이는 것입니다.
 
 ## 2026-06-04 Vulkan SDK 확인 상태
@@ -498,13 +499,27 @@ Windows Vulkan SDK 설치 확인:
 - GPU: `NVIDIA GeForce RTX 2080`
 - Vulkan Instance Version: `1.4.350`
 
+이번 Vulkan 브랜치에서 추가 완료:
+
+- 엔진/Application 프로젝트에 `$(VULKAN_SDK)\Include` 추가
+- Application 프로젝트에 `$(VULKAN_SDK)\Lib`, `vulkan-1.lib` 링크 추가
+- `JBRO_RHI_VULKAN` 가드 도입으로 Windows에서도 Vulkan backend 컴파일 검증 가능
+- Windows `Win32Hwnd` Vulkan surface 생성 경로 추가
+- Vulkan descriptor set / uniform buffer / texture / sampler binding 구현
+- Vulkan texture initial data staging upload 구현
+- Vulkan pipeline vertex input/topology mapping 구현
+- 기본 2D sprite shader SPIR-V 내장 및 `Forward2DRenderer` Vulkan 경로 연결
+- Vulkan clear/store offscreen render target path 구현
+- Vulkan `ERHILoadOp::Load` 보존 경로 구현
+- Vulkan optional validation/debug utils 구현
+- `Debug_Game|x64`, `Release_Game|x64` MSBuild 성공
+
 아직 하지 않은 작업:
 
-- 엔진 프로젝트에 `$(VULKAN_SDK)\Include` 추가
-- 엔진 프로젝트에 `$(VULKAN_SDK)\Lib` 추가
-- 엔진 프로젝트에 `vulkan-1.lib` 링크 추가
 - Android NDK Vulkan link 검증
 - iOS MoltenVK link 검증
+- Android/iOS native runtime 실행 검증
+- shader asset cook pipeline 자동화
 
 컨텍스트 압축 후 이어갈 때는 `tasks/VulkanMobileHandoff.md` 를 먼저 읽습니다.
 

@@ -3,7 +3,7 @@
 #include "Core/RHI/IRHISwapchain.h"
 #include "Core/RHI/Vulkan/VulkanCommon.h"
 
-#if JBRO_PLATFORM_MOBILE
+#if JBRO_RHI_VULKAN
 #include <vector>
 #endif
 
@@ -17,19 +17,22 @@ public:
 
 	void Finalize();
 
-#if JBRO_PLATFORM_MOBILE
+#if JBRO_RHI_VULKAN
 	bool BindNativeSwapchain(VkInstance instance, VkPhysicalDevice physicalDevice, VkDevice device, VkSurfaceKHR surface, VkQueue presentQueue, std::uint32_t presentQueueFamily);
 	void SetPresentWaitSemaphore(VkSemaphore semaphore);
 	VkFormat GetFormat() const;
 	VkExtent2D GetExtent() const;
 	VkRenderPass GetRenderPass() const;
+	VkImage GetCurrentImage() const;
+	VkImageLayout GetCurrentImageLayout() const;
+	void SetCurrentImageLayout(VkImageLayout layout);
 	VkFramebuffer GetCurrentFramebuffer() const;
 	std::uint32_t GetCurrentImageIndex() const;
 	bool AcquireNextImage(VkSemaphore imageAvailableSemaphore);
 #endif
 
 private:
-#if JBRO_PLATFORM_MOBILE
+#if JBRO_RHI_VULKAN
 	void DestroySwapchainObjects();
 	bool CreateRenderPass();
 	bool CreateSwapchainObjects();
@@ -37,7 +40,7 @@ private:
 
 private:
 	RenderSurfaceDesc m_surfaceDesc;
-#if JBRO_PLATFORM_MOBILE
+#if JBRO_RHI_VULKAN
 	VkInstance m_instance = VK_NULL_HANDLE;
 	VkPhysicalDevice m_physicalDevice = VK_NULL_HANDLE;
 	VkDevice m_device = VK_NULL_HANDLE;
@@ -50,6 +53,7 @@ private:
 	VkRenderPass m_renderPass = VK_NULL_HANDLE;
 	VkSemaphore m_presentWaitSemaphore = VK_NULL_HANDLE;
 	std::vector<VkImage> m_images;
+	std::vector<VkImageLayout> m_imageLayouts;
 	std::vector<VkImageView> m_imageViews;
 	std::vector<VkFramebuffer> m_framebuffers;
 	std::uint32_t m_currentImageIndex = 0;

@@ -8,17 +8,137 @@
 #include "Core/RHI/Vulkan/VulkanSampler.h"
 #include "Core/RHI/Vulkan/VulkanSwapchain.h"
 #include "Core/RHI/Vulkan/VulkanTexture.h"
+#include "Core/Logging/Logger.h"
 
-#if JBRO_PLATFORM_MOBILE
+#if JBRO_RHI_VULKAN
+#include <algorithm>
 #include <cstring>
 #include <vector>
+
+namespace
+{
+	VkFormat ToVulkanVertexFormat(ERHIVertexFormat format)
+	{
+		switch (format)
+		{
+		case ERHIVertexFormat::Float2:
+			return VK_FORMAT_R32G32_SFLOAT;
+		case ERHIVertexFormat::Float3:
+			return VK_FORMAT_R32G32B32_SFLOAT;
+		case ERHIVertexFormat::Float4:
+		case ERHIVertexFormat::Color4:
+			return VK_FORMAT_R32G32B32A32_SFLOAT;
+		default:
+			return VK_FORMAT_R32G32B32_SFLOAT;
+		}
+	}
+
+	std::uint32_t GetVertexFormatSize(ERHIVertexFormat format)
+	{
+		switch (format)
+		{
+		case ERHIVertexFormat::Float2:
+			return sizeof(float) * 2;
+		case ERHIVertexFormat::Float3:
+			return sizeof(float) * 3;
+		case ERHIVertexFormat::Float4:
+		case ERHIVertexFormat::Color4:
+			return sizeof(float) * 4;
+		default:
+			return sizeof(float) * 3;
+		}
+	}
+
+	VkPrimitiveTopology ToVulkanTopology(ERHIPrimitiveTopology topology)
+	{
+		switch (topology)
+		{
+		case ERHIPrimitiveTopology::TriangleStrip:
+			return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+		case ERHIPrimitiveTopology::LineList:
+			return VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+		case ERHIPrimitiveTopology::LineStrip:
+			return VK_PRIMITIVE_TOPOLOGY_LINE_STRIP;
+		default:
+			return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+		}
+	}
+
+	bool IsInstanceLayerAvailable(const char* layerName)
+	{
+		std::uint32_t layerCount = 0;
+		vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+		std::vector<VkLayerProperties> layers(layerCount);
+		if (layerCount > 0)
+		{
+			vkEnumerateInstanceLayerProperties(&layerCount, layers.data());
+		}
+
+		for (const VkLayerProperties& layer : layers)
+		{
+			if (std::strcmp(layer.layerName, layerName) == 0)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	bool IsInstanceExtensionAvailable(const char* extensionName)
+	{
+		std::uint32_t extensionCount = 0;
+		vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
+		std::vector<VkExtensionProperties> extensions(extensionCount);
+		if (extensionCount > 0)
+		{
+			vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
+		}
+
+		for (const VkExtensionProperties& extension : extensions)
+		{
+			if (std::strcmp(extension.extensionName, extensionName) == 0)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	VKAPI_ATTR VkBool32 VKAPI_CALL VulkanDebugCallback(
+		VkDebugUtilsMessageSeverityFlagBitsEXT severity,
+		VkDebugUtilsMessageTypeFlagsEXT,
+		const VkDebugUtilsMessengerCallbackDataEXT* callbackData,
+		void*)
+	{
+		const char* message = callbackData && callbackData->pMessage ? callbackData->pMessage : "Vulkan validation message.";
+		if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
+		{
+			Log::Error(message);
+		}
+		else if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
+		{
+			Log::Warning(message);
+		}
+		else
+		{
+			Log::Debug(message);
+		}
+		return VK_FALSE;
+	}
+}
 #endif
 
 bool CVulkanRHIDevice::Initialize(const RHIDesc& desc)
 {
 	m_desc = desc;
-#if JBRO_PLATFORM_MOBILE
-	if (ERenderSurfaceType::MobileNativeSurface != desc.Surface.NativeHandle.SurfaceType || nullptr == desc.Surface.NativeHandle.Handle)
+#if JBRO_RHI_VULKAN
+	const ERenderSurfaceType expectedSurfaceType =
+#if JBRO_PLATFORM_WINDOWS
+		ERenderSurfaceType::Win32Hwnd;
+#else
+		ERenderSurfaceType::MobileNativeSurface;
+#endif
+	if (expectedSurfaceType != desc.Surface.NativeHandle.SurfaceType || nullptr == desc.Surface.NativeHandle.Handle)
 	{
 		return false;
 	}
@@ -87,7 +207,7 @@ void CVulkanRHIDevice::Finalize()
 		static_cast<CVulkanSwapchain*>(m_rhiSwapchain.Get())->Finalize();
 		m_rhiSwapchain.Reset();
 	}
-#if JBRO_PLATFORM_MOBILE
+#if JBRO_RHI_VULKAN
 	DestroyVulkanObjects();
 #endif
 	m_isInitialized = false;
@@ -104,7 +224,7 @@ void CVulkanRHIDevice::HandleSurfaceResize(const RenderSurfaceSize& size)
 
 OwnerPtr<IRHIBuffer> CVulkanRHIDevice::CreateBuffer(const RHIBufferDesc& desc, const void* initialData)
 {
-#if JBRO_PLATFORM_MOBILE
+#if JBRO_RHI_VULKAN
 	if (m_device == VK_NULL_HANDLE || desc.SizeInBytes == 0)
 	{
 		return nullptr;
@@ -115,30 +235,10 @@ OwnerPtr<IRHIBuffer> CVulkanRHIDevice::CreateBuffer(const RHIBufferDesc& desc, c
 	if (0 != (desc.BindFlags & static_cast<RHIBindFlags>(ERHIBindFlag::IndexBuffer))) usage |= VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
 	if (0 != (desc.BindFlags & static_cast<RHIBindFlags>(ERHIBindFlag::ConstantBuffer))) usage |= VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
 
-	VkBufferCreateInfo bufferInfo = {};
-	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	bufferInfo.size = desc.SizeInBytes;
-	bufferInfo.usage = usage;
-	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
 	VkBuffer buffer = VK_NULL_HANDLE;
-	if (vkCreateBuffer(m_device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS)
-	{
-		return nullptr;
-	}
-
-	VkMemoryRequirements requirements = {};
-	vkGetBufferMemoryRequirements(m_device, buffer, &requirements);
-
-	VkMemoryAllocateInfo allocInfo = {};
-	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	allocInfo.allocationSize = requirements.size;
-	allocInfo.memoryTypeIndex = FindMemoryType(requirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-
 	VkDeviceMemory memory = VK_NULL_HANDLE;
-	if (vkAllocateMemory(m_device, &allocInfo, nullptr, &memory) != VK_SUCCESS)
+	if (false == CreateNativeBuffer(desc.SizeInBytes, usage, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, buffer, memory))
 	{
-		vkDestroyBuffer(m_device, buffer, nullptr);
 		return nullptr;
 	}
 	if (initialData)
@@ -148,7 +248,6 @@ OwnerPtr<IRHIBuffer> CVulkanRHIDevice::CreateBuffer(const RHIBufferDesc& desc, c
 		std::memcpy(mapped, initialData, desc.SizeInBytes);
 		vkUnmapMemory(m_device, memory);
 	}
-	vkBindBufferMemory(m_device, buffer, memory, 0);
 
 	OwnerPtr<CVulkanBuffer> rhiBuffer = MakeOwnerPtr<CVulkanBuffer>(desc);
 	rhiBuffer->BindNativeBuffer(m_device, buffer, memory);
@@ -162,13 +261,11 @@ OwnerPtr<IRHIBuffer> CVulkanRHIDevice::CreateBuffer(const RHIBufferDesc& desc, c
 
 OwnerPtr<IRHITexture> CVulkanRHIDevice::CreateTexture2D(const RHITexture2DDesc& desc, const void* initialData)
 {
-#if JBRO_PLATFORM_MOBILE
+#if JBRO_RHI_VULKAN
 	if (m_device == VK_NULL_HANDLE || desc.Width == 0 || desc.Height == 0)
 	{
 		return nullptr;
 	}
-	(void)initialData;
-
 	VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 	if (0 != (desc.BindFlags & static_cast<RHITextureBindFlags>(ERHITextureBindFlag::ShaderResource))) usage |= VK_IMAGE_USAGE_SAMPLED_BIT;
 	if (0 != (desc.BindFlags & static_cast<RHITextureBindFlags>(ERHITextureBindFlag::RenderTarget))) usage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
@@ -206,6 +303,42 @@ OwnerPtr<IRHITexture> CVulkanRHIDevice::CreateTexture2D(const RHITexture2DDesc& 
 	}
 	vkBindImageMemory(m_device, image, memory, 0);
 
+	if (initialData)
+	{
+		const VkDeviceSize uploadSize = static_cast<VkDeviceSize>(desc.Width) * static_cast<VkDeviceSize>(desc.Height) * 4;
+		VkBuffer stagingBuffer = VK_NULL_HANDLE;
+		VkDeviceMemory stagingMemory = VK_NULL_HANDLE;
+		if (false == CreateNativeBuffer(uploadSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingMemory))
+		{
+			vkFreeMemory(m_device, memory, nullptr);
+			vkDestroyImage(m_device, image, nullptr);
+			return nullptr;
+		}
+
+		void* mapped = nullptr;
+		if (vkMapMemory(m_device, stagingMemory, 0, uploadSize, 0, &mapped) == VK_SUCCESS)
+		{
+			std::memcpy(mapped, initialData, static_cast<std::size_t>(uploadSize));
+			vkUnmapMemory(m_device, stagingMemory);
+		}
+
+		const bool copied = TransitionImageLayout(image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+			&& CopyBufferToImage(stagingBuffer, image, desc.Width, desc.Height)
+			&& TransitionImageLayout(image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		vkDestroyBuffer(m_device, stagingBuffer, nullptr);
+		vkFreeMemory(m_device, stagingMemory, nullptr);
+		if (false == copied)
+		{
+			vkFreeMemory(m_device, memory, nullptr);
+			vkDestroyImage(m_device, image, nullptr);
+			return nullptr;
+		}
+	}
+	else if (0 != (desc.BindFlags & static_cast<RHITextureBindFlags>(ERHITextureBindFlag::ShaderResource)))
+	{
+		TransitionImageLayout(image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	}
+
 	VkImageViewCreateInfo viewInfo = {};
 	viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 	viewInfo.image = image;
@@ -226,6 +359,10 @@ OwnerPtr<IRHITexture> CVulkanRHIDevice::CreateTexture2D(const RHITexture2DDesc& 
 
 	OwnerPtr<CVulkanTexture> texture = MakeOwnerPtr<CVulkanTexture>(desc);
 	texture->BindNativeTexture(m_device, image, memory, imageView);
+	if (0 != (desc.BindFlags & static_cast<RHITextureBindFlags>(ERHITextureBindFlag::ShaderResource)))
+	{
+		texture->SetCurrentLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	}
 	return texture;
 #else
 	(void)desc;
@@ -236,7 +373,7 @@ OwnerPtr<IRHITexture> CVulkanRHIDevice::CreateTexture2D(const RHITexture2DDesc& 
 
 OwnerPtr<IRHISampler> CVulkanRHIDevice::CreateSampler(const RHISamplerDesc& desc)
 {
-#if JBRO_PLATFORM_MOBILE
+#if JBRO_RHI_VULKAN
 	if (m_device == VK_NULL_HANDLE)
 	{
 		return nullptr;
@@ -268,7 +405,7 @@ OwnerPtr<IRHISampler> CVulkanRHIDevice::CreateSampler(const RHISamplerDesc& desc
 
 OwnerPtr<IRHIProgram> CVulkanRHIDevice::CreateProgram(const RHIProgramDesc& desc)
 {
-#if JBRO_PLATFORM_MOBILE
+#if JBRO_RHI_VULKAN
 	if (m_device == VK_NULL_HANDLE || desc.Language != ERHIProgramLanguage::SPIRV || nullptr == desc.Source)
 	{
 		return nullptr;
@@ -301,8 +438,8 @@ OwnerPtr<IRHIProgram> CVulkanRHIDevice::CreateProgram(const RHIProgramDesc& desc
 
 OwnerPtr<IRHIGraphicsPipeline> CVulkanRHIDevice::CreateGraphicsPipeline(const RHIGraphicsPipelineDesc& desc)
 {
-#if JBRO_PLATFORM_MOBILE
-	if (m_device == VK_NULL_HANDLE || false == desc.VertexProgram.IsValid() || false == desc.PixelProgram.IsValid() || false == m_rhiSwapchain.IsValid())
+#if JBRO_RHI_VULKAN
+	if (m_device == VK_NULL_HANDLE || false == desc.VertexProgram.IsValid() || false == desc.PixelProgram.IsValid() || !m_rhiSwapchain)
 	{
 		return nullptr;
 	}
@@ -313,11 +450,38 @@ OwnerPtr<IRHIGraphicsPipeline> CVulkanRHIDevice::CreateGraphicsPipeline(const RH
 		return nullptr;
 	}
 
+	VkDescriptorSetLayoutBinding descriptorBindings[3] = {};
+	descriptorBindings[0].binding = 0;
+	descriptorBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	descriptorBindings[0].descriptorCount = 1;
+	descriptorBindings[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+	descriptorBindings[1].binding = 1;
+	descriptorBindings[1].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+	descriptorBindings[1].descriptorCount = 1;
+	descriptorBindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	descriptorBindings[2].binding = 2;
+	descriptorBindings[2].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+	descriptorBindings[2].descriptorCount = 1;
+	descriptorBindings[2].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+	VkDescriptorSetLayoutCreateInfo setLayoutInfo = {};
+	setLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	setLayoutInfo.bindingCount = 3;
+	setLayoutInfo.pBindings = descriptorBindings;
+	VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
+	if (vkCreateDescriptorSetLayout(m_device, &setLayoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS)
+	{
+		return nullptr;
+	}
+
 	VkPipelineLayoutCreateInfo layoutInfo = {};
 	layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	layoutInfo.setLayoutCount = 1;
+	layoutInfo.pSetLayouts = &descriptorSetLayout;
 	VkPipelineLayout layout = VK_NULL_HANDLE;
 	if (vkCreatePipelineLayout(m_device, &layoutInfo, nullptr, &layout) != VK_SUCCESS)
 	{
+		vkDestroyDescriptorSetLayout(m_device, descriptorSetLayout, nullptr);
 		return nullptr;
 	}
 
@@ -331,12 +495,37 @@ OwnerPtr<IRHIGraphicsPipeline> CVulkanRHIDevice::CreateGraphicsPipeline(const RH
 	stages[1].module = pixelProgram->GetShaderModule();
 	stages[1].pName = "main";
 
+	std::vector<VkVertexInputAttributeDescription> attributes;
+	std::uint32_t vertexStride = 0;
+	for (std::uint32_t i = 0; i < desc.VertexElementCount; ++i)
+	{
+		const RHIVertexElementDesc& element = desc.VertexElements[i];
+		VkVertexInputAttributeDescription attribute = {};
+		attribute.location = i;
+		attribute.binding = 0;
+		attribute.format = ToVulkanVertexFormat(element.Format);
+		attribute.offset = element.Offset;
+		attributes.push_back(attribute);
+		vertexStride = std::max(vertexStride, element.Offset + GetVertexFormatSize(element.Format));
+	}
+	VkVertexInputBindingDescription binding = {};
+	binding.binding = 0;
+	binding.stride = vertexStride;
+	binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
 	VkPipelineVertexInputStateCreateInfo vertexInput = {};
 	vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	if (!attributes.empty())
+	{
+		vertexInput.vertexBindingDescriptionCount = 1;
+		vertexInput.pVertexBindingDescriptions = &binding;
+		vertexInput.vertexAttributeDescriptionCount = static_cast<std::uint32_t>(attributes.size());
+		vertexInput.pVertexAttributeDescriptions = attributes.data();
+	}
 
 	VkPipelineInputAssemblyStateCreateInfo inputAssembly = {};
 	inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-	inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+	inputAssembly.topology = ToVulkanTopology(desc.PrimitiveTopology);
 
 	VkPipelineViewportStateCreateInfo viewportState = {};
 	viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
@@ -393,11 +582,12 @@ OwnerPtr<IRHIGraphicsPipeline> CVulkanRHIDevice::CreateGraphicsPipeline(const RH
 	if (vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline) != VK_SUCCESS)
 	{
 		vkDestroyPipelineLayout(m_device, layout, nullptr);
+		vkDestroyDescriptorSetLayout(m_device, descriptorSetLayout, nullptr);
 		return nullptr;
 	}
 
 	OwnerPtr<CVulkanGraphicsPipeline> rhiPipeline = MakeOwnerPtr<CVulkanGraphicsPipeline>(desc);
-	rhiPipeline->BindNativePipeline(m_device, layout, pipeline);
+	rhiPipeline->BindNativePipeline(m_device, descriptorSetLayout, layout, pipeline);
 	return rhiPipeline;
 #else
 	(void)desc;
@@ -418,7 +608,7 @@ SafePtr<IRHICommandContext> CVulkanRHIDevice::GetImmediateCommandContext() const
 RHINativeDeviceDesc CVulkanRHIDevice::GetNativeDeviceDesc() const
 {
 	RHINativeDeviceDesc desc;
-#if JBRO_PLATFORM_MOBILE
+#if JBRO_RHI_VULKAN
 	desc.Device = m_device;
 	desc.DeviceContext = m_commandPool;
 #endif
@@ -435,9 +625,13 @@ const char* CVulkanRHIDevice::GetName() const
 	return "Vulkan";
 }
 
-#if JBRO_PLATFORM_MOBILE
+#if JBRO_RHI_VULKAN
 bool CVulkanRHIDevice::CreateInstance()
 {
+	constexpr const char* validationLayerName = "VK_LAYER_KHRONOS_validation";
+	m_enableValidationLayer = m_desc.EnableDebugLayer && IsInstanceLayerAvailable(validationLayerName);
+	m_enableDebugUtils = m_desc.EnableDebugLayer && IsInstanceExtensionAvailable(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+
 	std::vector<const char*> extensions = { VK_KHR_SURFACE_EXTENSION_NAME };
 #if JBRO_PLATFORM_ANDROID
 	extensions.push_back(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
@@ -446,6 +640,19 @@ bool CVulkanRHIDevice::CreateInstance()
 	extensions.push_back(VK_EXT_METAL_SURFACE_EXTENSION_NAME);
 	extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
 #endif
+#if JBRO_PLATFORM_WINDOWS
+	extensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
+#endif
+	if (m_enableDebugUtils)
+	{
+		extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+	}
+
+	std::vector<const char*> layers;
+	if (m_enableValidationLayer)
+	{
+		layers.push_back(validationLayerName);
+	}
 
 	VkApplicationInfo appInfo = {};
 	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -457,10 +664,48 @@ bool CVulkanRHIDevice::CreateInstance()
 	createInfo.pApplicationInfo = &appInfo;
 	createInfo.enabledExtensionCount = static_cast<std::uint32_t>(extensions.size());
 	createInfo.ppEnabledExtensionNames = extensions.data();
+	createInfo.enabledLayerCount = static_cast<std::uint32_t>(layers.size());
+	createInfo.ppEnabledLayerNames = layers.empty() ? nullptr : layers.data();
 #if JBRO_PLATFORM_IOS
 	createInfo.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
 #endif
-	return vkCreateInstance(&createInfo, nullptr, &m_instance) == VK_SUCCESS;
+	if (vkCreateInstance(&createInfo, nullptr, &m_instance) != VK_SUCCESS)
+	{
+		return false;
+	}
+	return CreateDebugMessenger();
+}
+
+bool CVulkanRHIDevice::CreateDebugMessenger()
+{
+	if (false == m_enableDebugUtils)
+	{
+		return true;
+	}
+
+	auto createDebugUtilsMessenger =
+		reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(vkGetInstanceProcAddr(m_instance, "vkCreateDebugUtilsMessengerEXT"));
+	if (nullptr == createDebugUtilsMessenger)
+	{
+		return true;
+	}
+
+	VkDebugUtilsMessengerCreateInfoEXT createInfo = {};
+	createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+	createInfo.messageSeverity =
+		VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT |
+		VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT;
+	createInfo.messageType =
+		VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+		VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+		VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+	createInfo.pfnUserCallback = VulkanDebugCallback;
+
+	if (createDebugUtilsMessenger(m_instance, &createInfo, nullptr, &m_debugMessenger) != VK_SUCCESS)
+	{
+		m_debugMessenger = VK_NULL_HANDLE;
+	}
+	return true;
 }
 
 bool CVulkanRHIDevice::CreateSurface()
@@ -475,6 +720,12 @@ bool CVulkanRHIDevice::CreateSurface()
 	surfaceInfo.sType = VK_STRUCTURE_TYPE_METAL_SURFACE_CREATE_INFO_EXT;
 	surfaceInfo.pLayer = m_desc.Surface.NativeHandle.Handle;
 	return vkCreateMetalSurfaceEXT(m_instance, &surfaceInfo, nullptr, &m_surface) == VK_SUCCESS;
+#elif JBRO_PLATFORM_WINDOWS
+	VkWin32SurfaceCreateInfoKHR surfaceInfo = {};
+	surfaceInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+	surfaceInfo.hinstance = GetModuleHandleW(nullptr);
+	surfaceInfo.hwnd = static_cast<HWND>(m_desc.Surface.NativeHandle.Handle);
+	return vkCreateWin32SurfaceKHR(m_instance, &surfaceInfo, nullptr, &m_surface) == VK_SUCCESS;
 #else
 	return false;
 #endif
@@ -570,6 +821,16 @@ void CVulkanRHIDevice::DestroyVulkanObjects()
 		vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
 		m_surface = VK_NULL_HANDLE;
 	}
+	if (m_instance != VK_NULL_HANDLE && m_debugMessenger != VK_NULL_HANDLE)
+	{
+		auto destroyDebugUtilsMessenger =
+			reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(vkGetInstanceProcAddr(m_instance, "vkDestroyDebugUtilsMessengerEXT"));
+		if (destroyDebugUtilsMessenger)
+		{
+			destroyDebugUtilsMessenger(m_instance, m_debugMessenger, nullptr);
+		}
+		m_debugMessenger = VK_NULL_HANDLE;
+	}
 	if (m_instance != VK_NULL_HANDLE)
 	{
 		vkDestroyInstance(m_instance, nullptr);
@@ -580,6 +841,8 @@ void CVulkanRHIDevice::DestroyVulkanObjects()
 	m_presentQueue = VK_NULL_HANDLE;
 	m_graphicsQueueFamily = UINT32_MAX;
 	m_presentQueueFamily = UINT32_MAX;
+	m_enableValidationLayer = false;
+	m_enableDebugUtils = false;
 }
 
 std::uint32_t CVulkanRHIDevice::FindMemoryType(std::uint32_t typeFilter, VkMemoryPropertyFlags properties) const
@@ -594,5 +857,144 @@ std::uint32_t CVulkanRHIDevice::FindMemoryType(std::uint32_t typeFilter, VkMemor
 		}
 	}
 	return 0;
+}
+
+bool CVulkanRHIDevice::CreateNativeBuffer(std::size_t size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& outBuffer, VkDeviceMemory& outMemory) const
+{
+	if (m_device == VK_NULL_HANDLE || size == 0)
+	{
+		return false;
+	}
+
+	VkBufferCreateInfo bufferInfo = {};
+	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bufferInfo.size = static_cast<VkDeviceSize>(size);
+	bufferInfo.usage = usage;
+	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	if (vkCreateBuffer(m_device, &bufferInfo, nullptr, &outBuffer) != VK_SUCCESS)
+	{
+		return false;
+	}
+
+	VkMemoryRequirements requirements = {};
+	vkGetBufferMemoryRequirements(m_device, outBuffer, &requirements);
+
+	VkMemoryAllocateInfo allocInfo = {};
+	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	allocInfo.allocationSize = requirements.size;
+	allocInfo.memoryTypeIndex = FindMemoryType(requirements.memoryTypeBits, properties);
+
+	if (vkAllocateMemory(m_device, &allocInfo, nullptr, &outMemory) != VK_SUCCESS)
+	{
+		vkDestroyBuffer(m_device, outBuffer, nullptr);
+		outBuffer = VK_NULL_HANDLE;
+		return false;
+	}
+
+	vkBindBufferMemory(m_device, outBuffer, outMemory, 0);
+	return true;
+}
+
+bool CVulkanRHIDevice::SubmitImmediate(const std::function<void(VkCommandBuffer)>& record) const
+{
+	if (m_device == VK_NULL_HANDLE || m_commandPool == VK_NULL_HANDLE || m_graphicsQueue == VK_NULL_HANDLE)
+	{
+		return false;
+	}
+
+	VkCommandBufferAllocateInfo allocInfo = {};
+	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	allocInfo.commandPool = m_commandPool;
+	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	allocInfo.commandBufferCount = 1;
+
+	VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
+	if (vkAllocateCommandBuffers(m_device, &allocInfo, &commandBuffer) != VK_SUCCESS)
+	{
+		return false;
+	}
+
+	VkCommandBufferBeginInfo beginInfo = {};
+	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+	vkBeginCommandBuffer(commandBuffer, &beginInfo);
+	record(commandBuffer);
+	vkEndCommandBuffer(commandBuffer);
+
+	VkSubmitInfo submitInfo = {};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &commandBuffer;
+	const bool submitted = vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE) == VK_SUCCESS;
+	if (submitted)
+	{
+		vkQueueWaitIdle(m_graphicsQueue);
+	}
+	vkFreeCommandBuffers(m_device, m_commandPool, 1, &commandBuffer);
+	return submitted;
+}
+
+bool CVulkanRHIDevice::TransitionImageLayout(VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout) const
+{
+	if (image == VK_NULL_HANDLE)
+	{
+		return false;
+	}
+
+	return SubmitImmediate([image, oldLayout, newLayout](VkCommandBuffer commandBuffer)
+	{
+		VkImageMemoryBarrier barrier = {};
+		barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		barrier.oldLayout = oldLayout;
+		barrier.newLayout = newLayout;
+		barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		barrier.image = image;
+		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		barrier.subresourceRange.baseMipLevel = 0;
+		barrier.subresourceRange.levelCount = 1;
+		barrier.subresourceRange.baseArrayLayer = 0;
+		barrier.subresourceRange.layerCount = 1;
+
+		VkPipelineStageFlags srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+		VkPipelineStageFlags dstStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+		if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+		{
+			barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+			dstStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+		}
+		else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+		{
+			barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+			barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+			srcStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+		}
+		else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+		{
+			barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		}
+
+		vkCmdPipelineBarrier(commandBuffer, srcStage, dstStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+	});
+}
+
+bool CVulkanRHIDevice::CopyBufferToImage(VkBuffer buffer, VkImage image, std::uint32_t width, std::uint32_t height) const
+{
+	if (buffer == VK_NULL_HANDLE || image == VK_NULL_HANDLE || width == 0 || height == 0)
+	{
+		return false;
+	}
+
+	return SubmitImmediate([buffer, image, width, height](VkCommandBuffer commandBuffer)
+	{
+		VkBufferImageCopy region = {};
+		region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		region.imageSubresource.mipLevel = 0;
+		region.imageSubresource.baseArrayLayer = 0;
+		region.imageSubresource.layerCount = 1;
+		region.imageExtent = { width, height, 1 };
+		vkCmdCopyBufferToImage(commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+	});
 }
 #endif

@@ -11,16 +11,18 @@ public:
 
 	const RHIGraphicsPipelineDesc& GetDesc() const override;
 
-#if JBRO_PLATFORM_MOBILE
-	void BindNativePipeline(VkDevice device, VkPipelineLayout layout, VkPipeline pipeline);
+#if JBRO_RHI_VULKAN
+	void BindNativePipeline(VkDevice device, VkDescriptorSetLayout descriptorSetLayout, VkPipelineLayout layout, VkPipeline pipeline);
+	VkDescriptorSetLayout GetDescriptorSetLayout() const;
 	VkPipelineLayout GetPipelineLayout() const;
 	VkPipeline GetPipeline() const;
 #endif
 
 private:
 	RHIGraphicsPipelineDesc m_desc;
-#if JBRO_PLATFORM_MOBILE
+#if JBRO_RHI_VULKAN
 	VkDevice m_device = VK_NULL_HANDLE;
+	VkDescriptorSetLayout m_descriptorSetLayout = VK_NULL_HANDLE;
 	VkPipelineLayout m_pipelineLayout = VK_NULL_HANDLE;
 	VkPipeline m_pipeline = VK_NULL_HANDLE;
 #endif

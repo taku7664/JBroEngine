@@ -8,7 +8,7 @@ CVulkanBuffer::CVulkanBuffer(const RHIBufferDesc& desc)
 
 CVulkanBuffer::~CVulkanBuffer()
 {
-#if JBRO_PLATFORM_MOBILE
+#if JBRO_RHI_VULKAN
 	if (m_device != VK_NULL_HANDLE)
 	{
 		if (m_buffer != VK_NULL_HANDLE)
@@ -30,7 +30,7 @@ const RHIBufferDesc& CVulkanBuffer::GetDesc() const
 	return m_desc;
 }
 
-#if JBRO_PLATFORM_MOBILE
+#if JBRO_RHI_VULKAN
 void CVulkanBuffer::BindNativeBuffer(VkDevice device, VkBuffer buffer, VkDeviceMemory memory)
 {
 	m_device = device;
@@ -41,5 +41,10 @@ void CVulkanBuffer::BindNativeBuffer(VkDevice device, VkBuffer buffer, VkDeviceM
 VkBuffer CVulkanBuffer::GetNativeBuffer() const
 {
 	return m_buffer;
+}
+
+VkDeviceMemory CVulkanBuffer::GetNativeMemory() const
+{
+	return m_memory;
 }
 #endif

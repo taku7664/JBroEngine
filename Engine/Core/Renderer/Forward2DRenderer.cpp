@@ -6,6 +6,7 @@
 #include "Core/Renderer/IRenderScene.h"
 #include "Core/Renderer/RenderResources2D.h"
 #include "Core/Renderer/RenderScene.h"
+#include "Core/Renderer/SpriteVulkanShaders.h"
 #include "Core/RHI/IRHICommandContext.h"
 #include "Core/RHI/IRHIDevice.h"
 
@@ -514,21 +515,29 @@ SafePtr<IRenderMesh> CForward2DRenderer::GetQuadMesh() const
 bool CForward2DRenderer::CreateSpritePipeline()
 {
 	const ERHIApi api = m_rhiDevice->GetApi();
-	const ERHIProgramLanguage language = ERHIApi::WebGPU == api ? ERHIProgramLanguage::WGSL : ERHIProgramLanguage::HLSL;
-	const char* shaderSource = ERHIApi::WebGPU == api ? SPRITE_SHADER_SOURCE_WGSL : SPRITE_SHADER_SOURCE_HLSL;
+	const ERHIProgramLanguage language =
+		ERHIApi::WebGPU == api ? ERHIProgramLanguage::WGSL :
+		ERHIApi::Vulkan == api ? ERHIProgramLanguage::SPIRV :
+		ERHIProgramLanguage::HLSL;
+	const char* shaderSource =
+		ERHIApi::WebGPU == api ? SPRITE_SHADER_SOURCE_WGSL :
+		ERHIApi::Vulkan == api ? reinterpret_cast<const char*>(JBro::Renderer::VulkanShaders::SpriteVertexSpv) :
+		SPRITE_SHADER_SOURCE_HLSL;
 
 	RHIProgramDesc vertexProgramDesc;
 	vertexProgramDesc.Stage = ERHIProgramStage::Vertex;
 	vertexProgramDesc.Language = language;
-	vertexProgramDesc.EntryPoint = "VSMain";
+	vertexProgramDesc.EntryPoint = ERHIApi::Vulkan == api ? "main" : "VSMain";
 	vertexProgramDesc.Source = shaderSource;
+	vertexProgramDesc.SourceSize = ERHIApi::Vulkan == api ? JBro::Renderer::VulkanShaders::SpriteVertexSpvSize : 0;
 	m_spriteVertexProgram = m_rhiDevice->CreateProgram(vertexProgramDesc);
 
 	RHIProgramDesc pixelProgramDesc;
 	pixelProgramDesc.Stage = ERHIProgramStage::Pixel;
 	pixelProgramDesc.Language = language;
-	pixelProgramDesc.EntryPoint = "PSMain";
-	pixelProgramDesc.Source = shaderSource;
+	pixelProgramDesc.EntryPoint = ERHIApi::Vulkan == api ? "main" : "PSMain";
+	pixelProgramDesc.Source = ERHIApi::Vulkan == api ? reinterpret_cast<const char*>(JBro::Renderer::VulkanShaders::SpritePixelSpv) : shaderSource;
+	pixelProgramDesc.SourceSize = ERHIApi::Vulkan == api ? JBro::Renderer::VulkanShaders::SpritePixelSpvSize : 0;
 	m_spritePixelProgram = m_rhiDevice->CreateProgram(pixelProgramDesc);
 
 	if (!m_spriteVertexProgram || !m_spritePixelProgram)
