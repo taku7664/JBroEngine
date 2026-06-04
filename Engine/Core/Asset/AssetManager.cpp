@@ -3,6 +3,7 @@
 
 #include "Core/Core.h"
 #include "Core/EngineCore.h"
+#include "Core/Logging/LoggerInternal.h"
 #include "Core/Asset/AssetMetaFile.h"
 #include "Core/Asset/AssetPath.h"
 #include "Core/Asset/AssetRef.inl"
@@ -501,17 +502,24 @@ bool CAssetManager::BuildAssetPackage(const AssetPackageBuildDesc& desc)
 		}
 		if (metaData.Guid.IsNull() || EAssetType::Unknown == metaData.Type)
 		{
+			CSystemLog::Error("[AssetPack] 자산 메타가 유효하지 않음(Guid null 또는 Type Unknown): path='"
+				+ metaData.Path.generic_string() + "' guid='" + metaData.Guid.generic_string()
+				+ "' type=" + std::to_string(static_cast<int>(metaData.Type)));
 			return false;
 		}
 
 		File::Path resolvedPath;
 		if (false == ResolveAssetPath(metaData.Path, resolvedPath))
 		{
+			CSystemLog::Error("[AssetPack] 자산 경로 해석 실패: path='" + metaData.Path.generic_string()
+				+ "' guid='" + metaData.Guid.generic_string() + "'");
 			return false;
 		}
 		std::error_code errorCode;
 		if (false == std::filesystem::exists(resolvedPath, errorCode) || false == std::filesystem::is_regular_file(resolvedPath, errorCode))
 		{
+			CSystemLog::Error("[AssetPack] 자산 파일이 없음/일반파일 아님: resolved='" + resolvedPath.generic_string()
+				+ "' path='" + metaData.Path.generic_string() + "' guid='" + metaData.Guid.generic_string() + "'");
 			return false;
 		}
 
@@ -520,6 +528,8 @@ bool CAssetManager::BuildAssetPackage(const AssetPackageBuildDesc& desc)
 
 	if (false == CAssetPackWriter::Write(packPath, packageEntries))
 	{
+		CSystemLog::Error("[AssetPack] CAssetPackWriter::Write 실패: pack='" + packPath.generic_string()
+			+ "' entries=" + std::to_string(packageEntries.size()));
 		return false;
 	}
 
