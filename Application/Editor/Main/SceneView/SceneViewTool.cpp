@@ -244,6 +244,35 @@ namespace
         }
     }
 
+    bool DrawGuizmoModeButton(ImDrawList& dl,
+                              const ImVec2& min,
+                              const ImVec2& max,
+                              const char* label,
+                              const char* tooltip,
+                              bool selected)
+    {
+        const bool hovered = ImGui::IsMouseHoveringRect(min, max, false);
+        const ImU32 bg = selected
+            ? IM_COL32(70, 96, 130, 235)
+            : hovered ? IM_COL32(60, 72, 88, 230) : IM_COL32(28, 33, 42, 190);
+        const ImU32 border = selected
+            ? IM_COL32(130, 170, 230, 240)
+            : IM_COL32(88, 100, 120, 200);
+        dl.AddRectFilled(min, max, bg, 4.0f);
+        dl.AddRect(min, max, border, 4.0f);
+
+        const ImVec2 ts = ImGui::CalcTextSize(label);
+        dl.AddText(ImVec2(min.x + (max.x - min.x - ts.x) * 0.5f,
+                          min.y + (max.y - min.y - ts.y) * 0.5f),
+                   IM_COL32(220, 230, 245, 255), label);
+
+        if (hovered && tooltip)
+        {
+            ImGui::SetTooltip("%s", tooltip);
+        }
+        return hovered;
+    }
+
 } // anonymous namespace
 
 // ── CSceneViewTool ─────────────────────────────────────────────────────────────
@@ -444,6 +473,37 @@ void CSceneViewTool::OnRenderStay()
             IM_COL32(200, 210, 225, 255), btnLabel);
     }
 
+    // Layer 2.6b: Guizmo mode toolbar (좌상단 오버레이)
+    constexpr float MODE_BTN_SIZE = 26.0f;
+    constexpr float MODE_GAP = 4.0f;
+    const ImVec2 modeToolbarMin(vpMin.x + MARGIN, vpMin.y + MARGIN);
+    const ImVec2 translateMin = modeToolbarMin;
+    const ImVec2 translateMax(translateMin.x + MODE_BTN_SIZE, translateMin.y + MODE_BTN_SIZE);
+    const ImVec2 rotateMin(translateMax.x + MODE_GAP, modeToolbarMin.y);
+    const ImVec2 rotateMax(rotateMin.x + MODE_BTN_SIZE, rotateMin.y + MODE_BTN_SIZE);
+
+    bool modeToolbarHovered = false;
+    modeToolbarHovered |= DrawGuizmoModeButton(
+        *dl, translateMin, translateMax, "T", "Translate", m_guizmo.GetMode() == EGuizmoMode::Translate);
+    modeToolbarHovered |= DrawGuizmoModeButton(
+        *dl, rotateMin, rotateMax, "R", "Rotate", m_guizmo.GetMode() == EGuizmoMode::Rotate);
+    if (modeToolbarHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+    {
+        const ImVec2 mouse = ImGui::GetIO().MousePos;
+        if (mouse.x >= translateMin.x && mouse.x <= translateMax.x
+            && mouse.y >= translateMin.y && mouse.y <= translateMax.y)
+        {
+            m_guizmo.SetMode(EGuizmoMode::Translate);
+        }
+        else if (mouse.x >= rotateMin.x && mouse.x <= rotateMax.x
+                 && mouse.y >= rotateMin.y && mouse.y <= rotateMax.y)
+        {
+            m_guizmo.SetMode(EGuizmoMode::Rotate);
+        }
+    }
+
+    const bool overlayBlocked = toggleHovered || modeToolbarHovered;
+
     // Layer 2.7: 선택 오브젝트 피벗 기즈모 (원 두 개 + 십자선) ─────────────────
     {
         dl->PushClipRect(vpMin, vpMin + vpSize, true);
@@ -532,7 +592,7 @@ void CSceneViewTool::OnRenderStay()
                 CGameObject* const selObj = Editor::GetSelectedEntity();
                 const float pixPerWorld = vpSize.y / (2.0f * m_cameraSize);
                 const bool mouseInVp =
-                    ImGui::IsMouseHoveringRect(vpMin, vpMin + vpSize, false) && !toggleHovered;
+                    ImGui::IsMouseHoveringRect(vpMin, vpMin + vpSize, false) && !overlayBlocked;
 
                 dl->PushClipRect(vpMin, vpMin + vpSize, true);
 
@@ -845,7 +905,7 @@ void CSceneViewTool::OnRenderStay()
             guizmoContext.ActiveObject = Editor::GetSelectedEntity();
             guizmoContext.IsSceneViewHovered = isHovered;
             guizmoContext.IsSceneViewActive = isActive;
-            guizmoContext.IsBlockedByOverlay = toggleHovered;
+            guizmoContext.IsBlockedByOverlay = overlayBlocked;
             guizmoResult = m_guizmo.UpdateAndDraw(guizmoContext);
         }
     }
@@ -893,7 +953,7 @@ void CSceneViewTool::OnRenderStay()
     //
     // 토글 버튼 영역은 씬 입력에서 제외.
 
-    if (!toggleHovered && false == guizmoResult.ConsumedMouse)
+    if (!overlayBlocked && false == guizmoResult.ConsumedMouse)
     {
         // 마우스 누름: 클릭 인텐트 기록
         // m_suppressNextClick: Layer 2.8 에서 폴리곤 엣지 클릭이 소비된 경우 스킵
@@ -1112,7 +1172,7 @@ void CSceneViewTool::OnRenderStay()
     }
     else
     {
-        // 토글 버튼 또는 Guizmo가 입력을 소비한 경우 SceneView 선택 인텐트 취소.
+        // Overlay 또는 Guizmo가 입력을 소비한 경우 SceneView 선택 인텐트 취소.
         m_clickPending      = false;
         m_isDraggingLeft    = false;
         m_rightClickPending = false;

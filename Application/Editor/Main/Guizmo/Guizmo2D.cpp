@@ -16,10 +16,13 @@ namespace
 	constexpr float AXIS_HIT_RADIUS = 8.0f;
 	constexpr float ARROW_SIZE = 8.0f;
 	constexpr float LINE_THICKNESS = 2.5f;
+	constexpr float ROTATE_RADIUS = 58.0f;
+	constexpr float ROTATE_HIT_RADIUS = 8.0f;
 
 	constexpr ImU32 COLOR_X = IM_COL32(230, 70, 70, 255);
 	constexpr ImU32 COLOR_Y = IM_COL32(80, 210, 110, 255);
 	constexpr ImU32 COLOR_CENTER = IM_COL32(240, 210, 70, 255);
+	constexpr ImU32 COLOR_ROTATE = IM_COL32(120, 170, 255, 255);
 	constexpr ImU32 COLOR_HOVER = IM_COL32(255, 255, 255, 255);
 	constexpr ImU32 COLOR_SHADOW = IM_COL32(0, 0, 0, 140);
 
@@ -57,20 +60,28 @@ namespace
 }
 
 GuizmoFrameResult CGuizmo2D::UpdateAndDraw(const GuizmoFrameContext& context,
-                                           EGuizmoMode mode,
-                                           EGuizmoSpace /*space*/,
-                                           EGuizmoPivot pivot)
+	EGuizmoMode mode,
+	EGuizmoSpace /*space*/,
+	EGuizmoPivot pivot)
 {
 	GuizmoFrameResult result;
-	if (mode != EGuizmoMode::Translate)
+	if (m_dragging)
 	{
+		if (m_activeHandle == EGuizmoHandle2D::Rotate)
+		{
+			result = UpdateRotateDrag(context);
+			DrawRotate(context, WorldToScreen(context, m_dragStartWorld), m_activeHandle);
+		}
+		else
+		{
+			result = UpdateTranslateDrag(context);
+			DrawTranslate(context, WorldToScreen(context, m_dragStartWorld), m_activeHandle);
+		}
 		return result;
 	}
 
-	if (m_dragging)
+	if (mode != EGuizmoMode::Translate && mode != EGuizmoMode::Rotate)
 	{
-		result = UpdateTranslateDrag(context);
-		DrawTranslate(context, WorldToScreen(context, m_dragStartWorld), m_activeHandle);
 		return result;
 	}
 
@@ -87,10 +98,19 @@ GuizmoFrameResult CGuizmo2D::UpdateAndDraw(const GuizmoFrameContext& context,
 	EGuizmoHandle2D hotHandle = EGuizmoHandle2D::None;
 	if (context.IsSceneViewHovered && false == context.IsBlockedByOverlay)
 	{
-		hotHandle = HitTestTranslate(context, pivotScreen);
+		hotHandle = mode == EGuizmoMode::Rotate
+			? HitTestRotate(context, pivotScreen)
+			: HitTestTranslate(context, pivotScreen);
 	}
 
-	DrawTranslate(context, pivotScreen, hotHandle);
+	if (mode == EGuizmoMode::Rotate)
+	{
+		DrawRotate(context, pivotScreen, hotHandle);
+	}
+	else
+	{
+		DrawTranslate(context, pivotScreen, hotHandle);
+	}
 
 	if (hotHandle != EGuizmoHandle2D::None)
 	{
@@ -100,7 +120,14 @@ GuizmoFrameResult CGuizmo2D::UpdateAndDraw(const GuizmoFrameContext& context,
 
 	if (hotHandle != EGuizmoHandle2D::None && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
 	{
-		BeginTranslateDrag(context, hotHandle, pivotWorld);
+		if (hotHandle == EGuizmoHandle2D::Rotate)
+		{
+			BeginRotateDrag(context, pivotWorld);
+		}
+		else
+		{
+			BeginTranslateDrag(context, hotHandle, pivotWorld);
+		}
 		result.ConsumedMouse = true;
 		result.IsActive = true;
 	}
@@ -144,6 +171,22 @@ EGuizmoHandle2D CGuizmo2D::HitTestTranslate(const GuizmoFrameContext& context, c
 	if (DistanceToSegmentSq(mouse, pivotScreen, yEnd) <= AXIS_HIT_RADIUS * AXIS_HIT_RADIUS)
 	{
 		return EGuizmoHandle2D::MoveY;
+	}
+	return EGuizmoHandle2D::None;
+}
+
+EGuizmoHandle2D CGuizmo2D::HitTestRotate(const GuizmoFrameContext& context, const ImVec2& pivotScreen) const
+{
+	const ImVec2 mouse = ImGui::GetIO().MousePos;
+	if (false == context.ViewportRect.Contains(mouse))
+	{
+		return EGuizmoHandle2D::None;
+	}
+
+	const float dist = std::sqrt(DistanceSq(mouse, pivotScreen));
+	if (std::abs(dist - ROTATE_RADIUS) <= ROTATE_HIT_RADIUS)
+	{
+		return EGuizmoHandle2D::Rotate;
 	}
 	return EGuizmoHandle2D::None;
 }
@@ -195,6 +238,25 @@ void CGuizmo2D::DrawTranslate(const GuizmoFrameContext& context,
 	dl->PopClipRect();
 }
 
+void CGuizmo2D::DrawRotate(const GuizmoFrameContext& context,
+                           const ImVec2& pivotScreen,
+                           EGuizmoHandle2D hotHandle) const
+{
+	ImDrawList* dl = context.DrawList;
+	if (nullptr == dl)
+	{
+		return;
+	}
+
+	const ImU32 color = hotHandle == EGuizmoHandle2D::Rotate ? COLOR_HOVER : COLOR_ROTATE;
+	dl->PushClipRect(context.ViewportRect.Min, context.ViewportRect.Max, true);
+	dl->AddCircle(ImVec2(pivotScreen.x + 1.0f, pivotScreen.y + 1.0f),
+	              ROTATE_RADIUS, COLOR_SHADOW, 64, LINE_THICKNESS + 1.0f);
+	dl->AddCircle(pivotScreen, ROTATE_RADIUS, color, 64, LINE_THICKNESS);
+	dl->AddCircleFilled(pivotScreen, 3.5f, color, 16);
+	dl->PopClipRect();
+}
+
 void CGuizmo2D::BeginTranslateDrag(const GuizmoFrameContext& context,
                                    EGuizmoHandle2D handle,
                                    const Vector2& pivotWorld)
@@ -220,6 +282,28 @@ void CGuizmo2D::BeginTranslateDrag(const GuizmoFrameContext& context,
 	(void)context;
 }
 
+void CGuizmo2D::BeginRotateDrag(const GuizmoFrameContext& context, const Vector2& pivotWorld)
+{
+	m_dragging = true;
+	m_activeHandle = EGuizmoHandle2D::Rotate;
+	m_dragStartMouse = ImGui::GetIO().MousePos;
+	m_dragStartWorld = pivotWorld;
+	m_dragStartAngle = CalculateScreenAngle(context, m_dragStartMouse, pivotWorld);
+	m_dragSnapshots.clear();
+	std::vector<CGameObject*> dragObjects = Editor::GetSelectedTopLevel();
+	m_dragNewTransforms.clear();
+
+	m_dragSnapshots.reserve(dragObjects.size());
+	for (CGameObject* object : dragObjects)
+	{
+		if (nullptr == object)
+		{
+			continue;
+		}
+		m_dragSnapshots.push_back({ object, object->GetTransform() });
+	}
+}
+
 GuizmoFrameResult CGuizmo2D::UpdateTranslateDrag(const GuizmoFrameContext& context)
 {
 	GuizmoFrameResult result;
@@ -228,7 +312,7 @@ GuizmoFrameResult CGuizmo2D::UpdateTranslateDrag(const GuizmoFrameContext& conte
 
 	if (ImGui::IsKeyPressed(ImGuiKey_Escape) || ImGui::IsMouseClicked(ImGuiMouseButton_Right))
 	{
-		EndTranslateDrag(context, false);
+		EndDrag(context, false);
 		return result;
 	}
 
@@ -255,12 +339,52 @@ GuizmoFrameResult CGuizmo2D::UpdateTranslateDrag(const GuizmoFrameContext& conte
 
 	if (false == ImGui::IsMouseDown(ImGuiMouseButton_Left))
 	{
-		EndTranslateDrag(context, true);
+		EndDrag(context, true);
 	}
 	return result;
 }
 
-void CGuizmo2D::EndTranslateDrag(const GuizmoFrameContext& context, bool commit)
+GuizmoFrameResult CGuizmo2D::UpdateRotateDrag(const GuizmoFrameContext& context)
+{
+	GuizmoFrameResult result;
+	result.ConsumedMouse = true;
+	result.IsActive = true;
+
+	if (ImGui::IsKeyPressed(ImGuiKey_Escape) || ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+	{
+		EndDrag(context, false);
+		return result;
+	}
+
+	const float currentAngle = CalculateScreenAngle(context, ImGui::GetIO().MousePos, m_dragStartWorld);
+	const float deltaRadians = currentAngle - m_dragStartAngle;
+
+	m_dragNewTransforms.clear();
+	m_dragNewTransforms.reserve(m_dragSnapshots.size());
+	for (const GuizmoTransformSnapshot& snapshot : m_dragSnapshots)
+	{
+		if (nullptr == snapshot.Object)
+		{
+			continue;
+		}
+		Transform2D next = RotateObjectAroundPivot(*snapshot.Object,
+		                                           snapshot.InitialTransform,
+		                                           m_dragStartWorld,
+		                                           deltaRadians);
+		snapshot.Object->GetTransform() = next;
+		m_dragNewTransforms.push_back(next);
+	}
+
+	result.ChangedTransform = false == m_dragNewTransforms.empty();
+
+	if (false == ImGui::IsMouseDown(ImGuiMouseButton_Left))
+	{
+		EndDrag(context, true);
+	}
+	return result;
+}
+
+void CGuizmo2D::EndDrag(const GuizmoFrameContext& context, bool commit)
 {
 	std::vector<Transform2D> oldTransforms;
 	oldTransforms.reserve(m_dragSnapshots.size());
@@ -342,6 +466,15 @@ ImVec2 CGuizmo2D::WorldToScreen(const GuizmoFrameContext& context, const Vector2
 		context.ViewportRect.Min.y + (1.0f - ndcY) * 0.5f * size.y);
 }
 
+float CGuizmo2D::CalculateScreenAngle(const GuizmoFrameContext& context,
+                                      const ImVec2& screen,
+                                      const Vector2& pivotWorld) const
+{
+	const Vector2 world = ScreenToWorld(context, screen);
+	const Vector2 delta = world - pivotWorld;
+	return std::atan2(delta.y, delta.x);
+}
+
 Vector2 CGuizmo2D::ApplyHandleConstraint(EGuizmoHandle2D handle, const Vector2& delta) const
 {
 	if (handle == EGuizmoHandle2D::MoveX)
@@ -353,6 +486,32 @@ Vector2 CGuizmo2D::ApplyHandleConstraint(EGuizmoHandle2D handle, const Vector2& 
 		return Vector2(0.0f, delta.y);
 	}
 	return delta;
+}
+
+Vector2 CGuizmo2D::RotateAroundPivot(const Vector2& point, const Vector2& pivot, float radians) const
+{
+	const float c = std::cos(radians);
+	const float s = std::sin(radians);
+	const Vector2 local = point - pivot;
+	return Vector2(
+		pivot.x + local.x * c - local.y * s,
+		pivot.y + local.x * s + local.y * c);
+}
+
+Vector2 CGuizmo2D::WorldPositionToLocalPosition(const CGameObject& object, const Vector2& worldPosition) const
+{
+	CGameObject* parent = object.GetParent().TryGet();
+	if (nullptr == parent)
+	{
+		return worldPosition;
+	}
+
+	Matrix3x2 parentWorldInverse;
+	if (GetWorldTransform(*parent).TryInvert(parentWorldInverse))
+	{
+		return parentWorldInverse.TransformPoint(worldPosition);
+	}
+	return object.GetTransform().Position;
 }
 
 Transform2D CGuizmo2D::TranslateObjectToWorldDelta(CGameObject& object,
@@ -381,5 +540,21 @@ Transform2D CGuizmo2D::TranslateObjectToWorldDelta(CGameObject& object,
 	{
 		next.Position = initialLocalPosition;
 	}
+	return next;
+}
+
+Transform2D CGuizmo2D::RotateObjectAroundPivot(CGameObject& object,
+                                               const Transform2D& initialTransform,
+                                               const Vector2& pivotWorld,
+                                               float deltaRadians) const
+{
+	Transform2D next = initialTransform;
+	const Vector2 initialWorldPosition = object.GetParent().IsValid()
+		? GetWorldTransform(*object.GetParent().TryGet()).TransformPoint(initialTransform.Position)
+		: initialTransform.Position;
+	const Vector2 targetWorldPosition = RotateAroundPivot(initialWorldPosition, pivotWorld, deltaRadians);
+
+	next.Position = WorldPositionToLocalPosition(object, targetWorldPosition);
+	next.RotationRadians.Value = initialTransform.RotationRadians.Value + deltaRadians;
 	return next;
 }

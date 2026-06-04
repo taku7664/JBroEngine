@@ -1,3 +1,47 @@
+# TODO — SceneView 2D Rotate Guizmo
+
+## Goal
+SceneView Guizmo에서 Translate와 Rotate mode를 선택할 수 있고, Rotate mode에서 선택 오브젝트를 pivot 기준으로 회전 편집한다.
+
+## Assumptions
+- Scale은 다음 단계로 미루고 이번에는 Translate/Rotate만 노출한다.
+- Rotate는 기본 `SelectionCenter` pivot 기준으로 동작한다.
+- 부모가 있는 object는 회전 후 world position을 parent local position으로 환산한다.
+- 드래그 중 preview 후 release 때 old/new transform 스냅샷 커맨드 1개만 기록한다.
+
+## Success Criteria
+- SceneView overlay에서 Translate/Rotate mode를 전환할 수 있다.
+- Rotate mode는 circular handle을 그리고 screen-space ring hit-test로 drag를 시작한다.
+- 회전 drag는 선택 top-level object들의 position과 rotation을 pivot 기준으로 preview 갱신한다.
+- release 후 undo/redo 1회로 시작/끝 transform을 복원한다.
+- mode toolbar hover/click은 SceneView picking, box selection, collider editing을 막는다.
+
+## Plan
+- [x] SceneView Guizmo mode toolbar 추가
+- [x] toolbar 영역 입력 차단을 SceneView/Collider/Guizmo context에 반영
+- [x] Rotate handle draw/hit-test 추가
+- [x] Rotate drag preview/commit 구현
+- [x] 빌드 검증 및 커밋
+
+## Verification
+- [x] `Debug_Editor|x64` build
+- [x] `Debug_Game|x64` build
+- [x] `git diff --check`
+
+## Review
+- 코드를 읽었고: Translate Guizmo는 구현되어 있었지만 controller mode를 바꿀 UI가 없어 Rotate를 추가해도 접근할 수 없었다.
+- 생각했고: 기능을 숨겨 둔 채 구현만 하는 것은 사용 가능한 단계가 아니므로, SceneView overlay에 Translate/Rotate mode toolbar가 먼저 필요했다.
+- 반례를 찾았고: toolbar 위 클릭이 기존 SceneView picking이나 collider vertex editing으로도 흘러가면 mode 변경과 선택/편집이 동시에 발생한다.
+- 고쳤다: mode toolbar hover를 `overlayBlocked`에 포함하고, collider editing, Guizmo hit-test, SceneView click state machine이 같은 차단 값을 쓰도록 했다.
+- 추가로 읽었고: Transform world cache는 `TransformSystem`이 갱신하는 값이라 drag preview 중 object world가 즉시 최신이라는 보장이 없다.
+- 생각했고: Rotate drag는 preview 중 `object.GetWorld()`에 의존하지 말고, 드래그 시작 local transform과 parent world만으로 target local position을 계산해야 한다.
+- 반례를 찾았고: 부모가 있는 object를 selection pivot 기준으로 회전할 때, world target position을 그대로 local position에 넣으면 부모 회전/스케일 아래에서 위치가 틀어진다.
+- 고쳤다: `RotateObjectAroundPivot()`에서 initial local position을 parent world로 world position화하고, 회전 후 target world position을 parent inverse로 local position에 환산했다.
+- 추가 반례: drag 중 controller mode가 바뀌어도 active drag는 시작한 handle 계약을 계속 따라야 한다.
+- 고쳤다: `m_activeHandle`이 `Rotate`면 현재 mode와 무관하게 rotate drag update/draw를 계속 타도록 했다.
+
+---
+
 # TODO — SceneView 2D Translate Guizmo
 
 ## Goal
