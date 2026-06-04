@@ -144,6 +144,7 @@ void CHierarchyTool::OnRenderStay()
 		const char* objName = obj->GetName();
 		const char* name = (objName && objName[0]) ? objName : "GameObject";
 		const bool isOpen = ImTree(name, flags);
+		const float nodeH = ImGui::GetItemRectSize().y; // 실제 트리노드 줄 높이(눈 버튼 정렬용)
 
 		// ── 클릭으로 선택 (Release 기준) ───────────────────────────────────
 		// Press 가 아니라 Release 에서 선택한다. Press 로 선택하면 드래그를 시작하는
@@ -225,14 +226,13 @@ void CHierarchyTool::OnRenderStay()
 		// 트리노드를 가리킨다. SameLine(절대x)로 같은 행 우측에 배치.
 		{
 			const bool  hidden = obj->IsEditorHidden();
-			// 버튼은 줄 전체 높이로 잡고(세로 정렬 자동), 글리프만 0.7 로 축소해
-			// 버튼 안에서 세로 중앙(=줄 중앙)에 오게 한다.
-			const float rowH = ImGui::GetFrameHeight();
-			ImGui::SameLine(ImGui::GetContentRegionMax().x - rowH);
+			// 버튼 높이를 실제 트리노드 줄 높이(nodeH)에 정확히 맞춘다(오버플로 방지).
+			// 글리프만 0.7 로 축소 → 버튼 안 세로 중앙(=줄 중앙).
+			ImGui::SameLine(ImGui::GetContentRegionMax().x - nodeH);
 			const char* icon = hidden ? FontAssomeHelper::ICON_EYE_SLASH : FontAssomeHelper::ICON_EYE;
 			ImText eyeText;
 			eyeText.SetScale(0.7f).SetAlign(ImText::Align::Center);
-			if (ImTextButton(eyeText, icon, ImVec2(rowH, rowH)))
+			if (ImTextButton(eyeText, icon, ImVec2(nodeH, nodeH)))
 			{
 				obj->SetEditorHidden(!hidden);
 			}
