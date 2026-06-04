@@ -100,11 +100,21 @@ namespace
 	{
 		return std::round(radians / ROTATE_SNAP_RADIANS) * ROTATE_SNAP_RADIANS;
 	}
+
+	Vector2 SafeNormalizedOrDefault(const Vector2& vector, const Vector2& fallback)
+	{
+		const float len = vector.Length();
+		if (len <= 0.0001f)
+		{
+			return fallback;
+		}
+		return vector / len;
+	}
 }
 
 GuizmoFrameResult CGuizmo2D::UpdateAndDraw(const GuizmoFrameContext& context,
 	EGuizmoMode mode,
-	EGuizmoSpace /*space*/,
+	EGuizmoSpace space,
 	EGuizmoPivot pivot)
 {
 	GuizmoFrameResult result;
@@ -123,7 +133,12 @@ GuizmoFrameResult CGuizmo2D::UpdateAndDraw(const GuizmoFrameContext& context,
 		else
 		{
 			result = UpdateTranslateDrag(context);
-			DrawTranslate(context, WorldToScreen(context, m_dragStartWorld), m_activeHandle);
+			DrawTranslate(context,
+			              WorldToScreen(context, m_dragStartWorld),
+			              m_dragStartWorld,
+			              m_activeHandle,
+			              m_dragAxisX,
+			              m_dragAxisY);
 		}
 		return result;
 	}
@@ -145,6 +160,10 @@ GuizmoFrameResult CGuizmo2D::UpdateAndDraw(const GuizmoFrameContext& context,
 		? GetWorldTransform(*context.ActiveObject).TransformPoint(Vector2(0.0f, 0.0f))
 		: CalculatePivotWorld(context);
 	const ImVec2 pivotScreen = WorldToScreen(context, pivotWorld);
+	Vector2 translateAxisX(1.0f, 0.0f);
+	Vector2 translateAxisY(0.0f, 1.0f);
+	CalculateTranslateBasis(context, space, translateAxisX, translateAxisY);
+
 	EGuizmoHandle2D hotHandle = EGuizmoHandle2D::None;
 	if (context.IsSceneViewHovered && false == context.IsBlockedByOverlay)
 	{
@@ -158,7 +177,11 @@ GuizmoFrameResult CGuizmo2D::UpdateAndDraw(const GuizmoFrameContext& context,
 		}
 		else
 		{
-			hotHandle = HitTestTranslate(context, pivotScreen);
+			hotHandle = HitTestTranslate(context,
+			                             pivotScreen,
+			                             pivotWorld,
+			                             translateAxisX,
+			                             translateAxisY);
 		}
 	}
 
@@ -172,7 +195,7 @@ GuizmoFrameResult CGuizmo2D::UpdateAndDraw(const GuizmoFrameContext& context,
 	}
 	else
 	{
-		DrawTranslate(context, pivotScreen, hotHandle);
+		DrawTranslate(context, pivotScreen, pivotWorld, hotHandle, translateAxisX, translateAxisY);
 	}
 
 	if (hotHandle != EGuizmoHandle2D::None)
@@ -193,6 +216,8 @@ GuizmoFrameResult CGuizmo2D::UpdateAndDraw(const GuizmoFrameContext& context,
 		}
 		else
 		{
+			m_dragAxisX = translateAxisX;
+			m_dragAxisY = translateAxisY;
 			BeginTranslateDrag(context, hotHandle, pivotWorld);
 		}
 		result.ConsumedMouse = true;
@@ -216,7 +241,11 @@ void CGuizmo2D::CancelDrag()
 	m_dragNewTransforms.clear();
 }
 
-EGuizmoHandle2D CGuizmo2D::HitTestTranslate(const GuizmoFrameContext& context, const ImVec2& pivotScreen) const
+EGuizmoHandle2D CGuizmo2D::HitTestTranslate(const GuizmoFrameContext& context,
+                                            const ImVec2& pivotScreen,
+                                            const Vector2& pivotWorld,
+                                            const Vector2& axisX,
+                                            const Vector2& axisY) const
 {
 	const ImVec2 mouse = ImGui::GetIO().MousePos;
 	if (false == context.ViewportRect.Contains(mouse))
@@ -229,8 +258,17 @@ EGuizmoHandle2D CGuizmo2D::HitTestTranslate(const GuizmoFrameContext& context, c
 		return EGuizmoHandle2D::MoveXY;
 	}
 
-	const ImVec2 xEnd(pivotScreen.x + AXIS_LENGTH, pivotScreen.y);
-	const ImVec2 yEnd(pivotScreen.x, pivotScreen.y - AXIS_LENGTH);
+	const ImVec2 xDir = WorldToScreen(context, pivotWorld + axisX);
+	const ImVec2 yDir = WorldToScreen(context, pivotWorld + axisY);
+	Vector2 xScreenDelta(xDir.x - pivotScreen.x, xDir.y - pivotScreen.y);
+	Vector2 yScreenDelta(yDir.x - pivotScreen.x, yDir.y - pivotScreen.y);
+	xScreenDelta = SafeNormalizedOrDefault(xScreenDelta, Vector2(1.0f, 0.0f));
+	yScreenDelta = SafeNormalizedOrDefault(yScreenDelta, Vector2(0.0f, -1.0f));
+
+	const ImVec2 xEnd(pivotScreen.x + xScreenDelta.x * AXIS_LENGTH,
+	                  pivotScreen.y + xScreenDelta.y * AXIS_LENGTH);
+	const ImVec2 yEnd(pivotScreen.x + yScreenDelta.x * AXIS_LENGTH,
+	                  pivotScreen.y + yScreenDelta.y * AXIS_LENGTH);
 	if (DistanceToSegmentSq(mouse, pivotScreen, xEnd) <= AXIS_HIT_RADIUS * AXIS_HIT_RADIUS)
 	{
 		return EGuizmoHandle2D::MoveX;
@@ -286,7 +324,10 @@ EGuizmoHandle2D CGuizmo2D::HitTestScale(const GuizmoFrameContext& context, const
 
 void CGuizmo2D::DrawTranslate(const GuizmoFrameContext& context,
                               const ImVec2& pivotScreen,
-                              EGuizmoHandle2D hotHandle) const
+                              const Vector2& pivotWorld,
+                              EGuizmoHandle2D hotHandle,
+                              const Vector2& axisX,
+                              const Vector2& axisY) const
 {
 	ImDrawList* dl = context.DrawList;
 	if (nullptr == dl)
@@ -294,8 +335,17 @@ void CGuizmo2D::DrawTranslate(const GuizmoFrameContext& context,
 		return;
 	}
 
-	const ImVec2 xEnd(pivotScreen.x + AXIS_LENGTH, pivotScreen.y);
-	const ImVec2 yEnd(pivotScreen.x, pivotScreen.y - AXIS_LENGTH);
+	const ImVec2 xDir = WorldToScreen(context, pivotWorld + axisX);
+	const ImVec2 yDir = WorldToScreen(context, pivotWorld + axisY);
+	Vector2 xScreenDelta(xDir.x - pivotScreen.x, xDir.y - pivotScreen.y);
+	Vector2 yScreenDelta(yDir.x - pivotScreen.x, yDir.y - pivotScreen.y);
+	xScreenDelta = SafeNormalizedOrDefault(xScreenDelta, Vector2(1.0f, 0.0f));
+	yScreenDelta = SafeNormalizedOrDefault(yScreenDelta, Vector2(0.0f, -1.0f));
+
+	const ImVec2 xEnd(pivotScreen.x + xScreenDelta.x * AXIS_LENGTH,
+	                  pivotScreen.y + xScreenDelta.y * AXIS_LENGTH);
+	const ImVec2 yEnd(pivotScreen.x + yScreenDelta.x * AXIS_LENGTH,
+	                  pivotScreen.y + yScreenDelta.y * AXIS_LENGTH);
 	const ImU32 xColor = hotHandle == EGuizmoHandle2D::MoveX ? COLOR_HOVER : COLOR_X;
 	const ImU32 yColor = hotHandle == EGuizmoHandle2D::MoveY ? COLOR_HOVER : COLOR_Y;
 	const ImU32 centerColor = hotHandle == EGuizmoHandle2D::MoveXY ? COLOR_HOVER : COLOR_CENTER;
@@ -312,15 +362,19 @@ void CGuizmo2D::DrawTranslate(const GuizmoFrameContext& context,
 	dl->AddLine(pivotScreen, xEnd, xColor, LINE_THICKNESS);
 	dl->AddTriangleFilled(
 		xEnd,
-		ImVec2(xEnd.x - ARROW_SIZE, xEnd.y - ARROW_SIZE * 0.65f),
-		ImVec2(xEnd.x - ARROW_SIZE, xEnd.y + ARROW_SIZE * 0.65f),
+		ImVec2(xEnd.x - xScreenDelta.x * ARROW_SIZE - xScreenDelta.y * ARROW_SIZE * 0.65f,
+		       xEnd.y - xScreenDelta.y * ARROW_SIZE + xScreenDelta.x * ARROW_SIZE * 0.65f),
+		ImVec2(xEnd.x - xScreenDelta.x * ARROW_SIZE + xScreenDelta.y * ARROW_SIZE * 0.65f,
+		       xEnd.y - xScreenDelta.y * ARROW_SIZE - xScreenDelta.x * ARROW_SIZE * 0.65f),
 		xColor);
 
 	dl->AddLine(pivotScreen, yEnd, yColor, LINE_THICKNESS);
 	dl->AddTriangleFilled(
 		yEnd,
-		ImVec2(yEnd.x - ARROW_SIZE * 0.65f, yEnd.y + ARROW_SIZE),
-		ImVec2(yEnd.x + ARROW_SIZE * 0.65f, yEnd.y + ARROW_SIZE),
+		ImVec2(yEnd.x - yScreenDelta.x * ARROW_SIZE - yScreenDelta.y * ARROW_SIZE * 0.65f,
+		       yEnd.y - yScreenDelta.y * ARROW_SIZE + yScreenDelta.x * ARROW_SIZE * 0.65f),
+		ImVec2(yEnd.x - yScreenDelta.x * ARROW_SIZE + yScreenDelta.y * ARROW_SIZE * 0.65f,
+		       yEnd.y - yScreenDelta.y * ARROW_SIZE - yScreenDelta.x * ARROW_SIZE * 0.65f),
 		yColor);
 
 	dl->AddCircleFilled(ImVec2(pivotScreen.x + 1.0f, pivotScreen.y + 1.0f),
@@ -492,7 +546,10 @@ GuizmoFrameResult CGuizmo2D::UpdateTranslateDrag(const GuizmoFrameContext& conte
 
 	const Vector2 startWorld = ScreenToWorld(context, m_dragStartMouse);
 	const Vector2 currentWorld = ScreenToWorld(context, ImGui::GetIO().MousePos);
-	const Vector2 constrainedDelta = ApplyHandleConstraint(m_activeHandle, currentWorld - startWorld);
+	const Vector2 constrainedDelta = ApplyHandleConstraint(m_activeHandle,
+	                                                       currentWorld - startWorld,
+	                                                       m_dragAxisX,
+	                                                       m_dragAxisY);
 
 	m_dragNewTransforms.clear();
 	m_dragNewTransforms.reserve(m_dragSnapshots.size());
@@ -716,15 +773,35 @@ float CGuizmo2D::CalculateScreenAngle(const GuizmoFrameContext& context,
 	return std::atan2(delta.y, delta.x);
 }
 
-Vector2 CGuizmo2D::ApplyHandleConstraint(EGuizmoHandle2D handle, const Vector2& delta) const
+void CGuizmo2D::CalculateTranslateBasis(const GuizmoFrameContext& context,
+                                        EGuizmoSpace space,
+                                        Vector2& outAxisX,
+                                        Vector2& outAxisY) const
+{
+	outAxisX = Vector2(1.0f, 0.0f);
+	outAxisY = Vector2(0.0f, 1.0f);
+	if (space != EGuizmoSpace::Local || nullptr == context.ActiveObject)
+	{
+		return;
+	}
+
+	const Matrix3x2 world = GetWorldTransform(*context.ActiveObject);
+	outAxisX = SafeNormalizedOrDefault(Vector2(world.M11, world.M12), Vector2(1.0f, 0.0f));
+	outAxisY = SafeNormalizedOrDefault(Vector2(world.M21, world.M22), Vector2(0.0f, 1.0f));
+}
+
+Vector2 CGuizmo2D::ApplyHandleConstraint(EGuizmoHandle2D handle,
+                                         const Vector2& delta,
+                                         const Vector2& axisX,
+                                         const Vector2& axisY) const
 {
 	if (handle == EGuizmoHandle2D::MoveX)
 	{
-		return Vector2(delta.x, 0.0f);
+		return axisX * delta.Dot(axisX);
 	}
 	if (handle == EGuizmoHandle2D::MoveY)
 	{
-		return Vector2(0.0f, delta.y);
+		return axisY * delta.Dot(axisY);
 	}
 	return delta;
 }

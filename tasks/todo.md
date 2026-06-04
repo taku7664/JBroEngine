@@ -1,3 +1,47 @@
+# TODO — SceneView 2D Local Translate Space
+
+## Goal
+SceneView Guizmo에서 World/Local 공간을 전환할 수 있고, Translate X/Y handle이 Local 공간에서는 active object의 world 방향축을 따른다.
+
+## Assumptions
+- 우선 Local space는 Translate에만 적용한다.
+- Local 축 기준은 active object의 world transform basis를 사용한다.
+- active object가 없거나 basis 길이가 0에 가까우면 World 축으로 fallback한다.
+- drag 중 object transform이 변해도 시작 시점의 축 기준을 유지한다.
+
+## Success Criteria
+- SceneView overlay에서 World/Local space를 전환할 수 있다.
+- World space Translate는 기존처럼 화면상 world X/Y 축을 따른다.
+- Local space Translate는 active object 회전 방향의 X/Y 축으로 handle을 그리고, drag delta도 해당 축으로 projection한다.
+- toolbar hover/click은 기존 selection/collider input을 막는다.
+- release 후 undo/redo 1회로 시작/끝 transform을 복원한다.
+
+## Plan
+- [x] 2D translate axis basis 계산 추가
+- [x] Translate hit-test/draw/drag constraint에 basis 적용
+- [x] SceneView toolbar에 World/Local space toggle 추가
+- [x] 문서 review 갱신
+- [x] 빌드 검증 및 커밋
+
+## Verification
+- [x] `Debug_Editor|x64` build
+- [x] `Debug_Game|x64` build
+- [x] `git diff --check`
+
+## Review
+- 코드를 읽었고: `EGuizmoSpace`는 controller에 있었지만 SceneView에서 바꿀 UI가 없고, `CGuizmo2D::UpdateAndDraw()`도 space 인자를 무시하고 있었다.
+- 생각했고: Local/World state만 노출하고 실제 handle 동작이 바뀌지 않으면 사용자가 신뢰할 수 없는 토글이 되므로, 우선 Translate X/Y handle의 draw/hit-test/drag constraint를 같은 basis로 묶어야 했다.
+- 반례를 찾았고: idle draw/hit-test에서 drag 시작 좌표를 재사용하면 이전 drag 상태나 원점에 의존해 handle 방향이 틀어질 수 있다.
+- 고쳤다: `pivotWorld`를 draw/hit-test에 명시적으로 넘겨 현재 프레임 pivot 기준으로 screen-space axis 방향을 계산했다.
+- 추가로 읽었고: `Matrix3x2`의 x/y basis는 `(M11, M12)`와 `(M21, M22)`이고, scale이 섞이면 길이가 달라진다.
+- 생각했고: handle 길이는 screen-space constant여야 하므로 basis는 방향만 정규화해서 쓰는 것이 맞다.
+- 반례를 찾았고: active object가 없거나 scale 0에 가까운 basis면 Local 축이 정의되지 않는다.
+- 고쳤다: Local space는 active object world basis를 정규화해 사용하고, basis가 유효하지 않으면 World 축으로 fallback했다.
+- 추가 반례: drag 중 transform이 바뀌면 local axis도 계속 바뀌어 mouse projection이 흔들릴 수 있다.
+- 고쳤다: Translate drag 시작 시 `m_dragAxisX/Y`를 저장하고, drag 중 preview와 draw는 저장된 축을 사용하도록 했다.
+
+---
+
 # TODO — SceneView 2D Rotate Snap
 
 ## Goal
