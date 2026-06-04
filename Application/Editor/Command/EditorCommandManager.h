@@ -19,6 +19,12 @@ public:
 	virtual bool Execute() = 0;
 	virtual void Undo() = 0;
 	virtual void Redo() = 0;
+
+	// 편집 단위 묶기(트랜잭션). 드래그처럼 같은 대상을 연속 편집할 때 이 커맨드(undo 스택
+	// 최상단)에 newer 의 결과값만 접어 넣어 undo 1개로 유지한다. 성공 시 true → 매니저가
+	// newer 를 버린다. 기본은 병합 불가(각 커맨드 독립 undo).
+	// 전제: newer 는 이미 Execute() 되어 실제 상태에 적용된 뒤 호출된다.
+	virtual bool TryMerge(const IEditorCommand& /*newer*/) { return false; }
 };
 
 struct EditorDocumentState
@@ -55,6 +61,9 @@ private:
 private:
 	std::vector<OwnerPtr<IEditorCommand>> m_undoStack;
 	std::vector<OwnerPtr<IEditorCommand>> m_redoStack;
+	// 마우스 좌버튼 유지 중(드래그) 같은 대상 커맨드를 최상단에 병합 → 드래그 1회 = undo 1개.
+	// 버튼을 놓으면 다음 커맨드는 새 엔트리. 인스펙터/기즈모 배선 불필요(자동).
+	bool m_dragMergeActive = false;
 	std::unordered_map<std::string, EditorDocumentState> m_documents;
 	std::string m_activeDocumentKey;
 	std::uint64_t m_globalRevision = 0;

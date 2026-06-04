@@ -3,6 +3,17 @@
 
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
 
+#include "ThirdParty/imgui/imgui.h"
+
+namespace
+{
+	// 드래그 진행 중인가 = 좌버튼 유지. ImGui 컨텍스트/프레임 밖이면 false.
+	bool IsDragInProgress()
+	{
+		return nullptr != ImGui::GetCurrentContext() && ImGui::IsMouseDown(ImGuiMouseButton_Left);
+	}
+}
+
 bool CEditorCommandManager::ExecuteCommand(OwnerPtr<IEditorCommand> command, const char* documentKey)
 {
 	if (false == static_cast<bool>(command) || false == command->Execute())
@@ -10,8 +21,22 @@ bool CEditorCommandManager::ExecuteCommand(OwnerPtr<IEditorCommand> command, con
 		return false;
 	}
 
+	// ── 편집 단위 묶기 ────────────────────────────────────────────────────────
+	// 드래그 중(좌버튼 유지) 같은 대상 연속 편집은 최상단 커맨드에 병합해 undo 1개로 유지.
+	const bool dragging = IsDragInProgress();
+	if (dragging && m_dragMergeActive && false == m_undoStack.empty()
+		&& m_undoStack.back()->TryMerge(*command))
+	{
+		// 병합됨 — command(중복 엔트리)는 버린다. 결과값은 이미 Execute 로 적용됨.
+		m_redoStack.clear();
+		MarkDirty(documentKey);
+		return true;
+	}
+
 	m_undoStack.push_back(std::move(command));
 	m_redoStack.clear();
+	// 드래그 중 첫 커맨드면 이후 프레임부터 이 엔트리에 병합. 비드래그면 병합 비활성.
+	m_dragMergeActive = dragging;
 	MarkDirty(documentKey);
 	return true;
 }
@@ -50,6 +75,7 @@ void CEditorCommandManager::Clear()
 {
 	m_undoStack.clear();
 	m_redoStack.clear();
+	m_dragMergeActive = false;
 	m_documents.clear();
 	m_activeDocumentKey.clear();
 	m_globalRevision = 0;

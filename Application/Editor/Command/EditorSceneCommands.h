@@ -117,6 +117,8 @@ public:
 	bool Execute() override;
 	void Undo() override;
 	void Redo() override;
+	// 같은 (오브젝트·컴포넌트·프로퍼티·인스턴스) 편집이면 newer 의 새 값만 흡수(드래그 묶기).
+	bool TryMerge(const IEditorCommand& newer) override;
 
 private:
 	bool WriteValue(const std::vector<std::uint8_t>& value);

@@ -356,6 +356,29 @@ void CSetComponentPropertyCommand::Redo()
 	WriteValue(m_newValue);
 }
 
+bool CSetComponentPropertyCommand::TryMerge(const IEditorCommand& newer)
+{
+	const CSetComponentPropertyCommand* other = dynamic_cast<const CSetComponentPropertyCommand*>(&newer);
+	if (nullptr == other)
+	{
+		return false;
+	}
+	// 같은 대상(오브젝트·컴포넌트·오프셋·인스턴스)일 때만 병합. 값 크기도 일치해야 함.
+	const bool sameTarget =
+		(m_objectGuid == other->m_objectGuid)
+		&& (m_componentTypeId == other->m_componentTypeId)
+		&& (m_propertyOffset == other->m_propertyOffset)
+		&& (m_instanceIndex == other->m_instanceIndex)
+		&& (m_newValue.size() == other->m_newValue.size());
+	if (false == sameTarget)
+	{
+		return false;
+	}
+	// old 는 드래그 시작값 유지, new 만 최신값으로 교체 → undo 1개로 시작↔끝 복원.
+	m_newValue = other->m_newValue;
+	return true;
+}
+
 bool CSetComponentPropertyCommand::WriteValue(const std::vector<std::uint8_t>& value)
 {
 	CGameObject* object = Resolve(m_scene, m_objectGuid);
