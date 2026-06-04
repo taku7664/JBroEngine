@@ -1,3 +1,39 @@
+# TODO — WebGPU bind group cache lookup 정리
+
+## Goal
+WebGPU bind group cache가 많은 sprite에서 선형 검색을 반복하지 않도록 안정적인 draw 순서 기반 cursor를 추가한다.
+
+## Assumptions
+- Forward2DRenderer의 draw item 순서는 대체로 프레임 간 안정적이다.
+- cache key 비교는 계속 `SafePtr` 비교를 사용한다.
+- 순서가 바뀌는 경우에도 correctness가 유지되어야 한다.
+
+## Success Criteria
+- 같은 draw 순서에서는 cache hit가 cursor 위치에서 O(1)로 처리된다.
+- cache miss 또는 순서 변경 시에도 기존 entry를 SafePtr 비교로 찾거나 새 entry를 cursor 위치에 삽입한다.
+- WebGPU cache가 첫 프레임부터 매 draw마다 전체 cache를 선형 검색하지 않는다.
+
+## Plan
+- [x] WebGPU bind group cache cursor 추가
+- [x] cursor hit/move/insert 흐름 구현
+- [x] 빌드 및 Web Release 검증
+- [x] 커밋
+
+## Verification
+- [x] `Debug_Game|x64` build
+- [x] `Debug_Editor|x64` build
+- [x] Web Release build with `SampleProject/Project.Jproject`
+- [x] `git diff --check`
+
+## Review
+- 코드를 읽었고: 직전 WebGPU cache는 `std::vector`를 앞에서부터 순회해 같은 binding 조합을 찾는 구조였다.
+- 생각했고: bind group 생성/해제는 줄었지만 stable sprite draw order에서도 N개 sprite가 매 프레임 N단계 선형 탐색을 반복할 수 있다.
+- 반례를 찾았고: 첫 프레임 cache 생성 중에도 이미 추가된 entry를 계속 훑으면 O(N²) 초기 비용이 생기고, 이후 프레임도 순서가 같아도 앞에서부터 다시 찾는다.
+- 고쳤다: 프레임별 cursor를 추가해 같은 draw 순서에서는 cursor 위치에서 즉시 hit하고, 순서가 바뀐 경우에만 SafePtr 비교로 기존 entry를 찾아 cursor 위치로 이동한다.
+- 추가 반례: cursor 뒤쪽만 찾으면 같은 프레임에서 이전 resource 조합을 다시 쓸 때 중복 entry가 생길 수 있어, cursor mismatch일 때만 전체 cache를 검색하도록 보정했다.
+
+---
+
 # TODO — WebGPU bind group / Vulkan descriptor pool 병목 정리
 
 ## Goal

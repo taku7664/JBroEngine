@@ -8,6 +8,8 @@
 #include "Core/RHI/WebGPU/WebGPUTexture.h"
 
 #if JBRO_PLATFORM_WEB
+#include <utility>
+
 CWebGPUCommandContext::~CWebGPUCommandContext()
 {
 	ReleaseFrameObjects();
@@ -33,6 +35,7 @@ void CWebGPUCommandContext::BeginFrame()
 #if JBRO_PLATFORM_WEB
 	ReleaseFrameObjects();
 	PruneInvalidBindGroups();
+	m_bindGroupCacheCursor = 0;
 	m_currentPipelineHandle = nullptr;
 	m_currentPipeline = nullptr;
 	if (m_device)
@@ -328,6 +331,7 @@ void CWebGPUCommandContext::ReleaseBindGroupCache()
 		}
 	}
 	m_bindGroupCache.clear();
+	m_bindGroupCacheCursor = 0;
 }
 
 void CWebGPUCommandContext::PruneInvalidBindGroups()
@@ -364,14 +368,33 @@ WGPUBindGroup CWebGPUCommandContext::GetOrCreateCurrentBindGroup()
 		return nullptr;
 	}
 
-	for (const BindGroupCacheEntry& entry : m_bindGroupCache)
+	auto matchesCurrentBinding = [this](const BindGroupCacheEntry& entry)
 	{
-		if (entry.Pipeline == m_currentPipelineHandle
+		return entry.Pipeline == m_currentPipelineHandle
 			&& entry.ConstantBuffer == m_constantBuffer
 			&& entry.Texture == m_texture
-			&& entry.Sampler == m_sampler)
+			&& entry.Sampler == m_sampler;
+	};
+
+	if (m_bindGroupCacheCursor < m_bindGroupCache.size()
+		&& matchesCurrentBinding(m_bindGroupCache[m_bindGroupCacheCursor]))
+	{
+		WGPUBindGroup bindGroup = m_bindGroupCache[m_bindGroupCacheCursor].BindGroup;
+		++m_bindGroupCacheCursor;
+		return bindGroup;
+	}
+
+	if (m_bindGroupCacheCursor < m_bindGroupCache.size())
+	{
+		for (std::size_t index = 0; index < m_bindGroupCache.size(); ++index)
 		{
-			return entry.BindGroup;
+			if (index != m_bindGroupCacheCursor && matchesCurrentBinding(m_bindGroupCache[index]))
+			{
+				std::swap(m_bindGroupCache[m_bindGroupCacheCursor], m_bindGroupCache[index]);
+				WGPUBindGroup bindGroup = m_bindGroupCache[m_bindGroupCacheCursor].BindGroup;
+				++m_bindGroupCacheCursor;
+				return bindGroup;
+			}
 		}
 	}
 
@@ -415,7 +438,15 @@ WGPUBindGroup CWebGPUCommandContext::GetOrCreateCurrentBindGroup()
 	cacheEntry.Texture = m_texture;
 	cacheEntry.Sampler = m_sampler;
 	cacheEntry.BindGroup = bindGroup;
-	m_bindGroupCache.push_back(cacheEntry);
+	if (m_bindGroupCacheCursor < m_bindGroupCache.size())
+	{
+		m_bindGroupCache.insert(m_bindGroupCache.begin() + m_bindGroupCacheCursor, cacheEntry);
+	}
+	else
+	{
+		m_bindGroupCache.push_back(cacheEntry);
+	}
+	++m_bindGroupCacheCursor;
 	return bindGroup;
 }
 #endif

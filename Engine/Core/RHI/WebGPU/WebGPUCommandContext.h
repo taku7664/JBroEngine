@@ -65,5 +65,6 @@ private:
 	SafePtr<IRHITexture> m_texture;
 	SafePtr<IRHISampler> m_sampler;
 	std::vector<BindGroupCacheEntry> m_bindGroupCache;
+	std::size_t m_bindGroupCacheCursor = 0;
 #endif
 };
