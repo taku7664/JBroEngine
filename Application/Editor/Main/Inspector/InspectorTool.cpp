@@ -1327,12 +1327,22 @@ void CInspectorTool::OnRenderStay()
 
 		Transform2D& t = selectedObject->GetTransform();
 
-		// Transform 편집은 전용 커맨드로 기록(컴포넌트 아님). 편집 전 스냅샷 → 변경 시 push.
-		// 드래그 매 프레임 push 되지만 CommandManager 가 좌버튼 유지 중 병합 → undo 1개.
+		// Transform 편집은 전용 커맨드로 기록(컴포넌트 아님) + 다중 선택 전체에 같은 델타 적용.
+		// 편집 전 스냅샷(before) ↔ 편집 후(t=after)에서 델타를 구하고, primary 의 라이브 변경을
+		// 되돌린 뒤 커맨드가 선택 전체에 델타를 적용한다. 드래그는 CommandManager 가 병합 → undo 1개.
 		auto pushTransform = [&](const Transform2D& before)
 		{
+			Transform2D delta;
+			delta.Position.x          = t.Position.x - before.Position.x;
+			delta.Position.y          = t.Position.y - before.Position.y;
+			delta.RotationRadians.Value = t.RotationRadians.Value - before.RotationRadians.Value;
+			delta.Scale.x             = t.Scale.x - before.Scale.x;
+			delta.Scale.y             = t.Scale.y - before.Scale.y;
+
+			t = before; // primary 라이브 변경 취소 → 커맨드가 전체에 균일 적용.
+			std::vector<CGameObject*> targets = Editor::GetSelectedEntities();
 			Editor::CommandManager.ExecuteCommand(
-				MakeOwnerPtr<CSetObjectTransformCommand>(scene->SafeFromThis(), selectedObject, before, t));
+				MakeOwnerPtr<CSetObjectTransformCommand>(scene->SafeFromThis(), targets, delta));
 		};
 
 		// Position

@@ -523,13 +523,22 @@ void CRemoveComponentCommand::Redo()
 
 // ── CSetObjectTransformCommand ────────────────────────────────────────────────
 
-CSetObjectTransformCommand::CSetObjectTransformCommand(SafePtr<CScene> scene, CGameObject* object,
-                                                       const Transform2D& oldTransform, const Transform2D& newTransform)
+CSetObjectTransformCommand::CSetObjectTransformCommand(SafePtr<CScene> scene,
+                                                       const std::vector<CGameObject*>& objects,
+                                                       const Transform2D& delta)
 	: m_scene(scene)
-	, m_objectGuid(GuidOf(object))
-	, m_old(oldTransform)
-	, m_new(newTransform)
+	, m_delta(delta)
 {
+	// 각 대상의 현재 Transform 을 시작값으로 캡처(병렬). guid 로 보관해 파괴/재생성에도 안전.
+	for (CGameObject* obj : objects)
+	{
+		if (nullptr == obj)
+		{
+			continue;
+		}
+		m_objectGuids.push_back(obj->InstanceGuid);
+		m_oldTransforms.push_back(obj->GetTransform());
+	}
 }
 
 const char* CSetObjectTransformCommand::GetName() const
@@ -537,30 +546,52 @@ const char* CSetObjectTransformCommand::GetName() const
 	return "Set Transform";
 }
 
-bool CSetObjectTransformCommand::Apply(const Transform2D& transform)
+void CSetObjectTransformCommand::Apply(bool withDelta)
 {
-	CGameObject* object = Resolve(m_scene, m_objectGuid);
-	if (nullptr == object)
+	for (std::size_t i = 0; i < m_objectGuids.size(); ++i)
 	{
-		return false;
+		CGameObject* object = Resolve(m_scene, m_objectGuids[i]);
+		if (nullptr == object)
+		{
+			continue;
+		}
+		Transform2D r = m_oldTransforms[i];
+		if (withDelta)
+		{
+			r.Position.x          += m_delta.Position.x;
+			r.Position.y          += m_delta.Position.y;
+			r.RotationRadians.Value += m_delta.RotationRadians.Value;
+			r.Scale.x             += m_delta.Scale.x;
+			r.Scale.y             += m_delta.Scale.y;
+		}
+		object->GetTransform() = r;
 	}
-	object->GetTransform() = transform;
-	return true;
 }
 
-bool CSetObjectTransformCommand::Execute() { return Apply(m_new); }
-void CSetObjectTransformCommand::Undo()    { Apply(m_old); }
-void CSetObjectTransformCommand::Redo()    { Apply(m_new); }
+bool CSetObjectTransformCommand::Execute() { Apply(true);  return false == m_objectGuids.empty(); }
+void CSetObjectTransformCommand::Undo()    { Apply(false); }
+void CSetObjectTransformCommand::Redo()    { Apply(true); }
 
 bool CSetObjectTransformCommand::TryMerge(const IEditorCommand& newer)
 {
 	const CSetObjectTransformCommand* other = dynamic_cast<const CSetObjectTransformCommand*>(&newer);
-	if (nullptr == other || false == (m_objectGuid == other->m_objectGuid))
+	if (nullptr == other || m_objectGuids.size() != other->m_objectGuids.size())
 	{
 		return false;
 	}
-	// old(드래그 시작값) 유지, new 만 최신값으로 → undo 1개로 시작↔끝.
-	m_new = other->m_new;
+	for (std::size_t i = 0; i < m_objectGuids.size(); ++i)
+	{
+		if (false == (m_objectGuids[i] == other->m_objectGuids[i]))
+		{
+			return false;
+		}
+	}
+	// 같은 대상 집합 → 델타만 누적(시작값 유지) → undo 1개로 시작↔끝.
+	m_delta.Position.x          += other->m_delta.Position.x;
+	m_delta.Position.y          += other->m_delta.Position.y;
+	m_delta.RotationRadians.Value += other->m_delta.RotationRadians.Value;
+	m_delta.Scale.x             += other->m_delta.Scale.x;
+	m_delta.Scale.y             += other->m_delta.Scale.y;
 	return true;
 }
 

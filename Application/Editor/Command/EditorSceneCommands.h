@@ -134,12 +134,15 @@ private:
 };
 
 // 오브젝트 Transform(Local) 편집. Transform 은 컴포넌트가 아니라 CGameObject 멤버라
-// 컴포넌트 프로퍼티 커맨드 경로를 못 탄다 → 전용 커맨드. 드래그는 TryMerge 로 묶인다.
+// 컴포넌트 프로퍼티 커맨드 경로를 못 탄다 → 전용 커맨드. 다중 선택 지원: 한 번의 편집을
+// 델타로 보고 선택된 모든 오브젝트에 같은 델타를 적용한다(undo 1개). 드래그는 TryMerge 로 묶인다.
+//   delta: Position/Scale 은 가산(+), RotationRadians 도 가산. 각 오브젝트 = old[i] + delta.
 class CSetObjectTransformCommand final : public IEditorCommand
 {
 public:
-	CSetObjectTransformCommand(SafePtr<CScene> scene, CGameObject* object,
-	                           const Transform2D& oldTransform, const Transform2D& newTransform);
+	CSetObjectTransformCommand(SafePtr<CScene> scene,
+	                           const std::vector<CGameObject*>& objects,
+	                           const Transform2D& delta);
 	~CSetObjectTransformCommand() override = default;
 
 	const char* GetName() const override;
@@ -149,12 +152,12 @@ public:
 	bool TryMerge(const IEditorCommand& newer) override;
 
 private:
-	bool Apply(const Transform2D& transform);
+	void Apply(bool withDelta);
 
-	SafePtr<CScene> m_scene;
-	File::Guid  m_objectGuid;
-	Transform2D m_old;
-	Transform2D m_new;
+	SafePtr<CScene>          m_scene;
+	std::vector<File::Guid>  m_objectGuids; // 대상 오브젝트들
+	std::vector<Transform2D> m_oldTransforms; // 드래그 시작 시점 각 오브젝트 Transform(병렬)
+	Transform2D              m_delta;        // 누적 델타(Position/Rotation/Scale 가산)
 };
 
 // 오브젝트(+서브트리) 삭제. Undo 는 직렬화 스냅샷(프리팹 텍스트)으로 복원.
