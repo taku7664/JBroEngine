@@ -36,6 +36,7 @@ public:
 	                 float minDepth = 0.0f, float maxDepth = 1.0f) override;
 	void Draw(std::uint32_t vertexCount, std::uint32_t firstVertex) override;
 	void DrawIndexed(std::uint32_t indexCount, std::uint32_t firstIndex, std::uint32_t baseVertex) override;
+	void DrawIndexedInstanced(std::uint32_t indexCount, std::uint32_t instanceCount, std::uint32_t firstIndex, std::uint32_t baseVertex, std::uint32_t firstInstance) override;
 
 private:
 #if JBRO_RHI_VULKAN

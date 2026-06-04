@@ -1,3 +1,45 @@
+# TODO — Sprite instancing RHI 계약 추가
+
+## Goal
+Sprite batching/instancing을 구현하기 위한 공통 RHI 입력 레이아웃과 instanced draw 명령을 추가한다.
+
+## Assumptions
+- 실제 sprite batch renderer는 다음 단계에서 구현한다.
+- 이번 단계는 D3D11/WebGPU/Vulkan 모두 같은 RHI 계약을 지원하도록 만드는 기반 작업이다.
+- 기존 vertex element는 기본값 `InputSlot=0`, `InputRate=PerVertex`로 유지해 기존 파이프라인 동작을 바꾸지 않는다.
+
+## Success Criteria
+- `RHIVertexElementDesc`가 input slot과 per-vertex/per-instance rate를 표현한다.
+- D3D11/WebGPU/Vulkan pipeline 생성이 slot별 vertex buffer layout을 만든다.
+- D3D11/WebGPU/Vulkan command context가 `DrawIndexedInstanced`를 지원한다.
+- 기존 sprite pipeline은 기존과 동일하게 컴파일된다.
+
+## Plan
+- [x] RHI vertex input contract 확장
+- [x] D3D11/WebGPU/Vulkan pipeline input layout 적용
+- [x] D3D11/WebGPU/Vulkan instanced indexed draw 추가
+- [x] SDK mirror 확인
+- [x] 빌드 검증 및 커밋
+
+## Verification
+- [x] `Debug_Game|x64` build
+- [x] `Debug_Editor|x64` build
+- [x] Web Release build with `SampleProject/Project.Jproject`
+- [x] `git diff --check`
+
+## Review
+- 코드를 읽었고: 기존 RHI vertex input은 slot 0/per-vertex로 고정되어 있고, indexed instanced draw API가 없었다.
+- 생각했고: sprite batching/instancing을 renderer에 직접 넣기 전에 D3D11/WebGPU/Vulkan 공통 계약이 먼저 필요하다.
+- 반례를 찾았고: 한 backend만 임시 구현하면 멀티 플랫폼 렌더러 병렬 개발 규칙을 깨고, Vulkan/WebGPU에서 batch renderer가 막힌다.
+- 고쳤다: `RHIVertexElementDesc`에 `InputSlot`/`InputRate`를 추가하고, `IRHICommandContext::DrawIndexedInstanced`를 공통 API로 추가했다.
+- 추가로 읽었고: WebGPU는 vertex buffer stride가 `sizeof(float) * 4`로 고정되어 있었다.
+- 생각했고: instancing뿐 아니라 다른 vertex layout에서도 잘못된 stride가 될 수 있으므로 slot별 stride 계산이 필요하다.
+- 반례를 찾았고: WebGPU/Vulkan은 vertex buffer slot별 layout이 필요하며 slot 0/1을 안정적으로 써야 한다.
+- 고쳤다: D3D11/WebGPU/Vulkan pipeline 생성이 element의 input slot/rate를 반영하고 slot별 stride를 계산하도록 변경했다.
+- SDK에는 RHI header mirror가 없어 별도 동기화 대상은 없었다.
+
+---
+
 # TODO — RenderScene sort / SpriteRenderSystem 루프 비용 정리
 
 ## Goal

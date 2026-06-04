@@ -496,29 +496,50 @@ OwnerPtr<IRHIGraphicsPipeline> CVulkanRHIDevice::CreateGraphicsPipeline(const RH
 	stages[1].pName = "main";
 
 	std::vector<VkVertexInputAttributeDescription> attributes;
-	std::uint32_t vertexStride = 0;
+	std::vector<VkVertexInputBindingDescription> bindings;
 	for (std::uint32_t i = 0; i < desc.VertexElementCount; ++i)
 	{
 		const RHIVertexElementDesc& element = desc.VertexElements[i];
 		VkVertexInputAttributeDescription attribute = {};
 		attribute.location = i;
-		attribute.binding = 0;
+		attribute.binding = element.InputSlot;
 		attribute.format = ToVulkanVertexFormat(element.Format);
 		attribute.offset = element.Offset;
 		attributes.push_back(attribute);
-		vertexStride = std::max(vertexStride, element.Offset + GetVertexFormatSize(element.Format));
+
+		VkVertexInputBindingDescription* binding = nullptr;
+		for (VkVertexInputBindingDescription& candidate : bindings)
+		{
+			if (candidate.binding == element.InputSlot)
+			{
+				binding = &candidate;
+				break;
+			}
+		}
+		if (nullptr == binding)
+		{
+			VkVertexInputBindingDescription newBinding = {};
+			newBinding.binding = element.InputSlot;
+			newBinding.inputRate = ERHIVertexInputRate::PerInstance == element.InputRate
+				? VK_VERTEX_INPUT_RATE_INSTANCE
+				: VK_VERTEX_INPUT_RATE_VERTEX;
+			bindings.push_back(newBinding);
+			binding = &bindings.back();
+		}
+		binding->stride = std::max(binding->stride, element.Offset + GetVertexFormatSize(element.Format));
 	}
-	VkVertexInputBindingDescription binding = {};
-	binding.binding = 0;
-	binding.stride = vertexStride;
-	binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+	std::sort(bindings.begin(), bindings.end(), [](const VkVertexInputBindingDescription& lhs, const VkVertexInputBindingDescription& rhs)
+		{
+			return lhs.binding < rhs.binding;
+		});
 
 	VkPipelineVertexInputStateCreateInfo vertexInput = {};
 	vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 	if (!attributes.empty())
 	{
-		vertexInput.vertexBindingDescriptionCount = 1;
-		vertexInput.pVertexBindingDescriptions = &binding;
+		vertexInput.vertexBindingDescriptionCount = static_cast<std::uint32_t>(bindings.size());
+		vertexInput.pVertexBindingDescriptions = bindings.data();
 		vertexInput.vertexAttributeDescriptionCount = static_cast<std::uint32_t>(attributes.size());
 		vertexInput.pVertexAttributeDescriptions = attributes.data();
 	}

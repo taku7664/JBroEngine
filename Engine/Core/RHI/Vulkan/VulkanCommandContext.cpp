@@ -425,6 +425,23 @@ void CVulkanCommandContext::DrawIndexed(std::uint32_t indexCount, std::uint32_t 
 #endif
 }
 
+void CVulkanCommandContext::DrawIndexedInstanced(std::uint32_t indexCount, std::uint32_t instanceCount, std::uint32_t firstIndex, std::uint32_t baseVertex, std::uint32_t firstInstance)
+{
+#if JBRO_RHI_VULKAN
+	if (m_commandBuffer != VK_NULL_HANDLE && instanceCount > 0)
+	{
+		BindPendingDescriptors();
+		vkCmdDrawIndexed(m_commandBuffer, indexCount, instanceCount, firstIndex, baseVertex, firstInstance);
+	}
+#else
+	(void)indexCount;
+	(void)instanceCount;
+	(void)firstIndex;
+	(void)baseVertex;
+	(void)firstInstance;
+#endif
+}
+
 #if JBRO_RHI_VULKAN
 void CVulkanCommandContext::DestroyFrameSync()
 {

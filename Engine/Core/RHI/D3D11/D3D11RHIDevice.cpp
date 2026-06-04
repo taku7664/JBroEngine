@@ -457,9 +457,12 @@ OwnerPtr<IRHIGraphicsPipeline> CD3D11RHIDevice::CreateGraphicsPipeline(const RHI
 		d3dElement.SemanticName = element.SemanticName;
 		d3dElement.SemanticIndex = element.SemanticIndex;
 		d3dElement.Format = ToD3DVertexFormat(element.Format);
-		d3dElement.InputSlot = 0;
+		d3dElement.InputSlot = element.InputSlot;
 		d3dElement.AlignedByteOffset = element.Offset;
-		d3dElement.InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
+		d3dElement.InputSlotClass = ERHIVertexInputRate::PerInstance == element.InputRate
+			? D3D11_INPUT_PER_INSTANCE_DATA
+			: D3D11_INPUT_PER_VERTEX_DATA;
+		d3dElement.InstanceDataStepRate = ERHIVertexInputRate::PerInstance == element.InputRate ? 1 : 0;
 		inputElements.push_back(d3dElement);
 	}
 

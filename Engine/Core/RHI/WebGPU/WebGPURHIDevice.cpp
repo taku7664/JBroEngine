@@ -9,7 +9,9 @@
 #include "Core/RHI/WebGPU/WebGPUSwapchain.h"
 #include "Core/RHI/WebGPU/WebGPUTexture.h"
 
+#include <algorithm>
 #include <cstring>
+#include <utility>
 
 #if JBRO_PLATFORM_WEB
 namespace
@@ -77,6 +79,22 @@ namespace
 			return WGPUVertexFormat_Float32x4;
 		default:
 			return WGPUVertexFormat_Float32x3;
+		}
+	}
+
+	std::uint32_t GetVertexFormatSize(ERHIVertexFormat format)
+	{
+		switch (format)
+		{
+		case ERHIVertexFormat::Float2:
+			return sizeof(float) * 2;
+		case ERHIVertexFormat::Float3:
+			return sizeof(float) * 3;
+		case ERHIVertexFormat::Float4:
+		case ERHIVertexFormat::Color4:
+			return sizeof(float) * 4;
+		default:
+			return sizeof(float) * 3;
 		}
 	}
 
@@ -440,24 +458,61 @@ OwnerPtr<IRHIGraphicsPipeline> CWebGPURHIDevice::CreateGraphicsPipeline(const RH
 		return nullptr;
 	}
 
-	std::vector<WGPUVertexAttribute> attributes;
-	std::vector<WGPUVertexBufferLayout> buffers;
+	struct VertexSlotLayout
+	{
+		std::uint32_t Slot = 0;
+		std::uint32_t Stride = 0;
+		ERHIVertexInputRate InputRate = ERHIVertexInputRate::PerVertex;
+		std::vector<WGPUVertexAttribute> Attributes;
+	};
+
+	std::vector<VertexSlotLayout> slotLayouts;
 	for (std::uint32_t i = 0; i < desc.VertexElementCount; ++i)
 	{
 		const RHIVertexElementDesc& element = desc.VertexElements[i];
+		VertexSlotLayout* slotLayout = nullptr;
+		for (VertexSlotLayout& candidate : slotLayouts)
+		{
+			if (candidate.Slot == element.InputSlot)
+			{
+				slotLayout = &candidate;
+				break;
+			}
+		}
+		if (nullptr == slotLayout)
+		{
+			VertexSlotLayout newSlotLayout = {};
+			newSlotLayout.Slot = element.InputSlot;
+			newSlotLayout.InputRate = element.InputRate;
+			slotLayouts.push_back(std::move(newSlotLayout));
+			slotLayout = &slotLayouts.back();
+		}
+
 		WGPUVertexAttribute attribute = {};
 		attribute.format = ToWebGPUVertexFormat(element.Format);
 		attribute.offset = element.Offset;
 		attribute.shaderLocation = i;
-		attributes.push_back(attribute);
+		slotLayout->Attributes.push_back(attribute);
+		slotLayout->Stride = std::max(slotLayout->Stride, element.Offset + GetVertexFormatSize(element.Format));
 	}
 
-	WGPUVertexBufferLayout vertexBufferLayout = {};
-	vertexBufferLayout.arrayStride = sizeof(float) * 4;
-	vertexBufferLayout.stepMode = WGPUVertexStepMode_Vertex;
-	vertexBufferLayout.attributeCount = static_cast<std::uint32_t>(attributes.size());
-	vertexBufferLayout.attributes = attributes.data();
-	buffers.push_back(vertexBufferLayout);
+	std::sort(slotLayouts.begin(), slotLayouts.end(), [](const VertexSlotLayout& lhs, const VertexSlotLayout& rhs)
+		{
+			return lhs.Slot < rhs.Slot;
+		});
+
+	std::vector<WGPUVertexBufferLayout> buffers;
+	for (VertexSlotLayout& slotLayout : slotLayouts)
+	{
+		WGPUVertexBufferLayout vertexBufferLayout = {};
+		vertexBufferLayout.arrayStride = slotLayout.Stride;
+		vertexBufferLayout.stepMode = ERHIVertexInputRate::PerInstance == slotLayout.InputRate
+			? WGPUVertexStepMode_Instance
+			: WGPUVertexStepMode_Vertex;
+		vertexBufferLayout.attributeCount = static_cast<std::uint32_t>(slotLayout.Attributes.size());
+		vertexBufferLayout.attributes = slotLayout.Attributes.data();
+		buffers.push_back(vertexBufferLayout);
+	}
 
 	WGPUColorTargetState colorTarget = {};
 	colorTarget.format = WGPUTextureFormat_BGRA8Unorm;

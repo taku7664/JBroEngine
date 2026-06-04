@@ -60,6 +60,12 @@ enum class ERHIVertexFormat
 	Color4
 };
 
+enum class ERHIVertexInputRate
+{
+	PerVertex,
+	PerInstance
+};
+
 enum class ERHITextureFormat
 {
 	RGBA8
@@ -128,6 +134,8 @@ struct RHIVertexElementDesc
 	std::uint32_t SemanticIndex = 0;
 	ERHIVertexFormat Format = ERHIVertexFormat::Float3;
 	std::uint32_t Offset = 0;
+	std::uint32_t InputSlot = 0;
+	ERHIVertexInputRate InputRate = ERHIVertexInputRate::PerVertex;
 };
 
 enum class ERHIBlendMode

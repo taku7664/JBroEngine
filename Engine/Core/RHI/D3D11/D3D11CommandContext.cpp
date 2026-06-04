@@ -345,3 +345,21 @@ void CD3D11CommandContext::DrawIndexed(std::uint32_t indexCount, std::uint32_t f
 	(void)baseVertex;
 #endif
 }
+
+void CD3D11CommandContext::DrawIndexedInstanced(std::uint32_t indexCount, std::uint32_t instanceCount, std::uint32_t firstIndex, std::uint32_t baseVertex, std::uint32_t firstInstance)
+{
+#if JBRO_PLATFORM_WINDOWS
+	if (nullptr == m_deviceContext || 0 == instanceCount)
+	{
+		return;
+	}
+
+	m_deviceContext->DrawIndexedInstanced(indexCount, instanceCount, firstIndex, baseVertex, firstInstance);
+#else
+	(void)indexCount;
+	(void)instanceCount;
+	(void)firstIndex;
+	(void)baseVertex;
+	(void)firstInstance;
+#endif
+}

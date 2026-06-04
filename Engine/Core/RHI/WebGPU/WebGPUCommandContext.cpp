@@ -300,6 +300,27 @@ void CWebGPUCommandContext::DrawIndexed(std::uint32_t indexCount, std::uint32_t 
 #endif
 }
 
+void CWebGPUCommandContext::DrawIndexedInstanced(std::uint32_t indexCount, std::uint32_t instanceCount, std::uint32_t firstIndex, std::uint32_t baseVertex, std::uint32_t firstInstance)
+{
+#if JBRO_PLATFORM_WEB
+	if (m_renderPass && instanceCount > 0)
+	{
+		WGPUBindGroup bindGroup = GetOrCreateCurrentBindGroup();
+		if (bindGroup)
+		{
+			wgpuRenderPassEncoderSetBindGroup(m_renderPass, 0, bindGroup, 0, nullptr);
+		}
+		wgpuRenderPassEncoderDrawIndexed(m_renderPass, indexCount, instanceCount, firstIndex, baseVertex, firstInstance);
+	}
+#else
+	(void)indexCount;
+	(void)instanceCount;
+	(void)firstIndex;
+	(void)baseVertex;
+	(void)firstInstance;
+#endif
+}
+
 #if JBRO_PLATFORM_WEB
 void CWebGPUCommandContext::ReleaseFrameObjects()
 {
