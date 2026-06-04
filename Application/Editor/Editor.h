@@ -11,6 +11,7 @@
 #include "Utillity/Pointer/SafePtr.h"
 
 #include <algorithm>
+#include <unordered_set>
 #include <vector>
 
 class CImEditor;
@@ -118,6 +119,35 @@ public:
 	static CGameObject* GetSelectedEntity()
 	{
 		return m_primarySelected.TryGet();
+	}
+
+	// ── 선택 중 "최상위"만 (조상이 선택돼 있으면 제외) ───────────────────────
+	// Transform 편집(인스펙터/기즈모 공용): 부모가 선택돼 있으면 자식은 부모 따라
+	// 움직이므로 중복 적용 금지. 부모+자식 동시 선택 시 부모만 반환.
+	static std::vector<CGameObject*> GetSelectedTopLevel()
+	{
+		std::vector<CGameObject*> live = GetSelectedEntities();
+		std::unordered_set<const CGameObject*> selectedSet(live.begin(), live.end());
+
+		std::vector<CGameObject*> roots;
+		roots.reserve(live.size());
+		for (CGameObject* object : live)
+		{
+			bool ancestorSelected = false;
+			for (CGameObject* p = object->GetParent().TryGet(); p; p = p->GetParent().TryGet())
+			{
+				if (selectedSet.count(p) > 0)
+				{
+					ancestorSelected = true;
+					break;
+				}
+			}
+			if (false == ancestorSelected)
+			{
+				roots.push_back(object);
+			}
+		}
+		return roots;
 	}
 
 	static void ClearSelection()

@@ -1340,7 +1340,8 @@ void CInspectorTool::OnRenderStay()
 			delta.Scale.y             = t.Scale.y - before.Scale.y;
 
 			t = before; // primary 라이브 변경 취소 → 커맨드가 전체에 균일 적용.
-			std::vector<CGameObject*> targets = Editor::GetSelectedEntities();
+			// 부모+자식 동시 선택 시 부모만(자식은 부모 따라 이동) — 최상위만 타깃.
+			std::vector<CGameObject*> targets = Editor::GetSelectedTopLevel();
 			Editor::CommandManager.ExecuteCommand(
 				MakeOwnerPtr<CSetObjectTransformCommand>(scene->SafeFromThis(), targets, delta));
 		};

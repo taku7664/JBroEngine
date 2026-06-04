@@ -6,7 +6,7 @@
 #include "Editor/Editor.h"
 #include "Engine/Core/Asset/IAssetManager.h"
 #include "Engine/Core/Asset/SpriteAsset.h"
-#include "Engine/Core/Asset/SpriteAsset.h"
+#include "Engine/Core/EngineCore.h" // Engine.PixelsPerUnit (렌더 finalSize 계약)
 #include "Engine/GameFramework/Object/GameObject.h"
 #include "Engine/GameFramework/Component/SpriteRenderer2D.h"
 #include "Engine/GameFramework/Component/Transform2D.h"
@@ -124,6 +124,29 @@ namespace
         return r;
     }
 
+    // 스프라이트의 월드 크기 = 렌더러(CSpriteRenderSystem)와 동일 계약.
+    //   자산 있음 → (픽셀크기 / 유효PPU) × sprite.Size,  없음 → sprite.Size.
+    // 피커 OBB 가 실제 렌더 크기와 일치해야 스케일 반영된 클릭이 맞는다.
+    Vector2 ComputeSpriteWorldSize(IAssetManager* assetMgr, const SpriteRenderer2D& sprite)
+    {
+        Vector2 finalSize = sprite.Size;
+        if (assetMgr && sprite.SpriteGuid != INVALID_ASSET_GUID)
+        {
+            AssetRef<IAsset> asset = assetMgr->FindLoadedAsset(sprite.SpriteGuid);
+            if (asset && EAssetType::Sprite == asset->GetAssetType())
+            {
+                const CSpriteAsset* spriteAsset = static_cast<const CSpriteAsset*>(asset.Get());
+                const float effectivePPU = spriteAsset->GetEffectivePixelsPerUnit(Engine.PixelsPerUnit);
+                if (effectivePPU > 0.0f)
+                {
+                    finalSize.x = (static_cast<float>(spriteAsset->GetWidth())  / effectivePPU) * sprite.Size.x;
+                    finalSize.y = (static_cast<float>(spriteAsset->GetHeight()) / effectivePPU) * sprite.Size.y;
+                }
+            }
+        }
+        return finalSize;
+    }
+
 } // anonymous namespace
 
 // ── CSceneViewEditContext implementation ─────────────────────────────────────
@@ -158,9 +181,10 @@ CGameObject* CSceneViewEditContext::Pick(
                 if (owner != context && !IsDescendantOfObj(owner, context)) return;
             }
 
-            // OBB 히트 테스트
+            // OBB 히트 테스트 — 렌더와 동일한 월드 크기(자산 픽셀/PPU 반영).
+            const Vector2 worldSize = ComputeSpriteWorldSize(assetMgr, sprite);
             const Matrix3x2 spriteMat =
-                Matrix3x2::Transform(sprite.Offset, 0.0f, sprite.Size)
+                Matrix3x2::Transform(sprite.Offset, 0.0f, worldSize)
                 * GetWorldTransform(*owner);
             Matrix3x2 inv;
             if (!spriteMat.TryInvert(inv)) return;
@@ -245,8 +269,9 @@ std::vector<CGameObject*> CSceneViewEditContext::PickBox(
             const SpriteRenderer2D* sprite = object.GetComponent<SpriteRenderer2D>();
             if (sprite && sprite->IsEnabled)
             {
+                const Vector2 worldSize = ComputeSpriteWorldSize(assetMgr, *sprite);
                 const Matrix3x2 spriteMat =
-                    Matrix3x2::Transform(sprite->Offset, 0.0f, sprite->Size)
+                    Matrix3x2::Transform(sprite->Offset, 0.0f, worldSize)
                     * entityWorldMat;
 
                 // 픽셀 기반 tight AABB 시도
