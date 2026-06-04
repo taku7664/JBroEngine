@@ -1,3 +1,39 @@
+# TODO — Engine-wide Code Audit
+
+## Goal
+엔진 전체 소스에서 데드코드, 이상한 구조, 버그 가능 코드, 최적화 후보를 찾아 근거와 함께 md 문서로 정리한다.
+
+## Assumptions
+- 검토 대상은 `Application/`, `Engine/`, `SDK/Include/`, `BuildScripts/`, `SampleProject/`, `Samples/`이다.
+- `Build/`, `.git/`, `Engine/ThirdParty/`는 산출물/외부 소스라 제외한다.
+- 이번 작업은 수정이 아니라 발견/분류/권장 작업 문서화가 목표다.
+
+## Success Criteria
+- 각 finding은 파일/라인 근거를 가진다.
+- severity, category, impact, recommendation을 적는다.
+- 불확실한 항목은 추정으로 명시하고 과장하지 않는다.
+- 문서는 처음 보는 사람이 다음 작업 우선순위를 잡을 수 있게 작성한다.
+
+## Plan
+- [x] 전체 파일/모듈 구조 스캔
+- [x] 정적 패턴 검색으로 위험 후보 수집
+- [x] 후보별 주변 코드 읽고 반례 확인
+- [x] `tasks/EngineCodeAudit.md` 작성
+- [x] 문서 검토 및 커밋
+
+## Verification
+- [x] `rg` 기반 정적 검색 수행
+- [x] 주요 후보 파일 직접 열람
+- [x] `git diff --check`
+
+## Review
+- 코드를 읽었고: `Application/`, `Engine/`, `SDK/Include/`, `BuildScripts/`, `SampleProject/`, `Samples/`에서 build/package/runtime/render/asset/editor 후보를 `rg`로 먼저 모았다.
+- 생각했고: 이번 감사의 핵심은 단순 dead code보다 빌드 산출 계약, pack 보호 계약, RHI별 병렬성, editor/runtime 분리의 drift 여부라고 판단했다.
+- 반례를 찾았고: `RenderScene::Sort()` 반복 호출처럼 겉보기엔 의심스럽지만 `m_needsSort` guard가 있는 항목은 낮은 우선순위로 내렸다.
+- 문서화했다: `tasks/EngineCodeAudit.md`에 severity/category/impact/recommendation과 확인한 반례를 분리해 기록했다.
+
+---
+
 # TODO — SceneView Translate Arrow Line Trim
 
 ## Goal
