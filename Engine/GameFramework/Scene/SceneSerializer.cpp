@@ -73,6 +73,11 @@ ESceneSerializeResult CSceneSerializer::SerializeToText(const CScene& scene, std
 	std::vector<CGameObject*> objectList;
 	const_cast<CScene&>(scene).ForEachObject([&](CGameObject& obj) { objectList.push_back(&obj); });
 
+	// 생성순서로 저장 → 로드 시 파일 순서대로 CreationOrder 가 재부여되어 표시 순서가 보존된다
+	// (풀 슬롯 순회 순서는 생성순서와 무관).
+	std::sort(objectList.begin(), objectList.end(),
+		[](const CGameObject* a, const CGameObject* b) { return a->CreationOrder < b->CreationOrder; });
+
 	std::unordered_map<const CGameObject*, int> indexOf;
 	for (std::size_t i = 0; i < objectList.size(); ++i)
 	{

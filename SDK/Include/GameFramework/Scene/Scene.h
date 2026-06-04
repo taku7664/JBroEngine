@@ -214,6 +214,7 @@ private:
 
 private:
 	TObjectPool<CGameObject>           m_objectPool;
+	std::uint64_t                      m_nextCreationOrder = 0; // 단조 증가 — 하이라키 정렬 키
 	std::vector<PoolEntry>             m_componentPools;   // sorted by Key
 	OwnerPtr<CTransformSystem>         m_transformSystem;
 	OwnerPtr<CPhysics2DSystem>         m_physicsSystem;

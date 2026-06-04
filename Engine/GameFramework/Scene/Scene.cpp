@@ -37,7 +37,12 @@ CScene::~CScene()
 CGameObject* CScene::CreateGameObject(const char* name)
 {
 	const File::Guid guid = File::GenerateGuid();
-	return m_objectPool.Allocate(*this, name, guid);
+	CGameObject* object = m_objectPool.Allocate(*this, name, guid);
+	if (object)
+	{
+		object->CreationOrder = m_nextCreationOrder++;
+	}
+	return object;
 }
 
 bool CScene::DestroyGameObject(CGameObject* gameObject)

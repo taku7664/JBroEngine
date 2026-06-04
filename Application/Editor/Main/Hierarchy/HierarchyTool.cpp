@@ -18,6 +18,7 @@
 
 #include <vector>
 
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <functional>
@@ -87,6 +88,19 @@ void CHierarchyTool::OnRenderStay()
 		{
 			rootIndices.push_back(i);
 		}
+	}
+
+	// 표시 순서 = 생성순서. 풀 슬롯 순회 순서는 생성순서와 무관(할당 역순·슬롯 재사용)하므로
+	// 루트와 각 형제 그룹을 CreationOrder 로 정렬한다 → 새 오브젝트는 맨 아래, 시뮬 정지/재사용
+	// 후에도 순서 불변.
+	auto byCreationOrder = [&objects](std::size_t a, std::size_t b)
+	{
+		return objects[a]->CreationOrder < objects[b]->CreationOrder;
+	};
+	std::sort(rootIndices.begin(), rootIndices.end(), byCreationOrder);
+	for (auto& entry : childrenByParent)
+	{
+		std::sort(entry.second.begin(), entry.second.end(), byCreationOrder);
 	}
 
 	// ── 드래그 중 "루트로 이동" 드롭 존 (상단) ─────────────────────────────────

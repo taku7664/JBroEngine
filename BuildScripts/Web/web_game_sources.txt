@@ -11,6 +11,7 @@ Engine/Core/Asset/AssetPackage.cpp
 Engine/Core/Asset/AssetPath.cpp
 Engine/Core/Asset/AssetRegistry.cpp
 Engine/Core/Asset/AudioAsset.cpp
+Engine/Core/Asset/AudioEffectAsset.cpp
 Engine/Core/Asset/FileAsset.cpp
 Engine/Core/Asset/MaterialAsset.cpp
 Engine/Core/Asset/SpriteAsset.cpp
@@ -65,7 +66,6 @@ Engine/GameFramework/Scene/SceneManager.cpp
 Engine/GameFramework/Scene/SceneSerializer.cpp
 Engine/GameFramework/Serialization/ComponentSerializer.cpp
 Engine/GameFramework/Serialization/ObjectSerializer.cpp
-Engine/GameFramework/Scene/SceneSnapshot.cpp
 Engine/GameFramework/Scripting/GameScript.cpp
 Engine/GameFramework/Scripting/ScriptSystem.cpp
 Engine/GameFramework/System/GameSystem.cpp

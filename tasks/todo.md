@@ -1,101 +1,48 @@
-# TODO — Forward2DRenderer constant buffer 병목 제거
+# TODO — 하이라키 오브젝트 순서 안정화
 
 ## Goal
-스프라이트 draw마다 constant buffer를 생성하는 렌더 병목을 제거하고, D3D11/WebGPU/Vulkan 병렬 RHI 기준으로 안전한 재사용 구조를 만든다.
+오브젝트 추가 시 하이라키 "맨 아래"에 쌓이고, 시뮬레이션 정지 후에도 순서가 유지되도록 안정적인 생성순서 키를 도입한다.
+
+## 근본 원인
+하이라키 표시 순서 = `CScene::ForEachObject`(= 풀 슬롯 순회) 순서. 풀 슬롯 순서는 생성순서와 무관하다.
+- 신규: `AddChunk` 가 free list 를 slot9→slot0 로 쌓아 할당은 slot9 부터, 순회는 slot0 부터 → 역순. 새 오브젝트가 위로 쌓임.
+- 시뮬정지: 스폰/파괴로 슬롯이 free list 에 LIFO 재배치 → 재사용 순서가 원래 위치와 어긋나 순회 순서가 섞임.
 
 ## Assumptions
-- 단일 constant buffer를 draw마다 덮어쓰는 방식은 Vulkan/WebGPU에서 같은 프레임 내 이전 draw가 마지막 상수값을 읽는 반례가 있다.
-- 렌더러는 RHI frame 시작 이후, render pass들보다 먼저 frame-local 자원 cursor를 리셋할 수 있다.
+- 자식 순서도 풀 순회 기반(`childrenByParent`)이라 동일 증상 → 같은 키로 해결.
+- CreationOrder 는 런타임/직렬화 양쪽에서 순서 기준이 되며, 저장 목록도 같은 키로 정렬해야 reload 후에도 일관.
 
 ## Success Criteria
-- `Forward2DRenderer`의 per-sprite `CreateBuffer` 호출이 제거된다.
-- `RenderImpl`, `RenderFiltered`, `FillViewportColor`가 frame-local constant buffer pool을 공유한다.
-- WebGPU도 `UpdateBuffer`를 구현해 공통 renderer path를 지원한다.
-- D3D11/WebGPU/Vulkan의 동작 차이를 문서/보고에 명시한다.
+- 새 오브젝트가 하이라키 맨 아래에 추가된다(형제 그룹 내 마지막).
+- 시뮬레이션 정지 후 순서 불변.
+- 저장→로드 후 순서 보존.
 
 ## Plan
-- [x] 현재 per-draw buffer 생성 경로 확인
-- [x] 렌더러 frame begin hook 추가
-- [x] sprite constant buffer pool 적용
-- [x] WebGPU `UpdateBuffer` 구현
-- [x] 렌더 병목 후보 검토 정리
-- [x] 빌드/정적 검증
+- [ ] CGameObject: `std::uint64_t CreationOrder = 0;` 추가(비직렬화 — 로드 시 파일 순서로 재할당)
+- [ ] CScene: `m_nextCreationOrder` 카운터, `CreateGameObject` 에서 할당
+- [ ] HierarchyTool: root/형제 그룹을 CreationOrder 로 정렬
+- [ ] SceneSerializer: 저장 목록을 CreationOrder 로 정렬(reload 일관성)
+- [ ] 빌드 Debug_Editor + Debug_Game
 
 ## Verification
-- [x] `rg "CreateBuffer\\(.*constant|CreateBuffer\\(.*cb" Engine/Core/Renderer/Forward2DRenderer.cpp`
-- [x] `Debug_Game|x64` build
-- [x] `Debug_Editor|x64` build
-- [x] `git diff --check`
+- [ ] 빌드 양쪽 EXIT 0
+- [ ] 동작: 오브젝트 추가 → 맨 아래 / 시뮬 정지 → 순서 유지 (사용자 확인)
 
 ## Review
-- 코드를 읽었고: `RenderImpl`, `RenderFiltered`, `FillViewportColor`가 draw마다 constant buffer를 `CreateBuffer`로 생성했다.
-- 생각했고: 단일 reusable constant buffer는 D3D11에서는 가능성이 있지만 Vulkan/WebGPU에서는 같은 프레임 내 draw들이 마지막 업데이트 값을 읽을 수 있다.
-- 반례를 찾았고: Vulkan/WebGPU command recording은 buffer binding이 데이터 snapshot이 아니므로 같은 buffer overwrite는 안전하지 않다.
-- 고쳤다: `IRenderer::BeginFrame`에서 frame-local cursor를 리셋하고, draw마다 pool의 서로 다른 constant buffer를 업데이트/바인딩하도록 변경했다.
-- WebGPU는 기존에 `UpdateBuffer`가 없어 공통 renderer path가 깨지므로 `wgpuQueueWriteBuffer` 기반 override를 추가했다.
-- 남은 병목 후보: WebGPU per-draw bind group 생성, Vulkan per-draw descriptor set allocate/update, sprite batching/instancing 부재, 다중 pass에서 반복 sort/state bind.
-- Web 빌드는 `C:\Users\박주형\Desktop\Project\Project.Jproject`가 현재 존재하지 않아 확인하지 못했다.
 
----
+### 하이라키 순서 (CreationOrder)
+- 원인: 표시 순서가 풀 슬롯 순회 순서였고, 슬롯 순서는 생성순서와 무관(할당 역순·재사용 섞임).
+- 수정: CGameObject.CreationOrder(단조), CreateGameObject 부여, Hierarchy root/형제 정렬, SceneSerializer 저장 정렬.
+- 검증: Game 컴파일+링크 클린(exe 생성), Editor 컴파일 클린(링크는 exe 실행중 잠금=코드무관).
 
-# TODO — RHI 병렬 개발 문서화 및 main 머지
+### 게임 빌드 실패 2건 (이 세션 추가 발견)
+1. Web 링크: `web_game_sources.txt` 에 삭제된 SceneSnapshot.cpp 잔존 + 신규 AudioEffectAsset.cpp 누락
+   → SceneSnapshot 제거, AudioEffectAsset 추가. (SceneDebugDrawSystem 은 에디터 전용이라 제외 유지)
+2. 에셋팩 실패(Windows+Web 공통): `.jfx`(AudioEffect) 메타가 Type=Unknown 으로 저장돼 패키징 첫 분기 거부.
+   근본: AssetMetaFile ToString/ParseType 에 AudioEffect 분기 누락(과거 Audio 와 동일 버그 재발).
+   → 두 곳에 AudioEffect 추가. 기존 자가복구(Importer→ParseType)가 디스크의 Type:Unknown 메타도 로드시 회복.
+- 검증: Engine.lib Debug_Editor EXIT 0.
 
-## Goal
-RHI/Renderer 공통 개발 원칙을 문서로 남기고 `vulkan` 브랜치를 `main`에 병합한다.
-
-## Assumptions
-- 현재 작업 브랜치는 `vulkan`이다.
-- "main에 머지"는 `vulkan`의 현재 커밋을 `main` 브랜치로 병합한다는 뜻이다.
-
-## Success Criteria
-- D3D11/WebGPU/Vulkan 병렬 개발 기준이 md 문서에 기록된다.
-- 문서 변경이 커밋된다.
-- `main` 브랜치가 `vulkan` 변경을 포함한다.
-- 병합 후 git 상태가 깨끗하다.
-
-## Plan
-- [x] RHI/Renderer 공통 개발 문서 작성
-- [x] 문서 변경 커밋
-- [x] `main` checkout 후 `vulkan` merge
-- [x] 병합 상태 확인
-
-## Verification
-- [x] `git status --short --branch`
-- [x] `git log --oneline --decorate -5`
-
-## Review
-- RHI/Renderer 병렬 개발 원칙은 `tasks/RhiRendererParallelDevelopment.md`에 별도 문서로 기록했다.
-- `vulkan` 브랜치의 Vulkan 기반 작업과 공통 개발 문서가 `main`에 병합됐다.
-- 병합은 충돌 없이 완료됐다.
-
----
-
-# TODO — 정수 ID 전면 제거 (ObjectId → SafePtr/void*/Guid)
-
-## Goal
-ECS 잔재 정수 식별자(`ObjectId`/`GetId()`/`FindObjectById`) 전면 제거.
-- 에디터 선택/픽킹/커맨드 → `SafePtr<CGameObject>` (undo 내구성 필요분 `InstanceGuid`)
-- 렌더/디버그 외곽선 태그 → `const void*` (역참조 안 함, 프레임 한정 비교 키, Core 레이어)
-- 핫리로드 스냅샷 → `InstanceGuid`
-
-## Success Criteria
-- `ObjectId`/`INVALID_OBJECT_ID`/`GetId()`/`FindObjectById` 0개(렌더 태그 alias 제외).
-- Debug_Editor + Debug_Game + Sample GameScript.dll green.
-
-## Plan
-- [ ] S1 Core 태그: RendererTypes/DebugDraw2D `=const void*`, 생산/소비 포인터 키
-- [ ] S2 GameFramework: SceneTypes ObjectId 제거, GameObject::GetId 제거, Scene::FindObjectById 제거(FindByInstanceGuid 유지)
-- [ ] S3 ImEditor: 포커스셋 const void*
-- [ ] S4 SceneDebugDrawSystem 태그 포인터화
-- [ ] S5 LiveCompile snapshot.Entity → InstanceGuid
-- [ ] S6 Editor.h 선택 SafePtr<CGameObject>
-- [ ] S7 EditorSceneCommands 식별 InstanceGuid/SafePtr
-- [ ] S8 EditorDragDrop 페이로드 CGameObject*
-- [ ] S9 소비자 Hierarchy/Inspector/SceneViewTool/EditContext/Contour/GuiHelpers
-- [ ] S10 빌드 green
-
-## Verification
-- [ ] grep 잔존 0 / 3빌드 green
-
-## Review
-(작성 예정)
+### Not Verified
+- 실제 게임 빌드(Windows/Web) 재실행 후 통과 여부 — 사용자 확인 필요.
+- 하이라키 동작(추가→맨아래 / 시뮬정지→순서유지) 런타임 확인 — 사용자 확인 필요.

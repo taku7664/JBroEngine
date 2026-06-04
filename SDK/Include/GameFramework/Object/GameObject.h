@@ -57,6 +57,11 @@ public:
 	BitFlag       Flags;          // EObjectFlags. 직렬화됨. 확장용(예: EditorHidden).
 	File::Guid    InstanceGuid;
 
+	// 생성순서 키 — 하이라키 표시/저장 정렬용. 풀 슬롯 순회 순서는 생성순서와 무관하므로
+	// (할당 역순·슬롯 재사용) 이 단조 증가 값으로 형제 그룹을 정렬한다. 직렬화하지 않는다
+	// (로드 시 파일 순서대로 CreateGameObject 가 다시 부여 → 파일 순서 = 표시 순서).
+	std::uint64_t CreationOrder = 0;
+
 	// ── 플래그 편의 ──────────────────────────────────────────────────────────
 	bool IsEditorHidden() const { return Flags.Has(ObjectFlag_EditorHidden); }
 	void SetEditorHidden(bool hidden)

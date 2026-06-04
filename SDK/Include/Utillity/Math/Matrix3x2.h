@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Vector2T.h"
-
+#include "Utillity/Types/Radian.h"
 #include <cmath>
 
 // 2D affine transform only. Use a separate Matrix4x4 type for future 3D paths.
@@ -35,7 +35,7 @@ struct Matrix3x2
 		return matrix;
 	}
 
-	static Matrix3x2 Rotation(float radians)
+	static Matrix3x2 Rotation(Radian radians)
 	{
 		const float c = std::cos(radians);
 		const float s = std::sin(radians);
@@ -48,7 +48,7 @@ struct Matrix3x2
 		return matrix;
 	}
 
-	static Matrix3x2 Transform(const Vector2& translation, float rotationRadians, const Vector2& scale)
+	static Matrix3x2 Transform(const Vector2& translation, Radian rotationRadians, const Vector2& scale)
 	{
 		return Scale(scale) * Rotation(rotationRadians) * Translation(translation);
 	}

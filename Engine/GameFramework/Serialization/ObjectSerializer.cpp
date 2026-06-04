@@ -19,7 +19,7 @@ namespace
 		YAML::Node scl(YAML::NodeType::Sequence); scl.push_back(t.Scale.x);    scl.push_back(t.Scale.y);
 		YAML::Node node(YAML::NodeType::Map);
 		node["Position"]        = pos;
-		node["RotationRadians"] = t.RotationRadians;
+		node["RotationRadians"] = t.RotationRadians.Value;
 		node["Scale"]           = scl;
 		return node;
 	}

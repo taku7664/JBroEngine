@@ -468,7 +468,7 @@ namespace
 	{
 		YAML::Node node(YAML::NodeType::Map);
 		node["Position"]        = WriteVector2(transform.Position);
-		node["RotationRadians"] = transform.RotationRadians;
+		node["RotationRadians"] = transform.RotationRadians.Value;
 		node["Scale"]           = WriteVector2(transform.Scale);
 		return node;
 	}
@@ -477,7 +477,7 @@ namespace
 	{
 		if (!node) return;
 		ReadVector2(node["Position"], transform.Position);
-		ReadValue(node, "RotationRadians", transform.RotationRadians);
+		ReadValue(node, "RotationRadians", transform.RotationRadians.Value);
 		ReadVector2(node["Scale"], transform.Scale);
 	}
 

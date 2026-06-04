@@ -248,6 +248,8 @@ const char* CAssetMetaFile::ToString(EAssetType type)
 		return "Script";
 	case EAssetType::Audio:
 		return "Audio";
+	case EAssetType::AudioEffect:
+		return "AudioEffect";
 	case EAssetType::Custom:
 		return "Custom";
 	default:
@@ -267,6 +269,7 @@ EAssetType CAssetMetaFile::ParseType(const std::string& value)
 	if (value == "Prefab") return EAssetType::Prefab;
 	if (value == "Script") return EAssetType::Script;
 	if (value == "Audio")  return EAssetType::Audio;
+	if (value == "AudioEffect") return EAssetType::AudioEffect;
 	if (value == "Custom") return EAssetType::Custom;
 	return EAssetType::Unknown;
 }

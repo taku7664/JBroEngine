@@ -1229,10 +1229,6 @@ void CInspectorTool::OnDestroy()
 	AssetInspectorPreview::ShutdownAll();
 }
 
-void CInspectorTool::OnUpdate()
-{
-}
-
 void CInspectorTool::OnRenderStay()
 {
 	// 매 프레임 초기화: 컴포넌트 미표시 상태가 기본값
@@ -1301,56 +1297,57 @@ void CInspectorTool::OnRenderStay()
 	}
 
 	// ── GameObject 인라인 표시 (CGameObject 직접 편집) ──────────────────────────
-	ImGui::TextUnformatted(selectedObject->GetName());
-	EditorGuiDrawHelpers::DrawAddComponentButton(*scene, selectedObject);
-
-	ImGui::Spacing();
 	{
-		bool active = selectedObject->IsActive;
-		if (ImGui::Checkbox(Loc::TextOr("editor.property.IsActive", "Active"), &active))
-			selectedObject->SetActive(active);
+		ImGui::Utillity::FormLayout layout("##game_object_inline", 4.0f, { 2.0f, 1.0f });
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::TextOr("editor.property.IsActive", "Active")); }, [&]() {
+			ImGui::Checkbox("##editor.property.IsActive", &selectedObject->IsActive);
+		});
 
-		char nameBuf[256];
-		snprintf(nameBuf, sizeof(nameBuf), "%s", selectedObject->GetName());
-		ImGui::SetNextItemWidth(-FLT_MIN);
-		if (ImGui::InputText("##go_name", nameBuf, sizeof(nameBuf)))
-			selectedObject->SetName(nameBuf);
+		ImInputText nameInput("##go_name");
+		nameInput.SetHintText(Loc::TextOr("editor.property.Name", "Name"));
+		nameInput.SetText(selectedObject->GetName());
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::TextOr("editor.property.Name", "Name")); }, [&]() {
+			if (nameInput())
+			{
+				selectedObject->SetName(nameInput);
+			}
+		});
 
-		// Tag — 자유 분류 문자열.
-		char tagBuf[256];
-		snprintf(tagBuf, sizeof(tagBuf), "%s", selectedObject->Tag.c_str());
-		ImGui::SetNextItemWidth(-FLT_MIN);
-		if (ImGui::InputTextWithHint("##go_tag", Loc::TextOr("editor.property.Tag", "Tag"), tagBuf, sizeof(tagBuf)))
-			selectedObject->Tag = tagBuf;
-	}
-	ImGui::Separator();
-	ImGui::Spacing();
+		ImInputText tagInput("##go_tag");
+		tagInput.SetHintText(Loc::TextOr("editor.property.Tag", "Tag"));
+		tagInput.SetText(selectedObject->Tag.c_str());
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::TextOr("editor.property.Tag", "Tag")); }, [&]() {
+			if (tagInput())
+			{
+				selectedObject->Tag = tagInput;
+			}
+		});
 
-	// ── Transform (오브젝트 멤버 — 컴포넌트 아님, 인스펙터에만 표시) ───────────────
-	{
-		ImGui::TextUnformatted(Loc::TextOr("editor.component.Transform2D", "Transform"));
+		ImGui::Spacing();
+
 		Transform2D& t = selectedObject->GetTransform();
 
-		float pos[2] = { t.Position.x, t.Position.y };
-		ImGui::SetNextItemWidth(-FLT_MIN);
-		if (ImGui::DragFloat2(Loc::TextOr("editor.property.Position", "Position"), pos, 0.01f))
-			t.Position = Vector2(pos[0], pos[1]);
+		// Position
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::TextOr("editor.property.Position", "Position")); }, [&]() {
+			ImGui::DragFloat2(Loc::TextOr("editor.property.Position", "Position"), &t.Position.x, 0.01f);
+		});
 
-		// 회전은 내부 radian, 표시/편집은 degree.
-		constexpr float RAD2DEG = 57.2957795131f;   // 180/π
-		constexpr float DEG2RAD = 0.01745329252f;   // π/180
-		float degrees = t.RotationRadians * RAD2DEG;
-		ImGui::SetNextItemWidth(-FLT_MIN);
-		if (ImGui::DragFloat(Loc::TextOr("editor.property.RotationRadians", "Rotation"), &degrees, 0.5f))
-			t.RotationRadians = degrees * DEG2RAD;
+		// Rotation - 회전은 내부 radian, 표시/편집은 degree.
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::TextOr("editor.property.RotationRadians", "Rotation")); }, [&]() {
+			Degree degrees = t.RotationRadians.ToDegree();
+			if (ImGui::DragFloat(Loc::TextOr("editor.property.RotationRadians", "Rotation"), &degrees.Value, 0.5f))
+				t.RotationRadians = degrees.ToRadian();
+		});
 
-		float scale[2] = { t.Scale.x, t.Scale.y };
-		ImGui::SetNextItemWidth(-FLT_MIN);
-		if (ImGui::DragFloat2(Loc::TextOr("editor.property.Scale", "Scale"), scale, 0.01f))
-			t.Scale = Vector2(scale[0], scale[1]);
+		// Scale
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::TextOr("editor.property.Scale", "Scale")); }, [&]() {
+			ImGui::DragFloat2(Loc::TextOr("editor.property.Scale", "Scale"), &t.Scale.x, 0.01f);
+			});
 	}
-	ImGui::Separator();
-	ImGui::Spacing();
+
+	ImText separatorText;
+	separatorText.UseSeparator(true);
+	separatorText(Loc::Text("editor.category.Components"));
 
 	// ── 목록 항목 빌드 (GameObject 제외) ──────────────────────────────────────
 	struct ListEntry
