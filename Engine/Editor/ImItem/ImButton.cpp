@@ -8,7 +8,7 @@ bool ImTextButton(const char* label, const ImVec2& size, const ImVec2& offset, I
 	const ImVec2 textSize = ImGui::CalcTextSize(label);
 	ImGui::Utillity::StyleBuilder styleBuilder;
 	styleBuilder.PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-	styleBuilder.PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 100));
+	styleBuilder.PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0));
 	styleBuilder.PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0, 0, 0, 0));
 	ImGui::PushID(label);
 	bool pressed = ImGui::ButtonEx("", size, flags);
@@ -32,7 +32,7 @@ bool ImTextButton(ImText text, const char* label, const ImVec2& size, const ImVe
 	const ImVec2 startCursor = ImGui::GetCursorPos();
 	ImGui::Utillity::StyleBuilder styleBuilder;
 	styleBuilder.PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-	styleBuilder.PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 100));
+	styleBuilder.PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0));
 	styleBuilder.PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0, 0, 0, 0));
 	ImGui::PushID(label);
 	const bool pressed = ImGui::ButtonEx("", size, flags);
