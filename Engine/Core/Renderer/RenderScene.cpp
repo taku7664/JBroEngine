@@ -4,10 +4,16 @@
 void CRenderScene::Clear()
 {
 	m_renderItems.clear();
+	m_needsSort = false;
 }
 
 void CRenderScene::Submit(const RenderItem& item)
 {
+	if (false == m_renderItems.empty()
+		&& ShouldSortBefore(item, m_renderItems.back()))
+	{
+		m_needsSort = true;
+	}
 	m_renderItems.push_back(item);
 }
 
@@ -23,12 +29,20 @@ const RenderItem* CRenderScene::GetRenderItems() const
 
 void CRenderScene::Sort()
 {
-	std::sort(m_renderItems.begin(), m_renderItems.end(), [](const RenderItem& lhs, const RenderItem& rhs)
-		{
-			if (lhs.Queue != rhs.Queue)
-			{
-				return static_cast<int>(lhs.Queue) < static_cast<int>(rhs.Queue);
-			}
-			return lhs.SortOrder < rhs.SortOrder;
-		});
+	if (false == m_needsSort)
+	{
+		return;
+	}
+
+	std::sort(m_renderItems.begin(), m_renderItems.end(), ShouldSortBefore);
+	m_needsSort = false;
+}
+
+bool CRenderScene::ShouldSortBefore(const RenderItem& lhs, const RenderItem& rhs)
+{
+	if (lhs.Queue != rhs.Queue)
+	{
+		return static_cast<int>(lhs.Queue) < static_cast<int>(rhs.Queue);
+	}
+	return lhs.SortOrder < rhs.SortOrder;
 }

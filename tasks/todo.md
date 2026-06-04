@@ -1,3 +1,43 @@
+# TODO — RenderScene sort / SpriteRenderSystem 루프 비용 정리
+
+## Goal
+멀티 플랫폼 RHI 경계를 흔들지 않는 범위에서 렌더 제출 전 CPU 비용을 먼저 줄인다.
+
+## Assumptions
+- Sprite batching/instancing은 RHI vertex input, shader, Vulkan SPIR-V까지 같이 바뀌어야 하므로 별도 큰 단위로 진행한다.
+- 현재 RenderScene은 매 프레임 Clear 후 Submit 순서가 이미 정렬되어 있을 수 있다.
+- SpriteRenderSystem의 renderer 타입은 한 프레임 루프 안에서 변하지 않는다.
+
+## Success Criteria
+- RenderScene은 제출 순서가 이미 Queue/SortOrder 기준 정렬이면 `std::sort`를 호출하지 않는다.
+- RenderFiltered/RenderImpl이 같은 scene을 여러 번 렌더해도 이미 정렬된 scene은 재정렬하지 않는다.
+- SpriteRenderSystem은 sprite마다 `dynamic_cast<CForward2DRenderer*>`를 반복하지 않는다.
+- 렌더 결과 순서 계약은 기존 Queue/SortOrder 기준을 유지한다.
+
+## Plan
+- [x] RenderScene incremental dirty sort 추가
+- [x] SpriteRenderSystem renderer cast 루프 밖 이동
+- [x] 빌드 검증
+- [x] 커밋
+
+## Verification
+- [x] `Debug_Game|x64` build
+- [x] `Debug_Editor|x64` build
+- [x] `git diff --check`
+
+## Review
+- 코드를 읽었고: `CRenderScene::Sort()`는 렌더 호출마다 무조건 `std::sort`를 수행했고, 같은 scene을 `RenderImpl`/`RenderFiltered`에서 다시 렌더해도 같은 sort를 반복할 수 있었다.
+- 생각했고: Clear 후 Submit 되는 순서가 이미 Queue/SortOrder 기준이면 정렬 결과는 동일하므로 `std::sort`를 피할 수 있다.
+- 반례를 찾았고: 제출 중간에 낮은 Queue/SortOrder item이 뒤늦게 들어오면 정렬을 유지해야 한다.
+- 고쳤다: Submit 시 직전 item과 sort key를 비교해 순서가 깨진 경우만 `m_needsSort`를 세우고, Sort 후에는 dirty를 내린다.
+- 추가로 읽었고: `SpriteRenderSystem::OnUpdate()`는 sprite마다 `dynamic_cast<CForward2DRenderer*>`를 반복했다.
+- 생각했고: renderer dependency는 한 update 루프 안에서 바뀌지 않으므로 루프 밖에서 한 번만 cast해도 동작이 같다.
+- 반례를 찾았고: forward renderer가 없어도 기존 mesh/material이 살아있는 sprite는 submit 가능해야 한다.
+- 고쳤다: `forwardRenderer`를 루프 밖에서 캡처하되, 기존 생성 분기 조건만 그대로 사용해 submit 흐름은 유지했다.
+- SDK public mirror의 `RenderScene.h`도 같은 private layout으로 동기화했다.
+
+---
+
 # TODO — WebGPU bind group cache lookup 정리
 
 ## Goal

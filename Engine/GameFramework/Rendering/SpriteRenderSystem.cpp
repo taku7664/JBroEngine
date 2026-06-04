@@ -50,8 +50,10 @@ void CSpriteRenderSystem::OnUpdate(CScene& scene)
 		return;
 	}
 
+	CForward2DRenderer* forwardRenderer = dynamic_cast<CForward2DRenderer*>(m_renderer);
+
 	scene.ForEach<SpriteRenderer2D>(
-		[this](SpriteRenderer2D& sprite)
+		[this, forwardRenderer](SpriteRenderer2D& sprite)
 		{
 			CGameObject* owner = sprite.GetOwner();
 			if (nullptr == owner || false == owner->IsActive || false == sprite.IsEnabled)
@@ -62,7 +64,6 @@ void CSpriteRenderSystem::OnUpdate(CScene& scene)
 
 			SafePtr<IRenderMesh> mesh = sprite.Mesh;
 			SafePtr<IRenderMaterial> material = sprite.Material;
-			CForward2DRenderer* forwardRenderer = dynamic_cast<CForward2DRenderer*>(m_renderer);
 
 			// SpriteGuid 는 CSpriteAsset 을 가리킨다 (이전 CTextureAsset 통합됨).
 			// 자산 캐시 — SpriteGuid 가 바뀌었거나 캐시가 죽었을 때만 LoadAsset 호출.

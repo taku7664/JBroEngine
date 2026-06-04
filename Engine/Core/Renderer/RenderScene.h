@@ -12,5 +12,9 @@ public:
 	void Sort();
 
 private:
+	static bool ShouldSortBefore(const RenderItem& lhs, const RenderItem& rhs);
+
+private:
 	std::vector<RenderItem> m_renderItems;
+	bool m_needsSort = false;
 };
