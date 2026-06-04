@@ -402,6 +402,12 @@ void CImEditor::SetSceneViewSelection(std::vector<const void*> selectedObjects)
     for (const void* o : selectedObjects) m_sceneViewSelectedEntities.insert(o);
 }
 
+void CImEditor::SetSceneViewHidden(std::vector<const void*> hiddenObjects)
+{
+    m_sceneViewHidden.clear();
+    for (const void* o : hiddenObjects) m_sceneViewHidden.insert(o);
+}
+
 void CImEditor::ClearSceneViewSelection()
 {
     m_sceneViewHasSelection = false;
@@ -504,8 +510,22 @@ void CImEditor::OnPrepareRender()
 				camX, camY, camSize, viewW, viewH);
 		}
 
-		// ② 스프라이트 전체
-		engineCore->Renderer->Render(*engineCore->RenderScene);
+		// ② 스프라이트 전체 (EditorHidden 오브젝트는 씬뷰에서만 제외)
+		if (false == m_sceneViewHidden.empty())
+		{
+			if (CForward2DRenderer* fwd = dynamic_cast<CForward2DRenderer*>(engineCore->Renderer.TryGet()))
+			{
+				fwd->RenderExcluding(*engineCore->RenderScene, m_sceneViewHidden);
+			}
+			else
+			{
+				engineCore->Renderer->Render(*engineCore->RenderScene);
+			}
+		}
+		else
+		{
+			engineCore->Renderer->Render(*engineCore->RenderScene);
+		}
 
 		if (m_sceneViewFocusActive && !m_sceneViewFocusEntities.empty())
 		{

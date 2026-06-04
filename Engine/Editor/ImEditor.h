@@ -81,6 +81,9 @@ public:
 	void SetSceneViewSelection(std::vector<const void*> selectedObjects);
 	void ClearSceneViewSelection();
 
+	// 에디터 씬뷰에서만 렌더 제외할 오브젝트 키(주소) 집합. 매 프레임 SceneViewTool 이 갱신.
+	void SetSceneViewHidden(std::vector<const void*> hiddenObjects);
+
 	// Game view (multi-camera)
 	void RequestGameViewRenderTarget(std::uint32_t width, std::uint32_t height);
 	// Submit all active game cameras for this frame (sorted by Priority, ascending).
@@ -152,6 +155,9 @@ private:
 	// 선택 아웃라인 상태
 	bool                            m_sceneViewHasSelection = false;
 	std::unordered_set<const void*> m_sceneViewSelectedEntities;
+
+	// 에디터 씬뷰 숨김(EditorHidden) 키 집합 — 매 프레임 SceneViewTool 이 채움.
+	std::unordered_set<const void*> m_sceneViewHidden;
 };
 
 template<typename T>

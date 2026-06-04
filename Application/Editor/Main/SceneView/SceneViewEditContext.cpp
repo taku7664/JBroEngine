@@ -150,6 +150,7 @@ CGameObject* CSceneViewEditContext::Pick(
         {
             CGameObject* owner = sprite.GetOwner();
             if (!owner || !owner->IsActive || !sprite.IsEnabled) return;
+            if (owner->IsEditorHidden()) return; // 씬뷰 숨김 → 픽킹 제외
 
             // 포커스 모드: m_context 자신 또는 그 자손만 대상
             if (context)
@@ -228,6 +229,7 @@ std::vector<CGameObject*> CSceneViewEditContext::PickBox(
         [&](CGameObject& object)
         {
             if (!object.IsActive) return;
+            if (object.IsEditorHidden()) return; // 씬뷰 숨김 → 박스선택 제외
 
             // 컨텍스트 필터
             if (context)

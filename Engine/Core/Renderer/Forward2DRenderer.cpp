@@ -198,6 +198,16 @@ void CForward2DRenderer::SetViewCameraEx(float posX, float posY, float halfW, fl
 
 void CForward2DRenderer::Render(IRenderScene& scene)
 {
+	RenderImpl(scene, nullptr);
+}
+
+void CForward2DRenderer::RenderExcluding(IRenderScene& scene, const std::unordered_set<RenderObjectId>& excluded)
+{
+	RenderImpl(scene, &excluded);
+}
+
+void CForward2DRenderer::RenderImpl(IRenderScene& scene, const std::unordered_set<RenderObjectId>* excluded)
+{
 	if (false == m_isInitialized || false == m_rhiDevice.IsValid())
 	{
 		return;
@@ -224,6 +234,13 @@ void CForward2DRenderer::Render(IRenderScene& scene)
 	for (std::uint32_t i = 0; i < itemCount; ++i)
 	{
 		const RenderItem& item = items[i];
+
+		// 에디터 씬뷰 숨김(EditorHidden): 해당 오브젝트 키가 제외 집합에 있으면 스킵.
+		if (excluded && excluded->find(item.Entity) != excluded->end())
+		{
+			continue;
+		}
+
 		if (false == item.Mesh.IsValid() || false == item.Material.IsValid())
 		{
 			continue;
