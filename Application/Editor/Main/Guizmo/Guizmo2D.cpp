@@ -22,6 +22,7 @@ namespace
 	constexpr float SCALE_UNIFORM_OFFSET = 50.0f;
 	constexpr float MIN_SCALE_ABS = 0.001f;
 	constexpr float MIN_SCALE_FACTOR = 0.001f;
+	constexpr float ROTATE_SNAP_RADIANS = 0.2617993878f;
 
 	constexpr ImU32 COLOR_X = IM_COL32(230, 70, 70, 255);
 	constexpr ImU32 COLOR_Y = IM_COL32(80, 210, 110, 255);
@@ -93,6 +94,11 @@ namespace
 		return handle == EGuizmoHandle2D::ScaleX
 			|| handle == EGuizmoHandle2D::ScaleY
 			|| handle == EGuizmoHandle2D::ScaleXY;
+	}
+
+	float SnapAngleRadians(float radians)
+	{
+		return std::round(radians / ROTATE_SNAP_RADIANS) * ROTATE_SNAP_RADIANS;
 	}
 }
 
@@ -525,7 +531,11 @@ GuizmoFrameResult CGuizmo2D::UpdateRotateDrag(const GuizmoFrameContext& context)
 	}
 
 	const float currentAngle = CalculateScreenAngle(context, ImGui::GetIO().MousePos, m_dragStartWorld);
-	const float deltaRadians = currentAngle - m_dragStartAngle;
+	float deltaRadians = currentAngle - m_dragStartAngle;
+	if (ImGui::GetIO().KeyShift)
+	{
+		deltaRadians = SnapAngleRadians(deltaRadians);
+	}
 
 	m_dragNewTransforms.clear();
 	m_dragNewTransforms.reserve(m_dragSnapshots.size());

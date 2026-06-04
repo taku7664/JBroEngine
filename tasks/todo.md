@@ -1,3 +1,38 @@
+# TODO — SceneView 2D Rotate Snap
+
+## Goal
+SceneView Rotate Guizmo에서 Shift 드래그 시 15도 단위로 회전 delta를 스냅한다.
+
+## Assumptions
+- 별도 설정 UI 없이 우선 Shift modifier를 snap trigger로 사용한다.
+- 스냅은 absolute rotation이 아니라 drag 시작점 대비 delta에만 적용한다.
+- undo/redo transaction 구조는 기존 Rotate drag와 동일하게 유지한다.
+
+## Success Criteria
+- Shift 없이 Rotate drag는 기존처럼 연속 회전한다.
+- Shift를 누른 상태의 Rotate drag는 15도 단위 delta만 적용한다.
+- Shift를 drag 중에 누르거나 떼도 preview는 같은 drag transaction 안에서 안정적으로 갱신된다.
+- release 후 undo/redo 1회로 시작/끝 transform을 복원한다.
+
+## Plan
+- [x] Rotate delta snap helper 추가
+- [x] UpdateRotateDrag에 Shift snap 적용
+- [x] 문서 review 갱신
+- [x] 빌드 검증 및 커밋
+
+## Verification
+- [x] `Debug_Editor|x64` build
+- [x] `Debug_Game|x64` build
+- [x] `git diff --check`
+
+## Review
+- 코드를 읽었고: Rotate drag는 mouse angle과 drag start angle의 차이를 그대로 `RotateObjectAroundPivot()`에 넘기고 있었다.
+- 생각했고: snap은 absolute rotation에 적용하면 드래그 시작 시 object가 튈 수 있으므로, drag 시작점 대비 delta에만 적용해야 한다.
+- 반례를 찾았고: snap을 별도 command나 설정 저장으로 만들면 Guizmo 기본 편집 단계에 비해 범위가 커지고, editor/runtime 경계와 저장 정책까지 불필요하게 건드린다.
+- 고쳤다: `ImGui::GetIO().KeyShift`가 true인 frame에서만 rotate delta를 15도 단위로 반올림하고, 기존 preview/undo transaction 경로는 그대로 유지했다.
+
+---
+
 # TODO — SceneView 2D Scale Guizmo
 
 ## Goal
