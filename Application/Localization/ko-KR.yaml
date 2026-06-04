@@ -345,7 +345,7 @@ Entries:
 
   editor.property.Name: 이름
   editor.property.IsActive: 활성
-  editor.property.Layer: 레이어
+  editor.property.Tag: 태그
   editor.property.Position: 위치
   editor.property.RotationRadians: 회전
   editor.property.Scale: 크기

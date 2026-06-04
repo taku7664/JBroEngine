@@ -1150,10 +1150,13 @@ void CSceneViewTool::OnRenderStay()
 
             if (nullptr != menuObject)
             {
-                // 오브젝트 우클릭: "Add Child Object" + "Add Component ▶" + "Delete"
+                // 오브젝트 우클릭: "Add Child Object" + "Add Component ▶" + 복사/붙여넣기 + "Delete"
                 EditorGuiDrawHelpers::DrawAddObjectMenu(*popupScene, menuObject);
                 ImGui::Separator();
                 EditorGuiDrawHelpers::DrawAddComponentMenu(*popupScene, menuObject);
+                ImGui::Separator();
+                EditorGuiDrawHelpers::DrawCopyObjectMenuItem(*menuObject);
+                EditorGuiDrawHelpers::DrawPasteObjectMenuItem(*popupScene);
                 ImGui::Separator();
                 EditorGuiDrawHelpers::DrawRemoveObjectMenu(*popupScene, menuObject);
             }
@@ -1161,6 +1164,7 @@ void CSceneViewTool::OnRenderStay()
             {
                 // 빈 공간 우클릭 (버텍스 전용 팝업이 아닐 때 or 부모가 지정된 경우)
                 EditorGuiDrawHelpers::DrawAddObjectMenu(*popupScene, menuParent);
+                EditorGuiDrawHelpers::DrawPasteObjectMenuItem(*popupScene);
             }
         }
         ImGui::EndPopup();
@@ -1213,9 +1217,20 @@ void CSceneViewTool::OnRenderStay()
         {
             if (Editor::ImEditor) Editor::ImEditor->ClearSceneViewSelection();
         }
+
+        // 씬뷰 숨김(EditorHidden 플래그) — 오브젝트 주소 키 집합 전달.
+        if (scene && Editor::ImEditor)
+        {
+            std::vector<const void*> hidden;
+            scene->ForEachObject([&hidden](CGameObject& o)
+            {
+                if (o.IsEditorHidden()) hidden.push_back(&o);
+            });
+            Editor::ImEditor->SetSceneViewHidden(std::move(hidden));
+        }
     }
 
-    // ── Layer 3.8: 드래그 박스 선택 시각화 ───────────────────────────────────
+    // ── Layer 3.8:드래그 박스 선택 시각화 ───────────────────────────────────
     if (m_isDraggingLeft)
     {
         const ImVec2 rMin(

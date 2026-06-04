@@ -233,6 +233,29 @@ bool EditorGuiDrawHelpers::DrawRemoveObjectMenu(CScene& scene, CGameObject* obje
 
 // ── 복사 / 붙여넣기 ──────────────────────────────────────────────────────────
 
+namespace
+{
+	// 붙여넣은 서브트리 전체에 새 InstanceGuid 를 발급한다(오브젝트 + 컴포넌트 + 자식 재귀).
+	void ReissueGuidsRecursive(CGameObject& object)
+	{
+		object.InstanceGuid = File::GenerateGuid();
+		for (const SafePtr<CComponent>& cref : object.GetComponents())
+		{
+			if (CComponent* comp = cref.TryGet())
+			{
+				comp->InstanceGuid = File::GenerateGuid();
+			}
+		}
+		for (const SafePtr<CGameObject>& childRef : object.GetChildren())
+		{
+			if (CGameObject* child = childRef.TryGet())
+			{
+				ReissueGuidsRecursive(*child);
+			}
+		}
+	}
+}
+
 bool EditorGuiDrawHelpers::DrawCopyObjectMenuItem(const CGameObject& object)
 {
 	if (ImGui::MenuItem(Loc::TextOr("editor.menu.copy_object", "Copy Object")))
@@ -255,16 +278,9 @@ bool EditorGuiDrawHelpers::DrawPasteObjectMenuItem(CScene& scene)
 	{
 		if (CGameObject* pasted = Serialization::DeserializeObject(scene, clip))
 		{
-			// 복사본은 원본과 다른 새 InstanceGuid 를 받아야 한다 — 직렬화에 박힌 원본
-			// guid 를 그대로 쓰면 씬에 같은 guid 가 둘이 되어 Ref 해석이 깨진다.
-			pasted->InstanceGuid = File::GenerateGuid();
-			for (const SafePtr<CComponent>& cref : pasted->GetComponents())
-			{
-				if (CComponent* comp = cref.TryGet())
-				{
-					comp->InstanceGuid = File::GenerateGuid();
-				}
-			}
+			// 복사본(서브트리 전체)은 원본과 다른 새 InstanceGuid 를 받아야 한다 — 직렬화에
+			// 박힌 원본 guid 를 그대로 쓰면 씬에 같은 guid 가 둘이 되어 Ref 해석이 깨진다.
+			ReissueGuidsRecursive(*pasted);
 			Editor::SelectEntity(pasted);
 			return true;
 		}

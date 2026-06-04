@@ -1316,10 +1316,38 @@ void CInspectorTool::OnRenderStay()
 		if (ImGui::InputText("##go_name", nameBuf, sizeof(nameBuf)))
 			selectedObject->SetName(nameBuf);
 
-		int layer = static_cast<int>(selectedObject->Layer);
-		ImGui::SetNextItemWidth(120.0f);
-		if (ImGui::InputInt(Loc::TextOr("editor.property.Layer", "Layer"), &layer))
-			selectedObject->Layer = static_cast<std::uint32_t>(layer < 0 ? 0 : layer);
+		// Tag — 자유 분류 문자열.
+		char tagBuf[256];
+		snprintf(tagBuf, sizeof(tagBuf), "%s", selectedObject->Tag.c_str());
+		ImGui::SetNextItemWidth(-FLT_MIN);
+		if (ImGui::InputTextWithHint("##go_tag", Loc::TextOr("editor.property.Tag", "Tag"), tagBuf, sizeof(tagBuf)))
+			selectedObject->Tag = tagBuf;
+	}
+	ImGui::Separator();
+	ImGui::Spacing();
+
+	// ── Transform (오브젝트 멤버 — 컴포넌트 아님, 인스펙터에만 표시) ───────────────
+	{
+		ImGui::TextUnformatted(Loc::TextOr("editor.component.Transform2D", "Transform"));
+		Transform2D& t = selectedObject->GetTransform();
+
+		float pos[2] = { t.Position.x, t.Position.y };
+		ImGui::SetNextItemWidth(-FLT_MIN);
+		if (ImGui::DragFloat2(Loc::TextOr("editor.property.Position", "Position"), pos, 0.01f))
+			t.Position = Vector2(pos[0], pos[1]);
+
+		// 회전은 내부 radian, 표시/편집은 degree.
+		constexpr float RAD2DEG = 57.2957795131f;   // 180/π
+		constexpr float DEG2RAD = 0.01745329252f;   // π/180
+		float degrees = t.RotationRadians * RAD2DEG;
+		ImGui::SetNextItemWidth(-FLT_MIN);
+		if (ImGui::DragFloat(Loc::TextOr("editor.property.RotationRadians", "Rotation"), &degrees, 0.5f))
+			t.RotationRadians = degrees * DEG2RAD;
+
+		float scale[2] = { t.Scale.x, t.Scale.y };
+		ImGui::SetNextItemWidth(-FLT_MIN);
+		if (ImGui::DragFloat2(Loc::TextOr("editor.property.Scale", "Scale"), scale, 0.01f))
+			t.Scale = Vector2(scale[0], scale[1]);
 	}
 	ImGui::Separator();
 	ImGui::Spacing();

@@ -345,7 +345,7 @@ Entries:
 
   editor.property.Name: Name
   editor.property.IsActive: Is Active
-  editor.property.Layer: Layer
+  editor.property.Tag: Tag
   editor.property.Position: Position
   editor.property.RotationRadians: Rotation
   editor.property.Scale: Scale

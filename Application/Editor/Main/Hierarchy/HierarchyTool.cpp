@@ -4,6 +4,7 @@
 #include "Engine/Editor/ImItem/ImTree.h"
 
 #include "Editor/Command/EditorSceneCommands.h"
+#include "Editor/FontAssome/FontAssomeHelper.h"
 #include "Editor/Helper/EditorGuiDrawHelpers.h"
 #include "Editor/Editor.h"
 #include "Editor/EditorDragDrop.h"
@@ -142,6 +143,19 @@ void CHierarchyTool::OnRenderStay()
 		const char* objName = obj->GetName();
 		const char* name = (objName && objName[0]) ? objName : "GameObject";
 		const bool isOpen = ImTree(name, flags);
+
+		// ── 가시성 토글(눈 아이콘, 우측 정렬). 씬뷰 전용 EditorHidden 플래그. ──
+		{
+			const bool  hidden = obj->IsEditorHidden();
+			const float btnW   = ImGui::GetFrameHeight();
+			ImGui::SameLine(ImGui::GetContentRegionMax().x - btnW);
+			const std::string visLabel =
+				std::string(hidden ? FontAssomeHelper::ICON_EYE_SLASH : FontAssomeHelper::ICON_EYE) + "##vis";
+			if (ImGui::SmallButton(visLabel.c_str()))
+			{
+				obj->SetEditorHidden(!hidden);
+			}
+		}
 
 		// ── 클릭으로 선택 (Release 기준) ───────────────────────────────────
 		// Press 가 아니라 Release 에서 선택한다. Press 로 선택하면 드래그를 시작하는

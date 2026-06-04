@@ -117,7 +117,8 @@ CGameObject* CPrefabSerializer::CloneHierarchy(const CScene& /*sourceScene*/, CS
 	}
 
 	targetObject->SetActive(sourceObject.IsActive);
-	targetObject->Layer = sourceObject.Layer;
+	targetObject->Tag = sourceObject.Tag;
+	targetObject->Flags = sourceObject.Flags;
 
 	CopyComponents(sourceObject, *targetObject);
 

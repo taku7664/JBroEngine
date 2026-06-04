@@ -23,12 +23,16 @@ class CGameObject;
 
 namespace Serialization
 {
-	// 오브젝트의 속성/Transform/컴포넌트를 YAML 맵으로 직렬화한다(부모 정보 제외).
+	// 오브젝트의 속성/Transform/컴포넌트를 YAML 맵으로 직렬화한다.
 	// referencedAssets 가 있으면 컴포넌트가 참조하는 에셋을 누적한다.
-	YAML::Node WriteObject(const CGameObject& object, std::vector<AssetGuid>* referencedAssets);
+	// includeChildren=true 면 자식 서브트리를 Children 키에 재귀 중첩한다(복사용).
+	//   씬 직렬화(SceneSerializer)는 계층을 평탄 목록+ParentIndex 로 다루므로 false 를 쓴다.
+	YAML::Node WriteObject(const CGameObject& object, std::vector<AssetGuid>* referencedAssets,
+	                       bool includeChildren = false);
 
 	// YAML 맵에서 새 오브젝트를 만들어 scene 에 추가하고 속성/Transform/컴포넌트를 복원한다.
-	// 부모 연결은 호출자(SceneSerializer)가 ParentIndex 로 처리한다. 실패 시 nullptr.
+	// Children 키가 있으면 자식 서브트리도 만들어 부모로 연결한다(복사 붙여넣기).
+	// 최상위 오브젝트의 부모 연결은 호출자가 처리한다(SceneSerializer 는 ParentIndex). 실패 시 nullptr.
 	CGameObject* ReadObjectInto(CScene& scene, const YAML::Node& node,
 	                            std::vector<AssetGuid>* referencedAssets);
 

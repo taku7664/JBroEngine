@@ -41,7 +41,8 @@ namespace
 	}
 }
 
-YAML::Node WriteObject(const CGameObject& object, std::vector<AssetGuid>* referencedAssets)
+YAML::Node WriteObject(const CGameObject& object, std::vector<AssetGuid>* referencedAssets,
+                       bool includeChildren)
 {
 	CGameObject& obj = const_cast<CGameObject&>(object);
 
@@ -52,7 +53,14 @@ YAML::Node WriteObject(const CGameObject& object, std::vector<AssetGuid>* refere
 		node["InstanceGuid"] = obj.InstanceGuid.generic_string();
 	}
 	node["Active"]      = obj.IsActive;
-	node["Layer"]       = obj.Layer;
+	if (false == obj.Tag.empty())
+	{
+		node["Tag"] = obj.Tag;
+	}
+	if (false == obj.Flags.Empty())
+	{
+		node["Flags"] = obj.Flags.Get();
+	}
 	node["Transform2D"] = WriteTransform2D(obj.Local);
 
 	YAML::Node components(YAML::NodeType::Sequence);
@@ -70,6 +78,22 @@ YAML::Node WriteObject(const CGameObject& object, std::vector<AssetGuid>* refere
 		}
 	}
 	node["Components"] = components;
+
+	if (includeChildren)
+	{
+		YAML::Node children(YAML::NodeType::Sequence);
+		for (const SafePtr<CGameObject>& childRef : obj.GetChildren())
+		{
+			if (CGameObject* child = childRef.TryGet())
+			{
+				children.push_back(WriteObject(*child, referencedAssets, true));
+			}
+		}
+		if (children.size() > 0)
+		{
+			node["Children"] = children;
+		}
+	}
 	return node;
 }
 
@@ -89,7 +113,14 @@ CGameObject* ReadObjectInto(CScene& scene, const YAML::Node& node,
 	}
 
 	object->SetActive(node["Active"] ? node["Active"].as<bool>(true) : true);
-	object->Layer = node["Layer"] ? node["Layer"].as<std::uint32_t>(0) : 0;
+	if (const YAML::Node t = node["Tag"]; t)
+	{
+		object->Tag = t.as<std::string>("");
+	}
+	if (const YAML::Node f = node["Flags"]; f)
+	{
+		object->Flags.Set(f.as<unsigned int>(0u));
+	}
 	if (const YAML::Node g = node["InstanceGuid"]; g)
 	{
 		const std::string guid = g.as<std::string>("");
@@ -111,12 +142,25 @@ CGameObject* ReadObjectInto(CScene& scene, const YAML::Node& node,
 			ReadComponentInto(*object, cn, referencedAssets);
 		}
 	}
+
+	// 자식 서브트리(복사 붙여넣기) — 각 자식을 만들어 이 오브젝트의 자식으로 연결한다.
+	if (const YAML::Node children = node["Children"]; children && children.IsSequence())
+	{
+		for (const YAML::Node& childNode : children)
+		{
+			if (CGameObject* child = ReadObjectInto(scene, childNode, referencedAssets))
+			{
+				child->SetParent(*object);
+			}
+		}
+	}
 	return object;
 }
 
 std::string SerializeObject(const CGameObject& object)
 {
-	const YAML::Node node = WriteObject(object, nullptr);
+	// 복사는 자식 서브트리까지 포함한다.
+	const YAML::Node node = WriteObject(object, nullptr, /*includeChildren*/ true);
 	YAML::Emitter emitter;
 	emitter << node;
 	return std::string(emitter.c_str());
