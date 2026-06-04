@@ -13,6 +13,7 @@ public:
 
 public:
 	virtual bool Initialize(const RendererDesc& desc) = 0;
+	virtual void BeginFrame() {}
 	virtual void SetRenderTargetSize(const RenderSurfaceSize& size) {}
 	// Set the view camera used for the next Render() call.
 	// posX/Y: camera center in world units.

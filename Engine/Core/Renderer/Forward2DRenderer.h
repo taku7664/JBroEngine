@@ -1,16 +1,21 @@
 #pragma once
 
 #include "Core/Renderer/IRenderer.h"
+#include "Core/RHI/IRHIBuffer.h"
 #include "Core/RHI/IRHIGraphicsPipeline.h"
 #include "Core/RHI/IRHISampler.h"
 
 #include "Core/Renderer/RendererTypes.h"
 #include <unordered_set>
+#include <vector>
+
+class IRHICommandContext;
 
 class CForward2DRenderer final : public IRenderer
 {
 public:
 	bool Initialize(const RendererDesc& desc) override;
+	void BeginFrame() override;
 	void SetRenderTargetSize(const RenderSurfaceSize& size) override;
 	void SetViewCamera(float posX, float posY, float orthographicSize) override;
 	void SetViewCameraEx(float posX, float posY, float halfW, float halfH, float cosR = 1.0f, float sinR = 0.0f) override;
@@ -32,7 +37,19 @@ public:
 	SafePtr<IRenderMesh> GetQuadMesh() const;
 
 private:
+	struct SpriteConstants
+	{
+		float TransformRow0[4];
+		float TransformRow1[4];
+		float Color[4];
+		float ViewRow0[4];
+		float ViewRow1[4];
+	};
+
 	void RenderImpl(IRenderScene& scene, const std::unordered_set<RenderObjectId>* excluded);
+	SpriteConstants BuildSpriteConstants(const RenderItem& item, float halfW, float halfH, float cosR, float sinR) const;
+	SpriteConstants BuildViewportColorConstants(float r, float g, float b, float a) const;
+	SafePtr<IRHIBuffer> AcquireSpriteConstantBuffer(IRHICommandContext& commandContext, const SpriteConstants& constants);
 	bool CreateSpritePipeline();
 	bool CreateQuadMesh();
 
@@ -43,6 +60,8 @@ private:
 	OwnerPtr<IRHIGraphicsPipeline> m_spritePipeline;
 	OwnerPtr<IRHISampler> m_defaultSampler;
 	OwnerPtr<IRenderMesh> m_quadMesh;
+	std::vector<OwnerPtr<IRHIBuffer>> m_spriteConstantBuffers;
+	std::size_t m_spriteConstantBufferCursor = 0;
 	RenderSurfaceSize m_renderTargetSize;
 	// View camera (set per render pass via SetViewCamera / SetViewCameraEx)
 	float m_viewCamX      = 0.0f;

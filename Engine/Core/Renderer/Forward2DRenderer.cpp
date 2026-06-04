@@ -10,24 +10,14 @@
 #include "Core/RHI/IRHICommandContext.h"
 #include "Core/RHI/IRHIDevice.h"
 
+#include <utility>
+
 namespace
 {
 	struct SpriteVertex
 	{
 		float Position[2];
 		float Uv[2];
-	};
-
-	struct SpriteConstants
-	{
-		float TransformRow0[4];
-		float TransformRow1[4];
-		float Color[4];
-		// Full 2×3 view matrix (world → NDC), stored as two float4 rows.
-		// NDC.x = dot([worldX, worldY, 1], ViewRow0.xyz)
-		// NDC.y = dot([worldX, worldY, 1], ViewRow1.xyz)
-		float ViewRow0[4];
-		float ViewRow1[4];
 	};
 
 	const char* SPRITE_SHADER_SOURCE_HLSL = R"(
@@ -173,6 +163,11 @@ bool CForward2DRenderer::Initialize(const RendererDesc& desc)
 	return true;
 }
 
+void CForward2DRenderer::BeginFrame()
+{
+	m_spriteConstantBufferCursor = 0;
+}
+
 void CForward2DRenderer::SetRenderTargetSize(const RenderSurfaceSize& size)
 {
 	m_renderTargetSize = size;
@@ -205,6 +200,73 @@ void CForward2DRenderer::Render(IRenderScene& scene)
 void CForward2DRenderer::RenderExcluding(IRenderScene& scene, const std::unordered_set<RenderObjectId>& excluded)
 {
 	RenderImpl(scene, &excluded);
+}
+
+CForward2DRenderer::SpriteConstants CForward2DRenderer::BuildSpriteConstants(
+	const RenderItem& item,
+	float halfW,
+	float halfH,
+	float cosR,
+	float sinR) const
+{
+	SpriteConstants constants = {};
+	constants.TransformRow0[0] = item.Transform.M11;
+	constants.TransformRow0[1] = item.Transform.M21;
+	constants.TransformRow0[2] = item.Transform.Dx;
+	constants.TransformRow1[0] = item.Transform.M12;
+	constants.TransformRow1[1] = item.Transform.M22;
+	constants.TransformRow1[2] = item.Transform.Dy;
+	for (int c = 0; c < 4; ++c)
+	{
+		constants.Color[c] = item.Color[c];
+	}
+
+	const float camX = m_viewCamX;
+	const float camY = m_viewCamY;
+	constants.ViewRow0[0] =  cosR / halfW;
+	constants.ViewRow0[1] =  sinR / halfW;
+	constants.ViewRow0[2] = -(cosR * camX + sinR * camY) / halfW;
+	constants.ViewRow1[0] = -sinR / halfH;
+	constants.ViewRow1[1] =  cosR / halfH;
+	constants.ViewRow1[2] =  (sinR * camX - cosR * camY) / halfH;
+	return constants;
+}
+
+CForward2DRenderer::SpriteConstants CForward2DRenderer::BuildViewportColorConstants(float r, float g, float b, float a) const
+{
+	SpriteConstants constants = {};
+	constants.TransformRow0[0] = 2.0f;
+	constants.TransformRow1[1] = 2.0f;
+	constants.Color[0] = r;
+	constants.Color[1] = g;
+	constants.Color[2] = b;
+	constants.Color[3] = a;
+	constants.ViewRow0[0] = 1.0f;
+	constants.ViewRow1[1] = 1.0f;
+	return constants;
+}
+
+SafePtr<IRHIBuffer> CForward2DRenderer::AcquireSpriteConstantBuffer(IRHICommandContext& commandContext, const SpriteConstants& constants)
+{
+	const std::size_t bufferIndex = m_spriteConstantBufferCursor++;
+	if (bufferIndex >= m_spriteConstantBuffers.size())
+	{
+		RHIBufferDesc desc;
+		desc.SizeInBytes = sizeof(SpriteConstants);
+		desc.Usage = ERHIBufferUsage::Default;
+		desc.BindFlags = static_cast<RHIBindFlags>(ERHIBindFlag::ConstantBuffer);
+
+		OwnerPtr<IRHIBuffer> buffer = m_rhiDevice->CreateBuffer(desc, nullptr);
+		if (!buffer)
+		{
+			return nullptr;
+		}
+		m_spriteConstantBuffers.push_back(std::move(buffer));
+	}
+
+	SafePtr<IRHIBuffer> buffer = m_spriteConstantBuffers[bufferIndex].GetSafePtr();
+	commandContext.UpdateBuffer(buffer, &constants, sizeof(SpriteConstants));
+	return buffer;
 }
 
 void CForward2DRenderer::RenderImpl(IRenderScene& scene, const std::unordered_set<RenderObjectId>* excluded)
@@ -265,19 +327,6 @@ void CForward2DRenderer::RenderImpl(IRenderScene& scene, const std::unordered_se
 			continue;
 		}
 
-		SpriteConstants constants;
-		constants.TransformRow0[0] = item.Transform.M11;
-		constants.TransformRow0[1] = item.Transform.M21;
-		constants.TransformRow0[2] = item.Transform.Dx;
-		constants.TransformRow0[3] = 0.0f;
-		constants.TransformRow1[0] = item.Transform.M12;
-		constants.TransformRow1[1] = item.Transform.M22;
-		constants.TransformRow1[2] = item.Transform.Dy;
-		constants.TransformRow1[3] = 0.0f;
-		for (int c = 0; c < 4; ++c)
-		{
-			constants.Color[c] = item.Color[c];
-		}
 		// Full 2×3 view matrix: world → NDC
 		// NDC.x = dot([worldX, worldY, 1], ViewRow0.xyz)
 		// NDC.y = dot([worldX, worldY, 1], ViewRow1.xyz)
@@ -305,26 +354,9 @@ void CForward2DRenderer::RenderImpl(IRenderScene& scene, const std::unordered_se
 			cosR  = 1.0f;
 			sinR  = 0.0f;
 		}
-		// Build view rows from (camPos, halfW, halfH, rotation).
-		// View transform: NDC = R(-θ) * (world - camPos) / halfExtents
-		//   ViewRow0 = [ cosR/halfW,  sinR/halfW, -(cosR*camX + sinR*camY)/halfW ]
-		//   ViewRow1 = [-sinR/halfH,  cosR/halfH,  (sinR*camX - cosR*camY)/halfH ]
-		const float camX = m_viewCamX, camY = m_viewCamY;
-		constants.ViewRow0[0] =  cosR / halfW;
-		constants.ViewRow0[1] =  sinR / halfW;
-		constants.ViewRow0[2] = -(cosR * camX + sinR * camY) / halfW;
-		constants.ViewRow0[3] = 0.0f;
-		constants.ViewRow1[0] = -sinR / halfH;
-		constants.ViewRow1[1] =  cosR / halfH;
-		constants.ViewRow1[2] =  (sinR * camX - cosR * camY) / halfH;
-		constants.ViewRow1[3] = 0.0f;
-
-		RHIBufferDesc constantBufferDesc;
-		constantBufferDesc.SizeInBytes = sizeof(SpriteConstants);
-		constantBufferDesc.Usage = ERHIBufferUsage::Default;
-		constantBufferDesc.BindFlags = static_cast<RHIBindFlags>(ERHIBindFlag::ConstantBuffer);
-		OwnerPtr<IRHIBuffer> constantBuffer = m_rhiDevice->CreateBuffer(constantBufferDesc, &constants);
-		if (!constantBuffer)
+		SpriteConstants constants = BuildSpriteConstants(item, halfW, halfH, cosR, sinR);
+		SafePtr<IRHIBuffer> constantBuffer = AcquireSpriteConstantBuffer(*commandContext.TryGet(), constants);
+		if (false == constantBuffer.IsValid())
 		{
 			continue;
 		}
@@ -332,8 +364,8 @@ void CForward2DRenderer::RenderImpl(IRenderScene& scene, const std::unordered_se
 		commandContext->SetGraphicsPipeline(pipeline);
 		commandContext->SetVertexBuffer(0, item.Mesh->GetVertexBuffer(), sizeof(SpriteVertex), 0);
 		commandContext->SetIndexBuffer(item.Mesh->GetIndexBuffer());
-		commandContext->SetConstantBuffer(ERHIProgramStage::Vertex, 0, constantBuffer.GetSafePtr());
-		commandContext->SetConstantBuffer(ERHIProgramStage::Pixel, 0, constantBuffer.GetSafePtr());
+		commandContext->SetConstantBuffer(ERHIProgramStage::Vertex, 0, constantBuffer);
+		commandContext->SetConstantBuffer(ERHIProgramStage::Pixel, 0, constantBuffer);
 		commandContext->SetTexture(ERHIProgramStage::Pixel, 0, texture);
 		commandContext->SetSampler(ERHIProgramStage::Pixel, 0, sampler);
 		commandContext->DrawIndexed(item.Mesh->GetIndexCount(), 0, 0);
@@ -368,8 +400,6 @@ void CForward2DRenderer::RenderFiltered(IRenderScene& scene, const std::unordere
 		halfW = size * aspect; halfH = size; cosR = 1.0f; sinR = 0.0f;
 	}
 
-	const float camX = m_viewCamX, camY = m_viewCamY;
-
 	const RenderItem* items = scene.GetRenderItems();
 	const std::uint32_t itemCount = scene.GetRenderItemCount();
 	for (std::uint32_t i = 0; i < itemCount; ++i)
@@ -390,38 +420,15 @@ void CForward2DRenderer::RenderFiltered(IRenderScene& scene, const std::unordere
 		SafePtr<IRHITexture> texture = item.Material->GetTexture();
 		if (false == texture.IsValid()) continue;
 
-		SpriteConstants constants;
-		constants.TransformRow0[0] = item.Transform.M11;
-		constants.TransformRow0[1] = item.Transform.M21;
-		constants.TransformRow0[2] = item.Transform.Dx;
-		constants.TransformRow0[3] = 0.0f;
-		constants.TransformRow1[0] = item.Transform.M12;
-		constants.TransformRow1[1] = item.Transform.M22;
-		constants.TransformRow1[2] = item.Transform.Dy;
-		constants.TransformRow1[3] = 0.0f;
-		for (int c = 0; c < 4; ++c) constants.Color[c] = item.Color[c];
-
-		constants.ViewRow0[0] =  cosR / halfW;
-		constants.ViewRow0[1] =  sinR / halfW;
-		constants.ViewRow0[2] = -(cosR * camX + sinR * camY) / halfW;
-		constants.ViewRow0[3] = 0.0f;
-		constants.ViewRow1[0] = -sinR / halfH;
-		constants.ViewRow1[1] =  cosR / halfH;
-		constants.ViewRow1[2] =  (sinR * camX - cosR * camY) / halfH;
-		constants.ViewRow1[3] = 0.0f;
-
-		RHIBufferDesc cbDesc;
-		cbDesc.SizeInBytes = sizeof(SpriteConstants);
-		cbDesc.Usage = ERHIBufferUsage::Default;
-		cbDesc.BindFlags = static_cast<RHIBindFlags>(ERHIBindFlag::ConstantBuffer);
-		OwnerPtr<IRHIBuffer> cb = m_rhiDevice->CreateBuffer(cbDesc, &constants);
-		if (!cb) continue;
+		SpriteConstants constants = BuildSpriteConstants(item, halfW, halfH, cosR, sinR);
+		SafePtr<IRHIBuffer> cb = AcquireSpriteConstantBuffer(*commandContext.TryGet(), constants);
+		if (false == cb.IsValid()) continue;
 
 		commandContext->SetGraphicsPipeline(pipeline);
 		commandContext->SetVertexBuffer(0, item.Mesh->GetVertexBuffer(), sizeof(SpriteVertex), 0);
 		commandContext->SetIndexBuffer(item.Mesh->GetIndexBuffer());
-		commandContext->SetConstantBuffer(ERHIProgramStage::Vertex, 0, cb.GetSafePtr());
-		commandContext->SetConstantBuffer(ERHIProgramStage::Pixel,  0, cb.GetSafePtr());
+		commandContext->SetConstantBuffer(ERHIProgramStage::Vertex, 0, cb);
+		commandContext->SetConstantBuffer(ERHIProgramStage::Pixel,  0, cb);
 		commandContext->SetTexture(ERHIProgramStage::Pixel, 0, texture);
 		commandContext->SetSampler(ERHIProgramStage::Pixel, 0, sampler);
 		commandContext->DrawIndexed(item.Mesh->GetIndexCount(), 0, 0);
@@ -440,26 +447,9 @@ void CForward2DRenderer::FillViewportColor(float r, float g, float b, float a)
 		return;
 	}
 
-	// Build constants that draw a quad covering exactly NDC [-1,1]×[-1,1].
-	// Quad vertices are ±0.5 in local space; scale by 2 → world ±1.
-	// ViewRow identity: NDC = world (so ±1 in world = ±1 in NDC).
-	SpriteConstants constants = {};
-	constants.TransformRow0[0] = 2.0f;   // ScaleX = 2
-	constants.TransformRow1[1] = 2.0f;   // ScaleY = 2
-	constants.Color[0] = r;
-	constants.Color[1] = g;
-	constants.Color[2] = b;
-	constants.Color[3] = a;
-	// Identity view: NDC.x = worldX, NDC.y = worldY
-	constants.ViewRow0[0] = 1.0f;  // [1, 0, 0, 0]
-	constants.ViewRow1[1] = 1.0f;  // [0, 1, 0, 0]
-
-	RHIBufferDesc cbDesc;
-	cbDesc.SizeInBytes = sizeof(SpriteConstants);
-	cbDesc.Usage       = ERHIBufferUsage::Default;
-	cbDesc.BindFlags   = static_cast<RHIBindFlags>(ERHIBindFlag::ConstantBuffer);
-	OwnerPtr<IRHIBuffer> cb = m_rhiDevice->CreateBuffer(cbDesc, &constants);
-	if (!cb)
+	const SpriteConstants constants = BuildViewportColorConstants(r, g, b, a);
+	SafePtr<IRHIBuffer> cb = AcquireSpriteConstantBuffer(*commandContext.TryGet(), constants);
+	if (false == cb.IsValid())
 	{
 		return;
 	}
@@ -467,8 +457,8 @@ void CForward2DRenderer::FillViewportColor(float r, float g, float b, float a)
 	commandContext->SetGraphicsPipeline(m_spritePipeline);
 	commandContext->SetVertexBuffer(0, m_quadMesh->GetVertexBuffer(), sizeof(SpriteVertex), 0);
 	commandContext->SetIndexBuffer(m_quadMesh->GetIndexBuffer());
-	commandContext->SetConstantBuffer(ERHIProgramStage::Vertex, 0, cb.GetSafePtr());
-	commandContext->SetConstantBuffer(ERHIProgramStage::Pixel,  0, cb.GetSafePtr());
+	commandContext->SetConstantBuffer(ERHIProgramStage::Vertex, 0, cb);
+	commandContext->SetConstantBuffer(ERHIProgramStage::Pixel,  0, cb);
 	commandContext->SetTexture(ERHIProgramStage::Pixel, 0, m_whiteTexture.GetSafePtr());
 	commandContext->SetSampler(ERHIProgramStage::Pixel, 0, m_defaultSampler.GetSafePtr());
 	commandContext->DrawIndexed(m_quadMesh->GetIndexCount(), 0, 0);
@@ -477,6 +467,8 @@ void CForward2DRenderer::FillViewportColor(float r, float g, float b, float a)
 void CForward2DRenderer::Finalize()
 {
 	m_whiteTexture.Reset();
+	m_spriteConstantBuffers.clear();
+	m_spriteConstantBufferCursor = 0;
 	m_quadMesh.Reset();
 	m_defaultSampler.Reset();
 	m_spritePipeline.Reset();

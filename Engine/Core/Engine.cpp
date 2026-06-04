@@ -631,6 +631,10 @@ void CEngine::RenderFrame()
 	}
 
 	m_rhiDevice->BeginFrame();
+	if (m_renderer)
+	{
+		m_renderer->BeginFrame();
+	}
 	PrepareRenderModules();
 
 	SafePtr<IRHICommandContext> commandContext = m_rhiDevice->GetImmediateCommandContext();

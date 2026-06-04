@@ -170,6 +170,28 @@ void CWebGPUCommandContext::SetConstantBuffer(ERHIProgramStage, std::uint32_t, S
 #endif
 }
 
+void CWebGPUCommandContext::UpdateBuffer(SafePtr<IRHIBuffer> buffer, const void* data, std::size_t size)
+{
+#if JBRO_PLATFORM_WEB
+	if (nullptr == m_queue || false == buffer.IsValid() || nullptr == data || 0 == size)
+	{
+		return;
+	}
+
+	CWebGPUBuffer* webBuffer = static_cast<CWebGPUBuffer*>(buffer.TryGet());
+	if (nullptr == webBuffer || nullptr == webBuffer->GetNativeBuffer())
+	{
+		return;
+	}
+
+	wgpuQueueWriteBuffer(m_queue, webBuffer->GetNativeBuffer(), 0, data, size);
+#else
+	(void)buffer;
+	(void)data;
+	(void)size;
+#endif
+}
+
 void CWebGPUCommandContext::SetTexture(ERHIProgramStage, std::uint32_t, SafePtr<IRHITexture> texture)
 {
 #if JBRO_PLATFORM_WEB
