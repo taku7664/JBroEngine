@@ -10,24 +10,17 @@
 
 #include "ThirdParty/imgui/imgui.h"
 #include "Editor/ImItem/ImText.h"
+#include "Editor/ImItem/ImButton.h"
 #include "Editor/ImGuiUtillity.h"
 #include "Core/Localization/LocalizationManager.h"
 #include "Editor/Script/ScriptSchema.h"
+#include "Editor/FontAssome/FontAssomeHelper.h"
 
 #include <string>
 #include <vector>
 
 namespace ScriptSchemaUI
 {
-	// 직전 위젯에 짧은 지연 툴팁(로컬라이즈 키).
-	inline void HoverTip(const char* locKey)
-	{
-		if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
-		{
-			ImGui::SetTooltip("%s", Loc::Text(locKey));
-		}
-	}
-
 	// 라벨 + 설명 툴팁(ImText).
 	inline void LabelWithTip(const char* locLabelKey, const char* locTipKey)
 	{
@@ -83,16 +76,22 @@ namespace ScriptSchemaUI
 		int typeCur = 0;
 		for (int i = 0; i < static_cast<int>(baseLabels.size()); ++i)
 		{
-			if (p.TypeToken == baseLabels[i]) { typeCur = i; break; }
+			if (p.TypeToken == baseLabels[i])
+			{
+				typeCur = i; break;
+			}
 		}
 		ImGui::SetNextItemWidth(colW);
 		if (FilterableCombo("##type", &typeCur, baseLabels))
 		{
 			p.TypeToken = baseLabels[typeCur];
-			if (ScriptSchema::IsRefToken(p.TypeToken)) ScriptSchema::ResetRefTargetForToken(p);
+			if (ScriptSchema::IsRefToken(p.TypeToken))
+			{
+				ScriptSchema::ResetRefTargetForToken(p);
+			}
 			changed = true;
 		}
-		HoverTip("script_prop.type_tooltip");
+		ImGui::Utillity::HoveredToolTip("script_prop.type_tooltip");
 
 		if (ScriptSchema::NeedsTargetCombo(p.TypeToken))
 		{
@@ -104,7 +103,10 @@ namespace ScriptSchemaUI
 			for (int i = 0; i < static_cast<int>(targets.size()); ++i)
 			{
 				tLabels.push_back(targets[i].Label);
-				if (targets[i].TypeName == p.RefTarget) tCur = i;
+				if (targets[i].TypeName == p.RefTarget)
+				{
+					tCur = i;
+				}
 			}
 			ImGui::SameLine(0.0f, 4.0f);
 			ImGui::SetNextItemWidth(colW);
@@ -114,7 +116,7 @@ namespace ScriptSchemaUI
 				p.RefInclude = targets[tCur].Include;
 				changed = true;
 			}
-			HoverTip("script_prop.reftarget_tooltip");
+			ImGui::Utillity::HoveredToolTip("script_prop.reftarget_tooltip");
 		}
 		return changed;
 	}
@@ -123,46 +125,44 @@ namespace ScriptSchemaUI
 	inline bool DrawPropertyMenu(ScriptSchema::Property& p, bool /*nameReadOnly*/)
 	{
 		bool changed = false;
-
 		// 표시 이름 = Name("..") 어트리뷰트(인스펙터 표시용, C++ 멤버명과 별개. 항상 편집 가능).
-		LabelWithTip("script_prop.display_name", "script_prop.display_name_tooltip");
-		{
-			ImInputText in; in.SetText(p.DisplayName); in.SetHintText(Loc::Text("script_prop.display_name_hint"));
-			if (in(ImGuiInputTextFlags_None)) { p.DisplayName = static_cast<const char*>(in); changed = true; }
-		}
-
-		LabelWithTip("script_prop.category", "script_prop.category_tooltip");
-		{
-			ImInputText in; in.SetText(p.Category); in.SetHintText(Loc::Text("script_prop.category_hint"));
-			if (in(ImGuiInputTextFlags_None)) { p.Category = static_cast<const char*>(in); changed = true; }
-		}
-
-		LabelWithTip("script_prop.tooltip", "script_prop.tooltip_tooltip");
-		{
-			ImInputText in; in.SetText(p.Tooltip); in.SetHintText(Loc::Text("script_prop.tooltip_hint"));
-			if (in(ImGuiInputTextFlags_None)) { p.Tooltip = static_cast<const char*>(in); changed = true; }
-		}
-
-		ImGui::Separator();
-
-		bool serialize = (false == p.NoSerialize);
-		if (ImGui::Checkbox(Loc::Text("script_prop.serialize"), &serialize))
-		{
-			p.NoSerialize = (false == serialize); changed = true;
-		}
-		HoverTip("script_prop.serialize_tooltip");
-
-		if (ImGui::Checkbox(Loc::Text("script_prop.range"), &p.HasRange)) changed = true;
-		HoverTip("script_prop.range_tooltip");
-		if (p.HasRange)
-		{
-			float mn = static_cast<float>(p.RangeMin);
-			float mx = static_cast<float>(p.RangeMax);
-			ImGui::SetNextItemWidth(120.0f);
-			if (ImGui::DragFloat(Loc::Text("script_prop.range_min"), &mn, 0.1f)) { p.RangeMin = mn; changed = true; }
-			ImGui::SetNextItemWidth(120.0f);
-			if (ImGui::DragFloat(Loc::Text("script_prop.range_max"), &mx, 0.1f)) { p.RangeMax = mx; changed = true; }
-		}
+		ImGui::Utillity::FormLayout layout("##script_fields");
+		layout.Row([]() { LabelWithTip("script_prop.attributes", "script_prop.attributes_tooltip"); }, [&]() {
+				ImInputText in;("##attributes");
+				in.SetText(p.DisplayName);
+				in.SetHintText(Loc::Text("script_prop.display_name_hint"));
+				if (in(ImGuiInputTextFlags_None))
+				{
+					p.DisplayName = static_cast<const char*>(in);
+					changed = true;
+				}
+			});
+		layout.Row([]() { LabelWithTip("script_prop.category", "script_prop.category_tooltip"); }, [&]() {
+				ImInputText in("##category");
+				in.SetText(p.Category);
+				in.SetHintText(Loc::Text("script_prop.category_hint"));
+				if (in(ImGuiInputTextFlags_None))
+				{
+					p.Category = static_cast<const char*>(in);
+					changed = true;
+				}
+			});
+		layout.Row([]() { LabelWithTip("script_prop.tooltip", "script_prop.tooltip_tooltip"); }, [&]() {
+				ImInputText in("##tooltip");
+				in.SetText(p.Tooltip);
+				in.SetHintText(Loc::Text("script_prop.tooltip_hint"));
+				if (in(ImGuiInputTextFlags_None))
+				{
+					p.Tooltip = static_cast<const char*>(in);
+					changed = true;
+				}
+			});
+		layout.Row([]() { LabelWithTip("script_prop.serialize", "script_prop.serialize_tooltip"); }, [&]() {
+			if(ImGui::Checkbox("##serialize", &p.NoSerialize))
+			{
+				changed = true;
+			}
+		});
 		return changed;
 	}
 
@@ -174,10 +174,10 @@ namespace ScriptSchemaUI
 
 		const float fullW      = ImGui::CalcItemWidth();
 		const float gap        = 4.0f;
-		const float menuW      = ImGui::GetFrameHeight();           // ⋮ 정사각
 		const bool  needsTarget= ScriptSchema::NeedsTargetCombo(p.TypeToken);
 		const int   comboCount = needsTarget ? 2 : 1;              // 타입 (+Ref 대상)
 		const int   slots      = comboCount + 1;                   // 콤보들 + 이름
+		const float menuW      = ImGui::GetFrameHeight();          // ⋮ 메뉴 폭(버튼 텍스트 대신 아이콘)
 		const float avail      = fullW - menuW - gap * static_cast<float>(slots);
 		const float colW       = (avail > 0.0f) ? (avail / static_cast<float>(slots)) : 60.0f;
 
@@ -194,12 +194,15 @@ namespace ScriptSchemaUI
 			if (input(ImGuiInputTextFlags_None, nameInvalid)) { p.Name = static_cast<const char*>(input); changed = true; }
 			ImGui::EndDisabled();
 		}
-		HoverTip("script_prop.name_tooltip");
+		ImGui::Utillity::HoveredToolTip("script_prop.name_tooltip");
 
-		// ⋮ 메뉴
+		// 메뉴
 		ImGui::SameLine(0.0f, gap);
-		if (ImGui::Button("\xE2\x8B\xAE", ImVec2(menuW, 0.0f))) ImGui::OpenPopup("##prop_menu");   // U+22EE
-		HoverTip("script_prop.menu_tooltip");
+		if (ImTextButton(FontAssomeHelper::ICON_ELLIPSIS_VERTICAL, ImVec2(menuW, 0.0f), ImVec2(0, -2)))
+		{
+			ImGui::OpenPopup("##prop_menu");   // U+22EE
+		}
+		ImGui::Utillity::HoveredToolTip("script_prop.menu_tooltip");
 		if (ImGui::BeginPopup("##prop_menu"))
 		{
 			if (DrawPropertyMenu(p, nameReadOnly)) changed = true;

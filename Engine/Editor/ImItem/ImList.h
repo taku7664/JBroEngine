@@ -5,6 +5,7 @@
 
 #include "ThirdParty/imgui/imgui.h"
 #include "Editor/ImGuiUtillity.h"   // ImGui::Utillity::StyleBuilder, DisableScope
+#include "Editor/ImItem/ImButton.h" // ImTextButton
 
 enum EImListFlags
 {
@@ -90,7 +91,7 @@ bool ImList(const char* id, std::vector<T>& items,
 
         // 좌측 핸들 — 드래그 소스. 핸들만 잡아야 콘텐츠의 일반 InputText 와
         // 충돌하지 않는다. 행 높이는 콘텐츠(프레임)와 동일하게 — 컴팩트.
-        const char* selectableLabel = "=";
+        const char* selectableLabel = "\xEF\x83\x89";
         ImVec2 bodySize = ImVec2(availSpace.x, frameHeight);
         ImGui::Selectable("##row_body", false, ImGuiSelectableFlags_AllowOverlap, bodySize);
         {	// DragDrop Start
@@ -126,30 +127,10 @@ bool ImList(const char* id, std::vector<T>& items,
 
         // 우측 삭제 버튼
         ImGui::SameLine();
-        ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x - ROW_REMOVE_W);
-        {   // x button
-            const char* text = "X";
-            const ImVec2 textSize = ImGui::CalcTextSize(text);
-            const ImVec2 startCursor = ImGui::GetCursorPos() + style.FramePadding;
-
-            bool isHovered = false;
-            {
-                ImGui::Utillity::StyleBuilder styleBuilder;
-                if (ImGui::InvisibleButton("##x_button", textSize + style.FramePadding * 2))
-                {
-                    removeIndex = i;
-                }
-                isHovered = ImGui::IsItemHovered();
-            }
-            {
-                ImGui::SetCursorPos(startCursor);
-                ImGui::Utillity::StyleBuilder styleBuilder;
-                if (isHovered)
-                {
-                    styleBuilder.PushStyleColor(ImGuiCol_Text, style.Colors[ImGuiCol_TextSelectedBg]);
-                }
-                ImGui::TextUnformatted(text);
-            }
+		const char* removeLabel = "\xEF\x80\x8D";
+        if (ImTextButton(removeLabel, ImVec2(0, 0), ImVec2(0, -1)))
+        {
+            removeIndex = i;
         }
         ImGui::PopID();
         ImGui::SetCursorPos(bodyEndCursor);

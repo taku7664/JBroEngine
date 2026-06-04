@@ -318,6 +318,7 @@ xcopy /Y /I /E "$(ProjectDir)Localization" "$(SolutionDir)Localization\" &gt; nu
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="Application.h" />
+    <ClInclude Include="Editor\FontAssome\FontAssomeHelper.h" />
     <ClInclude Include="Editor\Main\AssetBrowser\AssetHandler.h" />
     <ClInclude Include="Editor\Build\GameBuildManager.h" />
     <ClInclude Include="Editor\Command\EditorFileCommands.h" />

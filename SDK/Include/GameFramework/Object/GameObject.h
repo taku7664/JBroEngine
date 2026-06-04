@@ -3,6 +3,7 @@
 #include "GameFramework/Component/Component.h"
 #include "GameFramework/Component/Transform2D.h"
 #include "GameFramework/Component/WorldTransform2D.h"
+#include "Utillity/Base/BitFlag.h"
 #include "Utillity/File/FilePath.h"
 #include "Utillity/Pointer/SafePtr.h"
 
@@ -13,6 +14,14 @@
 #include <vector>
 
 class CScene;
+
+// 오브젝트 비트 플래그. 상시 멤버(호스트/DLL/게임 동일 레이아웃 → ABI 안전).
+// 비트의 *의미*는 레이어별로 다를 수 있다(EditorHidden 은 에디터 씬뷰 전용).
+enum EObjectFlags : unsigned int
+{
+	ObjectFlag_None         = 0u,
+	ObjectFlag_EditorHidden = 1u << 0, // 에디터 씬뷰 렌더 제외. 런타임/게임은 무시.
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  CGameObject — 씬의 실체 객체(다형성 컴포넌트 구조).
@@ -43,17 +52,22 @@ public:
 
 	// ── 기본 속성 ────────────────────────────────────────────────────────────
 	std::string   Name;
+	std::string   Tag;            // 자유 분류 태그(검색/그룹핑용). 비어 있을 수 있음.
 	bool          IsActive = true;
-	std::uint32_t Layer = 0;
+	BitFlag       Flags;          // EObjectFlags. 직렬화됨. 확장용(예: EditorHidden).
 	File::Guid    InstanceGuid;
+
+	// ── 플래그 편의 ──────────────────────────────────────────────────────────
+	bool IsEditorHidden() const { return Flags.Has(ObjectFlag_EditorHidden); }
+	void SetEditorHidden(bool hidden)
+	{
+		if (hidden) Flags.Add(ObjectFlag_EditorHidden);
+		else        Flags.Remove(ObjectFlag_EditorHidden);
+	}
 
 	// ── Transform (컴포넌트 아님 — 멤버) ──────────────────────────────────────
 	Transform2D      Local;
 	WorldTransform2D World;
-
-	// 렌더러 픽킹 등 프레임 내 불투명 식별자. 풀 슬롯 주소가 안정적이므로 객체
-	// 수명 동안 유일·불변(직렬화 키는 InstanceGuid, 이건 런타임 전용).
-	std::uint64_t GetId() const { return reinterpret_cast<std::uintptr_t>(this); }
 
 	const char* GetName() const { return Name.c_str(); }
 	void        SetName(const char* name) { Name = name ? name : ""; }

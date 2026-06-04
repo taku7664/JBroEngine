@@ -18,8 +18,10 @@ public:
 	// Call after BeginRenderPass+SetViewport to clear a sub-viewport area.
 	void FillViewportColor(float r, float g, float b, float a) override;
 	void Render(IRenderScene& scene) override;
-	// 지정 엔티티 집합에 속하는 RenderItem만 렌더링 (포커스 오버레이 / 마스크 패스용).
+	// 지정 키 집합에 속하는 RenderItem만 렌더링 (포커스 오버레이 / 마스크 패스용).
 	void RenderFiltered(IRenderScene& scene, const std::unordered_set<RenderObjectId>& objects);
+	// excluded 키 집합에 속하는 RenderItem을 제외하고 전부 렌더링 (에디터 씬뷰 숨김용).
+	void RenderExcluding(IRenderScene& scene, const std::unordered_set<RenderObjectId>& excluded);
 	void Finalize() override;
 
 	bool CreateGpuResource(IRenderResource& resource) override;
@@ -30,6 +32,7 @@ public:
 	SafePtr<IRenderMesh> GetQuadMesh() const;
 
 private:
+	void RenderImpl(IRenderScene& scene, const std::unordered_set<RenderObjectId>* excluded);
 	bool CreateSpritePipeline();
 	bool CreateQuadMesh();
 

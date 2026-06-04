@@ -1,47 +1,29 @@
-# TODO — ECS → 다형성 Scene-Object-Component 전환
+# TODO — 정수 ID 전면 제거 (ObjectId → SafePtr/void*/Guid)
 
 ## Goal
-
-sparse-set ECS(EntityId+ComponentPool)를 다형성 Scene→Object→Component 구조로 전환.
-- GameObject/Component는 타입별 청크 풀(10/청크, 순회 지원)에 거주, 외부 공유는 SafePtr.
-- Transform/계층은 GameObject 멤버(컴포넌트 아님).
-- 직렬화는 리플렉션 구동 유지(SceneSnapshot 제거).
-- Utillity 불가침. refactor 브랜치.
+ECS 잔재 정수 식별자(`ObjectId`/`GetId()`/`FindObjectById`) 전면 제거.
+- 에디터 선택/픽킹/커맨드 → `SafePtr<CGameObject>` (undo 내구성 필요분 `InstanceGuid`)
+- 렌더/디버그 외곽선 태그 → `const void*` (역참조 안 함, 프레임 한정 비교 키, Core 레이어)
+- 핫리로드 스냅샷 → `InstanceGuid`
 
 ## Success Criteria
-
-- Debug(에디터)/Debug_Game(런타임) x64 컴파일 0에러.
-- 오브젝트/컴포넌트 CRUD, 계층, 씬 저장↔재로드 동일성, 시뮬 Play/Stop, 스크립트 핫리로드 필드/Ref 유지.
-- 파괴 후 잔여 SafePtr 안전(null). 다청크(>10) 순회 정상.
+- `ObjectId`/`INVALID_OBJECT_ID`/`GetId()`/`FindObjectById` 0개(렌더 태그 alias 제외).
+- Debug_Editor + Debug_Game + Sample GameScript.dll green.
 
 ## Plan
-
-- [x] 0. refactor 브랜치 생성 (main 파생)
-- [x] A. `TObjectPool<T>` 신규 — `Engine/GameFramework/Object/ObjectPool.h` (청크 10, 점유 순회, ControlBlock 바인딩/no-op deleter/수동 해제). Utillity 무수정
-- [x] B. 코어 타입:
-  - `Component/Component.h` (CComponent 베이스, IsEnabled/Owner, GetTypeName 가상, JBRO_COMPONENT 매크로)
-  - `Object/GameObject.h`,`.cpp` (CGameObject 실체: Name/Active/Layer/Guid + Transform2D/WorldTransform2D 멤버 + Parent/Children SafePtr + Components SafePtr, 계층/파괴)
-  - `Scene/Scene.h`,`.cpp` (풀 소유, AddComponent/RemoveComponent/GetComponent(object), ForEach<T>=타입풀, ForEachObject, FindByInstanceGuid, DestroyComponent, Update 패스). EntityId 미사용
-- [x] C. 컴포넌트 전환 완료: 10종 `class: public CComponent`(IsEnabled 베이스), 옛 GameObject struct/TransformHierarchy2D 스텁화, BuiltinComponentRegistry(GameObject/Transform/Hierarchy 등록·IsEnabled prop 제거), ReflectionRegistry(EntityId→CGameObject&, AddNew/RemoveSpecific/GetAllAddresses 제거)
-- [x] 리뷰픽스: F1(지연파괴 큐, SafePtr 기반)·F3(Allocate static_assert) 적용. F4(블록 new 정상) 정정 수용
-- [x] D. 시스템 5종 완료: Transform/Script/SpriteRender/Audio/**Physics2DSystem**. SceneTransformUtils→GetWorldTransform(const CGameObject&)=World 캐시 읽기. GameCamera도 전환. (⚠ Physics는 ENOSPC로 파일 0바이트化→git 복원 후 편집 전량 재적용함)
-- [x] E. GameScript(Bind(CScene&,CGameObject&), m_owner SafePtr, GetGameObject/GetComponent<T>). Ref.cpp(FindByInstanceGuid→CGameObject::FindComponentRaw(type_index) / ScriptComponent.Instance). SceneManager 편집 불요(제거 API 미사용). ScriptAPI 인클루드/코멘트 정리. (남은 GetEntity/EntityId 참조는 전부 에디터·직렬화기=Step F)
-- [~] F. **SceneSerializer 제네릭화 완료**(SceneSnapshot 미사용, 라이브 순회+per-type Write 디스패치+IsEnabled 제네릭, Transform 객체노드 직접, CGameObject* 기반). **남음**: PrefabSerializer, 에디터 — HierarchyTool(BuildSnapshot 유일 잔존 소비처→ForEachObject), InspectorTool(레지스트리 열거→object Components + FindEntityByInstanceGuid), SceneView*, EditorSceneCommands(EntityId→SafePtr<CGameObject>), AssetHandler, EditorGuiDrawHelpers(AddComponent: reflection.AddComponent(scene,object,typeId); SelectEntity)
-- [ ] G. 프로젝트 파일(vcxproj/filters)에 신규 파일 등록 + 빌드·런타임 검증 (에디터→게임→웹)
+- [ ] S1 Core 태그: RendererTypes/DebugDraw2D `=const void*`, 생산/소비 포인터 키
+- [ ] S2 GameFramework: SceneTypes ObjectId 제거, GameObject::GetId 제거, Scene::FindObjectById 제거(FindByInstanceGuid 유지)
+- [ ] S3 ImEditor: 포커스셋 const void*
+- [ ] S4 SceneDebugDrawSystem 태그 포인터화
+- [ ] S5 LiveCompile snapshot.Entity → InstanceGuid
+- [ ] S6 Editor.h 선택 SafePtr<CGameObject>
+- [ ] S7 EditorSceneCommands 식별 InstanceGuid/SafePtr
+- [ ] S8 EditorDragDrop 페이로드 CGameObject*
+- [ ] S9 소비자 Hierarchy/Inspector/SceneViewTool/EditContext/Contour/GuiHelpers
+- [ ] S10 빌드 green
 
 ## Verification
-
-- [ ] msbuild Debug, Debug_Game (x64) 0에러
-- [ ] 에디터 런타임 시나리오 통과
-- [ ] Debug_Game 저장 씬 구동
-- [ ] diff 리뷰
+- [ ] grep 잔존 0 / 3빌드 green
 
 ## Review
-
-### Changed
-
-### Verified
-
-### Not Verified
-
-### Risks
+(작성 예정)

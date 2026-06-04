@@ -38,9 +38,6 @@ public:
 	SafePtr<CGameObject> FindByInstanceGuid(const File::Guid& guid);
 	void                 SetObjectInstanceGuid(CGameObject& object, const File::Guid& guid);
 
-	// 불투명 id(CGameObject::GetId) → 오브젝트. 에디터 선택/픽킹·프리팹 루트 해석용.
-	CGameObject* FindObjectById(std::uint64_t id);
-
 	template<typename Fn> void ForEachObject(Fn&& fn)       { m_objectPool.ForEachLive(std::forward<Fn>(fn)); }
 	template<typename Fn> void ForEachObject(Fn&& fn) const { m_objectPool.ForEachLive(std::forward<Fn>(fn)); }
 

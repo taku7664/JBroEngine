@@ -40,9 +40,12 @@ private:
 class ImInputText
 {
 public:
-    ImInputText(size_t maxLength = ULLONG_MAX);
+    ImInputText(const char* label = "");
 
 public:
+	// 라벨을 설정합니다. 라벨은 InputText 내부에 표시되며, 툴팁이 아닙니다.
+	void SetLabel(const char* label);
+
 	// 문자 최대 입력 길이를 제한합니다.
 	ImInputText& SetMaxLength(size_t maxLength);
 
@@ -66,6 +69,7 @@ public:
     void Clear();
 
 private:
+	std::string m_label;
 	size_t m_maxLength = SIZE_MAX;
 	std::string m_buffer;
 	std::string m_hint;

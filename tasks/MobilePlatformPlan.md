@@ -485,6 +485,29 @@ Project.app/Project
 - Vulkan backend 는 객체 계층과 주요 생성 경로를 갖췄지만, descriptor set/texture upload/shader cook 이 남아 실제 sprite rendering 완료 단계는 아닙니다.
 - 다음 단계는 Android Debug APK 를 먼저 목표로 `PlatformBuild/Android` template 과 native entry/lifecycle 을 붙이는 것입니다.
 
+## 2026-06-04 Vulkan SDK 확인 상태
+
+Windows Vulkan SDK 설치 확인:
+
+- `VULKAN_SDK=C:\VulkanSDK\1.4.350.0`
+- `Include\vulkan\vulkan.h` 존재
+- `Lib\vulkan-1.lib` 존재
+- `Bin\glslangValidator.exe` 존재
+- `glslangValidator --version` 정상
+- `vulkaninfo --summary` 정상
+- GPU: `NVIDIA GeForce RTX 2080`
+- Vulkan Instance Version: `1.4.350`
+
+아직 하지 않은 작업:
+
+- 엔진 프로젝트에 `$(VULKAN_SDK)\Include` 추가
+- 엔진 프로젝트에 `$(VULKAN_SDK)\Lib` 추가
+- 엔진 프로젝트에 `vulkan-1.lib` 링크 추가
+- Android NDK Vulkan link 검증
+- iOS MoltenVK link 검증
+
+컨텍스트 압축 후 이어갈 때는 `tasks/VulkanMobileHandoff.md` 를 먼저 읽습니다.
+
 ### Phase 1: 플랫폼 추상화 점검
 
 - platform enum 에 Android/iOS 추가

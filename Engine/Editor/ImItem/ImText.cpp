@@ -106,6 +106,11 @@ void ImText::operator()(const char* text)
     ImGui::SetWindowFontScale(old);
 }
 
+void ImInputText::SetLabel(const char* label)
+{
+	m_label = label;
+}
+
 ImInputText& ImInputText::SetMaxLength(size_t maxLength)
 {
     m_maxLength = maxLength;
@@ -138,8 +143,8 @@ bool ImInputText::operator()(ImGuiInputTextFlags flags, bool invalid)
     }
     ImGui::PushID(this);
     const bool changed = (m_hint.empty())
-        ? ImGui::InputText("##iminputtext", &m_buffer, flags)
-        : ImGui::InputTextWithHint("##iminputtext", m_hint.c_str(), &m_buffer, flags);
+        ? ImGui::InputText(m_label.c_str(), &m_buffer, flags)
+        : ImGui::InputTextWithHint(m_label.c_str(), m_hint.c_str(), &m_buffer, flags);
 
     // enforce max length after editing
     if (m_maxLength != ULLONG_MAX && m_buffer.size() > m_maxLength)
@@ -155,11 +160,9 @@ bool ImInputText::operator()(ImGuiInputTextFlags flags, bool invalid)
     return changed;
 }
 
-ImInputText::ImInputText(size_t maxLength)
-    : m_maxLength(maxLength)
+ImInputText::ImInputText(const char* label)
+    : m_label(label)
 {
-    if (m_maxLength != ULLONG_MAX)
-        m_buffer.reserve(m_maxLength);
 }
 
 ImInputText::operator const char* ()

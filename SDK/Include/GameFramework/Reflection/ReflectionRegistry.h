@@ -18,6 +18,7 @@ using ComponentRemoveFunc           = bool(*)(CScene& scene, CGameObject& object
 using ComponentHasFunc              = bool(*)(const CGameObject& object);
 using ComponentAddressFunc          = void*       (*)(CGameObject& object);
 using ConstComponentAddressFunc     = const void* (*)(const CGameObject& object);
+using ComponentAddressesFunc        = std::vector<void*>(*)(CGameObject& object); // 멀티 컴포넌트: 같은 타입 전부
 
 // 스크립트 인스턴스 팩토리 함수 타입
 using CreateScriptFunc = CGameScript*(*)(const GameModuleHostApi* hostApi);
@@ -30,9 +31,8 @@ struct ScriptInstanceHandle
 	const GameModuleHostApi* HostApi = nullptr;
 };
 
-// 단일 인스턴스 ECS: 한 엔티티는 같은 타입의 컴포넌트를 최대 1개만 보유.
-// AddNew/RemoveSpecific/GetAllAddresses 는 호환성을 위해 인터페이스만 유지되며
-// ComponentPool 차원에서 단일 인스턴스 동작으로 처리된다(ComponentPool.h 헤더 주석 참고).
+// 한 오브젝트는 같은 타입 컴포넌트를 여러 개 보유할 수 있다(멀티 컴포넌트).
+// GetAddress 는 첫 인스턴스, GetAddresses 는 전부를 돌려준다.
 struct ComponentTypeInfo
 {
 	ReflectTypeInfo Type;
@@ -40,7 +40,8 @@ struct ComponentTypeInfo
 	ComponentAddFunc          AddToObject     = nullptr;
 	ComponentRemoveFunc       RemoveFromObject = nullptr;
 	ComponentHasFunc          HasComponent    = nullptr;
-	ComponentAddressFunc      GetAddress      = nullptr;
+	ComponentAddressFunc      GetAddress      = nullptr;   // 첫 인스턴스(없으면 nullptr)
+	ComponentAddressesFunc    GetAddresses    = nullptr;   // 같은 타입 전부
 	ConstComponentAddressFunc GetConstAddress = nullptr;
 	bool CanAddToObject = true;
 };
@@ -102,6 +103,8 @@ public:
 	bool HasComponent(const CGameObject& object, TypeId typeId) const;
 	void* GetComponentAddress(CGameObject& object, TypeId typeId) const;
 	const void* GetComponentAddress(const CGameObject& object, TypeId typeId) const;
+	// 같은 타입 컴포넌트 전부(멀티 컴포넌트). 없으면 빈 벡터.
+	std::vector<void*> GetComponentAddresses(CGameObject& object, TypeId typeId) const;
 
 	static void* GetPropertyAddress(void* component, const ReflectPropertyInfo& property);
 	static const void* GetPropertyAddress(const void* component, const ReflectPropertyInfo& property);
@@ -153,6 +156,14 @@ CComponentRegistration CReflectionRegistry::RegisterComponent(const ComponentReg
 	};
 	typeInfo.GetAddress = [](CGameObject& object) -> void* {
 		return object.GetComponent<T>();
+	};
+	typeInfo.GetAddresses = [](CGameObject& object) -> std::vector<void*> {
+		std::vector<void*> result;
+		for (T* comp : object.GetComponents<T>())
+		{
+			result.push_back(comp);
+		}
+		return result;
 	};
 	typeInfo.GetConstAddress = [](const CGameObject& object) -> const void* {
 		return object.GetComponent<T>();
