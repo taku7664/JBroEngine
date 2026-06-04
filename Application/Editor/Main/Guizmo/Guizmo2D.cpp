@@ -359,6 +359,10 @@ void CGuizmo2D::DrawTranslate(const GuizmoFrameContext& context,
 	                  pivotScreen.y + xScreenDelta.y * AXIS_LENGTH);
 	const ImVec2 yEnd(pivotScreen.x + yScreenDelta.x * AXIS_LENGTH,
 	                  pivotScreen.y + yScreenDelta.y * AXIS_LENGTH);
+	const ImVec2 xLineEnd(xEnd.x - xScreenDelta.x * ARROW_SIZE,
+	                      xEnd.y - xScreenDelta.y * ARROW_SIZE);
+	const ImVec2 yLineEnd(yEnd.x - yScreenDelta.x * ARROW_SIZE,
+	                      yEnd.y - yScreenDelta.y * ARROW_SIZE);
 	const ImU32 xColor = hotHandle == EGuizmoHandle2D::MoveX ? COLOR_HOVER : COLOR_X;
 	const ImU32 yColor = hotHandle == EGuizmoHandle2D::MoveY ? COLOR_HOVER : COLOR_Y;
 	const ImU32 centerColor = hotHandle == EGuizmoHandle2D::MoveXY ? COLOR_HOVER : COLOR_CENTER;
@@ -366,13 +370,13 @@ void CGuizmo2D::DrawTranslate(const GuizmoFrameContext& context,
 	dl->PushClipRect(context.ViewportRect.Min, context.ViewportRect.Max, true);
 
 	dl->AddLine(ImVec2(pivotScreen.x + 1.0f, pivotScreen.y + 1.0f),
-	            ImVec2(xEnd.x + 1.0f, xEnd.y + 1.0f),
+	            ImVec2(xLineEnd.x + 1.0f, xLineEnd.y + 1.0f),
 	            COLOR_SHADOW, LINE_THICKNESS + 1.0f);
 	dl->AddLine(ImVec2(pivotScreen.x + 1.0f, pivotScreen.y + 1.0f),
-	            ImVec2(yEnd.x + 1.0f, yEnd.y + 1.0f),
+	            ImVec2(yLineEnd.x + 1.0f, yLineEnd.y + 1.0f),
 	            COLOR_SHADOW, LINE_THICKNESS + 1.0f);
 
-	dl->AddLine(pivotScreen, xEnd, xColor, LINE_THICKNESS);
+	dl->AddLine(pivotScreen, xLineEnd, xColor, LINE_THICKNESS);
 	dl->AddTriangleFilled(
 		xEnd,
 		ImVec2(xEnd.x - xScreenDelta.x * ARROW_SIZE - xScreenDelta.y * ARROW_SIZE * 0.65f,
@@ -381,7 +385,7 @@ void CGuizmo2D::DrawTranslate(const GuizmoFrameContext& context,
 		       xEnd.y - xScreenDelta.y * ARROW_SIZE - xScreenDelta.x * ARROW_SIZE * 0.65f),
 		xColor);
 
-	dl->AddLine(pivotScreen, yEnd, yColor, LINE_THICKNESS);
+	dl->AddLine(pivotScreen, yLineEnd, yColor, LINE_THICKNESS);
 	dl->AddTriangleFilled(
 		yEnd,
 		ImVec2(yEnd.x - yScreenDelta.x * ARROW_SIZE - yScreenDelta.y * ARROW_SIZE * 0.65f,

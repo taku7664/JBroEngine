@@ -1,3 +1,36 @@
+# TODO — SceneView Translate Arrow Line Trim
+
+## Goal
+Translate Guizmo의 축 선이 화살표 삼각형 안으로 튀어나와 보이지 않게 정리한다.
+
+## Assumptions
+- 문제는 선을 화살표 tip까지 그려서 삼각형 내부에 선이 겹쳐 보이는 것이다.
+- hit-test 범위는 기존 축 전체 길이를 유지한다.
+- draw만 화살표 밑변까지 줄인다.
+
+## Success Criteria
+- Translate X/Y 축 선이 화살표 밑변에서 끝난다.
+- 화살표 tip은 삼각형만 차지한다.
+- Local/World 축 방향과 기존 hit-test 동작은 유지된다.
+
+## Plan
+- [x] Translate draw line end를 arrow base로 조정
+- [x] shadow line도 같은 기준으로 조정
+- [x] 빌드 검증 및 커밋
+
+## Verification
+- [x] `Debug_Editor|x64` build
+- [x] `Debug_Game|x64` build
+- [x] `git diff --check`
+
+## Review
+- 코드를 읽었고: Translate draw는 축 선을 `pivotScreen -> xEnd/yEnd`까지 그린 뒤, 같은 `xEnd/yEnd`를 화살표 tip으로 삼아 삼각형을 덮어 그리고 있었다.
+- 생각했고: 이 구조에서는 선이 화살표 삼각형 내부까지 들어가므로, 이미지처럼 화살표 중앙에서 선이 삐져나온 것처럼 보일 수 있다.
+- 반례를 찾았고: hit-test 선분까지 줄이면 사용자가 화살표 근처 축을 잡는 감도가 줄어든다.
+- 고쳤다: hit-test는 기존 축 전체 길이를 유지하고, draw line과 shadow line만 `tip - axisDir * ARROW_SIZE` 위치에서 끝나도록 잘랐다.
+
+---
+
 # TODO — SceneView Guizmo Drag Follow / Scale Line Hit-Test
 
 ## Goal
