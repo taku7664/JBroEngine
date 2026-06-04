@@ -2,6 +2,7 @@
 #include "HierarchyTool.h"
 
 #include "Engine/Editor/ImItem/ImTree.h"
+#include "Engine/Editor/ImItem/ImButton.h"
 
 #include "Editor/Command/EditorSceneCommands.h"
 #include "Editor/FontAssome/FontAssomeHelper.h"
@@ -144,19 +145,6 @@ void CHierarchyTool::OnRenderStay()
 		const char* name = (objName && objName[0]) ? objName : "GameObject";
 		const bool isOpen = ImTree(name, flags);
 
-		// ── 가시성 토글(눈 아이콘, 우측 정렬). 씬뷰 전용 EditorHidden 플래그. ──
-		{
-			const bool  hidden = obj->IsEditorHidden();
-			const float btnW   = ImGui::GetFrameHeight();
-			ImGui::SameLine(ImGui::GetContentRegionMax().x - btnW);
-			const std::string visLabel =
-				std::string(hidden ? FontAssomeHelper::ICON_EYE_SLASH : FontAssomeHelper::ICON_EYE) + "##vis";
-			if (ImGui::SmallButton(visLabel.c_str()))
-			{
-				obj->SetEditorHidden(!hidden);
-			}
-		}
-
 		// ── 클릭으로 선택 (Release 기준) ───────────────────────────────────
 		// Press 가 아니라 Release 에서 선택한다. Press 로 선택하면 드래그를 시작하는
 		// 순간 선택이 바뀌어 인스펙터가 갱신되고, 드래그-드랍 대상(Ref 프로퍼티)이
@@ -230,6 +218,20 @@ void CHierarchyTool::OnRenderStay()
 			ImGui::Separator();
 			EditorGuiDrawHelpers::DrawRemoveObjectMenu(*activeScene, obj);
 			ImGui::EndPopup();
+		}
+
+		// ── 가시성 토글(눈 아이콘, 우측 정렬). 씬뷰 전용 EditorHidden 플래그. ──
+		// 트리노드 상호작용(선택/드래그/드롭/컨텍스트) 처리 뒤에 그려야 IsItem* 이
+		// 트리노드를 가리킨다. SameLine(절대x)로 같은 행 우측에 배치.
+		{
+			const bool  hidden = obj->IsEditorHidden();
+			const float btnW   = ImGui::GetFrameHeight();
+			ImGui::SameLine(ImGui::GetContentRegionMax().x - btnW);
+			const char* icon = hidden ? FontAssomeHelper::ICON_EYE_SLASH : FontAssomeHelper::ICON_EYE;
+			if (ImTextButton(icon, ImVec2(btnW, 0.0f)))
+			{
+				obj->SetEditorHidden(!hidden);
+			}
 		}
 
 		// ── 선택된 오브젝트: 컴포넌트 리스트를 자식보다 "위"에 표시 ───────────
