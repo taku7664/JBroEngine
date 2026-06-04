@@ -115,6 +115,102 @@ fn PSMain(input : VSOut) -> @location(0) vec4<f32>
 	return textureSample(gTexture, gSampler, input.Uv) * input.Color;
 }
 )";
+
+	const char* SPRITE_BATCH_SHADER_SOURCE_HLSL = R"(
+cbuffer SpriteViewConstants : register(b0)
+{
+	float4 gViewRow0;
+	float4 gViewRow1;
+};
+
+Texture2D gTexture : register(t0);
+SamplerState gSampler : register(s0);
+
+struct VSIn
+{
+	float2 Position : POSITION;
+	float2 Uv : TEXCOORD0;
+	float4 TransformRow0 : TEXCOORD1;
+	float4 TransformRow1 : TEXCOORD2;
+	float4 Color : COLOR0;
+};
+
+struct VSOut
+{
+	float4 Position : SV_POSITION;
+	float2 Uv : TEXCOORD0;
+	float4 Color : COLOR0;
+};
+
+VSOut VSMain(VSIn input)
+{
+	VSOut output;
+	float3 localPosition = float3(input.Position.xy, 1.0f);
+	float2 worldPosition = float2(dot(localPosition, input.TransformRow0.xyz), dot(localPosition, input.TransformRow1.xyz));
+	float3 worldPos3 = float3(worldPosition.x, worldPosition.y, 1.0f);
+	output.Position = float4(dot(worldPos3, gViewRow0.xyz), dot(worldPos3, gViewRow1.xyz), 0.0f, 1.0f);
+	output.Uv = input.Uv;
+	output.Color = input.Color;
+	return output;
+}
+
+float4 PSMain(VSOut input) : SV_TARGET
+{
+	return gTexture.Sample(gSampler, input.Uv) * input.Color;
+}
+)";
+
+	const char* SPRITE_BATCH_SHADER_SOURCE_WGSL = R"(
+struct SpriteViewConstants
+{
+	ViewRow0 : vec4<f32>,
+	ViewRow1 : vec4<f32>,
+};
+
+@group(0) @binding(0)
+var<uniform> gConstants : SpriteViewConstants;
+
+@group(0) @binding(1)
+var gTexture : texture_2d<f32>;
+
+@group(0) @binding(2)
+var gSampler : sampler;
+
+struct VSIn
+{
+	@location(0) Position : vec2<f32>,
+	@location(1) Uv : vec2<f32>,
+	@location(2) TransformRow0 : vec4<f32>,
+	@location(3) TransformRow1 : vec4<f32>,
+	@location(4) Color : vec4<f32>,
+};
+
+struct VSOut
+{
+	@builtin(position) Position : vec4<f32>,
+	@location(0) Uv : vec2<f32>,
+	@location(1) Color : vec4<f32>,
+};
+
+@vertex
+fn VSMain(input : VSIn) -> VSOut
+{
+	var output : VSOut;
+	let localPosition = vec3<f32>(input.Position.xy, 1.0);
+	let worldPosition = vec2<f32>(dot(localPosition, input.TransformRow0.xyz), dot(localPosition, input.TransformRow1.xyz));
+	let worldPos3 = vec3<f32>(worldPosition.x, worldPosition.y, 1.0);
+	output.Position = vec4<f32>(dot(worldPos3, gConstants.ViewRow0.xyz), dot(worldPos3, gConstants.ViewRow1.xyz), 0.0, 1.0);
+	output.Uv = input.Uv;
+	output.Color = input.Color;
+	return output;
+}
+
+@fragment
+fn PSMain(input : VSOut) -> @location(0) vec4<f32>
+{
+	return textureSample(gTexture, gSampler, input.Uv) * input.Color;
+}
+)";
 }
 
 bool CForward2DRenderer::Initialize(const RendererDesc& desc)
@@ -142,6 +238,8 @@ bool CForward2DRenderer::Initialize(const RendererDesc& desc)
 		return true;
 	}
 
+	CreateSpriteBatchPipeline();
+
 	RHISamplerDesc samplerDesc;
 	samplerDesc.Filter = ERHIFilterMode::Linear;
 	samplerDesc.AddressU = ERHIAddressMode::Clamp;
@@ -166,6 +264,8 @@ bool CForward2DRenderer::Initialize(const RendererDesc& desc)
 void CForward2DRenderer::BeginFrame()
 {
 	m_spriteConstantBufferCursor = 0;
+	m_spriteViewConstantBufferCursor = 0;
+	m_spriteInstanceBufferCursor = 0;
 }
 
 void CForward2DRenderer::SetRenderTargetSize(const RenderSurfaceSize& size)
@@ -252,6 +352,36 @@ CForward2DRenderer::SpriteConstants CForward2DRenderer::BuildSpriteConstants(
 	return constants;
 }
 
+CForward2DRenderer::SpriteViewConstants CForward2DRenderer::BuildSpriteViewConstants(const ViewParameters& view) const
+{
+	SpriteViewConstants constants = {};
+	const float camX = m_viewCamX;
+	const float camY = m_viewCamY;
+	constants.ViewRow0[0] =  view.CosR / view.HalfW;
+	constants.ViewRow0[1] =  view.SinR / view.HalfW;
+	constants.ViewRow0[2] = -(view.CosR * camX + view.SinR * camY) / view.HalfW;
+	constants.ViewRow1[0] = -view.SinR / view.HalfH;
+	constants.ViewRow1[1] =  view.CosR / view.HalfH;
+	constants.ViewRow1[2] =  (view.SinR * camX - view.CosR * camY) / view.HalfH;
+	return constants;
+}
+
+CForward2DRenderer::SpriteInstanceData CForward2DRenderer::BuildSpriteInstanceData(const RenderItem& item) const
+{
+	SpriteInstanceData instance = {};
+	instance.TransformRow0[0] = item.Transform.M11;
+	instance.TransformRow0[1] = item.Transform.M21;
+	instance.TransformRow0[2] = item.Transform.Dx;
+	instance.TransformRow1[0] = item.Transform.M12;
+	instance.TransformRow1[1] = item.Transform.M22;
+	instance.TransformRow1[2] = item.Transform.Dy;
+	for (int c = 0; c < 4; ++c)
+	{
+		instance.Color[c] = item.Color[c];
+	}
+	return instance;
+}
+
 CForward2DRenderer::SpriteConstants CForward2DRenderer::BuildViewportColorConstants(float r, float g, float b, float a) const
 {
 	SpriteConstants constants = {};
@@ -286,6 +416,68 @@ SafePtr<IRHIBuffer> CForward2DRenderer::AcquireSpriteConstantBuffer(IRHICommandC
 
 	SafePtr<IRHIBuffer> buffer = m_spriteConstantBuffers[bufferIndex].GetSafePtr();
 	commandContext.UpdateBuffer(buffer, &constants, sizeof(SpriteConstants));
+	return buffer;
+}
+
+SafePtr<IRHIBuffer> CForward2DRenderer::AcquireSpriteViewConstantBuffer(IRHICommandContext& commandContext, const SpriteViewConstants& constants)
+{
+	const std::size_t bufferIndex = m_spriteViewConstantBufferCursor++;
+	if (bufferIndex >= m_spriteViewConstantBuffers.size())
+	{
+		RHIBufferDesc desc;
+		desc.SizeInBytes = sizeof(SpriteViewConstants);
+		desc.Usage = ERHIBufferUsage::Default;
+		desc.BindFlags = static_cast<RHIBindFlags>(ERHIBindFlag::ConstantBuffer);
+
+		OwnerPtr<IRHIBuffer> buffer = m_rhiDevice->CreateBuffer(desc, nullptr);
+		if (!buffer)
+		{
+			return nullptr;
+		}
+		m_spriteViewConstantBuffers.push_back(std::move(buffer));
+	}
+
+	SafePtr<IRHIBuffer> buffer = m_spriteViewConstantBuffers[bufferIndex].GetSafePtr();
+	commandContext.UpdateBuffer(buffer, &constants, sizeof(SpriteViewConstants));
+	return buffer;
+}
+
+SafePtr<IRHIBuffer> CForward2DRenderer::AcquireSpriteInstanceBuffer(IRHICommandContext& commandContext, const SpriteInstanceData* instances, std::uint32_t instanceCount)
+{
+	if (nullptr == instances || 0 == instanceCount)
+	{
+		return nullptr;
+	}
+
+	const std::size_t requiredBytes = sizeof(SpriteInstanceData) * static_cast<std::size_t>(instanceCount);
+	const std::size_t bufferIndex = m_spriteInstanceBufferCursor++;
+	if (bufferIndex >= m_spriteInstanceBuffers.size()
+		|| !m_spriteInstanceBuffers[bufferIndex]
+		|| m_spriteInstanceBuffers[bufferIndex]->GetDesc().SizeInBytes < requiredBytes)
+	{
+		RHIBufferDesc desc;
+		desc.SizeInBytes = requiredBytes;
+		desc.Usage = ERHIBufferUsage::Default;
+		desc.BindFlags = static_cast<RHIBindFlags>(ERHIBindFlag::VertexBuffer);
+
+		OwnerPtr<IRHIBuffer> buffer = m_rhiDevice->CreateBuffer(desc, nullptr);
+		if (!buffer)
+		{
+			return nullptr;
+		}
+
+		if (bufferIndex >= m_spriteInstanceBuffers.size())
+		{
+			m_spriteInstanceBuffers.push_back(std::move(buffer));
+		}
+		else
+		{
+			m_spriteInstanceBuffers[bufferIndex] = std::move(buffer);
+		}
+	}
+
+	SafePtr<IRHIBuffer> buffer = m_spriteInstanceBuffers[bufferIndex].GetSafePtr();
+	commandContext.UpdateBuffer(buffer, instances, requiredBytes);
 	return buffer;
 }
 
@@ -390,6 +582,127 @@ bool CForward2DRenderer::DrawSpriteQuad(
 	return true;
 }
 
+bool CForward2DRenderer::CanBatchSpriteItem(const RenderItem& item, SafePtr<IRenderMesh> mesh, SafePtr<IRHITexture> texture, SafePtr<IRHISampler> sampler) const
+{
+	if (!m_spriteBatchPipeline || !m_quadMesh)
+	{
+		return false;
+	}
+	if (false == item.Material.IsValid() || false == mesh.IsValid() || false == texture.IsValid() || false == sampler.IsValid())
+	{
+		return false;
+	}
+	if (mesh != m_quadMesh.GetSafePtr())
+	{
+		return false;
+	}
+
+	SafePtr<IRHIGraphicsPipeline> pipeline = item.Material->GetPipeline();
+	return false == pipeline.IsValid() || pipeline == m_spritePipeline.GetSafePtr();
+}
+
+bool CForward2DRenderer::DrawSpriteBatch(IRHICommandContext& commandContext, RenderStateCache& stateCache, const RenderItem* items, std::uint32_t itemCount, const ViewParameters& view)
+{
+	if (nullptr == items || 0 == itemCount || !m_spriteBatchPipeline || !m_quadMesh)
+	{
+		return false;
+	}
+
+	const RenderItem& firstItem = items[0];
+	if (false == firstItem.Material.IsValid())
+	{
+		return false;
+	}
+
+	SafePtr<IRenderMesh> mesh = firstItem.Mesh;
+	SafePtr<IRHITexture> texture = firstItem.Material->GetTexture();
+	SafePtr<IRHISampler> sampler = firstItem.Material->GetSampler();
+	if (false == sampler.IsValid())
+	{
+		sampler = m_defaultSampler.GetSafePtr();
+	}
+	if (false == CanBatchSpriteItem(firstItem, mesh, texture, sampler))
+	{
+		return false;
+	}
+
+	SafePtr<IRHIBuffer> vertexBuffer = mesh->GetVertexBuffer();
+	SafePtr<IRHIBuffer> indexBuffer = mesh->GetIndexBuffer();
+	if (false == vertexBuffer.IsValid() || false == indexBuffer.IsValid())
+	{
+		return false;
+	}
+
+	m_spriteBatchInstances.clear();
+	m_spriteBatchInstances.reserve(itemCount);
+	for (std::uint32_t i = 0; i < itemCount; ++i)
+	{
+		m_spriteBatchInstances.push_back(BuildSpriteInstanceData(items[i]));
+	}
+
+	const SpriteViewConstants viewConstants = BuildSpriteViewConstants(view);
+	SafePtr<IRHIBuffer> viewConstantBuffer = AcquireSpriteViewConstantBuffer(commandContext, viewConstants);
+	SafePtr<IRHIBuffer> instanceBuffer = AcquireSpriteInstanceBuffer(commandContext, m_spriteBatchInstances.data(), itemCount);
+	if (false == viewConstantBuffer.IsValid() || false == instanceBuffer.IsValid())
+	{
+		return false;
+	}
+
+	SafePtr<IRHIGraphicsPipeline> pipeline = m_spriteBatchPipeline.GetSafePtr();
+	if (stateCache.Pipeline != pipeline)
+	{
+		commandContext.SetGraphicsPipeline(pipeline);
+		stateCache.Pipeline = pipeline;
+	}
+
+	constexpr std::uint32_t spriteVertexStride = sizeof(SpriteVertex);
+	constexpr std::uint32_t spriteVertexOffset = 0;
+	if (stateCache.VertexBuffer != vertexBuffer
+		|| stateCache.VertexStride != spriteVertexStride
+		|| stateCache.VertexOffset != spriteVertexOffset)
+	{
+		commandContext.SetVertexBuffer(0, vertexBuffer, spriteVertexStride, spriteVertexOffset);
+		stateCache.VertexBuffer = vertexBuffer;
+		stateCache.VertexStride = spriteVertexStride;
+		stateCache.VertexOffset = spriteVertexOffset;
+	}
+
+	constexpr std::uint32_t spriteInstanceStride = sizeof(SpriteInstanceData);
+	constexpr std::uint32_t spriteInstanceOffset = 0;
+	if (stateCache.InstanceBuffer != instanceBuffer
+		|| stateCache.InstanceStride != spriteInstanceStride
+		|| stateCache.InstanceOffset != spriteInstanceOffset)
+	{
+		commandContext.SetVertexBuffer(1, instanceBuffer, spriteInstanceStride, spriteInstanceOffset);
+		stateCache.InstanceBuffer = instanceBuffer;
+		stateCache.InstanceStride = spriteInstanceStride;
+		stateCache.InstanceOffset = spriteInstanceOffset;
+	}
+
+	if (stateCache.IndexBuffer != indexBuffer)
+	{
+		commandContext.SetIndexBuffer(indexBuffer);
+		stateCache.IndexBuffer = indexBuffer;
+	}
+
+	commandContext.SetConstantBuffer(ERHIProgramStage::Vertex, 0, viewConstantBuffer);
+	commandContext.SetConstantBuffer(ERHIProgramStage::Pixel, 0, viewConstantBuffer);
+
+	if (stateCache.Texture != texture)
+	{
+		commandContext.SetTexture(ERHIProgramStage::Pixel, 0, texture);
+		stateCache.Texture = texture;
+	}
+	if (stateCache.Sampler != sampler)
+	{
+		commandContext.SetSampler(ERHIProgramStage::Pixel, 0, sampler);
+		stateCache.Sampler = sampler;
+	}
+
+	commandContext.DrawIndexedInstanced(mesh->GetIndexCount(), itemCount, 0, 0, 0);
+	return true;
+}
+
 void CForward2DRenderer::RenderImpl(IRenderScene& scene, const std::unordered_set<RenderObjectId>* excluded)
 {
 	if (false == m_isInitialized || false == m_rhiDevice.IsValid())
@@ -417,17 +730,61 @@ void CForward2DRenderer::RenderImpl(IRenderScene& scene, const std::unordered_se
 	const std::uint32_t itemCount = scene.GetRenderItemCount();
 	const ViewParameters view = BuildViewParameters();
 	RenderStateCache stateCache;
-	for (std::uint32_t i = 0; i < itemCount; ++i)
+	for (std::uint32_t i = 0; i < itemCount;)
 	{
 		const RenderItem& item = items[i];
 
 		// 에디터 씬뷰 숨김(EditorHidden): 해당 오브젝트 키가 제외 집합에 있으면 스킵.
 		if (excluded && excluded->find(item.Entity) != excluded->end())
 		{
+			++i;
 			continue;
 		}
 
+		SafePtr<IRHISampler> sampler = item.Material.IsValid() ? item.Material->GetSampler() : nullptr;
+		if (false == sampler.IsValid())
+		{
+			sampler = m_defaultSampler.GetSafePtr();
+		}
+		SafePtr<IRHITexture> texture = item.Material.IsValid() ? item.Material->GetTexture() : nullptr;
+		if (CanBatchSpriteItem(item, item.Mesh, texture, sampler))
+		{
+			std::uint32_t batchCount = 1;
+			while (i + batchCount < itemCount)
+			{
+				const RenderItem& nextItem = items[i + batchCount];
+				if (excluded && excluded->find(nextItem.Entity) != excluded->end())
+				{
+					break;
+				}
+
+				SafePtr<IRHISampler> nextSampler = nextItem.Material.IsValid() ? nextItem.Material->GetSampler() : nullptr;
+				if (false == nextSampler.IsValid())
+				{
+					nextSampler = m_defaultSampler.GetSafePtr();
+				}
+				SafePtr<IRHITexture> nextTexture = nextItem.Material.IsValid() ? nextItem.Material->GetTexture() : nullptr;
+				if (nextTexture != texture
+					|| nextSampler != sampler
+					|| false == CanBatchSpriteItem(nextItem, nextItem.Mesh, nextTexture, nextSampler))
+				{
+					break;
+				}
+				++batchCount;
+			}
+
+			if (batchCount > 1)
+			{
+				if (DrawSpriteBatch(*commandContext.TryGet(), stateCache, items + i, batchCount, view))
+				{
+					i += batchCount;
+					continue;
+				}
+			}
+		}
+
 		DrawSpriteItem(*commandContext.TryGet(), stateCache, item, view);
+		++i;
 	}
 }
 
@@ -447,14 +804,61 @@ void CForward2DRenderer::RenderFiltered(IRenderScene& scene, const std::unordere
 	const std::uint32_t itemCount = scene.GetRenderItemCount();
 	const ViewParameters view = BuildViewParameters();
 	RenderStateCache stateCache;
-	for (std::uint32_t i = 0; i < itemCount; ++i)
+	for (std::uint32_t i = 0; i < itemCount;)
 	{
 		const RenderItem& item = items[i];
 
 		// ── 오브젝트 필터 ─────────────────────────────────────────────────────────
-		if (objects.find(item.Entity) == objects.end()) continue;
+		if (objects.find(item.Entity) == objects.end())
+		{
+			++i;
+			continue;
+		}
+
+		SafePtr<IRHISampler> sampler = item.Material.IsValid() ? item.Material->GetSampler() : nullptr;
+		if (false == sampler.IsValid())
+		{
+			sampler = m_defaultSampler.GetSafePtr();
+		}
+		SafePtr<IRHITexture> texture = item.Material.IsValid() ? item.Material->GetTexture() : nullptr;
+		if (CanBatchSpriteItem(item, item.Mesh, texture, sampler))
+		{
+			std::uint32_t batchCount = 1;
+			while (i + batchCount < itemCount)
+			{
+				const RenderItem& nextItem = items[i + batchCount];
+				if (objects.find(nextItem.Entity) == objects.end())
+				{
+					break;
+				}
+
+				SafePtr<IRHISampler> nextSampler = nextItem.Material.IsValid() ? nextItem.Material->GetSampler() : nullptr;
+				if (false == nextSampler.IsValid())
+				{
+					nextSampler = m_defaultSampler.GetSafePtr();
+				}
+				SafePtr<IRHITexture> nextTexture = nextItem.Material.IsValid() ? nextItem.Material->GetTexture() : nullptr;
+				if (nextTexture != texture
+					|| nextSampler != sampler
+					|| false == CanBatchSpriteItem(nextItem, nextItem.Mesh, nextTexture, nextSampler))
+				{
+					break;
+				}
+				++batchCount;
+			}
+
+			if (batchCount > 1)
+			{
+				if (DrawSpriteBatch(*commandContext.TryGet(), stateCache, items + i, batchCount, view))
+				{
+					i += batchCount;
+					continue;
+				}
+			}
+		}
 
 		DrawSpriteItem(*commandContext.TryGet(), stateCache, item, view);
+		++i;
 	}
 }
 
@@ -485,11 +889,19 @@ void CForward2DRenderer::FillViewportColor(float r, float g, float b, float a)
 void CForward2DRenderer::Finalize()
 {
 	m_whiteTexture.Reset();
+	m_spriteBatchInstances.clear();
+	m_spriteInstanceBuffers.clear();
+	m_spriteViewConstantBuffers.clear();
 	m_spriteConstantBuffers.clear();
+	m_spriteInstanceBufferCursor = 0;
+	m_spriteViewConstantBufferCursor = 0;
 	m_spriteConstantBufferCursor = 0;
 	m_quadMesh.Reset();
 	m_defaultSampler.Reset();
+	m_spriteBatchPipeline.Reset();
 	m_spritePipeline.Reset();
+	m_spriteBatchPixelProgram.Reset();
+	m_spriteBatchVertexProgram.Reset();
 	m_spritePixelProgram.Reset();
 	m_spriteVertexProgram.Reset();
 	m_rhiDevice.Reset();
@@ -572,6 +984,85 @@ bool CForward2DRenderer::CreateSpritePipeline()
 	pipelineDesc.BlendMode = ERHIBlendMode::AlphaBlend; // 스프라이트 투명도 지원
 	m_spritePipeline = m_rhiDevice->CreateGraphicsPipeline(pipelineDesc);
 	return static_cast<bool>(m_spritePipeline);
+}
+
+bool CForward2DRenderer::CreateSpriteBatchPipeline()
+{
+	const ERHIApi api = m_rhiDevice->GetApi();
+	const ERHIProgramLanguage language =
+		ERHIApi::WebGPU == api ? ERHIProgramLanguage::WGSL :
+		ERHIApi::Vulkan == api ? ERHIProgramLanguage::SPIRV :
+		ERHIProgramLanguage::HLSL;
+	const char* shaderSource =
+		ERHIApi::WebGPU == api ? SPRITE_BATCH_SHADER_SOURCE_WGSL :
+		ERHIApi::Vulkan == api ? reinterpret_cast<const char*>(JBro::Renderer::VulkanShaders::SpriteBatchVertexSpv) :
+		SPRITE_BATCH_SHADER_SOURCE_HLSL;
+
+	RHIProgramDesc vertexProgramDesc;
+	vertexProgramDesc.Stage = ERHIProgramStage::Vertex;
+	vertexProgramDesc.Language = language;
+	vertexProgramDesc.EntryPoint = ERHIApi::Vulkan == api ? "main" : "VSMain";
+	vertexProgramDesc.Source = shaderSource;
+	vertexProgramDesc.SourceSize = ERHIApi::Vulkan == api ? JBro::Renderer::VulkanShaders::SpriteBatchVertexSpvSize : 0;
+	m_spriteBatchVertexProgram = m_rhiDevice->CreateProgram(vertexProgramDesc);
+
+	RHIProgramDesc pixelProgramDesc;
+	pixelProgramDesc.Stage = ERHIProgramStage::Pixel;
+	pixelProgramDesc.Language = language;
+	pixelProgramDesc.EntryPoint = ERHIApi::Vulkan == api ? "main" : "PSMain";
+	pixelProgramDesc.Source = ERHIApi::Vulkan == api ? reinterpret_cast<const char*>(JBro::Renderer::VulkanShaders::SpritePixelSpv) : shaderSource;
+	pixelProgramDesc.SourceSize = ERHIApi::Vulkan == api ? JBro::Renderer::VulkanShaders::SpritePixelSpvSize : 0;
+	m_spriteBatchPixelProgram = m_rhiDevice->CreateProgram(pixelProgramDesc);
+
+	if (!m_spriteBatchVertexProgram || !m_spriteBatchPixelProgram)
+	{
+		return false;
+	}
+
+	RHIVertexElementDesc elements[5];
+	elements[0].SemanticName = "POSITION";
+	elements[0].Format = ERHIVertexFormat::Float2;
+	elements[0].Offset = 0;
+	elements[0].InputSlot = 0;
+	elements[0].InputRate = ERHIVertexInputRate::PerVertex;
+
+	elements[1].SemanticName = "TEXCOORD";
+	elements[1].SemanticIndex = 0;
+	elements[1].Format = ERHIVertexFormat::Float2;
+	elements[1].Offset = sizeof(float) * 2;
+	elements[1].InputSlot = 0;
+	elements[1].InputRate = ERHIVertexInputRate::PerVertex;
+
+	elements[2].SemanticName = "TEXCOORD";
+	elements[2].SemanticIndex = 1;
+	elements[2].Format = ERHIVertexFormat::Float4;
+	elements[2].Offset = 0;
+	elements[2].InputSlot = 1;
+	elements[2].InputRate = ERHIVertexInputRate::PerInstance;
+
+	elements[3].SemanticName = "TEXCOORD";
+	elements[3].SemanticIndex = 2;
+	elements[3].Format = ERHIVertexFormat::Float4;
+	elements[3].Offset = sizeof(float) * 4;
+	elements[3].InputSlot = 1;
+	elements[3].InputRate = ERHIVertexInputRate::PerInstance;
+
+	elements[4].SemanticName = "COLOR";
+	elements[4].SemanticIndex = 0;
+	elements[4].Format = ERHIVertexFormat::Color4;
+	elements[4].Offset = sizeof(float) * 8;
+	elements[4].InputSlot = 1;
+	elements[4].InputRate = ERHIVertexInputRate::PerInstance;
+
+	RHIGraphicsPipelineDesc pipelineDesc;
+	pipelineDesc.VertexProgram = m_spriteBatchVertexProgram.GetSafePtr();
+	pipelineDesc.PixelProgram = m_spriteBatchPixelProgram.GetSafePtr();
+	pipelineDesc.VertexElements = elements;
+	pipelineDesc.VertexElementCount = 5;
+	pipelineDesc.PrimitiveTopology = ERHIPrimitiveTopology::TriangleList;
+	pipelineDesc.BlendMode = ERHIBlendMode::AlphaBlend;
+	m_spriteBatchPipeline = m_rhiDevice->CreateGraphicsPipeline(pipelineDesc);
+	return static_cast<bool>(m_spriteBatchPipeline);
 }
 
 bool CForward2DRenderer::CreateQuadMesh()

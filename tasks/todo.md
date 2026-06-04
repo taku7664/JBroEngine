@@ -1,3 +1,46 @@
+# TODO — 기본 Sprite instanced batching 구현
+
+## Goal
+기본 sprite pipeline을 쓰는 연속 RenderItem을 instance buffer로 묶어 draw call과 constant buffer update 횟수를 줄인다.
+
+## Assumptions
+- 커스텀 material/pipeline은 batch 호환성을 알 수 없으므로 기존 per-sprite draw 경로로 유지한다.
+- 투명도 순서 보존을 위해 RenderItem을 재정렬하지 않고, 현재 정렬 결과에서 연속된 같은 mesh/texture/sampler 구간만 batch한다.
+- Batch shader는 D3D11/HLSL, WebGPU/WGSL, Vulkan/SPIR-V 모두 제공한다.
+
+## Success Criteria
+- 기본 sprite pipeline을 사용하는 연속 item은 `DrawIndexedInstanced`를 탄다.
+- batch는 view constant buffer 1개와 instance vertex buffer 1개를 사용한다.
+- custom pipeline, invalid resource, filtered/excluded item 경계에서는 기존 단일 draw 경로 또는 batch flush가 동작한다.
+- D3D11/WebGPU/Vulkan 공통 renderer path를 유지한다.
+
+## Plan
+- [x] batch shader/pipeline 추가
+- [x] view constant buffer와 sprite instance buffer pool 추가
+- [x] RenderImpl/RenderFiltered batching 적용
+- [x] SDK mirror 동기화
+- [x] 빌드/Web 검증 및 커밋
+
+## Verification
+- [x] `Debug_Game|x64` build
+- [x] `Debug_Editor|x64` build
+- [x] Web Release build with `SampleProject/Project.Jproject`
+- [x] `git diff --check`
+
+## Review
+- 코드를 읽었고: Forward2DRenderer의 기본 sprite draw는 item마다 constant buffer를 갱신하고 `DrawIndexed`를 호출하는 구조였다.
+- 생각했고: 이전 단계에서 RHI instanced draw 계약을 만들었으므로, 기본 quad mesh와 같은 texture/sampler를 쓰는 연속 item은 instance buffer로 묶을 수 있다.
+- 반례를 찾았고: 투명도 정렬을 바꾸면 blending 결과가 달라질 수 있으므로 재정렬 batch는 하지 않고 현재 정렬 결과의 연속 구간만 묶었다.
+- 고쳤다: batch 전용 view constant buffer와 sprite instance buffer pool을 추가하고, D3D11/HLSL, WebGPU/WGSL, Vulkan/SPIR-V batch vertex shader를 추가했다.
+- 추가로 읽었고: batch pipeline 생성은 최적화 경로인데 초기화 필수 조건에 넣으면 shader/backend 문제 하나로 기존 단일 sprite 렌더까지 실패할 수 있었다.
+- 생각했고: batch는 실패해도 correctness를 깨면 안 되는 선택 경로여야 한다.
+- 반례를 찾았고: `DrawSpriteBatch()` 실패 후 batchCount만큼 인덱스를 넘기면 해당 sprite들이 화면에서 사라진다.
+- 고쳤다: batch pipeline은 best-effort로 생성하고, batch draw 실패 시 현재 item을 기존 `DrawSpriteItem()` 경로로 그리도록 fallback을 보장했다.
+- 추가 반례: SDK public mirror와 engine header가 갈라지면 script/sample 쪽에서 다른 renderer layout을 보게 된다.
+- 고쳤다: `SDK/Include/Core/Renderer/Forward2DRenderer.h`와 `SpriteVulkanShaders.h`를 engine source와 동기화했다.
+
+---
+
 # TODO — Sprite instancing RHI 계약 추가
 
 ## Goal
