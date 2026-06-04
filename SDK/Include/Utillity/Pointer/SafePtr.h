@@ -294,6 +294,28 @@ public:
 	T* operator->() const { return TryGet(); }
 	explicit operator bool() const { return IsValid(); }
 
+	template<typename U>
+	bool operator==(const SafePtr<U>& rhs) const
+	{
+		return m_controlBlock == rhs.m_controlBlock;
+	}
+
+	template<typename U>
+	bool operator!=(const SafePtr<U>& rhs) const
+	{
+		return false == (*this == rhs);
+	}
+
+	bool operator==(std::nullptr_t) const
+	{
+		return false == IsValid();
+	}
+
+	bool operator!=(std::nullptr_t) const
+	{
+		return IsValid();
+	}
+
 private:
 	explicit SafePtr(SafePtrDetail::ControlBlock* block)
 		: m_controlBlock(block)
@@ -325,6 +347,18 @@ private:
 private:
 	SafePtrDetail::ControlBlock* m_controlBlock;
 };
+
+template<typename T>
+bool operator==(std::nullptr_t, const SafePtr<T>& ptr)
+{
+	return ptr == nullptr;
+}
+
+template<typename T>
+bool operator!=(std::nullptr_t, const SafePtr<T>& ptr)
+{
+	return ptr != nullptr;
+}
 
 template<typename T, typename... Args>
 OwnerPtr<T> MakeOwnerPtr(Args&&... args)

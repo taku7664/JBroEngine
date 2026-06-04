@@ -46,10 +46,32 @@ private:
 		float ViewRow1[4];
 	};
 
+	struct ViewParameters
+	{
+		float HalfW = 1.0f;
+		float HalfH = 1.0f;
+		float CosR = 1.0f;
+		float SinR = 0.0f;
+	};
+
+	struct RenderStateCache
+	{
+		SafePtr<IRHIGraphicsPipeline> Pipeline;
+		SafePtr<IRHIBuffer> VertexBuffer;
+		SafePtr<IRHIBuffer> IndexBuffer;
+		SafePtr<IRHITexture> Texture;
+		SafePtr<IRHISampler> Sampler;
+		std::uint32_t VertexStride = 0;
+		std::uint32_t VertexOffset = 0;
+	};
+
 	void RenderImpl(IRenderScene& scene, const std::unordered_set<RenderObjectId>* excluded);
-	SpriteConstants BuildSpriteConstants(const RenderItem& item, float halfW, float halfH, float cosR, float sinR) const;
+	ViewParameters BuildViewParameters() const;
+	SpriteConstants BuildSpriteConstants(const RenderItem& item, const ViewParameters& view) const;
 	SpriteConstants BuildViewportColorConstants(float r, float g, float b, float a) const;
 	SafePtr<IRHIBuffer> AcquireSpriteConstantBuffer(IRHICommandContext& commandContext, const SpriteConstants& constants);
+	bool DrawSpriteItem(IRHICommandContext& commandContext, RenderStateCache& stateCache, const RenderItem& item, const ViewParameters& view);
+	bool DrawSpriteQuad(IRHICommandContext& commandContext, RenderStateCache& stateCache, SafePtr<IRHIGraphicsPipeline> pipeline, SafePtr<IRenderMesh> mesh, SafePtr<IRHITexture> texture, SafePtr<IRHISampler> sampler, const SpriteConstants& constants);
 	bool CreateSpritePipeline();
 	bool CreateQuadMesh();
 

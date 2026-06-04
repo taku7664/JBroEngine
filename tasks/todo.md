@@ -1,3 +1,41 @@
+# TODO — 렌더 반복 계산/상태 바인딩 병목 정리
+
+## Goal
+Forward2DRenderer에서 draw마다 반복되는 카메라 계산과 중복 RHI state bind를 줄인다.
+
+## Assumptions
+- RHI command context는 마지막으로 바인딩된 pipeline/mesh/texture/sampler 상태를 유지한다.
+- Constant buffer는 draw마다 달라지므로 계속 바인딩해야 한다.
+- SafePtr 비교 연산을 추가하고, state cache는 raw pointer가 아니라 SafePtr 비교를 사용한다.
+
+## Success Criteria
+- RenderImpl의 view parameter 계산이 item 루프 밖으로 이동한다.
+- 같은 pipeline, vertex buffer, index buffer, texture, sampler는 같은 render 호출 내에서 중복 Set 호출을 피한다.
+- RenderImpl, RenderFiltered, FillViewportColor가 같은 draw helper를 사용한다.
+- D3D11/WebGPU/Vulkan 공통 renderer path를 유지한다.
+
+## Plan
+- [x] View parameter helper 추가
+- [x] Render state cache/helper 추가
+- [x] RenderImpl/RenderFiltered/FillViewportColor 적용
+- [x] 정적 검색 및 빌드 검증
+
+## Verification
+- [x] `Debug_Game|x64` build
+- [x] `Debug_Editor|x64` build
+- [x] `git diff --check`
+
+## Review
+- 코드를 읽었고: `RenderImpl`은 item마다 view half extent/camera row 재계산을 했고, pipeline/mesh/texture/sampler state도 매 draw마다 무조건 다시 바인딩했다.
+- 생각했고: constant buffer는 draw마다 바뀌므로 유지해야 하지만, view parameter 계산과 동일 resource state bind는 render 호출 범위에서 줄일 수 있다.
+- 반례를 찾았고: state cache를 raw pointer로 두면 `SafePtr` 의미와 어긋나므로 `SafePtr` 비교 연산을 추가하고 cache도 `SafePtr`로 보관해야 한다.
+- 고쳤다: `SafePtr`에 `==`/`!=` 비교를 추가했고, `Forward2DRenderer`는 `ViewParameters`와 `RenderStateCache`를 통해 반복 계산/중복 state bind를 줄인다.
+- 추가 반례: mesh는 유효하지만 내부 vertex/index buffer가 죽은 경우 SetBuffer가 무시된 뒤 DrawIndexed가 호출될 수 있어 draw helper에서 선검증한다.
+- SDK public mirror의 `SafePtr.h`와 `Forward2DRenderer.h`도 같이 동기화했다.
+- 남은 큰 병목 후보는 WebGPU per-draw bind group 생성, Vulkan per-draw descriptor set allocate/update, sprite batching/instancing 부재다.
+
+---
+
 # TODO — 하이라키 오브젝트 순서 안정화
 
 ## Goal

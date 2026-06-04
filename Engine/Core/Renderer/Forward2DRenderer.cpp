@@ -202,12 +202,32 @@ void CForward2DRenderer::RenderExcluding(IRenderScene& scene, const std::unorder
 	RenderImpl(scene, &excluded);
 }
 
+CForward2DRenderer::ViewParameters CForward2DRenderer::BuildViewParameters() const
+{
+	ViewParameters view;
+	if (m_useExplicitSize)
+	{
+		view.HalfW = m_viewCamHalfW;
+		view.HalfH = m_viewCamHalfH;
+		view.CosR = m_viewCamCosR;
+		view.SinR = m_viewCamSinR;
+		return view;
+	}
+
+	const float width = static_cast<float>(m_renderTargetSize.Width);
+	const float height = static_cast<float>(m_renderTargetSize.Height);
+	const float aspect = (width > 0.0f && height > 0.0f) ? width / height : 1.0f;
+	const float size = m_viewCamSize > 0.0f ? m_viewCamSize : 1.0f;
+	view.HalfW = size * aspect;
+	view.HalfH = size;
+	view.CosR = 1.0f;
+	view.SinR = 0.0f;
+	return view;
+}
+
 CForward2DRenderer::SpriteConstants CForward2DRenderer::BuildSpriteConstants(
 	const RenderItem& item,
-	float halfW,
-	float halfH,
-	float cosR,
-	float sinR) const
+	const ViewParameters& view) const
 {
 	SpriteConstants constants = {};
 	constants.TransformRow0[0] = item.Transform.M11;
@@ -223,12 +243,12 @@ CForward2DRenderer::SpriteConstants CForward2DRenderer::BuildSpriteConstants(
 
 	const float camX = m_viewCamX;
 	const float camY = m_viewCamY;
-	constants.ViewRow0[0] =  cosR / halfW;
-	constants.ViewRow0[1] =  sinR / halfW;
-	constants.ViewRow0[2] = -(cosR * camX + sinR * camY) / halfW;
-	constants.ViewRow1[0] = -sinR / halfH;
-	constants.ViewRow1[1] =  cosR / halfH;
-	constants.ViewRow1[2] =  (sinR * camX - cosR * camY) / halfH;
+	constants.ViewRow0[0] =  view.CosR / view.HalfW;
+	constants.ViewRow0[1] =  view.SinR / view.HalfW;
+	constants.ViewRow0[2] = -(view.CosR * camX + view.SinR * camY) / view.HalfW;
+	constants.ViewRow1[0] = -view.SinR / view.HalfH;
+	constants.ViewRow1[1] =  view.CosR / view.HalfH;
+	constants.ViewRow1[2] =  (view.SinR * camX - view.CosR * camY) / view.HalfH;
 	return constants;
 }
 
@@ -269,6 +289,107 @@ SafePtr<IRHIBuffer> CForward2DRenderer::AcquireSpriteConstantBuffer(IRHICommandC
 	return buffer;
 }
 
+bool CForward2DRenderer::DrawSpriteItem(
+	IRHICommandContext& commandContext,
+	RenderStateCache& stateCache,
+	const RenderItem& item,
+	const ViewParameters& view)
+{
+	if (false == item.Mesh.IsValid() || false == item.Material.IsValid())
+	{
+		return false;
+	}
+
+	SafePtr<IRHIGraphicsPipeline> pipeline = item.Material->GetPipeline();
+	if (false == pipeline.IsValid())
+	{
+		pipeline = m_spritePipeline.GetSafePtr();
+	}
+
+	SafePtr<IRHISampler> sampler = item.Material->GetSampler();
+	if (false == sampler.IsValid())
+	{
+		sampler = m_defaultSampler.GetSafePtr();
+	}
+
+	SafePtr<IRHITexture> texture = item.Material->GetTexture();
+	if (false == texture.IsValid())
+	{
+		return false;
+	}
+
+	const SpriteConstants constants = BuildSpriteConstants(item, view);
+	return DrawSpriteQuad(commandContext, stateCache, pipeline, item.Mesh, texture, sampler, constants);
+}
+
+bool CForward2DRenderer::DrawSpriteQuad(
+	IRHICommandContext& commandContext,
+	RenderStateCache& stateCache,
+	SafePtr<IRHIGraphicsPipeline> pipeline,
+	SafePtr<IRenderMesh> mesh,
+	SafePtr<IRHITexture> texture,
+	SafePtr<IRHISampler> sampler,
+	const SpriteConstants& constants)
+{
+	if (false == pipeline.IsValid() || false == mesh.IsValid() || false == texture.IsValid() || false == sampler.IsValid())
+	{
+		return false;
+	}
+
+	SafePtr<IRHIBuffer> vertexBuffer = mesh->GetVertexBuffer();
+	SafePtr<IRHIBuffer> indexBuffer = mesh->GetIndexBuffer();
+	if (false == vertexBuffer.IsValid() || false == indexBuffer.IsValid())
+	{
+		return false;
+	}
+
+	SafePtr<IRHIBuffer> constantBuffer = AcquireSpriteConstantBuffer(commandContext, constants);
+	if (false == constantBuffer.IsValid())
+	{
+		return false;
+	}
+
+	if (stateCache.Pipeline != pipeline)
+	{
+		commandContext.SetGraphicsPipeline(pipeline);
+		stateCache.Pipeline = pipeline;
+	}
+
+	constexpr std::uint32_t spriteVertexStride = sizeof(SpriteVertex);
+	constexpr std::uint32_t spriteVertexOffset = 0;
+	if (stateCache.VertexBuffer != vertexBuffer
+		|| stateCache.VertexStride != spriteVertexStride
+		|| stateCache.VertexOffset != spriteVertexOffset)
+	{
+		commandContext.SetVertexBuffer(0, vertexBuffer, spriteVertexStride, spriteVertexOffset);
+		stateCache.VertexBuffer = vertexBuffer;
+		stateCache.VertexStride = spriteVertexStride;
+		stateCache.VertexOffset = spriteVertexOffset;
+	}
+	if (stateCache.IndexBuffer != indexBuffer)
+	{
+		commandContext.SetIndexBuffer(indexBuffer);
+		stateCache.IndexBuffer = indexBuffer;
+	}
+
+	commandContext.SetConstantBuffer(ERHIProgramStage::Vertex, 0, constantBuffer);
+	commandContext.SetConstantBuffer(ERHIProgramStage::Pixel, 0, constantBuffer);
+
+	if (stateCache.Texture != texture)
+	{
+		commandContext.SetTexture(ERHIProgramStage::Pixel, 0, texture);
+		stateCache.Texture = texture;
+	}
+	if (stateCache.Sampler != sampler)
+	{
+		commandContext.SetSampler(ERHIProgramStage::Pixel, 0, sampler);
+		stateCache.Sampler = sampler;
+	}
+
+	commandContext.DrawIndexed(mesh->GetIndexCount(), 0, 0);
+	return true;
+}
+
 void CForward2DRenderer::RenderImpl(IRenderScene& scene, const std::unordered_set<RenderObjectId>* excluded)
 {
 	if (false == m_isInitialized || false == m_rhiDevice.IsValid())
@@ -294,6 +415,8 @@ void CForward2DRenderer::RenderImpl(IRenderScene& scene, const std::unordered_se
 
 	const RenderItem* items = scene.GetRenderItems();
 	const std::uint32_t itemCount = scene.GetRenderItemCount();
+	const ViewParameters view = BuildViewParameters();
+	RenderStateCache stateCache;
 	for (std::uint32_t i = 0; i < itemCount; ++i)
 	{
 		const RenderItem& item = items[i];
@@ -304,71 +427,7 @@ void CForward2DRenderer::RenderImpl(IRenderScene& scene, const std::unordered_se
 			continue;
 		}
 
-		if (false == item.Mesh.IsValid() || false == item.Material.IsValid())
-		{
-			continue;
-		}
-
-		SafePtr<IRHIGraphicsPipeline> pipeline = item.Material->GetPipeline();
-		if (false == pipeline.IsValid())
-		{
-			pipeline = m_spritePipeline.GetSafePtr();
-		}
-
-		SafePtr<IRHISampler> sampler = item.Material->GetSampler();
-		if (false == sampler.IsValid())
-		{
-			sampler = m_defaultSampler.GetSafePtr();
-		}
-
-		SafePtr<IRHITexture> texture = item.Material->GetTexture();
-		if (false == texture.IsValid())
-		{
-			continue;
-		}
-
-		// Full 2×3 view matrix: world → NDC
-		// NDC.x = dot([worldX, worldY, 1], ViewRow0.xyz)
-		// NDC.y = dot([worldX, worldY, 1], ViewRow1.xyz)
-		// Supports translation, scale, and rotation (camera's inverse transform).
-		float halfW, halfH, cosR, sinR;
-		if (m_useExplicitSize)
-		{
-			// Stretch + rotation mode: explicit half-extents and camera rotation.
-			// GPU hardware maps NDC → viewport pixels as a natural stretch/squish.
-			halfW = m_viewCamHalfW;
-			halfH = m_viewCamHalfH;
-			cosR  = m_viewCamCosR;
-			sinR  = m_viewCamSinR;
-		}
-		else
-		{
-			// Auto mode: derive halfW from the current render-target aspect ratio.
-			// No rotation (scene-view editor camera).
-			const float width  = static_cast<float>(m_renderTargetSize.Width);
-			const float height = static_cast<float>(m_renderTargetSize.Height);
-			const float aspect = (width > 0.0f && height > 0.0f) ? width / height : 1.0f;
-			const float size   = m_viewCamSize > 0.0f ? m_viewCamSize : 1.0f;
-			halfW = size * aspect;
-			halfH = size;
-			cosR  = 1.0f;
-			sinR  = 0.0f;
-		}
-		SpriteConstants constants = BuildSpriteConstants(item, halfW, halfH, cosR, sinR);
-		SafePtr<IRHIBuffer> constantBuffer = AcquireSpriteConstantBuffer(*commandContext.TryGet(), constants);
-		if (false == constantBuffer.IsValid())
-		{
-			continue;
-		}
-
-		commandContext->SetGraphicsPipeline(pipeline);
-		commandContext->SetVertexBuffer(0, item.Mesh->GetVertexBuffer(), sizeof(SpriteVertex), 0);
-		commandContext->SetIndexBuffer(item.Mesh->GetIndexBuffer());
-		commandContext->SetConstantBuffer(ERHIProgramStage::Vertex, 0, constantBuffer);
-		commandContext->SetConstantBuffer(ERHIProgramStage::Pixel, 0, constantBuffer);
-		commandContext->SetTexture(ERHIProgramStage::Pixel, 0, texture);
-		commandContext->SetSampler(ERHIProgramStage::Pixel, 0, sampler);
-		commandContext->DrawIndexed(item.Mesh->GetIndexCount(), 0, 0);
+		DrawSpriteItem(*commandContext.TryGet(), stateCache, item, view);
 	}
 }
 
@@ -384,24 +443,10 @@ void CForward2DRenderer::RenderFiltered(IRenderScene& scene, const std::unordere
 	SafePtr<IRHICommandContext> commandContext = m_rhiDevice->GetImmediateCommandContext();
 	if (false == commandContext.IsValid()) return;
 
-	const float width  = static_cast<float>(m_renderTargetSize.Width);
-	const float height = static_cast<float>(m_renderTargetSize.Height);
-	const float aspect = (width > 0.0f && height > 0.0f) ? width / height : 1.0f;
-
-	float halfW, halfH, cosR, sinR;
-	if (m_useExplicitSize)
-	{
-		halfW = m_viewCamHalfW; halfH = m_viewCamHalfH;
-		cosR  = m_viewCamCosR;  sinR  = m_viewCamSinR;
-	}
-	else
-	{
-		const float size = m_viewCamSize > 0.0f ? m_viewCamSize : 1.0f;
-		halfW = size * aspect; halfH = size; cosR = 1.0f; sinR = 0.0f;
-	}
-
 	const RenderItem* items = scene.GetRenderItems();
 	const std::uint32_t itemCount = scene.GetRenderItemCount();
+	const ViewParameters view = BuildViewParameters();
+	RenderStateCache stateCache;
 	for (std::uint32_t i = 0; i < itemCount; ++i)
 	{
 		const RenderItem& item = items[i];
@@ -409,29 +454,7 @@ void CForward2DRenderer::RenderFiltered(IRenderScene& scene, const std::unordere
 		// ── 오브젝트 필터 ─────────────────────────────────────────────────────────
 		if (objects.find(item.Entity) == objects.end()) continue;
 
-		if (false == item.Mesh.IsValid() || false == item.Material.IsValid()) continue;
-
-		SafePtr<IRHIGraphicsPipeline> pipeline = item.Material->GetPipeline();
-		if (false == pipeline.IsValid()) pipeline = m_spritePipeline.GetSafePtr();
-
-		SafePtr<IRHISampler> sampler = item.Material->GetSampler();
-		if (false == sampler.IsValid()) sampler = m_defaultSampler.GetSafePtr();
-
-		SafePtr<IRHITexture> texture = item.Material->GetTexture();
-		if (false == texture.IsValid()) continue;
-
-		SpriteConstants constants = BuildSpriteConstants(item, halfW, halfH, cosR, sinR);
-		SafePtr<IRHIBuffer> cb = AcquireSpriteConstantBuffer(*commandContext.TryGet(), constants);
-		if (false == cb.IsValid()) continue;
-
-		commandContext->SetGraphicsPipeline(pipeline);
-		commandContext->SetVertexBuffer(0, item.Mesh->GetVertexBuffer(), sizeof(SpriteVertex), 0);
-		commandContext->SetIndexBuffer(item.Mesh->GetIndexBuffer());
-		commandContext->SetConstantBuffer(ERHIProgramStage::Vertex, 0, cb);
-		commandContext->SetConstantBuffer(ERHIProgramStage::Pixel,  0, cb);
-		commandContext->SetTexture(ERHIProgramStage::Pixel, 0, texture);
-		commandContext->SetSampler(ERHIProgramStage::Pixel, 0, sampler);
-		commandContext->DrawIndexed(item.Mesh->GetIndexCount(), 0, 0);
+		DrawSpriteItem(*commandContext.TryGet(), stateCache, item, view);
 	}
 }
 
@@ -448,20 +471,15 @@ void CForward2DRenderer::FillViewportColor(float r, float g, float b, float a)
 	}
 
 	const SpriteConstants constants = BuildViewportColorConstants(r, g, b, a);
-	SafePtr<IRHIBuffer> cb = AcquireSpriteConstantBuffer(*commandContext.TryGet(), constants);
-	if (false == cb.IsValid())
-	{
-		return;
-	}
-
-	commandContext->SetGraphicsPipeline(m_spritePipeline);
-	commandContext->SetVertexBuffer(0, m_quadMesh->GetVertexBuffer(), sizeof(SpriteVertex), 0);
-	commandContext->SetIndexBuffer(m_quadMesh->GetIndexBuffer());
-	commandContext->SetConstantBuffer(ERHIProgramStage::Vertex, 0, cb);
-	commandContext->SetConstantBuffer(ERHIProgramStage::Pixel,  0, cb);
-	commandContext->SetTexture(ERHIProgramStage::Pixel, 0, m_whiteTexture.GetSafePtr());
-	commandContext->SetSampler(ERHIProgramStage::Pixel, 0, m_defaultSampler.GetSafePtr());
-	commandContext->DrawIndexed(m_quadMesh->GetIndexCount(), 0, 0);
+	RenderStateCache stateCache;
+	DrawSpriteQuad(
+		*commandContext.TryGet(),
+		stateCache,
+		m_spritePipeline.GetSafePtr(),
+		m_quadMesh.GetSafePtr(),
+		m_whiteTexture.GetSafePtr(),
+		m_defaultSampler.GetSafePtr(),
+		constants);
 }
 
 void CForward2DRenderer::Finalize()
