@@ -8,18 +8,33 @@
 #include "Core/RHI/WebGPU/WebGPUTexture.h"
 
 #if JBRO_PLATFORM_WEB
+CWebGPUCommandContext::~CWebGPUCommandContext()
+{
+	ReleaseFrameObjects();
+	ReleaseBindGroupCache();
+}
+
 void CWebGPUCommandContext::BindNativeContext(WGPUDevice device, WGPUQueue queue, CWebGPUSwapchain* swapchain)
 {
+	if (m_device != device)
+	{
+		ReleaseBindGroupCache();
+	}
 	m_device = device;
 	m_queue = queue;
 	m_swapchain = swapchain;
 }
+#else
+CWebGPUCommandContext::~CWebGPUCommandContext() = default;
 #endif
 
 void CWebGPUCommandContext::BeginFrame()
 {
 #if JBRO_PLATFORM_WEB
 	ReleaseFrameObjects();
+	PruneInvalidBindGroups();
+	m_currentPipelineHandle = nullptr;
+	m_currentPipeline = nullptr;
 	if (m_device)
 	{
 		WGPUCommandEncoderDescriptor desc = {};
@@ -106,14 +121,24 @@ void CWebGPUCommandContext::EndFrame()
 void CWebGPUCommandContext::SetGraphicsPipeline(SafePtr<IRHIGraphicsPipeline> pipeline)
 {
 #if JBRO_PLATFORM_WEB
-	if (nullptr == m_renderPass || false == pipeline.IsValid())
+	if (nullptr == m_renderPass)
 	{
 		return;
 	}
 
+	m_currentPipelineHandle = nullptr;
+	m_currentPipeline = nullptr;
+	if (false == pipeline.IsValid())
+	{
+		return;
+	}
+
+	m_currentPipelineHandle = pipeline;
 	m_currentPipeline = static_cast<CWebGPUGraphicsPipeline*>(pipeline.TryGet());
 	if (nullptr == m_currentPipeline || nullptr == m_currentPipeline->GetRenderPipeline())
 	{
+		m_currentPipelineHandle = nullptr;
+		m_currentPipeline = nullptr;
 		return;
 	}
 
@@ -240,16 +265,12 @@ void CWebGPUCommandContext::Draw(std::uint32_t vertexCount, std::uint32_t firstV
 #if JBRO_PLATFORM_WEB
 	if (m_renderPass)
 	{
-		WGPUBindGroup bindGroup = CreateCurrentBindGroup();
+		WGPUBindGroup bindGroup = GetOrCreateCurrentBindGroup();
 		if (bindGroup)
 		{
 			wgpuRenderPassEncoderSetBindGroup(m_renderPass, 0, bindGroup, 0, nullptr);
 		}
 		wgpuRenderPassEncoderDraw(m_renderPass, vertexCount, 1, firstVertex, 0);
-		if (bindGroup)
-		{
-			wgpuBindGroupRelease(bindGroup);
-		}
 	}
 #else
 	(void)vertexCount;
@@ -262,16 +283,12 @@ void CWebGPUCommandContext::DrawIndexed(std::uint32_t indexCount, std::uint32_t 
 #if JBRO_PLATFORM_WEB
 	if (m_renderPass)
 	{
-		WGPUBindGroup bindGroup = CreateCurrentBindGroup();
+		WGPUBindGroup bindGroup = GetOrCreateCurrentBindGroup();
 		if (bindGroup)
 		{
 			wgpuRenderPassEncoderSetBindGroup(m_renderPass, 0, bindGroup, 0, nullptr);
 		}
 		wgpuRenderPassEncoderDrawIndexed(m_renderPass, indexCount, 1, firstIndex, baseVertex, 0);
-		if (bindGroup)
-		{
-			wgpuBindGroupRelease(bindGroup);
-		}
 	}
 #else
 	(void)indexCount;
@@ -300,17 +317,74 @@ void CWebGPUCommandContext::ReleaseFrameObjects()
 	}
 }
 
-WGPUBindGroup CWebGPUCommandContext::CreateCurrentBindGroup()
+void CWebGPUCommandContext::ReleaseBindGroupCache()
 {
-	if (nullptr == m_device || nullptr == m_currentPipeline || false == m_constantBuffer.IsValid() || false == m_texture.IsValid() || false == m_sampler.IsValid())
+	for (BindGroupCacheEntry& entry : m_bindGroupCache)
+	{
+		if (entry.BindGroup)
+		{
+			wgpuBindGroupRelease(entry.BindGroup);
+			entry.BindGroup = nullptr;
+		}
+	}
+	m_bindGroupCache.clear();
+}
+
+void CWebGPUCommandContext::PruneInvalidBindGroups()
+{
+	for (auto it = m_bindGroupCache.begin(); it != m_bindGroupCache.end();)
+	{
+		if (false == it->Pipeline.IsValid()
+			|| false == it->ConstantBuffer.IsValid()
+			|| false == it->Texture.IsValid()
+			|| false == it->Sampler.IsValid())
+		{
+			if (it->BindGroup)
+			{
+				wgpuBindGroupRelease(it->BindGroup);
+			}
+			it = m_bindGroupCache.erase(it);
+		}
+		else
+		{
+			++it;
+		}
+	}
+}
+
+WGPUBindGroup CWebGPUCommandContext::GetOrCreateCurrentBindGroup()
+{
+	if (nullptr == m_device
+		|| nullptr == m_currentPipeline
+		|| false == m_currentPipelineHandle.IsValid()
+		|| false == m_constantBuffer.IsValid()
+		|| false == m_texture.IsValid()
+		|| false == m_sampler.IsValid())
 	{
 		return nullptr;
+	}
+
+	for (const BindGroupCacheEntry& entry : m_bindGroupCache)
+	{
+		if (entry.Pipeline == m_currentPipelineHandle
+			&& entry.ConstantBuffer == m_constantBuffer
+			&& entry.Texture == m_texture
+			&& entry.Sampler == m_sampler)
+		{
+			return entry.BindGroup;
+		}
 	}
 
 	CWebGPUBuffer* constantBuffer = static_cast<CWebGPUBuffer*>(m_constantBuffer.TryGet());
 	CWebGPUTexture* texture = static_cast<CWebGPUTexture*>(m_texture.TryGet());
 	CWebGPUSampler* sampler = static_cast<CWebGPUSampler*>(m_sampler.TryGet());
-	if (nullptr == constantBuffer || nullptr == texture || nullptr == sampler)
+	if (nullptr == constantBuffer
+		|| nullptr == texture
+		|| nullptr == sampler
+		|| nullptr == constantBuffer->GetNativeBuffer()
+		|| nullptr == texture->GetTextureView()
+		|| nullptr == sampler->GetNativeSampler()
+		|| nullptr == m_currentPipeline->GetBindGroupLayout())
 	{
 		return nullptr;
 	}
@@ -329,7 +403,19 @@ WGPUBindGroup CWebGPUCommandContext::CreateCurrentBindGroup()
 	desc.layout = m_currentPipeline->GetBindGroupLayout();
 	desc.entryCount = 3;
 	desc.entries = entries;
-	return wgpuDeviceCreateBindGroup(m_device, &desc);
+	WGPUBindGroup bindGroup = wgpuDeviceCreateBindGroup(m_device, &desc);
+	if (nullptr == bindGroup)
+	{
+		return nullptr;
+	}
+
+	BindGroupCacheEntry cacheEntry = {};
+	cacheEntry.Pipeline = m_currentPipelineHandle;
+	cacheEntry.ConstantBuffer = m_constantBuffer;
+	cacheEntry.Texture = m_texture;
+	cacheEntry.Sampler = m_sampler;
+	cacheEntry.BindGroup = bindGroup;
+	m_bindGroupCache.push_back(cacheEntry);
+	return bindGroup;
 }
 #endif
-

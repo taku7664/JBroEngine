@@ -3,6 +3,8 @@
 #include "Core/RHI/IRHICommandContext.h"
 #include "Core/RHI/Vulkan/VulkanCommon.h"
 
+#include <vector>
+
 class CVulkanSwapchain;
 class CVulkanGraphicsPipeline;
 class CVulkanBuffer;
@@ -38,6 +40,8 @@ public:
 private:
 #if JBRO_RHI_VULKAN
 	void DestroyFrameSync();
+	VkDescriptorPool CreateDescriptorPool(std::uint32_t maxSets);
+	bool AllocateDescriptorSet(VkDescriptorSetLayout setLayout, VkDescriptorSet* outDescriptorSet);
 	void BindPendingDescriptors();
 	void TransitionImageLayout(VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout);
 	void TransitionTextureLayout(CVulkanTexture* texture, VkImageLayout newLayout);
@@ -53,7 +57,8 @@ private:
 	VkSemaphore m_imageAvailableSemaphore = VK_NULL_HANDLE;
 	VkSemaphore m_renderFinishedSemaphore = VK_NULL_HANDLE;
 	VkFence m_inFlightFence = VK_NULL_HANDLE;
-	VkDescriptorPool m_descriptorPool = VK_NULL_HANDLE;
+	std::vector<VkDescriptorPool> m_descriptorPools;
+	std::size_t m_activeDescriptorPoolIndex = 0;
 	CVulkanGraphicsPipeline* m_currentPipeline = nullptr;
 	SafePtr<IRHIBuffer> m_boundConstantBuffer;
 	SafePtr<IRHITexture> m_boundTexture;

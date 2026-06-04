@@ -1,3 +1,44 @@
+# TODO — WebGPU bind group / Vulkan descriptor pool 병목 정리
+
+## Goal
+WebGPU의 draw별 bind group 생성/해제 병목을 줄이고, Vulkan에서 draw 수가 descriptor pool 고정 크기를 넘으면 이후 draw가 조용히 누락되는 위험을 제거한다.
+
+## Assumptions
+- Forward2DRenderer의 per-sprite constant buffer pool은 프레임을 넘어 재사용되므로 WebGPU bind group은 같은 pipeline/buffer/texture/sampler 조합에서 재사용할 수 있다.
+- WebGPU bind group cache는 RHI 리소스의 `SafePtr` 유효성을 기준으로 정리해야 한다.
+- Vulkan descriptor set은 현재 프레임 안에서만 필요하므로 descriptor pool은 프레임마다 reset하되, 필요한 경우 pool을 추가 생성해 draw 누락을 막는다.
+
+## Success Criteria
+- WebGPU Draw/DrawIndexed가 매번 `wgpuDeviceCreateBindGroup`/`wgpuBindGroupRelease`를 반복하지 않는다.
+- WebGPU cache 비교는 resource raw pointer가 아니라 `SafePtr` 비교를 사용한다.
+- Vulkan descriptor allocation이 첫 pool 한계에 닿아도 추가 pool로 재시도한다.
+- 기존 D3D11 경로는 영향받지 않는다.
+
+## Plan
+- [x] WebGPU bind group cache 추가 및 수명 정리
+- [x] Vulkan descriptor pool 추가 생성/프레임 reset 구조 추가
+- [x] Debug_Game/Debug_Editor/Web Release 빌드 검증
+- [x] diff 검토 및 커밋
+
+## Verification
+- [x] `Debug_Game|x64` build
+- [x] `Debug_Editor|x64` build
+- [x] Web Release build with `SampleProject/Project.Jproject`
+- [x] `git diff --check`
+
+## Review
+- 코드를 읽었고: WebGPU `Draw`/`DrawIndexed`가 매 draw마다 `CreateCurrentBindGroup()`로 bind group을 만들고 draw 직후 release하고 있었다.
+- 생각했고: 이전 작업으로 constant buffer가 풀 기반 재사용으로 바뀌었으므로 같은 pipeline/buffer/texture/sampler 조합은 bind group도 재사용할 수 있다.
+- 반례를 찾았고: 캐시가 resource raw pointer만 보면 `SafePtr` 정책과 어긋나고, resource가 파괴되면 stale bind group을 잡고 있을 수 있다.
+- 고쳤다: WebGPU command context에 `SafePtr` 기반 bind group cache를 추가하고, 프레임 시작/소멸/device 변경 시 invalid entry와 API 객체를 정리한다.
+- 추가로 읽었고: Vulkan은 draw마다 descriptor set을 새로 allocate/update하며 pool이 1024 set 고정이었다.
+- 생각했고: 지금 단계에서 descriptor set 캐시는 constant buffer가 draw마다 달라 효과가 제한적이고, 먼저 1024 draw 이후 조용히 draw가 빠지는 버그 후보가 더 명확하다.
+- 반례를 찾았고: `vkAllocateDescriptorSets` 실패 시 `BindPendingDescriptors()`가 그냥 return하므로 sprite가 많은 장면에서 일부 draw가 descriptor 없이 진행될 수 있다.
+- 고쳤다: Vulkan descriptor pool을 프레임 reset 가능한 pool 목록으로 바꾸고, 현재 pool 할당 실패 시 추가 pool을 생성해 재시도한다.
+- 검증 중 사용자 프로젝트 경로 `C:\Users\박주형\Desktop\Project\Project.Jproject`는 현재 존재하지 않아 Web 검증은 `SampleProject/Project.Jproject`로 대체했다.
+
+---
+
 # TODO — 렌더 반복 계산/상태 바인딩 병목 정리
 
 ## Goal

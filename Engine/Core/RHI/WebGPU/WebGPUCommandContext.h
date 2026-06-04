@@ -3,12 +3,16 @@
 #include "Core/RHI/IRHICommandContext.h"
 #include "Core/RHI/WebGPU/WebGPUCommon.h"
 
+#include <vector>
+
 class CWebGPUSwapchain;
 class CWebGPUGraphicsPipeline;
 
 class CWebGPUCommandContext final : public IRHICommandContext
 {
 public:
+	~CWebGPUCommandContext() override;
+
 #if JBRO_PLATFORM_WEB
 	void BindNativeContext(WGPUDevice device, WGPUQueue queue, CWebGPUSwapchain* swapchain);
 #endif
@@ -32,8 +36,19 @@ public:
 
 private:
 #if JBRO_PLATFORM_WEB
+	struct BindGroupCacheEntry
+	{
+		SafePtr<IRHIGraphicsPipeline> Pipeline;
+		SafePtr<IRHIBuffer> ConstantBuffer;
+		SafePtr<IRHITexture> Texture;
+		SafePtr<IRHISampler> Sampler;
+		WGPUBindGroup BindGroup = nullptr;
+	};
+
 	void ReleaseFrameObjects();
-	WGPUBindGroup CreateCurrentBindGroup();
+	void ReleaseBindGroupCache();
+	void PruneInvalidBindGroups();
+	WGPUBindGroup GetOrCreateCurrentBindGroup();
 #endif
 
 private:
@@ -44,10 +59,11 @@ private:
 	WGPUCommandEncoder m_commandEncoder = nullptr;
 	WGPURenderPassEncoder m_renderPass = nullptr;
 	WGPUCommandBuffer m_pendingCommandBuffer = nullptr;
+	SafePtr<IRHIGraphicsPipeline> m_currentPipelineHandle;
 	CWebGPUGraphicsPipeline* m_currentPipeline = nullptr;
 	SafePtr<IRHIBuffer> m_constantBuffer;
 	SafePtr<IRHITexture> m_texture;
 	SafePtr<IRHISampler> m_sampler;
+	std::vector<BindGroupCacheEntry> m_bindGroupCache;
 #endif
 };
-

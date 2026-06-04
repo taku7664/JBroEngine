@@ -9,6 +9,11 @@
 
 #if JBRO_RHI_VULKAN
 #include <cstring>
+
+namespace
+{
+constexpr std::uint32_t VulkanDescriptorSetsPerPool = 1024;
+}
 #endif
 
 CVulkanCommandContext::~CVulkanCommandContext()
@@ -43,20 +48,11 @@ void CVulkanCommandContext::BindNativeContext(VkDevice device, VkQueue graphicsQ
 	fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 	vkCreateFence(m_device, &fenceInfo, nullptr, &m_inFlightFence);
 
-	VkDescriptorPoolSize poolSizes[3] = {};
-	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	poolSizes[0].descriptorCount = 1024;
-	poolSizes[1].type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-	poolSizes[1].descriptorCount = 1024;
-	poolSizes[2].type = VK_DESCRIPTOR_TYPE_SAMPLER;
-	poolSizes[2].descriptorCount = 1024;
-
-	VkDescriptorPoolCreateInfo poolInfo = {};
-	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	poolInfo.maxSets = 1024;
-	poolInfo.poolSizeCount = 3;
-	poolInfo.pPoolSizes = poolSizes;
-	vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &m_descriptorPool);
+	VkDescriptorPool descriptorPool = CreateDescriptorPool(VulkanDescriptorSetsPerPool);
+	if (descriptorPool != VK_NULL_HANDLE)
+	{
+		m_descriptorPools.push_back(descriptorPool);
+	}
 }
 #endif
 
@@ -71,10 +67,14 @@ void CVulkanCommandContext::BeginFrame()
 	vkWaitForFences(m_device, 1, &m_inFlightFence, VK_TRUE, UINT64_MAX);
 	vkResetFences(m_device, 1, &m_inFlightFence);
 	vkResetCommandBuffer(m_commandBuffer, 0);
-	if (m_descriptorPool != VK_NULL_HANDLE)
+	for (VkDescriptorPool descriptorPool : m_descriptorPools)
 	{
-		vkResetDescriptorPool(m_device, m_descriptorPool, 0);
+		if (descriptorPool != VK_NULL_HANDLE)
+		{
+			vkResetDescriptorPool(m_device, descriptorPool, 0);
+		}
 	}
+	m_activeDescriptorPoolIndex = 0;
 	m_currentPipeline = nullptr;
 	m_boundConstantBuffer = nullptr;
 	m_boundTexture = nullptr;
@@ -434,11 +434,15 @@ void CVulkanCommandContext::DestroyFrameSync()
 	}
 
 	vkDeviceWaitIdle(m_device);
-	if (m_descriptorPool != VK_NULL_HANDLE)
+	for (VkDescriptorPool descriptorPool : m_descriptorPools)
 	{
-		vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
-		m_descriptorPool = VK_NULL_HANDLE;
+		if (descriptorPool != VK_NULL_HANDLE)
+		{
+			vkDestroyDescriptorPool(m_device, descriptorPool, nullptr);
+		}
 	}
+	m_descriptorPools.clear();
+	m_activeDescriptorPoolIndex = 0;
 	if (m_inFlightFence != VK_NULL_HANDLE)
 	{
 		vkDestroyFence(m_device, m_inFlightFence, nullptr);
@@ -461,9 +465,88 @@ void CVulkanCommandContext::DestroyFrameSync()
 	}
 }
 
+VkDescriptorPool CVulkanCommandContext::CreateDescriptorPool(std::uint32_t maxSets)
+{
+	if (m_device == VK_NULL_HANDLE || 0 == maxSets)
+	{
+		return VK_NULL_HANDLE;
+	}
+
+	VkDescriptorPoolSize poolSizes[3] = {};
+	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	poolSizes[0].descriptorCount = maxSets;
+	poolSizes[1].type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+	poolSizes[1].descriptorCount = maxSets;
+	poolSizes[2].type = VK_DESCRIPTOR_TYPE_SAMPLER;
+	poolSizes[2].descriptorCount = maxSets;
+
+	VkDescriptorPoolCreateInfo poolInfo = {};
+	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	poolInfo.maxSets = maxSets;
+	poolInfo.poolSizeCount = 3;
+	poolInfo.pPoolSizes = poolSizes;
+
+	VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
+	if (vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS)
+	{
+		return VK_NULL_HANDLE;
+	}
+	return descriptorPool;
+}
+
+bool CVulkanCommandContext::AllocateDescriptorSet(VkDescriptorSetLayout setLayout, VkDescriptorSet* outDescriptorSet)
+{
+	if (m_device == VK_NULL_HANDLE || setLayout == VK_NULL_HANDLE || nullptr == outDescriptorSet)
+	{
+		return false;
+	}
+
+	*outDescriptorSet = VK_NULL_HANDLE;
+	if (m_descriptorPools.empty())
+	{
+		VkDescriptorPool descriptorPool = CreateDescriptorPool(VulkanDescriptorSetsPerPool);
+		if (descriptorPool == VK_NULL_HANDLE)
+		{
+			return false;
+		}
+		m_descriptorPools.push_back(descriptorPool);
+		m_activeDescriptorPoolIndex = 0;
+	}
+
+	for (std::size_t poolIndex = m_activeDescriptorPoolIndex; poolIndex < m_descriptorPools.size(); ++poolIndex)
+	{
+		VkDescriptorSetAllocateInfo allocInfo = {};
+		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		allocInfo.descriptorPool = m_descriptorPools[poolIndex];
+		allocInfo.descriptorSetCount = 1;
+		allocInfo.pSetLayouts = &setLayout;
+
+		if (vkAllocateDescriptorSets(m_device, &allocInfo, outDescriptorSet) == VK_SUCCESS)
+		{
+			m_activeDescriptorPoolIndex = poolIndex;
+			return true;
+		}
+	}
+
+	VkDescriptorPool descriptorPool = CreateDescriptorPool(VulkanDescriptorSetsPerPool);
+	if (descriptorPool == VK_NULL_HANDLE)
+	{
+		return false;
+	}
+	m_descriptorPools.push_back(descriptorPool);
+	m_activeDescriptorPoolIndex = m_descriptorPools.size() - 1;
+
+	VkDescriptorSetAllocateInfo allocInfo = {};
+	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	allocInfo.descriptorPool = descriptorPool;
+	allocInfo.descriptorSetCount = 1;
+	allocInfo.pSetLayouts = &setLayout;
+	return vkAllocateDescriptorSets(m_device, &allocInfo, outDescriptorSet) == VK_SUCCESS;
+}
+
 void CVulkanCommandContext::BindPendingDescriptors()
 {
-	if (m_device == VK_NULL_HANDLE || m_commandBuffer == VK_NULL_HANDLE || m_descriptorPool == VK_NULL_HANDLE || nullptr == m_currentPipeline)
+	if (m_device == VK_NULL_HANDLE || m_commandBuffer == VK_NULL_HANDLE || nullptr == m_currentPipeline)
 	{
 		return;
 	}
@@ -488,14 +571,8 @@ void CVulkanCommandContext::BindPendingDescriptors()
 	}
 
 	VkDescriptorSetLayout setLayout = m_currentPipeline->GetDescriptorSetLayout();
-	VkDescriptorSetAllocateInfo allocInfo = {};
-	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-	allocInfo.descriptorPool = m_descriptorPool;
-	allocInfo.descriptorSetCount = 1;
-	allocInfo.pSetLayouts = &setLayout;
-
 	VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
-	if (vkAllocateDescriptorSets(m_device, &allocInfo, &descriptorSet) != VK_SUCCESS)
+	if (false == AllocateDescriptorSet(setLayout, &descriptorSet))
 	{
 		return;
 	}
