@@ -1,3 +1,47 @@
+# TODO — SceneView 2D Scale Guizmo
+
+## Goal
+SceneView Guizmo에서 Scale mode를 선택할 수 있고, 선택 오브젝트를 pivot 기준으로 X/Y/Uniform 스케일 편집한다.
+
+## Assumptions
+- Scale은 2D Transform2D의 local Scale 값을 편집한다.
+- X/Y handle은 화면/월드축 기준으로 mouse delta를 읽지만, 회전된 오브젝트에 대한 완전한 world-axis non-uniform scale은 Transform2D만으로 shear 없이 표현할 수 없으므로 local Scale 증감으로 제한한다.
+- 부모가 있는 object는 pivot 기준으로 계산한 target world position을 parent local position으로 환산한다.
+- 음수 scale sign flip은 허용하지 않고, 기존 sign을 보존하며 최소 절대 scale 값으로 clamp한다.
+
+## Success Criteria
+- SceneView overlay에서 Scale mode를 선택할 수 있다.
+- Scale mode는 X/Y/Uniform handle을 그리고 screen-space hit-test로 drag를 시작한다.
+- Scale drag는 선택 top-level object들의 position과 scale을 pivot 기준으로 preview 갱신한다.
+- release 후 undo/redo 1회로 시작/끝 transform을 복원한다.
+- scale 값은 0 또는 sign flip으로 붕괴하지 않는다.
+
+## Plan
+- [x] SceneView Guizmo mode toolbar에 Scale 추가
+- [x] Scale handle draw/hit-test 추가
+- [x] Scale drag preview/commit 구현
+- [x] 음수 scale sign 보존 및 minimum clamp 적용
+- [x] 빌드 검증 및 커밋
+
+## Verification
+- [x] `Debug_Editor|x64` build
+- [x] `Debug_Game|x64` build
+- [x] `git diff --check`
+
+## Review
+- 코드를 읽었고: Translate/Rotate는 SceneViewTool이 mode toolbar와 overlay block만 담당하고, 실제 hit-test/drag/undo는 `CGuizmo2D`가 담당하는 구조였다.
+- 생각했고: Scale도 같은 host/controller 계약을 따라야 SceneView 선택, collider editing, undo 흐름과 충돌하지 않는다.
+- 반례를 찾았고: Scale toolbar 클릭이 기존 SceneView picking이나 collider input으로 흘러가면 mode 변경과 선택/편집이 동시에 발생할 수 있다.
+- 고쳤다: SceneView mode toolbar에 `S` 버튼만 추가하고 기존 `modeToolbarHovered -> overlayBlocked` 차단 경로를 그대로 타게 했다.
+- 추가로 읽었고: Transform2D는 position/rotation/scale만 표현하므로 회전된 object에 대한 완전한 world-axis non-uniform scale은 shear 없이 표현할 수 없다.
+- 생각했고: 여기서 억지로 world-axis scale을 가장하면 부모/회전 조합에서 결과가 불명확해지므로, handle은 월드/화면 기준 입력을 쓰되 실제 값은 local Scale 증감으로 제한하는 것이 현재 Transform2D 계약에 맞다.
+- 반례를 찾았고: pivot을 지나 드래그하면 scale factor가 음수가 되어 sprite flip이나 0 scale 붕괴가 발생할 수 있다.
+- 고쳤다: sign flip은 허용하지 않고 기존 scale sign을 보존하며 `0.001` minimum absolute scale로 clamp했다.
+- 추가 반례: 부모가 있는 object의 position을 world target 그대로 local에 넣으면 부모 transform 아래에서 위치가 틀어진다.
+- 고쳤다: Scale preview에서도 pivot 기준 target world position을 계산한 뒤 `WorldPositionToLocalPosition()`으로 parent local position에 환산했다.
+
+---
+
 # TODO — SceneView 2D Rotate Guizmo
 
 ## Goal

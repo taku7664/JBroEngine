@@ -14,15 +14,21 @@ public:
 private:
 	EGuizmoHandle2D HitTestTranslate(const GuizmoFrameContext& context, const ImVec2& pivotScreen) const;
 	EGuizmoHandle2D HitTestRotate(const GuizmoFrameContext& context, const ImVec2& pivotScreen) const;
+	EGuizmoHandle2D HitTestScale(const GuizmoFrameContext& context, const ImVec2& pivotScreen) const;
 	void DrawTranslate(const GuizmoFrameContext& context, const ImVec2& pivotScreen, EGuizmoHandle2D hotHandle) const;
 	void DrawRotate(const GuizmoFrameContext& context, const ImVec2& pivotScreen, EGuizmoHandle2D hotHandle) const;
+	void DrawScale(const GuizmoFrameContext& context, const ImVec2& pivotScreen, EGuizmoHandle2D hotHandle) const;
 
 	void BeginTranslateDrag(const GuizmoFrameContext& context,
 	                        EGuizmoHandle2D handle,
 	                        const Vector2& pivotWorld);
 	void BeginRotateDrag(const GuizmoFrameContext& context, const Vector2& pivotWorld);
+	void BeginScaleDrag(const GuizmoFrameContext& context,
+	                    EGuizmoHandle2D handle,
+	                    const Vector2& pivotWorld);
 	GuizmoFrameResult UpdateTranslateDrag(const GuizmoFrameContext& context);
 	GuizmoFrameResult UpdateRotateDrag(const GuizmoFrameContext& context);
+	GuizmoFrameResult UpdateScaleDrag(const GuizmoFrameContext& context);
 	void EndDrag(const GuizmoFrameContext& context, bool commit);
 
 	Vector2 CalculatePivotWorld(const GuizmoFrameContext& context) const;
@@ -39,6 +45,10 @@ private:
 	                                    const Transform2D& initialTransform,
 	                                    const Vector2& pivotWorld,
 	                                    float deltaRadians) const;
+	Transform2D ScaleObjectAroundPivot(CGameObject& object,
+	                                   const Transform2D& initialTransform,
+	                                   const Vector2& pivotWorld,
+	                                   const Vector2& scaleFactor) const;
 
 private:
 	bool m_dragging = false;

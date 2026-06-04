@@ -481,12 +481,16 @@ void CSceneViewTool::OnRenderStay()
     const ImVec2 translateMax(translateMin.x + MODE_BTN_SIZE, translateMin.y + MODE_BTN_SIZE);
     const ImVec2 rotateMin(translateMax.x + MODE_GAP, modeToolbarMin.y);
     const ImVec2 rotateMax(rotateMin.x + MODE_BTN_SIZE, rotateMin.y + MODE_BTN_SIZE);
+    const ImVec2 scaleMin(rotateMax.x + MODE_GAP, modeToolbarMin.y);
+    const ImVec2 scaleMax(scaleMin.x + MODE_BTN_SIZE, scaleMin.y + MODE_BTN_SIZE);
 
     bool modeToolbarHovered = false;
     modeToolbarHovered |= DrawGuizmoModeButton(
         *dl, translateMin, translateMax, "T", "Translate", m_guizmo.GetMode() == EGuizmoMode::Translate);
     modeToolbarHovered |= DrawGuizmoModeButton(
         *dl, rotateMin, rotateMax, "R", "Rotate", m_guizmo.GetMode() == EGuizmoMode::Rotate);
+    modeToolbarHovered |= DrawGuizmoModeButton(
+        *dl, scaleMin, scaleMax, "S", "Scale", m_guizmo.GetMode() == EGuizmoMode::Scale);
     if (modeToolbarHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
     {
         const ImVec2 mouse = ImGui::GetIO().MousePos;
@@ -499,6 +503,11 @@ void CSceneViewTool::OnRenderStay()
                  && mouse.y >= rotateMin.y && mouse.y <= rotateMax.y)
         {
             m_guizmo.SetMode(EGuizmoMode::Rotate);
+        }
+        else if (mouse.x >= scaleMin.x && mouse.x <= scaleMax.x
+                 && mouse.y >= scaleMin.y && mouse.y <= scaleMax.y)
+        {
+            m_guizmo.SetMode(EGuizmoMode::Scale);
         }
     }
 
