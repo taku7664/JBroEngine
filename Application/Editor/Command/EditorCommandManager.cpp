@@ -5,15 +5,6 @@
 
 #include "ThirdParty/imgui/imgui.h"
 
-namespace
-{
-	// 드래그 진행 중인가 = 좌버튼 유지. ImGui 컨텍스트/프레임 밖이면 false.
-	bool IsDragInProgress()
-	{
-		return nullptr != ImGui::GetCurrentContext() && ImGui::IsMouseDown(ImGuiMouseButton_Left);
-	}
-}
-
 bool CEditorCommandManager::ExecuteCommand(OwnerPtr<IEditorCommand> command, const char* documentKey)
 {
 	if (false == static_cast<bool>(command) || false == command->Execute())
@@ -21,10 +12,23 @@ bool CEditorCommandManager::ExecuteCommand(OwnerPtr<IEditorCommand> command, con
 		return false;
 	}
 
-	// ── 편집 단위 묶기 ────────────────────────────────────────────────────────
-	// 드래그 중(좌버튼 유지) 같은 대상 연속 편집은 최상단 커맨드에 병합해 undo 1개로 유지.
-	const bool dragging = IsDragInProgress();
-	if (dragging && m_dragMergeActive && false == m_undoStack.empty()
+	// ── 편집 단위 묶기(트랜잭션) ────────────────────────────────────────────────
+	// 한 번의 드래그(좌버튼 누름~놓음) = undo 1개. 같은 대상 연속 편집은 최상단 커맨드에 병합.
+	// 핵심: 드래그 경계 감지. ExecuteCommand 는 편집 프레임에만 호출되어 "놓는 순간"을 못 본다.
+	// 좌버튼 down-duration 은 누름 동안 단조 증가하고 새 누름에서 0 으로 리셋되므로, 직전보다
+	// 줄었거나(=새 누름) 버튼이 안 눌렸으면 새 그룹으로 본다 → 드래그마다 첫 커맨드가 push 된다.
+	ImGuiContext* context = ImGui::GetCurrentContext();
+	const bool  mouseDown = (nullptr != context) && ImGui::IsMouseDown(ImGuiMouseButton_Left);
+	const float downDuration = (nullptr != context)
+		? ImGui::GetIO().MouseDownDuration[ImGuiMouseButton_Left] : -1.0f;
+
+	if (false == mouseDown || downDuration < m_lastMouseDownDuration)
+	{
+		m_dragMergeActive = false; // 새 누름/비드래그 → 새 병합 그룹.
+	}
+	m_lastMouseDownDuration = downDuration;
+
+	if (mouseDown && m_dragMergeActive && false == m_undoStack.empty()
 		&& m_undoStack.back()->TryMerge(*command))
 	{
 		// 병합됨 — command(중복 엔트리)는 버린다. 결과값은 이미 Execute 로 적용됨.
@@ -36,7 +40,7 @@ bool CEditorCommandManager::ExecuteCommand(OwnerPtr<IEditorCommand> command, con
 	m_undoStack.push_back(std::move(command));
 	m_redoStack.clear();
 	// 드래그 중 첫 커맨드면 이후 프레임부터 이 엔트리에 병합. 비드래그면 병합 비활성.
-	m_dragMergeActive = dragging;
+	m_dragMergeActive = mouseDown;
 	MarkDirty(documentKey);
 	return true;
 }
@@ -76,6 +80,7 @@ void CEditorCommandManager::Clear()
 	m_undoStack.clear();
 	m_redoStack.clear();
 	m_dragMergeActive = false;
+	m_lastMouseDownDuration = -1.0f;
 	m_documents.clear();
 	m_activeDocumentKey.clear();
 	m_globalRevision = 0;

@@ -63,7 +63,9 @@ private:
 	std::vector<OwnerPtr<IEditorCommand>> m_redoStack;
 	// 마우스 좌버튼 유지 중(드래그) 같은 대상 커맨드를 최상단에 병합 → 드래그 1회 = undo 1개.
 	// 버튼을 놓으면 다음 커맨드는 새 엔트리. 인스펙터/기즈모 배선 불필요(자동).
-	bool m_dragMergeActive = false;
+	bool  m_dragMergeActive = false;
+	// 직전 ExecuteCommand 시점의 좌버튼 down-duration. 새 누름(드래그 경계) 감지용.
+	float m_lastMouseDownDuration = -1.0f;
 	std::unordered_map<std::string, EditorDocumentState> m_documents;
 	std::string m_activeDocumentKey;
 	std::uint64_t m_globalRevision = 0;
