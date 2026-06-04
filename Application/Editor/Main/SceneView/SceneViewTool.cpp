@@ -1005,7 +1005,12 @@ void CSceneViewTool::OnRenderStay()
     //
     // 토글 버튼 영역은 씬 입력에서 제외.
 
-    if (!overlayBlocked && false == guizmoResult.ConsumedMouse)
+    // 이미 진행 중인 좌클릭 드래그(박스 선택)는 guizmo 호버에 가로채이면 안 된다.
+    // guizmo 가 자기 드래그를 "시작"할 때(IsActive)는 ConsumedMouse 로 막는 게 맞지만,
+    // 단순 호버(hotHandle 위에 마우스가 지나감)만으로 ConsumedMouse 가 켜지면 진행 중인
+    // 박스 드래그가 끊긴다. 드래그가 이미 시작됐으면(클릭 대기 포함) 그 드래그가 입력 주인이다.
+    const bool leftDragInProgress = m_isDraggingLeft || m_clickPending;
+    if (!overlayBlocked && (false == guizmoResult.ConsumedMouse || leftDragInProgress))
     {
         // 마우스 누름: 클릭 인텐트 기록
         // m_suppressNextClick: Layer 2.8 에서 폴리곤 엣지 클릭이 소비된 경우 스킵
