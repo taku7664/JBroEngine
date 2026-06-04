@@ -969,6 +969,32 @@ void CSceneViewTool::OnRenderStay()
         }
     }
 
+    // ── 키보드 단축키: Ctrl+C 복사 / Ctrl+V 붙여넣기 (씬뷰 포커스 시) ─────────
+    // 포커스 기준이라 마우스가 잠깐 벗어나도 동작. 텍스트 입력 중(다른 위젯)엔 무시.
+    if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)
+        && ImGui::GetIO().KeyCtrl && false == ImGui::GetIO().WantTextInput)
+    {
+        if (Core::SceneManager)
+        {
+            SafePtr<CScene> scene = Core::SceneManager->GetActiveScene();
+            if (scene)
+            {
+                if (ImGui::IsKeyPressed(ImGuiKey_C, false))
+                {
+                    EditorGuiDrawHelpers::CopySelectedObjectsToClipboard();
+                }
+                if (ImGui::IsKeyPressed(ImGuiKey_V, false))
+                {
+                    // 붙여넣기 위치: 마우스가 씬뷰 위면 커서 월드 좌표, 아니면 카메라 중심.
+                    const Vector2 pasteWorld = isHovered
+                        ? ViewportToWorld(ImGui::GetIO().MousePos, vpMin, vpSize, m_cameraPos, m_cameraSize)
+                        : m_cameraPos;
+                    EditorGuiDrawHelpers::PasteObjectsFromClipboard(*scene, &pasteWorld);
+                }
+            }
+        }
+    }
+
     // ── 좌클릭 상태 머신 (클릭 vs 드래그 박스 선택) ─────────────────────────
     //
     // 상태 전이:
@@ -1164,6 +1190,7 @@ void CSceneViewTool::OnRenderStay()
                         const Vector2 worldPt =
                             ViewportToWorld(ImGui::GetIO().MousePos,
                                             vpMin, vpSize, m_cameraPos, m_cameraSize);
+                        m_contextMenuWorldPos = worldPt; // "Add Object" 생성 위치
                         CGameObject* picked = m_editCtx.Pick(*scene, worldPt, assetMgr);
                         if (nullptr != picked)
                         {
@@ -1260,7 +1287,7 @@ void CSceneViewTool::OnRenderStay()
             if (nullptr != menuObject)
             {
                 // 오브젝트 우클릭: "Add Child Object" + "Add Component ▶" + 복사/붙여넣기 + "Delete"
-                EditorGuiDrawHelpers::DrawAddObjectMenu(*popupScene, menuObject);
+                EditorGuiDrawHelpers::DrawAddObjectMenu(*popupScene, menuObject, &m_contextMenuWorldPos);
                 ImGui::Separator();
                 EditorGuiDrawHelpers::DrawAddComponentMenu(*popupScene, menuObject);
                 ImGui::Separator();
@@ -1272,7 +1299,7 @@ void CSceneViewTool::OnRenderStay()
             else if (!vtxValid || menuParent)
             {
                 // 빈 공간 우클릭 (버텍스 전용 팝업이 아닐 때 or 부모가 지정된 경우)
-                EditorGuiDrawHelpers::DrawAddObjectMenu(*popupScene, menuParent);
+                EditorGuiDrawHelpers::DrawAddObjectMenu(*popupScene, menuParent, &m_contextMenuWorldPos);
                 EditorGuiDrawHelpers::DrawPasteObjectMenuItem(*popupScene);
             }
         }

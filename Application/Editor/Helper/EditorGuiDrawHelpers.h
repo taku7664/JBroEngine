@@ -2,6 +2,8 @@
 
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
 
+#include "Utillity/Math/Vector2T.h" // Vector2 (DrawAddObjectMenu 의 spawn 위치)
+
 #include <string>
 
 class CScene;
@@ -27,7 +29,8 @@ namespace EditorGuiDrawHelpers
 	//   parent == nullptr : 루트에 오브젝트 추가 → 레이블 "Add Object"
 	//   parent != nullptr : parent의 자식으로 추가 → 레이블 "Add Child Object"
 	// 성공 시 생성된 오브젝트를 선택 상태로 만들고 true 반환.
-	bool DrawAddObjectMenu(CScene& scene, CGameObject* parent);
+	//   spawnWorldPos != nullptr : 그 월드 좌표에 생성(씬뷰 우클릭 위치). null = 기본(원점).
+	bool DrawAddObjectMenu(CScene& scene, CGameObject* parent, const Vector2* spawnWorldPos = nullptr);
 
 	bool DrawRemoveObjectMenu(CScene& scene, CGameObject* object);
 
@@ -39,6 +42,13 @@ namespace EditorGuiDrawHelpers
 	bool DrawCopyObjectMenuItem(const CGameObject& object);
 	// 클립보드의 오브젝트를 scene 에 붙여넣는 MenuItem(클립보드가 오브젝트일 때만 표시).
 	bool DrawPasteObjectMenuItem(CScene& scene);
+
+	// ── 단축키용(메뉴 아님) 복사/붙여넣기 ─────────────────────────────────────
+	// 선택된 최상위 오브젝트들을 클립보드로 복사(다중). 선택이 없으면 false.
+	bool CopySelectedObjectsToClipboard();
+	// 클립보드 오브젝트(들)을 붙여넣고(undo 가능) 붙여넣은 루트를 선택한다.
+	//   spawnWorldPos != nullptr : 그룹 중심을 그 월드 좌표로 이동. null = 원본 위치 유지.
+	bool PasteObjectsFromClipboard(CScene& scene, const Vector2* spawnWorldPos = nullptr);
 
 	// 컴포넌트를 클립보드로 복사하는 MenuItem.
 	bool DrawCopyComponentMenuItem(const class CComponent& component);

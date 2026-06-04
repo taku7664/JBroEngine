@@ -187,7 +187,7 @@ bool EditorGuiDrawHelpers::DrawAddComponentButton(CScene& scene, CGameObject* ob
 	return added;
 }
 
-bool EditorGuiDrawHelpers::DrawAddObjectMenu(CScene& scene, CGameObject* parent)
+bool EditorGuiDrawHelpers::DrawAddObjectMenu(CScene& scene, CGameObject* parent, const Vector2* spawnWorldPos)
 {
 	// parent 유무에 따라 레이블 변경
 	const char* label = (nullptr != parent)
@@ -197,7 +197,7 @@ bool EditorGuiDrawHelpers::DrawAddObjectMenu(CScene& scene, CGameObject* parent)
 	if (ImGui::MenuItem(label))
 	{
 		OwnerPtr<CCreateGameObjectCommand> cmd =
-		    MakeOwnerPtr<CCreateGameObjectCommand>(scene.SafeFromThis(), "GameObject", parent);
+		    MakeOwnerPtr<CCreateGameObjectCommand>(scene.SafeFromThis(), "GameObject", parent, spawnWorldPos);
 		CCreateGameObjectCommand* rawCmd = cmd.Get();
 		if (Editor::CommandManager.ExecuteCommand(std::move(cmd)) && rawCmd)
 		{
@@ -233,29 +233,6 @@ bool EditorGuiDrawHelpers::DrawRemoveObjectMenu(CScene& scene, CGameObject* obje
 
 // ── 복사 / 붙여넣기 ──────────────────────────────────────────────────────────
 
-namespace
-{
-	// 붙여넣은 서브트리 전체에 새 InstanceGuid 를 발급한다(오브젝트 + 컴포넌트 + 자식 재귀).
-	void ReissueGuidsRecursive(CGameObject& object)
-	{
-		object.InstanceGuid = File::GenerateGuid();
-		for (const SafePtr<CComponent>& cref : object.GetComponents())
-		{
-			if (CComponent* comp = cref.TryGet())
-			{
-				comp->InstanceGuid = File::GenerateGuid();
-			}
-		}
-		for (const SafePtr<CGameObject>& childRef : object.GetChildren())
-		{
-			if (CGameObject* child = childRef.TryGet())
-			{
-				ReissueGuidsRecursive(*child);
-			}
-		}
-	}
-}
-
 bool EditorGuiDrawHelpers::DrawCopyObjectMenuItem(const CGameObject& object)
 {
 	if (ImGui::MenuItem(Loc::TextOr("editor.menu.copy_object", "Copy Object")))
@@ -276,16 +253,45 @@ bool EditorGuiDrawHelpers::DrawPasteObjectMenuItem(CScene& scene)
 	}
 	if (ImGui::MenuItem(Loc::TextOr("editor.menu.paste_object", "Paste Object")))
 	{
-		if (CGameObject* pasted = Serialization::DeserializeObject(scene, clip))
-		{
-			// 복사본(서브트리 전체)은 원본과 다른 새 InstanceGuid 를 받아야 한다 — 직렬화에
-			// 박힌 원본 guid 를 그대로 쓰면 씬에 같은 guid 가 둘이 되어 Ref 해석이 깨진다.
-			ReissueGuidsRecursive(*pasted);
-			Editor::SelectEntity(pasted);
-			return true;
-		}
+		// 원본 위치 유지(메뉴 붙여넣기). undo/새 guid 발급은 커맨드가 처리.
+		return PasteObjectsFromClipboard(scene, nullptr);
 	}
 	return false;
+}
+
+bool EditorGuiDrawHelpers::CopySelectedObjectsToClipboard()
+{
+	const std::vector<CGameObject*> roots = Editor::GetSelectedTopLevel();
+	if (roots.empty())
+	{
+		return false;
+	}
+	const std::vector<const CGameObject*> objects(roots.begin(), roots.end());
+	const std::string text = Serialization::SerializeObjects(objects);
+	if (text.empty())
+	{
+		return false;
+	}
+	ImGui::SetClipboardText(text.c_str());
+	return true;
+}
+
+bool EditorGuiDrawHelpers::PasteObjectsFromClipboard(CScene& scene, const Vector2* spawnWorldPos)
+{
+	const char* clip = ImGui::GetClipboardText();
+	if (nullptr == clip || false == Serialization::LooksLikeObject(clip))
+	{
+		return false;
+	}
+	OwnerPtr<CPasteObjectsCommand> cmd =
+	    MakeOwnerPtr<CPasteObjectsCommand>(scene.SafeFromThis(), std::string(clip), spawnWorldPos);
+	CPasteObjectsCommand* rawCmd = cmd.Get();
+	if (false == Editor::CommandManager.ExecuteCommand(std::move(cmd)) || nullptr == rawCmd)
+	{
+		return false;
+	}
+	Editor::SelectEntities(rawCmd->GetPastedRoots());
+	return true;
 }
 
 bool EditorGuiDrawHelpers::DrawCopyComponentMenuItem(const CComponent& component)

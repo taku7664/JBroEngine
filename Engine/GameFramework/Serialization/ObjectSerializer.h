@@ -36,10 +36,16 @@ namespace Serialization
 	CGameObject* ReadObjectInto(CScene& scene, const YAML::Node& node,
 	                            std::vector<AssetGuid>* referencedAssets);
 
-	// ── 단일 오브젝트 복사 API (문자열) ───────────────────────────────────────
+	// ── 오브젝트 복사 API (문자열) ────────────────────────────────────────────
+	// 클립보드 포맷은 { Objects: [ objectNode... ] } 맵(다중/단일 공용). 각 오브젝트는
+	// 자식 서브트리를 포함한다. 레거시(단일 맵, Components 키)도 역직렬화는 허용한다.
+	std::string               SerializeObjects(const std::vector<const CGameObject*>& objects);
+	std::vector<CGameObject*> DeserializeObjects(CScene& scene, const char* text);
+
+	// 단일 편의 래퍼(SerializeObjects/DeserializeObjects 위임).
 	std::string  SerializeObject(const CGameObject& object);
 	CGameObject* DeserializeObject(CScene& scene, const char* text);
 
-	// 텍스트가 SerializeObject 가 만든 오브젝트 직렬화인지 검사한다(붙여넣기 가능 판별).
+	// 텍스트가 복사 오브젝트 직렬화인지 검사한다(붙여넣기 가능 판별). 다중/단일 모두 인식.
 	bool         LooksLikeObject(const char* text);
 }

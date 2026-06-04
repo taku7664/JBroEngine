@@ -13,9 +13,11 @@
 #include "Engine/GameFramework/Scene/Scene.h"
 #include "Engine/GameFramework/Scene/SceneTransformUtils.h"
 #include "Engine/GameFramework/Serialization/ComponentSerializer.h"
+#include "Engine/GameFramework/Serialization/ObjectSerializer.h"
 #include "Engine/GameFramework/Prefab/PrefabSerializer.h"
 
 #include <cmath>
+#include <utility>
 
 namespace
 {
@@ -247,10 +249,13 @@ bool CSetScriptTypeCommand::Apply(TypeId scriptTypeId)
 }
 
 CCreateGameObjectCommand::CCreateGameObjectCommand(SafePtr<CScene> scene, const char* name,
-                                                   CGameObject* parent)
+                                                   CGameObject* parent,
+                                                   const Vector2* spawnWorldPos)
 	: m_scene(scene)
 	, m_name(name ? name : "GameObject")
 	, m_parentGuid(GuidOf(parent))
+	, m_hasSpawnPos(nullptr != spawnWorldPos)
+	, m_spawnWorldPos(spawnWorldPos ? *spawnWorldPos : Vector2(0.0f, 0.0f))
 {
 }
 
@@ -290,6 +295,23 @@ bool CCreateGameObjectCommand::Execute()
 		{
 			gameObject->SetParent(*parent);
 		}
+	}
+
+	// 씬뷰 우클릭 위치 생성: 월드 좌표를 로컬 좌표로 환산해 배치한다. 부모가 있으면 부모
+	// 월드 역행렬로 변환(부모의 캐시된 World 행렬 사용), 루트면 월드=로컬이므로 그대로.
+	// 새 오브젝트는 scale=1/rot=0 이라 world 위치 = parentWorld.TransformPoint(localPos).
+	if (m_hasSpawnPos)
+	{
+		Vector2 localPos = m_spawnWorldPos;
+		if (CGameObject* parent = Resolve(m_scene, m_parentGuid))
+		{
+			Matrix3x2 inverse;
+			if (GetWorldTransform(*parent).TryInvert(inverse))
+			{
+				localPos = inverse.TransformPoint(m_spawnWorldPos);
+			}
+		}
+		gameObject->GetTransform().Position = localPos;
 	}
 
 	return m_created;
@@ -461,6 +483,135 @@ void CDeleteGameObjectCommand::Redo()
 	{
 		Execute();
 	}
+}
+
+// ── CPasteObjectsCommand ──────────────────────────────────────────────────────
+
+namespace
+{
+	// 붙여넣은 서브트리 전체에 새 InstanceGuid 를 발급한다(오브젝트 + 컴포넌트 + 자식 재귀).
+	// 원본과 guid 가 겹치면 씬에 같은 guid 가 둘이 되어 Ref/해석이 깨지므로 필수.
+	void ReissuePastedGuids(CGameObject& object)
+	{
+		object.InstanceGuid = File::GenerateGuid();
+		for (const SafePtr<CComponent>& cref : object.GetComponents())
+		{
+			if (CComponent* comp = cref.TryGet())
+			{
+				comp->InstanceGuid = File::GenerateGuid();
+			}
+		}
+		for (const SafePtr<CGameObject>& childRef : object.GetChildren())
+		{
+			if (CGameObject* child = childRef.TryGet())
+			{
+				ReissuePastedGuids(*child);
+			}
+		}
+	}
+}
+
+CPasteObjectsCommand::CPasteObjectsCommand(SafePtr<CScene> scene, std::string clipboardText,
+                                           const Vector2* spawnWorldPos)
+	: m_scene(scene)
+	, m_clipboard(std::move(clipboardText))
+	, m_hasSpawnPos(nullptr != spawnWorldPos)
+	, m_spawnWorldPos(spawnWorldPos ? *spawnWorldPos : Vector2(0.0f, 0.0f))
+{
+}
+
+const char* CPasteObjectsCommand::GetName() const
+{
+	return "Paste Objects";
+}
+
+bool CPasteObjectsCommand::Execute()
+{
+	if (false == m_scene.IsValid())
+	{
+		return false;
+	}
+
+	std::vector<CGameObject*> roots = Serialization::DeserializeObjects(*m_scene, m_clipboard.c_str());
+	if (roots.empty())
+	{
+		return false;
+	}
+
+	// 최초 붙여넣기에서만 새 guid 발급 + 위치 이동 + 정규화 스냅샷 재보관.
+	// 이후 redo 는 정규화 스냅샷을 그대로 복원하므로 guid/위치가 동일하게 재현된다.
+	if (false == m_firstDone)
+	{
+		for (CGameObject* root : roots)
+		{
+			if (root) ReissuePastedGuids(*root);
+		}
+
+		// 위치: 루트들의 위치 평균(중심)을 spawn 좌표로 이동(상대 배치 보존). 루트라 local==world.
+		if (m_hasSpawnPos)
+		{
+			Vector2 anchor(0.0f, 0.0f);
+			int count = 0;
+			for (CGameObject* root : roots)
+			{
+				if (root) { anchor += root->GetTransform().Position; ++count; }
+			}
+			if (count > 0)
+			{
+				anchor = anchor / static_cast<float>(count);
+				const Vector2 delta = m_spawnWorldPos - anchor;
+				for (CGameObject* root : roots)
+				{
+					if (root) root->GetTransform().Position += delta;
+				}
+			}
+		}
+
+		m_pastedGuids.clear();
+		std::vector<const CGameObject*> created;
+		created.reserve(roots.size());
+		for (CGameObject* root : roots)
+		{
+			if (root) { m_pastedGuids.push_back(root->InstanceGuid); created.push_back(root); }
+		}
+		m_clipboard = Serialization::SerializeObjects(created);
+		m_firstDone = true;
+	}
+
+	return false == m_pastedGuids.empty();
+}
+
+void CPasteObjectsCommand::Undo()
+{
+	if (false == m_scene.IsValid())
+	{
+		return;
+	}
+	for (const File::Guid& guid : m_pastedGuids)
+	{
+		if (CGameObject* object = Resolve(m_scene, guid))
+		{
+			m_scene->DestroyGameObject(object);
+		}
+	}
+}
+
+void CPasteObjectsCommand::Redo()
+{
+	Execute();
+}
+
+std::vector<CGameObject*> CPasteObjectsCommand::GetPastedRoots() const
+{
+	std::vector<CGameObject*> result;
+	for (const File::Guid& guid : m_pastedGuids)
+	{
+		if (CGameObject* object = Resolve(m_scene, guid))
+		{
+			result.push_back(object);
+		}
+	}
+	return result;
 }
 
 // ── CRemoveComponentCommand ───────────────────────────────────────────────────

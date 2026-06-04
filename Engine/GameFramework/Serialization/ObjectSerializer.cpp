@@ -157,25 +157,70 @@ CGameObject* ReadObjectInto(CScene& scene, const YAML::Node& node,
 	return object;
 }
 
+std::string SerializeObjects(const std::vector<const CGameObject*>& objects)
+{
+	// 복사 포맷: { Objects: [ objectNode... ] }. 각 오브젝트는 자식 서브트리 포함.
+	YAML::Node objectsSeq(YAML::NodeType::Sequence);
+	for (const CGameObject* object : objects)
+	{
+		if (nullptr == object)
+		{
+			continue;
+		}
+		objectsSeq.push_back(WriteObject(*object, nullptr, /*includeChildren*/ true));
+	}
+	YAML::Node root(YAML::NodeType::Map);
+	root["Objects"] = objectsSeq;
+	YAML::Emitter emitter;
+	emitter << root;
+	return std::string(emitter.c_str());
+}
+
+std::vector<CGameObject*> DeserializeObjects(CScene& scene, const char* text)
+{
+	std::vector<CGameObject*> result;
+	if (nullptr == text)
+	{
+		return result;
+	}
+	YAML::Node node;
+	try { node = YAML::Load(text); }
+	catch (const YAML::Exception&) { return result; }
+	if (false == node.IsMap())
+	{
+		return result;
+	}
+
+	// 우선 다중 포맷(Objects 시퀀스). 없으면 레거시 단일 맵(Components 키)으로 폴백.
+	if (const YAML::Node objects = node["Objects"]; objects && objects.IsSequence())
+	{
+		for (const YAML::Node& on : objects)
+		{
+			if (CGameObject* o = ReadObjectInto(scene, on, nullptr))
+			{
+				result.push_back(o);
+			}
+		}
+	}
+	else if (node["Components"])
+	{
+		if (CGameObject* o = ReadObjectInto(scene, node, nullptr))
+		{
+			result.push_back(o);
+		}
+	}
+	return result;
+}
+
 std::string SerializeObject(const CGameObject& object)
 {
-	// 복사는 자식 서브트리까지 포함한다.
-	const YAML::Node node = WriteObject(object, nullptr, /*includeChildren*/ true);
-	YAML::Emitter emitter;
-	emitter << node;
-	return std::string(emitter.c_str());
+	return SerializeObjects({ &object });
 }
 
 CGameObject* DeserializeObject(CScene& scene, const char* text)
 {
-	if (nullptr == text)
-	{
-		return nullptr;
-	}
-	YAML::Node node;
-	try { node = YAML::Load(text); }
-	catch (const YAML::Exception&) { return nullptr; }
-	return ReadObjectInto(scene, node, nullptr);
+	std::vector<CGameObject*> all = DeserializeObjects(scene, text);
+	return all.empty() ? nullptr : all.front();
 }
 
 bool LooksLikeObject(const char* text)
@@ -187,8 +232,12 @@ bool LooksLikeObject(const char* text)
 	YAML::Node node;
 	try { node = YAML::Load(text); }
 	catch (const YAML::Exception&) { return false; }
-	// 오브젝트: Components 키(컴포넌트 시퀀스) 보유. 단일 컴포넌트엔 없다.
-	return node.IsMap() && node["Components"];
+	if (false == node.IsMap())
+	{
+		return false;
+	}
+	// 다중 포맷(Objects) 또는 레거시 단일(Components) 인식.
+	return static_cast<bool>(node["Objects"]) || static_cast<bool>(node["Components"]);
 }
 
 } // namespace Serialization

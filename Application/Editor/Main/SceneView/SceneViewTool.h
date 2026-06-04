@@ -83,6 +83,8 @@ private:
     SafePtr<CGameObject> m_contextMenuEntity;
     // "Add Object" 생성 시 사용할 부모. 빈 공간 + 포커스 중이면 포커스 오브젝트.
     SafePtr<CGameObject> m_contextMenuParent;
+    // 우클릭 시점의 월드 좌표 — "Add Object" 가 이 위치에 오브젝트를 생성한다.
+    Vector2  m_contextMenuWorldPos = Vector2(0.0f, 0.0f);
     bool     m_rightClickPending  = false; // 우클릭 대기 (드래그로 전환되면 취소됨)
     bool     m_rightDragging      = false; // 우클릭 드래그(팬) 중
 };

@@ -81,8 +81,11 @@ class CCreateGameObjectCommand final : public IEditorCommand
 {
 public:
 	// parent == nullptr 이면 루트에 생성, 그 외에는 parent 의 자식으로 생성.
+	// spawnWorldPos != nullptr 이면 그 월드 좌표에 생성한다(씬뷰 우클릭 위치). parent 가
+	// 있으면 부모 월드 역행렬로 로컬 좌표를 환산한다. null 이면 기본(원점) 생성.
 	CCreateGameObjectCommand(SafePtr<CScene> scene, const char* name,
-	                         CGameObject* parent = nullptr);
+	                         CGameObject* parent = nullptr,
+	                         const Vector2* spawnWorldPos = nullptr);
 	~CCreateGameObjectCommand() override = default;
 
 	const char* GetName() const override;
@@ -98,6 +101,8 @@ private:
 	File::Guid m_parentGuid; // null = 루트
 	File::Guid m_objectGuid; // 생성된 오브젝트의 안정 식별자(redo 시 동일 guid 강제)
 	bool     m_created = false;
+	bool     m_hasSpawnPos = false; // spawnWorldPos 지정 여부
+	Vector2  m_spawnWorldPos = Vector2(0.0f, 0.0f); // 월드 생성 위치(m_hasSpawnPos 일 때만)
 };
 
 class CSetComponentPropertyCommand final : public IEditorCommand
@@ -203,6 +208,33 @@ private:
 	File::Guid  m_parentGuid;  // 복원 시 재부모(null = 루트)
 	std::string m_snapshot;    // 서브트리 직렬화(undo 복원용)
 	bool        m_deleted = false;
+};
+
+// 클립보드 오브젝트(들)을 붙여넣는다. 다중 + 위치 지정 + undo(붙여넣은 루트 일괄 파괴) 지원.
+class CPasteObjectsCommand final : public IEditorCommand
+{
+public:
+	// clipboardText = Serialization::SerializeObjects 결과(레거시 단일 포맷도 허용).
+	// spawnWorldPos != nullptr 이면 붙여넣은 그룹 중심을 그 월드 좌표로 이동(상대 배치 보존).
+	CPasteObjectsCommand(SafePtr<CScene> scene, std::string clipboardText,
+	                     const Vector2* spawnWorldPos = nullptr);
+	~CPasteObjectsCommand() override = default;
+
+	const char* GetName() const override;
+	bool Execute() override;
+	void Undo() override;
+	void Redo() override;
+
+	// 붙여넣은 루트 오브젝트들(현재 씬 기준 재해석). 호출자가 선택 처리에 사용.
+	std::vector<CGameObject*> GetPastedRoots() const;
+
+private:
+	SafePtr<CScene> m_scene;
+	std::string m_clipboard;        // 최초 실행 후엔 정규화 스냅샷(guid/위치 고정 → redo 재현)
+	bool        m_hasSpawnPos = false;
+	Vector2     m_spawnWorldPos = Vector2(0.0f, 0.0f);
+	std::vector<File::Guid> m_pastedGuids; // 붙여넣은 루트(undo 파괴/선택)
+	bool        m_firstDone = false;       // 최초 Execute 완료(이후 reissue/offset 생략)
 };
 
 // 컴포넌트 1개 제거. Undo 는 직렬화 스냅샷으로 재부착+값 복원.
