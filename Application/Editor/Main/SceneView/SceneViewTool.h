@@ -4,6 +4,7 @@
 #include "Utillity/Math/Vector2T.h"
 #include "Utillity/Pointer/SafePtr.h"
 
+#include "Editor/Main/Guizmo/EditorGuizmoController.h"
 #include "SceneViewEditContext.h"
 
 class CScene;
@@ -50,6 +51,7 @@ private:
 
     // ── Flash-like 포커스 내비게이션 ────────────────────────────────────────
     CSceneViewEditContext m_editCtx;
+    CEditorGuizmoController m_guizmo;
 
     // ── 그리드 눈금 단위 표시 ─────────────────────────────────────────────────
     bool m_showPixelGrid = false; // false = Unit 모드, true = Pixel 모드

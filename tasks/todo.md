@@ -1,3 +1,49 @@
+# TODO — SceneView 2D Translate Guizmo
+
+## Goal
+SceneView에 에디터 전용 2D Translate Guizmo를 추가한다.
+
+## Assumptions
+- Guizmo는 런타임 기능이 아니므로 `Application/Editor/Main/Guizmo/` 아래에 둔다.
+- 1차 구현은 Translate만 실제 동작시키고, Rotate/Scale/3D는 구조만 열어 둔다.
+- 드래그 중에는 preview로 transform을 직접 갱신하고, release 때 old/new transform 스냅샷 커맨드 1개만 기록한다.
+- 부모+자식 동시 선택은 기존 `Editor::GetSelectedTopLevel()` 정책을 사용한다.
+
+## Success Criteria
+- 선택된 2D object에 X/Y/XY translate handle이 SceneView overlay로 표시된다.
+- handle hover/click/drag가 기존 object picking/box selection을 소비한다.
+- 드래그는 화면 공간 handle hit-test와 world delta 변환을 통해 transform을 preview 갱신한다.
+- release 후 undo 1회로 드래그 시작 전 transform으로 돌아가고, redo 1회로 끝 transform이 복원된다.
+- Game build에는 Guizmo 파일이 포함되지 않는다.
+
+## Plan
+- [x] Guizmo 타입/controller/2D/3D stub 파일 추가
+- [x] old/new transform 스냅샷 editor command 추가
+- [x] SceneViewTool에 Guizmo host 연결
+- [x] Application project 파일 동기화
+- [x] 빌드 검증 및 커밋
+
+## Verification
+- [x] `Debug_Editor|x64` build
+- [x] `Debug_Game|x64` build
+- [x] `git diff --check`
+
+## Review
+- 코드를 읽었고: SceneViewTool은 이미 하나의 `InvisibleButton`으로 SceneView 입력을 소유하고, 선택/박스선택/우클릭 팬 상태 머신을 그 아이템 상태에 묶어 처리하고 있었다.
+- 생각했고: Guizmo가 별도 Tick이나 별도 런타임 renderer path를 만들면 기존 SceneView 입력 계약과 editor/runtime 경계를 깨므로, SceneViewTool이 frame context만 넘기고 Guizmo가 소비 결과를 반환하는 구조가 맞다.
+- 반례를 찾았고: handle 클릭이 기존 좌클릭 상태 머신에도 전달되면 object picking 또는 box selection이 동시에 실행될 수 있다.
+- 고쳤다: `CEditorGuizmoController`/`CGuizmo2D`를 `Application/Editor/Main/Guizmo`에 추가하고, `GuizmoFrameResult::ConsumedMouse`가 true인 프레임은 SceneView 선택 인텐트를 초기화하도록 했다.
+- 추가로 읽었고: Inspector transform command는 모든 대상에 같은 local delta를 적용하는 `CSetObjectTransformCommand`를 사용한다.
+- 생각했고: Guizmo translate는 world-space delta가 기본이고, 서로 다른 부모를 가진 다중 선택은 대상별 local delta가 달라질 수 있다.
+- 반례를 찾았고: 부모가 회전/스케일된 object에 같은 local delta를 적용하면 화면상 같은 world 이동이 되지 않는다.
+- 고쳤다: Guizmo release 시 old/new local transform 스냅샷을 한 번만 커밋하는 `CSetObjectTransformsCommand`를 추가했다.
+- 추가 반례: 문서 기본 pivot은 selection center인데 active object를 우선하면 다중 선택 pivot이 사용자의 기대와 달라진다.
+- 고쳤다: controller 기본 pivot을 `SelectionCenter`로 두고, active object pivot은 명시 모드일 때만 사용하도록 했다.
+- 검증 중 첫 `Debug_Editor` 링크는 실행 중인 `Build/Debug_Editor/Application.exe` 잠금으로 실패했다.
+- 고쳤다: 해당 프로세스만 종료한 뒤 재빌드했고, `Debug_Editor|x64`와 `Debug_Game|x64`가 통과했다.
+
+---
+
 # TODO — 기본 Sprite instanced batching 구현
 
 ## Goal

@@ -39,6 +39,18 @@
     <ClInclude Include="Editor\Command\EditorSceneCommands.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
+    <ClInclude Include="Editor\Main\Guizmo\EditorGuizmoController.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\Main\Guizmo\Guizmo2D.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\Main\Guizmo\Guizmo3D.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\Main\Guizmo\GuizmoTypes.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
     <ClInclude Include="Editor\Build\GameBuildManager.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
@@ -141,6 +153,15 @@
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="Editor\Command\EditorSceneCommands.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\Main\Guizmo\EditorGuizmoController.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\Main\Guizmo\Guizmo2D.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\Main\Guizmo\Guizmo3D.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="Editor\Helper\EditorGuiDrawHelpers.cpp">

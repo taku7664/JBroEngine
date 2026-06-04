@@ -160,6 +160,31 @@ private:
 	Transform2D              m_delta;        // 누적 델타(Position/Rotation/Scale 가산)
 };
 
+// 오브젝트 Transform(Local) 절대값 편집. Guizmo 처럼 대상별 local delta 가 달라질 수 있는
+// 편집은 공통 delta 커맨드로 표현하면 부모 transform 반례에서 깨지므로 old/new 스냅샷을 저장한다.
+class CSetObjectTransformsCommand final : public IEditorCommand
+{
+public:
+	CSetObjectTransformsCommand(SafePtr<CScene> scene,
+	                            const std::vector<CGameObject*>& objects,
+	                            const std::vector<Transform2D>& oldTransforms,
+	                            const std::vector<Transform2D>& newTransforms);
+	~CSetObjectTransformsCommand() override = default;
+
+	const char* GetName() const override;
+	bool Execute() override;
+	void Undo() override;
+	void Redo() override;
+
+private:
+	void Apply(const std::vector<Transform2D>& transforms);
+
+	SafePtr<CScene>          m_scene;
+	std::vector<File::Guid>  m_objectGuids;
+	std::vector<Transform2D> m_oldTransforms;
+	std::vector<Transform2D> m_newTransforms;
+};
+
 // 오브젝트(+서브트리) 삭제. Undo 는 직렬화 스냅샷(프리팹 텍스트)으로 복원.
 class CDeleteGameObjectCommand final : public IEditorCommand
 {

@@ -825,12 +825,35 @@ void CSceneViewTool::OnRenderStay()
         }
     }
 
-    // ── 입력 처리 ────────────────────────────────────────────────────────────
     const bool isHovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
     const bool isActive  = ImGui::IsItemActive();
 
+    GuizmoFrameResult guizmoResult;
+    if (Core::SceneManager)
+    {
+        SafePtr<CScene> scene = Core::SceneManager->GetActiveScene();
+        if (scene)
+        {
+            GuizmoFrameContext guizmoContext;
+            guizmoContext.Scene = scene.TryGet();
+            guizmoContext.ViewportRect = ImRect(vpMin, vpMin + vpSize);
+            guizmoContext.DrawList = dl;
+            guizmoContext.CameraPosition = m_cameraPos;
+            guizmoContext.CameraSize = m_cameraSize;
+            guizmoContext.PixelsPerUnit = ppu;
+            guizmoContext.Selection = Editor::GetSelectedEntities();
+            guizmoContext.ActiveObject = Editor::GetSelectedEntity();
+            guizmoContext.IsSceneViewHovered = isHovered;
+            guizmoContext.IsSceneViewActive = isActive;
+            guizmoContext.IsBlockedByOverlay = toggleHovered;
+            guizmoResult = m_guizmo.UpdateAndDraw(guizmoContext);
+        }
+    }
+
+    // ── 입력 처리 ────────────────────────────────────────────────────────────
+
     // 우클릭 드래그 → 팬
-    if (isActive && ImGui::IsMouseDragging(ImGuiMouseButton_Right, 1.0f))
+    if (false == guizmoResult.ConsumedMouse && isActive && ImGui::IsMouseDragging(ImGuiMouseButton_Right, 1.0f))
     {
         const ImVec2 delta  = ImGui::GetIO().MouseDelta;
         const float  aspect = GetAspect(vpSize);
@@ -870,7 +893,7 @@ void CSceneViewTool::OnRenderStay()
     //
     // 토글 버튼 영역은 씬 입력에서 제외.
 
-    if (!toggleHovered)
+    if (!toggleHovered && false == guizmoResult.ConsumedMouse)
     {
         // 마우스 누름: 클릭 인텐트 기록
         // m_suppressNextClick: Layer 2.8 에서 폴리곤 엣지 클릭이 소비된 경우 스킵
@@ -1089,7 +1112,7 @@ void CSceneViewTool::OnRenderStay()
     }
     else
     {
-        // 토글 버튼 위에 있을 때 클릭 인텐트 취소
+        // 토글 버튼 또는 Guizmo가 입력을 소비한 경우 SceneView 선택 인텐트 취소.
         m_clickPending      = false;
         m_isDraggingLeft    = false;
         m_rightClickPending = false;

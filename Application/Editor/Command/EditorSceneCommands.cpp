@@ -595,6 +595,68 @@ bool CSetObjectTransformCommand::TryMerge(const IEditorCommand& newer)
 	return true;
 }
 
+// ── CSetObjectTransformsCommand ───────────────────────────────────────────────
+
+CSetObjectTransformsCommand::CSetObjectTransformsCommand(
+	SafePtr<CScene> scene,
+	const std::vector<CGameObject*>& objects,
+	const std::vector<Transform2D>& oldTransforms,
+	const std::vector<Transform2D>& newTransforms)
+	: m_scene(scene)
+{
+	const std::size_t count = std::min(objects.size(), std::min(oldTransforms.size(), newTransforms.size()));
+	m_objectGuids.reserve(count);
+	m_oldTransforms.reserve(count);
+	m_newTransforms.reserve(count);
+
+	for (std::size_t i = 0; i < count; ++i)
+	{
+		CGameObject* object = objects[i];
+		if (nullptr == object)
+		{
+			continue;
+		}
+		m_objectGuids.push_back(object->InstanceGuid);
+		m_oldTransforms.push_back(oldTransforms[i]);
+		m_newTransforms.push_back(newTransforms[i]);
+	}
+}
+
+const char* CSetObjectTransformsCommand::GetName() const
+{
+	return "Set Transforms";
+}
+
+bool CSetObjectTransformsCommand::Execute()
+{
+	Apply(m_newTransforms);
+	return false == m_objectGuids.empty();
+}
+
+void CSetObjectTransformsCommand::Undo()
+{
+	Apply(m_oldTransforms);
+}
+
+void CSetObjectTransformsCommand::Redo()
+{
+	Apply(m_newTransforms);
+}
+
+void CSetObjectTransformsCommand::Apply(const std::vector<Transform2D>& transforms)
+{
+	const std::size_t count = std::min(m_objectGuids.size(), transforms.size());
+	for (std::size_t i = 0; i < count; ++i)
+	{
+		CGameObject* object = Resolve(m_scene, m_objectGuids[i]);
+		if (nullptr == object)
+		{
+			continue;
+		}
+		object->GetTransform() = transforms[i];
+	}
+}
+
 // ── CSetParentCommand ─────────────────────────────────────────────────────────
 
 namespace

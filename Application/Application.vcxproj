@@ -324,6 +324,10 @@ xcopy /Y /I /E "$(ProjectDir)Localization" "$(SolutionDir)Localization\" &gt; nu
     <ClInclude Include="Editor\Command\EditorFileCommands.h" />
     <ClInclude Include="Editor\Command\EditorCommandManager.h" />
     <ClInclude Include="Editor\Command\EditorSceneCommands.h" />
+    <ClInclude Include="Editor\Main\Guizmo\EditorGuizmoController.h" />
+    <ClInclude Include="Editor\Main\Guizmo\Guizmo2D.h" />
+    <ClInclude Include="Editor\Main\Guizmo\Guizmo3D.h" />
+    <ClInclude Include="Editor\Main\Guizmo\GuizmoTypes.h" />
     <ClInclude Include="Editor\Helper\EditorGuiDrawHelpers.h" />
     <ClInclude Include="Editor\EditorDragDrop.h" />
     <ClInclude Include="Editor\Main\AssetBrowser\AssetBrowserTool.h" />
@@ -369,6 +373,15 @@ xcopy /Y /I /E "$(ProjectDir)Localization" "$(SolutionDir)Localization\" &gt; nu
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="Editor\Command\EditorSceneCommands.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Editor\Main\Guizmo\EditorGuizmoController.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Editor\Main\Guizmo\Guizmo2D.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Editor\Main\Guizmo\Guizmo3D.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="Editor\Helper\EditorGuiDrawHelpers.cpp">
