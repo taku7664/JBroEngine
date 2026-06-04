@@ -134,8 +134,8 @@ GuizmoFrameResult CGuizmo2D::UpdateAndDraw(const GuizmoFrameContext& context,
 		{
 			result = UpdateTranslateDrag(context);
 			DrawTranslate(context,
-			              WorldToScreen(context, m_dragStartWorld),
-			              m_dragStartWorld,
+			              WorldToScreen(context, m_dragCurrentWorld),
+			              m_dragCurrentWorld,
 			              m_activeHandle,
 			              m_dragAxisX,
 			              m_dragAxisY);
@@ -307,6 +307,7 @@ EGuizmoHandle2D CGuizmo2D::HitTestScale(const GuizmoFrameContext& context, const
 	const ImVec2 xEnd(pivotScreen.x + AXIS_LENGTH, pivotScreen.y);
 	const ImVec2 yEnd(pivotScreen.x, pivotScreen.y - AXIS_LENGTH);
 	const ImVec2 uniformEnd(pivotScreen.x + SCALE_UNIFORM_OFFSET, pivotScreen.y - SCALE_UNIFORM_OFFSET);
+	const float hitRadiusSq = AXIS_HIT_RADIUS * AXIS_HIT_RADIUS;
 	if (SquareRect(uniformEnd, SCALE_HANDLE_SIZE + AXIS_HIT_RADIUS).Contains(mouse))
 	{
 		return EGuizmoHandle2D::ScaleXY;
@@ -316,6 +317,18 @@ EGuizmoHandle2D CGuizmo2D::HitTestScale(const GuizmoFrameContext& context, const
 		return EGuizmoHandle2D::ScaleX;
 	}
 	if (SquareRect(yEnd, SCALE_HANDLE_SIZE + AXIS_HIT_RADIUS).Contains(mouse))
+	{
+		return EGuizmoHandle2D::ScaleY;
+	}
+	if (DistanceToSegmentSq(mouse, pivotScreen, uniformEnd) <= hitRadiusSq)
+	{
+		return EGuizmoHandle2D::ScaleXY;
+	}
+	if (DistanceToSegmentSq(mouse, pivotScreen, xEnd) <= hitRadiusSq)
+	{
+		return EGuizmoHandle2D::ScaleX;
+	}
+	if (DistanceToSegmentSq(mouse, pivotScreen, yEnd) <= hitRadiusSq)
 	{
 		return EGuizmoHandle2D::ScaleY;
 	}
@@ -468,6 +481,7 @@ void CGuizmo2D::BeginTranslateDrag(const GuizmoFrameContext& context,
 	m_activeHandle = handle;
 	m_dragStartMouse = ImGui::GetIO().MousePos;
 	m_dragStartWorld = pivotWorld;
+	m_dragCurrentWorld = pivotWorld;
 	m_dragSnapshots.clear();
 	std::vector<CGameObject*> dragObjects = Editor::GetSelectedTopLevel();
 	m_dragNewTransforms.clear();
@@ -491,6 +505,7 @@ void CGuizmo2D::BeginRotateDrag(const GuizmoFrameContext& context, const Vector2
 	m_activeHandle = EGuizmoHandle2D::Rotate;
 	m_dragStartMouse = ImGui::GetIO().MousePos;
 	m_dragStartWorld = pivotWorld;
+	m_dragCurrentWorld = pivotWorld;
 	m_dragStartAngle = CalculateScreenAngle(context, m_dragStartMouse, pivotWorld);
 	m_dragSnapshots.clear();
 	std::vector<CGameObject*> dragObjects = Editor::GetSelectedTopLevel();
@@ -515,6 +530,7 @@ void CGuizmo2D::BeginScaleDrag(const GuizmoFrameContext& context,
 	m_activeHandle = handle;
 	m_dragStartMouse = ImGui::GetIO().MousePos;
 	m_dragStartWorld = pivotWorld;
+	m_dragCurrentWorld = pivotWorld;
 	m_dragSnapshots.clear();
 	std::vector<CGameObject*> dragObjects = Editor::GetSelectedTopLevel();
 	m_dragNewTransforms.clear();
@@ -550,6 +566,7 @@ GuizmoFrameResult CGuizmo2D::UpdateTranslateDrag(const GuizmoFrameContext& conte
 	                                                       currentWorld - startWorld,
 	                                                       m_dragAxisX,
 	                                                       m_dragAxisY);
+	m_dragCurrentWorld = m_dragStartWorld + constrainedDelta;
 
 	m_dragNewTransforms.clear();
 	m_dragNewTransforms.reserve(m_dragSnapshots.size());

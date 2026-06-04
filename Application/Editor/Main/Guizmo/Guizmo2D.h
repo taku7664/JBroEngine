@@ -71,6 +71,7 @@ private:
 	EGuizmoHandle2D m_activeHandle = EGuizmoHandle2D::None;
 	ImVec2 m_dragStartMouse = ImVec2(0.0f, 0.0f);
 	Vector2 m_dragStartWorld = Vector2(0.0f, 0.0f);
+	Vector2 m_dragCurrentWorld = Vector2(0.0f, 0.0f);
 	Vector2 m_dragAxisX = Vector2(1.0f, 0.0f);
 	Vector2 m_dragAxisY = Vector2(0.0f, 1.0f);
 	float m_dragStartAngle = 0.0f;

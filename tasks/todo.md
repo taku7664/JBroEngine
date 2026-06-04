@@ -1,3 +1,43 @@
+# TODO — SceneView Guizmo Drag Follow / Scale Line Hit-Test
+
+## Goal
+Translate Guizmo를 드래그하는 동안 Guizmo가 preview된 object position을 따라가고, Scale Guizmo는 사각형 handle뿐 아니라 축/대각선 선분도 상호작용한다.
+
+## Assumptions
+- "Position Guizmo"는 현재 `Translate` mode를 의미한다.
+- Translate drag 중 실제 transform preview는 기존처럼 start transform + world delta로 계산한다.
+- Guizmo 표시 위치만 start pivot 고정에서 current pivot preview로 바꾼다.
+- Scale line hit-test는 기존 X/Y/Uniform handle 의미를 그대로 사용한다.
+
+## Success Criteria
+- Translate X/Y/XY drag 중 Guizmo pivot과 축이 오브젝트 이동을 따라간다.
+- Translate undo/redo transaction 구조는 기존과 동일하다.
+- Scale mode에서 X/Y/Uniform 사각형뿐 아니라 연결 선을 눌러도 해당 scale drag가 시작된다.
+- Scale 사각형 handle 우선순위는 기존처럼 유지된다.
+
+## Plan
+- [x] Translate drag current pivot 저장 추가
+- [x] Translate drag draw 기준을 current pivot으로 변경
+- [x] Scale line segment hit-test 추가
+- [x] 빌드 검증 및 커밋
+
+## Verification
+- [x] `Debug_Editor|x64` build
+- [x] `Debug_Game|x64` build
+- [x] `git diff --check`
+
+## Review
+- 코드를 읽었고: Translate drag 중 preview transform은 매 프레임 갱신되지만, Guizmo draw는 계속 `m_dragStartWorld`를 기준으로 했다.
+- 생각했고: TransformSystem이 돌기 전에는 `GetWorldTransform()`이 stale일 수 있으므로, preview된 object를 다시 스캔해 pivot을 계산하는 것보다 drag start pivot + constrained delta가 더 직접적이고 안정적이다.
+- 반례를 찾았고: Local X/Y 축 drag는 constrained delta만큼만 이동하므로 raw mouse delta를 쓰면 Guizmo 표시 위치가 실제 object preview와 어긋난다.
+- 고쳤다: `m_dragCurrentWorld`를 추가하고, Translate drag에서 constrained delta 적용 후 `m_dragStartWorld + constrainedDelta`로 갱신해 그 위치에 Guizmo를 그리게 했다.
+- 추가로 읽었고: Scale hit-test는 사각형 handle `SquareRect()`만 검사하고, 실제로 그려지는 X/Y/Uniform 선분은 검사하지 않았다.
+- 생각했고: 시각적으로 선이 handle의 일부로 보이므로 선분도 같은 ScaleX/Y/XY drag를 시작해야 한다.
+- 반례를 찾았고: 선분 검사를 먼저 하면 사각형 handle 근처에서 의도한 handle 우선순위가 흐려질 수 있다.
+- 고쳤다: 기존 사각형 hit-test를 먼저 유지하고, miss일 때만 `DistanceToSegmentSq()`로 X/Y/Uniform 선분 hit-test를 수행했다.
+
+---
+
 # TODO — SceneView 2D Local Translate Space
 
 ## Goal
