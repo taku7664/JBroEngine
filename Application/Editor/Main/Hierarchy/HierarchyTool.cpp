@@ -225,15 +225,14 @@ void CHierarchyTool::OnRenderStay()
 		// 트리노드를 가리킨다. SameLine(절대x)로 같은 행 우측에 배치.
 		{
 			const bool  hidden = obj->IsEditorHidden();
-			const float rowH   = ImGui::GetFrameHeight();
-			const float btnW   = rowH * 0.7f;
-			ImGui::SameLine(ImGui::GetContentRegionMax().x - btnW);
-			// 버튼이 트리노드 줄보다 작아 상단에 붙음 → 커서 Y 를 내려 세로 중앙 정렬.
-			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + (rowH - btnW) * 0.5f);
+			// 버튼은 줄 전체 높이로 잡고(세로 정렬 자동), 글리프만 0.7 로 축소해
+			// 버튼 안에서 세로 중앙(=줄 중앙)에 오게 한다.
+			const float rowH = ImGui::GetFrameHeight();
+			ImGui::SameLine(ImGui::GetContentRegionMax().x - rowH);
 			const char* icon = hidden ? FontAssomeHelper::ICON_EYE_SLASH : FontAssomeHelper::ICON_EYE;
 			ImText eyeText;
 			eyeText.SetScale(0.7f).SetAlign(ImText::Align::Center);
-			if (ImTextButton(eyeText, icon, ImVec2(btnW, btnW)))
+			if (ImTextButton(eyeText, icon, ImVec2(rowH, rowH)))
 			{
 				obj->SetEditorHidden(!hidden);
 			}
