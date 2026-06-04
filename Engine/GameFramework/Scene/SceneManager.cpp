@@ -3,6 +3,7 @@
 
 #include "Core/Core.h"
 #include "Core/Asset/IAssetManager.h"
+#include "Core/Asset/AssetRef.inl"   // LoadAsset 반환 AssetRef 의 복사/이동/소멸 인스턴스화
 #include "Core/Time/Time.h"
 #include "GameFramework/Scene/Scene.h"
 #include "GameFramework/Scene/SceneSerializer.h"
@@ -65,7 +66,24 @@ bool CSceneManager::SetActiveScene(const char* name)
 		return false;
 	}
 
-	PreloadReferencedAssets(*scene);
+	CScene* next = scene.TryGet();
+	CScene* prev = m_activeScene.TryGet();
+	if (next == prev)
+	{
+		return true; // 이미 active — 재로드/해제 불필요.
+	}
+
+	// 리소스(에셋) 전환은 use-count 로 diff 한다:
+	//  1) 새 씬의 referenced 에셋을 먼저 acquire(LoadAsset → AssetRef 보유, use-count++)
+	//  2) 그다음 이전 씬을 release(ClearLoadedAssets, use-count--)
+	// 순서가 중요하다 — 두 씬이 공유하는 에셋은 (1)에서 count 가 유지되므로 (2)에서 0 으로
+	// 떨어지지 않아 unload/GC 대상이 되지 않는다. 이전 씬에만 있던 에셋만 count 0 이 된다.
+	AcquireReferencedAssets(*next);
+	if (nullptr != prev)
+	{
+		prev->ClearLoadedAssets();
+	}
+
 	m_activeScene = scene;
 	return true;
 }
@@ -84,17 +102,31 @@ SafePtr<CScene> CSceneManager::FindScene(const char* name) const
 	return it != m_scenes.end() ? it->second.GetSafePtr() : nullptr;
 }
 
-void CSceneManager::PreloadReferencedAssets(const CScene& scene) const
+void CSceneManager::AcquireReferencedAssets(CScene& scene) const
 {
+	if (scene.HasLoadedAssets())
+	{
+		return; // 이미 보유 중(중복 active 등) — 재로드 불필요.
+	}
 	if (false == Core::AssetManager.IsValid())
 	{
 		return;
 	}
 
-	for (const AssetGuid& guid : scene.GetReferencedAssets())
+	// referenced 에셋을 LoadAsset 으로 로드하고, 반환된 AssetRef(strong)를 씬이 보유한다.
+	// AssetRef 가 살아있는 동안 use-count>0 → 자산이 unload/GC 되지 않는다.
+	const std::vector<AssetGuid>& referenced = scene.GetReferencedAssets();
+	std::vector<AssetRef<IAsset>> loaded;
+	loaded.reserve(referenced.size());
+	for (const AssetGuid& guid : referenced)
 	{
-		Core::AssetManager->LoadAsset(guid);
+		AssetRef<IAsset> ref = Core::AssetManager->LoadAsset(guid);
+		if (ref.IsValid())
+		{
+			loaded.push_back(std::move(ref));
+		}
 	}
+	scene.SetLoadedAssets(std::move(loaded));
 }
 
 std::size_t CSceneManager::GetLoadedSceneCount() const

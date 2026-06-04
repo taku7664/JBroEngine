@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Core/Asset/AssetTypes.h"
+#include "Core/Asset/AssetRef.h"
 #include "GameFramework/Component/Component.h"
 #include "GameFramework/Object/GameObject.h"
 #include "GameFramework/Object/ObjectPool.h"
@@ -140,6 +141,17 @@ public:
 	const CPhysics2DSystem* GetPhysics2DSystem() const;
 	void SetReferencedAssets(std::vector<AssetGuid> referencedAssets);
 	const std::vector<AssetGuid>& GetReferencedAssets() const;
+
+	// ── 로드된 리소스 보유(use-count) ─────────────────────────────────────────
+	// 씬은 노드(구조)만으로도 존재할 수 있다(부트 시 전 씬 노드 선로드). 리소스(에셋)는
+	// 씬이 active 가 될 때만 로드하며, 그 동안 AssetRef(strong) 로 잡아 use-count>0 을 유지해
+	// 자산이 unload/GC 되지 않게 보호한다. 로드 자체는 SceneManager(AssetManager 접근 가능)가
+	// 수행하고, 결과 AssetRef 묶음을 여기에 보관한다. 비active 가 되면 ClearLoadedAssets 로
+	// 해제 → use-count-- → (다른 사용자가 없으면) 추후 GC 대상.
+	void SetLoadedAssets(std::vector<AssetRef<IAsset>> loadedAssets) { m_loadedAssets = std::move(loadedAssets); }
+	void ClearLoadedAssets() { m_loadedAssets.clear(); }
+	bool HasLoadedAssets() const { return false == m_loadedAssets.empty(); }
+
 	void ClearObjects();
 	void Clear();
 
@@ -221,6 +233,8 @@ private:
 	OwnerPtr<CScriptSystem>            m_scriptSystem;
 	std::vector<OwnerPtr<CGameSystem>> m_systems;
 	std::vector<AssetGuid>             m_referencedAssets;
+	// active 인 동안 referenced 에셋을 strong 으로 잡는다(use-count>0 유지). 비active 시 clear.
+	std::vector<AssetRef<IAsset>>      m_loadedAssets;
 
 	// 지연 파괴 큐(SafePtr 보유 → 부모 재귀로 이미 죽은 항목은 TryGet null 로 스킵).
 	std::vector<SafePtr<CGameObject>>  m_pendingDestroyObjects;

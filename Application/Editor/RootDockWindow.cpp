@@ -59,7 +59,7 @@ namespace
 		CSceneSerializer serializer;
 		if (ESceneSerializeResult::Success == serializer.LoadFromFile(*scene, File::Path(absolutePath)))
 		{
-			Core::SceneManager->PreloadReferencedAssets(*scene);
+			Core::SceneManager->AcquireReferencedAssets(*scene);
 			if (const EngineCore* context = Editor::ImEditor ? Editor::ImEditor->GetEditorEngineCore() : nullptr)
 			{
 				CSpriteRenderSystem* spriteSystem = scene->FindSystem<CSpriteRenderSystem>();

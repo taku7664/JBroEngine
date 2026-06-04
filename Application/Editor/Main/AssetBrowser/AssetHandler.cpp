@@ -52,7 +52,7 @@ void CSceneAssetOpenHandler::Open(CAssetBrowserTool&, const AssetBrowserEntry& e
 	CSceneSerializer serializer;
 	if (ESceneSerializeResult::Success == serializer.LoadFromFile(*scene, entry.AbsolutePath))
 	{
-		Core::SceneManager->PreloadReferencedAssets(*scene);
+		Core::SceneManager->AcquireReferencedAssets(*scene);
 		if (const EngineCore* context = Editor::ImEditor ? Editor::ImEditor->GetEditorEngineCore() : nullptr)
 		{
 			CSpriteRenderSystem* spriteSystem = scene->FindSystem<CSpriteRenderSystem>();

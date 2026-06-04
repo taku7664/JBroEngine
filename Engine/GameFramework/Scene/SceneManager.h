@@ -30,8 +30,9 @@ public:
 	// 헤더 인라인이면 SceneManager.obj 를 끌어오지 않아 체인이 끊긴다.
 	SafePtr<CScene> GetActiveScene() const { return m_activeScene; }
 	SafePtr<CScene> FindScene(const char* name) const;
-	// 씬이 참조하는 모든 에셋을 동기적으로 로드. 호출 후엔 모든 에셋이 메모리에 상주.
-	void PreloadReferencedAssets(const CScene& scene) const;
+	// 씬의 referenced 에셋을 로드하고 그 씬이 AssetRef(strong)로 보유하게 한다(use-count>0).
+	// active 전환(SetActiveScene)에서 호출된다. 씬이 이미 보유 중이면 no-op.
+	void AcquireReferencedAssets(CScene& scene) const;
 	std::size_t GetLoadedSceneCount() const;
 	bool GetLoadedSceneNames(std::vector<std::string>& outNames) const;
 	void DestroyScriptInstances();

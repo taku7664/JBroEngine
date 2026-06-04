@@ -292,6 +292,91 @@ bool CGameApplication::LoadRuntimeScriptModule(const BuildManifest& manifest)
 	return true;
 }
 
+namespace
+{
+	// 런타임 씬 1개의 노드(구조)만 로드한다 — 리소스(에셋)는 로드하지 않는다.
+	// 리소스는 그 씬이 active 가 될 때(SetActiveScene) 비로소 로드된다.
+	//  · guid 가 유효하면 패키지 에셋(LoadAsset → text)에서, 아니면 경로(ResolveAssetPath)에서 로드.
+	//  · Sprite/Audio 시스템을 부착하고 EngineCore 디바이스를 주입한다(씬마다 필요).
+	// 반환: 로드+부착 성공 여부. 실패 시 생성한 씬을 정리한다.
+	bool LoadRuntimeSceneNodes(CSceneManager& sceneManager,
+	                           IAssetManager& assetManager,
+	                           const EngineCore* context,
+	                           const std::string& sceneName,
+	                           const AssetGuid& sceneGuid,
+	                           const std::string& scenePathText)
+	{
+		CScene* scene = sceneManager.CreateScene(sceneName.c_str());
+		if (nullptr == scene)
+		{
+			CSystemLog::Error(std::string("Runtime scene creation failed: ") + sceneName);
+			return false;
+		}
+
+		CSceneSerializer serializer;
+		ESceneSerializeResult loadResult = ESceneSerializeResult::IoError;
+		if (false == sceneGuid.IsNull())
+		{
+			AssetRef<IAsset> sceneAsset = assetManager.LoadAsset(sceneGuid);
+			const CFileAsset* fileAsset = sceneAsset.IsValid() ? dynamic_cast<const CFileAsset*>(sceneAsset.Get()) : nullptr;
+			if (nullptr != fileAsset)
+			{
+				std::string_view sceneText = fileAsset->GetText();
+				loadResult = serializer.DeserializeFromText(*scene, std::string(sceneText).c_str());
+			}
+		}
+		else
+		{
+			File::Path scenePath;
+			if (false == assetManager.ResolveAssetPath(File::Path(scenePathText), scenePath))
+			{
+				sceneManager.DestroyScene(sceneName.c_str());
+				CSystemLog::Error(std::string("Runtime scene path resolve failed: ") + scenePathText);
+				return false;
+			}
+			loadResult = serializer.LoadFromFile(*scene, scenePath);
+		}
+
+		if (ESceneSerializeResult::Success != loadResult)
+		{
+			sceneManager.DestroyScene(sceneName.c_str());
+			CSystemLog::Error(std::string("Runtime scene load failed: ") + sceneName);
+			return false;
+		}
+
+		// 씬마다 렌더/오디오 시스템을 부착하고 EngineCore 디바이스를 주입한다.
+		if (context)
+		{
+			CSpriteRenderSystem* spriteSystem = scene->FindSystem<CSpriteRenderSystem>();
+			if (nullptr == spriteSystem)
+			{
+				spriteSystem = scene->AddSystem<CSpriteRenderSystem>(context->RenderScene.TryGet());
+			}
+			if (nullptr != spriteSystem)
+			{
+				spriteSystem->SetRenderScene(context->RenderScene.TryGet());
+				spriteSystem->SetDependencies(
+					context->AssetManager.TryGet(),
+					context->RHIDevice.TryGet(),
+					context->Renderer.TryGet());
+			}
+
+			CAudioSystem* audioSystem = scene->FindSystem<CAudioSystem>();
+			if (nullptr == audioSystem)
+			{
+				audioSystem = scene->AddSystem<CAudioSystem>(context->Audio, context->AssetManager);
+			}
+			if (nullptr != audioSystem)
+			{
+				audioSystem->SetDevice(context->Audio);
+				audioSystem->SetAssetManager(context->AssetManager);
+			}
+		}
+
+		return true;
+	}
+}
+
 bool CGameApplication::LoadRuntimeStartupScene(const BuildManifest& manifest)
 {
 	const AssetGuid startupSceneGuid(manifest.StartupSceneGuid);
@@ -309,87 +394,48 @@ bool CGameApplication::LoadRuntimeStartupScene(const BuildManifest& manifest)
 		return false;
 	}
 
-	const std::string sceneName = false == manifest.StartupScene.empty()
-		? manifest.StartupScene
-		: startupSceneGuid.generic_string();
-	CScene* scene = sceneManager->CreateScene(sceneName.c_str());
-	if (nullptr == scene)
-	{
-		CSystemLog::Error(std::string("Runtime startup scene creation failed: ") + sceneName);
-		return false;
-	}
-
-	CSceneSerializer serializer;
-	ESceneSerializeResult loadResult = ESceneSerializeResult::IoError;
-	if (false == startupSceneGuid.IsNull())
-	{
-		AssetRef<IAsset> sceneAsset = assetManager->LoadAsset(startupSceneGuid);
-		const CFileAsset* fileAsset = sceneAsset.IsValid() ? dynamic_cast<const CFileAsset*>(sceneAsset.Get()) : nullptr;
-		if (nullptr != fileAsset)
-		{
-			std::string_view sceneText = fileAsset->GetText();
-			loadResult = serializer.DeserializeFromText(*scene, std::string(sceneText).c_str());
-		}
-	}
-	else
-	{
-		File::Path scenePath;
-		if (false == assetManager->ResolveAssetPath(File::Path(manifest.StartupScene), scenePath))
-		{
-			sceneManager->DestroyScene(sceneName.c_str());
-			CSystemLog::Error(std::string("Runtime startup scene path resolve failed: ") + manifest.StartupScene);
-			return false;
-		}
-		loadResult = serializer.LoadFromFile(*scene, scenePath);
-	}
-
-	if (ESceneSerializeResult::Success != loadResult)
-	{
-		sceneManager->DestroyScene(sceneName.c_str());
-		CSystemLog::Error(std::string("Runtime startup scene load failed: ") + sceneName);
-		return false;
-	}
-
 	CEngine* engine = GetEngine();
 	const EngineCore* context = engine ? &engine->GetEngineCore() : nullptr;
-	if (context)
-	{
-		CSpriteRenderSystem* spriteSystem = scene->FindSystem<CSpriteRenderSystem>();
-		if (nullptr == spriteSystem)
-		{
-			spriteSystem = scene->AddSystem<CSpriteRenderSystem>(context->RenderScene.TryGet());
-		}
-		if (nullptr != spriteSystem)
-		{
-			spriteSystem->SetRenderScene(context->RenderScene.TryGet());
-			spriteSystem->SetDependencies(
-				context->AssetManager.TryGet(),
-				context->RHIDevice.TryGet(),
-				context->Renderer.TryGet());
-		}
 
-		CAudioSystem* audioSystem = scene->FindSystem<CAudioSystem>();
-		if (nullptr == audioSystem)
+	const std::string startupName = false == manifest.StartupScene.empty()
+		? manifest.StartupScene
+		: startupSceneGuid.generic_string();
+
+	// ── 1) 모든 빌드 씬의 노드(구조)를 선로드한다(리소스 제외) ──────────────────
+	// 빌드 패키지는 BuildScenes 를 모두 포함한다. 프로그램 시작 시 전 씬의 노드를 메모리에
+	// 올려 두고, 리소스는 그 씬이 active 가 될 때만 로드한다(SetActiveScene).
+	// startup 씬은 guid 로 로드(경로 의존 회피), 나머지는 경로 문자열로 로드한다.
+	if (false == LoadRuntimeSceneNodes(*sceneManager, *assetManager, context,
+	                                   startupName, startupSceneGuid,
+	                                   manifest.StartupScene))
+	{
+		return false;
+	}
+
+	for (const std::string& scenePath : manifest.BuildScenes)
+	{
+		if (scenePath.empty() || scenePath == manifest.StartupScene || scenePath == startupName)
 		{
-			audioSystem = scene->AddSystem<CAudioSystem>(context->Audio, context->AssetManager);
+			continue; // startup 은 위에서 이미 로드. 중복 스킵.
 		}
-		if (nullptr != audioSystem)
+		// BuildScenes 항목은 프로젝트 상대 경로 문자열 — 이를 씬 이름으로도 쓴다(에디터와 동일 키).
+		if (false == LoadRuntimeSceneNodes(*sceneManager, *assetManager, context,
+		                                   scenePath, AssetGuid(), scenePath))
 		{
-			audioSystem->SetDevice(context->Audio);
-			audioSystem->SetAssetManager(context->AssetManager);
+			// 한 씬 로드 실패는 치명적이지 않게 — 로그만 남기고 나머지를 계속 로드한다.
+			CSystemLog::Warning(std::string("Runtime build scene skipped (load failed): ") + scenePath);
 		}
 	}
 
-	sceneManager->PreloadReferencedAssets(*scene);
-	if (false == sceneManager->SetActiveScene(sceneName.c_str()))
+	// ── 2) startup 씬을 active 로 전환 → 그 시점에 startup 리소스만 로드된다 ───────
+	if (false == sceneManager->SetActiveScene(startupName.c_str()))
 	{
-		sceneManager->DestroyScene(sceneName.c_str());
-		CSystemLog::Error(std::string("Runtime startup scene activation failed: ") + sceneName);
+		CSystemLog::Error(std::string("Runtime startup scene activation failed: ") + startupName);
 		return false;
 	}
 
 	sceneManager->PlaySimulation();
-	CSystemLog::Info(std::string("Runtime startup scene loaded: ") + sceneName);
+	CSystemLog::Info(std::string("Runtime startup scene loaded: ") + startupName);
 	return true;
 }
 

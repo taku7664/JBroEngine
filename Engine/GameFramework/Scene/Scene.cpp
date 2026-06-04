@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "Scene.h"
 
+#include "Core/Asset/AssetRef.inl"   // m_loadedAssets(AssetRef) 소멸자 인스턴스화에 필요
 #include "GameFramework/Component/ScriptComponent.h"
 #include "GameFramework/Physics2D/Physics2DSystem.h"
 #include "GameFramework/Scripting/ScriptSystem.h"
