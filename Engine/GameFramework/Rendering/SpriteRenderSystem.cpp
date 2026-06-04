@@ -135,6 +135,9 @@ void CSpriteRenderSystem::OnUpdate(CScene& scene)
 			RenderItem item;
 			item.Mesh = mesh;
 			item.Material = material;
+			item.Pipeline = material->GetPipeline();
+			item.Texture = material->GetTexture();
+			item.Sampler = material->GetSampler();
 			item.Queue = material->GetRenderQueue();
 			item.LayerMask = sprite.LayerMask;
 			const Matrix3x2 spriteLocalTransform = Matrix3x2::Transform(sprite.Offset, 0.0f, finalSize);

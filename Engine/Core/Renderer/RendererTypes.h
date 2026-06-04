@@ -6,6 +6,9 @@
 #include "Utillity/Math/Matrix3x2.h"
 
 class IRHIDevice;
+class IRHIGraphicsPipeline;
+class IRHISampler;
+class IRHITexture;
 class IRenderMesh;
 class IRenderMaterial;
 
@@ -33,6 +36,9 @@ struct RenderItem
 {
 	SafePtr<IRenderMesh> Mesh;
 	SafePtr<IRenderMaterial> Material;
+	SafePtr<IRHIGraphicsPipeline> Pipeline;
+	SafePtr<IRHITexture> Texture;
+	SafePtr<IRHISampler> Sampler;
 	ERenderQueue Queue = ERenderQueue::Opaque;
 	RenderLayerMask LayerMask = 0xffffffffu;
 	Matrix3x2 Transform;

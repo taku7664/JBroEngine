@@ -41,6 +41,49 @@
 
 ---
 
+# TODO — RenderItem draw resource pre-resolve
+
+## Goal
+Sprite render loop에서 material virtual getter 반복 조회를 줄이고, 추후 멀티스레드 렌더링에 맞게 RenderItem이 렌더에 필요한 RHI 리소스를 제출 시점에 들고 있게 한다.
+
+## Assumptions
+- 현재 `CRenderMaterial`은 생성 후 pipeline/texture/sampler setter가 없는 immutable resource이다.
+- 외부 submitter가 새 필드를 채우지 않아도 기존 `Material` fallback으로 동작해야 한다.
+- SDK mirror도 같은 `RenderItem` layout을 가져야 한다.
+
+## Success Criteria
+- `SpriteRenderSystem`은 `RenderItem` 제출 시 Pipeline/Texture/Sampler를 함께 채운다.
+- `Forward2DRenderer`는 먼저 RenderItem의 pre-resolved resource를 쓰고, 없으면 기존 Material getter로 fallback한다.
+- batch run 탐색은 같은 item의 texture/sampler/pipeline을 반복 조회하지 않는다.
+- 기존 단일 draw fallback과 custom material fallback은 유지된다.
+
+## Plan
+- [x] `RenderItem`에 pre-resolved Pipeline/Texture/Sampler 추가
+- [x] `SpriteRenderSystem` 제출 시 draw resource 채우기
+- [x] `Forward2DRenderer` resource resolve helper 적용
+- [x] SDK mirror 동기화
+- [x] 빌드/Web 검증 및 커밋
+
+## Verification
+- [x] `Debug_Game|x64` build
+- [x] `Debug_Editor|x64` build
+- [x] Web Release build with `SampleProject/Project.Jproject`
+- [x] `git diff --check`
+
+## Review
+- 코드를 읽었고: `SpriteRenderSystem`은 `RenderItem` 제출 시 material queue만 해석하고, renderer loop에서 pipeline/texture/sampler를 다시 material virtual getter로 반복 조회했다.
+- 생각했고: 렌더 제출 시점에 draw resource를 같이 넣으면 Forward2DRenderer의 batch 탐색과 fallback draw가 같은 item resource를 재조회하지 않아도 된다.
+- 반례를 찾았고: 외부 submitter가 새 필드를 채우지 않으면 기존 렌더가 깨질 수 있다.
+- 고쳤다: `RenderItem`에 Pipeline/Texture/Sampler를 추가하되, `Forward2DRenderer::ResolveSpriteDrawResources()`가 pre-resolved 값이 비어 있으면 기존 `Material` getter로 fallback하도록 했다.
+- 추가로 읽었고: `CRenderMaterial`은 생성자로 받은 pipeline/texture/sampler를 setter 없이 반환하는 immutable resource 형태였다.
+- 생각했고: 같은 프레임의 render item에 resource snapshot을 저장하는 것은 현재 material 구조와 맞고, 멀티스레드 render command 준비에도 유리하다.
+- 반례를 찾았고: custom material pipeline은 batch 대상이 아니어야 하며, default sprite pipeline만 instancing 대상이어야 한다.
+- 고쳤다: batch 가능 판정은 resolved pipeline이 기본 sprite pipeline과 같은 경우로 제한하고, custom pipeline은 기존 단일 draw 경로로 유지했다.
+- 검증 중 `Debug_Editor` 첫 빌드는 stale MSBuild node/PDB/PCH 중간 산출물 문제로 실패했다.
+- 고쳤다: MSBuild node reuse 프로세스를 종료하고 `Build/Intermediate/Engine/Debug_Editor/x64` 중간 산출물만 정리한 뒤 `/nr:false` 단일 빌드로 통과시켰다.
+
+---
+
 # TODO — Sprite instancing RHI 계약 추가
 
 ## Goal

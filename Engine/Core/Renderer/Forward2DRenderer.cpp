@@ -325,6 +325,42 @@ CForward2DRenderer::ViewParameters CForward2DRenderer::BuildViewParameters() con
 	return view;
 }
 
+CForward2DRenderer::SpriteDrawResources CForward2DRenderer::ResolveSpriteDrawResources(const RenderItem& item) const
+{
+	SpriteDrawResources resources;
+	resources.Mesh = item.Mesh;
+	resources.Pipeline = item.Pipeline;
+	resources.Texture = item.Texture;
+	resources.Sampler = item.Sampler;
+
+	if (item.Material.IsValid())
+	{
+		if (false == resources.Pipeline.IsValid())
+		{
+			resources.Pipeline = item.Material->GetPipeline();
+		}
+		if (false == resources.Texture.IsValid())
+		{
+			resources.Texture = item.Material->GetTexture();
+		}
+		if (false == resources.Sampler.IsValid())
+		{
+			resources.Sampler = item.Material->GetSampler();
+		}
+	}
+
+	if (false == resources.Pipeline.IsValid())
+	{
+		resources.Pipeline = m_spritePipeline.GetSafePtr();
+	}
+	if (false == resources.Sampler.IsValid())
+	{
+		resources.Sampler = m_defaultSampler.GetSafePtr();
+	}
+
+	return resources;
+}
+
 CForward2DRenderer::SpriteConstants CForward2DRenderer::BuildSpriteConstants(
 	const RenderItem& item,
 	const ViewParameters& view) const
@@ -485,33 +521,16 @@ bool CForward2DRenderer::DrawSpriteItem(
 	IRHICommandContext& commandContext,
 	RenderStateCache& stateCache,
 	const RenderItem& item,
+	const SpriteDrawResources& resources,
 	const ViewParameters& view)
 {
-	if (false == item.Mesh.IsValid() || false == item.Material.IsValid())
-	{
-		return false;
-	}
-
-	SafePtr<IRHIGraphicsPipeline> pipeline = item.Material->GetPipeline();
-	if (false == pipeline.IsValid())
-	{
-		pipeline = m_spritePipeline.GetSafePtr();
-	}
-
-	SafePtr<IRHISampler> sampler = item.Material->GetSampler();
-	if (false == sampler.IsValid())
-	{
-		sampler = m_defaultSampler.GetSafePtr();
-	}
-
-	SafePtr<IRHITexture> texture = item.Material->GetTexture();
-	if (false == texture.IsValid())
+	if (false == resources.Mesh.IsValid() || false == resources.Pipeline.IsValid() || false == resources.Texture.IsValid() || false == resources.Sampler.IsValid())
 	{
 		return false;
 	}
 
 	const SpriteConstants constants = BuildSpriteConstants(item, view);
-	return DrawSpriteQuad(commandContext, stateCache, pipeline, item.Mesh, texture, sampler, constants);
+	return DrawSpriteQuad(commandContext, stateCache, resources.Pipeline, resources.Mesh, resources.Texture, resources.Sampler, constants);
 }
 
 bool CForward2DRenderer::DrawSpriteQuad(
@@ -582,26 +601,29 @@ bool CForward2DRenderer::DrawSpriteQuad(
 	return true;
 }
 
-bool CForward2DRenderer::CanBatchSpriteItem(const RenderItem& item, SafePtr<IRenderMesh> mesh, SafePtr<IRHITexture> texture, SafePtr<IRHISampler> sampler) const
+bool CForward2DRenderer::CanBatchSpriteItem(const RenderItem& item, const SpriteDrawResources& resources) const
 {
 	if (!m_spriteBatchPipeline || !m_quadMesh)
 	{
 		return false;
 	}
-	if (false == item.Material.IsValid() || false == mesh.IsValid() || false == texture.IsValid() || false == sampler.IsValid())
+	if (false == item.Material.IsValid()
+		|| false == resources.Mesh.IsValid()
+		|| false == resources.Texture.IsValid()
+		|| false == resources.Sampler.IsValid()
+		|| false == resources.Pipeline.IsValid())
 	{
 		return false;
 	}
-	if (mesh != m_quadMesh.GetSafePtr())
+	if (resources.Mesh != m_quadMesh.GetSafePtr())
 	{
 		return false;
 	}
 
-	SafePtr<IRHIGraphicsPipeline> pipeline = item.Material->GetPipeline();
-	return false == pipeline.IsValid() || pipeline == m_spritePipeline.GetSafePtr();
+	return resources.Pipeline == m_spritePipeline.GetSafePtr();
 }
 
-bool CForward2DRenderer::DrawSpriteBatch(IRHICommandContext& commandContext, RenderStateCache& stateCache, const RenderItem* items, std::uint32_t itemCount, const ViewParameters& view)
+bool CForward2DRenderer::DrawSpriteBatch(IRHICommandContext& commandContext, RenderStateCache& stateCache, const RenderItem* items, std::uint32_t itemCount, const SpriteDrawResources& resources, const ViewParameters& view)
 {
 	if (nullptr == items || 0 == itemCount || !m_spriteBatchPipeline || !m_quadMesh)
 	{
@@ -614,20 +636,13 @@ bool CForward2DRenderer::DrawSpriteBatch(IRHICommandContext& commandContext, Ren
 		return false;
 	}
 
-	SafePtr<IRenderMesh> mesh = firstItem.Mesh;
-	SafePtr<IRHITexture> texture = firstItem.Material->GetTexture();
-	SafePtr<IRHISampler> sampler = firstItem.Material->GetSampler();
-	if (false == sampler.IsValid())
-	{
-		sampler = m_defaultSampler.GetSafePtr();
-	}
-	if (false == CanBatchSpriteItem(firstItem, mesh, texture, sampler))
+	if (false == CanBatchSpriteItem(firstItem, resources))
 	{
 		return false;
 	}
 
-	SafePtr<IRHIBuffer> vertexBuffer = mesh->GetVertexBuffer();
-	SafePtr<IRHIBuffer> indexBuffer = mesh->GetIndexBuffer();
+	SafePtr<IRHIBuffer> vertexBuffer = resources.Mesh->GetVertexBuffer();
+	SafePtr<IRHIBuffer> indexBuffer = resources.Mesh->GetIndexBuffer();
 	if (false == vertexBuffer.IsValid() || false == indexBuffer.IsValid())
 	{
 		return false;
@@ -688,18 +703,18 @@ bool CForward2DRenderer::DrawSpriteBatch(IRHICommandContext& commandContext, Ren
 	commandContext.SetConstantBuffer(ERHIProgramStage::Vertex, 0, viewConstantBuffer);
 	commandContext.SetConstantBuffer(ERHIProgramStage::Pixel, 0, viewConstantBuffer);
 
-	if (stateCache.Texture != texture)
+	if (stateCache.Texture != resources.Texture)
 	{
-		commandContext.SetTexture(ERHIProgramStage::Pixel, 0, texture);
-		stateCache.Texture = texture;
+		commandContext.SetTexture(ERHIProgramStage::Pixel, 0, resources.Texture);
+		stateCache.Texture = resources.Texture;
 	}
-	if (stateCache.Sampler != sampler)
+	if (stateCache.Sampler != resources.Sampler)
 	{
-		commandContext.SetSampler(ERHIProgramStage::Pixel, 0, sampler);
-		stateCache.Sampler = sampler;
+		commandContext.SetSampler(ERHIProgramStage::Pixel, 0, resources.Sampler);
+		stateCache.Sampler = resources.Sampler;
 	}
 
-	commandContext.DrawIndexedInstanced(mesh->GetIndexCount(), itemCount, 0, 0, 0);
+	commandContext.DrawIndexedInstanced(resources.Mesh->GetIndexCount(), itemCount, 0, 0, 0);
 	return true;
 }
 
@@ -741,13 +756,8 @@ void CForward2DRenderer::RenderImpl(IRenderScene& scene, const std::unordered_se
 			continue;
 		}
 
-		SafePtr<IRHISampler> sampler = item.Material.IsValid() ? item.Material->GetSampler() : nullptr;
-		if (false == sampler.IsValid())
-		{
-			sampler = m_defaultSampler.GetSafePtr();
-		}
-		SafePtr<IRHITexture> texture = item.Material.IsValid() ? item.Material->GetTexture() : nullptr;
-		if (CanBatchSpriteItem(item, item.Mesh, texture, sampler))
+		const SpriteDrawResources resources = ResolveSpriteDrawResources(item);
+		if (CanBatchSpriteItem(item, resources))
 		{
 			std::uint32_t batchCount = 1;
 			while (i + batchCount < itemCount)
@@ -758,15 +768,10 @@ void CForward2DRenderer::RenderImpl(IRenderScene& scene, const std::unordered_se
 					break;
 				}
 
-				SafePtr<IRHISampler> nextSampler = nextItem.Material.IsValid() ? nextItem.Material->GetSampler() : nullptr;
-				if (false == nextSampler.IsValid())
-				{
-					nextSampler = m_defaultSampler.GetSafePtr();
-				}
-				SafePtr<IRHITexture> nextTexture = nextItem.Material.IsValid() ? nextItem.Material->GetTexture() : nullptr;
-				if (nextTexture != texture
-					|| nextSampler != sampler
-					|| false == CanBatchSpriteItem(nextItem, nextItem.Mesh, nextTexture, nextSampler))
+				const SpriteDrawResources nextResources = ResolveSpriteDrawResources(nextItem);
+				if (nextResources.Texture != resources.Texture
+					|| nextResources.Sampler != resources.Sampler
+					|| false == CanBatchSpriteItem(nextItem, nextResources))
 				{
 					break;
 				}
@@ -775,7 +780,7 @@ void CForward2DRenderer::RenderImpl(IRenderScene& scene, const std::unordered_se
 
 			if (batchCount > 1)
 			{
-				if (DrawSpriteBatch(*commandContext.TryGet(), stateCache, items + i, batchCount, view))
+				if (DrawSpriteBatch(*commandContext.TryGet(), stateCache, items + i, batchCount, resources, view))
 				{
 					i += batchCount;
 					continue;
@@ -783,7 +788,7 @@ void CForward2DRenderer::RenderImpl(IRenderScene& scene, const std::unordered_se
 			}
 		}
 
-		DrawSpriteItem(*commandContext.TryGet(), stateCache, item, view);
+		DrawSpriteItem(*commandContext.TryGet(), stateCache, item, resources, view);
 		++i;
 	}
 }
@@ -815,13 +820,8 @@ void CForward2DRenderer::RenderFiltered(IRenderScene& scene, const std::unordere
 			continue;
 		}
 
-		SafePtr<IRHISampler> sampler = item.Material.IsValid() ? item.Material->GetSampler() : nullptr;
-		if (false == sampler.IsValid())
-		{
-			sampler = m_defaultSampler.GetSafePtr();
-		}
-		SafePtr<IRHITexture> texture = item.Material.IsValid() ? item.Material->GetTexture() : nullptr;
-		if (CanBatchSpriteItem(item, item.Mesh, texture, sampler))
+		const SpriteDrawResources resources = ResolveSpriteDrawResources(item);
+		if (CanBatchSpriteItem(item, resources))
 		{
 			std::uint32_t batchCount = 1;
 			while (i + batchCount < itemCount)
@@ -832,15 +832,10 @@ void CForward2DRenderer::RenderFiltered(IRenderScene& scene, const std::unordere
 					break;
 				}
 
-				SafePtr<IRHISampler> nextSampler = nextItem.Material.IsValid() ? nextItem.Material->GetSampler() : nullptr;
-				if (false == nextSampler.IsValid())
-				{
-					nextSampler = m_defaultSampler.GetSafePtr();
-				}
-				SafePtr<IRHITexture> nextTexture = nextItem.Material.IsValid() ? nextItem.Material->GetTexture() : nullptr;
-				if (nextTexture != texture
-					|| nextSampler != sampler
-					|| false == CanBatchSpriteItem(nextItem, nextItem.Mesh, nextTexture, nextSampler))
+				const SpriteDrawResources nextResources = ResolveSpriteDrawResources(nextItem);
+				if (nextResources.Texture != resources.Texture
+					|| nextResources.Sampler != resources.Sampler
+					|| false == CanBatchSpriteItem(nextItem, nextResources))
 				{
 					break;
 				}
@@ -849,7 +844,7 @@ void CForward2DRenderer::RenderFiltered(IRenderScene& scene, const std::unordere
 
 			if (batchCount > 1)
 			{
-				if (DrawSpriteBatch(*commandContext.TryGet(), stateCache, items + i, batchCount, view))
+				if (DrawSpriteBatch(*commandContext.TryGet(), stateCache, items + i, batchCount, resources, view))
 				{
 					i += batchCount;
 					continue;
@@ -857,7 +852,7 @@ void CForward2DRenderer::RenderFiltered(IRenderScene& scene, const std::unordere
 			}
 		}
 
-		DrawSpriteItem(*commandContext.TryGet(), stateCache, item, view);
+		DrawSpriteItem(*commandContext.TryGet(), stateCache, item, resources, view);
 		++i;
 	}
 }

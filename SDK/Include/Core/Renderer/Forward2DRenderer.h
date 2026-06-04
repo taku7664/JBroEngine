@@ -81,8 +81,17 @@ private:
 		std::uint32_t InstanceOffset = 0;
 	};
 
+	struct SpriteDrawResources
+	{
+		SafePtr<IRenderMesh> Mesh;
+		SafePtr<IRHIGraphicsPipeline> Pipeline;
+		SafePtr<IRHITexture> Texture;
+		SafePtr<IRHISampler> Sampler;
+	};
+
 	void RenderImpl(IRenderScene& scene, const std::unordered_set<RenderObjectId>* excluded);
 	ViewParameters BuildViewParameters() const;
+	SpriteDrawResources ResolveSpriteDrawResources(const RenderItem& item) const;
 	SpriteConstants BuildSpriteConstants(const RenderItem& item, const ViewParameters& view) const;
 	SpriteViewConstants BuildSpriteViewConstants(const ViewParameters& view) const;
 	SpriteInstanceData BuildSpriteInstanceData(const RenderItem& item) const;
@@ -90,10 +99,10 @@ private:
 	SafePtr<IRHIBuffer> AcquireSpriteConstantBuffer(IRHICommandContext& commandContext, const SpriteConstants& constants);
 	SafePtr<IRHIBuffer> AcquireSpriteViewConstantBuffer(IRHICommandContext& commandContext, const SpriteViewConstants& constants);
 	SafePtr<IRHIBuffer> AcquireSpriteInstanceBuffer(IRHICommandContext& commandContext, const SpriteInstanceData* instances, std::uint32_t instanceCount);
-	bool DrawSpriteItem(IRHICommandContext& commandContext, RenderStateCache& stateCache, const RenderItem& item, const ViewParameters& view);
+	bool DrawSpriteItem(IRHICommandContext& commandContext, RenderStateCache& stateCache, const RenderItem& item, const SpriteDrawResources& resources, const ViewParameters& view);
 	bool DrawSpriteQuad(IRHICommandContext& commandContext, RenderStateCache& stateCache, SafePtr<IRHIGraphicsPipeline> pipeline, SafePtr<IRenderMesh> mesh, SafePtr<IRHITexture> texture, SafePtr<IRHISampler> sampler, const SpriteConstants& constants);
-	bool DrawSpriteBatch(IRHICommandContext& commandContext, RenderStateCache& stateCache, const RenderItem* items, std::uint32_t itemCount, const ViewParameters& view);
-	bool CanBatchSpriteItem(const RenderItem& item, SafePtr<IRenderMesh> mesh, SafePtr<IRHITexture> texture, SafePtr<IRHISampler> sampler) const;
+	bool DrawSpriteBatch(IRHICommandContext& commandContext, RenderStateCache& stateCache, const RenderItem* items, std::uint32_t itemCount, const SpriteDrawResources& resources, const ViewParameters& view);
+	bool CanBatchSpriteItem(const RenderItem& item, const SpriteDrawResources& resources) const;
 	bool CreateSpritePipeline();
 	bool CreateSpriteBatchPipeline();
 	bool CreateQuadMesh();
