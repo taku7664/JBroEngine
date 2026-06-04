@@ -37,7 +37,10 @@
   <ItemGroup>
     <!-- GameFramework: 게임 스크립트에서 직접 사용하는 공개 모듈 -->
     <_SDKHeader Include="$(_EngineDir)GameFramework\Scripting\**\*.h"   DestDir="GameFramework\Scripting" />
-    <_SDKHeader Include="$(_EngineDir)GameFramework\Reflection\**\*.h"  DestDir="GameFramework\Reflection" />
+    <!-- ReflectionEnumRegister.h 는 magic_enum 에 의존하는 호스트 전용 구현 → SDK 미러 제외
+         (게임 스크립트 DLL 은 magic_enum 을 갖지 않는다). -->
+    <_SDKHeader Include="$(_EngineDir)GameFramework\Reflection\**\*.h"  DestDir="GameFramework\Reflection"
+                Exclude="$(_EngineDir)GameFramework\Reflection\ReflectionEnumRegister.h" />
     <_SDKHeader Include="$(_EngineDir)GameFramework\Component\**\*.h"   DestDir="GameFramework\Component" />
     <_SDKHeader Include="$(_EngineDir)GameFramework\Scene\**\*.h"       DestDir="GameFramework\Scene" />
     <_SDKHeader Include="$(_EngineDir)GameFramework\System\**\*.h"      DestDir="GameFramework\System" />

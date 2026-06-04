@@ -9,6 +9,7 @@
 #include "GameFramework/Component/ScriptComponent.h"
 #include "GameFramework/Component/SpriteRenderer2D.h"
 #include "GameFramework/Reflection/ReflectionRegistry.h"
+#include "GameFramework/Reflection/ReflectionEnumRegister.h"
 
 #include <cstddef>
 
@@ -27,7 +28,7 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 		.AddProperty("LayerMask", EReflectPropertyType::UInt32, offsetof(SpriteRenderer2D, LayerMask), sizeof(RenderLayerMask));
 
 	registry.RegisterComponent<Camera2D>({ "Camera2D", "Camera 2D", "Rendering", true })
-		.AddProperty("ProjectionMode", EReflectPropertyType::Enum, offsetof(Camera2D, ProjectionMode), sizeof(ECameraProjectionMode2D))
+		.AddEnumProperty<ECameraProjectionMode2D>("ProjectionMode", offsetof(Camera2D, ProjectionMode))
 		.AddProperty("OrthographicSize", EReflectPropertyType::Float, offsetof(Camera2D, OrthographicSize), sizeof(float))
 		.AddProperty("PerspectiveFovDegrees", EReflectPropertyType::Float, offsetof(Camera2D, PerspectiveFovDegrees), sizeof(float))
 		.AddProperty("NearClip", EReflectPropertyType::Float, offsetof(Camera2D, NearClip), sizeof(float))
@@ -40,7 +41,7 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 		.AddProperty("IsMainCamera", EReflectPropertyType::Bool, offsetof(Camera2D, IsMainCamera), sizeof(bool));
 
 	registry.RegisterComponent<Light2D>({ "Light2D", "Light 2D", "Rendering", true })
-		.AddProperty("Type", EReflectPropertyType::Enum, offsetof(Light2D, Type), sizeof(ELight2DType))
+		.AddEnumProperty<ELight2DType>("Type", offsetof(Light2D, Type))
 		.AddProperty("Color", EReflectPropertyType::ColorFloat4, offsetof(Light2D, Color), sizeof(float), 4)
 		.AddProperty("Intensity", EReflectPropertyType::Float, offsetof(Light2D, Intensity), sizeof(float))
 		.AddProperty("Range", EReflectPropertyType::Float, offsetof(Light2D, Range), sizeof(float))
@@ -48,7 +49,7 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 		.AddProperty("CastShadows", EReflectPropertyType::Bool, offsetof(Light2D, CastShadows), sizeof(bool));
 
 	registry.RegisterComponent<Rigidbody2D>({ "Rigidbody2D", "Rigidbody 2D", "Physics", true })
-		.AddProperty("BodyType", EReflectPropertyType::Enum, offsetof(Rigidbody2D, BodyType), sizeof(EPhysics2DBodyType))
+		.AddEnumProperty<EPhysics2DBodyType>("BodyType", offsetof(Rigidbody2D, BodyType))
 		.AddProperty("Velocity", EReflectPropertyType::Vector2Float, offsetof(Rigidbody2D, Velocity), sizeof(Vector2))
 		.AddProperty("Force", EReflectPropertyType::Vector2Float, offsetof(Rigidbody2D, Force), sizeof(Vector2))
 		.AddProperty("AngularVelocity", EReflectPropertyType::Float, offsetof(Rigidbody2D, AngularVelocity), sizeof(float))

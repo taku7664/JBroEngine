@@ -36,6 +36,22 @@ enum class EReflectPropertyType
 	Ref        // Ref<T> — 오브젝트/컴포넌트/스크립트/에셋 참조. RefCategory/RefTypeName 참고.
 };
 
+// Enum 프로퍼티(Type == Enum)의 타입소거 메타. magic_enum 으로 자동 생성한다
+// (MakeEnumTypeMeta<T>). 인스펙터 드롭다운 / 이름 직렬화에 필요한 변환을 함수포인터로
+// 들고 있다. 정적 수명(타입당 1개) + 함수포인터 + 정적 이름배열이라 호스트↔게임 DLL
+// 경계에 안전하다(각 모듈이 자기 모듈의 메타를 가리킨다 — POD 규칙 위반 아님).
+struct EnumTypeMeta
+{
+	const char* const* Names = nullptr;   // 값 순서대로의 이름 배열(null-종료 문자열)
+	int                Count = 0;
+
+	// field 는 enum 변수의 주소, size 는 프로퍼티 크기(enum underlying 폭).
+	int  (*ToIndex)  (const void* field, std::size_t size) = nullptr;          // 현재값 → 이름배열 인덱스(-1=미일치)
+	void (*SetIndex) (void* field, std::size_t size, int index) = nullptr;     // 인덱스 → 값 기록
+	const char* (*ToName)(const void* field, std::size_t size) = nullptr;      // 현재값 → 이름(미일치 시 nullptr)
+	bool (*FromName) (void* field, std::size_t size, const char* name) = nullptr; // 이름 → 값 기록(성공 true)
+};
+
 // Ref<T> 의 대상 분류. Ref.h 의 Ref<T>::Category 와 동일 값.
 // (단일 정의를 여기 두고 Ref.h 가 이 헤더를 포함한다.)
 enum class ERefCategory : std::uint8_t
@@ -123,6 +139,9 @@ struct ReflectPropertyInfo
 	// ── Ref 전용 (Type == Ref 일 때만 유효) ───────────────────────────────────
 	ERefCategory         RefCategory  = ERefCategory::Component; // 드롭 대상 분류
 	const char*          RefTypeName  = nullptr;                  // 대상 타입명(드롭 필터/표시)
+
+	// ── Enum 전용 (Type == Enum 일 때만 유효) ─────────────────────────────────
+	const EnumTypeMeta*  Enum         = nullptr;                  // 이름 목록/변환(magic_enum)
 };
 
 // JPROP codegen 이 생성하는 스크립트 프로퍼티 1개의 명세.
@@ -146,6 +165,10 @@ struct ScriptPropertyDesc
 	// 생성 코드가 Ref<X>::Category 와 "X" 를 채운다(코드젠은 분류 안 함).
 	ERefCategory         RefCategory  = ERefCategory::Component;
 	const char*          RefTypeName  = nullptr;
+
+	// ── Enum 전용 (Type == Enum 일 때만 유효) ─────────────────────────────────
+	// 스크립트 enum 은 후속(JPROP codegen) — 현재 컴포넌트만 채운다.
+	const EnumTypeMeta*  Enum         = nullptr;
 };
 
 struct ComponentRegisterDesc

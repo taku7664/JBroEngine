@@ -352,6 +352,15 @@ namespace
 				break;
 			case EReflectPropertyType::Enum:
 				{
+					// 메타가 있으면 이름 문자열로 저장(값 재배치에 견고). 없으면 정수 폴백.
+					if (prop.Enum && prop.Enum->ToName)
+					{
+						if (const char* name = prop.Enum->ToName(field, prop.Size))
+						{
+							node[prop.Name] = std::string(name);
+							break;
+						}
+					}
 					int val = 0;
 					std::memcpy(&val, field, std::min(prop.Size, sizeof(int)));
 					node[prop.Name] = val;
@@ -431,9 +440,22 @@ namespace
 				break;
 			case EReflectPropertyType::Enum:
 				{
-					int val = 0;
-					if (ReadValue(node, prop.Name, val))
-						std::memcpy(field, &val, std::min(prop.Size, sizeof(int)));
+					// 이름 문자열 우선(FromName). 실패하면(구 데이터=정수, 또는 미등록 enum) 정수 폴백.
+					bool applied = false;
+					if (prop.Enum && prop.Enum->FromName)
+					{
+						std::string name;
+						if (ReadValue(node, prop.Name, name))
+						{
+							applied = prop.Enum->FromName(field, prop.Size, name.c_str());
+						}
+					}
+					if (false == applied)
+					{
+						int val = 0;
+						if (ReadValue(node, prop.Name, val))
+							std::memcpy(field, &val, std::min(prop.Size, sizeof(int)));
+					}
 				}
 				break;
 			case EReflectPropertyType::Layout2D:

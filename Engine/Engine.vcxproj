@@ -512,6 +512,7 @@
     <ClInclude Include="Editor\ImItem\ImSplitter.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="ThirdParty\imconfig.h" />
+    <ClInclude Include="ThirdParty\magic_enum\magic_enum.hpp" />
     <ClInclude Include="ThirdParty\imgui\imconfig.h" />
     <ClInclude Include="ThirdParty\imgui\imgui.h" />
     <ClInclude Include="ThirdParty\miniaudio\miniaudio.h" />
@@ -586,6 +587,7 @@
     <ClInclude Include="GameFramework\Component\BuiltinComponentRegistry.h" />
     <ClInclude Include="GameFramework\Reflection\ReflectionTypes.h" />
     <ClInclude Include="GameFramework\Reflection\ReflectionRegistry.h" />
+    <ClInclude Include="GameFramework\Reflection\ReflectionEnumRegister.h" />
     <ClInclude Include="GameFramework\GameFrameworkAll.h" />
     <ClInclude Include="GameFramework\Scripting\GameScript.h" />
     <ClInclude Include="GameFramework\Scripting\ScriptAPI.h" />

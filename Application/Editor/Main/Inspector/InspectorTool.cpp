@@ -435,6 +435,32 @@ CSpriteAsset* sprite = Core::ResourceRegistry->GetSprite(key);
 		}
 		case EReflectPropertyType::Enum:
 		{
+			// 메타가 있으면 이름 드롭다운(Combo). 없으면(스크립트 enum 등 미등록) Int 폴백.
+			if (const EnumTypeMeta* meta = property.Enum; meta && meta->Names && meta->Count > 0)
+			{
+				int index = meta->ToIndex(field, property.Size);
+				const char* preview = (index >= 0 && index < meta->Count) ? meta->Names[index] : "?";
+				bool changed = false;
+				if (ImGui::BeginCombo("", preview))
+				{
+					for (int i = 0; i < meta->Count; ++i)
+					{
+						const bool selected = (i == index);
+						if (ImGui::Selectable(meta->Names[i], selected))
+						{
+							meta->SetIndex(field, property.Size, i);
+							changed = true;
+						}
+						if (selected)
+						{
+							ImGui::SetItemDefaultFocus();
+						}
+					}
+					ImGui::EndCombo();
+				}
+				return changed;
+			}
+
 			std::int32_t value = 0;
 			const std::size_t copySize = std::min(property.Size, sizeof(value));
 			std::memcpy(&value, field, copySize);

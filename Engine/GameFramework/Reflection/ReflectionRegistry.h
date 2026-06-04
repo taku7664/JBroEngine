@@ -8,8 +8,10 @@
 #include "Utillity/Pointer/SafePtr.h"
 
 #include <functional>
+#include <string>
 #include <type_traits>
 #include <unordered_map>
+#include <vector>
 
 class CGameObject;
 
@@ -61,6 +63,19 @@ public:
 	CComponentRegistration(ComponentTypeInfo* typeInfo);
 
 	CComponentRegistration& AddProperty(const char* name, EReflectPropertyType propertyType, std::size_t offset, std::size_t size, std::size_t elementCount = 1, bool isEditable = true);
+
+	// Enum 프로퍼티 등록 — magic_enum 으로 이름/변환 메타를 자동 생성한다(보일러플레이트 없음).
+	// 호출부는 .AddEnumProperty<EMyEnum>("Field", offsetof(C, Field)) 한 줄.
+	//
+	// ⚠ 정의는 호스트 전용 헤더 "ReflectionEnumRegister.h" 에 있다(magic_enum 의존). 이 헤더
+	//    (ReflectionRegistry.h)는 SDK 로 미러되어 게임 스크립트 DLL 도 포함하는데, DLL 은
+	//    magic_enum 을 갖지 않으므로 magic_enum 의존을 공개 헤더에 두면 안 된다. 컴포넌트 등록
+	//    지점(BuiltinComponentRegistry.cpp, 호스트)만 ReflectionEnumRegister.h 를 include 한다.
+	template<typename TEnum>
+	CComponentRegistration& AddEnumProperty(const char* name, std::size_t offset, bool isEditable = true);
+
+	// 정의 분리용 — ReflectionEnumRegister.h 가 m_typeInfo 에 접근해 마지막 프로퍼티에 메타를 단다.
+	ComponentTypeInfo* GetTypeInfo() const { return m_typeInfo; }
 
 private:
 	ComponentTypeInfo* m_typeInfo = nullptr;
