@@ -251,33 +251,33 @@ CSpriteAsset* sprite = Core::ResourceRegistry->GetSprite(key);
 		const bool wantsGameObject =
 			property.RefTypeName && 0 == strcmp(property.RefTypeName, "GameObject");
 
-		if (wantsGameObject)
+		// 드롭 전에 타입 적합성을 먼저 검사한다. 적합할 때만 AcceptDragDropPayload 를 호출해야
+		// ImGui 가 부적합 드롭을 "수락 가능"(초록 테두리)으로 표시하지 않는다. 호버 중인
+		// 페이로드를 GetDragDropPayload 로 읽기전용 조회해 타입을 미리 판정한다.
+		const ImGuiPayload* hovering = ImGui::GetDragDropPayload();
+		CComponent* match = nullptr;
+		bool acceptable = false;
+		if (hovering && hovering->IsDataType(EditorDragDrop::HIERARCHY_ENTITY_PAYLOAD)
+			&& hovering->Data)
 		{
-			// 오브젝트 자체를 드래그(HIERARCHY_ENTITY).
+			CGameObject* obj = *static_cast<CGameObject* const*>(hovering->Data);
+			// GameObject Ref 는 오브젝트면 항상 적합. Component/Script Ref 는 그 오브젝트에
+			// 타입이 맞는 컴포넌트가 있을 때만 적합(없으면 드롭 거부).
+			acceptable = (nullptr != obj) &&
+				(wantsGameObject || (nullptr != (match = FindFirstComponentForRef(*obj, property))));
+		}
+
+		// 적합할 때만 실제 수락 대상으로 등록한다. 부적합이면 Accept 를 호출하지 않으므로
+		// ImGui 가 드롭 불가로 표시하고, 드롭해도 아무 일도 일어나지 않는다.
+		if (acceptable)
+		{
 			if (const ImGuiPayload* p =
 				ImGui::AcceptDragDropPayload(EditorDragDrop::HIERARCHY_ENTITY_PAYLOAD))
 			{
-				if (CGameObject* obj = *static_cast<CGameObject* const*>(p->Data))
-				{
-					ref.SetGuidText(obj->InstanceGuid.generic_string().c_str());
-					changed = true;
-				}
-			}
-		}
-		else if (const ImGuiPayload* p =
-			ImGui::AcceptDragDropPayload(EditorDragDrop::HIERARCHY_ENTITY_PAYLOAD))
-		{
-			// 컴포넌트/스크립트 Ref — 오브젝트를 드롭하면 그 오브젝트의 타입이 맞는 첫
-			// 컴포넌트를 참조로 설정한다. (오브젝트 guid + 컴포넌트 guid) 쌍을 저장한다.
-			if (CGameObject* obj = *static_cast<CGameObject* const*>(p->Data))
-			{
-				CComponent* match = FindFirstComponentForRef(*obj, property);
-				if (match)
-				{
-					ref.SetGuidText(obj->InstanceGuid.generic_string().c_str());
-					ref.SetComponentGuidText(match->InstanceGuid.generic_string().c_str());
-					changed = true;
-				}
+				CGameObject* obj = *static_cast<CGameObject* const*>(p->Data);
+				ref.SetGuidText(obj->InstanceGuid.generic_string().c_str());
+				ref.SetComponentGuidText(wantsGameObject ? "" : match->InstanceGuid.generic_string().c_str());
+				changed = true;
 			}
 		}
 

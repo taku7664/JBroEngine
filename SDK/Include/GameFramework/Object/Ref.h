@@ -59,6 +59,15 @@ template<typename T>
 class Ref : public RefBase
 {
 public:
+	// Ref<T> 는 4가지 카테고리 중 하나여야 한다. 그 외(예: Ref<Transform2D>, Ref<int>)는
+	// 해석 경로가 없어 항상 null 로 조용히 실패하므로 컴파일 타임에 막는다.
+	static_assert(
+		std::is_base_of_v<IAsset, T>       ||
+		std::is_base_of_v<CGameScript, T>  ||
+		std::is_base_of_v<CGameObject, T>  ||
+		std::is_base_of_v<CComponent, T>,
+		"Ref<T>: T must derive from IAsset, CGameScript, CGameObject, or CComponent.");
+
 	static constexpr ERefCategory Category =
 		std::is_base_of_v<IAsset, T>      ? ERefCategory::Asset  :
 		std::is_base_of_v<CGameScript, T> ? ERefCategory::Script :

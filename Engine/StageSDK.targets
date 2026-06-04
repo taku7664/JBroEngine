@@ -36,7 +36,10 @@
        ══════════════════════════════════════════════════════════════ -->
   <ItemGroup>
     <!-- GameFramework: 게임 스크립트에서 직접 사용하는 공개 모듈 -->
-    <_SDKHeader Include="$(_EngineDir)GameFramework\Scripting\**\*.h"   DestDir="GameFramework\Scripting" />
+    <!-- *System 류는 엔진 내부 업데이트 로직 → 스크립트가 직접 만지지 않는다(System=엔진 전용).
+         GameSystem.h 는 Scene.h 가 멤버로 보유(완전형 필요)하므로 예외적으로 공개 유지한다. -->
+    <_SDKHeader Include="$(_EngineDir)GameFramework\Scripting\**\*.h"   DestDir="GameFramework\Scripting"
+                Exclude="$(_EngineDir)GameFramework\Scripting\ScriptSystem.h" />
     <!-- ReflectionEnumRegister.h 는 magic_enum 에 의존하는 호스트 전용 구현 → SDK 미러 제외
          (게임 스크립트 DLL 은 magic_enum 을 갖지 않는다). -->
     <_SDKHeader Include="$(_EngineDir)GameFramework\Reflection\**\*.h"  DestDir="GameFramework\Reflection"
@@ -44,7 +47,8 @@
     <_SDKHeader Include="$(_EngineDir)GameFramework\Component\**\*.h"   DestDir="GameFramework\Component" />
     <_SDKHeader Include="$(_EngineDir)GameFramework\Scene\**\*.h"       DestDir="GameFramework\Scene" />
     <_SDKHeader Include="$(_EngineDir)GameFramework\System\**\*.h"      DestDir="GameFramework\System" />
-    <_SDKHeader Include="$(_EngineDir)GameFramework\Physics2D\**\*.h"   DestDir="GameFramework\Physics2D" />
+    <_SDKHeader Include="$(_EngineDir)GameFramework\Physics2D\**\*.h"   DestDir="GameFramework\Physics2D"
+                Exclude="$(_EngineDir)GameFramework\Physics2D\Physics2DSystem.h" />
     <_SDKHeader Include="$(_EngineDir)GameFramework\Object\**\*.h"      DestDir="GameFramework\Object" />
 
     <!-- Core: 타입 정의 / 인터페이스만 포함된 공개 모듈 -->

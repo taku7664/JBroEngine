@@ -73,6 +73,14 @@ void CSpriteRenderSystem::OnUpdate(CScene& scene)
 				if (m_assetManager) sprite.SpriteAssetCache = m_assetManager->LoadAsset(sprite.SpriteGuid);
 				else                sprite.SpriteAssetCache.Reset();
 				sprite.CachedSpriteGuid = sprite.SpriteGuid;
+				// guid 가 바뀌면 옛 Mesh/Material 무효 — 옛 텍스처로 계속 그리지 않도록 비움.
+				// (SpriteGuid = INVALID 로 해서 sprite 를 제거한 경우도 여기로 들어와 화면에서 사라진다.)
+				mesh.Reset();
+				material.Reset();
+				sprite.Mesh.Reset();
+				sprite.Material.Reset();
+				m_materialCache.erase(cacheKey);
+				sprite.CachedPixelGeneration = 0;
 			}
 
 			CSpriteAsset* spriteAsset = nullptr;
