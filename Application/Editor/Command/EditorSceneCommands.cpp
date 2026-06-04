@@ -521,6 +521,49 @@ void CRemoveComponentCommand::Redo()
 	}
 }
 
+// ── CSetObjectTransformCommand ────────────────────────────────────────────────
+
+CSetObjectTransformCommand::CSetObjectTransformCommand(SafePtr<CScene> scene, CGameObject* object,
+                                                       const Transform2D& oldTransform, const Transform2D& newTransform)
+	: m_scene(scene)
+	, m_objectGuid(GuidOf(object))
+	, m_old(oldTransform)
+	, m_new(newTransform)
+{
+}
+
+const char* CSetObjectTransformCommand::GetName() const
+{
+	return "Set Transform";
+}
+
+bool CSetObjectTransformCommand::Apply(const Transform2D& transform)
+{
+	CGameObject* object = Resolve(m_scene, m_objectGuid);
+	if (nullptr == object)
+	{
+		return false;
+	}
+	object->GetTransform() = transform;
+	return true;
+}
+
+bool CSetObjectTransformCommand::Execute() { return Apply(m_new); }
+void CSetObjectTransformCommand::Undo()    { Apply(m_old); }
+void CSetObjectTransformCommand::Redo()    { Apply(m_new); }
+
+bool CSetObjectTransformCommand::TryMerge(const IEditorCommand& newer)
+{
+	const CSetObjectTransformCommand* other = dynamic_cast<const CSetObjectTransformCommand*>(&newer);
+	if (nullptr == other || false == (m_objectGuid == other->m_objectGuid))
+	{
+		return false;
+	}
+	// old(드래그 시작값) 유지, new 만 최신값으로 → undo 1개로 시작↔끝.
+	m_new = other->m_new;
+	return true;
+}
+
 // ── CSetParentCommand ─────────────────────────────────────────────────────────
 
 namespace

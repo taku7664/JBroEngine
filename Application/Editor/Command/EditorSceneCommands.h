@@ -133,6 +133,30 @@ private:
 	std::vector<std::uint8_t> m_newValue;
 };
 
+// 오브젝트 Transform(Local) 편집. Transform 은 컴포넌트가 아니라 CGameObject 멤버라
+// 컴포넌트 프로퍼티 커맨드 경로를 못 탄다 → 전용 커맨드. 드래그는 TryMerge 로 묶인다.
+class CSetObjectTransformCommand final : public IEditorCommand
+{
+public:
+	CSetObjectTransformCommand(SafePtr<CScene> scene, CGameObject* object,
+	                           const Transform2D& oldTransform, const Transform2D& newTransform);
+	~CSetObjectTransformCommand() override = default;
+
+	const char* GetName() const override;
+	bool Execute() override;
+	void Undo() override;
+	void Redo() override;
+	bool TryMerge(const IEditorCommand& newer) override;
+
+private:
+	bool Apply(const Transform2D& transform);
+
+	SafePtr<CScene> m_scene;
+	File::Guid  m_objectGuid;
+	Transform2D m_old;
+	Transform2D m_new;
+};
+
 // 오브젝트(+서브트리) 삭제. Undo 는 직렬화 스냅샷(프리팹 텍스트)으로 복원.
 class CDeleteGameObjectCommand final : public IEditorCommand
 {

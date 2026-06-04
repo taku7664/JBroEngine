@@ -1327,21 +1327,37 @@ void CInspectorTool::OnRenderStay()
 
 		Transform2D& t = selectedObject->GetTransform();
 
+		// Transform 편집은 전용 커맨드로 기록(컴포넌트 아님). 편집 전 스냅샷 → 변경 시 push.
+		// 드래그 매 프레임 push 되지만 CommandManager 가 좌버튼 유지 중 병합 → undo 1개.
+		auto pushTransform = [&](const Transform2D& before)
+		{
+			Editor::CommandManager.ExecuteCommand(
+				MakeOwnerPtr<CSetObjectTransformCommand>(scene->SafeFromThis(), selectedObject, before, t));
+		};
+
 		// Position
 		layout.Row([&]() { ImGui::TextUnformatted(Loc::TextOr("editor.property.Position", "Position")); }, [&]() {
-			ImGui::DragFloat2(Loc::TextOr("editor.property.Position", "Position"), &t.Position.x, 0.01f);
+			const Transform2D before = t;
+			if (ImGui::DragFloat2(Loc::TextOr("editor.property.Position", "Position"), &t.Position.x, 0.01f))
+				pushTransform(before);
 		});
 
 		// Rotation - 회전은 내부 radian, 표시/편집은 degree.
 		layout.Row([&]() { ImGui::TextUnformatted(Loc::TextOr("editor.property.RotationRadians", "Rotation")); }, [&]() {
+			const Transform2D before = t;
 			Degree degrees = t.RotationRadians.ToDegree();
 			if (ImGui::DragFloat(Loc::TextOr("editor.property.RotationRadians", "Rotation"), &degrees.Value, 0.5f))
+			{
 				t.RotationRadians = degrees.ToRadian();
+				pushTransform(before);
+			}
 		});
 
 		// Scale
 		layout.Row([&]() { ImGui::TextUnformatted(Loc::TextOr("editor.property.Scale", "Scale")); }, [&]() {
-			ImGui::DragFloat2(Loc::TextOr("editor.property.Scale", "Scale"), &t.Scale.x, 0.01f);
+			const Transform2D before = t;
+			if (ImGui::DragFloat2(Loc::TextOr("editor.property.Scale", "Scale"), &t.Scale.x, 0.01f))
+				pushTransform(before);
 			});
 	}
 
