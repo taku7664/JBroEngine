@@ -653,6 +653,9 @@
     <ClInclude Include="Core\Renderer\RendererTypes.h">
       <Filter>Header\Core\Renderer</Filter>
     </ClInclude>
+    <ClInclude Include="Core\Renderer\SpriteVulkanShaders.h">
+      <Filter>Header\Core\Renderer</Filter>
+    </ClInclude>
     <ClInclude Include="Core\Random\RandomService.h">
       <Filter>Header\Core\Random</Filter>
     </ClInclude>

@@ -5,11 +5,16 @@
 
 class CVulkanSwapchain;
 class CVulkanGraphicsPipeline;
+class CVulkanBuffer;
+class CVulkanTexture;
+class CVulkanSampler;
 
 class CVulkanCommandContext final : public IRHICommandContext
 {
 public:
-#if JBRO_PLATFORM_MOBILE
+	~CVulkanCommandContext() override;
+
+#if JBRO_RHI_VULKAN
 	void BindNativeContext(VkDevice device, VkQueue graphicsQueue, VkCommandPool commandPool, CVulkanSwapchain* swapchain);
 #endif
 
@@ -31,12 +36,15 @@ public:
 	void DrawIndexed(std::uint32_t indexCount, std::uint32_t firstIndex, std::uint32_t baseVertex) override;
 
 private:
-#if JBRO_PLATFORM_MOBILE
+#if JBRO_RHI_VULKAN
 	void DestroyFrameSync();
+	void BindPendingDescriptors();
+	void TransitionImageLayout(VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout);
+	void TransitionTextureLayout(CVulkanTexture* texture, VkImageLayout newLayout);
 #endif
 
 private:
-#if JBRO_PLATFORM_MOBILE
+#if JBRO_RHI_VULKAN
 	VkDevice m_device = VK_NULL_HANDLE;
 	VkQueue m_graphicsQueue = VK_NULL_HANDLE;
 	VkCommandPool m_commandPool = VK_NULL_HANDLE;
@@ -45,6 +53,15 @@ private:
 	VkSemaphore m_imageAvailableSemaphore = VK_NULL_HANDLE;
 	VkSemaphore m_renderFinishedSemaphore = VK_NULL_HANDLE;
 	VkFence m_inFlightFence = VK_NULL_HANDLE;
+	VkDescriptorPool m_descriptorPool = VK_NULL_HANDLE;
+	CVulkanGraphicsPipeline* m_currentPipeline = nullptr;
+	SafePtr<IRHIBuffer> m_boundConstantBuffer;
+	SafePtr<IRHITexture> m_boundTexture;
+	SafePtr<IRHISampler> m_boundSampler;
+	CVulkanTexture* m_activeRenderTarget = nullptr;
+	VkImage m_activeRenderImage = VK_NULL_HANDLE;
+	VkImageLayout m_activeRenderInitialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	VkExtent2D m_activeRenderExtent = {};
 	bool m_isRenderPassOpen = false;
 #endif
 };

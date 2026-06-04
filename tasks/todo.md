@@ -1,3 +1,35 @@
+# TODO — RHI 병렬 개발 문서화 및 main 머지
+
+## Goal
+RHI/Renderer 공통 개발 원칙을 문서로 남기고 `vulkan` 브랜치를 `main`에 병합한다.
+
+## Assumptions
+- 현재 작업 브랜치는 `vulkan`이다.
+- "main에 머지"는 `vulkan`의 현재 커밋을 `main` 브랜치로 병합한다는 뜻이다.
+
+## Success Criteria
+- D3D11/WebGPU/Vulkan 병렬 개발 기준이 md 문서에 기록된다.
+- 문서 변경이 커밋된다.
+- `main` 브랜치가 `vulkan` 변경을 포함한다.
+- 병합 후 git 상태가 깨끗하다.
+
+## Plan
+- [x] RHI/Renderer 공통 개발 문서 작성
+- [x] 문서 변경 커밋
+- [x] `main` checkout 후 `vulkan` merge
+- [x] 병합 상태 확인
+
+## Verification
+- [x] `git status --short --branch`
+- [x] `git log --oneline --decorate -5`
+
+## Review
+- RHI/Renderer 병렬 개발 원칙은 `tasks/RhiRendererParallelDevelopment.md`에 별도 문서로 기록했다.
+- `vulkan` 브랜치의 Vulkan 기반 작업과 공통 개발 문서가 `main`에 병합됐다.
+- 병합은 충돌 없이 완료됐다.
+
+---
+
 # TODO — 정수 ID 전면 제거 (ObjectId → SafePtr/void*/Guid)
 
 ## Goal

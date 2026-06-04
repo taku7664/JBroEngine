@@ -11,14 +11,15 @@ public:
 
 	const RHIBufferDesc& GetDesc() const override;
 
-#if JBRO_PLATFORM_MOBILE
+#if JBRO_RHI_VULKAN
 	void BindNativeBuffer(VkDevice device, VkBuffer buffer, VkDeviceMemory memory);
 	VkBuffer GetNativeBuffer() const;
+	VkDeviceMemory GetNativeMemory() const;
 #endif
 
 private:
 	RHIBufferDesc m_desc;
-#if JBRO_PLATFORM_MOBILE
+#if JBRO_RHI_VULKAN
 	VkDevice m_device = VK_NULL_HANDLE;
 	VkBuffer m_buffer = VK_NULL_HANDLE;
 	VkDeviceMemory m_memory = VK_NULL_HANDLE;

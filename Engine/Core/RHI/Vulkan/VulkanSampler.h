@@ -11,14 +11,14 @@ public:
 
 	const RHISamplerDesc& GetDesc() const override;
 
-#if JBRO_PLATFORM_MOBILE
+#if JBRO_RHI_VULKAN
 	void BindNativeSampler(VkDevice device, VkSampler sampler);
 	VkSampler GetNativeSampler() const;
 #endif
 
 private:
 	RHISamplerDesc m_desc;
-#if JBRO_PLATFORM_MOBILE
+#if JBRO_RHI_VULKAN
 	VkDevice m_device = VK_NULL_HANDLE;
 	VkSampler m_sampler = VK_NULL_HANDLE;
 #endif

@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "VulkanSwapchain.h"
 
-#if JBRO_PLATFORM_MOBILE
+#if JBRO_RHI_VULKAN
 #include <algorithm>
 #endif
 
@@ -14,14 +14,14 @@ bool CVulkanSwapchain::Initialize(const RenderSurfaceDesc& surfaceDesc)
 void CVulkanSwapchain::Resize(const RenderSurfaceSize& size)
 {
 	m_surfaceDesc.Size = size;
-#if JBRO_PLATFORM_MOBILE
+#if JBRO_RHI_VULKAN
 	CreateSwapchainObjects();
 #endif
 }
 
 void CVulkanSwapchain::Present()
 {
-#if JBRO_PLATFORM_MOBILE
+#if JBRO_RHI_VULKAN
 	if (m_presentQueue == VK_NULL_HANDLE || m_swapchain == VK_NULL_HANDLE)
 	{
 		return;
@@ -46,7 +46,7 @@ RenderSurfaceSize CVulkanSwapchain::GetSize() const
 
 void CVulkanSwapchain::Finalize()
 {
-#if JBRO_PLATFORM_MOBILE
+#if JBRO_RHI_VULKAN
 	DestroySwapchainObjects();
 	if (m_renderPass != VK_NULL_HANDLE)
 	{
@@ -61,7 +61,7 @@ void CVulkanSwapchain::Finalize()
 #endif
 }
 
-#if JBRO_PLATFORM_MOBILE
+#if JBRO_RHI_VULKAN
 bool CVulkanSwapchain::BindNativeSwapchain(VkInstance instance, VkPhysicalDevice physicalDevice, VkDevice device, VkSurfaceKHR surface, VkQueue presentQueue, std::uint32_t presentQueueFamily)
 {
 	m_instance = instance;
@@ -99,6 +99,24 @@ VkFramebuffer CVulkanSwapchain::GetCurrentFramebuffer() const
 	return m_currentImageIndex < m_framebuffers.size() ? m_framebuffers[m_currentImageIndex] : VK_NULL_HANDLE;
 }
 
+VkImage CVulkanSwapchain::GetCurrentImage() const
+{
+	return m_currentImageIndex < m_images.size() ? m_images[m_currentImageIndex] : VK_NULL_HANDLE;
+}
+
+VkImageLayout CVulkanSwapchain::GetCurrentImageLayout() const
+{
+	return m_currentImageIndex < m_imageLayouts.size() ? m_imageLayouts[m_currentImageIndex] : VK_IMAGE_LAYOUT_UNDEFINED;
+}
+
+void CVulkanSwapchain::SetCurrentImageLayout(VkImageLayout layout)
+{
+	if (m_currentImageIndex < m_imageLayouts.size())
+	{
+		m_imageLayouts[m_currentImageIndex] = layout;
+	}
+}
+
 std::uint32_t CVulkanSwapchain::GetCurrentImageIndex() const
 {
 	return m_currentImageIndex;
@@ -132,6 +150,7 @@ void CVulkanSwapchain::DestroySwapchainObjects()
 	}
 	m_imageViews.clear();
 	m_images.clear();
+	m_imageLayouts.clear();
 	if (m_swapchain != VK_NULL_HANDLE)
 	{
 		vkDestroySwapchainKHR(m_device, m_swapchain, nullptr);
@@ -153,12 +172,12 @@ bool CVulkanSwapchain::CreateRenderPass()
 	VkAttachmentDescription colorAttachment = {};
 	colorAttachment.format = m_format;
 	colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-	colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
 	colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 	colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 	colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-	colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	colorAttachment.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	colorAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
 	VkAttachmentReference colorRef = {};
 	colorRef.attachment = 0;
@@ -252,6 +271,7 @@ bool CVulkanSwapchain::CreateSwapchainObjects()
 	vkGetSwapchainImagesKHR(m_device, m_swapchain, &imageCount, nullptr);
 	m_images.resize(imageCount);
 	vkGetSwapchainImagesKHR(m_device, m_swapchain, &imageCount, m_images.data());
+	m_imageLayouts.assign(m_images.size(), VK_IMAGE_LAYOUT_UNDEFINED);
 
 	m_imageViews.resize(m_images.size());
 	m_framebuffers.resize(m_images.size());

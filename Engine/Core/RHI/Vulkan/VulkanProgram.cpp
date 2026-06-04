@@ -9,7 +9,7 @@ CVulkanProgram::CVulkanProgram(ERHIProgramStage stage, ERHIProgramLanguage langu
 
 CVulkanProgram::~CVulkanProgram()
 {
-#if JBRO_PLATFORM_MOBILE
+#if JBRO_RHI_VULKAN
 	if (m_device != VK_NULL_HANDLE && m_shaderModule != VK_NULL_HANDLE)
 	{
 		vkDestroyShaderModule(m_device, m_shaderModule, nullptr);
@@ -28,7 +28,7 @@ ERHIProgramLanguage CVulkanProgram::GetLanguage() const
 	return m_language;
 }
 
-#if JBRO_PLATFORM_MOBILE
+#if JBRO_RHI_VULKAN
 void CVulkanProgram::BindNativeShaderModule(VkDevice device, VkShaderModule shaderModule)
 {
 	m_device = device;
