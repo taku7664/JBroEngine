@@ -21,6 +21,10 @@ public:
 
 	ImText& SetAlign(Align align);
 	ImText& SetScale(float scale);
+
+	float GetScale() const { return m_scale; }
+	Align GetAlign() const { return m_align; }
+
 	ImText& SetHoveredTooltip(bool use, ImGuiHoveredFlags flags = ImGuiHoveredFlags_None);
 	// 라벨과 다른 설명을 툴팁으로 보여주고 싶을 때.
 	// nullptr 또는 빈 문자열 → 툴팁 비활성.

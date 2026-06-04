@@ -225,10 +225,12 @@ void CHierarchyTool::OnRenderStay()
 		// 트리노드를 가리킨다. SameLine(절대x)로 같은 행 우측에 배치.
 		{
 			const bool  hidden = obj->IsEditorHidden();
-			const float btnW   = ImGui::GetFrameHeight();
+			const float btnW   = ImGui::GetFrameHeight() * 0.7f;
 			ImGui::SameLine(ImGui::GetContentRegionMax().x - btnW);
 			const char* icon = hidden ? FontAssomeHelper::ICON_EYE_SLASH : FontAssomeHelper::ICON_EYE;
-			if (ImTextButton(icon, ImVec2(btnW, 0.0f)))
+			ImText eyeText;
+			eyeText.SetScale(0.7f).SetAlign(ImText::Align::Center);
+			if (ImTextButton(eyeText, icon, ImVec2(btnW, btnW)))
 			{
 				obj->SetEditorHidden(!hidden);
 			}
