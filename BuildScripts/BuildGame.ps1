@@ -13,7 +13,8 @@ param(
     [switch]$IncludeSymbols,
     [switch]$SkipEngineBuild,
     [switch]$SkipScriptBuild,
-    [switch]$Clean
+    [switch]$Clean,
+    [switch]$CleanOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -954,6 +955,12 @@ $msbuild = Find-MSBuild
 
 Write-Host "Project: $projectPath"
 Write-Host "Package: $packageDir"
+
+if ($CleanOnly) {
+    Remove-DirectoryInside -Root $selectedOutputRoot -Target $packageDir
+    Write-Host "Cleaned package: $packageDir"
+    exit 0
+}
 
 if ($Platform -eq "Android" -or $Platform -eq "IOS") {
     throw "Mobile package build is not implemented yet. Platform=$Platform. The project settings and platform contract are recognized, but Android/iOS native packaging is a later step."

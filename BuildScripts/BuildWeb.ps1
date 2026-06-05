@@ -7,7 +7,8 @@ param(
 
     [string]$OutputRoot = "",
     [string]$EmsdkRoot = "",
-    [switch]$Clean
+    [switch]$Clean,
+    [switch]$CleanOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -32,6 +33,9 @@ if (-not [string]::IsNullOrWhiteSpace($EmsdkRoot)) {
 }
 if ($Clean) {
     $arguments.Clean = $true
+}
+if ($CleanOnly) {
+    $arguments.CleanOnly = $true
 }
 
 & $buildGameScript @arguments

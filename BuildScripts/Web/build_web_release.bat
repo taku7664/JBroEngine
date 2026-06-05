@@ -7,6 +7,7 @@ set "EMSDK_ROOT=%~2"
 if "%EMSDK_ROOT%"=="" set "EMSDK_ROOT=%EMSDK%"
 set "OUTPUT_ROOT=%~3"
 if "%OUTPUT_ROOT%"=="" set "OUTPUT_ROOT=%JBRO_OUTPUT_ROOT%"
+set "POWERSHELL_EXE=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
 if "%PROJECT_FILE%"=="" (
     echo Usage: build_web_release.bat ^<Project.Jproject^> [EmsdkRoot] [OutputRoot]
     echo Or set JBRO_PROJECT_FILE to the project file path.
@@ -15,15 +16,15 @@ if "%PROJECT_FILE%"=="" (
 
 if "%EMSDK_ROOT%"=="" (
     if "%OUTPUT_ROOT%"=="" (
-        powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0\..\BuildWeb.ps1" -Project "%PROJECT_FILE%" -Configuration Release -Clean
+        "%POWERSHELL_EXE%" -NoProfile -ExecutionPolicy Bypass -File "%~dp0\..\BuildWeb.ps1" -Project "%PROJECT_FILE%" -Configuration Release -Clean
     ) else (
-        powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0\..\BuildWeb.ps1" -Project "%PROJECT_FILE%" -Configuration Release -Clean -OutputRoot "%OUTPUT_ROOT%"
+        "%POWERSHELL_EXE%" -NoProfile -ExecutionPolicy Bypass -File "%~dp0\..\BuildWeb.ps1" -Project "%PROJECT_FILE%" -Configuration Release -Clean -OutputRoot "%OUTPUT_ROOT%"
     )
 ) else (
     if "%OUTPUT_ROOT%"=="" (
-        powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0\..\BuildWeb.ps1" -Project "%PROJECT_FILE%" -Configuration Release -Clean -EmsdkRoot "%EMSDK_ROOT%"
+        "%POWERSHELL_EXE%" -NoProfile -ExecutionPolicy Bypass -File "%~dp0\..\BuildWeb.ps1" -Project "%PROJECT_FILE%" -Configuration Release -Clean -EmsdkRoot "%EMSDK_ROOT%"
     ) else (
-        powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0\..\BuildWeb.ps1" -Project "%PROJECT_FILE%" -Configuration Release -Clean -EmsdkRoot "%EMSDK_ROOT%" -OutputRoot "%OUTPUT_ROOT%"
+        "%POWERSHELL_EXE%" -NoProfile -ExecutionPolicy Bypass -File "%~dp0\..\BuildWeb.ps1" -Project "%PROJECT_FILE%" -Configuration Release -Clean -EmsdkRoot "%EMSDK_ROOT%" -OutputRoot "%OUTPUT_ROOT%"
     )
 )
 exit /b %ERRORLEVEL%

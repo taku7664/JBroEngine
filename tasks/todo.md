@@ -1,3 +1,44 @@
+# TODO — WebBuild CleanOnly Contract
+
+## Goal
+NMake `Clean`이 안내 echo가 아니라 실제 Web package 폴더만 정리하도록 `BuildGame.ps1` / `BuildWeb.ps1`에 clean-only 경로를 추가한다.
+
+## Assumptions
+- 기존 `-Clean`은 "삭제 후 빌드" 의미로 유지한다.
+- 새 `-CleanOnly`는 package dir 계산 후 삭제하고 종료한다.
+- 삭제는 기존 `Remove-DirectoryInside` guard를 그대로 사용해 output root 밖을 지우지 않는다.
+- clean-only는 startup scene, emsdk, engine build 검증이 필요 없다.
+
+## Success Criteria
+- `BuildGame.ps1`와 `BuildWeb.ps1`가 `-CleanOnly`를 받는다.
+- `BuildGame.ps1 -CleanOnly`는 package dir만 삭제하고 build/validate/package 단계로 가지 않는다.
+- `WebBuild.vcxproj` NMake Clean command가 `BuildWeb.ps1 -CleanOnly`를 호출한다.
+
+## Plan
+- [x] `BuildGame.ps1` clean-only 추가
+- [x] `BuildWeb.ps1` clean-only 전달 추가
+- [x] `WebBuild.vcxproj` NMake clean command 교체
+- [x] parser 및 clean-only smoke 검증
+- [x] todo/review 갱신
+- [x] 커밋
+
+## Verification
+- [x] PowerShell parser syntax check
+- [x] temp OutputRoot 대상 `BuildGame.ps1 -CleanOnly` smoke
+- [x] temp OutputRoot 대상 `WebBuild.vcxproj /t:Clean` smoke
+- [x] `git diff --check`
+
+## Review
+- 코드를 읽었고: `WebBuild.vcxproj` Clean은 echo만 했고, `BuildWeb.ps1 -Clean`은 clean-only가 아니라 삭제 후 빌드였다.
+- 생각했고: VS/NMake Clean은 emsdk/startup scene/engine build 없이 package 폴더만 제거해야 하며, 기존 `Remove-DirectoryInside` guard를 재사용하는 것이 가장 좁은 수정이라고 판단했다.
+- 반례를 찾았고: clean-only가 startup scene 검증 뒤에 있으면 깨진 프로젝트는 정리도 못 하고, NMake 환경에서는 `powershell`/`powershell.exe`가 PATH에 없었다.
+- 고쳤다: `BuildGame.ps1`/`BuildWeb.ps1`에 `-CleanOnly`를 추가하고 package dir 계산 직후 종료하게 했으며, WebBuild Clean은 Windows PowerShell 절대 경로를 사용한다.
+- 추가 반례를 찾았고: Makefile project clean target은 `OutDir`/`IntDir`/clean pattern이 비면 package 삭제 후에도 VS clean task에서 실패했다.
+- 고쳤다: WebBuild project에 intermediate output, NMakeOutput, clean pattern을 명시했다.
+- 검증했다: parser check, temp project 대상 `BuildGame.ps1 -CleanOnly`, `WebBuild.vcxproj /t:Clean`, `git diff --check`를 통과했다.
+
+---
+
 # TODO — WebBuild NMake Argument Parity
 
 ## Goal
