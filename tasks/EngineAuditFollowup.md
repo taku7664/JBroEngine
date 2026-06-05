@@ -50,6 +50,15 @@ This document reorganizes the remaining work from `tasks/EngineCodeAudit.md` aft
 - Scope note:
   - Debug builds and editor/development builds still allow legacy fallback for diagnosis and migration.
 
+### Editor-only localization output hygiene
+
+- Source finding: F-006
+- Status: Done
+- Result:
+  - `Application.vcxproj` localization post-build sync now runs only for editor configurations: `Debug` and `Release`.
+  - Game configurations `Debug_Game` and `Release_Game` no longer copy editor-only `Localization` into their intermediate output folders.
+  - Package verifier still rejects `SDK`, `Editor`, and `Localization` in final game packages.
+
 ## Remaining Work Queue
 
 ### 1. Release asset pack contract hardening
@@ -88,10 +97,9 @@ This document reorganizes the remaining work from `tasks/EngineCodeAudit.md` aft
 
 - Source finding: F-006
 - Priority: Medium
+- Status: Done
 - Work:
-  - Stop copying `Localization` into game build output from `Application.vcxproj`.
-  - Keep localization sync editor-only.
-  - Keep package verifier checking that `SDK`, `Editor`, and `Localization` are absent.
+  - Keep package verifier checks in sync with new platform package outputs.
 - Reason:
   - Localization is editor-only in this project and should not appear in game intermediates.
 

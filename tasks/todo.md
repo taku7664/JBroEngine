@@ -1,3 +1,38 @@
+# TODO — Editor-only Localization Output Hygiene
+
+## Goal
+게임 빌드 중간 출력에 editor-only `Localization` 폴더가 복사되지 않게 한다.
+
+## Assumptions
+- editor 구성은 `Debug` / `Release`이고 game 구성은 `Debug_Game` / `Release_Game`이다.
+- editor localization sync는 editor 실행 편의를 위해 유지한다.
+- package verifier의 `Localization` 금지 검사는 유지한다.
+
+## Success Criteria
+- `Application.vcxproj` post-build localization sync가 editor 구성에서만 실행된다.
+- `Debug_Game` / `Release_Game` 빌드 로그에 `Sync Localization` post-build가 나오지 않는다.
+- package verifier의 forbidden artifact check는 그대로 유지된다.
+
+## Plan
+- [x] localization post-build 조건 확인
+- [x] editor-only 조건 적용
+- [x] 문서/todo 갱신
+- [ ] Debug_Game/Release_Game 빌드 검증 및 커밋
+
+## Verification
+- [x] `Debug_Game|x64` build
+- [x] `Release_Game|x64` build
+- [x] build output에서 `Sync Localization` 미출력 확인
+- [x] `git diff --check`
+
+## Review
+- 코드를 읽었고: `Application.vcxproj`의 localization post-build가 조건 없는 `ItemDefinitionGroup`에 있어 모든 구성에 적용되는 것을 확인했다.
+- 생각했고: editor 구성 이름은 `Debug`/`Release`, game 구성 이름은 `Debug_Game`/`Release_Game`로 이미 분리되어 있으므로 별도 스크립트보다 vcxproj 조건이 가장 좁은 수정이라고 판단했다.
+- 반례를 찾았고: editor 실행은 cwd `Localization`을 읽으므로 editor post-build sync 자체는 제거하면 안 된다.
+- 고쳤다: localization post-build `ItemDefinitionGroup`을 `Debug` 또는 `Release` 구성에서만 실행되도록 제한했다.
+
+---
+
 # TODO — Runtime Manifest and Scene Fallback Tightening
 
 ## Goal

@@ -307,9 +307,9 @@
       <AdditionalDependencies>yaml-cpp.lib;vulkan-1.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
-  <!-- 모든 구성 공통: 빌드 후 로컬라이징 yaml 을 출력 폴더로 복사(실행 시 cwd/Localization 을 읽음).
-       소스(Application/Localization) 단일 출처를 출력과 항상 동기화 → stale 방지. -->
-  <ItemDefinitionGroup>
+  <!-- Editor 구성만: 빌드 후 로컬라이징 yaml 을 출력 폴더로 복사(실행 시 cwd/Localization 을 읽음).
+       Game 구성(Debug_Game/Release_Game)은 editor-only Localization 을 출력하지 않는다. -->
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug' Or '$(Configuration)'=='Release'">
     <PostBuildEvent>
       <Command>xcopy /Y /I /E "$(ProjectDir)Localization" "$(OutDir)Localization\" &gt; nul
 xcopy /Y /I /E "$(ProjectDir)Localization" "$(SolutionDir)Localization\" &gt; nul</Command>

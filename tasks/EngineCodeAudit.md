@@ -77,6 +77,18 @@ What changed:
 What remains:
 - Debug/editor builds keep legacy fallback for diagnosis and migration.
 
+### R-004: Restricted localization post-build copy to editor configurations
+
+- Related finding: F-006
+- Date: 2026-06-05
+- Files:
+  - `Application/Application.vcxproj`
+
+What changed:
+- The `Localization` post-build copy now runs only for `Debug` and `Release` editor configurations.
+- `Debug_Game` and `Release_Game` no longer receive editor-only localization files as a build side effect.
+- Final package verifier still rejects `Localization`.
+
 ## Findings
 
 ### F-001: Pack reader can write decrypted payloads back to `.packcache`
@@ -216,6 +228,7 @@ Recommendation:
 
 - Severity: Medium
 - Category: build hygiene / editor-runtime separation
+- Status: Resolved by R-004.
 - Files:
   - `Application/Application.vcxproj:310-318`
   - `BuildScripts/BuildGame.ps1:1138`
