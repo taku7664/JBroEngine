@@ -10,6 +10,7 @@ namespace
 	struct ToolOptions
 	{
 		File::Path OutputPath;
+		File::Path ValidatePath;
 		std::string StartupSceneGuid;
 		std::string StartupScene;
 		std::string TargetPlatform;
@@ -18,6 +19,8 @@ namespace
 		int Width = 1280;
 		int Height = 720;
 		float PixelsPerUnit = 100.0f;
+		bool HasExpectedWidth = false;
+		bool HasExpectedHeight = false;
 	};
 
 	std::string NarrowAscii(const wchar_t* text)
@@ -69,6 +72,14 @@ namespace
 			<< L" [--target-platform <name>]"
 			<< L" [--script-mode <mode>]"
 			<< L" [--script-module <path>]"
+			<< std::endl
+			<< L"   or: BuildManifestTool --validate <path>"
+			<< L" [--startup-scene-guid <guid>]"
+			<< L" [--width <int>]"
+			<< L" [--height <int>]"
+			<< L" [--target-platform <name>]"
+			<< L" [--script-mode <mode>]"
+			<< L" [--script-module <path>]"
 			<< std::endl;
 	}
 
@@ -87,6 +98,11 @@ namespace
 				if (false == RequireValue(argc, argv, i)) return false;
 				outOptions.OutputPath = File::Path(argv[++i]);
 			}
+			else if (arg == L"--validate")
+			{
+				if (false == RequireValue(argc, argv, i)) return false;
+				outOptions.ValidatePath = File::Path(argv[++i]);
+			}
 			else if (arg == L"--startup-scene-guid")
 			{
 				if (false == RequireValue(argc, argv, i)) return false;
@@ -100,10 +116,12 @@ namespace
 			else if (arg == L"--width")
 			{
 				if (false == RequireValue(argc, argv, i) || false == ParseInt(argv[++i], outOptions.Width)) return false;
+				outOptions.HasExpectedWidth = true;
 			}
 			else if (arg == L"--height")
 			{
 				if (false == RequireValue(argc, argv, i) || false == ParseInt(argv[++i], outOptions.Height)) return false;
+				outOptions.HasExpectedHeight = true;
 			}
 			else if (arg == L"--pixels-per-unit")
 			{
@@ -130,8 +148,56 @@ namespace
 			}
 		}
 
+		if (false == outOptions.ValidatePath.empty())
+		{
+			return outOptions.OutputPath.empty();
+		}
+
 		return false == outOptions.OutputPath.empty()
 			&& false == outOptions.StartupSceneGuid.empty();
+	}
+
+	bool ValidateManifest(const ToolOptions& options)
+	{
+		BuildManifest manifest;
+		std::string error;
+		if (false == CBuildManifestLoader::LoadFromFile(options.ValidatePath, manifest, &error))
+		{
+			std::cerr << (error.empty() ? "Failed to validate build manifest." : error) << std::endl;
+			return false;
+		}
+
+		if (false == options.StartupSceneGuid.empty() && manifest.StartupSceneGuid != options.StartupSceneGuid)
+		{
+			std::cerr << "Build manifest startup scene GUID mismatch." << std::endl;
+			return false;
+		}
+		if (options.HasExpectedWidth && manifest.ResolutionWidth != options.Width)
+		{
+			std::cerr << "Build manifest width mismatch." << std::endl;
+			return false;
+		}
+		if (options.HasExpectedHeight && manifest.ResolutionHeight != options.Height)
+		{
+			std::cerr << "Build manifest height mismatch." << std::endl;
+			return false;
+		}
+		if (false == options.TargetPlatform.empty() && manifest.TargetPlatform != options.TargetPlatform)
+		{
+			std::cerr << "Build manifest target platform mismatch." << std::endl;
+			return false;
+		}
+		if (false == options.ScriptMode.empty() && manifest.ScriptMode != options.ScriptMode)
+		{
+			std::cerr << "Build manifest script mode mismatch." << std::endl;
+			return false;
+		}
+		if (false == options.ScriptModule.empty() && manifest.ScriptModule != options.ScriptModule)
+		{
+			std::cerr << "Build manifest script module mismatch." << std::endl;
+			return false;
+		}
+		return true;
 	}
 }
 
@@ -142,6 +208,11 @@ int wmain(int argc, wchar_t** argv)
 	{
 		PrintUsage();
 		return 2;
+	}
+
+	if (false == options.ValidatePath.empty())
+	{
+		return ValidateManifest(options) ? 0 : 1;
 	}
 
 	BuildManifest manifest;

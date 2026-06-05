@@ -1,3 +1,47 @@
+# TODO — Release Package Smoke Tests
+
+## Goal
+Windows/Web release package 생성 후 manifest/package 계약을 더 강하게 검증하고, yaml-cpp PDB `LNK4099` 경고 제거 방안을 정리한다.
+
+## Assumptions
+- smoke 강화는 packaging script에서 자동으로 실패해야 의미가 있다.
+- binary manifest의 hash/startup GUID 검증은 engine loader를 쓰는 `BuildManifestTool`에 맡기는 것이 가장 정확하다.
+- yaml-cpp PDB 경고는 이번에 임의 설정 변경하지 않고, 원인과 선택지를 제시한다.
+- 기존 dirty build artifacts는 커밋하지 않는다.
+
+## Success Criteria
+- `BuildGame.ps1`가 생성된 `build_manifest.jbmanifest`를 tool validate 모드로 다시 읽어 검증한다.
+- Release package에는 legacy `build_manifest.yaml/json`, loose `Content/Assets`, editor-only root artifacts가 없어야 한다.
+- asset pack header magic/size가 smoke에서 검증된다.
+- yaml-cpp PDB `LNK4099` 경고 제거 방안이 문서/보고에 남는다.
+
+## Plan
+- [x] BuildManifestTool validate 모드 추가
+- [x] BuildGame release package smoke helper 추가
+- [x] yaml-cpp PDB 경고 원인/해결 방안 문서화
+- [x] 검증 및 문서 갱신
+- [x] 커밋
+
+## Verification
+- [x] `BuildManifestTool Release_Game|x64` build
+- [x] `BuildGame.ps1` parser check
+- [x] `BuildGame.ps1` available project package smoke
+- [x] `git diff --check`
+
+## Review
+- 코드를 읽었고: 기존 `BuildGame.ps1` package 검증은 manifest/pack 파일 존재, loose `Content/Assets`, root `SDK/Localization/Editor` 정도만 확인했다.
+- 생각했고: release smoke 는 파일 존재가 아니라 runtime 이 실제로 읽을 binary manifest 계약과 startup scene GUID 를 검증해야 한다고 판단했다.
+- 반례를 찾았고: PowerShell 에서 manifest payload 를 별도 파싱하면 runtime loader 와 검증 로직이 갈라질 수 있었다.
+- 고쳤다: `BuildManifestTool --validate` 를 추가해 `CBuildManifestLoader::LoadFromFile()` 로 생성 manifest 를 다시 읽고, startup GUID/resolution/platform/script 계약을 확인하게 했다.
+- 추가로 고쳤다: `BuildGame.ps1` release smoke 가 manifest magic, manifest validate, asset pack magic, legacy text manifest/index 금지, loose asset/editor-only artifact 금지를 확인하게 했다.
+- 코드를 읽었고: yaml-cpp PDB 경고는 `yaml-cppd.lib` 가 `yaml-cppd.pdb` 를 참조하지만 matching PDB 가 package/lib/output 에 없어서 발생한다.
+- 생각했고: 전역 `LNK4099` 무시는 다른 third-party symbol 누락을 숨기므로, matching PDB 를 보관하는 방식이 맞다고 판단했다.
+- 고쳤다: `tasks/BuildPipelineDesign.md` 에 yaml-cpp PDB 경고 원인과 권장 해결책을 남겼다.
+- 검증했다: `BuildManifestTool Release_Game|x64` build, `BuildGame.ps1` parser check, `SampleProject` release package smoke, `git diff --check` 를 통과했다.
+- 주의: `C:\Users\박주형\Desktop\Project\Project.Jproject` 는 현재 이 머신에 없어 `SampleProject\Project.Jproject` 로 package smoke 를 대체했다.
+
+---
+
 # TODO — Vulkan RHI Descriptor Cache and Project YAML Emitter Cleanup
 
 ## Goal

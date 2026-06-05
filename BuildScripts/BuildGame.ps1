@@ -602,6 +602,23 @@ public static class JBroPackWriterV2
     [JBroPackWriterV2]::WritePack($PackPath, $entries.ToArray())
 }
 
+function Get-JBroBuildManifestTool {
+    $toolConfiguration = if ($Configuration -eq "Debug") { "Debug_Game" } else { "Release_Game" }
+    $toolRoot = Join-Path $repoRoot "BuildTools\BuildManifestTool"
+    $toolProject = Join-Path $toolRoot "BuildManifestTool.vcxproj"
+    $toolExe = Join-Path $repoRoot ("Build\Tools\BuildManifestTool\{0}\BuildManifestTool.exe" -f $toolConfiguration)
+
+    if (Test-JBroToolOutdated -ToolExe $toolExe -SourceRoot $toolRoot) {
+        $msbuild = Find-MSBuild
+        & $msbuild $toolProject /m /p:Configuration=$toolConfiguration /p:Platform=x64 "/p:SolutionDir=$repoRoot\" /p:BuildProjectReferences=false /v:minimal /nr:false
+        if ($LASTEXITCODE -ne 0) {
+            throw "BuildManifestTool build failed."
+        }
+    }
+
+    return $toolExe
+}
+
 function Write-JBroBuildManifest {
     param(
         [Parameter(Mandatory=$true)][string]$ManifestPath,
@@ -615,18 +632,7 @@ function Write-JBroBuildManifest {
         [string]$ScriptModule = ""
     )
 
-    $toolConfiguration = if ($Configuration -eq "Debug") { "Debug_Game" } else { "Release_Game" }
-    $toolRoot = Join-Path $repoRoot "BuildTools\BuildManifestTool"
-    $toolProject = Join-Path $toolRoot "BuildManifestTool.vcxproj"
-    $toolExe = Join-Path $repoRoot ("Build\Tools\BuildManifestTool\{0}\BuildManifestTool.exe" -f $toolConfiguration)
-
-    if (Test-JBroToolOutdated -ToolExe $toolExe -SourceRoot $toolRoot) {
-        $msbuild = Find-MSBuild
-        & $msbuild $toolProject /m /p:Configuration=$toolConfiguration /p:Platform=x64 "/p:SolutionDir=$repoRoot\" /p:BuildProjectReferences=false /v:minimal /nr:false
-        if ($LASTEXITCODE -ne 0) {
-            throw "BuildManifestTool build failed."
-        }
-    }
+    $toolExe = Get-JBroBuildManifestTool
 
     $args = @(
         "--out", $ManifestPath,
@@ -643,6 +649,114 @@ function Write-JBroBuildManifest {
     if ($LASTEXITCODE -ne 0) {
         throw "BuildManifestTool failed to write manifest: $ManifestPath"
     }
+}
+
+function Test-JBroBinaryFileMagic {
+    param(
+        [Parameter(Mandatory=$true)][string]$Path,
+        [Parameter(Mandatory=$true)][byte[]]$Magic,
+        [Parameter(Mandatory=$true)][string]$Name
+    )
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        throw "Package smoke failed: $Name missing: $Path"
+    }
+
+    $stream = [System.IO.File]::Open($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+    try {
+        if ($stream.Length -lt $Magic.Length) {
+            throw "Package smoke failed: $Name is too small: $Path"
+        }
+
+        $buffer = New-Object byte[] $Magic.Length
+        $read = $stream.Read($buffer, 0, $buffer.Length)
+        if ($read -ne $Magic.Length) {
+            throw "Package smoke failed: failed to read $Name header: $Path"
+        }
+        for ($i = 0; $i -lt $Magic.Length; ++$i) {
+            if ($buffer[$i] -ne $Magic[$i]) {
+                throw "Package smoke failed: $Name header magic is invalid: $Path"
+            }
+        }
+    }
+    finally {
+        $stream.Dispose()
+    }
+}
+
+function Invoke-JBroBuildManifestValidation {
+    param(
+        [Parameter(Mandatory=$true)][string]$ManifestPath,
+        [Parameter(Mandatory=$true)][string]$StartupSceneGuid,
+        [Parameter(Mandatory=$true)][string]$TargetPlatform,
+        [Parameter(Mandatory=$true)][string]$ScriptMode,
+        [string]$ScriptModule = "",
+        [int]$Width = 1280,
+        [int]$Height = 720
+    )
+
+    $toolExe = Get-JBroBuildManifestTool
+    $args = @(
+        "--validate", $ManifestPath,
+        "--startup-scene-guid", $StartupSceneGuid,
+        "--width", ([string]$Width),
+        "--height", ([string]$Height),
+        "--target-platform", $TargetPlatform,
+        "--script-mode", $ScriptMode
+    )
+    if (-not [string]::IsNullOrWhiteSpace($ScriptModule)) {
+        $args += @("--script-module", $ScriptModule)
+    }
+
+    & $toolExe @args
+    if ($LASTEXITCODE -ne 0) {
+        throw "Package smoke failed: build manifest validation failed."
+    }
+}
+
+function Invoke-ReleasePackageSmokeTests {
+    param(
+        [Parameter(Mandatory=$true)][string]$PackageDir,
+        [Parameter(Mandatory=$true)][string]$PackageContentDir,
+        [Parameter(Mandatory=$true)][string]$ManifestPath,
+        [Parameter(Mandatory=$true)][string]$AssetPackPath,
+        [Parameter(Mandatory=$true)][string]$StartupSceneGuid,
+        [Parameter(Mandatory=$true)][string]$TargetPlatform,
+        [Parameter(Mandatory=$true)][string]$ScriptMode,
+        [string]$ScriptModule = "",
+        [int]$Width = 1280,
+        [int]$Height = 720
+    )
+
+    if ([string]::IsNullOrWhiteSpace($StartupSceneGuid)) {
+        throw "Package smoke failed: startup scene GUID is empty."
+    }
+
+    Test-JBroBinaryFileMagic -Path $ManifestPath -Magic ([byte[]](0x4A,0x42,0x4D,0x41,0x4E,0x31,0x00,0x00)) -Name "build manifest"
+    Invoke-JBroBuildManifestValidation `
+        -ManifestPath $ManifestPath `
+        -StartupSceneGuid $StartupSceneGuid `
+        -TargetPlatform $TargetPlatform `
+        -ScriptMode $ScriptMode `
+        -ScriptModule $ScriptModule `
+        -Width $Width `
+        -Height $Height
+    Test-JBroBinaryFileMagic -Path $AssetPackPath -Magic ([byte[]](0x4A,0x42,0x50,0x41,0x43,0x4B,0x31,0x00)) -Name "asset pack"
+
+    $forbiddenContentItems = @(
+        "Assets",
+        "build_manifest.yaml",
+        "build_manifest.json",
+        "game_assets.yaml",
+        "game_assets.json"
+    )
+    foreach ($name in $forbiddenContentItems) {
+        if (Test-Path -LiteralPath (Join-Path $PackageContentDir $name)) {
+            throw "Package smoke failed: forbidden Content item exists: $name"
+        }
+    }
+
+    Assert-RootArtifactMissing -PackageDir $PackageDir -Names @("SDK", "Localization", "Editor", "Application.pdb")
 }
 
 function Find-JBroAssetGuid {
@@ -1162,6 +1276,19 @@ if (-not (Test-Path -LiteralPath $packageAssetPack)) {
 }
 if (Test-Path -LiteralPath (Join-Path $packageContentDir "Assets")) {
     throw "Package verification failed: loose asset folder must not exist."
+}
+if ($Configuration -eq "Release") {
+    Invoke-ReleasePackageSmokeTests `
+        -PackageDir $packageDir `
+        -PackageContentDir $packageContentDir `
+        -ManifestPath $manifestPath `
+        -AssetPackPath $packageAssetPack `
+        -StartupSceneGuid $startupSceneGuid `
+        -TargetPlatform $Platform `
+        -ScriptMode $manifestScriptMode `
+        -ScriptModule $manifestScriptModule `
+        -Width ([int]$projectInfo.ResolutionWidth) `
+        -Height ([int]$projectInfo.ResolutionHeight)
 }
 
 Write-Host "Packaged $Platform game: $packageDir"

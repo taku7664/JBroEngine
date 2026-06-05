@@ -333,6 +333,16 @@ Web YAML dependency:
 - Web build 는 `Engine/ThirdParty/yaml-cpp/src/*.cpp` 를 `web_game_sources.txt` 에 포함해 wasm 으로 직접 컴파일합니다.
 - 장기적으로 cooked scene/import payload 가 완성되면 Web runtime 에서 YAML parser 의존성을 제거할 수 있습니다.
 
+Windows yaml-cpp PDB warning:
+
+- 증상: Debug game/tool link 에서 `LNK4099: yaml-cppd.pdb was not found` 경고가 뜹니다.
+- 원인: `Engine/ThirdParty/lib/yaml-cppd.lib` 안의 object 들이 `yaml-cppd.pdb` 를 참조하지만, 해당 PDB 가 library 폴더나 consuming output 폴더에 없습니다.
+- 권장 해결: 체크아웃된 yaml-cpp source 를 현재 MSVC toolset/runtime 과 같은 설정으로 다시 빌드하고, `yaml-cppd.lib` 와 matching `yaml-cppd.pdb` 를 함께 `Engine/ThirdParty/lib` 에 둡니다.
+- Release 는 `yaml-cpp.lib` 를 계속 쓰되, release debug symbol 이 필요할 때만 matching PDB 를 같이 보관합니다.
+- 대안: yaml-cpp debug library 를 외부 PDB 의존이 적은 debug info 방식으로 다시 빌드할 수 있지만, 실제 디버깅 품질은 matching PDB 를 보관하는 방식이 낫습니다.
+- 하지 말 것: `LNK4099` 를 전역 무시로 숨기지 않습니다. 다른 third-party 의 진짜 symbol 누락을 같이 가립니다.
+- 하지 말 것: 다른 toolset/config/runtime 으로 빌드된 임의 yaml-cpp binary 를 섞지 않습니다. header/source/lib mismatch 는 Web/SDK 링크 문제로 다시 번질 수 있습니다.
+
 개발 편의 wrapper:
 
 - `BuildScripts/Web/build_web_debug.bat <Project.Jproject>`
@@ -396,6 +406,14 @@ BuildScripts/BuildGame.ps1 -Project C:/Users/박주형/Desktop/Project/Project.J
 - `Content/build_manifest.jbmanifest`
 - `Content/game_assets.jbpack`
 - `Build.WindowsIconGuid` 를 설정한 경우 exe 아이콘 resource 반영
+
+Release package smoke:
+
+- Release package 는 생성 후 `BuildManifestTool --validate` 로 `Content/build_manifest.jbmanifest` 를 다시 읽어 검증합니다.
+- 이 검증은 runtime 의 `CBuildManifestLoader::LoadFromFile()` 을 사용하므로 binary magic, payload hash, startup scene GUID 누락을 같은 코드 경로로 잡습니다.
+- `Content/game_assets.jbpack` 는 `JBPACK1` magic 을 확인합니다.
+- Release package 에 legacy text manifest/index (`build_manifest.yaml/json`, `game_assets.yaml/json`) 가 있으면 실패합니다.
+- Release package 에 loose `Content/Assets`, root `SDK`, `Editor`, `Localization` 이 있으면 실패합니다.
 
 없어야 하는 산출물:
 
