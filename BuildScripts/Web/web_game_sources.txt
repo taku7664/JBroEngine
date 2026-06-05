@@ -81,6 +81,7 @@ Engine/ThirdParty/yaml-cpp/src/emitterstate.cpp
 Engine/ThirdParty/yaml-cpp/src/emitterutils.cpp
 Engine/ThirdParty/yaml-cpp/src/exceptions.cpp
 Engine/ThirdParty/yaml-cpp/src/exp.cpp
+Engine/ThirdParty/yaml-cpp/src/fptostring.cpp
 Engine/ThirdParty/yaml-cpp/src/memory.cpp
 Engine/ThirdParty/yaml-cpp/src/node.cpp
 Engine/ThirdParty/yaml-cpp/src/node_data.cpp

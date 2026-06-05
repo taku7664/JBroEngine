@@ -108,10 +108,18 @@
           DestinationFolder="$(_SDKLib)Debug\"
           SkipUnchangedFiles="true"
           Condition="'$(_SDKLibConfig)'=='Debug'" />
+    <Copy SourceFiles="$(_EngineDir)ThirdParty\lib\yaml-cppd.pdb"
+          DestinationFolder="$(_SDKLib)Debug\"
+          SkipUnchangedFiles="true"
+          Condition="'$(_SDKLibConfig)'=='Debug' And Exists('$(_EngineDir)ThirdParty\lib\yaml-cppd.pdb')" />
     <Copy SourceFiles="$(_EngineDir)ThirdParty\lib\yaml-cpp.lib"
           DestinationFolder="$(_SDKLib)Release\"
           SkipUnchangedFiles="true"
           Condition="'$(_SDKLibConfig)'=='Release'" />
+    <Copy SourceFiles="$(_EngineDir)ThirdParty\lib\yaml-cpp.pdb"
+          DestinationFolder="$(_SDKLib)Release\"
+          SkipUnchangedFiles="true"
+          Condition="'$(_SDKLibConfig)'=='Release' And Exists('$(_EngineDir)ThirdParty\lib\yaml-cpp.pdb')" />
 
     <Message Text="[SDK Stage] $(Configuration) -> SDK\Include\ + SDK\Lib\$(_SDKLibConfig)\Engine.lib + yaml-cpp"
              Importance="high" />

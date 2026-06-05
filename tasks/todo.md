@@ -1,3 +1,49 @@
+# TODO — Rebuild yaml-cpp Libraries With Matching PDBs
+
+## Goal
+repo 루트 `yaml-cpp-master` 소스를 기준으로 yaml-cpp header/source/lib/pdb를 같은 버전으로 맞추고, Debug/Release Windows link 에서 matching PDB 를 사용할 수 있게 한다.
+
+## Assumptions
+- 현재 `Engine/ThirdParty/lib/yaml-cppd.lib` 는 `yaml-cppd.pdb` 를 참조하지만 PDB 가 없다.
+- `yaml-cpp-master` 가 사용자가 제공한 새 기준 소스다.
+- 엔진 include 경로는 `Engine/ThirdParty/yaml-cpp/yaml.h` 형태를 기대하므로 `yaml-cpp-master/include/yaml-cpp/*` 를 그 위치로 동기화해야 한다.
+- yaml-cpp debug/release lib 는 엔진과 같은 MSVC runtime 계열(`/MDd`, `/MD`)로 빌드한다.
+
+## Success Criteria
+- `Engine/ThirdParty/lib/yaml-cppd.lib` 와 `yaml-cppd.pdb` 가 같은 build output 에서 나온다.
+- `Engine/ThirdParty/lib/yaml-cpp.lib` 와 release PDB 가 필요 시 함께 보관된다.
+- `Engine/ThirdParty/yaml-cpp` header/source 가 새 lib 와 같은 `yaml-cpp-master` 기준으로 동기화된다.
+- Debug link 에서 yaml-cpp PDB `LNK4099` 가 사라진다.
+
+## Plan
+- [x] 기존/신규 yaml-cpp 구조와 빌드 설정 확인
+- [x] yaml-cpp Debug/Release static library 빌드
+- [x] Engine ThirdParty yaml-cpp header/source/lib/pdb 동기화
+- [x] 엔진/툴 빌드로 LNK4099 제거 확인
+- [ ] 문서/todo 갱신 및 커밋
+
+## Verification
+- [x] `BuildManifestTool Debug_Game|x64` build without yaml-cpp LNK4099
+- [x] `BuildManifestTool Release_Game|x64` build
+- [x] `Debug_Game|x64` 또는 relevant link check
+- [x] `git diff --check`
+
+## Review
+- 코드를 읽었고: 기존 `Engine/ThirdParty/lib/yaml-cppd.lib` 는 내부에 `yaml-cppd.pdb` 참조를 가지고 있었지만 matching PDB 파일이 repo/vendor 위치에 없었다.
+- 생각했고: PDB만 따로 만들면 header/source/lib 버전이 다시 갈라질 수 있으므로, 사용자가 둔 `yaml-cpp-master` 를 기준으로 header/source/static lib/PDB 를 한 번에 동기화해야 한다고 판단했다.
+- 반례를 찾았고: 새 yaml-cpp 는 `fptostring.cpp` 가 추가된 소스 세트라 Windows prebuilt lib만 교체하면 Web 소스 빌드가 빠진 컴파일 단위를 놓칠 수 있었다.
+- 고쳤다: `Engine/ThirdParty/yaml-cpp` header/source 를 `yaml-cpp-master` 기준으로 갱신하고, `web_game_sources.txt` 에 `fptostring.cpp` 를 추가했다.
+- 반례를 찾았고: CMake 기본 출력 PDB를 build temp 폴더에 두면 lib가 삭제 가능한 temp PDB 경로를 참조한다.
+- 고쳤다: yaml-cpp Debug/RelWithDebInfo static lib 를 `Engine/ThirdParty/lib` 로 직접 출력해 `yaml-cppd.lib` -> `yaml-cppd.pdb`, `yaml-cpp.lib` -> `yaml-cpp.pdb` 경로가 vendor 위치를 가리키게 했다.
+- 반례를 찾았고: SDK `Lib` 는 gitignore 대상이라 SDK PDB를 직접 커밋하는 방식은 유지보수성이 낮다.
+- 고쳤다: `StageSDK.targets` 가 yaml-cpp lib 와 함께 matching PDB 도 SDK 로 스테이징하도록 추가했다. 로컬 SDK 복사본도 최신 vendor 산출물로 갱신했다.
+- 반례를 찾았고: `Engine.lib` object 가 구버전 yaml-cpp header ABI 를 들고 있으면 새 yaml-cpp lib 와 `insert_map_pair` 심볼이 불일치한다.
+- 고쳤다: 솔루션 `Engine:Rebuild` 로 Debug_Game/Release_Game Engine.lib 를 새 header 기준으로 재생성했고, 직접 project build 를 막던 `Engine/...` 접두 include 를 프로젝트 include-root 규칙에 맞게 정리했다.
+- 검증했다: `Engine:Rebuild Debug_Game|x64`, `Engine:Rebuild Release_Game|x64`, `BuildManifestTool Debug_Game|x64`, `BuildManifestTool Release_Game|x64`, `git diff --check` 를 실행했다. Debug tool link 에서 yaml-cpp `LNK4099`/unresolved 가 사라졌다.
+- 주의: Release tool link 는 yaml-cpp 문제가 아닌 root `x64\Release_Game\Engine.pdb` 타입 레코드 `LNK4020` 경고가 남는다. 링크는 성공하며, 별도 Engine PDB 생성 정책 이슈로 분리한다.
+
+---
+
 # TODO — Release Package Smoke Tests
 
 ## Goal

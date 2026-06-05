@@ -1,11 +1,11 @@
 #pragma once
 
-#include "Engine/Editor/FileSystem/Windows/WindowsFileWatcher.h"
-#include "Engine/Editor/LiveCompile/LiveCompileTypes.h"
-#include "Engine/Editor/Project/ProjectTypes.h"
-#include "Engine/Editor/Project/AssetDatabase.h"
-#include "Engine/Core/Asset/AssetTypes.h"
-#include "Engine/Core/Task/TaskTypes.h"
+#include "Core/Asset/AssetTypes.h"
+#include "Core/Task/TaskTypes.h"
+#include "Editor/FileSystem/Windows/WindowsFileWatcher.h"
+#include "Editor/LiveCompile/LiveCompileTypes.h"
+#include "Editor/Project/AssetDatabase.h"
+#include "Editor/Project/ProjectTypes.h"
 #include "Utillity/Pointer/SafePtr.h"
 
 #include <chrono>
