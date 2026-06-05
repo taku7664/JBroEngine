@@ -1,3 +1,49 @@
+# TODO — Move Camera Culling Debug To Inspector
+
+## Goal
+카메라 컬링 통계 표시는 GameView/SceneView 오버레이가 아니라 선택된 Camera2D Inspector 에 표시하고, 메인카메라/오버레이 흔적을 제거한다.
+
+## Assumptions
+- 프로젝트 Debug Mode 는 범용 진단 표시 토글이며 camera culling 전용 설명을 쓰지 않는다.
+- Camera2D 별 culling count 는 GameView camera stack 렌더 결과를 camera owner object key 로 저장해 Inspector 에서 조회한다.
+- 엔진에는 main camera 개념이 없으므로 `IsMainCamera` 필드는 제거한다.
+
+## Success Criteria
+- GameView/SceneView 에 culling overlay 가 표시되지 않는다.
+- Project Settings Debug Mode 설명은 tooltip 만 사용하고 범용 문구로 바뀐다.
+- Camera2D Inspector 에 Debug Mode enabled 시 해당 카메라 culling stats 가 표시된다.
+- `IsMainCamera` property/field/localization 이 제거된다.
+- SDK mirror 가 관련 public header 변경을 반영한다.
+
+## Plan
+- [x] 기존 overlay/debug string 흔적 제거
+- [x] camera owner 별 culling stats 저장 경로 추가
+- [x] Inspector Camera2D debug section 추가
+- [x] main camera 필드/등록/로컬라이징 제거
+- [x] SDK mirror 갱신
+- [x] 검증
+- [ ] 커밋
+
+## Verification
+- [x] `Engine` target `Debug_Editor|x64`
+- [x] `Application:ClCompile` target `Debug_Editor|x64`
+- [x] `git diff --check`
+
+## Review
+- 코드를 읽었고: GameView/SceneView 오버레이가 프로젝트 Debug Mode 로 culling stats 를 직접 표시하고 있었다.
+- 생각했고: 디버그 정보는 화면 결과를 덮는 오버레이가 아니라 선택된 컴포넌트의 Inspector 진단 섹션으로 가야 한다.
+- 고쳤다: GameView/SceneView overlay helper/string 사용처를 제거하고, Camera2D Inspector 에 debug section 을 추가했다.
+- 반례를 찾았고: 마지막 renderer stats 는 여러 카메라 중 마지막 카메라 값만 보여주므로 선택된 카메라의 값이라고 볼 수 없다.
+- 고쳤다: `GameRenderCameraDesc` 에 owner object key 를 싣고, `RenderGameCameraStack` 이 카메라별 `RenderCullingStats` 를 반환해 `ImEditor` 가 owner key 로 저장하게 했다.
+- 코드를 읽었고: `Camera2D::IsMainCamera`, reflection property, localization, debug frustum 색 분기에 main camera 개념이 남아 있었다.
+- 고쳤다: main camera field/property/localization/debug color branch 를 제거했다.
+- 반례를 찾았고: `SafePtr` 는 bool 과 직접 비교하면 컴파일 에러가 나므로 기존 스타일대로 `IsValid()` 를 써야 한다.
+- 고쳤다: Inspector 의 `Editor::ImEditor` 확인을 `IsValid()` 로 바꿨다.
+- 검증했다: `Engine` target `Debug_Editor|x64`, `Application:ClCompile` target `Debug_Editor|x64`, `git diff --check` 를 통과했다.
+- 주의: 전체 `Application` target 링크는 실행 중인 `Build\Debug_Editor\Application.exe` 잠김으로 `LNK1168` 이 발생했다.
+
+---
+
 # TODO — Camera Sprite Culling Debug Stats
 
 ## Goal

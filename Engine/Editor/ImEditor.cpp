@@ -173,6 +173,23 @@ SafePtr<CProjectManager> CImEditor::GetProjectManager() const
 	return m_projectManager.GetSafePtr();
 }
 
+bool CImEditor::TryGetCameraCullingStats(const void* cameraOwnerObject, RenderCullingStats& outStats) const
+{
+	if (nullptr == cameraOwnerObject)
+	{
+		return false;
+	}
+
+	const auto it = m_gameViewCameraCullingStats.find(cameraOwnerObject);
+	if (it == m_gameViewCameraCullingStats.end())
+	{
+		return false;
+	}
+
+	outStats = it->second;
+	return true;
+}
+
 void CImEditor::RequestSceneViewRenderTarget(std::uint32_t width, std::uint32_t height)
 {
 	m_sceneViewRequested = 0 != width && 0 != height;
@@ -524,7 +541,6 @@ void CImEditor::OnPrepareRender()
 		{
 			engineCore->Renderer->Render(*engineCore->RenderScene);
 		}
-		m_sceneViewCullingStats = engineCore->Renderer->GetLastCullingStats();
 
 		if (m_sceneViewFocusActive && !m_sceneViewFocusEntities.empty())
 		{
@@ -568,26 +584,31 @@ void CImEditor::OnPrepareRender()
 
 		commandContext->EndRenderPass();
 	}
-	else
-	{
-		m_sceneViewCullingStats = {};
-	}
 
 	// ── Game view (multi-camera) ───────────────────────────────────────────────────
 	if (m_gameViewRequested && EnsureRT(m_gameViewRenderTarget, m_gameViewWidth, m_gameViewHeight))
 	{
+		std::vector<GameRenderCameraStats> cameraStats;
 		RenderGameCameraStack(
 			*commandContext,
 			*engineCore->Renderer,
 			*engineCore->RenderScene,
 			m_gameViewCameras,
 			RenderSurfaceSize{ static_cast<int>(m_gameViewWidth), static_cast<int>(m_gameViewHeight) },
-			m_gameViewRenderTarget.GetSafePtr());
-		m_gameViewCullingStats = engineCore->Renderer->GetLastCullingStats();
+			m_gameViewRenderTarget.GetSafePtr(),
+			&cameraStats);
+		m_gameViewCameraCullingStats.clear();
+		for (const GameRenderCameraStats& stats : cameraStats)
+		{
+			if (stats.OwnerObject)
+			{
+				m_gameViewCameraCullingStats[stats.OwnerObject] = stats.Culling;
+			}
+		}
 	}
 	else
 	{
-		m_gameViewCullingStats = {};
+		m_gameViewCameraCullingStats.clear();
 	}
 }
 

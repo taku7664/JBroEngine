@@ -389,9 +389,6 @@ void CProjectSettingsWindow::DrawCategoryDebug()
             label(Loc::Text("project_settings.debug_mode"));
         },
         [&]() { ImGui::Checkbox("##ps.debug_mode", &m_debugModeEnabled); });
-
-    ImGui::Spacing();
-    ImGui::TextDisabled("%s", Loc::Text("project_settings.debug_mode.help"));
 }
 
 void CProjectSettingsWindow::DrawCategoryAssetWatcher()

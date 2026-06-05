@@ -33,6 +33,5 @@ public:
 	float ClearColor[4] = { 0.08f, 0.09f, 0.11f, 1.0f };
 	std::uint32_t LayerMask = 0xffffffffu;
 	std::int32_t Priority = 0;
-	bool IsMainCamera = false;
 };
 

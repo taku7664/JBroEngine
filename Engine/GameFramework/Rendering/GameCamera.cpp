@@ -59,7 +59,7 @@ std::vector<GameRenderCameraDesc> CollectGameRenderCameras(const CScene& scene, 
 				camera.ClearColor[2],
 				camera.ClearColor[3] };
 			desc.Priority = camera.Priority;
-			desc.IsMainCamera = camera.IsMainCamera;
+			desc.OwnerObject = owner;
 			cameras.push_back(desc);
 		});
 
@@ -78,8 +78,14 @@ void RenderGameCameraStack(
 	IRenderScene& renderScene,
 	const std::vector<GameRenderCameraDesc>& cameras,
 	const RenderSurfaceSize& renderTargetSize,
-	SafePtr<IRHITexture> renderTarget)
+	SafePtr<IRHITexture> renderTarget,
+	std::vector<GameRenderCameraStats>* outCameraStats)
 {
+	if (outCameraStats)
+	{
+		outCameraStats->clear();
+	}
+
 	if (cameras.empty())
 	{
 		return;
@@ -129,6 +135,13 @@ void RenderGameCameraStack(
 			camera.CosR,
 			camera.SinR);
 		renderer.Render(renderScene);
+		if (outCameraStats)
+		{
+			GameRenderCameraStats stats;
+			stats.OwnerObject = camera.OwnerObject;
+			stats.Culling = renderer.GetLastCullingStats();
+			outCameraStats->push_back(stats);
+		}
 		commandContext.EndRenderPass();
 	}
 

@@ -108,8 +108,7 @@ Entries:
   project_settings.category.asset_watcher: Asset Watcher
   project_settings.debug: Debug
   project_settings.debug_mode: Debug Mode
-  project_settings.debug_mode.desc: Shows editor diagnostic overlays.
-  project_settings.debug_mode.help: When enabled, SceneView/GameView shows camera culling statistics.
+  project_settings.debug_mode.desc: When enabled, debug-related information is displayed.
   project_settings.asset_watcher.title: Asset Watch Ignore Patterns
   project_settings.asset_watcher.desc: One glob pattern per line. Matching files are excluded from asset import.
   project_settings.asset_watcher.syntax_hint: "e.g. *.tmp, ~$*, Temp/*.png. '*' matches 0+ chars, '?' any single char. Patterns containing '/' match the relative path; otherwise the file name only."
@@ -369,7 +368,6 @@ Entries:
   editor.property.FarClip: Far Clip
   editor.property.ClearColor: Clear Color
   editor.property.Priority: Priority
-  editor.property.IsMainCamera: Main Camera
   editor.property.Type: Type
   editor.property.Intensity: Intensity
   editor.property.Range: Range
@@ -410,8 +408,6 @@ Entries:
   scene_view.overlay.camera_format: "Cam (%.2f, %.2f) | Size %.2f"
   scene_view.overlay.focus_format: "Focus: %s  [Dbl-click empty to exit]"
   scene_view.overlay.viewport_selected_camera: Viewport (Selected Camera)
-  debug_overlay.culling_format: "Culled: %u / Submitted: %u / Drawn: %u"
-
   game_view.status.playing: Playing
   game_view.status.scene_stopped: Scene (stopped)
   game_view.status.no_active_scene: No Active Scene
@@ -435,6 +431,11 @@ Entries:
   inspector.collider.convex_pieces: Convex Pieces
   inspector.collider.world_aabb_min: World AABB Min
   inspector.collider.world_aabb_max: World AABB Max
+  inspector.camera_debug: Camera Debug
+  inspector.camera_debug.no_stats: This camera has not been rendered by GameView yet.
+  inspector.camera_debug.submitted: Culling Candidates
+  inspector.camera_debug.culled: Culled
+  inspector.camera_debug.drawn: Drawn
   inspector.sprite.preview_frame_count: Preview Frame Count
   inspector.sprite.frame_width: Frame Width
   inspector.sprite.frame_height: Frame Height

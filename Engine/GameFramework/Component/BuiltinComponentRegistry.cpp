@@ -37,8 +37,7 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 		.AddProperty("Size", EReflectPropertyType::Layout2D, offsetof(Camera2D, Size), sizeof(Layout2D))
 		.AddProperty("ClearColor", EReflectPropertyType::ColorFloat4, offsetof(Camera2D, ClearColor), sizeof(float), 4)
 		.AddProperty("LayerMask", EReflectPropertyType::UInt32, offsetof(Camera2D, LayerMask), sizeof(std::uint32_t))
-		.AddProperty("Priority", EReflectPropertyType::Int32, offsetof(Camera2D, Priority), sizeof(std::int32_t))
-		.AddProperty("IsMainCamera", EReflectPropertyType::Bool, offsetof(Camera2D, IsMainCamera), sizeof(bool));
+		.AddProperty("Priority", EReflectPropertyType::Int32, offsetof(Camera2D, Priority), sizeof(std::int32_t));
 
 	registry.RegisterComponent<Light2D>({ "Light2D", "Light 2D", "Rendering", true })
 		.AddEnumProperty<ELight2DType>("Type", offsetof(Light2D, Type))

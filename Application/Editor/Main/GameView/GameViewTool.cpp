@@ -25,12 +25,6 @@ namespace
 		}
 	}
 
-	bool IsProjectDebugModeEnabled()
-	{
-		SafePtr<CProjectManager> pm = Editor::ImEditor ? Editor::ImEditor->GetProjectManager() : nullptr;
-		return pm && pm->IsProjectLoaded() && pm->IsDebugModeEnabled();
-	}
-
 }
 
 // ── CGameViewTool ──────────────────────────────────────────────────────────────
@@ -149,16 +143,6 @@ void CGameViewTool::OnRenderStay()
 		? Loc::Text("game_view.status.playing")
 		: (hasScene ? Loc::Text("game_view.status.scene_stopped") : Loc::Text("game_view.status.no_active_scene"));
 	dl->AddText(textPos, textCol, statusText);
-
-	if (IsProjectDebugModeEnabled() && Editor::ImEditor)
-	{
-		const RenderCullingStats stats = Editor::ImEditor->GetGameViewCullingStats();
-		char cullingText[128] = {};
-		std::snprintf(cullingText, sizeof(cullingText),
-			Loc::Text("debug_overlay.culling_format"),
-			stats.CulledCount, stats.SubmittedCount, stats.DrawnCount);
-		dl->AddText(textPos + ImVec2(0.0f, 20.0f), IM_COL32(255, 205, 90, 230), cullingText);
-	}
 
 	if (nullptr == texID)
 	{

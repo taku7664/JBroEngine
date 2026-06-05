@@ -28,6 +28,7 @@
 #include "Engine/Core/RHI/IRHITexture.h"
 #include "Engine/Editor/ImEditor.h"
 #include "Engine/Editor/Project/ProjectManager.h"
+#include "Engine/GameFramework/Component/Camera2D.h"
 #include "Engine/GameFramework/Component/Physics2DComponents.h"
 #include "Engine/GameFramework/Component/ScriptComponent.h"
 #include "Engine/GameFramework/Scripting/ScriptSystem.h"
@@ -651,6 +652,28 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		DrawReadOnlyVector2(Loc::Text("inspector.collider.world_aabb_max"), aabb.Max);
 	}
 
+	void DrawCamera2DDebug(const CGameObject* selectedObject)
+	{
+		SafePtr<CProjectManager> projectManager = GetProjectManager();
+		if (false == projectManager.IsValid() || false == projectManager->IsDebugModeEnabled())
+		{
+			return;
+		}
+
+		ImGui::SeparatorText(Loc::Text("inspector.camera_debug"));
+
+		RenderCullingStats stats;
+		if (false == Editor::ImEditor.IsValid() || false == Editor::ImEditor->TryGetCameraCullingStats(selectedObject, stats))
+		{
+			ImGui::TextDisabled("%s", Loc::Text("inspector.camera_debug.no_stats"));
+			return;
+		}
+
+		DrawReadOnlyUInt(Loc::Text("inspector.camera_debug.submitted"), stats.SubmittedCount);
+		DrawReadOnlyUInt(Loc::Text("inspector.camera_debug.culled"), stats.CulledCount);
+		DrawReadOnlyUInt(Loc::Text("inspector.camera_debug.drawn"), stats.DrawnCount);
+	}
+
 	// ── GetComponentIsEnabled ────────────────────────────────────────────────
 	// 컴포넌트의 IsEnabled 값을 반환. IsEnabled 프로퍼티가 없으면 true.
 	bool GetComponentIsEnabled(void* component, const ComponentTypeInfo& typeInfo)
@@ -763,6 +786,8 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			DrawCircleColliderDebug(scene, selectedObject, *static_cast<CircleCollider2D*>(component));
 		else if (componentType.Type.Id == CReflectionRegistry::MakeTypeId("PolygonCollider2D"))
 			DrawPolygonColliderDebug(scene, selectedObject, *static_cast<PolygonCollider2D*>(component));
+		else if (componentType.Type.Id == CReflectionRegistry::MakeTypeId("Camera2D"))
+			DrawCamera2DDebug(selectedObject);
 	}
 
 	bool SaveSpriteImportOptions(const AssetMetaData& metaData, const SpriteImportOptions& options)
