@@ -386,17 +386,16 @@ using System.IO;
 using System.Linq;
 using System.Text;
 
-public sealed class JBroPackEntry
+public sealed class JBroPackEntryV2
 {
     public string Guid = "";
     public string Path = "";
     public uint Type;
     public uint Version;
-    public string Importer = "";
     public string ImportOptionsYaml = "";
 }
 
-public static class JBroPackWriter
+public static class JBroPackWriterV2
 {
     const ulong FnvOffset = 14695981039346656037UL;
     const ulong FnvPrime = 1099511628211UL;
@@ -405,11 +404,10 @@ public static class JBroPackWriter
 
     sealed class Record
     {
-        public JBroPackEntry Entry = new JBroPackEntry();
+        public JBroPackEntryV2 Entry = new JBroPackEntryV2();
         public ulong Offset;
         public ulong StoredSize;
         public ulong PayloadHash;
-        public string SourceExtension = "";
     }
 
     static ulong HashBytes(byte[] bytes)
@@ -458,7 +456,7 @@ public static class JBroPackWriter
         using (var ms = new MemoryStream())
         using (var writer = new BinaryWriter(ms, Encoding.UTF8))
         {
-            writer.Write((uint)1);
+            writer.Write((uint)2);
             writer.Write((ulong)records.Count);
             foreach (Record record in records)
             {
@@ -473,15 +471,13 @@ public static class JBroPackWriter
                 writer.Write(record.StoredSize);
                 writer.Write(record.PayloadHash);
                 WriteString(writer, packId);
-                WriteString(writer, record.Entry.Importer);
                 WriteString(writer, record.Entry.ImportOptionsYaml);
-                WriteString(writer, record.SourceExtension);
             }
             return ms.ToArray();
         }
     }
 
-    public static void WritePack(string packPath, JBroPackEntry[] entries)
+    public static void WritePack(string packPath, JBroPackEntryV2[] entries)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(packPath));
         string packId = Path.GetFileNameWithoutExtension(packPath);
@@ -493,7 +489,7 @@ public static class JBroPackWriter
         using (var writer = new BinaryWriter(fs, Encoding.UTF8))
         {
             fs.Position = HeaderSize;
-            foreach (JBroPackEntry entry in sorted)
+            foreach (JBroPackEntryV2 entry in sorted)
             {
                 byte[] payload = File.ReadAllBytes(entry.Path);
                 byte[] plainPayload = (byte[])payload.Clone();
@@ -502,7 +498,6 @@ public static class JBroPackWriter
                 record.Offset = (ulong)fs.Position;
                 record.StoredSize = (ulong)payload.LongLength;
                 record.PayloadHash = HashBytes(plainPayload);
-                record.SourceExtension = Path.GetExtension(entry.Path).Replace("\\", "/");
                 CryptBytes(payload, record.PayloadHash ^ record.Offset);
                 if (payload.Length > 0)
                 {
@@ -537,20 +532,19 @@ public static class JBroPackWriter
 }
 "@
 
-    if (-not ("JBroPackWriter" -as [type])) {
+    if (-not ("JBroPackWriterV2" -as [type])) {
         Add-Type -TypeDefinition $source -Language CSharp
     }
 
-    $entries = New-Object System.Collections.Generic.List[JBroPackEntry]
+    $entries = New-Object System.Collections.Generic.List[JBroPackEntryV2]
     Get-ChildItem -LiteralPath $AssetRoot -Recurse -Filter "*.Jmeta" -File | ForEach-Object {
         $meta = Read-JBroMeta -MetaPath $_.FullName -AssetRoot $AssetRoot
         if ($meta) {
-            $entry = New-Object JBroPackEntry
+            $entry = New-Object JBroPackEntryV2
             $entry.Guid = $meta.Guid
             $entry.Path = $meta.AssetPath
             $entry.Type = [uint32]$meta.TypeValue
             $entry.Version = [uint32]$meta.Version
-            $entry.Importer = $meta.Importer
             $entry.ImportOptionsYaml = $meta.ImportOptionsYaml
             $entries.Add($entry)
         }
@@ -560,7 +554,7 @@ public static class JBroPackWriter
         throw "No asset meta files were found for pack build: $AssetRoot"
     }
 
-    [JBroPackWriter]::WritePack($PackPath, $entries.ToArray())
+    [JBroPackWriterV2]::WritePack($PackPath, $entries.ToArray())
 }
 
 function Write-JBroBuildManifest {

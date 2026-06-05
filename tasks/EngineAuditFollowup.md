@@ -29,6 +29,16 @@ This document reorganizes the remaining work from `tasks/EngineCodeAudit.md` aft
   - `ImportOptionsYaml` remains in the runtime record until cooked payload formats carry the resolved runtime options directly.
   - Audio streaming from pack still needs a platform streaming pack reader instead of file extraction.
 
+### Build script asset pack writer parity
+
+- Source findings: F-001, F-002, F-004
+- Status: Done
+- Result:
+  - Updated `BuildScripts/BuildGame.ps1` embedded C# pack writer to write index version 2.
+  - Removed `Importer` and `SourceExtension` from script-generated pack index records.
+  - Renamed script-side writer/entry types to `JBroPackWriterV2` and `JBroPackEntryV2` to avoid stale loaded C# type reuse in long PowerShell sessions.
+  - Verified the embedded C# pack writer compiles with `Add-Type`.
+
 ## Remaining Work Queue
 
 ### 1. Release asset pack contract hardening

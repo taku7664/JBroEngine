@@ -1,3 +1,39 @@
+# TODO — BuildGame Pack Writer Contract Parity
+
+## Goal
+`BuildGame.ps1`의 C# asset pack writer를 엔진 C++ pack writer의 runtime index v2 계약과 맞춘다.
+
+## Assumptions
+- 웹/스크립트 빌드도 같은 `.jbpack` runtime index 계약을 써야 한다.
+- `Read-JBroMeta`의 `Importer`는 asset type 판정에는 계속 필요하지만 pack index에는 쓰지 않는다.
+- PowerShell 세션에 이전 C# type이 로드된 반례를 피하기 위해 writer/entry type 이름을 v2로 분리한다.
+
+## Success Criteria
+- `BuildGame.ps1` pack writer가 index version 2를 쓴다.
+- script-side pack index에 `Importer`, `SourceExtension`이 기록되지 않는다.
+- script-side pack writer type name이 stale loaded type과 충돌하지 않는다.
+
+## Plan
+- [x] `BuildGame.ps1` embedded C# pack writer 계약 수정
+- [x] C++/PowerShell pack index field 순서 재대조
+- [x] 문서/todo 갱신
+- [ ] diff/build or script-level 검증 및 커밋
+
+## Verification
+- [x] `rg`로 script pack writer의 removed fields 확인
+- [x] `git diff --check`
+- [x] embedded C# pack writer `Add-Type` compile
+- [ ] `Debug_Game|x64` build: not rerun for script-only parity change; previous asset pack contract build passed.
+
+## Review
+- 코드를 읽었고: `BuildGame.ps1`의 embedded `JBroPackWriter`가 아직 index version 1과 `Importer`/`SourceExtension`을 쓰는 것을 확인했다.
+- 생각했고: C++ writer만 v2로 바꾸면 Windows editor package와 script/web package의 `.jbpack` 계약이 갈라진다.
+- 반례를 찾았고: PowerShell 장기 세션에 이전 C# type이 로드되어 있으면 같은 type 이름 재정의가 실패하거나 stale type을 계속 쓸 수 있다.
+- 고쳤다: script writer/entry type을 `JBroPackWriterV2`/`JBroPackEntryV2`로 바꾸고, index version 2와 C++ writer와 같은 field 순서로 맞췄다.
+- 검증했다: removed field 잔존 검색과 embedded C# `Add-Type` compile을 통과했다.
+
+---
+
 # TODO — Asset Pack Release Contract Hardening
 
 ## Goal
