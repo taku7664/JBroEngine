@@ -69,6 +69,16 @@ This document reorganizes the remaining work from `tasks/EngineCodeAudit.md` aft
   - Object serialization still uses const object access.
   - SDK public mirror was updated to the same signature.
 
+### Build manifest writer unification
+
+- Source finding: F-004
+- Status: Done
+- Result:
+  - Removed the embedded C# `JBroBuildManifestWriterV2` from `BuildScripts/BuildGame.ps1`.
+  - Added `BuildTools/BuildManifestTool`, which calls `CBuildManifestLoader::WriteBinaryFile()`.
+  - Script/web packaging now shares the engine-owned C++ manifest writer with editor Windows packaging.
+  - The tool round-trip validates the generated manifest before returning success.
+
 ## Remaining Work Queue
 
 ### 1. Release asset pack contract hardening
@@ -86,10 +96,10 @@ This document reorganizes the remaining work from `tasks/EngineCodeAudit.md` aft
 
 - Source finding: F-004
 - Priority: High
+- Status: Done
 - Work:
-  - Make one binary manifest writer authoritative.
-  - Prefer an engine-owned tool or shared library over duplicated C++ and PowerShell/C# format writers.
-  - Add round-trip verification for writer/reader compatibility.
+  - Keep future fields in `Engine/Core/Build/BuildManifest.*` first.
+  - Keep script/web packaging on `BuildManifestTool` instead of adding a second writer.
 - Reason:
   - Manifest drift already caused platform/runtime mismatches such as PPU handling.
 

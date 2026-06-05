@@ -1,3 +1,44 @@
+# TODO — Build Manifest Writer Unification
+
+## Goal
+`BuildGame.ps1`의 embedded C# build manifest writer를 제거하고, Engine의 `CBuildManifestLoader::WriteBinaryFile()`을 호출하는 engine-owned CLI tool을 사용한다.
+
+## Assumptions
+- authoritative writer는 `Engine/Core/Build/BuildManifest.cpp`의 C++ writer다.
+- 에디터 Windows package는 이미 C++ writer를 직접 사용한다.
+- script/web package는 새 `BuildManifestTool`을 빌드 후 실행해 같은 writer를 사용한다.
+
+## Success Criteria
+- `BuildScripts/BuildGame.ps1`에서 `JBroBuildManifestWriterV2` embedded C# writer가 제거된다.
+- 새 `BuildManifestTool`이 `CBuildManifestLoader::WriteBinaryFile()`으로 manifest를 생성한다.
+- `BuildGame.ps1`는 `BuildManifestTool.vcxproj`를 빌드하고 tool을 호출한다.
+- tool-generated manifest를 runtime loader가 읽을 수 있다.
+
+## Plan
+- [x] `BuildManifestTool` vcxproj/source 추가
+- [x] `BuildGame.ps1` manifest writer 호출 경로 교체
+- [x] embedded C# manifest writer 제거
+- [x] tool build/run 및 manifest read 검증
+- [x] 문서/todo 갱신
+- [x] 커밋
+
+## Verification
+- [x] `BuildManifestTool Debug_Game|x64` build
+- [x] `BuildManifestTool Release_Game|x64` build
+- [x] tool로 sample manifest 생성
+- [x] generated manifest를 runtime loader 경유로 읽기
+- [x] `rg JBroBuildManifestWriterV2` 잔존 없음
+- [x] `git diff --check`
+
+## Review
+- 코드를 읽었고: `BuildGame.ps1`의 script/web manifest writer가 embedded C#이고, editor Windows packaging은 `CBuildManifestLoader::WriteBinaryFile()`을 직접 쓰는 것을 확인했다.
+- 생각했고: manifest field가 하나만 추가돼도 C++ writer와 C# writer가 갈라질 수 있으며, 이전 PPU 문제와 같은 drift가 반복될 수 있다고 판단했다.
+- 반례를 찾았고: tool이 `ProjectReference`로 Engine을 다시 빌드하면 빡대리 작업 중인 dirty source 때문에 manifest 단계가 불필요하게 실패할 수 있었다.
+- 고쳤다: `BuildManifestTool`을 추가해 C++ writer를 호출하게 하고, script는 tool을 빌드/실행하되 기존 `Engine.lib`에 명시 링크하도록 구성했다.
+- 검증했다: Debug_Game/Release_Game tool build, sample manifest 생성, tool 내부 loader round-trip, stale C# writer 잔존 검색, `git diff --check`를 통과했다.
+
+---
+
 # TODO — SceneSerializer Side-effect API Cleanup
 
 ## Goal

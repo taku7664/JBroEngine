@@ -103,6 +103,25 @@ What changed:
 - Scene object traversal uses const object references.
 - The `ReferencedAssets` cache update is now an explicit scene mutation, not a hidden `const_cast`.
 
+### R-006: Unified script/web build manifest writer through engine-owned tool
+
+- Related finding: F-004
+- Date: 2026-06-05
+- Files:
+  - `BuildScripts/BuildGame.ps1`
+  - `BuildTools/BuildManifestTool/BuildManifestTool.cpp`
+  - `BuildTools/BuildManifestTool/BuildManifestTool.vcxproj`
+
+What changed:
+- Removed the embedded C# `JBroBuildManifestWriterV2` from `BuildGame.ps1`.
+- Added `BuildManifestTool`, a small CLI that calls `CBuildManifestLoader::WriteBinaryFile()`.
+- `BuildGame.ps1` now builds/runs the tool for script/web package manifests, so the C++ writer is authoritative.
+- The tool performs a write/read round-trip before returning success.
+
+What remains:
+- Future build manifest fields should be added to `Engine/Core/Build/BuildManifest.*` first.
+- Script/web packaging should keep calling the tool instead of reintroducing a second binary writer.
+
 ## Findings
 
 ### F-001: Pack reader can write decrypted payloads back to `.packcache`
@@ -189,6 +208,7 @@ Recommendation:
 
 - Severity: High
 - Category: build pipeline / cross-platform correctness
+- Status: Resolved by R-006.
 - Files:
   - `BuildScripts/BuildGame.ps1:566-657`
   - `Engine/Core/Build/BuildManifest.cpp:167-249`

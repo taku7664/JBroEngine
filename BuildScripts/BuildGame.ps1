@@ -570,85 +570,33 @@ function Write-JBroBuildManifest {
         [string]$ScriptModule = ""
     )
 
-    $source = @"
-using System;
-using System.IO;
-using System.Text;
+    $toolConfiguration = if ($Configuration -eq "Debug") { "Debug_Game" } else { "Release_Game" }
+    $toolProject = Join-Path $repoRoot "BuildTools\BuildManifestTool\BuildManifestTool.vcxproj"
+    $toolExe = Join-Path $repoRoot ("Build\Tools\BuildManifestTool\{0}\BuildManifestTool.exe" -f $toolConfiguration)
 
-public static class JBroBuildManifestWriterV2
-{
-    const ulong FnvOffset = 14695981039346656037UL;
-    const ulong FnvPrime = 1099511628211UL;
-    const ulong CryptKey = 0xC3A5C85C97CB3127UL;
-    const uint Version = 1;
-
-    static void WriteString(BinaryWriter writer, string value)
-    {
-        byte[] bytes = Encoding.UTF8.GetBytes(value ?? "");
-        writer.Write((uint)bytes.Length);
-        writer.Write(bytes);
-    }
-
-    static ulong HashBytes(byte[] bytes)
-    {
-        ulong hash = FnvOffset;
-        foreach (byte b in bytes)
-        {
-            hash ^= b;
-            hash *= FnvPrime;
-        }
-        return hash;
-    }
-
-    static void CryptBytes(byte[] bytes, ulong seed)
-    {
-        ulong state = seed ^ CryptKey;
-        for (int i = 0; i < bytes.Length; ++i)
-        {
-            state ^= state << 13;
-            state ^= state >> 7;
-            state ^= state << 17;
-            bytes[i] ^= (byte)((state >> ((i & 7) * 8)) & 0xFF);
+    if (-not (Test-Path -LiteralPath $toolExe -PathType Leaf)) {
+        $msbuild = Find-MSBuild
+        & $msbuild $toolProject /m /p:Configuration=$toolConfiguration /p:Platform=x64 "/p:SolutionDir=$repoRoot\" /p:BuildProjectReferences=false /v:minimal /nr:false
+        if ($LASTEXITCODE -ne 0) {
+            throw "BuildManifestTool build failed."
         }
     }
 
-    public static void WriteFile(string path, int width, int height, string startupSceneGuid, string startupScene, float pixelsPerUnit, string targetPlatform, string scriptMode, string scriptModule)
-    {
-        Directory.CreateDirectory(Path.GetDirectoryName(path));
-        byte[] payload;
-        using (var ms = new MemoryStream())
-        using (var payloadWriter = new BinaryWriter(ms, Encoding.UTF8))
-        {
-            payloadWriter.Write(width);
-            payloadWriter.Write(height);
-            WriteString(payloadWriter, startupSceneGuid);
-            float safePixelsPerUnit = pixelsPerUnit >= 1.0f ? pixelsPerUnit : 100.0f;
-            payloadWriter.Write(safePixelsPerUnit);
-            WriteString(payloadWriter, targetPlatform);
-            WriteString(payloadWriter, scriptMode);
-            WriteString(payloadWriter, scriptModule);
-            payloadWriter.Flush();
-            payload = ms.ToArray();
-        }
-        ulong payloadHash = HashBytes(payload);
-        CryptBytes(payload, payloadHash ^ Version);
-
-        using (var fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None))
-        using (var writer = new BinaryWriter(fs, Encoding.UTF8))
-        {
-            writer.Write(new byte[] { (byte)'J', (byte)'B', (byte)'M', (byte)'A', (byte)'N', (byte)'1', 0, 0 });
-            writer.Write(Version);
-            writer.Write((uint)payload.Length);
-            writer.Write(payloadHash);
-            writer.Write(payload);
-        }
+    $args = @(
+        "--out", $ManifestPath,
+        "--startup-scene-guid", $StartupSceneGuid,
+        "--startup-scene", $StartupScene,
+        "--width", ([string]$Width),
+        "--height", ([string]$Height),
+        "--pixels-per-unit", ([string]::Format([System.Globalization.CultureInfo]::InvariantCulture, "{0}", $PixelsPerUnit)),
+        "--target-platform", $TargetPlatform,
+        "--script-mode", $ScriptMode,
+        "--script-module", $ScriptModule
+    )
+    & $toolExe @args
+    if ($LASTEXITCODE -ne 0) {
+        throw "BuildManifestTool failed to write manifest: $ManifestPath"
     }
-}
-"@
-    if (-not ("JBroBuildManifestWriterV2" -as [type])) {
-        Add-Type -TypeDefinition $source -Language CSharp
-    }
-    [JBroBuildManifestWriterV2]::WriteFile($ManifestPath, $Width, $Height, $StartupSceneGuid, $StartupScene, $PixelsPerUnit, $TargetPlatform, $ScriptMode, $ScriptModule)
 }
 
 function Find-JBroAssetGuid {
