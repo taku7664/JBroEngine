@@ -2,10 +2,14 @@
 #include "AssetPackage.h"
 
 #include "Core/Asset/AssetMetaFile.h"
+#include "Core/Asset/SpriteAsset.h"
+
+#include "stb/stb_image.h"
 
 #include <algorithm>
 #include <array>
 #include <fstream>
+#include <limits>
 #include <sstream>
 
 namespace
@@ -13,6 +17,7 @@ namespace
 	constexpr std::array<char, 8> PACK_MAGIC = { 'J', 'B', 'P', 'A', 'C', 'K', '1', '\0' };
 	constexpr std::uint32_t PACK_VERSION = 1;
 	constexpr std::uint32_t HEADER_SIZE = 72;
+	constexpr std::array<char, 8> COOKED_SPRITE_MAGIC = { 'J', 'B', 'S', 'P', 'R', '8', '1', '\0' };
 	constexpr std::uint64_t FNV_OFFSET = 14695981039346656037ull;
 	constexpr std::uint64_t FNV_PRIME = 1099511628211ull;
 	constexpr std::uint64_t PACK_CRYPT_KEY = 0x9E3779B97F4A7C15ull;
@@ -165,6 +170,114 @@ namespace
 		return static_cast<bool>(file) || file.eof();
 	}
 
+	bool AppendString(std::vector<std::uint8_t>& bytes, const std::string& value)
+	{
+		if (value.size() > std::numeric_limits<std::uint32_t>::max())
+		{
+			return false;
+		}
+
+		const std::uint32_t size = static_cast<std::uint32_t>(value.size());
+		const std::uint8_t* sizeBytes = reinterpret_cast<const std::uint8_t*>(&size);
+		bytes.insert(bytes.end(), sizeBytes, sizeBytes + sizeof(size));
+		bytes.insert(bytes.end(), value.begin(), value.end());
+		return true;
+	}
+
+	template<typename T>
+	void AppendPod(std::vector<std::uint8_t>& bytes, const T& value)
+	{
+		const std::uint8_t* valueBytes = reinterpret_cast<const std::uint8_t*>(&value);
+		bytes.insert(bytes.end(), valueBytes, valueBytes + sizeof(T));
+	}
+
+	EAssetPayloadType SelectRawCompatiblePayloadType(EAssetType type)
+	{
+		switch (type)
+		{
+		case EAssetType::Scene:
+			return EAssetPayloadType::SerializedScene;
+		case EAssetType::Prefab:
+			return EAssetPayloadType::SerializedPrefab;
+		case EAssetType::Custom:
+		case EAssetType::Script:
+		case EAssetType::Shader:
+		case EAssetType::Material:
+		case EAssetType::Mesh:
+		case EAssetType::AudioEffect:
+			return EAssetPayloadType::BinaryBlob;
+		default:
+			return EAssetPayloadType::RawSource;
+		}
+	}
+
+	bool CookSpritePayload(const AssetPackageBuildEntry& entry, std::vector<std::uint8_t>& outPayload)
+	{
+		outPayload.clear();
+
+		int width = 0;
+		int height = 0;
+		int channels = 0;
+		stbi_uc* pixels = stbi_load(entry.SourcePath.string().c_str(), &width, &height, &channels, 4);
+		if (nullptr == pixels || width <= 0 || height <= 0)
+		{
+			if (pixels)
+			{
+				stbi_image_free(pixels);
+			}
+			return false;
+		}
+
+		const std::uint64_t pixelSize = static_cast<std::uint64_t>(width) * static_cast<std::uint64_t>(height) * 4ull;
+		if (pixelSize > static_cast<std::uint64_t>(std::numeric_limits<std::uint32_t>::max()))
+		{
+			stbi_image_free(pixels);
+			return false;
+		}
+
+		outPayload.insert(outPayload.end(), COOKED_SPRITE_MAGIC.begin(), COOKED_SPRITE_MAGIC.end());
+		const std::uint32_t version = 1;
+		const std::uint32_t cookedWidth = static_cast<std::uint32_t>(width);
+		const std::uint32_t cookedHeight = static_cast<std::uint32_t>(height);
+		const std::uint32_t cookedChannels = 4;
+		const std::uint32_t cookedPixelSize = static_cast<std::uint32_t>(pixelSize);
+		AppendPod(outPayload, version);
+		AppendPod(outPayload, cookedWidth);
+		AppendPod(outPayload, cookedHeight);
+		AppendPod(outPayload, cookedChannels);
+		if (false == AppendString(outPayload, entry.MetaData.ImportOptionsYaml))
+		{
+			stbi_image_free(pixels);
+			outPayload.clear();
+			return false;
+		}
+		AppendPod(outPayload, cookedPixelSize);
+		outPayload.insert(outPayload.end(), pixels, pixels + cookedPixelSize);
+		stbi_image_free(pixels);
+		return true;
+	}
+
+	bool BuildPackagePayload(const AssetPackageBuildEntry& entry, std::vector<std::uint8_t>& outPayload, EAssetPayloadType& outPayloadType)
+	{
+		outPayloadType = EAssetPayloadType::Unknown;
+		if (EAssetType::Sprite == entry.MetaData.Type)
+		{
+			if (false == CookSpritePayload(entry, outPayload))
+			{
+				return false;
+			}
+			outPayloadType = EAssetPayloadType::CookedTexture;
+			return true;
+		}
+
+		if (false == ReadFileBytes(entry.SourcePath, outPayload))
+		{
+			return false;
+		}
+		outPayloadType = SelectRawCompatiblePayloadType(entry.MetaData.Type);
+		return EAssetPayloadType::Unknown != outPayloadType;
+	}
+
 	std::vector<std::uint8_t> SerializeIndex(const std::vector<AssetRecord>& records)
 	{
 		std::ostringstream stream(std::ios::binary);
@@ -302,7 +415,8 @@ bool CAssetPackWriter::Write(const File::Path& packPath, const std::vector<Asset
 		}
 
 		std::vector<std::uint8_t> payload;
-		if (false == ReadFileBytes(entry.SourcePath, payload))
+		EAssetPayloadType payloadType = EAssetPayloadType::Unknown;
+		if (false == BuildPackagePayload(entry, payload, payloadType))
 		{
 			return false;
 		}
@@ -310,7 +424,7 @@ bool CAssetPackWriter::Write(const File::Path& packPath, const std::vector<Asset
 		AssetRecord record;
 		record.Guid = entry.MetaData.Guid;
 		record.Type = entry.MetaData.Type;
-		record.PayloadType = EAssetPayloadType::RawSource;
+		record.PayloadType = payloadType;
 		record.EntryLocator.Value = entry.MetaData.Guid.generic_string();
 		record.PackId = packPath.stem().generic_string();
 		record.ImportOptionsYaml = entry.MetaData.ImportOptionsYaml;

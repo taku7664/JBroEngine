@@ -7,11 +7,14 @@
 #include "stb/stb_image.h"
 
 #include <algorithm>
+#include <array>
 #include <cstring>
 #include <sstream>
 
 namespace
 {
+	constexpr std::array<char, 8> COOKED_SPRITE_MAGIC = { 'J', 'B', 'S', 'P', 'R', '8', '1', '\0' };
+
 	template<typename T>
 	T ReadOption(const YAML::Node& node, const char* key, const T& defaultValue)
 	{
@@ -37,6 +40,76 @@ namespace
 		case ESpriteSliceType::CellCount: return "CellCount";
 		default:                          return "None";
 		}
+	}
+
+	template<typename T>
+	bool ReadPod(const std::vector<std::uint8_t>& bytes, std::size_t& offset, T& outValue)
+	{
+		if (offset + sizeof(T) > bytes.size())
+		{
+			return false;
+		}
+		std::memcpy(&outValue, bytes.data() + offset, sizeof(T));
+		offset += sizeof(T);
+		return true;
+	}
+
+	bool ReadString(const std::vector<std::uint8_t>& bytes, std::size_t& offset, std::string& outValue)
+	{
+		std::uint32_t size = 0;
+		if (false == ReadPod(bytes, offset, size) || offset + size > bytes.size())
+		{
+			return false;
+		}
+		outValue.assign(reinterpret_cast<const char*>(bytes.data() + offset), size);
+		offset += size;
+		return true;
+	}
+
+	bool TryLoadCookedSpritePayload(
+		const AssetLoadDesc& desc,
+		std::uint32_t& outWidth,
+		std::uint32_t& outHeight,
+		std::vector<std::uint8_t>& outPixels,
+		std::string& outImportOptionsYaml)
+	{
+		outWidth = 0;
+		outHeight = 0;
+		outPixels.clear();
+		outImportOptionsYaml.clear();
+
+		if (desc.MemoryPayload.size() < COOKED_SPRITE_MAGIC.size()
+			|| 0 != std::memcmp(desc.MemoryPayload.data(), COOKED_SPRITE_MAGIC.data(), COOKED_SPRITE_MAGIC.size()))
+		{
+			return false;
+		}
+
+		std::size_t offset = COOKED_SPRITE_MAGIC.size();
+		std::uint32_t version = 0;
+		std::uint32_t channels = 0;
+		std::uint32_t pixelSize = 0;
+		if (false == ReadPod(desc.MemoryPayload, offset, version)
+			|| 1 != version
+			|| false == ReadPod(desc.MemoryPayload, offset, outWidth)
+			|| false == ReadPod(desc.MemoryPayload, offset, outHeight)
+			|| false == ReadPod(desc.MemoryPayload, offset, channels)
+			|| 4 != channels
+			|| false == ReadString(desc.MemoryPayload, offset, outImportOptionsYaml)
+			|| false == ReadPod(desc.MemoryPayload, offset, pixelSize)
+			|| 0 == outWidth
+			|| 0 == outHeight)
+		{
+			return false;
+		}
+
+		const std::uint64_t expectedSize = static_cast<std::uint64_t>(outWidth) * static_cast<std::uint64_t>(outHeight) * 4ull;
+		if (expectedSize != pixelSize || offset + pixelSize != desc.MemoryPayload.size())
+		{
+			return false;
+		}
+
+		outPixels.assign(desc.MemoryPayload.begin() + static_cast<std::ptrdiff_t>(offset), desc.MemoryPayload.end());
+		return true;
 	}
 }
 
@@ -244,40 +317,62 @@ OwnerPtr<IAsset> CSpriteAssetLoader::Load(const AssetLoadDesc& desc)
 	if (false == CanLoad(desc)) return nullptr;
 
 	int w = 0, h = 0, channels = 0;
-	stbi_uc* pixels = nullptr;
+	std::vector<std::uint8_t> data;
+	std::string cookedImportOptionsYaml;
 	if (desc.HasMemoryPayload())
 	{
-		pixels = stbi_load_from_memory(
-			desc.MemoryPayload.data(),
-			static_cast<int>(desc.MemoryPayload.size()),
-			&w,
-			&h,
-			&channels,
-			4);
-	}
-	else
-	{
-		const std::string resolved = desc.ResolvedPath.string();
-		pixels = stbi_load(resolved.c_str(), &w, &h, &channels, 4);
-	}
-	if (nullptr == pixels || w <= 0 || h <= 0)
-	{
-		if (pixels) stbi_image_free(pixels);
-		return nullptr;
+		std::uint32_t cookedWidth = 0;
+		std::uint32_t cookedHeight = 0;
+		if (TryLoadCookedSpritePayload(desc, cookedWidth, cookedHeight, data, cookedImportOptionsYaml))
+		{
+			w = static_cast<int>(cookedWidth);
+			h = static_cast<int>(cookedHeight);
+		}
 	}
 
-	const std::size_t byteCount = static_cast<std::size_t>(w) * h * 4;
-	std::vector<std::uint8_t> data(byteCount);
-	std::memcpy(data.data(), pixels, byteCount);
-	stbi_image_free(pixels);
+	if (data.empty())
+	{
+		stbi_uc* pixels = nullptr;
+		if (desc.HasMemoryPayload())
+		{
+			pixels = stbi_load_from_memory(
+				desc.MemoryPayload.data(),
+				static_cast<int>(desc.MemoryPayload.size()),
+				&w,
+				&h,
+				&channels,
+				4);
+		}
+		else
+		{
+			const std::string resolved = desc.ResolvedPath.string();
+			pixels = stbi_load(resolved.c_str(), &w, &h, &channels, 4);
+		}
+		if (nullptr == pixels || w <= 0 || h <= 0)
+		{
+			if (pixels) stbi_image_free(pixels);
+			return nullptr;
+		}
+
+		const std::size_t byteCount = static_cast<std::size_t>(w) * h * 4;
+		data.resize(byteCount);
+		std::memcpy(data.data(), pixels, byteCount);
+		stbi_image_free(pixels);
+	}
+
+	AssetMetaData metaData = *desc.MetaData;
+	if (false == cookedImportOptionsYaml.empty())
+	{
+		metaData.ImportOptionsYaml = cookedImportOptionsYaml;
+	}
 
 	OwnerPtr<CSpriteAsset> sprite = MakeOwnerPtr<CSpriteAsset>(
-		*desc.MetaData,
+		metaData,
 		static_cast<std::uint32_t>(w),
 		static_cast<std::uint32_t>(h),
 		std::move(data));
 
-	const SpriteImportOptions options = CSpriteImportOptions::FromYaml(desc.MetaData->ImportOptionsYaml);
+	const SpriteImportOptions options = CSpriteImportOptions::FromYaml(metaData.ImportOptionsYaml);
 	sprite->SetImportData(options, CSpriteImportOptions::BuildFrames(
 		sprite->GetWidth(), sprite->GetHeight(), options));
 

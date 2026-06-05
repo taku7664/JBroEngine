@@ -79,14 +79,30 @@ This document reorganizes the remaining work from `tasks/EngineCodeAudit.md` aft
   - Script/web packaging now shares the engine-owned C++ manifest writer with editor Windows packaging.
   - The tool round-trip validates the generated manifest before returning success.
 
+### Cooked sprite payload transition
+
+- Source findings: F-001, F-002
+- Status: Done for C++ Sprite pack/load path.
+- Result:
+  - C++ pack writer now stores Sprite assets as cooked RGBA8 payloads with a small binary header.
+  - Sprite loader detects the cooked payload magic and builds `CSpriteAsset` directly from RGBA memory without decoding original image bytes again.
+  - C++ pack writer records Scene/Prefab/BinaryBlob payload types instead of writing every record as `RawSource`.
+  - Script/Web C# pack writer now classifies Scene/Prefab/BinaryBlob payload records, but keeps Sprite/Audio raw-compatible until an engine-owned asset pack tool replaces the C# writer.
+- Remaining:
+  - Move Web/script packaging from embedded C# pack writer to an engine-owned `AssetPackTool`.
+  - Cook audio payloads, including a pack-backed streaming strategy.
+  - Move remaining runtime import option data out of the pack index once each cooked payload carries its own runtime header.
+
 ## Remaining Work Queue
 
 ### 1. Release asset pack contract hardening
 
 - Source findings: F-001, F-002
 - Priority: High
+- Status: Partially done.
 - Work:
-  - Cook texture/audio/scene/prefab payloads before pack write.
+  - Finish cooked payloads beyond C++ Sprite path.
+  - Replace script/web C# pack writer with an engine-owned pack tool so Web gets the same cooked Sprite payload.
   - Move remaining runtime import option data into cooked payload headers where practical.
   - Add platform pack streaming for assets that intentionally stream.
 - Reason:

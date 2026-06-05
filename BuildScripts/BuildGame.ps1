@@ -476,6 +476,26 @@ public static class JBroPackWriterV2
         writer.Write(bytes);
     }
 
+    static uint SelectPayloadType(uint assetType)
+    {
+        // EAssetType values are serialized by the engine. Keep this in sync with AssetTypes.h.
+        // Script-side packaging keeps Sprite/Audio raw-compatible until it is moved to an engine-owned pack tool.
+        switch (assetType)
+        {
+            case 5: return 4; // Scene -> SerializedScene
+            case 6: return 5; // Prefab -> SerializedPrefab
+            case 2: // Mesh
+            case 3: // Material
+            case 4: // Shader
+            case 7: // Script
+            case 9: // Custom
+            case 10: // AudioEffect
+                return 6; // BinaryBlob
+            default:
+                return 1; // RawSource
+        }
+    }
+
     static byte[] SerializeIndex(List<Record> records, string packId)
     {
         using (var ms = new MemoryStream())
@@ -488,7 +508,7 @@ public static class JBroPackWriterV2
                 WriteString(writer, record.Entry.Guid);
                 WriteString(writer, record.Entry.Guid);
                 writer.Write(record.Entry.Type);
-                writer.Write((uint)1);
+                writer.Write(SelectPayloadType(record.Entry.Type));
                 writer.Write(record.Entry.Version);
                 writer.Write((uint)2);
                 writer.Write(record.Offset);

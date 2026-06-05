@@ -122,6 +122,26 @@ What remains:
 - Future build manifest fields should be added to `Engine/Core/Build/BuildManifest.*` first.
 - Script/web packaging should keep calling the tool instead of reintroducing a second binary writer.
 
+### R-007: Cooked Sprite payload for C++ asset pack writer
+
+- Related findings: F-001, F-002
+- Date: 2026-06-05
+- Files:
+  - `Engine/Core/Asset/AssetPackage.cpp`
+  - `Engine/Core/Asset/SpriteAsset.cpp`
+  - `BuildScripts/BuildGame.ps1`
+
+What changed:
+- C++ pack writer now decodes Sprite source images at pack time and writes RGBA8 cooked payloads.
+- Sprite loader now recognizes the cooked Sprite payload header and loads pixel data directly from memory.
+- C++ pack records now use Scene/Prefab/BinaryBlob payload types where applicable instead of treating every payload as `RawSource`.
+- Script/Web pack writer now classifies non-Sprite binary payload types, while Sprite/Audio remain raw-compatible there until the writer is replaced by an engine-owned pack tool.
+
+What remains:
+- Web/script packaging still does not produce cooked Sprite payloads.
+- Audio cooked payloads and pack-backed streaming are not implemented yet.
+- `ImportOptionsYaml` still remains in the runtime index for compatibility until cooked payload headers cover every asset type.
+
 ## Findings
 
 ### F-001: Pack reader can write decrypted payloads back to `.packcache`

@@ -1,3 +1,49 @@
+# TODO — Cooked Asset Payload Transition Phase 1
+
+## Goal
+Release pack의 raw-source 계약을 줄이기 위해 Sprite를 실제 cooked RGBA payload로 전환하고, 나머지 타입도 runtime payload type을 RawSource가 아닌 의도별 타입으로 분류한다.
+
+## Assumptions
+- 이번 단계는 Engine/Core/Asset 중심으로 진행하고, 빡대리 작업 중인 GameFramework 변경 파일은 건드리지 않는다.
+- Sprite는 stb decode를 통해 RGBA8 cooked payload를 만들 수 있다.
+- Scene/Prefab/File/Custom은 아직 loader가 byte payload를 그대로 읽는 구조이므로 payload type만 SerializedScene/SerializedPrefab/BinaryBlob으로 명시한다.
+- Audio는 decompressed/streaming cooked 계약이 더 크므로 이번 단계에서는 raw-compatible fallback을 유지하고 후속 작업으로 분리한다.
+- `ImportOptionsYaml`은 Sprite cooked payload 안에도 넣되, index에도 호환성 목적으로 아직 유지한다.
+
+## Success Criteria
+- C++ pack writer가 Sprite payload를 raw image file bytes가 아니라 cooked RGBA8 payload로 저장한다.
+- Sprite loader가 cooked RGBA8 memory payload를 직접 읽어 `CSpriteAsset`을 생성한다.
+- C++ pack writer가 Scene/Prefab/BinaryBlob payload type을 타입별로 기록한다.
+- SDK public mirror도 같은 asset package/load desc 계약을 가진다.
+- BuildGame.ps1 script writer의 payload type 분류도 RawSource 일괄 기록에서 벗어난다.
+
+## Plan
+- [x] cooked sprite payload binary format 추가
+- [x] C++ pack writer sprite cook 적용
+- [x] Sprite loader cooked memory path 추가
+- [x] script pack writer payload type 분류 적용
+- [x] SDK mirror 동기화 확인
+- [x] 문서/todo 갱신
+- [x] 검증 및 커밋
+
+## Verification
+- [x] `rg`로 C++ writer RawSource 일괄 기록 제거 확인
+- [x] PowerShell parser check for `BuildGame.ps1`
+- [x] embedded C# pack writer `Add-Type` compile
+- [x] `Engine.vcxproj Debug_Game|x64` build
+- [x] `git diff --check`
+
+## Review
+- 코드를 읽었고: `CAssetPackWriter::Write()`는 모든 entry를 `ReadFileBytes()`로 읽고 `RawSource`로 기록했고, `CSpriteAssetLoader`는 memory payload를 stb로 원본 이미지처럼 디코드했다.
+- 생각했고: Sprite는 pack 시점에 RGBA8로 cooking할 수 있어 runtime이 원본 png/jpg bytes를 알 필요가 없지만, Audio streaming은 pack-backed streaming 설계가 먼저 필요하다고 판단했다.
+- 반례를 찾았고: Web/script C# pack writer가 cooked texture라고 record만 바꾸면 실제 payload는 raw image라 계약이 거짓이 된다.
+- 고쳤다: C++ writer만 Sprite를 실제 cooked RGBA8 payload로 쓰고, Sprite loader는 cooked magic을 먼저 확인한 뒤 raw image fallback을 유지한다.
+- 추가로 고쳤다: C++/script writer 모두 Scene/Prefab/BinaryBlob payload type을 기록하되, script writer의 Sprite/Audio는 raw-compatible으로 남겼다.
+- 검증했다: `BuildGame.ps1` parser check, embedded C# pack writer `Add-Type` compile, `Engine.vcxproj Debug_Game|x64` build, `git diff --check`를 통과했다.
+- 남겼다: Web/script도 cooked Sprite를 만들려면 embedded C# pack writer를 engine-owned `AssetPackTool`로 교체해야 한다.
+
+---
+
 # TODO — WebBuild CleanOnly Contract
 
 ## Goal
