@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "Core/Module/Module.h"
+#include "Core/Renderer/RendererTypes.h"
 #include "GameFramework/Rendering/GameCamera.h"
 #include "GameFramework/Scene/SceneTypes.h"
 
@@ -70,6 +71,7 @@ public:
 	void* GetSceneViewTextureID() const;
 	std::uint32_t GetSceneViewWidth()  const { return m_sceneViewWidth;  }
 	std::uint32_t GetSceneViewHeight() const { return m_sceneViewHeight; }
+	RenderCullingStats GetSceneViewCullingStats() const { return m_sceneViewCullingStats; }
 
 	// 포커스 오버레이: 흰 반투명 박스 + 포커스 스프라이트/콜라이더 재렌더 (RT 파이프라인).
 	// SceneViewTool이 매 프레임 호출.
@@ -91,6 +93,7 @@ public:
 	void* GetGameViewTextureID() const;
 	std::uint32_t GetGameViewWidth()  const { return m_gameViewWidth;  }
 	std::uint32_t GetGameViewHeight() const { return m_gameViewHeight; }
+	RenderCullingStats GetGameViewCullingStats() const { return m_gameViewCullingStats; }
 
 private:
 	void OnPreInitialize() override;
@@ -134,6 +137,7 @@ private:
 	float m_sceneViewCamY    = 0.0f;
 	float m_sceneViewCamSize = 5.0f;
 	bool m_sceneViewRequested = false;
+	RenderCullingStats m_sceneViewCullingStats;
 
 	// Game view (multi-camera)
 	OwnerPtr<IRHITexture>      m_gameViewRenderTarget;
@@ -141,6 +145,7 @@ private:
 	std::uint32_t              m_gameViewHeight   = 0;
 	bool                       m_gameViewRequested = false;
 	std::vector<GameRenderCameraDesc> m_gameViewCameras;
+	RenderCullingStats         m_gameViewCullingStats;
 
 	// GPU renderer for IDebugDraw2D primitives — renders into scene RT.
 	OwnerPtr<CDebugRenderer2D>  m_debugRenderer;

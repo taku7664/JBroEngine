@@ -104,7 +104,12 @@ Entries:
   project_settings.category.script: 스크립트
   project_settings.category.localization: 로컬라이징
   project_settings.category.audio: 사운드
+  project_settings.category.debug: 디버그
   project_settings.category.asset_watcher: 자산 워처
+  project_settings.debug: 디버그
+  project_settings.debug_mode: 디버그 모드
+  project_settings.debug_mode.desc: 에디터 진단 오버레이를 표시합니다.
+  project_settings.debug_mode.help: 켜면 SceneView/GameView에 카메라 컬링 통계가 표시됩니다.
   project_settings.asset_watcher.title: 자산 워처 무시 패턴
   project_settings.asset_watcher.desc: 한 줄당 하나의 glob 패턴. 매칭된 파일은 자산 import 시도에서 제외됩니다.
   project_settings.asset_watcher.syntax_hint: "예: *.tmp, ~$*, Temp/*.png. '*'=0+ 문자, '?'=임의 1 문자. 슬래시(/) 포함 패턴은 상대경로 전체에 매칭, 아니면 파일명에만 매칭."
@@ -405,6 +410,7 @@ Entries:
   scene_view.overlay.camera_format: "카메라 (%.2f, %.2f) | 크기 %.2f"
   scene_view.overlay.focus_format: "포커스: %s  [빈 공간 더블클릭으로 빠져나오기]"
   scene_view.overlay.viewport_selected_camera: 뷰포트 (선택된 카메라)
+  debug_overlay.culling_format: "컬링: %u / 후보: %u / 드로우: %u"
 
   game_view.status.playing: 실행 중
   game_view.status.scene_stopped: 씬 (정지)

@@ -78,6 +78,7 @@ void CProjectSettingsWindow::OnShow()
 
         m_scriptBuildConfiguration = EScriptBuildConfiguration::Release == pm->GetScriptBuildConfiguration() ? 1 : 0;
         m_scriptAutoRebuildEnabled = pm->IsScriptAutoRebuildEnabled();
+        m_debugModeEnabled = pm->IsDebugModeEnabled();
         m_editAssetWatchIgnorePatterns = pm->GetAssetWatchIgnorePatterns();
 
         // InputTextMultiline 백킹 버퍼를 패턴 벡터로부터 재구축 (프로젝트 전환 시 stale 방지).
@@ -150,6 +151,7 @@ void CProjectSettingsWindow::DrawCategoryList(float)
         { ECategory::Script,       "project_settings.category.script"        },
         { ECategory::Localization, "project_settings.category.localization"  },
         { ECategory::Audio,        "project_settings.category.audio"         },
+        { ECategory::Debug,        "project_settings.category.debug"         },
         { ECategory::AssetWatcher, "project_settings.category.asset_watcher" },
     };
 
@@ -171,6 +173,7 @@ void CProjectSettingsWindow::DrawCategoryContent(float)
     case ECategory::Script:       DrawCategoryScript();       break;
     case ECategory::Localization: DrawCategoryLocalization(); break;
     case ECategory::Audio:        DrawCategoryAudio();        break;
+    case ECategory::Debug:        DrawCategoryDebug();        break;
     case ECategory::AssetWatcher: DrawCategoryAssetWatcher(); break;
     default: break;
     }
@@ -374,6 +377,23 @@ void CProjectSettingsWindow::DrawCategoryAudio()
     // 추가 UI 가 들어간다.
 }
 
+void CProjectSettingsWindow::DrawCategoryDebug()
+{
+    ImGui::SeparatorText(Loc::Text("project_settings.debug"));
+
+    ImGui::Utillity::FormLayout layout("##ps_debug_form", 4.0f, {2.0f, 1.0f}, 140.0f);
+    layout.Row(
+        [&]() {
+            ImText label;
+            label.SetHoveredTooltip(Loc::Text("project_settings.debug_mode.desc"));
+            label(Loc::Text("project_settings.debug_mode"));
+        },
+        [&]() { ImGui::Checkbox("##ps.debug_mode", &m_debugModeEnabled); });
+
+    ImGui::Spacing();
+    ImGui::TextDisabled("%s", Loc::Text("project_settings.debug_mode.help"));
+}
+
 void CProjectSettingsWindow::DrawCategoryAssetWatcher()
 {
     ImGui::SeparatorText(Loc::Text("project_settings.asset_watcher.title"));
@@ -441,6 +461,7 @@ void CProjectSettingsWindow::DrawFooterButtons()
             pm->SetScriptBuildConfiguration(1 == m_scriptBuildConfiguration
                 ? EScriptBuildConfiguration::Release : EScriptBuildConfiguration::Debug);
             pm->SetScriptAutoRebuildEnabled(m_scriptAutoRebuildEnabled);
+            pm->SetDebugModeEnabled(m_debugModeEnabled);
             pm->SetAssetWatchIgnorePatterns(m_editAssetWatchIgnorePatterns);
         }
         if (Engine.Localization.IsValid())

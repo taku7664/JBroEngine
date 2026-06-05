@@ -10,6 +10,7 @@
 #include "Core/RHI/IRHICommandContext.h"
 #include "Core/RHI/IRHIDevice.h"
 
+#include <cfloat>
 #include <utility>
 
 namespace
@@ -297,6 +298,11 @@ void CForward2DRenderer::Render(IRenderScene& scene)
 	RenderImpl(scene, nullptr);
 }
 
+RenderCullingStats CForward2DRenderer::GetLastCullingStats() const
+{
+	return m_lastCullingStats;
+}
+
 void CForward2DRenderer::RenderExcluding(IRenderScene& scene, const std::unordered_set<RenderObjectId>& excluded)
 {
 	RenderImpl(scene, &excluded);
@@ -430,6 +436,43 @@ CForward2DRenderer::SpriteConstants CForward2DRenderer::BuildViewportColorConsta
 	constants.ViewRow0[0] = 1.0f;
 	constants.ViewRow1[1] = 1.0f;
 	return constants;
+}
+
+bool CForward2DRenderer::IsSpriteItemVisibleInView(const RenderItem& item, const ViewParameters& view) const
+{
+	if (view.HalfW <= 0.0f || view.HalfH <= 0.0f)
+	{
+		return true;
+	}
+
+	constexpr float kCorners[4][2] = {
+		{ -0.5f, -0.5f },
+		{  0.5f, -0.5f },
+		{  0.5f,  0.5f },
+		{ -0.5f,  0.5f },
+	};
+
+	float minX =  FLT_MAX;
+	float minY =  FLT_MAX;
+	float maxX = -FLT_MAX;
+	float maxY = -FLT_MAX;
+
+	for (const auto& corner : kCorners)
+	{
+		const float worldX = item.Transform.M11 * corner[0] + item.Transform.M21 * corner[1] + item.Transform.Dx;
+		const float worldY = item.Transform.M12 * corner[0] + item.Transform.M22 * corner[1] + item.Transform.Dy;
+		const float dx = worldX - m_viewCamX;
+		const float dy = worldY - m_viewCamY;
+		const float viewX =  view.CosR * dx + view.SinR * dy;
+		const float viewY = -view.SinR * dx + view.CosR * dy;
+
+		minX = std::min(minX, viewX);
+		minY = std::min(minY, viewY);
+		maxX = std::max(maxX, viewX);
+		maxY = std::max(maxY, viewY);
+	}
+
+	return !(maxX < -view.HalfW || minX > view.HalfW || maxY < -view.HalfH || minY > view.HalfH);
 }
 
 SafePtr<IRHIBuffer> CForward2DRenderer::AcquireSpriteConstantBuffer(IRHICommandContext& commandContext, const SpriteConstants& constants)
@@ -720,6 +763,8 @@ bool CForward2DRenderer::DrawSpriteBatch(IRHICommandContext& commandContext, Ren
 
 void CForward2DRenderer::RenderImpl(IRenderScene& scene, const std::unordered_set<RenderObjectId>* excluded)
 {
+	m_lastCullingStats = {};
+
 	if (false == m_isInitialized || false == m_rhiDevice.IsValid())
 	{
 		return;
@@ -755,6 +800,14 @@ void CForward2DRenderer::RenderImpl(IRenderScene& scene, const std::unordered_se
 			++i;
 			continue;
 		}
+		++m_lastCullingStats.SubmittedCount;
+
+		if (false == IsSpriteItemVisibleInView(item, view))
+		{
+			++m_lastCullingStats.CulledCount;
+			++i;
+			continue;
+		}
 
 		const SpriteDrawResources resources = ResolveSpriteDrawResources(item);
 		if (CanBatchSpriteItem(item, resources))
@@ -764,6 +817,11 @@ void CForward2DRenderer::RenderImpl(IRenderScene& scene, const std::unordered_se
 			{
 				const RenderItem& nextItem = items[i + batchCount];
 				if (excluded && excluded->find(nextItem.Entity) != excluded->end())
+				{
+					break;
+				}
+
+				if (false == IsSpriteItemVisibleInView(nextItem, view))
 				{
 					break;
 				}
@@ -782,19 +840,26 @@ void CForward2DRenderer::RenderImpl(IRenderScene& scene, const std::unordered_se
 			{
 				if (DrawSpriteBatch(*commandContext.TryGet(), stateCache, items + i, batchCount, resources, view))
 				{
+					m_lastCullingStats.SubmittedCount += batchCount - 1;
+					m_lastCullingStats.DrawnCount += batchCount;
 					i += batchCount;
 					continue;
 				}
 			}
 		}
 
-		DrawSpriteItem(*commandContext.TryGet(), stateCache, item, resources, view);
+		if (DrawSpriteItem(*commandContext.TryGet(), stateCache, item, resources, view))
+		{
+			++m_lastCullingStats.DrawnCount;
+		}
 		++i;
 	}
 }
 
 void CForward2DRenderer::RenderFiltered(IRenderScene& scene, const std::unordered_set<RenderObjectId>& objects)
 {
+	m_lastCullingStats = {};
+
 	if (false == m_isInitialized || false == m_rhiDevice.IsValid()) return;
 	if (!m_spritePipeline || !m_quadMesh) return;
 	if (objects.empty()) return;
@@ -819,6 +884,14 @@ void CForward2DRenderer::RenderFiltered(IRenderScene& scene, const std::unordere
 			++i;
 			continue;
 		}
+		++m_lastCullingStats.SubmittedCount;
+
+		if (false == IsSpriteItemVisibleInView(item, view))
+		{
+			++m_lastCullingStats.CulledCount;
+			++i;
+			continue;
+		}
 
 		const SpriteDrawResources resources = ResolveSpriteDrawResources(item);
 		if (CanBatchSpriteItem(item, resources))
@@ -828,6 +901,11 @@ void CForward2DRenderer::RenderFiltered(IRenderScene& scene, const std::unordere
 			{
 				const RenderItem& nextItem = items[i + batchCount];
 				if (objects.find(nextItem.Entity) == objects.end())
+				{
+					break;
+				}
+
+				if (false == IsSpriteItemVisibleInView(nextItem, view))
 				{
 					break;
 				}
@@ -846,13 +924,18 @@ void CForward2DRenderer::RenderFiltered(IRenderScene& scene, const std::unordere
 			{
 				if (DrawSpriteBatch(*commandContext.TryGet(), stateCache, items + i, batchCount, resources, view))
 				{
+					m_lastCullingStats.SubmittedCount += batchCount - 1;
+					m_lastCullingStats.DrawnCount += batchCount;
 					i += batchCount;
 					continue;
 				}
 			}
 		}
 
-		DrawSpriteItem(*commandContext.TryGet(), stateCache, item, resources, view);
+		if (DrawSpriteItem(*commandContext.TryGet(), stateCache, item, resources, view))
+		{
+			++m_lastCullingStats.DrawnCount;
+		}
 		++i;
 	}
 }

@@ -32,6 +32,12 @@ namespace
         return vpSize.y > 0.0f ? vpSize.x / vpSize.y : 1.0f;
     }
 
+    bool IsProjectDebugModeEnabled()
+    {
+        SafePtr<CProjectManager> pm = Editor::ImEditor ? Editor::ImEditor->GetProjectManager() : nullptr;
+        return pm && pm->IsProjectLoaded() && pm->IsDebugModeEnabled();
+    }
+
     Vector2 ViewportToWorld(
         const ImVec2& vpPt,
         const ImVec2& vpMin, const ImVec2& vpSize,
@@ -1410,6 +1416,19 @@ void CSceneViewTool::OnRenderStay()
                   m_cameraPos.x, m_cameraPos.y, m_cameraSize);
     dl->AddText(textPos + ImVec2(0.0f, 40.0f), IM_COL32(130, 140, 155, 200), camText);
 
+    float nextDebugLineY = 60.0f;
+    if (IsProjectDebugModeEnabled() && Editor::ImEditor)
+    {
+        const RenderCullingStats stats = Editor::ImEditor->GetSceneViewCullingStats();
+        char cullingText[128] = {};
+        std::snprintf(cullingText, sizeof(cullingText),
+                      Loc::Text("debug_overlay.culling_format"),
+                      stats.CulledCount, stats.SubmittedCount, stats.DrawnCount);
+        dl->AddText(textPos + ImVec2(0.0f, nextDebugLineY),
+                    IM_COL32(255, 205, 90, 230), cullingText);
+        nextDebugLineY += 20.0f;
+    }
+
     if (m_editCtx.IsActive())
     {
         char ctxText[128] = {};
@@ -1417,7 +1436,7 @@ void CSceneViewTool::OnRenderStay()
         std::snprintf(ctxText, sizeof(ctxText),
                       Loc::Text("scene_view.overlay.focus_format"),
                       ctxObj ? ctxObj->GetName() : "");
-        dl->AddText(textPos + ImVec2(0.0f, 60.0f),
+        dl->AddText(textPos + ImVec2(0.0f, nextDebugLineY),
                     IM_COL32(255, 220, 50, 200), ctxText);
     }
 

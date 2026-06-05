@@ -22,6 +22,7 @@ public:
         Script,         // 빌드 구성, 자동 리빌드
         Localization,   // 언어
         Audio,          // 마스터 볼륨, 버스 (향후 확장)
+        Debug,          // 에디터 디버그 표시
         AssetWatcher,   // 자산 워처 무시 패턴
         Count
     };
@@ -40,6 +41,7 @@ private:
     void DrawCategoryScript();
     void DrawCategoryLocalization();
     void DrawCategoryAudio();
+    void DrawCategoryDebug();
     void DrawCategoryAssetWatcher();
 
     // 하단 Apply / Cancel
@@ -53,6 +55,7 @@ private:
 
     int   m_scriptBuildConfiguration = 0;
     bool  m_scriptAutoRebuildEnabled = false;
+    bool  m_debugModeEnabled = false;
     std::string m_errorMessage;
 
     // 오디오 (향후 PR D 의 CAudioService 와 연동)

@@ -32,6 +32,13 @@ struct RendererDesc
 	SafePtr<IRHIDevice> RHIDevice;
 };
 
+struct RenderCullingStats
+{
+	std::uint32_t SubmittedCount = 0;
+	std::uint32_t DrawnCount = 0;
+	std::uint32_t CulledCount = 0;
+};
+
 struct RenderItem
 {
 	SafePtr<IRenderMesh> Mesh;

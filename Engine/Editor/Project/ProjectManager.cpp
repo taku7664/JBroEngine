@@ -48,6 +48,7 @@ namespace
 	constexpr const char* PROJECT_KEY_LEGACY_LIVE_COMPILE_ENABLED = "LiveCompileEnabled";
 	constexpr const char* PROJECT_KEY_LAST_SCENE_PATH   = "LastOpenedScenePath";
 	constexpr const char* PROJECT_KEY_PIXELS_PER_UNIT   = "PixelsPerUnit";
+	constexpr const char* PROJECT_KEY_DEBUG_MODE_ENABLED = "DebugModeEnabled";
 	constexpr const char* PROJECT_KEY_EDITOR_LOCALE     = "EditorLocale";
 	constexpr const char* PROJECT_KEY_IMGUI_INI         = "ImGuiIniSettings";
 	constexpr const char* PROJECT_KEY_WATCH_IGNORE      = "AssetWatchIgnorePatterns";
@@ -572,6 +573,7 @@ bool CProjectManager::CreateProject(const File::Path& parentFolder, const std::s
 		out << YAML::Key << PROJECT_KEY_ROOT_PATH                  << YAML::Value << ".";
 		out << YAML::Key << PROJECT_KEY_RES_WIDTH                  << YAML::Value << 1920;
 		out << YAML::Key << PROJECT_KEY_RES_HEIGHT                 << YAML::Value << 1080;
+		out << YAML::Key << PROJECT_KEY_DEBUG_MODE_ENABLED         << YAML::Value << false;
 		// 새 프로젝트는 자동 리빌드 기본 ON. 키를 명시 저장해 로드 시 default 의존 X.
 		out << YAML::Key << PROJECT_KEY_SCRIPT_AUTO_REBUILD_ENABLED << YAML::Value << true;
 		ProjectBuildSettings buildSettings = MakeDefaultBuildSettings(projectFile, "");
@@ -740,6 +742,12 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 		if (pixelsPerUnit < 1.0f) pixelsPerUnit = 1.0f;
 	}
 
+	bool debugModeEnabled = false;
+	if (root[PROJECT_KEY_DEBUG_MODE_ENABLED])
+	{
+		debugModeEnabled = root[PROJECT_KEY_DEBUG_MODE_ENABLED].as<bool>(false);
+	}
+
 	ProjectBuildSettings buildSettings = ReadBuildSettings(root, projectPath, lastOpenedScenePath);
 
 	std::filesystem::path rootRelativePath = ".";
@@ -805,6 +813,7 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 	m_info.LastOpenedScenePath = lastOpenedScenePath;
 	m_info.BuildSettings       = buildSettings;
 	m_info.PixelsPerUnit       = pixelsPerUnit;
+	m_info.DebugModeEnabled    = debugModeEnabled;
 	m_info.EditorLocaleCode    = editorLocaleCode;
 	m_info.ImGuiIniSettings    = imguiIniSettings;
 	if (hasAssetWatchIgnorePatterns)
@@ -2061,6 +2070,16 @@ void CProjectManager::SetPixelsPerUnit(float ppu)
 	Runtime.PixelsPerUnit = m_info.PixelsPerUnit;
 }
 
+bool CProjectManager::IsDebugModeEnabled() const
+{
+	return m_info.DebugModeEnabled;
+}
+
+void CProjectManager::SetDebugModeEnabled(bool enabled)
+{
+	m_info.DebugModeEnabled = enabled;
+}
+
 const std::vector<std::string>& CProjectManager::GetAssetWatchIgnorePatterns() const
 {
 	return m_info.AssetWatchIgnorePatterns;
@@ -2500,6 +2519,7 @@ bool CProjectManager::SaveProject(std::string* outError) const
 	out << YAML::Key << PROJECT_KEY_SCENE_CAM_Y     << YAML::Value << m_info.SceneViewCamY;
 	out << YAML::Key << PROJECT_KEY_SCENE_CAM_SIZE  << YAML::Value << m_info.SceneViewCamSize;
 	out << YAML::Key << PROJECT_KEY_PIXELS_PER_UNIT << YAML::Value << m_info.PixelsPerUnit;
+	out << YAML::Key << PROJECT_KEY_DEBUG_MODE_ENABLED << YAML::Value << m_info.DebugModeEnabled;
 	out << YAML::Key << PROJECT_KEY_EDITOR_LOCALE   << YAML::Value << m_info.EditorLocaleCode;
 	out << YAML::Key << PROJECT_KEY_SCRIPT_SOURCE_DIR << YAML::Value << m_info.ScriptSourceDirectory;
 	out << YAML::Key << PROJECT_KEY_SCRIPT_BUILD_CMD << YAML::Value << m_info.ScriptBuildCommand;

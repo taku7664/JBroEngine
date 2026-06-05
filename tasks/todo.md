@@ -1,3 +1,51 @@
+# TODO — Camera Sprite Culling Debug Stats
+
+## Goal
+2D 카메라별 sprite camera culling 을 renderer 단계에 추가하고, 프로젝트 세팅의 debug mode 에서 camera culling count 를 확인할 수 있게 한다.
+
+## Assumptions
+- 카메라 view 는 renderer pass 직전에만 확정되므로 `SpriteRenderSystem` 이 아니라 `Forward2DRenderer` 에서 culling 한다.
+- 1차 컬링 대상은 `RenderItem` 의 transform 된 quad bounds 이며, sprite opaque bounds 기반 축소는 다음 단계에서 `RenderItem` 에 bounds metadata 를 싣는 구조가 필요하면 확장한다.
+- Debug mode 는 `.Jproject` 에 저장되는 프로젝트 설정으로 둔다.
+- 디버그 표시는 에디터 GameView/SceneView 에서 확인 가능해야 하며, 런타임 game build 의 화면 오염은 피한다.
+
+## Success Criteria
+- 카메라 view 밖 sprite `RenderItem` 은 draw/batch 에 들어가지 않는다.
+- renderer 가 마지막 render pass 의 submitted/drawn/culled count 를 보관한다.
+- ProjectSettings 에 Debug category 또는 Debug option 이 추가되고 `.Jproject` 에 저장/로드된다.
+- Debug mode enabled 시 GameView/SceneView overlay 에 camera culling count 가 표시된다.
+- SDK public mirror 가 필요한 타입 변경을 반영한다.
+
+## Plan
+- [x] renderer view culling 위치/API 확인
+- [x] RenderItem camera bounds culling 및 stats 추가
+- [x] project debug mode 저장/로드/UI 추가
+- [x] editor overlay 에 culling stats 표시
+- [x] SDK mirror 갱신
+- [x] 검증
+- [x] 커밋
+
+## Verification
+- [x] `Engine` target `Debug_Editor|x64`
+- [x] `Application:ClCompile` target `Debug_Editor|x64`
+- [x] `Application` target `Debug_Editor|x64`
+- [x] `git diff --check`
+
+## Review
+- 코드를 읽었고: `SpriteRenderSystem` 은 모든 sprite `RenderItem` 을 제출하지만 카메라 정보를 모르고, 카메라 half extent/rotation 은 `Forward2DRenderer::SetViewCamera*` 이후 렌더 패스에서 확정된다.
+- 생각했고: 실제 camera culling 은 제출 단계가 아니라 렌더러의 camera view transform 직전에서 수행해야, SceneView/GameView/빌드 런타임이 같은 렌더 경로를 탄다.
+- 반례를 찾았고: 배치 루프 안에서 다음 아이템의 submitted/culled 를 먼저 세면, 배치가 끊긴 아이템이 다음 루프에서 다시 카운트되어 통계가 부풀 수 있다.
+- 고쳤다: 카운트는 실제로 소비한 현재 아이템과 성공한 batch 범위에만 더하고, 컬링된 아이템은 current item 이 되었을 때만 기록한다.
+- 반례를 찾았고: SceneView focus overlay 의 `RenderFiltered` 나 GameView render pass 가 renderer 의 last stats 를 덮어써서 SceneView 오버레이가 다른 뷰의 통계를 보여줄 수 있다.
+- 고쳤다: `ImEditor` 가 SceneView/GameView 렌더 직후 각각의 `RenderCullingStats` 를 저장하고, UI 오버레이는 그 저장값만 읽게 했다.
+- 반례를 찾았고: 렌더 요청이 없는 프레임에 이전 통계가 남으면 디버그 오버레이가 stale 값을 보여준다.
+- 고쳤다: SceneView/GameView render target 요청이 없거나 생성 실패한 프레임에는 해당 통계를 0으로 초기화한다.
+- 코드를 읽었고: ProjectSettings 는 `ProjectManager` 에 편집값을 반영한 뒤 `SaveProject()` 로 YAML `.Jproject` 를 저장한다.
+- 고쳤다: `ProjectInfo::DebugModeEnabled` 를 저장/로드하고, ProjectSettings 의 Debug 카테고리에서 Apply 시 저장되게 했다.
+- 검증했다: `Engine` target `Debug_Editor|x64`, `Application:ClCompile` target `Debug_Editor|x64`, `Application` target `Debug_Editor|x64`, `git diff --check` 를 통과했다.
+
+---
+
 # TODO — Sprite Opaque Bounds Import Cache
 
 ## Goal

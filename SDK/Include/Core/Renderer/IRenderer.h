@@ -31,6 +31,7 @@ public:
 	// to clear a sub-viewport area per-camera.
 	virtual void FillViewportColor(float r, float g, float b, float a) {}
 	virtual void Render(IRenderScene& scene) = 0;
+	virtual RenderCullingStats GetLastCullingStats() const { return {}; }
 	virtual void Finalize() = 0;
 
 	virtual bool CreateGpuResource(IRenderResource& resource) = 0;

@@ -84,6 +84,9 @@ public:
 	float GetPixelsPerUnit() const;
 	void  SetPixelsPerUnit(float ppu);
 
+	bool IsDebugModeEnabled() const;
+	void SetDebugModeEnabled(bool enabled);
+
 	// 씬 뷰 에디터 카메라 (저장/복원용)
 	float GetSceneViewCamX()    const;
 	float GetSceneViewCamY()    const;

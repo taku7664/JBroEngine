@@ -524,6 +524,7 @@ void CImEditor::OnPrepareRender()
 		{
 			engineCore->Renderer->Render(*engineCore->RenderScene);
 		}
+		m_sceneViewCullingStats = engineCore->Renderer->GetLastCullingStats();
 
 		if (m_sceneViewFocusActive && !m_sceneViewFocusEntities.empty())
 		{
@@ -567,6 +568,10 @@ void CImEditor::OnPrepareRender()
 
 		commandContext->EndRenderPass();
 	}
+	else
+	{
+		m_sceneViewCullingStats = {};
+	}
 
 	// ── Game view (multi-camera) ───────────────────────────────────────────────────
 	if (m_gameViewRequested && EnsureRT(m_gameViewRenderTarget, m_gameViewWidth, m_gameViewHeight))
@@ -578,6 +583,11 @@ void CImEditor::OnPrepareRender()
 			m_gameViewCameras,
 			RenderSurfaceSize{ static_cast<int>(m_gameViewWidth), static_cast<int>(m_gameViewHeight) },
 			m_gameViewRenderTarget.GetSafePtr());
+		m_gameViewCullingStats = engineCore->Renderer->GetLastCullingStats();
+	}
+	else
+	{
+		m_gameViewCullingStats = {};
 	}
 }
 

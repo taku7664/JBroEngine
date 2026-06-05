@@ -23,6 +23,7 @@ public:
 	// Call after BeginRenderPass+SetViewport to clear a sub-viewport area.
 	void FillViewportColor(float r, float g, float b, float a) override;
 	void Render(IRenderScene& scene) override;
+	RenderCullingStats GetLastCullingStats() const override;
 	// 지정 키 집합에 속하는 RenderItem만 렌더링 (포커스 오버레이 / 마스크 패스용).
 	void RenderFiltered(IRenderScene& scene, const std::unordered_set<RenderObjectId>& objects);
 	// excluded 키 집합에 속하는 RenderItem을 제외하고 전부 렌더링 (에디터 씬뷰 숨김용).
@@ -96,6 +97,7 @@ private:
 	SpriteViewConstants BuildSpriteViewConstants(const ViewParameters& view) const;
 	SpriteInstanceData BuildSpriteInstanceData(const RenderItem& item) const;
 	SpriteConstants BuildViewportColorConstants(float r, float g, float b, float a) const;
+	bool IsSpriteItemVisibleInView(const RenderItem& item, const ViewParameters& view) const;
 	SafePtr<IRHIBuffer> AcquireSpriteConstantBuffer(IRHICommandContext& commandContext, const SpriteConstants& constants);
 	SafePtr<IRHIBuffer> AcquireSpriteViewConstantBuffer(IRHICommandContext& commandContext, const SpriteViewConstants& constants);
 	SafePtr<IRHIBuffer> AcquireSpriteInstanceBuffer(IRHICommandContext& commandContext, const SpriteInstanceData* instances, std::uint32_t instanceCount);
@@ -134,6 +136,7 @@ private:
 	float m_viewCamCosR   = 1.0f;  // camera rotation cosine (explicit mode)
 	float m_viewCamSinR   = 0.0f;  // camera rotation sine   (explicit mode)
 	bool  m_useExplicitSize = false; // true → use halfW/halfH/cosR/sinR directly
+	RenderCullingStats m_lastCullingStats;
 	// 1×1 white texture used by FillViewportColor
 	OwnerPtr<IRHITexture> m_whiteTexture;
 	bool m_isInitialized = false;
