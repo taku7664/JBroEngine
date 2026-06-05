@@ -22,8 +22,7 @@ enum class EAssetPackageEntryFlags : std::uint32_t
 	Compressed = 1 << 0,
 	Encrypted = 1 << 1,
 	Streamed = 1 << 2,
-	MemoryOnly = 1 << 3,
-	DebugNamePresent = 1 << 4
+	MemoryOnly = 1 << 3
 };
 
 struct AssetEntryLocator
@@ -40,9 +39,7 @@ struct AssetRecord
 	EAssetPayloadType PayloadType = EAssetPayloadType::Unknown;
 	AssetEntryLocator EntryLocator;
 	std::string PackId;
-	std::string Importer;
 	std::string ImportOptionsYaml;
-	std::string SourceExtension;
 	std::uint32_t Version = 1;
 	std::uint32_t Flags = 0;
 	std::uint64_t Offset = 0;
@@ -78,13 +75,8 @@ public:
 	const AssetRecord* FindRecord(const AssetGuid& guid) const;
 	void BuildRecords(std::vector<AssetRecord>& outRecords) const;
 	bool ReadPayload(const AssetGuid& guid, std::vector<std::uint8_t>& outPayload, const AssetRecord** outRecord = nullptr) const;
-	bool MaterializePayload(const AssetGuid& guid, File::Path& outPath) const;
-
-private:
-	File::Path MakeCachePath(const AssetRecord& record) const;
 
 private:
 	File::Path m_packPath;
-	File::Path m_cacheRoot;
 	std::unordered_map<AssetGuid, AssetRecord> m_records;
 };

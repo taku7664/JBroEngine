@@ -1,3 +1,47 @@
+# TODO — Asset Pack Release Contract Hardening
+
+## Goal
+남은 감사 목록 1번의 첫 단계로 release/runtime pack 계약에서 디스크 materialization과 source/debug metadata 노출을 제거한다.
+
+## Assumptions
+- 이번 단계는 package index 계약을 먼저 hardened runtime record로 줄인다.
+- cooked payload 전환은 importer별 payload 포맷 계약이 필요하므로 다음 커밋 단위로 진행한다.
+- `ImportOptionsYaml`은 현재 Sprite PPU/frame과 Audio mode 생성에 쓰이는 runtime-required metadata라 cooked payload 전환 전까지 유지한다.
+- 에디터 개발 호환성보다 release/runtime 보호 계약을 우선한다.
+
+## Success Criteria
+- `CAssetPackReader::MaterializePayload()` 기본 경로가 사라진다.
+- packed runtime load는 memory payload를 지원하는 asset loader만 허용한다.
+- pack index에 `Importer`, `SourceExtension` 같은 debug/source metadata를 저장하지 않는다.
+- 사용되지 않는 debug-name package flag가 제거된다.
+- `ImportOptionsYaml`은 cooked payload 전환 전까지 runtime-required metadata로만 남긴다.
+- SDK public mirror가 같은 asset pack record 계약을 가진다.
+
+## Plan
+- [x] pack record serialization/deserialization 계약 확인
+- [x] source/debug metadata 필드 제거 및 SDK mirror 동기화
+- [x] `.packcache` materialization 제거
+- [x] packed runtime memory-loader 실패 처리를 명시화
+- [x] audit/follow-up 문서 갱신
+- [ ] diff/build 검증 및 커밋
+
+## Verification
+- [x] `rg`로 `MaterializePayload`, `.packcache`, source metadata field 잔존 확인
+- [x] `git diff --check`
+- [x] `Debug_Game|x64` build
+- [ ] `Debug_Editor|x64` build 가능 여부 확인: skipped because `Build/Debug_Editor/Application.exe` is held by running PID 24848.
+
+## Review
+- 코드를 읽었고: `AssetPackage` index writer/reader, `CAssetManager::LoadPackedAssetManifest()`, `LoadAssetInternal()`, Sprite/File/Audio/AudioEffect loader memory path를 확인했다.
+- 생각했고: default `.packcache` materialization은 resource protection 목표와 충돌하므로 release/runtime 기본 경로에서 제거해야 한다고 판단했다.
+- 반례를 찾았고: Audio streaming은 memory payload만으로 현재 load할 수 없지만, 이를 파일로 풀어 해결하면 pack 보호 계약이 깨진다.
+- 고쳤다: `MaterializePayload()`와 cache root를 제거하고, packed payload가 있는데 loader가 memory load를 못 하면 명시적 실패 로그를 내게 했다.
+- 추가로 읽었고: runtime index의 `Importer`, `SourceExtension`, `DebugNamePresent`는 현재 loader 동작에 필요 없고 debug/source 정보에 가깝다.
+- 고쳤다: 해당 필드/flag를 제거하고 index version을 2로 올렸으며, v1 pack은 제거 필드를 읽어서 버리는 호환 경로를 남겼다.
+- 남겼다: `ImportOptionsYaml`은 Sprite PPU/frame과 Audio mode에 필요하므로 cooked payload 전환 전까지 runtime-required metadata로 유지했다.
+
+---
+
 # TODO — Engine Audit Dead-Code Cleanup
 
 ## Goal

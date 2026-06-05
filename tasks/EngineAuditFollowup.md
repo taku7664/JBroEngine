@@ -15,6 +15,20 @@ This document reorganizes the remaining work from `tasks/EngineCodeAudit.md` aft
   - Removed the stale JSON manifest writer from `CAssetManager::BuildAssetPackage()`.
   - Kept package asset output as one `.jbpack` path.
 
+### Pack cache materialization and source/debug index metadata
+
+- Source findings: F-001, F-002
+- Status: Done for default runtime materialization and source/debug metadata.
+- Result:
+  - Removed default `.packcache` materialization from `CAssetPackReader`.
+  - Removed `Importer` and `SourceExtension` from the runtime `AssetRecord` index.
+  - Removed the unused `DebugNamePresent` package entry flag.
+  - Bumped pack index writer to version 2 and kept v1 read compatibility by reading and discarding removed fields.
+  - Packed assets now require memory-load-capable loaders; unsupported file-path fallback fails explicitly.
+- Remaining:
+  - `ImportOptionsYaml` remains in the runtime record until cooked payload formats carry the resolved runtime options directly.
+  - Audio streaming from pack still needs a platform streaming pack reader instead of file extraction.
+
 ## Remaining Work Queue
 
 ### 1. Release asset pack contract hardening
@@ -22,10 +36,9 @@ This document reorganizes the remaining work from `tasks/EngineCodeAudit.md` aft
 - Source findings: F-001, F-002
 - Priority: High
 - Work:
-  - Stop default release/runtime `.packcache` materialization.
-  - Split runtime asset record from debug/import metadata.
-  - Move source/import details to editor cache or optional debug sidecar.
   - Cook texture/audio/scene/prefab payloads before pack write.
+  - Move remaining runtime import option data into cooked payload headers where practical.
+  - Add platform pack streaming for assets that intentionally stream.
 - Reason:
   - This is the largest gap between the current pack and the intended B+ / release protection contract.
 

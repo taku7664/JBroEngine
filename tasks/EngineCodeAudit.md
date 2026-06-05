@@ -40,12 +40,34 @@ Why:
 - Current runtime/package manifest is already `Content/build_manifest.jbmanifest`.
 - Keeping a second stale JSON writer made the package contract look split even though no current caller used it.
 
+### R-002: Removed default pack payload materialization
+
+- Related findings: F-001, F-002
+- Date: 2026-06-05
+- Files:
+  - `Engine/Core/Asset/AssetPackage.cpp`
+  - `Engine/Core/Asset/AssetPackage.h`
+  - `SDK/Include/Core/Asset/AssetPackage.h`
+  - `Engine/Core/Asset/AssetManager.cpp`
+
+What changed:
+- Removed `.packcache` payload materialization from `CAssetPackReader`.
+- Removed `Importer` and `SourceExtension` from the runtime asset pack index.
+- Removed the unused `DebugNamePresent` package entry flag.
+- New pack indexes write version 2; version 1 indexes are still read by discarding removed debug/source fields.
+- Packed runtime loading now requires memory payload support from the asset loader and logs an explicit error if a file-path fallback would have been required.
+
+What remains:
+- `ImportOptionsYaml` is still runtime-required until cooked payload headers replace it.
+- Streaming audio needs a pack-backed streaming path instead of disk extraction.
+
 ## Findings
 
 ### F-001: Pack reader can write decrypted payloads back to `.packcache`
 
 - Severity: High
 - Category: asset protection / package contract
+- Status: Resolved for default materialization by R-002. Streaming pack support remains follow-up work.
 - Files:
   - `Engine/Core/Asset/AssetPackage.cpp:418-420`
   - `Engine/Core/Asset/AssetPackage.cpp:491-527`
@@ -72,6 +94,7 @@ Recommendation:
 
 - Severity: High
 - Category: asset pipeline / release hygiene
+- Status: Partially resolved by R-002. `Importer` and `SourceExtension` were removed; cooked payload conversion remains.
 - Files:
   - `Engine/Core/Asset/AssetPackage.h:8-27`
   - `Engine/Core/Asset/AssetPackage.h:36-52`

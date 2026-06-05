@@ -168,7 +168,7 @@ namespace
 	std::vector<std::uint8_t> SerializeIndex(const std::vector<AssetRecord>& records)
 	{
 		std::ostringstream stream(std::ios::binary);
-		const std::uint32_t indexVersion = 1;
+		const std::uint32_t indexVersion = 2;
 		const std::uint64_t count = static_cast<std::uint64_t>(records.size());
 		WritePod(stream, indexVersion);
 		WritePod(stream, count);
@@ -185,9 +185,7 @@ namespace
 			WritePod(stream, record.UncompressedSize);
 			WritePod(stream, record.PayloadHash);
 			WriteString(stream, record.PackId);
-			WriteString(stream, record.Importer);
 			WriteString(stream, record.ImportOptionsYaml);
-			WriteString(stream, record.SourceExtension);
 		}
 
 		const std::string text = stream.str();
@@ -201,7 +199,9 @@ namespace
 		std::istringstream stream(text, std::ios::binary);
 		std::uint32_t indexVersion = 0;
 		std::uint64_t count = 0;
-		if (false == ReadPod(stream, indexVersion) || 1 != indexVersion || false == ReadPod(stream, count))
+		if (false == ReadPod(stream, indexVersion)
+			|| (1 != indexVersion && 2 != indexVersion)
+			|| false == ReadPod(stream, count))
 		{
 			return false;
 		}
@@ -223,10 +223,22 @@ namespace
 				|| false == ReadPod(stream, record.StoredSize)
 				|| false == ReadPod(stream, record.UncompressedSize)
 				|| false == ReadPod(stream, record.PayloadHash)
-				|| false == ReadString(stream, record.PackId)
-				|| false == ReadString(stream, record.Importer)
-				|| false == ReadString(stream, record.ImportOptionsYaml)
-				|| false == ReadString(stream, record.SourceExtension))
+				|| false == ReadString(stream, record.PackId))
+			{
+				return false;
+			}
+			if (1 == indexVersion)
+			{
+				std::string ignoredImporter;
+				std::string ignoredSourceExtension;
+				if (false == ReadString(stream, ignoredImporter)
+					|| false == ReadString(stream, record.ImportOptionsYaml)
+					|| false == ReadString(stream, ignoredSourceExtension))
+				{
+					return false;
+				}
+			}
+			else if (false == ReadString(stream, record.ImportOptionsYaml))
 			{
 				return false;
 			}
@@ -301,9 +313,7 @@ bool CAssetPackWriter::Write(const File::Path& packPath, const std::vector<Asset
 		record.PayloadType = EAssetPayloadType::RawSource;
 		record.EntryLocator.Value = entry.MetaData.Guid.generic_string();
 		record.PackId = packPath.stem().generic_string();
-		record.Importer = entry.MetaData.Importer;
 		record.ImportOptionsYaml = entry.MetaData.ImportOptionsYaml;
-		record.SourceExtension = entry.SourcePath.extension().generic_string();
 		record.Version = entry.MetaData.Version;
 		record.Flags = 0;
 		record.Offset = static_cast<std::uint64_t>(file.tellp());
@@ -416,20 +426,13 @@ bool CAssetPackReader::Open(const File::Path& packPath)
 	}
 
 	m_packPath = packPath;
-	m_cacheRoot = File::Path((std::filesystem::path(packPath).parent_path() / ".packcache" / std::filesystem::path(packPath).stem()).generic_string());
 	return true;
 }
 
 void CAssetPackReader::Close()
 {
 	m_records.clear();
-	if (false == m_cacheRoot.empty())
-	{
-		std::error_code errorCode;
-		std::filesystem::remove_all(m_cacheRoot, errorCode);
-	}
 	m_packPath.clear();
-	m_cacheRoot.clear();
 }
 
 const AssetRecord* CAssetPackReader::FindRecord(const AssetGuid& guid) const
@@ -486,55 +489,4 @@ bool CAssetPackReader::ReadPayload(const AssetGuid& guid, std::vector<std::uint8
 		*outRecord = record;
 	}
 	return true;
-}
-
-bool CAssetPackReader::MaterializePayload(const AssetGuid& guid, File::Path& outPath) const
-{
-	outPath.clear();
-	const AssetRecord* record = nullptr;
-	std::vector<std::uint8_t> payload;
-	if (false == ReadPayload(guid, payload, &record) || nullptr == record)
-	{
-		return false;
-	}
-
-	const File::Path cachePath = MakeCachePath(*record);
-	const std::filesystem::path path(cachePath);
-	if (path.has_parent_path())
-	{
-		std::error_code errorCode;
-		std::filesystem::create_directories(path.parent_path(), errorCode);
-		if (errorCode)
-		{
-			return false;
-		}
-	}
-
-	std::ofstream file(cachePath, std::ios::binary | std::ios::trunc);
-	if (false == file.is_open())
-	{
-		return false;
-	}
-	if (false == payload.empty())
-	{
-		file.write(reinterpret_cast<const char*>(payload.data()), static_cast<std::streamsize>(payload.size()));
-	}
-	if (false == static_cast<bool>(file))
-	{
-		return false;
-	}
-	outPath = cachePath;
-	return true;
-}
-
-File::Path CAssetPackReader::MakeCachePath(const AssetRecord& record) const
-{
-	std::filesystem::path path(m_cacheRoot);
-	std::string fileName = record.Guid.generic_string();
-	if (false == record.SourceExtension.empty())
-	{
-		fileName += record.SourceExtension;
-	}
-	path /= fileName;
-	return File::Path(path.generic_string());
 }

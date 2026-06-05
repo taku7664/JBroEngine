@@ -562,7 +562,6 @@ bool CAssetManager::LoadPackedAssetManifest(const File::Path& manifestPath)
 		metaData.Path = File::Path(std::string("__packed/") + record.Guid.generic_string());
 		metaData.MetaPath = File::NULL_PATH;
 		metaData.DisplayName = record.Guid.generic_string();
-		metaData.Importer = record.Importer;
 		metaData.ImportOptionsYaml = record.ImportOptionsYaml;
 		metaData.IsPersistent = false;
 
@@ -628,17 +627,13 @@ OwnerPtr<IAsset> CAssetManager::LoadAssetInternal(const AssetMetaData& metaData)
 	}
 	desc.ResolvedPath = resolvedPath;
 
-	if (!loader->CanLoad(desc) && hasPackedPayload && m_packReader)
-	{
-		File::Path materializedPath;
-		if (m_packReader->MaterializePayload(metaData.Guid, materializedPath))
-		{
-			desc.ResolvedPath = materializedPath;
-		}
-	}
-
 	if (!loader->CanLoad(desc))
 	{
+		if (hasPackedPayload)
+		{
+			CSystemLog::Error("[AssetPack] packed asset loader requires unsupported file-path fallback: guid='"
+				+ metaData.Guid.generic_string() + "' type=" + std::to_string(static_cast<int>(metaData.Type)));
+		}
 		return nullptr;
 	}
 
