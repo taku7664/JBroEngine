@@ -382,6 +382,37 @@ namespace
 		}
 	}
 
+	void EmitBuildSettingsYaml(YAML::Emitter& out, const ProjectBuildSettings& settings)
+	{
+		out << YAML::Key << PROJECT_KEY_BUILD << YAML::Value;
+		out << YAML::BeginMap;
+		out << YAML::Key << PROJECT_KEY_BUILD_PRODUCT_NAME << YAML::Value << settings.ProductName;
+		out << YAML::Key << PROJECT_KEY_BUILD_TARGET_PLATFORM << YAML::Value << ToString(settings.TargetPlatform);
+		out << YAML::Key << PROJECT_KEY_BUILD_CONFIGURATION << YAML::Value << ToString(settings.BuildConfiguration);
+		out << YAML::Key << PROJECT_KEY_BUILD_OUTPUT_DIR << YAML::Value << settings.OutputDirectory;
+		out << YAML::Key << PROJECT_KEY_BUILD_STARTUP_SCENE << YAML::Value << settings.StartupScene;
+		out << YAML::Key << PROJECT_KEY_BUILD_SCENES << YAML::Value;
+		out << YAML::BeginSeq;
+		for (const std::string& scene : settings.BuildScenes)
+		{
+			out << scene;
+		}
+		out << YAML::EndSeq;
+		out << YAML::Key << PROJECT_KEY_BUILD_SCRIPT_MODE << YAML::Value << ToString(settings.ScriptMode);
+		out << YAML::Key << PROJECT_KEY_BUILD_SCRIPT_PROJECT << YAML::Value << settings.ScriptProjectPath;
+		out << YAML::Key << PROJECT_KEY_BUILD_SCRIPT_CONFIG << YAML::Value << ToString(settings.ScriptBuildConfiguration);
+		out << YAML::Key << PROJECT_KEY_BUILD_SCRIPT_OUTPUT << YAML::Value << settings.ScriptOutputLibraryPath;
+		out << YAML::Key << PROJECT_KEY_BUILD_WINDOWS_ICON_GUID << YAML::Value << settings.WindowsIconGuid.generic_string();
+		out << YAML::Key << PROJECT_KEY_BUILD_ANDROID_APPLICATION_ID << YAML::Value << settings.AndroidApplicationId;
+		out << YAML::Key << PROJECT_KEY_BUILD_ANDROID_MIN_SDK << YAML::Value << settings.AndroidMinSdkVersion;
+		out << YAML::Key << PROJECT_KEY_BUILD_ANDROID_TARGET_SDK << YAML::Value << settings.AndroidTargetSdkVersion;
+		out << YAML::Key << PROJECT_KEY_BUILD_ANDROID_ABI << YAML::Value << settings.AndroidAbi;
+		out << YAML::Key << PROJECT_KEY_BUILD_IOS_BUNDLE_ID << YAML::Value << settings.IOSBundleIdentifier;
+		out << YAML::Key << PROJECT_KEY_BUILD_IOS_TEAM_ID << YAML::Value << settings.IOSTeamId;
+		out << YAML::Key << PROJECT_KEY_BUILD_IOS_MINIMUM_OS << YAML::Value << settings.IOSMinimumOSVersion;
+		out << YAML::EndMap;
+	}
+
 	ProjectBuildSettings ReadBuildSettings(const YAML::Node& root, const std::filesystem::path& projectPath, const std::string& startupScene)
 	{
 		ProjectBuildSettings settings = MakeDefaultBuildSettings(projectPath, startupScene);
@@ -544,27 +575,7 @@ bool CProjectManager::CreateProject(const File::Path& parentFolder, const std::s
 		// 새 프로젝트는 자동 리빌드 기본 ON. 키를 명시 저장해 로드 시 default 의존 X.
 		out << YAML::Key << PROJECT_KEY_SCRIPT_AUTO_REBUILD_ENABLED << YAML::Value << true;
 		ProjectBuildSettings buildSettings = MakeDefaultBuildSettings(projectFile, "");
-		out << YAML::Key << PROJECT_KEY_BUILD << YAML::Value;
-		out << YAML::BeginMap;
-		out << YAML::Key << PROJECT_KEY_BUILD_PRODUCT_NAME << YAML::Value << buildSettings.ProductName;
-		out << YAML::Key << PROJECT_KEY_BUILD_TARGET_PLATFORM << YAML::Value << ToString(buildSettings.TargetPlatform);
-		out << YAML::Key << PROJECT_KEY_BUILD_CONFIGURATION << YAML::Value << ToString(buildSettings.BuildConfiguration);
-		out << YAML::Key << PROJECT_KEY_BUILD_OUTPUT_DIR << YAML::Value << buildSettings.OutputDirectory;
-		out << YAML::Key << PROJECT_KEY_BUILD_STARTUP_SCENE << YAML::Value << buildSettings.StartupScene;
-		out << YAML::Key << PROJECT_KEY_BUILD_SCENES << YAML::Value << YAML::BeginSeq << YAML::EndSeq;
-		out << YAML::Key << PROJECT_KEY_BUILD_SCRIPT_MODE << YAML::Value << ToString(buildSettings.ScriptMode);
-		out << YAML::Key << PROJECT_KEY_BUILD_SCRIPT_PROJECT << YAML::Value << buildSettings.ScriptProjectPath;
-	out << YAML::Key << PROJECT_KEY_BUILD_SCRIPT_CONFIG << YAML::Value << ToString(buildSettings.ScriptBuildConfiguration);
-	out << YAML::Key << PROJECT_KEY_BUILD_SCRIPT_OUTPUT << YAML::Value << buildSettings.ScriptOutputLibraryPath;
-	out << YAML::Key << PROJECT_KEY_BUILD_WINDOWS_ICON_GUID << YAML::Value << buildSettings.WindowsIconGuid.generic_string();
-	out << YAML::Key << PROJECT_KEY_BUILD_ANDROID_APPLICATION_ID << YAML::Value << buildSettings.AndroidApplicationId;
-	out << YAML::Key << PROJECT_KEY_BUILD_ANDROID_MIN_SDK << YAML::Value << buildSettings.AndroidMinSdkVersion;
-	out << YAML::Key << PROJECT_KEY_BUILD_ANDROID_TARGET_SDK << YAML::Value << buildSettings.AndroidTargetSdkVersion;
-	out << YAML::Key << PROJECT_KEY_BUILD_ANDROID_ABI << YAML::Value << buildSettings.AndroidAbi;
-	out << YAML::Key << PROJECT_KEY_BUILD_IOS_BUNDLE_ID << YAML::Value << buildSettings.IOSBundleIdentifier;
-	out << YAML::Key << PROJECT_KEY_BUILD_IOS_TEAM_ID << YAML::Value << buildSettings.IOSTeamId;
-	out << YAML::Key << PROJECT_KEY_BUILD_IOS_MINIMUM_OS << YAML::Value << buildSettings.IOSMinimumOSVersion;
-	out << YAML::EndMap;
+		EmitBuildSettingsYaml(out, buildSettings);
 		out << YAML::EndMap;
 
 		std::ofstream file(projectFile, std::ios::out | std::ios::trunc);
@@ -2496,33 +2507,7 @@ bool CProjectManager::SaveProject(std::string* outError) const
 	out << YAML::Key << PROJECT_KEY_SCRIPT_INTERMEDIATE << YAML::Value << m_info.ScriptIntermediateDirectory;
 	out << YAML::Key << PROJECT_KEY_SCRIPT_BUILD_CONFIG << YAML::Value << ToString(m_info.ScriptBuildConfiguration);
 	out << YAML::Key << PROJECT_KEY_SCRIPT_AUTO_REBUILD_ENABLED << YAML::Value << m_info.ScriptAutoRebuildEnabled;
-	out << YAML::Key << PROJECT_KEY_BUILD << YAML::Value;
-	out << YAML::BeginMap;
-	out << YAML::Key << PROJECT_KEY_BUILD_PRODUCT_NAME << YAML::Value << m_info.BuildSettings.ProductName;
-	out << YAML::Key << PROJECT_KEY_BUILD_TARGET_PLATFORM << YAML::Value << ToString(m_info.BuildSettings.TargetPlatform);
-	out << YAML::Key << PROJECT_KEY_BUILD_CONFIGURATION << YAML::Value << ToString(m_info.BuildSettings.BuildConfiguration);
-	out << YAML::Key << PROJECT_KEY_BUILD_OUTPUT_DIR << YAML::Value << m_info.BuildSettings.OutputDirectory;
-	out << YAML::Key << PROJECT_KEY_BUILD_STARTUP_SCENE << YAML::Value << m_info.BuildSettings.StartupScene;
-	out << YAML::Key << PROJECT_KEY_BUILD_SCENES << YAML::Value;
-	out << YAML::BeginSeq;
-	for (const std::string& scene : m_info.BuildSettings.BuildScenes)
-	{
-		out << scene;
-	}
-	out << YAML::EndSeq;
-	out << YAML::Key << PROJECT_KEY_BUILD_SCRIPT_MODE << YAML::Value << ToString(m_info.BuildSettings.ScriptMode);
-	out << YAML::Key << PROJECT_KEY_BUILD_SCRIPT_PROJECT << YAML::Value << m_info.BuildSettings.ScriptProjectPath;
-	out << YAML::Key << PROJECT_KEY_BUILD_SCRIPT_CONFIG << YAML::Value << ToString(m_info.BuildSettings.ScriptBuildConfiguration);
-	out << YAML::Key << PROJECT_KEY_BUILD_SCRIPT_OUTPUT << YAML::Value << m_info.BuildSettings.ScriptOutputLibraryPath;
-	out << YAML::Key << PROJECT_KEY_BUILD_WINDOWS_ICON_GUID << YAML::Value << m_info.BuildSettings.WindowsIconGuid.generic_string();
-	out << YAML::Key << PROJECT_KEY_BUILD_ANDROID_APPLICATION_ID << YAML::Value << m_info.BuildSettings.AndroidApplicationId;
-	out << YAML::Key << PROJECT_KEY_BUILD_ANDROID_MIN_SDK << YAML::Value << m_info.BuildSettings.AndroidMinSdkVersion;
-	out << YAML::Key << PROJECT_KEY_BUILD_ANDROID_TARGET_SDK << YAML::Value << m_info.BuildSettings.AndroidTargetSdkVersion;
-	out << YAML::Key << PROJECT_KEY_BUILD_ANDROID_ABI << YAML::Value << m_info.BuildSettings.AndroidAbi;
-	out << YAML::Key << PROJECT_KEY_BUILD_IOS_BUNDLE_ID << YAML::Value << m_info.BuildSettings.IOSBundleIdentifier;
-	out << YAML::Key << PROJECT_KEY_BUILD_IOS_TEAM_ID << YAML::Value << m_info.BuildSettings.IOSTeamId;
-	out << YAML::Key << PROJECT_KEY_BUILD_IOS_MINIMUM_OS << YAML::Value << m_info.BuildSettings.IOSMinimumOSVersion;
-	out << YAML::EndMap;
+	EmitBuildSettingsYaml(out, m_info.BuildSettings);
 	if (false == m_info.ScriptDllPath.empty())
 	{
 		out << YAML::Key << PROJECT_KEY_SCRIPT_DLL_PATH << YAML::Value << m_info.ScriptDllPath;

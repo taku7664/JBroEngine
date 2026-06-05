@@ -67,6 +67,7 @@ void CVulkanCommandContext::BeginFrame()
 	vkWaitForFences(m_device, 1, &m_inFlightFence, VK_TRUE, UINT64_MAX);
 	vkResetFences(m_device, 1, &m_inFlightFence);
 	vkResetCommandBuffer(m_commandBuffer, 0);
+	ResetDescriptorSetCache();
 	for (VkDescriptorPool descriptorPool : m_descriptorPools)
 	{
 		if (descriptorPool != VK_NULL_HANDLE)
@@ -75,6 +76,7 @@ void CVulkanCommandContext::BeginFrame()
 		}
 	}
 	m_activeDescriptorPoolIndex = 0;
+	m_currentPipelineHandle = SafePtr<IRHIGraphicsPipeline>();
 	m_currentPipeline = nullptr;
 	m_boundConstantBuffer = nullptr;
 	m_boundTexture = nullptr;
@@ -251,6 +253,7 @@ void CVulkanCommandContext::SetGraphicsPipeline(SafePtr<IRHIGraphicsPipeline> pi
 	CVulkanGraphicsPipeline* vkPipeline = static_cast<CVulkanGraphicsPipeline*>(pipeline.TryGet());
 	if (vkPipeline && vkPipeline->GetPipeline() != VK_NULL_HANDLE)
 	{
+		m_currentPipelineHandle = pipeline;
 		m_currentPipeline = vkPipeline;
 		vkCmdBindPipeline(m_commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vkPipeline->GetPipeline());
 	}
@@ -561,19 +564,56 @@ bool CVulkanCommandContext::AllocateDescriptorSet(VkDescriptorSetLayout setLayou
 	return vkAllocateDescriptorSets(m_device, &allocInfo, outDescriptorSet) == VK_SUCCESS;
 }
 
-void CVulkanCommandContext::BindPendingDescriptors()
+void CVulkanCommandContext::ResetDescriptorSetCache()
 {
-	if (m_device == VK_NULL_HANDLE || m_commandBuffer == VK_NULL_HANDLE || nullptr == m_currentPipeline)
+	m_descriptorSetCache.clear();
+	m_descriptorSetCacheCursor = 0;
+}
+
+VkDescriptorSet CVulkanCommandContext::GetOrCreateCurrentDescriptorSet()
+{
+	if (m_device == VK_NULL_HANDLE
+		|| nullptr == m_currentPipeline
+		|| false == m_currentPipelineHandle.IsValid()
+		|| false == m_boundConstantBuffer.IsValid()
+		|| false == m_boundTexture.IsValid()
+		|| false == m_boundSampler.IsValid())
 	{
-		return;
+		return VK_NULL_HANDLE;
 	}
 	if (m_currentPipeline->GetDescriptorSetLayout() == VK_NULL_HANDLE || m_currentPipeline->GetPipelineLayout() == VK_NULL_HANDLE)
 	{
-		return;
+		return VK_NULL_HANDLE;
 	}
-	if (false == m_boundConstantBuffer.IsValid() || false == m_boundTexture.IsValid() || false == m_boundSampler.IsValid())
+
+	auto matchesCurrentBinding = [this](const DescriptorSetCacheEntry& entry)
 	{
-		return;
+		return entry.Pipeline == m_currentPipelineHandle
+			&& entry.ConstantBuffer == m_boundConstantBuffer
+			&& entry.Texture == m_boundTexture
+			&& entry.Sampler == m_boundSampler;
+	};
+
+	if (m_descriptorSetCacheCursor < m_descriptorSetCache.size()
+		&& matchesCurrentBinding(m_descriptorSetCache[m_descriptorSetCacheCursor]))
+	{
+		VkDescriptorSet descriptorSet = m_descriptorSetCache[m_descriptorSetCacheCursor].DescriptorSet;
+		++m_descriptorSetCacheCursor;
+		return descriptorSet;
+	}
+
+	if (m_descriptorSetCacheCursor < m_descriptorSetCache.size())
+	{
+		for (std::size_t index = 0; index < m_descriptorSetCache.size(); ++index)
+		{
+			if (index != m_descriptorSetCacheCursor && matchesCurrentBinding(m_descriptorSetCache[index]))
+			{
+				std::swap(m_descriptorSetCache[m_descriptorSetCacheCursor], m_descriptorSetCache[index]);
+				VkDescriptorSet descriptorSet = m_descriptorSetCache[m_descriptorSetCacheCursor].DescriptorSet;
+				++m_descriptorSetCacheCursor;
+				return descriptorSet;
+			}
+		}
 	}
 
 	CVulkanBuffer* constantBuffer = static_cast<CVulkanBuffer*>(m_boundConstantBuffer.TryGet());
@@ -584,14 +624,14 @@ void CVulkanCommandContext::BindPendingDescriptors()
 		|| texture->GetImageView() == VK_NULL_HANDLE
 		|| sampler->GetNativeSampler() == VK_NULL_HANDLE)
 	{
-		return;
+		return VK_NULL_HANDLE;
 	}
 
 	VkDescriptorSetLayout setLayout = m_currentPipeline->GetDescriptorSetLayout();
 	VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
 	if (false == AllocateDescriptorSet(setLayout, &descriptorSet))
 	{
-		return;
+		return VK_NULL_HANDLE;
 	}
 
 	VkDescriptorBufferInfo bufferInfo = {};
@@ -629,6 +669,38 @@ void CVulkanCommandContext::BindPendingDescriptors()
 	writes[2].pImageInfo = &samplerInfo;
 
 	vkUpdateDescriptorSets(m_device, 3, writes, 0, nullptr);
+
+	DescriptorSetCacheEntry cacheEntry = {};
+	cacheEntry.Pipeline = m_currentPipelineHandle;
+	cacheEntry.ConstantBuffer = m_boundConstantBuffer;
+	cacheEntry.Texture = m_boundTexture;
+	cacheEntry.Sampler = m_boundSampler;
+	cacheEntry.DescriptorSet = descriptorSet;
+	if (m_descriptorSetCacheCursor < m_descriptorSetCache.size())
+	{
+		m_descriptorSetCache.insert(m_descriptorSetCache.begin() + m_descriptorSetCacheCursor, cacheEntry);
+	}
+	else
+	{
+		m_descriptorSetCache.push_back(cacheEntry);
+	}
+	++m_descriptorSetCacheCursor;
+	return descriptorSet;
+}
+
+void CVulkanCommandContext::BindPendingDescriptors()
+{
+	if (m_commandBuffer == VK_NULL_HANDLE || nullptr == m_currentPipeline)
+	{
+		return;
+	}
+
+	VkDescriptorSet descriptorSet = GetOrCreateCurrentDescriptorSet();
+	if (descriptorSet == VK_NULL_HANDLE)
+	{
+		return;
+	}
+
 	vkCmdBindDescriptorSets(
 		m_commandBuffer,
 		VK_PIPELINE_BIND_POINT_GRAPHICS,

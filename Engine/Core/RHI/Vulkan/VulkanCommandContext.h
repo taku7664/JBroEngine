@@ -40,9 +40,20 @@ public:
 
 private:
 #if JBRO_RHI_VULKAN
+	struct DescriptorSetCacheEntry
+	{
+		SafePtr<IRHIGraphicsPipeline> Pipeline;
+		SafePtr<IRHIBuffer> ConstantBuffer;
+		SafePtr<IRHITexture> Texture;
+		SafePtr<IRHISampler> Sampler;
+		VkDescriptorSet DescriptorSet = VK_NULL_HANDLE;
+	};
+
 	void DestroyFrameSync();
 	VkDescriptorPool CreateDescriptorPool(std::uint32_t maxSets);
 	bool AllocateDescriptorSet(VkDescriptorSetLayout setLayout, VkDescriptorSet* outDescriptorSet);
+	void ResetDescriptorSetCache();
+	VkDescriptorSet GetOrCreateCurrentDescriptorSet();
 	void BindPendingDescriptors();
 	void TransitionImageLayout(VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout);
 	void TransitionTextureLayout(CVulkanTexture* texture, VkImageLayout newLayout);
@@ -60,10 +71,13 @@ private:
 	VkFence m_inFlightFence = VK_NULL_HANDLE;
 	std::vector<VkDescriptorPool> m_descriptorPools;
 	std::size_t m_activeDescriptorPoolIndex = 0;
+	SafePtr<IRHIGraphicsPipeline> m_currentPipelineHandle;
 	CVulkanGraphicsPipeline* m_currentPipeline = nullptr;
 	SafePtr<IRHIBuffer> m_boundConstantBuffer;
 	SafePtr<IRHITexture> m_boundTexture;
 	SafePtr<IRHISampler> m_boundSampler;
+	std::vector<DescriptorSetCacheEntry> m_descriptorSetCache;
+	std::size_t m_descriptorSetCacheCursor = 0;
 	CVulkanTexture* m_activeRenderTarget = nullptr;
 	VkImage m_activeRenderImage = VK_NULL_HANDLE;
 	VkImageLayout m_activeRenderInitialLayout = VK_IMAGE_LAYOUT_UNDEFINED;

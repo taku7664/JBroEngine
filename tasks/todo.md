@@ -1,3 +1,45 @@
+# TODO — Vulkan RHI Descriptor Cache and Project YAML Emitter Cleanup
+
+## Goal
+Vulkan backend의 per-draw descriptor allocation/update 비용을 줄이고, ProjectManager의 `.Jproject` YAML build-settings emitter 스타일을 정리한다.
+
+## Assumptions
+- 이번 Vulkan parity 작업은 descriptor reuse/cache에 집중한다.
+- D3D11/WebGPU는 이미 각자 backend 방식으로 동작하므로 RHI public API 변경 없이 Vulkan 내부만 보강한다.
+- Project YAML 작업은 동작 변경이 아니라 emitter helper/indentation/style 정리다.
+- 기존 사용자 dirty build artifact는 건드리지 않는다.
+
+## Success Criteria
+- Vulkan draw path가 같은 pipeline layout + bound resources 조합에 대해 descriptor set을 반복 allocate/update하지 않는다.
+- frame boundary에서 cache/pool lifetime이 안전하게 리셋된다.
+- 새 프로젝트 생성과 `SaveProject()`가 같은 build-settings YAML emit helper를 사용한다.
+- `.Jproject` 저장/로드 계약은 유지된다.
+
+## Plan
+- [x] Vulkan descriptor bind/update 경로 읽기
+- [x] Vulkan frame-local descriptor cache 구현
+- [x] ProjectManager YAML build-settings emitter helper화
+- [x] 검증 및 문서 갱신
+- [x] 커밋
+
+## Verification
+- [x] `Debug_Editor|x64` build
+- [x] `Debug_Game|x64` build 또는 Vulkan 관련 compile
+- [x] `git diff --check`
+
+## Review
+- 코드를 읽었고: Vulkan `BindPendingDescriptors()`는 draw마다 descriptor set을 새로 할당하고 `vkUpdateDescriptorSets()`를 호출했다. WebGPU는 이미 bind group cache cursor를 가지고 있었다.
+- 생각했고: RHI public API를 바꾸거나 D3D11/WebGPU까지 흔들기보다, Vulkan 내부를 WebGPU와 같은 frame-local binding cache 패턴으로 맞추는 것이 parity에 맞다고 판단했다.
+- 반례를 찾았고: Vulkan descriptor pool은 `BeginFrame()`에서 reset되므로 cache가 프레임을 넘기면 descriptor set handle이 무효가 된다.
+- 고쳤다: Vulkan command context에 `SafePtr` 기반 descriptor set cache entry와 cursor를 추가하고, frame 시작 시 cache를 비운 뒤 같은 pipeline/buffer/texture/sampler 조합은 재사용하게 했다.
+- 코드를 읽었고: ProjectManager의 새 프로젝트 생성과 `SaveProject()`가 build settings YAML map을 각각 직접 emit하고, 새 프로젝트 쪽 일부 `out <<` 들여쓰기가 깨져 있었다.
+- 생각했고: 이 항목은 기능 변경이 아니라 emitter/style 정리이며, build settings 저장 이슈 재발을 줄이려면 같은 키 목록을 한 helper에서 쓰는 편이 낫다고 판단했다.
+- 반례를 찾았고: 새 프로젝트의 빈 `BuildScenes` 표현이 inline empty sequence에서 일반 sequence emit로 바뀔 수 있지만 YAML 의미와 reader 계약은 유지된다.
+- 고쳤다: `EmitBuildSettingsYaml()` helper를 추가하고 생성/저장 양쪽에서 재사용하게 했다.
+- 검증했다: `Debug_Editor|x64`, `Debug_Game|x64`, `git diff --check`를 통과했다. `Debug_Game`에는 기존 yaml-cpp PDB `LNK4099` 경고가 남아 있다.
+
+---
+
 # TODO — SceneView Sprite Alpha Bounds Cache
 
 ## Goal
