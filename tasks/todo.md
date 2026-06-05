@@ -1,3 +1,40 @@
+# TODO — WebBuild NMake Argument Parity
+
+## Goal
+`BuildScripts/Web/WebBuild.vcxproj`에서 EmsdkRoot와 OutputRoot를 NMake 빌드 인자로 전달할 수 있게 해 `BuildWeb.ps1` 직접 실행과 VS WebBuild 실행의 계약을 맞춘다.
+
+## Assumptions
+- `BuildWeb.ps1`는 이미 `-EmsdkRoot`와 `-OutputRoot`를 지원한다.
+- `build_web_debug.bat` / `build_web_release.bat`는 optional 인자를 받아 PowerShell로 전달하는 wrapper 역할만 해야 한다.
+- Clean target은 현재처럼 빌드 실행을 유발하지 않는 안내로 둔다.
+
+## Success Criteria
+- `build_web_debug.bat` / `build_web_release.bat`가 `[EmsdkRoot] [OutputRoot]`를 받는다.
+- EmsdkRoot와 OutputRoot가 비어 있으면 기존 동작을 유지한다.
+- `WebBuild.vcxproj` NMake build/rebuild command가 `$(JBRO_EMSDK_ROOT)`와 `$(JBRO_OUTPUT_ROOT)`를 전달한다.
+
+## Plan
+- [x] batch wrapper optional output root 전달 추가
+- [x] WebBuild NMake command property 연결
+- [x] syntax/static 검증
+- [x] todo/review 갱신
+- [x] 커밋
+
+## Verification
+- [x] PowerShell parser syntax check for `BuildWeb.ps1`
+- [x] batch usage/error path check
+- [x] batch command text 검토
+- [x] `git diff --check`
+
+## Review
+- 코드를 읽었고: `BuildWeb.ps1`는 `-EmsdkRoot`와 `-OutputRoot`를 지원하지만, WebBuild vcxproj는 `JBRO_PROJECT_FILE`만 batch로 넘겼다.
+- 생각했고: VS/NMake에서 실행한 웹 빌드가 PowerShell 직접 실행과 다른 인자 계약을 가지면 출력 폴더/emsdk 문제 재현성이 떨어진다고 판단했다.
+- 반례를 찾았고: batch에서 optional args를 문자열 변수로 조립하면 Windows 경로 공백/quoting이 깨질 수 있었다.
+- 고쳤다: debug/release batch가 `[EmsdkRoot] [OutputRoot]`를 받고 네 가지 분기로 PowerShell 인자를 명시 전달하며, vcxproj는 `$(JBRO_EMSDK_ROOT)`와 `$(JBRO_OUTPUT_ROOT)`를 넘기게 했다.
+- 검증했다: `BuildWeb.ps1` parser check, no-arg usage/error path, batch command text, `git diff --check`를 확인했다.
+
+---
+
 # TODO — Build Manifest Tool Staleness Guard
 
 ## Goal

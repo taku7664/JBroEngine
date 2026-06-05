@@ -39,15 +39,15 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug_Game|Web'">
-    <NMakeBuildCommandLine>$(MSBuildProjectDirectory)\build_web_debug.bat "$(JBRO_PROJECT_FILE)"</NMakeBuildCommandLine>
-    <NMakeReBuildCommandLine>$(MSBuildProjectDirectory)\build_web_debug.bat "$(JBRO_PROJECT_FILE)"</NMakeReBuildCommandLine>
+    <NMakeBuildCommandLine>$(MSBuildProjectDirectory)\build_web_debug.bat "$(JBRO_PROJECT_FILE)" "$(JBRO_EMSDK_ROOT)" "$(JBRO_OUTPUT_ROOT)"</NMakeBuildCommandLine>
+    <NMakeReBuildCommandLine>$(MSBuildProjectDirectory)\build_web_debug.bat "$(JBRO_PROJECT_FILE)" "$(JBRO_EMSDK_ROOT)" "$(JBRO_OUTPUT_ROOT)"</NMakeReBuildCommandLine>
     <NMakeCleanCommandLine>echo Set JBRO_PROJECT_FILE and run BuildWeb.ps1 -Clean to clean the configured Web package.</NMakeCleanCommandLine>
     <NMakeOutput></NMakeOutput>
     <NMakePreprocessorDefinitions>JBRO_PLATFORM_WEB;JBRO_GAME;YAML_CPP_STATIC_DEFINE</NMakePreprocessorDefinitions>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release_Game|Web'">
-    <NMakeBuildCommandLine>$(MSBuildProjectDirectory)\build_web_release.bat "$(JBRO_PROJECT_FILE)"</NMakeBuildCommandLine>
-    <NMakeReBuildCommandLine>$(MSBuildProjectDirectory)\build_web_release.bat "$(JBRO_PROJECT_FILE)"</NMakeReBuildCommandLine>
+    <NMakeBuildCommandLine>$(MSBuildProjectDirectory)\build_web_release.bat "$(JBRO_PROJECT_FILE)" "$(JBRO_EMSDK_ROOT)" "$(JBRO_OUTPUT_ROOT)"</NMakeBuildCommandLine>
+    <NMakeReBuildCommandLine>$(MSBuildProjectDirectory)\build_web_release.bat "$(JBRO_PROJECT_FILE)" "$(JBRO_EMSDK_ROOT)" "$(JBRO_OUTPUT_ROOT)"</NMakeReBuildCommandLine>
     <NMakeCleanCommandLine>echo Set JBRO_PROJECT_FILE and run BuildWeb.ps1 -Clean to clean the configured Web package.</NMakeCleanCommandLine>
     <NMakeOutput></NMakeOutput>
     <NMakePreprocessorDefinitions>JBRO_PLATFORM_WEB;JBRO_GAME;YAML_CPP_STATIC_DEFINE</NMakePreprocessorDefinitions>
