@@ -6,6 +6,7 @@
 #include "Core/Asset/IAssetManager.h"
 #include "Core/Asset/IAssetRegistry.h"
 #include "Core/EngineCore.h"
+#include "Core/RuntimeConfig.h"
 #include "Core/ScriptCore.h"
 #include "Core/Task/TaskManager.h"
 #include "Core/Task/TaskGroup.h"
@@ -876,7 +877,7 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 	m_isProjectLoaded = true;
 
 	// 자산(스프라이트) 폴백 PPU 를 런타임 측에서도 보이게. 스프라이트가 처음 렌더되기 전에 채운다.
-	Engine.PixelsPerUnit = m_info.PixelsPerUnit;
+	Runtime.PixelsPerUnit = m_info.PixelsPerUnit;
 
 	// ── 마지막 씬이 참조하는 에셋만 수집 (프리팹 참조까지 전이적으로 확장) ──
 	// 씬 파일의 ReferencedAssets 목록을 기반으로, 프리팹이면 그 프리팹의 참조까지
@@ -1102,9 +1103,9 @@ void CProjectManager::Tick()
 
 	if (m_liveCompileManager)
 	{
-		// ApplicationFocusGained 는 "획득 한 프레임" 만 true 인 transient 플래그라
-		// 자동 리빌드 게이트로 부적합 — 디바운스 0.5s 가 흐르기 전에 게이트가 닫혀
-		// 빌드가 시작되지 못한다. 단순히 ScriptAutoRebuildEnabled 만 전달.
+		// 포커스 획득 엣지는 "한 프레임" 만 true 인 transient 신호라 자동 리빌드
+		// 게이트로 부적합 — 디바운스 0.5s 가 흐르기 전에 게이트가 닫혀 빌드가
+		// 시작되지 못한다. 단순히 ScriptAutoRebuildEnabled 만 전달.
 		m_liveCompileManager->Tick(m_info.ScriptAutoRebuildEnabled);
 	}
 }
@@ -2046,7 +2047,7 @@ void CProjectManager::SetPixelsPerUnit(float ppu)
 {
 	m_info.PixelsPerUnit = (ppu >= 1.0f) ? ppu : 100.0f;
 	// 런타임(스프라이트 폴백)도 즉시 반영 — ProjectSettings Apply 등에서 호출되면 다음 프레임부터 렌더 반영.
-	Engine.PixelsPerUnit = m_info.PixelsPerUnit;
+	Runtime.PixelsPerUnit = m_info.PixelsPerUnit;
 }
 
 const std::vector<std::string>& CProjectManager::GetAssetWatchIgnorePatterns() const

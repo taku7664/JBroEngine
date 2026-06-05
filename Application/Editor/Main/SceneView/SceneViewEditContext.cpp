@@ -6,7 +6,7 @@
 #include "Editor/Editor.h"
 #include "Engine/Core/Asset/IAssetManager.h"
 #include "Engine/Core/Asset/SpriteAsset.h"
-#include "Engine/Core/ScriptCore.h" // Engine.PixelsPerUnit (렌더 finalSize 계약)
+#include "Engine/Core/RuntimeConfig.h" // Runtime.PixelsPerUnit (렌더 finalSize 계약)
 #include "Engine/GameFramework/Object/GameObject.h"
 #include "Engine/GameFramework/Component/SpriteRenderer2D.h"
 #include "Engine/GameFramework/Component/Transform2D.h"
@@ -136,7 +136,7 @@ namespace
             if (asset && EAssetType::Sprite == asset->GetAssetType())
             {
                 const CSpriteAsset* spriteAsset = static_cast<const CSpriteAsset*>(asset.Get());
-                const float effectivePPU = spriteAsset->GetEffectivePixelsPerUnit(Engine.PixelsPerUnit);
+                const float effectivePPU = spriteAsset->GetEffectivePixelsPerUnit(Runtime.PixelsPerUnit);
                 if (effectivePPU > 0.0f)
                 {
                     finalSize.x = (static_cast<float>(spriteAsset->GetWidth())  / effectivePPU) * sprite.Size.x;

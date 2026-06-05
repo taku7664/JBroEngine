@@ -9,6 +9,7 @@
 #include "Editor/Main/MainDockWindow.h"
 #include "Editor/Main/SceneView/SceneViewTool.h"
 #include "Engine/Core/EngineCore.h"
+#include "Engine/Core/RuntimeConfig.h"
 #include "Engine/Core/ScriptCore.h"
 #include "Engine/Core/Logging/LoggerInternal.h"
 #include "Engine/Editor/ImEditor.h"
@@ -73,7 +74,9 @@ namespace
 					spriteSystem->SetDependencies(
 						context->AssetManager.TryGet(),
 						context->RHIDevice.TryGet(),
-						context->Renderer.TryGet());
+						context->Renderer.TryGet(),
+						context->RenderResourceCache.TryGet(),
+						Runtime.PixelsPerUnit);
 				}
 
 				CAudioSystem* audioSystem = scene->FindSystem<CAudioSystem>();

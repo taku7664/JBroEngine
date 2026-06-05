@@ -83,8 +83,9 @@ Windows 아이콘 설정:
 - `PixelsPerUnit`
 
 `PixelsPerUnit` 은 에디터에서는 `ProjectManager::LoadProject()` / `SetPixelsPerUnit()` 에서
-`Engine.PixelsPerUnit` 으로 들어갑니다. 게임 빌드에서는 manifest 에 기록한 뒤 런타임 bootstrap 이
-같은 `Engine.PixelsPerUnit` 에 주입합니다.
+`Runtime.PixelsPerUnit` 으로 들어갑니다. 게임 빌드에서는 manifest 에 기록한 뒤 런타임 bootstrap 이
+같은 `Runtime.PixelsPerUnit` 에 주입합니다.
+(`Runtime` = `RuntimeConfig` 호스트 전역. EngineCore 는 서비스 포인터 전용 번들이라 스칼라 설정값은 분리.)
 
 ## 에디터 빌드 흐름
 
@@ -241,7 +242,7 @@ Windows DLL 로딩을 시도하지 않게 합니다.
 3. `InitializeRuntimeGame()`
    - manifest 를 다시 로드합니다.
    - `m_runtimeRenderWidth/Height` 를 설정합니다.
-   - `Engine.PixelsPerUnit` 에 manifest PPU 를 주입합니다.
+   - `Runtime.PixelsPerUnit` 에 manifest PPU 를 주입합니다.
    - asset pack 을 mount 합니다.
    - `GameScript.dll` 을 로드합니다.
    - startup scene GUID 로 씬 asset 을 읽고 deserialize 합니다.

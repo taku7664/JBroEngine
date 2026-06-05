@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "PrefabSerializer.h"
 
-#include "Core/EngineCore.h"
+#include "Core/ScriptCore.h"
 #include "GameFramework/Component/Light2D.h"
 #include "GameFramework/Component/Physics2DComponents.h"
 #include "GameFramework/Object/GameObject.h"
@@ -143,7 +143,7 @@ void CPrefabSerializer::CopyComponents(const CGameObject& sourceObject, CGameObj
 	targetObject.GetTransform() = sourceObject.GetTransform();
 
 	CScene* targetScene = targetObject.GetScene();
-	if (nullptr == targetScene || false == static_cast<bool>(Engine.Reflection))
+	if (nullptr == targetScene || false == static_cast<bool>(Script.Reflection))
 	{
 		return;
 	}
@@ -161,16 +161,16 @@ void CPrefabSerializer::CopyComponents(const CGameObject& sourceObject, CGameObj
 			continue;   // 프리팹은 스크립트 인스턴스를 복제하지 않는다(기존 동작 유지).
 		}
 
-		const ComponentTypeInfo* ti = Engine.Reflection->FindComponentByName(name);
+		const ComponentTypeInfo* ti = Script.Reflection->FindComponentByName(name);
 		if (nullptr == ti)
 		{
 			continue;
 		}
-		if (false == Engine.Reflection->AddComponent(*targetScene, targetObject, ti->Type.Id))
+		if (false == Script.Reflection->AddComponent(*targetScene, targetObject, ti->Type.Id))
 		{
 			continue;
 		}
-		CComponent* dst = static_cast<CComponent*>(Engine.Reflection->GetComponentAddress(targetObject, ti->Type.Id));
+		CComponent* dst = static_cast<CComponent*>(Script.Reflection->GetComponentAddress(targetObject, ti->Type.Id));
 		if (nullptr == dst)
 		{
 			continue;

@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "GameFramework/Serialization/ComponentSerializer.h"
 
-#include "Core/EngineCore.h"
+#include "Core/ScriptCore.h"
 #include "GameFramework/Component/Camera2D.h"
 #include "GameFramework/Component/Light2D.h"
 #include "GameFramework/Component/AudioComponents.h"
@@ -480,7 +480,7 @@ namespace
 	// 타입 이름으로 ComponentTypeInfo를 가져옵니다. Engine.Reflection이 없으면 nullptr 반환.
 	const ComponentTypeInfo* GetTypeInfo(const char* name)
 	{
-		return Engine.Reflection ? Engine.Reflection->FindComponentByName(name) : nullptr;
+		return Script.Reflection ? Script.Reflection->FindComponentByName(name) : nullptr;
 	}
 
 	// ── 컴포넌트별 직렬화 (제네릭 + 예외 처리) ──────────────────────────────
@@ -862,11 +862,11 @@ namespace
 	YAML::Node WriteScriptNode(const ScriptComponent* sc, std::vector<AssetGuid>& referencedAssets)
 	{
 		YAML::Node scriptNode(YAML::NodeType::Map);
-		if (nullptr == sc || INVALID_TYPE_ID == sc->ScriptTypeId || false == static_cast<bool>(Engine.Reflection))
+		if (nullptr == sc || INVALID_TYPE_ID == sc->ScriptTypeId || false == static_cast<bool>(Script.Reflection))
 		{
 			return scriptNode;
 		}
-		const ScriptTypeInfo* scriptInfo = Engine.Reflection->FindScript(sc->ScriptTypeId);
+		const ScriptTypeInfo* scriptInfo = Script.Reflection->FindScript(sc->ScriptTypeId);
 		if (scriptInfo && scriptInfo->Type.Name)
 		{
 			// 스크립트 타입명은 ScriptType 키에 둔다. 공통 "Type" 키는 디스패치용("Script"),
@@ -1061,9 +1061,9 @@ CComponent* ReadComponentInto(CGameObject& object, const YAML::Node& node,
 		if (ScriptComponent* sc = object.AddComponent<ScriptComponent>())
 		{
 			const std::string typeName = ReadValueOr<std::string>(node, "ScriptType", ReadValueOr<std::string>(node, "TypeName", ""));
-			if (!typeName.empty() && Engine.Reflection)
+			if (!typeName.empty() && Script.Reflection)
 			{
-				const ScriptTypeInfo* info = Engine.Reflection->FindScriptByName(typeName.c_str());
+				const ScriptTypeInfo* info = Script.Reflection->FindScriptByName(typeName.c_str());
 				if (info)
 				{
 					sc->ScriptTypeId = info->Type.Id;
@@ -1088,7 +1088,7 @@ CComponent* ReadComponentInto(CGameObject& object, const YAML::Node& node,
 	else
 	{
 		const ComponentTypeInfo* ti = GetTypeInfo(type.c_str());
-		if (ti && Engine.Reflection && Engine.Reflection->AddComponent(*object.GetScene(), object, ti->Type.Id))
+		if (ti && Script.Reflection && Script.Reflection->AddComponent(*object.GetScene(), object, ti->Type.Id))
 		{
 			const std::vector<CComponent*> all = object.GetComponents<CComponent>();
 			added = all.empty() ? nullptr : all.back();

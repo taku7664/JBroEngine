@@ -3,7 +3,6 @@
 
 #include "Core/Asset/IAssetManager.h"
 #include "Core/Asset/SpriteAsset.h"
-#include "Core/ScriptCore.h"
 #include "Core/Renderer/Forward2DRenderer.h"
 #include "Core/Renderer/IRenderMaterial.h"
 #include "Core/Renderer/IRenderMesh.h"
@@ -26,11 +25,14 @@ void CSpriteRenderSystem::SetRenderScene(IRenderScene* renderScene)
 	m_renderScene = renderScene;
 }
 
-void CSpriteRenderSystem::SetDependencies(IAssetManager* assetManager, IRHIDevice* rhiDevice, IRenderer* renderer)
+void CSpriteRenderSystem::SetDependencies(IAssetManager* assetManager, IRHIDevice* rhiDevice, IRenderer* renderer,
+	IRenderResourceCache* renderResourceCache, float pixelsPerUnit)
 {
 	m_assetManager = assetManager;
 	m_rhiDevice = rhiDevice;
 	m_renderer = renderer;
+	m_renderResourceCache = renderResourceCache;
+	m_pixelsPerUnit = pixelsPerUnit;
 }
 
 IRenderScene* CSpriteRenderSystem::GetRenderScene() const
@@ -104,9 +106,9 @@ void CSpriteRenderSystem::OnUpdate(CScene& scene)
 			if ((false == mesh.IsValid() || false == material.IsValid()) && m_rhiDevice && forwardRenderer)
 			{
 				SafePtr<IRHITexture> gpuTexture = nullptr;
-				if (spriteAsset && Engine.RenderResourceCache.IsValid())
+				if (spriteAsset && nullptr != m_renderResourceCache)
 				{
-					gpuTexture = Engine.RenderResourceCache->AcquireSpriteTexture(spriteAsset->GetGuid(), *spriteAsset);
+					gpuTexture = m_renderResourceCache->AcquireSpriteTexture(spriteAsset->GetGuid(), *spriteAsset);
 				}
 				if (gpuTexture.IsValid())
 				{
@@ -133,7 +135,7 @@ void CSpriteRenderSystem::OnUpdate(CScene& scene)
 			Vector2 finalSize = sprite.Size;
 			if (spriteAsset)
 			{
-				const float effectivePPU = spriteAsset->GetEffectivePixelsPerUnit(Engine.PixelsPerUnit);
+				const float effectivePPU = spriteAsset->GetEffectivePixelsPerUnit(m_pixelsPerUnit);
 				const float pxW = static_cast<float>(spriteAsset->GetWidth());
 				const float pxH = static_cast<float>(spriteAsset->GetHeight());
 				finalSize.x = (pxW / effectivePPU) * sprite.Size.x;

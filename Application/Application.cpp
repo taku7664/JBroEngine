@@ -10,6 +10,7 @@
 #include "Engine/Core/Asset/FileAsset.h"
 #include "Engine/Core/Build/BuildManifest.h"
 #include "Engine/Core/Engine.h"
+#include "Engine/Core/RuntimeConfig.h"
 #include "Engine/Core/Logging/LoggerInternal.h"
 #include "Engine/Core/Platform/IRenderSurface.h"
 #include "Engine/Core/Renderer/IRenderer.h"
@@ -129,7 +130,7 @@ bool CGameApplication::InitializeRuntimeGame()
 	}
 	m_runtimeRenderWidth = static_cast<float>(manifest.ResolutionWidth > 0 ? manifest.ResolutionWidth : 1);
 	m_runtimeRenderHeight = static_cast<float>(manifest.ResolutionHeight > 0 ? manifest.ResolutionHeight : 1);
-	::Engine.PixelsPerUnit = manifest.PixelsPerUnit >= 1.0f ? manifest.PixelsPerUnit : 100.0f;
+	::Runtime.PixelsPerUnit = manifest.PixelsPerUnit >= 1.0f ? manifest.PixelsPerUnit : 100.0f;
 
 	if (false == MountRuntimeAssets(manifest))
 	{
@@ -376,7 +377,9 @@ namespace
 				spriteSystem->SetDependencies(
 					Engine.AssetManager.TryGet(),
 					Engine.RHIDevice.TryGet(),
-					Engine.Renderer.TryGet());
+					Engine.Renderer.TryGet(),
+					Engine.RenderResourceCache.TryGet(),
+					Runtime.PixelsPerUnit);
 			}
 
 			CAudioSystem* audioSystem = scene->FindSystem<CAudioSystem>();

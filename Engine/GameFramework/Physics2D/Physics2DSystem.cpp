@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "Physics2DSystem.h"
 
-#include "Core/EngineCore.h"
+#include "Core/ScriptCore.h"
 #include "Core/Debug/DebugDraw2D.h"
 #include "Core/Logging/LoggerInternal.h"
 #include "Core/Time/Time.h"
@@ -1333,7 +1333,7 @@ const std::vector<Physics2DManifold>& CPhysics2DSystem::GetManifolds() const { r
 
 void CPhysics2DSystem::OnFixedUpdate(CScene& scene)
 {
-	const float fixedDelta = Engine.Time ? Engine.Time->GetFixedDeltaSeconds() : 0.02f;
+	const float fixedDelta = Script.Time ? Script.Time->GetFixedDeltaSeconds() : 0.02f;
 	if (fixedDelta < MIN_PHYSICS_DELTA_SECONDS)
 	{
 		UpdateColliderBounds(scene);
@@ -1412,12 +1412,12 @@ void CPhysics2DSystem::OnFixedUpdate(CScene& scene)
 
 void CPhysics2DSystem::DrawManifoldDebugLines()
 {
-	if (false == Engine.DebugDraw2D.IsValid())
+	if (false == Script.DebugDraw2D.IsValid())
 	{
 		return;
 	}
 
-	IDebugDraw2D& dd = *Engine.DebugDraw2D;
+	IDebugDraw2D& dd = *Script.DebugDraw2D;
 	constexpr DebugColor kPointCol  = DebugColorRGBA(255, 230,  60, 255);  // 노랑 contact point
 	constexpr DebugColor kNormalCol = DebugColorRGBA(255,  60, 220, 255);  // 마젠타 normal
 	constexpr DebugColor kHeadCol   = DebugColorRGBA(255, 100, 255, 255);

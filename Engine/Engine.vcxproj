@@ -349,6 +349,7 @@
     <ClInclude Include="Core\Audio\MiniAudio\MiniAudioDevice.h" />
     <ClInclude Include="Core\Build\BuildManifest.h" />
     <ClInclude Include="Core\EngineCore.h" />
+    <ClInclude Include="Core\RuntimeConfig.h" />
     <ClInclude Include="Core\CoreAll.h" />
     <ClInclude Include="Core\Debug\Debug.h" />
     <ClInclude Include="Core\Engine.h" />

@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "SceneManager.h"
 
-#include "Core/EngineCore.h"
+#include "Core/ScriptCore.h"
 #include "Core/Asset/IAssetManager.h"
 #include "Core/Asset/AssetRef.inl"   // LoadAsset 반환 AssetRef 의 복사/이동/소멸 인스턴스화
 #include "Core/Time/Time.h"
@@ -108,7 +108,7 @@ void CSceneManager::AcquireReferencedAssets(CScene& scene) const
 	{
 		return; // 이미 보유 중(중복 active 등) — 재로드 불필요.
 	}
-	if (false == Engine.AssetManager.IsValid())
+	if (false == Script.AssetManager.IsValid())
 	{
 		return;
 	}
@@ -120,7 +120,7 @@ void CSceneManager::AcquireReferencedAssets(CScene& scene) const
 	loaded.reserve(referenced.size());
 	for (const AssetGuid& guid : referenced)
 	{
-		AssetRef<IAsset> ref = Engine.AssetManager->LoadAsset(guid);
+		AssetRef<IAsset> ref = Script.AssetManager->LoadAsset(guid);
 		if (ref.IsValid())
 		{
 			loaded.push_back(std::move(ref));
@@ -224,10 +224,10 @@ void CSceneManager::Update()
 	// Accumulates scaled delta time and steps the physics + FixedUpdate at a
 	// consistent interval regardless of frame rate.
 	// Only runs during active simulation (not in Edit or Paused state).
-	if (isPlaying && Engine.Time)
+	if (isPlaying && Script.Time)
 	{
-		const float fixedDelta = Engine.Time->GetFixedDeltaSeconds();
-		m_fixedAccumulator += Engine.Time->GetDeltaSeconds();
+		const float fixedDelta = Script.Time->GetFixedDeltaSeconds();
+		m_fixedAccumulator += Script.Time->GetDeltaSeconds();
 
 		// Spiral-of-death guard: cap accumulator to 8 fixed steps.
 		// If the game hiccups, we lose fixed-update steps rather than

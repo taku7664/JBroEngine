@@ -5,6 +5,7 @@
 #include "Editor/Main/Inspector/EffectEditorWindow.h"
 #include "Engine/Editor/ImEditor.h"
 #include "Engine/Editor/Project/ProjectManager.h"
+#include "Engine/Core/RuntimeConfig.h"
 #include "Engine/Core/Logging/LoggerInternal.h"
 #include "Engine/GameFramework/Audio/AudioSystem.h"
 #include "Utillity/File/FileUtillities.h"
@@ -63,7 +64,8 @@ void CSceneAssetOpenHandler::Open(CAssetBrowserTool&, const AssetBrowserEntry& e
 			if (nullptr != spriteSystem)
 			{
 				spriteSystem->SetRenderScene(context->RenderScene.TryGet());
-				spriteSystem->SetDependencies(context->AssetManager.TryGet(), context->RHIDevice.TryGet(), context->Renderer.TryGet());
+				spriteSystem->SetDependencies(context->AssetManager.TryGet(), context->RHIDevice.TryGet(), context->Renderer.TryGet(),
+					context->RenderResourceCache.TryGet(), Runtime.PixelsPerUnit);
 			}
 
 			CAudioSystem* audioSystem = scene->FindSystem<CAudioSystem>();

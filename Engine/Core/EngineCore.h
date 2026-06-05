@@ -50,14 +50,6 @@ struct EngineCore
 	SafePtr<CResourceRegistry>    ResourceRegistry;
 	SafePtr<INetworkManager>      Network;
 	SafePtr<IDebugDraw2D>         DebugDraw2D;
-
-	bool IsApplicationFocused = true;
-	bool ApplicationFocusGained = false;
-	bool ApplicationFocusLost = false;
-
-	// 프로젝트 Default PPU 의 런타임 캐시. 자산별 PPU 가 0(미지정) 일 때 폴백으로 사용.
-	// 에디터는 LoadProject / ProjectSettings Apply 시 갱신, 빌드된 게임은 부팅 시 한 번 주입.
-	float PixelsPerUnit = 100.0f;
 };
 
 extern EngineCore Engine;
