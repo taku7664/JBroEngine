@@ -79,6 +79,30 @@ function Find-MSBuild {
     return "MSBuild.exe"
 }
 
+function Test-JBroToolOutdated {
+    param(
+        [Parameter(Mandatory=$true)][string]$ToolExe,
+        [Parameter(Mandatory=$true)][string]$SourceRoot
+    )
+
+    if (-not (Test-Path -LiteralPath $ToolExe -PathType Leaf)) {
+        return $true
+    }
+    if (-not (Test-Path -LiteralPath $SourceRoot -PathType Container)) {
+        return $true
+    }
+
+    $toolTime = (Get-Item -LiteralPath $ToolExe).LastWriteTimeUtc
+    $newestSource = Get-ChildItem -LiteralPath $SourceRoot -Recurse -File |
+        Sort-Object LastWriteTimeUtc -Descending |
+        Select-Object -First 1
+    if (-not $newestSource) {
+        return $false
+    }
+
+    return $newestSource.LastWriteTimeUtc -gt $toolTime
+}
+
 function ConvertFrom-JBroScalar {
     param([string]$Value)
 
@@ -571,10 +595,11 @@ function Write-JBroBuildManifest {
     )
 
     $toolConfiguration = if ($Configuration -eq "Debug") { "Debug_Game" } else { "Release_Game" }
-    $toolProject = Join-Path $repoRoot "BuildTools\BuildManifestTool\BuildManifestTool.vcxproj"
+    $toolRoot = Join-Path $repoRoot "BuildTools\BuildManifestTool"
+    $toolProject = Join-Path $toolRoot "BuildManifestTool.vcxproj"
     $toolExe = Join-Path $repoRoot ("Build\Tools\BuildManifestTool\{0}\BuildManifestTool.exe" -f $toolConfiguration)
 
-    if (-not (Test-Path -LiteralPath $toolExe -PathType Leaf)) {
+    if (Test-JBroToolOutdated -ToolExe $toolExe -SourceRoot $toolRoot) {
         $msbuild = Find-MSBuild
         & $msbuild $toolProject /m /p:Configuration=$toolConfiguration /p:Platform=x64 "/p:SolutionDir=$repoRoot\" /p:BuildProjectReferences=false /v:minimal /nr:false
         if ($LASTEXITCODE -ne 0) {

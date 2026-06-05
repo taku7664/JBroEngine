@@ -1,3 +1,40 @@
+# TODO — Build Manifest Tool Staleness Guard
+
+## Goal
+`BuildGame.ps1`가 `BuildManifestTool.exe` 존재 여부만 보지 않고 tool source/project 변경 이후에는 자동으로 tool을 재빌드하게 한다.
+
+## Assumptions
+- packaging script는 stale helper exe를 사용하면 안 된다.
+- tool output은 `Build/Tools/BuildManifestTool/<Config>/BuildManifestTool.exe`에 생성된다.
+- tool source root는 `BuildTools/BuildManifestTool`이고, build output은 이 root 밖에 있다.
+
+## Success Criteria
+- tool exe가 없으면 빌드한다.
+- tool source/project/filter 파일이 exe보다 새로우면 빌드한다.
+- tool exe가 최신이면 불필요하게 빌드하지 않는다.
+
+## Plan
+- [x] staleness helper 추가
+- [x] `Write-JBroBuildManifest` tool build 조건 교체
+- [x] script syntax/static 검증
+- [x] targeted tool build 검증
+- [x] todo/review 갱신
+- [x] 커밋
+
+## Verification
+- [x] PowerShell parse/syntax check
+- [x] `BuildManifestTool Release_Game|x64` build
+- [x] `git diff --check`
+
+## Review
+- 코드를 읽었고: `Write-JBroBuildManifest`는 `BuildManifestTool.exe`가 존재하면 source/project가 더 최신이어도 재빌드하지 않았다.
+- 생각했고: manifest writer를 engine-owned tool로 바꿔도 stale exe를 쓰면 동일한 drift 문제가 다른 형태로 남는다고 판단했다.
+- 반례를 찾았고: tool output은 `Build/Tools/...`에 있고 source root는 `BuildTools/BuildManifestTool`이라 source timestamp만 비교하면 build output timestamp 순환 문제는 생기지 않는다.
+- 고쳤다: `Test-JBroToolOutdated`를 추가하고 exe 없음/source root 없음/source newer 조건에서 tool을 빌드하게 했다.
+- 검증했다: PowerShell parser syntax check, `BuildManifestTool Release_Game|x64` build, `git diff --check`를 통과했다.
+
+---
+
 # TODO — Build Manifest Tool Solution Integration
 
 ## Goal
