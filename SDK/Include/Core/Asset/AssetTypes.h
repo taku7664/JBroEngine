@@ -88,6 +88,5 @@ struct AssetRegistrySnapshot
 
 struct AssetPackageBuildDesc
 {
-	File::Path OutputManifestPath;
 	File::Path OutputBlobPath;
 };

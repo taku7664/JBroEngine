@@ -19,6 +19,27 @@ The most important issues are not syntax-level dead code. They are contract drif
 4. Vulkan rendering works as a baseline, but descriptor updates and layout handling are still early-stage and likely to become bottlenecks or correctness traps.
 5. Several editor helpers compute expensive pixel-level data every interaction frame.
 
+## Resolved After Audit
+
+### R-001: Removed stale asset package JSON manifest writer
+
+- Related finding: F-003
+- Date: 2026-06-05
+- Files:
+  - `Engine/Core/Asset/AssetManager.cpp`
+  - `Engine/Core/Asset/AssetTypes.h`
+  - `SDK/Include/Core/Asset/AssetTypes.h`
+  - `Application/Editor/Build/GameBuildManager.cpp`
+
+What changed:
+- Removed the unused `BuildAssetPackage()` JSON sidecar manifest writer.
+- Removed `AssetPackageBuildDesc::OutputManifestPath` from the engine and SDK public mirror.
+- Kept asset package output as a single `OutputBlobPath` `.jbpack` contract.
+
+Why:
+- Current runtime/package manifest is already `Content/build_manifest.jbmanifest`.
+- Keeping a second stale JSON writer made the package contract look split even though no current caller used it.
+
 ## Findings
 
 ### F-001: Pack reader can write decrypted payloads back to `.packcache`
@@ -79,6 +100,7 @@ Recommendation:
 
 - Severity: Medium
 - Category: dead code / design drift
+- Status: Resolved by R-001.
 - Files:
   - `Engine/Core/Asset/AssetManager.cpp:536-562`
   - `Application/Editor/Build/GameBuildManager.cpp:892-895`

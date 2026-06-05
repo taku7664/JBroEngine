@@ -1,3 +1,41 @@
+# TODO — Engine Audit Dead-Code Cleanup
+
+## Goal
+엔진 전체 감사에서 확인된 데드/스테일 코드 중 현재 호출 계약상 제거 가능한 항목을 먼저 정리하고, 남은 작업을 실행 순서 기준으로 다시 정리한다.
+
+## Assumptions
+- 이번 1차 수정은 확정된 dead/stale 코드 제거에 한정한다.
+- 런타임 호환성, pack materialization, raw-source cook 전환처럼 정책 판단이 필요한 항목은 남은 작업으로 재분류한다.
+- `Build/` 산출물 변경은 이번 커밋 범위에 포함하지 않는다.
+
+## Success Criteria
+- `BuildAssetPackage()`의 stale JSON manifest writer가 제거된다.
+- 사용되지 않는 `AssetPackageBuildDesc::OutputManifestPath` 계약이 제거된다.
+- SDK public mirror도 같은 계약으로 동기화된다.
+- 남은 audit finding은 우선순위/분류가 명확한 follow-up 문서로 정리된다.
+
+## Plan
+- [x] `BuildAssetPackage()` 호출자와 desc 계약 재확인
+- [x] stale JSON manifest writer 및 죽은 manifest path 필드 제거
+- [x] Engine/SDK mirror 동기화
+- [x] 남은 audit 작업 재분류 문서화
+- [x] diff/build 검증 및 커밋
+
+## Verification
+- [x] `rg`로 `OutputManifestPath` 잔존 확인
+- [x] `git diff --check`
+- [ ] `Debug_Editor|x64` build: source compile completed, but final link failed because `Build/Debug_Editor/Application.exe` is held by running PID 24848.
+- [x] `Debug_Game|x64` build
+
+## Review
+- 코드를 읽었고: `BuildAssetPackage()`와 현재 유일 호출자인 `CGameBuildManager::StagePackage()`를 확인했다.
+- 생각했고: JSON sidecar writer만 제거하면 `OutputManifestPath`라는 죽은 계약이 남아 다시 분기/오해를 만들 수 있다고 판단했다.
+- 반례를 찾았고: 별도 manifest path를 쓰는 호출자가 있는지 `rg`로 전체 소스/SDK/스크립트 범위를 확인했지만 현재 소스 호출자는 없었다.
+- 고쳤다: stale JSON writer와 `AssetPackageBuildDesc::OutputManifestPath`를 제거하고, Engine/SDK mirror와 호출부를 `OutputBlobPath` 단일 계약으로 맞췄다.
+- 남은 작업을 정리했다: `tasks/EngineAuditFollowup.md`에 해결 항목과 후속 작업 우선순위를 분리했다.
+
+---
+
 # TODO — Engine-wide Code Audit
 
 ## Goal

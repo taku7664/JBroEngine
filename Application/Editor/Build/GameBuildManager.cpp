@@ -890,7 +890,6 @@ bool CGameBuildManager::StagePackage(const BuildDesc& desc, const File::Path& sc
 		return false;
 	}
 	AssetPackageBuildDesc packageDesc;
-	packageDesc.OutputManifestPath = packagePack;
 	packageDesc.OutputBlobPath = packagePack;
 	if (false == assetManager->BuildAssetPackage(packageDesc))
 	{

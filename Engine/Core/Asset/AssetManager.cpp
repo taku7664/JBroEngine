@@ -483,9 +483,10 @@ bool CAssetManager::BuildAssetPackage(const AssetPackageBuildDesc& desc)
 	(void)desc;
 	return false;
 #else
-	const File::Path packPath = false == desc.OutputBlobPath.empty() ? desc.OutputBlobPath : desc.OutputManifestPath;
+	const File::Path packPath = desc.OutputBlobPath;
 	if (packPath.empty())
 	{
+		CSystemLog::Error("[AssetPack] output pack path is empty.");
 		return false;
 	}
 
@@ -531,34 +532,6 @@ bool CAssetManager::BuildAssetPackage(const AssetPackageBuildDesc& desc)
 		CSystemLog::Error("[AssetPack] CAssetPackWriter::Write 실패: pack='" + packPath.generic_string()
 			+ "' entries=" + std::to_string(packageEntries.size()));
 		return false;
-	}
-
-	if (false == desc.OutputManifestPath.empty() && desc.OutputManifestPath != packPath)
-	{
-		std::filesystem::path manifestPath(desc.OutputManifestPath);
-		if (manifestPath.has_parent_path())
-		{
-			std::error_code errorCode;
-			std::filesystem::create_directories(manifestPath.parent_path(), errorCode);
-			if (errorCode)
-			{
-				return false;
-			}
-		}
-
-		std::ofstream manifest(desc.OutputManifestPath, std::ios::binary | std::ios::trunc);
-		if (false == manifest.is_open())
-		{
-			return false;
-		}
-		manifest << "{\n";
-		manifest << "  \"version\": 1,\n";
-		manifest << "  \"packs\": [\n";
-		manifest << "    { \"id\": \"" << std::filesystem::path(packPath).stem().generic_string()
-			<< "\", \"path\": \"" << std::filesystem::path(packPath).filename().generic_string()
-			<< "\", \"required\": true }\n";
-		manifest << "  ]\n";
-		manifest << "}\n";
 	}
 
 	return true;
