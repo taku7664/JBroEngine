@@ -8,6 +8,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Application", "Application\
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "WebBuild", "BuildScripts\Web\WebBuild.vcxproj", "{B8767D1E-46CB-4E62-9F3D-E5C8B8F0D1A7}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "BuildManifestTool", "BuildTools\BuildManifestTool\BuildManifestTool.vcxproj", "{6C91F445-01D4-4CCB-B81E-21D6C9241077}"
+EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "GameScriptSample", "Samples\GameScriptSample\GameScriptSample.vcxproj", "{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}"
 	ProjectSection(ProjectDependencies) = postProject
 		{5D2895FA-D410-489E-A334-D61CFE6C33A3} = {5D2895FA-D410-489E-A334-D61CFE6C33A3}
@@ -89,6 +91,20 @@ Global
 		{B8767D1E-46CB-4E62-9F3D-E5C8B8F0D1A7}.Release_Game|Web.Build.0 = Release_Game|Web
 		{B8767D1E-46CB-4E62-9F3D-E5C8B8F0D1A7}.Release_Game|x64.ActiveCfg = Release_Game|Web
 		{B8767D1E-46CB-4E62-9F3D-E5C8B8F0D1A7}.Release_Game|x86.ActiveCfg = Release_Game|Web
+		{6C91F445-01D4-4CCB-B81E-21D6C9241077}.Debug_Editor|Web.ActiveCfg = Debug_Game|x64
+		{6C91F445-01D4-4CCB-B81E-21D6C9241077}.Debug_Editor|x64.ActiveCfg = Debug_Game|x64
+		{6C91F445-01D4-4CCB-B81E-21D6C9241077}.Debug_Editor|x86.ActiveCfg = Debug_Game|x64
+		{6C91F445-01D4-4CCB-B81E-21D6C9241077}.Debug_Game|Web.ActiveCfg = Debug_Game|x64
+		{6C91F445-01D4-4CCB-B81E-21D6C9241077}.Debug_Game|x64.ActiveCfg = Debug_Game|x64
+		{6C91F445-01D4-4CCB-B81E-21D6C9241077}.Debug_Game|x64.Build.0 = Debug_Game|x64
+		{6C91F445-01D4-4CCB-B81E-21D6C9241077}.Debug_Game|x86.ActiveCfg = Debug_Game|x64
+		{6C91F445-01D4-4CCB-B81E-21D6C9241077}.Release_Editor|Web.ActiveCfg = Release_Game|x64
+		{6C91F445-01D4-4CCB-B81E-21D6C9241077}.Release_Editor|x64.ActiveCfg = Release_Game|x64
+		{6C91F445-01D4-4CCB-B81E-21D6C9241077}.Release_Editor|x86.ActiveCfg = Release_Game|x64
+		{6C91F445-01D4-4CCB-B81E-21D6C9241077}.Release_Game|Web.ActiveCfg = Release_Game|x64
+		{6C91F445-01D4-4CCB-B81E-21D6C9241077}.Release_Game|x64.ActiveCfg = Release_Game|x64
+		{6C91F445-01D4-4CCB-B81E-21D6C9241077}.Release_Game|x64.Build.0 = Release_Game|x64
+		{6C91F445-01D4-4CCB-B81E-21D6C9241077}.Release_Game|x86.ActiveCfg = Release_Game|x64
 		{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}.Debug_Editor|Web.ActiveCfg = Debug|x64
 		{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}.Debug_Editor|x64.ActiveCfg = Debug|x64
 		{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}.Debug_Editor|x64.Build.0 = Debug|x64

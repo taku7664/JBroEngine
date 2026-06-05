@@ -1,3 +1,41 @@
+# TODO — Build Manifest Tool Solution Integration
+
+## Goal
+`BuildManifestTool`을 `JBroEngine.sln`에 등록해 manifest writer 도구가 솔루션에서 보이고, game 구성에서 명시적으로 빌드될 수 있게 한다.
+
+## Assumptions
+- tool 자체는 Windows host에서 실행되는 packaging helper이므로 `x64` tool project만 유지한다.
+- editor solution build가 tool을 항상 빌드할 필요는 없다.
+- game/package 검증 경로에서는 `Debug_Game|x64` / `Release_Game|x64` tool build가 중요하다.
+
+## Success Criteria
+- `JBroEngine.sln`에 `BuildManifestTool` project가 포함된다.
+- solution의 game x64 구성에서 tool project가 build 대상이 된다.
+- editor/web/x86 solution 구성은 tool active config만 연결하고 불필요한 build target으로 만들지 않는다.
+- 기존 `BuildManifestTool.vcxproj` 단독 빌드는 계속 통과한다.
+
+## Plan
+- [x] solution project entry 추가
+- [x] solution configuration mapping 추가
+- [x] targeted solution/project build 검증
+- [x] todo/review 갱신
+- [x] 커밋
+
+## Verification
+- [x] `BuildManifestTool Debug_Game|x64` build
+- [x] `BuildManifestTool Release_Game|x64` build
+- [x] solution target `BuildManifestTool` build
+- [x] `git diff --check`
+
+## Review
+- 코드를 읽었고: `BuildManifestTool`은 `BuildScripts`에서 쓰이지만 `JBroEngine.sln`에는 등록되어 있지 않았다.
+- 생각했고: manifest writer는 build/package 계약의 일부라서 솔루션에서 보이고 targeted build가 가능해야 유지보수성이 맞다고 판단했다.
+- 반례를 찾았고: tool은 Windows host packaging helper이므로 Web/x86 target으로 억지 빌드하면 플랫폼 계약이 흐려진다.
+- 고쳤다: solution project entry를 추가하고, game x64 구성만 Build.0 대상에 넣고 editor/web/x86은 ActiveCfg만 연결했다.
+- 검증했다: Debug_Game/Release_Game tool project build, solution target `BuildManifestTool` build, `git diff --check`를 통과했다.
+
+---
+
 # TODO — Build Manifest Writer Unification
 
 ## Goal
