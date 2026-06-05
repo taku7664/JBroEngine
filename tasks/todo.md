@@ -1,3 +1,42 @@
+# TODO — SceneView Sprite Alpha Bounds Cache
+
+## Goal
+SceneView box selection에서 Sprite 불투명 픽셀 tight AABB를 매 후보마다 재스캔하지 않도록 asset/frame 단위 캐시를 추가한다.
+
+## Assumptions
+- 단일 click pick은 현재 1픽셀 alpha test라 유지한다.
+- hot-path는 box selection의 full frame alpha scan이다.
+- 캐시는 editor-only `SceneViewEditContext.cpp` 내부에 두고 runtime asset/runtime renderer 계약은 건드리지 않는다.
+- Sprite reload/replace는 `CSpriteAsset::GetPixelGeneration()`과 asset pointer/frame rect 변화로 무효화한다.
+
+## Success Criteria
+- `PickBox()`가 같은 sprite/frame alpha bounds를 반복 스캔하지 않는다.
+- pixel generation, texture size, frame rect가 바뀌면 bounds를 다시 계산한다.
+- 완전 투명 sprite frame은 기존처럼 whole OBB fallback으로 처리한다.
+- 기존 선택 결과 의미는 유지한다.
+
+## Plan
+- [x] alpha bounds cache key/value 추가
+- [x] per-frame scan helper로 기존 scan 이동
+- [x] PickBox에서 cache helper 사용
+- [x] 검증 및 문서 갱신
+- [x] 커밋
+
+## Verification
+- [x] `Debug_Editor|x64` build 또는 관련 compile
+- [x] `git diff --check`
+
+## Review
+- 코드를 읽었고: `CSceneViewEditContext::PickBox()`가 박스 선택 후보마다 sprite frame 전체 alpha를 스캔해 tight AABB를 계산하고 있었다.
+- 생각했고: 단일 click pick은 1픽셀 alpha sample이라 유지하고, 반복 비용이 큰 box selection full-frame scan만 캐시하는 것이 가장 좁은 수정이라고 판단했다.
+- 반례를 찾았고: sprite reload/import, `ReplacePixels()`, texture size 변경, frame rect 변경 시 캐시가 stale 될 수 있었다.
+- 고쳤다: `AssetGuid`별 frame bounds cache를 추가하고 asset pointer, pixel generation, texture size, frame rect가 일치할 때만 재사용하게 했다.
+- 추가 반례를 찾았고: GUID당 1개만 저장하면 향후 frameIndex가 들어왔을 때 프레임이 번갈아 재스캔된다.
+- 고쳤다: GUID 아래에 frame별 bounds vector를 두고, asset/pixel generation/texture size가 바뀌면 해당 GUID cache를 비우게 했다.
+- 검증했다: `JBroEngine.sln /p:Configuration=Debug_Editor /p:Platform=x64 /m` 빌드와 `git diff --check`가 통과했다.
+
+---
+
 # TODO — Cooked Asset Payload Transition Phase 1
 
 ## Goal
