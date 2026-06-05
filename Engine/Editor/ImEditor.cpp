@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "ImEditor.h"
 
+#include "Core/EngineCore.h"
 #include "Core/Debug/DebugDraw2D.h"
 #include "Core/Debug/DebugRenderer2D.h"
 #include "Core/Debug/OutlineRenderer2D.h"
@@ -172,11 +173,6 @@ SafePtr<CProjectManager> CImEditor::GetProjectManager() const
 	return m_projectManager.GetSafePtr();
 }
 
-const EngineCore* CImEditor::GetEditorEngineCore() const
-{
-	return GetEngineCore();
-}
-
 void CImEditor::RequestSceneViewRenderTarget(std::uint32_t width, std::uint32_t height)
 {
 	m_sceneViewRequested = 0 != width && 0 != height;
@@ -308,6 +304,11 @@ bool CImEditor::IsPopupOpenById(std::string_view id) const
     return false;
 }
 
+const EngineCore* CImEditor::GetEditorEngineCore() const
+{
+    return (&Engine);
+}
+
 void CImEditor::OnPreInitialize()
 {
 }
@@ -318,14 +319,11 @@ void CImEditor::OnPostInitialize()
     m_projectManager = MakeOwnerPtr<CProjectManager>();
     if (m_projectManager)
     {
-        if (const EngineCore* engineCore = GetEngineCore())
-        {
-            m_projectManager->Initialize(*engineCore);
-        }
+        m_projectManager->Initialize();
     }
 
     // Initialize GPU debug/outline renderers.
-    if (const EngineCore* engineCore = GetEngineCore())
+    if (const EngineCore* engineCore = (&Engine))
     {
         if (engineCore->RHIDevice.IsValid())
         {
@@ -350,9 +348,9 @@ void CImEditor::OnPreFinalize()
 {
     if (m_projectManager && m_projectManager->IsProjectLoaded())
     {
-        if (Core::Localization.IsValid())
+        if (Engine.Localization.IsValid())
         {
-            m_projectManager->SetEditorLocaleCode(Core::Localization->GetCurrentLocale());
+            m_projectManager->SetEditorLocaleCode(Engine.Localization->GetCurrentLocale());
         }
     }
 
@@ -430,7 +428,7 @@ void CImEditor::OnUpdate()
 
 void CImEditor::OnPrepareRender()
 {
-	const EngineCore* engineCore = GetEngineCore();
+	const EngineCore* engineCore = (&Engine);
 	if (nullptr == engineCore ||
 	    false == engineCore->RHIDevice.IsValid() ||
 	    false == engineCore->Renderer.IsValid() ||
@@ -503,10 +501,10 @@ void CImEditor::OnPrepareRender()
 		commandContext->BeginRenderPass(rpDesc);
 
 		// ① 그리드 (전역 DebugDraw, Entity==INVALID)
-		if (m_debugRenderer && Core::DebugDraw2D.IsValid())
+		if (m_debugRenderer && Engine.DebugDraw2D.IsValid())
 		{
 			m_debugRenderer->RenderGlobal(
-				commandContext, *Core::DebugDraw2D,
+				commandContext, *Engine.DebugDraw2D,
 				camX, camY, camSize, viewW, viewH);
 		}
 
@@ -537,10 +535,10 @@ void CImEditor::OnPrepareRender()
 				fwd->RenderFiltered(*engineCore->RenderScene, m_sceneViewFocusEntities);
 			}
 
-			if (m_debugRenderer && Core::DebugDraw2D.IsValid())
+			if (m_debugRenderer && Engine.DebugDraw2D.IsValid())
 			{
 				m_debugRenderer->RenderEntities(
-					commandContext, *Core::DebugDraw2D,
+					commandContext, *Engine.DebugDraw2D,
 					camX, camY, camSize, viewW, viewH,
 					&m_sceneViewFocusEntities);
 			}
@@ -548,10 +546,10 @@ void CImEditor::OnPrepareRender()
 		else
 		{
 			// ③ 루트 모드: 모든 콜라이더 (Entity!=INVALID)
-			if (m_debugRenderer && Core::DebugDraw2D.IsValid())
+			if (m_debugRenderer && Engine.DebugDraw2D.IsValid())
 			{
 				m_debugRenderer->RenderEntities(
-					commandContext, *Core::DebugDraw2D,
+					commandContext, *Engine.DebugDraw2D,
 					camX, camY, camSize, viewW, viewH,
 					nullptr);
 			}
@@ -590,7 +588,7 @@ void CImEditor::OnRender()
 
 bool CImEditor::InitializeImGui()
 {
-    const EngineCore* engineCore = GetEngineCore();
+    const EngineCore* engineCore = (&Engine);
     if (nullptr == engineCore)
     {
         return false;
@@ -631,7 +629,7 @@ bool CImEditor::InitializeImGui()
     ImFont* mainFont = io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\malgun.ttf", 15.0f, &fontConfig, customRanges);
 
 	// FontAwesome 아이콘 폰트 추가 (글꼴 파일은 프로젝트 루트에 위치한다고 가정)
-    File::Path fontPath = Core::FileSystem->GetOriginPath() / "Font Awesome 7 Free-Solid-900.otf";
+    File::Path fontPath = Engine.FileSystem->GetOriginPath() / "Font Awesome 7 Free-Solid-900.otf";
     if (true == std::filesystem::exists(fontPath.generic_string()))
     {
         static const ImWchar icons_ranges[] = { 0xf000, 0xf8ff, 0 }; // FontAwesome 유니코드 범위
@@ -736,7 +734,7 @@ bool CImEditor::InitializeImGui()
 
 void CImEditor::FinalizeImGui()
 {
-    if (const EngineCore* engineCore = GetEngineCore())
+    if (const EngineCore* engineCore = (&Engine))
     {
         if (engineCore->MainRenderSurface)
         {

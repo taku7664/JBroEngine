@@ -21,7 +21,7 @@ public:
 	~CScriptModuleLoader();
 
 	// DLL을 로드하고 게임 모듈을 초기화합니다.
-	// context.HostEngine에 유효한 EngineCore 포인터가 있어야 스크립트가 등록됩니다.
+	// context.HostScriptCore에 유효한 ScriptCore 포인터가 있어야 스크립트가 등록됩니다.
 	bool Load(const File::Path& dllPath, const GameModuleContext& context);
 
 	// 게임 모듈을 정리하고 DLL을 언로드합니다.

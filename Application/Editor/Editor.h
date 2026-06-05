@@ -242,12 +242,12 @@ inline SafePtr<CProjectManager> GetProjectManager()
 
 inline CScene* GetActiveScene()
 {
-	if (false == Core::SceneManager.IsValid())
+	if (false == Engine.SceneManager.IsValid())
 	{
 		return nullptr;
 	}
 
-	SafePtr<CScene> activeScene = Core::SceneManager->GetActiveScene();
+	SafePtr<CScene> activeScene = Engine.SceneManager->GetActiveScene();
 	return activeScene.TryGet();
 }
 

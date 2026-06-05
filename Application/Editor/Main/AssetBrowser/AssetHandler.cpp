@@ -34,7 +34,7 @@ bool CSceneAssetOpenHandler::CanOpen(const AssetBrowserEntry& entry) const
 
 void CSceneAssetOpenHandler::Open(CAssetBrowserTool&, const AssetBrowserEntry& entry)
 {
-	if (false == Core::SceneManager.IsValid())
+	if (false == Engine.SceneManager.IsValid())
 	{
 		CSystemLog::Error(Utillity::U8(u8"씬 로드에 실패하였습니다."));
 		File::OpenFile(entry.AbsolutePath);
@@ -42,7 +42,7 @@ void CSceneAssetOpenHandler::Open(CAssetBrowserTool&, const AssetBrowserEntry& e
 	}
 
 	const std::string sceneName = entry.RelativePath.empty() ? entry.DisplayNameUtf8 : ToUtf8(entry.RelativePath);
-	CScene* scene = Core::SceneManager->CreateScene(sceneName.c_str());
+	CScene* scene = Engine.SceneManager->CreateScene(sceneName.c_str());
 	if (nullptr == scene)
 	{
 		CSystemLog::Error(Utillity::U8(u8"씬 로드에 실패하였습니다."));
@@ -52,7 +52,7 @@ void CSceneAssetOpenHandler::Open(CAssetBrowserTool&, const AssetBrowserEntry& e
 	CSceneSerializer serializer;
 	if (ESceneSerializeResult::Success == serializer.LoadFromFile(*scene, entry.AbsolutePath))
 	{
-		Core::SceneManager->AcquireReferencedAssets(*scene);
+		Engine.SceneManager->AcquireReferencedAssets(*scene);
 		if (const EngineCore* context = Editor::ImEditor ? Editor::ImEditor->GetEditorEngineCore() : nullptr)
 		{
 			CSpriteRenderSystem* spriteSystem = scene->FindSystem<CSpriteRenderSystem>();
@@ -77,7 +77,7 @@ void CSceneAssetOpenHandler::Open(CAssetBrowserTool&, const AssetBrowserEntry& e
 				audioSystem->SetAssetManager(context->AssetManager);
 			}
 		}
-		Core::SceneManager->SetActiveScene(sceneName.c_str());
+		Engine.SceneManager->SetActiveScene(sceneName.c_str());
 		Editor::SetActiveScenePath(entry.AbsolutePath);
 		Editor::CommandManager.SetActiveDocument(sceneName.c_str());
 		Editor::CommandManager.MarkSaved(sceneName.c_str());

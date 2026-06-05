@@ -10,7 +10,7 @@
 #include "Editor/Editor.h"
 #include "Editor/EditorDragDrop.h"
 #include "Editor/Main/SceneView/SceneViewTool.h"
-#include "Engine/Core/Core.h"
+#include "Engine/Core/EngineCore.h"
 #include "Engine/GameFramework/Reflection/ReflectionRegistry.h"
 #include "Engine/GameFramework/Component/ScriptComponent.h"
 #include "Engine/GameFramework/Object/GameObject.h"
@@ -39,13 +39,13 @@ void CHierarchyTool::OnUpdate()
 
 void CHierarchyTool::OnRenderStay()
 {
-	if (false == Core::SceneManager.IsValid())
+	if (false == Engine.SceneManager.IsValid())
 	{
 		ImGui::TextDisabled(Loc::Text("hierarchy.scene_manager_unavailable"));
 		return;
 	}
 
-	SafePtr<CScene> activeScene = Core::SceneManager->GetActiveScene();
+	SafePtr<CScene> activeScene = Engine.SceneManager->GetActiveScene();
 	if (false == activeScene.IsValid())
 	{
 		ImGui::TextDisabled(Loc::Text("hierarchy.no_active_scene"));

@@ -3,17 +3,17 @@
 
 void CDefaultScript::OnCreate()
 {
-	if (Engine.Debug)
+	if (Script.Debug)
 	{
-		Engine.Debug->Log("CDefaultScript::OnCreate");
+		Script.Debug->Log("CDefaultScript::OnCreate");
 	}
 }
 
 void CDefaultScript::OnStart()
 {
-	if (Engine.Debug)
+	if (Script.Debug)
 	{
-		Engine.Debug->Log("CDefaultScript::OnStart");
+		Script.Debug->Log("CDefaultScript::OnStart");
 	}
 }
 
@@ -29,8 +29,8 @@ void CDefaultScript::OnFixedUpdate()
 
 void CDefaultScript::OnDestroy()
 {
-	if (Engine.Debug)
+	if (Script.Debug)
 	{
-		Engine.Debug->Log("CDefaultScript::OnDestroy");
+		Script.Debug->Log("CDefaultScript::OnDestroy");
 	}
 }

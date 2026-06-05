@@ -38,7 +38,7 @@ struct AssetBrowserEntry
 
 	// 썸네일 / 아이콘.
 	// - 이미지 파일(.png/.jpg/...): 해당 SpriteAsset 을 직접 로드해 프리뷰. AssetRef 가 strong ref 로 보호.
-	// - 그 외(폴더/스크립트/씬/...): Core::ResourceRegistry 의 영구 아이콘 raw pointer (ResourceRegistry 가 영구 보유).
+	// - 그 외(폴더/스크립트/씬/...): Engine.ResourceRegistry 의 영구 아이콘 raw pointer (ResourceRegistry 가 영구 보유).
 	// 둘 중 하나만 유효 — Thumbnail.IsValid() 가 true 면 직접 로드, false 면 ThumbnailRaw 사용.
 	AssetRef<CSpriteAsset> Thumbnail;
 	CSpriteAsset*          ThumbnailRaw = nullptr;

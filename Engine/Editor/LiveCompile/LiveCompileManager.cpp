@@ -1,8 +1,8 @@
 #include "pch.h"
 #include "LiveCompileManager.h"
 
-#include "Core/Core.h"
 #include "Core/EngineCore.h"
+#include "Core/ScriptCore.h"
 #include "Core/Game/IGameModule.h"
 #include "GameFramework/Component/ScriptComponent.h"
 #include "GameFramework/Reflection/ReflectionRegistry.h"
@@ -28,12 +28,12 @@ namespace
 {
 	CSceneManager* GetModuleSceneManager(const GameModuleContext& context)
 	{
-		return context.HostEngine ? context.HostEngine->SceneManager.TryGet() : nullptr;
+		return context.HostScriptCore ? context.HostScriptCore->SceneManager.TryGet() : nullptr;
 	}
 
 	CReflectionRegistry* GetModuleReflection(const GameModuleContext& context)
 	{
-		return context.HostEngine ? context.HostEngine->Reflection.TryGet() : nullptr;
+		return context.HostScriptCore ? context.HostScriptCore->Reflection.TryGet() : nullptr;
 	}
 
 	void* AllocateModuleMemory(std::size_t size, std::size_t alignment)

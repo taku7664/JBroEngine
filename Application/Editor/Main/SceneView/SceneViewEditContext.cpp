@@ -6,7 +6,7 @@
 #include "Editor/Editor.h"
 #include "Engine/Core/Asset/IAssetManager.h"
 #include "Engine/Core/Asset/SpriteAsset.h"
-#include "Engine/Core/EngineCore.h" // Engine.PixelsPerUnit (렌더 finalSize 계약)
+#include "Engine/Core/ScriptCore.h" // Engine.PixelsPerUnit (렌더 finalSize 계약)
 #include "Engine/GameFramework/Object/GameObject.h"
 #include "Engine/GameFramework/Component/SpriteRenderer2D.h"
 #include "Engine/GameFramework/Component/Transform2D.h"

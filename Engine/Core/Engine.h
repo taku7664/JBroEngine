@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Core/EngineCore.h"
+#include "Core/ScriptCore.h"
 #include "Core/Platform/PlatformTypes.h"
 #include "Core/RHI/RHITypes.h"
 #include "GameFramework/Rendering/GameCamera.h"
@@ -56,7 +56,7 @@ public:
 	// Safe to call multiple times; subsequent calls are no-ops.
 	bool InitializeNetwork();
 
-	const EngineCore&       GetEngineCore()        const;
+	const ScriptCore&       GetScriptCore()        const;
 	SafePtr<IPlatform>      GetPlatform()          const;
 	SafePtr<IRenderSurface> GetMainRenderSurface() const;
 	SafePtr<IRHIDevice>     GetRHIDevice()         const;
@@ -79,7 +79,7 @@ private:
 	void RenderFrame();
 	void EndFrame();
 	void FillRenderSurfaceDesc(RHIDesc& desc) const;
-	void SyncEngineCore();
+	void SyncScriptCore();
 
 private:
 	OwnerPtr<IPlatform>           m_platform;

@@ -8,8 +8,8 @@
 #include "Editor/Script/ScriptSchema.h"
 #include "Editor/Script/ScriptSchemaWidgets.h"
 #include "Engine/Editor/Project/ProjectManager.h"
-#include "Engine/Core/Core.h"
 #include "Engine/Core/EngineCore.h"
+#include "Engine/Core/ScriptCore.h"
 #include "Engine/Core/Renderer/IRenderResourceCache.h"
 #include "Engine/GameFramework/Reflection/ReflectionRegistry.h" // 스크립트 타입 목록(팝업 Ref 옵션)
 #include "Engine/Core/Asset/AssetPath.h"
@@ -86,9 +86,12 @@ namespace
 	// ── 신규 자산 템플릿 ────────────────────────────────────────────────────
 	// AssetWatcher 가 새 파일 감지 후 자동으로 ImportAsset 을 호출하므로
 	// 우리는 디스크에 텍스트 파일만 작성하면 된다.
+	// 현 SceneSerializer 포맷(Version/ReferencedAssets/Objects). 구 ECS 포맷("Scene:/Entities:")
+	// 은 Version 키가 없어 DeserializeFromText 가 ParseError 로 거부한다.
 	constexpr std::string_view EMPTY_SCENE_YAML =
-	    "Scene:\n"
-	    "  Entities: []\n";
+	    "Version: 1\n"
+	    "ReferencedAssets: []\n"
+	    "Objects: []\n";
 	constexpr std::string_view EMPTY_MATERIAL_YAML =
 	    "Material:\n"
 	    "  Shader: \"\"\n"
@@ -342,7 +345,7 @@ namespace
 	                            SafePtr<IAssetManager> assetManager,
 	                            SafePtr<CProjectManager> projectManager)
 	{
-		if (false == Core::ResourceRegistry.IsValid())
+		if (false == Engine.ResourceRegistry.IsValid())
 		{
 			return;
 		}
@@ -378,7 +381,7 @@ namespace
 
 		if (false == entry.Thumbnail.IsValid() && nullptr == entry.ThumbnailRaw)
 		{
-			entry.ThumbnailRaw = Core::ResourceRegistry->GetSprite(GetIconResourceKey(entry));
+			entry.ThumbnailRaw = Engine.ResourceRegistry->GetSprite(GetIconResourceKey(entry));
 		}
 
 		// GPU 텍스처가 아직 없으면 lazy 생성 (cache 경유).

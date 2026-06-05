@@ -22,7 +22,7 @@
 #include "Engine/Core/Asset/IAssetRegistry.h"
 #include "Engine/Core/Asset/SpriteAsset.h"
 #include "Engine/Core/Asset/AudioAsset.h"
-#include "Engine/Core/EngineCore.h"
+#include "Engine/Core/ScriptCore.h"
 #include "Engine/Core/Renderer/IRenderResourceCache.h"
 #include "Engine/Core/Resource/ResourceRegistry.h"
 #include "Engine/Core/RHI/IRHITexture.h"
@@ -68,10 +68,10 @@ namespace
 
 	ImTextureID GetComponentIconTexture(const char* typeName)
 	{
-		if (false == Core::ResourceRegistry.IsValid()) return 0;
+		if (false == Engine.ResourceRegistry.IsValid()) return 0;
 		const char* key = GetComponentIconKey(typeName);
 		if (nullptr == key) return 0;
-CSpriteAsset* sprite = Core::ResourceRegistry->GetSprite(key);
+CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		if (nullptr == sprite) return 0;
 		if (false == Engine.RenderResourceCache.IsValid()) return 0;
 		SafePtr<IRHITexture> tex = Engine.RenderResourceCache->AcquireSpriteTexture(sprite->GetGuid(), *sprite);
@@ -83,22 +83,22 @@ CSpriteAsset* sprite = Core::ResourceRegistry->GetSprite(key);
 	// 미등록(INVALID_TYPE_ID) 또는 reflection 미준비 시 nullptr.
 	const char* GetScriptInstanceDisplayName(void* compInstance)
 	{
-		if (nullptr == compInstance || false == Core::Reflection.IsValid()) return nullptr;
+		if (nullptr == compInstance || false == Engine.Reflection.IsValid()) return nullptr;
 		ScriptComponent* sc = static_cast<ScriptComponent*>(compInstance);
 		if (INVALID_TYPE_ID == sc->ScriptTypeId) return nullptr;
-		const ScriptTypeInfo* info = Core::Reflection->FindScript(sc->ScriptTypeId);
+		const ScriptTypeInfo* info = Engine.Reflection->FindScript(sc->ScriptTypeId);
 		return info ? GetScriptDisplayName(info) : nullptr;
 	}
 
 	void DrawScriptTypeSelector(CScene& scene, CGameObject* object, std::size_t instanceIndex, ScriptComponent& scriptComponent)
 	{
-		if (false == Core::Reflection.IsValid())
+		if (false == Engine.Reflection.IsValid())
 		{
 			ImGui::TextDisabled(Loc::Text("inspector.script_registry_unavailable"));
 			return;
 		}
 
-		CReflectionRegistry& reflection = *Core::Reflection;
+		CReflectionRegistry& reflection = *Engine.Reflection;
 		const ScriptTypeInfo* currentType = reflection.FindScript(scriptComponent.ScriptTypeId);
 		const char* preview = currentType ? GetScriptDisplayName(currentType) : Loc::Text("inspector.unknown_script");
 
@@ -172,9 +172,9 @@ CSpriteAsset* sprite = Core::ResourceRegistry->GetSprite(key);
 				{
 					return sc;   // 타입 미지정 — 첫 스크립트.
 				}
-				if (Core::Reflection.IsValid())
+				if (Engine.Reflection.IsValid())
 				{
-					const ScriptTypeInfo* info = Core::Reflection->FindScript(sc->ScriptTypeId);
+					const ScriptTypeInfo* info = Engine.Reflection->FindScript(sc->ScriptTypeId);
 					if (info && info->Type.Name && 0 == strcmp(info->Type.Name, wantType))
 					{
 						return sc;
@@ -1288,13 +1288,13 @@ void CInspectorTool::OnRenderStay()
 	// 엔티티가 선택됐다 — 자산 미리보기 영역은 그리지 않는다. 활성 핸들러 정리.
 	AssetInspectorPreview::NotifyInspectionLost();
 
-	if (false == Core::Reflection.IsValid())
+	if (false == Engine.Reflection.IsValid())
 	{
 		ImGui::TextDisabled(Loc::Text("inspector.reflection_unavailable"));
 		return;
 	}
 
-	CReflectionRegistry& reflection = *Core::Reflection;
+	CReflectionRegistry& reflection = *Engine.Reflection;
 
 	// ── 컴포넌트 수집 ─────────────────────────────────────────────────────────
 	// GameObject/Transform 은 더 이상 컴포넌트가 아님(CGameObject 멤버) → 상단 인라인.
@@ -1600,10 +1600,10 @@ void CInspectorTool::OnRenderStay()
 					}
 				}
 
-				if (scriptComp && scriptComp->Instance && Core::Reflection.IsValid())
+				if (scriptComp && scriptComp->Instance && Engine.Reflection.IsValid())
 				{
 					const ScriptTypeInfo* scriptInfo =
-						Core::Reflection->FindScript(scriptComp->ScriptTypeId);
+						Engine.Reflection->FindScript(scriptComp->ScriptTypeId);
 
 					if (scriptInfo && !scriptInfo->Properties.empty())
 					{
@@ -1648,11 +1648,11 @@ void CInspectorTool::OnRenderStay()
 					}
 				}
 				else if (scriptComp && scriptComp->ScriptTypeId != INVALID_TYPE_ID
-				         && !scriptComp->Instance && Core::Reflection.IsValid())
+				         && !scriptComp->Instance && Engine.Reflection.IsValid())
 				{
 					// 인스턴스가 아직 없는 경우 (DLL 미로드 등)
 					const ScriptTypeInfo* scriptInfo =
-						Core::Reflection->FindScript(scriptComp->ScriptTypeId);
+						Engine.Reflection->FindScript(scriptComp->ScriptTypeId);
 					const char* typeName = GetScriptDisplayName(scriptInfo);
 					ImGui::Spacing();
 					ImGui::TextDisabled(Loc::Text("inspector.script_instance_waiting_format"), typeName);

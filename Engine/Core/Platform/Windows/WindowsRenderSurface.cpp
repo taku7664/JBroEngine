@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "WindowsRenderSurface.h"
 
-#include "Core/Core.h"
+#include "Core/EngineCore.h"
 #include "Core/Input/Input.h"
 
 #if JBRO_PLATFORM_WINDOWS
@@ -37,7 +37,7 @@ namespace
 
 	bool SubmitInputMessage(const InputMessage& message)
 	{
-		return Core::Input ? Core::Input->SubmitMessage(message) : true;
+		return Engine.Input ? Engine.Input->SubmitMessage(message) : true;
 	}
 }
 #endif

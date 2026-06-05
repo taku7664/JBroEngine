@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "Physics2DSystem.h"
 
-#include "Core/Core.h"
+#include "Core/EngineCore.h"
 #include "Core/Debug/DebugDraw2D.h"
 #include "Core/Logging/LoggerInternal.h"
 #include "Core/Time/Time.h"
@@ -21,7 +21,7 @@
 #include <windows.h>   // OutputDebugStringA — LogTool 안 떠도 VS Output 창에서 확인 가능
 #endif
 
-// 충돌 텍스트 진단 — Core::Logger + VS Output 으로 매 fixed step 1회 덤프.
+// 충돌 텍스트 진단 — Engine.Logger + VS Output 으로 매 fixed step 1회 덤프.
 // LogTool 자체에 안 떠도 OutputDebugStringA 로 항상 보장.  0: 비활성(기본).
 #ifndef JBRO_PHYSICS_DEBUG_LOG
 #define JBRO_PHYSICS_DEBUG_LOG 0
@@ -1333,7 +1333,7 @@ const std::vector<Physics2DManifold>& CPhysics2DSystem::GetManifolds() const { r
 
 void CPhysics2DSystem::OnFixedUpdate(CScene& scene)
 {
-	const float fixedDelta = Core::Time ? Core::Time->GetFixedDeltaSeconds() : 0.02f;
+	const float fixedDelta = Engine.Time ? Engine.Time->GetFixedDeltaSeconds() : 0.02f;
 	if (fixedDelta < MIN_PHYSICS_DELTA_SECONDS)
 	{
 		UpdateColliderBounds(scene);
@@ -1412,12 +1412,12 @@ void CPhysics2DSystem::OnFixedUpdate(CScene& scene)
 
 void CPhysics2DSystem::DrawManifoldDebugLines()
 {
-	if (false == Core::DebugDraw2D.IsValid())
+	if (false == Engine.DebugDraw2D.IsValid())
 	{
 		return;
 	}
 
-	IDebugDraw2D& dd = *Core::DebugDraw2D;
+	IDebugDraw2D& dd = *Engine.DebugDraw2D;
 	constexpr DebugColor kPointCol  = DebugColorRGBA(255, 230,  60, 255);  // 노랑 contact point
 	constexpr DebugColor kNormalCol = DebugColorRGBA(255,  60, 220, 255);  // 마젠타 normal
 	constexpr DebugColor kHeadCol   = DebugColorRGBA(255, 100, 255, 255);

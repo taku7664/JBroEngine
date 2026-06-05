@@ -153,7 +153,7 @@ bool CGameApplication::InitializeRuntimeGame()
 
 bool CGameApplication::MountRuntimeAssets(const BuildManifest& manifest)
 {
-	SafePtr<IAssetManager> assetManager = Core::AssetManager;
+	SafePtr<IAssetManager> assetManager = Engine.AssetManager;
 	if (false == assetManager.IsValid())
 	{
 		CSystemLog::Error("Runtime asset mount failed: AssetManager is not available.");
@@ -238,7 +238,7 @@ bool CGameApplication::LoadRuntimeScriptModule(const BuildManifest& manifest)
 
 		CEngine* engine = GetEngine();
 		GameModuleContext context;
-		context.HostEngine = engine ? &engine->GetEngineCore() : nullptr;
+		context.HostScriptCore = engine ? &engine->GetScriptCore() : nullptr;
 		if (false == m_gameModuleLoader->LoadStaticModule(&CreateGameModule, &DestroyGameModule, context, "StaticGameScript"))
 		{
 			CSystemLog::Error("Runtime static script module initialization failed.");
@@ -280,7 +280,7 @@ bool CGameApplication::LoadRuntimeScriptModule(const BuildManifest& manifest)
 
 	CEngine* engine = GetEngine();
 	GameModuleContext context;
-	context.HostEngine = engine ? &engine->GetEngineCore() : nullptr;
+	context.HostScriptCore = engine ? &engine->GetScriptCore() : nullptr;
 	if (false == m_gameModuleLoader->LoadDynamicLibrary(modulePath, context))
 	{
 		CSystemLog::Error(std::string("Runtime script module load failed: ") + modulePath.generic_string());
@@ -306,11 +306,11 @@ namespace
 	// 런타임 씬 1개의 노드(구조)만 로드한다 — 리소스(에셋)는 로드하지 않는다.
 	// 리소스는 그 씬이 active 가 될 때(SetActiveScene) 비로소 로드된다.
 	//  · guid 가 유효하면 패키지 에셋(LoadAsset → text)에서, 아니면 경로(ResolveAssetPath)에서 로드.
-	//  · Sprite/Audio 시스템을 부착하고 EngineCore 디바이스를 주입한다(씬마다 필요).
+	//  · Sprite/Audio 시스템을 부착하고 ScriptCore 디바이스를 주입한다(씬마다 필요).
 	// 반환: 로드+부착 성공 여부. 실패 시 생성한 씬을 정리한다.
 	bool LoadRuntimeSceneNodes(CSceneManager& sceneManager,
 	                           IAssetManager& assetManager,
-	                           const EngineCore* context,
+	                           const ScriptCore* context,
 	                           const std::string& sceneName,
 	                           const AssetGuid& sceneGuid,
 	                           const std::string& scenePathText)
@@ -360,21 +360,23 @@ namespace
 			return false;
 		}
 
-		// 씬마다 렌더/오디오 시스템을 부착하고 EngineCore 디바이스를 주입한다.
+		// 씬마다 렌더/오디오 시스템을 부착하고 ScriptCore 디바이스를 주입한다.
 		if (context)
 		{
+			// 렌더 시스템은 호스트 전용 — 전역 `Engine`(EngineCore)에서 직접 가져온다.
+			// (RenderScene/RHIDevice/Renderer 는 스크립트에 노출하지 않으므로 ScriptCore 에 없다.)
 			CSpriteRenderSystem* spriteSystem = scene->FindSystem<CSpriteRenderSystem>();
 			if (nullptr == spriteSystem)
 			{
-				spriteSystem = scene->AddSystem<CSpriteRenderSystem>(context->RenderScene.TryGet());
+				spriteSystem = scene->AddSystem<CSpriteRenderSystem>(Engine.RenderScene.TryGet());
 			}
 			if (nullptr != spriteSystem)
 			{
-				spriteSystem->SetRenderScene(context->RenderScene.TryGet());
+				spriteSystem->SetRenderScene(Engine.RenderScene.TryGet());
 				spriteSystem->SetDependencies(
-					context->AssetManager.TryGet(),
-					context->RHIDevice.TryGet(),
-					context->Renderer.TryGet());
+					Engine.AssetManager.TryGet(),
+					Engine.RHIDevice.TryGet(),
+					Engine.Renderer.TryGet());
 			}
 
 			CAudioSystem* audioSystem = scene->FindSystem<CAudioSystem>();
@@ -402,8 +404,8 @@ bool CGameApplication::LoadRuntimeStartupScene(const BuildManifest& manifest)
 		return false;
 	}
 
-	SafePtr<CSceneManager> sceneManager = Core::SceneManager;
-	SafePtr<IAssetManager> assetManager = Core::AssetManager;
+	SafePtr<CSceneManager> sceneManager = Engine.SceneManager;
+	SafePtr<IAssetManager> assetManager = Engine.AssetManager;
 	if (false == sceneManager.IsValid() || false == assetManager.IsValid())
 	{
 		CSystemLog::Error("Runtime startup scene load failed: SceneManager or AssetManager is not available.");
@@ -411,7 +413,7 @@ bool CGameApplication::LoadRuntimeStartupScene(const BuildManifest& manifest)
 	}
 
 	CEngine* engine = GetEngine();
-	const EngineCore* context = engine ? &engine->GetEngineCore() : nullptr;
+	const ScriptCore* context = engine ? &engine->GetScriptCore() : nullptr;
 
 	const std::string startupName = false == manifest.StartupScene.empty()
 		? manifest.StartupScene
@@ -457,7 +459,7 @@ bool CGameApplication::LoadRuntimeStartupScene(const BuildManifest& manifest)
 
 void CGameApplication::ConfigureRuntimeViewCamera()
 {
-	SafePtr<CSceneManager> sceneManager = Core::SceneManager;
+	SafePtr<CSceneManager> sceneManager = Engine.SceneManager;
 	if (false == sceneManager.IsValid())
 	{
 		return;
@@ -481,9 +483,9 @@ void CGameApplication::ConfigureRuntimeViewCamera()
 
 void CGameApplication::ShutdownRuntimeGame()
 {
-	if (Core::SceneManager)
+	if (Engine.SceneManager)
 	{
-		Core::SceneManager->DestroyScriptInstances();
+		Engine.SceneManager->DestroyScriptInstances();
 	}
 	if (m_gameModuleLoader)
 	{

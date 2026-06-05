@@ -23,7 +23,7 @@ class CProjectManager;
 class CDebugRenderer2D;
 class COutlineRenderer2D;
 class IRHITexture;
-struct EngineCore;
+struct ScriptCore;
 
 class CImEditor : public CModule
 {

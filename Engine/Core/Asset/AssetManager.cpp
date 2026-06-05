@@ -1,8 +1,8 @@
 #include "pch.h"
 #include "AssetManager.h"
 
-#include "Core/Core.h"
 #include "Core/EngineCore.h"
+#include "Core/ScriptCore.h"
 #include "Core/Logging/LoggerInternal.h"
 #include "Core/Asset/AssetMetaFile.h"
 #include "Core/Asset/AssetPath.h"

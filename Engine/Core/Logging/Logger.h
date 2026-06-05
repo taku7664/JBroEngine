@@ -57,11 +57,11 @@ public:
 	static SafePtr<CLogger> GetLogger();
 
 	// ── Host logger 주입 ──────────────────────────────────────────────────────
-	// GameScript 같은 DLL 은 Engine.lib 을 정적 링크하므로 Core::Logger static SafePtr
+	// GameScript 같은 DLL 은 Engine.lib 을 정적 링크하므로 Engine.Logger static SafePtr
 	// 가 dll 안에 별도 인스턴스로 존재 → 호스트(Application)의 Logger 와 분리된다.
 	// 호스트가 자신의 CLogger* 를 SetHostLogger 로 주입하면 dll 측 Log::Debug 등의
 	// 호출이 호스트 Logger 로 라우팅되어 LogTool 에 즉시 표시된다.
-	// nullptr 전달 시 라우팅 해제 (Core::Logger 또는 fallback 으로 복귀).
+	// nullptr 전달 시 라우팅 해제 (Engine.Logger 또는 fallback 으로 복귀).
 	static void SetHostLogger(CLogger* logger);
 
 private:

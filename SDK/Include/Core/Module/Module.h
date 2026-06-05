@@ -1,7 +1,7 @@
 #pragma once
 
-struct EngineCore;
-
+// 모듈은 엔진 서비스에 전역 `Engine`(EngineCore) 으로 직접 접근한다. 모듈마다 EngineCore
+// 포인터를 따로 들고 다니지 않는다 — extern 전역이므로 어디서든 `Engine.X` 로 쓰면 된다.
 class CModule
 {
 	friend class CEngine;
@@ -13,11 +13,8 @@ public:
 	CModule(CModule&&) = delete;
 	CModule& operator=(CModule&&) = delete;
 
-protected:
-	const EngineCore* GetEngineCore() const;
-
 private:
-	void Initialize(const char* moduleName, const EngineCore& engineCore);
+	void Initialize(const char* moduleName);
 	void Finalize();
 	void BeginFrame();
 	void Update();
@@ -37,6 +34,5 @@ private:
 
 private:
 	std::string m_moduleName;
-	const EngineCore* m_engineCore = nullptr;
 };
 

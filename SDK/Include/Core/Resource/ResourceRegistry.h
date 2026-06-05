@@ -17,8 +17,8 @@ class IAssetManager;
 // Localization 과 유사한 구조 — 코드 내부 문자열 키로 영구 리소스에 접근.
 //
 // 사용 예:
-//   SafePtr<CSpriteAsset> icon = Core::ResourceRegistry->GetSprite("icon-folder");
-//   const File::Path&     p    = Core::ResourceRegistry->GetPath  ("icon-folder");
+//   SafePtr<CSpriteAsset> icon = Engine.ResourceRegistry->GetSprite("icon-folder");
+//   const File::Path&     p    = Engine.ResourceRegistry->GetPath  ("icon-folder");
 //
 // 등록된 모든 자산은 IsPersistent = true 로 마킹되어
 // 프로젝트 닫힘(UnloadNonPersistentAssets) 후에도 살아남는다.

@@ -1,6 +1,7 @@
 #include "pch.h"
 
-#include "Core/EngineCore.h"
+#include "Core/ScriptCore.h"
+#include "Core/ScriptCore.h"
 #include "Core/Game/GameModuleTypes.h"
 #include "GameFramework/Reflection/ReflectionRegistry.h"
 #include "GameModuleEntry.h"
@@ -21,12 +22,12 @@ class GameScriptSampleModule final : public IGameModule
 public:
     bool Initialize(const GameModuleContext& context) override
     {
-        BindEngineCore(context.HostEngine);
+        BindScriptCore(context.HostScriptCore);
 
-        m_registry = Engine.Reflection.TryGet();
+        m_registry = Script.Reflection.TryGet();
         if (nullptr == m_registry)
         {
-            UnbindEngineCore();
+            UnbindScriptCore();
             return false;
         }
 
@@ -55,7 +56,7 @@ public:
         m_registry = nullptr;
 
         // 호스트 객체 댕글링 포인터 방지.
-        UnbindEngineCore();
+        UnbindScriptCore();
     }
 
     const GameModuleDesc& GetDesc() const override

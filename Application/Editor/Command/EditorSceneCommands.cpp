@@ -3,7 +3,7 @@
 
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
 
-#include "Engine/Core/Core.h"
+#include "Engine/Core/EngineCore.h"
 #include "Engine/Core/Logging/LoggerInternal.h"
 #include "Engine/GameFramework/Component/Physics2DComponents.h"
 #include "Engine/GameFramework/Component/ScriptComponent.h"
@@ -49,12 +49,12 @@ const char* CAddComponentCommand::GetName() const
 bool CAddComponentCommand::Execute()
 {
 	CGameObject* object = Resolve(m_scene, m_objectGuid);
-	if (nullptr == object || false == Core::Reflection.IsValid())
+	if (nullptr == object || false == Engine.Reflection.IsValid())
 	{
 		return false;
 	}
 
-	CReflectionRegistry& reflection = *Core::Reflection;
+	CReflectionRegistry& reflection = *Engine.Reflection;
 	if (nullptr == reflection.FindComponent(m_componentTypeId))
 	{
 		return false;
@@ -77,12 +77,12 @@ bool CAddComponentCommand::Execute()
 void CAddComponentCommand::Undo()
 {
 	CGameObject* object = Resolve(m_scene, m_objectGuid);
-	if (false == m_added || nullptr == object || false == Core::Reflection.IsValid())
+	if (false == m_added || nullptr == object || false == Engine.Reflection.IsValid())
 	{
 		return;
 	}
 
-	Core::Reflection->RemoveComponent(*m_scene, *object, m_componentTypeId);
+	Engine.Reflection->RemoveComponent(*m_scene, *object, m_componentTypeId);
 	m_added = false;
 }
 
@@ -109,12 +109,12 @@ const char* CAddScriptComponentCommand::GetName() const
 bool CAddScriptComponentCommand::Execute()
 {
 	CGameObject* object = Resolve(m_scene, m_objectGuid);
-	if (nullptr == object || false == Core::Reflection.IsValid())
+	if (nullptr == object || false == Engine.Reflection.IsValid())
 	{
 		return false;
 	}
 
-	CReflectionRegistry& reflection = *Core::Reflection;
+	CReflectionRegistry& reflection = *Engine.Reflection;
 	if (nullptr == reflection.FindScript(m_scriptTypeId))
 	{
 		CSystemLog::Warning("Failed to add script component. Script type is not registered.");
@@ -158,14 +158,14 @@ bool CAddScriptComponentCommand::Execute()
 void CAddScriptComponentCommand::Undo()
 {
 	CGameObject* object = Resolve(m_scene, m_objectGuid);
-	if (false == m_added || nullptr == object || false == Core::Reflection.IsValid())
+	if (false == m_added || nullptr == object || false == Engine.Reflection.IsValid())
 	{
 		return;
 	}
 
 	if (m_scriptComponentTypeId != INVALID_TYPE_ID)
 	{
-		Core::Reflection->RemoveComponent(*m_scene, *object, m_scriptComponentTypeId);
+		Engine.Reflection->RemoveComponent(*m_scene, *object, m_scriptComponentTypeId);
 	}
 
 	m_addedComponent = nullptr;
@@ -202,7 +202,7 @@ const char* CSetScriptTypeCommand::GetName() const
 
 bool CSetScriptTypeCommand::Execute()
 {
-	if (m_newScriptTypeId != INVALID_TYPE_ID && Core::Reflection && nullptr == Core::Reflection->FindScript(m_newScriptTypeId))
+	if (m_newScriptTypeId != INVALID_TYPE_ID && Engine.Reflection && nullptr == Engine.Reflection->FindScript(m_newScriptTypeId))
 	{
 		return false;
 	}
@@ -404,13 +404,13 @@ bool CSetComponentPropertyCommand::TryMerge(const IEditorCommand& newer)
 bool CSetComponentPropertyCommand::WriteValue(const std::vector<std::uint8_t>& value)
 {
 	CGameObject* object = Resolve(m_scene, m_objectGuid);
-	if (value.empty() || nullptr == object || false == Core::Reflection.IsValid())
+	if (value.empty() || nullptr == object || false == Engine.Reflection.IsValid())
 	{
 		return false;
 	}
 
 	// 단일 인스턴스 — instanceIndex 는 항상 0.
-	void* component = Core::Reflection->GetComponentAddress(*object, m_componentTypeId);
+	void* component = Engine.Reflection->GetComponentAddress(*object, m_componentTypeId);
 	if (nullptr == component)
 	{
 		return false;
@@ -622,9 +622,9 @@ CRemoveComponentCommand::CRemoveComponentCommand(SafePtr<CScene> scene, CGameObj
 	, m_componentTypeId(componentTypeId)
 {
 	// 제거 전 스냅샷 — undo 시 재부착+값 복원.
-	if (object && Core::Reflection.IsValid())
+	if (object && Engine.Reflection.IsValid())
 	{
-		if (void* addr = Core::Reflection->GetComponentAddress(*object, m_componentTypeId))
+		if (void* addr = Engine.Reflection->GetComponentAddress(*object, m_componentTypeId))
 		{
 			// 컴포넌트는 CComponent 를 단일 1차 베이스(offset 0)로 상속 → reinterpret 안전.
 			m_snapshot = Serialization::SerializeComponent(*reinterpret_cast<CComponent*>(addr));
@@ -640,11 +640,11 @@ const char* CRemoveComponentCommand::GetName() const
 bool CRemoveComponentCommand::RemoveNow()
 {
 	CGameObject* object = Resolve(m_scene, m_objectGuid);
-	if (nullptr == object || false == Core::Reflection.IsValid())
+	if (nullptr == object || false == Engine.Reflection.IsValid())
 	{
 		return false;
 	}
-	return Core::Reflection->RemoveComponent(*m_scene, *object, m_componentTypeId);
+	return Engine.Reflection->RemoveComponent(*m_scene, *object, m_componentTypeId);
 }
 
 bool CRemoveComponentCommand::Execute()

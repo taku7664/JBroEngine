@@ -348,11 +348,11 @@
     <ClInclude Include="Core\Audio\EmptyAudio\EmptyAudioDevice.h" />
     <ClInclude Include="Core\Audio\MiniAudio\MiniAudioDevice.h" />
     <ClInclude Include="Core\Build\BuildManifest.h" />
-    <ClInclude Include="Core\Core.h" />
+    <ClInclude Include="Core\EngineCore.h" />
     <ClInclude Include="Core\CoreAll.h" />
     <ClInclude Include="Core\Debug\Debug.h" />
     <ClInclude Include="Core\Engine.h" />
-    <ClInclude Include="Core\EngineCore.h" />
+    <ClInclude Include="Core\ScriptCore.h" />
     <ClInclude Include="Core\Game\GameModuleTypes.h" />
     <ClInclude Include="Core\Game\GameModuleLoader.h" />
     <ClInclude Include="Core\Math\MathService.h" />
@@ -598,6 +598,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Application\Application.cpp" />
+    <ClCompile Include="Core\EngineCore.cpp" />
     <ClCompile Include="Editor\ImItem\ImButton.cpp" />
     <ClCompile Include="Utillity\Base\Error.cpp" />
     <ClCompile Include="Utillity\File\FilePath.cpp" />
@@ -621,7 +622,7 @@
     </ClCompile>
     <ClCompile Include="Core\Debug\Debug.cpp" />
     <ClCompile Include="Core\Engine.cpp" />
-    <ClCompile Include="Core\EngineCore.cpp" />
+    <ClCompile Include="Core\ScriptCore.cpp" />
     <ClCompile Include="Core\Game\GameModuleLoader.cpp" />
     <ClCompile Include="Core\Math\MathService.cpp" />
     <ClCompile Include="Core\Network\NetworkManager.cpp" />

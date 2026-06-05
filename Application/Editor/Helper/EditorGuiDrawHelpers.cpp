@@ -5,7 +5,7 @@
 
 #include "Editor/Command/EditorSceneCommands.h"
 #include "Editor/Editor.h"
-#include "Engine/Core/Core.h"
+#include "Engine/Core/EngineCore.h"
 #include "Engine/GameFramework/Component/Component.h"
 #include "Engine/GameFramework/Object/GameObject.h"
 #include "Engine/GameFramework/Reflection/ReflectionRegistry.h"
@@ -61,14 +61,14 @@ namespace
 
 	bool DrawComponentList(CScene& scene, CGameObject* object)
 	{
-		if (false == Core::Reflection.IsValid() || nullptr == object)
+		if (false == Engine.Reflection.IsValid() || nullptr == object)
 		{
 			ImGui::TextDisabled(Loc::Text("inspector.no_component_registry"));
 			return false;
 		}
 
 		bool added = false;
-		CReflectionRegistry& reflection = *Core::Reflection;
+		CReflectionRegistry& reflection = *Engine.Reflection;
 
 		// 단일 인스턴스: 아직 부착되지 않은 타입만 메뉴에 노출
 		auto isAvailable = [&](const ComponentTypeInfo* t) -> bool

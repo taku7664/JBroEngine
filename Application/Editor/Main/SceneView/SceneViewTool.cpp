@@ -5,7 +5,7 @@
 #include "Editor/Command/EditorSceneCommands.h"
 #include "Editor/Helper/EditorGuiDrawHelpers.h"
 #include "Editor/Main/Inspector/InspectorTool.h"
-#include "Engine/Core/Core.h"
+#include "Engine/Core/EngineCore.h"
 #include <cstring>
 #include "Engine/Core/Asset/IAssetManager.h"
 #include "Engine/Core/Debug/DebugDraw2D.h"
@@ -385,14 +385,14 @@ void CSceneViewTool::OnRenderStay()
     }
 
     // ── DebugDraw 제출 (RT에 렌더됨) ─────────────────────────────────────────
-    if (Core::DebugDraw2D.IsValid())
+    if (Engine.DebugDraw2D.IsValid())
     {
         const float aspect = GetAspect(vpSize);
-        SubmitGrid(*Core::DebugDraw2D, m_cameraPos.x, m_cameraPos.y, m_cameraSize, aspect);
+        SubmitGrid(*Engine.DebugDraw2D, m_cameraPos.x, m_cameraPos.y, m_cameraSize, aspect);
 
-        if (Core::SceneManager)
+        if (Engine.SceneManager)
         {
-            SafePtr<CScene> scene = Core::SceneManager->GetActiveScene();
+            SafePtr<CScene> scene = Engine.SceneManager->GetActiveScene();
             if (scene)
             {
                 // 씬 기본 디버그 (선택 엔티티 OBB 등)
@@ -418,7 +418,7 @@ void CSceneViewTool::OnRenderStay()
                 }
                 const char* activeCompType =
                     Editor::Inspector ? Editor::Inspector->GetActiveComponentTypeName() : nullptr;
-                SceneDebugDraw::Submit(*scene, *Core::DebugDraw2D,
+                SceneDebugDraw::Submit(*scene, *Engine.DebugDraw2D,
                                        Editor::GetSelectedEntity(), resW, resH, activeCompType);
             }
         }
@@ -534,9 +534,9 @@ void CSceneViewTool::OnRenderStay()
     {
         dl->PushClipRect(vpMin, vpMin + vpSize, true);
 
-        if (Core::SceneManager)
+        if (Engine.SceneManager)
         {
-            SafePtr<CScene> gizmoScene = Core::SceneManager->GetActiveScene();
+            SafePtr<CScene> gizmoScene = Engine.SceneManager->GetActiveScene();
             if (gizmoScene)
             {
                 constexpr float OUTER_R    = 5.0f;
@@ -595,9 +595,9 @@ void CSceneViewTool::OnRenderStay()
         const bool polyTabActive   = inspTypeCol && std::strcmp(inspTypeCol, "PolygonCollider2D") == 0;
         const bool circleTabActive = inspTypeCol && std::strcmp(inspTypeCol, "CircleCollider2D")  == 0;
 
-        if (Core::SceneManager)
+        if (Engine.SceneManager)
         {
-            SafePtr<CScene> colScene = Core::SceneManager->GetActiveScene();
+            SafePtr<CScene> colScene = Engine.SceneManager->GetActiveScene();
             if (colScene)
             {
                 // ── 공통 색상/두께 상수 ───────────────────────────────────────
@@ -915,9 +915,9 @@ void CSceneViewTool::OnRenderStay()
     const bool isActive  = ImGui::IsItemActive();
 
     GuizmoFrameResult guizmoResult;
-    if (Core::SceneManager)
+    if (Engine.SceneManager)
     {
-        SafePtr<CScene> scene = Core::SceneManager->GetActiveScene();
+        SafePtr<CScene> scene = Engine.SceneManager->GetActiveScene();
         if (scene)
         {
             GuizmoFrameContext guizmoContext;
@@ -974,9 +974,9 @@ void CSceneViewTool::OnRenderStay()
     if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)
         && ImGui::GetIO().KeyCtrl && false == ImGui::GetIO().WantTextInput)
     {
-        if (Core::SceneManager)
+        if (Engine.SceneManager)
         {
-            SafePtr<CScene> scene = Core::SceneManager->GetActiveScene();
+            SafePtr<CScene> scene = Engine.SceneManager->GetActiveScene();
             if (scene)
             {
                 if (ImGui::IsKeyPressed(ImGuiKey_C, false))
@@ -1071,9 +1071,9 @@ void CSceneViewTool::OnRenderStay()
                     ViewportToWorld(ImVec2(rMaxS.x, rMinS.y),
                                     vpMin, vpSize, m_cameraPos, m_cameraSize);
 
-                if (Core::SceneManager)
+                if (Engine.SceneManager)
                 {
-                    SafePtr<CScene> scene = Core::SceneManager->GetActiveScene();
+                    SafePtr<CScene> scene = Engine.SceneManager->GetActiveScene();
                     if (scene)
                     {
                         m_editCtx.Validate(*scene);
@@ -1105,9 +1105,9 @@ void CSceneViewTool::OnRenderStay()
                 // ── 단일/더블 클릭 선택 ─────────────────────────────────────
                 m_clickPending = false;
 
-                if (Core::SceneManager)
+                if (Engine.SceneManager)
                 {
-                    SafePtr<CScene> scene = Core::SceneManager->GetActiveScene();
+                    SafePtr<CScene> scene = Engine.SceneManager->GetActiveScene();
                     if (scene)
                     {
                         m_editCtx.Validate(*scene);
@@ -1186,9 +1186,9 @@ void CSceneViewTool::OnRenderStay()
             if (m_rightClickPending && !m_rightDragging)
             {
                 m_rightClickPending = false;
-                if (Core::SceneManager)
+                if (Engine.SceneManager)
                 {
-                    SafePtr<CScene> scene = Core::SceneManager->GetActiveScene();
+                    SafePtr<CScene> scene = Engine.SceneManager->GetActiveScene();
                     if (scene)
                     {
                         m_editCtx.Validate(*scene);
@@ -1247,7 +1247,7 @@ void CSceneViewTool::OnRenderStay()
     if (ImGui::BeginPopup("##SVCtxMenu"))
     {
         SafePtr<CScene> popupScene =
-            Core::SceneManager ? Core::SceneManager->GetActiveScene() : SafePtr<CScene>();
+            Engine.SceneManager ? Engine.SceneManager->GetActiveScene() : SafePtr<CScene>();
         if (popupScene)
         {
             // ── 섹션 1: 버텍스 삭제 ─────────────────────────────────────────
@@ -1322,7 +1322,7 @@ void CSceneViewTool::OnRenderStay()
     // 여기서는 ImEditor에 상태만 전달.
     {
         SafePtr<CScene> scene;
-        if (Core::SceneManager) scene = Core::SceneManager->GetActiveScene();
+        if (Engine.SceneManager) scene = Engine.SceneManager->GetActiveScene();
 
         // 포커스 컨텍스트
         if (m_editCtx.IsActive() && scene)
@@ -1388,7 +1388,7 @@ void CSceneViewTool::OnRenderStay()
 
     // ── Layer 4: 텍스트 오버레이 ─────────────────────────────────────────────
     const bool hasScene =
-        Core::SceneManager.IsValid() && Core::SceneManager->GetActiveScene().IsValid();
+        Engine.SceneManager.IsValid() && Engine.SceneManager->GetActiveScene().IsValid();
     const ImVec2 textPos = vpMin + ImVec2(12.0f, 10.0f);
     dl->AddText(textPos, IM_COL32(210, 216, 224, 255),
                 hasScene ? Loc::Text("scene_view.overlay.active_scene")
@@ -1429,9 +1429,9 @@ void CSceneViewTool::OnRenderStay()
         const bool cameraTabActive =
             inspTypeCam && std::strcmp(inspTypeCam, "Camera2D") == 0;
 
-    if (cameraTabActive && nullptr != selectedObject && Core::SceneManager)
+    if (cameraTabActive && nullptr != selectedObject && Engine.SceneManager)
     {
-        SafePtr<CScene> sceneForVP = Core::SceneManager->GetActiveScene();
+        SafePtr<CScene> sceneForVP = Engine.SceneManager->GetActiveScene();
         if (sceneForVP)
         {
             const Camera2D* cam    = selectedObject->GetComponent<Camera2D>();

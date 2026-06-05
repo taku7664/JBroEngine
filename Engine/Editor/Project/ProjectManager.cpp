@@ -6,6 +6,7 @@
 #include "Core/Asset/IAssetManager.h"
 #include "Core/Asset/IAssetRegistry.h"
 #include "Core/EngineCore.h"
+#include "Core/ScriptCore.h"
 #include "Core/Task/TaskManager.h"
 #include "Core/Task/TaskGroup.h"
 #include "Core/Task/Task.h"
@@ -478,9 +479,9 @@ namespace
 	}
 }
 
-bool CProjectManager::Initialize(const EngineCore& context)
+bool CProjectManager::Initialize()
 {
-	m_assetManager  = context.AssetManager;
+	m_assetManager  = Engine.AssetManager;
 	m_assetWatcher  = MakeOwnerPtr<CWindowsFileWatcher>();
 	m_scriptLoader  = MakeOwnerPtr<CScriptModuleLoader>();
 	m_liveCompileManager = MakeOwnerPtr<CLiveCompileManager>();
@@ -490,7 +491,6 @@ bool CProjectManager::Initialize(const EngineCore& context)
 	{
 		m_liveCompileManager->SetPreBuildCallback([this]() { RegenerateScriptProject(); });
 	}
-	m_engineCore = &context;
 	m_info.OriginPath = File::Path(std::filesystem::current_path());
 	m_isInitialized = m_assetManager.IsValid() && static_cast<bool>(m_assetWatcher);
 	return m_isInitialized;
@@ -503,7 +503,6 @@ void CProjectManager::Finalize()
 	m_liveCompileManager.Reset();
 	m_assetWatcher.Reset();
 	m_assetManager  = nullptr;
-	m_engineCore = nullptr;
 	m_isInitialized = false;
 }
 
@@ -692,8 +691,8 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 		lastOpenedScenePath = root[PROJECT_KEY_LAST_SCENE_PATH].as<std::string>("");
 	}
 
-	std::string editorLocaleCode = (m_engineCore && m_engineCore->Localization.IsValid())
-		? m_engineCore->Localization->GetDefaultLocale()
+	std::string editorLocaleCode = Engine.Localization.IsValid()
+		? Engine.Localization->GetDefaultLocale()
 		: "ko-KR";
 	if (root[PROJECT_KEY_EDITOR_LOCALE])
 	{
@@ -840,11 +839,11 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 	m_assetWatcher->Watch(watcherDesc);
 
 	// 로케일 / ImGui ini 같은 빠른 메인-스레드 후처리는 즉시 수행 (자산 로드와 독립).
-	if (m_engineCore && m_engineCore->Localization.IsValid())
+	if (Engine.Localization.IsValid())
 	{
-		if (false == m_engineCore->Localization->SetCurrentLocale(m_info.EditorLocaleCode))
+		if (false == Engine.Localization->SetCurrentLocale(m_info.EditorLocaleCode))
 		{
-			m_info.EditorLocaleCode = m_engineCore->Localization->GetCurrentLocale();
+			m_info.EditorLocaleCode = Engine.Localization->GetCurrentLocale();
 		}
 	}
 	if (false == m_info.ImGuiIniSettings.empty())
@@ -898,7 +897,7 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 		if (m_postLoadAction) { auto act = std::move(m_postLoadAction); m_postLoadAction = nullptr; act(); }
 	};
 
-	SafePtr<CTaskManager> taskManager = (m_engineCore && m_engineCore->TaskManager.IsValid()) ? m_engineCore->TaskManager : nullptr;
+	SafePtr<CTaskManager> taskManager = Engine.TaskManager.IsValid() ? Engine.TaskManager : nullptr;
 	if (false == taskManager.IsValid())
 	{
 		runSyncFallback();
@@ -953,8 +952,8 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 	// ── 씬 참조 에셋 로드 — 최대 5 개의 태스크로 분배 ────────────────────
 	if (assetTaskCount > 0)
 	{
-		const std::string loadAssetsLabel = (m_engineCore && m_engineCore->Localization.IsValid())
-			? m_engineCore->Localization->Text("project.loading.task.load_assets")
+		const std::string loadAssetsLabel = Engine.Localization.IsValid()
+			? Engine.Localization->Text("project.loading.task.load_assets")
 			: std::string("Loading Resources");
 
 		const std::size_t baseChunk  = assetCount / assetTaskCount;
@@ -986,8 +985,8 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 	// 스레드 Tick 은 HasLoadingTasks 동안 보류되어 동시 접근을 차단한다.
 	if (m_liveCompileManager)
 	{
-		const std::string scriptBuildDescription = (m_engineCore && m_engineCore->Localization.IsValid())
-			? m_engineCore->Localization->Text("project.loading.task.script_build")
+		const std::string scriptBuildDescription = Engine.Localization.IsValid()
+			? Engine.Localization->Text("project.loading.task.script_build")
 			: std::string("Building Scripts");
 		SafePtr<CTask> task = group->CreateTask("ScriptBuild", [selfRef]()
 		{
@@ -2254,9 +2253,9 @@ bool CProjectManager::LoadScriptModule()
 
 void CProjectManager::UnloadScriptModule()
 {
-	if (m_engineCore && m_engineCore->SceneManager)
+	if (Engine.SceneManager)
 	{
-		m_engineCore->SceneManager->DestroyScriptInstances();
+		Engine.SceneManager->DestroyScriptInstances();
 	}
 	if (m_scriptLoader)
 	{
@@ -2359,7 +2358,7 @@ std::string CProjectManager::ConsumeLastLiveCompileFailure()
 GameModuleContext CProjectManager::BuildGameModuleContext() const
 {
 	GameModuleContext context;
-	context.HostEngine = &Engine;
+	context.HostScriptCore = &Script;
 	return context;
 }
 

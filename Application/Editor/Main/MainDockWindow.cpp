@@ -12,7 +12,7 @@
 #include "Editor/Main/SceneView/SceneViewTool.h"
 #include "Editor/Main/Importer/SpriteImporterWindow.h"
 #include "Editor/Main/Importer/AudioImporterWindow.h"
-#include "Engine/Core/Core.h"
+#include "Engine/Core/EngineCore.h"
 #include "Engine/Editor/ImEditor.h"
 #include "Engine/Editor/Project/ProjectManager.h"
 #include "Engine/GameFramework/Scene/SceneManager.h"
@@ -100,7 +100,7 @@ void CMainDockWindow::OnMenuBar()
 
 	if (ImGui::BeginMenu(Loc::Text("menu.simulation")))
 	{
-		SafePtr<CSceneManager> sceneManager = Core::SceneManager;
+		SafePtr<CSceneManager> sceneManager = Engine.SceneManager;
 		const bool canUseSimulation = sceneManager.IsValid();
 		const bool isPlaying = canUseSimulation && sceneManager->IsSimulationPlaying();
 		const bool isPaused = canUseSimulation && sceneManager->IsSimulationPaused();

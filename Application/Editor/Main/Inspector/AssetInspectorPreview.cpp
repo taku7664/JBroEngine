@@ -7,7 +7,7 @@
 #include "Engine/Core/Asset/IAssetManager.h"
 #include "Engine/Core/Asset/SpriteAsset.h"
 #include "Engine/Core/Asset/AudioAsset.h"
-#include "Engine/Core/EngineCore.h"
+#include "Engine/Core/ScriptCore.h"
 #include "Engine/Core/Renderer/IRenderResourceCache.h"
 #include "Engine/Core/Localization/LocalizationManager.h"
 #include "Engine/Core/RHI/IRHIDevice.h"

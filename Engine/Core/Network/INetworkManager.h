@@ -10,20 +10,20 @@ using FOnNetworkConnected    = std::function<void(NetworkConnectionId)>;
 using FOnNetworkDisconnected = std::function<void(NetworkConnectionId)>;
 using FOnNetworkDataReceived = std::function<void(NetworkConnectionId, const void*, std::uint32_t)>;
 
-// High-level network manager exposed to game code via Core::Network.
+// High-level network manager exposed to game code via Engine.Network.
 // Platform differences (WinSock TCP vs. Emscripten WebSocket) are hidden
 // behind this interface.
 //
 // Typical client usage:
-//   Core::Network->SetOnConnected([](NetworkConnectionId id) { ... });
-//   Core::Network->SetOnDataReceived([](NetworkConnectionId id, const void* data, uint32_t size) { ... });
-//   Core::Network->Connect("127.0.0.1", 7777);
+//   Engine.Network->SetOnConnected([](NetworkConnectionId id) { ... });
+//   Engine.Network->SetOnDataReceived([](NetworkConnectionId id, const void* data, uint32_t size) { ... });
+//   Engine.Network->Connect("127.0.0.1", 7777);
 //   // Each frame the engine calls Update() automatically.
-//   Core::Network->Send(SERVER_CONNECTION_ID, &msg, sizeof(msg));
+//   Engine.Network->Send(SERVER_CONNECTION_ID, &msg, sizeof(msg));
 //
 // Typical server usage (Windows only):
-//   Core::Network->StartServer(7777);
-//   Core::Network->Broadcast(&msg, sizeof(msg));
+//   Engine.Network->StartServer(7777);
+//   Engine.Network->Broadcast(&msg, sizeof(msg));
 class INetworkManager : public EnableSafeFromThis<INetworkManager>
 {
 public:

@@ -6,7 +6,7 @@
 #include "Engine/Core/Asset/IAssetManager.h"
 #include "Engine/Core/Asset/IAssetRegistry.h"
 #include "Engine/Core/Build/BuildManifest.h"
-#include "Engine/Core/Core.h"
+#include "Engine/Core/EngineCore.h"
 #include "Engine/Editor/Project/ProjectManager.h"
 #include "Engine/GameFramework/Scene/SceneSerializer.h"
 #include "Utillity/File/FileUtillities.h"
@@ -216,9 +216,9 @@ namespace
 			return false;
 		}
 
-		if (Core::SceneManager.IsValid())
+		if (Engine.SceneManager.IsValid())
 		{
-			SafePtr<CScene> scene = Core::SceneManager->GetActiveScene();
+			SafePtr<CScene> scene = Engine.SceneManager->GetActiveScene();
 			if (scene.IsValid() && false == Editor::GetActiveScenePath().empty())
 			{
 				CSceneSerializer serializer;
@@ -258,7 +258,7 @@ namespace
 
 	AssetGuid FindAssetGuidByPath(const File::Path& assetPath)
 	{
-		SafePtr<IAssetManager> assetManager = Core::AssetManager;
+		SafePtr<IAssetManager> assetManager = Engine.AssetManager;
 		if (false == assetManager.IsValid())
 		{
 			return INVALID_ASSET_GUID;
@@ -539,9 +539,9 @@ bool CGameBuildManager::StartBuild(SafePtr<CProjectManager> projectManager)
 		m_logPath.clear();
 		return false;
 	}
-	if (Core::AssetManager)
+	if (Engine.AssetManager)
 	{
-		Core::AssetManager->RefreshAssetRegistry();
+		Engine.AssetManager->RefreshAssetRegistry();
 	}
 
 	BuildDesc desc;
@@ -883,7 +883,7 @@ bool CGameBuildManager::StagePackage(const BuildDesc& desc, const File::Path& sc
 		return false;
 	}
 
-	SafePtr<IAssetManager> assetManager = Core::AssetManager;
+	SafePtr<IAssetManager> assetManager = Engine.AssetManager;
 	if (false == assetManager.IsValid())
 	{
 		outError = "AssetManager is not available for packaging.";
@@ -924,7 +924,7 @@ bool CGameBuildManager::ApplyWindowsIconToExecutable(const BuildDesc& desc, cons
 		return true;
 	}
 
-	SafePtr<IAssetManager> assetManager = Core::AssetManager;
+	SafePtr<IAssetManager> assetManager = Engine.AssetManager;
 	if (false == assetManager.IsValid())
 	{
 		outError = "AssetManager is not available for resolving Windows icon.";

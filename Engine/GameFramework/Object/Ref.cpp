@@ -2,7 +2,7 @@
 #include "GameFramework/Object/Ref.h"
 
 #include "Core/Asset/IAssetManager.h"
-#include "Core/EngineCore.h"                         // 전역 Engine (BindEngineCore 로 채워짐)
+#include "Core/ScriptCore.h"                         // 전역 Script (BindScriptCore 로 채워짐)
 #include "GameFramework/Component/ScriptComponent.h"
 #include "GameFramework/Scene/Scene.h"
 #include "GameFramework/Scene/SceneManager.h"
@@ -10,16 +10,16 @@
 namespace
 {
 	// Ref 해석의 기준 활성 씬.
-	// ⚠️ 게임 DLL 에서는 Core::* 전역이 채워지지 않는다(BindEngineCore 는 전역 `Engine`
-	//    [EngineCore] 만 호스트 값으로 복사함). 따라서 Core::SceneManager 가 아니라
-	//    `Engine.SceneManager` 를 써야 DLL 에서도 동작한다.
+	// ⚠️ 게임 DLL 에서는 전역 `Engine`(EngineCore) 이 채워지지 않는다 — BindScriptCore 는
+	//    전역 `Script`(ScriptCore) 만 호스트 값으로 복사한다. 이 코드는 Engine.lib 이지만 게임
+	//    DLL 에도 링크되어 DLL 안에서 돌므로, 반드시 `Script.SceneManager` 를 써야 한다.
 	CScene* ActiveScene()
 	{
-		if (false == static_cast<bool>(Engine.SceneManager))
+		if (false == static_cast<bool>(Script.SceneManager))
 		{
 			return nullptr;
 		}
-		return Engine.SceneManager->GetActiveScene().TryGet();
+		return Script.SceneManager->GetActiveScene().TryGet();
 	}
 }
 
@@ -68,7 +68,7 @@ CGameScript* RefDetail::ResolveScript(const char* objectGuid, const char* compon
 
 IAsset* RefDetail::ResolveAsset(const char* assetGuid)
 {
-	if (false == static_cast<bool>(Engine.AssetManager))
+	if (false == static_cast<bool>(Script.AssetManager))
 	{
 		return nullptr;
 	}
@@ -76,10 +76,10 @@ IAsset* RefDetail::ResolveAsset(const char* assetGuid)
 	// 이미 로드돼 있으면 그것을, 아니면 로드한다(LoadAsset 은 멱등).
 	// 주의: 여기서 반환되는 raw pointer 는 호출자가 strong ref 를 유지하지 않으므로
 	// 자산이 unload 될 수 있다. 스크립트가 이 포인터를 매번 다시 받는다는 가정 하에 동작.
-	AssetRef<IAsset> asset = Engine.AssetManager->FindLoadedAsset(guid);
+	AssetRef<IAsset> asset = Script.AssetManager->FindLoadedAsset(guid);
 	if (false == asset.IsValid())
 	{
-		asset = Engine.AssetManager->LoadAsset(guid);
+		asset = Script.AssetManager->LoadAsset(guid);
 	}
 	return asset.Get();
 }

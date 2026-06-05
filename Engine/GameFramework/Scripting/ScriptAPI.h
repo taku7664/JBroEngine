@@ -100,8 +100,8 @@ using GameObject = CGameObject;
 #include "Core/Logging/Logger.h"
 
 // ── Engine core service bundle — Engine.Debug / Engine.SceneManager 등 ──────
-// GameScript DLL 은 Initialize 시점에 호스트 EngineCore 를 복사받아 사용합니다.
-#include "Core/EngineCore.h"
+// GameScript DLL 은 Initialize 시점에 호스트 ScriptCore 를 복사받아 사용합니다.
+#include "Core/ScriptCore.h"
 #include "Core/Debug/Debug.h"
 #include "Core/Time/Time.h"
 

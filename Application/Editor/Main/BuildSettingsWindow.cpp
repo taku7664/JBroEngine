@@ -4,7 +4,7 @@
 #include "Editor/Editor.h"
 #include "Engine/Core/Asset/IAssetManager.h"
 #include "Engine/Core/Asset/IAssetRegistry.h"
-#include "Engine/Core/Core.h"
+#include "Engine/Core/EngineCore.h"
 #include "Engine/Editor/ImGuiUtillity.h"
 #include "Engine/Editor/ImItem/ImSplitter.h"
 #include "Engine/Editor/ImItem/ImText.h"
@@ -794,7 +794,7 @@ bool CBuildSettingsWindow::ImportWindowsIconAsset(const File::Path& selectedPath
 	}
 
 	SafePtr<CProjectManager> pm = GetProjectManagerForBuildSettings();
-	SafePtr<IAssetManager> assetManager = Core::AssetManager;
+	SafePtr<IAssetManager> assetManager = Engine.AssetManager;
 	if (false == pm.IsValid() || false == assetManager.IsValid())
 	{
 		if (outError) *outError = Loc::Text("build_settings.no_project");
@@ -854,11 +854,11 @@ bool CBuildSettingsWindow::ImportWindowsIconAsset(const File::Path& selectedPath
 
 const AssetMetaData* CBuildSettingsWindow::FindWindowsIconMeta() const
 {
-	if (m_windowsIconGuid.IsNull() || false == Core::AssetManager.IsValid())
+	if (m_windowsIconGuid.IsNull() || false == Engine.AssetManager.IsValid())
 	{
 		return nullptr;
 	}
-	return Core::AssetManager->GetRegistry().FindAsset(m_windowsIconGuid);
+	return Engine.AssetManager->GetRegistry().FindAsset(m_windowsIconGuid);
 }
 
 bool CBuildSettingsWindow::HasUnsavedChanges() const

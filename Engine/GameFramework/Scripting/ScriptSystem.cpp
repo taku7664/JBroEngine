@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "ScriptSystem.h"
 
-#include "Core/Core.h"
+#include "Core/EngineCore.h"
 #include "Core/Logging/LoggerInternal.h"
 #include "GameFramework/Component/ScriptComponent.h"
 #include "GameFramework/Reflection/ReflectionRegistry.h"
@@ -90,18 +90,18 @@ void CScriptSystem::EnsureEditTimeInstance(ScriptComponent& script)
 	{
 		return;
 	}
-	if (INVALID_TYPE_ID == script.ScriptTypeId || false == Core::Reflection.IsValid())
+	if (INVALID_TYPE_ID == script.ScriptTypeId || false == Engine.Reflection.IsValid())
 	{
 		return;
 	}
 
-	const ScriptTypeInfo* typeInfo = Core::Reflection->FindScript(script.ScriptTypeId);
+	const ScriptTypeInfo* typeInfo = Engine.Reflection->FindScript(script.ScriptTypeId);
 	if (nullptr == typeInfo)
 	{
 		return;   // DLL 미로드/등록 누락 — 인스펙터는 "대기 중" 으로 둔다.
 	}
 
-	ScriptInstanceHandle handle = Core::Reflection->CreateScriptInstance(script.ScriptTypeId);
+	ScriptInstanceHandle handle = Engine.Reflection->CreateScriptInstance(script.ScriptTypeId);
 	if (nullptr == handle.Instance)
 	{
 		return;
@@ -153,18 +153,18 @@ void CScriptSystem::OnUpdate(CScene& scene)
 			// 인스턴스 지연 생성
 			if (nullptr == script.Instance)
 			{
-				if (false == Core::Reflection.IsValid())
+				if (false == Engine.Reflection.IsValid())
 				{
 					return;
 				}
 
-				ScriptInstanceHandle handle = Core::Reflection->CreateScriptInstance(script.ScriptTypeId);
+				ScriptInstanceHandle handle = Engine.Reflection->CreateScriptInstance(script.ScriptTypeId);
 				if (nullptr == handle.Instance)
 				{
 					const ObjectTypeKey key{ owner, script.ScriptTypeId };
 					if (m_warnedFailedCreate.insert(key).second)
 					{
-						const ScriptTypeInfo* info = Core::Reflection->FindScript(script.ScriptTypeId);
+						const ScriptTypeInfo* info = Engine.Reflection->FindScript(script.ScriptTypeId);
 						const char* name = (info && info->Type.Name) ? info->Type.Name : "<unknown>";
 						CSystemLog::Warning(std::format(
 							"ScriptSystem: CreateScriptInstance failed (object={}, type={}, typeId={}). "
@@ -181,7 +181,7 @@ void CScriptSystem::OnUpdate(CScene& scene)
 				// PendingFields 적용: OnStart 호출 전에 값을 복원한다.
 				if (false == script.PendingFields.empty())
 				{
-					const ScriptTypeInfo* typeInfo = Core::Reflection->FindScript(script.ScriptTypeId);
+					const ScriptTypeInfo* typeInfo = Engine.Reflection->FindScript(script.ScriptTypeId);
 					if (typeInfo)
 					{
 						ApplyPendingFields(script, *typeInfo);

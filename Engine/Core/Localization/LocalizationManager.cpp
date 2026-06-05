@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "LocalizationManager.h"
 
-#include "Core/Core.h"
+#include "Core/EngineCore.h"
 #include "Core/FileSystem/FileSystem.h"
 #include "yaml-cpp/yaml.h"
 
@@ -248,9 +248,9 @@ bool CLocalizationManager::IsSupportedLocale(const std::string& localeCode) cons
 
 const char* Loc::Text(const char* key)
 {
-	if (Core::Localization.IsValid())
+	if (Engine.Localization.IsValid())
 	{
-		return Core::Localization->Text(key ? key : "").c_str();
+		return Engine.Localization->Text(key ? key : "").c_str();
 	}
 	return key ? key : "";
 }
@@ -258,9 +258,9 @@ const char* Loc::Text(const char* key)
 const char* Loc::TextOr(const char* key, const char* fallback)
 {
 	static thread_local std::string result;
-	if (Core::Localization.IsValid())
+	if (Engine.Localization.IsValid())
 	{
-		result = Core::Localization->TextOr(key ? key : "", fallback ? fallback : "");
+		result = Engine.Localization->TextOr(key ? key : "", fallback ? fallback : "");
 		return result.c_str();
 	}
 	return fallback ? fallback : "";
@@ -268,9 +268,9 @@ const char* Loc::TextOr(const char* key, const char* fallback)
 
 std::string Loc::Format(const char* key, const std::unordered_map<std::string, std::string>& args)
 {
-	if (Core::Localization.IsValid())
+	if (Engine.Localization.IsValid())
 	{
-		return Core::Localization->Format(key ? key : "", args);
+		return Engine.Localization->Format(key ? key : "", args);
 	}
 	return EMPTY_TEXT;
 }

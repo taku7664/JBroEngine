@@ -8,8 +8,8 @@
 #include "Editor/Main/ProjectSettingsWindow.h"
 #include "Editor/Main/MainDockWindow.h"
 #include "Editor/Main/SceneView/SceneViewTool.h"
-#include "Engine/Core/Core.h"
 #include "Engine/Core/EngineCore.h"
+#include "Engine/Core/ScriptCore.h"
 #include "Engine/Core/Logging/LoggerInternal.h"
 #include "Engine/Editor/ImEditor.h"
 #include "Engine/Editor/ImGuiUtillity.h"
@@ -36,7 +36,7 @@ namespace
 			return;
 		}
 
-		if (false == Core::SceneManager.IsValid())
+		if (false == Engine.SceneManager.IsValid())
 		{
 			return;
 		}
@@ -49,7 +49,7 @@ namespace
 			return;
 		}
 
-		CScene* scene = Core::SceneManager->CreateScene(lastScenePath.c_str());
+		CScene* scene = Engine.SceneManager->CreateScene(lastScenePath.c_str());
 		if (nullptr == scene)
 		{
 			CSystemLog::Error("Failed to create scene for last opened scene.");
@@ -59,7 +59,7 @@ namespace
 		CSceneSerializer serializer;
 		if (ESceneSerializeResult::Success == serializer.LoadFromFile(*scene, File::Path(absolutePath)))
 		{
-			Core::SceneManager->AcquireReferencedAssets(*scene);
+			Engine.SceneManager->AcquireReferencedAssets(*scene);
 			if (const EngineCore* context = Editor::ImEditor ? Editor::ImEditor->GetEditorEngineCore() : nullptr)
 			{
 				CSpriteRenderSystem* spriteSystem = scene->FindSystem<CSpriteRenderSystem>();
@@ -88,7 +88,7 @@ namespace
 					audioSystem->SetAssetManager(context->AssetManager);
 				}
 			}
-			Core::SceneManager->SetActiveScene(lastScenePath.c_str());
+			Engine.SceneManager->SetActiveScene(lastScenePath.c_str());
 			Editor::SetActiveScenePath(File::Path(absolutePath));
 			Editor::CommandManager.SetActiveDocument(lastScenePath.c_str());
 			Editor::CommandManager.MarkSaved(lastScenePath.c_str());
@@ -104,9 +104,9 @@ namespace
 	{
 		// ── 씬 저장 ─────────────────────────────────────────────────────────────
 		bool sceneSaved = false;
-		if (Core::SceneManager.IsValid())
+		if (Engine.SceneManager.IsValid())
 		{
-			SafePtr<CScene> scene = Core::SceneManager->GetActiveScene();
+			SafePtr<CScene> scene = Engine.SceneManager->GetActiveScene();
 			if (scene.IsValid() && false == Editor::GetActiveScenePath().empty())
 			{
 				CSceneSerializer serializer;
@@ -158,9 +158,9 @@ namespace
 				}
 			}
 
-			if (Core::Localization.IsValid())
+			if (Engine.Localization.IsValid())
 			{
-				pm->SetEditorLocaleCode(Core::Localization->GetCurrentLocale());
+				pm->SetEditorLocaleCode(Engine.Localization->GetCurrentLocale());
 			}
 
 			std::size_t imguiIniSize = 0;

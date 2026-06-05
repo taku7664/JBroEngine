@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "Logger.h"
 
-#include "Core/Core.h"
+#include "Core/EngineCore.h"
 #include "Core/Logging/LoggerInternal.h"
 
 #include <cstdio>
@@ -219,7 +219,7 @@ bool Log::SaveToFile(const File::Path& path)
 
 SafePtr<CLogger> Log::GetLogger()
 {
-	return Core::Logger;
+	return Engine.Logger;
 }
 
 namespace
@@ -243,7 +243,7 @@ void Log::WriteExternal(ELogLevel level, std::string_view message)
 		return;
 	}
 
-	// 2) 자기 모듈의 Core::Logger
+	// 2) 자기 모듈의 Engine.Logger
 	SafePtr<CLogger> logger = GetLogger();
 	if (logger)
 	{
@@ -287,7 +287,7 @@ void CSystemLog::Critical(std::string_view message)
 
 void CSystemLog::WriteSystem(ELogLevel level, std::string_view message)
 {
-	SafePtr<CLogger> logger = Core::Logger;
+	SafePtr<CLogger> logger = Engine.Logger;
 	if (logger)
 	{
 		logger->Write(ELogSource::System, level, message);

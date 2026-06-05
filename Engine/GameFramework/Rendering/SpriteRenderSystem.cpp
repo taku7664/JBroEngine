@@ -3,7 +3,7 @@
 
 #include "Core/Asset/IAssetManager.h"
 #include "Core/Asset/SpriteAsset.h"
-#include "Core/EngineCore.h"
+#include "Core/ScriptCore.h"
 #include "Core/Renderer/Forward2DRenderer.h"
 #include "Core/Renderer/IRenderMaterial.h"
 #include "Core/Renderer/IRenderMesh.h"
@@ -129,7 +129,7 @@ void CSpriteRenderSystem::OnUpdate(CScene& scene)
 			}
 
 			// 월드 크기 = (픽셀 크기 / 유효 PPU) × sprite.Size (스케일 배수).
-			// 자산 PPU 가 0 이면 EngineCore 폴백(프로젝트 Default PPU) 사용.
+			// 자산 PPU 가 0 이면 ScriptCore 폴백(프로젝트 Default PPU) 사용.
 			Vector2 finalSize = sprite.Size;
 			if (spriteAsset)
 			{

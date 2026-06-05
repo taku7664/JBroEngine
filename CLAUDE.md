@@ -309,5 +309,10 @@ For trivial tasks, answer directly.
 - 수정 보고는 중요한 항목마다 코드를 읽고 "어떻게 생각했고 / 어떤 반례를 찾았고 / 어떻게 고쳤다" 흐름으로 남길 것.
 - 직렬화는 JSON보다 YAML/바이너리 방향을 우선한다.
 - 임시 bool 플래그 추가로 회피 금지
-- **게임 스크립트 DLL에서 `Core::` 전역(`Core::SceneManager`/`Core::AssetManager` 등)은 비어있다(null).** `BindEngineCore` 는 전역 `Engine`(EngineCore)만 채우고 `Core::` 는 호스트에서만 설정된다. DLL 안에서 도는 코드(스크립트 + DLL에 링크되는 Engine.lib 코드 예: `Ref.cpp`)는 반드시 **`Engine.X`** 를 써야 한다. `Core::X` 금지.
+- **`EngineCore`(전역 `Engine`) 와 `ScriptCore`(전역 `Script`) 는 용도가 다르다. 절대 혼동 금지.**
+  - **`Engine`(EngineCore)** = 엔진 *내부* 전체 공개 API. 모든 서비스(Platform/RHIDevice/Renderer/RenderScene/AssetManager/SceneManager/…)를 담는다. **호스트 프로세스에서만 채워진다**(CEngine 초기화가 각 서비스 생성 시 `Engine.X = …` 대입). 엔진/에디터 코드는 이 전역 `Engine.X` 를 **직접** 쓴다. CModule 이나 ProjectManager 가 EngineCore 포인터를 따로 들고 다니지 않는다(extern 전역이라 불필요).
+  - **`Script`(ScriptCore)** = 게임 스크립트(유저)에게 노출하는 *엄선된 부분집합*. 게임플레이에 정당히 필요한 것만(Debug/Time/Input/SceneManager/AssetManager/Audio/Random/Math/Reflection/Logger/FileSystem/Localization/Network/DebugDraw2D). **렌더러/RHI/플랫폼/렌더서피스 등 엔진 내부 객체는 절대 넣지 않는다**(스크립트가 GPU/플랫폼을 직접 만질 이유 없음).
+  - **DLL 경계를 넘는 건 `ScriptCore` 뿐이다.** 호스트는 `SyncScriptCore()` 로 `Engine` → `Script` 부분집합을 **1회** 복사한다(부팅/지연초기화 시. **매 프레임 호출 금지** — 서비스 포인터는 수명 내 불변). 게임 DLL 은 `BindScriptCore(context.HostScriptCore)` 로 호스트의 `Script` 값을 받는다.
+  - **게임 DLL 안에서 도는 코드(스크립트 + DLL에 링크되는 Engine.lib 코드 예: `Ref.cpp`)는 반드시 `Script.X` 를 쓴다.** DLL 에서는 `Engine`(EngineCore) 도 `Core::` 도 채워지지 않는다(null). `BindEngineCore` 는 존재하지 않는다.
+  - 호스트 전용 코드는 `Core::X`(호스트 네임스페이스) 또는 전역 `Engine.X` 를 쓴다. DLL 에서 `Core::`/`Engine.` 금지.
 - **호스트↔게임 DLL 경계를 넘는 데이터(스크립트 인스턴스 필드, 경계 함수 인자)는 POD 여야 한다.** `std::string`/`std::filesystem::path`/`File::Guid`/STL 컨테이너를 그대로 공유하면 ABI/레이아웃 불일치로 깨진다(호스트가 쓴 값을 DLL이 빈 값으로 읽음). guid 류는 고정 크기 char 버퍼로 저장한다(예: `Ref<T>`의 `RefBase { char Guid[64]; }`).

@@ -431,7 +431,7 @@
     <ClInclude Include="Core\Asset\SpriteAsset.h">
       <Filter>Header\Core\Asset</Filter>
     </ClInclude>
-    <ClInclude Include="Core\Core.h">
+    <ClInclude Include="Core\EngineCore.h">
       <Filter>Header\Core</Filter>
     </ClInclude>
     <ClInclude Include="Core\Debug\Debug.h">
@@ -440,7 +440,7 @@
     <ClInclude Include="Core\Engine.h">
       <Filter>Header\Core</Filter>
     </ClInclude>
-    <ClInclude Include="Core\EngineCore.h">
+    <ClInclude Include="Core\ScriptCore.h">
       <Filter>Header\Core</Filter>
     </ClInclude>
     <ClInclude Include="Core\Game\GameModuleTypes.h">
@@ -1118,6 +1118,12 @@
     <ClInclude Include="Editor\ImItem\ImButton.h">
       <Filter>Header</Filter>
     </ClInclude>
+    <ClInclude Include="ThirdParty\magic_enum\magic_enum.hpp">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Reflection\ReflectionEnumRegister.h">
+      <Filter>Header</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp">
@@ -1168,7 +1174,7 @@
     <ClCompile Include="Core\Engine.cpp">
       <Filter>Source\Core</Filter>
     </ClCompile>
-    <ClCompile Include="Core\EngineCore.cpp">
+    <ClCompile Include="Core\ScriptCore.cpp">
       <Filter>Source\Core</Filter>
     </ClCompile>
     <ClCompile Include="Core\Math\MathService.cpp">
@@ -1511,6 +1517,9 @@
       <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="Editor\ImItem\ImButton.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\EngineCore.cpp">
       <Filter>Source</Filter>
     </ClCompile>
   </ItemGroup>

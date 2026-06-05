@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "ScriptSchema.h"
 
-#include "Engine/Core/Core.h"
+#include "Engine/Core/EngineCore.h"
 #include "Engine/GameFramework/Reflection/ReflectionRegistry.h"
 
 #include <array>
@@ -36,8 +36,8 @@ namespace ScriptSchema
 		// 컴포넌트/스크립트 타입명 → 헤더 경로(리플렉션으로 스크립트 여부 판정).
 		std::string IncludeForComponentOrScript(const std::string& typeName)
 		{
-			const bool isScript = Core::Reflection.IsValid()
-				&& nullptr != Core::Reflection->FindScriptByName(typeName.c_str());
+			const bool isScript = Engine.Reflection.IsValid()
+				&& nullptr != Engine.Reflection->FindScriptByName(typeName.c_str());
 			return isScript
 				? ("Scripts/" + typeName + ".h")
 				: ("GameFramework/Component/" + typeName + ".h");
@@ -97,11 +97,11 @@ namespace ScriptSchema
 	std::vector<RefTargetInfo> ComponentTargets()
 	{
 		std::vector<RefTargetInfo> out;
-		if (Core::Reflection.IsValid())
+		if (Engine.Reflection.IsValid())
 		{
-			for (std::size_t i = 0; i < Core::Reflection->GetComponentTypeCount(); ++i)
+			for (std::size_t i = 0; i < Engine.Reflection->GetComponentTypeCount(); ++i)
 			{
-				const ComponentTypeInfo* ti = Core::Reflection->GetComponentType(i);
+				const ComponentTypeInfo* ti = Engine.Reflection->GetComponentType(i);
 				if (nullptr == ti || nullptr == ti->Type.Name) continue;
 				const char* n = ti->Type.Name;
 				if (0 == std::strcmp(n, "GameObject")) continue;            // Ref<GameObject> 로 분리
@@ -109,9 +109,9 @@ namespace ScriptSchema
 				if (0 == std::strcmp(n, "ScriptComponent")) continue;       // 컨테이너
 				out.push_back({ n, n, std::string("GameFramework/Component/") + n + ".h" });
 			}
-			for (std::size_t i = 0; i < Core::Reflection->GetScriptTypeCount(); ++i)
+			for (std::size_t i = 0; i < Engine.Reflection->GetScriptTypeCount(); ++i)
 			{
-				const ScriptTypeInfo* si = Core::Reflection->GetScriptType(i);
+				const ScriptTypeInfo* si = Engine.Reflection->GetScriptType(i);
 				if (nullptr == si || nullptr == si->Type.Name) continue;
 				const char* n = si->Type.Name;
 				out.push_back({ n, n, std::string("Scripts/") + n + ".h" });

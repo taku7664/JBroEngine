@@ -58,9 +58,9 @@ void CGameViewTool::OnRenderStay()
 	if (Editor::ImEditor)
 	{
 		std::vector<GameRenderCameraDesc> cameras;
-		if (Core::SceneManager)
+		if (Engine.SceneManager)
 		{
-			SafePtr<CScene> scene = Core::SceneManager->GetActiveScene();
+			SafePtr<CScene> scene = Engine.SceneManager->GetActiveScene();
 			if (scene)
 			{
 				cameras = CollectGameRenderCameras(*scene, resW, resH);
@@ -134,8 +134,8 @@ void CGameViewTool::OnRenderStay()
 	}
 
 	// ── Status overlay ─────────────────────────────────────────────────────────
-	const bool hasScene  = Core::SceneManager.IsValid() && Core::SceneManager->GetActiveScene().IsValid();
-	const bool isPlaying = Core::SceneManager.IsValid() && Core::SceneManager->IsSimulationPlaying();
+	const bool hasScene  = Engine.SceneManager.IsValid() && Engine.SceneManager->GetActiveScene().IsValid();
+	const bool isPlaying = Engine.SceneManager.IsValid() && Engine.SceneManager->IsSimulationPlaying();
 
 	const ImVec2 textPos = vpMin + ImVec2(12.0f, 10.0f);
 	const ImU32  textCol = isPlaying ? IM_COL32(100, 230, 120, 255) : IM_COL32(210, 216, 224, 255);

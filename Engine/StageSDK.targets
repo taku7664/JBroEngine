@@ -53,8 +53,8 @@
 
     <!-- Core: 타입 정의 / 인터페이스만 포함된 공개 모듈 -->
     <!-- RHI, Renderer(구현), Platform(구현), Network 등은 의도적으로 제외 -->
-    <_SDKHeader Include="$(_EngineDir)Core\Core.h"           DestDir="Core" />
     <_SDKHeader Include="$(_EngineDir)Core\EngineCore.h"     DestDir="Core" />
+    <_SDKHeader Include="$(_EngineDir)Core\ScriptCore.h"     DestDir="Core" />
     <_SDKHeader Include="$(_EngineDir)Core\Debug\**\*.h"     DestDir="Core\Debug" />
     <_SDKHeader Include="$(_EngineDir)Core\Input\**\*.h"    DestDir="Core\Input" />
     <_SDKHeader Include="$(_EngineDir)Core\Logging\**\*.h"  DestDir="Core\Logging" />

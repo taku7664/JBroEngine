@@ -17,7 +17,6 @@ class IAssetManager;
 class CScriptModuleLoader;
 class CLiveCompileManager;
 class CTaskGroup;
-struct EngineCore;
 
 // 자산 정합성(reconcile) 패스 결과 요약 — 프로젝트 로드 시 무엇을 치유했는지.
 struct AssetReconcileReport
@@ -34,7 +33,7 @@ struct AssetReconcileReport
 class CProjectManager final : public EnableSafeFromThis<CProjectManager>
 {
 public:
-	bool Initialize(const EngineCore& context);
+	bool Initialize();
 	void Finalize();
 
 	// 새 프로젝트 생성: {parentFolder}/{projectName}/ 디렉토리를 만들고
@@ -203,8 +202,6 @@ private:
 	OwnerPtr<CScriptModuleLoader> m_scriptLoader;
 	OwnerPtr<CLiveCompileManager> m_liveCompileManager;
 	ProjectInfo                  m_info;
-	// EngineCore 포인터는 스크립트 모듈 로드 시 GameModuleContext 구성에 사용합니다.
-	const EngineCore*            m_engineCore = nullptr;
 	std::uint64_t                m_assetDatabaseRevision = 0;
 	// 자산 복구 캐시(비권위적). reconcile/런타임 임포트가 갱신, CloseProject 에서 저장.
 	CAssetDatabase               m_assetDb;

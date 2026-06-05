@@ -703,7 +703,7 @@ std::string CGameScriptProjectGenerator::BuildGameModuleSource() const
 {
 	return R"(#include "pch.h"
 
-#include "Core/EngineCore.h"
+#include "Core/ScriptCore.h"
 #include "Core/Game/GameModuleTypes.h"
 #include "GameFramework/Reflection/ReflectionRegistry.h"
 #include "GameModuleEntry.h"
@@ -714,12 +714,12 @@ class GameScriptModule final : public IGameModule
 public:
 	bool Initialize(const GameModuleContext& context) override
 	{
-		BindEngineCore(context.HostEngine);
+		BindScriptCore(context.HostScriptCore);
 
-		m_registry = Engine.Reflection.TryGet();
+		m_registry = Script.Reflection.TryGet();
 		if (nullptr == m_registry)
 		{
-			UnbindEngineCore();
+			UnbindScriptCore();
 			return false;
 		}
 
@@ -738,7 +738,7 @@ public:
 			UnregisterGeneratedScripts(*m_registry);
 			m_registry = nullptr;
 		}
-		UnbindEngineCore();
+		UnbindScriptCore();
 	}
 
 	const GameModuleDesc& GetDesc() const override

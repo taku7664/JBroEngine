@@ -89,10 +89,10 @@ void CProjectSettingsWindow::OnShow()
         }
     }
 
-    if (Core::Localization.IsValid())
+    if (Engine.Localization.IsValid())
     {
-        const std::vector<LocalizationLocaleInfo>& locales = Core::Localization->GetSupportedLocales();
-        const std::string& currentLocale = Core::Localization->GetCurrentLocale();
+        const std::vector<LocalizationLocaleInfo>& locales = Engine.Localization->GetSupportedLocales();
+        const std::string& currentLocale = Engine.Localization->GetCurrentLocale();
         m_selectedLocaleIndex = 0;
         for (std::size_t i = 0; i < locales.size(); ++i)
         {
@@ -310,13 +310,13 @@ void CProjectSettingsWindow::DrawCategoryLocalization()
 {
     ImGui::SeparatorText(Loc::Text("project_settings.localization"));
 
-    if (false == Core::Localization.IsValid())
+    if (false == Engine.Localization.IsValid())
     {
         ImGui::TextDisabled("%s", Loc::Text("project_settings.localization_unavailable"));
         return;
     }
 
-    const std::vector<LocalizationLocaleInfo>& locales = Core::Localization->GetSupportedLocales();
+    const std::vector<LocalizationLocaleInfo>& locales = Engine.Localization->GetSupportedLocales();
     if (locales.empty())
     {
         ImGui::TextDisabled("%s", Loc::Text("project_settings.localization_no_locales"));
@@ -443,13 +443,13 @@ void CProjectSettingsWindow::DrawFooterButtons()
             pm->SetScriptAutoRebuildEnabled(m_scriptAutoRebuildEnabled);
             pm->SetAssetWatchIgnorePatterns(m_editAssetWatchIgnorePatterns);
         }
-        if (Core::Localization.IsValid())
+        if (Engine.Localization.IsValid())
         {
-            const std::vector<LocalizationLocaleInfo>& locales = Core::Localization->GetSupportedLocales();
+            const std::vector<LocalizationLocaleInfo>& locales = Engine.Localization->GetSupportedLocales();
             if (m_selectedLocaleIndex >= 0 && m_selectedLocaleIndex < static_cast<int>(locales.size()))
             {
                 const std::string& localeCode = locales[static_cast<std::size_t>(m_selectedLocaleIndex)].Code;
-                if (Core::Localization->SetCurrentLocale(localeCode) && pm)
+                if (Engine.Localization->SetCurrentLocale(localeCode) && pm)
                 {
                     pm->SetEditorLocaleCode(localeCode);
                 }
