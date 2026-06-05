@@ -2,7 +2,9 @@
 
 #include "Core/Asset/IAsset.h"
 #include "Core/Asset/IAssetLoader.h"
+#include "Utillity/Math/RectT.h"
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -44,6 +46,16 @@ struct SpriteImportOptions
 	float PixelsPerUnit = 0.0f;
 };
 
+struct SpritePixelBounds
+{
+	std::uint32_t X      = 0;
+	std::uint32_t Y      = 0;
+	std::uint32_t Width  = 0;
+	std::uint32_t Height = 0;
+
+	bool IsEmpty() const { return 0 == Width || 0 == Height; }
+};
+
 struct SpriteFrame
 {
 	std::uint32_t X      = 0;
@@ -52,6 +64,12 @@ struct SpriteFrame
 	std::uint32_t Height = 0;
 	float         PivotX = 0.5f;
 	float         PivotY = 0.5f;
+
+	SpritePixelBounds OpaqueBoundsPixels; // frame-local pixel bounds
+	bool              HasOpaquePixels = false;
+
+	Rect LocalBounds;
+	Rect LocalOpaqueBounds;
 };
 
 class CSpriteImportOptions final
@@ -99,6 +117,9 @@ public:
 	// 슬라이스 정보
 	const SpriteImportOptions&     GetImportOptions() const;
 	const std::vector<SpriteFrame>& GetFrames() const;
+	const Rect& GetMaximumLocalBounds() const;
+	const Rect& GetMaximumLocalOpaqueBounds() const;
+	bool HasAnyOpaquePixels() const;
 	void SetImportData(const SpriteImportOptions& options, std::vector<SpriteFrame>&& frames);
 
 	// raw 픽셀까지 in-place 교체. width/height/pixels 가 새 디스크 상태로 덮어씌워진다.
@@ -116,6 +137,9 @@ private:
 	std::vector<std::uint8_t>   m_pixels;
 	SpriteImportOptions         m_importOptions;
 	std::vector<SpriteFrame>    m_frames;
+	Rect                       m_maximumLocalBounds;
+	Rect                       m_maximumLocalOpaqueBounds;
+	bool                       m_hasAnyOpaquePixels = false;
 	std::uint32_t               m_pixelGeneration = 0;
 	EAssetLoadState             m_loadState = EAssetLoadState::Loaded;
 };

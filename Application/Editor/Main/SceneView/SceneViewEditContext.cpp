@@ -1,7 +1,6 @@
 #include "pch.h"
 #include "SceneViewEditContext.h"
 
-#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -88,31 +87,6 @@ namespace
         bool IsValid() const { return tex != nullptr && fW > 0 && fH > 0; }
     };
 
-    struct AlphaBounds
-    {
-        int pxMin = 0;
-        int pxMax = -1;
-        int pyMin = 0;
-        int pyMax = -1;
-
-        bool HasOpaquePixels() const { return pxMax >= 0; }
-    };
-
-    struct CachedAlphaBounds
-    {
-        const CSpriteAsset* asset = nullptr;
-        std::uint32_t pixelGeneration = 0;
-        std::uint32_t textureWidth = 0;
-        std::uint32_t textureHeight = 0;
-        std::uint32_t frameX = 0;
-        std::uint32_t frameY = 0;
-        std::uint32_t frameW = 0;
-        std::uint32_t frameH = 0;
-        AlphaBounds bounds;
-    };
-
-    std::unordered_map<AssetGuid, std::vector<CachedAlphaBounds>> g_alphaBoundsCache;
-
     ResolvedTexture ResolveAssetTexture(
         IAssetManager& mgr,
         const AssetGuid& spriteGuid,
@@ -153,79 +127,13 @@ namespace
         return r;
     }
 
-    bool TryGetAlphaBounds(const ResolvedTexture& rt, AlphaBounds& outBounds)
+    const SpriteFrame* ResolveSpriteFrame(
+        const CSpriteAsset& sprite,
+        std::uint32_t frameIndex = 0)
     {
-        if (!rt.IsValid()) return false;
-
-        const std::uint32_t textureWidth = rt.tex->GetWidth();
-        const std::uint32_t textureHeight = rt.tex->GetHeight();
-        const std::uint32_t pixelGeneration = rt.tex->GetPixelGeneration();
-
-        std::vector<CachedAlphaBounds>& cachedFrames = g_alphaBoundsCache[rt.guid];
-        if (!cachedFrames.empty())
-        {
-            const CachedAlphaBounds& first = cachedFrames.front();
-            if (first.asset != rt.tex ||
-                first.pixelGeneration != pixelGeneration ||
-                first.textureWidth != textureWidth ||
-                first.textureHeight != textureHeight)
-            {
-                cachedFrames.clear();
-            }
-        }
-
-        for (const CachedAlphaBounds& cached : cachedFrames)
-        {
-            if (cached.frameX == rt.fX &&
-                cached.frameY == rt.fY &&
-                cached.frameW == rt.fW &&
-                cached.frameH == rt.fH)
-            {
-                outBounds = cached.bounds;
-                return outBounds.HasOpaquePixels();
-            }
-        }
-
-        AlphaBounds computed;
-        computed.pxMin = static_cast<int>(rt.fW);
-        computed.pyMin = static_cast<int>(rt.fH);
-
-        const auto& pixels = rt.tex->GetPixels();
-        const int texW = static_cast<int>(textureWidth);
-        const int fW = static_cast<int>(rt.fW);
-        const int fH = static_cast<int>(rt.fH);
-
-        for (int py = 0; py < fH; ++py)
-        {
-            for (int px = 0; px < fW; ++px)
-            {
-                const std::size_t idx =
-                    (static_cast<std::size_t>(rt.fY + py) * texW
-                     + static_cast<std::size_t>(rt.fX + px)) * 4 + 3;
-                if (idx < pixels.size() && pixels[idx] > ALPHA_THRESHOLD)
-                {
-                    if (px < computed.pxMin) computed.pxMin = px;
-                    if (px > computed.pxMax) computed.pxMax = px;
-                    if (py < computed.pyMin) computed.pyMin = py;
-                    if (py > computed.pyMax) computed.pyMax = py;
-                }
-            }
-        }
-
-        CachedAlphaBounds cached;
-        cached.asset = rt.tex;
-        cached.pixelGeneration = pixelGeneration;
-        cached.textureWidth = textureWidth;
-        cached.textureHeight = textureHeight;
-        cached.frameX = rt.fX;
-        cached.frameY = rt.fY;
-        cached.frameW = rt.fW;
-        cached.frameH = rt.fH;
-        cached.bounds = computed;
-        cachedFrames.push_back(cached);
-
-        outBounds = computed;
-        return outBounds.HasOpaquePixels();
+        const auto& frames = sprite.GetFrames();
+        if (frameIndex >= frames.size()) return nullptr;
+        return &frames[frameIndex];
     }
 
     // 스프라이트의 월드 크기 = 렌더러(CSpriteRenderSystem)와 동일 계약.
@@ -386,16 +294,21 @@ std::vector<CGameObject*> CSceneViewEditContext::PickBox(
                         ResolveAssetTexture(*assetMgr, sprite->SpriteGuid, 0);
                     if (rt.IsValid())
                     {
-                        AlphaBounds bounds;
-                        if (TryGetAlphaBounds(rt, bounds))
+                        const SpriteFrame* frame = ResolveSpriteFrame(*rt.tex, 0);
+                        if (frame && frame->HasOpaquePixels)
                         {
-                            // 픽셀 인덱스 → local 좌표 변환
-                            // u = px / fW, v = py / fH
-                            // local.x = u - 0.5, local.y = 0.5 - v
-                            const float lxMin = static_cast<float>(bounds.pxMin)     / static_cast<float>(rt.fW) - 0.5f;
-                            const float lxMax = static_cast<float>(bounds.pxMax + 1) / static_cast<float>(rt.fW) - 0.5f;
-                            const float lyMin = 0.5f - static_cast<float>(bounds.pyMax + 1) / static_cast<float>(rt.fH);
-                            const float lyMax = 0.5f - static_cast<float>(bounds.pyMin)     / static_cast<float>(rt.fH);
+                            const float effectivePPU = rt.tex->GetEffectivePixelsPerUnit(Runtime.PixelsPerUnit);
+                            if (effectivePPU <= 0.0f) return;
+
+                            const float frameWorldW = static_cast<float>(frame->Width) / effectivePPU;
+                            const float frameWorldH = static_cast<float>(frame->Height) / effectivePPU;
+                            if (frameWorldW <= 0.0f || frameWorldH <= 0.0f) return;
+
+                            const Rect& opaque = frame->LocalOpaqueBounds;
+                            const float lxMin = opaque.Left / frameWorldW;
+                            const float lxMax = opaque.Right / frameWorldW;
+                            const float lyMin = opaque.Top / frameWorldH;
+                            const float lyMax = opaque.Bottom / frameWorldH;
 
                             corners[0] = spriteMat.TransformPoint({lxMin, lyMax});
                             corners[1] = spriteMat.TransformPoint({lxMax, lyMax});

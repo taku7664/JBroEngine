@@ -14,6 +14,7 @@
 namespace
 {
 	constexpr std::array<char, 8> COOKED_SPRITE_MAGIC = { 'J', 'B', 'S', 'P', 'R', '8', '1', '\0' };
+	constexpr std::uint8_t OPAQUE_ALPHA_THRESHOLD = 0;
 
 	template<typename T>
 	T ReadOption(const YAML::Node& node, const char* key, const T& defaultValue)
@@ -111,6 +112,123 @@ namespace
 		outPixels.assign(desc.MemoryPayload.begin() + static_cast<std::ptrdiff_t>(offset), desc.MemoryPayload.end());
 		return true;
 	}
+
+	Rect ComputeLocalBounds(const SpriteFrame& frame, float pixelsPerUnit)
+	{
+		if (frame.Width == 0 || frame.Height == 0 || pixelsPerUnit <= 0.0f)
+		{
+			return {};
+		}
+
+		const float left = -frame.PivotX * static_cast<float>(frame.Width) / pixelsPerUnit;
+		const float top = frame.PivotY * static_cast<float>(frame.Height) / pixelsPerUnit;
+		const float right = (1.0f - frame.PivotX) * static_cast<float>(frame.Width) / pixelsPerUnit;
+		const float bottom = -(1.0f - frame.PivotY) * static_cast<float>(frame.Height) / pixelsPerUnit;
+		return Rect(left, bottom, right, top);
+	}
+
+	Rect ComputeLocalOpaqueBounds(const SpriteFrame& frame, float pixelsPerUnit)
+	{
+		if (!frame.HasOpaquePixels || frame.Width == 0 || frame.Height == 0 || pixelsPerUnit <= 0.0f)
+		{
+			return {};
+		}
+
+		const SpritePixelBounds& opaque = frame.OpaqueBoundsPixels;
+		const float left = (static_cast<float>(opaque.X) - frame.PivotX * static_cast<float>(frame.Width)) / pixelsPerUnit;
+		const float right = (static_cast<float>(opaque.X + opaque.Width) - frame.PivotX * static_cast<float>(frame.Width)) / pixelsPerUnit;
+		const float bottom = (frame.PivotY * static_cast<float>(frame.Height) - static_cast<float>(opaque.Y + opaque.Height)) / pixelsPerUnit;
+		const float top = (frame.PivotY * static_cast<float>(frame.Height) - static_cast<float>(opaque.Y)) / pixelsPerUnit;
+		return Rect(left, bottom, right, top);
+	}
+
+	void BuildFrameBounds(
+		const std::vector<std::uint8_t>& pixels,
+		std::uint32_t textureWidth,
+		std::uint32_t textureHeight,
+		float pixelsPerUnit,
+		std::vector<SpriteFrame>& frames,
+		Rect& outMaximumLocalBounds,
+		Rect& outMaximumLocalOpaqueBounds,
+		bool& outHasAnyOpaquePixels)
+	{
+		outMaximumLocalBounds = {};
+		outMaximumLocalOpaqueBounds = {};
+		outHasAnyOpaquePixels = false;
+
+		const bool canScanPixels =
+			textureWidth > 0 &&
+			textureHeight > 0 &&
+			pixels.size() >= static_cast<std::size_t>(textureWidth) * static_cast<std::size_t>(textureHeight) * 4ull;
+		const float effectivePixelsPerUnit = pixelsPerUnit > 0.0f ? pixelsPerUnit : 1.0f;
+
+		bool hasAnyFrameBounds = false;
+		for (SpriteFrame& frame : frames)
+		{
+			frame.HasOpaquePixels = false;
+			frame.OpaqueBoundsPixels = {};
+
+			frame.LocalBounds = ComputeLocalBounds(frame, effectivePixelsPerUnit);
+
+			if (canScanPixels && frame.Width > 0 && frame.Height > 0)
+			{
+				const std::uint32_t frameRight = std::min(textureWidth, frame.X + frame.Width);
+				const std::uint32_t frameBottom = std::min(textureHeight, frame.Y + frame.Height);
+				if (frame.X < frameRight && frame.Y < frameBottom)
+				{
+					std::uint32_t minX = frameRight - frame.X;
+					std::uint32_t minY = frameBottom - frame.Y;
+					std::uint32_t maxX = 0;
+					std::uint32_t maxY = 0;
+
+					for (std::uint32_t y = frame.Y; y < frameBottom; ++y)
+					{
+						for (std::uint32_t x = frame.X; x < frameRight; ++x)
+						{
+							const std::size_t alphaIndex =
+								(static_cast<std::size_t>(y) * textureWidth + static_cast<std::size_t>(x)) * 4 + 3;
+							if (alphaIndex < pixels.size() && pixels[alphaIndex] > OPAQUE_ALPHA_THRESHOLD)
+							{
+								const std::uint32_t localX = x - frame.X;
+								const std::uint32_t localY = y - frame.Y;
+								minX = std::min(minX, localX);
+								minY = std::min(minY, localY);
+								maxX = std::max(maxX, localX);
+								maxY = std::max(maxY, localY);
+								frame.HasOpaquePixels = true;
+							}
+						}
+					}
+
+					if (frame.HasOpaquePixels)
+					{
+						frame.OpaqueBoundsPixels.X = minX;
+						frame.OpaqueBoundsPixels.Y = minY;
+						frame.OpaqueBoundsPixels.Width = maxX - minX + 1;
+						frame.OpaqueBoundsPixels.Height = maxY - minY + 1;
+					}
+				}
+			}
+
+			frame.LocalOpaqueBounds = ComputeLocalOpaqueBounds(frame, effectivePixelsPerUnit);
+
+			if (!frame.LocalBounds.IsEmpty())
+			{
+				outMaximumLocalBounds = hasAnyFrameBounds
+					? outMaximumLocalBounds.Union(frame.LocalBounds)
+					: frame.LocalBounds;
+				hasAnyFrameBounds = true;
+			}
+
+			if (frame.HasOpaquePixels && !frame.LocalOpaqueBounds.IsEmpty())
+			{
+				outMaximumLocalOpaqueBounds = outHasAnyOpaquePixels
+					? outMaximumLocalOpaqueBounds.Union(frame.LocalOpaqueBounds)
+					: frame.LocalOpaqueBounds;
+				outHasAnyOpaquePixels = true;
+			}
+		}
+	}
 }
 
 // ── CSpriteAsset ─────────────────────────────────────────────────────────────
@@ -143,11 +261,23 @@ std::uint32_t CSpriteAsset::GetPixelGeneration() const { return m_pixelGeneratio
 
 const SpriteImportOptions& CSpriteAsset::GetImportOptions() const { return m_importOptions; }
 const std::vector<SpriteFrame>& CSpriteAsset::GetFrames() const { return m_frames; }
+const Rect& CSpriteAsset::GetMaximumLocalBounds() const { return m_maximumLocalBounds; }
+const Rect& CSpriteAsset::GetMaximumLocalOpaqueBounds() const { return m_maximumLocalOpaqueBounds; }
+bool CSpriteAsset::HasAnyOpaquePixels() const { return m_hasAnyOpaquePixels; }
 
 void CSpriteAsset::SetImportData(const SpriteImportOptions& options, std::vector<SpriteFrame>&& frames)
 {
 	m_importOptions = options;
 	m_frames = std::move(frames);
+	BuildFrameBounds(
+		m_pixels,
+		m_width,
+		m_height,
+		GetEffectivePixelsPerUnit(1.0f),
+		m_frames,
+		m_maximumLocalBounds,
+		m_maximumLocalOpaqueBounds,
+		m_hasAnyOpaquePixels);
 }
 
 void CSpriteAsset::ReplacePixels(std::uint32_t width, std::uint32_t height, std::vector<std::uint8_t>&& pixels)
@@ -156,6 +286,15 @@ void CSpriteAsset::ReplacePixels(std::uint32_t width, std::uint32_t height, std:
 	m_height = height;
 	m_pixels = std::move(pixels);
 	++m_pixelGeneration;
+	BuildFrameBounds(
+		m_pixels,
+		m_width,
+		m_height,
+		GetEffectivePixelsPerUnit(1.0f),
+		m_frames,
+		m_maximumLocalBounds,
+		m_maximumLocalOpaqueBounds,
+		m_hasAnyOpaquePixels);
 	// GPU 텍스처는 RenderResourceCache 가 따로 invalidate 한다 (자산이 GPU 를 소유하지 않음).
 	// reload 경로(CAssetManager::ReloadAsset)가 cache->InvalidateSpriteTexture(guid) 호출.
 }

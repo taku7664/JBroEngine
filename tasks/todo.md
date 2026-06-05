@@ -1,3 +1,51 @@
+# TODO — Sprite Opaque Bounds Import Cache
+
+## Goal
+Sprite import/load 시 frame별 opaque bounds 와 sprite 전체 maximum bounds 를 계산해 `CSpriteAsset` 에 캐싱하고, SceneView 피킹의 legacy per-pixel/frame alpha bounds scan cache 를 새 asset metadata 기반으로 교체한다.
+
+## Assumptions
+- Sprite pixels 는 RGBA8 로 로드/쿠킹된다.
+- Alpha opaque 기준은 현재 SceneView legacy 기준과 호환되도록 alpha > 0 을 기본으로 둔다.
+- Bounds 는 pixel rect 와 PPU/pivot 적용 local rect 를 모두 보관한다.
+- 완전 투명 frame 은 `HasOpaquePixels=false` 로 표시하고, 에디터 선택/box fallback 은 기존처럼 전체 frame bounds 를 사용할 수 있어야 한다.
+
+## Success Criteria
+- 각 `SpriteFrame` 이 `OpaqueBoundsPixels`, `LocalBounds`, `LocalOpaqueBounds`, `HasOpaquePixels` 를 가진다.
+- `CSpriteAsset` 이 `MaximumLocalBounds`, `MaximumLocalOpaqueBounds`, opaque 존재 여부를 제공한다.
+- sprite load/reload/import option 변경 시 bounds 가 재계산된다.
+- SceneView 피킹은 더 이상 frame 전체 alpha bounds 를 자체 scan/cache 하지 않고 `SpriteFrame` cached bounds 를 사용한다.
+- SDK public mirror 도 동기화된다.
+
+## Plan
+- [x] SpriteFrame bounds 구조/API 추가
+- [x] SpriteAsset frame build 후 pixel/local opaque bounds 계산
+- [x] SceneView legacy alpha bounds cache 제거 및 asset cached bounds 사용
+- [x] SDK mirror 갱신
+- [x] 빌드/검증 및 커밋
+
+## Verification
+- [x] `Engine` target `Debug_Editor|x64` build
+- [x] `Application:ClCompile` target `Debug_Editor|x64`
+- [x] `git diff --check`
+
+## Review
+- 코드를 읽었고: `CSpriteAsset` 는 frame slice 정보만 저장하고 opaque bounds 는 저장하지 않았다.
+- 생각했고: 매 프레임/매 박스선택마다 alpha scan 을 반복하는 것보다, sprite load/import option 적용 시 frame별 bounds 를 한 번 계산해 asset metadata 로 들고 있는 편이 맞다고 판단했다.
+- 반례를 찾았고: `Rect` 는 `Top <= Bottom` 규칙인데 sprite local 좌표는 y-up 이라 위/아래를 그대로 넣으면 empty bounds 가 된다.
+- 고쳤다: frame local bounds 는 `Rect(left, lowerY, right, upperY)` 규칙으로 저장한다.
+- 반례를 찾았고: 완전 투명 frame 은 opaque rect 가 없으므로 이를 0 크기 rect 로 저장하면 selection fallback 과 렌더 제외 정책이 섞일 수 있다.
+- 고쳤다: `HasOpaquePixels` 와 `OpaqueBoundsPixels` 를 분리하고, `LocalOpaqueBounds` 는 opaque 가 있을 때만 유효하게 했다.
+- 반례를 찾았고: `OpaqueX/OpaqueY/...` 식의 흩어진 필드는 이후 API 계약이 불명확해진다.
+- 고쳤다: `SpritePixelBounds OpaqueBoundsPixels` 구조체로 frame-local pixel bounds 를 저장한다.
+- 코드를 읽었고: SceneView `PickBox()` 는 editor-only 전역 cache 와 frame 전체 alpha scan 을 자체 구현하고 있었다.
+- 생각했고: 이제 asset 이 authoritative bounds 를 가지므로 SceneView cache 는 중복 레거시가 된다.
+- 고쳤다: `CachedAlphaBounds`, `g_alphaBoundsCache`, `TryGetAlphaBounds()` 를 제거하고 `SpriteFrame::LocalOpaqueBounds` 를 사용하게 했다.
+- 주의: 단일 클릭 `Pick()` 의 1-pixel alpha test 는 비용이 작고 클릭 정확도를 위한 별도 기능이라 유지했다.
+- 검증했다: `Engine` target `Debug_Editor|x64`, `Application:ClCompile` target `Debug_Editor|x64`, `git diff --check` 를 통과했다.
+- 주의: 전체 `Debug_Editor|x64` build 는 `Build\Debug_Editor\Application.exe` 가 실행 중/잠김 상태라 `LNK1104` 로 링크만 실패했다.
+
+---
+
 # TODO — Rebuild yaml-cpp Libraries With Matching PDBs
 
 ## Goal
