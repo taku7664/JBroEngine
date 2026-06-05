@@ -39,6 +39,17 @@ This document reorganizes the remaining work from `tasks/EngineCodeAudit.md` aft
   - Renamed script-side writer/entry types to `JBroPackWriterV2` and `JBroPackEntryV2` to avoid stale loaded C# type reuse in long PowerShell sessions.
   - Verified the embedded C# pack writer compiles with `Add-Type`.
 
+### Release runtime fallback tightening
+
+- Source finding: F-005
+- Status: Done
+- Result:
+  - Release runtime default manifest search no longer includes `Content/build_manifest.yaml`.
+  - Release runtime rejects non-binary build manifests instead of parsing YAML fallback.
+  - Release runtime scene loading rejects path fallback and requires GUID-backed package asset loading.
+- Scope note:
+  - Debug builds and editor/development builds still allow legacy fallback for diagnosis and migration.
+
 ## Remaining Work Queue
 
 ### 1. Release asset pack contract hardening
@@ -67,9 +78,9 @@ This document reorganizes the remaining work from `tasks/EngineCodeAudit.md` aft
 
 - Source finding: F-005
 - Priority: Medium
+- Status: Done for release runtime gate.
 - Work:
-  - Gate `build_manifest.yaml` fallback and loose scene path fallback behind development/debug only.
-  - In release game packages, require binary manifest, startup scene guid, and mounted pack.
+  - Keep release package smoke tests covering missing binary manifest and missing startup scene guid.
 - Reason:
   - Loose fallback can hide broken packages by loading files that should not exist in release output.
 

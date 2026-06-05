@@ -23,6 +23,15 @@ namespace
 
 	File::Path ToCanonicalPath(const std::filesystem::path& path);
 
+	constexpr bool AllowLegacyManifestFallback()
+	{
+#if defined(JBRO_EDITOR) || !defined(NDEBUG)
+		return true;
+#else
+		return false;
+#endif
+	}
+
 	void SetError(std::string* outError, const char* message)
 	{
 		if (outError)
@@ -335,13 +344,19 @@ bool CBuildManifestLoader::FindDefaultManifest(File::Path& outManifestPath)
 {
 	std::vector<std::filesystem::path> candidates;
 	candidates.push_back(std::filesystem::current_path() / MANIFEST_RELATIVE_PATH);
-	candidates.push_back(std::filesystem::current_path() / LEGACY_MANIFEST_RELATIVE_PATH);
+	if constexpr (AllowLegacyManifestFallback())
+	{
+		candidates.push_back(std::filesystem::current_path() / LEGACY_MANIFEST_RELATIVE_PATH);
+	}
 
 	const std::filesystem::path executableDir = GetExecutableDirectory();
 	if (false == executableDir.empty())
 	{
 		candidates.push_back(executableDir / MANIFEST_RELATIVE_PATH);
-		candidates.push_back(executableDir / LEGACY_MANIFEST_RELATIVE_PATH);
+		if constexpr (AllowLegacyManifestFallback())
+		{
+			candidates.push_back(executableDir / LEGACY_MANIFEST_RELATIVE_PATH);
+		}
 	}
 
 	for (const std::filesystem::path& candidate : candidates)
@@ -375,6 +390,12 @@ bool CBuildManifestLoader::LoadFromFile(const File::Path& manifestPath, BuildMan
 		{
 			return LoadBinaryManifest(manifestPath, outManifest, outError);
 		}
+	}
+
+	if constexpr (false == AllowLegacyManifestFallback())
+	{
+		SetError(outError, "Legacy YAML build manifest is not allowed in release runtime.");
+		return false;
 	}
 
 	YAML::Node root;

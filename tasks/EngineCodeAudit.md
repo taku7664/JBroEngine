@@ -61,6 +61,22 @@ What remains:
 - `ImportOptionsYaml` is still runtime-required until cooked payload headers replace it.
 - Streaming audio needs a pack-backed streaming path instead of disk extraction.
 
+### R-003: Gated legacy runtime manifest and scene path fallback
+
+- Related finding: F-005
+- Date: 2026-06-05
+- Files:
+  - `Engine/Core/Build/BuildManifest.cpp`
+  - `Application/Application.cpp`
+
+What changed:
+- Release runtime no longer searches `Content/build_manifest.yaml` as a default manifest.
+- Release runtime rejects non-binary build manifests instead of falling back to YAML parsing.
+- Release runtime scene loading rejects path fallback and requires GUID-backed package asset loading.
+
+What remains:
+- Debug/editor builds keep legacy fallback for diagnosis and migration.
+
 ## Findings
 
 ### F-001: Pack reader can write decrypted payloads back to `.packcache`
@@ -174,6 +190,7 @@ Recommendation:
 
 - Severity: Medium
 - Category: release contract / dead compatibility
+- Status: Resolved for release runtime by R-003. Debug/editor fallback remains intentional.
 - Files:
   - `Engine/Core/Build/BuildManifest.cpp:13-14`
   - `Engine/Core/Build/BuildManifest.cpp:334-345`

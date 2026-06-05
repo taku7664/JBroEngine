@@ -294,6 +294,15 @@ bool CGameApplication::LoadRuntimeScriptModule(const BuildManifest& manifest)
 
 namespace
 {
+	constexpr bool AllowRuntimeScenePathFallback()
+	{
+#if defined(JBRO_EDITOR) || !defined(NDEBUG)
+		return true;
+#else
+		return false;
+#endif
+	}
+
 	// 런타임 씬 1개의 노드(구조)만 로드한다 — 리소스(에셋)는 로드하지 않는다.
 	// 리소스는 그 씬이 active 가 될 때(SetActiveScene) 비로소 로드된다.
 	//  · guid 가 유효하면 패키지 에셋(LoadAsset → text)에서, 아니면 경로(ResolveAssetPath)에서 로드.
@@ -327,6 +336,13 @@ namespace
 		}
 		else
 		{
+			if constexpr (false == AllowRuntimeScenePathFallback())
+			{
+				sceneManager.DestroyScene(sceneName.c_str());
+				CSystemLog::Error(std::string("Runtime scene path fallback is not allowed in release package: ") + scenePathText);
+				return false;
+			}
+
 			File::Path scenePath;
 			if (false == assetManager.ResolveAssetPath(File::Path(scenePathText), scenePath))
 			{

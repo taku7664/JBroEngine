@@ -1,3 +1,41 @@
+# TODO — Runtime Manifest and Scene Fallback Tightening
+
+## Goal
+Release runtime game에서 legacy YAML manifest와 loose scene path fallback이 패키징 오류를 숨기지 못하게 막는다.
+
+## Assumptions
+- Debug game과 editor/development 환경에서는 legacy fallback이 진단/전환용으로 남아도 된다.
+- Release game package는 `Content/build_manifest.jbmanifest`와 `StartupSceneGuid`를 필수로 본다.
+- 기존 binary manifest writer는 startup scene guid를 이미 요구한다.
+
+## Success Criteria
+- Release game runtime의 default manifest 검색은 `build_manifest.yaml`을 후보로 보지 않는다.
+- Release game runtime에서 binary magic이 없는 manifest를 YAML로 fallback load하지 않는다.
+- Release game runtime에서 startup/build scene을 path fallback으로 로드하지 않는다.
+
+## Plan
+- [x] legacy manifest fallback 허용 조건 추가
+- [x] default manifest 후보와 YAML parse fallback gate
+- [x] runtime scene path fallback gate
+- [x] 문서/todo 갱신
+- [ ] diff/build 검증 및 커밋
+
+## Verification
+- [x] `rg`로 legacy fallback gate 확인
+- [x] `git diff --check`
+- [x] `Debug_Game|x64` build
+- [x] `Release_Game|x64` build
+
+## Review
+- 코드를 읽었고: `FindDefaultManifest()`가 YAML 후보를 항상 추가하고, `LoadFromFile()`도 binary magic이 없으면 YAML parse로 넘어가는 구조를 확인했다.
+- 생각했고: default 후보만 제거하면 명시 YAML 경로가 release runtime에서 여전히 통과하므로 load 단계도 같이 gate해야 한다고 판단했다.
+- 반례를 찾았고: Debug game과 editor는 이전 package 진단/전환에 YAML fallback이 필요할 수 있다.
+- 고쳤다: `JBRO_EDITOR` 또는 non-`NDEBUG`에서만 legacy manifest fallback을 허용했다.
+- 추가로 읽었고: `LoadRuntimeSceneNodes()`는 guid가 null이면 loose path로 scene을 로드했다.
+- 고쳤다: release runtime에서는 scene path fallback을 거부하고 GUID package asset 경로만 허용하게 했다.
+
+---
+
 # TODO — BuildGame Pack Writer Contract Parity
 
 ## Goal
