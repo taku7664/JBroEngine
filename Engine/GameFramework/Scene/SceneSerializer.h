@@ -11,9 +11,9 @@ class CScene;
 class CSceneSerializer final
 {
 public:
-	ESceneSerializeResult SerializeToText(const CScene& scene, std::string& outText) const;
+	ESceneSerializeResult SerializeToText(CScene& scene, std::string& outText) const;
 	ESceneSerializeResult DeserializeFromText(CScene& scene, const char* text) const;
-	ESceneSerializeResult SaveToFile(const CScene& scene, const File::Path& path) const;
+	ESceneSerializeResult SaveToFile(CScene& scene, const File::Path& path) const;
 	ESceneSerializeResult LoadFromFile(CScene& scene, const File::Path& path) const;
 
 	// 씬/프리팹 파일에서 ReferencedAssets 목록만 가볍게 읽는다 — 게임오브젝트나 에셋

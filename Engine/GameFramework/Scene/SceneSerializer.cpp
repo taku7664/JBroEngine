@@ -65,13 +65,13 @@ namespace
 	}
 }
 
-ESceneSerializeResult CSceneSerializer::SerializeToText(const CScene& scene, std::string& outText) const
+ESceneSerializeResult CSceneSerializer::SerializeToText(CScene& scene, std::string& outText) const
 {
 	std::vector<AssetGuid> referencedAssets;
 
 	// 활성 오브젝트를 순서대로 수집하고 인덱스 맵을 만든다(부모 인덱스 해석용).
-	std::vector<CGameObject*> objectList;
-	const_cast<CScene&>(scene).ForEachObject([&](CGameObject& obj) { objectList.push_back(&obj); });
+	std::vector<const CGameObject*> objectList;
+	scene.ForEachObject([&](const CGameObject& obj) { objectList.push_back(&obj); });
 
 	// 생성순서로 저장 → 로드 시 파일 순서대로 CreationOrder 가 재부여되어 표시 순서가 보존된다
 	// (풀 슬롯 순회 순서는 생성순서와 무관).
@@ -85,12 +85,12 @@ ESceneSerializeResult CSceneSerializer::SerializeToText(const CScene& scene, std
 	}
 
 	YAML::Node objects(YAML::NodeType::Sequence);
-	for (CGameObject* obj : objectList)
+	for (const CGameObject* obj : objectList)
 	{
 		YAML::Node node = Serialization::WriteObject(*obj, &referencedAssets);
 
 		// 계층은 씬 레벨 관심사 — 부모 인덱스를 오브젝트 노드에 덧붙인다.
-		CGameObject* parent = obj->GetParent().TryGet();
+		const CGameObject* parent = obj->GetParent().TryGet();
 		const auto parentIt = parent ? indexOf.find(parent) : indexOf.end();
 		node["ParentIndex"] = (parentIt != indexOf.end()) ? parentIt->second : -1;
 
@@ -107,7 +107,7 @@ ESceneSerializeResult CSceneSerializer::SerializeToText(const CScene& scene, std
 	emitter << root;
 	outText = emitter.c_str();
 	outText.push_back('\n');
-	const_cast<CScene&>(scene).SetReferencedAssets(std::move(referencedAssets));
+	scene.SetReferencedAssets(std::move(referencedAssets));
 	return ESceneSerializeResult::Success;
 }
 
@@ -182,7 +182,7 @@ ESceneSerializeResult CSceneSerializer::DeserializeFromText(CScene& scene, const
 	return ESceneSerializeResult::Success;
 }
 
-ESceneSerializeResult CSceneSerializer::SaveToFile(const CScene& scene, const File::Path& path) const
+ESceneSerializeResult CSceneSerializer::SaveToFile(CScene& scene, const File::Path& path) const
 {
 	if (path.empty())
 	{

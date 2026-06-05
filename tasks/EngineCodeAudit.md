@@ -89,6 +89,20 @@ What changed:
 - `Debug_Game` and `Release_Game` no longer receive editor-only localization files as a build side effect.
 - Final package verifier still rejects `Localization`.
 
+### R-005: Made scene serialization metadata mutation explicit
+
+- Related finding: F-007
+- Date: 2026-06-05
+- Files:
+  - `Engine/GameFramework/Scene/SceneSerializer.h`
+  - `Engine/GameFramework/Scene/SceneSerializer.cpp`
+  - `SDK/Include/GameFramework/Scene/SceneSerializer.h`
+
+What changed:
+- `SerializeToText()` and `SaveToFile()` now take `CScene&` instead of `const CScene&`.
+- Scene object traversal uses const object references.
+- The `ReferencedAssets` cache update is now an explicit scene mutation, not a hidden `const_cast`.
+
 ## Findings
 
 ### F-001: Pack reader can write decrypted payloads back to `.packcache`
@@ -251,6 +265,7 @@ Recommendation:
 
 - Severity: Medium
 - Category: API correctness / surprising side effect
+- Status: Resolved by R-005.
 - Files:
   - `Engine/GameFramework/Scene/SceneSerializer.cpp:68-110`
 

@@ -59,6 +59,16 @@ This document reorganizes the remaining work from `tasks/EngineCodeAudit.md` aft
   - Game configurations `Debug_Game` and `Release_Game` no longer copy editor-only `Localization` into their intermediate output folders.
   - Package verifier still rejects `SDK`, `Editor`, and `Localization` in final game packages.
 
+### Scene serializer side-effect API cleanup
+
+- Source finding: F-007
+- Status: Done
+- Result:
+  - `CSceneSerializer::SerializeToText()` and `SaveToFile()` now take `CScene&`, making the referenced-asset cache update explicit.
+  - Removed scene-target `const_cast` from serialization.
+  - Object serialization still uses const object access.
+  - SDK public mirror was updated to the same signature.
+
 ## Remaining Work Queue
 
 ### 1. Release asset pack contract hardening
@@ -107,9 +117,9 @@ This document reorganizes the remaining work from `tasks/EngineCodeAudit.md` aft
 
 - Source finding: F-007
 - Priority: Medium
+- Status: Done
 - Work:
-  - Replace `const_cast` mutation in `SerializeToText(const CScene&)`.
-  - Either make the mutation explicit with `SerializeToText(CScene&)`, or split referenced-asset collection from serialization.
+  - Keep future scene save call sites aware that serialization refreshes `ReferencedAssets`.
 - Reason:
   - The current API signature claims read-only behavior but updates scene metadata.
 

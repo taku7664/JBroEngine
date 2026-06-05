@@ -1,3 +1,39 @@
+# TODO — SceneSerializer Side-effect API Cleanup
+
+## Goal
+`SceneSerializer::SerializeToText()`가 referenced asset cache를 갱신하는 mutation을 API signature에 명시하고 `const_cast`를 제거한다.
+
+## Assumptions
+- scene serialization은 `ReferencedAssets` cache를 갱신하는 side effect가 의도된 동작이다.
+- object serialization 자체는 const object로 충분하다.
+- SDK public mirror도 같은 signature를 가져야 한다.
+
+## Success Criteria
+- `SerializeToText()` / `SaveToFile()`이 `CScene&`를 받는다.
+- `SceneSerializer.cpp`의 scene 대상 `const_cast`가 제거된다.
+- 현재 호출자는 새 signature로 컴파일된다.
+
+## Plan
+- [x] serializer API 호출자 확인
+- [x] Engine/SDK header signature 변경
+- [x] const scene 순회와 explicit metadata update로 구현 변경
+- [x] 문서/todo 갱신
+- [ ] 빌드 검증 및 커밋
+
+## Verification
+- [x] `rg`로 `SceneSerializer` 대상 `const_cast<CScene&>(scene)` 제거 확인
+- [x] `Debug_Game|x64` build
+- [x] `Debug_Editor|x64` build
+- [x] `git diff --check`
+
+## Review
+- 코드를 읽었고: `CScene`에는 const `ForEachObject`가 있고, `Serialization::WriteObject()`도 `const CGameObject&`를 받는 것을 확인했다.
+- 생각했고: 오브젝트 순회는 const로 충분하지만 `SetReferencedAssets()`는 의도된 scene metadata mutation이므로 API signature에서 감추면 안 된다고 판단했다.
+- 반례를 찾았고: scene save 호출자는 대부분 non-const scene을 가지고 있으며, prefab serialization도 내부 `prefabScene`은 non-const라 signature 변경이 가능했다.
+- 고쳤다: `SerializeToText()`/`SaveToFile()`을 `CScene&`로 바꾸고, scene 대상 `const_cast`를 제거했으며 SDK mirror도 맞췄다.
+
+---
+
 # TODO — Editor-only Localization Output Hygiene
 
 ## Goal
