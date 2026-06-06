@@ -79,6 +79,30 @@ void CGameScript::Destroy()
 	m_owner.Reset();
 }
 
+void CGameScript::ApplicationFocusGained()
+{
+	if (m_isStarted)
+	{
+		OnApplicationFocusGained();
+	}
+}
+
+void CGameScript::ApplicationFocusLost()
+{
+	if (m_isStarted)
+	{
+		OnApplicationFocusLost();
+	}
+}
+
+void CGameScript::SurfaceResized(const Size<int>& clientSize)
+{
+	if (m_isStarted)
+	{
+		OnSurfaceResized(clientSize);
+	}
+}
+
 bool CGameScript::IsStarted() const
 {
 	return m_isStarted;

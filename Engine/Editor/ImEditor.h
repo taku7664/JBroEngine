@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "Core/Module/Module.h"
+#include "Core/Platform/PlatformTypes.h"   // SurfaceEvent / SurfaceEventToken
 #include "Core/Renderer/RendererTypes.h"
 #include "GameFramework/Rendering/GameCamera.h"
 #include "GameFramework/Scene/SceneTypes.h"
@@ -110,6 +111,10 @@ private:
 
 	bool DestroyImWindowEx(ImGuiID id);
 
+	// 윈도우 이벤트(메인 surface) 단일 구독자. ImEditor 가 받아 에디터 하위로 분배한다.
+	// 현재: 포커스 복귀 시 라이브 컴파일 재빌드 1회.
+	void OnSurfaceEvent(const SurfaceEvent& surfaceEvent);
+
 private:
 	ImGuiContext* m_imguiContext;
 	bool m_isWin32BackendInitialized = false;
@@ -127,6 +132,9 @@ private:
 
 	std::queue<std::function<void()>> m_delayEventQueue;
 	OwnerPtr<CProjectManager> m_projectManager;
+
+	// 메인 surface 윈도우 이벤트 구독 토큰(OnPostInitialize 구독, OnPreFinalize 해지).
+	SurfaceEventToken m_surfaceEventToken = 0;
 
 	// Scene view (editor camera)
 	OwnerPtr<IRHITexture> m_sceneViewRenderTarget;

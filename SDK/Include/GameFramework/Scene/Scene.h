@@ -2,6 +2,7 @@
 
 #include "Core/Asset/AssetTypes.h"
 #include "Core/Asset/AssetRef.h"
+#include "Core/Platform/PlatformTypes.h"   // SurfaceEvent
 #include "GameFramework/Component/Component.h"
 #include "GameFramework/Object/GameObject.h"
 #include "GameFramework/Object/ObjectPool.h"
@@ -137,6 +138,10 @@ public:
 	void FlushPendingDestroys();
 	void NotifySimulationStop();
 	void DestroyScriptInstances();
+
+	// 호스트가 받은 윈도우 이벤트를 이 씬의 살아있는 스크립트 인스턴스들에 전달한다.
+	// 인스턴스는 시뮬레이션(재생) 중에만 존재하므로 편집 모드에선 자연히 no-op.
+	void DispatchSurfaceEventToScripts(const SurfaceEvent& surfaceEvent);
 	CPhysics2DSystem* GetPhysics2DSystem();
 	const CPhysics2DSystem* GetPhysics2DSystem() const;
 	void SetReferencedAssets(std::vector<AssetGuid> referencedAssets);

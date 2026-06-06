@@ -248,6 +248,24 @@ void CScene::DestroyScriptInstances()
 	});
 }
 
+void CScene::DispatchSurfaceEventToScripts(const SurfaceEvent& surfaceEvent)
+{
+	ForEach<ScriptComponent>([&surfaceEvent](ScriptComponent& script)
+	{
+		CGameScript* instance = script.Instance;
+		if (nullptr == instance)
+		{
+			return;
+		}
+		switch (surfaceEvent.Type)
+		{
+		case ESurfaceEventType::FocusGained: instance->ApplicationFocusGained();         break;
+		case ESurfaceEventType::FocusLost:   instance->ApplicationFocusLost();           break;
+		case ESurfaceEventType::Resized:     instance->SurfaceResized(surfaceEvent.ClientSize); break;
+		}
+	});
+}
+
 CPhysics2DSystem* CScene::GetPhysics2DSystem()
 {
 	return m_physicsSystem.Get();

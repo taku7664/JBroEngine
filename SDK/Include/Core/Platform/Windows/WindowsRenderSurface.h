@@ -34,4 +34,7 @@ private:
 	bool m_focusGained = false;
 	bool m_focusLost = false;
 	bool m_isCreated = false;
+	bool m_resized = false;       // WM_SIZE 엣지(PollEvents 에서 1회 디스패치 후 클리어)
+	int  m_resizeWidth = 0;
+	int  m_resizeHeight = 0;
 };

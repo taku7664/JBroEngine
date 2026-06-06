@@ -1,6 +1,7 @@
 #pragma once
 
 #include "GameFramework/Object/GameObject.h"
+#include "Utillity/Math/SizeT.h"
 #include "Utillity/Pointer/SafePtr.h"
 
 class CScene;
@@ -33,12 +34,22 @@ public:
 	bool IsStarted() const;
 	bool IsBound() const;
 
+	// 호스트가 윈도우 이벤트를 받아 호출하는 디스패치 진입점(시작된 인스턴스에만 전달).
+	void ApplicationFocusGained();
+	void ApplicationFocusLost();
+	void SurfaceResized(const Size<int>& clientSize);
+
 protected:
 	virtual void OnCreate() {}
 	virtual void OnStart() {}
 	virtual void OnUpdate() {}
 	virtual void OnFixedUpdate() {}
 	virtual void OnDestroy() {}
+
+	// 윈도우 이벤트 훅(스크립트가 override). 인자는 Utillity 타입만 사용.
+	virtual void OnApplicationFocusGained() {}
+	virtual void OnApplicationFocusLost() {}
+	virtual void OnSurfaceResized(const Size<int>& /*clientSize*/) {}
 
 private:
 	CScene*              m_scene = nullptr;

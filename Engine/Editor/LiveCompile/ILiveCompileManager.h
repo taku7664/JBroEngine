@@ -18,6 +18,9 @@ public:
 
 	virtual void Tick(bool scanSourceChanges) = 0;
 	virtual LiveCompileResult RebuildAndReload() = 0;
+	// 마지막 빌드 이후 소스 변경이 쌓여 있으면 비동기 재빌드를 1회 시작하고 true 를 반환한다.
+	// 변경 없음/이미 컴파일 중이면 false(no-op). 포커스 복귀 시 호출하는 트리거.
+	virtual bool TriggerRebuildIfDirty() = 0;
 	virtual IGameModule* GetGameModule() const = 0;
 	virtual ELiveCompileState GetState() const = 0;
 	// 마지막 실패의 풀 메시지(컴파일러 출력 포함).  소비형 — 한 번 가져가면

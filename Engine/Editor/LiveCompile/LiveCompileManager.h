@@ -31,6 +31,7 @@ public:
 	// 결과는 Tick() 에서 폴링되어 자동으로 DLL 교체 + 스냅샷 복원이 수행된다.
 	// 컴파일 진행 중에 호출되면 무시(요청 큐잉 없음 — 디바운스 메커니즘이 후속 변경을 처리).
 	LiveCompileResult RebuildAndReload() override;
+	bool TriggerRebuildIfDirty() override;
 	IGameModule* GetGameModule() const override;
 	ELiveCompileState GetState() const override;
 	std::string ConsumeLastFailureMessage() override;

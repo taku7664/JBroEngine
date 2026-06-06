@@ -49,6 +49,7 @@
 #include "GameFramework/Component/BuiltinComponentRegistry.h"
 #include "GameFramework/Rendering/GameCamera.h"
 #include "GameFramework/Reflection/ReflectionRegistry.h"
+#include "GameFramework/Scene/Scene.h"
 #include "GameFramework/Scene/SceneManager.h"
 
 #include <algorithm>
@@ -103,9 +104,28 @@ bool CEngine::Initialize()
 		return false;
 	}
 
+	// 메인 surface 윈도우 이벤트(포커스/리사이즈) 구독 → 활성 씬 스크립트로 전달.
+	if (Engine.MainRenderSurface)
+	{
+		m_surfaceEventToken = Engine.MainRenderSurface->Subscribe(
+			[this](const SurfaceEvent& surfaceEvent) { OnSurfaceEvent(surfaceEvent); });
+	}
+
 	SyncScriptCore();
 	m_isInitialized = true;
 	return true;
+}
+
+void CEngine::OnSurfaceEvent(const SurfaceEvent& surfaceEvent)
+{
+	// 윈도우 이벤트를 활성 씬의 스크립트 인스턴스들에 전달(재생 중에만 인스턴스 존재 → 자동 게이팅).
+	if (m_sceneManager)
+	{
+		if (CScene* scene = m_sceneManager->GetActiveScene().TryGet())
+		{
+			scene->DispatchSurfaceEventToScripts(surfaceEvent);
+		}
+	}
 }
 
 bool CEngine::Update()
@@ -115,10 +135,6 @@ bool CEngine::Update()
 	{
 		m_platform->PollEvents(platformEvent);
 	}
-
-	m_isApplicationFocused = platformEvent.IsFocused;
-	m_applicationFocusGained = platformEvent.FocusGained;
-	m_applicationFocusLost = platformEvent.FocusLost;
 
 	if (platformEvent.WantsExit)
 	{
@@ -135,6 +151,13 @@ bool CEngine::Update()
 
 void CEngine::Finalize()
 {
+	// surface 파괴 전에 윈도우 이벤트 구독 해지(댕글링 핸들러 방지).
+	if (0 != m_surfaceEventToken && Engine.MainRenderSurface)
+	{
+		Engine.MainRenderSurface->Unsubscribe(m_surfaceEventToken);
+		m_surfaceEventToken = 0;
+	}
+
 	if (m_renderer)
 	{
 		m_renderer->Finalize();

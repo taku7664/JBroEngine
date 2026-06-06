@@ -113,10 +113,6 @@ void CWindowsRenderSurface::Destroy()
 void CWindowsRenderSurface::PollEvents(PlatformEvent& platformEvent)
 {
 #if JBRO_PLATFORM_WINDOWS
-	platformEvent.IsFocused = m_isFocused;
-	platformEvent.FocusGained = false;
-	platformEvent.FocusLost = false;
-
 	MSG msg = {};
 	while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
 	{
@@ -130,11 +126,23 @@ void CWindowsRenderSurface::PollEvents(PlatformEvent& platformEvent)
 		DispatchMessage(&msg);
 	}
 
-	platformEvent.IsFocused = m_isFocused;
-	platformEvent.FocusGained = m_focusGained;
-	platformEvent.FocusLost = m_focusLost;
-	m_focusGained = false;
-	m_focusLost = false;
+	// 포커스 전환은 WndProc(WM_ACTIVATEAPP)이 엣지로 잡아둔다. 메세지를 모두 drain 한 뒤
+	// 여기서 1회씩 구독자에게 푸시한다(WndProc 깊은 곳 재진입 회피).
+	if (m_focusGained)
+	{
+		m_focusGained = false;
+		DispatchSurfaceEvent({ ESurfaceEventType::FocusGained });
+	}
+	if (m_focusLost)
+	{
+		m_focusLost = false;
+		DispatchSurfaceEvent({ ESurfaceEventType::FocusLost });
+	}
+	if (m_resized)
+	{
+		m_resized = false;
+		DispatchSurfaceEvent({ ESurfaceEventType::Resized, Size<int>(m_resizeWidth, m_resizeHeight) });
+	}
 #else
 	(void)platformEvent;
 #endif
@@ -202,6 +210,22 @@ LRESULT CALLBACK CWindowsRenderSurface::WindowProc(HWND hwnd, UINT message, WPAR
 			renderSurface->m_isFocused = isFocused;
 			renderSurface->m_focusGained = isFocused;
 			renderSurface->m_focusLost = !isFocused;
+		}
+		break;
+	}
+	case WM_SIZE:
+	{
+		// 최소화(SIZE_MINIMIZED, 0x1)는 클라이언트 0 → 무시. 그 외 크기 변화만 엣지로 기록.
+		if (renderSurface && SIZE_MINIMIZED != wParam)
+		{
+			const int width  = static_cast<int>(LOWORD(lParam));
+			const int height = static_cast<int>(HIWORD(lParam));
+			if (width > 0 && height > 0)
+			{
+				renderSurface->m_resized = true;
+				renderSurface->m_resizeWidth = width;
+				renderSurface->m_resizeHeight = height;
+			}
 		}
 		break;
 	}

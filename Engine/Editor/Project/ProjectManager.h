@@ -140,6 +140,9 @@ public:
 	bool StartLiveCompile();
 	void StopLiveCompile();
 	bool RebuildScriptModule();
+	// 에디터 창 포커스 복귀 시 호출. 자동 리빌드 ON + 마지막 빌드 이후 소스 변경이 있을 때만
+	// 비동기 재빌드를 시작한다(변경 없으면 no-op → 불필요한 컴파일/프리징 없음).
+	bool RebuildScriptModuleOnFocus();
 	// 스크립트 파일 추가/삭제 후 GameScript 프로젝트(.vcxproj·생성 파일)를 재생성한다.
 	// vcxproj 가 소스 목록을 명시적으로 들고 있어, 파일 변경 후 빌드 정합성을 위해 필요.
 	bool RegenerateScriptProject() const;

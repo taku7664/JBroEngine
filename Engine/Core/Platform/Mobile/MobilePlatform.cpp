@@ -30,10 +30,6 @@ void CMobilePlatform::PollEvents(PlatformEvent& platformEvent)
 		m_mainRenderSurface->PollEvents(platformEvent);
 	}
 	platformEvent.WantsExit = m_wantsExit;
-	if (m_isPaused)
-	{
-		platformEvent.IsFocused = false;
-	}
 }
 
 void CMobilePlatform::Finalize()

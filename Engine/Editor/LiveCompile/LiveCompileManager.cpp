@@ -212,28 +212,33 @@ void CLiveCompileManager::Tick(bool autoRebuildEnabled)
 		return;
 	}
 
+	// 소스 변경 감지(더티 추적)만 수행한다. 실제 재빌드는 자동(디바운스)으로 시작하지 않고
+	// 포커스 복귀 시 TriggerRebuildIfDirty() 가 시작한다 — 편집 중(특히 비활성 창)엔 빌드 안 함.
 	if (m_sourceWatcher)
 	{
 		m_sourceWatcher->Poll();
 		std::vector<FileWatchEvent> events;
 		if (m_sourceWatcher->TakeEvents(events))
 		{
-			m_isDirty    = true;
-			m_dirtyTime  = std::chrono::steady_clock::now();
+			m_isDirty   = true;
+			m_dirtyTime = std::chrono::steady_clock::now();
 		}
 	}
+}
 
-	// 디바운스 경과 + 컴파일 진행 중 아니면 새 빌드 시작
-	if (m_isDirty && false == m_pendingCompile.valid())
+bool CLiveCompileManager::TriggerRebuildIfDirty()
+{
+	if (false == m_isDirty || !m_compilePipeline)
 	{
-		const std::chrono::duration<float> elapsed =
-			std::chrono::steady_clock::now() - m_dirtyTime;
-		if (elapsed.count() >= m_desc.DebounceSeconds)
-		{
-			m_isDirty = false;
-			StartAsyncCompile();
-		}
+		return false;
 	}
+	if (m_pendingCompile.valid())
+	{
+		return false; // 이미 컴파일 진행 중 — 다음 포커스 기회에.
+	}
+	m_isDirty = false;
+	StartAsyncCompile();
+	return true;
 }
 
 // 동기 RebuildAndReload — 외부 강제 트리거(메뉴 명령 등)용.
@@ -246,6 +251,9 @@ LiveCompileResult CLiveCompileManager::RebuildAndReload()
 		result.Message = "LiveCompile is not initialized.";
 		return result;
 	}
+
+	// 전체 재빌드 → 누적 더티를 소비(이후 새 편집만 다시 더티로 잡힘).
+	m_isDirty = false;
 
 	// 이미 비동기 컴파일이 진행 중이면 합쳐서 처리.
 	if (m_pendingCompile.valid())
@@ -586,6 +594,11 @@ LiveCompileResult CLiveCompileManager::RebuildAndReload()
 	LiveCompileResult result;
 	result.Message = "LiveCompile is editor-only.";
 	return result;
+}
+
+bool CLiveCompileManager::TriggerRebuildIfDirty()
+{
+	return false;
 }
 
 IGameModule* CLiveCompileManager::GetGameModule() const

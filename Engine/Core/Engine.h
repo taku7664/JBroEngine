@@ -81,6 +81,9 @@ private:
 	void FillRenderSurfaceDesc(RHIDesc& desc) const;
 	void SyncScriptCore();
 
+	// 메인 surface 윈도우 이벤트(포커스/리사이즈) → 활성 씬 스크립트로 전달.
+	void OnSurfaceEvent(const SurfaceEvent& surfaceEvent);
+
 private:
 	OwnerPtr<IPlatform>           m_platform;
 	OwnerPtr<IRHIDevice>          m_rhiDevice;
@@ -110,9 +113,9 @@ private:
 	PlatformDesc                  m_platformDesc;
 	Color                         m_mainClearColor = Color{ 0.08f, 0.09f, 0.11f, 1.0f };
 	bool                          m_isInitialized = false;
-	bool                          m_isApplicationFocused = true;
-	bool                          m_applicationFocusGained = false;
-	bool                          m_applicationFocusLost = false;
+
+	// 메인 surface 윈도우 이벤트 구독 토큰(스크립트 전달용). Initialize 구독, Finalize 해지.
+	SurfaceEventToken              m_surfaceEventToken = 0;
 
 	// Track the last known surface size to detect window resize each frame.
 	int m_lastSurfaceWidth  = 0;

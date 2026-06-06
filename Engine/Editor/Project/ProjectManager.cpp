@@ -1123,9 +1123,9 @@ void CProjectManager::Tick()
 
 	if (m_liveCompileManager)
 	{
-		// 포커스 획득 엣지는 "한 프레임" 만 true 인 transient 신호라 자동 리빌드
-		// 게이트로 부적합 — 디바운스 0.5s 가 흐르기 전에 게이트가 닫혀 빌드가
-		// 시작되지 못한다. 단순히 ScriptAutoRebuildEnabled 만 전달.
+		// Tick 은 소스 변경 더티 추적 + 진행 중 비동기 컴파일 폴링만 한다(자동 빌드 시작 안 함).
+		// 실제 재빌드는 포커스 복귀 시 RebuildScriptModuleOnFocus() → TriggerRebuildIfDirty() 가
+		// 시작한다. ScriptAutoRebuildEnabled 는 더티 추적 on/off 게이트.
 		m_liveCompileManager->Tick(m_info.ScriptAutoRebuildEnabled);
 	}
 }
@@ -2359,6 +2359,20 @@ bool CProjectManager::RebuildScriptModule()
 		LogLiveCompileFailure("Script module reload failed.", result);
 	}
 	return result.Succeeded;
+}
+
+bool CProjectManager::RebuildScriptModuleOnFocus()
+{
+	if (false == m_isProjectLoaded || !m_liveCompileManager)
+	{
+		return false;
+	}
+	if (false == m_info.ScriptAutoRebuildEnabled)
+	{
+		return false; // 자동 리빌드 OFF — 포커스로도 빌드하지 않는다.
+	}
+	// 소스 변경이 누적됐을 때만 비동기 재빌드 시작(Tick 이 PollAsyncCompile 로 완료 적용).
+	return m_liveCompileManager->TriggerRebuildIfDirty();
 }
 
 bool CProjectManager::RegenerateScriptProject() const

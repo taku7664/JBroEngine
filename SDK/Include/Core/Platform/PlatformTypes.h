@@ -1,6 +1,10 @@
 #pragma once
 
 #include "Core/Platform/PlatformDefines.h"
+#include "Utillity/Math/SizeT.h"   // Size<int> (윈도우 이벤트 인자 — Utillity 타입)
+
+#include <cstdint>
+#include <functional>
 
 #if !JBRO_PLATFORM_WINDOWS
 #ifndef UNREFERENCED_PARAMETER
@@ -16,13 +20,31 @@ struct PlatformDesc
 	bool IsEditor = false;
 };
 
+// PollEvents 가 메인 루프에 돌려주는 프레임 단위 상태(루프 제어 전용).
+// 포커스/리사이즈 등 이산 이벤트는 PlatformEvent 가 아니라 윈도우 이벤트 채널(아래)로 푸시된다.
 struct PlatformEvent
 {
 	bool WantsExit = false;
-	bool IsFocused = true;
-	bool FocusGained = false;
-	bool FocusLost = false;
 };
+
+// ── 윈도우 이벤트 채널 (호스트 전용, 단일 구독 채널) ──────────────────────────
+// 이벤트 종류가 늘어도 구독 지점은 1개다 — enum 값만 추가하면 된다(콜백 필드 폭증 없음).
+// 구독자(예: 에디터)는 IRenderSurface::Subscribe 로 핸들러 1개를 걸고 Type 으로 분기한다.
+enum class ESurfaceEventType
+{
+	FocusGained,
+	FocusLost,
+	Resized,
+};
+
+struct SurfaceEvent
+{
+	ESurfaceEventType Type;
+	Size<int>        ClientSize;   // Resized 일 때만 유효(클라이언트 영역 픽셀 크기).
+};
+
+using SurfaceEventHandler = std::function<void(const SurfaceEvent&)>;
+using SurfaceEventToken   = std::uint64_t;
 
 enum class EPlatformType
 {
