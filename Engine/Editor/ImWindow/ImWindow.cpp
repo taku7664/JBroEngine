@@ -347,11 +347,6 @@ void CImWindow::HandleUpdate()
 			{
 				ImGui::EndDisabled();
 			}
-
-			if (false == m_bIsAlive)
-			{
-				OnClose();
-			}
 		}
 		UpdateWindowState();
 		ImGui::PopID();
@@ -364,7 +359,8 @@ void CImWindow::HandleBegin()
 {
 	OnPreBegin();
 
-	bool*		isAlive		= m_windowFlags.Has(IMWINDOW_FLAG_NO_CLOSE_BUTTON) ? nullptr : &m_bIsAlive;
+	bool		isVisible	= m_bIsVisible.first;
+	bool*		pOpen		= m_windowFlags.Has(IMWINDOW_FLAG_NO_CLOSE_BUTTON) ? nullptr : &isVisible;
 	ImGuiWindowFlags flags	= static_cast<ImGuiWindowFlags>(m_imguiFlags.Get() | ImGuiWindowFlags_NoCollapse);
 
 	if(m_ownerWindow)
@@ -377,7 +373,11 @@ void CImWindow::HandleBegin()
 		m_bRequestFocus = false;
 		ImGui::SetNextWindowFocus();
 	}
-	m_bBeginResult = ImGui::Begin(GetImGuiLabel(), isAlive, flags);
+	m_bBeginResult = ImGui::Begin(GetImGuiLabel(), pOpen, flags);
+	if (pOpen && false == isVisible)
+	{
+		SetVisible(false);
+	}
 
 	m_imWindow = ImGui::GetCurrentWindow();
 

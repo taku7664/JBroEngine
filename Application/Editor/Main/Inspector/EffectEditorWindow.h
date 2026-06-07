@@ -11,8 +11,8 @@
 //  AssetBrowser 에서 .jfx 더블클릭 시 생성:
 //    Root → CEffectEditorDockWindow → CEffectEditorPanel(child, 위젯 보유)
 //
-//  창을 닫으면(X) CImWindow::m_bIsAlive 가 false 가 되어 ImEditor 가 자동 정리한다.
-//  Dock 부모가 닫히면 소멸자가 child 도 Destroy 한다.
+//  창을 닫으면(X) CImWindow::SetVisible(false) 로 숨긴다.
+//  같은 에셋을 다시 열면 기존 dock/panel 을 다시 표시하고 Focus 한다.
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 // 실제 효과 에디터 UI 를 담는 내부 패널 (도킹 자식).

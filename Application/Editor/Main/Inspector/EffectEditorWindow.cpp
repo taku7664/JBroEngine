@@ -36,6 +36,11 @@ void EffectEditorWindow::Open(const AssetGuid& guid, const std::string& title)
 		// 이미 열려 있으면 새로 만들지 않고 Focus.
 		if (SafePtr<CEffectEditorPanel> existing = DynamicSafePtrCast<CEffectEditorPanel>(Editor::ImEditor->FindImWindow(panelId)))
 		{
+			if (SafePtr<CImWindow> existingDock = DynamicSafePtrCast<CImWindow>(Editor::ImEditor->FindImWindow(dockId)))
+			{
+				existingDock->SetVisible(true);
+			}
+			existing->SetVisible(true);
 			existing->Focus();
 			return;
 		}
