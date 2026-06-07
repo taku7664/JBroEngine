@@ -6,6 +6,7 @@
 #include "Core/Asset/IAssetManager.h"
 #include "Core/Asset/IAssetRegistry.h"
 #include "Core/EngineCore.h"
+#include "Core/Input/InputSystem.h"
 #include "Core/RuntimeConfig.h"
 #include "Core/ScriptCore.h"
 #include "Core/Task/TaskManager.h"
@@ -52,9 +53,14 @@ namespace
 	constexpr const char* PROJECT_KEY_EDITOR_LOCALE     = "EditorLocale";
 	constexpr const char* PROJECT_KEY_IMGUI_INI         = "ImGuiIniSettings";
 	constexpr const char* PROJECT_KEY_WATCH_IGNORE      = "AssetWatchIgnorePatterns";
+	constexpr const char* PROJECT_KEY_INPUT_LAYERS      = "InputLayers";
 	constexpr const char* PROJECT_KEY_BUILD             = "Build";
 	constexpr const char* PROJECT_KEY_BUILD_PRODUCT_NAME = "ProductName";
-	constexpr const char* PROJECT_KEY_BUILD_TARGET_PLATFORM = "TargetPlatform";
+	constexpr const char* PROJECT_KEY_BUILD_TARGET_PLATFORM = "TargetPlatform"; // legacy(읽기 전용 마이그레이션)
+	constexpr const char* PROJECT_KEY_BUILD_ENABLE_WINDOWS = "EnableWindows";
+	constexpr const char* PROJECT_KEY_BUILD_ENABLE_WEB     = "EnableWeb";
+	constexpr const char* PROJECT_KEY_BUILD_ENABLE_ANDROID = "EnableAndroid";
+	constexpr const char* PROJECT_KEY_BUILD_ENABLE_IOS     = "EnableIOS";
 	constexpr const char* PROJECT_KEY_BUILD_CONFIGURATION = "BuildConfiguration";
 	constexpr const char* PROJECT_KEY_BUILD_OUTPUT_DIR = "OutputDirectory";
 	constexpr const char* PROJECT_KEY_BUILD_STARTUP_SCENE = "StartupScene";
@@ -295,7 +301,7 @@ namespace
 	{
 		ProjectBuildSettings settings;
 		settings.ProductName = projectPath.stem().string();
-		settings.TargetPlatform = EBuildTargetPlatform::Windows;
+		settings.EnableWindows = true; // 신규 프로젝트는 Windows 만 활성(기존 기본 TargetPlatform 과 동등).
 		settings.BuildConfiguration = EBuildConfiguration::Release;
 		settings.OutputDirectory = "Dist/Games";
 		settings.StartupScene = startupScene;
@@ -369,18 +375,13 @@ namespace
 		{
 			settings.BuildScenes.insert(settings.BuildScenes.begin(), settings.StartupScene);
 		}
-		if (EBuildTargetPlatform::Windows != settings.TargetPlatform)
-		{
-			settings.ScriptMode = EBuildScriptMode::Static;
-			settings.ScriptProjectPath.clear();
-			settings.ScriptOutputLibraryPath.clear();
-		}
-		else
-		{
-			settings.ScriptMode = EBuildScriptMode::DynamicLibrary;
-			settings.ScriptProjectPath = std::string(CONTENTS_DIRECTORY_NAME) + "/GameScript.vcxproj";
-			settings.ScriptOutputLibraryPath = "GameScript.dll";
-		}
+		// ScriptMode 는 DynamicLibrary 기준으로 보정한다(Windows 빌드 기본). Web/모바일 빌드는
+		// 정적 링크가 필요한데, 그 강제는 빌드 1회당 플랫폼이 정해지는 빌드 디스크립터 생성
+		// 시점(CGameBuildManager)에서 desc.TargetPlatform 에 따라 처리한다 — 다중 활성 설정에서는
+		// 여기서 단일 플랫폼으로 ScriptMode 를 못 정하기 때문이다.
+		settings.ScriptMode = EBuildScriptMode::DynamicLibrary;
+		settings.ScriptProjectPath = std::string(CONTENTS_DIRECTORY_NAME) + "/GameScript.vcxproj";
+		settings.ScriptOutputLibraryPath = "GameScript.dll";
 	}
 
 	void EmitBuildSettingsYaml(YAML::Emitter& out, const ProjectBuildSettings& settings)
@@ -388,7 +389,10 @@ namespace
 		out << YAML::Key << PROJECT_KEY_BUILD << YAML::Value;
 		out << YAML::BeginMap;
 		out << YAML::Key << PROJECT_KEY_BUILD_PRODUCT_NAME << YAML::Value << settings.ProductName;
-		out << YAML::Key << PROJECT_KEY_BUILD_TARGET_PLATFORM << YAML::Value << ToString(settings.TargetPlatform);
+		out << YAML::Key << PROJECT_KEY_BUILD_ENABLE_WINDOWS << YAML::Value << settings.EnableWindows;
+		out << YAML::Key << PROJECT_KEY_BUILD_ENABLE_WEB     << YAML::Value << settings.EnableWeb;
+		out << YAML::Key << PROJECT_KEY_BUILD_ENABLE_ANDROID << YAML::Value << settings.EnableAndroid;
+		out << YAML::Key << PROJECT_KEY_BUILD_ENABLE_IOS     << YAML::Value << settings.EnableIOS;
 		out << YAML::Key << PROJECT_KEY_BUILD_CONFIGURATION << YAML::Value << ToString(settings.BuildConfiguration);
 		out << YAML::Key << PROJECT_KEY_BUILD_OUTPUT_DIR << YAML::Value << settings.OutputDirectory;
 		out << YAML::Key << PROJECT_KEY_BUILD_STARTUP_SCENE << YAML::Value << settings.StartupScene;
@@ -424,7 +428,28 @@ namespace
 		}
 
 		settings.ProductName = buildNode[PROJECT_KEY_BUILD_PRODUCT_NAME].as<std::string>(settings.ProductName);
-		settings.TargetPlatform = ParseBuildTargetPlatform(buildNode[PROJECT_KEY_BUILD_TARGET_PLATFORM].as<std::string>(ToString(settings.TargetPlatform)));
+
+		// 플랫폼 활성화: 신규 Enable* 키가 하나라도 있으면 신규 경로. 없으면 구 단일
+		// TargetPlatform 키로 마이그레이션(그 플랫폼만 활성). 둘 다 없으면 기본값(Windows 만).
+		const bool hasNewEnableKeys =
+			buildNode[PROJECT_KEY_BUILD_ENABLE_WINDOWS] || buildNode[PROJECT_KEY_BUILD_ENABLE_WEB]
+			|| buildNode[PROJECT_KEY_BUILD_ENABLE_ANDROID] || buildNode[PROJECT_KEY_BUILD_ENABLE_IOS];
+		if (hasNewEnableKeys)
+		{
+			settings.EnableWindows = buildNode[PROJECT_KEY_BUILD_ENABLE_WINDOWS].as<bool>(settings.EnableWindows);
+			settings.EnableWeb     = buildNode[PROJECT_KEY_BUILD_ENABLE_WEB].as<bool>(settings.EnableWeb);
+			settings.EnableAndroid = buildNode[PROJECT_KEY_BUILD_ENABLE_ANDROID].as<bool>(settings.EnableAndroid);
+			settings.EnableIOS     = buildNode[PROJECT_KEY_BUILD_ENABLE_IOS].as<bool>(settings.EnableIOS);
+		}
+		else if (buildNode[PROJECT_KEY_BUILD_TARGET_PLATFORM])
+		{
+			const EBuildTargetPlatform legacy = ParseBuildTargetPlatform(buildNode[PROJECT_KEY_BUILD_TARGET_PLATFORM].as<std::string>("Windows"));
+			settings.EnableWindows = (legacy == EBuildTargetPlatform::Windows);
+			settings.EnableWeb     = (legacy == EBuildTargetPlatform::Web);
+			settings.EnableAndroid = (legacy == EBuildTargetPlatform::Android);
+			settings.EnableIOS     = (legacy == EBuildTargetPlatform::IOS);
+		}
+
 		settings.BuildConfiguration = ParseBuildConfiguration(buildNode[PROJECT_KEY_BUILD_CONFIGURATION].as<std::string>(ToString(settings.BuildConfiguration)));
 		settings.OutputDirectory = buildNode[PROJECT_KEY_BUILD_OUTPUT_DIR].as<std::string>(settings.OutputDirectory);
 		settings.StartupScene = buildNode[PROJECT_KEY_BUILD_STARTUP_SCENE].as<std::string>(settings.StartupScene);
@@ -735,6 +760,21 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 		}
 	}
 
+	// InputLayers — 키가 있으면 그 값으로 덮어쓰고, 없으면 ProjectInfo 의 기본값(Modal/UI/Game/World/Debug) 유지.
+	std::vector<std::string> inputLayers;
+	bool hasInputLayers = false;
+	if (root[PROJECT_KEY_INPUT_LAYERS] && root[PROJECT_KEY_INPUT_LAYERS].IsSequence())
+	{
+		hasInputLayers = true;
+		for (const YAML::Node& layerNode : root[PROJECT_KEY_INPUT_LAYERS])
+		{
+			std::string layer = layerNode.as<std::string>("");
+			while (false == layer.empty() && (layer.back() == '\r' || layer.back() == ' ' || layer.back() == '\t')) layer.pop_back();
+			while (false == layer.empty() && (layer.front() == ' ' || layer.front() == '\t')) layer.erase(layer.begin());
+			if (false == layer.empty()) inputLayers.push_back(std::move(layer));
+		}
+	}
+
 	float pixelsPerUnit = 100.0f;
 	if (root[PROJECT_KEY_PIXELS_PER_UNIT])
 	{
@@ -821,6 +861,11 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 		m_info.AssetWatchIgnorePatterns = std::move(assetWatchIgnorePatterns);
 	}
 	// else: ProjectInfo 의 기본값(*.tmp 등 임시 파일 패턴) 그대로 유지.
+	if (hasInputLayers)
+	{
+		m_info.InputLayers = std::move(inputLayers);
+	}
+	// else: ProjectInfo 의 기본값(Modal/UI/Game/World/Debug) 그대로 유지.
 
 	if (false == m_assetManager->SetAssetRootPath(m_info.AssetPath))
 	{
@@ -871,6 +916,9 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 	{
 		ImGui::LoadIniSettingsFromMemory(m_info.ImGuiIniSettings.c_str(), m_info.ImGuiIniSettings.size());
 	}
+
+	// 입력 레이어 우선순위를 엔진 InputSystem 에 주입(스크립트 핸들러 디스패치 순서).
+	ApplyInputLayersToSystem();
 
 	// ── 동기 폴백용 헬퍼 — Task 경로가 아닐 때 메인 스레드에서 직접 실행 ──
 	auto runScriptBuildSync = [this]()
@@ -2090,6 +2138,25 @@ void CProjectManager::SetAssetWatchIgnorePatterns(std::vector<std::string> patte
 	m_info.AssetWatchIgnorePatterns = std::move(patterns);
 }
 
+const std::vector<std::string>& CProjectManager::GetInputLayers() const
+{
+	return m_info.InputLayers;
+}
+
+void CProjectManager::SetInputLayers(std::vector<std::string> layers)
+{
+	m_info.InputLayers = std::move(layers);
+	ApplyInputLayersToSystem();
+}
+
+void CProjectManager::ApplyInputLayersToSystem() const
+{
+	if (Engine.InputSystem.IsValid())
+	{
+		Engine.InputSystem->ConfigureLayers(m_info.InputLayers);
+	}
+}
+
 bool CProjectManager::IsAssetPathIgnored(const File::Path& absoluteOrRelativePath) const
 {
 	if (absoluteOrRelativePath.empty()) return false;
@@ -2555,6 +2622,13 @@ bool CProjectManager::SaveProject(std::string* outError) const
 	for (const std::string& pattern : m_info.AssetWatchIgnorePatterns)
 	{
 		out << pattern;
+	}
+	out << YAML::EndSeq;
+	out << YAML::Key << PROJECT_KEY_INPUT_LAYERS << YAML::Value;
+	out << YAML::BeginSeq;
+	for (const std::string& layer : m_info.InputLayers)
+	{
+		out << layer;
 	}
 	out << YAML::EndSeq;
 	if (false == m_info.ImGuiIniSettings.empty())

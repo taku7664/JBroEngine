@@ -46,6 +46,11 @@ public:
 	// 호스트가 TaskManager 를 주입(진동 타이머용 워커 스레드). 전역 Engine 의존 회피.
 	void SetTaskManager(CTaskManager* taskManager) { m_taskManager = taskManager; }
 
+	// 게임 뷰포트 활성 여부(에디터). false 면 surface 포커스가 있어도 게임 입력 폴링/디스패치를 스킵한다.
+	// 에디터: GameView 패널 포커스 시에만 true(인스펙터 등 다른 패널 편집 중 입력 누출 방지).
+	// 스탠드얼론 게임: GameView 가 없어 호출되지 않음 → 기본 true 유지(윈도우 포커스만으로 게이팅).
+	void SetViewportActive(bool active) { m_viewportActive = active; }
+
 	// 매 프레임 호출. surfaceFocused 면 디바이스 갱신 + dispatch. 아니면 디바이스 클리어.
 	void Update(bool surfaceFocused);
 
@@ -82,6 +87,15 @@ public:
 
 	// 폴링 불가 신호 누적(휠 등). WndProc 등 플랫폼 코드가 프레임 사이 호출.
 	void AccumulateWheel(float delta);
+
+	// 텍스트 입력 누적(완성 유니코드 코드포인트). WM_CHAR / web keypress 가 프레임 사이 호출.
+	// (서로게이트 결합 등 인코딩 처리는 호출측 플랫폼 코드 책임 — 여기는 완성 코드포인트만 받는다.)
+	void AccumulateText(char32_t codepoint);
+
+	// 터치 누적(멀티터치) — 모바일 native inject / 웹 콜백이 프레임 사이 호출.
+	// id 로 손가락을 추적: Began=슬롯 점유, Moved=좌표 갱신, Ended/Cancelled=슬롯 해제.
+	// 좌표는 surface(클라이언트) 픽셀. 메인 스레드 호출 가정(휠/텍스트와 동일).
+	void AccumulateTouch(std::int32_t pointerId, int x, int y, ETouchPhase phase);
 
 	// 레이어 우선순위 구성(프로젝트 세팅 주입). front = 최우선. 미설정 레이어는 최하위 + 1회 경고.
 	void ConfigureLayers(const std::vector<std::string>& orderedLayers);
@@ -123,10 +137,20 @@ private:
 	std::unordered_set<std::string> m_warnedLayers;
 
 	float           m_accumWheel  = 0.0f;
+
+	// 텍스트 입력 누적 — 프레임 사이 플랫폼이 채우고 PollDevices 가 스냅샷으로 옮긴 뒤 비운다.
+	char32_t        m_accumText[Keyboard::MaxTextLength] = {};
+	int             m_accumTextLen = 0;
+
+	// 터치 작업 버퍼 — 프레임을 넘겨 유지되는 활성 손가락 상태(id 추적). 프레임마다 스냅샷으로 복사.
+	// (휠/텍스트는 프레임 transient 지만 터치는 손가락이 떼질 때까지 활성 유지 → 별도 영속 버퍼.)
+	TouchPoint      m_workingTouches[Touch::MaxTouchCount] = {};
+
 	int             m_lastMouseX  = 0;
 	int             m_lastMouseY  = 0;
-	bool            m_hadFocus    = false;
-	IRenderSurface* m_mainSurface = nullptr;
+	bool            m_hadFocus      = false;
+	bool            m_viewportActive = true; // 에디터 GameView 게이트(스탠드얼론은 항상 true)
+	IRenderSurface* m_mainSurface   = nullptr;
 
 	// ── 게임패드 상태/설정 ────────────────────────────────────────────────────
 	float m_stickDeadzone    = 0.24f;
@@ -140,6 +164,9 @@ private:
 	// 워커 미지원(웹) 폴백 — 메인 스레드 만료 시각으로 정지.
 	bool                                  m_vibHasExpiry[MaxGamepadCount] = {};
 	std::chrono::steady_clock::time_point m_vibExpiry[MaxGamepadCount]    = {};
+
+	// 웹 진동 재발행 시각 — 브라우저 effect 가 유한하므로 지속 진동을 주기 재발행한다(ApplyVibration).
+	std::chrono::steady_clock::time_point m_webNextReissue[MaxGamepadCount] = {};
 
 	// 핫플러그 — 미연결 슬롯 매 프레임 폴링은 비싸다(XInput 권장). 카운트다운 후 재확인.
 	int  m_gamepadRecheck[MaxGamepadCount] = {};

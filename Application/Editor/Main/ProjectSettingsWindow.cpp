@@ -88,6 +88,15 @@ void CProjectSettingsWindow::OnShow()
             m_assetWatchIgnoreBuffer += line;
             m_assetWatchIgnoreBuffer.push_back('\n');
         }
+
+        // 입력 레이어 — 동일 패턴(한 줄당 하나, 위 = 최우선).
+        m_editInputLayers = pm->GetInputLayers();
+        m_inputLayersBuffer.clear();
+        for (const std::string& layer : m_editInputLayers)
+        {
+            m_inputLayersBuffer += layer;
+            m_inputLayersBuffer.push_back('\n');
+        }
     }
 
     if (Engine.Localization.IsValid())
@@ -146,6 +155,7 @@ void CProjectSettingsWindow::DrawCategoryList(float)
     static const CategoryEntry kCategories[] = {
         { ECategory::General,      "project_settings.category.general"       },
         { ECategory::Script,       "project_settings.category.script"        },
+        { ECategory::Input,        "project_settings.category.input"         },
         { ECategory::Localization, "project_settings.category.localization"  },
         { ECategory::Audio,        "project_settings.category.audio"         },
         { ECategory::Debug,        "project_settings.category.debug"         },
@@ -168,6 +178,7 @@ void CProjectSettingsWindow::DrawCategoryContent(float)
     {
     case ECategory::General:      DrawCategoryGeneral();      break;
     case ECategory::Script:       DrawCategoryScript();       break;
+    case ECategory::Input:        DrawCategoryInput();        break;
     case ECategory::Localization: DrawCategoryLocalization(); break;
     case ECategory::Audio:        DrawCategoryAudio();        break;
     case ECategory::Debug:        DrawCategoryDebug();        break;
@@ -304,6 +315,52 @@ void CProjectSettingsWindow::DrawCategoryScript()
         if (pm) pm->StopLiveCompile();
     }
     ImGui::Utillity::HoveredToolTip(Loc::Text("project_settings.script_unload.desc"));
+}
+
+void CProjectSettingsWindow::DrawCategoryInput()
+{
+    ImGui::SeparatorText(Loc::Text("project_settings.input.title"));
+    ImGui::TextWrapped("%s", Loc::Text("project_settings.input.desc"));
+    ImGui::Spacing();
+
+    // 백킹 버퍼는 멤버(m_inputLayersBuffer) — OnShow 에서 레이어 벡터로부터 재구축됨.
+    // 편집 시 다음 프레임에 벡터로 재파싱. 한 줄 = 한 레이어, 위 = 최우선.
+    const ImVec2 boxSize(ImGui::GetContentRegionAvail().x, ImGui::GetTextLineHeightWithSpacing() * 12.0f);
+    m_inputLayersBuffer.reserve(m_inputLayersBuffer.size() + 1024);
+    if (ImGui::InputTextMultiline("##ps.input.layers",
+        m_inputLayersBuffer.data(), m_inputLayersBuffer.capacity(),
+        boxSize, ImGuiInputTextFlags_CallbackResize,
+        [](ImGuiInputTextCallbackData* data) -> int
+        {
+            if (data->EventFlag == ImGuiInputTextFlags_CallbackResize)
+            {
+                std::string* buf = static_cast<std::string*>(data->UserData);
+                buf->resize(data->BufTextLen);
+                data->Buf = buf->data();
+            }
+            return 0;
+        }, &m_inputLayersBuffer))
+    {
+        m_editInputLayers.clear();
+        std::size_t start = 0;
+        for (std::size_t i = 0; i <= m_inputLayersBuffer.size(); ++i)
+        {
+            if (i == m_inputLayersBuffer.size() || '\n' == m_inputLayersBuffer[i] || '\r' == m_inputLayersBuffer[i])
+            {
+                if (i > start)
+                {
+                    std::string line(m_inputLayersBuffer, start, i - start);
+                    while (false == line.empty() && (line.front() == ' ' || line.front() == '\t')) line.erase(line.begin());
+                    while (false == line.empty() && (line.back()  == ' ' || line.back()  == '\t')) line.pop_back();
+                    if (false == line.empty()) m_editInputLayers.push_back(std::move(line));
+                }
+                start = i + 1;
+            }
+        }
+    }
+
+    ImGui::Spacing();
+    ImGui::TextDisabled("%s", Loc::Text("project_settings.input.hint"));
 }
 
 void CProjectSettingsWindow::DrawCategoryLocalization()
@@ -457,6 +514,7 @@ void CProjectSettingsWindow::DrawFooterButtons()
             pm->SetScriptAutoRebuildEnabled(m_scriptAutoRebuildEnabled);
             pm->SetDebugModeEnabled(m_debugModeEnabled);
             pm->SetAssetWatchIgnorePatterns(m_editAssetWatchIgnorePatterns);
+            pm->SetInputLayers(m_editInputLayers);
         }
         if (Engine.Localization.IsValid())
         {

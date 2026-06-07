@@ -133,6 +133,11 @@ public:
 	// 경로(절대 또는 상대) 가 현재 무시 패턴 중 하나에라도 매칭되는지.
 	bool IsAssetPathIgnored(const File::Path& absoluteOrRelativePath) const;
 
+	// 입력 레이어 우선순위 — front = 최우선. 스크립트 InputHandler<"Layer",Order> 의 문자열과 매칭.
+	// Set 시 즉시 CInputSystem 에 적용(ConfigureLayers) + m_info 갱신(저장은 SaveProject 별도).
+	const std::vector<std::string>& GetInputLayers() const;
+	void                            SetInputLayers(std::vector<std::string> layers);
+
 	// 스크립트 DLL 로드/언로드
 	bool LoadScriptModule();
 	void UnloadScriptModule();
@@ -201,6 +206,8 @@ private:
 	void UpdateAssetDbEntry(const AssetMetaData& metaData, const File::Path& absolutePath, const std::string& relativePath);
 	GameModuleContext BuildGameModuleContext() const;
 	LiveCompileDesc BuildLiveCompileDesc() const;
+	// 현재 m_info.InputLayers 를 엔진 InputSystem 에 주입(프로젝트 로드/레이어 변경 시).
+	void ApplyInputLayersToSystem() const;
 
 private:
 	SafePtr<IAssetManager>       m_assetManager;

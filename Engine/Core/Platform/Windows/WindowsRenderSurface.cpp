@@ -18,6 +18,15 @@ namespace
 			Engine.InputSystem->AccumulateWheel(delta);
 		}
 	}
+
+	// 텍스트 입력 — WM_CHAR 의 완성 코드포인트를 InputSystem 에 누적(폴링 불가 신호).
+	void AccumulateText(char32_t codepoint)
+	{
+		if (Engine.InputSystem)
+		{
+			Engine.InputSystem->AccumulateText(codepoint);
+		}
+	}
 }
 #endif
 
@@ -212,6 +221,34 @@ LRESULT CALLBACK CWindowsRenderSurface::WindowProc(HWND hwnd, UINT message, WPAR
 	{
 		// 폴링 불가 신호 → 누적. 키/마우스버튼/위치는 InputSystem 이 매 프레임 폴링한다.
 		AccumulateWheel(static_cast<float>(GET_WHEEL_DELTA_WPARAM(wParam)) / static_cast<float>(WHEEL_DELTA));
+		break;
+	}
+	case WM_CHAR:
+	{
+		// 텍스트 입력 — UTF-16 코드 유닛. 상위/하위 서로게이트를 결합해 완성 코드포인트로 누적.
+		// (입력 스레드 단일 → 함수 로컬 static 으로 상위 서로게이트 상태 유지.)
+		static wchar_t s_highSurrogate = 0;
+		const wchar_t unit = static_cast<wchar_t>(wParam);
+		if (unit >= 0xD800 && unit <= 0xDBFF)
+		{
+			s_highSurrogate = unit; // 상위 서로게이트 — 다음 코드 유닛과 결합 대기
+		}
+		else
+		{
+			char32_t codepoint;
+			if (unit >= 0xDC00 && unit <= 0xDFFF && 0 != s_highSurrogate)
+			{
+				codepoint = 0x10000
+					+ ((static_cast<char32_t>(s_highSurrogate) - 0xD800) << 10)
+					+ (static_cast<char32_t>(unit) - 0xDC00);
+			}
+			else
+			{
+				codepoint = static_cast<char32_t>(unit); // BMP 단일 유닛(또는 짝 없는 하위 서로게이트)
+			}
+			s_highSurrogate = 0;
+			AccumulateText(codepoint);
+		}
 		break;
 	}
 	default:

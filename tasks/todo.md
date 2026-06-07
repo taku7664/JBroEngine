@@ -1,3 +1,60 @@
+# TODO — 모바일/터치 입력 착수
+
+## Goal
+모바일 네이티브 입력(터치) 착수. NativeActivity 글루(Phase2/3)는 미구현이므로,
+기존 모바일 패턴(surface/focus/pause/resume inject API 가 글루 대기)과 동일하게
+**엔진측 터치 수신 계약 + 플랫폼 inject API** 를 만든다. 웹 emscripten 터치 콜백도
+같은 코어에 배선해 멀티플랫폼 병렬 + 검증 가능 경로 확보.
+
+## Assumptions
+- 입력 inject 는 메인 스레드(프레임 사이) 호출(휠/텍스트 누적과 동일). Android
+  native_app_glue 폴링 모델 가정. 크로스스레드면 후속 락 필요(문서화).
+- 터치는 기존 Touch 디바이스(TouchPoint{Id,X,Y,Active}+count) 사용. plan: raw touch list 보존.
+- Windows WM_POINTER 터치는 범위 외(데스크톱 터치 희소) — 후속.
+
+## Success Criteria
+- ctx.GetTouch().GetCount()/Get(i) 가 터치 포인트 반환(생산: 모바일 inject / 웹 콜백).
+- 멀티터치 id 추적(Began/Moved/Ended/Cancelled) 정확.
+- Debug_Editor / Debug_Game / GameScript.dll green. (모바일/웹 런타임 검증 불가 — 빌드만)
+
+## Plan
+- [x] ETouchPhase enum (InputTypes.h)
+- [x] CInputSystem: AccumulateTouch(id,x,y,phase) + 작업버퍼 + 헤더
+- [x] InputSystem.cpp: 누적 impl + PollDevices 스냅샷(공통) + ClearDevices 리셋
+- [x] 웹: emscripten touchstart/move/end/cancel 콜백 → AccumulateTouch
+- [x] CMobilePlatform: InjectTouch 진입점(→ Engine.InputSystem) — 글루 대기 계약
+- [x] SDK 동기화(InputTypes.h, InputDevices.h, InputSystem.h, MobilePlatform.h)
+- [x] 빌드 검증 3레벨
+
+## Verification
+- [x] Debug_Editor green
+- [x] Debug_Game green
+- [x] GameScript.dll green (경계)
+- [x] 웹 컴파일: InputSystem.cpp(keypress/touch/EM_JS 진동) 에러 0 (emsdk C:\emsdk)
+- [ ] 모바일/웹 런타임: 미검증(환경 없음) — 명시
+- [!] 전체 웹빌드: 기존 무관 버그(WebCanvasSurface.cpp emscripten 버전 드리프트)로 차단 — 본 작업 외
+
+## Review
+### Changed
+- 터치: ETouchPhase + AccumulateTouch + 영속 작업버퍼(멀티터치 id 추적) + PollDevices 스냅샷.
+- 웹 터치: emscripten touch 콜백 4종. 모바일: CMobilePlatform::InjectTouch(글루 대기 계약).
+- 웹 진동(별건): EM_JS GamepadHapticActuator + keep-alive 재발행.
+- 버그픽스: web_game_sources.txt 에 InputSystem.cpp 누락 → 추가(웹빌드 링크 실패 선해소).
+
+### Verified
+- Windows Debug_Editor/Debug_Game/GameScript.dll green.
+- 웹 emsdk 컴파일에서 InputSystem.cpp 에러 0(빌드는 무관 파일서 멈춤).
+
+### Not Verified
+- 실제 터치/진동(디바이스·브라우저), 모바일 런타임(NativeActivity 글루 미구현).
+- 전체 웹빌드(기존 WebCanvasSurface emscripten 드리프트로 차단).
+
+### Risks
+- inject 메인스레드 가정 — Android 글루가 별 스레드면 AccumulateTouch 락 필요.
+- 웹 진동 playEffect 브라우저 지원 편차. WM_POINTER(Win 터치) 미구현.
+
+---
+
 # TODO — Build Settings Required Field Validation
 
 ## Goal

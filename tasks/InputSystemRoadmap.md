@@ -222,9 +222,8 @@ if (InputRegistered && InputHandler && Engine.InputSystem.IsValid())
   ScriptSystem 생성 블록 스킵 → 거기서만 하던 InputHandler 썽크 캐싱 누락 → 등록 안 됨.
 - 수정: 썽크 캐싱을 생성 블록이 아니라 **등록 직전**(Start 후)에 보장. ScriptSystem.cpp.
 
-**진단 로그 추가(임시 — 추후 제거 후보):**
-- `CInputSystem::RegisterHandler`: 등록 시 `InputSystem: handler registered layer=... total=...`.
-- `CInputSystem::Dispatch`: handlers 있을 때 첫 디스패치 1회 `first dispatch with N handler(s)`.
+**진단 로그(임시 — 제거 완료 2026-06-07):**
+- ~~`CInputSystem::RegisterHandler` 등록 로그~~ / ~~`CInputSystem::Dispatch` 첫 디스패치 로그~~ → 검증 후 제거됨.
 
 **라이브컴파일 스크립트 디버깅 지원 (중단점 바인딩):**
 - 증상: VS 가 `GameScript_<serial>.dll` 에 "디버그 정보로 빌드 안 됨" — DLL 자체에 디버그정보 없음.
@@ -240,8 +239,22 @@ if (InputRegistered && InputHandler && Engine.InputSystem.IsValid())
 - 디버깅 절차: 에디터 실행 → VS 프로세스 연결(네이티브) → 라이브 리로드 1회 → PlayerScript.cpp 중단점.
 
 **남은 정리:**
-- 진단 로그 2개 제거(검증 끝나면).
-- (아래 Phase 1 남은 작업 동일: 터치/모바일/char/레이어UI/뷰포트포커스)
+- ~~진단 로그 2개 제거~~ → 완료(2026-06-07).
+- (아래 Phase 1 남은 작업: 터치/모바일/char/뷰포트포커스/웹진동)
+
+### 레이어 프로젝트 세팅 UI/직렬화 (2026-06-07 완료)
+
+`ConfigureLayers` 훅을 프로젝트 세팅에 연결 — 에디터에서 입력 레이어 목록/순서 편집 가능(실측 막던 본질).
+
+- **ProjectInfo.InputLayers** (`std::vector<std::string>`, 기본 `Modal/UI/Game/World/Debug`) 신설. ProjectTypes.h.
+- **직렬화(YAML)**: `.Jproject` 의 `InputLayers` 시퀀스. ProjectManager LoadProject 파싱(없으면 기본값 유지)
+  + SaveProject 출력. AssetWatchIgnorePatterns 와 동일 패턴(트림/CRLF 방어).
+- **적용**: `CProjectManager::ApplyInputLayersToSystem()` 가 `Engine.InputSystem->ConfigureLayers(InputLayers)` 호출.
+  - 프로젝트 로드 완료부(locale 적용 직후) 1회.
+  - `SetInputLayers()` (Apply 시) 즉시 재적용.
+- **에디터 UI**: ProjectSettings 에 **Input** 카테고리 추가. 멀티라인 편집(한 줄=한 레이어, 위=최우선).
+  AssetWatcher 패턴 UI 복제. Loc 키 `project_settings.category.input` / `.input.title` / `.desc` / `.hint` (ko/en).
+- **검증**: Debug_Editor / Debug_Game green. 헤더 변경 없어 게임 DLL/SDK 영향 없음(InputSystem.cpp·에디터 호스트 코드만).
 
 ### Phase 1 구현 현황 (2026-06-07)
 
@@ -271,13 +284,65 @@ if (InputRegistered && InputHandler && Engine.InputSystem.IsValid())
 - `Xinput9_1_0.lib` `#pragma comment` 링크(윈도우 기본 탑재, 재배포 불필요 — 사용자 제공 X).
 
 **남은 Phase 1:**
-- 터치 백엔드(현재 타입만, 갱신 미구현).
-- 모바일 이벤트누적 백엔드(키/마우스 — 현재 #else 미갱신 stub).
-- 텍스트(char/IME) 누적.
-- 웹 게임패드 진동(Haptic Actuator) — emscripten 표준경로 미지원, 후속.
-- 프로젝트 세팅에서 레이어 목록/순서 주입(`ConfigureLayers` 훅은 준비됨, UI/직렬화 미연결).
-- 에디터 뷰포트 포커스 게이트 정밀화(현재 윈도우 전체 포커스 기준).
+- ~~터치 백엔드~~ → **착수/완료(2026-06-07)**. 코어 + 웹 emscripten 콜백 + 모바일 inject. 아래 "터치 입력" 절. (Windows WM_POINTER 만 후속.)
+- ~~모바일 이벤트누적 백엔드~~ → **착수(2026-06-07)**. 터치 inject 계약(글루 대기). 아래 "터치 입력" 절.
+- ~~텍스트(char/IME) 누적~~ → **완료(2026-06-07)**. 아래 "텍스트 입력" 절.
+- ~~웹 게임패드 진동(Haptic Actuator)~~ → **완료(2026-06-07)**. EM_JS 로 GamepadHapticActuator 직접 호출. 아래 "웹 진동" 절.
+- ~~프로젝트 세팅에서 레이어 목록/순서 주입~~ → **완료(2026-06-07)**. ProjectInfo.InputLayers + YAML + Input 카테고리 UI + ConfigureLayers 연결.
+- ~~에디터 뷰포트 포커스 게이트 정밀화~~ → **완료(2026-06-07)**. 아래 "뷰포트 포커스 게이팅" 절.
 - 런타임 실측(에디터 인터랙티브 — 빌드만 검증함).
+
+### 뷰포트 포커스 게이팅 (2026-06-07 완료)
+
+게임 입력이 GameView 패널 포커스 시에만 디스패치되도록 게이팅(인스펙터 등 다른 패널 편집 중 WASD 누출 방지). E1/E2 정밀화.
+
+- `CInputSystem::m_viewportActive`(기본 true) + `SetViewportActive(bool)`. `Update()` 게이트 = `surfaceFocused && m_viewportActive`.
+- **스탠드얼론 게임**: GameViewTool 없음 → 기본 true 유지 → 윈도우 포커스만으로 게이팅(기존 동작).
+- **에디터**: `CGameViewTool` 가 포커스 수명 훅으로 토글 —
+  - `OnCreate`/`OnDestroy` → false(baseline: 포커스 전엔 게임 입력 비활성).
+  - `OnFocusEnter` → true, `OnFocusExit` → false.
+  - `ImWindow::HandleHidden` 이 숨김 시 `OnFocusExit` 를 발화하므로 패널 닫힘/탭전환 엣지도 자동 해제(추가 처리 불필요).
+- 포커스 판정 = `ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows)`(ImWindow::HandleFocus 기존 경로).
+
+### 웹 진동 (GamepadHapticActuator) (2026-06-07 완료)
+
+emscripten html5 C 래퍼에 haptic 이 없어 표준 JS 를 EM_JS 로 직접 호출. (XInput 경로는 Windows.)
+- `EM_JS JBro_GamepadPlayEffect(index, strong, weak, durationMs)` — `navigator.getGamepads()[i].vibrationActuator.playEffect("dual-rumble", …)`.
+  strong=저주파(왼쪽 모터), weak=고주파(오른쪽). `JBro_GamepadResetEffect(index)` — reset/0.
+- 브라우저 effect 는 유한 지속 → 지속 진동은 `ApplyVibration` 에서 주기 재발행(keep-alive, chunk 250ms/재발행 200ms).
+  변경 시 발행/정지, 미변경+활성이면 주기 재발행. 목표값은 기존 공유블록(TargetLeft/Right) 그대로 사용.
+- 연결 해제 시 StopGamepadVibration(파리티), 포커스 상실/Shutdown 시 HaltVibrationHardware → 전 슬롯 reset.
+- 검증: 웹 빌드 컴파일(emsdk). 실제 진동은 브라우저+패드 필요 — 미실측. 브라우저별 playEffect 지원 편차 있음.
+
+### 터치 입력 (멀티터치) (2026-06-07 착수/완료)
+
+mobile plan §Input("raw touch list 보존") 정렬. 코어 1개 + 플랫폼 생산자 2개(웹/모바일).
+- **ETouchPhase**(InputTypes.h): Began/Moved/Ended/Cancelled.
+- **CInputSystem::AccumulateTouch(id,x,y,phase)** + 영속 작업버퍼 `m_workingTouches[MaxTouchCount]`.
+  id 추적: Began=빈 슬롯 점유, Moved=좌표 갱신, Ended/Cancelled=슬롯 해제. 한도 초과 드롭.
+  (휠/텍스트는 프레임 transient 지만 터치는 손가락 뗄 때까지 활성 유지 → 별도 영속 버퍼.)
+- **PollDevices**: 작업버퍼 활성분을 ctx.Touch 로 압축 스냅샷(공통 경로). 디바이스 비활성 시 count=0. ClearDevices(포커스상실) 시 버퍼 리셋.
+- **웹**: emscripten touchstart/move/end/cancel 콜백(Initialize 등록/Shutdown 해제) → isChanged 터치만 AccumulateTouch(targetX/Y).
+- **모바일**: `CMobilePlatform::InjectTouch(id,x,y,phase)` → `Engine.InputSystem->AccumulateTouch`. NativeActivity/UIKit 글루가 호출할 계약(surface/focus/pause/resume inject 와 동일 패턴). **글루(Phase2/3) 미구현 — 생산자 대기.**
+- 스레드: inject 는 메인 스레드(프레임 사이) 가정(휠/텍스트와 동일). 크로스스레드 글루면 락 필요(후속).
+- 빌드 누락 수정: `BuildScripts/Web/web_game_sources.txt` 에 `InputSystem.cpp` 가 빠져 있어 웹빌드가 링크 실패했음 → 추가.
+- 검증: 코어/모바일 inject = Windows 빌드 검증. 웹 = emsdk(C:\emsdk) 컴파일에서 **InputSystem.cpp(keypress/touch/EM_JS 진동) 에러 0** 확인.
+  실제 터치/진동 = 디바이스/브라우저 필요 — 미실측.
+- **선결 이슈(무관, 본 작업 아님)**: `Engine/Core/Platform/Web/WebCanvasSurface.cpp` 의
+  `emscripten_set_visibilitychange_callback`/`resize_callback` 시그니처가 설치된 emsdk 버전과 불일치 →
+  전체 웹빌드가 그 파일에서 실패. emscripten 버전 드리프트(코드가 기대하는 버전 ≠ C:\emsdk). 별도 처리 필요.
+
+### 텍스트 입력 (char) (2026-06-07 완료)
+
+키 상태와 별개의 "완성 문자" 스트림(채팅/이름입력). 폴링 불가 → 플랫폼 누적 + 프레임 스냅샷 합산(휠과 동일 패턴).
+
+- **Keyboard**(InputDevices.h): `char32_t m_text[MaxTextLength=32]` + `m_textLength`. 공개 `GetTextLength()`/`GetTextChar(i)`(유니코드 코드포인트). prev/current 없음 — 프레임 누적.
+- **CInputSystem**: `AccumulateText(char32_t)`(폭주 방어 — 프레임 한도 초과 드롭) + `m_accumText/m_accumTextLen`.
+  `PollDevices` 에서 누적→스냅샷 복사 후 비움(키보드 비활성 시 드롭). `ClearDevices`(포커스 상실) 시 누적 클리어.
+- **Windows**: WndProc `WM_CHAR` — UTF-16 상위/하위 서로게이트 결합 → 완성 코드포인트(함수 로컬 static 으로 상위 서로게이트 상태). 짝 없는 유닛은 BMP 단일로 처리.
+- **Web**: `emscripten_set_keypress_callback`(Initialize 등록 / Shutdown 해제) — keypress `charCode` 누적. 멀티플랫폼 병렬.
+- 주의: 코드포인트 *원본* 전달(제어문자 0x08/0x0D 등 미필터) — 텍스트필드 소비자가 필터링(키 상태로 Backspace 등 별도 처리).
+- SDK 동기화: InputDevices.h, InputSystem.h.
 
 ### Phase 1 — 구조 재편 (이번 핵심)
 - [ ] `InputSystem` 신설(엔진 내부, 스크립트 비공개). Platform 위 배치. 디바이스 통합 갱신.
@@ -289,11 +354,13 @@ if (InputRegistered && InputHandler && Engine.InputSystem.IsValid())
 - [ ] 등록/해제: ScriptComponent `OnEnable` 등록 / `OnDisable` 해제 / `OnDestroy` 안전망.
 - [ ] dispatch 중 등록·해제 **deferred 큐**(프레임 끝 flush).
 - [ ] consume = A안: `true`=하위 전부 차단, `false`=통과(기본).
-- [ ] 레이어 = 순수 문자열, 없으면 경고+폴백. 프로젝트 세팅에 레이어 목록/순서.
+- [x] 레이어 = 순수 문자열, 없으면 경고+폴백. 프로젝트 세팅에 레이어 목록/순서.(2026-06-07)
 - [ ] `CInput` 정리: 폴링 API 제거, 전역 설정(`SetDeviceEnabled` 등)만 남김.
-- [ ] 포커스 게이트: 뷰포트 포커스 시만 게임 입력. `FocusLost` 시 디바이스 클리어+폴링 스킵.
-- [ ] 휠/delta/char 누적 → 프레임 스냅샷 합산.
-- [ ] 플랫폼 백엔드: Windows=직접폴링, Web/Mobile=이벤트누적, 게임패드=폴링. 병렬 구현.
+- [x] 포커스 게이트: 뷰포트 포커스 시만 게임 입력. `FocusLost` 시 디바이스 클리어+폴링 스킵.(2026-06-07)
+- [x] 휠/delta/char 누적 → 프레임 스냅샷 합산.(휠·char 완료 2026-06-07. raw delta 는 Phase 3)
+- [~] 플랫폼 백엔드: Windows=직접폴링, Web/Mobile=이벤트누적, 게임패드=폴링. 병렬 구현.
+      (키/마우스/휠/게임패드/터치/텍스트 완료. 웹 터치/텍스트/진동 콜백 완료. 모바일 키/마우스 네이티브,
+       Windows WM_POINTER 터치는 후속. 2026-06-07)
 - [ ] ScriptCore/SDK 노출 정리: `Input`(전역설정) + `IInputHandler`/`InputHandler`/`InputDeviceContext`/
       디바이스/`EKeyCode` 등 헤더 SDK Include 내보내기. `InputSystem`은 비공개 유지.
 

@@ -102,6 +102,7 @@ Entries:
 
   project_settings.category.general: General
   project_settings.category.script: Script
+  project_settings.category.input: Input
   project_settings.category.localization: Localization
   project_settings.category.audio: Audio
   project_settings.category.debug: Debug
@@ -112,6 +113,9 @@ Entries:
   project_settings.asset_watcher.title: Asset Watch Ignore Patterns
   project_settings.asset_watcher.desc: One glob pattern per line. Matching files are excluded from asset import.
   project_settings.asset_watcher.syntax_hint: "e.g. *.tmp, ~$*, Temp/*.png. '*' matches 0+ chars, '?' any single char. Patterns containing '/' match the relative path; otherwise the file name only."
+  project_settings.input.title: Input Layers
+  project_settings.input.desc: One layer name per line. Higher in the list = higher priority. A script's InputHandler<"Layer", Order> string is matched against this list.
+  project_settings.input.hint: "Layers not in the list fall back to lowest priority at runtime with a one-time warning. Order within the same layer is decided by the handler's Order value."
   build_settings.no_project: No project loaded.
   build_settings.category.general: General
   build_settings.category.scenes: Scenes
@@ -123,20 +127,23 @@ Entries:
   build_settings.common_categories: Common
   build_settings.common_category_tooltip: Settings applied to every build regardless of platform.
   build_settings.platform_categories: Platform
-  build_settings.platform_category_tooltip: Additional settings required by the selected target platform.
+  build_settings.platform_category_tooltip: Per-platform settings. Enable a platform with the checkbox to include it in builds.
+  build_settings.platform_enable_tooltip: Enable this platform for building. Only enabled platforms are listed in the Build menu and the batch build.
+  build_settings.web.no_extra_settings: Web builds have no platform-specific settings. Common settings are used.
+  build_settings.no_platform_enabled: No platform is enabled. Enable at least one platform.
+  build_settings.build_all: Build All (enabled platforms)
   build_settings.general: General
   build_settings.product_name: Product Name
   build_settings.windows_icon: Application Icon
   build_settings.windows_icon.empty: No icon
   build_settings.windows_icon.invalid: Windows icon must be an .ico file.
   build_settings.windows_icon.import_failed: Failed to import Windows icon asset.
-  build_settings.target_platform: Target Platform
   build_settings.configuration: Build Configuration
   build_settings.output: Output
   build_settings.windows: Windows
   build_settings.android: Android
   build_settings.ios: iOS
-  build_settings.platform_inactive: The current target platform is different, but these settings are still saved.
+  build_settings.platform_inactive: This platform is disabled, but these settings are still saved.
   build_settings.android_application_id: Application ID
   build_settings.android_min_sdk: Min SDK
   build_settings.android_target_sdk: Target SDK

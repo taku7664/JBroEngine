@@ -91,7 +91,91 @@ namespace
 #endif
 
 #if JBRO_PLATFORM_WEB
+#include <emscripten.h>
 #include <emscripten/html5.h>
+
+namespace
+{
+	// 웹 텍스트 입력 — keypress 이벤트에서 완성 문자(charCode)를 InputSystem 에 누적.
+	// (키 상태는 별도 keydown/keyup 백엔드. 여기는 문자만 — 윈도우 WM_CHAR 와 동일 선상.)
+	EM_BOOL WebKeyPressCallback(int, const EmscriptenKeyboardEvent* event, void* userData)
+	{
+		if (nullptr != event && nullptr != userData)
+		{
+			const char32_t codepoint = static_cast<char32_t>(event->charCode);
+			if (0 != codepoint)
+			{
+				static_cast<CInputSystem*>(userData)->AccumulateText(codepoint);
+			}
+		}
+		return EM_FALSE; // 브라우저 기본 동작 유지
+	}
+
+	// 웹 멀티터치 — touchstart/move/end/cancel 이벤트의 변경된 터치를 InputSystem 에 누적.
+	EM_BOOL WebTouchCallback(int eventType, const EmscriptenTouchEvent* event, void* userData)
+	{
+		if (nullptr == event || nullptr == userData)
+		{
+			return EM_FALSE;
+		}
+		ETouchPhase phase;
+		switch (eventType)
+		{
+		case EMSCRIPTEN_EVENT_TOUCHSTART:  phase = ETouchPhase::Began;     break;
+		case EMSCRIPTEN_EVENT_TOUCHMOVE:   phase = ETouchPhase::Moved;     break;
+		case EMSCRIPTEN_EVENT_TOUCHEND:    phase = ETouchPhase::Ended;     break;
+		case EMSCRIPTEN_EVENT_TOUCHCANCEL: phase = ETouchPhase::Cancelled; break;
+		default: return EM_FALSE;
+		}
+		CInputSystem* system = static_cast<CInputSystem*>(userData);
+		for (int i = 0; i < event->numTouches; ++i)
+		{
+			const EmscriptenTouchPoint& point = event->touches[i];
+			if (false == point.isChanged)
+			{
+				continue; // 이 이벤트에서 실제 변경된 터치만 반영
+			}
+			system->AccumulateTouch(static_cast<std::int32_t>(point.identifier),
+				static_cast<int>(point.targetX), static_cast<int>(point.targetY), phase);
+		}
+		return EM_FALSE;
+	}
+
+	constexpr double kWebRumbleChunkMs   = 250.0; // 1회 effect 지속(재발행 간격보다 길게 → 끊김 없음)
+	constexpr int    kWebRumbleReissueMs = 200;   // 지속 진동 재발행 주기
+}
+
+// 웹 게임패드 진동 — emscripten html5 C 래퍼에 haptic 이 없어 표준 JS(GamepadHapticActuator)를 직접 호출.
+// dual-rumble: strongMagnitude=저주파(왼쪽 모터), weakMagnitude=고주파(오른쪽 모터). 0..1.
+// 브라우저 effect 는 유한 지속 → 지속 진동은 메인 폴링에서 주기 재발행(ApplyVibration).
+EM_JS(void, JBro_GamepadPlayEffect, (int index, double strong, double weak, double durationMs), {
+	try {
+		var pads = navigator.getGamepads ? navigator.getGamepads() : [];
+		var gp = pads[index];
+		if (gp && gp.vibrationActuator && gp.vibrationActuator.playEffect) {
+			gp.vibrationActuator.playEffect("dual-rumble", {
+				startDelay: 0,
+				duration: durationMs,
+				strongMagnitude: strong,
+				weakMagnitude: weak
+			});
+		}
+	} catch (e) {}
+});
+
+EM_JS(void, JBro_GamepadResetEffect, (int index), {
+	try {
+		var pads = navigator.getGamepads ? navigator.getGamepads() : [];
+		var gp = pads[index];
+		if (gp && gp.vibrationActuator) {
+			if (gp.vibrationActuator.reset) {
+				gp.vibrationActuator.reset();
+			} else if (gp.vibrationActuator.playEffect) {
+				gp.vibrationActuator.playEffect("dual-rumble", { duration: 0, strongMagnitude: 0, weakMagnitude: 0 });
+			}
+		}
+	} catch (e) {}
+});
 #endif
 
 void CInputSystem::Initialize()
@@ -102,10 +186,28 @@ void CInputSystem::Initialize()
 
 	// 진동 공유 상태 — 워커 타이머와 공유(InputSystem 보다 오래 살 수 있음).
 	m_vibration = std::make_shared<GamepadVibrationState>();
+
+#if JBRO_PLATFORM_WEB
+	// 웹 텍스트 입력 — keypress 콜백 등록(완성 문자 누적).
+	emscripten_set_keypress_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, this, EM_FALSE, &WebKeyPressCallback);
+	// 웹 멀티터치 — touch 콜백 등록.
+	emscripten_set_touchstart_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, this, EM_FALSE, &WebTouchCallback);
+	emscripten_set_touchmove_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, this, EM_FALSE, &WebTouchCallback);
+	emscripten_set_touchend_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, this, EM_FALSE, &WebTouchCallback);
+	emscripten_set_touchcancel_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, this, EM_FALSE, &WebTouchCallback);
+#endif
 }
 
 void CInputSystem::Shutdown()
 {
+#if JBRO_PLATFORM_WEB
+	// 입력 콜백 해제(파괴 후 콜백이 this 를 만지는 것 방지).
+	emscripten_set_keypress_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, nullptr, EM_FALSE, nullptr);
+	emscripten_set_touchstart_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, nullptr, EM_FALSE, nullptr);
+	emscripten_set_touchmove_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, nullptr, EM_FALSE, nullptr);
+	emscripten_set_touchend_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, nullptr, EM_FALSE, nullptr);
+	emscripten_set_touchcancel_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, nullptr, EM_FALSE, nullptr);
+#endif
 	HaltVibrationHardware(); // 종료 시 모터 정지(스턱 진동 방지).
 	m_handlers.clear();
 	m_pendingRegister.clear();
@@ -171,10 +273,6 @@ void CInputSystem::RegisterHandler(IInputHandler* handler)
 	entry.Seq           = m_nextSeq++;
 	m_handlers.push_back(entry);
 	m_handlersDirty = true;
-
-	// [진단] 등록 확인용 로그(라이브컴파일이라 디버거 심볼이 안 붙는 상황 대비).
-	CSystemLog::Info(std::format("InputSystem: handler registered layer=\"{}\" order={} total={}",
-		handler->GetInputLayer(), entry.Order, m_handlers.size()));
 }
 
 void CInputSystem::UnregisterHandler(IInputHandler* handler)
@@ -246,6 +344,75 @@ bool CInputSystem::IsDeviceEnabled(EInputDevice device) const
 void CInputSystem::AccumulateWheel(float delta)
 {
 	m_accumWheel += delta;
+}
+
+void CInputSystem::AccumulateText(char32_t codepoint)
+{
+	if (0 == codepoint)
+	{
+		return;
+	}
+	if (m_accumTextLen >= static_cast<int>(Keyboard::MaxTextLength))
+	{
+		return; // 프레임 한도 초과 — 드롭(붙여넣기/IME 폭주 방어)
+	}
+	m_accumText[m_accumTextLen++] = codepoint;
+}
+
+void CInputSystem::AccumulateTouch(std::int32_t pointerId, int x, int y, ETouchPhase phase)
+{
+	if (false == IsDeviceEnabled(EInputDevice::Touch))
+	{
+		return;
+	}
+
+	constexpr std::size_t maxCount = Touch::MaxTouchCount;
+
+	// 같은 id 의 기존 슬롯 탐색.
+	std::size_t found = maxCount;
+	for (std::size_t i = 0; i < maxCount; ++i)
+	{
+		if (m_workingTouches[i].Active && m_workingTouches[i].Id == pointerId)
+		{
+			found = i;
+			break;
+		}
+	}
+
+	switch (phase)
+	{
+	case ETouchPhase::Began:
+	{
+		std::size_t slot = found;
+		if (maxCount == slot)
+		{
+			for (std::size_t i = 0; i < maxCount; ++i)
+			{
+				if (false == m_workingTouches[i].Active) { slot = i; break; }
+			}
+		}
+		if (maxCount == slot) { return; } // 동시 터치 한도 초과 — 드롭
+		m_workingTouches[slot].Id     = pointerId;
+		m_workingTouches[slot].X      = x;
+		m_workingTouches[slot].Y      = y;
+		m_workingTouches[slot].Active = true;
+		break;
+	}
+	case ETouchPhase::Moved:
+		if (maxCount != found)
+		{
+			m_workingTouches[found].X = x;
+			m_workingTouches[found].Y = y;
+		}
+		break;
+	case ETouchPhase::Ended:
+	case ETouchPhase::Cancelled:
+		if (maxCount != found)
+		{
+			m_workingTouches[found] = TouchPoint{}; // 슬롯 해제(Id=-1, Active=false)
+		}
+		break;
+	}
 }
 
 int CInputSystem::GetConnectedGamepadCount() const
@@ -353,17 +520,44 @@ void CInputSystem::ApplyVibration(std::size_t index)
 
 	const float left  = m_vibration->TargetLeft[index].load();
 	const float right = m_vibration->TargetRight[index].load();
+
+#if JBRO_PLATFORM_WINDOWS
 	if (left == m_vibAppliedLeft[index] && right == m_vibAppliedRight[index])
 	{
 		return; // 변경 없음 — XInputSetState 생략
 	}
 	m_vibAppliedLeft[index]  = left;
 	m_vibAppliedRight[index] = right;
-#if JBRO_PLATFORM_WINDOWS
 	XINPUT_VIBRATION vibration = {};
 	vibration.wLeftMotorSpeed  = static_cast<WORD>(left  * 65535.0f);
 	vibration.wRightMotorSpeed = static_cast<WORD>(right * 65535.0f);
 	XInputSetState(static_cast<DWORD>(index), &vibration);
+#elif JBRO_PLATFORM_WEB
+	// 웹은 effect 가 유한 → 변경 시 발행/정지 + 지속 진동은 주기 재발행(keep-alive).
+	const bool changed = (left != m_vibAppliedLeft[index] || right != m_vibAppliedRight[index]);
+	const bool active  = (left > 0.0f || right > 0.0f);
+	if (changed)
+	{
+		m_vibAppliedLeft[index]  = left;
+		m_vibAppliedRight[index] = right;
+		if (active)
+		{
+			JBro_GamepadPlayEffect(static_cast<int>(index), left, right, kWebRumbleChunkMs);
+			m_webNextReissue[index] = std::chrono::steady_clock::now() + std::chrono::milliseconds(kWebRumbleReissueMs);
+		}
+		else
+		{
+			JBro_GamepadResetEffect(static_cast<int>(index));
+		}
+	}
+	else if (active && std::chrono::steady_clock::now() >= m_webNextReissue[index])
+	{
+		JBro_GamepadPlayEffect(static_cast<int>(index), left, right, kWebRumbleChunkMs);
+		m_webNextReissue[index] = std::chrono::steady_clock::now() + std::chrono::milliseconds(kWebRumbleReissueMs);
+	}
+#else
+	m_vibAppliedLeft[index]  = left;
+	m_vibAppliedRight[index] = right;
 #endif
 }
 
@@ -439,6 +633,21 @@ void CInputSystem::PollDevices()
 	m_context.m_mouse.m_wheelDelta = mouseEnabled ? m_accumWheel : 0.0f;
 	m_accumWheel = 0.0f;
 
+	// 텍스트 입력 — 폴링 불가 → 누적값 소비. 키보드 비활성 시 드롭.
+	if (keyboardEnabled)
+	{
+		m_context.m_keyboard.m_textLength = m_accumTextLen;
+		for (int i = 0; i < m_accumTextLen; ++i)
+		{
+			m_context.m_keyboard.m_text[i] = m_accumText[i];
+		}
+	}
+	else
+	{
+		m_context.m_keyboard.m_textLength = 0;
+	}
+	m_accumTextLen = 0;
+
 	// 게임패드 — 멀티 슬롯 폴링(XInput / 웹). 비활성 시 전 슬롯 0 + 진동 정지.
 	if (IsDeviceEnabled(EInputDevice::Gamepad))
 	{
@@ -453,7 +662,29 @@ void CInputSystem::PollDevices()
 		StopAllVibration();
 	}
 
-	// 터치 백엔드는 후속 단계.
+	// 터치 — 작업 버퍼(활성 손가락)를 컨텍스트 스냅샷으로 압축 복사. 비활성 디바이스면 비움.
+	// (생산: 모바일 native inject / 웹 콜백. Windows WM_POINTER 는 후속.)
+	if (IsDeviceEnabled(EInputDevice::Touch))
+	{
+		int count = 0;
+		for (std::size_t i = 0; i < Touch::MaxTouchCount; ++i)
+		{
+			if (m_workingTouches[i].Active)
+			{
+				m_context.m_touch.m_points[count] = m_workingTouches[i];
+				++count;
+			}
+		}
+		for (int i = count; i < static_cast<int>(Touch::MaxTouchCount); ++i)
+		{
+			m_context.m_touch.m_points[i] = TouchPoint{};
+		}
+		m_context.m_touch.m_count = count;
+	}
+	else
+	{
+		m_context.m_touch.m_count = 0;
+	}
 }
 
 void CInputSystem::PollGamepads()
@@ -540,7 +771,12 @@ void CInputSystem::PollGamepads()
 			EMSCRIPTEN_RESULT_SUCCESS != emscripten_get_gamepad_status(static_cast<int>(i), &state) ||
 			0 == state.connected)
 		{
+			const bool wasConnected = pad.m_connected;
 			pad = Gamepad{};
+			if (wasConnected)
+			{
+				StopGamepadVibration(i); // 연결 끊김 — 진동 정지(재연결 시 깨끗한 상태)
+			}
 			continue;
 		}
 
@@ -588,7 +824,9 @@ void CInputSystem::PollGamepads()
 		// 표준 게임패드 트리거 = analogButton[6/7].
 		pad.m_axes[static_cast<std::size_t>(EGamepadAxis::LeftTrigger)]  = (6 < state.numButtons) ? NormalizeTrigger(static_cast<float>(state.analogButton[6]), m_triggerThreshold) : 0.0f;
 		pad.m_axes[static_cast<std::size_t>(EGamepadAxis::RightTrigger)] = (7 < state.numButtons) ? NormalizeTrigger(static_cast<float>(state.analogButton[7]), m_triggerThreshold) : 0.0f;
-		// 웹 진동(Haptic)은 emscripten 표준 경로 미지원 → 후속.
+
+		// 진동 — 목표값 발행/재발행(GamepadHapticActuator). 변경 시 + 지속 시 주기 재발행.
+		ApplyVibration(i);
 	}
 #endif
 }
@@ -614,6 +852,12 @@ void CInputSystem::HaltVibrationHardware()
 	{
 		XInputSetState(i, &off);
 	}
+#elif JBRO_PLATFORM_WEB
+	// 브라우저 actuator effect 즉시 정지(알트탭/종료 시 스턱 방지).
+	for (std::size_t i = 0; i < MaxGamepadCount; ++i)
+	{
+		JBro_GamepadResetEffect(static_cast<int>(i));
+	}
 #endif
 }
 
@@ -626,7 +870,12 @@ void CInputSystem::ClearDevices()
 	{
 		pad = Gamepad{};
 	}
-	m_accumWheel = 0.0f;
+	m_accumWheel   = 0.0f;
+	m_accumTextLen = 0;
+	for (TouchPoint& tp : m_workingTouches)
+	{
+		tp = TouchPoint{};
+	}
 }
 
 void CInputSystem::Dispatch()
@@ -634,15 +883,6 @@ void CInputSystem::Dispatch()
 	if (m_handlersDirty)
 	{
 		SortHandlers();
-	}
-
-	// [진단] handlers 가 있을 때 첫 dispatch 1회만 로그(포커스/디스패치 동작 확인).
-	static bool s_loggedFirstDispatch = false;
-	if (false == s_loggedFirstDispatch && false == m_handlers.empty())
-	{
-		s_loggedFirstDispatch = true;
-		CSystemLog::Info(std::format("InputSystem: first dispatch with {} handler(s) (focused, polling active).",
-			m_handlers.size()));
 	}
 
 	m_inDispatch = true;
@@ -667,7 +907,10 @@ void CInputSystem::Update(bool surfaceFocused)
 	// 등록/해제 큐 반영(dispatch 밖에서 안전).
 	FlushPending();
 
-	if (false == surfaceFocused)
+	// surface 포커스 + 게임 뷰포트 활성(에디터) 모두 만족해야 게임 입력을 폴링/디스패치한다.
+	const bool focused = surfaceFocused && m_viewportActive;
+
+	if (false == focused)
 	{
 		if (m_hadFocus)
 		{
@@ -680,7 +923,7 @@ void CInputSystem::Update(bool surfaceFocused)
 
 	if (false == m_hadFocus)
 	{
-		// 포커스 복귀 — 엣지 오인 방지를 위해 위치 기준 재설정.
+		// 포커스 복귀(또는 뷰포트 활성) — 엣지 오인 방지를 위해 위치 기준 재설정.
 		ClearDevices();
 		m_hadFocus = true;
 	}

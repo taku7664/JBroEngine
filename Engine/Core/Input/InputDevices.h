@@ -30,9 +30,22 @@ enum class EInputDevice : std::uint8_t
 class Keyboard
 {
 public:
+	// 프레임당 최대 텍스트 입력 문자 수(IME 조합/붙여넣기 폭주 방어). 초과분은 드롭.
+	static constexpr std::size_t MaxTextLength = 32;
+
 	bool IsDown(EKeyCode key) const     { return Current(key); }
 	bool IsPressed(EKeyCode key) const  { return Current(key) && false == Previous(key); }
 	bool IsReleased(EKeyCode key) const { return false == Current(key) && Previous(key); }
+
+	// ── 텍스트 입력(문자) ────────────────────────────────────────────────────
+	// 이번 프레임에 입력된 유니코드 코드포인트(완성 문자). 키 상태와 별개 — 채팅/이름입력용.
+	// 폴링 불가 신호라 플랫폼이 누적(WM_CHAR / web keypress), InputSystem 이 프레임 스냅샷에 합산한다.
+	int      GetTextLength() const          { return m_textLength; }
+	char32_t GetTextChar(int index) const
+	{
+		if (index < 0 || index >= m_textLength) { return 0; }
+		return m_text[static_cast<std::size_t>(index)];
+	}
 
 private:
 	static std::size_t Index(EKeyCode key)
@@ -46,6 +59,10 @@ private:
 private:
 	bool m_current[static_cast<std::size_t>(EKeyCode::Count)]  = {};
 	bool m_previous[static_cast<std::size_t>(EKeyCode::Count)] = {};
+
+	// 텍스트 입력 — 프레임 누적(prev/current 없음). InputSystem 이 매 프레임 채운다.
+	char32_t m_text[MaxTextLength] = {};
+	int      m_textLength = 0;
 
 	friend class CInputSystem;
 };

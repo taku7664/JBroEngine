@@ -39,7 +39,13 @@ enum class EBuildScriptMode
 struct ProjectBuildSettings
 {
 	std::string ProductName;
-	EBuildTargetPlatform TargetPlatform = EBuildTargetPlatform::Windows;
+	// 플랫폼별 빌드 활성화. 활성화된 플랫폼만 빌드 메뉴에 나열되고 일괄빌드 대상이 된다.
+	// (구 단일 TargetPlatform 을 대체. 빌드 1회는 여전히 한 플랫폼씩 — 디스크립터/manifest 의
+	//  TargetPlatform 은 빌드 호출 시 인자로 주입한다.)
+	bool EnableWindows = true;
+	bool EnableWeb     = false;
+	bool EnableAndroid = false;
+	bool EnableIOS     = false;
 	EBuildConfiguration BuildConfiguration = EBuildConfiguration::Release;
 	std::string OutputDirectory = "Dist/Games";
 	std::string StartupScene;
@@ -114,5 +120,17 @@ struct ProjectInfo
 		"~$*",
 		".DS_Store",
 		"Thumbs.db",
+	};
+
+	// 입력 레이어 우선순위 — front = 최우선. InputSystem 의 핸들러 디스패치 순서를 정의한다.
+	// 스크립트가 InputHandler<"Layer", Order> 로 지정하는 문자열이 이 목록과 매칭된다.
+	// 목록에 없는 레이어는 런타임에 최하위로 폴백 + 1회 경고.
+	// 프로젝트 로드 시 CInputSystem::ConfigureLayers 로 주입된다.
+	std::vector<std::string> InputLayers = {
+		"Modal",
+		"UI",
+		"Game",
+		"World",
+		"Debug",
 	};
 };

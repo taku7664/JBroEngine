@@ -1,6 +1,8 @@
 #include "pch.h"
 #include "MobilePlatform.h"
 
+#include "Core/EngineCore.h"
+#include "Core/Input/InputSystem.h"
 #include "Core/Platform/Mobile/MobileRenderSurface.h"
 
 bool CMobilePlatform::Initialize(const PlatformDesc& desc)
@@ -109,4 +111,12 @@ void CMobilePlatform::NotifyResume()
 {
 	m_isPaused = false;
 	SetFocus(true);
+}
+
+void CMobilePlatform::InjectTouch(std::int32_t pointerId, int x, int y, ETouchPhase phase)
+{
+	if (Engine.InputSystem)
+	{
+		Engine.InputSystem->AccumulateTouch(pointerId, x, y, phase);
+	}
 }

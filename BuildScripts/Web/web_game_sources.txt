@@ -22,9 +22,11 @@ Engine/Core/Debug/DebugDraw.cpp
 Engine/Core/Debug/DebugDraw2D.cpp
 Engine/Core/Engine.cpp
 Engine/Core/EngineCore.cpp
+Engine/Core/ScriptCore.cpp
 Engine/Core/FileSystem/FileSystem.cpp
 Engine/Core/Game/GameModuleLoader.cpp
 Engine/Core/Input/Input.cpp
+Engine/Core/Input/InputSystem.cpp
 Engine/Core/Logging/Logger.cpp
 Engine/Core/Math/MathService.cpp
 Engine/Core/Module/Module.cpp

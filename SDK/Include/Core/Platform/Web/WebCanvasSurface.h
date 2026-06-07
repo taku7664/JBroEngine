@@ -3,8 +3,7 @@
 #include "Core/Platform/IRenderSurface.h"
 
 #if JBRO_PLATFORM_WEB
-struct EmscriptenVisibilityChangeEvent;
-struct EmscriptenUiEvent;
+#include <emscripten/html5.h> // EM_BOOL / 이벤트 구조체 / 콜백 typedef (버전별 EM_BOOL=bool 정합)
 #endif
 
 class CWebCanvasSurface final : public IRenderSurface
@@ -21,8 +20,8 @@ public:
 #if JBRO_PLATFORM_WEB
 private:
 	// Emscripten 이벤트 콜백(브라우저 → 엔진). userData 로 this 를 받는다.
-	static int OnVisibilityChange(int eventType, const EmscriptenVisibilityChangeEvent* event, void* userData);
-	static int OnCanvasResize(int eventType, const EmscriptenUiEvent* event, void* userData);
+	static EM_BOOL OnVisibilityChange(int eventType, const EmscriptenVisibilityChangeEvent* event, void* userData);
+	static EM_BOOL OnCanvasResize(int eventType, const EmscriptenUiEvent* event, void* userData);
 #endif
 
 private:

@@ -53,7 +53,7 @@ void CWebCanvasSurface::PollEvents(PlatformEvent& platformEvent)
 }
 
 #if JBRO_PLATFORM_WEB
-int CWebCanvasSurface::OnVisibilityChange(int /*eventType*/, const EmscriptenVisibilityChangeEvent* event, void* userData)
+EM_BOOL CWebCanvasSurface::OnVisibilityChange(int /*eventType*/, const EmscriptenVisibilityChangeEvent* event, void* userData)
 {
 	CWebCanvasSurface* self = static_cast<CWebCanvasSurface*>(userData);
 	if (nullptr == self || nullptr == event)
@@ -70,7 +70,7 @@ int CWebCanvasSurface::OnVisibilityChange(int /*eventType*/, const EmscriptenVis
 	return EM_TRUE;
 }
 
-int CWebCanvasSurface::OnCanvasResize(int /*eventType*/, const EmscriptenUiEvent* /*event*/, void* userData)
+EM_BOOL CWebCanvasSurface::OnCanvasResize(int /*eventType*/, const EmscriptenUiEvent* /*event*/, void* userData)
 {
 	CWebCanvasSurface* self = static_cast<CWebCanvasSurface*>(userData);
 	if (nullptr == self)

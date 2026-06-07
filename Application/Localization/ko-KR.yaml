@@ -102,6 +102,7 @@ Entries:
 
   project_settings.category.general: 일반
   project_settings.category.script: 스크립트
+  project_settings.category.input: 입력
   project_settings.category.localization: 로컬라이징
   project_settings.category.audio: 사운드
   project_settings.category.debug: 디버그
@@ -112,6 +113,9 @@ Entries:
   project_settings.asset_watcher.title: 자산 워처 무시 패턴
   project_settings.asset_watcher.desc: 한 줄당 하나의 glob 패턴. 매칭된 파일은 자산 import 시도에서 제외됩니다.
   project_settings.asset_watcher.syntax_hint: "예: *.tmp, ~$*, Temp/*.png. '*'=0+ 문자, '?'=임의 1 문자. 슬래시(/) 포함 패턴은 상대경로 전체에 매칭, 아니면 파일명에만 매칭."
+  project_settings.input.title: 입력 레이어
+  project_settings.input.desc: 한 줄당 하나의 레이어 이름. 위에 있을수록 우선순위가 높습니다. 스크립트의 InputHandler<"레이어", 오더> 문자열이 이 목록과 매칭됩니다.
+  project_settings.input.hint: "목록에 없는 레이어는 런타임에 최하위로 폴백되며 경고 로그가 1회 출력됩니다. 같은 레이어 내 순서는 핸들러의 Order 값으로 정합니다."
   build_settings.no_project: 프로젝트가 열려있지 않습니다.
   build_settings.category.general: 일반
   build_settings.category.scenes: 씬
@@ -123,20 +127,23 @@ Entries:
   build_settings.common_categories: 공통
   build_settings.common_category_tooltip: 플랫폼과 무관하게 모든 빌드에 적용되는 설정입니다.
   build_settings.platform_categories: 플랫폼
-  build_settings.platform_category_tooltip: 선택한 대상 플랫폼에 필요한 추가 설정입니다.
+  build_settings.platform_category_tooltip: 플랫폼별 설정입니다. 체크박스로 활성화하면 빌드 대상에 포함됩니다.
+  build_settings.platform_enable_tooltip: 이 플랫폼을 빌드 대상으로 활성화합니다. 활성화된 플랫폼만 빌드 메뉴와 일괄 빌드에 나열됩니다.
+  build_settings.web.no_extra_settings: 웹 빌드는 플랫폼 전용 설정이 없습니다. 공통 설정만 사용합니다.
+  build_settings.no_platform_enabled: 활성화된 플랫폼이 없습니다. 최소 한 개를 활성화하세요.
+  build_settings.build_all: 일괄 빌드(활성 플랫폼)
   build_settings.general: 일반
   build_settings.product_name: 제품 이름
   build_settings.windows_icon: 응용프로그램 아이콘
   build_settings.windows_icon.empty: 아이콘 없음
   build_settings.windows_icon.invalid: Windows 아이콘은 .ico 파일만 사용할 수 있습니다.
   build_settings.windows_icon.import_failed: Windows 아이콘 자산 등록에 실패했습니다.
-  build_settings.target_platform: 대상 플랫폼
   build_settings.configuration: 빌드 구성
   build_settings.output: 출력
   build_settings.windows: Windows
   build_settings.android: Android
   build_settings.ios: iOS
-  build_settings.platform_inactive: 현재 선택된 대상 플랫폼은 아니지만 설정은 저장됩니다.
+  build_settings.platform_inactive: 이 플랫폼은 비활성 상태이지만 설정은 저장됩니다.
   build_settings.android_application_id: Application ID
   build_settings.android_min_sdk: 최소 SDK
   build_settings.android_target_sdk: 대상 SDK

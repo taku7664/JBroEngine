@@ -42,6 +42,15 @@ enum class EMouseButton : std::uint8_t
 	Count
 };
 
+// 터치 포인터 이벤트 단계 — 플랫폼(모바일 inject / 웹 콜백)이 InputSystem 에 누적할 때 사용.
+enum class ETouchPhase : std::uint8_t
+{
+	Began,      // 새 터치 시작(손가락 닿음)
+	Moved,      // 같은 id 이동
+	Ended,      // 손가락 뗌
+	Cancelled   // 시스템 취소(통화/제스처 가로채기 등)
+};
+
 enum class EGamepadButton : std::uint8_t
 {
 	South,          // Xbox A / DualShock X

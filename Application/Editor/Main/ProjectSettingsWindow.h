@@ -20,6 +20,7 @@ public:
     {
         General,        // 해상도, 좌표계(PPU)
         Script,         // 빌드 구성, 자동 리빌드
+        Input,          // 입력 레이어 우선순위
         Localization,   // 언어
         Audio,          // 마스터 볼륨, 버스 (향후 확장)
         Debug,          // 에디터 디버그 표시
@@ -39,6 +40,7 @@ private:
     // 카테고리별 우측 패널 콘텐츠
     void DrawCategoryGeneral();
     void DrawCategoryScript();
+    void DrawCategoryInput();
     void DrawCategoryLocalization();
     void DrawCategoryAudio();
     void DrawCategoryDebug();
@@ -66,6 +68,11 @@ private:
     std::vector<std::string> m_editAssetWatchIgnorePatterns;
     // InputTextMultiline 의 백킹 버퍼. OnShow 에서 패턴 벡터로부터 재구축한다.
     std::string m_assetWatchIgnoreBuffer;
+
+    // 입력 레이어 — 한 줄당 하나의 레이어 이름. 위 = 최우선. Apply 시 ProjectManager 에 set.
+    std::vector<std::string> m_editInputLayers;
+    // InputTextMultiline 의 백킹 버퍼. OnShow 에서 레이어 벡터로부터 재구축한다.
+    std::string m_inputLayersBuffer;
 
     // UI 상태
     ECategory m_selectedCategory = ECategory::General;

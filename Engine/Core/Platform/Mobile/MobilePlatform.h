@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Core/Platform/IPlatform.h"
+#include "Core/Input/InputTypes.h" // ETouchPhase
 
 class CMobilePlatform final : public IPlatform
 {
@@ -19,6 +20,10 @@ public:
 	void ResizeSurface(int width, int height);
 	void NotifyPause();
 	void NotifyResume();
+
+	// 네이티브 입력 주입 — surface/focus/pause/resume inject 와 동일 계약(NativeActivity/UIKit 브리지가 호출).
+	// 터치 이벤트를 엔진 InputSystem 으로 전달한다. 메인 스레드 호출 가정.
+	void InjectTouch(std::int32_t pointerId, int x, int y, ETouchPhase phase);
 
 private:
 	PlatformDesc m_desc;

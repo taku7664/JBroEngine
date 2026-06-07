@@ -6,6 +6,8 @@
 #include "Engine/Editor/Project/ProjectManager.h"
 #include "Engine/GameFramework/Rendering/GameCamera.h"
 #include "Engine/GameFramework/Scene/Scene.h"
+#include "Core/EngineCore.h"
+#include "Core/Input/InputSystem.h"
 
 namespace
 {
@@ -32,10 +34,38 @@ namespace
 void CGameViewTool::OnCreate()
 {
 	SetLocalizedTitleKey("window.game_view");
+
+	// 에디터 baseline — GameView 가 포커스되기 전엔 게임 입력 비활성(다른 패널 편집 중 누출 방지).
+	// 스탠드얼론 게임에는 GameViewTool 이 없어 InputSystem 기본 true 가 유지된다.
+	if (Engine.InputSystem.IsValid())
+	{
+		Engine.InputSystem->SetViewportActive(false);
+	}
 }
 
 void CGameViewTool::OnDestroy()
 {
+	// 패널 파괴 시 게이트 해제 — 잔여 활성 상태로 입력이 새지 않도록.
+	if (Engine.InputSystem.IsValid())
+	{
+		Engine.InputSystem->SetViewportActive(false);
+	}
+}
+
+void CGameViewTool::OnFocusEnter()
+{
+	if (Engine.InputSystem.IsValid())
+	{
+		Engine.InputSystem->SetViewportActive(true);
+	}
+}
+
+void CGameViewTool::OnFocusExit()
+{
+	if (Engine.InputSystem.IsValid())
+	{
+		Engine.InputSystem->SetViewportActive(false);
+	}
 }
 
 void CGameViewTool::OnUpdate()
