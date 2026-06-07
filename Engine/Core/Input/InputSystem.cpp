@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <format>
 #include <thread>
 
@@ -42,6 +43,92 @@ namespace
 			return 0.0f;
 		}
 		return (raw - threshold) / (1.0f - threshold);
+	}
+
+	// ── 액션 바인딩 평가 헬퍼 (공개 ctx 접근자만 사용 → friend 불필요) ────────────
+	// 게임패드 인덱스 결정: >=0 면 그 패드(연결 시), <0 면 첫 연결 패드.
+	bool ResolvePadIndex(const InputDeviceContext& ctx, int requested, std::size_t& outIndex)
+	{
+		if (requested >= 0)
+		{
+			outIndex = static_cast<std::size_t>(requested);
+			return outIndex < InputDeviceContext::MaxGamepadCount && ctx.GetGamepad(outIndex).IsConnected();
+		}
+		for (std::size_t i = 0; i < InputDeviceContext::MaxGamepadCount; ++i)
+		{
+			if (ctx.GetGamepad(i).IsConnected())
+			{
+				outIndex = i;
+				return true;
+			}
+		}
+		return false;
+	}
+
+	// 바인딩이 "눌림" 상태인가(Bool/컴포지트용). 패드 인덱스 <0 면 연결된 패드 OR.
+	bool EvalBindingDown(const InputDeviceContext& ctx, const InputBinding& binding)
+	{
+		switch (binding.Source)
+		{
+		case EInputBindingSource::Key:
+			return ctx.GetKeyboard().IsDown(static_cast<EKeyCode>(binding.Code));
+		case EInputBindingSource::MouseButton:
+			return ctx.GetMouse().IsDown(static_cast<EMouseButton>(binding.Code));
+		case EInputBindingSource::GamepadButton:
+		{
+			const EGamepadButton button = static_cast<EGamepadButton>(binding.Code);
+			if (binding.GamepadIndex >= 0)
+			{
+				std::size_t pad = 0;
+				return ResolvePadIndex(ctx, binding.GamepadIndex, pad) && ctx.GetGamepad(pad).IsDown(button);
+			}
+			for (std::size_t i = 0; i < InputDeviceContext::MaxGamepadCount; ++i)
+			{
+				if (ctx.GetGamepad(i).IsConnected() && ctx.GetGamepad(i).IsDown(button))
+				{
+					return true;
+				}
+			}
+			return false;
+		}
+		case EInputBindingSource::GamepadAxis:
+		{
+			std::size_t pad = 0;
+			return ResolvePadIndex(ctx, binding.GamepadIndex, pad) &&
+				ctx.GetGamepad(pad).GetAxis(static_cast<EGamepadAxis>(binding.Code)) > 0.5f;
+		}
+		default:
+			return false;
+		}
+	}
+
+	// 바인딩 스칼라(Float용): 축이면 값, 그 외는 눌림 0/1.
+	float EvalBindingScalar(const InputDeviceContext& ctx, const InputBinding& binding)
+	{
+		if (EInputBindingSource::GamepadAxis == binding.Source)
+		{
+			std::size_t pad = 0;
+			return ResolvePadIndex(ctx, binding.GamepadIndex, pad)
+				? ctx.GetGamepad(pad).GetAxis(static_cast<EGamepadAxis>(binding.Code))
+				: 0.0f;
+		}
+		return EvalBindingDown(ctx, binding) ? 1.0f : 0.0f;
+	}
+
+	// 바인딩 스틱(Vector2용): Code 0=Left, 1=Right.
+	Vector2 EvalBindingStick(const InputDeviceContext& ctx, const InputBinding& binding)
+	{
+		std::size_t pad = 0;
+		if (false == ResolvePadIndex(ctx, binding.GamepadIndex, pad))
+		{
+			return Vector2{};
+		}
+		const Gamepad& gamepad = ctx.GetGamepad(pad);
+		if (1 == binding.Code)
+		{
+			return Vector2(gamepad.GetAxis(EGamepadAxis::RightX), gamepad.GetAxis(EGamepadAxis::RightY));
+		}
+		return Vector2(gamepad.GetAxis(EGamepadAxis::LeftX), gamepad.GetAxis(EGamepadAxis::LeftY));
 	}
 }
 
@@ -270,6 +357,17 @@ void CInputSystem::ConfigureLayers(const std::vector<std::string>& orderedLayers
 	}
 	m_warnedLayers.clear();
 	m_handlersDirty = true;
+}
+
+void CInputSystem::SetInputMap(const std::vector<InputActionDef>& actions)
+{
+	m_inputMap = actions;
+	if (m_inputMap.size() > ActionState::MaxActions)
+	{
+		CSystemLog::Warning(std::format(
+			"InputSystem: input map has {} actions, exceeding max {} — extra ignored.",
+			m_inputMap.size(), static_cast<std::size_t>(ActionState::MaxActions)));
+	}
 }
 
 int CInputSystem::LayerPriorityOf(const char* layer)
@@ -923,6 +1021,84 @@ void CInputSystem::ClearDevices()
 	{
 		tp = TouchPoint{};
 	}
+	m_context.m_actions.m_count = 0;
+}
+
+void CInputSystem::EvaluateActions()
+{
+	ActionState& store = m_context.m_actions;
+	const int count = static_cast<int>(std::min<std::size_t>(m_inputMap.size(), ActionState::MaxActions));
+	store.m_count = count;
+
+	for (int i = 0; i < count; ++i)
+	{
+		const InputActionDef& def = m_inputMap[static_cast<std::size_t>(i)];
+		InputActionValue& out = store.m_values[i];
+
+		const std::size_t nameLen = std::min(def.Name.size(), sizeof(out.Name) - 1);
+		std::memcpy(out.Name, def.Name.data(), nameLen);
+		out.Name[nameLen] = '\0';
+		out.Type  = def.Type;
+		out.Value = Vector2{};
+
+		switch (def.Type)
+		{
+		case EInputActionValueType::Bool:
+		{
+			for (const InputBinding& binding : def.Bindings)
+			{
+				if (EvalBindingDown(m_context, binding))
+				{
+					out.Value.x = 1.0f;
+					break;
+				}
+			}
+			break;
+		}
+		case EInputActionValueType::Float:
+		{
+			float value = 0.0f;
+			for (const InputBinding& binding : def.Bindings)
+			{
+				value = std::max(value, EvalBindingScalar(m_context, binding));
+			}
+			out.Value.x = value;
+			break;
+		}
+		case EInputActionValueType::Vector2:
+		{
+			Vector2 vector{};
+			for (const InputBinding& binding : def.Bindings)
+			{
+				if (EInputBindingSource::GamepadStick == binding.Source)
+				{
+					vector += EvalBindingStick(m_context, binding);
+				}
+				else if (EInputComposite::None != binding.Composite && EvalBindingDown(m_context, binding))
+				{
+					switch (binding.Composite)
+					{
+					case EInputComposite::Up:    vector.y += 1.0f; break;
+					case EInputComposite::Down:  vector.y -= 1.0f; break;
+					case EInputComposite::Left:  vector.x -= 1.0f; break;
+					case EInputComposite::Right: vector.x += 1.0f; break;
+					default: break;
+					}
+				}
+			}
+			// 대각선 과속 방지 — 크기 1 로 클램프.
+			const float lengthSq = vector.x * vector.x + vector.y * vector.y;
+			if (lengthSq > 1.0f)
+			{
+				const float inv = 1.0f / std::sqrt(lengthSq);
+				vector.x *= inv;
+				vector.y *= inv;
+			}
+			out.Value = vector;
+			break;
+		}
+		}
+	}
 }
 
 void CInputSystem::Dispatch()
@@ -977,5 +1153,6 @@ void CInputSystem::Update(bool surfaceFocused)
 
 	AdvanceFrame();
 	PollDevices();
+	EvaluateActions();
 	Dispatch();
 }

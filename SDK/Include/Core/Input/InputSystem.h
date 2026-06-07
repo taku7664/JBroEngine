@@ -100,6 +100,10 @@ public:
 	// 레이어 우선순위 구성(프로젝트 세팅 주입). front = 최우선. 미설정 레이어는 최하위 + 1회 경고.
 	void ConfigureLayers(const std::vector<std::string>& orderedLayers);
 
+	// 입력 액션 맵 주입(프로젝트 세팅). 매 프레임 평가되어 ctx.GetAction() 으로 노출된다.
+	// 최대 ActionState::MaxActions 개까지(초과분 무시 + 1회 경고).
+	void SetInputMap(const std::vector<InputActionDef>& actions);
+
 private:
 	struct HandlerEntry
 	{
@@ -118,12 +122,14 @@ private:
 	void ApplyVibration(std::size_t index); // 메인: 목표값 변경 시 하드웨어 적용 + 웹 만료 폴백
 	void HaltVibrationHardware(); // 전 슬롯 모터 즉시 0(하드웨어 직접) — 포커스 상실/Shutdown
 	void ClearDevices();   // 포커스 상실 시 전부 0
+	void EvaluateActions(); // 바인딩 + 디바이스 상태 → 액션 값 계산(ctx 액션 스토어 채움)
 	void Dispatch();
 
 private:
 	InputDeviceContext        m_context;
 	std::vector<HandlerEntry> m_handlers;
 	std::vector<std::string>  m_layerOrder;
+	std::vector<InputActionDef> m_inputMap; // 프로젝트세팅 액션 맵(매 프레임 평가)
 
 	bool m_deviceEnabled[static_cast<std::size_t>(EInputDevice::Count)] = { true, true, true, true };
 

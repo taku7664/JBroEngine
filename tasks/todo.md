@@ -1,3 +1,34 @@
+# TODO — InputMap (액션 매핑) Phase 2
+
+## Goal
+이름 기반 액션 매핑. 핸들러가 `ctx.GetAction().GetValue<Vector2>("Move")` 로 디바이스 추상화된
+값을 읽는다. 바인딩은 프로젝트세팅(.Jproject, InputLayers 옆)에 저장.
+
+## Assumptions
+- 값타입 Bool/Float/Vector2(엔진 Bool/Vector2 POD). 이름=순수 문자열.
+- 강제변환: Vector2→Bool(nonzero)/Float(x). Bool→Vector2 금지(Zero).
+- 바인딩: 키 컴포지트(WASD 역할) | 게임패드 스틱 | 버튼/축. 키보드+패드 통합.
+- 에셋 아님 — 프로젝트세팅 YAML. 런타임 리바인딩/persistent 오버라이드는 후속.
+- ctx 액션 store 는 POD 고정배열(DLL 경계 안전, GetValue 헤더 인라인).
+
+## Success Criteria
+- ctx.GetAction().GetValue<Vector2/Bool/float>(name) 동작. 멀티 디바이스 통합.
+- 프로젝트세팅 Input 카테고리서 액션/바인딩 편집 + .Jproject 저장/로드.
+- Debug_Editor/Debug_Game/GameScript.dll + 웹빌드 green.
+
+## Plan
+- [ ] 타입: InputAction.h (EInputActionValueType, InputActionValue, ActionState, InputBinding, InputActionDef)
+- [ ] ctx: InputDeviceContext 에 ActionState + GetAction()
+- [ ] CInputSystem: SetInputMap(resolve) + EvaluateActions 평가패스(Update 내 PollDevices 후)
+- [ ] 직렬화: ProjectInfo.InputActions + .Jproject YAML load/save + ApplyInputMapToSystem
+- [ ] 에디터 UI: ProjectSettings Input 카테고리에 액션/바인딩 편집
+- [ ] SDK 동기화 + 빌드 검증(웹 포함)
+
+## Verification / Review
+(단계별 작성)
+
+---
+
 # TODO — 모바일/터치 입력 착수
 
 ## Goal

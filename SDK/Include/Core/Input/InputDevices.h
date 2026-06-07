@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Core/Input/InputTypes.h"
+#include "Core/Input/InputAction.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -190,22 +191,25 @@ public:
 	InputDeviceContext(InputDeviceContext&&)                 = delete;
 	InputDeviceContext& operator=(InputDeviceContext&&)      = delete;
 
-	const Keyboard& GetKeyboard() const { return m_keyboard; }
-	const Mouse&    GetMouse() const    { return m_mouse; }
-	const Touch&    GetTouch() const    { return m_touch; }
-	const Gamepad&  GetGamepad(std::size_t index) const
+	const Keyboard&    GetKeyboard() const { return m_keyboard; }
+	const Mouse&       GetMouse() const    { return m_mouse; }
+	const Touch&       GetTouch() const    { return m_touch; }
+	const Gamepad&     GetGamepad(std::size_t index) const
 	{
 		return m_gamepads[index < MaxGamepadCount ? index : 0];
 	}
+	// 이름 기반 액션(InputMap). ctx.GetAction().GetValue<Vector2>("Move").
+	const ActionState& GetAction() const { return m_actions; }
 
 private:
 	InputDeviceContext() = default;
 
 private:
-	Keyboard m_keyboard;
-	Mouse    m_mouse;
-	Touch    m_touch;
-	Gamepad  m_gamepads[MaxGamepadCount];
+	Keyboard    m_keyboard;
+	Mouse       m_mouse;
+	Touch       m_touch;
+	Gamepad     m_gamepads[MaxGamepadCount];
+	ActionState m_actions;
 
 	friend class CInputSystem;
 };
