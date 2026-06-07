@@ -93,20 +93,64 @@ This document reorganizes the remaining work from `tasks/EngineCodeAudit.md` aft
   - Cook audio payloads, including a pack-backed streaming strategy.
   - Move remaining runtime import option data out of the pack index once each cooked payload carries its own runtime header.
 
+### Release package smoke hardening
+
+- Source findings: F-001, F-002, F-005
+- Status: Done for current Windows/Web package contract checks.
+- Result:
+  - Added `BuildManifestTool --validate` so generated binary manifests are read back by the engine-owned manifest loader.
+  - `BuildGame.ps1` release smoke now checks binary manifest magic/validation, startup scene GUID, asset pack magic, loose asset folder absence, legacy text manifest/index absence, and editor-only artifact absence.
+  - yaml-cpp PDB warning handling was documented separately and then resolved by rebuilding matching vendor libs/PDBs.
+
+### RHI/render performance parity pass
+
+- Source findings: F-008, F-009, F-010
+- Status: Done for the current sprite-render bottleneck pass.
+- Result:
+  - Reduced sprite constant-buffer churn.
+  - Added RHI instancing contract and default sprite instanced batching.
+  - Pre-resolved sprite draw resources in render items.
+  - Reduced redundant sprite render state binds.
+  - Reduced WebGPU/Vulkan per-draw descriptor churn.
+  - Replaced linear WebGPU bind group cache lookup.
+  - Added Vulkan descriptor reuse/cache.
+- Scope note:
+  - Further batching or renderer architecture changes should be tracked as new performance work, not as this audit item.
+
+### Editor interaction hot-path cleanup
+
+- Source finding: F-011
+- Status: Done for SceneView box-selection hot path.
+- Result:
+  - `PickBox()` no longer repeatedly scans full sprite frame alpha data per candidate.
+  - Sprite import/load now caches frame-local opaque pixel bounds and local opaque bounds in `CSpriteAsset`.
+  - SceneView box selection uses `SpriteFrame::LocalOpaqueBounds` instead of a local legacy alpha-bounds cache.
+- Scope note:
+  - Single-click `Pick()` still performs a one-pixel alpha test intentionally for click precision.
+  - Object-id picking/GPU picking/cached mask picking are future feature-level upgrades, not remaining audit cleanup.
+
+### Project YAML emitter/style cleanup
+
+- Source finding: F-014
+- Status: Done.
+- Result:
+  - Project build-settings YAML emission was consolidated through a shared helper.
+  - New-project creation and `SaveProject()` now use the same build-settings key emission path.
+  - The cleanup was kept behavior-preserving for `.Jproject` load/save contracts.
+
 ## Remaining Work Queue
 
 ### 1. Release asset pack contract hardening
 
 - Source findings: F-001, F-002
 - Priority: High
-- Status: Partially done.
+- Status: Partially done; Sprite cooked payload, runtime record hardening, and release smoke checks are done.
 - Work:
-  - Finish cooked payloads beyond C++ Sprite path.
   - Replace script/web C# pack writer with an engine-owned pack tool so Web gets the same cooked Sprite payload.
-  - Move remaining runtime import option data into cooked payload headers where practical.
-  - Add platform pack streaming for assets that intentionally stream.
+  - Cook audio payloads, including a pack-backed streaming strategy.
+  - Move remaining runtime import option data out of the pack index once each cooked payload carries its own runtime header.
 - Reason:
-  - This is the largest gap between the current pack and the intended B+ / release protection contract.
+  - This is the largest remaining gap between the current pack and the intended B+ / release protection contract.
 
 ### 2. Build manifest writer unification
 
@@ -153,32 +197,44 @@ This document reorganizes the remaining work from `tasks/EngineCodeAudit.md` aft
 
 - Source findings: F-008, F-009, F-010
 - Priority: Medium
+- Status: Done for the current descriptor/batching parity pass.
 - Work:
-  - Add Vulkan descriptor reuse/cache or dynamic uniform strategy.
-  - Keep D3D11, WebGPU, Vulkan improvements parallel.
-  - Evaluate optional batching improvements without breaking transparent ordering.
+  - Track future renderer performance work as new scoped items.
+  - Keep D3D11, WebGPU, Vulkan improvements parallel when adding new renderer features.
 - Reason:
-  - Vulkan currently has a baseline path, but per-draw descriptor work will become a real bottleneck.
+  - Vulkan descriptor reuse/cache and current sprite batching improvements have been implemented; future work should stay parallel across RHIs.
 
 ### 7. Editor interaction hot-path cleanup
 
 - Source finding: F-011
 - Priority: Low to Medium
+- Status: Done for the known SceneView box-selection hot path.
 - Work:
-  - Avoid full render target alpha scan during frequent SceneView picking/drag interactions.
-  - Prefer object-id picking, cached masks, or bounded sampling where practical.
+  - Keep one-pixel alpha test for single-click picking unless object-id/GPU picking is introduced.
+  - Track object-id picking, cached masks, or bounded sampling as separate feature upgrades if needed.
 - Reason:
-  - This is editor-only, but it can become visibly expensive on high-resolution views.
+  - The repeated full-frame alpha scan issue was resolved by cached sprite opaque bounds.
 
 ### 8. Mobile package completion
 
 - Source finding: F-012
 - Priority: Medium
+- Status: In progress; Android package staging foundation is connected.
 - Work:
-  - Implement Android/iOS package staging after the release pack contract is hardened.
+  - Add Android NDK native target that produces `libJBroGame.so`.
+  - Connect Android native entry/lifecycle/surface callbacks to the common runtime bootstrap.
+  - Add Android Vulkan runtime smoke after the native target exists.
+  - Implement Gradle signing/output polish for Debug APK and Release APK/AAB.
+  - Keep iOS explicitly unsupported until Xcode signing and MoltenVK/Metal direction is implemented.
   - Keep platform package differences explicit; do not hide them behind vague `Mobile` behavior.
+- Done:
+  - `BuildGame.ps1 -Platform Android` now reaches package staging instead of immediate mobile unsupported.
+  - Android Gradle project skeleton is generated under the package output.
+  - Binary manifest and asset pack are staged into `app/src/main/assets/Content`.
+  - Android package verification rejects loose assets and editor/script DLL artifacts.
+  - Missing `libJBroGame.so` fails before Gradle with the generated project path and checked candidate paths.
 - Reason:
-  - Current mobile package code intentionally fails fast instead of producing a misleading partial package.
+  - Mobile package work must move toward real Android/iOS outputs without pretending Android and iOS have the same packaging constraints.
 
 ### 9. Build icon asset workflow polish
 
@@ -195,8 +251,9 @@ This document reorganizes the remaining work from `tasks/EngineCodeAudit.md` aft
 
 - Source finding: F-014
 - Priority: Low
+- Status: Done
 - Work:
-  - Normalize ProjectManager YAML emitter indentation and helper usage.
-  - Keep this separate from behavior-changing project save work.
+  - Keep future `.Jproject` fields on shared emitter helpers where possible.
+  - Keep future formatting-only cleanup separate from behavior-changing project save work.
 - Reason:
-  - Low risk, but it improves future reviewability of build settings serialization.
+  - Shared emitter usage reduces future build-settings serialization drift.

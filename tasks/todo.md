@@ -1,3 +1,49 @@
+# TODO — Android Package Staging Foundation
+
+## Goal
+모바일 패키지 완료의 첫 단계로 Android/iOS 를 뭉개지 않고, Android Debug APK 생성을 향한 Gradle project staging 계약을 추가한다.
+
+## Assumptions
+- Android 를 먼저 진행하고 iOS 는 Xcode/signing/MoltenVK 비용 때문에 명확한 unsupported 상태를 유지한다.
+- 현재 repo 에 Android NDK native library target 은 없으므로, Android package path 는 `libJBroGame.so` 가 없으면 실패해야 한다.
+- `BuildGame.ps1` 은 기존 Windows/Web package contract 처럼 manifest/asset pack 을 먼저 만들고 Android Gradle project 의 assets 로 staging 한다.
+- Partial APK 를 성공처럼 내지 않는다.
+
+## Success Criteria
+- `BuildGame.ps1 -Platform Android` 가 unsupported 즉시 throw 를 하지 않고 Android package staging 경로로 들어간다.
+- Android package output 에 Gradle project skeleton 과 `app/src/main/assets/Content` 가 생성된다.
+- Android staging 은 binary manifest/asset pack smoke 를 재사용한다.
+- native `.so` 가 없으면 Gradle build 전 명확한 메시지로 실패한다.
+- iOS 는 Android 와 섞이지 않고 명확한 iOS-specific unsupported 메시지를 유지한다.
+
+## Plan
+- [x] Android Gradle project template 추가
+- [x] BuildGame.ps1 Android staging/render helper 추가
+- [x] Android native library 후보 검증과 fail-fast 추가
+- [x] MobilePlatformPlan / EngineAuditFollowup 갱신
+- [x] parser/smoke 검증 및 커밋
+
+## Verification
+- [x] `BuildGame.ps1` parser check
+- [x] Android staging command reaches native library fail-fast with package skeleton generated
+- [x] iOS remains explicit unsupported
+- [x] `git diff --check`
+
+## Review
+- 코드를 읽었고: `BuildGame.ps1` 은 Android/iOS 를 인식하지만 공통 scene/pack/manifest 단계 전에 mobile unsupported 로 즉시 실패하고 있었다.
+- 생각했고: Android 는 Windows/Web 과 같은 pack/manifest 계약을 타야 하고, iOS 는 Xcode signing/MoltenVK 결정 전까지 Android 와 섞으면 안 된다고 판단했다.
+- 반례를 찾았고: native `.so` 없이 Gradle project 만 만들고 성공 처리하면 partial package 를 완성 산출물로 오해하게 된다.
+- 고쳤다: Android 는 package staging 을 수행하되 `libJBroGame.so` 가 없으면 Gradle 실행 전에 명확히 실패하고, generated Gradle project 경로와 native library 후보 경로를 출력하게 했다.
+- 반례를 찾았고: Android asset staging 이 root `Content` 와 Gradle `assets/Content` 중 하나만 검증하면 package drift 를 놓칠 수 있다.
+- 고쳤다: root package 와 Gradle asset path 모두 binary manifest/asset pack 을 검증하고 loose `Assets`, editor artifacts, `GameScript.dll` 을 금지했다.
+- 코드를 읽었고: 실제 사용자 프로젝트 경로는 현재 이 세션에서 존재하지 않고, repo 안에는 `SampleProject/Project.Jproject` 가 있었다.
+- 생각했고: 사용자의 실제 프로젝트가 없다는 이유로 검증을 생략하지 말고, repo sample 로 package staging 계약을 확인해야 한다고 판단했다.
+- 반례를 찾았고: package folder name 은 프로젝트 폴더명이 아니라 `.Jproject` 의 `Build.ProductName` 기반이라 `SampleProject-Android-Debug` 로 보면 잘못된 실패가 난다.
+- 고쳤다: smoke assertion 을 실제 생성 폴더 `Project-Android-Debug` 기준으로 다시 확인했고 root `Content` 와 Gradle `assets/Content` 의 manifest/pack 존재를 검증했다.
+- 검증했다: PowerShell parser, `git diff --check`, Android native library fail-fast smoke, iOS unsupported smoke 를 통과했다.
+
+---
+
 # TODO — Move Camera Culling Debug To Inspector
 
 ## Goal
@@ -22,7 +68,7 @@
 - [x] main camera 필드/등록/로컬라이징 제거
 - [x] SDK mirror 갱신
 - [x] 검증
-- [ ] 커밋
+- [x] 커밋
 
 ## Verification
 - [x] `Engine` target `Debug_Editor|x64`

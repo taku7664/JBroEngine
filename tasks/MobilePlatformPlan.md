@@ -499,6 +499,80 @@ Windows Vulkan SDK 설치 확인:
 - GPU: `NVIDIA GeForce RTX 2080`
 - Vulkan Instance Version: `1.4.350`
 
+## 2026-06-07 Android package staging foundation
+
+이번 작업의 목표는 모바일을 vague 한 `Mobile` 하나로 뭉개지 않고, Android package path 를 실제 빌드 파이프라인에 연결하는 것입니다.
+
+완료한 것:
+
+- `BuildGame.ps1 -Platform Android` 가 더 이상 mobile unsupported 즉시 실패로 빠지지 않습니다.
+- Windows/Web 과 같은 공통 순서로 scene validation, asset pack 생성, binary build manifest 생성, release smoke contract 를 사용합니다.
+- Android package output 안에 Gradle project skeleton 을 생성합니다.
+- `Content/build_manifest.jbmanifest` 와 `Content/game_assets.jbpack` 을 Gradle asset path 로 staging 합니다.
+- Android manifest 는 `android.app.NativeActivity` 와 Vulkan feature requirement 를 기준으로 생성합니다.
+- Android package 에 `GameScript.dll`, loose `Content/Assets`, `SDK`, `Editor`, `Localization` 이 들어가지 않는지 검증합니다.
+- `AndroidSdkRoot` 인자를 추가해 필요 시 `ANDROID_HOME` / `ANDROID_SDK_ROOT` 를 빌드 스크립트에서 지정할 수 있게 했습니다.
+- iOS 는 Android 와 섞지 않고 Xcode signing / MoltenVK packaging 미구현 메시지로 명확히 실패합니다.
+
+현재 Android package layout:
+
+```text
+Project-Android-Debug/
+  Content/
+    build_manifest.jbmanifest
+    game_assets.jbpack
+  GradleProject/
+    settings.gradle
+    build.gradle
+    app/
+      build.gradle
+      src/main/
+        AndroidManifest.xml
+        assets/Content/
+          build_manifest.jbmanifest
+          game_assets.jbpack
+        jniLibs/<abi>/
+          libJBroGame.so
+```
+
+주의:
+
+- `libJBroGame.so` 는 아직 이 작업에서 생성하지 않습니다.
+- `.so` 가 없으면 Gradle project 와 staged assets 를 남긴 뒤, Gradle 실행 전에 명확한 오류로 실패합니다.
+- 이 상태는 "APK 완성"이 아니라 "Android 패키징 계약 연결 및 staging 완성"입니다.
+
+현재 native library lookup 순서:
+
+- Project root: `Build/Android/<abi>/<Configuration>/libJBroGame.so`
+- Project root: `Build/Android/<Configuration>/<abi>/libJBroGame.so`
+- Engine root: `Build/Android/<abi>/<Configuration>/libJBroGame.so`
+- Engine root: `Build/Android/<Configuration>/<abi>/libJBroGame.so`
+- Engine root: `PlatformBuild/Android/libs/<abi>/libJBroGame.so`
+
+다음 작업:
+
+1. Android NDK native target 추가
+   - `libJBroGame.so` 를 생성해야 합니다.
+   - runtime bootstrap 은 Windows/Web 과 같은 `CGameApplication` 경로를 타야 합니다.
+   - script 는 static contract 를 유지해야 합니다.
+
+2. Android native entry/lifecycle 연결
+   - `NativeActivity` 또는 custom Activity 중 하나를 확정합니다.
+   - `ANativeWindow` 를 `CMobileRenderSurface` 로 주입합니다.
+   - pause/resume/surface recreate/low memory 이벤트를 엔진 callback 으로 연결합니다.
+
+3. Android Vulkan runtime smoke
+   - validation layer 사용 가능 여부를 분리합니다.
+   - swapchain clear, sprite draw, asset pack startup scene load 를 기기 또는 emulator 에서 확인합니다.
+
+4. Gradle signing/output polish
+   - Debug signing 자동화
+   - Release unsigned/signed APK 또는 AAB 출력 분리
+   - `Outputs/` 하위로 최종 APK/AAB 복사
+
+5. iOS package path
+   - MoltenVK를 유지할지, Metal backend를 따로 둘지 결정 후 Xcode project 생성으로 들어갑니다.
+
 이번 Vulkan 브랜치에서 추가 완료:
 
 - 엔진/Application 프로젝트에 `$(VULKAN_SDK)\Include` 추가

@@ -10,6 +10,7 @@ param(
 
     [string]$OutputRoot = "",
     [string]$EmsdkRoot = "",
+    [string]$AndroidSdkRoot = "",
     [switch]$IncludeSymbols,
     [switch]$SkipEngineBuild,
     [switch]$SkipScriptBuild,
@@ -278,6 +279,30 @@ function Assert-RootArtifactMissing {
             throw "Forbidden editor-only artifact found in game package: $candidate"
         }
     }
+}
+
+function Write-Utf8File {
+    param(
+        [Parameter(Mandatory=$true)][string]$Path,
+        [Parameter(Mandatory=$true)][string]$Text
+    )
+
+    $parent = Split-Path -Parent $Path
+    if (-not [string]::IsNullOrWhiteSpace($parent)) {
+        New-Item -ItemType Directory -Force -Path $parent | Out-Null
+    }
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($Path, $Text, $utf8NoBom)
+}
+
+function ConvertTo-XmlEscaped {
+    param([string]$Value)
+    return [System.Security.SecurityElement]::Escape($Value)
+}
+
+function ConvertTo-GradleSingleQuoted {
+    param([string]$Value)
+    return $Value.Replace('\', '\\').Replace("'", "\'")
 }
 
 function ConvertTo-AssetTypeValue {
@@ -1058,6 +1083,225 @@ function Invoke-WebApplicationBuild {
     }
 }
 
+function Find-AndroidNativeLibrary {
+    param(
+        [Parameter(Mandatory=$true)][string]$RepoRoot,
+        [Parameter(Mandatory=$true)][string]$ProjectRoot,
+        [Parameter(Mandatory=$true)][string]$Abi,
+        [Parameter(Mandatory=$true)][string]$Configuration,
+        [Parameter(Mandatory=$true)][ref]$CheckedPaths
+    )
+
+    $candidatePaths = @(
+        (Join-Path $ProjectRoot ("Build\Android\{0}\{1}\libJBroGame.so" -f $Abi, $Configuration)),
+        (Join-Path $ProjectRoot ("Build\Android\{0}\{1}\libJBroGame.so" -f $Configuration, $Abi)),
+        (Join-Path $RepoRoot ("Build\Android\{0}\{1}\libJBroGame.so" -f $Abi, $Configuration)),
+        (Join-Path $RepoRoot ("Build\Android\{0}\{1}\libJBroGame.so" -f $Configuration, $Abi)),
+        (Join-Path $RepoRoot ("PlatformBuild\Android\libs\{0}\libJBroGame.so" -f $Abi))
+    )
+
+    $CheckedPaths.Value = $candidatePaths
+    foreach ($candidate in $candidatePaths) {
+        $fullCandidate = [System.IO.Path]::GetFullPath($candidate)
+        if (Test-Path -LiteralPath $fullCandidate -PathType Leaf) {
+            return $fullCandidate
+        }
+    }
+    return ""
+}
+
+function Find-GradleCommand {
+    param([string]$GradleProjectDir)
+
+    $wrapper = Join-Path $GradleProjectDir "gradlew.bat"
+    if (Test-Path -LiteralPath $wrapper -PathType Leaf) {
+        return $wrapper
+    }
+
+    $command = Get-Command "gradle" -ErrorAction SilentlyContinue
+    if ($command) {
+        return $command.Source
+    }
+    return ""
+}
+
+function Invoke-AndroidApplicationBuild {
+    param(
+        [Parameter(Mandatory=$true)][string]$PackageDir,
+        [Parameter(Mandatory=$true)][string]$PackageContentDir,
+        [Parameter(Mandatory=$true)][string]$RepoRoot,
+        [Parameter(Mandatory=$true)][string]$ProjectRoot,
+        [Parameter(Mandatory=$true)][string]$ProductName,
+        [Parameter(Mandatory=$true)][string]$ApplicationId,
+        [Parameter(Mandatory=$true)][int]$MinSdkVersion,
+        [Parameter(Mandatory=$true)][int]$TargetSdkVersion,
+        [Parameter(Mandatory=$true)][string]$Abi,
+        [Parameter(Mandatory=$true)][string]$Configuration,
+        [string]$AndroidSdkRoot = ""
+    )
+
+    if ($ApplicationId -notmatch '^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$') {
+        throw "Android Application ID is invalid: $ApplicationId"
+    }
+    if ([string]::IsNullOrWhiteSpace($Abi)) {
+        throw "Android ABI is empty."
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($AndroidSdkRoot)) {
+        $env:ANDROID_HOME = $AndroidSdkRoot
+        $env:ANDROID_SDK_ROOT = $AndroidSdkRoot
+    }
+
+    $gradleProjectDir = Join-Path $PackageDir "GradleProject"
+    $appDir = Join-Path $gradleProjectDir "app"
+    $mainDir = Join-Path $appDir "src\main"
+    $assetContentDir = Join-Path $mainDir "assets\Content"
+    $jniLibDir = Join-Path $mainDir ("jniLibs\{0}" -f $Abi)
+    $resValuesDir = Join-Path $mainDir "res\values"
+
+    if (Test-Path -LiteralPath $gradleProjectDir) {
+        Remove-Item -LiteralPath $gradleProjectDir -Recurse -Force
+    }
+    New-Item -ItemType Directory -Force -Path $assetContentDir | Out-Null
+    New-Item -ItemType Directory -Force -Path $jniLibDir | Out-Null
+    New-Item -ItemType Directory -Force -Path $resValuesDir | Out-Null
+
+    Copy-DirectoryClean -Source $PackageContentDir -Destination $assetContentDir
+
+    $escapedLabel = ConvertTo-XmlEscaped $ProductName
+    $gradleProductName = ConvertTo-GradleSingleQuoted $ProductName
+    $settingsGradle = @"
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+rootProject.name = '$gradleProductName-Android'
+include ':app'
+"@
+    Write-Utf8File -Path (Join-Path $gradleProjectDir "settings.gradle") -Text $settingsGradle
+
+    $rootBuildGradle = @"
+plugins {
+    id 'com.android.application' version '8.7.3' apply false
+}
+"@
+    Write-Utf8File -Path (Join-Path $gradleProjectDir "build.gradle") -Text $rootBuildGradle
+
+    $appBuildGradle = @"
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace '$ApplicationId'
+    compileSdk $TargetSdkVersion
+
+    defaultConfig {
+        applicationId '$ApplicationId'
+        minSdk $MinSdkVersion
+        targetSdk $TargetSdkVersion
+        versionCode 1
+        versionName '1.0'
+        ndk {
+            abiFilters '$Abi'
+        }
+    }
+
+    sourceSets {
+        main {
+            assets.srcDirs = ['src/main/assets']
+            jniLibs.srcDirs = ['src/main/jniLibs']
+        }
+    }
+}
+"@
+    Write-Utf8File -Path (Join-Path $appDir "build.gradle") -Text $appBuildGradle
+
+    $manifest = @"
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-feature android:name="android.hardware.vulkan.version" android:version="0x00400000" android:required="true" />
+    <application
+        android:allowBackup="false"
+        android:label="$escapedLabel"
+        android:hasCode="false"
+        android:theme="@style/JBroTheme">
+        <activity
+            android:name="android.app.NativeActivity"
+            android:exported="true"
+            android:configChanges="keyboardHidden|orientation|screenSize"
+            android:screenOrientation="sensorLandscape">
+            <meta-data android:name="android.app.lib_name" android:value="JBroGame" />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
+"@
+    Write-Utf8File -Path (Join-Path $mainDir "AndroidManifest.xml") -Text $manifest
+
+    $styles = @"
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="JBroTheme" parent="@android:style/Theme.DeviceDefault.NoActionBar">
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowIsTranslucent">false</item>
+    </style>
+</resources>
+"@
+    Write-Utf8File -Path (Join-Path $resValuesDir "styles.xml") -Text $styles
+
+    $checkedPaths = @()
+    $nativeLibrary = Find-AndroidNativeLibrary `
+        -RepoRoot $RepoRoot `
+        -ProjectRoot $ProjectRoot `
+        -Abi $Abi `
+        -Configuration $Configuration `
+        -CheckedPaths ([ref]$checkedPaths)
+    if ([string]::IsNullOrWhiteSpace($nativeLibrary)) {
+        throw "Android native library is missing: libJBroGame.so. Generated Gradle project: $gradleProjectDir. Checked: $($checkedPaths -join '; ')"
+    }
+    Copy-Item -LiteralPath $nativeLibrary -Destination (Join-Path $jniLibDir "libJBroGame.so") -Force
+
+    $gradle = Find-GradleCommand -GradleProjectDir $gradleProjectDir
+    if ([string]::IsNullOrWhiteSpace($gradle)) {
+        throw "Gradle was not found. Generated Gradle project: $gradleProjectDir. Install Gradle or add gradlew.bat before running Android packaging."
+    }
+
+    $gradleTask = if ($Configuration -eq "Debug") { "assembleDebug" } else { "assembleRelease" }
+    Push-Location $gradleProjectDir
+    try {
+        & $gradle $gradleTask
+        if ($LASTEXITCODE -ne 0) {
+            throw "Android Gradle build failed. Task=$gradleTask ExitCode=$LASTEXITCODE"
+        }
+    }
+    finally {
+        Pop-Location
+    }
+
+    $apkName = if ($Configuration -eq "Debug") { "app-debug.apk" } else { "app-release-unsigned.apk" }
+    $apkPath = Join-Path $appDir ("build\outputs\apk\{0}\{1}" -f $Configuration.ToLowerInvariant(), $apkName)
+    if (-not (Test-Path -LiteralPath $apkPath -PathType Leaf)) {
+        throw "Android APK was not generated: $apkPath"
+    }
+    Copy-Item -LiteralPath $apkPath -Destination (Join-Path $PackageDir ("{0}.apk" -f $ProductName)) -Force
+}
+
 $projectPath = (Resolve-Path -LiteralPath $Project).Path
 $projectDir = Split-Path -Parent $projectPath
 $projectInfo = Read-JBroProject -ProjectPath $projectPath
@@ -1096,8 +1340,8 @@ if ($CleanOnly) {
     exit 0
 }
 
-if ($Platform -eq "Android" -or $Platform -eq "IOS") {
-    throw "Mobile package build is not implemented yet. Platform=$Platform. The project settings and platform contract are recognized, but Android/iOS native packaging is a later step."
+if ($Platform -eq "IOS") {
+    throw "iOS package build is not implemented yet. Platform=IOS. The project settings are recognized, but Xcode signing and MoltenVK packaging are not implemented."
 }
 
 if ([string]::IsNullOrWhiteSpace($projectInfo.Build.StartupScene)) {
@@ -1178,7 +1422,7 @@ if ($Platform -eq "Windows") {
         throw "Application.exe was not found: $applicationSource"
     }
     $applicationDest = Join-Path $packageDir ("{0}.exe" -f $productName)
-} elseif ($Platform -ne "Web") {
+} elseif ($Platform -ne "Web" -and $Platform -ne "Android") {
     throw "Unsupported target platform: $Platform"
 }
 
@@ -1266,6 +1510,34 @@ if ($Platform -eq "Windows") {
     }
     if (Test-Path -LiteralPath (Join-Path $packageDir "GameScript.dll")) {
         throw "Web package verification failed: GameScript.dll must not exist."
+    }
+} elseif ($Platform -eq "Android") {
+    Invoke-AndroidApplicationBuild `
+        -PackageDir $packageDir `
+        -PackageContentDir $packageContentDir `
+        -RepoRoot $repoRoot `
+        -ProjectRoot $projectRoot `
+        -ProductName $productName `
+        -ApplicationId $projectInfo.Build.AndroidApplicationId `
+        -MinSdkVersion ([int]$projectInfo.Build.AndroidMinSdkVersion) `
+        -TargetSdkVersion ([int]$projectInfo.Build.AndroidTargetSdkVersion) `
+        -Abi $projectInfo.Build.AndroidAbi `
+        -Configuration $Configuration `
+        -AndroidSdkRoot $AndroidSdkRoot
+
+    $androidGradleProject = Join-Path $packageDir "GradleProject"
+    $androidAssetsContent = Join-Path $androidGradleProject "app\src\main\assets\Content"
+    if (-not (Test-Path -LiteralPath (Join-Path $androidAssetsContent "build_manifest.jbmanifest"))) {
+        throw "Android package verification failed: Gradle asset manifest missing."
+    }
+    if (-not (Test-Path -LiteralPath (Join-Path $androidAssetsContent "game_assets.jbpack"))) {
+        throw "Android package verification failed: Gradle asset pack missing."
+    }
+    if (Test-Path -LiteralPath (Join-Path $androidAssetsContent "Assets")) {
+        throw "Android package verification failed: loose asset folder must not exist."
+    }
+    if (Test-Path -LiteralPath (Join-Path $packageDir "GameScript.dll")) {
+        throw "Android package verification failed: GameScript.dll must not exist."
     }
 }
 if (-not (Test-Path -LiteralPath $manifestPath)) {
