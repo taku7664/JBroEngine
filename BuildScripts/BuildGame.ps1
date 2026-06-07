@@ -660,18 +660,28 @@ function Write-JBroBuildManifest {
 
     $toolExe = Get-JBroBuildManifestTool
 
+    # 빈 문자열 인자는 Windows PowerShell 5.x 의 native-exe splatting 에서 누락되어 인자가
+    # 한 칸씩 어긋난다(예: --script-module 뒤 값이 사라져 tool 이 Usage 출력 후 exit 2 →
+    # "BuildManifestTool failed to write manifest"). tool 에서 선택 인자인 product-name /
+    # startup-scene / script-module 은 비어 있으면 아예 넘기지 않는다(빈 기본값으로 처리됨).
     $args = @(
         "--out", $ManifestPath,
         "--startup-scene-guid", $StartupSceneGuid,
-        "--product-name", $ProductName,
-        "--startup-scene", $StartupScene,
         "--width", ([string]$Width),
         "--height", ([string]$Height),
         "--pixels-per-unit", ([string]::Format([System.Globalization.CultureInfo]::InvariantCulture, "{0}", $PixelsPerUnit)),
         "--target-platform", $TargetPlatform,
-        "--script-mode", $ScriptMode,
-        "--script-module", $ScriptModule
+        "--script-mode", $ScriptMode
     )
+    if (-not [string]::IsNullOrWhiteSpace($ProductName)) {
+        $args += @("--product-name", $ProductName)
+    }
+    if (-not [string]::IsNullOrWhiteSpace($StartupScene)) {
+        $args += @("--startup-scene", $StartupScene)
+    }
+    if (-not [string]::IsNullOrWhiteSpace($ScriptModule)) {
+        $args += @("--script-module", $ScriptModule)
+    }
     & $toolExe @args
     if ($LASTEXITCODE -ne 0) {
         throw "BuildManifestTool failed to write manifest: $ManifestPath"
@@ -724,15 +734,19 @@ function Invoke-JBroBuildManifestValidation {
     )
 
     $toolExe = Get-JBroBuildManifestTool
+    # 빈 문자열 인자는 Windows PowerShell 5.x splatting 에서 누락되어 인자가 어긋난다.
+    # 선택 인자(product-name / script-module)는 값이 있을 때만 추가한다.
     $args = @(
         "--validate", $ManifestPath,
         "--startup-scene-guid", $StartupSceneGuid,
-        "--product-name", $ProductName,
         "--width", ([string]$Width),
         "--height", ([string]$Height),
         "--target-platform", $TargetPlatform,
         "--script-mode", $ScriptMode
     )
+    if (-not [string]::IsNullOrWhiteSpace($ProductName)) {
+        $args += @("--product-name", $ProductName)
+    }
     if (-not [string]::IsNullOrWhiteSpace($ScriptModule)) {
         $args += @("--script-module", $ScriptModule)
     }
