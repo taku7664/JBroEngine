@@ -27,6 +27,36 @@ namespace
 			Engine.InputSystem->AccumulateText(codepoint);
 		}
 	}
+
+	// 터치 — WM_POINTER* 메시지를 InputSystem 에 누적(Win8+ 통합 포인터). 마우스는 직접 폴링이라 제외.
+	// 좌표는 스크린 → 클라이언트 변환. Ended/Cancelled 는 정보 조회 실패해도 슬롯 해제 위해 전달.
+	void AccumulateTouchPointer(HWND hwnd, WPARAM wParam, ETouchPhase phase)
+	{
+		if (nullptr == Engine.InputSystem)
+		{
+			return;
+		}
+		const std::uint32_t pointerId = GET_POINTERID_WPARAM(wParam);
+		POINTER_INFO info = {};
+		int x = 0;
+		int y = 0;
+		if (GetPointerInfo(pointerId, &info))
+		{
+			if (PT_TOUCH != info.pointerType && PT_PEN != info.pointerType)
+			{
+				return; // 마우스 포인터는 무시(마우스는 매 프레임 폴링)
+			}
+			POINT pt = info.ptPixelLocation; // 스크린 좌표
+			ScreenToClient(hwnd, &pt);
+			x = static_cast<int>(pt.x);
+			y = static_cast<int>(pt.y);
+		}
+		else if (ETouchPhase::Ended != phase && ETouchPhase::Cancelled != phase)
+		{
+			return; // Began/Moved 인데 포인터 정보 못 얻으면 무시
+		}
+		Engine.InputSystem->AccumulateTouch(static_cast<std::int32_t>(pointerId), x, y, phase);
+	}
 }
 #endif
 
@@ -251,6 +281,18 @@ LRESULT CALLBACK CWindowsRenderSurface::WindowProc(HWND hwnd, UINT message, WPAR
 		}
 		break;
 	}
+	case WM_POINTERDOWN:
+		AccumulateTouchPointer(hwnd, wParam, ETouchPhase::Began);
+		break;
+	case WM_POINTERUPDATE:
+		AccumulateTouchPointer(hwnd, wParam, ETouchPhase::Moved);
+		break;
+	case WM_POINTERUP:
+		AccumulateTouchPointer(hwnd, wParam, ETouchPhase::Ended);
+		break;
+	case WM_POINTERCAPTURECHANGED:
+		AccumulateTouchPointer(hwnd, wParam, ETouchPhase::Cancelled);
+		break;
 	default:
 		break;
 	}

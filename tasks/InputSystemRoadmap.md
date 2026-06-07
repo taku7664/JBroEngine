@@ -284,7 +284,7 @@ if (InputRegistered && InputHandler && Engine.InputSystem.IsValid())
 - `Xinput9_1_0.lib` `#pragma comment` 링크(윈도우 기본 탑재, 재배포 불필요 — 사용자 제공 X).
 
 **남은 Phase 1:**
-- ~~터치 백엔드~~ → **착수/완료(2026-06-07)**. 코어 + 웹 emscripten 콜백 + 모바일 inject. 아래 "터치 입력" 절. (Windows WM_POINTER 만 후속.)
+- ~~터치 백엔드~~ → **완료(2026-06-07)**. 코어 + 웹 emscripten 콜백 + 모바일 inject + Windows WM_POINTER. 아래 "터치 입력" 절.
 - ~~모바일 이벤트누적 백엔드~~ → **착수(2026-06-07)**. 터치 inject 계약(글루 대기). 아래 "터치 입력" 절.
 - ~~텍스트(char/IME) 누적~~ → **완료(2026-06-07)**. 아래 "텍스트 입력" 절.
 - ~~웹 게임패드 진동(Haptic Actuator)~~ → **완료(2026-06-07)**. EM_JS 로 GamepadHapticActuator 직접 호출. 아래 "웹 진동" 절.
@@ -324,6 +324,8 @@ mobile plan §Input("raw touch list 보존") 정렬. 코어 1개 + 플랫폼 생
 - **PollDevices**: 작업버퍼 활성분을 ctx.Touch 로 압축 스냅샷(공통 경로). 디바이스 비활성 시 count=0. ClearDevices(포커스상실) 시 버퍼 리셋.
 - **웹**: emscripten touchstart/move/end/cancel 콜백(Initialize 등록/Shutdown 해제) → isChanged 터치만 AccumulateTouch(targetX/Y).
 - **모바일**: `CMobilePlatform::InjectTouch(id,x,y,phase)` → `Engine.InputSystem->AccumulateTouch`. NativeActivity/UIKit 글루가 호출할 계약(surface/focus/pause/resume inject 와 동일 패턴). **글루(Phase2/3) 미구현 — 생산자 대기.**
+- **Windows**: WndProc `WM_POINTERDOWN/UPDATE/UP/CAPTURECHANGED`(Win8+ 통합 포인터) → `AccumulateTouchPointer` → AccumulateTouch.
+  `GetPointerInfo` 로 좌표(스크린→클라이언트) + 타입 필터(PT_TOUCH/PT_PEN, 마우스 제외). Ended/Cancelled 는 정보 조회 실패해도 슬롯 해제.
 - 스레드: inject 는 메인 스레드(프레임 사이) 가정(휠/텍스트와 동일). 크로스스레드 글루면 락 필요(후속).
 - 빌드 누락 수정: `BuildScripts/Web/web_game_sources.txt` 에 `InputSystem.cpp` 가 빠져 있어 웹빌드가 링크 실패했음 → 추가.
 - 검증: 코어/모바일 inject = Windows 빌드 검증. 웹 = emsdk(C:\emsdk) 컴파일에서 **InputSystem.cpp(keypress/touch/EM_JS 진동) 에러 0** 확인.
@@ -361,8 +363,8 @@ mobile plan §Input("raw touch list 보존") 정렬. 코어 1개 + 플랫폼 생
 - [x] 포커스 게이트: 뷰포트 포커스 시만 게임 입력. `FocusLost` 시 디바이스 클리어+폴링 스킵.(2026-06-07)
 - [x] 휠/delta/char 누적 → 프레임 스냅샷 합산.(휠·char 완료 2026-06-07. raw delta 는 Phase 3)
 - [~] 플랫폼 백엔드: Windows=직접폴링, Web/Mobile=이벤트누적, 게임패드=폴링. 병렬 구현.
-      (키/마우스/휠/게임패드/터치/텍스트 완료. 웹 터치/텍스트/진동 콜백 완료. 모바일 키/마우스 네이티브,
-       Windows WM_POINTER 터치는 후속. 2026-06-07)
+      (키/마우스/휠/게임패드/터치/텍스트 완료. 웹 터치/텍스트/진동 콜백 완료. Windows WM_POINTER 터치 완료.
+       모바일 키/마우스 네이티브(NativeActivity 글루)만 후속. 2026-06-07)
 - [ ] ScriptCore/SDK 노출 정리: `Input`(전역설정) + `IInputHandler`/`InputHandler`/`InputDeviceContext`/
       디바이스/`EKeyCode` 등 헤더 SDK Include 내보내기. `InputSystem`은 비공개 유지.
 
