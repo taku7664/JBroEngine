@@ -248,6 +248,11 @@ namespace
 			SetError(outError, "Binary build manifest script module payload is invalid.");
 			return false;
 		}
+		if (cursor < payload.size() && false == ReadString(payload, cursor, outManifest.ProductName))
+		{
+			SetError(outError, "Binary build manifest product name payload is invalid.");
+			return false;
+		}
 
 		const std::filesystem::path absoluteManifestPath = std::filesystem::path(ToCanonicalPath(manifestPath));
 		const std::filesystem::path contentRootPath = absoluteManifestPath.parent_path();
@@ -537,6 +542,7 @@ bool CBuildManifestLoader::WriteBinaryFile(const File::Path& manifestPath, const
 	WriteString(payload, manifest.TargetPlatform);
 	WriteString(payload, manifest.ScriptMode);
 	WriteString(payload, manifest.ScriptModule);
+	WriteString(payload, manifest.ProductName);
 
 	const std::uint32_t payloadSize = static_cast<std::uint32_t>(payload.size());
 	const std::uint64_t payloadHash = HashBytes(payload);

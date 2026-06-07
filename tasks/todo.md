@@ -1,3 +1,47 @@
+# TODO — Runtime Window Title Uses Build Product Name
+
+## Goal
+Windows 게임 빌드본의 OS 창 제목을 `JBroEngine` 고정값이 아니라 빌드 설정의 제품 이름으로 표시한다.
+
+## Assumptions
+- 제품 이름은 build manifest 에 저장된 값을 런타임에서 읽어 적용한다.
+- manifest 가 없거나 제품 이름이 비어 있으면 기존 기본값 `JBroEngine` 을 유지한다.
+- binary manifest backward compatibility 는 유지한다.
+
+## Success Criteria
+- editor build manager 경로와 `BuildGame.ps1` 경로 모두 binary manifest 에 product name 을 기록한다.
+- runtime game 은 surface 생성 전 `PlatformDesc.ApplicationName` 에 product name 을 반영한다.
+- 기존 binary manifest 에 product name 이 없어도 loader 가 실패하지 않는다.
+
+## Plan
+- [x] binary manifest write/load product name 추가
+- [x] editor build manager manifest product name 기록
+- [x] BuildManifestTool / BuildGame.ps1 product name 인자 추가
+- [x] runtime platform desc title 적용
+- [x] 빌드/검증 및 커밋
+
+## Verification
+- [x] `Engine` target `Debug_Editor|x64`
+- [x] `BuildManifestTool` target `Debug_Game|x64`
+- [x] `BuildManifestTool` target `Release_Game|x64`
+- [x] `Application:ClCompile` target `Debug_Game|x64`
+- [x] BuildManifestTool round-trip product name validation
+- [x] `BuildGame.ps1` parser check
+- [x] `git diff --check`
+
+## Review
+- 코드를 읽었고: Windows surface title 은 `PlatformDesc.ApplicationName` 에서 오며 기본값은 `JBroEngine` 이었다.
+- 생각했고: 빌드본 창 제목은 runtime package 정보이므로 `.Jproject` 를 직접 읽지 말고 build manifest 를 통해 전달해야 한다고 판단했다.
+- 반례를 찾았고: `PlatformDesc.ApplicationName` 은 `const wchar_t*` 라 지역 문자열 포인터를 넣으면 surface 생성 전에 dangling 될 수 있다.
+- 고쳤다: `CGameApplication` 멤버 `m_runtimeApplicationName` 에 wide string 을 보관하고 그 `c_str()` 를 `PlatformDesc` 에 연결했다.
+- 반례를 찾았고: binary manifest payload 에 product name 을 중간 삽입하면 기존 manifest read compatibility 를 깨뜨릴 수 있다.
+- 고쳤다: product name 을 payload 끝에 append 하고 loader 는 cursor 가 남아 있을 때만 읽게 했다.
+- 반례를 찾았고: `BuildManifestTool` 이 stale `x64/<Configuration>/Engine.lib` 를 링크해 새 loader 를 쓰지 않는 상태가 실제 round-trip 실패로 드러났다.
+- 고쳤다: `BuildManifestTool.vcxproj` 의 Engine.lib 경로를 현재 Engine 출력 위치인 `Engine/x64/<Configuration>` 으로 바꿨다.
+- 검증했다: Debug/Release `BuildManifestTool` product-name round-trip, `Engine Debug_Editor`, `Application:ClCompile Debug_Game`, `BuildGame.ps1` parser, `git diff --check` 를 통과했다.
+
+---
+
 # TODO — Android Package Staging Foundation
 
 ## Goal

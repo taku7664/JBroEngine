@@ -8,6 +8,8 @@
 
 #if !JBRO_EDITOR
 #include "Engine/Core/Game/GameModuleLoader.h"
+
+#include <string>
 #endif
 
 struct BuildManifest;
@@ -35,6 +37,7 @@ private:
 	void ShutdownRuntimeGame();
 
 	OwnerPtr<CGameModuleLoader> m_gameModuleLoader;
+	std::wstring m_runtimeApplicationName;
 	float m_runtimeRenderWidth = 1.0f;
 	float m_runtimeRenderHeight = 1.0f;
 	bool m_runtimeGameInitialized = false;

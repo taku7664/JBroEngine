@@ -5,6 +5,10 @@
 #include <string>
 #include <string_view>
 
+#if defined(_WIN32)
+#include <Windows.h>
+#endif
+
 namespace
 {
 	struct ToolOptions
@@ -13,6 +17,7 @@ namespace
 		File::Path ValidatePath;
 		std::string StartupSceneGuid;
 		std::string StartupScene;
+		std::string ProductName;
 		std::string TargetPlatform;
 		std::string ScriptMode;
 		std::string ScriptModule;
@@ -36,6 +41,27 @@ namespace
 			result.push_back(ch >= 0 && ch <= 0x7f ? static_cast<char>(ch) : '?');
 		}
 		return result;
+	}
+
+	std::string WideToUtf8(const wchar_t* text)
+	{
+		if (nullptr == text || L'\0' == text[0])
+		{
+			return {};
+		}
+#if defined(_WIN32)
+		const int requiredSize = WideCharToMultiByte(CP_UTF8, 0, text, -1, nullptr, 0, nullptr, nullptr);
+		if (requiredSize <= 1)
+		{
+			return {};
+		}
+		std::string result(static_cast<std::size_t>(requiredSize), '\0');
+		WideCharToMultiByte(CP_UTF8, 0, text, -1, result.data(), requiredSize, nullptr, nullptr);
+		result.pop_back();
+		return result;
+#else
+		return NarrowAscii(text);
+#endif
 	}
 
 	bool ParseInt(const wchar_t* text, int& outValue)
@@ -65,6 +91,7 @@ namespace
 		std::wcerr << L"Usage: BuildManifestTool"
 			<< L" --out <path>"
 			<< L" --startup-scene-guid <guid>"
+			<< L" [--product-name <name>]"
 			<< L" [--startup-scene <path>]"
 			<< L" [--width <int>]"
 			<< L" [--height <int>]"
@@ -75,6 +102,7 @@ namespace
 			<< std::endl
 			<< L"   or: BuildManifestTool --validate <path>"
 			<< L" [--startup-scene-guid <guid>]"
+			<< L" [--product-name <name>]"
 			<< L" [--width <int>]"
 			<< L" [--height <int>]"
 			<< L" [--target-platform <name>]"
@@ -112,6 +140,11 @@ namespace
 			{
 				if (false == RequireValue(argc, argv, i)) return false;
 				outOptions.StartupScene = std::filesystem::path(argv[++i]).generic_string();
+			}
+			else if (arg == L"--product-name")
+			{
+				if (false == RequireValue(argc, argv, i)) return false;
+				outOptions.ProductName = WideToUtf8(argv[++i]);
 			}
 			else if (arg == L"--width")
 			{
@@ -187,6 +220,11 @@ namespace
 			std::cerr << "Build manifest target platform mismatch." << std::endl;
 			return false;
 		}
+		if (false == options.ProductName.empty() && manifest.ProductName != options.ProductName)
+		{
+			std::cerr << "Build manifest product name mismatch." << std::endl;
+			return false;
+		}
 		if (false == options.ScriptMode.empty() && manifest.ScriptMode != options.ScriptMode)
 		{
 			std::cerr << "Build manifest script mode mismatch." << std::endl;
@@ -217,6 +255,7 @@ int wmain(int argc, wchar_t** argv)
 
 	BuildManifest manifest;
 	manifest.Version = 1;
+	manifest.ProductName = options.ProductName;
 	manifest.ResolutionWidth = options.Width;
 	manifest.ResolutionHeight = options.Height;
 	manifest.StartupSceneGuid = options.StartupSceneGuid;
@@ -240,6 +279,7 @@ int wmain(int argc, wchar_t** argv)
 		return 1;
 	}
 	if (loadedManifest.StartupSceneGuid != manifest.StartupSceneGuid
+		|| loadedManifest.ProductName != manifest.ProductName
 		|| loadedManifest.ResolutionWidth != (manifest.ResolutionWidth > 0 ? manifest.ResolutionWidth : 1280)
 		|| loadedManifest.ResolutionHeight != (manifest.ResolutionHeight > 0 ? manifest.ResolutionHeight : 720))
 	{

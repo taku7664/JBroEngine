@@ -14,6 +14,7 @@
 #include "Engine/Core/Logging/LoggerInternal.h"
 #include "Engine/Core/Platform/IRenderSurface.h"
 #include "Engine/Core/Renderer/IRenderer.h"
+#include "Engine/Utillity/String/StringUtillity.h"
 #include "Engine/GameFramework/Audio/AudioSystem.h"
 #include "Engine/GameFramework/Rendering/GameCamera.h"
 #include "Engine/GameFramework/Rendering/SpriteRenderSystem.h"
@@ -43,6 +44,11 @@ void CGameApplication::OnPreInitialize()
 				PlatformDesc platformDesc;
 				platformDesc.WindowWidth = manifest.ResolutionWidth > 0 ? manifest.ResolutionWidth : platformDesc.WindowWidth;
 				platformDesc.WindowHeight = manifest.ResolutionHeight > 0 ? manifest.ResolutionHeight : platformDesc.WindowHeight;
+				if (false == manifest.ProductName.empty())
+				{
+					m_runtimeApplicationName = Utillity::U8ToWString(manifest.ProductName);
+					platformDesc.ApplicationName = m_runtimeApplicationName.c_str();
+				}
 				engine->SetPlatformDesc(platformDesc);
 				m_runtimeRenderWidth = static_cast<float>(platformDesc.WindowWidth);
 				m_runtimeRenderHeight = static_cast<float>(platformDesc.WindowHeight);

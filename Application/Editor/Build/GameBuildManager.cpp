@@ -899,6 +899,7 @@ bool CGameBuildManager::StagePackage(const BuildDesc& desc, const File::Path& sc
 
 	BuildManifest manifest;
 	manifest.Version = 1;
+	manifest.ProductName = desc.ProductName;
 	manifest.TargetPlatform = ToString(desc.TargetPlatform);
 	manifest.StartupScene = desc.StartupScene;
 	manifest.StartupSceneGuid = desc.StartupSceneGuid;

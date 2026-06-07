@@ -648,6 +648,7 @@ function Write-JBroBuildManifest {
     param(
         [Parameter(Mandatory=$true)][string]$ManifestPath,
         [Parameter(Mandatory=$true)][string]$StartupSceneGuid,
+        [string]$ProductName = "",
         [string]$StartupScene = "",
         [int]$Width = 1280,
         [int]$Height = 720,
@@ -662,6 +663,7 @@ function Write-JBroBuildManifest {
     $args = @(
         "--out", $ManifestPath,
         "--startup-scene-guid", $StartupSceneGuid,
+        "--product-name", $ProductName,
         "--startup-scene", $StartupScene,
         "--width", ([string]$Width),
         "--height", ([string]$Height),
@@ -713,6 +715,7 @@ function Invoke-JBroBuildManifestValidation {
     param(
         [Parameter(Mandatory=$true)][string]$ManifestPath,
         [Parameter(Mandatory=$true)][string]$StartupSceneGuid,
+        [string]$ProductName = "",
         [Parameter(Mandatory=$true)][string]$TargetPlatform,
         [Parameter(Mandatory=$true)][string]$ScriptMode,
         [string]$ScriptModule = "",
@@ -724,6 +727,7 @@ function Invoke-JBroBuildManifestValidation {
     $args = @(
         "--validate", $ManifestPath,
         "--startup-scene-guid", $StartupSceneGuid,
+        "--product-name", $ProductName,
         "--width", ([string]$Width),
         "--height", ([string]$Height),
         "--target-platform", $TargetPlatform,
@@ -746,6 +750,7 @@ function Invoke-ReleasePackageSmokeTests {
         [Parameter(Mandatory=$true)][string]$ManifestPath,
         [Parameter(Mandatory=$true)][string]$AssetPackPath,
         [Parameter(Mandatory=$true)][string]$StartupSceneGuid,
+        [string]$ProductName = "",
         [Parameter(Mandatory=$true)][string]$TargetPlatform,
         [Parameter(Mandatory=$true)][string]$ScriptMode,
         [string]$ScriptModule = "",
@@ -761,6 +766,7 @@ function Invoke-ReleasePackageSmokeTests {
     Invoke-JBroBuildManifestValidation `
         -ManifestPath $ManifestPath `
         -StartupSceneGuid $StartupSceneGuid `
+        -ProductName $ProductName `
         -TargetPlatform $TargetPlatform `
         -ScriptMode $ScriptMode `
         -ScriptModule $ScriptModule `
@@ -1479,6 +1485,7 @@ $manifestScriptModule = if ($Platform -eq "Windows") { "GameScript.dll" } else {
 Write-JBroBuildManifest `
     -ManifestPath $manifestPath `
     -StartupSceneGuid $startupSceneGuid `
+    -ProductName $productName `
     -StartupScene $projectInfo.Build.StartupScene `
     -Width ([int]$projectInfo.ResolutionWidth) `
     -Height ([int]$projectInfo.ResolutionHeight) `
@@ -1556,6 +1563,7 @@ if ($Configuration -eq "Release") {
         -ManifestPath $manifestPath `
         -AssetPackPath $packageAssetPack `
         -StartupSceneGuid $startupSceneGuid `
+        -ProductName $productName `
         -TargetPlatform $Platform `
         -ScriptMode $manifestScriptMode `
         -ScriptModule $manifestScriptModule `
