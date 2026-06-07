@@ -2,42 +2,21 @@
 #include "WindowsRenderSurface.h"
 
 #include "Core/EngineCore.h"
-#include "Core/Input/Input.h"
+#include "Core/Input/InputSystem.h"
 
 #if JBRO_PLATFORM_WINDOWS
 #include <windowsx.h>
 
 namespace
 {
-	EKeyCode ToKeyCode(WPARAM wParam)
+	// 휠은 "현재 상태"가 없는 누적 신호 → 폴링 불가. 메시지로 받아 InputSystem 에 누적만 한다.
+	// (키/마우스버튼/위치는 InputSystem 이 매 프레임 직접 폴링 — 메시지 사용 안 함.)
+	void AccumulateWheel(float delta)
 	{
-		if (wParam >= 'A' && wParam <= 'Z')
+		if (Engine.InputSystem)
 		{
-			return static_cast<EKeyCode>(static_cast<int>(EKeyCode::A) + static_cast<int>(wParam - 'A'));
+			Engine.InputSystem->AccumulateWheel(delta);
 		}
-		if (wParam >= '0' && wParam <= '9')
-		{
-			return static_cast<EKeyCode>(static_cast<int>(EKeyCode::Num0) + static_cast<int>(wParam - '0'));
-		}
-
-		switch (wParam)
-		{
-		case VK_ESCAPE: return EKeyCode::Escape;
-		case VK_SPACE: return EKeyCode::Space;
-		case VK_RETURN: return EKeyCode::Enter;
-		case VK_TAB: return EKeyCode::Tab;
-		case VK_BACK: return EKeyCode::Backspace;
-		case VK_LEFT: return EKeyCode::Left;
-		case VK_RIGHT: return EKeyCode::Right;
-		case VK_UP: return EKeyCode::Up;
-		case VK_DOWN: return EKeyCode::Down;
-		default: return EKeyCode::Unknown;
-		}
-	}
-
-	bool SubmitInputMessage(const InputMessage& message)
-	{
-		return Engine.Input ? Engine.Input->SubmitMessage(message) : true;
 	}
 }
 #endif
@@ -229,81 +208,10 @@ LRESULT CALLBACK CWindowsRenderSurface::WindowProc(HWND hwnd, UINT message, WPAR
 		}
 		break;
 	}
-	case WM_KEYDOWN:
-	case WM_SYSKEYDOWN:
-	{
-		InputMessage inputMessage;
-		inputMessage.Type = EInputMessageType::KeyDown;
-		inputMessage.Key = ToKeyCode(wParam);
-		if (false == SubmitInputMessage(inputMessage))
-		{
-			return 0;
-		}
-		break;
-	}
-	case WM_KEYUP:
-	case WM_SYSKEYUP:
-	{
-		InputMessage inputMessage;
-		inputMessage.Type = EInputMessageType::KeyUp;
-		inputMessage.Key = ToKeyCode(wParam);
-		if (false == SubmitInputMessage(inputMessage))
-		{
-			return 0;
-		}
-		break;
-	}
-	case WM_LBUTTONDOWN:
-	case WM_RBUTTONDOWN:
-	case WM_MBUTTONDOWN:
-	{
-		InputMessage inputMessage;
-		inputMessage.Type = EInputMessageType::MouseDown;
-		inputMessage.MouseButton = WM_RBUTTONDOWN == message ? EMouseButton::Right : (WM_MBUTTONDOWN == message ? EMouseButton::Middle : EMouseButton::Left);
-		inputMessage.MouseX = GET_X_LPARAM(lParam);
-		inputMessage.MouseY = GET_Y_LPARAM(lParam);
-		if (false == SubmitInputMessage(inputMessage))
-		{
-			return 0;
-		}
-		break;
-	}
-	case WM_LBUTTONUP:
-	case WM_RBUTTONUP:
-	case WM_MBUTTONUP:
-	{
-		InputMessage inputMessage;
-		inputMessage.Type = EInputMessageType::MouseUp;
-		inputMessage.MouseButton = WM_RBUTTONUP == message ? EMouseButton::Right : (WM_MBUTTONUP == message ? EMouseButton::Middle : EMouseButton::Left);
-		inputMessage.MouseX = GET_X_LPARAM(lParam);
-		inputMessage.MouseY = GET_Y_LPARAM(lParam);
-		if (false == SubmitInputMessage(inputMessage))
-		{
-			return 0;
-		}
-		break;
-	}
-	case WM_MOUSEMOVE:
-	{
-		InputMessage inputMessage;
-		inputMessage.Type = EInputMessageType::MouseMove;
-		inputMessage.MouseX = GET_X_LPARAM(lParam);
-		inputMessage.MouseY = GET_Y_LPARAM(lParam);
-		if (false == SubmitInputMessage(inputMessage))
-		{
-			return 0;
-		}
-		break;
-	}
 	case WM_MOUSEWHEEL:
 	{
-		InputMessage inputMessage;
-		inputMessage.Type = EInputMessageType::MouseWheel;
-		inputMessage.WheelDelta = static_cast<float>(GET_WHEEL_DELTA_WPARAM(wParam)) / static_cast<float>(WHEEL_DELTA);
-		if (false == SubmitInputMessage(inputMessage))
-		{
-			return 0;
-		}
+		// 폴링 불가 신호 → 누적. 키/마우스버튼/위치는 InputSystem 이 매 프레임 폴링한다.
+		AccumulateWheel(static_cast<float>(GET_WHEEL_DELTA_WPARAM(wParam)) / static_cast<float>(WHEEL_DELTA));
 		break;
 	}
 	default:

@@ -355,6 +355,24 @@ LiveCompileResult CLiveCompileManager::ApplyCompileResult(LiveCompileResult resu
 		return result;
 	}
 
+	// PDB 동반 복사 — serial DLL 옆에 링커 임베드 이름(예: GameScript.pdb)으로 둔다.
+	// 디버거(VS)는 로드된 GameScript_<serial>.dll 의 디버그 디렉터리에 박힌 pdb 파일명을
+	// "모듈과 같은 폴더"에서도 찾는다. 빌드 출력 pdb 는 다음 빌드에 덮여 GUID 가 어긋날 수
+	// 있으므로(→ "심볼 없음/버전 불일치"), 이번 빌드 pdb 를 함께 복사해 중단점 바인딩을 보장한다.
+	{
+		std::error_code pdbError;
+		File::Path sourcePdb = m_desc.OutputLibraryPath;
+		sourcePdb.replace_extension(".pdb");
+		if (std::filesystem::exists(sourcePdb, pdbError))
+		{
+			const File::Path destPdb = loadablePath.parent_path() / sourcePdb.filename();
+			std::filesystem::copy_file(
+				sourcePdb, destPdb,
+				std::filesystem::copy_options::overwrite_existing, pdbError);
+			// 실패는 비치명(릴리스/PDB 미생성). 디버깅 편의용일 뿐 로드에는 영향 없음.
+		}
+	}
+
 	// ── 스냅샷 → 모듈 파괴 → 로드 → 복원 ──────────────────────────────────
 	TakeScriptSnapshot();
 	DestroyCurrentModule();

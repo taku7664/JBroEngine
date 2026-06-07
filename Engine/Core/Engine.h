@@ -22,6 +22,7 @@ class CDebugDraw2D;
 class CDebug;
 class CTime;
 class CInput;
+class CInputSystem;
 class CFileSystem;
 class CTaskManager;
 class CRandomService;
@@ -94,6 +95,7 @@ private:
 	OwnerPtr<IAudioDevice>        m_audioDevice;
 	OwnerPtr<CTime>               m_time;
 	OwnerPtr<CInput>              m_input;
+	OwnerPtr<CInputSystem>        m_inputSystem;
 	OwnerPtr<CFileSystem>         m_fileSystem;
 	OwnerPtr<CTaskManager>        m_taskManager;
 	OwnerPtr<CRandomService>      m_randomService;
@@ -120,4 +122,7 @@ private:
 	// Track the last known surface size to detect window resize each frame.
 	int m_lastSurfaceWidth  = 0;
 	int m_lastSurfaceHeight = 0;
+
+	// 입력 폴링/디스패치 게이트 — 메인 surface 포커스 상태(FocusGained/Lost 로 갱신).
+	bool m_surfaceFocused = true;
 };

@@ -44,14 +44,20 @@ enum class EMouseButton : std::uint8_t
 
 enum class EGamepadButton : std::uint8_t
 {
-	South,
-	East,
-	West,
-	North,
+	South,          // Xbox A / DualShock X
+	East,           // B / O
+	West,           // X / Square
+	North,          // Y / Triangle
 	LeftShoulder,
 	RightShoulder,
 	Start,
-	Select,
+	Select,         // Back / Share
+	DPadUp,
+	DPadDown,
+	DPadLeft,
+	DPadRight,
+	LeftThumb,      // 왼쪽 스틱 클릭(L3)
+	RightThumb,     // 오른쪽 스틱 클릭(R3)
 	Count
 };
 

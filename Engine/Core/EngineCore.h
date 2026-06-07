@@ -12,6 +12,7 @@ class IRenderer;
 class IRenderScene;
 class CFileSystem;
 class CInput;
+class CInputSystem;
 class CLocalizationManager;
 class CLogger;
 class CReflectionRegistry;
@@ -39,6 +40,7 @@ struct EngineCore
 	SafePtr<CDebug>               Debug;
 	SafePtr<CTime>                Time;
 	SafePtr<CInput>               Input;
+	SafePtr<CInputSystem>         InputSystem;  // 엔진 내부 입력 관리자(스크립트 비공개)
 	SafePtr<CSceneManager>        SceneManager;
 	SafePtr<CFileSystem>          FileSystem;
 	SafePtr<CTaskManager>         TaskManager;

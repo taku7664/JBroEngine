@@ -94,7 +94,10 @@ using GameObject = CGameObject;
 #include "Core/Asset/AssetTypes.h"
 
 // ── 입력 ────────────────────────────────────────────────────────────────────
-#include "Core/Input/Input.h"
+#include "Core/Input/Input.h"          // Script.Input facade (전역설정/진동/연결조회)
+#include "Core/Input/IInputHandler.h"  // IInputHandler + InputHandler<Layer,Order> (핸들러 상속용)
+// InputDeviceContext / Keyboard / Mouse / Gamepad / EKeyCode 등은 Input.h 가 끌어오는
+// InputDevices.h 에 정의됨.
 
 // ── 로깅 (legacy, Log::Info 등 직접 호출용) ────────────────────────────────
 #include "Core/Logging/Logger.h"

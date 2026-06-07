@@ -2,6 +2,8 @@
 #include "ScriptSystem.h"
 
 #include "Core/ScriptCore.h"
+#include "Core/EngineCore.h"
+#include "Core/Input/InputSystem.h"
 #include "Core/Logging/LoggerInternal.h"
 #include "GameFramework/Component/ScriptComponent.h"
 #include "GameFramework/Reflection/ReflectionRegistry.h"
@@ -136,6 +138,12 @@ void CScriptSystem::OnUpdate(CScene& scene)
 		{
 			if (false == script.IsEnabled)
 			{
+				// 비활성 전환 시 입력 핸들러 해제(다시 활성화되면 아래에서 재등록). 등록 주체 = InputSystem.
+				if (script.InputRegistered && script.InputHandler && Engine.InputSystem.IsValid())
+				{
+					Engine.InputSystem->UnregisterHandler(script.InputHandler);
+					script.InputRegistered = false;
+				}
 				return;
 			}
 
@@ -203,6 +211,26 @@ void CScriptSystem::OnUpdate(CScene& scene)
 			if (false == script.Instance->IsStarted())
 			{
 				script.Instance->Start();
+			}
+
+			// Start 후(완전 생성 + 활성) 입력 핸들러 등록 — 1회. ResetInstance/비활성 시 해제.
+			// 인스턴스가 에디트타임(EnsureEditTimeInstance)에 미리 생성됐을 수 있으므로,
+			// 썽크 캐싱은 생성 블록이 아니라 여기서(등록 직전) 보장한다.
+			if (false == script.InputRegistered && Engine.InputSystem.IsValid())
+			{
+				if (nullptr == script.InputHandler)
+				{
+					const ScriptTypeInfo* info = Script.Reflection->FindScript(script.ScriptTypeId);
+					if (info && info->ToInputHandler)
+					{
+						script.InputHandler = info->ToInputHandler(script.Instance);
+					}
+				}
+				if (script.InputHandler)
+				{
+					Engine.InputSystem->RegisterHandler(script.InputHandler);
+					script.InputRegistered = true;
+				}
 			}
 		});
 

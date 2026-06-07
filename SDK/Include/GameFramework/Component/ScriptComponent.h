@@ -4,6 +4,9 @@
 #include "GameFramework/Reflection/ReflectionTypes.h"
 #include "GameFramework/Reflection/ReflectionRegistry.h"
 #include "GameFramework/Scripting/GameScript.h"
+#include "Core/EngineCore.h"
+#include "Core/Input/InputSystem.h"
+#include "Core/Input/IInputHandler.h"
 
 #include <cstdint>
 #include <string>
@@ -54,6 +57,18 @@ public:
 
 	void ResetInstance()
 	{
+		// 입력 핸들러는 인스턴스 파괴 *전에* 해제(핸들러 포인터가 인스턴스 내부를 가리킴).
+		// 핫리로드/씬 언로드 시 컴포넌트 파괴 경로가 항상 여기를 거쳐 죽은 포인터를 막는다.
+		// 등록 주체는 InputSystem — 호스트 전용 경로. (ScriptComponent 는 호스트 소유 객체라
+		// ResetInstance 는 호스트에서만 emit/실행된다 → 전역 Engine 사용 안전. Ref.cpp 가
+		// ScriptComponent.h 를 DLL 에서 컴파일하지만 ResetInstance 를 odr-use 하지 않는다.)
+		if (InputRegistered && InputHandler && Engine.InputSystem.IsValid())
+		{
+			Engine.InputSystem->UnregisterHandler(InputHandler);
+		}
+		InputHandler    = nullptr;
+		InputRegistered = false;
+
 		if (Instance && DestroyInstance)
 		{
 			DestroyInstance(Instance, HostApi);
@@ -69,6 +84,12 @@ public:
 	CGameScript*      Instance        = nullptr;
 	DestroyScriptFunc DestroyInstance = nullptr;
 	const GameModuleHostApi* HostApi  = nullptr;
+
+	// ── 입력 핸들러 (스크립트가 InputHandler<...> 상속 시) ────────────────────
+	// 인스턴스 생성 시 ScriptSystem 이 ToInputHandler 썽크로 캐싱하고, Start 후 등록한다.
+	// 해제는 ResetInstance(파괴/언로드) + 비활성 전환 시. null 이면 입력 비핸들러.
+	IInputHandler* InputHandler    = nullptr;
+	bool           InputRegistered = false;
 
 	// ── 지연 복원 필드 ─────────────────────────────────────────────────────
 	// 씬 로드 또는 핫리로드 후 인스턴스 생성 시 ScriptSystem 이 적용하고 비운다.

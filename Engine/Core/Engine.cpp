@@ -6,6 +6,7 @@
 #include "Core/Debug/Debug.h"
 #include "Core/FileSystem/FileSystem.h"
 #include "Core/Input/Input.h"
+#include "Core/Input/InputSystem.h"
 #include "Core/Logging/Logger.h"
 #include "Core/Logging/LoggerInternal.h"
 #include "Core/Localization/LocalizationManager.h"
@@ -109,6 +110,12 @@ bool CEngine::Initialize()
 	{
 		m_surfaceEventToken = Engine.MainRenderSurface->Subscribe(
 			[this](const SurfaceEvent& surfaceEvent) { OnSurfaceEvent(surfaceEvent); });
+
+		// 입력 시스템에 메인 surface 주입(커서 좌표 폴링용).
+		if (m_inputSystem)
+		{
+			m_inputSystem->SetMainSurface(Engine.MainRenderSurface.TryGet());
+		}
 	}
 
 	SyncScriptCore();
@@ -118,6 +125,16 @@ bool CEngine::Initialize()
 
 void CEngine::OnSurfaceEvent(const SurfaceEvent& surfaceEvent)
 {
+	// 입력 폴링/디스패치 게이트 갱신 — 포커스 잃으면 InputSystem 이 디바이스 클리어 + dispatch 스킵.
+	if (ESurfaceEventType::FocusGained == surfaceEvent.Type)
+	{
+		m_surfaceFocused = true;
+	}
+	else if (ESurfaceEventType::FocusLost == surfaceEvent.Type)
+	{
+		m_surfaceFocused = false;
+	}
+
 	// 윈도우 이벤트를 활성 씬의 스크립트 인스턴스들에 전달(재생 중에만 인스턴스 존재 → 자동 게이팅).
 	if (m_sceneManager)
 	{
@@ -237,6 +254,16 @@ void CEngine::Finalize()
 		m_fileSystem->Finalize();
 		m_fileSystem.Reset();
 	}
+	Engine.InputSystem = nullptr;
+	if (m_inputSystem)
+	{
+		m_inputSystem->Shutdown();
+		m_inputSystem.Reset();
+	}
+	if (m_input)
+	{
+		m_input->BindSystem(nullptr);
+	}
 	Engine.Input = nullptr;
 	m_input.Reset();
 	Engine.Time = nullptr;
@@ -346,6 +373,7 @@ bool CEngine::InitializeCoreServices()
 {
 	m_time = MakeOwnerPtr<CTime>();
 	m_input = MakeOwnerPtr<CInput>();
+	m_inputSystem = MakeOwnerPtr<CInputSystem>();
 	m_fileSystem = MakeOwnerPtr<CFileSystem>();
 	m_taskManager = MakeOwnerPtr<CTaskManager>();
 	m_randomService = MakeOwnerPtr<CRandomService>();
@@ -357,7 +385,7 @@ bool CEngine::InitializeCoreServices()
 	m_localization = MakeOwnerPtr<CLocalizationManager>();
 #endif
 	m_sceneManager = MakeOwnerPtr<CSceneManager>();
-	if (!m_time || !m_input || !m_fileSystem || !m_taskManager || !m_randomService || !m_mathService || !m_reflectionRegistry || !m_logger || !m_debug || !m_sceneManager)
+	if (!m_time || !m_input || !m_inputSystem || !m_fileSystem || !m_taskManager || !m_randomService || !m_mathService || !m_reflectionRegistry || !m_logger || !m_debug || !m_sceneManager)
 	{
 		return false;
 	}
@@ -380,8 +408,13 @@ bool CEngine::InitializeCoreServices()
 
 	m_debugDraw = MakeOwnerPtr<CDebugDraw2D>();
 
+	m_inputSystem->Initialize();
+	m_inputSystem->SetTaskManager(m_taskManager.Get()); // 진동 타이머 워커 스레드용
+	m_input->BindSystem(m_inputSystem.Get());
+
 	Engine.Time = m_time.GetSafePtr();
 	Engine.Input = m_input.GetSafePtr();
+	Engine.InputSystem = m_inputSystem.GetSafePtr();
 	Engine.FileSystem = m_fileSystem.GetSafePtr();
 	Engine.TaskManager = m_taskManager.GetSafePtr();
 	Engine.Random = m_randomService.GetSafePtr();
@@ -579,9 +612,10 @@ void CEngine::BeginFrame()
 	{
 		m_time->BeginFrame();
 	}
-	if (m_input)
+	if (m_inputSystem)
 	{
-		m_input->BeginFrame();
+		// 프레임 입력 갱신 + 레이어 순 핸들러 dispatch(포커스 게이트). 메시지가 아니라 프레임이 구동.
+		m_inputSystem->Update(m_surfaceFocused);
 	}
 	if (m_taskManager)
 	{
@@ -729,10 +763,6 @@ void CEngine::EndFrame()
 		{
 			module->EndFrame();
 		}
-	}
-	if (m_input)
-	{
-		m_input->EndFrame();
 	}
 }
 

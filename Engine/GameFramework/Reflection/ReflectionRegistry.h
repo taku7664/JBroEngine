@@ -3,6 +3,7 @@
 #include "GameFramework/Reflection/ReflectionTypes.h"
 #include "GameFramework/Scripting/ScriptMacros.h"
 #include "Core/Game/GameModuleTypes.h"
+#include "Core/Input/IInputHandler.h"
 #include "GameFramework/Scene/Scene.h"
 #include "GameFramework/Scripting/GameScript.h"
 #include "Utillity/Pointer/SafePtr.h"
@@ -25,6 +26,11 @@ using ComponentAddressesFunc        = std::vector<void*>(*)(CGameObject& object)
 // 스크립트 인스턴스 팩토리 함수 타입
 using CreateScriptFunc = CGameScript*(*)(const GameModuleHostApi* hostApi);
 using DestroyScriptFunc = void(*)(CGameScript* script, const GameModuleHostApi* hostApi);
+
+// CGameScript* → IInputHandler* 사이드캐스트 썽크. 타입 T 가 IInputHandler 를 상속할 때만
+// 채워진다(RegisterScript<T> 의 if constexpr). 컴파일타임 정적 캐스트 — RTTI(dynamic_cast) 미사용.
+// null 이면 그 스크립트는 입력 핸들러가 아니다.
+using ScriptToInputHandlerFunc = IInputHandler*(*)(CGameScript* script);
 
 struct ScriptInstanceHandle
 {
@@ -54,6 +60,7 @@ struct ScriptTypeInfo
 	std::vector<ReflectPropertyInfo> Properties;       // REFLECT_FIELD 로 자동 채워짐
 	CreateScriptFunc  CreateInstance  = nullptr;
 	DestroyScriptFunc DestroyInstance = nullptr;
+	ScriptToInputHandlerFunc ToInputHandler = nullptr; // 입력 핸들러 상속 시에만 채워짐(아니면 null)
 };
 
 class CComponentRegistration final
@@ -237,6 +244,16 @@ bool CReflectionRegistry::RegisterScript(const ScriptRegisterDesc& desc)
 		}
 	};
 
+	// ── 입력 핸들러 사이드캐스트 썽크 ───────────────────────────────────────
+	// T 가 IInputHandler 를 상속하면(InputHandler<...> 경유) CGameScript*→IInputHandler*
+	// 정적 캐스트 썽크를 채운다. ScriptComponent 가 이걸로 핸들러를 얻어 등록한다(RTTI 미사용).
+	if constexpr (std::is_base_of_v<IInputHandler, T>)
+	{
+		typeInfo.ToInputHandler = [](CGameScript* script) -> IInputHandler* {
+			return static_cast<T*>(script);
+		};
+	}
+
 	// ── REFLECT_FIELD 자동 등록 ─────────────────────────────────────────────
 	// SCRIPT_CLASS(T) 를 사용한 스크립트는 GetReflectEntries() 가 있다.
 	// 없는 클래스(레거시)는 Properties 가 비어 있는 채로 등록된다.
@@ -285,6 +302,13 @@ bool CReflectionRegistry::RegisterScript(const ScriptRegisterDesc& desc, const s
 		static_cast<T*>(script)->~T();
 		if (hostApi && hostApi->Free) { hostApi->Free(script, sizeof(T), alignof(T)); }
 	};
+
+	if constexpr (std::is_base_of_v<IInputHandler, T>)
+	{
+		typeInfo.ToInputHandler = [](CGameScript* script) -> IInputHandler* {
+			return static_cast<T*>(script);
+		};
+	}
 
 	for (const ScriptPropertyDesc& d : properties)
 	{

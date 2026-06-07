@@ -567,6 +567,9 @@
     <ClInclude Include="Core\Input\Input.h" />
     <ClInclude Include="Core\Input\InputTypes.h" />
     <ClInclude Include="Core\Input\IInputMessageHandler.h" />
+    <ClInclude Include="Core\Input\InputDevices.h" />
+    <ClInclude Include="Core\Input\IInputHandler.h" />
+    <ClInclude Include="Core\Input\InputSystem.h" />
     <ClInclude Include="Core\Localization\LocalizationManager.h" />
     <ClInclude Include="Core\Resource\ResourceRegistry.h" />
     <ClInclude Include="Core\Logging\Logger.h" />
@@ -768,6 +771,7 @@
     </ClCompile>
     <ClCompile Include="Core\FileSystem\FileSystem.cpp" />
     <ClCompile Include="Core\Input\Input.cpp" />
+    <ClCompile Include="Core\Input\InputSystem.cpp" />
     <ClCompile Include="Core\Localization\LocalizationManager.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
