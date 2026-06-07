@@ -116,9 +116,14 @@ Entries:
   build_settings.category.general: General
   build_settings.category.scenes: Scenes
   build_settings.category.output: Output
+  build_settings.category.web: Web
   build_settings.category.windows: Windows
   build_settings.category.android: Android
   build_settings.category.ios: iOS
+  build_settings.common_categories: Common
+  build_settings.common_category_tooltip: Settings applied to every build regardless of platform.
+  build_settings.platform_categories: Platform
+  build_settings.platform_category_tooltip: Additional settings required by the selected target platform.
   build_settings.general: General
   build_settings.product_name: Product Name
   build_settings.windows_icon: Application Icon
@@ -152,6 +157,7 @@ Entries:
   build_settings.save_failed: Failed to save build settings.
   build_settings.apply_required: Apply Build Settings
   build_settings.apply_required_body: Build settings have unsaved changes. Press Apply in the Build Settings window, then build again.
+  build_settings.required_missing_body: Required build settings are empty or invalid. Fix the red fields, then build again.
   build.progress.title: Game Build
   build.progress.body: Creating game build.
   build.progress.validate: Validate build settings

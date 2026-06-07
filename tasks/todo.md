@@ -1,3 +1,47 @@
+# TODO — Build Settings Required Field Validation
+
+## Goal
+BuildSettingsWindow 의 필수 설정 라벨에 별도 `*` 표시를 붙이고, 값이 비어 있거나 이상한 필드는 invalid input border 로 표시한다.
+
+## Assumptions
+- 필수 표시는 localization 문자열에 `*` 를 섞지 않고, 라벨 출력 직후 `SameLine()` 으로 별도 출력한다.
+- 텍스트 필드는 기존 `ImInputText` 의 `invalid` 인자를 사용한다.
+- 숫자/읽기전용 path 입력은 같은 invalid border 스타일을 직접 적용한다.
+- 현재 BuildSettings 는 단일 TargetPlatform 계약이므로 RootDock build menu 는 단일 대상 빌드 항목 기준으로 정리한다.
+
+## Success Criteria
+- ProductName, StartupScene, OutputDirectory 가 필수 라벨과 invalid border 를 가진다.
+- Android/iOS 플랫폼 설정의 필수 ID 필드와 SDK 값이 비정상일 때 invalid 표시가 뜬다.
+- 플랫폼 카테고리의 임시 checkbox/TODO UI 가 사라지고 현재 target platform 기준 표시로 정리된다.
+- RootDock build menu 의 TODO 주석 경로가 실제 단일 대상 빌드 메뉴 아이템으로 동작한다.
+
+## Plan
+- [x] BuildSettings validation/helper 추가
+- [x] 필수 라벨/invalid input 적용
+- [x] RootDock build menu 단일 대상 빌드 item 연결
+- [x] localization key 정리
+- [x] 빌드/검증 및 커밋
+
+## Verification
+- [x] `Application:ClCompile Debug_Editor|x64`
+- [x] `git diff --check`
+
+## Review
+- 코드를 읽었고: `BuildSettingsWindow` 의 TODO 는 공통/플랫폼 카테고리 헤더, 임시 플랫폼 checkbox, 필수 설정 표시가 한곳에 섞여 있었다.
+- 생각했고: 별표는 번역 문자열의 일부가 아니라 필수 UI 상태이므로 label 출력 직후 `SameLine()` 으로 별도 렌더링해야 한다고 판단했다.
+- 반례를 찾았고: startup/output 경로 입력은 raw read-only `ImGui::InputText` 라서 `ImInputText` 의 `invalid` 인자만으로는 빨간 외곽선이 뜨지 않는다.
+- 고쳤다: 텍스트 필드는 `ImInputText(..., invalid)` 를 쓰고, 읽기전용 path/숫자 입력은 같은 border style 을 직접 push/pop 하게 했다.
+- 반례를 찾았고: 숫자 입력은 입력 중 값이 바뀌면 push 조건과 pop 조건이 달라질 수 있다.
+- 고쳤다: invalid 여부를 입력 호출 전에 지역 변수로 고정해 style stack 불일치를 막았다.
+- 코드를 읽었고: `RootDockWindow` 의 빌드 메뉴 TODO 경로는 이전 단일 `MenuItem` 또는 미완성 `BeginMenu` 구조로 남아 있었다.
+- 생각했고: 현재 `ProjectBuildSettings` 는 단일 TargetPlatform 계약이므로 multi-platform batch build 를 임시 구현하지 않고 현재 대상 플랫폼 item 하나만 연결하는 것이 맞다.
+- 반례를 찾았고: 필수 설정이 비어 있어도 빌드 메뉴가 정상 색으로 보이면 사용자는 왜 빌드가 실패하는지 메뉴 단계에서 알 수 없다.
+- 고쳤다: 저장된 build settings 기준 필수 설정 누락 시 메뉴 item 을 빨간색으로 표시하고, 클릭하면 BuildSettings 창의 첫 invalid category 로 이동하게 했다.
+- 반례를 찾았고: BuildSettings 는 시작 씬 확장자와 iOS 형식을 invalid 로 보는데 RootDock 이 빈 값만 검사하면 같은 설정을 서로 다르게 판단한다.
+- 고쳤다: RootDock 의 빌드 메뉴 차단 기준을 BuildSettings 의 필수 검증 기준과 맞췄다.
+
+---
+
 # TODO — Runtime Window Title Uses Build Product Name
 
 ## Goal

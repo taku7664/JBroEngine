@@ -116,9 +116,14 @@ Entries:
   build_settings.category.general: 일반
   build_settings.category.scenes: 씬
   build_settings.category.output: 출력
+  build_settings.category.web: Web
   build_settings.category.windows: Windows
   build_settings.category.android: Android
   build_settings.category.ios: iOS
+  build_settings.common_categories: 공통
+  build_settings.common_category_tooltip: 플랫폼과 무관하게 모든 빌드에 적용되는 설정입니다.
+  build_settings.platform_categories: 플랫폼
+  build_settings.platform_category_tooltip: 선택한 대상 플랫폼에 필요한 추가 설정입니다.
   build_settings.general: 일반
   build_settings.product_name: 제품 이름
   build_settings.windows_icon: 응용프로그램 아이콘
@@ -152,6 +157,7 @@ Entries:
   build_settings.save_failed: 빌드 설정 저장에 실패했습니다.
   build_settings.apply_required: 빌드 설정 적용 필요
   build_settings.apply_required_body: 빌드 설정에 저장되지 않은 변경 사항이 있습니다. 빌드 세팅 창에서 적용을 누른 뒤 다시 빌드하세요.
+  build_settings.required_missing_body: 필수 빌드 설정이 비어 있거나 올바르지 않습니다. 빨간색으로 표시된 항목을 수정한 뒤 다시 빌드하세요.
   build.progress.title: 게임 빌드
   build.progress.body: 게임 빌드를 생성하는 중입니다.
   build.progress.validate: 빌드 설정 검증

@@ -22,8 +22,186 @@
 #include "Utillity/File/FileUtillities.h"
 #include "Utillity/String/StringUtillity.h"
 
+#include <algorithm>
+#include <cctype>
+#include <cwctype>
+
 namespace
 {
+	bool IsBlank(const std::string& value)
+	{
+		return value.find_first_not_of(" \t\r\n") == std::string::npos;
+	}
+
+	bool IsAsciiAlpha(char value)
+	{
+		return 0 != std::isalpha(static_cast<unsigned char>(value));
+	}
+
+	bool IsAsciiAlnum(char value)
+	{
+		return 0 != std::isalnum(static_cast<unsigned char>(value));
+	}
+
+	bool IsAndroidIdentifierSegment(const std::string& segment)
+	{
+		if (segment.empty() || false == IsAsciiAlpha(segment.front()))
+		{
+			return false;
+		}
+
+		return std::all_of(segment.begin() + 1, segment.end(), [](char value) {
+			return IsAsciiAlnum(value) || value == '_';
+		});
+	}
+
+	bool IsDottedAndroidIdentifier(const std::string& value)
+	{
+		if (IsBlank(value))
+		{
+			return false;
+		}
+
+		std::size_t segmentCount = 0;
+		std::size_t start = 0;
+		while (start <= value.size())
+		{
+			const std::size_t end = value.find('.', start);
+			const std::string segment = value.substr(start, end == std::string::npos ? std::string::npos : end - start);
+			if (false == IsAndroidIdentifierSegment(segment))
+			{
+				return false;
+			}
+			++segmentCount;
+			if (end == std::string::npos)
+			{
+				break;
+			}
+			start = end + 1;
+		}
+		return segmentCount >= 2;
+	}
+
+	bool IsBundleIdentifierSegment(const std::string& segment)
+	{
+		if (segment.empty() || false == IsAsciiAlnum(segment.front()))
+		{
+			return false;
+		}
+
+		return std::all_of(segment.begin() + 1, segment.end(), [](char value) {
+			return IsAsciiAlnum(value) || value == '-';
+		});
+	}
+
+	bool IsDottedBundleIdentifier(const std::string& value)
+	{
+		if (IsBlank(value))
+		{
+			return false;
+		}
+
+		std::size_t segmentCount = 0;
+		std::size_t start = 0;
+		while (start <= value.size())
+		{
+			const std::size_t end = value.find('.', start);
+			const std::string segment = value.substr(start, end == std::string::npos ? std::string::npos : end - start);
+			if (false == IsBundleIdentifierSegment(segment))
+			{
+				return false;
+			}
+			++segmentCount;
+			if (end == std::string::npos)
+			{
+				break;
+			}
+			start = end + 1;
+		}
+		return segmentCount >= 2;
+	}
+
+	bool IsVersionString(const std::string& value)
+	{
+		if (IsBlank(value))
+		{
+			return false;
+		}
+
+		bool hasDigitInSegment = false;
+		for (char ch : value)
+		{
+			if (std::isdigit(static_cast<unsigned char>(ch)))
+			{
+				hasDigitInSegment = true;
+				continue;
+			}
+			if (ch == '.' && hasDigitInSegment)
+			{
+				hasDigitInSegment = false;
+				continue;
+			}
+			return false;
+		}
+		return hasDigitInSegment;
+	}
+
+	bool HasJSceneExtension(const std::string& value)
+	{
+		if (IsBlank(value))
+		{
+			return false;
+		}
+
+		std::wstring extension = File::Path(Utillity::U8ToWString(value)).extension().wstring();
+		std::transform(extension.begin(), extension.end(), extension.begin(), [](wchar_t ch) {
+			return static_cast<wchar_t>(std::towlower(ch));
+		});
+		return extension == L".jscene";
+	}
+
+	bool HasRequiredBuildSettingsIssue(const ProjectBuildSettings& settings)
+	{
+		if (IsBlank(settings.ProductName)
+			|| IsBlank(settings.OutputDirectory)
+			|| false == HasJSceneExtension(settings.StartupScene))
+		{
+			return true;
+		}
+
+		if (settings.TargetPlatform == EBuildTargetPlatform::Android)
+		{
+			return false == IsDottedAndroidIdentifier(settings.AndroidApplicationId)
+				|| 0 == settings.AndroidMinSdkVersion
+				|| 0 == settings.AndroidTargetSdkVersion
+				|| settings.AndroidTargetSdkVersion < settings.AndroidMinSdkVersion;
+		}
+
+		if (settings.TargetPlatform == EBuildTargetPlatform::IOS)
+		{
+			return false == IsDottedBundleIdentifier(settings.IOSBundleIdentifier)
+				|| false == IsVersionString(settings.IOSMinimumOSVersion);
+		}
+
+		return false;
+	}
+
+	const char* BuildPlatformLabelKey(EBuildTargetPlatform platform)
+	{
+		switch (platform)
+		{
+		case EBuildTargetPlatform::Web:
+			return "build_settings.category.web";
+		case EBuildTargetPlatform::Android:
+			return "build_settings.category.android";
+		case EBuildTargetPlatform::IOS:
+			return "build_settings.category.ios";
+		case EBuildTargetPlatform::Windows:
+		default:
+			return "build_settings.category.windows";
+		}
+	}
+
 	void TryLoadLastScene(SafePtr<CProjectManager> pm)
 	{
 		if (false == pm.IsValid() || false == pm->IsProjectLoaded())
@@ -592,9 +770,36 @@ void CRootDockWindow::OnMenuBar()
 		{
 			ImGui::BeginDisabled();
 		}
-		if (ImGui::MenuItem(Loc::Text("menu.file.build")))
+		if (ImGui::BeginMenu(Loc::Text("menu.file.build")))
 		{
-			StartGameBuild();
+			const ProjectBuildSettings& buildSettings = pm->GetBuildSettings();
+			const bool requiredIssue = HasRequiredBuildSettingsIssue(buildSettings);
+			if (requiredIssue)
+			{
+				ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.35f, 0.30f, 1.0f));
+			}
+			if (ImGui::MenuItem(Loc::Text(BuildPlatformLabelKey(buildSettings.TargetPlatform))))
+			{
+				if (requiredIssue)
+				{
+					if (Editor::BuildSettings)
+					{
+						Editor::BuildSettings->SetVisible(true);
+						Editor::BuildSettings->FocusFirstInvalidCategory();
+						Editor::BuildSettings->Focus();
+					}
+					OpenBuildBlockedPopup(Loc::Text("build_settings.required_missing_body"));
+				}
+				else
+				{
+					StartGameBuild();
+				}
+			}
+			if (requiredIssue)
+			{
+				ImGui::PopStyleColor();
+			}
+			ImGui::EndMenu();
 		}
 		if (false == canBuild)
 		{

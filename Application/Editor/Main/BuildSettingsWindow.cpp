@@ -13,11 +13,13 @@
 #include "Utillity/String/StringUtillity.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cwctype>
 
 namespace
 {
 	const File::Path WINDOWS_ICON_ASSET_PATH = "Package/Windows/AppIcon.ico";
+	const ImVec4 REQUIRED_FIELD_COLOR(0.95f, 0.35f, 0.30f, 1.0f);
 
 	int ToIndex(EBuildTargetPlatform platform)
 	{
@@ -137,6 +139,158 @@ namespace
 		return extension == L".ico";
 	}
 
+	bool IsBlank(const std::string& value)
+	{
+		return value.find_first_not_of(" \t\r\n") == std::string::npos;
+	}
+
+	bool HasExtensionIgnoreCase(const std::string& value, const wchar_t* expectedExtension)
+	{
+		if (IsBlank(value))
+		{
+			return false;
+		}
+
+		std::wstring extension = File::Path(Utillity::U8ToWString(value)).extension().wstring();
+		std::transform(extension.begin(), extension.end(), extension.begin(), [](wchar_t ch) {
+			return static_cast<wchar_t>(std::towlower(ch));
+		});
+		return extension == expectedExtension;
+	}
+
+	bool IsAsciiAlpha(char value)
+	{
+		return 0 != std::isalpha(static_cast<unsigned char>(value));
+	}
+
+	bool IsAsciiAlnum(char value)
+	{
+		return 0 != std::isalnum(static_cast<unsigned char>(value));
+	}
+
+	bool IsAndroidIdentifierSegment(const std::string& segment)
+	{
+		if (segment.empty() || false == IsAsciiAlpha(segment.front()))
+		{
+			return false;
+		}
+
+		return std::all_of(segment.begin() + 1, segment.end(), [](char value) {
+			return IsAsciiAlnum(value) || value == '_';
+		});
+	}
+
+	bool IsBundleIdentifierSegment(const std::string& segment)
+	{
+		if (segment.empty() || false == IsAsciiAlnum(segment.front()))
+		{
+			return false;
+		}
+
+		return std::all_of(segment.begin() + 1, segment.end(), [](char value) {
+			return IsAsciiAlnum(value) || value == '-';
+		});
+	}
+
+	template <typename Predicate>
+	bool IsDottedIdentifier(const std::string& value, Predicate segmentValidator)
+	{
+		if (IsBlank(value))
+		{
+			return false;
+		}
+
+		std::size_t segmentCount = 0;
+		std::size_t start = 0;
+		while (start <= value.size())
+		{
+			const std::size_t end = value.find('.', start);
+			const std::string segment = value.substr(start, end == std::string::npos ? std::string::npos : end - start);
+			if (false == segmentValidator(segment))
+			{
+				return false;
+			}
+			++segmentCount;
+			if (end == std::string::npos)
+			{
+				break;
+			}
+			start = end + 1;
+		}
+		return segmentCount >= 2;
+	}
+
+	bool IsVersionString(const std::string& value)
+	{
+		if (IsBlank(value))
+		{
+			return false;
+		}
+
+		bool hasDigitInSegment = false;
+		for (char ch : value)
+		{
+			if (std::isdigit(static_cast<unsigned char>(ch)))
+			{
+				hasDigitInSegment = true;
+				continue;
+			}
+			if (ch == '.' && hasDigitInSegment)
+			{
+				hasDigitInSegment = false;
+				continue;
+			}
+			return false;
+		}
+		return hasDigitInSegment;
+	}
+
+	void PushInvalidInputStyle(bool invalid)
+	{
+		if (false == invalid)
+		{
+			return;
+		}
+
+		ImGui::PushStyleColor(ImGuiCol_Border, REQUIRED_FIELD_COLOR);
+		ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.5f);
+	}
+
+	void PopInvalidInputStyle(bool invalid)
+	{
+		if (false == invalid)
+		{
+			return;
+		}
+
+		ImGui::PopStyleVar();
+		ImGui::PopStyleColor();
+	}
+
+	void DrawFieldLabel(const char* labelKey, const char* tooltipKey, bool required)
+	{
+		ImText label;
+		label.SetHoveredTooltip(Loc::Text(tooltipKey));
+		label(Loc::Text(labelKey));
+		if (required)
+		{
+			ImGui::SameLine(0.0f, 2.0f);
+			ImGui::TextColored(REQUIRED_FIELD_COLOR, "*");
+		}
+	}
+
+	bool DrawInputTextWithInvalid(const char* inputId, std::string& value, bool invalid)
+	{
+		ImInputText input(inputId);
+		input.SetText(value);
+		if (input(ImGuiInputTextFlags_None, invalid))
+		{
+			value = input.GetString();
+			return true;
+		}
+		return false;
+	}
+
 	std::string MakeBrowseId(const char* suffix)
 	{
 		std::string id = Loc::Text("common.browse");
@@ -149,7 +303,8 @@ namespace
 		std::string& value,
 		const char* buttonSuffix,
 		const wchar_t* title,
-		const std::wstring& initialDirectory)
+		const std::wstring& initialDirectory,
+		bool invalid = false)
 	{
 		const std::string browseId = MakeBrowseId(buttonSuffix);
 		const float buttonWidth = ImGui::CalcTextSize(Loc::Text("common.browse")).x
@@ -157,7 +312,9 @@ namespace
 			+ 8.0f;
 
 		ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - buttonWidth - ImGui::GetStyle().ItemInnerSpacing.x);
+		PushInvalidInputStyle(invalid);
 		ImGui::InputText(inputId, &value, ImGuiInputTextFlags_ReadOnly);
+		PopInvalidInputStyle(invalid);
 		ImGui::SameLine();
 		return ImGui::Utillity::BrowseFolderButton(browseId.c_str(), value, title, initialDirectory.c_str());
 	}
@@ -168,7 +325,8 @@ namespace
 		const char* buttonSuffix,
 		const wchar_t* title,
 		const std::wstring& initialDirectory,
-		std::vector<File::FileDialogFilter> filters)
+		std::vector<File::FileDialogFilter> filters,
+		bool invalid = false)
 	{
 		const std::string browseId = MakeBrowseId(buttonSuffix);
 		const float buttonWidth = ImGui::CalcTextSize(Loc::Text("common.browse")).x
@@ -176,7 +334,9 @@ namespace
 			+ 8.0f;
 
 		ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - buttonWidth - ImGui::GetStyle().ItemInnerSpacing.x);
+		PushInvalidInputStyle(invalid);
 		ImGui::InputText(inputId, &value, ImGuiInputTextFlags_ReadOnly);
+		PopInvalidInputStyle(invalid);
 		ImGui::SameLine();
 		return ImGui::Utillity::BrowseFileButton(
 			browseId.c_str(), value, title, initialDirectory.c_str(), std::move(filters));
@@ -241,20 +401,54 @@ void CBuildSettingsWindow::OnRenderStay()
 void CBuildSettingsWindow::DrawCategoryList(float)
 {
 	struct CategoryEntry { ECategory Kind; const char* LocKey; };
-	static const CategoryEntry categories[] = {
+	static const CategoryEntry commonEntry[] = {
 		{ ECategory::General, "build_settings.category.general" },
 		{ ECategory::Scenes,  "build_settings.category.scenes"  },
 		{ ECategory::Output,  "build_settings.category.output"  },
+	};
+	static const CategoryEntry platformEntry[] = {
 		{ ECategory::Windows, "build_settings.category.windows" },
 		{ ECategory::Android, "build_settings.category.android" },
 		{ ECategory::IOS,     "build_settings.category.ios"     },
 	};
 
-	for (const CategoryEntry& entry : categories)
+	ImText header;
+	header.UseSeparator(true);
+	header.SetHoveredTooltip(Loc::Text("build_settings.common_category_tooltip"));
+	header(Loc::Text("build_settings.common_categories"));
+	for (const CategoryEntry& entry : commonEntry)
 	{
+		const bool invalid = HasCategoryInvalid(entry.Kind);
+		if (invalid)
+		{
+			ImGui::PushStyleColor(ImGuiCol_Text, REQUIRED_FIELD_COLOR);
+		}
 		if (ImGui::Selectable(Loc::Text(entry.LocKey), entry.Kind == m_selectedCategory))
 		{
 			m_selectedCategory = entry.Kind;
+		}
+		if (invalid)
+		{
+			ImGui::PopStyleColor();
+		}
+	}
+
+	header.SetHoveredTooltip(Loc::Text("build_settings.platform_category_tooltip"));
+	header(Loc::Text("build_settings.platform_categories"));
+	for (const CategoryEntry& entry : platformEntry)
+	{
+		const bool invalid = HasCategoryInvalid(entry.Kind);
+		if (invalid)
+		{
+			ImGui::PushStyleColor(ImGuiCol_Text, REQUIRED_FIELD_COLOR);
+		}
+		if (ImGui::Selectable(Loc::Text(entry.LocKey), entry.Kind == m_selectedCategory))
+		{
+			m_selectedCategory = entry.Kind;
+		}
+		if (invalid)
+		{
+			ImGui::PopStyleColor();
 		}
 	}
 }
@@ -280,12 +474,10 @@ void CBuildSettingsWindow::DrawGeneralCategory()
 	ImGui::Utillity::FormLayout layout("##build_settings_general", 4.0f, { 2.0f, 1.0f }, 150.0f);
 	layout.Row(
 		[&]() {
-			ImText label;
-			label.SetHoveredTooltip(Loc::Text("build_settings.product_name.desc"));
-			label(Loc::Text("build_settings.product_name"));
+			DrawFieldLabel("build_settings.product_name", "build_settings.product_name.desc", true);
 		},
 		[&]() {
-			if (ImGui::InputText("##build.product_name", &m_productName))
+			if (DrawInputTextWithInvalid("##build.product_name", m_productName, IsProductNameInvalid()))
 			{
 				MarkDirty();
 			}
@@ -294,9 +486,7 @@ void CBuildSettingsWindow::DrawGeneralCategory()
 	const char* platforms[] = { "Windows", "Web", "Android", "IOS" };
 	layout.Row(
 		[&]() {
-			ImText label;
-			label.SetHoveredTooltip(Loc::Text("build_settings.target_platform.desc"));
-			label(Loc::Text("build_settings.target_platform"));
+			DrawFieldLabel("build_settings.target_platform", "build_settings.target_platform.desc", false);
 		},
 		[&]() {
 			if (ImGui::Combo("##build.target_platform", &m_targetPlatform, platforms, IM_ARRAYSIZE(platforms)))
@@ -308,9 +498,7 @@ void CBuildSettingsWindow::DrawGeneralCategory()
 	const char* configurations[] = { "Debug", "Release" };
 	layout.Row(
 		[&]() {
-			ImText label;
-			label.SetHoveredTooltip(Loc::Text("build_settings.configuration.desc"));
-			label(Loc::Text("build_settings.configuration"));
+			DrawFieldLabel("build_settings.configuration", "build_settings.configuration.desc", false);
 		},
 		[&]() {
 			if (ImGui::Combo("##build.configuration", &m_buildConfiguration, configurations, IM_ARRAYSIZE(configurations)))
@@ -332,9 +520,7 @@ void CBuildSettingsWindow::DrawWindowsCategory()
 	ImGui::Utillity::FormLayout layout("##build_settings_windows", 4.0f, { 2.0f, 1.0f }, 170.0f);
 	layout.Row(
 		[&]() {
-			ImText label;
-			label.SetHoveredTooltip(Loc::Text("build_settings.windows_icon.desc"));
-			label(Loc::Text("build_settings.windows_icon"));
+			DrawFieldLabel("build_settings.windows_icon", "build_settings.windows_icon.desc", false);
 		},
 		[&]() {
 			DrawWindowsIconSelector();
@@ -350,14 +536,13 @@ void CBuildSettingsWindow::DrawAndroidCategory()
 	}
 
 	ImGui::Utillity::FormLayout layout("##build_settings_android", 4.0f, { 2.0f, 1.0f }, 170.0f);
+	const bool validateAndroid = ToBuildTargetPlatform(m_targetPlatform) == EBuildTargetPlatform::Android;
 	layout.Row(
 		[&]() {
-			ImText label;
-			label.SetHoveredTooltip(Loc::Text("build_settings.android_application_id.desc"));
-			label(Loc::Text("build_settings.android_application_id"));
+			DrawFieldLabel("build_settings.android_application_id", "build_settings.android_application_id.desc", true);
 		},
 		[&]() {
-			if (ImGui::InputText("##build.android_application_id", &m_androidApplicationId))
+			if (DrawInputTextWithInvalid("##build.android_application_id", m_androidApplicationId, validateAndroid && IsAndroidApplicationIdInvalid()))
 			{
 				MarkDirty();
 			}
@@ -365,35 +550,35 @@ void CBuildSettingsWindow::DrawAndroidCategory()
 
 	layout.Row(
 		[&]() {
-			ImText label;
-			label.SetHoveredTooltip(Loc::Text("build_settings.android_min_sdk.desc"));
-			label(Loc::Text("build_settings.android_min_sdk"));
+			DrawFieldLabel("build_settings.android_min_sdk", "build_settings.android_min_sdk.desc", true);
 		},
 		[&]() {
+			const bool invalid = validateAndroid && m_androidMinSdkVersion <= 0;
+			PushInvalidInputStyle(invalid);
 			if (ImGui::InputInt("##build.android_min_sdk", &m_androidMinSdkVersion))
 			{
 				MarkDirty();
 			}
+			PopInvalidInputStyle(invalid);
 		});
 
 	layout.Row(
 		[&]() {
-			ImText label;
-			label.SetHoveredTooltip(Loc::Text("build_settings.android_target_sdk.desc"));
-			label(Loc::Text("build_settings.android_target_sdk"));
+			DrawFieldLabel("build_settings.android_target_sdk", "build_settings.android_target_sdk.desc", true);
 		},
 		[&]() {
+			const bool invalid = validateAndroid && IsAndroidSdkInvalid();
+			PushInvalidInputStyle(invalid);
 			if (ImGui::InputInt("##build.android_target_sdk", &m_androidTargetSdkVersion))
 			{
 				MarkDirty();
 			}
+			PopInvalidInputStyle(invalid);
 		});
 
 	layout.Row(
 		[&]() {
-			ImText label;
-			label.SetHoveredTooltip(Loc::Text("build_settings.android_abi.desc"));
-			label(Loc::Text("build_settings.android_abi"));
+			DrawFieldLabel("build_settings.android_abi", "build_settings.android_abi.desc", false);
 		},
 		[&]() {
 			const char* abis[] = { "arm64-v8a", "x86_64" };
@@ -415,14 +600,13 @@ void CBuildSettingsWindow::DrawIOSCategory()
 	}
 
 	ImGui::Utillity::FormLayout layout("##build_settings_ios", 4.0f, { 2.0f, 1.0f }, 170.0f);
+	const bool validateIOS = ToBuildTargetPlatform(m_targetPlatform) == EBuildTargetPlatform::IOS;
 	layout.Row(
 		[&]() {
-			ImText label;
-			label.SetHoveredTooltip(Loc::Text("build_settings.ios_bundle_identifier.desc"));
-			label(Loc::Text("build_settings.ios_bundle_identifier"));
+			DrawFieldLabel("build_settings.ios_bundle_identifier", "build_settings.ios_bundle_identifier.desc", true);
 		},
 		[&]() {
-			if (ImGui::InputText("##build.ios_bundle_identifier", &m_iosBundleIdentifier))
+			if (DrawInputTextWithInvalid("##build.ios_bundle_identifier", m_iosBundleIdentifier, validateIOS && IsIOSBundleIdentifierInvalid()))
 			{
 				MarkDirty();
 			}
@@ -430,12 +614,10 @@ void CBuildSettingsWindow::DrawIOSCategory()
 
 	layout.Row(
 		[&]() {
-			ImText label;
-			label.SetHoveredTooltip(Loc::Text("build_settings.ios_team_id.desc"));
-			label(Loc::Text("build_settings.ios_team_id"));
+			DrawFieldLabel("build_settings.ios_team_id", "build_settings.ios_team_id.desc", false);
 		},
 		[&]() {
-			if (ImGui::InputText("##build.ios_team_id", &m_iosTeamId))
+			if (DrawInputTextWithInvalid("##build.ios_team_id", m_iosTeamId, false))
 			{
 				MarkDirty();
 			}
@@ -443,12 +625,10 @@ void CBuildSettingsWindow::DrawIOSCategory()
 
 	layout.Row(
 		[&]() {
-			ImText label;
-			label.SetHoveredTooltip(Loc::Text("build_settings.ios_minimum_os.desc"));
-			label(Loc::Text("build_settings.ios_minimum_os"));
+			DrawFieldLabel("build_settings.ios_minimum_os", "build_settings.ios_minimum_os.desc", true);
 		},
 		[&]() {
-			if (ImGui::InputText("##build.ios_minimum_os", &m_iosMinimumOSVersion))
+			if (DrawInputTextWithInvalid("##build.ios_minimum_os", m_iosMinimumOSVersion, validateIOS && IsIOSMinimumOSInvalid()))
 			{
 				MarkDirty();
 			}
@@ -517,9 +697,7 @@ void CBuildSettingsWindow::DrawScenesCategory()
 	ImGui::Utillity::FormLayout layout("##build_settings_scenes", 4.0f, { 2.0f, 1.0f }, 150.0f);
 	layout.Row(
 		[&]() {
-			ImText label;
-			label.SetHoveredTooltip(Loc::Text("build_settings.startup_scene.desc"));
-			label(Loc::Text("build_settings.startup_scene"));
+			DrawFieldLabel("build_settings.startup_scene", "build_settings.startup_scene.desc", true);
 		},
 		[&]() {
 			std::string selectedPath = m_startupScene;
@@ -530,7 +708,8 @@ void CBuildSettingsWindow::DrawScenesCategory()
 				"##build.startup_scene.browse",
 				title.c_str(),
 				GetAssetDialogPath(),
-				{ { L"JBro Scene", L"*.JScene" }, { L"All Files", L"*.*" } }))
+				{ { L"JBro Scene", L"*.JScene" }, { L"All Files", L"*.*" } },
+				IsStartupSceneInvalid()))
 			{
 				SafePtr<CProjectManager> pm = GetProjectManagerForBuildSettings();
 				m_startupScene = NormalizePathForProject(selectedPath, pm ? pm->GetAssetPath() : File::Path());
@@ -612,9 +791,7 @@ void CBuildSettingsWindow::DrawOutputCategory()
 	ImGui::Utillity::FormLayout layout("##build_settings_output", 4.0f, { 2.0f, 1.0f }, 150.0f);
 	layout.Row(
 		[&]() {
-			ImText label;
-			label.SetHoveredTooltip(Loc::Text("build_settings.output_directory.desc"));
-			label(Loc::Text("build_settings.output_directory"));
+			DrawFieldLabel("build_settings.output_directory", "build_settings.output_directory.desc", true);
 		},
 		[&]() {
 			std::string selectedPath = m_outputDirectory;
@@ -624,7 +801,8 @@ void CBuildSettingsWindow::DrawOutputCategory()
 				selectedPath,
 				"##build.output_directory.browse",
 				title.c_str(),
-				GetRootDialogPath());
+				GetRootDialogPath(),
+				IsOutputDirectoryInvalid());
 			if (selectedPath != m_outputDirectory)
 			{
 				SafePtr<CProjectManager> pm = GetProjectManagerForBuildSettings();
@@ -635,9 +813,7 @@ void CBuildSettingsWindow::DrawOutputCategory()
 
 	layout.Row(
 		[&]() {
-			ImText label;
-			label.SetHoveredTooltip(Loc::Text("build_settings.package_preview.desc"));
-			label(Loc::Text("build_settings.package_preview"));
+			DrawFieldLabel("build_settings.package_preview", "build_settings.package_preview.desc", false);
 		},
 		[&]() {
 			const std::string preview = MakePackagePreview();
@@ -885,6 +1061,91 @@ void CBuildSettingsWindow::MarkDirty()
 {
 	m_dirty = true;
 	m_errorMessage.clear();
+}
+
+void CBuildSettingsWindow::FocusFirstInvalidCategory()
+{
+	if (false == m_loadedFromProject)
+	{
+		LoadFromProject();
+	}
+
+	static const ECategory orderedCategories[] = {
+		ECategory::General,
+		ECategory::Scenes,
+		ECategory::Output,
+		ECategory::Windows,
+		ECategory::Android,
+		ECategory::IOS,
+	};
+	for (ECategory category : orderedCategories)
+	{
+		if (HasCategoryInvalid(category))
+		{
+			m_selectedCategory = category;
+			return;
+		}
+	}
+	m_selectedCategory = ECategory::General;
+}
+
+bool CBuildSettingsWindow::HasCategoryInvalid(ECategory category) const
+{
+	switch (category)
+	{
+	case ECategory::General:
+		return IsProductNameInvalid();
+	case ECategory::Scenes:
+		return IsStartupSceneInvalid();
+	case ECategory::Output:
+		return IsOutputDirectoryInvalid();
+	case ECategory::Android:
+		return ToBuildTargetPlatform(m_targetPlatform) == EBuildTargetPlatform::Android
+			&& (IsAndroidApplicationIdInvalid() || IsAndroidSdkInvalid());
+	case ECategory::IOS:
+		return ToBuildTargetPlatform(m_targetPlatform) == EBuildTargetPlatform::IOS
+			&& (IsIOSBundleIdentifierInvalid() || IsIOSMinimumOSInvalid());
+	case ECategory::Windows:
+	default:
+		return false;
+	}
+}
+
+bool CBuildSettingsWindow::IsProductNameInvalid() const
+{
+	return IsBlank(m_productName);
+}
+
+bool CBuildSettingsWindow::IsStartupSceneInvalid() const
+{
+	return false == HasExtensionIgnoreCase(m_startupScene, L".jscene");
+}
+
+bool CBuildSettingsWindow::IsOutputDirectoryInvalid() const
+{
+	return IsBlank(m_outputDirectory);
+}
+
+bool CBuildSettingsWindow::IsAndroidApplicationIdInvalid() const
+{
+	return false == IsDottedIdentifier(m_androidApplicationId, IsAndroidIdentifierSegment);
+}
+
+bool CBuildSettingsWindow::IsAndroidSdkInvalid() const
+{
+	return m_androidMinSdkVersion <= 0
+		|| m_androidTargetSdkVersion <= 0
+		|| m_androidTargetSdkVersion < m_androidMinSdkVersion;
+}
+
+bool CBuildSettingsWindow::IsIOSBundleIdentifierInvalid() const
+{
+	return false == IsDottedIdentifier(m_iosBundleIdentifier, IsBundleIdentifierSegment);
+}
+
+bool CBuildSettingsWindow::IsIOSMinimumOSInvalid() const
+{
+	return false == IsVersionString(m_iosMinimumOSVersion);
 }
 
 std::string CBuildSettingsWindow::NormalizePathForProject(const std::string& selectedPath, const File::Path& basePath) const

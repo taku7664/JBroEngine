@@ -17,6 +17,7 @@ public:
 
 	bool HasUnsavedChanges() const;
 	bool SaveEditsToProject(std::string* outError = nullptr);
+	void FocusFirstInvalidCategory();
 
 private:
 	enum class ECategory
@@ -47,6 +48,14 @@ private:
 	void LoadFromProject();
 	bool ApplyToProject(std::string* outError);
 	void MarkDirty();
+	bool HasCategoryInvalid(ECategory category) const;
+	bool IsProductNameInvalid() const;
+	bool IsStartupSceneInvalid() const;
+	bool IsOutputDirectoryInvalid() const;
+	bool IsAndroidApplicationIdInvalid() const;
+	bool IsAndroidSdkInvalid() const;
+	bool IsIOSBundleIdentifierInvalid() const;
+	bool IsIOSMinimumOSInvalid() const;
 
 	void DrawWindowsIconSelector();
 	bool SelectWindowsIcon(std::string* outError);
