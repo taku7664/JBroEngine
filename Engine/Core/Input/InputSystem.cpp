@@ -63,6 +63,14 @@ namespace
 		{
 			return '0' + (static_cast<int>(key) - static_cast<int>(EKeyCode::Num0));
 		}
+		if (key >= EKeyCode::F1 && key <= EKeyCode::F12)
+		{
+			return VK_F1 + (static_cast<int>(key) - static_cast<int>(EKeyCode::F1));
+		}
+		if (key >= EKeyCode::Numpad0 && key <= EKeyCode::Numpad9)
+		{
+			return VK_NUMPAD0 + (static_cast<int>(key) - static_cast<int>(EKeyCode::Numpad0));
+		}
 
 		switch (key)
 		{
@@ -75,6 +83,45 @@ namespace
 		case EKeyCode::Right:     return VK_RIGHT;
 		case EKeyCode::Up:        return VK_UP;
 		case EKeyCode::Down:      return VK_DOWN;
+
+		// 모디파이어 (좌/우 구분)
+		case EKeyCode::LeftShift:  return VK_LSHIFT;
+		case EKeyCode::RightShift: return VK_RSHIFT;
+		case EKeyCode::LeftCtrl:   return VK_LCONTROL;
+		case EKeyCode::RightCtrl:  return VK_RCONTROL;
+		case EKeyCode::LeftAlt:    return VK_LMENU;
+		case EKeyCode::RightAlt:   return VK_RMENU;
+
+		// 편집/네비게이션
+		case EKeyCode::Insert:   return VK_INSERT;
+		case EKeyCode::Delete:   return VK_DELETE;
+		case EKeyCode::Home:     return VK_HOME;
+		case EKeyCode::End:      return VK_END;
+		case EKeyCode::PageUp:   return VK_PRIOR;
+		case EKeyCode::PageDown: return VK_NEXT;
+		case EKeyCode::CapsLock: return VK_CAPITAL;
+
+		// 기호 (US 레이아웃)
+		case EKeyCode::Minus:        return VK_OEM_MINUS;
+		case EKeyCode::Equals:       return VK_OEM_PLUS;
+		case EKeyCode::LeftBracket:  return VK_OEM_4;
+		case EKeyCode::RightBracket: return VK_OEM_6;
+		case EKeyCode::Backslash:    return VK_OEM_5;
+		case EKeyCode::Semicolon:    return VK_OEM_1;
+		case EKeyCode::Apostrophe:   return VK_OEM_7;
+		case EKeyCode::Comma:        return VK_OEM_COMMA;
+		case EKeyCode::Period:       return VK_OEM_PERIOD;
+		case EKeyCode::Slash:        return VK_OEM_2;
+		case EKeyCode::Grave:        return VK_OEM_3;
+
+		// 숫자패드 연산 (Numpad0..9 는 위 범위 처리)
+		case EKeyCode::NumpadAdd:      return VK_ADD;
+		case EKeyCode::NumpadSubtract: return VK_SUBTRACT;
+		case EKeyCode::NumpadMultiply: return VK_MULTIPLY;
+		case EKeyCode::NumpadDivide:   return VK_DIVIDE;
+		case EKeyCode::NumpadDecimal:  return VK_DECIMAL;
+		case EKeyCode::NumpadEnter:    return VK_RETURN; // GetAsyncKeyState 는 메인 Enter 와 동일 VK
+
 		default:                  return 0;
 		}
 	}

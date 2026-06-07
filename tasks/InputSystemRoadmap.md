@@ -207,6 +207,12 @@ if (InputRegistered && InputHandler && Engine.InputSystem.IsValid())
 
 ---
 
+## ⚠️ 사용자 지시 (2026-06-07) — 잊지 말 것
+- **모바일 NativeActivity/UIKit 글루는 보류** — 이 머신에 Android SDK/NDK/Gradle 미설치라 컴파일/검증 불가.
+- **입력 시스템 작업(Phase 2 등)이 끝나면, 다른 작업 넘어가기 전에 모바일 글루 착수를 *먼저 제안*할 것.**
+  (사용자가 "중요한 사항"으로 명시. 툴체인 설치 동반 필요.)
+- 현재 진행: Phase 2(키테이블 보강 → 액션 매핑) 부터.
+
 ## 작업 목록
 
 ### 실측/디버깅 세션 (2026-06-07, 이어서)
@@ -369,8 +375,10 @@ mobile plan §Input("raw touch list 보존") 정렬. 코어 1개 + 플랫폼 생
       디바이스/`EKeyCode` 등 헤더 SDK Include 내보내기. `InputSystem`은 비공개 유지.
 
 ### Phase 2 — 필수 기능 (당장 막힘)
-- [ ] **키 테이블 보강** — `EKeyCode`에 모디파이어(Shift/Ctrl/Alt), F1~F12, 기호(`-=[]` 등),
-      숫자패드. 현재 없어서 Ctrl+C/V 등 단축키 표현 불가.
+- [x] **키 테이블 보강(2026-06-07)** — `EKeyCode`에 모디파이어(L/R Shift·Ctrl·Alt), F1~F12,
+      편집/네비(Insert/Delete/Home/End/PageUp/Down/CapsLock), 기호(US `-=[]\;',./``), 숫자패드(0~9+연산) 추가.
+      Windows `ToVirtualKey` VK 매핑 확장(F/Numpad 는 범위, 나머지 switch). A-Z/Num0-9 연속성 유지 위해 append.
+      웹 키 상태 백엔드는 아직 없음(키스테이트 #else stub) → 웹 키매핑은 web keydown/keyup 백엔드 작업 시 함께. NumpadEnter=VK_RETURN(분리 불가).
 - [ ] **액션 매핑/바인딩 추상화** — `InputAction`(이름) → 바인딩 N개(Space + GamepadSouth 등).
       리바인딩, 키보드+게임패드 통합, YAML 기반 바인딩. 입력 계층의 본체(컨텍스트 스택이 위에 얹힘).
 - [ ] **터치/모바일 입력** — 멀티터치/탭/핀치/팬. 멀티플랫폼 규칙(윈도우 구현 시 웹/모바일 병렬) 준수.
