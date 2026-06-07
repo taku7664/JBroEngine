@@ -229,15 +229,12 @@ void CBuildSettingsWindow::OnRenderStay()
 	DrawCategoryList(leftW);
 	ImGui::EndChild();
 
-	ImGui::SameLine();
 	ImGui::Utillity::VerticalSplitter("##BuildSettingsSplitter", m_splitRatio, bodyAvail, MIN_RATIO, MAX_RATIO, SPLITTER_W);
-	ImGui::SameLine();
 
 	ImGui::BeginChild("##build_settings_content", ImVec2(rightW, bodyAvail.y), true);
 	DrawCategoryContent(rightW);
 	ImGui::EndChild();
 
-	ImGui::Separator();
 	DrawFooterButtons();
 }
 

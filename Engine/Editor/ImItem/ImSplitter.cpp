@@ -29,8 +29,9 @@ bool ImVerticalSplitter::operator()(const char* id, float& position, ImVec2 regi
     styleBuilder.PushStyleColor(ImGuiCol_Button, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
     styleBuilder.PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.4f, 0.6f, 1.0f, 0.3f));
     styleBuilder.PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.4f, 0.6f, 1.0f, 0.5f));
-
+	styleBuilder.PushStyleVar(ImGuiStyleVar_FrameRounding, 0.0f); // 라운딩 제거
     ImGui::Button("##InspSplitter", ImVec2(m_thickness, regionSize.y));
+
     ImGui::SameLine(0.0f, 0.0f);
 
     if (ImGui::IsItemHovered() || ImGui::IsItemActive())

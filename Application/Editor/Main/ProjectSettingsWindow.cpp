@@ -127,10 +127,8 @@ void CProjectSettingsWindow::OnRenderStay()
     ImGui::EndChild();
 
     // ── Splitter ───────────────────────────────────────────────────────
-    ImGui::SameLine();
     ImGui::Utillity::VerticalSplitter("##ProjectSettingsSplitter",
         m_splitRatio, bodyAvail, MIN_RATIO, MAX_RATIO, SPLITTER_W);
-    ImGui::SameLine();
 
     // ── 우측 콘텐츠 패널 ───────────────────────────────────────────────
     ImGui::BeginChild("##project_settings_content",
@@ -139,7 +137,6 @@ void CProjectSettingsWindow::OnRenderStay()
     ImGui::EndChild();
 
     // ── 하단 Apply/Cancel ─────────────────────────────────────────────
-    ImGui::Separator();
     DrawFooterButtons();
 }
 
