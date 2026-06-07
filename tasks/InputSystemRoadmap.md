@@ -328,9 +328,11 @@ mobile plan §Input("raw touch list 보존") 정렬. 코어 1개 + 플랫폼 생
 - 빌드 누락 수정: `BuildScripts/Web/web_game_sources.txt` 에 `InputSystem.cpp` 가 빠져 있어 웹빌드가 링크 실패했음 → 추가.
 - 검증: 코어/모바일 inject = Windows 빌드 검증. 웹 = emsdk(C:\emsdk) 컴파일에서 **InputSystem.cpp(keypress/touch/EM_JS 진동) 에러 0** 확인.
   실제 터치/진동 = 디바이스/브라우저 필요 — 미실측.
-- **선결 이슈(무관, 본 작업 아님)**: `Engine/Core/Platform/Web/WebCanvasSurface.cpp` 의
-  `emscripten_set_visibilitychange_callback`/`resize_callback` 시그니처가 설치된 emsdk 버전과 불일치 →
-  전체 웹빌드가 그 파일에서 실패. emscripten 버전 드리프트(코드가 기대하는 버전 ≠ C:\emsdk). 별도 처리 필요.
+- **웹빌드 풀 그린(2026-06-07)**: emsdk(C:\emsdk) 로 SampleProject 웹 패키지 생성 성공. 선결 버그 연쇄 수정:
+  1. `WebCanvasSurface.cpp/.h` 콜백 반환형 `int`→`EM_BOOL`(최신 emsdk 에서 EM_BOOL=bool, typedef 정합).
+  2. `web_game_sources.txt` 에 `InputSystem.cpp` 누락 추가(CInputSystem 심볼).
+  3. `web_game_sources.txt` 에 `ScriptCore.cpp` 누락 추가(BindScriptCore/UnbindScriptCore 정의).
+  (전부 이번 세션 전부터 깨져있던 웹빌드 누락/드리프트.)
 
 ### 텍스트 입력 (char) (2026-06-07 완료)
 

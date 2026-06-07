@@ -32,7 +32,7 @@
 - [x] GameScript.dll green (경계)
 - [x] 웹 컴파일: InputSystem.cpp(keypress/touch/EM_JS 진동) 에러 0 (emsdk C:\emsdk)
 - [ ] 모바일/웹 런타임: 미검증(환경 없음) — 명시
-- [!] 전체 웹빌드: 기존 무관 버그(WebCanvasSurface.cpp emscripten 버전 드리프트)로 차단 — 본 작업 외
+- [x] 전체 웹빌드: 풀 그린(emsdk C:\emsdk, SampleProject 패키지 생성). 선결 버그 3종 수정.
 
 ## Review
 ### Changed
