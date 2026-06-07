@@ -465,7 +465,7 @@ CGameBuildManager::~CGameBuildManager()
 	JoinWorker();
 }
 
-bool CGameBuildManager::StartBuild(SafePtr<CProjectManager> projectManager)
+bool CGameBuildManager::StartBuild(SafePtr<CProjectManager> projectManager, EBuildTargetPlatform targetPlatform)
 {
 	if (IsRunning() || false == projectManager.IsValid() || false == projectManager->IsProjectLoaded())
 	{
@@ -490,7 +490,7 @@ bool CGameBuildManager::StartBuild(SafePtr<CProjectManager> projectManager)
 	{
 		settings.BuildScenes.push_back(settings.StartupScene);
 	}
-	if (EBuildTargetPlatform::Windows == settings.TargetPlatform)
+	if (EBuildTargetPlatform::Windows == targetPlatform)
 	{
 		settings.ScriptMode = EBuildScriptMode::DynamicLibrary;
 		settings.ScriptProjectPath = std::string("Contents") + "/GameScript.vcxproj";
@@ -516,11 +516,11 @@ bool CGameBuildManager::StartBuild(SafePtr<CProjectManager> projectManager)
 		m_logPath.clear();
 		return false;
 	}
-	if (EBuildTargetPlatform::Android == settings.TargetPlatform || EBuildTargetPlatform::IOS == settings.TargetPlatform)
+	if (EBuildTargetPlatform::Android == targetPlatform || EBuildTargetPlatform::IOS == targetPlatform)
 	{
 		std::lock_guard lock(m_mutex);
 		m_state = EGameBuildState::Failed;
-		m_message = std::string(ToString(settings.TargetPlatform)) + " package build is not implemented yet. Mobile settings are saved, but native packaging is a later step.";
+		m_message = std::string(ToString(targetPlatform)) + " package build is not implemented yet. Mobile settings are saved, but native packaging is a later step.";
 		m_tasks.clear();
 		m_completedCount = 0;
 		m_packageDirectory.clear();
@@ -552,7 +552,7 @@ bool CGameBuildManager::StartBuild(SafePtr<CProjectManager> projectManager)
 	desc.AssetPath = projectManager->GetAssetPath();
 	desc.ScriptProjectPath = projectManager->FindScriptVcxprojPath();
 	desc.ProductName = SanitizeFileName(settings.ProductName);
-	desc.TargetPlatform = settings.TargetPlatform;
+	desc.TargetPlatform = targetPlatform;
 	desc.BuildConfiguration = settings.BuildConfiguration;
 	desc.ResolutionWidth = projectManager->GetResolutionWidth();
 	desc.ResolutionHeight = projectManager->GetResolutionHeight();
@@ -567,7 +567,7 @@ bool CGameBuildManager::StartBuild(SafePtr<CProjectManager> projectManager)
 	desc.LogPath = desc.ProjectRoot / "Build" / "Logs" / "EditorGameBuild.log";
 
 	std::vector<GameBuildTaskProgress> tasks;
-	if (EBuildTargetPlatform::Web == settings.TargetPlatform)
+	if (EBuildTargetPlatform::Web == targetPlatform)
 	{
 		tasks = {
 			{ "Validate", Loc::Text("build.progress.validate"), EGameBuildTaskState::Pending },
@@ -575,7 +575,7 @@ bool CGameBuildManager::StartBuild(SafePtr<CProjectManager> projectManager)
 			{ "Verify", Loc::Text("build.progress.verify"), EGameBuildTaskState::Pending },
 		};
 	}
-	else if (EBuildTargetPlatform::Windows == settings.TargetPlatform)
+	else if (EBuildTargetPlatform::Windows == targetPlatform)
 	{
 		tasks = {
 			{ "Validate", Loc::Text("build.progress.validate"), EGameBuildTaskState::Pending },

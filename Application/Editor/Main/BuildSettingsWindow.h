@@ -18,6 +18,7 @@ public:
 	bool HasUnsavedChanges() const;
 	bool SaveEditsToProject(std::string* outError = nullptr);
 	void FocusFirstInvalidCategory();
+	void FocusPlatformCategory(EBuildTargetPlatform platform);
 
 private:
 	enum class ECategory
@@ -26,6 +27,7 @@ private:
 		Scenes,
 		Output,
 		Windows,
+		Web,
 		Android,
 		IOS,
 		Count
@@ -41,9 +43,14 @@ private:
 	void DrawScenesCategory();
 	void DrawOutputCategory();
 	void DrawWindowsCategory();
+	void DrawWebCategory();
 	void DrawAndroidCategory();
 	void DrawIOSCategory();
 	void DrawFooterButtons();
+
+	// 플랫폼 활성화 체크박스(카테고리 리스트의 플랫폼 항목 앞). 토글 시 MarkDirty.
+	void DrawPlatformEnableCheckbox(EBuildTargetPlatform platform);
+	bool* PlatformEnableFlag(EBuildTargetPlatform platform);
 
 	void LoadFromProject();
 	bool ApplyToProject(std::string* outError);
@@ -72,7 +79,10 @@ private:
 	float m_splitRatio = 0.28f;
 
 	std::string m_productName;
-	int m_targetPlatform = 0;
+	bool m_enableWindows = true;
+	bool m_enableWeb     = false;
+	bool m_enableAndroid = false;
+	bool m_enableIOS     = false;
 	int m_buildConfiguration = 1;
 	std::string m_outputDirectory;
 	std::string m_startupScene;

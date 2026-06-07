@@ -8,6 +8,7 @@
 #include "Engine/Editor/Project/ProjectManager.h"   // AssetReconcileReport
 #include "Utillity/File/FilePath.h"
 #include <array>
+#include <vector>
 
 class CRootDockWindow : public CImDockWindow
 {
@@ -35,7 +36,10 @@ private:
 	// 메뉴바 우측에 스크립트 빌드 상태(스피너 + 텍스트) 표시
 	void DrawLiveCompileMenuBarStatus();
 
-	void StartGameBuild();
+	void StartGameBuild(EBuildTargetPlatform platform);
+	// 일괄 빌드: 활성 플랫폼 리스트를 큐에 넣고 순차 빌드한다(직전 빌드 성공 시 다음 트리거).
+	void StartBatchGameBuild(const std::vector<EBuildTargetPlatform>& platforms);
+	void AdvanceBuildQueueIfReady();
 	void OpenBuildBlockedPopup(std::string message);
 	void RenderBuildBlockedPopup(IImPopupWindow& popup);
 	void EnsureBuildProgressPopup();
@@ -73,4 +77,9 @@ private:
 	PopupHandle       m_buildPopupHandle        = INVALID_POPUP_HANDLE;
 	PopupHandle       m_buildBlockedPopupHandle = INVALID_POPUP_HANDLE;
 	std::string       m_buildBlockedMessage;
+
+	// 일괄 빌드 큐. 활성 플랫폼을 순서대로 담고, 직전 빌드가 성공하면 다음 인덱스를 빌드한다.
+	// 단일 빌드도 큐에 1개만 넣는 특수 케이스로 통일한다(StartGameBuild).
+	std::vector<EBuildTargetPlatform> m_buildQueue;
+	std::size_t                       m_buildQueueIndex = 0;
 };

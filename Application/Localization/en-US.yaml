@@ -481,7 +481,6 @@ Entries:
   project_settings.script_unload.desc: Unload the currently loaded script DLL.
   build_settings.product_name.desc: Product name used for the output package folder and executable name.
   build_settings.windows_icon.desc: .ico asset applied to the Windows package executable. External files are copied to Assets/Package/Windows/AppIcon.ico, then the asset GUID is saved.
-  build_settings.target_platform.desc: Target platform for the game package.
   build_settings.configuration.desc: Engine game build configuration. Maps to Debug_Game or Release_Game.
   build_settings.android_application_id.desc: "Unique Android applicationId. Example: com.company.game"
   build_settings.android_min_sdk.desc: Minimum Android SDK version supported by the app.

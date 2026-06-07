@@ -160,7 +160,9 @@ namespace
 		return extension == L".jscene";
 	}
 
-	bool HasRequiredBuildSettingsIssue(const ProjectBuildSettings& settings)
+	// 주어진 플랫폼으로 빌드할 때 필수 설정이 누락됐는지 검사한다.
+	// 공통 설정(제품명/출력경로/시작씬)은 모든 플랫폼 공통, 플랫폼별 설정은 인자에 따라 검사한다.
+	bool HasRequiredIssueForPlatform(const ProjectBuildSettings& settings, EBuildTargetPlatform platform)
 	{
 		if (IsBlank(settings.ProductName)
 			|| IsBlank(settings.OutputDirectory)
@@ -169,7 +171,7 @@ namespace
 			return true;
 		}
 
-		if (settings.TargetPlatform == EBuildTargetPlatform::Android)
+		if (platform == EBuildTargetPlatform::Android)
 		{
 			return false == IsDottedAndroidIdentifier(settings.AndroidApplicationId)
 				|| 0 == settings.AndroidMinSdkVersion
@@ -177,13 +179,24 @@ namespace
 				|| settings.AndroidTargetSdkVersion < settings.AndroidMinSdkVersion;
 		}
 
-		if (settings.TargetPlatform == EBuildTargetPlatform::IOS)
+		if (platform == EBuildTargetPlatform::IOS)
 		{
 			return false == IsDottedBundleIdentifier(settings.IOSBundleIdentifier)
 				|| false == IsVersionString(settings.IOSMinimumOSVersion);
 		}
 
 		return false;
+	}
+
+	// 설정에서 활성화된 플랫폼 목록을 반환한다(메뉴 나열/일괄빌드 순서).
+	std::vector<EBuildTargetPlatform> EnabledPlatforms(const ProjectBuildSettings& settings)
+	{
+		std::vector<EBuildTargetPlatform> platforms;
+		if (settings.EnableWindows) platforms.push_back(EBuildTargetPlatform::Windows);
+		if (settings.EnableWeb)     platforms.push_back(EBuildTargetPlatform::Web);
+		if (settings.EnableAndroid) platforms.push_back(EBuildTargetPlatform::Android);
+		if (settings.EnableIOS)     platforms.push_back(EBuildTargetPlatform::IOS);
+		return platforms;
 	}
 
 	const char* BuildPlatformLabelKey(EBuildTargetPlatform platform)
@@ -403,6 +416,9 @@ void CRootDockWindow::OnRenderStay()
 
 	// 비동기 자산 로드 진행 중이면 프로그레스 팝업을 띄운다 (idempotent).
 	EnsureProjectLoadingPopup();
+
+	// 일괄 빌드 큐: 직전 플랫폼 빌드가 끝났으면 다음 플랫폼을 이어서 빌드한다.
+	AdvanceBuildQueueIfReady();
 
 	// 게임 빌드(패키징) 진행 중이면 진행 팝업을 띄운다 (idempotent — 빌드 아니면 즉시 반환).
 	EnsureBuildProgressPopup();
@@ -773,31 +789,74 @@ void CRootDockWindow::OnMenuBar()
 		if (ImGui::BeginMenu(Loc::Text("menu.file.build")))
 		{
 			const ProjectBuildSettings& buildSettings = pm->GetBuildSettings();
-			const bool requiredIssue = HasRequiredBuildSettingsIssue(buildSettings);
-			if (requiredIssue)
+			const std::vector<EBuildTargetPlatform> enabled = EnabledPlatforms(buildSettings);
+
+			if (enabled.empty())
 			{
-				ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.35f, 0.30f, 1.0f));
+				ImGui::TextDisabled("%s", Loc::Text("build_settings.no_platform_enabled"));
 			}
-			if (ImGui::MenuItem(Loc::Text(BuildPlatformLabelKey(buildSettings.TargetPlatform))))
+
+			// 활성 플랫폼마다 메뉴아이템. 필수설정 누락이면 빨강 + 클릭 시 빌드세팅의 해당 카테고리로 유도.
+			std::size_t blockedCount = 0;
+			for (EBuildTargetPlatform platform : enabled)
 			{
+				const bool requiredIssue = HasRequiredIssueForPlatform(buildSettings, platform);
 				if (requiredIssue)
 				{
-					if (Editor::BuildSettings)
-					{
-						Editor::BuildSettings->SetVisible(true);
-						Editor::BuildSettings->FocusFirstInvalidCategory();
-						Editor::BuildSettings->Focus();
-					}
-					OpenBuildBlockedPopup(Loc::Text("build_settings.required_missing_body"));
+					++blockedCount;
 				}
-				else
+
+				ImGui::Utillity::IDGroup idGroup(BuildPlatformLabelKey(platform));
+				ImGui::Utillity::StyleBuilder style;
+				if (requiredIssue)
 				{
-					StartGameBuild();
+					style.PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.35f, 0.30f, 1.0f));
+				}
+				if (ImGui::MenuItem(Loc::Text(BuildPlatformLabelKey(platform))))
+				{
+					if (requiredIssue)
+					{
+						if (Editor::BuildSettings)
+						{
+							Editor::BuildSettings->SetVisible(true);
+							Editor::BuildSettings->FocusPlatformCategory(platform);
+							Editor::BuildSettings->Focus();
+						}
+						OpenBuildBlockedPopup(Loc::Text("build_settings.required_missing_body"));
+					}
+					else
+					{
+						StartGameBuild(platform);
+					}
 				}
 			}
-			if (requiredIssue)
+
+			// 활성 플랫폼이 2개 이상이면 일괄 빌드(순차) 메뉴아이템을 추가로 제공한다.
+			if (enabled.size() >= 2)
 			{
-				ImGui::PopStyleColor();
+				ImGui::Separator();
+				ImGui::Utillity::StyleBuilder style;
+				if (blockedCount > 0)
+				{
+					style.PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.35f, 0.30f, 1.0f));
+				}
+				if (ImGui::MenuItem(Loc::Text("build_settings.build_all")))
+				{
+					if (blockedCount > 0)
+					{
+						if (Editor::BuildSettings)
+						{
+							Editor::BuildSettings->SetVisible(true);
+							Editor::BuildSettings->FocusFirstInvalidCategory();
+							Editor::BuildSettings->Focus();
+						}
+						OpenBuildBlockedPopup(Loc::Text("build_settings.required_missing_body"));
+					}
+					else
+					{
+						StartBatchGameBuild(enabled);
+					}
+				}
 			}
 			ImGui::EndMenu();
 		}
@@ -939,8 +998,19 @@ void CRootDockWindow::DrawLiveCompileMenuBarStatus()
 	}
 }
 
-void CRootDockWindow::StartGameBuild()
+void CRootDockWindow::StartGameBuild(EBuildTargetPlatform platform)
 {
+	// 단일 빌드도 큐에 1개만 넣어 일괄빌드와 진행 흐름을 통일한다.
+	StartBatchGameBuild({ platform });
+}
+
+void CRootDockWindow::StartBatchGameBuild(const std::vector<EBuildTargetPlatform>& platforms)
+{
+	if (platforms.empty() || m_buildManager.IsRunning())
+	{
+		return;
+	}
+
 	SafePtr<CProjectManager> pm = Editor::ImEditor ? Editor::ImEditor->GetProjectManager() : nullptr;
 	if (Editor::BuildSettings && Editor::BuildSettings->HasUnsavedChanges())
 	{
@@ -949,12 +1019,35 @@ void CRootDockWindow::StartGameBuild()
 		OpenBuildBlockedPopup(Loc::Text("build_settings.apply_required_body"));
 		return;
 	}
-	if (false == m_buildManager.StartBuild(pm))
+
+	m_buildQueue = platforms;
+	m_buildQueueIndex = 0;
+	m_buildManager.StartBuild(pm, m_buildQueue[m_buildQueueIndex]);
+	EnsureBuildProgressPopup();
+}
+
+void CRootDockWindow::AdvanceBuildQueueIfReady()
+{
+	// 큐에 다음 플랫폼이 남아있고, 직전 빌드가 성공으로 끝났으면 다음 플랫폼을 빌드한다.
+	// 실패하면 큐를 중단한다(진행 팝업이 실패 상태를 그대로 보여준다).
+	if (m_buildQueueIndex + 1 >= m_buildQueue.size() || m_buildManager.IsRunning())
 	{
-		EnsureBuildProgressPopup();
 		return;
 	}
-	EnsureBuildProgressPopup();
+
+	const GameBuildSnapshot snapshot = m_buildManager.GetSnapshot();
+	if (snapshot.State == EGameBuildState::Succeeded)
+	{
+		SafePtr<CProjectManager> pm = Editor::ImEditor ? Editor::ImEditor->GetProjectManager() : nullptr;
+		++m_buildQueueIndex;
+		m_buildManager.StartBuild(pm, m_buildQueue[m_buildQueueIndex]);
+		EnsureBuildProgressPopup();
+	}
+	else if (snapshot.State == EGameBuildState::Failed)
+	{
+		m_buildQueue.clear();
+		m_buildQueueIndex = 0;
+	}
 }
 
 void CRootDockWindow::OpenBuildBlockedPopup(std::string message)

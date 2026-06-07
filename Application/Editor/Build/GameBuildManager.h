@@ -59,7 +59,7 @@ public:
 	CGameBuildManager(const CGameBuildManager&) = delete;
 	CGameBuildManager& operator=(const CGameBuildManager&) = delete;
 
-	bool StartBuild(SafePtr<CProjectManager> projectManager);
+	bool StartBuild(SafePtr<CProjectManager> projectManager, EBuildTargetPlatform targetPlatform);
 	bool IsRunning() const;
 	GameBuildSnapshot GetSnapshot() const;
 	void MarkOutputOpened();

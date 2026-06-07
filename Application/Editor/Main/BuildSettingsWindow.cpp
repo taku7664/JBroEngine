@@ -21,30 +21,6 @@ namespace
 	const File::Path WINDOWS_ICON_ASSET_PATH = "Package/Windows/AppIcon.ico";
 	const ImVec4 REQUIRED_FIELD_COLOR(0.95f, 0.35f, 0.30f, 1.0f);
 
-	int ToIndex(EBuildTargetPlatform platform)
-	{
-		switch (platform)
-		{
-		case EBuildTargetPlatform::Web: return 1;
-		case EBuildTargetPlatform::Android: return 2;
-		case EBuildTargetPlatform::IOS: return 3;
-		case EBuildTargetPlatform::Windows:
-		default: return 0;
-		}
-	}
-
-	EBuildTargetPlatform ToBuildTargetPlatform(int index)
-	{
-		switch (index)
-		{
-		case 1: return EBuildTargetPlatform::Web;
-		case 2: return EBuildTargetPlatform::Android;
-		case 3: return EBuildTargetPlatform::IOS;
-		case 0:
-		default: return EBuildTargetPlatform::Windows;
-		}
-	}
-
 	int ToIndex(EBuildConfiguration configuration)
 	{
 		return EBuildConfiguration::Debug == configuration ? 0 : 1;
@@ -400,57 +376,79 @@ void CBuildSettingsWindow::OnRenderStay()
 
 void CBuildSettingsWindow::DrawCategoryList(float)
 {
-	struct CategoryEntry { ECategory Kind; const char* LocKey; };
-	static const CategoryEntry commonEntry[] = {
+	struct CommonEntry { ECategory Kind; const char* LocKey; };
+	static const CommonEntry commonEntry[] = {
 		{ ECategory::General, "build_settings.category.general" },
 		{ ECategory::Scenes,  "build_settings.category.scenes"  },
 		{ ECategory::Output,  "build_settings.category.output"  },
 	};
-	static const CategoryEntry platformEntry[] = {
-		{ ECategory::Windows, "build_settings.category.windows" },
-		{ ECategory::Android, "build_settings.category.android" },
-		{ ECategory::IOS,     "build_settings.category.ios"     },
+	struct PlatformEntry { ECategory Kind; EBuildTargetPlatform Platform; const char* LocKey; };
+	static const PlatformEntry platformEntry[] = {
+		{ ECategory::Windows, EBuildTargetPlatform::Windows, "build_settings.category.windows" },
+		{ ECategory::Web,     EBuildTargetPlatform::Web,     "build_settings.category.web"     },
+		{ ECategory::Android, EBuildTargetPlatform::Android, "build_settings.category.android" },
+		{ ECategory::IOS,     EBuildTargetPlatform::IOS,     "build_settings.category.ios"     },
 	};
 
+	// 공통 카테고리(General/Scenes/Output)는 플랫폼 활성화 개념이 없으므로 체크박스 없이 나열한다.
 	ImText header;
 	header.UseSeparator(true);
 	header.SetHoveredTooltip(Loc::Text("build_settings.common_category_tooltip"));
 	header(Loc::Text("build_settings.common_categories"));
-	for (const CategoryEntry& entry : commonEntry)
+	for (const CommonEntry& entry : commonEntry)
 	{
-		const bool invalid = HasCategoryInvalid(entry.Kind);
-		if (invalid)
+		ImGui::Utillity::StyleBuilder style;
+		if (HasCategoryInvalid(entry.Kind))
 		{
-			ImGui::PushStyleColor(ImGuiCol_Text, REQUIRED_FIELD_COLOR);
+			style.PushStyleColor(ImGuiCol_Text, REQUIRED_FIELD_COLOR);
 		}
 		if (ImGui::Selectable(Loc::Text(entry.LocKey), entry.Kind == m_selectedCategory))
 		{
 			m_selectedCategory = entry.Kind;
-		}
-		if (invalid)
-		{
-			ImGui::PopStyleColor();
 		}
 	}
 
+	// 플랫폼 카테고리는 항목 앞에 활성화 체크박스를 둔다(활성 플랫폼만 빌드/일괄빌드 대상).
 	header.SetHoveredTooltip(Loc::Text("build_settings.platform_category_tooltip"));
 	header(Loc::Text("build_settings.platform_categories"));
-	for (const CategoryEntry& entry : platformEntry)
+	for (const PlatformEntry& entry : platformEntry)
 	{
-		const bool invalid = HasCategoryInvalid(entry.Kind);
-		if (invalid)
+		ImGui::Utillity::IDGroup idGroup(entry.LocKey); // 체크박스/Selectable id 충돌 방지.
+		DrawPlatformEnableCheckbox(entry.Platform);
+		ImGui::SameLine();
+
+		ImGui::Utillity::StyleBuilder style;
+		if (HasCategoryInvalid(entry.Kind))
 		{
-			ImGui::PushStyleColor(ImGuiCol_Text, REQUIRED_FIELD_COLOR);
+			style.PushStyleColor(ImGuiCol_Text, REQUIRED_FIELD_COLOR);
 		}
 		if (ImGui::Selectable(Loc::Text(entry.LocKey), entry.Kind == m_selectedCategory))
 		{
 			m_selectedCategory = entry.Kind;
 		}
-		if (invalid)
-		{
-			ImGui::PopStyleColor();
-		}
 	}
+}
+
+bool* CBuildSettingsWindow::PlatformEnableFlag(EBuildTargetPlatform platform)
+{
+	switch (platform)
+	{
+	case EBuildTargetPlatform::Web:     return &m_enableWeb;
+	case EBuildTargetPlatform::Android: return &m_enableAndroid;
+	case EBuildTargetPlatform::IOS:     return &m_enableIOS;
+	case EBuildTargetPlatform::Windows:
+	default:                            return &m_enableWindows;
+	}
+}
+
+void CBuildSettingsWindow::DrawPlatformEnableCheckbox(EBuildTargetPlatform platform)
+{
+	bool* flag = PlatformEnableFlag(platform);
+	if (ImGui::Checkbox("##platform_enable", flag))
+	{
+		MarkDirty();
+	}
+	ImGui::Utillity::HoveredToolTip(Loc::Text("build_settings.platform_enable_tooltip"));
 }
 
 void CBuildSettingsWindow::DrawCategoryContent(float)
@@ -461,6 +459,7 @@ void CBuildSettingsWindow::DrawCategoryContent(float)
 	case ECategory::Scenes:  DrawScenesCategory();  break;
 	case ECategory::Output:  DrawOutputCategory();  break;
 	case ECategory::Windows: DrawWindowsCategory(); break;
+	case ECategory::Web:     DrawWebCategory();     break;
 	case ECategory::Android: DrawAndroidCategory(); break;
 	case ECategory::IOS:     DrawIOSCategory();     break;
 	default: break;
@@ -483,18 +482,7 @@ void CBuildSettingsWindow::DrawGeneralCategory()
 			}
 		});
 
-	const char* platforms[] = { "Windows", "Web", "Android", "IOS" };
-	layout.Row(
-		[&]() {
-			DrawFieldLabel("build_settings.target_platform", "build_settings.target_platform.desc", false);
-		},
-		[&]() {
-			if (ImGui::Combo("##build.target_platform", &m_targetPlatform, platforms, IM_ARRAYSIZE(platforms)))
-			{
-				MarkDirty();
-			}
-		});
-
+	// 대상 플랫폼은 더 이상 단일 선택이 아니다. 좌측 플랫폼 카테고리의 활성화 체크박스로 고른다.
 	const char* configurations[] = { "Debug", "Release" };
 	layout.Row(
 		[&]() {
@@ -512,7 +500,7 @@ void CBuildSettingsWindow::DrawGeneralCategory()
 void CBuildSettingsWindow::DrawWindowsCategory()
 {
 	ImGui::SeparatorText(Loc::Text("build_settings.windows"));
-	if (ToBuildTargetPlatform(m_targetPlatform) != EBuildTargetPlatform::Windows)
+	if (false == m_enableWindows)
 	{
 		ImGui::TextDisabled("%s", Loc::Text("build_settings.platform_inactive"));
 	}
@@ -527,16 +515,28 @@ void CBuildSettingsWindow::DrawWindowsCategory()
 		});
 }
 
+void CBuildSettingsWindow::DrawWebCategory()
+{
+	ImGui::SeparatorText(Loc::Text("build_settings.web"));
+	if (false == m_enableWeb)
+	{
+		ImGui::TextDisabled("%s", Loc::Text("build_settings.platform_inactive"));
+	}
+
+	// Web 빌드는 현재 플랫폼 전용 필수 설정이 없다(공통 설정만으로 빌드 가능).
+	ImGui::TextWrapped("%s", Loc::Text("build_settings.web.no_extra_settings"));
+}
+
 void CBuildSettingsWindow::DrawAndroidCategory()
 {
 	ImGui::SeparatorText(Loc::Text("build_settings.android"));
-	if (ToBuildTargetPlatform(m_targetPlatform) != EBuildTargetPlatform::Android)
+	if (false == m_enableAndroid)
 	{
 		ImGui::TextDisabled("%s", Loc::Text("build_settings.platform_inactive"));
 	}
 
 	ImGui::Utillity::FormLayout layout("##build_settings_android", 4.0f, { 2.0f, 1.0f }, 170.0f);
-	const bool validateAndroid = ToBuildTargetPlatform(m_targetPlatform) == EBuildTargetPlatform::Android;
+	const bool validateAndroid = m_enableAndroid;
 	layout.Row(
 		[&]() {
 			DrawFieldLabel("build_settings.android_application_id", "build_settings.android_application_id.desc", true);
@@ -594,13 +594,13 @@ void CBuildSettingsWindow::DrawAndroidCategory()
 void CBuildSettingsWindow::DrawIOSCategory()
 {
 	ImGui::SeparatorText(Loc::Text("build_settings.ios"));
-	if (ToBuildTargetPlatform(m_targetPlatform) != EBuildTargetPlatform::IOS)
+	if (false == m_enableIOS)
 	{
 		ImGui::TextDisabled("%s", Loc::Text("build_settings.platform_inactive"));
 	}
 
 	ImGui::Utillity::FormLayout layout("##build_settings_ios", 4.0f, { 2.0f, 1.0f }, 170.0f);
-	const bool validateIOS = ToBuildTargetPlatform(m_targetPlatform) == EBuildTargetPlatform::IOS;
+	const bool validateIOS = m_enableIOS;
 	layout.Row(
 		[&]() {
 			DrawFieldLabel("build_settings.ios_bundle_identifier", "build_settings.ios_bundle_identifier.desc", true);
@@ -863,7 +863,10 @@ void CBuildSettingsWindow::LoadFromProject()
 
 	const ProjectBuildSettings& build = pm->GetBuildSettings();
 	m_productName = build.ProductName;
-	m_targetPlatform = ToIndex(build.TargetPlatform);
+	m_enableWindows = build.EnableWindows;
+	m_enableWeb     = build.EnableWeb;
+	m_enableAndroid = build.EnableAndroid;
+	m_enableIOS     = build.EnableIOS;
 	m_buildConfiguration = ToIndex(build.BuildConfiguration);
 	m_outputDirectory = build.OutputDirectory;
 	m_startupScene = build.StartupScene;
@@ -893,7 +896,10 @@ bool CBuildSettingsWindow::ApplyToProject(std::string* outError)
 	const ProjectBuildSettings previousSettings = pm->GetBuildSettings();
 	ProjectBuildSettings buildSettings = previousSettings;
 	buildSettings.ProductName = m_productName;
-	buildSettings.TargetPlatform = ToBuildTargetPlatform(m_targetPlatform);
+	buildSettings.EnableWindows = m_enableWindows;
+	buildSettings.EnableWeb     = m_enableWeb;
+	buildSettings.EnableAndroid = m_enableAndroid;
+	buildSettings.EnableIOS     = m_enableIOS;
 	buildSettings.BuildConfiguration = ToBuildConfiguration(m_buildConfiguration);
 	buildSettings.OutputDirectory = m_outputDirectory;
 	buildSettings.StartupScene = m_startupScene;
@@ -907,18 +913,12 @@ bool CBuildSettingsWindow::ApplyToProject(std::string* outError)
 	buildSettings.IOSTeamId = m_iosTeamId;
 	buildSettings.IOSMinimumOSVersion = m_iosMinimumOSVersion;
 
-	if (buildSettings.TargetPlatform == EBuildTargetPlatform::Windows)
-	{
-		buildSettings.ScriptMode = EBuildScriptMode::DynamicLibrary;
-		buildSettings.ScriptProjectPath = "Contents/GameScript.vcxproj";
-		buildSettings.ScriptOutputLibraryPath = "GameScript.dll";
-	}
-	else
-	{
-		buildSettings.ScriptMode = EBuildScriptMode::Static;
-		buildSettings.ScriptProjectPath.clear();
-		buildSettings.ScriptOutputLibraryPath.clear();
-	}
+	// ScriptMode 는 DynamicLibrary 기준으로 저장한다(Windows 빌드 기본). Web/모바일 빌드의
+	// 정적 링크 강제는 빌드 디스크립터 생성 시점(CGameBuildManager)에서 플랫폼별로 처리한다 —
+	// 다중 활성 설정에서는 여기서 단일 플랫폼으로 ScriptMode 를 못 정하기 때문이다.
+	buildSettings.ScriptMode = EBuildScriptMode::DynamicLibrary;
+	buildSettings.ScriptProjectPath = "Contents/GameScript.vcxproj";
+	buildSettings.ScriptOutputLibraryPath = "GameScript.dll";
 	buildSettings.ScriptBuildConfiguration = EBuildConfiguration::Debug == buildSettings.BuildConfiguration
 		? EScriptBuildConfiguration::Debug
 		: EScriptBuildConfiguration::Release;
@@ -1075,6 +1075,7 @@ void CBuildSettingsWindow::FocusFirstInvalidCategory()
 		ECategory::Scenes,
 		ECategory::Output,
 		ECategory::Windows,
+		ECategory::Web,
 		ECategory::Android,
 		ECategory::IOS,
 	};
@@ -1089,6 +1090,23 @@ void CBuildSettingsWindow::FocusFirstInvalidCategory()
 	m_selectedCategory = ECategory::General;
 }
 
+void CBuildSettingsWindow::FocusPlatformCategory(EBuildTargetPlatform platform)
+{
+	if (false == m_loadedFromProject)
+	{
+		LoadFromProject();
+	}
+
+	switch (platform)
+	{
+	case EBuildTargetPlatform::Web:     m_selectedCategory = ECategory::Web;     break;
+	case EBuildTargetPlatform::Android: m_selectedCategory = ECategory::Android; break;
+	case EBuildTargetPlatform::IOS:     m_selectedCategory = ECategory::IOS;     break;
+	case EBuildTargetPlatform::Windows:
+	default:                            m_selectedCategory = ECategory::Windows; break;
+	}
+}
+
 bool CBuildSettingsWindow::HasCategoryInvalid(ECategory category) const
 {
 	switch (category)
@@ -1100,13 +1118,15 @@ bool CBuildSettingsWindow::HasCategoryInvalid(ECategory category) const
 	case ECategory::Output:
 		return IsOutputDirectoryInvalid();
 	case ECategory::Android:
-		return ToBuildTargetPlatform(m_targetPlatform) == EBuildTargetPlatform::Android
+		return m_enableAndroid
 			&& (IsAndroidApplicationIdInvalid() || IsAndroidSdkInvalid());
 	case ECategory::IOS:
-		return ToBuildTargetPlatform(m_targetPlatform) == EBuildTargetPlatform::IOS
+		return m_enableIOS
 			&& (IsIOSBundleIdentifierInvalid() || IsIOSMinimumOSInvalid());
 	case ECategory::Windows:
+	case ECategory::Web:
 	default:
+		// Windows/Web 은 현재 플랫폼 전용 필수 설정이 없다(추후 확장 여지).
 		return false;
 	}
 }
@@ -1189,9 +1209,34 @@ std::string CBuildSettingsWindow::MakePackagePreview() const
 		outputRoot = pm->GetRootPath() / outputRoot;
 	}
 
-	std::string product = m_productName.empty() ? "Game" : m_productName;
-	const File::Path packagePath = outputRoot / (product + "-" + ToString(ToBuildTargetPlatform(m_targetPlatform)) + "-" + ToString(ToBuildConfiguration(m_buildConfiguration)));
-	return ToUtf8PathString(packagePath);
+	const std::string product = m_productName.empty() ? "Game" : m_productName;
+	const char* config = ToString(ToBuildConfiguration(m_buildConfiguration));
+
+	// 활성 플랫폼마다 패키지 경로가 하나씩 생긴다. 활성 플랫폼별로 나열한다.
+	struct PlatformFlag { bool Enabled; EBuildTargetPlatform Platform; };
+	const PlatformFlag flags[] = {
+		{ m_enableWindows, EBuildTargetPlatform::Windows },
+		{ m_enableWeb,     EBuildTargetPlatform::Web     },
+		{ m_enableAndroid, EBuildTargetPlatform::Android },
+		{ m_enableIOS,     EBuildTargetPlatform::IOS     },
+	};
+
+	std::string preview;
+	for (const PlatformFlag& flag : flags)
+	{
+		if (false == flag.Enabled)
+		{
+			continue;
+		}
+		const File::Path packagePath = outputRoot / (product + "-" + ToString(flag.Platform) + "-" + config);
+		if (false == preview.empty())
+		{
+			preview += "\n";
+		}
+		preview += ToUtf8PathString(packagePath);
+	}
+
+	return preview.empty() ? std::string(Loc::Text("build_settings.no_platform_enabled")) : preview;
 }
 
 std::wstring CBuildSettingsWindow::GetRootDialogPath() const

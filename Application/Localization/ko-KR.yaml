@@ -481,7 +481,6 @@ Entries:
   project_settings.script_unload.desc: 현재 로드된 스크립트 DLL 을 언로드합니다.
   build_settings.product_name.desc: 빌드 산출물 폴더와 실행 파일 이름에 사용할 제품 이름입니다.
   build_settings.windows_icon.desc: Windows 패키지 exe에 적용할 .ico 자산입니다. 외부 파일을 선택하면 Assets/Package/Windows/AppIcon.ico로 복사한 뒤 GUID를 저장합니다.
-  build_settings.target_platform.desc: 게임 빌드를 생성할 대상 플랫폼입니다.
   build_settings.configuration.desc: 엔진 게임 빌드 구성입니다. Debug_Game 또는 Release_Game에 대응합니다.
   build_settings.android_application_id.desc: "Android 패키지의 고유 applicationId입니다. 예: com.company.game"
   build_settings.android_min_sdk.desc: Android 앱이 지원할 최소 SDK 버전입니다.
