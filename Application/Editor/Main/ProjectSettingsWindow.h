@@ -74,6 +74,9 @@ private:
     // InputTextMultiline 의 백킹 버퍼. OnShow 에서 레이어 벡터로부터 재구축한다.
     std::string m_inputLayersBuffer;
 
+    // 입력 액션 맵 — 이름 기반 액션→바인딩. OnShow 로드, Apply 시 ProjectManager 에 set.
+    std::vector<InputActionDef> m_editInputActions;
+
     // UI 상태
     ECategory m_selectedCategory = ECategory::General;
     float     m_splitRatio       = 0.28f;   // 왼쪽 패널 너비 비율

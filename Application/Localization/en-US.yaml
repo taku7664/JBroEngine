@@ -116,6 +116,13 @@ Entries:
   project_settings.input.title: Input Layers
   project_settings.input.desc: One layer name per line. Higher in the list = higher priority. A script's InputHandler<"Layer", Order> string is matched against this list.
   project_settings.input.hint: "Layers not in the list fall back to lowest priority at runtime with a one-time warning. Order within the same layer is decided by the handler's Order value."
+  project_settings.input.actions_title: Input Actions
+  project_settings.input.actions_desc: Name-based actions and bindings. Scripts read them via ctx.GetAction().GetValue<T>("name"). One action can group multiple bindings (keyboard + gamepad).
+  project_settings.input.action_type: Type
+  project_settings.input.remove_action: Remove Action
+  project_settings.input.add_action: Add Action
+  project_settings.input.add_binding: Add Binding
+  project_settings.input.gamepad_index: "Gamepad slot index. -1 = any connected pad."
   build_settings.no_project: No project loaded.
   build_settings.category.general: General
   build_settings.category.scenes: Scenes

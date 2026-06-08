@@ -10,6 +10,10 @@
 #include "Engine/Editor/ImEditor.h"
 #include "Engine/Editor/Project/ProjectManager.h"
 
+#include "Core/Input/InputAction.h"
+#include "Core/Input/InputTypes.h"
+#include "ThirdParty/magic_enum/magic_enum.hpp"
+
 namespace
 {
     SafePtr<CProjectManager> GetProjectManagerForSettings()
@@ -46,6 +50,64 @@ namespace
             return ImVec4(0.9f, 0.75f, 0.35f, 1.0f);
         default:
             return ImVec4(0.7f, 0.7f, 0.7f, 1.0f);
+        }
+    }
+
+    // ── InputMap 편집 콤보 (magic_enum, 에디터 호스트) ────────────────────────────
+    // enum 값 콤보. 변경되면 true.
+    template<typename E>
+    bool EnumCombo(const char* id, E& value)
+    {
+        const std::string current(magic_enum::enum_name(value));
+        bool changed = false;
+        if (ImGui::BeginCombo(id, current.c_str()))
+        {
+            for (const E candidate : magic_enum::enum_values<E>())
+            {
+                const bool selected = (candidate == value);
+                const std::string name(magic_enum::enum_name(candidate));
+                if (ImGui::Selectable(name.c_str(), selected))
+                {
+                    value   = candidate;
+                    changed = true;
+                }
+                if (selected) ImGui::SetItemDefaultFocus();
+            }
+            ImGui::EndCombo();
+        }
+        return changed;
+    }
+
+    // 특정 enum 타입의 이름 콤보로 int code 를 편집. 변경되면 true.
+    template<typename E>
+    bool CodeComboFor(const char* id, int& code)
+    {
+        E current = static_cast<E>(code);
+        if (EnumCombo<E>(id, current))
+        {
+            code = static_cast<int>(current);
+            return true;
+        }
+        return false;
+    }
+
+    // 바인딩 Code 콤보 — Source 에 따라 보여줄 enum 이 달라진다.
+    bool BindingCodeCombo(const char* id, EInputBindingSource source, int& code)
+    {
+        switch (source)
+        {
+        case EInputBindingSource::Key:           return CodeComboFor<EKeyCode>(id, code);
+        case EInputBindingSource::MouseButton:   return CodeComboFor<EMouseButton>(id, code);
+        case EInputBindingSource::GamepadButton: return CodeComboFor<EGamepadButton>(id, code);
+        case EInputBindingSource::GamepadAxis:   return CodeComboFor<EGamepadAxis>(id, code);
+        case EInputBindingSource::GamepadStick:
+        {
+            const char* items[] = { "Left", "Right" };
+            int index = (1 == code) ? 1 : 0;
+            if (ImGui::Combo(id, &index, items, 2)) { code = index; return true; }
+            return false;
+        }
+        default: return false;
         }
     }
 }
@@ -91,6 +153,7 @@ void CProjectSettingsWindow::OnShow()
 
         // 입력 레이어 — 동일 패턴(한 줄당 하나, 위 = 최우선).
         m_editInputLayers = pm->GetInputLayers();
+        m_editInputActions = pm->GetInputActions();
         m_inputLayersBuffer.clear();
         for (const std::string& layer : m_editInputLayers)
         {
@@ -361,6 +424,109 @@ void CProjectSettingsWindow::DrawCategoryInput()
 
     ImGui::Spacing();
     ImGui::TextDisabled("%s", Loc::Text("project_settings.input.hint"));
+
+    // ── 액션 맵 (이름 기반 액션 → 바인딩) ─────────────────────────────────────────
+    ImGui::Spacing();
+    ImGui::SeparatorText(Loc::Text("project_settings.input.actions_title"));
+    ImGui::TextWrapped("%s", Loc::Text("project_settings.input.actions_desc"));
+    ImGui::Spacing();
+
+    int removeAction       = -1;
+    int removeBindingOwner = -1;
+    int removeBindingIndex = -1;
+
+    for (int a = 0; a < static_cast<int>(m_editInputActions.size()); ++a)
+    {
+        InputActionDef& action = m_editInputActions[static_cast<std::size_t>(a)];
+        ImGui::PushID(a);
+
+        const std::string header = (action.Name.empty() ? std::string("<unnamed>") : action.Name)
+            + "  [" + std::string(magic_enum::enum_name(action.Type)) + "]###action";
+        const bool open = ImGui::CollapsingHeader(header.c_str(), ImGuiTreeNodeFlags_DefaultOpen);
+
+        if (open)
+        {
+            // 이름 (char 버퍼 시드 후 변경 시 반영).
+            char nameBuf[64] = {};
+            const std::size_t n = std::min(action.Name.size(), sizeof(nameBuf) - 1);
+            std::memcpy(nameBuf, action.Name.data(), n);
+            ImGui::SetNextItemWidth(180.0f);
+            if (ImGui::InputText("##name", nameBuf, sizeof(nameBuf)))
+            {
+                action.Name = nameBuf;
+            }
+            ImGui::SameLine();
+            ImGui::TextUnformatted(Loc::Text("project_settings.input.action_type"));
+            ImGui::SameLine();
+            ImGui::SetNextItemWidth(120.0f);
+            EnumCombo<EInputActionValueType>("##type", action.Type);
+            ImGui::SameLine();
+            if (ImGui::SmallButton(Loc::Text("project_settings.input.remove_action")))
+            {
+                removeAction = a;
+            }
+
+            // 바인딩 목록.
+            ImGui::Indent();
+            for (int b = 0; b < static_cast<int>(action.Bindings.size()); ++b)
+            {
+                InputBinding& binding = action.Bindings[static_cast<std::size_t>(b)];
+                ImGui::PushID(b);
+
+                ImGui::SetNextItemWidth(130.0f);
+                EnumCombo<EInputBindingSource>("##src", binding.Source);
+                ImGui::SameLine();
+                ImGui::SetNextItemWidth(140.0f);
+                BindingCodeCombo("##code", binding.Source, binding.Code);
+                ImGui::SameLine();
+                ImGui::SetNextItemWidth(70.0f);
+                ImGui::InputInt("##pad", &binding.GamepadIndex, 0, 0); // -1 = 아무 패드
+                ImGui::Utillity::HoveredToolTip(Loc::Text("project_settings.input.gamepad_index"));
+                if (EInputActionValueType::Vector2 == action.Type)
+                {
+                    ImGui::SameLine();
+                    ImGui::SetNextItemWidth(90.0f);
+                    EnumCombo<EInputComposite>("##comp", binding.Composite);
+                }
+                ImGui::SameLine();
+                if (ImGui::SmallButton("X"))
+                {
+                    removeBindingOwner = a;
+                    removeBindingIndex = b;
+                }
+
+                ImGui::PopID();
+            }
+            if (ImGui::SmallButton(Loc::Text("project_settings.input.add_binding")))
+            {
+                action.Bindings.push_back(InputBinding{});
+            }
+            ImGui::Unindent();
+        }
+
+        ImGui::PopID();
+    }
+
+    if (ImGui::Button(Loc::Text("project_settings.input.add_action")))
+    {
+        InputActionDef def;
+        def.Name = "NewAction";
+        m_editInputActions.push_back(std::move(def));
+    }
+
+    // 지연 삭제(반복 후).
+    if (removeBindingOwner >= 0 && removeBindingOwner < static_cast<int>(m_editInputActions.size()))
+    {
+        std::vector<InputBinding>& bindings = m_editInputActions[static_cast<std::size_t>(removeBindingOwner)].Bindings;
+        if (removeBindingIndex >= 0 && removeBindingIndex < static_cast<int>(bindings.size()))
+        {
+            bindings.erase(bindings.begin() + removeBindingIndex);
+        }
+    }
+    if (removeAction >= 0 && removeAction < static_cast<int>(m_editInputActions.size()))
+    {
+        m_editInputActions.erase(m_editInputActions.begin() + removeAction);
+    }
 }
 
 void CProjectSettingsWindow::DrawCategoryLocalization()
@@ -515,6 +681,7 @@ void CProjectSettingsWindow::DrawFooterButtons()
             pm->SetDebugModeEnabled(m_debugModeEnabled);
             pm->SetAssetWatchIgnorePatterns(m_editAssetWatchIgnorePatterns);
             pm->SetInputLayers(m_editInputLayers);
+            pm->SetInputActions(m_editInputActions);
         }
         if (Engine.Localization.IsValid())
         {
