@@ -25,6 +25,14 @@ public:
 	// 터치 이벤트를 엔진 InputSystem 으로 전달한다. 메인 스레드 호출 가정.
 	void InjectTouch(std::int32_t pointerId, int x, int y, ETouchPhase phase);
 
+#if JBRO_PLATFORM_ANDROID
+	// 부팅 순서 문제 해결: Vulkan RHI 는 init 시점에 ANativeWindow 가 필요한데(VkAndroidSurface),
+	// 플랫폼/서피스는 엔진 Initialize 안에서 생성된다. AndroidMain 이 APP_CMD_INIT_WINDOW 에서
+	// 윈도우를 여기에 미리 등록해두면, CMobilePlatform::Initialize 가 서피스 생성 직후 시드한다.
+	static void SetPendingNativeWindow(void* window);
+	static void* GetPendingNativeWindow();
+#endif
+
 private:
 	PlatformDesc m_desc;
 	OwnerPtr<IRenderSurface> m_mainRenderSurface;

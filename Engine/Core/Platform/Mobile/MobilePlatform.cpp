@@ -5,6 +5,23 @@
 #include "Core/Input/InputSystem.h"
 #include "Core/Platform/Mobile/MobileRenderSurface.h"
 
+#if JBRO_PLATFORM_ANDROID
+namespace
+{
+	void* g_pendingNativeWindow = nullptr;
+}
+
+void CMobilePlatform::SetPendingNativeWindow(void* window)
+{
+	g_pendingNativeWindow = window;
+}
+
+void* CMobilePlatform::GetPendingNativeWindow()
+{
+	return g_pendingNativeWindow;
+}
+#endif
+
 bool CMobilePlatform::Initialize(const PlatformDesc& desc)
 {
 	m_desc = desc;
@@ -20,6 +37,15 @@ bool CMobilePlatform::Initialize(const PlatformDesc& desc)
 	{
 		return false;
 	}
+
+#if JBRO_PLATFORM_ANDROID
+	// AndroidMain 이 INIT_WINDOW 에서 등록해 둔 네이티브 윈도우를 서피스에 시드한다.
+	// (이후 InitializeRHI 가 FillRenderSurfaceDesc 로 이 핸들을 읽어 Vulkan surface 를 만든다.)
+	if (void* pendingWindow = GetPendingNativeWindow())
+	{
+		SetNativeSurfaceHandle(pendingWindow);
+	}
+#endif
 
 	m_isInitialized = true;
 	return true;

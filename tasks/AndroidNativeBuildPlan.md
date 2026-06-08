@@ -91,13 +91,21 @@ Android = web 목록에서:
       - `std::aligned_alloc` 는 Android API 28+ 한정(타깃 26) → GameModuleLoader.cpp / ReflectionRegistry.cpp 에 `#elif defined(__ANDROID__)` posix_memalign 분기 추가(웹/리눅스 경로 불변).
       - native_app_glue.c(C) 는 clang++ 가 C++ 로 컴파일해 깨짐 → AndroidMain(M3) 생기기 전까지 빌드서 제외(그때 C 로 별도 컴파일).
       - Vulkan RHI 8종 + MobilePlatform/MobileRenderSurface 전부 무수정 컴파일/링크 통과.
-- [ ] **M3 AndroidMain + native_app_glue**: `Application/Entry/AndroidMain.cpp`. android_main 루프,
-      APP_CMD_INIT_WINDOW→`CMobilePlatform::SetNativeSurfaceHandle(ANativeWindow)`, lifecycle(pause/resume/term),
-      공통 CGameApplication 부트스트랩 호출.
-- [ ] **M4 Vulkan 스왑체인 on ANativeWindow**: `VK_KHR_android_surface` 로 surface 생성(CVulkanSwapchain 확인/보강).
-      clear + sprite draw 가 기기/에뮬서 보이는지.
-- [ ] **M5 입력**: native_app_glue input cb 의 `AInputEvent`(AMotionEvent: down/move/up/cancel + pointerId + getX/Y)
-      → `CMobilePlatform::InjectTouch(id,x,y,phase)`. (엔진쪽 수신 계약 이미 완성.)
+- [x] **M3 AndroidMain + native_app_glue** ✅ 2026-06-08. `Application/Entry/AndroidMain.cpp`.
+      android_main 루프(ALooper_pollOnce; pollAll 은 NDK27서 사용불가), userData=AndroidAppState.
+      lifecycle: INIT_WINDOW→`SetPendingNativeWindow`+(init 후면)`SetNativeSurfaceHandle`/resize,
+      TERM_WINDOW→핸들 null, WINDOW_RESIZED/CONFIG_CHANGED→`ResizeSurface`, GAINED/LOST_FOCUS→`SetFocus`,
+      PAUSE/RESUME→`NotifyPause/Resume`. 윈도우 준비 후 1회 `InitializeApplication`(Vulkan surface 가 init 시점에
+      ANativeWindow 필요 → pending-window 시드로 해결), 이후 매 프레임 `TickApplication`.
+      .so export 확인: `ANativeActivity_onCreate`(glue) + `android_main` 둘 다 T.
+      부팅순서 수정: `CMobilePlatform::SetPendingNativeWindow/GetPendingNativeWindow`(static, Android 전용) 추가 →
+      `CMobilePlatform::Initialize` 가 서피스 생성 직후 시드. (PlatformDesc/공유코드 무변경, mobile 레이어 격리.)
+- [ ] **M4 Vulkan 스왑체인 on ANativeWindow**: 코드 경로는 이미 존재(`CVulkanRHIDevice::CreateSurface` android 분기 +
+      `vkCreateAndroidSurfaceKHR`, CVulkanSwapchain). **빌드상 완료, 런타임 미검증**(APK+기기 필요=M6).
+      clear + sprite draw 가 기기/에뮬서 보이는지 실측 필요.
+- [x] **M5 입력** ✅ 2026-06-08 (M3 와 동일 파일서 배선). native_app_glue input cb `OnInputEvent`:
+      AMotionEvent DOWN/POINTER_DOWN→Began, UP/POINTER_UP→Ended, MOVE→(전 포인터)Moved, CANCEL→Cancelled.
+      pointerId/getX/getY → `CMobilePlatform::InjectTouch`. **빌드 완료, 런타임 미검증**(M6).
 - [ ] **M6 Gradle APK**: `BuildGame.ps1 -Platform Android` 로 .so staging + APK 빌드(Gradle JDK21 호환 핀).
       `adb install` → logcat 으로 startup scene 로드 로그 확인.
 

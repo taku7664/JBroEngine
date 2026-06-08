@@ -51,6 +51,10 @@ $clangxx = Join-Path $NdkRoot "toolchains\llvm\prebuilt\windows-x86_64\bin\clang
 if (-not (Test-Path -LiteralPath $clangxx -PathType Leaf)) {
     throw "NDK clang++ not found: $clangxx"
 }
+$clangc = Join-Path $NdkRoot "toolchains\llvm\prebuilt\windows-x86_64\bin\clang.exe"
+if (-not (Test-Path -LiteralPath $clangc -PathType Leaf)) {
+    throw "NDK clang (C driver) not found: $clangc"
+}
 
 # --- ABI -> target triple ------------------------------------------------
 $triplePrefix = switch ($Abi) {
@@ -95,10 +99,10 @@ if (Test-Path -LiteralPath $scriptsDir -PathType Container) {
         Sort-Object FullName | ForEach-Object { $_.FullName }
 }
 
-# Android entry + native_app_glue (present from M3 onward).
-# native_app_glue.c is C; clang++ would miscompile it as C++. It is only needed
-# once AndroidMain exists (M3), where it is compiled separately as C. Until then
-# (no entry), skip it so the engine .so builds clean.
+# Android entry (M3+). native_app_glue.c is a C source and must be compiled by
+# the C driver (clang++ with a global -std=c++20 would reject/miscompile it), so
+# it is compiled separately below and linked in as an object. Both are only
+# needed once AndroidMain exists; before that the engine .so builds clean.
 $androidMain = Join-Path $repoRoot "Application\Entry\AndroidMain.cpp"
 $haveEntry = Test-Path -LiteralPath $androidMain -PathType Leaf
 if ($haveEntry) { $sources += $androidMain }
@@ -109,6 +113,25 @@ $haveGlue = $haveEntry -and (Test-Path -LiteralPath $glue -PathType Leaf)
 $stageDir = Join-Path $repoRoot ("Build\Android\{0}\{1}" -f $Abi, $Configuration)
 New-Item -ItemType Directory -Path $stageDir -Force | Out-Null
 $outputSo = Join-Path $stageDir "libJBroGame.so"
+
+# --- Pre-compile C objects (native_app_glue) -----------------------------
+$extraObjects = @()
+if ($haveGlue) {
+    $glueObj = Join-Path $stageDir "android_native_app_glue.o"
+    $glueInclude = Join-Path $NdkRoot "sources\android\native_app_glue"
+    $glueArgs = @(
+        "--target=$target",
+        "-fPIC",
+        "-c",
+        ("-I{0}" -f $glueInclude),
+        $glue,
+        "-o", $glueObj
+    )
+    Write-Host "Compiling native_app_glue.c (C) ..."
+    & $clangc @glueArgs
+    if ($LASTEXITCODE -ne 0) { throw "native_app_glue compile failed. ExitCode=$LASTEXITCODE" }
+    $extraObjects += $glueObj
+}
 
 # --- Compose argument response file --------------------------------------
 $optArgs = if ($Configuration -eq "Debug") { @("-O0", "-g") } else { @("-O2", "-DNDEBUG") }
@@ -142,12 +165,12 @@ $args += @(
     "-DVK_USE_PLATFORM_ANDROID_KHR"
 )
 $args += $sources
+$args += $extraObjects        # pre-compiled C objects (native_app_glue)
 $args += @("-lvulkan", "-llog", "-landroid")
 $args += @("-o", $outputSo)
 
-# C sources (native_app_glue) compiled by clang++ are fine; force C where needed
-# is unnecessary — clang detects .c. Write a response file (UTF-8, no BOM) to
-# survive the long, non-ASCII argument list.
+# Write a response file (UTF-8, no BOM) to survive the long, non-ASCII argument
+# list.
 $rspFile = Join-Path $stageDir "android_build.rsp"
 # clang response files treat backslash as an escape character, so emit all
 # paths with forward slashes (clang accepts them on Windows). Quote args that
