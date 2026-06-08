@@ -274,6 +274,15 @@ void* CReflectionRegistry::AllocateScriptMemory(std::size_t size, std::size_t al
 
 #if defined(_MSC_VER)
 	return _aligned_malloc(effectiveSize, effectiveAlignment);
+#elif defined(__ANDROID__)
+	// std::aligned_alloc 는 Android API 28+ 에서만 제공된다(min SDK 26).
+	// 전 API 에서 가용한 posix_memalign 으로 정렬 할당한다(std::free 와 호환).
+	void* alignedPtr = nullptr;
+	if (0 != ::posix_memalign(&alignedPtr, effectiveAlignment, effectiveSize))
+	{
+		return nullptr;
+	}
+	return alignedPtr;
 #else
 	const std::size_t remainder = effectiveSize % effectiveAlignment;
 	const std::size_t alignedSize = 0 == remainder ? effectiveSize : effectiveSize + (effectiveAlignment - remainder);

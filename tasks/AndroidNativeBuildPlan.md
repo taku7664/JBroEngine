@@ -2,7 +2,23 @@
 
 > 콘텍스트 압축 대비 자급식 문서. 콜드 재개 시 이 파일 먼저 읽고 시작.
 > 상위 맥락: `tasks/MobilePlatformPlan.md`(전체 모바일 설계), `tasks/InputSystemRoadmap.md`(입력).
-> 사용자 지시: 입력 작업 완료됨 → 모바일 글루 착수 중. **CMake** 방식 확정.
+> 사용자 지시: 입력 작업 완료됨 → 모바일 글루 착수 중.
+
+## ⚠ 빌드 방식 전환 (2026-06-08): CMake → 직접 clang
+**CMake 포기.** 이 머신서 cmake.exe 가 *모든* 컴파일러 try_compile 에서 fastfail(`0xC0000409` STATUS_STACK_BUFFER_OVERRUN) 로 죽는다.
+- cmake 3.22.1(NDK 번들) / 3.31.6(VS) **둘 다**, 그리고 **MSVC / clang / Android NDK toolchain 전부** 동일 크래시.
+- toolchain 파일 경유 → CXX 컴파일러 *식별* 단계서, 내장 Android 지원/native MSVC → ABI 탐지 단계서 크래시. 위치만 다르고 동일 코드.
+- NDK clang++ 자체는 **완벽 정상**(C++20 + STL + vulkan.h 컴파일+링크 직접 호출 전부 통과). 비ASCII %TEMP%/소스경로도 clang 은 문제없음.
+- 결론: cmake 환경 고장(주입 DLL 의심). cmake 우회가 정답.
+
+**채택: 웹빌드와 동일 모델 — 소스리스트 + 컴파일러 1회 직접 호출.** (web 은 emcc, android 는 NDK clang++.)
+- `BuildScripts/Android/android_engine_sources.txt` — 엔진+yaml 소스 단일출처(web_game_sources.txt 패턴).
+- `BuildScripts/Android/BuildAndroidNative.ps1` — clang++ `@response.rsp` 1회 호출로 .so 직접 생성.
+  - rsp 는 **forward-slash 필수**(clang response file 은 `\` 를 escape 로 먹음).
+  - `-static-libstdc++`(=ANDROID_STL c++_static), `--target=aarch64-linux-android26`, `-shared -fPIC`.
+- `PlatformBuild/Android/CMakeLists.txt` 는 **참고용 보존**(cmake 고쳐지면 사용 가능). 현재 빌드는 PS1 직접경로.
+
+## 빌드 방식 (구) — CMake 스캐폴딩 메모 (참고용, 위 전환으로 비활성)
 
 ## 목표
 모바일 글루의 블로커 = `libJBroGame.so`(엔진+게임 arm64 네이티브)가 아직 안 빌드됨.
@@ -67,10 +83,14 @@ Android = web 목록에서:
   (정확한 시그니처는 `Application/Application.cpp` + `Application/Entry/WebMain.cpp` 참고해 AndroidMain 작성.)
 
 ## 마일스톤 (체크리스트)
-- [ ] **M1 CMake 최소 빌드 뚫기**: `PlatformBuild/Android/CMakeLists.txt`(신규). 최소 소스(예: Utillity + Core 일부)만
-      arm64 컴파일되는지 확인. toolchain=android.toolchain.cmake, ABI=arm64-v8a, API=26, STL=c++_static, Ninja.
-- [ ] **M2 전체 소스 → libJBroGame.so 링크**: 위 소스 서브셋 전부 + yaml-cpp + Vulkan RHI + native_app_glue.
-      컴파일/링크 에러 사냥(Windows-ism, 미해결 심볼). 출력 → `Build\Android\arm64-v8a\Debug\libJBroGame.so`.
+- [x] **M1 빌드 뚫기** (CMake 시도→ 환경 크래시 → 직접 clang 전환, 위 "빌드 방식 전환" 참조).
+- [x] **M2 전체 소스 → libJBroGame.so 링크** ✅ 2026-06-08.
+      `BuildScripts/Android/BuildAndroidNative.ps1 -Configuration Debug` → EXIT=0, 110 소스.
+      산출: `Build\Android\arm64-v8a\Debug\libJBroGame.so` (AArch64 ELF64 DYN, 34MB, `CreateGameModule`+스크립트 등록 export 확인).
+      수정한 컴파일 반례:
+      - `std::aligned_alloc` 는 Android API 28+ 한정(타깃 26) → GameModuleLoader.cpp / ReflectionRegistry.cpp 에 `#elif defined(__ANDROID__)` posix_memalign 분기 추가(웹/리눅스 경로 불변).
+      - native_app_glue.c(C) 는 clang++ 가 C++ 로 컴파일해 깨짐 → AndroidMain(M3) 생기기 전까지 빌드서 제외(그때 C 로 별도 컴파일).
+      - Vulkan RHI 8종 + MobilePlatform/MobileRenderSurface 전부 무수정 컴파일/링크 통과.
 - [ ] **M3 AndroidMain + native_app_glue**: `Application/Entry/AndroidMain.cpp`. android_main 루프,
       APP_CMD_INIT_WINDOW→`CMobilePlatform::SetNativeSurfaceHandle(ANativeWindow)`, lifecycle(pause/resume/term),
       공통 CGameApplication 부트스트랩 호출.
