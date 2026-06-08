@@ -486,6 +486,19 @@ Project.app/Project
 - 다만 Android/iOS 실기기 검증, Vulkan runtime smoke, shader asset cook 자동화는 아직 완료되지 않았습니다.
 - 다음 단계는 Android Debug APK 를 먼저 목표로 `PlatformBuild/Android` template 과 native entry/lifecycle 을 붙이는 것입니다.
 
+## 2026-06-08 Android 툴체인 설치 완료
+
+`C:\Android` 에 커맨드라인 경로로 설치(Android Studio 미사용):
+
+- `platform-tools`(adb), `platforms;android-35`, `build-tools;35.0.0`, `cmake;3.22.1`,
+  `ndk;27.3.13750724`(LTS, clang 18) — 전부 검증됨. NDK clang arm64 sanity 컴파일 통과.
+- JDK = Oracle JDK 21(`C:\Program Files\Java\jdk-21`). Gradle 는 21 호환 버전으로 핀 필요.
+- User 환경변수 등록: `ANDROID_HOME=C:\Android`, `ANDROID_SDK_ROOT=C:\Android`,
+  `ANDROID_NDK_HOME=C:\Android\ndk\27.3.13750724`, `JAVA_HOME=...\jdk-21`.
+- min SDK 26 / target 35 / abi arm64-v8a(.Jproject 기준).
+
+다음: `libJBroGame.so` 네이티브 빌드(CMake) → NativeActivity entry/lifecycle → 입력(InjectTouch) → Gradle APK.
+
 ## 2026-06-04 Vulkan SDK 확인 상태
 
 Windows Vulkan SDK 설치 확인:

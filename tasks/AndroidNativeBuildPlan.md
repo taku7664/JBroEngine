@@ -1,0 +1,110 @@
+# Android Native Build (libJBroGame.so) — 작업 계획 / 핸드오프
+
+> 콘텍스트 압축 대비 자급식 문서. 콜드 재개 시 이 파일 먼저 읽고 시작.
+> 상위 맥락: `tasks/MobilePlatformPlan.md`(전체 모바일 설계), `tasks/InputSystemRoadmap.md`(입력).
+> 사용자 지시: 입력 작업 완료됨 → 모바일 글루 착수 중. **CMake** 방식 확정.
+
+## 목표
+모바일 글루의 블로커 = `libJBroGame.so`(엔진+게임 arm64 네이티브)가 아직 안 빌드됨.
+이걸 **CMake** 로 빌드 → NativeActivity 글루 → Gradle Debug APK → 에뮬/기기 스모크.
+입력(InjectTouch)은 .so + NativeActivity 진입 생긴 뒤 붙는 작은 조각(이미 엔진쪽 계약 `CMobilePlatform::InjectTouch` 준비됨).
+
+## 툴체인 (설치 완료 2026-06-08)
+- `C:\Android` (cmdline-tools 경로 설치, Android Studio 미사용)
+  - platform-tools, platforms;android-35, build-tools;35.0.0, cmake;3.22.1, ndk;27.3.13750724(clang 18)
+- JDK = Oracle JDK 21 `C:\Program Files\Java\jdk-21` → **Gradle 은 JDK21 호환 버전 핀 필요**(Gradle 8.7+/AGP 8.5+)
+- User 환경변수 등록됨: `ANDROID_HOME=C:\Android`, `ANDROID_SDK_ROOT=C:\Android`,
+  `ANDROID_NDK_HOME=C:\Android\ndk\27.3.13750724`, `JAVA_HOME=C:\Program Files\Java\jdk-21`
+  (※ 이미 떠 있던 셸엔 반영 안 됨 — 새 셸 또는 빌드 시 주입)
+- NDK toolchain 파일: `C:\Android\ndk\27.3.13750724\build\cmake\android.toolchain.cmake`
+- 빌드 타깃: min SDK 26 / target 35 / **abi arm64-v8a**(우선), x86_64(에뮬 옵션). `.Jproject` 기준.
+- NDK clang arm64 sanity 컴파일 통과 확인함.
+
+## 기존 스캐폴딩 (이미 있음 — 재사용)
+`BuildScripts/BuildGame.ps1 -Platform Android` 가 이미:
+- libJBroGame.so 를 다음 경로에서 탐색(`~line 1116`):
+  - `Build\Android\<abi>\<Config>\libJBroGame.so`
+  - `Build\Android\<Config>\<abi>\libJBroGame.so`
+  - (Engine root 동일 2종) / `PlatformBuild\Android\libs\<abi>\libJBroGame.so`
+- 찾으면 Gradle `app/src/main/jniLibs/<abi>/libJBroGame.so` 로 staging(`~1179,1298`)
+- Gradle 프로젝트 생성: `android.app.NativeActivity` + Vulkan feature, assets/Content(manifest+pack)
+- .so 없으면 명확히 throw(`~1296`)
+→ **즉 CMake 가 .so 를 위 경로에 produce 하면 BuildGame.ps1 이 나머지(APK) 처리.**
+  통합 옵션 (a) CMake 독립 빌드 → 경로에 출력(권장, 기존 staging 재사용) /
+            (b) Gradle externalNativeBuild 가 CMake 호출(더 통합적, Gradle 템플릿 수정). **먼저 (a).**
+
+## 소스 서브셋 전략
+기준선 = `BuildScripts/Web/web_game_sources.txt`(런타임 소스 = Application + Engine runtime, 에디터 0).
+Android = web 목록에서:
+- **빼기**(web 전용): `Application/Entry/WebMain.cpp`, `Core/Platform/Web/*`(WebCanvasSurface/WebPlatform),
+  `Core/RHI/WebGPU/*`, `Core/Network/Web/WebSocketTransport.cpp`(→ Android 용 transport 또는 stub).
+- **넣기**(android 전용): `Core/Platform/Mobile/MobilePlatform.cpp`, `Core/Platform/Mobile/MobileRenderSurface.cpp`,
+  `Core/RHI/Vulkan/*`(CVulkanRHIDevice/Swapchain/CommandContext/Buffer/Texture/Sampler/Program/GraphicsPipeline),
+  Android 엔트리(`Application/Entry/AndroidMain.cpp` 신규) + `native_app_glue`(NDK 제공: `$NDK/sources/android/native_app_glue/android_native_app_glue.c`).
+- **공통 유지**: Utillity, Core/Asset/Build/Debug/Engine/EngineCore/ScriptCore/FileSystem/Game/Input/Logging/
+  Math/Module/Network(코어)/Random/Renderer/Resource/Task/Time, GameFramework/*, yaml-cpp/src/*.
+- 정적 스크립트: 게임은 static link(web 처럼). SampleProject 의 `Contents/GeneratedScriptRegistry.cpp` + 스크립트 .cpp 를
+  .so 에 함께 컴파일(또는 별도 staticlib). web 빌드가 하는 방식 참고(`BuildGame.ps1` web 경로의 "static script sources").
+
+## 서드파티 (arm64 크로스컴파일)
+- **yaml-cpp**: 소스 직접 컴파일(web 처럼 `Engine/ThirdParty/yaml-cpp/src/*.cpp`). `-DYAML_CPP_STATIC_DEFINE`.
+- **stb / miniaudio**: 헤더 온리(impl 매크로 정의하는 .cpp 존재 위치 확인). 오디오는 Android=miniaudio(AAudio/OpenSL) — 동작 검증 후순위, 초기엔 EmptyAudioDevice 로 빌드 가능하면 우선.
+- **magic_enum**: **호스트 전용**(ReflectionEnumRegister.h). 런타임 게임은 generated registry 사용 → libJBroGame.so 는 magic_enum **불필요**해야 함. (만약 링크서 magic_enum 의존 나오면 그 사용처를 호스트로 격리.)
+- **Vulkan**: NDK 제공 `libvulkan.so` 링크(`-lvulkan`). 별도 SDK 불필요(Windows 와 다름).
+- **imgui**: 런타임 게임 빌드엔 미포함(에디터 전용).
+
+## 빌드 제외 주의 (Windows-ism)
+- `JBRO_PLATFORM_WINDOWS`/`JBRO_EDITOR` 가드 밖에서 Windows API 쓰는 코드 없어야. 컴파일 에러로 드러남 → 가드 보강.
+- D3D11 RHI, Win32 surface, LiveCompile, Editor/* 전부 제외.
+- 정의 매크로: `JBRO_PLATFORM_ANDROID`(NDK 가 `__ANDROID__` 정의 → PlatformDefines.h 가 자동 설정), `JBRO_GAME`,
+  `JBRO_RHI_VULKAN`(Vulkan 경로 활성 — Windows 검증용 가드와 동일), `YAML_CPP_STATIC_DEFINE`.
+- STL: `-DANDROID_STL=c++_static`.
+
+## 런타임 부트스트랩 (공통 경로 재사용 — 새로 만들지 말 것)
+- 모바일 엔트리는 Windows/Web 과 **같은** `CGameApplication` 부트스트랩 호출:
+  `InitializeRuntimeGame` / `LoadRuntimeBuildManifest` / `LoadRuntimeScriptModule`(static) /
+  `LoadRuntimeStartupScene` / `ConfigureRuntimeViewCamera` / 공통 tick·render 루프.
+  (정확한 시그니처는 `Application/Application.cpp` + `Application/Entry/WebMain.cpp` 참고해 AndroidMain 작성.)
+
+## 마일스톤 (체크리스트)
+- [ ] **M1 CMake 최소 빌드 뚫기**: `PlatformBuild/Android/CMakeLists.txt`(신규). 최소 소스(예: Utillity + Core 일부)만
+      arm64 컴파일되는지 확인. toolchain=android.toolchain.cmake, ABI=arm64-v8a, API=26, STL=c++_static, Ninja.
+- [ ] **M2 전체 소스 → libJBroGame.so 링크**: 위 소스 서브셋 전부 + yaml-cpp + Vulkan RHI + native_app_glue.
+      컴파일/링크 에러 사냥(Windows-ism, 미해결 심볼). 출력 → `Build\Android\arm64-v8a\Debug\libJBroGame.so`.
+- [ ] **M3 AndroidMain + native_app_glue**: `Application/Entry/AndroidMain.cpp`. android_main 루프,
+      APP_CMD_INIT_WINDOW→`CMobilePlatform::SetNativeSurfaceHandle(ANativeWindow)`, lifecycle(pause/resume/term),
+      공통 CGameApplication 부트스트랩 호출.
+- [ ] **M4 Vulkan 스왑체인 on ANativeWindow**: `VK_KHR_android_surface` 로 surface 생성(CVulkanSwapchain 확인/보강).
+      clear + sprite draw 가 기기/에뮬서 보이는지.
+- [ ] **M5 입력**: native_app_glue input cb 의 `AInputEvent`(AMotionEvent: down/move/up/cancel + pointerId + getX/Y)
+      → `CMobilePlatform::InjectTouch(id,x,y,phase)`. (엔진쪽 수신 계약 이미 완성.)
+- [ ] **M6 Gradle APK**: `BuildGame.ps1 -Platform Android` 로 .so staging + APK 빌드(Gradle JDK21 호환 핀).
+      `adb install` → logcat 으로 startup scene 로드 로그 확인.
+
+## 검증
+- M1/M2: CMake 빌드 green(`Build/Android/.../libJBroGame.so` 생성).
+- M3~M5: 빌드 green + (가능하면) 에뮬레이터(`avdmanager`/`emulator` 별도 설치 필요 — 현재 미설치)에서 실행.
+  ※ 에뮬레이터/시스템이미지(`system-images;android-35;google_apis;x86_64`)는 아직 안 깔림 — M6 직전 필요.
+- M6: APK 생성 + adb install + startup 로그.
+
+## 알려진 함정
+- JDK 21 ↔ Gradle: Gradle 8.7+ / AGP 8.5+ 아니면 JDK21 거부. BuildGame.ps1 Gradle 템플릿 버전 확인/핀.
+- 한글 사용자명 경로(`C:\Users\박주형`) — NDK/CMake 가 싫어할 수 있음. 빌드 출력은 가능하면 ASCII 경로(`C:\Android` 등) 또는 repo 내. 문제 시 임시 빌드디렉토리 ASCII.
+- `web_game_sources.txt` 가 최근 InputSystem.cpp/ScriptCore.cpp 누락으로 깨졌던 전례 → Android 소스리스트도 동일 누락 주의(특히 *Core.cpp, InputSystem.cpp).
+- 줄끝(CRLF) 일관성.
+- 에뮬레이터 미설치 → M6 전에 `system-images` + `emulator` + AVD 생성 필요(또는 실기기 adb).
+
+## 핵심 참조 파일 (재개 시 읽기)
+- `BuildScripts/Web/web_game_sources.txt` — 소스 서브셋 기준선
+- `BuildScripts/BuildGame.ps1` (Android 섹션 ~line 1100-1300) — .so 탐색/staging/Gradle 생성
+- `Engine/Engine.vcxproj` — 전체 소스 + 에디터/플랫폼 제외 패턴
+- `Engine/Core/Platform/Mobile/MobilePlatform.{h,cpp}`, `MobileRenderSurface.{h,cpp}` — inject 계약
+- `Engine/Core/Platform/PlatformDefines.h` — 플랫폼 매크로
+- `Engine/Core/RHI/Vulkan/*` — Vulkan backend
+- `Application/Application.cpp`, `Application/Entry/WebMain.cpp` — 런타임 부트스트랩 패턴
+- `Engine/Core/Input/InputSystem.h` (AccumulateTouch), `MobilePlatform.h` (InjectTouch) — 입력 배선 지점
+
+## 현재 입력 시스템 상태 (참고 — 완료됨)
+브랜치 `feat/input-touch-mobile-web` 에 커밋됨: 뷰포트 포커스, 텍스트입력, 터치(웹+모바일inject+WM_POINTER),
+웹 진동, 레이어 프로젝트세팅, 키테이블 확장, InputMap(액션매핑 런타임+직렬화+UI), 웹빌드 선결버그 수정.
+모바일 터치 수신 계약(`CMobilePlatform::InjectTouch`→`Engine.InputSystem->AccumulateTouch`)은 **생산자(native_app_glue)만 붙이면 동작**.
