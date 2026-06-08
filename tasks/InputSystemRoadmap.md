@@ -298,6 +298,21 @@ if (InputRegistered && InputHandler && Engine.InputSystem.IsValid())
 - ~~에디터 뷰포트 포커스 게이트 정밀화~~ → **완료(2026-06-07)**. 아래 "뷰포트 포커스 게이팅" 절.
 - 런타임 실측(에디터 인터랙티브 — 빌드만 검증함).
 
+### InputMap (액션 매핑) (2026-06-08 완료)
+
+이름 기반 액션. 핸들러가 디바이스 대신 액션을 읽는다: `ctx.GetAction().GetValue<Vector2>("Move")`.
+
+- **값타입** Bool/Float/Vector2(엔진 `Bool`/`Vector2` POD). 이름=순수 문자열.
+- **강제변환**: Vector2→Bool(nonzero)/Float(x). Bool→Vector2 금지(Zero).
+- **타입**(InputAction.h, DLL 공유): `InputActionValue`+`ActionState`(POD 고정배열, `GetValue<T>` 헤더 인라인 → 경계 안전). 저작용 `InputBinding{Source,Code,GamepadIndex,Composite}`/`InputActionDef`.
+- **바인딩 소스**: Key / MouseButton / GamepadButton / GamepadAxis(Float) / GamepadStick(Vector2 직결). Vector2 는 키 컴포지트(Up/Down/Left/Right 역할) 또는 스틱. 멀티디바이스 OR/합성. Vector2 단위 클램프.
+- **평가**: `CInputSystem::EvaluateActions`(매 프레임 PollDevices 후 → ctx 액션 스토어). 평가 헬퍼는 공개 ctx 접근자만 사용.
+- **직렬화**: `ProjectInfo.InputActions`(InputLayers 옆) → `.Jproject` YAML. ProjectManager 가 **magic_enum**(호스트 전용)으로 enum↔문자열(수동 테이블 X, enum 재정렬 안전). Code 는 generic int → Source 로 분기 변환.
+- **주입**: `ApplyInputMapToSystem` → `Engine.InputSystem->SetInputMap`(프로젝트 로드 + SetInputActions 시).
+- **에디터 UI**: ProjectSettings Input 카테고리에 액션/바인딩 편집(magic_enum 콤보, Code 콤보는 Source 따라 전환). Add/Remove, 지연 삭제.
+- **검증**: Debug_Editor/Debug_Game/GameScript.dll green. 웹빌드 검증(eval=InputSystem.cpp, magic_enum 미사용이라 웹 안전).
+- **후속**: 런타임 리바인딩 API(`Input.SetBinding/SaveBindings`) + persistent path 오버라이드 레이어. 컨텍스트 스택(Phase 4).
+
 ### 뷰포트 포커스 게이팅 (2026-06-07 완료)
 
 게임 입력이 GameView 패널 포커스 시에만 디스패치되도록 게이팅(인스펙터 등 다른 패널 편집 중 WASD 누출 방지). E1/E2 정밀화.
@@ -379,8 +394,8 @@ mobile plan §Input("raw touch list 보존") 정렬. 코어 1개 + 플랫폼 생
       편집/네비(Insert/Delete/Home/End/PageUp/Down/CapsLock), 기호(US `-=[]\;',./``), 숫자패드(0~9+연산) 추가.
       Windows `ToVirtualKey` VK 매핑 확장(F/Numpad 는 범위, 나머지 switch). A-Z/Num0-9 연속성 유지 위해 append.
       웹 키 상태 백엔드는 아직 없음(키스테이트 #else stub) → 웹 키매핑은 web keydown/keyup 백엔드 작업 시 함께. NumpadEnter=VK_RETURN(분리 불가).
-- [ ] **액션 매핑/바인딩 추상화** — `InputAction`(이름) → 바인딩 N개(Space + GamepadSouth 등).
-      리바인딩, 키보드+게임패드 통합, YAML 기반 바인딩. 입력 계층의 본체(컨텍스트 스택이 위에 얹힘).
+- [x] **액션 매핑/바인딩 추상화(InputMap)(2026-06-08)** — 이름 기반 액션→바인딩 N개.
+      키보드+게임패드 통합, 프로젝트세팅 YAML. 아래 "InputMap" 절. (리바인딩/persistent 오버라이드는 후속.)
 - [ ] **터치/모바일 입력** — 멀티터치/탭/핀치/팬. 멀티플랫폼 규칙(윈도우 구현 시 웹/모바일 병렬) 준수.
 
 ### Phase 3 — 게임 실전

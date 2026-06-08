@@ -17,15 +17,24 @@
 - Debug_Editor/Debug_Game/GameScript.dll + 웹빌드 green.
 
 ## Plan
-- [ ] 타입: InputAction.h (EInputActionValueType, InputActionValue, ActionState, InputBinding, InputActionDef)
-- [ ] ctx: InputDeviceContext 에 ActionState + GetAction()
-- [ ] CInputSystem: SetInputMap(resolve) + EvaluateActions 평가패스(Update 내 PollDevices 후)
-- [ ] 직렬화: ProjectInfo.InputActions + .Jproject YAML load/save + ApplyInputMapToSystem
-- [ ] 에디터 UI: ProjectSettings Input 카테고리에 액션/바인딩 편집
-- [ ] SDK 동기화 + 빌드 검증(웹 포함)
+- [x] 타입: InputAction.h (EInputActionValueType, InputActionValue, ActionState, InputBinding, InputActionDef)
+- [x] ctx: InputDeviceContext 에 ActionState + GetAction()
+- [x] CInputSystem: SetInputMap + EvaluateActions 평가패스(Update 내 PollDevices 후)
+- [x] 직렬화: ProjectInfo.InputActions + .Jproject YAML(magic_enum) + ApplyInputMapToSystem
+- [x] 에디터 UI: ProjectSettings Input 카테고리에 액션/바인딩 편집
+- [x] SDK 동기화 + 빌드 검증(웹 진행 중)
 
 ## Verification / Review
-(단계별 작성)
+- [x] Debug_Editor / Debug_Game / GameScript.dll green
+- [x] Application Debug_Editor green (UI)
+- [~] 웹빌드(eval 포함) 검증 중
+### Changed
+- InputAction.h(타입+ctx ActionState, GetValue 강제변환), CInputSystem 평가패스, ProjectManager
+  magic_enum 직렬화, ProjectSettings 바인딩 UI, Loc.
+### Not Verified
+- 인터랙티브 실측(에디터서 액션 정의→스크립트 GetValue). 런타임 리바인딩/오버라이드(후속).
+### Risks
+- 평가 매 프레임 전 액션×바인딩 순회(액션 수 적어 무시 가능). magic_enum 호스트 전용 — DLL/웹 노출 안 함(직렬화는 호스트라 안전).
 
 ---
 
