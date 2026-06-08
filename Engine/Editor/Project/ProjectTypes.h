@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Core/Asset/AssetTypes.h"
+#include "Core/Input/InputAction.h" // InputActionDef
 
 #include <string>
 #include <vector>
@@ -133,4 +134,8 @@ struct ProjectInfo
 		"World",
 		"Debug",
 	};
+
+	// 입력 액션 맵 — 이름 기반 액션→바인딩. 스크립트가 ctx.GetAction().GetValue<T>("이름") 으로 읽는다.
+	// 프로젝트 로드 시 CInputSystem::SetInputMap 으로 주입. 직렬화는 ProjectManager(magic_enum, 호스트).
+	std::vector<InputActionDef> InputActions;
 };

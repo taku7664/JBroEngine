@@ -19,6 +19,7 @@
 #include "Editor/ScriptModule/ScriptModuleLoader.h"
 #include "GameFramework/Scene/SceneManager.h"
 #include "GameFramework/Scene/SceneSerializer.h"
+#include "ThirdParty/magic_enum/magic_enum.hpp"
 #include "yaml-cpp/yaml.h"
 
 #include <atomic>
@@ -54,6 +55,53 @@ namespace
 	constexpr const char* PROJECT_KEY_IMGUI_INI         = "ImGuiIniSettings";
 	constexpr const char* PROJECT_KEY_WATCH_IGNORE      = "AssetWatchIgnorePatterns";
 	constexpr const char* PROJECT_KEY_INPUT_LAYERS      = "InputLayers";
+	constexpr const char* PROJECT_KEY_INPUT_ACTIONS     = "InputActions";
+
+	// ── InputMap 바인딩 Code ↔ 이름 (magic_enum, 호스트 전용) ─────────────────────
+	// Code 는 generic int 라 Source 로 분기해 해당 enum 으로 변환한다. enum 재정렬에도 안전.
+	std::string BindingCodeToName(EInputBindingSource source, int code)
+	{
+		switch (source)
+		{
+		case EInputBindingSource::Key:           return std::string(magic_enum::enum_name(static_cast<EKeyCode>(code)));
+		case EInputBindingSource::MouseButton:   return std::string(magic_enum::enum_name(static_cast<EMouseButton>(code)));
+		case EInputBindingSource::GamepadButton: return std::string(magic_enum::enum_name(static_cast<EGamepadButton>(code)));
+		case EInputBindingSource::GamepadAxis:   return std::string(magic_enum::enum_name(static_cast<EGamepadAxis>(code)));
+		case EInputBindingSource::GamepadStick:  return (1 == code) ? "Right" : "Left";
+		default:                                 return std::string();
+		}
+	}
+
+	int BindingNameToCode(EInputBindingSource source, const std::string& name)
+	{
+		switch (source)
+		{
+		case EInputBindingSource::Key:
+		{
+			const auto value = magic_enum::enum_cast<EKeyCode>(name);
+			return value.has_value() ? static_cast<int>(*value) : 0;
+		}
+		case EInputBindingSource::MouseButton:
+		{
+			const auto value = magic_enum::enum_cast<EMouseButton>(name);
+			return value.has_value() ? static_cast<int>(*value) : 0;
+		}
+		case EInputBindingSource::GamepadButton:
+		{
+			const auto value = magic_enum::enum_cast<EGamepadButton>(name);
+			return value.has_value() ? static_cast<int>(*value) : 0;
+		}
+		case EInputBindingSource::GamepadAxis:
+		{
+			const auto value = magic_enum::enum_cast<EGamepadAxis>(name);
+			return value.has_value() ? static_cast<int>(*value) : 0;
+		}
+		case EInputBindingSource::GamepadStick:
+			return (name == "Right") ? 1 : 0;
+		default:
+			return 0;
+		}
+	}
 	constexpr const char* PROJECT_KEY_BUILD             = "Build";
 	constexpr const char* PROJECT_KEY_BUILD_PRODUCT_NAME = "ProductName";
 	constexpr const char* PROJECT_KEY_BUILD_TARGET_PLATFORM = "TargetPlatform"; // legacy(읽기 전용 마이그레이션)
@@ -775,6 +823,41 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 		}
 	}
 
+	// InputActions — 키가 있으면 그 값으로 덮어쓴다(없으면 ProjectInfo 기본값=빈 목록 유지).
+	std::vector<InputActionDef> inputActions;
+	bool hasInputActions = false;
+	if (root[PROJECT_KEY_INPUT_ACTIONS] && root[PROJECT_KEY_INPUT_ACTIONS].IsSequence())
+	{
+		hasInputActions = true;
+		for (const YAML::Node& actionNode : root[PROJECT_KEY_INPUT_ACTIONS])
+		{
+			InputActionDef def;
+			def.Name = actionNode["Name"].as<std::string>("");
+			if (def.Name.empty())
+			{
+				continue;
+			}
+			const auto typeOpt = magic_enum::enum_cast<EInputActionValueType>(actionNode["Type"].as<std::string>("Bool"));
+			def.Type = typeOpt.has_value() ? *typeOpt : EInputActionValueType::Bool;
+
+			if (actionNode["Bindings"] && actionNode["Bindings"].IsSequence())
+			{
+				for (const YAML::Node& bindingNode : actionNode["Bindings"])
+				{
+					InputBinding binding;
+					const auto srcOpt = magic_enum::enum_cast<EInputBindingSource>(bindingNode["Source"].as<std::string>("Key"));
+					binding.Source       = srcOpt.has_value() ? *srcOpt : EInputBindingSource::Key;
+					binding.Code         = BindingNameToCode(binding.Source, bindingNode["Code"].as<std::string>(""));
+					binding.GamepadIndex = bindingNode["GamepadIndex"].as<int>(-1);
+					const auto compOpt   = magic_enum::enum_cast<EInputComposite>(bindingNode["Composite"].as<std::string>("None"));
+					binding.Composite    = compOpt.has_value() ? *compOpt : EInputComposite::None;
+					def.Bindings.push_back(binding);
+				}
+			}
+			inputActions.push_back(std::move(def));
+		}
+	}
+
 	float pixelsPerUnit = 100.0f;
 	if (root[PROJECT_KEY_PIXELS_PER_UNIT])
 	{
@@ -866,6 +949,10 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 		m_info.InputLayers = std::move(inputLayers);
 	}
 	// else: ProjectInfo 의 기본값(Modal/UI/Game/World/Debug) 그대로 유지.
+	if (hasInputActions)
+	{
+		m_info.InputActions = std::move(inputActions);
+	}
 
 	if (false == m_assetManager->SetAssetRootPath(m_info.AssetPath))
 	{
@@ -917,8 +1004,9 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 		ImGui::LoadIniSettingsFromMemory(m_info.ImGuiIniSettings.c_str(), m_info.ImGuiIniSettings.size());
 	}
 
-	// 입력 레이어 우선순위를 엔진 InputSystem 에 주입(스크립트 핸들러 디스패치 순서).
+	// 입력 레이어 우선순위 + 액션 맵을 엔진 InputSystem 에 주입.
 	ApplyInputLayersToSystem();
+	ApplyInputMapToSystem();
 
 	// ── 동기 폴백용 헬퍼 — Task 경로가 아닐 때 메인 스레드에서 직접 실행 ──
 	auto runScriptBuildSync = [this]()
@@ -2157,6 +2245,25 @@ void CProjectManager::ApplyInputLayersToSystem() const
 	}
 }
 
+const std::vector<InputActionDef>& CProjectManager::GetInputActions() const
+{
+	return m_info.InputActions;
+}
+
+void CProjectManager::SetInputActions(std::vector<InputActionDef> actions)
+{
+	m_info.InputActions = std::move(actions);
+	ApplyInputMapToSystem();
+}
+
+void CProjectManager::ApplyInputMapToSystem() const
+{
+	if (Engine.InputSystem.IsValid())
+	{
+		Engine.InputSystem->SetInputMap(m_info.InputActions);
+	}
+}
+
 bool CProjectManager::IsAssetPathIgnored(const File::Path& absoluteOrRelativePath) const
 {
 	if (absoluteOrRelativePath.empty()) return false;
@@ -2629,6 +2736,33 @@ bool CProjectManager::SaveProject(std::string* outError) const
 	for (const std::string& layer : m_info.InputLayers)
 	{
 		out << layer;
+	}
+	out << YAML::EndSeq;
+	out << YAML::Key << PROJECT_KEY_INPUT_ACTIONS << YAML::Value;
+	out << YAML::BeginSeq;
+	for (const InputActionDef& action : m_info.InputActions)
+	{
+		out << YAML::BeginMap;
+		out << YAML::Key << "Name" << YAML::Value << action.Name;
+		out << YAML::Key << "Type" << YAML::Value << std::string(magic_enum::enum_name(action.Type));
+		out << YAML::Key << "Bindings" << YAML::Value << YAML::BeginSeq;
+		for (const InputBinding& binding : action.Bindings)
+		{
+			out << YAML::BeginMap;
+			out << YAML::Key << "Source" << YAML::Value << std::string(magic_enum::enum_name(binding.Source));
+			out << YAML::Key << "Code"   << YAML::Value << BindingCodeToName(binding.Source, binding.Code);
+			if (binding.GamepadIndex >= 0)
+			{
+				out << YAML::Key << "GamepadIndex" << YAML::Value << binding.GamepadIndex;
+			}
+			if (EInputComposite::None != binding.Composite)
+			{
+				out << YAML::Key << "Composite" << YAML::Value << std::string(magic_enum::enum_name(binding.Composite));
+			}
+			out << YAML::EndMap;
+		}
+		out << YAML::EndSeq;
+		out << YAML::EndMap;
 	}
 	out << YAML::EndSeq;
 	if (false == m_info.ImGuiIniSettings.empty())

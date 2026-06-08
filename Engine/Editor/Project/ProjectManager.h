@@ -138,6 +138,11 @@ public:
 	const std::vector<std::string>& GetInputLayers() const;
 	void                            SetInputLayers(std::vector<std::string> layers);
 
+	// 입력 액션 맵 — 이름 기반 액션→바인딩. 스크립트가 ctx.GetAction().GetValue<T> 로 읽는다.
+	// Set 시 즉시 CInputSystem 에 적용(SetInputMap) + m_info 갱신(저장은 SaveProject 별도).
+	const std::vector<InputActionDef>& GetInputActions() const;
+	void                               SetInputActions(std::vector<InputActionDef> actions);
+
 	// 스크립트 DLL 로드/언로드
 	bool LoadScriptModule();
 	void UnloadScriptModule();
@@ -208,6 +213,8 @@ private:
 	LiveCompileDesc BuildLiveCompileDesc() const;
 	// 현재 m_info.InputLayers 를 엔진 InputSystem 에 주입(프로젝트 로드/레이어 변경 시).
 	void ApplyInputLayersToSystem() const;
+	// 현재 m_info.InputActions 를 엔진 InputSystem 에 주입(프로젝트 로드/액션 변경 시).
+	void ApplyInputMapToSystem() const;
 
 private:
 	SafePtr<IAssetManager>       m_assetManager;
