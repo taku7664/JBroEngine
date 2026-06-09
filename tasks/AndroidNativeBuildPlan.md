@@ -110,8 +110,12 @@ Android = web 목록에서:
 - [x] **M6 Gradle APK (빌드)** ✅ 2026-06-08. `BuildGame.ps1 -Platform Android -Configuration Debug -AndroidSdkRoot C:\Android -OutputRoot C:\JBroPkg`.
       BUILD SUCCESSFUL(1m15s). APK 47.5MB, 엔트리 검증: `lib/arm64-v8a/libJBroGame.so` + `assets/Content/{build_manifest.jbmanifest,game_assets.jbpack}` + AndroidManifest.xml.
       Gradle 미설치였음 → **Gradle 8.10.2 설치**(`C:\Android\gradle\gradle-8.10.2`, AGP 8.7.3 핀이 Gradle 8.9+ 요구). JDK21 호환 OK. gradlew 래퍼는 미생성(시스템 gradle PATH 사용).
-      **함정(중요)**: AGP 가 비ASCII 프로젝트 경로 거부(`C:\Users\박주형\...Downloads\Build` → "non-ASCII characters" 실패). 기본 패키지 출력이 한글 사용자명 아래라 깨짐. → `-OutputRoot C:\JBroPkg`(ASCII) 로 우회(override 핵 대신 정공법). 향후 Android 패키징은 **항상 ASCII OutputRoot 지정**.
+      **함정(중요·해결됨)**: AGP 가 비ASCII 프로젝트 경로 거부("non-ASCII characters" 실패, 한글 사용자명). → BuildGame.ps1 이 생성하는 Gradle 프로젝트에 `gradle.properties`(`android.overridePathCheck=true`) 자동 작성으로 해결(비ASCII 경로서 BUILD SUCCESSFUL 검증). ASCII OutputRoot 지정 불필요해짐.
       stripDebugDebugSymbols 경고("Unable to strip libJBroGame.so")는 Debug 무해.
+- [x] **M6c 에디터 인앱 빌드 배선** ✅ 2026-06-08. 에디터 빌드 버튼이 Android 를 "not implemented" 스텁으로 막고 있었음 → 해제.
+      `CGameBuildManager`: Android 태스크(Validate/BuildAndroid/Verify) + `BuildAndroidPackage`(=`BuildGame.ps1 -Platform Android` 위임, 웹과 동일 패턴) + `VerifyAndroidPackage`(APK 존재/`GameScript.dll` 부재).
+      `BuildGame.ps1`: ① `-Platform Android` 가 .so(BuildAndroidNative.ps1)+매니페스트+팩+APK 를 **한 번에** 처리 ② gradle.properties override 자동작성 ③ `Find-GradleCommand` 가 PATH 없을 때 `C:\Android\gradle\gradle-*`/`GRADLE_HOME` 탐색(에디터는 PATH 주입 안 함).
+      검증: gradle PATH 없이 + 비ASCII OutputRoot 로 `BuildGame.ps1 -Platform Android` EXIT=0; 에디터 Debug_Editor 컴파일/링크 OK.
 - [ ] **M6b 런타임 스모크 (미완)**: `adb install` → logcat 으로 startup scene 로드 확인. **기기/에뮬 미설치로 불가.**
       에뮬: `system-images;android-35;google_apis;x86_64` + `emulator` + AVD 생성 필요(x86_64 ABI .so 도 별도 빌드: `BuildAndroidNative.ps1 -Abi x86_64`). 또는 실기기 USB+adb.
       이 단계서 M4(Vulkan ANativeWindow surface) / M5(터치) 실측 검증된다.
