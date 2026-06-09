@@ -29,6 +29,7 @@
 - `C:\Android` (cmdline-tools 경로 설치, Android Studio 미사용)
   - platform-tools, platforms;android-35, build-tools;35.0.0, cmake;3.22.1, ndk;27.3.13750724(clang 18)
 - JDK = Oracle JDK 21 `C:\Program Files\Java\jdk-21` → **Gradle 은 JDK21 호환 버전 핀 필요**(Gradle 8.7+/AGP 8.5+)
+- Gradle = `C:\Android\gradle\gradle-8.10.2` (2026-06-08 설치). AGP 8.7.3(BuildGame.ps1 핀)이 Gradle 8.9+ 요구. PATH 에 `...\bin` 추가해 사용(gradlew 래퍼 미생성).
 - User 환경변수 등록됨: `ANDROID_HOME=C:\Android`, `ANDROID_SDK_ROOT=C:\Android`,
   `ANDROID_NDK_HOME=C:\Android\ndk\27.3.13750724`, `JAVA_HOME=C:\Program Files\Java\jdk-21`
   (※ 이미 떠 있던 셸엔 반영 안 됨 — 새 셸 또는 빌드 시 주입)
@@ -106,8 +107,14 @@ Android = web 목록에서:
 - [x] **M5 입력** ✅ 2026-06-08 (M3 와 동일 파일서 배선). native_app_glue input cb `OnInputEvent`:
       AMotionEvent DOWN/POINTER_DOWN→Began, UP/POINTER_UP→Ended, MOVE→(전 포인터)Moved, CANCEL→Cancelled.
       pointerId/getX/getY → `CMobilePlatform::InjectTouch`. **빌드 완료, 런타임 미검증**(M6).
-- [ ] **M6 Gradle APK**: `BuildGame.ps1 -Platform Android` 로 .so staging + APK 빌드(Gradle JDK21 호환 핀).
-      `adb install` → logcat 으로 startup scene 로드 로그 확인.
+- [x] **M6 Gradle APK (빌드)** ✅ 2026-06-08. `BuildGame.ps1 -Platform Android -Configuration Debug -AndroidSdkRoot C:\Android -OutputRoot C:\JBroPkg`.
+      BUILD SUCCESSFUL(1m15s). APK 47.5MB, 엔트리 검증: `lib/arm64-v8a/libJBroGame.so` + `assets/Content/{build_manifest.jbmanifest,game_assets.jbpack}` + AndroidManifest.xml.
+      Gradle 미설치였음 → **Gradle 8.10.2 설치**(`C:\Android\gradle\gradle-8.10.2`, AGP 8.7.3 핀이 Gradle 8.9+ 요구). JDK21 호환 OK. gradlew 래퍼는 미생성(시스템 gradle PATH 사용).
+      **함정(중요)**: AGP 가 비ASCII 프로젝트 경로 거부(`C:\Users\박주형\...Downloads\Build` → "non-ASCII characters" 실패). 기본 패키지 출력이 한글 사용자명 아래라 깨짐. → `-OutputRoot C:\JBroPkg`(ASCII) 로 우회(override 핵 대신 정공법). 향후 Android 패키징은 **항상 ASCII OutputRoot 지정**.
+      stripDebugDebugSymbols 경고("Unable to strip libJBroGame.so")는 Debug 무해.
+- [ ] **M6b 런타임 스모크 (미완)**: `adb install` → logcat 으로 startup scene 로드 확인. **기기/에뮬 미설치로 불가.**
+      에뮬: `system-images;android-35;google_apis;x86_64` + `emulator` + AVD 생성 필요(x86_64 ABI .so 도 별도 빌드: `BuildAndroidNative.ps1 -Abi x86_64`). 또는 실기기 USB+adb.
+      이 단계서 M4(Vulkan ANativeWindow surface) / M5(터치) 실측 검증된다.
 
 ## 검증
 - M1/M2: CMake 빌드 green(`Build/Android/.../libJBroGame.so` 생성).
