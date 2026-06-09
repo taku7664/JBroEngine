@@ -1142,7 +1142,49 @@ function Find-GradleCommand {
     if ($command) {
         return $command.Source
     }
+
+    # PATH 에 없을 때 알려진 설치 위치를 탐색한다(에디터 인앱 빌드는 PATH 를 주입하지 않으므로).
+    $candidates = @()
+    if (-not [string]::IsNullOrWhiteSpace($env:GRADLE_HOME)) {
+        $candidates += (Join-Path $env:GRADLE_HOME "bin\gradle.bat")
+    }
+    $installRoots = @("C:\Android\gradle", "C:\Gradle", "C:\gradle")
+    foreach ($root in $installRoots) {
+        if (Test-Path -LiteralPath $root -PathType Container) {
+            $found = Get-ChildItem -LiteralPath $root -Directory -Filter "gradle-*" -ErrorAction SilentlyContinue |
+                Sort-Object Name -Descending |
+                ForEach-Object { Join-Path $_.FullName "bin\gradle.bat" } |
+                Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
+                Select-Object -First 1
+            if ($found) { $candidates += $found }
+        }
+    }
+    foreach ($candidate in $candidates) {
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+            return $candidate
+        }
+    }
     return ""
+}
+
+function Invoke-AndroidNativeLibraryBuild {
+    param(
+        [Parameter(Mandatory=$true)][string]$RepoRoot,
+        [Parameter(Mandatory=$true)][string]$Abi,
+        [Parameter(Mandatory=$true)][string]$Configuration,
+        [Parameter(Mandatory=$true)][string]$ContentPath
+    )
+
+    $nativeScript = Join-Path $RepoRoot "BuildScripts\Android\BuildAndroidNative.ps1"
+    if (-not (Test-Path -LiteralPath $nativeScript -PathType Leaf)) {
+        throw "BuildAndroidNative.ps1 was not found: $nativeScript"
+    }
+
+    Write-Host "Building Android native library (libJBroGame.so) for $Abi/$Configuration ..."
+    & $nativeScript -Configuration $Configuration -Abi $Abi -ContentPath $ContentPath
+    if ($LASTEXITCODE -ne 0) {
+        throw "Android native library build failed. ExitCode=$LASTEXITCODE"
+    }
 }
 
 function Invoke-AndroidApplicationBuild {
@@ -1284,6 +1326,14 @@ android {
 </resources>
 "@
     Write-Utf8File -Path (Join-Path $resValuesDir "styles.xml") -Text $styles
+
+    # AGP 는 비ASCII 프로젝트 경로를 거부한다(한글 사용자명 경로 등). Java/Kotlin 소스가 없는
+    # 네이티브 전용 패키지라 경로 검사를 끄고 빌드해도 안전하다(검증 완료).
+    $gradleProperties = @"
+android.overridePathCheck=true
+org.gradle.jvmargs=-Xmx2048m
+"@
+    Write-Utf8File -Path (Join-Path $gradleProjectDir "gradle.properties") -Text $gradleProperties
 
     $checkedPaths = @()
     $nativeLibrary = Find-AndroidNativeLibrary `
@@ -1533,6 +1583,12 @@ if ($Platform -eq "Windows") {
         throw "Web package verification failed: GameScript.dll must not exist."
     }
 } elseif ($Platform -eq "Android") {
+    Invoke-AndroidNativeLibraryBuild `
+        -RepoRoot $repoRoot `
+        -Abi $projectInfo.Build.AndroidAbi `
+        -Configuration $Configuration `
+        -ContentPath $contentPath
+
     Invoke-AndroidApplicationBuild `
         -PackageDir $packageDir `
         -PackageContentDir $packageContentDir `

@@ -178,6 +178,7 @@ Entries:
   build.progress.engine: 엔진 게임 빌드
   build.progress.scripts: 스크립트 DLL 빌드
   build.progress.web: 웹 패키지 빌드
+  build.progress.android: 안드로이드 패키지 빌드
   build.progress.package: 패키지 생성
   build.progress.verify: 산출물 검증
   build.progress.succeeded: 빌드가 완료되었습니다.

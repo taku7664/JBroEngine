@@ -96,6 +96,26 @@ namespace
 		return File::NULL_PATH;
 	}
 
+	File::Path ResolveAndroidSdkRoot()
+	{
+		const std::wstring envHome = GetEnvironmentVariableValue(L"ANDROID_HOME");
+		if (false == envHome.empty() && std::filesystem::exists(File::Path(envHome)))
+		{
+			return File::Path(envHome);
+		}
+		const std::wstring envSdk = GetEnvironmentVariableValue(L"ANDROID_SDK_ROOT");
+		if (false == envSdk.empty() && std::filesystem::exists(File::Path(envSdk)))
+		{
+			return File::Path(envSdk);
+		}
+		const File::Path defaultRoot = L"C:/Android";
+		if (std::filesystem::exists(defaultRoot))
+		{
+			return defaultRoot;
+		}
+		return File::NULL_PATH;
+	}
+
 	std::string SanitizeFileName(std::string value)
 	{
 		static constexpr char invalid[] = "<>:\"/\\|?*";
@@ -516,7 +536,7 @@ bool CGameBuildManager::StartBuild(SafePtr<CProjectManager> projectManager, EBui
 		m_logPath.clear();
 		return false;
 	}
-	if (EBuildTargetPlatform::Android == targetPlatform || EBuildTargetPlatform::IOS == targetPlatform)
+	if (EBuildTargetPlatform::IOS == targetPlatform)
 	{
 		std::lock_guard lock(m_mutex);
 		m_state = EGameBuildState::Failed;
@@ -582,6 +602,14 @@ bool CGameBuildManager::StartBuild(SafePtr<CProjectManager> projectManager, EBui
 			{ "BuildEngine", Loc::Text("build.progress.engine"), EGameBuildTaskState::Pending },
 			{ "BuildScripts", Loc::Text("build.progress.scripts"), EGameBuildTaskState::Pending },
 			{ "Package", Loc::Text("build.progress.package"), EGameBuildTaskState::Pending },
+			{ "Verify", Loc::Text("build.progress.verify"), EGameBuildTaskState::Pending },
+		};
+	}
+	else if (EBuildTargetPlatform::Android == targetPlatform)
+	{
+		tasks = {
+			{ "Validate", Loc::Text("build.progress.validate"), EGameBuildTaskState::Pending },
+			{ "BuildAndroid", Loc::Text("build.progress.android"), EGameBuildTaskState::Pending },
 			{ "Verify", Loc::Text("build.progress.verify"), EGameBuildTaskState::Pending },
 		};
 	}
@@ -683,6 +711,11 @@ void CGameBuildManager::WorkerMain(BuildDesc desc)
 	{
 		if (false == runStep(1, [&]() { return BuildWebPackage(desc, error); })) return;
 		if (false == runStep(2, [&]() { return VerifyWebPackage(desc, error); })) return;
+	}
+	else if (EBuildTargetPlatform::Android == desc.TargetPlatform)
+	{
+		if (false == runStep(1, [&]() { return BuildAndroidPackage(desc, error); })) return;
+		if (false == runStep(2, [&]() { return VerifyAndroidPackage(desc, error); })) return;
 	}
 	else
 	{
@@ -844,6 +877,51 @@ bool CGameBuildManager::BuildWebPackage(const BuildDesc& desc, std::string& outE
 	}
 
 	return RunCommandToLog(command, desc.LogPath, outError);
+}
+
+bool CGameBuildManager::BuildAndroidPackage(const BuildDesc& desc, std::string& outError) const
+{
+	const File::Path scriptPath = desc.RepoRoot / "BuildScripts" / "BuildGame.ps1";
+	if (false == std::filesystem::exists(scriptPath))
+	{
+		outError = "BuildGame.ps1 was not found: " + ToUtf8PathString(scriptPath);
+		return false;
+	}
+
+	// BuildGame.ps1 -Platform Android 가 네이티브 .so 빌드(BuildAndroidNative.ps1) + 매니페스트/팩 +
+	// Gradle APK 까지 한 번에 처리한다(웹의 BuildWeb.ps1 위임과 동일 패턴).
+	std::wstring command =
+		L"powershell.exe -NoProfile -ExecutionPolicy Bypass -File " +
+		Quote(scriptPath.wstring()) +
+		L" -Project " + Quote(desc.ProjectFilePath.wstring()) +
+		L" -Platform Android" +
+		L" -Configuration " + Utillity::U8ToWString(ToString(desc.BuildConfiguration)) +
+		L" -OutputRoot " + Quote(desc.OutputRoot.wstring()) +
+		L" -Clean";
+
+	const File::Path sdkRoot = ResolveAndroidSdkRoot();
+	if (false == sdkRoot.empty())
+	{
+		command += L" -AndroidSdkRoot " + Quote(sdkRoot.wstring());
+	}
+
+	return RunCommandToLog(command, desc.LogPath, outError);
+}
+
+bool CGameBuildManager::VerifyAndroidPackage(const BuildDesc& desc, std::string& outError) const
+{
+	const File::Path apkPath = desc.PackageDirectory / (desc.ProductName + ".apk");
+	if (false == std::filesystem::exists(apkPath))
+	{
+		outError = "Android package APK is missing: " + ToUtf8PathString(apkPath);
+		return false;
+	}
+	if (std::filesystem::exists(desc.PackageDirectory / "GameScript.dll"))
+	{
+		outError = "GameScript.dll must not exist in an Android package.";
+		return false;
+	}
+	return true;
 }
 
 bool CGameBuildManager::StagePackage(const BuildDesc& desc, const File::Path& scriptDll, std::string& outError) const
