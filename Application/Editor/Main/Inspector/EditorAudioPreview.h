@@ -33,6 +33,13 @@ namespace EditorAudioPreview
     void PlayFileWithEffect(const char* absPathUtf8, const AssetGuid& guid,
                             EAudioEffectKind kind, const std::map<std::string, float>& params);
 
+    // 재생 중인 미리듣기에 효과 옵션을 실시간 적용한다(재생을 끊지 않음).
+    //  · 재생 중이 아니거나 player 가 없으면 no-op.
+    //  · 현재 효과와 kind 가 같으면 파라미터만 즉시 갱신(SetParameter).
+    //  · kind 가 다르면 효과 노드를 새로 만들어 교체-부착한다(같은 player 라 재생 위치 유지).
+    // 효과 에디터에서 슬라이더/Kind 를 바꾸는 즉시 호출한다.
+    void UpdatePreviewEffect(EAudioEffectKind kind, const std::map<std::string, float>& params);
+
     // 현재 재생을 정지하고 player 를 해제한다. 안전하게 여러 번 호출 가능.
     void Stop();
 

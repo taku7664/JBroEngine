@@ -172,7 +172,18 @@ void CEffectEditorWidget::Draw()
 		}
 	}
 
-	if (changed) m_dirty = true;
+	if (changed)
+	{
+		m_dirty = true;
+
+		// 미리듣기가 이 테스트 사운드를 재생 중이면 효과 옵션을 즉시 반영한다(재생 끊김 없음).
+		if (EditorAudioPreview::IsPlaying()
+			&& false == m_testSoundGuid.IsNull()
+			&& EditorAudioPreview::GetCurrentGuid() == m_testSoundGuid)
+		{
+			EditorAudioPreview::UpdatePreviewEffect(m_data.Kind, m_data.Parameters);
+		}
+	}
 
 	ImGui::Separator();
 	ImGui::BeginDisabled(false == m_dirty);

@@ -131,6 +131,47 @@ void PlayFileWithEffect(const char* absPathUtf8, const AssetGuid& guid,
     g_currentGuid = guid;
 }
 
+void UpdatePreviewEffect(EAudioEffectKind kind, const std::map<std::string, float>& params)
+{
+    // 재생 중이 아니면 적용할 대상이 없다 — no-op (다음 Play 때 반영됨).
+    if (!g_player || false == g_player->IsPlaying()) return;
+
+#if defined(JBRO_HAS_MINIAUDIO) && JBRO_HAS_MINIAUDIO
+    CMiniAudioDevice* mini = GetMiniAudioDevice();
+    if (nullptr == mini) return;
+
+    // kind 가 같으면 기존 노드 파라미터만 갱신 — 재생이 끊기지 않는다.
+    if (g_effect && g_effect->GetKind() == kind)
+    {
+        for (const auto& kv : params)
+        {
+            g_effect->SetParameter(kv.first.c_str(), kv.second);
+        }
+        return;
+    }
+
+    // kind 가 바뀌었으면 효과 노드를 새로 만들어 교체-부착한다.
+    // player 는 그대로 유지하므로 재생 위치/상태가 보존된다.
+    OwnerPtr<IAudioEffect> next = mini->CreateEffect(kind);
+    if (!next)
+    {
+        // 새 효과 생성 실패 — 기존 효과를 떼고 원음으로 재생 지속.
+        g_player->DetachAllEffects();
+        g_effect.Reset();
+        return;
+    }
+    for (const auto& kv : params)
+    {
+        next->SetParameter(kv.first.c_str(), kv.second);
+    }
+    g_player->AttachEffect(next.GetSafePtr());   // 내부에서 기존 효과를 떼고 새 노드를 배선.
+    g_effect = std::move(next);
+#else
+    (void)kind;
+    (void)params;
+#endif
+}
+
 const AssetGuid& GetCurrentGuid()
 {
     return g_currentGuid;
