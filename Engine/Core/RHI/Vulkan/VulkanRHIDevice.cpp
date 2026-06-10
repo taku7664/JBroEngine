@@ -13,6 +13,9 @@
 #if JBRO_RHI_VULKAN
 #include <algorithm>
 #include <cstring>
+#include <limits>
+#include <set>
+#include <string>
 #include <vector>
 
 namespace
@@ -140,15 +143,37 @@ bool CVulkanRHIDevice::Initialize(const RHIDesc& desc)
 #endif
 	if (expectedSurfaceType != desc.Surface.NativeHandle.SurfaceType || nullptr == desc.Surface.NativeHandle.Handle)
 	{
+		Log::Error("Vulkan init failed: invalid render surface handle.");
 		return false;
 	}
 
-	if (false == CreateInstance()
-		|| false == CreateSurface()
-		|| false == SelectPhysicalDevice()
-		|| false == CreateLogicalDevice()
-		|| false == CreateCommandPool())
+	if (false == CreateInstance())
 	{
+		Log::Error("Vulkan init failed: CreateInstance.");
+		Finalize();
+		return false;
+	}
+	if (false == CreateSurface())
+	{
+		Log::Error("Vulkan init failed: CreateSurface (vkCreateAndroidSurfaceKHR).");
+		Finalize();
+		return false;
+	}
+	if (false == SelectPhysicalDevice())
+	{
+		Log::Error("Vulkan init failed: SelectPhysicalDevice (no device with graphics+present).");
+		Finalize();
+		return false;
+	}
+	if (false == CreateLogicalDevice())
+	{
+		Log::Error("Vulkan init failed: CreateLogicalDevice.");
+		Finalize();
+		return false;
+	}
+	if (false == CreateCommandPool())
+	{
+		Log::Error("Vulkan init failed: CreateCommandPool.");
 		Finalize();
 		return false;
 	}
@@ -156,12 +181,14 @@ bool CVulkanRHIDevice::Initialize(const RHIDesc& desc)
 	m_rhiSwapchain = MakeOwnerPtr<CVulkanSwapchain>();
 	if (!m_rhiSwapchain || false == m_rhiSwapchain->Initialize(desc.Surface))
 	{
+		Log::Error("Vulkan init failed: Swapchain Initialize.");
 		Finalize();
 		return false;
 	}
 	if (false == static_cast<CVulkanSwapchain*>(m_rhiSwapchain.Get())->BindNativeSwapchain(
 		m_instance, m_physicalDevice, m_device, m_surface, m_presentQueue, m_presentQueueFamily))
 	{
+		Log::Error("Vulkan init failed: BindNativeSwapchain.");
 		Finalize();
 		return false;
 	}
@@ -756,6 +783,7 @@ bool CVulkanRHIDevice::SelectPhysicalDevice()
 {
 	std::uint32_t deviceCount = 0;
 	vkEnumeratePhysicalDevices(m_instance, &deviceCount, nullptr);
+	Log::Info(("Vulkan: physical device count = " + std::to_string(deviceCount)).c_str());
 	if (deviceCount == 0)
 	{
 		return false;
@@ -763,24 +791,61 @@ bool CVulkanRHIDevice::SelectPhysicalDevice()
 
 	std::vector<VkPhysicalDevice> devices(deviceCount);
 	vkEnumeratePhysicalDevices(m_instance, &deviceCount, devices.data());
+
+	// 선호: graphics+present 를 모두 지원하는 단일 큐 패밀리. 없으면 graphics 패밀리와
+	// present 패밀리가 따로여도 허용한다(에뮬레이터/일부 드라이버는 분리되어 있다).
+	constexpr std::uint32_t kInvalidFamily = std::numeric_limits<std::uint32_t>::max();
 	for (VkPhysicalDevice device : devices)
 	{
 		std::uint32_t queueFamilyCount = 0;
 		vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
 		std::vector<VkQueueFamilyProperties> families(queueFamilyCount);
 		vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, families.data());
+
+		std::uint32_t graphicsFamily = kInvalidFamily;
+		std::uint32_t presentFamily = kInvalidFamily;
+		std::uint32_t combinedFamily = kInvalidFamily;
 		for (std::uint32_t i = 0; i < queueFamilyCount; ++i)
 		{
+			const bool hasGraphics = 0 != (families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT);
 			VkBool32 presentSupport = VK_FALSE;
 			vkGetPhysicalDeviceSurfaceSupportKHR(device, i, m_surface, &presentSupport);
-			if ((families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) && presentSupport)
+
+			if (hasGraphics && kInvalidFamily == graphicsFamily)
 			{
-				m_physicalDevice = device;
-				m_graphicsQueueFamily = i;
-				m_presentQueueFamily = i;
-				return true;
+				graphicsFamily = i;
+			}
+			if (VK_TRUE == presentSupport && kInvalidFamily == presentFamily)
+			{
+				presentFamily = i;
+			}
+			if (hasGraphics && VK_TRUE == presentSupport)
+			{
+				combinedFamily = i;
+				break;
 			}
 		}
+
+		if (kInvalidFamily != combinedFamily)
+		{
+			m_physicalDevice = device;
+			m_graphicsQueueFamily = combinedFamily;
+			m_presentQueueFamily = combinedFamily;
+			return true;
+		}
+		if (kInvalidFamily != graphicsFamily && kInvalidFamily != presentFamily)
+		{
+			Log::Warning("Vulkan: using separate graphics/present queue families.");
+			m_physicalDevice = device;
+			m_graphicsQueueFamily = graphicsFamily;
+			m_presentQueueFamily = presentFamily;
+			return true;
+		}
+
+		Log::Warning(("Vulkan: device rejected (graphics family "
+			+ std::string(kInvalidFamily == graphicsFamily ? "missing" : "ok")
+			+ ", present family "
+			+ std::string(kInvalidFamily == presentFamily ? "missing" : "ok") + ").").c_str());
 	}
 	return false;
 }
@@ -788,11 +853,19 @@ bool CVulkanRHIDevice::SelectPhysicalDevice()
 bool CVulkanRHIDevice::CreateLogicalDevice()
 {
 	const float priority = 1.0f;
-	VkDeviceQueueCreateInfo queueInfo = {};
-	queueInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-	queueInfo.queueFamilyIndex = m_graphicsQueueFamily;
-	queueInfo.queueCount = 1;
-	queueInfo.pQueuePriorities = &priority;
+	// graphics/present 패밀리가 같으면 큐 1개, 다르면 패밀리별로 큐를 만든다.
+	std::set<std::uint32_t> uniqueFamilies = { m_graphicsQueueFamily, m_presentQueueFamily };
+	std::vector<VkDeviceQueueCreateInfo> queueInfos;
+	queueInfos.reserve(uniqueFamilies.size());
+	for (std::uint32_t family : uniqueFamilies)
+	{
+		VkDeviceQueueCreateInfo queueInfo = {};
+		queueInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+		queueInfo.queueFamilyIndex = family;
+		queueInfo.queueCount = 1;
+		queueInfo.pQueuePriorities = &priority;
+		queueInfos.push_back(queueInfo);
+	}
 
 	std::vector<const char*> extensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
 #if JBRO_PLATFORM_IOS
@@ -801,8 +874,8 @@ bool CVulkanRHIDevice::CreateLogicalDevice()
 
 	VkDeviceCreateInfo createInfo = {};
 	createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-	createInfo.queueCreateInfoCount = 1;
-	createInfo.pQueueCreateInfos = &queueInfo;
+	createInfo.queueCreateInfoCount = static_cast<std::uint32_t>(queueInfos.size());
+	createInfo.pQueueCreateInfos = queueInfos.data();
 	createInfo.enabledExtensionCount = static_cast<std::uint32_t>(extensions.size());
 	createInfo.ppEnabledExtensionNames = extensions.data();
 	if (vkCreateDevice(m_physicalDevice, &createInfo, nullptr, &m_device) != VK_SUCCESS)
@@ -811,7 +884,7 @@ bool CVulkanRHIDevice::CreateLogicalDevice()
 	}
 
 	vkGetDeviceQueue(m_device, m_graphicsQueueFamily, 0, &m_graphicsQueue);
-	m_presentQueue = m_graphicsQueue;
+	vkGetDeviceQueue(m_device, m_presentQueueFamily, 0, &m_presentQueue);
 	return true;
 }
 

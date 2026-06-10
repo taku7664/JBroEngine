@@ -202,6 +202,39 @@ namespace
 		platform->ResizeSurface(width, height);
 	}
 
+	// 윈도우가 준비된 직후(INIT_WINDOW) 1회 초기화한다. 엔진 초기화는 cmd 핸들러 안에서
+	// 수행해야 한다 — android_main 의 ALooper_pollOnce(-1) 는 블로킹이라, 메인 루프 뒤에서
+	// 초기화하면 이벤트가 없을 때 폴에 갇혀 영영 도달하지 못한다.
+	void EnsureInitialized(android_app* app, AndroidAppState* state)
+	{
+		if (state->Initialized || nullptr == app->window)
+		{
+			return;
+		}
+
+		CMobilePlatform::SetPendingNativeWindow(app->window);
+
+		// 엔진 초기화 전에 APK assets 를 내부 저장소로 추출 + chdir(파일 기반 로더가 읽도록).
+		if (false == state->AssetsExtracted)
+		{
+			ExtractApkContentAssets(app);
+			state->AssetsExtracted = true;
+		}
+
+		if (state->Application.InitializeApplication())
+		{
+			state->Initialized = true;
+			SyncSurfaceSizeFromWindow(app);
+			__android_log_print(ANDROID_LOG_INFO, kLogTag, "Application initialized.");
+		}
+		else
+		{
+			__android_log_print(ANDROID_LOG_ERROR, kLogTag, "Application initialization failed.");
+			state->Application.FinalizeApplication();
+			ANativeActivity_finish(app->activity);
+		}
+	}
+
 	void OnAppCmd(android_app* app, std::int32_t cmd)
 	{
 		AndroidAppState* state = static_cast<AndroidAppState*>(app->userData);
@@ -213,18 +246,23 @@ namespace
 		switch (cmd)
 		{
 		case APP_CMD_INIT_WINDOW:
-			// 윈도우 준비됨 — 엔진 초기화 전이면 pending 으로 등록, 후면 서피스에 직접 주입.
+			// 윈도우 준비됨. 최초면 여기서 엔진을 초기화하고(Vulkan surface 가 ANativeWindow 를
+			// 요구), 재생성(term 후 복귀)이면 서피스 핸들만 다시 주입한다.
 			if (nullptr != app->window)
 			{
-				CMobilePlatform::SetPendingNativeWindow(app->window);
 				state->HasWindow = true;
 				if (state->Initialized)
 				{
+					CMobilePlatform::SetPendingNativeWindow(app->window);
 					if (CMobilePlatform* platform = GetMobilePlatform())
 					{
 						platform->SetNativeSurfaceHandle(app->window);
 						SyncSurfaceSizeFromWindow(app);
 					}
+				}
+				else
+				{
+					EnsureInitialized(app, state);
 				}
 			}
 			break;
@@ -293,9 +331,10 @@ extern "C" void android_main(android_app* app)
 		int events = 0;
 		android_poll_source* source = nullptr;
 
-		// 초기화 전(윈도우 대기) 에는 블로킹, 실행 중에는 논블로킹으로 프레임을 돌린다.
-		const int timeoutMillis = state.Initialized ? 0 : -1;
-		while (ALooper_pollOnce(timeoutMillis, nullptr, &events, reinterpret_cast<void**>(&source)) >= 0)
+		// 삼항을 호출 인자에 직접 두어 매 반복 재평가한다. 초기화 전에는 블로킹(-1) 으로
+		// 이벤트를 기다리고(INIT_WINDOW 가 EnsureInitialized 를 호출해 Initialized 를 켠다),
+		// 초기화 후에는 논블로킹(0) 이라 큐가 비면 즉시 빠져나와 프레임을 돈다.
+		while (ALooper_pollOnce(state.Initialized ? 0 : -1, nullptr, &events, reinterpret_cast<void**>(&source)) >= 0)
 		{
 			if (nullptr != source)
 			{
@@ -303,36 +342,12 @@ extern "C" void android_main(android_app* app)
 			}
 			if (0 != app->destroyRequested)
 			{
-				break;
-			}
-		}
-
-		if (0 != app->destroyRequested)
-		{
-			break;
-		}
-
-		// 윈도우가 준비되면 1회 초기화(이 시점에 ANativeWindow 가 있어야 Vulkan surface 생성 가능).
-		if (state.HasWindow && false == state.Initialized)
-		{
-			// 엔진 초기화 전에 APK assets 를 내부 저장소로 추출 + chdir(파일 기반 로더가 읽도록).
-			if (false == state.AssetsExtracted)
-			{
-				ExtractApkContentAssets(app);
-				state.AssetsExtracted = true;
-			}
-
-			if (state.Application.InitializeApplication())
-			{
-				state.Initialized = true;
-				__android_log_print(ANDROID_LOG_INFO, kLogTag, "Application initialized.");
-			}
-			else
-			{
-				__android_log_print(ANDROID_LOG_ERROR, kLogTag, "Application initialization failed.");
-				state.Application.FinalizeApplication();
-				ANativeActivity_finish(app->activity);
-				break;
+				if (state.Initialized)
+				{
+					state.Application.FinalizeApplication();
+					state.Initialized = false;
+				}
+				return;
 			}
 		}
 
@@ -341,16 +356,12 @@ extern "C" void android_main(android_app* app)
 		{
 			if (false == state.Application.TickApplication())
 			{
+				state.Application.FinalizeApplication();
+				state.Initialized = false;
 				ANativeActivity_finish(app->activity);
-				break;
+				return;
 			}
 		}
-	}
-
-	if (state.Initialized)
-	{
-		state.Application.FinalizeApplication();
-		state.Initialized = false;
 	}
 }
 
