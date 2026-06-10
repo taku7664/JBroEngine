@@ -18,7 +18,7 @@ public:
 	void Finalize();
 
 #if JBRO_RHI_VULKAN
-	bool BindNativeSwapchain(VkInstance instance, VkPhysicalDevice physicalDevice, VkDevice device, VkSurfaceKHR surface, VkQueue presentQueue, std::uint32_t presentQueueFamily);
+	bool BindNativeSwapchain(VkInstance instance, VkPhysicalDevice physicalDevice, VkDevice device, VkSurfaceKHR surface, VkQueue presentQueue, std::uint32_t presentQueueFamily, std::uint32_t graphicsQueueFamily);
 	void SetPresentWaitSemaphore(VkSemaphore semaphore);
 	VkFormat GetFormat() const;
 	VkExtent2D GetExtent() const;
@@ -47,6 +47,7 @@ private:
 	VkSurfaceKHR m_surface = VK_NULL_HANDLE;
 	VkQueue m_presentQueue = VK_NULL_HANDLE;
 	std::uint32_t m_presentQueueFamily = 0;
+	std::uint32_t m_graphicsQueueFamily = 0;
 	VkSwapchainKHR m_swapchain = VK_NULL_HANDLE;
 	VkFormat m_format = VK_FORMAT_B8G8R8A8_UNORM;
 	VkExtent2D m_extent = {};

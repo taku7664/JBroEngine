@@ -186,7 +186,7 @@ bool CVulkanRHIDevice::Initialize(const RHIDesc& desc)
 		return false;
 	}
 	if (false == static_cast<CVulkanSwapchain*>(m_rhiSwapchain.Get())->BindNativeSwapchain(
-		m_instance, m_physicalDevice, m_device, m_surface, m_presentQueue, m_presentQueueFamily))
+		m_instance, m_physicalDevice, m_device, m_surface, m_presentQueue, m_presentQueueFamily, m_graphicsQueueFamily))
 	{
 		Log::Error("Vulkan init failed: BindNativeSwapchain.");
 		Finalize();

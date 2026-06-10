@@ -30,7 +30,6 @@ namespace
 	{
 		CGameApplication Application;
 		bool             Initialized     = false;
-		bool             HasWindow       = false;
 		bool             AssetsExtracted = false;
 	};
 
@@ -74,7 +73,7 @@ namespace
 		}
 
 		std::vector<char> buffer(64 * 1024);
-		int extractedCount = 0;
+		int availableCount = 0;
 		const char* fileName = nullptr;
 		while (nullptr != (fileName = AAssetDir_getNextFileName(assetDir)))
 		{
@@ -87,6 +86,20 @@ namespace
 			}
 
 			const std::filesystem::path destPath = destContentDir / fileName;
+			const std::uintmax_t assetLength = static_cast<std::uintmax_t>(AAsset_getLength64(asset));
+
+			// 이미 같은 크기로 추출돼 있으면 다시 쓰지 않는다(재실행/대용량 팩 시작 비용 절감).
+			std::error_code statEc;
+			if (std::filesystem::exists(destPath, statEc) &&
+				!statEc &&
+				std::filesystem::file_size(destPath, statEc) == assetLength &&
+				!statEc)
+			{
+				AAsset_close(asset);
+				++availableCount;
+				continue;
+			}
+
 			std::FILE* outFile = std::fopen(destPath.string().c_str(), "wb");
 			if (nullptr == outFile)
 			{
@@ -102,7 +115,7 @@ namespace
 			}
 			std::fclose(outFile);
 			AAsset_close(asset);
-			++extractedCount;
+			++availableCount;
 			__android_log_print(ANDROID_LOG_INFO, kLogTag, "Asset extracted: %s", fileName);
 		}
 		AAssetDir_close(assetDir);
@@ -113,8 +126,8 @@ namespace
 			return false;
 		}
 
-		__android_log_print(ANDROID_LOG_INFO, kLogTag, "Asset extraction complete: %d file(s), cwd=%s", extractedCount, internalRoot.string().c_str());
-		return extractedCount > 0;
+		__android_log_print(ANDROID_LOG_INFO, kLogTag, "Asset extraction complete: %d file(s) available, cwd=%s", availableCount, internalRoot.string().c_str());
+		return availableCount > 0;
 	}
 
 	ETouchPhase ToTouchPhase(std::int32_t actionMasked)
@@ -250,7 +263,6 @@ namespace
 			// 요구), 재생성(term 후 복귀)이면 서피스 핸들만 다시 주입한다.
 			if (nullptr != app->window)
 			{
-				state->HasWindow = true;
 				if (state->Initialized)
 				{
 					CMobilePlatform::SetPendingNativeWindow(app->window);
@@ -268,7 +280,6 @@ namespace
 			break;
 
 		case APP_CMD_TERM_WINDOW:
-			state->HasWindow = false;
 			CMobilePlatform::SetPendingNativeWindow(nullptr);
 			if (CMobilePlatform* platform = GetMobilePlatform())
 			{

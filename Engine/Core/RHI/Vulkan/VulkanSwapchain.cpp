@@ -62,7 +62,7 @@ void CVulkanSwapchain::Finalize()
 }
 
 #if JBRO_RHI_VULKAN
-bool CVulkanSwapchain::BindNativeSwapchain(VkInstance instance, VkPhysicalDevice physicalDevice, VkDevice device, VkSurfaceKHR surface, VkQueue presentQueue, std::uint32_t presentQueueFamily)
+bool CVulkanSwapchain::BindNativeSwapchain(VkInstance instance, VkPhysicalDevice physicalDevice, VkDevice device, VkSurfaceKHR surface, VkQueue presentQueue, std::uint32_t presentQueueFamily, std::uint32_t graphicsQueueFamily)
 {
 	m_instance = instance;
 	m_physicalDevice = physicalDevice;
@@ -70,6 +70,7 @@ bool CVulkanSwapchain::BindNativeSwapchain(VkInstance instance, VkPhysicalDevice
 	m_surface = surface;
 	m_presentQueue = presentQueue;
 	m_presentQueueFamily = presentQueueFamily;
+	m_graphicsQueueFamily = graphicsQueueFamily;
 
 	return CreateRenderPass() && CreateSwapchainObjects();
 }
@@ -258,7 +259,19 @@ bool CVulkanSwapchain::CreateSwapchainObjects()
 	swapchainInfo.imageExtent = m_extent;
 	swapchainInfo.imageArrayLayers = 1;
 	swapchainInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-	swapchainInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	// graphics/present 패밀리가 다르면 두 패밀리가 이미지를 공유해야 하므로 CONCURRENT.
+	// 같으면 EXCLUSIVE 가 더 빠르다(대부분의 실기기/PC GPU 는 동일 패밀리).
+	const std::uint32_t sharedFamilies[] = { m_graphicsQueueFamily, m_presentQueueFamily };
+	if (m_graphicsQueueFamily != m_presentQueueFamily)
+	{
+		swapchainInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+		swapchainInfo.queueFamilyIndexCount = 2;
+		swapchainInfo.pQueueFamilyIndices = sharedFamilies;
+	}
+	else
+	{
+		swapchainInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	}
 	swapchainInfo.preTransform = capabilities.currentTransform;
 	swapchainInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 	swapchainInfo.presentMode = VK_PRESENT_MODE_FIFO_KHR;
