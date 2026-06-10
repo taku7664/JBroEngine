@@ -1197,7 +1197,7 @@ function Invoke-AndroidApplicationBuild {
         [Parameter(Mandatory=$true)][string]$ApplicationId,
         [Parameter(Mandatory=$true)][int]$MinSdkVersion,
         [Parameter(Mandatory=$true)][int]$TargetSdkVersion,
-        [Parameter(Mandatory=$true)][string]$Abi,
+        [Parameter(Mandatory=$true)][string[]]$Abis,
         [Parameter(Mandatory=$true)][string]$Configuration,
         [string]$AndroidSdkRoot = ""
     )
@@ -1205,8 +1205,8 @@ function Invoke-AndroidApplicationBuild {
     if ($ApplicationId -notmatch '^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$') {
         throw "Android Application ID is invalid: $ApplicationId"
     }
-    if ([string]::IsNullOrWhiteSpace($Abi)) {
-        throw "Android ABI is empty."
+    if ($null -eq $Abis -or $Abis.Count -eq 0) {
+        throw "Android ABI list is empty."
     }
 
     if (-not [string]::IsNullOrWhiteSpace($AndroidSdkRoot)) {
@@ -1218,17 +1218,25 @@ function Invoke-AndroidApplicationBuild {
     $appDir = Join-Path $gradleProjectDir "app"
     $mainDir = Join-Path $appDir "src\main"
     $assetContentDir = Join-Path $mainDir "assets\Content"
-    $jniLibDir = Join-Path $mainDir ("jniLibs\{0}" -f $Abi)
     $resValuesDir = Join-Path $mainDir "res\values"
 
     if (Test-Path -LiteralPath $gradleProjectDir) {
         Remove-Item -LiteralPath $gradleProjectDir -Recurse -Force
     }
     New-Item -ItemType Directory -Force -Path $assetContentDir | Out-Null
-    New-Item -ItemType Directory -Force -Path $jniLibDir | Out-Null
     New-Item -ItemType Directory -Force -Path $resValuesDir | Out-Null
 
     Copy-DirectoryClean -Source $PackageContentDir -Destination $assetContentDir
+
+    # Android 의 AAssetManager 는 디렉토리 재귀 열거를 지원하지 않으므로, 패키지에 담긴 모든
+    # asset 파일의 상대 경로 목록(_assetindex.txt)을 생성한다. 런타임(AndroidMain)이 이 목록을
+    # 읽어 중첩 디렉토리까지 그대로 내부 저장소로 추출한다.
+    $assetIndexEntries = @(Get-ChildItem -LiteralPath $assetContentDir -Recurse -File |
+        ForEach-Object { ($_.FullName.Substring($assetContentDir.Length).TrimStart('\', '/') -replace '\\', '/') } |
+        Sort-Object)
+    Write-Utf8File -Path (Join-Path $assetContentDir "_assetindex.txt") -Text (($assetIndexEntries -join "`n") + "`n")
+
+    $abiFiltersText = ($Abis | ForEach-Object { "'$_'" }) -join ', '
 
     $escapedLabel = ConvertTo-XmlEscaped $ProductName
     $gradleProductName = ConvertTo-GradleSingleQuoted $ProductName
@@ -1275,7 +1283,7 @@ android {
         versionCode 1
         versionName '1.0'
         ndk {
-            abiFilters '$Abi'
+            abiFilters $abiFiltersText
         }
     }
 
@@ -1335,17 +1343,21 @@ org.gradle.jvmargs=-Xmx2048m
 "@
     Write-Utf8File -Path (Join-Path $gradleProjectDir "gradle.properties") -Text $gradleProperties
 
-    $checkedPaths = @()
-    $nativeLibrary = Find-AndroidNativeLibrary `
-        -RepoRoot $RepoRoot `
-        -ProjectRoot $ProjectRoot `
-        -Abi $Abi `
-        -Configuration $Configuration `
-        -CheckedPaths ([ref]$checkedPaths)
-    if ([string]::IsNullOrWhiteSpace($nativeLibrary)) {
-        throw "Android native library is missing: libJBroGame.so. Generated Gradle project: $gradleProjectDir. Checked: $($checkedPaths -join '; ')"
+    foreach ($abi in $Abis) {
+        $checkedPaths = @()
+        $nativeLibrary = Find-AndroidNativeLibrary `
+            -RepoRoot $RepoRoot `
+            -ProjectRoot $ProjectRoot `
+            -Abi $abi `
+            -Configuration $Configuration `
+            -CheckedPaths ([ref]$checkedPaths)
+        if ([string]::IsNullOrWhiteSpace($nativeLibrary)) {
+            throw "Android native library is missing for ABI '$abi': libJBroGame.so. Generated Gradle project: $gradleProjectDir. Checked: $($checkedPaths -join '; ')"
+        }
+        $jniLibDir = Join-Path $mainDir ("jniLibs\{0}" -f $abi)
+        New-Item -ItemType Directory -Force -Path $jniLibDir | Out-Null
+        Copy-Item -LiteralPath $nativeLibrary -Destination (Join-Path $jniLibDir "libJBroGame.so") -Force
     }
-    Copy-Item -LiteralPath $nativeLibrary -Destination (Join-Path $jniLibDir "libJBroGame.so") -Force
 
     $gradle = Find-GradleCommand -GradleProjectDir $gradleProjectDir
     if ([string]::IsNullOrWhiteSpace($gradle)) {
@@ -1583,11 +1595,21 @@ if ($Platform -eq "Windows") {
         throw "Web package verification failed: GameScript.dll must not exist."
     }
 } elseif ($Platform -eq "Android") {
-    Invoke-AndroidNativeLibraryBuild `
-        -RepoRoot $repoRoot `
-        -Abi $projectInfo.Build.AndroidAbi `
-        -Configuration $Configuration `
-        -ContentPath $contentPath
+    # AndroidAbi 는 쉼표/세미콜론으로 구분된 여러 ABI 를 허용한다(예: "arm64-v8a,x86_64").
+    $androidAbis = @($projectInfo.Build.AndroidAbi -split '[,;]' |
+        ForEach-Object { $_.Trim() } |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    if ($androidAbis.Count -eq 0) {
+        throw "Android ABI list is empty: $($projectInfo.Build.AndroidAbi)"
+    }
+
+    foreach ($abi in $androidAbis) {
+        Invoke-AndroidNativeLibraryBuild `
+            -RepoRoot $repoRoot `
+            -Abi $abi `
+            -Configuration $Configuration `
+            -ContentPath $contentPath
+    }
 
     Invoke-AndroidApplicationBuild `
         -PackageDir $packageDir `
@@ -1598,7 +1620,7 @@ if ($Platform -eq "Windows") {
         -ApplicationId $projectInfo.Build.AndroidApplicationId `
         -MinSdkVersion ([int]$projectInfo.Build.AndroidMinSdkVersion) `
         -TargetSdkVersion ([int]$projectInfo.Build.AndroidTargetSdkVersion) `
-        -Abi $projectInfo.Build.AndroidAbi `
+        -Abis $androidAbis `
         -Configuration $Configuration `
         -AndroidSdkRoot $AndroidSdkRoot
 

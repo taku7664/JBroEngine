@@ -39,11 +39,61 @@ namespace
 		return static_cast<CMobilePlatform*>(Engine.Platform.TryGet());
 	}
 
-	// APK 안 assets/Content/* 를 앱 내부 저장소로 추출한다.
+	// Content 아래 단일 asset(relPath)을 내부 저장소로 추출. 같은 크기면 스킵.
+	// 반환: 추출됐거나 이미 최신이면 true.
+	bool ExtractOneApkAsset(AAssetManager* assetManager, const std::string& relPath,
+		const std::filesystem::path& destContentDir, std::vector<char>& buffer)
+	{
+		const std::string assetPath = std::string("Content/") + relPath;
+		AAsset* asset = AAssetManager_open(assetManager, assetPath.c_str(), AASSET_MODE_STREAMING);
+		if (nullptr == asset)
+		{
+			__android_log_print(ANDROID_LOG_WARN, kLogTag, "Asset extraction: cannot open %s", assetPath.c_str());
+			return false;
+		}
+
+		const std::filesystem::path destPath = destContentDir / relPath;
+		const std::uintmax_t assetLength = static_cast<std::uintmax_t>(AAsset_getLength64(asset));
+
+		std::error_code dirEc;
+		std::filesystem::create_directories(destPath.parent_path(), dirEc);
+
+		// 이미 같은 크기로 추출돼 있으면 다시 쓰지 않는다(재실행/대용량 팩 시작 비용 절감).
+		std::error_code statEc;
+		if (std::filesystem::exists(destPath, statEc) && !statEc &&
+			std::filesystem::file_size(destPath, statEc) == assetLength && !statEc)
+		{
+			AAsset_close(asset);
+			return true;
+		}
+
+		std::FILE* outFile = std::fopen(destPath.string().c_str(), "wb");
+		if (nullptr == outFile)
+		{
+			__android_log_print(ANDROID_LOG_ERROR, kLogTag, "Asset extraction: cannot write %s", destPath.string().c_str());
+			AAsset_close(asset);
+			return false;
+		}
+
+		int readBytes = 0;
+		while ((readBytes = AAsset_read(asset, buffer.data(), buffer.size())) > 0)
+		{
+			std::fwrite(buffer.data(), 1, static_cast<std::size_t>(readBytes), outFile);
+		}
+		std::fclose(outFile);
+		AAsset_close(asset);
+		__android_log_print(ANDROID_LOG_INFO, kLogTag, "Asset extracted: %s", relPath.c_str());
+		return true;
+	}
+
+	// APK 안 assets/Content/** 를 앱 내부 저장소로 추출한다.
 	// 엔진의 에셋/매니페스트 로더는 std::filesystem 기반(일반 파일)인데, APK 내부 asset 은
 	// 일반 파일이 아니라 AAssetManager 로만 읽힌다(웹은 emscripten --preload-file 로 가상FS 에
 	// 풀려 공짜로 해결되지만 Android 엔 그 단계가 없다). 추출 후 chdir 하면 current_path()
 	// 기준 경로(Content/build_manifest.jbmanifest 등)가 그대로 동작한다.
+	// AAssetManager 는 디렉토리 재귀 열거를 지원하지 않으므로, 패키지가 생성한
+	// _assetindex.txt(상대 경로 목록)을 읽어 중첩 디렉토리까지 추출한다. 인덱스가 없으면
+	// Content/ 최상위 파일만 추출하는 폴백을 쓴다.
 	bool ExtractApkContentAssets(android_app* app)
 	{
 		if (nullptr == app->activity || nullptr == app->activity->assetManager ||
@@ -65,60 +115,65 @@ namespace
 			return false;
 		}
 
-		AAssetDir* assetDir = AAssetManager_openDir(assetManager, "Content");
-		if (nullptr == assetDir)
-		{
-			__android_log_print(ANDROID_LOG_ERROR, kLogTag, "Asset extraction: APK has no Content/ asset directory.");
-			return false;
-		}
-
 		std::vector<char> buffer(64 * 1024);
 		int availableCount = 0;
-		const char* fileName = nullptr;
-		while (nullptr != (fileName = AAssetDir_getNextFileName(assetDir)))
+
+		AAsset* indexAsset = AAssetManager_open(assetManager, "Content/_assetindex.txt", AASSET_MODE_BUFFER);
+		if (nullptr != indexAsset)
 		{
-			const std::string assetPath = std::string("Content/") + fileName;
-			AAsset* asset = AAssetManager_open(assetManager, assetPath.c_str(), AASSET_MODE_STREAMING);
-			if (nullptr == asset)
+			const std::size_t indexLength = static_cast<std::size_t>(AAsset_getLength64(indexAsset));
+			std::string indexText(indexLength, '\0');
+			if (indexLength > 0)
 			{
-				__android_log_print(ANDROID_LOG_WARN, kLogTag, "Asset extraction: cannot open %s", assetPath.c_str());
-				continue;
+				AAsset_read(indexAsset, indexText.data(), indexLength);
 			}
+			AAsset_close(indexAsset);
 
-			const std::filesystem::path destPath = destContentDir / fileName;
-			const std::uintmax_t assetLength = static_cast<std::uintmax_t>(AAsset_getLength64(asset));
-
-			// 이미 같은 크기로 추출돼 있으면 다시 쓰지 않는다(재실행/대용량 팩 시작 비용 절감).
-			std::error_code statEc;
-			if (std::filesystem::exists(destPath, statEc) &&
-				!statEc &&
-				std::filesystem::file_size(destPath, statEc) == assetLength &&
-				!statEc)
+			std::size_t start = 0;
+			while (start < indexText.size())
 			{
-				AAsset_close(asset);
-				++availableCount;
-				continue;
-			}
+				std::size_t newline = indexText.find('\n', start);
+				const std::size_t end = (std::string::npos == newline) ? indexText.size() : newline;
+				std::string line = indexText.substr(start, end - start);
+				start = (std::string::npos == newline) ? indexText.size() : (newline + 1);
 
-			std::FILE* outFile = std::fopen(destPath.string().c_str(), "wb");
-			if (nullptr == outFile)
-			{
-				__android_log_print(ANDROID_LOG_ERROR, kLogTag, "Asset extraction: cannot write %s", destPath.string().c_str());
-				AAsset_close(asset);
-				continue;
+				while (false == line.empty() && ('\r' == line.back() || ' ' == line.back() || '\t' == line.back()))
+				{
+					line.pop_back();
+				}
+				if (line.empty() || "_assetindex.txt" == line)
+				{
+					continue;
+				}
+				if (ExtractOneApkAsset(assetManager, line, destContentDir, buffer))
+				{
+					++availableCount;
+				}
 			}
-
-			int readBytes = 0;
-			while ((readBytes = AAsset_read(asset, buffer.data(), buffer.size())) > 0)
-			{
-				std::fwrite(buffer.data(), 1, static_cast<std::size_t>(readBytes), outFile);
-			}
-			std::fclose(outFile);
-			AAsset_close(asset);
-			++availableCount;
-			__android_log_print(ANDROID_LOG_INFO, kLogTag, "Asset extracted: %s", fileName);
 		}
-		AAssetDir_close(assetDir);
+		else
+		{
+			// 폴백: 인덱스 없음 → Content/ 최상위 파일만 평면 열거.
+			AAssetDir* assetDir = AAssetManager_openDir(assetManager, "Content");
+			if (nullptr == assetDir)
+			{
+				__android_log_print(ANDROID_LOG_ERROR, kLogTag, "Asset extraction: APK has no Content/ asset directory.");
+				return false;
+			}
+			const char* fileName = nullptr;
+			while (nullptr != (fileName = AAssetDir_getNextFileName(assetDir)))
+			{
+				if (std::string("_assetindex.txt") == fileName)
+				{
+					continue;
+				}
+				if (ExtractOneApkAsset(assetManager, fileName, destContentDir, buffer))
+				{
+					++availableCount;
+				}
+			}
+			AAssetDir_close(assetDir);
+		}
 
 		if (0 != chdir(internalRoot.string().c_str()))
 		{
