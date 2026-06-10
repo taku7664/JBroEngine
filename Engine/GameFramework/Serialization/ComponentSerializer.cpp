@@ -566,14 +566,46 @@ namespace
 	{
 		const ComponentTypeInfo* ti = GetTypeInfo("AudioPlayer");
 		if (!ti) return YAML::Node(YAML::NodeType::Map);
-		// 리플렉션은 등록 프로퍼티(AudioGuid/EffectGuid/Volume...)만 직렬화 — 런타임 캐시 멤버는 무시.
-		return WriteComponentReflected(&audioPlayer, *ti, &referencedAssets);
+		// 리플렉션은 등록 프로퍼티(AudioGuid/Volume...)만 직렬화 — 런타임 캐시 멤버는 무시.
+		YAML::Node node = WriteComponentReflected(&audioPlayer, *ti, &referencedAssets);
+
+		// EffectGuids(효과 체인)는 리플렉션 밖 — 시퀀스로 수동 직렬화(순서 = 적용 순서).
+		YAML::Node effectsNode(YAML::NodeType::Sequence);
+		for (const AssetGuid& effectGuid : audioPlayer.EffectGuids)
+		{
+			effectsNode.push_back(effectGuid.generic_string());
+			AddReferencedAsset(referencedAssets, effectGuid);
+		}
+		node["EffectGuids"] = effectsNode;
+		return node;
 	}
 
 	void ReadAudioPlayer(const YAML::Node& node, AudioPlayer& audioPlayer)
 	{
 		const ComponentTypeInfo* ti = GetTypeInfo("AudioPlayer");
 		if (ti) ReadComponentReflected(node, &audioPlayer, *ti);
+
+		// EffectGuids 수동 파싱. 하위호환: 구 단일 EffectGuid 키가 있으면 1개로 마이그레이션.
+		audioPlayer.EffectGuids.clear();
+		if (node["EffectGuids"] && node["EffectGuids"].IsSequence())
+		{
+			for (const YAML::Node& guidNode : node["EffectGuids"])
+			{
+				AssetGuid effectGuid(guidNode.as<std::string>(std::string()));
+				if (false == effectGuid.IsNull())
+				{
+					audioPlayer.EffectGuids.push_back(effectGuid);
+				}
+			}
+		}
+		else if (node["EffectGuid"])
+		{
+			AssetGuid legacy(node["EffectGuid"].as<std::string>(std::string()));
+			if (false == legacy.IsNull())
+			{
+				audioPlayer.EffectGuids.push_back(legacy);
+			}
+		}
 	}
 
 	YAML::Node WriteAudioListener(const AudioListener& audioListener)
@@ -1027,7 +1059,10 @@ CComponent* ReadComponentInto(CGameObject& object, const YAML::Node& node,
 		{
 			ReadAudioPlayer(node, *audioPlayer);
 			AddReferencedAsset(assets, audioPlayer->AudioGuid);
-			AddReferencedAsset(assets, audioPlayer->EffectGuid);
+			for (const AssetGuid& effectGuid : audioPlayer->EffectGuids)
+			{
+				AddReferencedAsset(assets, effectGuid);
+			}
 			added = audioPlayer;
 		}
 	}

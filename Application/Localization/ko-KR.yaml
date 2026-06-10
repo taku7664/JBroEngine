@@ -292,6 +292,7 @@ Entries:
   inspector.audio.mode.decompressed: 메모리 디코딩
   inspector.audio.mode.streaming: 스트리밍
   inspector.audio.default_bus: 기본 버스
+  inspector.audio.effect_chain: 효과 체인
   inspector.audio.bus.master: 마스터
   inspector.audio.bus.music: 음악
   inspector.audio.bus.sfx: 효과음

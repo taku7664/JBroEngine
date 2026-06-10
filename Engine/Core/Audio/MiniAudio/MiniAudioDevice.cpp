@@ -44,6 +44,7 @@ public:
 	void SetPosition(AudioVec3) override {}
 	void SetSpatial (const AudioSpatialParams&) override {}
 	void AttachEffect(SafePtr<IAudioEffect>) override {}
+	void SetEffectChain(const std::vector<SafePtr<IAudioEffect>>&) override {}
 	void DetachAllEffects() override {}
 };
 
@@ -194,6 +195,8 @@ public:
 	// 효과 노드를 sound 와 출력(endpoint) 사이에 삽입: sound → effect → endpoint.
 	// effect 는 SafePtr 로 보관해 재생 중 살아있게 한다.
 	void AttachEffect(SafePtr<IAudioEffect> effect) override;
+	// 효과 체인 전체를 리스트 순서대로 배선: sound → fx0 → … → fxN → endpoint.
+	void SetEffectChain(const std::vector<SafePtr<IAudioEffect>>& effects) override;
 	void DetachAllEffects() override;
 
 	bool IsInitialized() const { return m_initialized; }
@@ -208,10 +211,11 @@ private:
 		m_initialized = false;
 	}
 
-	ma_engine*            m_engine = nullptr;
-	ma_sound              m_sound{};
-	bool                  m_initialized = false;
-	SafePtr<IAudioEffect> m_attachedEffect;
+	ma_engine*                         m_engine = nullptr;
+	ma_sound                           m_sound{};
+	bool                               m_initialized = false;
+	SafePtr<IAudioEffect>              m_attachedEffect;   // 단일 부착(AttachEffect)
+	std::vector<SafePtr<IAudioEffect>> m_effectChain;      // 체인 부착(SetEffectChain)
 };
 
 // ── Listener ────────────────────────────────────────────────────────────────
@@ -547,11 +551,48 @@ void CMiniAudioFilePlayer::AttachEffect(SafePtr<IAudioEffect> effect)
 	ma_node* effectNode = mini ? mini->GetNode() : nullptr;
 	if (nullptr == effectNode) return;
 
-	// sound → effect → endpoint. (현재 단일 효과만 지원 — 기존 효과는 교체.)
+	// sound → effect → endpoint. (단일 부착 — 기존 효과/체인은 교체.)
 	DetachAllEffects();
 	ma_node_attach_output_bus(effectNode, 0, ma_engine_get_endpoint(m_engine), 0);
 	ma_node_attach_output_bus(reinterpret_cast<ma_node*>(&m_sound), 0, effectNode, 0);
 	m_attachedEffect = effect;
+}
+
+void CMiniAudioFilePlayer::SetEffectChain(const std::vector<SafePtr<IAudioEffect>>& effects)
+{
+	if (false == m_initialized || nullptr == m_engine) return;
+
+	// 유효 노드만 순서대로 모은다(null/미초기화 효과는 건너뜀).
+	std::vector<ma_node*> nodes;
+	std::vector<SafePtr<IAudioEffect>> kept;
+	nodes.reserve(effects.size());
+	kept.reserve(effects.size());
+	for (const SafePtr<IAudioEffect>& effect : effects)
+	{
+		CMiniAudioEffect* mini = dynamic_cast<CMiniAudioEffect*>(effect.TryGet());
+		ma_node* node = mini ? mini->GetNode() : nullptr;
+		if (nullptr == node) continue;
+		nodes.push_back(node);
+		kept.push_back(effect);
+	}
+
+	// 기존 배선을 모두 끊고(원음 직결) 새 체인을 구성한다.
+	DetachAllEffects();
+	if (nodes.empty())
+	{
+		return; // 효과 없음 — DetachAllEffects 가 이미 sound→endpoint 직결.
+	}
+
+	// sound → fx0 → fx1 → … → fxN → endpoint.
+	ma_node* endpoint = ma_engine_get_endpoint(m_engine);
+	ma_node_attach_output_bus(nodes.back(), 0, endpoint, 0);
+	for (std::size_t i = nodes.size() - 1; i > 0; --i)
+	{
+		ma_node_attach_output_bus(nodes[i - 1], 0, nodes[i], 0);
+	}
+	ma_node_attach_output_bus(reinterpret_cast<ma_node*>(&m_sound), 0, nodes.front(), 0);
+
+	m_effectChain = std::move(kept);
 }
 
 void CMiniAudioFilePlayer::DetachAllEffects()
@@ -560,6 +601,7 @@ void CMiniAudioFilePlayer::DetachAllEffects()
 	// sound 를 다시 endpoint 로 직결 — 효과 우회.
 	ma_node_attach_output_bus(reinterpret_cast<ma_node*>(&m_sound), 0, ma_engine_get_endpoint(m_engine), 0);
 	m_attachedEffect.Reset();
+	m_effectChain.clear();
 }
 
 // ── Impl ──────────────────────────────────────────────────────────────────

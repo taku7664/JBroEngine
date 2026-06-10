@@ -27,17 +27,30 @@ namespace
 		return v;
 	}
 
-	// EffectGuid 의 효과 에셋을 읽어 효과 노드를 만들고 player 에 부착한다.
-	// 반환: 생성된 효과(player 보다 오래 살려야 하므로 호출자가 소유). 실패 시 null.
-	OwnerPtr<IAudioEffect> BuildAndAttachEffect(IAudioDevice& device, IAssetManager& am,
-	                                            IAudioPlayer& player, const AssetGuid& effectGuid)
+	// effectGuid 의 효과 에셋을 찾는다. 효과 에셋이 아니거나 없으면 null.
+	CAudioEffectAsset* ResolveEffectAsset(IAssetManager& am, const AssetGuid& effectGuid)
 	{
 		const AssetMetaData* meta = am.GetRegistry().FindAsset(effectGuid);
 		if (nullptr == meta || EAssetType::AudioEffect != meta->Type) return nullptr;
 
 		AssetRef<IAsset> asset = am.LoadAsset(effectGuid);
 		if (false == asset.IsValid() || EAssetType::AudioEffect != asset->GetAssetType()) return nullptr;
-		CAudioEffectAsset* effectAsset = static_cast<CAudioEffectAsset*>(asset.Get());
+		return static_cast<CAudioEffectAsset*>(asset.Get());
+	}
+
+	// 효과 에셋의 현재 generation. 없으면 0.
+	std::uint32_t EffectGeneration(IAssetManager& am, const AssetGuid& effectGuid)
+	{
+		CAudioEffectAsset* effectAsset = ResolveEffectAsset(am, effectGuid);
+		return effectAsset ? effectAsset->GetGeneration() : 0u;
+	}
+
+	// effectGuid 로 효과 노드 하나를 만들고 파라미터를 적용해 반환한다(부착은 호출자가 체인으로).
+	// 실패(에셋 없음/효과 생성 실패) 시 null.
+	OwnerPtr<IAudioEffect> BuildEffect(IAudioDevice& device, IAssetManager& am, const AssetGuid& effectGuid)
+	{
+		CAudioEffectAsset* effectAsset = ResolveEffectAsset(am, effectGuid);
+		if (nullptr == effectAsset) return nullptr;
 
 		OwnerPtr<IAudioEffect> effect = device.CreateEffect(effectAsset->GetKind());
 		if (false == bool(effect)) return nullptr;
@@ -46,7 +59,6 @@ namespace
 		{
 			effect->SetParameter(kv.first.c_str(), kv.second);
 		}
-		player.AttachEffect(effect.GetSafePtr());
 		return effect;
 	}
 }
@@ -64,6 +76,65 @@ void CAudioSystem::SetDevice(SafePtr<IAudioDevice> device)
 void CAudioSystem::SetAssetManager(SafePtr<IAssetManager> assetMgr)
 {
 	m_assetManager = assetMgr;
+}
+
+void CAudioSystem::SyncEffectChain(PlayerInstance& instance, const AudioPlayer& player)
+{
+	if (!instance.Player || false == m_device.IsValid() || false == m_assetManager.IsValid())
+	{
+		return;
+	}
+	IAudioDevice&  device = *m_device.TryGet();
+	IAssetManager& am     = *m_assetManager.TryGet();
+
+	// 리스트(추가/삭제/재정렬)가 그대로면 — 효과 .jfx 값만 바뀌었는지 generation 으로 확인.
+	if (instance.EffectGuids == player.EffectGuids)
+	{
+		for (std::size_t i = 0; i < instance.EffectGuids.size(); ++i)
+		{
+			const std::uint32_t gen = EffectGeneration(am, instance.EffectGuids[i]);
+			if (gen == instance.EffectGenerations[i]) continue;
+
+			// 값이 바뀐 효과 — 노드를 재생성하지 않고 파라미터만 재적용(재생 끊김 없음).
+			CAudioEffectAsset* effectAsset = ResolveEffectAsset(am, instance.EffectGuids[i]);
+			if (effectAsset && i < instance.Effects.size() && instance.Effects[i])
+			{
+				for (const auto& kv : effectAsset->GetParameters())
+				{
+					instance.Effects[i]->SetParameter(kv.first.c_str(), kv.second);
+				}
+			}
+			instance.EffectGenerations[i] = gen;
+		}
+		return;
+	}
+
+	// 리스트가 바뀜 — 체인을 전체 재구성한다.
+	// 세 캐시 배열(Effects/EffectGenerations/EffectGuids)은 항상 player.EffectGuids 와 같은
+	// 길이·순서를 유지한다. 빌드 실패한 효과는 자리를 null 로 채워(인덱스 정합) chain 에서만 빠진다
+	// (SetEffectChain 이 null 노드를 건너뛴다).
+	std::vector<OwnerPtr<IAudioEffect>> effects;
+	std::vector<std::uint32_t>          generations;
+	std::vector<SafePtr<IAudioEffect>>  chain;
+	effects.reserve(player.EffectGuids.size());
+	generations.reserve(player.EffectGuids.size());
+	chain.reserve(player.EffectGuids.size());
+
+	for (const AssetGuid& effectGuid : player.EffectGuids)
+	{
+		OwnerPtr<IAudioEffect> effect = BuildEffect(device, am, effectGuid);
+		if (bool(effect))
+		{
+			chain.push_back(effect.GetSafePtr());
+		}
+		generations.push_back(EffectGeneration(am, effectGuid));
+		effects.push_back(std::move(effect));   // 실패면 null — 인덱스 정합 유지.
+	}
+
+	instance.Player->SetEffectChain(chain);
+	instance.Effects           = std::move(effects);
+	instance.EffectGenerations = std::move(generations);
+	instance.EffectGuids       = player.EffectGuids;
 }
 
 void CAudioSystem::OnUpdate(CScene& scene)
@@ -178,19 +249,10 @@ void CAudioSystem::OnUpdate(CScene& scene)
 				it->second.Player->SetPitch (player.Pitch);
 				it->second.Player->SetLoop  (player.Loop);
 
-				// 효과(EffectGuid) 동기 — 바뀌었을 때만 재구성.
-				if (it->second.EffectGuid != player.EffectGuid)
+				// 효과 체인(EffectGuids) 동기.
+				if (m_assetManager.IsValid() && m_device.IsValid())
 				{
-					it->second.Effect.Reset();   // 이전 효과 해제 (DetachAll 은 AttachEffect 가 처리).
-					if (player.EffectGuid.IsNull())
-					{
-						it->second.Player->DetachAllEffects();
-					}
-					else if (m_assetManager.IsValid() && m_device.IsValid())
-					{
-						it->second.Effect = BuildAndAttachEffect(*m_device.TryGet(), *m_assetManager.TryGet(), *it->second.Player, player.EffectGuid);
-					}
-					it->second.EffectGuid = player.EffectGuid;
+					SyncEffectChain(it->second, player);
 				}
 
 				if (player.Is3D)

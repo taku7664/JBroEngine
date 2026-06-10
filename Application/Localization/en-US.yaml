@@ -292,6 +292,7 @@ Entries:
   inspector.audio.mode.decompressed: Decompressed
   inspector.audio.mode.streaming: Streaming
   inspector.audio.default_bus: Default Bus
+  inspector.audio.effect_chain: Effect Chain
   inspector.audio.bus.master: Master
   inspector.audio.bus.music: Music
   inspector.audio.bus.sfx: SFX

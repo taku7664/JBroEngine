@@ -4,6 +4,7 @@
 #include "Utillity/Pointer/SafePtr.h"
 
 #include <cstdint>
+#include <vector>
 
 class IAudioEffect;
 
@@ -65,8 +66,12 @@ public:
 	virtual void SetPosition(AudioVec3 worldPos)              = 0;
 	virtual void SetSpatial (const AudioSpatialParams& params) = 0;
 
-	// ── DSP 효과 체인 (향후) ───────────────────────────────────────────────
+	// ── DSP 효과 체인 ──────────────────────────────────────────────────────
+	// 단일 효과 부착 — 기존 효과를 교체한다(효과 에디터 미리듣기용).
 	virtual void AttachEffect(SafePtr<IAudioEffect> effect) = 0;
+	// 효과 체인 전체를 리스트 순서대로 배선한다: sound -> effects[0] -> ... -> endpoint.
+	// 빈 리스트면 효과 없이 원음. AudioPlayer 컴포넌트의 다중 효과에 사용.
+	virtual void SetEffectChain(const std::vector<SafePtr<IAudioEffect>>& effects) = 0;
 	virtual void DetachAllEffects() = 0;
 };
 

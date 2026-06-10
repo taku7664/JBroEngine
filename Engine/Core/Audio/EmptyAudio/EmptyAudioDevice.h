@@ -37,6 +37,7 @@ public:
 	void SetSpatial (const AudioSpatialParams&) override {}
 
 	void AttachEffect(SafePtr<IAudioEffect>) override {}
+	void SetEffectChain(const std::vector<SafePtr<IAudioEffect>>&) override {}
 	void DetachAllEffects() override {}
 };
 

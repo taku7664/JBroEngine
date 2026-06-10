@@ -4,13 +4,16 @@
 #include "GameFramework/System/GameSystem.h"
 #include "Utillity/Pointer/SafePtr.h"
 
+#include <cstdint>
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 class IAudioDevice;
 class IAudioPlayer;
 class IAudioEffect;
 class IAssetManager;
+class AudioPlayer;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  CAudioSystem
@@ -46,11 +49,17 @@ protected:
 private:
 	struct PlayerInstance
 	{
-		OwnerPtr<IAudioPlayer> Player;
-		AssetGuid              SourceGuid;   // 자산이 바뀌면 인스턴스를 재생성하기 위해.
-		OwnerPtr<IAudioEffect> Effect;       // 부착된 효과(EffectGuid). player 보다 오래 살아야.
-		AssetGuid              EffectGuid;    // 효과가 바뀌면 재구성.
+		OwnerPtr<IAudioPlayer>              Player;
+		AssetGuid                           SourceGuid;        // 자산이 바뀌면 인스턴스를 재생성하기 위해.
+		// 효과 체인 — 컴포넌트 EffectGuids 와 동기. 셋은 항상 같은 길이/순서를 유지한다.
+		std::vector<AssetGuid>              EffectGuids;       // 리스트 변경(추가/삭제/재정렬) 감지용.
+		std::vector<OwnerPtr<IAudioEffect>> Effects;           // 부착된 효과 노드 — player 보다 오래 살아야.
+		std::vector<std::uint32_t>          EffectGenerations; // 효과 에셋 값 변경(.jfx) 감지용.
 	};
+
+	// 효과 체인 동기 — 리스트 변경(추가/삭제/재정렬)이면 전체 재구성+재배선,
+	// 같은 리스트에서 효과 .jfx 값만 바뀌었으면(generation) 해당 노드에 SetParameter 재적용.
+	void SyncEffectChain(PlayerInstance& instance, const AudioPlayer& player);
 
 	SafePtr<IAudioDevice>  m_device;
 	SafePtr<IAssetManager> m_assetManager;

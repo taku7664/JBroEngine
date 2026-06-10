@@ -37,6 +37,7 @@ void CAudioEffectAsset::ApplyImportOptions(const std::string& importOptionsYaml)
 	// 효과 에셋은 본체 데이터(Kind/파라미터)가 .jfx 파일에 있다. AssetManager 의 옵션
 	// 갱신 경로로도 같은 스키마를 받아 in-place 갱신한다 (빈 텍스트면 기본값).
 	m_data = CAudioEffectSerializer::FromYaml(importOptionsYaml);
+	++m_generation;   // 런타임 효과 노드가 재적용 시점을 감지하도록 generation 증가.
 }
 
 // ── EAudioEffectKind ↔ string ───────────────────────────────────────────────

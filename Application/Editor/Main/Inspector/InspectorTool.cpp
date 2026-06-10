@@ -28,6 +28,7 @@
 #include "Engine/Core/RHI/IRHITexture.h"
 #include "Engine/Editor/ImEditor.h"
 #include "Engine/Editor/Project/ProjectManager.h"
+#include "Engine/GameFramework/Component/AudioComponents.h"
 #include "Engine/GameFramework/Component/Camera2D.h"
 #include "Engine/GameFramework/Component/Physics2DComponents.h"
 #include "Engine/GameFramework/Component/ScriptComponent.h"
@@ -1681,6 +1682,48 @@ void CInspectorTool::OnRenderStay()
 					const char* typeName = GetScriptDisplayName(scriptInfo);
 					ImGui::Spacing();
 					ImGui::TextDisabled(Loc::Text("inspector.script_instance_waiting_format"), typeName);
+				}
+			}
+
+			// ── AudioPlayer: EffectGuids 효과 체인 (리플렉션 밖, 커스텀 ImList) ──
+			// EffectGuids 는 가변 길이라 리플렉션 자동 그리기에서 빠진다. 효과 에셋을
+			// 드래그&드롭으로 추가/삭제하고, 리스트 순서대로 적용된다(ImList 가 재정렬 제공).
+			if (e.typeInfo->Type.Name && 0 == strcmp(e.typeInfo->Type.Name, "AudioPlayer"))
+			{
+				AudioPlayer* audioPlayer = static_cast<AudioPlayer*>(comp);
+				if (audioPlayer)
+				{
+					ImGui::Spacing();
+					ImGui::SeparatorText(Loc::Text("inspector.audio.effect_chain"));
+					ImList<AssetGuid>(
+						"##audio_effect_chain", audioPlayer->EffectGuids,
+						[](AssetGuid& effectGuid, int /*idx*/)
+						{
+							std::string label;
+							if (effectGuid.IsNull())
+							{
+								label = Loc::Text("inspector.ref_none");
+							}
+							else
+							{
+								const File::Path& path = File::ResolvePath(effectGuid);
+								label = path.IsNull() ? effectGuid.generic_string() : path.filename().generic_string();
+							}
+							DrawReferenceField(
+								label, effectGuid.IsNull(),
+								[&]() -> bool
+								{
+									EditorDragDrop::AssetPayload payload;
+									if (EditorDragDrop::AcceptAssetDragDropPayload(payload))
+									{
+										effectGuid = EditorDragDrop::GetGuid(payload);
+										return true;
+									}
+									return false;
+								},
+								[&]() { effectGuid = File::NULL_GUID; });
+						},
+						INVALID_ASSET_GUID);
 				}
 			}
 
