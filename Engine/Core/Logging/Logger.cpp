@@ -6,6 +6,10 @@
 
 #include <cstdio>
 
+#if JBRO_PLATFORM_ANDROID
+#include <android/log.h>
+#endif
+
 namespace
 {
 	const char* ToLevelText(ELogLevel level)
@@ -27,6 +31,22 @@ namespace
 		return ELogSource::External == source ? "EXTERNAL" : "SYSTEM";
 	}
 
+#if JBRO_PLATFORM_ANDROID
+	int ToAndroidPriority(ELogLevel level)
+	{
+		switch (level)
+		{
+		case ELogLevel::Trace: return ANDROID_LOG_VERBOSE;
+		case ELogLevel::Debug: return ANDROID_LOG_DEBUG;
+		case ELogLevel::Info: return ANDROID_LOG_INFO;
+		case ELogLevel::Warning: return ANDROID_LOG_WARN;
+		case ELogLevel::Error: return ANDROID_LOG_ERROR;
+		case ELogLevel::Critical: return ANDROID_LOG_FATAL;
+		default: return ANDROID_LOG_INFO;
+		}
+	}
+#endif
+
 	std::string BuildFormattedMessage(ELogSource source, ELogLevel level, std::string_view message)
 	{
 		return std::format("{} : [{}] {}", ToSourceText(source), ToLevelText(level), message);
@@ -39,6 +59,8 @@ namespace
 		std::fwrite("\n", 1, 1, stderr);
 #if JBRO_PLATFORM_WINDOWS
 		OutputDebugStringA((formattedMessage + "\n").c_str());
+#elif JBRO_PLATFORM_ANDROID
+		__android_log_write(ToAndroidPriority(level), "JBroEngine", formattedMessage.c_str());
 #endif
 	}
 
@@ -152,6 +174,8 @@ void CLogger::Write(ELogSource source, ELogLevel level, std::string_view message
 #elif JBRO_PLATFORM_WEB
 	std::fwrite(formattedMessage.data(), 1, formattedMessage.size(), stderr);
 	std::fwrite("\n", 1, 1, stderr);
+#elif JBRO_PLATFORM_ANDROID
+	__android_log_write(ToAndroidPriority(level), "JBroEngine", formattedMessage.c_str());
 #endif
 }
 

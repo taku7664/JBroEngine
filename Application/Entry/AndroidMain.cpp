@@ -9,10 +9,18 @@
 #include "Engine/Core/Platform/Mobile/MobilePlatform.h"
 
 #include <android_native_app_glue.h>
+#include <android/asset_manager.h>
 #include <android/input.h>
 #include <android/log.h>
 #include <android/native_activity.h>
 #include <android/native_window.h>
+
+#include <unistd.h>   // chdir
+
+#include <cstdio>
+#include <filesystem>
+#include <string>
+#include <vector>
 
 namespace
 {
@@ -21,14 +29,92 @@ namespace
 	struct AndroidAppState
 	{
 		CGameApplication Application;
-		bool             Initialized = false;
-		bool             HasWindow   = false;
+		bool             Initialized     = false;
+		bool             HasWindow       = false;
+		bool             AssetsExtracted = false;
 	};
 
 	CMobilePlatform* GetMobilePlatform()
 	{
 		// Android 런타임의 플랫폼은 항상 CMobilePlatform 이다.
 		return static_cast<CMobilePlatform*>(Engine.Platform.TryGet());
+	}
+
+	// APK 안 assets/Content/* 를 앱 내부 저장소로 추출한다.
+	// 엔진의 에셋/매니페스트 로더는 std::filesystem 기반(일반 파일)인데, APK 내부 asset 은
+	// 일반 파일이 아니라 AAssetManager 로만 읽힌다(웹은 emscripten --preload-file 로 가상FS 에
+	// 풀려 공짜로 해결되지만 Android 엔 그 단계가 없다). 추출 후 chdir 하면 current_path()
+	// 기준 경로(Content/build_manifest.jbmanifest 등)가 그대로 동작한다.
+	bool ExtractApkContentAssets(android_app* app)
+	{
+		if (nullptr == app->activity || nullptr == app->activity->assetManager ||
+			nullptr == app->activity->internalDataPath)
+		{
+			__android_log_print(ANDROID_LOG_ERROR, kLogTag, "Asset extraction: activity/assetManager/internalDataPath unavailable.");
+			return false;
+		}
+
+		AAssetManager* assetManager = app->activity->assetManager;
+		const std::filesystem::path internalRoot = app->activity->internalDataPath;
+		const std::filesystem::path destContentDir = internalRoot / "Content";
+
+		std::error_code errorCode;
+		std::filesystem::create_directories(destContentDir, errorCode);
+		if (errorCode)
+		{
+			__android_log_print(ANDROID_LOG_ERROR, kLogTag, "Asset extraction: create_directories failed: %s", errorCode.message().c_str());
+			return false;
+		}
+
+		AAssetDir* assetDir = AAssetManager_openDir(assetManager, "Content");
+		if (nullptr == assetDir)
+		{
+			__android_log_print(ANDROID_LOG_ERROR, kLogTag, "Asset extraction: APK has no Content/ asset directory.");
+			return false;
+		}
+
+		std::vector<char> buffer(64 * 1024);
+		int extractedCount = 0;
+		const char* fileName = nullptr;
+		while (nullptr != (fileName = AAssetDir_getNextFileName(assetDir)))
+		{
+			const std::string assetPath = std::string("Content/") + fileName;
+			AAsset* asset = AAssetManager_open(assetManager, assetPath.c_str(), AASSET_MODE_STREAMING);
+			if (nullptr == asset)
+			{
+				__android_log_print(ANDROID_LOG_WARN, kLogTag, "Asset extraction: cannot open %s", assetPath.c_str());
+				continue;
+			}
+
+			const std::filesystem::path destPath = destContentDir / fileName;
+			std::FILE* outFile = std::fopen(destPath.string().c_str(), "wb");
+			if (nullptr == outFile)
+			{
+				__android_log_print(ANDROID_LOG_ERROR, kLogTag, "Asset extraction: cannot write %s", destPath.string().c_str());
+				AAsset_close(asset);
+				continue;
+			}
+
+			int readBytes = 0;
+			while ((readBytes = AAsset_read(asset, buffer.data(), buffer.size())) > 0)
+			{
+				std::fwrite(buffer.data(), 1, static_cast<std::size_t>(readBytes), outFile);
+			}
+			std::fclose(outFile);
+			AAsset_close(asset);
+			++extractedCount;
+			__android_log_print(ANDROID_LOG_INFO, kLogTag, "Asset extracted: %s", fileName);
+		}
+		AAssetDir_close(assetDir);
+
+		if (0 != chdir(internalRoot.string().c_str()))
+		{
+			__android_log_print(ANDROID_LOG_ERROR, kLogTag, "Asset extraction: chdir to internal data path failed.");
+			return false;
+		}
+
+		__android_log_print(ANDROID_LOG_INFO, kLogTag, "Asset extraction complete: %d file(s), cwd=%s", extractedCount, internalRoot.string().c_str());
+		return extractedCount > 0;
 	}
 
 	ETouchPhase ToTouchPhase(std::int32_t actionMasked)
@@ -229,6 +315,13 @@ extern "C" void android_main(android_app* app)
 		// 윈도우가 준비되면 1회 초기화(이 시점에 ANativeWindow 가 있어야 Vulkan surface 생성 가능).
 		if (state.HasWindow && false == state.Initialized)
 		{
+			// 엔진 초기화 전에 APK assets 를 내부 저장소로 추출 + chdir(파일 기반 로더가 읽도록).
+			if (false == state.AssetsExtracted)
+			{
+				ExtractApkContentAssets(app);
+				state.AssetsExtracted = true;
+			}
+
 			if (state.Application.InitializeApplication())
 			{
 				state.Initialized = true;

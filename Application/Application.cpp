@@ -25,7 +25,8 @@
 #include <algorithm>
 #endif
 
-#if !JBRO_EDITOR && JBRO_PLATFORM_WEB
+// 정적 스크립트 모듈은 Web/Android 런타임 모두 .so/.wasm 안에 함께 링크된다(프로젝트 GameModule.cpp 제공).
+#if !JBRO_EDITOR && (JBRO_PLATFORM_WEB || JBRO_PLATFORM_ANDROID)
 extern "C" IGameModule* CreateGameModule(const GameModuleHostApi* hostApi) __attribute__((weak));
 extern "C" void DestroyGameModule(IGameModule* module, const GameModuleHostApi* hostApi) __attribute__((weak));
 #endif
@@ -229,7 +230,7 @@ bool CGameApplication::LoadRuntimeScriptModule(const BuildManifest& manifest)
 {
 	if (manifest.ScriptMode.empty() || manifest.ScriptMode == "Static")
 	{
-#if JBRO_PLATFORM_WEB
+#if JBRO_PLATFORM_WEB || JBRO_PLATFORM_ANDROID
 		if (nullptr == CreateGameModule || nullptr == DestroyGameModule)
 		{
 			CSystemLog::Warning("Runtime static script module was not linked. Continuing without project scripts.");
