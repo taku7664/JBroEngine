@@ -120,6 +120,21 @@ Android = web 목록에서:
       에뮬: `system-images;android-35;google_apis;x86_64` + `emulator` + AVD 생성 필요(x86_64 ABI .so 도 별도 빌드: `BuildAndroidNative.ps1 -Abi x86_64`). 또는 실기기 USB+adb.
       이 단계서 M4(Vulkan ANativeWindow surface) / M5(터치) 실측 검증된다.
 
+## 런타임 브링업 + 검토 후속 (2026-06-10, MuMu x86_64 에뮬서 진단)
+on-device logcat(태그 `JBroEngine`)로 검은화면 원인 4개 잡고 수정:
+- **android_main 무한블로킹**: init 을 폴 루프 뒤에 둬서 `ALooper_pollOnce(-1)` 에 갇힘 → init 을 `APP_CMD_INIT_WINDOW` 핸들러(`EnsureInitialized`)로 이동 + 캐노니컬 루프(폴 타임아웃 매 반복 재평가).
+- **에셋**: APK 내부를 std::filesystem 으로 못 읽음 → `ExtractApkContentAssets`(AAssetManager→내부저장소 추출 + chdir). 이후 **재귀화**: 패키지가 `_assetindex.txt`(상대경로 목록) 생성, 런타임이 읽어 중첩까지 추출(AAssetManager 는 디렉토리 열거 불가). 크기-스킵으로 재실행 비용 절감.
+- **스크립트**: 정적 모듈 로드가 `#if JBRO_PLATFORM_WEB` 전용 → `WEB||ANDROID` 로 확장(extern 약심볼 + 로드).
+- **로깅**: `OutputDebugString`/stderr → Android 는 logcat(`__android_log`, tag JBroEngine). CLogger + fallback 양쪽.
+
+검토(하드코딩/확장성/누락/최적화) 후속 수정:
+- **Vulkan 분리 큐패밀리**: `SelectPhysicalDevice` 가 graphics+present 동일 패밀리만 찾던 것 → 분리 허용 + `CreateLogicalDevice` 패밀리별 큐. **스왑체인도** graphics 패밀리 받아 분리 시 `VK_SHARING_MODE_CONCURRENT`(반쪽구현 완성). Windows(MSVC) 컴파일도 검증 — PC Vulkan 경로 무해/개선.
+- **멀티 ABI**: `AndroidAbi` 쉼표 리스트 허용(arm64-v8a,x86_64) → ABI별 .so 빌드 + jniLibs staging + abiFilters. 한 APK 가 실기기+에뮬 모두 커버.
+- **오디오**: 모바일 EmptyAudio → miniaudio(AAudio/OpenSL, dlopen). `JBRO_HAS_MINIAUDIO=1` + MiniAudioDevice/miniaudio_impl 소스 추가. arm64/x86_64 링크 clean.
+- 죽은 상태(`HasWindow`) 제거.
+
+**최종 미해결 = MuMu Vulkan 디바이스 0개**(`vkEnumeratePhysicalDevices=0`, ABI 무관). MuMu 가 게스트 앱에 Vulkan ICD(`vulkan.ranchu.so`) 만 두고 실제 디바이스 미노출. **코드 문제 아님.** → 실기기(arm64) 또는 Vulkan 되는 에뮬서 M4(Vulkan surface/clear)·M5(터치)·오디오 실측 필요(내일).
+
 ## 검증
 - M1/M2: CMake 빌드 green(`Build/Android/.../libJBroGame.so` 생성).
 - M3~M5: 빌드 green + (가능하면) 에뮬레이터(`avdmanager`/`emulator` 별도 설치 필요 — 현재 미설치)에서 실행.
