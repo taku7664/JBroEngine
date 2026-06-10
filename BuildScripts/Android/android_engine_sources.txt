@@ -16,6 +16,8 @@ Engine/Core/Asset/MaterialAsset.cpp
 Engine/Core/Asset/SpriteAsset.cpp
 Engine/Core/Build/BuildManifest.cpp
 Engine/Core/Audio/EmptyAudio/EmptyAudioDevice.cpp
+Engine/Core/Audio/MiniAudio/MiniAudioDevice.cpp
+Engine/Core/Audio/MiniAudio/miniaudio_impl.cpp
 Engine/Core/Debug/Debug.cpp
 Engine/Core/Debug/DebugDraw.cpp
 Engine/Core/Debug/DebugDraw2D.cpp

@@ -163,6 +163,7 @@ $args += @(
     "-DJBRO_RHI_VULKAN"
     "-DYAML_CPP_STATIC_DEFINE"
     "-DVK_USE_PLATFORM_ANDROID_KHR"
+    "-DJBRO_HAS_MINIAUDIO=1"        # miniaudio(AAudio/OpenSL, dlopen 런타임링크) 오디오 백엔드
 )
 $args += $sources
 $args += $extraObjects        # pre-compiled C objects (native_app_glue)
