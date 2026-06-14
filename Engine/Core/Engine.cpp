@@ -28,6 +28,7 @@
 #include "Core/Platform/Web/WebPlatform.h"
 #include "Core/RHI/IRHICommandContext.h"
 #include "Core/RHI/IRHIDevice.h"
+#include "Core/RHI/IRHISwapchain.h"
 #include "Core/RHI/D3D11/D3D11RHIDevice.h"
 #include "Core/RHI/WebGPU/WebGPURHIDevice.h"
 #include "Core/RHI/Vulkan/VulkanRHIDevice.h"
@@ -699,6 +700,16 @@ void CEngine::RenderFrame()
 	if (m_renderer)
 	{
 		m_renderer->BeginFrame();
+		// surface pre-rotation(표시 방향 보정) — 스왑체인 transform 으로부터 매 프레임 갱신.
+		// 런타임 회전 시 스왑체인 재생성으로 값이 바뀌면 자동 반영된다.
+		float preRotCos = 1.0f;
+		float preRotSin = 0.0f;
+		if (SafePtr<IRHISwapchain> swapchain = m_rhiDevice->GetSwapchain())
+		{
+			preRotCos = swapchain->GetPreRotationCosR();
+			preRotSin = swapchain->GetPreRotationSinR();
+		}
+		m_renderer->SetSurfacePreRotation(preRotCos, preRotSin);
 	}
 	PrepareRenderModules();
 
@@ -764,6 +775,28 @@ void CEngine::EndFrame()
 			module->EndFrame();
 		}
 	}
+}
+
+RenderSurfaceSize CEngine::GetRenderTargetSize() const
+{
+	// 실제 렌더되는 픽셀 크기의 권위는 스왑체인(표시 방향 기준)이다. Android pre-rotation 시
+	// 메인 surface 가 보고하는 네이티브 방향 크기와 다를 수 있으므로 스왑체인을 우선한다.
+	if (m_rhiDevice)
+	{
+		if (SafePtr<IRHISwapchain> swapchain = m_rhiDevice->GetSwapchain())
+		{
+			const RenderSurfaceSize size = swapchain->GetSize();
+			if (size.Width > 0 && size.Height > 0)
+			{
+				return size;
+			}
+		}
+	}
+	if (SafePtr<IRenderSurface> surface = GetMainRenderSurface())
+	{
+		return surface->GetSize();
+	}
+	return RenderSurfaceSize{ 0, 0 };
 }
 
 void CEngine::FillRenderSurfaceDesc(RHIDesc& desc) const

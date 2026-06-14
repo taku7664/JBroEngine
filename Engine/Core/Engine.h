@@ -60,6 +60,7 @@ public:
 	const ScriptCore&       GetScriptCore()        const;
 	SafePtr<IPlatform>      GetPlatform()          const;
 	SafePtr<IRenderSurface> GetMainRenderSurface() const;
+	RenderSurfaceSize       GetRenderTargetSize()  const;
 	SafePtr<IRHIDevice>     GetRHIDevice()         const;
 	SafePtr<IAssetManager>  GetAssetManager()      const;
 	SafePtr<IRenderer>      GetRenderer()          const;

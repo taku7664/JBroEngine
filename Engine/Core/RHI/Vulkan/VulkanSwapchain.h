@@ -14,6 +14,8 @@ public:
 	void Resize(const RenderSurfaceSize& size) override;
 	void Present() override;
 	RenderSurfaceSize GetSize() const override;
+	float GetPreRotationCosR() const override;
+	float GetPreRotationSinR() const override;
 
 	void Finalize();
 
@@ -50,7 +52,8 @@ private:
 	std::uint32_t m_graphicsQueueFamily = 0;
 	VkSwapchainKHR m_swapchain = VK_NULL_HANDLE;
 	VkFormat m_format = VK_FORMAT_B8G8R8A8_UNORM;
-	VkExtent2D m_extent = {};
+	VkExtent2D m_extent = {};   // 실제 렌더 버퍼 크기(네이티브 방향, pre-rotation 적용 전)
+	VkSurfaceTransformFlagBitsKHR m_preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
 	VkRenderPass m_renderPass = VK_NULL_HANDLE;
 	VkSemaphore m_presentWaitSemaphore = VK_NULL_HANDLE;
 	std::vector<VkImage> m_images;

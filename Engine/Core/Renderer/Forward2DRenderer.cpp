@@ -290,6 +290,12 @@ void CForward2DRenderer::SetViewCameraEx(float posX, float posY, float halfW, fl
 	m_viewCamHalfH  = halfH > 0.0f ? halfH : 1.0f;
 	m_viewCamCosR   = cosR;
 	m_viewCamSinR   = sinR;
+}
+
+void CForward2DRenderer::SetSurfacePreRotation(float cosR, float sinR)
+{
+	m_surfacePreRotCos = cosR;
+	m_surfacePreRotSin = sinR;
 	m_useExplicitSize = true;
 }
 
@@ -391,6 +397,7 @@ CForward2DRenderer::SpriteConstants CForward2DRenderer::BuildSpriteConstants(
 	constants.ViewRow1[0] = -view.SinR / view.HalfH;
 	constants.ViewRow1[1] =  view.CosR / view.HalfH;
 	constants.ViewRow1[2] =  (view.SinR * camX - view.CosR * camY) / view.HalfH;
+	ApplySurfacePreRotation(constants.ViewRow0, constants.ViewRow1);
 	return constants;
 }
 
@@ -405,7 +412,22 @@ CForward2DRenderer::SpriteViewConstants CForward2DRenderer::BuildSpriteViewConst
 	constants.ViewRow1[0] = -view.SinR / view.HalfH;
 	constants.ViewRow1[1] =  view.CosR / view.HalfH;
 	constants.ViewRow1[2] =  (view.SinR * camX - view.CosR * camY) / view.HalfH;
+	ApplySurfacePreRotation(constants.ViewRow0, constants.ViewRow1);
 	return constants;
+}
+
+void CForward2DRenderer::ApplySurfacePreRotation(float (&viewRow0)[4], float (&viewRow1)[4]) const
+{
+	// 최종 클립 좌표에 surface 회전 S=[c -s; s c] 를 곱한다(clip_final = S * (View * world)).
+	const float c = m_surfacePreRotCos;
+	const float s = m_surfacePreRotSin;
+	for (int i = 0; i < 3; ++i)
+	{
+		const float r0 = viewRow0[i];
+		const float r1 = viewRow1[i];
+		viewRow0[i] = c * r0 - s * r1;
+		viewRow1[i] = s * r0 + c * r1;
+	}
 }
 
 CForward2DRenderer::SpriteInstanceData CForward2DRenderer::BuildSpriteInstanceData(const RenderItem& item) const

@@ -41,7 +41,47 @@ void CVulkanSwapchain::Present()
 
 RenderSurfaceSize CVulkanSwapchain::GetSize() const
 {
+#if JBRO_RHI_VULKAN
+	if (m_extent.width > 0 && m_extent.height > 0)
+	{
+		// 90/270 회전 기기는 렌더 버퍼가 네이티브(세로) 방향이라, 표시 방향(가로) 크기로 swap.
+		if (m_preTransform == VK_SURFACE_TRANSFORM_ROTATE_90_BIT_KHR ||
+			m_preTransform == VK_SURFACE_TRANSFORM_ROTATE_270_BIT_KHR)
+		{
+			return RenderSurfaceSize{ static_cast<int>(m_extent.height), static_cast<int>(m_extent.width) };
+		}
+		return RenderSurfaceSize{ static_cast<int>(m_extent.width), static_cast<int>(m_extent.height) };
+	}
+#endif
 	return m_surfaceDesc.Size;
+}
+
+float CVulkanSwapchain::GetPreRotationCosR() const
+{
+#if JBRO_RHI_VULKAN
+	switch (m_preTransform)
+	{
+	case VK_SURFACE_TRANSFORM_ROTATE_90_BIT_KHR:  return 0.0f;
+	case VK_SURFACE_TRANSFORM_ROTATE_180_BIT_KHR: return -1.0f;
+	case VK_SURFACE_TRANSFORM_ROTATE_270_BIT_KHR: return 0.0f;
+	default: break;
+	}
+#endif
+	return 1.0f;
+}
+
+float CVulkanSwapchain::GetPreRotationSinR() const
+{
+#if JBRO_RHI_VULKAN
+	switch (m_preTransform)
+	{
+	case VK_SURFACE_TRANSFORM_ROTATE_90_BIT_KHR:  return 1.0f;
+	case VK_SURFACE_TRANSFORM_ROTATE_180_BIT_KHR: return 0.0f;
+	case VK_SURFACE_TRANSFORM_ROTATE_270_BIT_KHR: return -1.0f;
+	default: break;
+	}
+#endif
+	return 0.0f;
 }
 
 void CVulkanSwapchain::Finalize()
@@ -129,7 +169,35 @@ bool CVulkanSwapchain::AcquireNextImage(VkSemaphore imageAvailableSemaphore)
 	{
 		return false;
 	}
-	const VkResult result = vkAcquireNextImageKHR(m_device, m_swapchain, UINT64_MAX, imageAvailableSemaphore, VK_NULL_HANDLE, &m_currentImageIndex);
+	// 런타임 회전/리사이즈 대응: 매 프레임 surface caps 를 확인해 transform/extent 가 바뀌면
+	// 스왑체인을 재생성한다(currentTransform 재독 → 새 종횡비/클립회전). 90↔270 처럼 크기는
+	// 같고 transform 만 바뀌는 경우도 잡는다.
+	VkSurfaceCapabilitiesKHR caps = {};
+	if (vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_physicalDevice, m_surface, &caps) == VK_SUCCESS)
+	{
+		const bool transformChanged = caps.currentTransform != m_preTransform;
+		const bool extentChanged =
+			caps.currentExtent.width != UINT32_MAX &&
+			caps.currentExtent.width > 0 && caps.currentExtent.height > 0 &&
+			(caps.currentExtent.width != m_extent.width || caps.currentExtent.height != m_extent.height);
+		if (transformChanged || extentChanged)
+		{
+			if (false == CreateSwapchainObjects())
+			{
+				return false;
+			}
+		}
+	}
+
+	VkResult result = vkAcquireNextImageKHR(m_device, m_swapchain, UINT64_MAX, imageAvailableSemaphore, VK_NULL_HANDLE, &m_currentImageIndex);
+	if (result == VK_ERROR_OUT_OF_DATE_KHR)
+	{
+		if (false == CreateSwapchainObjects())
+		{
+			return false;
+		}
+		result = vkAcquireNextImageKHR(m_device, m_swapchain, UINT64_MAX, imageAvailableSemaphore, VK_NULL_HANDLE, &m_currentImageIndex);
+	}
 	return result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR;
 }
 
@@ -244,6 +312,14 @@ bool CVulkanSwapchain::CreateSwapchainObjects()
 		m_extent.height = std::clamp(static_cast<std::uint32_t>(m_surfaceDesc.Size.Height), capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
 	}
 
+	// Android pre-rotation: 패널이 세로 네이티브인 기기는 currentTransform 이 ROTATE_90/270 이고
+	// surface 가 네이티브(세로) 방향으로 보고된다. IDENTITY 강제는 일부 기기서 미지원이라,
+	// preTransform = currentTransform 으로 네이티브 방향 버퍼에 렌더하되, 렌더러가 이 회전만큼
+	// 클립공간을 회전시켜 표시 방향을 바로잡는다(GetPreRotationCos/Sin). 디스플레이 방향 크기는
+	// GetSize 가 90/270 일 때 swap 해 돌려준다(카메라 종횡비용). 매 재생성마다 다시 읽으므로
+	// 런타임 회전에도 대응된다.
+	m_preTransform = capabilities.currentTransform;
+
 	std::uint32_t imageCount = capabilities.minImageCount + 1;
 	if (capabilities.maxImageCount > 0 && imageCount > capabilities.maxImageCount)
 	{
@@ -272,7 +348,7 @@ bool CVulkanSwapchain::CreateSwapchainObjects()
 	{
 		swapchainInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	}
-	swapchainInfo.preTransform = capabilities.currentTransform;
+	swapchainInfo.preTransform = m_preTransform;
 	swapchainInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 	swapchainInfo.presentMode = VK_PRESENT_MODE_FIFO_KHR;
 	swapchainInfo.clipped = VK_TRUE;

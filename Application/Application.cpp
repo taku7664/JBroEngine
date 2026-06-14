@@ -481,8 +481,20 @@ void CGameApplication::ConfigureRuntimeViewCamera()
 		return;
 	}
 
-	const float renderWidth = std::max(1.0f, m_runtimeRenderWidth);
-	const float renderHeight = std::max(1.0f, m_runtimeRenderHeight);
+	// 카메라 종횡비/뷰포트는 매니페스트 고정 해상도가 아니라 실제 렌더 타깃(표시 방향) 크기를
+	// 따라야 한다. 안 그러면 surface 종횡비가 매니페스트와 다른 기기(풀스크린 모바일 등)에서
+	// 비균등 스케일로 화면이 찌그러진다(매니페스트와 창 크기가 우연히 같은 데스크톱만 정상).
+	float renderWidth = std::max(1.0f, m_runtimeRenderWidth);
+	float renderHeight = std::max(1.0f, m_runtimeRenderHeight);
+	if (CEngine* engine = GetEngine())
+	{
+		const RenderSurfaceSize renderSize = engine->GetRenderTargetSize();
+		if (renderSize.Width > 0 && renderSize.Height > 0)
+		{
+			renderWidth = static_cast<float>(renderSize.Width);
+			renderHeight = static_cast<float>(renderSize.Height);
+		}
+	}
 	std::vector<GameRenderCameraDesc> cameras = CollectGameRenderCameras(*scene, renderWidth, renderHeight);
 
 	if (CEngine* engine = GetEngine())
