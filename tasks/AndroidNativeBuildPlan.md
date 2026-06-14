@@ -116,9 +116,14 @@ Android = web 목록에서:
       `CGameBuildManager`: Android 태스크(Validate/BuildAndroid/Verify) + `BuildAndroidPackage`(=`BuildGame.ps1 -Platform Android` 위임, 웹과 동일 패턴) + `VerifyAndroidPackage`(APK 존재/`GameScript.dll` 부재).
       `BuildGame.ps1`: ① `-Platform Android` 가 .so(BuildAndroidNative.ps1)+매니페스트+팩+APK 를 **한 번에** 처리 ② gradle.properties override 자동작성 ③ `Find-GradleCommand` 가 PATH 없을 때 `C:\Android\gradle\gradle-*`/`GRADLE_HOME` 탐색(에디터는 PATH 주입 안 함).
       검증: gradle PATH 없이 + 비ASCII OutputRoot 로 `BuildGame.ps1 -Platform Android` EXIT=0; 에디터 Debug_Editor 컴파일/링크 OK.
-- [ ] **M6b 런타임 스모크 (미완)**: `adb install` → logcat 으로 startup scene 로드 확인. **기기/에뮬 미설치로 불가.**
-      에뮬: `system-images;android-35;google_apis;x86_64` + `emulator` + AVD 생성 필요(x86_64 ABI .so 도 별도 빌드: `BuildAndroidNative.ps1 -Abi x86_64`). 또는 실기기 USB+adb.
-      이 단계서 M4(Vulkan ANativeWindow surface) / M5(터치) 실측 검증된다.
+- [x] **M6b 런타임 스모크 (실기기)** ✅ 2026-06-14. **Galaxy S23 Ultra(SM-S918N, arm64, Adreno, SDK35)**, adb 무선(Wi-Fi 페어링; USB 연결 불가 환경).
+      `adb pair`+`connect` → install(멀티 ABI에서 arm64 자동) → 실행. logcat(tag JBroEngine) 결과:
+      - **Vulkan: physical device count = 1**(Adreno 드라이버) → init 통과.
+      - 정적 스크립트 모듈 init ✅, 시작 씬 로드 ✅, Application initialized ✅.
+      - **렌더: 2D 스프라이트 씬 화면 출력**(스크린샷 확인 — 검은화면 아님). surface 3088x1440, first frame present.
+      - **오디오: AAudio 48kHz 스테레오 OUTPUT 스트림 오픈**(miniaudio→AAudio).
+      → **M4(Vulkan)/M5(터치 배선)/오디오 모두 실기기 동작 확인.** "검은화면"은 MuMu 가 게스트 Vulkan 미제공이라서였음(코드 무관).
+      후속(비치명): `AHardwareBuffer GraphicBuffer(w=4,h=4) failed (-7)` 반복 — 4x4 작은 버퍼 할당 실패(렌더 정상, 추적 가치).
 
 ## 런타임 브링업 + 검토 후속 (2026-06-10, MuMu x86_64 에뮬서 진단)
 on-device logcat(태그 `JBroEngine`)로 검은화면 원인 4개 잡고 수정:
