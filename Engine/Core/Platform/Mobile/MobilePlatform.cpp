@@ -139,6 +139,19 @@ void CMobilePlatform::NotifyResume()
 	SetFocus(true);
 }
 
+int CMobilePlatform::GetDisplayRotationDegrees() const
+{
+	return m_displayRotationDegrees;
+}
+
+void CMobilePlatform::SetDisplayRotationDegrees(int degrees)
+{
+	// 0/90/180/270 로 정규화.
+	int normalized = ((degrees % 360) + 360) % 360;
+	normalized = (normalized / 90) * 90;
+	m_displayRotationDegrees = normalized;
+}
+
 void CMobilePlatform::InjectTouch(std::int32_t pointerId, int x, int y, ETouchPhase phase)
 {
 	if (Engine.InputSystem)

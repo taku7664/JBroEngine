@@ -700,14 +700,18 @@ void CEngine::RenderFrame()
 	if (m_renderer)
 	{
 		m_renderer->BeginFrame();
-		// surface pre-rotation(표시 방향 보정) — 스왑체인 transform 으로부터 매 프레임 갱신.
-		// 런타임 회전 시 스왑체인 재생성으로 값이 바뀌면 자동 반영된다.
+		// surface pre-rotation(표시 방향 보정) — 디스플레이 회전(JNI)으로부터 매 프레임 갱신.
+		// Vulkan surface transform 은 일부 기기(Samsung 등)서 거짓 보고하므로 신뢰하지 않고,
+		// 플랫폼이 제공하는 실제 디스플레이 회전을 권위로 쓴다. 런타임 회전 시 자동 반영.
 		float preRotCos = 1.0f;
 		float preRotSin = 0.0f;
-		if (SafePtr<IRHISwapchain> swapchain = m_rhiDevice->GetSwapchain())
+		const int rotation = m_platform ? m_platform->GetDisplayRotationDegrees() : 0;
+		switch (rotation)
 		{
-			preRotCos = swapchain->GetPreRotationCosR();
-			preRotSin = swapchain->GetPreRotationSinR();
+		case 90:  preRotCos = 0.0f;  preRotSin = 1.0f;  break;
+		case 180: preRotCos = -1.0f; preRotSin = 0.0f;  break;
+		case 270: preRotCos = 0.0f;  preRotSin = -1.0f; break;
+		default:  preRotCos = 1.0f;  preRotSin = 0.0f;  break;
 		}
 		m_renderer->SetSurfacePreRotation(preRotCos, preRotSin);
 	}
@@ -779,24 +783,30 @@ void CEngine::EndFrame()
 
 RenderSurfaceSize CEngine::GetRenderTargetSize() const
 {
-	// 실제 렌더되는 픽셀 크기의 권위는 스왑체인(표시 방향 기준)이다. Android pre-rotation 시
-	// 메인 surface 가 보고하는 네이티브 방향 크기와 다를 수 있으므로 스왑체인을 우선한다.
+	// 네이티브 렌더 버퍼 크기(스왑체인/메인 surface). 표시 방향과 다를 수 있다(모바일 회전).
+	RenderSurfaceSize nativeSize{ 0, 0 };
 	if (m_rhiDevice)
 	{
 		if (SafePtr<IRHISwapchain> swapchain = m_rhiDevice->GetSwapchain())
 		{
-			const RenderSurfaceSize size = swapchain->GetSize();
-			if (size.Width > 0 && size.Height > 0)
-			{
-				return size;
-			}
+			nativeSize = swapchain->GetSize();
 		}
 	}
-	if (SafePtr<IRenderSurface> surface = GetMainRenderSurface())
+	if ((nativeSize.Width <= 0 || nativeSize.Height <= 0))
 	{
-		return surface->GetSize();
+		if (SafePtr<IRenderSurface> surface = GetMainRenderSurface())
+		{
+			nativeSize = surface->GetSize();
+		}
 	}
-	return RenderSurfaceSize{ 0, 0 };
+
+	// 표시 방향(디스플레이 회전 90/270)에서는 카메라 종횡비용 크기를 가로/세로 swap.
+	const int rotation = m_platform ? m_platform->GetDisplayRotationDegrees() : 0;
+	if (90 == rotation || 270 == rotation)
+	{
+		return RenderSurfaceSize{ nativeSize.Height, nativeSize.Width };
+	}
+	return nativeSize;
 }
 
 void CEngine::FillRenderSurfaceDesc(RHIDesc& desc) const

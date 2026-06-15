@@ -42,14 +42,9 @@ void CVulkanSwapchain::Present()
 RenderSurfaceSize CVulkanSwapchain::GetSize() const
 {
 #if JBRO_RHI_VULKAN
+	// 네이티브 렌더 버퍼 크기. 표시 방향 보정(swap)은 엔진이 디스플레이 회전값으로 처리한다.
 	if (m_extent.width > 0 && m_extent.height > 0)
 	{
-		// 90/270 회전 기기는 렌더 버퍼가 네이티브(세로) 방향이라, 표시 방향(가로) 크기로 swap.
-		if (m_preTransform == VK_SURFACE_TRANSFORM_ROTATE_90_BIT_KHR ||
-			m_preTransform == VK_SURFACE_TRANSFORM_ROTATE_270_BIT_KHR)
-		{
-			return RenderSurfaceSize{ static_cast<int>(m_extent.height), static_cast<int>(m_extent.width) };
-		}
 		return RenderSurfaceSize{ static_cast<int>(m_extent.width), static_cast<int>(m_extent.height) };
 	}
 #endif

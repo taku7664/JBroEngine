@@ -39,6 +39,76 @@ namespace
 		return static_cast<CMobilePlatform*>(Engine.Platform.TryGet());
 	}
 
+	// JNI 로 activity.getWindowManager().getDefaultDisplay().getRotation() 을 읽는다.
+	// 반환: Surface.ROTATION_0..3 (0/1/2/3). 실패 시 -1.
+	// Vulkan surface transform 은 일부 기기(예: Samsung)에서 IDENTITY 로 거짓 보고하므로,
+	// 표시 방향의 신뢰 가능한 출처는 이 디스플레이 회전값이다.
+	int QueryDisplayRotation(android_app* app)
+	{
+		if (nullptr == app->activity || nullptr == app->activity->vm || nullptr == app->activity->clazz)
+		{
+			return -1;
+		}
+
+		JavaVM* vm = app->activity->vm;
+		JNIEnv* env = nullptr;
+		if (vm->AttachCurrentThread(&env, nullptr) != JNI_OK || nullptr == env)
+		{
+			return -1;
+		}
+
+		int rotation = -1;
+		jobject activity = app->activity->clazz;
+		jclass activityClass = env->GetObjectClass(activity);
+		jmethodID getWindowManager = env->GetMethodID(activityClass, "getWindowManager", "()Landroid/view/WindowManager;");
+		if (nullptr != getWindowManager)
+		{
+			jobject windowManager = env->CallObjectMethod(activity, getWindowManager);
+			if (nullptr != windowManager)
+			{
+				jclass wmClass = env->GetObjectClass(windowManager);
+				jmethodID getDefaultDisplay = env->GetMethodID(wmClass, "getDefaultDisplay", "()Landroid/view/Display;");
+				if (nullptr != getDefaultDisplay)
+				{
+					jobject display = env->CallObjectMethod(windowManager, getDefaultDisplay);
+					if (nullptr != display)
+					{
+						jclass displayClass = env->GetObjectClass(display);
+						jmethodID getRotation = env->GetMethodID(displayClass, "getRotation", "()I");
+						if (nullptr != getRotation)
+						{
+							rotation = env->CallIntMethod(display, getRotation);
+						}
+						env->DeleteLocalRef(displayClass);
+						env->DeleteLocalRef(display);
+					}
+				}
+				env->DeleteLocalRef(wmClass);
+				env->DeleteLocalRef(windowManager);
+			}
+		}
+		env->DeleteLocalRef(activityClass);
+		return rotation;
+	}
+
+	// 디스플레이 회전을 읽어 플랫폼에 반영(엔진 초기화 후 호출 — CMobilePlatform 존재).
+	void UpdateDisplayRotation(android_app* app)
+	{
+		CMobilePlatform* platform = GetMobilePlatform();
+		if (nullptr == platform)
+		{
+			return;
+		}
+		const int rotation = QueryDisplayRotation(app);
+		if (rotation < 0)
+		{
+			return;
+		}
+		const int degrees = rotation * 90; // ROTATION_0..3 → 0/90/180/270
+		platform->SetDisplayRotationDegrees(degrees);
+		__android_log_print(ANDROID_LOG_INFO, kLogTag, "Display rotation: %d degrees", degrees);
+	}
+
 	// Content 아래 단일 asset(relPath)을 내부 저장소로 추출. 같은 크기면 스킵.
 	// 반환: 추출됐거나 이미 최신이면 true.
 	bool ExtractOneApkAsset(AAssetManager* assetManager, const std::string& relPath,
@@ -293,6 +363,7 @@ namespace
 		{
 			state->Initialized = true;
 			SyncSurfaceSizeFromWindow(app);
+			UpdateDisplayRotation(app);
 			__android_log_print(ANDROID_LOG_INFO, kLogTag, "Application initialized.");
 		}
 		else
@@ -347,6 +418,7 @@ namespace
 			if (state->Initialized)
 			{
 				SyncSurfaceSizeFromWindow(app);
+				UpdateDisplayRotation(app); // 회전 시 표시 방향 갱신(동적 회전 대응).
 			}
 			break;
 
