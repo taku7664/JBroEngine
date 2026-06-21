@@ -60,6 +60,7 @@ struct ProjectBuildSettings
 	std::uint32_t AndroidMinSdkVersion = 26;
 	std::uint32_t AndroidTargetSdkVersion = 35;
 	std::string AndroidAbi = "arm64-v8a";
+	std::string AndroidOrientation = "Landscape"; // "Landscape" / "Portrait" / "Auto"
 	std::string IOSBundleIdentifier = "com.jbro.game";
 	std::string IOSTeamId;
 	std::string IOSMinimumOSVersion = "15.0";

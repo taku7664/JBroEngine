@@ -34,6 +34,7 @@ struct BuildManifest
 	std::vector<BuildAssetMount> AssetMounts;
 	std::string ScriptMode;
 	std::string ScriptModule;
+	std::string Orientation; // "Landscape" / "Portrait" / "Auto"(또는 빈 문자열 = Auto)
 	std::string EngineVersion;
 	std::string BuildTimeUtc;
 

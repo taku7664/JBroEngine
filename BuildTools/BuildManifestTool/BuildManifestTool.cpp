@@ -21,6 +21,7 @@ namespace
 		std::string TargetPlatform;
 		std::string ScriptMode;
 		std::string ScriptModule;
+		std::string Orientation;
 		int Width = 1280;
 		int Height = 720;
 		float PixelsPerUnit = 100.0f;
@@ -99,6 +100,7 @@ namespace
 			<< L" [--target-platform <name>]"
 			<< L" [--script-mode <mode>]"
 			<< L" [--script-module <path>]"
+			<< L" [--orientation <Landscape|Portrait|Auto>]"
 			<< std::endl
 			<< L"   or: BuildManifestTool --validate <path>"
 			<< L" [--startup-scene-guid <guid>]"
@@ -174,6 +176,11 @@ namespace
 			{
 				if (false == RequireValue(argc, argv, i)) return false;
 				outOptions.ScriptModule = std::filesystem::path(argv[++i]).generic_string();
+			}
+			else if (arg == L"--orientation")
+			{
+				if (false == RequireValue(argc, argv, i)) return false;
+				outOptions.Orientation = NarrowAscii(argv[++i]);
 			}
 			else
 			{
@@ -264,6 +271,7 @@ int wmain(int argc, wchar_t** argv)
 	manifest.TargetPlatform = options.TargetPlatform;
 	manifest.ScriptMode = options.ScriptMode;
 	manifest.ScriptModule = options.ScriptModule;
+	manifest.Orientation = options.Orientation;
 
 	std::string error;
 	if (false == CBuildManifestLoader::WriteBinaryFile(options.OutputPath, manifest, &error))

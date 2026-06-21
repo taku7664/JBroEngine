@@ -155,6 +155,7 @@ Entries:
   build_settings.android_min_sdk: Min SDK
   build_settings.android_target_sdk: Target SDK
   build_settings.android_abi: ABI
+  build_settings.android_orientation: Orientation
   build_settings.ios_bundle_identifier: Bundle ID
   build_settings.ios_team_id: Team ID
   build_settings.ios_minimum_os: Minimum iOS
@@ -495,6 +496,7 @@ Entries:
   build_settings.android_min_sdk.desc: Minimum Android SDK version supported by the app.
   build_settings.android_target_sdk.desc: Target Android SDK version. It is normalized if it is lower than Min SDK.
   build_settings.android_abi.desc: Android native library ABI. The first mobile target is arm64-v8a.
+  build_settings.android_orientation.desc: Initial screen orientation of the game. Landscape/Portrait lock the orientation; Auto follows device rotation. Used as the rotation-correction reference.
   build_settings.ios_bundle_identifier.desc: "iOS app bundle identifier. Example: com.company.game"
   build_settings.ios_team_id.desc: Apple Developer Team ID used by signing.
   build_settings.ios_minimum_os.desc: Minimum iOS version supported by the app.

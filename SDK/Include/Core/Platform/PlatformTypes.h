@@ -12,12 +12,22 @@
 #endif
 #endif
 
+// 게임이 요구하는 화면 방향. 모바일 회전 보정의 권위 신호다(버퍼 방향과 비교해 회전량 결정).
+// Auto 는 회전을 게임이 강제하지 않음 → 플랫폼의 실제 디스플레이 회전(JNI getRotation)을 따른다.
+enum class EScreenOrientation
+{
+	Auto,
+	Landscape,
+	Portrait
+};
+
 struct PlatformDesc
 {
 	const wchar_t* ApplicationName = L"JBroEngine";
 	int WindowWidth = 1280;
 	int WindowHeight = 720;
 	bool IsEditor = false;
+	EScreenOrientation DesiredOrientation = EScreenOrientation::Auto;
 };
 
 // PollEvents 가 메인 루프에 돌려주는 프레임 단위 상태(루프 제어 전용).

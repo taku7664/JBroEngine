@@ -83,6 +83,12 @@ private:
 	void FillRenderSurfaceDesc(RHIDesc& desc) const;
 	void SyncScriptCore();
 
+	// 네이티브 렌더 버퍼(스왑체인) 크기. 표시 방향과 다를 수 있다(모바일 회전).
+	RenderSurfaceSize GetNativeRenderBufferSize() const;
+	// 콘텐츠 보정 회전(0/90/180/270). desired orientation(빌드설정)이 권위.
+	// Auto 면 플랫폼 디스플레이 회전(JNI), 그 외엔 desired-vs-버퍼방향 비교.
+	int GetEffectiveDisplayRotation() const;
+
 	// 메인 surface 윈도우 이벤트(포커스/리사이즈) → 활성 씬 스크립트로 전달.
 	void OnSurfaceEvent(const SurfaceEvent& surfaceEvent);
 

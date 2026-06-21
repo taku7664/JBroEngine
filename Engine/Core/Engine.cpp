@@ -700,12 +700,12 @@ void CEngine::RenderFrame()
 	if (m_renderer)
 	{
 		m_renderer->BeginFrame();
-		// surface pre-rotation(표시 방향 보정) — 디스플레이 회전(JNI)으로부터 매 프레임 갱신.
-		// Vulkan surface transform 은 일부 기기(Samsung 등)서 거짓 보고하므로 신뢰하지 않고,
-		// 플랫폼이 제공하는 실제 디스플레이 회전을 권위로 쓴다. 런타임 회전 시 자동 반영.
+		// surface pre-rotation(표시 방향 보정) — desired orientation(빌드설정) 권위로 매 프레임 갱신.
+		// Vulkan surface transform 은 일부 기기(Samsung 등)서 거짓 보고하므로 신뢰하지 않는다.
+		// 방향고정 게임은 desired-vs-버퍼 비교로, Auto 게임은 실제 디스플레이 회전(JNI)으로 결정.
 		float preRotCos = 1.0f;
 		float preRotSin = 0.0f;
-		const int rotation = m_platform ? m_platform->GetDisplayRotationDegrees() : 0;
+		const int rotation = GetEffectiveDisplayRotation();
 		switch (rotation)
 		{
 		case 90:  preRotCos = 0.0f;  preRotSin = 1.0f;  break;
@@ -781,7 +781,7 @@ void CEngine::EndFrame()
 	}
 }
 
-RenderSurfaceSize CEngine::GetRenderTargetSize() const
+RenderSurfaceSize CEngine::GetNativeRenderBufferSize() const
 {
 	// 네이티브 렌더 버퍼 크기(스왑체인/메인 surface). 표시 방향과 다를 수 있다(모바일 회전).
 	RenderSurfaceSize nativeSize{ 0, 0 };
@@ -799,9 +799,36 @@ RenderSurfaceSize CEngine::GetRenderTargetSize() const
 			nativeSize = surface->GetSize();
 		}
 	}
+	return nativeSize;
+}
 
-	// 표시 방향(디스플레이 회전 90/270)에서는 카메라 종횡비용 크기를 가로/세로 swap.
-	const int rotation = m_platform ? m_platform->GetDisplayRotationDegrees() : 0;
+int CEngine::GetEffectiveDisplayRotation() const
+{
+	const EScreenOrientation desired = m_platform ? m_platform->GetDesiredOrientation() : EScreenOrientation::Auto;
+	if (EScreenOrientation::Auto == desired)
+	{
+		// 게임이 방향을 강제하지 않음 → 기기 실제 디스플레이 회전(JNI getRotation)을 따른다.
+		return m_platform ? m_platform->GetDisplayRotationDegrees() : 0;
+	}
+
+	// 방향고정 게임: desired 와 버퍼 방향이 어긋나면 콘텐츠를 90° 회전해 보정.
+	// (일부 기기는 방향고정이어도 패널 네이티브 방향으로 버퍼를 주고 시스템이 돌려 표시한다.)
+	const RenderSurfaceSize nativeSize = GetNativeRenderBufferSize();
+	if (nativeSize.Width <= 0 || nativeSize.Height <= 0)
+	{
+		return 0;
+	}
+	const bool bufferPortrait = nativeSize.Height > nativeSize.Width;
+	const bool desiredPortrait = (EScreenOrientation::Portrait == desired);
+	return (bufferPortrait != desiredPortrait) ? 90 : 0;
+}
+
+RenderSurfaceSize CEngine::GetRenderTargetSize() const
+{
+	const RenderSurfaceSize nativeSize = GetNativeRenderBufferSize();
+
+	// 표시 방향(콘텐츠 회전 90/270)에서는 카메라 종횡비용 크기를 가로/세로 swap.
+	const int rotation = GetEffectiveDisplayRotation();
 	if (90 == rotation || 270 == rotation)
 	{
 		return RenderSurfaceSize{ nativeSize.Height, nativeSize.Width };

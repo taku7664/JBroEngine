@@ -158,6 +158,7 @@ function Read-JBroProject {
             AndroidMinSdkVersion = 26
             AndroidTargetSdkVersion = 35
             AndroidAbi = "arm64-v8a"
+            AndroidOrientation = "Landscape"
             IOSBundleIdentifier = "com.jbro.game"
             IOSTeamId = ""
             IOSMinimumOSVersion = "15.0"
@@ -655,7 +656,8 @@ function Write-JBroBuildManifest {
         [float]$PixelsPerUnit = 100.0,
         [string]$TargetPlatform = "",
         [string]$ScriptMode = "",
-        [string]$ScriptModule = ""
+        [string]$ScriptModule = "",
+        [string]$Orientation = ""
     )
 
     $toolExe = Get-JBroBuildManifestTool
@@ -681,6 +683,9 @@ function Write-JBroBuildManifest {
     }
     if (-not [string]::IsNullOrWhiteSpace($ScriptModule)) {
         $args += @("--script-module", $ScriptModule)
+    }
+    if (-not [string]::IsNullOrWhiteSpace($Orientation)) {
+        $args += @("--orientation", $Orientation)
     }
     & $toolExe @args
     if ($LASTEXITCODE -ne 0) {
@@ -1199,7 +1204,8 @@ function Invoke-AndroidApplicationBuild {
         [Parameter(Mandatory=$true)][int]$TargetSdkVersion,
         [Parameter(Mandatory=$true)][string[]]$Abis,
         [Parameter(Mandatory=$true)][string]$Configuration,
-        [string]$AndroidSdkRoot = ""
+        [string]$AndroidSdkRoot = "",
+        [string]$Orientation = "Landscape"
     )
 
     if ($ApplicationId -notmatch '^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$') {
@@ -1237,6 +1243,13 @@ function Invoke-AndroidApplicationBuild {
     Write-Utf8File -Path (Join-Path $assetContentDir "_assetindex.txt") -Text (($assetIndexEntries -join "`n") + "`n")
 
     $abiFiltersText = ($Abis | ForEach-Object { "'$_'" }) -join ', '
+
+    # 게임 desired orientation → AndroidManifest screenOrientation. 엔진 회전 보정과 짝을 이룬다.
+    $screenOrientation = switch ($Orientation) {
+        "Portrait" { "sensorPortrait" }
+        "Auto"     { "fullSensor" }
+        default    { "sensorLandscape" }
+    }
 
     $escapedLabel = ConvertTo-XmlEscaped $ProductName
     $gradleProductName = ConvertTo-GradleSingleQuoted $ProductName
@@ -1310,7 +1323,7 @@ android {
             android:name="android.app.NativeActivity"
             android:exported="true"
             android:configChanges="keyboardHidden|orientation|screenSize"
-            android:screenOrientation="sensorLandscape">
+            android:screenOrientation="$screenOrientation">
             <meta-data android:name="android.app.lib_name" android:value="JBroGame" />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -1568,7 +1581,8 @@ Write-JBroBuildManifest `
     -PixelsPerUnit ([float]$projectInfo.PixelsPerUnit) `
     -TargetPlatform $Platform `
     -ScriptMode $manifestScriptMode `
-    -ScriptModule $manifestScriptModule
+    -ScriptModule $manifestScriptModule `
+    -Orientation $projectInfo.Build.AndroidOrientation
 
 Assert-RootArtifactMissing -PackageDir $packageDir -Names @("SDK", "Localization", "Editor")
 
@@ -1622,7 +1636,8 @@ if ($Platform -eq "Windows") {
         -TargetSdkVersion ([int]$projectInfo.Build.AndroidTargetSdkVersion) `
         -Abis $androidAbis `
         -Configuration $Configuration `
-        -AndroidSdkRoot $AndroidSdkRoot
+        -AndroidSdkRoot $AndroidSdkRoot `
+        -Orientation $projectInfo.Build.AndroidOrientation
 
     $androidGradleProject = Join-Path $packageDir "GradleProject"
     $androidAssetsContent = Join-Path $androidGradleProject "app\src\main\assets\Content"

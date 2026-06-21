@@ -25,6 +25,7 @@ void* CMobilePlatform::GetPendingNativeWindow()
 bool CMobilePlatform::Initialize(const PlatformDesc& desc)
 {
 	m_desc = desc;
+	m_desiredOrientation = desc.DesiredOrientation;
 
 	RenderSurfaceCreateDesc renderSurfaceDesc;
 	renderSurfaceDesc.Title = desc.ApplicationName;
@@ -142,6 +143,16 @@ void CMobilePlatform::NotifyResume()
 int CMobilePlatform::GetDisplayRotationDegrees() const
 {
 	return m_displayRotationDegrees;
+}
+
+EScreenOrientation CMobilePlatform::GetDesiredOrientation() const
+{
+	return m_desiredOrientation;
+}
+
+void CMobilePlatform::SetDesiredOrientation(EScreenOrientation orientation)
+{
+	m_desiredOrientation = orientation;
 }
 
 void CMobilePlatform::SetDisplayRotationDegrees(int degrees)

@@ -13,6 +13,12 @@ public:
 	SafePtr<IRenderSurface> GetMainRenderSurface() const override;
 	EPlatformType GetPlatformType() const override;
 	const wchar_t* GetName() const override;
+	int GetDisplayRotationDegrees() const override;
+	EScreenOrientation GetDesiredOrientation() const override;
+	void SetDesiredOrientation(EScreenOrientation orientation) override;
+
+	// 네이티브 브리지(AndroidMain)가 Display.getRotation() 값을 0/90/180/270 으로 주입한다.
+	void SetDisplayRotationDegrees(int degrees);
 
 	void RequestExit();
 	void SetFocus(bool isFocused);
@@ -39,4 +45,6 @@ private:
 	bool m_wantsExit = false;
 	bool m_isPaused = false;
 	bool m_isInitialized = false;
+	int m_displayRotationDegrees = 0;
+	EScreenOrientation m_desiredOrientation = EScreenOrientation::Auto;
 };

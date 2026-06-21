@@ -26,6 +26,10 @@ public:
 	// cosR/sinR: camera rotation (cos/sin of angle). Default = no rotation.
 	// No aspect-ratio derivation; content stretches to fill the viewport pixel area.
 	virtual void SetViewCameraEx(float posX, float posY, float halfW, float halfH, float cosR = 1.0f, float sinR = 0.0f) {}
+	// surface pre-rotation(클립공간 회전). 표시 방향 보정용 — 최종 클립 좌표에 곱한다.
+	// Android 등에서 패널 네이티브 방향과 표시 방향이 다를 때 스왑체인 transform 으로부터 설정.
+	// 기본 항등(cos=1,sin=0).
+	virtual void SetSurfacePreRotation(float cosR, float sinR) {}
 	// Draw a full-viewport quad in NDC space with the given RGBA color.
 	// Directly overwrites pixels (no blending) — use after BeginRenderPass+SetViewport
 	// to clear a sub-viewport area per-camera.

@@ -50,6 +50,19 @@ void CGameApplication::OnPreInitialize()
 					m_runtimeApplicationName = Utillity::U8ToWString(manifest.ProductName);
 					platformDesc.ApplicationName = m_runtimeApplicationName.c_str();
 				}
+				// desired orientation(빌드설정) → 회전 보정 권위. 빈 문자열/미인식은 Auto.
+				if (manifest.Orientation == "Landscape")
+				{
+					platformDesc.DesiredOrientation = EScreenOrientation::Landscape;
+				}
+				else if (manifest.Orientation == "Portrait")
+				{
+					platformDesc.DesiredOrientation = EScreenOrientation::Portrait;
+				}
+				else
+				{
+					platformDesc.DesiredOrientation = EScreenOrientation::Auto;
+				}
 				engine->SetPlatformDesc(platformDesc);
 				m_runtimeRenderWidth = static_cast<float>(platformDesc.WindowWidth);
 				m_runtimeRenderHeight = static_cast<float>(platformDesc.WindowHeight);

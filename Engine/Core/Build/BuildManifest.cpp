@@ -253,6 +253,11 @@ namespace
 			SetError(outError, "Binary build manifest product name payload is invalid.");
 			return false;
 		}
+		if (cursor < payload.size() && false == ReadString(payload, cursor, outManifest.Orientation))
+		{
+			SetError(outError, "Binary build manifest orientation payload is invalid.");
+			return false;
+		}
 
 		const std::filesystem::path absoluteManifestPath = std::filesystem::path(ToCanonicalPath(manifestPath));
 		const std::filesystem::path contentRootPath = absoluteManifestPath.parent_path();
@@ -441,6 +446,7 @@ bool CBuildManifestLoader::LoadFromFile(const File::Path& manifestPath, BuildMan
 	outManifest.StartupSceneGuid = ReadValueOr<std::string>(root, "startupSceneGuid", "");
 	outManifest.ScriptMode = ReadValueOr<std::string>(root, "scriptMode", "");
 	outManifest.ScriptModule = ReadValueOr<std::string>(root, "scriptModule", "");
+	outManifest.Orientation = ReadValueOr<std::string>(root, "orientation", "");
 	outManifest.EngineVersion = ReadValueOr<std::string>(root, "engineVersion", "");
 	outManifest.BuildTimeUtc = ReadValueOr<std::string>(root, "buildTimeUtc", "");
 	outManifest.PixelsPerUnit = NormalizePixelsPerUnit(ReadValueOr<float>(root, "pixelsPerUnit", DEFAULT_PIXELS_PER_UNIT));
@@ -543,6 +549,7 @@ bool CBuildManifestLoader::WriteBinaryFile(const File::Path& manifestPath, const
 	WriteString(payload, manifest.ScriptMode);
 	WriteString(payload, manifest.ScriptModule);
 	WriteString(payload, manifest.ProductName);
+	WriteString(payload, manifest.Orientation);
 
 	const std::uint32_t payloadSize = static_cast<std::uint32_t>(payload.size());
 	const std::uint64_t payloadHash = HashBytes(payload);

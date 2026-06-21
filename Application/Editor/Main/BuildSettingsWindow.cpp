@@ -589,6 +589,23 @@ void CBuildSettingsWindow::DrawAndroidCategory()
 				MarkDirty();
 			}
 		});
+
+	layout.Row(
+		[&]() {
+			DrawFieldLabel("build_settings.android_orientation", "build_settings.android_orientation.desc", false);
+		},
+		[&]() {
+			// 회전 보정의 권위 신호. Landscape/Portrait 는 방향고정, Auto 는 기기 회전 추종.
+			const char* orientations[] = { "Landscape", "Portrait", "Auto" };
+			int current = 0;
+			if (m_androidOrientation == "Portrait") current = 1;
+			else if (m_androidOrientation == "Auto") current = 2;
+			if (ImGui::Combo("##build.android_orientation", &current, orientations, IM_ARRAYSIZE(orientations)))
+			{
+				m_androidOrientation = orientations[current];
+				MarkDirty();
+			}
+		});
 }
 
 void CBuildSettingsWindow::DrawIOSCategory()
@@ -876,6 +893,7 @@ void CBuildSettingsWindow::LoadFromProject()
 	m_androidMinSdkVersion = static_cast<int>(build.AndroidMinSdkVersion);
 	m_androidTargetSdkVersion = static_cast<int>(build.AndroidTargetSdkVersion);
 	m_androidAbi = build.AndroidAbi;
+	m_androidOrientation = build.AndroidOrientation;
 	m_iosBundleIdentifier = build.IOSBundleIdentifier;
 	m_iosTeamId = build.IOSTeamId;
 	m_iosMinimumOSVersion = build.IOSMinimumOSVersion;
@@ -909,6 +927,7 @@ bool CBuildSettingsWindow::ApplyToProject(std::string* outError)
 	buildSettings.AndroidMinSdkVersion = static_cast<std::uint32_t>(std::max(1, m_androidMinSdkVersion));
 	buildSettings.AndroidTargetSdkVersion = static_cast<std::uint32_t>(std::max(1, m_androidTargetSdkVersion));
 	buildSettings.AndroidAbi = m_androidAbi;
+	buildSettings.AndroidOrientation = m_androidOrientation;
 	buildSettings.IOSBundleIdentifier = m_iosBundleIdentifier;
 	buildSettings.IOSTeamId = m_iosTeamId;
 	buildSettings.IOSMinimumOSVersion = m_iosMinimumOSVersion;

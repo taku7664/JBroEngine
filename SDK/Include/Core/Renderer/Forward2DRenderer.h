@@ -19,6 +19,7 @@ public:
 	void SetRenderTargetSize(const RenderSurfaceSize& size) override;
 	void SetViewCamera(float posX, float posY, float orthographicSize) override;
 	void SetViewCameraEx(float posX, float posY, float halfW, float halfH, float cosR = 1.0f, float sinR = 0.0f) override;
+	void SetSurfacePreRotation(float cosR, float sinR) override;
 	// Draw a full-viewport quad in NDC space with the given color (direct overwrite, no blend).
 	// Call after BeginRenderPass+SetViewport to clear a sub-viewport area.
 	void FillViewportColor(float r, float g, float b, float a) override;
@@ -95,6 +96,7 @@ private:
 	SpriteDrawResources ResolveSpriteDrawResources(const RenderItem& item) const;
 	SpriteConstants BuildSpriteConstants(const RenderItem& item, const ViewParameters& view) const;
 	SpriteViewConstants BuildSpriteViewConstants(const ViewParameters& view) const;
+	void ApplySurfacePreRotation(float (&viewRow0)[4], float (&viewRow1)[4]) const;
 	SpriteInstanceData BuildSpriteInstanceData(const RenderItem& item) const;
 	SpriteConstants BuildViewportColorConstants(float r, float g, float b, float a) const;
 	bool IsSpriteItemVisibleInView(const RenderItem& item, const ViewParameters& view) const;
@@ -136,6 +138,9 @@ private:
 	float m_viewCamCosR   = 1.0f;  // camera rotation cosine (explicit mode)
 	float m_viewCamSinR   = 0.0f;  // camera rotation sine   (explicit mode)
 	bool  m_useExplicitSize = false; // true → use halfW/halfH/cosR/sinR directly
+	// surface pre-rotation(클립공간) — 최종 뷰행렬에 곱해 표시 방향 보정. 기본 항등.
+	float m_surfacePreRotCos = 1.0f;
+	float m_surfacePreRotSin = 0.0f;
 	RenderCullingStats m_lastCullingStats;
 	// 1×1 white texture used by FillViewportColor
 	OwnerPtr<IRHITexture> m_whiteTexture;

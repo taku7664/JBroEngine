@@ -92,6 +92,7 @@ private:
 	int m_androidMinSdkVersion = 26;
 	int m_androidTargetSdkVersion = 35;
 	std::string m_androidAbi;
+	std::string m_androidOrientation;
 	std::string m_iosBundleIdentifier;
 	std::string m_iosTeamId;
 	std::string m_iosMinimumOSVersion;

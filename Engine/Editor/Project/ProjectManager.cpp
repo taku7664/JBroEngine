@@ -122,6 +122,7 @@ namespace
 	constexpr const char* PROJECT_KEY_BUILD_ANDROID_MIN_SDK = "AndroidMinSdkVersion";
 	constexpr const char* PROJECT_KEY_BUILD_ANDROID_TARGET_SDK = "AndroidTargetSdkVersion";
 	constexpr const char* PROJECT_KEY_BUILD_ANDROID_ABI = "AndroidAbi";
+	constexpr const char* PROJECT_KEY_BUILD_ANDROID_ORIENTATION = "AndroidOrientation";
 	constexpr const char* PROJECT_KEY_BUILD_IOS_BUNDLE_ID = "IOSBundleIdentifier";
 	constexpr const char* PROJECT_KEY_BUILD_IOS_TEAM_ID = "IOSTeamId";
 	constexpr const char* PROJECT_KEY_BUILD_IOS_MINIMUM_OS = "IOSMinimumOSVersion";
@@ -393,6 +394,10 @@ namespace
 		{
 			settings.AndroidAbi = "arm64-v8a";
 		}
+		if (settings.AndroidOrientation.empty())
+		{
+			settings.AndroidOrientation = "Landscape";
+		}
 		if (settings.IOSBundleIdentifier.empty())
 		{
 			settings.IOSBundleIdentifier = settings.AndroidApplicationId;
@@ -460,6 +465,7 @@ namespace
 		out << YAML::Key << PROJECT_KEY_BUILD_ANDROID_MIN_SDK << YAML::Value << settings.AndroidMinSdkVersion;
 		out << YAML::Key << PROJECT_KEY_BUILD_ANDROID_TARGET_SDK << YAML::Value << settings.AndroidTargetSdkVersion;
 		out << YAML::Key << PROJECT_KEY_BUILD_ANDROID_ABI << YAML::Value << settings.AndroidAbi;
+		out << YAML::Key << PROJECT_KEY_BUILD_ANDROID_ORIENTATION << YAML::Value << settings.AndroidOrientation;
 		out << YAML::Key << PROJECT_KEY_BUILD_IOS_BUNDLE_ID << YAML::Value << settings.IOSBundleIdentifier;
 		out << YAML::Key << PROJECT_KEY_BUILD_IOS_TEAM_ID << YAML::Value << settings.IOSTeamId;
 		out << YAML::Key << PROJECT_KEY_BUILD_IOS_MINIMUM_OS << YAML::Value << settings.IOSMinimumOSVersion;
@@ -510,6 +516,7 @@ namespace
 		settings.AndroidMinSdkVersion = buildNode[PROJECT_KEY_BUILD_ANDROID_MIN_SDK].as<std::uint32_t>(settings.AndroidMinSdkVersion);
 		settings.AndroidTargetSdkVersion = buildNode[PROJECT_KEY_BUILD_ANDROID_TARGET_SDK].as<std::uint32_t>(settings.AndroidTargetSdkVersion);
 		settings.AndroidAbi = buildNode[PROJECT_KEY_BUILD_ANDROID_ABI].as<std::string>(settings.AndroidAbi);
+		settings.AndroidOrientation = buildNode[PROJECT_KEY_BUILD_ANDROID_ORIENTATION].as<std::string>(settings.AndroidOrientation);
 		settings.IOSBundleIdentifier = buildNode[PROJECT_KEY_BUILD_IOS_BUNDLE_ID].as<std::string>(settings.IOSBundleIdentifier);
 		settings.IOSTeamId = buildNode[PROJECT_KEY_BUILD_IOS_TEAM_ID].as<std::string>(settings.IOSTeamId);
 		settings.IOSMinimumOSVersion = buildNode[PROJECT_KEY_BUILD_IOS_MINIMUM_OS].as<std::string>(settings.IOSMinimumOSVersion);
