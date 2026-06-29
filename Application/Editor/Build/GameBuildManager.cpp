@@ -1151,12 +1151,20 @@ File::Path CGameBuildManager::FindMSBuildPath() const
 	const std::wstring programFilesX86 = GetEnvironmentVariableValue(L"ProgramFiles(x86)");
 	const std::wstring roots[] = { programFiles, programFilesX86 };
 	const wchar_t* editions[] = { L"Community", L"Professional", L"Enterprise", L"BuildTools" };
+	// VS 버전 폴더를 하드코딩(2022)하지 않고 열거한다 — VS2022/VS18/이후 모두 대응.
 	for (const std::wstring& root : roots)
 	{
 		if (root.empty()) continue;
-		for (const wchar_t* edition : editions)
+		const File::Path vsRoot = File::Path(root) / L"Microsoft Visual Studio";
+		std::error_code listEc;
+		if (false == std::filesystem::is_directory(vsRoot, listEc)) continue;
+		for (const auto& versionEntry : std::filesystem::directory_iterator(vsRoot, listEc))
 		{
-			candidates.emplace_back(File::Path(root) / L"Microsoft Visual Studio" / L"2022" / edition / L"MSBuild" / L"Current" / L"Bin" / L"MSBuild.exe");
+			if (false == versionEntry.is_directory()) continue;
+			for (const wchar_t* edition : editions)
+			{
+				candidates.emplace_back(versionEntry.path() / edition / L"MSBuild" / L"Current" / L"Bin" / L"MSBuild.exe");
+			}
 		}
 	}
 

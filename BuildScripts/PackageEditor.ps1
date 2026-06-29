@@ -15,15 +15,28 @@ $distRoot = Join-Path $repoRoot $OutputRoot
 $distDir = Join-Path $distRoot ("JBroEngineEditor-" + $Configuration)
 
 function Find-MSBuild {
+    # vswhere 로 설치된 최신 VS 의 MSBuild 를 우선 탐색한다(버전 무관 — VS2022/VS18/이후 모두).
+    $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
+    if (Test-Path -LiteralPath $vswhere) {
+        $found = & $vswhere -latest -prerelease -requires Microsoft.Component.MSBuild -find "MSBuild\**\Bin\MSBuild.exe" 2>$null | Select-Object -First 1
+        if ($found -and (Test-Path -LiteralPath $found)) {
+            return $found
+        }
+    }
     $candidates = @()
     if ($env:VSINSTALLDIR) {
         $candidates += Join-Path $env:VSINSTALLDIR "MSBuild\Current\Bin\MSBuild.exe"
     }
+    # vswhere 가 없거나 실패하면 표준 설치 경로를 버전 폴더 무관으로 훑는다(2022 하드코딩 금지).
     $roots = @($env:ProgramFiles, ${env:ProgramFiles(x86)}) | Where-Object { $_ }
     $editions = @("Community", "Professional", "Enterprise", "BuildTools")
     foreach ($root in $roots) {
-        foreach ($edition in $editions) {
-            $candidates += Join-Path $root ("Microsoft Visual Studio\2022\" + $edition + "\MSBuild\Current\Bin\MSBuild.exe")
+        $vsRoot = Join-Path $root "Microsoft Visual Studio"
+        if (-not (Test-Path -LiteralPath $vsRoot)) { continue }
+        foreach ($verDir in (Get-ChildItem -LiteralPath $vsRoot -Directory -ErrorAction SilentlyContinue)) {
+            foreach ($edition in $editions) {
+                $candidates += Join-Path $verDir.FullName ($edition + "\MSBuild\Current\Bin\MSBuild.exe")
+            }
         }
     }
     foreach ($candidate in $candidates) {

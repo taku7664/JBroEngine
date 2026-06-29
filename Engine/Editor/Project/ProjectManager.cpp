@@ -212,15 +212,29 @@ namespace
 			"BuildTools"
 		};
 
+		// 설치된 VS 버전 폴더를 하드코딩(2022)하지 않고 열거한다 — VS2022/VS18/이후 모두 대응.
 		for (const std::filesystem::path& root : roots)
 		{
 			if (root.empty())
 			{
 				continue;
 			}
-			for (const char* edition : editions)
+			const std::filesystem::path vsRoot = root / "Microsoft Visual Studio";
+			std::error_code listEc;
+			if (false == std::filesystem::is_directory(vsRoot, listEc))
 			{
-				candidates.push_back(root / "Microsoft Visual Studio" / "2022" / edition / "MSBuild" / "Current" / "Bin" / "MSBuild.exe");
+				continue;
+			}
+			for (const auto& versionEntry : std::filesystem::directory_iterator(vsRoot, listEc))
+			{
+				if (false == versionEntry.is_directory())
+				{
+					continue;
+				}
+				for (const char* edition : editions)
+				{
+					candidates.push_back(versionEntry.path() / edition / "MSBuild" / "Current" / "Bin" / "MSBuild.exe");
+				}
 			}
 		}
 
