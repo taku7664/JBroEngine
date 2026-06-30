@@ -4,6 +4,7 @@
 #include "Core/Asset/IAssetLoader.h"
 #include "Core/Audio/AudioTypes.h"   // EAudioEffectKind
 
+#include <cstdint>
 #include <map>
 #include <string>
 
@@ -11,7 +12,7 @@
 //  CAudioEffectAsset / CAudioEffectAssetLoader
 //
 //  사운드용 DSP 효과를 독립 에셋으로 표현한다 (스프라이트의 Material 패턴).
-//  AudioPlayer 컴포넌트가 EffectGuid 로 참조하고, 재생 시 CAudioSystem 이
+//  AudioPlayer 컴포넌트가 EffectGuids 체인으로 참조하고, 재생 시 CAudioSystem 이
 //  이 에셋의 Kind/파라미터로 IAudioEffect 노드를 구성해 체인에 삽입한다(후속 단계).
 //
 //  파라미터 모델은 공통 std::map<string,float> — 효과 종류를 추가해도 코드 변경
@@ -44,10 +45,16 @@ public:
 	const std::map<std::string, float>& GetParameters() const;
 	float                               GetParameter(const std::string& key, float defaultValue = 0.0f) const;
 
+	// 효과 데이터가 in-place 로 갱신될 때마다 증가한다(ApplyImportOptions).
+	// AudioSystem 이 이 값을 캐시·비교해 런타임 효과 노드의 파라미터를 재적용한다
+	// (스프라이트의 PixelGeneration 패턴). 노드 재생성 없이 SetParameter 만으로 실시간 반영.
+	std::uint32_t GetGeneration() const { return m_generation; }
+
 private:
 	AssetMetaData   m_metaData;
 	AudioEffectData m_data;
 	EAssetLoadState m_loadState = EAssetLoadState::Loaded;
+	std::uint32_t   m_generation = 0;
 };
 
 // ── YAML 직렬화 ─────────────────────────────────────────────────────────────
