@@ -469,6 +469,7 @@
     <ClInclude Include="Editor\FileSystem\FileWatcherTypes.h" />
     <ClInclude Include="Editor\FileSystem\IFileWatcher.h" />
     <ClInclude Include="Editor\FileSystem\Windows\WindowsFileWatcher.h" />
+    <ClInclude Include="Editor\Build\MSBuildLocator.h" />
     <ClInclude Include="Editor\LiveCompile\CompilePipeline.h" />
     <ClInclude Include="Editor\LiveCompile\IDynamicLibrary.h" />
     <ClInclude Include="Editor\LiveCompile\ICompilePipeline.h" />
@@ -728,6 +729,9 @@
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="Editor\FileSystem\Windows\WindowsFileWatcher.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Editor\Build\MSBuildLocator.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="Editor\LiveCompile\CompilePipeline.cpp">

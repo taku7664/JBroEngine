@@ -7,6 +7,7 @@
 #include "Engine/Core/Asset/IAssetRegistry.h"
 #include "Engine/Core/Build/BuildManifest.h"
 #include "Engine/Core/EngineCore.h"
+#include "Engine/Editor/Build/MSBuildLocator.h"
 #include "Engine/Editor/Project/ProjectManager.h"
 #include "Engine/GameFramework/Scene/SceneSerializer.h"
 #include "Utillity/File/FileUtillities.h"
@@ -808,6 +809,11 @@ bool CGameBuildManager::ValidateScenes(const BuildDesc& desc, std::string& outEr
 bool CGameBuildManager::BuildEngineGame(const BuildDesc& desc, std::string& outError) const
 {
 	const File::Path msbuild = FindMSBuildPath();
+	if (msbuild.empty())
+	{
+		outError = "MSBuild was not found. Install Visual Studio with the C++ (MSBuild) workload.";
+		return false;
+	}
 	const File::Path solution = desc.RepoRoot / "JBroEngine.sln";
 	const std::wstring command =
 		Quote(msbuild.wstring()) + L" " +
@@ -832,6 +838,11 @@ bool CGameBuildManager::BuildScriptModule(const BuildDesc& desc, File::Path& out
 	}
 
 	const File::Path msbuild = FindMSBuildPath();
+	if (msbuild.empty())
+	{
+		outError = "MSBuild was not found. Install Visual Studio with the C++ (MSBuild) workload.";
+		return false;
+	}
 	const std::wstring command =
 		Quote(msbuild.wstring()) + L" " +
 		Quote(desc.ScriptProjectPath.wstring()) +
@@ -1140,42 +1151,9 @@ bool CGameBuildManager::VerifyWebPackage(const BuildDesc& desc, std::string& out
 
 File::Path CGameBuildManager::FindMSBuildPath() const
 {
-	std::vector<File::Path> candidates;
-	const std::wstring vsInstallDir = GetEnvironmentVariableValue(L"VSINSTALLDIR");
-	if (false == vsInstallDir.empty())
-	{
-		candidates.emplace_back(File::Path(vsInstallDir) / L"MSBuild" / L"Current" / L"Bin" / L"MSBuild.exe");
-	}
-
-	const std::wstring programFiles = GetEnvironmentVariableValue(L"ProgramFiles");
-	const std::wstring programFilesX86 = GetEnvironmentVariableValue(L"ProgramFiles(x86)");
-	const std::wstring roots[] = { programFiles, programFilesX86 };
-	const wchar_t* editions[] = { L"Community", L"Professional", L"Enterprise", L"BuildTools" };
-	// VS 버전 폴더를 하드코딩(2022)하지 않고 열거한다 — VS2022/VS18/이후 모두 대응.
-	for (const std::wstring& root : roots)
-	{
-		if (root.empty()) continue;
-		const File::Path vsRoot = File::Path(root) / L"Microsoft Visual Studio";
-		std::error_code listEc;
-		if (false == std::filesystem::is_directory(vsRoot, listEc)) continue;
-		for (const auto& versionEntry : std::filesystem::directory_iterator(vsRoot, listEc))
-		{
-			if (false == versionEntry.is_directory()) continue;
-			for (const wchar_t* edition : editions)
-			{
-				candidates.emplace_back(versionEntry.path() / edition / L"MSBuild" / L"Current" / L"Bin" / L"MSBuild.exe");
-			}
-		}
-	}
-
-	for (const File::Path& candidate : candidates)
-	{
-		if (std::filesystem::exists(candidate))
-		{
-			return candidate;
-		}
-	}
-	return L"MSBuild.exe";
+	// 라이브컴파일 경로와 동일하게 Build::LocateMSBuild(vswhere 기반)로 일원화한다.
+	// 실패 시 빈 경로. 호출측에서 명시적으로 처리한다.
+	return Build::LocateMSBuild();
 }
 
 bool CGameBuildManager::RunCommandToLog(const std::wstring& command, const File::Path& logPath, std::string& outError) const

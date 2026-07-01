@@ -14,6 +14,7 @@
 #include "Core/Task/Task.h"
 #include "Core/Logging/LoggerInternal.h"
 #include "Core/Game/GameModuleTypes.h"
+#include "Editor/Build/MSBuildLocator.h"
 #include "Editor/Project/GameScriptProjectGenerator.h"
 #include "Editor/LiveCompile/LiveCompileManager.h"
 #include "Editor/ScriptModule/ScriptModuleLoader.h"
@@ -158,93 +159,11 @@ namespace
 		return "com.jbro." + name;
 	}
 
-	bool FindExistingPath(const std::vector<std::filesystem::path>& candidates, std::filesystem::path& outPath)
-	{
-		std::error_code errorCode;
-		for (const std::filesystem::path& candidate : candidates)
-		{
-			if (std::filesystem::exists(candidate, errorCode))
-			{
-				outPath = candidate;
-				return true;
-			}
-			errorCode.clear();
-		}
-		return false;
-	}
-
-	std::filesystem::path GetEnvironmentPath(const char* name)
-	{
-		char* value = nullptr;
-		std::size_t length = 0;
-		if (0 != _dupenv_s(&value, &length, name) || nullptr == value)
-		{
-			return {};
-		}
-
-		std::filesystem::path result(value);
-		std::free(value);
-		return result;
-	}
-
 	std::filesystem::path FindMSBuildPath()
 	{
-		std::vector<std::filesystem::path> candidates;
-
-		const std::filesystem::path vsInstallDir = GetEnvironmentPath("VSINSTALLDIR");
-		if (false == vsInstallDir.empty())
-		{
-			candidates.push_back(vsInstallDir / "MSBuild" / "Current" / "Bin" / "MSBuild.exe");
-		}
-
-		const std::filesystem::path programFilesX86 = GetEnvironmentPath("ProgramFiles(x86)");
-		const std::filesystem::path programFiles = GetEnvironmentPath("ProgramFiles");
-		const std::vector<std::filesystem::path> roots =
-		{
-			programFilesX86,
-			programFiles
-		};
-		const char* editions[] =
-		{
-			"Community",
-			"Professional",
-			"Enterprise",
-			"BuildTools"
-		};
-
-		// 설치된 VS 버전 폴더를 하드코딩(2022)하지 않고 열거한다 — VS2022/VS18/이후 모두 대응.
-		for (const std::filesystem::path& root : roots)
-		{
-			if (root.empty())
-			{
-				continue;
-			}
-			const std::filesystem::path vsRoot = root / "Microsoft Visual Studio";
-			std::error_code listEc;
-			if (false == std::filesystem::is_directory(vsRoot, listEc))
-			{
-				continue;
-			}
-			for (const auto& versionEntry : std::filesystem::directory_iterator(vsRoot, listEc))
-			{
-				if (false == versionEntry.is_directory())
-				{
-					continue;
-				}
-				for (const char* edition : editions)
-				{
-					candidates.push_back(versionEntry.path() / edition / "MSBuild" / "Current" / "Bin" / "MSBuild.exe");
-				}
-			}
-		}
-
-		std::filesystem::path msbuildPath;
-		if (FindExistingPath(candidates, msbuildPath))
-		{
-			return msbuildPath;
-		}
-
-		return "MSBuild.exe";
+		// 설치된 VS 의 MSBuild 해석은 Build::LocateMSBuild(vswhere 기반)로 일원화한다.
+		// 실패 시 빈 경로를 반환하며, 호출측(BuildDefaultLiveCompileCommand)이 명시적으로 처리한다.
+		return Build::LocateMSBuild();
 	}
 
 	std::filesystem::path ResolveLiveCompileBasePath(const ProjectInfo& info)
@@ -280,6 +199,12 @@ namespace
 	{
 		const std::filesystem::path projectPath = ResolveLiveCompilePath(basePath, info.ScriptSourceDirectory) / "GameScript.vcxproj";
 		const std::filesystem::path msbuildPath = FindMSBuildPath();
+		if (msbuildPath.empty())
+		{
+			// MSBuild 를 못 찾음 → 실패 예정 명령(bare "MSBuild.exe")을 만들지 않고 빈 명령을 돌려준다.
+			// CompilePipeline 이 빈 명령을 진단 메시지로 보고한다.
+			return {};
+		}
 		const std::filesystem::path solutionDir = basePath;
 		const char* configuration = EScriptBuildConfiguration::Release == info.ScriptBuildConfiguration ? "Release" : "Debug";
 

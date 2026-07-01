@@ -162,7 +162,10 @@ LiveCompileResult CCompilePipeline::Compile(const LiveCompileDesc& desc)
 	result.OutputLibraryPath = desc.OutputLibraryPath;
 	if (desc.BuildCommand.empty())
 	{
-		result.Message = "LiveCompile BuildCommand is empty.";
+		result.Message =
+			"Live compile build command is empty. MSBuild could not be located. "
+			"Install Visual Studio with the C++ (MSBuild) workload, "
+			"or launch the editor from a Developer Command Prompt.";
 		return result;
 	}
 
