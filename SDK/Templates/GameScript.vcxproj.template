@@ -46,7 +46,10 @@
   </PropertyGroup>
   <PropertyGroup>
     <OutDir>$(ProjectDir)..\x64\$(Configuration)\</OutDir>
-    <IntDir>$(ProjectDir)..\Build\Intermediate\GameScript\$(Configuration)\$(JBroLiveCompileStamp)\</IntDir>
+    <!-- IntDir 은 고정한다(스탬프 안 붙임). 매 빌드 IntDir 이 바뀌면 obj/pch/tlog 캐시가
+         깨져 증분 빌드가 안 되고 매번 PCH+전체 재컴파일이 된다. LNK1201(PDB 잠금) 회피는
+         IntDir 이 아니라 아래 링커 PDB 이름만 빌드별로 회전시키면 충분하다. -->
+    <IntDir>$(ProjectDir)..\Build\Intermediate\GameScript\$(Configuration)\</IntDir>
     <TargetName>GameScript</TargetName>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -63,14 +66,16 @@
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <Optimization>Disabled</Optimization>
-      <!-- PDB 를 스탬프별 IntDir 로 보낸다. 고정 OutDir\GameScript.pdb 에 쓰면
-           실행 직후 저장처럼 연속 빌드 시 직전 링크/mspdbsrv 가 PDB 를 쥐고 있어 LNK1201 이 난다. -->
+      <!-- 컴파일러 PDB 는 고정 이름(증분 유지). 디버거/mspdbsrv 가 잠그는 건 로드된 DLL 에
+           임베드되는 "링커" PDB 뿐이라, 컴파일러 PDB 는 고정해도 무방하다. -->
       <ProgramDataBaseFileName>$(IntDir)$(TargetName).compile.pdb</ProgramDataBaseFileName>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <ProgramDatabaseFile>$(IntDir)$(TargetName).pdb</ProgramDatabaseFile>
+      <!-- 링커 PDB 만 빌드별 스탬프로 유니크하게. 직전 빌드로 로드된 DLL 의 PDB 를
+           디버거가 쥐고 있어도 이번 빌드는 다른 파일에 써서 LNK1201 을 피한다. -->
+      <ProgramDatabaseFile>$(IntDir)$(TargetName)_$(JBroLiveCompileStamp).pdb</ProgramDatabaseFile>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -92,7 +97,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>false</GenerateDebugInformation>
-      <ProgramDatabaseFile>$(IntDir)$(TargetName).pdb</ProgramDatabaseFile>
+      <ProgramDatabaseFile>$(IntDir)$(TargetName)_$(JBroLiveCompileStamp).pdb</ProgramDatabaseFile>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
