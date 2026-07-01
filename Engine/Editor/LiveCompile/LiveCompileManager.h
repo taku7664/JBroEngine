@@ -65,6 +65,13 @@ private:
 	void PollAsyncCompile();
 	LiveCompileResult ApplyCompileResult(LiveCompileResult result);
 
+	// 빌드마다 JBroLiveCompileStamp 를 회전시킨 desc 사본을 만든다.
+	// stamp 는 GameScript intermediate/PDB 경로($(IntDir)\GameScript.pdb)를 결정한다.
+	// 세션당 고정 stamp 를 쓰면 매 빌드가 같은 PDB 를 노려, 직전 빌드로 로드된 DLL 의
+	// PDB 를 디버거/mspdbsrv 가 쥐고 있을 때 LNK1201(PDB 못씀)이 난다.
+	// 4-슬롯 링이면 재사용되는 슬롯은 4빌드 전 것이라 이미 언로드되어 안전하다.
+	LiveCompileDesc MakeBuildDesc();
+
 private:
 	LiveCompileDesc             m_desc;
 	OwnerPtr<IFileWatcher>      m_sourceWatcher;
@@ -77,6 +84,7 @@ private:
 	bool                        m_isDirty           = false;
 	std::chrono::steady_clock::time_point m_dirtyTime;
 	std::uint64_t               m_reloadSerial      = 0;
+	std::uint32_t               m_buildStampRing    = 0;   // 빌드별 stamp 회전(0..3)
 
 	// 비동기 컴파일용 future. valid() 면 컴파일 진행 중.
 	std::future<LiveCompileResult> m_pendingCompile;

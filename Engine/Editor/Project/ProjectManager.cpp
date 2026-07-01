@@ -218,12 +218,15 @@ namespace
 		// 자식 MSBuild 노드가 좀비로 남아 mspdbsrv 잠금 경합을 일으키는 원인이 된다.
 		// CL_MPCount=1 로 cl.exe 의 multi-process compilation 도 강제 비활성화.
 		// /nr:false : node reuse 비활성 — 빌드 종료 시 MSBuild 노드 즉시 종료.
+		// JBroLiveCompileStamp 는 여기서 붙이지 않는다.  이 명령은 프로젝트 오픈 시
+		// 1회만 만들어져 세션 내내 재사용되므로, 여기서 stamp 를 박으면 매 빌드가 같은
+		// GameScript.pdb 경로를 노려 LNK1201 이 난다.  stamp 는 빌드 직전
+		// CLiveCompileManager::MakeBuildDesc 가 빌드마다 회전시켜 붙인다.
 		return QuoteCommandPath(msbuildPath)
 			+ " " + QuoteCommandPath(projectPath)
 			+ " /p:Configuration=" + configuration
 			+ " /p:Platform=x64"
 			+ " /p:SolutionDir=" + QuoteCommandPath(solutionDirValue)
-			+ " /p:JBroLiveCompileStamp=" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())
 			+ " /p:CL_MPCount=1"
 			+ " /p:UseMultiToolTask=false"
 			+ " /v:minimal"

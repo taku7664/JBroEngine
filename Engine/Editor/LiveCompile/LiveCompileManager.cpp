@@ -271,7 +271,7 @@ LiveCompileResult CLiveCompileManager::RebuildAndReload()
 	}
 	m_state = ELiveCompileState::Compiling;
 	m_compileStartedAt = std::chrono::steady_clock::now();
-	LiveCompileResult result = m_compilePipeline->Compile(m_desc);
+	LiveCompileResult result = m_compilePipeline->Compile(MakeBuildDesc());
 	return ApplyCompileResult(std::move(result));
 }
 
@@ -289,7 +289,21 @@ void CLiveCompileManager::StartAsyncCompile()
 	}
 	m_state = ELiveCompileState::Compiling;
 	m_compileStartedAt = std::chrono::steady_clock::now();
-	m_pendingCompile = m_compilePipeline->CompileAsync(m_desc);
+	m_pendingCompile = m_compilePipeline->CompileAsync(MakeBuildDesc());
+}
+
+// 빌드마다 stamp 를 회전시킨 desc 사본. m_desc.BuildCommand 가 비어 있으면(=MSBuild
+// 미탐색) stamp 를 붙이지 않는다 — 실패 예정 명령을 만들지 않고 CompilePipeline 이
+// 빈 명령으로 진단 메시지를 내도록 둔다.
+LiveCompileDesc CLiveCompileManager::MakeBuildDesc()
+{
+	LiveCompileDesc desc = m_desc;
+	if (false == desc.BuildCommand.empty())
+	{
+		desc.BuildCommand += " /p:JBroLiveCompileStamp=LC" + std::to_string(m_buildStampRing);
+		m_buildStampRing = (m_buildStampRing + 1) % 4;
+	}
+	return desc;
 }
 
 void CLiveCompileManager::PollAsyncCompile()
