@@ -25,6 +25,7 @@
 *.userosscache
 *.sln.docstates
 SampleProject/
+TestProject/
 .omc/
 
 # User-specific files (MonoDevelop/Xamarin Studio)
