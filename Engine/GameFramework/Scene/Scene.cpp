@@ -42,6 +42,7 @@ CGameObject* CGameScene::CreateGameObject(const char* name)
 	if (object)
 	{
 		object->CreationOrder = m_nextCreationOrder++;
+		m_objectByGuid[guid] = object->SafeFromThis();
 	}
 	return object;
 }
@@ -86,6 +87,7 @@ void CGameScene::DestroyObjectRecursive(CGameObject* object)
 		}
 	}
 
+	m_objectByGuid.erase(object->InstanceGuid);
 	m_objectPool.Free(object);
 }
 
@@ -120,20 +122,32 @@ SafePtr<CGameObject> CGameScene::FindByInstanceGuid(const File::Guid& guid)
 		return nullptr;
 	}
 
-	SafePtr<CGameObject> result;
-	m_objectPool.ForEachLive([&](CGameObject& object)
+	const auto it = m_objectByGuid.find(guid);
+	if (it == m_objectByGuid.end())
 	{
-		if (false == result.IsValid() && object.InstanceGuid == guid)
-		{
-			result = object.SafeFromThis();
-		}
-	});
-	return result;
+		return nullptr;
+	}
+	if (false == it->second.IsValid())
+	{
+		// 방어적: 어떤 경로로든 동기화가 어긋나 죽은 엔트리가 남았으면 제거.
+		m_objectByGuid.erase(it);
+		return nullptr;
+	}
+	return it->second;
 }
 
 void CGameScene::SetObjectInstanceGuid(CGameObject& object, const File::Guid& guid)
 {
+	// guid 재설정 시 맵도 rekey — 안 하면 옛 guid 로 계속 찾히거나 새 guid 가 안 찾힌다.
+	if (false == object.InstanceGuid.IsNull())
+	{
+		m_objectByGuid.erase(object.InstanceGuid);
+	}
 	object.InstanceGuid = guid;
+	if (false == guid.IsNull())
+	{
+		m_objectByGuid[guid] = object.SafeFromThis();
+	}
 }
 
 void CGameScene::Update(bool isSimulationPlaying)
@@ -300,6 +314,7 @@ void CGameScene::ClearObjects()
 		}
 	}
 	m_componentPools.clear();
+	m_objectByGuid.clear();
 	m_objectPool.Clear();
 	m_referencedAssets.clear();
 }

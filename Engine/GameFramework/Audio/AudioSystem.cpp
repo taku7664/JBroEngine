@@ -162,7 +162,7 @@ void CAudioSystem::OnUpdate(CGameScene& scene)
 		});
 
 	// ── 2) Player — 컴포넌트별 인스턴스 생성/동기/해제 ─────────────────
-	std::unordered_set<const void*> seen;
+	std::unordered_set<File::Guid> seen;
 
 	scene.ForEach<AudioPlayer>(
 		[&](AudioPlayer& player)
@@ -170,7 +170,7 @@ void CAudioSystem::OnUpdate(CGameScene& scene)
 			CGameObject* owner = player.GetOwner();
 			if (nullptr == owner) return;
 
-			const void* key = &player;
+			const File::Guid& key = player.InstanceGuid; // 슬롯 재사용 안전(주소 아님).
 			seen.insert(key);
 
 			const bool effectivelyEnabled = IsActiveComponent(player)

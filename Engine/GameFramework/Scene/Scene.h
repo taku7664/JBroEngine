@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <type_traits>
 #include <typeindex>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -231,6 +232,10 @@ private:
 
 private:
 	TObjectPool<CGameObject>           m_objectPool;
+	// InstanceGuid → 오브젝트 빠른 해석. FindByInstanceGuid / Ref<T>::Get 이 매 호출
+	// O(n) 풀 스캔 + path 비교를 하던 것을 O(1) 해시 조회로 바꾼다. 생성/파괴/guid 재설정
+	// 지점에서 동기화한다(그 외 경로로 오브젝트가 생기지 않음 — 유일 생성자 CreateGameObject).
+	std::unordered_map<File::Guid, SafePtr<CGameObject>> m_objectByGuid;
 	std::uint64_t                      m_nextCreationOrder = 0; // 단조 증가 — 하이라키 정렬 키
 	std::vector<PoolEntry>             m_componentPools;   // sorted by Key
 	OwnerPtr<CTransformSystem>         m_transformSystem;

@@ -2,6 +2,7 @@
 
 #include "Core/Asset/AssetTypes.h"
 #include "GameFramework/System/GameSystem.h"
+#include "Utillity/File/FilePath.h"   // File::Guid (인스턴스 키)
 #include "Utillity/Pointer/SafePtr.h"
 
 #include <cstdint>
@@ -63,6 +64,8 @@ private:
 
 	SafePtr<IAudioDevice>  m_device;
 	SafePtr<IAssetManager> m_assetManager;
-	// 키 = AudioPlayer 컴포넌트 주소(풀 슬롯 안정).
-	std::unordered_map<const void*, PlayerInstance> m_instances;
+	// 키 = AudioPlayer 컴포넌트의 InstanceGuid.
+	// ⚠ 컴포넌트 raw 주소를 키로 쓰면 안 된다 — 파괴 후 풀 슬롯이 재사용되면 새 컴포넌트가
+	//    같은 주소를 받아 죽은 인스턴스(재생 상태/보이스)를 물려받는다. guid 는 재발급되므로 안전.
+	std::unordered_map<File::Guid, PlayerInstance> m_instances;
 };
