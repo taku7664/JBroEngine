@@ -1487,7 +1487,9 @@ void CPhysics2DSystem::IntegrateBodies(CGameScene& scene, float deltaSeconds)
 		body.LastFrictionImpulse = 0.0f;
 		body.LastAngularImpulse  = 0.0f;
 
-		if (!body.IsEnabled || EPhysics2DBodyType::Static == body.BodyType)
+		// 오너 계층 비활성 또는 body disable → 적분 제외(정지). DetectContacts 도 같은
+		// 게이트로 콜라이더를 빼므로 비활성 오브젝트는 이동/충돌 양쪽에서 빠진다.
+		if (false == IsActiveComponent(body) || EPhysics2DBodyType::Static == body.BodyType)
 		{
 			return;
 		}
@@ -1673,7 +1675,7 @@ void CPhysics2DSystem::DetectContacts(CGameScene& scene)
 	std::vector<std::pair<CGameObject*, PolygonCollider2D*>> polygons;
 	scene.ForEach<PolygonCollider2D>([&polygons](PolygonCollider2D& c)
 	{
-		if (c.IsEnabled && c.WorldPoints.size() >= 3)
+		if (IsActiveComponent(c) && c.WorldPoints.size() >= 3)
 		{
 			polygons.emplace_back(c.GetOwner(), &c);
 		}
@@ -1682,7 +1684,7 @@ void CPhysics2DSystem::DetectContacts(CGameScene& scene)
 	std::vector<std::pair<CGameObject*, CircleCollider2D*>> circles;
 	scene.ForEach<CircleCollider2D>([&circles](CircleCollider2D& c)
 	{
-		if (c.IsEnabled)
+		if (IsActiveComponent(c))
 		{
 			circles.emplace_back(c.GetOwner(), &c);
 		}

@@ -58,7 +58,7 @@ void CSpriteRenderSystem::OnUpdate(CGameScene& scene)
 		[this, forwardRenderer](SpriteRenderer2D& sprite)
 		{
 			CGameObject* owner = sprite.GetOwner();
-			if (nullptr == owner || false == owner->IsActive || false == sprite.IsEnabled)
+			if (false == IsActiveComponent(sprite))
 			{
 				return;
 			}

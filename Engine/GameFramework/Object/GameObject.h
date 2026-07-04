@@ -80,6 +80,26 @@ public:
 	bool        IsActiveSelf() const { return IsActive; }
 	void        SetActive(bool active) { IsActive = active; }
 
+	// 계층 활성 — 자신 + 모든 조상이 활성일 때만 true (Unity activeInHierarchy 시맨틱).
+	// 부모가 비활성이면 자식도 비활성으로 간주된다. O(계층 깊이).
+	bool IsActiveInHierarchy() const
+	{
+		if (false == IsActive)
+		{
+			return false;
+		}
+		for (const CGameObject* ancestor = m_parent.TryGet();
+		     nullptr != ancestor;
+		     ancestor = ancestor->m_parent.TryGet())
+		{
+			if (false == ancestor->IsActive)
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
 	Transform2D&            GetTransform()       { return Local; }
 	const Transform2D&      GetTransform() const { return Local; }
 	WorldTransform2D&       GetWorld()           { return World; }
@@ -239,3 +259,13 @@ private:
 
 // 사용자 대면 별칭 — 스크립트/문서는 접두사 없는 GameObject 로 쓴다.
 using GameObject = CGameObject;
+
+// ── 단일 활성 게이트 ─────────────────────────────────────────────────────────
+// 컴포넌트가 이번 프레임 로직/렌더 대상인지: 오너 계층 활성 + 컴포넌트 Enabled.
+// 모든 시스템(Render/Audio/Camera/Script/Physics)은 반드시 이 게이트를 쓴다 —
+// 시스템별로 owner->IsActive 를 제각각 판단하던 불일치를 없애기 위함.
+inline bool IsActiveComponent(const CComponent& component)
+{
+	const CGameObject* owner = component.GetOwner();
+	return nullptr != owner && owner->IsActiveInHierarchy() && component.IsEnabled;
+}

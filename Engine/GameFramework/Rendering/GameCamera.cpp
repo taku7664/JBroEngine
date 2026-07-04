@@ -22,7 +22,7 @@ std::vector<GameRenderCameraDesc> CollectGameRenderCameras(const CGameScene& sce
 		[&](const Camera2D& camera)
 		{
 			const CGameObject* owner = camera.GetOwner();
-			if (nullptr == owner || false == owner->IsActive || false == camera.IsEnabled)
+			if (false == IsActiveComponent(camera))
 			{
 				return;
 			}

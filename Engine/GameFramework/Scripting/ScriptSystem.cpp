@@ -136,7 +136,8 @@ void CScriptSystem::OnUpdate(CGameScene& scene)
 	scene.ForEach<ScriptComponent>(
 		[&](ScriptComponent& script)
 		{
-			if (false == script.IsEnabled)
+			// 오너 계층 비활성 또는 컴포넌트 disable → 스크립트도 비활성 취급.
+			if (false == IsActiveComponent(script))
 			{
 				// 비활성 전환 시 입력 핸들러 해제(다시 활성화되면 아래에서 재등록). 등록 주체 = InputSystem.
 				if (script.InputRegistered && script.InputHandler && Engine.InputSystem.IsValid())
@@ -238,7 +239,7 @@ void CScriptSystem::OnUpdate(CGameScene& scene)
 	scene.ForEach<ScriptComponent>(
 		[](ScriptComponent& script)
 		{
-			if (false == script.IsEnabled || nullptr == script.Instance)
+			if (false == IsActiveComponent(script) || nullptr == script.Instance)
 			{
 				return;
 			}
@@ -261,7 +262,7 @@ void CScriptSystem::OnFixedUpdate(CGameScene& scene)
 	scene.ForEach<ScriptComponent>(
 		[](ScriptComponent& script)
 		{
-			if (false == script.IsEnabled || nullptr == script.Instance)
+			if (false == IsActiveComponent(script) || nullptr == script.Instance)
 			{
 				return;
 			}

@@ -152,7 +152,7 @@ void CAudioSystem::OnUpdate(CGameScene& scene)
 		{
 			if (listenerSet) return;
 			CGameObject* owner = listener.GetOwner();
-			if (nullptr == owner || false == owner->IsActive || false == listener.IsEnabled) return;
+			if (false == IsActiveComponent(listener)) return;
 			if (primary.IsValid())
 			{
 				primary->SetPosition(ExtractWorldPosition(*owner));
@@ -173,7 +173,7 @@ void CAudioSystem::OnUpdate(CGameScene& scene)
 			const void* key = &player;
 			seen.insert(key);
 
-			const bool effectivelyEnabled = owner->IsActive && player.IsEnabled
+			const bool effectivelyEnabled = IsActiveComponent(player)
 				&& false == player.AudioGuid.IsNull();
 
 			auto it = m_instances.find(key);
