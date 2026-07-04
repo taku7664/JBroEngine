@@ -1,5 +1,6 @@
 #pragma once
 
+#include "GameFramework/Object/GameInstance.h"
 #include "Utillity/File/FilePath.h"
 #include "Utillity/Pointer/SafePtr.h"
 
@@ -18,7 +19,7 @@ class CGameObject;
 //  ⚠ DLL 경계: 엔진 측 빌트인 컴포넌트만 이 베이스를 직접 상속한다. 게임 스크립트
 //     인스턴스(CGameScript)는 이 베이스로 병합하지 않는다(별도 DLL allocator 소유).
 // ─────────────────────────────────────────────────────────────────────────────
-class CComponent : public EnableSafeFromThis<CComponent>
+class CComponent : public GameInstance, public EnableSafeFromThis<CComponent>
 {
 public:
 	virtual ~CComponent() = default;
@@ -26,10 +27,9 @@ public:
 	bool                 IsEnabled = true;
 	SafePtr<CGameObject> Owner;
 
-	// 컴포넌트의 안정 식별자. Ref<T> 가 (오브젝트 guid + 컴포넌트 guid) 쌍으로 특정 1개를
-	// 지목하므로, 같은 타입 컴포넌트가 한 오브젝트에 여러 개 있어도 구분된다.
-	// CGameScene::AddComponent 가 부여하고 직렬화가 보존한다(런타임 키가 아니라 영속 키).
-	File::Guid InstanceGuid;
+	// InstanceGuid 는 GameInstance 베이스가 보유한다. Ref<T> 가 (오브젝트 guid + 컴포넌트
+	// guid) 쌍으로 특정 1개를 지목하므로, 같은 타입 컴포넌트가 한 오브젝트에 여러 개
+	// 있어도 구분된다. CGameScene::AddComponent 가 부여하고 직렬화가 보존한다.
 
 	// 직렬화/인스펙터 타입 키 (리플렉션 레지스트리에 등록된 이름과 일치해야 함).
 	virtual const char* GetTypeName() const = 0;

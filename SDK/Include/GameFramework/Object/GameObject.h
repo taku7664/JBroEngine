@@ -3,6 +3,7 @@
 #include "GameFramework/Component/Component.h"
 #include "GameFramework/Component/Transform2D.h"
 #include "GameFramework/Component/WorldTransform2D.h"
+#include "GameFramework/Object/GameInstance.h"
 #include "Utillity/Base/BitFlag.h"
 #include "Utillity/File/FilePath.h"
 #include "Utillity/Pointer/SafePtr.h"
@@ -36,15 +37,15 @@ enum EObjectFlags : unsigned int
 //  템플릿 메서드 AddComponent/RemoveComponent 는 CGameScene 완전형이 필요하므로
 //  본체는 Scene.h 하단에 정의한다(GetComponent 류는 scene 불필요 → 여기 인라인).
 // ─────────────────────────────────────────────────────────────────────────────
-class CGameObject final : public EnableSafeFromThis<CGameObject>
+class CGameObject final : public GameInstance, public EnableSafeFromThis<CGameObject>
 {
 public:
 	CGameObject() = default;
 	CGameObject(CGameScene& scene, const char* name, const File::Guid& instanceGuid)
 		: Name(name ? name : "GameObject")
-		, InstanceGuid(instanceGuid)
 		, m_scene(&scene)
 	{
+		InstanceGuid = instanceGuid; // GameInstance 베이스 멤버 — 본문에서 설정.
 	}
 
 	CGameObject(const CGameObject&) = delete;
@@ -55,7 +56,7 @@ public:
 	std::string   Tag;            // 자유 분류 태그(검색/그룹핑용). 비어 있을 수 있음.
 	bool          IsActive = true;
 	BitFlag       Flags;          // EObjectFlags. 직렬화됨. 확장용(예: EditorHidden).
-	File::Guid    InstanceGuid;
+	// InstanceGuid 는 GameInstance 베이스가 보유한다.
 
 	// 생성순서 키 — 하이라키 표시/저장 정렬용. 풀 슬롯 순회 순서는 생성순서와 무관하므로
 	// (할당 역순·슬롯 재사용) 이 단조 증가 값으로 형제 그룹을 정렬한다. 직렬화하지 않는다
