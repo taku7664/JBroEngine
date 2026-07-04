@@ -24,7 +24,7 @@ namespace
 		       0 == std::strcmp(componentType->Type.Name, "ScriptComponent");
 	}
 
-	bool DrawScriptList(CScene& scene, CGameObject* object, CReflectionRegistry& reflection)
+	bool DrawScriptList(CGameScene& scene, CGameObject* object, CReflectionRegistry& reflection)
 	{
 		if (nullptr == object)
 		{
@@ -59,7 +59,7 @@ namespace
 		return added;
 	}
 
-	bool DrawComponentList(CScene& scene, CGameObject* object)
+	bool DrawComponentList(CGameScene& scene, CGameObject* object)
 	{
 		if (false == Engine.Reflection.IsValid() || nullptr == object)
 		{
@@ -160,7 +160,7 @@ std::string EditorGuiDrawHelpers::LocalizedCategoryLabel(const char* category)
 	return Loc::TextOr(key.c_str(), safe);
 }
 
-bool EditorGuiDrawHelpers::DrawAddComponentMenu(CScene& scene, CGameObject* object)
+bool EditorGuiDrawHelpers::DrawAddComponentMenu(CGameScene& scene, CGameObject* object)
 {
 	if (ImGui::BeginMenu(Loc::Text("inspector.add_component")))
 	{
@@ -171,7 +171,7 @@ bool EditorGuiDrawHelpers::DrawAddComponentMenu(CScene& scene, CGameObject* obje
 	return false;
 }
 
-bool EditorGuiDrawHelpers::DrawAddComponentButton(CScene& scene, CGameObject* object)
+bool EditorGuiDrawHelpers::DrawAddComponentButton(CGameScene& scene, CGameObject* object)
 {
 	bool added = false;
 	if (ImGui::Button(Loc::Text("inspector.add_component")))
@@ -187,7 +187,7 @@ bool EditorGuiDrawHelpers::DrawAddComponentButton(CScene& scene, CGameObject* ob
 	return added;
 }
 
-bool EditorGuiDrawHelpers::DrawAddObjectMenu(CScene& scene, CGameObject* parent, const Vector2* spawnWorldPos)
+bool EditorGuiDrawHelpers::DrawAddObjectMenu(CGameScene& scene, CGameObject* parent, const Vector2* spawnWorldPos)
 {
 	// parent 유무에 따라 레이블 변경
 	const char* label = (nullptr != parent)
@@ -208,7 +208,7 @@ bool EditorGuiDrawHelpers::DrawAddObjectMenu(CScene& scene, CGameObject* parent,
 	return false;
 }
 
-bool EditorGuiDrawHelpers::DrawRemoveObjectMenu(CScene& scene, CGameObject* object)
+bool EditorGuiDrawHelpers::DrawRemoveObjectMenu(CGameScene& scene, CGameObject* object)
 {
 	if (nullptr == object)
 	{
@@ -244,7 +244,7 @@ bool EditorGuiDrawHelpers::DrawCopyObjectMenuItem(const CGameObject& object)
 	return false;
 }
 
-bool EditorGuiDrawHelpers::DrawPasteObjectMenuItem(CScene& scene)
+bool EditorGuiDrawHelpers::DrawPasteObjectMenuItem(CGameScene& scene)
 {
 	const char* clip = ImGui::GetClipboardText();
 	if (nullptr == clip || false == Serialization::LooksLikeObject(clip))
@@ -276,7 +276,7 @@ bool EditorGuiDrawHelpers::CopySelectedObjectsToClipboard()
 	return true;
 }
 
-bool EditorGuiDrawHelpers::PasteObjectsFromClipboard(CScene& scene, const Vector2* spawnWorldPos)
+bool EditorGuiDrawHelpers::PasteObjectsFromClipboard(CGameScene& scene, const Vector2* spawnWorldPos)
 {
 	const char* clip = ImGui::GetClipboardText();
 	if (nullptr == clip || false == Serialization::LooksLikeObject(clip))

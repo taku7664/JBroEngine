@@ -20,16 +20,16 @@ class CPhysics2DSystem;
 class CScriptSystem;
 class CTransformSystem;
 
-// CScene 은 GameScript 가 소유하는 런타임 객체다. CScene/GameObject/Component 포인터를
+// CGameScene 은 GameScript 가 소유하는 런타임 객체다. CGameScene/GameObject/Component 포인터를
 // 라이브 컴파일 DLL 경계로 그대로 넘기지 말 것(안전참조는 SafePtr, 직렬화는 리플렉션).
-class CScene final : public EnableSafeFromThis<CScene>
+class CGameScene final : public EnableSafeFromThis<CGameScene>
 {
 public:
-	CScene();
-	~CScene();
+	CGameScene();
+	~CGameScene();
 
-	CScene(const CScene&) = delete;
-	CScene& operator=(const CScene&) = delete;
+	CGameScene(const CGameScene&) = delete;
+	CGameScene& operator=(const CGameScene&) = delete;
 
 	// ── 오브젝트 ──────────────────────────────────────────────────────────────
 	CGameObject* CreateGameObject(const char* name = nullptr);
@@ -246,7 +246,7 @@ private:
 	std::vector<SafePtr<CComponent>>   m_pendingDestroyComponents;
 };
 
-// ── CGameObject 템플릿 메서드 정의 (CScene 완전형 필요) ──────────────────────
+// ── CGameObject 템플릿 메서드 정의 (CGameScene 완전형 필요) ──────────────────────
 template<typename T, typename... Args>
 T* CGameObject::AddComponent(Args&&... args)
 {

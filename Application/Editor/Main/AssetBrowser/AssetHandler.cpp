@@ -43,7 +43,7 @@ void CSceneAssetOpenHandler::Open(CAssetBrowserTool&, const AssetBrowserEntry& e
 	}
 
 	const std::string sceneName = entry.RelativePath.empty() ? entry.DisplayNameUtf8 : ToUtf8(entry.RelativePath);
-	CScene* scene = Engine.SceneManager->CreateScene(sceneName.c_str());
+	CGameScene* scene = Engine.SceneManager->CreateScene(sceneName.c_str());
 	if (nullptr == scene)
 	{
 		CSystemLog::Error(Utillity::U8(u8"씬 로드에 실패하였습니다."));

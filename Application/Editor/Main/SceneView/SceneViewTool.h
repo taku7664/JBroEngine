@@ -7,7 +7,7 @@
 #include "Editor/Main/Guizmo/EditorGuizmoController.h"
 #include "SceneViewEditContext.h"
 
-class CScene;
+class CGameScene;
 class CGameObject;
 
 class CSceneViewTool : public CImWindow
@@ -24,12 +24,12 @@ public:
     void SetEditorCamera(float x, float y, float size);
 
     // 지정 오브젝트를 화면 중앙에 포커싱 (카메라 이동만)
-    void FocusOnEntity(CGameObject* object, const CScene& scene);
+    void FocusOnEntity(CGameObject* object, const CGameScene& scene);
 
     // 하이어라키 더블클릭용: 편집 컨텍스트를 object로 전환 + 카메라 이동
     // 씬뷰 내 더블클릭과 동일하게 m_editCtx 를 갱신하므로,
     // 이후 씬뷰 클릭은 object 컨텍스트(직계 자식) 기준으로 동작함
-    void SetFocusContext(CGameObject* object, const CScene& scene);
+    void SetFocusContext(CGameObject* object, const CGameScene& scene);
 
     // Flash-like 포커스 컨텍스트 초기화 (씬 변경, 프로젝트 닫기 시 호출)
     void ClearEditContext();

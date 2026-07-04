@@ -97,7 +97,7 @@ YAML::Node WriteObject(const CGameObject& object, std::vector<AssetGuid>* refere
 	return node;
 }
 
-CGameObject* ReadObjectInto(CScene& scene, const YAML::Node& node,
+CGameObject* ReadObjectInto(CGameScene& scene, const YAML::Node& node,
                             std::vector<AssetGuid>* referencedAssets)
 {
 	if (!node || false == node.IsMap())
@@ -176,7 +176,7 @@ std::string SerializeObjects(const std::vector<const CGameObject*>& objects)
 	return std::string(emitter.c_str());
 }
 
-std::vector<CGameObject*> DeserializeObjects(CScene& scene, const char* text)
+std::vector<CGameObject*> DeserializeObjects(CGameScene& scene, const char* text)
 {
 	std::vector<CGameObject*> result;
 	if (nullptr == text)
@@ -217,7 +217,7 @@ std::string SerializeObject(const CGameObject& object)
 	return SerializeObjects({ &object });
 }
 
-CGameObject* DeserializeObject(CScene& scene, const char* text)
+CGameObject* DeserializeObject(CGameScene& scene, const char* text)
 {
 	std::vector<CGameObject*> all = DeserializeObjects(scene, text);
 	return all.empty() ? nullptr : all.front();

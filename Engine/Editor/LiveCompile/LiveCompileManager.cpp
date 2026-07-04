@@ -489,7 +489,7 @@ void CLiveCompileManager::TakeScriptSnapshot()
 		return;
 	}
 
-	SafePtr<CScene> scene = sceneMgr->GetActiveScene();
+	SafePtr<CGameScene> scene = sceneMgr->GetActiveScene();
 	if (!scene)
 	{
 		return;
@@ -576,7 +576,7 @@ void CLiveCompileManager::RestoreScriptSnapshot()
 		return;
 	}
 
-	SafePtr<CScene> scene = sceneMgr->GetActiveScene();
+	SafePtr<CGameScene> scene = sceneMgr->GetActiveScene();
 	if (!scene)
 	{
 		m_scriptSnapshots.clear();

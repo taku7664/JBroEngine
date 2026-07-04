@@ -9,7 +9,7 @@
 
 #include <vector>
 
-CScene::CScene()
+CGameScene::CGameScene()
 {
 	m_transformSystem = MakeOwnerPtr<CTransformSystem>();
 	if (m_transformSystem)
@@ -30,12 +30,12 @@ CScene::CScene()
 	}
 }
 
-CScene::~CScene()
+CGameScene::~CGameScene()
 {
 	Clear();
 }
 
-CGameObject* CScene::CreateGameObject(const char* name)
+CGameObject* CGameScene::CreateGameObject(const char* name)
 {
 	const File::Guid guid = File::GenerateGuid();
 	CGameObject* object = m_objectPool.Allocate(*this, name, guid);
@@ -46,7 +46,7 @@ CGameObject* CScene::CreateGameObject(const char* name)
 	return object;
 }
 
-bool CScene::DestroyGameObject(CGameObject* gameObject)
+bool CGameScene::DestroyGameObject(CGameObject* gameObject)
 {
 	if (nullptr == gameObject || gameObject->GetScene() != this)
 	{
@@ -57,7 +57,7 @@ bool CScene::DestroyGameObject(CGameObject* gameObject)
 	return true;
 }
 
-void CScene::DestroyObjectRecursive(CGameObject* object)
+void CGameScene::DestroyObjectRecursive(CGameObject* object)
 {
 	if (nullptr == object)
 	{
@@ -89,7 +89,7 @@ void CScene::DestroyObjectRecursive(CGameObject* object)
 	m_objectPool.Free(object);
 }
 
-void CScene::DestroyComponent(CComponent* component)
+void CGameScene::DestroyComponent(CComponent* component)
 {
 	if (nullptr == component)
 	{
@@ -113,7 +113,7 @@ void CScene::DestroyComponent(CComponent* component)
 	}
 }
 
-SafePtr<CGameObject> CScene::FindByInstanceGuid(const File::Guid& guid)
+SafePtr<CGameObject> CGameScene::FindByInstanceGuid(const File::Guid& guid)
 {
 	if (guid.IsNull())
 	{
@@ -131,12 +131,12 @@ SafePtr<CGameObject> CScene::FindByInstanceGuid(const File::Guid& guid)
 	return result;
 }
 
-void CScene::SetObjectInstanceGuid(CGameObject& object, const File::Guid& guid)
+void CGameScene::SetObjectInstanceGuid(CGameObject& object, const File::Guid& guid)
 {
 	object.InstanceGuid = guid;
 }
 
-void CScene::Update(bool isSimulationPlaying)
+void CGameScene::Update(bool isSimulationPlaying)
 {
 	UpdateSystems(isSimulationPlaying);
 	if (isSimulationPlaying)
@@ -146,12 +146,12 @@ void CScene::Update(bool isSimulationPlaying)
 	FlushPendingDestroys();
 }
 
-void CScene::Update()
+void CGameScene::Update()
 {
 	Update(true);
 }
 
-void CScene::FixedUpdate()
+void CGameScene::FixedUpdate()
 {
 	if (m_physicsSystem)
 	{
@@ -174,7 +174,7 @@ void CScene::FixedUpdate()
 	FlushPendingDestroys();
 }
 
-void CScene::FlushPendingDestroys()
+void CGameScene::FlushPendingDestroys()
 {
 	// 컴포넌트 먼저(개별 RemoveComponent), 그다음 오브젝트(자식 재귀 포함).
 	// SafePtr 가 null 이면 이미 다른 경로로 파괴된 것 → 스킵.
@@ -205,7 +205,7 @@ void CScene::FlushPendingDestroys()
 	}
 }
 
-void CScene::UpdateSystems(bool isSimulationPlaying)
+void CGameScene::UpdateSystems(bool isSimulationPlaying)
 {
 	if (m_transformSystem)
 	{
@@ -221,7 +221,7 @@ void CScene::UpdateSystems(bool isSimulationPlaying)
 	}
 }
 
-void CScene::UpdateScripts()
+void CGameScene::UpdateScripts()
 {
 	if (m_scriptSystem)
 	{
@@ -229,7 +229,7 @@ void CScene::UpdateScripts()
 	}
 }
 
-void CScene::NotifySimulationStop()
+void CGameScene::NotifySimulationStop()
 {
 	for (OwnerPtr<CGameSystem>& system : m_systems)
 	{
@@ -240,7 +240,7 @@ void CScene::NotifySimulationStop()
 	}
 }
 
-void CScene::DestroyScriptInstances()
+void CGameScene::DestroyScriptInstances()
 {
 	ForEach<ScriptComponent>([](ScriptComponent& script)
 	{
@@ -248,7 +248,7 @@ void CScene::DestroyScriptInstances()
 	});
 }
 
-void CScene::DispatchSurfaceEventToScripts(const SurfaceEvent& surfaceEvent)
+void CGameScene::DispatchSurfaceEventToScripts(const SurfaceEvent& surfaceEvent)
 {
 	ForEach<ScriptComponent>([&surfaceEvent](ScriptComponent& script)
 	{
@@ -266,27 +266,27 @@ void CScene::DispatchSurfaceEventToScripts(const SurfaceEvent& surfaceEvent)
 	});
 }
 
-CPhysics2DSystem* CScene::GetPhysics2DSystem()
+CPhysics2DSystem* CGameScene::GetPhysics2DSystem()
 {
 	return m_physicsSystem.Get();
 }
 
-const CPhysics2DSystem* CScene::GetPhysics2DSystem() const
+const CPhysics2DSystem* CGameScene::GetPhysics2DSystem() const
 {
 	return m_physicsSystem.Get();
 }
 
-void CScene::SetReferencedAssets(std::vector<AssetGuid> referencedAssets)
+void CGameScene::SetReferencedAssets(std::vector<AssetGuid> referencedAssets)
 {
 	m_referencedAssets = std::move(referencedAssets);
 }
 
-const std::vector<AssetGuid>& CScene::GetReferencedAssets() const
+const std::vector<AssetGuid>& CGameScene::GetReferencedAssets() const
 {
 	return m_referencedAssets;
 }
 
-void CScene::ClearObjects()
+void CGameScene::ClearObjects()
 {
 	m_pendingDestroyComponents.clear();
 	m_pendingDestroyObjects.clear();
@@ -304,7 +304,7 @@ void CScene::ClearObjects()
 	m_referencedAssets.clear();
 }
 
-void CScene::Clear()
+void CGameScene::Clear()
 {
 	for (OwnerPtr<CGameSystem>& system : m_systems)
 	{

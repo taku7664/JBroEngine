@@ -8,7 +8,7 @@
 #include <unordered_map>
 #include <vector>
 
-class CScene;
+class CGameScene;
 class CGameObject;
 class IAssetManager;
 class IDebugDraw2D;
@@ -42,7 +42,7 @@ public:
     // 다중 선택을 지원하며, 동일 스프라이트의 중복 렌더링을 방지.
     void DrawOutlinesImGui(
         ImDrawList* dl,
-        const CScene& scene,
+        const CGameScene& scene,
         IAssetManager* assetMgr,
         const std::vector<CGameObject*>& selectedObjects,
         const ImVec2& vpMin, const ImVec2& vpSize,

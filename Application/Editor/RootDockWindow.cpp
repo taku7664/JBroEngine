@@ -241,7 +241,7 @@ namespace
 			return;
 		}
 
-		CScene* scene = Engine.SceneManager->CreateScene(lastScenePath.c_str());
+		CGameScene* scene = Engine.SceneManager->CreateScene(lastScenePath.c_str());
 		if (nullptr == scene)
 		{
 			CSystemLog::Error("Failed to create scene for last opened scene.");
@@ -300,7 +300,7 @@ namespace
 		bool sceneSaved = false;
 		if (Engine.SceneManager.IsValid())
 		{
-			SafePtr<CScene> scene = Engine.SceneManager->GetActiveScene();
+			SafePtr<CGameScene> scene = Engine.SceneManager->GetActiveScene();
 			if (scene.IsValid() && false == Editor::GetActiveScenePath().empty())
 			{
 				CSceneSerializer serializer;

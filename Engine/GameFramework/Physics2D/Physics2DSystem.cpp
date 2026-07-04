@@ -1331,7 +1331,7 @@ const std::vector<Physics2DManifold>& CPhysics2DSystem::GetManifolds() const { r
 
 // ── Fixed-step 진입점 ─────────────────────────────────────────────────────────
 
-void CPhysics2DSystem::OnFixedUpdate(CScene& scene)
+void CPhysics2DSystem::OnFixedUpdate(CGameScene& scene)
 {
 	const float fixedDelta = Script.Time ? Script.Time->GetFixedDeltaSeconds() : 0.02f;
 	if (fixedDelta < MIN_PHYSICS_DELTA_SECONDS)
@@ -1444,7 +1444,7 @@ void CPhysics2DSystem::DrawManifoldDebugLines()
 	}
 }
 
-void CPhysics2DSystem::Step(CScene& scene, float deltaSeconds)
+void CPhysics2DSystem::Step(CGameScene& scene, float deltaSeconds)
 {
 	// 직전 sub-step 의 매니폴드를 prev 로 보존 — contact persistence 매칭에 사용.
 	m_prevManifolds.swap(m_manifolds);
@@ -1472,7 +1472,7 @@ void CPhysics2DSystem::Step(CScene& scene, float deltaSeconds)
 
 // ── 적분 ──────────────────────────────────────────────────────────────────────
 
-void CPhysics2DSystem::IntegrateBodies(CScene& scene, float deltaSeconds)
+void CPhysics2DSystem::IntegrateBodies(CGameScene& scene, float deltaSeconds)
 {
 	scene.ForEach<Rigidbody2D>([this, deltaSeconds](Rigidbody2D& body)
 	{
@@ -1553,7 +1553,7 @@ void CPhysics2DSystem::IntegrateBodies(CScene& scene, float deltaSeconds)
 
 // ── Collider 경계 업데이트 ────────────────────────────────────────────────────
 
-void CPhysics2DSystem::UpdateColliderBounds(CScene& scene)
+void CPhysics2DSystem::UpdateColliderBounds(CGameScene& scene)
 {
 	// Pass 1a: 폴리곤 월드 기하
 	scene.ForEach<PolygonCollider2D>([](PolygonCollider2D& collider)
@@ -1666,7 +1666,7 @@ void CPhysics2DSystem::UpdateColliderBounds(CScene& scene)
 // 한 충돌 쌍(A, B)은 반드시 매니폴드 1개 — 접촉점이 2개여도 매니폴드는 1개.
 // 이로써 position solver가 쌍마다 정확히 1회 보정을 수행할 수 있다.
 
-void CPhysics2DSystem::DetectContacts(CScene& scene)
+void CPhysics2DSystem::DetectContacts(CGameScene& scene)
 {
 	m_manifolds.clear();
 
@@ -2109,7 +2109,7 @@ void CPhysics2DSystem::DetectContacts(CScene& scene)
 //   - friction clamp 가 매 step 새로 시작되지 않고 누적값 기준으로 동작 → friction 정상
 //   - 정지 접촉이 빠르게 수렴 (warm-start 가 거의 정답에 가까운 초기값 제공)
 //   - velocity solver iteration 수가 적어도 수렴
-void CPhysics2DSystem::MatchAndWarmStart(CScene& scene)
+void CPhysics2DSystem::MatchAndWarmStart(CGameScene& scene)
 {
 	if (m_prevManifolds.empty() || m_manifolds.empty())
 	{
@@ -2197,7 +2197,7 @@ void CPhysics2DSystem::MatchAndWarmStart(CScene& scene)
 // → friction clamp 가 매 step 0 부터 시작하지 않고 점차 커진 누적 normal 기준으로
 //    동작하므로 friction 이 실제로 효과적으로 작용.
 
-void CPhysics2DSystem::ResolveContactVelocity(CScene& scene)
+void CPhysics2DSystem::ResolveContactVelocity(CGameScene& scene)
 {
 	for (Physics2DManifold& manifold : m_manifolds)
 	{
@@ -2314,7 +2314,7 @@ void CPhysics2DSystem::ResolveContactVelocity(CScene& scene)
 // 같은 (A,B) 페어의 중복 매니폴드는 DetectContacts 끝에서 이미 1개로 병합되므로
 // 여기서는 모든 매니폴드에 standard 보정만 적용한다.
 
-void CPhysics2DSystem::ResolveContactPosition(CScene& scene)
+void CPhysics2DSystem::ResolveContactPosition(CGameScene& scene)
 {
 	for (const Physics2DManifold& manifold : m_manifolds)
 	{
@@ -2343,7 +2343,7 @@ void CPhysics2DSystem::ResolveContactPosition(CScene& scene)
 
 // ── 정지 접촉 안정화 ──────────────────────────────────────────────────────────
 
-void CPhysics2DSystem::StabilizeRestingContacts(CScene& scene)
+void CPhysics2DSystem::StabilizeRestingContacts(CGameScene& scene)
 {
 	scene.ForEach<Rigidbody2D>([](Rigidbody2D& body)
 	{

@@ -137,7 +137,7 @@ void CAudioSystem::SyncEffectChain(PlayerInstance& instance, const AudioPlayer& 
 	instance.EffectGuids       = player.EffectGuids;
 }
 
-void CAudioSystem::OnUpdate(CScene& scene)
+void CAudioSystem::OnUpdate(CGameScene& scene)
 {
 	if (false == m_device.IsValid())
 	{
@@ -291,7 +291,7 @@ void CAudioSystem::OnUpdate(CScene& scene)
 	}
 }
 
-void CAudioSystem::OnFinalize(CScene&)
+void CAudioSystem::OnFinalize(CGameScene&)
 {
 	// 씬 종료 — 모든 player 정리.
 	for (auto& kv : m_instances)
@@ -301,7 +301,7 @@ void CAudioSystem::OnFinalize(CScene&)
 	m_instances.clear();
 }
 
-void CAudioSystem::OnSimulationStop(CScene&)
+void CAudioSystem::OnSimulationStop(CGameScene&)
 {
 	// 시뮬레이션 정지 — 재생 중이던 player 를 모두 정지·해제한다.
 	// 편집 모드에선 OnUpdate 가 안 돌아 자동 GC 가 없으므로 여기서 명시 정리.

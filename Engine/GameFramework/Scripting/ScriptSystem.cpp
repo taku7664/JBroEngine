@@ -130,7 +130,7 @@ void CScriptSystem::EnsureEditTimeInstance(ScriptComponent& script)
 // 진단 로그:
 //   - ScriptTypeId 가 유효하지만 CreateScriptInstance 가 실패한 경우
 //     (entity, typeId) 당 1회만 경고. DLL 로드 실패/등록 누락의 가장 흔한 증상.
-void CScriptSystem::OnUpdate(CScene& scene)
+void CScriptSystem::OnUpdate(CGameScene& scene)
 {
 	// ── Pass 1: 인스턴스 보장 + Bind + Start ──────────────────────────────────
 	scene.ForEach<ScriptComponent>(
@@ -254,7 +254,7 @@ void CScriptSystem::OnUpdate(CScene& scene)
 		});
 }
 
-void CScriptSystem::OnFixedUpdate(CScene& scene)
+void CScriptSystem::OnFixedUpdate(CGameScene& scene)
 {
 	// OnStart() 가 완료된 스크립트만 FixedUpdate 를 받는다.
 	// 아직 시작되지 않은 스크립트는 OnUpdate 에서 따라잡는다.

@@ -12,7 +12,7 @@
 #include <algorithm>
 #include <cmath>
 
-std::vector<GameRenderCameraDesc> CollectGameRenderCameras(const CScene& scene, float renderWidth, float renderHeight)
+std::vector<GameRenderCameraDesc> CollectGameRenderCameras(const CGameScene& scene, float renderWidth, float renderHeight)
 {
 	renderWidth = std::max(renderWidth, 1.0f);
 	renderHeight = std::max(renderHeight, 1.0f);

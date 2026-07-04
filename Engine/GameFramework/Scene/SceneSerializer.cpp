@@ -65,7 +65,7 @@ namespace
 	}
 }
 
-ESceneSerializeResult CSceneSerializer::SerializeToText(CScene& scene, std::string& outText) const
+ESceneSerializeResult CSceneSerializer::SerializeToText(CGameScene& scene, std::string& outText) const
 {
 	std::vector<AssetGuid> referencedAssets;
 
@@ -111,7 +111,7 @@ ESceneSerializeResult CSceneSerializer::SerializeToText(CScene& scene, std::stri
 	return ESceneSerializeResult::Success;
 }
 
-ESceneSerializeResult CSceneSerializer::DeserializeFromText(CScene& scene, const char* text) const
+ESceneSerializeResult CSceneSerializer::DeserializeFromText(CGameScene& scene, const char* text) const
 {
 	if (nullptr == text)
 	{
@@ -182,7 +182,7 @@ ESceneSerializeResult CSceneSerializer::DeserializeFromText(CScene& scene, const
 	return ESceneSerializeResult::Success;
 }
 
-ESceneSerializeResult CSceneSerializer::SaveToFile(CScene& scene, const File::Path& path) const
+ESceneSerializeResult CSceneSerializer::SaveToFile(CGameScene& scene, const File::Path& path) const
 {
 	if (path.empty())
 	{
@@ -202,7 +202,7 @@ ESceneSerializeResult CSceneSerializer::SaveToFile(CScene& scene, const File::Pa
 	return ESceneSerializeResult::Success;
 }
 
-ESceneSerializeResult CSceneSerializer::LoadFromFile(CScene& scene, const File::Path& path) const
+ESceneSerializeResult CSceneSerializer::LoadFromFile(CGameScene& scene, const File::Path& path) const
 {
 	if (path.empty())
 	{

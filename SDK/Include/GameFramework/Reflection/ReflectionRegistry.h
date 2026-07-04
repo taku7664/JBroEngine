@@ -16,8 +16,8 @@
 
 class CGameObject;
 
-using ComponentAddFunc              = bool(*)(CScene& scene, CGameObject& object);
-using ComponentRemoveFunc           = bool(*)(CScene& scene, CGameObject& object);
+using ComponentAddFunc              = bool(*)(CGameScene& scene, CGameObject& object);
+using ComponentRemoveFunc           = bool(*)(CGameScene& scene, CGameObject& object);
 using ComponentHasFunc              = bool(*)(const CGameObject& object);
 using ComponentAddressFunc          = void*       (*)(CGameObject& object);
 using ConstComponentAddressFunc     = const void* (*)(const CGameObject& object);
@@ -120,8 +120,8 @@ public:
 	void DestroyScriptInstance(ScriptInstanceHandle& instance) const;
 	const GameModuleHostApi* GetScriptHostApi() const;
 
-	bool AddComponent(CScene& scene, CGameObject& object, TypeId typeId) const;
-	bool RemoveComponent(CScene& scene, CGameObject& object, TypeId typeId) const;
+	bool AddComponent(CGameScene& scene, CGameObject& object, TypeId typeId) const;
+	bool RemoveComponent(CGameScene& scene, CGameObject& object, TypeId typeId) const;
 	bool HasComponent(const CGameObject& object, TypeId typeId) const;
 	void* GetComponentAddress(CGameObject& object, TypeId typeId) const;
 	const void* GetComponentAddress(const CGameObject& object, TypeId typeId) const;
@@ -162,10 +162,10 @@ CComponentRegistration CReflectionRegistry::RegisterComponent(const ComponentReg
 	typeInfo.Type.Size = sizeof(T);
 	typeInfo.Type.Alignment = alignof(T);
 	typeInfo.CanAddToObject = desc.CanAddToEntity;
-	typeInfo.AddToObject = [](CScene& scene, CGameObject& object) -> bool {
+	typeInfo.AddToObject = [](CGameScene& scene, CGameObject& object) -> bool {
 		return nullptr != scene.AddComponent<T>(object);
 	};
-	typeInfo.RemoveFromObject = [](CScene& scene, CGameObject& object) -> bool {
+	typeInfo.RemoveFromObject = [](CGameScene& scene, CGameObject& object) -> bool {
 		if (false == object.HasComponent<T>())
 		{
 			return false;

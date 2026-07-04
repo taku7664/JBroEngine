@@ -13,7 +13,7 @@ CSceneManager::~CSceneManager()
 	Clear();
 }
 
-CScene* CSceneManager::CreateScene(const char* name)
+CGameScene* CSceneManager::CreateScene(const char* name)
 {
 	if (nullptr == name || '\0' == name[0])
 	{
@@ -26,8 +26,8 @@ CScene* CSceneManager::CreateScene(const char* name)
 		return it->second.Get();
 	}
 
-	OwnerPtr<CScene> scene = MakeOwnerPtr<CScene>();
-	CScene* rawScene = scene.Get();
+	OwnerPtr<CGameScene> scene = MakeOwnerPtr<CGameScene>();
+	CGameScene* rawScene = scene.Get();
 	m_scenes.emplace(name, std::move(scene));
 	if (false == m_activeScene.IsValid())
 	{
@@ -60,14 +60,14 @@ bool CSceneManager::DestroyScene(const char* name)
 
 bool CSceneManager::SetActiveScene(const char* name)
 {
-	SafePtr<CScene> scene = FindScene(name);
+	SafePtr<CGameScene> scene = FindScene(name);
 	if (false == scene.IsValid())
 	{
 		return false;
 	}
 
-	CScene* next = scene.TryGet();
-	CScene* prev = m_activeScene.TryGet();
+	CGameScene* next = scene.TryGet();
+	CGameScene* prev = m_activeScene.TryGet();
 	if (next == prev)
 	{
 		return true; // 이미 active — 재로드/해제 불필요.
@@ -91,7 +91,7 @@ bool CSceneManager::SetActiveScene(const char* name)
 // GetActiveScene() 은 SceneManager.h 에 인라인으로 정의됨(DLL 링크 클로저에서
 // SceneManager.obj → SceneSerializer.obj → yaml-cpp 연쇄 풀을 끊기 위함).
 
-SafePtr<CScene> CSceneManager::FindScene(const char* name) const
+SafePtr<CGameScene> CSceneManager::FindScene(const char* name) const
 {
 	if (nullptr == name)
 	{
@@ -102,7 +102,7 @@ SafePtr<CScene> CSceneManager::FindScene(const char* name) const
 	return it != m_scenes.end() ? it->second.GetSafePtr() : nullptr;
 }
 
-void CSceneManager::AcquireReferencedAssets(CScene& scene) const
+void CSceneManager::AcquireReferencedAssets(CGameScene& scene) const
 {
 	if (scene.HasLoadedAssets())
 	{

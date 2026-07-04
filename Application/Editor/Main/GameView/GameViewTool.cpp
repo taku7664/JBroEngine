@@ -90,7 +90,7 @@ void CGameViewTool::OnRenderStay()
 		std::vector<GameRenderCameraDesc> cameras;
 		if (Engine.SceneManager)
 		{
-			SafePtr<CScene> scene = Engine.SceneManager->GetActiveScene();
+			SafePtr<CGameScene> scene = Engine.SceneManager->GetActiveScene();
 			if (scene)
 			{
 				cameras = CollectGameRenderCameras(*scene, resW, resH);

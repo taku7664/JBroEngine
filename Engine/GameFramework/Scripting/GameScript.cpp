@@ -1,14 +1,14 @@
 #include "pch.h"
 #include "GameScript.h"
 
-void CGameScript::Bind(CScene& scene, CGameObject& object)
+void CGameScript::Bind(CGameScene& scene, CGameObject& object)
 {
 	m_scene = &scene;
 	m_owner = object.SafeFromThis();
 	m_isBound = true;
 }
 
-CScene* CGameScript::GetScene() const
+CGameScene* CGameScript::GetScene() const
 {
 	return m_scene;
 }

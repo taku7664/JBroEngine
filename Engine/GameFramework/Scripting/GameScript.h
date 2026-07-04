@@ -4,7 +4,7 @@
 #include "Utillity/Math/SizeT.h"
 #include "Utillity/Pointer/SafePtr.h"
 
-class CScene;
+class CGameScene;
 
 // 게임 스크립트 베이스. DLL 에서 파생되며, 호스트가 ScriptComponent 를 통해 인스턴스를
 // 생성/구동한다. 부착된 오브젝트는 SafePtr 로 들고 있어(호스트 소유) 파괴 후에도 안전.
@@ -14,8 +14,8 @@ public:
 	virtual ~CGameScript() = default;
 
 public:
-	void Bind(CScene& scene, CGameObject& object);
-	CScene*      GetScene() const;
+	void Bind(CGameScene& scene, CGameObject& object);
+	CGameScene*      GetScene() const;
 	CGameObject* GetGameObject() const;
 
 	// 부착된 오브젝트의 컴포넌트 접근 — 옛 GetScene()->GetComponent<T>(GetEntity()) 대체.
@@ -52,7 +52,7 @@ protected:
 	virtual void OnSurfaceResized(const Size<int>& /*clientSize*/) {}
 
 private:
-	CScene*              m_scene = nullptr;
+	CGameScene*              m_scene = nullptr;
 	SafePtr<CGameObject> m_owner;
 	bool m_isCreated = false;
 	bool m_isStarted = false;

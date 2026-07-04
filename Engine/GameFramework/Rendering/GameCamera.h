@@ -8,7 +8,7 @@
 #include <cstdint>
 #include <vector>
 
-class CScene;
+class CGameScene;
 class IRHICommandContext;
 class IRHITexture;
 class IRenderer;
@@ -37,7 +37,7 @@ struct GameRenderCameraStats
 	RenderCullingStats Culling;
 };
 
-std::vector<GameRenderCameraDesc> CollectGameRenderCameras(const CScene& scene, float renderWidth, float renderHeight);
+std::vector<GameRenderCameraDesc> CollectGameRenderCameras(const CGameScene& scene, float renderWidth, float renderHeight);
 
 void RenderGameCameraStack(
 	IRHICommandContext& commandContext,

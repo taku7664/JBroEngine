@@ -18,7 +18,7 @@
 
 namespace YAML { class Node; }
 
-class CScene;
+class CGameScene;
 class CGameObject;
 
 namespace Serialization
@@ -33,18 +33,18 @@ namespace Serialization
 	// YAML 맵에서 새 오브젝트를 만들어 scene 에 추가하고 속성/Transform/컴포넌트를 복원한다.
 	// Children 키가 있으면 자식 서브트리도 만들어 부모로 연결한다(복사 붙여넣기).
 	// 최상위 오브젝트의 부모 연결은 호출자가 처리한다(SceneSerializer 는 ParentIndex). 실패 시 nullptr.
-	CGameObject* ReadObjectInto(CScene& scene, const YAML::Node& node,
+	CGameObject* ReadObjectInto(CGameScene& scene, const YAML::Node& node,
 	                            std::vector<AssetGuid>* referencedAssets);
 
 	// ── 오브젝트 복사 API (문자열) ────────────────────────────────────────────
 	// 클립보드 포맷은 { Objects: [ objectNode... ] } 맵(다중/단일 공용). 각 오브젝트는
 	// 자식 서브트리를 포함한다. 레거시(단일 맵, Components 키)도 역직렬화는 허용한다.
 	std::string               SerializeObjects(const std::vector<const CGameObject*>& objects);
-	std::vector<CGameObject*> DeserializeObjects(CScene& scene, const char* text);
+	std::vector<CGameObject*> DeserializeObjects(CGameScene& scene, const char* text);
 
 	// 단일 편의 래퍼(SerializeObjects/DeserializeObjects 위임).
 	std::string  SerializeObject(const CGameObject& object);
-	CGameObject* DeserializeObject(CScene& scene, const char* text);
+	CGameObject* DeserializeObject(CGameScene& scene, const char* text);
 
 	// 텍스트가 복사 오브젝트 직렬화인지 검사한다(붙여넣기 가능 판별). 다중/단일 모두 인식.
 	bool         LooksLikeObject(const char* text);

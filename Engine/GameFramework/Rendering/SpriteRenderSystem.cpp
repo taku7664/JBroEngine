@@ -45,7 +45,7 @@ void CSpriteRenderSystem::ClearMaterialCache()
 	m_materialCache.clear();
 }
 
-void CSpriteRenderSystem::OnUpdate(CScene& scene)
+void CSpriteRenderSystem::OnUpdate(CGameScene& scene)
 {
 	if (nullptr == m_renderScene)
 	{

@@ -336,7 +336,7 @@ namespace
 	                           const AssetGuid& sceneGuid,
 	                           const std::string& scenePathText)
 	{
-		CScene* scene = sceneManager.CreateScene(sceneName.c_str());
+		CGameScene* scene = sceneManager.CreateScene(sceneName.c_str());
 		if (nullptr == scene)
 		{
 			CSystemLog::Error(std::string("Runtime scene creation failed: ") + sceneName);
@@ -488,7 +488,7 @@ void CGameApplication::ConfigureRuntimeViewCamera()
 		return;
 	}
 
-	SafePtr<CScene> scene = sceneManager->GetActiveScene();
+	SafePtr<CGameScene> scene = sceneManager->GetActiveScene();
 	if (false == scene.IsValid())
 	{
 		return;

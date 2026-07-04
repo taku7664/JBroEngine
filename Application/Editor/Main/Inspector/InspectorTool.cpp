@@ -92,7 +92,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		return info ? GetScriptDisplayName(info) : nullptr;
 	}
 
-	void DrawScriptTypeSelector(CScene& scene, CGameObject* object, std::size_t instanceIndex, ScriptComponent& scriptComponent)
+	void DrawScriptTypeSelector(CGameScene& scene, CGameObject* object, std::size_t instanceIndex, ScriptComponent& scriptComponent)
 	{
 		if (false == Engine.Reflection.IsValid())
 		{
@@ -217,7 +217,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			return name + "  [" + typeName + "]";
 		}
 		// 오브젝트/컴포넌트/스크립트 — InstanceGuid → 오브젝트 이름.
-		if (CScene* scene = GetActiveScene())
+		if (CGameScene* scene = GetActiveScene())
 		{
 			if (CGameObject* obj = scene->FindByInstanceGuid(guid).TryGet())
 			{
@@ -243,7 +243,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		}
 
 		// 오브젝트/컴포넌트/스크립트 — 하이어라키 페이로드.
-		CScene* scene = GetActiveScene();
+		CGameScene* scene = GetActiveScene();
 		if (nullptr == scene || false == ImGui::BeginDragDropTarget())
 		{
 			return false;
@@ -554,7 +554,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		ImGui::EndDisabled();
 	}
 
-	void DrawPhysicsContactDebug(const CScene& scene, const CGameObject* selectedObject)
+	void DrawPhysicsContactDebug(const CGameScene& scene, const CGameObject* selectedObject)
 	{
 		const CPhysics2DSystem* physicsSystem = scene.GetPhysics2DSystem();
 		if (nullptr == physicsSystem)
@@ -588,7 +588,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		}
 	}
 
-	void DrawRigidbodyDebug(const CScene& scene, const CGameObject* selectedObject, const Rigidbody2D& rigidbody)
+	void DrawRigidbodyDebug(const CGameScene& scene, const CGameObject* selectedObject, const Rigidbody2D& rigidbody)
 	{
 		ImGui::SeparatorText(Loc::Text("inspector.rigidbody_debug"));
 		const float inverseMass = rigidbody.Mass > 0.0f ? 1.0f / rigidbody.Mass : 0.0f;
@@ -604,7 +604,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		DrawPhysicsContactDebug(scene, selectedObject);
 	}
 
-	void DrawCircleColliderDebug(const CScene& scene, const CGameObject* selectedObject, const CircleCollider2D& collider)
+	void DrawCircleColliderDebug(const CGameScene& scene, const CGameObject* selectedObject, const CircleCollider2D& collider)
 	{
 		(void)scene;
 		const Matrix3x2 worldTransform = selectedObject ? GetWorldTransform(*selectedObject) : Matrix3x2::Identity();
@@ -618,7 +618,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		DrawReadOnlyFloat(Loc::Text("inspector.collider.world_radius"), worldRadius);
 	}
 
-	void DrawPolygonColliderDebug(const CScene& scene, const CGameObject* selectedObject, const PolygonCollider2D& collider)
+	void DrawPolygonColliderDebug(const CGameScene& scene, const CGameObject* selectedObject, const PolygonCollider2D& collider)
 	{
 		(void)scene;
 		std::vector<Vector2> generatedPoints;
@@ -696,7 +696,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 	//   sameLineAfter=true  → "##enabled" 체크박스 + SameLine() (CollapsingHeader 왼쪽)
 	//   sameLineAfter=false → "IsEnabled" 라벨 체크박스 + Separator  (탭 최상단 단독)
 	void DrawIsEnabledCheckbox(
-		CScene& scene, CGameObject* selectedObject,
+		CGameScene& scene, CGameObject* selectedObject,
 		const ComponentTypeInfo& componentType,
 		std::size_t instanceIdx, void* component, bool sameLineAfter)
 	{
@@ -737,7 +737,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 	// ── DrawComponentProperties ───────────────────────────────────────────────
 	// IsEnabled·non-editable 프로퍼티를 제외하고 에디터 + 특수 디버그 섹션 렌더링.
 	void DrawComponentProperties(
-		CScene& scene, CGameObject* selectedObject,
+		CGameScene& scene, CGameObject* selectedObject,
 		const ComponentTypeInfo& componentType,
 		std::size_t instanceIdx, void* component)
 	{
@@ -1286,7 +1286,7 @@ void CInspectorTool::OnRenderStay()
 	// 매 프레임 초기화: 컴포넌트 미표시 상태가 기본값
 	m_activeComponentTypeName = nullptr;
 
-	CScene* scene = GetActiveScene();
+	CGameScene* scene = GetActiveScene();
 	if (nullptr == scene)
 	{
 		AssetInspectorPreview::NotifyInspectionLost();

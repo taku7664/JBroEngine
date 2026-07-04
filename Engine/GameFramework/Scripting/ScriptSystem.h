@@ -18,8 +18,8 @@ public:
 	static void EnsureEditTimeInstance(ScriptComponent& script);
 
 protected:
-	void OnUpdate(CScene& scene) override;
-	void OnFixedUpdate(CScene& scene) override;
+	void OnUpdate(CGameScene& scene) override;
+	void OnFixedUpdate(CGameScene& scene) override;
 
 private:
 	// 경고 로그 폭주 방지용 캐시 — (object, typeId) 조합당 1회만 경고.

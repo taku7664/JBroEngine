@@ -84,14 +84,14 @@ const ScriptTypeInfo* CReflectionRegistry::GetScriptType(std::size_t index) cons
 	return index < m_scriptTypes.size() ? &m_scriptTypes[index] : nullptr;
 }
 
-bool CReflectionRegistry::AddComponent(CScene& scene, CGameObject& object, TypeId typeId) const
+bool CReflectionRegistry::AddComponent(CGameScene& scene, CGameObject& object, TypeId typeId) const
 {
 	const ComponentTypeInfo* typeInfo = FindComponent(typeId);
 	if (!typeInfo || !typeInfo->CanAddToObject) return false;
 	return typeInfo->AddToObject && typeInfo->AddToObject(scene, object);
 }
 
-bool CReflectionRegistry::RemoveComponent(CScene& scene, CGameObject& object, TypeId typeId) const
+bool CReflectionRegistry::RemoveComponent(CGameScene& scene, CGameObject& object, TypeId typeId) const
 {
 	const ComponentTypeInfo* typeInfo = FindComponent(typeId);
 	return typeInfo && typeInfo->RemoveFromObject && typeInfo->RemoveFromObject(scene, object);

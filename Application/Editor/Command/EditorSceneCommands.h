@@ -9,7 +9,7 @@
 
 #include <vector>
 
-class CScene;
+class CGameScene;
 class CGameObject;
 
 // 명령은 오브젝트를 InstanceGuid 로 보관한다(포인터/정수 id 아님).
@@ -18,7 +18,7 @@ class CGameObject;
 class CAddComponentCommand final : public IEditorCommand
 {
 public:
-	CAddComponentCommand(SafePtr<CScene> scene, CGameObject* object, TypeId componentTypeId);
+	CAddComponentCommand(SafePtr<CGameScene> scene, CGameObject* object, TypeId componentTypeId);
 	~CAddComponentCommand() override = default;
 
 	const char* GetName() const override;
@@ -27,7 +27,7 @@ public:
 	void Redo() override;
 
 private:
-	SafePtr<CScene> m_scene;
+	SafePtr<CGameScene> m_scene;
 	File::Guid m_objectGuid;
 	TypeId m_componentTypeId = INVALID_TYPE_ID;
 	bool m_added = false;
@@ -36,7 +36,7 @@ private:
 class CAddScriptComponentCommand final : public IEditorCommand
 {
 public:
-	CAddScriptComponentCommand(SafePtr<CScene> scene, CGameObject* object, TypeId scriptTypeId);
+	CAddScriptComponentCommand(SafePtr<CGameScene> scene, CGameObject* object, TypeId scriptTypeId);
 	~CAddScriptComponentCommand() override = default;
 
 	const char* GetName() const override;
@@ -45,7 +45,7 @@ public:
 	void Redo() override;
 
 private:
-	SafePtr<CScene> m_scene;
+	SafePtr<CGameScene> m_scene;
 	File::Guid m_objectGuid;
 	TypeId m_scriptTypeId = INVALID_TYPE_ID;
 	TypeId m_scriptComponentTypeId = INVALID_TYPE_ID;
@@ -56,7 +56,7 @@ private:
 class CSetScriptTypeCommand final : public IEditorCommand
 {
 public:
-	CSetScriptTypeCommand(SafePtr<CScene> scene, CGameObject* object, std::size_t instanceIndex, TypeId newScriptTypeId);
+	CSetScriptTypeCommand(SafePtr<CGameScene> scene, CGameObject* object, std::size_t instanceIndex, TypeId newScriptTypeId);
 	~CSetScriptTypeCommand() override = default;
 
 	const char* GetName() const override;
@@ -68,7 +68,7 @@ private:
 	bool Apply(TypeId scriptTypeId);
 
 private:
-	SafePtr<CScene> m_scene;
+	SafePtr<CGameScene> m_scene;
 	File::Guid m_objectGuid;
 	std::size_t m_instanceIndex = 0;
 	TypeId m_oldScriptTypeId = INVALID_TYPE_ID;
@@ -83,7 +83,7 @@ public:
 	// parent == nullptr 이면 루트에 생성, 그 외에는 parent 의 자식으로 생성.
 	// spawnWorldPos != nullptr 이면 그 월드 좌표에 생성한다(씬뷰 우클릭 위치). parent 가
 	// 있으면 부모 월드 역행렬로 로컬 좌표를 환산한다. null 이면 기본(원점) 생성.
-	CCreateGameObjectCommand(SafePtr<CScene> scene, const char* name,
+	CCreateGameObjectCommand(SafePtr<CGameScene> scene, const char* name,
 	                         CGameObject* parent = nullptr,
 	                         const Vector2* spawnWorldPos = nullptr);
 	~CCreateGameObjectCommand() override = default;
@@ -96,7 +96,7 @@ public:
 	CGameObject* GetEntity() const;
 
 private:
-	SafePtr<CScene> m_scene;
+	SafePtr<CGameScene> m_scene;
 	std::string m_name;
 	File::Guid m_parentGuid; // null = 루트
 	File::Guid m_objectGuid; // 생성된 오브젝트의 안정 식별자(redo 시 동일 guid 강제)
@@ -109,7 +109,7 @@ class CSetComponentPropertyCommand final : public IEditorCommand
 {
 public:
 	CSetComponentPropertyCommand(
-		SafePtr<CScene> scene,
+		SafePtr<CGameScene> scene,
 		CGameObject* object,
 		TypeId componentTypeId,
 		std::size_t propertyOffset,
@@ -129,7 +129,7 @@ private:
 	bool WriteValue(const std::vector<std::uint8_t>& value);
 
 private:
-	SafePtr<CScene> m_scene;
+	SafePtr<CGameScene> m_scene;
 	File::Guid m_objectGuid;
 	TypeId m_componentTypeId = INVALID_TYPE_ID;
 	std::size_t m_propertyOffset = 0;
@@ -145,7 +145,7 @@ private:
 class CSetObjectTransformCommand final : public IEditorCommand
 {
 public:
-	CSetObjectTransformCommand(SafePtr<CScene> scene,
+	CSetObjectTransformCommand(SafePtr<CGameScene> scene,
 	                           const std::vector<CGameObject*>& objects,
 	                           const Transform2D& delta);
 	~CSetObjectTransformCommand() override = default;
@@ -159,7 +159,7 @@ public:
 private:
 	void Apply(bool withDelta);
 
-	SafePtr<CScene>          m_scene;
+	SafePtr<CGameScene>          m_scene;
 	std::vector<File::Guid>  m_objectGuids; // 대상 오브젝트들
 	std::vector<Transform2D> m_oldTransforms; // 드래그 시작 시점 각 오브젝트 Transform(병렬)
 	Transform2D              m_delta;        // 누적 델타(Position/Rotation/Scale 가산)
@@ -170,7 +170,7 @@ private:
 class CSetObjectTransformsCommand final : public IEditorCommand
 {
 public:
-	CSetObjectTransformsCommand(SafePtr<CScene> scene,
+	CSetObjectTransformsCommand(SafePtr<CGameScene> scene,
 	                            const std::vector<CGameObject*>& objects,
 	                            const std::vector<Transform2D>& oldTransforms,
 	                            const std::vector<Transform2D>& newTransforms);
@@ -184,7 +184,7 @@ public:
 private:
 	void Apply(const std::vector<Transform2D>& transforms);
 
-	SafePtr<CScene>          m_scene;
+	SafePtr<CGameScene>          m_scene;
 	std::vector<File::Guid>  m_objectGuids;
 	std::vector<Transform2D> m_oldTransforms;
 	std::vector<Transform2D> m_newTransforms;
@@ -194,7 +194,7 @@ private:
 class CDeleteGameObjectCommand final : public IEditorCommand
 {
 public:
-	CDeleteGameObjectCommand(SafePtr<CScene> scene, CGameObject* object);
+	CDeleteGameObjectCommand(SafePtr<CGameScene> scene, CGameObject* object);
 	~CDeleteGameObjectCommand() override = default;
 
 	const char* GetName() const override;
@@ -203,7 +203,7 @@ public:
 	void Redo() override;
 
 private:
-	SafePtr<CScene> m_scene;
+	SafePtr<CGameScene> m_scene;
 	File::Guid  m_objectGuid;  // 삭제 대상(redo 재삭제·undo 후 재해석 키)
 	File::Guid  m_parentGuid;  // 복원 시 재부모(null = 루트)
 	std::string m_snapshot;    // 서브트리 직렬화(undo 복원용)
@@ -216,7 +216,7 @@ class CPasteObjectsCommand final : public IEditorCommand
 public:
 	// clipboardText = Serialization::SerializeObjects 결과(레거시 단일 포맷도 허용).
 	// spawnWorldPos != nullptr 이면 붙여넣은 그룹 중심을 그 월드 좌표로 이동(상대 배치 보존).
-	CPasteObjectsCommand(SafePtr<CScene> scene, std::string clipboardText,
+	CPasteObjectsCommand(SafePtr<CGameScene> scene, std::string clipboardText,
 	                     const Vector2* spawnWorldPos = nullptr);
 	~CPasteObjectsCommand() override = default;
 
@@ -229,7 +229,7 @@ public:
 	std::vector<CGameObject*> GetPastedRoots() const;
 
 private:
-	SafePtr<CScene> m_scene;
+	SafePtr<CGameScene> m_scene;
 	std::string m_clipboard;        // 최초 실행 후엔 정규화 스냅샷(guid/위치 고정 → redo 재현)
 	bool        m_hasSpawnPos = false;
 	Vector2     m_spawnWorldPos = Vector2(0.0f, 0.0f);
@@ -241,7 +241,7 @@ private:
 class CRemoveComponentCommand final : public IEditorCommand
 {
 public:
-	CRemoveComponentCommand(SafePtr<CScene> scene, CGameObject* object, TypeId componentTypeId);
+	CRemoveComponentCommand(SafePtr<CGameScene> scene, CGameObject* object, TypeId componentTypeId);
 	~CRemoveComponentCommand() override = default;
 
 	const char* GetName() const override;
@@ -252,7 +252,7 @@ public:
 private:
 	bool RemoveNow();
 
-	SafePtr<CScene> m_scene;
+	SafePtr<CGameScene> m_scene;
 	File::Guid  m_objectGuid;
 	TypeId      m_componentTypeId = INVALID_TYPE_ID;
 	std::string m_snapshot;     // 제거 전 컴포넌트 직렬화(undo 복원용)
@@ -266,7 +266,7 @@ class CSetParentCommand final : public IEditorCommand
 {
 public:
 	// newParent = nullptr 이면 부모 해제(루트로 이동).
-	CSetParentCommand(SafePtr<CScene> scene, CGameObject* child, CGameObject* newParent);
+	CSetParentCommand(SafePtr<CGameScene> scene, CGameObject* child, CGameObject* newParent);
 	~CSetParentCommand() override = default;
 
 	const char* GetName() const override;
@@ -275,7 +275,7 @@ public:
 	void Redo() override;
 
 private:
-	SafePtr<CScene> m_scene;
+	SafePtr<CGameScene> m_scene;
 	File::Guid      m_childGuid;
 	File::Guid      m_oldParentGuid; // null = 루트
 	File::Guid      m_newParentGuid; // null = 루트
@@ -291,7 +291,7 @@ class CModifyPolygonVerticesCommand final : public IEditorCommand
 {
 public:
 	CModifyPolygonVerticesCommand(
-		SafePtr<CScene>                   scene,
+		SafePtr<CGameScene>                   scene,
 		CGameObject*                      object,
 		std::vector<Vector2>       newPoints);
 	~CModifyPolygonVerticesCommand() override = default;
@@ -305,7 +305,7 @@ private:
 	bool Apply(const std::vector<Vector2>& points);
 
 private:
-	SafePtr<CScene>               m_scene;
+	SafePtr<CGameScene>               m_scene;
 	File::Guid                    m_objectGuid;
 	std::vector<Vector2>   m_oldPoints;
 	std::vector<Vector2>   m_newPoints;

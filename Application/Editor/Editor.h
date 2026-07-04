@@ -28,7 +28,7 @@ class CProjectSettingsWindow;
 class CSpriteImporterWindow;
 class CAudioImporterWindow;
 class CProjectManager;
-class CScene;
+class CGameScene;
 
 struct Editor
 {
@@ -240,14 +240,14 @@ inline SafePtr<CProjectManager> GetProjectManager()
 	return Editor::ImEditor ? Editor::ImEditor->GetProjectManager() : nullptr;
 }
 
-inline CScene* GetActiveScene()
+inline CGameScene* GetActiveScene()
 {
 	if (false == Engine.SceneManager.IsValid())
 	{
 		return nullptr;
 	}
 
-	SafePtr<CScene> activeScene = Engine.SceneManager->GetActiveScene();
+	SafePtr<CGameScene> activeScene = Engine.SceneManager->GetActiveScene();
 	return activeScene.TryGet();
 }
 

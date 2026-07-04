@@ -17,5 +17,5 @@ public:
 	bool ShouldUpdateInEditMode() const override { return true; }
 
 private:
-	void OnUpdate(CScene& scene) override;
+	void OnUpdate(CGameScene& scene) override;
 };

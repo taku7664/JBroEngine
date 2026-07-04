@@ -13,7 +13,7 @@
 #include <typeinfo>
 #include <vector>
 
-class CScene;
+class CGameScene;
 
 // 오브젝트 비트 플래그. 상시 멤버(호스트/DLL/게임 동일 레이아웃 → ABI 안전).
 // 비트의 *의미*는 레이어별로 다를 수 있다(EditorHidden 은 에디터 씬뷰 전용).
@@ -26,21 +26,21 @@ enum EObjectFlags : unsigned int
 // ─────────────────────────────────────────────────────────────────────────────
 //  CGameObject — 씬의 실체 객체(다형성 컴포넌트 구조).
 //
-//  · 고정 크기 → CScene 의 TObjectPool<CGameObject> 에 거주(메모리 소유=풀).
+//  · 고정 크기 → CGameScene 의 TObjectPool<CGameObject> 에 거주(메모리 소유=풀).
 //  · Transform(Local) / WorldTransform(World) / 계층(Parent·Children)을 멤버로 직접
 //    보유한다 — 컴포넌트가 아니다.
 //  · 컴포넌트는 타입별 풀에 살고, 여기서는 SafePtr 로 참조만 들고 lifetime 을
 //    결정한다(Destroy 시 scene 을 통해 각 풀에서 해제).
 //  · 외부 공유는 SafeFromThis()/SafePtr<CGameObject>.
 //
-//  템플릿 메서드 AddComponent/RemoveComponent 는 CScene 완전형이 필요하므로
+//  템플릿 메서드 AddComponent/RemoveComponent 는 CGameScene 완전형이 필요하므로
 //  본체는 Scene.h 하단에 정의한다(GetComponent 류는 scene 불필요 → 여기 인라인).
 // ─────────────────────────────────────────────────────────────────────────────
 class CGameObject final : public EnableSafeFromThis<CGameObject>
 {
 public:
 	CGameObject() = default;
-	CGameObject(CScene& scene, const char* name, const File::Guid& instanceGuid)
+	CGameObject(CGameScene& scene, const char* name, const File::Guid& instanceGuid)
 		: Name(name ? name : "GameObject")
 		, InstanceGuid(instanceGuid)
 		, m_scene(&scene)
@@ -84,7 +84,7 @@ public:
 	WorldTransform2D&       GetWorld()           { return World; }
 	const WorldTransform2D& GetWorld()     const { return World; }
 
-	CScene* GetScene() const { return m_scene; }
+	CGameScene* GetScene() const { return m_scene; }
 
 	// ── 컴포넌트 ──────────────────────────────────────────────────────────────
 	// AddComponent/RemoveComponent: Scene.h 하단 정의.
@@ -231,7 +231,7 @@ public:
 	void Destroy();
 
 private:
-	CScene*                          m_scene = nullptr;
+	CGameScene*                          m_scene = nullptr;
 	SafePtr<CGameObject>             m_parent;
 	std::vector<SafePtr<CGameObject>> m_children;
 	std::vector<SafePtr<CComponent>>  m_components;

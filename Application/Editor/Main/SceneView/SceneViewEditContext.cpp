@@ -163,7 +163,7 @@ namespace
 
 // ── CSceneViewEditContext implementation ─────────────────────────────────────
 
-void CSceneViewEditContext::Validate(const CScene& scene)
+void CSceneViewEditContext::Validate(const CGameScene& scene)
 {
     (void)scene;
     // SafePtr 가 파괴된 오브젝트를 자동으로 null 로 만든다 — TryGet 으로 확정만.
@@ -172,7 +172,7 @@ void CSceneViewEditContext::Validate(const CScene& scene)
 }
 
 CGameObject* CSceneViewEditContext::Pick(
-    const CScene& scene,
+    const CGameScene& scene,
     const Vector2& worldPt,
     IAssetManager* assetMgr) const
 {
@@ -180,7 +180,7 @@ CGameObject* CSceneViewEditContext::Pick(
     CGameObject* pickedObject = nullptr;
     std::int32_t pickedOrd   = std::numeric_limits<std::int32_t>::min();
 
-    const_cast<CScene&>(scene).ForEach<SpriteRenderer2D>(
+    const_cast<CGameScene&>(scene).ForEach<SpriteRenderer2D>(
         [&](SpriteRenderer2D& sprite)
         {
             CGameObject* owner = sprite.GetOwner();
@@ -250,7 +250,7 @@ CGameObject* CSceneViewEditContext::Pick(
 }
 
 std::vector<CGameObject*> CSceneViewEditContext::PickBox(
-    const CScene& scene,
+    const CGameScene& scene,
     const Vector2& worldMin,
     const Vector2& worldMax,
     IAssetManager* assetMgr) const
@@ -261,7 +261,7 @@ std::vector<CGameObject*> CSceneViewEditContext::PickBox(
     // 전체 오브젝트 순회:
     //   - SpriteRenderer2D 있음 → 불투명 픽셀 tight AABB (없으면 OBB 폴백)
     //   - SpriteRenderer2D 없음 → 1×1 단위 OBB (엔티티 로컬 공간 기준)
-    const_cast<CScene&>(scene).ForEachObject(
+    const_cast<CGameScene&>(scene).ForEachObject(
         [&](CGameObject& object)
         {
             if (!object.IsActive) return;
@@ -361,7 +361,7 @@ std::vector<CGameObject*> CSceneViewEditContext::PickBox(
     return std::vector<CGameObject*>(foundSet.begin(), foundSet.end());
 }
 
-CGameObject* CSceneViewEditContext::OnDoubleClick(const CScene& /*scene*/, CGameObject* picked)
+CGameObject* CSceneViewEditContext::OnDoubleClick(const CGameScene& /*scene*/, CGameObject* picked)
 {
     if (nullptr == picked) return nullptr;
 
@@ -372,7 +372,7 @@ CGameObject* CSceneViewEditContext::OnDoubleClick(const CScene& /*scene*/, CGame
     return picked; // 호출자가 FocusOnEntity 에 전달
 }
 
-CGameObject* CSceneViewEditContext::OnDoubleClickEmpty(const CScene& /*scene*/)
+CGameObject* CSceneViewEditContext::OnDoubleClickEmpty(const CGameScene& /*scene*/)
 {
     CGameObject* ctxObj = m_context.TryGet();
     if (nullptr == ctxObj)

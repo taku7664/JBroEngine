@@ -139,7 +139,7 @@ void CEngine::OnSurfaceEvent(const SurfaceEvent& surfaceEvent)
 	// 윈도우 이벤트를 활성 씬의 스크립트 인스턴스들에 전달(재생 중에만 인스턴스 존재 → 자동 게이팅).
 	if (m_sceneManager)
 	{
-		if (CScene* scene = m_sceneManager->GetActiveScene().TryGet())
+		if (CGameScene* scene = m_sceneManager->GetActiveScene().TryGet())
 		{
 			scene->DispatchSurfaceEventToScripts(surfaceEvent);
 		}

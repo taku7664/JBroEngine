@@ -28,7 +28,7 @@ public:
 	void ClearMaterialCache();
 
 protected:
-	void OnUpdate(CScene& scene) override;
+	void OnUpdate(CGameScene& scene) override;
 
 private:
 	IRenderScene*         m_renderScene         = nullptr;

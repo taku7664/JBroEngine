@@ -30,22 +30,22 @@ public:
 	const std::vector<Physics2DManifold>& GetManifolds() const;
 
 protected:
-	void OnFixedUpdate(CScene& scene) override;
+	void OnFixedUpdate(CGameScene& scene) override;
 
 private:
-	void Step(CScene& scene, float deltaSeconds);
-	void IntegrateBodies(CScene& scene, float deltaSeconds);
-	void UpdateColliderBounds(CScene& scene);
-	void DetectContacts(CScene& scene);
-	void ResolveContactVelocity(CScene& scene);   // 속도 impulse — 접촉점별 (velocity only)
-	void ResolveContactPosition(CScene& scene);   // 위치 보정    — 매니폴드별 1회
-	void StabilizeRestingContacts(CScene& scene);
+	void Step(CGameScene& scene, float deltaSeconds);
+	void IntegrateBodies(CGameScene& scene, float deltaSeconds);
+	void UpdateColliderBounds(CGameScene& scene);
+	void DetectContacts(CGameScene& scene);
+	void ResolveContactVelocity(CGameScene& scene);   // 속도 impulse — 접촉점별 (velocity only)
+	void ResolveContactPosition(CGameScene& scene);   // 위치 보정    — 매니폴드별 1회
+	void StabilizeRestingContacts(CGameScene& scene);
 	void DrawManifoldDebugLines();                // 매니폴드 normal/contact 시각화 (fixed step 종료 후 1회)
 
 	// 직전 step 의 매니폴드와 매칭해 누적 impulse 복원 + warm-start 적용.
 	// DetectContacts 직후 호출되어 m_manifolds 의 AccumulatedXxxImpulse 를 prev 에서 복원,
 	// 그 시점에 body 에 warm-start impulse 한 번 적용.
-	void MatchAndWarmStart(CScene& scene);
+	void MatchAndWarmStart(CGameScene& scene);
 
 private:
 	Vector2                  m_gravity             = Vector2(0.0f, -9.8f);

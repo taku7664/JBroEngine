@@ -45,7 +45,7 @@ void CHierarchyTool::OnRenderStay()
 		return;
 	}
 
-	SafePtr<CScene> activeScene = Engine.SceneManager->GetActiveScene();
+	SafePtr<CGameScene> activeScene = Engine.SceneManager->GetActiveScene();
 	if (false == activeScene.IsValid())
 	{
 		ImGui::TextDisabled(Loc::Text("hierarchy.no_active_scene"));

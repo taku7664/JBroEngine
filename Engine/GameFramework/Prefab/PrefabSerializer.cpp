@@ -14,28 +14,28 @@
 #include <fstream>
 #include <sstream>
 
-EPrefabSerializeResult CPrefabSerializer::SerializePrefabToText(const CScene& scene, const CGameObject* root, std::string& outText) const
+EPrefabSerializeResult CPrefabSerializer::SerializePrefabToText(const CGameScene& scene, const CGameObject* root, std::string& outText) const
 {
 	if (nullptr == root)
 	{
 		return EPrefabSerializeResult::InvalidArgument;
 	}
 
-	CScene prefabScene;
+	CGameScene prefabScene;
 	CloneHierarchy(scene, prefabScene, *root);
 
 	CSceneSerializer serializer;
 	return ConvertSceneResult(static_cast<int>(serializer.SerializeToText(prefabScene, outText)));
 }
 
-EPrefabSerializeResult CPrefabSerializer::DeserializePrefabFromText(CScene& scene, const char* text, CGameObject** outRoot) const
+EPrefabSerializeResult CPrefabSerializer::DeserializePrefabFromText(CGameScene& scene, const char* text, CGameObject** outRoot) const
 {
 	if (nullptr == text)
 	{
 		return EPrefabSerializeResult::InvalidArgument;
 	}
 
-	CScene prefabScene;
+	CGameScene prefabScene;
 	CSceneSerializer serializer;
 	const ESceneSerializeResult sceneResult = serializer.DeserializeFromText(prefabScene, text);
 	if (ESceneSerializeResult::Success != sceneResult)
@@ -66,7 +66,7 @@ EPrefabSerializeResult CPrefabSerializer::DeserializePrefabFromText(CScene& scen
 	return firstRoot ? EPrefabSerializeResult::Success : EPrefabSerializeResult::ParseError;
 }
 
-EPrefabSerializeResult CPrefabSerializer::SavePrefabToFile(const CScene& scene, const CGameObject* root, const File::Path& path) const
+EPrefabSerializeResult CPrefabSerializer::SavePrefabToFile(const CGameScene& scene, const CGameObject* root, const File::Path& path) const
 {
 	if (path.empty())
 	{
@@ -90,7 +90,7 @@ EPrefabSerializeResult CPrefabSerializer::SavePrefabToFile(const CScene& scene, 
 	return EPrefabSerializeResult::Success;
 }
 
-EPrefabSerializeResult CPrefabSerializer::LoadPrefabFromFile(CScene& scene, const File::Path& path, CGameObject** outRoot) const
+EPrefabSerializeResult CPrefabSerializer::LoadPrefabFromFile(CGameScene& scene, const File::Path& path, CGameObject** outRoot) const
 {
 	if (path.empty())
 	{
@@ -108,7 +108,7 @@ EPrefabSerializeResult CPrefabSerializer::LoadPrefabFromFile(CScene& scene, cons
 	return DeserializePrefabFromText(scene, buffer.str().c_str(), outRoot);
 }
 
-CGameObject* CPrefabSerializer::CloneHierarchy(const CScene& /*sourceScene*/, CScene& targetScene, const CGameObject& sourceObject)
+CGameObject* CPrefabSerializer::CloneHierarchy(const CGameScene& /*sourceScene*/, CGameScene& targetScene, const CGameObject& sourceObject)
 {
 	CGameObject* targetObject = targetScene.CreateGameObject(sourceObject.GetName());
 	if (nullptr == targetObject)
@@ -142,7 +142,7 @@ void CPrefabSerializer::CopyComponents(const CGameObject& sourceObject, CGameObj
 	// Transform 은 오브젝트 멤버 — 직접 복사.
 	targetObject.GetTransform() = sourceObject.GetTransform();
 
-	CScene* targetScene = targetObject.GetScene();
+	CGameScene* targetScene = targetObject.GetScene();
 	if (nullptr == targetScene || false == static_cast<bool>(Script.Reflection))
 	{
 		return;

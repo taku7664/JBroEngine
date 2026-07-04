@@ -239,7 +239,7 @@ namespace
 
 		if (Engine.SceneManager.IsValid())
 		{
-			SafePtr<CScene> scene = Engine.SceneManager->GetActiveScene();
+			SafePtr<CGameScene> scene = Engine.SceneManager->GetActiveScene();
 			if (scene.IsValid() && false == Editor::GetActiveScenePath().empty())
 			{
 				CSceneSerializer serializer;

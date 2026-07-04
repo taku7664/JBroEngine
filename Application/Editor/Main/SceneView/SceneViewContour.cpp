@@ -316,7 +316,7 @@ const std::vector<std::vector<Vector2>>* CSceneViewContour::GetOrBuild(
 
 void CSceneViewContour::DrawOutlinesImGui(
     ImDrawList* dl,
-    const CScene& scene,
+    const CGameScene& scene,
     IAssetManager* assetMgr,
     const std::vector<CGameObject*>& selectedObjects,
     const ImVec2& vpMin, const ImVec2& vpSize,

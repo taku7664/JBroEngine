@@ -23,7 +23,7 @@ namespace
 {
 	// 명령은 오브젝트를 InstanceGuid 로 보관한다(포인터/정수 id 아님).
 	// 실제 조작 시점에 활성 씬에서 guid 로 다시 해석한다(파괴→재생성 후에도 안전).
-	CGameObject* Resolve(const SafePtr<CScene>& scene, const File::Guid& guid)
+	CGameObject* Resolve(const SafePtr<CGameScene>& scene, const File::Guid& guid)
 	{
 		return scene.IsValid() ? scene->FindByInstanceGuid(guid).TryGet() : nullptr;
 	}
@@ -34,7 +34,7 @@ namespace
 	}
 }
 
-CAddComponentCommand::CAddComponentCommand(SafePtr<CScene> scene, CGameObject* object, TypeId componentTypeId)
+CAddComponentCommand::CAddComponentCommand(SafePtr<CGameScene> scene, CGameObject* object, TypeId componentTypeId)
 	: m_scene(scene)
 	, m_objectGuid(GuidOf(object))
 	, m_componentTypeId(componentTypeId)
@@ -94,7 +94,7 @@ void CAddComponentCommand::Redo()
 	}
 }
 
-CAddScriptComponentCommand::CAddScriptComponentCommand(SafePtr<CScene> scene, CGameObject* object, TypeId scriptTypeId)
+CAddScriptComponentCommand::CAddScriptComponentCommand(SafePtr<CGameScene> scene, CGameObject* object, TypeId scriptTypeId)
 	: m_scene(scene)
 	, m_objectGuid(GuidOf(object))
 	, m_scriptTypeId(scriptTypeId)
@@ -180,7 +180,7 @@ void CAddScriptComponentCommand::Redo()
 	}
 }
 
-CSetScriptTypeCommand::CSetScriptTypeCommand(SafePtr<CScene> scene, CGameObject* object, std::size_t instanceIndex, TypeId newScriptTypeId)
+CSetScriptTypeCommand::CSetScriptTypeCommand(SafePtr<CGameScene> scene, CGameObject* object, std::size_t instanceIndex, TypeId newScriptTypeId)
 	: m_scene(scene)
 	, m_objectGuid(GuidOf(object))
 	, m_instanceIndex(instanceIndex)
@@ -248,7 +248,7 @@ bool CSetScriptTypeCommand::Apply(TypeId scriptTypeId)
 	return true;
 }
 
-CCreateGameObjectCommand::CCreateGameObjectCommand(SafePtr<CScene> scene, const char* name,
+CCreateGameObjectCommand::CCreateGameObjectCommand(SafePtr<CGameScene> scene, const char* name,
                                                    CGameObject* parent,
                                                    const Vector2* spawnWorldPos)
 	: m_scene(scene)
@@ -341,7 +341,7 @@ CGameObject* CCreateGameObjectCommand::GetEntity() const
 }
 
 CSetComponentPropertyCommand::CSetComponentPropertyCommand(
-	SafePtr<CScene> scene,
+	SafePtr<CGameScene> scene,
 	CGameObject* object,
 	TypeId componentTypeId,
 	std::size_t propertyOffset,
@@ -422,7 +422,7 @@ bool CSetComponentPropertyCommand::WriteValue(const std::vector<std::uint8_t>& v
 
 // ── CDeleteGameObjectCommand ──────────────────────────────────────────────────
 
-CDeleteGameObjectCommand::CDeleteGameObjectCommand(SafePtr<CScene> scene, CGameObject* object)
+CDeleteGameObjectCommand::CDeleteGameObjectCommand(SafePtr<CGameScene> scene, CGameObject* object)
 	: m_scene(scene)
 	, m_objectGuid(GuidOf(object))
 {
@@ -511,7 +511,7 @@ namespace
 	}
 }
 
-CPasteObjectsCommand::CPasteObjectsCommand(SafePtr<CScene> scene, std::string clipboardText,
+CPasteObjectsCommand::CPasteObjectsCommand(SafePtr<CGameScene> scene, std::string clipboardText,
                                            const Vector2* spawnWorldPos)
 	: m_scene(scene)
 	, m_clipboard(std::move(clipboardText))
@@ -616,7 +616,7 @@ std::vector<CGameObject*> CPasteObjectsCommand::GetPastedRoots() const
 
 // ── CRemoveComponentCommand ───────────────────────────────────────────────────
 
-CRemoveComponentCommand::CRemoveComponentCommand(SafePtr<CScene> scene, CGameObject* object, TypeId componentTypeId)
+CRemoveComponentCommand::CRemoveComponentCommand(SafePtr<CGameScene> scene, CGameObject* object, TypeId componentTypeId)
 	: m_scene(scene)
 	, m_objectGuid(GuidOf(object))
 	, m_componentTypeId(componentTypeId)
@@ -674,7 +674,7 @@ void CRemoveComponentCommand::Redo()
 
 // ── CSetObjectTransformCommand ────────────────────────────────────────────────
 
-CSetObjectTransformCommand::CSetObjectTransformCommand(SafePtr<CScene> scene,
+CSetObjectTransformCommand::CSetObjectTransformCommand(SafePtr<CGameScene> scene,
                                                        const std::vector<CGameObject*>& objects,
                                                        const Transform2D& delta)
 	: m_scene(scene)
@@ -749,7 +749,7 @@ bool CSetObjectTransformCommand::TryMerge(const IEditorCommand& newer)
 // ── CSetObjectTransformsCommand ───────────────────────────────────────────────
 
 CSetObjectTransformsCommand::CSetObjectTransformsCommand(
-	SafePtr<CScene> scene,
+	SafePtr<CGameScene> scene,
 	const std::vector<CGameObject*>& objects,
 	const std::vector<Transform2D>& oldTransforms,
 	const std::vector<Transform2D>& newTransforms)
@@ -825,7 +825,7 @@ namespace
 	}
 } // anonymous namespace
 
-CSetParentCommand::CSetParentCommand(SafePtr<CScene> scene, CGameObject* child, CGameObject* newParent)
+CSetParentCommand::CSetParentCommand(SafePtr<CGameScene> scene, CGameObject* child, CGameObject* newParent)
 	: m_scene(scene)
 	, m_childGuid(GuidOf(child))
 	, m_newParentGuid(GuidOf(newParent))
@@ -847,7 +847,7 @@ const char* CSetParentCommand::GetName() const
 namespace
 {
 	// child 의 부모를 newParent(null guid 면 루트)로 설정. 성공 시 true.
-	bool ApplyParent(CScene& scene, CGameObject& child, const File::Guid& newParentGuid)
+	bool ApplyParent(CGameScene& scene, CGameObject& child, const File::Guid& newParentGuid)
 	{
 		if (newParentGuid.IsNull())
 		{
@@ -866,7 +866,7 @@ bool CSetParentCommand::Execute()
 	{
 		return false;
 	}
-	CScene& scene = *m_scene;
+	CGameScene& scene = *m_scene;
 
 	// ── WorldStay: SetParent 이전 world transform 캡처 ───────────────────────
 	const Matrix3x2 childWorld = GetWorldTransform(*childObject);
@@ -924,7 +924,7 @@ void CSetParentCommand::Redo()
 // ── CModifyPolygonVerticesCommand ─────────────────────────────────────────────
 
 CModifyPolygonVerticesCommand::CModifyPolygonVerticesCommand(
-	SafePtr<CScene>             scene,
+	SafePtr<CGameScene>             scene,
 	CGameObject*                object,
 	std::vector<Vector2> newPoints)
 	: m_scene(scene)

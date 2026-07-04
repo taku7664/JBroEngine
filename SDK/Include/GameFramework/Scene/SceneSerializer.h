@@ -6,15 +6,15 @@
 #include <string>
 #include <vector>
 
-class CScene;
+class CGameScene;
 
 class CSceneSerializer final
 {
 public:
-	ESceneSerializeResult SerializeToText(CScene& scene, std::string& outText) const;
-	ESceneSerializeResult DeserializeFromText(CScene& scene, const char* text) const;
-	ESceneSerializeResult SaveToFile(CScene& scene, const File::Path& path) const;
-	ESceneSerializeResult LoadFromFile(CScene& scene, const File::Path& path) const;
+	ESceneSerializeResult SerializeToText(CGameScene& scene, std::string& outText) const;
+	ESceneSerializeResult DeserializeFromText(CGameScene& scene, const char* text) const;
+	ESceneSerializeResult SaveToFile(CGameScene& scene, const File::Path& path) const;
+	ESceneSerializeResult LoadFromFile(CGameScene& scene, const File::Path& path) const;
 
 	// 씬/프리팹 파일에서 ReferencedAssets 목록만 가볍게 읽는다 — 게임오브젝트나 에셋
 	// 데이터를 만들지 않고 YAML 의 ReferencedAssets 시퀀스만 파싱한다. 프로젝트 로드 시

@@ -56,7 +56,7 @@ namespace
         return o ? o->SafeFromThis() : SafePtr<CGameObject>();
     }
 
-    std::vector<CGameObject*> CollectSubtree(const CScene& /*scene*/, CGameObject* root)
+    std::vector<CGameObject*> CollectSubtree(const CGameScene& /*scene*/, CGameObject* root)
     {
         if (nullptr == root) return {};
         std::vector<CGameObject*> result;
@@ -285,7 +285,7 @@ void CSceneViewTool::SetEditorCamera(float x, float y, float size)
     m_cameraSize       = m_targetCameraSize;
 }
 
-void CSceneViewTool::FocusOnEntity(CGameObject* object, const CScene& scene)
+void CSceneViewTool::FocusOnEntity(CGameObject* object, const CGameScene& scene)
 {
     (void)scene;
     if (nullptr == object) return;
@@ -318,7 +318,7 @@ void CSceneViewTool::FocusOnEntity(CGameObject* object, const CScene& scene)
     m_targetCameraSize = newSize;
 }
 
-void CSceneViewTool::SetFocusContext(CGameObject* object, const CScene& scene)
+void CSceneViewTool::SetFocusContext(CGameObject* object, const CGameScene& scene)
 {
     if (nullptr == object) return;
 
@@ -392,7 +392,7 @@ void CSceneViewTool::OnRenderStay()
 
         if (Engine.SceneManager)
         {
-            SafePtr<CScene> scene = Engine.SceneManager->GetActiveScene();
+            SafePtr<CGameScene> scene = Engine.SceneManager->GetActiveScene();
             if (scene)
             {
                 // 씬 기본 디버그 (선택 엔티티 OBB 등)
@@ -536,7 +536,7 @@ void CSceneViewTool::OnRenderStay()
 
         if (Engine.SceneManager)
         {
-            SafePtr<CScene> gizmoScene = Engine.SceneManager->GetActiveScene();
+            SafePtr<CGameScene> gizmoScene = Engine.SceneManager->GetActiveScene();
             if (gizmoScene)
             {
                 constexpr float OUTER_R    = 5.0f;
@@ -597,7 +597,7 @@ void CSceneViewTool::OnRenderStay()
 
         if (Engine.SceneManager)
         {
-            SafePtr<CScene> colScene = Engine.SceneManager->GetActiveScene();
+            SafePtr<CGameScene> colScene = Engine.SceneManager->GetActiveScene();
             if (colScene)
             {
                 // ── 공통 색상/두께 상수 ───────────────────────────────────────
@@ -917,7 +917,7 @@ void CSceneViewTool::OnRenderStay()
     GuizmoFrameResult guizmoResult;
     if (Engine.SceneManager)
     {
-        SafePtr<CScene> scene = Engine.SceneManager->GetActiveScene();
+        SafePtr<CGameScene> scene = Engine.SceneManager->GetActiveScene();
         if (scene)
         {
             GuizmoFrameContext guizmoContext;
@@ -976,7 +976,7 @@ void CSceneViewTool::OnRenderStay()
     {
         if (Engine.SceneManager)
         {
-            SafePtr<CScene> scene = Engine.SceneManager->GetActiveScene();
+            SafePtr<CGameScene> scene = Engine.SceneManager->GetActiveScene();
             if (scene)
             {
                 if (ImGui::IsKeyPressed(ImGuiKey_C, false))
@@ -1073,7 +1073,7 @@ void CSceneViewTool::OnRenderStay()
 
                 if (Engine.SceneManager)
                 {
-                    SafePtr<CScene> scene = Engine.SceneManager->GetActiveScene();
+                    SafePtr<CGameScene> scene = Engine.SceneManager->GetActiveScene();
                     if (scene)
                     {
                         m_editCtx.Validate(*scene);
@@ -1107,7 +1107,7 @@ void CSceneViewTool::OnRenderStay()
 
                 if (Engine.SceneManager)
                 {
-                    SafePtr<CScene> scene = Engine.SceneManager->GetActiveScene();
+                    SafePtr<CGameScene> scene = Engine.SceneManager->GetActiveScene();
                     if (scene)
                     {
                         m_editCtx.Validate(*scene);
@@ -1188,7 +1188,7 @@ void CSceneViewTool::OnRenderStay()
                 m_rightClickPending = false;
                 if (Engine.SceneManager)
                 {
-                    SafePtr<CScene> scene = Engine.SceneManager->GetActiveScene();
+                    SafePtr<CGameScene> scene = Engine.SceneManager->GetActiveScene();
                     if (scene)
                     {
                         m_editCtx.Validate(*scene);
@@ -1246,8 +1246,8 @@ void CSceneViewTool::OnRenderStay()
     // 각 섹션은 세팅된 상태가 유효할 때만 표시된다.
     if (ImGui::BeginPopup("##SVCtxMenu"))
     {
-        SafePtr<CScene> popupScene =
-            Engine.SceneManager ? Engine.SceneManager->GetActiveScene() : SafePtr<CScene>();
+        SafePtr<CGameScene> popupScene =
+            Engine.SceneManager ? Engine.SceneManager->GetActiveScene() : SafePtr<CGameScene>();
         if (popupScene)
         {
             // ── 섹션 1: 버텍스 삭제 ─────────────────────────────────────────
@@ -1321,7 +1321,7 @@ void CSceneViewTool::OnRenderStay()
     // RT 파이프라인으로 이전됨 (ImEditor::OnRender에서 GPU 셰이더로 처리).
     // 여기서는 ImEditor에 상태만 전달.
     {
-        SafePtr<CScene> scene;
+        SafePtr<CGameScene> scene;
         if (Engine.SceneManager) scene = Engine.SceneManager->GetActiveScene();
 
         // 포커스 컨텍스트
@@ -1431,7 +1431,7 @@ void CSceneViewTool::OnRenderStay()
 
     if (cameraTabActive && nullptr != selectedObject && Engine.SceneManager)
     {
-        SafePtr<CScene> sceneForVP = Engine.SceneManager->GetActiveScene();
+        SafePtr<CGameScene> sceneForVP = Engine.SceneManager->GetActiveScene();
         if (sceneForVP)
         {
             const Camera2D* cam    = selectedObject->GetComponent<Camera2D>();

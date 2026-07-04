@@ -13,7 +13,7 @@ namespace
 	// ⚠️ 게임 DLL 에서는 전역 `Engine`(EngineCore) 이 채워지지 않는다 — BindScriptCore 는
 	//    전역 `Script`(ScriptCore) 만 호스트 값으로 복사한다. 이 코드는 Engine.lib 이지만 게임
 	//    DLL 에도 링크되어 DLL 안에서 돌므로, 반드시 `Script.SceneManager` 를 써야 한다.
-	CScene* ActiveScene()
+	CGameScene* ActiveScene()
 	{
 		if (false == static_cast<bool>(Script.SceneManager))
 		{
@@ -27,7 +27,7 @@ namespace
 
 void* RefDetail::ResolveComponent(const char* objectGuid, const char* componentGuid, std::type_index componentType)
 {
-	CScene* scene = ActiveScene();
+	CGameScene* scene = ActiveScene();
 	if (nullptr == scene)
 	{
 		return nullptr;
@@ -38,7 +38,7 @@ void* RefDetail::ResolveComponent(const char* objectGuid, const char* componentG
 
 CGameObject* RefDetail::ResolveObject(const char* instanceGuid)
 {
-	CScene* scene = ActiveScene();
+	CGameScene* scene = ActiveScene();
 	if (nullptr == scene)
 	{
 		return nullptr;
@@ -48,7 +48,7 @@ CGameObject* RefDetail::ResolveObject(const char* instanceGuid)
 
 CGameScript* RefDetail::ResolveScript(const char* objectGuid, const char* componentGuid)
 {
-	CScene* scene = ActiveScene();
+	CGameScene* scene = ActiveScene();
 	if (nullptr == scene)
 	{
 		return nullptr;
