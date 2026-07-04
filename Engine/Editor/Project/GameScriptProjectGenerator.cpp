@@ -879,7 +879,7 @@ std::string CGameScriptProjectGenerator::BuildDefaultScriptHeader() const
 
 #include "GameFramework/Scripting/ScriptAPI.h"
 
-JBRO_SCRIPT CDefaultScript final : public CGameScript
+JBRO_SCRIPT CDefaultScript final : public GameScript
 {
 	SCRIPT_CLASS(CDefaultScript)
 

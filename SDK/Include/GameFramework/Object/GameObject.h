@@ -237,3 +237,6 @@ private:
 	std::vector<SafePtr<CGameObject>> m_children;
 	std::vector<SafePtr<CComponent>>  m_components;
 };
+
+// 사용자 대면 별칭 — 스크립트/문서는 접두사 없는 GameObject 로 쓴다.
+using GameObject = CGameObject;

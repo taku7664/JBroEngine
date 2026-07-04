@@ -246,6 +246,9 @@ private:
 	std::vector<SafePtr<CComponent>>   m_pendingDestroyComponents;
 };
 
+// 사용자 대면 별칭 — 스크립트/문서는 접두사 없는 Scene 으로 쓴다.
+using Scene = CGameScene;
+
 // ── CGameObject 템플릿 메서드 정의 (CGameScene 완전형 필요) ──────────────────────
 template<typename T, typename... Args>
 T* CGameObject::AddComponent(Args&&... args)

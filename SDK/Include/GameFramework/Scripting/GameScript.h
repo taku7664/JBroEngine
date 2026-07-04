@@ -58,3 +58,7 @@ private:
 	bool m_isStarted = false;
 	bool m_isBound   = false;
 };
+
+// 사용자 대면 별칭 — 스크립트는 접두사 없는 이름으로 쓴다(예: class Foo : public GameScript).
+// 엔진 내부 코드는 CGameScript 를 계속 쓴다(반환형도 원본 타입으로 표기됨).
+using GameScript = CGameScript;
