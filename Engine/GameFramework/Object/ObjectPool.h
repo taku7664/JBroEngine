@@ -30,7 +30,7 @@ template<typename T>
 class TObjectPool final
 {
 public:
-	static constexpr std::size_t SlotsPerChunk = 10;
+	static constexpr std::size_t SlotsPerChunk = 32;
 
 	TObjectPool() = default;
 	~TObjectPool() { Clear(); FreeChunks(); }

@@ -213,9 +213,13 @@ public:
 	void ClearParent();
 	bool IsDescendantOf(const CGameObject& possibleAncestor) const;
 
-	// scene 이 사용하는 계층 링크 조작(외부 호출 금지).
-	void __AddChild(const SafePtr<CGameObject>& child) { m_children.push_back(child); }
-	void __RemoveChild(CGameObject* child)
+	// ── 파괴 ──────────────────────────────────────────────────────────────────
+	void Destroy();
+
+private:
+	// 계층 링크 조작 — SetParent/ClearParent 내부 전용(예약 식별자 `__` 제거).
+	void AddChildInternal(const SafePtr<CGameObject>& child) { m_children.push_back(child); }
+	void RemoveChildInternal(CGameObject* child)
 	{
 		for (std::size_t i = 0; i < m_children.size(); ++i)
 		{
@@ -226,12 +230,7 @@ public:
 			}
 		}
 	}
-	void __SetParentRef(const SafePtr<CGameObject>& parent) { m_parent = parent; }
 
-	// ── 파괴 ──────────────────────────────────────────────────────────────────
-	void Destroy();
-
-private:
 	CGameScene*                          m_scene = nullptr;
 	SafePtr<CGameObject>             m_parent;
 	std::vector<SafePtr<CGameObject>> m_children;

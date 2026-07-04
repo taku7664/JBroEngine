@@ -12,7 +12,7 @@ bool CGameObject::SetParent(CGameObject& parent)
 
 	ClearParent();
 	m_parent = parent.SafeFromThis();
-	parent.__AddChild(SafeFromThis());
+	parent.AddChildInternal(SafeFromThis());
 	return true;
 }
 
@@ -20,7 +20,7 @@ void CGameObject::ClearParent()
 {
 	if (CGameObject* parent = m_parent.TryGet())
 	{
-		parent->__RemoveChild(this);
+		parent->RemoveChildInternal(this);
 	}
 	m_parent.Reset();
 }
