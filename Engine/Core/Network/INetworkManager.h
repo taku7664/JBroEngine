@@ -80,15 +80,16 @@ public:
 	virtual void         RegisterMessageType   (const void* typeTag, std::uint16_t messageId) = 0;
 	virtual std::uint16_t MessageIdForType     (const void* typeTag) const = 0;
 	virtual void         RegisterMessageHandler(std::uint16_t messageId, FNetworkMessageHandler handler) = 0;
-	virtual bool         SendMessageBytes      (NetworkConnectionId id, std::uint16_t messageId, const void* data, std::uint32_t size) = 0;
-	virtual bool         BroadcastMessageBytes (std::uint16_t messageId, const void* data, std::uint32_t size) = 0;
+	virtual bool         SendMessageBytes      (NetworkConnectionId id, std::uint16_t messageId, const void* data, std::uint32_t size, ENetChannel channel) = 0;
+	virtual bool         BroadcastMessageBytes (std::uint16_t messageId, const void* data, std::uint32_t size, ENetChannel channel) = 0;
 
 	// ── 타입드 메시지 파사드(게임 개발자 표면) ──────────────────────────────────────
 	// 사용 예:
 	//   struct PlayerMove { float X, Y; std::uint32_t Tick; };   // POD 여야 함
 	//   Script.Network->RegisterMessage<PlayerMove>(1);
 	//   Script.Network->OnMessage<PlayerMove>([](NetworkConnectionId peer, const PlayerMove& m) { ... });
-	//   Script.Network->Send(peer, PlayerMove{ x, y, tick });
+	//   Script.Network->Send(peer, PlayerMove{ x, y, tick });                     // 기본 ReliableOrdered
+	//   Script.Network->Send(peer, PlayerMove{...}, ENetChannel::Unreliable);     // 채널 명시
 	//   Script.Network->Broadcast(PlayerMove{ ... });
 	// 직렬화는 POD memcpy(리틀엔디언 고정). DLL 경계 POD 규약과 일치.
 	template<typename T>
@@ -116,21 +117,21 @@ public:
 	}
 
 	template<typename T>
-	bool Send(NetworkConnectionId id, const T& message)
+	bool Send(NetworkConnectionId id, const T& message, ENetChannel channel = ENetChannel::ReliableOrdered)
 	{
 		static_assert(std::is_trivially_copyable_v<T>,
 			"네트워크 메시지는 POD(trivially copyable) 여야 한다 — DLL 경계 규약.");
 		return SendMessageBytes(id, MessageIdForType(MessageTypeTag<T>()),
-			&message, static_cast<std::uint32_t>(sizeof(T)));
+			&message, static_cast<std::uint32_t>(sizeof(T)), channel);
 	}
 
 	template<typename T>
-	bool Broadcast(const T& message)
+	bool Broadcast(const T& message, ENetChannel channel = ENetChannel::ReliableOrdered)
 	{
 		static_assert(std::is_trivially_copyable_v<T>,
 			"네트워크 메시지는 POD(trivially copyable) 여야 한다 — DLL 경계 규약.");
 		return BroadcastMessageBytes(MessageIdForType(MessageTypeTag<T>()),
-			&message, static_cast<std::uint32_t>(sizeof(T)));
+			&message, static_cast<std::uint32_t>(sizeof(T)), channel);
 	}
 
 	// 타입별 고정 태그 주소(바이너리 내 유일·안정). RTTI 불필요.

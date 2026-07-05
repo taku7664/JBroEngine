@@ -149,12 +149,12 @@ double CNetworkManager::GetRoundTripMs(NetworkConnectionId id) const
 
 bool CNetworkManager::Send(NetworkConnectionId id, const void* data, std::uint32_t size)
 {
-	return SendFramed(id, RAW_MESSAGE_ID, data, size);
+	return SendFramed(id, RAW_MESSAGE_ID, data, size, ENetChannel::ReliableOrdered);
 }
 
 bool CNetworkManager::Broadcast(const void* data, std::uint32_t size)
 {
-	return BroadcastMessageBytes(RAW_MESSAGE_ID, data, size);
+	return BroadcastMessageBytes(RAW_MESSAGE_ID, data, size, ENetChannel::ReliableOrdered);
 }
 
 void CNetworkManager::Update()
@@ -312,13 +312,13 @@ void CNetworkManager::RegisterMessageHandler(std::uint16_t messageId, FNetworkMe
 }
 
 bool CNetworkManager::SendMessageBytes(
-	NetworkConnectionId id, std::uint16_t messageId, const void* data, std::uint32_t size)
+	NetworkConnectionId id, std::uint16_t messageId, const void* data, std::uint32_t size, ENetChannel channel)
 {
-	return SendFramed(id, messageId, data, size);
+	return SendFramed(id, messageId, data, size, channel);
 }
 
 bool CNetworkManager::BroadcastMessageBytes(
-	std::uint16_t messageId, const void* data, std::uint32_t size)
+	std::uint16_t messageId, const void* data, std::uint32_t size, ENetChannel channel)
 {
 	if (!m_transport || m_connections.empty())
 	{
@@ -328,7 +328,7 @@ bool CNetworkManager::BroadcastMessageBytes(
 	bool allOk = true;
 	for (NetworkConnectionId id : m_connections)
 	{
-		if (false == SendFramed(id, messageId, data, size))
+		if (false == SendFramed(id, messageId, data, size, channel))
 		{
 			allOk = false;
 		}
@@ -337,12 +337,16 @@ bool CNetworkManager::BroadcastMessageBytes(
 }
 
 bool CNetworkManager::SendFramed(
-	NetworkConnectionId id, std::uint16_t messageId, const void* data, std::uint32_t size)
+	NetworkConnectionId id, std::uint16_t messageId, const void* data, std::uint32_t size, ENetChannel channel)
 {
 	if (!m_transport)
 	{
 		return false;
 	}
+
+	// 현재 전 채널을 신뢰 WS transport 로 보낸다. 웹은 영구(브라우저 UDP 불가),
+	// 네이티브는 추후 UDP 백엔드가 붙으면 여기서 비신뢰 채널을 UDP 로 분기한다.
+	(void)channel;
 
 	std::vector<std::uint8_t> frame;
 	frame.reserve(MESSAGE_HEADER_SIZE + size);
@@ -368,7 +372,8 @@ double CNetworkManager::NowMs() const
 template<typename T>
 void CNetworkManager::SendSystem(NetworkConnectionId id, std::uint16_t messageId, const T& message)
 {
-	SendFramed(id, messageId, &message, static_cast<std::uint32_t>(sizeof(T)));
+	// 세션 제어 메시지는 항상 신뢰(순서보장).
+	SendFramed(id, messageId, &message, static_cast<std::uint32_t>(sizeof(T)), ENetChannel::ReliableOrdered);
 }
 
 void CNetworkManager::PromoteToReady(NetworkConnectionId id)

@@ -42,12 +42,13 @@ public:
 	void          RegisterMessageType   (const void* typeTag, std::uint16_t messageId) override;
 	std::uint16_t MessageIdForType      (const void* typeTag) const override;
 	void          RegisterMessageHandler(std::uint16_t messageId, FNetworkMessageHandler handler) override;
-	bool          SendMessageBytes      (NetworkConnectionId id, std::uint16_t messageId, const void* data, std::uint32_t size) override;
-	bool          BroadcastMessageBytes (std::uint16_t messageId, const void* data, std::uint32_t size) override;
+	bool          SendMessageBytes      (NetworkConnectionId id, std::uint16_t messageId, const void* data, std::uint32_t size, ENetChannel channel) override;
+	bool          BroadcastMessageBytes (std::uint16_t messageId, const void* data, std::uint32_t size, ENetChannel channel) override;
 
 private:
 	// [uint16 LE messageId][payload] 로 프레이밍해 transport 로 전송.
-	bool SendFramed(NetworkConnectionId id, std::uint16_t messageId, const void* data, std::uint32_t size);
+	// channel 은 전달보장 선택 — 현재 전 채널 신뢰 WS. UDP 백엔드 추가 시 여기서 분기.
+	bool SendFramed(NetworkConnectionId id, std::uint16_t messageId, const void* data, std::uint32_t size, ENetChannel channel);
 	void OnTransportConnected   (NetworkConnectionId id);
 	void OnTransportDisconnected(NetworkConnectionId id);
 	void OnTransportData        (NetworkConnectionId id, const std::uint8_t* data, std::uint32_t size);
