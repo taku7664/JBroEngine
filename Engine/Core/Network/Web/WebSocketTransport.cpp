@@ -3,11 +3,25 @@
 
 #if JBRO_PLATFORM_WEB
 
+#include <emscripten/emscripten.h>
+
 #include <cstring>
 #include <string>
 
 // The server is always addressed with this fixed ID on the client side.
 static constexpr NetworkConnectionId WEB_SERVER_ID = SERVER_CONNECTION_ID; // = 1
+
+namespace
+{
+	// host 미지정 시 페이지를 서빙한 origin 으로 자동 접속(배포 편의).
+	// scheme 는 페이지 프로토콜을 따른다(https → wss, http → ws) — 혼합콘텐츠 차단 회피.
+	std::string BuildOriginUrl()
+	{
+		char* raw = static_cast<char*>(emscripten_run_script_string(
+			"((location.protocol==='https:'?'wss://':'ws://')+location.host)"));
+		return (nullptr != raw) ? std::string(raw) : std::string("ws://127.0.0.1");
+	}
+}
 
 // ── Constructor / destructor ───────────────────────────────────────────────────
 
@@ -22,22 +36,17 @@ CWebSocketTransport::~CWebSocketTransport()
 
 bool CWebSocketTransport::Connect(const char* host, std::uint16_t port)
 {
-	if (!host || m_socket != 0)
+	if (m_socket != 0)
 	{
 		return false;
 	}
 
-	// Build the ws:// URL.
+	// host 미지정(null/빈문자열) → 페이지 origin 자동. 배포 시 주소 하드코딩 불필요.
 	std::string url;
-	const bool hasScheme =
-		std::strncmp(host, "ws://",  5) == 0 ||
-		std::strncmp(host, "wss://", 6) == 0;
-
-	if (hasScheme)
+	if (nullptr == host || '\0' == host[0])
 	{
-		url = host;
-		// Append port only if explicitly given and not already encoded in the URL.
-		if (port != 0)
+		url = BuildOriginUrl();
+		if (0 != port)
 		{
 			url += ':';
 			url += std::to_string(port);
@@ -45,10 +54,28 @@ bool CWebSocketTransport::Connect(const char* host, std::uint16_t port)
 	}
 	else
 	{
-		url  = "ws://";
-		url += host;
-		url += ':';
-		url += std::to_string(port);
+		// host 에 스킴이 있으면 그대로, 없으면 ws:// 로 감싼다.
+		const bool hasScheme =
+			std::strncmp(host, "ws://",  5) == 0 ||
+			std::strncmp(host, "wss://", 6) == 0;
+
+		if (hasScheme)
+		{
+			url = host;
+			// Append port only if explicitly given and not already encoded in the URL.
+			if (port != 0)
+			{
+				url += ':';
+				url += std::to_string(port);
+			}
+		}
+		else
+		{
+			url  = "ws://";
+			url += host;
+			url += ':';
+			url += std::to_string(port);
+		}
 	}
 
 	EmscriptenWebSocketCreateAttributes attrs;

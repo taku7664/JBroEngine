@@ -291,8 +291,17 @@
     <Filter Include="Source\Core\Network">
       <UniqueIdentifier>{B1A3F742-9C1E-4D5A-B823-1F2C3A4B5D6E}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source\Core\Network\Windows">
-      <UniqueIdentifier>{C2B4G853-AD2F-5E6B-C934-2G3D4B5C6E7F}</UniqueIdentifier>
+    <Filter Include="Source\Core\Network\Sockets">
+      <UniqueIdentifier>{C2B4G853-AD2F-5E6B-C934-2A3D4B5C6E01}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Core\Network\Sockets\Windows">
+      <UniqueIdentifier>{C2B4G853-AD2F-5E6B-C934-2A3D4B5C6E02}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Core\Network\WebSocket">
+      <UniqueIdentifier>{C2B4G853-AD2F-5E6B-C934-2A3D4B5C6E03}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Core\Network\Native">
+      <UniqueIdentifier>{C2B4G853-AD2F-5E6B-C934-2A3D4B5C6E04}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source\Core\Network\Web">
       <UniqueIdentifier>{D3C5H964-BE3G-6F7C-DA45-3H4E5C6D7F8G}</UniqueIdentifier>
@@ -300,8 +309,17 @@
     <Filter Include="Header\Core\Network">
       <UniqueIdentifier>{E4D6I075-CF4H-7G8D-EB56-4I5F6D7E8G9H}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Header\Core\Network\Windows">
-      <UniqueIdentifier>{F5E7J186-DG5I-8H9E-FC67-5J6G7E8F9H0I}</UniqueIdentifier>
+    <Filter Include="Header\Core\Network\Sockets">
+      <UniqueIdentifier>{F5E7J186-DG5I-8H9E-FC67-5A6G7E8F9001}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\Core\Network\Sockets\Windows">
+      <UniqueIdentifier>{F5E7J186-DG5I-8H9E-FC67-5A6G7E8F9002}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\Core\Network\WebSocket">
+      <UniqueIdentifier>{F5E7J186-DG5I-8H9E-FC67-5A6G7E8F9003}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\Core\Network\Native">
+      <UniqueIdentifier>{F5E7J186-DG5I-8H9E-FC67-5A6G7E8F9004}</UniqueIdentifier>
     </Filter>
     <Filter Include="Header\Core\Network\Web">
       <UniqueIdentifier>{G6F8K297-EH6J-9I0F-GD78-6K7H8F9G0I1J}</UniqueIdentifier>
@@ -758,8 +776,20 @@
     <ClInclude Include="Core\Network\NetworkManager.h">
       <Filter>Header\Core\Network</Filter>
     </ClInclude>
-    <ClInclude Include="Core\Network\Windows\WinSockTransport.h">
-      <Filter>Header\Core\Network\Windows</Filter>
+    <ClInclude Include="Core\Network\Sockets\ISocket.h">
+      <Filter>Header\Core\Network\Sockets</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Network\Sockets\Windows\WinTcpSocket.h">
+      <Filter>Header\Core\Network\Sockets\Windows</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Network\WebSocket\HandshakeCrypto.h">
+      <Filter>Header\Core\Network\WebSocket</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Network\WebSocket\WebSocketProtocol.h">
+      <Filter>Header\Core\Network\WebSocket</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Network\Native\NativeWebSocketTransport.h">
+      <Filter>Header\Core\Network\Native</Filter>
     </ClInclude>
     <ClInclude Include="Core\Network\Web\WebSocketTransport.h">
       <Filter>Header\Core\Network\Web</Filter>
@@ -1186,8 +1216,17 @@
     <ClCompile Include="Core\Network\NetworkManager.cpp">
       <Filter>Source\Core\Network</Filter>
     </ClCompile>
-    <ClCompile Include="Core\Network\Windows\WinSockTransport.cpp">
-      <Filter>Source\Core\Network\Windows</Filter>
+    <ClCompile Include="Core\Network\Sockets\Windows\WinTcpSocket.cpp">
+      <Filter>Source\Core\Network\Sockets\Windows</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Network\WebSocket\HandshakeCrypto.cpp">
+      <Filter>Source\Core\Network\WebSocket</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Network\WebSocket\WebSocketProtocol.cpp">
+      <Filter>Source\Core\Network\WebSocket</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Network\Native\NativeWebSocketTransport.cpp">
+      <Filter>Source\Core\Network\Native</Filter>
     </ClCompile>
     <ClCompile Include="Core\Network\Web\WebSocketTransport.cpp">
       <Filter>Source\Core\Network\Web</Filter>

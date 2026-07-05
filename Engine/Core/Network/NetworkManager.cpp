@@ -2,6 +2,37 @@
 #include "NetworkManager.h"
 
 #include <algorithm>
+#include <chrono>
+#include <cstring>
+#include <vector>
+
+// NetworkManager 는 transport(WebSocket) 위에 얇은 메시지 헤더를 얹는다.
+//   와이어: [uint16 LE messageId][payload]
+//   messageId 0 = raw(SetOnDataReceived 경로), 1..0xFEFF = 유저 타입드, 0xFF00~ = 시스템(세션).
+namespace
+{
+	constexpr std::uint16_t RAW_MESSAGE_ID      = 0;
+	constexpr std::size_t   MESSAGE_HEADER_SIZE = 2; // uint16 LE.
+
+	// 세션 시스템 메시지 ID(예약 대역 0xFF00~). 유저 등록 불가.
+	constexpr std::uint16_t SYSTEM_MESSAGE_BASE = 0xFF00;
+	constexpr std::uint16_t SYS_HELLO           = 0xFF01;
+	constexpr std::uint16_t SYS_HELLO_ACK       = 0xFF02;
+	constexpr std::uint16_t SYS_BYE             = 0xFF03;
+	constexpr std::uint16_t SYS_PING            = 0xFF04;
+	constexpr std::uint16_t SYS_PONG            = 0xFF05;
+
+	// keepalive 타이밍(ms).
+	constexpr double PING_INTERVAL_MS = 1000.0; // Ready 연결에 주기 ping.
+	constexpr double TIMEOUT_MS       = 5000.0; // 무응답 임계 → Timeout 종료.
+
+	// 시스템 메시지 페이로드(POD, LE 고정).
+	struct SysHelloPayload    { std::uint32_t ProtocolVersion; };
+	struct SysHelloAckPayload { std::uint32_t ProtocolVersion; };
+	struct SysByePayload      { std::uint8_t  Reason; };
+	struct SysPingPayload     { double        SendTimeMs; };
+	struct SysPongPayload     { double        EchoTimeMs; };
+}
 
 // ── Construction / destruction ─────────────────────────────────────────────────
 
@@ -46,6 +77,8 @@ void CNetworkManager::Finalize()
 		m_transport->Close();
 	}
 	m_connections.clear();
+	m_typeIds.clear();
+	m_messageHandlers.clear();
 	m_role           = ENetworkRole::None;
 	m_isInitialized  = false;
 }
@@ -77,6 +110,7 @@ void CNetworkManager::Disconnect()
 		m_transport->Close();
 	}
 	m_connections.clear();
+	m_sessions.clear();
 	m_role = ENetworkRole::None;
 }
 
@@ -107,34 +141,47 @@ ENetworkRole CNetworkManager::GetRole() const
 	return m_role;
 }
 
+double CNetworkManager::GetRoundTripMs(NetworkConnectionId id) const
+{
+	const auto it = m_sessions.find(id);
+	return (m_sessions.end() != it) ? it->second.RoundTripMs : -1.0;
+}
+
 bool CNetworkManager::Send(NetworkConnectionId id, const void* data, std::uint32_t size)
 {
-	return m_transport && m_transport->Send(id, data, size);
+	return SendFramed(id, RAW_MESSAGE_ID, data, size);
 }
 
 bool CNetworkManager::Broadcast(const void* data, std::uint32_t size)
 {
-	if (!m_transport || m_connections.empty())
-	{
-		return false;
-	}
-
-	bool allOk = true;
-	for (NetworkConnectionId id : m_connections)
-	{
-		if (false == m_transport->Send(id, data, size))
-		{
-			allOk = false;
-		}
-	}
-	return allOk;
+	return BroadcastMessageBytes(RAW_MESSAGE_ID, data, size);
 }
 
 void CNetworkManager::Update()
 {
 	if (m_transport)
 	{
-		m_transport->Update();
+		m_transport->Update(); // 콜백 발화(수신/연결/종료). 여기서 WantsClose 가 설정될 수 있음.
+	}
+
+	UpdateSessions(); // ping 송신 / 타임아웃 감지 → WantsClose 설정.
+
+	// 지연 종료 처리. 콜백(onData) 재진입 중 transport 를 건드리면 UAF 위험이라
+	// 실제 CloseConnection 은 여기(Update 말미)서만 한다. id 먼저 스냅샷.
+	std::vector<NetworkConnectionId> toClose;
+	for (const auto& entry : m_sessions)
+	{
+		if (entry.second.WantsClose)
+		{
+			toClose.push_back(entry.first);
+		}
+	}
+	for (NetworkConnectionId id : toClose)
+	{
+		if (m_transport)
+		{
+			m_transport->CloseConnection(id); // → OnTransportDisconnected 에서 세션 정리 + 콜백.
+		}
 	}
 }
 
@@ -157,29 +204,314 @@ void CNetworkManager::SetOnDataReceived(FOnNetworkDataReceived callback)
 
 void CNetworkManager::OnTransportConnected(NetworkConnectionId id)
 {
-	m_connections.push_back(id);
-	if (m_onConnected)
+	// 전송 연결됨 = 세션 시작(아직 게임엔 통보 안 함). hello 합의 후 PromoteToReady 에서 통보.
+	ConnectionSession session;
+	session.State          = ESessionState::Handshaking;
+	session.LastRecvMs     = NowMs();
+	session.LastPingSentMs = NowMs();
+	m_sessions[id]         = session;
+
+	// 클라이언트가 hello 를 먼저 보낸다(서버는 수신 후 검증·응답).
+	if (ENetworkRole::Client == m_role)
 	{
-		m_onConnected(id);
+		SysHelloPayload hello{ NETWORK_PROTOCOL_VERSION };
+		SendSystem(id, SYS_HELLO, hello);
 	}
 }
 
 void CNetworkManager::OnTransportDisconnected(NetworkConnectionId id)
 {
+	const auto it = m_sessions.find(id);
+	const ENetworkDisconnectReason reason =
+		(m_sessions.end() != it) ? it->second.PendingReason : ENetworkDisconnectReason::Normal;
+	const bool wasReady =
+		(m_sessions.end() != it) && (ESessionState::Ready == it->second.State);
+
+	m_sessions.erase(id);
 	m_connections.erase(
 		std::remove(m_connections.begin(), m_connections.end(), id),
 		m_connections.end());
-	if (m_onDisconnected)
+
+	// 통보 대상:
+	//  - Ready 였던 연결(게임이 OnConnected 를 이미 받음) → 종료 통보.
+	//  - 클라이언트가 시도한 연결 → 핸드셰이크 실패(버전 불일치 등)도 결과를 알려야 함.
+	//  - 서버가 수락한 미완 연결(스캐너/버전불일치 랜덤) → 게임에 노출 안 함.
+	const bool notify = wasReady || (ENetworkRole::Client == m_role);
+	if (notify && m_onDisconnected)
 	{
-		m_onDisconnected(id);
+		m_onDisconnected(id, reason);
 	}
 }
 
 void CNetworkManager::OnTransportData(
 	NetworkConnectionId id, const std::uint8_t* data, std::uint32_t size)
 {
-	if (m_onDataReceived)
+	if (size < MESSAGE_HEADER_SIZE)
 	{
-		m_onDataReceived(id, data, size);
+		return; // 헤더 없는 프레임 — 우리 송신 규약상 발생하지 않음. 방어적으로 무시.
+	}
+
+	const std::uint16_t messageId =
+		static_cast<std::uint16_t>(data[0]) |
+		(static_cast<std::uint16_t>(data[1]) << 8);
+
+	const std::uint8_t* payload     = data + MESSAGE_HEADER_SIZE;
+	const std::uint32_t payloadSize = size - static_cast<std::uint32_t>(MESSAGE_HEADER_SIZE);
+
+	// 어떤 프레임이든 수신은 liveness 신호.
+	const auto sessionIt = m_sessions.find(id);
+	if (m_sessions.end() != sessionIt)
+	{
+		sessionIt->second.LastRecvMs = NowMs();
+	}
+
+	// 시스템(세션) 메시지는 게임에 노출하지 않고 내부 처리.
+	if (messageId >= SYSTEM_MESSAGE_BASE)
+	{
+		HandleSystemMessage(id, messageId, payload, payloadSize);
+		return;
+	}
+
+	if (RAW_MESSAGE_ID == messageId)
+	{
+		if (m_onDataReceived)
+		{
+			m_onDataReceived(id, payload, payloadSize);
+		}
+		return;
+	}
+
+	const auto it = m_messageHandlers.find(messageId);
+	if (m_messageHandlers.end() != it && it->second)
+	{
+		it->second(id, payload, payloadSize);
+	}
+}
+
+// ── 타입드 메시지 ────────────────────────────────────────────────────────────────
+
+void CNetworkManager::RegisterMessageType(const void* typeTag, std::uint16_t messageId)
+{
+	// 0(raw) 과 시스템 예약 대역(0xFF00~)은 유저 등록 불가. 유효 범위 1..0xFEFF.
+	if (RAW_MESSAGE_ID == messageId || messageId >= SYSTEM_MESSAGE_BASE)
+	{
+		return;
+	}
+	m_typeIds[typeTag] = messageId;
+}
+
+std::uint16_t CNetworkManager::MessageIdForType(const void* typeTag) const
+{
+	const auto it = m_typeIds.find(typeTag);
+	return (m_typeIds.end() != it) ? it->second : RAW_MESSAGE_ID;
+}
+
+void CNetworkManager::RegisterMessageHandler(std::uint16_t messageId, FNetworkMessageHandler handler)
+{
+	m_messageHandlers[messageId] = std::move(handler);
+}
+
+bool CNetworkManager::SendMessageBytes(
+	NetworkConnectionId id, std::uint16_t messageId, const void* data, std::uint32_t size)
+{
+	return SendFramed(id, messageId, data, size);
+}
+
+bool CNetworkManager::BroadcastMessageBytes(
+	std::uint16_t messageId, const void* data, std::uint32_t size)
+{
+	if (!m_transport || m_connections.empty())
+	{
+		return false;
+	}
+
+	bool allOk = true;
+	for (NetworkConnectionId id : m_connections)
+	{
+		if (false == SendFramed(id, messageId, data, size))
+		{
+			allOk = false;
+		}
+	}
+	return allOk;
+}
+
+bool CNetworkManager::SendFramed(
+	NetworkConnectionId id, std::uint16_t messageId, const void* data, std::uint32_t size)
+{
+	if (!m_transport)
+	{
+		return false;
+	}
+
+	std::vector<std::uint8_t> frame;
+	frame.reserve(MESSAGE_HEADER_SIZE + size);
+	frame.push_back(static_cast<std::uint8_t>(messageId & 0xFFu));
+	frame.push_back(static_cast<std::uint8_t>((messageId >> 8) & 0xFFu));
+	if (size > 0 && nullptr != data)
+	{
+		const std::uint8_t* bytes = static_cast<const std::uint8_t*>(data);
+		frame.insert(frame.end(), bytes, bytes + size);
+	}
+
+	return m_transport->Send(id, frame.data(), static_cast<std::uint32_t>(frame.size()));
+}
+
+// ── 세션 계층 구현 ────────────────────────────────────────────────────────────
+
+double CNetworkManager::NowMs() const
+{
+	const auto now = std::chrono::steady_clock::now().time_since_epoch();
+	return std::chrono::duration<double, std::milli>(now).count();
+}
+
+template<typename T>
+void CNetworkManager::SendSystem(NetworkConnectionId id, std::uint16_t messageId, const T& message)
+{
+	SendFramed(id, messageId, &message, static_cast<std::uint32_t>(sizeof(T)));
+}
+
+void CNetworkManager::PromoteToReady(NetworkConnectionId id)
+{
+	const auto it = m_sessions.find(id);
+	if (m_sessions.end() == it || ESessionState::Ready == it->second.State)
+	{
+		return;
+	}
+
+	it->second.State          = ESessionState::Ready;
+	it->second.LastRecvMs     = NowMs();
+	it->second.LastPingSentMs = NowMs();
+
+	if (m_connections.end() == std::find(m_connections.begin(), m_connections.end(), id))
+	{
+		m_connections.push_back(id);
+	}
+
+	if (m_onConnected)
+	{
+		m_onConnected(id);
+	}
+}
+
+void CNetworkManager::DropConnection(NetworkConnectionId id, ENetworkDisconnectReason reason)
+{
+	// 즉시 닫지 않고 플래그만. 실제 CloseConnection 은 Update 말미(재진입 안전).
+	const auto it = m_sessions.find(id);
+	if (m_sessions.end() == it)
+	{
+		return;
+	}
+	it->second.PendingReason = reason;
+	it->second.WantsClose    = true;
+}
+
+bool CNetworkManager::HandleSystemMessage(
+	NetworkConnectionId id, std::uint16_t messageId, const void* data, std::uint32_t size)
+{
+	switch (messageId)
+	{
+	case SYS_HELLO:
+	{
+		// 서버가 클라 hello 를 검증.
+		if (sizeof(SysHelloPayload) != size)
+		{
+			DropConnection(id, ENetworkDisconnectReason::Error);
+			return true;
+		}
+		SysHelloPayload hello{};
+		std::memcpy(&hello, data, sizeof(hello));
+
+		if (NETWORK_PROTOCOL_VERSION != hello.ProtocolVersion)
+		{
+			// 거부 사유(Bye)를 보낸다. 단, **닫지 않는다** — pending 데이터가 있는 쪽이
+			// 먼저 closesocket 하면 RST 가 버퍼된 Bye 를 삼킨다(수신측 데이터 유실).
+			// 클라가 Bye 를 읽고 스스로 닫거나(clean FIN), 핸드셰이크 타임아웃(5s)이 정리한다.
+			SysByePayload bye{ static_cast<std::uint8_t>(ENetworkDisconnectReason::VersionMismatch) };
+			SendSystem(id, SYS_BYE, bye);
+			return true;
+		}
+
+		SysHelloAckPayload ack{ NETWORK_PROTOCOL_VERSION };
+		SendSystem(id, SYS_HELLO_ACK, ack);
+		PromoteToReady(id);
+		return true;
+	}
+	case SYS_HELLO_ACK:
+	{
+		// 클라가 서버 수락을 확인 → 세션 준비 완료.
+		PromoteToReady(id);
+		return true;
+	}
+	case SYS_BYE:
+	{
+		ENetworkDisconnectReason reason = ENetworkDisconnectReason::Normal;
+		if (sizeof(SysByePayload) == size)
+		{
+			SysByePayload bye{};
+			std::memcpy(&bye, data, sizeof(bye));
+			reason = static_cast<ENetworkDisconnectReason>(bye.Reason);
+		}
+		DropConnection(id, reason);
+		return true;
+	}
+	case SYS_PING:
+	{
+		if (sizeof(SysPingPayload) == size)
+		{
+			SysPingPayload ping{};
+			std::memcpy(&ping, data, sizeof(ping));
+			SysPongPayload pong{ ping.SendTimeMs }; // 상대 시각 그대로 에코.
+			SendSystem(id, SYS_PONG, pong);
+		}
+		return true;
+	}
+	case SYS_PONG:
+	{
+		if (sizeof(SysPongPayload) == size)
+		{
+			SysPongPayload pong{};
+			std::memcpy(&pong, data, sizeof(pong));
+			const auto it = m_sessions.find(id);
+			if (m_sessions.end() != it)
+			{
+				it->second.RoundTripMs = NowMs() - pong.EchoTimeMs;
+			}
+		}
+		return true;
+	}
+	default:
+		return true; // 미지의 시스템 메시지는 무시(전방호환).
+	}
+}
+
+void CNetworkManager::UpdateSessions()
+{
+	const double now = NowMs();
+
+	for (auto& entry : m_sessions)
+	{
+		ConnectionSession& session = entry.second;
+		if (session.WantsClose)
+		{
+			continue; // 이미 종료 예정.
+		}
+
+		// 무응답 타임아웃(핸드셰이크·Ready 공통) → Timeout 종료.
+		if (now - session.LastRecvMs > TIMEOUT_MS)
+		{
+			session.PendingReason = ENetworkDisconnectReason::Timeout;
+			session.WantsClose    = true;
+			continue;
+		}
+
+		// Ready 연결은 주기적으로 ping 을 보내 liveness/RTT 유지.
+		if (ESessionState::Ready == session.State &&
+		    now - session.LastPingSentMs >= PING_INTERVAL_MS)
+		{
+			session.LastPingSentMs = now;
+			SysPingPayload ping{ now };
+			SendSystem(entry.first, SYS_PING, ping);
+		}
 	}
 }

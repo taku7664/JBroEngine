@@ -17,6 +17,7 @@
 // WebSocket is already message-framed).
 //
 // host passed to Connect() may be:
+//   - null or "" :           페이지 origin 자동(https→wss, http→ws). 배포 편의.
 //   - A full WebSocket URL:  "ws://hostname:port/path"
 //   - A bare hostname:       "hostname"  → becomes "ws://hostname:port"
 class CWebSocketTransport final : public INetworkTransport

@@ -43,10 +43,10 @@
 #include "Core/Network/NetworkManager.h"
 #include "Core/Network/INetworkManager.h"
 #include "Core/Debug/DebugDraw2D.h"
-#if JBRO_PLATFORM_WINDOWS
-#include "Core/Network/Windows/WinSockTransport.h"
-#elif JBRO_PLATFORM_WEB
+#if JBRO_PLATFORM_WEB
 #include "Core/Network/Web/WebSocketTransport.h"
+#else
+#include "Core/Network/Native/NativeWebSocketTransport.h"
 #endif
 #include "GameFramework/Component/BuiltinComponentRegistry.h"
 #include "GameFramework/Rendering/GameCamera.h"
@@ -445,13 +445,10 @@ bool CEngine::InitializeNetwork()
 	}
 
 	OwnerPtr<INetworkTransport> transport;
-#if JBRO_PLATFORM_WINDOWS
-	transport = MakeOwnerPtr<CWinSockTransport>();
-#elif JBRO_PLATFORM_WEB
+#if JBRO_PLATFORM_WEB
 	transport = MakeOwnerPtr<CWebSocketTransport>();
 #else
-	CSystemLog::Warning("InitializeNetwork: unsupported platform.");
-	return false;
+	transport = MakeOwnerPtr<CNativeWebSocketTransport>();
 #endif
 
 	m_networkManager = MakeOwnerPtr<CNetworkManager>(std::move(transport));

@@ -582,7 +582,11 @@
     <ClInclude Include="Core\Network\INetworkTransport.h" />
     <ClInclude Include="Core\Network\INetworkManager.h" />
     <ClInclude Include="Core\Network\NetworkManager.h" />
-    <ClInclude Include="Core\Network\Windows\WinSockTransport.h" />
+    <ClInclude Include="Core\Network\Sockets\ISocket.h" />
+    <ClInclude Include="Core\Network\Sockets\Windows\WinTcpSocket.h" />
+    <ClInclude Include="Core\Network\WebSocket\HandshakeCrypto.h" />
+    <ClInclude Include="Core\Network\WebSocket\WebSocketProtocol.h" />
+    <ClInclude Include="Core\Network\Native\NativeWebSocketTransport.h" />
     <ClInclude Include="Core\Network\Web\WebSocketTransport.h" />
     <ClInclude Include="GameFramework\Component\Light2D.h" />
     <ClInclude Include="GameFramework\Physics2D\Physics2DGeometry.h" />
@@ -633,7 +637,10 @@
     <ClCompile Include="Core\Game\GameModuleLoader.cpp" />
     <ClCompile Include="Core\Math\MathService.cpp" />
     <ClCompile Include="Core\Network\NetworkManager.cpp" />
-    <ClCompile Include="Core\Network\Windows\WinSockTransport.cpp" />
+    <ClCompile Include="Core\Network\Sockets\Windows\WinTcpSocket.cpp" />
+    <ClCompile Include="Core\Network\WebSocket\HandshakeCrypto.cpp" />
+    <ClCompile Include="Core\Network\WebSocket\WebSocketProtocol.cpp" />
+    <ClCompile Include="Core\Network\Native\NativeWebSocketTransport.cpp" />
     <ClCompile Include="Core\Network\Web\WebSocketTransport.cpp" />
     <ClCompile Include="Core\Module\Module.cpp" />
     <ClCompile Include="Core\Platform\Mobile\MobilePlatform.cpp" />
