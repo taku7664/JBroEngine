@@ -85,6 +85,9 @@ EM_BOOL CWebCanvasSurface::OnCanvasResize(int /*eventType*/, const EmscriptenUiE
 		self->m_resized = true;
 		self->m_resizeWidth = width;
 		self->m_resizeHeight = height;
+		// GetSize() 가 최신 캔버스 크기를 반환하도록 desc 도 갱신한다(윈도우의 GetClientRect 동등).
+		self->m_desc.Width = width;
+		self->m_desc.Height = height;
 	}
 	return EM_TRUE;
 }

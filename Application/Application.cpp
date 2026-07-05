@@ -453,15 +453,21 @@ bool CGameApplication::LoadRuntimeStartupScene(const BuildManifest& manifest)
 		return false;
 	}
 
-	for (const std::string& scenePath : manifest.BuildScenes)
+	for (std::size_t sceneIndex = 0; sceneIndex < manifest.BuildScenes.size(); ++sceneIndex)
 	{
+		const std::string& scenePath = manifest.BuildScenes[sceneIndex];
 		if (scenePath.empty() || scenePath == manifest.StartupScene || scenePath == startupName)
 		{
 			continue; // startup 은 위에서 이미 로드. 중복 스킵.
 		}
 		// BuildScenes 항목은 프로젝트 상대 경로 문자열 — 이를 씬 이름으로도 쓴다(에디터와 동일 키).
+		// GUID 가 있으면 GUID(패키지 에셋)로 로드한다 — release 패키지는 경로 폴백이 금지되므로
+		// GUID 가 비면 debug 에서만 경로 폴백으로 로드된다.
+		const AssetGuid sceneGuid = sceneIndex < manifest.BuildSceneGuids.size()
+			? AssetGuid(manifest.BuildSceneGuids[sceneIndex])
+			: AssetGuid();
 		if (false == LoadRuntimeSceneNodes(*sceneManager, *assetManager, context,
-		                                   scenePath, AssetGuid(), scenePath))
+		                                   scenePath, sceneGuid, scenePath))
 		{
 			// 한 씬 로드 실패는 치명적이지 않게 — 로그만 남기고 나머지를 계속 로드한다.
 			CSystemLog::Warning(std::string("Runtime build scene skipped (load failed): ") + scenePath);

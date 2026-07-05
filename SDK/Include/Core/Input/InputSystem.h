@@ -97,6 +97,13 @@ public:
 	// 좌표는 surface(클라이언트) 픽셀. 메인 스레드 호출 가정(휠/텍스트와 동일).
 	void AccumulateTouch(std::int32_t pointerId, int x, int y, ETouchPhase phase);
 
+	// 웹 키/마우스 상태 — emscripten keydown/keyup/mouse 콜백이 프레임 사이 호출한다.
+	// 윈도우의 직접 폴링(GetAsyncKeyState/GetCursorPos)에 대응하는 웹 백엔드.
+	// down=true 는 눌림, false 는 떼짐. 좌표는 캔버스(클라이언트) 픽셀.
+	void AccumulateKey(EKeyCode key, bool down);
+	void AccumulateMouseButton(EMouseButton button, bool down);
+	void AccumulateMousePosition(int x, int y);
+
 	// 레이어 우선순위 구성(프로젝트 세팅 주입). front = 최우선. 미설정 레이어는 최하위 + 1회 경고.
 	void ConfigureLayers(const std::vector<std::string>& orderedLayers);
 
@@ -154,6 +161,14 @@ private:
 
 	int             m_lastMouseX  = 0;
 	int             m_lastMouseY  = 0;
+
+	// 웹 입력 영속 상태 — 콜백(keydown/keyup/mouse)이 채우고 PollDevices 가 컨텍스트로 복사한다.
+	// (윈도우는 매 프레임 직접 폴링하므로 이 버퍼가 필요 없다. 웹은 이벤트 구동이라 상태 유지 필요.)
+	bool            m_webKeyState[static_cast<std::size_t>(EKeyCode::Count)] = {};
+	bool            m_webMouseButton[static_cast<std::size_t>(EMouseButton::Count)] = {};
+	int             m_webMouseX     = 0;
+	int             m_webMouseY     = 0;
+
 	bool            m_hadFocus      = false;
 	bool            m_viewportActive = true; // 에디터 GameView 게이트(스탠드얼론은 항상 true)
 	IRenderSurface* m_mainSurface   = nullptr;

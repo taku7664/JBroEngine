@@ -992,6 +992,15 @@ bool CGameBuildManager::StagePackage(const BuildDesc& desc, const File::Path& sc
 	manifest.TargetPlatform = ToString(desc.TargetPlatform);
 	manifest.StartupScene = desc.StartupScene;
 	manifest.StartupSceneGuid = desc.StartupSceneGuid;
+	// 빌드 씬 목록 + 각 씬의 GUID(런타임 선로드용). ValidateBuild 가 이미 전 씬의 GUID 존재를
+	// 보증하므로 여기선 해석만 한다. release 패키지는 경로 폴백이 금지되어 GUID 가 필수.
+	manifest.BuildScenes = desc.BuildScenes;
+	manifest.BuildSceneGuids.reserve(desc.BuildScenes.size());
+	for (const std::string& scene : desc.BuildScenes)
+	{
+		manifest.BuildSceneGuids.push_back(
+			FindAssetGuidByPath(File::Path(Utillity::U8ToWString(scene))).generic_string());
+	}
 	manifest.ResolutionWidth = static_cast<int>(desc.ResolutionWidth);
 	manifest.ResolutionHeight = static_cast<int>(desc.ResolutionHeight);
 	manifest.PixelsPerUnit = desc.PixelsPerUnit;

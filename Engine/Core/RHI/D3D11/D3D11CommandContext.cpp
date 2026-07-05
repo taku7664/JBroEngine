@@ -234,7 +234,23 @@ void CD3D11CommandContext::UpdateBuffer(SafePtr<IRHIBuffer> buffer, const void* 
 		return;
 	}
 
-	m_deviceContext->UpdateSubresource(d3dBuffer->GetNativeBuffer(), 0, nullptr, data, 0, 0);
+	// DYNAMIC 버퍼는 CPU_ACCESS_WRITE 로 생성되므로 UpdateSubresource 가 불법(D3D11 규칙).
+	// Map(WRITE_DISCARD)/Unmap 으로 갱신하고, DEFAULT 버퍼만 UpdateSubresource 를 쓴다.
+	if (ERHIBufferUsage::Dynamic == d3dBuffer->GetDesc().Usage)
+	{
+		D3D11_MAPPED_SUBRESOURCE mapped = {};
+		const HRESULT result = m_deviceContext->Map(
+			d3dBuffer->GetNativeBuffer(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+		if (SUCCEEDED(result) && nullptr != mapped.pData)
+		{
+			std::memcpy(mapped.pData, data, size);
+			m_deviceContext->Unmap(d3dBuffer->GetNativeBuffer(), 0);
+		}
+	}
+	else
+	{
+		m_deviceContext->UpdateSubresource(d3dBuffer->GetNativeBuffer(), 0, nullptr, data, 0, 0);
+	}
 #else
 	(void)buffer;
 	(void)data;

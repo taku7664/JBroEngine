@@ -275,6 +275,144 @@ namespace
 		return EM_FALSE;
 	}
 
+	// 마우스 이벤트를 붙일 캔버스 셀렉터 — 좌표를 캔버스(클라이언트) 기준으로 받기 위함
+	// (WebCanvasSurface 의 셀렉터와 일치해야 한다).
+	constexpr const char* kWebInputCanvasSelector = "#jbro-canvas";
+
+	// DOM KeyboardEvent.code(물리 키, 레이아웃 무관) → EKeyCode. keydown/keyup 백엔드가 사용.
+	// 매칭 실패(EKeyCode::Unknown)는 무시된다.
+	EKeyCode MapDomCodeToKey(const char* code)
+	{
+		if (nullptr == code || '\0' == code[0])
+		{
+			return EKeyCode::Unknown;
+		}
+
+		// KeyA..KeyZ
+		if (0 == std::strncmp(code, "Key", 3) && code[3] >= 'A' && code[3] <= 'Z' && '\0' == code[4])
+		{
+			return static_cast<EKeyCode>(static_cast<int>(EKeyCode::A) + (code[3] - 'A'));
+		}
+		// Digit0..Digit9
+		if (0 == std::strncmp(code, "Digit", 5) && code[5] >= '0' && code[5] <= '9' && '\0' == code[6])
+		{
+			return static_cast<EKeyCode>(static_cast<int>(EKeyCode::Num0) + (code[5] - '0'));
+		}
+		// Numpad0..Numpad9
+		if (0 == std::strncmp(code, "Numpad", 6) && code[6] >= '0' && code[6] <= '9' && '\0' == code[7])
+		{
+			return static_cast<EKeyCode>(static_cast<int>(EKeyCode::Numpad0) + (code[6] - '0'));
+		}
+		// F1..F12
+		if ('F' == code[0] && code[1] >= '1' && code[1] <= '9')
+		{
+			int number = 0;
+			for (const char* p = code + 1; *p != '\0'; ++p)
+			{
+				if (*p < '0' || *p > '9') { number = -1; break; }
+				number = number * 10 + (*p - '0');
+			}
+			if (number >= 1 && number <= 12)
+			{
+				return static_cast<EKeyCode>(static_cast<int>(EKeyCode::F1) + (number - 1));
+			}
+		}
+
+		struct CodeEntry { const char* Code; EKeyCode Key; };
+		static const CodeEntry kTable[] = {
+			{ "Escape", EKeyCode::Escape }, { "Space", EKeyCode::Space },
+			{ "Enter", EKeyCode::Enter }, { "Tab", EKeyCode::Tab }, { "Backspace", EKeyCode::Backspace },
+			{ "ArrowLeft", EKeyCode::Left }, { "ArrowRight", EKeyCode::Right },
+			{ "ArrowUp", EKeyCode::Up }, { "ArrowDown", EKeyCode::Down },
+			{ "ShiftLeft", EKeyCode::LeftShift }, { "ShiftRight", EKeyCode::RightShift },
+			{ "ControlLeft", EKeyCode::LeftCtrl }, { "ControlRight", EKeyCode::RightCtrl },
+			{ "AltLeft", EKeyCode::LeftAlt }, { "AltRight", EKeyCode::RightAlt },
+			{ "Insert", EKeyCode::Insert }, { "Delete", EKeyCode::Delete },
+			{ "Home", EKeyCode::Home }, { "End", EKeyCode::End },
+			{ "PageUp", EKeyCode::PageUp }, { "PageDown", EKeyCode::PageDown },
+			{ "CapsLock", EKeyCode::CapsLock },
+			{ "Minus", EKeyCode::Minus }, { "Equal", EKeyCode::Equals },
+			{ "BracketLeft", EKeyCode::LeftBracket }, { "BracketRight", EKeyCode::RightBracket },
+			{ "Backslash", EKeyCode::Backslash }, { "Semicolon", EKeyCode::Semicolon },
+			{ "Quote", EKeyCode::Apostrophe }, { "Comma", EKeyCode::Comma },
+			{ "Period", EKeyCode::Period }, { "Slash", EKeyCode::Slash }, { "Backquote", EKeyCode::Grave },
+			{ "NumpadAdd", EKeyCode::NumpadAdd }, { "NumpadSubtract", EKeyCode::NumpadSubtract },
+			{ "NumpadMultiply", EKeyCode::NumpadMultiply }, { "NumpadDivide", EKeyCode::NumpadDivide },
+			{ "NumpadDecimal", EKeyCode::NumpadDecimal }, { "NumpadEnter", EKeyCode::NumpadEnter },
+		};
+		for (const CodeEntry& entry : kTable)
+		{
+			if (0 == std::strcmp(code, entry.Code))
+			{
+				return entry.Key;
+			}
+		}
+		return EKeyCode::Unknown;
+	}
+
+	// 웹 키 상태 — keydown/keyup 이 물리 키 상태를 InputSystem 에 반영(윈도우 GetAsyncKeyState 대응).
+	EM_BOOL WebKeyStateCallback(int eventType, const EmscriptenKeyboardEvent* event, void* userData)
+	{
+		if (nullptr != event && nullptr != userData)
+		{
+			const EKeyCode key = MapDomCodeToKey(event->code);
+			if (EKeyCode::Unknown != key)
+			{
+				static_cast<CInputSystem*>(userData)->AccumulateKey(
+					key, EMSCRIPTEN_EVENT_KEYDOWN == eventType);
+			}
+		}
+		return EM_FALSE; // 브라우저 기본 동작 유지(F5/개발자도구/keypress 텍스트 등)
+	}
+
+	// 웹 마우스 버튼 — mousedown/mouseup. targetX/Y 는 캔버스 기준 클라이언트 좌표.
+	EM_BOOL WebMouseButtonCallback(int eventType, const EmscriptenMouseEvent* event, void* userData)
+	{
+		if (nullptr == event || nullptr == userData)
+		{
+			return EM_FALSE;
+		}
+		EMouseButton button;
+		switch (event->button)
+		{
+		case 0:  button = EMouseButton::Left;   break;
+		case 1:  button = EMouseButton::Middle; break;
+		case 2:  button = EMouseButton::Right;  break;
+		default: return EM_FALSE;
+		}
+		CInputSystem* system = static_cast<CInputSystem*>(userData);
+		system->AccumulateMouseButton(button, EMSCRIPTEN_EVENT_MOUSEDOWN == eventType);
+		system->AccumulateMousePosition(static_cast<int>(event->targetX), static_cast<int>(event->targetY));
+		return EM_FALSE;
+	}
+
+	// 웹 마우스 이동 — 캔버스 기준 좌표. 델타는 PollDevices 가 (현재-이전)으로 계산(윈도우 동등).
+	EM_BOOL WebMouseMoveCallback(int, const EmscriptenMouseEvent* event, void* userData)
+	{
+		if (nullptr != event && nullptr != userData)
+		{
+			static_cast<CInputSystem*>(userData)->AccumulateMousePosition(
+				static_cast<int>(event->targetX), static_cast<int>(event->targetY));
+		}
+		return EM_FALSE;
+	}
+
+	// 웹 휠 — deltaY<0(위로 스크롤)=+, deltaY>0(아래로)=- 로 노치 단위 정규화(윈도우 WHEEL_DELTA 부호 동등).
+	EM_BOOL WebWheelCallback(int, const EmscriptenWheelEvent* event, void* userData)
+	{
+		if (nullptr != event && nullptr != userData)
+		{
+			float notches = 0.0f;
+			if (event->deltaY < 0.0)      notches = 1.0f;
+			else if (event->deltaY > 0.0) notches = -1.0f;
+			if (0.0f != notches)
+			{
+				static_cast<CInputSystem*>(userData)->AccumulateWheel(notches);
+			}
+		}
+		return EM_FALSE;
+	}
+
 	constexpr double kWebRumbleChunkMs   = 250.0; // 1회 effect 지속(재발행 간격보다 길게 → 끊김 없음)
 	constexpr int    kWebRumbleReissueMs = 200;   // 지속 진동 재발행 주기
 }
@@ -324,6 +462,14 @@ void CInputSystem::Initialize()
 #if JBRO_PLATFORM_WEB
 	// 웹 텍스트 입력 — keypress 콜백 등록(완성 문자 누적).
 	emscripten_set_keypress_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, this, EM_FALSE, &WebKeyPressCallback);
+	// 웹 키 상태 — keydown/keyup 콜백 등록(물리 키 상태. 윈도우 폴링 대응).
+	emscripten_set_keydown_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, this, EM_FALSE, &WebKeyStateCallback);
+	emscripten_set_keyup_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, this, EM_FALSE, &WebKeyStateCallback);
+	// 웹 마우스 — 캔버스 기준 down/up/move + 휠. 좌표를 캔버스 클라이언트 좌표로 받는다.
+	emscripten_set_mousedown_callback(kWebInputCanvasSelector, this, EM_FALSE, &WebMouseButtonCallback);
+	emscripten_set_mouseup_callback(kWebInputCanvasSelector, this, EM_FALSE, &WebMouseButtonCallback);
+	emscripten_set_mousemove_callback(kWebInputCanvasSelector, this, EM_FALSE, &WebMouseMoveCallback);
+	emscripten_set_wheel_callback(kWebInputCanvasSelector, this, EM_FALSE, &WebWheelCallback);
 	// 웹 멀티터치 — touch 콜백 등록.
 	emscripten_set_touchstart_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, this, EM_FALSE, &WebTouchCallback);
 	emscripten_set_touchmove_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, this, EM_FALSE, &WebTouchCallback);
@@ -337,6 +483,12 @@ void CInputSystem::Shutdown()
 #if JBRO_PLATFORM_WEB
 	// 입력 콜백 해제(파괴 후 콜백이 this 를 만지는 것 방지).
 	emscripten_set_keypress_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, nullptr, EM_FALSE, nullptr);
+	emscripten_set_keydown_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, nullptr, EM_FALSE, nullptr);
+	emscripten_set_keyup_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, nullptr, EM_FALSE, nullptr);
+	emscripten_set_mousedown_callback(kWebInputCanvasSelector, nullptr, EM_FALSE, nullptr);
+	emscripten_set_mouseup_callback(kWebInputCanvasSelector, nullptr, EM_FALSE, nullptr);
+	emscripten_set_mousemove_callback(kWebInputCanvasSelector, nullptr, EM_FALSE, nullptr);
+	emscripten_set_wheel_callback(kWebInputCanvasSelector, nullptr, EM_FALSE, nullptr);
 	emscripten_set_touchstart_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, nullptr, EM_FALSE, nullptr);
 	emscripten_set_touchmove_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, nullptr, EM_FALSE, nullptr);
 	emscripten_set_touchend_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, nullptr, EM_FALSE, nullptr);
@@ -489,6 +641,30 @@ bool CInputSystem::IsDeviceEnabled(EInputDevice device) const
 void CInputSystem::AccumulateWheel(float delta)
 {
 	m_accumWheel += delta;
+}
+
+void CInputSystem::AccumulateKey(EKeyCode key, bool down)
+{
+	const std::size_t index = static_cast<std::size_t>(key);
+	if (index < static_cast<std::size_t>(EKeyCode::Count))
+	{
+		m_webKeyState[index] = down;
+	}
+}
+
+void CInputSystem::AccumulateMouseButton(EMouseButton button, bool down)
+{
+	const std::size_t index = static_cast<std::size_t>(button);
+	if (index < static_cast<std::size_t>(EMouseButton::Count))
+	{
+		m_webMouseButton[index] = down;
+	}
+}
+
+void CInputSystem::AccumulateMousePosition(int x, int y)
+{
+	m_webMouseX = x;
+	m_webMouseY = y;
 }
 
 void CInputSystem::AccumulateText(char32_t codepoint)
@@ -768,8 +944,27 @@ void CInputSystem::PollDevices()
 	m_context.m_mouse.m_deltaY = newY - m_lastMouseY;
 	m_lastMouseX = newX;
 	m_lastMouseY = newY;
+#elif JBRO_PLATFORM_WEB
+	// 웹 — keydown/keyup/mouse 콜백이 채운 영속 상태를 컨텍스트로 복사(윈도우 직접 폴링과 동등).
+	for (std::size_t i = 0; i < static_cast<std::size_t>(EKeyCode::Count); ++i)
+	{
+		m_context.m_keyboard.m_current[i] = keyboardEnabled ? m_webKeyState[i] : false;
+	}
+
+	m_context.m_mouse.m_current[static_cast<std::size_t>(EMouseButton::Left)]   = mouseEnabled && m_webMouseButton[static_cast<std::size_t>(EMouseButton::Left)];
+	m_context.m_mouse.m_current[static_cast<std::size_t>(EMouseButton::Right)]  = mouseEnabled && m_webMouseButton[static_cast<std::size_t>(EMouseButton::Right)];
+	m_context.m_mouse.m_current[static_cast<std::size_t>(EMouseButton::Middle)] = mouseEnabled && m_webMouseButton[static_cast<std::size_t>(EMouseButton::Middle)];
+
+	const int newX = mouseEnabled ? m_webMouseX : m_lastMouseX;
+	const int newY = mouseEnabled ? m_webMouseY : m_lastMouseY;
+	m_context.m_mouse.m_x      = newX;
+	m_context.m_mouse.m_y      = newY;
+	m_context.m_mouse.m_deltaX = newX - m_lastMouseX;
+	m_context.m_mouse.m_deltaY = newY - m_lastMouseY;
+	m_lastMouseX = newX;
+	m_lastMouseY = newY;
 #else
-	// 웹/모바일 백엔드(이벤트 누적)는 후속 단계에서 구현. 현재는 미갱신(0 유지).
+	// 그 외 백엔드(모바일 등)는 이벤트 누적 기반 — 후속 단계에서 구현. 현재는 미갱신(0 유지).
 	(void)keyboardEnabled;
 	(void)mouseEnabled;
 #endif
@@ -1020,6 +1215,15 @@ void CInputSystem::ClearDevices()
 	for (TouchPoint& tp : m_workingTouches)
 	{
 		tp = TouchPoint{};
+	}
+	// 웹 영속 입력 상태도 초기화 — 포커스 상실 중 브라우저가 keyup 을 안 보내 키가 눌린 채 남는 것 방지.
+	for (bool& keyDown : m_webKeyState)
+	{
+		keyDown = false;
+	}
+	for (bool& buttonDown : m_webMouseButton)
+	{
+		buttonDown = false;
 	}
 	m_context.m_actions.m_count = 0;
 }

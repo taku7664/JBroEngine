@@ -4,6 +4,7 @@
 #include <iostream>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #if defined(_WIN32)
 #include <Windows.h>
@@ -22,6 +23,8 @@ namespace
 		std::string ScriptMode;
 		std::string ScriptModule;
 		std::string Orientation;
+		std::vector<std::string> BuildScenes;      // 런타임 선로드 씬 이름(경로) — 인덱스 1:1
+		std::vector<std::string> BuildSceneGuids;  // 각 씬의 에셋 GUID
 		int Width = 1280;
 		int Height = 720;
 		float PixelsPerUnit = 100.0f;
@@ -101,6 +104,7 @@ namespace
 			<< L" [--script-mode <mode>]"
 			<< L" [--script-module <path>]"
 			<< L" [--orientation <Landscape|Portrait|Auto>]"
+			<< L" [--build-scene <path> --build-scene-guid <guid>]..."
 			<< std::endl
 			<< L"   or: BuildManifestTool --validate <path>"
 			<< L" [--startup-scene-guid <guid>]"
@@ -181,6 +185,16 @@ namespace
 			{
 				if (false == RequireValue(argc, argv, i)) return false;
 				outOptions.Orientation = NarrowAscii(argv[++i]);
+			}
+			else if (arg == L"--build-scene")
+			{
+				if (false == RequireValue(argc, argv, i)) return false;
+				outOptions.BuildScenes.push_back(std::filesystem::path(argv[++i]).generic_string());
+			}
+			else if (arg == L"--build-scene-guid")
+			{
+				if (false == RequireValue(argc, argv, i)) return false;
+				outOptions.BuildSceneGuids.push_back(NarrowAscii(argv[++i]));
 			}
 			else
 			{
@@ -272,6 +286,10 @@ int wmain(int argc, wchar_t** argv)
 	manifest.ScriptMode = options.ScriptMode;
 	manifest.ScriptModule = options.ScriptModule;
 	manifest.Orientation = options.Orientation;
+	manifest.BuildScenes = options.BuildScenes;
+	manifest.BuildSceneGuids = options.BuildSceneGuids;
+	// name/guid 는 항상 쌍으로 넘어오지만, 방어적으로 길이를 맞춘다(짧으면 빈 GUID 로 패딩).
+	manifest.BuildSceneGuids.resize(manifest.BuildScenes.size());
 
 	std::string error;
 	if (false == CBuildManifestLoader::WriteBinaryFile(options.OutputPath, manifest, &error))

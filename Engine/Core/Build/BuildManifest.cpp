@@ -259,6 +259,29 @@ namespace
 			return false;
 		}
 
+		// 빌드 씬 목록(name + guid) — 이 섹션이 없는 구 매니페스트는 cursor 가 끝에 있어 스킵된다.
+		if (cursor < payload.size())
+		{
+			std::uint32_t buildSceneCount = 0;
+			if (false == ReadPod(payload, cursor, buildSceneCount) || buildSceneCount > 4096)
+			{
+				SetError(outError, "Binary build manifest build scene count is invalid.");
+				return false;
+			}
+			for (std::uint32_t i = 0; i < buildSceneCount; ++i)
+			{
+				std::string sceneName;
+				std::string sceneGuid;
+				if (false == ReadString(payload, cursor, sceneName) || false == ReadString(payload, cursor, sceneGuid))
+				{
+					SetError(outError, "Binary build manifest build scene entry is invalid.");
+					return false;
+				}
+				outManifest.BuildScenes.push_back(std::move(sceneName));
+				outManifest.BuildSceneGuids.push_back(std::move(sceneGuid));
+			}
+		}
+
 		const std::filesystem::path absoluteManifestPath = std::filesystem::path(ToCanonicalPath(manifestPath));
 		const std::filesystem::path contentRootPath = absoluteManifestPath.parent_path();
 		const std::filesystem::path packageRootPath = contentRootPath.parent_path();
@@ -469,6 +492,20 @@ bool CBuildManifestLoader::LoadFromFile(const File::Path& manifestPath, BuildMan
 		}
 	}
 
+	if (const YAML::Node guids = root["buildSceneGuids"]; guids && guids.IsSequence())
+	{
+		for (const YAML::Node& guidNode : guids)
+		{
+			try
+			{
+				outManifest.BuildSceneGuids.push_back(guidNode.as<std::string>(""));
+			}
+			catch (const YAML::Exception&)
+			{
+			}
+		}
+	}
+
 	if (const YAML::Node resolution = root["resolution"]; resolution && resolution.IsMap())
 	{
 		outManifest.ResolutionWidth = ReadValueOr<int>(resolution, "width", 0);
@@ -550,6 +587,16 @@ bool CBuildManifestLoader::WriteBinaryFile(const File::Path& manifestPath, const
 	WriteString(payload, manifest.ScriptModule);
 	WriteString(payload, manifest.ProductName);
 	WriteString(payload, manifest.Orientation);
+
+	// 빌드 씬 목록(name + guid). 릴리즈 런타임이 startup 외 씬을 GUID 로 선로드하는 데 쓴다.
+	// 기존 매니페스트(이 섹션이 없던 것)는 읽기 측 cursor 가드로 자연히 빈 목록이 된다(전방호환).
+	const std::uint32_t buildSceneCount = static_cast<std::uint32_t>(manifest.BuildScenes.size());
+	WritePod(payload, buildSceneCount);
+	for (std::uint32_t i = 0; i < buildSceneCount; ++i)
+	{
+		WriteString(payload, manifest.BuildScenes[i]);
+		WriteString(payload, i < manifest.BuildSceneGuids.size() ? manifest.BuildSceneGuids[i] : std::string());
+	}
 
 	const std::uint32_t payloadSize = static_cast<std::uint32_t>(payload.size());
 	const std::uint64_t payloadHash = HashBytes(payload);

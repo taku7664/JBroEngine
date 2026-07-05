@@ -94,30 +94,6 @@ function Find-MSBuild {
     return "MSBuild.exe"
 }
 
-function Test-JBroToolOutdated {
-    param(
-        [Parameter(Mandatory=$true)][string]$ToolExe,
-        [Parameter(Mandatory=$true)][string]$SourceRoot
-    )
-
-    if (-not (Test-Path -LiteralPath $ToolExe -PathType Leaf)) {
-        return $true
-    }
-    if (-not (Test-Path -LiteralPath $SourceRoot -PathType Container)) {
-        return $true
-    }
-
-    $toolTime = (Get-Item -LiteralPath $ToolExe).LastWriteTimeUtc
-    $newestSource = Get-ChildItem -LiteralPath $SourceRoot -Recurse -File |
-        Sort-Object LastWriteTimeUtc -Descending |
-        Select-Object -First 1
-    if (-not $newestSource) {
-        return $false
-    }
-
-    return $newestSource.LastWriteTimeUtc -gt $toolTime
-}
-
 function ConvertFrom-JBroScalar {
     param([string]$Value)
 
@@ -647,12 +623,17 @@ function Get-JBroBuildManifestTool {
     $toolProject = Join-Path $toolRoot "BuildManifestTool.vcxproj"
     $toolExe = Join-Path $repoRoot ("Build\Tools\BuildManifestTool\{0}\BuildManifestTool.exe" -f $toolConfiguration)
 
-    if (Test-JBroToolOutdated -ToolExe $toolExe -SourceRoot $toolRoot) {
-        $msbuild = Find-MSBuild
-        & $msbuild $toolProject /m /p:Configuration=$toolConfiguration /p:Platform=x64 "/p:SolutionDir=$repoRoot\" /p:BuildProjectReferences=false /v:minimal /nr:false
-        if ($LASTEXITCODE -ne 0) {
-            throw "BuildManifestTool build failed."
-        }
+    # 툴은 Engine.lib(BuildManifest 구현 포함)를 링크한다. 손수 만든 mtime 체크는 이 전이 의존성을
+    # 못 봐서, BuildManifest 헤더/구조체가 바뀌고 Engine.lib(*_Game)이 스테일이면 툴이 레이아웃
+    # 불일치(ODR)로 크래시한다. 그래서 매번 msbuild 증분 빌드에 맡긴다 — project reference ON 이라
+    # Engine.lib 갱신도 포함되고, 변경이 없으면 msbuild 가 빠르게 no-op 한다.
+    # msbuild stdout 은 Out-Host 로 보낸다 — 안 그러면 빌드 로그가 함수 반환값(파이프라인)에 섞여
+    # $toolExe 가 "로그+경로" 문자열이 되고 이후 & $toolExe 가 "명령 없음"으로 실패한다.
+    # $LASTEXITCODE 는 Out-Host 와 무관하게 native exe 결과를 반영한다.
+    $msbuild = Find-MSBuild
+    & $msbuild $toolProject /m /p:Configuration=$toolConfiguration /p:Platform=x64 "/p:SolutionDir=$repoRoot\" /v:minimal /nr:false | Out-Host
+    if ($LASTEXITCODE -ne 0) {
+        throw "BuildManifestTool build failed."
     }
 
     return $toolExe
@@ -670,7 +651,9 @@ function Write-JBroBuildManifest {
         [string]$TargetPlatform = "",
         [string]$ScriptMode = "",
         [string]$ScriptModule = "",
-        [string]$Orientation = ""
+        [string]$Orientation = "",
+        [string[]]$BuildScenes = @(),
+        [string[]]$BuildSceneGuids = @()
     )
 
     $toolExe = Get-JBroBuildManifestTool
@@ -699,6 +682,15 @@ function Write-JBroBuildManifest {
     }
     if (-not [string]::IsNullOrWhiteSpace($Orientation)) {
         $args += @("--orientation", $Orientation)
+    }
+    # 빌드 씬 목록 — 런타임이 startup 외 씬을 GUID 로 선로드하도록 name/guid 쌍을 넘긴다.
+    # 빈 값 인자를 넘기지 않도록(PS 5.x splatting 트랩) 둘 다 있는 항목만 append.
+    for ($si = 0; $si -lt $BuildScenes.Count; ++$si) {
+        $sceneName = $BuildScenes[$si]
+        $sceneGuid = if ($si -lt $BuildSceneGuids.Count) { $BuildSceneGuids[$si] } else { "" }
+        if ((-not [string]::IsNullOrWhiteSpace($sceneName)) -and (-not [string]::IsNullOrWhiteSpace($sceneGuid))) {
+            $args += @("--build-scene", $sceneName, "--build-scene-guid", $sceneGuid)
+        }
     }
     & $toolExe @args
     if ($LASTEXITCODE -ne 0) {
@@ -1012,6 +1004,39 @@ function Find-Emcc {
     throw "emcc was not found. Run emsdk_env.bat first."
 }
 
+# emsdk 툴체인 무결성 프리플라이트. 백신/디스크정리 등이 emsdk 파일(번들 python stdlib,
+# node_modules 의 acorn 등)을 지우면 실제 컴파일이 끝난 뒤 링크 후처리 단계에서야 cryptic 한
+# python/node traceback 으로 죽는다(수 분 낭비 후). 여기서 먼저 확인해 명확히 실패시킨다.
+#   1) emcc --version 이 성공하는지(번들/시스템 python stdlib 손상 감지 — pickle/urllib 등)
+#   2) acorn-optimizer 가 쓰는 acorn 모듈이 존재하는지(JS 최적화 단계 감지)
+function Assert-EmsdkIntegrity {
+    param([Parameter(Mandatory=$true)][string]$Emcc)
+
+    & $Emcc --version 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw @"
+emsdk toolchain is broken: 'emcc --version' failed (exit $LASTEXITCODE).
+emsdk 의 Python/코어 파일이 손상됐습니다(백신 격리/삭제가 흔한 원인).
+복구: 관리자 PowerShell 에서
+    Add-MpPreference -ExclusionPath "C:\emsdk"   # 먼저 재삭제 방지
+    cd C:\emsdk ; .\emsdk install latest ; .\emsdk activate latest
+"@
+    }
+
+    if ($env:EMSDK) {
+        $acorn = Join-Path $env:EMSDK "upstream\emscripten\node_modules\acorn\dist\acorn.mjs"
+        if (-not (Test-Path -LiteralPath $acorn -PathType Leaf)) {
+            throw @"
+emsdk toolchain is broken: acorn 모듈이 없습니다 ($acorn).
+링크 후처리(acorn-optimizer)가 이 파일을 필요로 합니다 — 백신이 삭제한 것으로 보입니다.
+복구: 관리자 PowerShell 에서
+    Add-MpPreference -ExclusionPath "C:\emsdk"   # 먼저 재삭제 방지
+    cd C:\emsdk ; .\emsdk install latest ; .\emsdk activate latest
+"@
+        }
+    }
+}
+
 function Invoke-WebApplicationBuild {
     param(
         [Parameter(Mandatory=$true)][string]$PackageDir,
@@ -1023,6 +1048,7 @@ function Invoke-WebApplicationBuild {
 
     Import-EmsdkEnvironment -RootOrEnvBat $EmsdkRoot
     $emcc = Find-Emcc
+    Assert-EmsdkIntegrity -Emcc $emcc
     $sourceList = Join-Path $repoRoot "BuildScripts\Web\web_game_sources.txt"
     $shellFile = Join-Path $repoRoot "PlatformBuild\Web\shell.html"
     if (-not (Test-Path -LiteralPath $sourceList -PathType Leaf)) {
@@ -1058,6 +1084,7 @@ function Invoke-WebApplicationBuild {
         "-std=c++20",
         "-DJBRO_PLATFORM_WEB",
         "-DJBRO_GAME",
+        "-DJBRO_HAS_MINIAUDIO=1",
         "-DYAML_CPP_STATIC_DEFINE"
     )
     $arguments += $optimizationArgs
@@ -1581,6 +1608,20 @@ if (-not [string]::IsNullOrWhiteSpace($projectInfo.Build.StartupScene)) {
     }
 }
 
+# 빌드 씬 목록 + 각 씬 GUID 해석 — 런타임이 startup 외 씬을 GUID 로 선로드한다.
+# GUID 가 없으면(에셋 미등록) release 런타임에서 로드 불가하므로 빌드를 실패시킨다.
+$buildSceneNames = @()
+$buildSceneGuids = @()
+foreach ($scene in $projectInfo.Build.BuildScenes) {
+    if ([string]::IsNullOrWhiteSpace($scene)) { continue }
+    $sceneGuid = Find-JBroAssetGuid -AssetRoot $assetPath -RelativePath $scene
+    if ([string]::IsNullOrWhiteSpace($sceneGuid)) {
+        throw "Build scene has no registered asset GUID: $scene"
+    }
+    $buildSceneNames += $scene
+    $buildSceneGuids += $sceneGuid
+}
+
 $manifestPath = Join-Path $packageContentDir "build_manifest.jbmanifest"
 $manifestScriptMode = if ($Platform -eq "Windows") { "DynamicLibrary" } else { "Static" }
 $manifestScriptModule = if ($Platform -eq "Windows") { "GameScript.dll" } else { "" }
@@ -1595,7 +1636,9 @@ Write-JBroBuildManifest `
     -TargetPlatform $Platform `
     -ScriptMode $manifestScriptMode `
     -ScriptModule $manifestScriptModule `
-    -Orientation $projectInfo.Build.AndroidOrientation
+    -Orientation $projectInfo.Build.AndroidOrientation `
+    -BuildScenes $buildSceneNames `
+    -BuildSceneGuids $buildSceneGuids
 
 Assert-RootArtifactMissing -PackageDir $packageDir -Names @("SDK", "Localization", "Editor")
 
