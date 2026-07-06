@@ -583,10 +583,13 @@
     <ClInclude Include="Core\Network\INetworkManager.h" />
     <ClInclude Include="Core\Network\NetworkManager.h" />
     <ClInclude Include="Core\Network\Sockets\ISocket.h" />
+    <ClInclude Include="Core\Network\Sockets\IUdpSocket.h" />
     <ClInclude Include="Core\Network\Sockets\Windows\WinTcpSocket.h" />
+    <ClInclude Include="Core\Network\Sockets\Windows\WinUdpSocket.h" />
     <ClInclude Include="Core\Network\WebSocket\HandshakeCrypto.h" />
     <ClInclude Include="Core\Network\WebSocket\WebSocketProtocol.h" />
     <ClInclude Include="Core\Network\Native\NativeWebSocketTransport.h" />
+    <ClInclude Include="Core\Network\Native\UdpChannel.h" />
     <ClInclude Include="Core\Network\Web\WebSocketTransport.h" />
     <ClInclude Include="GameFramework\Component\Light2D.h" />
     <ClInclude Include="GameFramework\Physics2D\Physics2DGeometry.h" />
@@ -638,6 +641,8 @@
     <ClCompile Include="Core\Math\MathService.cpp" />
     <ClCompile Include="Core\Network\NetworkManager.cpp" />
     <ClCompile Include="Core\Network\Sockets\Windows\WinTcpSocket.cpp" />
+    <ClCompile Include="Core\Network\Sockets\Windows\WinUdpSocket.cpp" />
+    <ClCompile Include="Core\Network\Native\UdpChannel.cpp" />
     <ClCompile Include="Core\Network\WebSocket\HandshakeCrypto.cpp" />
     <ClCompile Include="Core\Network\WebSocket\WebSocketProtocol.cpp" />
     <ClCompile Include="Core\Network\Native\NativeWebSocketTransport.cpp" />

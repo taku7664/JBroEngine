@@ -779,7 +779,13 @@
     <ClInclude Include="Core\Network\Sockets\ISocket.h">
       <Filter>Header\Core\Network\Sockets</Filter>
     </ClInclude>
+    <ClInclude Include="Core\Network\Sockets\IUdpSocket.h">
+      <Filter>Header\Core\Network\Sockets</Filter>
+    </ClInclude>
     <ClInclude Include="Core\Network\Sockets\Windows\WinTcpSocket.h">
+      <Filter>Header\Core\Network\Sockets\Windows</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Network\Sockets\Windows\WinUdpSocket.h">
       <Filter>Header\Core\Network\Sockets\Windows</Filter>
     </ClInclude>
     <ClInclude Include="Core\Network\WebSocket\HandshakeCrypto.h">
@@ -789,6 +795,9 @@
       <Filter>Header\Core\Network\WebSocket</Filter>
     </ClInclude>
     <ClInclude Include="Core\Network\Native\NativeWebSocketTransport.h">
+      <Filter>Header\Core\Network\Native</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Network\Native\UdpChannel.h">
       <Filter>Header\Core\Network\Native</Filter>
     </ClInclude>
     <ClInclude Include="Core\Network\Web\WebSocketTransport.h">
@@ -1219,6 +1228,9 @@
     <ClCompile Include="Core\Network\Sockets\Windows\WinTcpSocket.cpp">
       <Filter>Source\Core\Network\Sockets\Windows</Filter>
     </ClCompile>
+    <ClCompile Include="Core\Network\Sockets\Windows\WinUdpSocket.cpp">
+      <Filter>Source\Core\Network\Sockets\Windows</Filter>
+    </ClCompile>
     <ClCompile Include="Core\Network\WebSocket\HandshakeCrypto.cpp">
       <Filter>Source\Core\Network\WebSocket</Filter>
     </ClCompile>
@@ -1226,6 +1238,9 @@
       <Filter>Source\Core\Network\WebSocket</Filter>
     </ClCompile>
     <ClCompile Include="Core\Network\Native\NativeWebSocketTransport.cpp">
+      <Filter>Source\Core\Network\Native</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Network\Native\UdpChannel.cpp">
       <Filter>Source\Core\Network\Native</Filter>
     </ClCompile>
     <ClCompile Include="Core\Network\Web\WebSocketTransport.cpp">

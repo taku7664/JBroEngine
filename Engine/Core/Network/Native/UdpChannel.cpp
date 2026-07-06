@@ -1,0 +1,304 @@
+#include "pch.h"
+#include "UdpChannel.h"
+
+#if !JBRO_PLATFORM_WEB
+
+#include <cstring>
+#include <vector>
+
+namespace
+{
+	// [token:8][channel:1][seq:4][msgId:2]
+	constexpr std::size_t   UDP_HEADER_SIZE  = 8u + 1u + 4u + 2u; // = 15
+	constexpr std::uint32_t UDP_MAX_PAYLOAD  = 1024u;             // MTU 여유(IP 분할 회피).
+	constexpr std::size_t   UDP_RECV_BUFSIZE = 2048u;
+
+	void WriteU64LE(std::uint8_t* p, std::uint64_t v)
+	{
+		for (int i = 0; i < 8; ++i) { p[i] = static_cast<std::uint8_t>((v >> (i * 8)) & 0xFFu); }
+	}
+	void WriteU32LE(std::uint8_t* p, std::uint32_t v)
+	{
+		for (int i = 0; i < 4; ++i) { p[i] = static_cast<std::uint8_t>((v >> (i * 8)) & 0xFFu); }
+	}
+	void WriteU16LE(std::uint8_t* p, std::uint16_t v)
+	{
+		p[0] = static_cast<std::uint8_t>(v & 0xFFu);
+		p[1] = static_cast<std::uint8_t>((v >> 8) & 0xFFu);
+	}
+	std::uint64_t ReadU64LE(const std::uint8_t* p)
+	{
+		std::uint64_t v = 0;
+		for (int i = 0; i < 8; ++i) { v |= static_cast<std::uint64_t>(p[i]) << (i * 8); }
+		return v;
+	}
+	std::uint32_t ReadU32LE(const std::uint8_t* p)
+	{
+		std::uint32_t v = 0;
+		for (int i = 0; i < 4; ++i) { v |= static_cast<std::uint32_t>(p[i]) << (i * 8); }
+		return v;
+	}
+	std::uint16_t ReadU16LE(const std::uint8_t* p)
+	{
+		return static_cast<std::uint16_t>(p[0] | (static_cast<std::uint16_t>(p[1]) << 8));
+	}
+}
+
+// ── 수명 ─────────────────────────────────────────────────────────────────────────
+
+bool CUdpChannel::StartServer(std::uint16_t port)
+{
+	m_socket = CreateUdpSocket();
+	if (!m_socket || false == m_socket->Bind(port))
+	{
+		m_socket.Reset();
+		return false;
+	}
+	m_role = ENetworkRole::Server;
+	return true;
+}
+
+bool CUdpChannel::StartClient(const char* serverHost, std::uint16_t serverPort)
+{
+	m_socket = CreateUdpSocket();
+	if (!m_socket || false == m_socket->Open() ||
+	    false == m_socket->Resolve(serverHost, serverPort, m_serverEndpoint))
+	{
+		m_socket.Reset();
+		return false;
+	}
+	m_role = ENetworkRole::Client;
+	return true;
+}
+
+void CUdpChannel::Stop()
+{
+	if (m_socket)
+	{
+		m_socket->Close();
+		m_socket.Reset();
+	}
+	m_peers.clear();
+	m_tokenToPeer.clear();
+	m_clientTokenSet = false;
+	m_clientToken    = 0;
+	m_serverEndpoint = NetUdpEndpoint{};
+	m_clientRecvLastSeq.clear();
+	m_role = ENetworkRole::None;
+}
+
+// ── 연결 매핑 ────────────────────────────────────────────────────────────────────
+
+std::uint64_t CUdpChannel::RegisterServerPeer(NetworkConnectionId id)
+{
+	std::uint64_t token = NextToken();
+	while (m_tokenToPeer.find(token) != m_tokenToPeer.end())
+	{
+		token = NextToken();
+	}
+
+	ServerPeer peer;
+	peer.Token = token;
+	m_peers[id] = std::move(peer);
+	m_tokenToPeer[token] = id;
+	return token;
+}
+
+void CUdpChannel::RemovePeer(NetworkConnectionId id)
+{
+	const auto it = m_peers.find(id);
+	if (m_peers.end() != it)
+	{
+		m_tokenToPeer.erase(it->second.Token);
+		m_peers.erase(it);
+	}
+}
+
+void CUdpChannel::SetClientToken(std::uint64_t token)
+{
+	m_clientToken    = token;
+	m_clientTokenSet = true;
+	SendPunch(SERVER_CONNECTION_ID); // 서버가 우리 엔드포인트를 학습하도록 즉시 노크.
+}
+
+// ── 송신 ─────────────────────────────────────────────────────────────────────────
+
+bool CUdpChannel::CanSend(NetworkConnectionId id, std::uint32_t payloadSize) const
+{
+	if (!m_socket || payloadSize > UDP_MAX_PAYLOAD)
+	{
+		return false;
+	}
+	if (ENetworkRole::Server == m_role)
+	{
+		const auto it = m_peers.find(id);
+		return m_peers.end() != it && it->second.Endpoint.Valid();
+	}
+	if (ENetworkRole::Client == m_role)
+	{
+		return m_clientTokenSet && m_serverEndpoint.Valid();
+	}
+	return false;
+}
+
+bool CUdpChannel::Send(
+	NetworkConnectionId id, ENetChannel channel, std::uint16_t msgId, const void* data, std::uint32_t size)
+{
+	if (false == CanSend(id, size))
+	{
+		return false;
+	}
+
+	if (ENetworkRole::Server == m_role)
+	{
+		ServerPeer& peer = m_peers[id];
+		const std::uint32_t seq = peer.SendSeq++;
+		return SendDatagram(peer.Endpoint, peer.Token, channel, seq, msgId, data, size);
+	}
+
+	// 클라이언트.
+	const std::uint32_t seq = m_clientSendSeq++;
+	return SendDatagram(m_serverEndpoint, m_clientToken, channel, seq, msgId, data, size);
+}
+
+void CUdpChannel::SendPunch(NetworkConnectionId id)
+{
+	// punch = msgId 0 + payload 0. 엔드포인트 학습/NAT 유지용.
+	if (false == CanSend(id, 0))
+	{
+		return;
+	}
+	if (ENetworkRole::Server == m_role)
+	{
+		ServerPeer& peer = m_peers[id];
+		const std::uint32_t seq = peer.SendSeq++;
+		SendDatagram(peer.Endpoint, peer.Token, ENetChannel::Unreliable, seq, 0, nullptr, 0);
+	}
+	else if (ENetworkRole::Client == m_role)
+	{
+		const std::uint32_t seq = m_clientSendSeq++;
+		SendDatagram(m_serverEndpoint, m_clientToken, ENetChannel::Unreliable, seq, 0, nullptr, 0);
+	}
+}
+
+bool CUdpChannel::SendDatagram(
+	const NetUdpEndpoint& to, std::uint64_t token, ENetChannel channel,
+	std::uint32_t seq, std::uint16_t msgId, const void* data, std::uint32_t size)
+{
+	std::vector<std::uint8_t> datagram;
+	datagram.resize(UDP_HEADER_SIZE + size);
+	WriteU64LE(datagram.data(), token);
+	datagram[8] = static_cast<std::uint8_t>(channel);
+	WriteU32LE(datagram.data() + 9, seq);
+	WriteU16LE(datagram.data() + 13, msgId);
+	if (size > 0 && nullptr != data)
+	{
+		std::memcpy(datagram.data() + UDP_HEADER_SIZE, data, size);
+	}
+
+	return ESocketIo::Ok == m_socket->SendTo(to, datagram.data(), datagram.size());
+}
+
+// ── 수신 ─────────────────────────────────────────────────────────────────────────
+
+void CUdpChannel::Poll(const FOnUdpMessage& onMessage)
+{
+	if (!m_socket)
+	{
+		return;
+	}
+
+	std::uint8_t buffer[UDP_RECV_BUFSIZE];
+	for (;;)
+	{
+		std::size_t    bytes = 0;
+		NetUdpEndpoint from;
+		const ESocketIo result = m_socket->RecvFrom(buffer, sizeof(buffer), bytes, from);
+		if (ESocketIo::Ok != result)
+		{
+			break; // WouldBlock / Error — 이번 폴 종료.
+		}
+		if (bytes < UDP_HEADER_SIZE)
+		{
+			continue; // 헤더 미달 — 폐기.
+		}
+
+		const std::uint64_t token   = ReadU64LE(buffer);
+		const ENetChannel   channel = static_cast<ENetChannel>(buffer[8]);
+		const std::uint32_t seq     = ReadU32LE(buffer + 9);
+		const std::uint16_t msgId   = ReadU16LE(buffer + 13);
+		const std::uint8_t* payload = buffer + UDP_HEADER_SIZE;
+		const std::uint32_t psize   = static_cast<std::uint32_t>(bytes - UDP_HEADER_SIZE);
+
+		if (ENetworkRole::Server == m_role)
+		{
+			const auto mapIt = m_tokenToPeer.find(token);
+			if (m_tokenToPeer.end() == mapIt)
+			{
+				continue; // 미지의 토큰 — 무시(스푸핑 방어).
+			}
+			const NetworkConnectionId connId = mapIt->second;
+			const auto peerIt = m_peers.find(connId);
+			if (m_peers.end() == peerIt)
+			{
+				continue;
+			}
+			peerIt->second.Endpoint = from; // 엔드포인트 학습/갱신(NAT 리바인딩 대응).
+
+			if (0 == msgId && 0 == psize)
+			{
+				continue; // punch — 디스패치 안 함.
+			}
+			if (AcceptSeq(peerIt->second.RecvLastSeq, channel, msgId, seq))
+			{
+				onMessage(connId, msgId, payload, psize);
+			}
+		}
+		else if (ENetworkRole::Client == m_role)
+		{
+			if (false == m_clientTokenSet || token != m_clientToken)
+			{
+				continue; // 우리 연결 토큰 아님 — 무시.
+			}
+			if (0 == msgId && 0 == psize)
+			{
+				continue; // punch.
+			}
+			if (AcceptSeq(m_clientRecvLastSeq, channel, msgId, seq))
+			{
+				onMessage(SERVER_CONNECTION_ID, msgId, payload, psize);
+			}
+		}
+	}
+}
+
+bool CUdpChannel::AcceptSeq(
+	std::unordered_map<std::uint16_t, std::uint32_t>& lastSeqMap,
+	ENetChannel channel, std::uint16_t msgId, std::uint32_t seq)
+{
+	if (ENetChannel::UnreliableSequenced != channel)
+	{
+		return true; // 순수 Unreliable — 순서 무시, 항상 전달.
+	}
+
+	const auto it = lastSeqMap.find(msgId);
+	if (lastSeqMap.end() != it && seq <= it->second)
+	{
+		return false; // 오래된(역전) 패킷 — 폐기.
+	}
+	lastSeqMap[msgId] = seq;
+	return true;
+}
+
+std::uint64_t CUdpChannel::NextToken()
+{
+	// xorshift64(비암호 — LAN 연결 매핑용). 0 은 회피.
+	std::uint64_t x = m_rng;
+	x ^= x << 13;
+	x ^= x >> 7;
+	x ^= x << 17;
+	m_rng = x;
+	return (0 != x) ? x : 0x9E3779B97F4A7C15ull;
+}
+
+#endif // !JBRO_PLATFORM_WEB

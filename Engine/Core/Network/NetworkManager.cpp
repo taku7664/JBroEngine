@@ -1,6 +1,10 @@
 #include "pch.h"
 #include "NetworkManager.h"
 
+#if !JBRO_PLATFORM_WEB
+#include "Core/Network/Native/UdpChannel.h"
+#endif
+
 #include <algorithm>
 #include <chrono>
 #include <cstring>
@@ -21,6 +25,7 @@ namespace
 	constexpr std::uint16_t SYS_BYE             = 0xFF03;
 	constexpr std::uint16_t SYS_PING            = 0xFF04;
 	constexpr std::uint16_t SYS_PONG            = 0xFF05;
+	constexpr std::uint16_t SYS_UDP_TOKEN       = 0xFF06; // 서버→클라 UDP 연결 토큰.
 
 	// keepalive 타이밍(ms).
 	constexpr double PING_INTERVAL_MS = 1000.0; // Ready 연결에 주기 ping.
@@ -32,6 +37,7 @@ namespace
 	struct SysByePayload      { std::uint8_t  Reason; };
 	struct SysPingPayload     { double        SendTimeMs; };
 	struct SysPongPayload     { double        EchoTimeMs; };
+	struct SysUdpTokenPayload { std::uint64_t Token; };
 }
 
 // ── Construction / destruction ─────────────────────────────────────────────────
@@ -76,6 +82,9 @@ void CNetworkManager::Finalize()
 	{
 		m_transport->Close();
 	}
+#if !JBRO_PLATFORM_WEB
+	if (m_udp) { m_udp->Stop(); m_udp.Reset(); }
+#endif
 	m_connections.clear();
 	m_typeIds.clear();
 	m_messageHandlers.clear();
@@ -90,6 +99,9 @@ bool CNetworkManager::Connect(const char* host, std::uint16_t port)
 		return false;
 	}
 	m_role = ENetworkRole::Client;
+	// 서버 주소 기억 — 토큰 수신 후 UDP 클라 소켓이 서버 UDP 엔드포인트를 만들 때 재사용.
+	m_serverHost = (nullptr != host) ? host : "";
+	m_serverPort = port;
 	return m_transport->Connect(host, port);
 }
 
@@ -100,6 +112,16 @@ bool CNetworkManager::StartServer(std::uint16_t port)
 		return false;
 	}
 	m_role = ENetworkRole::Server;
+
+#if !JBRO_PLATFORM_WEB
+	// TCP 와 동일 포트에 UDP 바인드(비신뢰 채널). 실패해도 신뢰 채널은 정상 — 치명 아님.
+	m_udp = MakeOwnerPtr<CUdpChannel>();
+	if (false == m_udp->StartServer(port))
+	{
+		m_udp.Reset();
+	}
+#endif
+
 	return m_transport->Listen(port);
 }
 
@@ -109,6 +131,9 @@ void CNetworkManager::Disconnect()
 	{
 		m_transport->Close();
 	}
+#if !JBRO_PLATFORM_WEB
+	if (m_udp) { m_udp->Stop(); m_udp.Reset(); }
+#endif
 	m_connections.clear();
 	m_sessions.clear();
 	m_role = ENetworkRole::None;
@@ -163,6 +188,17 @@ void CNetworkManager::Update()
 	{
 		m_transport->Update(); // 콜백 발화(수신/연결/종료). 여기서 WantsClose 가 설정될 수 있음.
 	}
+
+#if !JBRO_PLATFORM_WEB
+	if (m_udp)
+	{
+		m_udp->Poll([this](NetworkConnectionId id, std::uint16_t msgId,
+			const std::uint8_t* payload, std::uint32_t size)
+		{
+			DispatchUserMessage(id, msgId, payload, size);
+		});
+	}
+#endif
 
 	UpdateSessions(); // ping 송신 / 타임아웃 감지 → WantsClose 설정.
 
@@ -232,6 +268,10 @@ void CNetworkManager::OnTransportDisconnected(NetworkConnectionId id)
 		std::remove(m_connections.begin(), m_connections.end(), id),
 		m_connections.end());
 
+#if !JBRO_PLATFORM_WEB
+	if (m_udp) { m_udp->RemovePeer(id); }
+#endif
+
 	// 통보 대상:
 	//  - Ready 였던 연결(게임이 OnConnected 를 이미 받음) → 종료 통보.
 	//  - 클라이언트가 시도한 연결 → 핸드셰이크 실패(버전 불일치 등)도 결과를 알려야 함.
@@ -272,11 +312,22 @@ void CNetworkManager::OnTransportData(
 		return;
 	}
 
+	DispatchUserMessage(id, messageId, payload, payloadSize);
+}
+
+void CNetworkManager::DispatchUserMessage(
+	NetworkConnectionId id, std::uint16_t messageId, const std::uint8_t* payload, std::uint32_t size)
+{
+	if (messageId >= SYSTEM_MESSAGE_BASE)
+	{
+		return; // 시스템 메시지는 유저 경로로 오지 않는다(UDP 방어).
+	}
+
 	if (RAW_MESSAGE_ID == messageId)
 	{
 		if (m_onDataReceived)
 		{
-			m_onDataReceived(id, payload, payloadSize);
+			m_onDataReceived(id, payload, size);
 		}
 		return;
 	}
@@ -284,7 +335,7 @@ void CNetworkManager::OnTransportData(
 	const auto it = m_messageHandlers.find(messageId);
 	if (m_messageHandlers.end() != it && it->second)
 	{
-		it->second(id, payload, payloadSize);
+		it->second(id, payload, size);
 	}
 }
 
@@ -344,10 +395,18 @@ bool CNetworkManager::SendFramed(
 		return false;
 	}
 
-	// 현재 전 채널을 신뢰 WS transport 로 보낸다. 웹은 영구(브라우저 UDP 불가),
-	// 네이티브는 추후 UDP 백엔드가 붙으면 여기서 비신뢰 채널을 UDP 로 분기한다.
-	(void)channel;
+#if !JBRO_PLATFORM_WEB
+	// 비신뢰 채널은 UDP 로 시도. 미준비(엔드포인트/토큰 없음)·대용량이면 false → 신뢰 폴백.
+	if (ENetChannel::ReliableOrdered != channel && m_udp &&
+	    m_udp->Send(id, channel, messageId, data, size))
+	{
+		return true;
+	}
+#else
+	(void)channel; // 웹은 UDP 불가 — 전 채널 신뢰 WS.
+#endif
 
+	// 신뢰 경로: WS transport 로 [uint16 msgId][payload] 프레임 전송.
 	std::vector<std::uint8_t> frame;
 	frame.reserve(MESSAGE_HEADER_SIZE + size);
 	frame.push_back(static_cast<std::uint8_t>(messageId & 0xFFu));
@@ -392,6 +451,16 @@ void CNetworkManager::PromoteToReady(NetworkConnectionId id)
 	{
 		m_connections.push_back(id);
 	}
+
+#if !JBRO_PLATFORM_WEB
+	// 서버: 이 연결의 UDP 토큰을 발급하고 신뢰 채널로 클라에 전달(클라가 UDP 를 켠다).
+	if (ENetworkRole::Server == m_role && m_udp)
+	{
+		const std::uint64_t token = m_udp->RegisterServerPeer(id);
+		SysUdpTokenPayload payload{ token };
+		SendSystem(id, SYS_UDP_TOKEN, payload);
+	}
+#endif
 
 	if (m_onConnected)
 	{
@@ -485,6 +554,32 @@ bool CNetworkManager::HandleSystemMessage(
 		}
 		return true;
 	}
+	case SYS_UDP_TOKEN:
+	{
+		// 클라: 서버가 준 UDP 토큰. UDP 소켓 열고 토큰 등록 → 비신뢰 채널 활성.
+		// 웹은 UDP 불가라 무시(비신뢰는 신뢰 WS 로 유지).
+#if !JBRO_PLATFORM_WEB
+		if (ENetworkRole::Client == m_role && sizeof(SysUdpTokenPayload) == size)
+		{
+			SysUdpTokenPayload payload{};
+			std::memcpy(&payload, data, sizeof(payload));
+
+			if (!m_udp)
+			{
+				m_udp = MakeOwnerPtr<CUdpChannel>();
+				if (false == m_udp->StartClient(m_serverHost.c_str(), m_serverPort))
+				{
+					m_udp.Reset(); // UDP 못 열면 비신뢰는 신뢰로 폴백.
+				}
+			}
+			if (m_udp)
+			{
+				m_udp->SetClientToken(payload.Token);
+			}
+		}
+#endif
+		return true;
+	}
 	default:
 		return true; // 미지의 시스템 메시지는 무시(전방호환).
 	}
@@ -517,6 +612,14 @@ void CNetworkManager::UpdateSessions()
 			session.LastPingSentMs = now;
 			SysPingPayload ping{ now };
 			SendSystem(entry.first, SYS_PING, ping);
+
+#if !JBRO_PLATFORM_WEB
+			// 클라: UDP punch 를 함께 보내 NAT 유지 + 서버의 엔드포인트 최신화.
+			if (ENetworkRole::Client == m_role && m_udp)
+			{
+				m_udp->SendPunch(entry.first);
+			}
+#endif
 		}
 	}
 }

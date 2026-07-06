@@ -2,10 +2,16 @@
 
 #include "Core/Network/INetworkManager.h"
 #include "Core/Network/INetworkTransport.h"
+#include "Core/Platform/PlatformDefines.h"
 
 #include <cstdint>
+#include <string>
 #include <unordered_map>
 #include <vector>
+
+#if !JBRO_PLATFORM_WEB
+class CUdpChannel; // 비신뢰 UDP 채널(네이티브 전용). 웹은 UDP 불가라 없음.
+#endif
 
 class CNetworkManager final : public INetworkManager
 {
@@ -52,6 +58,8 @@ private:
 	void OnTransportConnected   (NetworkConnectionId id);
 	void OnTransportDisconnected(NetworkConnectionId id);
 	void OnTransportData        (NetworkConnectionId id, const std::uint8_t* data, std::uint32_t size);
+	// 유저(raw/타입드) 메시지 디스패치 — 신뢰 경로와 UDP 경로 공용.
+	void DispatchUserMessage    (NetworkConnectionId id, std::uint16_t messageId, const std::uint8_t* payload, std::uint32_t size);
 
 	// ── 세션 계층(hello/keepalive/RTT) ─────────────────────────────────────────
 	enum class ESessionState : std::uint8_t
@@ -83,6 +91,14 @@ private:
 	ENetworkRole                   m_role = ENetworkRole::None;
 	std::vector<NetworkConnectionId> m_connections;
 	std::unordered_map<NetworkConnectionId, ConnectionSession> m_sessions;
+
+	// 클라가 Connect 에 쓴 서버 주소 — UDP 클라 소켓이 서버 UDP 엔드포인트를 만들 때 재사용.
+	std::string   m_serverHost;
+	std::uint16_t m_serverPort = 0;
+
+#if !JBRO_PLATFORM_WEB
+	OwnerPtr<CUdpChannel> m_udp; // 비신뢰 채널. 서버/클라 준비되면 생성. 웹엔 없음.
+#endif
 
 	FOnNetworkConnected    m_onConnected;
 	FOnNetworkDisconnected m_onDisconnected;
