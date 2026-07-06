@@ -110,5 +110,12 @@ private:
 	std::unordered_map<const void*, std::uint16_t>     m_typeIds;        // 타입 태그 → 메시지 ID.
 	std::unordered_map<std::uint16_t, FNetworkMessageHandler> m_messageHandlers; // 메시지 ID → 핸들러.
 
+	// 재진입 안전: 콜백(transport Update / UDP Poll) 순회 중에는 teardown 을 미룬다.
+	// 핸들러 안에서 Disconnect/Finalize/DisconnectClient 를 호출해도 UAF 없이 Update 말미에 적용.
+	bool                             m_deferTeardown    = false;
+	bool                             m_pendingDisconnect = false;
+	bool                             m_pendingFinalize   = false;
+	std::vector<NetworkConnectionId> m_pendingClientCloses;
+
 	bool m_isInitialized = false;
 };

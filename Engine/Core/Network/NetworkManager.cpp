@@ -78,6 +78,13 @@ bool CNetworkManager::Initialize()
 
 void CNetworkManager::Finalize()
 {
+	// 콜백 순회 중 호출되면 미룬다(Update 말미 적용) — 순회 중 파괴 = UAF.
+	if (m_deferTeardown)
+	{
+		m_pendingFinalize = true;
+		return;
+	}
+
 	if (m_transport)
 	{
 		m_transport->Close();
@@ -130,6 +137,12 @@ bool CNetworkManager::StartServer(std::uint16_t port)
 
 void CNetworkManager::Disconnect()
 {
+	if (m_deferTeardown)
+	{
+		m_pendingDisconnect = true;
+		return;
+	}
+
 	if (m_transport)
 	{
 		m_transport->Close();
@@ -144,6 +157,11 @@ void CNetworkManager::Disconnect()
 
 void CNetworkManager::DisconnectClient(NetworkConnectionId id)
 {
+	if (m_deferTeardown)
+	{
+		m_pendingClientCloses.push_back(id);
+		return;
+	}
 	if (m_transport)
 	{
 		m_transport->CloseConnection(id);
@@ -203,6 +221,9 @@ bool CNetworkManager::Broadcast(const void* data, std::uint32_t size)
 
 void CNetworkManager::Update()
 {
+	// 콜백(핸들러) 순회 구간 — 이 안에서 요청된 teardown 은 아래에서 지연 적용.
+	m_deferTeardown = true;
+
 	if (m_transport)
 	{
 		m_transport->Update(); // 콜백 발화(수신/연결/종료). 여기서 WantsClose 가 설정될 수 있음.
@@ -218,6 +239,34 @@ void CNetworkManager::Update()
 		});
 	}
 #endif
+
+	m_deferTeardown = false;
+
+	// 콜백 순회가 끝났으니 지연된 teardown 을 안전하게 적용.
+	if (m_pendingFinalize)
+	{
+		m_pendingFinalize   = false;
+		m_pendingDisconnect = false;
+		m_pendingClientCloses.clear();
+		Finalize();
+		return;
+	}
+	if (m_pendingDisconnect)
+	{
+		m_pendingDisconnect = false;
+		m_pendingClientCloses.clear();
+		Disconnect();
+		return;
+	}
+	if (false == m_pendingClientCloses.empty())
+	{
+		std::vector<NetworkConnectionId> closes;
+		closes.swap(m_pendingClientCloses);
+		for (NetworkConnectionId id : closes)
+		{
+			DisconnectClient(id);
+		}
+	}
 
 	UpdateSessions(); // ping 송신 / 타임아웃 감지 → WantsClose 설정.
 
