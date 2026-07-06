@@ -590,6 +590,8 @@
     <ClInclude Include="Core\Network\Sockets\Windows\WinTcpSocket.h" />
     <ClInclude Include="Core\Network\Sockets\Windows\WinUdpSocket.h" />
     <ClInclude Include="Core\Network\Sockets\Windows\WinTlsSocket.h" />
+    <ClInclude Include="Core\Network\Sockets\Posix\PosixTcpSocket.h" />
+    <ClInclude Include="Core\Network\Sockets\Posix\PosixUdpSocket.h" />
     <ClInclude Include="Core\Network\WebSocket\HandshakeCrypto.h" />
     <ClInclude Include="Core\Network\WebSocket\WebSocketProtocol.h" />
     <ClInclude Include="Core\Network\Native\NativeWebSocketTransport.h" />
@@ -647,6 +649,8 @@
     <ClCompile Include="Core\Network\Sockets\Windows\WinTcpSocket.cpp" />
     <ClCompile Include="Core\Network\Sockets\Windows\WinUdpSocket.cpp" />
     <ClCompile Include="Core\Network\Sockets\Windows\WinTlsSocket.cpp" />
+    <ClCompile Include="Core\Network\Sockets\Posix\PosixTcpSocket.cpp" />
+    <ClCompile Include="Core\Network\Sockets\Posix\PosixUdpSocket.cpp" />
     <ClCompile Include="Core\Network\Native\UdpChannel.cpp" />
     <ClCompile Include="Core\Network\WebSocket\HandshakeCrypto.cpp" />
     <ClCompile Include="Core\Network\WebSocket\WebSocketProtocol.cpp" />

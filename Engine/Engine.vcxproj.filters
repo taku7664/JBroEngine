@@ -297,6 +297,9 @@
     <Filter Include="Source\Core\Network\Sockets\Windows">
       <UniqueIdentifier>{C2B4G853-AD2F-5E6B-C934-2A3D4B5C6E02}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source\Core\Network\Sockets\Posix">
+      <UniqueIdentifier>{C2B4G853-AD2F-5E6B-C934-2A3D4B5C6E05}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Source\Core\Network\WebSocket">
       <UniqueIdentifier>{C2B4G853-AD2F-5E6B-C934-2A3D4B5C6E03}</UniqueIdentifier>
     </Filter>
@@ -314,6 +317,9 @@
     </Filter>
     <Filter Include="Header\Core\Network\Sockets\Windows">
       <UniqueIdentifier>{F5E7J186-DG5I-8H9E-FC67-5A6G7E8F9002}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header\Core\Network\Sockets\Posix">
+      <UniqueIdentifier>{F5E7J186-DG5I-8H9E-FC67-5A6G7E8F9005}</UniqueIdentifier>
     </Filter>
     <Filter Include="Header\Core\Network\WebSocket">
       <UniqueIdentifier>{F5E7J186-DG5I-8H9E-FC67-5A6G7E8F9003}</UniqueIdentifier>
@@ -800,6 +806,12 @@
     <ClInclude Include="Core\Network\Sockets\Windows\WinTlsSocket.h">
       <Filter>Header\Core\Network\Sockets\Windows</Filter>
     </ClInclude>
+    <ClInclude Include="Core\Network\Sockets\Posix\PosixTcpSocket.h">
+      <Filter>Header\Core\Network\Sockets\Posix</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Network\Sockets\Posix\PosixUdpSocket.h">
+      <Filter>Header\Core\Network\Sockets\Posix</Filter>
+    </ClInclude>
     <ClInclude Include="Core\Network\WebSocket\HandshakeCrypto.h">
       <Filter>Header\Core\Network\WebSocket</Filter>
     </ClInclude>
@@ -1245,6 +1257,12 @@
     </ClCompile>
     <ClCompile Include="Core\Network\Sockets\Windows\WinTlsSocket.cpp">
       <Filter>Source\Core\Network\Sockets\Windows</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Network\Sockets\Posix\PosixTcpSocket.cpp">
+      <Filter>Source\Core\Network\Sockets\Posix</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Network\Sockets\Posix\PosixUdpSocket.cpp">
+      <Filter>Source\Core\Network\Sockets\Posix</Filter>
     </ClCompile>
     <ClCompile Include="Core\Network\WebSocket\HandshakeCrypto.cpp">
       <Filter>Source\Core\Network\WebSocket</Filter>
