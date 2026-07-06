@@ -31,9 +31,11 @@ namespace
 		for (std::uint32_t i = 0; i < static_cast<std::uint32_t>(points.size()); ++i)
 		{
 			const std::uint32_t next = (i + 1) % static_cast<std::uint32_t>(points.size());
+			// 기존 Sprite 쿼드와 같은 시계 방향. D3D11 기본 rasterizer의 back-face
+			// culling에서도 채움 삼각형이 제거되지 않아야 한다.
 			outMesh.Indices.push_back(0);
-			outMesh.Indices.push_back(i + 1);
 			outMesh.Indices.push_back(next + 1);
+			outMesh.Indices.push_back(i + 1);
 		}
 	}
 
