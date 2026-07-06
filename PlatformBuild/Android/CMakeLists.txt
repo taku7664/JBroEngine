@@ -98,6 +98,8 @@ set(JBRO_ENGINE_SOURCES
     Engine/GameFramework/Reflection/ReflectionRegistry.cpp
     Engine/GameFramework/Rendering/GameCamera.cpp
     Engine/GameFramework/Rendering/SpriteRenderSystem.cpp
+    Engine/GameFramework/Rendering/ShapeGeometry2D.cpp
+    Engine/GameFramework/Rendering/ShapeRenderSystem.cpp
     Engine/GameFramework/Scene/Scene.cpp
     Engine/GameFramework/Scene/SceneManager.cpp
     Engine/GameFramework/Scene/SceneSerializer.cpp

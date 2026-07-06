@@ -270,6 +270,17 @@ namespace
 						Runtime.PixelsPerUnit);
 				}
 
+				CShapeRenderSystem* shapeSystem = scene->FindSystem<CShapeRenderSystem>();
+				if (nullptr == shapeSystem)
+				{
+					shapeSystem = scene->AddSystem<CShapeRenderSystem>(context->RenderScene.TryGet());
+				}
+				if (nullptr != shapeSystem)
+				{
+					shapeSystem->SetRenderScene(context->RenderScene.TryGet());
+					shapeSystem->SetDependencies(context->RHIDevice.TryGet(), context->Renderer.TryGet());
+				}
+
 				CAudioSystem* audioSystem = scene->FindSystem<CAudioSystem>();
 				if (nullptr == audioSystem)
 				{

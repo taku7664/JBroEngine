@@ -49,6 +49,8 @@ struct RenderItem
 	ERenderQueue Queue = ERenderQueue::Opaque;
 	RenderLayerMask LayerMask = 0xffffffffu;
 	Matrix3x2 Transform;
+	// 메시의 로컬 중심 기준 AABB 반경. 기본값은 기존 스프라이트 단위 쿼드 계약.
+	float LocalHalfExtents[2] = { 0.5f, 0.5f };
 	float Color[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
 	std::int32_t SortOrder = 0;
 	// 이 렌더 아이템을 제출한 오브젝트의 불투명 키(CGameObject 주소).

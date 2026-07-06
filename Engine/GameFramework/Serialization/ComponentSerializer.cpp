@@ -8,6 +8,7 @@
 #include "GameFramework/Component/Physics2DComponents.h"
 #include "GameFramework/Component/PrefabInstance.h"
 #include "GameFramework/Component/ScriptComponent.h"
+#include "GameFramework/Component/ShapeRenderers2D.h"
 #include "GameFramework/Component/SpriteRenderer2D.h"
 #include "GameFramework/Component/Transform2D.h"
 #include "GameFramework/Component/Component.h"
@@ -1048,6 +1049,48 @@ CComponent* ReadComponentInto(CGameObject& object, const YAML::Node& node,
 	else if (type == "Camera2D")
 	{
 		if (Camera2D* camera = object.AddComponent<Camera2D>()) { ReadCamera(node, *camera); added = camera; }
+	}
+	else if (type == "Square2D")
+	{
+		if (Square2D* shape = object.AddComponent<Square2D>())
+		{
+			if (const ComponentTypeInfo* ti = GetTypeInfo("Square2D"))
+			{
+				ReadComponentReflected(node, shape, *ti);
+			}
+			shape->Size.x = std::abs(shape->Size.x);
+			shape->Size.y = std::abs(shape->Size.y);
+			shape->OutlineWidth = std::max(0.0f, shape->OutlineWidth);
+			added = shape;
+		}
+	}
+	else if (type == "Circle2D")
+	{
+		if (Circle2D* shape = object.AddComponent<Circle2D>())
+		{
+			if (const ComponentTypeInfo* ti = GetTypeInfo("Circle2D"))
+			{
+				ReadComponentReflected(node, shape, *ti);
+			}
+			shape->Radius = std::abs(shape->Radius);
+			shape->Segments = std::clamp(shape->Segments, 8u, 256u);
+			shape->OutlineWidth = std::max(0.0f, shape->OutlineWidth);
+			added = shape;
+		}
+	}
+	else if (type == "Polygon2D")
+	{
+		if (Polygon2D* shape = object.AddComponent<Polygon2D>())
+		{
+			if (const ComponentTypeInfo* ti = GetTypeInfo("Polygon2D"))
+			{
+				ReadComponentReflected(node, shape, *ti);
+			}
+			shape->Radius = std::abs(shape->Radius);
+			shape->VertexCount = std::clamp(shape->VertexCount, 3u, 256u);
+			shape->OutlineWidth = std::max(0.0f, shape->OutlineWidth);
+			added = shape;
+		}
 	}
 	else if (type == "Light2D")
 	{

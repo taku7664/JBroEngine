@@ -467,11 +467,11 @@ bool CForward2DRenderer::IsSpriteItemVisibleInView(const RenderItem& item, const
 		return true;
 	}
 
-	constexpr float kCorners[4][2] = {
-		{ -0.5f, -0.5f },
-		{  0.5f, -0.5f },
-		{  0.5f,  0.5f },
-		{ -0.5f,  0.5f },
+	const float corners[4][2] = {
+		{ -item.LocalHalfExtents[0], -item.LocalHalfExtents[1] },
+		{  item.LocalHalfExtents[0], -item.LocalHalfExtents[1] },
+		{  item.LocalHalfExtents[0],  item.LocalHalfExtents[1] },
+		{ -item.LocalHalfExtents[0],  item.LocalHalfExtents[1] },
 	};
 
 	float minX =  FLT_MAX;
@@ -479,7 +479,7 @@ bool CForward2DRenderer::IsSpriteItemVisibleInView(const RenderItem& item, const
 	float maxX = -FLT_MAX;
 	float maxY = -FLT_MAX;
 
-	for (const auto& corner : kCorners)
+	for (const auto& corner : corners)
 	{
 		const float worldX = item.Transform.M11 * corner[0] + item.Transform.M21 * corner[1] + item.Transform.Dx;
 		const float worldY = item.Transform.M12 * corner[0] + item.Transform.M22 * corner[1] + item.Transform.Dy;
@@ -1032,6 +1032,11 @@ SafePtr<IRHISampler> CForward2DRenderer::GetDefaultSampler() const
 SafePtr<IRenderMesh> CForward2DRenderer::GetQuadMesh() const
 {
 	return m_quadMesh.GetSafePtr();
+}
+
+SafePtr<IRHITexture> CForward2DRenderer::GetWhiteTexture() const
+{
+	return m_whiteTexture.GetSafePtr();
 }
 
 bool CForward2DRenderer::CreateSpritePipeline()

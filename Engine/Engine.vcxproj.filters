@@ -701,6 +701,9 @@
     <ClInclude Include="GameFramework\Component\SpriteRenderer2D.h">
       <Filter>Header\GameFramework\Component</Filter>
     </ClInclude>
+    <ClInclude Include="GameFramework\Component\ShapeRenderers2D.h">
+      <Filter>Header\GameFramework\Component</Filter>
+    </ClInclude>
     <ClInclude Include="GameFramework\Component\Transform2D.h">
       <Filter>Header\GameFramework\Component</Filter>
     </ClInclude>
@@ -723,6 +726,12 @@
       <Filter>Header\GameFramework\Rendering</Filter>
     </ClInclude>
     <ClInclude Include="GameFramework\Rendering\SpriteRenderSystem.h">
+      <Filter>Header\GameFramework\Rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Rendering\ShapeGeometry2D.h">
+      <Filter>Header\GameFramework\Rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Rendering\ShapeRenderSystem.h">
       <Filter>Header\GameFramework\Rendering</Filter>
     </ClInclude>
     <ClInclude Include="GameFramework\Scene\Scene.h">
@@ -1400,6 +1409,12 @@
       <Filter>Source\GameFramework\Rendering</Filter>
     </ClCompile>
     <ClCompile Include="GameFramework\Rendering\SpriteRenderSystem.cpp">
+      <Filter>Source\GameFramework\Rendering</Filter>
+    </ClCompile>
+    <ClCompile Include="GameFramework\Rendering\ShapeGeometry2D.cpp">
+      <Filter>Source\GameFramework\Rendering</Filter>
+    </ClCompile>
+    <ClCompile Include="GameFramework\Rendering\ShapeRenderSystem.cpp">
       <Filter>Source\GameFramework\Rendering</Filter>
     </ClCompile>
     <ClCompile Include="GameFramework\Scene\Scene.cpp">

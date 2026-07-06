@@ -37,6 +37,7 @@ public:
 	SafePtr<IRHIGraphicsPipeline> GetSpritePipeline() const;
 	SafePtr<IRHISampler> GetDefaultSampler() const;
 	SafePtr<IRenderMesh> GetQuadMesh() const;
+	SafePtr<IRHITexture> GetWhiteTexture() const;
 
 private:
 	struct SpriteConstants

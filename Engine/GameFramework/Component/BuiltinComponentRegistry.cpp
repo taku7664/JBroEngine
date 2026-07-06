@@ -7,6 +7,7 @@
 #include "GameFramework/Component/Physics2DComponents.h"
 #include "GameFramework/Component/PrefabInstance.h"
 #include "GameFramework/Component/ScriptComponent.h"
+#include "GameFramework/Component/ShapeRenderers2D.h"
 #include "GameFramework/Component/SpriteRenderer2D.h"
 #include "GameFramework/Reflection/ReflectionRegistry.h"
 #include "GameFramework/Reflection/ReflectionEnumRegister.h"
@@ -26,6 +27,42 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 		.AddProperty("Color", EReflectPropertyType::ColorFloat4, offsetof(SpriteRenderer2D, Color), sizeof(float), 4)
 		.AddProperty("SortOrder", EReflectPropertyType::Int32, offsetof(SpriteRenderer2D, SortOrder), sizeof(std::int32_t))
 		.AddProperty("LayerMask", EReflectPropertyType::UInt32, offsetof(SpriteRenderer2D, LayerMask), sizeof(RenderLayerMask));
+
+	registry.RegisterComponent<Square2D>({ "Square2D", "Square 2D", "Rendering", true })
+		.AddProperty("Size", EReflectPropertyType::Vector2Float, offsetof(Square2D, Size), sizeof(Vector2))
+		.AddProperty("Offset", EReflectPropertyType::Vector2Float, offsetof(Square2D, Offset), sizeof(Vector2))
+		.AddProperty("FillEnabled", EReflectPropertyType::Bool, offsetof(Square2D, FillEnabled), sizeof(bool))
+		.AddProperty("FillColor", EReflectPropertyType::ColorFloat4, offsetof(Square2D, FillColor), sizeof(float), 4)
+		.AddProperty("OutlineEnabled", EReflectPropertyType::Bool, offsetof(Square2D, OutlineEnabled), sizeof(bool))
+		.AddProperty("OutlineColor", EReflectPropertyType::ColorFloat4, offsetof(Square2D, OutlineColor), sizeof(float), 4)
+		.AddProperty("OutlineWidth", EReflectPropertyType::Float, offsetof(Square2D, OutlineWidth), sizeof(float))
+		.AddProperty("SortOrder", EReflectPropertyType::Int32, offsetof(Square2D, SortOrder), sizeof(std::int32_t))
+		.AddProperty("LayerMask", EReflectPropertyType::UInt32, offsetof(Square2D, LayerMask), sizeof(RenderLayerMask));
+
+	registry.RegisterComponent<Circle2D>({ "Circle2D", "Circle 2D", "Rendering", true })
+		.AddProperty("Radius", EReflectPropertyType::Float, offsetof(Circle2D, Radius), sizeof(float))
+		.AddProperty("Segments", EReflectPropertyType::UInt32, offsetof(Circle2D, Segments), sizeof(std::uint32_t))
+		.AddProperty("Offset", EReflectPropertyType::Vector2Float, offsetof(Circle2D, Offset), sizeof(Vector2))
+		.AddProperty("FillEnabled", EReflectPropertyType::Bool, offsetof(Circle2D, FillEnabled), sizeof(bool))
+		.AddProperty("FillColor", EReflectPropertyType::ColorFloat4, offsetof(Circle2D, FillColor), sizeof(float), 4)
+		.AddProperty("OutlineEnabled", EReflectPropertyType::Bool, offsetof(Circle2D, OutlineEnabled), sizeof(bool))
+		.AddProperty("OutlineColor", EReflectPropertyType::ColorFloat4, offsetof(Circle2D, OutlineColor), sizeof(float), 4)
+		.AddProperty("OutlineWidth", EReflectPropertyType::Float, offsetof(Circle2D, OutlineWidth), sizeof(float))
+		.AddProperty("SortOrder", EReflectPropertyType::Int32, offsetof(Circle2D, SortOrder), sizeof(std::int32_t))
+		.AddProperty("LayerMask", EReflectPropertyType::UInt32, offsetof(Circle2D, LayerMask), sizeof(RenderLayerMask));
+
+	registry.RegisterComponent<Polygon2D>({ "Polygon2D", "Polygon 2D", "Rendering", true })
+		.AddProperty("Radius", EReflectPropertyType::Float, offsetof(Polygon2D, Radius), sizeof(float))
+		.AddProperty("VertexCount", EReflectPropertyType::UInt32, offsetof(Polygon2D, VertexCount), sizeof(std::uint32_t))
+		.AddProperty("StartAngle", EReflectPropertyType::AngleDegrees, offsetof(Polygon2D, StartAngle), sizeof(float))
+		.AddProperty("Offset", EReflectPropertyType::Vector2Float, offsetof(Polygon2D, Offset), sizeof(Vector2))
+		.AddProperty("FillEnabled", EReflectPropertyType::Bool, offsetof(Polygon2D, FillEnabled), sizeof(bool))
+		.AddProperty("FillColor", EReflectPropertyType::ColorFloat4, offsetof(Polygon2D, FillColor), sizeof(float), 4)
+		.AddProperty("OutlineEnabled", EReflectPropertyType::Bool, offsetof(Polygon2D, OutlineEnabled), sizeof(bool))
+		.AddProperty("OutlineColor", EReflectPropertyType::ColorFloat4, offsetof(Polygon2D, OutlineColor), sizeof(float), 4)
+		.AddProperty("OutlineWidth", EReflectPropertyType::Float, offsetof(Polygon2D, OutlineWidth), sizeof(float))
+		.AddProperty("SortOrder", EReflectPropertyType::Int32, offsetof(Polygon2D, SortOrder), sizeof(std::int32_t))
+		.AddProperty("LayerMask", EReflectPropertyType::UInt32, offsetof(Polygon2D, LayerMask), sizeof(RenderLayerMask));
 
 	registry.RegisterComponent<Camera2D>({ "Camera2D", "Camera 2D", "Rendering", true })
 		.AddEnumProperty<ECameraProjectionMode2D>("ProjectionMode", offsetof(Camera2D, ProjectionMode))
