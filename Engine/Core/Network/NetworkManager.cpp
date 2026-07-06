@@ -100,9 +100,12 @@ bool CNetworkManager::Connect(const char* host, std::uint16_t port)
 	}
 	m_role = ENetworkRole::Client;
 	// 서버 주소 기억 — 토큰 수신 후 UDP 클라 소켓이 서버 UDP 엔드포인트를 만들 때 재사용.
+	// UDP resolve 는 순수 호스트만 받으므로 ws://,wss:// 스킴을 벗겨 보관(스킴 처리는 transport 담당).
 	m_serverHost = (nullptr != host) ? host : "";
+	if (0 == m_serverHost.rfind("wss://", 0))      { m_serverHost = m_serverHost.substr(6); }
+	else if (0 == m_serverHost.rfind("ws://", 0))  { m_serverHost = m_serverHost.substr(5); }
 	m_serverPort = port;
-	return m_transport->Connect(host, port);
+	return m_transport->Connect(host, port); // 원본(스킴 포함) 전달 — transport 가 스킴 파싱.
 }
 
 bool CNetworkManager::StartServer(std::uint16_t port)
@@ -170,6 +173,22 @@ double CNetworkManager::GetRoundTripMs(NetworkConnectionId id) const
 {
 	const auto it = m_sessions.find(id);
 	return (m_sessions.end() != it) ? it->second.RoundTripMs : -1.0;
+}
+
+void CNetworkManager::SetSecureServerCertificate(void* certContext)
+{
+	if (m_transport)
+	{
+		m_transport->SetSecureServer(certContext);
+	}
+}
+
+void CNetworkManager::SetSecureClientOptions(const char* hostName, bool skipCertValidation)
+{
+	if (m_transport)
+	{
+		m_transport->SetSecureClient(hostName, skipCertValidation);
+	}
 }
 
 bool CNetworkManager::Send(NetworkConnectionId id, const void* data, std::uint32_t size)

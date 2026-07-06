@@ -788,6 +788,9 @@
     <ClInclude Include="Core\Network\Sockets\Windows\WinUdpSocket.h">
       <Filter>Header\Core\Network\Sockets\Windows</Filter>
     </ClInclude>
+    <ClInclude Include="Core\Network\Sockets\Windows\WinTlsSocket.h">
+      <Filter>Header\Core\Network\Sockets\Windows</Filter>
+    </ClInclude>
     <ClInclude Include="Core\Network\WebSocket\HandshakeCrypto.h">
       <Filter>Header\Core\Network\WebSocket</Filter>
     </ClInclude>
@@ -1229,6 +1232,9 @@
       <Filter>Source\Core\Network\Sockets\Windows</Filter>
     </ClCompile>
     <ClCompile Include="Core\Network\Sockets\Windows\WinUdpSocket.cpp">
+      <Filter>Source\Core\Network\Sockets\Windows</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Network\Sockets\Windows\WinTlsSocket.cpp">
       <Filter>Source\Core\Network\Sockets\Windows</Filter>
     </ClCompile>
     <ClCompile Include="Core\Network\WebSocket\HandshakeCrypto.cpp">

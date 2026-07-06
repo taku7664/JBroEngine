@@ -4,6 +4,9 @@
 #if !JBRO_PLATFORM_WEB
 
 #include "Core/Network/WebSocket/HandshakeCrypto.h"
+#if JBRO_PLATFORM_WINDOWS
+#include "Core/Network/Sockets/Windows/WinTlsSocket.h"
+#endif
 
 #include <string>
 
@@ -29,8 +32,36 @@ bool CNativeWebSocketTransport::Connect(const char* host, std::uint16_t port)
 		return false;
 	}
 
+	// 스킴 파싱: "wss://" → 보안(자동 TLS), "ws://" → 평문. 나머지는 그대로.
+	// getaddrinfo 는 순수 호스트만 받으므로 스킴을 벗긴 bareHost 를 쓴다.
+	std::string bareHost = host;
+	bool secure = m_clientSecure; // 명시적 SetSecureClient(skip 등) 가 우선.
+	if (0 == bareHost.rfind("wss://", 0))
+	{
+		bareHost = bareHost.substr(6);
+		secure   = true;
+	}
+	else if (0 == bareHost.rfind("ws://", 0))
+	{
+		bareHost = bareHost.substr(5);
+	}
+
 	OwnerPtr<ISocket> socket = CreateTcpSocket();
-	if (!socket || false == socket->Connect(host, port))
+	if (!socket)
+	{
+		return false;
+	}
+
+#if JBRO_PLATFORM_WINDOWS
+	// wss: TCP 소켓을 TLS 클라 소켓으로 감싼다. 이후 PollConnect 가 TCP→TLS 핸드셰이크 구동.
+	if (secure)
+	{
+		const std::string tlsHost = m_clientTlsHost.empty() ? bareHost : m_clientTlsHost;
+		socket = OwnerPtr<ISocket>(new CWinTlsSocket(std::move(socket), false, tlsHost, nullptr, m_skipCertValidation));
+	}
+#endif
+
+	if (false == socket->Connect(bareHost.c_str(), port))
 	{
 		return false;
 	}
@@ -39,7 +70,7 @@ bool CNativeWebSocketTransport::Connect(const char* host, std::uint16_t port)
 	conn.Socket       = std::move(socket);
 	conn.Phase        = EPhase::TcpConnecting;
 	conn.IsServerSide = false;
-	conn.HostHeader   = std::string(host) + ":" + std::to_string(static_cast<unsigned>(port));
+	conn.HostHeader   = bareHost + ":" + std::to_string(static_cast<unsigned>(port));
 
 	const NetworkConnectionId id = AllocConnectionId();
 	m_connections.emplace(id, std::move(conn));
@@ -154,6 +185,18 @@ void CNativeWebSocketTransport::SetOnData(FOnTransportData callback)
 	m_onData = std::move(callback);
 }
 
+void CNativeWebSocketTransport::SetSecureClient(const char* hostName, bool skipCertValidation)
+{
+	m_clientSecure       = true;
+	m_clientTlsHost      = (nullptr != hostName) ? hostName : "";
+	m_skipCertValidation = skipCertValidation;
+}
+
+void CNativeWebSocketTransport::SetSecureServer(void* certContext)
+{
+	m_serverCert = certContext;
+}
+
 // ── 내부 구현 ────────────────────────────────────────────────────────────────────
 
 void CNativeWebSocketTransport::AcceptPending()
@@ -171,9 +214,22 @@ void CNativeWebSocketTransport::AcceptPending()
 		}
 
 		Connection conn;
-		conn.Socket       = std::move(client);
-		conn.Phase        = EPhase::Handshaking;
 		conn.IsServerSide = true;
+
+#if JBRO_PLATFORM_WINDOWS
+		// wss 서버: 수락 소켓을 TLS 서버 소켓으로 감싼다. TLS 핸드셰이크를 먼저 끝내야 하므로
+		// TcpConnecting 단계로 시작해 PollConnect 가 TLS 를 구동(완료 후 WS Handshaking).
+		if (nullptr != m_serverCert)
+		{
+			conn.Socket = OwnerPtr<ISocket>(new CWinTlsSocket(std::move(client), true, "", m_serverCert, false));
+			conn.Phase  = EPhase::TcpConnecting;
+		}
+		else
+#endif
+		{
+			conn.Socket = std::move(client);
+			conn.Phase  = EPhase::Handshaking;
+		}
 
 		const NetworkConnectionId id = AllocConnectionId();
 		m_connections.emplace(id, std::move(conn));
@@ -199,15 +255,19 @@ void CNativeWebSocketTransport::ServiceConnection(NetworkConnectionId id, Connec
 			return;
 		}
 
-		// 연결됨 → 클라 핸드셰이크 요청 전송(원시 HTTP).
-		conn.ClientKey = WebSocket::GenerateClientKey(
-			(static_cast<std::uint64_t>(id) << 32) ^ NextMaskKey());
-		const std::string request =
-			WebSocket::BuildClientHandshakeRequest(conn.HostHeader, "/", conn.ClientKey);
-		conn.SendBuffer.insert(conn.SendBuffer.end(), request.begin(), request.end());
-		conn.HandshakeSent = true;
-		conn.Phase         = EPhase::Handshaking;
-		FlushSendBuffer(conn);
+		// 연결(+wss면 TLS)됨.
+		conn.Phase = EPhase::Handshaking;
+		if (false == conn.IsServerSide)
+		{
+			// 클라: WS 핸드셰이크 요청 전송(원시 HTTP). 서버측은 클라 요청을 기다린다(전송 없음).
+			conn.ClientKey = WebSocket::GenerateClientKey(
+				(static_cast<std::uint64_t>(id) << 32) ^ NextMaskKey());
+			const std::string request =
+				WebSocket::BuildClientHandshakeRequest(conn.HostHeader, "/", conn.ClientKey);
+			conn.SendBuffer.insert(conn.SendBuffer.end(), request.begin(), request.end());
+			conn.HandshakeSent = true;
+			FlushSendBuffer(conn);
+		}
 	}
 
 	// 3) 소켓에서 읽기.

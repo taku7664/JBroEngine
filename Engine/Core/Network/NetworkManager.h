@@ -32,6 +32,9 @@ public:
 	ENetworkRole  GetRole()     const override;
 	double        GetRoundTripMs(NetworkConnectionId id) const override;
 
+	void SetSecureServerCertificate(void* certContext) override;
+	void SetSecureClientOptions(const char* hostName, bool skipCertValidation) override;
+
 	bool Send     (NetworkConnectionId id, const void* data, std::uint32_t size) override;
 	bool Broadcast(const void* data, std::uint32_t size) override;
 

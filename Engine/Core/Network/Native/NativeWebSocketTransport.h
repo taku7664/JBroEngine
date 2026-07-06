@@ -38,6 +38,12 @@ public:
 	void SetOnDisconnected(FOnTransportDisconnected callback) override;
 	void SetOnData(FOnTransportData callback) override;
 
+	// ── wss(TLS) 설정 ────────────────────────────────────────────────────────────
+	// 클라: Connect 전에 호출하면 소켓을 TLS 로 감싼다(wss). skipCertValidation 은 self-signed dev 용.
+	void SetSecureClient(const char* hostName, bool skipCertValidation) override;
+	// 서버: Listen 전/후에 인증서(PCCERT_CONTEXT, void*)를 주면 수락 연결을 TLS 로 감싼다(wss 수용).
+	void SetSecureServer(void* certContext) override;
+
 private:
 	enum class EPhase : std::uint8_t
 	{
@@ -80,6 +86,12 @@ private:
 private:
 	OwnerPtr<ISocket>                                   m_listenSocket;
 	bool                                                m_isListening = false;
+
+	// wss(TLS) 설정.
+	bool         m_clientSecure       = false;
+	std::string  m_clientTlsHost;
+	bool         m_skipCertValidation = false;
+	void*        m_serverCert         = nullptr; // PCCERT_CONTEXT (호출측 소유).
 	std::unordered_map<NetworkConnectionId, Connection> m_connections;
 	NetworkConnectionId                                 m_nextId   = SERVER_CONNECTION_ID;
 	std::uint32_t                                       m_maskRng  = 0x1234ABCDu;

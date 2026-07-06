@@ -45,4 +45,10 @@ public:
 	virtual void SetOnConnected   (FOnTransportConnected    callback) = 0;
 	virtual void SetOnDisconnected(FOnTransportDisconnected callback) = 0;
 	virtual void SetOnData        (FOnTransportData         callback) = 0;
+
+	// wss(TLS) 설정 — 네이티브 전용. 웹/기타는 no-op(브라우저가 wss 를 직접 처리).
+	//   SetSecureClient: Connect 전에 호출하면 wss(클라 TLS). skip 은 self-signed dev 용.
+	//   SetSecureServer: 인증서(PCCERT_CONTEXT, void*)를 주면 수락 연결을 TLS 로 수용.
+	virtual void SetSecureClient(const char* hostName, bool skipCertValidation) { (void)hostName; (void)skipCertValidation; }
+	virtual void SetSecureServer(void* certContext) { (void)certContext; }
 };
