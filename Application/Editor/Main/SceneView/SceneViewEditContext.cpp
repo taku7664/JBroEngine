@@ -10,6 +10,7 @@
 #include "Engine/Core/RuntimeConfig.h" // Runtime.PixelsPerUnit (렌더 finalSize 계약)
 #include "Engine/GameFramework/Object/GameObject.h"
 #include "Engine/GameFramework/Component/SpriteRenderer2D.h"
+#include "Engine/GameFramework/Component/ShapeRenderers2D.h"
 #include "Engine/GameFramework/Component/Transform2D.h"
 #include "Engine/GameFramework/Scene/Scene.h"
 #include "Engine/GameFramework/Scene/SceneTransformUtils.h"
@@ -159,6 +160,120 @@ namespace
         return finalSize;
     }
 
+    constexpr float SHAPE_PICK_EPSILON = 0.000001f;
+
+    bool IsVisiblePass(bool enabled, const float (&color)[4])
+    {
+        return enabled && color[3] > 0.0f;
+    }
+
+    bool ContainsRegularPolygon(
+        const Vector2& point,
+        float radius,
+        std::uint32_t vertexCount,
+        float startAngle)
+    {
+        radius = std::abs(radius);
+        if (radius <= SHAPE_PICK_EPSILON || vertexCount < 3)
+        {
+            return false;
+        }
+
+        constexpr float TWO_PI = 6.28318530717958647692f;
+        Vector2 previous(
+            std::cos(startAngle) * radius,
+            std::sin(startAngle) * radius);
+        for (std::uint32_t i = 1; i <= vertexCount; ++i)
+        {
+            const float angle = startAngle
+                + TWO_PI * static_cast<float>(i % vertexCount) / static_cast<float>(vertexCount);
+            const Vector2 current(
+                std::cos(angle) * radius,
+                std::sin(angle) * radius);
+            const Vector2 edge(current.x - previous.x, current.y - previous.y);
+            const Vector2 toPoint(point.x - previous.x, point.y - previous.y);
+            const float cross = edge.x * toPoint.y - edge.y * toPoint.x;
+            if (cross < -SHAPE_PICK_EPSILON)
+            {
+                return false;
+            }
+            previous = current;
+        }
+        return true;
+    }
+
+    bool ContainsSquareShape(const Square2D& shape, const Vector2& point)
+    {
+        const float halfWidth = std::abs(shape.Size.x) * 0.5f;
+        const float halfHeight = std::abs(shape.Size.y) * 0.5f;
+        if (halfWidth <= SHAPE_PICK_EPSILON || halfHeight <= SHAPE_PICK_EPSILON)
+        {
+            return false;
+        }
+
+        const bool insideOuter = std::abs(point.x) <= halfWidth
+            && std::abs(point.y) <= halfHeight;
+        if (false == insideOuter)
+        {
+            return false;
+        }
+
+        const bool fillVisible = IsVisiblePass(shape.FillEnabled, shape.FillColor);
+        const bool hasOutlineGeometry = shape.OutlineEnabled
+            && shape.OutlineWidth > SHAPE_PICK_EPSILON;
+        if (hasOutlineGeometry)
+        {
+            const bool outlineVisible = shape.OutlineColor[3] > 0.0f;
+            const float innerHalfWidth = std::max(0.0f, halfWidth - shape.OutlineWidth);
+            const float innerHalfHeight = std::max(0.0f, halfHeight - shape.OutlineWidth);
+            if (innerHalfWidth <= SHAPE_PICK_EPSILON
+                || innerHalfHeight <= SHAPE_PICK_EPSILON)
+            {
+                return outlineVisible;
+            }
+
+            const bool insideInner = std::abs(point.x) <= innerHalfWidth
+                && std::abs(point.y) <= innerHalfHeight;
+            return insideInner ? fillVisible : outlineVisible;
+        }
+        return fillVisible;
+    }
+
+    template<typename T>
+    bool ContainsRegularShape(
+        const T& shape,
+        const Vector2& point,
+        std::uint32_t vertexCount,
+        float startAngle)
+    {
+        const float radius = std::abs(shape.Radius);
+        if (false == ContainsRegularPolygon(point, radius, vertexCount, startAngle))
+        {
+            return false;
+        }
+
+        const bool fillVisible = IsVisiblePass(shape.FillEnabled, shape.FillColor);
+        const bool hasOutlineGeometry = shape.OutlineEnabled
+            && shape.OutlineWidth > SHAPE_PICK_EPSILON;
+        if (hasOutlineGeometry)
+        {
+            const bool outlineVisible = shape.OutlineColor[3] > 0.0f;
+            const float apothemFactor = std::cos(PI / static_cast<float>(vertexCount));
+            const float innerRadius = apothemFactor > SHAPE_PICK_EPSILON
+                ? std::max(0.0f, radius - shape.OutlineWidth / apothemFactor)
+                : 0.0f;
+            if (innerRadius <= SHAPE_PICK_EPSILON)
+            {
+                return outlineVisible;
+            }
+
+            const bool insideInner = ContainsRegularPolygon(
+                point, innerRadius, vertexCount, startAngle);
+            return insideInner ? fillVisible : outlineVisible;
+        }
+        return fillVisible;
+    }
+
 } // anonymous namespace
 
 // ── CSceneViewEditContext implementation ─────────────────────────────────────
@@ -234,6 +349,90 @@ CGameObject* CSceneViewEditContext::Pick(
                 pickedObject = owner;
                 pickedOrd    = sprite.SortOrder;
             }
+        });
+
+    auto canPickOwner = [context](CGameObject* owner, const CComponent& component)
+    {
+        if (nullptr == owner || false == owner->IsActive || false == component.IsEnabled)
+        {
+            return false;
+        }
+        if (owner->IsEditorHidden())
+        {
+            return false;
+        }
+        if (context && owner != context && false == IsDescendantOfObj(owner, context))
+        {
+            return false;
+        }
+        return true;
+    };
+
+    auto considerShape = [&](CGameObject* owner, const Vector2& offset, std::int32_t sortOrder, auto&& contains)
+    {
+        const Matrix3x2 shapeMatrix = Matrix3x2::Transform(offset, 0.0f, Vector2(1.0f, 1.0f))
+            * GetWorldTransform(*owner);
+        Matrix3x2 inverse;
+        if (false == shapeMatrix.TryInvert(inverse))
+        {
+            return;
+        }
+        if (false == contains(inverse.TransformPoint(worldPt)))
+        {
+            return;
+        }
+        if (nullptr == pickedObject || sortOrder >= pickedOrd)
+        {
+            pickedObject = owner;
+            pickedOrd = sortOrder;
+        }
+    };
+
+    const_cast<CGameScene&>(scene).ForEach<Square2D>(
+        [&](Square2D& shape)
+        {
+            CGameObject* owner = shape.GetOwner();
+            if (false == canPickOwner(owner, shape))
+            {
+                return;
+            }
+            considerShape(owner, shape.Offset, shape.SortOrder,
+                [&shape](const Vector2& point)
+                {
+                    return ContainsSquareShape(shape, point);
+                });
+        });
+
+    const_cast<CGameScene&>(scene).ForEach<Circle2D>(
+        [&](Circle2D& shape)
+        {
+            CGameObject* owner = shape.GetOwner();
+            if (false == canPickOwner(owner, shape))
+            {
+                return;
+            }
+            const std::uint32_t segments = std::clamp(shape.Segments, 8u, 256u);
+            considerShape(owner, shape.Offset, shape.SortOrder,
+                [&shape, segments](const Vector2& point)
+                {
+                    return ContainsRegularShape(shape, point, segments, 0.0f);
+                });
+        });
+
+    const_cast<CGameScene&>(scene).ForEach<Polygon2D>(
+        [&](Polygon2D& shape)
+        {
+            CGameObject* owner = shape.GetOwner();
+            if (false == canPickOwner(owner, shape))
+            {
+                return;
+            }
+            const std::uint32_t vertexCount = std::clamp(shape.VertexCount, 3u, 256u);
+            considerShape(owner, shape.Offset, shape.SortOrder,
+                [&shape, vertexCount](const Vector2& point)
+                {
+                    return ContainsRegularShape(shape, point, vertexCount, shape.StartAngle);
+                });
         });
 
     if (nullptr == pickedObject) return nullptr;
