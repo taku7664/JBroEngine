@@ -604,6 +604,7 @@
     <ClInclude Include="Core\Network\WebSocket\WebSocketProtocol.h" />
     <ClInclude Include="Core\Network\Native\NativeWebSocketTransport.h" />
     <ClInclude Include="Core\Network\Native\UdpChannel.h" />
+    <ClInclude Include="Core\Network\Native\UdpDatagram.h" />
     <ClInclude Include="Core\Network\Web\WebSocketTransport.h" />
     <ClInclude Include="GameFramework\Component\Light2D.h" />
     <ClInclude Include="GameFramework\Physics2D\Physics2DGeometry.h" />

@@ -824,6 +824,9 @@
     <ClInclude Include="Core\Network\Native\UdpChannel.h">
       <Filter>Header\Core\Network\Native</Filter>
     </ClInclude>
+    <ClInclude Include="Core\Network\Native\UdpDatagram.h">
+      <Filter>Header\Core\Network\Native</Filter>
+    </ClInclude>
     <ClInclude Include="Core\Network\Web\WebSocketTransport.h">
       <Filter>Header\Core\Network\Web</Filter>
     </ClInclude>

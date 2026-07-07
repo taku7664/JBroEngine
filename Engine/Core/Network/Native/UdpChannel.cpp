@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "UdpChannel.h"
+#include "UdpDatagram.h" // v2 코덱(UdpProto::Encode/Decode)
 
 #if !JBRO_PLATFORM_WEB
 
@@ -8,40 +9,8 @@
 
 namespace
 {
-	// [token:8][channel:1][seq:4][msgId:2]
-	constexpr std::size_t   UDP_HEADER_SIZE  = 8u + 1u + 4u + 2u; // = 15
-	constexpr std::uint32_t UDP_MAX_PAYLOAD  = 1024u;             // MTU 여유(IP 분할 회피).
+	constexpr std::uint32_t UDP_MAX_PAYLOAD  = 1024u; // MTU 여유(IP 분할 회피).
 	constexpr std::size_t   UDP_RECV_BUFSIZE = 2048u;
-
-	void WriteU64LE(std::uint8_t* p, std::uint64_t v)
-	{
-		for (int i = 0; i < 8; ++i) { p[i] = static_cast<std::uint8_t>((v >> (i * 8)) & 0xFFu); }
-	}
-	void WriteU32LE(std::uint8_t* p, std::uint32_t v)
-	{
-		for (int i = 0; i < 4; ++i) { p[i] = static_cast<std::uint8_t>((v >> (i * 8)) & 0xFFu); }
-	}
-	void WriteU16LE(std::uint8_t* p, std::uint16_t v)
-	{
-		p[0] = static_cast<std::uint8_t>(v & 0xFFu);
-		p[1] = static_cast<std::uint8_t>((v >> 8) & 0xFFu);
-	}
-	std::uint64_t ReadU64LE(const std::uint8_t* p)
-	{
-		std::uint64_t v = 0;
-		for (int i = 0; i < 8; ++i) { v |= static_cast<std::uint64_t>(p[i]) << (i * 8); }
-		return v;
-	}
-	std::uint32_t ReadU32LE(const std::uint8_t* p)
-	{
-		std::uint32_t v = 0;
-		for (int i = 0; i < 4; ++i) { v |= static_cast<std::uint32_t>(p[i]) << (i * 8); }
-		return v;
-	}
-	std::uint16_t ReadU16LE(const std::uint8_t* p)
-	{
-		return static_cast<std::uint16_t>(p[0] | (static_cast<std::uint16_t>(p[1]) << 8));
-	}
 }
 
 // ── 수명 ─────────────────────────────────────────────────────────────────────────
@@ -208,18 +177,18 @@ bool CUdpChannel::SendDatagram(
 	const NetUdpEndpoint& to, std::uint64_t token, ENetChannel channel,
 	std::uint32_t seq, std::uint16_t msgId, const void* data, std::uint32_t size)
 {
-	std::vector<std::uint8_t> datagram;
-	datagram.resize(UDP_HEADER_SIZE + size);
-	WriteU64LE(datagram.data(), token);
-	datagram[8] = static_cast<std::uint8_t>(channel);
-	WriteU32LE(datagram.data() + 9, seq);
-	WriteU16LE(datagram.data() + 13, msgId);
-	if (size > 0 && nullptr != data)
-	{
-		std::memcpy(datagram.data() + UDP_HEADER_SIZE, data, size);
-	}
+	UdpProto::UdpDatagramHeader header;
+	header.Token   = token;
+	header.Flags   = UdpProto::Flag_None; // 비신뢰 — ack/frag 없음(3b+ 에서 신뢰 플래그 추가).
+	header.Channel = channel;
+	header.Seq     = seq;
+	header.MsgId   = msgId;
 
-	return ESocketIo::Ok == m_socket->SendTo(to, datagram.data(), datagram.size());
+	std::vector<std::uint8_t> datagram;
+	datagram.resize(UdpProto::HeaderSize(header.Flags) + size);
+	const std::size_t written = UdpProto::Encode(header, data, size, datagram.data());
+
+	return ESocketIo::Ok == m_socket->SendTo(to, datagram.data(), written);
 }
 
 // ── 수신 ─────────────────────────────────────────────────────────────────────────
@@ -241,17 +210,19 @@ void CUdpChannel::Poll(const FOnUdpMessage& onMessage)
 		{
 			break; // WouldBlock / Error — 이번 폴 종료.
 		}
-		if (bytes < UDP_HEADER_SIZE)
+
+		UdpProto::UdpDatagramHeader header;
+		const std::uint8_t* payload = nullptr;
+		std::uint32_t       psize   = 0;
+		if (false == UdpProto::Decode(buffer, bytes, header, payload, psize))
 		{
-			continue; // 헤더 미달 — 폐기.
+			continue; // 헤더 미달/잘림 — 폐기.
 		}
 
-		const std::uint64_t token   = ReadU64LE(buffer);
-		const ENetChannel   channel = static_cast<ENetChannel>(buffer[8]);
-		const std::uint32_t seq     = ReadU32LE(buffer + 9);
-		const std::uint16_t msgId   = ReadU16LE(buffer + 13);
-		const std::uint8_t* payload = buffer + UDP_HEADER_SIZE;
-		const std::uint32_t psize   = static_cast<std::uint32_t>(bytes - UDP_HEADER_SIZE);
+		const std::uint64_t token   = header.Token;
+		const ENetChannel   channel = header.Channel;
+		const std::uint32_t seq     = header.Seq;
+		const std::uint16_t msgId   = header.MsgId;
 
 		if (ENetworkRole::Server == m_role)
 		{
