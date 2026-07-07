@@ -10,6 +10,8 @@ Entries:
   window.log: 로그
   window.project_settings: 프로젝트 세팅
   window.build_settings: 빌드 세팅
+  window.shortcut_reference: 단축키 안내
+  window.editor_statistics: 에디터 통계
 
   menu.file: 파일
   menu.file.new_project: 새 프로젝트
@@ -76,6 +78,26 @@ Entries:
   common.name: 이름
   common.type: 타입
   common.modified: 수정일
+  common.search: 검색
+  common.yes: 예
+  common.no: 아니요
+
+  shortcut_reference.category: 분류
+  shortcut_reference.action: 동작
+  shortcut_reference.binding: 단축키
+  shortcut_reference.status: 상태
+  shortcut_reference.available: 사용 가능
+  shortcut_reference.unavailable: 현재 상태에서 사용 불가
+  shortcut_reference.text_input_note: 텍스트를 편집하는 동안 전역 단축키가 일시 중지됩니다.
+
+  editor_statistics.fps: FPS
+  editor_statistics.frame_time: 프레임 시간
+  editor_statistics.scene_objects: 씬 오브젝트
+  editor_statistics.render_items: 렌더 아이템
+  editor_statistics.selection: 선택된 오브젝트
+  editor_statistics.undo: 되돌리기 가능
+  editor_statistics.redo: 다시 실행 가능
+  editor_statistics.dirty: 저장하지 않은 변경
 
   root.no_project_loaded: 프로젝트를 열려면, 상단 메뉴에서 [파일] > [프로젝트 열기]를 선택하세요.
 

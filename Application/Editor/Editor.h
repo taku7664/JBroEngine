@@ -21,6 +21,8 @@ class CGameViewTool;
 class CInspectorTool;
 class CAssetBrowserTool;
 class CLogTool;
+class CShortcutReferenceTool;
+class CEditorStatisticsTool;
 class CBuildSettingsWindow;
 class CProjectSettingsWindow;
 class CSpriteImporterWindow;
@@ -40,6 +42,8 @@ public:
 	inline static SafePtr<CInspectorTool>			Inspector = nullptr;
 	inline static SafePtr<CAssetBrowserTool>		AssetBrowser = nullptr;
 	inline static SafePtr<CLogTool>					LogTool = nullptr;
+	inline static SafePtr<CShortcutReferenceTool>	ShortcutReference = nullptr;
+	inline static SafePtr<CEditorStatisticsTool>	EditorStatistics = nullptr;
 	inline static SafePtr<CBuildSettingsWindow>		BuildSettings = nullptr;
 	inline static SafePtr<CProjectSettingsWindow>	ProjectSettings = nullptr;
 	inline static SafePtr<CSpriteImporterWindow>	SpriteImporter = nullptr;

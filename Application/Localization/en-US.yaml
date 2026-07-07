@@ -10,6 +10,8 @@ Entries:
   window.log: Log
   window.project_settings: Project Settings
   window.build_settings: Build Settings
+  window.shortcut_reference: Shortcut Reference
+  window.editor_statistics: Editor Statistics
 
   menu.file: File
   menu.file.new_project: New Project
@@ -76,6 +78,26 @@ Entries:
   common.name: Name
   common.type: Type
   common.modified: Modified
+  common.search: Search
+  common.yes: Yes
+  common.no: No
+
+  shortcut_reference.category: Category
+  shortcut_reference.action: Action
+  shortcut_reference.binding: Shortcut
+  shortcut_reference.status: Status
+  shortcut_reference.available: Available
+  shortcut_reference.unavailable: Unavailable in the current context
+  shortcut_reference.text_input_note: Global shortcuts are suspended while editing text.
+
+  editor_statistics.fps: FPS
+  editor_statistics.frame_time: Frame Time
+  editor_statistics.scene_objects: Scene Objects
+  editor_statistics.render_items: Render Items
+  editor_statistics.selection: Selected Objects
+  editor_statistics.undo: Can Undo
+  editor_statistics.redo: Can Redo
+  editor_statistics.dirty: Unsaved Changes
 
   root.no_project_loaded: Use File > Open Project to open a project.
 

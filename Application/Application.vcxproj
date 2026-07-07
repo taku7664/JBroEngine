@@ -352,6 +352,8 @@ xcopy /Y /I /E "$(ProjectDir)Localization" "$(SolutionDir)Localization\" &gt; nu
     <ClInclude Include="Editor\Main\SceneView\SceneViewEditContext.h" />
     <ClInclude Include="Editor\Main\GameView\GameViewTool.h" />
     <ClInclude Include="Editor\Main\Log\LogTool.h" />
+    <ClInclude Include="Editor\Main\ShortcutReference\ShortcutReferenceTool.h" />
+    <ClInclude Include="Editor\Main\Statistics\EditorStatisticsTool.h" />
     <ClInclude Include="Editor\Main\BuildSettingsWindow.h" />
     <ClInclude Include="Editor\Main\ProjectSettingsWindow.h" />
     <ClInclude Include="Editor\Main\Importer\ImporterWindowBase.h" />
@@ -421,6 +423,12 @@ xcopy /Y /I /E "$(ProjectDir)Localization" "$(SolutionDir)Localization\" &gt; nu
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="Editor\Main\Log\LogTool.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Editor\Main\ShortcutReference\ShortcutReferenceTool.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Editor\Main\Statistics\EditorStatisticsTool.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="Entry\WindowsMain.cpp" />

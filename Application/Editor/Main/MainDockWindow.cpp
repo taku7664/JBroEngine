@@ -10,6 +10,8 @@
 #include "Editor/Main/Inspector/InspectorTool.h"
 #include "Editor/Main/Log/LogTool.h"
 #include "Editor/Main/SceneView/SceneViewTool.h"
+#include "Editor/Main/ShortcutReference/ShortcutReferenceTool.h"
+#include "Editor/Main/Statistics/EditorStatisticsTool.h"
 #include "Editor/Main/Importer/SpriteImporterWindow.h"
 #include "Editor/Main/Importer/AudioImporterWindow.h"
 #include "Engine/Core/EngineCore.h"
@@ -61,6 +63,8 @@ void CMainDockWindow::OnCreate()
 	Editor::Inspector    = Editor::ImEditor->CreateImWindow<CInspectorTool>   ("Inspector",    id);
 	Editor::AssetBrowser = Editor::ImEditor->CreateImWindow<CAssetBrowserTool>("AssetBrowser", id);
 	Editor::LogTool      = Editor::ImEditor->CreateImWindow<CLogTool>         ("Log",          id);
+	Editor::ShortcutReference = Editor::ImEditor->CreateImWindow<CShortcutReferenceTool>("ShortcutReference", id);
+	Editor::EditorStatistics  = Editor::ImEditor->CreateImWindow<CEditorStatisticsTool>("EditorStatistics", id);
 
 	// 슬롯 이름으로 창 배치
 	if (Editor::SceneView)
@@ -78,6 +82,16 @@ void CMainDockWindow::OnCreate()
 	if (Editor::LogTool)
 	{
 		Editor::LogTool->InitializeDockLayout("Bottom");    // AssetBrowser와 탭으로 합침
+	}
+	if (Editor::ShortcutReference)
+	{
+		Editor::ShortcutReference->InitializeDockLayout("Bottom");
+		Editor::ShortcutReference->SetVisible(false);
+	}
+	if (Editor::EditorStatistics)
+	{
+		Editor::EditorStatistics->InitializeDockLayout("Bottom");
+		Editor::EditorStatistics->SetVisible(false);
 	}
 	if (Editor::Hierarchy)
 	{
