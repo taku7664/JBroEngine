@@ -35,6 +35,7 @@ public:
 	void DestroyGpuResource(IRenderResource& resource) override;
 
 	SafePtr<IRHIGraphicsPipeline> GetSpritePipeline() const;
+	SafePtr<IRHIGraphicsPipeline> GetTextPipeline() const;
 	SafePtr<IRHISampler> GetDefaultSampler() const;
 	SafePtr<IRenderMesh> GetQuadMesh() const;
 	SafePtr<IRHITexture> GetWhiteTexture() const;
@@ -47,6 +48,8 @@ private:
 		float Color[4];
 		float ViewRow0[4];
 		float ViewRow1[4];
+		float SecondaryColor[4];
+		float ShaderParams[4];
 	};
 
 	struct SpriteViewConstants
@@ -109,6 +112,7 @@ private:
 	bool DrawSpriteBatch(IRHICommandContext& commandContext, RenderStateCache& stateCache, const RenderItem* items, std::uint32_t itemCount, const SpriteDrawResources& resources, const ViewParameters& view);
 	bool CanBatchSpriteItem(const RenderItem& item, const SpriteDrawResources& resources) const;
 	bool CreateSpritePipeline();
+	bool CreateTextPipeline();
 	bool CreateSpriteBatchPipeline();
 	bool CreateQuadMesh();
 
@@ -119,6 +123,9 @@ private:
 	OwnerPtr<IRHIProgram> m_spriteBatchVertexProgram;
 	OwnerPtr<IRHIProgram> m_spriteBatchPixelProgram;
 	OwnerPtr<IRHIGraphicsPipeline> m_spritePipeline;
+	OwnerPtr<IRHIProgram> m_textVertexProgram;
+	OwnerPtr<IRHIProgram> m_textPixelProgram;
+	OwnerPtr<IRHIGraphicsPipeline> m_textPipeline;
 	OwnerPtr<IRHIGraphicsPipeline> m_spriteBatchPipeline;
 	OwnerPtr<IRHISampler> m_defaultSampler;
 	OwnerPtr<IRenderMesh> m_quadMesh;

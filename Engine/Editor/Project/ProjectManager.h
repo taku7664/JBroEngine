@@ -83,6 +83,9 @@ public:
 	// 좌표계 단위 (PPU: Pixels Per Unit)
 	float GetPixelsPerUnit() const;
 	void  SetPixelsPerUnit(float ppu);
+	const AssetGuid& GetDefaultFontFamilyGuid() const;
+	const std::vector<AssetGuid>& GetFallbackFontFamilies() const;
+	void SetFontSettings(const AssetGuid& defaultFamily, const std::vector<AssetGuid>& fallbackFamilies);
 
 	bool IsDebugModeEnabled() const;
 	void SetDebugModeEnabled(bool enabled);

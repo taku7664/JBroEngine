@@ -23,6 +23,7 @@ public:
         Input,          // 입력 레이어 우선순위
         Localization,   // 언어
         Audio,          // 마스터 볼륨, 버스 (향후 확장)
+        Fonts,
         Debug,          // 에디터 디버그 표시
         AssetWatcher,   // 자산 워처 무시 패턴
         Count
@@ -43,6 +44,7 @@ private:
     void DrawCategoryInput();
     void DrawCategoryLocalization();
     void DrawCategoryAudio();
+    void DrawCategoryFonts();
     void DrawCategoryDebug();
     void DrawCategoryAssetWatcher();
 
@@ -62,6 +64,8 @@ private:
 
     // 오디오 (향후 PR D 의 CAudioService 와 연동)
     float m_masterVolume = 1.0f;
+    AssetGuid m_editDefaultFontFamily = INVALID_ASSET_GUID;
+    std::vector<AssetGuid> m_editFallbackFontFamilies;
 
     // 자산 워처 무시 패턴 — 한 줄당 하나의 glob 패턴 (예: *.tmp, ~$*).
     // Apply 시 ProjectManager 에 set.

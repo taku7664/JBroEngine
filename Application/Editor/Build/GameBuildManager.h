@@ -80,10 +80,13 @@ private:
 		std::uint32_t ResolutionWidth = 1920;
 		std::uint32_t ResolutionHeight = 1080;
 		float PixelsPerUnit = 100.0f;
+		AssetGuid DefaultFontFamilyGuid = INVALID_ASSET_GUID;
+		std::vector<AssetGuid> FallbackFontFamilies;
 		std::string OutputDirectory;
 		std::string StartupScene;
 		std::string StartupSceneGuid;
 		std::vector<std::string> BuildScenes;
+		std::vector<InputActionDef> InputActions;
 		AssetGuid WindowsIconGuid = INVALID_ASSET_GUID;
 		File::Path OutputRoot;
 		File::Path PackageDirectory;

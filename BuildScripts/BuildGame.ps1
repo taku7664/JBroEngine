@@ -652,6 +652,7 @@ function Write-JBroBuildManifest {
         [string]$ScriptMode = "",
         [string]$ScriptModule = "",
         [string]$Orientation = "",
+        [string]$ProjectPath = "",
         [string[]]$BuildScenes = @(),
         [string[]]$BuildSceneGuids = @()
     )
@@ -682,6 +683,9 @@ function Write-JBroBuildManifest {
     }
     if (-not [string]::IsNullOrWhiteSpace($Orientation)) {
         $args += @("--orientation", $Orientation)
+    }
+    if (-not [string]::IsNullOrWhiteSpace($ProjectPath)) {
+        $args += @("--input-map", $ProjectPath)
     }
     # 빌드 씬 목록 — 런타임이 startup 외 씬을 GUID 로 선로드하도록 name/guid 쌍을 넘긴다.
     # 빈 값 인자를 넘기지 않도록(PS 5.x splatting 트랩) 둘 다 있는 항목만 append.
@@ -739,6 +743,7 @@ function Invoke-JBroBuildManifestValidation {
         [Parameter(Mandatory=$true)][string]$TargetPlatform,
         [Parameter(Mandatory=$true)][string]$ScriptMode,
         [string]$ScriptModule = "",
+        [string]$ProjectPath = "",
         [int]$Width = 1280,
         [int]$Height = 720
     )
@@ -760,6 +765,9 @@ function Invoke-JBroBuildManifestValidation {
     if (-not [string]::IsNullOrWhiteSpace($ScriptModule)) {
         $args += @("--script-module", $ScriptModule)
     }
+    if (-not [string]::IsNullOrWhiteSpace($ProjectPath)) {
+        $args += @("--input-map", $ProjectPath)
+    }
 
     & $toolExe @args
     if ($LASTEXITCODE -ne 0) {
@@ -778,6 +786,7 @@ function Invoke-ReleasePackageSmokeTests {
         [Parameter(Mandatory=$true)][string]$TargetPlatform,
         [Parameter(Mandatory=$true)][string]$ScriptMode,
         [string]$ScriptModule = "",
+        [string]$ProjectPath = "",
         [int]$Width = 1280,
         [int]$Height = 720
     )
@@ -794,6 +803,7 @@ function Invoke-ReleasePackageSmokeTests {
         -TargetPlatform $TargetPlatform `
         -ScriptMode $ScriptMode `
         -ScriptModule $ScriptModule `
+        -ProjectPath $ProjectPath `
         -Width $Width `
         -Height $Height
     Test-JBroBinaryFileMagic -Path $AssetPackPath -Magic ([byte[]](0x4A,0x42,0x50,0x41,0x43,0x4B,0x31,0x00)) -Name "asset pack"
@@ -1079,6 +1089,8 @@ function Invoke-WebApplicationBuild {
         "-IEngine",
         "-IEngine\ThirdParty",
         "-IEngine\ThirdParty\yaml-cpp\src",
+        "-IEngine\ThirdParty\freetype\include",
+        "-IEngine\ThirdParty\harfbuzz\src",
         "-I$ContentPath",
         ("-I{0}" -f (Join-Path $ContentPath "Scripts")),
         "-std=c++20",
@@ -1086,6 +1098,15 @@ function Invoke-WebApplicationBuild {
         "-DJBRO_GAME",
         "-DJBRO_HAS_MINIAUDIO=1",
         "-DYAML_CPP_STATIC_DEFINE"
+    )
+    $arguments += @(
+        "-DFT2_BUILD_LIBRARY",
+        "-DHAVE_FREETYPE",
+        "-DHB_NO_GLIB",
+        "-DHB_NO_GRAPHITE2",
+        "-DHB_NO_CORETEXT",
+        "-DHB_NO_DIRECTWRITE",
+        "-DHB_NO_GDI"
     )
     $arguments += $optimizationArgs
 
@@ -1627,6 +1648,7 @@ $manifestScriptMode = if ($Platform -eq "Windows") { "DynamicLibrary" } else { "
 $manifestScriptModule = if ($Platform -eq "Windows") { "GameScript.dll" } else { "" }
 Write-JBroBuildManifest `
     -ManifestPath $manifestPath `
+    -ProjectPath $projectPath `
     -StartupSceneGuid $startupSceneGuid `
     -ProductName $productName `
     -StartupScene $projectInfo.Build.StartupScene `
@@ -1730,6 +1752,7 @@ if ($Configuration -eq "Release") {
         -TargetPlatform $Platform `
         -ScriptMode $manifestScriptMode `
         -ScriptModule $manifestScriptModule `
+        -ProjectPath $projectPath `
         -Width ([int]$projectInfo.ResolutionWidth) `
         -Height ([int]$projectInfo.ResolutionHeight)
 }

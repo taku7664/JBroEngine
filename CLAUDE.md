@@ -300,6 +300,7 @@ For trivial tasks, answer directly.
 
 ## Project Rules
 - 한 줄 코딩 금지
+- 모든 사용자 노출 Editor UI는 하드코딩 문자열을 금지하고 한국어·영어 현지화 키를 함께 등록한다.
 - 윈도우·웹 멀티플랫폼 지원을 항상 염두에 둘 것.
 - 작업 시 멀티플랫폼 호환성을 고려하고, 윈도우 쪽을 구현했다면 웹도 동일 수준으로 병행 구현할 것.
 - 줄 끝(EOL) 일관성에 유의하며 작업할 것.
@@ -309,6 +310,7 @@ For trivial tasks, answer directly.
 - 수정 보고는 중요한 항목마다 코드를 읽고 "어떻게 생각했고 / 어떤 반례를 찾았고 / 어떻게 고쳤다" 흐름으로 남길 것.
 - 직렬화는 JSON보다 YAML/바이너리 방향을 우선한다.
 - 임시 bool 플래그 추가로 회피 금지
+- 패키지 실행 파일이 켜지는 것만으로 빌드 검증을 완료 처리하지 않는다. 빌드 매니페스트 등 런타임 설정이 실제로 전달되는지와 핵심 게임 동작이 패키지에서 정상인지까지 확인한다.
 - **`EngineCore`(전역 `Engine`) 와 `ScriptCore`(전역 `Script`) 는 용도가 다르다. 절대 혼동 금지.**
   - **`Engine`(EngineCore)** = 엔진 *내부* 전체 공개 API. 모든 서비스(Platform/RHIDevice/Renderer/RenderScene/AssetManager/SceneManager/…)를 담는다. **호스트 프로세스에서만 채워진다**(CEngine 초기화가 각 서비스 생성 시 `Engine.X = …` 대입). 엔진/에디터 코드는 이 전역 `Engine.X` 를 **직접** 쓴다. CModule 이나 ProjectManager 가 EngineCore 포인터를 따로 들고 다니지 않는다(extern 전역이라 불필요).
   - **`Script`(ScriptCore)** = 게임 스크립트(유저)에게 노출하는 *엄선된 부분집합*. 게임플레이에 정당히 필요한 것만(Debug/Time/Input/SceneManager/AssetManager/Audio/Random/Math/Reflection/Logger/FileSystem/Localization/Network/DebugDraw2D). **렌더러/RHI/플랫폼/렌더서피스 등 엔진 내부 객체는 절대 넣지 않는다**(스크립트가 GPU/플랫폼을 직접 만질 이유 없음).

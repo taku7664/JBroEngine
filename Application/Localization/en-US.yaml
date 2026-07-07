@@ -215,8 +215,16 @@ Entries:
   asset_browser.add_asset: Add Asset
   asset_browser.add_asset.scene: Scene
   asset_browser.add_asset.material: Material
+  asset_browser.add_asset.font_family: Font Family
   asset_browser.add_asset.effect: Sound Effect
   asset_browser.add_asset.prefab: Prefab
+  inspector.font_face.title: Font Import Settings
+  inspector.font_face.face_index: Face Index
+  inspector.font_face.apply: Apply
+  inspector.font_face.applied: Saved. Reopen the scene to refresh a font that is already in use.
+  inspector.font_face.create_family: Create Font Family From This Font
+  inspector.font_face.family_created: Created and selected the Font Family.
+  inspector.font_face.family_create_failed: Failed to create the Font Family.
   asset_browser.tree.focus_here: Open This Folder
   asset_browser.delete_confirm: Delete selected asset entry?
   asset_browser.selection_count: "Selected: %d items"
@@ -565,3 +573,56 @@ Entries:
   editor.property.MinDistance:  Min Distance
   editor.property.MaxDistance:  Max Distance
   editor.property.PlayOnStart:  Play On Start
+  common.remove: Remove
+  common.move_up: Move Up
+  inspector.font_family.title: Font Family
+  inspector.font_family.regular: Regular
+  inspector.font_family.bold: Bold
+  inspector.font_family.italic: Italic
+  inspector.font_family.bold_italic: Bold Italic
+  inspector.font_family.use_project_fallbacks: Use Project Fallbacks
+  inspector.font_family.leading_fallbacks: Leading Fallback Font Families
+  inspector.font_family.add_fallback: Add Fallback
+  inspector.font_family.apply: Apply Font Family
+  editor.component.Text2D: Text 2D
+  editor.property.Text: Text
+  editor.property.FontFamilyGuid: Font Family
+  editor.property.FontStyle: Font Style
+  editor.property.FontSizePixels: Font Size (px)
+  editor.property.WidthPixels: Width (px)
+  editor.property.HeightPixels: Height (px)
+  editor.property.OverflowMode: Overflow
+  editor.property.AutoSizeEnabled: Auto Size
+  editor.property.MinFontSizePixels: Minimum Font Size (px)
+  editor.property.MaxFontSizePixels: Maximum Font Size (px)
+  editor.property.HorizontalAlignment: Horizontal Alignment
+  editor.property.VerticalAlignment: Vertical Alignment
+  editor.property.LineSpacing: Line Spacing
+  editor.property.LetterSpacingPixels: Letter Spacing (px)
+  editor.property.FillEnabled: Fill Enabled
+  editor.property.FillColor: Fill Color
+  editor.property.OutlineEnabled: Outline Enabled
+  editor.property.OutlineColor: Outline Color
+  editor.property.OutlineWidthPixels: Outline Width (px)
+  editor.property.PixelSnap: Pixel Snap
+  editor.enum.FontStyle.Regular: Regular
+  editor.enum.FontStyle.Bold: Bold
+  editor.enum.FontStyle.Italic: Italic
+  editor.enum.FontStyle.BoldItalic: Bold Italic
+  editor.enum.OverflowMode.Overflow: Overflow
+  editor.enum.OverflowMode.Wrap: Wrap
+  editor.enum.OverflowMode.Clip: Clip
+  editor.enum.HorizontalAlignment.Left: Left
+  editor.enum.HorizontalAlignment.Center: Center
+  editor.enum.HorizontalAlignment.Right: Right
+  editor.enum.VerticalAlignment.Top: Top
+  editor.enum.VerticalAlignment.Middle: Middle
+  editor.enum.VerticalAlignment.Baseline: Baseline
+  editor.enum.VerticalAlignment.Bottom: Bottom
+  inspector.text2d.font_missing: Text cannot be rendered because no usable Font Family is configured.
+  inspector.text2d.open_font_settings: Open Project Font Settings
+  project_settings.fonts: Fonts
+  project_settings.fonts.desc: Configure the project default Font Family and the ordered shared fallback list.
+  project_settings.fonts.default: Default Font Family
+  project_settings.fonts.fallbacks: Shared Fallback Font Families
+  project_settings.fonts.add_fallback: Add Fallback

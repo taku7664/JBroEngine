@@ -11,6 +11,8 @@
 #include "Engine/GameFramework/Object/GameObject.h"
 #include "Engine/GameFramework/Component/SpriteRenderer2D.h"
 #include "Engine/GameFramework/Component/ShapeRenderers2D.h"
+#include "Engine/GameFramework/Component/Text2D.h"
+#include "Engine/GameFramework/Rendering/TextRenderSystem.h"
 #include "Engine/GameFramework/Component/Transform2D.h"
 #include "Engine/GameFramework/Scene/Scene.h"
 #include "Engine/GameFramework/Scene/SceneTransformUtils.h"
@@ -435,6 +437,24 @@ CGameObject* CSceneViewEditContext::Pick(
                 });
         });
 
+    CTextRenderSystem* textSystem = const_cast<CGameScene&>(scene).FindSystem<CTextRenderSystem>();
+    if (textSystem)
+    {
+        const_cast<CGameScene&>(scene).ForEach<Text2D>(
+            [&](Text2D& text)
+            {
+                CGameObject* owner = text.GetOwner();
+                if (false == canPickOwner(owner, text)) return;
+                float centerX = 0.0f, centerY = 0.0f, width = 0.0f, height = 0.0f;
+                if (false == textSystem->TryGetLocalBounds(text, centerX, centerY, width, height) || width <= 0.0f || height <= 0.0f) return;
+                considerShape(owner, text.Offset + Vector2(centerX, centerY), text.SortOrder,
+                    [width, height](const Vector2& point)
+                    {
+                        return std::abs(point.x) <= width * 0.5f && std::abs(point.y) <= height * 0.5f;
+                    });
+            });
+    }
+
     if (nullptr == pickedObject) return nullptr;
 
     // 컨텍스트 레벨에 맞는 오브젝트 반환
@@ -456,6 +476,7 @@ std::vector<CGameObject*> CSceneViewEditContext::PickBox(
 {
     CGameObject* context = m_context.TryGet();
     std::unordered_set<CGameObject*> foundSet;
+    CTextRenderSystem* textSystem = const_cast<CGameScene&>(scene).FindSystem<CTextRenderSystem>();
 
     // 전체 오브젝트 순회:
     //   - SpriteRenderer2D 있음 → 불투명 픽셀 tight AABB (없으면 OBB 폴백)
@@ -526,6 +547,18 @@ std::vector<CGameObject*> CSceneViewEditContext::PickBox(
                     corners[2] = spriteMat.TransformPoint({ 0.5f, -0.5f});
                     corners[3] = spriteMat.TransformPoint({-0.5f, -0.5f});
                 }
+            }
+            else if (const Text2D* text = object.GetComponent<Text2D>(); text && text->IsEnabled && textSystem)
+            {
+                float centerX = 0.0f, centerY = 0.0f, width = 0.0f, height = 0.0f;
+                if (false == textSystem->TryGetLocalBounds(*text, centerX, centerY, width, height)
+                    || width <= 0.0f || height <= 0.0f) return;
+                const Matrix3x2 textMat = Matrix3x2::Transform(text->Offset + Vector2(centerX, centerY), 0.0f,
+                    Vector2(1.0f, 1.0f)) * entityWorldMat;
+                corners[0] = textMat.TransformPoint({-width * 0.5f,  height * 0.5f});
+                corners[1] = textMat.TransformPoint({ width * 0.5f,  height * 0.5f});
+                corners[2] = textMat.TransformPoint({ width * 0.5f, -height * 0.5f});
+                corners[3] = textMat.TransformPoint({-width * 0.5f, -height * 0.5f});
             }
             else
             {

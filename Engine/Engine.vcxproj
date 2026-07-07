@@ -124,6 +124,11 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(ProjectDir)ThirdParty\freetype\include;$(ProjectDir)ThirdParty\harfbuzz\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
   <!-- ────────────────────────────────────────────────────────────────────
        Engine은 StaticLibrary — OutDir은 ProjectReference가 자동으로 추적하므로
        기본값을 유지하고 IntDir만 Build\Intermediate\... 로 통일.
@@ -339,6 +344,7 @@
     <ClInclude Include="Core\Asset\AudioEffectAsset.h" />
     <ClInclude Include="Core\Asset\MaterialAsset.h" />
     <ClInclude Include="Core\Asset\SpriteAsset.h" />
+    <ClInclude Include="Core\Asset\FontAsset.h" />
     <ClInclude Include="Core\Audio\AudioTypes.h" />
     <ClInclude Include="Core\Audio\IAudioBus.h" />
     <ClInclude Include="Core\Audio\IAudioDevice.h" />
@@ -434,6 +440,8 @@
     <ClInclude Include="Core\Time\Time.h" />
     <ClInclude Include="GameFramework\Component\Camera2D.h" />
     <ClInclude Include="GameFramework\Component\SpriteRenderer2D.h" />
+    <ClInclude Include="GameFramework\Component\Text2D.h" />
+    <ClInclude Include="GameFramework\Rendering\TextRenderSystem.h" />
     <ClInclude Include="GameFramework\Component\ShapeRenderers2D.h" />
     <ClInclude Include="GameFramework\Component\Transform2D.h" />
     <ClInclude Include="GameFramework\Object\GameInstance.h" />
@@ -634,6 +642,7 @@
     <ClCompile Include="Core\Asset\AudioEffectAsset.cpp" />
     <ClCompile Include="Core\Asset\MaterialAsset.cpp" />
     <ClCompile Include="Core\Asset\SpriteAsset.cpp" />
+    <ClCompile Include="Core\Asset\FontAsset.cpp" />
     <ClCompile Include="Core\Build\BuildManifest.cpp" />
     <ClCompile Include="Core\Audio\EmptyAudio\EmptyAudioDevice.cpp" />
     <ClCompile Include="Core\Audio\MiniAudio\MiniAudioDevice.cpp" />
@@ -710,6 +719,7 @@
     <ClCompile Include="GameFramework\Rendering\SpriteRenderSystem.cpp" />
     <ClCompile Include="GameFramework\Rendering\ShapeGeometry2D.cpp" />
     <ClCompile Include="GameFramework\Rendering\ShapeRenderSystem.cpp" />
+    <ClCompile Include="GameFramework\Rendering\TextRenderSystem.cpp" />
     <ClCompile Include="GameFramework\Scene\Scene.cpp" />
     <ClCompile Include="GameFramework\Scene\SceneManager.cpp" />
     <ClCompile Include="GameFramework\Scene\SceneSerializer.cpp" />
@@ -846,6 +856,29 @@
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="ThirdParty\harfbuzz\src\harfbuzz.cc">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <PreprocessorDefinitions>HAVE_FREETYPE;HB_NO_GLIB;HB_NO_GRAPHITE2;HB_NO_CORETEXT;HB_NO_DIRECTWRITE;HB_NO_GDI;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="ThirdParty\freetype\src\base\ftsystem.c"><PrecompiledHeader>NotUsing</PrecompiledHeader><PreprocessorDefinitions>FT2_BUILD_LIBRARY;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions></ClCompile>
+    <ClCompile Include="ThirdParty\freetype\src\base\ftinit.c"><PrecompiledHeader>NotUsing</PrecompiledHeader><PreprocessorDefinitions>FT2_BUILD_LIBRARY;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions></ClCompile>
+    <ClCompile Include="ThirdParty\freetype\src\base\ftdebug.c"><PrecompiledHeader>NotUsing</PrecompiledHeader><PreprocessorDefinitions>FT2_BUILD_LIBRARY;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions></ClCompile>
+    <ClCompile Include="ThirdParty\freetype\src\base\ftbase.c"><PrecompiledHeader>NotUsing</PrecompiledHeader><PreprocessorDefinitions>FT2_BUILD_LIBRARY;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions></ClCompile>
+    <ClCompile Include="ThirdParty\freetype\src\base\ftbbox.c"><PrecompiledHeader>NotUsing</PrecompiledHeader><PreprocessorDefinitions>FT2_BUILD_LIBRARY;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions></ClCompile>
+    <ClCompile Include="ThirdParty\freetype\src\base\ftbitmap.c"><PrecompiledHeader>NotUsing</PrecompiledHeader><PreprocessorDefinitions>FT2_BUILD_LIBRARY;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions></ClCompile>
+    <ClCompile Include="ThirdParty\freetype\src\base\ftglyph.c"><PrecompiledHeader>NotUsing</PrecompiledHeader><PreprocessorDefinitions>FT2_BUILD_LIBRARY;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions></ClCompile>
+    <ClCompile Include="ThirdParty\freetype\src\base\ftmm.c"><PrecompiledHeader>NotUsing</PrecompiledHeader><PreprocessorDefinitions>FT2_BUILD_LIBRARY;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions></ClCompile>
+    <ClCompile Include="ThirdParty\freetype\src\base\ftsynth.c"><PrecompiledHeader>NotUsing</PrecompiledHeader><PreprocessorDefinitions>FT2_BUILD_LIBRARY;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions></ClCompile>
+    <ClCompile Include="ThirdParty\freetype\src\sfnt\sfnt.c"><PrecompiledHeader>NotUsing</PrecompiledHeader><PreprocessorDefinitions>FT2_BUILD_LIBRARY;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions></ClCompile>
+    <ClCompile Include="ThirdParty\freetype\src\truetype\truetype.c"><PrecompiledHeader>NotUsing</PrecompiledHeader><PreprocessorDefinitions>FT2_BUILD_LIBRARY;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions></ClCompile>
+    <ClCompile Include="ThirdParty\freetype\src\cff\cff.c"><PrecompiledHeader>NotUsing</PrecompiledHeader><PreprocessorDefinitions>FT2_BUILD_LIBRARY;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions></ClCompile>
+    <ClCompile Include="ThirdParty\freetype\src\smooth\smooth.c"><PrecompiledHeader>NotUsing</PrecompiledHeader><PreprocessorDefinitions>FT2_BUILD_LIBRARY;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions></ClCompile>
+    <ClCompile Include="ThirdParty\freetype\src\sdf\sdf.c"><PrecompiledHeader>NotUsing</PrecompiledHeader><PreprocessorDefinitions>FT2_BUILD_LIBRARY;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions></ClCompile>
+    <ClCompile Include="ThirdParty\freetype\src\autofit\autofit.c"><PrecompiledHeader>NotUsing</PrecompiledHeader><PreprocessorDefinitions>FT2_BUILD_LIBRARY;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions></ClCompile>
+    <ClCompile Include="ThirdParty\freetype\src\psaux\psaux.c"><PrecompiledHeader>NotUsing</PrecompiledHeader><PreprocessorDefinitions>FT2_BUILD_LIBRARY;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions></ClCompile>
+    <ClCompile Include="ThirdParty\freetype\src\pshinter\pshinter.c"><PrecompiledHeader>NotUsing</PrecompiledHeader><PreprocessorDefinitions>FT2_BUILD_LIBRARY;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions></ClCompile>
+    <ClCompile Include="ThirdParty\freetype\src\psnames\psnames.c"><PrecompiledHeader>NotUsing</PrecompiledHeader><PreprocessorDefinitions>FT2_BUILD_LIBRARY;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions></ClCompile>
   </ItemGroup>
   <ItemGroup>
   </ItemGroup>

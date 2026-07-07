@@ -420,6 +420,32 @@ bool CSetComponentPropertyCommand::WriteValue(const std::vector<std::uint8_t>& v
 	return true;
 }
 
+CSetComponentStringPropertyCommand::CSetComponentStringPropertyCommand(SafePtr<CGameScene> scene,
+	CGameObject* object, TypeId componentTypeId, std::size_t propertyOffset, std::string oldValue, std::string newValue)
+	: m_scene(scene), m_objectGuid(GuidOf(object)), m_componentTypeId(componentTypeId),
+	  m_propertyOffset(propertyOffset), m_oldValue(std::move(oldValue)), m_newValue(std::move(newValue)) {}
+
+const char* CSetComponentStringPropertyCommand::GetName() const { return "Set Component String Property"; }
+bool CSetComponentStringPropertyCommand::Execute() { return WriteValue(m_newValue); }
+void CSetComponentStringPropertyCommand::Undo() { WriteValue(m_oldValue); }
+void CSetComponentStringPropertyCommand::Redo() { WriteValue(m_newValue); }
+bool CSetComponentStringPropertyCommand::TryMerge(const IEditorCommand& newer)
+{
+	const auto* other = dynamic_cast<const CSetComponentStringPropertyCommand*>(&newer);
+	if (!other || m_objectGuid != other->m_objectGuid || m_componentTypeId != other->m_componentTypeId
+		|| m_propertyOffset != other->m_propertyOffset) return false;
+	m_newValue = other->m_newValue; return true;
+}
+bool CSetComponentStringPropertyCommand::WriteValue(const std::string& value)
+{
+	CGameObject* object = Resolve(m_scene, m_objectGuid);
+	if (!object || false == Engine.Reflection.IsValid()) return false;
+	void* component = Engine.Reflection->GetComponentAddress(*object, m_componentTypeId);
+	if (!component) return false;
+	*reinterpret_cast<std::string*>(static_cast<std::uint8_t*>(component) + m_propertyOffset) = value;
+	return true;
+}
+
 // ── CDeleteGameObjectCommand ──────────────────────────────────────────────────
 
 CDeleteGameObjectCommand::CDeleteGameObjectCommand(SafePtr<CGameScene> scene, CGameObject* object)

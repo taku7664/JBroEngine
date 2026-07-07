@@ -7,6 +7,7 @@
 #include "Engine/Editor/ImGuiUtillity.h"       // ImGui::Utillity::FormLayout, HoveredToolTip
 
 #include "Editor/Editor.h"
+#include "Editor/EditorDragDrop.h"
 #include "Engine/Editor/ImEditor.h"
 #include "Engine/Editor/Project/ProjectManager.h"
 
@@ -137,6 +138,8 @@ void CProjectSettingsWindow::OnShow()
         m_editResW = static_cast<int>(pm->GetResolutionWidth());
         m_editResH = static_cast<int>(pm->GetResolutionHeight());
         m_editPPU  = pm->GetPixelsPerUnit();
+        m_editDefaultFontFamily = pm->GetDefaultFontFamilyGuid();
+        m_editFallbackFontFamilies = pm->GetFallbackFontFamilies();
 
         m_scriptBuildConfiguration = EScriptBuildConfiguration::Release == pm->GetScriptBuildConfiguration() ? 1 : 0;
         m_scriptAutoRebuildEnabled = pm->IsScriptAutoRebuildEnabled();
@@ -221,6 +224,7 @@ void CProjectSettingsWindow::DrawCategoryList(float)
         { ECategory::Input,        "project_settings.category.input"         },
         { ECategory::Localization, "project_settings.category.localization"  },
         { ECategory::Audio,        "project_settings.category.audio"         },
+        { ECategory::Fonts,        "project_settings.category.fonts"         },
         { ECategory::Debug,        "project_settings.category.debug"         },
         { ECategory::AssetWatcher, "project_settings.category.asset_watcher" },
     };
@@ -244,6 +248,7 @@ void CProjectSettingsWindow::DrawCategoryContent(float)
     case ECategory::Input:        DrawCategoryInput();        break;
     case ECategory::Localization: DrawCategoryLocalization(); break;
     case ECategory::Audio:        DrawCategoryAudio();        break;
+    case ECategory::Fonts:        DrawCategoryFonts();        break;
     case ECategory::Debug:        DrawCategoryDebug();        break;
     case ECategory::AssetWatcher: DrawCategoryAssetWatcher(); break;
     default: break;
@@ -597,6 +602,59 @@ void CProjectSettingsWindow::DrawCategoryAudio()
     // 추가 UI 가 들어간다.
 }
 
+void CProjectSettingsWindow::DrawCategoryFonts()
+{
+    auto drawFamilyField = [](const char* id, AssetGuid& guid)
+    {
+        const File::Path path = guid.IsNull() ? File::NULL_PATH : File::ResolvePath(guid);
+        const std::string label = guid.IsNull() ? Loc::Text("inspector.ref_none")
+            : (path.IsNull() ? guid.generic_string() : path.filename().generic_string());
+        ImGui::Button((label + id).c_str(), ImVec2(-32.0f, 0.0f));
+        if (ImGui::BeginDragDropTarget())
+        {
+            EditorDragDrop::AssetPayload payload;
+            if (EditorDragDrop::AcceptAssetDragDropPayload(payload) && EAssetType::FontFamily == payload.Type)
+            {
+                guid = EditorDragDrop::GetGuid(payload);
+            }
+            ImGui::EndDragDropTarget();
+        }
+        ImGui::SameLine();
+        if (ImGui::SmallButton((std::string("X") + id).c_str())) guid = INVALID_ASSET_GUID;
+    };
+
+    ImGui::SeparatorText(Loc::Text("project_settings.fonts"));
+    ImGui::TextWrapped("%s", Loc::Text("project_settings.fonts.desc"));
+    ImGui::Spacing();
+    ImGui::TextUnformatted(Loc::Text("project_settings.fonts.default"));
+    drawFamilyField("##default_font_family", m_editDefaultFontFamily);
+
+    ImGui::Spacing();
+    ImGui::TextUnformatted(Loc::Text("project_settings.fonts.fallbacks"));
+    for (std::size_t index = 0; index < m_editFallbackFontFamilies.size(); ++index)
+    {
+        ImGui::PushID(static_cast<int>(index));
+        drawFamilyField("##fallback_font", m_editFallbackFontFamilies[index]);
+        if (index > 0)
+        {
+            ImGui::SameLine();
+            if (ImGui::SmallButton(Loc::Text("common.move_up"))) std::swap(m_editFallbackFontFamilies[index], m_editFallbackFontFamilies[index - 1]);
+        }
+        ImGui::SameLine();
+        if (ImGui::SmallButton(Loc::Text("common.remove")))
+        {
+            m_editFallbackFontFamilies.erase(m_editFallbackFontFamilies.begin() + static_cast<std::ptrdiff_t>(index));
+            ImGui::PopID();
+            break;
+        }
+        ImGui::PopID();
+    }
+    if (ImGui::Button(Loc::Text("project_settings.fonts.add_fallback")))
+    {
+        m_editFallbackFontFamilies.push_back(INVALID_ASSET_GUID);
+    }
+}
+
 void CProjectSettingsWindow::DrawCategoryDebug()
 {
     ImGui::SeparatorText(Loc::Text("project_settings.debug"));
@@ -675,6 +733,7 @@ void CProjectSettingsWindow::DrawFooterButtons()
             pm->SetResolution(static_cast<std::uint32_t>(m_editResW),
                               static_cast<std::uint32_t>(m_editResH));
             pm->SetPixelsPerUnit(m_editPPU);
+            pm->SetFontSettings(m_editDefaultFontFamily, m_editFallbackFontFamilies);
             pm->SetScriptBuildConfiguration(1 == m_scriptBuildConfiguration
                 ? EScriptBuildConfiguration::Release : EScriptBuildConfiguration::Debug);
             pm->SetScriptAutoRebuildEnabled(m_scriptAutoRebuildEnabled);

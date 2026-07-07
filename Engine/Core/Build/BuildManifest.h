@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Core/Input/InputAction.h"
 #include "Utillity/File/FilePath.h"
 
 #include <string>
@@ -31,9 +32,12 @@ struct BuildManifest
 	// BuildScenes 와 인덱스 1:1 매칭되는 각 씬의 에셋 GUID. 릴리즈 런타임은 경로 대신 이 GUID 로
 	// 씬 노드를 선로드한다(경로 폴백은 release 에서 금지). 비어 있거나 GUID 가 없는 항목은 스킵.
 	std::vector<std::string> BuildSceneGuids;
+	std::vector<InputActionDef> InputActions;
 	int ResolutionWidth = 0;
 	int ResolutionHeight = 0;
 	float PixelsPerUnit = 100.0f;
+	std::string DefaultFontFamilyGuid;
+	std::vector<std::string> FallbackFontFamilyGuids;
 	std::vector<BuildAssetMount> AssetMounts;
 	std::string ScriptMode;
 	std::string ScriptModule;

@@ -398,6 +398,68 @@ OwnerPtr<IRHITexture> CVulkanRHIDevice::CreateTexture2D(const RHITexture2DDesc& 
 #endif
 }
 
+bool CVulkanRHIDevice::UpdateTexture2D(SafePtr<IRHITexture> texture, std::uint32_t x, std::uint32_t y,
+	std::uint32_t width, std::uint32_t height, const void* data, std::uint32_t rowPitch)
+{
+#if JBRO_RHI_VULKAN
+	if (!texture || !data || width == 0 || height == 0 || m_device == VK_NULL_HANDLE) return false;
+	const RHITexture2DDesc& desc = texture->GetDesc();
+	const std::uint32_t tightPitch = width * 4u;
+	if (x + width > desc.Width || y + height > desc.Height || rowPitch < tightPitch) return false;
+	auto* nativeTexture = dynamic_cast<CVulkanTexture*>(texture.TryGet());
+	if (nullptr == nativeTexture || nativeTexture->GetNativeImage() == VK_NULL_HANDLE) return false;
+
+	const VkDeviceSize uploadSize = static_cast<VkDeviceSize>(tightPitch) * height;
+	VkBuffer stagingBuffer = VK_NULL_HANDLE;
+	VkDeviceMemory stagingMemory = VK_NULL_HANDLE;
+	if (false == CreateNativeBuffer(uploadSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingMemory)) return false;
+	void* mapped = nullptr;
+	if (vkMapMemory(m_device, stagingMemory, 0, uploadSize, 0, &mapped) != VK_SUCCESS)
+	{
+		vkDestroyBuffer(m_device, stagingBuffer, nullptr); vkFreeMemory(m_device, stagingMemory, nullptr); return false;
+	}
+	for (std::uint32_t row = 0; row < height; ++row)
+	{
+		std::memcpy(static_cast<std::uint8_t*>(mapped) + static_cast<std::size_t>(row) * tightPitch,
+			static_cast<const std::uint8_t*>(data) + static_cast<std::size_t>(row) * rowPitch, tightPitch);
+	}
+	vkUnmapMemory(m_device, stagingMemory);
+
+	const VkImage image = nativeTexture->GetNativeImage();
+	const VkImageLayout oldLayout = nativeTexture->GetCurrentLayout();
+	const bool uploaded = SubmitImmediate([=](VkCommandBuffer commandBuffer)
+	{
+		VkImageMemoryBarrier toTransfer{}; toTransfer.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		toTransfer.oldLayout = oldLayout; toTransfer.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		toTransfer.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED; toTransfer.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		toTransfer.image = image; toTransfer.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		toTransfer.subresourceRange.levelCount = 1; toTransfer.subresourceRange.layerCount = 1;
+		toTransfer.srcAccessMask = oldLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL ? VK_ACCESS_SHADER_READ_BIT : 0;
+		toTransfer.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		vkCmdPipelineBarrier(commandBuffer,
+			oldLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL ? VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+			VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &toTransfer);
+
+		VkBufferImageCopy region{}; region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		region.imageSubresource.layerCount = 1; region.imageOffset = { static_cast<std::int32_t>(x), static_cast<std::int32_t>(y), 0 };
+		region.imageExtent = { width, height, 1 };
+		vkCmdCopyBufferToImage(commandBuffer, stagingBuffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+		VkImageMemoryBarrier toShader = toTransfer; toShader.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		toShader.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; toShader.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		toShader.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+			0, 0, nullptr, 0, nullptr, 1, &toShader);
+	});
+	vkDestroyBuffer(m_device, stagingBuffer, nullptr); vkFreeMemory(m_device, stagingMemory, nullptr);
+	if (uploaded) nativeTexture->SetCurrentLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	return uploaded;
+#else
+	(void)texture; (void)x; (void)y; (void)width; (void)height; (void)data; (void)rowPitch; return false;
+#endif
+}
+
 OwnerPtr<IRHISampler> CVulkanRHIDevice::CreateSampler(const RHISamplerDesc& desc)
 {
 #if JBRO_RHI_VULKAN

@@ -1,4 +1,6 @@
 #include "Core/Build/BuildManifest.h"
+#include "ThirdParty/magic_enum/magic_enum.hpp"
+#include "yaml-cpp/yaml.h"
 
 #include <charconv>
 #include <iostream>
@@ -16,6 +18,7 @@ namespace
 	{
 		File::Path OutputPath;
 		File::Path ValidatePath;
+		File::Path InputMapPath;
 		std::string StartupSceneGuid;
 		std::string StartupScene;
 		std::string ProductName;
@@ -31,6 +34,148 @@ namespace
 		bool HasExpectedWidth = false;
 		bool HasExpectedHeight = false;
 	};
+
+	int BindingNameToCode(EInputBindingSource source, const std::string& name)
+	{
+		switch (source)
+		{
+		case EInputBindingSource::Key:
+		{
+			const auto value = magic_enum::enum_cast<EKeyCode>(name);
+			return value.has_value() ? static_cast<int>(*value) : 0;
+		}
+		case EInputBindingSource::MouseButton:
+		{
+			const auto value = magic_enum::enum_cast<EMouseButton>(name);
+			return value.has_value() ? static_cast<int>(*value) : 0;
+		}
+		case EInputBindingSource::GamepadButton:
+		{
+			const auto value = magic_enum::enum_cast<EGamepadButton>(name);
+			return value.has_value() ? static_cast<int>(*value) : 0;
+		}
+		case EInputBindingSource::GamepadAxis:
+		{
+			const auto value = magic_enum::enum_cast<EGamepadAxis>(name);
+			return value.has_value() ? static_cast<int>(*value) : 0;
+		}
+		case EInputBindingSource::GamepadStick:
+			return name == "Right" ? 1 : 0;
+		default:
+			return 0;
+		}
+	}
+
+	bool LoadInputMap(const File::Path& projectPath, std::vector<InputActionDef>& outActions)
+	{
+		if (projectPath.empty())
+		{
+			return true;
+		}
+
+		YAML::Node root;
+		try
+		{
+			root = YAML::LoadFile(projectPath.string());
+		}
+		catch (const YAML::Exception&)
+		{
+			return false;
+		}
+
+		const YAML::Node actions = root["InputActions"];
+		if (!actions || false == actions.IsSequence())
+		{
+			return true;
+		}
+		for (const YAML::Node& actionNode : actions)
+		{
+			InputActionDef action;
+			action.Name = actionNode["Name"].as<std::string>("");
+			if (action.Name.empty())
+			{
+				continue;
+			}
+			const auto type = magic_enum::enum_cast<EInputActionValueType>(
+				actionNode["Type"].as<std::string>("Bool"));
+			action.Type = type.has_value() ? *type : EInputActionValueType::Bool;
+
+			const YAML::Node bindings = actionNode["Bindings"];
+			if (bindings && bindings.IsSequence())
+			{
+				for (const YAML::Node& bindingNode : bindings)
+				{
+					InputBinding binding;
+					const auto source = magic_enum::enum_cast<EInputBindingSource>(
+						bindingNode["Source"].as<std::string>("Key"));
+					binding.Source = source.has_value() ? *source : EInputBindingSource::Key;
+					binding.Code = BindingNameToCode(binding.Source,
+						bindingNode["Code"].as<std::string>(""));
+					binding.GamepadIndex = bindingNode["GamepadIndex"].as<int>(-1);
+					const auto composite = magic_enum::enum_cast<EInputComposite>(
+						bindingNode["Composite"].as<std::string>("None"));
+					binding.Composite = composite.has_value() ? *composite : EInputComposite::None;
+					action.Bindings.push_back(binding);
+				}
+			}
+			outActions.push_back(std::move(action));
+		}
+		return true;
+	}
+
+	bool LoadFontSettings(const File::Path& projectPath, std::string& outDefaultFamily,
+		std::vector<std::string>& outFallbackFamilies)
+	{
+		outDefaultFamily.clear(); outFallbackFamilies.clear();
+		if (projectPath.empty()) return true;
+		try
+		{
+			const YAML::Node root = YAML::LoadFile(projectPath.string());
+			outDefaultFamily = root["DefaultFontFamilyGuid"].as<std::string>("");
+			if (const YAML::Node fallbacks = root["FallbackFontFamilies"]; fallbacks && fallbacks.IsSequence())
+			{
+				for (const YAML::Node& node : fallbacks)
+				{
+					const std::string guid = node.as<std::string>("");
+					if (false == guid.empty()) outFallbackFamilies.push_back(guid);
+				}
+			}
+			return true;
+		}
+		catch (const YAML::Exception&)
+		{
+			return false;
+		}
+	}
+
+	bool InputMapsEqual(const std::vector<InputActionDef>& lhs, const std::vector<InputActionDef>& rhs)
+	{
+		if (lhs.size() != rhs.size())
+		{
+			return false;
+		}
+		for (std::size_t actionIndex = 0; actionIndex < lhs.size(); ++actionIndex)
+		{
+			const InputActionDef& leftAction = lhs[actionIndex];
+			const InputActionDef& rightAction = rhs[actionIndex];
+			if (leftAction.Name != rightAction.Name || leftAction.Type != rightAction.Type
+				|| leftAction.Bindings.size() != rightAction.Bindings.size())
+			{
+				return false;
+			}
+			for (std::size_t bindingIndex = 0; bindingIndex < leftAction.Bindings.size(); ++bindingIndex)
+			{
+				const InputBinding& left = leftAction.Bindings[bindingIndex];
+				const InputBinding& right = rightAction.Bindings[bindingIndex];
+				if (left.Source != right.Source || left.Code != right.Code
+					|| left.GamepadIndex != right.GamepadIndex || left.Composite != right.Composite)
+				{
+					return false;
+				}
+			}
+		}
+		return true;
+	}
 
 	std::string NarrowAscii(const wchar_t* text)
 	{
@@ -104,6 +249,7 @@ namespace
 			<< L" [--script-mode <mode>]"
 			<< L" [--script-module <path>]"
 			<< L" [--orientation <Landscape|Portrait|Auto>]"
+			<< L" [--input-map <project.Jproject>]"
 			<< L" [--build-scene <path> --build-scene-guid <guid>]..."
 			<< std::endl
 			<< L"   or: BuildManifestTool --validate <path>"
@@ -186,6 +332,11 @@ namespace
 				if (false == RequireValue(argc, argv, i)) return false;
 				outOptions.Orientation = NarrowAscii(argv[++i]);
 			}
+			else if (arg == L"--input-map")
+			{
+				if (false == RequireValue(argc, argv, i)) return false;
+				outOptions.InputMapPath = File::Path(argv[++i]);
+			}
 			else if (arg == L"--build-scene")
 			{
 				if (false == RequireValue(argc, argv, i)) return false;
@@ -256,6 +407,21 @@ namespace
 			std::cerr << "Build manifest script module mismatch." << std::endl;
 			return false;
 		}
+		if (false == options.InputMapPath.empty())
+		{
+			std::vector<InputActionDef> expectedActions;
+			std::string expectedDefaultFamily;
+			std::vector<std::string> expectedFallbackFamilies;
+			if (false == LoadInputMap(options.InputMapPath, expectedActions)
+				|| false == LoadFontSettings(options.InputMapPath, expectedDefaultFamily, expectedFallbackFamilies)
+				|| false == InputMapsEqual(manifest.InputActions, expectedActions)
+				|| manifest.DefaultFontFamilyGuid != expectedDefaultFamily
+				|| manifest.FallbackFontFamilyGuids != expectedFallbackFamilies)
+			{
+				std::cerr << "Build manifest project settings mismatch." << std::endl;
+				return false;
+			}
+		}
 		return true;
 	}
 }
@@ -290,6 +456,16 @@ int wmain(int argc, wchar_t** argv)
 	manifest.BuildSceneGuids = options.BuildSceneGuids;
 	// name/guid 는 항상 쌍으로 넘어오지만, 방어적으로 길이를 맞춘다(짧으면 빈 GUID 로 패딩).
 	manifest.BuildSceneGuids.resize(manifest.BuildScenes.size());
+	if (false == LoadInputMap(options.InputMapPath, manifest.InputActions))
+	{
+		std::cerr << "Failed to read input map from project." << std::endl;
+		return 1;
+	}
+	if (false == LoadFontSettings(options.InputMapPath, manifest.DefaultFontFamilyGuid, manifest.FallbackFontFamilyGuids))
+	{
+		std::cerr << "Failed to read font settings from project." << std::endl;
+		return 1;
+	}
 
 	std::string error;
 	if (false == CBuildManifestLoader::WriteBinaryFile(options.OutputPath, manifest, &error))
@@ -307,7 +483,10 @@ int wmain(int argc, wchar_t** argv)
 	if (loadedManifest.StartupSceneGuid != manifest.StartupSceneGuid
 		|| loadedManifest.ProductName != manifest.ProductName
 		|| loadedManifest.ResolutionWidth != (manifest.ResolutionWidth > 0 ? manifest.ResolutionWidth : 1280)
-		|| loadedManifest.ResolutionHeight != (manifest.ResolutionHeight > 0 ? manifest.ResolutionHeight : 720))
+		|| loadedManifest.ResolutionHeight != (manifest.ResolutionHeight > 0 ? manifest.ResolutionHeight : 720)
+		|| loadedManifest.InputActions.size() != manifest.InputActions.size()
+		|| loadedManifest.DefaultFontFamilyGuid != manifest.DefaultFontFamilyGuid
+		|| loadedManifest.FallbackFontFamilyGuids != manifest.FallbackFontFamilyGuids)
 	{
 		std::cerr << "Generated build manifest round-trip validation failed." << std::endl;
 		return 1;

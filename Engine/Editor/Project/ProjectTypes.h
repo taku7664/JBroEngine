@@ -87,6 +87,8 @@ struct ProjectInfo
 
 	// 좌표계 단위: 1 월드 유닛 = PixelsPerUnit 픽셀
 	float PixelsPerUnit = 100.0f;
+	AssetGuid DefaultFontFamilyGuid = INVALID_ASSET_GUID;
+	std::vector<AssetGuid> FallbackFontFamilies;
 
 	// 에디터 디버그 오버레이/진단 표시
 	bool DebugModeEnabled = false;

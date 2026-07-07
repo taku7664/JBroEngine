@@ -16,6 +16,7 @@
 #include "Core/Asset/FileAsset.h"
 #include "Core/Asset/AudioAsset.h"
 #include "Core/Asset/AudioEffectAsset.h"
+#include "Core/Asset/FontAsset.h"
 #include "Core/Asset/MaterialAsset.h"
 #include "Core/Asset/SpriteAsset.h"
 #include "Core/Platform/IPlatform.h"
@@ -541,6 +542,8 @@ bool CEngine::InitializeAssetManager()
 	m_assetManager->RegisterLoader(MakeOwnerPtr<CMaterialAssetLoader>());
 	m_assetManager->RegisterLoader(MakeOwnerPtr<CAudioAssetLoader>());
 	m_assetManager->RegisterLoader(MakeOwnerPtr<CAudioEffectAssetLoader>());
+	m_assetManager->RegisterLoader(MakeOwnerPtr<CFontFaceAssetLoader>());
+	m_assetManager->RegisterLoader(MakeOwnerPtr<CFontFamilyAssetLoader>());
 
 	Engine.AssetManager = m_assetManager.GetSafePtr();
 	return true;

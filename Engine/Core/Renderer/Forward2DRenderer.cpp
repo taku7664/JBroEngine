@@ -212,6 +212,85 @@ fn PSMain(input : VSOut) -> @location(0) vec4<f32>
 	return textureSample(gTexture, gSampler, input.Uv) * input.Color;
 }
 )";
+
+	const char* TEXT_SHADER_SOURCE_HLSL = R"(
+cbuffer TextConstants : register(b0)
+{
+	float4 gTransformRow0;
+	float4 gTransformRow1;
+	float4 gFillColor;
+	float4 gViewRow0;
+	float4 gViewRow1;
+	float4 gOutlineColor;
+	float4 gTextParams;
+};
+Texture2D gTexture : register(t0);
+SamplerState gSampler : register(s0);
+struct VSIn { float2 Position : POSITION; float2 Uv : TEXCOORD0; };
+struct VSOut { float4 Position : SV_POSITION; float2 Uv : TEXCOORD0; };
+VSOut VSMain(VSIn input)
+{
+	VSOut output;
+	float3 localPosition = float3(input.Position, 1.0f);
+	float2 worldPosition = float2(dot(localPosition, gTransformRow0.xyz), dot(localPosition, gTransformRow1.xyz));
+	float3 worldPos3 = float3(worldPosition, 1.0f);
+	output.Position = float4(dot(worldPos3, gViewRow0.xyz), dot(worldPos3, gViewRow1.xyz), 0.0f, 1.0f);
+	output.Uv = input.Uv;
+	return output;
+}
+float4 PSMain(VSOut input) : SV_TARGET
+{
+	float distanceValue = gTexture.Sample(gSampler, input.Uv).r;
+	float distancePerPixel = max(fwidth(distanceValue), 0.0001f);
+	float smoothing = distancePerPixel;
+	float fillCoverage = smoothstep(0.5f - smoothing, 0.5f + smoothing, distanceValue);
+	float outerThreshold = 0.5f - distancePerPixel * max(gTextParams.x, 0.0f);
+	float outerCoverage = smoothstep(outerThreshold - smoothing, outerThreshold + smoothing, distanceValue);
+	float outlineCoverage = max(outerCoverage - fillCoverage, 0.0f);
+	float fillAlpha = gFillColor.a * fillCoverage;
+	float outlineAlpha = gOutlineColor.a * outlineCoverage;
+	float alpha = saturate(fillAlpha + outlineAlpha);
+	float3 premultiplied = gFillColor.rgb * fillAlpha + gOutlineColor.rgb * outlineAlpha;
+	float3 color = alpha > 0.0001f ? premultiplied / alpha : float3(0.0f, 0.0f, 0.0f);
+	return float4(color, alpha);
+}
+)";
+
+	const char* TEXT_SHADER_SOURCE_WGSL = R"(
+struct TextConstants {
+	TransformRow0 : vec4<f32>, TransformRow1 : vec4<f32>, FillColor : vec4<f32>,
+	ViewRow0 : vec4<f32>, ViewRow1 : vec4<f32>, OutlineColor : vec4<f32>, TextParams : vec4<f32>,
+};
+@group(0) @binding(0) var<uniform> gConstants : TextConstants;
+@group(0) @binding(1) var gTexture : texture_2d<f32>;
+@group(0) @binding(2) var gSampler : sampler;
+struct VSIn { @location(0) Position : vec2<f32>, @location(1) Uv : vec2<f32>, };
+struct VSOut { @builtin(position) Position : vec4<f32>, @location(0) Uv : vec2<f32>, };
+@vertex fn VSMain(input : VSIn) -> VSOut {
+	var output : VSOut;
+	let localPosition = vec3<f32>(input.Position, 1.0);
+	let worldPosition = vec2<f32>(dot(localPosition, gConstants.TransformRow0.xyz), dot(localPosition, gConstants.TransformRow1.xyz));
+	let worldPos3 = vec3<f32>(worldPosition, 1.0);
+	output.Position = vec4<f32>(dot(worldPos3, gConstants.ViewRow0.xyz), dot(worldPos3, gConstants.ViewRow1.xyz), 0.0, 1.0);
+	output.Uv = input.Uv;
+	return output;
+}
+@fragment fn PSMain(input : VSOut) -> @location(0) vec4<f32> {
+	let distanceValue = textureSample(gTexture, gSampler, input.Uv).r;
+	let distancePerPixel = max(fwidth(distanceValue), 0.0001);
+	let smoothing = distancePerPixel;
+	let fillCoverage = smoothstep(0.5 - smoothing, 0.5 + smoothing, distanceValue);
+	let outerThreshold = 0.5 - distancePerPixel * max(gConstants.TextParams.x, 0.0);
+	let outerCoverage = smoothstep(outerThreshold - smoothing, outerThreshold + smoothing, distanceValue);
+	let outlineCoverage = max(outerCoverage - fillCoverage, 0.0);
+	let fillAlpha = gConstants.FillColor.a * fillCoverage;
+	let outlineAlpha = gConstants.OutlineColor.a * outlineCoverage;
+	let alpha = clamp(fillAlpha + outlineAlpha, 0.0, 1.0);
+	let premultiplied = gConstants.FillColor.rgb * fillAlpha + gConstants.OutlineColor.rgb * outlineAlpha;
+	let color = select(vec3<f32>(0.0), premultiplied / alpha, alpha > 0.0001);
+	return vec4<f32>(color, alpha);
+}
+)";
 }
 
 bool CForward2DRenderer::Initialize(const RendererDesc& desc)
@@ -240,6 +319,11 @@ bool CForward2DRenderer::Initialize(const RendererDesc& desc)
 	}
 
 	CreateSpriteBatchPipeline();
+	if (false == CreateTextPipeline() && ERHIApi::D3D11 == m_rhiDevice->GetApi())
+	{
+		Finalize();
+		return false;
+	}
 
 	RHISamplerDesc samplerDesc;
 	samplerDesc.Filter = ERHIFilterMode::Linear;
@@ -387,6 +471,8 @@ CForward2DRenderer::SpriteConstants CForward2DRenderer::BuildSpriteConstants(
 	for (int c = 0; c < 4; ++c)
 	{
 		constants.Color[c] = item.Color[c];
+		constants.SecondaryColor[c] = item.SecondaryColor[c];
+		constants.ShaderParams[c] = item.ShaderParams[c];
 	}
 
 	const float camX = m_viewCamX;
@@ -999,7 +1085,10 @@ void CForward2DRenderer::Finalize()
 	m_quadMesh.Reset();
 	m_defaultSampler.Reset();
 	m_spriteBatchPipeline.Reset();
+	m_textPipeline.Reset();
 	m_spritePipeline.Reset();
+	m_textPixelProgram.Reset();
+	m_textVertexProgram.Reset();
 	m_spriteBatchPixelProgram.Reset();
 	m_spriteBatchVertexProgram.Reset();
 	m_spritePixelProgram.Reset();
@@ -1032,6 +1121,51 @@ SafePtr<IRHISampler> CForward2DRenderer::GetDefaultSampler() const
 SafePtr<IRenderMesh> CForward2DRenderer::GetQuadMesh() const
 {
 	return m_quadMesh.GetSafePtr();
+}
+
+SafePtr<IRHIGraphicsPipeline> CForward2DRenderer::GetTextPipeline() const
+{
+	return m_textPipeline.GetSafePtr();
+}
+
+bool CForward2DRenderer::CreateTextPipeline()
+{
+	const ERHIApi api = m_rhiDevice->GetApi();
+	if (ERHIApi::Vulkan == api)
+	{
+		return true;
+	}
+	const ERHIProgramLanguage language = ERHIApi::WebGPU == api ? ERHIProgramLanguage::WGSL : ERHIProgramLanguage::HLSL;
+	const char* source = ERHIApi::WebGPU == api ? TEXT_SHADER_SOURCE_WGSL : TEXT_SHADER_SOURCE_HLSL;
+	RHIProgramDesc vertexDesc;
+	vertexDesc.Stage = ERHIProgramStage::Vertex;
+	vertexDesc.Language = language;
+	vertexDesc.EntryPoint = "VSMain";
+	vertexDesc.Source = source;
+	m_textVertexProgram = m_rhiDevice->CreateProgram(vertexDesc);
+	RHIProgramDesc pixelDesc;
+	pixelDesc.Stage = ERHIProgramStage::Pixel;
+	pixelDesc.Language = language;
+	pixelDesc.EntryPoint = "PSMain";
+	pixelDesc.Source = source;
+	m_textPixelProgram = m_rhiDevice->CreateProgram(pixelDesc);
+	if (!m_textVertexProgram || !m_textPixelProgram) return false;
+	RHIVertexElementDesc elements[2];
+	elements[0].SemanticName = "POSITION";
+	elements[0].Format = ERHIVertexFormat::Float2;
+	elements[0].Offset = 0;
+	elements[1].SemanticName = "TEXCOORD";
+	elements[1].Format = ERHIVertexFormat::Float2;
+	elements[1].Offset = sizeof(float) * 2;
+	RHIGraphicsPipelineDesc desc;
+	desc.VertexProgram = m_textVertexProgram.GetSafePtr();
+	desc.PixelProgram = m_textPixelProgram.GetSafePtr();
+	desc.VertexElements = elements;
+	desc.VertexElementCount = 2;
+	desc.PrimitiveTopology = ERHIPrimitiveTopology::TriangleList;
+	desc.BlendMode = ERHIBlendMode::AlphaBlend;
+	m_textPipeline = m_rhiDevice->CreateGraphicsPipeline(desc);
+	return static_cast<bool>(m_textPipeline);
 }
 
 SafePtr<IRHITexture> CForward2DRenderer::GetWhiteTexture() const

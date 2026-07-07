@@ -578,10 +578,13 @@ bool CGameBuildManager::StartBuild(SafePtr<CProjectManager> projectManager, EBui
 	desc.ResolutionWidth = projectManager->GetResolutionWidth();
 	desc.ResolutionHeight = projectManager->GetResolutionHeight();
 	desc.PixelsPerUnit = projectManager->GetPixelsPerUnit();
+	desc.DefaultFontFamilyGuid = projectManager->GetDefaultFontFamilyGuid();
+	desc.FallbackFontFamilies = projectManager->GetFallbackFontFamilies();
 	desc.OutputDirectory = settings.OutputDirectory;
 	desc.StartupScene = settings.StartupScene;
 	desc.StartupSceneGuid = FindAssetGuidByPath(File::Path(Utillity::U8ToWString(settings.StartupScene))).generic_string();
 	desc.BuildScenes = settings.BuildScenes;
+	desc.InputActions = projectManager->GetInputActions();
 	desc.WindowsIconGuid = settings.WindowsIconGuid;
 	desc.OutputRoot = ResolveOutputRoot(desc.ProjectRoot, settings.OutputDirectory);
 	desc.PackageDirectory = desc.OutputRoot / (desc.ProductName + "-" + ToString(desc.TargetPlatform) + "-" + ToString(desc.BuildConfiguration));
@@ -995,6 +998,7 @@ bool CGameBuildManager::StagePackage(const BuildDesc& desc, const File::Path& sc
 	// 빌드 씬 목록 + 각 씬의 GUID(런타임 선로드용). ValidateBuild 가 이미 전 씬의 GUID 존재를
 	// 보증하므로 여기선 해석만 한다. release 패키지는 경로 폴백이 금지되어 GUID 가 필수.
 	manifest.BuildScenes = desc.BuildScenes;
+	manifest.InputActions = desc.InputActions;
 	manifest.BuildSceneGuids.reserve(desc.BuildScenes.size());
 	for (const std::string& scene : desc.BuildScenes)
 	{
@@ -1004,6 +1008,8 @@ bool CGameBuildManager::StagePackage(const BuildDesc& desc, const File::Path& sc
 	manifest.ResolutionWidth = static_cast<int>(desc.ResolutionWidth);
 	manifest.ResolutionHeight = static_cast<int>(desc.ResolutionHeight);
 	manifest.PixelsPerUnit = desc.PixelsPerUnit;
+	manifest.DefaultFontFamilyGuid = desc.DefaultFontFamilyGuid.generic_string();
+	for (const AssetGuid& guid : desc.FallbackFontFamilies) manifest.FallbackFontFamilyGuids.push_back(guid.generic_string());
 	manifest.ScriptMode = "DynamicLibrary";
 	manifest.ScriptModule = "GameScript.dll";
 	std::string manifestError;

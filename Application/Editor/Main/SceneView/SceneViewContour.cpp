@@ -6,6 +6,8 @@
 #include "Engine/Core/Asset/SpriteAsset.h"
 #include "Engine/GameFramework/Object/GameObject.h"
 #include "Engine/GameFramework/Component/SpriteRenderer2D.h"
+#include "Engine/GameFramework/Component/Text2D.h"
+#include "Engine/GameFramework/Rendering/TextRenderSystem.h"
 #include "Engine/GameFramework/Component/Transform2D.h"
 #include "Engine/GameFramework/Scene/Scene.h"
 #include "Engine/GameFramework/Scene/SceneTransformUtils.h"
@@ -382,14 +384,32 @@ void CSceneViewContour::DrawOutlinesImGui(
     //
     // 포커스 모드에서 자식 클릭: selectedEntities = CollectSubtree(child)
     //   → 자식 + 자식의 모든 자손 각각의 스프라이트를 그림.
-    (void)scene;
+    CTextRenderSystem* textSystem = const_cast<CGameScene&>(scene).FindSystem<CTextRenderSystem>();
     for (CGameObject* object : selectedObjects)
     {
         if (!object || !object->IsActive) continue;
 
         const SpriteRenderer2D* sprite = object->GetComponent<SpriteRenderer2D>();
-        if (!sprite || !sprite->IsEnabled) continue;
+        if (sprite && sprite->IsEnabled)
+        {
+            drawOneSprite(*object, *sprite);
+            continue;
+        }
 
-        drawOneSprite(*object, *sprite);
+        const Text2D* text = object->GetComponent<Text2D>();
+        if (!text || !text->IsEnabled || nullptr == textSystem) continue;
+        float centerX = 0.0f, centerY = 0.0f, width = 0.0f, height = 0.0f;
+        if (false == textSystem->TryGetLocalBounds(*text, centerX, centerY, width, height)) continue;
+        const Matrix3x2 matrix = Matrix3x2::Transform(text->Offset + Vector2(centerX, centerY), 0.0f, Vector2(1.0f, 1.0f))
+            * GetWorldTransform(*object);
+        const Vector2 corners[4] = {
+            matrix.TransformPoint({-width * 0.5f,  height * 0.5f}),
+            matrix.TransformPoint({ width * 0.5f,  height * 0.5f}),
+            matrix.TransformPoint({ width * 0.5f, -height * 0.5f}),
+            matrix.TransformPoint({-width * 0.5f, -height * 0.5f}),
+        };
+        ImVec2 screen[4];
+        for (int index = 0; index < 4; ++index) screen[index] = WorldToViewport(corners[index], vpMin, vpSize, camPos, camSize);
+        dl->AddPolyline(screen, 4, OUTLINE_COLOR_IMG, ImDrawFlags_Closed, OUTLINE_THICKNESS);
     }
 }

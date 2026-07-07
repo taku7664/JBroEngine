@@ -106,6 +106,7 @@ private:
 		// 루트가 Assets 일 때.  Path 는 부모 폴더, TargetPath 는 새 파일명(상대).
 		CreateScene,
 		CreateMaterial,
+		CreateFontFamily,
 		CreateEffect,
 		CreatePrefab,
 		// 드래그&드롭 이동 / 잘라내기-붙여넣기.  Path = 원본, TargetPath = 대상 폴더.
@@ -266,4 +267,3 @@ private:
 	bool m_isRenaming = false;
 	bool m_requestDeletePopup = false;
 };
-

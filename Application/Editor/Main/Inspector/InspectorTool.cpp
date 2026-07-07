@@ -2,6 +2,7 @@
 #include "InspectorTool.h"
 #include "AssetInspectorPreview.h"
 #include "EffectEditorWindow.h"
+#include "Editor/Main/ProjectSettingsWindow.h"
 
 #include "Engine/Editor/ImItem/ImText.h"
 #include "Engine/Editor/ImItem/ImSplitter.h"
@@ -22,6 +23,9 @@
 #include "Engine/Core/Asset/IAssetRegistry.h"
 #include "Engine/Core/Asset/SpriteAsset.h"
 #include "Engine/Core/Asset/AudioAsset.h"
+#include "Engine/Core/Asset/FontAsset.h"
+#include "Engine/Core/RuntimeConfig.h"
+#include "Engine/GameFramework/Component/Text2D.h"
 #include "Engine/Core/ScriptCore.h"
 #include "Engine/Core/Renderer/IRenderResourceCache.h"
 #include "Engine/Core/Resource/ResourceRegistry.h"
@@ -44,6 +48,8 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <fstream>
+#include <sstream>
 
 namespace
 {
@@ -397,6 +403,10 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			{
 				return ImGui::InputText("", static_cast<char*>(field), property.ElementCount);
 			}
+			if (property.Name && 0 == std::strcmp(property.Name, "Text"))
+			{
+				return ImGui::InputTextMultiline("", static_cast<std::string*>(field), ImVec2(-FLT_MIN, ImGui::GetTextLineHeight() * 4.5f));
+			}
 			return ImGui::InputText("", static_cast<std::string*>(field));
 		case EReflectPropertyType::AssetGuid:
 		{
@@ -419,6 +429,8 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 					EditorDragDrop::AssetPayload payload;
 					if (EditorDragDrop::AcceptAssetDragDropPayload(payload))
 					{
+						if (property.Name && 0 == std::strcmp(property.Name, "FontFamilyGuid")
+							&& EAssetType::FontFamily != payload.Type) return false;
 						*guid = EditorDragDrop::GetGuid(payload);
 						return true;
 					}
@@ -441,14 +453,18 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			if (const EnumTypeMeta* meta = property.Enum; meta && meta->Names && meta->Count > 0)
 			{
 				int index = meta->ToIndex(field, property.Size);
-				const char* preview = (index >= 0 && index < meta->Count) ? meta->Names[index] : "?";
+				const char* rawPreview = (index >= 0 && index < meta->Count) ? meta->Names[index] : "?";
+				const std::string previewKey = std::string("editor.enum.") + (property.Name ? property.Name : "") + "." + rawPreview;
+				const std::string preview = Loc::TextOr(previewKey.c_str(), rawPreview);
 				bool changed = false;
-				if (ImGui::BeginCombo("", preview))
+				if (ImGui::BeginCombo("", preview.c_str()))
 				{
 					for (int i = 0; i < meta->Count; ++i)
 					{
 						const bool selected = (i == index);
-						if (ImGui::Selectable(meta->Names[i], selected))
+						const std::string itemKey = std::string("editor.enum.") + (property.Name ? property.Name : "") + "." + meta->Names[i];
+						const std::string itemLabel = Loc::TextOr(itemKey.c_str(), meta->Names[i]);
+						if (ImGui::Selectable(itemLabel.c_str(), selected))
 						{
 							meta->SetIndex(field, property.Size, i);
 							changed = true;
@@ -750,12 +766,24 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 				continue;
 			if (!property.IsEditable)
 				continue;
+			if (componentType.Type.Id == CReflectionRegistry::MakeTypeId("Text2D"))
+			{
+				const Text2D& text = *static_cast<const Text2D*>(component);
+				if (property.Name && 0 == std::strcmp(property.Name, "HeightPixels") && ETextOverflowMode::Clip != text.OverflowMode) continue;
+				if (property.Name && (0 == std::strcmp(property.Name, "AutoSizeEnabled")
+					|| 0 == std::strcmp(property.Name, "MinFontSizePixels") || 0 == std::strcmp(property.Name, "MaxFontSizePixels"))
+					&& ETextOverflowMode::Clip != text.OverflowMode) continue;
+				if (property.Name && (0 == std::strcmp(property.Name, "MinFontSizePixels") || 0 == std::strcmp(property.Name, "MaxFontSizePixels"))
+					&& false == text.AutoSizeEnabled) continue;
+			}
 
 			ImGui::Utillity::FormLayout layout("##component_properties", 4.0f, {2.0f, 1.0f}, 60.0f);
 
 			void* field = CReflectionRegistry::GetPropertyAddress(component, property);
 			std::vector<std::uint8_t> oldValue(property.Size);
 			const bool canRawUndo = !(property.Type == EReflectPropertyType::String && property.ElementCount <= 1);
+			const bool canStringUndo = property.Type == EReflectPropertyType::String && property.ElementCount <= 1;
+			const std::string oldString = canStringUndo && field ? *static_cast<std::string*>(field) : std::string();
 			if (canRawUndo && field && property.Size > 0)
 				std::memcpy(oldValue.data(), field, property.Size);
 
@@ -774,6 +802,13 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 								std::move(oldValue), std::move(newValue), instanceIdx));
 						}
 					}
+					else if (changed && canStringUndo && field)
+					{
+						const std::string& newString = *static_cast<std::string*>(field);
+						if (oldString != newString)
+							Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CSetComponentStringPropertyCommand>(
+								scene.SafeFromThis(), selectedObject, componentType.Type.Id, property.Offset, oldString, newString));
+					}
 				}
 			);
 		}
@@ -789,6 +824,21 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			DrawPolygonColliderDebug(scene, selectedObject, *static_cast<PolygonCollider2D*>(component));
 		else if (componentType.Type.Id == CReflectionRegistry::MakeTypeId("Camera2D"))
 			DrawCamera2DDebug(selectedObject);
+		else if (componentType.Type.Id == CReflectionRegistry::MakeTypeId("Text2D"))
+		{
+			const Text2D& text = *static_cast<const Text2D*>(component);
+			const AssetGuid effective = text.FontFamilyGuid.IsNull() ? Runtime.DefaultFontFamilyGuid : text.FontFamilyGuid;
+			if (effective.IsNull())
+			{
+				ImGui::Spacing();
+				ImGui::TextColored(ImVec4(1.0f, 0.55f, 0.2f, 1.0f), "%s", Loc::Text("inspector.text2d.font_missing"));
+				if (ImGui::Button(Loc::Text("inspector.text2d.open_font_settings")) && Editor::ProjectSettings)
+				{
+					Editor::ProjectSettings->SetVisible(true);
+					Editor::ProjectSettings->Focus();
+				}
+			}
+		}
 	}
 
 	bool SaveSpriteImportOptions(const AssetMetaData& metaData, const SpriteImportOptions& options)
@@ -1205,6 +1255,142 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		return true;
 	}
 
+	void DrawFontFamilyEditor(const AssetMetaData& metaData, IAssetManager& assetManager)
+	{
+		static AssetGuid cachedGuid;
+		static FontFamilyData data;
+		static bool dirty = false;
+		if (cachedGuid != metaData.Guid)
+		{
+			cachedGuid = metaData.Guid; data = {}; dirty = false;
+			if (AssetRef<IAsset> asset = assetManager.LoadAsset(metaData.Guid))
+			{
+				if (asset->GetAssetType() == EAssetType::FontFamily)
+					data = static_cast<CFontFamilyAsset*>(asset.Get())->GetData();
+			}
+		}
+		auto drawAsset = [&](const char* id, AssetGuid& guid, EAssetType expected)
+		{
+			const File::Path path = guid.IsNull() ? File::NULL_PATH : File::ResolvePath(guid);
+			const std::string label = guid.IsNull() ? Loc::Text("inspector.ref_none")
+				: (path.IsNull() ? guid.generic_string() : path.filename().generic_string());
+			return DrawReferenceField(label, guid.IsNull(), [&]()
+			{
+				EditorDragDrop::AssetPayload payload;
+				if (EditorDragDrop::AcceptAssetDragDropPayload(payload) && payload.Type == expected)
+				{
+					guid = EditorDragDrop::GetGuid(payload); return true;
+				}
+				return false;
+			}, [&]() { guid = INVALID_ASSET_GUID; });
+		};
+
+		ImGui::SeparatorText(Loc::Text("inspector.font_family.title"));
+		ImGui::Utillity::FormLayout layout("##font_family");
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.font_family.regular")); }, [&]() { ImGui::PushID("regular"); dirty |= drawAsset("##regular", data.Regular, EAssetType::FontFace); ImGui::PopID(); });
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.font_family.bold")); }, [&]() { ImGui::PushID("bold"); dirty |= drawAsset("##bold", data.Bold, EAssetType::FontFace); ImGui::PopID(); });
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.font_family.italic")); }, [&]() { ImGui::PushID("italic"); dirty |= drawAsset("##italic", data.Italic, EAssetType::FontFace); ImGui::PopID(); });
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.font_family.bold_italic")); }, [&]() { ImGui::PushID("bolditalic"); dirty |= drawAsset("##bolditalic", data.BoldItalic, EAssetType::FontFace); ImGui::PopID(); });
+		dirty |= ImGui::Checkbox(Loc::Text("inspector.font_family.use_project_fallbacks"), &data.UseProjectFallbacks);
+		ImGui::TextUnformatted(Loc::Text("inspector.font_family.leading_fallbacks"));
+		for (std::size_t i = 0; i < data.FallbackFamilies.size(); ++i)
+		{
+			ImGui::PushID(static_cast<int>(i)); dirty |= drawAsset("##family_fallback", data.FallbackFamilies[i], EAssetType::FontFamily);
+			ImGui::SameLine();
+			if (ImGui::SmallButton(Loc::Text("common.remove"))) { data.FallbackFamilies.erase(data.FallbackFamilies.begin() + static_cast<std::ptrdiff_t>(i)); dirty = true; ImGui::PopID(); break; }
+			ImGui::PopID();
+		}
+		if (ImGui::Button(Loc::Text("inspector.font_family.add_fallback"))) { data.FallbackFamilies.push_back(INVALID_ASSET_GUID); dirty = true; }
+		ImGui::BeginDisabled(false == dirty);
+		if (ImGui::Button(Loc::Text("inspector.font_family.apply")))
+		{
+			std::ostringstream out;
+			out << "Regular: " << data.Regular.generic_string() << '\n';
+			out << "Bold: " << data.Bold.generic_string() << '\n';
+			out << "Italic: " << data.Italic.generic_string() << '\n';
+			out << "BoldItalic: " << data.BoldItalic.generic_string() << '\n';
+			out << "UseProjectFallbacks: " << (data.UseProjectFallbacks ? "true" : "false") << '\n';
+			out << "FallbackFamilies:\n";
+			for (const AssetGuid& guid : data.FallbackFamilies) if (false == guid.IsNull()) out << "  - " << guid.generic_string() << '\n';
+			const File::Path path = File::ResolvePath(metaData.Guid);
+			std::ofstream stream(path, std::ios::binary | std::ios::trunc);
+			if (stream.is_open()) { stream << out.str(); stream.close(); assetManager.ReloadAsset(metaData.Guid); dirty = false; }
+		}
+		ImGui::EndDisabled();
+	}
+
+	void DrawFontFaceImportOptions(const AssetMetaData& metaData, IAssetManager& assetManager)
+	{
+		static AssetGuid cachedGuid;
+		static int faceIndex = 0;
+		static bool dirty = false;
+		static bool saved = false;
+		static std::string familyStatus;
+		if (cachedGuid != metaData.Guid)
+		{
+			cachedGuid = metaData.Guid; faceIndex = 0; dirty = false; saved = false; familyStatus.clear();
+			const std::string& yaml = metaData.ImportOptionsYaml;
+			const std::size_t key = yaml.find("FaceIndex:");
+			if (key != std::string::npos)
+			{
+				try { faceIndex = std::max(0, std::stoi(yaml.substr(key + 10))); } catch (...) { faceIndex = 0; }
+			}
+		}
+		ImGui::SeparatorText(Loc::Text("inspector.font_face.title"));
+		ImGui::Utillity::FormLayout layout("##font_face_import");
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.font_face.face_index")); },
+			[&]() { if (ImGui::InputInt("##font_face.face_index", &faceIndex)) { faceIndex = std::max(0, faceIndex); dirty = true; saved = false; } });
+		ImGui::BeginDisabled(false == dirty);
+		if (ImGui::Button(Loc::Text("inspector.font_face.apply")))
+		{
+			File::Path resolvedMetaPath;
+			if (assetManager.ResolveAssetPath(metaData.MetaPath, resolvedMetaPath))
+			{
+				AssetMetaData updated = metaData;
+				updated.ImportOptionsYaml = "FaceIndex: " + std::to_string(faceIndex);
+				if (CAssetMetaFile::Save(resolvedMetaPath, updated)) { dirty = false; saved = true; }
+			}
+		}
+		ImGui::EndDisabled();
+		if (saved) ImGui::TextDisabled("%s", Loc::Text("inspector.font_face.applied"));
+
+		ImGui::Spacing();
+		if (ImGui::Button(Loc::Text("inspector.font_face.create_family"), ImVec2(-FLT_MIN, 0.0f)))
+		{
+			familyStatus = Loc::Text("inspector.font_face.family_create_failed");
+			File::Path fontPath;
+			SafePtr<CProjectManager> projectManager = GetProjectManager();
+			if (projectManager && assetManager.ResolveAssetPath(metaData.Path, fontPath))
+			{
+				const std::filesystem::path source(fontPath);
+				std::filesystem::path familyPath = source.parent_path() / (source.stem().string() + ".jfontfamily");
+				for (int suffix = 2; std::filesystem::exists(familyPath) && suffix < 1000; ++suffix)
+					familyPath = source.parent_path() / (source.stem().string() + " " + std::to_string(suffix) + ".jfontfamily");
+				std::ofstream familyFile(familyPath, std::ios::binary | std::ios::trunc);
+				if (familyFile.is_open())
+				{
+					familyFile << "Regular: " << metaData.Guid.generic_string() << "\n"
+						<< "Bold: \nItalic: \nBoldItalic: \nUseProjectFallbacks: true\nFallbackFamilies: []\n";
+					familyFile.close();
+					std::string relativePath;
+					AssetMetaData familyMeta;
+					if (projectManager->TryMakeProjectAssetRelativePath(File::Path(familyPath), relativePath))
+					{
+						const std::string displayName = familyPath.stem().string();
+						AssetImportDesc desc; desc.Type = EAssetType::FontFamily; desc.Path = File::Path(relativePath);
+						desc.DisplayName = displayName.c_str(); desc.Importer = "FontFamily";
+						if (assetManager.ImportAsset(desc, &familyMeta))
+						{
+							Editor::SelectAsset(familyMeta.Guid, File::Path(familyPath));
+							familyStatus = Loc::Text("inspector.font_face.family_created");
+						}
+					}
+				}
+			}
+		}
+		if (false == familyStatus.empty()) ImGui::TextWrapped("%s", familyStatus.c_str());
+	}
+
 	bool DrawSelectedAssetInspector()
 	{
 		const File::Guid& selectedGuid = Editor::GetSelectedAssetGuid();
@@ -1258,6 +1444,14 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			{
 				EffectEditorWindow::Open(metaData->Guid, metaData->DisplayName);
 			}
+		}
+		else if (EAssetType::FontFace == metaData->Type)
+		{
+			DrawFontFaceImportOptions(*metaData, *assetManager);
+		}
+		else if (EAssetType::FontFamily == metaData->Type)
+		{
+			DrawFontFamilyEditor(*metaData, *assetManager);
 		}
 		else
 		{

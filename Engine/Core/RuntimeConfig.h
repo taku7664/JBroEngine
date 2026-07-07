@@ -1,5 +1,9 @@
 #pragma once
 
+#include "Core/Asset/AssetTypes.h"
+
+#include <vector>
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  RuntimeConfig — 호스트 런타임의 전역 *설정값/상태* 묶음.
 //
@@ -15,6 +19,8 @@ struct RuntimeConfig
 {
 	// 프로젝트 Default PPU 의 런타임 캐시. 자산별 PPU 가 0(미지정) 일 때 폴백으로 사용.
 	float PixelsPerUnit = 100.0f;
+	AssetGuid DefaultFontFamilyGuid = INVALID_ASSET_GUID;
+	std::vector<AssetGuid> FallbackFontFamilies;
 };
 
 extern RuntimeConfig Runtime;

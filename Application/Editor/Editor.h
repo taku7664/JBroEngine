@@ -284,6 +284,8 @@ inline const char* GetTypeName(EAssetType type)
 	case EAssetType::Prefab: return "Prefab";
 	case EAssetType::Script: return "Script";
 	case EAssetType::Audio:  return "Audio";
+	case EAssetType::FontFace: return "FontFace";
+	case EAssetType::FontFamily: return "FontFamily";
 	case EAssetType::Custom: return "Custom";
 	default: return "Unknown";
 	}

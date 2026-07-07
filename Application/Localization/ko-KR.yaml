@@ -215,8 +215,16 @@ Entries:
   asset_browser.add_asset: 에셋 추가
   asset_browser.add_asset.scene: 씬
   asset_browser.add_asset.material: 머티리얼
+  asset_browser.add_asset.font_family: 폰트 패밀리
   asset_browser.add_asset.effect: 사운드 효과
   asset_browser.add_asset.prefab: 프리팹
+  inspector.font_face.title: 폰트 임포트 설정
+  inspector.font_face.face_index: Face Index
+  inspector.font_face.apply: 적용
+  inspector.font_face.applied: 저장되었습니다. 사용 중인 폰트는 씬을 다시 열면 갱신됩니다.
+  inspector.font_face.create_family: 이 폰트로 Font Family 생성
+  inspector.font_face.family_created: Font Family를 생성하고 선택했습니다.
+  inspector.font_face.family_create_failed: Font Family 생성에 실패했습니다.
   asset_browser.tree.focus_here: 이 폴더로 이동
   asset_browser.delete_confirm: 선택한 에셋 항목을 삭제하시겠습니까?
   asset_browser.selection_count: "선택: %d개"
@@ -566,3 +574,56 @@ Entries:
   editor.property.MinDistance:  최소 거리
   editor.property.MaxDistance:  최대 거리
   editor.property.PlayOnStart:  시작 시 재생
+  common.remove: 제거
+  common.move_up: 위로
+  inspector.font_family.title: 폰트 패밀리
+  inspector.font_family.regular: 기본
+  inspector.font_family.bold: 굵게
+  inspector.font_family.italic: 기울임
+  inspector.font_family.bold_italic: 굵은 기울임
+  inspector.font_family.use_project_fallbacks: 프로젝트 공통 대체 폰트 사용
+  inspector.font_family.leading_fallbacks: 우선 대체 폰트 패밀리
+  inspector.font_family.add_fallback: 대체 폰트 추가
+  inspector.font_family.apply: 폰트 패밀리 적용
+  editor.component.Text2D: 2D 텍스트
+  editor.property.Text: 텍스트
+  editor.property.FontFamilyGuid: 폰트 패밀리
+  editor.property.FontStyle: 폰트 스타일
+  editor.property.FontSizePixels: 폰트 크기 (px)
+  editor.property.WidthPixels: 너비 (px)
+  editor.property.HeightPixels: 높이 (px)
+  editor.property.OverflowMode: 넘침 처리
+  editor.property.AutoSizeEnabled: 자동 크기
+  editor.property.MinFontSizePixels: 최소 폰트 크기 (px)
+  editor.property.MaxFontSizePixels: 최대 폰트 크기 (px)
+  editor.property.HorizontalAlignment: 가로 정렬
+  editor.property.VerticalAlignment: 세로 정렬
+  editor.property.LineSpacing: 줄 간격
+  editor.property.LetterSpacingPixels: 자간 (px)
+  editor.property.FillEnabled: 채우기 사용
+  editor.property.FillColor: 채우기 색상
+  editor.property.OutlineEnabled: 외곽선 사용
+  editor.property.OutlineColor: 외곽선 색상
+  editor.property.OutlineWidthPixels: 외곽선 두께 (px)
+  editor.property.PixelSnap: 픽셀 맞춤
+  editor.enum.FontStyle.Regular: 기본
+  editor.enum.FontStyle.Bold: 굵게
+  editor.enum.FontStyle.Italic: 기울임
+  editor.enum.FontStyle.BoldItalic: 굵은 기울임
+  editor.enum.OverflowMode.Overflow: 영역 밖 표시
+  editor.enum.OverflowMode.Wrap: 자동 줄바꿈
+  editor.enum.OverflowMode.Clip: 영역에서 자르기
+  editor.enum.HorizontalAlignment.Left: 왼쪽
+  editor.enum.HorizontalAlignment.Center: 가운데
+  editor.enum.HorizontalAlignment.Right: 오른쪽
+  editor.enum.VerticalAlignment.Top: 위
+  editor.enum.VerticalAlignment.Middle: 가운데
+  editor.enum.VerticalAlignment.Baseline: 기준선
+  editor.enum.VerticalAlignment.Bottom: 아래
+  inspector.text2d.font_missing: 사용할 수 있는 폰트 패밀리가 없어 텍스트를 렌더링할 수 없습니다.
+  inspector.text2d.open_font_settings: 프로젝트 폰트 설정 열기
+  project_settings.fonts: 폰트
+  project_settings.fonts.desc: 프로젝트 기본 폰트 패밀리와 공통 대체 폰트의 탐색 순서를 설정합니다.
+  project_settings.fonts.default: 기본 폰트 패밀리
+  project_settings.fonts.fallbacks: 공통 대체 폰트 패밀리
+  project_settings.fonts.add_fallback: 대체 폰트 추가

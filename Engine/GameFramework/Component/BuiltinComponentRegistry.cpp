@@ -9,6 +9,7 @@
 #include "GameFramework/Component/ScriptComponent.h"
 #include "GameFramework/Component/ShapeRenderers2D.h"
 #include "GameFramework/Component/SpriteRenderer2D.h"
+#include "GameFramework/Component/Text2D.h"
 #include "GameFramework/Reflection/ReflectionRegistry.h"
 #include "GameFramework/Reflection/ReflectionEnumRegister.h"
 
@@ -27,6 +28,31 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 		.AddProperty("Color", EReflectPropertyType::ColorFloat4, offsetof(SpriteRenderer2D, Color), sizeof(float), 4)
 		.AddProperty("SortOrder", EReflectPropertyType::Int32, offsetof(SpriteRenderer2D, SortOrder), sizeof(std::int32_t))
 		.AddProperty("LayerMask", EReflectPropertyType::UInt32, offsetof(SpriteRenderer2D, LayerMask), sizeof(RenderLayerMask));
+
+	registry.RegisterComponent<Text2D>({ "Text2D", "Text 2D", "Rendering", true })
+		.AddProperty("Text", EReflectPropertyType::String, offsetof(Text2D, Text), sizeof(String))
+		.AddProperty("FontFamilyGuid", EReflectPropertyType::AssetGuid, offsetof(Text2D, FontFamilyGuid), sizeof(AssetGuid))
+		.AddEnumProperty<EFontStyle>("FontStyle", offsetof(Text2D, FontStyle))
+		.AddProperty("FontSizePixels", EReflectPropertyType::Float, offsetof(Text2D, FontSizePixels), sizeof(float))
+		.AddProperty("WidthPixels", EReflectPropertyType::Float, offsetof(Text2D, WidthPixels), sizeof(float))
+		.AddProperty("HeightPixels", EReflectPropertyType::Float, offsetof(Text2D, HeightPixels), sizeof(float))
+		.AddEnumProperty<ETextOverflowMode>("OverflowMode", offsetof(Text2D, OverflowMode))
+		.AddProperty("AutoSizeEnabled", EReflectPropertyType::Bool, offsetof(Text2D, AutoSizeEnabled), sizeof(bool))
+		.AddProperty("MinFontSizePixels", EReflectPropertyType::Float, offsetof(Text2D, MinFontSizePixels), sizeof(float))
+		.AddProperty("MaxFontSizePixels", EReflectPropertyType::Float, offsetof(Text2D, MaxFontSizePixels), sizeof(float))
+		.AddEnumProperty<ETextHorizontalAlignment>("HorizontalAlignment", offsetof(Text2D, HorizontalAlignment))
+		.AddEnumProperty<ETextVerticalAlignment>("VerticalAlignment", offsetof(Text2D, VerticalAlignment))
+		.AddProperty("LineSpacing", EReflectPropertyType::Float, offsetof(Text2D, LineSpacing), sizeof(float))
+		.AddProperty("LetterSpacingPixels", EReflectPropertyType::Float, offsetof(Text2D, LetterSpacingPixels), sizeof(float))
+		.AddProperty("FillEnabled", EReflectPropertyType::Bool, offsetof(Text2D, FillEnabled), sizeof(bool))
+		.AddProperty("FillColor", EReflectPropertyType::ColorFloat4, offsetof(Text2D, FillColor), sizeof(float), 4)
+		.AddProperty("OutlineEnabled", EReflectPropertyType::Bool, offsetof(Text2D, OutlineEnabled), sizeof(bool))
+		.AddProperty("OutlineColor", EReflectPropertyType::ColorFloat4, offsetof(Text2D, OutlineColor), sizeof(float), 4)
+		.AddProperty("OutlineWidthPixels", EReflectPropertyType::Float, offsetof(Text2D, OutlineWidthPixels), sizeof(float))
+		.AddProperty("PixelSnap", EReflectPropertyType::Bool, offsetof(Text2D, PixelSnap), sizeof(bool))
+		.AddProperty("Offset", EReflectPropertyType::Vector2Float, offsetof(Text2D, Offset), sizeof(Vector2))
+		.AddProperty("SortOrder", EReflectPropertyType::Int32, offsetof(Text2D, SortOrder), sizeof(std::int32_t))
+		.AddProperty("LayerMask", EReflectPropertyType::UInt32, offsetof(Text2D, LayerMask), sizeof(RenderLayerMask));
 
 	registry.RegisterComponent<Square2D>({ "Square2D", "Square 2D", "Rendering", true })
 		.AddProperty("Size", EReflectPropertyType::Vector2Float, offsetof(Square2D, Size), sizeof(Vector2))

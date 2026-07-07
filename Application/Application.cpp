@@ -12,12 +12,14 @@
 #include "Engine/Core/Engine.h"
 #include "Engine/Core/RuntimeConfig.h"
 #include "Engine/Core/Logging/LoggerInternal.h"
+#include "Engine/Core/Input/InputSystem.h"
 #include "Engine/Core/Platform/IRenderSurface.h"
 #include "Engine/Core/Renderer/IRenderer.h"
 #include "Engine/Utillity/String/StringUtillity.h"
 #include "Engine/GameFramework/Audio/AudioSystem.h"
 #include "Engine/GameFramework/Rendering/GameCamera.h"
 #include "Engine/GameFramework/Rendering/SpriteRenderSystem.h"
+#include "Engine/GameFramework/Rendering/TextRenderSystem.h"
 #include "Engine/GameFramework/Scene/Scene.h"
 #include "Engine/GameFramework/Scene/SceneManager.h"
 #include "Engine/GameFramework/Scene/SceneSerializer.h"
@@ -151,6 +153,17 @@ bool CGameApplication::InitializeRuntimeGame()
 	m_runtimeRenderWidth = static_cast<float>(manifest.ResolutionWidth > 0 ? manifest.ResolutionWidth : 1);
 	m_runtimeRenderHeight = static_cast<float>(manifest.ResolutionHeight > 0 ? manifest.ResolutionHeight : 1);
 	::Runtime.PixelsPerUnit = manifest.PixelsPerUnit >= 1.0f ? manifest.PixelsPerUnit : 100.0f;
+	::Runtime.DefaultFontFamilyGuid = AssetGuid(manifest.DefaultFontFamilyGuid);
+	::Runtime.FallbackFontFamilies.clear();
+	for (const std::string& guid : manifest.FallbackFontFamilyGuids)
+	{
+		AssetGuid value(guid);
+		if (false == value.IsNull()) ::Runtime.FallbackFontFamilies.push_back(std::move(value));
+	}
+	if (Engine.InputSystem)
+	{
+		Engine.InputSystem->SetInputMap(manifest.InputActions);
+	}
 
 	if (false == MountRuntimeAssets(manifest))
 	{
@@ -411,6 +424,18 @@ namespace
 			{
 				shapeSystem->SetRenderScene(Engine.RenderScene.TryGet());
 				shapeSystem->SetDependencies(Engine.RHIDevice.TryGet(), Engine.Renderer.TryGet());
+			}
+
+			CTextRenderSystem* textSystem = scene->FindSystem<CTextRenderSystem>();
+			if (nullptr == textSystem)
+			{
+				textSystem = scene->AddSystem<CTextRenderSystem>(Engine.RenderScene.TryGet());
+			}
+			if (nullptr != textSystem)
+			{
+				textSystem->SetRenderScene(Engine.RenderScene.TryGet());
+				textSystem->SetDependencies(Engine.AssetManager.TryGet(), Engine.RHIDevice.TryGet(), Engine.Renderer.TryGet(),
+					Runtime.PixelsPerUnit, Runtime.DefaultFontFamilyGuid, Runtime.FallbackFontFamilies);
 			}
 
 			CAudioSystem* audioSystem = scene->FindSystem<CAudioSystem>();

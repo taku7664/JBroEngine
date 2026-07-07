@@ -10,6 +10,7 @@
 #include "GameFramework/Component/ScriptComponent.h"
 #include "GameFramework/Component/ShapeRenderers2D.h"
 #include "GameFramework/Component/SpriteRenderer2D.h"
+#include "GameFramework/Component/Text2D.h"
 #include "GameFramework/Component/Transform2D.h"
 #include "GameFramework/Component/Component.h"
 #include "GameFramework/Object/GameObject.h"
@@ -1049,6 +1050,25 @@ CComponent* ReadComponentInto(CGameObject& object, const YAML::Node& node,
 	else if (type == "Camera2D")
 	{
 		if (Camera2D* camera = object.AddComponent<Camera2D>()) { ReadCamera(node, *camera); added = camera; }
+	}
+	else if (type == "Text2D")
+	{
+		if (Text2D* text = object.AddComponent<Text2D>())
+		{
+			if (const ComponentTypeInfo* ti = GetTypeInfo("Text2D"))
+			{
+				ReadComponentReflected(node, text, *ti);
+			}
+			text->FontSizePixels = std::max(1.0f, text->FontSizePixels);
+			text->WidthPixels = std::max(0.0f, text->WidthPixels);
+			text->HeightPixels = std::max(0.0f, text->HeightPixels);
+			text->MinFontSizePixels = std::max(1.0f, text->MinFontSizePixels);
+			text->MaxFontSizePixels = std::max(text->MinFontSizePixels, text->MaxFontSizePixels);
+			text->LineSpacing = std::max(0.01f, text->LineSpacing);
+			text->OutlineWidthPixels = std::max(0.0f, text->OutlineWidthPixels);
+			AddReferencedAsset(assets, text->FontFamilyGuid);
+			added = text;
+		}
 	}
 	else if (type == "Square2D")
 	{

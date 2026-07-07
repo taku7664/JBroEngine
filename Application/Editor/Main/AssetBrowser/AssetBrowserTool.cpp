@@ -100,6 +100,13 @@ namespace
 	    "Effect:\n"
 	    "  Kind: Reverb\n"
 	    "  Parameters: {}\n";
+	constexpr std::string_view EMPTY_FONT_FAMILY_YAML =
+	    "Regular: \"\"\n"
+	    "Bold: \"\"\n"
+	    "Italic: \"\"\n"
+	    "BoldItalic: \"\"\n"
+	    "UseProjectFallbacks: true\n"
+	    "FallbackFamilies: []\n";
 	constexpr std::string_view EMPTY_PREFAB_YAML =
 	    "Prefab:\n"
 	    "  Root: 0\n"
@@ -277,6 +284,10 @@ namespace
 			return "[SPR]";
 		case EAssetType::Material:
 			return "[MAT]";
+		case EAssetType::FontFace:
+			return "[FONT]";
+		case EAssetType::FontFamily:
+			return "[FAMILY]";
 		case EAssetType::AudioEffect:
 			return "[FX]";
 		case EAssetType::Scene:
@@ -309,6 +320,9 @@ namespace
 			return "icon-audio";
 		case EAssetType::AudioEffect:
 			return "icon-material";   // 전용 아이콘 추가 전까지 material 아이콘 재사용
+		case EAssetType::FontFace:
+		case EAssetType::FontFamily:
+			return "icon-file-default";
 		default:
 			return "icon-file-default";
 		}
@@ -844,6 +858,13 @@ void CAssetBrowserTool::ProcessPendingOperations()
 			{
 				StartRenameForNewPath(dst);
 			}
+			break;
+		}
+		case EPendingOperationType::CreateFontFamily:
+		{
+			if (false == insideAssetRoot) break;
+			File::Path dst = MakeUniqueFilePath(operation.Path, "NewFontFamily", ".jfontfamily");
+			if (false == dst.empty() && WriteTextFile(dst, EMPTY_FONT_FAMILY_YAML)) StartRenameForNewPath(dst);
 			break;
 		}
 		case EPendingOperationType::CreateEffect:
@@ -1754,6 +1775,10 @@ void CAssetBrowserTool::DrawBrowserBodyContextMenu()
 				{
 					QueueOperation({ EPendingOperationType::CreateMaterial, m_focusFolderPath, File::NULL_PATH });
 				}
+				if (ImGui::MenuItem(Loc::Text("asset_browser.add_asset.font_family")))
+				{
+					QueueOperation({ EPendingOperationType::CreateFontFamily, m_focusFolderPath, File::NULL_PATH });
+				}
 				if (ImGui::MenuItem(Loc::Text("asset_browser.add_asset.effect")))
 				{
 					QueueOperation({ EPendingOperationType::CreateEffect, m_focusFolderPath, File::NULL_PATH });
@@ -1856,6 +1881,10 @@ void CAssetBrowserTool::DrawFolderTreeContextMenu()
 			if (ImGui::MenuItem(Loc::Text("asset_browser.add_asset.material")))
 			{
 				QueueOperation({ EPendingOperationType::CreateMaterial, folder, File::NULL_PATH });
+			}
+			if (ImGui::MenuItem(Loc::Text("asset_browser.add_asset.font_family")))
+			{
+				QueueOperation({ EPendingOperationType::CreateFontFamily, folder, File::NULL_PATH });
 			}
 			if (ImGui::MenuItem(Loc::Text("asset_browser.add_asset.effect")))
 			{

@@ -51,6 +51,8 @@ namespace
 	constexpr const char* PROJECT_KEY_LEGACY_LIVE_COMPILE_ENABLED = "LiveCompileEnabled";
 	constexpr const char* PROJECT_KEY_LAST_SCENE_PATH   = "LastOpenedScenePath";
 	constexpr const char* PROJECT_KEY_PIXELS_PER_UNIT   = "PixelsPerUnit";
+	constexpr const char* PROJECT_KEY_DEFAULT_FONT_FAMILY = "DefaultFontFamilyGuid";
+	constexpr const char* PROJECT_KEY_FALLBACK_FONT_FAMILIES = "FallbackFontFamilies";
 	constexpr const char* PROJECT_KEY_DEBUG_MODE_ENABLED = "DebugModeEnabled";
 	constexpr const char* PROJECT_KEY_EDITOR_LOCALE     = "EditorLocale";
 	constexpr const char* PROJECT_KEY_IMGUI_INI         = "ImGuiIniSettings";
@@ -813,6 +815,20 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 		pixelsPerUnit = root[PROJECT_KEY_PIXELS_PER_UNIT].as<float>(100.0f);
 		if (pixelsPerUnit < 1.0f) pixelsPerUnit = 1.0f;
 	}
+	AssetGuid defaultFontFamily = INVALID_ASSET_GUID;
+	if (root[PROJECT_KEY_DEFAULT_FONT_FAMILY])
+	{
+		defaultFontFamily = AssetGuid(root[PROJECT_KEY_DEFAULT_FONT_FAMILY].as<std::string>(std::string()));
+	}
+	std::vector<AssetGuid> fallbackFontFamilies;
+	if (const YAML::Node fallbackNode = root[PROJECT_KEY_FALLBACK_FONT_FAMILIES]; fallbackNode && fallbackNode.IsSequence())
+	{
+		for (const YAML::Node& node : fallbackNode)
+		{
+			AssetGuid guid(node.as<std::string>(std::string()));
+			if (false == guid.IsNull()) fallbackFontFamilies.push_back(std::move(guid));
+		}
+	}
 
 	bool debugModeEnabled = false;
 	if (root[PROJECT_KEY_DEBUG_MODE_ENABLED])
@@ -885,6 +901,8 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 	m_info.LastOpenedScenePath = lastOpenedScenePath;
 	m_info.BuildSettings       = buildSettings;
 	m_info.PixelsPerUnit       = pixelsPerUnit;
+	m_info.DefaultFontFamilyGuid = defaultFontFamily;
+	m_info.FallbackFontFamilies = std::move(fallbackFontFamilies);
 	m_info.DebugModeEnabled    = debugModeEnabled;
 	m_info.EditorLocaleCode    = editorLocaleCode;
 	m_info.ImGuiIniSettings    = imguiIniSettings;
@@ -983,6 +1001,8 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 
 	// 자산(스프라이트) 폴백 PPU 를 런타임 측에서도 보이게. 스프라이트가 처음 렌더되기 전에 채운다.
 	Runtime.PixelsPerUnit = m_info.PixelsPerUnit;
+	Runtime.DefaultFontFamilyGuid = m_info.DefaultFontFamilyGuid;
+	Runtime.FallbackFontFamilies = m_info.FallbackFontFamilies;
 
 	// ── 마지막 씬이 참조하는 에셋만 수집 (프리팹 참조까지 전이적으로 확장) ──
 	// 씬 파일의 ReferencedAssets 목록을 기반으로, 프리팹이면 그 프리팹의 참조까지
@@ -1376,6 +1396,8 @@ const char* CProjectManager::ImporterNameForType(EAssetType type)
 	case EAssetType::Script:   return "Script";
 	case EAssetType::Mesh:     return "Mesh";
 	case EAssetType::AudioEffect: return "AudioEffect";
+	case EAssetType::FontFace: return "FontFace";
+	case EAssetType::FontFamily: return "FontFamily";
 	default:                   return "Default";
 	}
 }
@@ -2033,6 +2055,14 @@ EAssetType CProjectManager::DetectAssetType(const File::Path& relativePath) cons
 	{
 		return EAssetType::AudioEffect;
 	}
+	if (extension == ".ttf" || extension == ".otf")
+	{
+		return EAssetType::FontFace;
+	}
+	if (extension == ".jfontfamily")
+	{
+		return EAssetType::FontFamily;
+	}
 
 	return EAssetType::Custom;
 }
@@ -2153,6 +2183,24 @@ void CProjectManager::SetPixelsPerUnit(float ppu)
 	m_info.PixelsPerUnit = (ppu >= 1.0f) ? ppu : 100.0f;
 	// 런타임(스프라이트 폴백)도 즉시 반영 — ProjectSettings Apply 등에서 호출되면 다음 프레임부터 렌더 반영.
 	Runtime.PixelsPerUnit = m_info.PixelsPerUnit;
+}
+
+const AssetGuid& CProjectManager::GetDefaultFontFamilyGuid() const
+{
+	return m_info.DefaultFontFamilyGuid;
+}
+
+const std::vector<AssetGuid>& CProjectManager::GetFallbackFontFamilies() const
+{
+	return m_info.FallbackFontFamilies;
+}
+
+void CProjectManager::SetFontSettings(const AssetGuid& defaultFamily, const std::vector<AssetGuid>& fallbackFamilies)
+{
+	m_info.DefaultFontFamilyGuid = defaultFamily;
+	m_info.FallbackFontFamilies = fallbackFamilies;
+	Runtime.DefaultFontFamilyGuid = m_info.DefaultFontFamilyGuid;
+	Runtime.FallbackFontFamilies = m_info.FallbackFontFamilies;
 }
 
 bool CProjectManager::IsDebugModeEnabled() const
@@ -2656,6 +2704,10 @@ bool CProjectManager::SaveProject(std::string* outError) const
 	out << YAML::Key << PROJECT_KEY_SCENE_CAM_Y     << YAML::Value << m_info.SceneViewCamY;
 	out << YAML::Key << PROJECT_KEY_SCENE_CAM_SIZE  << YAML::Value << m_info.SceneViewCamSize;
 	out << YAML::Key << PROJECT_KEY_PIXELS_PER_UNIT << YAML::Value << m_info.PixelsPerUnit;
+	out << YAML::Key << PROJECT_KEY_DEFAULT_FONT_FAMILY << YAML::Value << m_info.DefaultFontFamilyGuid.generic_string();
+	out << YAML::Key << PROJECT_KEY_FALLBACK_FONT_FAMILIES << YAML::Value << YAML::BeginSeq;
+	for (const AssetGuid& guid : m_info.FallbackFontFamilies) out << guid.generic_string();
+	out << YAML::EndSeq;
 	out << YAML::Key << PROJECT_KEY_DEBUG_MODE_ENABLED << YAML::Value << m_info.DebugModeEnabled;
 	out << YAML::Key << PROJECT_KEY_EDITOR_LOCALE   << YAML::Value << m_info.EditorLocaleCode;
 	out << YAML::Key << PROJECT_KEY_SCRIPT_SOURCE_DIR << YAML::Value << m_info.ScriptSourceDirectory;

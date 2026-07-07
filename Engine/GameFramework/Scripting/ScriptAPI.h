@@ -84,6 +84,7 @@ using GameObject = CGameObject;
 #include "GameFramework/Component/Transform2D.h"
 #include "GameFramework/Component/SpriteRenderer2D.h"
 #include "GameFramework/Component/ShapeRenderers2D.h"
+#include "GameFramework/Component/Text2D.h"
 #include "GameFramework/Component/Camera2D.h"
 // Physics2D 관련 컴포넌트(Rigidbody2D / 콜라이더)는 ScriptAPI_Physics.h 로 분리.
 

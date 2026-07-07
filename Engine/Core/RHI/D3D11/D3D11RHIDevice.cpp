@@ -355,6 +355,39 @@ OwnerPtr<IRHITexture> CD3D11RHIDevice::CreateTexture2D(const RHITexture2DDesc& d
 #endif
 }
 
+bool CD3D11RHIDevice::UpdateTexture2D(SafePtr<IRHITexture> texture, std::uint32_t x, std::uint32_t y,
+	std::uint32_t width, std::uint32_t height, const void* data, std::uint32_t rowPitch)
+{
+#if JBRO_PLATFORM_WINDOWS
+	if (nullptr == m_deviceContext || false == texture.IsValid() || nullptr == data || 0 == width || 0 == height)
+	{
+		return false;
+	}
+	const RHITexture2DDesc& desc = texture->GetDesc();
+	if (x + width > desc.Width || y + height > desc.Height || rowPitch < width * 4)
+	{
+		return false;
+	}
+	RHITextureNativeHandle handle = texture->GetNativeHandle();
+	if (nullptr == handle.Texture)
+	{
+		return false;
+	}
+	D3D11_BOX box = {};
+	box.left = x;
+	box.top = y;
+	box.front = 0;
+	box.right = x + width;
+	box.bottom = y + height;
+	box.back = 1;
+	m_deviceContext->UpdateSubresource(static_cast<ID3D11Texture2D*>(handle.Texture), 0, &box, data, rowPitch, 0);
+	return true;
+#else
+	(void)texture; (void)x; (void)y; (void)width; (void)height; (void)data; (void)rowPitch;
+	return false;
+#endif
+}
+
 OwnerPtr<IRHISampler> CD3D11RHIDevice::CreateSampler(const RHISamplerDesc& desc)
 {
 #if JBRO_PLATFORM_WINDOWS

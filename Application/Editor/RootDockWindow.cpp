@@ -18,6 +18,7 @@
 #include "Engine/Editor/Project/ProjectTypes.h"
 #include "Engine/GameFramework/Audio/AudioSystem.h"
 #include "Engine/GameFramework/Rendering/SpriteRenderSystem.h"
+#include "Engine/GameFramework/Rendering/TextRenderSystem.h"
 #include "Engine/GameFramework/Scene/SceneSerializer.h"
 #include "Utillity/File/FileUtillities.h"
 #include "Utillity/String/StringUtillity.h"
@@ -279,6 +280,18 @@ namespace
 				{
 					shapeSystem->SetRenderScene(context->RenderScene.TryGet());
 					shapeSystem->SetDependencies(context->RHIDevice.TryGet(), context->Renderer.TryGet());
+				}
+
+				CTextRenderSystem* textSystem = scene->FindSystem<CTextRenderSystem>();
+				if (nullptr == textSystem)
+				{
+					textSystem = scene->AddSystem<CTextRenderSystem>(context->RenderScene.TryGet());
+				}
+				if (nullptr != textSystem)
+				{
+					textSystem->SetRenderScene(context->RenderScene.TryGet());
+					textSystem->SetDependencies(context->AssetManager.TryGet(), context->RHIDevice.TryGet(), context->Renderer.TryGet(),
+						Runtime.PixelsPerUnit, Runtime.DefaultFontFamilyGuid, Runtime.FallbackFontFamilies);
 				}
 
 				CAudioSystem* audioSystem = scene->FindSystem<CAudioSystem>();

@@ -28,6 +28,8 @@ public:
 
 	virtual OwnerPtr<IRHIBuffer> CreateBuffer(const RHIBufferDesc& desc, const void* initialData) = 0;
 	virtual OwnerPtr<IRHITexture> CreateTexture2D(const RHITexture2DDesc& desc, const void* initialData) = 0;
+	virtual bool UpdateTexture2D(SafePtr<IRHITexture> texture, std::uint32_t x, std::uint32_t y,
+		std::uint32_t width, std::uint32_t height, const void* data, std::uint32_t rowPitch) = 0;
 	virtual OwnerPtr<IRHISampler> CreateSampler(const RHISamplerDesc& desc) = 0;
 	virtual OwnerPtr<IRHIProgram> CreateProgram(const RHIProgramDesc& desc) = 0;
 	virtual OwnerPtr<IRHIGraphicsPipeline> CreateGraphicsPipeline(const RHIGraphicsPipelineDesc& desc) = 0;

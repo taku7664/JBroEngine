@@ -52,6 +52,8 @@ struct RenderItem
 	// 메시의 로컬 중심 기준 AABB 반경. 기본값은 기존 스프라이트 단위 쿼드 계약.
 	float LocalHalfExtents[2] = { 0.5f, 0.5f };
 	float Color[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+	float SecondaryColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	float ShaderParams[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 	std::int32_t SortOrder = 0;
 	// 이 렌더 아이템을 제출한 오브젝트의 불투명 키(CGameObject 주소).
 	// 필터 렌더링/아웃라인 마스크에 사용(집합 비교 전용, 역참조 금지). nullptr = 무관 아이템.

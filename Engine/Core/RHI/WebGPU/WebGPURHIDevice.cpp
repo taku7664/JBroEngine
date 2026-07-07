@@ -350,6 +350,42 @@ OwnerPtr<IRHITexture> CWebGPURHIDevice::CreateTexture2D(const RHITexture2DDesc& 
 #endif
 }
 
+bool CWebGPURHIDevice::UpdateTexture2D(SafePtr<IRHITexture> texture, std::uint32_t x, std::uint32_t y,
+	std::uint32_t width, std::uint32_t height, const void* data, std::uint32_t rowPitch)
+{
+#if JBRO_PLATFORM_WEB
+	if (nullptr == m_queue || false == texture.IsValid() || nullptr == data || 0 == width || 0 == height)
+	{
+		return false;
+	}
+	const RHITexture2DDesc& desc = texture->GetDesc();
+	if (x + width > desc.Width || y + height > desc.Height || rowPitch < width * 4)
+	{
+		return false;
+	}
+	RHITextureNativeHandle handle = texture->GetNativeHandle();
+	if (nullptr == handle.Texture)
+	{
+		return false;
+	}
+	WGPUTexelCopyTextureInfo destination = {};
+	destination.texture = static_cast<WGPUTexture>(handle.Texture);
+	destination.mipLevel = 0;
+	destination.origin = { x, y, 0 };
+	destination.aspect = WGPUTextureAspect_All;
+	WGPUTexelCopyBufferLayout layout = {};
+	layout.offset = 0;
+	layout.bytesPerRow = rowPitch;
+	layout.rowsPerImage = height;
+	WGPUExtent3D extent = { width, height, 1 };
+	wgpuQueueWriteTexture(m_queue, &destination, data, static_cast<std::size_t>(rowPitch) * height, &layout, &extent);
+	return true;
+#else
+	(void)texture; (void)x; (void)y; (void)width; (void)height; (void)data; (void)rowPitch;
+	return false;
+#endif
+}
+
 OwnerPtr<IRHISampler> CWebGPURHIDevice::CreateSampler(const RHISamplerDesc& desc)
 {
 #if JBRO_PLATFORM_WEB

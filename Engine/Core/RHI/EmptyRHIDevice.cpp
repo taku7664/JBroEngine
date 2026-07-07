@@ -35,6 +35,13 @@ OwnerPtr<IRHITexture> CEmptyRHIDevice::CreateTexture2D(const RHITexture2DDesc& d
 	return nullptr;
 }
 
+bool CEmptyRHIDevice::UpdateTexture2D(SafePtr<IRHITexture> texture, std::uint32_t x, std::uint32_t y,
+	std::uint32_t width, std::uint32_t height, const void* data, std::uint32_t rowPitch)
+{
+	(void)texture; (void)x; (void)y; (void)width; (void)height; (void)data; (void)rowPitch;
+	return false;
+}
+
 OwnerPtr<IRHISampler> CEmptyRHIDevice::CreateSampler(const RHISamplerDesc& desc)
 {
 	(void)desc;

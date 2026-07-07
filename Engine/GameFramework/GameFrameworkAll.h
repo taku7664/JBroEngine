@@ -24,6 +24,7 @@
 #include "GameFramework/Component/WorldTransform2D.h"
 #include "GameFramework/Component/SpriteRenderer2D.h"
 #include "GameFramework/Component/ShapeRenderers2D.h"
+#include "GameFramework/Component/Text2D.h"
 #include "GameFramework/Component/Camera2D.h"
 #include "GameFramework/Component/Light2D.h"
 #include "GameFramework/Component/Physics2DComponents.h"
@@ -33,6 +34,7 @@
 // ── 렌더 / 변환 시스템 ──────────────────────────────────────────────────
 #include "GameFramework/Rendering/SpriteRenderSystem.h"
 #include "GameFramework/Rendering/ShapeRenderSystem.h"
+#include "GameFramework/Rendering/TextRenderSystem.h"
 #include "GameFramework/Transform/TransformSystem.h"
 
 // ── 프리팹 / 리플렉션 / 스크립팅 ────────────────────────────────────────

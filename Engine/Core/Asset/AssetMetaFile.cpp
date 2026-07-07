@@ -250,6 +250,10 @@ const char* CAssetMetaFile::ToString(EAssetType type)
 		return "Audio";
 	case EAssetType::AudioEffect:
 		return "AudioEffect";
+	case EAssetType::FontFace:
+		return "FontFace";
+	case EAssetType::FontFamily:
+		return "FontFamily";
 	case EAssetType::Custom:
 		return "Custom";
 	default:
@@ -270,6 +274,8 @@ EAssetType CAssetMetaFile::ParseType(const std::string& value)
 	if (value == "Script") return EAssetType::Script;
 	if (value == "Audio")  return EAssetType::Audio;
 	if (value == "AudioEffect") return EAssetType::AudioEffect;
+	if (value == "FontFace") return EAssetType::FontFace;
+	if (value == "FontFamily") return EAssetType::FontFamily;
 	if (value == "Custom") return EAssetType::Custom;
 	return EAssetType::Unknown;
 }

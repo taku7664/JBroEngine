@@ -3,6 +3,7 @@
 
 #include "yaml-cpp/yaml.h"
 
+#include <algorithm>
 #include <array>
 #include <cstring>
 #include <fstream>
@@ -282,6 +283,75 @@ namespace
 			}
 		}
 
+		// 입력 액션 맵. 구 매니페스트는 이 꼬리 섹션이 없어 빈 맵으로 동작한다.
+		if (cursor < payload.size())
+		{
+			std::uint32_t actionCount = 0;
+			if (false == ReadPod(payload, cursor, actionCount) || actionCount > ActionState::MaxActions)
+			{
+				SetError(outError, "Binary build manifest input action count is invalid.");
+				return false;
+			}
+			for (std::uint32_t actionIndex = 0; actionIndex < actionCount; ++actionIndex)
+			{
+				InputActionDef action;
+				std::uint8_t actionType = 0;
+				std::uint32_t bindingCount = 0;
+				if (false == ReadString(payload, cursor, action.Name)
+					|| false == ReadPod(payload, cursor, actionType)
+					|| actionType > static_cast<std::uint8_t>(EInputActionValueType::Vector2)
+					|| false == ReadPod(payload, cursor, bindingCount)
+					|| bindingCount > 64)
+				{
+					SetError(outError, "Binary build manifest input action entry is invalid.");
+					return false;
+				}
+				action.Type = static_cast<EInputActionValueType>(actionType);
+				action.Bindings.reserve(bindingCount);
+				for (std::uint32_t bindingIndex = 0; bindingIndex < bindingCount; ++bindingIndex)
+				{
+					InputBinding binding;
+					std::uint8_t source = 0;
+					std::uint8_t composite = 0;
+					if (false == ReadPod(payload, cursor, source)
+						|| source > static_cast<std::uint8_t>(EInputBindingSource::GamepadStick)
+						|| false == ReadPod(payload, cursor, binding.Code)
+						|| false == ReadPod(payload, cursor, binding.GamepadIndex)
+						|| false == ReadPod(payload, cursor, composite)
+						|| composite > static_cast<std::uint8_t>(EInputComposite::Right))
+					{
+						SetError(outError, "Binary build manifest input binding entry is invalid.");
+						return false;
+					}
+					binding.Source = static_cast<EInputBindingSource>(source);
+					binding.Composite = static_cast<EInputComposite>(composite);
+					action.Bindings.push_back(binding);
+				}
+				outManifest.InputActions.push_back(std::move(action));
+			}
+		}
+
+		if (cursor < payload.size())
+		{
+			if (false == ReadString(payload, cursor, outManifest.DefaultFontFamilyGuid))
+			{
+				SetError(outError, "Binary build manifest default font family is invalid.");
+				return false;
+			}
+			std::uint32_t fallbackCount = 0;
+			if (false == ReadPod(payload, cursor, fallbackCount) || fallbackCount > 64)
+			{
+				SetError(outError, "Binary build manifest fallback font count is invalid.");
+				return false;
+			}
+			for (std::uint32_t index = 0; index < fallbackCount; ++index)
+			{
+				std::string guid;
+				if (false == ReadString(payload, cursor, guid)) return false;
+				outManifest.FallbackFontFamilyGuids.push_back(std::move(guid));
+			}
+		}
+
 		const std::filesystem::path absoluteManifestPath = std::filesystem::path(ToCanonicalPath(manifestPath));
 		const std::filesystem::path contentRootPath = absoluteManifestPath.parent_path();
 		const std::filesystem::path packageRootPath = contentRootPath.parent_path();
@@ -473,6 +543,15 @@ bool CBuildManifestLoader::LoadFromFile(const File::Path& manifestPath, BuildMan
 	outManifest.EngineVersion = ReadValueOr<std::string>(root, "engineVersion", "");
 	outManifest.BuildTimeUtc = ReadValueOr<std::string>(root, "buildTimeUtc", "");
 	outManifest.PixelsPerUnit = NormalizePixelsPerUnit(ReadValueOr<float>(root, "pixelsPerUnit", DEFAULT_PIXELS_PER_UNIT));
+	outManifest.DefaultFontFamilyGuid = ReadValueOr<std::string>(root, "defaultFontFamilyGuid", "");
+	if (const YAML::Node fallbacks = root["fallbackFontFamilyGuids"]; fallbacks && fallbacks.IsSequence())
+	{
+		for (const YAML::Node& node : fallbacks)
+		{
+			try { outManifest.FallbackFontFamilyGuids.push_back(node.as<std::string>("")); }
+			catch (const YAML::Exception&) {}
+		}
+	}
 
 	if (const YAML::Node scenes = root["buildScenes"]; scenes && scenes.IsSequence())
 	{
@@ -597,6 +676,31 @@ bool CBuildManifestLoader::WriteBinaryFile(const File::Path& manifestPath, const
 		WriteString(payload, manifest.BuildScenes[i]);
 		WriteString(payload, i < manifest.BuildSceneGuids.size() ? manifest.BuildSceneGuids[i] : std::string());
 	}
+
+	const std::uint32_t actionCount = static_cast<std::uint32_t>(
+		std::min<std::size_t>(manifest.InputActions.size(), ActionState::MaxActions));
+	WritePod(payload, actionCount);
+	for (std::uint32_t actionIndex = 0; actionIndex < actionCount; ++actionIndex)
+	{
+		const InputActionDef& action = manifest.InputActions[actionIndex];
+		WriteString(payload, action.Name);
+		WritePod(payload, static_cast<std::uint8_t>(action.Type));
+		const std::uint32_t bindingCount = static_cast<std::uint32_t>(
+			std::min<std::size_t>(action.Bindings.size(), 64));
+		WritePod(payload, bindingCount);
+		for (std::uint32_t bindingIndex = 0; bindingIndex < bindingCount; ++bindingIndex)
+		{
+			const InputBinding& binding = action.Bindings[bindingIndex];
+			WritePod(payload, static_cast<std::uint8_t>(binding.Source));
+			WritePod(payload, binding.Code);
+			WritePod(payload, binding.GamepadIndex);
+			WritePod(payload, static_cast<std::uint8_t>(binding.Composite));
+		}
+	}
+	WriteString(payload, manifest.DefaultFontFamilyGuid);
+	const std::uint32_t fallbackFontCount = static_cast<std::uint32_t>(std::min<std::size_t>(manifest.FallbackFontFamilyGuids.size(), 64));
+	WritePod(payload, fallbackFontCount);
+	for (std::uint32_t index = 0; index < fallbackFontCount; ++index) WriteString(payload, manifest.FallbackFontFamilyGuids[index]);
 
 	const std::uint32_t payloadSize = static_cast<std::uint32_t>(payload.size());
 	const std::uint64_t payloadHash = HashBytes(payload);
