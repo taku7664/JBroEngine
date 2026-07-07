@@ -56,6 +56,10 @@ public:
 	// 해당 연결의 최근 왕복시간(ms). 아직 측정 전이면 -1. keepalive ping/pong 기반.
 	virtual double        GetRoundTripMs(NetworkConnectionId id) const = 0;
 
+	// 해당 연결의 UDP(비신뢰 채널) 수신 손실률(0.0~1.0). 표본 없음/웹/UDP 미활성 = -1.
+	// 게임이 보간·송신빈도 품질 조절에 쓴다. 신뢰(WS) 채널은 TCP 가 복구하므로 해당 없음.
+	virtual double        GetUdpLossRate(NetworkConnectionId id) const = 0;
+
 	// ── wss(TLS) 설정 — 네이티브/호스트 전용 ─────────────────────────────────────
 	// 클라이언트는 보통 Connect("wss://host") 스킴만으로 충분(정식 인증서 검증). 아래는 고급용.
 	//   SetSecureServerCertificate: 서버가 wss 를 수용(PCCERT_CONTEXT, void*). StartServer 전에 호출.

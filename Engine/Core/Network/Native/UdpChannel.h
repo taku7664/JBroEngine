@@ -48,15 +48,58 @@ public:
 	// NAT 유지/엔드포인트 등록용 빈 데이터그램.
 	void SendPunch(NetworkConnectionId id);
 
+	// 해당 연결의 UDP 수신 손실률(0.0~1.0). 표본 없으면 -1.
+	// 수신 seq 갭 기반 추정: 1 - 수신개수/(최대seq-최초seq+1). punch 포함(모든 데이터그램이 표본).
+	double GetLossRate(NetworkConnectionId id) const;
+
 	bool IsActive() const { return nullptr != m_socket.Get(); }
 
 private:
+	// 수신 손실률 표본(연결 단위). seq 는 연결별 전역 증가라 갭 = 유실 추정치.
+	struct RecvStats
+	{
+		bool          HasSample = false;
+		std::uint32_t FirstSeq  = 0;
+		std::uint32_t MaxSeq    = 0;
+		std::uint64_t Received  = 0;
+
+		void Accumulate(std::uint32_t seq)
+		{
+			if (false == HasSample)
+			{
+				HasSample = true;
+				FirstSeq  = seq;
+				MaxSeq    = seq;
+			}
+			else if (seq > MaxSeq)
+			{
+				MaxSeq = seq;
+			}
+			++Received;
+		}
+
+		double LossRate() const
+		{
+			if (false == HasSample)
+			{
+				return -1.0;
+			}
+			const std::uint64_t expected = static_cast<std::uint64_t>(MaxSeq - FirstSeq) + 1u;
+			if (Received >= expected)
+			{
+				return 0.0; // 중복 수신 등으로 표본이 기대치 이상 — 손실 없음으로 본다.
+			}
+			return 1.0 - static_cast<double>(Received) / static_cast<double>(expected);
+		}
+	};
+
 	struct ServerPeer
 	{
 		std::uint64_t  Token = 0;
 		NetUdpEndpoint Endpoint;                 // 첫 인바운드에서 학습.
 		std::uint32_t  SendSeq = 0;
 		std::unordered_map<std::uint16_t, std::uint32_t> RecvLastSeq; // msgId → 최근 seq(Sequenced).
+		RecvStats      Stats;
 	};
 
 	std::uint64_t NextToken();
@@ -81,6 +124,7 @@ private:
 	NetUdpEndpoint m_serverEndpoint;
 	std::uint32_t  m_clientSendSeq  = 0;
 	std::unordered_map<std::uint16_t, std::uint32_t> m_clientRecvLastSeq;
+	RecvStats      m_clientStats;
 };
 
 #endif // !JBRO_PLATFORM_WEB

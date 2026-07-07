@@ -193,6 +193,19 @@ double CNetworkManager::GetRoundTripMs(NetworkConnectionId id) const
 	return (m_sessions.end() != it) ? it->second.RoundTripMs : -1.0;
 }
 
+double CNetworkManager::GetUdpLossRate(NetworkConnectionId id) const
+{
+#if !JBRO_PLATFORM_WEB
+	if (m_udp)
+	{
+		return m_udp->GetLossRate(id);
+	}
+#else
+	(void)id;
+#endif
+	return -1.0; // 웹/UDP 미활성 — 비신뢰는 신뢰 폴백이라 유실 없음(측정 불필요).
+}
+
 void CNetworkManager::SetSecureServerCertificate(void* certContext)
 {
 	if (m_transport)

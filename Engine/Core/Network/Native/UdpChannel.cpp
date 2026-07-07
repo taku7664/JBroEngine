@@ -84,6 +84,7 @@ void CUdpChannel::Stop()
 	m_clientToken    = 0;
 	m_serverEndpoint = NetUdpEndpoint{};
 	m_clientRecvLastSeq.clear();
+	m_clientStats = RecvStats{};
 	m_role = ENetworkRole::None;
 }
 
@@ -112,6 +113,20 @@ void CUdpChannel::RemovePeer(NetworkConnectionId id)
 		m_tokenToPeer.erase(it->second.Token);
 		m_peers.erase(it);
 	}
+}
+
+double CUdpChannel::GetLossRate(NetworkConnectionId id) const
+{
+	if (ENetworkRole::Server == m_role)
+	{
+		const auto it = m_peers.find(id);
+		return (m_peers.end() != it) ? it->second.Stats.LossRate() : -1.0;
+	}
+	if (ENetworkRole::Client == m_role)
+	{
+		return m_clientStats.LossRate();
+	}
+	return -1.0;
 }
 
 void CUdpChannel::SetClientToken(std::uint64_t token)
@@ -244,6 +259,7 @@ void CUdpChannel::Poll(const FOnUdpMessage& onMessage)
 				continue;
 			}
 			peerIt->second.Endpoint = from; // 엔드포인트 학습/갱신(NAT 리바인딩 대응).
+			peerIt->second.Stats.Accumulate(seq); // 손실률 표본(punch 포함).
 
 			if (0 == msgId && 0 == psize)
 			{
@@ -260,6 +276,7 @@ void CUdpChannel::Poll(const FOnUdpMessage& onMessage)
 			{
 				continue; // 우리 연결 토큰 아님 — 무시.
 			}
+			m_clientStats.Accumulate(seq); // 손실률 표본(punch 포함).
 			if (0 == msgId && 0 == psize)
 			{
 				continue; // punch.

@@ -31,6 +31,7 @@ public:
 	bool          IsListening() const override;
 	ENetworkRole  GetRole()     const override;
 	double        GetRoundTripMs(NetworkConnectionId id) const override;
+	double        GetUdpLossRate(NetworkConnectionId id) const override;
 
 	void SetSecureServerCertificate(void* certContext) override;
 	void SetSecureClientOptions(const char* hostName, bool skipCertValidation) override;
