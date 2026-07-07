@@ -126,7 +126,7 @@ CGameObject* ReadObjectInto(CGameScene& scene, const YAML::Node& node,
 		const std::string guid = g.as<std::string>("");
 		if (false == guid.empty())
 		{
-			object->InstanceGuid = File::Guid(guid);
+			scene.SetObjectInstanceGuid(*object, File::Guid(guid));
 		}
 	}
 
