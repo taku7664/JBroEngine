@@ -4,6 +4,8 @@
 #if !JBRO_PLATFORM_WEB
 
 #include "Core/Network/NetworkTypes.h"
+#include "Core/Network/Native/ReliableEndpoint.h"
+#include "Core/Network/Native/UdpDatagram.h"
 #include "Core/Network/Sockets/IUdpSocket.h"
 #include "Utillity/Pointer/SafePtr.h"
 
@@ -103,12 +105,17 @@ private:
 	{
 		std::uint64_t  Token = 0;
 		NetUdpEndpoint Endpoint;                 // 첫 인바운드에서 학습.
-		std::uint32_t  SendSeq = 0;
+		std::uint32_t  SendSeq = 0;              // 비신뢰 seq 공간(손실지표/Sequenced).
 		std::unordered_map<std::uint16_t, std::uint32_t> RecvLastSeq; // msgId → 최근 seq(Sequenced).
-		RecvStats      Stats;
+		RecvStats         Stats;
+		CReliableEndpoint Reliable;              // 신뢰 seq 공간(재전송/ack/dedup).
 	};
 
 	std::uint64_t NextToken();
+	double        NowMs() const; // 단조 시계(RTT/RTO 용).
+	// 완성된 헤더(Token 세팅 후) + payload 를 인코드해 송신.
+	bool SendPacket(const NetUdpEndpoint& to, UdpProto::UdpDatagramHeader& header,
+		const void* data, std::uint32_t size);
 	bool SendDatagram(const NetUdpEndpoint& to, std::uint64_t token,
 		ENetChannel channel, std::uint32_t seq, std::uint16_t msgId, const void* data, std::uint32_t size);
 	// 수신 페이로드가 시퀀스 드롭 대상인지 판정 + lastSeq 갱신.
@@ -131,7 +138,8 @@ private:
 	NetUdpEndpoint m_serverEndpoint;
 	std::uint32_t  m_clientSendSeq  = 0;
 	std::unordered_map<std::uint16_t, std::uint32_t> m_clientRecvLastSeq;
-	RecvStats      m_clientStats;
+	RecvStats         m_clientStats;
+	CReliableEndpoint m_clientReliable;
 };
 
 #endif // !JBRO_PLATFORM_WEB

@@ -4,6 +4,7 @@
 
 #if !JBRO_PLATFORM_WEB
 
+#include <chrono>
 #include <cstring>
 #include <vector>
 
@@ -62,6 +63,7 @@ void CUdpChannel::Stop()
 	m_serverEndpoint = NetUdpEndpoint{};
 	m_clientRecvLastSeq.clear();
 	m_clientStats = RecvStats{};
+	m_clientReliable.Reset();
 	m_role = ENetworkRole::None;
 }
 
@@ -144,11 +146,35 @@ bool CUdpChannel::Send(
 	if (ENetworkRole::Server == m_role)
 	{
 		ServerPeer& peer = m_peers[id];
+		if (ENetChannel::ReliableOrdered == channel)
+		{
+			const NetUdpEndpoint to = peer.Endpoint;
+			const std::uint64_t  token = peer.Token;
+			peer.Reliable.SendReliable(msgId, data, size, NowMs(),
+				[this, to, token](UdpProto::UdpDatagramHeader& h, const void* p, std::uint32_t s)
+				{
+					h.Token = token;
+					SendPacket(to, h, p, s);
+				});
+			return true;
+		}
 		const std::uint32_t seq = peer.SendSeq++;
 		return SendDatagram(peer.Endpoint, peer.Token, channel, seq, msgId, data, size);
 	}
 
 	// 클라이언트.
+	if (ENetChannel::ReliableOrdered == channel)
+	{
+		const NetUdpEndpoint to = m_serverEndpoint;
+		const std::uint64_t  token = m_clientToken;
+		m_clientReliable.SendReliable(msgId, data, size, NowMs(),
+			[this, to, token](UdpProto::UdpDatagramHeader& h, const void* p, std::uint32_t s)
+			{
+				h.Token = token;
+				SendPacket(to, h, p, s);
+			});
+		return true;
+	}
 	const std::uint32_t seq = m_clientSendSeq++;
 	return SendDatagram(m_serverEndpoint, m_clientToken, channel, seq, msgId, data, size);
 }
@@ -173,22 +199,36 @@ void CUdpChannel::SendPunch(NetworkConnectionId id)
 	}
 }
 
+bool CUdpChannel::SendPacket(
+	const NetUdpEndpoint& to, UdpProto::UdpDatagramHeader& header, const void* data, std::uint32_t size)
+{
+	if (!m_socket)
+	{
+		return false;
+	}
+	std::vector<std::uint8_t> datagram;
+	datagram.resize(UdpProto::HeaderSize(header.Flags) + size);
+	const std::size_t written = UdpProto::Encode(header, data, size, datagram.data());
+	return ESocketIo::Ok == m_socket->SendTo(to, datagram.data(), written);
+}
+
 bool CUdpChannel::SendDatagram(
 	const NetUdpEndpoint& to, std::uint64_t token, ENetChannel channel,
 	std::uint32_t seq, std::uint16_t msgId, const void* data, std::uint32_t size)
 {
 	UdpProto::UdpDatagramHeader header;
 	header.Token   = token;
-	header.Flags   = UdpProto::Flag_None; // 비신뢰 — ack/frag 없음(3b+ 에서 신뢰 플래그 추가).
+	header.Flags   = UdpProto::Flag_None; // 비신뢰 — ack/frag 없음.
 	header.Channel = channel;
 	header.Seq     = seq;
 	header.MsgId   = msgId;
+	return SendPacket(to, header, data, size);
+}
 
-	std::vector<std::uint8_t> datagram;
-	datagram.resize(UdpProto::HeaderSize(header.Flags) + size);
-	const std::size_t written = UdpProto::Encode(header, data, size, datagram.data());
-
-	return ESocketIo::Ok == m_socket->SendTo(to, datagram.data(), written);
+double CUdpChannel::NowMs() const
+{
+	const auto now = std::chrono::steady_clock::now().time_since_epoch();
+	return std::chrono::duration<double, std::milli>(now).count();
 }
 
 // ── 수신 ─────────────────────────────────────────────────────────────────────────
@@ -237,14 +277,34 @@ void CUdpChannel::Poll(const FOnUdpMessage& onMessage)
 			{
 				continue;
 			}
-			peerIt->second.Endpoint = from; // 엔드포인트 학습/갱신(NAT 리바인딩 대응).
-			peerIt->second.Stats.Accumulate(seq); // 손실률 표본(punch 포함).
+			ServerPeer& peer = peerIt->second;
+			peer.Endpoint = from; // 엔드포인트 학습/갱신(NAT 리바인딩 대응).
 
+			// ack 필드는 신뢰 데이터·순수 ack 어느 쪽에도 실릴 수 있다 → 먼저 처리.
+			if (0 != (header.Flags & UdpProto::Flag_Ack))
+			{
+				peer.Reliable.OnAck(header.AckBase, header.AckBits, NowMs());
+			}
+			if (0 != (header.Flags & UdpProto::Flag_Reliable))
+			{
+				if (peer.Reliable.OnReliableReceived(seq)) // dedup — 최초만 전달.
+				{
+					onMessage(connId, msgId, payload, psize);
+				}
+				continue; // 신뢰 seq 는 손실지표/Sequenced 대상 아님. ack 는 Tick 에서 flush.
+			}
+			if (0 != (header.Flags & UdpProto::Flag_Ack))
+			{
+				continue; // 순수 ack — 데이터 없음.
+			}
+
+			// 비신뢰 경로.
+			peer.Stats.Accumulate(seq); // 손실률 표본(punch 포함).
 			if (0 == msgId && 0 == psize)
 			{
 				continue; // punch — 디스패치 안 함.
 			}
-			if (AcceptSeq(peerIt->second.RecvLastSeq, channel, msgId, seq))
+			if (AcceptSeq(peer.RecvLastSeq, channel, msgId, seq))
 			{
 				onMessage(connId, msgId, payload, psize);
 			}
@@ -255,6 +315,24 @@ void CUdpChannel::Poll(const FOnUdpMessage& onMessage)
 			{
 				continue; // 우리 연결 토큰 아님 — 무시.
 			}
+
+			if (0 != (header.Flags & UdpProto::Flag_Ack))
+			{
+				m_clientReliable.OnAck(header.AckBase, header.AckBits, NowMs());
+			}
+			if (0 != (header.Flags & UdpProto::Flag_Reliable))
+			{
+				if (m_clientReliable.OnReliableReceived(seq))
+				{
+					onMessage(SERVER_CONNECTION_ID, msgId, payload, psize);
+				}
+				continue;
+			}
+			if (0 != (header.Flags & UdpProto::Flag_Ack))
+			{
+				continue; // 순수 ack.
+			}
+
 			m_clientStats.Accumulate(seq); // 손실률 표본(punch 포함).
 			if (0 == msgId && 0 == psize)
 			{
@@ -265,6 +343,39 @@ void CUdpChannel::Poll(const FOnUdpMessage& onMessage)
 				onMessage(SERVER_CONNECTION_ID, msgId, payload, psize);
 			}
 		}
+	}
+
+	// 수신 처리 후 신뢰 틱: RTO 만료 재전송 + 대기 ack flush(방금 받은 신뢰분 포함).
+	const double now = NowMs();
+	if (ENetworkRole::Server == m_role)
+	{
+		for (auto& entry : m_peers)
+		{
+			ServerPeer& peer = entry.second;
+			if (false == peer.Endpoint.Valid())
+			{
+				continue;
+			}
+			const NetUdpEndpoint to    = peer.Endpoint;
+			const std::uint64_t  token = peer.Token;
+			peer.Reliable.Tick(now,
+				[this, to, token](UdpProto::UdpDatagramHeader& h, const void* p, std::uint32_t s)
+				{
+					h.Token = token;
+					SendPacket(to, h, p, s);
+				});
+		}
+	}
+	else if (ENetworkRole::Client == m_role && m_clientTokenSet && m_serverEndpoint.Valid())
+	{
+		const NetUdpEndpoint to    = m_serverEndpoint;
+		const std::uint64_t  token = m_clientToken;
+		m_clientReliable.Tick(now,
+			[this, to, token](UdpProto::UdpDatagramHeader& h, const void* p, std::uint32_t s)
+			{
+				h.Token = token;
+				SendPacket(to, h, p, s);
+			});
 	}
 }
 

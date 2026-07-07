@@ -1,0 +1,75 @@
+#pragma once
+
+#include "Core/Platform/PlatformDefines.h"
+#if !JBRO_PLATFORM_WEB
+
+#include "Core/Network/Native/UdpDatagram.h"
+
+#include <cstdint>
+#include <functional>
+#include <map>
+#include <set>
+#include <vector>
+
+// 한 연결(서버-피어 하나 또는 클라-서버)의 신뢰 전달 엔진.
+// UDP 위에 재전송/ACK/dedup 을 얹어 신뢰 데이터그램을 유실이 있어도 정확히 한 번 전달한다.
+//
+// 3b 범위 = 유실 복구(재전송) + 정확히 한 번(dedup) + RTT 기반 RTO. 전달은 즉시(순서무관).
+//   ReliableOrdered 의 순서 보장(재정렬 버퍼)은 3c 에서 얹는다.
+//
+// 소켓을 직접 만지지 않는다 — 송출은 FEmit 콜백(UdpChannel 이 Token 세팅 + 엔드포인트로 SendTo).
+// 시간은 호출측이 밀리초로 주입(단일 시계 = UdpChannel::NowMs).
+class CReliableEndpoint
+{
+public:
+	// 신뢰 데이터그램 송출. header 는 Token 을 제외한 전 필드가 채워진 상태로 넘어온다.
+	using FEmit = std::function<void(UdpProto::UdpDatagramHeader& header, const void* payload, std::uint32_t size)>;
+
+	// 신뢰 메시지 큐잉 + 즉시 1회 송신. size 는 UDP_MAX_PAYLOAD 이하 가정(프래그먼트는 3d).
+	void SendReliable(std::uint16_t msgId, const void* data, std::uint32_t size, double nowMs, const FEmit& emit);
+
+	// 수신한 신뢰 seq 처리. 반환 true = 최초 수신(상위로 전달), false = 중복(폐기). 항상 ack 예약.
+	bool OnReliableReceived(std::uint32_t seq);
+
+	// 수신 데이터그램의 ack 필드 처리 → unacked 해제 + RTT 갱신.
+	void OnAck(std::uint32_t ackBase, std::uint32_t ackBits, double nowMs);
+
+	// 주기 틱: RTO 만료분 재전송(지수 백오프) + 대기 중 ack flush. 매 Poll 호출.
+	void Tick(double nowMs, const FEmit& emit);
+
+	void Reset();
+
+	// 진단.
+	std::size_t   UnackedCount() const { return m_unacked.size(); }
+	double        CurrentRtoMs() const { return m_rto; }
+	double        SmoothedRttMs() const { return m_srtt; }
+
+private:
+	void UpdateRtt(double sampleMs);
+	void FillAck(UdpProto::UdpDatagramHeader& header) const; // Flag_Ack + AckBase/AckBits 세팅.
+
+private:
+	// ── 송신측 ──
+	std::uint32_t m_nextSeq = 0;
+	struct Outbound
+	{
+		std::vector<std::uint8_t> Payload;
+		std::uint16_t             MsgId      = 0;
+		double                    LastSentMs = 0.0;
+		std::uint32_t             Sends      = 0; // 총 송신 횟수(1=최초). Karn: 1 일 때만 RTT 표본.
+	};
+	std::map<std::uint32_t, Outbound> m_unacked; // seq 오름차순 — 누적 ack 스캔에 유리.
+
+	// ── RTT/RTO (ms, Jacobson/Karels) ──
+	double m_srtt    = 0.0;
+	double m_rttvar  = 0.0;
+	double m_rto     = 250.0; // 초기 RTO(표본 전).
+	bool   m_haveRtt = false;
+
+	// ── 수신측 ──
+	std::uint32_t           m_recvNext = 0;     // 이 미만 seq 는 전부 수신/전달됨(누적 경계).
+	std::set<std::uint32_t> m_recvAhead;        // gap 위로 수신한 seq(dedup + 선택 ack 비트).
+	bool                    m_ackPending = false;
+};
+
+#endif // !JBRO_PLATFORM_WEB
