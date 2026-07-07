@@ -2,6 +2,7 @@
 #include "GameBuildManager.h"
 
 #include "Editor/Editor.h"
+#include "Editor/Build/BuildSettingsUtils.h"
 #include "Editor/EditorSessionPersistence.h"
 #include "Editor/Main/SceneView/SceneViewTool.h"
 #include "Engine/Core/Asset/IAssetManager.h"
@@ -35,28 +36,6 @@
 
 namespace
 {
-	const char* ToString(EBuildTargetPlatform platform)
-	{
-		switch (platform)
-		{
-		case EBuildTargetPlatform::Web: return "Web";
-		case EBuildTargetPlatform::Android: return "Android";
-		case EBuildTargetPlatform::IOS: return "IOS";
-		case EBuildTargetPlatform::Windows:
-		default: return "Windows";
-		}
-	}
-
-	const char* ToString(EBuildConfiguration configuration)
-	{
-		return EBuildConfiguration::Debug == configuration ? "Debug" : "Release";
-	}
-
-	const char* ToEngineConfiguration(EBuildConfiguration configuration)
-	{
-		return EBuildConfiguration::Debug == configuration ? "Debug_Game" : "Release_Game";
-	}
-
 	std::string ToUtf8PathString(const File::Path& path)
 	{
 		const auto text = path.generic_u8string();
@@ -494,7 +473,7 @@ bool CGameBuildManager::StartBuild(SafePtr<CProjectManager> projectManager, EBui
 	{
 		std::lock_guard lock(m_mutex);
 		m_state = EGameBuildState::Failed;
-		m_message = std::string(ToString(targetPlatform)) + " package build is not implemented yet. Mobile settings are saved, but native packaging is a later step.";
+		m_message = std::string(BuildSettingsUtils::GetTargetPlatformName(targetPlatform)) + " package build is not implemented yet. Mobile settings are saved, but native packaging is a later step.";
 		m_tasks.clear();
 		m_completedCount = 0;
 		m_packageDirectory.clear();
@@ -540,7 +519,7 @@ bool CGameBuildManager::StartBuild(SafePtr<CProjectManager> projectManager, EBui
 	desc.InputActions = projectManager->GetInputActions();
 	desc.WindowsIconGuid = settings.WindowsIconGuid;
 	desc.OutputRoot = ResolveOutputRoot(desc.ProjectRoot, settings.OutputDirectory);
-	desc.PackageDirectory = desc.OutputRoot / (desc.ProductName + "-" + ToString(desc.TargetPlatform) + "-" + ToString(desc.BuildConfiguration));
+	desc.PackageDirectory = desc.OutputRoot / (desc.ProductName + "-" + BuildSettingsUtils::GetTargetPlatformName(desc.TargetPlatform) + "-" + BuildSettingsUtils::GetBuildConfigurationName(desc.BuildConfiguration));
 	desc.LogPath = desc.ProjectRoot / "Build" / "Logs" / "EditorGameBuild.log";
 
 	std::vector<GameBuildTaskProgress> tasks;
@@ -774,7 +753,7 @@ bool CGameBuildManager::BuildEngineGame(const BuildDesc& desc, std::string& outE
 	const std::wstring command =
 		Quote(msbuild.wstring()) + L" " +
 		Quote(solution.wstring()) +
-		L" /m /p:Configuration=" + Utillity::U8ToWString(ToEngineConfiguration(desc.BuildConfiguration)) +
+		L" /m /p:Configuration=" + Utillity::U8ToWString(BuildSettingsUtils::GetEngineBuildConfigurationName(desc.BuildConfiguration)) +
 		L" /p:Platform=x64 /v:minimal /nr:false";
 	return RunCommandToLog(command, desc.LogPath, outError);
 }
@@ -802,7 +781,7 @@ bool CGameBuildManager::BuildScriptModule(const BuildDesc& desc, File::Path& out
 	const std::wstring command =
 		Quote(msbuild.wstring()) + L" " +
 		Quote(desc.ScriptProjectPath.wstring()) +
-		L" /p:Configuration=" + Utillity::U8ToWString(ToString(desc.BuildConfiguration)) +
+		L" /p:Configuration=" + Utillity::U8ToWString(BuildSettingsUtils::GetBuildConfigurationName(desc.BuildConfiguration)) +
 		L" /p:Platform=x64" +
 		L" /p:SolutionDir=" + Quote(Utillity::U8ToWString(solutionDir)) +
 		L" /p:CL_MPCount=1 /p:UseMultiToolTask=false /v:minimal /nr:false";
@@ -833,7 +812,7 @@ bool CGameBuildManager::BuildWebPackage(const BuildDesc& desc, std::string& outE
 		L"powershell.exe -NoProfile -ExecutionPolicy Bypass -File " +
 		Quote(scriptPath.wstring()) +
 		L" -Project " + Quote(desc.ProjectFilePath.wstring()) +
-		L" -Configuration " + Utillity::U8ToWString(ToString(desc.BuildConfiguration)) +
+		L" -Configuration " + Utillity::U8ToWString(BuildSettingsUtils::GetBuildConfigurationName(desc.BuildConfiguration)) +
 		L" -OutputRoot " + Quote(desc.OutputRoot.wstring()) +
 		L" -Clean";
 
@@ -862,7 +841,7 @@ bool CGameBuildManager::BuildAndroidPackage(const BuildDesc& desc, std::string& 
 		Quote(scriptPath.wstring()) +
 		L" -Project " + Quote(desc.ProjectFilePath.wstring()) +
 		L" -Platform Android" +
-		L" -Configuration " + Utillity::U8ToWString(ToString(desc.BuildConfiguration)) +
+		L" -Configuration " + Utillity::U8ToWString(BuildSettingsUtils::GetBuildConfigurationName(desc.BuildConfiguration)) +
 		L" -OutputRoot " + Quote(desc.OutputRoot.wstring()) +
 		L" -Clean";
 
@@ -908,7 +887,7 @@ bool CGameBuildManager::StagePackage(const BuildDesc& desc, const File::Path& sc
 		return false;
 	}
 
-	const File::Path applicationSource = desc.RepoRoot / "Build" / ToEngineConfiguration(desc.BuildConfiguration) / "Application.exe";
+	const File::Path applicationSource = desc.RepoRoot / "Build" / BuildSettingsUtils::GetEngineBuildConfigurationName(desc.BuildConfiguration) / "Application.exe";
 	const File::Path applicationDest = desc.PackageDirectory / (desc.ProductName + ".exe");
 	std::filesystem::copy_file(applicationSource, applicationDest, std::filesystem::copy_options::overwrite_existing, ec);
 	if (ec)
@@ -945,7 +924,7 @@ bool CGameBuildManager::StagePackage(const BuildDesc& desc, const File::Path& sc
 	BuildManifest manifest;
 	manifest.Version = 1;
 	manifest.ProductName = desc.ProductName;
-	manifest.TargetPlatform = ToString(desc.TargetPlatform);
+	manifest.TargetPlatform = BuildSettingsUtils::GetTargetPlatformName(desc.TargetPlatform);
 	manifest.StartupScene = desc.StartupScene;
 	manifest.StartupSceneGuid = desc.StartupSceneGuid;
 	// 빌드 씬 목록 + 각 씬의 GUID(런타임 선로드용). ValidateBuild 가 이미 전 씬의 GUID 존재를
@@ -1208,7 +1187,7 @@ File::Path CGameBuildManager::ResolveOutputRoot(const File::Path& projectRoot, c
 
 File::Path CGameBuildManager::FindScriptDll(const BuildDesc& desc) const
 {
-	const char* configuration = ToString(desc.BuildConfiguration);
+	const char* configuration = BuildSettingsUtils::GetBuildConfigurationName(desc.BuildConfiguration);
 	std::vector<File::Path> candidates = {
 		desc.ProjectRoot / "GameScript.dll",
 		desc.ProjectRoot / "x64" / configuration / "GameScript.dll",

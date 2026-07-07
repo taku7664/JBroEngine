@@ -2,6 +2,7 @@
 #include "BuildSettingsWindow.h"
 
 #include "Editor/Editor.h"
+#include "Editor/Build/BuildSettingsUtils.h"
 #include "Editor/EditorContext.h"
 #include "Engine/Core/Asset/IAssetManager.h"
 #include "Engine/Core/Asset/IAssetRegistry.h"
@@ -30,23 +31,6 @@ namespace
 	EBuildConfiguration ToBuildConfiguration(int index)
 	{
 		return 0 == index ? EBuildConfiguration::Debug : EBuildConfiguration::Release;
-	}
-
-	const char* ToString(EBuildTargetPlatform platform)
-	{
-		switch (platform)
-		{
-		case EBuildTargetPlatform::Web: return "Web";
-		case EBuildTargetPlatform::Android: return "Android";
-		case EBuildTargetPlatform::IOS: return "IOS";
-		case EBuildTargetPlatform::Windows:
-		default: return "Windows";
-		}
-	}
-
-	const char* ToString(EBuildConfiguration configuration)
-	{
-		return EBuildConfiguration::Debug == configuration ? "Debug" : "Release";
 	}
 
 	std::string ToUtf8PathString(const File::Path& path)
@@ -111,14 +95,9 @@ namespace
 		return extension == L".ico";
 	}
 
-	bool IsBlank(const std::string& value)
-	{
-		return value.find_first_not_of(" \t\r\n") == std::string::npos;
-	}
-
 	bool HasExtensionIgnoreCase(const std::string& value, const wchar_t* expectedExtension)
 	{
-		if (IsBlank(value))
+		if (BuildSettingsUtils::IsBlank(value))
 		{
 			return false;
 		}
@@ -128,93 +107,6 @@ namespace
 			return static_cast<wchar_t>(std::towlower(ch));
 		});
 		return extension == expectedExtension;
-	}
-
-	bool IsAsciiAlpha(char value)
-	{
-		return 0 != std::isalpha(static_cast<unsigned char>(value));
-	}
-
-	bool IsAsciiAlnum(char value)
-	{
-		return 0 != std::isalnum(static_cast<unsigned char>(value));
-	}
-
-	bool IsAndroidIdentifierSegment(const std::string& segment)
-	{
-		if (segment.empty() || false == IsAsciiAlpha(segment.front()))
-		{
-			return false;
-		}
-
-		return std::all_of(segment.begin() + 1, segment.end(), [](char value) {
-			return IsAsciiAlnum(value) || value == '_';
-		});
-	}
-
-	bool IsBundleIdentifierSegment(const std::string& segment)
-	{
-		if (segment.empty() || false == IsAsciiAlnum(segment.front()))
-		{
-			return false;
-		}
-
-		return std::all_of(segment.begin() + 1, segment.end(), [](char value) {
-			return IsAsciiAlnum(value) || value == '-';
-		});
-	}
-
-	template <typename Predicate>
-	bool IsDottedIdentifier(const std::string& value, Predicate segmentValidator)
-	{
-		if (IsBlank(value))
-		{
-			return false;
-		}
-
-		std::size_t segmentCount = 0;
-		std::size_t start = 0;
-		while (start <= value.size())
-		{
-			const std::size_t end = value.find('.', start);
-			const std::string segment = value.substr(start, end == std::string::npos ? std::string::npos : end - start);
-			if (false == segmentValidator(segment))
-			{
-				return false;
-			}
-			++segmentCount;
-			if (end == std::string::npos)
-			{
-				break;
-			}
-			start = end + 1;
-		}
-		return segmentCount >= 2;
-	}
-
-	bool IsVersionString(const std::string& value)
-	{
-		if (IsBlank(value))
-		{
-			return false;
-		}
-
-		bool hasDigitInSegment = false;
-		for (char ch : value)
-		{
-			if (std::isdigit(static_cast<unsigned char>(ch)))
-			{
-				hasDigitInSegment = true;
-				continue;
-			}
-			if (ch == '.' && hasDigitInSegment)
-			{
-				hasDigitInSegment = false;
-				continue;
-			}
-			return false;
-		}
-		return hasDigitInSegment;
 	}
 
 	void PushInvalidInputStyle(bool invalid)
@@ -1148,7 +1040,7 @@ bool CBuildSettingsWindow::HasCategoryInvalid(ECategory category) const
 
 bool CBuildSettingsWindow::IsProductNameInvalid() const
 {
-	return IsBlank(m_productName);
+	return BuildSettingsUtils::IsBlank(m_productName);
 }
 
 bool CBuildSettingsWindow::IsStartupSceneInvalid() const
@@ -1158,12 +1050,12 @@ bool CBuildSettingsWindow::IsStartupSceneInvalid() const
 
 bool CBuildSettingsWindow::IsOutputDirectoryInvalid() const
 {
-	return IsBlank(m_outputDirectory);
+	return BuildSettingsUtils::IsBlank(m_outputDirectory);
 }
 
 bool CBuildSettingsWindow::IsAndroidApplicationIdInvalid() const
 {
-	return false == IsDottedIdentifier(m_androidApplicationId, IsAndroidIdentifierSegment);
+	return false == BuildSettingsUtils::IsValidAndroidApplicationId(m_androidApplicationId);
 }
 
 bool CBuildSettingsWindow::IsAndroidSdkInvalid() const
@@ -1175,12 +1067,12 @@ bool CBuildSettingsWindow::IsAndroidSdkInvalid() const
 
 bool CBuildSettingsWindow::IsIOSBundleIdentifierInvalid() const
 {
-	return false == IsDottedIdentifier(m_iosBundleIdentifier, IsBundleIdentifierSegment);
+	return false == BuildSettingsUtils::IsValidIOSBundleIdentifier(m_iosBundleIdentifier);
 }
 
 bool CBuildSettingsWindow::IsIOSMinimumOSInvalid() const
 {
-	return false == IsVersionString(m_iosMinimumOSVersion);
+	return false == BuildSettingsUtils::IsValidVersionString(m_iosMinimumOSVersion);
 }
 
 std::string CBuildSettingsWindow::NormalizePathForProject(const std::string& selectedPath, const File::Path& basePath) const
@@ -1225,7 +1117,7 @@ std::string CBuildSettingsWindow::MakePackagePreview() const
 	}
 
 	const std::string product = m_productName.empty() ? "Game" : m_productName;
-	const char* config = ToString(ToBuildConfiguration(m_buildConfiguration));
+	const char* config = BuildSettingsUtils::GetBuildConfigurationName(ToBuildConfiguration(m_buildConfiguration));
 
 	// 활성 플랫폼마다 패키지 경로가 하나씩 생긴다. 활성 플랫폼별로 나열한다.
 	struct PlatformFlag { bool Enabled; EBuildTargetPlatform Platform; };
@@ -1243,7 +1135,7 @@ std::string CBuildSettingsWindow::MakePackagePreview() const
 		{
 			continue;
 		}
-		const File::Path packagePath = outputRoot / (product + "-" + ToString(flag.Platform) + "-" + config);
+		const File::Path packagePath = outputRoot / (product + "-" + BuildSettingsUtils::GetTargetPlatformName(flag.Platform) + "-" + config);
 		if (false == preview.empty())
 		{
 			preview += "\n";

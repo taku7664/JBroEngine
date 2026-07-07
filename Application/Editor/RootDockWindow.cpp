@@ -4,6 +4,7 @@
 #include "Engine/Editor/ImWindow/ImWindowFlag.h"
 
 #include "Editor/Editor.h"
+#include "Editor/Build/BuildSettingsUtils.h"
 #include "Editor/EditorContext.h"
 #include "Editor/Main/BuildSettingsWindow.h"
 #include "Editor/Main/ProjectSettingsWindow.h"
@@ -30,193 +31,6 @@
 
 namespace
 {
-	bool IsBlank(const std::string& value)
-	{
-		return value.find_first_not_of(" \t\r\n") == std::string::npos;
-	}
-
-	bool IsAsciiAlpha(char value)
-	{
-		return 0 != std::isalpha(static_cast<unsigned char>(value));
-	}
-
-	bool IsAsciiAlnum(char value)
-	{
-		return 0 != std::isalnum(static_cast<unsigned char>(value));
-	}
-
-	bool IsAndroidIdentifierSegment(const std::string& segment)
-	{
-		if (segment.empty() || false == IsAsciiAlpha(segment.front()))
-		{
-			return false;
-		}
-
-		return std::all_of(segment.begin() + 1, segment.end(), [](char value) {
-			return IsAsciiAlnum(value) || value == '_';
-		});
-	}
-
-	bool IsDottedAndroidIdentifier(const std::string& value)
-	{
-		if (IsBlank(value))
-		{
-			return false;
-		}
-
-		std::size_t segmentCount = 0;
-		std::size_t start = 0;
-		while (start <= value.size())
-		{
-			const std::size_t end = value.find('.', start);
-			const std::string segment = value.substr(start, end == std::string::npos ? std::string::npos : end - start);
-			if (false == IsAndroidIdentifierSegment(segment))
-			{
-				return false;
-			}
-			++segmentCount;
-			if (end == std::string::npos)
-			{
-				break;
-			}
-			start = end + 1;
-		}
-		return segmentCount >= 2;
-	}
-
-	bool IsBundleIdentifierSegment(const std::string& segment)
-	{
-		if (segment.empty() || false == IsAsciiAlnum(segment.front()))
-		{
-			return false;
-		}
-
-		return std::all_of(segment.begin() + 1, segment.end(), [](char value) {
-			return IsAsciiAlnum(value) || value == '-';
-		});
-	}
-
-	bool IsDottedBundleIdentifier(const std::string& value)
-	{
-		if (IsBlank(value))
-		{
-			return false;
-		}
-
-		std::size_t segmentCount = 0;
-		std::size_t start = 0;
-		while (start <= value.size())
-		{
-			const std::size_t end = value.find('.', start);
-			const std::string segment = value.substr(start, end == std::string::npos ? std::string::npos : end - start);
-			if (false == IsBundleIdentifierSegment(segment))
-			{
-				return false;
-			}
-			++segmentCount;
-			if (end == std::string::npos)
-			{
-				break;
-			}
-			start = end + 1;
-		}
-		return segmentCount >= 2;
-	}
-
-	bool IsVersionString(const std::string& value)
-	{
-		if (IsBlank(value))
-		{
-			return false;
-		}
-
-		bool hasDigitInSegment = false;
-		for (char ch : value)
-		{
-			if (std::isdigit(static_cast<unsigned char>(ch)))
-			{
-				hasDigitInSegment = true;
-				continue;
-			}
-			if (ch == '.' && hasDigitInSegment)
-			{
-				hasDigitInSegment = false;
-				continue;
-			}
-			return false;
-		}
-		return hasDigitInSegment;
-	}
-
-	bool HasJSceneExtension(const std::string& value)
-	{
-		if (IsBlank(value))
-		{
-			return false;
-		}
-
-		std::wstring extension = File::Path(Utillity::U8ToWString(value)).extension().wstring();
-		std::transform(extension.begin(), extension.end(), extension.begin(), [](wchar_t ch) {
-			return static_cast<wchar_t>(std::towlower(ch));
-		});
-		return extension == L".jscene";
-	}
-
-	// 주어진 플랫폼으로 빌드할 때 필수 설정이 누락됐는지 검사한다.
-	// 공통 설정(제품명/출력경로/시작씬)은 모든 플랫폼 공통, 플랫폼별 설정은 인자에 따라 검사한다.
-	bool HasRequiredIssueForPlatform(const ProjectBuildSettings& settings, EBuildTargetPlatform platform)
-	{
-		if (IsBlank(settings.ProductName)
-			|| IsBlank(settings.OutputDirectory)
-			|| false == HasJSceneExtension(settings.StartupScene))
-		{
-			return true;
-		}
-
-		if (platform == EBuildTargetPlatform::Android)
-		{
-			return false == IsDottedAndroidIdentifier(settings.AndroidApplicationId)
-				|| 0 == settings.AndroidMinSdkVersion
-				|| 0 == settings.AndroidTargetSdkVersion
-				|| settings.AndroidTargetSdkVersion < settings.AndroidMinSdkVersion;
-		}
-
-		if (platform == EBuildTargetPlatform::IOS)
-		{
-			return false == IsDottedBundleIdentifier(settings.IOSBundleIdentifier)
-				|| false == IsVersionString(settings.IOSMinimumOSVersion);
-		}
-
-		return false;
-	}
-
-	// 설정에서 활성화된 플랫폼 목록을 반환한다(메뉴 나열/일괄빌드 순서).
-	std::vector<EBuildTargetPlatform> EnabledPlatforms(const ProjectBuildSettings& settings)
-	{
-		std::vector<EBuildTargetPlatform> platforms;
-		if (settings.EnableWindows) platforms.push_back(EBuildTargetPlatform::Windows);
-		if (settings.EnableWeb)     platforms.push_back(EBuildTargetPlatform::Web);
-		if (settings.EnableAndroid) platforms.push_back(EBuildTargetPlatform::Android);
-		if (settings.EnableIOS)     platforms.push_back(EBuildTargetPlatform::IOS);
-		return platforms;
-	}
-
-	const char* BuildPlatformLabelKey(EBuildTargetPlatform platform)
-	{
-		switch (platform)
-		{
-		case EBuildTargetPlatform::Web:
-			return "build_settings.category.web";
-		case EBuildTargetPlatform::Android:
-			return "build_settings.category.android";
-		case EBuildTargetPlatform::IOS:
-			return "build_settings.category.ios";
-		case EBuildTargetPlatform::Windows:
-		default:
-			return "build_settings.category.windows";
-		}
-	}
-
 	void TryLoadLastScene(SafePtr<CProjectManager> pm)
 	{
 		if (false == pm.IsValid() || false == pm->IsProjectLoaded())
@@ -749,7 +563,7 @@ void CRootDockWindow::OnMenuBar()
 		if (ImGui::BeginMenu(Loc::Text("menu.file.build")))
 		{
 			const ProjectBuildSettings& buildSettings = pm->GetBuildSettings();
-			const std::vector<EBuildTargetPlatform> enabled = EnabledPlatforms(buildSettings);
+			const std::vector<EBuildTargetPlatform> enabled = BuildSettingsUtils::GetEnabledPlatforms(buildSettings);
 
 			if (enabled.empty())
 			{
@@ -760,19 +574,19 @@ void CRootDockWindow::OnMenuBar()
 			std::size_t blockedCount = 0;
 			for (EBuildTargetPlatform platform : enabled)
 			{
-				const bool requiredIssue = HasRequiredIssueForPlatform(buildSettings, platform);
+				const bool requiredIssue = BuildSettingsUtils::HasRequiredIssueForPlatform(buildSettings, platform);
 				if (requiredIssue)
 				{
 					++blockedCount;
 				}
 
-				ImGui::Utillity::IDGroup idGroup(BuildPlatformLabelKey(platform));
+				ImGui::Utillity::IDGroup idGroup(BuildSettingsUtils::GetPlatformLabelKey(platform));
 				ImGui::Utillity::StyleBuilder style;
 				if (requiredIssue)
 				{
 					style.PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.35f, 0.30f, 1.0f));
 				}
-				if (ImGui::MenuItem(Loc::Text(BuildPlatformLabelKey(platform))))
+				if (ImGui::MenuItem(Loc::Text(BuildSettingsUtils::GetPlatformLabelKey(platform))))
 				{
 					if (requiredIssue)
 					{

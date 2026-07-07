@@ -54,6 +54,9 @@
     <ClInclude Include="Editor\Build\GameBuildManager.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
+    <ClInclude Include="Editor\Build\BuildSettingsUtils.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
     <ClInclude Include="Editor\Gui\EditorGuiActions.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
@@ -165,6 +168,9 @@
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="Editor\Build\GameBuildManager.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\Build\BuildSettingsUtils.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="Editor\Command\EditorCommandManager.cpp">
