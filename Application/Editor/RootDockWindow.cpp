@@ -4,6 +4,8 @@
 #include "Engine/Editor/ImWindow/ImWindowFlag.h"
 
 #include "Editor/Editor.h"
+#include "Editor/EditorContext.h"
+#include "Editor/EditorSessionPersistence.h"
 #include "Editor/Main/BuildSettingsWindow.h"
 #include "Editor/Main/ProjectSettingsWindow.h"
 #include "Editor/Main/MainDockWindow.h"
@@ -320,83 +322,14 @@ namespace
 
 	void SaveCurrentEditorState()
 	{
-		// ── 씬 저장 ─────────────────────────────────────────────────────────────
-		bool sceneSaved = false;
-		if (Engine.SceneManager.IsValid())
+		std::string error;
+		if (EditorSessionPersistence::Save(error))
 		{
-			SafePtr<CGameScene> scene = Engine.SceneManager->GetActiveScene();
-			if (scene.IsValid() && false == Editor::GetActiveScenePath().empty())
-			{
-				CSceneSerializer serializer;
-				if (ESceneSerializeResult::Success == serializer.SaveToFile(*scene, Editor::GetActiveScenePath()))
-				{
-					Editor::CommandManager.MarkSaved();
-					sceneSaved = true;
-					CSystemLog::Info("Scene saved.");
-				}
-				else
-				{
-					CSystemLog::Error("Scene save failed.");
-				}
-			}
-			else
-			{
-				CSystemLog::Warning("Scene save skipped because no scene file is active.");
-			}
-		}
-		else
-		{
-			CSystemLog::Warning("Scene save skipped because SceneManager is not available.");
+			CSystemLog::Info("Editor session saved.");
+			return;
 		}
 
-		// ── 프로젝트 파일 저장 (씬뷰 카메라 + 프로젝트 설정) ────────────────────
-		SafePtr<CProjectManager> pm = Editor::ImEditor ? Editor::ImEditor->GetProjectManager() : nullptr;
-		if (pm && pm->IsProjectLoaded())
-		{
-			// 씬뷰 카메라 현재 상태를 ProjectManager에 기록
-			if (Editor::SceneView)
-			{
-				const Vector2 camPos  = Editor::SceneView->GetEditorCameraPos();
-				const float          camSize = Editor::SceneView->GetEditorCameraSize();
-				pm->SetSceneViewCamera(camPos.x, camPos.y, camSize);
-			}
-
-			// 마지막으로 열었던 씬 경로 기록 (Assets 기준 상대경로)
-			const File::Path& activeScenePath = Editor::GetActiveScenePath();
-			if (false == activeScenePath.empty() && false == pm->GetAssetPath().empty())
-			{
-				std::error_code ec;
-				std::filesystem::path relPath = std::filesystem::relative(
-					activeScenePath,
-					pm->GetAssetPath(),
-					ec);
-				if (false == static_cast<bool>(ec) && false == relPath.empty())
-				{
-					pm->SetLastOpenedScenePath(relPath.generic_string());
-				}
-			}
-
-			if (Engine.Localization.IsValid())
-			{
-				pm->SetEditorLocaleCode(Engine.Localization->GetCurrentLocale());
-			}
-
-			std::size_t imguiIniSize = 0;
-			const char* imguiIni = ImGui::SaveIniSettingsToMemory(&imguiIniSize);
-			pm->SetImGuiIniSettings((nullptr != imguiIni && imguiIniSize > 0) ? std::string(imguiIni, imguiIniSize) : std::string());
-
-			std::string saveError;
-			if (pm->SaveProject(&saveError))
-			{
-				CSystemLog::Info("Project saved.");
-			}
-			else
-			{
-				CSystemLog::Error(false == saveError.empty() ? std::string("Project save failed: ") + saveError : "Project save failed.");
-			}
-		}
-
-		(void)sceneSaved;
+		CSystemLog::Error(error.empty() ? "Editor session save failed." : error);
 	}
 }
 
@@ -431,7 +364,7 @@ void CRootDockWindow::OnCreate()
 
 void CRootDockWindow::OnRenderStay()
 {
-	SafePtr<CProjectManager> projectManager = Editor::ImEditor ? Editor::ImEditor->GetProjectManager() : nullptr;
+	SafePtr<CProjectManager> projectManager = EditorContext::GetProjectManager();
 
 	if (projectManager && false == projectManager->IsProjectLoaded())
 	{
@@ -473,7 +406,7 @@ void CRootDockWindow::EnsureProjectLoadingPopup()
 	if (false == Editor::ImEditor.IsValid())
 		return;
 
-	SafePtr<CProjectManager> pm = Editor::ImEditor->GetProjectManager();
+	SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
 	if (false == pm.IsValid() || false == pm->HasLoadingTasks())
 	{
 		return;
@@ -499,7 +432,7 @@ void CRootDockWindow::EnsureProjectLoadingPopup()
 
 void CRootDockWindow::MaybeShowReconcileSummary()
 {
-	SafePtr<CProjectManager> pm = Editor::ImEditor ? Editor::ImEditor->GetProjectManager() : nullptr;
+	SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
 	const bool loaded = pm.IsValid() && pm->IsProjectLoaded();
 
 	// 프로젝트 닫힘 → 다음 로드를 위해 전이 플래그 리셋.
@@ -578,7 +511,7 @@ void CRootDockWindow::RenderReconcileSummaryPopup(IImPopupWindow& popup)
 
 void CRootDockWindow::RenderProjectLoadingPopup(IImPopupWindow& popup)
 {
-	SafePtr<CProjectManager> pm = Editor::ImEditor ? Editor::ImEditor->GetProjectManager() : nullptr;
+	SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
 	if (false == pm.IsValid())
 	{
 		popup.Close();
@@ -708,7 +641,7 @@ void CRootDockWindow::RenderNewProjectPopup(IImPopupWindow& popup)
 
 	if ((enterPressed || ImGui::Button(Loc::Text("common.create"), ImVec2(120.0f, 0.0f))) && canCreate)
 	{
-		SafePtr<CProjectManager> pm = Editor::ImEditor ? Editor::ImEditor->GetProjectManager() : nullptr;
+		SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
 		if (pm.IsValid())
 		{
 			const std::string projectName(m_newProjectNameBuf.data());
@@ -763,7 +696,7 @@ void CRootDockWindow::OnMenuBar()
 				{ { filterName.c_str(), L"*.Jproject" }, { L"All Files", L"*.*" } },
 				projectPath))
 			{
-				SafePtr<CProjectManager> projectManager = Editor::ImEditor ? Editor::ImEditor->GetProjectManager() : nullptr;
+				SafePtr<CProjectManager> projectManager = EditorContext::GetProjectManager();
 				if (projectManager)
 				{
 					ProjectLoadDesc desc;
@@ -804,7 +737,7 @@ void CRootDockWindow::OnMenuBar()
 			SaveCurrentEditorState();
 		}
 
-		SafePtr<CProjectManager> pm = Editor::ImEditor ? Editor::ImEditor->GetProjectManager() : nullptr;
+		SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
 		const bool canBuild = pm.IsValid() && pm->IsProjectLoaded() && false == m_buildManager.IsRunning();
 		if (false == canBuild)
 		{
@@ -921,7 +854,7 @@ void CRootDockWindow::OnMenuBar()
 
 void CRootDockWindow::DrawLiveCompileMenuBarStatus()
 {
-	SafePtr<CProjectManager> pm = Editor::ImEditor ? Editor::ImEditor->GetProjectManager() : nullptr;
+	SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
 	if (false == pm.IsValid())
 	{
 		return;
@@ -1035,7 +968,7 @@ void CRootDockWindow::StartBatchGameBuild(const std::vector<EBuildTargetPlatform
 		return;
 	}
 
-	SafePtr<CProjectManager> pm = Editor::ImEditor ? Editor::ImEditor->GetProjectManager() : nullptr;
+	SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
 	if (Editor::BuildSettings && Editor::BuildSettings->HasUnsavedChanges())
 	{
 		Editor::BuildSettings->SetVisible(true);
@@ -1062,7 +995,7 @@ void CRootDockWindow::AdvanceBuildQueueIfReady()
 	const GameBuildSnapshot snapshot = m_buildManager.GetSnapshot();
 	if (snapshot.State == EGameBuildState::Succeeded)
 	{
-		SafePtr<CProjectManager> pm = Editor::ImEditor ? Editor::ImEditor->GetProjectManager() : nullptr;
+		SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
 		++m_buildQueueIndex;
 		m_buildManager.StartBuild(pm, m_buildQueue[m_buildQueueIndex]);
 		EnsureBuildProgressPopup();

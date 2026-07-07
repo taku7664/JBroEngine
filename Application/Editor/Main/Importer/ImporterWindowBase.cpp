@@ -2,6 +2,7 @@
 #include "ImporterWindowBase.h"
 
 #include "Editor/Editor.h"
+#include "Editor/EditorContext.h"
 #include "Engine/Editor/ImWindow/ImWindowFlag.h"
 #include "Engine/Editor/ImGuiUtillity.h"    // FormLayout, HoveredToolTip
 #include "Engine/Editor/ImItem/ImText.h"    // ImText (라벨 + 설명 툴팁)
@@ -103,7 +104,7 @@ namespace
 
 void CImporterWindowBase::DrawImportButton()
 {
-	SafePtr<CProjectManager> pm = Editor::ImEditor ? Editor::ImEditor->GetProjectManager() : nullptr;
+	SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
 	const bool projectLoaded = pm && pm->IsProjectLoaded();
 
 	const std::string sourcePath(m_sourcePathBuf.data());

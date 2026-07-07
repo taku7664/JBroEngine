@@ -2,6 +2,7 @@
 #include "GameBuildManager.h"
 
 #include "Editor/Editor.h"
+#include "Editor/EditorSessionPersistence.h"
 #include "Editor/Main/SceneView/SceneViewTool.h"
 #include "Engine/Core/Asset/IAssetManager.h"
 #include "Engine/Core/Asset/IAssetRegistry.h"
@@ -229,54 +230,6 @@ namespace
 		return true;
 	}
 
-	bool SaveCurrentEditorStateForBuild(SafePtr<CProjectManager> pm, std::string& outError)
-	{
-		if (false == pm.IsValid() || false == pm->IsProjectLoaded())
-		{
-			outError = "Project is not loaded.";
-			return false;
-		}
-
-		if (Engine.SceneManager.IsValid())
-		{
-			SafePtr<CGameScene> scene = Engine.SceneManager->GetActiveScene();
-			if (scene.IsValid() && false == Editor::GetActiveScenePath().empty())
-			{
-				CSceneSerializer serializer;
-				if (ESceneSerializeResult::Success == serializer.SaveToFile(*scene, Editor::GetActiveScenePath()))
-				{
-					Editor::CommandManager.MarkSaved();
-				}
-				else
-				{
-					outError = "Failed to save active scene before build.";
-					return false;
-				}
-			}
-		}
-
-		if (Editor::SceneView)
-		{
-			pm->SetSceneViewCamera(
-				Editor::SceneView->GetEditorCameraPos().x,
-				Editor::SceneView->GetEditorCameraPos().y,
-				Editor::SceneView->GetEditorCameraSize());
-		}
-
-		const File::Path& activeScenePath = Editor::GetActiveScenePath();
-		if (false == activeScenePath.empty() && false == pm->GetAssetPath().empty())
-		{
-			std::error_code ec;
-			File::Path relativePath = std::filesystem::relative(activeScenePath, pm->GetAssetPath(), ec);
-			if (false == static_cast<bool>(ec) && false == relativePath.empty())
-			{
-				pm->SetLastOpenedScenePath(relativePath.generic_string());
-			}
-		}
-
-		return pm->SaveProject(&outError);
-	}
-
 	AssetGuid FindAssetGuidByPath(const File::Path& assetPath)
 	{
 		SafePtr<IAssetManager> assetManager = Engine.AssetManager;
@@ -494,7 +447,7 @@ bool CGameBuildManager::StartBuild(SafePtr<CProjectManager> projectManager, EBui
 	}
 
 	std::string saveError;
-	if (false == SaveCurrentEditorStateForBuild(projectManager, saveError))
+	if (false == EditorSessionPersistence::Save(saveError))
 	{
 		std::lock_guard lock(m_mutex);
 		m_state = EGameBuildState::Failed;

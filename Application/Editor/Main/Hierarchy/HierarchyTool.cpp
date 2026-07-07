@@ -8,6 +8,7 @@
 #include "Editor/FontAssome/FontAssomeHelper.h"
 #include "Editor/Helper/EditorGuiDrawHelpers.h"
 #include "Editor/Editor.h"
+#include "Editor/EditorContext.h"
 #include "Editor/EditorDragDrop.h"
 #include "Editor/Main/SceneView/SceneViewTool.h"
 #include "Engine/Core/EngineCore.h"
@@ -45,7 +46,7 @@ void CHierarchyTool::OnRenderStay()
 		return;
 	}
 
-	SafePtr<CGameScene> activeScene = Engine.SceneManager->GetActiveScene();
+	SafePtr<CGameScene> activeScene = EditorContext::GetActiveScene();
 	if (false == activeScene.IsValid())
 	{
 		ImGui::TextDisabled(Loc::Text("hierarchy.no_active_scene"));

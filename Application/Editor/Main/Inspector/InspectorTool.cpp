@@ -12,6 +12,7 @@
 #include "Editor/Script/ScriptSchemaWidgets.h"
 
 #include "Editor/Editor.h"
+#include "Editor/EditorContext.h"
 #include "Editor/Command/EditorSceneCommands.h"
 #include "Editor/EditorDragDrop.h"
 #include "Editor/Helper/EditorGuiDrawHelpers.h"
@@ -223,7 +224,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			return name + "  [" + typeName + "]";
 		}
 		// 오브젝트/컴포넌트/스크립트 — InstanceGuid → 오브젝트 이름.
-		if (CGameScene* scene = GetActiveScene())
+		if (CGameScene* scene = EditorContext::TryGetActiveScene())
 		{
 			if (CGameObject* obj = scene->FindByInstanceGuid(guid).TryGet())
 			{
@@ -249,7 +250,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		}
 
 		// 오브젝트/컴포넌트/스크립트 — 하이어라키 페이로드.
-		CGameScene* scene = GetActiveScene();
+		CGameScene* scene = EditorContext::TryGetActiveScene();
 		if (nullptr == scene || false == ImGui::BeginDragDropTarget())
 		{
 			return false;
@@ -671,7 +672,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 
 	void DrawCamera2DDebug(const CGameObject* selectedObject)
 	{
-		SafePtr<CProjectManager> projectManager = GetProjectManager();
+		SafePtr<CProjectManager> projectManager = EditorContext::GetProjectManager();
 		if (false == projectManager.IsValid() || false == projectManager->IsDebugModeEnabled())
 		{
 			return;
@@ -843,7 +844,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 
 	bool SaveSpriteImportOptions(const AssetMetaData& metaData, const SpriteImportOptions& options)
 	{
-		SafePtr<CProjectManager> projectManager = GetProjectManager();
+		SafePtr<CProjectManager> projectManager = EditorContext::GetProjectManager();
 		SafePtr<IAssetManager> assetManager = projectManager ? projectManager->GetAssetManager() : nullptr;
 		if (false == assetManager.IsValid())
 		{
@@ -941,7 +942,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.gap_y")); },    [&]() { changed |= ImGui::InputInt("##inspector.gap_y", &gapY); });
 		}
 
-		SafePtr<CProjectManager> projectManager = GetProjectManager();
+		SafePtr<CProjectManager> projectManager = EditorContext::GetProjectManager();
 		const float projectPPU = projectManager ? projectManager->GetPixelsPerUnit() : 0.0f;
 
 		// ── 공용: 피벗/PPU ────────────────────────────────────────────────────
@@ -1012,7 +1013,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 	// ── 사운드 자산 임포트 옵션 ──────────────────────────────────────────────
 	bool SaveAudioImportOptions(const AssetMetaData& metaData, const AudioImportOptions& options)
 	{
-		SafePtr<CProjectManager> projectManager = GetProjectManager();
+		SafePtr<CProjectManager> projectManager = EditorContext::GetProjectManager();
 		SafePtr<IAssetManager>   assetManager   = projectManager ? projectManager->GetAssetManager() : nullptr;
 		if (false == assetManager.IsValid()) return false;
 
@@ -1114,7 +1115,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		}
 
 		// ── 정보 (포맷 / 길이) ─────────────────────────────────────────────
-		SafePtr<CProjectManager> projectManager = GetProjectManager();
+		SafePtr<CProjectManager> projectManager = EditorContext::GetProjectManager();
 		SafePtr<IAssetManager>   assetManager   = projectManager ? projectManager->GetAssetManager() : nullptr;
 		if (assetManager)
 		{
@@ -1230,7 +1231,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		{
 			if (ScriptSchema::WriteHeaderFile(path, s_className, s_props))
 			{
-				if (SafePtr<CProjectManager> pm = GetProjectManager())
+				if (SafePtr<CProjectManager> pm = EditorContext::GetProjectManager())
 				{
 					pm->RegenerateScriptProject();
 				}
@@ -1359,7 +1360,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		{
 			familyStatus = Loc::Text("inspector.font_face.family_create_failed");
 			File::Path fontPath;
-			SafePtr<CProjectManager> projectManager = GetProjectManager();
+			SafePtr<CProjectManager> projectManager = EditorContext::GetProjectManager();
 			if (projectManager && assetManager.ResolveAssetPath(metaData.Path, fontPath))
 			{
 				const std::filesystem::path source(fontPath);
@@ -1399,7 +1400,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			return false;
 		}
 
-		SafePtr<CProjectManager> projectManager = GetProjectManager();
+		SafePtr<CProjectManager> projectManager = EditorContext::GetProjectManager();
 		SafePtr<IAssetManager> assetManager = projectManager ? projectManager->GetAssetManager() : nullptr;
 		if (false == assetManager.IsValid())
 		{
@@ -1480,7 +1481,7 @@ void CInspectorTool::OnRenderStay()
 	// 매 프레임 초기화: 컴포넌트 미표시 상태가 기본값
 	m_activeComponentTypeName = nullptr;
 
-	CGameScene* scene = GetActiveScene();
+	CGameScene* scene = EditorContext::TryGetActiveScene();
 	if (nullptr == scene)
 	{
 		AssetInspectorPreview::NotifyInspectionLost();

@@ -2,10 +2,7 @@
 
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
 
-#include "Engine/GameFramework/Scene/SceneTypes.h"
-#include "Engine/GameFramework/Scene/SceneManager.h"   // CSceneManager 사용
 #include "Engine/GameFramework/Object/GameObject.h"    // CGameObject (선택 = SafePtr)
-#include "Engine/Editor/ImEditor.h"   // CImEditor 사용
 #include "Editor/Command/EditorCommandManager.h"
 #include "Utillity/File/FilePath.h"
 #include "Utillity/Pointer/SafePtr.h"
@@ -234,61 +231,5 @@ private:
 	inline static File::Path            m_selectedScriptPath = File::NULL_PATH;
 	inline static std::string           m_focusComponentName;
 };
-
-inline SafePtr<CProjectManager> GetProjectManager()
-{
-	return Editor::ImEditor ? Editor::ImEditor->GetProjectManager() : nullptr;
-}
-
-inline CGameScene* GetActiveScene()
-{
-	if (false == Engine.SceneManager.IsValid())
-	{
-		return nullptr;
-	}
-
-	SafePtr<CGameScene> activeScene = Engine.SceneManager->GetActiveScene();
-	return activeScene.TryGet();
-}
-
-inline std::string ToUtf8(const std::filesystem::path& path)
-{
-	const auto text = path.generic_u8string();
-	return std::string(reinterpret_cast<const char*>(text.c_str()), text.size());
-}
-
-inline std::string ToLower(std::string text)
-{
-	std::transform(text.begin(), text.end(), text.begin(), [](unsigned char ch) {
-		return static_cast<char>(std::tolower(ch));
-		});
-	return text;
-}
-
-inline std::time_t ToTimeT(std::filesystem::file_time_type fileTime)
-{
-	const auto systemTime = std::chrono::time_point_cast<std::chrono::system_clock::duration>(
-		fileTime - std::filesystem::file_time_type::clock::now() + std::chrono::system_clock::now());
-	return std::chrono::system_clock::to_time_t(systemTime);
-}
-
-inline const char* GetTypeName(EAssetType type)
-{
-	switch (type)
-	{
-	case EAssetType::Sprite: return "Sprite";
-	case EAssetType::Mesh: return "Mesh";
-	case EAssetType::Material: return "Material";
-	case EAssetType::Shader: return "Shader";
-	case EAssetType::Scene: return "Scene";
-	case EAssetType::Prefab: return "Prefab";
-	case EAssetType::Script: return "Script";
-	case EAssetType::Audio:  return "Audio";
-	case EAssetType::FontFace: return "FontFace";
-	case EAssetType::FontFamily: return "FontFamily";
-	case EAssetType::Custom: return "Custom";
-	default: return "Unknown";
-	}
-}
 
 #endif

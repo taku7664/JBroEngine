@@ -7,6 +7,7 @@
 #include "Engine/Editor/ImGuiUtillity.h"       // ImGui::Utillity::FormLayout, HoveredToolTip
 
 #include "Editor/Editor.h"
+#include "Editor/EditorContext.h"
 #include "Editor/EditorDragDrop.h"
 #include "Engine/Editor/ImEditor.h"
 #include "Engine/Editor/Project/ProjectManager.h"
@@ -17,11 +18,6 @@
 
 namespace
 {
-    SafePtr<CProjectManager> GetProjectManagerForSettings()
-    {
-        return Editor::ImEditor ? Editor::ImEditor->GetProjectManager() : nullptr;
-    }
-
     const char* ToScriptStateText(ELiveCompileState state)
     {
         switch (state)
@@ -132,7 +128,7 @@ void CProjectSettingsWindow::OnShow()
     m_errorMessage.clear();
 
     // 창이 열릴 때마다 현재 프로젝트 설정값으로 초기화합니다.
-    SafePtr<CProjectManager> pm = GetProjectManagerForSettings();
+    SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
     if (pm)
     {
         m_editResW = static_cast<int>(pm->GetResolutionWidth());
@@ -297,7 +293,7 @@ void CProjectSettingsWindow::DrawCategoryGeneral()
 
 void CProjectSettingsWindow::DrawCategoryScript()
 {
-    SafePtr<CProjectManager> pm = GetProjectManagerForSettings();
+    SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
 
     ImGui::SeparatorText(Loc::Text("project_settings.script"));
 
@@ -717,7 +713,7 @@ void CProjectSettingsWindow::DrawCategoryAssetWatcher()
 
 void CProjectSettingsWindow::DrawFooterButtons()
 {
-    SafePtr<CProjectManager> pm = GetProjectManagerForSettings();
+    SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
 
     if (false == m_errorMessage.empty())
     {

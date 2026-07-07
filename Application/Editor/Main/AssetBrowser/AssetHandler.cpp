@@ -2,6 +2,8 @@
 #include "AssetHandler.h"
 
 #include "Editor/Editor.h"
+#include "Editor/EditorContext.h"
+#include "Editor/Main/AssetBrowser/AssetBrowserUtils.h"
 #include "Editor/Main/Inspector/EffectEditorWindow.h"
 #include "Engine/Editor/ImEditor.h"
 #include "Engine/Editor/Project/ProjectManager.h"
@@ -43,7 +45,9 @@ void CSceneAssetOpenHandler::Open(CAssetBrowserTool&, const AssetBrowserEntry& e
 		return;
 	}
 
-	const std::string sceneName = entry.RelativePath.empty() ? entry.DisplayNameUtf8 : ToUtf8(entry.RelativePath);
+	const std::string sceneName = entry.RelativePath.empty()
+		? entry.DisplayNameUtf8
+		: AssetBrowserUtils::PathToUtf8(entry.RelativePath);
 	CGameScene* scene = Engine.SceneManager->CreateScene(sceneName.c_str());
 	if (nullptr == scene)
 	{
@@ -132,7 +136,7 @@ bool CScriptAssetOpenHandler::CanOpen(const AssetBrowserEntry& entry) const
 
 void CScriptAssetOpenHandler::Open(CAssetBrowserTool&, const AssetBrowserEntry& entry)
 {
-	SafePtr<CProjectManager> projectManager = GetProjectManager();
+	SafePtr<CProjectManager> projectManager = EditorContext::GetProjectManager();
 	if (false == projectManager.IsValid())
 	{
 		return;

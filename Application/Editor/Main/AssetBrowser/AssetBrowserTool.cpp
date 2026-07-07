@@ -3,8 +3,10 @@
 #include "AssetHandler.h"
 
 #include "Editor/Editor.h"
+#include "Editor/EditorContext.h"
 #include "Editor/Command/EditorFileCommands.h"
 #include "Editor/EditorDragDrop.h"
+#include "Editor/Main/AssetBrowser/AssetBrowserUtils.h"
 #include "Editor/Script/ScriptSchema.h"
 #include "Editor/Script/ScriptSchemaWidgets.h"
 #include "Engine/Editor/Project/ProjectManager.h"
@@ -33,6 +35,11 @@
 #include "Utillity/String/StringUtillity.h"
 
 #include <array>
+
+using AssetBrowserUtils::FileTimeToTimeT;
+using AssetBrowserUtils::GetAssetTypeName;
+using AssetBrowserUtils::PathToUtf8;
+using AssetBrowserUtils::ToLowerAscii;
 #include <cctype>
 #include <chrono>
 #include <cwctype>
@@ -464,7 +471,7 @@ void CAssetBrowserTool::OnUpdate()
 	ProcessPendingOperations();
 
 	// 자동 컴파일 실패 폴링 — 새 실패 메시지가 있으면 모달 팝업으로 표시.
-	if (SafePtr<CProjectManager> pm = GetProjectManager())
+	if (SafePtr<CProjectManager> pm = EditorContext::GetProjectManager())
 	{
 		std::string failureMessage = pm->ConsumeLastLiveCompileFailure();
 		if (false == failureMessage.empty())
@@ -556,7 +563,7 @@ void CAssetBrowserTool::ResetProjectState()
 
 void CAssetBrowserTool::SyncProjectState()
 {
-	SafePtr<CProjectManager> projectManager = GetProjectManager();
+	SafePtr<CProjectManager> projectManager = EditorContext::GetProjectManager();
 	if (false == projectManager.IsValid() || false == projectManager->IsProjectLoaded())
 	{
 		if (false == m_assetRootPath.empty() || false == m_scriptRootPath.empty())
@@ -597,7 +604,7 @@ void CAssetBrowserTool::RefreshCurrentFolderEntries()
 		return;
 	}
 
-	SafePtr<CProjectManager> projectManager = GetProjectManager();
+	SafePtr<CProjectManager> projectManager = EditorContext::GetProjectManager();
 	SafePtr<IAssetManager> assetManager = projectManager ? projectManager->GetAssetManager() : nullptr;
 	const IAssetRegistry* registry = assetManager ? &assetManager->GetRegistry() : nullptr;
 
@@ -633,12 +640,12 @@ void CAssetBrowserTool::RefreshCurrentFolderEntries()
 		browserEntry.IsDirectory = isDirectory;
 		browserEntry.IsImportable = insideAssetRoot && false == isDirectory && false == CAssetPath::IsMetaPath(absolutePath.generic_string().c_str());
 		MakeAssetRelativePath(absolutePath, browserEntry.RelativePath);
-		browserEntry.DisplayNameUtf8 = ToUtf8(absolutePath.filename());
-		browserEntry.ExtensionUtf8 = ToLower(ToUtf8(absolutePath.extension()));
+		browserEntry.DisplayNameUtf8 = PathToUtf8(absolutePath.filename());
+		browserEntry.ExtensionUtf8 = ToLowerAscii(PathToUtf8(absolutePath.extension()));
 
 		// 렌더 핫패스용 캐시 (PushID 키, 검색 비교용)
-		browserEntry.AbsolutePathUtf8     = ToUtf8(absolutePath);
-		browserEntry.DisplayNameLowerUtf8 = ToLower(browserEntry.DisplayNameUtf8);
+		browserEntry.AbsolutePathUtf8     = PathToUtf8(absolutePath);
+		browserEntry.DisplayNameLowerUtf8 = ToLowerAscii(browserEntry.DisplayNameUtf8);
 		// 다중 선택 저장소 식별자 — 경로 해시로 프레임/리프레시 간 안정.
 		browserEntry.SelectionId = ImHashStr(browserEntry.AbsolutePathUtf8.c_str());
 
@@ -647,7 +654,7 @@ void CAssetBrowserTool::RefreshCurrentFolderEntries()
 			const std::filesystem::file_time_type lastWriteTime = entry.last_write_time(errorCode);
 			if (false == static_cast<bool>(errorCode))
 			{
-				browserEntry.LastWriteTime = ToTimeT(lastWriteTime);
+				browserEntry.LastWriteTime = FileTimeToTimeT(lastWriteTime);
 				// "%F %T" 포맷을 미리 캐시 — DrawListEntries 의 매 프레임 strftime 비용 제거
 				std::tm timeInfo = {};
 				localtime_s(&timeInfo, &browserEntry.LastWriteTime);
@@ -693,7 +700,7 @@ void CAssetBrowserTool::RefreshCurrentFolderEntries()
 void CAssetBrowserTool::RebuildFilteredEntries()
 {
 	m_filteredEntryIndices.clear();
-	const std::string filter = ToLower(m_searchText);
+	const std::string filter = ToLowerAscii(m_searchText);
 	for (std::size_t i = 0; i < m_entries.size(); ++i)
 	{
 		// 캐시된 DisplayNameLowerUtf8 사용 — 매번 ToLower 호출 안 함
@@ -830,7 +837,7 @@ void CAssetBrowserTool::ProcessPendingOperations()
 				break;
 			}
 			errorCode.clear();
-			const std::string stem = ToUtf8(srcPath.stem());
+			const std::string stem = PathToUtf8(srcPath.stem());
 			const std::string ext  = srcPath.has_extension() ? srcPath.extension().generic_string() : std::string{};
 			File::Path dst = MakeUniqueFilePath(File::Path(srcPath.parent_path()), stem + " Copy", ext);
 			if (false == dst.empty() && CopyFileOnce(operation.Path, dst))
@@ -929,7 +936,7 @@ void CAssetBrowserTool::ProcessPendingOperations()
 				// (단일 Duplicate 와 동일한 이유 — 메타를 남기면 원본과 GUID 가 충돌하므로
 				//  AssetWatcher 가 새 GUID 로 재임포트하도록 메타를 떼어낸다.)
 				errorCode.clear();
-				const File::Path dst = MakeUniqueFilePath(operation.TargetPath, ToUtf8(operation.Path.filename()), "");
+				const File::Path dst = MakeUniqueFilePath(operation.TargetPath, PathToUtf8(operation.Path.filename()), "");
 				if (false == dst.empty())
 				{
 					std::filesystem::copy(operation.Path, dst,
@@ -956,7 +963,7 @@ void CAssetBrowserTool::ProcessPendingOperations()
 				break;
 			}
 			errorCode.clear();
-			const std::string stem = ToUtf8(operation.Path.stem());
+			const std::string stem = PathToUtf8(operation.Path.stem());
 			const std::string ext  = operation.Path.has_extension() ? operation.Path.extension().generic_string() : std::string{};
 			const File::Path dst = MakeUniqueFilePath(operation.TargetPath, stem, ext);
 			if (false == dst.empty())
@@ -975,7 +982,7 @@ void CAssetBrowserTool::ProcessPendingOperations()
 	// 소스 목록과 생성 레지스트리를 디스크 상태와 일치시킨다(빌드 정합성).
 	if (scriptTreeChanged)
 	{
-		if (SafePtr<CProjectManager> pm = Editor::ImEditor ? Editor::ImEditor->GetProjectManager() : nullptr)
+		if (SafePtr<CProjectManager> pm = EditorContext::GetProjectManager())
 		{
 			pm->RegenerateScriptProject();
 		}
@@ -1049,7 +1056,7 @@ void CAssetBrowserTool::DrawToolbar()
 		const File::Path displayPath = (m_focusFolderPath == rootPath || relativeUnderRoot.empty())
 			? File::Path(rootLabel)
 			: File::Path(rootLabel) / relativeUnderRoot;
-		ImGui::TextUnformatted(ToUtf8(displayPath).c_str());
+		ImGui::TextUnformatted(PathToUtf8(displayPath).c_str());
 	}
 
 	ImGui::SameLine();
@@ -1186,12 +1193,12 @@ void CAssetBrowserTool::DrawFolderTreeNode(const File::Path& folderPath)
 	}
 	else
 	{
-		label = ToUtf8(folderPath.filename());
+		label = PathToUtf8(folderPath.filename());
 	}
 	ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth;
 	flags |= selected ? ImGuiTreeNodeFlags_Selected : 0;
 
-	ImGui::PushID(ToUtf8(folderPath).c_str());
+	ImGui::PushID(PathToUtf8(folderPath).c_str());
 	const bool isClicked = ImTree(label.c_str(), flags);
 	if (ImGui::IsItemClicked())
 	{
@@ -1232,7 +1239,7 @@ void CAssetBrowserTool::DrawFolderTreeNode(const File::Path& folderPath)
 			}
 
 			std::sort(childFolders.begin(), childFolders.end(), [](const File::Path& lhs, const File::Path& rhs) {
-				return ToUtf8(lhs.filename()) < ToUtf8(rhs.filename());
+				return PathToUtf8(lhs.filename()) < PathToUtf8(rhs.filename());
 			});
 			cacheIt = m_folderChildrenCache.emplace(folderPath, std::move(childFolders)).first;
 		}
@@ -1413,12 +1420,12 @@ void CAssetBrowserTool::DrawListEntries()
 				}
 
 				ImGui::TableSetColumnIndex(1);
-				ImGui::TextUnformatted(entry.IsDirectory ? Loc::Text("common.folder") : GetTypeName(entry.Type));
+				ImGui::TextUnformatted(entry.IsDirectory ? Loc::Text("common.folder") : GetAssetTypeName(entry.Type));
 				ImGui::TableSetColumnIndex(2);
 				// 캐시된 ModifiedTimeText 사용 — 매 프레임 localtime/strftime 호출 제거
 				ImGui::TextUnformatted(entry.IsDirectory ? "-" : entry.ModifiedTimeText.c_str());
 				ImGui::TableSetColumnIndex(3);
-				ImGui::TextUnformatted(entry.Guid.IsNull() ? "-" : ToUtf8(entry.Guid).c_str());
+				ImGui::TextUnformatted(entry.Guid.IsNull() ? "-" : PathToUtf8(entry.Guid).c_str());
 				ImGui::PopID();
 			}
 		}
@@ -1938,7 +1945,7 @@ void CAssetBrowserTool::DrawDeleteConfirmPopup()
 		// 대상 목록을 모두 표시(다중 삭제 시 무엇을 지우는지 명확히).
 		for (const File::Path& target : m_deleteTargets)
 		{
-			ImGui::BulletText("%s", ToUtf8(target).c_str());
+			ImGui::BulletText("%s", PathToUtf8(target).c_str());
 		}
 		ImGui::Separator();
 
@@ -2178,7 +2185,7 @@ void CAssetBrowserTool::StartRenameForNewPath(const File::Path& path)
 	if (path.empty()) return;
 	m_isRenaming = true;
 	m_renamingPath = path;
-	m_renameBuffer = ToUtf8(path.stem());
+	m_renameBuffer = PathToUtf8(path.stem());
 	m_entriesDirty = true;
 }
 
@@ -2247,12 +2254,12 @@ void CAssetBrowserTool::ShowNewScriptPopup(const File::Path& parentFolder)
 			File::Path hPath, cppPath;
 			if (ResolveScriptPaths(state->ParentFolder, state->ClassName, hPath, cppPath))
 			{
-				const std::string headerFile = ToUtf8(hPath.filename());
+				const std::string headerFile = PathToUtf8(hPath.filename());
 				WriteTextFile(hPath,   MakeScriptHeader(state->ClassName, state->Properties));
 				WriteTextFile(cppPath, MakeScriptSource(state->ClassName, headerFile));
 				self->m_entriesDirty = true;
 				// 새 스크립트가 빌드에 즉시 포함되도록 GameScript 프로젝트를 재생성.
-				if (SafePtr<CProjectManager> pm = Editor::ImEditor ? Editor::ImEditor->GetProjectManager() : nullptr)
+				if (SafePtr<CProjectManager> pm = EditorContext::GetProjectManager())
 				{
 					pm->RegenerateScriptProject();
 				}
@@ -2372,7 +2379,7 @@ void CAssetBrowserTool::QueueOperation(const PendingOperation& operation)
 
 bool CAssetBrowserTool::IsProjectLoaded() const
 {
-	SafePtr<CProjectManager> projectManager = GetProjectManager();
+	SafePtr<CProjectManager> projectManager = EditorContext::GetProjectManager();
 	return projectManager && projectManager->IsProjectLoaded();
 }
 

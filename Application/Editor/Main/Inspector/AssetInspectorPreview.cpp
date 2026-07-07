@@ -3,6 +3,7 @@
 #include "EditorAudioPreview.h"
 
 #include "Editor/Editor.h"
+#include "Editor/EditorContext.h"
 #include "Engine/Core/Asset/AssetTypes.h"
 #include "Engine/Core/Asset/IAssetManager.h"
 #include "Engine/Core/Asset/SpriteAsset.h"
@@ -27,7 +28,7 @@ namespace
 {
     SafePtr<IAssetManager> GetAssetManager()
     {
-        SafePtr<CProjectManager> pm = Editor::ImEditor ? Editor::ImEditor->GetProjectManager() : nullptr;
+        SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
         return pm ? pm->GetAssetManager() : nullptr;
     }
 
@@ -198,7 +199,7 @@ namespace
             ImGui::BeginDisabled(playing);
             if (ImGui::Button(Loc::Text("inspector.audio.preview.play"), ImVec2(80.0f, 0.0f)))
             {
-                SafePtr<CProjectManager> pm = Editor::ImEditor ? Editor::ImEditor->GetProjectManager() : nullptr;
+                SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
                 if (pm)
                 {
                     File::Path absPath;

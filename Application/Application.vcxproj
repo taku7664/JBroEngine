@@ -334,6 +334,9 @@ xcopy /Y /I /E "$(ProjectDir)Localization" "$(SolutionDir)Localization\" &gt; nu
     <ClInclude Include="Editor\Script\ScriptSchema.h" />
     <ClInclude Include="Editor\Script\ScriptSchemaWidgets.h" />
     <ClInclude Include="Editor\Editor.h" />
+    <ClInclude Include="Editor\EditorContext.h" />
+    <ClInclude Include="Editor\EditorSessionPersistence.h" />
+    <ClInclude Include="Editor\Main\AssetBrowser\AssetBrowserUtils.h" />
     <ClInclude Include="Editor\Main\MainDockWindow.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="Editor\Main\Hierarchy\HierarchyTool.h" />
@@ -393,6 +396,15 @@ xcopy /Y /I /E "$(ProjectDir)Localization" "$(SolutionDir)Localization\" &gt; nu
     <ClCompile Include="Editor\Main\AssetBrowser\AssetBrowserTool.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Editor\EditorContext.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Editor\EditorSessionPersistence.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Editor\Main\AssetBrowser\AssetBrowserUtils.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="Editor\Script\ScriptSchema.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>

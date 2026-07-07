@@ -2,6 +2,7 @@
 #include "EffectEditorWidget.h"
 
 #include "Editor/Editor.h"
+#include "Editor/EditorContext.h"
 #include "Editor/EditorDragDrop.h"
 #include "Editor/Main/Inspector/EditorAudioPreview.h"
 #include "Engine/Editor/ImEditor.h"
@@ -18,11 +19,6 @@
 
 namespace
 {
-	SafePtr<CProjectManager> GetPM()
-	{
-		return Editor::ImEditor ? Editor::ImEditor->GetProjectManager() : nullptr;
-	}
-
 	// Kind 별 표준 파라미터 키 + 권장 범위 — G-4 의 IAudioEffect::SetParameter 와 키 일치.
 	struct EffectParamSpec { const char* Key; float Default; float Min; float Max; };
 
@@ -90,7 +86,7 @@ void CEffectEditorWidget::LoadFromDisk()
 	m_data  = AudioEffectData{};
 	m_dirty = false;
 
-	SafePtr<CProjectManager> pm = GetPM();
+	SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
 	SafePtr<IAssetManager>   am = pm ? pm->GetAssetManager() : nullptr;
 	if (am.IsValid())
 	{
@@ -112,7 +108,7 @@ void CEffectEditorWidget::LoadFromDisk()
 
 bool CEffectEditorWidget::SaveToDisk()
 {
-	SafePtr<CProjectManager> pm = GetPM();
+	SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
 	SafePtr<IAssetManager>   am = pm ? pm->GetAssetManager() : nullptr;
 	if (false == am.IsValid()) return false;
 
@@ -222,7 +218,7 @@ void CEffectEditorWidget::DrawPreview()
 	ImGui::BeginDisabled(false == hasSound);
 	if (ImGui::Button(Loc::Text("inspector.audio.preview.play"), ImVec2(80.0f, 0.0f)))
 	{
-		SafePtr<CProjectManager> pm = GetPM();
+		SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
 		SafePtr<IAssetManager>   am = pm ? pm->GetAssetManager() : nullptr;
 		if (am.IsValid())
 		{

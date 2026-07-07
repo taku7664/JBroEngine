@@ -69,6 +69,15 @@
     <ClInclude Include="Editor\Editor.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
+    <ClInclude Include="Editor\EditorContext.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\EditorSessionPersistence.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\Main\AssetBrowser\AssetBrowserUtils.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
     <ClInclude Include="Editor\EditorDragDrop.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
@@ -201,6 +210,15 @@
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="Editor\Main\AssetBrowser\AssetBrowserTool.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\EditorContext.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\EditorSessionPersistence.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\Main\AssetBrowser\AssetBrowserUtils.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="Editor\Main\Log\LogTool.cpp">

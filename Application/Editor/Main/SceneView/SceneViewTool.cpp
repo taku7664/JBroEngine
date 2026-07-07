@@ -2,6 +2,7 @@
 #include "SceneViewTool.h"
 
 #include "Editor/Editor.h"
+#include "Editor/EditorContext.h"
 #include "Editor/Command/EditorSceneCommands.h"
 #include "Editor/Helper/EditorGuiDrawHelpers.h"
 #include "Editor/Main/Inspector/InspectorTool.h"
@@ -376,7 +377,7 @@ void CSceneViewTool::OnRenderStay()
     float          ppu      = 100.0f;
     if (Editor::ImEditor)
     {
-        SafePtr<CProjectManager> pm = Editor::ImEditor->GetProjectManager();
+		SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
         if (pm && pm->IsProjectLoaded())
         {
             assetMgr = pm->GetAssetManager().TryGet();
@@ -392,14 +393,14 @@ void CSceneViewTool::OnRenderStay()
 
         if (Engine.SceneManager)
         {
-            SafePtr<CGameScene> scene = Engine.SceneManager->GetActiveScene();
+			SafePtr<CGameScene> scene = EditorContext::GetActiveScene();
             if (scene)
             {
                 // 씬 기본 디버그 (선택 엔티티 OBB 등)
                 float resW = 0.0f, resH = 0.0f;
                 if (Editor::ImEditor)
                 {
-                    SafePtr<CProjectManager> pm = Editor::ImEditor->GetProjectManager();
+					SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
                     if (pm && pm->IsProjectLoaded())
                     {
                         resW = static_cast<float>(pm->GetResolutionWidth());
@@ -536,7 +537,7 @@ void CSceneViewTool::OnRenderStay()
 
         if (Engine.SceneManager)
         {
-            SafePtr<CGameScene> gizmoScene = Engine.SceneManager->GetActiveScene();
+			SafePtr<CGameScene> gizmoScene = EditorContext::GetActiveScene();
             if (gizmoScene)
             {
                 constexpr float OUTER_R    = 5.0f;
@@ -597,7 +598,7 @@ void CSceneViewTool::OnRenderStay()
 
         if (Engine.SceneManager)
         {
-            SafePtr<CGameScene> colScene = Engine.SceneManager->GetActiveScene();
+			SafePtr<CGameScene> colScene = EditorContext::GetActiveScene();
             if (colScene)
             {
                 // ── 공통 색상/두께 상수 ───────────────────────────────────────
@@ -917,7 +918,7 @@ void CSceneViewTool::OnRenderStay()
     GuizmoFrameResult guizmoResult;
     if (Engine.SceneManager)
     {
-        SafePtr<CGameScene> scene = Engine.SceneManager->GetActiveScene();
+		SafePtr<CGameScene> scene = EditorContext::GetActiveScene();
         if (scene)
         {
             GuizmoFrameContext guizmoContext;
@@ -976,7 +977,7 @@ void CSceneViewTool::OnRenderStay()
     {
         if (Engine.SceneManager)
         {
-            SafePtr<CGameScene> scene = Engine.SceneManager->GetActiveScene();
+			SafePtr<CGameScene> scene = EditorContext::GetActiveScene();
             if (scene)
             {
                 if (ImGui::IsKeyPressed(ImGuiKey_C, false))
@@ -1073,7 +1074,7 @@ void CSceneViewTool::OnRenderStay()
 
                 if (Engine.SceneManager)
                 {
-                    SafePtr<CGameScene> scene = Engine.SceneManager->GetActiveScene();
+					SafePtr<CGameScene> scene = EditorContext::GetActiveScene();
                     if (scene)
                     {
                         m_editCtx.Validate(*scene);
@@ -1107,7 +1108,7 @@ void CSceneViewTool::OnRenderStay()
 
                 if (Engine.SceneManager)
                 {
-                    SafePtr<CGameScene> scene = Engine.SceneManager->GetActiveScene();
+					SafePtr<CGameScene> scene = EditorContext::GetActiveScene();
                     if (scene)
                     {
                         m_editCtx.Validate(*scene);
@@ -1188,7 +1189,7 @@ void CSceneViewTool::OnRenderStay()
                 m_rightClickPending = false;
                 if (Engine.SceneManager)
                 {
-                    SafePtr<CGameScene> scene = Engine.SceneManager->GetActiveScene();
+					SafePtr<CGameScene> scene = EditorContext::GetActiveScene();
                     if (scene)
                     {
                         m_editCtx.Validate(*scene);
@@ -1246,8 +1247,7 @@ void CSceneViewTool::OnRenderStay()
     // 각 섹션은 세팅된 상태가 유효할 때만 표시된다.
     if (ImGui::BeginPopup("##SVCtxMenu"))
     {
-        SafePtr<CGameScene> popupScene =
-            Engine.SceneManager ? Engine.SceneManager->GetActiveScene() : SafePtr<CGameScene>();
+		SafePtr<CGameScene> popupScene = EditorContext::GetActiveScene();
         if (popupScene)
         {
             // ── 섹션 1: 버텍스 삭제 ─────────────────────────────────────────
@@ -1321,8 +1321,7 @@ void CSceneViewTool::OnRenderStay()
     // RT 파이프라인으로 이전됨 (ImEditor::OnRender에서 GPU 셰이더로 처리).
     // 여기서는 ImEditor에 상태만 전달.
     {
-        SafePtr<CGameScene> scene;
-        if (Engine.SceneManager) scene = Engine.SceneManager->GetActiveScene();
+		SafePtr<CGameScene> scene = EditorContext::GetActiveScene();
 
         // 포커스 컨텍스트
         if (m_editCtx.IsActive() && scene)
@@ -1387,8 +1386,7 @@ void CSceneViewTool::OnRenderStay()
     }
 
     // ── Layer 4: 텍스트 오버레이 ─────────────────────────────────────────────
-    const bool hasScene =
-        Engine.SceneManager.IsValid() && Engine.SceneManager->GetActiveScene().IsValid();
+	const bool hasScene = EditorContext::GetActiveScene().IsValid();
     const ImVec2 textPos = vpMin + ImVec2(12.0f, 10.0f);
     dl->AddText(textPos, IM_COL32(210, 216, 224, 255),
                 hasScene ? Loc::Text("scene_view.overlay.active_scene")
@@ -1431,7 +1429,7 @@ void CSceneViewTool::OnRenderStay()
 
     if (cameraTabActive && nullptr != selectedObject && Engine.SceneManager)
     {
-        SafePtr<CGameScene> sceneForVP = Engine.SceneManager->GetActiveScene();
+		SafePtr<CGameScene> sceneForVP = EditorContext::GetActiveScene();
         if (sceneForVP)
         {
             const Camera2D* cam    = selectedObject->GetComponent<Camera2D>();
@@ -1440,7 +1438,7 @@ void CSceneViewTool::OnRenderStay()
                 float resW = 1920.0f, resH = 1080.0f;
                 if (Editor::ImEditor)
                 {
-                    SafePtr<CProjectManager> pm = Editor::ImEditor->GetProjectManager();
+					SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
                     if (pm && pm->IsProjectLoaded())
                     {
                         resW = static_cast<float>(pm->GetResolutionWidth());

@@ -2,6 +2,7 @@
 #include "GameViewTool.h"
 
 #include "Editor/Editor.h"
+#include "Editor/EditorContext.h"
 #include "Engine/Editor/ImEditor.h"
 #include "Engine/Editor/Project/ProjectManager.h"
 #include "Engine/GameFramework/Rendering/GameCamera.h"
@@ -14,7 +15,7 @@ namespace
 	// 현재 프로젝트 해상도를 반환합니다. 프로젝트가 없으면 fallback 값을 사용합니다.
 	void GetProjectResolution(float fallbackW, float fallbackH, float& outW, float& outH)
 	{
-		SafePtr<CProjectManager> pm = Editor::ImEditor ? Editor::ImEditor->GetProjectManager() : nullptr;
+		SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
 		if (pm && pm->IsProjectLoaded())
 		{
 			outW = static_cast<float>(pm->GetResolutionWidth());
@@ -90,7 +91,7 @@ void CGameViewTool::OnRenderStay()
 		std::vector<GameRenderCameraDesc> cameras;
 		if (Engine.SceneManager)
 		{
-			SafePtr<CGameScene> scene = Engine.SceneManager->GetActiveScene();
+			SafePtr<CGameScene> scene = EditorContext::GetActiveScene();
 			if (scene)
 			{
 				cameras = CollectGameRenderCameras(*scene, resW, resH);
@@ -164,7 +165,7 @@ void CGameViewTool::OnRenderStay()
 	}
 
 	// ── Status overlay ─────────────────────────────────────────────────────────
-	const bool hasScene  = Engine.SceneManager.IsValid() && Engine.SceneManager->GetActiveScene().IsValid();
+	const bool hasScene  = EditorContext::GetActiveScene().IsValid();
 	const bool isPlaying = Engine.SceneManager.IsValid() && Engine.SceneManager->IsSimulationPlaying();
 
 	const ImVec2 textPos = vpMin + ImVec2(12.0f, 10.0f);

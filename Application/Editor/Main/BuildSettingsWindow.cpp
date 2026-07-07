@@ -2,6 +2,7 @@
 #include "BuildSettingsWindow.h"
 
 #include "Editor/Editor.h"
+#include "Editor/EditorContext.h"
 #include "Engine/Core/Asset/IAssetManager.h"
 #include "Engine/Core/Asset/IAssetRegistry.h"
 #include "Engine/Core/EngineCore.h"
@@ -46,11 +47,6 @@ namespace
 	const char* ToString(EBuildConfiguration configuration)
 	{
 		return EBuildConfiguration::Debug == configuration ? "Debug" : "Release";
-	}
-
-	SafePtr<CProjectManager> GetProjectManagerForBuildSettings()
-	{
-		return Editor::ImEditor ? Editor::ImEditor->GetProjectManager() : nullptr;
 	}
 
 	std::string ToUtf8PathString(const File::Path& path)
@@ -340,7 +336,7 @@ void CBuildSettingsWindow::OnShow()
 
 void CBuildSettingsWindow::OnRenderStay()
 {
-	SafePtr<CProjectManager> pm = GetProjectManagerForBuildSettings();
+	SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
 	if (false == pm.IsValid() || false == pm->IsProjectLoaded())
 	{
 		ImGui::TextDisabled("%s", Loc::Text("build_settings.no_project"));
@@ -728,7 +724,7 @@ void CBuildSettingsWindow::DrawScenesCategory()
 				{ { L"JBro Scene", L"*.JScene" }, { L"All Files", L"*.*" } },
 				IsStartupSceneInvalid()))
 			{
-				SafePtr<CProjectManager> pm = GetProjectManagerForBuildSettings();
+				SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
 				m_startupScene = NormalizePathForProject(selectedPath, pm ? pm->GetAssetPath() : File::Path());
 				if (false == m_startupScene.empty()
 					&& std::find(m_buildScenes.begin(), m_buildScenes.end(), m_startupScene) == m_buildScenes.end())
@@ -742,7 +738,7 @@ void CBuildSettingsWindow::DrawScenesCategory()
 	ImGui::Spacing();
 	if (ImGui::Button(Loc::Text("build_settings.use_current_scene")))
 	{
-		SafePtr<CProjectManager> pm = GetProjectManagerForBuildSettings();
+		SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
 		const File::Path& activeScenePath = Editor::GetActiveScenePath();
 		if (pm && false == activeScenePath.empty())
 		{
@@ -786,7 +782,7 @@ void CBuildSettingsWindow::DrawScenesCategory()
 		GetAssetDialogPath().c_str(),
 		{ { L"JBro Scene", L"*.JScene" }, { L"All Files", L"*.*" } }))
 	{
-		SafePtr<CProjectManager> pm = GetProjectManagerForBuildSettings();
+		SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
 		const File::Path assetPath = pm ? pm->GetAssetPath() : File::Path();
 		for (const File::Path& selectedScene : selectedScenes)
 		{
@@ -822,7 +818,7 @@ void CBuildSettingsWindow::DrawOutputCategory()
 				IsOutputDirectoryInvalid());
 			if (selectedPath != m_outputDirectory)
 			{
-				SafePtr<CProjectManager> pm = GetProjectManagerForBuildSettings();
+				SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
 				m_outputDirectory = NormalizePathForProject(selectedPath, pm ? pm->GetRootPath() : File::Path());
 				MarkDirty();
 			}
@@ -872,7 +868,7 @@ void CBuildSettingsWindow::DrawFooterButtons()
 
 void CBuildSettingsWindow::LoadFromProject()
 {
-	SafePtr<CProjectManager> pm = GetProjectManagerForBuildSettings();
+	SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
 	if (false == pm.IsValid())
 	{
 		return;
@@ -904,7 +900,7 @@ void CBuildSettingsWindow::LoadFromProject()
 
 bool CBuildSettingsWindow::ApplyToProject(std::string* outError)
 {
-	SafePtr<CProjectManager> pm = GetProjectManagerForBuildSettings();
+	SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
 	if (false == pm.IsValid())
 	{
 		if (outError) *outError = Loc::Text("build_settings.no_project");
@@ -985,7 +981,7 @@ bool CBuildSettingsWindow::ImportWindowsIconAsset(const File::Path& selectedPath
 		return false;
 	}
 
-	SafePtr<CProjectManager> pm = GetProjectManagerForBuildSettings();
+	SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
 	SafePtr<IAssetManager> assetManager = Engine.AssetManager;
 	if (false == pm.IsValid() || false == assetManager.IsValid())
 	{
@@ -1066,7 +1062,7 @@ bool CBuildSettingsWindow::SaveEditsToProject(std::string* outError)
 		return true;
 	}
 
-	SafePtr<CProjectManager> pm = GetProjectManagerForBuildSettings();
+	SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
 	if (false == pm.IsValid() || false == pm->IsProjectLoaded())
 	{
 		if (outError) *outError = Loc::Text("build_settings.no_project");
@@ -1219,7 +1215,7 @@ std::string CBuildSettingsWindow::NormalizePathForProject(const File::Path& sele
 
 std::string CBuildSettingsWindow::MakePackagePreview() const
 {
-	SafePtr<CProjectManager> pm = GetProjectManagerForBuildSettings();
+	SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
 	File::Path outputRoot = m_outputDirectory.empty()
 		? File::Path("Dist/Games")
 		: File::Path(Utillity::U8ToWString(m_outputDirectory));
@@ -1260,12 +1256,12 @@ std::string CBuildSettingsWindow::MakePackagePreview() const
 
 std::wstring CBuildSettingsWindow::GetRootDialogPath() const
 {
-	SafePtr<CProjectManager> pm = GetProjectManagerForBuildSettings();
+	SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
 	return pm ? pm->GetRootPath().wstring() : std::wstring();
 }
 
 std::wstring CBuildSettingsWindow::GetAssetDialogPath() const
 {
-	SafePtr<CProjectManager> pm = GetProjectManagerForBuildSettings();
+	SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
 	return pm ? pm->GetAssetPath().wstring() : std::wstring();
 }

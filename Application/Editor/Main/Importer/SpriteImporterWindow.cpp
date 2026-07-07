@@ -1,6 +1,8 @@
 #include "pch.h"
 #include "SpriteImporterWindow.h"
 
+#include "Editor/EditorContext.h"
+
 #include "Engine/Core/Asset/AssetMetaFile.h"
 #include "Engine/Core/Asset/AssetPath.h"
 #include "Engine/Editor/ImEditor.h"
@@ -74,7 +76,7 @@ void CSpriteImporterWindow::DrawImportOptions()
 	RowWithTooltip(layout, "inspector.pivot_x",         "inspector.pivot_x.desc",         [&]() { ImGui::DragFloat("##importer.pivot_x", &m_options.PivotX, 0.01f, 0.0f, 1.0f); });
 	RowWithTooltip(layout, "inspector.pivot_y",         "inspector.pivot_y.desc",         [&]() { ImGui::DragFloat("##importer.pivot_y", &m_options.PivotY, 0.01f, 0.0f, 1.0f); });
 	{
-		SafePtr<CProjectManager> projectManager = Editor::ImEditor ? Editor::ImEditor->GetProjectManager() : nullptr;
+		SafePtr<CProjectManager> projectManager = EditorContext::GetProjectManager();
 		const float projectPPU = projectManager ? projectManager->GetPixelsPerUnit() : 0.0f;
 		RowWithTooltip(layout, "inspector.pixels_per_unit", "inspector.pixels_per_unit.desc",
 			[&]() {
