@@ -374,6 +374,7 @@ void CForward2DRenderer::SetViewCameraEx(float posX, float posY, float halfW, fl
 	m_viewCamHalfH  = halfH > 0.0f ? halfH : 1.0f;
 	m_viewCamCosR   = cosR;
 	m_viewCamSinR   = sinR;
+	m_useExplicitSize = true;
 }
 
 void CForward2DRenderer::SetSurfacePreRotation(float cosR, float sinR)
