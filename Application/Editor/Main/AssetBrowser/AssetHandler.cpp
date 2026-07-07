@@ -4,6 +4,7 @@
 #include "Editor/Editor.h"
 #include "Editor/EditorContext.h"
 #include "Editor/Main/AssetBrowser/AssetBrowserUtils.h"
+#include "Editor/Path/EditorPathUtils.h"
 #include "Editor/Main/Inspector/EffectEditorWindow.h"
 #include "Engine/Editor/ImEditor.h"
 #include "Engine/Editor/Project/ProjectManager.h"
@@ -47,7 +48,7 @@ void CSceneAssetOpenHandler::Open(CAssetBrowserTool&, const AssetBrowserEntry& e
 
 	const std::string sceneName = entry.RelativePath.empty()
 		? entry.DisplayNameUtf8
-		: AssetBrowserUtils::PathToUtf8(entry.RelativePath);
+		: EditorPathUtils::ToUtf8(entry.RelativePath);
 	CGameScene* scene = Engine.SceneManager->CreateScene(sceneName.c_str());
 	if (nullptr == scene)
 	{

@@ -3,6 +3,7 @@
 
 #include "Editor/Editor.h"
 #include "Editor/EditorContext.h"
+#include "Editor/Path/EditorPathUtils.h"
 #include "Editor/EditorDragDrop.h"
 #include "Editor/Main/Inspector/EditorAudioPreview.h"
 #include "Engine/Editor/ImEditor.h"
@@ -227,8 +228,7 @@ void CEffectEditorWidget::DrawPreview()
 			if (meta) am->ResolveAssetPath(meta->Path, absPath);
 			if (false == absPath.empty())
 			{
-				const auto u8 = absPath.generic_u8string();
-				const std::string utf8(reinterpret_cast<const char*>(u8.c_str()), u8.size());
+				const std::string utf8 = EditorPathUtils::ToUtf8(absPath);
 				EditorAudioPreview::PlayFileWithEffect(utf8.c_str(), m_testSoundGuid, m_data.Kind, m_data.Parameters);
 			}
 		}

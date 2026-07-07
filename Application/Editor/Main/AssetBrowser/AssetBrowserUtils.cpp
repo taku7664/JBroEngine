@@ -3,12 +3,6 @@
 
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
 
-std::string AssetBrowserUtils::PathToUtf8(const std::filesystem::path& path)
-{
-	const auto text = path.generic_u8string();
-	return std::string(reinterpret_cast<const char*>(text.c_str()), text.size());
-}
-
 std::string AssetBrowserUtils::ToLowerAscii(std::string text)
 {
 	std::transform(text.begin(), text.end(), text.begin(), [](unsigned char character) {

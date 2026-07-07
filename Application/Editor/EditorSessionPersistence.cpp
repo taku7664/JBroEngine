@@ -4,6 +4,7 @@
 #include "Editor/Editor.h"
 #include "Editor/EditorContext.h"
 #include "Editor/Main/SceneView/SceneViewTool.h"
+#include "Editor/Path/EditorPathUtils.h"
 #include "Engine/Core/EngineCore.h"
 #include "Engine/Editor/Project/ProjectManager.h"
 #include "Engine/GameFramework/Scene/SceneSerializer.h"
@@ -47,12 +48,11 @@ namespace
 		const File::Path& activeScenePath = Editor::GetActiveScenePath();
 		if (false == activeScenePath.empty() && false == projectManager.GetAssetPath().empty())
 		{
-			std::error_code error;
-			const File::Path relativePath = std::filesystem::relative(
+			File::Path relativePath;
+			if (EditorPathUtils::TryMakeRelativeSubPath(
 				activeScenePath,
 				projectManager.GetAssetPath(),
-				error);
-			if (false == static_cast<bool>(error) && false == relativePath.empty())
+				relativePath))
 			{
 				projectManager.SetLastOpenedScenePath(relativePath.generic_string());
 			}

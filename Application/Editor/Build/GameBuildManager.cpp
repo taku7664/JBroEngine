@@ -3,6 +3,7 @@
 
 #include "Editor/Editor.h"
 #include "Editor/Build/BuildSettingsUtils.h"
+#include "Editor/Path/EditorPathUtils.h"
 #include "Editor/EditorSessionPersistence.h"
 #include "Editor/Main/SceneView/SceneViewTool.h"
 #include "Engine/Core/Asset/IAssetManager.h"
@@ -36,12 +37,6 @@
 
 namespace
 {
-	std::string ToUtf8PathString(const File::Path& path)
-	{
-		const auto text = path.generic_u8string();
-		return std::string(reinterpret_cast<const char*>(text.c_str()), text.size());
-	}
-
 	std::wstring Quote(const std::wstring& value)
 	{
 		return L"\"" + value + L"\"";
@@ -167,35 +162,15 @@ namespace
 		return preferred;
 	}
 
-	bool IsInside(const File::Path& root, const File::Path& target)
-	{
-		std::error_code ec;
-		const File::Path absRoot = std::filesystem::weakly_canonical(root, ec);
-		if (ec) return false;
-		const File::Path absTarget = std::filesystem::weakly_canonical(target, ec);
-		if (ec) return false;
-
-		auto rootIt = absRoot.begin();
-		auto targetIt = absTarget.begin();
-		for (; rootIt != absRoot.end(); ++rootIt, ++targetIt)
-		{
-			if (targetIt == absTarget.end() || *rootIt != *targetIt)
-			{
-				return false;
-			}
-		}
-		return true;
-	}
-
 	bool RemoveDirectoryInside(const File::Path& root, const File::Path& target, std::string& outError)
 	{
 		if (false == std::filesystem::exists(target))
 		{
 			return true;
 		}
-		if (false == IsInside(root, target))
+		if (false == EditorPathUtils::IsPathInside(root, target))
 		{
-			outError = "Refusing to delete outside output root: " + ToUtf8PathString(target);
+			outError = "Refusing to delete outside output root: " + EditorPathUtils::ToUtf8(target);
 			return false;
 		}
 
@@ -260,7 +235,7 @@ namespace
 		std::ifstream file(path, std::ios::binary);
 		if (false == file.is_open())
 		{
-			outError = "Failed to open file: " + ToUtf8PathString(path);
+			outError = "Failed to open file: " + EditorPathUtils::ToUtf8(path);
 			return false;
 		}
 
@@ -268,7 +243,7 @@ namespace
 		const std::streamoff size = file.tellg();
 		if (size <= 0)
 		{
-			outError = "File is empty: " + ToUtf8PathString(path);
+			outError = "File is empty: " + EditorPathUtils::ToUtf8(path);
 			return false;
 		}
 		file.seekg(0, std::ios::beg);
@@ -277,7 +252,7 @@ namespace
 		file.read(reinterpret_cast<char*>(outBytes.data()), size);
 		if (false == file.good())
 		{
-			outError = "Failed to read file: " + ToUtf8PathString(path);
+			outError = "Failed to read file: " + EditorPathUtils::ToUtf8(path);
 			return false;
 		}
 		return true;
@@ -324,14 +299,14 @@ namespace
 		}
 		if (iconBytes.size() < 6 || ReadU16LE(iconBytes, 0) != 0 || ReadU16LE(iconBytes, 2) != 1)
 		{
-			outError = "Invalid .ico header: " + ToUtf8PathString(iconPath);
+			outError = "Invalid .ico header: " + EditorPathUtils::ToUtf8(iconPath);
 			return false;
 		}
 
 		const std::uint16_t iconCount = ReadU16LE(iconBytes, 4);
 		if (0 == iconCount || iconBytes.size() < 6ull + static_cast<std::size_t>(iconCount) * 16ull)
 		{
-			outError = "Invalid .ico entry table: " + ToUtf8PathString(iconPath);
+			outError = "Invalid .ico entry table: " + EditorPathUtils::ToUtf8(iconPath);
 			return false;
 		}
 
@@ -355,7 +330,7 @@ namespace
 			const std::uint32_t imageOffset = ReadU32LE(iconBytes, entryOffset + 12);
 			if (0 == imageSize || imageOffset > iconBytes.size() || imageSize > iconBytes.size() - imageOffset)
 			{
-				outError = "Invalid .ico image payload: " + ToUtf8PathString(iconPath);
+				outError = "Invalid .ico image payload: " + EditorPathUtils::ToUtf8(iconPath);
 				success = false;
 				break;
 			}
@@ -766,7 +741,7 @@ bool CGameBuildManager::BuildScriptModule(const BuildDesc& desc, File::Path& out
 		return false;
 	}
 
-	std::string solutionDir = ToUtf8PathString(desc.ProjectRoot);
+	std::string solutionDir = EditorPathUtils::ToUtf8(desc.ProjectRoot);
 	if (false == solutionDir.empty() && solutionDir.back() != '/' && solutionDir.back() != '\\')
 	{
 		solutionDir += "\\";
@@ -804,7 +779,7 @@ bool CGameBuildManager::BuildWebPackage(const BuildDesc& desc, std::string& outE
 	const File::Path scriptPath = desc.RepoRoot / "BuildScripts" / "BuildWeb.ps1";
 	if (false == std::filesystem::exists(scriptPath))
 	{
-		outError = "BuildWeb.ps1 was not found: " + ToUtf8PathString(scriptPath);
+		outError = "BuildWeb.ps1 was not found: " + EditorPathUtils::ToUtf8(scriptPath);
 		return false;
 	}
 
@@ -830,7 +805,7 @@ bool CGameBuildManager::BuildAndroidPackage(const BuildDesc& desc, std::string& 
 	const File::Path scriptPath = desc.RepoRoot / "BuildScripts" / "BuildGame.ps1";
 	if (false == std::filesystem::exists(scriptPath))
 	{
-		outError = "BuildGame.ps1 was not found: " + ToUtf8PathString(scriptPath);
+		outError = "BuildGame.ps1 was not found: " + EditorPathUtils::ToUtf8(scriptPath);
 		return false;
 	}
 
@@ -859,7 +834,7 @@ bool CGameBuildManager::VerifyAndroidPackage(const BuildDesc& desc, std::string&
 	const File::Path apkPath = desc.PackageDirectory / (desc.ProductName + ".apk");
 	if (false == std::filesystem::exists(apkPath))
 	{
-		outError = "Android package APK is missing: " + ToUtf8PathString(apkPath);
+		outError = "Android package APK is missing: " + EditorPathUtils::ToUtf8(apkPath);
 		return false;
 	}
 	if (std::filesystem::exists(desc.PackageDirectory / "GameScript.dll"))
@@ -988,7 +963,7 @@ bool CGameBuildManager::ApplyWindowsIconToExecutable(const BuildDesc& desc, cons
 	});
 	if (extension != L".ico")
 	{
-		outError = "Windows icon asset must be an .ico file: " + ToUtf8PathString(iconPath);
+		outError = "Windows icon asset must be an .ico file: " + EditorPathUtils::ToUtf8(iconPath);
 		return false;
 	}
 
@@ -1164,7 +1139,7 @@ bool CGameBuildManager::RunCommandToLog(const std::wstring& command, const File:
 
 	if (0 != processExitCode)
 	{
-		outError = "Build command failed. See log: " + ToUtf8PathString(logPath);
+		outError = "Build command failed. See log: " + EditorPathUtils::ToUtf8(logPath);
 		return false;
 	}
 	return true;

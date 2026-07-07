@@ -3,6 +3,7 @@
 
 #include "Editor/Editor.h"
 #include "Editor/Build/BuildSettingsUtils.h"
+#include "Editor/Path/EditorPathUtils.h"
 #include "Editor/EditorContext.h"
 #include "Engine/Core/Asset/IAssetManager.h"
 #include "Engine/Core/Asset/IAssetRegistry.h"
@@ -31,59 +32,6 @@ namespace
 	EBuildConfiguration ToBuildConfiguration(int index)
 	{
 		return 0 == index ? EBuildConfiguration::Debug : EBuildConfiguration::Release;
-	}
-
-	std::string ToUtf8PathString(const File::Path& path)
-	{
-		const auto text = path.generic_u8string();
-		return std::string(reinterpret_cast<const char*>(text.c_str()), text.size());
-	}
-
-	bool IsSubPath(const File::Path& relativePath)
-	{
-		if (relativePath.empty())
-		{
-			return false;
-		}
-
-		for (const File::Path& part : relativePath)
-		{
-			if (part == L"..")
-			{
-				return false;
-			}
-		}
-		return true;
-	}
-
-	bool TryMakeRelativeSubPath(const File::Path& path, const File::Path& root, File::Path& outRelative)
-	{
-		if (path.empty() || root.empty())
-		{
-			return false;
-		}
-
-		std::error_code ec;
-		const File::Path absolutePath = std::filesystem::weakly_canonical(path, ec);
-		if (ec)
-		{
-			return false;
-		}
-		ec.clear();
-		const File::Path absoluteRoot = std::filesystem::weakly_canonical(root, ec);
-		if (ec)
-		{
-			return false;
-		}
-
-		const File::Path relativePath = std::filesystem::relative(absolutePath, absoluteRoot, ec);
-		if (ec || false == IsSubPath(relativePath))
-		{
-			return false;
-		}
-
-		outRelative = relativePath;
-		return true;
 	}
 
 	bool HasIcoExtension(const File::Path& path)
@@ -580,7 +528,7 @@ void CBuildSettingsWindow::DrawWindowsIconSelector()
 	ImGui::BeginGroup();
 	if (hasIcon)
 	{
-		ImGui::TextWrapped("%s", ToUtf8PathString(iconMeta->Path).c_str());
+		ImGui::TextWrapped("%s", EditorPathUtils::ToUtf8(iconMeta->Path).c_str());
 		ImGui::TextDisabled("%s", m_windowsIconGuid.generic_string().c_str());
 		if (ImGui::SmallButton(Loc::Text("common.delete")))
 		{
@@ -882,7 +830,7 @@ bool CBuildSettingsWindow::ImportWindowsIconAsset(const File::Path& selectedPath
 	}
 
 	File::Path relativeAssetPath;
-	if (false == TryMakeRelativeSubPath(selectedPath, pm->GetAssetPath(), relativeAssetPath))
+	if (false == EditorPathUtils::TryMakeRelativeSubPath(selectedPath, pm->GetAssetPath(), relativeAssetPath))
 	{
 		const File::Path targetPath = pm->GetAssetPath() / WINDOWS_ICON_ASSET_PATH;
 		std::error_code ec;
@@ -1096,13 +1044,13 @@ std::string CBuildSettingsWindow::NormalizePathForProject(const File::Path& sele
 	{
 		std::error_code ec;
 		const File::Path relativePath = std::filesystem::relative(selectedPath, basePath, ec);
-		if (false == static_cast<bool>(ec) && IsSubPath(relativePath))
+		if (false == static_cast<bool>(ec) && EditorPathUtils::IsRelativeSubPath(relativePath))
 		{
-			return ToUtf8PathString(relativePath);
+			return EditorPathUtils::ToUtf8(relativePath);
 		}
 	}
 
-	return ToUtf8PathString(selectedPath);
+	return EditorPathUtils::ToUtf8(selectedPath);
 }
 
 std::string CBuildSettingsWindow::MakePackagePreview() const
@@ -1140,7 +1088,7 @@ std::string CBuildSettingsWindow::MakePackagePreview() const
 		{
 			preview += "\n";
 		}
-		preview += ToUtf8PathString(packagePath);
+		preview += EditorPathUtils::ToUtf8(packagePath);
 	}
 
 	return preview.empty() ? std::string(Loc::Text("build_settings.no_platform_enabled")) : preview;

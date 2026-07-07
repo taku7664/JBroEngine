@@ -4,6 +4,7 @@
 
 #include "Editor/Editor.h"
 #include "Editor/EditorContext.h"
+#include "Editor/Path/EditorPathUtils.h"
 #include "Engine/Core/Asset/AssetTypes.h"
 #include "Engine/Core/Asset/IAssetManager.h"
 #include "Engine/Core/Asset/SpriteAsset.h"
@@ -208,8 +209,7 @@ namespace
                         am->ResolveAssetPath(metaData.Path, absPath);
                     }
                     if (absPath.empty()) absPath = metaData.Path;
-                    const auto u8 = absPath.generic_u8string();
-                    const std::string utf8Path(reinterpret_cast<const char*>(u8.c_str()), u8.size());
+					const std::string utf8Path = EditorPathUtils::ToUtf8(absPath);
                     EditorAudioPreview::PlayFile(utf8Path.c_str(), metaData.Guid);
                 }
             }

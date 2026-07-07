@@ -7,6 +7,7 @@
 #include "Editor/Command/EditorFileCommands.h"
 #include "Editor/EditorDragDrop.h"
 #include "Editor/Main/AssetBrowser/AssetBrowserUtils.h"
+#include "Editor/Path/EditorPathUtils.h"
 #include "Editor/Script/ScriptSchema.h"
 #include "Editor/Script/ScriptSchemaWidgets.h"
 #include "Engine/Editor/Project/ProjectManager.h"
@@ -38,8 +39,8 @@
 
 using AssetBrowserUtils::FileTimeToTimeT;
 using AssetBrowserUtils::GetAssetTypeName;
-using AssetBrowserUtils::PathToUtf8;
 using AssetBrowserUtils::ToLowerAscii;
+using EditorPathUtils::ToUtf8;
 #include <cctype>
 #include <chrono>
 #include <cwctype>
@@ -640,11 +641,11 @@ void CAssetBrowserTool::RefreshCurrentFolderEntries()
 		browserEntry.IsDirectory = isDirectory;
 		browserEntry.IsImportable = insideAssetRoot && false == isDirectory && false == CAssetPath::IsMetaPath(absolutePath.generic_string().c_str());
 		MakeAssetRelativePath(absolutePath, browserEntry.RelativePath);
-		browserEntry.DisplayNameUtf8 = PathToUtf8(absolutePath.filename());
-		browserEntry.ExtensionUtf8 = ToLowerAscii(PathToUtf8(absolutePath.extension()));
+		browserEntry.DisplayNameUtf8 = ToUtf8(absolutePath.filename());
+		browserEntry.ExtensionUtf8 = ToLowerAscii(ToUtf8(absolutePath.extension()));
 
 		// 렌더 핫패스용 캐시 (PushID 키, 검색 비교용)
-		browserEntry.AbsolutePathUtf8     = PathToUtf8(absolutePath);
+		browserEntry.AbsolutePathUtf8     = ToUtf8(absolutePath);
 		browserEntry.DisplayNameLowerUtf8 = ToLowerAscii(browserEntry.DisplayNameUtf8);
 		// 다중 선택 저장소 식별자 — 경로 해시로 프레임/리프레시 간 안정.
 		browserEntry.SelectionId = ImHashStr(browserEntry.AbsolutePathUtf8.c_str());
@@ -837,7 +838,7 @@ void CAssetBrowserTool::ProcessPendingOperations()
 				break;
 			}
 			errorCode.clear();
-			const std::string stem = PathToUtf8(srcPath.stem());
+			const std::string stem = ToUtf8(srcPath.stem());
 			const std::string ext  = srcPath.has_extension() ? srcPath.extension().generic_string() : std::string{};
 			File::Path dst = MakeUniqueFilePath(File::Path(srcPath.parent_path()), stem + " Copy", ext);
 			if (false == dst.empty() && CopyFileOnce(operation.Path, dst))
@@ -936,7 +937,7 @@ void CAssetBrowserTool::ProcessPendingOperations()
 				// (단일 Duplicate 와 동일한 이유 — 메타를 남기면 원본과 GUID 가 충돌하므로
 				//  AssetWatcher 가 새 GUID 로 재임포트하도록 메타를 떼어낸다.)
 				errorCode.clear();
-				const File::Path dst = MakeUniqueFilePath(operation.TargetPath, PathToUtf8(operation.Path.filename()), "");
+				const File::Path dst = MakeUniqueFilePath(operation.TargetPath, ToUtf8(operation.Path.filename()), "");
 				if (false == dst.empty())
 				{
 					std::filesystem::copy(operation.Path, dst,
@@ -963,7 +964,7 @@ void CAssetBrowserTool::ProcessPendingOperations()
 				break;
 			}
 			errorCode.clear();
-			const std::string stem = PathToUtf8(operation.Path.stem());
+			const std::string stem = ToUtf8(operation.Path.stem());
 			const std::string ext  = operation.Path.has_extension() ? operation.Path.extension().generic_string() : std::string{};
 			const File::Path dst = MakeUniqueFilePath(operation.TargetPath, stem, ext);
 			if (false == dst.empty())
@@ -1056,7 +1057,7 @@ void CAssetBrowserTool::DrawToolbar()
 		const File::Path displayPath = (m_focusFolderPath == rootPath || relativeUnderRoot.empty())
 			? File::Path(rootLabel)
 			: File::Path(rootLabel) / relativeUnderRoot;
-		ImGui::TextUnformatted(PathToUtf8(displayPath).c_str());
+		ImGui::TextUnformatted(ToUtf8(displayPath).c_str());
 	}
 
 	ImGui::SameLine();
@@ -1193,12 +1194,12 @@ void CAssetBrowserTool::DrawFolderTreeNode(const File::Path& folderPath)
 	}
 	else
 	{
-		label = PathToUtf8(folderPath.filename());
+		label = ToUtf8(folderPath.filename());
 	}
 	ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth;
 	flags |= selected ? ImGuiTreeNodeFlags_Selected : 0;
 
-	ImGui::PushID(PathToUtf8(folderPath).c_str());
+	ImGui::PushID(ToUtf8(folderPath).c_str());
 	const bool isClicked = ImTree(label.c_str(), flags);
 	if (ImGui::IsItemClicked())
 	{
@@ -1239,7 +1240,7 @@ void CAssetBrowserTool::DrawFolderTreeNode(const File::Path& folderPath)
 			}
 
 			std::sort(childFolders.begin(), childFolders.end(), [](const File::Path& lhs, const File::Path& rhs) {
-				return PathToUtf8(lhs.filename()) < PathToUtf8(rhs.filename());
+				return ToUtf8(lhs.filename()) < ToUtf8(rhs.filename());
 			});
 			cacheIt = m_folderChildrenCache.emplace(folderPath, std::move(childFolders)).first;
 		}
@@ -1425,7 +1426,7 @@ void CAssetBrowserTool::DrawListEntries()
 				// 캐시된 ModifiedTimeText 사용 — 매 프레임 localtime/strftime 호출 제거
 				ImGui::TextUnformatted(entry.IsDirectory ? "-" : entry.ModifiedTimeText.c_str());
 				ImGui::TableSetColumnIndex(3);
-				ImGui::TextUnformatted(entry.Guid.IsNull() ? "-" : PathToUtf8(entry.Guid).c_str());
+				ImGui::TextUnformatted(entry.Guid.IsNull() ? "-" : ToUtf8(entry.Guid).c_str());
 				ImGui::PopID();
 			}
 		}
@@ -1945,7 +1946,7 @@ void CAssetBrowserTool::DrawDeleteConfirmPopup()
 		// 대상 목록을 모두 표시(다중 삭제 시 무엇을 지우는지 명확히).
 		for (const File::Path& target : m_deleteTargets)
 		{
-			ImGui::BulletText("%s", PathToUtf8(target).c_str());
+			ImGui::BulletText("%s", ToUtf8(target).c_str());
 		}
 		ImGui::Separator();
 
@@ -2185,7 +2186,7 @@ void CAssetBrowserTool::StartRenameForNewPath(const File::Path& path)
 	if (path.empty()) return;
 	m_isRenaming = true;
 	m_renamingPath = path;
-	m_renameBuffer = PathToUtf8(path.stem());
+	m_renameBuffer = ToUtf8(path.stem());
 	m_entriesDirty = true;
 }
 
@@ -2254,7 +2255,7 @@ void CAssetBrowserTool::ShowNewScriptPopup(const File::Path& parentFolder)
 			File::Path hPath, cppPath;
 			if (ResolveScriptPaths(state->ParentFolder, state->ClassName, hPath, cppPath))
 			{
-				const std::string headerFile = PathToUtf8(hPath.filename());
+				const std::string headerFile = ToUtf8(hPath.filename());
 				WriteTextFile(hPath,   MakeScriptHeader(state->ClassName, state->Properties));
 				WriteTextFile(cppPath, MakeScriptSource(state->ClassName, headerFile));
 				self->m_entriesDirty = true;
@@ -2383,41 +2384,14 @@ bool CAssetBrowserTool::IsProjectLoaded() const
 	return projectManager && projectManager->IsProjectLoaded();
 }
 
-namespace
-{
-	// path 가 root 안(또는 root 자체) 인지 검사. lexically_relative 의 ".." 등장 여부로 판정.
-	bool IsInsideRoot(const File::Path& path, const File::Path& root)
-	{
-		if (root.empty() || path.empty())
-		{
-			return false;
-		}
-
-		const std::filesystem::path relative = path.lexically_relative(root);
-		if (relative.empty())
-		{
-			return path == root;
-		}
-
-		for (const std::filesystem::path& part : relative)
-		{
-			if (part == "..")
-			{
-				return false;
-			}
-		}
-		return true;
-	}
-}
-
 bool CAssetBrowserTool::IsInsideAssetRoot(const File::Path& path) const
 {
-	return IsInsideRoot(path, m_assetRootPath);
+	return EditorPathUtils::IsPathInside(m_assetRootPath, path);
 }
 
 bool CAssetBrowserTool::IsInsideScriptRoot(const File::Path& path) const
 {
-	return IsInsideRoot(path, m_scriptRootPath);
+	return EditorPathUtils::IsPathInside(m_scriptRootPath, path);
 }
 
 bool CAssetBrowserTool::IsInsideAnyRoot(const File::Path& path) const

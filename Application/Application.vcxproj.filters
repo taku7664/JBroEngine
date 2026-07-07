@@ -81,6 +81,9 @@
     <ClInclude Include="Editor\EditorSessionPersistence.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
+    <ClInclude Include="Editor\Path\EditorPathUtils.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
     <ClInclude Include="Editor\Shortcut\EditorShortcutManager.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
@@ -237,6 +240,9 @@
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="Editor\EditorSessionPersistence.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\Path\EditorPathUtils.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="Editor\Shortcut\EditorShortcutManager.cpp">
