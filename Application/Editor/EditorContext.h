@@ -6,10 +6,12 @@
 
 class CGameScene;
 class CProjectManager;
+class IAssetManager;
 
 namespace EditorContext
 {
 	SafePtr<CProjectManager> GetProjectManager();
+	SafePtr<IAssetManager> GetAssetManager();
 	SafePtr<CGameScene> GetActiveScene();
 	CGameScene* TryGetActiveScene();
 }

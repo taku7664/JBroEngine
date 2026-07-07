@@ -110,8 +110,6 @@ void CMainDockWindow::OnCreate()
 
 void CMainDockWindow::OnMenuBar()
 {
-	ImGui::ShowDemoWindow();
-
 	if (ImGui::BeginMenu(Loc::Text("menu.simulation")))
 	{
 		const bool canTogglePlay = Editor::ShortcutManager.CanExecute(EEditorShortcut::TogglePlay);

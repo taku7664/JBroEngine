@@ -1,7 +1,7 @@
 #include "pch.h"
-#include "ImGuiHelper.h"
+#include "EditorTheme.h"
 
-void ImGuiHelper::SetDarkThemeColor()
+void EditorTheme::ApplyDarkColors()
 {
     ImGuiStyle& style = ImGui::GetStyle();
     ImVec4* colors = style.Colors;
@@ -68,41 +68,7 @@ void ImGuiHelper::SetDarkThemeColor()
     colors[ImGuiCol_NavWindowingDimBg] = ImVec4(0.80f, 0.80f, 0.80f, 0.20f);
     colors[ImGuiCol_ModalWindowDimBg] = ImVec4(0.80f, 0.80f, 0.80f, 0.35f);
 }
-
-void ImGuiHelper::SetWhiteThemeColor()
-{
-    ImGuiStyle& style = ImGui::GetStyle();
-    ImVec4* colors = style.Colors;
-    colors[ImGuiCol_WindowBg] = ImVec4(243, 247, 251, 255);
-    colors[ImGuiCol_PopupBg] = ImVec4(243, 247, 251, 255);
-    colors[ImGuiCol_Border] = ImVec4(25, 35, 52, 120);
-    colors[ImGuiCol_FrameBg] = ImVec4(0.22f, 0.23f, 0.27f, 1.00f);
-    colors[ImGuiCol_FrameBgHovered] = ImVec4(0.31f, 0.33f, 0.37f, 1.00f);
-    colors[ImGuiCol_FrameBgActive] = ImVec4(0.18f, 0.19f, 0.24f, 1.00f);
-    colors[ImGuiCol_TitleBg] = ImVec4(0.07f, 0.08f, 0.12f, 1.00f);
-    colors[ImGuiCol_TitleBgActive] = ImVec4(0.13f, 0.15f, 0.19f, 1.00f);
-    colors[ImGuiCol_TitleBgCollapsed] = ImVec4(0.07f, 0.08f, 0.12f, 1.00f);
-    colors[ImGuiCol_MenuBarBg] = ImVec4(0.14f, 0.16f, 0.20f, 1.00f);
-    colors[ImGuiCol_CheckMark] = ImVec4(0.80f, 0.64f, 0.27f, 1.00f);
-    colors[ImGuiCol_SliderGrab] = ImVec4(0.80f, 0.63f, 0.27f, 1.00f);
-    colors[ImGuiCol_SliderGrabActive] = ImVec4(0.87f, 0.72f, 0.40f, 1.00f);
-    colors[ImGuiCol_Header] = ImVec4(0.13f, 0.21f, 0.29f, 1.00f);
-    colors[ImGuiCol_HeaderHovered] = ImVec4(0.31f, 0.41f, 0.52f, 1.00f);
-    colors[ImGuiCol_HeaderActive] = ImVec4(0.11f, 0.17f, 0.23f, 1.00f);
-    colors[ImGuiCol_ResizeGrip] = ImVec4(0.14f, 0.21f, 0.29f, 1.00f);
-    colors[ImGuiCol_ResizeGripHovered] = ImVec4(0.31f, 0.41f, 0.52f, 1.00f);
-    colors[ImGuiCol_ResizeGripActive] = ImVec4(0.11f, 0.17f, 0.24f, 1.00f);
-    colors[ImGuiCol_TabHovered] = ImVec4(0.32f, 0.37f, 0.43f, 1.00f);
-    colors[ImGuiCol_Tab] = ImVec4(0.23f, 0.27f, 0.31f, 1.00f);
-    colors[ImGuiCol_TabSelected] = ImVec4(0.16f, 0.18f, 0.22f, 1.00f);
-    colors[ImGuiCol_TabSelectedOverline] = ImVec4(0.52f, 0.57f, 0.62f, 1.00f);
-    colors[ImGuiCol_TabDimmed] = ImVec4(0.16f, 0.19f, 0.21f, 1.00f);
-    colors[ImGuiCol_DockingPreview] = ImVec4(0.04f, 0.52f, 1.00f, 0.51f);
-    colors[ImGuiCol_DragDropTarget] = ImVec4(0.26f, 0.59f, 0.98f, 0.67f);
-    colors[ImGuiCol_NavCursor] = ImVec4(0.26f, 0.59f, 0.98f, 0.67f);
-}
-
-void ImGuiHelper::SetDefaultThemeStyle()
+void EditorTheme::ApplyDefaultLayout()
 {
     ImGuiStyle& style = ImGui::GetStyle();
     style.WindowRounding = 3.0f;
@@ -126,11 +92,4 @@ void ImGuiHelper::SetDefaultThemeStyle()
 
 	style.SeparatorSize = 1.0f;
     style.SeparatorTextBorderSize = 1.0f;
-}
-
-void ImGuiHelper::ApplyCompactImGuiStyle(float scale)
-{
-
-    ImGuiStyle& style = ImGui::GetStyle();
-    style.ScaleAllSizes(scale);    // 패딩, 갭, 라운딩 등 일괄 축소
 }

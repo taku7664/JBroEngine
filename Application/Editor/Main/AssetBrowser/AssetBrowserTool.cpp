@@ -606,7 +606,7 @@ void CAssetBrowserTool::RefreshCurrentFolderEntries()
 	}
 
 	SafePtr<CProjectManager> projectManager = EditorContext::GetProjectManager();
-	SafePtr<IAssetManager> assetManager = projectManager ? projectManager->GetAssetManager() : nullptr;
+	SafePtr<IAssetManager> assetManager = EditorContext::GetAssetManager();
 	const IAssetRegistry* registry = assetManager ? &assetManager->GetRegistry() : nullptr;
 
 	std::error_code errorCode;

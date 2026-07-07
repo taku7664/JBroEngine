@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "SceneViewTool.h"
+#include "SceneViewCoordinates.h"
 
 #include "Editor/Editor.h"
 #include "Editor/EditorContext.h"
@@ -20,31 +21,15 @@
 #include "Engine/GameFramework/Scene/Scene.h"
 #include "Engine/GameFramework/Scene/SceneTransformUtils.h"
 
+using SceneViewCoordinates::GetAspect;
+using SceneViewCoordinates::ViewportToWorld;
+using SceneViewCoordinates::WorldToViewport;
+
 namespace
 {
     constexpr int   MAX_GRID_LINES      = 300;
     constexpr float AXIS_LINE_THICKNESS = 2.5f;
     constexpr float CAMERA_SMOOTH_SPEED = 10.0f;
-
-    // ── 좌표 변환 유틸 ────────────────────────────────────────────────────────
-
-    float GetAspect(const ImVec2& vpSize)
-    {
-        return vpSize.y > 0.0f ? vpSize.x / vpSize.y : 1.0f;
-    }
-
-    Vector2 ViewportToWorld(
-        const ImVec2& vpPt,
-        const ImVec2& vpMin, const ImVec2& vpSize,
-        const Vector2& camPos, float camSize)
-    {
-        const float ndcX = ((vpPt.x - vpMin.x) / vpSize.x) * 2.0f - 1.0f;
-        const float ndcY = 1.0f - ((vpPt.y - vpMin.y) / vpSize.y) * 2.0f;
-        const float aspect = GetAspect(vpSize);
-        return Vector2(
-            ndcX * camSize * aspect + camPos.x,
-            ndcY * camSize          + camPos.y);
-    }
 
     // ── 서브트리 엔티티 수집 (DFS) ───────────────────────────────────────────
     //
@@ -74,21 +59,6 @@ namespace
             }
         }
         return result;
-    }
-
-    // ── 좌표 변환 (World → Viewport) ─────────────────────────────────────────
-
-    ImVec2 WorldToViewport(
-        const Vector2& world,
-        const ImVec2& vpMin, const ImVec2& vpSize,
-        const Vector2& camPos, float camSize)
-    {
-        const float aspect = GetAspect(vpSize);
-        const float ndcX = (world.x - camPos.x) / (camSize * aspect);
-        const float ndcY = (world.y - camPos.y) / camSize;
-        return ImVec2(
-            vpMin.x + (ndcX + 1.0f) * 0.5f * vpSize.x,
-            vpMin.y + (1.0f - ndcY) * 0.5f * vpSize.y);
     }
 
     // ── 그리드 step 계산 (1-2-5-10 시리즈로 스냅) ───────────────────────────

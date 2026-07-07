@@ -1,8 +1,8 @@
 #include "pch.h"
 #include "SceneViewContour.h"
+#include "SceneViewCoordinates.h"
 
 #include "Engine/Core/Asset/IAssetManager.h"
-#include "Engine/Core/Asset/SpriteAsset.h"
 #include "Engine/Core/Asset/SpriteAsset.h"
 #include "Engine/GameFramework/Object/GameObject.h"
 #include "Engine/GameFramework/Component/SpriteRenderer2D.h"
@@ -15,6 +15,8 @@
 #include <unordered_set>
 #include <cmath>
 
+using SceneViewCoordinates::WorldToViewport;
+
 namespace
 {
     // ── 상수 ──────────────────────────────────────────────────────────────────
@@ -23,26 +25,6 @@ namespace
     constexpr float        OUTLINE_THICKNESS = 2.0f;
 
     constexpr ImU32 OUTLINE_COLOR_IMG = IM_COL32(50, 220, 255, 230);
-
-    // ── 좌표 변환 ─────────────────────────────────────────────────────────────
-
-    float GetAspect(const ImVec2& vpSize)
-    {
-        return vpSize.y > 0.0f ? vpSize.x / vpSize.y : 1.0f;
-    }
-
-    ImVec2 WorldToViewport(
-        const Vector2& worldPt,
-        const ImVec2& vpMin, const ImVec2& vpSize,
-        const Vector2& camPos, float camSize)
-    {
-        const float aspect = GetAspect(vpSize);
-        const float ndcX   = (worldPt.x - camPos.x) / (camSize * aspect);
-        const float ndcY   = (worldPt.y - camPos.y) / camSize;
-        return ImVec2(
-            vpMin.x + (ndcX + 1.0f) * 0.5f * vpSize.x,
-            vpMin.y + (1.0f - ndcY) * 0.5f * vpSize.y);
-    }
 
     // ── Douglas-Peucker polygon simplification ────────────────────────────────
 

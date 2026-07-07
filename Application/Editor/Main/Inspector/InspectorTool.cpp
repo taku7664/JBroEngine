@@ -845,8 +845,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 
 	bool SaveSpriteImportOptions(const AssetMetaData& metaData, const SpriteImportOptions& options)
 	{
-		SafePtr<CProjectManager> projectManager = EditorContext::GetProjectManager();
-		SafePtr<IAssetManager> assetManager = projectManager ? projectManager->GetAssetManager() : nullptr;
+		SafePtr<IAssetManager> assetManager = EditorContext::GetAssetManager();
 		if (false == assetManager.IsValid())
 		{
 			return false;
@@ -971,7 +970,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		options.GapX        = static_cast<std::uint32_t>(std::max(0, gapX));
 		options.GapY        = static_cast<std::uint32_t>(std::max(0, gapY));
 
-		SafePtr<IAssetManager> assetManager = projectManager ? projectManager->GetAssetManager() : nullptr;
+		SafePtr<IAssetManager> assetManager = EditorContext::GetAssetManager();
 		std::uint32_t textureWidth = 0;
 		std::uint32_t textureHeight = 0;
 		if (assetManager)
@@ -1014,8 +1013,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 	// ── 사운드 자산 임포트 옵션 ──────────────────────────────────────────────
 	bool SaveAudioImportOptions(const AssetMetaData& metaData, const AudioImportOptions& options)
 	{
-		SafePtr<CProjectManager> projectManager = EditorContext::GetProjectManager();
-		SafePtr<IAssetManager>   assetManager   = projectManager ? projectManager->GetAssetManager() : nullptr;
+		SafePtr<IAssetManager> assetManager = EditorContext::GetAssetManager();
 		if (false == assetManager.IsValid()) return false;
 
 		File::Path resolvedMetaPath;
@@ -1116,8 +1114,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		}
 
 		// ── 정보 (포맷 / 길이) ─────────────────────────────────────────────
-		SafePtr<CProjectManager> projectManager = EditorContext::GetProjectManager();
-		SafePtr<IAssetManager>   assetManager   = projectManager ? projectManager->GetAssetManager() : nullptr;
+		SafePtr<IAssetManager> assetManager = EditorContext::GetAssetManager();
 		if (assetManager)
 		{
 			if (AssetRef<IAsset> loadedAsset = assetManager->LoadAsset(metaData.Guid))
@@ -1401,8 +1398,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			return false;
 		}
 
-		SafePtr<CProjectManager> projectManager = EditorContext::GetProjectManager();
-		SafePtr<IAssetManager> assetManager = projectManager ? projectManager->GetAssetManager() : nullptr;
+		SafePtr<IAssetManager> assetManager = EditorContext::GetAssetManager();
 		if (false == assetManager.IsValid())
 		{
 			ImGui::TextDisabled(Loc::Text("inspector.asset_manager_unavailable"));

@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "SpriteImporterWindow.h"
+#include "ImporterGui.h"
 
 #include "Editor/EditorContext.h"
 
@@ -11,21 +12,6 @@
 #include "Engine/Editor/Project/ProjectManager.h"
 
 #include <filesystem>
-
-namespace
-{
-	template <typename TDrawFunc>
-	void RowWithTooltip(ImGui::Utillity::FormLayout& layout, const char* labelKey, const char* descKey, TDrawFunc&& drawFunc)
-	{
-		layout.Row(
-			[&]() {
-				ImText label;
-				label.SetHoveredTooltip(Loc::Text(descKey));
-				label(Loc::Text(labelKey));
-			},
-			std::forward<TDrawFunc>(drawFunc));
-	}
-}
 
 void CSpriteImporterWindow::DrawImportOptions()
 {
@@ -39,7 +25,7 @@ void CSpriteImporterWindow::DrawImportOptions()
 		Loc::Text("inspector.slice_type.cell_count"),
 	};
 	int sliceIndex = static_cast<int>(m_options.SliceType);
-	RowWithTooltip(layout, "inspector.slice_type", "inspector.slice_type.desc",
+	ImporterGui::DrawLocalizedRow(layout, "inspector.slice_type", "inspector.slice_type.desc",
 		[&]() {
 			if (ImGui::Combo("##importer.slice_type", &sliceIndex, sliceItems, IM_ARRAYSIZE(sliceItems)))
 			{
@@ -58,27 +44,27 @@ void CSpriteImporterWindow::DrawImportOptions()
 
 	if (ESpriteSliceType::CellCount == m_options.SliceType)
 	{
-		RowWithTooltip(layout, "inspector.row_count",    "inspector.row_count.desc",    [&]() { ImGui::InputInt("##importer.row_count",    &rowCount); });
-		RowWithTooltip(layout, "inspector.column_count", "inspector.column_count.desc", [&]() { ImGui::InputInt("##importer.column_count", &columnCount); });
+		ImporterGui::DrawLocalizedRow(layout, "inspector.row_count",    "inspector.row_count.desc",    [&]() { ImGui::InputInt("##importer.row_count",    &rowCount); });
+		ImporterGui::DrawLocalizedRow(layout, "inspector.column_count", "inspector.column_count.desc", [&]() { ImGui::InputInt("##importer.column_count", &columnCount); });
 	}
 	else if (ESpriteSliceType::CellSize == m_options.SliceType)
 	{
-		RowWithTooltip(layout, "inspector.cell_width",  "inspector.cell_width.desc",  [&]() { ImGui::InputInt("##importer.cell_width",  &cellWidth); });
-		RowWithTooltip(layout, "inspector.cell_height", "inspector.cell_height.desc", [&]() { ImGui::InputInt("##importer.cell_height", &cellHeight); });
+		ImporterGui::DrawLocalizedRow(layout, "inspector.cell_width",  "inspector.cell_width.desc",  [&]() { ImGui::InputInt("##importer.cell_width",  &cellWidth); });
+		ImporterGui::DrawLocalizedRow(layout, "inspector.cell_height", "inspector.cell_height.desc", [&]() { ImGui::InputInt("##importer.cell_height", &cellHeight); });
 	}
 	if (ESpriteSliceType::CellSize == m_options.SliceType || ESpriteSliceType::CellCount == m_options.SliceType)
 	{
-		RowWithTooltip(layout, "inspector.margin_x", "inspector.margin_x.desc", [&]() { ImGui::InputInt("##importer.margin_x", &marginX); });
-		RowWithTooltip(layout, "inspector.margin_y", "inspector.margin_y.desc", [&]() { ImGui::InputInt("##importer.margin_y", &marginY); });
-		RowWithTooltip(layout, "inspector.gap_x",    "inspector.gap_x.desc",    [&]() { ImGui::InputInt("##importer.gap_x",    &gapX); });
-		RowWithTooltip(layout, "inspector.gap_y",    "inspector.gap_y.desc",    [&]() { ImGui::InputInt("##importer.gap_y",    &gapY); });
+		ImporterGui::DrawLocalizedRow(layout, "inspector.margin_x", "inspector.margin_x.desc", [&]() { ImGui::InputInt("##importer.margin_x", &marginX); });
+		ImporterGui::DrawLocalizedRow(layout, "inspector.margin_y", "inspector.margin_y.desc", [&]() { ImGui::InputInt("##importer.margin_y", &marginY); });
+		ImporterGui::DrawLocalizedRow(layout, "inspector.gap_x",    "inspector.gap_x.desc",    [&]() { ImGui::InputInt("##importer.gap_x",    &gapX); });
+		ImporterGui::DrawLocalizedRow(layout, "inspector.gap_y",    "inspector.gap_y.desc",    [&]() { ImGui::InputInt("##importer.gap_y",    &gapY); });
 	}
-	RowWithTooltip(layout, "inspector.pivot_x",         "inspector.pivot_x.desc",         [&]() { ImGui::DragFloat("##importer.pivot_x", &m_options.PivotX, 0.01f, 0.0f, 1.0f); });
-	RowWithTooltip(layout, "inspector.pivot_y",         "inspector.pivot_y.desc",         [&]() { ImGui::DragFloat("##importer.pivot_y", &m_options.PivotY, 0.01f, 0.0f, 1.0f); });
+	ImporterGui::DrawLocalizedRow(layout, "inspector.pivot_x",         "inspector.pivot_x.desc",         [&]() { ImGui::DragFloat("##importer.pivot_x", &m_options.PivotX, 0.01f, 0.0f, 1.0f); });
+	ImporterGui::DrawLocalizedRow(layout, "inspector.pivot_y",         "inspector.pivot_y.desc",         [&]() { ImGui::DragFloat("##importer.pivot_y", &m_options.PivotY, 0.01f, 0.0f, 1.0f); });
 	{
 		SafePtr<CProjectManager> projectManager = EditorContext::GetProjectManager();
 		const float projectPPU = projectManager ? projectManager->GetPixelsPerUnit() : 0.0f;
-		RowWithTooltip(layout, "inspector.pixels_per_unit", "inspector.pixels_per_unit.desc",
+		ImporterGui::DrawLocalizedRow(layout, "inspector.pixels_per_unit", "inspector.pixels_per_unit.desc",
 			[&]() {
 				// 0 = 프로젝트 기본값 사용. 0 보다 큰 값이면 그 값으로 오버라이드.
 				ImGui::DragFloat("##importer.ppu", &m_options.PixelsPerUnit, 1.0f, 0.0f, 10000.0f);

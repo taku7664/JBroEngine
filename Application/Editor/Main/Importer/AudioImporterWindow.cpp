@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "AudioImporterWindow.h"
+#include "ImporterGui.h"
 
 #include "Engine/Core/Asset/AssetMetaFile.h"
 #include "Engine/Core/Asset/AssetPath.h"
@@ -7,21 +8,6 @@
 #include "Engine/Editor/ImItem/ImText.h"
 
 #include <filesystem>
-
-namespace
-{
-	template <typename TDrawFunc>
-	void RowWithTooltip(ImGui::Utillity::FormLayout& layout, const char* labelKey, const char* descKey, TDrawFunc&& drawFunc)
-	{
-		layout.Row(
-			[&]() {
-				ImText label;
-				label.SetHoveredTooltip(Loc::Text(descKey));
-				label(Loc::Text(labelKey));
-			},
-			std::forward<TDrawFunc>(drawFunc));
-	}
-}
 
 void CAudioImporterWindow::DrawImportOptions()
 {
@@ -32,7 +18,7 @@ void CAudioImporterWindow::DrawImportOptions()
 		Loc::Text("inspector.audio.mode.streaming"),
 	};
 	int modeIndex = static_cast<int>(m_options.Mode);
-	RowWithTooltip(layout, "inspector.audio.mode", "inspector.audio.mode.desc",
+	ImporterGui::DrawLocalizedRow(layout, "inspector.audio.mode", "inspector.audio.mode.desc",
 		[&]() {
 			if (ImGui::Combo("##importer.audio.mode", &modeIndex, modeItems, IM_ARRAYSIZE(modeItems)))
 			{
@@ -49,7 +35,7 @@ void CAudioImporterWindow::DrawImportOptions()
 		Loc::Text("inspector.audio.bus.custom"),
 	};
 	int busIndex = static_cast<int>(m_options.DefaultBus);
-	RowWithTooltip(layout, "inspector.audio.default_bus", "inspector.audio.default_bus.desc",
+	ImporterGui::DrawLocalizedRow(layout, "inspector.audio.default_bus", "inspector.audio.default_bus.desc",
 		[&]() {
 			if (ImGui::Combo("##importer.audio.bus", &busIndex, busItems, IM_ARRAYSIZE(busItems)))
 			{
@@ -57,18 +43,18 @@ void CAudioImporterWindow::DrawImportOptions()
 			}
 		});
 
-	RowWithTooltip(layout, "inspector.audio.default_volume", "inspector.audio.default_volume.desc",
+	ImporterGui::DrawLocalizedRow(layout, "inspector.audio.default_volume", "inspector.audio.default_volume.desc",
 		[&]() { ImGui::DragFloat("##importer.audio.default_volume", &m_options.DefaultVolume, 0.01f, 0.0f, 2.0f); });
-	RowWithTooltip(layout, "inspector.audio.loop", "inspector.audio.loop.desc",
+	ImporterGui::DrawLocalizedRow(layout, "inspector.audio.loop", "inspector.audio.loop.desc",
 		[&]() { ImGui::Checkbox("##importer.audio.loop", &m_options.Loop); });
-	RowWithTooltip(layout, "inspector.audio.is_3d", "inspector.audio.is_3d.desc",
+	ImporterGui::DrawLocalizedRow(layout, "inspector.audio.is_3d", "inspector.audio.is_3d.desc",
 		[&]() { ImGui::Checkbox("##importer.audio.is_3d", &m_options.Is3D); });
 
 	if (m_options.Is3D)
 	{
-		RowWithTooltip(layout, "inspector.audio.min_distance", "inspector.audio.min_distance.desc",
+		ImporterGui::DrawLocalizedRow(layout, "inspector.audio.min_distance", "inspector.audio.min_distance.desc",
 			[&]() { ImGui::DragFloat("##importer.audio.min_distance", &m_options.MinDistance, 0.1f, 0.0f, 10000.0f); });
-		RowWithTooltip(layout, "inspector.audio.max_distance", "inspector.audio.max_distance.desc",
+		ImporterGui::DrawLocalizedRow(layout, "inspector.audio.max_distance", "inspector.audio.max_distance.desc",
 			[&]() { ImGui::DragFloat("##importer.audio.max_distance", &m_options.MaxDistance, 0.1f, 0.0f, 10000.0f); });
 		if (m_options.MinDistance < 0.0f) m_options.MinDistance = 0.0f;
 		if (m_options.MaxDistance < m_options.MinDistance) m_options.MaxDistance = m_options.MinDistance;

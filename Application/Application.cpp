@@ -2,7 +2,7 @@
 #include "Application.h" 
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
 #include "Editor/Editor.h"
-#include "Editor/Helper/ImGuiHelper.h"
+#include "Editor/Theme/EditorTheme.h"
 #endif
 
 #if !JBRO_EDITOR
@@ -86,8 +86,8 @@ void CGameApplication::OnPostInitialize()
 		{
 			engine->InitializeModule(*m_editor, "ImEditor");
 			Editor::RootDockWindow = m_editor->CreateImWindow<CRootDockWindow>("RootDockWindow");
-			ImGuiHelper::SetDarkThemeColor();
-			ImGuiHelper::SetDefaultThemeStyle();
+			EditorTheme::ApplyDarkColors();
+			EditorTheme::ApplyDefaultLayout();
 		}
 	}
 #else

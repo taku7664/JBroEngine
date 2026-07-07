@@ -27,12 +27,6 @@
 
 namespace
 {
-    SafePtr<IAssetManager> GetAssetManager()
-    {
-        SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
-        return pm ? pm->GetAssetManager() : nullptr;
-    }
-
     // ── Sprite handler ───────────────────────────────────────────────────────
     // Sprite 는 별도 자원 관리가 필요 없어 OnEnter/OnExit 는 비워둔다.
     class CSpritePreviewHandler final : public IAssetInspectorPreviewHandler
@@ -45,7 +39,7 @@ namespace
 
         bool OnStay(const AssetMetaData& metaData) override
         {
-            SafePtr<IAssetManager> am = GetAssetManager();
+			SafePtr<IAssetManager> am = EditorContext::GetAssetManager();
             if (false == am.IsValid()) return false;
 
             AssetRef<IAsset> asset = am->LoadAsset(metaData.Guid);
@@ -110,7 +104,7 @@ namespace
 
             EditorAudioPreview::EnsureInitialized();
 
-            SafePtr<IAssetManager> am = GetAssetManager();
+			SafePtr<IAssetManager> am = EditorContext::GetAssetManager();
             if (false == am.IsValid()) return;
 
             AssetRef<IAsset> asset = am->LoadAsset(metaData.Guid);
@@ -257,7 +251,7 @@ namespace
             // use-count>0 (인스펙터/씬 등 다른 사용자) 이면 UnloadAsset 가드가 알아서 거부 — 안전.
             if (false == m_loadedGuid.IsNull())
             {
-                if (SafePtr<IAssetManager> am = GetAssetManager())
+				if (SafePtr<IAssetManager> am = EditorContext::GetAssetManager())
                 {
                     am->UnloadAsset(m_loadedGuid);
                 }

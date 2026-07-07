@@ -345,7 +345,9 @@ xcopy /Y /I /E "$(ProjectDir)Localization" "$(SolutionDir)Localization\" &gt; nu
     <ClInclude Include="framework.h" />
     <ClInclude Include="Editor\Main\Hierarchy\HierarchyTool.h" />
     <ClInclude Include="Editor\Main\Inspector\InspectorTool.h" />
-    <ClInclude Include="Editor\Helper\ImGuiHelper.h" />
+    <ClInclude Include="Editor\Theme\EditorTheme.h" />
+    <ClInclude Include="Editor\Main\SceneView\SceneViewCoordinates.h" />
+    <ClInclude Include="Editor\Main\Importer\ImporterGui.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="Editor\RootDockWindow.h" />
@@ -446,7 +448,10 @@ xcopy /Y /I /E "$(ProjectDir)Localization" "$(SolutionDir)Localization\" &gt; nu
     <ClCompile Include="Editor\Main\Inspector\InspectorTool.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="Editor\Helper\ImGuiHelper.cpp">
+    <ClCompile Include="Editor\Theme\EditorTheme.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Editor\Main\SceneView\SceneViewCoordinates.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="pch.cpp">

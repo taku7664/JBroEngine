@@ -87,8 +87,7 @@ void CEffectEditorWidget::LoadFromDisk()
 	m_data  = AudioEffectData{};
 	m_dirty = false;
 
-	SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
-	SafePtr<IAssetManager>   am = pm ? pm->GetAssetManager() : nullptr;
+	SafePtr<IAssetManager>   am = EditorContext::GetAssetManager();
 	if (am.IsValid())
 	{
 		const AssetMetaData* meta = am->GetRegistry().FindAsset(m_guid);
@@ -109,8 +108,7 @@ void CEffectEditorWidget::LoadFromDisk()
 
 bool CEffectEditorWidget::SaveToDisk()
 {
-	SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
-	SafePtr<IAssetManager>   am = pm ? pm->GetAssetManager() : nullptr;
+	SafePtr<IAssetManager>   am = EditorContext::GetAssetManager();
 	if (false == am.IsValid()) return false;
 
 	const AssetMetaData* meta = am->GetRegistry().FindAsset(m_guid);
@@ -219,8 +217,7 @@ void CEffectEditorWidget::DrawPreview()
 	ImGui::BeginDisabled(false == hasSound);
 	if (ImGui::Button(Loc::Text("inspector.audio.preview.play"), ImVec2(80.0f, 0.0f)))
 	{
-		SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
-		SafePtr<IAssetManager>   am = pm ? pm->GetAssetManager() : nullptr;
+		SafePtr<IAssetManager>   am = EditorContext::GetAssetManager();
 		if (am.IsValid())
 		{
 			const AssetMetaData* meta = am->GetRegistry().FindAsset(m_testSoundGuid);

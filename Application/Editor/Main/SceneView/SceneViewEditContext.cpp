@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "SceneViewEditContext.h"
+#include "SceneViewCoordinates.h"
 
 #include <unordered_set>
 #include <vector>
@@ -17,31 +18,13 @@
 #include "Engine/GameFramework/Scene/Scene.h"
 #include "Engine/GameFramework/Scene/SceneTransformUtils.h"
 
+using SceneViewCoordinates::WorldToViewport;
+
 namespace
 {
     // ── 상수 ──────────────────────────────────────────────────────────────────
 
     constexpr std::uint8_t ALPHA_THRESHOLD = 0;
-
-    // ── 좌표 변환 유틸 ────────────────────────────────────────────────────────
-
-    float GetAspect(const ImVec2& vpSize)
-    {
-        return vpSize.y > 0.0f ? vpSize.x / vpSize.y : 1.0f;
-    }
-
-    ImVec2 WorldToViewport(
-        const Vector2& worldPt,
-        const ImVec2& vpMin, const ImVec2& vpSize,
-        const Vector2& camPos, float camSize)
-    {
-        const float aspect = GetAspect(vpSize);
-        const float ndcX   = (worldPt.x - camPos.x) / (camSize * aspect);
-        const float ndcY   = (worldPt.y - camPos.y) / camSize;
-        return ImVec2(
-            vpMin.x + (ndcX + 1.0f) * 0.5f * vpSize.x,
-            vpMin.y + (1.0f - ndcY) * 0.5f * vpSize.y);
-    }
 
     // ── 계층 탐색 헬퍼 ────────────────────────────────────────────────────────
 
