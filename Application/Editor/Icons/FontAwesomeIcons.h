@@ -1,68 +1,6 @@
 #pragma once
-#include <string>
-#include <array>
-
-namespace FontAssomeHelper
+namespace EditorIcons
 {
-    inline constexpr std::string UnicodeToUTF8(unsigned int codepoint)
-    {
-        std::string out;
-
-        if (codepoint <= 0x7F)
-        {
-            out += static_cast<char>(codepoint);
-        }
-        else if (codepoint <= 0x7FF)
-        {
-            out += static_cast<char>(0xC0 | (codepoint >> 6));
-            out += static_cast<char>(0x80 | (codepoint & 0x3F));
-        }
-        else if (codepoint <= 0xFFFF)
-        {
-            out += static_cast<char>(0xE0 | (codepoint >> 12));
-            out += static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
-            out += static_cast<char>(0x80 | (codepoint & 0x3F));
-        }
-        else if (codepoint <= 0x10FFFF)
-        {
-            out += static_cast<char>(0xF0 | (codepoint >> 18));
-            out += static_cast<char>(0x80 | ((codepoint >> 12) & 0x3F));
-            out += static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
-            out += static_cast<char>(0x80 | (codepoint & 0x3F));
-        }
-
-        return out;
-    }
-
-    inline constexpr std::array<char, 5> UnicodeToUTF8Array(unsigned codepoint)
-    {
-        std::array<char, 5> out = {};
-        if (codepoint <= 0x7F)
-        {
-            out[0] = static_cast<char>(codepoint);
-        }
-        else if (codepoint <= 0x7FF)
-        {
-            out[0] = static_cast<char>(0xC0 | (codepoint >> 6));
-            out[1] = static_cast<char>(0x80 | (codepoint & 0x3F));
-        }
-        else if (codepoint <= 0xFFFF)
-        {
-            out[0] = static_cast<char>(0xE0 | (codepoint >> 12));
-            out[1] = static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
-            out[2] = static_cast<char>(0x80 | (codepoint & 0x3F));
-        }
-        else // 최대 0x10FFFF
-        {
-            out[0] = static_cast<char>(0xF0 | (codepoint >> 18));
-            out[1] = static_cast<char>(0x80 | ((codepoint >> 12) & 0x3F));
-            out[2] = static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
-            out[3] = static_cast<char>(0x80 | (codepoint & 0x3F));
-        }
-        // out[4]는 기본으로 '\0'
-        return out;
-    }
-
     constexpr const char* ICON_GEAR = "\xEF\x80\x93"; // f013
     constexpr const char* ICON_GEARS = "\xEF\x80\x85"; // f085
 

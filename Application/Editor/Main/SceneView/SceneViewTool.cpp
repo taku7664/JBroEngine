@@ -4,7 +4,7 @@
 #include "Editor/Editor.h"
 #include "Editor/EditorContext.h"
 #include "Editor/Command/EditorSceneCommands.h"
-#include "Editor/Helper/EditorGuiDrawHelpers.h"
+#include "Editor/Gui/EditorGuiActions.h"
 #include "Editor/Main/Inspector/InspectorTool.h"
 #include "Engine/Core/EngineCore.h"
 #include <cstring>
@@ -982,7 +982,7 @@ void CSceneViewTool::OnRenderStay()
             {
                 if (ImGui::IsKeyPressed(ImGuiKey_C, false))
                 {
-                    EditorGuiDrawHelpers::CopySelectedObjectsToClipboard();
+                    EditorGuiActions::CopySelectedObjectsToClipboard();
                 }
                 if (ImGui::IsKeyPressed(ImGuiKey_V, false))
                 {
@@ -990,7 +990,7 @@ void CSceneViewTool::OnRenderStay()
                     const Vector2 pasteWorld = isHovered
                         ? ViewportToWorld(ImGui::GetIO().MousePos, vpMin, vpSize, m_cameraPos, m_cameraSize)
                         : m_cameraPos;
-                    EditorGuiDrawHelpers::PasteObjectsFromClipboard(*scene, &pasteWorld);
+                    EditorGuiActions::PasteObjectsFromClipboard(*scene, &pasteWorld);
                 }
             }
         }
@@ -1292,20 +1292,20 @@ void CSceneViewTool::OnRenderStay()
             if (nullptr != menuObject)
             {
                 // 오브젝트 우클릭: "Add Child Object" + "Add Component ▶" + 복사/붙여넣기 + "Delete"
-                EditorGuiDrawHelpers::DrawAddObjectMenu(*popupScene, menuObject, &m_contextMenuWorldPos);
+				EditorGuiActions::DrawAddObjectMenu(*popupScene, menuObject, &m_contextMenuWorldPos);
                 ImGui::Separator();
-                EditorGuiDrawHelpers::DrawAddComponentMenu(*popupScene, menuObject);
+				EditorGuiActions::DrawAddComponentMenu(*popupScene, menuObject);
                 ImGui::Separator();
-                EditorGuiDrawHelpers::DrawCopyObjectMenuItem(*menuObject);
-                EditorGuiDrawHelpers::DrawPasteObjectMenuItem(*popupScene);
+				EditorGuiActions::DrawCopyObjectMenuItem(*menuObject);
+				EditorGuiActions::DrawPasteObjectMenuItem(*popupScene);
                 ImGui::Separator();
-                EditorGuiDrawHelpers::DrawRemoveObjectMenu(*popupScene, menuObject);
+				EditorGuiActions::DrawRemoveObjectMenu(*popupScene, menuObject);
             }
             else if (!vtxValid || menuParent)
             {
                 // 빈 공간 우클릭 (버텍스 전용 팝업이 아닐 때 or 부모가 지정된 경우)
-                EditorGuiDrawHelpers::DrawAddObjectMenu(*popupScene, menuParent, &m_contextMenuWorldPos);
-                EditorGuiDrawHelpers::DrawPasteObjectMenuItem(*popupScene);
+				EditorGuiActions::DrawAddObjectMenu(*popupScene, menuParent, &m_contextMenuWorldPos);
+				EditorGuiActions::DrawPasteObjectMenuItem(*popupScene);
             }
         }
         ImGui::EndPopup();

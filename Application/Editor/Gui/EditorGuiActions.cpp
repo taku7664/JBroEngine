@@ -1,10 +1,11 @@
 #include "pch.h"
-#include "EditorGuiDrawHelpers.h"
+#include "EditorGuiActions.h"
 
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
 
 #include "Editor/Command/EditorSceneCommands.h"
 #include "Editor/Editor.h"
+#include "Editor/Localization/EditorReflectionLabels.h"
 #include "Engine/Core/EngineCore.h"
 #include "Engine/GameFramework/Component/Component.h"
 #include "Engine/GameFramework/Object/GameObject.h"
@@ -47,7 +48,7 @@ namespace
 			}
 
 			const std::string label =
-				std::string(EditorGuiDrawHelpers::GetScriptDisplayName(scriptType)) + "##" + std::to_string(scriptType->Type.Id);
+				std::string(EditorReflectionLabels::GetScriptDisplayName(scriptType)) + "##" + std::to_string(scriptType->Type.Id);
 			if (ImGui::MenuItem(label.c_str()))
 			{
 				added = Editor::CommandManager.ExecuteCommand(
@@ -90,7 +91,7 @@ namespace
 
 		for (const std::string& category : categories)
 		{
-			const std::string categoryLabel = EditorGuiDrawHelpers::LocalizedCategoryLabel(category.c_str());
+			const std::string categoryLabel = EditorReflectionLabels::GetCategoryLabel(category.c_str());
 			if (ImGui::BeginMenu(categoryLabel.c_str()))
 			{
 				for (std::size_t i = 0; i < reflection.GetComponentTypeCount(); ++i)
@@ -102,7 +103,7 @@ namespace
 					    componentType->Type.Category ? componentType->Type.Category : "Components";
 					if (category != componentCategory) continue;
 
-					const std::string componentLabel = EditorGuiDrawHelpers::LocalizedComponentLabel(*componentType);
+					const std::string componentLabel = EditorReflectionLabels::GetComponentLabel(*componentType);
 					if (ImGui::MenuItem(componentLabel.c_str()))
 					{
 						Editor::CommandManager.ExecuteCommand(
@@ -125,42 +126,7 @@ namespace
 	}
 } // namespace
 
-// ── 리플렉션 → 로컬라이즈 라벨 헬퍼 ────────────────────────────────────────
-const char* EditorGuiDrawHelpers::GetScriptDisplayName(const ScriptTypeInfo* scriptType)
-{
-	if (nullptr == scriptType)
-	{
-		return Loc::Text("inspector.unknown_script");
-	}
-	if (scriptType->Type.DisplayName && scriptType->Type.DisplayName[0] != '\0')
-	{
-		return scriptType->Type.DisplayName;
-	}
-	return scriptType->Type.Name ? scriptType->Type.Name : Loc::Text("inspector.unknown_script");
-}
-
-std::string EditorGuiDrawHelpers::LocalizedComponentLabel(const ComponentTypeInfo& componentType)
-{
-	const char* fallback = componentType.Type.DisplayName ? componentType.Type.DisplayName : componentType.Type.Name;
-	const std::string key = std::string("editor.component.") + (componentType.Type.Name ? componentType.Type.Name : "");
-	return Loc::TextOr(key.c_str(), fallback ? fallback : "");
-}
-
-std::string EditorGuiDrawHelpers::LocalizedPropertyLabel(const ReflectPropertyInfo& property)
-{
-	const char* fallback = property.DisplayName ? property.DisplayName : property.Name;
-	const std::string key = std::string("editor.property.") + (property.Name ? property.Name : "");
-	return Loc::TextOr(key.c_str(), fallback ? fallback : "");
-}
-
-std::string EditorGuiDrawHelpers::LocalizedCategoryLabel(const char* category)
-{
-	const char* safe = category ? category : "Components";
-	const std::string key = std::string("editor.category.") + safe;
-	return Loc::TextOr(key.c_str(), safe);
-}
-
-bool EditorGuiDrawHelpers::DrawAddComponentMenu(CGameScene& scene, CGameObject* object)
+bool EditorGuiActions::DrawAddComponentMenu(CGameScene& scene, CGameObject* object)
 {
 	if (ImGui::BeginMenu(Loc::Text("inspector.add_component")))
 	{
@@ -171,7 +137,7 @@ bool EditorGuiDrawHelpers::DrawAddComponentMenu(CGameScene& scene, CGameObject* 
 	return false;
 }
 
-bool EditorGuiDrawHelpers::DrawAddComponentButton(CGameScene& scene, CGameObject* object)
+bool EditorGuiActions::DrawAddComponentButton(CGameScene& scene, CGameObject* object)
 {
 	bool added = false;
 	if (ImGui::Button(Loc::Text("inspector.add_component")))
@@ -187,7 +153,7 @@ bool EditorGuiDrawHelpers::DrawAddComponentButton(CGameScene& scene, CGameObject
 	return added;
 }
 
-bool EditorGuiDrawHelpers::DrawAddObjectMenu(CGameScene& scene, CGameObject* parent, const Vector2* spawnWorldPos)
+bool EditorGuiActions::DrawAddObjectMenu(CGameScene& scene, CGameObject* parent, const Vector2* spawnWorldPos)
 {
 	// parent 유무에 따라 레이블 변경
 	const char* label = (nullptr != parent)
@@ -208,7 +174,7 @@ bool EditorGuiDrawHelpers::DrawAddObjectMenu(CGameScene& scene, CGameObject* par
 	return false;
 }
 
-bool EditorGuiDrawHelpers::DrawRemoveObjectMenu(CGameScene& scene, CGameObject* object)
+bool EditorGuiActions::DrawRemoveObjectMenu(CGameScene& scene, CGameObject* object)
 {
 	if (nullptr == object)
 	{
@@ -233,7 +199,7 @@ bool EditorGuiDrawHelpers::DrawRemoveObjectMenu(CGameScene& scene, CGameObject* 
 
 // ── 복사 / 붙여넣기 ──────────────────────────────────────────────────────────
 
-bool EditorGuiDrawHelpers::DrawCopyObjectMenuItem(const CGameObject& object)
+bool EditorGuiActions::DrawCopyObjectMenuItem(const CGameObject& object)
 {
 	if (ImGui::MenuItem(Loc::TextOr("editor.menu.copy_object", "Copy Object")))
 	{
@@ -244,7 +210,7 @@ bool EditorGuiDrawHelpers::DrawCopyObjectMenuItem(const CGameObject& object)
 	return false;
 }
 
-bool EditorGuiDrawHelpers::DrawPasteObjectMenuItem(CGameScene& scene)
+bool EditorGuiActions::DrawPasteObjectMenuItem(CGameScene& scene)
 {
 	const char* clip = ImGui::GetClipboardText();
 	if (nullptr == clip || false == Serialization::LooksLikeObject(clip))
@@ -259,7 +225,7 @@ bool EditorGuiDrawHelpers::DrawPasteObjectMenuItem(CGameScene& scene)
 	return false;
 }
 
-bool EditorGuiDrawHelpers::CopySelectedObjectsToClipboard()
+bool EditorGuiActions::CopySelectedObjectsToClipboard()
 {
 	const std::vector<CGameObject*> roots = Editor::GetSelectedTopLevel();
 	if (roots.empty())
@@ -276,7 +242,7 @@ bool EditorGuiDrawHelpers::CopySelectedObjectsToClipboard()
 	return true;
 }
 
-bool EditorGuiDrawHelpers::PasteObjectsFromClipboard(CGameScene& scene, const Vector2* spawnWorldPos)
+bool EditorGuiActions::PasteObjectsFromClipboard(CGameScene& scene, const Vector2* spawnWorldPos)
 {
 	const char* clip = ImGui::GetClipboardText();
 	if (nullptr == clip || false == Serialization::LooksLikeObject(clip))
@@ -294,7 +260,7 @@ bool EditorGuiDrawHelpers::PasteObjectsFromClipboard(CGameScene& scene, const Ve
 	return true;
 }
 
-bool EditorGuiDrawHelpers::DrawCopyComponentMenuItem(const CComponent& component)
+bool EditorGuiActions::DrawCopyComponentMenuItem(const CComponent& component)
 {
 	if (ImGui::MenuItem(Loc::TextOr("editor.menu.copy_component", "Copy Component")))
 	{
@@ -308,7 +274,7 @@ bool EditorGuiDrawHelpers::DrawCopyComponentMenuItem(const CComponent& component
 	return false;
 }
 
-bool EditorGuiDrawHelpers::DrawPasteComponentMenuItem(CGameObject& object)
+bool EditorGuiActions::DrawPasteComponentMenuItem(CGameObject& object)
 {
 	const char* clip = ImGui::GetClipboardText();
 	if (nullptr == clip || false == Serialization::LooksLikeComponent(clip))

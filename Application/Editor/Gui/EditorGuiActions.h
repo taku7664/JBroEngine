@@ -8,11 +8,7 @@
 
 class CGameScene;
 class CGameObject;
-struct ComponentTypeInfo;
-struct ReflectPropertyInfo;
-struct ScriptTypeInfo;
-
-namespace EditorGuiDrawHelpers
+namespace EditorGuiActions
 {
 	// ── 컴포넌트 ──────────────────────────────────────────────────────────
 
@@ -55,21 +51,6 @@ namespace EditorGuiDrawHelpers
 	// 클립보드의 컴포넌트를 object 에 붙여넣는 MenuItem(클립보드가 컴포넌트일 때만 표시).
 	bool DrawPasteComponentMenuItem(CGameObject& object);
 
-	// ── 리플렉션 → 로컬라이즈 라벨 ─────────────────────────────────────────────
-	// 셋 다 키 없으면 fallback(DisplayName → Name) 반환.
-
-	// 스크립트 타입의 표시명. nullptr 입력 시 "inspector.unknown_script" 반환.
-	// 반환 포인터는 리플렉션 레지스트리의 정적 문자열이거나 LocalizationManager 내부 버퍼.
-	const char* GetScriptDisplayName(const ScriptTypeInfo* scriptType);
-
-	// "editor.component.<Name>" 키로 로컬라이즈된 컴포넌트 라벨.
-	std::string LocalizedComponentLabel(const ComponentTypeInfo& componentType);
-
-	// "editor.property.<Name>" 키로 로컬라이즈된 프로퍼티 라벨.
-	std::string LocalizedPropertyLabel(const ReflectPropertyInfo& property);
-
-	// "editor.category.<category>" 키로 로컬라이즈된 카테고리 라벨.
-	std::string LocalizedCategoryLabel(const char* category);
 }
 
 #endif

@@ -15,7 +15,8 @@
 #include "Editor/EditorContext.h"
 #include "Editor/Command/EditorSceneCommands.h"
 #include "Editor/EditorDragDrop.h"
-#include "Editor/Helper/EditorGuiDrawHelpers.h"
+#include "Editor/Gui/EditorGuiActions.h"
+#include "Editor/Localization/EditorReflectionLabels.h"
 #include "Engine/GameFramework/Object/GameObject.h"
 #include "Engine/GameFramework/Object/Ref.h"
 #include "Engine/GameFramework/Reflection/ReflectionRegistry.h"
@@ -56,9 +57,9 @@ namespace
 {
 	constexpr std::size_t GUID_BUFFER_LENGTH = 128;
 
-	using EditorGuiDrawHelpers::GetScriptDisplayName;
-	using EditorGuiDrawHelpers::LocalizedComponentLabel;
-	using EditorGuiDrawHelpers::LocalizedPropertyLabel;
+	using EditorReflectionLabels::GetComponentLabel;
+	using EditorReflectionLabels::GetPropertyLabel;
+	using EditorReflectionLabels::GetScriptDisplayName;
 
 	// 컴포넌트 타입 이름 → ResourceRegistry 아이콘 키.
 	// 매핑이 없으면 nullptr — 호출부에서 자리(Dummy)만 비우고 이미지는 그리지 않는다.
@@ -788,7 +789,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			if (canRawUndo && field && property.Size > 0)
 				std::memcpy(oldValue.data(), field, property.Size);
 
-			const std::string label = LocalizedPropertyLabel(property);
+			const std::string label = GetPropertyLabel(property);
 			layout.Row([&]() { leftText(label.c_str()); }, [&]() {
 					const bool	changed = DrawPropertyEditor(field, property);
 					if (changed && canRawUndo && field && property.Size > 0)
@@ -1638,7 +1639,7 @@ void CInspectorTool::OnRenderStay()
 		if (strcmp(name, "GameObject") == 0)
 			continue; // 상단 인라인 처리됨
 
-		const std::string baseDisplayName = LocalizedComponentLabel(*e.typeInfo);
+		const std::string baseDisplayName = GetComponentLabel(*e.typeInfo);
 		const bool hasMultiple = e.instances.size() > 1;
 		const bool isScriptComponent = (name && 0 == strcmp(name, "ScriptComponent"));
 
@@ -1760,9 +1761,9 @@ void CInspectorTool::OnRenderStay()
 				// 복사/붙여넣기 — firstInst 는 단일 상속이라 곧 CComponent* 다.
 				if (CComponent* comp = static_cast<CComponent*>(firstInst))
 				{
-					EditorGuiDrawHelpers::DrawCopyComponentMenuItem(*comp);
+					EditorGuiActions::DrawCopyComponentMenuItem(*comp);
 				}
-				EditorGuiDrawHelpers::DrawPasteComponentMenuItem(*selectedObject);
+				EditorGuiActions::DrawPasteComponentMenuItem(*selectedObject);
 				ImGui::Separator();
 				if (ImGui::MenuItem(Loc::Text("inspector.remove_component")))
 				{

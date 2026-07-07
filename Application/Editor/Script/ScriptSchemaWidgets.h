@@ -14,7 +14,7 @@
 #include "Editor/ImGuiUtillity.h"
 #include "Core/Localization/LocalizationManager.h"
 #include "Editor/Script/ScriptSchema.h"
-#include "Editor/FontAssome/FontAssomeHelper.h"
+#include "Editor/Icons/FontAwesomeIcons.h"
 
 #include <string>
 #include <vector>
@@ -198,7 +198,7 @@ namespace ScriptSchemaUI
 
 		// 메뉴
 		ImGui::SameLine(0.0f, gap);
-		if (ImTextButton(FontAssomeHelper::ICON_ELLIPSIS_VERTICAL, ImVec2(menuW, 0.0f), ImVec2(0, -2)))
+		if (ImTextButton(EditorIcons::ICON_ELLIPSIS_VERTICAL, ImVec2(menuW, 0.0f), ImVec2(0, -2)))
 		{
 			ImGui::OpenPopup("##prop_menu");   // U+22EE
 		}

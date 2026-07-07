@@ -54,7 +54,10 @@
     <ClInclude Include="Editor\Build\GameBuildManager.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
-    <ClInclude Include="Editor\Helper\EditorGuiDrawHelpers.h">
+    <ClInclude Include="Editor\Gui\EditorGuiActions.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\Localization\EditorReflectionLabels.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="Editor\Main\MainDockWindow.h">
@@ -144,7 +147,7 @@
     <ClInclude Include="Editor\Main\Inspector\EffectEditorWindow.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
-    <ClInclude Include="Editor\FontAssome\FontAssomeHelper.h">
+    <ClInclude Include="Editor\Icons\FontAwesomeIcons.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
   </ItemGroup>
@@ -173,7 +176,10 @@
     <ClCompile Include="Editor\Main\Guizmo\Guizmo3D.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
-    <ClCompile Include="Editor\Helper\EditorGuiDrawHelpers.cpp">
+    <ClCompile Include="Editor\Gui\EditorGuiActions.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\Localization\EditorReflectionLabels.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="Editor\EditorDragDrop.cpp">

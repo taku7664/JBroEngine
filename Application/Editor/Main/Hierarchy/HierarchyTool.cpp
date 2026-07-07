@@ -5,8 +5,8 @@
 #include "Engine/Editor/ImItem/ImButton.h"
 
 #include "Editor/Command/EditorSceneCommands.h"
-#include "Editor/FontAssome/FontAssomeHelper.h"
-#include "Editor/Helper/EditorGuiDrawHelpers.h"
+#include "Editor/Icons/FontAwesomeIcons.h"
+#include "Editor/Gui/EditorGuiActions.h"
 #include "Editor/Editor.h"
 #include "Editor/EditorContext.h"
 #include "Editor/EditorDragDrop.h"
@@ -60,8 +60,8 @@ void CHierarchyTool::OnRenderStay()
 		if (ImGui::BeginPopupContextWindow("HierarchyBackgroundContext",
 		    ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems))
 		{
-			EditorGuiDrawHelpers::DrawAddObjectMenu(*activeScene, nullptr);
-			EditorGuiDrawHelpers::DrawPasteObjectMenuItem(*activeScene);
+			EditorGuiActions::DrawAddObjectMenu(*activeScene, nullptr);
+			EditorGuiActions::DrawPasteObjectMenuItem(*activeScene);
 			ImGui::EndPopup();
 		}
 	};
@@ -227,12 +227,12 @@ void CHierarchyTool::OnRenderStay()
 				ImGui::Separator();
 			}
 
-			EditorGuiDrawHelpers::DrawAddComponentMenu(*activeScene, obj);
+			EditorGuiActions::DrawAddComponentMenu(*activeScene, obj);
 			ImGui::Separator();
-			EditorGuiDrawHelpers::DrawCopyObjectMenuItem(*obj);
-			EditorGuiDrawHelpers::DrawPasteObjectMenuItem(*activeScene);
+			EditorGuiActions::DrawCopyObjectMenuItem(*obj);
+			EditorGuiActions::DrawPasteObjectMenuItem(*activeScene);
 			ImGui::Separator();
-			EditorGuiDrawHelpers::DrawRemoveObjectMenu(*activeScene, obj);
+			EditorGuiActions::DrawRemoveObjectMenu(*activeScene, obj);
 			ImGui::EndPopup();
 		}
 
@@ -244,7 +244,7 @@ void CHierarchyTool::OnRenderStay()
 			// 버튼 높이를 실제 트리노드 줄 높이(nodeH)에 정확히 맞춘다(오버플로 방지).
 			// 글리프만 0.7 로 축소 → 버튼 안 세로 중앙(=줄 중앙).
 			ImGui::SameLine(ImGui::GetContentRegionMax().x - nodeH);
-			const char* icon = hidden ? FontAssomeHelper::ICON_EYE_SLASH : FontAssomeHelper::ICON_EYE;
+			const char* icon = hidden ? EditorIcons::ICON_EYE_SLASH : EditorIcons::ICON_EYE;
 			ImText eyeText;
 			eyeText.SetScale(0.7f).SetAlign(ImText::Align::Center);
 			if (ImTextButton(eyeText, icon, ImVec2(nodeH, nodeH)))

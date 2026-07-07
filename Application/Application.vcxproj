@@ -318,7 +318,7 @@ xcopy /Y /I /E "$(ProjectDir)Localization" "$(SolutionDir)Localization\" &gt; nu
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="Application.h" />
-    <ClInclude Include="Editor\FontAssome\FontAssomeHelper.h" />
+    <ClInclude Include="Editor\Icons\FontAwesomeIcons.h" />
     <ClInclude Include="Editor\Main\AssetBrowser\AssetHandler.h" />
     <ClInclude Include="Editor\Build\GameBuildManager.h" />
     <ClInclude Include="Editor\Command\EditorFileCommands.h" />
@@ -328,7 +328,8 @@ xcopy /Y /I /E "$(ProjectDir)Localization" "$(SolutionDir)Localization\" &gt; nu
     <ClInclude Include="Editor\Main\Guizmo\Guizmo2D.h" />
     <ClInclude Include="Editor\Main\Guizmo\Guizmo3D.h" />
     <ClInclude Include="Editor\Main\Guizmo\GuizmoTypes.h" />
-    <ClInclude Include="Editor\Helper\EditorGuiDrawHelpers.h" />
+    <ClInclude Include="Editor\Gui\EditorGuiActions.h" />
+    <ClInclude Include="Editor\Localization\EditorReflectionLabels.h" />
     <ClInclude Include="Editor\EditorDragDrop.h" />
     <ClInclude Include="Editor\Main\AssetBrowser\AssetBrowserTool.h" />
     <ClInclude Include="Editor\Script\ScriptSchema.h" />
@@ -387,7 +388,10 @@ xcopy /Y /I /E "$(ProjectDir)Localization" "$(SolutionDir)Localization\" &gt; nu
     <ClCompile Include="Editor\Main\Guizmo\Guizmo3D.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="Editor\Helper\EditorGuiDrawHelpers.cpp">
+    <ClCompile Include="Editor\Gui\EditorGuiActions.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Editor\Localization\EditorReflectionLabels.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="Editor\EditorDragDrop.cpp">

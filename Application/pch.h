@@ -9,7 +9,7 @@
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
 #include "Editor/Editor.h"
 #include "Editor/Helper/ImGuiHelper.h"
-#include "Editor/Helper/EditorGuiDrawHelpers.h"
+#include "Editor/Gui/EditorGuiActions.h"
 #include "Editor/RootDockWindow.h"
 #include "Editor/Main/MainDockWindow.h"
 
