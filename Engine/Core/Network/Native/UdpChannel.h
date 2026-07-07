@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <functional>
 #include <unordered_map>
+#include <utility>
 
 // 네이티브 비신뢰(UDP) 채널. 신뢰 WS 연결 위에 얹혀 도는 부가 데이터그램 경로.
 //   - 서버: TCP 와 동일 포트에 UDP bind. 연결마다 토큰 발급(신뢰 채널로 전달) → 토큰으로
@@ -24,6 +25,11 @@ class CUdpChannel
 public:
 	// (connId, msgId, payload, size) — NM 이 기존 타입드/raw 경로로 디스패치.
 	using FOnUdpMessage = std::function<void(NetworkConnectionId, std::uint16_t, const std::uint8_t*, std::uint32_t)>;
+
+	// 테스트 훅: 생성된 UDP 소켓을 감쌀 데코레이터(예: CLossyUdpSocket 로 유실 주입).
+	// 미설정(기본)이면 소켓을 그대로 쓴다 — 프로덕션 경로 무변경. Start* 전에 호출해야 적용.
+	using FSocketDecorator = std::function<OwnerPtr<IUdpSocket>(OwnerPtr<IUdpSocket>)>;
+	void SetSocketDecorator(FSocketDecorator decorator) { m_socketDecorator = std::move(decorator); }
 
 	bool StartServer(std::uint16_t port);
 	bool StartClient(const char* serverHost, std::uint16_t serverPort);
@@ -111,6 +117,7 @@ private:
 
 private:
 	OwnerPtr<IUdpSocket> m_socket;
+	FSocketDecorator     m_socketDecorator; // 미설정=프로덕션 경로. 설정 시 테스트 유실 주입.
 	ENetworkRole         m_role = ENetworkRole::None;
 	std::uint64_t        m_rng  = 0xD1B54A32D192ED03ull;
 

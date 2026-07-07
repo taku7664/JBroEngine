@@ -49,6 +49,10 @@ namespace
 bool CUdpChannel::StartServer(std::uint16_t port)
 {
 	m_socket = CreateUdpSocket();
+	if (m_socket && m_socketDecorator)
+	{
+		m_socket = m_socketDecorator(std::move(m_socket)); // 테스트: 유실 데코레이터로 감쌈.
+	}
 	if (!m_socket || false == m_socket->Bind(port))
 	{
 		m_socket.Reset();
@@ -61,6 +65,10 @@ bool CUdpChannel::StartServer(std::uint16_t port)
 bool CUdpChannel::StartClient(const char* serverHost, std::uint16_t serverPort)
 {
 	m_socket = CreateUdpSocket();
+	if (m_socket && m_socketDecorator)
+	{
+		m_socket = m_socketDecorator(std::move(m_socket)); // 테스트: 유실 데코레이터로 감쌈.
+	}
 	if (!m_socket || false == m_socket->Open() ||
 	    false == m_socket->Resolve(serverHost, serverPort, m_serverEndpoint))
 	{
