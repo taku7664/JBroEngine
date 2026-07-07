@@ -4,6 +4,7 @@
 
 #include "Engine/GameFramework/Object/GameObject.h"    // CGameObject (선택 = SafePtr)
 #include "Editor/Command/EditorCommandManager.h"
+#include "Editor/Shortcut/EditorShortcutManager.h"
 #include "Utillity/File/FilePath.h"
 #include "Utillity/Pointer/SafePtr.h"
 
@@ -44,6 +45,7 @@ public:
 	inline static SafePtr<CSpriteImporterWindow>	SpriteImporter = nullptr;
 	inline static SafePtr<CAudioImporterWindow>		AudioImporter  = nullptr;
 	inline static CEditorCommandManager				CommandManager;
+	inline static CEditorShortcutManager			ShortcutManager;
 
 	// ── 단일 선택: 이전 다중 선택 초기화 후 오브젝트 하나만 선택 ──────────────
 	static void SelectEntity(CGameObject* object)

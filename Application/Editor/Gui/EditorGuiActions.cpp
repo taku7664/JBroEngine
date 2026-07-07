@@ -212,8 +212,7 @@ bool EditorGuiActions::DrawCopyObjectMenuItem(const CGameObject& object)
 
 bool EditorGuiActions::DrawPasteObjectMenuItem(CGameScene& scene)
 {
-	const char* clip = ImGui::GetClipboardText();
-	if (nullptr == clip || false == Serialization::LooksLikeObject(clip))
+	if (false == HasObjectClipboardData())
 	{
 		return false;   // 클립보드가 오브젝트가 아니면 메뉴를 숨긴다.
 	}
@@ -223,6 +222,12 @@ bool EditorGuiActions::DrawPasteObjectMenuItem(CGameScene& scene)
 		return PasteObjectsFromClipboard(scene, nullptr);
 	}
 	return false;
+}
+
+bool EditorGuiActions::HasObjectClipboardData()
+{
+	const char* clipboardText = ImGui::GetClipboardText();
+	return nullptr != clipboardText && Serialization::LooksLikeObject(clipboardText);
 }
 
 bool EditorGuiActions::CopySelectedObjectsToClipboard()

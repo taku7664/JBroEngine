@@ -335,6 +335,20 @@ void CSceneViewTool::ClearEditContext()
     m_editCtx.Clear();
 }
 
+Vector2 CSceneViewTool::GetPreferredPasteWorldPosition() const
+{
+	if (m_lastViewportHovered && m_lastViewportSize.x > 0.0f && m_lastViewportSize.y > 0.0f)
+	{
+		return ViewportToWorld(
+			ImGui::GetIO().MousePos,
+			m_lastViewportMin,
+			m_lastViewportSize,
+			m_cameraPos,
+			m_cameraSize);
+	}
+	return m_cameraPos;
+}
+
 void CSceneViewTool::OnCreate()
 {
     SetLocalizedTitleKey("window.scene_view");
@@ -914,6 +928,9 @@ void CSceneViewTool::OnRenderStay()
 
     const bool isHovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
     const bool isActive  = ImGui::IsItemActive();
+	m_lastViewportMin = vpMin;
+	m_lastViewportSize = vpSize;
+	m_lastViewportHovered = isHovered;
 
     GuizmoFrameResult guizmoResult;
     if (Engine.SceneManager)
@@ -967,32 +984,6 @@ void CSceneViewTool::OnRenderStay()
                                 m_targetCameraPos, m_targetCameraSize);
             m_targetCameraPos.x += worldBefore.x - worldAfter.x;
             m_targetCameraPos.y += worldBefore.y - worldAfter.y;
-        }
-    }
-
-    // ── 키보드 단축키: Ctrl+C 복사 / Ctrl+V 붙여넣기 (씬뷰 포커스 시) ─────────
-    // 포커스 기준이라 마우스가 잠깐 벗어나도 동작. 텍스트 입력 중(다른 위젯)엔 무시.
-    if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)
-        && ImGui::GetIO().KeyCtrl && false == ImGui::GetIO().WantTextInput)
-    {
-        if (Engine.SceneManager)
-        {
-			SafePtr<CGameScene> scene = EditorContext::GetActiveScene();
-            if (scene)
-            {
-                if (ImGui::IsKeyPressed(ImGuiKey_C, false))
-                {
-                    EditorGuiActions::CopySelectedObjectsToClipboard();
-                }
-                if (ImGui::IsKeyPressed(ImGuiKey_V, false))
-                {
-                    // 붙여넣기 위치: 마우스가 씬뷰 위면 커서 월드 좌표, 아니면 카메라 중심.
-                    const Vector2 pasteWorld = isHovered
-                        ? ViewportToWorld(ImGui::GetIO().MousePos, vpMin, vpSize, m_cameraPos, m_cameraSize)
-                        : m_cameraPos;
-                    EditorGuiActions::PasteObjectsFromClipboard(*scene, &pasteWorld);
-                }
-            }
         }
     }
 

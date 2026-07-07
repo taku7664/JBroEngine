@@ -34,6 +34,10 @@ public:
     // Flash-like 포커스 컨텍스트 초기화 (씬 변경, 프로젝트 닫기 시 호출)
     void ClearEditContext();
 
+	// Global paste uses the cursor position while it is over the Scene View,
+	// and falls back to the editor camera center otherwise.
+	Vector2 GetPreferredPasteWorldPosition() const;
+
 private:
     void OnCreate()     override;
     void OnDestroy()    override;
@@ -48,6 +52,9 @@ private:
     float          m_targetCameraSize = 5.0f;
     Vector2 m_cameraPos        = Vector2(0.0f, 0.0f);
     float          m_cameraSize       = 5.0f;
+	ImVec2         m_lastViewportMin  = {};
+	ImVec2         m_lastViewportSize = {};
+	bool           m_lastViewportHovered = false;
 
     // ── Flash-like 포커스 내비게이션 ────────────────────────────────────────
     CSceneViewEditContext m_editCtx;

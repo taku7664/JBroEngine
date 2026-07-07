@@ -5,7 +5,6 @@
 
 #include "Editor/Editor.h"
 #include "Editor/EditorContext.h"
-#include "Editor/EditorSessionPersistence.h"
 #include "Editor/Main/BuildSettingsWindow.h"
 #include "Editor/Main/ProjectSettingsWindow.h"
 #include "Editor/Main/MainDockWindow.h"
@@ -320,17 +319,6 @@ namespace
 		}
 	}
 
-	void SaveCurrentEditorState()
-	{
-		std::string error;
-		if (EditorSessionPersistence::Save(error))
-		{
-			CSystemLog::Info("Editor session saved.");
-			return;
-		}
-
-		CSystemLog::Error(error.empty() ? "Editor session save failed." : error);
-	}
 }
 
 void CRootDockWindow::OnCreate()
@@ -360,6 +348,11 @@ void CRootDockWindow::OnCreate()
         Editor::BuildSettings =
             Editor::ImEditor->CreateImWindow<CBuildSettingsWindow>("BuildSettings", 0);
     }
+}
+
+void CRootDockWindow::OnUpdate()
+{
+	Editor::ShortcutManager.ProcessInput();
 }
 
 void CRootDockWindow::OnRenderStay()
@@ -732,9 +725,19 @@ void CRootDockWindow::OnMenuBar()
 				}
 			}
 		}
-		if (ImGui::MenuItem(Loc::Text("menu.file.save_project")))
+		const bool canSave = Editor::ShortcutManager.CanExecute(EEditorShortcut::SaveProject);
+		if (false == canSave)
 		{
-			SaveCurrentEditorState();
+			ImGui::BeginDisabled();
+		}
+		const std::string saveShortcut = Editor::ShortcutManager.GetShortcutText(EEditorShortcut::SaveProject);
+		if (ImGui::MenuItem(Loc::Text("menu.file.save_project"), saveShortcut.c_str()))
+		{
+			Editor::ShortcutManager.Execute(EEditorShortcut::SaveProject);
+		}
+		if (false == canSave)
+		{
+			ImGui::EndDisabled();
 		}
 
 		SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();

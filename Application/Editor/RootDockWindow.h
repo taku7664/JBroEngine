@@ -18,6 +18,7 @@ public:
 
 private:
 	void OnCreate() override;
+	void OnUpdate() override;
 	void OnRenderStay() override;
 	void OnMenuBar() override;
 

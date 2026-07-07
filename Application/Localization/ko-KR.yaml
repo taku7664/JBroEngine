@@ -23,6 +23,8 @@ Entries:
   menu.simulation.play: 실행
   menu.simulation.pause: 일시정지
   menu.simulation.stop: 중단
+  menu.simulation.play_toggle: 실행 / 중단
+  menu.simulation.pause_toggle: 일시정지 / 재개
   menu.edit: 편집
   menu.edit.undo: 되돌리기
   menu.edit.redo: 다시 실행

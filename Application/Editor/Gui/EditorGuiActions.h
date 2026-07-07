@@ -45,6 +45,7 @@ namespace EditorGuiActions
 	// 클립보드 오브젝트(들)을 붙여넣고(undo 가능) 붙여넣은 루트를 선택한다.
 	//   spawnWorldPos != nullptr : 그룹 중심을 그 월드 좌표로 이동. null = 원본 위치 유지.
 	bool PasteObjectsFromClipboard(CGameScene& scene, const Vector2* spawnWorldPos = nullptr);
+	bool HasObjectClipboardData();
 
 	// 컴포넌트를 클립보드로 복사하는 MenuItem.
 	bool DrawCopyComponentMenuItem(const class CComponent& component);

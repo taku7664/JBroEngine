@@ -100,88 +100,88 @@ void CMainDockWindow::OnMenuBar()
 
 	if (ImGui::BeginMenu(Loc::Text("menu.simulation")))
 	{
-		SafePtr<CSceneManager> sceneManager = Engine.SceneManager;
-		const bool canUseSimulation = sceneManager.IsValid();
-		const bool isPlaying = canUseSimulation && sceneManager->IsSimulationPlaying();
-		const bool isPaused = canUseSimulation && sceneManager->IsSimulationPaused();
-
-		if (false == canUseSimulation || isPlaying)
+		const bool canTogglePlay = Editor::ShortcutManager.CanExecute(EEditorShortcut::TogglePlay);
+		if (false == canTogglePlay)
 		{
 			ImGui::BeginDisabled();
 		}
-		if (ImGui::MenuItem(Loc::Text("menu.simulation.play")))
+		const std::string playShortcut = Editor::ShortcutManager.GetShortcutText(EEditorShortcut::TogglePlay);
+		if (ImGui::MenuItem(Loc::Text("menu.simulation.play_toggle"), playShortcut.c_str()))
 		{
-			sceneManager->PlaySimulation();
-			if (Editor::GameView)
-			{
-				Editor::GameView->Focus();
-			}
+			Editor::ShortcutManager.Execute(EEditorShortcut::TogglePlay);
 		}
-		if (false == canUseSimulation || isPlaying)
+		if (false == canTogglePlay)
 		{
 			ImGui::EndDisabled();
 		}
 
-		if (false == canUseSimulation || false == isPlaying)
+		const bool canTogglePause = Editor::ShortcutManager.CanExecute(EEditorShortcut::TogglePause);
+		if (false == canTogglePause)
 		{
 			ImGui::BeginDisabled();
 		}
-		if (ImGui::MenuItem(Loc::Text("menu.simulation.pause")))
+		const std::string pauseShortcut = Editor::ShortcutManager.GetShortcutText(EEditorShortcut::TogglePause);
+		if (ImGui::MenuItem(Loc::Text("menu.simulation.pause_toggle"), pauseShortcut.c_str()))
 		{
-			sceneManager->PauseSimulation();
+			Editor::ShortcutManager.Execute(EEditorShortcut::TogglePause);
 		}
-		if (false == canUseSimulation || false == isPlaying)
-		{
-			ImGui::EndDisabled();
-		}
-
-		if (false == canUseSimulation || (false == isPlaying && false == isPaused))
-		{
-			ImGui::BeginDisabled();
-		}
-		if (ImGui::MenuItem(Loc::Text("menu.simulation.stop")))
-		{
-			sceneManager->StopSimulation();
-		}
-		if (false == canUseSimulation || (false == isPlaying && false == isPaused))
+		if (false == canTogglePause)
 		{
 			ImGui::EndDisabled();
 		}
-
 		ImGui::EndMenu();
 	}
 
 	if (ImGui::BeginMenu(Loc::Text("menu.edit")))
 	{
-		// Begin/EndDisabled 는 같은 조건값을 써야 한다. Undo()/Redo() 가 스택을
-		// 비우면 CanUndo/CanRedo 가 호출 도중 바뀌므로, 프레임 시작값을 캡처해 쓴다.
-		const bool canUndo = Editor::CommandManager.CanUndo();
+		const bool canUndo = Editor::ShortcutManager.CanExecute(EEditorShortcut::Undo);
 		if (false == canUndo)
 		{
 			ImGui::BeginDisabled();
 		}
-		if (ImGui::MenuItem(Loc::Text("menu.edit.undo"), "Ctrl+Z"))
+		const std::string undoShortcut = Editor::ShortcutManager.GetShortcutText(EEditorShortcut::Undo);
+		if (ImGui::MenuItem(Loc::Text("menu.edit.undo"), undoShortcut.c_str()))
 		{
-			Editor::CommandManager.Undo();
+			Editor::ShortcutManager.Execute(EEditorShortcut::Undo);
 		}
 		if (false == canUndo)
 		{
 			ImGui::EndDisabled();
 		}
 
-		const bool canRedo = Editor::CommandManager.CanRedo();
+		const bool canRedo = Editor::ShortcutManager.CanExecute(EEditorShortcut::Redo);
 		if (false == canRedo)
 		{
 			ImGui::BeginDisabled();
 		}
-		if (ImGui::MenuItem(Loc::Text("menu.edit.redo"), "Ctrl+Y"))
+		const std::string redoShortcut = Editor::ShortcutManager.GetShortcutText(EEditorShortcut::Redo);
+		if (ImGui::MenuItem(Loc::Text("menu.edit.redo"), redoShortcut.c_str()))
 		{
-			Editor::CommandManager.Redo();
+			Editor::ShortcutManager.Execute(EEditorShortcut::Redo);
 		}
 		if (false == canRedo)
 		{
 			ImGui::EndDisabled();
 		}
+
+		ImGui::Separator();
+		const bool canCopy = Editor::ShortcutManager.CanExecute(EEditorShortcut::CopyObjects);
+		if (false == canCopy) ImGui::BeginDisabled();
+		const std::string copyShortcut = Editor::ShortcutManager.GetShortcutText(EEditorShortcut::CopyObjects);
+		if (ImGui::MenuItem(Loc::Text("editor.menu.copy_object"), copyShortcut.c_str()))
+		{
+			Editor::ShortcutManager.Execute(EEditorShortcut::CopyObjects);
+		}
+		if (false == canCopy) ImGui::EndDisabled();
+
+		const bool canPaste = Editor::ShortcutManager.CanExecute(EEditorShortcut::PasteObjects);
+		if (false == canPaste) ImGui::BeginDisabled();
+		const std::string pasteShortcut = Editor::ShortcutManager.GetShortcutText(EEditorShortcut::PasteObjects);
+		if (ImGui::MenuItem(Loc::Text("editor.menu.paste_object"), pasteShortcut.c_str()))
+		{
+			Editor::ShortcutManager.Execute(EEditorShortcut::PasteObjects);
+		}
+		if (false == canPaste) ImGui::EndDisabled();
 		ImGui::EndMenu();
 	}
 

@@ -23,6 +23,8 @@ Entries:
   menu.simulation.play: Play
   menu.simulation.pause: Pause
   menu.simulation.stop: Stop
+  menu.simulation.play_toggle: Play / Stop
+  menu.simulation.pause_toggle: Pause / Resume
   menu.edit: Edit
   menu.edit.undo: Undo
   menu.edit.redo: Redo

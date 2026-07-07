@@ -337,6 +337,7 @@ xcopy /Y /I /E "$(ProjectDir)Localization" "$(SolutionDir)Localization\" &gt; nu
     <ClInclude Include="Editor\Editor.h" />
     <ClInclude Include="Editor\EditorContext.h" />
     <ClInclude Include="Editor\EditorSessionPersistence.h" />
+    <ClInclude Include="Editor\Shortcut\EditorShortcutManager.h" />
     <ClInclude Include="Editor\Main\AssetBrowser\AssetBrowserUtils.h" />
     <ClInclude Include="Editor\Main\MainDockWindow.h" />
     <ClInclude Include="framework.h" />
@@ -405,6 +406,9 @@ xcopy /Y /I /E "$(ProjectDir)Localization" "$(SolutionDir)Localization\" &gt; nu
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="Editor\EditorSessionPersistence.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Editor\Shortcut\EditorShortcutManager.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="Editor\Main\AssetBrowser\AssetBrowserUtils.cpp">
