@@ -938,9 +938,6 @@
     <ClInclude Include="Editor\ImGuiUtillity.h">
       <Filter>Header</Filter>
     </ClInclude>
-    <ClInclude Include="Editor\ImItem\ImText.h">
-      <Filter>Header</Filter>
-    </ClInclude>
     <ClInclude Include="Editor\ImWindow\IImPopupWindow.h">
       <Filter>Header</Filter>
     </ClInclude>
@@ -1082,12 +1079,6 @@
     <ClInclude Include="ThirdParty\yaml-cpp\yaml.h">
       <Filter>Header</Filter>
     </ClInclude>
-    <ClInclude Include="Editor\ImItem\ImTree.h">
-      <Filter>Header</Filter>
-    </ClInclude>
-    <ClInclude Include="Editor\ImItem\ImList.h">
-      <Filter>Header</Filter>
-    </ClInclude>
     <ClInclude Include="ThirdParty\imgui\imconfig.h">
       <Filter>Header</Filter>
     </ClInclude>
@@ -1113,9 +1104,6 @@
       <Filter>Header</Filter>
     </ClInclude>
     <ClInclude Include="ThirdParty\imgui\imstb_truetype.h">
-      <Filter>Header</Filter>
-    </ClInclude>
-    <ClInclude Include="Editor\ImItem\ImSplitter.h">
       <Filter>Header</Filter>
     </ClInclude>
     <ClInclude Include="Core\Asset\AudioAsset.h">
@@ -1163,12 +1151,6 @@
     <ClInclude Include="GameFramework\Component\AudioComponents.h">
       <Filter>Header</Filter>
     </ClInclude>
-    <ClInclude Include="Editor\ImItem\ImAudioVisualizer.h">
-      <Filter>Header</Filter>
-    </ClInclude>
-    <ClInclude Include="Editor\ImItem\ImSpectrumVisualizer.h">
-      <Filter>Header</Filter>
-    </ClInclude>
     <ClInclude Include="ThirdParty\miniaudio\miniaudio.h">
       <Filter>Header</Filter>
     </ClInclude>
@@ -1185,57 +1167,6 @@
       <Filter>Header</Filter>
     </ClInclude>
     <ClInclude Include="GameFramework\Component\Component.h">
-      <Filter>Header</Filter>
-    </ClInclude>
-    <ClInclude Include="Editor\ImItem\ImButton.h">
-      <Filter>Header</Filter>
-    </ClInclude>
-    <ClInclude Include="Editor\EditorDragDrop.h">
-      <Filter>Header</Filter>
-    </ClInclude>
-    <ClInclude Include="Editor\Icons\FontAwesomeIcons.h">
-      <Filter>Header</Filter>
-    </ClInclude>
-    <ClInclude Include="Editor\ImItem\ImActionButton.h">
-      <Filter>Header</Filter>
-    </ClInclude>
-    <ClInclude Include="Editor\ImItem\ImAssetField.h">
-      <Filter>Header</Filter>
-    </ClInclude>
-    <ClInclude Include="Editor\ImItem\ImEnumCombo.h">
-      <Filter>Header</Filter>
-    </ClInclude>
-    <ClInclude Include="Editor\ImItem\ImFieldLabel.h">
-      <Filter>Header</Filter>
-    </ClInclude>
-    <ClInclude Include="Editor\ImItem\ImFilterCombo.h">
-      <Filter>Header</Filter>
-    </ClInclude>
-    <ClInclude Include="Editor\ImItem\ImIconButton.h">
-      <Filter>Header</Filter>
-    </ClInclude>
-    <ClInclude Include="Editor\ImItem\ImItemLocalizationKeys.h">
-      <Filter>Header</Filter>
-    </ClInclude>
-    <ClInclude Include="Editor\ImItem\ImItemTypes.h">
-      <Filter>Header</Filter>
-    </ClInclude>
-    <ClInclude Include="Editor\ImItem\ImPathField.h">
-      <Filter>Header</Filter>
-    </ClInclude>
-    <ClInclude Include="Editor\ImItem\ImReferenceField.h">
-      <Filter>Header</Filter>
-    </ClInclude>
-    <ClInclude Include="Editor\ImItem\ImSearchBox.h">
-      <Filter>Header</Filter>
-    </ClInclude>
-    <ClInclude Include="Editor\ImItem\ImSectionHeader.h">
-      <Filter>Header</Filter>
-    </ClInclude>
-    <ClInclude Include="Editor\ImItem\ImStatusBadge.h">
-      <Filter>Header</Filter>
-    </ClInclude>
-    <ClInclude Include="Editor\ImItem\ImValidationMessage.h">
       <Filter>Header</Filter>
     </ClInclude>
     <ClInclude Include="ThirdParty\magic_enum\magic_enum.hpp">
@@ -1585,9 +1516,6 @@
     <ClCompile Include="Editor\ImGuiUtillity.cpp">
       <Filter>Source</Filter>
     </ClCompile>
-    <ClCompile Include="Editor\ImItem\ImText.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
     <ClCompile Include="Editor\ImWindow\IImPopupWindow.cpp">
       <Filter>Source</Filter>
     </ClCompile>
@@ -1607,12 +1535,6 @@
       <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="Editor\ImWindow\ImWindowContext.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="Editor\ImItem\ImTree.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="Editor\ImItem\ImList.cpp">
       <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="ThirdParty\imgui\imgui.cpp">
@@ -1639,9 +1561,6 @@
     <ClCompile Include="ThirdParty\imgui\imgui_widgets.cpp">
       <Filter>Source</Filter>
     </ClCompile>
-    <ClCompile Include="Editor\ImItem\ImSplitter.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
     <ClCompile Include="Core\Asset\AudioAsset.cpp">
       <Filter>Source</Filter>
     </ClCompile>
@@ -1661,54 +1580,6 @@
       <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="GameFramework\Audio\AudioSystem.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="Editor\ImItem\ImAudioVisualizer.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="Editor\ImItem\ImSpectrumVisualizer.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="Editor\ImItem\ImButton.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="Editor\EditorDragDrop.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="Editor\ImItem\ImActionButton.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="Editor\ImItem\ImAssetField.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="Editor\ImItem\ImFieldLabel.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="Editor\ImItem\ImFilterCombo.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="Editor\ImItem\ImIconButton.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="Editor\ImItem\ImItemTypes.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="Editor\ImItem\ImPathField.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="Editor\ImItem\ImReferenceField.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="Editor\ImItem\ImSearchBox.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="Editor\ImItem\ImSectionHeader.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="Editor\ImItem\ImStatusBadge.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="Editor\ImItem\ImValidationMessage.cpp">
       <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="Core\EngineCore.cpp">

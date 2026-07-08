@@ -5,7 +5,7 @@
 #include "Editor/EditorContext.h"
 #include "Engine/Editor/ImWindow/ImWindowFlag.h"
 #include "Engine/Editor/ImGuiUtillity.h"    // FormLayout, HoveredToolTip
-#include "Engine/Editor/ImItem/ImText.h"    // ImText (라벨 + 설명 툴팁)
+#include "Editor/ImItem/ImText.h"    // ImText (라벨 + 설명 툴팁)
 #include "Engine/Editor/Project/ProjectManager.h"
 #include "Engine/Core/Asset/AssetTypes.h"
 #include "Engine/Core/Asset/AssetMetaFile.h"

@@ -4,9 +4,9 @@
 #include "EffectEditorWindow.h"
 #include "Editor/Main/ProjectSettingsWindow.h"
 
-#include "Engine/Editor/ImItem/ImText.h"
-#include "Engine/Editor/ImItem/ImSplitter.h"
-#include "Engine/Editor/ImItem/ImList.h"
+#include "Editor/ImItem/ImText.h"
+#include "Editor/ImItem/ImSplitter.h"
+#include "Editor/ImItem/ImList.h"
 #include "Engine/Editor/ImGuiUtillity.h"
 #include "Editor/Script/ScriptSchema.h"
 #include "Editor/Script/ScriptSchemaWidgets.h"

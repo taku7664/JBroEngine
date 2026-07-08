@@ -2,8 +2,8 @@
 #include "ProjectSettingsWindow.h"
 
 #include "Engine/Editor/ImWindow/ImWindowFlag.h"
-#include "Engine/Editor/ImItem/ImSplitter.h"   // ImGui::Utillity::VerticalSplitter
-#include "Engine/Editor/ImItem/ImText.h"       // ImText (라벨 + 설명 툴팁)
+#include "Editor/ImItem/ImSplitter.h"   // ImGui::Utillity::VerticalSplitter
+#include "Editor/ImItem/ImText.h"       // ImText (라벨 + 설명 툴팁)
 #include "Engine/Editor/ImGuiUtillity.h"       // ImGui::Utillity::FormLayout, HoveredToolTip
 
 #include "Editor/Editor.h"

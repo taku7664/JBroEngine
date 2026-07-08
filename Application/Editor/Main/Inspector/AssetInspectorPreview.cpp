@@ -16,8 +16,8 @@
 #include "Engine/Core/RHI/IRHITexture.h"
 #include "Engine/Editor/ImEditor.h"
 #include "Engine/Editor/ImGuiUtillity.h"
-#include "Engine/Editor/ImItem/ImAudioVisualizer.h"
-#include "Engine/Editor/ImItem/ImSpectrumVisualizer.h"
+#include "Editor/ImItem/ImAudioVisualizer.h"
+#include "Editor/ImItem/ImSpectrumVisualizer.h"
 #include "Engine/Editor/Project/ProjectManager.h"
 #include "ThirdParty/imgui/imgui.h"
 

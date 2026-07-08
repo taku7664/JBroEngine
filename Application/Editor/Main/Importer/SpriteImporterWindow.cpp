@@ -8,7 +8,7 @@
 #include "Engine/Core/Asset/AssetPath.h"
 #include "Engine/Editor/ImEditor.h"
 #include "Engine/Editor/ImGuiUtillity.h"
-#include "Engine/Editor/ImItem/ImText.h"
+#include "Editor/ImItem/ImText.h"
 #include "Engine/Editor/Project/ProjectManager.h"
 
 #include <filesystem>
