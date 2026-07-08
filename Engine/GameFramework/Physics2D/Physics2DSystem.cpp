@@ -6,9 +6,12 @@
 #include "Core/Logging/LoggerInternal.h"
 #include "Core/Time/Time.h"
 #include "GameFramework/Component/Physics2DComponents.h"
+#include "GameFramework/Component/ScriptComponent.h"
 #include "GameFramework/Component/Transform2D.h"
+#include "GameFramework/Physics2D/Collision2D.h"
 #include "GameFramework/Physics2D/Physics2DTypes.h"
 #include "GameFramework/Scene/Scene.h"
+#include "GameFramework/Scripting/GameScript.h"
 
 #include <algorithm>
 #include <array>
@@ -1358,6 +1361,11 @@ void CPhysics2DSystem::OnFixedUpdate(CGameScene& scene)
 	// 0 으로 리셋되어 warm-start 메커니즘 자체가 무력화되므로 제거.
 	UpdateColliderBounds(scene);
 
+	// 마지막 sub-step 의 매니폴드(m_manifolds)를 직전 fixed step 접촉과 비교해
+	// 충돌/트리거 Enter/Stay/Exit 를 스크립트로 디스패치한다. Script FixedUpdate 는
+	// Scene::FixedUpdate 에서 이 뒤에 돌므로, 같은 스텝에서 훅이 먼저 반영된다.
+	DispatchContactEvents(scene);
+
 #if JBRO_PHYSICS_DEBUG_DRAW
 	// 마지막 Step 의 마지막 DetectContacts 결과 = 다음 프레임 시작 시점의 매니폴드.
 	// 이 한 상태만 시각화하여 화살표가 sub-step 사이에 진동하지 않음.
@@ -1442,6 +1450,210 @@ void CPhysics2DSystem::DrawManifoldDebugLines()
 			dd.DrawLine(tip, headR, kHeadCol, 1.5f);
 		}
 	}
+}
+
+namespace
+{
+	// 오브젝트 한쪽에 붙은 스크립트 인스턴스로 한 관점(Collision2D)의 이벤트를 전달한다.
+	// self 관점: Normal 은 self→other 방향. isTrigger 면 Trigger*, 아니면 Collision*.
+	enum class EContactPhase { Enter, Stay, Exit };
+
+	void DispatchToScript(
+		CGameObject* self,
+		CGameObject* other,
+		const Vector2& normal,
+		const Vector2& contactPoint,
+		float penetration,
+		bool isTrigger,
+		EContactPhase phase)
+	{
+		if (nullptr == self)
+		{
+			return;
+		}
+
+		// 오브젝트당 스크립트 1개 관례 — 여러 개면 첫 번째만 이벤트를 받는다.
+		ScriptComponent* script = self->GetComponent<ScriptComponent>();
+		if (nullptr == script || nullptr == script->Instance)
+		{
+			return;
+		}
+		if (false == IsActiveComponent(*script) || false == script->Instance->IsStarted())
+		{
+			return;
+		}
+
+		Collision2D collision;
+		collision.Other        = other;
+		collision.Normal       = normal;
+		collision.ContactPoint = contactPoint;
+		collision.Penetration  = penetration;
+		collision.IsTrigger    = isTrigger;
+
+		CGameScript& instance = *script->Instance;
+		if (isTrigger)
+		{
+			switch (phase)
+			{
+			case EContactPhase::Enter: instance.TriggerEnter(collision); break;
+			case EContactPhase::Stay:  instance.TriggerStay(collision);  break;
+			case EContactPhase::Exit:  instance.TriggerExit(collision);  break;
+			}
+		}
+		else
+		{
+			switch (phase)
+			{
+			case EContactPhase::Enter: instance.CollisionEnter(collision); break;
+			case EContactPhase::Stay:  instance.CollisionStay(collision);  break;
+			case EContactPhase::Exit:  instance.CollisionExit(collision);  break;
+			}
+		}
+	}
+
+	// 한 접촉 페어(A,B)를 양쪽 스크립트에 각자 관점으로 디스패치한다.
+	// normalAtoB 는 A→B 방향 단위 법선. B 관점에는 부호를 뒤집어 전달한다.
+	void DispatchPair(
+		CGameObject* a,
+		CGameObject* b,
+		const Vector2& normalAtoB,
+		const Vector2& contactPoint,
+		float penetration,
+		bool isTrigger,
+		EContactPhase phase)
+	{
+		DispatchToScript(a, b, normalAtoB, contactPoint, penetration, isTrigger, phase);
+		const Vector2 normalBtoA(-normalAtoB.x, -normalAtoB.y);
+		DispatchToScript(b, a, normalBtoA, contactPoint, penetration, isTrigger, phase);
+	}
+}
+
+void CPhysics2DSystem::DispatchContactEvents(CGameScene& scene)
+{
+	// ── 1. 이번 fixed step 의 접촉 페어 수집 ──────────────────────────────────
+	// 매니폴드에서 (A,B) 를 주소 오름차순으로 정규화(A<B)해 페어 키를 안정화한다.
+	// Normal 은 정규화 후에도 A→B 방향을 유지하도록 뒤집는다. 같은 페어가 여러
+	// 매니폴드(멀티 콜라이더)로 나와도 첫 번째만 대표로 쓴다(방어적 중복 제거).
+	struct CurrentContact
+	{
+		CGameObject* A = nullptr;
+		CGameObject* B = nullptr;
+		Vector2      Normal = Vector2(0.0f, 0.0f);
+		Vector2      Point  = Vector2(0.0f, 0.0f);
+		float        Penetration = 0.0f;
+		bool         IsTrigger   = false;
+	};
+
+	std::vector<CurrentContact> current;
+	current.reserve(m_manifolds.size());
+
+	for (const Physics2DManifold& m : m_manifolds)
+	{
+		if (nullptr == m.A || nullptr == m.B || m.A == m.B)
+		{
+			continue;
+		}
+
+		CGameObject* a = m.A;
+		CGameObject* b = m.B;
+		Vector2 normal = m.Normal;
+		if (b < a)
+		{
+			std::swap(a, b);
+			normal = Vector2(-normal.x, -normal.y);
+		}
+
+		bool already = false;
+		for (const CurrentContact& c : current)
+		{
+			if (c.A == a && c.B == b)
+			{
+				already = true;
+				break;
+			}
+		}
+		if (already)
+		{
+			continue;
+		}
+
+		CurrentContact contact;
+		contact.A           = a;
+		contact.B           = b;
+		contact.Normal      = normal;
+		contact.Point       = m.ContactCount > 0 ? m.ContactPoints[0] : Vector2(0.0f, 0.0f);
+		contact.Penetration = m.Penetration;
+		contact.IsTrigger   = m.IsTrigger;
+		current.push_back(contact);
+	}
+
+	// ── 2. Enter / Stay 판정 ──────────────────────────────────────────────────
+	for (const CurrentContact& c : current)
+	{
+		bool wasContact = false;
+		for (const ContactPairState& prev : m_prevContacts)
+		{
+			if (prev.A.TryGet() == c.A && prev.B.TryGet() == c.B)
+			{
+				wasContact = true;
+				break;
+			}
+		}
+		DispatchPair(
+			c.A, c.B, c.Normal, c.Point, c.Penetration, c.IsTrigger,
+			wasContact ? EContactPhase::Stay : EContactPhase::Enter);
+	}
+
+	// ── 3. Exit 판정 ──────────────────────────────────────────────────────────
+	// 직전엔 접촉이었으나 이번엔 사라진 페어. 한쪽이라도 파괴됐으면(TryGet null)
+	// 상대에게 안전히 전달할 수 없으므로 건너뛴다.
+	for (const ContactPairState& prev : m_prevContacts)
+	{
+		CGameObject* a = prev.A.TryGet();
+		CGameObject* b = prev.B.TryGet();
+		if (nullptr == a || nullptr == b)
+		{
+			continue;
+		}
+
+		bool stillContact = false;
+		for (const CurrentContact& c : current)
+		{
+			if (c.A == a && c.B == b)
+			{
+				stillContact = true;
+				break;
+			}
+		}
+		if (stillContact)
+		{
+			continue;
+		}
+
+		DispatchPair(
+			a, b, Vector2(0.0f, 0.0f), Vector2(0.0f, 0.0f), 0.0f, prev.IsTrigger,
+			EContactPhase::Exit);
+	}
+
+	// ── 4. 상태 갱신 ──────────────────────────────────────────────────────────
+	m_prevContacts.clear();
+	m_prevContacts.reserve(current.size());
+	for (const CurrentContact& c : current)
+	{
+		ContactPairState state;
+		state.A         = c.A->SafeFromThis();
+		state.B         = c.B->SafeFromThis();
+		state.IsTrigger = c.IsTrigger;
+		m_prevContacts.push_back(std::move(state));
+	}
+}
+
+void CPhysics2DSystem::OnSimulationStop(CGameScene& /*scene*/)
+{
+	// 재생 정지 — 접촉/매니폴드 상태를 비워 재개 시 잔여 Exit 이벤트가 튀지 않게 한다.
+	m_prevContacts.clear();
+	m_manifolds.clear();
+	m_prevManifolds.clear();
 }
 
 void CPhysics2DSystem::Step(CGameScene& scene, float deltaSeconds)

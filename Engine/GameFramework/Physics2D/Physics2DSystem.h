@@ -2,6 +2,9 @@
 
 #include "GameFramework/Physics2D/Physics2DTypes.h"
 #include "GameFramework/System/GameSystem.h"
+#include "Utillity/Pointer/SafePtr.h"
+
+class CGameObject;
 
 class CPhysics2DSystem final : public CGameSystem
 {
@@ -31,6 +34,8 @@ public:
 
 protected:
 	void OnFixedUpdate(CGameScene& scene) override;
+	// 시뮬레이션 정지 시 접촉 상태 초기화 — 재생 재개 시 잔여 Exit 이벤트가 튀지 않게 한다.
+	void OnSimulationStop(CGameScene& scene) override;
 
 private:
 	void Step(CGameScene& scene, float deltaSeconds);
@@ -41,6 +46,10 @@ private:
 	void ResolveContactPosition(CGameScene& scene);   // 위치 보정    — 매니폴드별 1회
 	void StabilizeRestingContacts(CGameScene& scene);
 	void DrawManifoldDebugLines();                // 매니폴드 normal/contact 시각화 (fixed step 종료 후 1회)
+
+	// 이번 fixed step 의 접촉 페어를 직전 step 과 비교해 Enter/Stay/Exit 를 판정하고,
+	// 부착된 ScriptComponent 인스턴스의 충돌/트리거 훅으로 전달한다(fixed step 종료 후 1회).
+	void DispatchContactEvents(CGameScene& scene);
 
 	// 직전 step 의 매니폴드와 매칭해 누적 impulse 복원 + warm-start 적용.
 	// DetectContacts 직후 호출되어 m_manifolds 의 AccumulatedXxxImpulse 를 prev 에서 복원,
@@ -56,4 +65,14 @@ private:
 	std::vector<Physics2DManifold>  m_manifolds;
 	// 직전 sub-step 의 매니폴드 — Contact persistence 매칭에 사용.
 	std::vector<Physics2DManifold>  m_prevManifolds;
+
+	// 직전 fixed step 에서 접촉 중이던 오브젝트 페어(정규화: A 주소 < B 주소).
+	// Enter/Stay/Exit 판정에 사용. SafePtr 로 보관해 오브젝트가 파괴돼도 dangling 을 피한다.
+	struct ContactPairState
+	{
+		SafePtr<CGameObject> A;
+		SafePtr<CGameObject> B;
+		bool                 IsTrigger = false;
+	};
+	std::vector<ContactPairState>   m_prevContacts;
 };

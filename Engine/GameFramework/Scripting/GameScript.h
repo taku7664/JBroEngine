@@ -1,6 +1,7 @@
 #pragma once
 
 #include "GameFramework/Object/GameObject.h"
+#include "GameFramework/Physics2D/Collision2D.h"
 #include "Utillity/Math/SizeT.h"
 #include "Utillity/Pointer/SafePtr.h"
 
@@ -39,6 +40,15 @@ public:
 	void ApplicationFocusLost();
 	void SurfaceResized(const Size<int>& clientSize);
 
+	// Physics2DSystem 이 접촉 판정 후 호출하는 디스패치 진입점(시작된 인스턴스에만 전달).
+	// 트리거(한쪽이라도 IsTrigger)는 Trigger* 로, 그 외는 Collision* 로 전달된다.
+	void CollisionEnter(const Collision2D& collision);
+	void CollisionStay(const Collision2D& collision);
+	void CollisionExit(const Collision2D& collision);
+	void TriggerEnter(const Collision2D& collision);
+	void TriggerStay(const Collision2D& collision);
+	void TriggerExit(const Collision2D& collision);
+
 protected:
 	virtual void OnCreate() {}
 	virtual void OnStart() {}
@@ -50,6 +60,17 @@ protected:
 	virtual void OnApplicationFocusGained() {}
 	virtual void OnApplicationFocusLost() {}
 	virtual void OnSurfaceResized(const Size<int>& /*clientSize*/) {}
+
+	// 물리 충돌 훅(스크립트가 override). 오브젝트당 콜라이더가 접촉을 시작/유지/종료할 때
+	// 호출된다. 같은 충돌은 양쪽 오브젝트의 스크립트에 각자 관점(Collision2D)으로 전달된다.
+	virtual void OnCollisionEnter(const Collision2D& /*collision*/) {}
+	virtual void OnCollisionStay(const Collision2D& /*collision*/) {}
+	virtual void OnCollisionExit(const Collision2D& /*collision*/) {}
+
+	// 트리거 훅(스크립트가 override). 한쪽이라도 IsTrigger 콜라이더인 접촉에서 호출된다.
+	virtual void OnTriggerEnter(const Collision2D& /*collision*/) {}
+	virtual void OnTriggerStay(const Collision2D& /*collision*/) {}
+	virtual void OnTriggerExit(const Collision2D& /*collision*/) {}
 
 private:
 	CGameScene*              m_scene = nullptr;

@@ -103,6 +103,54 @@ void CGameScript::SurfaceResized(const Size<int>& clientSize)
 	}
 }
 
+void CGameScript::CollisionEnter(const Collision2D& collision)
+{
+	if (m_isStarted)
+	{
+		OnCollisionEnter(collision);
+	}
+}
+
+void CGameScript::CollisionStay(const Collision2D& collision)
+{
+	if (m_isStarted)
+	{
+		OnCollisionStay(collision);
+	}
+}
+
+void CGameScript::CollisionExit(const Collision2D& collision)
+{
+	if (m_isStarted)
+	{
+		OnCollisionExit(collision);
+	}
+}
+
+void CGameScript::TriggerEnter(const Collision2D& collision)
+{
+	if (m_isStarted)
+	{
+		OnTriggerEnter(collision);
+	}
+}
+
+void CGameScript::TriggerStay(const Collision2D& collision)
+{
+	if (m_isStarted)
+	{
+		OnTriggerStay(collision);
+	}
+}
+
+void CGameScript::TriggerExit(const Collision2D& collision)
+{
+	if (m_isStarted)
+	{
+		OnTriggerExit(collision);
+	}
+}
+
 bool CGameScript::IsStarted() const
 {
 	return m_isStarted;
