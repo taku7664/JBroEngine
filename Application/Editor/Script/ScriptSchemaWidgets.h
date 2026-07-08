@@ -92,7 +92,7 @@ namespace ScriptSchemaUI
 			}
 			changed = true;
 		}
-		ImGui::Utillity::HoveredToolTip(EditorLocKeys::ScriptPropTypeTooltip);
+		ImGui::Utillity::HoveredToolTip(Loc::Text(EditorLocKeys::ScriptPropTypeTooltip));
 
 		if (ScriptSchema::NeedsTargetCombo(p.TypeToken))
 		{
@@ -117,7 +117,7 @@ namespace ScriptSchemaUI
 				p.RefInclude = targets[tCur].Include;
 				changed = true;
 			}
-			ImGui::Utillity::HoveredToolTip(EditorLocKeys::ScriptPropReftargetTooltip);
+			ImGui::Utillity::HoveredToolTip(Loc::Text(EditorLocKeys::ScriptPropReftargetTooltip));
 		}
 		return changed;
 	}
@@ -129,7 +129,7 @@ namespace ScriptSchemaUI
 		// 표시 이름 = Name("..") 어트리뷰트(인스펙터 표시용, C++ 멤버명과 별개. 항상 편집 가능).
 		ImGui::Utillity::FormLayout layout("##script_fields");
 		layout.Row([]() { LabelWithTip(EditorLocKeys::ScriptPropDisplayName, EditorLocKeys::ScriptPropDisplayNameTooltip); }, [&]() {
-				ImInputText in;("##attributes");
+				ImInputText in("##attributes");
 				in.SetText(p.DisplayName);
 				in.SetHintText(Loc::Text(EditorLocKeys::ScriptPropDisplayNameHint));
 				if (in(ImGuiInputTextFlags_None))
@@ -195,7 +195,7 @@ namespace ScriptSchemaUI
 			if (input(ImGuiInputTextFlags_None, nameInvalid)) { p.Name = static_cast<const char*>(input); changed = true; }
 			ImGui::EndDisabled();
 		}
-		ImGui::Utillity::HoveredToolTip(EditorLocKeys::ScriptPropNameTooltip);
+		ImGui::Utillity::HoveredToolTip(Loc::Text(EditorLocKeys::ScriptPropNameTooltip));
 
 		// 메뉴
 		ImGui::SameLine(0.0f, gap);
@@ -203,7 +203,7 @@ namespace ScriptSchemaUI
 		{
 			ImGui::OpenPopup("##prop_menu");   // U+22EE
 		}
-		ImGui::Utillity::HoveredToolTip(EditorLocKeys::ScriptPropMenuTooltip);
+		ImGui::Utillity::HoveredToolTip(Loc::Text(EditorLocKeys::ScriptPropMenuTooltip));
 		if (ImGui::BeginPopup("##prop_menu"))
 		{
 			if (DrawPropertyMenu(p, nameReadOnly)) changed = true;
