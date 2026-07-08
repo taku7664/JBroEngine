@@ -318,7 +318,6 @@ xcopy /Y /I /E "$(ProjectDir)Localization" "$(SolutionDir)Localization\" &gt; nu
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="Application.h" />
-    <ClInclude Include="Editor\Icons\FontAwesomeIcons.h" />
     <ClInclude Include="Editor\Main\AssetBrowser\AssetHandler.h" />
     <ClInclude Include="Editor\Build\GameBuildManager.h" />
     <ClInclude Include="Editor\Build\BuildSettingsUtils.h" />
@@ -330,10 +329,8 @@ xcopy /Y /I /E "$(ProjectDir)Localization" "$(SolutionDir)Localization\" &gt; nu
     <ClInclude Include="Editor\Main\Guizmo\Guizmo3D.h" />
     <ClInclude Include="Editor\Main\Guizmo\GuizmoTypes.h" />
     <ClInclude Include="Editor\Gui\EditorGuiActions.h" />
-    <ClInclude Include="Editor\Gui\EditorWidgets.h" />
     <ClInclude Include="Editor\Localization\EditorLocalizationKeys.h" />
     <ClInclude Include="Editor\Localization\EditorReflectionLabels.h" />
-    <ClInclude Include="Editor\EditorDragDrop.h" />
     <ClInclude Include="Editor\Main\AssetBrowser\AssetBrowserTool.h" />
     <ClInclude Include="Editor\Script\ScriptSchema.h" />
     <ClInclude Include="Editor\Script\ScriptSchemaWidgets.h" />
@@ -404,13 +401,7 @@ xcopy /Y /I /E "$(ProjectDir)Localization" "$(SolutionDir)Localization\" &gt; nu
     <ClCompile Include="Editor\Gui\EditorGuiActions.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="Editor\Gui\EditorWidgets.cpp">
-      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
-    </ClCompile>
     <ClCompile Include="Editor\Localization\EditorReflectionLabels.cpp">
-      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
-    </ClCompile>
-    <ClCompile Include="Editor\EditorDragDrop.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="Editor\Main\AssetBrowser\AssetBrowserTool.cpp">

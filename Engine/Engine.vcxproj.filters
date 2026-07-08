@@ -1190,6 +1190,54 @@
     <ClInclude Include="Editor\ImItem\ImButton.h">
       <Filter>Header</Filter>
     </ClInclude>
+    <ClInclude Include="Editor\EditorDragDrop.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\Icons\FontAwesomeIcons.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\ImItem\ImActionButton.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\ImItem\ImAssetField.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\ImItem\ImEnumCombo.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\ImItem\ImFieldLabel.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\ImItem\ImFilterCombo.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\ImItem\ImIconButton.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\ImItem\ImItemLocalizationKeys.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\ImItem\ImItemTypes.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\ImItem\ImPathField.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\ImItem\ImReferenceField.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\ImItem\ImSearchBox.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\ImItem\ImSectionHeader.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\ImItem\ImStatusBadge.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\ImItem\ImValidationMessage.h">
+      <Filter>Header</Filter>
+    </ClInclude>
     <ClInclude Include="ThirdParty\magic_enum\magic_enum.hpp">
       <Filter>Header</Filter>
     </ClInclude>
@@ -1622,6 +1670,45 @@
       <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="Editor\ImItem\ImButton.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\EditorDragDrop.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\ImItem\ImActionButton.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\ImItem\ImAssetField.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\ImItem\ImFieldLabel.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\ImItem\ImFilterCombo.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\ImItem\ImIconButton.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\ImItem\ImItemTypes.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\ImItem\ImPathField.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\ImItem\ImReferenceField.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\ImItem\ImSearchBox.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\ImItem\ImSectionHeader.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\ImItem\ImStatusBadge.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\ImItem\ImValidationMessage.cpp">
       <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="Core\EngineCore.cpp">

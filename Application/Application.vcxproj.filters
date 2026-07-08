@@ -60,9 +60,6 @@
     <ClInclude Include="Editor\Gui\EditorGuiActions.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
-    <ClInclude Include="Editor\Gui\EditorWidgets.h">
-      <Filter>헤더 파일</Filter>
-    </ClInclude>
     <ClInclude Include="Editor\Localization\EditorLocalizationKeys.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
@@ -97,9 +94,6 @@
       <Filter>헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="Editor\Main\AssetBrowser\AssetBrowserUtils.h">
-      <Filter>헤더 파일</Filter>
-    </ClInclude>
-    <ClInclude Include="Editor\EditorDragDrop.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="Editor\Main\SceneView\SceneViewTool.h">
@@ -177,9 +171,6 @@
     <ClInclude Include="Editor\Main\Statistics\EditorStatisticsTool.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
-    <ClInclude Include="Editor\Icons\FontAwesomeIcons.h">
-      <Filter>헤더 파일</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Application.cpp">
@@ -212,13 +203,7 @@
     <ClCompile Include="Editor\Gui\EditorGuiActions.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
-    <ClCompile Include="Editor\Gui\EditorWidgets.cpp">
-      <Filter>소스 파일</Filter>
-    </ClCompile>
     <ClCompile Include="Editor\Localization\EditorReflectionLabels.cpp">
-      <Filter>소스 파일</Filter>
-    </ClCompile>
-    <ClCompile Include="Editor\EditorDragDrop.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="Entry\WindowsMain.cpp">

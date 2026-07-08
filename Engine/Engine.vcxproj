@@ -494,8 +494,24 @@
     <ClInclude Include="Editor\Project\ProjectManager.h" />
     <ClInclude Include="Editor\Project\AssetDatabase.h" />
     <ClInclude Include="Editor\Project\ProjectTypes.h" />
+    <ClInclude Include="Editor\EditorDragDrop.h" />
+    <ClInclude Include="Editor\Icons\FontAwesomeIcons.h" />
     <ClInclude Include="Framework.h" />
     <ClInclude Include="Editor\ImItem\ImButton.h" />
+    <ClInclude Include="Editor\ImItem\ImActionButton.h" />
+    <ClInclude Include="Editor\ImItem\ImAssetField.h" />
+    <ClInclude Include="Editor\ImItem\ImEnumCombo.h" />
+    <ClInclude Include="Editor\ImItem\ImFieldLabel.h" />
+    <ClInclude Include="Editor\ImItem\ImFilterCombo.h" />
+    <ClInclude Include="Editor\ImItem\ImIconButton.h" />
+    <ClInclude Include="Editor\ImItem\ImItemLocalizationKeys.h" />
+    <ClInclude Include="Editor\ImItem\ImItemTypes.h" />
+    <ClInclude Include="Editor\ImItem\ImPathField.h" />
+    <ClInclude Include="Editor\ImItem\ImReferenceField.h" />
+    <ClInclude Include="Editor\ImItem\ImSearchBox.h" />
+    <ClInclude Include="Editor\ImItem\ImSectionHeader.h" />
+    <ClInclude Include="Editor\ImItem\ImStatusBadge.h" />
+    <ClInclude Include="Editor\ImItem\ImValidationMessage.h" />
     <ClInclude Include="Utillity\Base\BitFlag.h" />
     <ClInclude Include="Utillity\Base\Defines.h" />
     <ClInclude Include="Utillity\Base\Error.h" />
@@ -630,6 +646,45 @@
     <ClCompile Include="Application\Application.cpp" />
     <ClCompile Include="Core\EngineCore.cpp" />
     <ClCompile Include="Editor\ImItem\ImButton.cpp" />
+    <ClCompile Include="Editor\EditorDragDrop.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Editor\ImItem\ImActionButton.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Editor\ImItem\ImAssetField.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Editor\ImItem\ImFieldLabel.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Editor\ImItem\ImFilterCombo.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Editor\ImItem\ImIconButton.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Editor\ImItem\ImItemTypes.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Editor\ImItem\ImPathField.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Editor\ImItem\ImReferenceField.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Editor\ImItem\ImSearchBox.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Editor\ImItem\ImSectionHeader.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Editor\ImItem\ImStatusBadge.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Editor\ImItem\ImValidationMessage.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="Utillity\Base\Error.cpp" />
     <ClCompile Include="Utillity\File\FilePath.cpp" />
     <ClCompile Include="Utillity\File\FileUtillities.cpp" />
