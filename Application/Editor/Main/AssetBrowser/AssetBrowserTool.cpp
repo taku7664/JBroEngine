@@ -11,6 +11,7 @@
 #include "Editor/Script/ScriptSchema.h"
 #include "Editor/Script/ScriptSchemaWidgets.h"
 #include "Engine/Editor/Project/ProjectManager.h"
+#include "Engine/Core/Asset/AssetTypeRules.h"
 #include "Engine/Core/EngineCore.h"
 #include "Engine/Core/ScriptCore.h"
 #include "Engine/Core/Renderer/IRenderResourceCache.h"
@@ -421,7 +422,7 @@ namespace
 		EditorDragDrop::AssetPayloadDesc desc;
 		desc.Guid              = entry.Guid;
 		desc.RelativePath      = entry.RelativePath;
-		desc.Type              = entry.Type;
+		desc.Type              = CAssetTypeRules::ResolveType(entry.Type, entry.RelativePath);
 		desc.IsDirectory       = entry.IsDirectory;
 		desc.PreviewLabel      = entry.DisplayNameUtf8.c_str();
 		desc.PreviewTextureID  = GetSpriteImTexture(PickEntryThumbnail(entry));

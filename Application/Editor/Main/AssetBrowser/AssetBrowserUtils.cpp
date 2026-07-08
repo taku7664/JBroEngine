@@ -3,6 +3,9 @@
 
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
 
+#include "Editor/Localization/EditorLocalizationKeys.h"
+#include "Core/Localization/LocalizationManager.h"
+
 std::string AssetBrowserUtils::ToLowerAscii(std::string text)
 {
 	std::transform(text.begin(), text.end(), text.begin(), [](unsigned char character) {
@@ -22,18 +25,19 @@ const char* AssetBrowserUtils::GetAssetTypeName(EAssetType type)
 {
 	switch (type)
 	{
-	case EAssetType::Sprite: return "Sprite";
-	case EAssetType::Mesh: return "Mesh";
-	case EAssetType::Material: return "Material";
-	case EAssetType::Shader: return "Shader";
-	case EAssetType::Scene: return "Scene";
-	case EAssetType::Prefab: return "Prefab";
-	case EAssetType::Script: return "Script";
-	case EAssetType::Audio: return "Audio";
-	case EAssetType::FontFace: return "FontFace";
-	case EAssetType::FontFamily: return "FontFamily";
-	case EAssetType::Custom: return "Custom";
-	default: return "Unknown";
+	case EAssetType::Sprite: return Loc::Text(EditorLocKeys::AssetTypeSprite);
+	case EAssetType::Mesh: return Loc::Text(EditorLocKeys::AssetTypeMesh);
+	case EAssetType::Material: return Loc::Text(EditorLocKeys::AssetTypeMaterial);
+	case EAssetType::Shader: return Loc::Text(EditorLocKeys::AssetTypeShader);
+	case EAssetType::Scene: return Loc::Text(EditorLocKeys::AssetTypeScene);
+	case EAssetType::Prefab: return Loc::Text(EditorLocKeys::AssetTypePrefab);
+	case EAssetType::Script: return Loc::Text(EditorLocKeys::AssetTypeScript);
+	case EAssetType::Audio: return Loc::Text(EditorLocKeys::AssetTypeAudio);
+	case EAssetType::AudioEffect: return Loc::Text(EditorLocKeys::AssetTypeAudioEffect);
+	case EAssetType::FontFace: return Loc::Text(EditorLocKeys::AssetTypeFontFace);
+	case EAssetType::FontFamily: return Loc::Text(EditorLocKeys::AssetTypeFontFamily);
+	case EAssetType::Custom: return Loc::Text(EditorLocKeys::AssetTypeCustom);
+	default: return Loc::Text(EditorLocKeys::AssetTypeUnknown);
 	}
 }
 

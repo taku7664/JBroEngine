@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "ResourceRegistry.h"
 
+#include "Core/Asset/AssetTypeRules.h"
 #include "Core/Asset/IAssetManager.h"
 #include "Core/Asset/SpriteAsset.h"
 #include "yaml-cpp/yaml.h"
@@ -19,6 +20,10 @@ namespace
 		if (s == "Scene")     return EAssetType::Scene;
 		if (s == "Prefab")    return EAssetType::Prefab;
 		if (s == "Script")    return EAssetType::Script;
+		if (s == "Audio")     return EAssetType::Audio;
+		if (s == "AudioEffect") return EAssetType::AudioEffect;
+		if (s == "FontFace")  return EAssetType::FontFace;
+		if (s == "FontFamily") return EAssetType::FontFamily;
 		if (s == "Custom")    return EAssetType::Custom;
 		return EAssetType::Unknown;
 	}
@@ -26,19 +31,7 @@ namespace
 
 EAssetType CResourceRegistry::InferTypeFromExtension(const File::Path& path)
 {
-	std::string ext = std::filesystem::path(path).extension().generic_string();
-	std::transform(ext.begin(), ext.end(), ext.begin(),
-		[](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-
-	if (ext == ".png" || ext == ".jpg" || ext == ".jpeg"
-	    || ext == ".bmp" || ext == ".tga")            return EAssetType::Sprite;
-	if (ext == ".jscene")                              return EAssetType::Scene;
-	if (ext == ".jprefab")                             return EAssetType::Prefab;
-	if (ext == ".jmat")                                return EAssetType::Material;
-	if (ext == ".hlsl" || ext == ".shader")            return EAssetType::Shader;
-	if (ext == ".wav" || ext == ".mp3"
-	    || ext == ".flac" || ext == ".ogg")            return EAssetType::Audio;
-	return EAssetType::Custom;
+	return CAssetTypeRules::DetectTypeFromPath(path);
 }
 
 bool CResourceRegistry::Initialize(const File::Path& rootDirectory,

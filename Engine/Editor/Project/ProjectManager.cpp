@@ -3,6 +3,7 @@
 
 #include "Core/Asset/AssetPath.h"
 #include "Core/Asset/AssetMetaFile.h"
+#include "Core/Asset/AssetTypeRules.h"
 #include "Core/Asset/IAssetManager.h"
 #include "Core/Asset/IAssetRegistry.h"
 #include "Core/EngineCore.h"
@@ -2027,54 +2028,7 @@ bool CProjectManager::TryMakeProjectAssetRelativePath(const File::Path& absolute
 
 EAssetType CProjectManager::DetectAssetType(const File::Path& relativePath) const
 {
-	std::string extension = relativePath.extension().generic_string();
-	std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char ch) {
-		return static_cast<char>(std::tolower(ch));
-	});
-
-	if (extension == ".png" || extension == ".jpg" || extension == ".jpeg" || extension == ".bmp" || extension == ".tga")
-	{
-		// 통합 이후 이미지 파일은 항상 Sprite (None/CellCount/CellSize 모드로 슬라이스 옵션).
-		return EAssetType::Sprite;
-	}
-	if (extension == ".jscene")
-	{
-		return EAssetType::Scene;
-	}
-	if (extension == ".jprefab")
-	{
-		return EAssetType::Prefab;
-	}
-	if (extension == ".jmat")
-	{
-		return EAssetType::Material;
-	}
-	if (extension == ".hlsl" || extension == ".wgsl" || extension == ".glsl")
-	{
-		return EAssetType::Shader;
-	}
-	if (extension == ".cpp" || extension == ".h" || extension == ".hpp")
-	{
-		return EAssetType::Script;
-	}
-	if (extension == ".wav" || extension == ".mp3" || extension == ".flac" || extension == ".ogg")
-	{
-		return EAssetType::Audio;
-	}
-	if (extension == ".jfx")
-	{
-		return EAssetType::AudioEffect;
-	}
-	if (extension == ".ttf" || extension == ".otf")
-	{
-		return EAssetType::FontFace;
-	}
-	if (extension == ".jfontfamily")
-	{
-		return EAssetType::FontFamily;
-	}
-
-	return EAssetType::Custom;
+	return CAssetTypeRules::DetectTypeFromPath(relativePath);
 }
 
 bool CProjectManager::TrySyncRenamedAssetMeta(const File::Path& createdAssetPath, const std::vector<FileWatchEvent>& events)

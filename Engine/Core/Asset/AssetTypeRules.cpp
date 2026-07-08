@@ -1,0 +1,180 @@
+#include "pch.h"
+#include "AssetTypeRules.h"
+
+#include <algorithm>
+#include <cctype>
+#include <cstddef>
+#include <string_view>
+
+namespace
+{
+	struct ExtensionList
+	{
+		const std::string_view* Values = nullptr;
+		std::size_t Count = 0;
+	};
+
+	struct AssetTypeRule
+	{
+		EAssetType Type = EAssetType::Unknown;
+		std::string_view Name;
+		ExtensionList Extensions;
+	};
+
+	template <std::size_t Count>
+	constexpr ExtensionList MakeExtensionList(const std::string_view (&values)[Count])
+	{
+		return { values, Count };
+	}
+
+	constexpr std::string_view SPRITE_EXTENSIONS[]      = { ".png", ".jpg", ".jpeg", ".bmp", ".tga" };
+	constexpr std::string_view MESH_EXTENSIONS[]        = { ".obj", ".fbx", ".gltf", ".glb" };
+	constexpr std::string_view MATERIAL_EXTENSIONS[]    = { ".jmat" };
+	constexpr std::string_view SHADER_EXTENSIONS[]      = { ".hlsl", ".wgsl", ".glsl", ".shader" };
+	constexpr std::string_view SCENE_EXTENSIONS[]       = { ".jscene" };
+	constexpr std::string_view PREFAB_EXTENSIONS[]      = { ".jprefab" };
+	constexpr std::string_view SCRIPT_EXTENSIONS[]      = { ".cpp", ".h", ".hpp" };
+	constexpr std::string_view AUDIO_EXTENSIONS[]       = { ".wav", ".mp3", ".flac", ".ogg" };
+	constexpr std::string_view AUDIO_EFFECT_EXTENSIONS[] = { ".jfx" };
+	constexpr std::string_view FONT_FACE_EXTENSIONS[]   = { ".ttf", ".otf" };
+	constexpr std::string_view FONT_FAMILY_EXTENSIONS[] = { ".jfontfamily" };
+
+	constexpr AssetTypeRule RULES[] = {
+		{ EAssetType::Sprite,     "Sprite",      MakeExtensionList(SPRITE_EXTENSIONS) },
+		{ EAssetType::Mesh,       "Mesh",        MakeExtensionList(MESH_EXTENSIONS) },
+		{ EAssetType::Material,   "Material",    MakeExtensionList(MATERIAL_EXTENSIONS) },
+		{ EAssetType::Shader,     "Shader",      MakeExtensionList(SHADER_EXTENSIONS) },
+		{ EAssetType::Scene,      "Scene",       MakeExtensionList(SCENE_EXTENSIONS) },
+		{ EAssetType::Prefab,     "Prefab",      MakeExtensionList(PREFAB_EXTENSIONS) },
+		{ EAssetType::Script,     "Script",      MakeExtensionList(SCRIPT_EXTENSIONS) },
+		{ EAssetType::Audio,      "Audio",       MakeExtensionList(AUDIO_EXTENSIONS) },
+		{ EAssetType::AudioEffect,"AudioEffect", MakeExtensionList(AUDIO_EFFECT_EXTENSIONS) },
+		{ EAssetType::FontFace,   "FontFace",    MakeExtensionList(FONT_FACE_EXTENSIONS) },
+		{ EAssetType::FontFamily, "FontFamily",  MakeExtensionList(FONT_FAMILY_EXTENSIONS) },
+	};
+
+	std::string NormalizeExtension(const File::Path& path)
+	{
+		std::string extension = path.extension().generic_string();
+		std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char ch) {
+			return static_cast<char>(std::tolower(ch));
+		});
+		return extension;
+	}
+
+	const AssetTypeRule* FindRule(EAssetType type)
+	{
+		for (const AssetTypeRule& rule : RULES)
+		{
+			if (rule.Type == type)
+			{
+				return &rule;
+			}
+		}
+		return nullptr;
+	}
+
+	bool HasExtension(const AssetTypeRule& rule, std::string_view extension)
+	{
+		for (std::size_t i = 0; i < rule.Extensions.Count; ++i)
+		{
+			const std::string_view allowed = rule.Extensions.Values[i];
+			if (allowed == extension)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+}
+
+EAssetType CAssetTypeRules::DetectTypeFromPath(const File::Path& path)
+{
+	const std::string extension = NormalizeExtension(path);
+	if (extension.empty())
+	{
+		return EAssetType::Unknown;
+	}
+
+	for (const AssetTypeRule& rule : RULES)
+	{
+		if (HasExtension(rule, extension))
+		{
+			return rule.Type;
+		}
+	}
+
+	return EAssetType::Custom;
+}
+
+EAssetType CAssetTypeRules::ResolveType(EAssetType declaredType, const File::Path& path)
+{
+	const EAssetType detected = DetectTypeFromPath(path);
+	if (EAssetType::Unknown != detected && EAssetType::Custom != detected)
+	{
+		return detected;
+	}
+	return declaredType;
+}
+
+bool CAssetTypeRules::IsAssignableTo(EAssetType expectedType, EAssetType declaredType, const File::Path& path)
+{
+	if (EAssetType::Unknown == expectedType)
+	{
+		return true;
+	}
+	return ResolveType(declaredType, path) == expectedType;
+}
+
+bool CAssetTypeRules::IsExtensionAllowed(EAssetType type, const File::Path& path)
+{
+	if (EAssetType::Unknown == type)
+	{
+		return true;
+	}
+
+	const AssetTypeRule* rule = FindRule(type);
+	if (nullptr == rule)
+	{
+		return EAssetType::Custom == type;
+	}
+
+	const std::string extension = NormalizeExtension(path);
+	return false == extension.empty() && HasExtension(*rule, extension);
+}
+
+std::string CAssetTypeRules::GetAllowedExtensionsText(EAssetType type)
+{
+	const AssetTypeRule* rule = FindRule(type);
+	if (nullptr == rule)
+	{
+		return {};
+	}
+
+	std::string result;
+	for (std::size_t i = 0; i < rule->Extensions.Count; ++i)
+	{
+		if (false == result.empty())
+		{
+			result += ", ";
+		}
+		const std::string_view extension = rule->Extensions.Values[i];
+		result += extension;
+	}
+	return result;
+}
+
+const char* CAssetTypeRules::GetTypeName(EAssetType type)
+{
+	if (EAssetType::Unknown == type)
+	{
+		return "Any";
+	}
+	if (EAssetType::Custom == type)
+	{
+		return "Custom";
+	}
+
+	const AssetTypeRule* rule = FindRule(type);
+	return nullptr != rule ? rule->Name.data() : "Unknown";
+}

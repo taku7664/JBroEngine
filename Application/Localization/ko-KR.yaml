@@ -82,6 +82,25 @@ Entries:
   common.yes: 예
   common.no: 아니요
 
+  asset_drop.rejected: 이 위치에는 해당 에셋을 넣을 수 없습니다.
+  asset_drop.expected: "필요 타입:"
+  asset_drop.dragged: "드래그 중:"
+  asset_drop.directories_not_allowed: 이 위치에는 폴더를 넣을 수 없습니다.
+
+  asset_type.unknown: 알 수 없음
+  asset_type.sprite: 스프라이트
+  asset_type.mesh: 메시
+  asset_type.material: 머터리얼
+  asset_type.shader: 셰이더
+  asset_type.scene: 씬
+  asset_type.prefab: 프리팹
+  asset_type.script: 스크립트
+  asset_type.audio: 사운드
+  asset_type.audio_effect: 사운드 효과
+  asset_type.font_face: 폰트 페이스
+  asset_type.font_family: 폰트 패밀리
+  asset_type.custom: 커스텀
+
   shortcut_reference.category: 분류
   shortcut_reference.action: 동작
   shortcut_reference.binding: 단축키
@@ -318,6 +337,10 @@ Entries:
 
   inspector.audio_import_options: 사운드 임포트 옵션
   inspector.apply_audio_import_options: 사운드 임포트 옵션 적용
+  inspector.material_import_options: 머티리얼 임포트 옵션
+  inspector.material.queue: 렌더 큐
+  inspector.material.queue.desc: 이 머티리얼이 사용할 렌더링 정렬 버킷입니다.
+  inspector.apply_material_import_options: 머티리얼 임포트 옵션 적용
   inspector.effect.title: 사운드 효과
   inspector.effect.kind: 효과 종류
   inspector.effect.apply: 효과 적용

@@ -7,6 +7,9 @@
 #include "Editor/ImItem/ImItemLocalizationKeys.h"
 #include "Editor/ImItem/ImItemTypes.h"
 #include "Editor/ImItem/ImReferenceField.h"
+#include "Editor/Localization/EditorLocalizationKeys.h"
+#include "Core/Localization/LocalizationManager.h"
+#include "Engine/Core/Asset/AssetTypeRules.h"
 
 #include <sstream>
 
@@ -17,9 +20,43 @@ namespace
 		return path.filename().generic_string();
 	}
 
-	bool TryReadAssetPayload(const ImGuiPayload* payload, const EditorDragDrop::AssetPayload*& outPayload)
+	const char* GetLocalizedAssetTypeName(EAssetType type)
 	{
-		outPayload = nullptr;
+		switch (type)
+		{
+		case EAssetType::Sprite:
+			return Loc::Text(EditorLocKeys::AssetTypeSprite);
+		case EAssetType::Mesh:
+			return Loc::Text(EditorLocKeys::AssetTypeMesh);
+		case EAssetType::Material:
+			return Loc::Text(EditorLocKeys::AssetTypeMaterial);
+		case EAssetType::Shader:
+			return Loc::Text(EditorLocKeys::AssetTypeShader);
+		case EAssetType::Scene:
+			return Loc::Text(EditorLocKeys::AssetTypeScene);
+		case EAssetType::Prefab:
+			return Loc::Text(EditorLocKeys::AssetTypePrefab);
+		case EAssetType::Script:
+			return Loc::Text(EditorLocKeys::AssetTypeScript);
+		case EAssetType::Audio:
+			return Loc::Text(EditorLocKeys::AssetTypeAudio);
+		case EAssetType::AudioEffect:
+			return Loc::Text(EditorLocKeys::AssetTypeAudioEffect);
+		case EAssetType::FontFace:
+			return Loc::Text(EditorLocKeys::AssetTypeFontFace);
+		case EAssetType::FontFamily:
+			return Loc::Text(EditorLocKeys::AssetTypeFontFamily);
+		case EAssetType::Custom:
+			return Loc::Text(EditorLocKeys::AssetTypeCustom);
+		case EAssetType::Unknown:
+		default:
+			return Loc::Text(EditorLocKeys::AssetTypeUnknown);
+		}
+	}
+
+	bool TryReadAssetPayload(const ImGuiPayload* payload, ImAssetField::DropPayloadView& outPayload)
+	{
+		outPayload = {};
 		if (nullptr == payload
 			|| false == payload->IsDataType(EditorDragDrop::ASSET_PAYLOAD_TYPE)
 			|| payload->DataSize != sizeof(EditorDragDrop::AssetPayload))
@@ -27,8 +64,20 @@ namespace
 			return false;
 		}
 
-		outPayload = static_cast<const EditorDragDrop::AssetPayload*>(payload->Data);
-		return nullptr != outPayload;
+		const EditorDragDrop::AssetPayload* assetPayload = static_cast<const EditorDragDrop::AssetPayload*>(payload->Data);
+		if (nullptr == assetPayload)
+		{
+			outPayload = {};
+			return false;
+		}
+
+		outPayload.Guid = EditorDragDrop::GetGuid(*assetPayload);
+		outPayload.RelativePath = EditorDragDrop::GetRelativePath(*assetPayload);
+		outPayload.DeclaredType = assetPayload->Type;
+		outPayload.ResolvedType = CAssetTypeRules::ResolveType(assetPayload->Type, outPayload.RelativePath);
+		outPayload.IsDirectory = assetPayload->IsDirectory;
+		outPayload.IsValid = true;
+		return true;
 	}
 }
 
@@ -124,32 +173,104 @@ bool ImAssetField::AcceptDrop() const
 	}
 
 	bool changed = false;
-	const EditorDragDrop::AssetPayload* hoveringPayload = nullptr;
-	const bool compatible =
-		TryReadAssetPayload(ImGui::GetDragDropPayload(), hoveringPayload)
-		&& (m_allowDirectories || false == hoveringPayload->IsDirectory)
-		&& IsExpectedType(hoveringPayload->Type);
+	DropPayloadView hoveringPayload;
+	const bool hasPayload = TryReadAssetPayload(ImGui::GetDragDropPayload(), hoveringPayload);
+	const bool compatible = hasPayload && IsPayloadCompatible(hoveringPayload);
 
 	if (compatible)
 	{
 		if (const ImGuiPayload* accepted = ImGui::AcceptDragDropPayload(EditorDragDrop::ASSET_PAYLOAD_TYPE))
 		{
-			const EditorDragDrop::AssetPayload* payload = nullptr;
+			DropPayloadView payload;
 			if (TryReadAssetPayload(accepted, payload))
 			{
-				m_guid = EditorDragDrop::GetGuid(*payload);
+				m_guid = payload.Guid;
 				changed = true;
 			}
 		}
+	}
+	else if (hasPayload)
+	{
+		DrawRejectedDropFeedback(hoveringPayload);
 	}
 
 	ImGui::EndDragDropTarget();
 	return changed;
 }
 
-bool ImAssetField::IsExpectedType(EAssetType type) const
+bool ImAssetField::IsPayloadCompatible(const DropPayloadView& payload) const
 {
-	return EAssetType::Unknown == m_type || type == m_type;
+	if (false == payload.IsValid)
+	{
+		return false;
+	}
+	if (payload.IsDirectory)
+	{
+		return m_allowDirectories;
+	}
+	return CAssetTypeRules::IsAssignableTo(m_type, payload.DeclaredType, payload.RelativePath);
+}
+
+void ImAssetField::DrawRejectedDropFeedback(const DropPayloadView& payload) const
+{
+	const ImVec2 min = ImGui::GetItemRectMin();
+	const ImVec2 max = ImGui::GetItemRectMax();
+	ImDrawList* drawList = ImGui::GetWindowDrawList();
+	if (nullptr != drawList)
+	{
+		const ImU32 borderColor = ImGui::ColorConvertFloat4ToU32(ImVec4(0.95f, 0.20f, 0.20f, 1.0f));
+		const ImU32 fillColor = ImGui::ColorConvertFloat4ToU32(ImVec4(0.95f, 0.05f, 0.05f, 0.12f));
+		drawList->AddRectFilled(min, max, fillColor, ImGui::GetStyle().FrameRounding);
+		drawList->AddRect(min, max, borderColor, ImGui::GetStyle().FrameRounding, 0, 2.0f);
+	}
+
+	if (ImGui::IsMouseHoveringRect(min, max))
+	{
+		const std::string tooltip = BuildRejectedDropTooltip(payload);
+		ImGui::BeginTooltip();
+		ImGui::TextWrapped("%s", tooltip.c_str());
+		ImGui::EndTooltip();
+	}
+}
+
+std::string ImAssetField::BuildRejectedDropTooltip(const DropPayloadView& payload) const
+{
+	std::ostringstream text;
+	text << Loc::Text(ImItemLocKeys::AssetDropRejected);
+
+	if (payload.IsDirectory && false == m_allowDirectories)
+	{
+		text << '\n' << Loc::Text(ImItemLocKeys::AssetDropDirectoriesNotAllowed);
+		return text.str();
+	}
+
+	if (EAssetType::Unknown != m_type)
+	{
+		text << '\n'
+			<< Loc::Text(ImItemLocKeys::AssetDropExpected)
+			<< ' '
+			<< GetLocalizedAssetTypeName(m_type);
+
+		const std::string extensions = CAssetTypeRules::GetAllowedExtensionsText(m_type);
+		if (false == extensions.empty())
+		{
+			text << " (" << extensions << ')';
+		}
+	}
+
+	if (payload.IsValid)
+	{
+		text << '\n'
+			<< Loc::Text(ImItemLocKeys::AssetDropDragged)
+			<< ' '
+			<< GetLocalizedAssetTypeName(payload.ResolvedType);
+
+		if (false == payload.RelativePath.empty())
+		{
+			text << " - " << payload.RelativePath.filename().generic_string();
+		}
+	}
+	return text.str();
 }
 
 std::string ImAssetField::BuildTooltip() const

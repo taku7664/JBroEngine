@@ -27,9 +27,21 @@ public:
 		const char* noneText = nullptr,
 		const char* missingText = nullptr);
 
+	struct DropPayloadView
+	{
+		AssetGuid Guid = INVALID_ASSET_GUID;
+		File::Path RelativePath = File::NULL_PATH;
+		EAssetType DeclaredType = EAssetType::Unknown;
+		EAssetType ResolvedType = EAssetType::Unknown;
+		bool IsDirectory = false;
+		bool IsValid = false;
+	};
+
 private:
 	bool AcceptDrop() const;
-	bool IsExpectedType(EAssetType type) const;
+	bool IsPayloadCompatible(const DropPayloadView& payload) const;
+	void DrawRejectedDropFeedback(const DropPayloadView& payload) const;
+	std::string BuildRejectedDropTooltip(const DropPayloadView& payload) const;
 	std::string BuildTooltip() const;
 
 	const char* m_id = nullptr;

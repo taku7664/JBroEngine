@@ -33,6 +33,19 @@ namespace EditorLocKeys
 	constexpr const char* AssetBrowserUp = "asset_browser.up";
 	constexpr const char* AssetBrowserViewIcon = "asset_browser.view_icon";
 	constexpr const char* AssetBrowserViewList = "asset_browser.view_list";
+	constexpr const char* AssetTypeAudio = "asset_type.audio";
+	constexpr const char* AssetTypeAudioEffect = "asset_type.audio_effect";
+	constexpr const char* AssetTypeCustom = "asset_type.custom";
+	constexpr const char* AssetTypeFontFace = "asset_type.font_face";
+	constexpr const char* AssetTypeFontFamily = "asset_type.font_family";
+	constexpr const char* AssetTypeMaterial = "asset_type.material";
+	constexpr const char* AssetTypeMesh = "asset_type.mesh";
+	constexpr const char* AssetTypePrefab = "asset_type.prefab";
+	constexpr const char* AssetTypeScene = "asset_type.scene";
+	constexpr const char* AssetTypeScript = "asset_type.script";
+	constexpr const char* AssetTypeShader = "asset_type.shader";
+	constexpr const char* AssetTypeSprite = "asset_type.sprite";
+	constexpr const char* AssetTypeUnknown = "asset_type.unknown";
 	constexpr const char* BuildProgressAndroid = "build.progress.android";
 	constexpr const char* BuildProgressBody = "build.progress.body";
 	constexpr const char* BuildProgressEngine = "build.progress.engine";
@@ -231,6 +244,7 @@ namespace EditorLocKeys
 	constexpr const char* InspectorAudioPreviewStopDesc = "inspector.audio.preview.stop.desc";
 	constexpr const char* InspectorAudioPreviewStreamingNoWaveform = "inspector.audio.preview.streaming_no_waveform";
 	constexpr const char* InspectorAudioImportOptions = "inspector.audio_import_options";
+	constexpr const char* InspectorApplyMaterialImportOptions = "inspector.apply_material_import_options";
 	constexpr const char* InspectorCameraDebug = "inspector.camera_debug";
 	constexpr const char* InspectorCameraDebugCulled = "inspector.camera_debug.culled";
 	constexpr const char* InspectorCameraDebugDrawn = "inspector.camera_debug.drawn";
@@ -288,6 +302,9 @@ namespace EditorLocKeys
 	constexpr const char* InspectorNoActiveScene = "inspector.no_active_scene";
 	constexpr const char* InspectorNoComponentRegistry = "inspector.no_component_registry";
 	constexpr const char* InspectorNoEditableImportOptions = "inspector.no_editable_import_options";
+	constexpr const char* InspectorMaterialImportOptions = "inspector.material_import_options";
+	constexpr const char* InspectorMaterialQueue = "inspector.material.queue";
+	constexpr const char* InspectorMaterialQueueDesc = "inspector.material.queue.desc";
 	constexpr const char* InspectorNoEntitySelected = "inspector.no_entity_selected";
 	constexpr const char* InspectorNoOtherComponents = "inspector.no_other_components";
 	constexpr const char* InspectorNoScriptsRegistered = "inspector.no_scripts_registered";

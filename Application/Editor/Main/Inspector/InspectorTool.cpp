@@ -23,6 +23,7 @@
 #include "Engine/Core/Asset/AssetMetaFile.h"
 #include "Engine/Core/Asset/IAssetManager.h"
 #include "Engine/Core/Asset/IAssetRegistry.h"
+#include "Engine/Core/Asset/MaterialAsset.h"
 #include "Engine/Core/Asset/SpriteAsset.h"
 #include "Engine/Core/Asset/AudioAsset.h"
 #include "Engine/Core/Asset/FontAsset.h"
@@ -1121,6 +1122,111 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		ImGui::EndDisabled();
 	}
 
+	bool SaveMaterialImportOptions(const AssetMetaData& metaData, const MaterialImportOptions& options)
+	{
+		SafePtr<IAssetManager> assetManager = EditorContext::GetAssetManager();
+		if (false == assetManager.IsValid()) return false;
+
+		File::Path resolvedMetaPath;
+		if (false == assetManager->ResolveAssetPath(metaData.MetaPath, resolvedMetaPath)) return false;
+
+		AssetMetaData updatedMetaData = metaData;
+		updatedMetaData.ImportOptionsYaml = CMaterialImportOptions::ToYaml(options);
+		if (false == CAssetMetaFile::Save(resolvedMetaPath, updatedMetaData)) return false;
+
+		if (AssetRef<IAsset> loaded = assetManager->FindLoadedAsset(updatedMetaData.Guid))
+		{
+			loaded->ApplyImportOptions(updatedMetaData.ImportOptionsYaml);
+		}
+		return true;
+	}
+
+	void DrawMaterialImportOptions(const AssetMetaData& metaData)
+	{
+		static AssetGuid             s_cachedGuid;
+		static MaterialImportOptions s_options;
+		static bool                  s_dirty = false;
+		if (s_cachedGuid != metaData.Guid)
+		{
+			s_cachedGuid = metaData.Guid;
+			s_options = CMaterialImportOptions::FromYaml(metaData.ImportOptionsYaml);
+			s_dirty = false;
+		}
+
+		MaterialImportOptions& options = s_options;
+		ImSectionHeader(Loc::Text(EditorLocKeys::InspectorMaterialImportOptions)).Draw();
+
+		ImGui::Utillity::FormLayout layout("##material_import_options");
+		bool changed = false;
+
+		const char* queueItems[] = {
+			CMaterialImportOptions::QueueToString(ERenderQueue::Background),
+			CMaterialImportOptions::QueueToString(ERenderQueue::Opaque),
+			CMaterialImportOptions::QueueToString(ERenderQueue::Transparent),
+			CMaterialImportOptions::QueueToString(ERenderQueue::Overlay),
+		};
+		int queueIndex = 2;
+		switch (options.Queue)
+		{
+		case ERenderQueue::Background:
+			queueIndex = 0;
+			break;
+		case ERenderQueue::Opaque:
+			queueIndex = 1;
+			break;
+		case ERenderQueue::Overlay:
+			queueIndex = 3;
+			break;
+		case ERenderQueue::Transparent:
+		default:
+			queueIndex = 2;
+			break;
+		}
+
+		layout.Row(
+			[&]() {
+				ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorMaterialQueue));
+				ImGui::Utillity::HoveredToolTip(Loc::Text(EditorLocKeys::InspectorMaterialQueueDesc));
+			},
+			[&]() {
+				if (ImGui::Combo("##inspector.material.queue", &queueIndex, queueItems, IM_ARRAYSIZE(queueItems)))
+				{
+					changed = true;
+				}
+			});
+
+		switch (queueIndex)
+		{
+		case 0:
+			options.Queue = ERenderQueue::Background;
+			break;
+		case 1:
+			options.Queue = ERenderQueue::Opaque;
+			break;
+		case 3:
+			options.Queue = ERenderQueue::Overlay;
+			break;
+		case 2:
+		default:
+			options.Queue = ERenderQueue::Transparent;
+			break;
+		}
+
+		if (changed) s_dirty = true;
+
+		ImGui::BeginDisabled(false == s_dirty);
+		if (ImActionButton(Loc::Text(EditorLocKeys::InspectorApplyMaterialImportOptions))
+			.Severity(EImValidationSeverity::Success)
+			.Draw())
+		{
+			if (SaveMaterialImportOptions(metaData, options))
+			{
+				s_dirty = false;
+			}
+		}
+		ImGui::EndDisabled();
+	}
+
 
 	// 이름이 무효(식별자 아님/예약어/목록 내 중복)인지.
 	bool IsSchemaNameInvalid(const std::string& name, const std::vector<ScriptSchema::Property>& all)
@@ -1398,6 +1504,10 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		else if (EAssetType::Audio == metaData->Type)
 		{
 			DrawAudioImportOptions(*metaData);
+		}
+		else if (EAssetType::Material == metaData->Type)
+		{
+			DrawMaterialImportOptions(*metaData);
 		}
 		else if (EAssetType::AudioEffect == metaData->Type)
 		{

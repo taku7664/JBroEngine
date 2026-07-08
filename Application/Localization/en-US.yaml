@@ -82,6 +82,25 @@ Entries:
   common.yes: Yes
   common.no: No
 
+  asset_drop.rejected: This asset cannot be assigned here.
+  asset_drop.expected: "Expected:"
+  asset_drop.dragged: "Dragged:"
+  asset_drop.directories_not_allowed: Directories are not accepted here.
+
+  asset_type.unknown: Unknown
+  asset_type.sprite: Sprite
+  asset_type.mesh: Mesh
+  asset_type.material: Material
+  asset_type.shader: Shader
+  asset_type.scene: Scene
+  asset_type.prefab: Prefab
+  asset_type.script: Script
+  asset_type.audio: Audio
+  asset_type.audio_effect: Audio Effect
+  asset_type.font_face: Font Face
+  asset_type.font_family: Font Family
+  asset_type.custom: Custom
+
   shortcut_reference.category: Category
   shortcut_reference.action: Action
   shortcut_reference.binding: Shortcut
@@ -318,6 +337,10 @@ Entries:
 
   inspector.audio_import_options: Audio Import Options
   inspector.apply_audio_import_options: Apply Audio Import Options
+  inspector.material_import_options: Material Import Options
+  inspector.material.queue: Render Queue
+  inspector.material.queue.desc: Controls the render ordering bucket used by this material.
+  inspector.apply_material_import_options: Apply Material Import Options
   inspector.effect.title: Sound Effect
   inspector.effect.kind: Effect Kind
   inspector.effect.apply: Apply Effect
