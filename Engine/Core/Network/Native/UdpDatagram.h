@@ -55,6 +55,9 @@ namespace UdpProto
 	constexpr std::size_t kFragFieldSize   = 4u + 2u + 2u;      // = 8
 	constexpr std::size_t kMsgIdSize       = 2u;
 
+	// 데이터그램 1개가 싣는 최대 payload(IP 분할 회피 여유). 초과 신뢰 메시지는 프래그먼트 분할.
+	constexpr std::uint32_t kMaxPayload = 1024u;
+
 	// 플래그로 결정되는 헤더 총 길이(payload 제외).
 	inline std::size_t HeaderSize(std::uint8_t flags)
 	{

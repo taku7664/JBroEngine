@@ -281,6 +281,10 @@ void CNetworkManager::Update()
 		}
 	}
 
+#if !JBRO_PLATFORM_WEB
+	CommitOrderedRoutes(); // UDP 준비/타임아웃에 따라 유저 ordered 전송로 확정 + 백로그 flush.
+#endif
+
 	UpdateSessions(); // ping 송신 / 타임아웃 감지 → WantsClose 설정.
 
 	// 지연 종료 처리. 콜백(onData) 재진입 중 transport 를 건드리면 UAF 위험이라
@@ -477,16 +481,37 @@ bool CNetworkManager::SendFramed(
 	}
 
 #if !JBRO_PLATFORM_WEB
-	// 비신뢰 채널은 UDP 로 시도. 미준비(엔드포인트/토큰 없음)·대용량이면 false → 신뢰 폴백.
-	if (ENetChannel::ReliableOrdered != channel && m_udp &&
-	    m_udp->Send(id, channel, messageId, data, size))
+	if (m_udp)
 	{
-		return true;
+		const bool isSystem = (messageId >= SYSTEM_MESSAGE_BASE);
+		if (ENetChannel::ReliableOrdered == channel)
+		{
+			// 유저 ordered 는 전송로 확정 로직(단일 전송로 유지). SYS ordered 는 부트스트랩이라 항상 WS.
+			if (false == isSystem)
+			{
+				return SendUserOrdered(id, messageId, data, size);
+			}
+		}
+		// 비신뢰/무순서신뢰: UDP 로 시도. 미준비·대용량이면 false → 아래 WS 폴백.
+		else if (m_udp->Send(id, channel, messageId, data, size))
+		{
+			return true;
+		}
 	}
 #else
 	(void)channel; // 웹은 UDP 불가 — 전 채널 신뢰 WS.
 #endif
 
+	return SendWsFrame(id, messageId, data, size);
+}
+
+bool CNetworkManager::SendWsFrame(
+	NetworkConnectionId id, std::uint16_t messageId, const void* data, std::uint32_t size)
+{
+	if (!m_transport)
+	{
+		return false;
+	}
 	// 신뢰 경로: WS transport 로 [uint16 msgId][payload] 프레임 전송.
 	std::vector<std::uint8_t> frame;
 	frame.reserve(MESSAGE_HEADER_SIZE + size);
@@ -497,9 +522,109 @@ bool CNetworkManager::SendFramed(
 		const std::uint8_t* bytes = static_cast<const std::uint8_t*>(data);
 		frame.insert(frame.end(), bytes, bytes + size);
 	}
-
 	return m_transport->Send(id, frame.data(), static_cast<std::uint32_t>(frame.size()));
 }
+
+#if !JBRO_PLATFORM_WEB
+// 유저 ReliableOrdered 송신. 전송로 확정 전엔 백로그에 쌓고, 확정 후엔 그 전송로로 보낸다.
+// 교차 전송로(일부 WS·일부 UDP)로 인한 순서 붕괴를 막기 위해 연결당 전송로는 하나로 고정된다.
+bool CNetworkManager::SendUserOrdered(
+	NetworkConnectionId id, std::uint16_t messageId, const void* data, std::uint32_t size)
+{
+	const auto it = m_sessions.find(id);
+	if (m_sessions.end() == it)
+	{
+		return SendWsFrame(id, messageId, data, size); // 세션 없음 — WS 로.
+	}
+	ConnectionSession& session = it->second;
+
+	switch (session.OrderedRoute)
+	{
+	case EOrderedRoute::Udp:
+		if (m_udp->Send(id, ENetChannel::ReliableOrdered, messageId, data, size))
+		{
+			return true;
+		}
+		break; // UDP 일시 실패 → 백로그에 넣어 다음 flush 에서 재시도.
+	case EOrderedRoute::WebSocket:
+		return SendWsFrame(id, messageId, data, size);
+	case EOrderedRoute::Undecided:
+	default:
+		break; // 전송로 미확정 — 백로그.
+	}
+
+	ConnectionSession::BacklogItem item;
+	item.MsgId = messageId;
+	if (size > 0 && nullptr != data)
+	{
+		const std::uint8_t* bytes = static_cast<const std::uint8_t*>(data);
+		item.Bytes.assign(bytes, bytes + size);
+	}
+	session.OrderedBacklog.push_back(std::move(item));
+	return true;
+}
+
+// UDP 준비되면 UDP 로, 일정 시간 못 오면 WS 로 유저 ordered 전송로를 확정하고 백로그를 순서대로 flush.
+void CNetworkManager::CommitOrderedRoutes()
+{
+	if (!m_udp)
+	{
+		return;
+	}
+	constexpr double UDP_ORDERED_WAIT_MS = 2000.0; // 이 안에 UDP 준비 안 되면 WS 로 확정(liveness).
+	const double now = NowMs();
+
+	for (auto& entry : m_sessions)
+	{
+		const NetworkConnectionId id      = entry.first;
+		ConnectionSession&        session = entry.second;
+		if (ESessionState::Ready != session.State)
+		{
+			continue;
+		}
+
+		// 이미 UDP 확정: 재시도로 남은 백로그가 있으면 준비됐을 때 flush.
+		if (EOrderedRoute::Udp == session.OrderedRoute)
+		{
+			if (false == session.OrderedBacklog.empty() && m_udp->CanSend(id, 0))
+			{
+				for (const auto& item : session.OrderedBacklog)
+				{
+					m_udp->Send(id, ENetChannel::ReliableOrdered, item.MsgId,
+						item.Bytes.data(), static_cast<std::uint32_t>(item.Bytes.size()));
+				}
+				session.OrderedBacklog.clear();
+			}
+			continue;
+		}
+		if (EOrderedRoute::WebSocket == session.OrderedRoute)
+		{
+			continue; // 이미 WS 확정 — 이후 전부 WS(SendUserOrdered 에서 직송).
+		}
+
+		// 미확정: UDP 준비 여부 판정.
+		if (m_udp->CanSend(id, 0)) // 엔드포인트/토큰 준비 → UDP 확정.
+		{
+			session.OrderedRoute = EOrderedRoute::Udp;
+			for (const auto& item : session.OrderedBacklog)
+			{
+				m_udp->Send(id, ENetChannel::ReliableOrdered, item.MsgId,
+					item.Bytes.data(), static_cast<std::uint32_t>(item.Bytes.size()));
+			}
+			session.OrderedBacklog.clear();
+		}
+		else if (now - session.ReadyMs > UDP_ORDERED_WAIT_MS) // UDP 안 옴 → WS 확정.
+		{
+			session.OrderedRoute = EOrderedRoute::WebSocket;
+			for (const auto& item : session.OrderedBacklog)
+			{
+				SendWsFrame(id, item.MsgId, item.Bytes.data(), static_cast<std::uint32_t>(item.Bytes.size()));
+			}
+			session.OrderedBacklog.clear();
+		}
+	}
+}
+#endif
 
 // ── 세션 계층 구현 ────────────────────────────────────────────────────────────
 
@@ -527,6 +652,7 @@ void CNetworkManager::PromoteToReady(NetworkConnectionId id)
 	it->second.State          = ESessionState::Ready;
 	it->second.LastRecvMs     = NowMs();
 	it->second.LastPingSentMs = NowMs();
+	it->second.ReadyMs        = NowMs(); // 유저 ordered 전송로 UDP 대기 타임아웃 기준.
 
 	if (m_connections.end() == std::find(m_connections.begin(), m_connections.end(), id))
 	{

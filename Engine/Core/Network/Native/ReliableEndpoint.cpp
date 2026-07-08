@@ -14,6 +14,13 @@ namespace
 	constexpr double kMinRtoMs = 50.0;   // 하한 — 로컬에서도 스팸 방지.
 	constexpr double kMaxRtoMs = 2000.0; // 상한 — 죽은 연결은 상위 타임아웃이 처리.
 
+	constexpr std::uint32_t kMinCwnd = 4u;   // 혼잡 윈도우 하한(진행 보장).
+	constexpr std::uint32_t kMaxCwnd = 256u; // 상한(버스트 억제).
+
+	// 선택 ACK 는 누적 경계 위 32 seq 만 비트로 확인 가능. 인플라이트 seq 범위를 이 값 이하로
+	// 유지해야 모든 인플라이트가 ACK 가능해진다(안 그러면 창 밖 seq 가 영영 재전송 = livelock).
+	constexpr std::uint32_t kAckWindow = 32u;
+
 	// 재전송 지수 백오프 배수(Sends 기준). Sends 1→×1, 2→×2, ... 상한 ×64.
 	double BackoffFactor(std::uint32_t sends)
 	{
@@ -38,33 +45,104 @@ namespace
 void CReliableEndpoint::SendReliable(
 	ENetChannel channel, std::uint16_t msgId, const void* data, std::uint32_t size, double nowMs, const FEmit& emit)
 {
-	const std::uint32_t seq = m_nextSeq++;
+	// 전송 단위(데이터그램 1개)로 쪼개 큐에 넣는다 — seq 는 실제 송신 때 할당(연속성 + 창 제어).
+	const std::uint8_t* bytes = static_cast<const std::uint8_t*>(data);
 
-	Outbound outbound;
-	outbound.MsgId      = msgId;
-	outbound.Channel    = channel;
-	outbound.LastSentMs = nowMs;
-	outbound.Sends      = 1;
-	outbound.Payload.resize(size);
-	if (size > 0 && nullptr != data)
+	if (size <= UdpProto::kMaxPayload)
 	{
-		std::memcpy(outbound.Payload.data(), data, size);
+		SendUnit unit;
+		unit.Channel = channel;
+		unit.MsgId   = msgId;
+		unit.Payload.assign(bytes, bytes + size);
+		m_sendQueue.push_back(std::move(unit));
+	}
+	else
+	{
+		// 프래그먼트 분할(3d) — 조각마다 전송 단위 1개. MsgSeq 로 재조립 그룹화.
+		const std::uint32_t count  = (size + UdpProto::kMaxPayload - 1u) / UdpProto::kMaxPayload;
+		const std::uint32_t msgSeq = m_nextMsgSeq++;
+		for (std::uint32_t i = 0; i < count; ++i)
+		{
+			const std::uint32_t off   = i * UdpProto::kMaxPayload;
+			const std::uint32_t chunk = std::min(UdpProto::kMaxPayload, size - off);
+
+			SendUnit unit;
+			unit.Channel   = channel;
+			unit.MsgId     = msgId;
+			unit.Fragment  = true;
+			unit.MsgSeq    = msgSeq;
+			unit.FragIndex = static_cast<std::uint16_t>(i);
+			unit.FragCount = static_cast<std::uint16_t>(count);
+			unit.Payload.assign(bytes + off, bytes + off + chunk);
+			m_sendQueue.push_back(std::move(unit));
+		}
 	}
 
-	UdpProto::UdpDatagramHeader header = MakeReliableHeader(seq, msgId, channel);
-	emit(header, outbound.Payload.data(), size);
+	DrainSendQueue(nowMs, emit);
+}
 
-	m_unacked.emplace(seq, std::move(outbound));
+// 창(cwnd + 인플라이트 seq 범위 ≤ kAckWindow) 여유만큼 큐 앞에서부터 실제 송출.
+// seq 를 여기서 할당해 연속 유지 → 모든 인플라이트가 선택 ACK 범위 안에 들어온다.
+void CReliableEndpoint::DrainSendQueue(double nowMs, const FEmit& emit)
+{
+	std::size_t sent = 0;
+	while (sent < m_sendQueue.size())
+	{
+		if (m_unacked.size() >= m_cwnd)
+		{
+			break; // 혼잡 윈도우 가득.
+		}
+		if (false == m_unacked.empty() &&
+		    (m_nextSeq - m_unacked.begin()->first) >= kAckWindow)
+		{
+			break; // 인플라이트 seq 범위가 ACK 창에 도달 — 더 보내면 창 밖 seq 발생.
+		}
+
+		SendUnit& unit = m_sendQueue[sent];
+		const std::uint32_t seq = m_nextSeq++;
+
+		Outbound outbound;
+		outbound.MsgId      = unit.MsgId;
+		outbound.Channel    = unit.Channel;
+		outbound.LastSentMs = nowMs;
+		outbound.Sends      = 1;
+		outbound.Fragment   = unit.Fragment;
+		outbound.MsgSeq     = unit.MsgSeq;
+		outbound.FragIndex  = unit.FragIndex;
+		outbound.FragCount  = unit.FragCount;
+		outbound.Payload    = std::move(unit.Payload);
+
+		UdpProto::UdpDatagramHeader header = MakeReliableHeader(seq, unit.MsgId, unit.Channel);
+		if (unit.Fragment)
+		{
+			header.Flags    |= UdpProto::Flag_Fragment;
+			header.MsgSeq    = unit.MsgSeq;
+			header.FragIndex = unit.FragIndex;
+			header.FragCount = unit.FragCount;
+		}
+		emit(header, outbound.Payload.data(), static_cast<std::uint32_t>(outbound.Payload.size()));
+
+		m_unacked.emplace(seq, std::move(outbound));
+		++sent;
+	}
+	if (sent > 0)
+	{
+		m_sendQueue.erase(m_sendQueue.begin(), m_sendQueue.begin() + static_cast<std::ptrdiff_t>(sent));
+	}
 }
 
 // ── 수신 ─────────────────────────────────────────────────────────────────────────
 
-void CReliableEndpoint::OnReliableReceived(std::uint32_t seq, ENetChannel channel,
-	std::uint16_t msgId, const std::uint8_t* payload, std::uint32_t size, const FDeliver& deliver)
+void CReliableEndpoint::OnReliableReceived(const UdpProto::UdpDatagramHeader& header,
+	const std::uint8_t* payload, std::uint32_t size, const FDeliver& deliver)
 {
+	const std::uint32_t seq     = header.Seq;
+	const ENetChannel   channel = header.Channel;
+	const std::uint16_t msgId   = header.MsgId;
+
 	m_ackPending = true; // 신규든 중복이든 상대에게 수신 사실을 알린다(재전송 억제).
 
-	// dedup — 이미 받은 seq 는 폐기(전달 안 함).
+	// dedup — 이미 받은 seq 는 폐기(전달 안 함). 재전송된 조각도 여기서 걸러진다.
 	if (seq < m_recvNext || 0 != m_recvAhead.count(seq))
 	{
 		return;
@@ -84,13 +162,69 @@ void CReliableEndpoint::OnReliableReceived(std::uint32_t seq, ENetChannel channe
 		m_recvAhead.insert(seq); // gap 위 — 선택 ack 로 보고.
 	}
 
-	if (ENetChannel::ReliableUnordered == channel)
+	// ── 프래그먼트(3d): 재조립 완료 전엔 전달 안 함 ──
+	if (0 != (header.Flags & UdpProto::Flag_Fragment))
 	{
-		deliver(msgId, payload, size); // 순서 무관 — 즉시 전달.
+		// 방어: 잘못된 조각 수/번호는 버림(워터마크·ack 는 이미 반영).
+		if (0 == header.FragCount || header.FragIndex >= header.FragCount)
+		{
+			return;
+		}
+
+		Reassembly& ra = m_reassembly[header.MsgSeq];
+		if (ra.Parts.empty())
+		{
+			ra.Channel   = channel;
+			ra.MsgId     = msgId;
+			ra.FragCount = header.FragCount;
+			ra.Parts.resize(header.FragCount);
+			ra.LastSeq   = seq;
+		}
+		if (ra.Parts[header.FragIndex].empty()) // dedup 이 seq 를 걸러도, 슬롯 이중기록 방어.
+		{
+			ra.Parts[header.FragIndex].assign(payload, payload + size);
+			++ra.HaveCount;
+		}
+		if (seq > ra.LastSeq)
+		{
+			ra.LastSeq = seq;
+		}
+
+		if (ra.HaveCount < ra.FragCount)
+		{
+			return; // 아직 조각 부족.
+		}
+
+		// 완성 — 전체 페이로드 조립.
+		std::vector<std::uint8_t> full;
+		for (const auto& part : ra.Parts)
+		{
+			full.insert(full.end(), part.begin(), part.end());
+		}
+		const ENetChannel   raChannel = ra.Channel;
+		const std::uint16_t raMsgId   = ra.MsgId;
+		const std::uint32_t raLastSeq = ra.LastSeq;
+		m_reassembly.erase(header.MsgSeq);
+
+		if (ENetChannel::ReliableUnordered == raChannel)
+		{
+			deliver(raMsgId, full.data(), static_cast<std::uint32_t>(full.size())); // 즉시.
+		}
+		else
+		{
+			Buffered buffered;
+			buffered.MsgId   = raMsgId;
+			buffered.Payload = std::move(full);
+			m_orderedPending.emplace(raLastSeq, std::move(buffered)); // 마지막 조각 seq 로 순서 배치.
+		}
+	}
+	// ── 단일 데이터그램 메시지 ──
+	else if (ENetChannel::ReliableUnordered == channel)
+	{
+		deliver(msgId, payload, size); // 순서 무관 — 즉시.
 	}
 	else
 	{
-		// Ordered — 일단 버퍼. 아래 flush 가 워터마크까지 순서대로 방출.
 		Buffered buffered;
 		buffered.MsgId = msgId;
 		buffered.Payload.assign(payload, payload + size);
@@ -109,9 +243,10 @@ void CReliableEndpoint::OnReliableReceived(std::uint32_t seq, ENetChannel channe
 
 void CReliableEndpoint::FillAck(UdpProto::UdpDatagramHeader& header) const
 {
-	// ackPending 일 때만 호출 → m_recvNext >= 1 보장(무언가 받았음).
+	// AckBase = 다음 기대 seq(= 이 미만 seq 전부 수신). m_recvNext=0(아무 것도 연속 수신 못함,
+	// 예: seq0 유실+상위 도착)일 때도 언더플로우 없이 "누적 없음"을 정확히 표현한다.
 	header.Flags  |= UdpProto::Flag_Ack;
-	header.AckBase = m_recvNext - 1; // 누적: 이 seq 이하 전부 수신.
+	header.AckBase = m_recvNext;
 	std::uint32_t bits = 0;
 	for (std::uint32_t i = 0; i < 32; ++i)
 	{
@@ -129,25 +264,27 @@ void CReliableEndpoint::FillAck(UdpProto::UdpDatagramHeader& header) const
 void CReliableEndpoint::OnAck(std::uint32_t ackBase, std::uint32_t ackBits, double nowMs)
 {
 	double rttSample = -1.0;
+	bool   acked     = false;
 
-	// 누적: seq <= ackBase 전부 해제.
-	for (auto it = m_unacked.begin(); it != m_unacked.end() && it->first <= ackBase; )
+	// 누적: seq < ackBase 전부 해제(ackBase = 수신측 다음 기대 seq).
+	for (auto it = m_unacked.begin(); it != m_unacked.end() && it->first < ackBase; )
 	{
 		if (1 == it->second.Sends) // Karn: 재전송 안 된 패킷만 RTT 표본.
 		{
 			rttSample = nowMs - it->second.LastSentMs;
 		}
 		it = m_unacked.erase(it);
+		acked = true;
 	}
 
-	// 선택: ackBase+2+i (gap=ackBase+1 은 아직 미수신).
+	// 선택: ackBase+1+i (gap=ackBase 는 아직 미수신).
 	for (std::uint32_t i = 0; i < 32; ++i)
 	{
 		if (0 == (ackBits & (1u << i)))
 		{
 			continue;
 		}
-		const std::uint32_t seq = ackBase + 2u + i;
+		const std::uint32_t seq = ackBase + 1u + i;
 		const auto it = m_unacked.find(seq);
 		if (m_unacked.end() != it)
 		{
@@ -156,12 +293,17 @@ void CReliableEndpoint::OnAck(std::uint32_t ackBase, std::uint32_t ackBits, doub
 				rttSample = nowMs - it->second.LastSentMs;
 			}
 			m_unacked.erase(it);
+			acked = true;
 		}
 	}
 
 	if (rttSample >= 0.0)
 	{
 		UpdateRtt(rttSample);
+	}
+	if (acked) // AIMD 가산 증가: 진행이 확인되면 윈도우를 조금 넓힌다.
+	{
+		m_cwnd = std::min(kMaxCwnd, m_cwnd + 1u);
 	}
 }
 
@@ -186,6 +328,7 @@ void CReliableEndpoint::UpdateRtt(double sampleMs)
 void CReliableEndpoint::Tick(double nowMs, const FEmit& emit)
 {
 	// 1) RTO 만료분 재전송(패킷별 지수 백오프). 전역 RTO 는 UpdateRtt 로만 변한다.
+	bool retransmitted = false;
 	for (auto& entry : m_unacked)
 	{
 		Outbound& outbound = entry.second;
@@ -196,12 +339,29 @@ void CReliableEndpoint::Tick(double nowMs, const FEmit& emit)
 		}
 
 		UdpProto::UdpDatagramHeader header = MakeReliableHeader(entry.first, outbound.MsgId, outbound.Channel);
+		if (outbound.Fragment) // 프래그먼트 헤더 필드 복원.
+		{
+			header.Flags    |= UdpProto::Flag_Fragment;
+			header.MsgSeq    = outbound.MsgSeq;
+			header.FragIndex = outbound.FragIndex;
+			header.FragCount = outbound.FragCount;
+		}
 		emit(header, outbound.Payload.data(), static_cast<std::uint32_t>(outbound.Payload.size()));
 		outbound.LastSentMs = nowMs;
 		++outbound.Sends;
+		retransmitted = true;
 	}
 
-	// 2) 대기 중 ack 를 독립 데이터그램으로 flush(피기백 최적화는 후속).
+	// 2) 유실 신호(재전송 발생) → AIMD 곱셈 감소(틱당 1회).
+	if (retransmitted)
+	{
+		m_cwnd = std::max(kMinCwnd, m_cwnd / 2u);
+	}
+
+	// 3) ack 로 인플라이트가 빠졌으면 대기 큐를 cwnd 여유만큼 배수.
+	DrainSendQueue(nowMs, emit);
+
+	// 4) 대기 중 ack 를 독립 데이터그램으로 flush(피기백 최적화는 후속).
 	if (m_ackPending)
 	{
 		UdpProto::UdpDatagramHeader header;
@@ -214,13 +374,16 @@ void CReliableEndpoint::Tick(double nowMs, const FEmit& emit)
 
 void CReliableEndpoint::Reset()
 {
-	m_nextSeq = 0;
+	m_sendQueue.clear();
+	m_nextSeq = 0; m_nextMsgSeq = 0;
 	m_unacked.clear();
+	m_cwnd = 16;
 	m_srtt = 0.0; m_rttvar = 0.0; m_rto = 250.0; m_haveRtt = false;
 	m_recvNext = 0;
 	m_recvAhead.clear();
 	m_ackPending = false;
 	m_orderedPending.clear();
+	m_reassembly.clear();
 }
 
 #endif // !JBRO_PLATFORM_WEB

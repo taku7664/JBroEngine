@@ -112,6 +112,7 @@ private:
 	};
 
 	std::uint64_t NextToken();
+	bool          EndpointReady(NetworkConnectionId id) const; // 소켓+엔드포인트/토큰 준비 여부(크기캡 없음).
 	double        NowMs() const; // 단조 시계(RTT/RTO 용).
 	// 완성된 헤더(Token 세팅 후) + payload 를 인코드해 송신.
 	bool SendPacket(const NetUdpEndpoint& to, UdpProto::UdpDatagramHeader& header,

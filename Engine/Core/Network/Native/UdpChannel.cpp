@@ -10,8 +10,7 @@
 
 namespace
 {
-	constexpr std::uint32_t UDP_MAX_PAYLOAD  = 1024u; // MTU 여유(IP 분할 회피).
-	constexpr std::size_t   UDP_RECV_BUFSIZE = 2048u;
+	constexpr std::size_t UDP_RECV_BUFSIZE = 2048u;
 }
 
 // ── 수명 ─────────────────────────────────────────────────────────────────────────
@@ -117,9 +116,9 @@ void CUdpChannel::SetClientToken(std::uint64_t token)
 
 // ── 송신 ─────────────────────────────────────────────────────────────────────────
 
-bool CUdpChannel::CanSend(NetworkConnectionId id, std::uint32_t payloadSize) const
+bool CUdpChannel::EndpointReady(NetworkConnectionId id) const
 {
-	if (!m_socket || payloadSize > UDP_MAX_PAYLOAD)
+	if (!m_socket)
 	{
 		return false;
 	}
@@ -135,16 +134,35 @@ bool CUdpChannel::CanSend(NetworkConnectionId id, std::uint32_t payloadSize) con
 	return false;
 }
 
+bool CUdpChannel::CanSend(NetworkConnectionId id, std::uint32_t payloadSize) const
+{
+	// 비신뢰 경로: 단일 데이터그램이라 kMaxPayload 캡. 신뢰는 프래그먼트로 대용량 가능(Send 참조).
+	return payloadSize <= UdpProto::kMaxPayload && EndpointReady(id);
+}
+
 bool CUdpChannel::Send(
 	NetworkConnectionId id, ENetChannel channel, std::uint16_t msgId, const void* data, std::uint32_t size)
 {
-	if (false == CanSend(id, size))
+	const bool reliable =
+		(ENetChannel::ReliableOrdered == channel || ENetChannel::ReliableUnordered == channel);
+
+	if (reliable)
+	{
+		// 신뢰: 프래그먼트로 대용량 가능 — 준비 상태만 확인. FragCount(uint16) 한계까지.
+		if (false == EndpointReady(id))
+		{
+			return false;
+		}
+		const std::uint64_t maxReliable = static_cast<std::uint64_t>(UdpProto::kMaxPayload) * 65535ull;
+		if (static_cast<std::uint64_t>(size) > maxReliable)
+		{
+			return false; // 프래그먼트 수가 uint16 초과 — 상위가 WS 로 폴백.
+		}
+	}
+	else if (false == CanSend(id, size)) // 비신뢰: kMaxPayload 캡 + 준비.
 	{
 		return false;
 	}
-
-	const bool reliable =
-		(ENetChannel::ReliableOrdered == channel || ENetChannel::ReliableUnordered == channel);
 
 	if (ENetworkRole::Server == m_role)
 	{
@@ -290,8 +308,8 @@ void CUdpChannel::Poll(const FOnUdpMessage& onMessage)
 			}
 			if (0 != (header.Flags & UdpProto::Flag_Reliable))
 			{
-				// dedup + 채널 규율(Unordered 즉시 / Ordered 순서)대로 전달.
-				peer.Reliable.OnReliableReceived(seq, channel, msgId, payload, psize,
+				// dedup + (프래그먼트면 재조립) + 채널 규율대로 전달.
+				peer.Reliable.OnReliableReceived(header, payload, psize,
 					[&](std::uint16_t mid, const std::uint8_t* p, std::uint32_t n)
 					{
 						onMessage(connId, mid, p, n);
@@ -327,7 +345,7 @@ void CUdpChannel::Poll(const FOnUdpMessage& onMessage)
 			}
 			if (0 != (header.Flags & UdpProto::Flag_Reliable))
 			{
-				m_clientReliable.OnReliableReceived(seq, channel, msgId, payload, psize,
+				m_clientReliable.OnReliableReceived(header, payload, psize,
 					[&](std::uint16_t mid, const std::uint8_t* p, std::uint32_t n)
 					{
 						onMessage(SERVER_CONNECTION_ID, mid, p, n);

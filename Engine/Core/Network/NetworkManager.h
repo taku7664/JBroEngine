@@ -57,8 +57,13 @@ public:
 
 private:
 	// [uint16 LE messageId][payload] 로 프레이밍해 transport 로 전송.
-	// channel 은 전달보장 선택 — 현재 전 채널 신뢰 WS. UDP 백엔드 추가 시 여기서 분기.
+	// channel 로 전달보장 분기: 신뢰 WS / UDP(비신뢰·무순서신뢰) / 유저 ordered 전송로 확정.
 	bool SendFramed(NetworkConnectionId id, std::uint16_t messageId, const void* data, std::uint32_t size, ENetChannel channel);
+	bool SendWsFrame(NetworkConnectionId id, std::uint16_t messageId, const void* data, std::uint32_t size); // 신뢰 WS 프레임.
+#if !JBRO_PLATFORM_WEB
+	bool SendUserOrdered(NetworkConnectionId id, std::uint16_t messageId, const void* data, std::uint32_t size); // 전송로 확정/버퍼.
+	void CommitOrderedRoutes(); // UDP 준비/타임아웃에 따라 ordered 전송로 확정 + 백로그 flush.
+#endif
 	void OnTransportConnected   (NetworkConnectionId id);
 	void OnTransportDisconnected(NetworkConnectionId id);
 	void OnTransportData        (NetworkConnectionId id, const std::uint8_t* data, std::uint32_t size);
@@ -72,6 +77,10 @@ private:
 		Ready,       // 버전 합의 완료 — 게임 OnConnected 발화됨.
 	};
 
+	// 유저 ReliableOrdered 의 전송로. 단일 전송로 유지(교차 전송로 순서 붕괴 방지)를 위해
+	// 연결마다 한 번 확정한다: 부트스트랩 후 UDP 준비되면 Udp, 일정 시간 못 오면 WebSocket.
+	enum class EOrderedRoute : std::uint8_t { Undecided, Udp, WebSocket };
+
 	struct ConnectionSession
 	{
 		ESessionState State          = ESessionState::Handshaking;
@@ -80,6 +89,12 @@ private:
 		double        RoundTripMs    = -1.0; // 최근 RTT(미측정 -1).
 		ENetworkDisconnectReason PendingReason = ENetworkDisconnectReason::Normal; // 로컬 종료 사유.
 		bool          WantsClose     = false; // 지연 종료 플래그(재진입 안전 위해 Update 말미에 처리).
+
+		// 유저 ReliableOrdered 전송로 확정(위 enum). 확정 전엔 백로그에 쌓아 두었다가 flush.
+		double        ReadyMs      = 0.0; // Ready 진입 시각(UDP 대기 타임아웃 기준).
+		EOrderedRoute OrderedRoute = EOrderedRoute::Undecided;
+		struct BacklogItem { std::uint16_t MsgId = 0; std::vector<std::uint8_t> Bytes; };
+		std::vector<BacklogItem> OrderedBacklog; // 전송로 확정 전 대기 중인 유저 ordered 메시지.
 	};
 
 	double NowMs() const;
