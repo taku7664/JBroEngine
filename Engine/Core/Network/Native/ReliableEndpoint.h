@@ -40,8 +40,9 @@ public:
 		double nowMs, const FEmit& emit);
 
 	// 수신한 신뢰 데이터그램 처리. dedup + (프래그먼트면 재조립) 후 채널 규율대로 deliver. 항상 ack 예약.
+	// nowMs 로 ack 지연 시작 시각을 기록(피기백 기회 부여용).
 	void OnReliableReceived(const UdpProto::UdpDatagramHeader& header,
-		const std::uint8_t* payload, std::uint32_t size, const FDeliver& deliver);
+		const std::uint8_t* payload, std::uint32_t size, double nowMs, const FDeliver& deliver);
 
 	// 수신 데이터그램의 ack 필드 처리 → unacked 해제 + RTT 갱신 + 혼잡 윈도우 증가.
 	void OnAck(std::uint32_t ackBase, std::uint32_t ackBits, double nowMs);
@@ -57,10 +58,13 @@ public:
 	double        CurrentRtoMs() const { return m_rto; }
 	double        SmoothedRttMs() const { return m_srtt; }
 	std::uint32_t CongestionWindow() const { return m_cwnd; }
+	std::uint32_t PiggybackAcks()  const { return m_piggybackAcks; }  // 데이터에 편승한 ack 수.
+	std::uint32_t StandaloneAcks() const { return m_standaloneAcks; } // 별도 패킷으로 나간 ack 수.
 
 private:
 	void UpdateRtt(double sampleMs);
 	void FillAck(UdpProto::UdpDatagramHeader& header) const; // Flag_Ack + AckBase/AckBits 세팅.
+	void MaybePiggybackAck(UdpProto::UdpDatagramHeader& header); // 대기 ack 있으면 이 데이터그램에 얹고 소비.
 	void DrainSendQueue(double nowMs, const FEmit& emit); // 창(cwnd + seq범위) 여유만큼 큐→와이어.
 
 private:
@@ -110,6 +114,9 @@ private:
 	std::uint32_t           m_recvNext = 0;     // 이 미만 seq 는 전부 수신됨(누적 경계 = 순서 워터마크).
 	std::set<std::uint32_t> m_recvAhead;        // gap 위로 수신한 seq(dedup + 선택 ack 비트).
 	bool                    m_ackPending = false;
+	double                  m_ackPendingSinceMs = 0.0; // ack 가 대기 시작한 시각(지연 flush 판단).
+	std::uint32_t           m_piggybackAcks  = 0; // 진단: 데이터 편승 ack.
+	std::uint32_t           m_standaloneAcks = 0; // 진단: 독립 ack 패킷.
 
 	// Ordered 재정렬 버퍼: 아직 순서가 안 된 Ordered 메시지를 seq 기준 보류.
 	struct Buffered { std::uint16_t MsgId = 0; std::vector<std::uint8_t> Payload; };

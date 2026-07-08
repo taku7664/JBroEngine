@@ -309,7 +309,7 @@ void CUdpChannel::Poll(const FOnUdpMessage& onMessage)
 			if (0 != (header.Flags & UdpProto::Flag_Reliable))
 			{
 				// dedup + (프래그먼트면 재조립) + 채널 규율대로 전달.
-				peer.Reliable.OnReliableReceived(header, payload, psize,
+				peer.Reliable.OnReliableReceived(header, payload, psize, NowMs(),
 					[&](std::uint16_t mid, const std::uint8_t* p, std::uint32_t n)
 					{
 						onMessage(connId, mid, p, n);
@@ -345,7 +345,7 @@ void CUdpChannel::Poll(const FOnUdpMessage& onMessage)
 			}
 			if (0 != (header.Flags & UdpProto::Flag_Reliable))
 			{
-				m_clientReliable.OnReliableReceived(header, payload, psize,
+				m_clientReliable.OnReliableReceived(header, payload, psize, NowMs(),
 					[&](std::uint16_t mid, const std::uint8_t* p, std::uint32_t n)
 					{
 						onMessage(SERVER_CONNECTION_ID, mid, p, n);

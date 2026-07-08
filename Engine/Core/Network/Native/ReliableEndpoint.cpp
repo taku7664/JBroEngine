@@ -120,6 +120,7 @@ void CReliableEndpoint::DrainSendQueue(double nowMs, const FEmit& emit)
 			header.FragIndex = unit.FragIndex;
 			header.FragCount = unit.FragCount;
 		}
+		MaybePiggybackAck(header); // 나가는 데이터에 대기 ack 편승.
 		emit(header, outbound.Payload.data(), static_cast<std::uint32_t>(outbound.Payload.size()));
 
 		m_unacked.emplace(seq, std::move(outbound));
@@ -134,12 +135,16 @@ void CReliableEndpoint::DrainSendQueue(double nowMs, const FEmit& emit)
 // ── 수신 ─────────────────────────────────────────────────────────────────────────
 
 void CReliableEndpoint::OnReliableReceived(const UdpProto::UdpDatagramHeader& header,
-	const std::uint8_t* payload, std::uint32_t size, const FDeliver& deliver)
+	const std::uint8_t* payload, std::uint32_t size, double nowMs, const FDeliver& deliver)
 {
 	const std::uint32_t seq     = header.Seq;
 	const ENetChannel   channel = header.Channel;
 	const std::uint16_t msgId   = header.MsgId;
 
+	if (false == m_ackPending)
+	{
+		m_ackPendingSinceMs = nowMs; // 대기 시작 — 이 시점부터 지연 창을 잰다.
+	}
 	m_ackPending = true; // 신규든 중복이든 상대에게 수신 사실을 알린다(재전송 억제).
 
 	// dedup — 이미 받은 seq 는 폐기(전달 안 함). 재전송된 조각도 여기서 걸러진다.
@@ -259,6 +264,17 @@ void CReliableEndpoint::FillAck(UdpProto::UdpDatagramHeader& header) const
 	header.AckBits = bits;
 }
 
+// 대기 중 ack 가 있으면 나가는 데이터그램에 얹어 별도 ack 패킷을 아낀다(피기백). 1회 소비.
+void CReliableEndpoint::MaybePiggybackAck(UdpProto::UdpDatagramHeader& header)
+{
+	if (m_ackPending)
+	{
+		FillAck(header);
+		m_ackPending = false;
+		++m_piggybackAcks;
+	}
+}
+
 // ── ACK 처리(송신측) ─────────────────────────────────────────────────────────────
 
 void CReliableEndpoint::OnAck(std::uint32_t ackBase, std::uint32_t ackBits, double nowMs)
@@ -346,6 +362,7 @@ void CReliableEndpoint::Tick(double nowMs, const FEmit& emit)
 			header.FragIndex = outbound.FragIndex;
 			header.FragCount = outbound.FragCount;
 		}
+		MaybePiggybackAck(header); // 재전송에도 대기 ack 편승.
 		emit(header, outbound.Payload.data(), static_cast<std::uint32_t>(outbound.Payload.size()));
 		outbound.LastSentMs = nowMs;
 		++outbound.Sends;
@@ -361,14 +378,18 @@ void CReliableEndpoint::Tick(double nowMs, const FEmit& emit)
 	// 3) ack 로 인플라이트가 빠졌으면 대기 큐를 cwnd 여유만큼 배수.
 	DrainSendQueue(nowMs, emit);
 
-	// 4) 대기 중 ack 를 독립 데이터그램으로 flush(피기백 최적화는 후속).
-	if (m_ackPending)
+	// 4) 지연 창(kAckDelayMs)을 넘도록 편승 못한 ack 만 독립 데이터그램으로 flush.
+	//    그 안이면 다음 나가는 데이터에 편승할 기회를 준다(delayed ack). 창 < 최소 RTO 라
+	//    송신측 재전송 전에 ack 가 도착한다.
+	constexpr double kAckDelayMs = 25.0;
+	if (m_ackPending && (nowMs - m_ackPendingSinceMs) >= kAckDelayMs)
 	{
 		UdpProto::UdpDatagramHeader header;
 		header.Channel = ENetChannel::ReliableOrdered;
 		FillAck(header);
 		emit(header, nullptr, 0);
 		m_ackPending = false;
+		++m_standaloneAcks;
 	}
 }
 
@@ -382,6 +403,8 @@ void CReliableEndpoint::Reset()
 	m_recvNext = 0;
 	m_recvAhead.clear();
 	m_ackPending = false;
+	m_ackPendingSinceMs = 0.0;
+	m_piggybackAcks = 0; m_standaloneAcks = 0;
 	m_orderedPending.clear();
 	m_reassembly.clear();
 }
