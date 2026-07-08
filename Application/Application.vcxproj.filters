@@ -60,6 +60,9 @@
     <ClInclude Include="Editor\Gui\EditorGuiActions.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
+    <ClInclude Include="Editor\Localization\EditorLocalizationKeys.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
     <ClInclude Include="Editor\Localization\EditorReflectionLabels.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>

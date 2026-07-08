@@ -501,27 +501,27 @@ bool CGameBuildManager::StartBuild(SafePtr<CProjectManager> projectManager, EBui
 	if (EBuildTargetPlatform::Web == targetPlatform)
 	{
 		tasks = {
-			{ "Validate", Loc::Text("build.progress.validate"), EGameBuildTaskState::Pending },
-			{ "BuildWeb", Loc::Text("build.progress.web"), EGameBuildTaskState::Pending },
-			{ "Verify", Loc::Text("build.progress.verify"), EGameBuildTaskState::Pending },
+			{ "Validate", Loc::Text(EditorLocKeys::BuildProgressValidate), EGameBuildTaskState::Pending },
+			{ "BuildWeb", Loc::Text(EditorLocKeys::BuildProgressWeb), EGameBuildTaskState::Pending },
+			{ "Verify", Loc::Text(EditorLocKeys::BuildProgressVerify), EGameBuildTaskState::Pending },
 		};
 	}
 	else if (EBuildTargetPlatform::Windows == targetPlatform)
 	{
 		tasks = {
-			{ "Validate", Loc::Text("build.progress.validate"), EGameBuildTaskState::Pending },
-			{ "BuildEngine", Loc::Text("build.progress.engine"), EGameBuildTaskState::Pending },
-			{ "BuildScripts", Loc::Text("build.progress.scripts"), EGameBuildTaskState::Pending },
-			{ "Package", Loc::Text("build.progress.package"), EGameBuildTaskState::Pending },
-			{ "Verify", Loc::Text("build.progress.verify"), EGameBuildTaskState::Pending },
+			{ "Validate", Loc::Text(EditorLocKeys::BuildProgressValidate), EGameBuildTaskState::Pending },
+			{ "BuildEngine", Loc::Text(EditorLocKeys::BuildProgressEngine), EGameBuildTaskState::Pending },
+			{ "BuildScripts", Loc::Text(EditorLocKeys::BuildProgressScripts), EGameBuildTaskState::Pending },
+			{ "Package", Loc::Text(EditorLocKeys::BuildProgressPackage), EGameBuildTaskState::Pending },
+			{ "Verify", Loc::Text(EditorLocKeys::BuildProgressVerify), EGameBuildTaskState::Pending },
 		};
 	}
 	else if (EBuildTargetPlatform::Android == targetPlatform)
 	{
 		tasks = {
-			{ "Validate", Loc::Text("build.progress.validate"), EGameBuildTaskState::Pending },
-			{ "BuildAndroid", Loc::Text("build.progress.android"), EGameBuildTaskState::Pending },
-			{ "Verify", Loc::Text("build.progress.verify"), EGameBuildTaskState::Pending },
+			{ "Validate", Loc::Text(EditorLocKeys::BuildProgressValidate), EGameBuildTaskState::Pending },
+			{ "BuildAndroid", Loc::Text(EditorLocKeys::BuildProgressAndroid), EGameBuildTaskState::Pending },
+			{ "Verify", Loc::Text(EditorLocKeys::BuildProgressVerify), EGameBuildTaskState::Pending },
 		};
 	}
 	else

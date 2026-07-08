@@ -141,7 +141,7 @@ void CEffectEditorWidget::Draw()
 	};
 	int kindIndex = static_cast<int>(m_data.Kind);
 	if (kindIndex < 0 || kindIndex >= IM_ARRAYSIZE(kindItems)) kindIndex = 0;
-	ImGui::TextUnformatted(Loc::Text("inspector.effect.kind"));
+	ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorEffectKind));
 	ImGui::SetNextItemWidth(-FLT_MIN);
 	if (ImGui::Combo("##effect.kind", &kindIndex, kindItems, IM_ARRAYSIZE(kindItems)))
 	{
@@ -182,7 +182,7 @@ void CEffectEditorWidget::Draw()
 
 	ImGui::Separator();
 	ImGui::BeginDisabled(false == m_dirty);
-	if (ImGui::Button(Loc::Text("inspector.effect.apply")))
+	if (ImGui::Button(Loc::Text(EditorLocKeys::InspectorEffectApply)))
 	{
 		if (SaveToDisk()) m_dirty = false;
 	}
@@ -193,10 +193,10 @@ void CEffectEditorWidget::Draw()
 
 void CEffectEditorWidget::DrawPreview()
 {
-	ImGui::SeparatorText(Loc::Text("inspector.effect.preview"));
+	ImGui::SeparatorText(Loc::Text(EditorLocKeys::InspectorEffectPreview));
 
 	// 테스트 사운드 슬롯 — 오디오 자산을 드래그&드롭.
-	std::string label = Loc::Text("inspector.ref_none");
+	std::string label = Loc::Text(EditorLocKeys::InspectorRefNone);
 	if (false == m_testSoundGuid.IsNull())
 	{
 		const File::Path& path = File::ResolvePath(m_testSoundGuid);
@@ -210,12 +210,12 @@ void CEffectEditorWidget::DrawPreview()
 	{
 		m_testSoundGuid = EditorDragDrop::GetGuid(payload);
 	}
-	ImGui::TextDisabled("%s", Loc::Text("inspector.effect.preview.hint"));
+	ImGui::TextDisabled("%s", Loc::Text(EditorLocKeys::InspectorEffectPreviewHint));
 
 	// 재생 / 정지 — 현재 편집 중인 효과를 테스트 사운드에 적용해 재생.
 	const bool hasSound = false == m_testSoundGuid.IsNull();
 	ImGui::BeginDisabled(false == hasSound);
-	if (ImGui::Button(Loc::Text("inspector.audio.preview.play"), ImVec2(80.0f, 0.0f)))
+	if (ImGui::Button(Loc::Text(EditorLocKeys::InspectorAudioPreviewPlay), ImVec2(80.0f, 0.0f)))
 	{
 		SafePtr<IAssetManager>   am = EditorContext::GetAssetManager();
 		if (am.IsValid())
@@ -232,7 +232,7 @@ void CEffectEditorWidget::DrawPreview()
 	}
 	ImGui::EndDisabled();
 	ImGui::SameLine();
-	if (ImGui::Button(Loc::Text("inspector.audio.preview.stop"), ImVec2(80.0f, 0.0f)))
+	if (ImGui::Button(Loc::Text(EditorLocKeys::InspectorAudioPreviewStop), ImVec2(80.0f, 0.0f)))
 	{
 		EditorAudioPreview::Stop();
 	}

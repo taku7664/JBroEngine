@@ -27,7 +27,7 @@
 
 void CHierarchyTool::OnCreate()
 {
-	SetLocalizedTitleKey("window.hierarchy");
+	SetLocalizedTitleKey(EditorLocKeys::WindowHierarchy);
 }
 
 void CHierarchyTool::OnDestroy()
@@ -42,14 +42,14 @@ void CHierarchyTool::OnRenderStay()
 {
 	if (false == Engine.SceneManager.IsValid())
 	{
-		ImGui::TextDisabled(Loc::Text("hierarchy.scene_manager_unavailable"));
+		ImGui::TextDisabled(Loc::Text(EditorLocKeys::HierarchySceneManagerUnavailable));
 		return;
 	}
 
 	SafePtr<CGameScene> activeScene = EditorContext::GetActiveScene();
 	if (false == activeScene.IsValid())
 	{
-		ImGui::TextDisabled(Loc::Text("hierarchy.no_active_scene"));
+		ImGui::TextDisabled(Loc::Text(EditorLocKeys::HierarchyNoActiveScene));
 		Editor::ClearSelection();
 		return;
 	}
@@ -71,7 +71,7 @@ void CHierarchyTool::OnRenderStay()
 	activeScene->ForEachObject([&objects](CGameObject& o){ objects.push_back(&o); });
 	if (objects.empty())
 	{
-		ImGui::TextDisabled(Loc::Text("hierarchy.scene_empty"));
+		ImGui::TextDisabled(Loc::Text(EditorLocKeys::HierarchySceneEmpty));
 		Editor::ClearSelection();
 		drawBackgroundPopup();
 		return;
@@ -115,7 +115,7 @@ void CHierarchyTool::OnRenderStay()
 	{
 		ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.25f, 0.45f, 0.25f, 0.55f));
 		ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.30f, 0.60f, 0.30f, 0.80f));
-		ImGui::Button(Loc::Text("hierarchy.drop_here_to_unparent"), ImVec2(-1.0f, 0.0f));
+		ImGui::Button(Loc::Text(EditorLocKeys::HierarchyDropHereToUnparent), ImVec2(-1.0f, 0.0f));
 		ImGui::PopStyleColor(2);
 
 		if (ImGui::BeginDragDropTarget())
@@ -188,7 +188,7 @@ void CHierarchyTool::OnRenderStay()
 		if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceAllowNullID))
 		{
 			ImGui::SetDragDropPayload(EditorDragDrop::HIERARCHY_ENTITY_PAYLOAD, &obj, sizeof(CGameObject*));
-			ImGui::Text(Loc::Text("hierarchy.move_format"), name);
+			ImGui::Text(Loc::Text(EditorLocKeys::HierarchyMoveFormat), name);
 			ImGui::EndDragDropSource();
 		}
 
@@ -219,7 +219,7 @@ void CHierarchyTool::OnRenderStay()
 
 			if (obj->GetParent().IsValid())
 			{
-				if (ImGui::MenuItem(Loc::Text("hierarchy.unparent")))
+				if (ImGui::MenuItem(Loc::Text(EditorLocKeys::HierarchyUnparent)))
 				{
 					auto cmd = MakeOwnerPtr<CSetParentCommand>(activeScene, obj, nullptr);
 					Editor::CommandManager.ExecuteCommand(std::move(cmd));

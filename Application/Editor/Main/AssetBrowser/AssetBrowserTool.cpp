@@ -451,7 +451,7 @@ void CAssetBrowserTool::CAssetOpenDispatcher::Open(CAssetBrowserTool& browser, c
 
 void CAssetBrowserTool::OnCreate()
 {
-	SetLocalizedTitleKey("window.asset_browser");
+	SetLocalizedTitleKey(EditorLocKeys::WindowAssetBrowser);
 	// 등록 순서 = 우선순위 (먼저 CanOpen=true 인 핸들러가 잡음).
 	// Default 는 catch-all 이므로 항상 마지막.
 	m_openDispatcher.RegisterHandler(MakeOwnerPtr<CSceneAssetOpenHandler>());
@@ -994,8 +994,8 @@ void CAssetBrowserTool::ProcessPendingOperations()
 
 void CAssetBrowserTool::DrawNoProjectLoaded()
 {
-	ImGui::TextDisabled(Loc::Text("asset_browser.no_project_loaded"));
-	ImGui::TextDisabled(Loc::Text("asset_browser.open_project_hint"));
+	ImGui::TextDisabled(Loc::Text(EditorLocKeys::AssetBrowserNoProjectLoaded));
+	ImGui::TextDisabled(Loc::Text(EditorLocKeys::AssetBrowserOpenProjectHint));
 }
 
 void CAssetBrowserTool::DrawToolbar()
@@ -1031,14 +1031,14 @@ void CAssetBrowserTool::DrawToolbar()
 
 	ImGui::SameLine();
 	if (false == canUp) ImGui::BeginDisabled();
-	if (ImGui::Button(Loc::Text("asset_browser.up")))
+	if (ImGui::Button(Loc::Text(EditorLocKeys::AssetBrowserUp)))
 	{
 		SetFocusFolderPath(File::Path(m_focusFolderPath.parent_path()));
 	}
 	if (false == canUp) ImGui::EndDisabled();
 
 	ImGui::SameLine();
-	if (ImGui::Button(Loc::Text("common.refresh")))
+	if (ImGui::Button(Loc::Text(EditorLocKeys::CommonRefresh)))
 	{
 		m_folderChildrenCache.clear();
 		m_entriesDirty = true;
@@ -1062,19 +1062,19 @@ void CAssetBrowserTool::DrawToolbar()
 
 	ImGui::SameLine();
 	ImGui::SetNextItemWidth(180.0f);
-	if (ImGui::InputTextWithHint("##AssetBrowserSearch", Loc::Text("asset_browser.search"), &m_searchText))
+	if (ImGui::InputTextWithHint("##AssetBrowserSearch", Loc::Text(EditorLocKeys::AssetBrowserSearch), &m_searchText))
 	{
 		m_filterDirty = true;
 	}
 
 	ImGui::SameLine();
-	if (ImGui::BeginCombo("##AssetBrowserViewMode", m_viewMode == EViewMode::List ? Loc::Text("asset_browser.view_list") : Loc::Text("asset_browser.view_icon")))
+	if (ImGui::BeginCombo("##AssetBrowserViewMode", m_viewMode == EViewMode::List ? Loc::Text(EditorLocKeys::AssetBrowserViewList) : Loc::Text(EditorLocKeys::AssetBrowserViewIcon)))
 	{
-		if (ImGui::Selectable(Loc::Text("asset_browser.view_list"), m_viewMode == EViewMode::List))
+		if (ImGui::Selectable(Loc::Text(EditorLocKeys::AssetBrowserViewList), m_viewMode == EViewMode::List))
 		{
 			m_viewMode = EViewMode::List;
 		}
-		if (ImGui::Selectable(Loc::Text("asset_browser.view_icon"), m_viewMode == EViewMode::Icon))
+		if (ImGui::Selectable(Loc::Text(EditorLocKeys::AssetBrowserViewIcon), m_viewMode == EViewMode::Icon))
 		{
 			m_viewMode = EViewMode::Icon;
 		}
@@ -1082,20 +1082,20 @@ void CAssetBrowserTool::DrawToolbar()
 	}
 
 	ImGui::SameLine();
-	const char* sortLabel = m_sortMode == ESortMode::Name ? Loc::Text("common.name") : (m_sortMode == ESortMode::Type ? Loc::Text("common.type") : Loc::Text("common.modified"));
+	const char* sortLabel = m_sortMode == ESortMode::Name ? Loc::Text(EditorLocKeys::CommonName) : (m_sortMode == ESortMode::Type ? Loc::Text(EditorLocKeys::CommonType) : Loc::Text(EditorLocKeys::CommonModified));
 	if (ImGui::BeginCombo("##AssetBrowserSortMode", sortLabel))
 	{
-		if (ImGui::Selectable(Loc::Text("common.name"), m_sortMode == ESortMode::Name))
+		if (ImGui::Selectable(Loc::Text(EditorLocKeys::CommonName), m_sortMode == ESortMode::Name))
 		{
 			m_sortMode = ESortMode::Name;
 			m_filterDirty = true;
 		}
-		if (ImGui::Selectable(Loc::Text("common.type"), m_sortMode == ESortMode::Type))
+		if (ImGui::Selectable(Loc::Text(EditorLocKeys::CommonType), m_sortMode == ESortMode::Type))
 		{
 			m_sortMode = ESortMode::Type;
 			m_filterDirty = true;
 		}
-		if (ImGui::Selectable(Loc::Text("common.modified"), m_sortMode == ESortMode::Modified))
+		if (ImGui::Selectable(Loc::Text(EditorLocKeys::CommonModified), m_sortMode == ESortMode::Modified))
 		{
 			m_sortMode = ESortMode::Modified;
 			m_filterDirty = true;
@@ -1104,7 +1104,7 @@ void CAssetBrowserTool::DrawToolbar()
 	}
 
 	ImGui::SameLine();
-	if (ImGui::Checkbox(Loc::Text("asset_browser.show_meta"), &m_showMetaFiles))
+	if (ImGui::Checkbox(Loc::Text(EditorLocKeys::AssetBrowserShowMeta), &m_showMetaFiles))
 	{
 		m_entriesDirty = true;
 	}
@@ -1125,11 +1125,11 @@ void CAssetBrowserTool::DrawBrowserColumns()
 	// 좌측 패널 = "콘텐츠"(폴더 트리) + "즐겨찾기"(추후 구현) CollapsingHeader.
 	// (두 키는 로컬라이제이션에 추가해 두었다 — 이전엔 키가 없어 깨졌던 것.)
 	ImGui::BeginChild("AssetBrowserFolderTree", ImVec2(availSpace.x * splitRatio, 0.0f), true);
-	if (ImGui::CollapsingHeader(Loc::Text("asset_browser.contents_folders"), ImGuiTreeNodeFlags_DefaultOpen))
+	if (ImGui::CollapsingHeader(Loc::Text(EditorLocKeys::AssetBrowserContentsFolders), ImGuiTreeNodeFlags_DefaultOpen))
 	{
 		DrawFolderTree();
 	}
-	if (ImGui::CollapsingHeader(Loc::Text("asset_browser.favorite_folders"), ImGuiTreeNodeFlags_DefaultOpen))
+	if (ImGui::CollapsingHeader(Loc::Text(EditorLocKeys::AssetBrowserFavoriteFolders), ImGuiTreeNodeFlags_DefaultOpen))
 	{
 		// 즐겨찾기 폴더 목록 — 추후 구현 예정.
 	}
@@ -1309,10 +1309,10 @@ void CAssetBrowserTool::DrawListEntries()
 		return;
 	}
 
-	ImGui::TableSetupColumn(Loc::Text("common.name"), ImGuiTableColumnFlags_WidthFixed, 250.0f);
-	ImGui::TableSetupColumn(Loc::Text("common.type"), ImGuiTableColumnFlags_WidthFixed, 60.0f);
-	ImGui::TableSetupColumn(Loc::Text("common.modified"), ImGuiTableColumnFlags_WidthFixed, 80.0f);
-	ImGui::TableSetupColumn(Loc::Text("common.guid"), ImGuiTableColumnFlags_WidthStretch);
+	ImGui::TableSetupColumn(Loc::Text(EditorLocKeys::CommonName), ImGuiTableColumnFlags_WidthFixed, 250.0f);
+	ImGui::TableSetupColumn(Loc::Text(EditorLocKeys::CommonType), ImGuiTableColumnFlags_WidthFixed, 60.0f);
+	ImGui::TableSetupColumn(Loc::Text(EditorLocKeys::CommonModified), ImGuiTableColumnFlags_WidthFixed, 80.0f);
+	ImGui::TableSetupColumn(Loc::Text(EditorLocKeys::CommonGuid), ImGuiTableColumnFlags_WidthStretch);
 	ImGui::TableSetupScrollFreeze(0, 1);   // 헤더 행 고정
 	ImGui::TableHeadersRow();
 
@@ -1421,7 +1421,7 @@ void CAssetBrowserTool::DrawListEntries()
 				}
 
 				ImGui::TableSetColumnIndex(1);
-				ImGui::TextUnformatted(entry.IsDirectory ? Loc::Text("common.folder") : GetAssetTypeName(entry.Type));
+				ImGui::TextUnformatted(entry.IsDirectory ? Loc::Text(EditorLocKeys::CommonFolder) : GetAssetTypeName(entry.Type));
 				ImGui::TableSetColumnIndex(2);
 				// 캐시된 ModifiedTimeText 사용 — 매 프레임 localtime/strftime 호출 제거
 				ImGui::TextUnformatted(entry.IsDirectory ? "-" : entry.ModifiedTimeText.c_str());
@@ -1700,40 +1700,40 @@ void CAssetBrowserTool::DrawBrowserBodyContextMenu()
 			const bool multiSelected = selectedCount > 1;
 			if (multiSelected)
 			{
-				ImGui::Text(Loc::Text("asset_browser.selection_count"), selectedCount);
+				ImGui::Text(Loc::Text(EditorLocKeys::AssetBrowserSelectionCount), selectedCount);
 				ImGui::Separator();
 			}
 
-			if (ImGui::MenuItem(Loc::Text("common.open")))
+			if (ImGui::MenuItem(Loc::Text(EditorLocKeys::CommonOpen)))
 			{
 				OpenEntry(*targetEntry);
 			}
-			if (ImGui::MenuItem(Loc::Text("asset_browser.open_in_explorer")))
+			if (ImGui::MenuItem(Loc::Text(EditorLocKeys::AssetBrowserOpenInExplorer)))
 			{
 				QueueOperation({ EPendingOperationType::OpenInExplorer, targetEntry->AbsolutePath, File::NULL_PATH });
 			}
-			if (ImGui::MenuItem(Loc::Text("asset_browser.copy_path")))
+			if (ImGui::MenuItem(Loc::Text(EditorLocKeys::AssetBrowserCopyPath)))
 			{
 				QueueOperation({ EPendingOperationType::CopyPath, targetEntry->AbsolutePath, File::NULL_PATH });
 			}
 			ImGui::Separator();
-			if (false == multiSelected && ImGui::MenuItem(Loc::Text("common.rename")))
+			if (false == multiSelected && ImGui::MenuItem(Loc::Text(EditorLocKeys::CommonRename)))
 			{
 				StartRename(*targetEntry);
 			}
 			if (false == multiSelected && false == targetEntry->IsDirectory
-			    && ImGui::MenuItem(Loc::Text("common.duplicate")))
+			    && ImGui::MenuItem(Loc::Text(EditorLocKeys::CommonDuplicate)))
 			{
 				QueueOperation({ EPendingOperationType::Duplicate, targetEntry->AbsolutePath, File::NULL_PATH });
 			}
 
 			// ── 잘라내기 / 복사 / 붙여넣기 ──────────────────────────────────
 			ImGui::Separator();
-			if (ImGui::MenuItem(Loc::Text("common.cut")))
+			if (ImGui::MenuItem(Loc::Text(EditorLocKeys::CommonCut)))
 			{
 				CutToClipboard(CollectOperationTargets(targetEntry->AbsolutePath));
 			}
-			if (ImGui::MenuItem(Loc::Text("common.copy")))
+			if (ImGui::MenuItem(Loc::Text(EditorLocKeys::CommonCopy)))
 			{
 				CopyToClipboard(CollectOperationTargets(targetEntry->AbsolutePath));
 			}
@@ -1741,7 +1741,7 @@ void CAssetBrowserTool::DrawBrowserBodyContextMenu()
 			{
 				const File::Path pasteFolder = targetEntry->IsDirectory ? targetEntry->AbsolutePath : m_focusFolderPath;
 				ImGui::BeginDisabled(m_clipboardPaths.empty());
-				if (ImGui::MenuItem(Loc::Text("common.paste")))
+				if (ImGui::MenuItem(Loc::Text(EditorLocKeys::CommonPaste)))
 				{
 					PasteIntoFolder(pasteFolder);
 				}
@@ -1749,7 +1749,7 @@ void CAssetBrowserTool::DrawBrowserBodyContextMenu()
 			}
 
 			ImGui::Separator();
-			if (ImGui::MenuItem(Loc::Text("common.delete")))
+			if (ImGui::MenuItem(Loc::Text(EditorLocKeys::CommonDelete)))
 			{
 				// 우클릭 대상이 다중 선택에 포함돼 있으면 선택 전체를, 아니면 대상 1개를 삭제.
 				m_deleteTargets = multiSelected ? CollectSelectedPaths()
@@ -1765,7 +1765,7 @@ void CAssetBrowserTool::DrawBrowserBodyContextMenu()
 
 		if (ECtxRootKind::Scripts == rootKind)
 		{
-			if (ImGui::MenuItem(Loc::Text("asset_browser.add_script")))
+			if (ImGui::MenuItem(Loc::Text(EditorLocKeys::AssetBrowserAddScript)))
 			{
 				QueueOperation({ EPendingOperationType::CreateScript, m_focusFolderPath, File::NULL_PATH });
 			}
@@ -1773,25 +1773,25 @@ void CAssetBrowserTool::DrawBrowserBodyContextMenu()
 		}
 		else if (ECtxRootKind::Assets == rootKind)
 		{
-			if (ImGui::BeginMenu(Loc::Text("asset_browser.add_asset")))
+			if (ImGui::BeginMenu(Loc::Text(EditorLocKeys::AssetBrowserAddAsset)))
 			{
-				if (ImGui::MenuItem(Loc::Text("asset_browser.add_asset.scene")))
+				if (ImGui::MenuItem(Loc::Text(EditorLocKeys::AssetBrowserAddAssetScene)))
 				{
 					QueueOperation({ EPendingOperationType::CreateScene, m_focusFolderPath, File::NULL_PATH });
 				}
-				if (ImGui::MenuItem(Loc::Text("asset_browser.add_asset.material")))
+				if (ImGui::MenuItem(Loc::Text(EditorLocKeys::AssetBrowserAddAssetMaterial)))
 				{
 					QueueOperation({ EPendingOperationType::CreateMaterial, m_focusFolderPath, File::NULL_PATH });
 				}
-				if (ImGui::MenuItem(Loc::Text("asset_browser.add_asset.font_family")))
+				if (ImGui::MenuItem(Loc::Text(EditorLocKeys::AssetBrowserAddAssetFontFamily)))
 				{
 					QueueOperation({ EPendingOperationType::CreateFontFamily, m_focusFolderPath, File::NULL_PATH });
 				}
-				if (ImGui::MenuItem(Loc::Text("asset_browser.add_asset.effect")))
+				if (ImGui::MenuItem(Loc::Text(EditorLocKeys::AssetBrowserAddAssetEffect)))
 				{
 					QueueOperation({ EPendingOperationType::CreateEffect, m_focusFolderPath, File::NULL_PATH });
 				}
-				if (ImGui::MenuItem(Loc::Text("asset_browser.add_asset.prefab")))
+				if (ImGui::MenuItem(Loc::Text(EditorLocKeys::AssetBrowserAddAssetPrefab)))
 				{
 					QueueOperation({ EPendingOperationType::CreatePrefab, m_focusFolderPath, File::NULL_PATH });
 				}
@@ -1800,27 +1800,27 @@ void CAssetBrowserTool::DrawBrowserBodyContextMenu()
 			ImGui::Separator();
 		}
 
-		if (ImGui::MenuItem(Loc::Text("asset_browser.create_folder")))
+		if (ImGui::MenuItem(Loc::Text(EditorLocKeys::AssetBrowserCreateFolder)))
 		{
 			QueueOperation({ EPendingOperationType::CreateFolder, m_focusFolderPath / File::Path("New Folder"), File::NULL_PATH });
 		}
 		ImGui::BeginDisabled(m_clipboardPaths.empty());
-		if (ImGui::MenuItem(Loc::Text("common.paste")))
+		if (ImGui::MenuItem(Loc::Text(EditorLocKeys::CommonPaste)))
 		{
 			PasteIntoFolder(m_focusFolderPath);
 		}
 		ImGui::EndDisabled();
-		if (ImGui::MenuItem(Loc::Text("common.refresh")))
+		if (ImGui::MenuItem(Loc::Text(EditorLocKeys::CommonRefresh)))
 		{
 			m_folderChildrenCache.clear();
 			m_entriesDirty = true;
 		}
 		ImGui::Separator();
-		if (ImGui::MenuItem(Loc::Text("asset_browser.copy_folder_path")))
+		if (ImGui::MenuItem(Loc::Text(EditorLocKeys::AssetBrowserCopyFolderPath)))
 		{
 			QueueOperation({ EPendingOperationType::CopyPath, m_focusFolderPath, File::NULL_PATH });
 		}
-		if (ImGui::MenuItem(Loc::Text("asset_browser.open_in_explorer")))
+		if (ImGui::MenuItem(Loc::Text(EditorLocKeys::AssetBrowserOpenInExplorer)))
 		{
 			QueueOperation({ EPendingOperationType::OpenInExplorer, m_focusFolderPath, File::NULL_PATH });
 		}
@@ -1857,15 +1857,15 @@ void CAssetBrowserTool::DrawFolderTreeContextMenu()
 	const ECtxRootKind  rootKind = ClassifyRoot(folder, m_assetRootPath, m_scriptRootPath);
 	const bool          isRootSelf = folder == m_assetRootPath || folder == m_scriptRootPath;
 
-	if (ImGui::MenuItem(Loc::Text("asset_browser.tree.focus_here")))
+	if (ImGui::MenuItem(Loc::Text(EditorLocKeys::AssetBrowserTreeFocusHere)))
 	{
 		SetFocusFolderPath(folder);
 	}
-	if (ImGui::MenuItem(Loc::Text("asset_browser.open_in_explorer")))
+	if (ImGui::MenuItem(Loc::Text(EditorLocKeys::AssetBrowserOpenInExplorer)))
 	{
 		QueueOperation({ EPendingOperationType::OpenInExplorer, folder, File::NULL_PATH });
 	}
-	if (ImGui::MenuItem(Loc::Text("asset_browser.copy_folder_path")))
+	if (ImGui::MenuItem(Loc::Text(EditorLocKeys::AssetBrowserCopyFolderPath)))
 	{
 		QueueOperation({ EPendingOperationType::CopyPath, folder, File::NULL_PATH });
 	}
@@ -1873,44 +1873,44 @@ void CAssetBrowserTool::DrawFolderTreeContextMenu()
 
 	if (ECtxRootKind::Scripts == rootKind)
 	{
-		if (ImGui::MenuItem(Loc::Text("asset_browser.add_script")))
+		if (ImGui::MenuItem(Loc::Text(EditorLocKeys::AssetBrowserAddScript)))
 		{
 			QueueOperation({ EPendingOperationType::CreateScript, folder, File::NULL_PATH });
 		}
 	}
 	else if (ECtxRootKind::Assets == rootKind)
 	{
-		if (ImGui::BeginMenu(Loc::Text("asset_browser.add_asset")))
+		if (ImGui::BeginMenu(Loc::Text(EditorLocKeys::AssetBrowserAddAsset)))
 		{
-			if (ImGui::MenuItem(Loc::Text("asset_browser.add_asset.scene")))
+			if (ImGui::MenuItem(Loc::Text(EditorLocKeys::AssetBrowserAddAssetScene)))
 			{
 				QueueOperation({ EPendingOperationType::CreateScene, folder, File::NULL_PATH });
 			}
-			if (ImGui::MenuItem(Loc::Text("asset_browser.add_asset.material")))
+			if (ImGui::MenuItem(Loc::Text(EditorLocKeys::AssetBrowserAddAssetMaterial)))
 			{
 				QueueOperation({ EPendingOperationType::CreateMaterial, folder, File::NULL_PATH });
 			}
-			if (ImGui::MenuItem(Loc::Text("asset_browser.add_asset.font_family")))
+			if (ImGui::MenuItem(Loc::Text(EditorLocKeys::AssetBrowserAddAssetFontFamily)))
 			{
 				QueueOperation({ EPendingOperationType::CreateFontFamily, folder, File::NULL_PATH });
 			}
-			if (ImGui::MenuItem(Loc::Text("asset_browser.add_asset.effect")))
+			if (ImGui::MenuItem(Loc::Text(EditorLocKeys::AssetBrowserAddAssetEffect)))
 			{
 				QueueOperation({ EPendingOperationType::CreateEffect, folder, File::NULL_PATH });
 			}
-			if (ImGui::MenuItem(Loc::Text("asset_browser.add_asset.prefab")))
+			if (ImGui::MenuItem(Loc::Text(EditorLocKeys::AssetBrowserAddAssetPrefab)))
 			{
 				QueueOperation({ EPendingOperationType::CreatePrefab, folder, File::NULL_PATH });
 			}
 			ImGui::EndMenu();
 		}
 	}
-	if (ImGui::MenuItem(Loc::Text("asset_browser.create_folder")))
+	if (ImGui::MenuItem(Loc::Text(EditorLocKeys::AssetBrowserCreateFolder)))
 	{
 		QueueOperation({ EPendingOperationType::CreateFolder, folder / File::Path("New Folder"), File::NULL_PATH });
 	}
 	ImGui::BeginDisabled(m_clipboardPaths.empty());
-	if (ImGui::MenuItem(Loc::Text("common.paste")))
+	if (ImGui::MenuItem(Loc::Text(EditorLocKeys::CommonPaste)))
 	{
 		PasteIntoFolder(folder);
 	}
@@ -1920,7 +1920,7 @@ void CAssetBrowserTool::DrawFolderTreeContextMenu()
 	if (false == isRootSelf)
 	{
 		ImGui::Separator();
-		if (ImGui::MenuItem(Loc::Text("common.delete")))
+		if (ImGui::MenuItem(Loc::Text(EditorLocKeys::CommonDelete)))
 		{
 			m_deleteTargets = { folder };
 			m_requestDeletePopup = true;
@@ -1942,7 +1942,7 @@ void CAssetBrowserTool::DrawDeleteConfirmPopup()
 
 	if (ImGui::BeginPopupModal(POPUP_ID, nullptr, ImGuiWindowFlags_AlwaysAutoResize))
 	{
-		ImGui::TextUnformatted(Loc::Text("asset_browser.delete_confirm"));
+		ImGui::TextUnformatted(Loc::Text(EditorLocKeys::AssetBrowserDeleteConfirm));
 		// 대상 목록을 모두 표시(다중 삭제 시 무엇을 지우는지 명확히).
 		for (const File::Path& target : m_deleteTargets)
 		{
@@ -1950,7 +1950,7 @@ void CAssetBrowserTool::DrawDeleteConfirmPopup()
 		}
 		ImGui::Separator();
 
-		if (ImGui::Button(Loc::Text("common.delete")))
+		if (ImGui::Button(Loc::Text(EditorLocKeys::CommonDelete)))
 		{
 			for (const File::Path& target : m_deleteTargets)
 			{
@@ -1961,7 +1961,7 @@ void CAssetBrowserTool::DrawDeleteConfirmPopup()
 			ImGui::CloseCurrentPopup();
 		}
 		ImGui::SameLine();
-		if (ImGui::Button(Loc::Text("common.cancel")) || ImGui::IsKeyPressed(ImGuiKey_Escape))
+		if (ImGui::Button(Loc::Text(EditorLocKeys::CommonCancel)) || ImGui::IsKeyPressed(ImGuiKey_Escape))
 		{
 			m_deleteTargets.clear();
 			ImGui::CloseCurrentPopup();
@@ -2203,7 +2203,7 @@ void CAssetBrowserTool::ShowNewScriptPopup(const File::Path& parentFolder)
 	state->ParentFolder = parentFolder;
 
 	ImPopupDesc desc;
-	desc.Title    = Loc::Text("asset_browser.script_popup.title");
+	desc.Title    = Loc::Text(EditorLocKeys::AssetBrowserScriptPopupTitle);
 	desc.Id       = "asset_browser/new_script";
 	desc.InitSize = ImVec2(480.0f, 360.0f);
 	desc.Flags    = ImGuiWindowFlags_NoCollapse;
@@ -2213,7 +2213,7 @@ void CAssetBrowserTool::ShowNewScriptPopup(const File::Path& parentFolder)
 	CAssetBrowserTool* self = this;
 	desc.OnRenderStayFunc = [state, self](IImPopupWindow& popup)
 	{
-		ImGui::TextUnformatted(Loc::Text("asset_browser.script_popup.class_name"));
+		ImGui::TextUnformatted(Loc::Text(EditorLocKeys::AssetBrowserScriptPopupClassName));
 		ImGui::SetNextItemWidth(-FLT_MIN);
 		const bool classNameInvalid = false == IsValidCppIdentifier(state->ClassName);
 		ValidatedStringInput(
@@ -2221,7 +2221,7 @@ void CAssetBrowserTool::ShowNewScriptPopup(const File::Path& parentFolder)
 			/*invalid*/ classNameInvalid);
 
 		ImGui::Spacing();
-		ImGui::TextUnformatted(Loc::Text("asset_browser.script_popup.properties"));
+		ImGui::TextUnformatted(Loc::Text(EditorLocKeys::AssetBrowserScriptPopupProperties));
 
 		// 프로퍼티 목록 — 인스펙터 스키마 에디터와 공유. 생성 시엔 이름 편집 가능.
 		ImList<Property>(
@@ -2240,7 +2240,7 @@ void CAssetBrowserTool::ShowNewScriptPopup(const File::Path& parentFolder)
 		}
 		if (false == allPropsValid)
 		{
-			ImGui::TextColored(ImVec4(0.95f, 0.45f, 0.45f, 1.0f), "%s", Loc::Text("asset_browser.script_popup.invalid_props"));
+			ImGui::TextColored(ImVec4(0.95f, 0.45f, 0.45f, 1.0f), "%s", Loc::Text(EditorLocKeys::AssetBrowserScriptPopupInvalidProps));
 		}
 
 		ImGui::Spacing();
@@ -2250,7 +2250,7 @@ void CAssetBrowserTool::ShowNewScriptPopup(const File::Path& parentFolder)
 		// 클래스명이 유효 식별자이고, 모든 프로퍼티 이름이 유효+유일해야 생성 가능.
 		const bool canCreate = (false == classNameInvalid && allPropsValid);
 		ImGui::BeginDisabled(false == canCreate);
-		if (ImGui::Button(Loc::Text("common.create")))
+		if (ImGui::Button(Loc::Text(EditorLocKeys::CommonCreate)))
 		{
 			File::Path hPath, cppPath;
 			if (ResolveScriptPaths(state->ParentFolder, state->ClassName, hPath, cppPath))
@@ -2269,7 +2269,7 @@ void CAssetBrowserTool::ShowNewScriptPopup(const File::Path& parentFolder)
 		}
 		ImGui::EndDisabled();
 		ImGui::SameLine();
-		if (ImGui::Button(Loc::Text("common.cancel")))
+		if (ImGui::Button(Loc::Text(EditorLocKeys::CommonCancel)))
 		{
 			popup.Close();
 		}
@@ -2288,14 +2288,14 @@ void CAssetBrowserTool::ShowScriptCompileFailurePopup(std::string message)
 	auto state = std::make_shared<std::string>(std::move(message));
 
 	ImPopupDesc desc;
-	desc.Title    = Loc::Text("asset_browser.compile_fail.title");
+	desc.Title    = Loc::Text(EditorLocKeys::AssetBrowserCompileFailTitle);
 	desc.Id       = "asset_browser/compile_fail";
 	desc.InitSize = ImVec2(720.0f, 460.0f);
 	desc.Flags    = ImGuiWindowFlags_NoCollapse;
 
 	desc.OnRenderStayFunc = [state](IImPopupWindow& popup)
 	{
-		ImGui::TextUnformatted(Loc::Text("asset_browser.compile_fail.description"));
+		ImGui::TextUnformatted(Loc::Text(EditorLocKeys::AssetBrowserCompileFailDescription));
 		ImGui::Spacing();
 
 		// 메시지 본문 — InputTextMultiline + ReadOnly. ReadOnly 플래그가 있어도
@@ -2314,12 +2314,12 @@ void CAssetBrowserTool::ShowScriptCompileFailurePopup(std::string message)
 		const float footerAvailW = ImGui::GetContentRegionAvail().x;
 		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + footerAvailW - BTN_W * 2.0f - 8.0f);
 
-		if (ImGui::Button(Loc::Text("common.copy"), ImVec2(BTN_W, 0.0f)))
+		if (ImGui::Button(Loc::Text(EditorLocKeys::CommonCopy), ImVec2(BTN_W, 0.0f)))
 		{
 			ImGui::SetClipboardText(state->c_str());
 		}
 		ImGui::SameLine();
-		if (ImGui::Button(Loc::Text("common.ok"), ImVec2(BTN_W, 0.0f)))
+		if (ImGui::Button(Loc::Text(EditorLocKeys::CommonOk), ImVec2(BTN_W, 0.0f)))
 		{
 			popup.Close();
 		}

@@ -105,7 +105,7 @@ namespace
 
 	std::string MakeBrowseId(const char* suffix)
 	{
-		std::string id = Loc::Text("common.browse");
+		std::string id = Loc::Text(EditorLocKeys::CommonBrowse);
 		id += suffix;
 		return id;
 	}
@@ -119,7 +119,7 @@ namespace
 		bool invalid = false)
 	{
 		const std::string browseId = MakeBrowseId(buttonSuffix);
-		const float buttonWidth = ImGui::CalcTextSize(Loc::Text("common.browse")).x
+		const float buttonWidth = ImGui::CalcTextSize(Loc::Text(EditorLocKeys::CommonBrowse)).x
 			+ ImGui::GetStyle().FramePadding.x * 2.0f
 			+ 8.0f;
 
@@ -141,7 +141,7 @@ namespace
 		bool invalid = false)
 	{
 		const std::string browseId = MakeBrowseId(buttonSuffix);
-		const float buttonWidth = ImGui::CalcTextSize(Loc::Text("common.browse")).x
+		const float buttonWidth = ImGui::CalcTextSize(Loc::Text(EditorLocKeys::CommonBrowse)).x
 			+ ImGui::GetStyle().FramePadding.x * 2.0f
 			+ 8.0f;
 
@@ -157,7 +157,7 @@ namespace
 
 void CBuildSettingsWindow::OnCreate()
 {
-	SetLocalizedTitleKey("window.build_settings");
+	SetLocalizedTitleKey(EditorLocKeys::WindowBuildSettings);
 
 	m_imguiFlags =
 		ImGuiWindowFlags_NoDocking |
@@ -179,7 +179,7 @@ void CBuildSettingsWindow::OnRenderStay()
 	SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
 	if (false == pm.IsValid() || false == pm->IsProjectLoaded())
 	{
-		ImGui::TextDisabled("%s", Loc::Text("build_settings.no_project"));
+		ImGui::TextDisabled("%s", Loc::Text(EditorLocKeys::BuildSettingsNoProject));
 		return;
 	}
 	if (false == m_loadedFromProject && false == m_dirty)
@@ -214,23 +214,23 @@ void CBuildSettingsWindow::DrawCategoryList(float)
 {
 	struct CommonEntry { ECategory Kind; const char* LocKey; };
 	static const CommonEntry commonEntry[] = {
-		{ ECategory::General, "build_settings.category.general" },
-		{ ECategory::Scenes,  "build_settings.category.scenes"  },
-		{ ECategory::Output,  "build_settings.category.output"  },
+		{ ECategory::General, EditorLocKeys::BuildSettingsCategoryGeneral },
+		{ ECategory::Scenes,  EditorLocKeys::BuildSettingsCategoryScenes  },
+		{ ECategory::Output,  EditorLocKeys::BuildSettingsCategoryOutput  },
 	};
 	struct PlatformEntry { ECategory Kind; EBuildTargetPlatform Platform; const char* LocKey; };
 	static const PlatformEntry platformEntry[] = {
-		{ ECategory::Windows, EBuildTargetPlatform::Windows, "build_settings.category.windows" },
-		{ ECategory::Web,     EBuildTargetPlatform::Web,     "build_settings.category.web"     },
-		{ ECategory::Android, EBuildTargetPlatform::Android, "build_settings.category.android" },
-		{ ECategory::IOS,     EBuildTargetPlatform::IOS,     "build_settings.category.ios"     },
+		{ ECategory::Windows, EBuildTargetPlatform::Windows, EditorLocKeys::BuildSettingsCategoryWindows },
+		{ ECategory::Web,     EBuildTargetPlatform::Web,     EditorLocKeys::BuildSettingsCategoryWeb     },
+		{ ECategory::Android, EBuildTargetPlatform::Android, EditorLocKeys::BuildSettingsCategoryAndroid },
+		{ ECategory::IOS,     EBuildTargetPlatform::IOS,     EditorLocKeys::BuildSettingsCategoryIos     },
 	};
 
 	// 공통 카테고리(General/Scenes/Output)는 플랫폼 활성화 개념이 없으므로 체크박스 없이 나열한다.
 	ImText header;
 	header.UseSeparator(true);
-	header.SetHoveredTooltip(Loc::Text("build_settings.common_category_tooltip"));
-	header(Loc::Text("build_settings.common_categories"));
+	header.SetHoveredTooltip(Loc::Text(EditorLocKeys::BuildSettingsCommonCategoryTooltip));
+	header(Loc::Text(EditorLocKeys::BuildSettingsCommonCategories));
 	for (const CommonEntry& entry : commonEntry)
 	{
 		ImGui::Utillity::StyleBuilder style;
@@ -245,8 +245,8 @@ void CBuildSettingsWindow::DrawCategoryList(float)
 	}
 
 	// 플랫폼 카테고리는 항목 앞에 활성화 체크박스를 둔다(활성 플랫폼만 빌드/일괄빌드 대상).
-	header.SetHoveredTooltip(Loc::Text("build_settings.platform_category_tooltip"));
-	header(Loc::Text("build_settings.platform_categories"));
+	header.SetHoveredTooltip(Loc::Text(EditorLocKeys::BuildSettingsPlatformCategoryTooltip));
+	header(Loc::Text(EditorLocKeys::BuildSettingsPlatformCategories));
 	for (const PlatformEntry& entry : platformEntry)
 	{
 		ImGui::Utillity::IDGroup idGroup(entry.LocKey); // 체크박스/Selectable id 충돌 방지.
@@ -284,7 +284,7 @@ void CBuildSettingsWindow::DrawPlatformEnableCheckbox(EBuildTargetPlatform platf
 	{
 		MarkDirty();
 	}
-	ImGui::Utillity::HoveredToolTip(Loc::Text("build_settings.platform_enable_tooltip"));
+	ImGui::Utillity::HoveredToolTip(Loc::Text(EditorLocKeys::BuildSettingsPlatformEnableTooltip));
 }
 
 void CBuildSettingsWindow::DrawCategoryContent(float)
@@ -304,12 +304,12 @@ void CBuildSettingsWindow::DrawCategoryContent(float)
 
 void CBuildSettingsWindow::DrawGeneralCategory()
 {
-	ImGui::SeparatorText(Loc::Text("build_settings.general"));
+	ImGui::SeparatorText(Loc::Text(EditorLocKeys::BuildSettingsGeneral));
 
 	ImGui::Utillity::FormLayout layout("##build_settings_general", 4.0f, { 2.0f, 1.0f }, 150.0f);
 	layout.Row(
 		[&]() {
-			DrawFieldLabel("build_settings.product_name", "build_settings.product_name.desc", true);
+			DrawFieldLabel(EditorLocKeys::BuildSettingsProductName, EditorLocKeys::BuildSettingsProductNameDesc, true);
 		},
 		[&]() {
 			if (DrawInputTextWithInvalid("##build.product_name", m_productName, IsProductNameInvalid()))
@@ -322,7 +322,7 @@ void CBuildSettingsWindow::DrawGeneralCategory()
 	const char* configurations[] = { "Debug", "Release" };
 	layout.Row(
 		[&]() {
-			DrawFieldLabel("build_settings.configuration", "build_settings.configuration.desc", false);
+			DrawFieldLabel(EditorLocKeys::BuildSettingsConfiguration, EditorLocKeys::BuildSettingsConfigurationDesc, false);
 		},
 		[&]() {
 			if (ImGui::Combo("##build.configuration", &m_buildConfiguration, configurations, IM_ARRAYSIZE(configurations)))
@@ -335,16 +335,16 @@ void CBuildSettingsWindow::DrawGeneralCategory()
 
 void CBuildSettingsWindow::DrawWindowsCategory()
 {
-	ImGui::SeparatorText(Loc::Text("build_settings.windows"));
+	ImGui::SeparatorText(Loc::Text(EditorLocKeys::BuildSettingsWindows));
 	if (false == m_enableWindows)
 	{
-		ImGui::TextDisabled("%s", Loc::Text("build_settings.platform_inactive"));
+		ImGui::TextDisabled("%s", Loc::Text(EditorLocKeys::BuildSettingsPlatformInactive));
 	}
 
 	ImGui::Utillity::FormLayout layout("##build_settings_windows", 4.0f, { 2.0f, 1.0f }, 170.0f);
 	layout.Row(
 		[&]() {
-			DrawFieldLabel("build_settings.windows_icon", "build_settings.windows_icon.desc", false);
+			DrawFieldLabel(EditorLocKeys::BuildSettingsWindowsIcon, EditorLocKeys::BuildSettingsWindowsIconDesc, false);
 		},
 		[&]() {
 			DrawWindowsIconSelector();
@@ -353,29 +353,29 @@ void CBuildSettingsWindow::DrawWindowsCategory()
 
 void CBuildSettingsWindow::DrawWebCategory()
 {
-	ImGui::SeparatorText(Loc::Text("build_settings.web"));
+	ImGui::SeparatorText(Loc::Text(EditorLocKeys::BuildSettingsWeb));
 	if (false == m_enableWeb)
 	{
-		ImGui::TextDisabled("%s", Loc::Text("build_settings.platform_inactive"));
+		ImGui::TextDisabled("%s", Loc::Text(EditorLocKeys::BuildSettingsPlatformInactive));
 	}
 
 	// Web 빌드는 현재 플랫폼 전용 필수 설정이 없다(공통 설정만으로 빌드 가능).
-	ImGui::TextWrapped("%s", Loc::Text("build_settings.web.no_extra_settings"));
+	ImGui::TextWrapped("%s", Loc::Text(EditorLocKeys::BuildSettingsWebNoExtraSettings));
 }
 
 void CBuildSettingsWindow::DrawAndroidCategory()
 {
-	ImGui::SeparatorText(Loc::Text("build_settings.android"));
+	ImGui::SeparatorText(Loc::Text(EditorLocKeys::BuildSettingsAndroid));
 	if (false == m_enableAndroid)
 	{
-		ImGui::TextDisabled("%s", Loc::Text("build_settings.platform_inactive"));
+		ImGui::TextDisabled("%s", Loc::Text(EditorLocKeys::BuildSettingsPlatformInactive));
 	}
 
 	ImGui::Utillity::FormLayout layout("##build_settings_android", 4.0f, { 2.0f, 1.0f }, 170.0f);
 	const bool validateAndroid = m_enableAndroid;
 	layout.Row(
 		[&]() {
-			DrawFieldLabel("build_settings.android_application_id", "build_settings.android_application_id.desc", true);
+			DrawFieldLabel(EditorLocKeys::BuildSettingsAndroidApplicationId, EditorLocKeys::BuildSettingsAndroidApplicationIdDesc, true);
 		},
 		[&]() {
 			if (DrawInputTextWithInvalid("##build.android_application_id", m_androidApplicationId, validateAndroid && IsAndroidApplicationIdInvalid()))
@@ -386,7 +386,7 @@ void CBuildSettingsWindow::DrawAndroidCategory()
 
 	layout.Row(
 		[&]() {
-			DrawFieldLabel("build_settings.android_min_sdk", "build_settings.android_min_sdk.desc", true);
+			DrawFieldLabel(EditorLocKeys::BuildSettingsAndroidMinSdk, EditorLocKeys::BuildSettingsAndroidMinSdkDesc, true);
 		},
 		[&]() {
 			const bool invalid = validateAndroid && m_androidMinSdkVersion <= 0;
@@ -400,7 +400,7 @@ void CBuildSettingsWindow::DrawAndroidCategory()
 
 	layout.Row(
 		[&]() {
-			DrawFieldLabel("build_settings.android_target_sdk", "build_settings.android_target_sdk.desc", true);
+			DrawFieldLabel(EditorLocKeys::BuildSettingsAndroidTargetSdk, EditorLocKeys::BuildSettingsAndroidTargetSdkDesc, true);
 		},
 		[&]() {
 			const bool invalid = validateAndroid && IsAndroidSdkInvalid();
@@ -414,7 +414,7 @@ void CBuildSettingsWindow::DrawAndroidCategory()
 
 	layout.Row(
 		[&]() {
-			DrawFieldLabel("build_settings.android_abi", "build_settings.android_abi.desc", false);
+			DrawFieldLabel(EditorLocKeys::BuildSettingsAndroidAbi, EditorLocKeys::BuildSettingsAndroidAbiDesc, false);
 		},
 		[&]() {
 			const char* abis[] = { "arm64-v8a", "x86_64" };
@@ -428,7 +428,7 @@ void CBuildSettingsWindow::DrawAndroidCategory()
 
 	layout.Row(
 		[&]() {
-			DrawFieldLabel("build_settings.android_orientation", "build_settings.android_orientation.desc", false);
+			DrawFieldLabel(EditorLocKeys::BuildSettingsAndroidOrientation, EditorLocKeys::BuildSettingsAndroidOrientationDesc, false);
 		},
 		[&]() {
 			// 회전 보정의 권위 신호. Landscape/Portrait 는 방향고정, Auto 는 기기 회전 추종.
@@ -446,17 +446,17 @@ void CBuildSettingsWindow::DrawAndroidCategory()
 
 void CBuildSettingsWindow::DrawIOSCategory()
 {
-	ImGui::SeparatorText(Loc::Text("build_settings.ios"));
+	ImGui::SeparatorText(Loc::Text(EditorLocKeys::BuildSettingsIos));
 	if (false == m_enableIOS)
 	{
-		ImGui::TextDisabled("%s", Loc::Text("build_settings.platform_inactive"));
+		ImGui::TextDisabled("%s", Loc::Text(EditorLocKeys::BuildSettingsPlatformInactive));
 	}
 
 	ImGui::Utillity::FormLayout layout("##build_settings_ios", 4.0f, { 2.0f, 1.0f }, 170.0f);
 	const bool validateIOS = m_enableIOS;
 	layout.Row(
 		[&]() {
-			DrawFieldLabel("build_settings.ios_bundle_identifier", "build_settings.ios_bundle_identifier.desc", true);
+			DrawFieldLabel(EditorLocKeys::BuildSettingsIosBundleIdentifier, EditorLocKeys::BuildSettingsIosBundleIdentifierDesc, true);
 		},
 		[&]() {
 			if (DrawInputTextWithInvalid("##build.ios_bundle_identifier", m_iosBundleIdentifier, validateIOS && IsIOSBundleIdentifierInvalid()))
@@ -467,7 +467,7 @@ void CBuildSettingsWindow::DrawIOSCategory()
 
 	layout.Row(
 		[&]() {
-			DrawFieldLabel("build_settings.ios_team_id", "build_settings.ios_team_id.desc", false);
+			DrawFieldLabel(EditorLocKeys::BuildSettingsIosTeamId, EditorLocKeys::BuildSettingsIosTeamIdDesc, false);
 		},
 		[&]() {
 			if (DrawInputTextWithInvalid("##build.ios_team_id", m_iosTeamId, false))
@@ -478,7 +478,7 @@ void CBuildSettingsWindow::DrawIOSCategory()
 
 	layout.Row(
 		[&]() {
-			DrawFieldLabel("build_settings.ios_minimum_os", "build_settings.ios_minimum_os.desc", true);
+			DrawFieldLabel(EditorLocKeys::BuildSettingsIosMinimumOs, EditorLocKeys::BuildSettingsIosMinimumOsDesc, true);
 		},
 		[&]() {
 			if (DrawInputTextWithInvalid("##build.ios_minimum_os", m_iosMinimumOSVersion, validateIOS && IsIOSMinimumOSInvalid()))
@@ -509,7 +509,7 @@ void CBuildSettingsWindow::DrawWindowsIconSelector()
 		ImVec2(start.x + (buttonSize.x - textSize.x) * 0.5f, start.y + (buttonSize.y - textSize.y) * 0.5f),
 		ImGui::GetColorU32(ImGuiCol_Text),
 		caption);
-	ImGui::Utillity::HoveredToolTip(Loc::Text("build_settings.windows_icon.desc"));
+	ImGui::Utillity::HoveredToolTip(Loc::Text(EditorLocKeys::BuildSettingsWindowsIconDesc));
 
 	if (clicked)
 	{
@@ -530,7 +530,7 @@ void CBuildSettingsWindow::DrawWindowsIconSelector()
 	{
 		ImGui::TextWrapped("%s", EditorPathUtils::ToUtf8(iconMeta->Path).c_str());
 		ImGui::TextDisabled("%s", m_windowsIconGuid.generic_string().c_str());
-		if (ImGui::SmallButton(Loc::Text("common.delete")))
+		if (ImGui::SmallButton(Loc::Text(EditorLocKeys::CommonDelete)))
 		{
 			m_windowsIconGuid = INVALID_ASSET_GUID;
 			MarkDirty();
@@ -538,23 +538,23 @@ void CBuildSettingsWindow::DrawWindowsIconSelector()
 	}
 	else
 	{
-		ImGui::TextDisabled("%s", Loc::Text("build_settings.windows_icon.empty"));
+		ImGui::TextDisabled("%s", Loc::Text(EditorLocKeys::BuildSettingsWindowsIconEmpty));
 	}
 	ImGui::EndGroup();
 }
 
 void CBuildSettingsWindow::DrawScenesCategory()
 {
-	ImGui::SeparatorText(Loc::Text("build_settings.scenes"));
+	ImGui::SeparatorText(Loc::Text(EditorLocKeys::BuildSettingsScenes));
 
 	ImGui::Utillity::FormLayout layout("##build_settings_scenes", 4.0f, { 2.0f, 1.0f }, 150.0f);
 	layout.Row(
 		[&]() {
-			DrawFieldLabel("build_settings.startup_scene", "build_settings.startup_scene.desc", true);
+			DrawFieldLabel(EditorLocKeys::BuildSettingsStartupScene, EditorLocKeys::BuildSettingsStartupSceneDesc, true);
 		},
 		[&]() {
 			std::string selectedPath = m_startupScene;
-			const std::wstring title = Utillity::U8ToWString(Loc::Text("build_settings.select_startup_scene"));
+			const std::wstring title = Utillity::U8ToWString(Loc::Text(EditorLocKeys::BuildSettingsSelectStartupScene));
 			if (DrawReadOnlyPathWithFileBrowse(
 				"##build.startup_scene",
 				selectedPath,
@@ -576,7 +576,7 @@ void CBuildSettingsWindow::DrawScenesCategory()
 		});
 
 	ImGui::Spacing();
-	if (ImGui::Button(Loc::Text("build_settings.use_current_scene")))
+	if (ImGui::Button(Loc::Text(EditorLocKeys::BuildSettingsUseCurrentScene)))
 	{
 		SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
 		const File::Path& activeScenePath = Editor::GetActiveScenePath();
@@ -591,17 +591,17 @@ void CBuildSettingsWindow::DrawScenesCategory()
 			MarkDirty();
 		}
 	}
-	ImGui::Utillity::HoveredToolTip(Loc::Text("build_settings.use_current_scene.desc"));
+	ImGui::Utillity::HoveredToolTip(Loc::Text(EditorLocKeys::BuildSettingsUseCurrentSceneDesc));
 
 	ImGui::Spacing();
-	ImGui::SeparatorText(Loc::Text("build_settings.build_scenes"));
+	ImGui::SeparatorText(Loc::Text(EditorLocKeys::BuildSettingsBuildScenes));
 	ImGui::BeginChild("##build_scenes", ImVec2(0.0f, 150.0f), true);
 	for (std::size_t i = 0; i < m_buildScenes.size();)
 	{
 		ImGui::PushID(static_cast<int>(i));
 		ImGui::TextUnformatted(m_buildScenes[i].c_str());
 		ImGui::SameLine(ImGui::GetContentRegionAvail().x - 64.0f);
-		if (ImGui::SmallButton(Loc::Text("common.delete")))
+		if (ImGui::SmallButton(Loc::Text(EditorLocKeys::CommonDelete)))
 		{
 			m_buildScenes.erase(m_buildScenes.begin() + static_cast<std::ptrdiff_t>(i));
 			MarkDirty();
@@ -614,9 +614,9 @@ void CBuildSettingsWindow::DrawScenesCategory()
 	ImGui::EndChild();
 
 	std::vector<File::Path> selectedScenes;
-	const std::wstring addSceneTitle = Utillity::U8ToWString(Loc::Text("build_settings.add_scene"));
+	const std::wstring addSceneTitle = Utillity::U8ToWString(Loc::Text(EditorLocKeys::BuildSettingsAddScene));
 	if (ImGui::Utillity::BrowseFilesButton(
-		Loc::Text("build_settings.add_scene"),
+		Loc::Text(EditorLocKeys::BuildSettingsAddScene),
 		selectedScenes,
 		addSceneTitle.c_str(),
 		GetAssetDialogPath().c_str(),
@@ -639,16 +639,16 @@ void CBuildSettingsWindow::DrawScenesCategory()
 
 void CBuildSettingsWindow::DrawOutputCategory()
 {
-	ImGui::SeparatorText(Loc::Text("build_settings.output"));
+	ImGui::SeparatorText(Loc::Text(EditorLocKeys::BuildSettingsOutput));
 
 	ImGui::Utillity::FormLayout layout("##build_settings_output", 4.0f, { 2.0f, 1.0f }, 150.0f);
 	layout.Row(
 		[&]() {
-			DrawFieldLabel("build_settings.output_directory", "build_settings.output_directory.desc", true);
+			DrawFieldLabel(EditorLocKeys::BuildSettingsOutputDirectory, EditorLocKeys::BuildSettingsOutputDirectoryDesc, true);
 		},
 		[&]() {
 			std::string selectedPath = m_outputDirectory;
-			const std::wstring title = Utillity::U8ToWString(Loc::Text("build_settings.select_output_directory"));
+			const std::wstring title = Utillity::U8ToWString(Loc::Text(EditorLocKeys::BuildSettingsSelectOutputDirectory));
 			DrawReadOnlyPathWithFolderBrowse(
 				"##build.output_directory",
 				selectedPath,
@@ -666,7 +666,7 @@ void CBuildSettingsWindow::DrawOutputCategory()
 
 	layout.Row(
 		[&]() {
-			DrawFieldLabel("build_settings.package_preview", "build_settings.package_preview.desc", false);
+			DrawFieldLabel(EditorLocKeys::BuildSettingsPackagePreview, EditorLocKeys::BuildSettingsPackagePreviewDesc, false);
 		},
 		[&]() {
 			const std::string preview = MakePackagePreview();
@@ -681,8 +681,8 @@ void CBuildSettingsWindow::DrawFooterButtons()
 		ImGui::TextColored(ImVec4(0.95f, 0.35f, 0.30f, 1.0f), "%s", m_errorMessage.c_str());
 	}
 
-	const bool applied = ImGui::Button(Loc::Text("common.apply"), { 100.0f, 0.0f });
-	ImGui::Utillity::HoveredToolTip(Loc::Text("build_settings.apply.desc"));
+	const bool applied = ImGui::Button(Loc::Text(EditorLocKeys::CommonApply), { 100.0f, 0.0f });
+	ImGui::Utillity::HoveredToolTip(Loc::Text(EditorLocKeys::BuildSettingsApplyDesc));
 	if (applied)
 	{
 		std::string error;
@@ -692,13 +692,13 @@ void CBuildSettingsWindow::DrawFooterButtons()
 		}
 		else
 		{
-			m_errorMessage = false == error.empty() ? error : Loc::Text("build_settings.save_failed");
+			m_errorMessage = false == error.empty() ? error : Loc::Text(EditorLocKeys::BuildSettingsSaveFailed);
 		}
 	}
 
 	ImGui::SameLine();
-	const bool cancelled = ImGui::Button(Loc::Text("common.cancel"), { 100.0f, 0.0f });
-	ImGui::Utillity::HoveredToolTip(Loc::Text("build_settings.cancel.desc"));
+	const bool cancelled = ImGui::Button(Loc::Text(EditorLocKeys::CommonCancel), { 100.0f, 0.0f });
+	ImGui::Utillity::HoveredToolTip(Loc::Text(EditorLocKeys::BuildSettingsCancelDesc));
 	if (cancelled)
 	{
 		LoadFromProject();
@@ -743,7 +743,7 @@ bool CBuildSettingsWindow::ApplyToProject(std::string* outError)
 	SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
 	if (false == pm.IsValid())
 	{
-		if (outError) *outError = Loc::Text("build_settings.no_project");
+		if (outError) *outError = Loc::Text(EditorLocKeys::BuildSettingsNoProject);
 		return false;
 	}
 
@@ -791,7 +791,7 @@ bool CBuildSettingsWindow::ApplyToProject(std::string* outError)
 bool CBuildSettingsWindow::SelectWindowsIcon(std::string* outError)
 {
 	File::Path selectedPath;
-	const std::wstring title = Utillity::U8ToWString(Loc::Text("build_settings.select_windows_icon"));
+	const std::wstring title = Utillity::U8ToWString(Loc::Text(EditorLocKeys::BuildSettingsSelectWindowsIcon));
 	if (false == File::ShowOpenFileDialog(
 		ImGui::Utillity::GetDialogOwnerHandle(),
 		title.c_str(),
@@ -817,7 +817,7 @@ bool CBuildSettingsWindow::ImportWindowsIconAsset(const File::Path& selectedPath
 	outGuid = INVALID_ASSET_GUID;
 	if (false == HasIcoExtension(selectedPath))
 	{
-		if (outError) *outError = Loc::Text("build_settings.windows_icon.invalid");
+		if (outError) *outError = Loc::Text(EditorLocKeys::BuildSettingsWindowsIconInvalid);
 		return false;
 	}
 
@@ -825,7 +825,7 @@ bool CBuildSettingsWindow::ImportWindowsIconAsset(const File::Path& selectedPath
 	SafePtr<IAssetManager> assetManager = Engine.AssetManager;
 	if (false == pm.IsValid() || false == assetManager.IsValid())
 	{
-		if (outError) *outError = Loc::Text("build_settings.no_project");
+		if (outError) *outError = Loc::Text(EditorLocKeys::BuildSettingsNoProject);
 		return false;
 	}
 
@@ -865,7 +865,7 @@ bool CBuildSettingsWindow::ImportWindowsIconAsset(const File::Path& selectedPath
 	AssetMetaData metaData;
 	if (false == assetManager->ImportAsset(importDesc, &metaData))
 	{
-		if (outError) *outError = Loc::Text("build_settings.windows_icon.import_failed");
+		if (outError) *outError = Loc::Text(EditorLocKeys::BuildSettingsWindowsIconImportFailed);
 		return false;
 	}
 	assetManager->RefreshAssetRegistry();
@@ -874,7 +874,7 @@ bool CBuildSettingsWindow::ImportWindowsIconAsset(const File::Path& selectedPath
 	outGuid = registeredMeta ? registeredMeta->Guid : metaData.Guid;
 	if (outGuid.IsNull())
 	{
-		if (outError) *outError = Loc::Text("build_settings.windows_icon.import_failed");
+		if (outError) *outError = Loc::Text(EditorLocKeys::BuildSettingsWindowsIconImportFailed);
 		return false;
 	}
 	return true;
@@ -905,7 +905,7 @@ bool CBuildSettingsWindow::SaveEditsToProject(std::string* outError)
 	SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
 	if (false == pm.IsValid() || false == pm->IsProjectLoaded())
 	{
-		if (outError) *outError = Loc::Text("build_settings.no_project");
+		if (outError) *outError = Loc::Text(EditorLocKeys::BuildSettingsNoProject);
 		return false;
 	}
 
@@ -1091,7 +1091,7 @@ std::string CBuildSettingsWindow::MakePackagePreview() const
 		preview += EditorPathUtils::ToUtf8(packagePath);
 	}
 
-	return preview.empty() ? std::string(Loc::Text("build_settings.no_platform_enabled")) : preview;
+	return preview.empty() ? std::string(Loc::Text(EditorLocKeys::BuildSettingsNoPlatformEnabled)) : preview;
 }
 
 std::wstring CBuildSettingsWindow::GetRootDialogPath() const

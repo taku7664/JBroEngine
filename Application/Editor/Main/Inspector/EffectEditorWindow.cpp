@@ -57,7 +57,7 @@ void EffectEditorWindow::Open(const AssetGuid& guid, const std::string& title)
 			return;
 		}
 		// Dock 제목은 파일명이 아니라 "사운드 효과" 로 고정 (언어 전환도 반영).
-		dock->SetLocalizedTitleKey("inspector.effect.title");
+		dock->SetLocalizedTitleKey(EditorLocKeys::InspectorEffectTitle);
 		dock->SetSize(ImVec2(420.0f, 360.0f));
 
 		// 내부 에디터 패널(dock 자식) 생성.

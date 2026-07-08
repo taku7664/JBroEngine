@@ -321,7 +321,7 @@ Vector2 CSceneViewTool::GetPreferredPasteWorldPosition() const
 
 void CSceneViewTool::OnCreate()
 {
-    SetLocalizedTitleKey("window.scene_view");
+    SetLocalizedTitleKey(EditorLocKeys::WindowSceneView);
 }
 
 void CSceneViewTool::OnDestroy()
@@ -449,8 +449,8 @@ void CSceneViewTool::OnRenderStay()
     dl->AddRect(btnMin, btnMax, IM_COL32(88, 100, 120, 200), 4.0f);
     {
         const char* btnLabel = m_showPixelGrid
-            ? Loc::Text("scene_view.unit.toggle_pixel")
-            : Loc::Text("scene_view.unit.toggle_unit");
+            ? Loc::Text(EditorLocKeys::SceneViewUnitTogglePixel)
+            : Loc::Text(EditorLocKeys::SceneViewUnitToggleUnit);
         const ImVec2 ts = ImGui::CalcTextSize(btnLabel);
         dl->AddText(
             ImVec2(btnMin.x + (BTN_W - ts.x) * 0.5f,
@@ -1224,7 +1224,7 @@ void CSceneViewTool::OnRenderStay()
 
                 if (canDelete)
                 {
-                    if (ImGui::MenuItem(Loc::Text("scene_view.vertex.delete")))
+                    if (ImGui::MenuItem(Loc::Text(EditorLocKeys::SceneViewVertexDelete)))
                     {
                         std::vector<Vector2> newPts = delPoly->LocalPoints;
                         newPts.erase(newPts.begin() + m_deleteVtxIndex);
@@ -1235,7 +1235,7 @@ void CSceneViewTool::OnRenderStay()
                 }
                 else
                 {
-                    ImGui::TextDisabled(Loc::Text("scene_view.vertex.delete_min"));
+                    ImGui::TextDisabled(Loc::Text(EditorLocKeys::SceneViewVertexDeleteMin));
                 }
 
                 // 씬 오브젝트 메뉴도 같이 표시될 경우를 위한 구분선
@@ -1350,22 +1350,22 @@ void CSceneViewTool::OnRenderStay()
 	const bool hasScene = EditorContext::GetActiveScene().IsValid();
     const ImVec2 textPos = vpMin + ImVec2(12.0f, 10.0f);
     dl->AddText(textPos, IM_COL32(210, 216, 224, 255),
-                hasScene ? Loc::Text("scene_view.overlay.active_scene")
-                         : Loc::Text("scene_view.overlay.no_active_scene"));
+                hasScene ? Loc::Text(EditorLocKeys::SceneViewOverlayActiveScene)
+                         : Loc::Text(EditorLocKeys::SceneViewOverlayNoActiveScene));
 
     CGameObject* selectedObject = Editor::GetSelectedEntity();
     char selText[128] = {};
     if (nullptr == selectedObject)
-        std::snprintf(selText, sizeof(selText), "%s", Loc::Text("scene_view.overlay.selected_none"));
+        std::snprintf(selText, sizeof(selText), "%s", Loc::Text(EditorLocKeys::SceneViewOverlaySelectedNone));
     else
         std::snprintf(selText, sizeof(selText),
-                      Loc::Text("scene_view.overlay.selected_format"),
+                      Loc::Text(EditorLocKeys::SceneViewOverlaySelectedFormat),
                       selectedObject->GetName());
     dl->AddText(textPos + ImVec2(0.0f, 20.0f), IM_COL32(150, 158, 170, 255), selText);
 
     char camText[128] = {};
     std::snprintf(camText, sizeof(camText),
-                  Loc::Text("scene_view.overlay.camera_format"),
+                  Loc::Text(EditorLocKeys::SceneViewOverlayCameraFormat),
                   m_cameraPos.x, m_cameraPos.y, m_cameraSize);
     dl->AddText(textPos + ImVec2(0.0f, 40.0f), IM_COL32(130, 140, 155, 200), camText);
 
@@ -1374,7 +1374,7 @@ void CSceneViewTool::OnRenderStay()
         char ctxText[128] = {};
         CGameObject* ctxObj = m_editCtx.GetContext();
         std::snprintf(ctxText, sizeof(ctxText),
-                      Loc::Text("scene_view.overlay.focus_format"),
+                      Loc::Text(EditorLocKeys::SceneViewOverlayFocusFormat),
                       ctxObj ? ctxObj->GetName() : "");
         dl->AddText(textPos + ImVec2(0.0f, 60.0f),
                     IM_COL32(255, 220, 50, 200), ctxText);
@@ -1438,7 +1438,7 @@ void CSceneViewTool::OnRenderStay()
                             IM_COL32(80, 230, 110, 230), 0.0f, 0, 1.5f);
                 dl->AddText(ImVec2(indMin.x, indMin.y - 18.0f),
                             IM_COL32(80, 230, 110, 220),
-                            Loc::Text("scene_view.overlay.viewport_selected_camera"));
+                            Loc::Text(EditorLocKeys::SceneViewOverlayViewportSelectedCamera));
                 dl->PopClipRect();
             }
         }

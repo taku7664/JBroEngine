@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Editor/Localization/EditorLocalizationKeys.h"
 #include "ImporterWindowBase.h"
 #include "Engine/Core/Asset/SpriteAsset.h"
 
@@ -14,7 +15,7 @@ protected:
 	                   const File::Path& destFilePath,
 	                   std::string& errorOut) override;
 	const char* GetSourceExtensionsCsv() const override { return ".png,.jpg,.jpeg,.bmp,.tga"; }
-	const char* GetTitleLocKey() const override { return "importer.sprite.title"; }
+	const char* GetTitleLocKey() const override { return EditorLocKeys::ImporterSpriteTitle; }
 
 private:
 	SpriteImportOptions m_options;

@@ -2,6 +2,7 @@
 
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
 
+#include "Editor/Localization/EditorLocalizationKeys.h"
 #include "Engine/Editor/ImItem/ImText.h"
 #include "Engine/Editor/ImGuiUtillity.h"
 

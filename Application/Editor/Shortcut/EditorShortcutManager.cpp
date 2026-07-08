@@ -23,13 +23,13 @@ namespace
 	}
 
 	const std::array<EditorShortcutDescriptor, 7> SHORTCUTS = {{
-		{ EEditorShortcut::SaveProject,  "menu.file.save_project",     "menu.file",       Bind(ImGuiKey_S, true), {} },
-		{ EEditorShortcut::Undo,         "menu.edit.undo",             "menu.edit",       Bind(ImGuiKey_Z, true), {} },
-		{ EEditorShortcut::Redo,         "menu.edit.redo",             "menu.edit",       Bind(ImGuiKey_Y, true), Bind(ImGuiKey_Z, true, true) },
-		{ EEditorShortcut::CopyObjects,  "editor.menu.copy_object",    "menu.edit",       Bind(ImGuiKey_C, true), {} },
-		{ EEditorShortcut::PasteObjects, "editor.menu.paste_object",   "menu.edit",       Bind(ImGuiKey_V, true), {} },
-		{ EEditorShortcut::TogglePlay,   "menu.simulation.play_toggle", "menu.simulation", Bind(ImGuiKey_F5), {} },
-		{ EEditorShortcut::TogglePause,  "menu.simulation.pause_toggle","menu.simulation", Bind(ImGuiKey_F6), {} },
+		{ EEditorShortcut::SaveProject,  EditorLocKeys::MenuFileSaveProject,     EditorLocKeys::MenuFile,       Bind(ImGuiKey_S, true), {} },
+		{ EEditorShortcut::Undo,         EditorLocKeys::MenuEditUndo,             EditorLocKeys::MenuEdit,       Bind(ImGuiKey_Z, true), {} },
+		{ EEditorShortcut::Redo,         EditorLocKeys::MenuEditRedo,             EditorLocKeys::MenuEdit,       Bind(ImGuiKey_Y, true), Bind(ImGuiKey_Z, true, true) },
+		{ EEditorShortcut::CopyObjects,  EditorLocKeys::EditorMenuCopyObject,    EditorLocKeys::MenuEdit,       Bind(ImGuiKey_C, true), {} },
+		{ EEditorShortcut::PasteObjects, EditorLocKeys::EditorMenuPasteObject,   EditorLocKeys::MenuEdit,       Bind(ImGuiKey_V, true), {} },
+		{ EEditorShortcut::TogglePlay,   EditorLocKeys::MenuSimulationPlayToggle, EditorLocKeys::MenuSimulation, Bind(ImGuiKey_F5), {} },
+		{ EEditorShortcut::TogglePause,  EditorLocKeys::MenuSimulationPauseToggle,EditorLocKeys::MenuSimulation, Bind(ImGuiKey_F6), {} },
 	}};
 }
 

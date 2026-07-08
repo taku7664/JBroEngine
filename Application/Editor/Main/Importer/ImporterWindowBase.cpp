@@ -30,7 +30,7 @@ void CImporterWindowBase::OnRenderStay()
 	DrawSourceRow();   // source + destination 두 행을 FormLayout 으로 함께 그린다.
 
 	ImGui::Spacing();
-	ImGui::SeparatorText(Loc::Text("importer.options"));
+	ImGui::SeparatorText(Loc::Text(EditorLocKeys::ImporterOptions));
 	DrawImportOptions();
 
 	ImGui::Spacing();
@@ -52,20 +52,20 @@ void CImporterWindowBase::DrawSourceRow()
 	layout.Row(
 		[&]() {
 			ImText label;
-			label.SetHoveredTooltip(Loc::Text("importer.source_file.desc"));
-			label(Loc::Text("importer.source_file"));
+			label.SetHoveredTooltip(Loc::Text(EditorLocKeys::ImporterSourceFileDesc));
+			label(Loc::Text(EditorLocKeys::ImporterSourceFile));
 		},
 		[&]() { ImGui::InputText("##importer.source", m_sourcePathBuf.data(), m_sourcePathBuf.size()); });
-	ImGui::TextDisabled("%s: %s", Loc::Text("importer.source_hint"), GetSourceExtensionsCsv());
+	ImGui::TextDisabled("%s: %s", Loc::Text(EditorLocKeys::ImporterSourceHint), GetSourceExtensionsCsv());
 
 	layout.Row(
 		[&]() {
 			ImText label;
-			label.SetHoveredTooltip(Loc::Text("importer.destination.desc"));
-			label(Loc::Text("importer.destination"));
+			label.SetHoveredTooltip(Loc::Text(EditorLocKeys::ImporterDestinationDesc));
+			label(Loc::Text(EditorLocKeys::ImporterDestination));
 		},
 		[&]() { ImGui::InputText("##importer.destination", m_destPathBuf.data(), m_destPathBuf.size()); });
-	ImGui::TextDisabled("%s", Loc::Text("importer.destination_hint"));
+	ImGui::TextDisabled("%s", Loc::Text(EditorLocKeys::ImporterDestinationHint));
 }
 
 void CImporterWindowBase::DrawDestinationRow()
@@ -112,8 +112,8 @@ void CImporterWindowBase::DrawImportButton()
 
 	const bool canImport = projectLoaded && false == sourcePath.empty() && false == destRel.empty();
 	ImGui::BeginDisabled(false == canImport);
-	const bool importPressed = ImGui::Button(Loc::Text("importer.import"), { 120.0f, 0.0f });
-	ImGui::Utillity::HoveredToolTip(Loc::Text("importer.import.desc"));
+	const bool importPressed = ImGui::Button(Loc::Text(EditorLocKeys::ImporterImport), { 120.0f, 0.0f });
+	ImGui::Utillity::HoveredToolTip(Loc::Text(EditorLocKeys::ImporterImportDesc));
 	if (importPressed)
 	{
 		m_lastMessage.clear();
@@ -123,7 +123,7 @@ void CImporterWindowBase::DrawImportButton()
 		std::filesystem::path src(sourcePath);
 		if (false == std::filesystem::exists(src, ec))
 		{
-			m_lastMessage = Loc::Text("importer.error.source_not_found");
+			m_lastMessage = Loc::Text(EditorLocKeys::ImporterErrorSourceNotFound);
 			m_lastMessageIsError = true;
 		}
 		else
@@ -131,7 +131,7 @@ void CImporterWindowBase::DrawImportButton()
 			const std::string srcExt = src.extension().generic_string();
 			if (false == MatchesExtension(srcExt, GetSourceExtensionsCsv()))
 			{
-				m_lastMessage = Loc::Text("importer.error.unsupported_extension");
+				m_lastMessage = Loc::Text(EditorLocKeys::ImporterErrorUnsupportedExtension);
 				m_lastMessageIsError = true;
 			}
 			else
@@ -154,7 +154,7 @@ void CImporterWindowBase::DrawImportButton()
 				std::filesystem::create_directories(destAbs.parent_path(), ec);
 				if (ec)
 				{
-					m_lastMessage = std::string(Loc::Text("importer.error.create_directory_failed"))
+					m_lastMessage = std::string(Loc::Text(EditorLocKeys::ImporterErrorCreateDirectoryFailed))
 						+ " (" + ec.message() + ")";
 					m_lastMessageIsError = true;
 					ec.clear();
@@ -164,14 +164,14 @@ void CImporterWindowBase::DrawImportButton()
 					std::string errorOut;
 					if (ExecuteImport(File::Path(src), File::Path(destAbs), errorOut))
 					{
-						m_lastMessage = Loc::Text("importer.success");
+						m_lastMessage = Loc::Text(EditorLocKeys::ImporterSuccess);
 						m_lastMessageIsError = false;
 						CSystemLog::Info(std::string("Imported asset: ") + destAbs.generic_string());
 					}
 					else
 					{
 						m_lastMessage = errorOut.empty()
-							? std::string(Loc::Text("importer.error.import_failed"))
+							? std::string(Loc::Text(EditorLocKeys::ImporterErrorImportFailed))
 							: errorOut;
 						m_lastMessageIsError = true;
 					}
@@ -184,6 +184,6 @@ void CImporterWindowBase::DrawImportButton()
 	if (false == projectLoaded)
 	{
 		ImGui::SameLine();
-		ImGui::TextDisabled("%s", Loc::Text("importer.no_project"));
+		ImGui::TextDisabled("%s", Loc::Text(EditorLocKeys::ImporterNoProject));
 	}
 }

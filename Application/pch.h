@@ -8,6 +8,7 @@
 
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
 #include "Editor/Editor.h"
+#include "Editor/Localization/EditorLocalizationKeys.h"
 #include "Editor/Theme/EditorTheme.h"
 #include "Editor/Gui/EditorGuiActions.h"
 #include "Editor/RootDockWindow.h"

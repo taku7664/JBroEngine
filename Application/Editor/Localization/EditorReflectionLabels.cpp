@@ -9,13 +9,13 @@ const char* EditorReflectionLabels::GetScriptDisplayName(const ScriptTypeInfo* s
 {
 	if (nullptr == scriptType)
 	{
-		return Loc::Text("inspector.unknown_script");
+		return Loc::Text(EditorLocKeys::InspectorUnknownScript);
 	}
 	if (scriptType->Type.DisplayName && scriptType->Type.DisplayName[0] != '\0')
 	{
 		return scriptType->Type.DisplayName;
 	}
-	return scriptType->Type.Name ? scriptType->Type.Name : Loc::Text("inspector.unknown_script");
+	return scriptType->Type.Name ? scriptType->Type.Name : Loc::Text(EditorLocKeys::InspectorUnknownScript);
 }
 
 std::string EditorReflectionLabels::GetComponentLabel(const ComponentTypeInfo& componentType)

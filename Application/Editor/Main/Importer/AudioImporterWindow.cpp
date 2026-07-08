@@ -14,11 +14,11 @@ void CAudioImporterWindow::DrawImportOptions()
 	ImGui::Utillity::FormLayout layout("##audio_importer_options", 4.0f, {2.0f, 1.0f}, 140.0f);
 
 	const char* modeItems[] = {
-		Loc::Text("inspector.audio.mode.decompressed"),
-		Loc::Text("inspector.audio.mode.streaming"),
+		Loc::Text(EditorLocKeys::InspectorAudioModeDecompressed),
+		Loc::Text(EditorLocKeys::InspectorAudioModeStreaming),
 	};
 	int modeIndex = static_cast<int>(m_options.Mode);
-	ImporterGui::DrawLocalizedRow(layout, "inspector.audio.mode", "inspector.audio.mode.desc",
+	ImporterGui::DrawLocalizedRow(layout, EditorLocKeys::InspectorAudioMode, EditorLocKeys::InspectorAudioModeDesc,
 		[&]() {
 			if (ImGui::Combo("##importer.audio.mode", &modeIndex, modeItems, IM_ARRAYSIZE(modeItems)))
 			{
@@ -27,15 +27,15 @@ void CAudioImporterWindow::DrawImportOptions()
 		});
 
 	const char* busItems[] = {
-		Loc::Text("inspector.audio.bus.master"),
-		Loc::Text("inspector.audio.bus.music"),
-		Loc::Text("inspector.audio.bus.sfx"),
-		Loc::Text("inspector.audio.bus.voice"),
-		Loc::Text("inspector.audio.bus.ui"),
-		Loc::Text("inspector.audio.bus.custom"),
+		Loc::Text(EditorLocKeys::InspectorAudioBusMaster),
+		Loc::Text(EditorLocKeys::InspectorAudioBusMusic),
+		Loc::Text(EditorLocKeys::InspectorAudioBusSfx),
+		Loc::Text(EditorLocKeys::InspectorAudioBusVoice),
+		Loc::Text(EditorLocKeys::InspectorAudioBusUi),
+		Loc::Text(EditorLocKeys::InspectorAudioBusCustom),
 	};
 	int busIndex = static_cast<int>(m_options.DefaultBus);
-	ImporterGui::DrawLocalizedRow(layout, "inspector.audio.default_bus", "inspector.audio.default_bus.desc",
+	ImporterGui::DrawLocalizedRow(layout, EditorLocKeys::InspectorAudioDefaultBus, EditorLocKeys::InspectorAudioDefaultBusDesc,
 		[&]() {
 			if (ImGui::Combo("##importer.audio.bus", &busIndex, busItems, IM_ARRAYSIZE(busItems)))
 			{
@@ -43,18 +43,18 @@ void CAudioImporterWindow::DrawImportOptions()
 			}
 		});
 
-	ImporterGui::DrawLocalizedRow(layout, "inspector.audio.default_volume", "inspector.audio.default_volume.desc",
+	ImporterGui::DrawLocalizedRow(layout, EditorLocKeys::InspectorAudioDefaultVolume, EditorLocKeys::InspectorAudioDefaultVolumeDesc,
 		[&]() { ImGui::DragFloat("##importer.audio.default_volume", &m_options.DefaultVolume, 0.01f, 0.0f, 2.0f); });
-	ImporterGui::DrawLocalizedRow(layout, "inspector.audio.loop", "inspector.audio.loop.desc",
+	ImporterGui::DrawLocalizedRow(layout, EditorLocKeys::InspectorAudioLoop, EditorLocKeys::InspectorAudioLoopDesc,
 		[&]() { ImGui::Checkbox("##importer.audio.loop", &m_options.Loop); });
-	ImporterGui::DrawLocalizedRow(layout, "inspector.audio.is_3d", "inspector.audio.is_3d.desc",
+	ImporterGui::DrawLocalizedRow(layout, EditorLocKeys::InspectorAudioIs3d, EditorLocKeys::InspectorAudioIs3dDesc,
 		[&]() { ImGui::Checkbox("##importer.audio.is_3d", &m_options.Is3D); });
 
 	if (m_options.Is3D)
 	{
-		ImporterGui::DrawLocalizedRow(layout, "inspector.audio.min_distance", "inspector.audio.min_distance.desc",
+		ImporterGui::DrawLocalizedRow(layout, EditorLocKeys::InspectorAudioMinDistance, EditorLocKeys::InspectorAudioMinDistanceDesc,
 			[&]() { ImGui::DragFloat("##importer.audio.min_distance", &m_options.MinDistance, 0.1f, 0.0f, 10000.0f); });
-		ImporterGui::DrawLocalizedRow(layout, "inspector.audio.max_distance", "inspector.audio.max_distance.desc",
+		ImporterGui::DrawLocalizedRow(layout, EditorLocKeys::InspectorAudioMaxDistance, EditorLocKeys::InspectorAudioMaxDistanceDesc,
 			[&]() { ImGui::DragFloat("##importer.audio.max_distance", &m_options.MaxDistance, 0.1f, 0.0f, 10000.0f); });
 		if (m_options.MinDistance < 0.0f) m_options.MinDistance = 0.0f;
 		if (m_options.MaxDistance < m_options.MinDistance) m_options.MaxDistance = m_options.MinDistance;

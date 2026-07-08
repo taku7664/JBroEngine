@@ -7,14 +7,14 @@
 
 void CShortcutReferenceTool::OnCreate()
 {
-	SetLocalizedTitleKey("window.shortcut_reference");
+	SetLocalizedTitleKey(EditorLocKeys::WindowShortcutReference);
 }
 
 void CShortcutReferenceTool::OnRenderStay()
 {
-	m_filter.Draw(Loc::Text("common.search"), -1.0f);
+	m_filter.Draw(Loc::Text(EditorLocKeys::CommonSearch), -1.0f);
 	ImGui::Spacing();
-	ImGui::TextDisabled("%s", Loc::Text("shortcut_reference.text_input_note"));
+	ImGui::TextDisabled("%s", Loc::Text(EditorLocKeys::ShortcutReferenceTextInputNote));
 	ImGui::Separator();
 
 	const ImGuiTableFlags flags = ImGuiTableFlags_Borders
@@ -23,10 +23,10 @@ void CShortcutReferenceTool::OnRenderStay()
 		| ImGuiTableFlags_SizingStretchProp;
 	if (ImGui::BeginTable("ShortcutReference", 4, flags))
 	{
-		ImGui::TableSetupColumn(Loc::Text("shortcut_reference.category"));
-		ImGui::TableSetupColumn(Loc::Text("shortcut_reference.action"));
-		ImGui::TableSetupColumn(Loc::Text("shortcut_reference.binding"));
-		ImGui::TableSetupColumn(Loc::Text("shortcut_reference.status"));
+		ImGui::TableSetupColumn(Loc::Text(EditorLocKeys::ShortcutReferenceCategory));
+		ImGui::TableSetupColumn(Loc::Text(EditorLocKeys::ShortcutReferenceAction));
+		ImGui::TableSetupColumn(Loc::Text(EditorLocKeys::ShortcutReferenceBinding));
+		ImGui::TableSetupColumn(Loc::Text(EditorLocKeys::ShortcutReferenceStatus));
 		ImGui::TableHeadersRow();
 
 		for (const EditorShortcutDescriptor& descriptor : Editor::ShortcutManager.GetDescriptors())
@@ -55,8 +55,8 @@ void CShortcutReferenceTool::OnRenderStay()
 				ImGui::BeginDisabled();
 			}
 			ImGui::TextUnformatted(Loc::Text(available
-				? "shortcut_reference.available"
-				: "shortcut_reference.unavailable"));
+				? EditorLocKeys::ShortcutReferenceAvailable
+				: EditorLocKeys::ShortcutReferenceUnavailable));
 			if (false == available)
 			{
 				ImGui::EndDisabled();

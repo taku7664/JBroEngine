@@ -94,11 +94,11 @@ const char* BuildSettingsUtils::GetPlatformLabelKey(EBuildTargetPlatform platfor
 {
 	switch (platform)
 	{
-	case EBuildTargetPlatform::Web: return "build_settings.category.web";
-	case EBuildTargetPlatform::Android: return "build_settings.category.android";
-	case EBuildTargetPlatform::IOS: return "build_settings.category.ios";
+	case EBuildTargetPlatform::Web: return EditorLocKeys::BuildSettingsCategoryWeb;
+	case EBuildTargetPlatform::Android: return EditorLocKeys::BuildSettingsCategoryAndroid;
+	case EBuildTargetPlatform::IOS: return EditorLocKeys::BuildSettingsCategoryIos;
 	case EBuildTargetPlatform::Windows:
-	default: return "build_settings.category.windows";
+	default: return EditorLocKeys::BuildSettingsCategoryWindows;
 	}
 }
 

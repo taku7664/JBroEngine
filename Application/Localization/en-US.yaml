@@ -129,6 +129,7 @@ Entries:
   project_settings.category.input: Input
   project_settings.category.localization: Localization
   project_settings.category.audio: Audio
+  project_settings.category.fonts: Fonts
   project_settings.category.debug: Debug
   project_settings.category.asset_watcher: Asset Watcher
   project_settings.debug: Debug
@@ -171,6 +172,7 @@ Entries:
   build_settings.windows_icon.import_failed: Failed to import Windows icon asset.
   build_settings.configuration: Build Configuration
   build_settings.output: Output
+  build_settings.web: Web
   build_settings.windows: Windows
   build_settings.android: Android
   build_settings.ios: iOS

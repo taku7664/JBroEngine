@@ -54,7 +54,7 @@ void CMainDockWindow::OnCreate()
 	//         → "RightBottom" = Inspector, "Right" = Hierarchy
 	AddDockSplit("Right", ImGuiDir_Down,  0.50f, "RightBottom");
 
-    SetLocalizedTitleKey("window.main");
+    SetLocalizedTitleKey(EditorLocKeys::WindowMain);
 
 	ImGuiID id = GetID();
 	Editor::Hierarchy    = Editor::ImEditor->CreateImWindow<CHierarchyTool>   ("Hierarchy",    id);
@@ -110,7 +110,7 @@ void CMainDockWindow::OnCreate()
 
 void CMainDockWindow::OnMenuBar()
 {
-	if (ImGui::BeginMenu(Loc::Text("menu.simulation")))
+	if (ImGui::BeginMenu(Loc::Text(EditorLocKeys::MenuSimulation)))
 	{
 		const bool canTogglePlay = Editor::ShortcutManager.CanExecute(EEditorShortcut::TogglePlay);
 		if (false == canTogglePlay)
@@ -118,7 +118,7 @@ void CMainDockWindow::OnMenuBar()
 			ImGui::BeginDisabled();
 		}
 		const std::string playShortcut = Editor::ShortcutManager.GetShortcutText(EEditorShortcut::TogglePlay);
-		if (ImGui::MenuItem(Loc::Text("menu.simulation.play_toggle"), playShortcut.c_str()))
+		if (ImGui::MenuItem(Loc::Text(EditorLocKeys::MenuSimulationPlayToggle), playShortcut.c_str()))
 		{
 			Editor::ShortcutManager.Execute(EEditorShortcut::TogglePlay);
 		}
@@ -133,7 +133,7 @@ void CMainDockWindow::OnMenuBar()
 			ImGui::BeginDisabled();
 		}
 		const std::string pauseShortcut = Editor::ShortcutManager.GetShortcutText(EEditorShortcut::TogglePause);
-		if (ImGui::MenuItem(Loc::Text("menu.simulation.pause_toggle"), pauseShortcut.c_str()))
+		if (ImGui::MenuItem(Loc::Text(EditorLocKeys::MenuSimulationPauseToggle), pauseShortcut.c_str()))
 		{
 			Editor::ShortcutManager.Execute(EEditorShortcut::TogglePause);
 		}
@@ -144,7 +144,7 @@ void CMainDockWindow::OnMenuBar()
 		ImGui::EndMenu();
 	}
 
-	if (ImGui::BeginMenu(Loc::Text("menu.edit")))
+	if (ImGui::BeginMenu(Loc::Text(EditorLocKeys::MenuEdit)))
 	{
 		const bool canUndo = Editor::ShortcutManager.CanExecute(EEditorShortcut::Undo);
 		if (false == canUndo)
@@ -152,7 +152,7 @@ void CMainDockWindow::OnMenuBar()
 			ImGui::BeginDisabled();
 		}
 		const std::string undoShortcut = Editor::ShortcutManager.GetShortcutText(EEditorShortcut::Undo);
-		if (ImGui::MenuItem(Loc::Text("menu.edit.undo"), undoShortcut.c_str()))
+		if (ImGui::MenuItem(Loc::Text(EditorLocKeys::MenuEditUndo), undoShortcut.c_str()))
 		{
 			Editor::ShortcutManager.Execute(EEditorShortcut::Undo);
 		}
@@ -167,7 +167,7 @@ void CMainDockWindow::OnMenuBar()
 			ImGui::BeginDisabled();
 		}
 		const std::string redoShortcut = Editor::ShortcutManager.GetShortcutText(EEditorShortcut::Redo);
-		if (ImGui::MenuItem(Loc::Text("menu.edit.redo"), redoShortcut.c_str()))
+		if (ImGui::MenuItem(Loc::Text(EditorLocKeys::MenuEditRedo), redoShortcut.c_str()))
 		{
 			Editor::ShortcutManager.Execute(EEditorShortcut::Redo);
 		}
@@ -180,7 +180,7 @@ void CMainDockWindow::OnMenuBar()
 		const bool canCopy = Editor::ShortcutManager.CanExecute(EEditorShortcut::CopyObjects);
 		if (false == canCopy) ImGui::BeginDisabled();
 		const std::string copyShortcut = Editor::ShortcutManager.GetShortcutText(EEditorShortcut::CopyObjects);
-		if (ImGui::MenuItem(Loc::Text("editor.menu.copy_object"), copyShortcut.c_str()))
+		if (ImGui::MenuItem(Loc::Text(EditorLocKeys::EditorMenuCopyObject), copyShortcut.c_str()))
 		{
 			Editor::ShortcutManager.Execute(EEditorShortcut::CopyObjects);
 		}
@@ -189,7 +189,7 @@ void CMainDockWindow::OnMenuBar()
 		const bool canPaste = Editor::ShortcutManager.CanExecute(EEditorShortcut::PasteObjects);
 		if (false == canPaste) ImGui::BeginDisabled();
 		const std::string pasteShortcut = Editor::ShortcutManager.GetShortcutText(EEditorShortcut::PasteObjects);
-		if (ImGui::MenuItem(Loc::Text("editor.menu.paste_object"), pasteShortcut.c_str()))
+		if (ImGui::MenuItem(Loc::Text(EditorLocKeys::EditorMenuPasteObject), pasteShortcut.c_str()))
 		{
 			Editor::ShortcutManager.Execute(EEditorShortcut::PasteObjects);
 		}
@@ -198,10 +198,10 @@ void CMainDockWindow::OnMenuBar()
 	}
 
 	// ── "창" 메뉴 — "에디터" + "임포터" 서브메뉴 ──────────────────────────
-	if (ImGui::BeginMenu(Loc::Text("menu.window")))
+	if (ImGui::BeginMenu(Loc::Text(EditorLocKeys::MenuWindow)))
 	{
 		// 에디터 — 도킹된 자식 윈도우(인스펙터/씬뷰/하이라키 등) 토글
-		if (ImGui::BeginMenu(Loc::Text("menu.window.editor")))
+		if (ImGui::BeginMenu(Loc::Text(EditorLocKeys::MenuWindowEditor)))
 		{
 			for (SafePtr<CImWindow>& child : m_childImWindowVector)
 			{
@@ -219,13 +219,13 @@ void CMainDockWindow::OnMenuBar()
 		}
 
 		// 임포터 — 자산 임포트 다이얼로그 윈도우
-		if (ImGui::BeginMenu(Loc::Text("menu.window.importer")))
+		if (ImGui::BeginMenu(Loc::Text(EditorLocKeys::MenuWindowImporter)))
 		{
-			if (ImGui::MenuItem(Loc::Text("menu.importer.sprite")))
+			if (ImGui::MenuItem(Loc::Text(EditorLocKeys::MenuImporterSprite)))
 			{
 				if (Editor::SpriteImporter) Editor::SpriteImporter->SetVisible(true);
 			}
-			if (ImGui::MenuItem(Loc::Text("menu.importer.audio")))
+			if (ImGui::MenuItem(Loc::Text(EditorLocKeys::MenuImporterAudio)))
 			{
 				if (Editor::AudioImporter) Editor::AudioImporter->SetVisible(true);
 			}

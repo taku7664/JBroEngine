@@ -129,6 +129,7 @@ Entries:
   project_settings.category.input: 입력
   project_settings.category.localization: 로컬라이징
   project_settings.category.audio: 사운드
+  project_settings.category.fonts: 폰트
   project_settings.category.debug: 디버그
   project_settings.category.asset_watcher: 자산 워처
   project_settings.debug: 디버그
@@ -171,6 +172,7 @@ Entries:
   build_settings.windows_icon.import_failed: Windows 아이콘 자산 등록에 실패했습니다.
   build_settings.configuration: 빌드 구성
   build_settings.output: 출력
+  build_settings.web: Web
   build_settings.windows: Windows
   build_settings.android: Android
   build_settings.ios: iOS

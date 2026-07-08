@@ -330,6 +330,7 @@ xcopy /Y /I /E "$(ProjectDir)Localization" "$(SolutionDir)Localization\" &gt; nu
     <ClInclude Include="Editor\Main\Guizmo\Guizmo3D.h" />
     <ClInclude Include="Editor\Main\Guizmo\GuizmoTypes.h" />
     <ClInclude Include="Editor\Gui\EditorGuiActions.h" />
+    <ClInclude Include="Editor\Localization\EditorLocalizationKeys.h" />
     <ClInclude Include="Editor\Localization\EditorReflectionLabels.h" />
     <ClInclude Include="Editor\EditorDragDrop.h" />
     <ClInclude Include="Editor\Main\AssetBrowser\AssetBrowserTool.h" />

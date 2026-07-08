@@ -23,15 +23,15 @@ namespace
         switch (state)
         {
         case ELiveCompileState::Idle:
-            return Loc::Text("script.status.idle");
+            return Loc::Text(EditorLocKeys::ScriptStatusIdle);
         case ELiveCompileState::Compiling:
-            return Loc::Text("script.status.building");
+            return Loc::Text(EditorLocKeys::ScriptStatusBuilding);
         case ELiveCompileState::Loaded:
-            return Loc::Text("script.status.loaded");
+            return Loc::Text(EditorLocKeys::ScriptStatusLoaded);
         case ELiveCompileState::Failed:
-            return Loc::Text("script.status.failed");
+            return Loc::Text(EditorLocKeys::ScriptStatusFailed);
         default:
-            return Loc::Text("script.status.unknown");
+            return Loc::Text(EditorLocKeys::ScriptStatusUnknown);
         }
     }
 
@@ -111,7 +111,7 @@ namespace
 
 void CProjectSettingsWindow::OnCreate()
 {
-    SetLocalizedTitleKey("window.project_settings");
+    SetLocalizedTitleKey(EditorLocKeys::WindowProjectSettings);
 
     m_imguiFlags =
         ImGuiWindowFlags_NoDocking |
@@ -215,14 +215,14 @@ void CProjectSettingsWindow::DrawCategoryList(float)
 {
     struct CategoryEntry { ECategory Kind; const char* LocKey; };
     static const CategoryEntry kCategories[] = {
-        { ECategory::General,      "project_settings.category.general"       },
-        { ECategory::Script,       "project_settings.category.script"        },
-        { ECategory::Input,        "project_settings.category.input"         },
-        { ECategory::Localization, "project_settings.category.localization"  },
-        { ECategory::Audio,        "project_settings.category.audio"         },
-        { ECategory::Fonts,        "project_settings.category.fonts"         },
-        { ECategory::Debug,        "project_settings.category.debug"         },
-        { ECategory::AssetWatcher, "project_settings.category.asset_watcher" },
+        { ECategory::General,      EditorLocKeys::ProjectSettingsCategoryGeneral       },
+        { ECategory::Script,       EditorLocKeys::ProjectSettingsCategoryScript        },
+        { ECategory::Input,        EditorLocKeys::ProjectSettingsCategoryInput         },
+        { ECategory::Localization, EditorLocKeys::ProjectSettingsCategoryLocalization  },
+        { ECategory::Audio,        EditorLocKeys::ProjectSettingsCategoryAudio         },
+        { ECategory::Fonts,        EditorLocKeys::ProjectSettingsCategoryFonts         },
+        { ECategory::Debug,        EditorLocKeys::ProjectSettingsCategoryDebug         },
+        { ECategory::AssetWatcher, EditorLocKeys::ProjectSettingsCategoryAssetWatcher },
     };
 
     for (const CategoryEntry& entry : kCategories)
@@ -253,21 +253,21 @@ void CProjectSettingsWindow::DrawCategoryContent(float)
 
 void CProjectSettingsWindow::DrawCategoryGeneral()
 {
-    ImGui::SeparatorText(Loc::Text("project_settings.resolution"));
+    ImGui::SeparatorText(Loc::Text(EditorLocKeys::ProjectSettingsResolution));
     {
         ImGui::Utillity::FormLayout layout("##ps_general_resolution", 4.0f, {2.0f, 1.0f}, 120.0f);
         layout.Row(
             [&]() {
                 ImText label;
-                label.SetHoveredTooltip(Loc::Text("project_settings.width_px.desc"));
-                label(Loc::Text("project_settings.width_px"));
+                label.SetHoveredTooltip(Loc::Text(EditorLocKeys::ProjectSettingsWidthPxDesc));
+                label(Loc::Text(EditorLocKeys::ProjectSettingsWidthPx));
             },
             [&]() { ImGui::InputInt("##ps.width_px", &m_editResW); });
         layout.Row(
             [&]() {
                 ImText label;
-                label.SetHoveredTooltip(Loc::Text("project_settings.height_px.desc"));
-                label(Loc::Text("project_settings.height_px"));
+                label.SetHoveredTooltip(Loc::Text(EditorLocKeys::ProjectSettingsHeightPxDesc));
+                label(Loc::Text(EditorLocKeys::ProjectSettingsHeightPx));
             },
             [&]() { ImGui::InputInt("##ps.height_px", &m_editResH); });
     }
@@ -275,19 +275,19 @@ void CProjectSettingsWindow::DrawCategoryGeneral()
     if (m_editResH < 1) m_editResH = 1;
 
     ImGui::Spacing();
-    ImGui::SeparatorText(Loc::Text("project_settings.coordinates"));
+    ImGui::SeparatorText(Loc::Text(EditorLocKeys::ProjectSettingsCoordinates));
     {
         ImGui::Utillity::FormLayout layout("##ps_general_coords", 4.0f, {2.0f, 1.0f}, 120.0f);
         layout.Row(
             [&]() {
                 ImText label;
-                label.SetHoveredTooltip(Loc::Text("project_settings.pixels_per_unit.desc"));
-                label(Loc::Text("project_settings.pixels_per_unit"));
+                label.SetHoveredTooltip(Loc::Text(EditorLocKeys::ProjectSettingsPixelsPerUnitDesc));
+                label(Loc::Text(EditorLocKeys::ProjectSettingsPixelsPerUnit));
             },
             [&]() { ImGui::DragFloat("##ps.ppu", &m_editPPU, 1.0f, 1.0f, 10000.0f, "%.1f"); });
     }
     if (m_editPPU < 1.0f) m_editPPU = 1.0f;
-    ImGui::TextDisabled(Loc::Text("project_settings.ppu_help"),
+    ImGui::TextDisabled(Loc::Text(EditorLocKeys::ProjectSettingsPpuHelp),
         m_editPPU, 1.0f / m_editPPU);
 }
 
@@ -295,7 +295,7 @@ void CProjectSettingsWindow::DrawCategoryScript()
 {
     SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
 
-    ImGui::SeparatorText(Loc::Text("project_settings.script"));
+    ImGui::SeparatorText(Loc::Text(EditorLocKeys::ProjectSettingsScript));
 
     {
         ImGui::Utillity::FormLayout layout("##ps_script_form", 4.0f, {2.0f, 1.0f}, 140.0f);
@@ -307,8 +307,8 @@ void CProjectSettingsWindow::DrawCategoryScript()
             layout.Row(
                 [&]() {
                     ImText label;
-                    label.SetHoveredTooltip(Loc::Text("project_settings.user_scripts.desc"));
-                    label(Loc::Text("project_settings.user_scripts"));
+                    label.SetHoveredTooltip(Loc::Text(EditorLocKeys::ProjectSettingsUserScriptsDesc));
+                    label(Loc::Text(EditorLocKeys::ProjectSettingsUserScripts));
                 },
                 [&]() { ImGui::TextDisabled("%s", scriptPath.c_str()); });
         }
@@ -318,8 +318,8 @@ void CProjectSettingsWindow::DrawCategoryScript()
         layout.Row(
             [&]() {
                 ImText label;
-                label.SetHoveredTooltip(Loc::Text("project_settings.script_build.desc"));
-                label(Loc::Text("project_settings.script_build"));
+                label.SetHoveredTooltip(Loc::Text(EditorLocKeys::ProjectSettingsScriptBuildDesc));
+                label(Loc::Text(EditorLocKeys::ProjectSettingsScriptBuild));
             },
             [&]() { ImGui::Combo("##ps.script_build", &m_scriptBuildConfiguration,
                 scriptConfigs, IM_ARRAYSIZE(scriptConfigs)); });
@@ -329,8 +329,8 @@ void CProjectSettingsWindow::DrawCategoryScript()
         layout.Row(
             [&]() {
                 ImText label;
-                label.SetHoveredTooltip(Loc::Text("project_settings.script_state.desc"));
-                label(Loc::Text("project_settings.script_state"));
+                label.SetHoveredTooltip(Loc::Text(EditorLocKeys::ProjectSettingsScriptStateDesc));
+                label(Loc::Text(EditorLocKeys::ProjectSettingsScriptState));
             },
             [&]() { ImGui::TextColored(ToScriptStateColor(liveState), "%s", ToScriptStateText(liveState)); });
 
@@ -338,8 +338,8 @@ void CProjectSettingsWindow::DrawCategoryScript()
         layout.Row(
             [&]() {
                 ImText label;
-                label.SetHoveredTooltip(Loc::Text("project_settings.script_auto_rebuild.desc"));
-                label(Loc::Text("project_settings.script_auto_rebuild"));
+                label.SetHoveredTooltip(Loc::Text(EditorLocKeys::ProjectSettingsScriptAutoRebuildDesc));
+                label(Loc::Text(EditorLocKeys::ProjectSettingsScriptAutoRebuild));
             },
             [&]() {
                 if (ImGui::Checkbox("##ps.script_auto_rebuild", &m_scriptAutoRebuildEnabled))
@@ -350,7 +350,7 @@ void CProjectSettingsWindow::DrawCategoryScript()
                         std::string error;
                         if (false == pm->SaveProject(&error))
                         {
-                            m_errorMessage = false == error.empty() ? error : Loc::Text("project_settings.save_failed");
+                            m_errorMessage = false == error.empty() ? error : Loc::Text(EditorLocKeys::ProjectSettingsSaveFailed);
                         }
                         else
                         {
@@ -362,7 +362,7 @@ void CProjectSettingsWindow::DrawCategoryScript()
     }
 
     ImGui::Spacing();
-    if (ImGui::Button(Loc::Text("project_settings.script_rebuild")))
+    if (ImGui::Button(Loc::Text(EditorLocKeys::ProjectSettingsScriptRebuild)))
     {
         if (pm)
         {
@@ -371,20 +371,20 @@ void CProjectSettingsWindow::DrawCategoryScript()
             pm->RebuildScriptModule();
         }
     }
-    ImGui::Utillity::HoveredToolTip(Loc::Text("project_settings.script_rebuild.desc"));
+    ImGui::Utillity::HoveredToolTip(Loc::Text(EditorLocKeys::ProjectSettingsScriptRebuildDesc));
 
     ImGui::SameLine();
-    if (ImGui::Button(Loc::Text("common.unload")))
+    if (ImGui::Button(Loc::Text(EditorLocKeys::CommonUnload)))
     {
         if (pm) pm->StopLiveCompile();
     }
-    ImGui::Utillity::HoveredToolTip(Loc::Text("project_settings.script_unload.desc"));
+    ImGui::Utillity::HoveredToolTip(Loc::Text(EditorLocKeys::ProjectSettingsScriptUnloadDesc));
 }
 
 void CProjectSettingsWindow::DrawCategoryInput()
 {
-    ImGui::SeparatorText(Loc::Text("project_settings.input.title"));
-    ImGui::TextWrapped("%s", Loc::Text("project_settings.input.desc"));
+    ImGui::SeparatorText(Loc::Text(EditorLocKeys::ProjectSettingsInputTitle));
+    ImGui::TextWrapped("%s", Loc::Text(EditorLocKeys::ProjectSettingsInputDesc));
     ImGui::Spacing();
 
     // 백킹 버퍼는 멤버(m_inputLayersBuffer) — OnShow 에서 레이어 벡터로부터 재구축됨.
@@ -424,12 +424,12 @@ void CProjectSettingsWindow::DrawCategoryInput()
     }
 
     ImGui::Spacing();
-    ImGui::TextDisabled("%s", Loc::Text("project_settings.input.hint"));
+    ImGui::TextDisabled("%s", Loc::Text(EditorLocKeys::ProjectSettingsInputHint));
 
     // ── 액션 맵 (이름 기반 액션 → 바인딩) ─────────────────────────────────────────
     ImGui::Spacing();
-    ImGui::SeparatorText(Loc::Text("project_settings.input.actions_title"));
-    ImGui::TextWrapped("%s", Loc::Text("project_settings.input.actions_desc"));
+    ImGui::SeparatorText(Loc::Text(EditorLocKeys::ProjectSettingsInputActionsTitle));
+    ImGui::TextWrapped("%s", Loc::Text(EditorLocKeys::ProjectSettingsInputActionsDesc));
     ImGui::Spacing();
 
     int removeAction       = -1;
@@ -457,12 +457,12 @@ void CProjectSettingsWindow::DrawCategoryInput()
                 action.Name = nameBuf;
             }
             ImGui::SameLine();
-            ImGui::TextUnformatted(Loc::Text("project_settings.input.action_type"));
+            ImGui::TextUnformatted(Loc::Text(EditorLocKeys::ProjectSettingsInputActionType));
             ImGui::SameLine();
             ImGui::SetNextItemWidth(120.0f);
             EnumCombo<EInputActionValueType>("##type", action.Type);
             ImGui::SameLine();
-            if (ImGui::SmallButton(Loc::Text("project_settings.input.remove_action")))
+            if (ImGui::SmallButton(Loc::Text(EditorLocKeys::ProjectSettingsInputRemoveAction)))
             {
                 removeAction = a;
             }
@@ -482,7 +482,7 @@ void CProjectSettingsWindow::DrawCategoryInput()
                 ImGui::SameLine();
                 ImGui::SetNextItemWidth(70.0f);
                 ImGui::InputInt("##pad", &binding.GamepadIndex, 0, 0); // -1 = 아무 패드
-                ImGui::Utillity::HoveredToolTip(Loc::Text("project_settings.input.gamepad_index"));
+                ImGui::Utillity::HoveredToolTip(Loc::Text(EditorLocKeys::ProjectSettingsInputGamepadIndex));
                 if (EInputActionValueType::Vector2 == action.Type)
                 {
                     ImGui::SameLine();
@@ -498,7 +498,7 @@ void CProjectSettingsWindow::DrawCategoryInput()
 
                 ImGui::PopID();
             }
-            if (ImGui::SmallButton(Loc::Text("project_settings.input.add_binding")))
+            if (ImGui::SmallButton(Loc::Text(EditorLocKeys::ProjectSettingsInputAddBinding)))
             {
                 action.Bindings.push_back(InputBinding{});
             }
@@ -508,7 +508,7 @@ void CProjectSettingsWindow::DrawCategoryInput()
         ImGui::PopID();
     }
 
-    if (ImGui::Button(Loc::Text("project_settings.input.add_action")))
+    if (ImGui::Button(Loc::Text(EditorLocKeys::ProjectSettingsInputAddAction)))
     {
         InputActionDef def;
         def.Name = "NewAction";
@@ -532,18 +532,18 @@ void CProjectSettingsWindow::DrawCategoryInput()
 
 void CProjectSettingsWindow::DrawCategoryLocalization()
 {
-    ImGui::SeparatorText(Loc::Text("project_settings.localization"));
+    ImGui::SeparatorText(Loc::Text(EditorLocKeys::ProjectSettingsLocalization));
 
     if (false == Engine.Localization.IsValid())
     {
-        ImGui::TextDisabled("%s", Loc::Text("project_settings.localization_unavailable"));
+        ImGui::TextDisabled("%s", Loc::Text(EditorLocKeys::ProjectSettingsLocalizationUnavailable));
         return;
     }
 
     const std::vector<LocalizationLocaleInfo>& locales = Engine.Localization->GetSupportedLocales();
     if (locales.empty())
     {
-        ImGui::TextDisabled("%s", Loc::Text("project_settings.localization_no_locales"));
+        ImGui::TextDisabled("%s", Loc::Text(EditorLocKeys::ProjectSettingsLocalizationNoLocales));
         return;
     }
 
@@ -557,8 +557,8 @@ void CProjectSettingsWindow::DrawCategoryLocalization()
     layout.Row(
         [&]() {
             ImText label;
-            label.SetHoveredTooltip(Loc::Text("project_settings.language.desc"));
-            label(Loc::Text("project_settings.language"));
+            label.SetHoveredTooltip(Loc::Text(EditorLocKeys::ProjectSettingsLanguageDesc));
+            label(Loc::Text(EditorLocKeys::ProjectSettingsLanguage));
         },
         [&]() {
             if (ImGui::BeginCombo("##ps.language", selectedLocale.DisplayName.c_str()))
@@ -579,21 +579,21 @@ void CProjectSettingsWindow::DrawCategoryLocalization()
 
 void CProjectSettingsWindow::DrawCategoryAudio()
 {
-    ImGui::SeparatorText(Loc::Text("project_settings.audio"));
+    ImGui::SeparatorText(Loc::Text(EditorLocKeys::ProjectSettingsAudio));
 
     {
         ImGui::Utillity::FormLayout layout("##ps_audio_form", 4.0f, {2.0f, 1.0f}, 140.0f);
         layout.Row(
             [&]() {
                 ImText label;
-                label.SetHoveredTooltip(Loc::Text("project_settings.audio.master_volume.desc"));
-                label(Loc::Text("project_settings.audio.master_volume"));
+                label.SetHoveredTooltip(Loc::Text(EditorLocKeys::ProjectSettingsAudioMasterVolumeDesc));
+                label(Loc::Text(EditorLocKeys::ProjectSettingsAudioMasterVolume));
             },
             [&]() { ImGui::DragFloat("##ps.master_volume", &m_masterVolume, 0.01f, 0.0f, 2.0f); });
     }
 
     ImGui::Spacing();
-    ImGui::TextDisabled("%s", Loc::Text("project_settings.audio.buses_help"));
+    ImGui::TextDisabled("%s", Loc::Text(EditorLocKeys::ProjectSettingsAudioBusesHelp));
     // PR D 의 CAudioService 가 도입되면 여기에 버스별 볼륨 / 사용자 정의 버스
     // 추가 UI 가 들어간다.
 }
@@ -603,7 +603,7 @@ void CProjectSettingsWindow::DrawCategoryFonts()
     auto drawFamilyField = [](const char* id, AssetGuid& guid)
     {
         const File::Path path = guid.IsNull() ? File::NULL_PATH : File::ResolvePath(guid);
-        const std::string label = guid.IsNull() ? Loc::Text("inspector.ref_none")
+        const std::string label = guid.IsNull() ? Loc::Text(EditorLocKeys::InspectorRefNone)
             : (path.IsNull() ? guid.generic_string() : path.filename().generic_string());
         ImGui::Button((label + id).c_str(), ImVec2(-32.0f, 0.0f));
         if (ImGui::BeginDragDropTarget())
@@ -619,14 +619,14 @@ void CProjectSettingsWindow::DrawCategoryFonts()
         if (ImGui::SmallButton((std::string("X") + id).c_str())) guid = INVALID_ASSET_GUID;
     };
 
-    ImGui::SeparatorText(Loc::Text("project_settings.fonts"));
-    ImGui::TextWrapped("%s", Loc::Text("project_settings.fonts.desc"));
+    ImGui::SeparatorText(Loc::Text(EditorLocKeys::ProjectSettingsFonts));
+    ImGui::TextWrapped("%s", Loc::Text(EditorLocKeys::ProjectSettingsFontsDesc));
     ImGui::Spacing();
-    ImGui::TextUnformatted(Loc::Text("project_settings.fonts.default"));
+    ImGui::TextUnformatted(Loc::Text(EditorLocKeys::ProjectSettingsFontsDefault));
     drawFamilyField("##default_font_family", m_editDefaultFontFamily);
 
     ImGui::Spacing();
-    ImGui::TextUnformatted(Loc::Text("project_settings.fonts.fallbacks"));
+    ImGui::TextUnformatted(Loc::Text(EditorLocKeys::ProjectSettingsFontsFallbacks));
     for (std::size_t index = 0; index < m_editFallbackFontFamilies.size(); ++index)
     {
         ImGui::PushID(static_cast<int>(index));
@@ -634,10 +634,10 @@ void CProjectSettingsWindow::DrawCategoryFonts()
         if (index > 0)
         {
             ImGui::SameLine();
-            if (ImGui::SmallButton(Loc::Text("common.move_up"))) std::swap(m_editFallbackFontFamilies[index], m_editFallbackFontFamilies[index - 1]);
+            if (ImGui::SmallButton(Loc::Text(EditorLocKeys::CommonMoveUp))) std::swap(m_editFallbackFontFamilies[index], m_editFallbackFontFamilies[index - 1]);
         }
         ImGui::SameLine();
-        if (ImGui::SmallButton(Loc::Text("common.remove")))
+        if (ImGui::SmallButton(Loc::Text(EditorLocKeys::CommonRemove)))
         {
             m_editFallbackFontFamilies.erase(m_editFallbackFontFamilies.begin() + static_cast<std::ptrdiff_t>(index));
             ImGui::PopID();
@@ -645,7 +645,7 @@ void CProjectSettingsWindow::DrawCategoryFonts()
         }
         ImGui::PopID();
     }
-    if (ImGui::Button(Loc::Text("project_settings.fonts.add_fallback")))
+    if (ImGui::Button(Loc::Text(EditorLocKeys::ProjectSettingsFontsAddFallback)))
     {
         m_editFallbackFontFamilies.push_back(INVALID_ASSET_GUID);
     }
@@ -653,22 +653,22 @@ void CProjectSettingsWindow::DrawCategoryFonts()
 
 void CProjectSettingsWindow::DrawCategoryDebug()
 {
-    ImGui::SeparatorText(Loc::Text("project_settings.debug"));
+    ImGui::SeparatorText(Loc::Text(EditorLocKeys::ProjectSettingsDebug));
 
     ImGui::Utillity::FormLayout layout("##ps_debug_form", 4.0f, {2.0f, 1.0f}, 140.0f);
     layout.Row(
         [&]() {
             ImText label;
-            label.SetHoveredTooltip(Loc::Text("project_settings.debug_mode.desc"));
-            label(Loc::Text("project_settings.debug_mode"));
+            label.SetHoveredTooltip(Loc::Text(EditorLocKeys::ProjectSettingsDebugModeDesc));
+            label(Loc::Text(EditorLocKeys::ProjectSettingsDebugMode));
         },
         [&]() { ImGui::Checkbox("##ps.debug_mode", &m_debugModeEnabled); });
 }
 
 void CProjectSettingsWindow::DrawCategoryAssetWatcher()
 {
-    ImGui::SeparatorText(Loc::Text("project_settings.asset_watcher.title"));
-    ImGui::TextWrapped("%s", Loc::Text("project_settings.asset_watcher.desc"));
+    ImGui::SeparatorText(Loc::Text(EditorLocKeys::ProjectSettingsAssetWatcherTitle));
+    ImGui::TextWrapped("%s", Loc::Text(EditorLocKeys::ProjectSettingsAssetWatcherDesc));
     ImGui::Spacing();
 
     // 백킹 버퍼는 멤버(m_assetWatchIgnoreBuffer) — OnShow 에서 패턴 벡터로부터 재구축됨.
@@ -708,7 +708,7 @@ void CProjectSettingsWindow::DrawCategoryAssetWatcher()
     }
 
     ImGui::Spacing();
-    ImGui::TextDisabled("%s", Loc::Text("project_settings.asset_watcher.syntax_hint"));
+    ImGui::TextDisabled("%s", Loc::Text(EditorLocKeys::ProjectSettingsAssetWatcherSyntaxHint));
 }
 
 void CProjectSettingsWindow::DrawFooterButtons()
@@ -720,8 +720,8 @@ void CProjectSettingsWindow::DrawFooterButtons()
         ImGui::TextColored(ImVec4(0.95f, 0.35f, 0.30f, 1.0f), "%s", m_errorMessage.c_str());
     }
 
-    const bool applied = ImGui::Button(Loc::Text("common.apply"), { 100.0f, 0.0f });
-    ImGui::Utillity::HoveredToolTip(Loc::Text("project_settings.apply.desc"));
+    const bool applied = ImGui::Button(Loc::Text(EditorLocKeys::CommonApply), { 100.0f, 0.0f });
+    ImGui::Utillity::HoveredToolTip(Loc::Text(EditorLocKeys::ProjectSettingsApplyDesc));
     if (applied)
     {
         if (pm)
@@ -753,7 +753,7 @@ void CProjectSettingsWindow::DrawFooterButtons()
         std::string error;
         if (false == pm.IsValid() || false == pm->SaveProject(&error))
         {
-            m_errorMessage = false == error.empty() ? error : Loc::Text("project_settings.save_failed");
+            m_errorMessage = false == error.empty() ? error : Loc::Text(EditorLocKeys::ProjectSettingsSaveFailed);
         }
         else
         {
@@ -762,8 +762,8 @@ void CProjectSettingsWindow::DrawFooterButtons()
         }
     }
     ImGui::SameLine();
-    const bool cancelled = ImGui::Button(Loc::Text("common.cancel"), { 100.0f, 0.0f });
-    ImGui::Utillity::HoveredToolTip(Loc::Text("project_settings.cancel.desc"));
+    const bool cancelled = ImGui::Button(Loc::Text(EditorLocKeys::CommonCancel), { 100.0f, 0.0f });
+    ImGui::Utillity::HoveredToolTip(Loc::Text(EditorLocKeys::ProjectSettingsCancelDesc));
     if (cancelled)
     {
         SetVisible(false);

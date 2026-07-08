@@ -104,22 +104,22 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 	{
 		if (false == Engine.Reflection.IsValid())
 		{
-			ImGui::TextDisabled(Loc::Text("inspector.script_registry_unavailable"));
+			ImGui::TextDisabled(Loc::Text(EditorLocKeys::InspectorScriptRegistryUnavailable));
 			return;
 		}
 
 		CReflectionRegistry& reflection = *Engine.Reflection;
 		const ScriptTypeInfo* currentType = reflection.FindScript(scriptComponent.ScriptTypeId);
-		const char* preview = currentType ? GetScriptDisplayName(currentType) : Loc::Text("inspector.unknown_script");
+		const char* preview = currentType ? GetScriptDisplayName(currentType) : Loc::Text(EditorLocKeys::InspectorUnknownScript);
 
 		ImGui::Utillity::FormLayout layout("##script_type_selector", 4.0f, {2.0f, 1.0f}, 80.0f);
 		layout.Row(
-			[]() { ImGui::TextUnformatted(Loc::Text("inspector.script_type")); },
+			[]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorScriptType)); },
 			[&]()
 			{
 				if (0 == reflection.GetScriptTypeCount())
 				{
-					ImGui::TextDisabled(Loc::Text("inspector.no_scripts_registered"));
+					ImGui::TextDisabled(Loc::Text(EditorLocKeys::InspectorNoScriptsRegistered));
 					return;
 				}
 
@@ -213,7 +213,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		const char* typeName = property.RefTypeName ? property.RefTypeName : "Ref";
 		if (ref.IsNull())
 		{
-			return std::string(Loc::Text("inspector.ref_none")) + "  [" + typeName + "]";
+			return std::string(Loc::Text(EditorLocKeys::InspectorRefNone)) + "  [" + typeName + "]";
 		}
 		const File::Guid guid(ref.GuidText());
 		if (ERefCategory::Asset == property.RefCategory)
@@ -232,7 +232,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 				return std::string(obj->GetName()) + "  [" + typeName + "]";
 			}
 		}
-		return std::string(Loc::Text("inspector.ref_missing")) + "  [" + typeName + "]";
+		return std::string(Loc::Text(EditorLocKeys::InspectorRefMissing)) + "  [" + typeName + "]";
 	}
 
 	// Ref 의 드롭 타깃 처리. 변경되면 true. (호출 시점은 위젯 바로 다음.)
@@ -417,7 +417,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			std::string label;
 			if (guid->IsNull())
 			{
-				label = Loc::Text("inspector.ref_none");
+				label = Loc::Text(EditorLocKeys::InspectorRefNone);
 			}
 			else
 			{
@@ -514,7 +514,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 				changed = true;
 			}
 			ImGui::SameLine();
-			ImGui::TextDisabled("(%s)", Loc::Text("inspector.normalized"));
+			ImGui::TextDisabled("(%s)", Loc::Text(EditorLocKeys::InspectorNormalized));
 
 			float pix[2] = { layout->Pixel.x, layout->Pixel.y };
 			if (ImGui::DragFloat2(pixLabel.c_str(), pix, 1.0f,
@@ -525,14 +525,14 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 				changed = true;
 			}
 			ImGui::SameLine();
-			ImGui::TextDisabled("(%s)", Loc::Text("inspector.pixel"));
+			ImGui::TextDisabled("(%s)", Loc::Text(EditorLocKeys::InspectorPixel));
 
 			ImGui::Unindent(8.0f);
 			ImGui::PopID();
 			return changed;
 		}
 		default:
-			ImGui::TextDisabled("%s: %s", "", Loc::Text("inspector.unsupported"));
+			ImGui::TextDisabled("%s: %s", "", Loc::Text(EditorLocKeys::InspectorUnsupported));
 			return false;
 		}
 	}
@@ -543,7 +543,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		float row0[3] = { matrix.M11, matrix.M21, matrix.Dx };
 		float row1[3] = { matrix.M12, matrix.M22, matrix.Dy };
 
-		ImGui::SeparatorText(Loc::Text("inspector.matrix_3x2"));
+		ImGui::SeparatorText(Loc::Text(EditorLocKeys::InspectorMatrix3x2));
 		ImGui::BeginDisabled();
 		ImGui::InputFloat3("Row 0", row0, "%.3f", ImGuiInputTextFlags_ReadOnly);
 		ImGui::InputFloat3("Row 1", row1, "%.3f", ImGuiInputTextFlags_ReadOnly);
@@ -596,29 +596,29 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			lastManifold = manifold;
 		}
 
-		ImGui::SeparatorText(Loc::Text("inspector.physics_contacts"));
-		DrawReadOnlyUInt(Loc::Text("inspector.contacts.detected"), contactCount);
+		ImGui::SeparatorText(Loc::Text(EditorLocKeys::InspectorPhysicsContacts));
+		DrawReadOnlyUInt(Loc::Text(EditorLocKeys::InspectorContactsDetected), contactCount);
 		if (contactCount > 0)
 		{
-			DrawReadOnlyVector2(Loc::Text("inspector.contacts.last_normal"), lastManifold.Normal);
-			DrawReadOnlyVector2(Loc::Text("inspector.contacts.last_point"), lastManifold.ContactPoints[0]);
-			DrawReadOnlyFloat(Loc::Text("inspector.contacts.last_penetration"), lastManifold.Penetration);
+			DrawReadOnlyVector2(Loc::Text(EditorLocKeys::InspectorContactsLastNormal), lastManifold.Normal);
+			DrawReadOnlyVector2(Loc::Text(EditorLocKeys::InspectorContactsLastPoint), lastManifold.ContactPoints[0]);
+			DrawReadOnlyFloat(Loc::Text(EditorLocKeys::InspectorContactsLastPenetration), lastManifold.Penetration);
 		}
 	}
 
 	void DrawRigidbodyDebug(const CGameScene& scene, const CGameObject* selectedObject, const Rigidbody2D& rigidbody)
 	{
-		ImGui::SeparatorText(Loc::Text("inspector.rigidbody_debug"));
+		ImGui::SeparatorText(Loc::Text(EditorLocKeys::InspectorRigidbodyDebug));
 		const float inverseMass = rigidbody.Mass > 0.0f ? 1.0f / rigidbody.Mass : 0.0f;
 		const float inverseInertia = false == rigidbody.FreezeRotation && rigidbody.Inertia > 0.0f ? 1.0f / rigidbody.Inertia : 0.0f;
-		DrawReadOnlyFloat(Loc::Text("inspector.rigidbody.inverse_mass"), inverseMass);
-		DrawReadOnlyFloat(Loc::Text("inspector.rigidbody.inverse_inertia"), inverseInertia);
-		DrawReadOnlyUInt(Loc::Text("inspector.rigidbody.impulse_contacts"), rigidbody.LastContactCount);
-		DrawReadOnlyVector2(Loc::Text("inspector.rigidbody.last_impulse_normal"), rigidbody.LastContactNormal);
-		DrawReadOnlyVector2(Loc::Text("inspector.rigidbody.last_impulse_point"), rigidbody.LastContactPoint);
-		DrawReadOnlyFloat(Loc::Text("inspector.rigidbody.last_normal_impulse"), rigidbody.LastNormalImpulse);
-		DrawReadOnlyFloat(Loc::Text("inspector.rigidbody.last_friction_impulse"), rigidbody.LastFrictionImpulse);
-		DrawReadOnlyFloat(Loc::Text("inspector.rigidbody.last_angular_impulse"), rigidbody.LastAngularImpulse);
+		DrawReadOnlyFloat(Loc::Text(EditorLocKeys::InspectorRigidbodyInverseMass), inverseMass);
+		DrawReadOnlyFloat(Loc::Text(EditorLocKeys::InspectorRigidbodyInverseInertia), inverseInertia);
+		DrawReadOnlyUInt(Loc::Text(EditorLocKeys::InspectorRigidbodyImpulseContacts), rigidbody.LastContactCount);
+		DrawReadOnlyVector2(Loc::Text(EditorLocKeys::InspectorRigidbodyLastImpulseNormal), rigidbody.LastContactNormal);
+		DrawReadOnlyVector2(Loc::Text(EditorLocKeys::InspectorRigidbodyLastImpulsePoint), rigidbody.LastContactPoint);
+		DrawReadOnlyFloat(Loc::Text(EditorLocKeys::InspectorRigidbodyLastNormalImpulse), rigidbody.LastNormalImpulse);
+		DrawReadOnlyFloat(Loc::Text(EditorLocKeys::InspectorRigidbodyLastFrictionImpulse), rigidbody.LastFrictionImpulse);
+		DrawReadOnlyFloat(Loc::Text(EditorLocKeys::InspectorRigidbodyLastAngularImpulse), rigidbody.LastAngularImpulse);
 		DrawPhysicsContactDebug(scene, selectedObject);
 	}
 
@@ -631,9 +631,9 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		const float scaleY = std::sqrt(worldTransform.M21 * worldTransform.M21 + worldTransform.M22 * worldTransform.M22);
 		const float worldRadius = collider.Radius * std::max(scaleX, scaleY);
 
-		ImGui::SeparatorText(Loc::Text("inspector.circle_collider_debug"));
-		DrawReadOnlyVector2(Loc::Text("inspector.collider.world_center"), worldCenter);
-		DrawReadOnlyFloat(Loc::Text("inspector.collider.world_radius"), worldRadius);
+		ImGui::SeparatorText(Loc::Text(EditorLocKeys::InspectorCircleColliderDebug));
+		DrawReadOnlyVector2(Loc::Text(EditorLocKeys::InspectorColliderWorldCenter), worldCenter);
+		DrawReadOnlyFloat(Loc::Text(EditorLocKeys::InspectorColliderWorldRadius), worldRadius);
 	}
 
 	void DrawPolygonColliderDebug(const CGameScene& scene, const CGameObject* selectedObject, const PolygonCollider2D& collider)
@@ -664,11 +664,11 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			}
 		}
 
-		ImGui::SeparatorText(Loc::Text("inspector.polygon_collider_debug"));
-		DrawReadOnlyUInt(Loc::Text("inspector.collider.local_points"), static_cast<std::uint32_t>(localPoints->size()));
-		DrawReadOnlyUInt(Loc::Text("inspector.collider.convex_pieces"), static_cast<std::uint32_t>(collider.ConvexPieces.size()));
-		DrawReadOnlyVector2(Loc::Text("inspector.collider.world_aabb_min"), aabb.Min);
-		DrawReadOnlyVector2(Loc::Text("inspector.collider.world_aabb_max"), aabb.Max);
+		ImGui::SeparatorText(Loc::Text(EditorLocKeys::InspectorPolygonColliderDebug));
+		DrawReadOnlyUInt(Loc::Text(EditorLocKeys::InspectorColliderLocalPoints), static_cast<std::uint32_t>(localPoints->size()));
+		DrawReadOnlyUInt(Loc::Text(EditorLocKeys::InspectorColliderConvexPieces), static_cast<std::uint32_t>(collider.ConvexPieces.size()));
+		DrawReadOnlyVector2(Loc::Text(EditorLocKeys::InspectorColliderWorldAabbMin), aabb.Min);
+		DrawReadOnlyVector2(Loc::Text(EditorLocKeys::InspectorColliderWorldAabbMax), aabb.Max);
 	}
 
 	void DrawCamera2DDebug(const CGameObject* selectedObject)
@@ -679,18 +679,18 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			return;
 		}
 
-		ImGui::SeparatorText(Loc::Text("inspector.camera_debug"));
+		ImGui::SeparatorText(Loc::Text(EditorLocKeys::InspectorCameraDebug));
 
 		RenderCullingStats stats;
 		if (false == Editor::ImEditor.IsValid() || false == Editor::ImEditor->TryGetCameraCullingStats(selectedObject, stats))
 		{
-			ImGui::TextDisabled("%s", Loc::Text("inspector.camera_debug.no_stats"));
+			ImGui::TextDisabled("%s", Loc::Text(EditorLocKeys::InspectorCameraDebugNoStats));
 			return;
 		}
 
-		DrawReadOnlyUInt(Loc::Text("inspector.camera_debug.submitted"), stats.SubmittedCount);
-		DrawReadOnlyUInt(Loc::Text("inspector.camera_debug.culled"), stats.CulledCount);
-		DrawReadOnlyUInt(Loc::Text("inspector.camera_debug.drawn"), stats.DrawnCount);
+		DrawReadOnlyUInt(Loc::Text(EditorLocKeys::InspectorCameraDebugSubmitted), stats.SubmittedCount);
+		DrawReadOnlyUInt(Loc::Text(EditorLocKeys::InspectorCameraDebugCulled), stats.CulledCount);
+		DrawReadOnlyUInt(Loc::Text(EditorLocKeys::InspectorCameraDebugDrawn), stats.DrawnCount);
 	}
 
 	// ── GetComponentIsEnabled ────────────────────────────────────────────────
@@ -735,7 +735,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 
 		bool oldEnabled = *static_cast<bool*>(enabledField);
 		bool newEnabled = oldEnabled;
-		const std::string enabledLabel = sameLineAfter ? "##enabled" : (std::string(Loc::Text("editor.property.IsEnabled")) + "##enabled");
+		const std::string enabledLabel = sameLineAfter ? "##enabled" : (std::string(Loc::Text(EditorLocKeys::EditorPropertyIsEnabled)) + "##enabled");
 		if (ImGui::Checkbox(enabledLabel.c_str(), &newEnabled) && newEnabled != oldEnabled)
 		{
 			*static_cast<bool*>(enabledField) = newEnabled;
@@ -833,8 +833,8 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			if (effective.IsNull())
 			{
 				ImGui::Spacing();
-				ImGui::TextColored(ImVec4(1.0f, 0.55f, 0.2f, 1.0f), "%s", Loc::Text("inspector.text2d.font_missing"));
-				if (ImGui::Button(Loc::Text("inspector.text2d.open_font_settings")) && Editor::ProjectSettings)
+				ImGui::TextColored(ImVec4(1.0f, 0.55f, 0.2f, 1.0f), "%s", Loc::Text(EditorLocKeys::InspectorText2dFontMissing));
+				if (ImGui::Button(Loc::Text(EditorLocKeys::InspectorText2dOpenFontSettings)) && Editor::ProjectSettings)
 				{
 					Editor::ProjectSettings->SetVisible(true);
 					Editor::ProjectSettings->Focus();
@@ -897,21 +897,21 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		int gapX        = static_cast<int>(options.GapX);
 		int gapY        = static_cast<int>(options.GapY);
 
-		ImGui::SeparatorText(Loc::Text("inspector.sprite_import_options"));
+		ImGui::SeparatorText(Loc::Text(EditorLocKeys::InspectorSpriteImportOptions));
 
 		ImGui::Utillity::FormLayout layout("##sprite_import_options");
 		bool changed = false;
 
 		// ── 슬라이스 모드 콤보 ─────────────────────────────────────────────────
 		const char* sliceItems[] = {
-			Loc::Text("inspector.slice_type.none"),
-			Loc::Text("inspector.slice_type.automatic"),
-			Loc::Text("inspector.slice_type.cell_size"),
-			Loc::Text("inspector.slice_type.cell_count"),
+			Loc::Text(EditorLocKeys::InspectorSliceTypeNone),
+			Loc::Text(EditorLocKeys::InspectorSliceTypeAutomatic),
+			Loc::Text(EditorLocKeys::InspectorSliceTypeCellSize),
+			Loc::Text(EditorLocKeys::InspectorSliceTypeCellCount),
 		};
 		int sliceTypeIndex = static_cast<int>(options.SliceType);
 		layout.Row(
-			[&]() { ImGui::TextUnformatted(Loc::Text("inspector.slice_type")); },
+			[&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorSliceType)); },
 			[&]()
 			{
 				if (ImGui::Combo("##inspector.slice_type", &sliceTypeIndex, sliceItems, IM_ARRAYSIZE(sliceItems)))
@@ -924,39 +924,39 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		// ── 모드별 입력란 ─────────────────────────────────────────────────────
 		if (ESpriteSliceType::CellCount == options.SliceType)
 		{
-			layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.row_count")); },    [&]() { changed |= ImGui::InputInt("##inspector.row_count", &rowCount); });
-			layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.column_count")); }, [&]() { changed |= ImGui::InputInt("##inspector.column_count", &columnCount); });
+			layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorRowCount)); },    [&]() { changed |= ImGui::InputInt("##inspector.row_count", &rowCount); });
+			layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorColumnCount)); }, [&]() { changed |= ImGui::InputInt("##inspector.column_count", &columnCount); });
 		}
 		else if (ESpriteSliceType::CellSize == options.SliceType)
 		{
-			layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.cell_width")); },  [&]() { changed |= ImGui::InputInt("##inspector.cell_width", &cellWidth); });
-			layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.cell_height")); }, [&]() { changed |= ImGui::InputInt("##inspector.cell_height", &cellHeight); });
+			layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorCellWidth)); },  [&]() { changed |= ImGui::InputInt("##inspector.cell_width", &cellWidth); });
+			layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorCellHeight)); }, [&]() { changed |= ImGui::InputInt("##inspector.cell_height", &cellHeight); });
 		}
 
 		// ── 그리드/여백 (None/Automatic 에서는 의미 없으므로 슬라이스 모드일 때만) ─
 		if (ESpriteSliceType::CellSize == options.SliceType || ESpriteSliceType::CellCount == options.SliceType)
 		{
-			layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.margin_x")); }, [&]() { changed |= ImGui::InputInt("##inspector.margin_x", &marginX); });
-			layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.margin_y")); }, [&]() { changed |= ImGui::InputInt("##inspector.margin_y", &marginY); });
-			layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.gap_x")); },    [&]() { changed |= ImGui::InputInt("##inspector.gap_x", &gapX); });
-			layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.gap_y")); },    [&]() { changed |= ImGui::InputInt("##inspector.gap_y", &gapY); });
+			layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorMarginX)); }, [&]() { changed |= ImGui::InputInt("##inspector.margin_x", &marginX); });
+			layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorMarginY)); }, [&]() { changed |= ImGui::InputInt("##inspector.margin_y", &marginY); });
+			layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorGapX)); },    [&]() { changed |= ImGui::InputInt("##inspector.gap_x", &gapX); });
+			layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorGapY)); },    [&]() { changed |= ImGui::InputInt("##inspector.gap_y", &gapY); });
 		}
 
 		SafePtr<CProjectManager> projectManager = EditorContext::GetProjectManager();
 		const float projectPPU = projectManager ? projectManager->GetPixelsPerUnit() : 0.0f;
 
 		// ── 공용: 피벗/PPU ────────────────────────────────────────────────────
-		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.pivot_x")); },         [&]() { changed |= ImGui::DragFloat("##inspector.pivot_x", &options.PivotX, 0.01f, 0.0f, 1.0f); });
-		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.pivot_y")); },         [&]() { changed |= ImGui::DragFloat("##inspector.pivot_y", &options.PivotY, 0.01f, 0.0f, 1.0f); });
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorPivotX)); },         [&]() { changed |= ImGui::DragFloat("##inspector.pivot_x", &options.PivotX, 0.01f, 0.0f, 1.0f); });
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorPivotY)); },         [&]() { changed |= ImGui::DragFloat("##inspector.pivot_y", &options.PivotY, 0.01f, 0.0f, 1.0f); });
 		layout.Row(
-			[&]() { ImGui::TextUnformatted(Loc::Text("inspector.pixels_per_unit")); },
+			[&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorPixelsPerUnit)); },
 			[&]() {
 				// 0 = 프로젝트 기본값 사용. 0 보다 큰 값이면 그 값으로 오버라이드.
 				changed |= ImGui::DragFloat("##inspector.pixels_per_unit", &options.PixelsPerUnit, 1.0f, 0.0f, 10000.0f);
 				if (options.PixelsPerUnit <= 0.0f)
 				{
 					ImGui::SameLine();
-					ImGui::TextDisabled("%.1f %s", projectPPU, Loc::Text("inspector.ppu.project_default_suffix"));
+					ImGui::TextDisabled("%.1f %s", projectPPU, Loc::Text(EditorLocKeys::InspectorPpuProjectDefaultSuffix));
 				}
 			}
 		);
@@ -987,11 +987,11 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		}
 
 		const std::vector<SpriteFrame> previewFrames = CSpriteImportOptions::BuildFrames(textureWidth, textureHeight, options);
-		DrawReadOnlyUInt(Loc::Text("inspector.sprite.preview_frame_count"), static_cast<std::uint32_t>(previewFrames.size()));
+		DrawReadOnlyUInt(Loc::Text(EditorLocKeys::InspectorSpritePreviewFrameCount), static_cast<std::uint32_t>(previewFrames.size()));
 		if (false == previewFrames.empty())
 		{
-			DrawReadOnlyUInt(Loc::Text("inspector.sprite.frame_width"), previewFrames.front().Width);
-			DrawReadOnlyUInt(Loc::Text("inspector.sprite.frame_height"), previewFrames.front().Height);
+			DrawReadOnlyUInt(Loc::Text(EditorLocKeys::InspectorSpriteFrameWidth), previewFrames.front().Width);
+			DrawReadOnlyUInt(Loc::Text(EditorLocKeys::InspectorSpriteFrameHeight), previewFrames.front().Height);
 		}
 
 		if (changed)
@@ -1000,7 +1000,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		}
 
 		ImGui::BeginDisabled(false == s_dirty);
-		if (ImGui::Button(Loc::Text("inspector.apply_sprite_import_options")))
+		if (ImGui::Button(Loc::Text(EditorLocKeys::InspectorApplySpriteImportOptions)))
 		{
 			if (SaveSpriteImportOptions(metaData, options))
 			{
@@ -1046,19 +1046,19 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		}
 		AudioImportOptions& options = s_options;
 
-		ImGui::SeparatorText(Loc::Text("inspector.audio_import_options"));
+		ImGui::SeparatorText(Loc::Text(EditorLocKeys::InspectorAudioImportOptions));
 
 		ImGui::Utillity::FormLayout layout("##audio_import_options");
 		bool changed = false;
 
 		// ── 임포트 모드 (Decompressed / Streaming) ─────────────────────────
 		const char* modeItems[] = {
-			Loc::Text("inspector.audio.mode.decompressed"),
-			Loc::Text("inspector.audio.mode.streaming"),
+			Loc::Text(EditorLocKeys::InspectorAudioModeDecompressed),
+			Loc::Text(EditorLocKeys::InspectorAudioModeStreaming),
 		};
 		int modeIndex = static_cast<int>(options.Mode);
 		layout.Row(
-			[&]() { ImGui::TextUnformatted(Loc::Text("inspector.audio.mode")); },
+			[&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorAudioMode)); },
 			[&]()
 			{
 				if (ImGui::Combo("##inspector.audio.mode", &modeIndex, modeItems, IM_ARRAYSIZE(modeItems)))
@@ -1070,16 +1070,16 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 
 		// ── 기본 버스 (Master / Music / SFX / Voice / UI / Custom) ─────────
 		const char* busItems[] = {
-			Loc::Text("inspector.audio.bus.master"),
-			Loc::Text("inspector.audio.bus.music"),
-			Loc::Text("inspector.audio.bus.sfx"),
-			Loc::Text("inspector.audio.bus.voice"),
-			Loc::Text("inspector.audio.bus.ui"),
-			Loc::Text("inspector.audio.bus.custom"),
+			Loc::Text(EditorLocKeys::InspectorAudioBusMaster),
+			Loc::Text(EditorLocKeys::InspectorAudioBusMusic),
+			Loc::Text(EditorLocKeys::InspectorAudioBusSfx),
+			Loc::Text(EditorLocKeys::InspectorAudioBusVoice),
+			Loc::Text(EditorLocKeys::InspectorAudioBusUi),
+			Loc::Text(EditorLocKeys::InspectorAudioBusCustom),
 		};
 		int busIndex = static_cast<int>(options.DefaultBus);
 		layout.Row(
-			[&]() { ImGui::TextUnformatted(Loc::Text("inspector.audio.default_bus")); },
+			[&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorAudioDefaultBus)); },
 			[&]()
 			{
 				if (ImGui::Combo("##inspector.audio.bus", &busIndex, busItems, IM_ARRAYSIZE(busItems)))
@@ -1091,23 +1091,23 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 
 		// ── 기본 볼륨 / 루프 ──────────────────────────────────────────────
 		layout.Row(
-			[&]() { ImGui::TextUnformatted(Loc::Text("inspector.audio.default_volume")); },
+			[&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorAudioDefaultVolume)); },
 			[&]() { changed |= ImGui::DragFloat("##inspector.audio.default_volume", &options.DefaultVolume, 0.01f, 0.0f, 2.0f); });
 		layout.Row(
-			[&]() { ImGui::TextUnformatted(Loc::Text("inspector.audio.loop")); },
+			[&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorAudioLoop)); },
 			[&]() { changed |= ImGui::Checkbox("##inspector.audio.loop", &options.Loop); });
 
 		// ── 3D 음향 ────────────────────────────────────────────────────────
 		layout.Row(
-			[&]() { ImGui::TextUnformatted(Loc::Text("inspector.audio.is_3d")); },
+			[&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorAudioIs3d)); },
 			[&]() { changed |= ImGui::Checkbox("##inspector.audio.is_3d", &options.Is3D); });
 		if (options.Is3D)
 		{
 			layout.Row(
-				[&]() { ImGui::TextUnformatted(Loc::Text("inspector.audio.min_distance")); },
+				[&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorAudioMinDistance)); },
 				[&]() { changed |= ImGui::DragFloat("##inspector.audio.min_distance", &options.MinDistance, 0.1f, 0.0f, 10000.0f); });
 			layout.Row(
-				[&]() { ImGui::TextUnformatted(Loc::Text("inspector.audio.max_distance")); },
+				[&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorAudioMaxDistance)); },
 				[&]() { changed |= ImGui::DragFloat("##inspector.audio.max_distance", &options.MaxDistance, 0.1f, 0.0f, 10000.0f); });
 			if (options.MinDistance < 0.0f) options.MinDistance = 0.0f;
 			if (options.MaxDistance < options.MinDistance) options.MaxDistance = options.MinDistance;
@@ -1126,11 +1126,11 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 					{
 						const AudioFormatInfo& fmt = audioAsset->GetFormat();
 						ImGui::TextDisabled("%s: %u Hz / %u ch",
-							Loc::Text("inspector.audio.format"),
+							Loc::Text(EditorLocKeys::InspectorAudioFormat),
 							fmt.SampleRate,
 							static_cast<unsigned int>(fmt.Channels));
 						ImGui::TextDisabled("%s: %.2f s",
-							Loc::Text("inspector.audio.duration"),
+							Loc::Text(EditorLocKeys::InspectorAudioDuration),
 							audioAsset->GetDurationSeconds());
 					}
 				}
@@ -1140,7 +1140,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		if (changed) s_dirty = true;
 
 		ImGui::BeginDisabled(false == s_dirty);
-		if (ImGui::Button(Loc::Text("inspector.apply_audio_import_options")))
+		if (ImGui::Button(Loc::Text(EditorLocKeys::InspectorApplyAudioImportOptions)))
 		{
 			if (SaveAudioImportOptions(metaData, options))
 			{
@@ -1189,15 +1189,15 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			s_props     = parsed.Properties;
 		}
 
-		ImGui::Text("%s: %s", Loc::Text("common.path"), path.filename().generic_string().c_str());
+		ImGui::Text("%s: %s", Loc::Text(EditorLocKeys::CommonPath), path.filename().generic_string().c_str());
 		if (false == s_parseOk)
 		{
-			ImGui::TextDisabled(Loc::Text("inspector.script_not_parsed"));
+			ImGui::TextDisabled(Loc::Text(EditorLocKeys::InspectorScriptNotParsed));
 			return true;
 		}
-		ImGui::Text("%s: %s", Loc::Text("inspector.script_class"), s_className.c_str());
+		ImGui::Text("%s: %s", Loc::Text(EditorLocKeys::InspectorScriptClass), s_className.c_str());
 		ImGui::Separator();
-		ImGui::TextUnformatted(Loc::Text("asset_browser.script_popup.properties"));
+		ImGui::TextUnformatted(Loc::Text(EditorLocKeys::AssetBrowserScriptPopupProperties));
 
 		// ── 프로퍼티 목록(공유 행 위젯). 인스펙터에선 이름 read-only ──
 		ImList<ScriptSchema::Property>(
@@ -1217,7 +1217,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		if (false == allValid)
 		{
 			ImGui::TextColored(ImVec4(0.95f, 0.45f, 0.45f, 1.0f), "%s",
-				Loc::Text("asset_browser.script_popup.invalid_props"));
+				Loc::Text(EditorLocKeys::AssetBrowserScriptPopupInvalidProps));
 		}
 
 		ImGui::Spacing();
@@ -1225,7 +1225,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 
 		// ── Apply / Reload ────────────────────────────────────────────────────
 		ImGui::BeginDisabled(false == allValid);
-		if (ImGui::Button(Loc::Text("common.apply")))
+		if (ImGui::Button(Loc::Text(EditorLocKeys::CommonApply)))
 		{
 			if (ScriptSchema::WriteHeaderFile(path, s_className, s_props))
 			{
@@ -1233,17 +1233,17 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 				{
 					pm->RegenerateScriptProject();
 				}
-				s_status     = Loc::Text("inspector.script_apply_ok");
+				s_status     = Loc::Text(EditorLocKeys::InspectorScriptApplyOk);
 				s_loadedPath = File::NULL_PATH;   // 정규화된 파일 재파싱
 			}
 			else
 			{
-				s_status = Loc::Text("inspector.script_apply_fail");
+				s_status = Loc::Text(EditorLocKeys::InspectorScriptApplyFail);
 			}
 		}
 		ImGui::EndDisabled();
 		ImGui::SameLine();
-		if (ImGui::Button(Loc::Text("common.refresh")))
+		if (ImGui::Button(Loc::Text(EditorLocKeys::CommonRefresh)))
 		{
 			s_loadedPath = File::NULL_PATH;   // 디스크에서 다시 읽기(편집 취소)
 		}
@@ -1271,7 +1271,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		auto drawAsset = [&](const char* id, AssetGuid& guid, EAssetType expected)
 		{
 			const File::Path path = guid.IsNull() ? File::NULL_PATH : File::ResolvePath(guid);
-			const std::string label = guid.IsNull() ? Loc::Text("inspector.ref_none")
+			const std::string label = guid.IsNull() ? Loc::Text(EditorLocKeys::InspectorRefNone)
 				: (path.IsNull() ? guid.generic_string() : path.filename().generic_string());
 			return DrawReferenceField(label, guid.IsNull(), [&]()
 			{
@@ -1284,24 +1284,24 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			}, [&]() { guid = INVALID_ASSET_GUID; });
 		};
 
-		ImGui::SeparatorText(Loc::Text("inspector.font_family.title"));
+		ImGui::SeparatorText(Loc::Text(EditorLocKeys::InspectorFontFamilyTitle));
 		ImGui::Utillity::FormLayout layout("##font_family");
-		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.font_family.regular")); }, [&]() { ImGui::PushID("regular"); dirty |= drawAsset("##regular", data.Regular, EAssetType::FontFace); ImGui::PopID(); });
-		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.font_family.bold")); }, [&]() { ImGui::PushID("bold"); dirty |= drawAsset("##bold", data.Bold, EAssetType::FontFace); ImGui::PopID(); });
-		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.font_family.italic")); }, [&]() { ImGui::PushID("italic"); dirty |= drawAsset("##italic", data.Italic, EAssetType::FontFace); ImGui::PopID(); });
-		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.font_family.bold_italic")); }, [&]() { ImGui::PushID("bolditalic"); dirty |= drawAsset("##bolditalic", data.BoldItalic, EAssetType::FontFace); ImGui::PopID(); });
-		dirty |= ImGui::Checkbox(Loc::Text("inspector.font_family.use_project_fallbacks"), &data.UseProjectFallbacks);
-		ImGui::TextUnformatted(Loc::Text("inspector.font_family.leading_fallbacks"));
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorFontFamilyRegular)); }, [&]() { ImGui::PushID("regular"); dirty |= drawAsset("##regular", data.Regular, EAssetType::FontFace); ImGui::PopID(); });
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorFontFamilyBold)); }, [&]() { ImGui::PushID("bold"); dirty |= drawAsset("##bold", data.Bold, EAssetType::FontFace); ImGui::PopID(); });
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorFontFamilyItalic)); }, [&]() { ImGui::PushID("italic"); dirty |= drawAsset("##italic", data.Italic, EAssetType::FontFace); ImGui::PopID(); });
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorFontFamilyBoldItalic)); }, [&]() { ImGui::PushID("bolditalic"); dirty |= drawAsset("##bolditalic", data.BoldItalic, EAssetType::FontFace); ImGui::PopID(); });
+		dirty |= ImGui::Checkbox(Loc::Text(EditorLocKeys::InspectorFontFamilyUseProjectFallbacks), &data.UseProjectFallbacks);
+		ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorFontFamilyLeadingFallbacks));
 		for (std::size_t i = 0; i < data.FallbackFamilies.size(); ++i)
 		{
 			ImGui::PushID(static_cast<int>(i)); dirty |= drawAsset("##family_fallback", data.FallbackFamilies[i], EAssetType::FontFamily);
 			ImGui::SameLine();
-			if (ImGui::SmallButton(Loc::Text("common.remove"))) { data.FallbackFamilies.erase(data.FallbackFamilies.begin() + static_cast<std::ptrdiff_t>(i)); dirty = true; ImGui::PopID(); break; }
+			if (ImGui::SmallButton(Loc::Text(EditorLocKeys::CommonRemove))) { data.FallbackFamilies.erase(data.FallbackFamilies.begin() + static_cast<std::ptrdiff_t>(i)); dirty = true; ImGui::PopID(); break; }
 			ImGui::PopID();
 		}
-		if (ImGui::Button(Loc::Text("inspector.font_family.add_fallback"))) { data.FallbackFamilies.push_back(INVALID_ASSET_GUID); dirty = true; }
+		if (ImGui::Button(Loc::Text(EditorLocKeys::InspectorFontFamilyAddFallback))) { data.FallbackFamilies.push_back(INVALID_ASSET_GUID); dirty = true; }
 		ImGui::BeginDisabled(false == dirty);
-		if (ImGui::Button(Loc::Text("inspector.font_family.apply")))
+		if (ImGui::Button(Loc::Text(EditorLocKeys::InspectorFontFamilyApply)))
 		{
 			std::ostringstream out;
 			out << "Regular: " << data.Regular.generic_string() << '\n';
@@ -1335,12 +1335,12 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 				try { faceIndex = std::max(0, std::stoi(yaml.substr(key + 10))); } catch (...) { faceIndex = 0; }
 			}
 		}
-		ImGui::SeparatorText(Loc::Text("inspector.font_face.title"));
+		ImGui::SeparatorText(Loc::Text(EditorLocKeys::InspectorFontFaceTitle));
 		ImGui::Utillity::FormLayout layout("##font_face_import");
-		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text("inspector.font_face.face_index")); },
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorFontFaceFaceIndex)); },
 			[&]() { if (ImGui::InputInt("##font_face.face_index", &faceIndex)) { faceIndex = std::max(0, faceIndex); dirty = true; saved = false; } });
 		ImGui::BeginDisabled(false == dirty);
-		if (ImGui::Button(Loc::Text("inspector.font_face.apply")))
+		if (ImGui::Button(Loc::Text(EditorLocKeys::InspectorFontFaceApply)))
 		{
 			File::Path resolvedMetaPath;
 			if (assetManager.ResolveAssetPath(metaData.MetaPath, resolvedMetaPath))
@@ -1351,12 +1351,12 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			}
 		}
 		ImGui::EndDisabled();
-		if (saved) ImGui::TextDisabled("%s", Loc::Text("inspector.font_face.applied"));
+		if (saved) ImGui::TextDisabled("%s", Loc::Text(EditorLocKeys::InspectorFontFaceApplied));
 
 		ImGui::Spacing();
-		if (ImGui::Button(Loc::Text("inspector.font_face.create_family"), ImVec2(-FLT_MIN, 0.0f)))
+		if (ImGui::Button(Loc::Text(EditorLocKeys::InspectorFontFaceCreateFamily), ImVec2(-FLT_MIN, 0.0f)))
 		{
-			familyStatus = Loc::Text("inspector.font_face.family_create_failed");
+			familyStatus = Loc::Text(EditorLocKeys::InspectorFontFaceFamilyCreateFailed);
 			File::Path fontPath;
 			SafePtr<CProjectManager> projectManager = EditorContext::GetProjectManager();
 			if (projectManager && assetManager.ResolveAssetPath(metaData.Path, fontPath))
@@ -1381,7 +1381,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 						if (assetManager.ImportAsset(desc, &familyMeta))
 						{
 							Editor::SelectAsset(familyMeta.Guid, File::Path(familyPath));
-							familyStatus = Loc::Text("inspector.font_face.family_created");
+							familyStatus = Loc::Text(EditorLocKeys::InspectorFontFaceFamilyCreated);
 						}
 					}
 				}
@@ -1401,14 +1401,14 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		SafePtr<IAssetManager> assetManager = EditorContext::GetAssetManager();
 		if (false == assetManager.IsValid())
 		{
-			ImGui::TextDisabled(Loc::Text("inspector.asset_manager_unavailable"));
+			ImGui::TextDisabled(Loc::Text(EditorLocKeys::InspectorAssetManagerUnavailable));
 			return true;
 		}
 
 		const AssetMetaData* metaData = assetManager->GetRegistry().FindAsset(selectedGuid);
 		if (nullptr == metaData)
 		{
-			ImGui::TextDisabled(Loc::Text("inspector.selected_asset_not_registered"));
+			ImGui::TextDisabled(Loc::Text(EditorLocKeys::InspectorSelectedAssetNotRegistered));
 			return true;
 		}
 
@@ -1419,10 +1419,10 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			ImGui::Separator();
 		}
 
-		ImGui::Text("%s: %s", Loc::Text("common.asset"), metaData->DisplayName.c_str());
-		ImGui::Text("%s: %s", Loc::Text("common.guid"), metaData->Guid.generic_string().c_str());
-		ImGui::Text("%s: %s", Loc::Text("common.path"), metaData->Path.generic_string().c_str());
-		ImGui::Text("%s: %s", Loc::Text("common.importer"), metaData->Importer.c_str());
+		ImGui::Text("%s: %s", Loc::Text(EditorLocKeys::CommonAsset), metaData->DisplayName.c_str());
+		ImGui::Text("%s: %s", Loc::Text(EditorLocKeys::CommonGuid), metaData->Guid.generic_string().c_str());
+		ImGui::Text("%s: %s", Loc::Text(EditorLocKeys::CommonPath), metaData->Path.generic_string().c_str());
+		ImGui::Text("%s: %s", Loc::Text(EditorLocKeys::CommonImporter), metaData->Importer.c_str());
 		ImGui::Separator();
 
 		if (EAssetType::Sprite == metaData->Type)
@@ -1436,9 +1436,9 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		else if (EAssetType::AudioEffect == metaData->Type)
 		{
 			// 효과 편집은 전용 독윈도우에서 한다. 인스펙터엔 안내 + 에디터 열기 버튼.
-			ImGui::TextDisabled(Loc::Text("inspector.effect.open_in_window"));
+			ImGui::TextDisabled(Loc::Text(EditorLocKeys::InspectorEffectOpenInWindow));
 			ImGui::Spacing();
-			if (ImGui::Button(Loc::Text("inspector.effect.open_editor"), ImVec2(-FLT_MIN, 0.0f)))
+			if (ImGui::Button(Loc::Text(EditorLocKeys::InspectorEffectOpenEditor), ImVec2(-FLT_MIN, 0.0f)))
 			{
 				EffectEditorWindow::Open(metaData->Guid, metaData->DisplayName);
 			}
@@ -1453,7 +1453,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		}
 		else
 		{
-			ImGui::TextDisabled(Loc::Text("inspector.no_editable_import_options"));
+			ImGui::TextDisabled(Loc::Text(EditorLocKeys::InspectorNoEditableImportOptions));
 		}
 
 		return true;
@@ -1462,7 +1462,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 
 void CInspectorTool::OnCreate()
 {
-	SetLocalizedTitleKey("window.inspector");
+	SetLocalizedTitleKey(EditorLocKeys::WindowInspector);
 	// 스크롤은 허용하되 스크롤바는 표시하지 않음
 	m_imguiFlags |= ImGuiWindowFlags_NoScrollbar;
 }
@@ -1482,7 +1482,7 @@ void CInspectorTool::OnRenderStay()
 	if (nullptr == scene)
 	{
 		AssetInspectorPreview::NotifyInspectionLost();
-		ImGui::TextDisabled(Loc::Text("inspector.no_active_scene"));
+		ImGui::TextDisabled(Loc::Text(EditorLocKeys::InspectorNoActiveScene));
 		return;
 	}
 
@@ -1499,7 +1499,7 @@ void CInspectorTool::OnRenderStay()
 			return;
 		// 자산도 엔티티도 없음 — 활성 미리보기 핸들러 정리.
 		AssetInspectorPreview::NotifyInspectionLost();
-		ImGui::TextDisabled(Loc::Text("inspector.no_entity_selected"));
+		ImGui::TextDisabled(Loc::Text(EditorLocKeys::InspectorNoEntitySelected));
 		return;
 	}
 
@@ -1508,7 +1508,7 @@ void CInspectorTool::OnRenderStay()
 
 	if (false == Engine.Reflection.IsValid())
 	{
-		ImGui::TextDisabled(Loc::Text("inspector.reflection_unavailable"));
+		ImGui::TextDisabled(Loc::Text(EditorLocKeys::InspectorReflectionUnavailable));
 		return;
 	}
 
@@ -1543,14 +1543,14 @@ void CInspectorTool::OnRenderStay()
 	// ── GameObject 인라인 표시 (CGameObject 직접 편집) ──────────────────────────
 	{
 		ImGui::Utillity::FormLayout layout("##game_object_inline", 4.0f, { 2.0f, 1.0f });
-		layout.Row([&]() { ImGui::TextUnformatted(Loc::TextOr("editor.property.IsActive", "Active")); }, [&]() {
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::TextOr(EditorLocKeys::EditorPropertyIsActive, "Active")); }, [&]() {
 			ImGui::Checkbox("##editor.property.IsActive", &selectedObject->IsActive);
 		});
 
 		ImInputText nameInput("##go_name");
-		nameInput.SetHintText(Loc::TextOr("editor.property.Name", "Name"));
+		nameInput.SetHintText(Loc::TextOr(EditorLocKeys::EditorPropertyName, "Name"));
 		nameInput.SetText(selectedObject->GetName());
-		layout.Row([&]() { ImGui::TextUnformatted(Loc::TextOr("editor.property.Name", "Name")); }, [&]() {
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::TextOr(EditorLocKeys::EditorPropertyName, "Name")); }, [&]() {
 			if (nameInput())
 			{
 				selectedObject->SetName(nameInput);
@@ -1558,9 +1558,9 @@ void CInspectorTool::OnRenderStay()
 		});
 
 		ImInputText tagInput("##go_tag");
-		tagInput.SetHintText(Loc::TextOr("editor.property.Tag", "Tag"));
+		tagInput.SetHintText(Loc::TextOr(EditorLocKeys::EditorPropertyTag, "Tag"));
 		tagInput.SetText(selectedObject->Tag.c_str());
-		layout.Row([&]() { ImGui::TextUnformatted(Loc::TextOr("editor.property.Tag", "Tag")); }, [&]() {
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::TextOr(EditorLocKeys::EditorPropertyTag, "Tag")); }, [&]() {
 			if (tagInput())
 			{
 				selectedObject->Tag = tagInput;
@@ -1591,17 +1591,17 @@ void CInspectorTool::OnRenderStay()
 		};
 
 		// Position
-		layout.Row([&]() { ImGui::TextUnformatted(Loc::TextOr("editor.property.Position", "Position")); }, [&]() {
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::TextOr(EditorLocKeys::EditorPropertyPosition, "Position")); }, [&]() {
 			const Transform2D before = t;
-			if (ImGui::DragFloat2(Loc::TextOr("editor.property.Position", "Position"), &t.Position.x, 0.01f))
+			if (ImGui::DragFloat2(Loc::TextOr(EditorLocKeys::EditorPropertyPosition, "Position"), &t.Position.x, 0.01f))
 				pushTransform(before);
 		});
 
 		// Rotation - 회전은 내부 radian, 표시/편집은 degree.
-		layout.Row([&]() { ImGui::TextUnformatted(Loc::TextOr("editor.property.RotationRadians", "Rotation")); }, [&]() {
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::TextOr(EditorLocKeys::EditorPropertyRotationRadians, "Rotation")); }, [&]() {
 			const Transform2D before = t;
 			Degree degrees = t.RotationRadians.ToDegree();
-			if (ImGui::DragFloat(Loc::TextOr("editor.property.RotationRadians", "Rotation"), &degrees.Value, 0.5f))
+			if (ImGui::DragFloat(Loc::TextOr(EditorLocKeys::EditorPropertyRotationRadians, "Rotation"), &degrees.Value, 0.5f))
 			{
 				t.RotationRadians = degrees.ToRadian();
 				pushTransform(before);
@@ -1609,16 +1609,16 @@ void CInspectorTool::OnRenderStay()
 		});
 
 		// Scale
-		layout.Row([&]() { ImGui::TextUnformatted(Loc::TextOr("editor.property.Scale", "Scale")); }, [&]() {
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::TextOr(EditorLocKeys::EditorPropertyScale, "Scale")); }, [&]() {
 			const Transform2D before = t;
-			if (ImGui::DragFloat2(Loc::TextOr("editor.property.Scale", "Scale"), &t.Scale.x, 0.01f))
+			if (ImGui::DragFloat2(Loc::TextOr(EditorLocKeys::EditorPropertyScale, "Scale"), &t.Scale.x, 0.01f))
 				pushTransform(before);
 			});
 	}
 
 	ImText separatorText;
 	separatorText.UseSeparator(true);
-	separatorText(Loc::Text("editor.category.Components"));
+	separatorText(Loc::Text(EditorLocKeys::EditorCategoryComponents));
 
 	// ── 목록 항목 빌드 (GameObject 제외) ──────────────────────────────────────
 	struct ListEntry
@@ -1664,7 +1664,7 @@ void CInspectorTool::OnRenderStay()
 
 	if (listItems.empty())
 	{
-		ImGui::TextDisabled(Loc::Text("inspector.no_other_components"));
+		ImGui::TextDisabled(Loc::Text(EditorLocKeys::InspectorNoOtherComponents));
 		return;
 	}
 
@@ -1761,7 +1761,7 @@ void CInspectorTool::OnRenderStay()
 				}
 				EditorGuiActions::DrawPasteComponentMenuItem(*selectedObject);
 				ImGui::Separator();
-				if (ImGui::MenuItem(Loc::Text("inspector.remove_component")))
+				if (ImGui::MenuItem(Loc::Text(EditorLocKeys::InspectorRemoveComponent)))
 				{
 					Editor::CommandManager.ExecuteCommand(
 						MakeOwnerPtr<CRemoveComponentCommand>(
@@ -1873,7 +1873,7 @@ void CInspectorTool::OnRenderStay()
 						Engine.Reflection->FindScript(scriptComp->ScriptTypeId);
 					const char* typeName = GetScriptDisplayName(scriptInfo);
 					ImGui::Spacing();
-					ImGui::TextDisabled(Loc::Text("inspector.script_instance_waiting_format"), typeName);
+					ImGui::TextDisabled(Loc::Text(EditorLocKeys::InspectorScriptInstanceWaitingFormat), typeName);
 				}
 			}
 
@@ -1886,7 +1886,7 @@ void CInspectorTool::OnRenderStay()
 				if (audioPlayer)
 				{
 					ImGui::Spacing();
-					ImGui::SeparatorText(Loc::Text("inspector.audio.effect_chain"));
+					ImGui::SeparatorText(Loc::Text(EditorLocKeys::InspectorAudioEffectChain));
 					ImList<AssetGuid>(
 						"##audio_effect_chain", audioPlayer->EffectGuids,
 						[](AssetGuid& effectGuid, int /*idx*/)
@@ -1894,7 +1894,7 @@ void CInspectorTool::OnRenderStay()
 							std::string label;
 							if (effectGuid.IsNull())
 							{
-								label = Loc::Text("inspector.ref_none");
+								label = Loc::Text(EditorLocKeys::InspectorRefNone);
 							}
 							else
 							{

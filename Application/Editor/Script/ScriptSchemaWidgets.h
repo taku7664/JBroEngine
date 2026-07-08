@@ -15,6 +15,7 @@
 #include "Core/Localization/LocalizationManager.h"
 #include "Editor/Script/ScriptSchema.h"
 #include "Editor/Icons/FontAwesomeIcons.h"
+#include "Editor/Localization/EditorLocalizationKeys.h"
 
 #include <string>
 #include <vector>
@@ -48,7 +49,7 @@ namespace ScriptSchemaUI
 				ImGui::SetKeyboardFocusHere();
 			}
 			ImGui::SetNextItemWidth(-FLT_MIN);
-			ImGui::InputTextWithHint("##filter", Loc::Text("common.filter"), filter, sizeof(filter));
+			ImGui::InputTextWithHint("##filter", Loc::Text(EditorLocKeys::CommonFilter), filter, sizeof(filter));
 			ImGui::Separator();
 			for (int i = 0; i < static_cast<int>(items.size()); ++i)
 			{
@@ -91,7 +92,7 @@ namespace ScriptSchemaUI
 			}
 			changed = true;
 		}
-		ImGui::Utillity::HoveredToolTip("script_prop.type_tooltip");
+		ImGui::Utillity::HoveredToolTip(EditorLocKeys::ScriptPropTypeTooltip);
 
 		if (ScriptSchema::NeedsTargetCombo(p.TypeToken))
 		{
@@ -116,7 +117,7 @@ namespace ScriptSchemaUI
 				p.RefInclude = targets[tCur].Include;
 				changed = true;
 			}
-			ImGui::Utillity::HoveredToolTip("script_prop.reftarget_tooltip");
+			ImGui::Utillity::HoveredToolTip(EditorLocKeys::ScriptPropReftargetTooltip);
 		}
 		return changed;
 	}
@@ -127,37 +128,37 @@ namespace ScriptSchemaUI
 		bool changed = false;
 		// 표시 이름 = Name("..") 어트리뷰트(인스펙터 표시용, C++ 멤버명과 별개. 항상 편집 가능).
 		ImGui::Utillity::FormLayout layout("##script_fields");
-		layout.Row([]() { LabelWithTip("script_prop.attributes", "script_prop.attributes_tooltip"); }, [&]() {
+		layout.Row([]() { LabelWithTip(EditorLocKeys::ScriptPropDisplayName, EditorLocKeys::ScriptPropDisplayNameTooltip); }, [&]() {
 				ImInputText in;("##attributes");
 				in.SetText(p.DisplayName);
-				in.SetHintText(Loc::Text("script_prop.display_name_hint"));
+				in.SetHintText(Loc::Text(EditorLocKeys::ScriptPropDisplayNameHint));
 				if (in(ImGuiInputTextFlags_None))
 				{
 					p.DisplayName = static_cast<const char*>(in);
 					changed = true;
 				}
 			});
-		layout.Row([]() { LabelWithTip("script_prop.category", "script_prop.category_tooltip"); }, [&]() {
+		layout.Row([]() { LabelWithTip(EditorLocKeys::ScriptPropCategory, EditorLocKeys::ScriptPropCategoryTooltip); }, [&]() {
 				ImInputText in("##category");
 				in.SetText(p.Category);
-				in.SetHintText(Loc::Text("script_prop.category_hint"));
+				in.SetHintText(Loc::Text(EditorLocKeys::ScriptPropCategoryHint));
 				if (in(ImGuiInputTextFlags_None))
 				{
 					p.Category = static_cast<const char*>(in);
 					changed = true;
 				}
 			});
-		layout.Row([]() { LabelWithTip("script_prop.tooltip", "script_prop.tooltip_tooltip"); }, [&]() {
+		layout.Row([]() { LabelWithTip(EditorLocKeys::ScriptPropTooltip, EditorLocKeys::ScriptPropTooltipTooltip); }, [&]() {
 				ImInputText in("##tooltip");
 				in.SetText(p.Tooltip);
-				in.SetHintText(Loc::Text("script_prop.tooltip_hint"));
+				in.SetHintText(Loc::Text(EditorLocKeys::ScriptPropTooltipHint));
 				if (in(ImGuiInputTextFlags_None))
 				{
 					p.Tooltip = static_cast<const char*>(in);
 					changed = true;
 				}
 			});
-		layout.Row([]() { LabelWithTip("script_prop.serialize", "script_prop.serialize_tooltip"); }, [&]() {
+		layout.Row([]() { LabelWithTip(EditorLocKeys::ScriptPropSerialize, EditorLocKeys::ScriptPropSerializeTooltip); }, [&]() {
 			if(ImGui::Checkbox("##serialize", &p.NoSerialize))
 			{
 				changed = true;
@@ -190,11 +191,11 @@ namespace ScriptSchemaUI
 			ImGui::BeginDisabled(nameReadOnly);
 			ImInputText input;
 			input.SetText(p.Name);
-			input.SetHintText(Loc::Text("script_prop.name_hint"));
+			input.SetHintText(Loc::Text(EditorLocKeys::ScriptPropNameHint));
 			if (input(ImGuiInputTextFlags_None, nameInvalid)) { p.Name = static_cast<const char*>(input); changed = true; }
 			ImGui::EndDisabled();
 		}
-		ImGui::Utillity::HoveredToolTip("script_prop.name_tooltip");
+		ImGui::Utillity::HoveredToolTip(EditorLocKeys::ScriptPropNameTooltip);
 
 		// 메뉴
 		ImGui::SameLine(0.0f, gap);
@@ -202,7 +203,7 @@ namespace ScriptSchemaUI
 		{
 			ImGui::OpenPopup("##prop_menu");   // U+22EE
 		}
-		ImGui::Utillity::HoveredToolTip("script_prop.menu_tooltip");
+		ImGui::Utillity::HoveredToolTip(EditorLocKeys::ScriptPropMenuTooltip);
 		if (ImGui::BeginPopup("##prop_menu"))
 		{
 			if (DrawPropertyMenu(p, nameReadOnly)) changed = true;

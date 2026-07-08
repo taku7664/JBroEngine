@@ -152,7 +152,7 @@ void CRootDockWindow::OnCreate()
     m_customDockFlags =
 		IMDOCKWINDOW_FLAG_NO_DOCKING | IMDOCKWINDOW_FLAG_FULLSCREEN | IMDOCKWINDOW_FLAG_PADDING;
 
-    SetLocalizedTitleKey("window.root");
+    SetLocalizedTitleKey(EditorLocKeys::WindowRoot);
 
     // 프로젝트 세팅 창 (플로팅, 처음에는 숨김)
     if (Editor::ImEditor)
@@ -175,7 +175,7 @@ void CRootDockWindow::OnRenderStay()
 
 	if (projectManager && false == projectManager->IsProjectLoaded())
 	{
-		//ImText(Loc::Text("root.no_project_loaded"), ImText::Align::Center);
+		//ImText(Loc::Text(EditorLocKeys::RootNoProjectLoaded), ImText::Align::Center);
 	}
 
 	// 비동기 자산 로드 진행 중이면 프로그레스 팝업을 띄운다 (idempotent).
@@ -220,7 +220,7 @@ void CRootDockWindow::EnsureProjectLoadingPopup()
 	}
 
 	ImPopupDesc desc;
-	desc.Title           = Loc::Text("project.loading.title");
+	desc.Title           = Loc::Text(EditorLocKeys::ProjectLoadingTitle);
 	desc.Id              = "##project_loading_popup";
 	desc.Kind            = EImPopupKind::Modal;
 	desc.Flags           = ImGuiWindowFlags_NoResize
@@ -267,7 +267,7 @@ void CRootDockWindow::MaybeShowReconcileSummary()
 	m_reconcileSummary = r;
 
 	ImPopupDesc desc;
-	desc.Title           = Loc::Text("reconcile.title");
+	desc.Title           = Loc::Text(EditorLocKeys::ReconcileTitle);
 	desc.Id              = "##asset_reconcile_summary";
 	desc.Kind            = EImPopupKind::Modal;
 	desc.InitSize        = ImVec2(440.0f, 0.0f);
@@ -283,7 +283,7 @@ void CRootDockWindow::RenderReconcileSummaryPopup(IImPopupWindow& popup)
 {
 	const AssetReconcileReport& r = m_reconcileSummary;
 
-	ImGui::TextWrapped("%s", Loc::Text("reconcile.summary"));
+	ImGui::TextWrapped("%s", Loc::Text(EditorLocKeys::ReconcileSummary));
 	ImGui::Spacing();
 	ImGui::Separator();
 	ImGui::Spacing();
@@ -300,17 +300,17 @@ void CRootDockWindow::RenderReconcileSummaryPopup(IImPopupWindow& popup)
 	const ImVec4 warn(0.95f, 0.80f, 0.35f, 1.0f);
 	const ImVec4 bad (0.90f, 0.35f, 0.35f, 1.0f);
 
-	row("reconcile.generated",  r.MetaGenerated,     good);
-	row("reconcile.recovered",  r.GuidRecovered,     good);
-	row("reconcile.relinked",   r.Relinked,          good);
-	row("reconcile.dup_resolved", r.DuplicateResolved, warn);
-	row("reconcile.orphan",     r.OrphanQuarantined, warn);
-	row("reconcile.failed",     r.Failed,            bad);
+	row(EditorLocKeys::ReconcileGenerated,  r.MetaGenerated,     good);
+	row(EditorLocKeys::ReconcileRecovered,  r.GuidRecovered,     good);
+	row(EditorLocKeys::ReconcileRelinked,   r.Relinked,          good);
+	row(EditorLocKeys::ReconcileDupResolved, r.DuplicateResolved, warn);
+	row(EditorLocKeys::ReconcileOrphan,     r.OrphanQuarantined, warn);
+	row(EditorLocKeys::ReconcileFailed,     r.Failed,            bad);
 
 	ImGui::Spacing();
 	ImGui::Separator();
 	ImGui::Spacing();
-	if (ImGui::Button(Loc::Text("common.ok"), ImVec2(120.0f, 0.0f)))
+	if (ImGui::Button(Loc::Text(EditorLocKeys::CommonOk), ImVec2(120.0f, 0.0f)))
 	{
 		popup.Close();
 	}
@@ -329,7 +329,7 @@ void CRootDockWindow::RenderProjectLoadingPopup(IImPopupWindow& popup)
 	const std::uint32_t total = pm->GetLoadTotalCount();
 	const float         frac  = pm->GetLoadProgress01();
 
-	ImGui::TextUnformatted(Loc::Text("project.loading.body"));
+	ImGui::TextUnformatted(Loc::Text(EditorLocKeys::ProjectLoadingBody));
 	ImGui::Spacing();
 
 	char overlay[64];
@@ -402,7 +402,7 @@ void CRootDockWindow::OpenNewProjectPopup(const File::Path& parentFolder)
 	// 프로젝트 표준 팝업 시스템(IImPopupWindow)으로 제어한다. 원시 ImGui::OpenPopup 은
 	// 이 시스템과 맞지 않아 사용하지 않는다. 동일 Id 면 OpenPopup 이 중복 생성하지 않는다.
 	ImPopupDesc desc;
-	desc.Title            = Loc::Text("menu.file.new_project");
+	desc.Title            = Loc::Text(EditorLocKeys::MenuFileNewProject);
 	desc.Id               = "##new_project_popup";
 	desc.Kind             = EImPopupKind::Modal;
 	desc.InitSize         = ImVec2(400.0f, 0.0f);
@@ -419,10 +419,10 @@ void CRootDockWindow::RenderNewProjectPopup(IImPopupWindow& popup)
 	//ImGui::SetNextWindowSize(ImVec2(400.0f, 0.0f), ImGuiCond_Always);
 	//ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
 
-	ImGui::SeparatorText(Loc::Text("menu.file.new_project"));
+	ImGui::SeparatorText(Loc::Text(EditorLocKeys::MenuFileNewProject));
 
 	ImGui::Spacing();
-	ImGui::Text("%s: %s", Loc::Text("new_project.location"), m_newProjectParentFolder.string().c_str());
+	ImGui::Text("%s: %s", Loc::Text(EditorLocKeys::NewProjectLocation), m_newProjectParentFolder.string().c_str());
 	ImGui::Spacing();
 
 	ImGui::SetNextItemWidth(-1.0f);
@@ -432,7 +432,7 @@ void CRootDockWindow::RenderNewProjectPopup(IImPopupWindow& popup)
 		m_newProjectNameBuf.size(),
 		ImGuiInputTextFlags_EnterReturnsTrue);
 
-	ImGui::TextDisabled("%s", Loc::Text("new_project.name_label"));
+	ImGui::TextDisabled("%s", Loc::Text(EditorLocKeys::NewProjectNameLabel));
 
 	if (false == m_newProjectError.empty())
 	{
@@ -446,7 +446,7 @@ void CRootDockWindow::RenderNewProjectPopup(IImPopupWindow& popup)
 
 	const bool canCreate = m_newProjectNameBuf[0] != '\0';
 
-	if ((enterPressed || ImGui::Button(Loc::Text("common.create"), ImVec2(120.0f, 0.0f))) && canCreate)
+	if ((enterPressed || ImGui::Button(Loc::Text(EditorLocKeys::CommonCreate), ImVec2(120.0f, 0.0f))) && canCreate)
 	{
 		SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
 		if (pm.IsValid())
@@ -464,14 +464,14 @@ void CRootDockWindow::RenderNewProjectPopup(IImPopupWindow& popup)
 			}
 			else
 			{
-				m_newProjectError = Loc::Text("new_project.create_failed");
+				m_newProjectError = Loc::Text(EditorLocKeys::NewProjectCreateFailed);
 			}
 		}
 	}
 
 	ImGui::SameLine();
 
-	if (ImGui::Button(Loc::Text("common.cancel"), ImVec2(120.0f, 0.0f)))
+	if (ImGui::Button(Loc::Text(EditorLocKeys::CommonCancel), ImVec2(120.0f, 0.0f)))
 	{
 		popup.Close();
 	}
@@ -479,23 +479,23 @@ void CRootDockWindow::RenderNewProjectPopup(IImPopupWindow& popup)
 
 void CRootDockWindow::OnMenuBar()
 {
-	if (ImGui::BeginMenu(Loc::Text("menu.file")))
+	if (ImGui::BeginMenu(Loc::Text(EditorLocKeys::MenuFile)))
 	{
-		if (ImGui::MenuItem(Loc::Text("menu.file.new_project")))
+		if (ImGui::MenuItem(Loc::Text(EditorLocKeys::MenuFileNewProject)))
 		{
 			File::Path parentFolder;
-			const std::wstring title = Utillity::U8ToWString(Loc::Text("file_dialog.new_project_folder_title"));
+			const std::wstring title = Utillity::U8ToWString(Loc::Text(EditorLocKeys::FileDialogNewProjectFolderTitle));
 			if (File::ShowOpenFolderDialog(ImGui::Utillity::GetDialogOwnerHandle(), title.c_str(), L"", parentFolder))
 			{
 				OpenNewProjectPopup(parentFolder);
 			}
 		}
 		ImGui::Separator();
-		if (ImGui::MenuItem(Loc::Text("menu.file.open_project")))
+		if (ImGui::MenuItem(Loc::Text(EditorLocKeys::MenuFileOpenProject)))
 		{
 			File::Path projectPath;
-			const std::wstring title = Utillity::U8ToWString(Loc::Text("file_dialog.open_project_title"));
-			const std::wstring filterName = Utillity::U8ToWString(Loc::Text("file_dialog.filter.jbro_project"));
+			const std::wstring title = Utillity::U8ToWString(Loc::Text(EditorLocKeys::FileDialogOpenProjectTitle));
+			const std::wstring filterName = Utillity::U8ToWString(Loc::Text(EditorLocKeys::FileDialogFilterJbroProject));
 			if (File::ShowOpenFileDialog(
 				ImGui::Utillity::GetDialogOwnerHandle(),
 				title.c_str(),
@@ -545,7 +545,7 @@ void CRootDockWindow::OnMenuBar()
 			ImGui::BeginDisabled();
 		}
 		const std::string saveShortcut = Editor::ShortcutManager.GetShortcutText(EEditorShortcut::SaveProject);
-		if (ImGui::MenuItem(Loc::Text("menu.file.save_project"), saveShortcut.c_str()))
+		if (ImGui::MenuItem(Loc::Text(EditorLocKeys::MenuFileSaveProject), saveShortcut.c_str()))
 		{
 			Editor::ShortcutManager.Execute(EEditorShortcut::SaveProject);
 		}
@@ -560,14 +560,14 @@ void CRootDockWindow::OnMenuBar()
 		{
 			ImGui::BeginDisabled();
 		}
-		if (ImGui::BeginMenu(Loc::Text("menu.file.build")))
+		if (ImGui::BeginMenu(Loc::Text(EditorLocKeys::MenuFileBuild)))
 		{
 			const ProjectBuildSettings& buildSettings = pm->GetBuildSettings();
 			const std::vector<EBuildTargetPlatform> enabled = BuildSettingsUtils::GetEnabledPlatforms(buildSettings);
 
 			if (enabled.empty())
 			{
-				ImGui::TextDisabled("%s", Loc::Text("build_settings.no_platform_enabled"));
+				ImGui::TextDisabled("%s", Loc::Text(EditorLocKeys::BuildSettingsNoPlatformEnabled));
 			}
 
 			// 활성 플랫폼마다 메뉴아이템. 필수설정 누락이면 빨강 + 클릭 시 빌드세팅의 해당 카테고리로 유도.
@@ -596,7 +596,7 @@ void CRootDockWindow::OnMenuBar()
 							Editor::BuildSettings->FocusPlatformCategory(platform);
 							Editor::BuildSettings->Focus();
 						}
-						OpenBuildBlockedPopup(Loc::Text("build_settings.required_missing_body"));
+						OpenBuildBlockedPopup(Loc::Text(EditorLocKeys::BuildSettingsRequiredMissingBody));
 					}
 					else
 					{
@@ -614,7 +614,7 @@ void CRootDockWindow::OnMenuBar()
 				{
 					style.PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.35f, 0.30f, 1.0f));
 				}
-				if (ImGui::MenuItem(Loc::Text("build_settings.build_all")))
+				if (ImGui::MenuItem(Loc::Text(EditorLocKeys::BuildSettingsBuildAll)))
 				{
 					if (blockedCount > 0)
 					{
@@ -624,7 +624,7 @@ void CRootDockWindow::OnMenuBar()
 							Editor::BuildSettings->FocusFirstInvalidCategory();
 							Editor::BuildSettings->Focus();
 						}
-						OpenBuildBlockedPopup(Loc::Text("build_settings.required_missing_body"));
+						OpenBuildBlockedPopup(Loc::Text(EditorLocKeys::BuildSettingsRequiredMissingBody));
 					}
 					else
 					{
@@ -641,16 +641,16 @@ void CRootDockWindow::OnMenuBar()
 		ImGui::EndMenu();
 	}
 
-	if (ImGui::BeginMenu(Loc::Text("menu.settings")))
+	if (ImGui::BeginMenu(Loc::Text(EditorLocKeys::MenuSettings)))
 	{
-		if (ImGui::MenuItem(Loc::Text("menu.settings.project_settings")))
+		if (ImGui::MenuItem(Loc::Text(EditorLocKeys::MenuSettingsProjectSettings)))
 		{
 			if (Editor::ProjectSettings)
 			{
 				Editor::ProjectSettings->SetVisible(true);
 			}
 		}
-		if (ImGui::MenuItem(Loc::Text("menu.settings.build_settings")))
+		if (ImGui::MenuItem(Loc::Text(EditorLocKeys::MenuSettingsBuildSettings)))
 		{
 			if (Editor::BuildSettings)
 			{
@@ -724,18 +724,18 @@ void CRootDockWindow::DrawLiveCompileMenuBarStatus()
 	if (showSpinner)
 	{
 		std::snprintf(label, sizeof(label), "%s  %.1fs",
-		              Loc::Text("script.status.building"),
+		              Loc::Text(EditorLocKeys::ScriptStatusBuilding),
 		              m_compileElapsedSeconds);
 		textColor = ImVec4(0.95f, 0.85f, 0.4f, 1.0f);
 	}
 	else if (m_resultLingerSuccess)
 	{
-		std::snprintf(label, sizeof(label), "%s", Loc::Text("script.status.loaded"));
+		std::snprintf(label, sizeof(label), "%s", Loc::Text(EditorLocKeys::ScriptStatusLoaded));
 		textColor = ImVec4(0.4f, 0.9f, 0.5f, 1.0f);
 	}
 	else
 	{
-		std::snprintf(label, sizeof(label), "%s", Loc::Text("script.status.failed"));
+		std::snprintf(label, sizeof(label), "%s", Loc::Text(EditorLocKeys::ScriptStatusFailed));
 		textColor = ImVec4(0.95f, 0.45f, 0.45f, 1.0f);
 	}
 
@@ -790,7 +790,7 @@ void CRootDockWindow::StartBatchGameBuild(const std::vector<EBuildTargetPlatform
 	{
 		Editor::BuildSettings->SetVisible(true);
 		Editor::BuildSettings->Focus();
-		OpenBuildBlockedPopup(Loc::Text("build_settings.apply_required_body"));
+		OpenBuildBlockedPopup(Loc::Text(EditorLocKeys::BuildSettingsApplyRequiredBody));
 		return;
 	}
 
@@ -833,7 +833,7 @@ void CRootDockWindow::OpenBuildBlockedPopup(std::string message)
 
 	m_buildBlockedMessage = std::move(message);
 	ImPopupDesc desc;
-	desc.Title = Loc::Text("build_settings.apply_required");
+	desc.Title = Loc::Text(EditorLocKeys::BuildSettingsApplyRequired);
 	desc.Id = "##build_settings_apply_required_popup";
 	desc.Kind = EImPopupKind::Modal;
 	desc.InitSize = ImVec2(420.0f, 0.0f);
@@ -849,7 +849,7 @@ void CRootDockWindow::RenderBuildBlockedPopup(IImPopupWindow& popup)
 {
 	ImGui::TextWrapped("%s", m_buildBlockedMessage.c_str());
 	ImGui::Spacing();
-	if (ImGui::Button(Loc::Text("common.ok"), ImVec2(120.0f, 0.0f)))
+	if (ImGui::Button(Loc::Text(EditorLocKeys::CommonOk), ImVec2(120.0f, 0.0f)))
 	{
 		popup.Close();
 		m_buildBlockedPopupHandle = INVALID_POPUP_HANDLE;
@@ -875,7 +875,7 @@ void CRootDockWindow::EnsureBuildProgressPopup()
 	}
 
 	ImPopupDesc desc;
-	desc.Title = Loc::Text("build.progress.title");
+	desc.Title = Loc::Text(EditorLocKeys::BuildProgressTitle);
 	desc.Id = "##game_build_progress_popup";
 	desc.Kind = EImPopupKind::Modal;
 	desc.Flags = ImGuiWindowFlags_NoResize
@@ -899,7 +899,7 @@ void CRootDockWindow::RenderBuildProgressPopup(IImPopupWindow& popup)
 	char overlay[64];
 	std::snprintf(overlay, sizeof(overlay), "%u / %u", snapshot.CompletedCount, snapshot.TotalCount);
 
-	ImGui::TextUnformatted(Loc::Text("build.progress.body"));
+	ImGui::TextUnformatted(Loc::Text(EditorLocKeys::BuildProgressBody));
 	ImGui::Spacing();
 	ImGui::ProgressBar(progress, ImVec2(-FLT_MIN, 0.0f), overlay);
 
@@ -961,10 +961,10 @@ void CRootDockWindow::RenderBuildProgressPopup(IImPopupWindow& popup)
 			snapshot.OutputOpened = true;
 		}
 		ImGui::Spacing();
-		ImGui::TextColored(ImVec4(0.40f, 0.85f, 0.40f, 1.0f), "%s", Loc::Text("build.progress.succeeded"));
+		ImGui::TextColored(ImVec4(0.40f, 0.85f, 0.40f, 1.0f), "%s", Loc::Text(EditorLocKeys::BuildProgressSucceeded));
 		ImGui::TextWrapped("%s", snapshot.PackageDirectory.generic_string().c_str());
 		ImGui::Spacing();
-		if (ImGui::Button(Loc::Text("common.ok"), ImVec2(120.0f, 0.0f)))
+		if (ImGui::Button(Loc::Text(EditorLocKeys::CommonOk), ImVec2(120.0f, 0.0f)))
 		{
 			popup.Close();
 			m_buildPopupHandle = INVALID_POPUP_HANDLE;
@@ -974,20 +974,20 @@ void CRootDockWindow::RenderBuildProgressPopup(IImPopupWindow& popup)
 	else if (snapshot.State == EGameBuildState::Failed)
 	{
 		ImGui::Spacing();
-		ImGui::TextColored(ImVec4(0.90f, 0.35f, 0.35f, 1.0f), "%s", Loc::Text("build.progress.failed"));
+		ImGui::TextColored(ImVec4(0.90f, 0.35f, 0.35f, 1.0f), "%s", Loc::Text(EditorLocKeys::BuildProgressFailed));
 		if (false == snapshot.Message.empty())
 		{
 			ImGui::TextWrapped("%s", snapshot.Message.c_str());
 		}
 		if (false == snapshot.LogPath.empty())
 		{
-			if (ImGui::Button(Loc::Text("build.progress.open_log"), ImVec2(120.0f, 0.0f)))
+			if (ImGui::Button(Loc::Text(EditorLocKeys::BuildProgressOpenLog), ImVec2(120.0f, 0.0f)))
 			{
 				File::OpenFile(snapshot.LogPath);
 			}
 			ImGui::SameLine();
 		}
-		if (ImGui::Button(Loc::Text("common.ok"), ImVec2(120.0f, 0.0f)))
+		if (ImGui::Button(Loc::Text(EditorLocKeys::CommonOk), ImVec2(120.0f, 0.0f)))
 		{
 			popup.Close();
 			m_buildPopupHandle = INVALID_POPUP_HANDLE;

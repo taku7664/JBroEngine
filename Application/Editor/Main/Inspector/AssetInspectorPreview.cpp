@@ -178,7 +178,7 @@ namespace
             }
             else if (m_isStreaming)
             {
-                ImGui::TextDisabled("%s", Loc::Text("inspector.audio.preview.streaming_no_waveform"));
+                ImGui::TextDisabled("%s", Loc::Text(EditorLocKeys::InspectorAudioPreviewStreamingNoWaveform));
             }
 
             // ── 실시간 스펙트럼 ───────────────────────────────────────
@@ -192,7 +192,7 @@ namespace
 
             // ── Play / Stop ──────────────────────────────────────────
             ImGui::BeginDisabled(playing);
-            if (ImGui::Button(Loc::Text("inspector.audio.preview.play"), ImVec2(80.0f, 0.0f)))
+            if (ImGui::Button(Loc::Text(EditorLocKeys::InspectorAudioPreviewPlay), ImVec2(80.0f, 0.0f)))
             {
                 SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
                 if (pm)
@@ -207,16 +207,16 @@ namespace
                     EditorAudioPreview::PlayFile(utf8Path.c_str(), metaData.Guid);
                 }
             }
-            ImGui::Utillity::HoveredToolTip(Loc::Text("inspector.audio.preview.play.desc"));
+            ImGui::Utillity::HoveredToolTip(Loc::Text(EditorLocKeys::InspectorAudioPreviewPlayDesc));
             ImGui::EndDisabled();
 
             ImGui::SameLine();
             ImGui::BeginDisabled(false == playing && false == isCurrent);
-            if (ImGui::Button(Loc::Text("inspector.audio.preview.stop"), ImVec2(80.0f, 0.0f)))
+            if (ImGui::Button(Loc::Text(EditorLocKeys::InspectorAudioPreviewStop), ImVec2(80.0f, 0.0f)))
             {
                 EditorAudioPreview::Stop();
             }
-            ImGui::Utillity::HoveredToolTip(Loc::Text("inspector.audio.preview.stop.desc"));
+            ImGui::Utillity::HoveredToolTip(Loc::Text(EditorLocKeys::InspectorAudioPreviewStopDesc));
             ImGui::EndDisabled();
 
             // 진행/스크럽

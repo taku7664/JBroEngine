@@ -11,7 +11,7 @@
 
 void CEditorStatisticsTool::OnCreate()
 {
-	SetLocalizedTitleKey("window.editor_statistics");
+	SetLocalizedTitleKey(EditorLocKeys::WindowEditorStatistics);
 }
 
 void CEditorStatisticsTool::OnRenderStay()
@@ -37,18 +37,18 @@ void CEditorStatisticsTool::OnRenderStay()
 
 		char value[64] = {};
 		std::snprintf(value, sizeof(value), "%.1f", io.Framerate);
-		drawRow(Loc::Text("editor_statistics.fps"), value);
+		drawRow(Loc::Text(EditorLocKeys::EditorStatisticsFps), value);
 		std::snprintf(value, sizeof(value), "%.2f ms", frameMilliseconds);
-		drawRow(Loc::Text("editor_statistics.frame_time"), value);
+		drawRow(Loc::Text(EditorLocKeys::EditorStatisticsFrameTime), value);
 		std::snprintf(value, sizeof(value), "%zu", objectCount);
-		drawRow(Loc::Text("editor_statistics.scene_objects"), value);
+		drawRow(Loc::Text(EditorLocKeys::EditorStatisticsSceneObjects), value);
 		std::snprintf(value, sizeof(value), "%u", renderItemCount);
-		drawRow(Loc::Text("editor_statistics.render_items"), value);
+		drawRow(Loc::Text(EditorLocKeys::EditorStatisticsRenderItems), value);
 		std::snprintf(value, sizeof(value), "%zu", Editor::GetSelectedEntities().size());
-		drawRow(Loc::Text("editor_statistics.selection"), value);
-		drawRow(Loc::Text("editor_statistics.undo"), Loc::Text(Editor::CommandManager.CanUndo() ? "common.yes" : "common.no"));
-		drawRow(Loc::Text("editor_statistics.redo"), Loc::Text(Editor::CommandManager.CanRedo() ? "common.yes" : "common.no"));
-		drawRow(Loc::Text("editor_statistics.dirty"), Loc::Text(Editor::CommandManager.IsDirty() ? "common.yes" : "common.no"));
+		drawRow(Loc::Text(EditorLocKeys::EditorStatisticsSelection), value);
+		drawRow(Loc::Text(EditorLocKeys::EditorStatisticsUndo), Loc::Text(Editor::CommandManager.CanUndo() ? EditorLocKeys::CommonYes : EditorLocKeys::CommonNo));
+		drawRow(Loc::Text(EditorLocKeys::EditorStatisticsRedo), Loc::Text(Editor::CommandManager.CanRedo() ? EditorLocKeys::CommonYes : EditorLocKeys::CommonNo));
+		drawRow(Loc::Text(EditorLocKeys::EditorStatisticsDirty), Loc::Text(Editor::CommandManager.IsDirty() ? EditorLocKeys::CommonYes : EditorLocKeys::CommonNo));
 		ImGui::EndTable();
 	}
 }

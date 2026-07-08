@@ -34,7 +34,7 @@ namespace
 
 		if (0 == reflection.GetScriptTypeCount())
 		{
-			ImGui::TextDisabled(Loc::Text("inspector.no_scripts_registered"));
+			ImGui::TextDisabled(Loc::Text(EditorLocKeys::InspectorNoScriptsRegistered));
 			return false;
 		}
 
@@ -64,7 +64,7 @@ namespace
 	{
 		if (false == Engine.Reflection.IsValid() || nullptr == object)
 		{
-			ImGui::TextDisabled(Loc::Text("inspector.no_component_registry"));
+			ImGui::TextDisabled(Loc::Text(EditorLocKeys::InspectorNoComponentRegistry));
 			return false;
 		}
 
@@ -116,7 +116,7 @@ namespace
 			}
 		}
 
-		if (ImGui::BeginMenu(Loc::Text("inspector.script_menu")))
+		if (ImGui::BeginMenu(Loc::Text(EditorLocKeys::InspectorScriptMenu)))
 		{
 			added = DrawScriptList(scene, object, reflection) || added;
 			ImGui::EndMenu();
@@ -128,7 +128,7 @@ namespace
 
 bool EditorGuiActions::DrawAddComponentMenu(CGameScene& scene, CGameObject* object)
 {
-	if (ImGui::BeginMenu(Loc::Text("inspector.add_component")))
+	if (ImGui::BeginMenu(Loc::Text(EditorLocKeys::InspectorAddComponent)))
 	{
 		const bool added = DrawComponentList(scene, object);
 		ImGui::EndMenu();
@@ -140,7 +140,7 @@ bool EditorGuiActions::DrawAddComponentMenu(CGameScene& scene, CGameObject* obje
 bool EditorGuiActions::DrawAddComponentButton(CGameScene& scene, CGameObject* object)
 {
 	bool added = false;
-	if (ImGui::Button(Loc::Text("inspector.add_component")))
+	if (ImGui::Button(Loc::Text(EditorLocKeys::InspectorAddComponent)))
 	{
 		ImGui::OpenPopup("AddComponentPopup");
 	}
@@ -157,8 +157,8 @@ bool EditorGuiActions::DrawAddObjectMenu(CGameScene& scene, CGameObject* parent,
 {
 	// parent 유무에 따라 레이블 변경
 	const char* label = (nullptr != parent)
-	                        ? Loc::Text("inspector.add_child_object")
-	                        : Loc::Text("inspector.add_object");
+	                        ? Loc::Text(EditorLocKeys::InspectorAddChildObject)
+	                        : Loc::Text(EditorLocKeys::InspectorAddObject);
 
 	if (ImGui::MenuItem(label))
 	{
@@ -181,7 +181,7 @@ bool EditorGuiActions::DrawRemoveObjectMenu(CGameScene& scene, CGameObject* obje
 		return false;
 	}
 
-	if (ImGui::MenuItem(Loc::Text("hierarchy.delete_object")))
+	if (ImGui::MenuItem(Loc::Text(EditorLocKeys::HierarchyDeleteObject)))
 	{
 		const bool wasSelected = Editor::IsSelected(object);
 		Editor::CommandManager.ExecuteCommand(
@@ -201,7 +201,7 @@ bool EditorGuiActions::DrawRemoveObjectMenu(CGameScene& scene, CGameObject* obje
 
 bool EditorGuiActions::DrawCopyObjectMenuItem(const CGameObject& object)
 {
-	if (ImGui::MenuItem(Loc::TextOr("editor.menu.copy_object", "Copy Object")))
+	if (ImGui::MenuItem(Loc::TextOr(EditorLocKeys::EditorMenuCopyObject, "Copy Object")))
 	{
 		const std::string text = Serialization::SerializeObject(object);
 		ImGui::SetClipboardText(text.c_str());
@@ -216,7 +216,7 @@ bool EditorGuiActions::DrawPasteObjectMenuItem(CGameScene& scene)
 	{
 		return false;   // 클립보드가 오브젝트가 아니면 메뉴를 숨긴다.
 	}
-	if (ImGui::MenuItem(Loc::TextOr("editor.menu.paste_object", "Paste Object")))
+	if (ImGui::MenuItem(Loc::TextOr(EditorLocKeys::EditorMenuPasteObject, "Paste Object")))
 	{
 		// 원본 위치 유지(메뉴 붙여넣기). undo/새 guid 발급은 커맨드가 처리.
 		return PasteObjectsFromClipboard(scene, nullptr);
@@ -267,7 +267,7 @@ bool EditorGuiActions::PasteObjectsFromClipboard(CGameScene& scene, const Vector
 
 bool EditorGuiActions::DrawCopyComponentMenuItem(const CComponent& component)
 {
-	if (ImGui::MenuItem(Loc::TextOr("editor.menu.copy_component", "Copy Component")))
+	if (ImGui::MenuItem(Loc::TextOr(EditorLocKeys::EditorMenuCopyComponent, "Copy Component")))
 	{
 		const std::string text = Serialization::SerializeComponent(component);
 		if (false == text.empty())
@@ -286,7 +286,7 @@ bool EditorGuiActions::DrawPasteComponentMenuItem(CGameObject& object)
 	{
 		return false;   // 클립보드가 컴포넌트가 아니면 메뉴를 숨긴다.
 	}
-	if (ImGui::MenuItem(Loc::TextOr("editor.menu.paste_component", "Paste Component")))
+	if (ImGui::MenuItem(Loc::TextOr(EditorLocKeys::EditorMenuPasteComponent, "Paste Component")))
 	{
 		if (Serialization::DeserializeComponentInto(object, clip))
 		{

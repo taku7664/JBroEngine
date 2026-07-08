@@ -34,7 +34,7 @@ namespace
 
 void CGameViewTool::OnCreate()
 {
-	SetLocalizedTitleKey("window.game_view");
+	SetLocalizedTitleKey(EditorLocKeys::WindowGameView);
 
 	// 에디터 baseline — GameView 가 포커스되기 전엔 게임 입력 비활성(다른 패널 편집 중 누출 방지).
 	// 스탠드얼론 게임에는 GameViewTool 이 없어 InputSystem 기본 true 가 유지된다.
@@ -171,14 +171,14 @@ void CGameViewTool::OnRenderStay()
 	const ImVec2 textPos = vpMin + ImVec2(12.0f, 10.0f);
 	const ImU32  textCol = isPlaying ? IM_COL32(100, 230, 120, 255) : IM_COL32(210, 216, 224, 255);
 	const char* statusText = isPlaying
-		? Loc::Text("game_view.status.playing")
-		: (hasScene ? Loc::Text("game_view.status.scene_stopped") : Loc::Text("game_view.status.no_active_scene"));
+		? Loc::Text(EditorLocKeys::GameViewStatusPlaying)
+		: (hasScene ? Loc::Text(EditorLocKeys::GameViewStatusSceneStopped) : Loc::Text(EditorLocKeys::GameViewStatusNoActiveScene));
 	dl->AddText(textPos, textCol, statusText);
 
 	if (nullptr == texID)
 	{
 		// Centered "No Camera" notice.
-		const char* msg = Loc::Text("game_view.no_camera");
+		const char* msg = Loc::Text(EditorLocKeys::GameViewNoCamera);
 		const ImVec2 center = ImVec2(
 			vpMin.x + vpSize.x * 0.5f - ImGui::CalcTextSize(msg).x * 0.5f,
 			vpMin.y + vpSize.y * 0.5f - 8.0f);

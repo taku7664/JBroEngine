@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Editor/Localization/EditorLocalizationKeys.h"
 #include "ImporterWindowBase.h"
 #include "Engine/Core/Asset/AudioAsset.h"
 
@@ -14,7 +15,7 @@ protected:
 	                   const File::Path& destFilePath,
 	                   std::string& errorOut) override;
 	const char* GetSourceExtensionsCsv() const override { return ".wav,.mp3,.flac,.ogg"; }
-	const char* GetTitleLocKey() const override { return "importer.audio.title"; }
+	const char* GetTitleLocKey() const override { return EditorLocKeys::ImporterAudioTitle; }
 
 private:
 	AudioImportOptions m_options;
