@@ -549,13 +549,22 @@ void CRootDockWindow::OnMenuBar()
 		{
 			Editor::ShortcutManager.Execute(EEditorShortcut::SaveProject);
 		}
+		if (false == canSave
+			&& EditorSimulationGuard::IsSimulationActive()
+			&& ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+		{
+			ImGui::SetTooltip("%s", EditorSimulationGuard::GetSaveBlockedMessage());
+		}
 		if (false == canSave)
 		{
 			ImGui::EndDisabled();
 		}
 
 		SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
-		const bool canBuild = pm.IsValid() && pm->IsProjectLoaded() && false == m_buildManager.IsRunning();
+		const bool canBuild = pm.IsValid()
+			&& pm->IsProjectLoaded()
+			&& false == m_buildManager.IsRunning()
+			&& EditorSimulationGuard::CanBuildProject();
 		if (false == canBuild)
 		{
 			ImGui::BeginDisabled();
@@ -633,6 +642,12 @@ void CRootDockWindow::OnMenuBar()
 				}
 			}
 			ImGui::EndMenu();
+		}
+		if (false == canBuild
+			&& EditorSimulationGuard::IsSimulationActive()
+			&& ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+		{
+			ImGui::SetTooltip("%s", EditorSimulationGuard::GetBuildBlockedMessage());
 		}
 		if (false == canBuild)
 		{
@@ -785,6 +800,12 @@ void CRootDockWindow::StartBatchGameBuild(const std::vector<EBuildTargetPlatform
 		return;
 	}
 
+	if (false == EditorSimulationGuard::CanBuildProject())
+	{
+		OpenBuildBlockedPopup(EditorSimulationGuard::GetBuildBlockedMessage());
+		return;
+	}
+
 	SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
 	if (Editor::BuildSettings && Editor::BuildSettings->HasUnsavedChanges())
 	{
@@ -812,6 +833,14 @@ void CRootDockWindow::AdvanceBuildQueueIfReady()
 	const GameBuildSnapshot snapshot = m_buildManager.GetSnapshot();
 	if (snapshot.State == EGameBuildState::Succeeded)
 	{
+		if (false == EditorSimulationGuard::CanBuildProject())
+		{
+			m_buildQueue.clear();
+			m_buildQueueIndex = 0;
+			OpenBuildBlockedPopup(EditorSimulationGuard::GetBuildBlockedMessage());
+			return;
+		}
+
 		SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
 		++m_buildQueueIndex;
 		m_buildManager.StartBuild(pm, m_buildQueue[m_buildQueueIndex]);

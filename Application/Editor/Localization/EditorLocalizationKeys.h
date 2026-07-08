@@ -153,6 +153,8 @@ namespace EditorLocKeys
 	constexpr const char* EditorPropertyRotationRadians = "editor.property.RotationRadians";
 	constexpr const char* EditorPropertyScale = "editor.property.Scale";
 	constexpr const char* EditorPropertyTag = "editor.property.Tag";
+	constexpr const char* EditorSimulationBuildBlocked = "editor.simulation.build_blocked";
+	constexpr const char* EditorSimulationSaveBlocked = "editor.simulation.save_blocked";
 	constexpr const char* EditorStatisticsDirty = "editor_statistics.dirty";
 	constexpr const char* EditorStatisticsFps = "editor_statistics.fps";
 	constexpr const char* EditorStatisticsFrameTime = "editor_statistics.frame_time";

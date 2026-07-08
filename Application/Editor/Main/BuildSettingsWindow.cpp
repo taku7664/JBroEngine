@@ -81,14 +81,10 @@ namespace
 
 	void DrawFieldLabel(const char* labelKey, const char* tooltipKey, bool required)
 	{
-		ImText label;
-		label.SetHoveredTooltip(Loc::Text(tooltipKey));
-		label(Loc::Text(labelKey));
-		if (required)
-		{
-			ImGui::SameLine(0.0f, 2.0f);
-			ImGui::TextColored(REQUIRED_FIELD_COLOR, "*");
-		}
+		ImFieldLabel(Loc::Text(labelKey))
+			.Tooltip(Loc::Text(tooltipKey))
+			.Required(required)
+			.Draw();
 	}
 
 	bool DrawInputTextWithInvalid(const char* inputId, std::string& value, bool invalid)
@@ -123,10 +119,11 @@ namespace
 			+ ImGui::GetStyle().FramePadding.x * 2.0f
 			+ 8.0f;
 
-		ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - buttonWidth - ImGui::GetStyle().ItemInnerSpacing.x);
-		PushInvalidInputStyle(invalid);
-		ImGui::InputText(inputId, &value, ImGuiInputTextFlags_ReadOnly);
-		PopInvalidInputStyle(invalid);
+		ImPathField(inputId, value)
+			.ReadOnly(true)
+			.Invalid(invalid)
+			.ReserveTrailingWidth(buttonWidth)
+			.Draw();
 		ImGui::SameLine();
 		return ImGui::Utillity::BrowseFolderButton(browseId.c_str(), value, title, initialDirectory.c_str());
 	}
@@ -145,10 +142,11 @@ namespace
 			+ ImGui::GetStyle().FramePadding.x * 2.0f
 			+ 8.0f;
 
-		ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - buttonWidth - ImGui::GetStyle().ItemInnerSpacing.x);
-		PushInvalidInputStyle(invalid);
-		ImGui::InputText(inputId, &value, ImGuiInputTextFlags_ReadOnly);
-		PopInvalidInputStyle(invalid);
+		ImPathField(inputId, value)
+			.ReadOnly(true)
+			.Invalid(invalid)
+			.ReserveTrailingWidth(buttonWidth)
+			.Draw();
 		ImGui::SameLine();
 		return ImGui::Utillity::BrowseFileButton(
 			browseId.c_str(), value, title, initialDirectory.c_str(), std::move(filters));
@@ -304,7 +302,7 @@ void CBuildSettingsWindow::DrawCategoryContent(float)
 
 void CBuildSettingsWindow::DrawGeneralCategory()
 {
-	ImGui::SeparatorText(Loc::Text(EditorLocKeys::BuildSettingsGeneral));
+	ImSectionHeader(Loc::Text(EditorLocKeys::BuildSettingsGeneral)).Draw();
 
 	ImGui::Utillity::FormLayout layout("##build_settings_general", 4.0f, { 2.0f, 1.0f }, 150.0f);
 	layout.Row(
@@ -335,7 +333,7 @@ void CBuildSettingsWindow::DrawGeneralCategory()
 
 void CBuildSettingsWindow::DrawWindowsCategory()
 {
-	ImGui::SeparatorText(Loc::Text(EditorLocKeys::BuildSettingsWindows));
+	ImSectionHeader(Loc::Text(EditorLocKeys::BuildSettingsWindows)).Draw();
 	if (false == m_enableWindows)
 	{
 		ImGui::TextDisabled("%s", Loc::Text(EditorLocKeys::BuildSettingsPlatformInactive));
@@ -353,7 +351,7 @@ void CBuildSettingsWindow::DrawWindowsCategory()
 
 void CBuildSettingsWindow::DrawWebCategory()
 {
-	ImGui::SeparatorText(Loc::Text(EditorLocKeys::BuildSettingsWeb));
+	ImSectionHeader(Loc::Text(EditorLocKeys::BuildSettingsWeb)).Draw();
 	if (false == m_enableWeb)
 	{
 		ImGui::TextDisabled("%s", Loc::Text(EditorLocKeys::BuildSettingsPlatformInactive));
@@ -365,7 +363,7 @@ void CBuildSettingsWindow::DrawWebCategory()
 
 void CBuildSettingsWindow::DrawAndroidCategory()
 {
-	ImGui::SeparatorText(Loc::Text(EditorLocKeys::BuildSettingsAndroid));
+	ImSectionHeader(Loc::Text(EditorLocKeys::BuildSettingsAndroid)).Draw();
 	if (false == m_enableAndroid)
 	{
 		ImGui::TextDisabled("%s", Loc::Text(EditorLocKeys::BuildSettingsPlatformInactive));
@@ -446,7 +444,7 @@ void CBuildSettingsWindow::DrawAndroidCategory()
 
 void CBuildSettingsWindow::DrawIOSCategory()
 {
-	ImGui::SeparatorText(Loc::Text(EditorLocKeys::BuildSettingsIos));
+	ImSectionHeader(Loc::Text(EditorLocKeys::BuildSettingsIos)).Draw();
 	if (false == m_enableIOS)
 	{
 		ImGui::TextDisabled("%s", Loc::Text(EditorLocKeys::BuildSettingsPlatformInactive));
@@ -545,7 +543,7 @@ void CBuildSettingsWindow::DrawWindowsIconSelector()
 
 void CBuildSettingsWindow::DrawScenesCategory()
 {
-	ImGui::SeparatorText(Loc::Text(EditorLocKeys::BuildSettingsScenes));
+	ImSectionHeader(Loc::Text(EditorLocKeys::BuildSettingsScenes)).Draw();
 
 	ImGui::Utillity::FormLayout layout("##build_settings_scenes", 4.0f, { 2.0f, 1.0f }, 150.0f);
 	layout.Row(
@@ -594,7 +592,7 @@ void CBuildSettingsWindow::DrawScenesCategory()
 	ImGui::Utillity::HoveredToolTip(Loc::Text(EditorLocKeys::BuildSettingsUseCurrentSceneDesc));
 
 	ImGui::Spacing();
-	ImGui::SeparatorText(Loc::Text(EditorLocKeys::BuildSettingsBuildScenes));
+	ImSectionHeader(Loc::Text(EditorLocKeys::BuildSettingsBuildScenes)).SpacingBefore(true).Draw();
 	ImGui::BeginChild("##build_scenes", ImVec2(0.0f, 150.0f), true);
 	for (std::size_t i = 0; i < m_buildScenes.size();)
 	{
@@ -639,7 +637,7 @@ void CBuildSettingsWindow::DrawScenesCategory()
 
 void CBuildSettingsWindow::DrawOutputCategory()
 {
-	ImGui::SeparatorText(Loc::Text(EditorLocKeys::BuildSettingsOutput));
+	ImSectionHeader(Loc::Text(EditorLocKeys::BuildSettingsOutput)).Draw();
 
 	ImGui::Utillity::FormLayout layout("##build_settings_output", 4.0f, { 2.0f, 1.0f }, 150.0f);
 	layout.Row(
@@ -678,11 +676,17 @@ void CBuildSettingsWindow::DrawFooterButtons()
 {
 	if (false == m_errorMessage.empty())
 	{
-		ImGui::TextColored(ImVec4(0.95f, 0.35f, 0.30f, 1.0f), "%s", m_errorMessage.c_str());
+		ImValidationMessage(m_errorMessage.c_str(), EImValidationSeverity::Error).Draw();
 	}
 
-	const bool applied = ImGui::Button(Loc::Text(EditorLocKeys::CommonApply), { 100.0f, 0.0f });
-	ImGui::Utillity::HoveredToolTip(Loc::Text(EditorLocKeys::BuildSettingsApplyDesc));
+	const bool applied = ImActionButton(Loc::Text(EditorLocKeys::CommonApply))
+		.Severity(EImValidationSeverity::Success)
+		.Size({ 100.0f, 0.0f })
+		.Tooltip(EditorSimulationGuard::CanSaveProject()
+			? Loc::Text(EditorLocKeys::BuildSettingsApplyDesc)
+			: EditorSimulationGuard::GetSaveBlockedMessage())
+		.Disabled(false == EditorSimulationGuard::CanSaveProject())
+		.Draw();
 	if (applied)
 	{
 		std::string error;
@@ -697,8 +701,10 @@ void CBuildSettingsWindow::DrawFooterButtons()
 	}
 
 	ImGui::SameLine();
-	const bool cancelled = ImGui::Button(Loc::Text(EditorLocKeys::CommonCancel), { 100.0f, 0.0f });
-	ImGui::Utillity::HoveredToolTip(Loc::Text(EditorLocKeys::BuildSettingsCancelDesc));
+	const bool cancelled = ImActionButton(Loc::Text(EditorLocKeys::CommonCancel))
+		.Size({ 100.0f, 0.0f })
+		.Tooltip(Loc::Text(EditorLocKeys::BuildSettingsCancelDesc))
+		.Draw();
 	if (cancelled)
 	{
 		LoadFromProject();
@@ -740,6 +746,12 @@ void CBuildSettingsWindow::LoadFromProject()
 
 bool CBuildSettingsWindow::ApplyToProject(std::string* outError)
 {
+	if (false == EditorSimulationGuard::CanSaveProject())
+	{
+		if (outError) *outError = EditorSimulationGuard::GetSaveBlockedMessage();
+		return false;
+	}
+
 	SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
 	if (false == pm.IsValid())
 	{

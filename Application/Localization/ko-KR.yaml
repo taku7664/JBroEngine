@@ -199,6 +199,8 @@ Entries:
   build_settings.apply_required: 빌드 설정 적용 필요
   build_settings.apply_required_body: 빌드 설정에 저장되지 않은 변경 사항이 있습니다. 빌드 세팅 창에서 적용을 누른 뒤 다시 빌드하세요.
   build_settings.required_missing_body: 필수 빌드 설정이 비어 있거나 올바르지 않습니다. 빨간색으로 표시된 항목을 수정한 뒤 다시 빌드하세요.
+  editor.simulation.save_blocked: 게임 시뮬레이션 중에는 프로젝트를 저장할 수 없습니다. 시뮬레이션을 중단한 뒤 다시 시도하세요.
+  editor.simulation.build_blocked: 게임 시뮬레이션 중에는 빌드를 시작할 수 없습니다. 시뮬레이션을 중단한 뒤 다시 시도하세요.
   build.progress.title: 게임 빌드
   build.progress.body: 게임 빌드를 생성하는 중입니다.
   build.progress.validate: 빌드 설정 검증

@@ -8,9 +8,11 @@
 
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
 #include "Editor/Editor.h"
+#include "Editor/EditorSimulationGuard.h"
 #include "Editor/Localization/EditorLocalizationKeys.h"
 #include "Editor/Theme/EditorTheme.h"
 #include "Editor/Gui/EditorGuiActions.h"
+#include "Editor/Gui/EditorWidgets.h"
 #include "Editor/RootDockWindow.h"
 #include "Editor/Main/MainDockWindow.h"
 

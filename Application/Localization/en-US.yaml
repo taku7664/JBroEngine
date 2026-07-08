@@ -199,6 +199,8 @@ Entries:
   build_settings.apply_required: Apply Build Settings
   build_settings.apply_required_body: Build settings have unsaved changes. Press Apply in the Build Settings window, then build again.
   build_settings.required_missing_body: Required build settings are empty or invalid. Fix the red fields, then build again.
+  editor.simulation.save_blocked: Project saving is disabled while game simulation is running. Stop simulation, then try again.
+  editor.simulation.build_blocked: Game builds are disabled while game simulation is running. Stop simulation, then try again.
   build.progress.title: Game Build
   build.progress.body: Creating game build.
   build.progress.validate: Validate build settings

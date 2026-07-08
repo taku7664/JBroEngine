@@ -8,13 +8,11 @@
 
 #include "Editor/Editor.h"
 #include "Editor/EditorContext.h"
-#include "Editor/EditorDragDrop.h"
 #include "Engine/Editor/ImEditor.h"
 #include "Engine/Editor/Project/ProjectManager.h"
 
 #include "Core/Input/InputAction.h"
 #include "Core/Input/InputTypes.h"
-#include "ThirdParty/magic_enum/magic_enum.hpp"
 
 namespace
 {
@@ -35,44 +33,19 @@ namespace
         }
     }
 
-    ImVec4 ToScriptStateColor(ELiveCompileState state)
+    EImValidationSeverity ToScriptStateSeverity(ELiveCompileState state)
     {
         switch (state)
         {
         case ELiveCompileState::Loaded:
-            return ImVec4(0.4f, 0.9f, 0.5f, 1.0f);
+            return EImValidationSeverity::Success;
         case ELiveCompileState::Failed:
-            return ImVec4(0.95f, 0.35f, 0.3f, 1.0f);
+            return EImValidationSeverity::Error;
         case ELiveCompileState::Compiling:
-            return ImVec4(0.9f, 0.75f, 0.35f, 1.0f);
+            return EImValidationSeverity::Warning;
         default:
-            return ImVec4(0.7f, 0.7f, 0.7f, 1.0f);
+            return EImValidationSeverity::Info;
         }
-    }
-
-    // ── InputMap 편집 콤보 (magic_enum, 에디터 호스트) ────────────────────────────
-    // enum 값 콤보. 변경되면 true.
-    template<typename E>
-    bool EnumCombo(const char* id, E& value)
-    {
-        const std::string current(magic_enum::enum_name(value));
-        bool changed = false;
-        if (ImGui::BeginCombo(id, current.c_str()))
-        {
-            for (const E candidate : magic_enum::enum_values<E>())
-            {
-                const bool selected = (candidate == value);
-                const std::string name(magic_enum::enum_name(candidate));
-                if (ImGui::Selectable(name.c_str(), selected))
-                {
-                    value   = candidate;
-                    changed = true;
-                }
-                if (selected) ImGui::SetItemDefaultFocus();
-            }
-            ImGui::EndCombo();
-        }
-        return changed;
     }
 
     // 특정 enum 타입의 이름 콤보로 int code 를 편집. 변경되면 true.
@@ -80,7 +53,7 @@ namespace
     bool CodeComboFor(const char* id, int& code)
     {
         E current = static_cast<E>(code);
-        if (EnumCombo<E>(id, current))
+        if (ImEnumCombo<E>(id, current).Draw())
         {
             code = static_cast<int>(current);
             return true;
@@ -253,7 +226,7 @@ void CProjectSettingsWindow::DrawCategoryContent(float)
 
 void CProjectSettingsWindow::DrawCategoryGeneral()
 {
-    ImGui::SeparatorText(Loc::Text(EditorLocKeys::ProjectSettingsResolution));
+    ImSectionHeader(Loc::Text(EditorLocKeys::ProjectSettingsResolution)).Draw();
     {
         ImGui::Utillity::FormLayout layout("##ps_general_resolution", 4.0f, {2.0f, 1.0f}, 120.0f);
         layout.Row(
@@ -274,8 +247,7 @@ void CProjectSettingsWindow::DrawCategoryGeneral()
     if (m_editResW < 1) m_editResW = 1;
     if (m_editResH < 1) m_editResH = 1;
 
-    ImGui::Spacing();
-    ImGui::SeparatorText(Loc::Text(EditorLocKeys::ProjectSettingsCoordinates));
+    ImSectionHeader(Loc::Text(EditorLocKeys::ProjectSettingsCoordinates)).SpacingBefore(true).Draw();
     {
         ImGui::Utillity::FormLayout layout("##ps_general_coords", 4.0f, {2.0f, 1.0f}, 120.0f);
         layout.Row(
@@ -295,7 +267,7 @@ void CProjectSettingsWindow::DrawCategoryScript()
 {
     SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
 
-    ImGui::SeparatorText(Loc::Text(EditorLocKeys::ProjectSettingsScript));
+    ImSectionHeader(Loc::Text(EditorLocKeys::ProjectSettingsScript)).Draw();
 
     {
         ImGui::Utillity::FormLayout layout("##ps_script_form", 4.0f, {2.0f, 1.0f}, 140.0f);
@@ -332,7 +304,12 @@ void CProjectSettingsWindow::DrawCategoryScript()
                 label.SetHoveredTooltip(Loc::Text(EditorLocKeys::ProjectSettingsScriptStateDesc));
                 label(Loc::Text(EditorLocKeys::ProjectSettingsScriptState));
             },
-            [&]() { ImGui::TextColored(ToScriptStateColor(liveState), "%s", ToScriptStateText(liveState)); });
+            [&]() {
+                ImStatusBadge(ToScriptStateText(liveState))
+                    .Severity(ToScriptStateSeverity(liveState))
+                    .Tooltip(Loc::Text(EditorLocKeys::ProjectSettingsScriptStateDesc))
+                    .Draw();
+            });
 
         // 자동 리빌드
         layout.Row(
@@ -342,6 +319,11 @@ void CProjectSettingsWindow::DrawCategoryScript()
                 label(Loc::Text(EditorLocKeys::ProjectSettingsScriptAutoRebuild));
             },
             [&]() {
+                const bool saveBlocked = false == EditorSimulationGuard::CanSaveProject();
+                if (saveBlocked)
+                {
+                    ImGui::BeginDisabled();
+                }
                 if (ImGui::Checkbox("##ps.script_auto_rebuild", &m_scriptAutoRebuildEnabled))
                 {
                     if (pm)
@@ -358,11 +340,25 @@ void CProjectSettingsWindow::DrawCategoryScript()
                         }
                     }
                 }
+                if (saveBlocked)
+                {
+                    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+                    {
+                        ImGui::SetTooltip("%s", EditorSimulationGuard::GetSaveBlockedMessage());
+                    }
+                    ImGui::EndDisabled();
+                }
             });
     }
 
     ImGui::Spacing();
-    if (ImGui::Button(Loc::Text(EditorLocKeys::ProjectSettingsScriptRebuild)))
+    const bool buildBlocked = false == EditorSimulationGuard::CanBuildProject();
+    if (ImActionButton(Loc::Text(EditorLocKeys::ProjectSettingsScriptRebuild))
+        .Tooltip(buildBlocked
+            ? EditorSimulationGuard::GetBuildBlockedMessage()
+            : Loc::Text(EditorLocKeys::ProjectSettingsScriptRebuildDesc))
+        .Disabled(buildBlocked)
+        .Draw())
     {
         if (pm)
         {
@@ -371,7 +367,6 @@ void CProjectSettingsWindow::DrawCategoryScript()
             pm->RebuildScriptModule();
         }
     }
-    ImGui::Utillity::HoveredToolTip(Loc::Text(EditorLocKeys::ProjectSettingsScriptRebuildDesc));
 
     ImGui::SameLine();
     if (ImGui::Button(Loc::Text(EditorLocKeys::CommonUnload)))
@@ -383,7 +378,7 @@ void CProjectSettingsWindow::DrawCategoryScript()
 
 void CProjectSettingsWindow::DrawCategoryInput()
 {
-    ImGui::SeparatorText(Loc::Text(EditorLocKeys::ProjectSettingsInputTitle));
+    ImSectionHeader(Loc::Text(EditorLocKeys::ProjectSettingsInputTitle)).Draw();
     ImGui::TextWrapped("%s", Loc::Text(EditorLocKeys::ProjectSettingsInputDesc));
     ImGui::Spacing();
 
@@ -428,7 +423,7 @@ void CProjectSettingsWindow::DrawCategoryInput()
 
     // ── 액션 맵 (이름 기반 액션 → 바인딩) ─────────────────────────────────────────
     ImGui::Spacing();
-    ImGui::SeparatorText(Loc::Text(EditorLocKeys::ProjectSettingsInputActionsTitle));
+    ImSectionHeader(Loc::Text(EditorLocKeys::ProjectSettingsInputActionsTitle)).SpacingBefore(true).Draw();
     ImGui::TextWrapped("%s", Loc::Text(EditorLocKeys::ProjectSettingsInputActionsDesc));
     ImGui::Spacing();
 
@@ -460,7 +455,7 @@ void CProjectSettingsWindow::DrawCategoryInput()
             ImGui::TextUnformatted(Loc::Text(EditorLocKeys::ProjectSettingsInputActionType));
             ImGui::SameLine();
             ImGui::SetNextItemWidth(120.0f);
-            EnumCombo<EInputActionValueType>("##type", action.Type);
+            ImEnumCombo<EInputActionValueType>("##type", action.Type).Draw();
             ImGui::SameLine();
             if (ImGui::SmallButton(Loc::Text(EditorLocKeys::ProjectSettingsInputRemoveAction)))
             {
@@ -475,7 +470,7 @@ void CProjectSettingsWindow::DrawCategoryInput()
                 ImGui::PushID(b);
 
                 ImGui::SetNextItemWidth(130.0f);
-                EnumCombo<EInputBindingSource>("##src", binding.Source);
+                ImEnumCombo<EInputBindingSource>("##src", binding.Source).Draw();
                 ImGui::SameLine();
                 ImGui::SetNextItemWidth(140.0f);
                 BindingCodeCombo("##code", binding.Source, binding.Code);
@@ -487,7 +482,7 @@ void CProjectSettingsWindow::DrawCategoryInput()
                 {
                     ImGui::SameLine();
                     ImGui::SetNextItemWidth(90.0f);
-                    EnumCombo<EInputComposite>("##comp", binding.Composite);
+                    ImEnumCombo<EInputComposite>("##comp", binding.Composite).Draw();
                 }
                 ImGui::SameLine();
                 if (ImGui::SmallButton("X"))
@@ -532,7 +527,7 @@ void CProjectSettingsWindow::DrawCategoryInput()
 
 void CProjectSettingsWindow::DrawCategoryLocalization()
 {
-    ImGui::SeparatorText(Loc::Text(EditorLocKeys::ProjectSettingsLocalization));
+    ImSectionHeader(Loc::Text(EditorLocKeys::ProjectSettingsLocalization)).Draw();
 
     if (false == Engine.Localization.IsValid())
     {
@@ -579,7 +574,7 @@ void CProjectSettingsWindow::DrawCategoryLocalization()
 
 void CProjectSettingsWindow::DrawCategoryAudio()
 {
-    ImGui::SeparatorText(Loc::Text(EditorLocKeys::ProjectSettingsAudio));
+    ImSectionHeader(Loc::Text(EditorLocKeys::ProjectSettingsAudio)).Draw();
 
     {
         ImGui::Utillity::FormLayout layout("##ps_audio_form", 4.0f, {2.0f, 1.0f}, 140.0f);
@@ -600,37 +595,22 @@ void CProjectSettingsWindow::DrawCategoryAudio()
 
 void CProjectSettingsWindow::DrawCategoryFonts()
 {
-    auto drawFamilyField = [](const char* id, AssetGuid& guid)
-    {
-        const File::Path path = guid.IsNull() ? File::NULL_PATH : File::ResolvePath(guid);
-        const std::string label = guid.IsNull() ? Loc::Text(EditorLocKeys::InspectorRefNone)
-            : (path.IsNull() ? guid.generic_string() : path.filename().generic_string());
-        ImGui::Button((label + id).c_str(), ImVec2(-32.0f, 0.0f));
-        if (ImGui::BeginDragDropTarget())
-        {
-            EditorDragDrop::AssetPayload payload;
-            if (EditorDragDrop::AcceptAssetDragDropPayload(payload) && EAssetType::FontFamily == payload.Type)
-            {
-                guid = EditorDragDrop::GetGuid(payload);
-            }
-            ImGui::EndDragDropTarget();
-        }
-        ImGui::SameLine();
-        if (ImGui::SmallButton((std::string("X") + id).c_str())) guid = INVALID_ASSET_GUID;
-    };
-
-    ImGui::SeparatorText(Loc::Text(EditorLocKeys::ProjectSettingsFonts));
-    ImGui::TextWrapped("%s", Loc::Text(EditorLocKeys::ProjectSettingsFontsDesc));
-    ImGui::Spacing();
+    ImSectionHeader(Loc::Text(EditorLocKeys::ProjectSettingsFonts))
+        .Description(Loc::Text(EditorLocKeys::ProjectSettingsFontsDesc))
+        .Draw();
     ImGui::TextUnformatted(Loc::Text(EditorLocKeys::ProjectSettingsFontsDefault));
-    drawFamilyField("##default_font_family", m_editDefaultFontFamily);
+    ImAssetField("##default_font_family", m_editDefaultFontFamily)
+        .Type(EAssetType::FontFamily)
+        .Draw();
 
     ImGui::Spacing();
     ImGui::TextUnformatted(Loc::Text(EditorLocKeys::ProjectSettingsFontsFallbacks));
     for (std::size_t index = 0; index < m_editFallbackFontFamilies.size(); ++index)
     {
         ImGui::PushID(static_cast<int>(index));
-        drawFamilyField("##fallback_font", m_editFallbackFontFamilies[index]);
+        ImAssetField("##fallback_font", m_editFallbackFontFamilies[index])
+            .Type(EAssetType::FontFamily)
+            .Draw();
         if (index > 0)
         {
             ImGui::SameLine();
@@ -653,7 +633,7 @@ void CProjectSettingsWindow::DrawCategoryFonts()
 
 void CProjectSettingsWindow::DrawCategoryDebug()
 {
-    ImGui::SeparatorText(Loc::Text(EditorLocKeys::ProjectSettingsDebug));
+    ImSectionHeader(Loc::Text(EditorLocKeys::ProjectSettingsDebug)).Draw();
 
     ImGui::Utillity::FormLayout layout("##ps_debug_form", 4.0f, {2.0f, 1.0f}, 140.0f);
     layout.Row(
@@ -667,7 +647,7 @@ void CProjectSettingsWindow::DrawCategoryDebug()
 
 void CProjectSettingsWindow::DrawCategoryAssetWatcher()
 {
-    ImGui::SeparatorText(Loc::Text(EditorLocKeys::ProjectSettingsAssetWatcherTitle));
+    ImSectionHeader(Loc::Text(EditorLocKeys::ProjectSettingsAssetWatcherTitle)).Draw();
     ImGui::TextWrapped("%s", Loc::Text(EditorLocKeys::ProjectSettingsAssetWatcherDesc));
     ImGui::Spacing();
 
@@ -717,13 +697,25 @@ void CProjectSettingsWindow::DrawFooterButtons()
 
     if (false == m_errorMessage.empty())
     {
-        ImGui::TextColored(ImVec4(0.95f, 0.35f, 0.30f, 1.0f), "%s", m_errorMessage.c_str());
+        ImValidationMessage(m_errorMessage.c_str(), EImValidationSeverity::Error).Draw();
     }
 
-    const bool applied = ImGui::Button(Loc::Text(EditorLocKeys::CommonApply), { 100.0f, 0.0f });
-    ImGui::Utillity::HoveredToolTip(Loc::Text(EditorLocKeys::ProjectSettingsApplyDesc));
+    const bool applied = ImActionButton(Loc::Text(EditorLocKeys::CommonApply))
+        .Severity(EImValidationSeverity::Success)
+        .Size({ 100.0f, 0.0f })
+        .Tooltip(EditorSimulationGuard::CanSaveProject()
+            ? Loc::Text(EditorLocKeys::ProjectSettingsApplyDesc)
+            : EditorSimulationGuard::GetSaveBlockedMessage())
+        .Disabled(false == EditorSimulationGuard::CanSaveProject())
+        .Draw();
     if (applied)
     {
+        if (false == EditorSimulationGuard::CanSaveProject())
+        {
+            m_errorMessage = EditorSimulationGuard::GetSaveBlockedMessage();
+            return;
+        }
+
         if (pm)
         {
             pm->SetResolution(static_cast<std::uint32_t>(m_editResW),
@@ -762,8 +754,10 @@ void CProjectSettingsWindow::DrawFooterButtons()
         }
     }
     ImGui::SameLine();
-    const bool cancelled = ImGui::Button(Loc::Text(EditorLocKeys::CommonCancel), { 100.0f, 0.0f });
-    ImGui::Utillity::HoveredToolTip(Loc::Text(EditorLocKeys::ProjectSettingsCancelDesc));
+    const bool cancelled = ImActionButton(Loc::Text(EditorLocKeys::CommonCancel))
+        .Size({ 100.0f, 0.0f })
+        .Tooltip(Loc::Text(EditorLocKeys::ProjectSettingsCancelDesc))
+        .Draw();
     if (cancelled)
     {
         SetVisible(false);

@@ -1061,8 +1061,10 @@ void CAssetBrowserTool::DrawToolbar()
 	}
 
 	ImGui::SameLine();
-	ImGui::SetNextItemWidth(180.0f);
-	if (ImGui::InputTextWithHint("##AssetBrowserSearch", Loc::Text(EditorLocKeys::AssetBrowserSearch), &m_searchText))
+	if (ImSearchBox("##AssetBrowserSearch", m_searchText)
+		.Hint(Loc::Text(EditorLocKeys::AssetBrowserSearch))
+		.Width(180.0f)
+		.Draw())
 	{
 		m_filterDirty = true;
 	}
@@ -1950,7 +1952,9 @@ void CAssetBrowserTool::DrawDeleteConfirmPopup()
 		}
 		ImGui::Separator();
 
-		if (ImGui::Button(Loc::Text(EditorLocKeys::CommonDelete)))
+		if (ImActionButton(Loc::Text(EditorLocKeys::CommonDelete))
+			.Severity(EImValidationSeverity::Error)
+			.Draw())
 		{
 			for (const File::Path& target : m_deleteTargets)
 			{
@@ -1961,7 +1965,7 @@ void CAssetBrowserTool::DrawDeleteConfirmPopup()
 			ImGui::CloseCurrentPopup();
 		}
 		ImGui::SameLine();
-		if (ImGui::Button(Loc::Text(EditorLocKeys::CommonCancel)) || ImGui::IsKeyPressed(ImGuiKey_Escape))
+		if (ImActionButton(Loc::Text(EditorLocKeys::CommonCancel)).Draw() || ImGui::IsKeyPressed(ImGuiKey_Escape))
 		{
 			m_deleteTargets.clear();
 			ImGui::CloseCurrentPopup();
@@ -2240,7 +2244,7 @@ void CAssetBrowserTool::ShowNewScriptPopup(const File::Path& parentFolder)
 		}
 		if (false == allPropsValid)
 		{
-			ImGui::TextColored(ImVec4(0.95f, 0.45f, 0.45f, 1.0f), "%s", Loc::Text(EditorLocKeys::AssetBrowserScriptPopupInvalidProps));
+			ImValidationMessage(Loc::Text(EditorLocKeys::AssetBrowserScriptPopupInvalidProps), EImValidationSeverity::Error).Draw();
 		}
 
 		ImGui::Spacing();
@@ -2249,8 +2253,10 @@ void CAssetBrowserTool::ShowNewScriptPopup(const File::Path& parentFolder)
 		// ── 하단 버튼 ─────────────────────────────────────────────────────
 		// 클래스명이 유효 식별자이고, 모든 프로퍼티 이름이 유효+유일해야 생성 가능.
 		const bool canCreate = (false == classNameInvalid && allPropsValid);
-		ImGui::BeginDisabled(false == canCreate);
-		if (ImGui::Button(Loc::Text(EditorLocKeys::CommonCreate)))
+		if (ImActionButton(Loc::Text(EditorLocKeys::CommonCreate))
+			.Severity(EImValidationSeverity::Success)
+			.Disabled(false == canCreate)
+			.Draw())
 		{
 			File::Path hPath, cppPath;
 			if (ResolveScriptPaths(state->ParentFolder, state->ClassName, hPath, cppPath))
@@ -2267,9 +2273,8 @@ void CAssetBrowserTool::ShowNewScriptPopup(const File::Path& parentFolder)
 			}
 			popup.Close();
 		}
-		ImGui::EndDisabled();
 		ImGui::SameLine();
-		if (ImGui::Button(Loc::Text(EditorLocKeys::CommonCancel)))
+		if (ImActionButton(Loc::Text(EditorLocKeys::CommonCancel)).Draw())
 		{
 			popup.Close();
 		}

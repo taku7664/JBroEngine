@@ -73,6 +73,12 @@ namespace
 bool EditorSessionPersistence::Save(std::string& outError)
 {
 	outError.clear();
+	if (false == EditorSimulationGuard::CanSaveProject())
+	{
+		outError = EditorSimulationGuard::GetSaveBlockedMessage();
+		return false;
+	}
+
 	if (false == SaveActiveScene(outError))
 	{
 		return false;

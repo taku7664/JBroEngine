@@ -330,6 +330,7 @@ xcopy /Y /I /E "$(ProjectDir)Localization" "$(SolutionDir)Localization\" &gt; nu
     <ClInclude Include="Editor\Main\Guizmo\Guizmo3D.h" />
     <ClInclude Include="Editor\Main\Guizmo\GuizmoTypes.h" />
     <ClInclude Include="Editor\Gui\EditorGuiActions.h" />
+    <ClInclude Include="Editor\Gui\EditorWidgets.h" />
     <ClInclude Include="Editor\Localization\EditorLocalizationKeys.h" />
     <ClInclude Include="Editor\Localization\EditorReflectionLabels.h" />
     <ClInclude Include="Editor\EditorDragDrop.h" />
@@ -338,6 +339,7 @@ xcopy /Y /I /E "$(ProjectDir)Localization" "$(SolutionDir)Localization\" &gt; nu
     <ClInclude Include="Editor\Script\ScriptSchemaWidgets.h" />
     <ClInclude Include="Editor\Editor.h" />
     <ClInclude Include="Editor\EditorContext.h" />
+    <ClInclude Include="Editor\EditorSimulationGuard.h" />
     <ClInclude Include="Editor\EditorSessionPersistence.h" />
     <ClInclude Include="Editor\Path\EditorPathUtils.h" />
     <ClInclude Include="Editor\Shortcut\EditorShortcutManager.h" />
@@ -402,6 +404,9 @@ xcopy /Y /I /E "$(ProjectDir)Localization" "$(SolutionDir)Localization\" &gt; nu
     <ClCompile Include="Editor\Gui\EditorGuiActions.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
+    <ClCompile Include="Editor\Gui\EditorWidgets.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="Editor\Localization\EditorReflectionLabels.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
@@ -413,6 +418,9 @@ xcopy /Y /I /E "$(ProjectDir)Localization" "$(SolutionDir)Localization\" &gt; nu
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="Editor\EditorContext.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Editor\EditorSimulationGuard.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="Editor\EditorSessionPersistence.cpp">

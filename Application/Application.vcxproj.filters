@@ -60,6 +60,9 @@
     <ClInclude Include="Editor\Gui\EditorGuiActions.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
+    <ClInclude Include="Editor\Gui\EditorWidgets.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
     <ClInclude Include="Editor\Localization\EditorLocalizationKeys.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
@@ -79,6 +82,9 @@
       <Filter>헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="Editor\EditorContext.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\EditorSimulationGuard.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="Editor\EditorSessionPersistence.h">
@@ -206,6 +212,9 @@
     <ClCompile Include="Editor\Gui\EditorGuiActions.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
+    <ClCompile Include="Editor\Gui\EditorWidgets.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
     <ClCompile Include="Editor\Localization\EditorReflectionLabels.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
@@ -246,6 +255,9 @@
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="Editor\EditorContext.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\EditorSimulationGuard.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="Editor\EditorSessionPersistence.cpp">

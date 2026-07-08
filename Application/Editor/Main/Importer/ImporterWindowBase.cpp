@@ -30,7 +30,7 @@ void CImporterWindowBase::OnRenderStay()
 	DrawSourceRow();   // source + destination 두 행을 FormLayout 으로 함께 그린다.
 
 	ImGui::Spacing();
-	ImGui::SeparatorText(Loc::Text(EditorLocKeys::ImporterOptions));
+	ImSectionHeader(Loc::Text(EditorLocKeys::ImporterOptions)).Draw();
 	DrawImportOptions();
 
 	ImGui::Spacing();
@@ -39,10 +39,10 @@ void CImporterWindowBase::OnRenderStay()
 
 	if (false == m_lastMessage.empty())
 	{
-		const ImVec4 color = m_lastMessageIsError
-			? ImVec4(0.9f, 0.3f, 0.3f, 1.0f)
-			: ImVec4(0.3f, 0.9f, 0.3f, 1.0f);
-		ImGui::TextColored(color, "%s", m_lastMessage.c_str());
+		ImValidationMessage(
+			m_lastMessage.c_str(),
+			m_lastMessageIsError ? EImValidationSeverity::Error : EImValidationSeverity::Success)
+			.Draw();
 	}
 }
 
@@ -111,9 +111,12 @@ void CImporterWindowBase::DrawImportButton()
 	const std::string destRel   (m_destPathBuf.data());
 
 	const bool canImport = projectLoaded && false == sourcePath.empty() && false == destRel.empty();
-	ImGui::BeginDisabled(false == canImport);
-	const bool importPressed = ImGui::Button(Loc::Text(EditorLocKeys::ImporterImport), { 120.0f, 0.0f });
-	ImGui::Utillity::HoveredToolTip(Loc::Text(EditorLocKeys::ImporterImportDesc));
+	const bool importPressed = ImActionButton(Loc::Text(EditorLocKeys::ImporterImport))
+		.Severity(EImValidationSeverity::Success)
+		.Size({ 120.0f, 0.0f })
+		.Tooltip(Loc::Text(EditorLocKeys::ImporterImportDesc))
+		.Disabled(false == canImport)
+		.Draw();
 	if (importPressed)
 	{
 		m_lastMessage.clear();
@@ -179,7 +182,6 @@ void CImporterWindowBase::DrawImportButton()
 			}
 		}
 	}
-	ImGui::EndDisabled();
 
 	if (false == projectLoaded)
 	{

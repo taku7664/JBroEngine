@@ -59,6 +59,16 @@ namespace
 	constexpr const char* PROJECT_KEY_WATCH_IGNORE      = "AssetWatchIgnorePatterns";
 	constexpr const char* PROJECT_KEY_INPUT_LAYERS      = "InputLayers";
 	constexpr const char* PROJECT_KEY_INPUT_ACTIONS     = "InputActions";
+	constexpr const char* PROJECT_SAVE_BLOCKED_DURING_SIMULATION =
+		"Project saving is disabled while game simulation is running.";
+	constexpr const char* SCRIPT_BUILD_BLOCKED_DURING_SIMULATION =
+		"Script build is disabled while game simulation is running.";
+
+	bool IsEditorSimulationActive()
+	{
+		return Engine.SceneManager.IsValid()
+			&& (Engine.SceneManager->IsSimulationPlaying() || Engine.SceneManager->IsSimulationPaused());
+	}
 
 	// ── InputMap 바인딩 Code ↔ 이름 (magic_enum, 호스트 전용) ─────────────────────
 	// Code 는 generic int 라 Source 로 분기해 해당 enum 으로 변환한다. enum 재정렬에도 안전.
@@ -2476,6 +2486,11 @@ bool CProjectManager::StartLiveCompile()
 	{
 		return false;
 	}
+	if (IsEditorSimulationActive())
+	{
+		CSystemLog::Warning(SCRIPT_BUILD_BLOCKED_DURING_SIMULATION);
+		return false;
+	}
 
 	m_info.ScriptAutoRebuildEnabled = true;
 	if (false == m_liveCompileManager->Initialize(BuildLiveCompileDesc()))
@@ -2510,6 +2525,11 @@ bool CProjectManager::RebuildScriptModule()
 	{
 		return false;
 	}
+	if (IsEditorSimulationActive())
+	{
+		CSystemLog::Warning(SCRIPT_BUILD_BLOCKED_DURING_SIMULATION);
+		return false;
+	}
 
 	if (ELiveCompileState::Idle == m_liveCompileManager->GetState()
 		|| ELiveCompileState::Failed == m_liveCompileManager->GetState())
@@ -2535,6 +2555,10 @@ bool CProjectManager::RebuildScriptModule()
 bool CProjectManager::RebuildScriptModuleOnFocus()
 {
 	if (false == m_isProjectLoaded || !m_liveCompileManager)
+	{
+		return false;
+	}
+	if (IsEditorSimulationActive())
 	{
 		return false;
 	}
@@ -2690,6 +2714,14 @@ bool CProjectManager::SaveProject(std::string* outError) const
 		if (outError)
 		{
 			*outError = "Project is not loaded.";
+		}
+		return false;
+	}
+	if (IsEditorSimulationActive())
+	{
+		if (outError)
+		{
+			*outError = PROJECT_SAVE_BLOCKED_DURING_SIMULATION;
 		}
 		return false;
 	}

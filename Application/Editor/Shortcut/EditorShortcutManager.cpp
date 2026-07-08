@@ -58,7 +58,9 @@ bool CEditorShortcutManager::CanExecute(EEditorShortcut shortcut) const
 	case EEditorShortcut::SaveProject:
 	{
 		SafePtr<CProjectManager> projectManager = EditorContext::GetProjectManager();
-		return projectManager.IsValid() && projectManager->IsProjectLoaded();
+		return projectManager.IsValid()
+			&& projectManager->IsProjectLoaded()
+			&& EditorSimulationGuard::CanSaveProject();
 	}
 	case EEditorShortcut::Undo:
 		return Editor::CommandManager.CanUndo();

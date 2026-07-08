@@ -13,6 +13,7 @@
 #include "Editor/ImItem/ImButton.h"
 #include "Editor/ImGuiUtillity.h"
 #include "Core/Localization/LocalizationManager.h"
+#include "Editor/Gui/EditorWidgets.h"
 #include "Editor/Script/ScriptSchema.h"
 #include "Editor/Icons/FontAwesomeIcons.h"
 #include "Editor/Localization/EditorLocalizationKeys.h"
@@ -34,37 +35,11 @@ namespace ScriptSchemaUI
 	// (ImGui 콤보 팝업은 동시에 하나만 열리므로 필터 버퍼는 정적 1개 공유.)
 	inline bool FilterableCombo(const char* id, int* current, const std::vector<std::string>& items)
 	{
-		bool changed = false;
-		const char* preview = (*current >= 0 && *current < static_cast<int>(items.size()))
-			? items[*current].c_str() : "";
-		// 드롭다운 스크롤바 숨김(휠 스크롤은 유지).
-		ImGui::Utillity::StyleBuilder comboStyle;
-		comboStyle.PushStyleVar(ImGuiStyleVar_ScrollbarSize, 0.0f);
-		if (ImGui::BeginCombo(id, preview))
-		{
-			static char filter[64] = "";
-			if (ImGui::IsWindowAppearing())
-			{
-				filter[0] = '\0';
-				ImGui::SetKeyboardFocusHere();
-			}
-			ImGui::SetNextItemWidth(-FLT_MIN);
-			ImGui::InputTextWithHint("##filter", Loc::Text(EditorLocKeys::CommonFilter), filter, sizeof(filter));
-			ImGui::Separator();
-			for (int i = 0; i < static_cast<int>(items.size()); ++i)
-			{
-				if (false == ScriptSchema::ContainsCaseInsensitive(items[i], filter)) continue;
-				const bool selected = (i == *current);
-				if (ImGui::Selectable(items[i].c_str(), selected))
-				{
-					*current = i;
-					changed = true;
-				}
-				if (selected) ImGui::SetItemDefaultFocus();
-			}
-			ImGui::EndCombo();
-		}
-		return changed;
+		return ImFilterCombo(id)
+			.Items(items)
+			.CurrentIndex(current)
+			.FilterHint(Loc::Text(EditorLocKeys::CommonFilter))
+			.Draw();
 	}
 
 	// 1차(타입) 콤보 + (Ref<Component>/Ref<Asset> 면) 2차(대상) 콤보. 변경 시 true.

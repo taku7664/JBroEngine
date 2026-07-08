@@ -400,6 +400,18 @@ bool CGameBuildManager::StartBuild(SafePtr<CProjectManager> projectManager, EBui
 		return false;
 	}
 
+	if (false == EditorSimulationGuard::CanBuildProject())
+	{
+		std::lock_guard lock(m_mutex);
+		m_state = EGameBuildState::Failed;
+		m_message = EditorSimulationGuard::GetBuildBlockedMessage();
+		m_tasks.clear();
+		m_completedCount = 0;
+		m_packageDirectory.clear();
+		m_logPath.clear();
+		return false;
+	}
+
 	std::string saveError;
 	if (false == EditorSessionPersistence::Save(saveError))
 	{

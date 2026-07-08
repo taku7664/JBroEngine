@@ -52,6 +52,7 @@
 #include <cstring>
 #include <fstream>
 #include <sstream>
+#include <utility>
 
 namespace
 {
@@ -302,27 +303,10 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 	template <typename AcceptFn, typename ClearFn>
 	bool DrawReferenceField(const std::string& label, bool isNull, AcceptFn&& accept, ClearFn&& clear)
 	{
-		bool changed = false;
-		const float clearW = ImGui::GetFrameHeight();
-		const float fullW  = ImGui::GetContentRegionAvail().x;
-		const float fieldW = std::max(1.0f, fullW - clearW - ImGui::GetStyle().ItemSpacing.x);
-
-		// 직접 편집 불가 표시 — 버튼처럼 보이되 클릭 동작 없음(드롭 타깃 전용).
-		ImGui::PushStyleColor(ImGuiCol_Button,        ImGui::GetStyleColorVec4(ImGuiCol_FrameBg));
-		ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImGui::GetStyleColorVec4(ImGuiCol_FrameBg));
-		ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImGui::GetStyleColorVec4(ImGuiCol_FrameBg));
-		ImGui::Button((label + "##reffield").c_str(), ImVec2(fieldW, 0.0f));
-		ImGui::PopStyleColor(3);
-
-		if (accept()) changed = true;   // 콜백이 Begin/EndDragDropTarget 까지 처리
-
-		ImGui::SameLine();
-		if (ImGui::Button("X", ImVec2(clearW, 0.0f)) && false == isNull)
-		{
-			clear();
-			changed = true;
-		}
-		return changed;
+		return ImReferenceField("##reference_field", label, isNull)
+			.OnAcceptDrop(std::forward<AcceptFn>(accept))
+			.OnClear(std::forward<ClearFn>(clear))
+			.Draw();
 	}
 
 	bool DrawPropertyEditor(void* field, const ReflectPropertyInfo& property, bool drawLabel = true)
@@ -412,33 +396,14 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			return ImGui::InputText("", static_cast<std::string*>(field));
 		case EReflectPropertyType::AssetGuid:
 		{
-			// 에셋 참조(엔진 컴포넌트의 File::Guid). 공유 위젯 + 에셋 페이로드만 수락.
+			// 에셋 참조(엔진 컴포넌트의 File::Guid). AssetField 가 표시/클리어/드롭 수락을 통합한다.
 			File::Guid* guid = static_cast<File::Guid*>(field);
-			std::string label;
-			if (guid->IsNull())
+			ImAssetField fieldWidget("##asset_guid", *guid);
+			if (property.Name && 0 == std::strcmp(property.Name, "FontFamilyGuid"))
 			{
-				label = Loc::Text(EditorLocKeys::InspectorRefNone);
+				fieldWidget.Type(EAssetType::FontFamily);
 			}
-			else
-			{
-				const File::Path& path = File::ResolvePath(*guid);
-				label = path.IsNull() ? guid->generic_string() : path.filename().generic_string();
-			}
-			return DrawReferenceField(
-				label, guid->IsNull(),
-				[&]() -> bool
-				{
-					EditorDragDrop::AssetPayload payload;
-					if (EditorDragDrop::AcceptAssetDragDropPayload(payload))
-					{
-						if (property.Name && 0 == std::strcmp(property.Name, "FontFamilyGuid")
-							&& EAssetType::FontFamily != payload.Type) return false;
-						*guid = EditorDragDrop::GetGuid(payload);
-						return true;
-					}
-					return false;
-				},
-				[&]() { *guid = File::NULL_GUID; });
+			return fieldWidget.Draw();
 		}
 		case EReflectPropertyType::Ref:
 		{
@@ -833,8 +798,10 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			if (effective.IsNull())
 			{
 				ImGui::Spacing();
-				ImGui::TextColored(ImVec4(1.0f, 0.55f, 0.2f, 1.0f), "%s", Loc::Text(EditorLocKeys::InspectorText2dFontMissing));
-				if (ImGui::Button(Loc::Text(EditorLocKeys::InspectorText2dOpenFontSettings)) && Editor::ProjectSettings)
+				ImValidationMessage(Loc::Text(EditorLocKeys::InspectorText2dFontMissing), EImValidationSeverity::Warning).Draw();
+				if (ImActionButton(Loc::Text(EditorLocKeys::InspectorText2dOpenFontSettings))
+					.Severity(EImValidationSeverity::Warning)
+					.Draw() && Editor::ProjectSettings)
 				{
 					Editor::ProjectSettings->SetVisible(true);
 					Editor::ProjectSettings->Focus();
@@ -897,7 +864,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		int gapX        = static_cast<int>(options.GapX);
 		int gapY        = static_cast<int>(options.GapY);
 
-		ImGui::SeparatorText(Loc::Text(EditorLocKeys::InspectorSpriteImportOptions));
+		ImSectionHeader(Loc::Text(EditorLocKeys::InspectorSpriteImportOptions)).Draw();
 
 		ImGui::Utillity::FormLayout layout("##sprite_import_options");
 		bool changed = false;
@@ -1000,7 +967,9 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		}
 
 		ImGui::BeginDisabled(false == s_dirty);
-		if (ImGui::Button(Loc::Text(EditorLocKeys::InspectorApplySpriteImportOptions)))
+		if (ImActionButton(Loc::Text(EditorLocKeys::InspectorApplySpriteImportOptions))
+			.Severity(EImValidationSeverity::Success)
+			.Draw())
 		{
 			if (SaveSpriteImportOptions(metaData, options))
 			{
@@ -1046,7 +1015,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		}
 		AudioImportOptions& options = s_options;
 
-		ImGui::SeparatorText(Loc::Text(EditorLocKeys::InspectorAudioImportOptions));
+		ImSectionHeader(Loc::Text(EditorLocKeys::InspectorAudioImportOptions)).Draw();
 
 		ImGui::Utillity::FormLayout layout("##audio_import_options");
 		bool changed = false;
@@ -1140,7 +1109,9 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		if (changed) s_dirty = true;
 
 		ImGui::BeginDisabled(false == s_dirty);
-		if (ImGui::Button(Loc::Text(EditorLocKeys::InspectorApplyAudioImportOptions)))
+		if (ImActionButton(Loc::Text(EditorLocKeys::InspectorApplyAudioImportOptions))
+			.Severity(EImValidationSeverity::Success)
+			.Draw())
 		{
 			if (SaveAudioImportOptions(metaData, options))
 			{
@@ -1216,16 +1187,17 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		}
 		if (false == allValid)
 		{
-			ImGui::TextColored(ImVec4(0.95f, 0.45f, 0.45f, 1.0f), "%s",
-				Loc::Text(EditorLocKeys::AssetBrowserScriptPopupInvalidProps));
+			ImValidationMessage(Loc::Text(EditorLocKeys::AssetBrowserScriptPopupInvalidProps), EImValidationSeverity::Error).Draw();
 		}
 
 		ImGui::Spacing();
 		ImGui::Separator();
 
 		// ── Apply / Reload ────────────────────────────────────────────────────
-		ImGui::BeginDisabled(false == allValid);
-		if (ImGui::Button(Loc::Text(EditorLocKeys::CommonApply)))
+		if (ImActionButton(Loc::Text(EditorLocKeys::CommonApply))
+			.Severity(EImValidationSeverity::Success)
+			.Disabled(false == allValid)
+			.Draw())
 		{
 			if (ScriptSchema::WriteHeaderFile(path, s_className, s_props))
 			{
@@ -1241,7 +1213,6 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 				s_status = Loc::Text(EditorLocKeys::InspectorScriptApplyFail);
 			}
 		}
-		ImGui::EndDisabled();
 		ImGui::SameLine();
 		if (ImGui::Button(Loc::Text(EditorLocKeys::CommonRefresh)))
 		{
@@ -1268,23 +1239,14 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 					data = static_cast<CFontFamilyAsset*>(asset.Get())->GetData();
 			}
 		}
-		auto drawAsset = [&](const char* id, AssetGuid& guid, EAssetType expected)
+		auto drawAsset = [](const char* id, AssetGuid& guid, EAssetType expected)
 		{
-			const File::Path path = guid.IsNull() ? File::NULL_PATH : File::ResolvePath(guid);
-			const std::string label = guid.IsNull() ? Loc::Text(EditorLocKeys::InspectorRefNone)
-				: (path.IsNull() ? guid.generic_string() : path.filename().generic_string());
-			return DrawReferenceField(label, guid.IsNull(), [&]()
-			{
-				EditorDragDrop::AssetPayload payload;
-				if (EditorDragDrop::AcceptAssetDragDropPayload(payload) && payload.Type == expected)
-				{
-					guid = EditorDragDrop::GetGuid(payload); return true;
-				}
-				return false;
-			}, [&]() { guid = INVALID_ASSET_GUID; });
+			return ImAssetField(id, guid)
+				.Type(expected)
+				.Draw();
 		};
 
-		ImGui::SeparatorText(Loc::Text(EditorLocKeys::InspectorFontFamilyTitle));
+		ImSectionHeader(Loc::Text(EditorLocKeys::InspectorFontFamilyTitle)).Draw();
 		ImGui::Utillity::FormLayout layout("##font_family");
 		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorFontFamilyRegular)); }, [&]() { ImGui::PushID("regular"); dirty |= drawAsset("##regular", data.Regular, EAssetType::FontFace); ImGui::PopID(); });
 		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorFontFamilyBold)); }, [&]() { ImGui::PushID("bold"); dirty |= drawAsset("##bold", data.Bold, EAssetType::FontFace); ImGui::PopID(); });
@@ -1301,7 +1263,9 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		}
 		if (ImGui::Button(Loc::Text(EditorLocKeys::InspectorFontFamilyAddFallback))) { data.FallbackFamilies.push_back(INVALID_ASSET_GUID); dirty = true; }
 		ImGui::BeginDisabled(false == dirty);
-		if (ImGui::Button(Loc::Text(EditorLocKeys::InspectorFontFamilyApply)))
+		if (ImActionButton(Loc::Text(EditorLocKeys::InspectorFontFamilyApply))
+			.Severity(EImValidationSeverity::Success)
+			.Draw())
 		{
 			std::ostringstream out;
 			out << "Regular: " << data.Regular.generic_string() << '\n';
@@ -1335,12 +1299,14 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 				try { faceIndex = std::max(0, std::stoi(yaml.substr(key + 10))); } catch (...) { faceIndex = 0; }
 			}
 		}
-		ImGui::SeparatorText(Loc::Text(EditorLocKeys::InspectorFontFaceTitle));
+		ImSectionHeader(Loc::Text(EditorLocKeys::InspectorFontFaceTitle)).Draw();
 		ImGui::Utillity::FormLayout layout("##font_face_import");
 		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorFontFaceFaceIndex)); },
 			[&]() { if (ImGui::InputInt("##font_face.face_index", &faceIndex)) { faceIndex = std::max(0, faceIndex); dirty = true; saved = false; } });
 		ImGui::BeginDisabled(false == dirty);
-		if (ImGui::Button(Loc::Text(EditorLocKeys::InspectorFontFaceApply)))
+		if (ImActionButton(Loc::Text(EditorLocKeys::InspectorFontFaceApply))
+			.Severity(EImValidationSeverity::Success)
+			.Draw())
 		{
 			File::Path resolvedMetaPath;
 			if (assetManager.ResolveAssetPath(metaData.MetaPath, resolvedMetaPath))
@@ -1886,34 +1852,14 @@ void CInspectorTool::OnRenderStay()
 				if (audioPlayer)
 				{
 					ImGui::Spacing();
-					ImGui::SeparatorText(Loc::Text(EditorLocKeys::InspectorAudioEffectChain));
+					ImSectionHeader(Loc::Text(EditorLocKeys::InspectorAudioEffectChain)).Draw();
 					ImList<AssetGuid>(
 						"##audio_effect_chain", audioPlayer->EffectGuids,
 						[](AssetGuid& effectGuid, int /*idx*/)
 						{
-							std::string label;
-							if (effectGuid.IsNull())
-							{
-								label = Loc::Text(EditorLocKeys::InspectorRefNone);
-							}
-							else
-							{
-								const File::Path& path = File::ResolvePath(effectGuid);
-								label = path.IsNull() ? effectGuid.generic_string() : path.filename().generic_string();
-							}
-							DrawReferenceField(
-								label, effectGuid.IsNull(),
-								[&]() -> bool
-								{
-									EditorDragDrop::AssetPayload payload;
-									if (EditorDragDrop::AcceptAssetDragDropPayload(payload))
-									{
-										effectGuid = EditorDragDrop::GetGuid(payload);
-										return true;
-									}
-									return false;
-								},
-								[&]() { effectGuid = File::NULL_GUID; });
+							ImAssetField("##audio_effect_asset", effectGuid)
+								.Type(EAssetType::AudioEffect)
+								.Draw();
 						},
 						INVALID_ASSET_GUID);
 				}

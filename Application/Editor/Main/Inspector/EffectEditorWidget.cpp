@@ -4,7 +4,6 @@
 #include "Editor/Editor.h"
 #include "Editor/EditorContext.h"
 #include "Editor/Path/EditorPathUtils.h"
-#include "Editor/EditorDragDrop.h"
 #include "Editor/Main/Inspector/EditorAudioPreview.h"
 #include "Engine/Editor/ImEditor.h"
 #include "Engine/Editor/Project/ProjectManager.h"
@@ -181,35 +180,25 @@ void CEffectEditorWidget::Draw()
 	}
 
 	ImGui::Separator();
-	ImGui::BeginDisabled(false == m_dirty);
-	if (ImGui::Button(Loc::Text(EditorLocKeys::InspectorEffectApply)))
+	if (ImActionButton(Loc::Text(EditorLocKeys::InspectorEffectApply))
+		.Severity(EImValidationSeverity::Success)
+		.Disabled(false == m_dirty)
+		.Draw())
 	{
 		if (SaveToDisk()) m_dirty = false;
 	}
-	ImGui::EndDisabled();
 
 	DrawPreview();
 }
 
 void CEffectEditorWidget::DrawPreview()
 {
-	ImGui::SeparatorText(Loc::Text(EditorLocKeys::InspectorEffectPreview));
+	ImSectionHeader(Loc::Text(EditorLocKeys::InspectorEffectPreview)).Draw();
 
 	// 테스트 사운드 슬롯 — 오디오 자산을 드래그&드롭.
-	std::string label = Loc::Text(EditorLocKeys::InspectorRefNone);
-	if (false == m_testSoundGuid.IsNull())
-	{
-		const File::Path& path = File::ResolvePath(m_testSoundGuid);
-		label = path.IsNull() ? m_testSoundGuid.generic_string() : path.filename().generic_string();
-	}
-	ImGui::Button(label.c_str(), ImVec2(-FLT_MIN, 0.0f));
-	// AcceptAssetDragDropPayload 가 내부에서 BeginDragDropTarget/End 를 처리한다.
-	// 여기서 또 감싸면 BeginDragDropTarget 중첩으로 imgui assert 크래시.
-	EditorDragDrop::AssetPayload payload;
-	if (EditorDragDrop::AcceptAssetDragDropPayload(payload))
-	{
-		m_testSoundGuid = EditorDragDrop::GetGuid(payload);
-	}
+	ImAssetField("##effect_preview_sound", m_testSoundGuid)
+		.Type(EAssetType::Audio)
+		.Draw();
 	ImGui::TextDisabled("%s", Loc::Text(EditorLocKeys::InspectorEffectPreviewHint));
 
 	// 재생 / 정지 — 현재 편집 중인 효과를 테스트 사운드에 적용해 재생.
