@@ -21,12 +21,12 @@ namespace
 		return static_cast<double>(1u << shift);
 	}
 
-	// 신뢰 헤더 기본 채움(Token 은 emit 콜백이 세팅).
-	UdpProto::UdpDatagramHeader MakeReliableHeader(std::uint32_t seq, std::uint16_t msgId)
+	// 신뢰 헤더 기본 채움(Token 은 emit 콜백이 세팅). 채널은 원 송신 채널을 보존해 전달.
+	UdpProto::UdpDatagramHeader MakeReliableHeader(std::uint32_t seq, std::uint16_t msgId, ENetChannel channel)
 	{
 		UdpProto::UdpDatagramHeader header;
 		header.Flags   = UdpProto::Flag_Reliable;
-		header.Channel = ENetChannel::ReliableOrdered;
+		header.Channel = channel;
 		header.Seq     = seq;
 		header.MsgId   = msgId;
 		return header;
@@ -36,12 +36,13 @@ namespace
 // ── 송신 ─────────────────────────────────────────────────────────────────────────
 
 void CReliableEndpoint::SendReliable(
-	std::uint16_t msgId, const void* data, std::uint32_t size, double nowMs, const FEmit& emit)
+	ENetChannel channel, std::uint16_t msgId, const void* data, std::uint32_t size, double nowMs, const FEmit& emit)
 {
 	const std::uint32_t seq = m_nextSeq++;
 
 	Outbound outbound;
 	outbound.MsgId      = msgId;
+	outbound.Channel    = channel;
 	outbound.LastSentMs = nowMs;
 	outbound.Sends      = 1;
 	outbound.Payload.resize(size);
@@ -50,7 +51,7 @@ void CReliableEndpoint::SendReliable(
 		std::memcpy(outbound.Payload.data(), data, size);
 	}
 
-	UdpProto::UdpDatagramHeader header = MakeReliableHeader(seq, msgId);
+	UdpProto::UdpDatagramHeader header = MakeReliableHeader(seq, msgId, channel);
 	emit(header, outbound.Payload.data(), size);
 
 	m_unacked.emplace(seq, std::move(outbound));
@@ -58,24 +59,22 @@ void CReliableEndpoint::SendReliable(
 
 // ── 수신 ─────────────────────────────────────────────────────────────────────────
 
-bool CReliableEndpoint::OnReliableReceived(std::uint32_t seq)
+void CReliableEndpoint::OnReliableReceived(std::uint32_t seq, ENetChannel channel,
+	std::uint16_t msgId, const std::uint8_t* payload, std::uint32_t size, const FDeliver& deliver)
 {
 	m_ackPending = true; // 신규든 중복이든 상대에게 수신 사실을 알린다(재전송 억제).
 
-	if (seq < m_recvNext)
+	// dedup — 이미 받은 seq 는 폐기(전달 안 함).
+	if (seq < m_recvNext || 0 != m_recvAhead.count(seq))
 	{
-		return false; // 누적 경계 아래 — 이미 전달됨.
-	}
-	if (0 != m_recvAhead.count(seq))
-	{
-		return false; // gap 위에서 이미 받은 것 — 중복.
+		return;
 	}
 
+	// 수신 워터마크 갱신.
 	if (seq == m_recvNext)
 	{
-		// 누적 경계 전진 + 뒤이어 붙은 연속분 흡수.
 		++m_recvNext;
-		while (0 != m_recvAhead.erase(m_recvNext))
+		while (0 != m_recvAhead.erase(m_recvNext)) // 뒤이어 붙은 연속분 흡수.
 		{
 			++m_recvNext;
 		}
@@ -84,7 +83,28 @@ bool CReliableEndpoint::OnReliableReceived(std::uint32_t seq)
 	{
 		m_recvAhead.insert(seq); // gap 위 — 선택 ack 로 보고.
 	}
-	return true; // 최초 수신 — 상위로 전달.
+
+	if (ENetChannel::ReliableUnordered == channel)
+	{
+		deliver(msgId, payload, size); // 순서 무관 — 즉시 전달.
+	}
+	else
+	{
+		// Ordered — 일단 버퍼. 아래 flush 가 워터마크까지 순서대로 방출.
+		Buffered buffered;
+		buffered.MsgId = msgId;
+		buffered.Payload.assign(payload, payload + size);
+		m_orderedPending.emplace(seq, std::move(buffered));
+	}
+
+	// Ordered flush: seq < m_recvNext(=앞선 seq 전부 수신) 인 것만 오름차순 방출.
+	for (auto it = m_orderedPending.begin();
+	     it != m_orderedPending.end() && it->first < m_recvNext; )
+	{
+		deliver(it->second.MsgId, it->second.Payload.data(),
+			static_cast<std::uint32_t>(it->second.Payload.size()));
+		it = m_orderedPending.erase(it);
+	}
 }
 
 void CReliableEndpoint::FillAck(UdpProto::UdpDatagramHeader& header) const
@@ -175,7 +195,7 @@ void CReliableEndpoint::Tick(double nowMs, const FEmit& emit)
 			continue;
 		}
 
-		UdpProto::UdpDatagramHeader header = MakeReliableHeader(entry.first, outbound.MsgId);
+		UdpProto::UdpDatagramHeader header = MakeReliableHeader(entry.first, outbound.MsgId, outbound.Channel);
 		emit(header, outbound.Payload.data(), static_cast<std::uint32_t>(outbound.Payload.size()));
 		outbound.LastSentMs = nowMs;
 		++outbound.Sends;
@@ -200,6 +220,7 @@ void CReliableEndpoint::Reset()
 	m_recvNext = 0;
 	m_recvAhead.clear();
 	m_ackPending = false;
+	m_orderedPending.clear();
 }
 
 #endif // !JBRO_PLATFORM_WEB

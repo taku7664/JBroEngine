@@ -14,8 +14,13 @@
 // 한 연결(서버-피어 하나 또는 클라-서버)의 신뢰 전달 엔진.
 // UDP 위에 재전송/ACK/dedup 을 얹어 신뢰 데이터그램을 유실이 있어도 정확히 한 번 전달한다.
 //
-// 3b 범위 = 유실 복구(재전송) + 정확히 한 번(dedup) + RTT 기반 RTO. 전달은 즉시(순서무관).
-//   ReliableOrdered 의 순서 보장(재정렬 버퍼)은 3c 에서 얹는다.
+// 전달 규율은 채널별:
+//   ReliableUnordered = 최초 수신 즉시 전달(HOL 회피).
+//   ReliableOrdered   = 재정렬 버퍼 — 앞선 seq 가 전부 수신될 때까지 보류 후 순서대로 방출.
+// 두 채널은 단일 신뢰 seq 공간을 공유한다. 순서 판정은 수신 워터마크(m_recvNext)로 한다:
+// seq S 의 Ordered 메시지는 seq<=S 가 전부 수신됐을 때(=m_recvNext>S) 방출 가능.
+//
+// 3b = 유실 복구(재전송) + 정확히 한 번(dedup) + RTT 기반 RTO. 3c = 위 순서 규율.
 //
 // 소켓을 직접 만지지 않는다 — 송출은 FEmit 콜백(UdpChannel 이 Token 세팅 + 엔드포인트로 SendTo).
 // 시간은 호출측이 밀리초로 주입(단일 시계 = UdpChannel::NowMs).
@@ -25,11 +30,16 @@ public:
 	// 신뢰 데이터그램 송출. header 는 Token 을 제외한 전 필드가 채워진 상태로 넘어온다.
 	using FEmit = std::function<void(UdpProto::UdpDatagramHeader& header, const void* payload, std::uint32_t size)>;
 
-	// 신뢰 메시지 큐잉 + 즉시 1회 송신. size 는 UDP_MAX_PAYLOAD 이하 가정(프래그먼트는 3d).
-	void SendReliable(std::uint16_t msgId, const void* data, std::uint32_t size, double nowMs, const FEmit& emit);
+	// 상위로 메시지를 전달(즉시 또는 순서 흐름에서). (msgId, payload, size).
+	using FDeliver = std::function<void(std::uint16_t msgId, const std::uint8_t* payload, std::uint32_t size)>;
 
-	// 수신한 신뢰 seq 처리. 반환 true = 최초 수신(상위로 전달), false = 중복(폐기). 항상 ack 예약.
-	bool OnReliableReceived(std::uint32_t seq);
+	// 신뢰 메시지 큐잉 + 즉시 1회 송신. size 는 UDP_MAX_PAYLOAD 이하 가정(프래그먼트는 3d).
+	void SendReliable(ENetChannel channel, std::uint16_t msgId, const void* data, std::uint32_t size,
+		double nowMs, const FEmit& emit);
+
+	// 수신한 신뢰 데이터그램 처리. dedup 후 채널 규율대로 deliver 콜백 호출(즉시/순서). 항상 ack 예약.
+	void OnReliableReceived(std::uint32_t seq, ENetChannel channel,
+		std::uint16_t msgId, const std::uint8_t* payload, std::uint32_t size, const FDeliver& deliver);
 
 	// 수신 데이터그램의 ack 필드 처리 → unacked 해제 + RTT 갱신.
 	void OnAck(std::uint32_t ackBase, std::uint32_t ackBits, double nowMs);
@@ -55,6 +65,7 @@ private:
 	{
 		std::vector<std::uint8_t> Payload;
 		std::uint16_t             MsgId      = 0;
+		ENetChannel               Channel    = ENetChannel::ReliableOrdered; // 재전송 시 원 채널 보존.
 		double                    LastSentMs = 0.0;
 		std::uint32_t             Sends      = 0; // 총 송신 횟수(1=최초). Karn: 1 일 때만 RTT 표본.
 	};
@@ -67,9 +78,13 @@ private:
 	bool   m_haveRtt = false;
 
 	// ── 수신측 ──
-	std::uint32_t           m_recvNext = 0;     // 이 미만 seq 는 전부 수신/전달됨(누적 경계).
+	std::uint32_t           m_recvNext = 0;     // 이 미만 seq 는 전부 수신됨(누적 경계 = 순서 워터마크).
 	std::set<std::uint32_t> m_recvAhead;        // gap 위로 수신한 seq(dedup + 선택 ack 비트).
 	bool                    m_ackPending = false;
+
+	// Ordered 재정렬 버퍼: 아직 순서가 안 된 Ordered 메시지를 seq 기준 보류.
+	struct Buffered { std::uint16_t MsgId = 0; std::vector<std::uint8_t> Payload; };
+	std::map<std::uint32_t, Buffered> m_orderedPending;
 };
 
 #endif // !JBRO_PLATFORM_WEB

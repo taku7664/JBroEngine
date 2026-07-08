@@ -46,7 +46,8 @@ enum class ENetworkDisconnectReason : std::uint8_t
 // 네이티브는 추후 UDP 백엔드가 붙으면 비신뢰 채널이 UDP 로 승격된다(게임코드 무변경).
 enum class ENetChannel : std::uint8_t
 {
-    ReliableOrdered,     // 순서보장 신뢰(기본). 상태 변경·중요 이벤트.
-    Unreliable,          // 비신뢰(유실 허용, 최신값만 중요). 위치 등. [현재 신뢰 폴백]
-    UnreliableSequenced, // 비신뢰 + 순서역전 폐기(오래된 패킷 버림). [현재 신뢰 폴백]
+    ReliableOrdered,     // 순서보장 신뢰(기본). 상태 변경·중요 이벤트. [현재 WS 고정]
+    Unreliable,          // 비신뢰(유실 허용, 최신값만 중요). 위치 등.
+    UnreliableSequenced, // 비신뢰 + 순서역전 폐기(오래된 패킷 버림).
+    ReliableUnordered,   // 신뢰 전달 + 순서 무관(HOL 회피). 히트판정 등 최저지연 필수건.
 };

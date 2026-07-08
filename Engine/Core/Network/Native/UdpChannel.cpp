@@ -143,14 +143,17 @@ bool CUdpChannel::Send(
 		return false;
 	}
 
+	const bool reliable =
+		(ENetChannel::ReliableOrdered == channel || ENetChannel::ReliableUnordered == channel);
+
 	if (ENetworkRole::Server == m_role)
 	{
 		ServerPeer& peer = m_peers[id];
-		if (ENetChannel::ReliableOrdered == channel)
+		if (reliable)
 		{
 			const NetUdpEndpoint to = peer.Endpoint;
 			const std::uint64_t  token = peer.Token;
-			peer.Reliable.SendReliable(msgId, data, size, NowMs(),
+			peer.Reliable.SendReliable(channel, msgId, data, size, NowMs(),
 				[this, to, token](UdpProto::UdpDatagramHeader& h, const void* p, std::uint32_t s)
 				{
 					h.Token = token;
@@ -163,11 +166,11 @@ bool CUdpChannel::Send(
 	}
 
 	// 클라이언트.
-	if (ENetChannel::ReliableOrdered == channel)
+	if (reliable)
 	{
 		const NetUdpEndpoint to = m_serverEndpoint;
 		const std::uint64_t  token = m_clientToken;
-		m_clientReliable.SendReliable(msgId, data, size, NowMs(),
+		m_clientReliable.SendReliable(channel, msgId, data, size, NowMs(),
 			[this, to, token](UdpProto::UdpDatagramHeader& h, const void* p, std::uint32_t s)
 			{
 				h.Token = token;
@@ -287,10 +290,12 @@ void CUdpChannel::Poll(const FOnUdpMessage& onMessage)
 			}
 			if (0 != (header.Flags & UdpProto::Flag_Reliable))
 			{
-				if (peer.Reliable.OnReliableReceived(seq)) // dedup — 최초만 전달.
-				{
-					onMessage(connId, msgId, payload, psize);
-				}
+				// dedup + 채널 규율(Unordered 즉시 / Ordered 순서)대로 전달.
+				peer.Reliable.OnReliableReceived(seq, channel, msgId, payload, psize,
+					[&](std::uint16_t mid, const std::uint8_t* p, std::uint32_t n)
+					{
+						onMessage(connId, mid, p, n);
+					});
 				continue; // 신뢰 seq 는 손실지표/Sequenced 대상 아님. ack 는 Tick 에서 flush.
 			}
 			if (0 != (header.Flags & UdpProto::Flag_Ack))
@@ -322,10 +327,11 @@ void CUdpChannel::Poll(const FOnUdpMessage& onMessage)
 			}
 			if (0 != (header.Flags & UdpProto::Flag_Reliable))
 			{
-				if (m_clientReliable.OnReliableReceived(seq))
-				{
-					onMessage(SERVER_CONNECTION_ID, msgId, payload, psize);
-				}
+				m_clientReliable.OnReliableReceived(seq, channel, msgId, payload, psize,
+					[&](std::uint16_t mid, const std::uint8_t* p, std::uint32_t n)
+					{
+						onMessage(SERVER_CONNECTION_ID, mid, p, n);
+					});
 				continue;
 			}
 			if (0 != (header.Flags & UdpProto::Flag_Ack))
