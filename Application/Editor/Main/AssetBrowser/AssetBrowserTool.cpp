@@ -28,6 +28,7 @@
 #include "Editor/ImItem/ImSplitter.h"
 #include "Editor/ImItem/ImText.h"
 #include "Editor/ImItem/ImList.h"
+#include "Editor/ImItem/ImSearchBox.h"
 #include "Engine/Editor/ImWindow/ImWindowContext.h"
 #include "Engine/Editor/ImWindow/IImPopupWindow.h"
 #include "Engine/Core/Logging/LoggerInternal.h"
