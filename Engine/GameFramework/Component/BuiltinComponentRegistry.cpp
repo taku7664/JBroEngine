@@ -25,6 +25,8 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 		.AddProperty("MaterialGuid", EReflectPropertyType::AssetGuid, offsetof(SpriteRenderer2D, MaterialGuid), sizeof(AssetGuid))
 		.AddProperty("Size", EReflectPropertyType::Vector2Float, offsetof(SpriteRenderer2D, Size), sizeof(Vector2))
 		.AddProperty("Offset", EReflectPropertyType::Vector2Float, offsetof(SpriteRenderer2D, Offset), sizeof(Vector2))
+		.AddProperty("FlipX", EReflectPropertyType::Bool, offsetof(SpriteRenderer2D, FlipX), sizeof(bool))
+		.AddProperty("FlipY", EReflectPropertyType::Bool, offsetof(SpriteRenderer2D, FlipY), sizeof(bool))
 		.AddProperty("Color", EReflectPropertyType::ColorFloat4, offsetof(SpriteRenderer2D, Color), sizeof(float), 4)
 		.AddProperty("SortOrder", EReflectPropertyType::Int32, offsetof(SpriteRenderer2D, SortOrder), sizeof(std::int32_t))
 		.AddProperty("LayerMask", EReflectPropertyType::UInt32, offsetof(SpriteRenderer2D, LayerMask), sizeof(RenderLayerMask));
@@ -133,10 +135,12 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 
 	registry.RegisterComponent<PolygonCollider2D>({ "PolygonCollider2D", "Polygon Collider 2D", "Physics", true })
 		.AddProperty("VertexCount", EReflectPropertyType::UInt32, offsetof(PolygonCollider2D, VertexCount), sizeof(std::uint32_t))
+		.AddProperty("Offset", EReflectPropertyType::Vector2Float, offsetof(PolygonCollider2D, Offset), sizeof(Vector2))
 		.AddProperty("IsTrigger", EReflectPropertyType::Bool, offsetof(PolygonCollider2D, IsTrigger), sizeof(bool));
 
 	registry.RegisterComponent<CircleCollider2D>({ "CircleCollider2D", "Circle Collider 2D", "Physics", true })
 		.AddProperty("Radius", EReflectPropertyType::Float, offsetof(CircleCollider2D, Radius), sizeof(float))
+		.AddProperty("Offset", EReflectPropertyType::Vector2Float, offsetof(CircleCollider2D, Offset), sizeof(Vector2))
 		.AddProperty("IsTrigger", EReflectPropertyType::Bool, offsetof(CircleCollider2D, IsTrigger), sizeof(bool));
 
 	registry.RegisterComponent<PrefabInstance>({ "PrefabInstance", "Prefab Instance", "Prefab", false })

@@ -74,6 +74,8 @@ public:
 	std::vector<Vector2> LocalPoints;
 	std::vector<Vector2> WorldPoints;
 	PhysicsAABB2D WorldAABB;
+	// 로컬 중심 오프셋 — Transform 원점 기준 콜라이더를 이동시킨다(스프라이트와 정렬용).
+	Vector2 Offset = Vector2(0.0f, 0.0f);
 	bool IsTrigger = false;
 
 	// ── 볼록 분해 조각 (오목 폴리곤 충돌용) ──────────────────────────────────
@@ -150,6 +152,8 @@ public:
 	Vector2 WorldCenter = Vector2(0.0f, 0.0f);
 	float Radius = 0.5f;
 	float WorldRadius = 0.5f;
+	// 로컬 중심 오프셋 — Transform 원점 기준 콜라이더를 이동시킨다(스프라이트와 정렬용).
+	Vector2 Offset = Vector2(0.0f, 0.0f);
 	PhysicsAABB2D WorldAABB;
 	bool IsTrigger = false;
 };

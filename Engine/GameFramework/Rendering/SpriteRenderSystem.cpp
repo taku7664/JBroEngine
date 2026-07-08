@@ -142,6 +142,10 @@ void CSpriteRenderSystem::OnUpdate(CGameScene& scene)
 				finalSize.y = (pxH / effectivePPU) * sprite.Size.y;
 			}
 
+			// 반전 — 월드 크기 부호를 뒤집으면 쿼드가 미러링된다(음수 스케일).
+			if (sprite.FlipX) finalSize.x = -finalSize.x;
+			if (sprite.FlipY) finalSize.y = -finalSize.y;
+
 			RenderItem item;
 			item.Mesh = mesh;
 			item.Material = material;

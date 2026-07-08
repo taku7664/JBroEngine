@@ -1802,11 +1802,13 @@ void CPhysics2DSystem::UpdateColliderBounds(CGameScene& scene)
 		}
 
 		// ── 전체 WorldPoints 갱신 ────────────────────────────────────────────────
+		// Offset 은 로컬 공간에서 각 포인트에 더한 뒤 월드 변환한다(회전/스케일 포함).
+		const Vector2 offset = collider.Offset;
 		collider.WorldPoints.clear();
 		collider.WorldPoints.reserve(collider.LocalPoints.size());
 		for (const Vector2& p : collider.LocalPoints)
 		{
-			collider.WorldPoints.push_back(wt.TransformPoint(p));
+			collider.WorldPoints.push_back(wt.TransformPoint(p + offset));
 		}
 		collider.WorldAABB = CalculateAABB(collider.WorldPoints);
 
@@ -1817,7 +1819,7 @@ void CPhysics2DSystem::UpdateColliderBounds(CGameScene& scene)
 			piece.WorldPoints.resize(ptCount);
 			for (std::size_t k = 0; k < ptCount; ++k)
 			{
-				piece.WorldPoints[k] = wt.TransformPoint(piece.LocalPoints[k]);
+				piece.WorldPoints[k] = wt.TransformPoint(piece.LocalPoints[k] + offset);
 			}
 			piece.WorldBounds = CalculateAABB(piece.WorldPoints);
 		}
@@ -1828,7 +1830,7 @@ void CPhysics2DSystem::UpdateColliderBounds(CGameScene& scene)
 	{
 		if (!collider.IsEnabled) return;
 		const Matrix3x2 wt    = CalculateWorldTransformNow(collider.GetOwner());
-		collider.WorldCenter  = wt.TransformPoint(Vector2(0.0f, 0.0f));
+		collider.WorldCenter  = wt.TransformPoint(collider.Offset);
 		const float scaleX    = std::sqrt(wt.M11 * wt.M11 + wt.M12 * wt.M12);
 		const float scaleY    = std::sqrt(wt.M21 * wt.M21 + wt.M22 * wt.M22);
 		collider.WorldRadius  = collider.Radius * std::max(scaleX, scaleY);

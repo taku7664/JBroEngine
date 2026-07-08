@@ -32,6 +32,9 @@ public:
 	std::uint32_t    CachedPixelGeneration = 0;
 	Vector2 Size = Vector2(1.0f, 1.0f);
 	Vector2 Offset = Vector2(0.0f, 0.0f);
+	// 좌우/상하 반전 — 월드 크기 부호를 뒤집어 쿼드를 미러링한다(별도 텍스처 불필요).
+	bool FlipX = false;
+	bool FlipY = false;
 	float Color[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
 	std::int32_t SortOrder = 0;
 	RenderLayerMask LayerMask = 0xffffffffu;
