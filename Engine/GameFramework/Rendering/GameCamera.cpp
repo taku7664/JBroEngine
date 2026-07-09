@@ -73,6 +73,75 @@ std::vector<GameRenderCameraDesc> CollectGameRenderCameras(const CGameScene& sce
 	return cameras;
 }
 
+namespace
+{
+	// 카메라 스택(클리어 + 카메라별 렌더)을 지정 타겟에 그린다. 그래프 Base 패스와
+	// 폴백 경로가 공유한다. outCameraStats 에 카메라별 통계를 append(호출자가 미리 clear).
+	void RenderCameraStackInto(
+		IRHICommandContext& commandContext,
+		IRenderer& renderer,
+		IRenderScene& renderScene,
+		const std::vector<GameRenderCameraDesc>& cameras,
+		const RenderSurfaceSize& renderTargetSize,
+		SafePtr<IRHITexture> target,
+		std::vector<GameRenderCameraStats>* outCameraStats)
+	{
+		const float rtW = std::max(1.0f, static_cast<float>(renderTargetSize.Width));
+		const float rtH = std::max(1.0f, static_cast<float>(renderTargetSize.Height));
+
+		RenderPassDesc clearDesc;
+		clearDesc.ColorAttachment.Target = target;
+		clearDesc.ColorAttachment.LoadOp = ERHILoadOp::Clear;
+		clearDesc.ColorAttachment.StoreOp = ERHIStoreOp::Store;
+		clearDesc.ColorAttachment.ClearColor = Color{ 0.0f, 0.0f, 0.0f, 0.0f };
+		commandContext.BeginRenderPass(clearDesc);
+		commandContext.EndRenderPass();
+
+		for (const GameRenderCameraDesc& camera : cameras)
+		{
+			const float vpX = camera.ViewportX * rtW;
+			const float vpY = camera.ViewportY * rtH;
+			const float vpW = std::max(camera.ViewportW * rtW, 1.0f);
+			const float vpH = std::max(camera.ViewportH * rtH, 1.0f);
+
+			RenderPassDesc renderPassDesc;
+			renderPassDesc.ColorAttachment.Target = target;
+			renderPassDesc.ColorAttachment.LoadOp = ERHILoadOp::Load;
+			renderPassDesc.ColorAttachment.StoreOp = ERHIStoreOp::Store;
+
+			commandContext.BeginRenderPass(renderPassDesc);
+			commandContext.SetViewport(vpX, vpY, vpW, vpH);
+			renderer.SetRenderTargetSize(RenderSurfaceSize{ static_cast<int>(vpW), static_cast<int>(vpH) });
+
+			if (camera.ClearColor.A > (1.0f / 255.0f))
+			{
+				renderer.FillViewportColor(
+					camera.ClearColor.R,
+					camera.ClearColor.G,
+					camera.ClearColor.B,
+					camera.ClearColor.A);
+			}
+
+			renderer.SetViewCameraEx(
+				camera.PosX,
+				camera.PosY,
+				camera.OrthoSizeX,
+				camera.OrthoSize,
+				camera.CosR,
+				camera.SinR);
+			renderer.Render(renderScene);
+			if (outCameraStats)
+			{
+				GameRenderCameraStats stats;
+				stats.OwnerObject = camera.OwnerObject;
+				stats.Culling = renderer.GetLastCullingStats();
+				outCameraStats->push_back(stats);
+			}
+			commandContext.EndRenderPass();
+		}
+	}
+}
+
 void RenderGameCameraStack(
 	IRHICommandContext& commandContext,
 	IRenderer& renderer,
@@ -95,82 +164,58 @@ void RenderGameCameraStack(
 	const float rtW = std::max(1.0f, static_cast<float>(renderTargetSize.Width));
 	const float rtH = std::max(1.0f, static_cast<float>(renderTargetSize.Height));
 
-	// ── RenderWeave Phase 0: 카메라 스택을 오프스크린 SceneColor 에 렌더 후 최종 타겟으로 blit ──
-	// Forward2DRenderer 가 아니면(폴백) 기존처럼 최종 타겟에 직접 렌더한다(sceneColor null).
+	// Forward2DRenderer 가 아니면 렌더그래프/RT풀이 없으므로 최종 타겟에 직접 렌더(폴백).
 	CForward2DRenderer* forward = dynamic_cast<CForward2DRenderer*>(&renderer);
-	SafePtr<IRHITexture> sceneColor = forward
-		? forward->AcquireSceneColorTarget(
-			static_cast<std::uint32_t>(std::max(1, renderTargetSize.Width)),
-			static_cast<std::uint32_t>(std::max(1, renderTargetSize.Height)))
-		: SafePtr<IRHITexture>(nullptr);
-	// 스택이 그려질 실제 타겟 — SceneColor 있으면 오프스크린, 없으면 최종 타겟.
-	const SafePtr<IRHITexture> stackTarget = sceneColor.IsValid() ? sceneColor : renderTarget;
-
-	RenderPassDesc clearDesc;
-	clearDesc.ColorAttachment.Target = stackTarget;
-	clearDesc.ColorAttachment.LoadOp = ERHILoadOp::Clear;
-	clearDesc.ColorAttachment.StoreOp = ERHIStoreOp::Store;
-	clearDesc.ColorAttachment.ClearColor = Color{ 0.0f, 0.0f, 0.0f, 0.0f };
-	commandContext.BeginRenderPass(clearDesc);
-	commandContext.EndRenderPass();
-
-	for (const GameRenderCameraDesc& camera : cameras)
+	if (nullptr == forward)
 	{
-		const float vpX = camera.ViewportX * rtW;
-		const float vpY = camera.ViewportY * rtH;
-		const float vpW = std::max(camera.ViewportW * rtW, 1.0f);
-		const float vpH = std::max(camera.ViewportH * rtH, 1.0f);
-
-		RenderPassDesc renderPassDesc;
-		renderPassDesc.ColorAttachment.Target = stackTarget;
-		renderPassDesc.ColorAttachment.LoadOp = ERHILoadOp::Load;
-		renderPassDesc.ColorAttachment.StoreOp = ERHIStoreOp::Store;
-
-		commandContext.BeginRenderPass(renderPassDesc);
-		commandContext.SetViewport(vpX, vpY, vpW, vpH);
-		renderer.SetRenderTargetSize(RenderSurfaceSize{ static_cast<int>(vpW), static_cast<int>(vpH) });
-
-		if (camera.ClearColor.A > (1.0f / 255.0f))
-		{
-			renderer.FillViewportColor(
-				camera.ClearColor.R,
-				camera.ClearColor.G,
-				camera.ClearColor.B,
-				camera.ClearColor.A);
-		}
-
-		renderer.SetViewCameraEx(
-			camera.PosX,
-			camera.PosY,
-			camera.OrthoSizeX,
-			camera.OrthoSize,
-			camera.CosR,
-			camera.SinR);
-		renderer.Render(renderScene);
-		if (outCameraStats)
-		{
-			GameRenderCameraStats stats;
-			stats.OwnerObject = camera.OwnerObject;
-			stats.Culling = renderer.GetLastCullingStats();
-			outCameraStats->push_back(stats);
-		}
-		commandContext.EndRenderPass();
+		RenderCameraStackInto(commandContext, renderer, renderScene, cameras, renderTargetSize, renderTarget, outCameraStats);
+		renderer.SetViewCamera(0.0f, 0.0f, 1.0f);
+		return;
 	}
 
-	renderer.SetViewCamera(0.0f, 0.0f, 1.0f);
+	// ── RenderWeave 그래프: Base(카메라 스택 → SceneColor) → Blit(SceneColor → 최종 타겟) ──
+	// 패스를 데이터로 선언하면 그래프가 RT 대여/컬링/실행을 담당한다. 이후 라이팅/그림자/포스트는
+	// 이 그래프에 패스를 추가하는 것만으로 확장된다.
+	RWGraph graph(forward->GetRenderWeavePool());
+	const RWTextureHandle hFinal = graph.ImportTexture(renderTarget);
 
-	// SceneColor → 최종 타겟 풀스크린 blit(no-blend 복사). SceneColor 없으면 스킵(이미 직접 렌더됨).
-	if (sceneColor.IsValid() && nullptr != forward)
+	RWTextureDesc sceneDesc;
+	sceneDesc.Width  = static_cast<std::uint32_t>(std::max(1, renderTargetSize.Width));
+	sceneDesc.Height = static_cast<std::uint32_t>(std::max(1, renderTargetSize.Height));
+	sceneDesc.Format = ERHITextureFormat::RGBA8;
+	const RWTextureHandle hScene = graph.CreateTexture(sceneDesc);
+
+	RWPassDesc basePass;
+	basePass.Name  = "Base";
+	basePass.Write = hScene;
+	basePass.Execute = [&renderer, &renderScene, &cameras, renderTargetSize, outCameraStats, hScene]
+		(IRHICommandContext& ctx, RWGraph& g)
 	{
-		RenderPassDesc blitPass;
-		blitPass.ColorAttachment.Target = renderTarget;
-		blitPass.ColorAttachment.LoadOp = ERHILoadOp::Clear;
-		blitPass.ColorAttachment.StoreOp = ERHIStoreOp::Store;
-		blitPass.ColorAttachment.ClearColor = Color{ 0.0f, 0.0f, 0.0f, 0.0f };
-		commandContext.BeginRenderPass(blitPass);
-		commandContext.SetViewport(0.0f, 0.0f, rtW, rtH);
+		RenderCameraStackInto(ctx, renderer, renderScene, cameras, renderTargetSize, g.Resolve(hScene), outCameraStats);
+	};
+	graph.AddPass(std::move(basePass));
+
+	RWPassDesc blitPass;
+	blitPass.Name  = "Blit";
+	blitPass.Reads = { hScene };
+	blitPass.Write = hFinal;
+	blitPass.Execute = [forward, &renderer, renderTargetSize, rtW, rtH, hScene, hFinal]
+		(IRHICommandContext& ctx, RWGraph& g)
+	{
+		RenderPassDesc blit;
+		blit.ColorAttachment.Target = g.Resolve(hFinal);
+		blit.ColorAttachment.LoadOp = ERHILoadOp::Clear;
+		blit.ColorAttachment.StoreOp = ERHIStoreOp::Store;
+		blit.ColorAttachment.ClearColor = Color{ 0.0f, 0.0f, 0.0f, 0.0f };
+		ctx.BeginRenderPass(blit);
+		ctx.SetViewport(0.0f, 0.0f, rtW, rtH);
 		renderer.SetRenderTargetSize(renderTargetSize);
-		forward->BlitFullscreen(commandContext, sceneColor);
-		commandContext.EndRenderPass();
-	}
+		forward->BlitFullscreen(ctx, g.Resolve(hScene));
+		ctx.EndRenderPass();
+	};
+	graph.AddPass(std::move(blitPass));
+
+	graph.Compile(hFinal);
+	graph.Execute(commandContext);
+	renderer.SetViewCamera(0.0f, 0.0f, 1.0f);
 }

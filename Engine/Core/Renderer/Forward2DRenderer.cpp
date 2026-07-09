@@ -347,6 +347,8 @@ bool CForward2DRenderer::Initialize(const RendererDesc& desc)
 		m_whiteTexture = m_rhiDevice->CreateTexture2D(whiteDesc, whitePixel);
 	}
 
+	m_weavePool.SetDevice(m_rhiDevice);
+
 	m_isInitialized = true;
 	return true;
 }
@@ -356,6 +358,7 @@ void CForward2DRenderer::BeginFrame()
 	m_spriteConstantBufferCursor = 0;
 	m_spriteViewConstantBufferCursor = 0;
 	m_spriteInstanceBufferCursor = 0;
+	m_weavePool.BeginFrame();
 }
 
 void CForward2DRenderer::SetRenderTargetSize(const RenderSurfaceSize& size)
@@ -554,26 +557,9 @@ CForward2DRenderer::SpriteConstants CForward2DRenderer::BuildViewportColorConsta
 	return constants;
 }
 
-SafePtr<IRHITexture> CForward2DRenderer::AcquireSceneColorTarget(std::uint32_t width, std::uint32_t height)
+RWTexturePool& CForward2DRenderer::GetRenderWeavePool()
 {
-	if (false == m_rhiDevice.IsValid() || 0 == width || 0 == height)
-	{
-		return nullptr;
-	}
-	// 크기가 바뀌면 재생성(뷰포트 리사이즈/멀티카메라). 같은 크기면 재사용.
-	if (!m_sceneColorTarget || width != m_sceneColorWidth || height != m_sceneColorHeight)
-	{
-		RHITexture2DDesc desc;
-		desc.Width     = width;
-		desc.Height    = height;
-		desc.Format    = ERHITextureFormat::RGBA8;
-		desc.BindFlags = static_cast<RHITextureBindFlags>(ERHITextureBindFlag::RenderTarget)
-		               | static_cast<RHITextureBindFlags>(ERHITextureBindFlag::ShaderResource);
-		m_sceneColorTarget = m_rhiDevice->CreateTexture2D(desc, nullptr);
-		m_sceneColorWidth  = width;
-		m_sceneColorHeight = height;
-	}
-	return m_sceneColorTarget.GetSafePtr();
+	return m_weavePool;
 }
 
 void CForward2DRenderer::BlitFullscreen(IRHICommandContext& commandContext, SafePtr<IRHITexture> src)
@@ -1126,9 +1112,7 @@ void CForward2DRenderer::FillViewportColor(float r, float g, float b, float a)
 void CForward2DRenderer::Finalize()
 {
 	m_whiteTexture.Reset();
-	m_sceneColorTarget.Reset();
-	m_sceneColorWidth  = 0;
-	m_sceneColorHeight = 0;
+	m_weavePool.Clear();
 	m_spriteBatchInstances.clear();
 	m_spriteInstanceBuffers.clear();
 	m_spriteViewConstantBuffers.clear();

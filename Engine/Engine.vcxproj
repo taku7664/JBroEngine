@@ -422,6 +422,8 @@
     <ClInclude Include="Core\Debug\DebugRenderer2D.h" />
     <ClInclude Include="Core\Debug\OutlineRenderer2D.h" />
     <ClInclude Include="Core\Renderer\Forward2DRenderer.h" />
+    <ClInclude Include="Core\Renderer\RenderWeave\RenderWeaveTypes.h" />
+    <ClInclude Include="Core\Renderer\RenderWeave\RenderWeaveGraph.h" />
     <ClInclude Include="Core\Renderer\IRenderer.h" />
     <ClInclude Include="Core\Renderer\IRenderMaterial.h" />
     <ClInclude Include="Core\Renderer\IRenderMesh.h" />
@@ -702,6 +704,7 @@
     <ClCompile Include="Core\Debug\DebugRenderer2D.cpp" />
     <ClCompile Include="Core\Debug\OutlineRenderer2D.cpp" />
     <ClCompile Include="Core\Renderer\Forward2DRenderer.cpp" />
+    <ClCompile Include="Core\Renderer\RenderWeave\RenderWeaveGraph.cpp" />
     <ClCompile Include="Core\Renderer\RenderResourceCache.cpp" />
     <ClCompile Include="Core\Renderer\RenderResources2D.cpp" />
     <ClCompile Include="Core\Renderer\RenderScene.cpp" />
