@@ -62,6 +62,16 @@ void CSceneAssetOpenHandler::Open(CAssetBrowserTool&, const AssetBrowserEntry& e
 		Engine.SceneManager->AcquireReferencedAssets(*scene);
 		if (const EngineCore* context = Editor::ImEditor ? Editor::ImEditor->GetEditorEngineCore() : nullptr)
 		{
+			CSpriteAnimationSystem* animationSystem = scene->FindSystem<CSpriteAnimationSystem>();
+			if (nullptr == animationSystem)
+			{
+				animationSystem = scene->AddSystem<CSpriteAnimationSystem>(context->AssetManager);
+			}
+			if (nullptr != animationSystem)
+			{
+				animationSystem->SetAssetManager(context->AssetManager);
+			}
+
 			CSpriteRenderSystem* spriteSystem = scene->FindSystem<CSpriteRenderSystem>();
 			if (nullptr == spriteSystem)
 			{

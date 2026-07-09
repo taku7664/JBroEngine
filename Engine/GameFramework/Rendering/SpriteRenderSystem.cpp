@@ -133,13 +133,32 @@ void CSpriteRenderSystem::OnUpdate(CGameScene& scene)
 			// 월드 크기 = (픽셀 크기 / 유효 PPU) × sprite.Size (스케일 배수).
 			// 자산 PPU 가 0 이면 ScriptCore 폴백(프로젝트 Default PPU) 사용.
 			Vector2 finalSize = sprite.Size;
+			float uvRect[4] = { 0.0f, 0.0f, 1.0f, 1.0f };
 			if (spriteAsset)
 			{
 				const float effectivePPU = spriteAsset->GetEffectivePixelsPerUnit(m_pixelsPerUnit);
-				const float pxW = static_cast<float>(spriteAsset->GetWidth());
-				const float pxH = static_cast<float>(spriteAsset->GetHeight());
-				finalSize.x = (pxW / effectivePPU) * sprite.Size.x;
-				finalSize.y = (pxH / effectivePPU) * sprite.Size.y;
+				const float texW = static_cast<float>(spriteAsset->GetWidth());
+				const float texH = static_cast<float>(spriteAsset->GetHeight());
+
+				// 프레임 선택 — 시트 슬라이스가 있으면 FrameIndex 프레임, 없으면 전체(항등 UV).
+				float frameW = texW;
+				float frameH = texH;
+				const std::vector<SpriteFrame>& frames = spriteAsset->GetFrames();
+				if (false == frames.empty() && texW > 0.0f && texH > 0.0f)
+				{
+					const std::uint32_t count = static_cast<std::uint32_t>(frames.size());
+					const std::uint32_t idx = sprite.FrameIndex < count ? sprite.FrameIndex : count - 1;
+					const SpriteFrame& frame = frames[idx];
+					frameW = static_cast<float>(frame.Width);
+					frameH = static_cast<float>(frame.Height);
+					uvRect[0] = static_cast<float>(frame.X) / texW;
+					uvRect[1] = static_cast<float>(frame.Y) / texH;
+					uvRect[2] = frameW / texW;
+					uvRect[3] = frameH / texH;
+				}
+
+				finalSize.x = (frameW / effectivePPU) * sprite.Size.x;
+				finalSize.y = (frameH / effectivePPU) * sprite.Size.y;
 			}
 
 			// 반전 — 월드 크기 부호를 뒤집으면 쿼드가 미러링된다(음수 스케일).
@@ -159,6 +178,7 @@ void CSpriteRenderSystem::OnUpdate(CGameScene& scene)
 			for (int i = 0; i < 4; ++i)
 			{
 				item.Color[i] = sprite.Color[i];
+				item.UvRect[i] = uvRect[i];
 			}
 			item.SortOrder = sprite.SortOrder;
 			item.Entity    = owner; // 불투명 키(주소). 렌더러는 집합 비교만, 역참조 안 함.

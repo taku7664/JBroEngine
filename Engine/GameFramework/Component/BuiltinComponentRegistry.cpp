@@ -8,6 +8,7 @@
 #include "GameFramework/Component/PrefabInstance.h"
 #include "GameFramework/Component/ScriptComponent.h"
 #include "GameFramework/Component/ShapeRenderers2D.h"
+#include "GameFramework/Component/SpriteAnimator2D.h"
 #include "GameFramework/Component/SpriteRenderer2D.h"
 #include "GameFramework/Component/Text2D.h"
 #include "GameFramework/Reflection/ReflectionRegistry.h"
@@ -27,6 +28,7 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 		.AddProperty("Offset", EReflectPropertyType::Vector2Float, offsetof(SpriteRenderer2D, Offset), sizeof(Vector2))
 		.AddProperty("FlipX", EReflectPropertyType::Bool, offsetof(SpriteRenderer2D, FlipX), sizeof(bool))
 		.AddProperty("FlipY", EReflectPropertyType::Bool, offsetof(SpriteRenderer2D, FlipY), sizeof(bool))
+		.AddProperty("FrameIndex", EReflectPropertyType::UInt32, offsetof(SpriteRenderer2D, FrameIndex), sizeof(std::uint32_t))
 		.AddProperty("Color", EReflectPropertyType::ColorFloat4, offsetof(SpriteRenderer2D, Color), sizeof(float), 4)
 		.AddProperty("SortOrder", EReflectPropertyType::Int32, offsetof(SpriteRenderer2D, SortOrder), sizeof(std::int32_t))
 		.AddProperty("LayerMask", EReflectPropertyType::UInt32, offsetof(SpriteRenderer2D, LayerMask), sizeof(RenderLayerMask));
@@ -91,6 +93,13 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 		.AddProperty("OutlineWidth", EReflectPropertyType::Float, offsetof(Polygon2D, OutlineWidth), sizeof(float))
 		.AddProperty("SortOrder", EReflectPropertyType::Int32, offsetof(Polygon2D, SortOrder), sizeof(std::int32_t))
 		.AddProperty("LayerMask", EReflectPropertyType::UInt32, offsetof(Polygon2D, LayerMask), sizeof(RenderLayerMask));
+
+	registry.RegisterComponent<SpriteAnimator2D>({ "SpriteAnimator2D", "Sprite Animator 2D", "Rendering", true })
+		.AddProperty("FramesPerSecond", EReflectPropertyType::Float, offsetof(SpriteAnimator2D, FramesPerSecond), sizeof(float))
+		.AddProperty("Loop", EReflectPropertyType::Bool, offsetof(SpriteAnimator2D, Loop), sizeof(bool))
+		.AddProperty("Playing", EReflectPropertyType::Bool, offsetof(SpriteAnimator2D, Playing), sizeof(bool))
+		.AddProperty("StartFrame", EReflectPropertyType::UInt32, offsetof(SpriteAnimator2D, StartFrame), sizeof(std::uint32_t))
+		.AddProperty("FrameCount", EReflectPropertyType::UInt32, offsetof(SpriteAnimator2D, FrameCount), sizeof(std::uint32_t));
 
 	registry.RegisterComponent<Camera2D>({ "Camera2D", "Camera 2D", "Rendering", true })
 		.AddEnumProperty<ECameraProjectionMode2D>("ProjectionMode", offsetof(Camera2D, ProjectionMode))

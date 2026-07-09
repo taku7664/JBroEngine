@@ -440,6 +440,7 @@
     <ClInclude Include="Core\Task\TaskTypes.h" />
     <ClInclude Include="Core\Time\Time.h" />
     <ClInclude Include="GameFramework\Component\Camera2D.h" />
+    <ClInclude Include="GameFramework\Component\SpriteAnimator2D.h" />
     <ClInclude Include="GameFramework\Component\SpriteRenderer2D.h" />
     <ClInclude Include="GameFramework\Component\Text2D.h" />
     <ClInclude Include="GameFramework\Rendering\TextRenderSystem.h" />
@@ -454,6 +455,7 @@
     <ClInclude Include="GameFramework\Audio\AudioSystem.h" />
     <ClInclude Include="GameFramework\Component\AudioComponents.h" />
     <ClInclude Include="GameFramework\Rendering\GameCamera.h" />
+    <ClInclude Include="GameFramework\Rendering\SpriteAnimationSystem.h" />
     <ClInclude Include="GameFramework\Rendering\SpriteRenderSystem.h" />
     <ClInclude Include="GameFramework\Rendering\ShapeGeometry2D.h" />
     <ClInclude Include="GameFramework\Rendering\ShapeRenderSystem.h" />
@@ -713,6 +715,7 @@
     <ClCompile Include="GameFramework\Prefab\PrefabSerializer.cpp" />
     <ClCompile Include="GameFramework\Audio\AudioSystem.cpp" />
     <ClCompile Include="GameFramework\Rendering\GameCamera.cpp" />
+    <ClCompile Include="GameFramework\Rendering\SpriteAnimationSystem.cpp" />
     <ClCompile Include="GameFramework\Rendering\SpriteRenderSystem.cpp" />
     <ClCompile Include="GameFramework\Rendering\ShapeGeometry2D.cpp" />
     <ClCompile Include="GameFramework\Rendering\ShapeRenderSystem.cpp" />

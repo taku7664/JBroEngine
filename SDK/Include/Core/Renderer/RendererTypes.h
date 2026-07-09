@@ -54,6 +54,9 @@ struct RenderItem
 	float Color[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
 	float SecondaryColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 	float ShaderParams[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	// UV sub-rect (uMin, vMin, uScale, vScale). 스프라이트시트 프레임 선택용.
+	// 항등값 {0,0,1,1} = 전체 텍스처. 셰이더에서 uv = uv*scale + min.
+	float UvRect[4] = { 0.0f, 0.0f, 1.0f, 1.0f };
 	std::int32_t SortOrder = 0;
 	// 이 렌더 아이템을 제출한 오브젝트의 불투명 키(CGameObject 주소).
 	// 필터 렌더링/아웃라인 마스크에 사용(집합 비교 전용, 역참조 금지). nullptr = 무관 아이템.

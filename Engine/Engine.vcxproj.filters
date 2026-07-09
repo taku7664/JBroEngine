@@ -707,6 +707,9 @@
     <ClInclude Include="GameFramework\Component\Camera2D.h">
       <Filter>Header\GameFramework\Component</Filter>
     </ClInclude>
+    <ClInclude Include="GameFramework\Component\SpriteAnimator2D.h">
+      <Filter>Header\GameFramework\Component</Filter>
+    </ClInclude>
     <ClInclude Include="GameFramework\Component\SpriteRenderer2D.h">
       <Filter>Header\GameFramework\Component</Filter>
     </ClInclude>
@@ -732,6 +735,9 @@
       <Filter>Header\GameFramework\Prefab</Filter>
     </ClInclude>
     <ClInclude Include="GameFramework\Rendering\GameCamera.h">
+      <Filter>Header\GameFramework\Rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Rendering\SpriteAnimationSystem.h">
       <Filter>Header\GameFramework\Rendering</Filter>
     </ClInclude>
     <ClInclude Include="GameFramework\Rendering\SpriteRenderSystem.h">
@@ -1418,6 +1424,9 @@
       <Filter>Source\GameFramework\Prefab</Filter>
     </ClCompile>
     <ClCompile Include="GameFramework\Rendering\GameCamera.cpp">
+      <Filter>Source\GameFramework\Rendering</Filter>
+    </ClCompile>
+    <ClCompile Include="GameFramework\Rendering\SpriteAnimationSystem.cpp">
       <Filter>Source\GameFramework\Rendering</Filter>
     </ClCompile>
     <ClCompile Include="GameFramework\Rendering\SpriteRenderSystem.cpp">

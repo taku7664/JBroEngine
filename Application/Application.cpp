@@ -399,6 +399,17 @@ namespace
 		{
 			// 렌더 시스템은 호스트 전용 — 전역 `Engine`(EngineCore)에서 직접 가져온다.
 			// (RenderScene/RHIDevice/Renderer 는 스크립트에 노출하지 않으므로 ScriptCore 에 없다.)
+			// 애니메이션 시스템은 SpriteRenderSystem 보다 먼저 등록해 같은 프레임에 FrameIndex 반영.
+			CSpriteAnimationSystem* animationSystem = scene->FindSystem<CSpriteAnimationSystem>();
+			if (nullptr == animationSystem)
+			{
+				animationSystem = scene->AddSystem<CSpriteAnimationSystem>(Engine.AssetManager);
+			}
+			if (nullptr != animationSystem)
+			{
+				animationSystem->SetAssetManager(Engine.AssetManager);
+			}
+
 			CSpriteRenderSystem* spriteSystem = scene->FindSystem<CSpriteRenderSystem>();
 			if (nullptr == spriteSystem)
 			{

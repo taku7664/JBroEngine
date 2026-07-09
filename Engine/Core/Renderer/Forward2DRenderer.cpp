@@ -29,6 +29,7 @@ cbuffer SpriteConstants : register(b0)
 	float4 gColor;
 	float4 gViewRow0;
 	float4 gViewRow1;
+	float4 gUvRect;
 };
 
 Texture2D gTexture : register(t0);
@@ -54,7 +55,7 @@ VSOut VSMain(VSIn input)
 	float2 worldPosition = float2(dot(localPosition, gTransformRow0.xyz), dot(localPosition, gTransformRow1.xyz));
 	float3 worldPos3 = float3(worldPosition.x, worldPosition.y, 1.0f);
 	output.Position = float4(dot(worldPos3, gViewRow0.xyz), dot(worldPos3, gViewRow1.xyz), 0.0f, 1.0f);
-	output.Uv = input.Uv;
+	output.Uv = input.Uv * gUvRect.zw + gUvRect.xy;
 	output.Color = gColor;
 	return output;
 }
@@ -73,6 +74,7 @@ struct SpriteConstants
 	Color : vec4<f32>,
 	ViewRow0 : vec4<f32>,
 	ViewRow1 : vec4<f32>,
+	UvRect : vec4<f32>,
 };
 
 @group(0) @binding(0)
@@ -105,7 +107,7 @@ fn VSMain(input : VSIn) -> VSOut
 	let worldPosition = vec2<f32>(dot(localPosition, gConstants.TransformRow0.xyz), dot(localPosition, gConstants.TransformRow1.xyz));
 	let worldPos3 = vec3<f32>(worldPosition.x, worldPosition.y, 1.0);
 	output.Position = vec4<f32>(dot(worldPos3, gConstants.ViewRow0.xyz), dot(worldPos3, gConstants.ViewRow1.xyz), 0.0, 1.0);
-	output.Uv = input.Uv;
+	output.Uv = input.Uv * gConstants.UvRect.zw + gConstants.UvRect.xy;
 	output.Color = gConstants.Color;
 	return output;
 }
@@ -133,6 +135,7 @@ struct VSIn
 	float2 Uv : TEXCOORD0;
 	float4 TransformRow0 : TEXCOORD1;
 	float4 TransformRow1 : TEXCOORD2;
+	float4 UvRect : TEXCOORD3;
 	float4 Color : COLOR0;
 };
 
@@ -150,7 +153,7 @@ VSOut VSMain(VSIn input)
 	float2 worldPosition = float2(dot(localPosition, input.TransformRow0.xyz), dot(localPosition, input.TransformRow1.xyz));
 	float3 worldPos3 = float3(worldPosition.x, worldPosition.y, 1.0f);
 	output.Position = float4(dot(worldPos3, gViewRow0.xyz), dot(worldPos3, gViewRow1.xyz), 0.0f, 1.0f);
-	output.Uv = input.Uv;
+	output.Uv = input.Uv * input.UvRect.zw + input.UvRect.xy;
 	output.Color = input.Color;
 	return output;
 }
@@ -184,6 +187,7 @@ struct VSIn
 	@location(2) TransformRow0 : vec4<f32>,
 	@location(3) TransformRow1 : vec4<f32>,
 	@location(4) Color : vec4<f32>,
+	@location(5) UvRect : vec4<f32>,
 };
 
 struct VSOut
@@ -201,7 +205,7 @@ fn VSMain(input : VSIn) -> VSOut
 	let worldPosition = vec2<f32>(dot(localPosition, input.TransformRow0.xyz), dot(localPosition, input.TransformRow1.xyz));
 	let worldPos3 = vec3<f32>(worldPosition.x, worldPosition.y, 1.0);
 	output.Position = vec4<f32>(dot(worldPos3, gConstants.ViewRow0.xyz), dot(worldPos3, gConstants.ViewRow1.xyz), 0.0, 1.0);
-	output.Uv = input.Uv;
+	output.Uv = input.Uv * input.UvRect.zw + input.UvRect.xy;
 	output.Color = input.Color;
 	return output;
 }
@@ -474,6 +478,7 @@ CForward2DRenderer::SpriteConstants CForward2DRenderer::BuildSpriteConstants(
 		constants.Color[c] = item.Color[c];
 		constants.SecondaryColor[c] = item.SecondaryColor[c];
 		constants.ShaderParams[c] = item.ShaderParams[c];
+		constants.UvRect[c] = item.UvRect[c];
 	}
 
 	const float camX = m_viewCamX;
@@ -529,6 +534,7 @@ CForward2DRenderer::SpriteInstanceData CForward2DRenderer::BuildSpriteInstanceDa
 	for (int c = 0; c < 4; ++c)
 	{
 		instance.Color[c] = item.Color[c];
+		instance.UvRect[c] = item.UvRect[c];
 	}
 	return instance;
 }
@@ -1259,7 +1265,7 @@ bool CForward2DRenderer::CreateSpriteBatchPipeline()
 		return false;
 	}
 
-	RHIVertexElementDesc elements[5];
+	RHIVertexElementDesc elements[6];
 	elements[0].SemanticName = "POSITION";
 	elements[0].Format = ERHIVertexFormat::Float2;
 	elements[0].Offset = 0;
@@ -1294,11 +1300,20 @@ bool CForward2DRenderer::CreateSpriteBatchPipeline()
 	elements[4].InputSlot = 1;
 	elements[4].InputRate = ERHIVertexInputRate::PerInstance;
 
+	// per-instance UvRect(스프라이트시트 프레임). SpriteInstanceData 의 Color 뒤(offset 48).
+	// WGSL @location(5) / HLSL TEXCOORD3 와 매칭.
+	elements[5].SemanticName = "TEXCOORD";
+	elements[5].SemanticIndex = 3;
+	elements[5].Format = ERHIVertexFormat::Float4;
+	elements[5].Offset = sizeof(float) * 12;
+	elements[5].InputSlot = 1;
+	elements[5].InputRate = ERHIVertexInputRate::PerInstance;
+
 	RHIGraphicsPipelineDesc pipelineDesc;
 	pipelineDesc.VertexProgram = m_spriteBatchVertexProgram.GetSafePtr();
 	pipelineDesc.PixelProgram = m_spriteBatchPixelProgram.GetSafePtr();
 	pipelineDesc.VertexElements = elements;
-	pipelineDesc.VertexElementCount = 5;
+	pipelineDesc.VertexElementCount = 6;
 	pipelineDesc.PrimitiveTopology = ERHIPrimitiveTopology::TriangleList;
 	pipelineDesc.BlendMode = ERHIBlendMode::AlphaBlend;
 	m_spriteBatchPipeline = m_rhiDevice->CreateGraphicsPipeline(pipelineDesc);

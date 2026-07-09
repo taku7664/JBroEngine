@@ -48,6 +48,9 @@ private:
 		float Color[4];
 		float ViewRow0[4];
 		float ViewRow1[4];
+		// UvRect(uMin,vMin,uScale,vScale) — cbuffer 마지막 필드(셰이더가 읽는 범위).
+		// 뒤 SecondaryColor/ShaderParams 는 단일 스프라이트 셰이더가 읽지 않는 잔여 필드.
+		float UvRect[4];
 		float SecondaryColor[4];
 		float ShaderParams[4];
 	};
@@ -63,6 +66,8 @@ private:
 		float TransformRow0[4];
 		float TransformRow1[4];
 		float Color[4];
+		// UvRect(uMin,vMin,uScale,vScale) — per-instance 프레임 UV. 항등={0,0,1,1}.
+		float UvRect[4];
 	};
 
 	struct ViewParameters
