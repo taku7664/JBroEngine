@@ -14,3 +14,6 @@
 
 #include "GameFramework/Component/Physics2DComponents.h"
 #include "GameFramework/Physics2D/Physics2DTypes.h"
+// 질의 API(Raycast/OverlapPoint/OverlapCircle) + RaycastHit2D.
+// 스크립트에서 GetScene()->GetPhysics2DSystem()->Raycast(...) 로 사용.
+#include "GameFramework/Physics2D/Physics2DSystem.h"

@@ -25,6 +25,17 @@ struct PhysicsAABB2D
 	Vector2 Max = Vector2(0.0f, 0.0f);
 };
 
+// 레이캐스트 결과(POD — 스크립트/DLL 경계 안전).
+// Object 는 맞은 콜라이더의 오브젝트(프레임 내 유효), Normal 은 레이 반대 방향 표면 법선.
+struct RaycastHit2D
+{
+	CGameObject* Object   = nullptr;
+	Vector2      Point    = Vector2(0.0f, 0.0f);
+	Vector2      Normal   = Vector2(0.0f, 0.0f);
+	float        Distance = 0.0f;
+	bool         Hit      = false;
+};
+
 // 두 엔티티 사이의 충돌 매니폴드.
 // ContactPoints / ContactCount : 실제 접촉점(최대 2개).
 // Normal                       : A→B 방향 단위 법선.

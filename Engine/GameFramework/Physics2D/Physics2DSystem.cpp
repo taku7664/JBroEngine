@@ -1656,6 +1656,225 @@ void CPhysics2DSystem::OnSimulationStop(CGameScene& /*scene*/)
 	m_prevManifolds.clear();
 }
 
+void CPhysics2DSystem::OnInitialize(CGameScene& scene)
+{
+	// 질의(Raycast/Overlap)가 scene 인자 없이 동작하도록 캐싱. 시스템 수명 = 씬 수명.
+	m_scene = &scene;
+}
+
+bool CPhysics2DSystem::Raycast(const Vector2& origin, const Vector2& direction, float maxDistance, RaycastHit2D& outHit) const
+{
+	outHit = RaycastHit2D{};
+	if (nullptr == m_scene || maxDistance <= 0.0f)
+	{
+		return false;
+	}
+
+	const float dirLenSq = Dot(direction, direction);
+	if (dirLenSq <= 1e-12f)
+	{
+		return false;
+	}
+	const Vector2 dir    = direction * (1.0f / std::sqrt(dirLenSq));
+	const Vector2 rayEnd = origin + dir * maxDistance;
+
+	float        bestDist   = maxDistance;
+	CGameObject* bestObject = nullptr;
+	Vector2      bestPoint(0.0f, 0.0f);
+	Vector2      bestNormal(0.0f, 0.0f);
+
+	// ── 원 콜라이더 (해석적 ray-circle) ──────────────────────────────────────
+	m_scene->ForEach<CircleCollider2D>(
+		[&](const CircleCollider2D& collider)
+		{
+			if (false == IsActiveComponent(collider))
+			{
+				return;
+			}
+			const Vector2 oc = origin - collider.WorldCenter;
+			const float   b  = Dot(oc, dir);                                      // a = 1 (dir 정규화)
+			const float   c  = Dot(oc, oc) - collider.WorldRadius * collider.WorldRadius;
+			const float   disc = b * b - c;
+			if (disc < 0.0f)
+			{
+				return;
+			}
+			const float sq = std::sqrt(disc);
+			float       t  = -b - sq;
+			if (t < 0.0f)
+			{
+				t = -b + sq;   // origin 이 원 내부면 반대편(exit) 지점.
+			}
+			if (t < 0.0f || t > bestDist)
+			{
+				return;
+			}
+			const Vector2 point = origin + dir * t;
+			Vector2       normal = point - collider.WorldCenter;
+			const float   nl = std::sqrt(Dot(normal, normal));
+			normal = nl > 1e-6f ? normal * (1.0f / nl) : Vector2(-dir.x, -dir.y);
+			bestDist   = t;
+			bestObject = collider.GetOwner();
+			bestPoint  = point;
+			bestNormal = normal;
+		});
+
+	// ── 폴리곤 콜라이더 (엣지별 세그먼트 교차) ───────────────────────────────
+	m_scene->ForEach<PolygonCollider2D>(
+		[&](const PolygonCollider2D& collider)
+		{
+			if (false == IsActiveComponent(collider))
+			{
+				return;
+			}
+			const std::vector<Vector2>& pts = collider.WorldPoints;
+			const std::size_t           n   = pts.size();
+			if (n < 2)
+			{
+				return;
+			}
+			for (std::size_t i = 0; i < n; ++i)
+			{
+				const Vector2& p0 = pts[i];
+				const Vector2& p1 = pts[(i + 1) % n];
+				Vector2        hitPoint;
+				if (false == TrySegmentIntersection(origin, rayEnd, p0, p1, hitPoint))
+				{
+					continue;
+				}
+				const float t = Dot(hitPoint - origin, dir);
+				if (t < 0.0f || t > bestDist)
+				{
+					continue;
+				}
+				Vector2     normal(p1.y - p0.y, -(p1.x - p0.x));   // 엣지 수직
+				const float nl = std::sqrt(Dot(normal, normal));
+				if (nl <= 1e-6f)
+				{
+					continue;
+				}
+				normal = normal * (1.0f / nl);
+				if (Dot(normal, dir) > 0.0f)   // 레이 반대 방향으로 정렬.
+				{
+					normal = Vector2(-normal.x, -normal.y);
+				}
+				bestDist   = t;
+				bestObject = collider.GetOwner();
+				bestPoint  = hitPoint;
+				bestNormal = normal;
+			}
+		});
+
+	if (nullptr == bestObject)
+	{
+		return false;
+	}
+	outHit.Object   = bestObject;
+	outHit.Point    = bestPoint;
+	outHit.Normal   = bestNormal;
+	outHit.Distance = bestDist;
+	outHit.Hit      = true;
+	return true;
+}
+
+CGameObject* CPhysics2DSystem::OverlapPoint(const Vector2& point) const
+{
+	if (nullptr == m_scene)
+	{
+		return nullptr;
+	}
+
+	CGameObject* found = nullptr;
+	m_scene->ForEach<CircleCollider2D>(
+		[&](const CircleCollider2D& collider)
+		{
+			if (nullptr != found || false == IsActiveComponent(collider))
+			{
+				return;
+			}
+			const Vector2 d = point - collider.WorldCenter;
+			if (Dot(d, d) <= collider.WorldRadius * collider.WorldRadius)
+			{
+				found = collider.GetOwner();
+			}
+		});
+	if (nullptr != found)
+	{
+		return found;
+	}
+
+	m_scene->ForEach<PolygonCollider2D>(
+		[&](const PolygonCollider2D& collider)
+		{
+			if (nullptr != found || false == IsActiveComponent(collider))
+			{
+				return;
+			}
+			if (collider.WorldPoints.size() >= 3 && PointInPolygon(point, collider.WorldPoints))
+			{
+				found = collider.GetOwner();
+			}
+		});
+	return found;
+}
+
+void CPhysics2DSystem::OverlapCircle(const Vector2& center, float radius, std::vector<CGameObject*>& outResults) const
+{
+	outResults.clear();
+	if (nullptr == m_scene || radius < 0.0f)
+	{
+		return;
+	}
+
+	m_scene->ForEach<CircleCollider2D>(
+		[&](const CircleCollider2D& collider)
+		{
+			if (false == IsActiveComponent(collider))
+			{
+				return;
+			}
+			const Vector2 d   = center - collider.WorldCenter;
+			const float   sum = radius + collider.WorldRadius;
+			if (Dot(d, d) <= sum * sum)
+			{
+				outResults.push_back(collider.GetOwner());
+			}
+		});
+
+	m_scene->ForEach<PolygonCollider2D>(
+		[&](const PolygonCollider2D& collider)
+		{
+			if (false == IsActiveComponent(collider))
+			{
+				return;
+			}
+			const std::vector<Vector2>& pts = collider.WorldPoints;
+			const std::size_t           n   = pts.size();
+			if (n < 3)
+			{
+				return;
+			}
+			bool overlap = PointInPolygon(center, pts);
+			if (false == overlap)
+			{
+				const float r2 = radius * radius;
+				for (std::size_t i = 0; i < n && false == overlap; ++i)
+				{
+					const Vector2 cp = ClosestPointOnSegment(center, pts[i], pts[(i + 1) % n]);
+					const Vector2 d  = center - cp;
+					if (Dot(d, d) <= r2)
+					{
+						overlap = true;
+					}
+				}
+			}
+			if (overlap)
+			{
+				outResults.push_back(collider.GetOwner());
+			}
+		});
+}
+
 void CPhysics2DSystem::Step(CGameScene& scene, float deltaSeconds)
 {
 	// 직전 sub-step 의 매니폴드를 prev 로 보존 — contact persistence 매칭에 사용.
