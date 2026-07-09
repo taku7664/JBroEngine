@@ -323,6 +323,7 @@ bool CForward2DRenderer::Initialize(const RendererDesc& desc)
 	}
 
 	CreateSpriteBatchPipeline();
+	CreateBlitPipeline();
 	if (false == CreateTextPipeline() && ERHIApi::D3D11 == m_rhiDevice->GetApi())
 	{
 		Finalize();
@@ -577,9 +578,10 @@ SafePtr<IRHITexture> CForward2DRenderer::AcquireSceneColorTarget(std::uint32_t w
 
 void CForward2DRenderer::BlitFullscreen(IRHICommandContext& commandContext, SafePtr<IRHITexture> src)
 {
-	// ⚠ Phase 0(미배선): 현재는 스프라이트(알파블렌드) 파이프라인 재사용.
-	//   reroute 단계에서 픽셀 정확 복사를 위해 전용 no-blend blit 파이프라인으로 교체 예정.
-	if (!m_spritePipeline || !m_quadMesh || false == src.IsValid() || !m_defaultSampler)
+	// 전용 no-blend blit 파이프라인(Opaque)으로 src 를 풀스크린 복사. color=white,
+	// UvRect 항등 → out = 텍스처. 없으면(생성 실패) 스프라이트 파이프라인 폴백.
+	SafePtr<IRHIGraphicsPipeline> pipeline = m_blitPipeline ? m_blitPipeline.GetSafePtr() : m_spritePipeline.GetSafePtr();
+	if (false == pipeline.IsValid() || !m_quadMesh || false == src.IsValid() || !m_defaultSampler)
 	{
 		return;
 	}
@@ -588,7 +590,7 @@ void CForward2DRenderer::BlitFullscreen(IRHICommandContext& commandContext, Safe
 	DrawSpriteQuad(
 		commandContext,
 		stateCache,
-		m_spritePipeline.GetSafePtr(),
+		pipeline,
 		m_quadMesh.GetSafePtr(),
 		src,
 		m_defaultSampler.GetSafePtr(),
@@ -1137,6 +1139,7 @@ void CForward2DRenderer::Finalize()
 	m_quadMesh.Reset();
 	m_defaultSampler.Reset();
 	m_spriteBatchPipeline.Reset();
+	m_blitPipeline.Reset();
 	m_textPipeline.Reset();
 	m_spritePipeline.Reset();
 	m_textPixelProgram.Reset();
@@ -1275,6 +1278,34 @@ bool CForward2DRenderer::CreateSpritePipeline()
 	pipelineDesc.BlendMode = ERHIBlendMode::AlphaBlend; // 스프라이트 투명도 지원
 	m_spritePipeline = m_rhiDevice->CreateGraphicsPipeline(pipelineDesc);
 	return static_cast<bool>(m_spritePipeline);
+}
+
+bool CForward2DRenderer::CreateBlitPipeline()
+{
+	// 스프라이트 셰이더(POSITION+TEXCOORD, SpriteConstants) 그대로 재사용 —
+	// color=white + UvRect 항등이면 out = 텍스처. Opaque 블렌드로 픽셀 정확 복사.
+	if (!m_spriteVertexProgram || !m_spritePixelProgram)
+	{
+		return false;
+	}
+
+	RHIVertexElementDesc elements[2];
+	elements[0].SemanticName = "POSITION";
+	elements[0].Format = ERHIVertexFormat::Float2;
+	elements[0].Offset = 0;
+	elements[1].SemanticName = "TEXCOORD";
+	elements[1].Format = ERHIVertexFormat::Float2;
+	elements[1].Offset = sizeof(float) * 2;
+
+	RHIGraphicsPipelineDesc desc;
+	desc.VertexProgram = m_spriteVertexProgram.GetSafePtr();
+	desc.PixelProgram = m_spritePixelProgram.GetSafePtr();
+	desc.VertexElements = elements;
+	desc.VertexElementCount = 2;
+	desc.PrimitiveTopology = ERHIPrimitiveTopology::TriangleList;
+	desc.BlendMode = ERHIBlendMode::Opaque;   // 순수 복사 — 알파 이중적용 방지
+	m_blitPipeline = m_rhiDevice->CreateGraphicsPipeline(desc);
+	return static_cast<bool>(m_blitPipeline);
 }
 
 bool CForward2DRenderer::CreateSpriteBatchPipeline()

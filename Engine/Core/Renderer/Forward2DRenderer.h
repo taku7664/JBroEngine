@@ -126,6 +126,8 @@ private:
 	bool CreateSpritePipeline();
 	bool CreateTextPipeline();
 	bool CreateSpriteBatchPipeline();
+	// no-blend 풀스크린 blit 파이프라인(스프라이트 프로그램 재사용 + Opaque). BlitFullscreen 용.
+	bool CreateBlitPipeline();
 	bool CreateQuadMesh();
 
 private:
@@ -139,6 +141,7 @@ private:
 	OwnerPtr<IRHIProgram> m_textPixelProgram;
 	OwnerPtr<IRHIGraphicsPipeline> m_textPipeline;
 	OwnerPtr<IRHIGraphicsPipeline> m_spriteBatchPipeline;
+	OwnerPtr<IRHIGraphicsPipeline> m_blitPipeline;
 	OwnerPtr<IRHISampler> m_defaultSampler;
 	OwnerPtr<IRenderMesh> m_quadMesh;
 	std::vector<OwnerPtr<IRHIBuffer>> m_spriteConstantBuffers;
