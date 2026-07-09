@@ -81,6 +81,30 @@ namespace
 		}
 	}
 
+	DXGI_FORMAT ToD3DTextureFormat(ERHITextureFormat format)
+	{
+		switch (format)
+		{
+		case ERHITextureFormat::RGBA16F:
+			return DXGI_FORMAT_R16G16B16A16_FLOAT;
+		case ERHITextureFormat::RGBA8:
+		default:
+			return DXGI_FORMAT_R8G8B8A8_UNORM;
+		}
+	}
+
+	std::uint32_t BytesPerPixel(ERHITextureFormat format)
+	{
+		switch (format)
+		{
+		case ERHITextureFormat::RGBA16F:
+			return 8;
+		case ERHITextureFormat::RGBA8:
+		default:
+			return 4;
+		}
+	}
+
 	D3D11_PRIMITIVE_TOPOLOGY ToD3DTopology(ERHIPrimitiveTopology topology)
 	{
 		switch (topology)
@@ -298,19 +322,33 @@ OwnerPtr<IRHITexture> CD3D11RHIDevice::CreateTexture2D(const RHITexture2DDesc& d
 		return nullptr;
 	}
 
+	// 요청 포맷이 RT 로 못 쓰이면 RGBA8 로 폴백(구형/제한 GPU 대비).
+	ERHITextureFormat resolvedFormat = desc.Format;
+	const bool needsRenderTarget = 0 != (desc.BindFlags
+		& static_cast<RHITextureBindFlags>(ERHITextureBindFlag::RenderTarget));
+	if (needsRenderTarget && ERHITextureFormat::RGBA8 != resolvedFormat)
+	{
+		UINT formatSupport = 0;
+		const HRESULT supportResult = m_device->CheckFormatSupport(ToD3DTextureFormat(resolvedFormat), &formatSupport);
+		if (FAILED(supportResult) || 0 == (formatSupport & D3D11_FORMAT_SUPPORT_RENDER_TARGET))
+		{
+			resolvedFormat = ERHITextureFormat::RGBA8;
+		}
+	}
+
 	D3D11_TEXTURE2D_DESC textureDesc = {};
 	textureDesc.Width = desc.Width;
 	textureDesc.Height = desc.Height;
 	textureDesc.MipLevels = 1;
 	textureDesc.ArraySize = 1;
-	textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	textureDesc.Format = ToD3DTextureFormat(resolvedFormat);
 	textureDesc.SampleDesc.Count = 1;
 	textureDesc.Usage = D3D11_USAGE_DEFAULT;
 	textureDesc.BindFlags = ToD3DTextureBindFlags(desc.BindFlags);
 
 	D3D11_SUBRESOURCE_DATA data = {};
 	data.pSysMem = initialData;
-	data.SysMemPitch = desc.Width * 4;
+	data.SysMemPitch = desc.Width * BytesPerPixel(resolvedFormat);
 
 	ID3D11Texture2D* texture = nullptr;
 	HRESULT result = m_device->CreateTexture2D(&textureDesc, initialData ? &data : nullptr, &texture);
@@ -345,7 +383,9 @@ OwnerPtr<IRHITexture> CD3D11RHIDevice::CreateTexture2D(const RHITexture2DDesc& d
 		}
 	}
 
-	OwnerPtr<CD3D11Texture> rhiTexture = MakeOwnerPtr<CD3D11Texture>(desc);
+	RHITexture2DDesc resolvedDesc = desc;
+	resolvedDesc.Format = resolvedFormat;
+	OwnerPtr<CD3D11Texture> rhiTexture = MakeOwnerPtr<CD3D11Texture>(resolvedDesc);
 	rhiTexture->BindNativeTexture(texture, shaderResourceView, renderTargetView);
 	return rhiTexture;
 #else

@@ -127,9 +127,23 @@ namespace
 	{
 		switch (format)
 		{
+		case ERHITextureFormat::RGBA16F:
+			return WGPUTextureFormat_RGBA16Float;
 		case ERHITextureFormat::RGBA8:
 		default:
 			return WGPUTextureFormat_RGBA8Unorm;
+		}
+	}
+
+	std::uint32_t BytesPerPixel(ERHITextureFormat format)
+	{
+		switch (format)
+		{
+		case ERHITextureFormat::RGBA16F:
+			return 8;
+		case ERHITextureFormat::RGBA8:
+		default:
+			return 4;
 		}
 	}
 }
@@ -313,16 +327,18 @@ OwnerPtr<IRHITexture> CWebGPURHIDevice::CreateTexture2D(const RHITexture2DDesc& 
 		destination.origin = WGPUOrigin3D{ 0, 0, 0 };
 		destination.aspect = WGPUTextureAspect_All;
 
+		const std::uint32_t bytesPerPixel = BytesPerPixel(desc.Format);
+
 		WGPUTexelCopyBufferLayout layout = {};
 		layout.offset = 0;
-		layout.bytesPerRow = desc.Width * 4;
+		layout.bytesPerRow = desc.Width * bytesPerPixel;
 		layout.rowsPerImage = desc.Height;
 
 		WGPUExtent3D writeSize = {};
 		writeSize.width = desc.Width;
 		writeSize.height = desc.Height;
 		writeSize.depthOrArrayLayers = 1;
-		wgpuQueueWriteTexture(m_queue, &destination, initialData, desc.Width * desc.Height * 4, &layout, &writeSize);
+		wgpuQueueWriteTexture(m_queue, &destination, initialData, desc.Width * desc.Height * bytesPerPixel, &layout, &writeSize);
 	}
 
 	WGPUTextureViewDescriptor viewDesc = {};

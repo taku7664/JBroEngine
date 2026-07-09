@@ -68,7 +68,8 @@ enum class ERHIVertexInputRate
 
 enum class ERHITextureFormat
 {
-	RGBA8
+	RGBA8,      // 8bpc UNORM — 기본 컬러 타겟/스프라이트 텍스처.
+	RGBA16F     // 16bit float — HDR 라이트 누적/컴포지트용. 미지원 시 RGBA8 폴백.
 };
 
 enum class ERHITextureBindFlag : RHITextureBindFlags
