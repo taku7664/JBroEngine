@@ -109,12 +109,11 @@ EAssetType CAssetTypeRules::DetectTypeFromPath(const File::Path& path)
 
 EAssetType CAssetTypeRules::ResolveType(EAssetType declaredType, const File::Path& path)
 {
-	const EAssetType detected = DetectTypeFromPath(path);
-	if (EAssetType::Unknown != detected && EAssetType::Custom != detected)
+	if (EAssetType::Unknown != declaredType)
 	{
-		return detected;
+		return declaredType;
 	}
-	return declaredType;
+	return DetectTypeFromPath(path);
 }
 
 bool CAssetTypeRules::IsAssignableTo(EAssetType expectedType, EAssetType declaredType, const File::Path& path)
