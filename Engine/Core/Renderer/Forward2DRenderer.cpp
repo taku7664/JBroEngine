@@ -553,6 +553,48 @@ CForward2DRenderer::SpriteConstants CForward2DRenderer::BuildViewportColorConsta
 	return constants;
 }
 
+SafePtr<IRHITexture> CForward2DRenderer::AcquireSceneColorTarget(std::uint32_t width, std::uint32_t height)
+{
+	if (false == m_rhiDevice.IsValid() || 0 == width || 0 == height)
+	{
+		return nullptr;
+	}
+	// 크기가 바뀌면 재생성(뷰포트 리사이즈/멀티카메라). 같은 크기면 재사용.
+	if (!m_sceneColorTarget || width != m_sceneColorWidth || height != m_sceneColorHeight)
+	{
+		RHITexture2DDesc desc;
+		desc.Width     = width;
+		desc.Height    = height;
+		desc.Format    = ERHITextureFormat::RGBA8;
+		desc.BindFlags = static_cast<RHITextureBindFlags>(ERHITextureBindFlag::RenderTarget)
+		               | static_cast<RHITextureBindFlags>(ERHITextureBindFlag::ShaderResource);
+		m_sceneColorTarget = m_rhiDevice->CreateTexture2D(desc, nullptr);
+		m_sceneColorWidth  = width;
+		m_sceneColorHeight = height;
+	}
+	return m_sceneColorTarget.GetSafePtr();
+}
+
+void CForward2DRenderer::BlitFullscreen(IRHICommandContext& commandContext, SafePtr<IRHITexture> src)
+{
+	// ⚠ Phase 0(미배선): 현재는 스프라이트(알파블렌드) 파이프라인 재사용.
+	//   reroute 단계에서 픽셀 정확 복사를 위해 전용 no-blend blit 파이프라인으로 교체 예정.
+	if (!m_spritePipeline || !m_quadMesh || false == src.IsValid() || !m_defaultSampler)
+	{
+		return;
+	}
+	const SpriteConstants constants = BuildViewportColorConstants(1.0f, 1.0f, 1.0f, 1.0f);
+	RenderStateCache stateCache;
+	DrawSpriteQuad(
+		commandContext,
+		stateCache,
+		m_spritePipeline.GetSafePtr(),
+		m_quadMesh.GetSafePtr(),
+		src,
+		m_defaultSampler.GetSafePtr(),
+		constants);
+}
+
 bool CForward2DRenderer::IsSpriteItemVisibleInView(const RenderItem& item, const ViewParameters& view) const
 {
 	if (view.HalfW <= 0.0f || view.HalfH <= 0.0f)
@@ -1082,6 +1124,9 @@ void CForward2DRenderer::FillViewportColor(float r, float g, float b, float a)
 void CForward2DRenderer::Finalize()
 {
 	m_whiteTexture.Reset();
+	m_sceneColorTarget.Reset();
+	m_sceneColorWidth  = 0;
+	m_sceneColorHeight = 0;
 	m_spriteBatchInstances.clear();
 	m_spriteInstanceBuffers.clear();
 	m_spriteViewConstantBuffers.clear();

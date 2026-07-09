@@ -40,6 +40,13 @@ public:
 	SafePtr<IRenderMesh> GetQuadMesh() const;
 	SafePtr<IRHITexture> GetWhiteTexture() const;
 
+	// ── RenderWeave Phase 0: 오프스크린 RT + 풀스크린 blit ───────────────────
+	// 뷰포트 크기의 씬 컬러 RT 를 대여한다(크기가 바뀌면 재생성). RenderTarget+ShaderResource.
+	// 파이프라인이 이 RT 에 씬을 그린 뒤 BlitFullscreen 으로 최종 타겟에 복사한다.
+	SafePtr<IRHITexture> AcquireSceneColorTarget(std::uint32_t width, std::uint32_t height);
+	// src 텍스처를 현재 바인딩된 렌더패스에 풀스크린으로 복사한다(전용 no-blend 파이프라인).
+	void BlitFullscreen(IRHICommandContext& commandContext, SafePtr<IRHITexture> src);
+
 private:
 	struct SpriteConstants
 	{
@@ -157,5 +164,10 @@ private:
 	RenderCullingStats m_lastCullingStats;
 	// 1×1 white texture used by FillViewportColor
 	OwnerPtr<IRHITexture> m_whiteTexture;
+
+	// RenderWeave Phase 0 — 씬 컬러 오프스크린 RT(뷰포트 크기, 크기 변경 시 재생성).
+	OwnerPtr<IRHITexture> m_sceneColorTarget;
+	std::uint32_t         m_sceneColorWidth  = 0;
+	std::uint32_t         m_sceneColorHeight = 0;
 	bool m_isInitialized = false;
 };
