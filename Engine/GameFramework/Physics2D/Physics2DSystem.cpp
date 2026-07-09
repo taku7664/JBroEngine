@@ -1662,7 +1662,8 @@ void CPhysics2DSystem::OnInitialize(CGameScene& scene)
 	m_scene = &scene;
 }
 
-bool CPhysics2DSystem::Raycast(const Vector2& origin, const Vector2& direction, float maxDistance, RaycastHit2D& outHit) const
+bool CPhysics2DSystem::Raycast(const Vector2& origin, const Vector2& direction, float maxDistance, RaycastHit2D& outHit,
+                               std::uint32_t layerMask) const
 {
 	outHit = RaycastHit2D{};
 	if (nullptr == m_scene || maxDistance <= 0.0f)
@@ -1687,7 +1688,7 @@ bool CPhysics2DSystem::Raycast(const Vector2& origin, const Vector2& direction, 
 	m_scene->ForEach<CircleCollider2D>(
 		[&](const CircleCollider2D& collider)
 		{
-			if (false == IsActiveComponent(collider))
+			if (false == IsActiveComponent(collider) || 0u == (collider.CollisionLayer & layerMask))
 			{
 				return;
 			}
@@ -1723,7 +1724,7 @@ bool CPhysics2DSystem::Raycast(const Vector2& origin, const Vector2& direction, 
 	m_scene->ForEach<PolygonCollider2D>(
 		[&](const PolygonCollider2D& collider)
 		{
-			if (false == IsActiveComponent(collider))
+			if (false == IsActiveComponent(collider) || 0u == (collider.CollisionLayer & layerMask))
 			{
 				return;
 			}
@@ -1777,7 +1778,7 @@ bool CPhysics2DSystem::Raycast(const Vector2& origin, const Vector2& direction, 
 	return true;
 }
 
-CGameObject* CPhysics2DSystem::OverlapPoint(const Vector2& point) const
+CGameObject* CPhysics2DSystem::OverlapPoint(const Vector2& point, std::uint32_t layerMask) const
 {
 	if (nullptr == m_scene)
 	{
@@ -1788,7 +1789,7 @@ CGameObject* CPhysics2DSystem::OverlapPoint(const Vector2& point) const
 	m_scene->ForEach<CircleCollider2D>(
 		[&](const CircleCollider2D& collider)
 		{
-			if (nullptr != found || false == IsActiveComponent(collider))
+			if (nullptr != found || false == IsActiveComponent(collider) || 0u == (collider.CollisionLayer & layerMask))
 			{
 				return;
 			}
@@ -1806,7 +1807,7 @@ CGameObject* CPhysics2DSystem::OverlapPoint(const Vector2& point) const
 	m_scene->ForEach<PolygonCollider2D>(
 		[&](const PolygonCollider2D& collider)
 		{
-			if (nullptr != found || false == IsActiveComponent(collider))
+			if (nullptr != found || false == IsActiveComponent(collider) || 0u == (collider.CollisionLayer & layerMask))
 			{
 				return;
 			}
@@ -1818,7 +1819,8 @@ CGameObject* CPhysics2DSystem::OverlapPoint(const Vector2& point) const
 	return found;
 }
 
-void CPhysics2DSystem::OverlapCircle(const Vector2& center, float radius, std::vector<CGameObject*>& outResults) const
+void CPhysics2DSystem::OverlapCircle(const Vector2& center, float radius, std::vector<CGameObject*>& outResults,
+                                     std::uint32_t layerMask) const
 {
 	outResults.clear();
 	if (nullptr == m_scene || radius < 0.0f)
@@ -1829,7 +1831,7 @@ void CPhysics2DSystem::OverlapCircle(const Vector2& center, float radius, std::v
 	m_scene->ForEach<CircleCollider2D>(
 		[&](const CircleCollider2D& collider)
 		{
-			if (false == IsActiveComponent(collider))
+			if (false == IsActiveComponent(collider) || 0u == (collider.CollisionLayer & layerMask))
 			{
 				return;
 			}
@@ -1844,7 +1846,7 @@ void CPhysics2DSystem::OverlapCircle(const Vector2& center, float radius, std::v
 	m_scene->ForEach<PolygonCollider2D>(
 		[&](const PolygonCollider2D& collider)
 		{
-			if (false == IsActiveComponent(collider))
+			if (false == IsActiveComponent(collider) || 0u == (collider.CollisionLayer & layerMask))
 			{
 				return;
 			}
@@ -2101,6 +2103,15 @@ void CPhysics2DSystem::UpdateColliderBounds(CGameScene& scene)
 // 한 충돌 쌍(A, B)은 반드시 매니폴드 1개 — 접촉점이 2개여도 매니폴드는 1개.
 // 이로써 position solver가 쌍마다 정확히 1회 보정을 수행할 수 있다.
 
+namespace
+{
+	// 두 콜라이더가 물리 충돌 필터를 통과하는지. 양방향 모두 상대 레이어를 마스크에 허용해야 한다.
+	bool ShouldCollidePair(std::uint32_t layerA, std::uint32_t maskA, std::uint32_t layerB, std::uint32_t maskB)
+	{
+		return (layerA & maskB) != 0u && (layerB & maskA) != 0u;
+	}
+}
+
 void CPhysics2DSystem::DetectContacts(CGameScene& scene)
 {
 	m_manifolds.clear();
@@ -2144,6 +2155,7 @@ void CPhysics2DSystem::DetectContacts(CGameScene& scene)
 
 			PolygonCollider2D* a = polygons[i].second;
 			PolygonCollider2D* b = polygons[j].second;
+			if (!ShouldCollidePair(a->CollisionLayer, a->CollisionMask, b->CollisionLayer, b->CollisionMask)) continue;
 			if (!IntersectsAABB(a->WorldAABB, b->WorldAABB)) continue;
 
 			const bool aIsConvex = IsConvexPolygon(a->WorldPoints);
@@ -2297,6 +2309,7 @@ void CPhysics2DSystem::DetectContacts(CGameScene& scene)
 
 			CircleCollider2D* a = circles[i].second;
 			CircleCollider2D* b = circles[j].second;
+			if (!ShouldCollidePair(a->CollisionLayer, a->CollisionMask, b->CollisionLayer, b->CollisionMask)) continue;
 			if (!IntersectsAABB(a->WorldAABB, b->WorldAABB)) continue;
 
 			Vector2 normal, contactPoint;
@@ -2329,6 +2342,7 @@ void CPhysics2DSystem::DetectContacts(CGameScene& scene)
 		for (auto& [ce, circle] : circles)
 		{
 			if (pe == ce) continue;
+			if (!ShouldCollidePair(polygon->CollisionLayer, polygon->CollisionMask, circle->CollisionLayer, circle->CollisionMask)) continue;
 			if (!IntersectsAABB(polygon->WorldAABB, circle->WorldAABB)) continue;
 
 			bool        bestHit  = false;

@@ -77,6 +77,11 @@ public:
 	// 로컬 중심 오프셋 — Transform 원점 기준 콜라이더를 이동시킨다(스프라이트와 정렬용).
 	Vector2 Offset = Vector2(0.0f, 0.0f);
 	bool IsTrigger = false;
+	// 물리 충돌 필터 — 두 콜라이더는 (A.Layer & B.Mask) && (B.Layer & A.Mask) 일 때만 충돌한다.
+	// CollisionLayer: 이 콜라이더가 속한 레이어 비트. CollisionMask: 충돌을 허용할 상대 레이어 비트들.
+	// 기본값(레이어 bit0, 마스크 전체)이면 모든 콜라이더가 서로 충돌(하위호환).
+	std::uint32_t CollisionLayer = 0x00000001u;
+	std::uint32_t CollisionMask  = 0xffffffffu;
 
 	// ── 볼록 분해 조각 (오목 폴리곤 충돌용) ──────────────────────────────────
 	// Physics2DSystem 이 LocalPoints 변경 시 Ear Clipping 으로 재생성.
@@ -156,4 +161,9 @@ public:
 	Vector2 Offset = Vector2(0.0f, 0.0f);
 	PhysicsAABB2D WorldAABB;
 	bool IsTrigger = false;
+	// 물리 충돌 필터 — 두 콜라이더는 (A.Layer & B.Mask) && (B.Layer & A.Mask) 일 때만 충돌한다.
+	// CollisionLayer: 이 콜라이더가 속한 레이어 비트. CollisionMask: 충돌을 허용할 상대 레이어 비트들.
+	// 기본값(레이어 bit0, 마스크 전체)이면 모든 콜라이더가 서로 충돌(하위호환).
+	std::uint32_t CollisionLayer = 0x00000001u;
+	std::uint32_t CollisionMask  = 0xffffffffu;
 };

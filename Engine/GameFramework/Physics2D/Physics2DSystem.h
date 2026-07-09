@@ -18,16 +18,19 @@ public:
 	// 콜라이더 월드 지오메트리(UpdateColliderBounds 산출)를 사용한다. 값은 최신 fixed
 	// step 기준이라 가변 프레임 사이에는 최대 1 스텝 지연될 수 있다. 활성(IsActiveComponent)
 	// 콜라이더만 대상이며 트리거/솔리드를 구분하지 않는다.
+	// layerMask: (collider.CollisionLayer & layerMask) 가 0 이 아닌 콜라이더만 대상(기본 전체).
 
 	// origin 에서 direction(정규화 불필요) 방향으로 maxDistance 까지 레이를 쏴 가장 가까운
 	// 콜라이더를 찾는다. 맞으면 true + outHit 채움. direction 이 0 이면 false.
-	bool Raycast(const Vector2& origin, const Vector2& direction, float maxDistance, RaycastHit2D& outHit) const;
+	bool Raycast(const Vector2& origin, const Vector2& direction, float maxDistance, RaycastHit2D& outHit,
+	             std::uint32_t layerMask = 0xffffffffu) const;
 
 	// point 를 포함하는 첫 번째 콜라이더의 오브젝트. 없으면 nullptr.
-	CGameObject* OverlapPoint(const Vector2& point) const;
+	CGameObject* OverlapPoint(const Vector2& point, std::uint32_t layerMask = 0xffffffffu) const;
 
 	// 반지름 radius 의 원과 겹치는 콜라이더들의 오브젝트를 outResults 에 채운다(append 아님, 먼저 clear).
-	void OverlapCircle(const Vector2& center, float radius, std::vector<CGameObject*>& outResults) const;
+	void OverlapCircle(const Vector2& center, float radius, std::vector<CGameObject*>& outResults,
+	                   std::uint32_t layerMask = 0xffffffffu) const;
 
 	// Velocity-solver 반복 횟수.  높을수록 쌓인 물체 안정성/마찰 정확도↑, CPU↑.  기본: 8
 	void SetVelocityIterations(int iterations);

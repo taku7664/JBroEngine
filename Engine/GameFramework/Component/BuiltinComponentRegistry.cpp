@@ -145,12 +145,16 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 	registry.RegisterComponent<PolygonCollider2D>({ "PolygonCollider2D", "Polygon Collider 2D", "Physics", true })
 		.AddProperty("VertexCount", EReflectPropertyType::UInt32, offsetof(PolygonCollider2D, VertexCount), sizeof(std::uint32_t))
 		.AddProperty("Offset", EReflectPropertyType::Vector2Float, offsetof(PolygonCollider2D, Offset), sizeof(Vector2))
-		.AddProperty("IsTrigger", EReflectPropertyType::Bool, offsetof(PolygonCollider2D, IsTrigger), sizeof(bool));
+		.AddProperty("IsTrigger", EReflectPropertyType::Bool, offsetof(PolygonCollider2D, IsTrigger), sizeof(bool))
+		.AddProperty("CollisionLayer", EReflectPropertyType::UInt32, offsetof(PolygonCollider2D, CollisionLayer), sizeof(std::uint32_t))
+		.AddProperty("CollisionMask", EReflectPropertyType::UInt32, offsetof(PolygonCollider2D, CollisionMask), sizeof(std::uint32_t));
 
 	registry.RegisterComponent<CircleCollider2D>({ "CircleCollider2D", "Circle Collider 2D", "Physics", true })
 		.AddProperty("Radius", EReflectPropertyType::Float, offsetof(CircleCollider2D, Radius), sizeof(float))
 		.AddProperty("Offset", EReflectPropertyType::Vector2Float, offsetof(CircleCollider2D, Offset), sizeof(Vector2))
-		.AddProperty("IsTrigger", EReflectPropertyType::Bool, offsetof(CircleCollider2D, IsTrigger), sizeof(bool));
+		.AddProperty("IsTrigger", EReflectPropertyType::Bool, offsetof(CircleCollider2D, IsTrigger), sizeof(bool))
+		.AddProperty("CollisionLayer", EReflectPropertyType::UInt32, offsetof(CircleCollider2D, CollisionLayer), sizeof(std::uint32_t))
+		.AddProperty("CollisionMask", EReflectPropertyType::UInt32, offsetof(CircleCollider2D, CollisionMask), sizeof(std::uint32_t));
 
 	registry.RegisterComponent<PrefabInstance>({ "PrefabInstance", "Prefab Instance", "Prefab", false })
 		.AddProperty("SourcePrefabGuid", EReflectPropertyType::AssetGuid, offsetof(PrefabInstance, SourcePrefabGuid), sizeof(AssetGuid));
