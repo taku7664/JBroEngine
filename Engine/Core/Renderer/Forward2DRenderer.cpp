@@ -12,6 +12,7 @@
 #include "Core/Logging/LoggerInternal.h"   // 진단 로그(CSystemLog)
 
 #include <cfloat>
+#include <cmath>
 #include <format>
 #include <utility>
 
@@ -327,14 +328,26 @@ struct VSOut
 
 float4 PSMain(VSOut input) : SV_TARGET
 {
+	float type = gShaderParams.x;    // 0=Directional, 1=Point, 2=Spot
+	float intensity = gShaderParams.y;
 	float atten = 1.0f;
-	if (gShaderParams.x > 0.5f)
+	if (type > 0.5f)
 	{
 		float2 d = (input.Uv - 0.5f) * 2.0f;
 		float r = saturate(1.0f - length(d));
 		atten = r * r;
+		if (type > 1.5f)
+		{
+			// Spot: 각도 감쇠. gSecondaryColor.xy=월드 방향, .z=cos(inner/2), .w=cos(outer/2).
+			// uv → 월드 방향(쿼드 uv.y 는 월드 -Y 방향이라 부호 반전).
+			float2 pdir = float2(input.Uv.x - 0.5f, -(input.Uv.y - 0.5f));
+			float pl = length(pdir);
+			float2 pn = pl > 0.0001f ? pdir / pl : gSecondaryColor.xy;
+			float cosA = dot(pn, gSecondaryColor.xy);
+			float cone = smoothstep(gSecondaryColor.w, gSecondaryColor.z, cosA);
+			atten *= cone;
+		}
 	}
-	float intensity = gShaderParams.y;
 	return float4(input.Color.rgb * intensity * atten, 1.0f);
 }
 )";
@@ -371,14 +384,25 @@ struct VSOut
 @fragment
 fn PSMain(input : VSOut) -> @location(0) vec4<f32>
 {
+	let type = gConstants.ShaderParams.x;   // 0=Directional, 1=Point, 2=Spot
+	let intensity = gConstants.ShaderParams.y;
 	var atten = 1.0;
-	if (gConstants.ShaderParams.x > 0.5)
+	if (type > 0.5)
 	{
 		let d = (input.Uv - 0.5) * 2.0;
 		let r = clamp(1.0 - length(d), 0.0, 1.0);
 		atten = r * r;
+		if (type > 1.5)
+		{
+			let pdir = vec2<f32>(input.Uv.x - 0.5, -(input.Uv.y - 0.5));
+			let pl = length(pdir);
+			var pn = gConstants.SecondaryColor.xy;
+			if (pl > 0.0001) { pn = pdir / pl; }
+			let cosA = dot(pn, gConstants.SecondaryColor.xy);
+			let cone = smoothstep(gConstants.SecondaryColor.w, gConstants.SecondaryColor.z, cosA);
+			atten = atten * cone;
+		}
 	}
-	let intensity = gConstants.ShaderParams.y;
 	return vec4<f32>(input.Color.rgb * intensity * atten, 1.0);
 }
 )";
@@ -900,6 +924,35 @@ void CForward2DRenderer::DrawLight2D(IRHICommandContext& commandContext, int typ
 	const SpriteConstants constants = BuildLightConstants(type, worldX, worldY, range, color, intensity, view);
 	RenderStateCache stateCache;
 	// 라이트 PS 는 텍스처 미사용 — 바인딩 정합용으로 white 텍스처를 넘긴다.
+	DrawSpriteQuad(
+		commandContext,
+		stateCache,
+		m_lightPipeline.GetSafePtr(),
+		m_quadMesh.GetSafePtr(),
+		m_whiteTexture.GetSafePtr(),
+		m_defaultSampler.GetSafePtr(),
+		constants);
+}
+
+void CForward2DRenderer::DrawLight2DSpot(IRHICommandContext& commandContext, float worldX, float worldY,
+	float range, const float color[4], float intensity,
+	float dirX, float dirY, float innerAngleRadians, float outerAngleRadians)
+{
+	if (!m_lightPipeline || !m_quadMesh || !m_defaultSampler || !m_whiteTexture || false == m_rhiDevice.IsValid())
+	{
+		return;
+	}
+	const ViewParameters view = BuildViewParameters();
+	// Point 와 동일한 쿼드/반경 감쇠(type=2) 위에 각도 감쇠를 얹는다.
+	SpriteConstants constants = BuildLightConstants(2, worldX, worldY, range, color, intensity, view);
+	// SecondaryColor 에 스팟 파라미터 패킹: xy=월드 방향, z=cos(inner/2), w=cos(outer/2).
+	const float innerHalf = innerAngleRadians * 0.5f;
+	const float outerHalf = outerAngleRadians * 0.5f;
+	constants.SecondaryColor[0] = dirX;
+	constants.SecondaryColor[1] = dirY;
+	constants.SecondaryColor[2] = std::cos(innerHalf);
+	constants.SecondaryColor[3] = std::cos(outerHalf);
+	RenderStateCache stateCache;
 	DrawSpriteQuad(
 		commandContext,
 		stateCache,

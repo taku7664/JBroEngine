@@ -88,10 +88,15 @@ std::vector<GameRenderLightDesc> CollectGameRenderLights(const CGameScene& scene
 			}
 
 			const Matrix3x2 worldTransform = GetWorldTransform(*owner);
+			// 방향 = 로컬 +X 의 월드 방향(회전에서). 씬뷰 기즈모와 동일 규약.
+			const float dirLen = std::sqrt(worldTransform.M11 * worldTransform.M11 + worldTransform.M12 * worldTransform.M12);
+			const float dirX = dirLen > 1e-6f ? worldTransform.M11 / dirLen : 1.0f;
+			const float dirY = dirLen > 1e-6f ? worldTransform.M12 / dirLen : 0.0f;
 
 			GameRenderLightDesc desc;
-			// Spot(SpotReady)은 아직 미구현 — Phase 2 에서는 Point 로 취급한다.
-			desc.Type = (ELight2DType::Directional == light.Type) ? 0 : 1;
+			desc.Type = (ELight2DType::Directional == light.Type) ? 0
+			          : (ELight2DType::Spot == light.Type)        ? 2
+			          :                                             1;
 			desc.PosX = worldTransform.Dx;
 			desc.PosY = worldTransform.Dy;
 			desc.Color[0] = light.Color[0];
@@ -100,8 +105,12 @@ std::vector<GameRenderLightDesc> CollectGameRenderLights(const CGameScene& scene
 			desc.Color[3] = light.Color[3];
 			desc.Intensity = light.Intensity;
 			desc.Range = light.Range;
-			// 그림자는 Point 전용(극좌표/방사 레이마치). Directional 은 v1 에서 그림자 없음.
-			desc.CastShadows = light.CastShadows && (ELight2DType::Directional != light.Type);
+			desc.DirX = dirX;
+			desc.DirY = dirY;
+			desc.InnerAngleRadians = light.InnerAngleRadians;
+			desc.OuterAngleRadians = light.OuterAngleRadians;
+			// 그림자는 Point 전용(방사 레이마치). Directional/Spot 그림자는 후속.
+			desc.CastShadows = light.CastShadows && (ELight2DType::Point == light.Type);
 			lights.push_back(desc);
 		});
 
@@ -378,6 +387,11 @@ void RenderGameCameraStack(
 							}
 						}
 						forward->DrawLight2DShadowed(ctx, light.PosX, light.PosY, light.Range, light.Color, light.Intensity, occluder);
+					}
+					else if (2 == light.Type)
+					{
+						forward->DrawLight2DSpot(ctx, light.PosX, light.PosY, light.Range, light.Color, light.Intensity,
+							light.DirX, light.DirY, light.InnerAngleRadians, light.OuterAngleRadians);
 					}
 					else
 					{

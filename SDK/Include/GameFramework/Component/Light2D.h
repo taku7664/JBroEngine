@@ -9,7 +9,7 @@ enum class ELight2DType
 {
 	Directional,
 	Point,
-	SpotReady
+	Spot
 };
 
 class Light2D final : public CComponent

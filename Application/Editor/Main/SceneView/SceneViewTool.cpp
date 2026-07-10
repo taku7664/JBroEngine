@@ -1446,9 +1446,11 @@ void CSceneViewTool::OnRenderStay()
     }
     } // cameraTabActive block
 
-    // ── Light2D 범위 인디케이터 ─────────────────────────────────────────────────
-    // Inspector에서 Light2D 탭이 활성화된 경우, 라이트 월드 위치에 범위(Range) 원을 표시.
-    // Point 전용(Directional 은 방향성이라 반경 개념 없음).
+    // ── Light2D 타입별 디버그 기즈모 ────────────────────────────────────────────
+    // Inspector 에서 Light2D 탭이 활성일 때 월드 위치에 표시:
+    //   Point       → 범위(Range) 원
+    //   Directional → 방향 화살표(오브젝트 회전 = 로컬 +X 방향)
+    //   Spot → 원뿔(OuterAngle 폭, Range 길이, 회전 방향)
     {
         const char* inspTypeLight = Editor::Inspector
             ? Editor::Inspector->GetActiveComponentTypeName() : nullptr;
@@ -1458,19 +1460,76 @@ void CSceneViewTool::OnRenderStay()
         if (lightTabActive && nullptr != selectedObject)
         {
             const Light2D* light = selectedObject->GetComponent<Light2D>();
-            if (light && ELight2DType::Directional != light->Type)
+            if (light)
             {
                 const Matrix3x2 wt      = GetWorldTransform(*selectedObject);
                 const Vector2   wCenter = wt.TransformPoint(Vector2(0.0f, 0.0f));
                 const float pixPerWorld = vpSize.y / (2.0f * m_cameraSize);
-                const ImVec2 sc      = WorldToViewport(wCenter, vpMin, vpSize, m_cameraPos, m_cameraSize);
-                const float  sRadius = std::max(light->Range * pixPerWorld, 1.0f);
+                const ImVec2 sc  = WorldToViewport(wCenter, vpMin, vpSize, m_cameraPos, m_cameraSize);
+                const float  rot = std::atan2(wt.M12, wt.M11);   // 로컬 +X 의 월드 각 = 라이트 방향
+
+                const float  cx = wCenter.x;
+                const float  cy = wCenter.y;
+                auto sp = [&](float wx, float wy) -> ImVec2
+                {
+                    return WorldToViewport(Vector2(wx, wy), vpMin, vpSize, m_cameraPos, m_cameraSize);
+                };
+
+                const ImU32 col       = IM_COL32(255, 220, 90, 230);
+                const ImU32 colShadow = IM_COL32(0, 0, 0, 120);
+                const ImU32 colFill   = IM_COL32(255, 220, 90, 24);
 
                 dl->PushClipRect(vpMin, vpMin + vpSize, true);
-                dl->AddCircleFilled(sc, sRadius, IM_COL32(255, 220, 90, 22), 64);
-                dl->AddCircle(ImVec2(sc.x + 1.0f, sc.y + 1.0f), sRadius, IM_COL32(0, 0, 0, 120), 64, 2.5f);
-                dl->AddCircle(sc, sRadius, IM_COL32(255, 220, 90, 230), 64, 2.0f);
-                dl->AddCircleFilled(sc, 3.5f, IM_COL32(255, 220, 90, 235));
+
+                if (ELight2DType::Directional == light->Type)
+                {
+                    // 평행광 — 위치 무관. 화살표는 고정 월드 길이로 방향만 표시.
+                    const float len = 2.0f;
+                    const float tx  = cx + std::cos(rot) * len;
+                    const float ty  = cy + std::sin(rot) * len;
+                    const ImVec2 tip = sp(tx, ty);
+                    const float ah = 0.5f;
+                    dl->AddLine(sc, tip, col, 2.5f);
+                    dl->AddLine(tip, sp(tx + std::cos(rot + 2.6f) * ah, ty + std::sin(rot + 2.6f) * ah), col, 2.5f);
+                    dl->AddLine(tip, sp(tx + std::cos(rot - 2.6f) * ah, ty + std::sin(rot - 2.6f) * ah), col, 2.5f);
+                }
+                else if (ELight2DType::Point == light->Type)
+                {
+                    const float sRadius = std::max(light->Range * pixPerWorld, 1.0f);
+                    dl->AddCircleFilled(sc, sRadius, colFill, 64);
+                    dl->AddCircle(ImVec2(sc.x + 1.0f, sc.y + 1.0f), sRadius, colShadow, 64, 2.5f);
+                    dl->AddCircle(sc, sRadius, col, 64, 2.0f);
+                }
+                else // Spot — 원뿔
+                {
+                    const float len  = std::max(light->Range, 0.01f);
+                    const float half = std::max(light->OuterAngleRadians * 0.5f, 0.01f);
+                    const ImVec2 e1 = sp(cx + std::cos(rot + half) * len, cy + std::sin(rot + half) * len);
+                    const ImVec2 e2 = sp(cx + std::cos(rot - half) * len, cy + std::sin(rot - half) * len);
+                    dl->AddTriangleFilled(sc, e1, e2, colFill);
+                    dl->AddLine(sc, e1, col, 2.0f);
+                    dl->AddLine(sc, e2, col, 2.0f);
+                    // 끝단 호.
+                    const int seg = 24;
+                    ImVec2 prev = e2;
+                    for (int i = 1; i <= seg; ++i)
+                    {
+                        const float a = (rot - half) + (2.0f * half) * (static_cast<float>(i) / static_cast<float>(seg));
+                        const ImVec2 p = sp(cx + std::cos(a) * len, cy + std::sin(a) * len);
+                        dl->AddLine(prev, p, col, 2.0f);
+                        prev = p;
+                    }
+                    // 내부 원뿔(InnerAngle) — 약하게.
+                    const float innerHalf = light->InnerAngleRadians * 0.5f;
+                    if (innerHalf > 0.001f && innerHalf < half)
+                    {
+                        const ImU32 colInner = IM_COL32(255, 235, 150, 120);
+                        dl->AddLine(sc, sp(cx + std::cos(rot + innerHalf) * len, cy + std::sin(rot + innerHalf) * len), colInner, 1.5f);
+                        dl->AddLine(sc, sp(cx + std::cos(rot - innerHalf) * len, cy + std::sin(rot - innerHalf) * len), colInner, 1.5f);
+                    }
+                }
+
+                dl->AddCircleFilled(sc, 3.5f, IM_COL32(255, 220, 90, 235));   // 중심점
                 dl->PopClipRect();
             }
         }

@@ -52,6 +52,10 @@ public:
 	// type: 0=Directional(뷰포트 균일), 1=Point(월드 pos 중심 반경 range 감쇠).
 	void DrawLight2D(IRHICommandContext& commandContext, int type, float worldX, float worldY,
 		float range, const float color[4], float intensity);
+	// Spot 원뿔광 — Point 반경 감쇠 × 각도 감쇠(inner~outer). dir = 월드 방향(정규화).
+	void DrawLight2DSpot(IRHICommandContext& commandContext, float worldX, float worldY,
+		float range, const float color[4], float intensity,
+		float dirX, float dirY, float innerAngleRadians, float outerAngleRadians);
 	// 그림자 Point 라이트 — occluder 맵(라이트 중심 정사각, uv[0,1])을 픽셀→중심 레이마치해
 	// 실루엣 그림자를 적용하며 가산 누적한다.
 	void DrawLight2DShadowed(IRHICommandContext& commandContext, float worldX, float worldY,
