@@ -119,6 +119,8 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 		.AddProperty("Color", EReflectPropertyType::ColorFloat4, offsetof(Light2D, Color), sizeof(float), 4)
 		.AddProperty("Intensity", EReflectPropertyType::Float, offsetof(Light2D, Intensity), sizeof(float))
 		.AddProperty("Range", EReflectPropertyType::Float, offsetof(Light2D, Range), sizeof(float))
+		.AddProperty("InnerAngleRadians", EReflectPropertyType::Float, offsetof(Light2D, InnerAngleRadians), sizeof(float))
+		.AddProperty("OuterAngleRadians", EReflectPropertyType::Float, offsetof(Light2D, OuterAngleRadians), sizeof(float))
 		.AddProperty("LayerMask", EReflectPropertyType::UInt32, offsetof(Light2D, LayerMask), sizeof(std::uint32_t))
 		.AddProperty("CastShadows", EReflectPropertyType::Bool, offsetof(Light2D, CastShadows), sizeof(bool));
 

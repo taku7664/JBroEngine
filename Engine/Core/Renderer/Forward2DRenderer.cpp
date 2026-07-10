@@ -439,6 +439,16 @@ float4 PSMain(VSOut input) : SV_TARGET
 	float r = saturate(1.0f - length(d));
 	float atten = r * r;
 
+	// Spot(type 2): 각도 감쇠. gSecondaryColor.xy=방향, .z=cos(inner/2), .w=cos(outer/2).
+	if (gShaderParams.x > 1.5f)
+	{
+		float2 pdir = float2(input.Uv.x - 0.5f, -(input.Uv.y - 0.5f));
+		float pl = length(pdir);
+		float2 pn = pl > 0.0001f ? pdir / pl : gSecondaryColor.xy;
+		float cosA = dot(pn, gSecondaryColor.xy);
+		atten *= smoothstep(gSecondaryColor.w, gSecondaryColor.z, cosA);
+	}
+
 	float2 toCenter = float2(0.5f, 0.5f) - input.Uv;
 	const int STEPS = 24;
 	float2 stepv = toCenter / STEPS;
@@ -489,7 +499,17 @@ fn PSMain(input : VSOut) -> @location(0) vec4<f32>
 {
 	let d = (input.Uv - 0.5) * 2.0;
 	let r = clamp(1.0 - length(d), 0.0, 1.0);
-	let atten = r * r;
+	var atten = r * r;
+
+	if (gConstants.ShaderParams.x > 1.5)
+	{
+		let pdir = vec2<f32>(input.Uv.x - 0.5, -(input.Uv.y - 0.5));
+		let pl = length(pdir);
+		var pn = gConstants.SecondaryColor.xy;
+		if (pl > 0.0001) { pn = pdir / pl; }
+		let cosA = dot(pn, gConstants.SecondaryColor.xy);
+		atten = atten * smoothstep(gConstants.SecondaryColor.w, gConstants.SecondaryColor.z, cosA);
+	}
 
 	let toCenter = vec2<f32>(0.5, 0.5) - input.Uv;
 	let STEPS = 24;
@@ -1009,13 +1029,21 @@ void CForward2DRenderer::TonemapFullscreen(IRHICommandContext& commandContext, S
 		constants);
 }
 
-void CForward2DRenderer::DrawLight2DShadowed(IRHICommandContext& commandContext, float worldX, float worldY,
-	float range, const float color[4], float intensity, SafePtr<IRHITexture> occluder)
+void CForward2DRenderer::DrawLight2DShadowed(IRHICommandContext& commandContext, int type, float worldX, float worldY,
+	float range, const float color[4], float intensity,
+	float dirX, float dirY, float innerAngleRadians, float outerAngleRadians, SafePtr<IRHITexture> occluder)
 {
-	// 그림자 파이프라인/오클루더 없으면 일반 Point 라이트로 폴백(그림자 없이라도 조명은 나오게).
+	// 그림자 파이프라인/오클루더 없으면 무그림자 라이트로 폴백(조명은 나오게).
 	if (!m_lightShadowPipeline || false == occluder.IsValid())
 	{
-		DrawLight2D(commandContext, 1, worldX, worldY, range, color, intensity);
+		if (2 == type)
+		{
+			DrawLight2DSpot(commandContext, worldX, worldY, range, color, intensity, dirX, dirY, innerAngleRadians, outerAngleRadians);
+		}
+		else
+		{
+			DrawLight2D(commandContext, 1, worldX, worldY, range, color, intensity);
+		}
 		return;
 	}
 	if (!m_quadMesh || !m_defaultSampler)
@@ -1023,7 +1051,15 @@ void CForward2DRenderer::DrawLight2DShadowed(IRHICommandContext& commandContext,
 		return;
 	}
 	const ViewParameters view = BuildViewParameters();
-	const SpriteConstants constants = BuildLightConstants(1, worldX, worldY, range, color, intensity, view);
+	// type(1=Point,2=Spot) 을 그대로 넘긴다 — 그림자 셰이더가 Spot 이면 각도 감쇠도 적용.
+	SpriteConstants constants = BuildLightConstants(type, worldX, worldY, range, color, intensity, view);
+	if (2 == type)
+	{
+		constants.SecondaryColor[0] = dirX;
+		constants.SecondaryColor[1] = dirY;
+		constants.SecondaryColor[2] = std::cos(innerAngleRadians * 0.5f);
+		constants.SecondaryColor[3] = std::cos(outerAngleRadians * 0.5f);
+	}
 	RenderStateCache stateCache;
 	// gTexture = occluder 맵(라이트 중심 uv[0,1]) — PS 가 픽셀→중심 레이마치.
 	DrawSpriteQuad(

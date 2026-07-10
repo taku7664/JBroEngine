@@ -109,8 +109,9 @@ std::vector<GameRenderLightDesc> CollectGameRenderLights(const CGameScene& scene
 			desc.DirY = dirY;
 			desc.InnerAngleRadians = light.InnerAngleRadians;
 			desc.OuterAngleRadians = light.OuterAngleRadians;
-			// 그림자는 Point 전용(방사 레이마치). Directional/Spot 그림자는 후속.
-			desc.CastShadows = light.CastShadows && (ELight2DType::Point == light.Type);
+			// 그림자는 Point·Spot(둘 다 라이트 중심 occluder + 방사 레이마치). Directional 은 후속.
+			desc.CastShadows = light.CastShadows
+				&& (ELight2DType::Point == light.Type || ELight2DType::Spot == light.Type);
 			lights.push_back(desc);
 		});
 
@@ -386,7 +387,8 @@ void RenderGameCameraStack(
 								break;
 							}
 						}
-						forward->DrawLight2DShadowed(ctx, light.PosX, light.PosY, light.Range, light.Color, light.Intensity, occluder);
+						forward->DrawLight2DShadowed(ctx, light.Type, light.PosX, light.PosY, light.Range, light.Color, light.Intensity,
+							light.DirX, light.DirY, light.InnerAngleRadians, light.OuterAngleRadians, occluder);
 					}
 					else if (2 == light.Type)
 					{
