@@ -517,13 +517,17 @@ namespace
 {
 	// 붙여넣은 서브트리 전체에 새 InstanceGuid 를 발급한다(오브젝트 + 컴포넌트 + 자식 재귀).
 	// 원본과 guid 가 겹치면 씬에 같은 guid 가 둘이 되어 Ref/해석이 깨지므로 필수.
-	void ReissuePastedGuids(CGameObject& object)
+	// 오브젝트 guid 는 반드시 씬 API(SetObjectInstanceGuid)로 재발급해야 m_objectByGuid 인덱스가
+	// 함께 갱신된다. 직접 대입하면 인덱스가 옛 guid 로 남아 FindByInstanceGuid 가 실패
+	// → 붙여넣은 오브젝트를 기즈모/커맨드가 못 찾아 이동 등 편집이 안 된다.
+	void ReissuePastedGuids(CGameScene& scene, CGameObject& object)
 	{
-		object.InstanceGuid = File::GenerateGuid();
+		scene.SetObjectInstanceGuid(object, File::GenerateGuid());
 		for (const SafePtr<CComponent>& cref : object.GetComponents())
 		{
 			if (CComponent* comp = cref.TryGet())
 			{
+				// 컴포넌트는 씬 guid 인덱스가 없어 직접 대입으로 충분.
 				comp->InstanceGuid = File::GenerateGuid();
 			}
 		}
@@ -531,7 +535,7 @@ namespace
 		{
 			if (CGameObject* child = childRef.TryGet())
 			{
-				ReissuePastedGuids(*child);
+				ReissuePastedGuids(scene, *child);
 			}
 		}
 	}
@@ -570,7 +574,7 @@ bool CPasteObjectsCommand::Execute()
 	{
 		for (CGameObject* root : roots)
 		{
-			if (root) ReissuePastedGuids(*root);
+			if (root) ReissuePastedGuids(*m_scene, *root);
 		}
 
 		// 위치: 루트들의 위치 평균(중심)을 spawn 좌표로 이동(상대 배치 보존). 루트라 local==world.

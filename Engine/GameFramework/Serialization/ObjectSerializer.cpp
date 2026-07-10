@@ -126,7 +126,14 @@ CGameObject* ReadObjectInto(CGameScene& scene, const YAML::Node& node,
 		const std::string guid = g.as<std::string>("");
 		if (false == guid.empty())
 		{
-			scene.SetObjectInstanceGuid(*object, File::Guid(guid));
+			File::Guid parsed(guid);
+			// 같은 씬 복사-붙여넣기: 클립보드 guid 가 원본과 동일 → 그대로 쓰면 원본의
+			// guid 인덱스 슬롯을 뺏어 원본이 조회 불가가 된다. 이미 있으면 새 guid 발급.
+			if (scene.FindByInstanceGuid(parsed).IsValid())
+			{
+				parsed = File::GenerateGuid();
+			}
+			scene.SetObjectInstanceGuid(*object, parsed);
 		}
 	}
 
