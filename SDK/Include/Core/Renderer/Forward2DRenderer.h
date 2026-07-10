@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Core/Renderer/IRenderer.h"
+#include "Core/Renderer/RenderWeave/RenderWeaveGraph.h"
 #include "Core/RHI/IRHIBuffer.h"
 #include "Core/RHI/IRHIGraphicsPipeline.h"
 #include "Core/RHI/IRHISampler.h"
@@ -39,6 +40,20 @@ public:
 	SafePtr<IRHISampler> GetDefaultSampler() const;
 	SafePtr<IRenderMesh> GetQuadMesh() const;
 	SafePtr<IRHITexture> GetWhiteTexture() const;
+
+	// ── RenderWeave: 렌더그래프 RT 풀 + 풀스크린 blit ────────────────────────
+	// transient RT 대여 풀. RenderGameCameraStack 이 프레임마다 RWGraph 를 구성해 쓴다.
+	RWTexturePool& GetRenderWeavePool();
+	// src 텍스처를 현재 바인딩된 렌더패스에 풀스크린으로 복사한다(전용 no-blend 파이프라인).
+	void BlitFullscreen(IRHICommandContext& commandContext, SafePtr<IRHITexture> src);
+
+	// ── RenderWeave 라이팅 ──────────────────────────────────────────────────────
+	// 라이트 1개를 LightMap 에 가산 누적한다(현재 SetViewCameraEx 로 설정된 뷰 기준).
+	// type: 0=Directional(뷰포트 균일), 1=Point(월드 pos 중심 반경 range 감쇠).
+	void DrawLight2D(IRHICommandContext& commandContext, int type, float worldX, float worldY,
+		float range, const float color[4], float intensity);
+	// SceneColor × LightMap 을 현재 렌더패스에 풀스크린 컴포짓한다(곱셈, 최종 출력).
+	void CompositeLighting(IRHICommandContext& commandContext, SafePtr<IRHITexture> sceneColor, SafePtr<IRHITexture> lightMap);
 
 private:
 	struct SpriteConstants
@@ -108,6 +123,7 @@ private:
 	void ApplySurfacePreRotation(float (&viewRow0)[4], float (&viewRow1)[4]) const;
 	SpriteInstanceData BuildSpriteInstanceData(const RenderItem& item) const;
 	SpriteConstants BuildViewportColorConstants(float r, float g, float b, float a) const;
+	SpriteConstants BuildLightConstants(int type, float worldX, float worldY, float range, const float color[4], float intensity, const ViewParameters& view) const;
 	bool IsSpriteItemVisibleInView(const RenderItem& item, const ViewParameters& view) const;
 	SafePtr<IRHIBuffer> AcquireSpriteConstantBuffer(IRHICommandContext& commandContext, const SpriteConstants& constants);
 	SafePtr<IRHIBuffer> AcquireSpriteViewConstantBuffer(IRHICommandContext& commandContext, const SpriteViewConstants& constants);
@@ -119,6 +135,12 @@ private:
 	bool CreateSpritePipeline();
 	bool CreateTextPipeline();
 	bool CreateSpriteBatchPipeline();
+	// no-blend 풀스크린 blit 파이프라인(스프라이트 프로그램 재사용 + Opaque). BlitFullscreen 용.
+	bool CreateBlitPipeline();
+	// 라이트 누적 파이프라인(스프라이트 VS 재사용 + 라이트 PS + Additive). DrawLight2D 용.
+	bool CreateLightPipeline();
+	// SceneColor × LightMap 컴포짓 파이프라인(스프라이트 VS 재사용 + 컴포짓 PS + Opaque, 2텍스처).
+	bool CreateCompositePipeline();
 	bool CreateQuadMesh();
 
 private:
@@ -132,6 +154,10 @@ private:
 	OwnerPtr<IRHIProgram> m_textPixelProgram;
 	OwnerPtr<IRHIGraphicsPipeline> m_textPipeline;
 	OwnerPtr<IRHIGraphicsPipeline> m_spriteBatchPipeline;
+	OwnerPtr<IRHIGraphicsPipeline> m_blitPipeline;
+	OwnerPtr<IRHIProgram> m_lightPixelProgram;      // 라이트 감쇠 PS(스프라이트 VS 와 페어)
+	OwnerPtr<IRHIGraphicsPipeline> m_lightPipeline;      // 라이트 누적(Additive)
+	OwnerPtr<IRHIGraphicsPipeline> m_compositePipeline;  // 라이트맵 곱셈 컴포짓(sprite VS+PS, Multiply)
 	OwnerPtr<IRHISampler> m_defaultSampler;
 	OwnerPtr<IRenderMesh> m_quadMesh;
 	std::vector<OwnerPtr<IRHIBuffer>> m_spriteConstantBuffers;
@@ -157,5 +183,8 @@ private:
 	RenderCullingStats m_lastCullingStats;
 	// 1×1 white texture used by FillViewportColor
 	OwnerPtr<IRHITexture> m_whiteTexture;
+
+	// RenderWeave — transient RT 대여 풀(SceneColor/LightMap/Post 등 그래프 RT).
+	RWTexturePool m_weavePool;
 	bool m_isInitialized = false;
 };
