@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Core/Asset/AssetTypes.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -140,6 +142,9 @@ struct ReflectPropertyInfo
 	ERefCategory         RefCategory  = ERefCategory::Component; // 드롭 대상 분류
 	const char*          RefTypeName  = nullptr;                  // 대상 타입명(드롭 필터/표시)
 
+	// ── AssetGuid / asset Ref 전용 ───────────────────────────────────────────
+	EAssetType           ExpectedAssetType = EAssetType::Unknown; // Unknown 이면 타입 제한 없음
+
 	// ── Enum 전용 (Type == Enum 일 때만 유효) ─────────────────────────────────
 	const EnumTypeMeta*  Enum         = nullptr;                  // 이름 목록/변환(magic_enum)
 };
@@ -165,6 +170,7 @@ struct ScriptPropertyDesc
 	// 생성 코드가 Ref<X>::Category 와 "X" 를 채운다(코드젠은 분류 안 함).
 	ERefCategory         RefCategory  = ERefCategory::Component;
 	const char*          RefTypeName  = nullptr;
+	EAssetType           ExpectedAssetType = EAssetType::Unknown;
 
 	// ── Enum 전용 (Type == Enum 일 때만 유효) ─────────────────────────────────
 	// 스크립트 enum 은 후속(JPROP codegen) — 현재 컴포넌트만 채운다.

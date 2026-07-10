@@ -15,8 +15,8 @@ public:
 	bool UnregisterAsset(const AssetGuid& guid) override;
 	void Clear() override;
 	void ClearNonPersistent() override;
-	const AssetMetaData* FindAsset(const AssetGuid& guid) const override;
-	const AssetMetaData* FindAssetByPath(const File::Path& path) const override;
+	bool TryGetAsset(const AssetGuid& guid, AssetMetaData& outMetaData) const override;
+	bool TryGetAssetByPath(const File::Path& path, AssetMetaData& outMetaData) const override;
 	void BuildSnapshot(AssetRegistrySnapshot& outSnapshot) const override;
 
 private:

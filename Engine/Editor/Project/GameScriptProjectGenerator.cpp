@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "GameScriptProjectGenerator.h"
 
+#include "Core/Asset/AssetTypeRules.h"
 #include "Core/Logging/LoggerInternal.h"
 
 #include <algorithm>
@@ -31,6 +32,8 @@ namespace
 
 		bool        IsRef = false;         // Ref<X> 필드인가
 		std::string RefTypeName;           // 드롭 필터/표시용 단순 타입명("X", 네임스페이스 제거)
+		std::string AssetTypeName;         // AssetType(Sprite)
+		std::string ExpectedAssetTypeEnum = "EAssetType::Unknown";
 	};
 
 	struct ScriptClassDesc
@@ -80,6 +83,28 @@ namespace
 		return (colon == std::string::npos) ? inner : inner.substr(colon + 2);
 	}
 
+	const char* ToAssetTypeEnumExpression(EAssetType type)
+	{
+		switch (type)
+		{
+		case EAssetType::Sprite: return "EAssetType::Sprite";
+		case EAssetType::Mesh: return "EAssetType::Mesh";
+		case EAssetType::Material: return "EAssetType::Material";
+		case EAssetType::Shader: return "EAssetType::Shader";
+		case EAssetType::Scene: return "EAssetType::Scene";
+		case EAssetType::Prefab: return "EAssetType::Prefab";
+		case EAssetType::Script: return "EAssetType::Script";
+		case EAssetType::Audio: return "EAssetType::Audio";
+		case EAssetType::AudioEffect: return "EAssetType::AudioEffect";
+		case EAssetType::FontFace: return "EAssetType::FontFace";
+		case EAssetType::FontFamily: return "EAssetType::FontFamily";
+		case EAssetType::Custom: return "EAssetType::Custom";
+		case EAssetType::Unknown:
+		default:
+			return "EAssetType::Unknown";
+		}
+	}
+
 	// JPROP(...) 어트리뷰트 인자에서 메타데이터를 추출한다.
 	void ParseScriptPropAttributes(const std::string& args, ScriptPropParse& out)
 	{
@@ -89,6 +114,7 @@ namespace
 		if (std::regex_search(args, m, std::regex(R"rx(Name\s*\(\s*"([^"]*)"\s*\))rx")))      out.DisplayName = m[1].str();
 		if (std::regex_search(args, m, std::regex(R"rx(Tooltip\s*\(\s*"([^"]*)"\s*\))rx")))   out.Tooltip     = m[1].str();
 		if (std::regex_search(args, m, std::regex(R"rx(Category\s*\(\s*"([^"]*)"\s*\))rx")))  out.Category    = m[1].str();
+		if (std::regex_search(args, m, std::regex(R"rx(AssetType\s*\(\s*"?([A-Za-z_][A-Za-z0-9_:]*)"?\s*\))rx"))) out.AssetTypeName = m[1].str();
 		if (std::regex_search(args, m, std::regex(R"rx(Range\s*\(\s*([-0-9.eEfF]+)\s*,\s*([-0-9.eEfF]+)\s*\))rx")))
 		{
 			out.HasRange = true;
@@ -128,7 +154,7 @@ namespace
 			if (false == inString) stripped.push_back(c);
 		}
 
-		static const char* const kKnown[] = { "Name", "Tooltip", "Category", "Range", "NoSerialize" };
+		static const char* const kKnown[] = { "Name", "Tooltip", "Category", "AssetType", "Range", "NoSerialize" };
 		const std::regex identRegex(R"([A-Za-z_]\w*)");
 		for (auto it = std::sregex_iterator(stripped.begin(), stripped.end(), identRegex);
 			it != std::sregex_iterator(); ++it)
@@ -139,7 +165,7 @@ namespace
 			if (false == known)
 			{
 				CSystemLog::Warning("[JPROP] " + className + "." + propName
-					+ ": unknown attribute '" + token + "' (ignored). Available: Name, Tooltip, Category, Range, NoSerialize.");
+					+ ": unknown attribute '" + token + "' (ignored). Available: Name, Tooltip, Category, AssetType, Range, NoSerialize.");
 			}
 		}
 	}
@@ -398,6 +424,21 @@ namespace
 					prop.RefTypeName = ExtractRefSimpleTypeName(prop.CppType);
 				}
 				ParseScriptPropAttributes((*it)[1].str(), prop);
+				EAssetType expectedAssetType = EAssetType::Unknown;
+				if (false == prop.AssetTypeName.empty())
+				{
+					expectedAssetType = CAssetTypeRules::ParseTypeName(prop.AssetTypeName);
+					if (EAssetType::Unknown == expectedAssetType)
+					{
+						CSystemLog::Warning("[JPROP] " + ownerName + "." + prop.Name
+							+ ": unknown AssetType '" + prop.AssetTypeName + "' - type filter disabled.");
+					}
+				}
+				else if (prop.IsRef)
+				{
+					expectedAssetType = CAssetTypeRules::ParseTypeName(prop.RefTypeName);
+				}
+				prop.ExpectedAssetTypeEnum = ToAssetTypeEnumExpression(expectedAssetType);
 
 				if (nullptr == owner)
 				{
@@ -847,9 +888,14 @@ void RegisterGeneratedScripts(CReflectionRegistry& registry)
 				<< hasRange << ", static_cast<float>(" << rmin << "), static_cast<float>(" << rmax << ")"
 				<< ", " << serialize;
 			// Ref<T> 는 카테고리(컴파일타임 상수)와 단순 타입명을 추가로 채운다.
-			if (p.IsRef)
+			// ExpectedAssetType 은 필드 순서상 RefCategory/RefTypeName 뒤라,
+			// Ref 이거나 AssetType 힌트가 있으면 앞 두 필드를 함께 채워야 위치가 맞는다.
+			const bool emitAssetInfo = p.IsRef || ("EAssetType::Unknown" != p.ExpectedAssetTypeEnum);
+			if (emitAssetInfo)
 			{
-				out << ", " << p.CppType << "::Category, \"" << EscapeCppString(p.RefTypeName) << "\"";
+				const std::string refCategory = p.IsRef ? (p.CppType + "::Category") : std::string("ERefCategory::Component");
+				const std::string refTypeName = p.IsRef ? ("\"" + EscapeCppString(p.RefTypeName) + "\"") : std::string("nullptr");
+				out << ", " << refCategory << ", " << refTypeName << ", " << p.ExpectedAssetTypeEnum;
 			}
 			out << " },\r\n";
 		}

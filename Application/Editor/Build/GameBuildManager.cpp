@@ -192,8 +192,10 @@ namespace
 			return INVALID_ASSET_GUID;
 		}
 
-		const AssetMetaData* metaData = assetManager->GetRegistry().FindAssetByPath(assetPath);
-		return metaData ? metaData->Guid : INVALID_ASSET_GUID;
+		AssetMetaData metaData;
+		return assetManager->GetRegistry().TryGetAssetByPath(assetPath, metaData)
+			? metaData.Guid
+			: INVALID_ASSET_GUID;
 	}
 
 	std::string GetLastWindowsErrorMessage(const char* prefix)
@@ -955,17 +957,17 @@ bool CGameBuildManager::ApplyWindowsIconToExecutable(const BuildDesc& desc, cons
 		return false;
 	}
 
-	const AssetMetaData* iconMeta = assetManager->GetRegistry().FindAsset(desc.WindowsIconGuid);
-	if (nullptr == iconMeta)
+	AssetMetaData iconMeta;
+	if (false == assetManager->GetRegistry().TryGetAsset(desc.WindowsIconGuid, iconMeta))
 	{
 		outError = "Windows icon asset GUID is not registered: " + desc.WindowsIconGuid.generic_string();
 		return false;
 	}
 
 	File::Path iconPath;
-	if (false == assetManager->ResolveAssetPath(iconMeta->Path, iconPath))
+	if (false == assetManager->ResolveAssetPath(iconMeta.Path, iconPath))
 	{
-		outError = "Failed to resolve Windows icon asset path: " + iconMeta->Path.generic_string();
+		outError = "Failed to resolve Windows icon asset path: " + iconMeta.Path.generic_string();
 		return false;
 	}
 

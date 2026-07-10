@@ -67,7 +67,7 @@ private:
 	void DrawWindowsIconSelector();
 	bool SelectWindowsIcon(std::string* outError);
 	bool ImportWindowsIconAsset(const File::Path& selectedPath, AssetGuid& outGuid, std::string* outError) const;
-	const AssetMetaData* FindWindowsIconMeta() const;
+	bool TryGetWindowsIconMeta(AssetMetaData& outMetaData) const;
 
 	std::string NormalizePathForProject(const std::string& selectedPath, const File::Path& basePath) const;
 	std::string NormalizePathForProject(const File::Path& selectedPath, const File::Path& basePath) const;

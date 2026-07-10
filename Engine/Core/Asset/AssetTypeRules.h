@@ -15,5 +15,6 @@ public:
 	static bool IsAssignableTo(EAssetType expectedType, EAssetType declaredType, const File::Path& path);
 	static bool IsExtensionAllowed(EAssetType type, const File::Path& path);
 	static std::string GetAllowedExtensionsText(EAssetType type);
+	static EAssetType ParseTypeName(const std::string& name);
 	static const char* GetTypeName(EAssetType type);
 };

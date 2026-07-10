@@ -488,8 +488,8 @@ void CBuildSettingsWindow::DrawIOSCategory()
 
 void CBuildSettingsWindow::DrawWindowsIconSelector()
 {
-	const AssetMetaData* iconMeta = FindWindowsIconMeta();
-	const bool hasIcon = nullptr != iconMeta && false == m_windowsIconGuid.IsNull();
+	AssetMetaData iconMeta;
+	const bool hasIcon = TryGetWindowsIconMeta(iconMeta) && false == m_windowsIconGuid.IsNull();
 	const char* caption = hasIcon ? "ICO" : "+";
 	const ImVec2 buttonSize(72.0f, 72.0f);
 	const ImVec2 start = ImGui::GetCursorScreenPos();
@@ -526,7 +526,7 @@ void CBuildSettingsWindow::DrawWindowsIconSelector()
 	ImGui::BeginGroup();
 	if (hasIcon)
 	{
-		ImGui::TextWrapped("%s", EditorPathUtils::ToUtf8(iconMeta->Path).c_str());
+		ImGui::TextWrapped("%s", EditorPathUtils::ToUtf8(iconMeta.Path).c_str());
 		ImGui::TextDisabled("%s", m_windowsIconGuid.generic_string().c_str());
 		if (ImGui::SmallButton(Loc::Text(EditorLocKeys::CommonDelete)))
 		{
@@ -882,8 +882,10 @@ bool CBuildSettingsWindow::ImportWindowsIconAsset(const File::Path& selectedPath
 	}
 	assetManager->RefreshAssetRegistry();
 
-	const AssetMetaData* registeredMeta = assetManager->GetRegistry().FindAssetByPath(importDesc.Path);
-	outGuid = registeredMeta ? registeredMeta->Guid : metaData.Guid;
+	AssetMetaData registeredMeta;
+	outGuid = assetManager->GetRegistry().TryGetAssetByPath(importDesc.Path, registeredMeta)
+		? registeredMeta.Guid
+		: metaData.Guid;
 	if (outGuid.IsNull())
 	{
 		if (outError) *outError = Loc::Text(EditorLocKeys::BuildSettingsWindowsIconImportFailed);
@@ -892,13 +894,13 @@ bool CBuildSettingsWindow::ImportWindowsIconAsset(const File::Path& selectedPath
 	return true;
 }
 
-const AssetMetaData* CBuildSettingsWindow::FindWindowsIconMeta() const
+bool CBuildSettingsWindow::TryGetWindowsIconMeta(AssetMetaData& outMetaData) const
 {
 	if (m_windowsIconGuid.IsNull() || false == Engine.AssetManager.IsValid())
 	{
-		return nullptr;
+		return false;
 	}
-	return Engine.AssetManager->GetRegistry().FindAsset(m_windowsIconGuid);
+	return Engine.AssetManager->GetRegistry().TryGetAsset(m_windowsIconGuid, outMetaData);
 }
 
 bool CBuildSettingsWindow::HasUnsavedChanges() const

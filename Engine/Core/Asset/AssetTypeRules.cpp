@@ -86,6 +86,34 @@ namespace
 		}
 		return false;
 	}
+
+	std::string NormalizeTypeName(std::string value)
+	{
+		if (value.rfind("class ", 0) == 0)
+		{
+			value.erase(0, 6);
+		}
+		if (value.rfind("struct ", 0) == 0)
+		{
+			value.erase(0, 7);
+		}
+		const std::size_t namespacePos = value.find_last_of(':');
+		if (namespacePos != std::string::npos)
+		{
+			value.erase(0, namespacePos + 1);
+		}
+		if (value.size() > 1 && value.front() == 'C' && std::isupper(static_cast<unsigned char>(value[1])))
+		{
+			value.erase(value.begin());
+		}
+		constexpr std::string_view ASSET_SUFFIX = "Asset";
+		if (value.size() > ASSET_SUFFIX.size()
+			&& value.compare(value.size() - ASSET_SUFFIX.size(), ASSET_SUFFIX.size(), ASSET_SUFFIX) == 0)
+		{
+			value.resize(value.size() - ASSET_SUFFIX.size());
+		}
+		return value;
+	}
 }
 
 EAssetType CAssetTypeRules::DetectTypeFromPath(const File::Path& path)
@@ -161,6 +189,27 @@ std::string CAssetTypeRules::GetAllowedExtensionsText(EAssetType type)
 		result += extension;
 	}
 	return result;
+}
+
+EAssetType CAssetTypeRules::ParseTypeName(const std::string& name)
+{
+	const std::string normalized = NormalizeTypeName(name);
+	if (normalized == "Any" || normalized == "Unknown")
+	{
+		return EAssetType::Unknown;
+	}
+	for (const AssetTypeRule& rule : RULES)
+	{
+		if (rule.Name == normalized)
+		{
+			return rule.Type;
+		}
+	}
+	if (normalized == "Custom")
+	{
+		return EAssetType::Custom;
+	}
+	return EAssetType::Unknown;
 }
 
 const char* CAssetTypeRules::GetTypeName(EAssetType type)

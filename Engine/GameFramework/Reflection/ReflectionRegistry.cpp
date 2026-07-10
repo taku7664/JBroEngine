@@ -30,6 +30,16 @@ CComponentRegistration& CComponentRegistration::AddProperty(const char* name, ER
 	return *this;
 }
 
+CComponentRegistration& CComponentRegistration::AddAssetProperty(const char* name, std::size_t offset, EAssetType expectedType, bool isEditable)
+{
+	AddProperty(name, EReflectPropertyType::AssetGuid, offset, sizeof(AssetGuid), 1, isEditable);
+	if (m_typeInfo && false == m_typeInfo->Properties.empty())
+	{
+		m_typeInfo->Properties.back().ExpectedAssetType = expectedType;
+	}
+	return *this;
+}
+
 const ComponentTypeInfo* CReflectionRegistry::FindComponent(TypeId typeId) const
 {
 	auto it = m_componentIndexById.find(typeId);

@@ -1311,10 +1311,10 @@ std::vector<AssetGuid> CProjectManager::CollectSceneLoadAssets(const std::string
 		result.push_back(guid);
 
 		// 프리팹이면 그 프리팹이 참조하는 에셋도 펼친다.
-		const AssetMetaData* meta = registry.FindAsset(guid);
-		if (nullptr != meta && EAssetType::Prefab == meta->Type && false == meta->Path.empty())
+		AssetMetaData meta;
+		if (registry.TryGetAsset(guid, meta) && EAssetType::Prefab == meta.Type && false == meta.Path.empty())
 		{
-			const std::filesystem::path prefabFile = m_info.AssetPath / meta->Path;
+			const std::filesystem::path prefabFile = m_info.AssetPath / meta.Path;
 			if (std::filesystem::exists(prefabFile, errorCode))
 			{
 				for (const AssetGuid& nested : serializer.ReadReferencedAssetsFromFile(File::Path(prefabFile.generic_string())))
@@ -1652,7 +1652,8 @@ void CProjectManager::EnsureRecoveredSidecarMeta(const File::Path& absolutePath,
 		return;   // 복구할 GUID 없음 — ImportAsset 이 새 GUID 발급.
 	}
 	// 그 GUID 가 현재 (다른 경로로) 살아있는 자산이면 건드리지 않는다 — 이동은 rename 로직 담당.
-	if (nullptr != m_assetManager->GetRegistry().FindAsset(rec->Guid))
+	AssetMetaData existingMeta;
+	if (m_assetManager->GetRegistry().TryGetAsset(rec->Guid, existingMeta))
 	{
 		return;
 	}
@@ -1824,12 +1825,12 @@ bool CProjectManager::TryHandleAssetRename(const File::Path& createdAssetPath, c
 		}
 
 		// 원본이 레지스트리에 등록돼 있어야 GUID 보존 이동으로 처리한다.
-		const AssetMetaData* oldReg = registry.FindAssetByPath(File::Path(oldRelative));
-		if (nullptr == oldReg)
+		AssetMetaData oldReg;
+		if (false == registry.TryGetAssetByPath(File::Path(oldRelative), oldReg))
 		{
 			continue;
 		}
-		const AssetGuid oldGuid = oldReg->Guid;
+		const AssetGuid oldGuid = oldReg.Guid;
 
 		bool isMatch = false;
 		if (false == newSidecarGuid.IsNull())
@@ -1863,9 +1864,10 @@ bool CProjectManager::TryHandleAssetRename(const File::Path& createdAssetPath, c
 		if (m_assetManager->MoveAssetPath(File::Path(oldRelative), File::Path(newRelative)))
 		{
 			// 복구 캐시도 새 경로로 갱신(같은 GUID).
-			if (const AssetMetaData* moved = m_assetManager->GetRegistry().FindAsset(oldGuid))
+			AssetMetaData moved;
+			if (m_assetManager->GetRegistry().TryGetAsset(oldGuid, moved))
 			{
-				UpdateAssetDbEntry(*moved, createdAssetPath, newRelative);
+				UpdateAssetDbEntry(moved, createdAssetPath, newRelative);
 			}
 			outOldAssetPath = event.Path;
 			MarkAssetDatabaseChanged();

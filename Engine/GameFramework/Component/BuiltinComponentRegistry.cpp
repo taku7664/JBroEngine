@@ -22,8 +22,8 @@
 void RegisterBuiltinComponents(CReflectionRegistry& registry)
 {
 	registry.RegisterComponent<SpriteRenderer2D>({ "SpriteRenderer2D", "Sprite Renderer 2D", "Rendering", true })
-		.AddProperty("SpriteGuid", EReflectPropertyType::AssetGuid, offsetof(SpriteRenderer2D, SpriteGuid), sizeof(AssetGuid))
-		.AddProperty("MaterialGuid", EReflectPropertyType::AssetGuid, offsetof(SpriteRenderer2D, MaterialGuid), sizeof(AssetGuid))
+		.AddAssetProperty("SpriteGuid", offsetof(SpriteRenderer2D, SpriteGuid), EAssetType::Sprite)
+		.AddAssetProperty("MaterialGuid", offsetof(SpriteRenderer2D, MaterialGuid), EAssetType::Material)
 		.AddProperty("Size", EReflectPropertyType::Vector2Float, offsetof(SpriteRenderer2D, Size), sizeof(Vector2))
 		.AddProperty("Offset", EReflectPropertyType::Vector2Float, offsetof(SpriteRenderer2D, Offset), sizeof(Vector2))
 		.AddProperty("FlipX", EReflectPropertyType::Bool, offsetof(SpriteRenderer2D, FlipX), sizeof(bool))
@@ -35,7 +35,7 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 
 	registry.RegisterComponent<Text2D>({ "Text2D", "Text 2D", "Rendering", true })
 		.AddProperty("Text", EReflectPropertyType::String, offsetof(Text2D, Text), sizeof(String))
-		.AddProperty("FontFamilyGuid", EReflectPropertyType::AssetGuid, offsetof(Text2D, FontFamilyGuid), sizeof(AssetGuid))
+		.AddAssetProperty("FontFamilyGuid", offsetof(Text2D, FontFamilyGuid), EAssetType::FontFamily)
 		.AddEnumProperty<EFontStyle>("FontStyle", offsetof(Text2D, FontStyle))
 		.AddProperty("FontSizePixels", EReflectPropertyType::Float, offsetof(Text2D, FontSizePixels), sizeof(float))
 		.AddProperty("WidthPixels", EReflectPropertyType::Float, offsetof(Text2D, WidthPixels), sizeof(float))
@@ -157,7 +157,7 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 		.AddProperty("CollisionMask", EReflectPropertyType::UInt32, offsetof(CircleCollider2D, CollisionMask), sizeof(std::uint32_t));
 
 	registry.RegisterComponent<PrefabInstance>({ "PrefabInstance", "Prefab Instance", "Prefab", false })
-		.AddProperty("SourcePrefabGuid", EReflectPropertyType::AssetGuid, offsetof(PrefabInstance, SourcePrefabGuid), sizeof(AssetGuid));
+		.AddAssetProperty("SourcePrefabGuid", offsetof(PrefabInstance, SourcePrefabGuid), EAssetType::Prefab);
 
 	registry.RegisterComponent<ScriptComponent>({ "ScriptComponent", "Script Component", "Scripting", true });
 
@@ -165,7 +165,7 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 		.AddProperty("MasterVolume", EReflectPropertyType::Float, offsetof(AudioListener, MasterVolume), sizeof(float));
 
 	registry.RegisterComponent<AudioPlayer>({ "AudioPlayer", "Audio Player", "Audio", true })
-		.AddProperty("AudioGuid",   EReflectPropertyType::AssetGuid, offsetof(AudioPlayer, AudioGuid),   sizeof(AssetGuid))
+		.AddAssetProperty("AudioGuid", offsetof(AudioPlayer, AudioGuid), EAssetType::Audio)
 		// EffectGuids(체인)는 가변 길이라 리플렉션 밖 — 인스펙터/직렬화에서 수동 처리.
 		.AddProperty("Volume",      EReflectPropertyType::Float,     offsetof(AudioPlayer, Volume),      sizeof(float))
 		.AddProperty("Pitch",       EReflectPropertyType::Float,     offsetof(AudioPlayer, Pitch),       sizeof(float))

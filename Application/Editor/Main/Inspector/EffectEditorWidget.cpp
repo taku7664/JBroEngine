@@ -89,9 +89,9 @@ void CEffectEditorWidget::LoadFromDisk()
 	SafePtr<IAssetManager>   am = EditorContext::GetAssetManager();
 	if (am.IsValid())
 	{
-		const AssetMetaData* meta = am->GetRegistry().FindAsset(m_guid);
+		AssetMetaData meta;
 		File::Path resolvedPath;
-		if (meta && am->ResolveAssetPath(meta->Path, resolvedPath))
+		if (am->GetRegistry().TryGetAsset(m_guid, meta) && am->ResolveAssetPath(meta.Path, resolvedPath))
 		{
 			std::ifstream stream(resolvedPath, std::ios::binary);
 			if (stream.is_open())
@@ -110,9 +110,9 @@ bool CEffectEditorWidget::SaveToDisk()
 	SafePtr<IAssetManager>   am = EditorContext::GetAssetManager();
 	if (false == am.IsValid()) return false;
 
-	const AssetMetaData* meta = am->GetRegistry().FindAsset(m_guid);
+	AssetMetaData meta;
 	File::Path resolvedPath;
-	if (nullptr == meta || false == am->ResolveAssetPath(meta->Path, resolvedPath)) return false;
+	if (false == am->GetRegistry().TryGetAsset(m_guid, meta) || false == am->ResolveAssetPath(meta.Path, resolvedPath)) return false;
 
 	const std::string yaml = CAudioEffectSerializer::ToYaml(m_data);
 	std::ofstream stream(resolvedPath, std::ios::binary | std::ios::trunc);
@@ -209,9 +209,9 @@ void CEffectEditorWidget::DrawPreview()
 		SafePtr<IAssetManager>   am = EditorContext::GetAssetManager();
 		if (am.IsValid())
 		{
-			const AssetMetaData* meta = am->GetRegistry().FindAsset(m_testSoundGuid);
+			AssetMetaData meta;
 			File::Path absPath;
-			if (meta) am->ResolveAssetPath(meta->Path, absPath);
+			if (am->GetRegistry().TryGetAsset(m_testSoundGuid, meta)) am->ResolveAssetPath(meta.Path, absPath);
 			if (false == absPath.empty())
 			{
 				const std::string utf8 = EditorPathUtils::ToUtf8(absPath);

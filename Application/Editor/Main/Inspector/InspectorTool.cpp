@@ -21,6 +21,7 @@
 #include "Engine/GameFramework/Object/Ref.h"
 #include "Engine/GameFramework/Reflection/ReflectionRegistry.h"
 #include "Engine/Core/Asset/AssetMetaFile.h"
+#include "Engine/Core/Asset/AssetTypeRules.h"
 #include "Engine/Core/Asset/IAssetManager.h"
 #include "Engine/Core/Asset/IAssetRegistry.h"
 #include "Engine/Core/Asset/MaterialAsset.h"
@@ -237,6 +238,19 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		return std::string(Loc::Text(EditorLocKeys::InspectorRefMissing)) + "  [" + typeName + "]";
 	}
 
+	EAssetType ResolveExpectedAssetType(const ReflectPropertyInfo& property)
+	{
+		if (EAssetType::Unknown != property.ExpectedAssetType)
+		{
+			return property.ExpectedAssetType;
+		}
+		if (property.RefTypeName)
+		{
+			return CAssetTypeRules::ParseTypeName(property.RefTypeName);
+		}
+		return EAssetType::Unknown;
+	}
+
 	// Ref 의 드롭 타깃 처리. 변경되면 true. (호출 시점은 위젯 바로 다음.)
 	bool ApplyRefDrop(RefBase& ref, const ReflectPropertyInfo& property)
 	{
@@ -246,6 +260,11 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			EditorDragDrop::AssetPayload payload;
 			if (EditorDragDrop::AcceptAssetDragDropPayload(payload))
 			{
+				const EAssetType expectedType = ResolveExpectedAssetType(property);
+				if (false == CAssetTypeRules::IsAssignableTo(expectedType, payload.Type, EditorDragDrop::GetRelativePath(payload)))
+				{
+					return false;
+				}
 				ref.SetGuidText(EditorDragDrop::GetGuid(payload).generic_string().c_str());
 				return true;
 			}
@@ -400,9 +419,9 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			// 에셋 참조(엔진 컴포넌트의 File::Guid). AssetField 가 표시/클리어/드롭 수락을 통합한다.
 			File::Guid* guid = static_cast<File::Guid*>(field);
 			ImAssetField fieldWidget("##asset_guid", *guid);
-			if (property.Name && 0 == std::strcmp(property.Name, "FontFamilyGuid"))
+			if (EAssetType::Unknown != property.ExpectedAssetType)
 			{
-				fieldWidget.Type(EAssetType::FontFamily);
+				fieldWidget.Type(property.ExpectedAssetType);
 			}
 			return fieldWidget.Draw();
 		}
@@ -1477,8 +1496,8 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			return true;
 		}
 
-		const AssetMetaData* metaData = assetManager->GetRegistry().FindAsset(selectedGuid);
-		if (nullptr == metaData)
+		AssetMetaData metaData;
+		if (false == assetManager->GetRegistry().TryGetAsset(selectedGuid, metaData))
 		{
 			ImGui::TextDisabled(Loc::Text(EditorLocKeys::InspectorSelectedAssetNotRegistered));
 			return true;
@@ -1486,46 +1505,46 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 
 		// ── 맨 위 미리보기 영역 (Sprite=이미지, Audio=Play/Stop 등) ─────────
 		// DrawTopPreview 가 핸들러의 Enter/Stay/Exit 라이프사이클을 자체적으로 관리.
-		if (AssetInspectorPreview::DrawTopPreview(*metaData))
+		if (AssetInspectorPreview::DrawTopPreview(metaData))
 		{
 			ImGui::Separator();
 		}
 
-		ImGui::Text("%s: %s", Loc::Text(EditorLocKeys::CommonAsset), metaData->DisplayName.c_str());
-		ImGui::Text("%s: %s", Loc::Text(EditorLocKeys::CommonGuid), metaData->Guid.generic_string().c_str());
-		ImGui::Text("%s: %s", Loc::Text(EditorLocKeys::CommonPath), metaData->Path.generic_string().c_str());
-		ImGui::Text("%s: %s", Loc::Text(EditorLocKeys::CommonImporter), metaData->Importer.c_str());
+		ImGui::Text("%s: %s", Loc::Text(EditorLocKeys::CommonAsset), metaData.DisplayName.c_str());
+		ImGui::Text("%s: %s", Loc::Text(EditorLocKeys::CommonGuid), metaData.Guid.generic_string().c_str());
+		ImGui::Text("%s: %s", Loc::Text(EditorLocKeys::CommonPath), metaData.Path.generic_string().c_str());
+		ImGui::Text("%s: %s", Loc::Text(EditorLocKeys::CommonImporter), metaData.Importer.c_str());
 		ImGui::Separator();
 
-		if (EAssetType::Sprite == metaData->Type)
+		if (EAssetType::Sprite == metaData.Type)
 		{
-			DrawSpriteImportOptions(*metaData);
+			DrawSpriteImportOptions(metaData);
 		}
-		else if (EAssetType::Audio == metaData->Type)
+		else if (EAssetType::Audio == metaData.Type)
 		{
-			DrawAudioImportOptions(*metaData);
+			DrawAudioImportOptions(metaData);
 		}
-		else if (EAssetType::Material == metaData->Type)
+		else if (EAssetType::Material == metaData.Type)
 		{
-			DrawMaterialImportOptions(*metaData);
+			DrawMaterialImportOptions(metaData);
 		}
-		else if (EAssetType::AudioEffect == metaData->Type)
+		else if (EAssetType::AudioEffect == metaData.Type)
 		{
 			// 효과 편집은 전용 독윈도우에서 한다. 인스펙터엔 안내 + 에디터 열기 버튼.
 			ImGui::TextDisabled(Loc::Text(EditorLocKeys::InspectorEffectOpenInWindow));
 			ImGui::Spacing();
 			if (ImGui::Button(Loc::Text(EditorLocKeys::InspectorEffectOpenEditor), ImVec2(-FLT_MIN, 0.0f)))
 			{
-				EffectEditorWindow::Open(metaData->Guid, metaData->DisplayName);
+				EffectEditorWindow::Open(metaData.Guid, metaData.DisplayName);
 			}
 		}
-		else if (EAssetType::FontFace == metaData->Type)
+		else if (EAssetType::FontFace == metaData.Type)
 		{
-			DrawFontFaceImportOptions(*metaData, *assetManager);
+			DrawFontFaceImportOptions(metaData, *assetManager);
 		}
-		else if (EAssetType::FontFamily == metaData->Type)
+		else if (EAssetType::FontFamily == metaData.Type)
 		{
-			DrawFontFamilyEditor(*metaData, *assetManager);
+			DrawFontFamilyEditor(metaData, *assetManager);
 		}
 		else
 		{

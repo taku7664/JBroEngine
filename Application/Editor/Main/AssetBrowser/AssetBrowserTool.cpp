@@ -672,10 +672,11 @@ void CAssetBrowserTool::RefreshCurrentFolderEntries()
 			if (insideAssetRoot && registry)
 			{
 				const std::string relativePath = browserEntry.RelativePath.generic_string();
-				if (const AssetMetaData* metaData = registry->FindAssetByPath(File::Path(relativePath)))
+				AssetMetaData metaData;
+				if (registry->TryGetAssetByPath(File::Path(relativePath), metaData))
 				{
-					browserEntry.Guid = metaData->Guid;
-					browserEntry.Type = metaData->Type;
+					browserEntry.Guid = metaData.Guid;
+					browserEntry.Type = metaData.Type;
 				}
 			}
 

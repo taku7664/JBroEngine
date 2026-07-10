@@ -70,6 +70,7 @@ public:
 	CComponentRegistration(ComponentTypeInfo* typeInfo);
 
 	CComponentRegistration& AddProperty(const char* name, EReflectPropertyType propertyType, std::size_t offset, std::size_t size, std::size_t elementCount = 1, bool isEditable = true);
+	CComponentRegistration& AddAssetProperty(const char* name, std::size_t offset, EAssetType expectedType, bool isEditable = true);
 
 	// Enum 프로퍼티 등록 — magic_enum 으로 이름/변환 메타를 자동 생성한다(보일러플레이트 없음).
 	// 호출부는 .AddEnumProperty<EMyEnum>("Field", offsetof(C, Field)) 한 줄.
@@ -328,6 +329,7 @@ bool CReflectionRegistry::RegisterScript(const ScriptRegisterDesc& desc, const s
 		prop.Serialize    = d.Serialize;
 		prop.RefCategory  = d.RefCategory;
 		prop.RefTypeName  = d.RefTypeName;
+		prop.ExpectedAssetType = d.ExpectedAssetType;
 		typeInfo.Properties.push_back(prop);
 	}
 

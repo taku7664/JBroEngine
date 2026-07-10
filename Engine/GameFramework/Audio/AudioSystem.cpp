@@ -30,8 +30,8 @@ namespace
 	// effectGuid 의 효과 에셋을 찾는다. 효과 에셋이 아니거나 없으면 null.
 	CAudioEffectAsset* ResolveEffectAsset(IAssetManager& am, const AssetGuid& effectGuid)
 	{
-		const AssetMetaData* meta = am.GetRegistry().FindAsset(effectGuid);
-		if (nullptr == meta || EAssetType::AudioEffect != meta->Type) return nullptr;
+		AssetMetaData meta;
+		if (false == am.GetRegistry().TryGetAsset(effectGuid, meta) || EAssetType::AudioEffect != meta.Type) return nullptr;
 
 		AssetRef<IAsset> asset = am.LoadAsset(effectGuid);
 		if (false == asset.IsValid() || EAssetType::AudioEffect != asset->GetAssetType()) return nullptr;
@@ -202,11 +202,11 @@ void CAudioSystem::OnUpdate(CGameScene& scene)
 			{
 				if (false == m_assetManager.IsValid()) return;
 
-				const AssetMetaData* metaData = m_assetManager->GetRegistry().FindAsset(player.AudioGuid);
-				if (nullptr == metaData) return;
+				AssetMetaData metaData;
+				if (false == m_assetManager->GetRegistry().TryGetAsset(player.AudioGuid, metaData)) return;
 
 				File::Path resolvedPath;
-				if (false == m_assetManager->ResolveAssetPath(metaData->Path, resolvedPath)) return;
+				if (false == m_assetManager->ResolveAssetPath(metaData.Path, resolvedPath)) return;
 
 				// MiniAudioDevice 의 편의 메서드 사용 — 백엔드 비-mini 인 경우 stub player 폴백.
 				OwnerPtr<IAudioPlayer> created;

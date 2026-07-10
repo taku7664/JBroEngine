@@ -73,39 +73,41 @@ void CAssetRegistry::ClearNonPersistent()
 	}
 }
 
-const AssetMetaData* CAssetRegistry::FindAsset(const AssetGuid& guid) const
+bool CAssetRegistry::TryGetAsset(const AssetGuid& guid, AssetMetaData& outMetaData) const
 {
 	std::lock_guard lock(m_mutex);
 	auto it = m_assetTable.find(guid);
 	if (it == m_assetTable.end())
 	{
-		return nullptr;
+		return false;
 	}
 
-	return &it->second;
+	outMetaData = it->second;
+	return true;
 }
 
-const AssetMetaData* CAssetRegistry::FindAssetByPath(const File::Path& path) const
+bool CAssetRegistry::TryGetAssetByPath(const File::Path& path, AssetMetaData& outMetaData) const
 {
 	std::string normalizedPath;
 	if (false == CAssetPath::NormalizeAssetKey(path.generic_string().c_str(), normalizedPath))
 	{
-		return nullptr;
+		return false;
 	}
 
 	std::lock_guard lock(m_mutex);
 	auto pathIt = m_pathToGuidTable.find(File::Path(normalizedPath));
 	if (pathIt == m_pathToGuidTable.end())
 	{
-		return nullptr;
+		return false;
 	}
 
 	auto it = m_assetTable.find(pathIt->second);
 	if (it == m_assetTable.end())
 	{
-		return nullptr;
+		return false;
 	}
-	return &it->second;
+	outMetaData = it->second;
+	return true;
 }
 
 void CAssetRegistry::BuildSnapshot(AssetRegistrySnapshot& outSnapshot) const

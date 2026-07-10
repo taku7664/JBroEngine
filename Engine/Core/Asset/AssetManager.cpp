@@ -100,11 +100,12 @@ bool CAssetManager::ImportAsset(const AssetImportDesc& desc, AssetMetaData* outM
 
 	std::lock_guard lock(m_mutex);
 
-	if (const AssetMetaData* registeredMetaData = m_registry.FindAssetByPath(File::Path(normalizedPath)))
+	AssetMetaData registeredMetaData;
+	if (m_registry.TryGetAssetByPath(File::Path(normalizedPath), registeredMetaData))
 	{
 		if (nullptr != outMetaData)
 		{
-			*outMetaData = *registeredMetaData;
+			*outMetaData = registeredMetaData;
 		}
 		return true;
 	}
@@ -303,10 +304,10 @@ AssetRef<IAsset> CAssetManager::LoadAsset(const AssetGuid& guid)
 		return AssetRef<IAsset>(SafeFromThis(), guid, it->second.Get());
 	}
 
-	const AssetMetaData* metaData = m_registry.FindAsset(guid);
-	if (nullptr == metaData) return AssetRef<IAsset>();
+	AssetMetaData metaData;
+	if (false == m_registry.TryGetAsset(guid, metaData)) return AssetRef<IAsset>();
 
-	OwnerPtr<IAsset> asset = LoadAssetInternal(*metaData);
+	OwnerPtr<IAsset> asset = LoadAssetInternal(metaData);
 	if (!asset) return AssetRef<IAsset>();
 
 	IAsset* raw = asset.Get();
@@ -316,9 +317,9 @@ AssetRef<IAsset> CAssetManager::LoadAsset(const AssetGuid& guid)
 
 AssetRef<IAsset> CAssetManager::LoadAssetByPath(const File::Path& path)
 {
-	const AssetMetaData* metaData = m_registry.FindAssetByPath(path);
-	if (nullptr == metaData) return AssetRef<IAsset>();
-	return LoadAsset(metaData->Guid);
+	AssetMetaData metaData;
+	if (false == m_registry.TryGetAssetByPath(path, metaData)) return AssetRef<IAsset>();
+	return LoadAsset(metaData.Guid);
 }
 
 AssetRef<IAsset> CAssetManager::ReloadAsset(const AssetGuid& guid)
@@ -330,16 +331,16 @@ AssetRef<IAsset> CAssetManager::ReloadAsset(const AssetGuid& guid)
 	auto it = m_loadedAssetTable.find(guid);
 	if (it != m_loadedAssetTable.end())
 	{
-		const AssetMetaData* meta = m_registry.FindAsset(guid);
-		if (meta)
+		AssetMetaData meta;
+		if (m_registry.TryGetAsset(guid, meta))
 		{
 			if (IAssetLoader* loader = FindLoader(it->second->GetAssetType()))
 			{
 				// meta.Path 는 상대경로(프로젝트 자산) 또는 절대(외부 자산).
 				// loader 는 디스크 접근 시 그대로 쓰므로 여기서 resolve 한 사본을 넘긴다.
-				AssetMetaData resolvedMeta = *meta;
+				AssetMetaData resolvedMeta = meta;
 				File::Path resolvedPath;
-				if (ResolveAssetPath(meta->Path, resolvedPath))
+				if (ResolveAssetPath(meta.Path, resolvedPath))
 				{
 					resolvedMeta.Path = resolvedPath;
 				}
@@ -374,10 +375,10 @@ AssetRef<IAsset> CAssetManager::ReloadAsset(const AssetGuid& guid)
 	}
 
 	// 직접 LoadAsset 흐름 (재진입 대신 인라인).
-	const AssetMetaData* metaData = m_registry.FindAsset(guid);
-	if (nullptr == metaData) return AssetRef<IAsset>();
+	AssetMetaData metaData;
+	if (false == m_registry.TryGetAsset(guid, metaData)) return AssetRef<IAsset>();
 
-	OwnerPtr<IAsset> asset = LoadAssetInternal(*metaData);
+	OwnerPtr<IAsset> asset = LoadAssetInternal(metaData);
 	if (!asset) return AssetRef<IAsset>();
 
 	IAsset* raw = asset.Get();
@@ -387,9 +388,9 @@ AssetRef<IAsset> CAssetManager::ReloadAsset(const AssetGuid& guid)
 
 AssetRef<IAsset> CAssetManager::ReloadAssetByPath(const File::Path& path)
 {
-	const AssetMetaData* metaData = m_registry.FindAssetByPath(path);
-	if (nullptr == metaData) return AssetRef<IAsset>();
-	return ReloadAsset(metaData->Guid);
+	AssetMetaData metaData;
+	if (false == m_registry.TryGetAssetByPath(path, metaData)) return AssetRef<IAsset>();
+	return ReloadAsset(metaData.Guid);
 }
 
 void CAssetManager::UnloadAsset(const AssetGuid& guid)
@@ -424,13 +425,13 @@ void CAssetManager::UnloadAsset(const AssetGuid& guid)
 bool CAssetManager::UnregisterAssetByPath(const File::Path& path, bool unloadIfLoaded)
 {
 	std::lock_guard lock(m_mutex);
-	const AssetMetaData* metaData = m_registry.FindAssetByPath(path);
-	if (nullptr == metaData)
+	AssetMetaData metaData;
+	if (false == m_registry.TryGetAssetByPath(path, metaData))
 	{
 		return false;
 	}
 
-	const AssetGuid guid = metaData->Guid;
+	const AssetGuid guid = metaData.Guid;
 	if (unloadIfLoaded)
 	{
 		UnloadAsset(guid);
@@ -443,17 +444,18 @@ bool CAssetManager::MoveAssetPath(const File::Path& oldPath, const File::Path& n
 {
 	std::lock_guard lock(m_mutex);
 
-	const AssetMetaData* oldMeta = m_registry.FindAssetByPath(oldPath);
-	if (nullptr == oldMeta)
+	AssetMetaData oldMeta;
+	if (false == m_registry.TryGetAssetByPath(oldPath, oldMeta))
 	{
 		return false;
 	}
 
 	// 새 경로에 이미 자산이 등록돼 있으면 — 같은 자산(이미 갱신됨)이면 성공으로,
 	// 다른 자산이면 충돌이므로 실패로 처리한다.
-	if (const AssetMetaData* existing = m_registry.FindAssetByPath(newPath))
+	AssetMetaData existing;
+	if (m_registry.TryGetAssetByPath(newPath, existing))
 	{
-		return existing->Guid == oldMeta->Guid;
+		return existing.Guid == oldMeta.Guid;
 	}
 
 	std::string normalizedNewPath;
@@ -463,7 +465,7 @@ bool CAssetManager::MoveAssetPath(const File::Path& oldPath, const File::Path& n
 	}
 
 	// UnregisterAsset 이후 oldMeta 포인터는 무효해지므로 미리 복사한다.
-	AssetMetaData moved = *oldMeta;
+	AssetMetaData moved = oldMeta;
 	moved.Path     = File::Path(normalizedNewPath);
 	moved.MetaPath = File::Path(CAssetPath::MakeMetaPath(normalizedNewPath.c_str()));
 
@@ -565,7 +567,8 @@ bool CAssetManager::LoadPackedAssetManifest(const File::Path& manifestPath)
 		metaData.ImportOptionsYaml = record.ImportOptionsYaml;
 		metaData.IsPersistent = false;
 
-		if (nullptr != m_registry.FindAsset(metaData.Guid))
+		AssetMetaData existingMetaData;
+		if (m_registry.TryGetAsset(metaData.Guid, existingMetaData))
 		{
 			continue;
 		}
@@ -597,7 +600,8 @@ bool CAssetManager::RegisterMetaData(const AssetMetaData& metaData)
 		return false;
 	}
 
-	if (nullptr != m_registry.FindAsset(metaData.Guid) || nullptr != m_registry.FindAssetByPath(metaData.Path))
+	AssetMetaData existingMetaData;
+	if (m_registry.TryGetAsset(metaData.Guid, existingMetaData) || m_registry.TryGetAssetByPath(metaData.Path, existingMetaData))
 	{
 		return false;
 	}
@@ -645,7 +649,8 @@ AssetGuid CAssetManager::MakeUniqueAssetGuid() const
 	while (true)
 	{
 		const AssetGuid guid = CAssetPath::GenerateAssetGuid();
-		if (nullptr == m_registry.FindAsset(guid))
+		AssetMetaData existingMetaData;
+		if (false == m_registry.TryGetAsset(guid, existingMetaData))
 		{
 			return guid;
 		}
@@ -676,11 +681,12 @@ bool CAssetManager::RegisterAssetByPath(const File::Path& path, EAssetType type,
 	std::lock_guard lock(m_mutex);
 
 	// 이미 등록된 path 면 idempotent — Persistent 플래그만 갱신.
-	if (const AssetMetaData* existing = m_registry.FindAssetByPath(path))
+	AssetMetaData existing;
+	if (m_registry.TryGetAssetByPath(path, existing))
 	{
-		if (existing->IsPersistent != isPersistent)
+		if (existing.IsPersistent != isPersistent)
 		{
-			return SetAssetPersistent(existing->Guid, isPersistent);
+			return SetAssetPersistent(existing.Guid, isPersistent);
 		}
 		return true;
 	}
@@ -700,17 +706,17 @@ bool CAssetManager::RegisterAssetByPath(const File::Path& path, EAssetType type,
 bool CAssetManager::SetAssetPersistent(const AssetGuid& guid, bool isPersistent)
 {
 	std::lock_guard lock(m_mutex);
-	const AssetMetaData* existing = m_registry.FindAsset(guid);
-	if (nullptr == existing)
+	AssetMetaData existing;
+	if (false == m_registry.TryGetAsset(guid, existing))
 	{
 		return false;
 	}
-	if (existing->IsPersistent == isPersistent)
+	if (existing.IsPersistent == isPersistent)
 	{
 		return true;
 	}
 	// 플래그 변경: snapshot 후 re-register.
-	AssetMetaData updated = *existing;
+	AssetMetaData updated = existing;
 	updated.IsPersistent  = isPersistent;
 	m_registry.UnregisterAsset(guid);
 	return m_registry.RegisterAsset(updated);
@@ -723,8 +729,8 @@ void CAssetManager::UnloadNonPersistentAssets()
 	//    use-count > 0 (씬/인스펙터가 사용 중) 인 자산은 보호.
 	for (auto it = m_loadedAssetTable.begin(); it != m_loadedAssetTable.end(); )
 	{
-		const AssetMetaData* meta = m_registry.FindAsset(it->first);
-		if (meta && meta->IsPersistent)
+		AssetMetaData meta;
+		if (m_registry.TryGetAsset(it->first, meta) && meta.IsPersistent)
 		{
 			++it;
 			continue;
@@ -806,8 +812,14 @@ const File::Path& CAssetManager::ResolvePathFromActiveRegistry(const File::Guid&
 		return File::NULL_PATH;
 	}
 
-	const AssetMetaData* metaData = GActiveAssetManager->m_registry.FindAsset(guid);
-	return metaData ? metaData->Path : File::NULL_PATH;
+	static thread_local File::Path resolvedPath;
+	AssetMetaData metaData;
+	if (GActiveAssetManager->m_registry.TryGetAsset(guid, metaData))
+	{
+		resolvedPath = metaData.Path;
+		return resolvedPath;
+	}
+	return File::NULL_PATH;
 }
 
 const File::Guid& CAssetManager::ResolveGuidFromActiveRegistry(const File::Path& path)
@@ -817,6 +829,12 @@ const File::Guid& CAssetManager::ResolveGuidFromActiveRegistry(const File::Path&
 		return File::NULL_GUID;
 	}
 
-	const AssetMetaData* metaData = GActiveAssetManager->m_registry.FindAssetByPath(path);
-	return metaData ? metaData->Guid : File::NULL_GUID;
+	static thread_local File::Guid resolvedGuid;
+	AssetMetaData metaData;
+	if (GActiveAssetManager->m_registry.TryGetAssetByPath(path, metaData))
+	{
+		resolvedGuid = metaData.Guid;
+		return resolvedGuid;
+	}
+	return File::NULL_GUID;
 }
