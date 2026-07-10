@@ -58,8 +58,12 @@ public:
 		float range, const float color[4], float intensity, SafePtr<IRHITexture> occluder);
 	// CastShadow 렌더아이템만 현재 패스(occluder 맵)에 그린다. 현재 뷰(라이트 중심) 기준.
 	void RenderOccluders(IRenderScene& scene);
-	// SceneColor × LightMap 을 현재 렌더패스에 풀스크린 컴포짓한다(곱셈, 최종 출력).
+	// 라이팅/컴포짓 파이프라인이 런타임 생성(셰이더 컴파일)됐는지 — 진단용.
+	bool AreLightingPipelinesReady() const;
+	// SceneColor × LightMap 을 현재 렌더패스에 풀스크린 컴포짓한다(곱셈, HDR 결과).
 	void CompositeLighting(IRHICommandContext& commandContext, SafePtr<IRHITexture> sceneColor, SafePtr<IRHITexture> lightMap);
+	// HDR 텍스처(src)를 Reinhard 톤맵으로 현재 렌더패스에 풀스크린 출력한다(밝기 롤오프).
+	void TonemapFullscreen(IRHICommandContext& commandContext, SafePtr<IRHITexture> src);
 
 private:
 	struct SpriteConstants
@@ -149,6 +153,8 @@ private:
 	bool CreateLightShadowPipeline();
 	// SceneColor × LightMap 컴포짓 파이프라인(스프라이트 VS 재사용 + 컴포짓 PS + Opaque, 2텍스처).
 	bool CreateCompositePipeline();
+	// Reinhard 톤맵 파이프라인(스프라이트 VS + 톤맵 PS + Opaque). TonemapFullscreen 용.
+	bool CreateTonemapPipeline();
 	bool CreateQuadMesh();
 
 private:
@@ -168,6 +174,8 @@ private:
 	OwnerPtr<IRHIProgram> m_lightShadowPixelProgram;     // 그림자 Point PS(occluder 레이마치)
 	OwnerPtr<IRHIGraphicsPipeline> m_lightShadowPipeline; // 그림자 라이트 누적(Additive, occluder 샘플)
 	OwnerPtr<IRHIGraphicsPipeline> m_compositePipeline;  // 라이트맵 곱셈 컴포짓(sprite VS+PS, Multiply)
+	OwnerPtr<IRHIProgram> m_tonemapPixelProgram;         // Reinhard 톤맵 PS
+	OwnerPtr<IRHIGraphicsPipeline> m_tonemapPipeline;    // HDR→LDR 톤맵 blit(sprite VS + 톤맵 PS, Opaque)
 	OwnerPtr<IRHISampler> m_defaultSampler;
 	OwnerPtr<IRenderMesh> m_quadMesh;
 	std::vector<OwnerPtr<IRHIBuffer>> m_spriteConstantBuffers;

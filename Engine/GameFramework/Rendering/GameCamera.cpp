@@ -215,8 +215,8 @@ void RenderGameCameraStack(
 	// 라이팅 활성: LightMap(앰비언트 클리어 + Light2D 가산) → Composite(SceneColor × LightMap → 최종).
 	// 패스를 데이터로 선언하면 그래프가 RT 대여/컬링/실행을 담당한다.
 	const float* ambient = Runtime.AmbientLight;
-	const bool ambientIsWhite = ambient[0] >= 1.0f && ambient[1] >= 1.0f && ambient[2] >= 1.0f;
-	const bool lightingActive = (false == lights.empty()) || (false == ambientIsWhite);
+	// 라이트가 있을 때만 라이팅 경로. 라이트0 씬 = 패스스루(앰비언트 무관, 화면 불변).
+	const bool lightingActive = (false == lights.empty());
 
 	RWGraph graph(forward->GetRenderWeavePool());
 	const RWTextureHandle hFinal = graph.ImportTexture(renderTarget);
@@ -389,15 +389,23 @@ void RenderGameCameraStack(
 		};
 		graph.AddPass(std::move(lightPass));
 
+		// Composite 를 HDR(RGBA16F) 중간 타겟에 → Tonemap 이 Reinhard 로 롤오프해 최종 LDR 로.
+		// 이렇게 해야 밝은 라이트 중심이 하드 클램프(순백)되지 않는다.
+		RWTextureDesc postDesc;
+		postDesc.Width  = sceneDesc.Width;
+		postDesc.Height = sceneDesc.Height;
+		postDesc.Format = ERHITextureFormat::RGBA16F;
+		const RWTextureHandle hPost = graph.CreateTexture(postDesc);
+
 		RWPassDesc compositePass;
 		compositePass.Name  = "Composite";
 		compositePass.Reads = { hScene, hLight };
-		compositePass.Write = hFinal;
-		compositePass.Execute = [forward, &renderer, renderTargetSize, rtW, rtH, hScene, hLight, hFinal]
+		compositePass.Write = hPost;
+		compositePass.Execute = [forward, &renderer, renderTargetSize, rtW, rtH, hScene, hLight, hPost]
 			(IRHICommandContext& ctx, RWGraph& g)
 		{
 			RenderPassDesc composite;
-			composite.ColorAttachment.Target = g.Resolve(hFinal);
+			composite.ColorAttachment.Target = g.Resolve(hPost);
 			composite.ColorAttachment.LoadOp = ERHILoadOp::Clear;
 			composite.ColorAttachment.StoreOp = ERHIStoreOp::Store;
 			composite.ColorAttachment.ClearColor = Color{ 0.0f, 0.0f, 0.0f, 0.0f };
@@ -408,6 +416,26 @@ void RenderGameCameraStack(
 			ctx.EndRenderPass();
 		};
 		graph.AddPass(std::move(compositePass));
+
+		RWPassDesc tonemapPass;
+		tonemapPass.Name  = "Tonemap";
+		tonemapPass.Reads = { hPost };
+		tonemapPass.Write = hFinal;
+		tonemapPass.Execute = [forward, &renderer, renderTargetSize, rtW, rtH, hPost, hFinal]
+			(IRHICommandContext& ctx, RWGraph& g)
+		{
+			RenderPassDesc tonemap;
+			tonemap.ColorAttachment.Target = g.Resolve(hFinal);
+			tonemap.ColorAttachment.LoadOp = ERHILoadOp::Clear;
+			tonemap.ColorAttachment.StoreOp = ERHIStoreOp::Store;
+			tonemap.ColorAttachment.ClearColor = Color{ 0.0f, 0.0f, 0.0f, 0.0f };
+			ctx.BeginRenderPass(tonemap);
+			ctx.SetViewport(0.0f, 0.0f, rtW, rtH);
+			renderer.SetRenderTargetSize(renderTargetSize);
+			forward->TonemapFullscreen(ctx, g.Resolve(hPost));
+			ctx.EndRenderPass();
+		};
+		graph.AddPass(std::move(tonemapPass));
 	}
 
 	graph.Compile(hFinal);

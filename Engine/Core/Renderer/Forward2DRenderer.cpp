@@ -9,8 +9,10 @@
 #include "Core/Renderer/SpriteVulkanShaders.h"
 #include "Core/RHI/IRHICommandContext.h"
 #include "Core/RHI/IRHIDevice.h"
+#include "Core/Logging/LoggerInternal.h"   // 진단 로그(CSystemLog)
 
 #include <cfloat>
+#include <format>
 #include <utility>
 
 namespace
@@ -480,6 +482,73 @@ fn PSMain(input : VSOut) -> @location(0) vec4<f32>
 	return vec4<f32>(input.Color.rgb * intensity * atten * shadow, 1.0);
 }
 )";
+
+	// 톤맵 PS — HDR 컴포짓 결과(gTexture)를 Reinhard 로 롤오프해 RGBA8 로. 밝은 라이트 중심이
+	// 하드 클램프(순백)되지 않고 부드럽게 포화. 스프라이트 VS + BuildViewportColorConstants(항등 uv) 사용.
+	const char* TONEMAP_SHADER_SOURCE_HLSL = R"(
+cbuffer SpriteConstants : register(b0)
+{
+	float4 gTransformRow0;
+	float4 gTransformRow1;
+	float4 gColor;
+	float4 gViewRow0;
+	float4 gViewRow1;
+	float4 gUvRect;
+};
+
+Texture2D gTexture : register(t0);
+SamplerState gSampler : register(s0);
+
+struct VSOut
+{
+	float4 Position : SV_POSITION;
+	float2 Uv : TEXCOORD0;
+	float4 Color : COLOR0;
+};
+
+float4 PSMain(VSOut input) : SV_TARGET
+{
+	float4 hdr = gTexture.Sample(gSampler, input.Uv);
+	float3 mapped = hdr.rgb / (1.0f + hdr.rgb);   // Reinhard
+	return float4(mapped, hdr.a);
+}
+)";
+
+	const char* TONEMAP_SHADER_SOURCE_WGSL = R"(
+struct SpriteConstants
+{
+	TransformRow0 : vec4<f32>,
+	TransformRow1 : vec4<f32>,
+	Color : vec4<f32>,
+	ViewRow0 : vec4<f32>,
+	ViewRow1 : vec4<f32>,
+	UvRect : vec4<f32>,
+};
+
+@group(0) @binding(0)
+var<uniform> gConstants : SpriteConstants;
+
+@group(0) @binding(1)
+var gTexture : texture_2d<f32>;
+
+@group(0) @binding(2)
+var gSampler : sampler;
+
+struct VSOut
+{
+	@builtin(position) Position : vec4<f32>,
+	@location(0) Uv : vec2<f32>,
+	@location(1) Color : vec4<f32>,
+};
+
+@fragment
+fn PSMain(input : VSOut) -> @location(0) vec4<f32>
+{
+	let hdr = textureSample(gTexture, gSampler, input.Uv);
+	let mapped = hdr.rgb / (1.0 + hdr.rgb);
+	return vec4<f32>(mapped, hdr.a);
+}
+)";
 }
 
 bool CForward2DRenderer::Initialize(const RendererDesc& desc)
@@ -508,10 +577,13 @@ bool CForward2DRenderer::Initialize(const RendererDesc& desc)
 	}
 
 	CreateSpriteBatchPipeline();
-	CreateBlitPipeline();
-	CreateLightPipeline();
-	CreateLightShadowPipeline();
-	CreateCompositePipeline();
+	const bool blitOk = CreateBlitPipeline();
+	const bool lightOk = CreateLightPipeline();
+	const bool lightShadowOk = CreateLightShadowPipeline();
+	const bool compositeOk = CreateCompositePipeline();
+	const bool tonemapOk = CreateTonemapPipeline();
+	CSystemLog::Info(std::format("[RenderWeave] pipelines blit={} light={} lightShadow={} composite={} tonemap={}",
+		blitOk, lightOk, lightShadowOk, compositeOk, tonemapOk));
 	if (false == CreateTextPipeline() && ERHIApi::D3D11 == m_rhiDevice->GetApi())
 	{
 		Finalize();
@@ -838,6 +910,11 @@ void CForward2DRenderer::DrawLight2D(IRHICommandContext& commandContext, int typ
 		constants);
 }
 
+bool CForward2DRenderer::AreLightingPipelinesReady() const
+{
+	return static_cast<bool>(m_lightPipeline) && static_cast<bool>(m_compositePipeline);
+}
+
 void CForward2DRenderer::CompositeLighting(IRHICommandContext& commandContext, SafePtr<IRHITexture> sceneColor, SafePtr<IRHITexture> lightMap)
 {
 	// 1) SceneColor 를 최종 타겟에 불투명 복사.
@@ -855,6 +932,26 @@ void CForward2DRenderer::CompositeLighting(IRHICommandContext& commandContext, S
 		m_compositePipeline.GetSafePtr(),
 		m_quadMesh.GetSafePtr(),
 		lightMap,
+		m_defaultSampler.GetSafePtr(),
+		constants);
+}
+
+void CForward2DRenderer::TonemapFullscreen(IRHICommandContext& commandContext, SafePtr<IRHITexture> src)
+{
+	// 톤맵 파이프라인 없으면 단순 복사 폴백(클램프될 뿐 화면은 나온다).
+	SafePtr<IRHIGraphicsPipeline> pipeline = m_tonemapPipeline ? m_tonemapPipeline.GetSafePtr() : m_blitPipeline.GetSafePtr();
+	if (false == pipeline.IsValid() || !m_quadMesh || false == src.IsValid() || !m_defaultSampler)
+	{
+		return;
+	}
+	const SpriteConstants constants = BuildViewportColorConstants(1.0f, 1.0f, 1.0f, 1.0f);
+	RenderStateCache stateCache;
+	DrawSpriteQuad(
+		commandContext,
+		stateCache,
+		pipeline,
+		m_quadMesh.GetSafePtr(),
+		src,
 		m_defaultSampler.GetSafePtr(),
 		constants);
 }
@@ -1464,6 +1561,8 @@ void CForward2DRenderer::Finalize()
 	m_quadMesh.Reset();
 	m_defaultSampler.Reset();
 	m_spriteBatchPipeline.Reset();
+	m_tonemapPipeline.Reset();
+	m_tonemapPixelProgram.Reset();
 	m_compositePipeline.Reset();
 	m_lightShadowPipeline.Reset();
 	m_lightShadowPixelProgram.Reset();
@@ -1755,6 +1854,52 @@ bool CForward2DRenderer::CreateCompositePipeline()
 	desc.BlendMode = ERHIBlendMode::Multiply;
 	m_compositePipeline = m_rhiDevice->CreateGraphicsPipeline(desc);
 	return static_cast<bool>(m_compositePipeline);
+}
+
+bool CForward2DRenderer::CreateTonemapPipeline()
+{
+	// 스프라이트 VS + Reinhard 톤맵 PS + Opaque. HDR 컴포짓 결과 → LDR 최종.
+	if (!m_spriteVertexProgram)
+	{
+		return false;
+	}
+	const ERHIApi api = m_rhiDevice->GetApi();
+	if (ERHIApi::Vulkan == api)
+	{
+		// Vulkan SPIRV 톤맵 PS 미제공 — 스킵. TonemapFullscreen 이 blit 로 폴백.
+		return true;
+	}
+	const ERHIProgramLanguage language = ERHIApi::WebGPU == api ? ERHIProgramLanguage::WGSL : ERHIProgramLanguage::HLSL;
+	const char* source = ERHIApi::WebGPU == api ? TONEMAP_SHADER_SOURCE_WGSL : TONEMAP_SHADER_SOURCE_HLSL;
+
+	RHIProgramDesc pixelProgramDesc;
+	pixelProgramDesc.Stage = ERHIProgramStage::Pixel;
+	pixelProgramDesc.Language = language;
+	pixelProgramDesc.EntryPoint = "PSMain";
+	pixelProgramDesc.Source = source;
+	m_tonemapPixelProgram = m_rhiDevice->CreateProgram(pixelProgramDesc);
+	if (!m_tonemapPixelProgram)
+	{
+		return false;
+	}
+
+	RHIVertexElementDesc elements[2];
+	elements[0].SemanticName = "POSITION";
+	elements[0].Format = ERHIVertexFormat::Float2;
+	elements[0].Offset = 0;
+	elements[1].SemanticName = "TEXCOORD";
+	elements[1].Format = ERHIVertexFormat::Float2;
+	elements[1].Offset = sizeof(float) * 2;
+
+	RHIGraphicsPipelineDesc desc;
+	desc.VertexProgram = m_spriteVertexProgram.GetSafePtr();
+	desc.PixelProgram = m_tonemapPixelProgram.GetSafePtr();
+	desc.VertexElements = elements;
+	desc.VertexElementCount = 2;
+	desc.PrimitiveTopology = ERHIPrimitiveTopology::TriangleList;
+	desc.BlendMode = ERHIBlendMode::Opaque;
+	m_tonemapPipeline = m_rhiDevice->CreateGraphicsPipeline(desc);
+	return static_cast<bool>(m_tonemapPipeline);
 }
 
 bool CForward2DRenderer::CreateSpriteBatchPipeline()

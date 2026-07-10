@@ -14,6 +14,7 @@
 #include "Engine/Editor/ImEditor.h"
 #include "Engine/Editor/Project/ProjectManager.h"
 #include "Engine/GameFramework/Component/Camera2D.h"
+#include "Engine/GameFramework/Component/Light2D.h"
 #include "Engine/GameFramework/Component/Physics2DComponents.h"
 #include "Engine/GameFramework/Component/SpriteRenderer2D.h"
 #include "Engine/GameFramework/Component/Transform2D.h"
@@ -1444,4 +1445,34 @@ void CSceneViewTool::OnRenderStay()
         }
     }
     } // cameraTabActive block
+
+    // ── Light2D 범위 인디케이터 ─────────────────────────────────────────────────
+    // Inspector에서 Light2D 탭이 활성화된 경우, 라이트 월드 위치에 범위(Range) 원을 표시.
+    // Point 전용(Directional 은 방향성이라 반경 개념 없음).
+    {
+        const char* inspTypeLight = Editor::Inspector
+            ? Editor::Inspector->GetActiveComponentTypeName() : nullptr;
+        const bool lightTabActive =
+            inspTypeLight && std::strcmp(inspTypeLight, "Light2D") == 0;
+
+        if (lightTabActive && nullptr != selectedObject)
+        {
+            const Light2D* light = selectedObject->GetComponent<Light2D>();
+            if (light && ELight2DType::Directional != light->Type)
+            {
+                const Matrix3x2 wt      = GetWorldTransform(*selectedObject);
+                const Vector2   wCenter = wt.TransformPoint(Vector2(0.0f, 0.0f));
+                const float pixPerWorld = vpSize.y / (2.0f * m_cameraSize);
+                const ImVec2 sc      = WorldToViewport(wCenter, vpMin, vpSize, m_cameraPos, m_cameraSize);
+                const float  sRadius = std::max(light->Range * pixPerWorld, 1.0f);
+
+                dl->PushClipRect(vpMin, vpMin + vpSize, true);
+                dl->AddCircleFilled(sc, sRadius, IM_COL32(255, 220, 90, 22), 64);
+                dl->AddCircle(ImVec2(sc.x + 1.0f, sc.y + 1.0f), sRadius, IM_COL32(0, 0, 0, 120), 64, 2.5f);
+                dl->AddCircle(sc, sRadius, IM_COL32(255, 220, 90, 230), 64, 2.0f);
+                dl->AddCircleFilled(sc, 3.5f, IM_COL32(255, 220, 90, 235));
+                dl->PopClipRect();
+            }
+        }
+    }
 }
