@@ -641,6 +641,10 @@ CForward2DRenderer::SpriteConstants CForward2DRenderer::BuildViewportColorConsta
 	constants.Color[3] = a;
 	constants.ViewRow0[0] = 1.0f;
 	constants.ViewRow1[1] = 1.0f;
+	// UvRect 항등 — 풀스크린 쿼드가 텍스처 전체를 샘플하도록(blit/composite). 미설정 시 uv=0 고정
+	// → 코너 텍셀 하나로 전체가 채워진다(1×1 white 인 FillViewportColor 에선 무해했던 잠복 버그).
+	constants.UvRect[2] = 1.0f;
+	constants.UvRect[3] = 1.0f;
 	return constants;
 }
 
