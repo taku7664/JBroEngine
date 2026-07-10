@@ -90,6 +90,7 @@ public:
 	void RequestGameViewRenderTarget(std::uint32_t width, std::uint32_t height);
 	// Submit all active game cameras for this frame (sorted by Priority, ascending).
 	void SetGameViewCameras(const std::vector<GameRenderCameraDesc>& cameras);
+	void SetGameViewLights(const std::vector<GameRenderLightDesc>& lights);
 	void* GetGameViewTextureID() const;
 	std::uint32_t GetGameViewWidth()  const { return m_gameViewWidth;  }
 	std::uint32_t GetGameViewHeight() const { return m_gameViewHeight; }
@@ -151,6 +152,7 @@ private:
 	std::uint32_t              m_gameViewHeight   = 0;
 	bool                       m_gameViewRequested = false;
 	std::vector<GameRenderCameraDesc> m_gameViewCameras;
+	std::vector<GameRenderLightDesc> m_gameViewLights;
 	std::unordered_map<const void*, RenderCullingStats> m_gameViewCameraCullingStats;
 
 	// GPU renderer for IDebugDraw2D primitives — renders into scene RT.

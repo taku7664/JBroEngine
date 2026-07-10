@@ -562,10 +562,12 @@ void CGameApplication::ConfigureRuntimeViewCamera()
 		}
 	}
 	std::vector<GameRenderCameraDesc> cameras = CollectGameRenderCameras(*scene, renderWidth, renderHeight);
+	std::vector<GameRenderLightDesc> lights = CollectGameRenderLights(*scene);
 
 	if (CEngine* engine = GetEngine())
 	{
 		engine->SetGameRenderCameras(std::move(cameras));
+		engine->SetGameRenderLights(std::move(lights));
 	}
 }
 

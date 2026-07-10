@@ -89,18 +89,21 @@ void CGameViewTool::OnRenderStay()
 	if (Editor::ImEditor)
 	{
 		std::vector<GameRenderCameraDesc> cameras;
+		std::vector<GameRenderLightDesc> lights;
 		if (Engine.SceneManager)
 		{
 			SafePtr<CGameScene> scene = EditorContext::GetActiveScene();
 			if (scene)
 			{
 				cameras = CollectGameRenderCameras(*scene, resW, resH);
+				lights = CollectGameRenderLights(*scene);
 			}
 		}
 
 		if (false == cameras.empty())
 		{
 			Editor::ImEditor->SetGameViewCameras(cameras);
+			Editor::ImEditor->SetGameViewLights(lights);
 			// RT는 프로젝트 해상도로 요청합니다.
 			Editor::ImEditor->RequestGameViewRenderTarget(
 				static_cast<std::uint32_t>(resW),
@@ -110,6 +113,7 @@ void CGameViewTool::OnRenderStay()
 		{
 			// No active Camera2D — release the RT so texID becomes null.
 			Editor::ImEditor->SetGameViewCameras({});
+			Editor::ImEditor->SetGameViewLights({});
 			Editor::ImEditor->RequestGameViewRenderTarget(0, 0);
 		}
 	}

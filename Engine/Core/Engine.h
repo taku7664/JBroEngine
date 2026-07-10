@@ -49,6 +49,7 @@ public:
 	void SetPlatformDesc(const PlatformDesc& desc);
 	void SetMainClearColor(const Color& color);
 	void SetGameRenderCameras(std::vector<GameRenderCameraDesc> cameras);
+	void SetGameRenderLights(std::vector<GameRenderLightDesc> lights);
 
 	void InitializeModule(CModule& module, const char* moduleName);
 	void FinalizeModule(CModule& module);
@@ -119,6 +120,7 @@ private:
 	OwnerPtr<CDebugDraw2D>        m_debugDraw;
 	std::vector<CModule*>         m_modules;
 	std::vector<GameRenderCameraDesc> m_gameRenderCameras;
+	std::vector<GameRenderLightDesc> m_gameRenderLights;
 	PlatformDesc                  m_platformDesc;
 	Color                         m_mainClearColor = Color{ 0.08f, 0.09f, 0.11f, 1.0f };
 	bool                          m_isInitialized = false;

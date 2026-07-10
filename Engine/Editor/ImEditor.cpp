@@ -254,6 +254,11 @@ void CImEditor::SetGameViewCameras(const std::vector<GameRenderCameraDesc>& came
 	m_gameViewCameras = cameras;
 }
 
+void CImEditor::SetGameViewLights(const std::vector<GameRenderLightDesc>& lights)
+{
+	m_gameViewLights = lights;
+}
+
 void* CImEditor::GetGameViewTextureID() const
 {
 	if (false == static_cast<bool>(m_gameViewRenderTarget))
@@ -628,7 +633,8 @@ void CImEditor::OnPrepareRender()
 			m_gameViewCameras,
 			RenderSurfaceSize{ static_cast<int>(m_gameViewWidth), static_cast<int>(m_gameViewHeight) },
 			m_gameViewRenderTarget.GetSafePtr(),
-			&cameraStats);
+			&cameraStats,
+			m_gameViewLights);
 		m_gameViewCameraCullingStats.clear();
 		for (const GameRenderCameraStats& stats : cameraStats)
 		{

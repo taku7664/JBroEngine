@@ -326,6 +326,11 @@ void CEngine::SetGameRenderCameras(std::vector<GameRenderCameraDesc> cameras)
 	m_gameRenderCameras = std::move(cameras);
 }
 
+void CEngine::SetGameRenderLights(std::vector<GameRenderLightDesc> lights)
+{
+	m_gameRenderLights = std::move(lights);
+}
+
 const ScriptCore& CEngine::GetScriptCore() const
 {
 	return Script;
@@ -729,7 +734,10 @@ void CEngine::RenderFrame()
 					*m_renderer,
 					*m_renderScene,
 					m_gameRenderCameras,
-					mainRenderSurface->GetSize());
+					mainRenderSurface->GetSize(),
+					nullptr,
+					nullptr,
+					m_gameRenderLights);
 				m_renderScene->Clear();
 			}
 		}
