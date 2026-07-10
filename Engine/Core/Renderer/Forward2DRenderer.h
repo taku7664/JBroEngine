@@ -52,6 +52,12 @@ public:
 	// type: 0=Directional(뷰포트 균일), 1=Point(월드 pos 중심 반경 range 감쇠).
 	void DrawLight2D(IRHICommandContext& commandContext, int type, float worldX, float worldY,
 		float range, const float color[4], float intensity);
+	// 그림자 Point 라이트 — occluder 맵(라이트 중심 정사각, uv[0,1])을 픽셀→중심 레이마치해
+	// 실루엣 그림자를 적용하며 가산 누적한다.
+	void DrawLight2DShadowed(IRHICommandContext& commandContext, float worldX, float worldY,
+		float range, const float color[4], float intensity, SafePtr<IRHITexture> occluder);
+	// CastShadow 렌더아이템만 현재 패스(occluder 맵)에 그린다. 현재 뷰(라이트 중심) 기준.
+	void RenderOccluders(IRenderScene& scene);
 	// SceneColor × LightMap 을 현재 렌더패스에 풀스크린 컴포짓한다(곱셈, 최종 출력).
 	void CompositeLighting(IRHICommandContext& commandContext, SafePtr<IRHITexture> sceneColor, SafePtr<IRHITexture> lightMap);
 
@@ -139,6 +145,8 @@ private:
 	bool CreateBlitPipeline();
 	// 라이트 누적 파이프라인(스프라이트 VS 재사용 + 라이트 PS + Additive). DrawLight2D 용.
 	bool CreateLightPipeline();
+	// 그림자 라이트 파이프라인(스프라이트 VS + occluder 레이마치 PS + Additive). DrawLight2DShadowed 용.
+	bool CreateLightShadowPipeline();
 	// SceneColor × LightMap 컴포짓 파이프라인(스프라이트 VS 재사용 + 컴포짓 PS + Opaque, 2텍스처).
 	bool CreateCompositePipeline();
 	bool CreateQuadMesh();
@@ -157,6 +165,8 @@ private:
 	OwnerPtr<IRHIGraphicsPipeline> m_blitPipeline;
 	OwnerPtr<IRHIProgram> m_lightPixelProgram;      // 라이트 감쇠 PS(스프라이트 VS 와 페어)
 	OwnerPtr<IRHIGraphicsPipeline> m_lightPipeline;      // 라이트 누적(Additive)
+	OwnerPtr<IRHIProgram> m_lightShadowPixelProgram;     // 그림자 Point PS(occluder 레이마치)
+	OwnerPtr<IRHIGraphicsPipeline> m_lightShadowPipeline; // 그림자 라이트 누적(Additive, occluder 샘플)
 	OwnerPtr<IRHIGraphicsPipeline> m_compositePipeline;  // 라이트맵 곱셈 컴포짓(sprite VS+PS, Multiply)
 	OwnerPtr<IRHISampler> m_defaultSampler;
 	OwnerPtr<IRenderMesh> m_quadMesh;

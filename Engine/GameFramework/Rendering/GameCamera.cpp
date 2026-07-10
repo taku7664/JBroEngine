@@ -100,6 +100,8 @@ std::vector<GameRenderLightDesc> CollectGameRenderLights(const CGameScene& scene
 			desc.Color[3] = light.Color[3];
 			desc.Intensity = light.Intensity;
 			desc.Range = light.Range;
+			// 그림자는 Point 전용(극좌표/방사 레이마치). Directional 은 v1 에서 그림자 없음.
+			desc.CastShadows = light.CastShadows && (ELight2DType::Directional != light.Type);
 			lights.push_back(desc);
 		});
 
@@ -267,10 +269,63 @@ void RenderGameCameraStack(
 
 		const Color ambientColor{ ambient[0], ambient[1], ambient[2], 1.0f };
 
+		// ── 그림자: CastShadows 라이트마다 라이트 중심 정사각 occluder 맵을 렌더 ──
+		// occluder 맵 uv[0,1] = 월드 [pos±range]. LightMap 의 그림자 셰이더가 이걸 레이마치한다.
+		struct ShadowSlot { int LightIndex; RWTextureHandle Occluder; };
+		std::vector<ShadowSlot> shadowSlots;
+		std::vector<RWTextureHandle> occluderReads;
+		constexpr std::uint32_t occluderSize = 512;
+		for (std::size_t li = 0; li < lights.size(); ++li)
+		{
+			if (false == lights[li].CastShadows)
+			{
+				continue;
+			}
+			RWTextureDesc occDesc;
+			occDesc.Width  = occluderSize;
+			occDesc.Height = occluderSize;
+			occDesc.Format = ERHITextureFormat::RGBA8;
+			const RWTextureHandle hOcc = graph.CreateTexture(occDesc);
+			shadowSlots.push_back(ShadowSlot{ static_cast<int>(li), hOcc });
+			occluderReads.push_back(hOcc);
+
+			const GameRenderLightDesc light = lights[li];
+			RWPassDesc occPass;
+			occPass.Name  = "Occluder";
+			occPass.Write = hOcc;
+			occPass.Execute = [forward, &renderScene, light, hOcc, occluderSize]
+				(IRHICommandContext& ctx, RWGraph& g)
+			{
+				SafePtr<IRHITexture> target = g.Resolve(hOcc);
+
+				RenderPassDesc clearDesc;
+				clearDesc.ColorAttachment.Target = target;
+				clearDesc.ColorAttachment.LoadOp = ERHILoadOp::Clear;
+				clearDesc.ColorAttachment.StoreOp = ERHIStoreOp::Store;
+				clearDesc.ColorAttachment.ClearColor = Color{ 0.0f, 0.0f, 0.0f, 0.0f };
+				ctx.BeginRenderPass(clearDesc);
+				ctx.EndRenderPass();
+
+				RenderPassDesc pass;
+				pass.ColorAttachment.Target = target;
+				pass.ColorAttachment.LoadOp = ERHILoadOp::Load;
+				pass.ColorAttachment.StoreOp = ERHIStoreOp::Store;
+				ctx.BeginRenderPass(pass);
+				ctx.SetViewport(0.0f, 0.0f, static_cast<float>(occluderSize), static_cast<float>(occluderSize));
+				forward->SetRenderTargetSize(RenderSurfaceSize{ static_cast<int>(occluderSize), static_cast<int>(occluderSize) });
+				// 라이트 중심 정사각 뷰(half = range 양축) → 월드 [pos±range] 를 occluder uv[0,1] 로.
+				forward->SetViewCameraEx(light.PosX, light.PosY, light.Range, light.Range, 1.0f, 0.0f);
+				forward->RenderOccluders(renderScene);
+				ctx.EndRenderPass();
+			};
+			graph.AddPass(std::move(occPass));
+		}
+
 		RWPassDesc lightPass;
 		lightPass.Name  = "LightMap";
+		lightPass.Reads = occluderReads;   // occluder 패스를 그래프에 살려둔다(컬링 방지).
 		lightPass.Write = hLight;
-		lightPass.Execute = [forward, &renderer, &cameras, &lights, renderTargetSize, ambientColor, hLight]
+		lightPass.Execute = [forward, &cameras, &lights, renderTargetSize, ambientColor, hLight, shadowSlots]
 			(IRHICommandContext& ctx, RWGraph& g)
 		{
 			SafePtr<IRHITexture> target = g.Resolve(hLight);
@@ -305,12 +360,29 @@ void RenderGameCameraStack(
 				pass.ColorAttachment.StoreOp = ERHIStoreOp::Store;
 				ctx.BeginRenderPass(pass);
 				ctx.SetViewport(vpX, vpY, vpW, vpH);
-				renderer.SetRenderTargetSize(RenderSurfaceSize{ static_cast<int>(vpW), static_cast<int>(vpH) });
-				renderer.SetViewCameraEx(camera.PosX, camera.PosY, camera.OrthoSizeX, camera.OrthoSize, camera.CosR, camera.SinR);
+				forward->SetRenderTargetSize(RenderSurfaceSize{ static_cast<int>(vpW), static_cast<int>(vpH) });
+				forward->SetViewCameraEx(camera.PosX, camera.PosY, camera.OrthoSizeX, camera.OrthoSize, camera.CosR, camera.SinR);
 
-				for (const GameRenderLightDesc& light : lights)
+				for (std::size_t li = 0; li < lights.size(); ++li)
 				{
-					forward->DrawLight2D(ctx, light.Type, light.PosX, light.PosY, light.Range, light.Color, light.Intensity);
+					const GameRenderLightDesc& light = lights[li];
+					if (light.CastShadows)
+					{
+						SafePtr<IRHITexture> occluder;
+						for (const ShadowSlot& slot : shadowSlots)
+						{
+							if (slot.LightIndex == static_cast<int>(li))
+							{
+								occluder = g.Resolve(slot.Occluder);
+								break;
+							}
+						}
+						forward->DrawLight2DShadowed(ctx, light.PosX, light.PosY, light.Range, light.Color, light.Intensity, occluder);
+					}
+					else
+					{
+						forward->DrawLight2D(ctx, light.Type, light.PosX, light.PosY, light.Range, light.Color, light.Intensity);
+					}
 				}
 				ctx.EndRenderPass();
 			}

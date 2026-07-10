@@ -31,7 +31,8 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 		.AddProperty("FrameIndex", EReflectPropertyType::UInt32, offsetof(SpriteRenderer2D, FrameIndex), sizeof(std::uint32_t))
 		.AddProperty("Color", EReflectPropertyType::ColorFloat4, offsetof(SpriteRenderer2D, Color), sizeof(float), 4)
 		.AddProperty("SortOrder", EReflectPropertyType::Int32, offsetof(SpriteRenderer2D, SortOrder), sizeof(std::int32_t))
-		.AddProperty("LayerMask", EReflectPropertyType::UInt32, offsetof(SpriteRenderer2D, LayerMask), sizeof(RenderLayerMask));
+		.AddProperty("LayerMask", EReflectPropertyType::UInt32, offsetof(SpriteRenderer2D, LayerMask), sizeof(RenderLayerMask))
+		.AddProperty("CastShadow", EReflectPropertyType::Bool, offsetof(SpriteRenderer2D, CastShadow), sizeof(bool));
 
 	registry.RegisterComponent<Text2D>({ "Text2D", "Text 2D", "Rendering", true })
 		.AddProperty("Text", EReflectPropertyType::String, offsetof(Text2D, Text), sizeof(String))

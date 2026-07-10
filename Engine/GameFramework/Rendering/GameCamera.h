@@ -46,6 +46,7 @@ struct GameRenderLightDesc
 	float Color[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
 	float Intensity = 1.0f;
 	float Range = 5.0f;          // Point 반경(월드 유닛).
+	bool  CastShadows = false;   // 켜면 Occluder→그림자 샘플 경로로 렌더(Point 전용).
 };
 
 std::vector<GameRenderCameraDesc> CollectGameRenderCameras(const CGameScene& scene, float renderWidth, float renderHeight);

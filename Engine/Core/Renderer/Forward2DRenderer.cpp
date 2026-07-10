@@ -380,6 +380,106 @@ fn PSMain(input : VSOut) -> @location(0) vec4<f32>
 	return vec4<f32>(input.Color.rgb * intensity * atten, 1.0);
 }
 )";
+
+	// 그림자 Point 라이트 PS — occluder 맵(gTexture, 라이트 중심 정사각 uv[0,1])을
+	// 픽셀 uv → 중심(0.5,0.5) 으로 레이마치. 경로 상 최대 알파 = 차폐량 → shadow=1-occ.
+	// 스프라이트 알파 경계가 그대로 페넘브라를 만든다(실루엣 소프트). 반경 (1-r)^2 감쇠 동일.
+	const char* LIGHT_SHADOW_SHADER_SOURCE_HLSL = R"(
+cbuffer LightConstants : register(b0)
+{
+	float4 gTransformRow0;
+	float4 gTransformRow1;
+	float4 gColor;
+	float4 gViewRow0;
+	float4 gViewRow1;
+	float4 gUvRect;
+	float4 gSecondaryColor;
+	float4 gShaderParams;
+};
+
+Texture2D gTexture : register(t0);
+SamplerState gSampler : register(s0);
+
+struct VSOut
+{
+	float4 Position : SV_POSITION;
+	float2 Uv : TEXCOORD0;
+	float4 Color : COLOR0;
+};
+
+float4 PSMain(VSOut input) : SV_TARGET
+{
+	float2 d = (input.Uv - 0.5f) * 2.0f;
+	float r = saturate(1.0f - length(d));
+	float atten = r * r;
+
+	float2 toCenter = float2(0.5f, 0.5f) - input.Uv;
+	const int STEPS = 24;
+	float2 stepv = toCenter / STEPS;
+	float occlusion = 0.0f;
+	[loop] for (int i = 1; i <= STEPS; ++i)
+	{
+		float2 p = input.Uv + stepv * i;
+		occlusion = max(occlusion, gTexture.Sample(gSampler, p).a);
+	}
+
+	float shadow = saturate(1.0f - occlusion);
+	float intensity = gShaderParams.y;
+	return float4(input.Color.rgb * intensity * atten * shadow, 1.0f);
+}
+)";
+
+	const char* LIGHT_SHADOW_SHADER_SOURCE_WGSL = R"(
+struct LightConstants
+{
+	TransformRow0 : vec4<f32>,
+	TransformRow1 : vec4<f32>,
+	Color : vec4<f32>,
+	ViewRow0 : vec4<f32>,
+	ViewRow1 : vec4<f32>,
+	UvRect : vec4<f32>,
+	SecondaryColor : vec4<f32>,
+	ShaderParams : vec4<f32>,
+};
+
+@group(0) @binding(0)
+var<uniform> gConstants : LightConstants;
+
+@group(0) @binding(1)
+var gTexture : texture_2d<f32>;
+
+@group(0) @binding(2)
+var gSampler : sampler;
+
+struct VSOut
+{
+	@builtin(position) Position : vec4<f32>,
+	@location(0) Uv : vec2<f32>,
+	@location(1) Color : vec4<f32>,
+};
+
+@fragment
+fn PSMain(input : VSOut) -> @location(0) vec4<f32>
+{
+	let d = (input.Uv - 0.5) * 2.0;
+	let r = clamp(1.0 - length(d), 0.0, 1.0);
+	let atten = r * r;
+
+	let toCenter = vec2<f32>(0.5, 0.5) - input.Uv;
+	let STEPS = 24;
+	let stepv = toCenter / f32(STEPS);
+	var occlusion = 0.0;
+	for (var i = 1; i <= STEPS; i = i + 1)
+	{
+		let p = input.Uv + stepv * f32(i);
+		occlusion = max(occlusion, textureSample(gTexture, gSampler, p).a);
+	}
+
+	let shadow = clamp(1.0 - occlusion, 0.0, 1.0);
+	let intensity = gConstants.ShaderParams.y;
+	return vec4<f32>(input.Color.rgb * intensity * atten * shadow, 1.0);
+}
+)";
 }
 
 bool CForward2DRenderer::Initialize(const RendererDesc& desc)
@@ -410,6 +510,7 @@ bool CForward2DRenderer::Initialize(const RendererDesc& desc)
 	CreateSpriteBatchPipeline();
 	CreateBlitPipeline();
 	CreateLightPipeline();
+	CreateLightShadowPipeline();
 	CreateCompositePipeline();
 	if (false == CreateTextPipeline() && ERHIApi::D3D11 == m_rhiDevice->GetApi())
 	{
@@ -756,6 +857,71 @@ void CForward2DRenderer::CompositeLighting(IRHICommandContext& commandContext, S
 		lightMap,
 		m_defaultSampler.GetSafePtr(),
 		constants);
+}
+
+void CForward2DRenderer::DrawLight2DShadowed(IRHICommandContext& commandContext, float worldX, float worldY,
+	float range, const float color[4], float intensity, SafePtr<IRHITexture> occluder)
+{
+	// 그림자 파이프라인/오클루더 없으면 일반 Point 라이트로 폴백(그림자 없이라도 조명은 나오게).
+	if (!m_lightShadowPipeline || false == occluder.IsValid())
+	{
+		DrawLight2D(commandContext, 1, worldX, worldY, range, color, intensity);
+		return;
+	}
+	if (!m_quadMesh || !m_defaultSampler)
+	{
+		return;
+	}
+	const ViewParameters view = BuildViewParameters();
+	const SpriteConstants constants = BuildLightConstants(1, worldX, worldY, range, color, intensity, view);
+	RenderStateCache stateCache;
+	// gTexture = occluder 맵(라이트 중심 uv[0,1]) — PS 가 픽셀→중심 레이마치.
+	DrawSpriteQuad(
+		commandContext,
+		stateCache,
+		m_lightShadowPipeline.GetSafePtr(),
+		m_quadMesh.GetSafePtr(),
+		occluder,
+		m_defaultSampler.GetSafePtr(),
+		constants);
+}
+
+void CForward2DRenderer::RenderOccluders(IRenderScene& scene)
+{
+	// CastShadow 렌더아이템만 현재 패스(occluder 맵)에 스프라이트 파이프라인으로 그린다.
+	// 알파(실루엣)만 의미 있음 — 그림자 셰이더가 occluder.a 를 샘플한다. 현재 뷰=라이트 중심.
+	if (false == m_isInitialized || false == m_rhiDevice.IsValid())
+	{
+		return;
+	}
+	if (!m_spritePipeline || !m_quadMesh)
+	{
+		return;
+	}
+	if (CRenderScene* concreteScene = dynamic_cast<CRenderScene*>(&scene))
+	{
+		concreteScene->Sort();
+	}
+	SafePtr<IRHICommandContext> commandContext = m_rhiDevice->GetImmediateCommandContext();
+	if (false == commandContext.IsValid())
+	{
+		return;
+	}
+
+	const RenderItem* items = scene.GetRenderItems();
+	const std::uint32_t itemCount = scene.GetRenderItemCount();
+	const ViewParameters view = BuildViewParameters();
+	RenderStateCache stateCache;
+	for (std::uint32_t i = 0; i < itemCount; ++i)
+	{
+		const RenderItem& item = items[i];
+		if (false == item.CastShadow)
+		{
+			continue;
+		}
+		const SpriteDrawResources resources = ResolveSpriteDrawResources(item);
+		DrawSpriteItem(*commandContext.TryGet(), stateCache, item, resources, view);
+	}
 }
 
 bool CForward2DRenderer::IsSpriteItemVisibleInView(const RenderItem& item, const ViewParameters& view) const
@@ -1299,6 +1465,8 @@ void CForward2DRenderer::Finalize()
 	m_defaultSampler.Reset();
 	m_spriteBatchPipeline.Reset();
 	m_compositePipeline.Reset();
+	m_lightShadowPipeline.Reset();
+	m_lightShadowPixelProgram.Reset();
 	m_lightPipeline.Reset();
 	m_lightPixelProgram.Reset();
 	m_blitPipeline.Reset();
@@ -1514,6 +1682,52 @@ bool CForward2DRenderer::CreateLightPipeline()
 	desc.BlendMode = ERHIBlendMode::Additive;   // 라이트 기여 누적
 	m_lightPipeline = m_rhiDevice->CreateGraphicsPipeline(desc);
 	return static_cast<bool>(m_lightPipeline);
+}
+
+bool CForward2DRenderer::CreateLightShadowPipeline()
+{
+	// 스프라이트 VS + 그림자 Point PS(occluder 레이마치) + Additive.
+	if (!m_spriteVertexProgram)
+	{
+		return false;
+	}
+	const ERHIApi api = m_rhiDevice->GetApi();
+	if (ERHIApi::Vulkan == api)
+	{
+		// Vulkan SPIRV 그림자 PS 미제공(비활성 타깃) — 스킵. DrawLight2DShadowed 가 일반 라이트로 폴백.
+		return true;
+	}
+	const ERHIProgramLanguage language = ERHIApi::WebGPU == api ? ERHIProgramLanguage::WGSL : ERHIProgramLanguage::HLSL;
+	const char* source = ERHIApi::WebGPU == api ? LIGHT_SHADOW_SHADER_SOURCE_WGSL : LIGHT_SHADOW_SHADER_SOURCE_HLSL;
+
+	RHIProgramDesc pixelProgramDesc;
+	pixelProgramDesc.Stage = ERHIProgramStage::Pixel;
+	pixelProgramDesc.Language = language;
+	pixelProgramDesc.EntryPoint = "PSMain";
+	pixelProgramDesc.Source = source;
+	m_lightShadowPixelProgram = m_rhiDevice->CreateProgram(pixelProgramDesc);
+	if (!m_lightShadowPixelProgram)
+	{
+		return false;
+	}
+
+	RHIVertexElementDesc elements[2];
+	elements[0].SemanticName = "POSITION";
+	elements[0].Format = ERHIVertexFormat::Float2;
+	elements[0].Offset = 0;
+	elements[1].SemanticName = "TEXCOORD";
+	elements[1].Format = ERHIVertexFormat::Float2;
+	elements[1].Offset = sizeof(float) * 2;
+
+	RHIGraphicsPipelineDesc desc;
+	desc.VertexProgram = m_spriteVertexProgram.GetSafePtr();
+	desc.PixelProgram = m_lightShadowPixelProgram.GetSafePtr();
+	desc.VertexElements = elements;
+	desc.VertexElementCount = 2;
+	desc.PrimitiveTopology = ERHIPrimitiveTopology::TriangleList;
+	desc.BlendMode = ERHIBlendMode::Additive;
+	m_lightShadowPipeline = m_rhiDevice->CreateGraphicsPipeline(desc);
+	return static_cast<bool>(m_lightShadowPipeline);
 }
 
 bool CForward2DRenderer::CreateCompositePipeline()

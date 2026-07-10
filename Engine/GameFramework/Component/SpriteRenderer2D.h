@@ -41,4 +41,6 @@ public:
 	float Color[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
 	std::int32_t SortOrder = 0;
 	RenderLayerMask LayerMask = 0xffffffffu;
+	// 그림자 캐스터 — 켜면 이 스프라이트의 실루엣(알파)이 CastShadows 라이트의 그림자를 만든다.
+	bool CastShadow = false;
 };
