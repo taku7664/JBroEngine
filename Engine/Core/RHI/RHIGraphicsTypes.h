@@ -144,6 +144,7 @@ enum class ERHIBlendMode
     Opaque,        // 블렌딩 없음 (기본값)
     AlphaBlend,    // src.a × src.rgb + (1-src.a) × dst.rgb  (스프라이트용)
     Additive,      // src.rgb + dst.rgb
+    Multiply,      // src.rgb × dst.rgb, 알파 보존(dst.a)  (라이트맵 컴포짓용)
 };
 
 struct RHIGraphicsPipelineDesc

@@ -21,6 +21,11 @@ struct RuntimeConfig
 	float PixelsPerUnit = 100.0f;
 	AssetGuid DefaultFontFamilyGuid = INVALID_ASSET_GUID;
 	std::vector<AssetGuid> FallbackFontFamilies;
+
+	// 2D 라이팅 전역 앰비언트(RGBA). LightMap 을 이 값으로 클리어한 뒤 Light2D 를 가산 누적한다.
+	// 기본 백색 → 라이트가 하나도 없으면 Composite = SceneColor × 1 로 화면 불변(제로 설정).
+	// 값을 낮추면 씬이 어두워지고 라이트가 그 어둠을 밝힌다.
+	float AmbientLight[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
 };
 
 extern RuntimeConfig Runtime;

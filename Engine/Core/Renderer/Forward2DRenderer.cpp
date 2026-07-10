@@ -295,6 +295,91 @@ struct VSOut { @builtin(position) Position : vec4<f32>, @location(0) Uv : vec2<f
 	return vec4<f32>(color, alpha);
 }
 )";
+
+	// 라이트 감쇠 PS — 스프라이트 VS(POSITION+TEXCOORD, SpriteConstants)와 페어. LightMap 에 Additive 누적.
+	// gShaderParams.x = 타입(0=Directional 균일, 1=Point 반경 감쇠), .y = intensity.
+	// VS 가 UvRect 항등을 넘겨 uv 가 [0,1]. Point 는 중심(0.5)에서 가장자리로 (1-r)^2 감쇠.
+	// gTexture/gSampler 는 미사용이나 WebGPU 바인드그룹(uniform/tex/sampler 3엔트리) 정합 위해 선언 유지.
+	const char* LIGHT_SHADER_SOURCE_HLSL = R"(
+cbuffer LightConstants : register(b0)
+{
+	float4 gTransformRow0;
+	float4 gTransformRow1;
+	float4 gColor;
+	float4 gViewRow0;
+	float4 gViewRow1;
+	float4 gUvRect;
+	float4 gSecondaryColor;
+	float4 gShaderParams;
+};
+
+Texture2D gTexture : register(t0);
+SamplerState gSampler : register(s0);
+
+struct VSOut
+{
+	float4 Position : SV_POSITION;
+	float2 Uv : TEXCOORD0;
+	float4 Color : COLOR0;
+};
+
+float4 PSMain(VSOut input) : SV_TARGET
+{
+	float atten = 1.0f;
+	if (gShaderParams.x > 0.5f)
+	{
+		float2 d = (input.Uv - 0.5f) * 2.0f;
+		float r = saturate(1.0f - length(d));
+		atten = r * r;
+	}
+	float intensity = gShaderParams.y;
+	return float4(input.Color.rgb * intensity * atten, 1.0f);
+}
+)";
+
+	const char* LIGHT_SHADER_SOURCE_WGSL = R"(
+struct LightConstants
+{
+	TransformRow0 : vec4<f32>,
+	TransformRow1 : vec4<f32>,
+	Color : vec4<f32>,
+	ViewRow0 : vec4<f32>,
+	ViewRow1 : vec4<f32>,
+	UvRect : vec4<f32>,
+	SecondaryColor : vec4<f32>,
+	ShaderParams : vec4<f32>,
+};
+
+@group(0) @binding(0)
+var<uniform> gConstants : LightConstants;
+
+@group(0) @binding(1)
+var gTexture : texture_2d<f32>;
+
+@group(0) @binding(2)
+var gSampler : sampler;
+
+struct VSOut
+{
+	@builtin(position) Position : vec4<f32>,
+	@location(0) Uv : vec2<f32>,
+	@location(1) Color : vec4<f32>,
+};
+
+@fragment
+fn PSMain(input : VSOut) -> @location(0) vec4<f32>
+{
+	var atten = 1.0;
+	if (gConstants.ShaderParams.x > 0.5)
+	{
+		let d = (input.Uv - 0.5) * 2.0;
+		let r = clamp(1.0 - length(d), 0.0, 1.0);
+		atten = r * r;
+	}
+	let intensity = gConstants.ShaderParams.y;
+	return vec4<f32>(input.Color.rgb * intensity * atten, 1.0);
+}
+)";
 }
 
 bool CForward2DRenderer::Initialize(const RendererDesc& desc)
@@ -324,6 +409,8 @@ bool CForward2DRenderer::Initialize(const RendererDesc& desc)
 
 	CreateSpriteBatchPipeline();
 	CreateBlitPipeline();
+	CreateLightPipeline();
+	CreateCompositePipeline();
 	if (false == CreateTextPipeline() && ERHIApi::D3D11 == m_rhiDevice->GetApi())
 	{
 		Finalize();
@@ -579,6 +666,90 @@ void CForward2DRenderer::BlitFullscreen(IRHICommandContext& commandContext, Safe
 		pipeline,
 		m_quadMesh.GetSafePtr(),
 		src,
+		m_defaultSampler.GetSafePtr(),
+		constants);
+}
+
+CForward2DRenderer::SpriteConstants CForward2DRenderer::BuildLightConstants(
+	int type, float worldX, float worldY, float range, const float color[4], float intensity, const ViewParameters& view) const
+{
+	SpriteConstants constants = {};
+	if (0 == type)
+	{
+		// Directional — 뷰포트 균일. NDC 풀스크린 쿼드(Transform 2배, View 항등).
+		constants.TransformRow0[0] = 2.0f;
+		constants.TransformRow1[1] = 2.0f;
+		constants.ViewRow0[0] = 1.0f;
+		constants.ViewRow1[1] = 1.0f;
+	}
+	else
+	{
+		// Point — 월드 pos 중심, 변 길이 2*range 쿼드(로컬 [-0.5,0.5] → 반경 range). 카메라 뷰 적용.
+		const float diameter = range > 0.0f ? range * 2.0f : 0.0f;
+		constants.TransformRow0[0] = diameter;   // M11
+		constants.TransformRow0[2] = worldX;     // Dx
+		constants.TransformRow1[1] = diameter;   // M22
+		constants.TransformRow1[2] = worldY;     // Dy
+		const float camX = m_viewCamX;
+		const float camY = m_viewCamY;
+		constants.ViewRow0[0] =  view.CosR / view.HalfW;
+		constants.ViewRow0[1] =  view.SinR / view.HalfW;
+		constants.ViewRow0[2] = -(view.CosR * camX + view.SinR * camY) / view.HalfW;
+		constants.ViewRow1[0] = -view.SinR / view.HalfH;
+		constants.ViewRow1[1] =  view.CosR / view.HalfH;
+		constants.ViewRow1[2] =  (view.SinR * camX - view.CosR * camY) / view.HalfH;
+		ApplySurfacePreRotation(constants.ViewRow0, constants.ViewRow1);
+	}
+	for (int c = 0; c < 4; ++c)
+	{
+		constants.Color[c] = color[c];
+	}
+	// UvRect 항등 → VS 가 쿼드 로컬 uv[0,1] 를 그대로 전달(Point 감쇠 중심 계산에 사용).
+	constants.UvRect[2] = 1.0f;
+	constants.UvRect[3] = 1.0f;
+	constants.ShaderParams[0] = static_cast<float>(type);
+	constants.ShaderParams[1] = intensity;
+	return constants;
+}
+
+void CForward2DRenderer::DrawLight2D(IRHICommandContext& commandContext, int type, float worldX, float worldY,
+	float range, const float color[4], float intensity)
+{
+	if (!m_lightPipeline || !m_quadMesh || !m_defaultSampler || !m_whiteTexture || false == m_rhiDevice.IsValid())
+	{
+		return;
+	}
+	const ViewParameters view = BuildViewParameters();
+	const SpriteConstants constants = BuildLightConstants(type, worldX, worldY, range, color, intensity, view);
+	RenderStateCache stateCache;
+	// 라이트 PS 는 텍스처 미사용 — 바인딩 정합용으로 white 텍스처를 넘긴다.
+	DrawSpriteQuad(
+		commandContext,
+		stateCache,
+		m_lightPipeline.GetSafePtr(),
+		m_quadMesh.GetSafePtr(),
+		m_whiteTexture.GetSafePtr(),
+		m_defaultSampler.GetSafePtr(),
+		constants);
+}
+
+void CForward2DRenderer::CompositeLighting(IRHICommandContext& commandContext, SafePtr<IRHITexture> sceneColor, SafePtr<IRHITexture> lightMap)
+{
+	// 1) SceneColor 를 최종 타겟에 불투명 복사.
+	BlitFullscreen(commandContext, sceneColor);
+	// 2) LightMap 을 곱셈 블렌드로 덮는다 → out.rgb = scene × light, 알파 보존.
+	if (!m_compositePipeline || !m_quadMesh || !m_defaultSampler || false == lightMap.IsValid())
+	{
+		return;
+	}
+	const SpriteConstants constants = BuildViewportColorConstants(1.0f, 1.0f, 1.0f, 1.0f);
+	RenderStateCache stateCache;
+	DrawSpriteQuad(
+		commandContext,
+		stateCache,
+		m_compositePipeline.GetSafePtr(),
+		m_quadMesh.GetSafePtr(),
+		lightMap,
 		m_defaultSampler.GetSafePtr(),
 		constants);
 }
@@ -1123,6 +1294,9 @@ void CForward2DRenderer::Finalize()
 	m_quadMesh.Reset();
 	m_defaultSampler.Reset();
 	m_spriteBatchPipeline.Reset();
+	m_compositePipeline.Reset();
+	m_lightPipeline.Reset();
+	m_lightPixelProgram.Reset();
 	m_blitPipeline.Reset();
 	m_textPipeline.Reset();
 	m_spritePipeline.Reset();
@@ -1290,6 +1464,79 @@ bool CForward2DRenderer::CreateBlitPipeline()
 	desc.BlendMode = ERHIBlendMode::Opaque;   // 순수 복사 — 알파 이중적용 방지
 	m_blitPipeline = m_rhiDevice->CreateGraphicsPipeline(desc);
 	return static_cast<bool>(m_blitPipeline);
+}
+
+bool CForward2DRenderer::CreateLightPipeline()
+{
+	// 스프라이트 VS(POSITION+TEXCOORD, SpriteConstants) + 라이트 감쇠 PS + Additive 누적.
+	if (!m_spriteVertexProgram)
+	{
+		return false;
+	}
+	const ERHIApi api = m_rhiDevice->GetApi();
+	if (ERHIApi::Vulkan == api)
+	{
+		// Vulkan SPIRV 라이트 PS 미제공(비활성 타깃) — 라이팅 파이프라인 스킵.
+		return true;
+	}
+	const ERHIProgramLanguage language = ERHIApi::WebGPU == api ? ERHIProgramLanguage::WGSL : ERHIProgramLanguage::HLSL;
+	const char* source = ERHIApi::WebGPU == api ? LIGHT_SHADER_SOURCE_WGSL : LIGHT_SHADER_SOURCE_HLSL;
+
+	RHIProgramDesc pixelProgramDesc;
+	pixelProgramDesc.Stage = ERHIProgramStage::Pixel;
+	pixelProgramDesc.Language = language;
+	pixelProgramDesc.EntryPoint = "PSMain";
+	pixelProgramDesc.Source = source;
+	m_lightPixelProgram = m_rhiDevice->CreateProgram(pixelProgramDesc);
+	if (!m_lightPixelProgram)
+	{
+		return false;
+	}
+
+	RHIVertexElementDesc elements[2];
+	elements[0].SemanticName = "POSITION";
+	elements[0].Format = ERHIVertexFormat::Float2;
+	elements[0].Offset = 0;
+	elements[1].SemanticName = "TEXCOORD";
+	elements[1].Format = ERHIVertexFormat::Float2;
+	elements[1].Offset = sizeof(float) * 2;
+
+	RHIGraphicsPipelineDesc desc;
+	desc.VertexProgram = m_spriteVertexProgram.GetSafePtr();
+	desc.PixelProgram = m_lightPixelProgram.GetSafePtr();
+	desc.VertexElements = elements;
+	desc.VertexElementCount = 2;
+	desc.PrimitiveTopology = ERHIPrimitiveTopology::TriangleList;
+	desc.BlendMode = ERHIBlendMode::Additive;   // 라이트 기여 누적
+	m_lightPipeline = m_rhiDevice->CreateGraphicsPipeline(desc);
+	return static_cast<bool>(m_lightPipeline);
+}
+
+bool CForward2DRenderer::CreateCompositePipeline()
+{
+	// 스프라이트 VS+PS 재사용(텍스처 × white = 텍스처) + Multiply 블렌드 → 최종 = 라이트맵 × 씬.
+	if (!m_spriteVertexProgram || !m_spritePixelProgram)
+	{
+		return false;
+	}
+
+	RHIVertexElementDesc elements[2];
+	elements[0].SemanticName = "POSITION";
+	elements[0].Format = ERHIVertexFormat::Float2;
+	elements[0].Offset = 0;
+	elements[1].SemanticName = "TEXCOORD";
+	elements[1].Format = ERHIVertexFormat::Float2;
+	elements[1].Offset = sizeof(float) * 2;
+
+	RHIGraphicsPipelineDesc desc;
+	desc.VertexProgram = m_spriteVertexProgram.GetSafePtr();
+	desc.PixelProgram = m_spritePixelProgram.GetSafePtr();
+	desc.VertexElements = elements;
+	desc.VertexElementCount = 2;
+	desc.PrimitiveTopology = ERHIPrimitiveTopology::TriangleList;
+	desc.BlendMode = ERHIBlendMode::Multiply;
+	m_compositePipeline = m_rhiDevice->CreateGraphicsPipeline(desc);
+	return static_cast<bool>(m_compositePipeline);
 }
 
 bool CForward2DRenderer::CreateSpriteBatchPipeline()

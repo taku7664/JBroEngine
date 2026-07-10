@@ -596,6 +596,19 @@ OwnerPtr<IRHIGraphicsPipeline> CWebGPURHIDevice::CreateGraphicsPipeline(const RH
 		blendState.alpha = alphaBlend;
 		colorTarget.blend = &blendState;
 	}
+	else if (ERHIBlendMode::Multiply == desc.BlendMode)
+	{
+		// out.rgb = src × dst, out.a = dst.a(보존) — 라이트맵 컴포짓.
+		colorBlend.srcFactor = WGPUBlendFactor_Dst;
+		colorBlend.dstFactor = WGPUBlendFactor_Zero;
+		colorBlend.operation = WGPUBlendOperation_Add;
+		alphaBlend.srcFactor = WGPUBlendFactor_Zero;
+		alphaBlend.dstFactor = WGPUBlendFactor_One;
+		alphaBlend.operation = WGPUBlendOperation_Add;
+		blendState.color = colorBlend;
+		blendState.alpha = alphaBlend;
+		colorTarget.blend = &blendState;
+	}
 
 	WGPUFragmentState fragmentState = {};
 	fragmentState.module = pixelProgram->GetShaderModule();

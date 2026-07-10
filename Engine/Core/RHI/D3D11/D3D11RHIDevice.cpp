@@ -582,6 +582,16 @@ OwnerPtr<IRHIGraphicsPipeline> CD3D11RHIDevice::CreateGraphicsPipeline(const RHI
 			rt.DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
 			rt.BlendOpAlpha   = D3D11_BLEND_OP_ADD;
 		}
+		else if (desc.BlendMode == ERHIBlendMode::Multiply)
+		{
+			// out.rgb = src × dst, out.a = dst.a(보존) — 라이트맵을 최종 컬러에 곱한다.
+			rt.SrcBlend       = D3D11_BLEND_DEST_COLOR;
+			rt.DestBlend      = D3D11_BLEND_ZERO;
+			rt.BlendOp        = D3D11_BLEND_OP_ADD;
+			rt.SrcBlendAlpha  = D3D11_BLEND_ZERO;
+			rt.DestBlendAlpha = D3D11_BLEND_ONE;
+			rt.BlendOpAlpha   = D3D11_BLEND_OP_ADD;
+		}
 		else // Additive
 		{
 			rt.SrcBlend       = D3D11_BLEND_SRC_ALPHA;

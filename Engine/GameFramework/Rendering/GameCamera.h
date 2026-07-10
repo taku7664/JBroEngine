@@ -37,7 +37,21 @@ struct GameRenderCameraStats
 	RenderCullingStats Culling;
 };
 
+// 월드 공간 Light2D 스냅샷(POD). RenderWeave LightMap 패스가 소비한다.
+struct GameRenderLightDesc
+{
+	int   Type = 1;              // 0 = Directional(뷰포트 균일), 1 = Point(반경 감쇠).
+	float PosX = 0.0f;           // Point 월드 위치.
+	float PosY = 0.0f;
+	float Color[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+	float Intensity = 1.0f;
+	float Range = 5.0f;          // Point 반경(월드 유닛).
+};
+
 std::vector<GameRenderCameraDesc> CollectGameRenderCameras(const CGameScene& scene, float renderWidth, float renderHeight);
+
+// 씬의 활성 Light2D 를 월드 공간 스냅샷으로 수집한다(카메라 수집과 동일 계층에서 호출).
+std::vector<GameRenderLightDesc> CollectGameRenderLights(const CGameScene& scene);
 
 void RenderGameCameraStack(
 	IRHICommandContext& commandContext,
@@ -46,4 +60,5 @@ void RenderGameCameraStack(
 	const std::vector<GameRenderCameraDesc>& cameras,
 	const RenderSurfaceSize& renderTargetSize,
 	SafePtr<IRHITexture> renderTarget = nullptr,
-	std::vector<GameRenderCameraStats>* outCameraStats = nullptr);
+	std::vector<GameRenderCameraStats>* outCameraStats = nullptr,
+	const std::vector<GameRenderLightDesc>& lights = {});
