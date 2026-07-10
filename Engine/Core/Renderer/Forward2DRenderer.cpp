@@ -527,6 +527,100 @@ fn PSMain(input : VSOut) -> @location(0) vec4<f32>
 }
 )";
 
+	// 방향(Directional) 그림자 PS — 풀스크린. gTexture = 카메라뷰 occluder 맵(uv[0,1]=화면).
+	// 각 픽셀에서 -uvDir(라이트 쪽)으로 레이마치 → occluder 만나면 그림자. 평행광이라 균일 × shadow.
+	// gSecondaryColor.xy = uvDir(라이트 진행 방향, uv 공간), .z = 마치 최대 거리(uv).
+	const char* LIGHT_DIRSHADOW_SHADER_SOURCE_HLSL = R"(
+cbuffer LightConstants : register(b0)
+{
+	float4 gTransformRow0;
+	float4 gTransformRow1;
+	float4 gColor;
+	float4 gViewRow0;
+	float4 gViewRow1;
+	float4 gUvRect;
+	float4 gSecondaryColor;
+	float4 gShaderParams;
+};
+
+Texture2D gTexture : register(t0);
+SamplerState gSampler : register(s0);
+
+struct VSOut
+{
+	float4 Position : SV_POSITION;
+	float2 Uv : TEXCOORD0;
+	float4 Color : COLOR0;
+};
+
+float4 PSMain(VSOut input) : SV_TARGET
+{
+	float2 marchDir = -gSecondaryColor.xy;          // 픽셀 → 라이트 방향(-진행)
+	float marchLen = max(gSecondaryColor.z, 0.0001f);
+	const int STEPS = 32;
+	float2 stepv = marchDir * (marchLen / STEPS);
+	float occlusion = 0.0f;
+	[loop] for (int i = 1; i <= STEPS; ++i)
+	{
+		float2 p = input.Uv + stepv * i;
+		if (p.x < 0.0f || p.x > 1.0f || p.y < 0.0f || p.y > 1.0f) break;
+		occlusion = max(occlusion, gTexture.Sample(gSampler, p).a);
+	}
+	float shadow = saturate(1.0f - occlusion);
+	float intensity = gShaderParams.y;
+	return float4(input.Color.rgb * intensity * shadow, 1.0f);
+}
+)";
+
+	const char* LIGHT_DIRSHADOW_SHADER_SOURCE_WGSL = R"(
+struct LightConstants
+{
+	TransformRow0 : vec4<f32>,
+	TransformRow1 : vec4<f32>,
+	Color : vec4<f32>,
+	ViewRow0 : vec4<f32>,
+	ViewRow1 : vec4<f32>,
+	UvRect : vec4<f32>,
+	SecondaryColor : vec4<f32>,
+	ShaderParams : vec4<f32>,
+};
+
+@group(0) @binding(0)
+var<uniform> gConstants : LightConstants;
+
+@group(0) @binding(1)
+var gTexture : texture_2d<f32>;
+
+@group(0) @binding(2)
+var gSampler : sampler;
+
+struct VSOut
+{
+	@builtin(position) Position : vec4<f32>,
+	@location(0) Uv : vec2<f32>,
+	@location(1) Color : vec4<f32>,
+};
+
+@fragment
+fn PSMain(input : VSOut) -> @location(0) vec4<f32>
+{
+	let marchDir = -gConstants.SecondaryColor.xy;
+	let marchLen = max(gConstants.SecondaryColor.z, 0.0001);
+	let STEPS = 32;
+	let stepv = marchDir * (marchLen / f32(STEPS));
+	var occlusion = 0.0;
+	for (var i = 1; i <= STEPS; i = i + 1)
+	{
+		let p = input.Uv + stepv * f32(i);
+		if (p.x < 0.0 || p.x > 1.0 || p.y < 0.0 || p.y > 1.0) { break; }
+		occlusion = max(occlusion, textureSample(gTexture, gSampler, p).a);
+	}
+	let shadow = clamp(1.0 - occlusion, 0.0, 1.0);
+	let intensity = gConstants.ShaderParams.y;
+	return vec4<f32>(input.Color.rgb * intensity * shadow, 1.0);
+}
+)";
+
 	// 톤맵 PS — HDR 컴포짓 결과(gTexture)를 Reinhard 로 롤오프해 RGBA8 로. 밝은 라이트 중심이
 	// 하드 클램프(순백)되지 않고 부드럽게 포화. 스프라이트 VS + BuildViewportColorConstants(항등 uv) 사용.
 	const char* TONEMAP_SHADER_SOURCE_HLSL = R"(
@@ -624,10 +718,11 @@ bool CForward2DRenderer::Initialize(const RendererDesc& desc)
 	const bool blitOk = CreateBlitPipeline();
 	const bool lightOk = CreateLightPipeline();
 	const bool lightShadowOk = CreateLightShadowPipeline();
+	const bool lightDirShadowOk = CreateLightDirectionalShadowPipeline();
 	const bool compositeOk = CreateCompositePipeline();
 	const bool tonemapOk = CreateTonemapPipeline();
-	CSystemLog::Info(std::format("[RenderWeave] pipelines blit={} light={} lightShadow={} composite={} tonemap={}",
-		blitOk, lightOk, lightShadowOk, compositeOk, tonemapOk));
+	CSystemLog::Info(std::format("[RenderWeave] pipelines blit={} light={} lightShadow={} lightDirShadow={} composite={} tonemap={}",
+		blitOk, lightOk, lightShadowOk, lightDirShadowOk, compositeOk, tonemapOk));
 	if (false == CreateTextPipeline() && ERHIApi::D3D11 == m_rhiDevice->GetApi())
 	{
 		Finalize();
@@ -1066,6 +1161,36 @@ void CForward2DRenderer::DrawLight2DShadowed(IRHICommandContext& commandContext,
 		commandContext,
 		stateCache,
 		m_lightShadowPipeline.GetSafePtr(),
+		m_quadMesh.GetSafePtr(),
+		occluder,
+		m_defaultSampler.GetSafePtr(),
+		constants);
+}
+
+void CForward2DRenderer::DrawLight2DDirectionalShadowed(IRHICommandContext& commandContext, const float color[4], float intensity,
+	float uvDirX, float uvDirY, float marchLen, SafePtr<IRHITexture> occluder)
+{
+	// 파이프라인/occluder 없으면 무그림자 균일 방향광으로 폴백.
+	if (!m_lightDirShadowPipeline || false == occluder.IsValid())
+	{
+		DrawLight2D(commandContext, 0, 0.0f, 0.0f, 0.0f, color, intensity);
+		return;
+	}
+	if (!m_quadMesh || !m_defaultSampler)
+	{
+		return;
+	}
+	const ViewParameters view = BuildViewParameters();
+	// type 0 = 풀스크린 NDC 쿼드(BuildLightConstants). SecondaryColor 에 uvDir + marchLen 패킹.
+	SpriteConstants constants = BuildLightConstants(0, 0.0f, 0.0f, 0.0f, color, intensity, view);
+	constants.SecondaryColor[0] = uvDirX;
+	constants.SecondaryColor[1] = uvDirY;
+	constants.SecondaryColor[2] = marchLen;
+	RenderStateCache stateCache;
+	DrawSpriteQuad(
+		commandContext,
+		stateCache,
+		m_lightDirShadowPipeline.GetSafePtr(),
 		m_quadMesh.GetSafePtr(),
 		occluder,
 		m_defaultSampler.GetSafePtr(),
@@ -1653,6 +1778,8 @@ void CForward2DRenderer::Finalize()
 	m_tonemapPipeline.Reset();
 	m_tonemapPixelProgram.Reset();
 	m_compositePipeline.Reset();
+	m_lightDirShadowPipeline.Reset();
+	m_lightDirShadowPixelProgram.Reset();
 	m_lightShadowPipeline.Reset();
 	m_lightShadowPixelProgram.Reset();
 	m_lightPipeline.Reset();
@@ -1916,6 +2043,52 @@ bool CForward2DRenderer::CreateLightShadowPipeline()
 	desc.BlendMode = ERHIBlendMode::Additive;
 	m_lightShadowPipeline = m_rhiDevice->CreateGraphicsPipeline(desc);
 	return static_cast<bool>(m_lightShadowPipeline);
+}
+
+bool CForward2DRenderer::CreateLightDirectionalShadowPipeline()
+{
+	// 스프라이트 VS + 방향 그림자 PS(고정방향 레이마치) + Additive.
+	if (!m_spriteVertexProgram)
+	{
+		return false;
+	}
+	const ERHIApi api = m_rhiDevice->GetApi();
+	if (ERHIApi::Vulkan == api)
+	{
+		// Vulkan SPIRV 미제공 — 스킵. DrawLight2DDirectionalShadowed 가 무그림자 폴백.
+		return true;
+	}
+	const ERHIProgramLanguage language = ERHIApi::WebGPU == api ? ERHIProgramLanguage::WGSL : ERHIProgramLanguage::HLSL;
+	const char* source = ERHIApi::WebGPU == api ? LIGHT_DIRSHADOW_SHADER_SOURCE_WGSL : LIGHT_DIRSHADOW_SHADER_SOURCE_HLSL;
+
+	RHIProgramDesc pixelProgramDesc;
+	pixelProgramDesc.Stage = ERHIProgramStage::Pixel;
+	pixelProgramDesc.Language = language;
+	pixelProgramDesc.EntryPoint = "PSMain";
+	pixelProgramDesc.Source = source;
+	m_lightDirShadowPixelProgram = m_rhiDevice->CreateProgram(pixelProgramDesc);
+	if (!m_lightDirShadowPixelProgram)
+	{
+		return false;
+	}
+
+	RHIVertexElementDesc elements[2];
+	elements[0].SemanticName = "POSITION";
+	elements[0].Format = ERHIVertexFormat::Float2;
+	elements[0].Offset = 0;
+	elements[1].SemanticName = "TEXCOORD";
+	elements[1].Format = ERHIVertexFormat::Float2;
+	elements[1].Offset = sizeof(float) * 2;
+
+	RHIGraphicsPipelineDesc desc;
+	desc.VertexProgram = m_spriteVertexProgram.GetSafePtr();
+	desc.PixelProgram = m_lightDirShadowPixelProgram.GetSafePtr();
+	desc.VertexElements = elements;
+	desc.VertexElementCount = 2;
+	desc.PrimitiveTopology = ERHIPrimitiveTopology::TriangleList;
+	desc.BlendMode = ERHIBlendMode::Additive;
+	m_lightDirShadowPipeline = m_rhiDevice->CreateGraphicsPipeline(desc);
+	return static_cast<bool>(m_lightDirShadowPipeline);
 }
 
 bool CForward2DRenderer::CreateCompositePipeline()

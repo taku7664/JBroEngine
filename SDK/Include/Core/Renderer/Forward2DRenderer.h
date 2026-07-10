@@ -61,6 +61,10 @@ public:
 	void DrawLight2DShadowed(IRHICommandContext& commandContext, int type, float worldX, float worldY,
 		float range, const float color[4], float intensity,
 		float dirX, float dirY, float innerAngleRadians, float outerAngleRadians, SafePtr<IRHITexture> occluder);
+	// 방향(Directional) 그림자 — 카메라뷰 occluder 맵을 -uvDir 로 레이마치해 평행 그림자를
+	// 적용하며 가산 누적한다(풀스크린). uvDir = 라이트 진행 방향(uv 공간), marchLen = uv 최대 거리.
+	void DrawLight2DDirectionalShadowed(IRHICommandContext& commandContext, const float color[4], float intensity,
+		float uvDirX, float uvDirY, float marchLen, SafePtr<IRHITexture> occluder);
 	// CastShadow 렌더아이템만 현재 패스(occluder 맵)에 그린다. 현재 뷰(라이트 중심) 기준.
 	void RenderOccluders(IRenderScene& scene);
 	// 라이팅/컴포짓 파이프라인이 런타임 생성(셰이더 컴파일)됐는지 — 진단용.
@@ -156,6 +160,8 @@ private:
 	bool CreateLightPipeline();
 	// 그림자 라이트 파이프라인(스프라이트 VS + occluder 레이마치 PS + Additive). DrawLight2DShadowed 용.
 	bool CreateLightShadowPipeline();
+	// 방향 그림자 파이프라인(스프라이트 VS + 방향 레이마치 PS + Additive). DrawLight2DDirectionalShadowed 용.
+	bool CreateLightDirectionalShadowPipeline();
 	// SceneColor × LightMap 컴포짓 파이프라인(스프라이트 VS 재사용 + 컴포짓 PS + Opaque, 2텍스처).
 	bool CreateCompositePipeline();
 	// Reinhard 톤맵 파이프라인(스프라이트 VS + 톤맵 PS + Opaque). TonemapFullscreen 용.
@@ -176,8 +182,10 @@ private:
 	OwnerPtr<IRHIGraphicsPipeline> m_blitPipeline;
 	OwnerPtr<IRHIProgram> m_lightPixelProgram;      // 라이트 감쇠 PS(스프라이트 VS 와 페어)
 	OwnerPtr<IRHIGraphicsPipeline> m_lightPipeline;      // 라이트 누적(Additive)
-	OwnerPtr<IRHIProgram> m_lightShadowPixelProgram;     // 그림자 Point PS(occluder 레이마치)
+	OwnerPtr<IRHIProgram> m_lightShadowPixelProgram;     // 그림자 Point/Spot PS(occluder 레이마치)
 	OwnerPtr<IRHIGraphicsPipeline> m_lightShadowPipeline; // 그림자 라이트 누적(Additive, occluder 샘플)
+	OwnerPtr<IRHIProgram> m_lightDirShadowPixelProgram;      // 방향 그림자 PS(고정방향 레이마치)
+	OwnerPtr<IRHIGraphicsPipeline> m_lightDirShadowPipeline; // 방향 그림자 누적(Additive)
 	OwnerPtr<IRHIGraphicsPipeline> m_compositePipeline;  // 라이트맵 곱셈 컴포짓(sprite VS+PS, Multiply)
 	OwnerPtr<IRHIProgram> m_tonemapPixelProgram;         // Reinhard 톤맵 PS
 	OwnerPtr<IRHIGraphicsPipeline> m_tonemapPipeline;    // HDR→LDR 톤맵 blit(sprite VS + 톤맵 PS, Opaque)

@@ -109,9 +109,9 @@ std::vector<GameRenderLightDesc> CollectGameRenderLights(const CGameScene& scene
 			desc.DirY = dirY;
 			desc.InnerAngleRadians = light.InnerAngleRadians;
 			desc.OuterAngleRadians = light.OuterAngleRadians;
-			// 그림자는 Point·Spot(둘 다 라이트 중심 occluder + 방사 레이마치). Directional 은 후속.
-			desc.CastShadows = light.CastShadows
-				&& (ELight2DType::Point == light.Type || ELight2DType::Spot == light.Type);
+			// 그림자: Point·Spot = 라이트 중심 occluder + 방사 레이마치, Directional = 카메라뷰 occluder
+			// + 고정방향 레이마치. 셋 다 지원(그래프가 타입별로 occluder/draw 분기).
+			desc.CastShadows = light.CastShadows;
 			lights.push_back(desc);
 		});
 
@@ -291,19 +291,24 @@ void RenderGameCameraStack(
 			{
 				continue;
 			}
+			const GameRenderLightDesc light = lights[li];
+			const bool isDirectional = (0 == light.Type);
+
+			// Directional 은 카메라뷰 occluder(화면 크기), Point/Spot 은 라이트 중심 정사각(512).
 			RWTextureDesc occDesc;
-			occDesc.Width  = occluderSize;
-			occDesc.Height = occluderSize;
+			occDesc.Width  = isDirectional ? sceneDesc.Width  : occluderSize;
+			occDesc.Height = isDirectional ? sceneDesc.Height : occluderSize;
 			occDesc.Format = ERHITextureFormat::RGBA8;
 			const RWTextureHandle hOcc = graph.CreateTexture(occDesc);
 			shadowSlots.push_back(ShadowSlot{ static_cast<int>(li), hOcc });
 			occluderReads.push_back(hOcc);
 
-			const GameRenderLightDesc light = lights[li];
+			// Directional occluder 는 주 카메라(cameras[0]) 뷰 기준(단일 카메라 가정, 멀티는 후속).
+			const GameRenderCameraDesc primaryCamera = cameras.front();
 			RWPassDesc occPass;
 			occPass.Name  = "Occluder";
 			occPass.Write = hOcc;
-			occPass.Execute = [forward, &renderScene, light, hOcc, occluderSize]
+			occPass.Execute = [forward, &renderScene, light, hOcc, occluderSize, isDirectional, primaryCamera, renderTargetSize]
 				(IRHICommandContext& ctx, RWGraph& g)
 			{
 				SafePtr<IRHITexture> target = g.Resolve(hOcc);
@@ -321,10 +326,21 @@ void RenderGameCameraStack(
 				pass.ColorAttachment.LoadOp = ERHILoadOp::Load;
 				pass.ColorAttachment.StoreOp = ERHIStoreOp::Store;
 				ctx.BeginRenderPass(pass);
-				ctx.SetViewport(0.0f, 0.0f, static_cast<float>(occluderSize), static_cast<float>(occluderSize));
-				forward->SetRenderTargetSize(RenderSurfaceSize{ static_cast<int>(occluderSize), static_cast<int>(occluderSize) });
-				// 라이트 중심 정사각 뷰(half = range 양축) → 월드 [pos±range] 를 occluder uv[0,1] 로.
-				forward->SetViewCameraEx(light.PosX, light.PosY, light.Range, light.Range, 1.0f, 0.0f);
+				if (isDirectional)
+				{
+					const float ow = std::max(1.0f, static_cast<float>(renderTargetSize.Width));
+					const float oh = std::max(1.0f, static_cast<float>(renderTargetSize.Height));
+					ctx.SetViewport(0.0f, 0.0f, ow, oh);
+					forward->SetRenderTargetSize(renderTargetSize);
+					forward->SetViewCameraEx(primaryCamera.PosX, primaryCamera.PosY, primaryCamera.OrthoSizeX, primaryCamera.OrthoSize, primaryCamera.CosR, primaryCamera.SinR);
+				}
+				else
+				{
+					ctx.SetViewport(0.0f, 0.0f, static_cast<float>(occluderSize), static_cast<float>(occluderSize));
+					forward->SetRenderTargetSize(RenderSurfaceSize{ static_cast<int>(occluderSize), static_cast<int>(occluderSize) });
+					// 라이트 중심 정사각 뷰(half = range 양축) → 월드 [pos±range] 를 occluder uv[0,1] 로.
+					forward->SetViewCameraEx(light.PosX, light.PosY, light.Range, light.Range, 1.0f, 0.0f);
+				}
 				forward->RenderOccluders(renderScene);
 				ctx.EndRenderPass();
 			};
@@ -387,8 +403,22 @@ void RenderGameCameraStack(
 								break;
 							}
 						}
-						forward->DrawLight2DShadowed(ctx, light.Type, light.PosX, light.PosY, light.Range, light.Color, light.Intensity,
-							light.DirX, light.DirY, light.InnerAngleRadians, light.OuterAngleRadians, occluder);
+						if (0 == light.Type)
+						{
+							// Directional — 월드 방향을 uv 공간 방향으로 변환(카메라 반폭, uv.y 반전).
+							const float halfW = std::max(camera.OrthoSizeX, 1e-4f);
+							const float halfH = std::max(camera.OrthoSize, 1e-4f);
+							float ux = light.DirX / (2.0f * halfW);
+							float uy = -light.DirY / (2.0f * halfH);
+							const float ul = std::sqrt(ux * ux + uy * uy);
+							if (ul > 1e-6f) { ux /= ul; uy /= ul; }
+							forward->DrawLight2DDirectionalShadowed(ctx, light.Color, light.Intensity, ux, uy, 1.5f, occluder);
+						}
+						else
+						{
+							forward->DrawLight2DShadowed(ctx, light.Type, light.PosX, light.PosY, light.Range, light.Color, light.Intensity,
+								light.DirX, light.DirY, light.InnerAngleRadians, light.OuterAngleRadians, occluder);
+						}
 					}
 					else if (2 == light.Type)
 					{
