@@ -320,6 +320,7 @@ xcopy /Y /I /E "$(ProjectDir)Localization" "$(SolutionDir)Localization\" &gt; nu
     <ClInclude Include="Application.h" />
     <ClInclude Include="Editor\Main\AssetBrowser\AssetHandler.h" />
     <ClInclude Include="Editor\Build\GameBuildManager.h" />
+    <ClInclude Include="Editor\Build\BuildAssetCollector.h" />
     <ClInclude Include="Editor\Build\BuildSettingsUtils.h" />
     <ClInclude Include="Editor\Command\EditorFileCommands.h" />
     <ClInclude Include="Editor\Command\EditorCommandManager.h" />
@@ -395,6 +396,9 @@ xcopy /Y /I /E "$(ProjectDir)Localization" "$(SolutionDir)Localization\" &gt; nu
   <ItemGroup>
     <ClCompile Include="Application.cpp" />
     <ClCompile Include="Editor\Build\GameBuildManager.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Editor\Build\BuildAssetCollector.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="Editor\Main\AssetBrowser\AssetHandler.cpp">

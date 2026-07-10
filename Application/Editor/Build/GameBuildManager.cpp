@@ -2,6 +2,7 @@
 #include "GameBuildManager.h"
 
 #include "Editor/Editor.h"
+#include "Editor/Build/BuildAssetCollector.h"
 #include "Editor/Build/BuildSettingsUtils.h"
 #include "Editor/Path/EditorPathUtils.h"
 #include "Editor/EditorSessionPersistence.h"
@@ -505,6 +506,7 @@ bool CGameBuildManager::StartBuild(SafePtr<CProjectManager> projectManager, EBui
 	desc.StartupScene = settings.StartupScene;
 	desc.StartupSceneGuid = FindAssetGuidByPath(File::Path(Utillity::U8ToWString(settings.StartupScene))).generic_string();
 	desc.BuildScenes = settings.BuildScenes;
+	desc.AlwaysIncludeAssets = settings.AlwaysIncludeAssets;
 	desc.InputActions = projectManager->GetInputActions();
 	desc.WindowsIconGuid = settings.WindowsIconGuid;
 	desc.OutputRoot = ResolveOutputRoot(desc.ProjectRoot, settings.OutputDirectory);
@@ -902,8 +904,58 @@ bool CGameBuildManager::StagePackage(const BuildDesc& desc, const File::Path& sc
 		outError = "AssetManager is not available for packaging.";
 		return false;
 	}
+	// 참조 기반 패키징 시드: 빌드 씬 + 스타트업 씬 + Always Include + 기본/폴백 폰트 패밀리.
+	// 수집기가 여기서 프리팹·폰트 전이 의존까지 전개한다.
+	std::vector<AssetGuid> collectorSeeds;
+	for (const std::string& scene : desc.BuildScenes)
+	{
+		const AssetGuid sceneGuid = FindAssetGuidByPath(File::Path(Utillity::U8ToWString(scene)));
+		if (false == sceneGuid.IsNull())
+		{
+			collectorSeeds.push_back(sceneGuid);
+		}
+	}
+	if (false == desc.StartupSceneGuid.empty())
+	{
+		collectorSeeds.push_back(AssetGuid(desc.StartupSceneGuid));
+	}
+	for (const AssetGuid& guid : desc.AlwaysIncludeAssets)
+	{
+		collectorSeeds.push_back(guid);
+	}
+	if (false == desc.DefaultFontFamilyGuid.IsNull())
+	{
+		collectorSeeds.push_back(desc.DefaultFontFamilyGuid);
+	}
+	for (const AssetGuid& guid : desc.FallbackFontFamilies)
+	{
+		collectorSeeds.push_back(guid);
+	}
+
+	const BuildAssetCollectResult collected = CBuildAssetCollector::Collect(*assetManager, collectorSeeds);
+	if (false == collected.Missing.empty())
+	{
+		std::string missingList;
+		for (const AssetGuid& guid : collected.Missing)
+		{
+			if (false == missingList.empty())
+			{
+				missingList += ", ";
+			}
+			missingList += guid.generic_string();
+		}
+		outError = "Referenced assets are missing from the registry (build aborted): " + missingList;
+		return false;
+	}
+	if (collected.Included.empty())
+	{
+		outError = "No assets resolved for packaging. Check build scenes and asset references.";
+		return false;
+	}
+
 	AssetPackageBuildDesc packageDesc;
 	packageDesc.OutputBlobPath = packagePack;
+	packageDesc.IncludedAssets = collected.Included;
 	if (false == assetManager->BuildAssetPackage(packageDesc))
 	{
 		outError = "Failed to build asset pack.";

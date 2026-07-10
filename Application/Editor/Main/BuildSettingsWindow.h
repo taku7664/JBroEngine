@@ -87,6 +87,7 @@ private:
 	std::string m_outputDirectory;
 	std::string m_startupScene;
 	std::vector<std::string> m_buildScenes;
+	std::vector<AssetGuid> m_alwaysIncludeAssets;
 	AssetGuid m_windowsIconGuid = INVALID_ASSET_GUID;
 	std::string m_androidApplicationId;
 	int m_androidMinSdkVersion = 26;

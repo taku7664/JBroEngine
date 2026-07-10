@@ -58,6 +58,11 @@ public:
 	void SetData(FontFamilyData data);
 	AssetGuid ResolveFace(EFontStyle style, bool& usedRegularFallback) const;
 
+	// 빌드 패키징용: 폰트 패밀리 파일을 로드하지 않고 의존 자산 GUID 만 읽는다.
+	// 반환: 스타일별 FontFace(Regular/Bold/Italic/BoldItalic) + FallbackFamilies(패밀리, 전이 대상).
+	// (수집기가 FallbackFamilies 를 다시 이 함수로 전개한다.)
+	static std::vector<AssetGuid> ReadDependencyGuids(const File::Path& path);
+
 private:
 	AssetMetaData m_metaData;
 	FontFamilyData m_data;

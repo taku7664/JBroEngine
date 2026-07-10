@@ -58,7 +58,10 @@ namespace EditorLocKeys
 	constexpr const char* BuildProgressValidate = "build.progress.validate";
 	constexpr const char* BuildProgressVerify = "build.progress.verify";
 	constexpr const char* BuildProgressWeb = "build.progress.web";
+	constexpr const char* BuildSettingsAddAlwaysInclude = "build_settings.add_always_include";
 	constexpr const char* BuildSettingsAddScene = "build_settings.add_scene";
+	constexpr const char* BuildSettingsAlwaysInclude = "build_settings.always_include";
+	constexpr const char* BuildSettingsAlwaysIncludeDesc = "build_settings.always_include.desc";
 	constexpr const char* BuildSettingsAndroid = "build_settings.android";
 	constexpr const char* BuildSettingsAndroidAbi = "build_settings.android_abi";
 	constexpr const char* BuildSettingsAndroidAbiDesc = "build_settings.android_abi.desc";

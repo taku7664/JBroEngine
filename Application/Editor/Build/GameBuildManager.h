@@ -86,6 +86,7 @@ private:
 		std::string StartupScene;
 		std::string StartupSceneGuid;
 		std::vector<std::string> BuildScenes;
+		std::vector<AssetGuid> AlwaysIncludeAssets;
 		std::vector<InputActionDef> InputActions;
 		AssetGuid WindowsIconGuid = INVALID_ASSET_GUID;
 		File::Path OutputRoot;

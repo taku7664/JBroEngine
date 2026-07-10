@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <cwctype>
 #include <fstream>
+#include <unordered_set>
 
 namespace
 {
@@ -492,21 +493,47 @@ bool CAssetManager::BuildAssetPackage(const AssetPackageBuildDesc& desc)
 		return false;
 	}
 
-	AssetRegistrySnapshot snapshot;
-	m_registry.BuildSnapshot(snapshot);
+	// 참조 기반 패키징: 빌드 파이프라인이 계산한 IncludedAssets 집합만 담는다.
+	// 비어 있으면(전체 레지스트리 덤프로 폴백하지 않고) 실패 — 참조 누락을 조용히 넘기지 않는다.
+	if (desc.IncludedAssets.empty())
+	{
+		CSystemLog::Error("[AssetPack] IncludedAssets 가 비어 있음 — 포함할 자산이 없다.");
+		return false;
+	}
 
 	std::vector<AssetPackageBuildEntry> packageEntries;
-	packageEntries.reserve(snapshot.Assets.size());
-	for (const AssetMetaData& metaData : snapshot.Assets)
+	packageEntries.reserve(desc.IncludedAssets.size());
+	std::unordered_set<std::string> emittedGuids;
+	for (const AssetGuid& guid : desc.IncludedAssets)
 	{
+		const std::string guidKey = guid.generic_string();
+		if (false == emittedGuids.insert(guidKey).second)
+		{
+			continue;   // 집합 내 중복 방어(수집기 밖에서 들어온 경우 대비).
+		}
+
+		AssetMetaData metaData;
+		if (false == m_registry.TryGetAsset(guid, metaData))
+		{
+			CSystemLog::Error("[AssetPack] 포함 요청 자산이 레지스트리에 없음: guid='" + guidKey + "'");
+			return false;
+		}
 		if (metaData.IsPersistent)
 		{
-			continue;
+			continue;   // 엔진 내장 영속 자산은 패키지 대상 아님.
 		}
 		if (metaData.Guid.IsNull() || EAssetType::Unknown == metaData.Type)
 		{
 			CSystemLog::Error("[AssetPack] 자산 메타가 유효하지 않음(Guid null 또는 Type Unknown): path='"
 				+ metaData.Path.generic_string() + "' guid='" + metaData.Guid.generic_string()
+				+ "' type=" + std::to_string(static_cast<int>(metaData.Type)));
+			return false;
+		}
+		// 로더가 없는 타입(예: Mesh)은 런타임에 로드 불가 → 패키지에 넣어도 무의미하므로 실패.
+		if (nullptr == FindLoader(metaData.Type))
+		{
+			CSystemLog::Error("[AssetPack] 로더가 없는 자산 타입 — 런타임 로드 불가: path='"
+				+ metaData.Path.generic_string() + "' guid='" + guidKey
 				+ "' type=" + std::to_string(static_cast<int>(metaData.Type)));
 			return false;
 		}

@@ -210,6 +210,9 @@ Entries:
   build_settings.use_current_scene: 현재 씬 사용
   build_settings.build_scenes: 빌드 씬 목록
   build_settings.add_scene: 씬 추가
+  build_settings.always_include: 항상 포함 자산
+  build_settings.always_include.desc: 어떤 씬도 참조하지 않지만 런타임에 직접 로드하는 자산을 등록한다. 참조 기반 패키징에서 누락을 방지한다.
+  build_settings.add_always_include: 자산 추가
   build_settings.package_preview: 패키지 경로
   build_settings.select_startup_scene: 시작 씬 선택
   build_settings.select_windows_icon: Windows 아이콘 선택

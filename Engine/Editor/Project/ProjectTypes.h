@@ -51,6 +51,9 @@ struct ProjectBuildSettings
 	std::string OutputDirectory = "Dist/Games";
 	std::string StartupScene;
 	std::vector<std::string> BuildScenes;
+	// 참조 기반 패키징에서 어떤 씬도 참조하지 않지만 런타임에 직접 로드할 자산.
+	// (씬/프리팹/폰트 전이 참조로는 안 잡히는 코드 로드 자산의 누락 방지 장치.)
+	std::vector<AssetGuid> AlwaysIncludeAssets;
 	EBuildScriptMode ScriptMode = EBuildScriptMode::DynamicLibrary;
 	std::string ScriptProjectPath = "Contents/GameScript.vcxproj";
 	EScriptBuildConfiguration ScriptBuildConfiguration = EScriptBuildConfiguration::Release;

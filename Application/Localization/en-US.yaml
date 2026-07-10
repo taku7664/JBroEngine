@@ -210,6 +210,9 @@ Entries:
   build_settings.use_current_scene: Use Current Scene
   build_settings.build_scenes: Build Scenes
   build_settings.add_scene: Add Scene
+  build_settings.always_include: Always Include Assets
+  build_settings.always_include.desc: Assets that no scene references but are loaded directly at runtime. Prevents them from being dropped by reference-based packaging.
+  build_settings.add_always_include: Add Asset
   build_settings.package_preview: Package Path
   build_settings.select_startup_scene: Select Startup Scene
   build_settings.select_windows_icon: Select Windows Icon

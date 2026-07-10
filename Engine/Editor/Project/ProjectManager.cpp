@@ -127,6 +127,7 @@ namespace
 	constexpr const char* PROJECT_KEY_BUILD_OUTPUT_DIR = "OutputDirectory";
 	constexpr const char* PROJECT_KEY_BUILD_STARTUP_SCENE = "StartupScene";
 	constexpr const char* PROJECT_KEY_BUILD_SCENES = "BuildScenes";
+	constexpr const char* PROJECT_KEY_BUILD_ALWAYS_INCLUDE = "AlwaysIncludeAssets";
 	constexpr const char* PROJECT_KEY_BUILD_SCRIPT_MODE = "ScriptMode";
 	constexpr const char* PROJECT_KEY_BUILD_SCRIPT_PROJECT = "ScriptProjectPath";
 	constexpr const char* PROJECT_KEY_BUILD_SCRIPT_CONFIG = "ScriptBuildConfiguration";
@@ -411,6 +412,13 @@ namespace
 			out << scene;
 		}
 		out << YAML::EndSeq;
+		out << YAML::Key << PROJECT_KEY_BUILD_ALWAYS_INCLUDE << YAML::Value;
+		out << YAML::BeginSeq;
+		for (const AssetGuid& guid : settings.AlwaysIncludeAssets)
+		{
+			out << guid.generic_string();
+		}
+		out << YAML::EndSeq;
 		out << YAML::Key << PROJECT_KEY_BUILD_SCRIPT_MODE << YAML::Value << ToString(settings.ScriptMode);
 		out << YAML::Key << PROJECT_KEY_BUILD_SCRIPT_PROJECT << YAML::Value << settings.ScriptProjectPath;
 		out << YAML::Key << PROJECT_KEY_BUILD_SCRIPT_CONFIG << YAML::Value << ToString(settings.ScriptBuildConfiguration);
@@ -486,6 +494,21 @@ namespace
 				if (false == scene.empty())
 				{
 					settings.BuildScenes.push_back(scene);
+				}
+			}
+		}
+
+		settings.AlwaysIncludeAssets.clear();
+		const YAML::Node alwaysNode = buildNode[PROJECT_KEY_BUILD_ALWAYS_INCLUDE];
+		if (alwaysNode && alwaysNode.IsSequence())
+		{
+			for (const YAML::Node& guidNode : alwaysNode)
+			{
+				const AssetGuid guid(guidNode.as<std::string>(std::string()));
+				if (false == guid.IsNull() &&
+				    std::find(settings.AlwaysIncludeAssets.begin(), settings.AlwaysIncludeAssets.end(), guid) == settings.AlwaysIncludeAssets.end())
+				{
+					settings.AlwaysIncludeAssets.push_back(guid);
 				}
 			}
 		}

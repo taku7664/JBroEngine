@@ -9,6 +9,7 @@
 #include "Engine/Core/Asset/IAssetRegistry.h"
 #include "Engine/Core/EngineCore.h"
 #include "Engine/Editor/ImGuiUtillity.h"
+#include "Editor/ImItem/ImAssetField.h"
 #include "Editor/ImItem/ImSplitter.h"
 #include "Editor/ImItem/ImText.h"
 #include "Engine/Editor/ImWindow/ImWindowFlag.h"
@@ -633,6 +634,38 @@ void CBuildSettingsWindow::DrawScenesCategory()
 			}
 		}
 	}
+
+	// Always Include — 어떤 씬도 참조하지 않지만 런타임에 직접 로드할 자산.
+	// 참조 기반 패키징에서 이 목록이 코드 로드 자산의 누락 방지 장치가 된다.
+	ImGui::Spacing();
+	ImSectionHeader(Loc::Text(EditorLocKeys::BuildSettingsAlwaysInclude))
+		.Description(Loc::Text(EditorLocKeys::BuildSettingsAlwaysIncludeDesc))
+		.SpacingBefore(true)
+		.Draw();
+	for (std::size_t index = 0; index < m_alwaysIncludeAssets.size(); ++index)
+	{
+		ImGui::PushID(static_cast<int>(1000 + index));
+		AssetGuid previousGuid = m_alwaysIncludeAssets[index];
+		ImAssetField("##always_include", m_alwaysIncludeAssets[index]).Draw();
+		if (m_alwaysIncludeAssets[index] != previousGuid)
+		{
+			MarkDirty();
+		}
+		ImGui::SameLine();
+		if (ImGui::SmallButton(Loc::Text(EditorLocKeys::CommonRemove)))
+		{
+			m_alwaysIncludeAssets.erase(m_alwaysIncludeAssets.begin() + static_cast<std::ptrdiff_t>(index));
+			MarkDirty();
+			ImGui::PopID();
+			break;
+		}
+		ImGui::PopID();
+	}
+	if (ImGui::Button(Loc::Text(EditorLocKeys::BuildSettingsAddAlwaysInclude)))
+	{
+		m_alwaysIncludeAssets.push_back(INVALID_ASSET_GUID);
+		MarkDirty();
+	}
 }
 
 void CBuildSettingsWindow::DrawOutputCategory()
@@ -730,6 +763,7 @@ void CBuildSettingsWindow::LoadFromProject()
 	m_outputDirectory = build.OutputDirectory;
 	m_startupScene = build.StartupScene;
 	m_buildScenes = build.BuildScenes;
+	m_alwaysIncludeAssets = build.AlwaysIncludeAssets;
 	m_windowsIconGuid = build.WindowsIconGuid;
 	m_androidApplicationId = build.AndroidApplicationId;
 	m_androidMinSdkVersion = static_cast<int>(build.AndroidMinSdkVersion);
@@ -770,6 +804,7 @@ bool CBuildSettingsWindow::ApplyToProject(std::string* outError)
 	buildSettings.OutputDirectory = m_outputDirectory;
 	buildSettings.StartupScene = m_startupScene;
 	buildSettings.BuildScenes = m_buildScenes;
+	buildSettings.AlwaysIncludeAssets = m_alwaysIncludeAssets;
 	buildSettings.WindowsIconGuid = m_windowsIconGuid;
 	buildSettings.AndroidApplicationId = m_androidApplicationId;
 	buildSettings.AndroidMinSdkVersion = static_cast<std::uint32_t>(std::max(1, m_androidMinSdkVersion));

@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "FontAsset.h"
 
+#include <algorithm>
 #include <fstream>
 #include <yaml-cpp/yaml.h>
 
@@ -78,6 +79,59 @@ AssetGuid CFontFamilyAsset::ResolveFace(EFontStyle style, bool& usedRegularFallb
 		result = m_data.Regular;
 		usedRegularFallback = false == result.IsNull();
 	}
+	return result;
+}
+
+std::vector<AssetGuid> CFontFamilyAsset::ReadDependencyGuids(const File::Path& path)
+{
+	std::vector<AssetGuid> result;
+
+	std::ifstream stream(path, std::ios::binary | std::ios::ate);
+	if (false == stream.is_open())
+	{
+		return result;
+	}
+	const std::streamsize size = stream.tellg();
+	if (size <= 0)
+	{
+		return result;
+	}
+	stream.seekg(0, std::ios::beg);
+	std::string text(static_cast<std::size_t>(size), '\0');
+	if (false == stream.read(text.data(), size).good())
+	{
+		return result;
+	}
+
+	auto append = [&result](const AssetGuid& guid)
+	{
+		if (false == guid.IsNull() &&
+		    std::find(result.begin(), result.end(), guid) == result.end())
+		{
+			result.push_back(guid);
+		}
+	};
+
+	try
+	{
+		const YAML::Node root = YAML::Load(text);
+		append(ReadGuid(root, "Regular"));
+		append(ReadGuid(root, "Bold"));
+		append(ReadGuid(root, "Italic"));
+		append(ReadGuid(root, "BoldItalic"));
+		if (const YAML::Node fallbacks = root["FallbackFamilies"]; fallbacks && fallbacks.IsSequence())
+		{
+			for (const YAML::Node& node : fallbacks)
+			{
+				append(AssetGuid(node.as<std::string>(std::string())));
+			}
+		}
+	}
+	catch (const YAML::Exception&)
+	{
+		return {};
+	}
+
 	return result;
 }
 
