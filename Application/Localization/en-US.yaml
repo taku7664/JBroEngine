@@ -284,7 +284,6 @@ Entries:
   hierarchy.scene_manager_unavailable: SceneManager is not available.
   hierarchy.no_active_scene: No active scene.
   hierarchy.scene_empty: Scene is empty.
-  hierarchy.drop_here_to_unparent: "  Drop here to unparent  "
   hierarchy.move_format: "Move: %s"
   hierarchy.unparent: Unparent
   hierarchy.delete_object: Delete Object

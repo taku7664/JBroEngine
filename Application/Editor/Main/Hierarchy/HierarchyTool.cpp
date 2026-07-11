@@ -173,6 +173,7 @@ void CHierarchyTool::OnRenderStay()
 		const char* objName = obj->GetName();
 		const char* name = (objName && objName[0]) ? objName : "GameObject";
 		const bool isOpen = ImTree(name, flags);
+		const ImRect treeRowRect = GImGui->LastItemData.DisplayRect;
 		const float nodeH = ImGui::GetItemRectSize().y; // 실제 트리노드 줄 높이(눈 버튼 정렬용)
 
 		// ── 클릭으로 선택 (Release 기준) ───────────────────────────────────
@@ -213,29 +214,34 @@ void CHierarchyTool::OnRenderStay()
 		// 행 위쪽 25%  : 이 오브젝트 앞에 삽입
 		// 행 중앙 50%  : 이 오브젝트의 자식으로 이동
 		// 행 아래쪽 25%: 이 오브젝트 뒤에 삽입
-		if (ImGui::BeginDragDropTarget())
+		if (isDragging)
 		{
-			const ImVec2 rowMin = ImGui::GetItemRectMin();
-			const ImVec2 rowMax = ImGui::GetItemRectMax();
+			const ImVec2 cursorAfterTree = ImGui::GetCursorScreenPos();
+			ImGui::SetCursorScreenPos(treeRowRect.Min);
+			ImGui::InvisibleButton("##HierarchyFullRowDrop", treeRowRect.GetSize());
+			ImGui::SetCursorScreenPos(cursorAfterTree);
+		}
+
+		if (isDragging && ImGui::BeginDragDropTarget())
+		{
+			const ImVec2 rowMin = treeRowRect.Min;
+			const ImVec2 rowMax = treeRowRect.Max;
 			const float rowHeight = std::max(1.0f, rowMax.y - rowMin.y);
 			const float mouseY = ImGui::GetIO().MousePos.y;
 			const float localY = std::clamp((mouseY - rowMin.y) / rowHeight, 0.0f, 1.0f);
 			const bool dropBefore = localY < 0.25f;
 			const bool dropAfter = localY > 0.75f;
 
-			if (isDragging)
+			ImDrawList* drawList = ImGui::GetWindowDrawList();
+			const ImU32 color = ImGui::GetColorU32(ImVec4(0.25f, 0.70f, 1.00f, 1.00f));
+			if (dropBefore || dropAfter)
 			{
-				ImDrawList* drawList = ImGui::GetWindowDrawList();
-				const ImU32 color = ImGui::GetColorU32(ImVec4(0.25f, 0.70f, 1.00f, 1.00f));
-				if (dropBefore || dropAfter)
-				{
-					const float y = dropBefore ? rowMin.y : rowMax.y;
-					drawList->AddLine(ImVec2(rowMin.x, y), ImVec2(rowMax.x, y), color, 2.0f);
-				}
-				else
-				{
-					drawList->AddRect(rowMin, rowMax, color);
-				}
+				const float y = dropBefore ? rowMin.y : rowMax.y;
+				drawList->AddLine(ImVec2(rowMin.x, y), ImVec2(rowMax.x, y), color, 2.0f);
+			}
+			else
+			{
+				drawList->AddRect(rowMin, rowMax, color);
 			}
 
 			const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("HIERARCHY_ENTITY");
@@ -381,52 +387,6 @@ void CHierarchyTool::OnRenderStay()
 		{
 			Editor::SelectEntity(pendingSelection.Object);
 			m_selectionAnchorGuid = pendingSelection.Object->InstanceGuid;
-		}
-	}
-
-	// ── 빈 영역/하단 드롭 존: 루트 맨 아래로 이동 ─────────────────────────────
-	// 드래그 중에만 표시해서 평상시 레이아웃을 밀지 않는다. 상단에 나타나던 부모 해제
-	// 존은 첫 행 위치가 튀는 문제가 있어 하단으로 이동했다.
-	if (isDragging)
-	{
-		const float remainingY = ImGui::GetContentRegionAvail().y;
-		if (remainingY > 4.0f)
-		{
-			ImGui::Dummy(ImVec2(0.0f, std::max(0.0f, remainingY - ImGui::GetFrameHeightWithSpacing())));
-		}
-
-		ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.25f, 0.45f, 0.25f, 0.55f));
-		ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.30f, 0.60f, 0.30f, 0.80f));
-		ImGui::Button(Loc::Text(EditorLocKeys::HierarchyDropHereToUnparent), ImVec2(-1.0f, 0.0f));
-		ImGui::PopStyleColor(2);
-
-		if (ImGui::BeginDragDropTarget())
-		{
-			const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("HIERARCHY_ENTITY");
-			if (payload)
-			{
-				CGameObject* draggedObj = *static_cast<CGameObject* const*>(payload->Data);
-				executeHierarchyMove(draggedObj, nullptr, nullptr, true);
-			}
-			ImGui::EndDragDropTarget();
-		}
-	}
-	else
-	{
-		const float remainingY = ImGui::GetContentRegionAvail().y;
-		if (remainingY > 4.0f)
-		{
-			ImGui::InvisibleButton("##HierarchyRootDrop", ImVec2(-1.0f, remainingY));
-			if (ImGui::BeginDragDropTarget())
-			{
-				const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("HIERARCHY_ENTITY");
-				if (payload)
-				{
-					CGameObject* draggedObj = *static_cast<CGameObject* const*>(payload->Data);
-					executeHierarchyMove(draggedObj, nullptr, nullptr, true);
-				}
-				ImGui::EndDragDropTarget();
-			}
 		}
 	}
 

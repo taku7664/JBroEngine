@@ -187,7 +187,6 @@ namespace EditorLocKeys
 	constexpr const char* GameViewStatusPlaying = "game_view.status.playing";
 	constexpr const char* GameViewStatusSceneStopped = "game_view.status.scene_stopped";
 	constexpr const char* HierarchyDeleteObject = "hierarchy.delete_object";
-	constexpr const char* HierarchyDropHereToUnparent = "hierarchy.drop_here_to_unparent";
 	constexpr const char* HierarchyMoveFormat = "hierarchy.move_format";
 	constexpr const char* HierarchyNoActiveScene = "hierarchy.no_active_scene";
 	constexpr const char* HierarchySceneEmpty = "hierarchy.scene_empty";

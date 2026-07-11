@@ -284,7 +284,6 @@ Entries:
   hierarchy.scene_manager_unavailable: SceneManager를 사용할 수 없습니다.
   hierarchy.no_active_scene: 활성 씬이 없습니다.
   hierarchy.scene_empty: 씬이 비어 있습니다.
-  hierarchy.drop_here_to_unparent: "  여기에 드롭하면 부모 해제  "
   hierarchy.move_format: "이동: %s"
   hierarchy.unparent: 부모 해제
   hierarchy.delete_object: 오브젝트 삭제
