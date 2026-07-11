@@ -1452,80 +1452,76 @@ void CPhysics2DSystem::DrawManifoldDebugLines()
 	}
 }
 
-namespace
+// 오브젝트 한쪽에 붙은 스크립트 인스턴스로 한 관점(Collision2D)의 이벤트를 전달한다.
+// self 관점: Normal 은 self→other 방향. isTrigger 면 Trigger*, 아니면 Collision*.
+// CGameScript 의 훅 진입점이 private 이라 friend 인 이 시스템의 멤버로 둔다(자유함수 불가).
+void CPhysics2DSystem::DispatchToScript(
+	CGameObject* self,
+	CGameObject* other,
+	const Vector2& normal,
+	const Vector2& contactPoint,
+	float penetration,
+	bool isTrigger,
+	EContactPhase phase)
 {
-	// 오브젝트 한쪽에 붙은 스크립트 인스턴스로 한 관점(Collision2D)의 이벤트를 전달한다.
-	// self 관점: Normal 은 self→other 방향. isTrigger 면 Trigger*, 아니면 Collision*.
-	enum class EContactPhase { Enter, Stay, Exit };
-
-	void DispatchToScript(
-		CGameObject* self,
-		CGameObject* other,
-		const Vector2& normal,
-		const Vector2& contactPoint,
-		float penetration,
-		bool isTrigger,
-		EContactPhase phase)
+	if (nullptr == self)
 	{
-		if (nullptr == self)
-		{
-			return;
-		}
-
-		// 오브젝트당 스크립트 1개 관례 — 여러 개면 첫 번째만 이벤트를 받는다.
-		ScriptComponent* script = self->GetComponent<ScriptComponent>();
-		if (nullptr == script || nullptr == script->Instance)
-		{
-			return;
-		}
-		if (false == IsActiveComponent(*script) || false == script->Instance->IsStarted())
-		{
-			return;
-		}
-
-		Collision2D collision;
-		collision.Other        = other;
-		collision.Normal       = normal;
-		collision.ContactPoint = contactPoint;
-		collision.Penetration  = penetration;
-		collision.IsTrigger    = isTrigger;
-
-		CGameScript& instance = *script->Instance;
-		if (isTrigger)
-		{
-			switch (phase)
-			{
-			case EContactPhase::Enter: instance.TriggerEnter(collision); break;
-			case EContactPhase::Stay:  instance.TriggerStay(collision);  break;
-			case EContactPhase::Exit:  instance.TriggerExit(collision);  break;
-			}
-		}
-		else
-		{
-			switch (phase)
-			{
-			case EContactPhase::Enter: instance.CollisionEnter(collision); break;
-			case EContactPhase::Stay:  instance.CollisionStay(collision);  break;
-			case EContactPhase::Exit:  instance.CollisionExit(collision);  break;
-			}
-		}
+		return;
 	}
 
-	// 한 접촉 페어(A,B)를 양쪽 스크립트에 각자 관점으로 디스패치한다.
-	// normalAtoB 는 A→B 방향 단위 법선. B 관점에는 부호를 뒤집어 전달한다.
-	void DispatchPair(
-		CGameObject* a,
-		CGameObject* b,
-		const Vector2& normalAtoB,
-		const Vector2& contactPoint,
-		float penetration,
-		bool isTrigger,
-		EContactPhase phase)
+	// 오브젝트당 스크립트 1개 관례 — 여러 개면 첫 번째만 이벤트를 받는다.
+	ScriptComponent* script = self->GetComponent<ScriptComponent>();
+	if (nullptr == script || nullptr == script->Instance)
 	{
-		DispatchToScript(a, b, normalAtoB, contactPoint, penetration, isTrigger, phase);
-		const Vector2 normalBtoA(-normalAtoB.x, -normalAtoB.y);
-		DispatchToScript(b, a, normalBtoA, contactPoint, penetration, isTrigger, phase);
+		return;
 	}
+	if (false == IsActiveComponent(*script) || false == script->Instance->IsStarted())
+	{
+		return;
+	}
+
+	Collision2D collision;
+	collision.Other        = other;
+	collision.Normal       = normal;
+	collision.ContactPoint = contactPoint;
+	collision.Penetration  = penetration;
+	collision.IsTrigger    = isTrigger;
+
+	CGameScript& instance = *script->Instance;
+	if (isTrigger)
+	{
+		switch (phase)
+		{
+		case EContactPhase::Enter: instance.TriggerEnter(collision); break;
+		case EContactPhase::Stay:  instance.TriggerStay(collision);  break;
+		case EContactPhase::Exit:  instance.TriggerExit(collision);  break;
+		}
+	}
+	else
+	{
+		switch (phase)
+		{
+		case EContactPhase::Enter: instance.CollisionEnter(collision); break;
+		case EContactPhase::Stay:  instance.CollisionStay(collision);  break;
+		case EContactPhase::Exit:  instance.CollisionExit(collision);  break;
+		}
+	}
+}
+
+// 한 접촉 페어(A,B)를 양쪽 스크립트에 각자 관점으로 디스패치한다.
+// normalAtoB 는 A→B 방향 단위 법선. B 관점에는 부호를 뒤집어 전달한다.
+void CPhysics2DSystem::DispatchPair(
+	CGameObject* a,
+	CGameObject* b,
+	const Vector2& normalAtoB,
+	const Vector2& contactPoint,
+	float penetration,
+	bool isTrigger,
+	EContactPhase phase)
+{
+	DispatchToScript(a, b, normalAtoB, contactPoint, penetration, isTrigger, phase);
+	const Vector2 normalBtoA(-normalAtoB.x, -normalAtoB.y);
+	DispatchToScript(b, a, normalBtoA, contactPoint, penetration, isTrigger, phase);
 }
 
 void CPhysics2DSystem::DispatchContactEvents(CGameScene& scene)

@@ -28,6 +28,7 @@ CGameScene* CSceneManager::CreateScene(const char* name)
 
 	OwnerPtr<CGameScene> scene = MakeOwnerPtr<CGameScene>();
 	CGameScene* rawScene = scene.Get();
+	rawScene->SetName(name); // Ref<GameScene> 해석 키 — m_scenes 키와 동일해야 한다.
 	m_scenes.emplace(name, std::move(scene));
 	if (false == m_activeScene.IsValid())
 	{
@@ -90,17 +91,6 @@ bool CSceneManager::SetActiveScene(const char* name)
 
 // GetActiveScene() 은 SceneManager.h 에 인라인으로 정의됨(DLL 링크 클로저에서
 // SceneManager.obj → SceneSerializer.obj → yaml-cpp 연쇄 풀을 끊기 위함).
-
-SafePtr<CGameScene> CSceneManager::FindScene(const char* name) const
-{
-	if (nullptr == name)
-	{
-		return nullptr;
-	}
-
-	auto it = m_scenes.find(name);
-	return it != m_scenes.end() ? it->second.GetSafePtr() : nullptr;
-}
 
 void CSceneManager::AcquireReferencedAssets(CGameScene& scene) const
 {

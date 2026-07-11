@@ -73,6 +73,14 @@ private:
 	// 부착된 ScriptComponent 인스턴스의 충돌/트리거 훅으로 전달한다(fixed step 종료 후 1회).
 	void DispatchContactEvents(CGameScene& scene);
 
+	// 충돌/트리거 훅 디스패치 헬퍼. CGameScript 의 훅 진입점(CollisionEnter 등)은 private 이고
+	// 이 시스템이 friend 이므로, 접근하려면 자유함수가 아니라 멤버여야 한다.
+	enum class EContactPhase { Enter, Stay, Exit };
+	static void DispatchToScript(CGameObject* self, CGameObject* other, const Vector2& normal,
+	                             const Vector2& contactPoint, float penetration, bool isTrigger, EContactPhase phase);
+	static void DispatchPair(CGameObject* a, CGameObject* b, const Vector2& normalAtoB,
+	                         const Vector2& contactPoint, float penetration, bool isTrigger, EContactPhase phase);
+
 	// 직전 step 의 매니폴드와 매칭해 누적 impulse 복원 + warm-start 적용.
 	// DetectContacts 직후 호출되어 m_manifolds 의 AccumulatedXxxImpulse 를 prev 에서 복원,
 	// 그 시점에 body 에 warm-start impulse 한 번 적용.

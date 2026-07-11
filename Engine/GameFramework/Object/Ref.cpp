@@ -66,6 +66,16 @@ CGameScript* RefDetail::ResolveScript(const char* objectGuid, const char* compon
 	return scriptComp ? scriptComp->Instance : nullptr;
 }
 
+CGameScene* RefDetail::ResolveScene(const char* sceneName)
+{
+	if (false == static_cast<bool>(Script.SceneManager))
+	{
+		return nullptr;
+	}
+	// FindScene 은 헤더 인라인(GetActiveScene 과 동일한 DLL 링크 체인 사유).
+	return Script.SceneManager->FindScene(sceneName).TryGet();
+}
+
 IAsset* RefDetail::ResolveAsset(const char* assetGuid)
 {
 	if (false == static_cast<bool>(Script.AssetManager))

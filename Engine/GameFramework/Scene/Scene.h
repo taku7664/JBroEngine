@@ -11,6 +11,7 @@
 #include "Utillity/Pointer/SafePtr.h"
 
 #include <algorithm>
+#include <string>
 #include <type_traits>
 #include <typeindex>
 #include <unordered_map>
@@ -31,6 +32,11 @@ public:
 
 	CGameScene(const CGameScene&) = delete;
 	CGameScene& operator=(const CGameScene&) = delete;
+
+	// ── 이름 ─────────────────────────────────────────────────────────────────
+	// SceneManager 의 m_scenes 유일 키와 동일(CreateScene 이 설정). Ref<GameScene> 해석 키.
+	const char* GetName() const { return m_name.c_str(); }
+	void        SetName(const char* name) { m_name = name ? name : ""; }
 
 	// ── 오브젝트 ──────────────────────────────────────────────────────────────
 	CGameObject* CreateGameObject(const char* name = nullptr);
@@ -231,6 +237,7 @@ private:
 	void DestroyObjectRecursive(CGameObject* object);
 
 private:
+	std::string                        m_name; // SceneManager 키와 동일(CreateScene 설정)
 	TObjectPool<CGameObject>           m_objectPool;
 	// InstanceGuid → 오브젝트 빠른 해석. FindByInstanceGuid / Ref<T>::Get 이 매 호출
 	// O(n) 풀 스캔 + path 비교를 하던 것을 O(1) 해시 조회로 바꾼다. 생성/파괴/guid 재설정

@@ -1,21 +1,24 @@
 #include "pch.h"
 #include "GameScript.h"
 
+#include "GameFramework/Scene/Scene.h"
+
 void CGameScript::Bind(CGameScene& scene, CGameObject& object)
 {
-	m_scene = &scene;
+	// 호스트 소유 객체의 안전참조만 보관 — 대상 파괴 시 SafePtr 가 자동으로 무효화된다.
+	m_scene = scene.SafeFromThis();
 	m_owner = object.SafeFromThis();
 	m_isBound = true;
 }
 
-CGameScene* CGameScript::GetScene() const
+SafePtr<CGameScene> CGameScript::GetScene() const
 {
 	return m_scene;
 }
 
-CGameObject* CGameScript::GetGameObject() const
+SafePtr<CGameObject> CGameScript::GetGameObject() const
 {
-	return m_owner.TryGet();
+	return m_owner;
 }
 
 void CGameScript::Create()
@@ -75,7 +78,7 @@ void CGameScript::Destroy()
 	m_isCreated = false;
 	m_isStarted = false;
 	m_isBound   = false;
-	m_scene     = nullptr;
+	m_scene.Reset();
 	m_owner.Reset();
 }
 

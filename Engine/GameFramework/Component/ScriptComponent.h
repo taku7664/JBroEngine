@@ -71,6 +71,9 @@ public:
 
 		if (Instance && DestroyInstance)
 		{
+			// OnDestroy 훅 발화(가상 호출 — DLL vtable 경유라 안전). 미Create 인스턴스는
+			// Destroy 내부 가드로 훅을 건너뛴다. 여기가 유일한 파괴 경로라 1회만 발화된다.
+			Instance->Destroy();
 			DestroyInstance(Instance, HostApi);
 		}
 		Instance        = nullptr;
