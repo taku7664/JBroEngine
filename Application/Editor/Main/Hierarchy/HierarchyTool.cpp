@@ -104,37 +104,40 @@ void CHierarchyTool::OnRenderStay()
 		std::sort(entry.second.begin(), entry.second.end(), byCreationOrder);
 	}
 
-	// ── 드래그 중 "루트로 이동" 드롭 존 (상단) ─────────────────────────────────
+	// ── Hierarchy 엔티티 드래그 상태 ──────────────────────────────────────────
 	// 다른 위젯의 드래그(예: ImGui::Utillity::List 의 reorder)가 진행 중일 때도
 	// GetDragDropPayload 는 nullptr 이 아니다. payload 타입이 HIERARCHY_ENTITY 인
-	// 경우에만 unparent 드롭 존을 표시한다.
+	// 경우에만 계층 드롭 UI를 표시한다.
 	const ImGuiPayload* currentDragPayload = ImGui::GetDragDropPayload();
 	const bool isDragging = currentDragPayload != nullptr
 	                      && currentDragPayload->IsDataType("HIERARCHY_ENTITY");
-	if (isDragging)
-	{
-		ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.25f, 0.45f, 0.25f, 0.55f));
-		ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.30f, 0.60f, 0.30f, 0.80f));
-		ImGui::Button(Loc::Text(EditorLocKeys::HierarchyDropHereToUnparent), ImVec2(-1.0f, 0.0f));
-		ImGui::PopStyleColor(2);
 
-		if (ImGui::BeginDragDropTarget())
+	auto canMoveObject = [](CGameObject* draggedObj, CGameObject* newParent, CGameObject* insertNear) -> bool
+	{
+		if (nullptr == draggedObj || draggedObj == newParent || draggedObj == insertNear)
 		{
-			const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("HIERARCHY_ENTITY");
-			if (payload)
-			{
-				CGameObject* draggedObj = *static_cast<CGameObject* const*>(payload->Data);
-				if (draggedObj && draggedObj->GetParent().IsValid())
-				{
-					auto cmd = MakeOwnerPtr<CSetParentCommand>(activeScene, draggedObj, nullptr);
-					Editor::CommandManager.ExecuteCommand(std::move(cmd));
-					Editor::SelectEntity(draggedObj);
-				}
-			}
-			ImGui::EndDragDropTarget();
+			return false;
 		}
-		ImGui::Separator();
-	}
+		return nullptr == newParent || false == newParent->IsDescendantOf(*draggedObj);
+	};
+
+	auto executeHierarchyMove = [&](CGameObject* draggedObj, CGameObject* newParent,
+	                                CGameObject* insertNear, bool insertAfter) -> bool
+	{
+		if (false == canMoveObject(draggedObj, newParent, insertNear))
+		{
+			return false;
+		}
+
+		auto cmd = MakeOwnerPtr<CMoveGameObjectInHierarchyCommand>(
+			activeScene, draggedObj, newParent, insertNear, insertAfter);
+		if (false == Editor::CommandManager.ExecuteCommand(std::move(cmd)))
+		{
+			return false;
+		}
+		Editor::SelectEntity(draggedObj);
+		return true;
+	};
 
 	// ── 트리 노드 재귀 렌더링 ────────────────────────────────────────────────────
 	struct PendingSelectionClick
@@ -206,21 +209,46 @@ void CHierarchyTool::OnRenderStay()
 			ImGui::EndDragDropSource();
 		}
 
-		// ── Drop Target: 이 노드의 자식으로 ──────────────────────────────────
+		// ── Drop Target ──────────────────────────────────────────────────────
+		// 행 위쪽 25%  : 이 오브젝트 앞에 삽입
+		// 행 중앙 50%  : 이 오브젝트의 자식으로 이동
+		// 행 아래쪽 25%: 이 오브젝트 뒤에 삽입
 		if (ImGui::BeginDragDropTarget())
 		{
+			const ImVec2 rowMin = ImGui::GetItemRectMin();
+			const ImVec2 rowMax = ImGui::GetItemRectMax();
+			const float rowHeight = std::max(1.0f, rowMax.y - rowMin.y);
+			const float mouseY = ImGui::GetIO().MousePos.y;
+			const float localY = std::clamp((mouseY - rowMin.y) / rowHeight, 0.0f, 1.0f);
+			const bool dropBefore = localY < 0.25f;
+			const bool dropAfter = localY > 0.75f;
+
+			if (isDragging)
+			{
+				ImDrawList* drawList = ImGui::GetWindowDrawList();
+				const ImU32 color = ImGui::GetColorU32(ImVec4(0.25f, 0.70f, 1.00f, 1.00f));
+				if (dropBefore || dropAfter)
+				{
+					const float y = dropBefore ? rowMin.y : rowMax.y;
+					drawList->AddLine(ImVec2(rowMin.x, y), ImVec2(rowMax.x, y), color, 2.0f);
+				}
+				else
+				{
+					drawList->AddRect(rowMin, rowMax, color);
+				}
+			}
+
 			const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("HIERARCHY_ENTITY");
 			if (payload)
 			{
 				CGameObject* draggedObj = *static_cast<CGameObject* const*>(payload->Data);
-				// 자기 자신 및 사이클 방지
-				const bool valid = (draggedObj != obj) && draggedObj
-				    && !obj->IsDescendantOf(*draggedObj);
-				if (valid)
+				if (dropBefore || dropAfter)
 				{
-					auto cmd = MakeOwnerPtr<CSetParentCommand>(activeScene, draggedObj, obj);
-					Editor::CommandManager.ExecuteCommand(std::move(cmd));
-					Editor::SelectEntity(draggedObj);
+					executeHierarchyMove(draggedObj, obj->GetParent().TryGet(), obj, dropAfter);
+				}
+				else
+				{
+					executeHierarchyMove(draggedObj, obj, nullptr, true);
 				}
 			}
 			ImGui::EndDragDropTarget();
@@ -356,10 +384,34 @@ void CHierarchyTool::OnRenderStay()
 		}
 	}
 
-	// ── 빈 영역 드롭 존: 부모 해제 ───────────────────────────────────────────────
-	// 트리 아래 남은 공간을 드롭 타깃으로 사용한다.
-	// 드래그 중일 때만 활성화해 일반 클릭에 영향을 주지 않는다.
+	// ── 빈 영역/하단 드롭 존: 루트 맨 아래로 이동 ─────────────────────────────
+	// 드래그 중에만 표시해서 평상시 레이아웃을 밀지 않는다. 상단에 나타나던 부모 해제
+	// 존은 첫 행 위치가 튀는 문제가 있어 하단으로 이동했다.
 	if (isDragging)
+	{
+		const float remainingY = ImGui::GetContentRegionAvail().y;
+		if (remainingY > 4.0f)
+		{
+			ImGui::Dummy(ImVec2(0.0f, std::max(0.0f, remainingY - ImGui::GetFrameHeightWithSpacing())));
+		}
+
+		ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.25f, 0.45f, 0.25f, 0.55f));
+		ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.30f, 0.60f, 0.30f, 0.80f));
+		ImGui::Button(Loc::Text(EditorLocKeys::HierarchyDropHereToUnparent), ImVec2(-1.0f, 0.0f));
+		ImGui::PopStyleColor(2);
+
+		if (ImGui::BeginDragDropTarget())
+		{
+			const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("HIERARCHY_ENTITY");
+			if (payload)
+			{
+				CGameObject* draggedObj = *static_cast<CGameObject* const*>(payload->Data);
+				executeHierarchyMove(draggedObj, nullptr, nullptr, true);
+			}
+			ImGui::EndDragDropTarget();
+		}
+	}
+	else
 	{
 		const float remainingY = ImGui::GetContentRegionAvail().y;
 		if (remainingY > 4.0f)
@@ -371,12 +423,7 @@ void CHierarchyTool::OnRenderStay()
 				if (payload)
 				{
 					CGameObject* draggedObj = *static_cast<CGameObject* const*>(payload->Data);
-					if (draggedObj && draggedObj->GetParent().IsValid())
-					{
-						auto cmd = MakeOwnerPtr<CSetParentCommand>(activeScene, draggedObj, nullptr);
-						Editor::CommandManager.ExecuteCommand(std::move(cmd));
-						Editor::SelectEntity(draggedObj);
-					}
+					executeHierarchyMove(draggedObj, nullptr, nullptr, true);
 				}
 				ImGui::EndDragDropTarget();
 			}

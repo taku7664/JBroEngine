@@ -333,6 +333,52 @@ private:
 	bool            m_executed       = false;
 };
 
+// Hierarchy 드래그 드롭: 부모 변경(WorldStay)과 표시 순서(CreationOrder)를 한 undo 단위로 처리.
+class CMoveGameObjectInHierarchyCommand final : public IEditorCommand
+{
+public:
+	// newParent = nullptr 이면 루트로 이동.
+	// insertNear = nullptr 이면 해당 parent 그룹의 맨 아래로 이동.
+	// insertAfter = false/true 는 insertNear 앞/뒤 삽입.
+	CMoveGameObjectInHierarchyCommand(
+		SafePtr<CGameScene> scene,
+		CGameObject* object,
+		CGameObject* newParent,
+		CGameObject* insertNear = nullptr,
+		bool insertAfter = true);
+	~CMoveGameObjectInHierarchyCommand() override = default;
+
+	const char* GetName() const override;
+	bool Execute() override;
+	void Undo() override;
+	void Redo() override;
+
+private:
+	struct OrderSnapshot
+	{
+		File::Guid ObjectGuid;
+		std::uint64_t CreationOrder = 0;
+	};
+
+	bool Apply(const File::Guid& parentGuid, const Transform2D* localTransform, bool computeWorldStay);
+	void CaptureOrders(std::vector<OrderSnapshot>& out) const;
+	void RestoreOrders(const std::vector<OrderSnapshot>& orders);
+	void RebuildOrder(CGameObject& object);
+
+private:
+	SafePtr<CGameScene> m_scene;
+	File::Guid m_objectGuid;
+	File::Guid m_oldParentGuid;
+	File::Guid m_newParentGuid;
+	File::Guid m_insertNearGuid;
+	bool m_insertAfter = true;
+	Transform2D m_oldLocalTransform;
+	Transform2D m_newLocalTransform;
+	std::vector<OrderSnapshot> m_oldOrders;
+	std::vector<OrderSnapshot> m_newOrders;
+	bool m_executed = false;
+};
+
 // PolygonCollider2D 의 버텍스 목록을 통째로 교체하는 커맨드.
 // Execute / Redo: newPoints 를 LocalPoints 에 적용 + dirty 캐시 마킹.
 // Undo         : 이전 LocalPoints 복원 + dirty 캐시 마킹.

@@ -1092,6 +1092,201 @@ void CSetParentCommand::Redo()
 	m_executed = true;
 }
 
+// ── CMoveGameObjectInHierarchyCommand ────────────────────────────────────────
+
+CMoveGameObjectInHierarchyCommand::CMoveGameObjectInHierarchyCommand(
+	SafePtr<CGameScene> scene,
+	CGameObject* object,
+	CGameObject* newParent,
+	CGameObject* insertNear,
+	bool insertAfter)
+	: m_scene(scene)
+	, m_objectGuid(GuidOf(object))
+	, m_newParentGuid(GuidOf(newParent))
+	, m_insertNearGuid(GuidOf(insertNear))
+	, m_insertAfter(insertAfter)
+{
+	if (object)
+	{
+		m_oldParentGuid = GuidOf(object->GetParent().TryGet());
+		m_oldLocalTransform = object->GetTransform();
+	}
+	CaptureOrders(m_oldOrders);
+}
+
+const char* CMoveGameObjectInHierarchyCommand::GetName() const
+{
+	return "Move GameObject In Hierarchy";
+}
+
+bool CMoveGameObjectInHierarchyCommand::Execute()
+{
+	CGameObject* object = Resolve(m_scene, m_objectGuid);
+	if (nullptr == object || false == m_scene.IsValid())
+	{
+		return false;
+	}
+
+	if (false == Apply(m_newParentGuid, nullptr, true))
+	{
+		return false;
+	}
+
+	RebuildOrder(*object);
+	CaptureOrders(m_newOrders);
+	m_executed = true;
+	return true;
+}
+
+void CMoveGameObjectInHierarchyCommand::Undo()
+{
+	if (false == m_executed || false == m_scene.IsValid())
+	{
+		return;
+	}
+
+	Apply(m_oldParentGuid, &m_oldLocalTransform, false);
+	RestoreOrders(m_oldOrders);
+	m_executed = false;
+}
+
+void CMoveGameObjectInHierarchyCommand::Redo()
+{
+	if (m_executed || false == m_scene.IsValid())
+	{
+		return;
+	}
+
+	Apply(m_newParentGuid, &m_newLocalTransform, false);
+	RestoreOrders(m_newOrders);
+	m_executed = true;
+}
+
+bool CMoveGameObjectInHierarchyCommand::Apply(
+	const File::Guid& parentGuid,
+	const Transform2D* localTransform,
+	bool computeWorldStay)
+{
+	CGameObject* object = Resolve(m_scene, m_objectGuid);
+	if (nullptr == object || false == m_scene.IsValid())
+	{
+		return false;
+	}
+
+	CGameScene& scene = *m_scene;
+	Transform2D targetLocalTransform = localTransform ? *localTransform : object->GetTransform();
+	if (computeWorldStay)
+	{
+		const Matrix3x2 objectWorld = GetWorldTransform(*object);
+		CGameObject* parent = parentGuid.IsNull() ? nullptr : Resolve(m_scene, parentGuid);
+		const Matrix3x2 parentWorld = parent ? GetWorldTransform(*parent) : Matrix3x2::Identity();
+		Matrix3x2 local = objectWorld;
+		if (parent)
+		{
+			Matrix3x2 parentInv;
+			if (parentWorld.TryInvert(parentInv))
+			{
+				local = objectWorld * parentInv;
+			}
+		}
+		targetLocalTransform = DecomposeMatrix(local);
+		m_newLocalTransform = targetLocalTransform;
+	}
+
+	if (false == ApplyParent(scene, *object, parentGuid))
+	{
+		return false;
+	}
+	object->GetTransform() = targetLocalTransform;
+	return true;
+}
+
+void CMoveGameObjectInHierarchyCommand::CaptureOrders(std::vector<OrderSnapshot>& out) const
+{
+	out.clear();
+	if (false == m_scene.IsValid())
+	{
+		return;
+	}
+
+	m_scene->ForEachObject([&out](CGameObject& object)
+	{
+		out.push_back({ object.InstanceGuid, object.CreationOrder });
+	});
+}
+
+void CMoveGameObjectInHierarchyCommand::RestoreOrders(const std::vector<OrderSnapshot>& orders)
+{
+	if (false == m_scene.IsValid())
+	{
+		return;
+	}
+
+	for (const OrderSnapshot& order : orders)
+	{
+		if (CGameObject* object = Resolve(m_scene, order.ObjectGuid))
+		{
+			object->CreationOrder = order.CreationOrder;
+		}
+	}
+}
+
+void CMoveGameObjectInHierarchyCommand::RebuildOrder(CGameObject& object)
+{
+	if (false == m_scene.IsValid())
+	{
+		return;
+	}
+
+	std::vector<CGameObject*> ordered;
+	m_scene->ForEachObject([&ordered](CGameObject& sceneObject)
+	{
+		ordered.push_back(&sceneObject);
+	});
+	std::sort(ordered.begin(), ordered.end(), [](const CGameObject* lhs, const CGameObject* rhs)
+	{
+		return lhs->CreationOrder < rhs->CreationOrder;
+	});
+
+	ordered.erase(std::remove(ordered.begin(), ordered.end(), &object), ordered.end());
+
+	auto insertIt = ordered.end();
+	if (CGameObject* nearObject = Resolve(m_scene, m_insertNearGuid))
+	{
+		insertIt = std::find(ordered.begin(), ordered.end(), nearObject);
+		if (insertIt != ordered.end() && m_insertAfter)
+		{
+			++insertIt;
+		}
+	}
+	else
+	{
+		CGameObject* newParent = Resolve(m_scene, m_newParentGuid);
+		for (auto it = ordered.begin(); it != ordered.end(); ++it)
+		{
+			CGameObject* candidateParent = (*it)->GetParent().TryGet();
+			if (candidateParent == newParent)
+			{
+				insertIt = it + 1;
+			}
+		}
+		if (insertIt == ordered.end() && newParent)
+		{
+			auto parentIt = std::find(ordered.begin(), ordered.end(), newParent);
+			if (parentIt != ordered.end())
+			{
+				insertIt = parentIt + 1;
+			}
+		}
+	}
+
+	ordered.insert(insertIt, &object);
+	for (std::size_t i = 0; i < ordered.size(); ++i)
+	{
+		ordered[i]->CreationOrder = static_cast<std::uint64_t>(i);
+	}
+}
+
 // ── CModifyPolygonVerticesCommand ─────────────────────────────────────────────
 
 CModifyPolygonVerticesCommand::CModifyPolygonVerticesCommand(
