@@ -37,6 +37,7 @@ public:
 	// Global paste uses the cursor position while it is over the Scene View,
 	// and falls back to the editor camera center otherwise.
 	Vector2 GetPreferredPasteWorldPosition() const;
+	CGameObject* GetFocusedEditContext() const;
 
 private:
     void OnCreate()     override;

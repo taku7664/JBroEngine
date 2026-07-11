@@ -119,7 +119,10 @@ bool CEditorShortcutManager::Execute(EEditorShortcut shortcut) const
 		if (Editor::SceneView)
 		{
 			const Vector2 pastePosition = Editor::SceneView->GetPreferredPasteWorldPosition();
-			return EditorGuiActions::PasteObjectsFromClipboard(*scene, &pastePosition);
+			return EditorGuiActions::PasteObjectsFromClipboard(
+				*scene,
+				&pastePosition,
+				Editor::SceneView->GetFocusedEditContext());
 		}
 		return EditorGuiActions::PasteObjectsFromClipboard(*scene);
 	}

@@ -640,9 +640,11 @@ namespace
 }
 
 CPasteObjectsCommand::CPasteObjectsCommand(SafePtr<CGameScene> scene, std::string clipboardText,
-                                           const Vector2* spawnWorldPos)
+                                           const Vector2* spawnWorldPos,
+                                           CGameObject* parent)
 	: m_scene(scene)
 	, m_clipboard(std::move(clipboardText))
+	, m_parentGuid(GuidOf(parent))
 	, m_hasSpawnPos(nullptr != spawnWorldPos)
 	, m_spawnWorldPos(spawnWorldPos ? *spawnWorldPos : Vector2(0.0f, 0.0f))
 {
@@ -675,32 +677,73 @@ bool CPasteObjectsCommand::Execute()
 			if (root) ReissuePastedGuids(*m_scene, *root);
 		}
 
-		// 위치: 루트들의 위치 평균(중심)을 spawn 좌표로 이동(상대 배치 보존). 루트라 local==world.
+		// 위치: 역직렬화 직후 루트는 씬 루트에 있으므로 local==world 로 취급한다.
+		// parent 가 있으면 최종 월드 위치를 parent local 로 환산한 뒤 자식으로 붙인다.
+		std::vector<Vector2> targetWorldPositions;
+		targetWorldPositions.reserve(roots.size());
+		for (CGameObject* root : roots)
+		{
+			targetWorldPositions.push_back(root ? root->GetTransform().Position : Vector2(0.0f, 0.0f));
+		}
+
+		// spawn 좌표가 있으면 루트들의 위치 평균(중심)을 spawn 좌표로 이동(상대 배치 보존).
 		if (m_hasSpawnPos)
 		{
 			Vector2 anchor(0.0f, 0.0f);
 			int count = 0;
-			for (CGameObject* root : roots)
+			for (std::size_t i = 0; i < roots.size(); ++i)
 			{
-				if (root) { anchor += root->GetTransform().Position; ++count; }
+				if (roots[i])
+				{
+					anchor += targetWorldPositions[i];
+					++count;
+				}
 			}
 			if (count > 0)
 			{
 				anchor = anchor / static_cast<float>(count);
 				const Vector2 delta = m_spawnWorldPos - anchor;
-				for (CGameObject* root : roots)
+				for (std::size_t i = 0; i < roots.size(); ++i)
 				{
-					if (root) root->GetTransform().Position += delta;
+					if (roots[i])
+					{
+						targetWorldPositions[i] += delta;
+					}
 				}
 			}
 		}
 
+		CGameObject* parent = Resolve(m_scene, m_parentGuid);
+		Matrix3x2 parentInverse;
+		const bool hasParentInverse =
+			parent && GetWorldTransform(*parent).TryInvert(parentInverse);
+
 		m_pastedGuids.clear();
 		std::vector<const CGameObject*> created;
 		created.reserve(roots.size());
-		for (CGameObject* root : roots)
+		for (std::size_t i = 0; i < roots.size(); ++i)
 		{
-			if (root) { m_pastedGuids.push_back(root->InstanceGuid); created.push_back(root); }
+			CGameObject* root = roots[i];
+			if (nullptr == root)
+			{
+				continue;
+			}
+
+			if (parent)
+			{
+				root->SetParent(*parent);
+				if (hasParentInverse)
+				{
+					root->GetTransform().Position = parentInverse.TransformPoint(targetWorldPositions[i]);
+				}
+			}
+			else
+			{
+				root->GetTransform().Position = targetWorldPositions[i];
+			}
+
+			m_pastedGuids.push_back(root->InstanceGuid);
+			created.push_back(root);
 		}
 		m_clipboard = Serialization::SerializeObjects(created);
 		m_firstDone = true;

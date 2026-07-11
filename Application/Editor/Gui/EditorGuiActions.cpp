@@ -210,7 +210,7 @@ bool EditorGuiActions::DrawCopyObjectMenuItem(const CGameObject& object)
 	return false;
 }
 
-bool EditorGuiActions::DrawPasteObjectMenuItem(CGameScene& scene)
+bool EditorGuiActions::DrawPasteObjectMenuItem(CGameScene& scene, CGameObject* parent)
 {
 	if (false == HasObjectClipboardData())
 	{
@@ -219,7 +219,7 @@ bool EditorGuiActions::DrawPasteObjectMenuItem(CGameScene& scene)
 	if (ImGui::MenuItem(Loc::TextOr(EditorLocKeys::EditorMenuPasteObject, "Paste Object")))
 	{
 		// 원본 위치 유지(메뉴 붙여넣기). undo/새 guid 발급은 커맨드가 처리.
-		return PasteObjectsFromClipboard(scene, nullptr);
+		return PasteObjectsFromClipboard(scene, nullptr, parent);
 	}
 	return false;
 }
@@ -247,7 +247,7 @@ bool EditorGuiActions::CopySelectedObjectsToClipboard()
 	return true;
 }
 
-bool EditorGuiActions::PasteObjectsFromClipboard(CGameScene& scene, const Vector2* spawnWorldPos)
+bool EditorGuiActions::PasteObjectsFromClipboard(CGameScene& scene, const Vector2* spawnWorldPos, CGameObject* parent)
 {
 	const char* clip = ImGui::GetClipboardText();
 	if (nullptr == clip || false == Serialization::LooksLikeObject(clip))
@@ -255,7 +255,7 @@ bool EditorGuiActions::PasteObjectsFromClipboard(CGameScene& scene, const Vector
 		return false;
 	}
 	OwnerPtr<CPasteObjectsCommand> cmd =
-	    MakeOwnerPtr<CPasteObjectsCommand>(scene.SafeFromThis(), std::string(clip), spawnWorldPos);
+	    MakeOwnerPtr<CPasteObjectsCommand>(scene.SafeFromThis(), std::string(clip), spawnWorldPos, parent);
 	CPasteObjectsCommand* rawCmd = cmd.Get();
 	if (false == Editor::CommandManager.ExecuteCommand(std::move(cmd)) || nullptr == rawCmd)
 	{

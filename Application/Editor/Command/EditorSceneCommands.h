@@ -262,8 +262,10 @@ class CPasteObjectsCommand final : public IEditorCommand
 public:
 	// clipboardText = Serialization::SerializeObjects 결과(레거시 단일 포맷도 허용).
 	// spawnWorldPos != nullptr 이면 붙여넣은 그룹 중심을 그 월드 좌표로 이동(상대 배치 보존).
+	// parent != nullptr 이면 붙여넣은 루트를 해당 오브젝트의 자식으로 둔다.
 	CPasteObjectsCommand(SafePtr<CGameScene> scene, std::string clipboardText,
-	                     const Vector2* spawnWorldPos = nullptr);
+	                     const Vector2* spawnWorldPos = nullptr,
+	                     CGameObject* parent = nullptr);
 	~CPasteObjectsCommand() override = default;
 
 	const char* GetName() const override;
@@ -277,6 +279,7 @@ public:
 private:
 	SafePtr<CGameScene> m_scene;
 	std::string m_clipboard;        // 최초 실행 후엔 정규화 스냅샷(guid/위치 고정 → redo 재현)
+	File::Guid  m_parentGuid;       // null = 루트
 	bool        m_hasSpawnPos = false;
 	Vector2     m_spawnWorldPos = Vector2(0.0f, 0.0f);
 	std::vector<File::Guid> m_pastedGuids; // 붙여넣은 루트(undo 파괴/선택)

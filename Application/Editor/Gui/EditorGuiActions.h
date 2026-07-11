@@ -37,14 +37,14 @@ namespace EditorGuiActions
 	// 오브젝트를 클립보드로 복사하는 MenuItem.
 	bool DrawCopyObjectMenuItem(const CGameObject& object);
 	// 클립보드의 오브젝트를 scene 에 붙여넣는 MenuItem(클립보드가 오브젝트일 때만 표시).
-	bool DrawPasteObjectMenuItem(CGameScene& scene);
+	bool DrawPasteObjectMenuItem(CGameScene& scene, CGameObject* parent = nullptr);
 
 	// ── 단축키용(메뉴 아님) 복사/붙여넣기 ─────────────────────────────────────
 	// 선택된 최상위 오브젝트들을 클립보드로 복사(다중). 선택이 없으면 false.
 	bool CopySelectedObjectsToClipboard();
 	// 클립보드 오브젝트(들)을 붙여넣고(undo 가능) 붙여넣은 루트를 선택한다.
 	//   spawnWorldPos != nullptr : 그룹 중심을 그 월드 좌표로 이동. null = 원본 위치 유지.
-	bool PasteObjectsFromClipboard(CGameScene& scene, const Vector2* spawnWorldPos = nullptr);
+	bool PasteObjectsFromClipboard(CGameScene& scene, const Vector2* spawnWorldPos = nullptr, CGameObject* parent = nullptr);
 	// 선택된 최상위 오브젝트들을 한 번의 undo 단위로 삭제한다.
 	bool DeleteSelectedObjects(CGameScene& scene);
 	bool HasObjectClipboardData();

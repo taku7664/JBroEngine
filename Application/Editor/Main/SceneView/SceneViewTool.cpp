@@ -320,6 +320,11 @@ Vector2 CSceneViewTool::GetPreferredPasteWorldPosition() const
 	return m_cameraPos;
 }
 
+CGameObject* CSceneViewTool::GetFocusedEditContext() const
+{
+	return m_editCtx.GetContext();
+}
+
 void CSceneViewTool::OnCreate()
 {
     SetLocalizedTitleKey(EditorLocKeys::WindowSceneView);
@@ -1264,7 +1269,7 @@ void CSceneViewTool::OnRenderStay()
 				EditorGuiActions::DrawAddComponentMenu(*popupScene, menuObject);
                 ImGui::Separator();
 				EditorGuiActions::DrawCopyObjectMenuItem(*menuObject);
-				EditorGuiActions::DrawPasteObjectMenuItem(*popupScene);
+				EditorGuiActions::DrawPasteObjectMenuItem(*popupScene, menuObject);
                 ImGui::Separator();
 				EditorGuiActions::DrawRemoveObjectMenu(*popupScene, menuObject);
             }
@@ -1272,7 +1277,7 @@ void CSceneViewTool::OnRenderStay()
             {
                 // 빈 공간 우클릭 (버텍스 전용 팝업이 아닐 때 or 부모가 지정된 경우)
 				EditorGuiActions::DrawAddObjectMenu(*popupScene, menuParent, &m_contextMenuWorldPos);
-				EditorGuiActions::DrawPasteObjectMenuItem(*popupScene);
+				EditorGuiActions::DrawPasteObjectMenuItem(*popupScene, menuParent);
             }
         }
         ImGui::EndPopup();
