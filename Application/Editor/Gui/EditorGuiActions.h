@@ -16,8 +16,8 @@ namespace EditorGuiActions
 	// ImGui::BeginPopupContextItem/ContextWindow 안에서 호출할 것.
 	bool DrawAddComponentMenu(CGameScene& scene, CGameObject* object);
 
-	// 버튼 + 팝업 조합으로 컴포넌트 추가 UI 표시.
-	bool DrawAddComponentButton(CGameScene& scene, CGameObject* object);
+	// 버튼 + 필터 가능한 팝업 조합으로 컴포넌트 추가 UI 표시.
+	bool DrawAddComponentButton(CGameScene& scene, CGameObject* object, const char* buttonLabel = nullptr);
 
 	// ── 오브젝트 ──────────────────────────────────────────────────────────
 

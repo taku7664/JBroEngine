@@ -14,10 +14,20 @@
 #include "Engine/GameFramework/Serialization/ComponentSerializer.h"
 #include "Engine/GameFramework/Serialization/ObjectSerializer.h"
 
+#include <algorithm>
+#include <cctype>
 #include <cstring>
 
 namespace
 {
+	std::string ToLowerAscii(std::string value)
+	{
+		std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
+			return static_cast<char>(std::tolower(c));
+		});
+		return value;
+	}
+
 	bool IsScriptComponent(const ComponentTypeInfo* componentType)
 	{
 		return componentType &&
@@ -60,7 +70,21 @@ namespace
 		return added;
 	}
 
-	bool DrawComponentList(CGameScene& scene, CGameObject* object)
+	bool AddComponent(CGameScene& scene, CGameObject* object, const ComponentTypeInfo& componentType)
+	{
+		return Editor::CommandManager.ExecuteCommand(
+			MakeOwnerPtr<CAddComponentCommand>(
+				scene.SafeFromThis(), object, componentType.Type.Id));
+	}
+
+	bool AddScriptComponent(CGameScene& scene, CGameObject* object, const ScriptTypeInfo& scriptType)
+	{
+		return Editor::CommandManager.ExecuteCommand(
+			MakeOwnerPtr<CAddScriptComponentCommand>(
+				scene.SafeFromThis(), object, scriptType.Type.Id));
+	}
+
+	bool DrawComponentList(CGameScene& scene, CGameObject* object, const char* filterText = "")
 	{
 		if (false == Engine.Reflection.IsValid() || nullptr == object)
 		{
@@ -71,18 +95,94 @@ namespace
 		bool added = false;
 		CReflectionRegistry& reflection = *Engine.Reflection;
 
-		// 단일 인스턴스: 아직 부착되지 않은 타입만 메뉴에 노출
-		auto isAvailable = [&](const ComponentTypeInfo* t) -> bool
+		auto canShowComponent = [](const ComponentTypeInfo* t) -> bool
 		{
-			return t->CanAddToObject &&
+			return t && t->CanAddToObject;
+		};
+
+		auto canAddComponent = [&](const ComponentTypeInfo* t) -> bool
+		{
+			return canShowComponent(t) &&
 			       false == reflection.HasComponent(*object, t->Type.Id);
 		};
+
+		const std::string filter = ToLowerAscii(filterText ? filterText : "");
+		if (false == filter.empty())
+		{
+			int resultCount = 0;
+			for (std::size_t i = 0; i < reflection.GetComponentTypeCount(); ++i)
+			{
+				const ComponentTypeInfo* componentType = reflection.GetComponentType(i);
+				if (false == canShowComponent(componentType) || IsScriptComponent(componentType)) continue;
+
+				const std::string componentLabel = EditorReflectionLabels::GetComponentLabel(*componentType);
+				const char* category = componentType->Type.Category ? componentType->Type.Category : "Components";
+				const char* typeName = componentType->Type.Name ? componentType->Type.Name : "";
+				const std::string haystack = ToLowerAscii(componentLabel + " " + typeName + " " + category);
+				if (haystack.find(filter) == std::string::npos)
+				{
+					continue;
+				}
+
+				const std::string label = componentLabel + "##component." + std::to_string(componentType->Type.Id);
+				const bool canAdd = canAddComponent(componentType);
+				++resultCount;
+				ImGui::BeginDisabled(false == canAdd);
+				if (ImGui::Selectable(label.c_str()) && canAdd)
+				{
+					added = AddComponent(scene, object, *componentType);
+					if (added)
+					{
+						ImGui::CloseCurrentPopup();
+					}
+				}
+				ImGui::EndDisabled();
+				if (false == canAdd && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+				{
+					ImGui::SetTooltip("%s", Loc::Text(EditorLocKeys::CommonAlreadyAdded));
+				}
+			}
+
+			for (std::size_t i = 0; i < reflection.GetScriptTypeCount(); ++i)
+			{
+				const ScriptTypeInfo* scriptType = reflection.GetScriptType(i);
+				if (nullptr == scriptType || scriptType->Type.Id == INVALID_TYPE_ID)
+				{
+					continue;
+				}
+
+				const std::string scriptLabel = EditorReflectionLabels::GetScriptDisplayName(scriptType);
+				const char* typeName = scriptType->Type.Name ? scriptType->Type.Name : "";
+				const std::string haystack = ToLowerAscii(scriptLabel + " " + typeName + " Script");
+				if (haystack.find(filter) == std::string::npos)
+				{
+					continue;
+				}
+
+				const std::string label = scriptLabel + "##script." + std::to_string(scriptType->Type.Id);
+				++resultCount;
+				if (ImGui::Selectable(label.c_str()))
+				{
+					added = AddScriptComponent(scene, object, *scriptType);
+					if (added)
+					{
+						ImGui::CloseCurrentPopup();
+					}
+				}
+			}
+
+			if (0 == resultCount)
+			{
+				ImGui::TextDisabled("%s", Loc::Text(EditorLocKeys::CommonNoResults));
+			}
+			return added;
+		}
 
 		std::vector<std::string> categories;
 		for (std::size_t i = 0; i < reflection.GetComponentTypeCount(); ++i)
 		{
 			const ComponentTypeInfo* componentType = reflection.GetComponentType(i);
-			if (nullptr == componentType || IsScriptComponent(componentType) || false == isAvailable(componentType)) continue;
+			if (false == canShowComponent(componentType) || IsScriptComponent(componentType)) continue;
 
 			const char* category = componentType->Type.Category ? componentType->Type.Category : "Components";
 			if (std::find(categories.begin(), categories.end(), category) == categories.end())
@@ -97,19 +197,21 @@ namespace
 				for (std::size_t i = 0; i < reflection.GetComponentTypeCount(); ++i)
 				{
 					const ComponentTypeInfo* componentType = reflection.GetComponentType(i);
-					if (nullptr == componentType || IsScriptComponent(componentType) || false == isAvailable(componentType)) continue;
+					if (false == canShowComponent(componentType) || IsScriptComponent(componentType)) continue;
 
 					const char* componentCategory =
 					    componentType->Type.Category ? componentType->Type.Category : "Components";
 					if (category != componentCategory) continue;
 
 					const std::string componentLabel = EditorReflectionLabels::GetComponentLabel(*componentType);
-					if (ImGui::MenuItem(componentLabel.c_str()))
+					const bool canAdd = canAddComponent(componentType);
+					if (ImGui::MenuItem(componentLabel.c_str(), nullptr, false, canAdd))
 					{
-						Editor::CommandManager.ExecuteCommand(
-						    MakeOwnerPtr<CAddComponentCommand>(
-						        scene.SafeFromThis(), object, componentType->Type.Id));
-						added = true;
+						added = AddComponent(scene, object, *componentType);
+					}
+					if (false == canAdd && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+					{
+						ImGui::SetTooltip("%s", Loc::Text(EditorLocKeys::CommonAlreadyAdded));
 					}
 				}
 				ImGui::EndMenu();
@@ -137,17 +239,26 @@ bool EditorGuiActions::DrawAddComponentMenu(CGameScene& scene, CGameObject* obje
 	return false;
 }
 
-bool EditorGuiActions::DrawAddComponentButton(CGameScene& scene, CGameObject* object)
+bool EditorGuiActions::DrawAddComponentButton(CGameScene& scene, CGameObject* object, const char* buttonLabel)
 {
 	bool added = false;
-	if (ImGui::Button(Loc::Text(EditorLocKeys::InspectorAddComponent)))
+	const char* label = buttonLabel ? buttonLabel : Loc::Text(EditorLocKeys::InspectorAddComponent);
+	if (ImGui::Selectable(label, false, ImGuiSelectableFlags_SpanAvailWidth))
 	{
 		ImGui::OpenPopup("AddComponentPopup");
 	}
 
 	if (ImGui::BeginPopup("AddComponentPopup"))
 	{
-		added = DrawComponentList(scene, object);
+		static char filter[128] = {};
+		ImGui::SetNextItemWidth(130.0f);
+		ImGui::InputTextWithHint("##component_filter", Loc::Text(EditorLocKeys::CommonFilter), filter, sizeof(filter));
+		ImGui::Separator();
+		added = DrawComponentList(scene, object, filter);
+		if (added)
+		{
+			filter[0] = '\0';
+		}
 		ImGui::EndPopup();
 	}
 	return added;

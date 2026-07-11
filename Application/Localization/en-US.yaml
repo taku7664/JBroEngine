@@ -81,6 +81,8 @@ Entries:
   common.search: Search
   common.yes: Yes
   common.no: No
+  common.no_results: No results.
+  common.already_added: Already added
 
   asset_drop.rejected: This asset cannot be assigned here.
   asset_drop.expected: "Expected:"
@@ -423,6 +425,11 @@ Entries:
   editor.component.GameObject: Game Object
   editor.component.Transform2D: Transform 2D
   editor.component.SpriteRenderer2D: Sprite Renderer 2D
+  editor.component.Text2D: Text 2D
+  editor.component.Square2D: Square Renderer 2D
+  editor.component.Circle2D: Circle Renderer 2D
+  editor.component.Polygon2D: Polygon Renderer 2D
+  editor.component.SpriteAnimator2D: Sprite Animator 2D
   editor.component.Camera2D: Camera 2D
   editor.component.Light2D: Light 2D
   editor.component.Rigidbody2D: Rigidbody 2D
@@ -442,9 +449,40 @@ Entries:
   editor.property.MaterialGuid: Material GUID
   editor.property.Size: Size
   editor.property.Offset: Offset
+  editor.property.FlipX: Flip X
+  editor.property.FlipY: Flip Y
+  editor.property.FrameIndex: Frame Index
   editor.property.Color: Color
   editor.property.SortOrder: Sort Order
   editor.property.LayerMask: Layer Mask
+  editor.property.CastShadow: Cast Shadow
+  editor.property.Text: Text
+  editor.property.FontFamilyGuid: Font Family
+  editor.property.FontStyle: Font Style
+  editor.property.FontSizePixels: Font Size (px)
+  editor.property.WidthPixels: Width (px)
+  editor.property.HeightPixels: Height (px)
+  editor.property.OverflowMode: Overflow
+  editor.property.AutoSizeEnabled: Auto Size
+  editor.property.MinFontSizePixels: Minimum Font Size (px)
+  editor.property.MaxFontSizePixels: Maximum Font Size (px)
+  editor.property.HorizontalAlignment: Horizontal Alignment
+  editor.property.VerticalAlignment: Vertical Alignment
+  editor.property.LineSpacing: Line Spacing
+  editor.property.LetterSpacingPixels: Letter Spacing (px)
+  editor.property.FillEnabled: Fill Enabled
+  editor.property.FillColor: Fill Color
+  editor.property.OutlineEnabled: Outline Enabled
+  editor.property.OutlineColor: Outline Color
+  editor.property.OutlineWidth: Outline Width
+  editor.property.OutlineWidthPixels: Outline Width (px)
+  editor.property.PixelSnap: Pixel Snap
+  editor.property.Segments: Segments
+  editor.property.StartAngle: Start Angle
+  editor.property.FramesPerSecond: Frames Per Second
+  editor.property.Playing: Playing
+  editor.property.StartFrame: Start Frame
+  editor.property.FrameCount: Frame Count
   editor.property.ProjectionMode: Projection Mode
   editor.property.OrthographicSize: Orthographic Size
   editor.property.PerspectiveFovDegrees: Perspective FOV
@@ -455,6 +493,8 @@ Entries:
   editor.property.Type: Type
   editor.property.Intensity: Intensity
   editor.property.Range: Range
+  editor.property.InnerAngleRadians: Inner Angle
+  editor.property.OuterAngleRadians: Outer Angle
   editor.property.CastShadows: Cast Shadows
   editor.property.BodyType: Body Type
   editor.property.Velocity: Velocity
@@ -478,6 +518,8 @@ Entries:
 
   editor.property.VertexCount: Vertex Count
   editor.property.IsTrigger: Is Trigger
+  editor.property.CollisionLayer: Collision Layer
+  editor.property.CollisionMask: Collision Mask
   editor.property.Radius: Radius
   editor.property.SourcePrefabGuid: Source Prefab GUID
 
@@ -637,27 +679,6 @@ Entries:
   inspector.font_family.leading_fallbacks: Leading Fallback Font Families
   inspector.font_family.add_fallback: Add Fallback
   inspector.font_family.apply: Apply Font Family
-  editor.component.Text2D: Text 2D
-  editor.property.Text: Text
-  editor.property.FontFamilyGuid: Font Family
-  editor.property.FontStyle: Font Style
-  editor.property.FontSizePixels: Font Size (px)
-  editor.property.WidthPixels: Width (px)
-  editor.property.HeightPixels: Height (px)
-  editor.property.OverflowMode: Overflow
-  editor.property.AutoSizeEnabled: Auto Size
-  editor.property.MinFontSizePixels: Minimum Font Size (px)
-  editor.property.MaxFontSizePixels: Maximum Font Size (px)
-  editor.property.HorizontalAlignment: Horizontal Alignment
-  editor.property.VerticalAlignment: Vertical Alignment
-  editor.property.LineSpacing: Line Spacing
-  editor.property.LetterSpacingPixels: Letter Spacing (px)
-  editor.property.FillEnabled: Fill Enabled
-  editor.property.FillColor: Fill Color
-  editor.property.OutlineEnabled: Outline Enabled
-  editor.property.OutlineColor: Outline Color
-  editor.property.OutlineWidthPixels: Outline Width (px)
-  editor.property.PixelSnap: Pixel Snap
   editor.enum.FontStyle.Regular: Regular
   editor.enum.FontStyle.Bold: Bold
   editor.enum.FontStyle.Italic: Italic

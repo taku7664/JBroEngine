@@ -81,6 +81,8 @@ Entries:
   common.search: 검색
   common.yes: 예
   common.no: 아니요
+  common.no_results: 검색 결과가 없습니다.
+  common.already_added: 이미 추가됨
 
   asset_drop.rejected: 이 위치에는 해당 에셋을 넣을 수 없습니다.
   asset_drop.expected: "필요 타입:"
@@ -423,6 +425,11 @@ Entries:
   editor.component.GameObject: 게임 오브젝트
   editor.component.Transform2D: 트랜스폼 2D
   editor.component.SpriteRenderer2D: 스프라이트 렌더러 2D
+  editor.component.Text2D: 2D 텍스트
+  editor.component.Square2D: 사각형 렌더러 2D
+  editor.component.Circle2D: 원 렌더러 2D
+  editor.component.Polygon2D: 다각형 렌더러 2D
+  editor.component.SpriteAnimator2D: 스프라이트 애니메이터 2D
   editor.component.Camera2D: 카메라 2D
   editor.component.Light2D: 라이트 2D
   editor.component.Rigidbody2D: 리지드바디 2D
@@ -442,9 +449,40 @@ Entries:
   editor.property.MaterialGuid: 머티리얼 GUID
   editor.property.Size: 크기
   editor.property.Offset: 오프셋
+  editor.property.FlipX: X 뒤집기
+  editor.property.FlipY: Y 뒤집기
+  editor.property.FrameIndex: 프레임 인덱스
   editor.property.Color: 색상
   editor.property.SortOrder: 정렬 순서
   editor.property.LayerMask: 레이어 마스크
+  editor.property.CastShadow: 그림자 생성
+  editor.property.Text: 텍스트
+  editor.property.FontFamilyGuid: 폰트 패밀리
+  editor.property.FontStyle: 폰트 스타일
+  editor.property.FontSizePixels: 폰트 크기 (px)
+  editor.property.WidthPixels: 너비 (px)
+  editor.property.HeightPixels: 높이 (px)
+  editor.property.OverflowMode: 넘침 처리
+  editor.property.AutoSizeEnabled: 자동 크기
+  editor.property.MinFontSizePixels: 최소 폰트 크기 (px)
+  editor.property.MaxFontSizePixels: 최대 폰트 크기 (px)
+  editor.property.HorizontalAlignment: 가로 정렬
+  editor.property.VerticalAlignment: 세로 정렬
+  editor.property.LineSpacing: 줄 간격
+  editor.property.LetterSpacingPixels: 자간 (px)
+  editor.property.FillEnabled: 채우기 사용
+  editor.property.FillColor: 채우기 색상
+  editor.property.OutlineEnabled: 외곽선 사용
+  editor.property.OutlineColor: 외곽선 색상
+  editor.property.OutlineWidth: 외곽선 두께
+  editor.property.OutlineWidthPixels: 외곽선 두께 (px)
+  editor.property.PixelSnap: 픽셀 맞춤
+  editor.property.Segments: 세그먼트
+  editor.property.StartAngle: 시작 각도
+  editor.property.FramesPerSecond: 초당 프레임
+  editor.property.Playing: 재생 중
+  editor.property.StartFrame: 시작 프레임
+  editor.property.FrameCount: 프레임 수
   editor.property.ProjectionMode: 투영 모드
   editor.property.OrthographicSize: 직교 크기
   editor.property.PerspectiveFovDegrees: 원근 FOV
@@ -455,6 +493,8 @@ Entries:
   editor.property.Type: 타입
   editor.property.Intensity: 강도
   editor.property.Range: 범위
+  editor.property.InnerAngleRadians: 내부 각도
+  editor.property.OuterAngleRadians: 외부 각도
   editor.property.CastShadows: 그림자 생성
   editor.property.BodyType: 바디 타입
   editor.property.Velocity: 속도
@@ -478,6 +518,8 @@ Entries:
 
   editor.property.VertexCount: 버텍스 개수
   editor.property.IsTrigger: 트리거
+  editor.property.CollisionLayer: 충돌 레이어
+  editor.property.CollisionMask: 충돌 마스크
   editor.property.Radius: 반지름
   editor.property.SourcePrefabGuid: 원본 프리팹 GUID
 
@@ -638,27 +680,6 @@ Entries:
   inspector.font_family.leading_fallbacks: 우선 대체 폰트 패밀리
   inspector.font_family.add_fallback: 대체 폰트 추가
   inspector.font_family.apply: 폰트 패밀리 적용
-  editor.component.Text2D: 2D 텍스트
-  editor.property.Text: 텍스트
-  editor.property.FontFamilyGuid: 폰트 패밀리
-  editor.property.FontStyle: 폰트 스타일
-  editor.property.FontSizePixels: 폰트 크기 (px)
-  editor.property.WidthPixels: 너비 (px)
-  editor.property.HeightPixels: 높이 (px)
-  editor.property.OverflowMode: 넘침 처리
-  editor.property.AutoSizeEnabled: 자동 크기
-  editor.property.MinFontSizePixels: 최소 폰트 크기 (px)
-  editor.property.MaxFontSizePixels: 최대 폰트 크기 (px)
-  editor.property.HorizontalAlignment: 가로 정렬
-  editor.property.VerticalAlignment: 세로 정렬
-  editor.property.LineSpacing: 줄 간격
-  editor.property.LetterSpacingPixels: 자간 (px)
-  editor.property.FillEnabled: 채우기 사용
-  editor.property.FillColor: 채우기 색상
-  editor.property.OutlineEnabled: 외곽선 사용
-  editor.property.OutlineColor: 외곽선 색상
-  editor.property.OutlineWidthPixels: 외곽선 두께 (px)
-  editor.property.PixelSnap: 픽셀 맞춤
   editor.enum.FontStyle.Regular: 기본
   editor.enum.FontStyle.Bold: 굵게
   editor.enum.FontStyle.Italic: 기울임

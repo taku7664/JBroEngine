@@ -130,6 +130,7 @@ namespace EditorLocKeys
 	constexpr const char* BuildSettingsWindowsIconImportFailed = "build_settings.windows_icon.import_failed";
 	constexpr const char* BuildSettingsWindowsIconInvalid = "build_settings.windows_icon.invalid";
 	constexpr const char* CommonApply = "common.apply";
+	constexpr const char* CommonAlreadyAdded = "common.already_added";
 	constexpr const char* CommonAsset = "common.asset";
 	constexpr const char* CommonBrowse = "common.browse";
 	constexpr const char* CommonCancel = "common.cancel";
@@ -146,6 +147,7 @@ namespace EditorLocKeys
 	constexpr const char* CommonMoveUp = "common.move_up";
 	constexpr const char* CommonName = "common.name";
 	constexpr const char* CommonNo = "common.no";
+	constexpr const char* CommonNoResults = "common.no_results";
 	constexpr const char* CommonOk = "common.ok";
 	constexpr const char* CommonOpen = "common.open";
 	constexpr const char* CommonPaste = "common.paste";

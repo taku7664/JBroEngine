@@ -1757,15 +1757,11 @@ void CInspectorTool::OnRenderStay()
 		}
 	}
 
-	if (listItems.empty())
-	{
-		ImGui::TextDisabled(Loc::Text(EditorLocKeys::InspectorNoOtherComponents));
-		return;
-	}
-
 	// 엔티티 변경 시 인덱스 범위 보정
-	if (m_selectedTabIndex >= static_cast<int>(listItems.size()))
+	if (listItems.empty() || m_selectedTabIndex >= static_cast<int>(listItems.size()))
+	{
 		m_selectedTabIndex = 0;
+	}
 
 	// 하이어라키에서 컴포넌트를 클릭하면(포커스 힌트) 해당 탭으로 전환한다.
 	if (false == Editor::GetFocusComponent().empty())
@@ -1783,8 +1779,11 @@ void CInspectorTool::OnRenderStay()
 	}
 
 	// 현재 선택된 탭의 컴포넌트 타입 이름 캐시 (SceneViewTool 등 외부 시스템이 참조)
-	m_activeComponentTypeName =
-		listItems[static_cast<std::size_t>(m_selectedTabIndex)].compEntry->typeInfo->Type.Name;
+	if (false == listItems.empty())
+	{
+		m_activeComponentTypeName =
+			listItems[static_cast<std::size_t>(m_selectedTabIndex)].compEntry->typeInfo->Type.Name;
+	}
 
 	// ── 레이아웃: 좌측 리스트 | 드래그 구분선 | 우측 컨텐츠 ──────────────────
 	constexpr float SPLITTER_W = 3.0f;
@@ -1802,69 +1801,81 @@ void CInspectorTool::OnRenderStay()
 	    ImVec2(leftW, availSpace.y), true, ImGuiWindowFlags_NoScrollbar);
 	{
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4.0f, 1.0f));
-		for (int idx = 0; idx < static_cast<int>(listItems.size()); ++idx)
+		if (listItems.empty())
 		{
-			const ListEntry& item     = listItems[static_cast<std::size_t>(idx)];
-			const bool       selected = (m_selectedTabIndex == idx);
-
-			// IsEnabled 확인 → 비활성화 컴포넌트는 dim 색상
-			const ComponentEntry& ce = *item.compEntry;
-			void* firstInst = (item.instIdx < ce.instances.size()) ? ce.instances[item.instIdx] : nullptr;
-			const bool isEnabled = firstInst
-			    ? GetComponentIsEnabled(firstInst, *ce.typeInfo)
-			    : true;
-
-			if (!isEnabled)
-				ImGui::PushStyleColor(ImGuiCol_Text, disabledTextCol);
-
-			// 아이콘 + 이름. 아이콘이 없으면 이름만 표시(자리는 비워 정렬 유지).
-			const ImTextureID iconTex = GetComponentIconTexture(ce.typeInfo->Type.Name);
-			const float       lineH   = ImGui::GetTextLineHeight();
-			if (0 != iconTex)
+			ImGui::TextDisabled("%s", Loc::Text(EditorLocKeys::InspectorNoOtherComponents));
+		}
+		else
+		{
+			for (int idx = 0; idx < static_cast<int>(listItems.size()); ++idx)
 			{
-				ImGui::Image(iconTex, ImVec2(lineH, lineH));
-			}
-			else
-			{
-				ImGui::Dummy(ImVec2(lineH, lineH));
-			}
-			ImGui::SameLine();
+				const ListEntry& item     = listItems[static_cast<std::size_t>(idx)];
+				const bool       selected = (m_selectedTabIndex == idx);
 
-			// ID 충돌 방지: 인덱스 접미사
-			char selLabel[256];
-			snprintf(selLabel, sizeof(selLabel), "%s##si%d", item.label.c_str(), idx);
+				// IsEnabled 확인 → 비활성화 컴포넌트는 dim 색상
+				const ComponentEntry& ce = *item.compEntry;
+				void* firstInst = (item.instIdx < ce.instances.size()) ? ce.instances[item.instIdx] : nullptr;
+				const bool isEnabled = firstInst
+				    ? GetComponentIsEnabled(firstInst, *ce.typeInfo)
+				    : true;
 
-			if (ImGui::Selectable(selLabel, selected,
-			        ImGuiSelectableFlags_SpanAllColumns,
-			        ImVec2(0.0f, 0.0f)))
-			{
-				m_selectedTabIndex = idx;
-			}
+				if (!isEnabled)
+					ImGui::PushStyleColor(ImGuiCol_Text, disabledTextCol);
 
-			if (!isEnabled)
-				ImGui::PopStyleColor();
-
-			// 우클릭 → 컴포넌트 제거 (style color 복원 후, item 은 직전 Selectable).
-			char ctxId[32];
-			snprintf(ctxId, sizeof(ctxId), "##compctx%d", idx);
-			if (ImGui::BeginPopupContextItem(ctxId))
-			{
-				// 복사/붙여넣기 — firstInst 는 단일 상속이라 곧 CComponent* 다.
-				if (CComponent* comp = static_cast<CComponent*>(firstInst))
+				// 아이콘 + 이름. 아이콘이 없으면 이름만 표시(자리는 비워 정렬 유지).
+				const ImTextureID iconTex = GetComponentIconTexture(ce.typeInfo->Type.Name);
+				const float       lineH   = ImGui::GetTextLineHeight();
+				if (0 != iconTex)
 				{
-					EditorGuiActions::DrawCopyComponentMenuItem(*comp);
+					ImGui::Image(iconTex, ImVec2(lineH, lineH));
 				}
-				EditorGuiActions::DrawPasteComponentMenuItem(*selectedObject);
-				ImGui::Separator();
-				if (ImGui::MenuItem(Loc::Text(EditorLocKeys::InspectorRemoveComponent)))
+				else
 				{
-					Editor::CommandManager.ExecuteCommand(
-						MakeOwnerPtr<CRemoveComponentCommand>(
-							scene->SafeFromThis(), selectedObject, ce.typeInfo->Type.Id));
+					ImGui::Dummy(ImVec2(lineH, lineH));
 				}
-				ImGui::EndPopup();
+				ImGui::SameLine();
+
+				// ID 충돌 방지: 인덱스 접미사
+				char selLabel[256];
+				snprintf(selLabel, sizeof(selLabel), "%s##si%d", item.label.c_str(), idx);
+
+				if (ImGui::Selectable(selLabel, selected,
+				        ImGuiSelectableFlags_SpanAllColumns,
+				        ImVec2(0.0f, 0.0f)))
+				{
+					m_selectedTabIndex = idx;
+				}
+
+				if (!isEnabled)
+					ImGui::PopStyleColor();
+
+				// 우클릭 → 컴포넌트 제거 (style color 복원 후, item 은 직전 Selectable).
+				char ctxId[32];
+				snprintf(ctxId, sizeof(ctxId), "##compctx%d", idx);
+				if (ImGui::BeginPopupContextItem(ctxId))
+				{
+					// 복사/붙여넣기 — firstInst 는 단일 상속이라 곧 CComponent* 다.
+					if (CComponent* comp = static_cast<CComponent*>(firstInst))
+					{
+						EditorGuiActions::DrawCopyComponentMenuItem(*comp);
+					}
+					EditorGuiActions::DrawPasteComponentMenuItem(*selectedObject);
+					ImGui::Separator();
+					if (ImGui::MenuItem(Loc::Text(EditorLocKeys::InspectorRemoveComponent)))
+					{
+						Editor::CommandManager.ExecuteCommand(
+							MakeOwnerPtr<CRemoveComponentCommand>(
+								scene->SafeFromThis(), selectedObject, ce.typeInfo->Type.Id));
+					}
+					ImGui::EndPopup();
+				}
 			}
 		}
+
+		ImGui::Separator();
+		const std::string addComponentLabel =
+			std::string("+ ") + Loc::Text(EditorLocKeys::InspectorAddComponent);
+		EditorGuiActions::DrawAddComponentButton(*scene, selectedObject, addComponentLabel.c_str());
 		ImGui::PopStyleVar();
 	}
 	ImGui::EndChild();
@@ -1883,16 +1894,22 @@ void CInspectorTool::OnRenderStay()
 	ImGui::BeginChild("##InspectorContent",
 	    ImVec2(rightW, availSpace.y), false, ImGuiWindowFlags_NoScrollbar);
 	{
-		const ListEntry&  sel     = listItems[static_cast<std::size_t>(m_selectedTabIndex)];
-		ComponentEntry&   e       = *sel.compEntry;
-		const std::size_t instIdx = sel.instIdx;
-		void* comp = (instIdx < e.instances.size()) ? e.instances[instIdx] : nullptr;
-
-		if (comp)
+		if (listItems.empty())
 		{
-			ImGui::PushID(static_cast<int>(e.typeIndex * 1000 + instIdx));
-			DrawIsEnabledCheckbox(*scene, selectedObject, *e.typeInfo, instIdx, comp, false);
-			DrawComponentProperties(*scene, selectedObject, *e.typeInfo, instIdx, comp);
+			ImGui::TextDisabled("%s", Loc::Text(EditorLocKeys::InspectorNoOtherComponents));
+		}
+		else
+		{
+			const ListEntry&  sel     = listItems[static_cast<std::size_t>(m_selectedTabIndex)];
+			ComponentEntry&   e       = *sel.compEntry;
+			const std::size_t instIdx = sel.instIdx;
+			void* comp = (instIdx < e.instances.size()) ? e.instances[instIdx] : nullptr;
+
+			if (comp)
+			{
+				ImGui::PushID(static_cast<int>(e.typeIndex * 1000 + instIdx));
+				DrawIsEnabledCheckbox(*scene, selectedObject, *e.typeInfo, instIdx, comp, false);
+				DrawComponentProperties(*scene, selectedObject, *e.typeInfo, instIdx, comp);
 
 			// ── ScriptComponent: REFLECT_FIELD 자동 표시 ──────────────────────
 			// ScriptComponent 의 ComponentTypeInfo::Properties 에는 IsEnabled 만 있다.
@@ -1996,6 +2013,7 @@ void CInspectorTool::OnRenderStay()
 
 			ImGui::PopID();
 		}
+	}
 	}
 	ImGui::EndChild();
 }
