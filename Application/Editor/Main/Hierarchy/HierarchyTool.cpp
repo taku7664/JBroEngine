@@ -137,11 +137,22 @@ void CHierarchyTool::OnRenderStay()
 	}
 
 	// ── 트리 노드 재귀 렌더링 ────────────────────────────────────────────────────
+	struct PendingSelectionClick
+	{
+		CGameObject* Object = nullptr;
+		bool Ctrl = false;
+		bool Shift = false;
+	};
+	std::vector<CGameObject*> visibleObjects;
+	visibleObjects.reserve(objects.size());
+	PendingSelectionClick pendingSelection;
+
 	std::function<void(std::size_t)> drawObject = [&](std::size_t objectIndex)
 	{
 		ImGui::Utillity::IDGroup idGroup(objectIndex); // 고유 ID 스코프 (인덱스 기반)
 
 		CGameObject* obj = objects[objectIndex];
+		visibleObjects.push_back(obj);
 		const auto childIt  = childrenByParent.find(obj);
 		const bool hasChildren = (childIt != childrenByParent.end() && !childIt->second.empty());
 
@@ -169,7 +180,9 @@ void CHierarchyTool::OnRenderStay()
 		if (ImGui::IsItemHovered() && ImGui::IsMouseReleased(ImGuiMouseButton_Left)
 			&& !ImGui::IsItemToggledOpen())
 		{
-			Editor::SelectEntity(obj);
+			pendingSelection.Object = obj;
+			pendingSelection.Ctrl = ImGui::GetIO().KeyCtrl;
+			pendingSelection.Shift = ImGui::GetIO().KeyShift;
 		}
 
 		// ── 더블클릭 → 씬뷰 포커스 컨텍스트 전환 ──────────────────────────────
@@ -178,6 +191,7 @@ void CHierarchyTool::OnRenderStay()
 		if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
 		{
 			Editor::SelectEntity(obj);
+			m_selectionAnchorGuid = obj->InstanceGuid;
 			if (Editor::SceneView)
 			{
 				Editor::SceneView->SetFocusContext(obj, *activeScene);
@@ -270,6 +284,76 @@ void CHierarchyTool::OnRenderStay()
 	for (std::size_t rootIndex : rootIndices)
 	{
 		drawObject(rootIndex);
+	}
+
+	if (pendingSelection.Object)
+	{
+		auto findVisibleObjectByGuid = [&visibleObjects](const File::Guid& guid) -> CGameObject*
+		{
+			if (guid.IsNull())
+			{
+				return nullptr;
+			}
+
+			for (CGameObject* visibleObject : visibleObjects)
+			{
+				if (visibleObject && visibleObject->InstanceGuid == guid)
+				{
+					return visibleObject;
+				}
+			}
+			return nullptr;
+		};
+
+		if (pendingSelection.Shift)
+		{
+			CGameObject* anchor = findVisibleObjectByGuid(m_selectionAnchorGuid);
+			if (nullptr == anchor)
+			{
+				anchor = Editor::GetSelectedEntity();
+			}
+			if (nullptr == anchor)
+			{
+				anchor = pendingSelection.Object;
+			}
+
+			const auto anchorIt = std::find(visibleObjects.begin(), visibleObjects.end(), anchor);
+			const auto clickedIt = std::find(visibleObjects.begin(), visibleObjects.end(), pendingSelection.Object);
+			if (anchorIt != visibleObjects.end() && clickedIt != visibleObjects.end())
+			{
+				const auto rangeBegin = anchorIt < clickedIt ? anchorIt : clickedIt;
+				const auto rangeEnd = anchorIt < clickedIt ? clickedIt : anchorIt;
+				std::vector<CGameObject*> range(rangeBegin, rangeEnd + 1);
+				if (pendingSelection.Ctrl)
+				{
+					for (CGameObject* object : range)
+					{
+						Editor::AddToSelection(object);
+					}
+				}
+				else
+				{
+					Editor::SelectEntities(range);
+				}
+			}
+		}
+		else if (pendingSelection.Ctrl)
+		{
+			if (Editor::IsSelected(pendingSelection.Object))
+			{
+				Editor::RemoveFromSelection(pendingSelection.Object);
+			}
+			else
+			{
+				Editor::AddToSelection(pendingSelection.Object);
+			}
+			m_selectionAnchorGuid = pendingSelection.Object->InstanceGuid;
+		}
+		else
+		{
+			Editor::SelectEntity(pendingSelection.Object);
+			m_selectionAnchorGuid = pendingSelection.Object->InstanceGuid;
+		}
 	}
 
 	// ── 빈 영역 드롭 존: 부모 해제 ───────────────────────────────────────────────

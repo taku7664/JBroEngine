@@ -1118,12 +1118,14 @@ void CSceneViewTool::OnRenderStay()
                                 const bool isSelfInFocus =
                                     m_editCtx.IsActive() && (picked == m_editCtx.GetContext());
 
-                                if (ImGui::GetIO().KeyCtrl)
+                                const bool ctrlSelect = ImGui::GetIO().KeyCtrl;
+                                const bool shiftSelect = ImGui::GetIO().KeyShift;
+                                if (ctrlSelect || shiftSelect)
                                 {
                                     std::vector<CGameObject*> targets =
                                         isSelfInFocus ? std::vector<CGameObject*>{ picked }
                                                       : CollectSubtree(*scene, picked);
-                                    if (Editor::IsSelected(picked))
+                                    if (ctrlSelect && Editor::IsSelected(picked))
                                         for (CGameObject* e : targets) Editor::RemoveFromSelection(e);
                                     else
                                         for (CGameObject* e : targets) Editor::AddToSelection(e);
@@ -1138,7 +1140,10 @@ void CSceneViewTool::OnRenderStay()
                             }
                             else
                             {
-                                Editor::ClearSelection();
+                                if (false == ImGui::GetIO().KeyCtrl && false == ImGui::GetIO().KeyShift)
+                                {
+                                    Editor::ClearSelection();
+                                }
                             }
                         }
                     }

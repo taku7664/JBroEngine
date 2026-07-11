@@ -14,6 +14,7 @@ enum class EEditorShortcut
 	Redo,
 	CopyObjects,
 	PasteObjects,
+	DeleteObjects,
 	TogglePlay,
 	TogglePause,
 };
@@ -42,7 +43,7 @@ public:
 	bool CanExecute(EEditorShortcut shortcut) const;
 	bool Execute(EEditorShortcut shortcut) const;
 
-	const std::array<EditorShortcutDescriptor, 7>& GetDescriptors() const;
+	const std::array<EditorShortcutDescriptor, 8>& GetDescriptors() const;
 	std::string GetShortcutText(EEditorShortcut shortcut) const;
 
 private:

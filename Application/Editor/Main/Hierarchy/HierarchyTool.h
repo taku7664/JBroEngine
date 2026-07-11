@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Engine/Editor/ImWindow/ImWindow.h"
+#include "Utillity/File/FilePath.h"
 
 class CHierarchyTool : public CImWindow
 {
@@ -15,5 +16,6 @@ private:
 	void OnRenderStay() override;
 
 private:
+	File::Guid m_selectionAnchorGuid;
 };
 

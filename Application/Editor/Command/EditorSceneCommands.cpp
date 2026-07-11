@@ -511,6 +511,104 @@ void CDeleteGameObjectCommand::Redo()
 	}
 }
 
+// ── CDeleteGameObjectsCommand ─────────────────────────────────────────────────
+
+CDeleteGameObjectsCommand::CDeleteGameObjectsCommand(
+	SafePtr<CGameScene> scene,
+	const std::vector<CGameObject*>& objects)
+	: m_scene(scene)
+{
+	if (false == m_scene.IsValid())
+	{
+		return;
+	}
+
+	m_entries.reserve(objects.size());
+	CPrefabSerializer serializer;
+	for (CGameObject* object : objects)
+	{
+		if (nullptr == object)
+		{
+			continue;
+		}
+
+		Entry entry;
+		entry.ObjectGuid = GuidOf(object);
+		entry.ParentGuid = GuidOf(object->GetParent().TryGet());
+		serializer.SerializePrefabToText(*m_scene, object, entry.Snapshot);
+		if (false == entry.ObjectGuid.IsNull() && false == entry.Snapshot.empty())
+		{
+			m_entries.push_back(std::move(entry));
+		}
+	}
+}
+
+const char* CDeleteGameObjectsCommand::GetName() const
+{
+	return "Delete GameObjects";
+}
+
+bool CDeleteGameObjectsCommand::Execute()
+{
+	if (false == m_scene.IsValid() || m_entries.empty())
+	{
+		return false;
+	}
+
+	bool deletedAny = false;
+	for (Entry& entry : m_entries)
+	{
+		CGameObject* object = Resolve(m_scene, entry.ObjectGuid);
+		if (nullptr == object)
+		{
+			entry.Deleted = false;
+			continue;
+		}
+
+		entry.Deleted = m_scene->DestroyGameObject(object);
+		deletedAny = deletedAny || entry.Deleted;
+	}
+	return deletedAny;
+}
+
+void CDeleteGameObjectsCommand::Undo()
+{
+	if (false == m_scene.IsValid())
+	{
+		return;
+	}
+
+	CPrefabSerializer serializer;
+	for (Entry& entry : m_entries)
+	{
+		if (false == entry.Deleted || entry.Snapshot.empty())
+		{
+			continue;
+		}
+
+		CGameObject* root = nullptr;
+		if (EPrefabSerializeResult::Success !=
+		    serializer.DeserializePrefabFromText(*m_scene, entry.Snapshot.c_str(), &root))
+		{
+			continue;
+		}
+
+		if (root && false == entry.ParentGuid.IsNull())
+		{
+			if (CGameObject* parent = Resolve(m_scene, entry.ParentGuid))
+			{
+				root->SetParent(*parent);
+			}
+		}
+		entry.Deleted = false;
+	}
+}
+
+void CDeleteGameObjectsCommand::Redo()
+{
+	Execute();
+}
+
 // ── CPasteObjectsCommand ──────────────────────────────────────────────────────
 
 namespace

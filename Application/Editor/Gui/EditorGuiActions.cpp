@@ -265,6 +265,24 @@ bool EditorGuiActions::PasteObjectsFromClipboard(CGameScene& scene, const Vector
 	return true;
 }
 
+bool EditorGuiActions::DeleteSelectedObjects(CGameScene& scene)
+{
+	const std::vector<CGameObject*> roots = Editor::GetSelectedTopLevel();
+	if (roots.empty())
+	{
+		return false;
+	}
+
+	if (false == Editor::CommandManager.ExecuteCommand(
+		MakeOwnerPtr<CDeleteGameObjectsCommand>(scene.SafeFromThis(), roots)))
+	{
+		return false;
+	}
+
+	Editor::ClearSelection();
+	return true;
+}
+
 bool EditorGuiActions::DrawCopyComponentMenuItem(const CComponent& component)
 {
 	if (ImGui::MenuItem(Loc::TextOr(EditorLocKeys::EditorMenuCopyComponent, "Copy Component")))

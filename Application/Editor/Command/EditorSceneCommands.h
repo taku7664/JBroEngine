@@ -230,6 +230,32 @@ private:
 	bool        m_deleted = false;
 };
 
+// 여러 오브젝트(+각 서브트리)를 한 번의 undo 단위로 삭제한다.
+// 호출자는 부모/자식 중복 삭제를 피하기 위해 최상위 선택만 넘기는 것을 전제로 한다.
+class CDeleteGameObjectsCommand final : public IEditorCommand
+{
+public:
+	CDeleteGameObjectsCommand(SafePtr<CGameScene> scene, const std::vector<CGameObject*>& objects);
+	~CDeleteGameObjectsCommand() override = default;
+
+	const char* GetName() const override;
+	bool Execute() override;
+	void Undo() override;
+	void Redo() override;
+
+private:
+	struct Entry
+	{
+		File::Guid ObjectGuid;
+		File::Guid ParentGuid;
+		std::string Snapshot;
+		bool Deleted = false;
+	};
+
+	SafePtr<CGameScene> m_scene;
+	std::vector<Entry> m_entries;
+};
+
 // 클립보드 오브젝트(들)을 붙여넣는다. 다중 + 위치 지정 + undo(붙여넣은 루트 일괄 파괴) 지원.
 class CPasteObjectsCommand final : public IEditorCommand
 {

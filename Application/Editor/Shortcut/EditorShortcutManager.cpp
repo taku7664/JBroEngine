@@ -22,12 +22,13 @@ namespace
 		return { key, ctrl, shift, alt };
 	}
 
-	const std::array<EditorShortcutDescriptor, 7> SHORTCUTS = {{
+	const std::array<EditorShortcutDescriptor, 8> SHORTCUTS = {{
 		{ EEditorShortcut::SaveProject,  EditorLocKeys::MenuFileSaveProject,     EditorLocKeys::MenuFile,       Bind(ImGuiKey_S, true), {} },
 		{ EEditorShortcut::Undo,         EditorLocKeys::MenuEditUndo,             EditorLocKeys::MenuEdit,       Bind(ImGuiKey_Z, true), {} },
 		{ EEditorShortcut::Redo,         EditorLocKeys::MenuEditRedo,             EditorLocKeys::MenuEdit,       Bind(ImGuiKey_Y, true), Bind(ImGuiKey_Z, true, true) },
 		{ EEditorShortcut::CopyObjects,  EditorLocKeys::EditorMenuCopyObject,    EditorLocKeys::MenuEdit,       Bind(ImGuiKey_C, true), {} },
 		{ EEditorShortcut::PasteObjects, EditorLocKeys::EditorMenuPasteObject,   EditorLocKeys::MenuEdit,       Bind(ImGuiKey_V, true), {} },
+		{ EEditorShortcut::DeleteObjects,EditorLocKeys::HierarchyDeleteObject,    EditorLocKeys::MenuEdit,       Bind(ImGuiKey_Delete), {} },
 		{ EEditorShortcut::TogglePlay,   EditorLocKeys::MenuSimulationPlayToggle, EditorLocKeys::MenuSimulation, Bind(ImGuiKey_F5), {} },
 		{ EEditorShortcut::TogglePause,  EditorLocKeys::MenuSimulationPauseToggle,EditorLocKeys::MenuSimulation, Bind(ImGuiKey_F6), {} },
 	}};
@@ -70,6 +71,8 @@ bool CEditorShortcutManager::CanExecute(EEditorShortcut shortcut) const
 		return false == Editor::GetSelectedEntities().empty();
 	case EEditorShortcut::PasteObjects:
 		return EditorContext::GetActiveScene().IsValid() && EditorGuiActions::HasObjectClipboardData();
+	case EEditorShortcut::DeleteObjects:
+		return EditorContext::GetActiveScene().IsValid() && false == Editor::GetSelectedEntities().empty();
 	case EEditorShortcut::TogglePlay:
 		return EditorContext::GetActiveScene().IsValid();
 	case EEditorShortcut::TogglePause:
@@ -120,6 +123,11 @@ bool CEditorShortcutManager::Execute(EEditorShortcut shortcut) const
 		}
 		return EditorGuiActions::PasteObjectsFromClipboard(*scene);
 	}
+	case EEditorShortcut::DeleteObjects:
+	{
+		SafePtr<CGameScene> scene = EditorContext::GetActiveScene();
+		return scene.IsValid() && EditorGuiActions::DeleteSelectedObjects(*scene);
+	}
 	case EEditorShortcut::TogglePlay:
 		if (Engine.SceneManager->IsSimulationPlaying() || Engine.SceneManager->IsSimulationPaused())
 		{
@@ -149,7 +157,7 @@ bool CEditorShortcutManager::Execute(EEditorShortcut shortcut) const
 	}
 }
 
-const std::array<EditorShortcutDescriptor, 7>& CEditorShortcutManager::GetDescriptors() const
+const std::array<EditorShortcutDescriptor, 8>& CEditorShortcutManager::GetDescriptors() const
 {
 	return SHORTCUTS;
 }
