@@ -158,7 +158,12 @@ public:
 	}
 
 	// ── 편의 연산자 ────────────────────────────────────────────────────────────
-	explicit operator bool() const { return nullptr != Get(); }
+	// 참조가 "설정되어 있는가"(guid 보유)만 본다 — 대상을 해석/로드하지 않는다.
+	//  · 이전엔 Get() 을 불러 매 검사마다 File::Guid(=fs::path) 힙 생성 + 재해석을 했고,
+	//    Asset 카테고리는 존재 확인만 해도 LoadAsset(디스크 I/O)을 트리거하는 부작용이 있었다.
+	//  · 주의: 대상이 살아있음을 보장하지 않는다("설정됨" ≠ "해석 가능"). 안전한 역참조는
+	//    `if (T* p = ref.Get()) p->...` 관용구를 쓴다(operator-> 는 대상이 없으면 nullptr).
+	explicit operator bool() const { return false == IsNull(); }
 	T*        operator->() const { return Get(); }
 	T&        operator*()  const { return *Get(); }
 
