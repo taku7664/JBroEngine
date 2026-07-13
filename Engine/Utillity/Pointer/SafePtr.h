@@ -13,6 +13,10 @@ class EnableSafeFromThis;
 
 namespace SafePtrDetail
 {
+	// 제어 블록은 삭제 전용 포인터(void*)와 삭제자만 들고 있다. 접근용 포인터는 각
+	// SafePtr/OwnerPtr 이 자기 정적 타입에 맞게 보정한 값을 따로 보관한다(shared_ptr 의
+	// aliasing 모델). 이렇게 해야 다중상속에서 2차 베이스로 캐스트해도 올바른 주소가 나온다
+	// (void* → static_cast 만 쓰면 오프셋 보정이 사라져 오주소가 된다).
 	struct ControlBlock
 	{
 		void* Ptr;
@@ -58,7 +62,8 @@ public:
 			return nullptr;
 		}
 
-		return SafePtr<T>(m_controlBlock);
+		// static_cast<T*>(this) — T 는 EnableSafeFromThis<T> 를 상속(CRTP)하므로 정식 다운캐스트.
+		return SafePtr<T>(m_controlBlock, static_cast<T*>(this));
 	}
 
 	SafePtr<const T> SafeFromThis() const
@@ -68,7 +73,7 @@ public:
 			return nullptr;
 		}
 
-		return SafePtr<const T>(m_controlBlock);
+		return SafePtr<const T>(m_controlBlock, static_cast<const T*>(this));
 	}
 
 private:
@@ -90,10 +95,11 @@ class OwnerPtr final
 	friend class SafePtr;
 
 public:
-	OwnerPtr() : m_controlBlock(nullptr) {}
-	OwnerPtr(std::nullptr_t) : m_controlBlock(nullptr) {}
+	OwnerPtr() : m_controlBlock(nullptr), m_ptr(nullptr) {}
+	OwnerPtr(std::nullptr_t) : m_controlBlock(nullptr), m_ptr(nullptr) {}
 	explicit OwnerPtr(T* ptr)
 		: m_controlBlock(ptr ? new SafePtrDetail::ControlBlock(ptr, &SafePtrDetail::DeletePtr<T>) : nullptr)
+		, m_ptr(ptr)
 	{
 		if (ptr && m_controlBlock)
 		{
@@ -106,8 +112,10 @@ public:
 
 	OwnerPtr(OwnerPtr&& rhs) noexcept
 		: m_controlBlock(rhs.m_controlBlock)
+		, m_ptr(rhs.m_ptr)
 	{
 		rhs.m_controlBlock = nullptr;
+		rhs.m_ptr = nullptr;
 	}
 	OwnerPtr& operator=(OwnerPtr&& rhs) noexcept
 	{
@@ -116,7 +124,9 @@ public:
 
 		DestroyOwned();
 		m_controlBlock = rhs.m_controlBlock;
+		m_ptr = rhs.m_ptr;
 		rhs.m_controlBlock = nullptr;
+		rhs.m_ptr = nullptr;
 		return *this;
 	}
 
@@ -124,8 +134,10 @@ public:
 	requires std::is_convertible_v<U*, T*>
 	OwnerPtr(OwnerPtr<U>&& rhs) noexcept
 		: m_controlBlock(rhs.m_controlBlock)
+		, m_ptr(rhs.m_ptr)   // U* → T* 정식 변환(오프셋 보정 포함)
 	{
 		rhs.m_controlBlock = nullptr;
+		rhs.m_ptr = nullptr;
 	}
 
 	template<typename U>
@@ -134,7 +146,9 @@ public:
 	{
 		DestroyOwned();
 		m_controlBlock = rhs.m_controlBlock;
+		m_ptr = rhs.m_ptr;
 		rhs.m_controlBlock = nullptr;
+		rhs.m_ptr = nullptr;
 		return *this;
 	}
 
@@ -153,13 +167,14 @@ public:
 		if (ptr)
 		{
 			m_controlBlock = new SafePtrDetail::ControlBlock(ptr, &SafePtrDetail::DeletePtr<T>);
+			m_ptr = ptr;
 			SafePtrDetail::BindSafeFromThisControlBlock(ptr, m_controlBlock);
 		}
 	}
 
 	T* Get() const
 	{
-		return (m_controlBlock && m_controlBlock->Alive) ? static_cast<T*>(m_controlBlock->Ptr) : nullptr;
+		return (m_controlBlock && m_controlBlock->Alive) ? m_ptr : nullptr;
 	}
 
 	T& operator*() const { return *Get(); }
@@ -168,7 +183,7 @@ public:
 
 	SafePtr<T> GetSafePtr() const
 	{
-		return SafePtr<T>(m_controlBlock);
+		return SafePtr<T>(m_controlBlock, m_ptr);
 	}
 	operator SafePtr<T>() const { return GetSafePtr(); }
 
@@ -176,7 +191,10 @@ private:
 	void DestroyOwned()
 	{
 		if (!m_controlBlock)
+		{
+			m_ptr = nullptr;
 			return;
+		}
 
 		if (m_controlBlock->Alive && m_controlBlock->Ptr)
 		{
@@ -191,10 +209,12 @@ private:
 		}
 
 		m_controlBlock = nullptr;
+		m_ptr = nullptr;
 	}
 
 private:
 	SafePtrDetail::ControlBlock* m_controlBlock;
+	T*                          m_ptr;   // 접근용 보정 포인터(삭제는 ControlBlock::Ptr 담당).
 };
 
 template<typename T>
@@ -214,11 +234,12 @@ class SafePtr final
 	friend SafePtr<To> DynamicSafePtrCast(const SafePtr<From>& ptr);
 
 public:
-	SafePtr() : m_controlBlock(nullptr) {}
-	SafePtr(std::nullptr_t) : m_controlBlock(nullptr) {}
+	SafePtr() : m_controlBlock(nullptr), m_ptr(nullptr) {}
+	SafePtr(std::nullptr_t) : m_controlBlock(nullptr), m_ptr(nullptr) {}
 
 	SafePtr(const SafePtr& rhs)
 		: m_controlBlock(rhs.m_controlBlock)
+		, m_ptr(rhs.m_ptr)
 	{
 		AddRef();
 	}
@@ -229,6 +250,7 @@ public:
 
 		ReleaseRef();
 		m_controlBlock = rhs.m_controlBlock;
+		m_ptr = rhs.m_ptr;
 		AddRef();
 		return *this;
 	}
@@ -237,6 +259,7 @@ public:
 	requires std::is_convertible_v<U*, T*>
 	SafePtr(const SafePtr<U>& rhs)
 		: m_controlBlock(rhs.m_controlBlock)
+		, m_ptr(rhs.m_ptr)   // U* → T* 정식 변환(오프셋 보정 포함)
 	{
 		AddRef();
 	}
@@ -249,14 +272,17 @@ public:
 
 		ReleaseRef();
 		m_controlBlock = rhs.m_controlBlock;
+		m_ptr = rhs.m_ptr;
 		AddRef();
 		return *this;
 	}
 
 	SafePtr(SafePtr&& rhs) noexcept
 		: m_controlBlock(rhs.m_controlBlock)
+		, m_ptr(rhs.m_ptr)
 	{
 		rhs.m_controlBlock = nullptr;
+		rhs.m_ptr = nullptr;
 	}
 	SafePtr& operator=(SafePtr&& rhs) noexcept
 	{
@@ -265,7 +291,9 @@ public:
 
 		ReleaseRef();
 		m_controlBlock = rhs.m_controlBlock;
+		m_ptr = rhs.m_ptr;
 		rhs.m_controlBlock = nullptr;
+		rhs.m_ptr = nullptr;
 		return *this;
 	}
 
@@ -278,6 +306,7 @@ public:
 	{
 		ReleaseRef();
 		m_controlBlock = nullptr;
+		m_ptr = nullptr;
 	}
 
 	bool IsValid() const
@@ -287,7 +316,7 @@ public:
 
 	T* TryGet() const
 	{
-		return IsValid() ? static_cast<T*>(m_controlBlock->Ptr) : nullptr;
+		return IsValid() ? m_ptr : nullptr;
 	}
 
 	T& operator*() const { return *TryGet(); }
@@ -317,8 +346,9 @@ public:
 	}
 
 private:
-	explicit SafePtr(SafePtrDetail::ControlBlock* block)
+	SafePtr(SafePtrDetail::ControlBlock* block, T* ptr)
 		: m_controlBlock(block)
+		, m_ptr(ptr)
 	{
 		AddRef();
 	}
@@ -342,10 +372,12 @@ private:
 		}
 
 		m_controlBlock = nullptr;
+		m_ptr = nullptr;
 	}
 
 private:
 	SafePtrDetail::ControlBlock* m_controlBlock;
+	T*                          m_ptr;   // 접근용 보정 포인터(수명은 ControlBlock 이 관리).
 };
 
 template<typename T>
@@ -374,10 +406,8 @@ SafePtr<To> StaticSafePtrCast(const SafePtr<From>& ptr)
 		return nullptr;
 	}
 
-	static_assert(std::is_base_of_v<To, From> || std::is_base_of_v<From, To>,
-		"StaticSafePtrCast requires To and From to be related by inheritance.");
-
-	return SafePtr<To>(ptr.m_controlBlock);
+	// 보정된 접근 포인터로 정식 static_cast(void* 경유가 아니므로 오프셋 정확).
+	return SafePtr<To>(ptr.m_controlBlock, static_cast<To*>(ptr.m_ptr));
 }
 
 template<typename To, typename From>
@@ -388,11 +418,11 @@ SafePtr<To> DynamicSafePtrCast(const SafePtr<From>& ptr)
 		return nullptr;
 	}
 
-	To* casted = dynamic_cast<To*>(ptr.TryGet());
+	To* casted = dynamic_cast<To*>(ptr.m_ptr);
 	if (nullptr == casted)
 	{
 		return nullptr;
 	}
 
-	return SafePtr<To>(ptr.m_controlBlock);
+	return SafePtr<To>(ptr.m_controlBlock, casted);
 }
