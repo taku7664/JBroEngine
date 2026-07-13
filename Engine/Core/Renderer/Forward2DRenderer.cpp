@@ -737,6 +737,18 @@ fn PSMain(input : VSOut) -> @location(0) vec4<f32>
 	return vec4<f32>(mapped, hdr.a);
 }
 )";
+
+	// 스프라이트/풀스크린 쿼드의 표준 정점 레이아웃(POSITION.xy, TEXCOORD.xy)을 채운다.
+	// 대부분의 파이프라인이 같은 2요소 레이아웃을 쓰므로 헬퍼로 공유(나머지 필드는 struct 기본값).
+	void SetPositionUvElements(RHIVertexElementDesc* elements)
+	{
+		elements[0].SemanticName = "POSITION";
+		elements[0].Format = ERHIVertexFormat::Float2;
+		elements[0].Offset = 0;
+		elements[1].SemanticName = "TEXCOORD";
+		elements[1].Format = ERHIVertexFormat::Float2;
+		elements[1].Offset = sizeof(float) * 2;
+	}
 }
 
 bool CForward2DRenderer::Initialize(const RendererDesc& desc)
@@ -1088,22 +1100,7 @@ void CForward2DRenderer::DrawLight2D(IRHICommandContext& commandContext, int typ
 	}
 	const ViewParameters view = BuildViewParameters();
 	SpriteConstants constants = BuildLightConstants(type, worldX, worldY, range, color, intensity, view);
-	// 그림자면 ShadowAtlas 바인딩 + ShadowParams(행/행수/softness) → PS 가 (θ,r) 폴라 샘플로 light 차폐.
-	const bool useShadow = shadowAtlas.IsValid() && shadowRow >= 0;
-	SafePtr<IRHITexture> tex = useShadow ? shadowAtlas : m_whiteTexture.GetSafePtr();
-	constants.ShadowParams[0] = useShadow ? static_cast<float>(shadowRow) : -1.0f;
-	constants.ShadowParams[1] = static_cast<float>(shadowRowCount > 0 ? shadowRowCount : 1);
-	constants.ShadowParams[2] = softness01;
-	constants.ShadowParams[3] = 0.0f;
-	RenderStateCache stateCache;
-	DrawSpriteQuad(
-		commandContext,
-		stateCache,
-		m_lightPipeline.GetSafePtr(),
-		m_quadMesh.GetSafePtr(),
-		tex,
-		m_defaultSampler.GetSafePtr(),
-		constants);
+	SubmitLightQuad(commandContext, constants, shadowAtlas, shadowRow, shadowRowCount, softness01);
 }
 
 void CForward2DRenderer::DrawLight2DSpot(IRHICommandContext& commandContext, float worldX, float worldY,
@@ -1125,6 +1122,13 @@ void CForward2DRenderer::DrawLight2DSpot(IRHICommandContext& commandContext, flo
 	constants.SecondaryColor[1] = dirY;
 	constants.SecondaryColor[2] = std::cos(innerHalf);
 	constants.SecondaryColor[3] = std::cos(outerHalf);
+	SubmitLightQuad(commandContext, constants, shadowAtlas, shadowRow, shadowRowCount, softness01);
+}
+
+void CForward2DRenderer::SubmitLightQuad(IRHICommandContext& commandContext, SpriteConstants& constants,
+	SafePtr<IRHITexture> shadowAtlas, int shadowRow, int shadowRowCount, float softness01)
+{
+	// 그림자면 ShadowAtlas 바인딩 + ShadowParams(행/행수/softness) → PS 가 (θ,r) 폴라 샘플로 light 차폐.
 	const bool useShadow = shadowAtlas.IsValid() && shadowRow >= 0;
 	SafePtr<IRHITexture> tex = useShadow ? shadowAtlas : m_whiteTexture.GetSafePtr();
 	constants.ShadowParams[0] = useShadow ? static_cast<float>(shadowRow) : -1.0f;
@@ -1246,12 +1250,7 @@ bool CForward2DRenderer::CreateOccluderFillPipeline()
 	}
 
 	RHIVertexElementDesc elements[2];
-	elements[0].SemanticName = "POSITION";
-	elements[0].Format = ERHIVertexFormat::Float2;
-	elements[0].Offset = 0;
-	elements[1].SemanticName = "TEXCOORD";
-	elements[1].Format = ERHIVertexFormat::Float2;
-	elements[1].Offset = sizeof(float) * 2;
+	SetPositionUvElements(elements);
 
 	RHIGraphicsPipelineDesc desc;
 	desc.VertexProgram = m_spriteVertexProgram.GetSafePtr();
@@ -1814,12 +1813,7 @@ bool CForward2DRenderer::CreateTextPipeline()
 	m_textPixelProgram = m_rhiDevice->CreateProgram(pixelDesc);
 	if (!m_textVertexProgram || !m_textPixelProgram) return false;
 	RHIVertexElementDesc elements[2];
-	elements[0].SemanticName = "POSITION";
-	elements[0].Format = ERHIVertexFormat::Float2;
-	elements[0].Offset = 0;
-	elements[1].SemanticName = "TEXCOORD";
-	elements[1].Format = ERHIVertexFormat::Float2;
-	elements[1].Offset = sizeof(float) * 2;
+	SetPositionUvElements(elements);
 	RHIGraphicsPipelineDesc desc;
 	desc.VertexProgram = m_textVertexProgram.GetSafePtr();
 	desc.PixelProgram = m_textPixelProgram.GetSafePtr();
@@ -1870,12 +1864,7 @@ bool CForward2DRenderer::CreateSpritePipeline()
 	}
 
 	RHIVertexElementDesc elements[2];
-	elements[0].SemanticName = "POSITION";
-	elements[0].Format = ERHIVertexFormat::Float2;
-	elements[0].Offset = 0;
-	elements[1].SemanticName = "TEXCOORD";
-	elements[1].Format = ERHIVertexFormat::Float2;
-	elements[1].Offset = sizeof(float) * 2;
+	SetPositionUvElements(elements);
 
 	RHIGraphicsPipelineDesc pipelineDesc;
 	pipelineDesc.VertexProgram = m_spriteVertexProgram.GetSafePtr();
@@ -1898,12 +1887,7 @@ bool CForward2DRenderer::CreateBlitPipeline()
 	}
 
 	RHIVertexElementDesc elements[2];
-	elements[0].SemanticName = "POSITION";
-	elements[0].Format = ERHIVertexFormat::Float2;
-	elements[0].Offset = 0;
-	elements[1].SemanticName = "TEXCOORD";
-	elements[1].Format = ERHIVertexFormat::Float2;
-	elements[1].Offset = sizeof(float) * 2;
+	SetPositionUvElements(elements);
 
 	RHIGraphicsPipelineDesc desc;
 	desc.VertexProgram = m_spriteVertexProgram.GetSafePtr();
@@ -1944,12 +1928,7 @@ bool CForward2DRenderer::CreateLightPipeline()
 	}
 
 	RHIVertexElementDesc elements[2];
-	elements[0].SemanticName = "POSITION";
-	elements[0].Format = ERHIVertexFormat::Float2;
-	elements[0].Offset = 0;
-	elements[1].SemanticName = "TEXCOORD";
-	elements[1].Format = ERHIVertexFormat::Float2;
-	elements[1].Offset = sizeof(float) * 2;
+	SetPositionUvElements(elements);
 
 	RHIGraphicsPipelineDesc desc;
 	desc.VertexProgram = m_spriteVertexProgram.GetSafePtr();
@@ -1993,12 +1972,7 @@ bool CForward2DRenderer::CreatePolarReductionPipeline()
 	}
 
 	RHIVertexElementDesc elements[2];
-	elements[0].SemanticName = "POSITION";
-	elements[0].Format = ERHIVertexFormat::Float2;
-	elements[0].Offset = 0;
-	elements[1].SemanticName = "TEXCOORD";
-	elements[1].Format = ERHIVertexFormat::Float2;
-	elements[1].Offset = sizeof(float) * 2;
+	SetPositionUvElements(elements);
 
 	RHIGraphicsPipelineDesc desc;
 	desc.VertexProgram = m_polarReductionVertexProgram.GetSafePtr();
@@ -2049,12 +2023,7 @@ bool CForward2DRenderer::CreateCompositePipeline()
 	}
 
 	RHIVertexElementDesc elements[2];
-	elements[0].SemanticName = "POSITION";
-	elements[0].Format = ERHIVertexFormat::Float2;
-	elements[0].Offset = 0;
-	elements[1].SemanticName = "TEXCOORD";
-	elements[1].Format = ERHIVertexFormat::Float2;
-	elements[1].Offset = sizeof(float) * 2;
+	SetPositionUvElements(elements);
 
 	RHIGraphicsPipelineDesc desc;
 	desc.VertexProgram = m_spriteVertexProgram.GetSafePtr();
@@ -2095,12 +2064,7 @@ bool CForward2DRenderer::CreateTonemapPipeline()
 	}
 
 	RHIVertexElementDesc elements[2];
-	elements[0].SemanticName = "POSITION";
-	elements[0].Format = ERHIVertexFormat::Float2;
-	elements[0].Offset = 0;
-	elements[1].SemanticName = "TEXCOORD";
-	elements[1].Format = ERHIVertexFormat::Float2;
-	elements[1].Offset = sizeof(float) * 2;
+	SetPositionUvElements(elements);
 
 	RHIGraphicsPipelineDesc desc;
 	desc.VertexProgram = m_spriteVertexProgram.GetSafePtr();

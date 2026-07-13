@@ -151,6 +151,9 @@ private:
 	SpriteInstanceData BuildSpriteInstanceData(const RenderItem& item) const;
 	SpriteConstants BuildViewportColorConstants(float r, float g, float b, float a) const;
 	SpriteConstants BuildLightConstants(int type, float worldX, float worldY, float range, const float color[4], float intensity, const ViewParameters& view) const;
+	// DrawLight2D/DrawLight2DSpot 공통 꼬리 — 그림자 파라미터를 채우고 라이트 쿼드를 그린다.
+	void SubmitLightQuad(IRHICommandContext& commandContext, SpriteConstants& constants,
+		SafePtr<IRHITexture> shadowAtlas, int shadowRow, int shadowRowCount, float softness01);
 	bool IsSpriteItemVisibleInView(const RenderItem& item, const ViewParameters& view) const;
 	SafePtr<IRHIBuffer> AcquireSpriteConstantBuffer(IRHICommandContext& commandContext, const SpriteConstants& constants);
 	SafePtr<IRHIBuffer> AcquireSpriteViewConstantBuffer(IRHICommandContext& commandContext, const SpriteViewConstants& constants);
