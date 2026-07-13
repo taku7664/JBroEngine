@@ -28,7 +28,6 @@ public:
 	// 전부 SafePtr 를 돌려준다 — 멤버로 저장해도 안전(대상 파괴 시 IsValid()==false).
 	SafePtr<CGameScene> GetScene() const;
 	const char* GetTypeName() const override { return m_typeName; }
-	TypeId GetScriptTypeId() const { return m_scriptTypeId; }
 
 	// 부착된 오브젝트의 T 컴포넌트(첫 매치) SafePtr. 없으면 빈 SafePtr.
 	template<typename T>
@@ -48,9 +47,6 @@ public:
 		// 컴포넌트도 EnableSafeFromThis<CComponent> — SafeFromThis 로 안전참조를 얻어 T 로 다운캐스트.
 		return StaticSafePtrCast<T>(component->SafeFromThis());
 	}
-
-	bool IsStarted() const;
-	bool IsBound() const;
 
 public:
 	CGameScript(
@@ -91,12 +87,13 @@ private:
 	friend class CPhysics2DSystem; // 충돌/트리거 디스패치
 	friend class CReflectionRegistry;
 
-	void Bind(CGameScene& scene, TypeId scriptTypeId, const char* typeName);
+	void Bind(CGameScene& scene, const char* typeName);
 	void Create();
 	void Start();
 	void Update();
 	void FixedUpdate();
 	void Destroy();
+	bool IsStarted() const;
 
 	// 호스트가 윈도우 이벤트를 받아 호출하는 디스패치 진입점(시작된 인스턴스에만 전달).
 	void ApplicationFocusGained();
@@ -114,11 +111,9 @@ private:
 
 private:
 	SafePtr<CGameScene> m_scene;
-	TypeId m_scriptTypeId = INVALID_TYPE_ID;
 	char m_typeName[128] = "CGameScript";
 	bool m_isCreated = false;
 	bool m_isStarted = false;
-	bool m_isBound   = false;
 };
 
 // 사용자 대면 별칭 — 스크립트는 접두사 없는 이름으로 쓴다(예: class Foo : public GameScript).

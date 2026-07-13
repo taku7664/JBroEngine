@@ -8,7 +8,6 @@
 
 #include <cstring>
 #include <type_traits>
-#include <typeindex>
 #include <typeinfo>
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -48,14 +47,14 @@ namespace RefDetail
 	// (오브젝트 guid + 컴포넌트 guid) → 활성 씬의 그 오브젝트에서 컴포넌트 guid 로 특정
 	// 컴포넌트를 찾고, 타입이 맞으면 주소(void*)를 반환. 같은 타입이 여럿이어도 1개 지목.
 	// 컴포넌트 guid 가 비어 있으면(구 데이터) 타입 첫 매치로 폴백.
-	void* ResolveComponent(const char* objectGuid, const char* componentGuid, std::type_index componentType);
+	void* ResolveComponent(const char* objectGuid, const char* componentGuid, TypeId componentTypeId);
 
 	// InstanceGuid → 활성 씬의 오브젝트(CGameObject*) 자체.
 	CGameObject* ResolveObject(const char* instanceGuid);
 
 	// (오브젝트 guid + 컴포넌트 guid) → 그 오브젝트의 특정 CGameScript.
 	// 컴포넌트 guid 가 비어 있으면 첫 CGameScript 로 폴백.
-	CGameScript* ResolveScript(const char* objectGuid, const char* componentGuid);
+	CGameScript* ResolveScript(const char* objectGuid, const char* componentGuid, TypeId scriptTypeId);
 
 	// AssetGuid → 활성 에셋 매니저에서 로드/조회한 IAsset*.
 	IAsset* ResolveAsset(const char* assetGuid);
@@ -116,7 +115,17 @@ public:
 		else if constexpr (ERefCategory::Script == Category)
 		{
 			// 스크립트 — (오브젝트 guid + 컴포넌트 guid) 로 특정 CGameScript 해석.
-			return dynamic_cast<T*>(RefDetail::ResolveScript(Guid, ComponentGuid));
+			if constexpr (requires { T::StaticTypeName(); })
+			{
+				return static_cast<T*>(RefDetail::ResolveScript(
+					Guid,
+					ComponentGuid,
+					MakeStableTypeId(T::StaticTypeName())));
+			}
+			else
+			{
+				return dynamic_cast<T*>(RefDetail::ResolveScript(Guid, ComponentGuid, INVALID_TYPE_ID));
+			}
 		}
 		else if constexpr (ERefCategory::Object == Category)
 		{
@@ -131,7 +140,20 @@ public:
 		else
 		{
 			// 컴포넌트 — (오브젝트 guid + 컴포넌트 guid) 로 특정 1개. void* 는 실제 T*.
-			return static_cast<T*>(RefDetail::ResolveComponent(Guid, ComponentGuid, std::type_index(typeid(T))));
+			if constexpr (requires { T::StaticTypeName(); })
+			{
+				return static_cast<T*>(RefDetail::ResolveComponent(
+					Guid,
+					ComponentGuid,
+					MakeStableTypeId(T::StaticTypeName())));
+			}
+			else
+			{
+				return dynamic_cast<T*>(static_cast<CComponent*>(RefDetail::ResolveComponent(
+					Guid,
+					ComponentGuid,
+					INVALID_TYPE_ID)));
+			}
 		}
 	}
 

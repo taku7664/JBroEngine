@@ -10,6 +10,7 @@
 #include "Engine/GameFramework/Rendering/TextRenderSystem.h"
 #include "Engine/GameFramework/Component/Transform2D.h"
 #include "Engine/GameFramework/Scene/Scene.h"
+#include "Engine/GameFramework/Scene/SceneRuntimeAccess.h"
 #include "Engine/GameFramework/Scene/SceneTransformUtils.h"
 
 #include <unordered_set>
@@ -366,7 +367,7 @@ void CSceneViewContour::DrawOutlinesImGui(
     //
     // 포커스 모드에서 자식 클릭: selectedEntities = CollectSubtree(child)
     //   → 자식 + 자식의 모든 자손 각각의 스프라이트를 그림.
-    CTextRenderSystem* textSystem = const_cast<CGameScene&>(scene).FindSystem<CTextRenderSystem>();
+    const CTextRenderSystem* textSystem = CSceneRuntimeAccess::FindSystem<CTextRenderSystem>(scene);
     for (CGameObject* object : selectedObjects)
     {
         if (!object || !object->IsActive) continue;

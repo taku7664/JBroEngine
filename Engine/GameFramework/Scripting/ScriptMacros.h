@@ -110,6 +110,7 @@ template<> inline EReflectPropertyType ScriptFieldTypeOf<float>()             { 
 #define SCRIPT_CLASS(T)                                                          \
 public:                                                                          \
 	using CGameScript::CGameScript;                                                \
+	static constexpr const char* StaticTypeName() { return #T; }                   \
 	using ScriptSelfType = T;                                                    \
 	static std::vector<ScriptReflectEntry>& GetReflectEntries()                  \
 	{                                                                            \

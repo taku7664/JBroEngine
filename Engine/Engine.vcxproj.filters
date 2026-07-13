@@ -758,6 +758,9 @@
     <ClInclude Include="GameFramework\Scene\Scene.h">
       <Filter>Header\GameFramework\Scene</Filter>
     </ClInclude>
+    <ClInclude Include="GameFramework\Scene\SceneRuntimeAccess.h">
+      <Filter>Header\GameFramework\Scene</Filter>
+    </ClInclude>
     <ClInclude Include="GameFramework\Scene\SceneManager.h">
       <Filter>Header\GameFramework\Scene</Filter>
     </ClInclude>

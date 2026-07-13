@@ -5,6 +5,7 @@
 #include "GameFramework/Object/GameObject.h"
 #include "GameFramework/Reflection/ReflectionRegistry.h"
 #include "GameFramework/Scene/Scene.h"
+#include "GameFramework/Scene/SceneRuntimeAccess.h"
 #include "Core/ScriptCore.h"
 #include "yaml-cpp/yaml.h"
 
@@ -116,7 +117,12 @@ namespace
 		{
 			if (const ScriptTypeInfo* info = Script.Reflection->FindScript(typeId))
 			{
-				scene.ReserveScriptMemory(typeId, info->Type.Size, info->Type.Alignment, reserveCount(count));
+				CSceneRuntimeAccess::ReserveScriptMemory(
+					scene,
+					typeId,
+					info->Type.Size,
+					info->Type.Alignment,
+					reserveCount(count));
 			}
 		}
 	}
@@ -133,7 +139,7 @@ ESceneSerializeResult CSceneSerializer::SerializeToText(CGameScene& scene, std::
 	// 생성순서로 저장 → 로드 시 파일 순서대로 CreationOrder 가 재부여되어 표시 순서가 보존된다
 	// (풀 슬롯 순회 순서는 생성순서와 무관).
 	std::sort(objectList.begin(), objectList.end(),
-		[](const CGameObject* a, const CGameObject* b) { return a->CreationOrder < b->CreationOrder; });
+		[](const CGameObject* a, const CGameObject* b) { return a->GetCreationOrder() < b->GetCreationOrder(); });
 
 	std::unordered_map<const CGameObject*, int> indexOf;
 	for (std::size_t i = 0; i < objectList.size(); ++i)

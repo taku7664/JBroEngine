@@ -6,6 +6,7 @@
 #include "GameFramework/Scripting/GameScript.h"
 #include "GameFramework/Scene/Scene.h"
 #include "GameFramework/Scene/SceneManager.h"
+#include "GameFramework/Scene/SceneRuntimeAccess.h"
 
 namespace
 {
@@ -25,7 +26,7 @@ namespace
 
 // 경계엔 const char*(POD) 만 들어온다 — File::Guid 는 여기 Engine.lib 내부에서만 구성.
 
-void* RefDetail::ResolveComponent(const char* objectGuid, const char* componentGuid, std::type_index componentType)
+void* RefDetail::ResolveComponent(const char* objectGuid, const char* componentGuid, TypeId componentTypeId)
 {
 	CGameScene* scene = ActiveScene();
 	if (nullptr == scene)
@@ -33,7 +34,12 @@ void* RefDetail::ResolveComponent(const char* objectGuid, const char* componentG
 		return nullptr;
 	}
 	CGameObject* object = scene->FindByInstanceGuid(File::Guid(objectGuid)).TryGet();
-	return object ? object->FindComponentRawByGuid(File::Guid(componentGuid), componentType) : nullptr;
+	return object
+		? CSceneRuntimeAccess::FindComponentByGuidAndType(
+			*object,
+			File::Guid(componentGuid),
+			componentTypeId)
+		: nullptr;
 }
 
 CGameObject* RefDetail::ResolveObject(const char* instanceGuid)
@@ -46,7 +52,7 @@ CGameObject* RefDetail::ResolveObject(const char* instanceGuid)
 	return scene->FindByInstanceGuid(File::Guid(instanceGuid)).TryGet();
 }
 
-CGameScript* RefDetail::ResolveScript(const char* objectGuid, const char* componentGuid)
+CGameScript* RefDetail::ResolveScript(const char* objectGuid, const char* componentGuid, TypeId scriptTypeId)
 {
 	CGameScene* scene = ActiveScene();
 	if (nullptr == scene)
@@ -58,17 +64,7 @@ CGameScript* RefDetail::ResolveScript(const char* objectGuid, const char* compon
 	{
 		return nullptr;
 	}
-	// 컴포넌트 guid 로 특정 스크립트를 지목한다. 비어 있으면 첫 스크립트로 폴백한다.
-	const File::Guid compGuid(componentGuid);
-	if (false == compGuid.IsNull())
-	{
-		return dynamic_cast<CGameScript*>(object->FindComponentByGuid(compGuid));
-	}
-	for (const SafePtr<CComponent>& component : object->GetComponents())
-	{
-		if (CGameScript* script = dynamic_cast<CGameScript*>(component.TryGet())) return script;
-	}
-	return nullptr;
+	return CSceneRuntimeAccess::FindScript(*scene, *object, File::Guid(componentGuid), scriptTypeId);
 }
 
 CGameScene* RefDetail::ResolveScene(const char* sceneName)

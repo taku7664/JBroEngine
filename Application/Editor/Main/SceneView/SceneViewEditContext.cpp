@@ -16,6 +16,7 @@
 #include "Engine/GameFramework/Rendering/TextRenderSystem.h"
 #include "Engine/GameFramework/Component/Transform2D.h"
 #include "Engine/GameFramework/Scene/Scene.h"
+#include "Engine/GameFramework/Scene/SceneRuntimeAccess.h"
 #include "Engine/GameFramework/Scene/SceneTransformUtils.h"
 
 using SceneViewCoordinates::WorldToViewport;
@@ -420,7 +421,7 @@ CGameObject* CSceneViewEditContext::Pick(
                 });
         });
 
-    CTextRenderSystem* textSystem = const_cast<CGameScene&>(scene).FindSystem<CTextRenderSystem>();
+    const CTextRenderSystem* textSystem = CSceneRuntimeAccess::FindSystem<CTextRenderSystem>(scene);
     if (textSystem)
     {
         const_cast<CGameScene&>(scene).ForEach<Text2D>(
@@ -459,7 +460,7 @@ std::vector<CGameObject*> CSceneViewEditContext::PickBox(
 {
     CGameObject* context = m_context.TryGet();
     std::unordered_set<CGameObject*> foundSet;
-    CTextRenderSystem* textSystem = const_cast<CGameScene&>(scene).FindSystem<CTextRenderSystem>();
+    const CTextRenderSystem* textSystem = CSceneRuntimeAccess::FindSystem<CTextRenderSystem>(scene);
 
     // 전체 오브젝트 순회:
     //   - SpriteRenderer2D 있음 → 불투명 픽셀 tight AABB (없으면 OBB 폴백)

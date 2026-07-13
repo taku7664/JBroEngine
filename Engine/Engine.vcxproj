@@ -462,6 +462,7 @@
     <ClInclude Include="GameFramework\Rendering\ShapeGeometry2D.h" />
     <ClInclude Include="GameFramework\Rendering\ShapeRenderSystem.h" />
     <ClInclude Include="GameFramework\Scene\Scene.h" />
+    <ClInclude Include="GameFramework\Scene\SceneRuntimeAccess.h" />
     <ClInclude Include="GameFramework\Scene\SceneManager.h" />
     <ClInclude Include="GameFramework\Scene\SceneSerializer.h" />
     <ClInclude Include="GameFramework\Serialization\ComponentSerializer.h" />

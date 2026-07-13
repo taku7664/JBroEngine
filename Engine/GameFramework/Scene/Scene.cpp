@@ -111,8 +111,9 @@ CGameObject* CGameScene::CreateGameObject(const char* name)
 	CGameObject* object = m_objectPool.Allocate(*this, name, guid);
 	if (object)
 	{
-		object->CreationOrder = m_nextCreationOrder++;
+		object->m_creationOrder = m_nextCreationOrder++;
 		m_objectByGuid[guid] = object->SafeFromThis();
+		MarkScriptExecutionOrderDirty();
 	}
 	return object;
 }
@@ -156,7 +157,7 @@ void CGameScene::DestroyObjectRecursive(CGameObject* object)
 			DestroyComponent(raw);
 		}
 	}
-	m_objectByGuid.erase(object->InstanceGuid);
+	m_objectByGuid.erase(object->GetInstanceGuid());
 	m_objectPool.Free(object);
 }
 
@@ -167,45 +168,51 @@ void CGameScene::DestroyComponent(CComponent* component)
 		return;
 	}
 
-	// 파괴 훅 — 아직 컴포넌트/owner 가 유효한 시점에 자신의 정리(물리월드 등록 해제 등) 수행.
-	if (CGameScript* script = dynamic_cast<CGameScript*>(component))
+	// 스크립트 여부는 생성 시 등록한 O(1) 인덱스로 판별한다. RTTI는 라이프사이클 및
+	// 파괴 경로에서 사용하지 않는다.
+	const auto runtimeIt = m_scriptRuntimeByComponent.find(component);
+	if (runtimeIt != m_scriptRuntimeByComponent.end())
 	{
+		ScriptRuntimeState* runtime = runtimeIt->second;
+		assert(nullptr != runtime && runtime->Instance == component);
+		CGameScript* script = runtime->Instance;
 		CGameObject* owner = component->GetOwner().TryGet();
-		ScriptRuntimeState* runtime = FindScriptRuntime(script);
-		if (runtime)
+
+		if (runtime->InputRegistered && runtime->InputHandler && Engine.InputSystem.IsValid())
 		{
-			if (runtime->InputRegistered && runtime->InputHandler && Engine.InputSystem.IsValid())
-			{
-				Engine.InputSystem->UnregisterHandler(runtime->InputHandler);
-			}
-			if (owner)
-			{
-				owner->DetachComponent(component);
-			}
-			script->Destroy();
-			SafePtrDetail::ControlBlock* block = runtime->ControlBlock;
-			if (block)
-			{
-				block->Alive = false;
-				block->Ptr = nullptr;
-			}
-			if (runtime->DestroyInstance)
-			{
-				runtime->DestroyInstance(script, runtime->HostApi);
-			}
-			if (block && 0 == block->SafeCount)
-			{
-				delete block;
-			}
-			std::erase_if(m_scriptRuntimeStates, [script](const ScriptRuntimeState& state)
-			{
-				return state.Instance == script;
-			});
+			Engine.InputSystem->UnregisterHandler(runtime->InputHandler);
 		}
+		if (owner)
+		{
+			owner->DetachComponent(component);
+		}
+
+		// 캐시가 다음 조회 전에 재구축되더라도, 현재 실행 스냅샷 안의 포인터가 파괴 후
+		// 남지 않도록 즉시 제거한다.
+		std::erase(m_scriptExecutionOrder, runtime);
+		m_scriptRuntimeByComponent.erase(runtimeIt);
+		MarkScriptExecutionOrderDirty();
+
+		script->Destroy();
+		SafePtrDetail::ControlBlock* block = runtime->ControlBlock;
+		if (block)
+		{
+			block->Alive = false;
+			block->Ptr = nullptr;
+		}
+		if (runtime->DestroyInstance)
+		{
+			runtime->DestroyInstance(script, runtime->HostApi);
+		}
+		if (block && 0 == block->SafeCount)
+		{
+			delete block;
+		}
+		const std::size_t runtimeIndex = static_cast<std::size_t>(runtime - m_scriptRuntimeStates.data());
+		*runtime = ScriptRuntimeState{};
+		m_freeScriptRuntimeStateIndices.push_back(runtimeIndex);
 		return;
 	}
-
-	component->OnDestroy();
 
 	if (CGameObject* owner = component->GetOwner().TryGet())
 	{
@@ -218,6 +225,35 @@ void CGameScene::DestroyComponent(CComponent* component)
 	if (it != m_componentPools.end() && it->Key == key && it->Pool)
 	{
 		it->Pool->FreeBase(component);
+	}
+}
+
+void CGameScene::ReindexScriptRuntimeStates()
+{
+	m_scriptRuntimeByComponent.clear();
+	for (ScriptRuntimeState& state : m_scriptRuntimeStates)
+	{
+		if (state.Instance)
+		{
+			m_scriptRuntimeByComponent.emplace(state.Instance, &state);
+		}
+	}
+	m_scriptExecutionOrder.clear();
+	m_scriptRangesByObject.clear();
+	MarkScriptExecutionOrderDirty();
+}
+
+void CGameScene::ReserveScriptRuntimeStates(std::size_t additionalCapacity)
+{
+	if (0 == additionalCapacity)
+	{
+		return;
+	}
+	m_scriptRuntimeReserveTarget += additionalCapacity;
+	if (m_scriptRuntimeStates.capacity() < m_scriptRuntimeReserveTarget)
+	{
+		m_scriptRuntimeStates.reserve(m_scriptRuntimeReserveTarget);
+		ReindexScriptRuntimeStates();
 	}
 }
 
@@ -241,36 +277,122 @@ CGameScript* CGameScene::AddScript(
 
 	SafePtrDetail::ControlBlock* block = new SafePtrDetail::ControlBlock(script, [](void*) {});
 	SafePtrDetail::BindSafeFromThisControlBlock(static_cast<CComponent*>(script), block);
-	script->InstanceGuid = File::GenerateGuid();
-	script->Bind(*this, scriptTypeId, typeInfo->Type.Name);
+	script->SetInstanceGuid(File::GenerateGuid());
+	script->Bind(*this, typeInfo->Type.Name);
 	object.AttachComponent(script->SafeFromThis());
 
-	ScriptRuntimeState state;
-	state.Instance = script;
-	state.Type = scriptTypeId;
-	state.DestroyInstance = handle.DestroyInstance;
-	state.HostApi = handle.HostApi;
-	state.ControlBlock = block;
+	ScriptRuntimeState* state = nullptr;
+	if (false == m_freeScriptRuntimeStateIndices.empty())
+	{
+		const std::size_t index = m_freeScriptRuntimeStateIndices.back();
+		m_freeScriptRuntimeStateIndices.pop_back();
+		state = &m_scriptRuntimeStates[index];
+	}
+	else
+	{
+		ScriptRuntimeState* previousData = m_scriptRuntimeStates.data();
+		m_scriptRuntimeStates.emplace_back();
+		if (previousData != m_scriptRuntimeStates.data())
+		{
+			ReindexScriptRuntimeStates();
+		}
+		state = &m_scriptRuntimeStates.back();
+	}
+
+	state->Instance = script;
+	state->Type = scriptTypeId;
+	state->DestroyInstance = handle.DestroyInstance;
+	state->HostApi = handle.HostApi;
+	state->ControlBlock = block;
 	if (typeInfo->ToInputHandler)
 	{
-		state.InputHandler = typeInfo->ToInputHandler(script);
+		state->InputHandler = typeInfo->ToInputHandler(script);
 	}
-	m_scriptRuntimeStates.push_back(state);
+	m_scriptRuntimeByComponent.emplace(script, state);
+	MarkScriptExecutionOrderDirty();
 	return script;
 }
 
-CGameScene::ScriptRuntimeState* CGameScene::FindScriptRuntime(CGameScript* script)
+void CGameScene::MarkScriptExecutionOrderDirty()
 {
-	const auto it = std::find_if(m_scriptRuntimeStates.begin(), m_scriptRuntimeStates.end(),
-		[script](const ScriptRuntimeState& state) { return state.Instance == script; });
-	return it == m_scriptRuntimeStates.end() ? nullptr : &*it;
+	m_scriptExecutionOrderDirty = true;
 }
 
-const CGameScene::ScriptRuntimeState* CGameScene::FindScriptRuntime(const CGameScript* script) const
+void CGameScene::EnsureScriptExecutionOrder()
 {
-	const auto it = std::find_if(m_scriptRuntimeStates.begin(), m_scriptRuntimeStates.end(),
-		[script](const ScriptRuntimeState& state) { return state.Instance == script; });
-	return it == m_scriptRuntimeStates.end() ? nullptr : &*it;
+	if (m_scriptExecutionOrderDirty)
+	{
+		RebuildScriptExecutionOrder();
+	}
+}
+
+void CGameScene::RebuildScriptExecutionOrder()
+{
+	m_scriptExecutionOrder.clear();
+	m_scriptRangesByObject.clear();
+	m_scriptExecutionOrder.reserve(m_scriptRuntimeStates.size());
+	m_scriptRangesByObject.reserve(m_scriptRuntimeStates.size());
+
+	std::vector<CGameObject*> roots;
+	roots.reserve(GetObjectCount());
+	ForEachObject([&roots](CGameObject& object)
+	{
+		if (false == object.GetParent().IsValid())
+		{
+			roots.push_back(&object);
+		}
+	});
+	std::sort(roots.begin(), roots.end(), [](const CGameObject* lhs, const CGameObject* rhs)
+	{
+		return lhs->GetCreationOrder() < rhs->GetCreationOrder();
+	});
+
+	for (CGameObject* root : roots)
+	{
+		if (root)
+		{
+			AppendObjectScriptsInHierarchyOrder(*root);
+		}
+	}
+	m_scriptExecutionOrderDirty = false;
+}
+
+void CGameScene::AppendObjectScriptsInHierarchyOrder(CGameObject& object)
+{
+	const std::size_t begin = m_scriptExecutionOrder.size();
+	for (const SafePtr<CComponent>& componentRef : object.GetComponents())
+	{
+		CComponent* component = componentRef.TryGet();
+		const auto runtimeIt = m_scriptRuntimeByComponent.find(component);
+		if (runtimeIt != m_scriptRuntimeByComponent.end() && runtimeIt->second)
+		{
+			m_scriptExecutionOrder.push_back(runtimeIt->second);
+		}
+	}
+
+	const std::size_t count = m_scriptExecutionOrder.size() - begin;
+	if (count > 0)
+	{
+		m_scriptRangesByObject.emplace(&object, ScriptObjectRange{ begin, count });
+	}
+
+	std::vector<CGameObject*> children;
+	children.reserve(object.GetChildren().size());
+	for (const SafePtr<CGameObject>& childRef : object.GetChildren())
+	{
+		if (CGameObject* child = childRef.TryGet())
+		{
+			children.push_back(child);
+		}
+	}
+	std::sort(children.begin(), children.end(), [](const CGameObject* lhs, const CGameObject* rhs)
+	{
+		return lhs->GetCreationOrder() < rhs->GetCreationOrder();
+	});
+	for (CGameObject* child : children)
+	{
+		AppendObjectScriptsInHierarchyOrder(*child);
+	}
 }
 
 SafePtr<CGameObject> CGameScene::FindByInstanceGuid(const File::Guid& guid)
@@ -297,11 +419,11 @@ SafePtr<CGameObject> CGameScene::FindByInstanceGuid(const File::Guid& guid)
 void CGameScene::SetObjectInstanceGuid(CGameObject& object, const File::Guid& guid)
 {
 	// guid 재설정 시 맵도 rekey — 안 하면 옛 guid 로 계속 찾히거나 새 guid 가 안 찾힌다.
-	if (false == object.InstanceGuid.IsNull())
+	if (false == object.GetInstanceGuid().IsNull())
 	{
-		m_objectByGuid.erase(object.InstanceGuid);
+		m_objectByGuid.erase(object.GetInstanceGuid());
 	}
-	object.InstanceGuid = guid;
+	object.SetInstanceGuid(guid);
 	if (false == guid.IsNull())
 	{
 		m_objectByGuid[guid] = object.SafeFromThis();
@@ -442,7 +564,7 @@ void CGameScene::ReserveScriptMemoryForCurrentScripts(const CReflectionRegistry&
 	std::unordered_map<TypeId, std::size_t> counts;
 	for (const ScriptRuntimeState& script : m_scriptRuntimeStates)
 	{
-		if (INVALID_TYPE_ID != script.Type)
+		if (script.Instance && INVALID_TYPE_ID != script.Type)
 		{
 			++counts[script.Type];
 		}
@@ -485,6 +607,7 @@ void CGameScene::ReserveScriptMemory(TypeId scriptTypeId, std::size_t size, std:
 	{
 		return;
 	}
+	ReserveScriptRuntimeStates(capacity);
 
 	const std::size_t effectiveSize = std::max<std::size_t>(size, 1);
 	const std::size_t effectiveAlignment = std::max<std::size_t>(alignment, alignof(void*));
@@ -602,20 +725,21 @@ void CGameScene::FreeScriptMemory(TypeId scriptTypeId, void* ptr, std::size_t si
 
 void CGameScene::DispatchSurfaceEventToScripts(const SurfaceEvent& surfaceEvent)
 {
-	ForEachObjectInHierarchyOrder([&surfaceEvent](CGameObject& object)
+	EnsureScriptExecutionOrder();
+	for (ScriptRuntimeState* runtime : m_scriptExecutionOrder)
 	{
-		for (const SafePtr<CComponent>& component : object.GetComponents())
+		CGameScript* instance = runtime ? runtime->Instance : nullptr;
+		if (nullptr == instance)
 		{
-			CGameScript* instance = dynamic_cast<CGameScript*>(component.TryGet());
-			if (nullptr == instance) continue;
+			continue;
+		}
 		switch (surfaceEvent.Type)
 		{
 		case ESurfaceEventType::FocusGained: instance->ApplicationFocusGained();         break;
 		case ESurfaceEventType::FocusLost:   instance->ApplicationFocusLost();           break;
 		case ESurfaceEventType::Resized:     instance->SurfaceResized(surfaceEvent.ClientSize); break;
 		}
-		}
-	});
+	}
 }
 
 CPhysics2DSystem* CGameScene::GetPhysics2DSystem()
@@ -655,6 +779,12 @@ void CGameScene::ClearObjects()
 	}
 	m_componentPools.clear();
 	m_scriptRuntimeStates.clear();
+	m_freeScriptRuntimeStateIndices.clear();
+	m_scriptRuntimeReserveTarget = 0;
+	m_scriptRuntimeByComponent.clear();
+	m_scriptExecutionOrder.clear();
+	m_scriptRangesByObject.clear();
+	m_scriptExecutionOrderDirty = true;
 	m_objectByGuid.clear();
 	m_objectPool.Clear();
 	m_referencedAssets.clear();

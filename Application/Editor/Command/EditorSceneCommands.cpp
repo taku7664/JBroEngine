@@ -11,6 +11,7 @@
 #include "Engine/GameFramework/Object/GameObject.h"
 #include "Engine/GameFramework/Reflection/ReflectionRegistry.h"
 #include "Engine/GameFramework/Scene/Scene.h"
+#include "Engine/GameFramework/Scene/SceneRuntimeAccess.h"
 #include "Engine/GameFramework/Scene/SceneTransformUtils.h"
 #include "Engine/GameFramework/Serialization/ComponentSerializer.h"
 #include "Engine/GameFramework/Serialization/ObjectSerializer.h"
@@ -30,12 +31,12 @@ namespace
 
 	File::Guid GuidOf(const CGameObject* object)
 	{
-		return object ? object->InstanceGuid : File::Guid();
+		return object ? object->GetInstanceGuid() : File::Guid();
 	}
 
 	File::Guid GuidOf(const CComponent* component)
 	{
-		return component ? component->InstanceGuid : File::Guid();
+		return component ? component->GetInstanceGuid() : File::Guid();
 	}
 }
 
@@ -133,13 +134,13 @@ bool CAddScriptCommand::Execute()
 		return false;
 	}
 
-	CGameScript* scriptComponent = m_scene->AddScript(*object, m_scriptTypeId, reflection);
+	CGameScript* scriptComponent = CSceneRuntimeAccess::AddScript(*m_scene, *object, m_scriptTypeId, reflection);
 	if (nullptr == scriptComponent)
 	{
 		CSystemLog::Warning("Failed to resolve added script component.");
 		return false;
 	}
-	m_scriptComponentGuid = scriptComponent->InstanceGuid;
+	m_scriptComponentGuid = scriptComponent->GetInstanceGuid();
 
 	m_added = true;
 	return true;
@@ -153,9 +154,12 @@ void CAddScriptCommand::Undo()
 		return;
 	}
 
-	if (CGameScript* script = dynamic_cast<CGameScript*>(object->FindComponentByGuid(m_scriptComponentGuid)))
+	if (CGameScript* script = CSceneRuntimeAccess::FindScript(
+		*m_scene,
+		*object,
+		m_scriptComponentGuid))
 	{
-		m_scene->DestroyComponent(script);
+		CSceneRuntimeAccess::DestroyComponent(*m_scene, script);
 	}
 
 	m_added = false;
@@ -174,12 +178,19 @@ CRemoveScriptCommand::CRemoveScriptCommand(SafePtr<CGameScene> scene, CGameObjec
 {
 	if (object)
 	{
-		if (CComponent* component = object->FindComponentByGuid(componentGuid)) m_snapshot = Serialization::SerializeComponent(*component);
+		if (CComponent* component = CSceneRuntimeAccess::FindComponentByGuid(*object, componentGuid))
+		{
+			m_snapshot = Serialization::SerializeComponent(*component);
+		}
 		const auto& components = object->GetComponents();
 		for (std::size_t i = 0; i < components.size(); ++i)
 		{
 			const CComponent* component = components[i].TryGet();
-			if (component && component->InstanceGuid == componentGuid) { m_componentIndex = i; break; }
+			if (component && component->GetInstanceGuid() == componentGuid)
+			{
+				m_componentIndex = i;
+				break;
+			}
 		}
 	}
 }
@@ -188,9 +199,14 @@ const char* CRemoveScriptCommand::GetName() const { return "Remove Script"; }
 bool CRemoveScriptCommand::Execute()
 {
 	CGameObject* object = Resolve(m_scene, m_objectGuid);
-	CGameScript* script = object ? dynamic_cast<CGameScript*>(object->FindComponentByGuid(m_componentGuid)) : nullptr;
+	CGameScript* script = object
+		? CSceneRuntimeAccess::FindScript(*m_scene, *object, m_componentGuid)
+		: nullptr;
 	m_removed = nullptr != script;
-	if (script) m_scene->DestroyComponent(script);
+	if (script)
+	{
+		CSceneRuntimeAccess::DestroyComponent(*m_scene, script);
+	}
 	return m_removed;
 }
 void CRemoveScriptCommand::Undo()
@@ -200,8 +216,11 @@ void CRemoveScriptCommand::Undo()
 	if (Serialization::DeserializeComponentInto(*object, m_snapshot.c_str()))
 	{
 		CComponent* restored = object->GetComponents().empty() ? nullptr : object->GetComponents().back().TryGet();
-		if (restored) m_componentGuid = restored->InstanceGuid;
-		object->MoveComponent(m_componentGuid, m_componentIndex);
+		if (restored)
+		{
+			m_componentGuid = restored->GetInstanceGuid();
+		}
+		CSceneRuntimeAccess::MoveComponent(*object, m_componentGuid, m_componentIndex);
 		m_removed = false;
 	}
 }
@@ -213,7 +232,7 @@ const char* CReorderComponentCommand::GetName() const { return "Reorder Componen
 bool CReorderComponentCommand::Move(std::size_t index)
 {
 	CGameObject* object = Resolve(m_scene, m_objectGuid);
-	return object && object->MoveComponent(m_componentGuid, index);
+	return object && CSceneRuntimeAccess::MoveComponent(*object, m_componentGuid, index);
 }
 bool CReorderComponentCommand::Execute() { m_executed = Move(m_newIndex); return m_executed; }
 void CReorderComponentCommand::Undo() { if (m_executed) { Move(m_oldIndex); m_executed = false; } }
@@ -252,11 +271,11 @@ bool CCreateGameObjectCommand::Execute()
 	// redo(재생성)면 첫 생성 때의 guid 를 강제 복원해 이후 명령이 동일 오브젝트로 해석되게 한다.
 	if (false == m_objectGuid.IsNull())
 	{
-		m_scene->SetObjectInstanceGuid(*gameObject, m_objectGuid);
+		CSceneRuntimeAccess::SetObjectInstanceGuid(*m_scene, *gameObject, m_objectGuid);
 	}
 	else
 	{
-		m_objectGuid = gameObject->InstanceGuid;
+		m_objectGuid = gameObject->GetInstanceGuid();
 	}
 
 	// parent 지정 시 자식으로 등록.
@@ -375,18 +394,18 @@ bool CSetComponentPropertyCommand::TryMerge(const IEditorCommand& newer)
 bool CSetComponentPropertyCommand::WriteValue(const std::vector<std::uint8_t>& value)
 {
 	CGameObject* object = Resolve(m_scene, m_objectGuid);
-	if (value.empty() || nullptr == object || false == Engine.Reflection.IsValid())
+	if (value.empty() || nullptr == object || nullptr == m_scene.TryGet())
 	{
 		return false;
 	}
 
-	void* component = Engine.Reflection->GetComponentAddressByGuid(*object, m_componentTypeId, m_componentGuid);
+	CComponent* component = CSceneRuntimeAccess::FindComponentByGuid(*object, m_componentGuid);
 	if (nullptr == component)
 	{
 		return false;
 	}
 
-	std::memcpy(static_cast<std::uint8_t*>(component) + m_propertyOffset, value.data(), value.size());
+	std::memcpy(reinterpret_cast<std::uint8_t*>(component) + m_propertyOffset, value.data(), value.size());
 	return true;
 }
 
@@ -427,7 +446,9 @@ void CSetComponentEnabledCommand::Redo()
 bool CSetComponentEnabledCommand::Apply(bool value)
 {
 	CGameObject* object = Resolve(m_scene, m_objectGuid);
-	CComponent* component = object ? object->FindComponentByGuid(m_componentGuid) : nullptr;
+	CComponent* component = object
+		? CSceneRuntimeAccess::FindComponentByGuid(*object, m_componentGuid)
+		: nullptr;
 	if (nullptr == component)
 	{
 		return false;
@@ -455,10 +476,10 @@ bool CSetComponentStringPropertyCommand::TryMerge(const IEditorCommand& newer)
 bool CSetComponentStringPropertyCommand::WriteValue(const std::string& value)
 {
 	CGameObject* object = Resolve(m_scene, m_objectGuid);
-	if (!object || false == Engine.Reflection.IsValid()) return false;
-	void* component = Engine.Reflection->GetComponentAddressByGuid(*object, m_componentTypeId, m_componentGuid);
+	if (!object || nullptr == m_scene.TryGet()) return false;
+	CComponent* component = CSceneRuntimeAccess::FindComponentByGuid(*object, m_componentGuid);
 	if (!component) return false;
-	*reinterpret_cast<std::string*>(static_cast<std::uint8_t*>(component) + m_propertyOffset) = value;
+	*reinterpret_cast<std::string*>(reinterpret_cast<std::uint8_t*>(component) + m_propertyOffset) = value;
 	return true;
 }
 
@@ -636,13 +657,13 @@ namespace
 	// → 붙여넣은 오브젝트를 기즈모/커맨드가 못 찾아 이동 등 편집이 안 된다.
 	void ReissuePastedGuids(CGameScene& scene, CGameObject& object)
 	{
-		scene.SetObjectInstanceGuid(object, File::GenerateGuid());
+		CSceneRuntimeAccess::SetObjectInstanceGuid(scene, object, File::GenerateGuid());
 		for (const SafePtr<CComponent>& cref : object.GetComponents())
 		{
 			if (CComponent* comp = cref.TryGet())
 			{
 				// 컴포넌트는 씬 guid 인덱스가 없어 직접 대입으로 충분.
-				comp->InstanceGuid = File::GenerateGuid();
+				CSceneRuntimeAccess::SetComponentInstanceGuid(*comp, File::GenerateGuid());
 			}
 		}
 		for (const SafePtr<CGameObject>& childRef : object.GetChildren())
@@ -758,7 +779,7 @@ bool CPasteObjectsCommand::Execute()
 				root->GetTransform().Position = targetWorldPositions[i];
 			}
 
-			m_pastedGuids.push_back(root->InstanceGuid);
+			m_pastedGuids.push_back(root->GetInstanceGuid());
 			created.push_back(root);
 		}
 		m_clipboard = Serialization::SerializeObjects(created);
@@ -875,7 +896,7 @@ CSetObjectTransformCommand::CSetObjectTransformCommand(SafePtr<CGameScene> scene
 		{
 			continue;
 		}
-		m_objectGuids.push_back(obj->InstanceGuid);
+		m_objectGuids.push_back(obj->GetInstanceGuid());
 		m_oldTransforms.push_back(obj->GetTransform());
 	}
 }
@@ -955,7 +976,7 @@ CSetObjectTransformsCommand::CSetObjectTransformsCommand(
 		{
 			continue;
 		}
-		m_objectGuids.push_back(object->InstanceGuid);
+		m_objectGuids.push_back(object->GetInstanceGuid());
 		m_oldTransforms.push_back(oldTransforms[i]);
 		m_newTransforms.push_back(newTransforms[i]);
 	}
@@ -1228,7 +1249,7 @@ void CMoveGameObjectInHierarchyCommand::CaptureOrders(std::vector<OrderSnapshot>
 
 	m_scene->ForEachObject([&out](CGameObject& object)
 	{
-		out.push_back({ object.InstanceGuid, object.CreationOrder });
+		out.push_back({ object.GetInstanceGuid(), object.GetCreationOrder() });
 	});
 }
 
@@ -1243,7 +1264,7 @@ void CMoveGameObjectInHierarchyCommand::RestoreOrders(const std::vector<OrderSna
 	{
 		if (CGameObject* object = Resolve(m_scene, order.ObjectGuid))
 		{
-			object->CreationOrder = order.CreationOrder;
+			CSceneRuntimeAccess::SetCreationOrder(*object, order.CreationOrder);
 		}
 	}
 }
@@ -1262,7 +1283,7 @@ void CMoveGameObjectInHierarchyCommand::RebuildOrder(CGameObject& object)
 	});
 	std::sort(ordered.begin(), ordered.end(), [](const CGameObject* lhs, const CGameObject* rhs)
 	{
-		return lhs->CreationOrder < rhs->CreationOrder;
+		return lhs->GetCreationOrder() < rhs->GetCreationOrder();
 	});
 
 	ordered.erase(std::remove(ordered.begin(), ordered.end(), &object), ordered.end());
@@ -1300,7 +1321,7 @@ void CMoveGameObjectInHierarchyCommand::RebuildOrder(CGameObject& object)
 	ordered.insert(insertIt, &object);
 	for (std::size_t i = 0; i < ordered.size(); ++i)
 	{
-		ordered[i]->CreationOrder = static_cast<std::uint64_t>(i);
+		CSceneRuntimeAccess::SetCreationOrder(*ordered[i], static_cast<std::uint64_t>(i));
 	}
 }
 

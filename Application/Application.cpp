@@ -22,6 +22,7 @@
 #include "Engine/GameFramework/Rendering/TextRenderSystem.h"
 #include "Engine/GameFramework/Scene/Scene.h"
 #include "Engine/GameFramework/Scene/SceneManager.h"
+#include "Engine/GameFramework/Scene/SceneRuntimeAccess.h"
 #include "Engine/GameFramework/Scene/SceneSerializer.h"
 
 #include <algorithm>
@@ -400,20 +401,20 @@ namespace
 			// 렌더 시스템은 호스트 전용 — 전역 `Engine`(EngineCore)에서 직접 가져온다.
 			// (RenderScene/RHIDevice/Renderer 는 스크립트에 노출하지 않으므로 ScriptCore 에 없다.)
 			// 애니메이션 시스템은 SpriteRenderSystem 보다 먼저 등록해 같은 프레임에 FrameIndex 반영.
-			CSpriteAnimationSystem* animationSystem = scene->FindSystem<CSpriteAnimationSystem>();
+			CSpriteAnimationSystem* animationSystem = CSceneRuntimeAccess::FindSystem<CSpriteAnimationSystem>(*scene);
 			if (nullptr == animationSystem)
 			{
-				animationSystem = scene->AddSystem<CSpriteAnimationSystem>(Engine.AssetManager);
+				animationSystem = CSceneRuntimeAccess::AddSystem<CSpriteAnimationSystem>(*scene, Engine.AssetManager);
 			}
 			if (nullptr != animationSystem)
 			{
 				animationSystem->SetAssetManager(Engine.AssetManager);
 			}
 
-			CSpriteRenderSystem* spriteSystem = scene->FindSystem<CSpriteRenderSystem>();
+			CSpriteRenderSystem* spriteSystem = CSceneRuntimeAccess::FindSystem<CSpriteRenderSystem>(*scene);
 			if (nullptr == spriteSystem)
 			{
-				spriteSystem = scene->AddSystem<CSpriteRenderSystem>(Engine.RenderScene.TryGet());
+				spriteSystem = CSceneRuntimeAccess::AddSystem<CSpriteRenderSystem>(*scene, Engine.RenderScene.TryGet());
 			}
 			if (nullptr != spriteSystem)
 			{
@@ -426,10 +427,10 @@ namespace
 					Runtime.PixelsPerUnit);
 			}
 
-			CShapeRenderSystem* shapeSystem = scene->FindSystem<CShapeRenderSystem>();
+			CShapeRenderSystem* shapeSystem = CSceneRuntimeAccess::FindSystem<CShapeRenderSystem>(*scene);
 			if (nullptr == shapeSystem)
 			{
-				shapeSystem = scene->AddSystem<CShapeRenderSystem>(Engine.RenderScene.TryGet());
+				shapeSystem = CSceneRuntimeAccess::AddSystem<CShapeRenderSystem>(*scene, Engine.RenderScene.TryGet());
 			}
 			if (nullptr != shapeSystem)
 			{
@@ -437,10 +438,10 @@ namespace
 				shapeSystem->SetDependencies(Engine.RHIDevice.TryGet(), Engine.Renderer.TryGet());
 			}
 
-			CTextRenderSystem* textSystem = scene->FindSystem<CTextRenderSystem>();
+			CTextRenderSystem* textSystem = CSceneRuntimeAccess::FindSystem<CTextRenderSystem>(*scene);
 			if (nullptr == textSystem)
 			{
-				textSystem = scene->AddSystem<CTextRenderSystem>(Engine.RenderScene.TryGet());
+				textSystem = CSceneRuntimeAccess::AddSystem<CTextRenderSystem>(*scene, Engine.RenderScene.TryGet());
 			}
 			if (nullptr != textSystem)
 			{
@@ -449,10 +450,10 @@ namespace
 					Runtime.PixelsPerUnit, Runtime.DefaultFontFamilyGuid, Runtime.FallbackFontFamilies);
 			}
 
-			CAudioSystem* audioSystem = scene->FindSystem<CAudioSystem>();
+			CAudioSystem* audioSystem = CSceneRuntimeAccess::FindSystem<CAudioSystem>(*scene);
 			if (nullptr == audioSystem)
 			{
-				audioSystem = scene->AddSystem<CAudioSystem>(context->Audio, context->AssetManager);
+				audioSystem = CSceneRuntimeAccess::AddSystem<CAudioSystem>(*scene, context->Audio, context->AssetManager);
 			}
 			if (nullptr != audioSystem)
 			{

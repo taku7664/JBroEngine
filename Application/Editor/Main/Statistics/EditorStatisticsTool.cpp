@@ -6,6 +6,7 @@
 #include "Engine/Core/EngineCore.h"
 #include "Engine/Core/Renderer/IRenderScene.h"
 #include "Engine/GameFramework/Scene/Scene.h"
+#include "Engine/GameFramework/Scene/SceneRuntimeAccess.h"
 
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
 
@@ -43,7 +44,7 @@ void CEditorStatisticsTool::OnRenderStay()
 		std::snprintf(value, sizeof(value), "%zu", objectCount);
 		drawRow(Loc::Text(EditorLocKeys::EditorStatisticsSceneObjects), value);
 		const std::vector<CGameScene::ScriptMemoryPoolStats> scriptPoolStats = scene.IsValid()
-			? scene->GetScriptMemoryPoolStats()
+			? CSceneRuntimeAccess::GetScriptMemoryPoolStats(*scene)
 			: std::vector<CGameScene::ScriptMemoryPoolStats>();
 		std::size_t expansionCount = 0;
 		for (const CGameScene::ScriptMemoryPoolStats& stats : scriptPoolStats)

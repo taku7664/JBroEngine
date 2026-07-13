@@ -95,7 +95,7 @@ void CHierarchyTool::OnRenderStay()
 	// 후에도 순서 불변.
 	auto byCreationOrder = [&objects](std::size_t a, std::size_t b)
 	{
-		return objects[a]->CreationOrder < objects[b]->CreationOrder;
+		return objects[a]->GetCreationOrder() < objects[b]->GetCreationOrder();
 	};
 	std::sort(rootIndices.begin(), rootIndices.end(), byCreationOrder);
 	for (auto& entry : childrenByParent)
@@ -194,7 +194,7 @@ void CHierarchyTool::OnRenderStay()
 		if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
 		{
 			Editor::SelectEntity(obj);
-			m_selectionAnchorGuid = obj->InstanceGuid;
+			m_selectionAnchorGuid = obj->GetInstanceGuid();
 			if (Editor::SceneView)
 			{
 				Editor::SceneView->SetFocusContext(obj, *activeScene);
@@ -330,7 +330,7 @@ void CHierarchyTool::OnRenderStay()
 
 			for (CGameObject* visibleObject : visibleObjects)
 			{
-				if (visibleObject && visibleObject->InstanceGuid == guid)
+				if (visibleObject && visibleObject->GetInstanceGuid() == guid)
 				{
 					return visibleObject;
 				}
@@ -380,12 +380,12 @@ void CHierarchyTool::OnRenderStay()
 			{
 				Editor::AddToSelection(pendingSelection.Object);
 			}
-			m_selectionAnchorGuid = pendingSelection.Object->InstanceGuid;
+			m_selectionAnchorGuid = pendingSelection.Object->GetInstanceGuid();
 		}
 		else
 		{
 			Editor::SelectEntity(pendingSelection.Object);
-			m_selectionAnchorGuid = pendingSelection.Object->InstanceGuid;
+			m_selectionAnchorGuid = pendingSelection.Object->GetInstanceGuid();
 		}
 	}
 

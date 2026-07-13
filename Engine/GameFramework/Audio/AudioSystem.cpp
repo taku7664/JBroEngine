@@ -170,7 +170,7 @@ void CAudioSystem::OnUpdate(CGameScene& scene)
 			CGameObject* owner = player.GetOwner().TryGet();
 			if (nullptr == owner) return;
 
-			const File::Guid& key = player.InstanceGuid; // 슬롯 재사용 안전(주소 아님).
+			const File::Guid& key = player.GetInstanceGuid(); // 슬롯 재사용 안전(주소 아님).
 			seen.insert(key);
 
 			const bool effectivelyEnabled = IsActiveComponent(player)

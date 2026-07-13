@@ -3,16 +3,17 @@
 
 #include "GameFramework/Scene/Scene.h"
 
+#include <algorithm>
 #include <cstring>
 
-void CGameScript::Bind(CGameScene& scene, TypeId scriptTypeId, const char* typeName)
+void CGameScript::Bind(CGameScene& scene, const char* typeName)
 {
 	// 씬 참조와 스크립트 타입 메타만 바인딩한다. Owner는 CComponent 생성자에서 확정된다.
 	m_scene = scene.SafeFromThis();
-	m_scriptTypeId = scriptTypeId;
 	const char* sourceName = typeName ? typeName : "CGameScript";
-	strncpy_s(m_typeName, sourceName, sizeof(m_typeName) - 1);
-	m_isBound = true;
+	const std::size_t length = std::min(std::strlen(sourceName), sizeof(m_typeName) - 1);
+	std::memcpy(m_typeName, sourceName, length);
+	m_typeName[length] = '\0';
 }
 
 SafePtr<CGameScene> CGameScript::GetScene() const
@@ -76,7 +77,6 @@ void CGameScript::Destroy()
 
 	m_isCreated = false;
 	m_isStarted = false;
-	m_isBound   = false;
 	m_scene.Reset();
 }
 
@@ -155,9 +155,4 @@ void CGameScript::TriggerExit(const Collision2D& collision)
 bool CGameScript::IsStarted() const
 {
 	return m_isStarted;
-}
-
-bool CGameScript::IsBound() const
-{
-	return m_isBound;
 }

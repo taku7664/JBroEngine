@@ -53,6 +53,7 @@
 #include "GameFramework/Rendering/GameCamera.h"
 #include "GameFramework/Reflection/ReflectionRegistry.h"
 #include "GameFramework/Scene/Scene.h"
+#include "GameFramework/Scene/SceneRuntimeAccess.h"
 #include "GameFramework/Scene/SceneManager.h"
 
 #include <algorithm>
@@ -142,7 +143,7 @@ void CEngine::OnSurfaceEvent(const SurfaceEvent& surfaceEvent)
 	{
 		if (CGameScene* scene = m_sceneManager->GetActiveScene().TryGet())
 		{
-			scene->DispatchSurfaceEventToScripts(surfaceEvent);
+			CSceneRuntimeAccess::DispatchSurfaceEvent(*scene, surfaceEvent);
 		}
 	}
 }

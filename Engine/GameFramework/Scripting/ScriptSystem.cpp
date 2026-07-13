@@ -7,39 +7,26 @@
 #include "GameFramework/Scene/Scene.h"
 #include "GameFramework/Scripting/GameScript.h"
 
-namespace
-{
-	template<typename Fn>
-	void ForEachScriptInObjectOrder(CGameScene& scene, Fn&& fn)
-	{
-		scene.ForEachObjectInHierarchyOrder([&](CGameObject& object)
-		{
-			for (const SafePtr<CComponent>& component : object.GetComponents())
-			{
-				if (CGameScript* script = dynamic_cast<CGameScript*>(component.TryGet()))
-				{
-					fn(*script);
-				}
-			}
-		});
-	}
-}
-
 void CScriptSystem::OnUpdate(CGameScene& scene)
 {
-	ForEachScriptInObjectOrder(scene, [&scene](CGameScript& script)
+	scene.EnsureScriptExecutionOrder();
+	for (CGameScene::ScriptRuntimeState* runtime : scene.m_scriptExecutionOrder)
 	{
+		if (nullptr == runtime || nullptr == runtime->Instance)
+		{
+			continue;
+		}
+		CGameScript& script = *runtime->Instance;
 		CGameObject* owner = script.GetOwner().TryGet();
-		CGameScene::ScriptRuntimeState* runtime = scene.FindScriptRuntime(&script);
 		const bool active = script.IsEnabled() && owner && owner->IsActiveInHierarchy();
 		if (false == active)
 		{
-			if (runtime && runtime->InputRegistered && runtime->InputHandler && Engine.InputSystem.IsValid())
+			if (runtime->InputRegistered && runtime->InputHandler && Engine.InputSystem.IsValid())
 			{
 				Engine.InputSystem->UnregisterHandler(runtime->InputHandler);
 				runtime->InputRegistered = false;
 			}
-			return;
+			continue;
 		}
 
 		if (false == script.IsStarted())
@@ -47,31 +34,42 @@ void CScriptSystem::OnUpdate(CGameScene& scene)
 			script.Start();
 		}
 
-		if (runtime && false == runtime->InputRegistered && runtime->InputHandler && Engine.InputSystem.IsValid())
+		if (false == runtime->InputRegistered && runtime->InputHandler && Engine.InputSystem.IsValid())
 		{
 			Engine.InputSystem->RegisterHandler(runtime->InputHandler);
 			runtime->InputRegistered = true;
 		}
-	});
+	}
 
-	ForEachScriptInObjectOrder(scene, [](CGameScript& script)
+	for (CGameScene::ScriptRuntimeState* runtime : scene.m_scriptExecutionOrder)
 	{
+		if (nullptr == runtime || nullptr == runtime->Instance)
+		{
+			continue;
+		}
+		CGameScript& script = *runtime->Instance;
 		CGameObject* owner = script.GetOwner().TryGet();
 		if (script.IsEnabled() && owner && owner->IsActiveInHierarchy() && script.IsStarted())
 		{
 			script.Update();
 		}
-	});
+	}
 }
 
 void CScriptSystem::OnFixedUpdate(CGameScene& scene)
 {
-	ForEachScriptInObjectOrder(scene, [](CGameScript& script)
+	scene.EnsureScriptExecutionOrder();
+	for (CGameScene::ScriptRuntimeState* runtime : scene.m_scriptExecutionOrder)
 	{
+		if (nullptr == runtime || nullptr == runtime->Instance)
+		{
+			continue;
+		}
+		CGameScript& script = *runtime->Instance;
 		CGameObject* owner = script.GetOwner().TryGet();
 		if (script.IsEnabled() && owner && owner->IsActiveInHierarchy() && script.IsStarted())
 		{
 			script.FixedUpdate();
 		}
-	});
+	}
 }

@@ -11,6 +11,7 @@
 #include "Engine/GameFramework/Object/GameObject.h"
 #include "Engine/GameFramework/Reflection/ReflectionRegistry.h"
 #include "Engine/GameFramework/Scene/Scene.h"
+#include "Engine/GameFramework/Scene/SceneRuntimeAccess.h"
 #include "Engine/GameFramework/Serialization/ComponentSerializer.h"
 #include "Engine/GameFramework/Serialization/ObjectSerializer.h"
 
@@ -414,10 +415,13 @@ bool EditorGuiActions::DrawPasteComponentMenuItem(CGameObject& object)
 		{
 			// 새 컴포넌트(방금 부착된 마지막 것)는 새 InstanceGuid 를 받아야 한다 —
 			// 원본 guid 를 그대로 쓰면 Ref 지목이 원본/복사본 사이에서 충돌한다.
-			const std::vector<CComponent*> all = object.GetComponents<CComponent>();
-			if (false == all.empty() && all.back())
+			const std::vector<SafePtr<CComponent>>& components = object.GetComponents();
+			if (false == components.empty())
 			{
-				all.back()->InstanceGuid = File::GenerateGuid();
+				if (CComponent* component = components.back().TryGet())
+				{
+					CSceneRuntimeAccess::SetComponentInstanceGuid(*component, File::GenerateGuid());
+				}
 			}
 			return true;
 		}

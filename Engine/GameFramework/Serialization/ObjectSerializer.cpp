@@ -6,6 +6,7 @@
 #include "GameFramework/Component/Transform2D.h"
 #include "GameFramework/Object/GameObject.h"
 #include "GameFramework/Scene/Scene.h"
+#include "GameFramework/Scene/SceneRuntimeAccess.h"
 #include "yaml-cpp/yaml.h"
 
 namespace Serialization
@@ -48,9 +49,9 @@ YAML::Node WriteObject(const CGameObject& object, std::vector<AssetGuid>* refere
 
 	YAML::Node node(YAML::NodeType::Map);
 	node["Name"]   = obj.Name;
-	if (false == obj.InstanceGuid.IsNull())
+	if (false == obj.GetInstanceGuid().IsNull())
 	{
-		node["InstanceGuid"] = obj.InstanceGuid.generic_string();
+		node["InstanceGuid"] = obj.GetInstanceGuid().generic_string();
 	}
 	node["Active"]      = obj.IsActive;
 	if (false == obj.Tag.empty())
@@ -129,7 +130,7 @@ CGameObject* ReadObjectInto(CGameScene& scene, const YAML::Node& node,
 			{
 				parsed = File::GenerateGuid();
 			}
-			scene.SetObjectInstanceGuid(*object, parsed);
+			CSceneRuntimeAccess::SetObjectInstanceGuid(scene, *object, parsed);
 		}
 	}
 

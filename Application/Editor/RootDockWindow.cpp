@@ -21,6 +21,7 @@
 #include "Engine/GameFramework/Audio/AudioSystem.h"
 #include "Engine/GameFramework/Rendering/SpriteRenderSystem.h"
 #include "Engine/GameFramework/Rendering/TextRenderSystem.h"
+#include "Engine/GameFramework/Scene/SceneRuntimeAccess.h"
 #include "Engine/GameFramework/Scene/SceneSerializer.h"
 #include "Utillity/File/FileUtillities.h"
 #include "Utillity/String/StringUtillity.h"
@@ -70,20 +71,20 @@ namespace
 			Engine.SceneManager->AcquireReferencedAssets(*scene);
 			if (const EngineCore* context = Editor::ImEditor ? Editor::ImEditor->GetEditorEngineCore() : nullptr)
 			{
-				CSpriteAnimationSystem* animationSystem = scene->FindSystem<CSpriteAnimationSystem>();
+				CSpriteAnimationSystem* animationSystem = CSceneRuntimeAccess::FindSystem<CSpriteAnimationSystem>(*scene);
 				if (nullptr == animationSystem)
 				{
-					animationSystem = scene->AddSystem<CSpriteAnimationSystem>(context->AssetManager);
+					animationSystem = CSceneRuntimeAccess::AddSystem<CSpriteAnimationSystem>(*scene, context->AssetManager);
 				}
 				if (nullptr != animationSystem)
 				{
 					animationSystem->SetAssetManager(context->AssetManager);
 				}
 
-				CSpriteRenderSystem* spriteSystem = scene->FindSystem<CSpriteRenderSystem>();
+				CSpriteRenderSystem* spriteSystem = CSceneRuntimeAccess::FindSystem<CSpriteRenderSystem>(*scene);
 				if (nullptr == spriteSystem)
 				{
-					spriteSystem = scene->AddSystem<CSpriteRenderSystem>(context->RenderScene.TryGet());
+					spriteSystem = CSceneRuntimeAccess::AddSystem<CSpriteRenderSystem>(*scene, context->RenderScene.TryGet());
 				}
 				if (nullptr != spriteSystem)
 				{
@@ -96,10 +97,10 @@ namespace
 						Runtime.PixelsPerUnit);
 				}
 
-				CShapeRenderSystem* shapeSystem = scene->FindSystem<CShapeRenderSystem>();
+				CShapeRenderSystem* shapeSystem = CSceneRuntimeAccess::FindSystem<CShapeRenderSystem>(*scene);
 				if (nullptr == shapeSystem)
 				{
-					shapeSystem = scene->AddSystem<CShapeRenderSystem>(context->RenderScene.TryGet());
+					shapeSystem = CSceneRuntimeAccess::AddSystem<CShapeRenderSystem>(*scene, context->RenderScene.TryGet());
 				}
 				if (nullptr != shapeSystem)
 				{
@@ -107,10 +108,10 @@ namespace
 					shapeSystem->SetDependencies(context->RHIDevice.TryGet(), context->Renderer.TryGet());
 				}
 
-				CTextRenderSystem* textSystem = scene->FindSystem<CTextRenderSystem>();
+				CTextRenderSystem* textSystem = CSceneRuntimeAccess::FindSystem<CTextRenderSystem>(*scene);
 				if (nullptr == textSystem)
 				{
-					textSystem = scene->AddSystem<CTextRenderSystem>(context->RenderScene.TryGet());
+					textSystem = CSceneRuntimeAccess::AddSystem<CTextRenderSystem>(*scene, context->RenderScene.TryGet());
 				}
 				if (nullptr != textSystem)
 				{
@@ -119,10 +120,10 @@ namespace
 						Runtime.PixelsPerUnit, Runtime.DefaultFontFamilyGuid, Runtime.FallbackFontFamilies);
 				}
 
-				CAudioSystem* audioSystem = scene->FindSystem<CAudioSystem>();
+				CAudioSystem* audioSystem = CSceneRuntimeAccess::FindSystem<CAudioSystem>(*scene);
 				if (nullptr == audioSystem)
 				{
-					audioSystem = scene->AddSystem<CAudioSystem>(
+					audioSystem = CSceneRuntimeAccess::AddSystem<CAudioSystem>(*scene,
 						context->Audio, context->AssetManager);
 				}
 				if (nullptr != audioSystem)

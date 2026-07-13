@@ -1,6 +1,8 @@
 #include "pch.h"
 #include "ReflectionRegistry.h"
+#include "Core/Logging/LoggerInternal.h"
 
+#include <cstring>
 #include <cstdlib>
 #include <mutex>
 #include <unordered_map>
@@ -29,7 +31,11 @@ namespace
 	class ScriptAllocationRegistry final
 	{
 	public:
-		void Register(void* ptr, CGameScene& scene, TypeId scriptTypeId)
+		void Register(
+			void* ptr,
+			CGameScene& scene,
+			TypeId scriptTypeId,
+			std::uint64_t sceneGeneration)
 		{
 			if (nullptr == ptr || INVALID_TYPE_ID == scriptTypeId)
 			{
@@ -37,7 +43,7 @@ namespace
 			}
 
 			std::lock_guard<std::mutex> lock(m_mutex);
-			m_records[ptr] = { &scene, scriptTypeId, scene.GetScriptAllocationGeneration() };
+			m_records[ptr] = { &scene, scriptTypeId, sceneGeneration };
 		}
 
 		bool Consume(void* ptr, ScriptAllocationRecord& outRecord)
@@ -278,7 +284,7 @@ void* CReflectionRegistry::GetComponentAddressByGuid(CGameObject& object, TypeId
 	for (void* address : GetComponentAddresses(object, typeId))
 	{
 		CComponent* component = static_cast<CComponent*>(address);
-		if (component && component->InstanceGuid == componentGuid)
+		if (component && component->GetInstanceGuid() == componentGuid)
 		{
 			return address;
 		}
@@ -303,7 +309,7 @@ const void* CReflectionRegistry::GetComponentAddressByGuid(const CGameObject& ob
 	for (void* address : addresses)
 	{
 		const CComponent* component = static_cast<const CComponent*>(address);
-		if (component && component->InstanceGuid == componentGuid)
+		if (component && component->GetInstanceGuid() == componentGuid)
 		{
 			return address;
 		}
@@ -359,18 +365,7 @@ const void* CReflectionRegistry::GetPropertyAddress(const void* component, const
 
 TypeId CReflectionRegistry::MakeTypeId(const char* name)
 {
-	if (nullptr == name || '\0' == name[0])
-	{
-		return INVALID_TYPE_ID;
-	}
-
-	TypeId hash = 14695981039346656037ull;
-	while (*name)
-	{
-		hash ^= static_cast<unsigned char>(*name++);
-		hash *= 1099511628211ull;
-	}
-	return hash ? hash : 1;
+	return MakeStableTypeId(name);
 }
 
 ComponentTypeInfo* CReflectionRegistry::RegisterComponentInternal(ComponentTypeInfo&& typeInfo)
@@ -383,7 +378,16 @@ ComponentTypeInfo* CReflectionRegistry::RegisterComponentInternal(ComponentTypeI
 	auto found = m_componentIndexById.find(typeInfo.Type.Id);
 	if (found != m_componentIndexById.end())
 	{
-		return &m_componentTypes[found->second];
+		ComponentTypeInfo& existing = m_componentTypes[found->second];
+		if (0 == std::strcmp(existing.Type.Name, typeInfo.Type.Name))
+		{
+			return &existing;
+		}
+		CSystemLog::Error(std::format(
+			"Stable TypeId collision between component types '{}' and '{}'.",
+			existing.Type.Name,
+			typeInfo.Type.Name));
+		return nullptr;
 	}
 
 	const std::size_t index = m_componentTypes.size();
@@ -438,7 +442,7 @@ ScriptInstanceHandle CReflectionRegistry::CreateScriptInstance(
 	ScriptAllocationScope allocationScope(&scene, typeId);
 	handle.Instance = info->CreateInstance(
 		&m_scriptHostApi,
-		ComponentConstructionToken{},
+		ComponentConstructionToken{ typeId },
 		owner.SafeFromThis());
 	handle.DestroyInstance = info->DestroyInstance;
 	handle.HostApi = &m_scriptHostApi;
@@ -452,8 +456,20 @@ void CReflectionRegistry::ForgetScriptAllocationsForScene(const CGameScene& scen
 
 bool CReflectionRegistry::RegisterScriptInternal(ScriptTypeInfo&& typeInfo)
 {
-	if (INVALID_TYPE_ID == typeInfo.Type.Id || nullptr == typeInfo.Type.Name || m_scriptIndexById.contains(typeInfo.Type.Id))
+	if (INVALID_TYPE_ID == typeInfo.Type.Id || nullptr == typeInfo.Type.Name)
 	{
+		return false;
+	}
+	if (const auto found = m_scriptIndexById.find(typeInfo.Type.Id); found != m_scriptIndexById.end())
+	{
+		const ScriptTypeInfo& existing = m_scriptTypes[found->second];
+		if (0 != std::strcmp(existing.Type.Name, typeInfo.Type.Name))
+		{
+			CSystemLog::Error(std::format(
+				"Stable TypeId collision between script types '{}' and '{}'.",
+				existing.Type.Name,
+				typeInfo.Type.Name));
+		}
 		return false;
 	}
 
@@ -480,7 +496,8 @@ void* CReflectionRegistry::AllocateScriptMemory(std::size_t size, std::size_t al
 			GetScriptAllocationRegistry().Register(
 				ptr,
 				*g_scriptAllocationContext.Scene,
-				g_scriptAllocationContext.ScriptTypeId);
+				g_scriptAllocationContext.ScriptTypeId,
+				g_scriptAllocationContext.Scene->GetScriptAllocationGeneration());
 		}
 		return ptr;
 	}

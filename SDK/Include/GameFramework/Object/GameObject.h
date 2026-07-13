@@ -11,8 +11,7 @@
 
 #include <cstdint>
 #include <string>
-#include <typeindex>
-#include <typeinfo>
+#include <type_traits>
 #include <vector>
 
 class CGameScene;
@@ -43,10 +42,10 @@ class CGameObject final : public GameInstance, public EnableSafeFromThis<CGameOb
 public:
 	CGameObject() = default;
 	CGameObject(CGameScene& scene, const char* name, const File::Guid& instanceGuid)
-		: Name(name ? name : "GameObject")
+		: GameInstance(instanceGuid)
+		, Name(name ? name : "GameObject")
 		, m_scene(&scene)
 	{
-		InstanceGuid = instanceGuid; // GameInstance 베이스 멤버 — 본문에서 설정.
 	}
 
 	CGameObject(const CGameObject&) = delete;
@@ -58,11 +57,6 @@ public:
 	bool          IsActive = true;
 	BitFlag       Flags;          // EObjectFlags. 직렬화됨. 확장용(예: EditorHidden).
 	// InstanceGuid 는 GameInstance 베이스가 보유한다.
-
-	// 생성순서 키 — 하이라키 표시/저장 정렬용. 풀 슬롯 순회 순서는 생성순서와 무관하므로
-	// (할당 역순·슬롯 재사용) 이 단조 증가 값으로 형제 그룹을 정렬한다. 직렬화하지 않는다
-	// (로드 시 파일 순서대로 CreateGameObject 가 다시 부여 → 파일 순서 = 표시 순서).
-	std::uint64_t CreationOrder = 0;
 
 	// ── 플래그 편의 ──────────────────────────────────────────────────────────
 	bool IsEditorHidden() const { return Flags.Has(ObjectFlag_EditorHidden); }
@@ -107,6 +101,7 @@ public:
 	const WorldTransform2D& GetWorld()     const { return World; }
 
 	CGameScene* GetScene() const { return m_scene; }
+	std::uint64_t GetCreationOrder() const { return m_creationOrder; }
 
 	// ── 컴포넌트 ──────────────────────────────────────────────────────────────
 	// AddComponent/RemoveComponent: Scene.h 하단 정의.
@@ -116,27 +111,53 @@ public:
 	template<typename T>
 	T* GetComponent()
 	{
-		for (const SafePtr<CComponent>& c : m_components)
+		static_assert(std::is_base_of_v<CComponent, T>, "T must derive from CComponent.");
+		if constexpr (std::is_same_v<CComponent, T>)
 		{
-			if (T* typed = dynamic_cast<T*>(c.TryGet()))
-			{
-				return typed;
-			}
+			return static_cast<T*>(FindComponentRaw(INVALID_TYPE_ID));
 		}
-		return nullptr;
+		else if constexpr (requires { T::StaticTypeName(); })
+		{
+			return static_cast<T*>(FindComponentRaw(MakeStableTypeId(T::StaticTypeName())));
+		}
+		else
+		{
+			// 자동 생성 스크립트는 아직 StaticTypeName을 갖지 않는다. 이 호환 경로는
+			// 일반 컴포넌트 조회에는 사용되지 않으며, 스크립트 타입 특성 생성 후 제거한다.
+			for (const SafePtr<CComponent>& componentRef : m_components)
+			{
+				if (T* typed = dynamic_cast<T*>(componentRef.TryGet()))
+				{
+					return typed;
+				}
+			}
+			return nullptr;
+		}
 	}
 
 	template<typename T>
 	const T* GetComponent() const
 	{
-		for (const SafePtr<CComponent>& c : m_components)
+		static_assert(std::is_base_of_v<CComponent, T>, "T must derive from CComponent.");
+		if constexpr (std::is_same_v<CComponent, T>)
 		{
-			if (const T* typed = dynamic_cast<const T*>(c.TryGet()))
-			{
-				return typed;
-			}
+			return static_cast<const T*>(FindComponentRaw(INVALID_TYPE_ID));
 		}
-		return nullptr;
+		else if constexpr (requires { T::StaticTypeName(); })
+		{
+			return static_cast<const T*>(FindComponentRaw(MakeStableTypeId(T::StaticTypeName())));
+		}
+		else
+		{
+			for (const SafePtr<CComponent>& componentRef : m_components)
+			{
+				if (const T* typed = dynamic_cast<const T*>(componentRef.TryGet()))
+				{
+					return typed;
+				}
+			}
+			return nullptr;
+		}
 	}
 
 	template<typename T>
@@ -146,30 +167,72 @@ public:
 	template<typename T>
 	std::vector<T*> GetComponents()
 	{
+		static_assert(std::is_base_of_v<CComponent, T>, "T must derive from CComponent.");
 		std::vector<T*> result;
-		for (const SafePtr<CComponent>& c : m_components)
+		if constexpr (std::is_same_v<CComponent, T>)
 		{
-			if (T* typed = dynamic_cast<T*>(c.TryGet()))
+			result.reserve(m_components.size());
+			for (const SafePtr<CComponent>& componentRef : m_components)
 			{
-				result.push_back(typed);
+				if (CComponent* component = componentRef.TryGet())
+				{
+					result.push_back(component);
+				}
+			}
+		}
+		else if constexpr (requires { T::StaticTypeName(); })
+		{
+			constexpr TypeId typeId = MakeStableTypeId(T::StaticTypeName());
+			for (const SafePtr<CComponent>& componentRef : m_components)
+			{
+				CComponent* component = componentRef.TryGet();
+				if (component && component->GetTypeId() == typeId)
+				{
+					result.push_back(static_cast<T*>(component));
+				}
+			}
+		}
+		else
+		{
+			for (const SafePtr<CComponent>& componentRef : m_components)
+			{
+				if (T* typed = dynamic_cast<T*>(componentRef.TryGet()))
+				{
+					result.push_back(typed);
+				}
 			}
 		}
 		return result;
 	}
 
 	const std::vector<SafePtr<CComponent>>& GetComponents() const { return m_components; }
+
+private:
 	bool MoveComponent(const File::Guid& instanceGuid, std::size_t newIndex);
 
-	// 타입소거 컴포넌트 조회 — Ref<T> 처럼 컴파일타임에 T 를 모르는 코드(또는 DLL 경계)에서
-	// 동적 타입(type_index)으로 컴포넌트 주소를 얻는다. 단일 상속이라 반환 주소 == T*.
-	void* FindComponentRaw(std::type_index type)
+	// 타입소거 컴포넌트 조회 — Ref<T>처럼 컴파일타임에 T를 모르는 코드(또는 DLL 경계)에서
+	// 생성 시 고정된 TypeId로 컴포넌트 주소를 얻는다. 단일 상속이라 반환 주소 == T*.
+	void* FindComponentRaw(TypeId typeId)
 	{
 		for (const SafePtr<CComponent>& c : m_components)
 		{
 			CComponent* comp = c.TryGet();
-			if (comp && std::type_index(typeid(*comp)) == type)
+			if (comp && (INVALID_TYPE_ID == typeId || comp->GetTypeId() == typeId))
 			{
 				return comp;
+			}
+		}
+		return nullptr;
+	}
+
+	const void* FindComponentRaw(TypeId typeId) const
+	{
+		for (const SafePtr<CComponent>& componentRef : m_components)
+		{
+			const CComponent* component = componentRef.TryGet();
+			if (component && (INVALID_TYPE_ID == typeId || component->GetTypeId() == typeId))
+			{
+				return component;
 			}
 		}
 		return nullptr;
@@ -178,16 +241,16 @@ public:
 	// 컴포넌트 InstanceGuid 로 특정 1개를 찾는다(멀티 컴포넌트 지목). 같은 오브젝트에 같은
 	// 타입이 여럿이어도 guid 로 구분된다. componentGuid 가 비어 있으면 타입 첫 매치로 폴백
 	// (컴포넌트 guid 가 없던 구 데이터/단일 인스턴스 호환). 반환 주소는 단일 상속이라 곧 T*.
-	void* FindComponentRawByGuid(const File::Guid& componentGuid, std::type_index type)
+	void* FindComponentRawByGuid(const File::Guid& componentGuid, TypeId typeId)
 	{
 		if (componentGuid.IsNull())
 		{
-			return FindComponentRaw(type);
+			return FindComponentRaw(typeId);
 		}
 		for (const SafePtr<CComponent>& c : m_components)
 		{
 			CComponent* comp = c.TryGet();
-			if (comp && std::type_index(typeid(*comp)) == type && comp->InstanceGuid == componentGuid)
+			if (comp && (INVALID_TYPE_ID == typeId || comp->GetTypeId() == typeId) && comp->GetInstanceGuid() == componentGuid)
 			{
 				return comp;
 			}
@@ -195,14 +258,14 @@ public:
 		return nullptr;
 	}
 
-	const void* FindComponentRawByGuid(const File::Guid& componentGuid, std::type_index type) const
+	const void* FindComponentRawByGuid(const File::Guid& componentGuid, TypeId typeId) const
 	{
 		if (componentGuid.IsNull())
 		{
 			for (const SafePtr<CComponent>& c : m_components)
 			{
 				const CComponent* comp = c.TryGet();
-				if (comp && std::type_index(typeid(*comp)) == type)
+				if (comp && (INVALID_TYPE_ID == typeId || comp->GetTypeId() == typeId))
 				{
 					return comp;
 				}
@@ -212,7 +275,7 @@ public:
 		for (const SafePtr<CComponent>& c : m_components)
 		{
 			const CComponent* comp = c.TryGet();
-			if (comp && std::type_index(typeid(*comp)) == type && comp->InstanceGuid == componentGuid)
+			if (comp && (INVALID_TYPE_ID == typeId || comp->GetTypeId() == typeId) && comp->GetInstanceGuid() == componentGuid)
 			{
 				return comp;
 			}
@@ -230,7 +293,7 @@ public:
 		for (const SafePtr<CComponent>& c : m_components)
 		{
 			CComponent* comp = c.TryGet();
-			if (comp && comp->InstanceGuid == componentGuid)
+			if (comp && comp->GetInstanceGuid() == componentGuid)
 			{
 				return comp;
 			}
@@ -243,7 +306,7 @@ public:
 		for (const SafePtr<CComponent>& c : m_components)
 		{
 			const CComponent* comp = c.TryGet();
-			if (comp && comp->InstanceGuid == componentGuid) return comp;
+			if (comp && comp->GetInstanceGuid() == componentGuid) return comp;
 		}
 		return nullptr;
 	}
@@ -265,6 +328,7 @@ public:
 		}
 	}
 
+public:
 	// ── 계층 ──────────────────────────────────────────────────────────────────
 	SafePtr<CGameObject> GetParent() const { return m_parent; }
 	const std::vector<SafePtr<CGameObject>>& GetChildren() const { return m_children; }
@@ -277,6 +341,9 @@ public:
 	void Destroy();
 
 private:
+	friend class CGameScene;
+	friend class CSceneRuntimeAccess;
+
 	// 계층 링크 조작 — SetParent/ClearParent 내부 전용(예약 식별자 `__` 제거).
 	void AddChildInternal(const SafePtr<CGameObject>& child) { m_children.push_back(child); }
 	void RemoveChildInternal(CGameObject* child)
@@ -292,6 +359,8 @@ private:
 	}
 
 	CGameScene*                       m_scene = nullptr;
+	// 하이라키 표시/저장용 내부 정렬 키. 변경은 CSceneRuntimeAccess만 수행한다.
+	std::uint64_t                     m_creationOrder = 0;
 	SafePtr<CGameObject>              m_parent;
 	std::vector<SafePtr<CGameObject>> m_children;
 	std::vector<SafePtr<CComponent>>  m_components;

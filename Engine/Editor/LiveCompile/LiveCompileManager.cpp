@@ -8,6 +8,7 @@
 #include "GameFramework/Reflection/ReflectionRegistry.h"
 #include "GameFramework/Scene/Scene.h"
 #include "GameFramework/Scene/SceneManager.h"
+#include "GameFramework/Scene/SceneRuntimeAccess.h"
 #include "Editor/LiveCompile/CompilePipeline.h"
 #include "Editor/LiveCompile/Windows/WindowsDynamicLibrary.h"
 #include "Core/Logging/LoggerInternal.h"
@@ -39,18 +40,7 @@ namespace
 	template<typename Fn>
 	void ForEachScriptInObjectOrder(CGameScene& scene, Fn&& fn)
 	{
-		scene.ForEachObjectInHierarchyOrder(
-			[&](CGameObject& object)
-			{
-				for (const SafePtr<CComponent>& component : object.GetComponents())
-				{
-					CGameScript* script = dynamic_cast<CGameScript*>(component.TryGet());
-					if (script)
-					{
-						fn(*script);
-					}
-				}
-			});
+		CSceneRuntimeAccess::ForEachScriptInExecutionOrder(scene, std::forward<Fn>(fn));
 	}
 
 	void* AllocateModuleMemory(std::size_t size, std::size_t alignment)
@@ -519,7 +509,7 @@ void CLiveCompileManager::TakeScriptSnapshot()
 		ForEachScriptInObjectOrder(*scene,
 		[&, sceneName](CGameScript& script)
 		{
-			if (script.GetScriptTypeId() == INVALID_TYPE_ID)
+			if (script.GetTypeId() == INVALID_TYPE_ID)
 			{
 				return;
 			}
@@ -529,7 +519,7 @@ void CLiveCompileManager::TakeScriptSnapshot()
 				return;
 			}
 
-			const ScriptTypeInfo* info = reg->FindScript(script.GetScriptTypeId());
+			const ScriptTypeInfo* info = reg->FindScript(script.GetTypeId());
 			if (!info)
 			{
 				return;
@@ -537,8 +527,8 @@ void CLiveCompileManager::TakeScriptSnapshot()
 
 			ScriptFieldSnapshot snapshot;
 			snapshot.SceneName     = sceneName;
-			snapshot.OwnerGuid     = owner->InstanceGuid;
-			snapshot.ComponentGuid = script.InstanceGuid;
+			snapshot.OwnerGuid     = owner->GetInstanceGuid();
+			snapshot.ComponentGuid = script.GetInstanceGuid();
 			snapshot.TypeName      = info->Type.Name ? info->Type.Name : "";
 			snapshot.IsEnabled     = script.IsEnabled();
 			const auto& components = owner->GetComponents();
@@ -621,11 +611,11 @@ void CLiveCompileManager::RestoreScriptSnapshot()
 		{
 			continue;
 		}
-		CGameScript* script = scene->AddScript(*owner, info->Type.Id, *reg);
+		CGameScript* script = CSceneRuntimeAccess::AddScript(*scene, *owner, info->Type.Id, *reg);
 		if (nullptr == script) continue;
-		script->InstanceGuid = snapshot.ComponentGuid;
+		CSceneRuntimeAccess::SetComponentInstanceGuid(*script, snapshot.ComponentGuid);
 		script->SetEnabled(snapshot.IsEnabled);
-		owner->MoveComponent(script->InstanceGuid, snapshot.ComponentIndex);
+		CSceneRuntimeAccess::MoveComponent(*owner, script->GetInstanceGuid(), snapshot.ComponentIndex);
 		for (const ScriptFieldValue& value : snapshot.Fields)
 		{
 			for (const ReflectPropertyInfo& prop : info->Properties)

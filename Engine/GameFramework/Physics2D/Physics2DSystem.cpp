@@ -1476,39 +1476,39 @@ void CPhysics2DSystem::DispatchToScript(
 	collision.Penetration  = penetration;
 	collision.IsTrigger    = isTrigger;
 
-	for (const SafePtr<CComponent>& component : self->GetComponents())
+	CGameScene* scene = self->GetScene();
+	if (nullptr == scene)
 	{
-		CGameScript* script = dynamic_cast<CGameScript*>(component.TryGet());
-		if (nullptr == script)
+		return;
+	}
+
+	scene->ForEachScriptOnObject(*self, [&](CGameScript& script, CGameScene::ScriptRuntimeState&)
+	{
+		CGameObject* owner = script.GetOwner().TryGet();
+		if (false == script.IsEnabled() || nullptr == owner || false == owner->IsActiveInHierarchy() || false == script.IsStarted())
 		{
-			continue;
-		}
-		CGameObject* owner = script->GetOwner().TryGet();
-		if (false == script->IsEnabled() || nullptr == owner || false == owner->IsActiveInHierarchy() || false == script->IsStarted())
-		{
-			continue;
+			return;
 		}
 
-		CGameScript& instance = *script;
 		if (isTrigger)
 		{
 			switch (phase)
 			{
-			case EContactPhase::Enter: instance.TriggerEnter(collision); break;
-			case EContactPhase::Stay:  instance.TriggerStay(collision);  break;
-			case EContactPhase::Exit:  instance.TriggerExit(collision);  break;
+			case EContactPhase::Enter: script.TriggerEnter(collision); break;
+			case EContactPhase::Stay:  script.TriggerStay(collision);  break;
+			case EContactPhase::Exit:  script.TriggerExit(collision);  break;
 			}
 		}
 		else
 		{
 			switch (phase)
 			{
-			case EContactPhase::Enter: instance.CollisionEnter(collision); break;
-			case EContactPhase::Stay:  instance.CollisionStay(collision);  break;
-			case EContactPhase::Exit:  instance.CollisionExit(collision);  break;
+			case EContactPhase::Enter: script.CollisionEnter(collision); break;
+			case EContactPhase::Stay:  script.CollisionStay(collision);  break;
+			case EContactPhase::Exit:  script.CollisionExit(collision);  break;
 			}
 		}
-	}
+	});
 }
 
 // 한 접촉 페어(A,B)를 양쪽 스크립트에 각자 관점으로 디스패치한다.

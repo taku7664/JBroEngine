@@ -17,6 +17,7 @@
 #include "GameFramework/Object/Ref.h"
 #include "GameFramework/Reflection/ReflectionRegistry.h"
 #include "GameFramework/Scene/Scene.h"
+#include "GameFramework/Scene/SceneRuntimeAccess.h"
 #include "Utillity/Math/RectT.h"
 #include "yaml-cpp/yaml.h"
 
@@ -886,11 +887,11 @@ namespace
 	YAML::Node WriteScriptNode(const CGameScript* script, std::vector<AssetGuid>& referencedAssets)
 	{
 		YAML::Node scriptNode(YAML::NodeType::Map);
-		if (nullptr == script || INVALID_TYPE_ID == script->GetScriptTypeId() || false == static_cast<bool>(Script.Reflection))
+		if (nullptr == script || INVALID_TYPE_ID == script->GetTypeId() || false == static_cast<bool>(Script.Reflection))
 		{
 			return scriptNode;
 		}
-		const ScriptTypeInfo* scriptInfo = Script.Reflection->FindScript(script->GetScriptTypeId());
+		const ScriptTypeInfo* scriptInfo = Script.Reflection->FindScript(script->GetTypeId());
 		if (scriptInfo && scriptInfo->Type.Name)
 		{
 			// 스크립트 타입명은 ScriptType 키에 둔다. 공통 "Type" 키는 디스패치용("Script"),
@@ -900,7 +901,7 @@ namespace
 		}
 		else
 		{
-			scriptNode["TypeId"] = script->GetScriptTypeId();
+			scriptNode["TypeId"] = script->GetTypeId();
 		}
 		return scriptNode;
 	}
@@ -919,7 +920,9 @@ YAML::Node WriteComponent(const CComponent& component, std::vector<AssetGuid>* r
 
 	YAML::Node cn;
 	const char* serializedType = tn;
-	if (const CGameScript* script = dynamic_cast<const CGameScript*>(c))
+	const CGameObject* owner = c->GetOwner().TryGet();
+	const CGameScene* scene = owner ? owner->GetScene() : nullptr;
+	if (const CGameScript* script = scene ? CSceneRuntimeAccess::AsScript(*scene, c) : nullptr)
 	{
 		cn = WriteScriptNode(script, assets);
 		serializedType = "Script";
@@ -940,9 +943,9 @@ YAML::Node WriteComponent(const CComponent& component, std::vector<AssetGuid>* r
 
 	cn["Type"]      = serializedType;
 	cn["IsEnabled"] = c->IsEnabled();
-	if (false == c->InstanceGuid.IsNull())
+	if (false == c->GetInstanceGuid().IsNull())
 	{
-		cn["InstanceGuid"] = c->InstanceGuid.generic_string();
+		cn["InstanceGuid"] = c->GetInstanceGuid().generic_string();
 	}
 	return cn;
 }
@@ -1089,7 +1092,11 @@ CComponent* ReadComponentInto(CGameObject& object, const YAML::Node& node,
 			const ScriptTypeInfo* scriptInfo = Script.Reflection->FindScriptByName(scriptTypeName.c_str());
 			if (scriptInfo)
 			{
-				CGameScript* script = object.GetScene()->AddScript(object, scriptInfo->Type.Id, *Script.Reflection);
+				CGameScript* script = CSceneRuntimeAccess::AddScript(
+					*object.GetScene(),
+					object,
+					scriptInfo->Type.Id,
+					*Script.Reflection);
 				if (script)
 				{
 					if (const YAML::Node fields = node["Fields"])
@@ -1106,8 +1113,8 @@ CComponent* ReadComponentInto(CGameObject& object, const YAML::Node& node,
 		const ComponentTypeInfo* ti = GetTypeInfo(type.c_str());
 		if (ti && Script.Reflection && Script.Reflection->AddComponent(*object.GetScene(), object, ti->Type.Id))
 		{
-			const std::vector<CComponent*> all = object.GetComponents<CComponent>();
-			added = all.empty() ? nullptr : all.back();
+			const std::vector<SafePtr<CComponent>>& components = object.GetComponents();
+			added = components.empty() ? nullptr : components.back().TryGet();
 			if (added)
 			{
 				ReadComponentReflected(node, added, *ti);
@@ -1122,8 +1129,11 @@ CComponent* ReadComponentInto(CGameObject& object, const YAML::Node& node,
 		if (false == compGuid.empty())
 		{
 			File::Guid restoredGuid(compGuid);
-			if (object.FindComponentByGuid(restoredGuid)) restoredGuid = File::GenerateGuid();
-			added->InstanceGuid = restoredGuid;
+			if (CSceneRuntimeAccess::FindComponentByGuid(object, restoredGuid))
+			{
+				restoredGuid = File::GenerateGuid();
+			}
+			CSceneRuntimeAccess::SetComponentInstanceGuid(*added, restoredGuid);
 		}
 	}
 	return added;

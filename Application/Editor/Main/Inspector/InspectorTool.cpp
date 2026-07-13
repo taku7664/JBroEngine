@@ -44,6 +44,7 @@
 #include "Engine/GameFramework/Physics2D/Physics2DSystem.h"
 #include "Engine/GameFramework/Physics2D/Physics2DTypes.h"
 #include "Engine/GameFramework/Scene/SceneTransformUtils.h"
+#include "Engine/GameFramework/Scene/SceneRuntimeAccess.h"
 #include "Utillity/Math/RectT.h"
 #include "Utillity/Types/EngineTypes.h"
 
@@ -97,14 +98,14 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 	{
 		if (nullptr == compInstance || false == Engine.Reflection.IsValid()) return nullptr;
 		CGameScript* script = static_cast<CGameScript*>(compInstance);
-		if (INVALID_TYPE_ID == script->GetScriptTypeId()) return nullptr;
-		const ScriptTypeInfo* info = Engine.Reflection->FindScript(script->GetScriptTypeId());
+		if (INVALID_TYPE_ID == script->GetTypeId()) return nullptr;
+		const ScriptTypeInfo* info = Engine.Reflection->FindScript(script->GetTypeId());
 		return info ? GetScriptDisplayName(info) : nullptr;
 	}
 
 	File::Guid GetComponentGuid(void* component)
 	{
-		return component ? static_cast<CComponent*>(component)->InstanceGuid : File::Guid();
+		return component ? static_cast<CComponent*>(component)->GetInstanceGuid() : File::Guid();
 	}
 
 	// ── Ref<T> 프로퍼티 헬퍼 ──────────────────────────────────────────────────
@@ -119,15 +120,20 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		const char* wantType  = property.RefTypeName;
 		if (wantScript)
 		{
+			CGameScene* scene = object.GetScene();
+			if (nullptr == scene)
+			{
+				return File::Guid();
+			}
 			for (const SafePtr<CComponent>& componentRef : object.GetComponents())
 			{
-				CGameScript* script = dynamic_cast<CGameScript*>(componentRef.TryGet());
+				CGameScript* script = CSceneRuntimeAccess::AsScript(*scene, componentRef.TryGet());
 				if (nullptr == script) continue;
-				if (nullptr == wantType || '\0' == wantType[0]) return script->InstanceGuid;
+				if (nullptr == wantType || '\0' == wantType[0]) return script->GetInstanceGuid();
 				if (Engine.Reflection.IsValid())
 				{
-					const ScriptTypeInfo* info = Engine.Reflection->FindScript(script->GetScriptTypeId());
-					if (info && info->Type.Name && 0 == strcmp(info->Type.Name, wantType)) return script->InstanceGuid;
+					const ScriptTypeInfo* info = Engine.Reflection->FindScript(script->GetTypeId());
+					if (info && info->Type.Name && 0 == strcmp(info->Type.Name, wantType)) return script->GetInstanceGuid();
 				}
 			}
 			return File::Guid();
@@ -146,7 +152,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 				const char* tn = comp->GetTypeName();
 				if (nullptr == wantType || '\0' == wantType[0] || (tn && 0 == strcmp(tn, wantType)))
 				{
-					return comp->InstanceGuid;
+					return comp->GetInstanceGuid();
 				}
 			}
 		}
@@ -249,7 +255,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 				ImGui::AcceptDragDropPayload(EditorDragDrop::HIERARCHY_ENTITY_PAYLOAD))
 			{
 				CGameObject* obj = *static_cast<CGameObject* const*>(p->Data);
-				ref.SetGuidText(obj->InstanceGuid.generic_string().c_str());
+				ref.SetGuidText(obj->GetInstanceGuid().generic_string().c_str());
 				ref.SetComponentGuidText(wantsGameObject ? "" : match.generic_string().c_str());
 				changed = true;
 			}
@@ -272,7 +278,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			.Draw();
 	}
 
-	bool DrawPropertyEditor(void* field, const ReflectPropertyInfo& property, bool drawLabel = true)
+	bool DrawPropertyEditor(void* field, const ReflectPropertyInfo& property)
 	{
 		if (nullptr == field || false == property.IsEditable)
 		{
@@ -463,6 +469,57 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			ImGui::TextDisabled("%s: %s", "", Loc::Text(EditorLocKeys::InspectorUnsupported));
 			return false;
 		}
+	}
+
+	void DrawReflectedPropertyRow(
+		CGameScene& scene,
+		CGameObject* selectedObject,
+		CComponent& component,
+		const ReflectPropertyInfo& property,
+		ImText& labelText)
+	{
+		void* field = CReflectionRegistry::GetPropertyAddress(&component, property);
+		if (nullptr == field)
+		{
+			return;
+		}
+
+		std::vector<std::uint8_t> oldValue(property.Size);
+		const bool canRawUndo = !(property.Type == EReflectPropertyType::String && property.ElementCount <= 1);
+		const bool canStringUndo = property.Type == EReflectPropertyType::String && property.ElementCount <= 1;
+		const std::string oldString = canStringUndo ? *static_cast<std::string*>(field) : std::string();
+		if (canRawUndo && property.Size > 0)
+		{
+			std::memcpy(oldValue.data(), field, property.Size);
+		}
+
+		ImGui::Utillity::FormLayout layout("##reflected_properties", 4.0f, { 2.0f, 1.0f }, 60.0f);
+		const std::string label = GetPropertyLabel(property);
+		layout.Row([&]() { labelText(label.c_str()); }, [&]()
+		{
+			const bool changed = DrawPropertyEditor(field, property);
+			if (changed && canRawUndo && property.Size > 0)
+			{
+				std::vector<std::uint8_t> newValue(property.Size);
+				std::memcpy(newValue.data(), field, property.Size);
+				if (oldValue != newValue)
+				{
+					Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CSetComponentPropertyCommand>(
+						scene.SafeFromThis(), selectedObject, component.GetTypeId(), property.Offset,
+						std::move(oldValue), std::move(newValue), component.GetInstanceGuid()));
+				}
+			}
+			else if (changed && canStringUndo)
+			{
+				const std::string& newString = *static_cast<std::string*>(field);
+				if (oldString != newString)
+				{
+					Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CSetComponentStringPropertyCommand>(
+						scene.SafeFromThis(), selectedObject, component.GetTypeId(), property.Offset,
+						oldString, newString, component.GetInstanceGuid()));
+				}
+			}
+		});
 	}
 
 	void DrawTransformMatrixReadOnly(const Transform2D& transform)
@@ -681,40 +738,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 					&& false == text.AutoSizeEnabled) continue;
 			}
 
-			ImGui::Utillity::FormLayout layout("##component_properties", 4.0f, {2.0f, 1.0f}, 60.0f);
-
-			void* field = CReflectionRegistry::GetPropertyAddress(component, property);
-			std::vector<std::uint8_t> oldValue(property.Size);
-			const bool canRawUndo = !(property.Type == EReflectPropertyType::String && property.ElementCount <= 1);
-			const bool canStringUndo = property.Type == EReflectPropertyType::String && property.ElementCount <= 1;
-			const std::string oldString = canStringUndo && field ? *static_cast<std::string*>(field) : std::string();
-			if (canRawUndo && field && property.Size > 0)
-				std::memcpy(oldValue.data(), field, property.Size);
-
-			const std::string label = GetPropertyLabel(property);
-			layout.Row([&]() { leftText(label.c_str()); }, [&]() {
-					const bool	changed = DrawPropertyEditor(field, property);
-					if (changed && canRawUndo && field && property.Size > 0)
-					{
-						std::vector<std::uint8_t> newValue(property.Size);
-						std::memcpy(newValue.data(), field, property.Size);
-						if (oldValue != newValue)
-						{
-							Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CSetComponentPropertyCommand>(
-								scene.SafeFromThis(), selectedObject,
-								componentType.Type.Id, property.Offset,
-								std::move(oldValue), std::move(newValue), GetComponentGuid(component)));
-						}
-					}
-					else if (changed && canStringUndo && field)
-					{
-						const std::string& newString = *static_cast<std::string*>(field);
-						if (oldString != newString)
-							Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CSetComponentStringPropertyCommand>(
-								scene.SafeFromThis(), selectedObject, componentType.Type.Id, property.Offset, oldString, newString, GetComponentGuid(component)));
-					}
-				}
-			);
+			DrawReflectedPropertyRow(scene, selectedObject, *static_cast<CComponent*>(component), property, leftText);
 		}
 
 		// 특수 디버그 섹션
@@ -1647,9 +1671,9 @@ void CInspectorTool::OnRenderStay()
 	{
 		CComponent* component = componentRef.TryGet();
 		if (nullptr == component) continue;
-		if (CGameScript* script = dynamic_cast<CGameScript*>(component))
+		if (CGameScript* script = CSceneRuntimeAccess::AsScript(*scene, component))
 		{
-			listItems.push_back({ GetScriptInstanceDisplayName(script) ? GetScriptInstanceDisplayName(script) : Loc::Text(EditorLocKeys::InspectorUnknownScript), nullptr, 0, script, script->InstanceGuid });
+			listItems.push_back({ GetScriptInstanceDisplayName(script) ? GetScriptInstanceDisplayName(script) : Loc::Text(EditorLocKeys::InspectorUnknownScript), nullptr, 0, script, script->GetInstanceGuid() });
 			continue;
 		}
 		for (ComponentEntry& entry : allEntries)
@@ -1659,7 +1683,7 @@ void CInspectorTool::OnRenderStay()
 			{
 				if (entry.instances[i] == component)
 				{
-					listItems.push_back({ GetComponentLabel(*entry.typeInfo), &entry, i, nullptr, component->InstanceGuid });
+					listItems.push_back({ GetComponentLabel(*entry.typeInfo), &entry, i, nullptr, component->GetInstanceGuid() });
 					break;
 				}
 			}
@@ -1792,7 +1816,7 @@ void CInspectorTool::OnRenderStay()
 					ImGui::Separator();
 					if (ImGui::MenuItem(Loc::Text(EditorLocKeys::InspectorRemoveComponent)))
 					{
-						if (item.script) Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CRemoveScriptCommand>(scene->SafeFromThis(), selectedObject, item.script->InstanceGuid));
+						if (item.script) Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CRemoveScriptCommand>(scene->SafeFromThis(), selectedObject, item.script->GetInstanceGuid()));
 						else Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CRemoveComponentCommand>(scene->SafeFromThis(), selectedObject, ce->typeInfo->Type.Id, GetComponentGuid(firstInst)));
 					}
 					ImGui::EndPopup();
@@ -1843,15 +1867,19 @@ void CInspectorTool::OnRenderStay()
 					const bool oldEnabled = script->IsEnabled();
 					script->SetEnabled(enabled);
 					Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CSetComponentEnabledCommand>(
-						scene->SafeFromThis(), selectedObject, script->InstanceGuid, oldEnabled, enabled));
+						scene->SafeFromThis(), selectedObject, script->GetInstanceGuid(), oldEnabled, enabled));
 				}
-				const ScriptTypeInfo* scriptInfo = Engine.Reflection.IsValid() ? Engine.Reflection->FindScript(script->GetScriptTypeId()) : nullptr;
+				const ScriptTypeInfo* scriptInfo = Engine.Reflection.IsValid() ? Engine.Reflection->FindScript(script->GetTypeId()) : nullptr;
 				if (scriptInfo)
 				{
+					ImText labelText;
+					labelText.SetHoveredTooltip(true);
 					for (const ReflectPropertyInfo& prop : scriptInfo->Properties)
 					{
-						void* field = CReflectionRegistry::GetPropertyAddress(script, prop);
-						if (field) DrawPropertyEditor(field, prop);
+						if (prop.IsEditable)
+						{
+							DrawReflectedPropertyRow(*scene, selectedObject, *script, prop, labelText);
+						}
 					}
 				}
 				ImGui::PopID();

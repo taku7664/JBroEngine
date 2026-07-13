@@ -10,6 +10,22 @@
 using TypeId = std::uint64_t;
 inline constexpr TypeId INVALID_TYPE_ID = 0;
 
+constexpr TypeId MakeStableTypeId(const char* name)
+{
+	if (nullptr == name || '\0' == name[0])
+	{
+		return INVALID_TYPE_ID;
+	}
+
+	TypeId hash = 14695981039346656037ull;
+	while ('\0' != *name)
+	{
+		hash ^= static_cast<unsigned char>(*name++);
+		hash *= 1099511628211ull;
+	}
+	return 0 == hash ? 1 : hash;
+}
+
 enum class EReflectTypeKind
 {
 	Unknown,
