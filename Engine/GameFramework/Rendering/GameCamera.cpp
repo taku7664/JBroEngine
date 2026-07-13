@@ -13,6 +13,7 @@
 #include "GameFramework/Scene/SceneTransformUtils.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 
 std::vector<GameRenderCameraDesc> CollectGameRenderCameras(const CGameScene& scene, float renderWidth, float renderHeight)
@@ -112,6 +113,8 @@ std::vector<GameRenderLightDesc> CollectGameRenderLights(const CGameScene& scene
 			// 그림자: Point·Spot = 라이트 중심 occluder + 방사 레이마치, Directional = 카메라뷰 occluder
 			// + 고정방향 레이마치. 셋 다 지원(그래프가 타입별로 occluder/draw 분기).
 			desc.CastShadows = light.CastShadows;
+			desc.ShadowLength = light.ShadowLength;
+			desc.ShadowSoftness = light.ShadowSoftness;
 			lights.push_back(desc);
 		});
 
@@ -211,7 +214,7 @@ void RenderGameCameraStack(
 	const float rtH = std::max(1.0f, static_cast<float>(renderTargetSize.Height));
 
 	// Forward2DRenderer 가 아니면 렌더그래프/RT풀이 없으므로 최종 타겟에 직접 렌더(폴백).
-	CForward2DRenderer* forward = dynamic_cast<CForward2DRenderer*>(&renderer);
+	CForward2DRenderer* forward = renderer.AsForward2DRenderer();
 	if (nullptr == forward)
 	{
 		RenderCameraStackInto(commandContext, renderer, renderScene, cameras, renderTargetSize, renderTarget, outCameraStats);
@@ -279,40 +282,48 @@ void RenderGameCameraStack(
 
 		const Color ambientColor{ ambient[0], ambient[1], ambient[2], 1.0f };
 
-		// ── 그림자: CastShadows 라이트마다 라이트 중심 정사각 occluder 맵을 렌더 ──
-		// occluder 맵 uv[0,1] = 월드 [pos±range]. LightMap 의 그림자 셰이더가 이걸 레이마치한다.
-		struct ShadowSlot { int LightIndex; RWTextureHandle Occluder; };
-		std::vector<ShadowSlot> shadowSlots;
-		std::vector<RWTextureHandle> occluderReads;
-		constexpr std::uint32_t occluderSize = 512;
+		// ── 그림자: 이미지 기반 1D 폴라 섀도맵 (Catalin Zima) ──
+		// (1) CastShadow 스프라이트를 월드공간 공유 OccluderMap 에 1회 렌더(알파=차폐).
+		// (2) 그림자 라이트(Point/Spot)마다 OccluderMap 을 각도별 최근접 거리로 리덕션 → ShadowAtlas 행.
+		// (3) LightMap 패스가 픽셀 (θ,r)로 아틀라스를 샘플해 umbra + 각도블러 penumbra 로 라이트 차폐.
+		// Directional 은 점광 대상 아님(그림자 없음, 균일). 오클루더맵은 광원 수와 무관하게 1장 공유.
+		const GameRenderCameraDesc primaryCamera = cameras.front();
+		std::vector<int> rowForLight(lights.size(), -1);   // 라이트→아틀라스 행(-1=무그림자)
+		int shadowRowCount = 0;
 		for (std::size_t li = 0; li < lights.size(); ++li)
 		{
-			if (false == lights[li].CastShadows)
+			const GameRenderLightDesc& light = lights[li];
+			if (light.CastShadows && 0 != light.Type)   // Point(1)/Spot(2) 만
 			{
-				continue;
+				rowForLight[li] = shadowRowCount++;
 			}
-			const GameRenderLightDesc light = lights[li];
-			const bool isDirectional = (0 == light.Type);
+		}
 
-			// Directional 은 카메라뷰 occluder(화면 크기), Point/Spot 은 라이트 중심 정사각(512).
+		const bool hasShadow = (shadowRowCount > 0);
+		RWTextureHandle hOccluder{};
+		RWTextureHandle hAtlas{};
+		if (hasShadow)
+		{
 			RWTextureDesc occDesc;
-			occDesc.Width  = isDirectional ? sceneDesc.Width  : occluderSize;
-			occDesc.Height = isDirectional ? sceneDesc.Height : occluderSize;
+			occDesc.Width  = sceneDesc.Width;
+			occDesc.Height = sceneDesc.Height;
 			occDesc.Format = ERHITextureFormat::RGBA8;
-			const RWTextureHandle hOcc = graph.CreateTexture(occDesc);
-			shadowSlots.push_back(ShadowSlot{ static_cast<int>(li), hOcc });
-			occluderReads.push_back(hOcc);
+			hOccluder = graph.CreateTexture(occDesc);
 
-			// Directional occluder 는 주 카메라(cameras[0]) 뷰 기준(단일 카메라 가정, 멀티는 후속).
-			const GameRenderCameraDesc primaryCamera = cameras.front();
+			RWTextureDesc atlasDesc;
+			atlasDesc.Width  = 256;
+			atlasDesc.Height = static_cast<std::uint32_t>(shadowRowCount);
+			atlasDesc.Format = ERHITextureFormat::RGBA8;
+			hAtlas = graph.CreateTexture(atlasDesc);
+
+			// (1) OccluderMap — CastShadow 알파 실루엣을 카메라뷰 월드공간 맵에(공유 1장).
 			RWPassDesc occPass;
-			occPass.Name  = "Occluder";
-			occPass.Write = hOcc;
-			occPass.Execute = [forward, &renderScene, light, hOcc, occluderSize, isDirectional, primaryCamera, renderTargetSize]
+			occPass.Name  = "OccluderMap";
+			occPass.Write = hOccluder;
+			occPass.Execute = [forward, &renderScene, primaryCamera, renderTargetSize, hOccluder]
 				(IRHICommandContext& ctx, RWGraph& g)
 			{
-				SafePtr<IRHITexture> target = g.Resolve(hOcc);
-
+				SafePtr<IRHITexture> target = g.Resolve(hOccluder);
 				RenderPassDesc clearDesc;
 				clearDesc.ColorAttachment.Target = target;
 				clearDesc.ColorAttachment.LoadOp = ERHILoadOp::Clear;
@@ -326,32 +337,68 @@ void RenderGameCameraStack(
 				pass.ColorAttachment.LoadOp = ERHILoadOp::Load;
 				pass.ColorAttachment.StoreOp = ERHIStoreOp::Store;
 				ctx.BeginRenderPass(pass);
-				if (isDirectional)
-				{
-					const float ow = std::max(1.0f, static_cast<float>(renderTargetSize.Width));
-					const float oh = std::max(1.0f, static_cast<float>(renderTargetSize.Height));
-					ctx.SetViewport(0.0f, 0.0f, ow, oh);
-					forward->SetRenderTargetSize(renderTargetSize);
-					forward->SetViewCameraEx(primaryCamera.PosX, primaryCamera.PosY, primaryCamera.OrthoSizeX, primaryCamera.OrthoSize, primaryCamera.CosR, primaryCamera.SinR);
-				}
-				else
-				{
-					ctx.SetViewport(0.0f, 0.0f, static_cast<float>(occluderSize), static_cast<float>(occluderSize));
-					forward->SetRenderTargetSize(RenderSurfaceSize{ static_cast<int>(occluderSize), static_cast<int>(occluderSize) });
-					// 라이트 중심 정사각 뷰(half = range 양축) → 월드 [pos±range] 를 occluder uv[0,1] 로.
-					forward->SetViewCameraEx(light.PosX, light.PosY, light.Range, light.Range, 1.0f, 0.0f);
-				}
-				forward->RenderOccluders(renderScene);
+				const float ow = std::max(1.0f, static_cast<float>(renderTargetSize.Width));
+				const float oh = std::max(1.0f, static_cast<float>(renderTargetSize.Height));
+				ctx.SetViewport(0.0f, 0.0f, ow, oh);
+				forward->SetRenderTargetSize(renderTargetSize);
+				forward->SetViewCameraEx(primaryCamera.PosX, primaryCamera.PosY, primaryCamera.OrthoSizeX, primaryCamera.OrthoSize, primaryCamera.CosR, primaryCamera.SinR);
+				forward->RenderOccluders(ctx, renderScene);
 				ctx.EndRenderPass();
 			};
 			graph.AddPass(std::move(occPass));
+
+			// (2) ShadowAtlas 리덕션 — 그림자 라이트마다 1행(256×1)에 각도별 최근접 거리.
+			std::vector<std::array<float, 4>> reduceRows;   // (row, lightX, lightY, lightRange)
+			for (std::size_t li = 0; li < lights.size(); ++li)
+			{
+				if (rowForLight[li] < 0)
+				{
+					continue;
+				}
+				reduceRows.push_back({ static_cast<float>(rowForLight[li]), lights[li].PosX, lights[li].PosY, lights[li].Range });
+			}
+			RWPassDesc reducePass;
+			reducePass.Name  = "ShadowReduce";
+			reducePass.Reads = { hOccluder };
+			reducePass.Write = hAtlas;
+			reducePass.Execute = [forward, primaryCamera, reduceRows, hOccluder, hAtlas]
+				(IRHICommandContext& ctx, RWGraph& g)
+			{
+				SafePtr<IRHITexture> target = g.Resolve(hAtlas);
+				RenderPassDesc clearDesc;
+				clearDesc.ColorAttachment.Target = target;
+				clearDesc.ColorAttachment.LoadOp = ERHILoadOp::Clear;
+				clearDesc.ColorAttachment.StoreOp = ERHIStoreOp::Store;
+				clearDesc.ColorAttachment.ClearColor = Color{ 1.0f, 1.0f, 1.0f, 1.0f };   // 미차폐=최대거리
+				ctx.BeginRenderPass(clearDesc);
+				ctx.EndRenderPass();
+
+				SafePtr<IRHITexture> occ = g.Resolve(hOccluder);
+				RenderPassDesc pass;
+				pass.ColorAttachment.Target = target;
+				pass.ColorAttachment.LoadOp = ERHILoadOp::Load;
+				pass.ColorAttachment.StoreOp = ERHIStoreOp::Store;
+				ctx.BeginRenderPass(pass);
+				for (const std::array<float, 4>& r : reduceRows)
+				{
+					ctx.SetViewport(0.0f, r[0], 256.0f, 1.0f);
+					forward->DrawPolarReduction(ctx, occ,
+						primaryCamera.PosX, primaryCamera.PosY, primaryCamera.OrthoSizeX, primaryCamera.OrthoSize, primaryCamera.CosR, primaryCamera.SinR,
+						r[1], r[2], r[3]);
+				}
+				ctx.EndRenderPass();
+			};
+			graph.AddPass(std::move(reducePass));
 		}
 
 		RWPassDesc lightPass;
 		lightPass.Name  = "LightMap";
-		lightPass.Reads = occluderReads;   // occluder 패스를 그래프에 살려둔다(컬링 방지).
+		if (hasShadow)
+		{
+			lightPass.Reads = { hAtlas };   // 아틀라스 소비 → 리덕션/오클루더 패스 컬링 방지.
+		}
 		lightPass.Write = hLight;
-		lightPass.Execute = [forward, &cameras, &lights, renderTargetSize, ambientColor, hLight, shadowSlots]
+		lightPass.Execute = [forward, &cameras, &lights, renderTargetSize, ambientColor, hLight, hAtlas, rowForLight, shadowRowCount, hasShadow]
 			(IRHICommandContext& ctx, RWGraph& g)
 		{
 			SafePtr<IRHITexture> target = g.Resolve(hLight);
@@ -370,6 +417,12 @@ void RenderGameCameraStack(
 			if (lights.empty())
 			{
 				return;   // 앰비언트만(어둡게) — 라이트 draw 없음.
+			}
+
+			SafePtr<IRHITexture> atlas;
+			if (hasShadow)
+			{
+				atlas = g.Resolve(hAtlas);
 			}
 
 			// 카메라별 뷰포트/뷰로 라이트를 가산 누적(스프라이트 렌더와 동일한 월드 뷰).
@@ -392,42 +445,22 @@ void RenderGameCameraStack(
 				for (std::size_t li = 0; li < lights.size(); ++li)
 				{
 					const GameRenderLightDesc& light = lights[li];
-					if (light.CastShadows)
-					{
-						SafePtr<IRHITexture> occluder;
-						for (const ShadowSlot& slot : shadowSlots)
-						{
-							if (slot.LightIndex == static_cast<int>(li))
-							{
-								occluder = g.Resolve(slot.Occluder);
-								break;
-							}
-						}
-						if (0 == light.Type)
-						{
-							// Directional — 월드 방향을 uv 공간 방향으로 변환(카메라 반폭, uv.y 반전).
-							const float halfW = std::max(camera.OrthoSizeX, 1e-4f);
-							const float halfH = std::max(camera.OrthoSize, 1e-4f);
-							float ux = light.DirX / (2.0f * halfW);
-							float uy = -light.DirY / (2.0f * halfH);
-							const float ul = std::sqrt(ux * ux + uy * uy);
-							if (ul > 1e-6f) { ux /= ul; uy /= ul; }
-							forward->DrawLight2DDirectionalShadowed(ctx, light.Color, light.Intensity, ux, uy, 1.5f, occluder);
-						}
-						else
-						{
-							forward->DrawLight2DShadowed(ctx, light.Type, light.PosX, light.PosY, light.Range, light.Color, light.Intensity,
-								light.DirX, light.DirY, light.InnerAngleRadians, light.OuterAngleRadians, occluder);
-						}
-					}
-					else if (2 == light.Type)
+					const int row = (li < rowForLight.size()) ? rowForLight[li] : -1;
+					SafePtr<IRHITexture> shadowAtlas = (row >= 0) ? atlas : SafePtr<IRHITexture>{};
+					const float softness = std::clamp(light.ShadowSoftness, 0.0f, 1.0f);
+					if (2 == light.Type)
 					{
 						forward->DrawLight2DSpot(ctx, light.PosX, light.PosY, light.Range, light.Color, light.Intensity,
-							light.DirX, light.DirY, light.InnerAngleRadians, light.OuterAngleRadians);
+							light.DirX, light.DirY, light.InnerAngleRadians, light.OuterAngleRadians, shadowAtlas, row, shadowRowCount, softness);
+					}
+					else if (1 == light.Type)
+					{
+						forward->DrawLight2D(ctx, 1, light.PosX, light.PosY, light.Range, light.Color, light.Intensity, shadowAtlas, row, shadowRowCount, softness);
 					}
 					else
 					{
-						forward->DrawLight2D(ctx, light.Type, light.PosX, light.PosY, light.Range, light.Color, light.Intensity);
+						// Directional — 점광 대상 아님. 균일 방향광(그림자 없음).
+						forward->DrawLight2D(ctx, 0, light.PosX, light.PosY, light.Range, light.Color, light.Intensity);
 					}
 				}
 				ctx.EndRenderPass();

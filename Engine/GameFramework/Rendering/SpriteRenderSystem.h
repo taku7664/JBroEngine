@@ -3,7 +3,9 @@
 #include "GameFramework/System/GameSystem.h"
 #include "Utillity/Pointer/SafePtr.h"
 
+#include <cstdint>
 #include <unordered_map>
+#include <vector>
 
 class IRenderScene;
 class IRenderMaterial;
@@ -34,7 +36,7 @@ private:
 	IRenderScene*         m_renderScene         = nullptr;
 	IAssetManager*        m_assetManager        = nullptr;
 	IRHIDevice*           m_rhiDevice           = nullptr;
-	IRenderer*            m_renderer            = nullptr;
+	CForward2DRenderer*   m_renderer            = nullptr;
 	IRenderResourceCache* m_renderResourceCache = nullptr;
 
 	// 프로젝트 Default PPU 폴백(자산 PPU 가 0 일 때). 호스트가 주입.

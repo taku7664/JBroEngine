@@ -50,7 +50,9 @@ struct GameRenderLightDesc
 	float DirY = 0.0f;
 	float InnerAngleRadians = 0.5f;   // Spot 내부 원뿔(전각) — 이 안은 완전 조명.
 	float OuterAngleRadians = 1.0f;   // Spot 외부 원뿔(전각) — inner~outer 사이 부드러운 감쇠.
-	bool  CastShadows = false;   // 켜면 Occluder→그림자 샘플 경로로 렌더(Point 전용).
+	bool  CastShadows = false;   // 켜면 Occluder→1D 섀도맵 샘플 경로로 렌더.
+	float ShadowLength = 6.0f;    // Directional 그림자 도달 길이(월드 유닛) — 유한 그림자.
+	float ShadowSoftness = 0.5f;  // 소프트 쉐도우 강도 0~1(0=하드 경계, 1=최대 블러).
 };
 
 std::vector<GameRenderCameraDesc> CollectGameRenderCameras(const CGameScene& scene, float renderWidth, float renderHeight);

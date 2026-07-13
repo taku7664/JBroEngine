@@ -114,14 +114,16 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 		.AddProperty("Priority", EReflectPropertyType::Int32, offsetof(Camera2D, Priority), sizeof(std::int32_t));
 
 	registry.RegisterComponent<Light2D>({ "Light2D", "Light 2D", "Rendering", true })
-		.AddEnumProperty<ELight2DType>("Type", offsetof(Light2D, Type))
+		.AddEnumProperty<ELight2DType>("LightType", offsetof(Light2D, Type))   // 키 "Type" 은 컴포넌트 판별자와 충돌 → LightType
 		.AddProperty("Color", EReflectPropertyType::ColorFloat4, offsetof(Light2D, Color), sizeof(float), 4)
 		.AddProperty("Intensity", EReflectPropertyType::Float, offsetof(Light2D, Intensity), sizeof(float))
 		.AddProperty("Range", EReflectPropertyType::Float, offsetof(Light2D, Range), sizeof(float))
 		.AddProperty("InnerAngleRadians", EReflectPropertyType::Float, offsetof(Light2D, InnerAngleRadians), sizeof(float))
 		.AddProperty("OuterAngleRadians", EReflectPropertyType::Float, offsetof(Light2D, OuterAngleRadians), sizeof(float))
 		.AddProperty("LayerMask", EReflectPropertyType::UInt32, offsetof(Light2D, LayerMask), sizeof(std::uint32_t))
-		.AddProperty("CastShadows", EReflectPropertyType::Bool, offsetof(Light2D, CastShadows), sizeof(bool));
+		.AddProperty("CastShadows", EReflectPropertyType::Bool, offsetof(Light2D, CastShadows), sizeof(bool))
+		.AddProperty("ShadowLength", EReflectPropertyType::Float, offsetof(Light2D, ShadowLength), sizeof(float))
+		.AddProperty("ShadowSoftness", EReflectPropertyType::Float, offsetof(Light2D, ShadowSoftness), sizeof(float));
 
 	registry.RegisterComponent<Rigidbody2D>({ "Rigidbody2D", "Rigidbody 2D", "Physics", true, EComponentMultiplicity::Single })
 		.AddEnumProperty<EPhysics2DBodyType>("BodyType", offsetof(Rigidbody2D, BodyType))

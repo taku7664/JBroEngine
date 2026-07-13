@@ -64,7 +64,7 @@ private:
 private:
 	IRenderScene* m_renderScene = nullptr;
 	IRHIDevice* m_rhiDevice = nullptr;
-	IRenderer* m_renderer = nullptr;
+	CForward2DRenderer* m_renderer = nullptr;
 	OwnerPtr<IRenderMaterial> m_material;
 	std::unordered_map<const void*, CachedShape> m_meshCache;
 	std::unordered_map<const void*, bool> m_seenShapes;

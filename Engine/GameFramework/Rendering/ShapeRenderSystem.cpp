@@ -26,13 +26,14 @@ void CShapeRenderSystem::SetRenderScene(IRenderScene* renderScene)
 
 void CShapeRenderSystem::SetDependencies(IRHIDevice* rhiDevice, IRenderer* renderer)
 {
-	if (m_rhiDevice != rhiDevice || m_renderer != renderer)
+	CForward2DRenderer* forwardRenderer = renderer ? renderer->AsForward2DRenderer() : nullptr;
+	if (m_rhiDevice != rhiDevice || m_renderer != forwardRenderer)
 	{
 		ClearMeshCache();
 		m_material.Reset();
 	}
 	m_rhiDevice = rhiDevice;
-	m_renderer = renderer;
+	m_renderer = forwardRenderer;
 }
 
 IRenderScene* CShapeRenderSystem::GetRenderScene() const
@@ -217,7 +218,7 @@ void CShapeRenderSystem::OnUpdate(CGameScene& scene)
 	{
 		return;
 	}
-	CForward2DRenderer* renderer = dynamic_cast<CForward2DRenderer*>(m_renderer);
+	CForward2DRenderer* renderer = m_renderer;
 	if (nullptr == renderer || false == EnsureMaterial(*renderer))
 	{
 		return;

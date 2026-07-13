@@ -109,7 +109,7 @@ void CTextRenderSystem::SetDependencies(IAssetManager* assetManager, IRHIDevice*
 	}
 	m_assetManager = assetManager;
 	m_rhiDevice = rhiDevice;
-	m_renderer = renderer;
+	m_renderer = renderer ? renderer->AsForward2DRenderer() : nullptr;
 	m_pixelsPerUnit = pixelsPerUnit > 0.0f ? pixelsPerUnit : 100.0f;
 	m_defaultFamily = defaultFamily;
 	m_projectFallbacks = projectFallbacks;
@@ -542,7 +542,7 @@ OwnerPtr<IRenderMaterial>& CTextRenderSystem::AcquireMaterial(const AssetGuid& f
 
 void CTextRenderSystem::OnUpdate(CGameScene& scene)
 {
-	CForward2DRenderer* renderer = dynamic_cast<CForward2DRenderer*>(m_renderer);
+	CForward2DRenderer* renderer = m_renderer;
 	if (nullptr == renderer || nullptr == m_renderScene || false == renderer->GetTextPipeline().IsValid()) return;
 	std::unordered_set<const void*> seen;
 	scene.ForEach<Text2D>([&](Text2D& text)

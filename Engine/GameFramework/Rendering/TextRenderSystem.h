@@ -122,7 +122,7 @@ private:
 	IRenderScene* m_renderScene = nullptr;
 	IAssetManager* m_assetManager = nullptr;
 	IRHIDevice* m_rhiDevice = nullptr;
-	IRenderer* m_renderer = nullptr;
+	CForward2DRenderer* m_renderer = nullptr;
 	float m_pixelsPerUnit = 100.0f;
 	AssetGuid m_defaultFamily = INVALID_ASSET_GUID;
 	std::vector<AssetGuid> m_projectFallbacks;

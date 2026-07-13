@@ -1,6 +1,8 @@
 #pragma once
 
 #include <cstdint>
+#include <cmath>
+#include <vector>
 
 #include "Utillity/Pointer/SafePtr.h"
 #include "Utillity/Math/Matrix3x2.h"
@@ -61,6 +63,6 @@ struct RenderItem
 	// 이 렌더 아이템을 제출한 오브젝트의 불투명 키(CGameObject 주소).
 	// 필터 렌더링/아웃라인 마스크에 사용(집합 비교 전용, 역참조 금지). nullptr = 무관 아이템.
 	RenderObjectId Entity = nullptr;
-	// 그림자 캐스터 — RenderWeave Occluder 패스가 이 아이템만 골라 라이트별 오클루더 맵에 그린다.
+	// 그림자 캐스터 — OccluderMap 패스가 이 아이템만 골라 월드공간 공유 오클루더 맵에 알파 실루엣을 그린다.
 	bool CastShadow = false;
 };

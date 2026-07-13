@@ -30,7 +30,7 @@ void CSpriteRenderSystem::SetDependencies(IAssetManager* assetManager, IRHIDevic
 {
 	m_assetManager = assetManager;
 	m_rhiDevice = rhiDevice;
-	m_renderer = renderer;
+	m_renderer = renderer ? renderer->AsForward2DRenderer() : nullptr;
 	m_renderResourceCache = renderResourceCache;
 	m_pixelsPerUnit = pixelsPerUnit;
 }
@@ -52,7 +52,7 @@ void CSpriteRenderSystem::OnUpdate(CGameScene& scene)
 		return;
 	}
 
-	CForward2DRenderer* forwardRenderer = dynamic_cast<CForward2DRenderer*>(m_renderer);
+	CForward2DRenderer* forwardRenderer = m_renderer;
 
 	scene.ForEach<SpriteRenderer2D>(
 		[this, forwardRenderer](SpriteRenderer2D& sprite)

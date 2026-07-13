@@ -5,6 +5,7 @@
 
 class IRenderResource;
 class IRenderScene;
+class CForward2DRenderer;
 
 class IRenderer
 {
@@ -36,6 +37,7 @@ public:
 	virtual void FillViewportColor(float r, float g, float b, float a) {}
 	virtual void Render(IRenderScene& scene) = 0;
 	virtual RenderCullingStats GetLastCullingStats() const { return {}; }
+	virtual CForward2DRenderer* AsForward2DRenderer() { return nullptr; }
 	virtual void Finalize() = 0;
 
 	virtual bool CreateGpuResource(IRenderResource& resource) = 0;

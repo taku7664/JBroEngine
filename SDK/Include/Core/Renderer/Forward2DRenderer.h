@@ -26,6 +26,7 @@ public:
 	void FillViewportColor(float r, float g, float b, float a) override;
 	void Render(IRenderScene& scene) override;
 	RenderCullingStats GetLastCullingStats() const override;
+	CForward2DRenderer* AsForward2DRenderer() override { return this; }
 	// 지정 키 집합에 속하는 RenderItem만 렌더링 (포커스 오버레이 / 마스크 패스용).
 	void RenderFiltered(IRenderScene& scene, const std::unordered_set<RenderObjectId>& objects);
 	// excluded 키 집합에 속하는 RenderItem을 제외하고 전부 렌더링 (에디터 씬뷰 숨김용).
@@ -50,23 +51,24 @@ public:
 	// ── RenderWeave 라이팅 ──────────────────────────────────────────────────────
 	// 라이트 1개를 LightMap 에 가산 누적한다(현재 SetViewCameraEx 로 설정된 뷰 기준).
 	// type: 0=Directional(뷰포트 균일), 1=Point(월드 pos 중심 반경 range 감쇠).
+	// shadowAtlas(폴라 1D 섀도맵 256×N) + shadowRow(이 라이트의 행) + shadowRowCount + softness01 를 주면
+	// 픽셀 (θ,r)로 아틀라스를 샘플해 그림자를 적용한다. shadowRow<0(기본) = 무그림자.
 	void DrawLight2D(IRHICommandContext& commandContext, int type, float worldX, float worldY,
-		float range, const float color[4], float intensity);
+		float range, const float color[4], float intensity,
+		SafePtr<IRHITexture> shadowAtlas = {}, int shadowRow = -1, int shadowRowCount = 1, float softness01 = 0.0f);
 	// Spot 원뿔광 — Point 반경 감쇠 × 각도 감쇠(inner~outer). dir = 월드 방향(정규화).
 	void DrawLight2DSpot(IRHICommandContext& commandContext, float worldX, float worldY,
 		float range, const float color[4], float intensity,
-		float dirX, float dirY, float innerAngleRadians, float outerAngleRadians);
-	// 그림자 Point/Spot 라이트 — occluder 맵(라이트 중심 정사각, uv[0,1])을 픽셀→중심 레이마치해
-	// 실루엣 그림자를 적용하며 가산 누적한다. type 2(Spot)면 각도 감쇠도 함께 적용.
-	void DrawLight2DShadowed(IRHICommandContext& commandContext, int type, float worldX, float worldY,
-		float range, const float color[4], float intensity,
-		float dirX, float dirY, float innerAngleRadians, float outerAngleRadians, SafePtr<IRHITexture> occluder);
-	// 방향(Directional) 그림자 — 카메라뷰 occluder 맵을 -uvDir 로 레이마치해 평행 그림자를
-	// 적용하며 가산 누적한다(풀스크린). uvDir = 라이트 진행 방향(uv 공간), marchLen = uv 최대 거리.
-	void DrawLight2DDirectionalShadowed(IRHICommandContext& commandContext, const float color[4], float intensity,
-		float uvDirX, float uvDirY, float marchLen, SafePtr<IRHITexture> occluder);
-	// CastShadow 렌더아이템만 현재 패스(occluder 맵)에 그린다. 현재 뷰(라이트 중심) 기준.
-	void RenderOccluders(IRenderScene& scene);
+		float dirX, float dirY, float innerAngleRadians, float outerAngleRadians,
+		SafePtr<IRHITexture> shadowAtlas = {}, int shadowRow = -1, int shadowRowCount = 1, float softness01 = 0.0f);
+	// CastShadow 스프라이트의 알파 실루엣을 현재 바인딩된 OccluderMap 타겟에 그린다(월드공간 공유 오클루더 맵).
+	// 뷰는 호출자가 SetViewCameraEx 로 설정. Additive(불투명=1). 광원별 제외 없음(공유 맵).
+	void RenderOccluders(IRHICommandContext& commandContext, IRenderScene& scene);
+	// 폴라 1D 섀도맵 리덕션 — OccluderMap 을 광원 중심 각도별 최근접 오클루더 거리로 축약해 현재 바인딩된
+	// ShadowAtlas 행(호출자가 viewport 로 지정)에 그린다. cam* = OccluderMap 을 그린 카메라 뷰(월드→NDC 매핑).
+	void DrawPolarReduction(IRHICommandContext& commandContext, SafePtr<IRHITexture> occluderMap,
+		float camX, float camY, float camHalfW, float camHalfH, float camCosR, float camSinR,
+		float lightX, float lightY, float lightRange);
 	// 라이팅/컴포짓 파이프라인이 런타임 생성(셰이더 컴파일)됐는지 — 진단용.
 	bool AreLightingPipelinesReady() const;
 	// SceneColor × LightMap 을 현재 렌더패스에 풀스크린 컴포짓한다(곱셈, HDR 결과).
@@ -83,10 +85,12 @@ private:
 		float ViewRow0[4];
 		float ViewRow1[4];
 		// UvRect(uMin,vMin,uScale,vScale) — cbuffer 마지막 필드(셰이더가 읽는 범위).
-		// 뒤 SecondaryColor/ShaderParams 는 단일 스프라이트 셰이더가 읽지 않는 잔여 필드.
+		// 뒤 SecondaryColor/ShaderParams/ShadowParams 는 단일 스프라이트 셰이더가 읽지 않는 잔여 필드.
 		float UvRect[4];
 		float SecondaryColor[4];
 		float ShaderParams[4];
+		// 폴라 섀도맵 라이트 전용: x=행 인덱스(-1=무그림자), y=행 수, z=softness01(페넘브라 폭), w=예비.
+		float ShadowParams[4];
 	};
 
 	struct SpriteViewConstants
@@ -158,10 +162,10 @@ private:
 	bool CreateBlitPipeline();
 	// 라이트 누적 파이프라인(스프라이트 VS 재사용 + 라이트 PS + Additive). DrawLight2D 용.
 	bool CreateLightPipeline();
-	// 그림자 라이트 파이프라인(스프라이트 VS + occluder 레이마치 PS + Additive). DrawLight2DShadowed 용.
-	bool CreateLightShadowPipeline();
-	// 방향 그림자 파이프라인(스프라이트 VS + 방향 레이마치 PS + Additive). DrawLight2DDirectionalShadowed 용.
-	bool CreateLightDirectionalShadowPipeline();
+	// OccluderMap 채움 파이프라인(스프라이트 VS + 알파→흰색 PS + Additive). RenderOccluders 용.
+	bool CreateOccluderFillPipeline();
+	// 폴라 리덕션 파이프라인(전용 풀스크린 VS + 레이마치 PS + Opaque). DrawPolarReduction 용.
+	bool CreatePolarReductionPipeline();
 	// SceneColor × LightMap 컴포짓 파이프라인(스프라이트 VS 재사용 + 컴포짓 PS + Opaque, 2텍스처).
 	bool CreateCompositePipeline();
 	// Reinhard 톤맵 파이프라인(스프라이트 VS + 톤맵 PS + Opaque). TonemapFullscreen 용.
@@ -182,10 +186,11 @@ private:
 	OwnerPtr<IRHIGraphicsPipeline> m_blitPipeline;
 	OwnerPtr<IRHIProgram> m_lightPixelProgram;      // 라이트 감쇠 PS(스프라이트 VS 와 페어)
 	OwnerPtr<IRHIGraphicsPipeline> m_lightPipeline;      // 라이트 누적(Additive)
-	OwnerPtr<IRHIProgram> m_lightShadowPixelProgram;     // 그림자 Point/Spot PS(occluder 레이마치)
-	OwnerPtr<IRHIGraphicsPipeline> m_lightShadowPipeline; // 그림자 라이트 누적(Additive, occluder 샘플)
-	OwnerPtr<IRHIProgram> m_lightDirShadowPixelProgram;      // 방향 그림자 PS(고정방향 레이마치)
-	OwnerPtr<IRHIGraphicsPipeline> m_lightDirShadowPipeline; // 방향 그림자 누적(Additive)
+	OwnerPtr<IRHIProgram> m_occluderFillPixelProgram;        // occluder 알파→흰색 PS
+	OwnerPtr<IRHIGraphicsPipeline> m_occluderFillPipeline;   // OccluderMap 채움(Additive)
+	OwnerPtr<IRHIProgram> m_polarReductionVertexProgram;     // 리덕션 풀스크린 VS
+	OwnerPtr<IRHIProgram> m_polarReductionPixelProgram;      // 리덕션 레이마치 PS
+	OwnerPtr<IRHIGraphicsPipeline> m_polarReductionPipeline; // 폴라 1D 리덕션(Opaque)
 	OwnerPtr<IRHIGraphicsPipeline> m_compositePipeline;  // 라이트맵 곱셈 컴포짓(sprite VS+PS, Multiply)
 	OwnerPtr<IRHIProgram> m_tonemapPixelProgram;         // Reinhard 톤맵 PS
 	OwnerPtr<IRHIGraphicsPipeline> m_tonemapPipeline;    // HDR→LDR 톤맵 blit(sprite VS + 톤맵 PS, Opaque)
