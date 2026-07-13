@@ -17,9 +17,24 @@ void RWTexturePool::SetDevice(SafePtr<IRHIDevice> device)
 
 void RWTexturePool::BeginFrame()
 {
-	for (Entry& entry : m_entries)
+	// 지난 프레임 사용 여부로 유휴 카운트를 갱신하고, 오래 미사용인 엔트리를 해제한다.
+	// InUse 는 직전 프레임의 Acquire 가 세팅한 값(아직 리셋 전) — 이걸로 사용 여부를 판정한 뒤
+	// 이번 프레임용으로 false 로 되돌린다. 리사이즈/라이트 수 변동으로 desc 가 바뀌면 옛 RT 가
+	// 계속 쌓이던 문제를 kMaxIdleFrames 경과 후 해제로 막는다.
+	constexpr std::uint32_t kMaxIdleFrames = 60;
+	for (std::size_t i = 0; i < m_entries.size();)
 	{
-		entry.InUse = false;
+		Entry& entry = m_entries[i];
+		entry.IdleFrames = entry.InUse ? 0u : (entry.IdleFrames + 1u);
+		if (false == entry.InUse && entry.IdleFrames >= kMaxIdleFrames)
+		{
+			m_entries.erase(m_entries.begin() + static_cast<std::ptrdiff_t>(i));
+		}
+		else
+		{
+			entry.InUse = false;
+			++i;
+		}
 	}
 }
 

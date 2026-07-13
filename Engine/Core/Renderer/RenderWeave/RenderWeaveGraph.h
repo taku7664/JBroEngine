@@ -3,6 +3,7 @@
 #include "Core/Renderer/RenderWeave/RenderWeaveTypes.h"
 #include "Utillity/Pointer/SafePtr.h"   // SafePtr + OwnerPtr
 
+#include <cstdint>
 #include <vector>
 
 class IRHIDevice;
@@ -31,6 +32,9 @@ private:
 		RWTextureDesc         Desc;
 		OwnerPtr<IRHITexture> Texture;
 		bool                  InUse = false;
+		// 연속 미사용 프레임 수. 임계 초과 시 BeginFrame 이 해제(리사이즈/라이트 수 변동으로
+		// 더 이상 안 쓰는 desc 의 RT 가 영구 누적되는 것을 막는다).
+		std::uint32_t         IdleFrames = 0;
 	};
 	std::vector<Entry>  m_entries;
 	SafePtr<IRHIDevice> m_device;
