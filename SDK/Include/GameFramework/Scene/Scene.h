@@ -9,6 +9,7 @@
 #include "GameFramework/Reflection/ReflectionTypes.h"
 #include "GameFramework/System/GameSystem.h"
 #include "Utillity/File/FilePath.h"
+#include "Utillity/File/Guid128.h"
 #include "Utillity/Pointer/SafePtr.h"
 
 #include <algorithm>
@@ -62,6 +63,9 @@ public:
 
 	// InstanceGuid → 활성 오브젝트(Ref<T> 직렬화 키 해석).
 	SafePtr<CGameObject> FindByInstanceGuid(const File::Guid& guid);
+	// hot path 전용 — guid 문자열(utf8)을 File::Guid(fs::path) 로 만들지 않고 곧장 Guid128 로
+	// 파싱해 조회한다(Ref::Get 이 프레임마다 부르므로 힙 할당·트랜스코딩을 피한다).
+	SafePtr<CGameObject> FindByInstanceGuidText(const char* guidText);
 
 	template<typename Fn> void ForEachObject(Fn&& fn)       { m_objectPool.ForEachLive(std::forward<Fn>(fn)); }
 	template<typename Fn> void ForEachObject(Fn&& fn) const { m_objectPool.ForEachLive(std::forward<Fn>(fn)); }
@@ -386,7 +390,8 @@ private:
 	// InstanceGuid → 오브젝트 빠른 해석. FindByInstanceGuid / Ref<T>::Get 이 매 호출
 	// O(n) 풀 스캔 + path 비교를 하던 것을 O(1) 해시 조회로 바꾼다. 생성/파괴/guid 재설정
 	// 지점에서 동기화한다(그 외 경로로 오브젝트가 생기지 않음 — 유일 생성자 CreateGameObject).
-	std::unordered_map<File::Guid, SafePtr<CGameObject>> m_objectByGuid;
+	// 키는 Guid128(오브젝트 InstanceGuid 의 정수 표현) — File::Guid(fs::path) 해싱/힙을 피한다.
+	std::unordered_map<Guid128, SafePtr<CGameObject>> m_objectByGuid;
 	std::uint64_t                      m_nextCreationOrder = 0; // 단조 증가 — 하이라키 정렬 키
 	std::vector<PoolEntry>             m_componentPools;   // sorted by Key
 	std::vector<OwnerPtr<ScriptMemoryPool>> m_scriptMemoryPools;

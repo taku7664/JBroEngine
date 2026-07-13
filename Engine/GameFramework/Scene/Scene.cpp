@@ -17,6 +17,37 @@
 #include <unordered_map>
 #include <vector>
 
+namespace
+{
+	// File::Guid(fs::path) → Guid128. 오브젝트 생성/파괴/rekey 등 cold path 에서만 쓴다
+	// (문자열은 ASCII hex 라 fs::path::string() 왕복이 안전). hot path 는 Guid128::FromText(char*).
+	Guid128 ToGuid128(const File::Guid& guid)
+	{
+		return Guid128::FromText(guid.string().c_str());
+	}
+
+	// m_objectByGuid 공통 조회 — 죽은 엔트리는 방어적으로 제거한다.
+	SafePtr<CGameObject> LookupByGuid128(
+		std::unordered_map<Guid128, SafePtr<CGameObject>>& objectByGuid, const Guid128& id)
+	{
+		if (id.IsNull())
+		{
+			return nullptr;
+		}
+		const auto it = objectByGuid.find(id);
+		if (it == objectByGuid.end())
+		{
+			return nullptr;
+		}
+		if (false == it->second.IsValid())
+		{
+			objectByGuid.erase(it);
+			return nullptr;
+		}
+		return it->second;
+	}
+}
+
 CGameScene::ScriptMemoryPool::ScriptMemoryPool(TypeId typeId, std::size_t slotSize, std::size_t slotAlignment)
 	: m_typeId(typeId)
 	, m_slotSize(std::max<std::size_t>(slotSize, 1))
@@ -112,7 +143,7 @@ CGameObject* CGameScene::CreateGameObject(const char* name)
 	if (object)
 	{
 		object->m_creationOrder = m_nextCreationOrder++;
-		m_objectByGuid[guid] = object->SafeFromThis();
+		m_objectByGuid[ToGuid128(guid)] = object->SafeFromThis();
 		MarkScriptExecutionOrderDirty();
 	}
 	return object;
@@ -157,7 +188,7 @@ void CGameScene::DestroyObjectRecursive(CGameObject* object)
 			DestroyComponent(raw);
 		}
 	}
-	m_objectByGuid.erase(object->GetInstanceGuid());
+	m_objectByGuid.erase(ToGuid128(object->GetInstanceGuid()));
 	m_objectPool.Free(object);
 }
 
@@ -401,19 +432,16 @@ SafePtr<CGameObject> CGameScene::FindByInstanceGuid(const File::Guid& guid)
 	{
 		return nullptr;
 	}
+	return LookupByGuid128(m_objectByGuid, ToGuid128(guid));
+}
 
-	const auto it = m_objectByGuid.find(guid);
-	if (it == m_objectByGuid.end())
+SafePtr<CGameObject> CGameScene::FindByInstanceGuidText(const char* guidText)
+{
+	if (nullptr == guidText || '\0' == guidText[0])
 	{
 		return nullptr;
 	}
-	if (false == it->second.IsValid())
-	{
-		// 방어적: 어떤 경로로든 동기화가 어긋나 죽은 엔트리가 남았으면 제거.
-		m_objectByGuid.erase(it);
-		return nullptr;
-	}
-	return it->second;
+	return LookupByGuid128(m_objectByGuid, Guid128::FromText(guidText));
 }
 
 void CGameScene::SetObjectInstanceGuid(CGameObject& object, const File::Guid& guid)
@@ -421,12 +449,12 @@ void CGameScene::SetObjectInstanceGuid(CGameObject& object, const File::Guid& gu
 	// guid 재설정 시 맵도 rekey — 안 하면 옛 guid 로 계속 찾히거나 새 guid 가 안 찾힌다.
 	if (false == object.GetInstanceGuid().IsNull())
 	{
-		m_objectByGuid.erase(object.GetInstanceGuid());
+		m_objectByGuid.erase(ToGuid128(object.GetInstanceGuid()));
 	}
 	object.SetInstanceGuid(guid);
 	if (false == guid.IsNull())
 	{
-		m_objectByGuid[guid] = object.SafeFromThis();
+		m_objectByGuid[ToGuid128(guid)] = object.SafeFromThis();
 	}
 }
 

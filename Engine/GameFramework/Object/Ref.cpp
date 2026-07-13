@@ -33,7 +33,7 @@ void* RefDetail::ResolveComponent(const char* objectGuid, const char* componentG
 	{
 		return nullptr;
 	}
-	CGameObject* object = scene->FindByInstanceGuid(File::Guid(objectGuid)).TryGet();
+	CGameObject* object = scene->FindByInstanceGuidText(objectGuid).TryGet();
 	return object
 		? CSceneRuntimeAccess::FindComponentByGuidAndType(
 			*object,
@@ -49,7 +49,7 @@ CGameObject* RefDetail::ResolveObject(const char* instanceGuid)
 	{
 		return nullptr;
 	}
-	return scene->FindByInstanceGuid(File::Guid(instanceGuid)).TryGet();
+	return scene->FindByInstanceGuidText(instanceGuid).TryGet();
 }
 
 CGameScript* RefDetail::ResolveScript(const char* objectGuid, const char* componentGuid, TypeId scriptTypeId)
@@ -59,7 +59,7 @@ CGameScript* RefDetail::ResolveScript(const char* objectGuid, const char* compon
 	{
 		return nullptr;
 	}
-	CGameObject* object = scene->FindByInstanceGuid(File::Guid(objectGuid)).TryGet();
+	CGameObject* object = scene->FindByInstanceGuidText(objectGuid).TryGet();
 	if (nullptr == object)
 	{
 		return nullptr;
