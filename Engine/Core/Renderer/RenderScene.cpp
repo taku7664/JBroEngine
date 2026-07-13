@@ -34,7 +34,9 @@ void CRenderScene::Sort()
 		return;
 	}
 
-	std::sort(m_renderItems.begin(), m_renderItems.end(), ShouldSortBefore);
+	// stable_sort — 큐/정렬키 동률 아이템은 제출 순서를 유지한다(std::sort 는 동률 순서가
+	// 불안정해 겹친 스프라이트가 프레임마다 앞뒤로 뒤바뀌며 z-플리커를 유발).
+	std::stable_sort(m_renderItems.begin(), m_renderItems.end(), ShouldSortBefore);
 	m_needsSort = false;
 }
 

@@ -101,6 +101,8 @@ private:
 
 	bool InitializeFontLibrary();
 	void FinalizeFontLibrary();
+	// 캐시된 face 중 자산 generation 이 재임포트로 바뀐 것이 있는지(폰트 핫리로드 감지).
+	bool AnyFaceGenerationStale() const;
 	FaceCache* AcquireFace(const AssetGuid& guid);
 	bool ResolveFamilyFaces(const Text2D& text, std::vector<AssetGuid>& outFaces);
 	bool AppendFamilyFaces(const AssetGuid& familyGuid, const Text2D& text, std::vector<AssetGuid>& outFaces,

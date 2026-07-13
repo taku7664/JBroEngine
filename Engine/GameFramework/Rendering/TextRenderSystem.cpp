@@ -536,18 +536,50 @@ OwnerPtr<IRenderMaterial>& CTextRenderSystem::AcquireMaterial(const AssetGuid& f
 		material = MakeOwnerPtr<CRenderMaterial>(renderer.GetTextPipeline(), face->Pages[page].Texture.GetSafePtr(),
 			renderer.GetDefaultSampler(), ERenderQueue::Transparent);
 	}
+	// face 미로드/page 범위초과로 머티리얼 생성 실패 시 캐시에 넣지 않는다 — 빈 엔트리를
+	// 영구 저장하면 폰트가 나중에 로드돼도 그 텍스트는 영영 그려지지 않는다(다음 프레임 재시도).
+	if (false == static_cast<bool>(material))
+	{
+		static OwnerPtr<IRenderMaterial> empty;
+		return empty;
+	}
 	auto inserted = m_materials.emplace(key, std::move(material));
 	return inserted.first->second;
+}
+
+bool CTextRenderSystem::AnyFaceGenerationStale() const
+{
+	for (const auto& pair : m_faces)
+	{
+		const FaceCache& cache = pair.second;
+		if (cache.Asset.IsValid() && EAssetType::FontFace == cache.Asset->GetAssetType())
+		{
+			const CFontFaceAsset* fontAsset = static_cast<const CFontFaceAsset*>(cache.Asset.Get());
+			if (fontAsset->GetGeneration() != cache.Generation)
+			{
+				return true;
+			}
+		}
+	}
+	return false;
 }
 
 void CTextRenderSystem::OnUpdate(CGameScene& scene)
 {
 	CForward2DRenderer* renderer = m_renderer;
 	if (nullptr == renderer || nullptr == m_renderScene || false == renderer->GetTextPipeline().IsValid()) return;
+
+	// 폰트 핫리로드 — face 자산이 재임포트되면(generation 증가) atlas·머티리얼·텍스트 메시가 모두
+	// 옛 폰트 바이트/GPU 텍스처에 묶여 있고, 특히 FT_Face 는 교체된 바이트 버퍼를 참조해 dangling 이
+	// 된다. 재임포트는 드문 이벤트이므로 부분 무효화 대신 전체 캐시를 버리고 다음 순회에서 재구축한다.
+	if (AnyFaceGenerationStale())
+	{
+		ClearCaches();
+	}
 	std::unordered_set<const void*> seen;
 	scene.ForEach<Text2D>([&](Text2D& text)
 	{
-		if (false == text.IsEnabled() || nullptr == text.GetOwner() || text.Text.empty()) return;
+		if (false == IsActiveComponent(text) || text.Text.empty()) return;
 		if (false == IsVisibleColor(text.FillEnabled, text.FillColor) && false == IsVisibleColor(text.OutlineEnabled, text.OutlineColor)) return;
 		const void* key = &text; seen.insert(key);
 		const AssetGuid family = GetEffectiveFamily(text);

@@ -534,7 +534,7 @@ void CImEditor::OnPrepareRender()
 		// ── Step 0: 선택 마스크 패스 (아웃라인용, BeginRenderPass 밖) ─────────────
 		if (m_sceneViewHasSelection && m_outlineRenderer && !m_sceneViewSelectedEntities.empty())
 		{
-			if (CForward2DRenderer* fwd = dynamic_cast<CForward2DRenderer*>(engineCore->Renderer.TryGet()))
+			if (CForward2DRenderer* fwd = engineCore->Renderer->AsForward2DRenderer())
 			{
 				m_outlineRenderer->RenderMask(
 					commandContext, *fwd, *engineCore->RenderScene,
@@ -565,7 +565,7 @@ void CImEditor::OnPrepareRender()
 		// ② 스프라이트 전체 (EditorHidden 오브젝트는 씬뷰에서만 제외)
 		if (false == m_sceneViewHidden.empty())
 		{
-			if (CForward2DRenderer* fwd = dynamic_cast<CForward2DRenderer*>(engineCore->Renderer.TryGet()))
+			if (CForward2DRenderer* fwd = engineCore->Renderer->AsForward2DRenderer())
 			{
 				fwd->RenderExcluding(*engineCore->RenderScene, m_sceneViewHidden);
 			}
@@ -584,7 +584,7 @@ void CImEditor::OnPrepareRender()
 			// ③ 포커스 모드: 흰 오버레이 → 포커스 스프라이트 → 포커스 콜라이더
 			engineCore->Renderer->FillViewportColor(1.0f, 1.0f, 1.0f, 0.7f);
 
-			if (CForward2DRenderer* fwd = dynamic_cast<CForward2DRenderer*>(engineCore->Renderer.TryGet()))
+			if (CForward2DRenderer* fwd = engineCore->Renderer->AsForward2DRenderer())
 			{
 				fwd->RenderFiltered(*engineCore->RenderScene, m_sceneViewFocusEntities);
 			}

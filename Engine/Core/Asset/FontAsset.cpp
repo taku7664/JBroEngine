@@ -51,6 +51,13 @@ const std::vector<std::uint8_t>& CFontFaceAsset::GetBytes() const { return m_byt
 std::uint32_t CFontFaceAsset::GetFaceIndex() const { return m_faceIndex; }
 std::uint32_t CFontFaceAsset::GetGeneration() const { return m_generation; }
 
+void CFontFaceAsset::ReplaceBytes(std::vector<std::uint8_t>&& bytes, std::uint32_t faceIndex)
+{
+	m_bytes = std::move(bytes);
+	m_faceIndex = faceIndex;
+	++m_generation;
+}
+
 CFontFamilyAsset::CFontFamilyAsset(const AssetMetaData& metaData, FontFamilyData data)
 	: m_metaData(metaData), m_data(std::move(data))
 {
@@ -158,6 +165,44 @@ OwnerPtr<IAsset> CFontFaceAssetLoader::Load(const AssetLoadDesc& desc)
 	return MakeOwnerPtr<CFontFaceAsset>(*desc.MetaData, std::move(bytes), faceIndex);
 }
 void CFontFaceAssetLoader::Unload(IAsset& asset) { (void)asset; }
+
+bool CFontFaceAssetLoader::ReloadInto(IAsset& existing, const AssetMetaData& metaData)
+{
+	if (EAssetType::FontFace != existing.GetAssetType())
+	{
+		return false;
+	}
+
+	// 디스크에서 폰트 바이트를 다시 읽는다(metaData.Path 는 ReloadAsset 이 resolve 한 경로).
+	AssetLoadDesc desc;
+	desc.Guid = metaData.Guid;
+	desc.Type = EAssetType::FontFace;
+	desc.Path = metaData.Path;
+	desc.ResolvedPath = metaData.Path;
+	desc.MetaData = &metaData;
+	std::vector<std::uint8_t> bytes = ReadBytes(desc);
+	if (bytes.empty())
+	{
+		return false;   // 파일 접근 실패 — 기존 바이트/generation 보존.
+	}
+
+	std::uint32_t faceIndex = 0;
+	if (false == metaData.ImportOptionsYaml.empty())
+	{
+		try
+		{
+			const YAML::Node options = YAML::Load(metaData.ImportOptionsYaml);
+			faceIndex = options["FaceIndex"] ? options["FaceIndex"].as<std::uint32_t>(0) : 0;
+		}
+		catch (const YAML::Exception&)
+		{
+			return false;
+		}
+	}
+
+	static_cast<CFontFaceAsset&>(existing).ReplaceBytes(std::move(bytes), faceIndex);
+	return true;
+}
 
 EAssetType CFontFamilyAssetLoader::GetSupportedType() const { return EAssetType::FontFamily; }
 bool CFontFamilyAssetLoader::CanLoad(const AssetLoadDesc& desc) const

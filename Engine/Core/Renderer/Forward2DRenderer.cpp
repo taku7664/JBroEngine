@@ -5,7 +5,6 @@
 #include "Core/Renderer/IRenderMesh.h"
 #include "Core/Renderer/IRenderScene.h"
 #include "Core/Renderer/RenderResources2D.h"
-#include "Core/Renderer/RenderScene.h"
 #include "Core/Renderer/SpriteVulkanShaders.h"
 #include "Core/RHI/IRHICommandContext.h"
 #include "Core/RHI/IRHIDevice.h"
@@ -1197,10 +1196,7 @@ void CForward2DRenderer::RenderOccluders(IRHICommandContext& commandContext, IRe
 	{
 		return;
 	}
-	if (CRenderScene* concreteScene = dynamic_cast<CRenderScene*>(&scene))
-	{
-		concreteScene->Sort();
-	}
+	scene.Sort();
 	const RenderItem* items = scene.GetRenderItems();
 	const std::uint32_t itemCount = scene.GetRenderItemCount();
 	const ViewParameters view = BuildViewParameters();
@@ -1605,10 +1601,7 @@ void CForward2DRenderer::RenderImpl(IRenderScene& scene, const std::unordered_se
 		return;
 	}
 
-	if (CRenderScene* concreteScene = dynamic_cast<CRenderScene*>(&scene))
-	{
-		concreteScene->Sort();
-	}
+	scene.Sort();
 
 	SafePtr<IRHICommandContext> commandContext = m_rhiDevice->GetImmediateCommandContext();
 	if (false == commandContext.IsValid())
@@ -1694,8 +1687,7 @@ void CForward2DRenderer::RenderFiltered(IRenderScene& scene, const std::unordere
 	if (!m_spritePipeline || !m_quadMesh) return;
 	if (objects.empty()) return;
 
-	if (CRenderScene* concreteScene = dynamic_cast<CRenderScene*>(&scene))
-		concreteScene->Sort();
+	scene.Sort();
 
 	SafePtr<IRHICommandContext> commandContext = m_rhiDevice->GetImmediateCommandContext();
 	if (false == commandContext.IsValid()) return;

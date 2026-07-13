@@ -27,6 +27,11 @@ public:
 	std::uint32_t GetFaceIndex() const;
 	std::uint32_t GetGeneration() const;
 
+	// 재임포트 in-place 갱신 — 같은 객체에 새 폰트 바이트를 덮어쓰고 generation 을 올린다.
+	// (CSpriteAsset::ReplacePixels 와 동일 모델. 외부 AssetRef 가 살아남아 소비자가 generation
+	//  비교로 무효화를 감지한다. FT_Face 는 이 바이트 버퍼를 참조하므로 소비자가 반드시 재구축해야 한다.)
+	void ReplaceBytes(std::vector<std::uint8_t>&& bytes, std::uint32_t faceIndex);
+
 private:
 	AssetMetaData m_metaData;
 	std::vector<std::uint8_t> m_bytes;
@@ -76,6 +81,7 @@ public:
 	bool CanLoad(const AssetLoadDesc& desc) const override;
 	OwnerPtr<IAsset> Load(const AssetLoadDesc& desc) override;
 	void Unload(IAsset& asset) override;
+	bool ReloadInto(IAsset& existing, const AssetMetaData& metaData) override;
 };
 
 class CFontFamilyAssetLoader final : public IAssetLoader

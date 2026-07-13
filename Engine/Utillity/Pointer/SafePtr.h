@@ -374,7 +374,8 @@ SafePtr<To> StaticSafePtrCast(const SafePtr<From>& ptr)
 		return nullptr;
 	}
 
-	static_cast<To*>(ptr.TryGet());
+	static_assert(std::is_base_of_v<To, From> || std::is_base_of_v<From, To>,
+		"StaticSafePtrCast requires To and From to be related by inheritance.");
 
 	return SafePtr<To>(ptr.m_controlBlock);
 }

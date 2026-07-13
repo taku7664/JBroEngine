@@ -15,6 +15,8 @@
 #include "GameFramework/Object/GameObject.h"
 #include "GameFramework/Scene/Scene.h"
 
+#include <unordered_set>
+
 CSpriteRenderSystem::CSpriteRenderSystem(IRenderScene* renderScene)
 	: m_renderScene(renderScene)
 {
@@ -54,8 +56,12 @@ void CSpriteRenderSystem::OnUpdate(CGameScene& scene)
 
 	CForward2DRenderer* forwardRenderer = m_renderer;
 
+	// 이번 프레임에 제출된 스프라이트 키 집합 — 순회 후 여기에 없는 캐시 엔트리를 제거한다
+	// (파괴/비활성 스프라이트의 머티리얼이 GPU 텍스처를 물고 무한 누적되는 것을 막는다. Shape/Text 와 동일).
+	std::unordered_set<const void*> seen;
+
 	scene.ForEach<SpriteRenderer2D>(
-		[this, forwardRenderer](SpriteRenderer2D& sprite)
+		[this, forwardRenderer, &seen](SpriteRenderer2D& sprite)
 		{
 			CGameObject* owner = sprite.GetOwner().TryGet();
 			if (false == IsActiveComponent(sprite))
@@ -63,6 +69,7 @@ void CSpriteRenderSystem::OnUpdate(CGameScene& scene)
 				return;
 			}
 			const void* cacheKey = &sprite;
+			seen.insert(cacheKey);
 
 			SafePtr<IRenderMesh> mesh = sprite.Mesh;
 			SafePtr<IRenderMaterial> material = sprite.Material;
@@ -185,4 +192,17 @@ void CSpriteRenderSystem::OnUpdate(CGameScene& scene)
 			item.CastShadow = sprite.CastShadow;
 			m_renderScene->Submit(item);
 		});
+
+	// 이번 프레임에 보이지 않은(파괴/비활성/제거된) 스프라이트의 머티리얼 캐시를 정리한다.
+	for (auto it = m_materialCache.begin(); it != m_materialCache.end();)
+	{
+		if (seen.find(it->first) == seen.end())
+		{
+			it = m_materialCache.erase(it);
+		}
+		else
+		{
+			++it;
+		}
+	}
 }
