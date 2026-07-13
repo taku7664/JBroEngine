@@ -13,7 +13,6 @@
 #include "Editor/Main/SceneView/SceneViewTool.h"
 #include "Engine/Core/EngineCore.h"
 #include "Engine/GameFramework/Reflection/ReflectionRegistry.h"
-#include "Engine/GameFramework/Component/ScriptComponent.h"
 #include "Engine/GameFramework/Object/GameObject.h"
 #include "Engine/GameFramework/Scene/Scene.h"
 

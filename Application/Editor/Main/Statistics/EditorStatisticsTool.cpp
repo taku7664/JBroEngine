@@ -42,6 +42,18 @@ void CEditorStatisticsTool::OnRenderStay()
 		drawRow(Loc::Text(EditorLocKeys::EditorStatisticsFrameTime), value);
 		std::snprintf(value, sizeof(value), "%zu", objectCount);
 		drawRow(Loc::Text(EditorLocKeys::EditorStatisticsSceneObjects), value);
+		const std::vector<CGameScene::ScriptMemoryPoolStats> scriptPoolStats = scene.IsValid()
+			? scene->GetScriptMemoryPoolStats()
+			: std::vector<CGameScene::ScriptMemoryPoolStats>();
+		std::size_t expansionCount = 0;
+		for (const CGameScene::ScriptMemoryPoolStats& stats : scriptPoolStats)
+		{
+			expansionCount += stats.ExpansionCount;
+		}
+		std::snprintf(value, sizeof(value), "%zu", scriptPoolStats.size());
+		drawRow(Loc::Text(EditorLocKeys::EditorStatisticsScriptPools), value);
+		std::snprintf(value, sizeof(value), "%zu", expansionCount);
+		drawRow(Loc::Text(EditorLocKeys::EditorStatisticsScriptPoolExpansions), value);
 		std::snprintf(value, sizeof(value), "%u", renderItemCount);
 		drawRow(Loc::Text(EditorLocKeys::EditorStatisticsRenderItems), value);
 		std::snprintf(value, sizeof(value), "%zu", Editor::GetSelectedEntities().size());

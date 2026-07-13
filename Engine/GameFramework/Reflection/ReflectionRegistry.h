@@ -9,6 +9,7 @@
 #include "Utillity/Pointer/SafePtr.h"
 
 #include <functional>
+#include <memory>
 #include <string>
 #include <type_traits>
 #include <unordered_map>
@@ -22,9 +23,13 @@ using ComponentHasFunc              = bool(*)(const CGameObject& object);
 using ComponentAddressFunc          = void*       (*)(CGameObject& object);
 using ConstComponentAddressFunc     = const void* (*)(const CGameObject& object);
 using ComponentAddressesFunc        = std::vector<void*>(*)(CGameObject& object); // 멀티 컴포넌트: 같은 타입 전부
+using ComponentReserveFunc          = void(*)(CGameScene& scene, std::size_t capacity);
 
 // 스크립트 인스턴스 팩토리 함수 타입
-using CreateScriptFunc = CGameScript*(*)(const GameModuleHostApi* hostApi);
+using CreateScriptFunc = CGameScript*(*)(
+	const GameModuleHostApi* hostApi,
+	ComponentConstructionToken token,
+	const SafePtr<CGameObject>& owner);
 using DestroyScriptFunc = void(*)(CGameScript* script, const GameModuleHostApi* hostApi);
 
 // CGameScript* → IInputHandler* 사이드캐스트 썽크. 타입 T 가 IInputHandler 를 상속할 때만
@@ -51,7 +56,9 @@ struct ComponentTypeInfo
 	ComponentAddressFunc      GetAddress      = nullptr;   // 첫 인스턴스(없으면 nullptr)
 	ComponentAddressesFunc    GetAddresses    = nullptr;   // 같은 타입 전부
 	ConstComponentAddressFunc GetConstAddress = nullptr;
+	ComponentReserveFunc      ReserveInScene  = nullptr;
 	bool CanAddToObject = true;
+	EComponentMultiplicity Multiplicity = EComponentMultiplicity::Multiple;
 };
 
 struct ScriptTypeInfo
@@ -117,15 +124,20 @@ public:
 	bool UnregisterScript(TypeId typeId);
 
 	// 등록된 스크립트 타입의 인스턴스를 생성합니다. 호출자는 DestroyScriptInstance로 파괴해야 합니다.
-	ScriptInstanceHandle CreateScriptInstance(TypeId typeId) const;
-	void DestroyScriptInstance(ScriptInstanceHandle& instance) const;
-	const GameModuleHostApi* GetScriptHostApi() const;
+	ScriptInstanceHandle CreateScriptInstance(TypeId typeId, CGameScene& scene, CGameObject& owner) const;
+	static void ForgetScriptAllocationsForScene(const CGameScene& scene);
 
 	bool AddComponent(CGameScene& scene, CGameObject& object, TypeId typeId) const;
+	bool ReserveComponentPool(CGameScene& scene, TypeId typeId, std::size_t capacity) const;
+	bool CanAddComponent(const CGameObject& object, TypeId typeId) const;
 	bool RemoveComponent(CGameScene& scene, CGameObject& object, TypeId typeId) const;
+	bool RemoveComponentByGuid(CGameScene& scene, CGameObject& object, TypeId typeId, const File::Guid& componentGuid) const;
 	bool HasComponent(const CGameObject& object, TypeId typeId) const;
 	void* GetComponentAddress(CGameObject& object, TypeId typeId) const;
 	const void* GetComponentAddress(const CGameObject& object, TypeId typeId) const;
+	void* GetComponentAddressByGuid(CGameObject& object, TypeId typeId, const File::Guid& componentGuid) const;
+	const void* GetComponentAddressByGuid(const CGameObject& object, TypeId typeId, const File::Guid& componentGuid) const;
+	void* GetComponentAddressByIndex(CGameObject& object, TypeId typeId, std::size_t index) const;
 	// 같은 타입 컴포넌트 전부(멀티 컴포넌트). 없으면 빈 벡터.
 	std::vector<void*> GetComponentAddresses(CGameObject& object, TypeId typeId) const;
 
@@ -152,7 +164,8 @@ private:
 template<typename T>
 CComponentRegistration CReflectionRegistry::RegisterComponent(const ComponentRegisterDesc& desc)
 {
-	static_assert(std::is_default_constructible_v<T>, "Reflected components must be default constructible.");
+	static_assert(std::is_constructible_v<T, ComponentConstructionToken, const SafePtr<CGameObject>&>,
+		"Reflected components must accept their owner in the constructor.");
 
 	ComponentTypeInfo typeInfo;
 	typeInfo.Type.Id = MakeTypeId(desc.Name);
@@ -163,6 +176,7 @@ CComponentRegistration CReflectionRegistry::RegisterComponent(const ComponentReg
 	typeInfo.Type.Size = sizeof(T);
 	typeInfo.Type.Alignment = alignof(T);
 	typeInfo.CanAddToObject = desc.CanAddToEntity;
+	typeInfo.Multiplicity = desc.Multiplicity;
 	typeInfo.AddToObject = [](CGameScene& scene, CGameObject& object) -> bool {
 		return nullptr != scene.AddComponent<T>(object);
 	};
@@ -191,6 +205,9 @@ CComponentRegistration CReflectionRegistry::RegisterComponent(const ComponentReg
 	typeInfo.GetConstAddress = [](const CGameObject& object) -> const void* {
 		return object.GetComponent<T>();
 	};
+	typeInfo.ReserveInScene = [](CGameScene& scene, std::size_t capacity) {
+		scene.ReserveComponentPool<T>(capacity);
+	};
 
 	ComponentTypeInfo* registeredType = RegisterComponentInternal(std::move(typeInfo));
 	return CComponentRegistration(registeredType);
@@ -209,7 +226,8 @@ template<typename T>
 bool CReflectionRegistry::RegisterScript(const ScriptRegisterDesc& desc)
 {
 	static_assert(std::is_base_of_v<CGameScript, T>, "Script types must derive from CGameScript.");
-	static_assert(std::is_default_constructible_v<T>, "Script types must be default constructible.");
+	static_assert(std::is_constructible_v<T, ComponentConstructionToken, const SafePtr<CGameObject>&>,
+		"Script types must inherit the CGameScript owner constructor with 'using CGameScript::CGameScript;'.");
 
 	ScriptTypeInfo typeInfo;
 	typeInfo.Type.Id          = MakeTypeId(desc.Name);
@@ -220,7 +238,7 @@ bool CReflectionRegistry::RegisterScript(const ScriptRegisterDesc& desc)
 	typeInfo.Type.Size        = sizeof(T);
 	typeInfo.Type.Alignment   = alignof(T);
 
-	typeInfo.CreateInstance = [](const GameModuleHostApi* hostApi) -> CGameScript* {
+	typeInfo.CreateInstance = [](const GameModuleHostApi* hostApi, ComponentConstructionToken token, const SafePtr<CGameObject>& owner) -> CGameScript* {
 		if (nullptr == hostApi || nullptr == hostApi->Allocate)
 		{
 			return nullptr;
@@ -230,7 +248,7 @@ bool CReflectionRegistry::RegisterScript(const ScriptRegisterDesc& desc)
 		{
 			return nullptr;
 		}
-		return new (memory) T();
+		return std::construct_at(static_cast<T*>(memory), token, owner);
 	};
 
 	typeInfo.DestroyInstance = [](CGameScript* script, const GameModuleHostApi* hostApi) {
@@ -247,7 +265,7 @@ bool CReflectionRegistry::RegisterScript(const ScriptRegisterDesc& desc)
 
 	// ── 입력 핸들러 사이드캐스트 썽크 ───────────────────────────────────────
 	// T 가 IInputHandler 를 상속하면(InputHandler<...> 경유) CGameScript*→IInputHandler*
-	// 정적 캐스트 썽크를 채운다. ScriptComponent 가 이걸로 핸들러를 얻어 등록한다(RTTI 미사용).
+	// 정적 캐스트 썽크를 채운다. 씬의 스크립트 런타임 상태가 입력 등록에 사용한다.
 	if constexpr (std::is_base_of_v<IInputHandler, T>)
 	{
 		typeInfo.ToInputHandler = [](CGameScript* script) -> IInputHandler* {
@@ -281,7 +299,8 @@ template<typename T>
 bool CReflectionRegistry::RegisterScript(const ScriptRegisterDesc& desc, const std::vector<ScriptPropertyDesc>& properties)
 {
 	static_assert(std::is_base_of_v<CGameScript, T>, "Script types must derive from CGameScript.");
-	static_assert(std::is_default_constructible_v<T>, "Script types must be default constructible.");
+	static_assert(std::is_constructible_v<T, ComponentConstructionToken, const SafePtr<CGameObject>&>,
+		"Script types must inherit the CGameScript owner constructor with 'using CGameScript::CGameScript;'.");
 
 	ScriptTypeInfo typeInfo;
 	typeInfo.Type.Id          = MakeTypeId(desc.Name);
@@ -292,11 +311,11 @@ bool CReflectionRegistry::RegisterScript(const ScriptRegisterDesc& desc, const s
 	typeInfo.Type.Size        = sizeof(T);
 	typeInfo.Type.Alignment   = alignof(T);
 
-	typeInfo.CreateInstance = [](const GameModuleHostApi* hostApi) -> CGameScript* {
+	typeInfo.CreateInstance = [](const GameModuleHostApi* hostApi, ComponentConstructionToken token, const SafePtr<CGameObject>& owner) -> CGameScript* {
 		if (nullptr == hostApi || nullptr == hostApi->Allocate) { return nullptr; }
 		void* memory = hostApi->Allocate(sizeof(T), alignof(T));
 		if (nullptr == memory) { return nullptr; }
-		return new (memory) T();
+		return std::construct_at(static_cast<T*>(memory), token, owner);
 	};
 	typeInfo.DestroyInstance = [](CGameScript* script, const GameModuleHostApi* hostApi) {
 		if (nullptr == script) { return; }

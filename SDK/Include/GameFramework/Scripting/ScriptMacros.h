@@ -109,6 +109,7 @@ template<> inline EReflectPropertyType ScriptFieldTypeOf<float>()             { 
 //     → 함수-로컬 정적 벡터이므로 클래스별로 독립된 목록을 가진다.
 #define SCRIPT_CLASS(T)                                                          \
 public:                                                                          \
+	using CGameScript::CGameScript;                                                \
 	using ScriptSelfType = T;                                                    \
 	static std::vector<ScriptReflectEntry>& GetReflectEntries()                  \
 	{                                                                            \

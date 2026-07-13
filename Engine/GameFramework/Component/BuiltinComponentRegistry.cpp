@@ -6,7 +6,6 @@
 #include "GameFramework/Component/Light2D.h"
 #include "GameFramework/Component/Physics2DComponents.h"
 #include "GameFramework/Component/PrefabInstance.h"
-#include "GameFramework/Component/ScriptComponent.h"
 #include "GameFramework/Component/ShapeRenderers2D.h"
 #include "GameFramework/Component/SpriteAnimator2D.h"
 #include "GameFramework/Component/SpriteRenderer2D.h"
@@ -102,7 +101,7 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 		.AddProperty("StartFrame", EReflectPropertyType::UInt32, offsetof(SpriteAnimator2D, StartFrame), sizeof(std::uint32_t))
 		.AddProperty("FrameCount", EReflectPropertyType::UInt32, offsetof(SpriteAnimator2D, FrameCount), sizeof(std::uint32_t));
 
-	registry.RegisterComponent<Camera2D>({ "Camera2D", "Camera 2D", "Rendering", true })
+	registry.RegisterComponent<Camera2D>({ "Camera2D", "Camera 2D", "Rendering", true, EComponentMultiplicity::Single })
 		.AddEnumProperty<ECameraProjectionMode2D>("ProjectionMode", offsetof(Camera2D, ProjectionMode))
 		.AddProperty("OrthographicSize", EReflectPropertyType::Float, offsetof(Camera2D, OrthographicSize), sizeof(float))
 		.AddProperty("PerspectiveFovDegrees", EReflectPropertyType::Float, offsetof(Camera2D, PerspectiveFovDegrees), sizeof(float))
@@ -124,7 +123,7 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 		.AddProperty("LayerMask", EReflectPropertyType::UInt32, offsetof(Light2D, LayerMask), sizeof(std::uint32_t))
 		.AddProperty("CastShadows", EReflectPropertyType::Bool, offsetof(Light2D, CastShadows), sizeof(bool));
 
-	registry.RegisterComponent<Rigidbody2D>({ "Rigidbody2D", "Rigidbody 2D", "Physics", true })
+	registry.RegisterComponent<Rigidbody2D>({ "Rigidbody2D", "Rigidbody 2D", "Physics", true, EComponentMultiplicity::Single })
 		.AddEnumProperty<EPhysics2DBodyType>("BodyType", offsetof(Rigidbody2D, BodyType))
 		.AddProperty("Velocity", EReflectPropertyType::Vector2Float, offsetof(Rigidbody2D, Velocity), sizeof(Vector2))
 		.AddProperty("Force", EReflectPropertyType::Vector2Float, offsetof(Rigidbody2D, Force), sizeof(Vector2))
@@ -162,9 +161,8 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 	registry.RegisterComponent<PrefabInstance>({ "PrefabInstance", "Prefab Instance", "Prefab", false })
 		.AddAssetProperty("SourcePrefabGuid", offsetof(PrefabInstance, SourcePrefabGuid), EAssetType::Prefab);
 
-	registry.RegisterComponent<ScriptComponent>({ "ScriptComponent", "Script Component", "Scripting", true });
 
-	registry.RegisterComponent<AudioListener>({ "AudioListener", "Audio Listener", "Audio", true })
+	registry.RegisterComponent<AudioListener>({ "AudioListener", "Audio Listener", "Audio", true, EComponentMultiplicity::Single })
 		.AddProperty("MasterVolume", EReflectPropertyType::Float, offsetof(AudioListener, MasterVolume), sizeof(float));
 
 	registry.RegisterComponent<AudioPlayer>({ "AudioPlayer", "Audio Player", "Audio", true })

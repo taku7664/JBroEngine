@@ -155,6 +155,11 @@ void CSceneManager::PlaySimulation()
 		serializer.SerializeToText(*m_activeScene, m_playModeSnapshot);
 	}
 
+	if (m_activeScene && Script.Reflection.IsValid())
+	{
+		m_activeScene->ReserveScriptMemoryForCurrentScripts(*Script.Reflection);
+	}
+
 	m_simulationState = ESceneSimulationState::Playing;
 }
 

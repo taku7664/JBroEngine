@@ -57,7 +57,7 @@ void CSpriteRenderSystem::OnUpdate(CGameScene& scene)
 	scene.ForEach<SpriteRenderer2D>(
 		[this, forwardRenderer](SpriteRenderer2D& sprite)
 		{
-			CGameObject* owner = sprite.GetOwner();
+			CGameObject* owner = sprite.GetOwner().TryGet();
 			if (false == IsActiveComponent(sprite))
 			{
 				return;

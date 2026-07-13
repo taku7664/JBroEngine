@@ -7,7 +7,7 @@
 #include "GameFramework/Component/AudioComponents.h"
 #include "GameFramework/Component/Physics2DComponents.h"
 #include "GameFramework/Component/PrefabInstance.h"
-#include "GameFramework/Component/ScriptComponent.h"
+#include "GameFramework/Scripting/GameScript.h"
 #include "GameFramework/Component/ShapeRenderers2D.h"
 #include "GameFramework/Component/SpriteRenderer2D.h"
 #include "GameFramework/Component/Text2D.h"
@@ -768,11 +768,9 @@ namespace
 		return node;
 	}
 
-	// YAML Map 에서 필드 값을 읽어 ScriptPendingField 목록으로 변환한다.
-	// 씬 로드 또는 핫리로드 복원 시 ScriptComponent::PendingFields 에 채운다.
 	void ReadScriptFields(
 		const YAML::Node& node,
-		std::vector<ScriptPendingField>& out,
+		CGameScript& script,
 		const ScriptTypeInfo& typeInfo,
 		std::vector<AssetGuid>* referencedAssets = nullptr)
 	{
@@ -787,16 +785,8 @@ namespace
 				continue;
 			}
 
-			ScriptPendingField pending;
-			pending.Name = prop.Name;
-			pending.Type = prop.Type;
-			// AssetGuid/Ref(File::Guid)·String 은 Text 로 보존 — raw Data 미사용.
-			if (EReflectPropertyType::AssetGuid != prop.Type
-				&& EReflectPropertyType::Ref != prop.Type
-				&& EReflectPropertyType::String != prop.Type)
-			{
-				pending.Data.resize(prop.Size, 0);
-			}
+			void* field = CReflectionRegistry::GetPropertyAddress(&script, prop);
+			if (nullptr == field) continue;
 
 			try
 			{
@@ -805,31 +795,31 @@ namespace
 				case EReflectPropertyType::Bool:
 				{
 					bool v = node[prop.Name].as<bool>(false);
-					std::memcpy(pending.Data.data(), &v, sizeof(v));
+					*static_cast<bool*>(field) = v;
 					break;
 				}
 				case EReflectPropertyType::Int32:
 				{
 					std::int32_t v = node[prop.Name].as<std::int32_t>(0);
-					std::memcpy(pending.Data.data(), &v, sizeof(v));
+					*static_cast<std::int32_t*>(field) = v;
 					break;
 				}
 				case EReflectPropertyType::Int64:
 				{
 					std::int64_t v = node[prop.Name].as<std::int64_t>(0);
-					std::memcpy(pending.Data.data(), &v, sizeof(v));
+					*static_cast<std::int64_t*>(field) = v;
 					break;
 				}
 				case EReflectPropertyType::UInt32:
 				{
 					std::uint32_t v = node[prop.Name].as<std::uint32_t>(0);
-					std::memcpy(pending.Data.data(), &v, sizeof(v));
+					*static_cast<std::uint32_t*>(field) = v;
 					break;
 				}
 				case EReflectPropertyType::UInt64:
 				{
 					std::uint64_t v = node[prop.Name].as<std::uint64_t>(0);
-					std::memcpy(pending.Data.data(), &v, sizeof(v));
+					*static_cast<std::uint64_t*>(field) = v;
 					break;
 				}
 				case EReflectPropertyType::Float:
@@ -838,44 +828,46 @@ namespace
 				case EReflectPropertyType::AngleDegrees:
 				{
 					float v = node[prop.Name].as<float>(0.0f);
-					std::memcpy(pending.Data.data(), &v, sizeof(v));
+					*static_cast<float*>(field) = v;
 					break;
 				}
 				case EReflectPropertyType::Vector2Float:
 				{
 					Vector2 v;
 					ReadVector2(node[prop.Name], v);
-					std::memcpy(pending.Data.data(), &v, sizeof(v));
+					*static_cast<Vector2*>(field) = v;
 					break;
 				}
 				case EReflectPropertyType::RectFloat:
 				{
 					Rect v;
 					ReadRect(node[prop.Name], v);
-					std::memcpy(pending.Data.data(), &v, sizeof(v));
+					*static_cast<Rect*>(field) = v;
 					break;
 				}
 				case EReflectPropertyType::AssetGuid:
 				{
-					pending.Text = node[prop.Name].as<std::string>("");
+					const std::string text = node[prop.Name].as<std::string>("");
+					*static_cast<File::Guid*>(field) = File::Guid(text);
 					if (referencedAssets)
 					{
-						AddReferencedAsset(*referencedAssets, File::Guid(pending.Text));
+						AddReferencedAsset(*referencedAssets, File::Guid(text));
 					}
 					break;
 				}
 				case EReflectPropertyType::Ref:
 				{
-					pending.Text = node[prop.Name].as<std::string>("");
+					const std::string text = node[prop.Name].as<std::string>("");
+					static_cast<RefBase*>(field)->SetGuidText(text.c_str());
 					if (referencedAssets && ERefCategory::Asset == prop.RefCategory)
 					{
-						AddReferencedAsset(*referencedAssets, File::Guid(pending.Text));
+						AddReferencedAsset(*referencedAssets, File::Guid(text));
 					}
 					break;
 				}
 				case EReflectPropertyType::String:
 				{
-					pending.Text = node[prop.Name].as<std::string>("");
+					*static_cast<std::string*>(field) = node[prop.Name].as<std::string>("");
 					break;
 				}
 				default:
@@ -886,89 +878,29 @@ namespace
 			{
 				continue;
 			}
-
-			out.push_back(std::move(pending));
 		}
 	}
 
 	// 스크립트 컴포넌트 1개를 YAML 노드로 직렬화한다(원본 writeScript 람다 → 함수화).
 	// 공통 메타(Type/IsEnabled/InstanceGuid)는 호출부(WriteComponent)가 부착한다.
-	YAML::Node WriteScriptNode(const ScriptComponent* sc, std::vector<AssetGuid>& referencedAssets)
+	YAML::Node WriteScriptNode(const CGameScript* script, std::vector<AssetGuid>& referencedAssets)
 	{
 		YAML::Node scriptNode(YAML::NodeType::Map);
-		if (nullptr == sc || INVALID_TYPE_ID == sc->ScriptTypeId || false == static_cast<bool>(Script.Reflection))
+		if (nullptr == script || INVALID_TYPE_ID == script->GetScriptTypeId() || false == static_cast<bool>(Script.Reflection))
 		{
 			return scriptNode;
 		}
-		const ScriptTypeInfo* scriptInfo = Script.Reflection->FindScript(sc->ScriptTypeId);
+		const ScriptTypeInfo* scriptInfo = Script.Reflection->FindScript(script->GetScriptTypeId());
 		if (scriptInfo && scriptInfo->Type.Name)
 		{
 			// 스크립트 타입명은 ScriptType 키에 둔다. 공통 "Type" 키는 디스패치용("Script"),
 			// "IsEnabled"/"InstanceGuid" 도 호출부 공통 로직이 부착한다.
 			scriptNode["ScriptType"] = scriptInfo->Type.Name;
-			if (!scriptInfo->Properties.empty())
-			{
-				if (sc->Instance)
-				{
-					scriptNode["Fields"] = WriteScriptFields(sc->Instance, *scriptInfo, &referencedAssets);
-				}
-				else if (!sc->PendingFields.empty())
-				{
-					YAML::Node fields(YAML::NodeType::Map);
-					for (const ScriptPendingField& pf : sc->PendingFields)
-					{
-						for (const ReflectPropertyInfo& prop : scriptInfo->Properties)
-						{
-							if (prop.Name && pf.Name == prop.Name &&
-								((EReflectPropertyType::AssetGuid == pf.Type && EReflectPropertyType::AssetGuid == prop.Type) ||
-								(EReflectPropertyType::Ref == pf.Type && EReflectPropertyType::Ref == prop.Type) ||
-								pf.Data.size() == prop.Size))
-							{
-								const void* src = pf.Data.empty() ? nullptr : pf.Data.data();
-								switch (prop.Type)
-								{
-								case EReflectPropertyType::Bool:   fields[prop.Name] = *static_cast<const bool*>(src); break;
-								case EReflectPropertyType::Int32:  fields[prop.Name] = *static_cast<const std::int32_t*>(src); break;
-								case EReflectPropertyType::Int64:  fields[prop.Name] = *static_cast<const std::int64_t*>(src); break;
-								case EReflectPropertyType::UInt32: fields[prop.Name] = *static_cast<const std::uint32_t*>(src); break;
-								case EReflectPropertyType::UInt64: fields[prop.Name] = *static_cast<const std::uint64_t*>(src); break;
-								case EReflectPropertyType::Float:
-								case EReflectPropertyType::Degree:
-								case EReflectPropertyType::Radian:
-								case EReflectPropertyType::AngleDegrees:
-									fields[prop.Name] = *static_cast<const float*>(src); break;
-								case EReflectPropertyType::Vector2Float:
-									fields[prop.Name] = WriteVector2(*static_cast<const Vector2*>(src)); break;
-								case EReflectPropertyType::RectFloat:
-									fields[prop.Name] = WriteRect(*static_cast<const Rect*>(src)); break;
-								case EReflectPropertyType::AssetGuid:
-									fields[prop.Name] = pf.Text;
-									AddReferencedAsset(referencedAssets, File::Guid(pf.Text));
-									break;
-								case EReflectPropertyType::Ref:
-									fields[prop.Name] = pf.Text;
-									if (ERefCategory::Asset == prop.RefCategory)
-									{
-										AddReferencedAsset(referencedAssets, File::Guid(pf.Text));
-									}
-									break;
-								case EReflectPropertyType::String:
-									fields[prop.Name] = pf.Text;
-									break;
-								default: break;
-								}
-								break;
-							}
-						}
-					}
-					scriptNode["Fields"] = fields;
-				}
-			}
+			scriptNode["Fields"] = WriteScriptFields(script, *scriptInfo, &referencedAssets);
 		}
 		else
 		{
-			scriptNode["TypeId"]    = sc->ScriptTypeId;
-			scriptNode["IsEnabled"] = sc->IsEnabled;
+			scriptNode["TypeId"] = script->GetScriptTypeId();
 		}
 		return scriptNode;
 	}
@@ -987,14 +919,9 @@ YAML::Node WriteComponent(const CComponent& component, std::vector<AssetGuid>* r
 
 	YAML::Node cn;
 	const char* serializedType = tn;
-	if (0 == std::strcmp(tn, "ScriptComponent"))
+	if (const CGameScript* script = dynamic_cast<const CGameScript*>(c))
 	{
-		ScriptComponent* sc = static_cast<ScriptComponent*>(c);
-		if (sc->ScriptTypeId == INVALID_TYPE_ID)
-		{
-			return YAML::Node(YAML::NodeType::Undefined);   // 타입 미지정 스크립트는 노드 없음.
-		}
-		cn = WriteScriptNode(sc, assets);
+		cn = WriteScriptNode(script, assets);
 		serializedType = "Script";
 	}
 	else if (0 == std::strcmp(tn, "SpriteRenderer2D")) cn = WriteSpriteRenderer(*static_cast<SpriteRenderer2D*>(c), assets);
@@ -1012,7 +939,7 @@ YAML::Node WriteComponent(const CComponent& component, std::vector<AssetGuid>* r
 	}
 
 	cn["Type"]      = serializedType;
-	cn["IsEnabled"] = c->IsEnabled;
+	cn["IsEnabled"] = c->IsEnabled();
 	if (false == c->InstanceGuid.IsNull())
 	{
 		cn["InstanceGuid"] = c->InstanceGuid.generic_string();
@@ -1156,31 +1083,22 @@ CComponent* ReadComponentInto(CGameObject& object, const YAML::Node& node,
 	}
 	else if (type == "Script")
 	{
-		if (ScriptComponent* sc = object.AddComponent<ScriptComponent>())
+		const std::string scriptTypeName = ReadValueOr<std::string>(node, "ScriptType", ReadValueOr<std::string>(node, "TypeName", ""));
+		if (false == scriptTypeName.empty() && Script.Reflection && object.GetScene())
 		{
-			const std::string typeName = ReadValueOr<std::string>(node, "ScriptType", ReadValueOr<std::string>(node, "TypeName", ""));
-			if (!typeName.empty() && Script.Reflection)
+			const ScriptTypeInfo* scriptInfo = Script.Reflection->FindScriptByName(scriptTypeName.c_str());
+			if (scriptInfo)
 			{
-				const ScriptTypeInfo* info = Script.Reflection->FindScriptByName(typeName.c_str());
-				if (info)
+				CGameScript* script = object.GetScene()->AddScript(object, scriptInfo->Type.Id, *Script.Reflection);
+				if (script)
 				{
-					sc->ScriptTypeId = info->Type.Id;
-					if (const YAML::Node fieldsNode = node["Fields"])
+					if (const YAML::Node fields = node["Fields"])
 					{
-						ReadScriptFields(fieldsNode, sc->PendingFields, *info, &assets);
+						ReadScriptFields(fields, *script, *scriptInfo, &assets);
 					}
-				}
-				else
-				{
-					sc->ScriptTypeId = CReflectionRegistry::MakeTypeId(typeName.c_str());
+					added = script;
 				}
 			}
-			else if (node["TypeId"])
-			{
-				try { sc->ScriptTypeId = node["TypeId"].as<TypeId>(INVALID_TYPE_ID); }
-				catch (...) {}
-			}
-			added = sc;
 		}
 	}
 	else
@@ -1199,11 +1117,13 @@ CComponent* ReadComponentInto(CGameObject& object, const YAML::Node& node,
 
 	if (added)
 	{
-		added->IsEnabled = ReadValueOr<bool>(node, "IsEnabled", true);
+		added->SetEnabled(ReadValueOr<bool>(node, "IsEnabled", true));
 		const std::string compGuid = ReadValueOr<std::string>(node, "InstanceGuid", "");
 		if (false == compGuid.empty())
 		{
-			added->InstanceGuid = File::Guid(compGuid);
+			File::Guid restoredGuid(compGuid);
+			if (object.FindComponentByGuid(restoredGuid)) restoredGuid = File::GenerateGuid();
+			added->InstanceGuid = restoredGuid;
 		}
 	}
 	return added;

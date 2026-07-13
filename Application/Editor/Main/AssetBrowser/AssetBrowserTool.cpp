@@ -203,6 +203,7 @@ namespace
 		out << "JBRO_SCRIPT " << className << " final : public CGameScript\n";
 		out << "{\n";
 		out << "public:\n";
+		out << "\tusing CGameScript::CGameScript;\n\n";
 		if (false == props.empty())
 		{
 			// JPROP 어트리뷰트 방식으로 자동 등록(헤더 스캐너가 파싱). 안전망: 어떤 입력이

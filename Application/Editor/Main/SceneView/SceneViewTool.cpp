@@ -272,7 +272,7 @@ void CSceneViewTool::FocusOnEntity(CGameObject* object, const CGameScene& scene)
 
     float halfExtent = 0.5f;
     const SpriteRenderer2D* sprite = object->GetComponent<SpriteRenderer2D>();
-    if (sprite && sprite->IsEnabled)
+    if (sprite && sprite->IsEnabled())
     {
         const float wx = sprite->Size.x * scaleX;
         const float wy = sprite->Size.y * scaleY;
@@ -631,8 +631,8 @@ void CSceneViewTool::OnRenderStay()
                 colScene->ForEach<CircleCollider2D>(
                     [&](CircleCollider2D& col)
                     {
-                        if (!col.IsEnabled) return;
-                        CGameObject* owner = col.GetOwner();
+                        if (!col.IsEnabled()) return;
+                        CGameObject* owner = col.GetOwner().TryGet();
                         if (!owner) return;
                         CGameObject* const entity = owner;
 
@@ -669,8 +669,8 @@ void CSceneViewTool::OnRenderStay()
                 colScene->ForEach<PolygonCollider2D>(
                     [&](PolygonCollider2D& col)
                     {
-                        if (!col.IsEnabled) return;
-                        CGameObject* owner = col.GetOwner();
+                        if (!col.IsEnabled()) return;
+                        CGameObject* owner = col.GetOwner().TryGet();
                         if (!owner) return;
                         CGameObject* const entity = owner;
 

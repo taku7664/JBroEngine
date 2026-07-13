@@ -5,6 +5,21 @@
 #include "Utillity/Pointer/SafePtr.h"
 
 class CGameObject;
+class CGameScene;
+class CReflectionRegistry;
+
+class ComponentConstructionToken final
+{
+public:
+	ComponentConstructionToken(const ComponentConstructionToken&) = default;
+	ComponentConstructionToken& operator=(const ComponentConstructionToken&) = default;
+
+private:
+	ComponentConstructionToken() = default;
+
+	friend class CGameScene;
+	friend class CReflectionRegistry;
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  CComponent — 다형성 컴포넌트 베이스.
@@ -16,16 +31,17 @@ class CGameObject;
 //    타입 해석(Ref<T>/GetComponent<T>)은 RTTI(dynamic_cast)로 처리한다.
 //  · 라이프사이클 훅은 기본 no-op. 시스템/스크립트가 구동한다.
 //
-//  ⚠ DLL 경계: 엔진 측 빌트인 컴포넌트만 이 베이스를 직접 상속한다. 게임 스크립트
-//     인스턴스(CGameScript)는 이 베이스로 병합하지 않는다(별도 DLL allocator 소유).
+//  · 게임 스크립트도 이 베이스를 상속한다. 메모리는 씬의 타입 소거 스크립트 풀에
+//    거주하지만, GameObject 에서는 다른 컴포넌트와 동일한 SafePtr 로 참조한다.
 // ─────────────────────────────────────────────────────────────────────────────
 class CComponent : public GameInstance, public EnableSafeFromThis<CComponent>
 {
 public:
 	virtual ~CComponent() = default;
 
-	bool                 IsEnabled = true;
-	SafePtr<CGameObject> Owner;
+	bool IsEnabled() const { return m_isEnabled; }
+	void SetEnabled(bool enabled) { m_isEnabled = enabled; }
+	const SafePtr<CGameObject>& GetOwner() const { return m_owner; }
 
 	// InstanceGuid 는 GameInstance 베이스가 보유한다. Ref<T> 가 (오브젝트 guid + 컴포넌트
 	// guid) 쌍으로 특정 1개를 지목하므로, 같은 타입 컴포넌트가 한 오브젝트에 여러 개
@@ -37,13 +53,27 @@ public:
 	// 라이프사이클 (기본 no-op). 엔진 컴포넌트는 System 이 구동하므로 Update 류 훅이 없다.
 	// 부착/탈착 시점에만 컴포넌트 자신이 처리할 동작(물리월드 등록/해제 등)을 위해 둘만 둔다.
 	// CGameScene::AddComponent → OnCreate, CGameScene::DestroyComponent → OnDestroy.
+
+protected:
+	CComponent(ComponentConstructionToken, const SafePtr<CGameObject>& owner)
+		: m_owner(owner)
+	{
+	}
+
 	virtual void OnCreate() {}
 	virtual void OnDestroy() {}
 
-	CGameObject* GetOwner() const { return Owner.TryGet(); }
+private:
+	friend class CGameScene;
+
+	bool m_isEnabled = true;
+	SafePtr<CGameObject> m_owner;
 };
 
 // 빌트인 컴포넌트 클래스 본문에 한 번 기재 — GetTypeName 을 자동 구현한다.
 #define JBRO_COMPONENT(NAME)                                       \
 public:                                                            \
+	NAME(ComponentConstructionToken token,                           \
+		const SafePtr<CGameObject>& owner)                            \
+		: CComponent(token, owner) {}                                 \
 	const char* GetTypeName() const override { return #NAME; }

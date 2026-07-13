@@ -3,10 +3,13 @@
 
 #include "GameFramework/Serialization/ObjectSerializer.h"
 #include "GameFramework/Object/GameObject.h"
+#include "GameFramework/Reflection/ReflectionRegistry.h"
 #include "GameFramework/Scene/Scene.h"
+#include "Core/ScriptCore.h"
 #include "yaml-cpp/yaml.h"
 
 #include <algorithm>
+#include <cmath>
 #include <fstream>
 #include <sstream>
 #include <unordered_map>
@@ -62,6 +65,60 @@ namespace
 			}
 		}
 		return assets;
+	}
+
+	void ReserveScenePools(CGameScene& scene, const YAML::Node& objectsNode)
+	{
+		if (false == static_cast<bool>(Script.Reflection))
+		{
+			return;
+		}
+
+		std::unordered_map<TypeId, std::size_t> componentCounts;
+		std::unordered_map<TypeId, std::size_t> scriptCounts;
+		for (const YAML::Node& objectNode : objectsNode)
+		{
+			const YAML::Node components = objectNode["Components"];
+			if (!components || false == components.IsSequence())
+			{
+				continue;
+			}
+			for (const YAML::Node& componentNode : components)
+			{
+				const std::string typeName = componentNode["Type"] ? componentNode["Type"].as<std::string>("") : "";
+				if ("Script" == typeName)
+				{
+					const std::string scriptName = componentNode["ScriptType"]
+						? componentNode["ScriptType"].as<std::string>("")
+						: componentNode["TypeName"].as<std::string>("");
+					if (const ScriptTypeInfo* info = Script.Reflection->FindScriptByName(scriptName.c_str()))
+					{
+						++scriptCounts[info->Type.Id];
+					}
+					continue;
+				}
+				if (const ComponentTypeInfo* info = Script.Reflection->FindComponentByName(typeName.c_str()))
+				{
+					++componentCounts[info->Type.Id];
+				}
+			}
+		}
+
+		auto reserveCount = [](std::size_t count)
+		{
+			return static_cast<std::size_t>(std::ceil(static_cast<double>(count) * 1.5));
+		};
+		for (const auto& [typeId, count] : componentCounts)
+		{
+			Script.Reflection->ReserveComponentPool(scene, typeId, reserveCount(count));
+		}
+		for (const auto& [typeId, count] : scriptCounts)
+		{
+			if (const ScriptTypeInfo* info = Script.Reflection->FindScript(typeId))
+			{
+				scene.ReserveScriptMemory(typeId, info->Type.Size, info->Type.Alignment, reserveCount(count));
+			}
+		}
 	}
 }
 
@@ -146,6 +203,7 @@ ESceneSerializeResult CSceneSerializer::DeserializeFromText(CGameScene& scene, c
 	}
 
 	scene.ClearObjects();
+	ReserveScenePools(scene, objectsNode);
 	std::vector<AssetGuid> referencedAssets = ReadReferencedAssets(root["ReferencedAssets"]);
 
 	std::vector<CGameObject*> objects;

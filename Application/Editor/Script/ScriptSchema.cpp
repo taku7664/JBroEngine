@@ -106,7 +106,6 @@ namespace ScriptSchema
 				const char* n = ti->Type.Name;
 				if (0 == std::strcmp(n, "GameObject")) continue;            // Ref<GameObject> 로 분리
 				if (0 == std::strcmp(n, "TransformHierarchy2D")) continue;  // 내부용
-				if (0 == std::strcmp(n, "ScriptComponent")) continue;       // 컨테이너
 				out.push_back({ n, n, std::string("GameFramework/Component/") + n + ".h" });
 			}
 			for (std::size_t i = 0; i < Engine.Reflection->GetScriptTypeCount(); ++i)

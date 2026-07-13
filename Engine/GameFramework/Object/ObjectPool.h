@@ -4,6 +4,7 @@
 
 #include <cstddef>
 #include <new>
+#include <memory>
 #include <type_traits>
 #include <utility>
 
@@ -38,7 +39,7 @@ public:
 	TObjectPool(const TObjectPool&) = delete;
 	TObjectPool& operator=(const TObjectPool&) = delete;
 
-	// 슬롯에 T 를 placement-new 하고 ControlBlock 을 바인딩한 raw 포인터를 반환한다.
+	// 슬롯에 std::construct_at 으로 T 를 생성하고 ControlBlock 을 바인딩한다.
 	// 외부 안전참조는 호출 측에서 obj->SafeFromThis() 로 얻는다.
 	template<typename... Args>
 	T* Allocate(Args&&... args)
@@ -52,7 +53,9 @@ public:
 			return nullptr;
 		}
 
-		T* object = ::new (static_cast<void*>(slot->Storage)) T(std::forward<Args>(args)...);
+		T* object = std::construct_at(
+			reinterpret_cast<T*>(slot->Storage),
+			std::forward<Args>(args)...);
 
 		// ControlBlock 은 풀이 직접 관리 — Deleter 는 no-op(파괴는 Free 가 수행).
 		SafePtrDetail::ControlBlock* block =
@@ -136,6 +139,17 @@ public:
 	}
 
 	std::size_t GetLiveCount() const { return m_liveCount; }
+	std::size_t GetCapacity() const { return m_chunkCount * SlotsPerChunk; }
+	void Reserve(std::size_t capacity)
+	{
+		while (GetCapacity() < capacity)
+		{
+			if (false == AddChunk())
+			{
+				break;
+			}
+		}
+	}
 
 private:
 	struct Slot
@@ -201,6 +215,7 @@ private:
 		}
 		chunk->Next = m_head;
 		m_head = chunk;
+		++m_chunkCount;
 		for (std::size_t i = 0; i < SlotsPerChunk; ++i)
 		{
 			chunk->Slots[i].NextFree = m_freeHead;
@@ -235,10 +250,12 @@ private:
 		}
 		m_head = nullptr;
 		m_freeHead = nullptr;
+		m_chunkCount = 0;
 	}
 
 private:
 	Chunk*      m_head      = nullptr;
 	Slot*       m_freeHead  = nullptr;
 	std::size_t m_liveCount = 0;
+	std::size_t m_chunkCount = 0;
 };

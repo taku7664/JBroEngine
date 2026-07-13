@@ -28,13 +28,6 @@ namespace
 		return value;
 	}
 
-	bool IsScriptComponent(const ComponentTypeInfo* componentType)
-	{
-		return componentType &&
-		       componentType->Type.Name &&
-		       0 == std::strcmp(componentType->Type.Name, "ScriptComponent");
-	}
-
 	bool DrawScriptList(CGameScene& scene, CGameObject* object, CReflectionRegistry& reflection)
 	{
 		if (nullptr == object)
@@ -62,7 +55,7 @@ namespace
 			if (ImGui::MenuItem(label.c_str()))
 			{
 				added = Editor::CommandManager.ExecuteCommand(
-					MakeOwnerPtr<CAddScriptComponentCommand>(
+					MakeOwnerPtr<CAddScriptCommand>(
 						scene.SafeFromThis(), object, scriptType->Type.Id));
 			}
 		}
@@ -77,10 +70,10 @@ namespace
 				scene.SafeFromThis(), object, componentType.Type.Id));
 	}
 
-	bool AddScriptComponent(CGameScene& scene, CGameObject* object, const ScriptTypeInfo& scriptType)
+	bool AddScript(CGameScene& scene, CGameObject* object, const ScriptTypeInfo& scriptType)
 	{
 		return Editor::CommandManager.ExecuteCommand(
-			MakeOwnerPtr<CAddScriptComponentCommand>(
+			MakeOwnerPtr<CAddScriptCommand>(
 				scene.SafeFromThis(), object, scriptType.Type.Id));
 	}
 
@@ -103,7 +96,7 @@ namespace
 		auto canAddComponent = [&](const ComponentTypeInfo* t) -> bool
 		{
 			return canShowComponent(t) &&
-			       false == reflection.HasComponent(*object, t->Type.Id);
+			       reflection.CanAddComponent(*object, t->Type.Id);
 		};
 
 		const std::string filter = ToLowerAscii(filterText ? filterText : "");
@@ -113,7 +106,7 @@ namespace
 			for (std::size_t i = 0; i < reflection.GetComponentTypeCount(); ++i)
 			{
 				const ComponentTypeInfo* componentType = reflection.GetComponentType(i);
-				if (false == canShowComponent(componentType) || IsScriptComponent(componentType)) continue;
+				if (false == canShowComponent(componentType)) continue;
 
 				const std::string componentLabel = EditorReflectionLabels::GetComponentLabel(*componentType);
 				const char* category = componentType->Type.Category ? componentType->Type.Category : "Components";
@@ -163,7 +156,7 @@ namespace
 				++resultCount;
 				if (ImGui::Selectable(label.c_str()))
 				{
-					added = AddScriptComponent(scene, object, *scriptType);
+					added = AddScript(scene, object, *scriptType);
 					if (added)
 					{
 						ImGui::CloseCurrentPopup();
@@ -182,7 +175,7 @@ namespace
 		for (std::size_t i = 0; i < reflection.GetComponentTypeCount(); ++i)
 		{
 			const ComponentTypeInfo* componentType = reflection.GetComponentType(i);
-			if (false == canShowComponent(componentType) || IsScriptComponent(componentType)) continue;
+			if (false == canShowComponent(componentType)) continue;
 
 			const char* category = componentType->Type.Category ? componentType->Type.Category : "Components";
 			if (std::find(categories.begin(), categories.end(), category) == categories.end())
@@ -197,7 +190,7 @@ namespace
 				for (std::size_t i = 0; i < reflection.GetComponentTypeCount(); ++i)
 				{
 					const ComponentTypeInfo* componentType = reflection.GetComponentType(i);
-					if (false == canShowComponent(componentType) || IsScriptComponent(componentType)) continue;
+					if (false == canShowComponent(componentType)) continue;
 
 					const char* componentCategory =
 					    componentType->Type.Category ? componentType->Type.Category : "Components";

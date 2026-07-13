@@ -13,7 +13,7 @@ class InputDeviceContext;
 //  · 매 프레임 레이어 순으로 HandleInput(ctx) 가 불린다(입력 변화 없어도 호출).
 //  · 반환 = "처리했나(handled)". true = consume → 하위 레이어 전부 차단. false = 통과(기본).
 //  · 필터 없음 — 핸들러 내부에서 ctx 로 직접 폴링한다.
-//  · 등록/해제는 엔진(ScriptComponent 수명)이 자동 처리한다 — 사용자 개입 0.
+//  · 등록/해제는 엔진(CGameScript 수명)이 자동 처리한다 — 사용자 개입 0.
 // ─────────────────────────────────────────────────────────────────────────────
 class IInputHandler
 {

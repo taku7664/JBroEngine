@@ -4,7 +4,7 @@
 #include "Core/EngineCore.h"
 #include "Core/ScriptCore.h"
 #include "Core/Game/IGameModule.h"
-#include "GameFramework/Component/ScriptComponent.h"
+#include "GameFramework/Scripting/GameScript.h"
 #include "GameFramework/Reflection/ReflectionRegistry.h"
 #include "GameFramework/Scene/Scene.h"
 #include "GameFramework/Scene/SceneManager.h"
@@ -34,6 +34,23 @@ namespace
 	CReflectionRegistry* GetModuleReflection(const GameModuleContext& context)
 	{
 		return context.HostScriptCore ? context.HostScriptCore->Reflection.TryGet() : nullptr;
+	}
+
+	template<typename Fn>
+	void ForEachScriptInObjectOrder(CGameScene& scene, Fn&& fn)
+	{
+		scene.ForEachObjectInHierarchyOrder(
+			[&](CGameObject& object)
+			{
+				for (const SafePtr<CComponent>& component : object.GetComponents())
+				{
+					CGameScript* script = dynamic_cast<CGameScript*>(component.TryGet());
+					if (script)
+					{
+						fn(*script);
+					}
+				}
+			});
 	}
 
 	void* AllocateModuleMemory(std::size_t size, std::size_t alignment)
@@ -476,7 +493,7 @@ void CLiveCompileManager::DestroyCurrentModule()
 }
 
 // ── TakeScriptSnapshot ────────────────────────────────────────────────────────
-// DLL 언로드 직전에 활성 씬의 모든 ScriptComponent 필드를 raw bytes 로 저장한다.
+// DLL 언로드 직전에 활성 씬의 모든 스크립트 컴포넌트 필드를 저장한다.
 // Reflection 정보가 있는 REFLECT_FIELD 만 보존되며, 내부 런타임 상태는 초기화된다.
 void CLiveCompileManager::TakeScriptSnapshot()
 {
@@ -489,44 +506,56 @@ void CLiveCompileManager::TakeScriptSnapshot()
 		return;
 	}
 
-	SafePtr<CGameScene> scene = sceneMgr->GetActiveScene();
-	if (!scene)
+	std::vector<std::string> sceneNames;
+	if (false == sceneMgr->GetLoadedSceneNames(sceneNames))
 	{
 		return;
 	}
 
-	scene->ForEach<ScriptComponent>(
-		[&](ScriptComponent& script)
+	for (const std::string& sceneName : sceneNames)
+	{
+		SafePtr<CGameScene> scene = sceneMgr->FindScene(sceneName.c_str());
+		if (false == scene.IsValid()) continue;
+		ForEachScriptInObjectOrder(*scene,
+		[&, sceneName](CGameScript& script)
 		{
-			if (!script.Instance || script.ScriptTypeId == INVALID_TYPE_ID)
+			if (script.GetScriptTypeId() == INVALID_TYPE_ID)
 			{
 				return;
 			}
-			CGameObject* owner = script.GetOwner();
+			CGameObject* owner = script.GetOwner().TryGet();
 			if (nullptr == owner)
 			{
 				return;
 			}
 
-			const ScriptTypeInfo* info = reg->FindScript(script.ScriptTypeId);
-			if (!info || info->Properties.empty())
+			const ScriptTypeInfo* info = reg->FindScript(script.GetScriptTypeId());
+			if (!info)
 			{
 				return;
 			}
 
 			ScriptFieldSnapshot snapshot;
-			snapshot.OwnerGuid = owner->InstanceGuid;
-			snapshot.TypeName  = info->Type.Name ? info->Type.Name : "";
+			snapshot.SceneName     = sceneName;
+			snapshot.OwnerGuid     = owner->InstanceGuid;
+			snapshot.ComponentGuid = script.InstanceGuid;
+			snapshot.TypeName      = info->Type.Name ? info->Type.Name : "";
+			snapshot.IsEnabled     = script.IsEnabled();
+			const auto& components = owner->GetComponents();
+			for (std::size_t i = 0; i < components.size(); ++i)
+			{
+				if (components[i].TryGet() == &script) { snapshot.ComponentIndex = i; break; }
+			}
 
 			for (const ReflectPropertyInfo& prop : info->Properties)
 			{
-				const void* src = CReflectionRegistry::GetPropertyAddress(static_cast<const void*>(script.Instance), prop);
+				const void* src = CReflectionRegistry::GetPropertyAddress(static_cast<const void*>(&script), prop);
 				if (nullptr == src)
 				{
 					continue;
 				}
 
-				ScriptPendingField field;
+				ScriptFieldValue field;
 				field.Name = prop.Name ? prop.Name : "";
 				field.Type = prop.Type;   // 복원 시 ApplyPendingFields 가 타입별로 올바르게 적용하도록.
 
@@ -556,11 +585,11 @@ void CLiveCompileManager::TakeScriptSnapshot()
 
 			m_scriptSnapshots.push_back(std::move(snapshot));
 		});
+	}
 }
 
 // ── RestoreScriptSnapshot ─────────────────────────────────────────────────────
-// 새 DLL 이 로드된 후, 이전 스냅샷을 ScriptComponent::PendingFields 에 채운다.
-// ScriptSystem 은 다음 프레임에 인스턴스를 생성하면서 PendingFields 를 자동 적용한다.
+// 새 DLL 이 로드된 후 같은 타입의 실제 스크립트 컴포넌트를 다시 만들고 필드를 복원한다.
 void CLiveCompileManager::RestoreScriptSnapshot()
 {
 	if (m_scriptSnapshots.empty())
@@ -576,31 +605,41 @@ void CLiveCompileManager::RestoreScriptSnapshot()
 		return;
 	}
 
-	SafePtr<CGameScene> scene = sceneMgr->GetActiveScene();
-	if (!scene)
-	{
-		m_scriptSnapshots.clear();
-		return;
-	}
-
 	for (ScriptFieldSnapshot& snapshot : m_scriptSnapshots)
 	{
+		SafePtr<CGameScene> scene = sceneMgr->FindScene(snapshot.SceneName.c_str());
+		if (false == scene.IsValid()) continue;
 		CGameObject* owner = scene->FindByInstanceGuid(snapshot.OwnerGuid).TryGet();
-		ScriptComponent* sc = owner ? owner->GetComponent<ScriptComponent>() : nullptr;
-		if (!sc)
+		if (!owner)
 		{
 			continue;
 		}
 
 		// 새 DLL 에서 같은 이름으로 타입 재확인
 		const ScriptTypeInfo* info = reg->FindScriptByName(snapshot.TypeName.c_str());
-		if (info)
+		if (nullptr == info)
 		{
-			sc->ScriptTypeId = info->Type.Id;
+			continue;
 		}
-		// 인스턴스는 아직 없음(DestroyCurrentModule 이 ResetInstance 했음)
-		// PendingFields 에 채워두면 ScriptSystem 이 다음 프레임에 적용한다.
-		sc->PendingFields = std::move(snapshot.Fields);
+		CGameScript* script = scene->AddScript(*owner, info->Type.Id, *reg);
+		if (nullptr == script) continue;
+		script->InstanceGuid = snapshot.ComponentGuid;
+		script->SetEnabled(snapshot.IsEnabled);
+		owner->MoveComponent(script->InstanceGuid, snapshot.ComponentIndex);
+		for (const ScriptFieldValue& value : snapshot.Fields)
+		{
+			for (const ReflectPropertyInfo& prop : info->Properties)
+			{
+				if (nullptr == prop.Name || value.Name != prop.Name) continue;
+				void* field = CReflectionRegistry::GetPropertyAddress(script, prop);
+				if (nullptr == field) break;
+				if (EReflectPropertyType::AssetGuid == prop.Type) *static_cast<File::Guid*>(field) = File::Guid(value.Text);
+				else if (EReflectPropertyType::Ref == prop.Type) static_cast<RefBase*>(field)->SetGuidText(value.Text.c_str());
+				else if (EReflectPropertyType::String == prop.Type) *static_cast<std::string*>(field) = value.Text;
+				else if (value.Data.size() == prop.Size) std::memcpy(field, value.Data.data(), prop.Size);
+				break;
+			}
+		}
 	}
 
 	m_scriptSnapshots.clear();

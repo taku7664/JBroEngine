@@ -6,7 +6,7 @@
 #include "Core/Logging/LoggerInternal.h"
 #include "Core/Time/Time.h"
 #include "GameFramework/Component/Physics2DComponents.h"
-#include "GameFramework/Component/ScriptComponent.h"
+#include "GameFramework/Scripting/GameScript.h"
 #include "GameFramework/Component/Transform2D.h"
 #include "GameFramework/Physics2D/Collision2D.h"
 #include "GameFramework/Physics2D/Physics2DTypes.h"
@@ -865,7 +865,7 @@ namespace
 
 	float GetInverseMass(const Rigidbody2D* body)
 	{
-		if (nullptr == body || !body->IsEnabled
+		if (nullptr == body || !body->IsEnabled()
 		    || EPhysics2DBodyType::Dynamic != body->BodyType || body->Mass <= 0.0f)
 		{
 			return 0.0f;
@@ -875,7 +875,7 @@ namespace
 
 	float GetInverseInertia(const Rigidbody2D* body)
 	{
-		if (nullptr == body || !body->IsEnabled
+		if (nullptr == body || !body->IsEnabled()
 		    || EPhysics2DBodyType::Dynamic != body->BodyType
 		    || body->FreezeRotation || body->Inertia <= 0.0f)
 		{
@@ -926,12 +926,12 @@ namespace
 	Vector2 GetBodyWorldCenter(const CGameObject* object)
 	{
 		if (const PolygonCollider2D* poly = object->GetComponent<PolygonCollider2D>();
-			poly && poly->IsEnabled && poly->WorldPoints.size() >= 3)
+			poly && poly->IsEnabled() && poly->WorldPoints.size() >= 3)
 		{
 			return CalculateCentroid(poly->WorldPoints);
 		}
 		if (const CircleCollider2D* circle = object->GetComponent<CircleCollider2D>();
-			circle && circle->IsEnabled)
+			circle && circle->IsEnabled())
 		{
 			return circle->WorldCenter;
 		}
@@ -956,7 +956,7 @@ namespace
 	                     const Vector2& contactPoint,
 	                     bool isFriction)
 	{
-		if (nullptr == body || !body->IsEnabled || EPhysics2DBodyType::Dynamic != body->BodyType)
+		if (nullptr == body || !body->IsEnabled() || EPhysics2DBodyType::Dynamic != body->BodyType)
 		{
 			return;
 		}
@@ -977,7 +977,7 @@ namespace
 	void ApplyImpulse(Rigidbody2D* body, const Vector2& bodyCenter,
 	                  const Vector2& impulse, const Vector2& contactPoint)
 	{
-		if (nullptr == body || !body->IsEnabled || EPhysics2DBodyType::Dynamic != body->BodyType)
+		if (nullptr == body || !body->IsEnabled() || EPhysics2DBodyType::Dynamic != body->BodyType)
 		{
 			return;
 		}
@@ -1385,7 +1385,7 @@ void CPhysics2DSystem::OnFixedUpdate(CGameScene& scene)
 			s_bodyLogCnt = 0;
 			scene.ForEach<Rigidbody2D>([&](Rigidbody2D& body)
 				{
-					if (false == body.IsEnabled || EPhysics2DBodyType::Dynamic != body.BodyType) return;
+					if (false == body.IsEnabled() || EPhysics2DBodyType::Dynamic != body.BodyType) return;
 
 					const void* e = &body;
 					const auto it = s_prevVel.find(e);
@@ -1469,17 +1469,6 @@ void CPhysics2DSystem::DispatchToScript(
 		return;
 	}
 
-	// 오브젝트당 스크립트 1개 관례 — 여러 개면 첫 번째만 이벤트를 받는다.
-	ScriptComponent* script = self->GetComponent<ScriptComponent>();
-	if (nullptr == script || nullptr == script->Instance)
-	{
-		return;
-	}
-	if (false == IsActiveComponent(*script) || false == script->Instance->IsStarted())
-	{
-		return;
-	}
-
 	Collision2D collision;
 	collision.Other        = other;
 	collision.Normal       = normal;
@@ -1487,23 +1476,37 @@ void CPhysics2DSystem::DispatchToScript(
 	collision.Penetration  = penetration;
 	collision.IsTrigger    = isTrigger;
 
-	CGameScript& instance = *script->Instance;
-	if (isTrigger)
+	for (const SafePtr<CComponent>& component : self->GetComponents())
 	{
-		switch (phase)
+		CGameScript* script = dynamic_cast<CGameScript*>(component.TryGet());
+		if (nullptr == script)
 		{
-		case EContactPhase::Enter: instance.TriggerEnter(collision); break;
-		case EContactPhase::Stay:  instance.TriggerStay(collision);  break;
-		case EContactPhase::Exit:  instance.TriggerExit(collision);  break;
+			continue;
 		}
-	}
-	else
-	{
-		switch (phase)
+		CGameObject* owner = script->GetOwner().TryGet();
+		if (false == script->IsEnabled() || nullptr == owner || false == owner->IsActiveInHierarchy() || false == script->IsStarted())
 		{
-		case EContactPhase::Enter: instance.CollisionEnter(collision); break;
-		case EContactPhase::Stay:  instance.CollisionStay(collision);  break;
-		case EContactPhase::Exit:  instance.CollisionExit(collision);  break;
+			continue;
+		}
+
+		CGameScript& instance = *script;
+		if (isTrigger)
+		{
+			switch (phase)
+			{
+			case EContactPhase::Enter: instance.TriggerEnter(collision); break;
+			case EContactPhase::Stay:  instance.TriggerStay(collision);  break;
+			case EContactPhase::Exit:  instance.TriggerExit(collision);  break;
+			}
+		}
+		else
+		{
+			switch (phase)
+			{
+			case EContactPhase::Enter: instance.CollisionEnter(collision); break;
+			case EContactPhase::Stay:  instance.CollisionStay(collision);  break;
+			case EContactPhase::Exit:  instance.CollisionExit(collision);  break;
+			}
 		}
 	}
 }
@@ -1711,7 +1714,7 @@ bool CPhysics2DSystem::Raycast(const Vector2& origin, const Vector2& direction, 
 			const float   nl = std::sqrt(Dot(normal, normal));
 			normal = nl > 1e-6f ? normal * (1.0f / nl) : Vector2(-dir.x, -dir.y);
 			bestDist   = t;
-			bestObject = collider.GetOwner();
+			bestObject = collider.GetOwner().TryGet();
 			bestPoint  = point;
 			bestNormal = normal;
 		});
@@ -1756,7 +1759,7 @@ bool CPhysics2DSystem::Raycast(const Vector2& origin, const Vector2& direction, 
 					normal = Vector2(-normal.x, -normal.y);
 				}
 				bestDist   = t;
-				bestObject = collider.GetOwner();
+				bestObject = collider.GetOwner().TryGet();
 				bestPoint  = hitPoint;
 				bestNormal = normal;
 			}
@@ -1792,7 +1795,7 @@ CGameObject* CPhysics2DSystem::OverlapPoint(const Vector2& point, std::uint32_t 
 			const Vector2 d = point - collider.WorldCenter;
 			if (Dot(d, d) <= collider.WorldRadius * collider.WorldRadius)
 			{
-				found = collider.GetOwner();
+				found = collider.GetOwner().TryGet();
 			}
 		});
 	if (nullptr != found)
@@ -1809,7 +1812,7 @@ CGameObject* CPhysics2DSystem::OverlapPoint(const Vector2& point, std::uint32_t 
 			}
 			if (collider.WorldPoints.size() >= 3 && PointInPolygon(point, collider.WorldPoints))
 			{
-				found = collider.GetOwner();
+				found = collider.GetOwner().TryGet();
 			}
 		});
 	return found;
@@ -1835,7 +1838,7 @@ void CPhysics2DSystem::OverlapCircle(const Vector2& center, float radius, std::v
 			const float   sum = radius + collider.WorldRadius;
 			if (Dot(d, d) <= sum * sum)
 			{
-				outResults.push_back(collider.GetOwner());
+				outResults.push_back(collider.GetOwner().TryGet());
 			}
 		});
 
@@ -1868,7 +1871,7 @@ void CPhysics2DSystem::OverlapCircle(const Vector2& center, float radius, std::v
 			}
 			if (overlap)
 			{
-				outResults.push_back(collider.GetOwner());
+				outResults.push_back(collider.GetOwner().TryGet());
 			}
 		});
 }
@@ -1905,7 +1908,7 @@ void CPhysics2DSystem::IntegrateBodies(CGameScene& scene, float deltaSeconds)
 {
 	scene.ForEach<Rigidbody2D>([this, deltaSeconds](Rigidbody2D& body)
 	{
-		CGameObject* owner = body.GetOwner();
+		CGameObject* owner = body.GetOwner().TryGet();
 		if (nullptr == owner) return;
 		Transform2D& transform = owner->GetTransform();
 
@@ -1989,13 +1992,13 @@ void CPhysics2DSystem::UpdateColliderBounds(CGameScene& scene)
 	// Pass 1a: 폴리곤 월드 기하
 	scene.ForEach<PolygonCollider2D>([](PolygonCollider2D& collider)
 	{
-		if (!collider.IsEnabled)
+		if (!collider.IsEnabled())
 		{
 			collider.WorldPoints.clear();
 			collider.ConvexPieces.clear();
 			return;
 		}
-		const Matrix3x2 wt = CalculateWorldTransformNow(collider.GetOwner());
+		const Matrix3x2 wt = CalculateWorldTransformNow(collider.GetOwner().TryGet());
 
 		// ── 절차적 재빌드 ────────────────────────────────────────────────────────
 		// 절차적 파라미터(VertexCount/Size/Rotation/Center)가 변경된 경우에만 재빌드.
@@ -2045,8 +2048,8 @@ void CPhysics2DSystem::UpdateColliderBounds(CGameScene& scene)
 	// Pass 1b: 원 월드 기하
 	scene.ForEach<CircleCollider2D>([](CircleCollider2D& collider)
 	{
-		if (!collider.IsEnabled) return;
-		const Matrix3x2 wt    = CalculateWorldTransformNow(collider.GetOwner());
+		if (!collider.IsEnabled()) return;
+		const Matrix3x2 wt    = CalculateWorldTransformNow(collider.GetOwner().TryGet());
 		collider.WorldCenter  = wt.TransformPoint(collider.Offset);
 		const float scaleX    = std::sqrt(wt.M11 * wt.M11 + wt.M12 * wt.M12);
 		const float scaleY    = std::sqrt(wt.M21 * wt.M21 + wt.M22 * wt.M22);
@@ -2059,11 +2062,11 @@ void CPhysics2DSystem::UpdateColliderBounds(CGameScene& scene)
 	// Pass 2: 동적 Rigidbody 관성 누산 — 엔티티의 모든 콜라이더 기여 합산
 	scene.ForEach<Rigidbody2D>([](Rigidbody2D& body)
 	{
-		if (!body.IsEnabled || EPhysics2DBodyType::Dynamic != body.BodyType || body.Mass <= 0.0f)
+		if (!body.IsEnabled() || EPhysics2DBodyType::Dynamic != body.BodyType || body.Mass <= 0.0f)
 		{
 			return;
 		}
-		CGameObject* owner = body.GetOwner();
+		CGameObject* owner = body.GetOwner().TryGet();
 		if (nullptr == owner) return;
 
 		float totalInertia = 0.0f;
@@ -2071,7 +2074,7 @@ void CPhysics2DSystem::UpdateColliderBounds(CGameScene& scene)
 
 		if (PolygonCollider2D* poly = owner->GetComponent<PolygonCollider2D>())
 		{
-			if (poly->IsEnabled && !poly->LocalPoints.empty())
+			if (poly->IsEnabled() && !poly->LocalPoints.empty())
 			{
 				const float contrib = CalculatePolygonInertia(poly->LocalPoints, body.Mass);
 				if (contrib > 0.0f) { totalInertia += contrib; hasShape = true; }
@@ -2079,7 +2082,7 @@ void CPhysics2DSystem::UpdateColliderBounds(CGameScene& scene)
 		}
 		if (CircleCollider2D* circle = owner->GetComponent<CircleCollider2D>())
 		{
-			if (circle->IsEnabled && circle->WorldRadius > 0.0f)
+			if (circle->IsEnabled() && circle->WorldRadius > 0.0f)
 			{
 				totalInertia += 0.5f * body.Mass * circle->WorldRadius * circle->WorldRadius;
 				hasShape = true;
@@ -2117,7 +2120,7 @@ void CPhysics2DSystem::DetectContacts(CGameScene& scene)
 	{
 		if (IsActiveComponent(c) && c.WorldPoints.size() >= 3)
 		{
-			polygons.emplace_back(c.GetOwner(), &c);
+			polygons.emplace_back(c.GetOwner().TryGet(), &c);
 		}
 	});
 
@@ -2126,7 +2129,7 @@ void CPhysics2DSystem::DetectContacts(CGameScene& scene)
 	{
 		if (IsActiveComponent(c))
 		{
-			circles.emplace_back(c.GetOwner(), &c);
+			circles.emplace_back(c.GetOwner().TryGet(), &c);
 		}
 	});
 
@@ -2793,7 +2796,7 @@ void CPhysics2DSystem::StabilizeRestingContacts(CGameScene& scene)
 	scene.ForEach<Rigidbody2D>([](Rigidbody2D& body)
 	{
 		if (!body.StabilizeRestingContacts
-		    || !body.IsEnabled
+		    || !body.IsEnabled()
 		    || EPhysics2DBodyType::Dynamic != body.BodyType
 		    || 0 == body.LastContactCount)
 		{

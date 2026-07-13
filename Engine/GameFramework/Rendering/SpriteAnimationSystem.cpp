@@ -36,7 +36,7 @@ void CSpriteAnimationSystem::OnUpdate(CGameScene& scene)
 				return;
 			}
 
-			CGameObject* owner = animator.GetOwner();
+			CGameObject* owner = animator.GetOwner().TryGet();
 			if (nullptr == owner)
 			{
 				return;

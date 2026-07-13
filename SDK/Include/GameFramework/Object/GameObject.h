@@ -4,6 +4,7 @@
 #include "GameFramework/Component/Transform2D.h"
 #include "GameFramework/Component/WorldTransform2D.h"
 #include "GameFramework/Object/GameInstance.h"
+#include "GameFramework/Reflection/ReflectionTypes.h"
 #include "Utillity/Base/BitFlag.h"
 #include "Utillity/File/FilePath.h"
 #include "Utillity/Pointer/SafePtr.h"
@@ -157,6 +158,7 @@ public:
 	}
 
 	const std::vector<SafePtr<CComponent>>& GetComponents() const { return m_components; }
+	bool MoveComponent(const File::Guid& instanceGuid, std::size_t newIndex);
 
 	// 타입소거 컴포넌트 조회 — Ref<T> 처럼 컴파일타임에 T 를 모르는 코드(또는 DLL 경계)에서
 	// 동적 타입(type_index)으로 컴포넌트 주소를 얻는다. 단일 상속이라 반환 주소 == T*.
@@ -193,6 +195,31 @@ public:
 		return nullptr;
 	}
 
+	const void* FindComponentRawByGuid(const File::Guid& componentGuid, std::type_index type) const
+	{
+		if (componentGuid.IsNull())
+		{
+			for (const SafePtr<CComponent>& c : m_components)
+			{
+				const CComponent* comp = c.TryGet();
+				if (comp && std::type_index(typeid(*comp)) == type)
+				{
+					return comp;
+				}
+			}
+			return nullptr;
+		}
+		for (const SafePtr<CComponent>& c : m_components)
+		{
+			const CComponent* comp = c.TryGet();
+			if (comp && std::type_index(typeid(*comp)) == type && comp->InstanceGuid == componentGuid)
+			{
+				return comp;
+			}
+		}
+		return nullptr;
+	}
+
 	// 컴포넌트 guid 로 특정 컴포넌트 자체를 찾는다(타입 무관). 스크립트 Ref 해석 등에 사용.
 	CComponent* FindComponentByGuid(const File::Guid& componentGuid)
 	{
@@ -210,9 +237,22 @@ public:
 		}
 		return nullptr;
 	}
+	const CComponent* FindComponentByGuid(const File::Guid& componentGuid) const
+	{
+		if (componentGuid.IsNull()) return nullptr;
+		for (const SafePtr<CComponent>& c : m_components)
+		{
+			const CComponent* comp = c.TryGet();
+			if (comp && comp->InstanceGuid == componentGuid) return comp;
+		}
+		return nullptr;
+	}
 
 	// scene 의 AddComponent/RemoveComponent 가 호출하는 부착/탈착 훅.
-	void AttachComponent(const SafePtr<CComponent>& component) { m_components.push_back(component); }
+	void AttachComponent(const SafePtr<CComponent>& component)
+	{
+		m_components.push_back(component);
+	}
 	void DetachComponent(CComponent* component)
 	{
 		for (std::size_t i = 0; i < m_components.size(); ++i)
@@ -251,8 +291,8 @@ private:
 		}
 	}
 
-	CGameScene*                          m_scene = nullptr;
-	SafePtr<CGameObject>             m_parent;
+	CGameScene*                       m_scene = nullptr;
+	SafePtr<CGameObject>              m_parent;
 	std::vector<SafePtr<CGameObject>> m_children;
 	std::vector<SafePtr<CComponent>>  m_components;
 };
@@ -266,6 +306,6 @@ using GameObject = CGameObject;
 // 시스템별로 owner->IsActive 를 제각각 판단하던 불일치를 없애기 위함.
 inline bool IsActiveComponent(const CComponent& component)
 {
-	const CGameObject* owner = component.GetOwner();
-	return nullptr != owner && owner->IsActiveInHierarchy() && component.IsEnabled;
+	const CGameObject* owner = component.GetOwner().TryGet();
+	return nullptr != owner && owner->IsActiveInHierarchy() && component.IsEnabled();
 }

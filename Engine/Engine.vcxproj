@@ -611,7 +611,6 @@
     <ClInclude Include="GameFramework\Physics2D\Physics2DSystem.h" />
     <ClInclude Include="GameFramework\Physics2D\Physics2DTypes.h" />
     <ClInclude Include="GameFramework\Component\Physics2DComponents.h" />
-    <ClInclude Include="GameFramework\Component\ScriptComponent.h" />
     <ClInclude Include="GameFramework\Component\BuiltinComponentRegistry.h" />
     <ClInclude Include="GameFramework\Reflection\ReflectionTypes.h" />
     <ClInclude Include="GameFramework\Reflection\ReflectionRegistry.h" />

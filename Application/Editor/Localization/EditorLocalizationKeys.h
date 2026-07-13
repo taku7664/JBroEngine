@@ -179,6 +179,8 @@ namespace EditorLocKeys
 	constexpr const char* EditorStatisticsRedo = "editor_statistics.redo";
 	constexpr const char* EditorStatisticsRenderItems = "editor_statistics.render_items";
 	constexpr const char* EditorStatisticsSceneObjects = "editor_statistics.scene_objects";
+	constexpr const char* EditorStatisticsScriptPools = "editor_statistics.script_pools";
+	constexpr const char* EditorStatisticsScriptPoolExpansions = "editor_statistics.script_pool_expansions";
 	constexpr const char* EditorStatisticsSelection = "editor_statistics.selection";
 	constexpr const char* EditorStatisticsUndo = "editor_statistics.undo";
 	constexpr const char* FileDialogFilterJbroProject = "file_dialog.filter.jbro_project";
@@ -345,7 +347,6 @@ namespace EditorLocKeys
 	constexpr const char* InspectorScriptMenu = "inspector.script_menu";
 	constexpr const char* InspectorScriptNotParsed = "inspector.script_not_parsed";
 	constexpr const char* InspectorScriptRegistryUnavailable = "inspector.script_registry_unavailable";
-	constexpr const char* InspectorScriptType = "inspector.script_type";
 	constexpr const char* InspectorSelectedAssetNotRegistered = "inspector.selected_asset_not_registered";
 	constexpr const char* InspectorSliceType = "inspector.slice_type";
 	constexpr const char* InspectorSliceTypeAutomatic = "inspector.slice_type.automatic";

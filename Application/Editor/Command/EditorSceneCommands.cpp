@@ -6,7 +6,7 @@
 #include "Engine/Core/EngineCore.h"
 #include "Engine/Core/Logging/LoggerInternal.h"
 #include "Engine/GameFramework/Component/Physics2DComponents.h"
-#include "Engine/GameFramework/Component/ScriptComponent.h"
+#include "Engine/GameFramework/Scripting/GameScript.h"
 #include "Engine/GameFramework/Component/Transform2D.h"
 #include "Engine/GameFramework/Object/GameObject.h"
 #include "Engine/GameFramework/Reflection/ReflectionRegistry.h"
@@ -31,6 +31,11 @@ namespace
 	File::Guid GuidOf(const CGameObject* object)
 	{
 		return object ? object->InstanceGuid : File::Guid();
+	}
+
+	File::Guid GuidOf(const CComponent* component)
+	{
+		return component ? component->InstanceGuid : File::Guid();
 	}
 }
 
@@ -60,12 +65,19 @@ bool CAddComponentCommand::Execute()
 		return false;
 	}
 
-	// 단일 인스턴스: 이미 같은 타입이 붙어 있으면 추가 불가.
-	if (reflection.HasComponent(*object, m_componentTypeId))
+	if (false == reflection.CanAddComponent(*object, m_componentTypeId))
 	{
 		return false;
 	}
 	m_added = reflection.AddComponent(*m_scene, *object, m_componentTypeId);
+	if (m_added)
+	{
+		const std::vector<void*> instances = reflection.GetComponentAddresses(*object, m_componentTypeId);
+		if (false == instances.empty())
+		{
+			m_componentGuid = GuidOf(static_cast<CComponent*>(instances.back()));
+		}
+	}
 
 	if (false == m_added)
 	{
@@ -82,7 +94,7 @@ void CAddComponentCommand::Undo()
 		return;
 	}
 
-	Engine.Reflection->RemoveComponent(*m_scene, *object, m_componentTypeId);
+	Engine.Reflection->RemoveComponentByGuid(*m_scene, *object, m_componentTypeId, m_componentGuid);
 	m_added = false;
 }
 
@@ -94,19 +106,19 @@ void CAddComponentCommand::Redo()
 	}
 }
 
-CAddScriptComponentCommand::CAddScriptComponentCommand(SafePtr<CGameScene> scene, CGameObject* object, TypeId scriptTypeId)
+CAddScriptCommand::CAddScriptCommand(SafePtr<CGameScene> scene, CGameObject* object, TypeId scriptTypeId)
 	: m_scene(scene)
 	, m_objectGuid(GuidOf(object))
 	, m_scriptTypeId(scriptTypeId)
 {
 }
 
-const char* CAddScriptComponentCommand::GetName() const
+const char* CAddScriptCommand::GetName() const
 {
-	return "Add Script Component";
+	return "Add Script";
 }
 
-bool CAddScriptComponentCommand::Execute()
+bool CAddScriptCommand::Execute()
 {
 	CGameObject* object = Resolve(m_scene, m_objectGuid);
 	if (nullptr == object || false == Engine.Reflection.IsValid())
@@ -121,41 +133,19 @@ bool CAddScriptComponentCommand::Execute()
 		return false;
 	}
 
-	const ComponentTypeInfo* scriptComponentType = reflection.FindComponentByName("ScriptComponent");
-	if (nullptr == scriptComponentType)
-	{
-		CSystemLog::Warning("Failed to add script component. ScriptComponent is not registered.");
-		return false;
-	}
-
-	m_scriptComponentTypeId = scriptComponentType->Type.Id;
-
-	// 단일 인스턴스: 이미 ScriptComponent 가 있으면 그것을 재사용, 없으면 추가.
-	if (false == reflection.HasComponent(*object, m_scriptComponentTypeId))
-	{
-		if (false == reflection.AddComponent(*m_scene, *object, m_scriptComponentTypeId))
-		{
-			CSystemLog::Warning("Failed to add script component.");
-			return false;
-		}
-	}
-
-	m_addedComponent = reflection.GetComponentAddress(*object, m_scriptComponentTypeId);
-	ScriptComponent* scriptComponent = static_cast<ScriptComponent*>(m_addedComponent);
+	CGameScript* scriptComponent = m_scene->AddScript(*object, m_scriptTypeId, reflection);
 	if (nullptr == scriptComponent)
 	{
 		CSystemLog::Warning("Failed to resolve added script component.");
 		return false;
 	}
+	m_scriptComponentGuid = scriptComponent->InstanceGuid;
 
-	scriptComponent->ScriptTypeId = m_scriptTypeId;
-	scriptComponent->ResetInstance();
-	scriptComponent->PendingFields.clear();
 	m_added = true;
 	return true;
 }
 
-void CAddScriptComponentCommand::Undo()
+void CAddScriptCommand::Undo()
 {
 	CGameObject* object = Resolve(m_scene, m_objectGuid);
 	if (false == m_added || nullptr == object || false == Engine.Reflection.IsValid())
@@ -163,16 +153,15 @@ void CAddScriptComponentCommand::Undo()
 		return;
 	}
 
-	if (m_scriptComponentTypeId != INVALID_TYPE_ID)
+	if (CGameScript* script = dynamic_cast<CGameScript*>(object->FindComponentByGuid(m_scriptComponentGuid)))
 	{
-		Engine.Reflection->RemoveComponent(*m_scene, *object, m_scriptComponentTypeId);
+		m_scene->DestroyComponent(script);
 	}
 
-	m_addedComponent = nullptr;
 	m_added = false;
 }
 
-void CAddScriptComponentCommand::Redo()
+void CAddScriptCommand::Redo()
 {
 	if (false == m_added)
 	{
@@ -180,73 +169,55 @@ void CAddScriptComponentCommand::Redo()
 	}
 }
 
-CSetScriptTypeCommand::CSetScriptTypeCommand(SafePtr<CGameScene> scene, CGameObject* object, std::size_t instanceIndex, TypeId newScriptTypeId)
-	: m_scene(scene)
-	, m_objectGuid(GuidOf(object))
-	, m_instanceIndex(instanceIndex)
-	, m_newScriptTypeId(newScriptTypeId)
+CRemoveScriptCommand::CRemoveScriptCommand(SafePtr<CGameScene> scene, CGameObject* object, const File::Guid& componentGuid)
+	: m_scene(scene), m_objectGuid(GuidOf(object)), m_componentGuid(componentGuid)
 {
 	if (object)
 	{
-		if (ScriptComponent* scriptComponent = object->GetComponent<ScriptComponent>())
+		if (CComponent* component = object->FindComponentByGuid(componentGuid)) m_snapshot = Serialization::SerializeComponent(*component);
+		const auto& components = object->GetComponents();
+		for (std::size_t i = 0; i < components.size(); ++i)
 		{
-			m_oldScriptTypeId = scriptComponent->ScriptTypeId;
+			const CComponent* component = components[i].TryGet();
+			if (component && component->InstanceGuid == componentGuid) { m_componentIndex = i; break; }
 		}
 	}
 }
 
-const char* CSetScriptTypeCommand::GetName() const
-{
-	return "Set Script Type";
-}
-
-bool CSetScriptTypeCommand::Execute()
-{
-	if (m_newScriptTypeId != INVALID_TYPE_ID && Engine.Reflection && nullptr == Engine.Reflection->FindScript(m_newScriptTypeId))
-	{
-		return false;
-	}
-
-	m_executed = Apply(m_newScriptTypeId);
-	return m_executed;
-}
-
-void CSetScriptTypeCommand::Undo()
-{
-	if (m_executed)
-	{
-		Apply(m_oldScriptTypeId);
-		m_executed = false;
-	}
-}
-
-void CSetScriptTypeCommand::Redo()
-{
-	if (false == m_executed)
-	{
-		m_executed = Apply(m_newScriptTypeId);
-	}
-}
-
-bool CSetScriptTypeCommand::Apply(TypeId scriptTypeId)
+const char* CRemoveScriptCommand::GetName() const { return "Remove Script"; }
+bool CRemoveScriptCommand::Execute()
 {
 	CGameObject* object = Resolve(m_scene, m_objectGuid);
-	if (nullptr == object)
-	{
-		return false;
-	}
-
-	ScriptComponent* scriptComponent = object->GetComponent<ScriptComponent>();
-	if (nullptr == scriptComponent)
-	{
-		return false;
-	}
-
-	scriptComponent->ResetInstance();
-	scriptComponent->ScriptTypeId = scriptTypeId;
-	scriptComponent->PendingFields.clear();
-	return true;
+	CGameScript* script = object ? dynamic_cast<CGameScript*>(object->FindComponentByGuid(m_componentGuid)) : nullptr;
+	m_removed = nullptr != script;
+	if (script) m_scene->DestroyComponent(script);
+	return m_removed;
 }
+void CRemoveScriptCommand::Undo()
+{
+	CGameObject* object = Resolve(m_scene, m_objectGuid);
+	if (false == m_removed || nullptr == object) return;
+	if (Serialization::DeserializeComponentInto(*object, m_snapshot.c_str()))
+	{
+		CComponent* restored = object->GetComponents().empty() ? nullptr : object->GetComponents().back().TryGet();
+		if (restored) m_componentGuid = restored->InstanceGuid;
+		object->MoveComponent(m_componentGuid, m_componentIndex);
+		m_removed = false;
+	}
+}
+void CRemoveScriptCommand::Redo() { if (false == m_removed) Execute(); }
+
+CReorderComponentCommand::CReorderComponentCommand(SafePtr<CGameScene> scene, CGameObject* object, const File::Guid& componentGuid, std::size_t oldIndex, std::size_t newIndex)
+	: m_scene(scene), m_objectGuid(GuidOf(object)), m_componentGuid(componentGuid), m_oldIndex(oldIndex), m_newIndex(newIndex) {}
+const char* CReorderComponentCommand::GetName() const { return "Reorder Component"; }
+bool CReorderComponentCommand::Move(std::size_t index)
+{
+	CGameObject* object = Resolve(m_scene, m_objectGuid);
+	return object && object->MoveComponent(m_componentGuid, index);
+}
+bool CReorderComponentCommand::Execute() { m_executed = Move(m_newIndex); return m_executed; }
+void CReorderComponentCommand::Undo() { if (m_executed) { Move(m_oldIndex); m_executed = false; } }
+void CReorderComponentCommand::Redo() { if (false == m_executed) m_executed = Move(m_newIndex); }
 
 CCreateGameObjectCommand::CCreateGameObjectCommand(SafePtr<CGameScene> scene, const char* name,
                                                    CGameObject* parent,
@@ -347,12 +318,12 @@ CSetComponentPropertyCommand::CSetComponentPropertyCommand(
 	std::size_t propertyOffset,
 	std::vector<std::uint8_t> oldValue,
 	std::vector<std::uint8_t> newValue,
-	std::size_t instanceIndex)
+	const File::Guid& componentGuid)
 	: m_scene(scene)
 	, m_objectGuid(GuidOf(object))
 	, m_componentTypeId(componentTypeId)
 	, m_propertyOffset(propertyOffset)
-	, m_instanceIndex(instanceIndex)
+	, m_componentGuid(componentGuid)
 	, m_oldValue(std::move(oldValue))
 	, m_newValue(std::move(newValue))
 {
@@ -390,7 +361,7 @@ bool CSetComponentPropertyCommand::TryMerge(const IEditorCommand& newer)
 		(m_objectGuid == other->m_objectGuid)
 		&& (m_componentTypeId == other->m_componentTypeId)
 		&& (m_propertyOffset == other->m_propertyOffset)
-		&& (m_instanceIndex == other->m_instanceIndex)
+		&& (m_componentGuid == other->m_componentGuid)
 		&& (m_newValue.size() == other->m_newValue.size());
 	if (false == sameTarget)
 	{
@@ -409,8 +380,7 @@ bool CSetComponentPropertyCommand::WriteValue(const std::vector<std::uint8_t>& v
 		return false;
 	}
 
-	// 단일 인스턴스 — instanceIndex 는 항상 0.
-	void* component = Engine.Reflection->GetComponentAddress(*object, m_componentTypeId);
+	void* component = Engine.Reflection->GetComponentAddressByGuid(*object, m_componentTypeId, m_componentGuid);
 	if (nullptr == component)
 	{
 		return false;
@@ -420,10 +390,56 @@ bool CSetComponentPropertyCommand::WriteValue(const std::vector<std::uint8_t>& v
 	return true;
 }
 
+CSetComponentEnabledCommand::CSetComponentEnabledCommand(
+	SafePtr<CGameScene> scene,
+	CGameObject* object,
+	const File::Guid& componentGuid,
+	bool oldValue,
+	bool newValue)
+	: m_scene(scene)
+	, m_objectGuid(GuidOf(object))
+	, m_componentGuid(componentGuid)
+	, m_oldValue(oldValue)
+	, m_newValue(newValue)
+{
+}
+
+const char* CSetComponentEnabledCommand::GetName() const
+{
+	return "Set Component Enabled";
+}
+
+bool CSetComponentEnabledCommand::Execute()
+{
+	return Apply(m_newValue);
+}
+
+void CSetComponentEnabledCommand::Undo()
+{
+	Apply(m_oldValue);
+}
+
+void CSetComponentEnabledCommand::Redo()
+{
+	Apply(m_newValue);
+}
+
+bool CSetComponentEnabledCommand::Apply(bool value)
+{
+	CGameObject* object = Resolve(m_scene, m_objectGuid);
+	CComponent* component = object ? object->FindComponentByGuid(m_componentGuid) : nullptr;
+	if (nullptr == component)
+	{
+		return false;
+	}
+	component->SetEnabled(value);
+	return true;
+}
+
 CSetComponentStringPropertyCommand::CSetComponentStringPropertyCommand(SafePtr<CGameScene> scene,
-	CGameObject* object, TypeId componentTypeId, std::size_t propertyOffset, std::string oldValue, std::string newValue)
+	CGameObject* object, TypeId componentTypeId, std::size_t propertyOffset, std::string oldValue, std::string newValue, const File::Guid& componentGuid)
 	: m_scene(scene), m_objectGuid(GuidOf(object)), m_componentTypeId(componentTypeId),
-	  m_propertyOffset(propertyOffset), m_oldValue(std::move(oldValue)), m_newValue(std::move(newValue)) {}
+	  m_componentGuid(componentGuid), m_propertyOffset(propertyOffset), m_oldValue(std::move(oldValue)), m_newValue(std::move(newValue)) {}
 
 const char* CSetComponentStringPropertyCommand::GetName() const { return "Set Component String Property"; }
 bool CSetComponentStringPropertyCommand::Execute() { return WriteValue(m_newValue); }
@@ -433,14 +449,14 @@ bool CSetComponentStringPropertyCommand::TryMerge(const IEditorCommand& newer)
 {
 	const auto* other = dynamic_cast<const CSetComponentStringPropertyCommand*>(&newer);
 	if (!other || m_objectGuid != other->m_objectGuid || m_componentTypeId != other->m_componentTypeId
-		|| m_propertyOffset != other->m_propertyOffset) return false;
+		|| m_propertyOffset != other->m_propertyOffset || m_componentGuid != other->m_componentGuid) return false;
 	m_newValue = other->m_newValue; return true;
 }
 bool CSetComponentStringPropertyCommand::WriteValue(const std::string& value)
 {
 	CGameObject* object = Resolve(m_scene, m_objectGuid);
 	if (!object || false == Engine.Reflection.IsValid()) return false;
-	void* component = Engine.Reflection->GetComponentAddress(*object, m_componentTypeId);
+	void* component = Engine.Reflection->GetComponentAddressByGuid(*object, m_componentTypeId, m_componentGuid);
 	if (!component) return false;
 	*reinterpret_cast<std::string*>(static_cast<std::uint8_t*>(component) + m_propertyOffset) = value;
 	return true;
@@ -787,15 +803,16 @@ std::vector<CGameObject*> CPasteObjectsCommand::GetPastedRoots() const
 
 // ── CRemoveComponentCommand ───────────────────────────────────────────────────
 
-CRemoveComponentCommand::CRemoveComponentCommand(SafePtr<CGameScene> scene, CGameObject* object, TypeId componentTypeId)
+CRemoveComponentCommand::CRemoveComponentCommand(SafePtr<CGameScene> scene, CGameObject* object, TypeId componentTypeId, const File::Guid& componentGuid)
 	: m_scene(scene)
 	, m_objectGuid(GuidOf(object))
+	, m_componentGuid(componentGuid)
 	, m_componentTypeId(componentTypeId)
 {
 	// 제거 전 스냅샷 — undo 시 재부착+값 복원.
 	if (object && Engine.Reflection.IsValid())
 	{
-		if (void* addr = Engine.Reflection->GetComponentAddress(*object, m_componentTypeId))
+		if (void* addr = Engine.Reflection->GetComponentAddressByGuid(*object, m_componentTypeId, m_componentGuid))
 		{
 			// 컴포넌트는 CComponent 를 단일 1차 베이스(offset 0)로 상속 → reinterpret 안전.
 			m_snapshot = Serialization::SerializeComponent(*reinterpret_cast<CComponent*>(addr));
@@ -815,7 +832,7 @@ bool CRemoveComponentCommand::RemoveNow()
 	{
 		return false;
 	}
-	return Engine.Reflection->RemoveComponent(*m_scene, *object, m_componentTypeId);
+	return Engine.Reflection->RemoveComponentByGuid(*m_scene, *object, m_componentTypeId, m_componentGuid);
 }
 
 bool CRemoveComponentCommand::Execute()

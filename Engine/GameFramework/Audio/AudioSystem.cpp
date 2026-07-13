@@ -151,7 +151,7 @@ void CAudioSystem::OnUpdate(CGameScene& scene)
 		[&](AudioListener& listener)
 		{
 			if (listenerSet) return;
-			CGameObject* owner = listener.GetOwner();
+			CGameObject* owner = listener.GetOwner().TryGet();
 			if (false == IsActiveComponent(listener)) return;
 			if (primary.IsValid())
 			{
@@ -167,7 +167,7 @@ void CAudioSystem::OnUpdate(CGameScene& scene)
 	scene.ForEach<AudioPlayer>(
 		[&](AudioPlayer& player)
 		{
-			CGameObject* owner = player.GetOwner();
+			CGameObject* owner = player.GetOwner().TryGet();
 			if (nullptr == owner) return;
 
 			const File::Guid& key = player.InstanceGuid; // 슬롯 재사용 안전(주소 아님).

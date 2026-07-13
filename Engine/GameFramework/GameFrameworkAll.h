@@ -30,7 +30,6 @@
 #include "GameFramework/Component/Light2D.h"
 #include "GameFramework/Component/Physics2DComponents.h"
 #include "GameFramework/Component/PrefabInstance.h"
-#include "GameFramework/Component/ScriptComponent.h"
 
 // ── 렌더 / 변환 시스템 ──────────────────────────────────────────────────
 #include "GameFramework/Rendering/SpriteRenderSystem.h"

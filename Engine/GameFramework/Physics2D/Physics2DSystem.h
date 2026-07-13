@@ -70,7 +70,7 @@ private:
 	void DrawManifoldDebugLines();                // 매니폴드 normal/contact 시각화 (fixed step 종료 후 1회)
 
 	// 이번 fixed step 의 접촉 페어를 직전 step 과 비교해 Enter/Stay/Exit 를 판정하고,
-	// 부착된 ScriptComponent 인스턴스의 충돌/트리거 훅으로 전달한다(fixed step 종료 후 1회).
+	// 부착된 CGameScript 인스턴스의 충돌/트리거 훅으로 전달한다(fixed step 종료 후 1회).
 	void DispatchContactEvents(CGameScene& scene);
 
 	// 충돌/트리거 훅 디스패치 헬퍼. CGameScript 의 훅 진입점(CollisionEnter 등)은 private 이고

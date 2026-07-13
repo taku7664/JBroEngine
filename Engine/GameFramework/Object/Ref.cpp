@@ -3,7 +3,7 @@
 
 #include "Core/Asset/IAssetManager.h"
 #include "Core/ScriptCore.h"                         // 전역 Script (BindScriptCore 로 채워짐)
-#include "GameFramework/Component/ScriptComponent.h"
+#include "GameFramework/Scripting/GameScript.h"
 #include "GameFramework/Scene/Scene.h"
 #include "GameFramework/Scene/SceneManager.h"
 
@@ -58,12 +58,17 @@ CGameScript* RefDetail::ResolveScript(const char* objectGuid, const char* compon
 	{
 		return nullptr;
 	}
-	// 컴포넌트 guid 로 특정 ScriptComponent 지목(멀티 스크립트). guid 가 비어 있으면 첫 매치.
+	// 컴포넌트 guid 로 특정 스크립트를 지목한다. 비어 있으면 첫 스크립트로 폴백한다.
 	const File::Guid compGuid(componentGuid);
-	ScriptComponent* scriptComp = compGuid.IsNull()
-		? object->GetComponent<ScriptComponent>()
-		: dynamic_cast<ScriptComponent*>(object->FindComponentByGuid(compGuid));
-	return scriptComp ? scriptComp->Instance : nullptr;
+	if (false == compGuid.IsNull())
+	{
+		return dynamic_cast<CGameScript*>(object->FindComponentByGuid(compGuid));
+	}
+	for (const SafePtr<CComponent>& component : object->GetComponents())
+	{
+		if (CGameScript* script = dynamic_cast<CGameScript*>(component.TryGet())) return script;
+	}
+	return nullptr;
 }
 
 CGameScene* RefDetail::ResolveScene(const char* sceneName)

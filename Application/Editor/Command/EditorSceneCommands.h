@@ -30,14 +30,15 @@ private:
 	SafePtr<CGameScene> m_scene;
 	File::Guid m_objectGuid;
 	TypeId m_componentTypeId = INVALID_TYPE_ID;
+	File::Guid m_componentGuid;
 	bool m_added = false;
 };
 
-class CAddScriptComponentCommand final : public IEditorCommand
+class CAddScriptCommand final : public IEditorCommand
 {
 public:
-	CAddScriptComponentCommand(SafePtr<CGameScene> scene, CGameObject* object, TypeId scriptTypeId);
-	~CAddScriptComponentCommand() override = default;
+	CAddScriptCommand(SafePtr<CGameScene> scene, CGameObject* object, TypeId scriptTypeId);
+	~CAddScriptCommand() override = default;
 
 	const char* GetName() const override;
 	bool Execute() override;
@@ -48,32 +49,42 @@ private:
 	SafePtr<CGameScene> m_scene;
 	File::Guid m_objectGuid;
 	TypeId m_scriptTypeId = INVALID_TYPE_ID;
-	TypeId m_scriptComponentTypeId = INVALID_TYPE_ID;
-	void* m_addedComponent = nullptr;
+	File::Guid m_scriptComponentGuid;
 	bool m_added = false;
 };
 
-class CSetScriptTypeCommand final : public IEditorCommand
+class CRemoveScriptCommand final : public IEditorCommand
 {
 public:
-	CSetScriptTypeCommand(SafePtr<CGameScene> scene, CGameObject* object, std::size_t instanceIndex, TypeId newScriptTypeId);
-	~CSetScriptTypeCommand() override = default;
-
+	CRemoveScriptCommand(SafePtr<CGameScene> scene, CGameObject* object, const File::Guid& componentGuid);
 	const char* GetName() const override;
 	bool Execute() override;
 	void Undo() override;
 	void Redo() override;
-
-private:
-	bool Apply(TypeId scriptTypeId);
-
 private:
 	SafePtr<CGameScene> m_scene;
 	File::Guid m_objectGuid;
-	std::size_t m_instanceIndex = 0;
-	TypeId m_oldScriptTypeId = INVALID_TYPE_ID;
-	TypeId m_newScriptTypeId = INVALID_TYPE_ID;
-	TypeId m_scriptComponentTypeId = INVALID_TYPE_ID;
+	File::Guid m_componentGuid;
+	std::string m_snapshot;
+	std::size_t m_componentIndex = 0;
+	bool m_removed = false;
+};
+
+class CReorderComponentCommand final : public IEditorCommand
+{
+public:
+	CReorderComponentCommand(SafePtr<CGameScene> scene, CGameObject* object, const File::Guid& componentGuid, std::size_t oldIndex, std::size_t newIndex);
+	const char* GetName() const override;
+	bool Execute() override;
+	void Undo() override;
+	void Redo() override;
+private:
+	bool Move(std::size_t index);
+	SafePtr<CGameScene> m_scene;
+	File::Guid m_objectGuid;
+	File::Guid m_componentGuid;
+	std::size_t m_oldIndex = 0;
+	std::size_t m_newIndex = 0;
 	bool m_executed = false;
 };
 
@@ -115,7 +126,7 @@ public:
 		std::size_t propertyOffset,
 		std::vector<std::uint8_t> oldValue,
 		std::vector<std::uint8_t> newValue,
-		std::size_t instanceIndex = 0);
+		const File::Guid& componentGuid);
 	~CSetComponentPropertyCommand() override = default;
 
 	const char* GetName() const override;
@@ -131,18 +142,43 @@ private:
 private:
 	SafePtr<CGameScene> m_scene;
 	File::Guid m_objectGuid;
+	File::Guid m_componentGuid;
 	TypeId m_componentTypeId = INVALID_TYPE_ID;
 	std::size_t m_propertyOffset = 0;
-	std::size_t m_instanceIndex = 0;
 	std::vector<std::uint8_t> m_oldValue;
 	std::vector<std::uint8_t> m_newValue;
+};
+
+class CSetComponentEnabledCommand final : public IEditorCommand
+{
+public:
+	CSetComponentEnabledCommand(
+		SafePtr<CGameScene> scene,
+		CGameObject* object,
+		const File::Guid& componentGuid,
+		bool oldValue,
+		bool newValue);
+
+	const char* GetName() const override;
+	bool Execute() override;
+	void Undo() override;
+	void Redo() override;
+
+private:
+	bool Apply(bool value);
+
+	SafePtr<CGameScene> m_scene;
+	File::Guid m_objectGuid;
+	File::Guid m_componentGuid;
+	bool m_oldValue = true;
+	bool m_newValue = true;
 };
 
 class CSetComponentStringPropertyCommand final : public IEditorCommand
 {
 public:
 	CSetComponentStringPropertyCommand(SafePtr<CGameScene> scene, CGameObject* object, TypeId componentTypeId,
-		std::size_t propertyOffset, std::string oldValue, std::string newValue);
+		std::size_t propertyOffset, std::string oldValue, std::string newValue, const File::Guid& componentGuid);
 	const char* GetName() const override;
 	bool Execute() override;
 	void Undo() override;
@@ -152,6 +188,7 @@ private:
 	bool WriteValue(const std::string& value);
 	SafePtr<CGameScene> m_scene;
 	File::Guid m_objectGuid;
+	File::Guid m_componentGuid;
 	TypeId m_componentTypeId = INVALID_TYPE_ID;
 	std::size_t m_propertyOffset = 0;
 	std::string m_oldValue;
@@ -290,7 +327,7 @@ private:
 class CRemoveComponentCommand final : public IEditorCommand
 {
 public:
-	CRemoveComponentCommand(SafePtr<CGameScene> scene, CGameObject* object, TypeId componentTypeId);
+	CRemoveComponentCommand(SafePtr<CGameScene> scene, CGameObject* object, TypeId componentTypeId, const File::Guid& componentGuid);
 	~CRemoveComponentCommand() override = default;
 
 	const char* GetName() const override;
@@ -303,6 +340,7 @@ private:
 
 	SafePtr<CGameScene> m_scene;
 	File::Guid  m_objectGuid;
+	File::Guid  m_componentGuid;
 	TypeId      m_componentTypeId = INVALID_TYPE_ID;
 	std::string m_snapshot;     // 제거 전 컴포넌트 직렬화(undo 복원용)
 	bool        m_removed = false;

@@ -14,7 +14,7 @@ class IInputHandler;
 //  · 디바이스 직접 접근 불가. 입력은 핸들러(InputHandler<Layer,Order> 상속)로만 받는다.
 //  · 스크립트 공개 표면 = 전역 설정(SetDeviceEnabled) + 게임패드 출력/조회 뿐.
 //  · **핸들러 등록/해제는 facade 가 하지 않는다.** 등록은 InputSystem 의 역할이며, 엔진이
-//    ScriptComponent 수명에서 Engine.InputSystem 으로 직접 호출한다(사용자/Input 미개입).
+//    CGameScript 수명에서 Engine.InputSystem 으로 직접 호출한다(사용자/Input 미개입).
 //  · 실제 갱신/디스패치는 엔진 내부 CInputSystem 이 수행한다. 본 facade 는 그쪽으로 위임만 한다.
 //    (CInput 메서드는 Engine.lib 에 있어 호스트/게임 DLL 양쪽에서 링크된다 → Script.Input 으로
 //     호출해도 안전. CInputSystem 자체는 ScriptCore 에 노출하지 않는다.)

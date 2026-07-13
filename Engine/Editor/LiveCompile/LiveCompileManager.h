@@ -2,7 +2,7 @@
 
 #include "Editor/FileSystem/Windows/WindowsFileWatcher.h"
 #include "Editor/LiveCompile/ILiveCompileManager.h"
-#include "GameFramework/Component/ScriptComponent.h"
+#include "GameFramework/Reflection/ReflectionTypes.h"
 #include "Utillity/File/FilePath.h" // File::Guid (오브젝트 안정 식별자)
 
 #include <chrono>
@@ -12,13 +12,25 @@
 #include <unordered_map>
 #include <vector>
 
+struct ScriptFieldValue
+{
+	std::string Name;
+	EReflectPropertyType Type = EReflectPropertyType::Float;
+	std::string Text;
+	std::vector<std::uint8_t> Data;
+};
+
 // ── ScriptFieldSnapshot ───────────────────────────────────────────────────────
 // 핫리로드 직전, 스크립트 인스턴스의 REFLECT_FIELD 값을 보존한다.
 struct ScriptFieldSnapshot
 {
+	std::string                     SceneName;
 	File::Guid                      OwnerGuid; // 오브젝트 안정 식별자(주소 아님 — 리로드 넘어 유효)
+	File::Guid                      ComponentGuid;
 	std::string                     TypeName;  // 재로드 후 이름으로 타입 재탐색
-	std::vector<ScriptPendingField> Fields;
+	std::vector<ScriptFieldValue>   Fields;
+	std::size_t                     ComponentIndex = 0;
+	bool                            IsEnabled = true;
 };
 
 class CLiveCompileManager final : public ILiveCompileManager

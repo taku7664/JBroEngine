@@ -372,14 +372,14 @@ void CSceneViewContour::DrawOutlinesImGui(
         if (!object || !object->IsActive) continue;
 
         const SpriteRenderer2D* sprite = object->GetComponent<SpriteRenderer2D>();
-        if (sprite && sprite->IsEnabled)
+        if (sprite && sprite->IsEnabled())
         {
             drawOneSprite(*object, *sprite);
             continue;
         }
 
         const Text2D* text = object->GetComponent<Text2D>();
-        if (!text || !text->IsEnabled || nullptr == textSystem) continue;
+        if (!text || !text->IsEnabled() || nullptr == textSystem) continue;
         float centerX = 0.0f, centerY = 0.0f, width = 0.0f, height = 0.0f;
         if (false == textSystem->TryGetLocalBounds(*text, centerX, centerY, width, height)) continue;
         const Matrix3x2 matrix = Matrix3x2::Transform(text->Offset + Vector2(centerX, centerY), 0.0f, Vector2(1.0f, 1.0f))

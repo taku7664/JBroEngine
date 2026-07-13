@@ -3,22 +3,21 @@
 
 #include "GameFramework/Scene/Scene.h"
 
-void CGameScript::Bind(CGameScene& scene, CGameObject& object)
+#include <cstring>
+
+void CGameScript::Bind(CGameScene& scene, TypeId scriptTypeId, const char* typeName)
 {
-	// 호스트 소유 객체의 안전참조만 보관 — 대상 파괴 시 SafePtr 가 자동으로 무효화된다.
+	// 씬 참조와 스크립트 타입 메타만 바인딩한다. Owner는 CComponent 생성자에서 확정된다.
 	m_scene = scene.SafeFromThis();
-	m_owner = object.SafeFromThis();
+	m_scriptTypeId = scriptTypeId;
+	const char* sourceName = typeName ? typeName : "CGameScript";
+	strncpy_s(m_typeName, sourceName, sizeof(m_typeName) - 1);
 	m_isBound = true;
 }
 
 SafePtr<CGameScene> CGameScript::GetScene() const
 {
 	return m_scene;
-}
-
-SafePtr<CGameObject> CGameScript::GetGameObject() const
-{
-	return m_owner;
 }
 
 void CGameScript::Create()
@@ -79,7 +78,6 @@ void CGameScript::Destroy()
 	m_isStarted = false;
 	m_isBound   = false;
 	m_scene.Reset();
-	m_owner.Reset();
 }
 
 void CGameScript::ApplicationFocusGained()

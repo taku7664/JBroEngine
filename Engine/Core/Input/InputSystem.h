@@ -30,7 +30,7 @@ struct GamepadVibrationState
 //  · 모든 디바이스 갱신 + InputDeviceContext 스냅샷 생성 + 레이어 순 핸들러 dispatch.
 //  · dispatch 는 프레임당 1회. 윈도우 메시지가 아니라 프레임이 구동한다.
 //  · 상태 수집: 윈도우=직접폴링(GetAsyncKeyState), 휠 등 폴링불가 신호=이벤트 누적.
-//  · 등록/해제는 ScriptComponent 수명에 묶여 엔진이 호출(스크립트 개입 0).
+//  · 등록/해제는 CGameScript 수명에 묶여 엔진이 호출(스크립트 개입 0).
 //    dispatch 중 등록/해제는 deferred 큐로 모았다가 프레임 끝에 flush.
 //  · EngineCore(host) 에만 존재. ScriptCore 로 노출하지 않는다.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -54,7 +54,7 @@ public:
 	// 매 프레임 호출. surfaceFocused 면 디바이스 갱신 + dispatch. 아니면 디바이스 클리어.
 	void Update(bool surfaceFocused);
 
-	// 등록/해제 — 엔진(ScriptComponent 수명)이 호출. dispatch 중이면 deferred.
+	// 등록/해제 — 엔진(CGameScript 수명)이 호출. dispatch 중이면 deferred.
 	void RegisterHandler(IInputHandler* handler);
 	void UnregisterHandler(IInputHandler* handler);
 

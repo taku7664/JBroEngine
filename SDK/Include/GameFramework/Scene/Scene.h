@@ -6,11 +6,15 @@
 #include "GameFramework/Component/Component.h"
 #include "GameFramework/Object/GameObject.h"
 #include "GameFramework/Object/ObjectPool.h"
+#include "GameFramework/Reflection/ReflectionTypes.h"
 #include "GameFramework/System/GameSystem.h"
 #include "Utillity/File/FilePath.h"
 #include "Utillity/Pointer/SafePtr.h"
 
 #include <algorithm>
+#include <cstdint>
+#include <functional>
+#include <memory>
 #include <string>
 #include <type_traits>
 #include <typeindex>
@@ -19,8 +23,12 @@
 #include <vector>
 
 class CPhysics2DSystem;
+class CReflectionRegistry;
 class CScriptSystem;
 class CTransformSystem;
+class CGameScript;
+class IInputHandler;
+struct GameModuleHostApi;
 
 // CGameScene 은 GameScript 가 소유하는 런타임 객체다. CGameScene/GameObject/Component 포인터를
 // 라이브 컴파일 DLL 경계로 그대로 넘기지 말 것(안전참조는 SafePtr, 직렬화는 리플렉션).
@@ -43,12 +51,74 @@ public:
 	bool         DestroyGameObject(CGameObject* gameObject);
 	std::size_t  GetObjectCount() const { return m_objectPool.GetLiveCount(); }
 
+	struct ScriptMemoryPoolStats
+	{
+		TypeId Type = INVALID_TYPE_ID;
+		std::size_t Capacity = 0;
+		std::size_t Used = 0;
+		std::size_t ExpansionCount = 0;
+	};
+
+	struct ScriptRuntimeState
+	{
+		CGameScript* Instance = nullptr;
+		TypeId Type = INVALID_TYPE_ID;
+		void(*DestroyInstance)(CGameScript*, const GameModuleHostApi*) = nullptr;
+		const GameModuleHostApi* HostApi = nullptr;
+		SafePtrDetail::ControlBlock* ControlBlock = nullptr;
+		IInputHandler* InputHandler = nullptr;
+		bool InputRegistered = false;
+	};
+
 	// InstanceGuid → 활성 오브젝트(Ref<T> 직렬화 키 해석).
 	SafePtr<CGameObject> FindByInstanceGuid(const File::Guid& guid);
 	void                 SetObjectInstanceGuid(CGameObject& object, const File::Guid& guid);
 
 	template<typename Fn> void ForEachObject(Fn&& fn)       { m_objectPool.ForEachLive(std::forward<Fn>(fn)); }
 	template<typename Fn> void ForEachObject(Fn&& fn) const { m_objectPool.ForEachLive(std::forward<Fn>(fn)); }
+	template<typename Fn>
+	void ForEachObjectInHierarchyOrder(Fn&& fn)
+	{
+		std::vector<CGameObject*> roots;
+		ForEachObject([&roots](CGameObject& object)
+		{
+			if (false == object.GetParent().IsValid())
+			{
+				roots.push_back(&object);
+			}
+		});
+
+		auto byCreationOrder = [](const CGameObject* lhs, const CGameObject* rhs)
+		{
+			return lhs->CreationOrder < rhs->CreationOrder;
+		};
+		std::sort(roots.begin(), roots.end(), byCreationOrder);
+
+		std::function<void(CGameObject&)> visit = [&](CGameObject& object)
+		{
+			fn(object);
+
+			std::vector<CGameObject*> children;
+			for (const SafePtr<CGameObject>& childRef : object.GetChildren())
+			{
+				if (CGameObject* child = childRef.TryGet())
+				{
+					children.push_back(child);
+				}
+			}
+			std::sort(children.begin(), children.end(), byCreationOrder);
+
+			for (CGameObject* child : children)
+			{
+				visit(*child);
+			}
+		};
+
+		for (CGameObject* root : roots)
+		{
+			visit(*root);
+		}
+	}
 
 	// ── 컴포넌트 ──────────────────────────────────────────────────────────────
 	// 멀티 인스턴스: 같은 타입을 여러 개 부착할 수 있다. 매 호출마다 새 컴포넌트를 만든다.
@@ -57,12 +127,14 @@ public:
 	T* AddComponent(CGameObject& object, Args&&... args)
 	{
 		static_assert(std::is_base_of_v<CComponent, T>, "T must derive from CComponent.");
-		T* component = GetOrCreatePool<T>().Allocate(std::forward<Args>(args)...);
+		T* component = GetOrCreatePool<T>().Allocate(
+			ComponentConstructionToken{},
+			object.SafeFromThis(),
+			std::forward<Args>(args)...);
 		if (nullptr == component)
 		{
 			return nullptr;
 		}
-		component->Owner = object.SafeFromThis();
 		if (component->InstanceGuid.IsNull())
 		{
 			component->InstanceGuid = File::GenerateGuid();
@@ -98,6 +170,13 @@ public:
 		}
 	}
 
+	template<typename T>
+	void ReserveComponentPool(std::size_t capacity)
+	{
+		static_assert(std::is_base_of_v<CComponent, T>, "T must derive from CComponent.");
+		GetOrCreatePool<T>().Reserve(capacity);
+	}
+
 	template<typename T, typename Fn>
 	void ForEach(Fn&& fn) const
 	{
@@ -109,6 +188,16 @@ public:
 
 	// 타입소거 컴포넌트 해제(GameObject 파괴 경로에서 사용). 동적 타입으로 풀 식별.
 	void DestroyComponent(CComponent* component);
+	void RemoveComponent(CComponent* component)
+	{
+		if (component)
+		{
+			m_pendingDestroyComponents.push_back(component->SafeFromThis());
+		}
+	}
+	CGameScript* AddScript(CGameObject& object, TypeId scriptTypeId, const CReflectionRegistry& registry);
+	ScriptRuntimeState* FindScriptRuntime(CGameScript* script);
+	const ScriptRuntimeState* FindScriptRuntime(const CGameScript* script) const;
 
 	// ── 시스템 / 업데이트 ─────────────────────────────────────────────────────
 	template<typename TSystem, typename... Args>
@@ -145,6 +234,13 @@ public:
 	void FlushPendingDestroys();
 	void NotifySimulationStop();
 	void DestroyScriptInstances();
+	void ClearScriptMemoryPools();
+	void ReserveScriptMemoryForCurrentScripts(const CReflectionRegistry& registry, float capacityMultiplier = 1.5f);
+	void ReserveScriptMemory(TypeId scriptTypeId, std::size_t size, std::size_t alignment, std::size_t capacity);
+	std::vector<ScriptMemoryPoolStats> GetScriptMemoryPoolStats() const;
+	std::uint64_t GetScriptAllocationGeneration() const { return m_scriptAllocationGeneration; }
+	void* AllocateScriptMemory(TypeId scriptTypeId, std::size_t size, std::size_t alignment);
+	void FreeScriptMemory(TypeId scriptTypeId, void* ptr, std::size_t size, std::size_t alignment);
 
 	// 호스트가 받은 윈도우 이벤트를 이 씬의 살아있는 스크립트 인스턴스들에 전달한다.
 	// 인스턴스는 시뮬레이션(재생) 중에만 존재하므로 편집 모드에선 자연히 no-op.
@@ -190,6 +286,34 @@ private:
 	{
 		std::type_index          Key;
 		OwnerPtr<IComponentPool> Pool;
+	};
+
+	class ScriptMemoryPool final
+	{
+	public:
+		ScriptMemoryPool(TypeId typeId, std::size_t slotSize, std::size_t slotAlignment);
+		~ScriptMemoryPool();
+
+		ScriptMemoryPool(const ScriptMemoryPool&) = delete;
+		ScriptMemoryPool& operator=(const ScriptMemoryPool&) = delete;
+
+		TypeId GetTypeId() const { return m_typeId; }
+		bool Matches(std::size_t slotSize, std::size_t slotAlignment) const;
+		void Reserve(std::size_t capacity);
+		void* Allocate();
+		void Free(void* ptr);
+		void Clear();
+		std::size_t GetCapacity() const { return m_slots.size(); }
+		std::size_t GetExpansionCount() const { return m_expansionCount; }
+		std::size_t GetUsedCount() const { return m_slots.size() - m_freeList.size(); }
+
+	private:
+		TypeId m_typeId = INVALID_TYPE_ID;
+		std::size_t m_slotSize = 0;
+		std::size_t m_slotAlignment = alignof(void*);
+		std::vector<void*> m_slots;
+		std::vector<void*> m_freeList;
+		std::size_t m_expansionCount = 0;
 	};
 
 	template<typename T>
@@ -245,6 +369,9 @@ private:
 	std::unordered_map<File::Guid, SafePtr<CGameObject>> m_objectByGuid;
 	std::uint64_t                      m_nextCreationOrder = 0; // 단조 증가 — 하이라키 정렬 키
 	std::vector<PoolEntry>             m_componentPools;   // sorted by Key
+	std::vector<OwnerPtr<ScriptMemoryPool>> m_scriptMemoryPools;
+	std::vector<ScriptRuntimeState>         m_scriptRuntimeStates;
+	std::uint64_t                      m_scriptAllocationGeneration = 1;
 	OwnerPtr<CTransformSystem>         m_transformSystem;
 	OwnerPtr<CPhysics2DSystem>         m_physicsSystem;
 	OwnerPtr<CScriptSystem>            m_scriptSystem;

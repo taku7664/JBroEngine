@@ -1,5 +1,6 @@
 #pragma once
 
+#include "GameFramework/Component/Component.h"
 #include "GameFramework/Object/GameObject.h"
 #include "GameFramework/Physics2D/Collision2D.h"
 #include "Utillity/Math/SizeT.h"
@@ -8,16 +9,12 @@
 class CGameScene;
 class CScriptSystem;
 class CPhysics2DSystem;
-class ScriptComponent;
 
-// 게임 스크립트 베이스. DLL 에서 파생되며, 호스트가 ScriptComponent 를 통해 인스턴스를
-// 생성/구동한다. 부착 씬/오브젝트는 SafePtr 로 들고 있어(호스트 소유) 파괴 후에도 안전 —
-// 사용자가 getter 반환값을 멤버로 저장해도 IsValid() 로 댕글링을 막는다. 매 접근이 guid
-// 재조회가 아니라 O(1) 포인터 역참조다(Ref 는 씬 파일에 저장되는 디자이너 참조 전용).
-class CGameScript
+// 게임 스크립트는 GameObject 의 순서 있는 컴포넌트 목록에 직접 부착되는 CComponent 다.
+// 라이프사이클은 ScriptSystem 이 오브젝트의 컴포넌트 표시 순서대로 호출한다.
+class CGameScript : public CComponent
 {
 public:
-	CGameScript() = default;
 	virtual ~CGameScript() = default;
 
 	// 생명주기 상태를 갖는 인스턴스 — 복사/이동하면 유령 인스턴스가 생기므로 금지.
@@ -29,14 +26,15 @@ public:
 public:
 	// ── 사용자 API ────────────────────────────────────────────────────────────
 	// 전부 SafePtr 를 돌려준다 — 멤버로 저장해도 안전(대상 파괴 시 IsValid()==false).
-	SafePtr<CGameScene>  GetScene() const;
-	SafePtr<CGameObject> GetGameObject() const;
+	SafePtr<CGameScene> GetScene() const;
+	const char* GetTypeName() const override { return m_typeName; }
+	TypeId GetScriptTypeId() const { return m_scriptTypeId; }
 
 	// 부착된 오브젝트의 T 컴포넌트(첫 매치) SafePtr. 없으면 빈 SafePtr.
 	template<typename T>
 	SafePtr<T> GetComponent() const
 	{
-		CGameObject* object = m_owner.TryGet();
+		CGameObject* object = GetOwner().TryGet();
 		if (nullptr == object)
 		{
 			return SafePtr<T>();
@@ -53,6 +51,14 @@ public:
 
 	bool IsStarted() const;
 	bool IsBound() const;
+
+public:
+	CGameScript(
+		ComponentConstructionToken token,
+		const SafePtr<CGameObject>& owner)
+		: CComponent(token, owner)
+	{
+	}
 
 protected:
 	virtual void OnCreate() {}
@@ -83,9 +89,9 @@ private:
 	friend class CScriptSystem;    // Bind / Start / Update / FixedUpdate
 	friend class CGameScene;       // 윈도우 이벤트 디스패치
 	friend class CPhysics2DSystem; // 충돌/트리거 디스패치
-	friend class ScriptComponent;  // ResetInstance → Destroy(OnDestroy 발화)
+	friend class CReflectionRegistry;
 
-	void Bind(CGameScene& scene, CGameObject& object);
+	void Bind(CGameScene& scene, TypeId scriptTypeId, const char* typeName);
 	void Create();
 	void Start();
 	void Update();
@@ -107,8 +113,9 @@ private:
 	void TriggerExit(const Collision2D& collision);
 
 private:
-	SafePtr<CGameScene>  m_scene; // 부착 씬(호스트 소유) — Bind 에서 SafeFromThis 로 설정
-	SafePtr<CGameObject> m_owner; // 부착 오브젝트(호스트 소유)
+	SafePtr<CGameScene> m_scene;
+	TypeId m_scriptTypeId = INVALID_TYPE_ID;
+	char m_typeName[128] = "CGameScript";
 	bool m_isCreated = false;
 	bool m_isStarted = false;
 	bool m_isBound   = false;

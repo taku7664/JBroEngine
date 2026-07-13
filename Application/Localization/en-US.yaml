@@ -114,6 +114,8 @@ Entries:
   editor_statistics.fps: FPS
   editor_statistics.frame_time: Frame Time
   editor_statistics.scene_objects: Scene Objects
+  editor_statistics.script_pools: Script Pools
+  editor_statistics.script_pool_expansions: Script Pool Expansions
   editor_statistics.render_items: Render Items
   editor_statistics.selection: Selected Objects
   editor_statistics.undo: Can Undo
@@ -302,7 +304,6 @@ Entries:
   inspector.no_component_registry: No reflected component registry.
   inspector.add_component: Add Component
   inspector.script_menu: Script
-  inspector.script_type: Script
   inspector.no_scripts_registered: No scripts registered.
   inspector.script_registry_unavailable: Script registry is not available.
   inspector.unknown_script: Unknown Script
@@ -436,7 +437,6 @@ Entries:
   editor.component.PolygonCollider2D: Polygon Collider 2D
   editor.component.CircleCollider2D: Circle Collider 2D
   editor.component.PrefabInstance: Prefab Instance
-  editor.component.ScriptComponent: Script Component
 
   editor.property.Name: Name
   editor.property.IsActive: Is Active
@@ -491,11 +491,14 @@ Entries:
   editor.property.ClearColor: Clear Color
   editor.property.Priority: Priority
   editor.property.Type: Type
+  editor.property.LightType: Light Type
   editor.property.Intensity: Intensity
   editor.property.Range: Range
   editor.property.InnerAngleRadians: Inner Angle
   editor.property.OuterAngleRadians: Outer Angle
   editor.property.CastShadows: Cast Shadows
+  editor.property.ShadowLength: Shadow Length
+  editor.property.ShadowSoftness: Shadow Softness
   editor.property.BodyType: Body Type
   editor.property.Velocity: Velocity
   editor.property.Force: Force

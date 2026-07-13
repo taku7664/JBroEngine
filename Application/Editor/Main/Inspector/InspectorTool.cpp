@@ -39,8 +39,7 @@
 #include "Engine/GameFramework/Component/AudioComponents.h"
 #include "Engine/GameFramework/Component/Camera2D.h"
 #include "Engine/GameFramework/Component/Physics2DComponents.h"
-#include "Engine/GameFramework/Component/ScriptComponent.h"
-#include "Engine/GameFramework/Scripting/ScriptSystem.h"
+#include "Engine/GameFramework/Scripting/GameScript.h"
 #include "Engine/GameFramework/Component/Transform2D.h"
 #include "Engine/GameFramework/Physics2D/Physics2DSystem.h"
 #include "Engine/GameFramework/Physics2D/Physics2DTypes.h"
@@ -74,7 +73,7 @@ namespace
 		if (0 == strcmp(typeName, "Rigidbody2D"))            return "icon-rigidbody";
 		if (0 == strcmp(typeName, "CircleCollider2D"))       return "icon-circle-collider";
 		if (0 == strcmp(typeName, "PolygonCollider2D"))      return "icon-polygon-collider";
-		if (0 == strcmp(typeName, "ScriptComponent"))        return "icon-script";
+		if (0 == strcmp(typeName, "Script"))                 return "icon-script";
 		if (0 == strcmp(typeName, "GameObject"))             return "icon-object";
 		return nullptr;
 	}
@@ -92,79 +91,47 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		return reinterpret_cast<ImTextureID>(tex->GetNativeHandle().ShaderResourceView);
 	}
 
-	// ScriptComponent 인스턴스에서 등록된 스크립트의 표시 이름을 가져온다.
+	// 스크립트 컴포넌트에서 등록된 타입의 표시 이름을 가져온다.
 	// 미등록(INVALID_TYPE_ID) 또는 reflection 미준비 시 nullptr.
 	const char* GetScriptInstanceDisplayName(void* compInstance)
 	{
 		if (nullptr == compInstance || false == Engine.Reflection.IsValid()) return nullptr;
-		ScriptComponent* sc = static_cast<ScriptComponent*>(compInstance);
-		if (INVALID_TYPE_ID == sc->ScriptTypeId) return nullptr;
-		const ScriptTypeInfo* info = Engine.Reflection->FindScript(sc->ScriptTypeId);
+		CGameScript* script = static_cast<CGameScript*>(compInstance);
+		if (INVALID_TYPE_ID == script->GetScriptTypeId()) return nullptr;
+		const ScriptTypeInfo* info = Engine.Reflection->FindScript(script->GetScriptTypeId());
 		return info ? GetScriptDisplayName(info) : nullptr;
 	}
 
-	void DrawScriptTypeSelector(CGameScene& scene, CGameObject* object, std::size_t instanceIndex, ScriptComponent& scriptComponent)
+	File::Guid GetComponentGuid(void* component)
 	{
-		if (false == Engine.Reflection.IsValid())
-		{
-			ImGui::TextDisabled(Loc::Text(EditorLocKeys::InspectorScriptRegistryUnavailable));
-			return;
-		}
-
-		CReflectionRegistry& reflection = *Engine.Reflection;
-		const ScriptTypeInfo* currentType = reflection.FindScript(scriptComponent.ScriptTypeId);
-		const char* preview = currentType ? GetScriptDisplayName(currentType) : Loc::Text(EditorLocKeys::InspectorUnknownScript);
-
-		ImGui::Utillity::FormLayout layout("##script_type_selector", 4.0f, {2.0f, 1.0f}, 80.0f);
-		layout.Row(
-			[]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorScriptType)); },
-			[&]()
-			{
-				if (0 == reflection.GetScriptTypeCount())
-				{
-					ImGui::TextDisabled(Loc::Text(EditorLocKeys::InspectorNoScriptsRegistered));
-					return;
-				}
-
-				if (ImGui::BeginCombo("##script_type", preview))
-				{
-					for (std::size_t i = 0; i < reflection.GetScriptTypeCount(); ++i)
-					{
-						const ScriptTypeInfo* scriptType = reflection.GetScriptType(i);
-						if (nullptr == scriptType || scriptType->Type.Id == INVALID_TYPE_ID)
-						{
-							continue;
-						}
-
-						const bool selected = scriptComponent.ScriptTypeId == scriptType->Type.Id;
-						const std::string label =
-							std::string(GetScriptDisplayName(scriptType)) + "##" + std::to_string(scriptType->Type.Id);
-						if (ImGui::Selectable(label.c_str(), selected) && false == selected)
-						{
-							Editor::CommandManager.ExecuteCommand(
-								MakeOwnerPtr<CSetScriptTypeCommand>(
-									scene.SafeFromThis(), object, instanceIndex, scriptType->Type.Id));
-						}
-						if (selected)
-						{
-							ImGui::SetItemDefaultFocus();
-						}
-					}
-					ImGui::EndCombo();
-				}
-			});
+		return component ? static_cast<CComponent*>(component)->InstanceGuid : File::Guid();
 	}
 
 	// ── Ref<T> 프로퍼티 헬퍼 ──────────────────────────────────────────────────
 	// 드래그된 HIERARCHY_COMPONENT 페이로드의 타입명(컴포넌트/스크립트) 조회.
 	// 오브젝트를 컴포넌트/스크립트 Ref 프로퍼티에 드롭했을 때, 타입이 맞는 첫 컴포넌트를 찾는다.
-	//  · Script Ref     : RefTypeName 과 등록 스크립트 타입명이 일치하는 첫 ScriptComponent.
+	//  · Script Ref     : RefTypeName 과 등록 스크립트 타입명이 일치하는 첫 CGameScript.
 	//  · Component Ref  : GetTypeName() 이 RefTypeName 과 일치하는 첫 컴포넌트.
 	// 없으면 nullptr. RefTypeName 이 비어 있으면 카테고리만 맞으면 첫 인스턴스를 돌려준다.
-	CComponent* FindFirstComponentForRef(CGameObject& object, const ReflectPropertyInfo& property)
+	File::Guid FindFirstAttachmentForRef(CGameObject& object, const ReflectPropertyInfo& property)
 	{
 		const bool wantScript = (ERefCategory::Script == property.RefCategory);
 		const char* wantType  = property.RefTypeName;
+		if (wantScript)
+		{
+			for (const SafePtr<CComponent>& componentRef : object.GetComponents())
+			{
+				CGameScript* script = dynamic_cast<CGameScript*>(componentRef.TryGet());
+				if (nullptr == script) continue;
+				if (nullptr == wantType || '\0' == wantType[0]) return script->InstanceGuid;
+				if (Engine.Reflection.IsValid())
+				{
+					const ScriptTypeInfo* info = Engine.Reflection->FindScript(script->GetScriptTypeId());
+					if (info && info->Type.Name && 0 == strcmp(info->Type.Name, wantType)) return script->InstanceGuid;
+				}
+			}
+			return File::Guid();
+		}
 
 		for (const SafePtr<CComponent>& cref : object.GetComponents())
 		{
@@ -174,40 +141,16 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 				continue;
 			}
 
-			if (wantScript)
+			if (false == wantScript)
 			{
-				ScriptComponent* sc = dynamic_cast<ScriptComponent*>(comp);
-				if (nullptr == sc)
-				{
-					continue;
-				}
-				if (nullptr == wantType || '\0' == wantType[0])
-				{
-					return sc;   // 타입 미지정 — 첫 스크립트.
-				}
-				if (Engine.Reflection.IsValid())
-				{
-					const ScriptTypeInfo* info = Engine.Reflection->FindScript(sc->ScriptTypeId);
-					if (info && info->Type.Name && 0 == strcmp(info->Type.Name, wantType))
-					{
-						return sc;
-					}
-				}
-			}
-			else
-			{
-				if (dynamic_cast<ScriptComponent*>(comp))
-				{
-					continue;   // 컴포넌트 Ref 는 스크립트 컨테이너를 건너뛴다.
-				}
 				const char* tn = comp->GetTypeName();
 				if (nullptr == wantType || '\0' == wantType[0] || (tn && 0 == strcmp(tn, wantType)))
 				{
-					return comp;
+					return comp->InstanceGuid;
 				}
 			}
 		}
-		return nullptr;
+		return File::Guid();
 	}
 
 	// Ref 의 현재 대상 표시 라벨.
@@ -286,7 +229,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		// ImGui 가 부적합 드롭을 "수락 가능"(초록 테두리)으로 표시하지 않는다. 호버 중인
 		// 페이로드를 GetDragDropPayload 로 읽기전용 조회해 타입을 미리 판정한다.
 		const ImGuiPayload* hovering = ImGui::GetDragDropPayload();
-		CComponent* match = nullptr;
+		File::Guid match;
 		bool acceptable = false;
 		if (hovering && hovering->IsDataType(EditorDragDrop::HIERARCHY_ENTITY_PAYLOAD)
 			&& hovering->Data)
@@ -295,7 +238,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			// GameObject Ref 는 오브젝트면 항상 적합. Component/Script Ref 는 그 오브젝트에
 			// 타입이 맞는 컴포넌트가 있을 때만 적합(없으면 드롭 거부).
 			acceptable = (nullptr != obj) &&
-				(wantsGameObject || (nullptr != (match = FindFirstComponentForRef(*obj, property))));
+				(wantsGameObject || false == (match = FindFirstAttachmentForRef(*obj, property)).IsNull());
 		}
 
 		// 적합할 때만 실제 수락 대상으로 등록한다. 부적합이면 Accept 를 호출하지 않으므로
@@ -307,7 +250,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			{
 				CGameObject* obj = *static_cast<CGameObject* const*>(p->Data);
 				ref.SetGuidText(obj->InstanceGuid.generic_string().c_str());
-				ref.SetComponentGuidText(wantsGameObject ? "" : match->InstanceGuid.generic_string().c_str());
+				ref.SetComponentGuidText(wantsGameObject ? "" : match.generic_string().c_str());
 				changed = true;
 			}
 		}
@@ -679,20 +622,10 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 	}
 
 	// ── GetComponentIsEnabled ────────────────────────────────────────────────
-	// 컴포넌트의 IsEnabled 값을 반환. IsEnabled 프로퍼티가 없으면 true.
-	bool GetComponentIsEnabled(void* component, const ComponentTypeInfo& typeInfo)
+	bool GetComponentIsEnabled(void* component)
 	{
-		for (const ReflectPropertyInfo& prop : typeInfo.Properties)
-		{
-			if (prop.Type == EReflectPropertyType::Bool &&
-			    prop.Name && 0 == strcmp(prop.Name, "IsEnabled"))
-			{
-				void* field = CReflectionRegistry::GetPropertyAddress(component, prop);
-				if (field) return *static_cast<bool*>(field);
-				break;
-			}
-		}
-		return true;
+		const CComponent* value = static_cast<const CComponent*>(component);
+		return nullptr == value || value->IsEnabled();
 	}
 
 	// ── DrawIsEnabledCheckbox ─────────────────────────────────────────────────
@@ -703,33 +636,17 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		const ComponentTypeInfo& componentType,
 		std::size_t instanceIdx, void* component, bool sameLineAfter)
 	{
-		const ReflectPropertyInfo* enabledProp = nullptr;
-		for (const ReflectPropertyInfo& prop : componentType.Properties)
-		{
-			if (prop.Type == EReflectPropertyType::Bool &&
-				prop.Name && 0 == strcmp(prop.Name, "IsEnabled"))
-			{
-				enabledProp = &prop;
-				break;
-			}
-		}
-		if (!enabledProp) return;
+		CComponent* target = static_cast<CComponent*>(component);
+		if (nullptr == target) return;
 
-		void* enabledField = CReflectionRegistry::GetPropertyAddress(component, *enabledProp);
-		if (!enabledField) return;
-
-		bool oldEnabled = *static_cast<bool*>(enabledField);
+		bool oldEnabled = target->IsEnabled();
 		bool newEnabled = oldEnabled;
 		const std::string enabledLabel = sameLineAfter ? "##enabled" : (std::string(Loc::Text(EditorLocKeys::EditorPropertyIsEnabled)) + "##enabled");
 		if (ImGui::Checkbox(enabledLabel.c_str(), &newEnabled) && newEnabled != oldEnabled)
 		{
-			*static_cast<bool*>(enabledField) = newEnabled;
-			std::vector<std::uint8_t> oldVal = { static_cast<std::uint8_t>(oldEnabled) };
-			std::vector<std::uint8_t> newVal = { static_cast<std::uint8_t>(newEnabled) };
-			Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CSetComponentPropertyCommand>(
-				scene.SafeFromThis(), selectedObject,
-				componentType.Type.Id, enabledProp->Offset,
-				std::move(oldVal), std::move(newVal), instanceIdx));
+			target->SetEnabled(newEnabled);
+			Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CSetComponentEnabledCommand>(
+				scene.SafeFromThis(), selectedObject, GetComponentGuid(component), oldEnabled, newEnabled));
 		}
 		if (sameLineAfter)
 			ImGui::SameLine();
@@ -786,7 +703,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 							Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CSetComponentPropertyCommand>(
 								scene.SafeFromThis(), selectedObject,
 								componentType.Type.Id, property.Offset,
-								std::move(oldValue), std::move(newValue), instanceIdx));
+								std::move(oldValue), std::move(newValue), GetComponentGuid(component)));
 						}
 					}
 					else if (changed && canStringUndo && field)
@@ -794,7 +711,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 						const std::string& newString = *static_cast<std::string*>(field);
 						if (oldString != newString)
 							Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CSetComponentStringPropertyCommand>(
-								scene.SafeFromThis(), selectedObject, componentType.Type.Id, property.Offset, oldString, newString));
+								scene.SafeFromThis(), selectedObject, componentType.Type.Id, property.Offset, oldString, newString, GetComponentGuid(component)));
 					}
 				}
 			);
@@ -1721,39 +1638,32 @@ void CInspectorTool::OnRenderStay()
 		std::string     label;
 		ComponentEntry* compEntry = nullptr;
 		std::size_t     instIdx   = 0;
+		CGameScript*    script = nullptr;
+		File::Guid      componentGuid;
 	};
 
 	std::vector<ListEntry> listItems;
-	for (auto& e : allEntries)
+	for (const SafePtr<CComponent>& componentRef : selectedObject->GetComponents())
 	{
-		const char* name = e.typeInfo->Type.Name ? e.typeInfo->Type.Name : "";
-		if (strcmp(name, "GameObject") == 0)
-			continue; // 상단 인라인 처리됨
-
-		const std::string baseDisplayName = GetComponentLabel(*e.typeInfo);
-		const bool hasMultiple = e.instances.size() > 1;
-		const bool isScriptComponent = (name && 0 == strcmp(name, "ScriptComponent"));
-
-		for (std::size_t instIdx = 0; instIdx < e.instances.size(); ++instIdx)
+		CComponent* component = componentRef.TryGet();
+		if (nullptr == component) continue;
+		if (CGameScript* script = dynamic_cast<CGameScript*>(component))
 		{
-			std::string displayName = baseDisplayName;
-			// ScriptComponent: "ScriptComponent" 대신 등록된 스크립트 이름을 라벨로.
-			if (isScriptComponent && instIdx < e.instances.size())
+			listItems.push_back({ GetScriptInstanceDisplayName(script) ? GetScriptInstanceDisplayName(script) : Loc::Text(EditorLocKeys::InspectorUnknownScript), nullptr, 0, script, script->InstanceGuid });
+			continue;
+		}
+		for (ComponentEntry& entry : allEntries)
+		{
+			if (nullptr == entry.typeInfo || 0 != strcmp(component->GetTypeName(), entry.typeInfo->Type.Name)) continue;
+			for (std::size_t i = 0; i < entry.instances.size(); ++i)
 			{
-				if (const char* scriptName = GetScriptInstanceDisplayName(e.instances[instIdx]))
+				if (entry.instances[i] == component)
 				{
-					displayName = scriptName;
+					listItems.push_back({ GetComponentLabel(*entry.typeInfo), &entry, i, nullptr, component->InstanceGuid });
+					break;
 				}
 			}
-
-			ListEntry le;
-			if (hasMultiple)
-				le.label = displayName + " [" + std::to_string(instIdx) + "]";
-			else
-				le.label = displayName;
-			le.compEntry = &e;
-			le.instIdx   = instIdx;
-			listItems.push_back(std::move(le));
+			break;
 		}
 	}
 
@@ -1768,7 +1678,8 @@ void CInspectorTool::OnRenderStay()
 	{
 		for (int idx = 0; idx < static_cast<int>(listItems.size()); ++idx)
 		{
-			const char* typeName = listItems[static_cast<std::size_t>(idx)].compEntry->typeInfo->Type.Name;
+			const ListEntry& focusItem = listItems[static_cast<std::size_t>(idx)];
+			const char* typeName = focusItem.script ? "Script" : focusItem.compEntry->typeInfo->Type.Name;
 			if (typeName && Editor::GetFocusComponent() == typeName)
 			{
 				m_selectedTabIndex = idx;
@@ -1781,8 +1692,8 @@ void CInspectorTool::OnRenderStay()
 	// 현재 선택된 탭의 컴포넌트 타입 이름 캐시 (SceneViewTool 등 외부 시스템이 참조)
 	if (false == listItems.empty())
 	{
-		m_activeComponentTypeName =
-			listItems[static_cast<std::size_t>(m_selectedTabIndex)].compEntry->typeInfo->Type.Name;
+		const ListEntry& activeItem = listItems[static_cast<std::size_t>(m_selectedTabIndex)];
+		m_activeComponentTypeName = activeItem.script ? "Script" : activeItem.compEntry->typeInfo->Type.Name;
 	}
 
 	// ── 레이아웃: 좌측 리스트 | 드래그 구분선 | 우측 컨텐츠 ──────────────────
@@ -1813,17 +1724,16 @@ void CInspectorTool::OnRenderStay()
 				const bool       selected = (m_selectedTabIndex == idx);
 
 				// IsEnabled 확인 → 비활성화 컴포넌트는 dim 색상
-				const ComponentEntry& ce = *item.compEntry;
-				void* firstInst = (item.instIdx < ce.instances.size()) ? ce.instances[item.instIdx] : nullptr;
-				const bool isEnabled = firstInst
-				    ? GetComponentIsEnabled(firstInst, *ce.typeInfo)
-				    : true;
+				const ComponentEntry* ce = item.compEntry;
+				void* firstInst = ce && item.instIdx < ce->instances.size() ? ce->instances[item.instIdx] : nullptr;
+				const bool isEnabled = item.script ? item.script->IsEnabled()
+					: GetComponentIsEnabled(firstInst);
 
 				if (!isEnabled)
 					ImGui::PushStyleColor(ImGuiCol_Text, disabledTextCol);
 
 				// 아이콘 + 이름. 아이콘이 없으면 이름만 표시(자리는 비워 정렬 유지).
-				const ImTextureID iconTex = GetComponentIconTexture(ce.typeInfo->Type.Name);
+				const ImTextureID iconTex = GetComponentIconTexture(item.script ? "Script" : ce->typeInfo->Type.Name);
 				const float       lineH   = ImGui::GetTextLineHeight();
 				if (0 != iconTex)
 				{
@@ -1845,6 +1755,25 @@ void CInspectorTool::OnRenderStay()
 				{
 					m_selectedTabIndex = idx;
 				}
+				if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceAllowNullID))
+				{
+					ImGui::SetDragDropPayload("INSPECTOR_ATTACHMENT", &idx, sizeof(idx));
+					ImGui::TextUnformatted(item.label.c_str());
+					ImGui::EndDragDropSource();
+				}
+				if (ImGui::BeginDragDropTarget())
+				{
+					if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("INSPECTOR_ATTACHMENT"))
+					{
+						const int sourceIndex = *static_cast<const int*>(payload->Data);
+						if (sourceIndex >= 0 && sourceIndex < static_cast<int>(listItems.size()) && sourceIndex != idx)
+						{
+							Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CReorderComponentCommand>(scene->SafeFromThis(), selectedObject, listItems[static_cast<std::size_t>(sourceIndex)].componentGuid, static_cast<std::size_t>(sourceIndex), static_cast<std::size_t>(idx)));
+							m_selectedTabIndex = idx;
+						}
+					}
+					ImGui::EndDragDropTarget();
+				}
 
 				if (!isEnabled)
 					ImGui::PopStyleColor();
@@ -1855,17 +1784,16 @@ void CInspectorTool::OnRenderStay()
 				if (ImGui::BeginPopupContextItem(ctxId))
 				{
 					// 복사/붙여넣기 — firstInst 는 단일 상속이라 곧 CComponent* 다.
-					if (CComponent* comp = static_cast<CComponent*>(firstInst))
-					{
-						EditorGuiActions::DrawCopyComponentMenuItem(*comp);
-					}
+					CComponent* menuComponent = item.script
+						? static_cast<CComponent*>(item.script)
+						: static_cast<CComponent*>(firstInst);
+					if (menuComponent) EditorGuiActions::DrawCopyComponentMenuItem(*menuComponent);
 					EditorGuiActions::DrawPasteComponentMenuItem(*selectedObject);
 					ImGui::Separator();
 					if (ImGui::MenuItem(Loc::Text(EditorLocKeys::InspectorRemoveComponent)))
 					{
-						Editor::CommandManager.ExecuteCommand(
-							MakeOwnerPtr<CRemoveComponentCommand>(
-								scene->SafeFromThis(), selectedObject, ce.typeInfo->Type.Id));
+						if (item.script) Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CRemoveScriptCommand>(scene->SafeFromThis(), selectedObject, item.script->InstanceGuid));
+						else Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CRemoveComponentCommand>(scene->SafeFromThis(), selectedObject, ce->typeInfo->Type.Id, GetComponentGuid(firstInst)));
 					}
 					ImGui::EndPopup();
 				}
@@ -1901,98 +1829,43 @@ void CInspectorTool::OnRenderStay()
 		else
 		{
 			const ListEntry&  sel     = listItems[static_cast<std::size_t>(m_selectedTabIndex)];
-			ComponentEntry&   e       = *sel.compEntry;
+			ComponentEntry*   e       = sel.compEntry;
 			const std::size_t instIdx = sel.instIdx;
-			void* comp = (instIdx < e.instances.size()) ? e.instances[instIdx] : nullptr;
+			void* comp = e && instIdx < e->instances.size() ? e->instances[instIdx] : nullptr;
 
-			if (comp)
+			if (sel.script)
 			{
-				ImGui::PushID(static_cast<int>(e.typeIndex * 1000 + instIdx));
-				DrawIsEnabledCheckbox(*scene, selectedObject, *e.typeInfo, instIdx, comp, false);
-				DrawComponentProperties(*scene, selectedObject, *e.typeInfo, instIdx, comp);
-
-			// ── ScriptComponent: REFLECT_FIELD 자동 표시 ──────────────────────
-			// ScriptComponent 의 ComponentTypeInfo::Properties 에는 IsEnabled 만 있다.
-			// 실제 스크립트 필드는 ScriptTypeInfo::Properties 에 있으므로
-			// 인스턴스 포인터 + 오프셋으로 직접 렌더링한다.
-			if (e.typeInfo->Type.Name && 0 == strcmp(e.typeInfo->Type.Name, "ScriptComponent"))
-			{
-				ScriptComponent* scriptComp = static_cast<ScriptComponent*>(comp);
-				if (scriptComp)
+				CGameScript* script = sel.script;
+				ImGui::PushID(script);
+				bool enabled = script->IsEnabled();
+				if (ImGui::Checkbox(Loc::TextOr(EditorLocKeys::EditorPropertyIsEnabled, "Enabled"), &enabled))
 				{
-					DrawScriptTypeSelector(*scene, selectedObject, instIdx, *scriptComp);
-
-					// 에디트 모드에서도 프로퍼티를 보이고 편집할 수 있도록 인스턴스를 보장한다.
-					// (DLL 로드 + 타입 등록이 되어 있으면 생성됨. Bind/Start 는 플레이 때만.)
-					if (nullptr == scriptComp->Instance)
+					const bool oldEnabled = script->IsEnabled();
+					script->SetEnabled(enabled);
+					Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CSetComponentEnabledCommand>(
+						scene->SafeFromThis(), selectedObject, script->InstanceGuid, oldEnabled, enabled));
+				}
+				const ScriptTypeInfo* scriptInfo = Engine.Reflection.IsValid() ? Engine.Reflection->FindScript(script->GetScriptTypeId()) : nullptr;
+				if (scriptInfo)
+				{
+					for (const ReflectPropertyInfo& prop : scriptInfo->Properties)
 					{
-						CScriptSystem::EnsureEditTimeInstance(*scriptComp);
+						void* field = CReflectionRegistry::GetPropertyAddress(script, prop);
+						if (field) DrawPropertyEditor(field, prop);
 					}
 				}
-
-				if (scriptComp && scriptComp->Instance && Engine.Reflection.IsValid())
-				{
-					const ScriptTypeInfo* scriptInfo =
-						Engine.Reflection->FindScript(scriptComp->ScriptTypeId);
-
-					if (scriptInfo && !scriptInfo->Properties.empty())
-					{
-						const char* displayName = GetScriptDisplayName(scriptInfo);
-
-						ImGui::Spacing();
-						ImGui::SeparatorText(displayName);
-
-						ImText leftLabel;
-						leftLabel.SetHoveredTooltip(true);
-
-						const char* currentCategory = nullptr;
-						for (const ReflectPropertyInfo& prop : scriptInfo->Properties)
-						{
-							void* field = CReflectionRegistry::GetPropertyAddress(scriptComp->Instance, prop);
-						if (nullptr == field) { continue; }
-
-							// JPROP(Category("..")) → 카테고리가 바뀔 때 구분 헤더.
-							if (prop.Category && (nullptr == currentCategory || 0 != strcmp(currentCategory, prop.Category)))
-							{
-								currentCategory = prop.Category;
-								ImGui::SeparatorText(currentCategory);
-							}
-
-							ImGui::Utillity::FormLayout layout("##script_fields", 4.0f, {2.0f, 1.0f}, 60.0f);
-							const std::string label = prop.DisplayName
-								? prop.DisplayName
-								: (prop.Name ? prop.Name : "");
-
-							layout.Row(
-								[&]() {
-									leftLabel(label.c_str());
-									// JPROP(Tooltip("..")) → 라벨 호버 시 설명.
-									if (prop.Tooltip && ImGui::IsItemHovered())
-									{
-										ImGui::SetTooltip("%s", prop.Tooltip);
-									}
-								},
-								[&]() { DrawPropertyEditor(field, prop, false); }
-							);
-						}
-					}
-				}
-				else if (scriptComp && scriptComp->ScriptTypeId != INVALID_TYPE_ID
-				         && !scriptComp->Instance && Engine.Reflection.IsValid())
-				{
-					// 인스턴스가 아직 없는 경우 (DLL 미로드 등)
-					const ScriptTypeInfo* scriptInfo =
-						Engine.Reflection->FindScript(scriptComp->ScriptTypeId);
-					const char* typeName = GetScriptDisplayName(scriptInfo);
-					ImGui::Spacing();
-					ImGui::TextDisabled(Loc::Text(EditorLocKeys::InspectorScriptInstanceWaitingFormat), typeName);
-				}
+				ImGui::PopID();
 			}
+			else if (comp)
+			{
+				ImGui::PushID(static_cast<int>(e->typeIndex * 1000 + instIdx));
+				DrawIsEnabledCheckbox(*scene, selectedObject, *e->typeInfo, instIdx, comp, false);
+				DrawComponentProperties(*scene, selectedObject, *e->typeInfo, instIdx, comp);
 
 			// ── AudioPlayer: EffectGuids 효과 체인 (리플렉션 밖, 커스텀 ImList) ──
 			// EffectGuids 는 가변 길이라 리플렉션 자동 그리기에서 빠진다. 효과 에셋을
 			// 드래그&드롭으로 추가/삭제하고, 리스트 순서대로 적용된다(ImList 가 재정렬 제공).
-			if (e.typeInfo->Type.Name && 0 == strcmp(e.typeInfo->Type.Name, "AudioPlayer"))
+			if (e->typeInfo->Type.Name && 0 == strcmp(e->typeInfo->Type.Name, "AudioPlayer"))
 			{
 				AudioPlayer* audioPlayer = static_cast<AudioPlayer*>(comp);
 				if (audioPlayer)

@@ -110,7 +110,7 @@ template<typename T, typename TBuilder>
 void CShapeRenderSystem::SubmitGeometry(T& shape, const GeometrySignature& signature,
 	const Vector2& halfExtents, TBuilder&& builder, CForward2DRenderer& renderer)
 {
-	CGameObject* owner = shape.GetOwner();
+	CGameObject* owner = shape.GetOwner().TryGet();
 	if (nullptr == owner)
 	{
 		return;

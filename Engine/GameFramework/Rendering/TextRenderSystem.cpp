@@ -547,7 +547,7 @@ void CTextRenderSystem::OnUpdate(CGameScene& scene)
 	std::unordered_set<const void*> seen;
 	scene.ForEach<Text2D>([&](Text2D& text)
 	{
-		if (false == text.IsEnabled || nullptr == text.GetOwner() || text.Text.empty()) return;
+		if (false == text.IsEnabled() || nullptr == text.GetOwner() || text.Text.empty()) return;
 		if (false == IsVisibleColor(text.FillEnabled, text.FillColor) && false == IsVisibleColor(text.OutlineEnabled, text.OutlineColor)) return;
 		const void* key = &text; seen.insert(key);
 		const AssetGuid family = GetEffectiveFamily(text);
@@ -571,7 +571,7 @@ void CTextRenderSystem::OnUpdate(CGameScene& scene)
 			RenderItem item;
 			item.Mesh = mesh.Mesh.GetSafePtr(); item.Material = material.GetSafePtr(); item.Pipeline = renderer->GetTextPipeline();
 			item.Texture = material->GetTexture(); item.Sampler = material->GetSampler(); item.Queue = ERenderQueue::Transparent;
-			item.LayerMask = text.LayerMask; item.SortOrder = text.SortOrder; item.Entity = text.GetOwner();
+			item.LayerMask = text.LayerMask; item.SortOrder = text.SortOrder; item.Entity = text.GetOwner().TryGet();
 			item.Transform = Matrix3x2::Transform(text.Offset + Vector2(cache.CenterX, cache.CenterY), 0.0f, Vector2(1.0f, 1.0f)) * text.GetOwner()->GetWorld().Matrix;
 			if (text.PixelSnap && std::abs(item.Transform.M12) < 0.00001f && std::abs(item.Transform.M21) < 0.00001f)
 			{

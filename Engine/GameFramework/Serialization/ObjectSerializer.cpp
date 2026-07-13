@@ -64,14 +64,10 @@ YAML::Node WriteObject(const CGameObject& object, std::vector<AssetGuid>* refere
 	node["Transform2D"] = WriteTransform2D(obj.Local);
 
 	YAML::Node components(YAML::NodeType::Sequence);
-	for (const SafePtr<CComponent>& cref : obj.GetComponents())
+	for (const SafePtr<CComponent>& componentRef : obj.GetComponents())
 	{
-		CComponent* c = cref.TryGet();
-		if (nullptr == c)
-		{
-			continue;
-		}
-		YAML::Node cn = WriteComponent(*c, referencedAssets);
+		const CComponent* component = componentRef.TryGet();
+		YAML::Node cn = component ? WriteComponent(*component, referencedAssets) : YAML::Node();
 		if (cn.IsDefined())
 		{
 			components.push_back(cn);

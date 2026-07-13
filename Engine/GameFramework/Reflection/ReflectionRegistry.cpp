@@ -2,10 +2,112 @@
 #include "ReflectionRegistry.h"
 
 #include <cstdlib>
+#include <mutex>
+#include <unordered_map>
 
 #if defined(_MSC_VER)
 #include <malloc.h>
 #endif
+
+namespace
+{
+	struct ScriptAllocationContext
+	{
+		CGameScene* Scene = nullptr;
+		TypeId ScriptTypeId = INVALID_TYPE_ID;
+	};
+
+	struct ScriptAllocationRecord
+	{
+		CGameScene* Scene = nullptr;
+		TypeId ScriptTypeId = INVALID_TYPE_ID;
+		std::uint64_t SceneGeneration = 0;
+	};
+
+	thread_local ScriptAllocationContext g_scriptAllocationContext;
+
+	class ScriptAllocationRegistry final
+	{
+	public:
+		void Register(void* ptr, CGameScene& scene, TypeId scriptTypeId)
+		{
+			if (nullptr == ptr || INVALID_TYPE_ID == scriptTypeId)
+			{
+				return;
+			}
+
+			std::lock_guard<std::mutex> lock(m_mutex);
+			m_records[ptr] = { &scene, scriptTypeId, scene.GetScriptAllocationGeneration() };
+		}
+
+		bool Consume(void* ptr, ScriptAllocationRecord& outRecord)
+		{
+			if (nullptr == ptr)
+			{
+				return false;
+			}
+
+			std::lock_guard<std::mutex> lock(m_mutex);
+			const auto it = m_records.find(ptr);
+			if (it == m_records.end())
+			{
+				return false;
+			}
+
+			outRecord = it->second;
+			m_records.erase(it);
+			return true;
+		}
+
+		void ForgetScene(const CGameScene& scene)
+		{
+			std::lock_guard<std::mutex> lock(m_mutex);
+			for (auto it = m_records.begin(); it != m_records.end();)
+			{
+				if (it->second.Scene == &scene)
+				{
+					it = m_records.erase(it);
+				}
+				else
+				{
+					++it;
+				}
+			}
+		}
+
+	private:
+		std::mutex m_mutex;
+		std::unordered_map<void*, ScriptAllocationRecord> m_records;
+	};
+
+	ScriptAllocationRegistry& GetScriptAllocationRegistry()
+	{
+		static ScriptAllocationRegistry registry;
+		return registry;
+	}
+
+	class ScriptAllocationScope final
+	{
+	public:
+		ScriptAllocationScope(CGameScene* scene, TypeId scriptTypeId)
+			: m_previous(g_scriptAllocationContext)
+		{
+			g_scriptAllocationContext.Scene = scene;
+			g_scriptAllocationContext.ScriptTypeId = scriptTypeId;
+		}
+
+		~ScriptAllocationScope()
+		{
+			g_scriptAllocationContext = m_previous;
+		}
+
+		ScriptAllocationScope(const ScriptAllocationScope&) = delete;
+		ScriptAllocationScope& operator=(const ScriptAllocationScope&) = delete;
+
+	private:
+		ScriptAllocationContext m_previous;
+	};
+}
 
 CComponentRegistration::CComponentRegistration(ComponentTypeInfo* typeInfo)
 	: m_typeInfo(typeInfo)
@@ -97,14 +199,55 @@ const ScriptTypeInfo* CReflectionRegistry::GetScriptType(std::size_t index) cons
 bool CReflectionRegistry::AddComponent(CGameScene& scene, CGameObject& object, TypeId typeId) const
 {
 	const ComponentTypeInfo* typeInfo = FindComponent(typeId);
-	if (!typeInfo || !typeInfo->CanAddToObject) return false;
+	if (!typeInfo || false == CanAddComponent(object, typeId)) return false;
 	return typeInfo->AddToObject && typeInfo->AddToObject(scene, object);
+}
+
+bool CReflectionRegistry::ReserveComponentPool(CGameScene& scene, TypeId typeId, std::size_t capacity) const
+{
+	const ComponentTypeInfo* typeInfo = FindComponent(typeId);
+	if (nullptr == typeInfo || nullptr == typeInfo->ReserveInScene)
+	{
+		return false;
+	}
+	typeInfo->ReserveInScene(scene, capacity);
+	return true;
+}
+
+bool CReflectionRegistry::CanAddComponent(const CGameObject& object, TypeId typeId) const
+{
+	const ComponentTypeInfo* typeInfo = FindComponent(typeId);
+	if (!typeInfo || false == typeInfo->CanAddToObject)
+	{
+		return false;
+	}
+	if (EComponentMultiplicity::Single == typeInfo->Multiplicity)
+	{
+		return false == HasComponent(object, typeId);
+	}
+	return true;
 }
 
 bool CReflectionRegistry::RemoveComponent(CGameScene& scene, CGameObject& object, TypeId typeId) const
 {
 	const ComponentTypeInfo* typeInfo = FindComponent(typeId);
 	return typeInfo && typeInfo->RemoveFromObject && typeInfo->RemoveFromObject(scene, object);
+}
+
+bool CReflectionRegistry::RemoveComponentByGuid(CGameScene& scene, CGameObject& object, TypeId typeId, const File::Guid& componentGuid) const
+{
+	if (componentGuid.IsNull())
+	{
+		return RemoveComponent(scene, object, typeId);
+	}
+
+	CComponent* component = static_cast<CComponent*>(GetComponentAddressByGuid(object, typeId, componentGuid));
+	if (nullptr == component)
+	{
+		return false;
+	}
+	scene.RemoveComponent(component);
+	return true;
 }
 
 bool CReflectionRegistry::HasComponent(const CGameObject& object, TypeId typeId) const
@@ -123,6 +266,55 @@ const void* CReflectionRegistry::GetComponentAddress(const CGameObject& object, 
 {
 	const ComponentTypeInfo* typeInfo = FindComponent(typeId);
 	return typeInfo && typeInfo->GetConstAddress ? typeInfo->GetConstAddress(object) : nullptr;
+}
+
+void* CReflectionRegistry::GetComponentAddressByGuid(CGameObject& object, TypeId typeId, const File::Guid& componentGuid) const
+{
+	if (componentGuid.IsNull())
+	{
+		return GetComponentAddress(object, typeId);
+	}
+
+	for (void* address : GetComponentAddresses(object, typeId))
+	{
+		CComponent* component = static_cast<CComponent*>(address);
+		if (component && component->InstanceGuid == componentGuid)
+		{
+			return address;
+		}
+	}
+	return nullptr;
+}
+
+const void* CReflectionRegistry::GetComponentAddressByGuid(const CGameObject& object, TypeId typeId, const File::Guid& componentGuid) const
+{
+	if (componentGuid.IsNull())
+	{
+		return GetComponentAddress(object, typeId);
+	}
+
+	const ComponentTypeInfo* typeInfo = FindComponent(typeId);
+	if (nullptr == typeInfo || nullptr == typeInfo->GetAddresses)
+	{
+		return nullptr;
+	}
+
+	std::vector<void*> addresses = typeInfo->GetAddresses(const_cast<CGameObject&>(object));
+	for (void* address : addresses)
+	{
+		const CComponent* component = static_cast<const CComponent*>(address);
+		if (component && component->InstanceGuid == componentGuid)
+		{
+			return address;
+		}
+	}
+	return nullptr;
+}
+
+void* CReflectionRegistry::GetComponentAddressByIndex(CGameObject& object, TypeId typeId, std::size_t index) const
+{
+	std::vector<void*> addresses = GetComponentAddresses(object, typeId);
+	return index < addresses.size() ? addresses[index] : nullptr;
 }
 
 std::vector<void*> CReflectionRegistry::GetComponentAddresses(CGameObject& object, TypeId typeId) const
@@ -231,7 +423,10 @@ bool CReflectionRegistry::UnregisterScript(TypeId typeId)
 	return true;
 }
 
-ScriptInstanceHandle CReflectionRegistry::CreateScriptInstance(TypeId typeId) const
+ScriptInstanceHandle CReflectionRegistry::CreateScriptInstance(
+	TypeId typeId,
+	CGameScene& scene,
+	CGameObject& owner) const
 {
 	ScriptInstanceHandle handle;
 	const ScriptTypeInfo* info = FindScript(typeId);
@@ -240,27 +435,19 @@ ScriptInstanceHandle CReflectionRegistry::CreateScriptInstance(TypeId typeId) co
 		return handle;
 	}
 
-	handle.Instance = info->CreateInstance(&m_scriptHostApi);
+	ScriptAllocationScope allocationScope(&scene, typeId);
+	handle.Instance = info->CreateInstance(
+		&m_scriptHostApi,
+		ComponentConstructionToken{},
+		owner.SafeFromThis());
 	handle.DestroyInstance = info->DestroyInstance;
 	handle.HostApi = &m_scriptHostApi;
 	return handle;
 }
 
-void CReflectionRegistry::DestroyScriptInstance(ScriptInstanceHandle& instance) const
+void CReflectionRegistry::ForgetScriptAllocationsForScene(const CGameScene& scene)
 {
-	if (instance.Instance && instance.DestroyInstance)
-	{
-		instance.DestroyInstance(instance.Instance, instance.HostApi ? instance.HostApi : &m_scriptHostApi);
-	}
-
-	instance.Instance = nullptr;
-	instance.DestroyInstance = nullptr;
-	instance.HostApi = nullptr;
-}
-
-const GameModuleHostApi* CReflectionRegistry::GetScriptHostApi() const
-{
-	return &m_scriptHostApi;
+	GetScriptAllocationRegistry().ForgetScene(scene);
 }
 
 bool CReflectionRegistry::RegisterScriptInternal(ScriptTypeInfo&& typeInfo)
@@ -282,6 +469,22 @@ void* CReflectionRegistry::AllocateScriptMemory(std::size_t size, std::size_t al
 	const std::size_t effectiveSize = std::max<std::size_t>(size, 1);
 	const std::size_t effectiveAlignment = std::max<std::size_t>(alignment, alignof(void*));
 
+	if (g_scriptAllocationContext.Scene && INVALID_TYPE_ID != g_scriptAllocationContext.ScriptTypeId)
+	{
+		void* ptr = g_scriptAllocationContext.Scene->AllocateScriptMemory(
+			g_scriptAllocationContext.ScriptTypeId,
+			effectiveSize,
+			effectiveAlignment);
+		if (ptr)
+		{
+			GetScriptAllocationRegistry().Register(
+				ptr,
+				*g_scriptAllocationContext.Scene,
+				g_scriptAllocationContext.ScriptTypeId);
+		}
+		return ptr;
+	}
+
 #if defined(_MSC_VER)
 	return _aligned_malloc(effectiveSize, effectiveAlignment);
 #elif defined(__ANDROID__)
@@ -300,10 +503,23 @@ void* CReflectionRegistry::AllocateScriptMemory(std::size_t size, std::size_t al
 #endif
 }
 
-void CReflectionRegistry::FreeScriptMemory(void* ptr, std::size_t, std::size_t)
+void CReflectionRegistry::FreeScriptMemory(void* ptr, std::size_t size, std::size_t alignment)
 {
 	if (nullptr == ptr)
 	{
+		return;
+	}
+
+	ScriptAllocationRecord record;
+	if (GetScriptAllocationRegistry().Consume(ptr, record))
+	{
+		if (record.Scene && record.Scene->GetScriptAllocationGeneration() == record.SceneGeneration)
+		{
+			record.Scene->FreeScriptMemory(record.ScriptTypeId, ptr, size, alignment);
+			return;
+		}
+		// The scene already cleared the owning pool. Its storage has been released;
+		// falling through to the direct allocator would double-free the pointer.
 		return;
 	}
 

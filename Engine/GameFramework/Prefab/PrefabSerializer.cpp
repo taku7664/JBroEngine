@@ -156,11 +156,6 @@ void CPrefabSerializer::CopyComponents(const CGameObject& sourceObject, CGameObj
 			continue;
 		}
 		const char* name = src->GetTypeName();
-		if (0 == std::strcmp(name, "ScriptComponent"))
-		{
-			continue;   // 프리팹은 스크립트 인스턴스를 복제하지 않는다(기존 동작 유지).
-		}
-
 		const ComponentTypeInfo* ti = Script.Reflection->FindComponentByName(name);
 		if (nullptr == ti)
 		{
@@ -170,7 +165,8 @@ void CPrefabSerializer::CopyComponents(const CGameObject& sourceObject, CGameObj
 		{
 			continue;
 		}
-		CComponent* dst = static_cast<CComponent*>(Script.Reflection->GetComponentAddress(targetObject, ti->Type.Id));
+		const std::vector<void*> instances = Script.Reflection->GetComponentAddresses(targetObject, ti->Type.Id);
+		CComponent* dst = instances.empty() ? nullptr : static_cast<CComponent*>(instances.back());
 		if (nullptr == dst)
 		{
 			continue;
@@ -196,7 +192,7 @@ void CPrefabSerializer::CopyComponents(const CGameObject& sourceObject, CGameObj
 				std::memcpy(df, sf, prop.Size * (prop.ElementCount ? prop.ElementCount : 1));
 			}
 		}
-		dst->IsEnabled = src->IsEnabled;
+		dst->SetEnabled(src->IsEnabled());
 
 		// 비반영 추가 필드(직렬화 예외와 동일).
 		if (0 == std::strcmp(name, "Light2D"))

@@ -283,8 +283,8 @@ CGameObject* CSceneViewEditContext::Pick(
     const_cast<CGameScene&>(scene).ForEach<SpriteRenderer2D>(
         [&](SpriteRenderer2D& sprite)
         {
-            CGameObject* owner = sprite.GetOwner();
-            if (!owner || !owner->IsActive || !sprite.IsEnabled) return;
+            CGameObject* owner = sprite.GetOwner().TryGet();
+            if (!owner || !owner->IsActive || !sprite.IsEnabled()) return;
             if (owner->IsEditorHidden()) return; // 씬뷰 숨김 → 픽킹 제외
 
             // 포커스 모드: m_context 자신 또는 그 자손만 대상
@@ -338,7 +338,7 @@ CGameObject* CSceneViewEditContext::Pick(
 
     auto canPickOwner = [context](CGameObject* owner, const CComponent& component)
     {
-        if (nullptr == owner || false == owner->IsActive || false == component.IsEnabled)
+        if (nullptr == owner || false == owner->IsActive || false == component.IsEnabled())
         {
             return false;
         }
@@ -376,7 +376,7 @@ CGameObject* CSceneViewEditContext::Pick(
     const_cast<CGameScene&>(scene).ForEach<Square2D>(
         [&](Square2D& shape)
         {
-            CGameObject* owner = shape.GetOwner();
+            CGameObject* owner = shape.GetOwner().TryGet();
             if (false == canPickOwner(owner, shape))
             {
                 return;
@@ -391,7 +391,7 @@ CGameObject* CSceneViewEditContext::Pick(
     const_cast<CGameScene&>(scene).ForEach<Circle2D>(
         [&](Circle2D& shape)
         {
-            CGameObject* owner = shape.GetOwner();
+            CGameObject* owner = shape.GetOwner().TryGet();
             if (false == canPickOwner(owner, shape))
             {
                 return;
@@ -407,7 +407,7 @@ CGameObject* CSceneViewEditContext::Pick(
     const_cast<CGameScene&>(scene).ForEach<Polygon2D>(
         [&](Polygon2D& shape)
         {
-            CGameObject* owner = shape.GetOwner();
+            CGameObject* owner = shape.GetOwner().TryGet();
             if (false == canPickOwner(owner, shape))
             {
                 return;
@@ -426,7 +426,7 @@ CGameObject* CSceneViewEditContext::Pick(
         const_cast<CGameScene&>(scene).ForEach<Text2D>(
             [&](Text2D& text)
             {
-                CGameObject* owner = text.GetOwner();
+                CGameObject* owner = text.GetOwner().TryGet();
                 if (false == canPickOwner(owner, text)) return;
                 float centerX = 0.0f, centerY = 0.0f, width = 0.0f, height = 0.0f;
                 if (false == textSystem->TryGetLocalBounds(text, centerX, centerY, width, height) || width <= 0.0f || height <= 0.0f) return;
@@ -482,7 +482,7 @@ std::vector<CGameObject*> CSceneViewEditContext::PickBox(
             Vector2 corners[4];
 
             const SpriteRenderer2D* sprite = object.GetComponent<SpriteRenderer2D>();
-            if (sprite && sprite->IsEnabled)
+            if (sprite && sprite->IsEnabled())
             {
                 const Vector2 worldSize = ComputeSpriteWorldSize(assetMgr, *sprite);
                 const Matrix3x2 spriteMat =
@@ -531,7 +531,7 @@ std::vector<CGameObject*> CSceneViewEditContext::PickBox(
                     corners[3] = spriteMat.TransformPoint({-0.5f, -0.5f});
                 }
             }
-            else if (const Text2D* text = object.GetComponent<Text2D>(); text && text->IsEnabled && textSystem)
+            else if (const Text2D* text = object.GetComponent<Text2D>(); text && text->IsEnabled() && textSystem)
             {
                 float centerX = 0.0f, centerY = 0.0f, width = 0.0f, height = 0.0f;
                 if (false == textSystem->TryGetLocalBounds(*text, centerX, centerY, width, height)

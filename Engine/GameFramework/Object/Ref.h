@@ -53,8 +53,8 @@ namespace RefDetail
 	// InstanceGuid → 활성 씬의 오브젝트(CGameObject*) 자체.
 	CGameObject* ResolveObject(const char* instanceGuid);
 
-	// (오브젝트 guid + 컴포넌트 guid) → 그 오브젝트의 특정 ScriptComponent.Instance(CGameScript*).
-	// 컴포넌트 guid 가 비어 있으면 첫 ScriptComponent 로 폴백.
+	// (오브젝트 guid + 컴포넌트 guid) → 그 오브젝트의 특정 CGameScript.
+	// 컴포넌트 guid 가 비어 있으면 첫 CGameScript 로 폴백.
 	CGameScript* ResolveScript(const char* objectGuid, const char* componentGuid);
 
 	// AssetGuid → 활성 에셋 매니저에서 로드/조회한 IAsset*.
@@ -115,7 +115,7 @@ public:
 		}
 		else if constexpr (ERefCategory::Script == Category)
 		{
-			// 스크립트 — (오브젝트 guid + 컴포넌트 guid) 로 특정 ScriptComponent 의 Instance.
+			// 스크립트 — (오브젝트 guid + 컴포넌트 guid) 로 특정 CGameScript 해석.
 			return dynamic_cast<T*>(RefDetail::ResolveScript(Guid, ComponentGuid));
 		}
 		else if constexpr (ERefCategory::Object == Category)

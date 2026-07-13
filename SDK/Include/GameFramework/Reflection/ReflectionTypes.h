@@ -17,6 +17,12 @@ enum class EReflectTypeKind
 	Script
 };
 
+enum class EComponentMultiplicity : std::uint8_t
+{
+	Single,
+	Multiple
+};
+
 enum class EReflectPropertyType
 {
 	Bool,
@@ -184,6 +190,7 @@ struct ComponentRegisterDesc
 	const char* DisplayName = nullptr;
 	const char* Category = nullptr;
 	bool CanAddToEntity  = true;
+	EComponentMultiplicity Multiplicity = EComponentMultiplicity::Multiple;
 };
 
 struct ScriptRegisterDesc

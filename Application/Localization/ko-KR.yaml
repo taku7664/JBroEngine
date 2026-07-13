@@ -114,6 +114,8 @@ Entries:
   editor_statistics.fps: FPS
   editor_statistics.frame_time: 프레임 시간
   editor_statistics.scene_objects: 씬 오브젝트
+  editor_statistics.script_pools: 스크립트 풀
+  editor_statistics.script_pool_expansions: 스크립트 풀 확장
   editor_statistics.render_items: 렌더 아이템
   editor_statistics.selection: 선택된 오브젝트
   editor_statistics.undo: 되돌리기 가능
@@ -302,7 +304,6 @@ Entries:
   inspector.no_component_registry: 등록된 컴포넌트 registry가 없습니다.
   inspector.add_component: 컴포넌트 추가
   inspector.script_menu: 스크립트
-  inspector.script_type: 스크립트
   inspector.no_scripts_registered: 등록된 스크립트가 없습니다.
   inspector.script_registry_unavailable: Script registry를 사용할 수 없습니다.
   inspector.unknown_script: 알 수 없는 스크립트
@@ -436,7 +437,6 @@ Entries:
   editor.component.PolygonCollider2D: 폴리곤 콜라이더 2D
   editor.component.CircleCollider2D: 원형 콜라이더 2D
   editor.component.PrefabInstance: 프리팹 인스턴스
-  editor.component.ScriptComponent: 스크립트 컴포넌트
 
   editor.property.Name: 이름
   editor.property.IsActive: 활성
@@ -491,11 +491,14 @@ Entries:
   editor.property.ClearColor: 클리어 색상
   editor.property.Priority: 우선순위
   editor.property.Type: 타입
+  editor.property.LightType: 라이트 타입
   editor.property.Intensity: 강도
   editor.property.Range: 범위
   editor.property.InnerAngleRadians: 내부 각도
   editor.property.OuterAngleRadians: 외부 각도
   editor.property.CastShadows: 그림자 생성
+  editor.property.ShadowLength: 그림자 길이
+  editor.property.ShadowSoftness: 그림자 부드러움
   editor.property.BodyType: 바디 타입
   editor.property.Velocity: 속도
   editor.property.Force: 힘

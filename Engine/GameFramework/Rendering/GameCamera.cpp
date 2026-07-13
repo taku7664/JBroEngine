@@ -24,7 +24,7 @@ std::vector<GameRenderCameraDesc> CollectGameRenderCameras(const CGameScene& sce
 	scene.ForEach<Camera2D>(
 		[&](const Camera2D& camera)
 		{
-			const CGameObject* owner = camera.GetOwner();
+			const CGameObject* owner = camera.GetOwner().TryGet();
 			if (false == IsActiveComponent(camera))
 			{
 				return;
@@ -81,7 +81,7 @@ std::vector<GameRenderLightDesc> CollectGameRenderLights(const CGameScene& scene
 	scene.ForEach<Light2D>(
 		[&](const Light2D& light)
 		{
-			const CGameObject* owner = light.GetOwner();
+			const CGameObject* owner = light.GetOwner().TryGet();
 			if (nullptr == owner || false == IsActiveComponent(light))
 			{
 				return;

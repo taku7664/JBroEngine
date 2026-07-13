@@ -2,12 +2,82 @@
 #include "Scene.h"
 
 #include "Core/Asset/AssetRef.inl"   // m_loadedAssets(AssetRef) 소멸자 인스턴스화에 필요
-#include "GameFramework/Component/ScriptComponent.h"
+#include "Core/Logging/LoggerInternal.h"
+#include "Core/EngineCore.h"
+#include "Core/Input/InputSystem.h"
+#include "GameFramework/Scripting/GameScript.h"
 #include "GameFramework/Physics2D/Physics2DSystem.h"
+#include "GameFramework/Reflection/ReflectionRegistry.h"
 #include "GameFramework/Scripting/ScriptSystem.h"
 #include "GameFramework/Transform/TransformSystem.h"
 
+#include <algorithm>
+#include <cmath>
+#include <new>
+#include <unordered_map>
 #include <vector>
+
+CGameScene::ScriptMemoryPool::ScriptMemoryPool(TypeId typeId, std::size_t slotSize, std::size_t slotAlignment)
+	: m_typeId(typeId)
+	, m_slotSize(std::max<std::size_t>(slotSize, 1))
+	, m_slotAlignment(std::max<std::size_t>(slotAlignment, alignof(void*)))
+{
+}
+
+CGameScene::ScriptMemoryPool::~ScriptMemoryPool()
+{
+	Clear();
+}
+
+bool CGameScene::ScriptMemoryPool::Matches(std::size_t slotSize, std::size_t slotAlignment) const
+{
+	return m_slotSize == std::max<std::size_t>(slotSize, 1)
+		&& m_slotAlignment == std::max<std::size_t>(slotAlignment, alignof(void*));
+}
+
+void CGameScene::ScriptMemoryPool::Reserve(std::size_t capacity)
+{
+	while (m_slots.size() < capacity)
+	{
+		void* ptr = ::operator new(m_slotSize, std::align_val_t(m_slotAlignment));
+		m_slots.push_back(ptr);
+		m_freeList.push_back(ptr);
+	}
+}
+
+void* CGameScene::ScriptMemoryPool::Allocate()
+{
+	if (false == m_freeList.empty())
+	{
+		void* ptr = m_freeList.back();
+		m_freeList.pop_back();
+		return ptr;
+	}
+
+	void* ptr = ::operator new(m_slotSize, std::align_val_t(m_slotAlignment));
+	m_slots.push_back(ptr);
+	++m_expansionCount;
+	return ptr;
+}
+
+void CGameScene::ScriptMemoryPool::Free(void* ptr)
+{
+	if (nullptr == ptr)
+	{
+		return;
+	}
+	m_freeList.push_back(ptr);
+}
+
+void CGameScene::ScriptMemoryPool::Clear()
+{
+	for (void* ptr : m_slots)
+	{
+		::operator delete(ptr, std::align_val_t(m_slotAlignment));
+	}
+	m_slots.clear();
+	m_freeList.clear();
+}
 
 CGameScene::CGameScene()
 {
@@ -86,7 +156,6 @@ void CGameScene::DestroyObjectRecursive(CGameObject* object)
 			DestroyComponent(raw);
 		}
 	}
-
 	m_objectByGuid.erase(object->InstanceGuid);
 	m_objectPool.Free(object);
 }
@@ -99,9 +168,46 @@ void CGameScene::DestroyComponent(CComponent* component)
 	}
 
 	// 파괴 훅 — 아직 컴포넌트/owner 가 유효한 시점에 자신의 정리(물리월드 등록 해제 등) 수행.
+	if (CGameScript* script = dynamic_cast<CGameScript*>(component))
+	{
+		CGameObject* owner = component->GetOwner().TryGet();
+		ScriptRuntimeState* runtime = FindScriptRuntime(script);
+		if (runtime)
+		{
+			if (runtime->InputRegistered && runtime->InputHandler && Engine.InputSystem.IsValid())
+			{
+				Engine.InputSystem->UnregisterHandler(runtime->InputHandler);
+			}
+			if (owner)
+			{
+				owner->DetachComponent(component);
+			}
+			script->Destroy();
+			SafePtrDetail::ControlBlock* block = runtime->ControlBlock;
+			if (block)
+			{
+				block->Alive = false;
+				block->Ptr = nullptr;
+			}
+			if (runtime->DestroyInstance)
+			{
+				runtime->DestroyInstance(script, runtime->HostApi);
+			}
+			if (block && 0 == block->SafeCount)
+			{
+				delete block;
+			}
+			std::erase_if(m_scriptRuntimeStates, [script](const ScriptRuntimeState& state)
+			{
+				return state.Instance == script;
+			});
+		}
+		return;
+	}
+
 	component->OnDestroy();
 
-	if (CGameObject* owner = component->GetOwner())
+	if (CGameObject* owner = component->GetOwner().TryGet())
 	{
 		owner->DetachComponent(component);
 	}
@@ -113,6 +219,58 @@ void CGameScene::DestroyComponent(CComponent* component)
 	{
 		it->Pool->FreeBase(component);
 	}
+}
+
+CGameScript* CGameScene::AddScript(
+	CGameObject& object,
+	TypeId scriptTypeId,
+	const CReflectionRegistry& registry)
+{
+	const ScriptTypeInfo* typeInfo = registry.FindScript(scriptTypeId);
+	if (nullptr == typeInfo)
+	{
+		return nullptr;
+	}
+
+	ScriptInstanceHandle handle = registry.CreateScriptInstance(scriptTypeId, *this, object);
+	CGameScript* script = handle.Instance;
+	if (nullptr == script)
+	{
+		return nullptr;
+	}
+
+	SafePtrDetail::ControlBlock* block = new SafePtrDetail::ControlBlock(script, [](void*) {});
+	SafePtrDetail::BindSafeFromThisControlBlock(static_cast<CComponent*>(script), block);
+	script->InstanceGuid = File::GenerateGuid();
+	script->Bind(*this, scriptTypeId, typeInfo->Type.Name);
+	object.AttachComponent(script->SafeFromThis());
+
+	ScriptRuntimeState state;
+	state.Instance = script;
+	state.Type = scriptTypeId;
+	state.DestroyInstance = handle.DestroyInstance;
+	state.HostApi = handle.HostApi;
+	state.ControlBlock = block;
+	if (typeInfo->ToInputHandler)
+	{
+		state.InputHandler = typeInfo->ToInputHandler(script);
+	}
+	m_scriptRuntimeStates.push_back(state);
+	return script;
+}
+
+CGameScene::ScriptRuntimeState* CGameScene::FindScriptRuntime(CGameScript* script)
+{
+	const auto it = std::find_if(m_scriptRuntimeStates.begin(), m_scriptRuntimeStates.end(),
+		[script](const ScriptRuntimeState& state) { return state.Instance == script; });
+	return it == m_scriptRuntimeStates.end() ? nullptr : &*it;
+}
+
+const CGameScene::ScriptRuntimeState* CGameScene::FindScriptRuntime(const CGameScript* script) const
+{
+	const auto it = std::find_if(m_scriptRuntimeStates.begin(), m_scriptRuntimeStates.end(),
+		[script](const ScriptRuntimeState& state) { return state.Instance == script; });
+	return it == m_scriptRuntimeStates.end() ? nullptr : &*it;
 }
 
 SafePtr<CGameObject> CGameScene::FindByInstanceGuid(const File::Guid& guid)
@@ -256,26 +414,206 @@ void CGameScene::NotifySimulationStop()
 
 void CGameScene::DestroyScriptInstances()
 {
-	ForEach<ScriptComponent>([](ScriptComponent& script)
+	std::vector<CGameScript*> scripts;
+	for (const ScriptRuntimeState& state : m_scriptRuntimeStates)
 	{
-		script.ResetInstance();
-	});
+		if (state.Instance) scripts.push_back(state.Instance);
+	}
+	for (CGameScript* script : scripts)
+	{
+		DestroyComponent(script);
+	}
+	ClearScriptMemoryPools();
+}
+
+void CGameScene::ClearScriptMemoryPools()
+{
+	CReflectionRegistry::ForgetScriptAllocationsForScene(*this);
+	m_scriptMemoryPools.clear();
+	++m_scriptAllocationGeneration;
+	if (0 == m_scriptAllocationGeneration)
+	{
+		m_scriptAllocationGeneration = 1;
+	}
+}
+
+void CGameScene::ReserveScriptMemoryForCurrentScripts(const CReflectionRegistry& registry, float capacityMultiplier)
+{
+	std::unordered_map<TypeId, std::size_t> counts;
+	for (const ScriptRuntimeState& script : m_scriptRuntimeStates)
+	{
+		if (INVALID_TYPE_ID != script.Type)
+		{
+			++counts[script.Type];
+		}
+	}
+
+	const float multiplier = std::max(capacityMultiplier, 1.0f);
+	for (const auto& [scriptTypeId, count] : counts)
+	{
+		const ScriptTypeInfo* typeInfo = registry.FindScript(scriptTypeId);
+		if (nullptr == typeInfo)
+		{
+			continue;
+		}
+
+		const std::size_t capacity = static_cast<std::size_t>(std::ceil(static_cast<float>(count) * multiplier));
+		if (capacity > 0)
+		{
+			void* ptr = AllocateScriptMemory(scriptTypeId, typeInfo->Type.Size, typeInfo->Type.Alignment);
+			FreeScriptMemory(scriptTypeId, ptr, typeInfo->Type.Size, typeInfo->Type.Alignment);
+
+			auto it = std::lower_bound(
+				m_scriptMemoryPools.begin(),
+				m_scriptMemoryPools.end(),
+				scriptTypeId,
+				[](const OwnerPtr<ScriptMemoryPool>& pool, TypeId typeId)
+				{
+					return pool && pool->GetTypeId() < typeId;
+				});
+			if (it != m_scriptMemoryPools.end() && *it && (*it)->GetTypeId() == scriptTypeId)
+			{
+				(*it)->Reserve(capacity);
+			}
+		}
+	}
+}
+
+void CGameScene::ReserveScriptMemory(TypeId scriptTypeId, std::size_t size, std::size_t alignment, std::size_t capacity)
+{
+	if (INVALID_TYPE_ID == scriptTypeId || 0 == capacity)
+	{
+		return;
+	}
+
+	const std::size_t effectiveSize = std::max<std::size_t>(size, 1);
+	const std::size_t effectiveAlignment = std::max<std::size_t>(alignment, alignof(void*));
+	auto it = std::lower_bound(m_scriptMemoryPools.begin(), m_scriptMemoryPools.end(), scriptTypeId,
+		[](const OwnerPtr<ScriptMemoryPool>& pool, TypeId typeId)
+		{
+			return pool && pool->GetTypeId() < typeId;
+		});
+	if (it == m_scriptMemoryPools.end() || false == static_cast<bool>(*it) || (*it)->GetTypeId() != scriptTypeId)
+	{
+		it = m_scriptMemoryPools.insert(it, MakeOwnerPtr<ScriptMemoryPool>(scriptTypeId, effectiveSize, effectiveAlignment));
+	}
+	else if (false == (*it)->Matches(effectiveSize, effectiveAlignment))
+	{
+		*it = MakeOwnerPtr<ScriptMemoryPool>(scriptTypeId, effectiveSize, effectiveAlignment);
+	}
+	if (*it)
+	{
+		(*it)->Reserve(capacity);
+	}
+}
+
+std::vector<CGameScene::ScriptMemoryPoolStats> CGameScene::GetScriptMemoryPoolStats() const
+{
+	std::vector<ScriptMemoryPoolStats> result;
+	result.reserve(m_scriptMemoryPools.size());
+	for (const OwnerPtr<ScriptMemoryPool>& pool : m_scriptMemoryPools)
+	{
+		if (pool)
+		{
+			result.push_back({ pool->GetTypeId(), pool->GetCapacity(), pool->GetUsedCount(), pool->GetExpansionCount() });
+		}
+	}
+	return result;
+}
+
+void* CGameScene::AllocateScriptMemory(TypeId scriptTypeId, std::size_t size, std::size_t alignment)
+{
+	const std::size_t effectiveSize = std::max<std::size_t>(size, 1);
+	const std::size_t effectiveAlignment = std::max<std::size_t>(alignment, alignof(void*));
+
+	auto it = std::lower_bound(
+		m_scriptMemoryPools.begin(),
+		m_scriptMemoryPools.end(),
+		scriptTypeId,
+		[](const OwnerPtr<ScriptMemoryPool>& pool, TypeId typeId)
+		{
+			return pool && pool->GetTypeId() < typeId;
+		});
+
+	if (it != m_scriptMemoryPools.end() && *it && (*it)->GetTypeId() == scriptTypeId)
+	{
+		if (false == (*it)->Matches(effectiveSize, effectiveAlignment))
+		{
+			// Live compile can change size/alignment for the same script name.
+			// Instances are destroyed before reload; replacing an empty pool is the safe path.
+			CSystemLog::Info(std::format(
+				"Script memory pool replaced after script layout changed. scene='{}', typeId={}, oldCapacity={}",
+				GetName(),
+				static_cast<unsigned long long>(scriptTypeId),
+				(*it)->GetCapacity()));
+			*it = MakeOwnerPtr<ScriptMemoryPool>(scriptTypeId, effectiveSize, effectiveAlignment);
+		}
+		const std::size_t beforeCapacity = (*it)->GetCapacity();
+		void* ptr = (*it)->Allocate();
+		if ((*it)->GetCapacity() > beforeCapacity)
+		{
+			CSystemLog::Warning(std::format(
+				"Script memory pool expanded at runtime. scene='{}', typeId={}, capacity={} -> {}. Consider increasing preallocation.",
+				GetName(),
+				static_cast<unsigned long long>(scriptTypeId),
+				beforeCapacity,
+				(*it)->GetCapacity()));
+		}
+		return ptr;
+	}
+
+	OwnerPtr<ScriptMemoryPool> pool = MakeOwnerPtr<ScriptMemoryPool>(scriptTypeId, effectiveSize, effectiveAlignment);
+	void* ptr = pool ? pool->Allocate() : nullptr;
+	m_scriptMemoryPools.insert(it, std::move(pool));
+	return ptr;
+}
+
+void CGameScene::FreeScriptMemory(TypeId scriptTypeId, void* ptr, std::size_t size, std::size_t alignment)
+{
+	if (nullptr == ptr)
+	{
+		return;
+	}
+
+	auto it = std::lower_bound(
+		m_scriptMemoryPools.begin(),
+		m_scriptMemoryPools.end(),
+		scriptTypeId,
+		[](const OwnerPtr<ScriptMemoryPool>& pool, TypeId typeId)
+		{
+			return pool && pool->GetTypeId() < typeId;
+		});
+
+	if (it != m_scriptMemoryPools.end() && *it && (*it)->GetTypeId() == scriptTypeId
+		&& (*it)->Matches(size, alignment))
+	{
+		(*it)->Free(ptr);
+		return;
+	}
+
+	CSystemLog::Warning(std::format(
+		"Script memory was freed outside its owning pool. scene='{}', typeId={}, size={}, alignment={}.",
+		GetName(),
+		static_cast<unsigned long long>(scriptTypeId),
+		static_cast<unsigned long long>(size),
+		static_cast<unsigned long long>(alignment)));
+	::operator delete(ptr, std::align_val_t(std::max<std::size_t>(alignment, alignof(void*))));
 }
 
 void CGameScene::DispatchSurfaceEventToScripts(const SurfaceEvent& surfaceEvent)
 {
-	ForEach<ScriptComponent>([&surfaceEvent](ScriptComponent& script)
+	ForEachObjectInHierarchyOrder([&surfaceEvent](CGameObject& object)
 	{
-		CGameScript* instance = script.Instance;
-		if (nullptr == instance)
+		for (const SafePtr<CComponent>& component : object.GetComponents())
 		{
-			return;
-		}
+			CGameScript* instance = dynamic_cast<CGameScript*>(component.TryGet());
+			if (nullptr == instance) continue;
 		switch (surfaceEvent.Type)
 		{
 		case ESurfaceEventType::FocusGained: instance->ApplicationFocusGained();         break;
 		case ESurfaceEventType::FocusLost:   instance->ApplicationFocusLost();           break;
 		case ESurfaceEventType::Resized:     instance->SurfaceResized(surfaceEvent.ClientSize); break;
+		}
 		}
 	});
 }
@@ -302,6 +640,8 @@ const std::vector<AssetGuid>& CGameScene::GetReferencedAssets() const
 
 void CGameScene::ClearObjects()
 {
+	DestroyScriptInstances();
+
 	m_pendingDestroyComponents.clear();
 	m_pendingDestroyObjects.clear();
 
@@ -314,6 +654,7 @@ void CGameScene::ClearObjects()
 		}
 	}
 	m_componentPools.clear();
+	m_scriptRuntimeStates.clear();
 	m_objectByGuid.clear();
 	m_objectPool.Clear();
 	m_referencedAssets.clear();
