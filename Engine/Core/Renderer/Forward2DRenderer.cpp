@@ -1587,7 +1587,8 @@ bool CForward2DRenderer::DrawSpriteBatch(IRHICommandContext& commandContext, Ren
 	return true;
 }
 
-void CForward2DRenderer::RenderImpl(IRenderScene& scene, const std::unordered_set<RenderObjectId>* excluded)
+template<typename FSkip>
+void CForward2DRenderer::RenderWithSkip(IRenderScene& scene, FSkip&& shouldSkip)
 {
 	m_lastCullingStats = {};
 
@@ -1617,8 +1618,8 @@ void CForward2DRenderer::RenderImpl(IRenderScene& scene, const std::unordered_se
 	{
 		const RenderItem& item = items[i];
 
-		// 에디터 씬뷰 숨김(EditorHidden): 해당 오브젝트 키가 제외 집합에 있으면 스킵.
-		if (excluded && excluded->find(item.Entity) != excluded->end())
+		// 스킵 판정 — RenderImpl=제외 집합 포함, RenderFiltered=필터 집합 미포함.
+		if (shouldSkip(item.Entity))
 		{
 			++i;
 			continue;
@@ -1639,7 +1640,7 @@ void CForward2DRenderer::RenderImpl(IRenderScene& scene, const std::unordered_se
 			while (i + batchCount < itemCount)
 			{
 				const RenderItem& nextItem = items[i + batchCount];
-				if (excluded && excluded->find(nextItem.Entity) != excluded->end())
+				if (shouldSkip(nextItem.Entity))
 				{
 					break;
 				}
@@ -1679,87 +1680,28 @@ void CForward2DRenderer::RenderImpl(IRenderScene& scene, const std::unordered_se
 	}
 }
 
+void CForward2DRenderer::RenderImpl(IRenderScene& scene, const std::unordered_set<RenderObjectId>* excluded)
+{
+	// EditorHidden — 제외 집합에 든 오브젝트를 건너뛴다(집합 없으면 아무것도 제외 안 함).
+	RenderWithSkip(scene, [excluded](RenderObjectId entity)
+	{
+		return excluded && excluded->find(entity) != excluded->end();
+	});
+}
+
 void CForward2DRenderer::RenderFiltered(IRenderScene& scene, const std::unordered_set<RenderObjectId>& objects)
 {
-	m_lastCullingStats = {};
-
-	if (false == m_isInitialized || false == m_rhiDevice.IsValid()) return;
-	if (!m_spritePipeline || !m_quadMesh) return;
-	if (objects.empty()) return;
-
-	scene.Sort();
-
-	SafePtr<IRHICommandContext> commandContext = m_rhiDevice->GetImmediateCommandContext();
-	if (false == commandContext.IsValid()) return;
-
-	const RenderItem* items = scene.GetRenderItems();
-	const std::uint32_t itemCount = scene.GetRenderItemCount();
-	const ViewParameters view = BuildViewParameters();
-	RenderStateCache stateCache;
-	for (std::uint32_t i = 0; i < itemCount;)
+	// 빈 필터는 아무것도 그리지 않는다(통계만 리셋). Sort/순회 자체를 건너뛰는 조기 반환.
+	if (objects.empty())
 	{
-		const RenderItem& item = items[i];
-
-		// ── 오브젝트 필터 ─────────────────────────────────────────────────────────
-		if (objects.find(item.Entity) == objects.end())
-		{
-			++i;
-			continue;
-		}
-		++m_lastCullingStats.SubmittedCount;
-
-		if (false == IsSpriteItemVisibleInView(item, view))
-		{
-			++m_lastCullingStats.CulledCount;
-			++i;
-			continue;
-		}
-
-		const SpriteDrawResources resources = ResolveSpriteDrawResources(item);
-		if (CanBatchSpriteItem(item, resources))
-		{
-			std::uint32_t batchCount = 1;
-			while (i + batchCount < itemCount)
-			{
-				const RenderItem& nextItem = items[i + batchCount];
-				if (objects.find(nextItem.Entity) == objects.end())
-				{
-					break;
-				}
-
-				if (false == IsSpriteItemVisibleInView(nextItem, view))
-				{
-					break;
-				}
-
-				const SpriteDrawResources nextResources = ResolveSpriteDrawResources(nextItem);
-				if (nextResources.Texture != resources.Texture
-					|| nextResources.Sampler != resources.Sampler
-					|| false == CanBatchSpriteItem(nextItem, nextResources))
-				{
-					break;
-				}
-				++batchCount;
-			}
-
-			if (batchCount > 1)
-			{
-				if (DrawSpriteBatch(*commandContext.TryGet(), stateCache, items + i, batchCount, resources, view))
-				{
-					m_lastCullingStats.SubmittedCount += batchCount - 1;
-					m_lastCullingStats.DrawnCount += batchCount;
-					i += batchCount;
-					continue;
-				}
-			}
-		}
-
-		if (DrawSpriteItem(*commandContext.TryGet(), stateCache, item, resources, view))
-		{
-			++m_lastCullingStats.DrawnCount;
-		}
-		++i;
+		m_lastCullingStats = {};
+		return;
 	}
+	// 필터 집합에 없는 오브젝트를 건너뛴다(포커스/선택 렌더).
+	RenderWithSkip(scene, [&objects](RenderObjectId entity)
+	{
+		return objects.find(entity) == objects.end();
+	});
 }
 
 void CForward2DRenderer::FillViewportColor(float r, float g, float b, float a)

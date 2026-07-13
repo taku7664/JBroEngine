@@ -139,6 +139,10 @@ private:
 	};
 
 	void RenderImpl(IRenderScene& scene, const std::unordered_set<RenderObjectId>* excluded);
+	// RenderImpl/RenderFiltered 의 공통 순회·배칭 본체. shouldSkip(entity) 가 true 인 아이템만
+	// 건너뛴다(정의는 .cpp — 두 래퍼가 같은 TU 에서 인스턴스화). 핫루프라 std::function 대신 템플릿.
+	template<typename FSkip>
+	void RenderWithSkip(IRenderScene& scene, FSkip&& shouldSkip);
 	ViewParameters BuildViewParameters() const;
 	SpriteDrawResources ResolveSpriteDrawResources(const RenderItem& item) const;
 	SpriteConstants BuildSpriteConstants(const RenderItem& item, const ViewParameters& view) const;
