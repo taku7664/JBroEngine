@@ -1077,13 +1077,13 @@ function Invoke-WebApplicationBuild {
 
     $outputHtml = Join-Path $tempOutputDir "index.html"
     $optimizationArgs = if ($Configuration -eq "Debug") {
-        @("-O0", "-gsource-map", "-sASSERTIONS=1")
+        @("-O0", "-gsource-map")
     } else {
-        @("-O2", "-sASSERTIONS=0")
+        @("-O2")
     }
+    $assertionsArgument = if ($Configuration -eq "Debug") { "-sASSERTIONS=1" } else { "-sASSERTIONS=0" }
 
-    $arguments = @(
-        "@BuildScripts\Web\web_game_sources.txt",
+    $commonCompileArguments = @(
         "-I.",
         "-IApplication",
         "-IEngine",
@@ -1093,13 +1093,12 @@ function Invoke-WebApplicationBuild {
         "-IEngine\ThirdParty\harfbuzz\src",
         "-I$ContentPath",
         ("-I{0}" -f (Join-Path $ContentPath "Scripts")),
-        "-std=c++20",
         "-DJBRO_PLATFORM_WEB",
         "-DJBRO_GAME",
         "-DJBRO_HAS_MINIAUDIO=1",
         "-DYAML_CPP_STATIC_DEFINE"
     )
-    $arguments += @(
+    $commonCompileArguments += @(
         "-DFT2_BUILD_LIBRARY",
         "-DHAVE_FREETYPE",
         "-DHB_NO_GLIB",
@@ -1108,7 +1107,24 @@ function Invoke-WebApplicationBuild {
         "-DHB_NO_DIRECTWRITE",
         "-DHB_NO_GDI"
     )
-    $arguments += $optimizationArgs
+    $commonCompileArguments += $optimizationArgs
+
+    # emcc chooses C or C++ per source extension. A global C++ standard option is invalid for
+    # FreeType's .c translation units, so compile those as C objects before the C++ link step.
+    $listedSources = Get-Content -LiteralPath $sourceList |
+        ForEach-Object { $_.Trim() } |
+        Where-Object { $_ -and -not $_.StartsWith("#") }
+    $cSources = @($listedSources | Where-Object { [IO.Path]::GetExtension($_) -ceq ".c" })
+    $cppSources = @($listedSources | Where-Object { [IO.Path]::GetExtension($_) -cne ".c" })
+    $cppSourceList = Join-Path $tempRoot "web_cpp_sources.txt"
+    Set-Content -LiteralPath $cppSourceList -Value $cppSources -Encoding utf8
+
+    $cObjects = @()
+    for ($sourceIndex = 0; $sourceIndex -lt $cSources.Count; ++$sourceIndex) {
+        $cObjects += Join-Path $tempRoot ("web_c_{0:D3}.o" -f $sourceIndex)
+    }
+
+    $arguments = @("@$cppSourceList") + $commonCompileArguments + @("-std=c++20") + $cObjects
 
     $scriptSources = @()
     foreach ($relativeSource in @("pch.cpp", "GameModule.cpp", "GeneratedScriptRegistry.cpp")) {
@@ -1131,6 +1147,7 @@ function Invoke-WebApplicationBuild {
     }
 
     $arguments += @(
+        $assertionsArgument,
         "--use-port=emdawnwebgpu",
         "-sALLOW_MEMORY_GROWTH=1",
         "-sASYNCIFY=1",
@@ -1144,6 +1161,20 @@ function Invoke-WebApplicationBuild {
 
     Push-Location $repoRoot
     try {
+        for ($sourceIndex = 0; $sourceIndex -lt $cSources.Count; ++$sourceIndex) {
+            $cArguments = @($commonCompileArguments) + @(
+                "-std=c11",
+                "-c",
+                $cSources[$sourceIndex],
+                "-o",
+                $cObjects[$sourceIndex]
+            )
+            & $emcc @cArguments
+            if ($LASTEXITCODE -ne 0) {
+                throw "Web C source build failed: $($cSources[$sourceIndex]). ExitCode=$LASTEXITCODE"
+            }
+        }
+
         & $emcc @arguments
         if ($LASTEXITCODE -ne 0) {
             throw "Web application build failed. ExitCode=$LASTEXITCODE"

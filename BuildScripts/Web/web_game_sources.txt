@@ -10,6 +10,7 @@ Engine/Core/Asset/AssetMetaFile.cpp
 Engine/Core/Asset/AssetPackage.cpp
 Engine/Core/Asset/AssetPath.cpp
 Engine/Core/Asset/AssetRegistry.cpp
+Engine/Core/Asset/AssetTypeRules.cpp
 Engine/Core/Asset/AudioAsset.cpp
 Engine/Core/Asset/AudioEffectAsset.cpp
 Engine/Core/Asset/FileAsset.cpp
@@ -42,6 +43,7 @@ Engine/Core/Renderer/Forward2DRenderer.cpp
 Engine/Core/Renderer/RenderResourceCache.cpp
 Engine/Core/Renderer/RenderResources2D.cpp
 Engine/Core/Renderer/RenderScene.cpp
+Engine/Core/Renderer/RenderWeave/RenderWeaveGraph.cpp
 Engine/Core/Resource/ResourceRegistry.cpp
 Engine/Core/RHI/EmptyRHIDevice.cpp
 Engine/Core/RHI/WebGPU/WebGPUBuffer.cpp
@@ -65,6 +67,7 @@ Engine/GameFramework/Physics2D/Physics2DSystem.cpp
 Engine/GameFramework/Prefab/PrefabSerializer.cpp
 Engine/GameFramework/Reflection/ReflectionRegistry.cpp
 Engine/GameFramework/Rendering/GameCamera.cpp
+Engine/GameFramework/Rendering/SpriteAnimationSystem.cpp
 Engine/GameFramework/Rendering/SpriteRenderSystem.cpp
 Engine/GameFramework/Rendering/ShapeGeometry2D.cpp
 Engine/GameFramework/Rendering/ShapeRenderSystem.cpp

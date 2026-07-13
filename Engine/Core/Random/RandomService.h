@@ -18,6 +18,6 @@ public:
 
 private:
 	mutable std::mutex m_mutex;
-	std::mt19937 m_engine;
 	std::uint32_t m_seed = 0;
+	std::mt19937 m_engine;
 };
