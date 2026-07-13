@@ -6,6 +6,15 @@
 /Build/**/Localization/
 /Dist/**/Localization/
 
+# 루트 Build 폴더는 에디터 런타임 리소스가 일부 추적되어 있으므로 폴더 전체를 막지 않는다.
+# 실행 파일/디버그 심볼 등 빌드 산출물만 명시적으로 제외한다.
+/Build/**/*.exe
+/Build/**/*.dll
+/Build/**/*.pdb
+/Build/**/*.ilk
+/Build/**/*.exp
+/Build/**/*.lib
+
 # 내부 작업노트/메모/도구 설정 (저장소 외부 — 깃허브에 안 올림). CLAUDE.md 는 프로젝트 규약이라 유지.
 /tasks/
 /Docs/WorkNotes/
@@ -49,6 +58,14 @@ bld/
 [Oo]bj/
 [Ll]og/
 [Ll]ogs/
+
+# 이름이 Debug/Log여도 아래 경로는 빌드 산출물이 아니라 실제 소스다.
+!/Engine/Core/Debug/
+!/Engine/Core/Debug/**
+!/Engine/GameFramework/Debug/
+!/Engine/GameFramework/Debug/**
+!/Application/Editor/Main/Log/
+!/Application/Editor/Main/Log/**
 
 # Visual Studio 2015/2017 cache/options directory
 .vs/
