@@ -118,7 +118,8 @@ public:
 		}
 		else if constexpr (requires { T::StaticTypeName(); })
 		{
-			return static_cast<T*>(FindComponentRaw(MakeStableTypeId(T::StaticTypeName())));
+			constexpr TypeId typeId = MakeStableTypeId(T::StaticTypeName());
+			return static_cast<T*>(FindComponentRaw(typeId));
 		}
 		else
 		{
@@ -145,7 +146,8 @@ public:
 		}
 		else if constexpr (requires { T::StaticTypeName(); })
 		{
-			return static_cast<const T*>(FindComponentRaw(MakeStableTypeId(T::StaticTypeName())));
+			constexpr TypeId typeId = MakeStableTypeId(T::StaticTypeName());
+			return static_cast<const T*>(FindComponentRaw(typeId));
 		}
 		else
 		{
