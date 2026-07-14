@@ -161,6 +161,8 @@ public:
 	static void ForEachScriptInExecutionOrder(CGameScene& scene, Fn&& fn)
 	{
 		scene.EnsureScriptExecutionOrder();
+		// fn 이 스폰·Ref 해석으로 캐시를 재빌드하지 못하게 순회 잠금.
+		CGameScene::ScriptIterationGuard iterationGuard(scene);
 		for (CGameScene::ScriptRuntimeState* runtime : scene.m_scriptExecutionOrder)
 		{
 			if (runtime && runtime->Instance)

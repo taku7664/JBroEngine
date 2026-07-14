@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <deque>
 #include <memory>
 #include <string>
 #include <type_traits>
@@ -252,6 +253,24 @@ private:
 		SafePtrDetail::ControlBlock* ControlBlock = nullptr;
 		IInputHandler* InputHandler = nullptr;
 		bool InputRegistered = false;
+		// m_scriptRuntimeStates(std::deque) 내 자기 위치. deque 는 포인터 산술이 안 되므로
+		// 파괴 시 free-list 로 반환할 인덱스를 여기 담아 둔다.
+		std::size_t SelfIndex = 0;
+	};
+
+	// 실행순서 캐시(m_scriptExecutionOrder / m_scriptRangesByObject) 순회 중임을 표시하는
+	// RAII 가드. 순회 도중 스크립트 스폰·Ref 해석이 EnsureScriptExecutionOrder 를 재진입하면
+	// RebuildScriptExecutionOrder 가 그 벡터를 clear/refill 해 바깥 순회를 무효화(UB)한다.
+	// 가드가 살아있는 동안 Ensure 는 재빌드를 미룬다(dirty 는 남아 다음 프레임에 반영).
+	class ScriptIterationGuard
+	{
+	public:
+		explicit ScriptIterationGuard(CGameScene& scene) : m_scene(scene) { ++m_scene.m_scriptIterationDepth; }
+		~ScriptIterationGuard() { --m_scene.m_scriptIterationDepth; }
+		ScriptIterationGuard(const ScriptIterationGuard&) = delete;
+		ScriptIterationGuard& operator=(const ScriptIterationGuard&) = delete;
+	private:
+		CGameScene& m_scene;
 	};
 
 	// ── 타입별 컴포넌트 풀 (타입소거) ─────────────────────────────────────────
@@ -359,13 +378,13 @@ private:
 	void EnsureScriptExecutionOrder();
 	void RebuildScriptExecutionOrder();
 	void AppendObjectScriptsInHierarchyOrder(CGameObject& object);
-	void ReindexScriptRuntimeStates();
-	void ReserveScriptRuntimeStates(std::size_t additionalCapacity);
 
 	template<typename Fn>
 	void ForEachScriptOnObject(CGameObject& object, Fn&& fn)
 	{
 		EnsureScriptExecutionOrder();
+		// 콜백(유저 스크립트)이 스폰·Ref 해석으로 캐시를 재빌드하지 못하게 순회 잠금.
+		ScriptIterationGuard iterationGuard(*this);
 		const auto rangeIt = m_scriptRangesByObject.find(&object);
 		if (rangeIt == m_scriptRangesByObject.end())
 		{
@@ -395,13 +414,18 @@ private:
 	std::uint64_t                      m_nextCreationOrder = 0; // 단조 증가 — 하이라키 정렬 키
 	std::vector<PoolEntry>             m_componentPools;   // sorted by Key
 	std::vector<OwnerPtr<ScriptMemoryPool>> m_scriptMemoryPools;
-	std::vector<ScriptRuntimeState> m_scriptRuntimeStates;
+	// deque 인 이유: 순회 중 스폰(emplace_back)해도 기존 원소 주소가 불변이라
+	// m_scriptExecutionOrder(포인터 벡터)·m_scriptRuntimeByComponent(포인터 값)가
+	// dangling 되지 않는다(vector 는 realloc 시 전부 무효 → 재인덱싱 필요했음).
+	std::deque<ScriptRuntimeState> m_scriptRuntimeStates;
 	std::vector<std::size_t> m_freeScriptRuntimeStateIndices;
-	std::size_t m_scriptRuntimeReserveTarget = 0;
 	std::unordered_map<const CComponent*, ScriptRuntimeState*> m_scriptRuntimeByComponent;
 	std::vector<ScriptRuntimeState*> m_scriptExecutionOrder;
 	std::unordered_map<const CGameObject*, ScriptObjectRange> m_scriptRangesByObject;
 	bool m_scriptExecutionOrderDirty = true;
+	// 실행순서 캐시 순회 깊이(>0 이면 순회 중). ScriptIterationGuard 가 증감하고
+	// EnsureScriptExecutionOrder 가 이 값이 0 일 때만 재빌드한다.
+	int m_scriptIterationDepth = 0;
 	std::uint64_t                      m_scriptAllocationGeneration = 1;
 	OwnerPtr<CTransformSystem>         m_transformSystem;
 	OwnerPtr<CPhysics2DSystem>         m_physicsSystem;

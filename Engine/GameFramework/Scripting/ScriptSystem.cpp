@@ -10,6 +10,9 @@
 void CScriptSystem::OnUpdate(CGameScene& scene)
 {
 	scene.EnsureScriptExecutionOrder();
+	// Start/Update 안에서 유저가 스폰·Ref 해석으로 캐시를 재빌드하면 이 순회가 무효화된다.
+	// 가드가 재빌드를 미룬다(스폰된 스크립트는 다음 프레임 반영).
+	CGameScene::ScriptIterationGuard iterationGuard(scene);
 	for (CGameScene::ScriptRuntimeState* runtime : scene.m_scriptExecutionOrder)
 	{
 		if (nullptr == runtime || nullptr == runtime->Instance)
@@ -59,6 +62,8 @@ void CScriptSystem::OnUpdate(CGameScene& scene)
 void CScriptSystem::OnFixedUpdate(CGameScene& scene)
 {
 	scene.EnsureScriptExecutionOrder();
+	// FixedUpdate 안 스폰·Ref 해석이 이 순회를 재빌드하지 못하게 잠금.
+	CGameScene::ScriptIterationGuard iterationGuard(scene);
 	for (CGameScene::ScriptRuntimeState* runtime : scene.m_scriptExecutionOrder)
 	{
 		if (nullptr == runtime || nullptr == runtime->Instance)

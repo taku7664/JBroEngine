@@ -239,7 +239,7 @@ void CGameScene::DestroyComponent(CComponent* component)
 		{
 			delete block;
 		}
-		const std::size_t runtimeIndex = static_cast<std::size_t>(runtime - m_scriptRuntimeStates.data());
+		const std::size_t runtimeIndex = runtime->SelfIndex;
 		*runtime = ScriptRuntimeState{};
 		m_freeScriptRuntimeStateIndices.push_back(runtimeIndex);
 		return;
@@ -256,35 +256,6 @@ void CGameScene::DestroyComponent(CComponent* component)
 	if (it != m_componentPools.end() && it->Key == key && it->Pool)
 	{
 		it->Pool->FreeBase(component);
-	}
-}
-
-void CGameScene::ReindexScriptRuntimeStates()
-{
-	m_scriptRuntimeByComponent.clear();
-	for (ScriptRuntimeState& state : m_scriptRuntimeStates)
-	{
-		if (state.Instance)
-		{
-			m_scriptRuntimeByComponent.emplace(state.Instance, &state);
-		}
-	}
-	m_scriptExecutionOrder.clear();
-	m_scriptRangesByObject.clear();
-	MarkScriptExecutionOrderDirty();
-}
-
-void CGameScene::ReserveScriptRuntimeStates(std::size_t additionalCapacity)
-{
-	if (0 == additionalCapacity)
-	{
-		return;
-	}
-	m_scriptRuntimeReserveTarget += additionalCapacity;
-	if (m_scriptRuntimeStates.capacity() < m_scriptRuntimeReserveTarget)
-	{
-		m_scriptRuntimeStates.reserve(m_scriptRuntimeReserveTarget);
-		ReindexScriptRuntimeStates();
 	}
 }
 
@@ -313,20 +284,18 @@ CGameScript* CGameScene::AddScript(
 	object.AttachComponent(script->SafeFromThis());
 
 	ScriptRuntimeState* state = nullptr;
+	std::size_t stateIndex = 0;
 	if (false == m_freeScriptRuntimeStateIndices.empty())
 	{
-		const std::size_t index = m_freeScriptRuntimeStateIndices.back();
+		stateIndex = m_freeScriptRuntimeStateIndices.back();
 		m_freeScriptRuntimeStateIndices.pop_back();
-		state = &m_scriptRuntimeStates[index];
+		state = &m_scriptRuntimeStates[stateIndex];
 	}
 	else
 	{
-		ScriptRuntimeState* previousData = m_scriptRuntimeStates.data();
+		// deque 라 emplace_back 이 기존 원소 주소를 무효화하지 않는다 — 재인덱싱 불필요.
+		stateIndex = m_scriptRuntimeStates.size();
 		m_scriptRuntimeStates.emplace_back();
-		if (previousData != m_scriptRuntimeStates.data())
-		{
-			ReindexScriptRuntimeStates();
-		}
 		state = &m_scriptRuntimeStates.back();
 	}
 
@@ -335,6 +304,7 @@ CGameScript* CGameScene::AddScript(
 	state->DestroyInstance = handle.DestroyInstance;
 	state->HostApi = handle.HostApi;
 	state->ControlBlock = block;
+	state->SelfIndex = stateIndex;
 	if (typeInfo->ToInputHandler)
 	{
 		state->InputHandler = typeInfo->ToInputHandler(script);
@@ -351,6 +321,12 @@ void CGameScene::MarkScriptExecutionOrderDirty()
 
 void CGameScene::EnsureScriptExecutionOrder()
 {
+	// 순회 중(가드 활성)에는 재빌드하지 않는다 — clear/refill 이 바깥 순회의 iterator·
+	// 인덱스를 무효화(UB)한다. dirty 는 유지되어 순회 밖 다음 호출에서 반영된다.
+	if (m_scriptIterationDepth > 0)
+	{
+		return;
+	}
 	if (m_scriptExecutionOrderDirty)
 	{
 		RebuildScriptExecutionOrder();
@@ -640,7 +616,6 @@ void CGameScene::ReserveScriptMemory(TypeId scriptTypeId, std::size_t size, std:
 	{
 		return;
 	}
-	ReserveScriptRuntimeStates(capacity);
 
 	const std::size_t effectiveSize = std::max<std::size_t>(size, 1);
 	const std::size_t effectiveAlignment = std::max<std::size_t>(alignment, alignof(void*));
@@ -759,6 +734,8 @@ void CGameScene::FreeScriptMemory(TypeId scriptTypeId, void* ptr, std::size_t si
 void CGameScene::DispatchSurfaceEventToScripts(const SurfaceEvent& surfaceEvent)
 {
 	EnsureScriptExecutionOrder();
+	// 훅(유저 스크립트)이 스폰·Ref 해석으로 캐시를 재빌드하지 못하게 순회 잠금.
+	ScriptIterationGuard iterationGuard(*this);
 	for (ScriptRuntimeState* runtime : m_scriptExecutionOrder)
 	{
 		CGameScript* instance = runtime ? runtime->Instance : nullptr;
@@ -813,7 +790,6 @@ void CGameScene::ClearObjects()
 	m_componentPools.clear();
 	m_scriptRuntimeStates.clear();
 	m_freeScriptRuntimeStateIndices.clear();
-	m_scriptRuntimeReserveTarget = 0;
 	m_scriptRuntimeByComponent.clear();
 	m_scriptExecutionOrder.clear();
 	m_scriptRangesByObject.clear();
