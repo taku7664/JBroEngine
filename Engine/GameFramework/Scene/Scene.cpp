@@ -460,12 +460,17 @@ void CGameScene::SetObjectInstanceGuid(CGameObject& object, const File::Guid& gu
 
 void CGameScene::Update(bool isSimulationPlaying)
 {
-	UpdateSystems(isSimulationPlaying);
+	// 순서 계약: 스크립트 → 파괴 flush → 시스템(transform 전파 → 렌더 제출).
+	// 스크립트가 옮긴 트랜스폼·스폰·파괴가 같은 프레임 렌더에 반영된다.
+	// (구 순서: 시스템 제출이 스크립트보다 앞 → 스크립트 변경이 1프레임 늦게 그려짐.)
+	// 스크립트 Update 안에서 GetWorld().Matrix 는 아직 지난 프레임 전파값 —
+	// 신선한 월드값이 필요하면 SceneTransformUtils::GetWorldTransform 을 쓴다.
 	if (isSimulationPlaying)
 	{
 		UpdateScripts();
 	}
 	FlushPendingDestroys();
+	UpdateSystems(isSimulationPlaying);
 }
 
 void CGameScene::Update()
