@@ -171,6 +171,8 @@ bool CEngine::Update()
 
 void CEngine::Finalize()
 {
+	m_preRenderCallback = nullptr;
+
 	// surface 파괴 전에 윈도우 이벤트 구독 해지(댕글링 핸들러 방지).
 	if (0 != m_surfaceEventToken && Engine.MainRenderSurface)
 	{
@@ -330,6 +332,11 @@ void CEngine::SetGameRenderCameras(std::vector<GameRenderCameraDesc> cameras)
 void CEngine::SetGameRenderLights(std::vector<GameRenderLightDesc> lights)
 {
 	m_gameRenderLights = std::move(lights);
+}
+
+void CEngine::SetPreRenderCallback(std::function<void()> callback)
+{
+	m_preRenderCallback = std::move(callback);
 }
 
 const ScriptCore& CEngine::GetScriptCore() const
@@ -700,6 +707,14 @@ void CEngine::RenderFrame()
 			m_lastSurfaceWidth  = currentSize.Width;
 			m_lastSurfaceHeight = currentSize.Height;
 		}
+	}
+
+	// 카메라/라이트 스냅샷 수집 훅 — 시뮬레이션이 끝난 뒤·렌더 직전에 호출해야
+	// 이번 프레임의 물리/스크립트 이동이 카메라에 반영된다(리사이즈 처리 뒤라
+	// GetRenderTargetSize 도 최신). OnPreTick 수집은 1프레임 지연 카메라를 만든다.
+	if (m_preRenderCallback)
+	{
+		m_preRenderCallback();
 	}
 
 	m_rhiDevice->BeginFrame();

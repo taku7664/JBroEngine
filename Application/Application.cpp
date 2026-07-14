@@ -103,7 +103,8 @@ void CGameApplication::OnPreTick()
 	{
 		m_gameModuleLoader->Tick();
 	}
-	ConfigureRuntimeViewCamera();
+	// 카메라/라이트 수집은 여기서 하지 않는다 — 시뮬 이전 수집은 1프레임 지연 카메라를
+	// 만든다. InitializeRuntimeGame 이 등록한 pre-render 콜백(렌더 직전)에서 수집한다.
 #endif
 }
 
@@ -179,6 +180,13 @@ bool CGameApplication::InitializeRuntimeGame()
 	if (false == LoadRuntimeStartupScene(manifest))
 	{
 		return false;
+	}
+
+	// 카메라/라이트 스냅샷은 렌더 직전에 수집한다(시뮬 이후 상태 반영 — OnPreTick
+	// 수집은 물리/스크립트보다 1프레임 뒤진 카메라를 만든다).
+	if (CEngine* engine = GetEngine())
+	{
+		engine->SetPreRenderCallback([this] { ConfigureRuntimeViewCamera(); });
 	}
 
 	m_runtimeGameInitialized = true;
@@ -582,6 +590,10 @@ void CGameApplication::ShutdownRuntimeGame()
 	{
 		m_gameModuleLoader->Unload();
 		m_gameModuleLoader.Reset();
+	}
+	if (CEngine* engine = GetEngine())
+	{
+		engine->SetPreRenderCallback(nullptr);
 	}
 	m_runtimeGameInitialized = false;
 }

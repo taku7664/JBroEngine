@@ -23,6 +23,7 @@
 
 class CProjectManager;
 class CDebugRenderer2D;
+class CGameScene;
 class COutlineRenderer2D;
 class IRHITexture;
 struct ScriptCore;
@@ -88,9 +89,9 @@ public:
 
 	// Game view (multi-camera)
 	void RequestGameViewRenderTarget(std::uint32_t width, std::uint32_t height);
-	// Submit all active game cameras for this frame (sorted by Priority, ascending).
-	void SetGameViewCameras(const std::vector<GameRenderCameraDesc>& cameras);
-	void SetGameViewLights(const std::vector<GameRenderLightDesc>& lights);
+	// 게임뷰가 그릴 씬 — 카메라/라이트 스냅샷은 PrepareRender(시뮬 이후·렌더 직전)가
+	// 이 씬에서 직접 수집한다. UI 빌드 시점 수집은 1프레임 지연 카메라를 만든다.
+	void SetGameViewScene(SafePtr<CGameScene> scene);
 	void* GetGameViewTextureID() const;
 	std::uint32_t GetGameViewWidth()  const { return m_gameViewWidth;  }
 	std::uint32_t GetGameViewHeight() const { return m_gameViewHeight; }
@@ -151,6 +152,7 @@ private:
 	std::uint32_t              m_gameViewWidth    = 0;
 	std::uint32_t              m_gameViewHeight   = 0;
 	bool                       m_gameViewRequested = false;
+	SafePtr<CGameScene>        m_gameViewScene;
 	std::vector<GameRenderCameraDesc> m_gameViewCameras;
 	std::vector<GameRenderLightDesc> m_gameViewLights;
 	std::unordered_map<const void*, RenderCullingStats> m_gameViewCameraCullingStats;

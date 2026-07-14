@@ -85,25 +85,25 @@ void CGameViewTool::OnRenderStay()
 	float resH = vpSize.y;
 	GetProjectResolution(vpSize.x, vpSize.y, resW, resH);
 
-	// Collect all active game cameras and submit them to ImEditor.
+	// 씬 핸들만 ImEditor 에 넘긴다 — 카메라/라이트 스냅샷은 ImEditor 의
+	// PrepareRender(시뮬 이후·렌더 직전)가 씬에서 직접 수집한다. 여기(UI 빌드,
+	// 씬 업데이트 전) 수집분은 "활성 카메라 존재" 판정(RT 요청/해제)에만 쓴다.
 	if (Editor::ImEditor)
 	{
 		std::vector<GameRenderCameraDesc> cameras;
-		std::vector<GameRenderLightDesc> lights;
+		SafePtr<CGameScene> scene;
 		if (Engine.SceneManager)
 		{
-			SafePtr<CGameScene> scene = EditorContext::GetActiveScene();
+			scene = EditorContext::GetActiveScene();
 			if (scene)
 			{
 				cameras = CollectGameRenderCameras(*scene, resW, resH);
-				lights = CollectGameRenderLights(*scene);
 			}
 		}
 
 		if (false == cameras.empty())
 		{
-			Editor::ImEditor->SetGameViewCameras(cameras);
-			Editor::ImEditor->SetGameViewLights(lights);
+			Editor::ImEditor->SetGameViewScene(scene);
 			// RT는 프로젝트 해상도로 요청합니다.
 			Editor::ImEditor->RequestGameViewRenderTarget(
 				static_cast<std::uint32_t>(resW),
@@ -112,8 +112,7 @@ void CGameViewTool::OnRenderStay()
 		else
 		{
 			// No active Camera2D — release the RT so texID becomes null.
-			Editor::ImEditor->SetGameViewCameras({});
-			Editor::ImEditor->SetGameViewLights({});
+			Editor::ImEditor->SetGameViewScene(nullptr);
 			Editor::ImEditor->RequestGameViewRenderTarget(0, 0);
 		}
 	}

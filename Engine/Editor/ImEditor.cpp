@@ -13,6 +13,7 @@
 #include "Core/RHI/IRHIDevice.h"
 #include "Core/RHI/IRHITexture.h"
 #include "Editor/Project/ProjectManager.h"
+#include "GameFramework/Scene/Scene.h"
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
@@ -249,14 +250,9 @@ void CImEditor::RequestGameViewRenderTarget(std::uint32_t width, std::uint32_t h
 	}
 }
 
-void CImEditor::SetGameViewCameras(const std::vector<GameRenderCameraDesc>& cameras)
+void CImEditor::SetGameViewScene(SafePtr<CGameScene> scene)
 {
-	m_gameViewCameras = cameras;
-}
-
-void CImEditor::SetGameViewLights(const std::vector<GameRenderLightDesc>& lights)
-{
-	m_gameViewLights = lights;
+	m_gameViewScene = scene;
 }
 
 void* CImEditor::GetGameViewTextureID() const
@@ -625,6 +621,17 @@ void CImEditor::OnPrepareRender()
 	// ── Game view (multi-camera) ───────────────────────────────────────────────────
 	if (m_gameViewRequested && EnsureRT(m_gameViewRenderTarget, m_gameViewWidth, m_gameViewHeight))
 	{
+		// 카메라/라이트 스냅샷을 여기(시뮬 이후·렌더 직전)서 수집한다 — GameViewTool
+		// 의 UI 빌드 시점(씬 업데이트 전) 수집은 1프레임 지연 카메라를 만든다.
+		if (CGameScene* gameViewScene = m_gameViewScene.TryGet())
+		{
+			m_gameViewCameras = CollectGameRenderCameras(
+				*gameViewScene,
+				static_cast<float>(m_gameViewWidth),
+				static_cast<float>(m_gameViewHeight));
+			m_gameViewLights = CollectGameRenderLights(*gameViewScene);
+		}
+
 		std::vector<GameRenderCameraStats> cameraStats;
 		RenderGameCameraStack(
 			*commandContext,
