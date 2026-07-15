@@ -4,6 +4,7 @@
 #include "GameFramework/Serialization/ObjectSerializer.h"
 #include "GameFramework/Object/GameObject.h"
 #include "GameFramework/Reflection/ReflectionRegistry.h"
+#include "GameFramework/Scene/GameLayer.h"
 #include "GameFramework/Scene/Scene.h"
 #include "GameFramework/Scene/SceneRuntimeAccess.h"
 #include "Core/ScriptCore.h"
@@ -41,6 +42,83 @@ namespace
 			}
 		}
 		return node;
+	}
+
+	// 레이어 섹션 — 자기완결 노드(차후 레이어 파일 에셋 분리 대비, 씬 레벨 정보 미포함).
+	// 순서 = 시퀀스 순서(컴포짓 아래→위).
+	YAML::Node WriteLayers(const CGameScene& scene)
+	{
+		YAML::Node node(YAML::NodeType::Sequence);
+		for (std::size_t i = 0; i < scene.GetLayerCount(); ++i)
+		{
+			const CGameLayer* layer = scene.GetLayerAt(i);
+			if (nullptr == layer)
+			{
+				continue;
+			}
+			YAML::Node layerNode(YAML::NodeType::Map);
+			layerNode["Name"]            = layer->Name;
+			layerNode["Guid"]            = layer->GetInstanceGuid().generic_string();
+			layerNode["Blend"]           = ToString(layer->BlendMode);
+			layerNode["Opacity"]         = layer->Opacity;
+			layerNode["Visible"]         = layer->Visible;
+			layerNode["Static"]          = layer->Static;
+			layerNode["ForceOwnTexture"] = layer->ForceOwnTexture;
+			layerNode["Parallax"]        = layer->ParallaxFactor;
+			node.push_back(layerNode);
+		}
+		return node;
+	}
+
+	// Layers 시퀀스를 씬에 재구성한다. 노드가 없거나 비면(구 포맷 마이그레이션) 기본
+	// 레이어 1개를 만든다 — "레이어 0개 + 오브젝트 존재" 불허 불변식.
+	// guid 복원은 씬 friend 권한이 필요해 호출측(CSceneSerializer 멤버)이 수행하도록
+	// (레이어, 파일 guid) 쌍을 돌려준다.
+	std::vector<std::pair<CGameLayer*, File::Guid>> ReadLayers(CGameScene& scene, const YAML::Node& node)
+	{
+		std::vector<std::pair<CGameLayer*, File::Guid>> layerGuids;
+		if (node && node.IsSequence())
+		{
+			for (const YAML::Node& layerNode : node)
+			{
+				if (!layerNode || false == layerNode.IsMap())
+				{
+					continue;
+				}
+				const std::string name = layerNode["Name"] ? layerNode["Name"].as<std::string>("Layer") : "Layer";
+				CGameLayer* layer = scene.CreateLayer(name.c_str());
+				if (nullptr == layer)
+				{
+					continue;
+				}
+				try
+				{
+					if (layerNode["Guid"])
+					{
+						const File::Guid guid(layerNode["Guid"].as<std::string>(""));
+						if (false == guid.IsNull())
+						{
+							layerGuids.emplace_back(layer, guid);
+						}
+					}
+				}
+				catch (const YAML::Exception&)
+				{
+				}
+				const std::string blend = layerNode["Blend"] ? layerNode["Blend"].as<std::string>("Normal") : "Normal";
+				layer->BlendMode       = LayerBlendModeFromString(blend.c_str());
+				layer->Opacity         = layerNode["Opacity"]         ? layerNode["Opacity"].as<float>(1.0f)        : 1.0f;
+				layer->Visible         = layerNode["Visible"]         ? layerNode["Visible"].as<bool>(true)         : true;
+				layer->Static          = layerNode["Static"]          ? layerNode["Static"].as<bool>(false)         : false;
+				layer->ForceOwnTexture = layerNode["ForceOwnTexture"] ? layerNode["ForceOwnTexture"].as<bool>(false): false;
+				layer->ParallaxFactor  = layerNode["Parallax"]        ? layerNode["Parallax"].as<float>(1.0f)       : 1.0f;
+			}
+		}
+		if (0 == scene.GetLayerCount())
+		{
+			scene.CreateLayer(nullptr);
+		}
+		return layerGuids;
 	}
 
 	std::vector<AssetGuid> ReadReferencedAssets(const YAML::Node& node)
@@ -147,15 +225,25 @@ ESceneSerializeResult CSceneSerializer::SerializeToText(CGameScene& scene, std::
 		indexOf[objectList[i]] = static_cast<int>(i);
 	}
 
+	// 레이어 포인터 → 파일 내 레이어 인덱스(레이어 시퀀스 순서와 동일).
+	std::unordered_map<const CGameLayer*, int> layerIndexOf;
+	for (std::size_t i = 0; i < scene.GetLayerCount(); ++i)
+	{
+		layerIndexOf[scene.GetLayerAt(i)] = static_cast<int>(i);
+	}
+
 	YAML::Node objects(YAML::NodeType::Sequence);
 	for (const CGameObject* obj : objectList)
 	{
 		YAML::Node node = Serialization::WriteObject(*obj, &referencedAssets);
 
-		// 계층은 씬 레벨 관심사 — 부모 인덱스를 오브젝트 노드에 덧붙인다.
+		// 계층·레이어 소속은 씬 레벨 관심사 — 인덱스를 오브젝트 노드에 덧붙인다.
 		const CGameObject* parent = obj->GetParent().TryGet();
 		const auto parentIt = parent ? indexOf.find(parent) : indexOf.end();
 		node["ParentIndex"] = (parentIt != indexOf.end()) ? parentIt->second : -1;
+
+		const auto layerIt = layerIndexOf.find(obj->GetLayer().TryGet());
+		node["LayerIndex"] = (layerIt != layerIndexOf.end()) ? layerIt->second : 0;
 
 		objects.push_back(node);
 	}
@@ -164,6 +252,7 @@ ESceneSerializeResult CSceneSerializer::SerializeToText(CGameScene& scene, std::
 	YAML::Node root(YAML::NodeType::Map);
 	root["Version"]          = SCENE_FILE_VERSION;
 	root["ReferencedAssets"] = WriteReferencedAssets(referencedAssets);
+	root["Layers"]           = WriteLayers(scene);
 	root["Objects"]          = objects;
 
 	YAML::Emitter emitter;
@@ -212,6 +301,16 @@ ESceneSerializeResult CSceneSerializer::DeserializeFromText(CGameScene& scene, c
 	ReserveScenePools(scene, objectsNode);
 	std::vector<AssetGuid> referencedAssets = ReadReferencedAssets(root["ReferencedAssets"]);
 
+	// 레이어 먼저 재구성(오브젝트 배정 대상). Layers 키 없는 구 포맷은 기본 레이어 1개.
+	const std::vector<std::pair<CGameLayer*, File::Guid>> layerGuids = ReadLayers(scene, root["Layers"]);
+	for (const auto& [layer, guid] : layerGuids)
+	{
+		if (layer)
+		{
+			scene.SetLayerInstanceGuid(*layer, guid);
+		}
+	}
+
 	std::vector<CGameObject*> objects;
 	std::vector<int> parentIndices;
 	for (const YAML::Node& objectNode : objectsNode)
@@ -225,6 +324,14 @@ ESceneSerializeResult CSceneSerializer::DeserializeFromText(CGameScene& scene, c
 		if (nullptr == object)
 		{
 			return ESceneSerializeResult::ParseError;
+		}
+
+		// 레이어 배정 — 부모 연결 전(전부 루트)이라 서브트리 전파 비용 없음.
+		// LayerIndex 없는 구 포맷/범위 밖 인덱스는 기본(첫) 레이어 유지.
+		const int layerIndex = objectNode["LayerIndex"] ? objectNode["LayerIndex"].as<int>(0) : 0;
+		if (CGameLayer* layer = scene.GetLayerAt(static_cast<std::size_t>(std::max(layerIndex, 0))))
+		{
+			scene.MoveObjectToLayer(*object, *layer);
 		}
 
 		objects.push_back(object);

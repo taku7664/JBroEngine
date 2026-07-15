@@ -8,6 +8,7 @@
 #include "GameFramework/Scripting/GameScript.h"
 #include "GameFramework/Physics2D/Physics2DSystem.h"
 #include "GameFramework/Reflection/ReflectionRegistry.h"
+#include "GameFramework/Scene/GameLayer.h"
 #include "GameFramework/Scripting/ScriptSystem.h"
 #include "GameFramework/Transform/TransformSystem.h"
 
@@ -136,12 +137,144 @@ CGameScene::~CGameScene()
 	Clear();
 }
 
-CGameObject* CGameScene::CreateGameObject(const char* name)
+CGameLayer* CGameScene::CreateLayer(const char* name)
+{
+	std::string autoName;
+	if (nullptr == name || '\0' == name[0])
+	{
+		autoName = "Layer " + std::to_string(m_layers.size() + 1);
+		name = autoName.c_str();
+	}
+	OwnerPtr<CGameLayer> layer = MakeOwnerPtr<CGameLayer>(name, File::GenerateGuid());
+	CGameLayer* raw = layer.Get();
+	m_layers.push_back(std::move(layer));
+	MarkScriptExecutionOrderDirty();
+	return raw;
+}
+
+bool CGameScene::DestroyLayer(CGameLayer* layer)
+{
+	if (nullptr == layer || m_layers.size() <= 1 || GetLayerIndex(layer) < 0)
+	{
+		return false;
+	}
+	// 소속 루트 오브젝트 파괴 예약(자식은 재귀 파괴가 따라감 — 자식=부모 레이어 불변식).
+	ForEachObject([this, layer](CGameObject& object)
+	{
+		if (object.GetLayer().TryGet() == layer && false == object.GetParent().IsValid())
+		{
+			m_pendingDestroyObjects.push_back(object.SafeFromThis());
+		}
+	});
+	m_pendingDestroyLayers.push_back(layer->SafeFromThis());
+	return true;
+}
+
+SafePtr<CGameLayer> CGameScene::FindLayerByName(const char* name) const
+{
+	if (nullptr == name)
+	{
+		return nullptr;
+	}
+	for (const OwnerPtr<CGameLayer>& layer : m_layers)
+	{
+		if (layer && layer->Name == name)
+		{
+			return layer.GetSafePtr();
+		}
+	}
+	return nullptr;
+}
+
+SafePtr<CGameLayer> CGameScene::FindLayerByInstanceGuid(const File::Guid& guid) const
+{
+	if (guid.IsNull())
+	{
+		return nullptr;
+	}
+	for (const OwnerPtr<CGameLayer>& layer : m_layers)
+	{
+		if (layer && layer->GetInstanceGuid() == guid)
+		{
+			return layer.GetSafePtr();
+		}
+	}
+	return nullptr;
+}
+
+CGameLayer* CGameScene::GetLayerAt(std::size_t index) const
+{
+	return index < m_layers.size() ? m_layers[index].Get() : nullptr;
+}
+
+int CGameScene::GetLayerIndex(const CGameLayer* layer) const
+{
+	if (nullptr == layer)
+	{
+		return -1;
+	}
+	for (std::size_t i = 0; i < m_layers.size(); ++i)
+	{
+		if (m_layers[i].Get() == layer)
+		{
+			return static_cast<int>(i);
+		}
+	}
+	return -1;
+}
+
+bool CGameScene::MoveLayer(CGameLayer* layer, std::size_t newIndex)
+{
+	const int currentIndex = GetLayerIndex(layer);
+	if (currentIndex < 0)
+	{
+		return false;
+	}
+	OwnerPtr<CGameLayer> moved = std::move(m_layers[static_cast<std::size_t>(currentIndex)]);
+	m_layers.erase(m_layers.begin() + currentIndex);
+	newIndex = std::min(newIndex, m_layers.size());
+	m_layers.insert(m_layers.begin() + static_cast<std::ptrdiff_t>(newIndex), std::move(moved));
+	MarkScriptExecutionOrderDirty();
+	return true;
+}
+
+CGameLayer* CGameScene::GetDefaultLayer()
+{
+	if (m_layers.empty())
+	{
+		return CreateLayer(nullptr);
+	}
+	return m_layers.front().Get();
+}
+
+bool CGameScene::MoveObjectToLayer(CGameObject& object, CGameLayer& layer)
+{
+	// 루트 서브트리 단위만 — 비루트 이동은 "자식=부모 레이어" 불변식을 깬다.
+	if (object.GetScene() != this || object.GetParent().IsValid() || GetLayerIndex(&layer) < 0)
+	{
+		return false;
+	}
+	object.SetLayerRecursive(layer.SafeFromThis());
+	MarkScriptExecutionOrderDirty();
+	return true;
+}
+
+void CGameScene::SetLayerInstanceGuid(CGameLayer& layer, const File::Guid& guid)
+{
+	layer.SetInstanceGuid(guid);
+}
+
+CGameObject* CGameScene::CreateGameObject(const char* name, CGameLayer* layer)
 {
 	const File::Guid guid = File::GenerateGuid();
 	CGameObject* object = m_objectPool.Allocate(*this, name, guid);
 	if (object)
 	{
+		if (nullptr == layer || GetLayerIndex(layer) < 0)
+		{
+			layer = GetDefaultLayer();
+		}
+		object->m_layer = layer->SafeFromThis();
 		object->m_creationOrder = m_nextCreationOrder++;
 		m_objectByGuid[ToGuid128(guid)] = object->SafeFromThis();
 		MarkScriptExecutionOrderDirty();
@@ -349,8 +482,29 @@ void CGameScene::RebuildScriptExecutionOrder()
 			roots.push_back(&object);
 		}
 	});
-	std::sort(roots.begin(), roots.end(), [](const CGameObject* lhs, const CGameObject* rhs)
+	// 실행 순서 = 레이어 순서(컴포짓 순서와 동일 축) → 레이어 내 하이라키 순서.
+	// 레이어 포인터→인덱스 맵은 재빌드(cold path)당 1회만 구성한다.
+	std::unordered_map<const CGameLayer*, std::size_t> layerIndexOf;
+	layerIndexOf.reserve(m_layers.size());
+	for (std::size_t i = 0; i < m_layers.size(); ++i)
 	{
+		layerIndexOf.emplace(m_layers[i].Get(), i);
+	}
+	auto layerIndexOfObject = [&layerIndexOf](const CGameObject* object)
+	{
+		const auto it = layerIndexOf.find(object->GetLayer().TryGet());
+		// 레이어 미배정(방어)은 맨 뒤로.
+		return it != layerIndexOf.end() ? it->second : layerIndexOf.size();
+	};
+	std::sort(roots.begin(), roots.end(),
+		[&layerIndexOfObject](const CGameObject* lhs, const CGameObject* rhs)
+	{
+		const std::size_t lhsLayer = layerIndexOfObject(lhs);
+		const std::size_t rhsLayer = layerIndexOfObject(rhs);
+		if (lhsLayer != rhsLayer)
+		{
+			return lhsLayer < rhsLayer;
+		}
 		return lhs->GetCreationOrder() < rhs->GetCreationOrder();
 	});
 
@@ -505,6 +659,23 @@ void CGameScene::FlushPendingDestroys()
 				DestroyObjectRecursive(object);
 			}
 		}
+	}
+
+	// 레이어는 소속 오브젝트 파괴가 끝난 뒤 제거한다(순서 계약).
+	if (false == m_pendingDestroyLayers.empty())
+	{
+		std::vector<SafePtr<CGameLayer>> pendingLayers;
+		pendingLayers.swap(m_pendingDestroyLayers);
+		for (const SafePtr<CGameLayer>& ref : pendingLayers)
+		{
+			const CGameLayer* layer = ref.TryGet();
+			const int index = GetLayerIndex(layer);
+			if (index >= 0)
+			{
+				m_layers.erase(m_layers.begin() + index);
+			}
+		}
+		MarkScriptExecutionOrderDirty();
 	}
 }
 
@@ -797,6 +968,9 @@ void CGameScene::ClearObjects()
 	m_objectByGuid.clear();
 	m_objectPool.Clear();
 	m_referencedAssets.clear();
+	// 레이어는 오브젝트 정리 뒤 마지막에 — 직렬화 로드가 파일 기준으로 재구성한다.
+	m_pendingDestroyLayers.clear();
+	m_layers.clear();
 }
 
 void CGameScene::Clear()

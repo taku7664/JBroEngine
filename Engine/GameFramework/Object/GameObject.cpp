@@ -31,11 +31,28 @@ bool CGameObject::SetParent(CGameObject& parent)
 	ClearParent();
 	m_parent = parent.SafeFromThis();
 	parent.AddChildInternal(SafeFromThis());
+	// 불변식: 자식은 부모와 같은 레이어 — 다르면 서브트리 전체를 부모 레이어로 전파.
+	if (m_layer.TryGet() != parent.m_layer.TryGet())
+	{
+		SetLayerRecursive(parent.m_layer);
+	}
 	if (m_scene)
 	{
 		m_scene->MarkScriptExecutionOrderDirty();
 	}
 	return true;
+}
+
+void CGameObject::SetLayerRecursive(const SafePtr<CGameLayer>& layer)
+{
+	m_layer = layer;
+	for (const SafePtr<CGameObject>& childRef : m_children)
+	{
+		if (CGameObject* child = childRef.TryGet())
+		{
+			child->SetLayerRecursive(layer);
+		}
+	}
 }
 
 void CGameObject::ClearParent()

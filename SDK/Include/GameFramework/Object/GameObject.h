@@ -14,6 +14,7 @@
 #include <type_traits>
 #include <vector>
 
+class CGameLayer;
 class CGameScene;
 
 // 오브젝트 비트 플래그. 상시 멤버(호스트/DLL/게임 동일 레이아웃 → ABI 안전).
@@ -102,6 +103,11 @@ public:
 
 	CGameScene* GetScene() const { return m_scene; }
 	std::uint64_t GetCreationOrder() const { return m_creationOrder; }
+
+	// ── 레이어 ────────────────────────────────────────────────────────────────
+	// 소속 레이어. 불변식: 자식은 항상 부모와 같은 레이어(SetParent 가 서브트리 전파).
+	// 재배정은 CGameScene::MoveObjectToLayer(루트 서브트리 단위)로만 한다.
+	SafePtr<CGameLayer> GetLayer() const { return m_layer; }
 
 	// ── 컴포넌트 ──────────────────────────────────────────────────────────────
 	// AddComponent/RemoveComponent: Scene.h 하단 정의.
@@ -360,9 +366,14 @@ private:
 		}
 	}
 
+	// 소속 레이어를 서브트리 전체에 적용한다 — SetParent(부모 레이어 상속)와
+	// CGameScene::MoveObjectToLayer 전용.
+	void SetLayerRecursive(const SafePtr<CGameLayer>& layer);
+
 	CGameScene*                       m_scene = nullptr;
 	// 하이라키 표시/저장용 내부 정렬 키. 변경은 CSceneRuntimeAccess만 수행한다.
 	std::uint64_t                     m_creationOrder = 0;
+	SafePtr<CGameLayer>               m_layer;
 	SafePtr<CGameObject>              m_parent;
 	std::vector<SafePtr<CGameObject>> m_children;
 	std::vector<SafePtr<CComponent>>  m_components;

@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+class CGameLayer;
 class CPhysics2DSystem;
 class CReflectionRegistry;
 class CSceneManager;
@@ -49,8 +50,28 @@ public:
 	// SceneManager 의 m_scenes 유일 키와 동일(CreateScene 이 설정). Ref<GameScene> 해석 키.
 	const char* GetName() const { return m_name.c_str(); }
 
+	// ── 레이어 ────────────────────────────────────────────────────────────────
+	// 순서 = m_layers 벡터 순서 = 컴포짓(아래→위)·스크립트 실행 순서.
+	// "레이어 0개 + 오브젝트 존재" 불허 — 오브젝트 생성이 기본 레이어를 보장한다.
+	CGameLayer* CreateLayer(const char* name = nullptr);
+	// 지연 파괴 — 소속 오브젝트를 파괴 예약하고 레이어는 flush 에서 제거.
+	// 마지막 남은 레이어는 거부(false).
+	bool                DestroyLayer(CGameLayer* layer);
+	SafePtr<CGameLayer> FindLayerByName(const char* name) const;
+	SafePtr<CGameLayer> FindLayerByInstanceGuid(const File::Guid& guid) const;
+	std::size_t         GetLayerCount() const { return m_layers.size(); }
+	CGameLayer*         GetLayerAt(std::size_t index) const;
+	// 없으면 -1. cold path 용(직렬화/에디터) — 프레임 루프에서 반복 호출 금지.
+	int                 GetLayerIndex(const CGameLayer* layer) const;
+	bool                MoveLayer(CGameLayer* layer, std::size_t newIndex);
+	// 첫 레이어 반환, 하나도 없으면 생성해서 보장.
+	CGameLayer*         GetDefaultLayer();
+	// 루트 오브젝트(부모 없음)만 허용 — 서브트리 전체를 대상 레이어로 전파.
+	bool MoveObjectToLayer(CGameObject& object, CGameLayer& layer);
+
 	// ── 오브젝트 ──────────────────────────────────────────────────────────────
-	CGameObject* CreateGameObject(const char* name = nullptr);
+	// layer 미지정(nullptr) = 기본(첫) 레이어. 레이어가 없으면 만들어서 배정한다.
+	CGameObject* CreateGameObject(const char* name = nullptr, CGameLayer* layer = nullptr);
 	bool         DestroyGameObject(CGameObject* gameObject);
 	std::size_t  GetObjectCount() const { return m_objectPool.GetLiveCount(); }
 
@@ -236,6 +257,8 @@ private:
 
 	void SetName(const char* name) { m_name = name ? name : ""; }
 	void SetObjectInstanceGuid(CGameObject& object, const File::Guid& guid);
+	// 직렬화 전용 — 로드 시 파일의 레이어 guid 를 복원한다(GameInstance friend 경유).
+	void SetLayerInstanceGuid(CGameLayer& layer, const File::Guid& guid);
 
 	template<typename T>
 	void ReserveComponentPool(std::size_t capacity)
@@ -405,6 +428,10 @@ private:
 
 private:
 	std::string                        m_name; // SceneManager 키와 동일(CreateScene 설정)
+	// 레이어 목록 — 벡터 순서가 곧 컴포짓/실행 순서. 소유는 씬, 공유는 SafePtr.
+	std::vector<OwnerPtr<CGameLayer>>  m_layers;
+	// 지연 파괴 레이어(소속 오브젝트 파괴 flush 후 목록에서 제거).
+	std::vector<SafePtr<CGameLayer>>   m_pendingDestroyLayers;
 	TObjectPool<CGameObject>           m_objectPool;
 	// InstanceGuid → 오브젝트 빠른 해석. FindByInstanceGuid / Ref<T>::Get 이 매 호출
 	// O(n) 풀 스캔 + path 비교를 하던 것을 O(1) 해시 조회로 바꾼다. 생성/파괴/guid 재설정
