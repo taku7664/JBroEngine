@@ -1,31 +1,30 @@
 #include "pch.h"
 #include "PrefabSerializer.h"
 
-#include "Core/ScriptCore.h"
-#include "GameFramework/Component/Light2D.h"
-#include "GameFramework/Component/Physics2DComponents.h"
 #include "GameFramework/Object/GameObject.h"
-#include "GameFramework/Reflection/ReflectionRegistry.h"
-#include "GameFramework/Scene/Scene.h"
-#include "GameFramework/Scene/SceneSerializer.h"
+#include "GameFramework/Serialization/ObjectSerializer.h"
 #include "Utillity/File/FilePath.h"
 
-#include <cstring>
 #include <fstream>
 #include <sstream>
+#include <string>
 
-EPrefabSerializeResult CPrefabSerializer::SerializePrefabToText(const CGameScene& scene, const CGameObject* root, std::string& outText) const
+// 서브트리 직렬화는 Serialization(ObjectSerializer/ComponentSerializer) 계층에 전부 위임한다.
+// 예전에는 여기서 임시 씬에 서브트리를 복제(CloneHierarchy)한 뒤 그 씬을 통째로 직렬화했는데,
+// 그 복제가 InstanceGuid 를 안 옮기고 스크립트를 통째로 흘렸다(리플렉션에서 스크립트는 컴포넌트
+// 이름 맵에 없어 조회에 걸리지 않는다). Serialization 계층은 오브젝트/컴포넌트 guid 를 보존하고
+// 스크립트를 별도 분기로 처리하므로, 복제 단계를 없애는 것이 곧 그 손실을 없애는 것이다.
+
+EPrefabSerializeResult CPrefabSerializer::SerializePrefabToText(const CGameScene& /*scene*/, const CGameObject* root, std::string& outText) const
 {
 	if (nullptr == root)
 	{
 		return EPrefabSerializeResult::InvalidArgument;
 	}
 
-	CGameScene prefabScene;
-	CloneHierarchy(scene, prefabScene, *root);
-
-	CSceneSerializer serializer;
-	return ConvertSceneResult(static_cast<int>(serializer.SerializeToText(prefabScene, outText)));
+	// 자식 서브트리는 Children 키에 중첩된다(씬 직렬화의 평탄 목록 + ParentIndex 와 다른 포맷).
+	outText = Serialization::SerializeObject(*root);
+	return outText.empty() ? EPrefabSerializeResult::ParseError : EPrefabSerializeResult::Success;
 }
 
 EPrefabSerializeResult CPrefabSerializer::DeserializePrefabFromText(CGameScene& scene, const char* text, CGameObject** outRoot) const
@@ -35,35 +34,15 @@ EPrefabSerializeResult CPrefabSerializer::DeserializePrefabFromText(CGameScene& 
 		return EPrefabSerializeResult::InvalidArgument;
 	}
 
-	CGameScene prefabScene;
-	CSceneSerializer serializer;
-	const ESceneSerializeResult sceneResult = serializer.DeserializeFromText(prefabScene, text);
-	if (ESceneSerializeResult::Success != sceneResult)
-	{
-		return ConvertSceneResult(static_cast<int>(sceneResult));
-	}
-
-	CGameObject* firstRoot = nullptr;
-	prefabScene.ForEachObject(
-		[&](CGameObject& object)
-		{
-			if (object.GetParent().IsValid())
-			{
-				return;   // 루트만 클론(자식은 재귀로).
-			}
-			CGameObject* clonedRoot = CloneHierarchy(prefabScene, scene, object);
-			if (nullptr == firstRoot)
-			{
-				firstRoot = clonedRoot;
-			}
-		});
-
+	// guid 는 파일 값 그대로 복원된다 — 단 대상 씬에 같은 guid 가 살아 있으면(원본을 남긴 채
+	// 붙여넣기·같은 프리팹 2회 인스턴싱) 새로 발급된다. 삭제 undo 는 원본이 이미 사라진
+	// 뒤라 충돌이 없어 guid 가 그대로 돌아온다 — 뷰포트 카메라 지목과 Ref 가 되살아난다.
+	CGameObject* root = Serialization::DeserializeObject(scene, text);
 	if (outRoot)
 	{
-		*outRoot = firstRoot;
+		*outRoot = root;
 	}
-
-	return firstRoot ? EPrefabSerializeResult::Success : EPrefabSerializeResult::ParseError;
+	return root ? EPrefabSerializeResult::Success : EPrefabSerializeResult::ParseError;
 }
 
 EPrefabSerializeResult CPrefabSerializer::SavePrefabToFile(const CGameScene& scene, const CGameObject* root, const File::Path& path) const
@@ -106,129 +85,4 @@ EPrefabSerializeResult CPrefabSerializer::LoadPrefabFromFile(CGameScene& scene, 
 	std::stringstream buffer;
 	buffer << file.rdbuf();
 	return DeserializePrefabFromText(scene, buffer.str().c_str(), outRoot);
-}
-
-CGameObject* CPrefabSerializer::CloneHierarchy(const CGameScene& /*sourceScene*/, CGameScene& targetScene, const CGameObject& sourceObject)
-{
-	CGameObject* targetObject = targetScene.CreateGameObject(sourceObject.GetName());
-	if (nullptr == targetObject)
-	{
-		return nullptr;
-	}
-
-	targetObject->SetActive(sourceObject.IsActive);
-	targetObject->Tag = sourceObject.Tag;
-	targetObject->Flags = sourceObject.Flags;
-
-	CopyComponents(sourceObject, *targetObject);
-
-	for (const SafePtr<CGameObject>& childRef : sourceObject.GetChildren())
-	{
-		if (const CGameObject* child = childRef.TryGet())
-		{
-			CGameObject* clonedChild = CloneHierarchy(*targetObject->GetScene(), targetScene, *child);
-			if (clonedChild)
-			{
-				clonedChild->SetParent(*targetObject);
-			}
-		}
-	}
-
-	return targetObject;
-}
-
-void CPrefabSerializer::CopyComponents(const CGameObject& sourceObject, CGameObject& targetObject)
-{
-	// Transform 은 오브젝트 멤버 — 직접 복사.
-	targetObject.GetTransform() = sourceObject.GetTransform();
-
-	CGameScene* targetScene = targetObject.GetScene();
-	if (nullptr == targetScene || false == static_cast<bool>(Script.Reflection))
-	{
-		return;
-	}
-
-	for (const SafePtr<CComponent>& cref : sourceObject.GetComponents())
-	{
-		const CComponent* src = cref.TryGet();
-		if (nullptr == src)
-		{
-			continue;
-		}
-		const char* name = src->GetTypeName();
-		const ComponentTypeInfo* ti = Script.Reflection->FindComponentByName(name);
-		if (nullptr == ti)
-		{
-			continue;
-		}
-		if (false == Script.Reflection->AddComponent(*targetScene, targetObject, ti->Type.Id))
-		{
-			continue;
-		}
-		const std::vector<void*> instances = Script.Reflection->GetComponentAddresses(targetObject, ti->Type.Id);
-		CComponent* dst = instances.empty() ? nullptr : static_cast<CComponent*>(instances.back());
-		if (nullptr == dst)
-		{
-			continue;
-		}
-
-		// 등록 프로퍼티만 복사(런타임 캐시/비복사 멤버는 건드리지 않는다).
-		// ⚠ `*dst = *src` 는 CComponent 베이스(Owner SafePtr / ControlBlock)까지 복사해 깨지므로 금지.
-		for (const ReflectPropertyInfo& prop : ti->Properties)
-		{
-			const void* sf = static_cast<const char*>(static_cast<const void*>(src)) + prop.Offset;
-			void*       df = static_cast<char*>(static_cast<void*>(dst)) + prop.Offset;
-			if (EReflectPropertyType::AssetGuid == prop.Type)
-			{
-				*static_cast<File::Guid*>(df) = *static_cast<const File::Guid*>(sf);
-			}
-			else if (EReflectPropertyType::String == prop.Type)
-			{
-				if (prop.ElementCount > 1) std::memcpy(df, sf, prop.Size * prop.ElementCount);
-				else *static_cast<std::string*>(df) = *static_cast<const std::string*>(sf);
-			}
-			else
-			{
-				std::memcpy(df, sf, prop.Size * (prop.ElementCount ? prop.ElementCount : 1));
-			}
-		}
-		dst->SetEnabled(src->IsEnabled());
-
-		// 비반영 추가 필드(직렬화 예외와 동일).
-		if (0 == std::strcmp(name, "Light2D"))
-		{
-			static_cast<Light2D*>(dst)->InnerAngleRadians = static_cast<const Light2D*>(src)->InnerAngleRadians;
-			static_cast<Light2D*>(dst)->OuterAngleRadians = static_cast<const Light2D*>(src)->OuterAngleRadians;
-		}
-		else if (0 == std::strcmp(name, "PolygonCollider2D"))
-		{
-			PolygonCollider2D* d = static_cast<PolygonCollider2D*>(dst);
-			const PolygonCollider2D* s = static_cast<const PolygonCollider2D*>(src);
-			d->LocalPoints = s->LocalPoints;
-			d->WorldPoints.clear();
-			d->m_convexDirty = true;
-		}
-		else if (0 == std::strcmp(name, "Rigidbody2D"))
-		{
-			Rigidbody2D* d = static_cast<Rigidbody2D*>(dst);
-			d->SetMass(d->Mass);
-			d->SetInertia(d->Inertia);
-		}
-	}
-}
-
-EPrefabSerializeResult CPrefabSerializer::ConvertSceneResult(int sceneResult)
-{
-	switch (static_cast<ESceneSerializeResult>(sceneResult))
-	{
-	case ESceneSerializeResult::Success:
-		return EPrefabSerializeResult::Success;
-	case ESceneSerializeResult::InvalidArgument:
-		return EPrefabSerializeResult::InvalidArgument;
-	case ESceneSerializeResult::IoError:
-		return EPrefabSerializeResult::IoError;
-	case ESceneSerializeResult::ParseError:
-	default:
-		return EPrefabSerializeResult::ParseError;
-	}
 }
