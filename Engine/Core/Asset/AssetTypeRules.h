@@ -8,7 +8,7 @@ class CAssetTypeRules final
 {
 public:
 	// Extension-based detection is a bootstrap/fallback path for files that do not
-	// have registered .Jmeta yet. Once metadata exists, AssetMetaData::Type is the
+	// have registered .jmeta yet. Once metadata exists, AssetMetaData::Type is the
 	// source of truth.
 	static EAssetType DetectTypeFromPath(const File::Path& path);
 	static EAssetType ResolveType(EAssetType declaredType, const File::Path& path);

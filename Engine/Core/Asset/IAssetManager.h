@@ -33,15 +33,15 @@ public:
 	virtual AssetRef<IAsset> LoadAssetByPath(const File::Path& path) = 0;
 	virtual AssetRef<IAsset> ReloadAsset(const AssetGuid& guid) = 0;
 
-	// ── path-only 등록 (.Jmeta 없이) ──────────────────────────────────────────
-	// 자산을 path + type 만으로 in-memory registry 에 등록한다. .Jmeta 디스크 저장 X.
+	// ── path-only 등록 (.jmeta 없이) ──────────────────────────────────────────
+	// 자산을 path + type 만으로 in-memory registry 에 등록한다. .jmeta 디스크 저장 X.
 	// GUID 는 path 기반 deterministic — 같은 path = 같은 GUID, 재실행/재등록 시에도 안정.
 	// isPersistent 는 라이프사이클 플래그(아래 SetAssetPersistent 와 직교).
 	virtual bool RegisterAssetByPath(const File::Path& path, EAssetType type, bool isPersistent) = 0;
 
 	// ── Persistent 플래그 토글 (라이프사이클 제어) ──────────────────────────
 	// 이미 등록된 자산의 IsPersistent 를 켜거나 끈다.
-	// 등록 방식(.Jmeta 유무) 과는 무관 — 일반 import 자산도 persistent 로 표시할 수 있다.
+	// 등록 방식(.jmeta 유무) 과는 무관 — 일반 import 자산도 persistent 로 표시할 수 있다.
 	virtual bool SetAssetPersistent(const AssetGuid& guid, bool isPersistent) = 0;
 
 	// IsPersistent == false 인 자산만 unload + registry 에서 제거.

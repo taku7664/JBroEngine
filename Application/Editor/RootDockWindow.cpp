@@ -511,7 +511,7 @@ void CRootDockWindow::OnMenuBar()
 				ImGui::Utillity::GetDialogOwnerHandle(),
 				title.c_str(),
 				L"",
-				{ { filterName.c_str(), L"*.Jproject" }, { L"All Files", L"*.*" } },
+				{ { filterName.c_str(), L"*.jproject" }, { L"All Files", L"*.*" } },
 				projectPath))
 			{
 				SafePtr<CProjectManager> projectManager = EditorContext::GetProjectManager();

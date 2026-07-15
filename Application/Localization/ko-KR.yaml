@@ -248,12 +248,12 @@ Entries:
   project_settings.save_failed: 프로젝트 설정 저장에 실패했습니다.
 
   asset_browser.no_project_loaded: 프로젝트가 로드되지 않았습니다.
-  asset_browser.open_project_hint: File > Open Project에서 .Jproject 파일을 여세요.
+  asset_browser.open_project_hint: File > Open Project에서 .jproject 파일을 여세요.
   asset_browser.up: 위로
   asset_browser.search: 검색
   asset_browser.view_list: 목록
   asset_browser.view_icon: 아이콘
-  asset_browser.show_meta: .Jmeta 표시
+  asset_browser.show_meta: .jmeta 표시
   asset_browser.open_in_explorer: 탐색기에서 열기
   asset_browser.copy_path: 경로 복사
   asset_browser.copy_folder_path: 폴더 경로 복사
@@ -592,7 +592,7 @@ Entries:
   # ── 설명 툴팁 (FormLayout 의 라벨 hover 시 표시) ──────────────────
   importer.source_file.desc: 디스크에 있는 원본 파일의 절대 경로입니다. 이 파일이 프로젝트 Assets 폴더로 복사됩니다.
   importer.destination.desc: Assets 폴더 기준 상대 경로입니다. 확장자가 없거나 다르면 원본 확장자가 자동 부여됩니다.
-  importer.import.desc: 원본 파일을 출력 경로로 복사하고, 같은 위치에 .Jmeta 메타파일을 생성합니다.
+  importer.import.desc: 원본 파일을 출력 경로로 복사하고, 같은 위치에 .jmeta 메타파일을 생성합니다.
 
   project_settings.script_state: 스크립트 상태
 

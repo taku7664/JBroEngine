@@ -248,12 +248,12 @@ Entries:
   project_settings.save_failed: Failed to save project settings.
 
   asset_browser.no_project_loaded: No project loaded.
-  asset_browser.open_project_hint: Use File > Open Project to load a .Jproject file.
+  asset_browser.open_project_hint: Use File > Open Project to load a .jproject file.
   asset_browser.up: Up
   asset_browser.search: Search
   asset_browser.view_list: List
   asset_browser.view_icon: Icon
-  asset_browser.show_meta: Show .Jmeta
+  asset_browser.show_meta: Show .jmeta
   asset_browser.open_in_explorer: Open In Explorer
   asset_browser.copy_path: Copy Path
   asset_browser.copy_folder_path: Copy Folder Path
@@ -592,7 +592,7 @@ Entries:
   # ── Tooltip descriptions (shown when hovering FormLayout labels) ──
   importer.source_file.desc: Absolute path of the source file on disk. The file is copied into the project's Assets folder.
   importer.destination.desc: Path relative to the Assets folder. The source extension is appended automatically when missing or different.
-  importer.import.desc: Copy the source file to the destination and write a sibling .Jmeta metadata file.
+  importer.import.desc: Copy the source file to the destination and write a sibling .jmeta metadata file.
 
   project_settings.script_state: Script State
 

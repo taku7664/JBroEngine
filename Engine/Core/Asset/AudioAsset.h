@@ -81,7 +81,7 @@ private:
 };
 
 // ── 임포트 옵션 직렬화 ─────────────────────────────────────────────────────
-// CSpriteImportOptions 와 동일한 패턴 — yaml 텍스트로 .Jmeta 안에 저장.
+// CSpriteImportOptions 와 동일한 패턴 — yaml 텍스트로 .jmeta 안에 저장.
 class CAudioImportOptions final
 {
 public:

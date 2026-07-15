@@ -34,7 +34,7 @@
 
 namespace
 {
-	constexpr const char* PROJECT_EXTENSION             = ".Jproject";
+	constexpr const char* PROJECT_EXTENSION             = ".jproject";
 	constexpr const char* PROJECT_KEY_VERSION           = "Version";
 	constexpr const char* PROJECT_KEY_ROOT_PATH         = "RootPath";
 	constexpr const char* PROJECT_KEY_RES_WIDTH         = "ResolutionWidth";
@@ -622,7 +622,7 @@ bool CProjectManager::CreateProject(const File::Path& parentFolder, const std::s
 		return false;
 	}
 
-	// .Jproject 파일 기본 내용: 루트 경로 = ".", 나머지 기본값
+	// .jproject 파일 기본 내용: 루트 경로 = ".", 나머지 기본값
 	const std::filesystem::path projectFile = projectRoot / (projectName + PROJECT_EXTENSION);
 	{
 		YAML::Emitter out;
@@ -1806,7 +1806,7 @@ bool CProjectManager::TryHandleAssetRename(const File::Path& createdAssetPath, c
 	// 이동된 자산을 GUID 로 정확히 짝짓는다. 확장자만으로 매칭하면 같은 배치에서
 	// 같은 확장자 파일을 여러 개 옮길 때(예: test.png + test2.png) 엉뚱하게 교차
 	// 매칭되어 메타/레지스트리가 뒤바뀐다.
-	// (a) 에셋브라우저 이동: .Jmeta 가 새 위치로 함께 옮겨지므로 그 GUID 가 정답.
+	// (a) 에셋브라우저 이동: .jmeta 가 새 위치로 함께 옮겨지므로 그 GUID 가 정답.
 	AssetGuid newSidecarGuid = INVALID_ASSET_GUID;
 	{
 		File::Path newMetaPath;
@@ -1858,12 +1858,12 @@ bool CProjectManager::TryHandleAssetRename(const File::Path& createdAssetPath, c
 		bool isMatch = false;
 		if (false == newSidecarGuid.IsNull())
 		{
-			// (a) 새 위치 .Jmeta 의 GUID 가 이 원본의 GUID 와 일치해야만 같은 자산.
+			// (a) 새 위치 .jmeta 의 GUID 가 이 원본의 GUID 와 일치해야만 같은 자산.
 			isMatch = (newSidecarGuid == oldGuid);
 		}
 		else if (event.Path.filename().generic_string() == newFileName)
 		{
-			// (b) 탐색기 이동(새 메타 없음): 같은 파일명 + 뒤에 남은 .Jmeta 의 GUID 가
+			// (b) 탐색기 이동(새 메타 없음): 같은 파일명 + 뒤에 남은 .jmeta 의 GUID 가
 			//     원본 GUID 와 일치하면 확정. 그리고 남은 메타를 새 위치로 옮겨 GUID 보존.
 			File::Path oldMetaPath;
 			AssetMetaData oldMeta;
@@ -1909,10 +1909,10 @@ void CProjectManager::ProcessAssetEvent(const FileWatchEvent& event)
 		return;
 	}
 
-	// .Jmeta 의 Created/Modified 는 자기-반향(에디터가 직접 쓴 .Jmeta 를 워처가 다시 잡는 케이스).
+	// .jmeta 의 Created/Modified 는 자기-반향(에디터가 직접 쓴 .jmeta 를 워처가 다시 잡는 케이스).
 	// 자산 옵션은 IAsset::ApplyImportOptions 경로로 메모리에 in-place 갱신되므로 워처 처리 불필요.
-	// 외부 .Jmeta 변경(git pull 등) 동기화는 현재 지원 범위 밖 — tasks/asset-system-followups.md P9 참조.
-	// 단 Deleted .Jmeta 는 아래 분기에서 별도로 처리 (raw 살아있으면 메타 재생성).
+	// 외부 .jmeta 변경(git pull 등) 동기화는 현재 지원 범위 밖 — tasks/asset-system-followups.md P9 참조.
+	// 단 Deleted .jmeta 는 아래 분기에서 별도로 처리 (raw 살아있으면 메타 재생성).
 	if (EFileWatchEventType::Deleted != event.Type
 		&& false == event.Path.empty()
 		&& CAssetPath::IsMetaPath(event.Path.generic_string().c_str()))

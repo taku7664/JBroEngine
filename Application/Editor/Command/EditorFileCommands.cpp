@@ -266,7 +266,7 @@ bool CDeletePathCommand::MoveSidecarMetaToTrash()
 	}
 
 	m_metaTrashPath = m_trashPath;
-	m_metaTrashPath += File::Path(".Jmeta");
+	m_metaTrashPath += File::Path(".jmeta");
 	return MovePath(m_metaPath, m_metaTrashPath);
 }
 

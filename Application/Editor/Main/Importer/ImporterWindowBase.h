@@ -16,10 +16,10 @@
 //  파생 클래스가 채울 항목:
 //    - 헤더(타이틀 로컬라이즈 키)
 //    - 임포트 옵션 UI 그리기
-//    - 임포트 실행: 대상 파일 → 출력 경로 복사 + .Jmeta 생성
+//    - 임포트 실행: 대상 파일 → 출력 경로 복사 + .jmeta 생성
 //
 //  실제 자산 등록은 ProjectManager 의 AssetWatcher 가 새 파일 감지 시 자동
-//  수행 — 임포터는 디스크에 파일과 .Jmeta 만 떨어뜨리면 끝.
+//  수행 — 임포터는 디스크에 파일과 .jmeta 만 떨어뜨리면 끝.
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 class CImporterWindowBase : public CImCustomWindow
@@ -36,7 +36,7 @@ protected:
 	// 옵션 UI 영역에서 호출 — FormLayout 등 자유롭게 사용.
 	virtual void DrawImportOptions() = 0;
 
-	// 임포트 실행 — 대상 파일을 destPath 로 복사 + .Jmeta 작성.
+	// 임포트 실행 — 대상 파일을 destPath 로 복사 + .jmeta 작성.
 	// 성공 시 true / 실패 시 false + errorOut 에 메시지.
 	virtual bool ExecuteImport(const File::Path& sourcePath,
 	                           const File::Path& destFilePath,

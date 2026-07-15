@@ -344,7 +344,7 @@ function Read-JBroMeta {
         [Parameter(Mandatory=$true)][string]$AssetRoot
     )
 
-    $assetPath = $MetaPath.Substring(0, $MetaPath.Length - ".Jmeta".Length)
+    $assetPath = $MetaPath.Substring(0, $MetaPath.Length - ".jmeta".Length)
     if (-not (Test-Path -LiteralPath $assetPath -PathType Leaf)) {
         return $null
     }
@@ -597,7 +597,7 @@ public static class JBroPackWriterV2
     }
 
     $entries = New-Object System.Collections.Generic.List[JBroPackEntryV2]
-    Get-ChildItem -LiteralPath $AssetRoot -Recurse -Filter "*.Jmeta" -File | ForEach-Object {
+    Get-ChildItem -LiteralPath $AssetRoot -Recurse -Filter "*.jmeta" -File | ForEach-Object {
         $meta = Read-JBroMeta -MetaPath $_.FullName -AssetRoot $AssetRoot
         if ($meta) {
             $entry = New-Object JBroPackEntryV2
@@ -831,7 +831,7 @@ function Find-JBroAssetGuid {
     )
 
     $assetPath = Join-Path $AssetRoot $RelativePath
-    $metaPath = "$assetPath.Jmeta"
+    $metaPath = "$assetPath.jmeta"
     if (-not (Test-Path -LiteralPath $metaPath -PathType Leaf)) {
         return ""
     }
@@ -849,7 +849,7 @@ function Find-JBroAssetMetaByGuid {
         return $null
     }
 
-    foreach ($metaFile in Get-ChildItem -LiteralPath $AssetRoot -Recurse -Filter "*.Jmeta" -File) {
+    foreach ($metaFile in Get-ChildItem -LiteralPath $AssetRoot -Recurse -Filter "*.jmeta" -File) {
         $meta = Read-JBroMeta -MetaPath $metaFile.FullName -AssetRoot $AssetRoot
         if ($meta -and $meta.Guid -eq $Guid) {
             return $meta

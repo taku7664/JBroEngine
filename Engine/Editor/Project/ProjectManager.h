@@ -22,11 +22,11 @@ class CTaskGroup;
 struct AssetReconcileReport
 {
 	int Registered        = 0;   // 레지스트리에 등록된 자산 수
-	int MetaGenerated     = 0;   // .Jmeta 가 없어 새로 생성(새 GUID)
+	int MetaGenerated     = 0;   // .jmeta 가 없어 새로 생성(새 GUID)
 	int GuidRecovered     = 0;   // 메타 분실/손상을 복구 캐시로 같은 GUID 복구(제자리)
 	int Relinked          = 0;   // 이동된 자산을 해시로 추적해 같은 GUID 재링크
 	int DuplicateResolved = 0;   // 중복 GUID 를 결정적으로 재발급
-	int OrphanQuarantined = 0;   // raw 없는 고아 .Jmeta 격리
+	int OrphanQuarantined = 0;   // raw 없는 고아 .jmeta 격리
 	int Failed            = 0;   // 등록 실패
 };
 
@@ -37,7 +37,7 @@ public:
 	void Finalize();
 
 	// 새 프로젝트 생성: {parentFolder}/{projectName}/ 디렉토리를 만들고
-	// .Jproject + Contents/Assets + Contents/Scripts 구조를 초기화한 뒤 LoadProject 까지 수행합니다.
+	// .jproject + Contents/Assets + Contents/Scripts 구조를 초기화한 뒤 LoadProject 까지 수행합니다.
 	bool CreateProject(const File::Path& parentFolder, const std::string& projectName);
 
 	bool LoadProject(const ProjectLoadDesc& desc);
@@ -167,7 +167,7 @@ public:
 	// 새 실패가 생기면 즉시 팝업으로 표시할 때 사용.
 	std::string ConsumeLastLiveCompileFailure();
 
-	// .Jproject 파일로 현재 설정을 저장합니다.
+	// .jproject 파일로 현재 설정을 저장합니다.
 	bool SaveProject(std::string* outError = nullptr) const;
 
 	// ── Visual Studio 연동 ────────────────────────────────────────────────────
@@ -192,7 +192,7 @@ private:
 	bool MakeAssetRelativePath(const File::Path& absolutePath, std::string& outRelativePath) const;
 	EAssetType DetectAssetType(const File::Path& relativePath) const;
 	bool TrySyncRenamedAssetMeta(const File::Path& createdAssetPath, const std::vector<FileWatchEvent>& events);
-	// 이동/이름변경(Deleted(old)+Created(new) 쌍)을 감지해 .Jmeta 를 동반 이동하고
+	// 이동/이름변경(Deleted(old)+Created(new) 쌍)을 감지해 .jmeta 를 동반 이동하고
 	// 레지스트리 경로만 in-place 갱신한다(언로드 X → 로드된 에셋/라이브 참조 보존).
 	// 처리했으면 true 와 함께 outOldAssetPath 에 원본 경로를 채운다.
 	bool TryHandleAssetRename(const File::Path& createdAssetPath, const std::vector<FileWatchEvent>& events, File::Path& outOldAssetPath);
@@ -206,7 +206,7 @@ private:
 	static const char* ImporterNameForType(EAssetType type);
 	// Assets 트리 1회 정합성 패스 — 메타 생성/GUID 복구/중복 해소/고아 격리 + 레지스트리 등록.
 	AssetReconcileReport ReconcileAssets();
-	// raw 없는 고아 .Jmeta 를 Intermediate/AssetQuarantine 로 이동(되돌릴 수 있게).
+	// raw 없는 고아 .jmeta 를 Intermediate/AssetQuarantine 로 이동(되돌릴 수 있게).
 	bool QuarantineOrphanMeta(const File::Path& metaAbsolutePath, const std::string& assetRelativePath);
 	// 메타가 없을 때 복구 캐시로 같은 GUID 의 사이드카 메타를 먼저 써 둔다(런타임 복구).
 	void EnsureRecoveredSidecarMeta(const File::Path& absolutePath, const std::string& relativePath, EAssetType type, const char* importerName, const File::Path& metaPath);

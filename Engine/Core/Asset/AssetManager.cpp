@@ -240,7 +240,7 @@ bool CAssetManager::LoadRegistryFromMetaFiles()
 bool CAssetManager::RefreshAssetRegistry()
 {
 	std::lock_guard lock(m_mutex);
-	// 디스크의 .Jmeta 들을 다시 스캔해 레지스트리를 갱신한다.
+	// 디스크의 .jmeta 들을 다시 스캔해 레지스트리를 갱신한다.
 	// 자산 데이터(이미 로드된 IAsset 객체) 는 건드리지 않는다 — 사용 중 자산을 보호.
 	// 비-영구 자산을 통째로 unload 가 필요한 호출자(프로젝트 재바인딩 등) 는
 	// UnloadNonPersistentAssets() 를 먼저 명시적으로 호출한다.
@@ -723,7 +723,7 @@ bool CAssetManager::RegisterAssetByPath(const File::Path& path, EAssetType type,
 	meta.Type         = type;
 	meta.Version      = 1;
 	meta.Path         = path;
-	meta.MetaPath     = File::NULL_PATH;   // .Jmeta 디스크 저장 안 함
+	meta.MetaPath     = File::NULL_PATH;   // .jmeta 디스크 저장 안 함
 	meta.DisplayName  = CAssetPath::GetDisplayNameFromPath(path.generic_string().c_str());
 	meta.Importer     = "PathOnly";
 	meta.IsPersistent = isPersistent;

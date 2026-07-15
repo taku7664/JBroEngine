@@ -249,7 +249,7 @@ namespace
 			<< L" [--script-mode <mode>]"
 			<< L" [--script-module <path>]"
 			<< L" [--orientation <Landscape|Portrait|Auto>]"
-			<< L" [--input-map <project.Jproject>]"
+			<< L" [--input-map <project.jproject>]"
 			<< L" [--build-scene <path> --build-scene-guid <guid>]..."
 			<< std::endl
 			<< L"   or: BuildManifestTool --validate <path>"

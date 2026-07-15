@@ -15,7 +15,7 @@
 //
 //  · 핸들러는 디바이스 대신 액션을 읽는다: ctx.GetAction().GetValue<Vector2>("Move").
 //  · 평가된 값(ActionState)은 POD 고정배열 → 호스트↔게임 DLL 경계 안전(GetValue 는 헤더 인라인).
-//  · 저작(InputActionDef/InputBinding)은 호스트 전용(STL). 프로젝트세팅 .Jproject 에 직렬화.
+//  · 저작(InputActionDef/InputBinding)은 호스트 전용(STL). 프로젝트세팅 .jproject 에 직렬화.
 //  · 평가는 CInputSystem 이 매 프레임 수행(바인딩 + 디바이스 상태 → 값).
 // ─────────────────────────────────────────────────────────────────────────────
 

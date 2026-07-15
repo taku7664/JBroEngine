@@ -99,7 +99,7 @@ bool CSpriteImporterWindow::ExecuteImport(const File::Path& sourcePath,
 		return false;
 	}
 
-	// .Jmeta 동봉 — Sprite 옵션을 yaml 로.
+	// .jmeta 동봉 — Sprite 옵션을 yaml 로.
 	AssetMetaData meta;
 	meta.Guid              = CAssetPath::GenerateAssetGuid();
 	meta.Type              = EAssetType::Sprite;
@@ -112,7 +112,7 @@ bool CSpriteImporterWindow::ExecuteImport(const File::Path& sourcePath,
 
 	if (false == CAssetMetaFile::Save(meta.MetaPath, meta))
 	{
-		errorOut = "Failed to write .Jmeta";
+		errorOut = "Failed to write .jmeta";
 		return false;
 	}
 	return true;

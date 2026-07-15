@@ -669,7 +669,7 @@ void CAssetBrowserTool::RefreshCurrentFolderEntries()
 			errorCode.clear();
 
 			// AssetMetaData/HasMeta 는 Asset root 안의 파일에만 의미가 있다.
-			// Script root 안의 .cpp/.h 등은 .Jmeta 가 없으므로 skip.
+			// Script root 안의 .cpp/.h 등은 .jmeta 가 없으므로 skip.
 			if (insideAssetRoot && registry)
 			{
 				const std::string relativePath = browserEntry.RelativePath.generic_string();
@@ -833,7 +833,7 @@ void CAssetBrowserTool::ProcessPendingOperations()
 
 		case EPendingOperationType::Duplicate:
 		{
-			// 원본 파일만 복제. .Jmeta 는 복사하지 않는다 — AssetWatcher 가
+			// 원본 파일만 복제. .jmeta 는 복사하지 않는다 — AssetWatcher 가
 			// 새 파일을 감지하면 새 GUID 로 자동 import 한다.
 			const std::filesystem::path srcPath(operation.Path);
 			if (false == std::filesystem::is_regular_file(srcPath, errorCode))
@@ -937,7 +937,7 @@ void CAssetBrowserTool::ProcessPendingOperations()
 			if (false == CanPlaceInto(operation.Path, operation.TargetPath, /*isMove*/ false)) break;
 			if (std::filesystem::is_directory(operation.Path, errorCode))
 			{
-				// 폴더는 고유 이름으로 재귀 복사한 뒤, 복사본 안의 .Jmeta 를 제거한다.
+				// 폴더는 고유 이름으로 재귀 복사한 뒤, 복사본 안의 .jmeta 를 제거한다.
 				// (단일 Duplicate 와 동일한 이유 — 메타를 남기면 원본과 GUID 가 충돌하므로
 				//  AssetWatcher 가 새 GUID 로 재임포트하도록 메타를 떼어낸다.)
 				errorCode.clear();

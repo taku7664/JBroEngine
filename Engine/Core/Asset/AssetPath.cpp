@@ -98,7 +98,7 @@ bool CAssetPath::NormalizeAssetKey(const char* path, std::string& outPath)
 	}
 
 	// 절대경로(드라이브 접두사 포함) — 슬래시 변환 + 소문자만 적용해 그대로 키로 사용.
-	// 외부 path-based 자산(.Jmeta 없이 직접 등록)을 지원한다.
+	// 외부 path-based 자산(.jmeta 없이 직접 등록)을 지원한다.
 	if (IsAbsoluteAssetPath(path))
 	{
 		outPath.assign(path);
@@ -194,12 +194,12 @@ bool CAssetPath::IsMetaPath(const char* path)
 
 const char* CAssetPath::GetMetaExtension()
 {
-	return ".Jmeta";
+	return ".jmeta";
 }
 
 const char* CAssetPath::GetLegacyMetaExtension()
 {
-	return ".jmeta";
+	return ".Jmeta";
 }
 
 bool CAssetPath::HasDrivePrefix(const std::string& path)

@@ -74,7 +74,7 @@ namespace
 		File::Path result = path;
 		if (result.extension().empty())
 		{
-			result.replace_extension(".Jlog");
+			result.replace_extension(".jlog");
 		}
 		return result;
 	}

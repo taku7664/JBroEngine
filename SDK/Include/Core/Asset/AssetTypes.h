@@ -46,7 +46,7 @@ struct AssetMetaData
 	EAssetType Type = EAssetType::Unknown;
 	std::uint32_t Version = 1;
 	// Path/MetaPath are transient registry locators filled while scanning AssetRoot.
-	// .Jmeta stores stable Guid/import data only, not filesystem locator fields.
+	// .jmeta stores stable Guid/import data only, not filesystem locator fields.
 	File::Path Path;
 	File::Path MetaPath;
 	std::string DisplayName;
@@ -54,7 +54,7 @@ struct AssetMetaData
 	std::string ImportOptionsYaml;
 
 	// true 면 UnloadNonPersistentAssets() 시 보존된다.
-	// 등록 방식(.Jmeta / path-only) 과는 직교 — 어느 방식이든 플래그로 라이프사이클 제어.
+	// 등록 방식(.jmeta / path-only) 과는 직교 — 어느 방식이든 플래그로 라이프사이클 제어.
 	bool IsPersistent = false;
 };
 

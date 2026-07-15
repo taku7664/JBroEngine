@@ -86,7 +86,7 @@ bool CAudioImporterWindow::ExecuteImport(const File::Path& sourcePath,
 
 	if (false == CAssetMetaFile::Save(meta.MetaPath, meta))
 	{
-		errorOut = "Failed to write .Jmeta";
+		errorOut = "Failed to write .jmeta";
 		return false;
 	}
 	return true;

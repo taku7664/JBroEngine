@@ -9,7 +9,7 @@ set "OUTPUT_ROOT=%~3"
 if "%OUTPUT_ROOT%"=="" set "OUTPUT_ROOT=%JBRO_OUTPUT_ROOT%"
 set "POWERSHELL_EXE=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
 if "%PROJECT_FILE%"=="" (
-    echo Usage: build_web_debug.bat ^<Project.Jproject^> [EmsdkRoot] [OutputRoot]
+    echo Usage: build_web_debug.bat ^<Project.jproject^> [EmsdkRoot] [OutputRoot]
     echo Or set JBRO_PROJECT_FILE to the project file path.
     exit /b 1
 )

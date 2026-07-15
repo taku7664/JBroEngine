@@ -7,9 +7,9 @@
 #include <unordered_map>
 #include <vector>
 
-// 비권위적 자산 복구 캐시 한 항목.  .Jmeta 가 사라지거나 자산이 외부 탐색기에서
+// 비권위적 자산 복구 캐시 한 항목.  .jmeta 가 사라지거나 자산이 외부 탐색기에서
 // 이동/이름변경 되어도 같은 GUID 로 복구하기 위한 "힌트" 데이터.  진실의 원천은
-// 디스크의 .Jmeta 이며, 이 DB 는 지워져도 정확성이 깨지지 않는다(복구 편의만 잃음).
+// 디스크의 .jmeta 이며, 이 DB 는 지워져도 정확성이 깨지지 않는다(복구 편의만 잃음).
 struct AssetDbEntry
 {
 	AssetGuid     Guid;
