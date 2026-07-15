@@ -505,6 +505,7 @@ CDeleteGameObjectCommand::CDeleteGameObjectCommand(SafePtr<CGameScene> scene, CG
 	if (object && m_scene.IsValid())
 	{
 		m_parentGuid = GuidOf(object->GetParent().TryGet());
+		m_layerGuid = GuidOf(object->GetLayer().TryGet());
 		CPrefabSerializer serializer;
 		serializer.SerializePrefabToText(*m_scene, object, m_snapshot);
 	}
@@ -550,6 +551,15 @@ void CDeleteGameObjectCommand::Undo()
 			root->SetParent(*parent);
 		}
 	}
+	// 레이어 복원은 부모 배정 뒤 — SetParent 가 부모 레이어를 서브트리에 전파하므로 순서가
+	// 뒤집히면 덮어쓴다. 루트로 복원될 때만 의미가 있다(자식은 부모 레이어를 따른다).
+	else if (root && false == m_layerGuid.IsNull())
+	{
+		if (CGameLayer* layer = m_scene->FindLayerByInstanceGuid(m_layerGuid).TryGet())
+		{
+			m_scene->MoveObjectToLayer(*root, *layer);
+		}
+	}
 	m_deleted = false;
 }
 
@@ -585,6 +595,7 @@ CDeleteGameObjectsCommand::CDeleteGameObjectsCommand(
 		Entry entry;
 		entry.ObjectGuid = GuidOf(object);
 		entry.ParentGuid = GuidOf(object->GetParent().TryGet());
+		entry.LayerGuid = GuidOf(object->GetLayer().TryGet());
 		serializer.SerializePrefabToText(*m_scene, object, entry.Snapshot);
 		if (false == entry.ObjectGuid.IsNull() && false == entry.Snapshot.empty())
 		{
@@ -648,6 +659,14 @@ void CDeleteGameObjectsCommand::Undo()
 			if (CGameObject* parent = Resolve(m_scene, entry.ParentGuid))
 			{
 				root->SetParent(*parent);
+			}
+		}
+		// 단일 삭제 undo 와 같은 규칙 — 부모 배정 뒤, 루트일 때만.
+		else if (root && false == entry.LayerGuid.IsNull())
+		{
+			if (CGameLayer* layer = m_scene->FindLayerByInstanceGuid(entry.LayerGuid).TryGet())
+			{
+				m_scene->MoveObjectToLayer(*root, *layer);
 			}
 		}
 		entry.Deleted = false;

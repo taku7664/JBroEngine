@@ -267,6 +267,9 @@ private:
 	SafePtr<CGameScene> m_scene;
 	File::Guid  m_objectGuid;  // 삭제 대상(redo 재삭제·undo 후 재해석 키)
 	File::Guid  m_parentGuid;  // 복원 시 재부모(null = 루트)
+	// 복원 시 소속 레이어. 역직렬화는 기본 레이어에 만들므로 루트는 여기서 되돌려야 한다
+	// (자식은 SetParent 가 부모 레이어를 서브트리에 전파해 저절로 맞는다).
+	File::Guid  m_layerGuid;
 	std::string m_snapshot;    // 서브트리 직렬화(undo 복원용)
 	bool        m_deleted = false;
 };
@@ -289,6 +292,7 @@ private:
 	{
 		File::Guid ObjectGuid;
 		File::Guid ParentGuid;
+		File::Guid LayerGuid;   // 복원 시 소속 레이어(단일 삭제의 m_layerGuid 와 같은 이유)
 		std::string Snapshot;
 		bool Deleted = false;
 	};
