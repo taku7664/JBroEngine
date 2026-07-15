@@ -142,6 +142,12 @@ bool ImInputText::operator()(ImGuiInputTextFlags flags, bool invalid)
         ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.5f);
     }
     ImGui::PushID(this);
+    // 원본 값 동기화 — 편집 중이 아닐 때만 버퍼를 갱신한다. InputText 가 쓸 ID 를 미리 구해
+    // 활성 여부를 본다(PushID 이후라 같은 ID 스택 → 동일 ID).
+    if (m_hasSource && ImGui::GetActiveID() != ImGui::GetID(m_label.c_str()))
+    {
+        m_buffer = m_source;
+    }
     const bool changed = (m_hint.empty())
         ? ImGui::InputText(m_label.c_str(), &m_buffer, flags)
         : ImGui::InputTextWithHint(m_label.c_str(), m_hint.c_str(), &m_buffer, flags);
@@ -175,6 +181,17 @@ ImInputText& ImInputText::SetText(const std::string& text)
     m_buffer = text;
     if (m_buffer.size() > m_maxLength)
         m_buffer.resize(m_maxLength);
+    return *this;
+}
+
+ImInputText& ImInputText::SetSourceText(const std::string& text)
+{
+    m_source = text;
+    if (m_source.size() > m_maxLength)
+        m_source.resize(m_maxLength);
+    m_hasSource = true;
+    // 편집 중이면 operator() 가 무시한다 — 여기서는 원본만 기록한다.
+    m_buffer = m_source;
     return *this;
 }
 

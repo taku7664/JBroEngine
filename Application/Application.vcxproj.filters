@@ -36,6 +36,9 @@
     <ClInclude Include="Editor\Command\EditorFileCommands.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
+    <ClInclude Include="Editor\Command\EditorLayerCommands.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
     <ClInclude Include="Editor\Command\EditorSceneCommands.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
@@ -124,6 +127,9 @@
       <Filter>헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="Editor\ImItem\ImText.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="Editor\ImItem\ImLayerHeader.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="Editor\ImItem\ImTree.h">
@@ -263,6 +269,9 @@
     <ClCompile Include="Editor\Command\EditorFileCommands.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
+    <ClCompile Include="Editor\Command\EditorLayerCommands.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
     <ClCompile Include="Editor\Command\EditorSceneCommands.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
@@ -330,6 +339,9 @@
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="Editor\ImItem\ImText.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\ImItem\ImLayerHeader.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="Editor\ImItem\ImTree.cpp">

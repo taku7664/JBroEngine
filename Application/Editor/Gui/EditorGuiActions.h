@@ -8,6 +8,7 @@
 
 class CGameScene;
 class CGameObject;
+class CGameLayer;
 namespace EditorGuiActions
 {
 	// ── 컴포넌트 ──────────────────────────────────────────────────────────
@@ -26,7 +27,9 @@ namespace EditorGuiActions
 	//   parent != nullptr : parent의 자식으로 추가 → 레이블 "Add Child Object"
 	// 성공 시 생성된 오브젝트를 선택 상태로 만들고 true 반환.
 	//   spawnWorldPos != nullptr : 그 월드 좌표에 생성(씬뷰 우클릭 위치). null = 기본(원점).
-	bool DrawAddObjectMenu(CGameScene& scene, CGameObject* parent, const Vector2* spawnWorldPos = nullptr);
+	//   layer != nullptr : 그 레이어에 생성(하이어라키의 레이어 컨텍스트 메뉴). null = 기본 레이어.
+	bool DrawAddObjectMenu(CGameScene& scene, CGameObject* parent, const Vector2* spawnWorldPos = nullptr,
+	                       CGameLayer* layer = nullptr);
 
 	bool DrawRemoveObjectMenu(CGameScene& scene, CGameObject* object);
 

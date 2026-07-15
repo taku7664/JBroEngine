@@ -69,6 +69,11 @@ public:
     // 직접 버퍼를 설정합니다.
     ImInputText& SetText(const std::string& text);
 
+    // 표시할 원본 값을 지정합니다. SetText 와 달리 편집 중(포커스 보유)에는 버퍼를 덮지
+    // 않으므로, 매 프레임 최신 값을 넣어도 타이핑이 지워지지 않습니다. 편집 종료 시점까지
+    // 커밋을 미루려면(= ImGui::IsItemDeactivatedAfterEdit 로 1회 커밋) 이쪽을 씁니다.
+    ImInputText& SetSourceText(const std::string& text);
+
     // 버퍼를 비웁니다.
     void Clear();
 
@@ -77,4 +82,6 @@ private:
 	size_t m_maxLength = SIZE_MAX;
 	std::string m_buffer;
 	std::string m_hint;
+	std::string m_source;
+	bool m_hasSource = false;
 };

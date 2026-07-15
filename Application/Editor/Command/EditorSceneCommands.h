@@ -11,6 +11,7 @@
 
 class CGameScene;
 class CGameObject;
+class CGameLayer;
 
 // 명령은 오브젝트를 InstanceGuid 로 보관한다(포인터/정수 id 아님).
 // 파괴→undo→redo 로 오브젝트가 재생성돼 주소가 바뀌어도 guid 로 안전하게 재해석된다.
@@ -94,9 +95,11 @@ public:
 	// parent == nullptr 이면 루트에 생성, 그 외에는 parent 의 자식으로 생성.
 	// spawnWorldPos != nullptr 이면 그 월드 좌표에 생성한다(씬뷰 우클릭 위치). parent 가
 	// 있으면 부모 월드 역행렬로 로컬 좌표를 환산한다. null 이면 기본(원점) 생성.
+	// layer == nullptr 이면 씬 기본 레이어. parent 가 있으면 레이어는 부모를 따르므로 무시된다.
 	CCreateGameObjectCommand(SafePtr<CGameScene> scene, const char* name,
 	                         CGameObject* parent = nullptr,
-	                         const Vector2* spawnWorldPos = nullptr);
+	                         const Vector2* spawnWorldPos = nullptr,
+	                         CGameLayer* layer = nullptr);
 	~CCreateGameObjectCommand() override = default;
 
 	const char* GetName() const override;
@@ -110,6 +113,7 @@ private:
 	SafePtr<CGameScene> m_scene;
 	std::string m_name;
 	File::Guid m_parentGuid; // null = 루트
+	File::Guid m_layerGuid;  // null = 기본 레이어
 	File::Guid m_objectGuid; // 생성된 오브젝트의 안정 식별자(redo 시 동일 guid 강제)
 	bool     m_created = false;
 	bool     m_hasSpawnPos = false; // spawnWorldPos 지정 여부
@@ -371,19 +375,23 @@ private:
 	bool            m_executed       = false;
 };
 
-// Hierarchy 드래그 드롭: 부모 변경(WorldStay)과 표시 순서(CreationOrder)를 한 undo 단위로 처리.
+// Hierarchy 드래그 드롭: 부모 변경(WorldStay)·소속 레이어·표시 순서(CreationOrder)를
+// 한 undo 단위로 처리. 셋은 드롭 한 번에 함께 바뀌므로 커맨드를 나누면 undo 가 쪼개진다.
 class CMoveGameObjectInHierarchyCommand final : public IEditorCommand
 {
 public:
 	// newParent = nullptr 이면 루트로 이동.
 	// insertNear = nullptr 이면 해당 parent 그룹의 맨 아래로 이동.
 	// insertAfter = false/true 는 insertNear 앞/뒤 삽입.
+	// newLayer = nullptr 이면 레이어 유지. 자식으로 이동하는 경우 레이어는 부모를 따라가므로
+	// (자식=부모 레이어 불변식) 루트로 이동할 때만 의미가 있다.
 	CMoveGameObjectInHierarchyCommand(
 		SafePtr<CGameScene> scene,
 		CGameObject* object,
 		CGameObject* newParent,
 		CGameObject* insertNear = nullptr,
-		bool insertAfter = true);
+		bool insertAfter = true,
+		CGameLayer* newLayer = nullptr);
 	~CMoveGameObjectInHierarchyCommand() override = default;
 
 	const char* GetName() const override;
@@ -398,7 +406,8 @@ private:
 		std::uint64_t CreationOrder = 0;
 	};
 
-	bool Apply(const File::Guid& parentGuid, const Transform2D* localTransform, bool computeWorldStay);
+	bool Apply(const File::Guid& parentGuid, const File::Guid& layerGuid,
+	           const Transform2D* localTransform, bool computeWorldStay);
 	void CaptureOrders(std::vector<OrderSnapshot>& out) const;
 	void RestoreOrders(const std::vector<OrderSnapshot>& orders);
 	void RebuildOrder(CGameObject& object);
@@ -409,6 +418,8 @@ private:
 	File::Guid m_oldParentGuid;
 	File::Guid m_newParentGuid;
 	File::Guid m_insertNearGuid;
+	File::Guid m_oldLayerGuid; // 이동 전 소속 레이어(undo 복원)
+	File::Guid m_newLayerGuid; // null = 레이어 유지
 	bool m_insertAfter = true;
 	Transform2D m_oldLocalTransform;
 	Transform2D m_newLocalTransform;

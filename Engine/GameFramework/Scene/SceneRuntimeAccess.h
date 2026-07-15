@@ -68,6 +68,13 @@ public:
 		component.SetInstanceGuid(guid);
 	}
 
+	// 에디터 undo/redo 전용 — 레이어를 파괴했다가 되살릴 때 원래 guid 를 되돌린다.
+	// guid 가 바뀌면 뷰포트 LayerFilter·파일 레이어 승계가 대상을 잃는다.
+	static void SetLayerInstanceGuid(CGameScene& scene, CGameLayer& layer, const File::Guid& guid)
+	{
+		scene.SetLayerInstanceGuid(layer, guid);
+	}
+
 	static void SetCreationOrder(CGameObject& object, std::uint64_t creationOrder)
 	{
 		object.m_creationOrder = creationOrder;

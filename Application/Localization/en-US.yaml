@@ -2,7 +2,7 @@ Locale: en-US
 Entries:
   window.root: Root
   window.main: Main
-  window.hierarchy: Hierarchy
+  window.hierarchy: Canvas View
   window.scene_view: Scene View
   window.game_view: Game View
   window.inspector: Inspector
@@ -287,10 +287,23 @@ Entries:
 
   hierarchy.scene_manager_unavailable: SceneManager is not available.
   hierarchy.no_active_scene: No active scene.
-  hierarchy.scene_empty: Scene is empty.
   hierarchy.move_format: "Move: %s"
+  hierarchy.layer_move_format: "Move Layer: %s"
   hierarchy.unparent: Unparent
   hierarchy.delete_object: Delete Object
+  hierarchy.add_layer: Add Layer
+  hierarchy.delete_layer: Delete Layer
+  inspector.layer.properties: Layer Properties
+  inspector.layer.blend_mode: Blend Mode
+  inspector.layer.blend.normal: Normal
+  inspector.layer.blend.additive: Additive
+  inspector.layer.blend.multiply: Multiply
+  inspector.layer.blend.screen: Screen
+  inspector.layer.opacity: Opacity
+  inspector.layer.visible: Visible
+  inspector.layer.static: Static (Freeze Render)
+  inspector.layer.force_own_texture: Force Own Texture
+  inspector.layer.parallax: Parallax Factor
   inspector.remove_component: Remove Component
   editor.menu.copy_object: Copy Object
   editor.menu.paste_object: Paste Object

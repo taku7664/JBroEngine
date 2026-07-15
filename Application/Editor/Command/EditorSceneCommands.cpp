@@ -10,6 +10,7 @@
 #include "Engine/GameFramework/Component/Transform2D.h"
 #include "Engine/GameFramework/Object/GameObject.h"
 #include "Engine/GameFramework/Reflection/ReflectionRegistry.h"
+#include "Engine/GameFramework/Scene/GameLayer.h"
 #include "Engine/GameFramework/Scene/Scene.h"
 #include "Engine/GameFramework/Scene/SceneRuntimeAccess.h"
 #include "Engine/GameFramework/Scene/SceneTransformUtils.h"
@@ -37,6 +38,11 @@ namespace
 	File::Guid GuidOf(const CComponent* component)
 	{
 		return component ? component->GetInstanceGuid() : File::Guid();
+	}
+
+	File::Guid GuidOf(const CGameLayer* layer)
+	{
+		return layer ? layer->GetInstanceGuid() : File::Guid();
 	}
 }
 
@@ -240,10 +246,12 @@ void CReorderComponentCommand::Redo() { if (false == m_executed) m_executed = Mo
 
 CCreateGameObjectCommand::CCreateGameObjectCommand(SafePtr<CGameScene> scene, const char* name,
                                                    CGameObject* parent,
-                                                   const Vector2* spawnWorldPos)
+                                                   const Vector2* spawnWorldPos,
+                                                   CGameLayer* layer)
 	: m_scene(scene)
 	, m_name(name ? name : "GameObject")
 	, m_parentGuid(GuidOf(parent))
+	, m_layerGuid(GuidOf(layer))
 	, m_hasSpawnPos(nullptr != spawnWorldPos)
 	, m_spawnWorldPos(spawnWorldPos ? *spawnWorldPos : Vector2(0.0f, 0.0f))
 {
@@ -261,7 +269,12 @@ bool CCreateGameObjectCommand::Execute()
 		return false;
 	}
 
-	CGameObject* gameObject = m_scene->CreateGameObject(m_name.c_str());
+	// 레이어 지정 생성 — 씬이 배정까지 해준다(미지정 = 기본 레이어). 자식으로 붙는 경우
+	// 아래 SetParent 가 부모 레이어로 덮어쓰므로 여기 값은 루트일 때만 남는다.
+	CGameLayer* layer = m_layerGuid.IsNull()
+		? nullptr
+		: m_scene->FindLayerByInstanceGuid(m_layerGuid).TryGet();
+	CGameObject* gameObject = m_scene->CreateGameObject(m_name.c_str(), layer);
 	m_created = (nullptr != gameObject);
 	if (false == m_created)
 	{
@@ -1137,16 +1150,19 @@ CMoveGameObjectInHierarchyCommand::CMoveGameObjectInHierarchyCommand(
 	CGameObject* object,
 	CGameObject* newParent,
 	CGameObject* insertNear,
-	bool insertAfter)
+	bool insertAfter,
+	CGameLayer* newLayer)
 	: m_scene(scene)
 	, m_objectGuid(GuidOf(object))
 	, m_newParentGuid(GuidOf(newParent))
 	, m_insertNearGuid(GuidOf(insertNear))
+	, m_newLayerGuid(newLayer ? newLayer->GetInstanceGuid() : File::Guid())
 	, m_insertAfter(insertAfter)
 {
 	if (object)
 	{
 		m_oldParentGuid = GuidOf(object->GetParent().TryGet());
+		m_oldLayerGuid = GuidOf(object->GetLayer().TryGet());
 		m_oldLocalTransform = object->GetTransform();
 	}
 	CaptureOrders(m_oldOrders);
@@ -1165,7 +1181,7 @@ bool CMoveGameObjectInHierarchyCommand::Execute()
 		return false;
 	}
 
-	if (false == Apply(m_newParentGuid, nullptr, true))
+	if (false == Apply(m_newParentGuid, m_newLayerGuid, nullptr, true))
 	{
 		return false;
 	}
@@ -1183,7 +1199,7 @@ void CMoveGameObjectInHierarchyCommand::Undo()
 		return;
 	}
 
-	Apply(m_oldParentGuid, &m_oldLocalTransform, false);
+	Apply(m_oldParentGuid, m_oldLayerGuid, &m_oldLocalTransform, false);
 	RestoreOrders(m_oldOrders);
 	m_executed = false;
 }
@@ -1195,13 +1211,14 @@ void CMoveGameObjectInHierarchyCommand::Redo()
 		return;
 	}
 
-	Apply(m_newParentGuid, &m_newLocalTransform, false);
+	Apply(m_newParentGuid, m_newLayerGuid, &m_newLocalTransform, false);
 	RestoreOrders(m_newOrders);
 	m_executed = true;
 }
 
 bool CMoveGameObjectInHierarchyCommand::Apply(
 	const File::Guid& parentGuid,
+	const File::Guid& layerGuid,
 	const Transform2D* localTransform,
 	bool computeWorldStay)
 {
@@ -1234,6 +1251,15 @@ bool CMoveGameObjectInHierarchyCommand::Apply(
 	if (false == ApplyParent(scene, *object, parentGuid))
 	{
 		return false;
+	}
+	// 레이어는 부모 배정 뒤에 — SetParent 가 서브트리에 부모 레이어를 전파하므로 순서가 뒤집히면
+	// 지정 레이어가 덮어써진다. 루트일 때만 유효(자식은 부모 레이어를 따른다).
+	if (parentGuid.IsNull() && false == layerGuid.IsNull())
+	{
+		if (CGameLayer* layer = scene.FindLayerByInstanceGuid(layerGuid).TryGet())
+		{
+			scene.MoveObjectToLayer(*object, *layer);
+		}
 	}
 	object->GetTransform() = targetLocalTransform;
 	return true;

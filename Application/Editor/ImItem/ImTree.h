@@ -13,10 +13,13 @@ struct ImTreeDrawContext
 };
 
 bool ImTree(const char* label, ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_None);
+// minContentHeight: 컨텐츠 영역의 최소 높이(px). 기본 0 이면 한 줄 높이(폰트) 그대로.
+// 썸네일처럼 텍스트보다 높은 것을 ContentRect 에 그릴 때 행 높이를 그만큼 키운다.
 bool ImTreeBegin(
     const char* id,
     ImGuiTreeNodeFlags flags,
-    ImTreeDrawContext* outContext = nullptr
+    ImTreeDrawContext* outContext = nullptr,
+    float minContentHeight = 0.0f
 );
 void ImTreeEnd();
 

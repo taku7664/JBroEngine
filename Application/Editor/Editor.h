@@ -3,6 +3,7 @@
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
 
 #include "Engine/GameFramework/Object/GameObject.h"    // CGameObject (선택 = SafePtr)
+#include "Engine/GameFramework/Scene/GameLayer.h"      // CGameLayer (레이어 선택 = SafePtr)
 #include "Editor/Command/EditorCommandManager.h"
 #include "Editor/Shortcut/EditorShortcutManager.h"
 #include "Utillity/File/FilePath.h"
@@ -60,6 +61,7 @@ public:
 			m_selectedObjects.push_back(m_primarySelected);
 		ClearAssetSelection();
 		ClearScriptSelection();
+		ClearLayerSelection();
 	}
 
 	// ── 다중 선택: objects 목록 전체 선택 (첫 항목이 primary) ────────────────
@@ -72,6 +74,7 @@ public:
 			? SafePtr<CGameObject>() : m_selectedObjects.front();
 		ClearAssetSelection();
 		ClearScriptSelection();
+		ClearLayerSelection();
 	}
 
 	// ── 개별 추가 (Ctrl+Click용): 이미 선택돼 있으면 무시 ────────────────────
@@ -86,6 +89,7 @@ public:
 		}
 		ClearAssetSelection();
 		ClearScriptSelection();
+		ClearLayerSelection();
 	}
 
 	// ── 개별 제거 ─────────────────────────────────────────────────────────────
@@ -153,10 +157,35 @@ public:
 		return roots;
 	}
 
+	// 씬 선택(오브젝트 + 레이어) 해제. 레이어까지 지우는 이유: 호출부(씬뷰 빈 곳 클릭,
+	// 에셋 선택, 활성 씬 없음)는 전부 "씬에서 고른 것을 없던 일로" 를 뜻한다.
 	static void ClearSelection()
 	{
 		m_selectedObjects.clear();
 		m_primarySelected = SafePtr<CGameObject>();
+		ClearLayerSelection();
+	}
+
+	// ── 레이어 선택 ───────────────────────────────────────────────────────────
+	// 오브젝트/에셋/스크립트 선택과 상호 배타 — 인스펙터가 레이어 속성 패널을 띄운다.
+	// 레이어는 씬 소유(OwnerPtr)이므로 SafePtr 로 들고, 파괴되면 자동 무효화된다.
+	static void SelectLayer(CGameLayer* layer)
+	{
+		ClearSelection();
+		ClearAssetSelection();
+		ClearScriptSelection();
+		m_selectedLayer = layer ? layer->SafeFromThis() : SafePtr<CGameLayer>();
+	}
+
+	static void ClearLayerSelection()
+	{
+		m_selectedLayer = SafePtr<CGameLayer>();
+	}
+
+	// 파괴됐으면 nullptr.
+	static CGameLayer* GetSelectedLayer()
+	{
+		return m_selectedLayer.TryGet();
 	}
 
 	static void SelectAsset(const File::Guid& guid, const File::Path& path)
@@ -164,6 +193,7 @@ public:
 		m_selectedAssetGuid = guid;
 		m_selectedAssetPath = path;
 		ClearScriptSelection();
+		ClearLayerSelection();
 	}
 
 	static void ClearAssetSelection()
@@ -189,6 +219,7 @@ public:
 	{
 		ClearSelection();         // 엔티티 선택 해제
 		ClearAssetSelection();    // 에셋 선택 해제
+		ClearLayerSelection();    // 레이어 선택 해제
 		m_selectedScriptPath = path;
 	}
 
@@ -231,6 +262,7 @@ public:
 private:
 	inline static SafePtr<CGameObject>              m_primarySelected;
 	inline static std::vector<SafePtr<CGameObject>> m_selectedObjects;
+	inline static SafePtr<CGameLayer>              m_selectedLayer;
 	inline static File::Path            m_activeScenePath   = File::NULL_PATH;
 	inline static File::Guid            m_selectedAssetGuid = File::NULL_GUID;
 	inline static File::Path            m_selectedAssetPath = File::NULL_PATH;

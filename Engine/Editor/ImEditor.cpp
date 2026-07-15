@@ -17,6 +17,26 @@
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
+namespace
+{
+	// 셰이더 리소스 겸용 렌더타겟 생성(없을 때만). 씬뷰/게임뷰/레이어 썸네일 공용.
+	bool EnsureRenderTexture(IRHIDevice& device, OwnerPtr<IRHITexture>& texture,
+	                         std::uint32_t width, std::uint32_t height)
+	{
+		if (false == static_cast<bool>(texture))
+		{
+			RHITexture2DDesc desc;
+			desc.Width     = width;
+			desc.Height    = height;
+			desc.Format    = ERHITextureFormat::RGBA8;
+			desc.BindFlags = static_cast<RHITextureBindFlags>(ERHITextureBindFlag::ShaderResource) |
+			                 static_cast<RHITextureBindFlags>(ERHITextureBindFlag::RenderTarget);
+			texture = device.CreateTexture2D(desc, nullptr);
+		}
+		return static_cast<bool>(texture);
+	}
+}
+
 CImEditor::CImEditor()
 	: m_imguiContext(nullptr)
 	, m_isWin32BackendInitialized(false)
@@ -227,6 +247,132 @@ void* CImEditor::GetSceneViewTextureID() const
 		return nullptr;
 	}
 	return m_sceneViewRenderTarget->GetNativeHandle().ShaderResourceView;
+}
+
+void CImEditor::RequestLayerThumbnails(std::uint32_t height)
+{
+	m_layerThumbnailRequestedHeight = height;
+	if (0 == height)
+	{
+		// 아무도 안 보면 VRAM 을 물고 있을 이유가 없다(레이어 수 × RT).
+		m_layerThumbnails.clear();
+		m_layerThumbnailWidth  = 0;
+		m_layerThumbnailHeight = 0;
+	}
+}
+
+void* CImEditor::GetLayerThumbnailTextureID(std::uint16_t layerIndex) const
+{
+	if (layerIndex >= m_layerThumbnails.size())
+	{
+		return nullptr;
+	}
+	const OwnerPtr<IRHITexture>& thumbnail = m_layerThumbnails[layerIndex];
+	if (false == static_cast<bool>(thumbnail))
+	{
+		return nullptr;
+	}
+	return thumbnail->GetNativeHandle().ShaderResourceView;
+}
+
+void CImEditor::RenderLayerThumbnails()
+{
+	if (0 == m_layerThumbnailRequestedHeight)
+	{
+		return;
+	}
+
+	const EngineCore* engineCore = GetEditorEngineCore();
+	if (nullptr == engineCore || false == engineCore->RHIDevice.IsValid()
+		|| false == engineCore->Renderer.IsValid() || false == engineCore->RenderScene.IsValid()
+		|| false == Engine.SceneManager.IsValid())
+	{
+		return;
+	}
+
+	CGameScene* activeScene = Engine.SceneManager->GetActiveScene().TryGet();
+	if (nullptr == activeScene || m_sceneViewLayers.empty())
+	{
+		return;
+	}
+
+	SafePtr<IRHICommandContext> commandContext = engineCore->RHIDevice->GetImmediateCommandContext();
+	if (false == commandContext.IsValid())
+	{
+		return;
+	}
+
+	// 크기 = 요청 높이 × 캔버스(프로젝트 해상도) 종횡비. 카메라도 같은 종횡비로 세우므로
+	// 썸네일은 "게임 화면을 그대로 축소한 그림" 이 된다.
+	float canvasWidth  = 16.0f;
+	float canvasHeight = 9.0f;
+	if (SafePtr<CProjectManager> projectManager = GetProjectManager();
+	    projectManager.IsValid() && projectManager->IsProjectLoaded())
+	{
+		canvasWidth  = static_cast<float>(projectManager->GetResolutionWidth());
+		canvasHeight = static_cast<float>(projectManager->GetResolutionHeight());
+	}
+
+	const std::uint32_t thumbnailHeight = m_layerThumbnailRequestedHeight;
+	const std::uint32_t thumbnailWidth  = std::max(1u, static_cast<std::uint32_t>(
+		static_cast<float>(thumbnailHeight) * canvasWidth / std::max(1.0f, canvasHeight)));
+
+	if (m_layerThumbnailWidth != thumbnailWidth || m_layerThumbnailHeight != thumbnailHeight
+		|| m_layerThumbnails.size() != m_sceneViewLayers.size())
+	{
+		m_layerThumbnails.clear();
+		m_layerThumbnails.resize(m_sceneViewLayers.size());
+		m_layerThumbnailWidth  = thumbnailWidth;
+		m_layerThumbnailHeight = thumbnailHeight;
+	}
+
+	for (OwnerPtr<IRHITexture>& thumbnail : m_layerThumbnails)
+	{
+		EnsureRenderTexture(*engineCore->RHIDevice, thumbnail, thumbnailWidth, thumbnailHeight);
+	}
+
+	// 썸네일 = "게임 화면에서 이 레이어만 켠 그림". 그래서 게임뷰와 같은 경로를 태운다 —
+	// 뷰포트 렉트(스플릿)·뷰포트별 레이어 필터·패럴랙스가 전부 그 안에 있다. 카메라 하나를
+	// 뽑아 쓰면 스플릿에서 나머지 뷰포트의 내용이 통째로 빠진다.
+	const std::vector<GameRenderViewportDesc> viewports = CollectGameRenderViewports(
+		*activeScene, static_cast<float>(thumbnailWidth), static_cast<float>(thumbnailHeight));
+
+	// 바탕은 불투명으로 — 스프라이트가 premultiplied 로 얹혀 결과 알파가 1 로 유지된다.
+	// (투명 배경이면 ImGui 의 straight-alpha 블렌드에서 색이 어두워진다.)
+	const float thumbnailBackground[4] = { 0.08f, 0.09f, 0.11f, 1.0f };
+	const RenderSurfaceSize thumbnailSize{
+		static_cast<int>(thumbnailWidth), static_cast<int>(thumbnailHeight) };
+
+	for (const GameRenderLayerDesc& layer : m_sceneViewLayers)
+	{
+		if (layer.Index >= m_layerThumbnails.size()
+			|| false == static_cast<bool>(m_layerThumbnails[layer.Index]))
+		{
+			continue;
+		}
+
+		// 이 레이어 하나만 담은 목록으로 호출 → 뷰포트 순회는 그대로, 그리는 레이어만 하나.
+		// 포토샵 썸네일처럼 "원본 내용" 을 보여주려고 표시 속성은 중립값으로 덮는다.
+		GameRenderLayerDesc thumbnailLayer = layer;
+		thumbnailLayer.Visible         = true;                      // 꺼둔 레이어도 내용은 보여준다
+		thumbnailLayer.Opacity         = 1.0f;                      // 페이드 상태 무시
+		thumbnailLayer.BlendMode       = ERHIBlendMode::LayerNormal; // 아래 레이어가 없으니 무의미
+		thumbnailLayer.Static          = false;                     // 렌더 동결 무시(항상 최신)
+		thumbnailLayer.NeedsOwnTexture = false;                     // 합성할 게 없다 → RT 왕복 생략
+		const std::vector<GameRenderLayerDesc> singleLayer{ thumbnailLayer };
+
+		RenderGameViewports(
+			*commandContext,
+			*engineCore->Renderer,
+			*engineCore->RenderScene,
+			viewports,
+			thumbnailSize,
+			m_layerThumbnails[layer.Index].GetSafePtr(),
+			nullptr,
+			/*lights*/ {},   // 썸네일은 라이팅 미적용 — 레이어 내용 식별이 목적이다
+			singleLayer,
+			thumbnailBackground);
+	}
 }
 
 void CImEditor::RequestGameViewRenderTarget(std::uint32_t width, std::uint32_t height)
@@ -495,17 +641,7 @@ void CImEditor::OnPrepareRender()
 
 	auto EnsureRT = [&](OwnerPtr<IRHITexture>& rt, std::uint32_t w, std::uint32_t h) -> bool
 	{
-		if (false == static_cast<bool>(rt))
-		{
-			RHITexture2DDesc desc;
-			desc.Width     = w;
-			desc.Height    = h;
-			desc.Format    = ERHITextureFormat::RGBA8;
-			desc.BindFlags = static_cast<RHITextureBindFlags>(ERHITextureBindFlag::ShaderResource) |
-			                 static_cast<RHITextureBindFlags>(ERHITextureBindFlag::RenderTarget);
-			rt = engineCore->RHIDevice->CreateTexture2D(desc, nullptr);
-		}
-		return static_cast<bool>(rt);
+		return EnsureRenderTexture(*engineCore->RHIDevice, rt, w, h);
 	};
 
 	// 씬뷰 레이어 스냅샷 — 편집 뷰가 그리는 대상은 활성 씬이다(게임뷰는 자기 씬을 따로 지정).
@@ -739,6 +875,10 @@ void CImEditor::OnPrepareRender()
 	{
 		m_gameViewCameraCullingStats.clear();
 	}
+
+	// 씬뷰/게임뷰와 독립 — 둘 다 닫혀 있어도 하이어라키가 요청하면 그린다.
+	// 렌더러 뷰 상태를 바꾸므로 다른 뷰의 렌더가 끝난 뒤 마지막에 돈다.
+	RenderLayerThumbnails();
 }
 
 void CImEditor::OnRender()

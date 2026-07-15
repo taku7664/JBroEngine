@@ -9,7 +9,8 @@ bool ImTreeRender(
     const char* label,
     const char* label_end,
     ImTreeDrawContext* outContext,
-    bool renderDefaultText
+    bool renderDefaultText,
+    float minContentHeight
 );
 
 namespace
@@ -55,13 +56,14 @@ bool ImTree(const char* label, ImGuiTreeNodeFlags flags)
     }
 
     ImGuiID id = window->GetID(label);
-    return ImTreeRender(id, flags, label, nullptr, nullptr, true);
+    return ImTreeRender(id, flags, label, nullptr, nullptr, true, 0.0f);
 }
 
 bool ImTreeBegin(
     const char* idText,
     ImGuiTreeNodeFlags flags,
-    ImTreeDrawContext* outContext
+    ImTreeDrawContext* outContext,
+    float minContentHeight
 )
 {
     ImGuiWindow* window = GetCurrentWindow();
@@ -79,7 +81,7 @@ bool ImTreeBegin(
     const char* idLabel = idText ? idText : "";
     ImGuiID id = window->GetID(idLabel);
     ImTreeDrawContext context;
-    const bool isOpen = ImTreeRender(id, flags, idLabel, nullptr, &context, false);
+    const bool isOpen = ImTreeRender(id, flags, idLabel, nullptr, &context, false, minContentHeight);
 
     g_ImTreeCursorRestoreStack.push_back(ImTreeCursorRestore{ window->DC.CursorPos });
 
@@ -112,7 +114,8 @@ bool ImTreeRender(
     const char* label,
     const char* label_end,
     ImTreeDrawContext* outContext,
-    bool renderDefaultText
+    bool renderDefaultText,
+    float minContentHeight
 )
 {
     ImGuiWindow* window = GetCurrentWindow();
@@ -145,6 +148,8 @@ bool ImTreeRender(
         : ImVec2(0.0f, g.FontSize);
 
     ImVec2 content_size = label_size;
+    // 썸네일 등 한 줄보다 높은 컨텐츠를 위해 행 높이를 키운다(frame_height 가 이 값을 따라간다).
+    content_size.y = ImMax(content_size.y, minContentHeight);
 
     const float text_offset_x = g.FontSize + (display_frame ? padding.x * 2.5f : padding.x * 1.5f);
     const float text_offset_y = use_frame_padding

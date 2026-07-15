@@ -13,6 +13,7 @@
 
 #include "Editor/Editor.h"
 #include "Editor/EditorContext.h"
+#include "Editor/Command/EditorLayerCommands.h"
 #include "Editor/Command/EditorSceneCommands.h"
 #include "Editor/EditorDragDrop.h"
 #include "Editor/Gui/EditorGuiActions.h"
@@ -1422,6 +1423,112 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		if (false == familyStatus.empty()) ImGui::TextWrapped("%s", familyStatus.c_str());
 	}
 
+	// 레이어 선택 시 컴포짓 속성 편집. 표시 중이면 true(호출자는 다른 패널을 그리지 않는다).
+	// 편집은 라이브 대입이 아니라 스냅샷 교체로 한다 — 커맨드가 "적용 직전 값"을 old 로 캡처하므로
+	// 먼저 라이브로 바꿔버리면 undo 가 새 값으로 되돌아간다(=무효).
+	bool DrawSelectedLayerInspector(CGameScene& scene)
+	{
+		CGameLayer* layer = Editor::GetSelectedLayer();
+		if (nullptr == layer)
+		{
+			return false;
+		}
+
+		ImSectionHeader(Loc::Text(EditorLocKeys::InspectorLayerProperties)).Draw();
+
+		ImGui::Utillity::FormLayout layout("##layer_properties", 4.0f, { 2.0f, 1.0f });
+
+		using EField = CSetLayerPropertyCommand::EField;
+		auto apply = [&scene, layer](EField field, const LayerPropertySnapshot& properties)
+		{
+			EditorLayerActions::SetLayerProperty(scene, *layer, field, properties);
+		};
+
+		// 이름은 편집이 끝날 때 1회만 커맨드로 커밋한다 — 글자마다 커밋하면 undo 가 글자 수만큼
+		// 쌓인다(드래그 병합은 마우스 기준이라 타이핑에는 걸리지 않는다).
+		ImInputText nameInput("##layer_name");
+		nameInput.SetHintText(Loc::TextOr(EditorLocKeys::EditorPropertyName, "Name"));
+		nameInput.SetSourceText(layer->GetName());
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::TextOr(EditorLocKeys::EditorPropertyName, "Name")); }, [&]() {
+			nameInput();
+			if (ImGui::IsItemDeactivatedAfterEdit())
+			{
+				LayerPropertySnapshot properties = LayerPropertySnapshot::Capture(*layer);
+				properties.Name = nameInput.GetString();
+				apply(EField::Name, properties);
+			}
+		});
+
+		// 블렌드 항목 순서 = ELayerBlendMode 값 순서(Normal/Additive/Multiply/Screen).
+		const char* blendItems[] = {
+			Loc::Text(EditorLocKeys::InspectorLayerBlendNormal),
+			Loc::Text(EditorLocKeys::InspectorLayerBlendAdditive),
+			Loc::Text(EditorLocKeys::InspectorLayerBlendMultiply),
+			Loc::Text(EditorLocKeys::InspectorLayerBlendScreen),
+		};
+		int blendIndex = static_cast<int>(layer->BlendMode);
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorLayerBlendMode)); }, [&]() {
+			if (ImGui::Combo("##inspector.layer.blend", &blendIndex, blendItems, IM_ARRAYSIZE(blendItems)))
+			{
+				LayerPropertySnapshot properties = LayerPropertySnapshot::Capture(*layer);
+				properties.BlendMode = static_cast<ELayerBlendMode>(blendIndex);
+				apply(EField::BlendMode, properties);
+			}
+		});
+
+		float opacity = layer->Opacity;
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorLayerOpacity)); }, [&]() {
+			if (ImGui::SliderFloat("##inspector.layer.opacity", &opacity, 0.0f, 1.0f))
+			{
+				LayerPropertySnapshot properties = LayerPropertySnapshot::Capture(*layer);
+				properties.Opacity = opacity;
+				apply(EField::Opacity, properties);
+			}
+		});
+
+		bool visible = layer->Visible;
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorLayerVisible)); }, [&]() {
+			if (ImGui::Checkbox("##inspector.layer.visible", &visible))
+			{
+				LayerPropertySnapshot properties = LayerPropertySnapshot::Capture(*layer);
+				properties.Visible = visible;
+				apply(EField::Visible, properties);
+			}
+		});
+
+		bool isStatic = layer->Static;
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorLayerStatic)); }, [&]() {
+			if (ImGui::Checkbox("##inspector.layer.static", &isStatic))
+			{
+				LayerPropertySnapshot properties = LayerPropertySnapshot::Capture(*layer);
+				properties.Static = isStatic;
+				apply(EField::Static, properties);
+			}
+		});
+
+		bool forceOwnTexture = layer->ForceOwnTexture;
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorLayerForceOwnTexture)); }, [&]() {
+			if (ImGui::Checkbox("##inspector.layer.force_own_texture", &forceOwnTexture))
+			{
+				LayerPropertySnapshot properties = LayerPropertySnapshot::Capture(*layer);
+				properties.ForceOwnTexture = forceOwnTexture;
+				apply(EField::ForceOwnTexture, properties);
+			}
+		});
+
+		float parallax = layer->ParallaxFactor;
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorLayerParallax)); }, [&]() {
+			if (ImGui::DragFloat("##inspector.layer.parallax", &parallax, 0.01f))
+			{
+				LayerPropertySnapshot properties = LayerPropertySnapshot::Capture(*layer);
+				properties.ParallaxFactor = parallax;
+				apply(EField::ParallaxFactor, properties);
+			}
+		});
+
+		return true;
+	}
+
 	bool DrawSelectedAssetInspector()
 	{
 		const File::Guid& selectedGuid = Editor::GetSelectedAssetGuid();
@@ -1525,6 +1632,12 @@ void CInspectorTool::OnRenderStay()
 	CGameObject* selectedObject = Editor::GetSelectedEntity();
 	if (nullptr == selectedObject)
 	{
+		// 레이어 선택 — 컴포짓 속성 패널.
+		if (DrawSelectedLayerInspector(*scene))
+		{
+			AssetInspectorPreview::NotifyInspectionLost();
+			return;
+		}
 		// 스크립트 .h 선택 — 스키마 에디터.
 		if (DrawSelectedScriptInspector())
 		{

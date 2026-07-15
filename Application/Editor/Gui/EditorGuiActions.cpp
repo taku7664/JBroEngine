@@ -258,7 +258,8 @@ bool EditorGuiActions::DrawAddComponentButton(CGameScene& scene, CGameObject* ob
 	return added;
 }
 
-bool EditorGuiActions::DrawAddObjectMenu(CGameScene& scene, CGameObject* parent, const Vector2* spawnWorldPos)
+bool EditorGuiActions::DrawAddObjectMenu(CGameScene& scene, CGameObject* parent, const Vector2* spawnWorldPos,
+                                         CGameLayer* layer)
 {
 	// parent 유무에 따라 레이블 변경
 	const char* label = (nullptr != parent)
@@ -268,7 +269,7 @@ bool EditorGuiActions::DrawAddObjectMenu(CGameScene& scene, CGameObject* parent,
 	if (ImGui::MenuItem(label))
 	{
 		OwnerPtr<CCreateGameObjectCommand> cmd =
-		    MakeOwnerPtr<CCreateGameObjectCommand>(scene.SafeFromThis(), "GameObject", parent, spawnWorldPos);
+		    MakeOwnerPtr<CCreateGameObjectCommand>(scene.SafeFromThis(), "GameObject", parent, spawnWorldPos, layer);
 		CCreateGameObjectCommand* rawCmd = cmd.Get();
 		if (Editor::CommandManager.ExecuteCommand(std::move(cmd)) && rawCmd)
 		{

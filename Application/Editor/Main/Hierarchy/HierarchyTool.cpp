@@ -3,7 +3,10 @@
 
 #include "Editor/ImItem/ImTree.h"
 #include "Editor/ImItem/ImButton.h"
+#include "Editor/ImItem/ImLayerHeader.h"
+#include "Engine/Editor/ImEditor.h"
 
+#include "Editor/Command/EditorLayerCommands.h"
 #include "Editor/Command/EditorSceneCommands.h"
 #include "Editor/Icons/FontAwesomeIcons.h"
 #include "Editor/Gui/EditorGuiActions.h"
@@ -14,6 +17,7 @@
 #include "Engine/Core/EngineCore.h"
 #include "Engine/GameFramework/Reflection/ReflectionRegistry.h"
 #include "Engine/GameFramework/Object/GameObject.h"
+#include "Engine/GameFramework/Scene/GameLayer.h"
 #include "Engine/GameFramework/Scene/Scene.h"
 
 #include <vector>
@@ -31,6 +35,11 @@ void CHierarchyTool::OnCreate()
 
 void CHierarchyTool::OnDestroy()
 {
+	// 레이어 썸네일은 이 창만 쓴다 — 창이 사라지면 RT 도 놓는다.
+	if (Editor::ImEditor.IsValid())
+	{
+		Editor::ImEditor->RequestLayerThumbnails(0);
+	}
 }
 
 void CHierarchyTool::OnUpdate()
@@ -53,31 +62,42 @@ void CHierarchyTool::OnRenderStay()
 		return;
 	}
 
+	// 레이어 생성은 배경 팝업과 레이어 컨텍스트 메뉴 양쪽에서 쓴다.
+	auto drawAddLayerMenuItem = [&]()
+	{
+		if (ImGui::MenuItem(Loc::Text(EditorLocKeys::HierarchyAddLayer)))
+		{
+			auto cmd = MakeOwnerPtr<CCreateLayerCommand>(activeScene, nullptr);
+			CCreateLayerCommand* rawCmd = cmd.Get();
+			if (Editor::CommandManager.ExecuteCommand(std::move(cmd)) && rawCmd)
+			{
+				Editor::SelectLayer(rawCmd->GetLayer());
+			}
+		}
+	};
+
 	// ── 빈 영역 우클릭 컨텍스트 메뉴 ────────────────────────────────────────────
+	// 오브젝트 추가 대상 레이어 = 현재 선택 레이어(없으면 씬 기본 레이어).
 	auto drawBackgroundPopup = [&]()
 	{
 		if (ImGui::BeginPopupContextWindow("HierarchyBackgroundContext",
 		    ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems))
 		{
-			EditorGuiActions::DrawAddObjectMenu(*activeScene, nullptr);
+			EditorGuiActions::DrawAddObjectMenu(*activeScene, nullptr, nullptr, Editor::GetSelectedLayer());
 			EditorGuiActions::DrawPasteObjectMenuItem(*activeScene);
+			ImGui::Separator();
+			drawAddLayerMenuItem();
 			ImGui::EndPopup();
 		}
 	};
 
 	// ── 활성 오브젝트 수집 + 계층 인덱스 빌드(id 기반) ──────────────────────────
+	// 오브젝트가 0개여도 레이어는 그린다(레이어는 오브젝트와 독립된 캔버스 구성 요소).
 	std::vector<CGameObject*> objects;
 	activeScene->ForEachObject([&objects](CGameObject& o){ objects.push_back(&o); });
-	if (objects.empty())
-	{
-		ImGui::TextDisabled(Loc::Text(EditorLocKeys::HierarchySceneEmpty));
-		Editor::ClearSelection();
-		drawBackgroundPopup();
-		return;
-	}
 
 	std::unordered_map<const CGameObject*, std::vector<std::size_t>> childrenByParent;
-	std::vector<std::size_t> rootIndices;
+	std::unordered_map<const CGameLayer*, std::vector<std::size_t>> rootsByLayer;
 	for (std::size_t i = 0; i < objects.size(); ++i)
 	{
 		if (CGameObject* parent = objects[i]->GetParent().TryGet())
@@ -86,7 +106,7 @@ void CHierarchyTool::OnRenderStay()
 		}
 		else
 		{
-			rootIndices.push_back(i);
+			rootsByLayer[objects[i]->GetLayer().TryGet()].push_back(i);
 		}
 	}
 
@@ -97,7 +117,10 @@ void CHierarchyTool::OnRenderStay()
 	{
 		return objects[a]->GetCreationOrder() < objects[b]->GetCreationOrder();
 	};
-	std::sort(rootIndices.begin(), rootIndices.end(), byCreationOrder);
+	for (auto& entry : rootsByLayer)
+	{
+		std::sort(entry.second.begin(), entry.second.end(), byCreationOrder);
+	}
 	for (auto& entry : childrenByParent)
 	{
 		std::sort(entry.second.begin(), entry.second.end(), byCreationOrder);
@@ -109,7 +132,9 @@ void CHierarchyTool::OnRenderStay()
 	// 경우에만 계층 드롭 UI를 표시한다.
 	const ImGuiPayload* currentDragPayload = ImGui::GetDragDropPayload();
 	const bool isDragging = currentDragPayload != nullptr
-	                      && currentDragPayload->IsDataType("HIERARCHY_ENTITY");
+	                      && currentDragPayload->IsDataType(EditorDragDrop::HIERARCHY_ENTITY_PAYLOAD);
+	const bool isDraggingLayer = currentDragPayload != nullptr
+	                      && currentDragPayload->IsDataType(EditorDragDrop::HIERARCHY_LAYER_PAYLOAD);
 
 	auto canMoveObject = [](CGameObject* draggedObj, CGameObject* newParent, CGameObject* insertNear) -> bool
 	{
@@ -120,8 +145,11 @@ void CHierarchyTool::OnRenderStay()
 		return nullptr == newParent || false == newParent->IsDescendantOf(*draggedObj);
 	};
 
+	// newLayer = nullptr 이면 레이어 유지. 루트로 떨어지는 드롭에서만 의미가 있다
+	// (자식으로 들어가면 부모 레이어를 따라간다).
 	auto executeHierarchyMove = [&](CGameObject* draggedObj, CGameObject* newParent,
-	                                CGameObject* insertNear, bool insertAfter) -> bool
+	                                CGameObject* insertNear, bool insertAfter,
+	                                CGameLayer* newLayer = nullptr) -> bool
 	{
 		if (false == canMoveObject(draggedObj, newParent, insertNear))
 		{
@@ -129,7 +157,7 @@ void CHierarchyTool::OnRenderStay()
 		}
 
 		auto cmd = MakeOwnerPtr<CMoveGameObjectInHierarchyCommand>(
-			activeScene, draggedObj, newParent, insertNear, insertAfter);
+			activeScene, draggedObj, newParent, insertNear, insertAfter, newLayer);
 		if (false == Editor::CommandManager.ExecuteCommand(std::move(cmd)))
 		{
 			return false;
@@ -243,13 +271,15 @@ void CHierarchyTool::OnRenderStay()
 				drawList->AddRect(rowMin, rowMax, color);
 			}
 
-			const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("HIERARCHY_ENTITY");
+			const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(EditorDragDrop::HIERARCHY_ENTITY_PAYLOAD);
 			if (payload)
 			{
 				CGameObject* draggedObj = *static_cast<CGameObject* const*>(payload->Data);
 				if (dropBefore || dropAfter)
 				{
-					executeHierarchyMove(draggedObj, obj->GetParent().TryGet(), obj, dropAfter);
+					// 형제로 삽입 = 대상과 같은 레이어. 대상이 자식이면 레이어 인자는 무시된다.
+					executeHierarchyMove(draggedObj, obj->GetParent().TryGet(), obj, dropAfter,
+					                     obj->GetLayer().TryGet());
 				}
 				else
 				{
@@ -314,9 +344,195 @@ void CHierarchyTool::OnRenderStay()
 		}
 	};
 
-	for (std::size_t rootIndex : rootIndices)
+	// ── 레이어 노드 렌더링 ──────────────────────────────────────────────────────
+	// 표시 순서는 포토샵식(위 = 컴포짓 마지막 = 화면 최전면)이므로 모델 인덱스의 역순으로
+	// 그린다. 모델(m_layers)은 0 = 맨 아래 그대로 두고 표시만 뒤집는다.
+	const std::size_t layerCount = activeScene->GetLayerCount();
+
+	// 썸네일 크기 = 씬뷰 종횡비 × 요청 높이. ImEditor 가 씬뷰 레이어 합성 중에 채운다.
+	const float thumbnailHeight = ImGui::GetTextLineHeight() * 2.0f;
+	const bool hasImEditor = Editor::ImEditor.IsValid();
+	if (hasImEditor)
 	{
-		drawObject(rootIndex);
+		Editor::ImEditor->RequestLayerThumbnails(static_cast<std::uint32_t>(thumbnailHeight));
+	}
+
+	auto drawLayer = [&](std::size_t layerIndex)
+	{
+		CGameLayer* layer = activeScene->GetLayerAt(layerIndex);
+		if (nullptr == layer)
+		{
+			return;
+		}
+
+		ImGui::Utillity::IDGroup idGroup(static_cast<const void*>(layer)); // 오브젝트 인덱스 id 와 충돌 방지
+
+		// 오브젝트 행 눈 버튼과 같은 폭(= ImTree 한 줄 행 높이) — 아이콘 x 가 어긋나지 않게.
+		// ImTreeRender 의 한 줄 높이 계산과 같은 식이다(텍스트 높이 + 3).
+		const float eyeButtonWidth = ImGui::GetTextLineHeight() + 3.0f;
+
+		ImLayerHeaderDesc headerDesc;
+		headerDesc.Label = layer->GetName();
+		headerDesc.Selected = (Editor::GetSelectedLayer() == layer);
+		headerDesc.ReservedRightWidth = eyeButtonWidth;
+		if (hasImEditor && Editor::ImEditor->GetLayerThumbnailHeight() > 0)
+		{
+			headerDesc.Thumbnail = reinterpret_cast<ImTextureID>(
+				Editor::ImEditor->GetLayerThumbnailTextureID(layer->GetIndex()));
+			headerDesc.ThumbnailSize = ImVec2(
+				static_cast<float>(Editor::ImEditor->GetLayerThumbnailWidth()),
+				static_cast<float>(Editor::ImEditor->GetLayerThumbnailHeight()));
+		}
+
+		const ImLayerHeaderResult header = ImLayerHeader("##LayerHeader", headerDesc);
+		const bool isOpen = header.IsOpen;
+		const ImRect layerRowRect = header.RowRect;
+		const float nodeH = header.RowHeight;
+
+		if (ImGui::IsItemHovered() && ImGui::IsMouseReleased(ImGuiMouseButton_Left)
+			&& !ImGui::IsItemToggledOpen())
+		{
+			Editor::SelectLayer(layer);
+		}
+
+		// ── Drag Source(컴포짓 순서 재배치) ───────────────────────────────────
+		if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceAllowNullID))
+		{
+			ImGui::SetDragDropPayload(EditorDragDrop::HIERARCHY_LAYER_PAYLOAD, &layer, sizeof(CGameLayer*));
+			ImGui::Text(Loc::Text(EditorLocKeys::HierarchyLayerMoveFormat), layer->GetName());
+			ImGui::EndDragDropSource();
+		}
+
+		// ── Drop Target ──────────────────────────────────────────────────────
+		// 오브젝트 드롭 = 이 레이어의 루트로 이동. 레이어 드롭 = 이 레이어 위/아래로 재배치.
+		if (isDragging || isDraggingLayer)
+		{
+			const ImVec2 cursorAfterTree = ImGui::GetCursorScreenPos();
+			ImGui::SetCursorScreenPos(layerRowRect.Min);
+			ImGui::InvisibleButton("##HierarchyLayerRowDrop", layerRowRect.GetSize());
+			ImGui::SetCursorScreenPos(cursorAfterTree);
+
+			if (ImGui::BeginDragDropTarget())
+			{
+				const ImU32 color = ImGui::GetColorU32(ImVec4(0.25f, 0.70f, 1.00f, 1.00f));
+				ImDrawList* drawList = ImGui::GetWindowDrawList();
+
+				if (isDraggingLayer)
+				{
+					// 행 위 절반 = 이 레이어보다 앞(위)에, 아래 절반 = 뒤(아래)에 배치.
+					const float rowHeight = std::max(1.0f, layerRowRect.Max.y - layerRowRect.Min.y);
+					const float localY = std::clamp(
+						(ImGui::GetIO().MousePos.y - layerRowRect.Min.y) / rowHeight, 0.0f, 1.0f);
+					const bool dropAbove = localY < 0.5f;
+					const float lineY = dropAbove ? layerRowRect.Min.y : layerRowRect.Max.y;
+					drawList->AddLine(ImVec2(layerRowRect.Min.x, lineY),
+					                  ImVec2(layerRowRect.Max.x, lineY), color, 2.0f);
+
+					const ImGuiPayload* payload =
+						ImGui::AcceptDragDropPayload(EditorDragDrop::HIERARCHY_LAYER_PAYLOAD);
+					if (payload)
+					{
+						CGameLayer* draggedLayer = *static_cast<CGameLayer* const*>(payload->Data);
+						const int draggedIndex = activeScene->GetLayerIndex(draggedLayer);
+						if (draggedLayer && draggedLayer != layer && draggedIndex >= 0)
+						{
+							// 목적지는 "드래그 레이어를 뺀 목록" 기준으로 계산한다 —
+							// MoveLayer 가 erase 후 insert 하므로 그 기준이 곧 최종 위치다.
+							std::size_t targetIndex = layerIndex;
+							if (static_cast<std::size_t>(draggedIndex) < layerIndex)
+							{
+								--targetIndex;
+							}
+							// 표시가 뒤집혀 있으므로 "위에 놓기" = 모델 인덱스 +1.
+							const std::size_t newIndex = dropAbove ? targetIndex + 1 : targetIndex;
+							auto cmd = MakeOwnerPtr<CMoveLayerCommand>(activeScene, draggedLayer, newIndex);
+							if (Editor::CommandManager.ExecuteCommand(std::move(cmd)))
+							{
+								Editor::SelectLayer(draggedLayer);
+							}
+						}
+					}
+				}
+				else
+				{
+					drawList->AddRect(layerRowRect.Min, layerRowRect.Max, color);
+					const ImGuiPayload* payload =
+						ImGui::AcceptDragDropPayload(EditorDragDrop::HIERARCHY_ENTITY_PAYLOAD);
+					if (payload)
+					{
+						CGameObject* draggedObj = *static_cast<CGameObject* const*>(payload->Data);
+						// 레이어 행에 떨어뜨리면 부모를 떼고 그 레이어의 루트 맨 아래로 간다.
+						executeHierarchyMove(draggedObj, nullptr, nullptr, true, layer);
+					}
+				}
+				ImGui::EndDragDropTarget();
+			}
+		}
+
+		// ── 우클릭 컨텍스트 메뉴 ──────────────────────────────────────────────
+		if (ImGui::BeginPopupContextItem("HierarchyLayerContext"))
+		{
+			Editor::SelectLayer(layer);
+
+			EditorGuiActions::DrawAddObjectMenu(*activeScene, nullptr, nullptr, layer);
+			EditorGuiActions::DrawPasteObjectMenuItem(*activeScene);
+			ImGui::Separator();
+			drawAddLayerMenuItem();
+			// 마지막 레이어는 삭제 불가 — 씬이 "레이어 0개"를 허용하지 않는다.
+			const bool canDelete = layerCount > 1;
+			if (ImGui::MenuItem(Loc::Text(EditorLocKeys::HierarchyDeleteLayer), nullptr, false, canDelete))
+			{
+				auto cmd = MakeOwnerPtr<CDeleteLayerCommand>(activeScene, layer);
+				if (Editor::CommandManager.ExecuteCommand(std::move(cmd)))
+				{
+					Editor::ClearLayerSelection();
+				}
+			}
+			ImGui::EndPopup();
+		}
+
+		// ── 가시성 토글(눈 아이콘, 우측 정렬) ─────────────────────────────────
+		// 오브젝트의 EditorHidden 과 달리 레이어 Visible 은 저장되는 런타임 속성이므로
+		// undo 스택에 올린다(인스펙터의 같은 체크박스와 동일 경로).
+		{
+			// ImTextButton 은 내부에서 라벨을 SetCursorPos 로 찍고 끝나 커서를 버튼 뒤가 아니라
+			// 글자 위치에 남긴다. 한 줄 행에선 오차가 작아 묻히지만 썸네일 행은 두 배로 높아서
+			// 다음 행이 이 행 중간에서 시작한다 → 행 높이는 헤더가 정한 값으로 되돌린다.
+			const ImVec2 cursorAfterHeader = ImGui::GetCursorScreenPos();
+
+			// 폭은 한 줄 버튼 폭, 높이는 행 전체(썸네일 때문에 행이 높다) — 글리프는 세로 중앙.
+			ImGui::SameLine(ImGui::GetContentRegionMax().x - eyeButtonWidth);
+			const char* icon = layer->Visible ? EditorIcons::ICON_EYE : EditorIcons::ICON_EYE_SLASH;
+			ImText eyeText;
+			eyeText.SetScale(0.7f).SetAlign(ImText::Align::Center);
+			if (ImTextButton(eyeText, icon, ImVec2(eyeButtonWidth, nodeH)))
+			{
+				LayerPropertySnapshot properties = LayerPropertySnapshot::Capture(*layer);
+				properties.Visible = !properties.Visible;
+				EditorLayerActions::SetLayerProperty(
+					*activeScene, *layer, CSetLayerPropertyCommand::EField::Visible, properties);
+			}
+
+			ImGui::SetCursorScreenPos(cursorAfterHeader);
+		}
+
+		if (isOpen)
+		{
+			const auto rootIt = rootsByLayer.find(layer);
+			if (rootIt != rootsByLayer.end())
+			{
+				for (std::size_t rootIndex : rootIt->second)
+				{
+					drawObject(rootIndex);
+				}
+			}
+			ImLayerHeaderEnd();
+		}
+	};
+
+	for (std::size_t i = layerCount; i > 0; --i)
+	{
+		drawLayer(i - 1);
 	}
 
 	if (pendingSelection.Object)

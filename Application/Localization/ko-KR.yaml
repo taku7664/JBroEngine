@@ -2,7 +2,7 @@ Locale: ko-KR
 Entries:
   window.root: Root
   window.main: Main
-  window.hierarchy: 하이어라키
+  window.hierarchy: 캔버스 뷰
   window.scene_view: 씬 뷰
   window.game_view: 게임 뷰
   window.inspector: 인스펙터
@@ -287,10 +287,23 @@ Entries:
 
   hierarchy.scene_manager_unavailable: SceneManager를 사용할 수 없습니다.
   hierarchy.no_active_scene: 활성 씬이 없습니다.
-  hierarchy.scene_empty: 씬이 비어 있습니다.
   hierarchy.move_format: "이동: %s"
+  hierarchy.layer_move_format: "레이어 이동: %s"
   hierarchy.unparent: 부모 해제
   hierarchy.delete_object: 오브젝트 삭제
+  hierarchy.add_layer: 레이어 추가
+  hierarchy.delete_layer: 레이어 삭제
+  inspector.layer.properties: 레이어 속성
+  inspector.layer.blend_mode: 블렌드 모드
+  inspector.layer.blend.normal: 표준
+  inspector.layer.blend.additive: 가산
+  inspector.layer.blend.multiply: 곱하기
+  inspector.layer.blend.screen: 스크린
+  inspector.layer.opacity: 불투명도
+  inspector.layer.visible: 표시
+  inspector.layer.static: 정적(렌더 동결)
+  inspector.layer.force_own_texture: 전용 텍스처 강제
+  inspector.layer.parallax: 패럴랙스 계수
   inspector.remove_component: 컴포넌트 제거
   editor.menu.copy_object: 오브젝트 복사
   editor.menu.paste_object: 오브젝트 붙여넣기

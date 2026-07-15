@@ -324,6 +324,7 @@ xcopy /Y /I /E "$(ProjectDir)Localization" "$(SolutionDir)Localization\" &gt; nu
     <ClInclude Include="Editor\Build\BuildSettingsUtils.h" />
     <ClInclude Include="Editor\Command\EditorFileCommands.h" />
     <ClInclude Include="Editor\Command\EditorCommandManager.h" />
+    <ClInclude Include="Editor\Command\EditorLayerCommands.h" />
     <ClInclude Include="Editor\Command\EditorSceneCommands.h" />
     <ClInclude Include="Editor\Main\Guizmo\EditorGuizmoController.h" />
     <ClInclude Include="Editor\Main\Guizmo\Guizmo2D.h" />
@@ -351,6 +352,7 @@ xcopy /Y /I /E "$(ProjectDir)Localization" "$(SolutionDir)Localization\" &gt; nu
     <ClInclude Include="Editor\ImItem\ImSplitter.h" />
     <ClInclude Include="Editor\ImItem\ImStatusBadge.h" />
     <ClInclude Include="Editor\ImItem\ImText.h" />
+    <ClInclude Include="Editor\ImItem\ImLayerHeader.h" />
     <ClInclude Include="Editor\ImItem\ImTree.h" />
     <ClInclude Include="Editor\ImItem\ImValidationMessage.h" />
     <ClInclude Include="Editor\Localization\EditorLocalizationKeys.h" />
@@ -408,6 +410,9 @@ xcopy /Y /I /E "$(ProjectDir)Localization" "$(SolutionDir)Localization\" &gt; nu
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="Editor\Command\EditorCommandManager.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Editor\Command\EditorLayerCommands.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="Editor\Command\EditorSceneCommands.cpp">
@@ -480,6 +485,9 @@ xcopy /Y /I /E "$(ProjectDir)Localization" "$(SolutionDir)Localization\" &gt; nu
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="Editor\ImItem\ImText.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Editor\ImItem\ImLayerHeader.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="Editor\ImItem\ImTree.cpp">

@@ -16,6 +16,10 @@ namespace EditorDragDrop
 	// 오브젝트 1개를 드래그: CGameObject* (드래그 중 생존하는 raw 포인터) 가 실린다.
 	constexpr const char* HIERARCHY_ENTITY_PAYLOAD = "HIERARCHY_ENTITY";
 
+	// 레이어 1개를 드래그(컴포짓 순서 재배치): CGameLayer* 가 실린다.
+	// 오브젝트 페이로드와 타입이 달라야 레이어 행이 오브젝트 드롭과 섞이지 않는다.
+	constexpr const char* HIERARCHY_LAYER_PAYLOAD = "HIERARCHY_LAYER";
+
 	constexpr std::size_t MAX_GUID_TEXT_LENGTH = 64;
 	constexpr std::size_t MAX_PATH_TEXT_LENGTH = 260;
 
