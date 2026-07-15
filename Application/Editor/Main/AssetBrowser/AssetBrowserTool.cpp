@@ -855,7 +855,7 @@ void CAssetBrowserTool::ProcessPendingOperations()
 		case EPendingOperationType::CreateScene:
 		{
 			if (false == insideAssetRoot) break;
-			File::Path dst = MakeUniqueFilePath(operation.Path, "NewScene", ".jscene");
+			File::Path dst = MakeUniqueFilePath(operation.Path, "NewScene", ".jcanvas");
 			if (false == dst.empty() && WriteTextFile(dst, EMPTY_SCENE_YAML))
 			{
 				StartRenameForNewPath(dst);
@@ -2353,10 +2353,10 @@ void CAssetBrowserTool::CommitRename(const File::Path& sourcePath)
 	}
 
 	// 새 이름의 마지막 확장자가 원본과 정확히 같지 않으면 원본 확장자를 강제 부여한다.
-	// 예: 원본이 NewScene.jscene 일 때
-	//   "test.Jscene" → 그대로
-	//   "test"        → "test.jscene"
-	//   "test.dd"     → "test.dd.jscene"
+	// 예: 원본이 NewScene.jcanvas 일 때
+	//   "test.Jcanvas" → 그대로
+	//   "test"        → "test.jcanvas"
+	//   "test.dd"     → "test.dd.jcanvas"
 	// 폴더 rename (원본 확장자 없음) 인 경우엔 변경 없이 그대로.
 	std::wstring inputName = Utillity::U8ToWString(m_renameBuffer);
 	const std::wstring originalExt = sourcePath.extension().wstring();

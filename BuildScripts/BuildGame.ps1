@@ -323,7 +323,7 @@ function ConvertTo-AssetTypeValue {
         ".jpeg" { return 1 }
         ".bmp" { return 1 }
         ".tga" { return 1 }
-        ".jscene" { return 5 }
+        ".jcanvas" { return 5 }
         ".jprefab" { return 6 }
         ".hlsl" { return 4 }
         ".fx" { return 4 }

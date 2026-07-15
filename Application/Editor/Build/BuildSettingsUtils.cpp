@@ -153,7 +153,7 @@ bool BuildSettingsUtils::HasSceneFileExtension(const std::string& value)
 	std::transform(extension.begin(), extension.end(), extension.begin(), [](wchar_t character) {
 		return static_cast<wchar_t>(std::towlower(character));
 	});
-	return extension == L".jscene";
+	return extension == L".jcanvas";
 }
 
 bool BuildSettingsUtils::HasRequiredIssueForPlatform(

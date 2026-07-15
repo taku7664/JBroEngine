@@ -35,7 +35,7 @@ void CDefaultAssetOpenHandler::Open(CAssetBrowserTool& browser, const AssetBrows
 bool CSceneAssetOpenHandler::CanOpen(const AssetBrowserEntry& entry) const
 {
 	return false == entry.IsDirectory
-		&& (EAssetType::Scene == entry.Type || entry.ExtensionUtf8 == ".jscene");
+		&& (EAssetType::Scene == entry.Type || entry.ExtensionUtf8 == ".jcanvas");
 }
 
 void CSceneAssetOpenHandler::Open(CAssetBrowserTool&, const AssetBrowserEntry& entry)

@@ -1042,7 +1042,7 @@ bool CBuildSettingsWindow::IsProductNameInvalid() const
 
 bool CBuildSettingsWindow::IsStartupSceneInvalid() const
 {
-	return false == HasExtensionIgnoreCase(m_startupScene, L".jscene");
+	return false == HasExtensionIgnoreCase(m_startupScene, L".jcanvas");
 }
 
 bool CBuildSettingsWindow::IsOutputDirectoryInvalid() const

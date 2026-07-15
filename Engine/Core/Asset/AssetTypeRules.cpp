@@ -31,7 +31,7 @@ namespace
 	constexpr std::string_view MESH_EXTENSIONS[]        = { ".obj", ".fbx", ".gltf", ".glb" };
 	constexpr std::string_view MATERIAL_EXTENSIONS[]    = { ".jmat" };
 	constexpr std::string_view SHADER_EXTENSIONS[]      = { ".hlsl", ".wgsl", ".glsl", ".shader" };
-	constexpr std::string_view SCENE_EXTENSIONS[]       = { ".jscene" };
+	constexpr std::string_view SCENE_EXTENSIONS[]       = { ".jcanvas" };
 	constexpr std::string_view PREFAB_EXTENSIONS[]      = { ".jprefab" };
 	constexpr std::string_view SCRIPT_EXTENSIONS[]      = { ".cpp", ".h", ".hpp" };
 	constexpr std::string_view AUDIO_EXTENSIONS[]       = { ".wav", ".mp3", ".flac", ".ogg" };
