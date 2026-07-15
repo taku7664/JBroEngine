@@ -279,15 +279,30 @@ void CGameScene::SetLayerInstanceGuid(CGameLayer& layer, const File::Guid& guid)
 
 CanvasViewport* CGameScene::CreateViewport(const char* name)
 {
+	return InsertViewport(m_viewports.size(), name);
+}
+
+CanvasViewport* CGameScene::InsertViewport(std::size_t index, const char* name)
+{
 	CanvasViewport viewport;
 	viewport.Name = (name && '\0' != name[0]) ? name : ("Viewport " + std::to_string(m_viewports.size() + 1));
-	m_viewports.push_back(std::move(viewport));
-	return &m_viewports.back();
+
+	const std::size_t position = std::min(index, m_viewports.size());
+	const auto it = m_viewports.insert(
+		m_viewports.begin() + static_cast<std::ptrdiff_t>(position), std::move(viewport));
+	return &(*it);
 }
 
 bool CGameScene::DestroyViewport(std::size_t index)
 {
 	if (index >= m_viewports.size())
+	{
+		return false;
+	}
+	// 마지막 하나는 거부 — 렌더 수집(CollectGameRenderViewports)이 매 프레임
+	// GetOrCreateDefaultViewport 로 빈 목록을 채우므로, 지워도 다음 프레임에 "Default" 가
+	// 되살아난다. 그 상태에서 undo 하면 되살아난 것 + 복원한 것 = 2개가 되어 화면이 어긋난다.
+	if (1 == m_viewports.size())
 	{
 		return false;
 	}

@@ -62,6 +62,7 @@ public:
 		ClearAssetSelection();
 		ClearScriptSelection();
 		ClearLayerSelection();
+		ClearCanvasSelection();
 	}
 
 	// ── 다중 선택: objects 목록 전체 선택 (첫 항목이 primary) ────────────────
@@ -75,6 +76,7 @@ public:
 		ClearAssetSelection();
 		ClearScriptSelection();
 		ClearLayerSelection();
+		ClearCanvasSelection();
 	}
 
 	// ── 개별 추가 (Ctrl+Click용): 이미 선택돼 있으면 무시 ────────────────────
@@ -90,6 +92,7 @@ public:
 		ClearAssetSelection();
 		ClearScriptSelection();
 		ClearLayerSelection();
+		ClearCanvasSelection();
 	}
 
 	// ── 개별 제거 ─────────────────────────────────────────────────────────────
@@ -157,13 +160,37 @@ public:
 		return roots;
 	}
 
-	// 씬 선택(오브젝트 + 레이어) 해제. 레이어까지 지우는 이유: 호출부(씬뷰 빈 곳 클릭,
-	// 에셋 선택, 활성 씬 없음)는 전부 "씬에서 고른 것을 없던 일로" 를 뜻한다.
+	// 씬 선택(오브젝트 + 레이어 + 캔버스) 해제. 레이어/캔버스까지 지우는 이유: 호출부(씬뷰
+	// 빈 곳 클릭, 에셋 선택, 활성 씬 없음)는 전부 "씬에서 고른 것을 없던 일로" 를 뜻한다.
 	static void ClearSelection()
 	{
 		m_selectedObjects.clear();
 		m_primarySelected = SafePtr<CGameObject>();
 		ClearLayerSelection();
+		ClearCanvasSelection();
+	}
+
+	// ── 캔버스 선택 ───────────────────────────────────────────────────────────
+	// 캔버스는 런타임에 하나(활성 씬)뿐이라 대상 포인터가 필요 없다 — 켜짐/꺼짐만 든다.
+	// 인스펙터가 이 플래그를 보고 캔버스 설정 패널(배경색·뷰포트)을 띄운다.
+	// 에셋 브라우저에서 활성 `.jcanvas` 를 고르는 경로는 에셋 선택으로 들어와 인스펙터가
+	// 같은 패널로 분기한다 — 이 플래그는 캔버스 뷰의 캔버스 노드 클릭 전용이다.
+	static void SelectCanvas()
+	{
+		ClearSelection();
+		ClearAssetSelection();
+		ClearScriptSelection();
+		m_canvasSelected = true;
+	}
+
+	static void ClearCanvasSelection()
+	{
+		m_canvasSelected = false;
+	}
+
+	static bool IsCanvasSelected()
+	{
+		return m_canvasSelected;
 	}
 
 	// ── 레이어 선택 ───────────────────────────────────────────────────────────
@@ -194,6 +221,7 @@ public:
 		m_selectedAssetPath = path;
 		ClearScriptSelection();
 		ClearLayerSelection();
+		ClearCanvasSelection();
 	}
 
 	static void ClearAssetSelection()
@@ -263,6 +291,7 @@ private:
 	inline static SafePtr<CGameObject>              m_primarySelected;
 	inline static std::vector<SafePtr<CGameObject>> m_selectedObjects;
 	inline static SafePtr<CGameLayer>              m_selectedLayer;
+	inline static bool                            m_canvasSelected = false;
 	inline static File::Path            m_activeScenePath   = File::NULL_PATH;
 	inline static File::Guid            m_selectedAssetGuid = File::NULL_GUID;
 	inline static File::Path            m_selectedAssetPath = File::NULL_PATH;

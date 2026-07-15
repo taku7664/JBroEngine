@@ -293,6 +293,24 @@ Entries:
   hierarchy.delete_object: 오브젝트 삭제
   hierarchy.add_layer: 레이어 추가
   hierarchy.delete_layer: 레이어 삭제
+  hierarchy.canvas_node_format: "캔버스: %s"
+  inspector.canvas.properties: 캔버스 속성
+  inspector.canvas.background_color: 배경색
+  inspector.canvas.viewports: 뷰포트
+  inspector.canvas.add_viewport: 뷰포트 추가
+  inspector.canvas.delete_viewport: 뷰포트 삭제
+  inspector.canvas.open_to_edit: 활성 캔버스가 아닙니다. 에셋 브라우저에서 더블클릭해 열면 설정을 편집할 수 있습니다.
+  inspector.canvas.warning.camera_unresolved: "카메라를 찾을 수 없습니다 — 폴백(첫 활성 카메라)으로 그려집니다."
+  inspector.canvas.warning.camera_ambiguous: "카메라 미지정 + 활성 카메라 %d개 — 폴백이 그중 첫 번째를 임의로 고릅니다."
+  inspector.viewport.active: 활성
+  inspector.viewport.camera: 카메라
+  inspector.viewport.camera_auto: (자동 — 첫 활성 카메라)
+  inspector.viewport.position: 위치
+  inspector.viewport.size: 크기
+  inspector.viewport.ratio: 비율
+  inspector.viewport.pixel: 픽셀
+  inspector.viewport.layer_filter: 레이어 필터
+  inspector.viewport.layer_filter_all: 전체 레이어(필터 없음)
   inspector.layer.properties: 레이어 속성
   inspector.layer.blend_mode: 블렌드 모드
   inspector.layer.blend.normal: 표준
@@ -304,6 +322,7 @@ Entries:
   inspector.layer.static: 정적(렌더 동결)
   inspector.layer.force_own_texture: 전용 텍스처 강제
   inspector.layer.parallax: 패럴랙스 계수
+  inspector.layer.warning.static_dynamic: "정적 레이어인데 움직이는 오브젝트가 %d개 있습니다 — 렌더가 동결돼 움직임이 화면에 안 보입니다."
   inspector.remove_component: 컴포넌트 제거
   editor.menu.copy_object: 오브젝트 복사
   editor.menu.paste_object: 오브젝트 붙여넣기

@@ -191,6 +191,7 @@ namespace EditorLocKeys
 	constexpr const char* GameViewStatusPlaying = "game_view.status.playing";
 	constexpr const char* GameViewStatusSceneStopped = "game_view.status.scene_stopped";
 	constexpr const char* HierarchyAddLayer = "hierarchy.add_layer";
+	constexpr const char* HierarchyCanvasNodeFormat = "hierarchy.canvas_node_format";
 	constexpr const char* HierarchyDeleteLayer = "hierarchy.delete_layer";
 	constexpr const char* HierarchyDeleteObject = "hierarchy.delete_object";
 	constexpr const char* HierarchyLayerMoveFormat = "hierarchy.layer_move_format";
@@ -253,6 +254,14 @@ namespace EditorLocKeys
 	constexpr const char* InspectorAudioPreviewStreamingNoWaveform = "inspector.audio.preview.streaming_no_waveform";
 	constexpr const char* InspectorAudioImportOptions = "inspector.audio_import_options";
 	constexpr const char* InspectorApplyMaterialImportOptions = "inspector.apply_material_import_options";
+	constexpr const char* InspectorCanvasAddViewport = "inspector.canvas.add_viewport";
+	constexpr const char* InspectorCanvasBackgroundColor = "inspector.canvas.background_color";
+	constexpr const char* InspectorCanvasDeleteViewport = "inspector.canvas.delete_viewport";
+	constexpr const char* InspectorCanvasOpenToEdit = "inspector.canvas.open_to_edit";
+	constexpr const char* InspectorCanvasProperties = "inspector.canvas.properties";
+	constexpr const char* InspectorCanvasViewports = "inspector.canvas.viewports";
+	constexpr const char* InspectorCanvasWarningCameraAmbiguous = "inspector.canvas.warning.camera_ambiguous";
+	constexpr const char* InspectorCanvasWarningCameraUnresolved = "inspector.canvas.warning.camera_unresolved";
 	constexpr const char* InspectorCameraDebug = "inspector.camera_debug";
 	constexpr const char* InspectorCameraDebugCulled = "inspector.camera_debug.culled";
 	constexpr const char* InspectorCameraDebugDrawn = "inspector.camera_debug.drawn";
@@ -313,6 +322,7 @@ namespace EditorLocKeys
 	constexpr const char* InspectorLayerProperties = "inspector.layer.properties";
 	constexpr const char* InspectorLayerStatic = "inspector.layer.static";
 	constexpr const char* InspectorLayerVisible = "inspector.layer.visible";
+	constexpr const char* InspectorLayerWarningStaticDynamic = "inspector.layer.warning.static_dynamic";
 	constexpr const char* InspectorMarginX = "inspector.margin_x";
 	constexpr const char* InspectorMarginXDesc = "inspector.margin_x.desc";
 	constexpr const char* InspectorMarginY = "inspector.margin_y";
@@ -375,6 +385,15 @@ namespace EditorLocKeys
 	constexpr const char* InspectorText2dOpenFontSettings = "inspector.text2d.open_font_settings";
 	constexpr const char* InspectorUnknownScript = "inspector.unknown_script";
 	constexpr const char* InspectorUnsupported = "inspector.unsupported";
+	constexpr const char* InspectorViewportActive = "inspector.viewport.active";
+	constexpr const char* InspectorViewportCamera = "inspector.viewport.camera";
+	constexpr const char* InspectorViewportCameraAuto = "inspector.viewport.camera_auto";
+	constexpr const char* InspectorViewportLayerFilter = "inspector.viewport.layer_filter";
+	constexpr const char* InspectorViewportLayerFilterAll = "inspector.viewport.layer_filter_all";
+	constexpr const char* InspectorViewportPixel = "inspector.viewport.pixel";
+	constexpr const char* InspectorViewportPosition = "inspector.viewport.position";
+	constexpr const char* InspectorViewportRatio = "inspector.viewport.ratio";
+	constexpr const char* InspectorViewportSize = "inspector.viewport.size";
 	constexpr const char* LogAutoScroll = "log.auto_scroll";
 	constexpr const char* LogLevelCritical = "log.level.critical";
 	constexpr const char* LogLevelDebug = "log.level.debug";

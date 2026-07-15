@@ -73,6 +73,10 @@ public:
 	// ── 뷰포트 / 캔버스 속성 ──────────────────────────────────────────────────
 	// 화면 분할은 캔버스급 결정 — 카메라는 눈일 뿐이고 "어디에 그릴지"는 여기서 정한다.
 	CanvasViewport*       CreateViewport(const char* name = nullptr);
+	// 지정 자리에 삽입(범위를 넘으면 맨 뒤). 목록 순서가 곧 그리는 순서(뒤 항목이 화면 위)라
+	// 삭제 undo 는 원래 자리로 되돌려야 화면이 삭제 전과 같아진다.
+	CanvasViewport*       InsertViewport(std::size_t index, const char* name = nullptr);
+	// 마지막 남은 뷰포트는 거부(false) — "뷰포트 0개"는 존재할 수 없다(렌더가 기본 1개를 보장).
 	bool                  DestroyViewport(std::size_t index);
 	std::size_t           GetViewportCount() const { return m_viewports.size(); }
 	CanvasViewport*       GetViewportAt(std::size_t index);

@@ -13,6 +13,7 @@
 
 #include "Editor/Editor.h"
 #include "Editor/EditorContext.h"
+#include "Editor/Command/EditorCanvasCommands.h"
 #include "Editor/Command/EditorLayerCommands.h"
 #include "Editor/Command/EditorSceneCommands.h"
 #include "Editor/EditorDragDrop.h"
@@ -52,6 +53,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <fstream>
 #include <sstream>
@@ -1423,6 +1425,347 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		if (false == familyStatus.empty()) ImGui::TextWrapped("%s", familyStatus.c_str());
 	}
 
+	// 경고 한 줄 — 이 파일의 캔버스/레이어 패널이 공유한다. 위젯으로 뺄 만큼 자라면
+	// ImItem 으로 옮길 것(지금은 호출부가 둘뿐이고 기존 코드도 TextColored 를 직접 쓴다).
+	void DrawInspectorWarning(const char* text)
+	{
+		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.75f, 0.25f, 1.0f));
+		ImGui::TextWrapped("%s", text);
+		ImGui::PopStyleColor();
+	}
+
+	// 뷰포트 카메라 콤보 항목. 카메라를 가진 오브젝트 전부(비활성 포함 — 지금 꺼져 있어도
+	// 런타임에 켜질 수 있으니 지목 자체는 막지 않는다).
+	struct CameraChoice
+	{
+		File::Guid  Guid;
+		std::string Label;
+	};
+
+	std::vector<CameraChoice> CollectCameraChoices(CGameScene& scene)
+	{
+		std::vector<CameraChoice> choices;
+		scene.ForEachObject([&choices](CGameObject& object)
+		{
+			if (nullptr == object.GetComponent<Camera2D>())
+			{
+				return;
+			}
+			CameraChoice choice;
+			choice.Guid = object.GetInstanceGuid();
+			choice.Label = object.GetName();
+			choices.push_back(std::move(choice));
+		});
+		return choices;
+	}
+
+	// 폴백(뷰포트가 카메라를 안 고른 경우)이 "임의로 하나"를 고르게 되는지 판단용.
+	int CountActiveCameras(CGameScene& scene)
+	{
+		int count = 0;
+		scene.ForEach<Camera2D>([&count](Camera2D& camera)
+		{
+			if (IsActiveComponent(camera))
+			{
+				++count;
+			}
+		});
+		return count;
+	}
+
+	// Static 레이어는 RT 를 한 번 그린 뒤 재그리기를 건너뛴다 — 시뮬은 계속 도니까 오브젝트가
+	// 움직여도 화면은 그대로다. "움직인다" 판정: 스크립트가 붙어 있거나(무엇이든 할 수 있다),
+	// Rigidbody2D 가 Static 이 아니거나(물리가 옮긴다).
+	// 스크립트 판정에 dynamic_cast 대신 리플렉션 조회를 쓴다 — 인스펙터는 매 프레임 돈다.
+	int CountMovingObjectsInLayer(CGameScene& scene, const CGameLayer& layer, const CReflectionRegistry& reflection)
+	{
+		int count = 0;
+		scene.ForEachObject([&](CGameObject& object)
+		{
+			if (object.GetLayer().TryGet() != &layer)
+			{
+				return;
+			}
+
+			if (const Rigidbody2D* body = object.GetComponent<Rigidbody2D>())
+			{
+				if (EPhysics2DBodyType::Static != body->BodyType)
+				{
+					++count;
+					return;
+				}
+			}
+
+			for (const SafePtr<CComponent>& componentRef : object.GetComponents())
+			{
+				const CComponent* component = componentRef.TryGet();
+				if (component && reflection.FindScript(component->GetTypeId()))
+				{
+					++count;
+					return;
+				}
+			}
+		});
+		return count;
+	}
+
+	// 뷰포트 하나의 속성 편집. 레이어 패널과 같은 규칙 — 라이브 대입이 아니라 스냅샷 교체다
+	// (커맨드가 "적용 직전 값"을 old 로 캡처하므로 먼저 라이브로 바꾸면 undo 가 무효가 된다).
+	void DrawViewportProperties(
+		CGameScene& scene,
+		std::size_t viewportIndex,
+		const std::vector<CameraChoice>& cameras,
+		int activeCameraCount)
+	{
+		CanvasViewport* viewport = scene.GetViewportAt(viewportIndex);
+		if (nullptr == viewport)
+		{
+			return;
+		}
+
+		using EField = CSetViewportPropertyCommand::EField;
+		auto apply = [&scene, viewportIndex](EField field, const ViewportSnapshot& properties)
+		{
+			EditorCanvasActions::SetViewportProperty(scene, viewportIndex, field, properties);
+		};
+
+		ImGui::Utillity::FormLayout layout("##viewport_properties", 4.0f, { 2.0f, 1.0f });
+
+		// 이름은 편집이 끝날 때 1회만 커밋(레이어 이름과 같은 이유 — 글자마다 undo 금지).
+		ImInputText nameInput("##viewport_name");
+		nameInput.SetHintText(Loc::TextOr(EditorLocKeys::EditorPropertyName, "Name"));
+		nameInput.SetSourceText(viewport->Name);
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::TextOr(EditorLocKeys::EditorPropertyName, "Name")); }, [&]() {
+			nameInput();
+			if (ImGui::IsItemDeactivatedAfterEdit())
+			{
+				ViewportSnapshot properties = ViewportSnapshot::Capture(*viewport);
+				properties.Name = nameInput.GetString();
+				apply(EField::Name, properties);
+			}
+		});
+
+		bool active = viewport->Active;
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorViewportActive)); }, [&]() {
+			if (ImGui::Checkbox("##inspector.viewport.active", &active))
+			{
+				ViewportSnapshot properties = ViewportSnapshot::Capture(*viewport);
+				properties.Active = active;
+				apply(EField::Active, properties);
+			}
+		});
+
+		// 카메라 — 0번은 "자동"(폴백). 나머지는 카메라를 가진 오브젝트.
+		std::vector<const char*> cameraItems;
+		cameraItems.reserve(cameras.size() + 1);
+		cameraItems.push_back(Loc::Text(EditorLocKeys::InspectorViewportCameraAuto));
+		for (const CameraChoice& choice : cameras)
+		{
+			cameraItems.push_back(choice.Label.c_str());
+		}
+
+		int cameraIndex = 0;
+		bool cameraResolved = viewport->CameraObjectGuid.IsNull();
+		for (std::size_t i = 0; i < cameras.size(); ++i)
+		{
+			if (cameras[i].Guid == viewport->CameraObjectGuid)
+			{
+				cameraIndex = static_cast<int>(i) + 1;
+				cameraResolved = true;
+				break;
+			}
+		}
+
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorViewportCamera)); }, [&]() {
+			if (ImGui::Combo("##inspector.viewport.camera", &cameraIndex, cameraItems.data(), static_cast<int>(cameraItems.size())))
+			{
+				ViewportSnapshot properties = ViewportSnapshot::Capture(*viewport);
+				properties.CameraObjectGuid = (0 == cameraIndex)
+					? File::Guid()
+					: cameras[static_cast<std::size_t>(cameraIndex) - 1].Guid;
+				apply(EField::Camera, properties);
+			}
+		});
+
+		// 렉트 = Layout2D 2개(비율 × 해상도 + 픽셀). 비율/픽셀을 각각 한 줄로 편집한다.
+		auto drawLayoutRows = [&](const char* labelKey, const Layout2D& current, bool isSize)
+		{
+			char rowLabel[128];
+
+			Vector2 normalized = current.Normalized;
+			std::snprintf(rowLabel, sizeof(rowLabel), "%s (%s)",
+				Loc::Text(labelKey), Loc::Text(EditorLocKeys::InspectorViewportRatio));
+			layout.Row([&]() { ImGui::TextUnformatted(rowLabel); }, [&]() {
+				if (ImGui::DragFloat2(isSize ? "##inspector.viewport.size.normalized" : "##inspector.viewport.pos.normalized",
+					&normalized.x, 0.01f))
+				{
+					ViewportSnapshot properties = ViewportSnapshot::Capture(*viewport);
+					(isSize ? properties.Size : properties.Position).Normalized = normalized;
+					apply(EField::Rect, properties);
+				}
+			});
+
+			Vector2 pixel = current.Pixel;
+			std::snprintf(rowLabel, sizeof(rowLabel), "%s (%s)",
+				Loc::Text(labelKey), Loc::Text(EditorLocKeys::InspectorViewportPixel));
+			layout.Row([&]() { ImGui::TextUnformatted(rowLabel); }, [&]() {
+				if (ImGui::DragFloat2(isSize ? "##inspector.viewport.size.pixel" : "##inspector.viewport.pos.pixel",
+					&pixel.x, 1.0f))
+				{
+					ViewportSnapshot properties = ViewportSnapshot::Capture(*viewport);
+					(isSize ? properties.Size : properties.Position).Pixel = pixel;
+					apply(EField::Rect, properties);
+				}
+			});
+		};
+
+		drawLayoutRows(EditorLocKeys::InspectorViewportPosition, viewport->Position, false);
+		drawLayoutRows(EditorLocKeys::InspectorViewportSize, viewport->Size, true);
+
+		// 레이어 필터 — 비면 전체. 표시는 캔버스 뷰와 같은 포토샵식 역순(위 = 화면 최전면).
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorViewportLayerFilter)); }, [&]() {
+			if (viewport->LayerFilter.empty())
+			{
+				ImGui::TextDisabled("%s", Loc::Text(EditorLocKeys::InspectorViewportLayerFilterAll));
+			}
+			else
+			{
+				ImGui::Text("%d / %d", static_cast<int>(viewport->LayerFilter.size()),
+					static_cast<int>(scene.GetLayerCount()));
+			}
+		});
+
+		for (std::size_t i = scene.GetLayerCount(); i > 0; --i)
+		{
+			CGameLayer* layer = scene.GetLayerAt(i - 1);
+			if (nullptr == layer)
+			{
+				continue;
+			}
+
+			const File::Guid& layerGuid = layer->GetInstanceGuid();
+			const auto found = std::find(viewport->LayerFilter.begin(), viewport->LayerFilter.end(), layerGuid);
+			// 빈 필터 = 전체이므로 전부 체크된 것으로 보여준다.
+			bool included = viewport->LayerFilter.empty() || found != viewport->LayerFilter.end();
+
+			ImGui::Utillity::IDGroup layerIdGroup(static_cast<const void*>(layer));
+			layout.Row([&]() { ImGui::TextDisabled("%s", layer->GetName()); }, [&]() {
+				if (false == ImGui::Checkbox("##inspector.viewport.layer_filter.item", &included))
+				{
+					return;
+				}
+
+				ViewportSnapshot properties = ViewportSnapshot::Capture(*viewport);
+				if (properties.LayerFilter.empty() && false == included)
+				{
+					// 전체(빈 목록)에서 하나를 빼는 순간 명시 목록으로 굳는다 — 나머지 전부.
+					for (std::size_t other = 0; other < scene.GetLayerCount(); ++other)
+					{
+						CGameLayer* otherLayer = scene.GetLayerAt(other);
+						if (otherLayer && otherLayer != layer)
+						{
+							properties.LayerFilter.push_back(otherLayer->GetInstanceGuid());
+						}
+					}
+				}
+				else if (included)
+				{
+					properties.LayerFilter.push_back(layerGuid);
+				}
+				else
+				{
+					const auto it = std::find(properties.LayerFilter.begin(), properties.LayerFilter.end(), layerGuid);
+					if (it != properties.LayerFilter.end())
+					{
+						properties.LayerFilter.erase(it);
+					}
+				}
+				apply(EField::LayerFilter, properties);
+			});
+		}
+
+		if (false == cameraResolved)
+		{
+			DrawInspectorWarning(Loc::Text(EditorLocKeys::InspectorCanvasWarningCameraUnresolved));
+		}
+		else if (viewport->CameraObjectGuid.IsNull() && activeCameraCount > 1)
+		{
+			char warning[256];
+			std::snprintf(warning, sizeof(warning),
+				Loc::Text(EditorLocKeys::InspectorCanvasWarningCameraAmbiguous), activeCameraCount);
+			DrawInspectorWarning(warning);
+		}
+	}
+
+	// 캔버스 설정 — 배경색 + 뷰포트 목록. 캔버스 뷰의 캔버스 노드와 에셋 브라우저의 활성
+	// `.jcanvas` 선택이 같은 패널로 들어온다.
+	void DrawCanvasInspector(CGameScene& scene)
+	{
+		ImSectionHeader(Loc::Text(EditorLocKeys::InspectorCanvasProperties)).Draw();
+
+		{
+			ImGui::Utillity::FormLayout layout("##canvas_properties", 4.0f, { 2.0f, 1.0f });
+
+			const float* current = scene.GetBackgroundColor();
+			float background[4] = { current[0], current[1], current[2], current[3] };
+			layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorCanvasBackgroundColor)); }, [&]() {
+				if (ImGui::ColorEdit4("##inspector.canvas.background", background, ImGuiColorEditFlags_NoInputs))
+				{
+					EditorCanvasActions::SetBackgroundColor(scene, background);
+				}
+			});
+		}
+
+		ImGui::Spacing();
+		ImSectionHeader(Loc::Text(EditorLocKeys::InspectorCanvasViewports)).Draw();
+
+		const std::vector<CameraChoice> cameras = CollectCameraChoices(scene);
+		const int activeCameraCount = CountActiveCameras(scene);
+
+		// 삭제는 순회가 끝난 뒤에 — 목록을 순회 중에 줄이면 이후 인덱스가 어긋난다.
+		bool        hasPendingDelete = false;
+		std::size_t pendingDeleteIndex = 0;
+
+		for (std::size_t i = 0; i < scene.GetViewportCount(); ++i)
+		{
+			const CanvasViewport* viewport = scene.GetViewportAt(i);
+			if (nullptr == viewport)
+			{
+				continue;
+			}
+
+			// 이름이 겹쳐도 헤더 id 가 충돌하지 않게 인덱스로 스코프를 판다.
+			ImGui::Utillity::IDGroup idGroup(i);
+			if (ImGui::CollapsingHeader(viewport->Name.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
+			{
+				DrawViewportProperties(scene, i, cameras, activeCameraCount);
+
+				// 마지막 뷰포트는 삭제 불가 — 씬이 "뷰포트 0개"를 허용하지 않는다(레이어와 같은 규칙).
+				const bool canDelete = scene.GetViewportCount() > 1;
+				ImGui::BeginDisabled(false == canDelete);
+				if (ImGui::Button(Loc::Text(EditorLocKeys::InspectorCanvasDeleteViewport)))
+				{
+					hasPendingDelete = true;
+					pendingDeleteIndex = i;
+				}
+				ImGui::EndDisabled();
+				ImGui::Spacing();
+			}
+		}
+
+		if (hasPendingDelete)
+		{
+			auto command = MakeOwnerPtr<CDeleteViewportCommand>(scene.SafeFromThis(), pendingDeleteIndex);
+			Editor::CommandManager.ExecuteCommand(std::move(command));
+		}
+
+		if (ImGui::Button(Loc::Text(EditorLocKeys::InspectorCanvasAddViewport), ImVec2(-FLT_MIN, 0.0f)))
+		{
+			auto command = MakeOwnerPtr<CCreateViewportCommand>(scene.SafeFromThis());
+			Editor::CommandManager.ExecuteCommand(std::move(command));
+		}
+	}
+
 	// 레이어 선택 시 컴포짓 속성 편집. 표시 중이면 true(호출자는 다른 패널을 그리지 않는다).
 	// 편집은 라이브 대입이 아니라 스냅샷 교체로 한다 — 커맨드가 "적용 직전 값"을 old 로 캡처하므로
 	// 먼저 라이브로 바꿔버리면 undo 가 새 값으로 되돌아간다(=무효).
@@ -1526,10 +1869,47 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			}
 		});
 
+		// Static 은 렌더 동결이라 그 안의 움직이는 오브젝트는 화면에 반영되지 않는다.
+		if (layer->Static && Engine.Reflection.IsValid())
+		{
+			const int movingCount = CountMovingObjectsInLayer(scene, *layer, *Engine.Reflection);
+			if (movingCount > 0)
+			{
+				char warning[256];
+				std::snprintf(warning, sizeof(warning),
+					Loc::Text(EditorLocKeys::InspectorLayerWarningStaticDynamic), movingCount);
+				DrawInspectorWarning(warning);
+			}
+		}
+
 		return true;
 	}
 
-	bool DrawSelectedAssetInspector()
+	// 선택한 `.jcanvas` 가 지금 열려 있는 캔버스인지. 캔버스 설정은 런타임 객체(활성 씬)를
+	// 편집하는 것이라, 열지 않은 파일은 편집 대상이 없다 — 안내 + 열기 버튼만 준다.
+	bool IsActiveCanvasAsset(const AssetMetaData& metaData)
+	{
+		const File::Path& activePath = Editor::GetActiveScenePath();
+		if (activePath.empty())
+		{
+			return false;
+		}
+
+		SafePtr<CProjectManager> projectManager = EditorContext::GetProjectManager();
+		if (false == projectManager.IsValid())
+		{
+			return false;
+		}
+
+		std::string activeRelative;
+		if (false == projectManager->TryMakeProjectAssetRelativePath(activePath, activeRelative))
+		{
+			return false;
+		}
+		return activeRelative == metaData.Path.generic_string();
+	}
+
+	bool DrawSelectedAssetInspector(CGameScene& scene)
 	{
 		const File::Guid& selectedGuid = Editor::GetSelectedAssetGuid();
 		if (selectedGuid.IsNull())
@@ -1594,6 +1974,22 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		{
 			DrawFontFamilyEditor(metaData, *assetManager);
 		}
+		else if (EAssetType::Scene == metaData.Type)
+		{
+			// 캔버스 = 임포트 옵션이 아니라 저작 데이터. 열려 있으면 캔버스 뷰의 캔버스 노드와
+			// 같은 패널을 여기서도 띄운다(사용자 확정: 선택 경로는 양쪽 다).
+			if (IsActiveCanvasAsset(metaData))
+			{
+				DrawCanvasInspector(scene);
+			}
+			else
+			{
+				// 여는 경로는 에셋 브라우저 더블클릭(CSceneAssetOpenHandler) 하나뿐이다 —
+				// 여기 열기 버튼을 두려면 그 로직을 AssetBrowserEntry 에서 떼어내야 해서
+				// 지금은 안내만 한다.
+				ImGui::TextWrapped("%s", Loc::Text(EditorLocKeys::InspectorCanvasOpenToEdit));
+			}
+		}
 		else
 		{
 			ImGui::TextDisabled(Loc::Text(EditorLocKeys::InspectorNoEditableImportOptions));
@@ -1632,6 +2028,13 @@ void CInspectorTool::OnRenderStay()
 	CGameObject* selectedObject = Editor::GetSelectedEntity();
 	if (nullptr == selectedObject)
 	{
+		// 캔버스 노드 선택 — 캔버스 설정 패널(에셋 브라우저 경로는 아래 에셋 패널이 분기).
+		if (Editor::IsCanvasSelected())
+		{
+			AssetInspectorPreview::NotifyInspectionLost();
+			DrawCanvasInspector(*scene);
+			return;
+		}
 		// 레이어 선택 — 컴포짓 속성 패널.
 		if (DrawSelectedLayerInspector(*scene))
 		{
@@ -1644,7 +2047,7 @@ void CInspectorTool::OnRenderStay()
 			AssetInspectorPreview::NotifyInspectionLost();
 			return;
 		}
-		if (DrawSelectedAssetInspector())
+		if (DrawSelectedAssetInspector(*scene))
 			return;
 		// 자산도 엔티티도 없음 — 활성 미리보기 핸들러 정리.
 		AssetInspectorPreview::NotifyInspectionLost();

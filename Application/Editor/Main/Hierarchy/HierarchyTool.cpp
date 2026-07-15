@@ -24,8 +24,10 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <functional>
+#include <string>
 #include <unordered_map>
 
 void CHierarchyTool::OnCreate()
@@ -529,6 +531,27 @@ void CHierarchyTool::OnRenderStay()
 			ImLayerHeaderEnd();
 		}
 	};
+
+	// ── 캔버스 노드 ─────────────────────────────────────────────────────────────
+	// 레이어보다 위, 트리 맨 위 한 줄. 레이어를 담는 부모 노드로 만들지 않는 이유: 그러면
+	// 전 레이어가 한 단계 들여쓰기되는데, 캔버스는 어차피 런타임에 하나뿐이라 접을 일이 없다.
+	// 클릭 = 캔버스 선택 → 인스펙터가 캔버스 설정(배경색·뷰포트)을 띄운다.
+	{
+		// 씬 이름은 SceneManager 키(= 프로젝트 상대 경로)라 그대로 쓰면 한 줄을 넘긴다 —
+		// 파일 이름만 보여준다.
+		const std::string canvasName = Editor::GetActiveScenePath().empty()
+			? std::string(activeScene->GetName())
+			: Editor::GetActiveScenePath().stem().string();
+
+		char canvasLabel[256];
+		std::snprintf(canvasLabel, sizeof(canvasLabel),
+			Loc::Text(EditorLocKeys::HierarchyCanvasNodeFormat), canvasName.c_str());
+		if (ImGui::Selectable(canvasLabel, Editor::IsCanvasSelected()))
+		{
+			Editor::SelectCanvas();
+		}
+		ImGui::Separator();
+	}
 
 	for (std::size_t i = layerCount; i > 0; --i)
 	{
