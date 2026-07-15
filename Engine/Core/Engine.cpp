@@ -334,6 +334,11 @@ void CEngine::SetGameRenderLights(std::vector<GameRenderLightDesc> lights)
 	m_gameRenderLights = std::move(lights);
 }
 
+void CEngine::SetGameRenderLayers(std::vector<GameRenderLayerDesc> layers)
+{
+	m_gameRenderLayers = std::move(layers);
+}
+
 void CEngine::SetPreRenderCallback(std::function<void()> callback)
 {
 	m_preRenderCallback = std::move(callback);
@@ -753,7 +758,8 @@ void CEngine::RenderFrame()
 					mainRenderSurface->GetSize(),
 					nullptr,
 					nullptr,
-					m_gameRenderLights);
+					m_gameRenderLights,
+					m_gameRenderLayers);
 				m_renderScene->Clear();
 			}
 		}

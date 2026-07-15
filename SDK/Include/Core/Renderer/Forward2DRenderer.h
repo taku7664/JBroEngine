@@ -31,6 +31,13 @@ public:
 	void RenderFiltered(IRenderScene& scene, const std::unordered_set<RenderObjectId>& objects);
 	// excluded 키 집합에 속하는 RenderItem을 제외하고 전부 렌더링 (에디터 씬뷰 숨김용).
 	void RenderExcluding(IRenderScene& scene, const std::unordered_set<RenderObjectId>& excluded);
+	// 한 레이어의 아이템만 렌더링한다. 정렬 1순위가 LayerIndex 라 레이어 구간이 연속이므로
+	// 전체 순회 후 필터링이 아니라 구간만 훑는다(레이어 수 × 아이템 수 비용 회피).
+	// excluded = 에디터 숨김 키 집합(없으면 nullptr).
+	void RenderLayer(
+		IRenderScene& scene,
+		RenderLayerIndex layerIndex,
+		const std::unordered_set<RenderObjectId>* excluded = nullptr);
 	void Finalize() override;
 
 	bool CreateGpuResource(IRenderResource& resource) override;
@@ -47,6 +54,14 @@ public:
 	RWTexturePool& GetRenderWeavePool();
 	// src 텍스처를 현재 바인딩된 렌더패스에 풀스크린으로 복사한다(전용 no-blend 파이프라인).
 	void BlitFullscreen(IRHICommandContext& commandContext, SafePtr<IRHITexture> src);
+	// 레이어 RT(src)를 현재 렌더패스에 blendMode 로 컴포짓한다. src 는 투명 RT 에 AlphaBlend 로
+	// 그려져 premultiplied 상태이므로 Layer* 블렌드가 알파를 재적용하지 않는다. opacity 는
+	// premultiplied 색·알파에 스칼라 곱(색 틴트)이면 되므로 별도 셰이더가 필요 없다.
+	void CompositeLayer(
+		IRHICommandContext& commandContext,
+		SafePtr<IRHITexture> src,
+		ERHIBlendMode blendMode,
+		float opacity);
 
 	// ── RenderWeave 라이팅 ──────────────────────────────────────────────────────
 	// 라이트 1개를 LightMap 에 가산 누적한다(현재 SetViewCameraEx 로 설정된 뷰 기준).
@@ -141,8 +156,9 @@ private:
 	void RenderImpl(IRenderScene& scene, const std::unordered_set<RenderObjectId>* excluded);
 	// RenderImpl/RenderFiltered 의 공통 순회·배칭 본체. shouldSkip(entity) 가 true 인 아이템만
 	// 건너뛴다(정의는 .cpp — 두 래퍼가 같은 TU 에서 인스턴스화). 핫루프라 std::function 대신 템플릿.
+	// range = 그릴 아이템 구간(레이어 단위 드로우용). 전체를 그리려면 {0, itemCount}.
 	template<typename FSkip>
-	void RenderWithSkip(IRenderScene& scene, FSkip&& shouldSkip);
+	void RenderWithSkip(IRenderScene& scene, const RenderItemRange& range, FSkip&& shouldSkip);
 	ViewParameters BuildViewParameters() const;
 	SpriteDrawResources ResolveSpriteDrawResources(const RenderItem& item) const;
 	SpriteConstants BuildSpriteConstants(const RenderItem& item, const ViewParameters& view) const;
@@ -167,6 +183,8 @@ private:
 	bool CreateSpriteBatchPipeline();
 	// no-blend 풀스크린 blit 파이프라인(스프라이트 프로그램 재사용 + Opaque). BlitFullscreen 용.
 	bool CreateBlitPipeline();
+	// 레이어 컴포짓 파이프라인 4종(스프라이트 프로그램 재사용 + Layer* 블렌드). CompositeLayer 용.
+	bool CreateLayerCompositePipelines();
 	// 라이트 누적 파이프라인(스프라이트 VS 재사용 + 라이트 PS + Additive). DrawLight2D 용.
 	bool CreateLightPipeline();
 	// OccluderMap 채움 파이프라인(스프라이트 VS + 알파→흰색 PS + Additive). RenderOccluders 용.
@@ -191,6 +209,9 @@ private:
 	OwnerPtr<IRHIGraphicsPipeline> m_textPipeline;
 	OwnerPtr<IRHIGraphicsPipeline> m_spriteBatchPipeline;
 	OwnerPtr<IRHIGraphicsPipeline> m_blitPipeline;
+	// 레이어 컴포짓 파이프라인 — 인덱스 = ELayerCompositeBlend(Normal/Additive/Multiply/Screen).
+	// 배열 = 블렌드 모드로 O(1) 선택(프레임 루프에서 분기·조회 비용 없음).
+	OwnerPtr<IRHIGraphicsPipeline> m_layerCompositePipelines[4];
 	OwnerPtr<IRHIProgram> m_lightPixelProgram;      // 라이트 감쇠 PS(스프라이트 VS 와 페어)
 	OwnerPtr<IRHIGraphicsPipeline> m_lightPipeline;      // 라이트 누적(Additive)
 	OwnerPtr<IRHIProgram> m_occluderFillPixelProgram;        // occluder 알파→흰색 PS

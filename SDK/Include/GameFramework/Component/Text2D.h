@@ -39,5 +39,4 @@ public:
 	bool PixelSnap = false;
 	Vector2 Offset = Vector2(0.0f, 0.0f);
 	std::int32_t SortOrder = 0;
-	RenderLayerMask LayerMask = 0xffffffffu;
 };

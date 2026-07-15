@@ -146,6 +146,8 @@ private:
 	float m_sceneViewCamY    = 0.0f;
 	float m_sceneViewCamSize = 5.0f;
 	bool m_sceneViewRequested = false;
+	// 편집 뷰가 합성할 활성 씬의 레이어 스냅샷(OnPrepareRender 가 매 프레임 갱신).
+	std::vector<GameRenderLayerDesc> m_sceneViewLayers;
 
 	// Game view (multi-camera)
 	OwnerPtr<IRHITexture>      m_gameViewRenderTarget;
@@ -155,6 +157,7 @@ private:
 	SafePtr<CGameScene>        m_gameViewScene;
 	std::vector<GameRenderCameraDesc> m_gameViewCameras;
 	std::vector<GameRenderLightDesc> m_gameViewLights;
+	std::vector<GameRenderLayerDesc> m_gameViewLayers;
 	std::unordered_map<const void*, RenderCullingStats> m_gameViewCameraCullingStats;
 
 	// GPU renderer for IDebugDraw2D primitives — renders into scene RT.

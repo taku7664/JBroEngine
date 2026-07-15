@@ -144,7 +144,7 @@ void CShapeRenderSystem::SubmitGeometry(T& shape, const GeometrySignature& signa
 		item.Texture = renderer.GetWhiteTexture();
 		item.Sampler = renderer.GetDefaultSampler();
 		item.Queue = ERenderQueue::Transparent;
-		item.LayerMask = shape.LayerMask;
+		item.LayerIndex = owner->GetLayerIndex();
 		item.Transform = Matrix3x2::Transform(shape.Offset, 0.0f, Vector2(1.0f, 1.0f)) * owner->GetWorld().Matrix;
 		item.LocalHalfExtents[0] = halfExtents.x;
 		item.LocalHalfExtents[1] = halfExtents.y;

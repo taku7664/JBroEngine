@@ -454,7 +454,6 @@ Entries:
   editor.property.FrameIndex: Frame Index
   editor.property.Color: Color
   editor.property.SortOrder: Sort Order
-  editor.property.LayerMask: Layer Mask
   editor.property.CastShadow: Cast Shadow
   editor.property.Text: Text
   editor.property.FontFamilyGuid: Font Family

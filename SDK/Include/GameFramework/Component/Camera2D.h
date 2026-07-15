@@ -31,7 +31,6 @@ public:
 	Layout2D Size     = { Vector2(1.0f, 1.0f), Vector2(0.0f, 0.0f) };
 
 	float ClearColor[4] = { 0.08f, 0.09f, 0.11f, 1.0f };
-	std::uint32_t LayerMask = 0xffffffffu;
 	std::int32_t Priority = 0;
 };
 

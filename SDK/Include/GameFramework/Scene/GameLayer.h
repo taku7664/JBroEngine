@@ -86,6 +86,16 @@ public:
 
 	const char* GetName() const { return Name.c_str(); }
 	void        SetName(const char* name) { Name = name ? name : ""; }
+
+	// 캔버스 내 순서 = 컴포짓 순서 = 렌더 아이템 정렬 키. 렌더 수집이 오브젝트마다
+	// 읽으므로(매 프레임) 씬 목록을 선형 탐색하지 않도록 여기 캐시한다. 갱신 주체는
+	// CGameScene(레이어 생성/파괴/이동 시 ReindexLayers) — 그 외에는 쓰지 않는다.
+	std::uint16_t GetIndex() const { return m_index; }
+
+private:
+	friend class CGameScene;
+
+	std::uint16_t m_index = 0;
 };
 
 // 사용자 대면 별칭 — 스크립트/문서는 접두사 없는 Layer 로 쓴다.

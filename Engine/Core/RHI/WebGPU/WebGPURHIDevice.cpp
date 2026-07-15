@@ -572,39 +572,52 @@ OwnerPtr<IRHIGraphicsPipeline> CWebGPURHIDevice::CreateGraphicsPipeline(const RH
 	WGPUBlendState blendState = {};
 	WGPUBlendComponent colorBlend = {};
 	WGPUBlendComponent alphaBlend = {};
-	if (ERHIBlendMode::AlphaBlend == desc.BlendMode)
+	// D3D11 백엔드와 팩터 대응을 1:1 로 맞춘다(윈도우/웹 화면 동일 보장).
+	// Layer* = 레이어 컴포짓 전용 — src 가 premultiplied 이므로 알파 재적용 금지.
+	if (ERHIBlendMode::Opaque != desc.BlendMode)
 	{
-		colorBlend.srcFactor = WGPUBlendFactor_SrcAlpha;
-		colorBlend.dstFactor = WGPUBlendFactor_OneMinusSrcAlpha;
 		colorBlend.operation = WGPUBlendOperation_Add;
+		alphaBlend.operation = WGPUBlendOperation_Add;
+		// 알파 공통 "over" — Additive/Multiply 만 자기 규약으로 덮어쓴다.
 		alphaBlend.srcFactor = WGPUBlendFactor_One;
 		alphaBlend.dstFactor = WGPUBlendFactor_OneMinusSrcAlpha;
-		alphaBlend.operation = WGPUBlendOperation_Add;
-		blendState.color = colorBlend;
-		blendState.alpha = alphaBlend;
-		colorTarget.blend = &blendState;
-	}
-	else if (ERHIBlendMode::Additive == desc.BlendMode)
-	{
-		colorBlend.srcFactor = WGPUBlendFactor_SrcAlpha;
-		colorBlend.dstFactor = WGPUBlendFactor_One;
-		colorBlend.operation = WGPUBlendOperation_Add;
-		alphaBlend.srcFactor = WGPUBlendFactor_Zero;
-		alphaBlend.dstFactor = WGPUBlendFactor_One;
-		alphaBlend.operation = WGPUBlendOperation_Add;
-		blendState.color = colorBlend;
-		blendState.alpha = alphaBlend;
-		colorTarget.blend = &blendState;
-	}
-	else if (ERHIBlendMode::Multiply == desc.BlendMode)
-	{
-		// out.rgb = src × dst, out.a = dst.a(보존) — 라이트맵 컴포짓.
-		colorBlend.srcFactor = WGPUBlendFactor_Dst;
-		colorBlend.dstFactor = WGPUBlendFactor_Zero;
-		colorBlend.operation = WGPUBlendOperation_Add;
-		alphaBlend.srcFactor = WGPUBlendFactor_Zero;
-		alphaBlend.dstFactor = WGPUBlendFactor_One;
-		alphaBlend.operation = WGPUBlendOperation_Add;
+		switch (desc.BlendMode)
+		{
+		case ERHIBlendMode::AlphaBlend:
+			colorBlend.srcFactor = WGPUBlendFactor_SrcAlpha;
+			colorBlend.dstFactor = WGPUBlendFactor_OneMinusSrcAlpha;
+			break;
+		case ERHIBlendMode::Multiply:
+			// out.rgb = src × dst, out.a = dst.a(보존) — 라이트맵 컴포짓.
+			colorBlend.srcFactor = WGPUBlendFactor_Dst;
+			colorBlend.dstFactor = WGPUBlendFactor_Zero;
+			alphaBlend.srcFactor = WGPUBlendFactor_Zero;
+			alphaBlend.dstFactor = WGPUBlendFactor_One;
+			break;
+		case ERHIBlendMode::LayerNormal:
+			colorBlend.srcFactor = WGPUBlendFactor_One;
+			colorBlend.dstFactor = WGPUBlendFactor_OneMinusSrcAlpha;
+			break;
+		case ERHIBlendMode::LayerAdditive:
+			colorBlend.srcFactor = WGPUBlendFactor_One;
+			colorBlend.dstFactor = WGPUBlendFactor_One;
+			break;
+		case ERHIBlendMode::LayerMultiply:
+			colorBlend.srcFactor = WGPUBlendFactor_Dst;
+			colorBlend.dstFactor = WGPUBlendFactor_OneMinusSrcAlpha;
+			break;
+		case ERHIBlendMode::LayerScreen:
+			colorBlend.srcFactor = WGPUBlendFactor_OneMinusDst;
+			colorBlend.dstFactor = WGPUBlendFactor_One;
+			break;
+		case ERHIBlendMode::Additive:
+		default:
+			colorBlend.srcFactor = WGPUBlendFactor_SrcAlpha;
+			colorBlend.dstFactor = WGPUBlendFactor_One;
+			alphaBlend.srcFactor = WGPUBlendFactor_Zero;
+			alphaBlend.dstFactor = WGPUBlendFactor_One;
+			break;
+		}
 		blendState.color = colorBlend;
 		blendState.alpha = alphaBlend;
 		colorTarget.blend = &blendState;

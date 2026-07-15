@@ -14,7 +14,9 @@ class IRHITexture;
 class IRenderMesh;
 class IRenderMaterial;
 
-using RenderLayerMask = std::uint32_t;
+// 렌더 아이템이 속한 레이어의 순서(캔버스 내 인덱스, 0 = 맨 아래).
+// Core 렌더러는 이 값으로 정렬·범위 분할만 하고 레이어 객체는 모른다(GameFramework 타입 무의존).
+using RenderLayerIndex = std::uint16_t;
 
 // 렌더 아이템을 제출한 오브젝트의 불투명 키(GameFramework CGameObject 의 주소).
 // Core 렌더러는 이 키로 집합 비교(필터/아웃라인 마스크)만 하고 절대 역참조하지 않으므로
@@ -49,7 +51,8 @@ struct RenderItem
 	SafePtr<IRHITexture> Texture;
 	SafePtr<IRHISampler> Sampler;
 	ERenderQueue Queue = ERenderQueue::Opaque;
-	RenderLayerMask LayerMask = 0xffffffffu;
+	// 소속 레이어 순서 — 정렬 1순위 키(레이어별 드로우 범위가 연속이 되도록).
+	RenderLayerIndex LayerIndex = 0;
 	Matrix3x2 Transform;
 	// 메시의 로컬 중심 기준 AABB 반경. 기본값은 기존 스프라이트 단위 쿼드 계약.
 	float LocalHalfExtents[2] = { 0.5f, 0.5f };

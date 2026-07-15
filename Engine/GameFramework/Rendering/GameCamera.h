@@ -2,6 +2,7 @@
 
 #include "Core/Platform/PlatformTypes.h"
 #include "Core/RHI/RHICommandTypes.h"
+#include "Core/RHI/RHIGraphicsTypes.h"   // ERHIBlendMode — 레이어 컴포짓 블렌드
 #include "Core/Renderer/RendererTypes.h"
 #include "Utillity/Pointer/SafePtr.h"
 
@@ -37,6 +38,23 @@ struct GameRenderCameraStats
 	RenderCullingStats Culling;
 };
 
+// 레이어 컴포짓 스냅샷(POD). 캔버스 레이어 목록을 렌더가 쓰는 형태로 프레임마다 수집한다
+// (렌더 코드가 CGameLayer/씬을 직접 들여다보지 않게 — 카메라/라이트 수집과 동일 규약).
+// 순서 = 캔버스 순서(아래→위) = Index 오름차순.
+struct GameRenderLayerDesc
+{
+	RenderLayerIndex Index = 0;
+	ERHIBlendMode    BlendMode = ERHIBlendMode::LayerNormal;
+	float            Opacity = 1.0f;
+	float            ParallaxFactor = 1.0f;
+	bool             Visible = true;
+	bool             Static = false;
+	bool             ForceOwnTexture = false;
+	// 자기 RT 를 거쳐야 하는가 — 블렌드/Opacity/Static/강제 중 하나라도 걸리면 true.
+	// 아니면 대상에 직접 그린다(평범한 레이어에 RT 왕복 대역폭을 물리지 않는다).
+	bool             NeedsOwnTexture = false;
+};
+
 // 월드 공간 Light2D 스냅샷(POD). RenderWeave LightMap 패스가 소비한다.
 struct GameRenderLightDesc
 {
@@ -60,6 +78,10 @@ std::vector<GameRenderCameraDesc> CollectGameRenderCameras(const CGameScene& sce
 // 씬의 활성 Light2D 를 월드 공간 스냅샷으로 수집한다(카메라 수집과 동일 계층에서 호출).
 std::vector<GameRenderLightDesc> CollectGameRenderLights(const CGameScene& scene);
 
+// 캔버스 레이어를 컴포짓 순서대로 수집한다(카메라/라이트 수집과 동일 계층에서 호출).
+// forceOwnTextureAll = 전 레이어를 RT 경유로 강제(에디터 — 레이어별 썸네일·디버깅용).
+std::vector<GameRenderLayerDesc> CollectGameRenderLayers(const CGameScene& scene, bool forceOwnTextureAll = false);
+
 void RenderGameCameraStack(
 	IRHICommandContext& commandContext,
 	IRenderer& renderer,
@@ -68,4 +90,5 @@ void RenderGameCameraStack(
 	const RenderSurfaceSize& renderTargetSize,
 	SafePtr<IRHITexture> renderTarget = nullptr,
 	std::vector<GameRenderCameraStats>* outCameraStats = nullptr,
-	const std::vector<GameRenderLightDesc>& lights = {});
+	const std::vector<GameRenderLightDesc>& lights = {},
+	const std::vector<GameRenderLayerDesc>& layers = {});

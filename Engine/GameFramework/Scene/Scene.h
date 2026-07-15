@@ -257,6 +257,9 @@ private:
 
 	void SetName(const char* name) { m_name = name ? name : ""; }
 	void SetObjectInstanceGuid(CGameObject& object, const File::Guid& guid);
+	// m_layers 순서가 바뀌는 모든 지점에서 호출 — 레이어의 인덱스 캐시(CGameLayer::m_index)를
+	// 목록과 동기화한다. 렌더 수집이 이 캐시를 매 프레임 읽으므로 desync 는 곧 오정렬이다.
+	void ReindexLayers();
 	// 직렬화 전용 — 로드 시 파일의 레이어 guid 를 복원한다(GameInstance friend 경유).
 	void SetLayerInstanceGuid(CGameLayer& layer, const File::Guid& guid);
 

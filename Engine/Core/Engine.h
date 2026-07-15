@@ -51,6 +51,7 @@ public:
 	void SetMainClearColor(const Color& color);
 	void SetGameRenderCameras(std::vector<GameRenderCameraDesc> cameras);
 	void SetGameRenderLights(std::vector<GameRenderLightDesc> lights);
+	void SetGameRenderLayers(std::vector<GameRenderLayerDesc> layers);
 	// 렌더 직전(리사이즈 반영 후, 카메라 스택 사용 전) 훅 — 카메라/라이트 스냅샷을
 	// 시뮬레이션 *이후* 상태로 수집하기 위한 것. OnPreTick 수집은 1프레임 지연을 만든다.
 	void SetPreRenderCallback(std::function<void()> callback);
@@ -125,6 +126,7 @@ private:
 	std::vector<CModule*>         m_modules;
 	std::vector<GameRenderCameraDesc> m_gameRenderCameras;
 	std::vector<GameRenderLightDesc> m_gameRenderLights;
+	std::vector<GameRenderLayerDesc> m_gameRenderLayers;
 	std::function<void()>         m_preRenderCallback;
 	PlatformDesc                  m_platformDesc;
 	Color                         m_mainClearColor = Color{ 0.08f, 0.09f, 0.11f, 1.0f };

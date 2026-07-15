@@ -9,6 +9,7 @@
 #include "GameFramework/Component/Camera2D.h"
 #include "GameFramework/Component/Light2D.h"
 #include "GameFramework/Object/GameObject.h"
+#include "GameFramework/Scene/GameLayer.h"
 #include "GameFramework/Scene/Scene.h"
 #include "GameFramework/Scene/SceneTransformUtils.h"
 
@@ -121,15 +122,99 @@ std::vector<GameRenderLightDesc> CollectGameRenderLights(const CGameScene& scene
 	return lights;
 }
 
+std::vector<GameRenderLayerDesc> CollectGameRenderLayers(const CGameScene& scene, bool forceOwnTextureAll)
+{
+	std::vector<GameRenderLayerDesc> layers;
+	const std::size_t layerCount = scene.GetLayerCount();
+	layers.reserve(layerCount);
+	for (std::size_t i = 0; i < layerCount; ++i)
+	{
+		const CGameLayer* layer = scene.GetLayerAt(i);
+		if (nullptr == layer)
+		{
+			continue;
+		}
+
+		GameRenderLayerDesc desc;
+		desc.Index = layer->GetIndex();
+		switch (layer->BlendMode)
+		{
+		case ELayerBlendMode::Additive: desc.BlendMode = ERHIBlendMode::LayerAdditive; break;
+		case ELayerBlendMode::Multiply: desc.BlendMode = ERHIBlendMode::LayerMultiply; break;
+		case ELayerBlendMode::Screen:   desc.BlendMode = ERHIBlendMode::LayerScreen;   break;
+		case ELayerBlendMode::Normal:
+		default:                        desc.BlendMode = ERHIBlendMode::LayerNormal;   break;
+		}
+		desc.Opacity = std::clamp(layer->Opacity, 0.0f, 1.0f);
+		desc.ParallaxFactor = layer->ParallaxFactor;
+		desc.Visible = layer->Visible;
+		desc.Static = layer->Static;
+		desc.ForceOwnTexture = layer->ForceOwnTexture;
+		// 자기 RT 가 필요한 조건 — 이 중 아무것도 아니면 대상에 직접 그린다(RT 왕복 없음).
+		// Normal + Opacity 1 + 비Static 레이어(대다수)는 레이어 도입 전과 동일 비용이 된다.
+		desc.NeedsOwnTexture = forceOwnTextureAll
+			|| layer->ForceOwnTexture
+			|| layer->Static
+			|| desc.Opacity < 1.0f
+			|| ELayerBlendMode::Normal != layer->BlendMode;
+		layers.push_back(desc);
+	}
+	return layers;
+}
+
 namespace
 {
 	// 카메라 스택(클리어 + 카메라별 렌더)을 지정 타겟에 그린다. 그래프 Base 패스와
 	// 폴백 경로가 공유한다. outCameraStats 에 카메라별 통계를 append(호출자가 미리 clear).
+	// 레이어 뷰 = 카메라 뷰에 ParallaxFactor 적용. 현재는 "위치만 배율"이다
+	// (factor 1 = 카메라와 동일, 0.5 = 절반 속도 원경, 0 = 월드 원점 고정).
+	// 회전·줌은 카메라를 그대로 따른다 — factor 0 레이어를 화면 완전 고정(UI)으로 만들려면
+	// 회전·줌 독립까지 필요하며, 그건 설계 문서에 미결로 남은 항목이다.
+	GameRenderCameraDesc ApplyLayerParallax(const GameRenderCameraDesc& camera, float parallaxFactor)
+	{
+		if (1.0f == parallaxFactor)
+		{
+			return camera;
+		}
+		GameRenderCameraDesc view = camera;
+		view.PosX = camera.PosX * parallaxFactor;
+		view.PosY = camera.PosY * parallaxFactor;
+		return view;
+	}
+
+	// 한 레이어를 현재 바인딩된 타겟(뷰포트 설정 완료 상태)에 그린다.
+	// drawAllItems = 레이어 구간이 아니라 씬 전체를 그린다(레이어 스냅샷이 없는 폴백 경로).
+	void DrawLayerItems(
+		IRenderer& renderer,
+		CForward2DRenderer* forward,
+		IRenderScene& renderScene,
+		const GameRenderCameraDesc& view,
+		const GameRenderLayerDesc& layer,
+		bool drawAllItems)
+	{
+		renderer.SetViewCameraEx(view.PosX, view.PosY, view.OrthoSizeX, view.OrthoSize, view.CosR, view.SinR);
+		if (forward && false == drawAllItems)
+		{
+			forward->RenderLayer(renderScene, layer.Index);
+		}
+		else
+		{
+			// Forward2D 가 아니거나 레이어 스냅샷이 없으면 레이어 분할 없이 전체를 그린다.
+			renderer.Render(renderScene);
+		}
+	}
+
+	// 카메라 스택을 지정 타겟에 그린다. 그래프 Base 패스와 폴백 경로가 공유한다.
+	// 카메라마다 캔버스 레이어를 순서대로(아래→위) 그리고 즉시 합성한다:
+	//   · 평범한 레이어(Normal+불투명+비Static) → 타겟에 직접 드로우(RT 왕복 없음)
+	//   · 그 외                                → 스크래치 RT 에 그린 뒤 블렌드·Opacity 로 합성
+	// outCameraStats 에 카메라별 통계를 append(호출자가 미리 clear).
 	void RenderCameraStackInto(
 		IRHICommandContext& commandContext,
 		IRenderer& renderer,
 		IRenderScene& renderScene,
 		const std::vector<GameRenderCameraDesc>& cameras,
+		const std::vector<GameRenderLayerDesc>& layers,
 		const RenderSurfaceSize& renderTargetSize,
 		SafePtr<IRHITexture> target,
 		std::vector<GameRenderCameraStats>* outCameraStats)
@@ -145,12 +230,21 @@ namespace
 		commandContext.BeginRenderPass(clearDesc);
 		commandContext.EndRenderPass();
 
+		CForward2DRenderer* forward = renderer.AsForward2DRenderer();
+
+		// 레이어 스냅샷이 없으면(레이어를 안 넘긴 호출자) 씬 전체를 한 레이어처럼 그린다 —
+		// 조용히 레이어 0 만 그리는 사고를 막는 폴백.
+		const bool drawAllItems = layers.empty();
+		const std::vector<GameRenderLayerDesc> implicitLayers(drawAllItems ? 1 : 0);
+		const std::vector<GameRenderLayerDesc>& effectiveLayers = drawAllItems ? implicitLayers : layers;
+
 		for (const GameRenderCameraDesc& camera : cameras)
 		{
 			const float vpX = camera.ViewportX * rtW;
 			const float vpY = camera.ViewportY * rtH;
 			const float vpW = std::max(camera.ViewportW * rtW, 1.0f);
 			const float vpH = std::max(camera.ViewportH * rtH, 1.0f);
+			const RenderSurfaceSize viewportSize{ static_cast<int>(vpW), static_cast<int>(vpH) };
 
 			RenderPassDesc renderPassDesc;
 			renderPassDesc.ColorAttachment.Target = target;
@@ -159,7 +253,7 @@ namespace
 
 			commandContext.BeginRenderPass(renderPassDesc);
 			commandContext.SetViewport(vpX, vpY, vpW, vpH);
-			renderer.SetRenderTargetSize(RenderSurfaceSize{ static_cast<int>(vpW), static_cast<int>(vpH) });
+			renderer.SetRenderTargetSize(viewportSize);
 
 			if (camera.ClearColor.A > (1.0f / 255.0f))
 			{
@@ -169,23 +263,91 @@ namespace
 					camera.ClearColor.B,
 					camera.ClearColor.A);
 			}
+			commandContext.EndRenderPass();
 
-			renderer.SetViewCameraEx(
-				camera.PosX,
-				camera.PosY,
-				camera.OrthoSizeX,
-				camera.OrthoSize,
-				camera.CosR,
-				camera.SinR);
-			renderer.Render(renderScene);
+			RenderCullingStats cameraStats;
+			for (const GameRenderLayerDesc& layer : effectiveLayers)
+			{
+				if (false == layer.Visible)
+				{
+					continue;
+				}
+				// 아이템 없는 레이어는 통째로 건너뛴다 — 특히 RT 경유 레이어에서 빈 스크래치를
+				// 빌려 투명 합성하는 낭비를 없앤다(에디터는 전 레이어 RT 강제라 더 크게 절약).
+				// Sort 는 프레임당 1회만 실제 작업을 하므로 구간 조회는 저렴하다.
+				if (false == drawAllItems)
+				{
+					renderScene.Sort();
+					if (0 == renderScene.GetLayerRange(layer.Index).Count)
+					{
+						continue;
+					}
+				}
+
+				const GameRenderCameraDesc view = ApplyLayerParallax(camera, layer.ParallaxFactor);
+
+				if (false == layer.NeedsOwnTexture || nullptr == forward)
+				{
+					// 직접 경로 — 레이어 도입 전과 동일한 드로우 비용.
+					commandContext.BeginRenderPass(renderPassDesc);
+					commandContext.SetViewport(vpX, vpY, vpW, vpH);
+					renderer.SetRenderTargetSize(viewportSize);
+					DrawLayerItems(renderer, forward, renderScene, view, layer, drawAllItems);
+					commandContext.EndRenderPass();
+				}
+				else
+				{
+					// RT 경유 — 뷰포트 크기 스크래치를 빌려 투명 클리어 후 그리고, 그 결과를
+					// 뷰포트 렉트에 컴포짓한다. 스프라이트가 AlphaBlend 로 투명 RT 에 그려지면
+					// premultiplied 색이 남으므로 Layer* 블렌드가 알파를 재적용하지 않는다.
+					RWTextureDesc scratchDesc;
+					scratchDesc.Width = static_cast<std::uint32_t>(std::max(1, viewportSize.Width));
+					scratchDesc.Height = static_cast<std::uint32_t>(std::max(1, viewportSize.Height));
+					scratchDesc.Format = ERHITextureFormat::RGBA8;
+					SafePtr<IRHITexture> scratch = forward->GetRenderWeavePool().Acquire(scratchDesc);
+					if (false == scratch.IsValid())
+					{
+						continue;
+					}
+
+					RenderPassDesc layerClear;
+					layerClear.ColorAttachment.Target = scratch;
+					layerClear.ColorAttachment.LoadOp = ERHILoadOp::Clear;
+					layerClear.ColorAttachment.StoreOp = ERHIStoreOp::Store;
+					layerClear.ColorAttachment.ClearColor = Color{ 0.0f, 0.0f, 0.0f, 0.0f };
+					commandContext.BeginRenderPass(layerClear);
+					commandContext.EndRenderPass();
+
+					RenderPassDesc layerPass;
+					layerPass.ColorAttachment.Target = scratch;
+					layerPass.ColorAttachment.LoadOp = ERHILoadOp::Load;
+					layerPass.ColorAttachment.StoreOp = ERHIStoreOp::Store;
+					commandContext.BeginRenderPass(layerPass);
+					commandContext.SetViewport(0.0f, 0.0f, vpW, vpH);
+					renderer.SetRenderTargetSize(viewportSize);
+					DrawLayerItems(renderer, forward, renderScene, view, layer, drawAllItems);
+					commandContext.EndRenderPass();
+
+					commandContext.BeginRenderPass(renderPassDesc);
+					commandContext.SetViewport(vpX, vpY, vpW, vpH);
+					renderer.SetRenderTargetSize(viewportSize);
+					forward->CompositeLayer(commandContext, scratch, layer.BlendMode, layer.Opacity);
+					commandContext.EndRenderPass();
+				}
+
+				const RenderCullingStats layerStats = renderer.GetLastCullingStats();
+				cameraStats.SubmittedCount += layerStats.SubmittedCount;
+				cameraStats.DrawnCount += layerStats.DrawnCount;
+				cameraStats.CulledCount += layerStats.CulledCount;
+			}
+
 			if (outCameraStats)
 			{
 				GameRenderCameraStats stats;
 				stats.OwnerObject = camera.OwnerObject;
-				stats.Culling = renderer.GetLastCullingStats();
+				stats.Culling = cameraStats;
 				outCameraStats->push_back(stats);
 			}
-			commandContext.EndRenderPass();
 		}
 	}
 }
@@ -198,7 +360,8 @@ void RenderGameCameraStack(
 	const RenderSurfaceSize& renderTargetSize,
 	SafePtr<IRHITexture> renderTarget,
 	std::vector<GameRenderCameraStats>* outCameraStats,
-	const std::vector<GameRenderLightDesc>& lights)
+	const std::vector<GameRenderLightDesc>& lights,
+	const std::vector<GameRenderLayerDesc>& layers)
 {
 	if (outCameraStats)
 	{
@@ -217,7 +380,7 @@ void RenderGameCameraStack(
 	CForward2DRenderer* forward = renderer.AsForward2DRenderer();
 	if (nullptr == forward)
 	{
-		RenderCameraStackInto(commandContext, renderer, renderScene, cameras, renderTargetSize, renderTarget, outCameraStats);
+		RenderCameraStackInto(commandContext, renderer, renderScene, cameras, layers, renderTargetSize, renderTarget, outCameraStats);
 		renderer.SetViewCamera(0.0f, 0.0f, 1.0f);
 		return;
 	}
@@ -243,10 +406,10 @@ void RenderGameCameraStack(
 	RWPassDesc basePass;
 	basePass.Name  = "Base";
 	basePass.Write = hScene;
-	basePass.Execute = [&renderer, &renderScene, &cameras, renderTargetSize, outCameraStats, hScene]
+	basePass.Execute = [&renderer, &renderScene, &cameras, &layers, renderTargetSize, outCameraStats, hScene]
 		(IRHICommandContext& ctx, RWGraph& g)
 	{
-		RenderCameraStackInto(ctx, renderer, renderScene, cameras, renderTargetSize, g.Resolve(hScene), outCameraStats);
+		RenderCameraStackInto(ctx, renderer, renderScene, cameras, layers, renderTargetSize, g.Resolve(hScene), outCameraStats);
 	};
 	graph.AddPass(std::move(basePass));
 

@@ -508,6 +508,17 @@ void CImEditor::OnPrepareRender()
 		return static_cast<bool>(rt);
 	};
 
+	// 씬뷰 레이어 스냅샷 — 편집 뷰가 그리는 대상은 활성 씬이다(게임뷰는 자기 씬을 따로 지정).
+	// 전 레이어 RT 강제: 에디터에선 레이어별 결과가 그대로 보여야 하고 성능 여유가 있다.
+	m_sceneViewLayers.clear();
+	if (Engine.SceneManager.IsValid())
+	{
+		if (const CGameScene* activeScene = Engine.SceneManager->GetActiveScene().TryGet())
+		{
+			m_sceneViewLayers = CollectGameRenderLayers(*activeScene, /*forceOwnTextureAll*/ true);
+		}
+	}
+
 	// ── Scene view (editor camera) ────────────────────────────────────────────────
 	//
 	// RT 파이프라인 순서:
@@ -558,21 +569,88 @@ void CImEditor::OnPrepareRender()
 				camX, camY, camSize, viewW, viewH);
 		}
 
-		// ② 스프라이트 전체 (EditorHidden 오브젝트는 씬뷰에서만 제외)
-		if (false == m_sceneViewHidden.empty())
+		// ② 스프라이트 — 캔버스 레이어를 순서대로 합성한다(편집 뷰도 WYSIWYG).
+		//    EditorHidden 오브젝트는 씬뷰에서만 제외. 레이어 스냅샷이 없으면 평면 렌더로 폴백.
+		//    편집 카메라는 자유 카메라라 패럴랙스를 적용하지 않는다 — 레이어를 같은 뷰로 보여
+		//    배치 작업이 되게 하고, 패럴랙스 확인은 게임뷰에서 한다.
 		{
-			if (CForward2DRenderer* fwd = engineCore->Renderer->AsForward2DRenderer())
+			CForward2DRenderer* fwd = engineCore->Renderer->AsForward2DRenderer();
+			const std::unordered_set<RenderObjectId>* hidden =
+				m_sceneViewHidden.empty() ? nullptr : &m_sceneViewHidden;
+
+			if (nullptr == fwd || m_sceneViewLayers.empty())
 			{
-				fwd->RenderExcluding(*engineCore->RenderScene, m_sceneViewHidden);
+				if (fwd && hidden)
+				{
+					fwd->RenderExcluding(*engineCore->RenderScene, *hidden);
+				}
+				else
+				{
+					engineCore->Renderer->Render(*engineCore->RenderScene);
+				}
 			}
 			else
 			{
-				engineCore->Renderer->Render(*engineCore->RenderScene);
+				commandContext->EndRenderPass();
+
+				RenderPassDesc resumeDesc;
+				resumeDesc.ColorAttachment.Target  = m_sceneViewRenderTarget.GetSafePtr();
+				resumeDesc.ColorAttachment.LoadOp  = ERHILoadOp::Load;
+				resumeDesc.ColorAttachment.StoreOp = ERHIStoreOp::Store;
+
+				engineCore->RenderScene->Sort();
+				for (const GameRenderLayerDesc& layer : m_sceneViewLayers)
+				{
+					// 비가시/빈 레이어는 스크래치 RT 자체를 빌리지 않는다.
+					if (false == layer.Visible
+						|| 0 == engineCore->RenderScene->GetLayerRange(layer.Index).Count)
+					{
+						continue;
+					}
+
+					// 에디터는 전 레이어 RT 강제(CollectGameRenderLayers 인자) — 레이어별 결과를
+					// 그대로 썸네일·디버깅에 쓸 수 있게. 화면 결과는 런타임 lazy 경로와 동일.
+					RWTextureDesc scratchDesc;
+					scratchDesc.Width  = static_cast<std::uint32_t>(std::max(1, viewW));
+					scratchDesc.Height = static_cast<std::uint32_t>(std::max(1, viewH));
+					scratchDesc.Format = ERHITextureFormat::RGBA8;
+					SafePtr<IRHITexture> scratch = fwd->GetRenderWeavePool().Acquire(scratchDesc);
+					if (false == scratch.IsValid())
+					{
+						continue;
+					}
+
+					RenderPassDesc layerClear;
+					layerClear.ColorAttachment.Target     = scratch;
+					layerClear.ColorAttachment.LoadOp     = ERHILoadOp::Clear;
+					layerClear.ColorAttachment.StoreOp    = ERHIStoreOp::Store;
+					layerClear.ColorAttachment.ClearColor = Color{ 0.0f, 0.0f, 0.0f, 0.0f };
+					commandContext->BeginRenderPass(layerClear);
+					commandContext->EndRenderPass();
+
+					RenderPassDesc layerPass;
+					layerPass.ColorAttachment.Target  = scratch;
+					layerPass.ColorAttachment.LoadOp  = ERHILoadOp::Load;
+					layerPass.ColorAttachment.StoreOp = ERHIStoreOp::Store;
+					commandContext->BeginRenderPass(layerPass);
+					commandContext->SetViewport(0.0f, 0.0f, static_cast<float>(viewW), static_cast<float>(viewH));
+					engineCore->Renderer->SetRenderTargetSize(RenderSurfaceSize{ viewW, viewH });
+					engineCore->Renderer->SetViewCamera(camX, camY, camSize);
+					fwd->RenderLayer(*engineCore->RenderScene, layer.Index, hidden);
+					commandContext->EndRenderPass();
+
+					commandContext->BeginRenderPass(resumeDesc);
+					commandContext->SetViewport(0.0f, 0.0f, static_cast<float>(viewW), static_cast<float>(viewH));
+					engineCore->Renderer->SetRenderTargetSize(RenderSurfaceSize{ viewW, viewH });
+					fwd->CompositeLayer(*commandContext, scratch, layer.BlendMode, layer.Opacity);
+					commandContext->EndRenderPass();
+				}
+
+				// 이후 단계(③ 포커스/콜라이더, ④ 아웃라인)가 이어서 그리도록 패스를 재개한다.
+				commandContext->BeginRenderPass(resumeDesc);
+				engineCore->Renderer->SetRenderTargetSize(RenderSurfaceSize{ viewW, viewH });
+				engineCore->Renderer->SetViewCamera(camX, camY, camSize);
 			}
-		}
-		else
-		{
-			engineCore->Renderer->Render(*engineCore->RenderScene);
 		}
 
 		if (m_sceneViewFocusActive && !m_sceneViewFocusEntities.empty())
@@ -630,6 +708,9 @@ void CImEditor::OnPrepareRender()
 				static_cast<float>(m_gameViewWidth),
 				static_cast<float>(m_gameViewHeight));
 			m_gameViewLights = CollectGameRenderLights(*gameViewScene);
+			// 에디터는 전 레이어를 RT 경유로 강제한다 — 레이어별 결과를 그대로 볼 수 있어야
+			// 썸네일·디버깅이 되기 때문. 화면 결과는 lazy 경로와 동일하고 비용만 다르다.
+			m_gameViewLayers = CollectGameRenderLayers(*gameViewScene, /*forceOwnTextureAll*/ true);
 		}
 
 		std::vector<GameRenderCameraStats> cameraStats;
@@ -641,7 +722,8 @@ void CImEditor::OnPrepareRender()
 			RenderSurfaceSize{ static_cast<int>(m_gameViewWidth), static_cast<int>(m_gameViewHeight) },
 			m_gameViewRenderTarget.GetSafePtr(),
 			&cameraStats,
-			m_gameViewLights);
+			m_gameViewLights,
+			m_gameViewLayers);
 		m_gameViewCameraCullingStats.clear();
 		for (const GameRenderCameraStats& stats : cameraStats)
 		{

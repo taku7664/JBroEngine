@@ -783,8 +783,9 @@ bool CForward2DRenderer::Initialize(const RendererDesc& desc)
 	const bool reductionOk = CreatePolarReductionPipeline();
 	const bool compositeOk = CreateCompositePipeline();
 	const bool tonemapOk = CreateTonemapPipeline();
-	CSystemLog::Info(std::format("[RenderWeave] pipelines blit={} light={} occluderMap={} reduction={} composite={} tonemap={}",
-		blitOk, lightOk, occluderFillOk, reductionOk, compositeOk, tonemapOk));
+	const bool layerCompositeOk = CreateLayerCompositePipelines();
+	CSystemLog::Info(std::format("[RenderWeave] pipelines blit={} light={} occluderMap={} reduction={} composite={} tonemap={} layerComposite={}",
+		blitOk, lightOk, occluderFillOk, reductionOk, compositeOk, tonemapOk, layerCompositeOk));
 	if (false == CreateTextPipeline() && ERHIApi::D3D11 == m_rhiDevice->GetApi())
 	{
 		Finalize();
@@ -1037,6 +1038,43 @@ void CForward2DRenderer::BlitFullscreen(IRHICommandContext& commandContext, Safe
 		return;
 	}
 	const SpriteConstants constants = BuildViewportColorConstants(1.0f, 1.0f, 1.0f, 1.0f);
+	RenderStateCache stateCache;
+	DrawSpriteQuad(
+		commandContext,
+		stateCache,
+		pipeline,
+		m_quadMesh.GetSafePtr(),
+		src,
+		m_defaultSampler.GetSafePtr(),
+		constants);
+}
+
+void CForward2DRenderer::CompositeLayer(
+	IRHICommandContext& commandContext,
+	SafePtr<IRHITexture> src,
+	ERHIBlendMode blendMode,
+	float opacity)
+{
+	// 블렌드 모드 → 파이프라인 배열 인덱스. Layer* 이외가 오면 Normal 로 취급한다.
+	std::size_t pipelineIndex = 0;
+	switch (blendMode)
+	{
+	case ERHIBlendMode::LayerAdditive: pipelineIndex = 1; break;
+	case ERHIBlendMode::LayerMultiply: pipelineIndex = 2; break;
+	case ERHIBlendMode::LayerScreen:   pipelineIndex = 3; break;
+	default:                           pipelineIndex = 0; break;
+	}
+
+	OwnerPtr<IRHIGraphicsPipeline>& selected = m_layerCompositePipelines[pipelineIndex];
+	SafePtr<IRHIGraphicsPipeline> pipeline = selected ? selected.GetSafePtr() : m_spritePipeline.GetSafePtr();
+	if (false == pipeline.IsValid() || !m_quadMesh || false == src.IsValid() || !m_defaultSampler)
+	{
+		return;
+	}
+
+	// src 는 premultiplied — 색·알파에 opacity 스칼라를 함께 곱해야 premultiplied 가 유지된다.
+	const float scale = std::clamp(opacity, 0.0f, 1.0f);
+	const SpriteConstants constants = BuildViewportColorConstants(scale, scale, scale, scale);
 	RenderStateCache stateCache;
 	DrawSpriteQuad(
 		commandContext,
@@ -1587,7 +1625,7 @@ bool CForward2DRenderer::DrawSpriteBatch(IRHICommandContext& commandContext, Ren
 }
 
 template<typename FSkip>
-void CForward2DRenderer::RenderWithSkip(IRenderScene& scene, FSkip&& shouldSkip)
+void CForward2DRenderer::RenderWithSkip(IRenderScene& scene, const RenderItemRange& range, FSkip&& shouldSkip)
 {
 	m_lastCullingStats = {};
 
@@ -1610,10 +1648,13 @@ void CForward2DRenderer::RenderWithSkip(IRenderScene& scene, FSkip&& shouldSkip)
 	}
 
 	const RenderItem* items = scene.GetRenderItems();
-	const std::uint32_t itemCount = scene.GetRenderItemCount();
+	// 구간을 실제 아이템 수로 클램프 — 호출자가 넘긴 범위가 최신 제출과 어긋나도 OOB 를 막는다.
+	const std::uint32_t sceneItemCount = scene.GetRenderItemCount();
+	const std::uint32_t begin = std::min(range.Begin, sceneItemCount);
+	const std::uint32_t itemCount = std::min(begin + range.Count, sceneItemCount);
 	const ViewParameters view = BuildViewParameters();
 	RenderStateCache stateCache;
-	for (std::uint32_t i = 0; i < itemCount;)
+	for (std::uint32_t i = begin; i < itemCount;)
 	{
 		const RenderItem& item = items[i];
 
@@ -1682,7 +1723,27 @@ void CForward2DRenderer::RenderWithSkip(IRenderScene& scene, FSkip&& shouldSkip)
 void CForward2DRenderer::RenderImpl(IRenderScene& scene, const std::unordered_set<RenderObjectId>* excluded)
 {
 	// EditorHidden — 제외 집합에 든 오브젝트를 건너뛴다(집합 없으면 아무것도 제외 안 함).
-	RenderWithSkip(scene, [excluded](RenderObjectId entity)
+	scene.Sort();
+	RenderWithSkip(scene, RenderItemRange{ 0, scene.GetRenderItemCount() }, [excluded](RenderObjectId entity)
+	{
+		return excluded && excluded->find(entity) != excluded->end();
+	});
+}
+
+void CForward2DRenderer::RenderLayer(
+	IRenderScene& scene,
+	RenderLayerIndex layerIndex,
+	const std::unordered_set<RenderObjectId>* excluded)
+{
+	// 구간 조회는 정렬 이후에만 유효하다 — Sort 는 프레임당 1회만 실제 작업을 한다.
+	scene.Sort();
+	const RenderItemRange range = scene.GetLayerRange(layerIndex);
+	if (0 == range.Count)
+	{
+		m_lastCullingStats = {};
+		return;
+	}
+	RenderWithSkip(scene, range, [excluded](RenderObjectId entity)
 	{
 		return excluded && excluded->find(entity) != excluded->end();
 	});
@@ -1697,7 +1758,8 @@ void CForward2DRenderer::RenderFiltered(IRenderScene& scene, const std::unordere
 		return;
 	}
 	// 필터 집합에 없는 오브젝트를 건너뛴다(포커스/선택 렌더).
-	RenderWithSkip(scene, [&objects](RenderObjectId entity)
+	scene.Sort();
+	RenderWithSkip(scene, RenderItemRange{ 0, scene.GetRenderItemCount() }, [&objects](RenderObjectId entity)
 	{
 		return objects.find(entity) == objects.end();
 	});
@@ -1746,6 +1808,10 @@ void CForward2DRenderer::Finalize()
 	m_compositePipeline.Reset();
 	m_lightPipeline.Reset();
 	m_lightPixelProgram.Reset();
+	for (OwnerPtr<IRHIGraphicsPipeline>& layerCompositePipeline : m_layerCompositePipelines)
+	{
+		layerCompositePipeline.Reset();
+	}
 	m_blitPipeline.Reset();
 	m_textPipeline.Reset();
 	m_spritePipeline.Reset();
@@ -1898,6 +1964,45 @@ bool CForward2DRenderer::CreateBlitPipeline()
 	desc.BlendMode = ERHIBlendMode::Opaque;   // 순수 복사 — 알파 이중적용 방지
 	m_blitPipeline = m_rhiDevice->CreateGraphicsPipeline(desc);
 	return static_cast<bool>(m_blitPipeline);
+}
+
+bool CForward2DRenderer::CreateLayerCompositePipelines()
+{
+	// 레이어 RT 를 화면(SceneColor)에 얹는 파이프라인 4종. blit 과 같은 스프라이트 프로그램을
+	// 쓰고 블렌드만 다르다 — CompositeLayer 가 color 틴트로 Opacity 를 실어 보낸다.
+	if (!m_spriteVertexProgram || !m_spritePixelProgram)
+	{
+		return false;
+	}
+
+	RHIVertexElementDesc elements[2];
+	SetPositionUvElements(elements);
+
+	// 배열 인덱스 순서 = CompositeLayer 의 매핑(Normal/Additive/Multiply/Screen).
+	const ERHIBlendMode blendModes[4] = {
+		ERHIBlendMode::LayerNormal,
+		ERHIBlendMode::LayerAdditive,
+		ERHIBlendMode::LayerMultiply,
+		ERHIBlendMode::LayerScreen,
+	};
+
+	bool allCreated = true;
+	for (std::size_t i = 0; i < 4; ++i)
+	{
+		RHIGraphicsPipelineDesc desc;
+		desc.VertexProgram = m_spriteVertexProgram.GetSafePtr();
+		desc.PixelProgram = m_spritePixelProgram.GetSafePtr();
+		desc.VertexElements = elements;
+		desc.VertexElementCount = 2;
+		desc.PrimitiveTopology = ERHIPrimitiveTopology::TriangleList;
+		desc.BlendMode = blendModes[i];
+		m_layerCompositePipelines[i] = m_rhiDevice->CreateGraphicsPipeline(desc);
+		if (!m_layerCompositePipelines[i])
+		{
+			allCreated = false;
+		}
+	}
+	return allCreated;
 }
 
 bool CForward2DRenderer::CreateLightPipeline()

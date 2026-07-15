@@ -454,7 +454,6 @@ Entries:
   editor.property.FrameIndex: 프레임 인덱스
   editor.property.Color: 색상
   editor.property.SortOrder: 정렬 순서
-  editor.property.LayerMask: 레이어 마스크
   editor.property.CastShadow: 그림자 생성
   editor.property.Text: 텍스트
   editor.property.FontFamilyGuid: 폰트 패밀리

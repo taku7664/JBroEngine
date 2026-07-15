@@ -148,8 +148,20 @@ CGameLayer* CGameScene::CreateLayer(const char* name)
 	OwnerPtr<CGameLayer> layer = MakeOwnerPtr<CGameLayer>(name, File::GenerateGuid());
 	CGameLayer* raw = layer.Get();
 	m_layers.push_back(std::move(layer));
+	ReindexLayers();
 	MarkScriptExecutionOrderDirty();
 	return raw;
+}
+
+void CGameScene::ReindexLayers()
+{
+	for (std::size_t i = 0; i < m_layers.size(); ++i)
+	{
+		if (m_layers[i])
+		{
+			m_layers[i]->m_index = static_cast<std::uint16_t>(i);
+		}
+	}
 }
 
 bool CGameScene::DestroyLayer(CGameLayer* layer)
@@ -234,6 +246,7 @@ bool CGameScene::MoveLayer(CGameLayer* layer, std::size_t newIndex)
 	m_layers.erase(m_layers.begin() + currentIndex);
 	newIndex = std::min(newIndex, m_layers.size());
 	m_layers.insert(m_layers.begin() + static_cast<std::ptrdiff_t>(newIndex), std::move(moved));
+	ReindexLayers();
 	MarkScriptExecutionOrderDirty();
 	return true;
 }
@@ -675,6 +688,7 @@ void CGameScene::FlushPendingDestroys()
 				m_layers.erase(m_layers.begin() + index);
 			}
 		}
+		ReindexLayers();
 		MarkScriptExecutionOrderDirty();
 	}
 }

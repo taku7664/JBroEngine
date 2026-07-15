@@ -5,6 +5,7 @@
 #include "GameFramework/Component/WorldTransform2D.h"
 #include "GameFramework/Object/GameInstance.h"
 #include "GameFramework/Reflection/ReflectionTypes.h"
+#include "GameFramework/Scene/GameLayer.h"
 #include "Utillity/Base/BitFlag.h"
 #include "Utillity/File/FilePath.h"
 #include "Utillity/Pointer/SafePtr.h"
@@ -14,7 +15,6 @@
 #include <type_traits>
 #include <vector>
 
-class CGameLayer;
 class CGameScene;
 
 // 오브젝트 비트 플래그. 상시 멤버(호스트/DLL/게임 동일 레이아웃 → ABI 안전).
@@ -108,6 +108,13 @@ public:
 	// 소속 레이어. 불변식: 자식은 항상 부모와 같은 레이어(SetParent 가 서브트리 전파).
 	// 재배정은 CGameScene::MoveObjectToLayer(루트 서브트리 단위)로만 한다.
 	SafePtr<CGameLayer> GetLayer() const { return m_layer; }
+	// 소속 레이어의 컴포짓 순서 — 렌더 수집이 아이템마다 읽는다(매 프레임). 레이어가 인덱스를
+	// 캐시하므로 O(1). 미배정(로드 과도기 등)은 0 = 맨 아래 레이어로 간주.
+	std::uint16_t GetLayerIndex() const
+	{
+		const CGameLayer* layer = m_layer.TryGet();
+		return layer ? layer->GetIndex() : 0;
+	}
 
 	// ── 컴포넌트 ──────────────────────────────────────────────────────────────
 	// AddComponent/RemoveComponent: Scene.h 하단 정의.

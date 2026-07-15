@@ -179,7 +179,7 @@ void CSpriteRenderSystem::OnUpdate(CGameScene& scene)
 			item.Texture = material->GetTexture();
 			item.Sampler = material->GetSampler();
 			item.Queue = material->GetRenderQueue();
-			item.LayerMask = sprite.LayerMask;
+			item.LayerIndex = owner->GetLayerIndex();
 			const Matrix3x2 spriteLocalTransform = Matrix3x2::Transform(sprite.Offset, 0.0f, finalSize);
 			item.Transform = spriteLocalTransform * owner->GetWorld().Matrix;
 			for (int i = 0; i < 4; ++i)

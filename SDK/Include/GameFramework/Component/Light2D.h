@@ -22,7 +22,6 @@ public:
 	float Range = 5.0f;
 	float InnerAngleRadians = 0.5f;
 	float OuterAngleRadians = 1.0f;
-	std::uint32_t LayerMask = 0xffffffffu;
 	bool CastShadows = false;
 	// Directional 그림자 도달 길이(월드 유닛). 태양 고도가 낮을수록 길게 — 유한 그림자를 만든다.
 	float ShadowLength = 6.0f;

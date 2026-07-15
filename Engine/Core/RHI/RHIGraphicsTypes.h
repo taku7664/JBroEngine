@@ -145,6 +145,16 @@ enum class ERHIBlendMode
     AlphaBlend,    // src.a × src.rgb + (1-src.a) × dst.rgb  (스프라이트용)
     Additive,      // src.rgb + dst.rgb
     Multiply,      // src.rgb × dst.rgb, 알파 보존(dst.a)  (라이트맵 컴포짓용)
+
+    // ── 레이어 컴포짓 전용 (src = premultiplied) ─────────────────────────────
+    // AlphaBlend 로 투명 RT 에 그리면(color: SRC_ALPHA/INV_SRC_ALPHA, alpha: ONE/INV_SRC_ALPHA)
+    // RT 에는 premultiplied 색이 남는다. 그 RT 를 화면에 얹는 단계는 src 를 다시 알파로
+    // 곱하면 안 되므로(이중 적용 → 반투명 가장자리 어두워짐) 아래 전용 모드를 쓴다.
+    // 레이어 Opacity 는 premultiplied 색·알파에 스칼라 곱이면 되므로 셰이더 color 틴트로 처리한다.
+    LayerNormal,   // src + (1-src.a) × dst              — 포토샵 Normal
+    LayerAdditive, // src + dst                          — 포토샵 Additive(Linear Dodge)
+    LayerMultiply, // src × dst + (1-src.a) × dst        — 포토샵 Multiply
+    LayerScreen,   // src × (1-dst) + dst                — 포토샵 Screen
 };
 
 struct RHIGraphicsPipelineDesc

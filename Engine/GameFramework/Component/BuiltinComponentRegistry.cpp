@@ -30,7 +30,6 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 		.AddProperty("FrameIndex", EReflectPropertyType::UInt32, offsetof(SpriteRenderer2D, FrameIndex), sizeof(std::uint32_t))
 		.AddProperty("Color", EReflectPropertyType::ColorFloat4, offsetof(SpriteRenderer2D, Color), sizeof(float), 4)
 		.AddProperty("SortOrder", EReflectPropertyType::Int32, offsetof(SpriteRenderer2D, SortOrder), sizeof(std::int32_t))
-		.AddProperty("LayerMask", EReflectPropertyType::UInt32, offsetof(SpriteRenderer2D, LayerMask), sizeof(RenderLayerMask))
 		.AddProperty("CastShadow", EReflectPropertyType::Bool, offsetof(SpriteRenderer2D, CastShadow), sizeof(bool));
 
 	registry.RegisterComponent<Text2D>({ "Text2D", "Text 2D", "Rendering", true })
@@ -55,8 +54,7 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 		.AddProperty("OutlineWidthPixels", EReflectPropertyType::Float, offsetof(Text2D, OutlineWidthPixels), sizeof(float))
 		.AddProperty("PixelSnap", EReflectPropertyType::Bool, offsetof(Text2D, PixelSnap), sizeof(bool))
 		.AddProperty("Offset", EReflectPropertyType::Vector2Float, offsetof(Text2D, Offset), sizeof(Vector2))
-		.AddProperty("SortOrder", EReflectPropertyType::Int32, offsetof(Text2D, SortOrder), sizeof(std::int32_t))
-		.AddProperty("LayerMask", EReflectPropertyType::UInt32, offsetof(Text2D, LayerMask), sizeof(RenderLayerMask));
+		.AddProperty("SortOrder", EReflectPropertyType::Int32, offsetof(Text2D, SortOrder), sizeof(std::int32_t));
 
 	registry.RegisterComponent<Square2D>({ "Square2D", "Square 2D", "Rendering", true })
 		.AddProperty("Size", EReflectPropertyType::Vector2Float, offsetof(Square2D, Size), sizeof(Vector2))
@@ -66,8 +64,7 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 		.AddProperty("OutlineEnabled", EReflectPropertyType::Bool, offsetof(Square2D, OutlineEnabled), sizeof(bool))
 		.AddProperty("OutlineColor", EReflectPropertyType::ColorFloat4, offsetof(Square2D, OutlineColor), sizeof(float), 4)
 		.AddProperty("OutlineWidth", EReflectPropertyType::Float, offsetof(Square2D, OutlineWidth), sizeof(float))
-		.AddProperty("SortOrder", EReflectPropertyType::Int32, offsetof(Square2D, SortOrder), sizeof(std::int32_t))
-		.AddProperty("LayerMask", EReflectPropertyType::UInt32, offsetof(Square2D, LayerMask), sizeof(RenderLayerMask));
+		.AddProperty("SortOrder", EReflectPropertyType::Int32, offsetof(Square2D, SortOrder), sizeof(std::int32_t));
 
 	registry.RegisterComponent<Circle2D>({ "Circle2D", "Circle 2D", "Rendering", true })
 		.AddProperty("Radius", EReflectPropertyType::Float, offsetof(Circle2D, Radius), sizeof(float))
@@ -78,8 +75,7 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 		.AddProperty("OutlineEnabled", EReflectPropertyType::Bool, offsetof(Circle2D, OutlineEnabled), sizeof(bool))
 		.AddProperty("OutlineColor", EReflectPropertyType::ColorFloat4, offsetof(Circle2D, OutlineColor), sizeof(float), 4)
 		.AddProperty("OutlineWidth", EReflectPropertyType::Float, offsetof(Circle2D, OutlineWidth), sizeof(float))
-		.AddProperty("SortOrder", EReflectPropertyType::Int32, offsetof(Circle2D, SortOrder), sizeof(std::int32_t))
-		.AddProperty("LayerMask", EReflectPropertyType::UInt32, offsetof(Circle2D, LayerMask), sizeof(RenderLayerMask));
+		.AddProperty("SortOrder", EReflectPropertyType::Int32, offsetof(Circle2D, SortOrder), sizeof(std::int32_t));
 
 	registry.RegisterComponent<Polygon2D>({ "Polygon2D", "Polygon 2D", "Rendering", true })
 		.AddProperty("Radius", EReflectPropertyType::Float, offsetof(Polygon2D, Radius), sizeof(float))
@@ -91,8 +87,7 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 		.AddProperty("OutlineEnabled", EReflectPropertyType::Bool, offsetof(Polygon2D, OutlineEnabled), sizeof(bool))
 		.AddProperty("OutlineColor", EReflectPropertyType::ColorFloat4, offsetof(Polygon2D, OutlineColor), sizeof(float), 4)
 		.AddProperty("OutlineWidth", EReflectPropertyType::Float, offsetof(Polygon2D, OutlineWidth), sizeof(float))
-		.AddProperty("SortOrder", EReflectPropertyType::Int32, offsetof(Polygon2D, SortOrder), sizeof(std::int32_t))
-		.AddProperty("LayerMask", EReflectPropertyType::UInt32, offsetof(Polygon2D, LayerMask), sizeof(RenderLayerMask));
+		.AddProperty("SortOrder", EReflectPropertyType::Int32, offsetof(Polygon2D, SortOrder), sizeof(std::int32_t));
 
 	registry.RegisterComponent<SpriteAnimator2D>({ "SpriteAnimator2D", "Sprite Animator 2D", "Rendering", true })
 		.AddProperty("FramesPerSecond", EReflectPropertyType::Float, offsetof(SpriteAnimator2D, FramesPerSecond), sizeof(float))
@@ -110,7 +105,6 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 		.AddProperty("Position", EReflectPropertyType::Layout2D, offsetof(Camera2D, Position), sizeof(Layout2D))
 		.AddProperty("Size", EReflectPropertyType::Layout2D, offsetof(Camera2D, Size), sizeof(Layout2D))
 		.AddProperty("ClearColor", EReflectPropertyType::ColorFloat4, offsetof(Camera2D, ClearColor), sizeof(float), 4)
-		.AddProperty("LayerMask", EReflectPropertyType::UInt32, offsetof(Camera2D, LayerMask), sizeof(std::uint32_t))
 		.AddProperty("Priority", EReflectPropertyType::Int32, offsetof(Camera2D, Priority), sizeof(std::int32_t));
 
 	registry.RegisterComponent<Light2D>({ "Light2D", "Light 2D", "Rendering", true })
@@ -120,7 +114,6 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 		.AddProperty("Range", EReflectPropertyType::Float, offsetof(Light2D, Range), sizeof(float))
 		.AddProperty("InnerAngleRadians", EReflectPropertyType::Float, offsetof(Light2D, InnerAngleRadians), sizeof(float))
 		.AddProperty("OuterAngleRadians", EReflectPropertyType::Float, offsetof(Light2D, OuterAngleRadians), sizeof(float))
-		.AddProperty("LayerMask", EReflectPropertyType::UInt32, offsetof(Light2D, LayerMask), sizeof(std::uint32_t))
 		.AddProperty("CastShadows", EReflectPropertyType::Bool, offsetof(Light2D, CastShadows), sizeof(bool))
 		.AddProperty("ShadowLength", EReflectPropertyType::Float, offsetof(Light2D, ShadowLength), sizeof(float))
 		.AddProperty("ShadowSoftness", EReflectPropertyType::Float, offsetof(Light2D, ShadowSoftness), sizeof(float));

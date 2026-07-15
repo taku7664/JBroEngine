@@ -18,7 +18,6 @@ public:
 	float OutlineColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
 	float OutlineWidth = 0.05f;
 	std::int32_t SortOrder = 0;
-	RenderLayerMask LayerMask = 0xffffffffu;
 };
 
 class Circle2D final : public CComponent
@@ -34,7 +33,6 @@ public:
 	float OutlineColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
 	float OutlineWidth = 0.05f;
 	std::int32_t SortOrder = 0;
-	RenderLayerMask LayerMask = 0xffffffffu;
 };
 
 class Polygon2D final : public CComponent
@@ -51,5 +49,4 @@ public:
 	float OutlineColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
 	float OutlineWidth = 0.05f;
 	std::int32_t SortOrder = 0;
-	RenderLayerMask LayerMask = 0xffffffffu;
 };

@@ -573,33 +573,49 @@ OwnerPtr<IRHIGraphicsPipeline> CD3D11RHIDevice::CreateGraphicsPipeline(const RHI
 		D3D11_RENDER_TARGET_BLEND_DESC& rt = blendDesc.RenderTarget[0];
 		rt.BlendEnable = TRUE;
 		rt.RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
-		if (desc.BlendMode == ERHIBlendMode::AlphaBlend)
+		// 레이어 컴포짓 모드(Layer*)는 src 가 premultiplied — 알파 재적용 금지.
+		// 알파 채널은 공통으로 "over"(ONE/INV_SRC_ALPHA) — 커버리지를 누적해 중첩 레이어의
+		// 반투명 경계가 유지된다. Multiply(라이트맵)만 dst.a 보존 규약을 지킨다.
+		rt.BlendOp      = D3D11_BLEND_OP_ADD;
+		rt.BlendOpAlpha = D3D11_BLEND_OP_ADD;
+		rt.SrcBlendAlpha  = D3D11_BLEND_ONE;
+		rt.DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+		switch (desc.BlendMode)
 		{
-			rt.SrcBlend       = D3D11_BLEND_SRC_ALPHA;
-			rt.DestBlend      = D3D11_BLEND_INV_SRC_ALPHA;
-			rt.BlendOp        = D3D11_BLEND_OP_ADD;
-			rt.SrcBlendAlpha  = D3D11_BLEND_ONE;
-			rt.DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
-			rt.BlendOpAlpha   = D3D11_BLEND_OP_ADD;
-		}
-		else if (desc.BlendMode == ERHIBlendMode::Multiply)
-		{
+		case ERHIBlendMode::AlphaBlend:
+			rt.SrcBlend  = D3D11_BLEND_SRC_ALPHA;
+			rt.DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+			break;
+		case ERHIBlendMode::Multiply:
 			// out.rgb = src × dst, out.a = dst.a(보존) — 라이트맵을 최종 컬러에 곱한다.
 			rt.SrcBlend       = D3D11_BLEND_DEST_COLOR;
 			rt.DestBlend      = D3D11_BLEND_ZERO;
-			rt.BlendOp        = D3D11_BLEND_OP_ADD;
 			rt.SrcBlendAlpha  = D3D11_BLEND_ZERO;
 			rt.DestBlendAlpha = D3D11_BLEND_ONE;
-			rt.BlendOpAlpha   = D3D11_BLEND_OP_ADD;
-		}
-		else // Additive
-		{
+			break;
+		case ERHIBlendMode::LayerNormal:
+			rt.SrcBlend  = D3D11_BLEND_ONE;
+			rt.DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+			break;
+		case ERHIBlendMode::LayerAdditive:
+			rt.SrcBlend  = D3D11_BLEND_ONE;
+			rt.DestBlend = D3D11_BLEND_ONE;
+			break;
+		case ERHIBlendMode::LayerMultiply:
+			rt.SrcBlend  = D3D11_BLEND_DEST_COLOR;
+			rt.DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+			break;
+		case ERHIBlendMode::LayerScreen:
+			rt.SrcBlend  = D3D11_BLEND_INV_DEST_COLOR;
+			rt.DestBlend = D3D11_BLEND_ONE;
+			break;
+		case ERHIBlendMode::Additive:
+		default:
 			rt.SrcBlend       = D3D11_BLEND_SRC_ALPHA;
 			rt.DestBlend      = D3D11_BLEND_ONE;
-			rt.BlendOp        = D3D11_BLEND_OP_ADD;
 			rt.SrcBlendAlpha  = D3D11_BLEND_ZERO;
 			rt.DestBlendAlpha = D3D11_BLEND_ONE;
-			rt.BlendOpAlpha   = D3D11_BLEND_OP_ADD;
+			break;
 		}
 		m_device->CreateBlendState(&blendDesc, &blendState);
 	}
