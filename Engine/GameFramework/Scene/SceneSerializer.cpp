@@ -121,6 +121,124 @@ namespace
 		return layerGuids;
 	}
 
+	YAML::Node WriteLayout2D(const Layout2D& layout)
+	{
+		YAML::Node node(YAML::NodeType::Map);
+		YAML::Node normalized(YAML::NodeType::Sequence);
+		normalized.push_back(layout.Normalized.x);
+		normalized.push_back(layout.Normalized.y);
+		YAML::Node pixel(YAML::NodeType::Sequence);
+		pixel.push_back(layout.Pixel.x);
+		pixel.push_back(layout.Pixel.y);
+		node["Normalized"] = normalized;
+		node["Pixel"] = pixel;
+		return node;
+	}
+
+	void ReadLayout2D(const YAML::Node& node, Layout2D& outLayout)
+	{
+		if (!node || false == node.IsMap())
+		{
+			return;
+		}
+		if (const YAML::Node normalized = node["Normalized"]; normalized && normalized.IsSequence() && normalized.size() >= 2)
+		{
+			outLayout.Normalized.x = normalized[0].as<float>(outLayout.Normalized.x);
+			outLayout.Normalized.y = normalized[1].as<float>(outLayout.Normalized.y);
+		}
+		if (const YAML::Node pixel = node["Pixel"]; pixel && pixel.IsSequence() && pixel.size() >= 2)
+		{
+			outLayout.Pixel.x = pixel[0].as<float>(outLayout.Pixel.x);
+			outLayout.Pixel.y = pixel[1].as<float>(outLayout.Pixel.y);
+		}
+	}
+
+	// 뷰포트 섹션 — 캔버스 저작 데이터(카메라 Ref × 출력 렉트 × 레이어 필터).
+	// 카메라·레이어는 guid 로 지목한다: 인덱스는 에디터에서 순서를 바꾸면 어긋난다.
+	YAML::Node WriteViewports(const CGameScene& scene)
+	{
+		YAML::Node node(YAML::NodeType::Sequence);
+		for (std::size_t i = 0; i < scene.GetViewportCount(); ++i)
+		{
+			const CanvasViewport* viewport = scene.GetViewportAt(i);
+			if (nullptr == viewport)
+			{
+				continue;
+			}
+			YAML::Node viewportNode(YAML::NodeType::Map);
+			viewportNode["Name"] = viewport->Name;
+			viewportNode["Camera"] = viewport->CameraObjectGuid.IsNull()
+				? std::string()
+				: viewport->CameraObjectGuid.generic_string();
+			viewportNode["Position"] = WriteLayout2D(viewport->Position);
+			viewportNode["Size"] = WriteLayout2D(viewport->Size);
+			viewportNode["Active"] = viewport->Active;
+
+			YAML::Node filter(YAML::NodeType::Sequence);
+			for (const File::Guid& layerGuid : viewport->LayerFilter)
+			{
+				if (false == layerGuid.IsNull())
+				{
+					filter.push_back(layerGuid.generic_string());
+				}
+			}
+			viewportNode["LayerFilter"] = filter;
+			node.push_back(viewportNode);
+		}
+		return node;
+	}
+
+	void ReadViewports(CGameScene& scene, const YAML::Node& node)
+	{
+		if (node && node.IsSequence())
+		{
+			for (const YAML::Node& viewportNode : node)
+			{
+				if (!viewportNode || false == viewportNode.IsMap())
+				{
+					continue;
+				}
+				const std::string name = viewportNode["Name"] ? viewportNode["Name"].as<std::string>("") : "";
+				CanvasViewport* viewport = scene.CreateViewport(name.empty() ? nullptr : name.c_str());
+				if (nullptr == viewport)
+				{
+					continue;
+				}
+				try
+				{
+					if (viewportNode["Camera"])
+					{
+						const std::string cameraGuid = viewportNode["Camera"].as<std::string>("");
+						if (false == cameraGuid.empty())
+						{
+							viewport->CameraObjectGuid = File::Guid(cameraGuid);
+						}
+					}
+					if (const YAML::Node filter = viewportNode["LayerFilter"]; filter && filter.IsSequence())
+					{
+						for (const YAML::Node& layerNode : filter)
+						{
+							const File::Guid layerGuid(layerNode.as<std::string>(""));
+							if (false == layerGuid.IsNull())
+							{
+								viewport->LayerFilter.push_back(layerGuid);
+							}
+						}
+					}
+				}
+				catch (const YAML::Exception&)
+				{
+				}
+				ReadLayout2D(viewportNode["Position"], viewport->Position);
+				ReadLayout2D(viewportNode["Size"], viewport->Size);
+				viewport->Active = viewportNode["Active"] ? viewportNode["Active"].as<bool>(true) : true;
+			}
+		}
+		// 뷰포트 없는 캔버스(구 포맷 포함)는 기본 풀스크린 뷰포트 1개로 — 카메라 미지정이라
+		// 폴백(첫 활성 카메라)이 잡힌다. 즉 구 씬은 저작 없이 그대로 그려진다.
+		scene.GetOrCreateDefaultViewport();
+	}
+
 	std::vector<AssetGuid> ReadReferencedAssets(const YAML::Node& node)
 	{
 		std::vector<AssetGuid> assets;
@@ -249,10 +367,18 @@ ESceneSerializeResult CSceneSerializer::SerializeToText(CGameScene& scene, std::
 	}
 
 	// ReferencedAssets 를 상단(Version 뒤, Objects 앞)에 둔다 — 사람이 바로 확인 가능.
+	YAML::Node backgroundColor(YAML::NodeType::Sequence);
+	for (int i = 0; i < 4; ++i)
+	{
+		backgroundColor.push_back(scene.GetBackgroundColor()[i]);
+	}
+
 	YAML::Node root(YAML::NodeType::Map);
 	root["Version"]          = SCENE_FILE_VERSION;
 	root["ReferencedAssets"] = WriteReferencedAssets(referencedAssets);
+	root["BackgroundColor"]  = backgroundColor;
 	root["Layers"]           = WriteLayers(scene);
+	root["Viewports"]        = WriteViewports(scene);
 	root["Objects"]          = objects;
 
 	YAML::Emitter emitter;
@@ -309,6 +435,19 @@ ESceneSerializeResult CSceneSerializer::DeserializeFromText(CGameScene& scene, c
 		{
 			scene.SetLayerInstanceGuid(*layer, guid);
 		}
+	}
+
+	// 뷰포트는 레이어 필터가 레이어 guid 를 참조하므로 레이어 뒤에 읽는다.
+	// 카메라 Ref 는 guid 로만 들고 있다가 첫 렌더 때 해석되므로 오브젝트보다 앞이어도 무방.
+	ReadViewports(scene, root["Viewports"]);
+
+	if (const YAML::Node background = root["BackgroundColor"]; background && background.IsSequence() && background.size() >= 4)
+	{
+		scene.SetBackgroundColor(
+			background[0].as<float>(0.08f),
+			background[1].as<float>(0.09f),
+			background[2].as<float>(0.11f),
+			background[3].as<float>(1.0f));
 	}
 
 	std::vector<CGameObject*> objects;

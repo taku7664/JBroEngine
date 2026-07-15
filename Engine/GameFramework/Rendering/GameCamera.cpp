@@ -17,64 +17,151 @@
 #include <array>
 #include <cmath>
 
-std::vector<GameRenderCameraDesc> CollectGameRenderCameras(const CGameScene& scene, float renderWidth, float renderHeight)
+namespace
+{
+	// 폴백 카메라 — 뷰포트가 카메라를 지목하지 않았을 때 쓸 "첫 활성 카메라".
+	// 순서 규약 = 레이어 순서 → 레이어 내 하이라키(생성) 순서. 스크립트 실행 순서와 같은 축이라
+	// 예측 가능하다. 풀 순회 순서(비결정)에 의존하지 않는다.
+	const Camera2D* FindFallbackCamera(const CGameScene& scene)
+	{
+		const Camera2D* best = nullptr;
+		std::uint16_t bestLayerIndex = 0;
+		std::uint64_t bestCreationOrder = 0;
+		scene.ForEach<Camera2D>(
+			[&](const Camera2D& camera)
+			{
+				if (false == IsActiveComponent(camera))
+				{
+					return;
+				}
+				const CGameObject* owner = camera.GetOwner().TryGet();
+				if (nullptr == owner)
+				{
+					return;
+				}
+				const std::uint16_t layerIndex = owner->GetLayerIndex();
+				const std::uint64_t creationOrder = owner->GetCreationOrder();
+				if (nullptr == best
+					|| layerIndex < bestLayerIndex
+					|| (layerIndex == bestLayerIndex && creationOrder < bestCreationOrder))
+				{
+					best = &camera;
+					bestLayerIndex = layerIndex;
+					bestCreationOrder = creationOrder;
+				}
+			});
+		return best;
+	}
+
+	// 뷰포트의 카메라 Ref 해석. SafePtr 캐시가 살아 있으면 그대로 쓰고(매 프레임 guid
+	// 문자열 파싱 회피), 죽었을 때만 guid 로 재해석한다 — 레이어 재로드로 카메라 오브젝트가
+	// 새로 태어나도 같은 guid 면 다시 붙는다.
+	const Camera2D* ResolveViewportCamera(CGameScene& scene, CanvasViewport& viewport)
+	{
+		CGameObject* cameraObject = viewport.ResolvedCamera.TryGet();
+		if (nullptr == cameraObject && false == viewport.CameraObjectGuid.IsNull())
+		{
+			viewport.ResolvedCamera = scene.FindByInstanceGuid(viewport.CameraObjectGuid);
+			cameraObject = viewport.ResolvedCamera.TryGet();
+		}
+
+		if (cameraObject)
+		{
+			if (Camera2D* camera = cameraObject->GetComponent<Camera2D>())
+			{
+				if (IsActiveComponent(*camera))
+				{
+					return camera;
+				}
+			}
+		}
+		return FindFallbackCamera(scene);
+	}
+
+	// 뷰포트의 레이어 필터(guid 목록)를 캔버스 순서의 인덱스 목록으로 해석한다.
+	// 비어 있으면(대부분) 전체 레이어 — 빈 목록을 그대로 돌려주고 렌더가 전체로 해석한다.
+	std::vector<RenderLayerIndex> ResolveViewportLayers(const CGameScene& scene, const CanvasViewport& viewport)
+	{
+		std::vector<RenderLayerIndex> layerIndices;
+		if (viewport.LayerFilter.empty())
+		{
+			return layerIndices;
+		}
+		layerIndices.reserve(viewport.LayerFilter.size());
+		for (const File::Guid& layerGuid : viewport.LayerFilter)
+		{
+			if (const CGameLayer* layer = scene.FindLayerByInstanceGuid(layerGuid).TryGet())
+			{
+				layerIndices.push_back(layer->GetIndex());
+			}
+		}
+		// 캔버스 순서(아래→위)로 그려야 하므로 필터 저작 순서가 아니라 인덱스 순으로 정렬한다.
+		std::sort(layerIndices.begin(), layerIndices.end());
+		return layerIndices;
+	}
+}
+
+std::vector<GameRenderViewportDesc> CollectGameRenderViewports(CGameScene& scene, float renderWidth, float renderHeight)
 {
 	renderWidth = std::max(renderWidth, 1.0f);
 	renderHeight = std::max(renderHeight, 1.0f);
 
-	std::vector<GameRenderCameraDesc> cameras;
-	scene.ForEach<Camera2D>(
-		[&](const Camera2D& camera)
+	// 뷰포트를 저작하지 않은 캔버스(대부분)는 풀스크린 기본 뷰포트 1개로 그린다.
+	scene.GetOrCreateDefaultViewport();
+
+	std::vector<GameRenderViewportDesc> viewports;
+	viewports.reserve(scene.GetViewportCount());
+	for (std::size_t i = 0; i < scene.GetViewportCount(); ++i)
+	{
+		CanvasViewport* viewport = scene.GetViewportAt(i);
+		if (nullptr == viewport || false == viewport->Active)
 		{
-			const CGameObject* owner = camera.GetOwner().TryGet();
-			if (false == IsActiveComponent(camera))
-			{
-				return;
-			}
+			continue;
+		}
 
-			const Matrix3x2 worldTransform = GetWorldTransform(*owner);
-			const Vector2 posPixel = camera.Position.Resolve(renderWidth, renderHeight);
-			Vector2 sizePixel = camera.Size.Resolve(renderWidth, renderHeight);
-			sizePixel.x = std::max(sizePixel.x, 1.0f);
-			sizePixel.y = std::max(sizePixel.y, 1.0f);
-
-			const float scaleX = std::sqrt(worldTransform.M11 * worldTransform.M11 + worldTransform.M12 * worldTransform.M12);
-			const float scaleY = std::sqrt(worldTransform.M21 * worldTransform.M21 + worldTransform.M22 * worldTransform.M22);
-			const float safeScaleX = std::max(scaleX, 0.0001f);
-			const float safeScaleY = std::max(scaleY, 0.0001f);
-			const float baseOrtho = camera.OrthographicSize > 0.0f ? camera.OrthographicSize : 5.0f;
-			const float aspect = renderWidth / renderHeight;
-			const float cosR = scaleX > 1e-6f ? worldTransform.M11 / scaleX : 1.0f;
-			const float sinR = scaleX > 1e-6f ? worldTransform.M12 / scaleX : 0.0f;
-
-			GameRenderCameraDesc desc;
-			desc.PosX = worldTransform.Dx;
-			desc.PosY = worldTransform.Dy;
-			desc.OrthoSize = baseOrtho * safeScaleY;
-			desc.OrthoSizeX = baseOrtho * safeScaleX * aspect;
-			desc.CosR = cosR;
-			desc.SinR = sinR;
-			desc.ViewportX = posPixel.x / renderWidth;
-			desc.ViewportY = posPixel.y / renderHeight;
-			desc.ViewportW = sizePixel.x / renderWidth;
-			desc.ViewportH = sizePixel.y / renderHeight;
-			desc.ClearColor = Color{
-				camera.ClearColor[0],
-				camera.ClearColor[1],
-				camera.ClearColor[2],
-				camera.ClearColor[3] };
-			desc.Priority = camera.Priority;
-			desc.OwnerObject = owner;
-			cameras.push_back(desc);
-		});
-
-	std::sort(cameras.begin(), cameras.end(),
-		[](const GameRenderCameraDesc& lhs, const GameRenderCameraDesc& rhs)
+		const Camera2D* camera = ResolveViewportCamera(scene, *viewport);
+		if (nullptr == camera)
 		{
-			return lhs.Priority < rhs.Priority;
-		});
+			continue;   // 눈이 없으면 그릴 수 없다.
+		}
+		const CGameObject* owner = camera->GetOwner().TryGet();
+		if (nullptr == owner)
+		{
+			continue;
+		}
 
-	return cameras;
+		const Vector2 posPixel = viewport->Position.Resolve(renderWidth, renderHeight);
+		Vector2 sizePixel = viewport->Size.Resolve(renderWidth, renderHeight);
+		sizePixel.x = std::max(sizePixel.x, 1.0f);
+		sizePixel.y = std::max(sizePixel.y, 1.0f);
+
+		const Matrix3x2 worldTransform = GetWorldTransform(*owner);
+		const float scaleX = std::sqrt(worldTransform.M11 * worldTransform.M11 + worldTransform.M12 * worldTransform.M12);
+		const float scaleY = std::sqrt(worldTransform.M21 * worldTransform.M21 + worldTransform.M22 * worldTransform.M22);
+		const float safeScaleX = std::max(scaleX, 0.0001f);
+		const float safeScaleY = std::max(scaleY, 0.0001f);
+		const float baseOrtho = camera->OrthographicSize > 0.0f ? camera->OrthographicSize : 5.0f;
+		// 종횡비는 화면 전체가 아니라 이 뷰포트의 렉트 기준 — 스플릿(좌/우 반쪽)에서
+		// 화면 전체 비율을 쓰면 내용이 찌그러진다.
+		const float aspect = sizePixel.x / std::max(sizePixel.y, 1.0f);
+
+		GameRenderViewportDesc desc;
+		desc.PosX = worldTransform.Dx;
+		desc.PosY = worldTransform.Dy;
+		desc.OrthoSize = baseOrtho * safeScaleY;
+		desc.OrthoSizeX = baseOrtho * safeScaleX * aspect;
+		desc.CosR = scaleX > 1e-6f ? worldTransform.M11 / scaleX : 1.0f;
+		desc.SinR = scaleX > 1e-6f ? worldTransform.M12 / scaleX : 0.0f;
+		desc.RectX = posPixel.x / renderWidth;
+		desc.RectY = posPixel.y / renderHeight;
+		desc.RectW = sizePixel.x / renderWidth;
+		desc.RectH = sizePixel.y / renderHeight;
+		desc.Layers = ResolveViewportLayers(scene, *viewport);
+		desc.CameraOwnerObject = owner;
+		viewports.push_back(std::move(desc));
+	}
+
+	return viewports;
 }
 
 std::vector<GameRenderLightDesc> CollectGameRenderLights(const CGameScene& scene)
@@ -166,19 +253,19 @@ namespace
 {
 	// 카메라 스택(클리어 + 카메라별 렌더)을 지정 타겟에 그린다. 그래프 Base 패스와
 	// 폴백 경로가 공유한다. outCameraStats 에 카메라별 통계를 append(호출자가 미리 clear).
-	// 레이어 뷰 = 카메라 뷰에 ParallaxFactor 적용. 현재는 "위치만 배율"이다
+	// 레이어 뷰 = 뷰포트 카메라 뷰에 ParallaxFactor 적용. 현재는 "위치만 배율"이다
 	// (factor 1 = 카메라와 동일, 0.5 = 절반 속도 원경, 0 = 월드 원점 고정).
 	// 회전·줌은 카메라를 그대로 따른다 — factor 0 레이어를 화면 완전 고정(UI)으로 만들려면
 	// 회전·줌 독립까지 필요하며, 그건 설계 문서에 미결로 남은 항목이다.
-	GameRenderCameraDesc ApplyLayerParallax(const GameRenderCameraDesc& camera, float parallaxFactor)
+	GameRenderViewportDesc ApplyLayerParallax(const GameRenderViewportDesc& viewport, float parallaxFactor)
 	{
 		if (1.0f == parallaxFactor)
 		{
-			return camera;
+			return viewport;
 		}
-		GameRenderCameraDesc view = camera;
-		view.PosX = camera.PosX * parallaxFactor;
-		view.PosY = camera.PosY * parallaxFactor;
+		GameRenderViewportDesc view = viewport;
+		view.PosX = viewport.PosX * parallaxFactor;
+		view.PosY = viewport.PosY * parallaxFactor;
 		return view;
 	}
 
@@ -188,7 +275,7 @@ namespace
 		IRenderer& renderer,
 		CForward2DRenderer* forward,
 		IRenderScene& renderScene,
-		const GameRenderCameraDesc& view,
+		const GameRenderViewportDesc& view,
 		const GameRenderLayerDesc& layer,
 		bool drawAllItems)
 	{
@@ -204,29 +291,36 @@ namespace
 		}
 	}
 
-	// 카메라 스택을 지정 타겟에 그린다. 그래프 Base 패스와 폴백 경로가 공유한다.
-	// 카메라마다 캔버스 레이어를 순서대로(아래→위) 그리고 즉시 합성한다:
+	// 뷰포트 목록을 지정 타겟에 그린다. 그래프 Base 패스와 폴백 경로가 공유한다.
+	// 바탕색을 한 번 깔고, 뷰포트마다 그 뷰포트가 맡은 레이어를 캔버스 순서(아래→위)로
+	// 그린 뒤 즉시 합성한다:
 	//   · 평범한 레이어(Normal+불투명+비Static) → 타겟에 직접 드로우(RT 왕복 없음)
 	//   · 그 외                                → 스크래치 RT 에 그린 뒤 블렌드·Opacity 로 합성
-	// outCameraStats 에 카메라별 통계를 append(호출자가 미리 clear).
-	void RenderCameraStackInto(
+	// 같은 레이어가 뷰포트마다 각자의 눈으로 다시 그려지는 것이 멀티뷰포트의 본체다.
+	// outCameraStats 에 뷰포트별 통계를 append(호출자가 미리 clear).
+	void RenderViewportsInto(
 		IRHICommandContext& commandContext,
 		IRenderer& renderer,
 		IRenderScene& renderScene,
-		const std::vector<GameRenderCameraDesc>& cameras,
+		const std::vector<GameRenderViewportDesc>& viewports,
 		const std::vector<GameRenderLayerDesc>& layers,
 		const RenderSurfaceSize& renderTargetSize,
 		SafePtr<IRHITexture> target,
-		std::vector<GameRenderCameraStats>* outCameraStats)
+		std::vector<GameRenderCameraStats>* outCameraStats,
+		const float* backgroundColor)
 	{
 		const float rtW = std::max(1.0f, static_cast<float>(renderTargetSize.Width));
 		const float rtH = std::max(1.0f, static_cast<float>(renderTargetSize.Height));
 
+		// 컴포짓 바탕 = 캔버스 배경색(없으면 투명). 레이어 RT 는 투명으로 클리어되고
+		// 이 위에 순서대로 얹힌다 — 구 카메라별 ClearColor 를 캔버스급으로 승계한 것.
 		RenderPassDesc clearDesc;
 		clearDesc.ColorAttachment.Target = target;
 		clearDesc.ColorAttachment.LoadOp = ERHILoadOp::Clear;
 		clearDesc.ColorAttachment.StoreOp = ERHIStoreOp::Store;
-		clearDesc.ColorAttachment.ClearColor = Color{ 0.0f, 0.0f, 0.0f, 0.0f };
+		clearDesc.ColorAttachment.ClearColor = backgroundColor
+			? Color{ backgroundColor[0], backgroundColor[1], backgroundColor[2], backgroundColor[3] }
+			: Color{ 0.0f, 0.0f, 0.0f, 0.0f };
 		commandContext.BeginRenderPass(clearDesc);
 		commandContext.EndRenderPass();
 
@@ -238,12 +332,12 @@ namespace
 		const std::vector<GameRenderLayerDesc> implicitLayers(drawAllItems ? 1 : 0);
 		const std::vector<GameRenderLayerDesc>& effectiveLayers = drawAllItems ? implicitLayers : layers;
 
-		for (const GameRenderCameraDesc& camera : cameras)
+		for (const GameRenderViewportDesc& viewport : viewports)
 		{
-			const float vpX = camera.ViewportX * rtW;
-			const float vpY = camera.ViewportY * rtH;
-			const float vpW = std::max(camera.ViewportW * rtW, 1.0f);
-			const float vpH = std::max(camera.ViewportH * rtH, 1.0f);
+			const float vpX = viewport.RectX * rtW;
+			const float vpY = viewport.RectY * rtH;
+			const float vpW = std::max(viewport.RectW * rtW, 1.0f);
+			const float vpH = std::max(viewport.RectH * rtH, 1.0f);
 			const RenderSurfaceSize viewportSize{ static_cast<int>(vpW), static_cast<int>(vpH) };
 
 			RenderPassDesc renderPassDesc;
@@ -251,24 +345,16 @@ namespace
 			renderPassDesc.ColorAttachment.LoadOp = ERHILoadOp::Load;
 			renderPassDesc.ColorAttachment.StoreOp = ERHIStoreOp::Store;
 
-			commandContext.BeginRenderPass(renderPassDesc);
-			commandContext.SetViewport(vpX, vpY, vpW, vpH);
-			renderer.SetRenderTargetSize(viewportSize);
-
-			if (camera.ClearColor.A > (1.0f / 255.0f))
-			{
-				renderer.FillViewportColor(
-					camera.ClearColor.R,
-					camera.ClearColor.G,
-					camera.ClearColor.B,
-					camera.ClearColor.A);
-			}
-			commandContext.EndRenderPass();
-
 			RenderCullingStats cameraStats;
 			for (const GameRenderLayerDesc& layer : effectiveLayers)
 			{
 				if (false == layer.Visible)
+				{
+					continue;
+				}
+				// 레이어 필터 — 비면 전체 레이어(대부분). 목록이 작아 선형 탐색으로 충분하다.
+				if (false == viewport.Layers.empty()
+					&& std::find(viewport.Layers.begin(), viewport.Layers.end(), layer.Index) == viewport.Layers.end())
 				{
 					continue;
 				}
@@ -284,7 +370,7 @@ namespace
 					}
 				}
 
-				const GameRenderCameraDesc view = ApplyLayerParallax(camera, layer.ParallaxFactor);
+				const GameRenderViewportDesc view = ApplyLayerParallax(viewport, layer.ParallaxFactor);
 
 				if (false == layer.NeedsOwnTexture || nullptr == forward)
 				{
@@ -344,7 +430,7 @@ namespace
 			if (outCameraStats)
 			{
 				GameRenderCameraStats stats;
-				stats.OwnerObject = camera.OwnerObject;
+				stats.OwnerObject = viewport.CameraOwnerObject;
 				stats.Culling = cameraStats;
 				outCameraStats->push_back(stats);
 			}
@@ -352,23 +438,24 @@ namespace
 	}
 }
 
-void RenderGameCameraStack(
+void RenderGameViewports(
 	IRHICommandContext& commandContext,
 	IRenderer& renderer,
 	IRenderScene& renderScene,
-	const std::vector<GameRenderCameraDesc>& cameras,
+	const std::vector<GameRenderViewportDesc>& viewports,
 	const RenderSurfaceSize& renderTargetSize,
 	SafePtr<IRHITexture> renderTarget,
 	std::vector<GameRenderCameraStats>* outCameraStats,
 	const std::vector<GameRenderLightDesc>& lights,
-	const std::vector<GameRenderLayerDesc>& layers)
+	const std::vector<GameRenderLayerDesc>& layers,
+	const float* backgroundColor)
 {
 	if (outCameraStats)
 	{
 		outCameraStats->clear();
 	}
 
-	if (cameras.empty())
+	if (viewports.empty())
 	{
 		return;
 	}
@@ -380,13 +467,13 @@ void RenderGameCameraStack(
 	CForward2DRenderer* forward = renderer.AsForward2DRenderer();
 	if (nullptr == forward)
 	{
-		RenderCameraStackInto(commandContext, renderer, renderScene, cameras, layers, renderTargetSize, renderTarget, outCameraStats);
+		RenderViewportsInto(commandContext, renderer, renderScene, viewports, layers, renderTargetSize, renderTarget, outCameraStats, backgroundColor);
 		renderer.SetViewCamera(0.0f, 0.0f, 1.0f);
 		return;
 	}
 
 	// ── RenderWeave 그래프 ──────────────────────────────────────────────────────
-	// 항상: Base(카메라 스택 → SceneColor).
+	// 항상: Base(뷰포트 × 레이어 → SceneColor).
 	// 라이팅 비활성(라이트 0 + 앰비언트 백색): Blit(SceneColor → 최종). 화면 불변.
 	// 라이팅 활성: LightMap(앰비언트 클리어 + Light2D 가산) → Composite(SceneColor × LightMap → 최종).
 	// 패스를 데이터로 선언하면 그래프가 RT 대여/컬링/실행을 담당한다.
@@ -406,10 +493,10 @@ void RenderGameCameraStack(
 	RWPassDesc basePass;
 	basePass.Name  = "Base";
 	basePass.Write = hScene;
-	basePass.Execute = [&renderer, &renderScene, &cameras, &layers, renderTargetSize, outCameraStats, hScene]
+	basePass.Execute = [&renderer, &renderScene, &viewports, &layers, renderTargetSize, outCameraStats, backgroundColor, hScene]
 		(IRHICommandContext& ctx, RWGraph& g)
 	{
-		RenderCameraStackInto(ctx, renderer, renderScene, cameras, layers, renderTargetSize, g.Resolve(hScene), outCameraStats);
+		RenderViewportsInto(ctx, renderer, renderScene, viewports, layers, renderTargetSize, g.Resolve(hScene), outCameraStats, backgroundColor);
 	};
 	graph.AddPass(std::move(basePass));
 
@@ -450,7 +537,7 @@ void RenderGameCameraStack(
 		// (2) 그림자 라이트(Point/Spot)마다 OccluderMap 을 각도별 최근접 거리로 리덕션 → ShadowAtlas 행.
 		// (3) LightMap 패스가 픽셀 (θ,r)로 아틀라스를 샘플해 umbra + 각도블러 penumbra 로 라이트 차폐.
 		// Directional 은 점광 대상 아님(그림자 없음, 균일). 오클루더맵은 광원 수와 무관하게 1장 공유.
-		const GameRenderCameraDesc primaryCamera = cameras.front();
+		const GameRenderViewportDesc primaryCamera = viewports.front();
 		std::vector<int> rowForLight(lights.size(), -1);   // 라이트→아틀라스 행(-1=무그림자)
 		int shadowRowCount = 0;
 		for (std::size_t li = 0; li < lights.size(); ++li)
@@ -561,7 +648,7 @@ void RenderGameCameraStack(
 			lightPass.Reads = { hAtlas };   // 아틀라스 소비 → 리덕션/오클루더 패스 컬링 방지.
 		}
 		lightPass.Write = hLight;
-		lightPass.Execute = [forward, &cameras, &lights, renderTargetSize, ambientColor, hLight, hAtlas, rowForLight, shadowRowCount, hasShadow]
+		lightPass.Execute = [forward, &viewports, &lights, renderTargetSize, ambientColor, hLight, hAtlas, rowForLight, shadowRowCount, hasShadow]
 			(IRHICommandContext& ctx, RWGraph& g)
 		{
 			SafePtr<IRHITexture> target = g.Resolve(hLight);
@@ -588,13 +675,13 @@ void RenderGameCameraStack(
 				atlas = g.Resolve(hAtlas);
 			}
 
-			// 카메라별 뷰포트/뷰로 라이트를 가산 누적(스프라이트 렌더와 동일한 월드 뷰).
-			for (const GameRenderCameraDesc& camera : cameras)
+			// 뷰포트별 렉트/뷰로 라이트를 가산 누적(스프라이트 렌더와 동일한 월드 뷰).
+			for (const GameRenderViewportDesc& camera : viewports)
 			{
-				const float vpX = camera.ViewportX * lrtW;
-				const float vpY = camera.ViewportY * lrtH;
-				const float vpW = std::max(camera.ViewportW * lrtW, 1.0f);
-				const float vpH = std::max(camera.ViewportH * lrtH, 1.0f);
+				const float vpX = camera.RectX * lrtW;
+				const float vpY = camera.RectY * lrtH;
+				const float vpW = std::max(camera.RectW * lrtW, 1.0f);
+				const float vpH = std::max(camera.RectH * lrtH, 1.0f);
 
 				RenderPassDesc pass;
 				pass.ColorAttachment.Target = target;

@@ -755,6 +755,9 @@
     <ClInclude Include="GameFramework\Rendering\ShapeRenderSystem.h">
       <Filter>Header\GameFramework\Rendering</Filter>
     </ClInclude>
+    <ClInclude Include="GameFramework\Scene\CanvasViewport.h">
+      <Filter>Header\GameFramework\Scene</Filter>
+    </ClInclude>
     <ClInclude Include="GameFramework\Scene\GameLayer.h">
       <Filter>Header\GameFramework\Scene</Filter>
     </ClInclude>

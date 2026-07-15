@@ -101,11 +101,7 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 		.AddProperty("OrthographicSize", EReflectPropertyType::Float, offsetof(Camera2D, OrthographicSize), sizeof(float))
 		.AddProperty("PerspectiveFovDegrees", EReflectPropertyType::Float, offsetof(Camera2D, PerspectiveFovDegrees), sizeof(float))
 		.AddProperty("NearClip", EReflectPropertyType::Float, offsetof(Camera2D, NearClip), sizeof(float))
-		.AddProperty("FarClip", EReflectPropertyType::Float, offsetof(Camera2D, FarClip), sizeof(float))
-		.AddProperty("Position", EReflectPropertyType::Layout2D, offsetof(Camera2D, Position), sizeof(Layout2D))
-		.AddProperty("Size", EReflectPropertyType::Layout2D, offsetof(Camera2D, Size), sizeof(Layout2D))
-		.AddProperty("ClearColor", EReflectPropertyType::ColorFloat4, offsetof(Camera2D, ClearColor), sizeof(float), 4)
-		.AddProperty("Priority", EReflectPropertyType::Int32, offsetof(Camera2D, Priority), sizeof(std::int32_t));
+		.AddProperty("FarClip", EReflectPropertyType::Float, offsetof(Camera2D, FarClip), sizeof(float));
 
 	registry.RegisterComponent<Light2D>({ "Light2D", "Light 2D", "Rendering", true })
 		.AddEnumProperty<ELight2DType>("LightType", offsetof(Light2D, Type))   // 키 "Type" 은 컴포넌트 판별자와 충돌 → LightType

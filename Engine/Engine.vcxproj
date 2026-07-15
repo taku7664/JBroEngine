@@ -461,6 +461,7 @@
     <ClInclude Include="GameFramework\Rendering\SpriteRenderSystem.h" />
     <ClInclude Include="GameFramework\Rendering\ShapeGeometry2D.h" />
     <ClInclude Include="GameFramework\Rendering\ShapeRenderSystem.h" />
+    <ClInclude Include="GameFramework\Scene\CanvasViewport.h" />
     <ClInclude Include="GameFramework\Scene\GameLayer.h" />
     <ClInclude Include="GameFramework\Scene\Scene.h" />
     <ClInclude Include="GameFramework\Scene\SceneRuntimeAccess.h" />

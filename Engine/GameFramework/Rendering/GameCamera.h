@@ -15,21 +15,26 @@ class IRHITexture;
 class IRenderer;
 class IRenderScene;
 
-struct GameRenderCameraDesc
+// 뷰포트 1개의 렌더 스냅샷(프레임마다 수집). = 해석된 카메라 뷰 × 출력 렉트 × 레이어 필터.
+// 렌더 코드가 씬/카메라 컴포넌트를 직접 들여다보지 않게 하는 경계(라이트 수집과 동일 규약).
+struct GameRenderViewportDesc
 {
+	// 카메라 뷰(해석 완료) — 오너 트랜스폼 + OrthographicSize 에서 뽑는다.
 	float PosX = 0.0f;
 	float PosY = 0.0f;
 	float OrthoSize = 5.0f;
 	float OrthoSizeX = 5.0f;
 	float CosR = 1.0f;
 	float SinR = 0.0f;
-	float ViewportX = 0.0f;
-	float ViewportY = 0.0f;
-	float ViewportW = 1.0f;
-	float ViewportH = 1.0f;
-	Color ClearColor = Color{ 0.08f, 0.09f, 0.11f, 1.0f };
-	std::int32_t Priority = 0;
-	const void* OwnerObject = nullptr;
+	// 출력 렉트(정규화 0~1).
+	float RectX = 0.0f;
+	float RectY = 0.0f;
+	float RectW = 1.0f;
+	float RectH = 1.0f;
+	// 그릴 레이어 인덱스 — 캔버스 순서(아래→위)로 해석된 목록. 비면 전체 레이어.
+	std::vector<RenderLayerIndex> Layers;
+	// 통계 키 — 이 뷰포트가 쓴 카메라 오브젝트 주소(집합 비교 전용, 역참조 금지).
+	const void* CameraOwnerObject = nullptr;
 };
 
 struct GameRenderCameraStats
@@ -73,7 +78,12 @@ struct GameRenderLightDesc
 	float ShadowSoftness = 0.5f;  // 소프트 쉐도우 강도 0~1(0=하드 경계, 1=최대 블러).
 };
 
-std::vector<GameRenderCameraDesc> CollectGameRenderCameras(const CGameScene& scene, float renderWidth, float renderHeight);
+// 캔버스의 뷰포트 목록을 렌더 스냅샷으로 해석한다(카메라 Ref 해석 + 렉트 계산 + 레이어 필터).
+// 뷰포트가 하나도 없으면 풀스크린 기본 뷰포트 1개로 간주한다 — 스플릿을 안 쓰는 게임은
+// 뷰포트를 저작하지 않아도 그대로 그려진다.
+// scene 을 const 로 받지 않는 이유: 카메라 Ref 해석 결과를 뷰포트에 캐시한다(매 프레임
+// guid 문자열 파싱을 피하기 위함).
+std::vector<GameRenderViewportDesc> CollectGameRenderViewports(CGameScene& scene, float renderWidth, float renderHeight);
 
 // 씬의 활성 Light2D 를 월드 공간 스냅샷으로 수집한다(카메라 수집과 동일 계층에서 호출).
 std::vector<GameRenderLightDesc> CollectGameRenderLights(const CGameScene& scene);
@@ -82,13 +92,16 @@ std::vector<GameRenderLightDesc> CollectGameRenderLights(const CGameScene& scene
 // forceOwnTextureAll = 전 레이어를 RT 경유로 강제(에디터 — 레이어별 썸네일·디버깅용).
 std::vector<GameRenderLayerDesc> CollectGameRenderLayers(const CGameScene& scene, bool forceOwnTextureAll = false);
 
-void RenderGameCameraStack(
+// 뷰포트 목록을 순서대로 그린다: 배경색 → for 뷰포트 { for 레이어: 드로우 → 렉트에 컴포짓 }.
+// backgroundColor = 캔버스 바탕색(float[4], null 이면 투명).
+void RenderGameViewports(
 	IRHICommandContext& commandContext,
 	IRenderer& renderer,
 	IRenderScene& renderScene,
-	const std::vector<GameRenderCameraDesc>& cameras,
+	const std::vector<GameRenderViewportDesc>& viewports,
 	const RenderSurfaceSize& renderTargetSize,
 	SafePtr<IRHITexture> renderTarget = nullptr,
 	std::vector<GameRenderCameraStats>* outCameraStats = nullptr,
 	const std::vector<GameRenderLightDesc>& lights = {},
-	const std::vector<GameRenderLayerDesc>& layers = {});
+	const std::vector<GameRenderLayerDesc>& layers = {},
+	const float* backgroundColor = nullptr);

@@ -324,9 +324,17 @@ void CEngine::SetMainClearColor(const Color& color)
 	m_mainClearColor = color;
 }
 
-void CEngine::SetGameRenderCameras(std::vector<GameRenderCameraDesc> cameras)
+void CEngine::SetGameRenderViewports(std::vector<GameRenderViewportDesc> viewports)
 {
-	m_gameRenderCameras = std::move(cameras);
+	m_gameRenderViewports = std::move(viewports);
+}
+
+void CEngine::SetGameRenderBackgroundColor(const float color[4])
+{
+	for (int i = 0; i < 4; ++i)
+	{
+		m_gameRenderBackgroundColor[i] = color[i];
+	}
 }
 
 void CEngine::SetGameRenderLights(std::vector<GameRenderLightDesc> lights)
@@ -746,20 +754,21 @@ void CEngine::RenderFrame()
 	SafePtr<IRHICommandContext> commandContext = m_rhiDevice->GetImmediateCommandContext();
 	if (commandContext)
 	{
-		if (m_renderer && m_renderScene && false == m_gameRenderCameras.empty())
+		if (m_renderer && m_renderScene && false == m_gameRenderViewports.empty())
 		{
 			if (SafePtr<IRenderSurface> mainRenderSurface = GetMainRenderSurface())
 			{
-				RenderGameCameraStack(
+				RenderGameViewports(
 					*commandContext,
 					*m_renderer,
 					*m_renderScene,
-					m_gameRenderCameras,
+					m_gameRenderViewports,
 					mainRenderSurface->GetSize(),
 					nullptr,
 					nullptr,
 					m_gameRenderLights,
-					m_gameRenderLayers);
+					m_gameRenderLayers,
+					m_gameRenderBackgroundColor);
 				m_renderScene->Clear();
 			}
 		}

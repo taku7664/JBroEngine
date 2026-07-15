@@ -570,16 +570,17 @@ void CGameApplication::ConfigureRuntimeViewCamera()
 			renderHeight = static_cast<float>(renderSize.Height);
 		}
 	}
-	std::vector<GameRenderCameraDesc> cameras = CollectGameRenderCameras(*scene, renderWidth, renderHeight);
+	std::vector<GameRenderViewportDesc> viewports = CollectGameRenderViewports(*scene, renderWidth, renderHeight);
 	std::vector<GameRenderLightDesc> lights = CollectGameRenderLights(*scene);
 	// 런타임은 lazy RT 승격 — 블렌드/Opacity/Static/강제가 걸린 레이어만 자기 RT 를 쓴다.
 	std::vector<GameRenderLayerDesc> layers = CollectGameRenderLayers(*scene, /*forceOwnTextureAll*/ false);
 
 	if (CEngine* engine = GetEngine())
 	{
-		engine->SetGameRenderCameras(std::move(cameras));
+		engine->SetGameRenderViewports(std::move(viewports));
 		engine->SetGameRenderLights(std::move(lights));
 		engine->SetGameRenderLayers(std::move(layers));
+		engine->SetGameRenderBackgroundColor(scene->GetBackgroundColor());
 	}
 }
 

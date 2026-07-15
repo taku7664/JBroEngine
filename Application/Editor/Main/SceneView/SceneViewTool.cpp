@@ -1405,7 +1405,18 @@ void CSceneViewTool::OnRenderStay()
         if (sceneForVP)
         {
             const Camera2D* cam    = selectedObject->GetComponent<Camera2D>();
-            if (cam)
+            // 출력 렉트는 카메라가 아니라 이 카메라를 쓰는 뷰포트가 갖는다(카메라 = 눈).
+            // 이 카메라를 지목한 뷰포트가 없으면 화면에 나올 일이 없으므로 인디케이터도 없다.
+            const CanvasViewport* camViewport = nullptr;
+            for (std::size_t vi = 0; nullptr == camViewport && vi < sceneForVP->GetViewportCount(); ++vi)
+            {
+                const CanvasViewport* candidate = sceneForVP->GetViewportAt(vi);
+                if (candidate && candidate->CameraObjectGuid == selectedObject->GetInstanceGuid())
+                {
+                    camViewport = candidate;
+                }
+            }
+            if (cam && camViewport)
             {
                 float resW = 1920.0f, resH = 1080.0f;
                 if (Editor::ImEditor)
@@ -1418,8 +1429,8 @@ void CSceneViewTool::OnRenderStay()
                     }
                 }
 
-                const Vector2 posPixel  = cam->Position.Resolve(resW, resH);
-                      Vector2 sizePixel = cam->Size.Resolve(resW, resH);
+                const Vector2 posPixel  = camViewport->Position.Resolve(resW, resH);
+                      Vector2 sizePixel = camViewport->Size.Resolve(resW, resH);
                 if (sizePixel.x < 1.0f) sizePixel.x = resW;
                 if (sizePixel.y < 1.0f) sizePixel.y = resH;
 

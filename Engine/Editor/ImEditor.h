@@ -155,7 +155,7 @@ private:
 	std::uint32_t              m_gameViewHeight   = 0;
 	bool                       m_gameViewRequested = false;
 	SafePtr<CGameScene>        m_gameViewScene;
-	std::vector<GameRenderCameraDesc> m_gameViewCameras;
+	std::vector<GameRenderViewportDesc> m_gameViewViewports;
 	std::vector<GameRenderLightDesc> m_gameViewLights;
 	std::vector<GameRenderLayerDesc> m_gameViewLayers;
 	std::unordered_map<const void*, RenderCullingStats> m_gameViewCameraCullingStats;

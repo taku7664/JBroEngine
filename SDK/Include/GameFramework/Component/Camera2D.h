@@ -1,8 +1,6 @@
 #pragma once
 
-#include <cstdint>
 #include "GameFramework/Component/Component.h"
-#include "Utillity/Math/Layout2D.h"
 
 enum class ECameraProjectionMode2D
 {
@@ -10,6 +8,17 @@ enum class ECameraProjectionMode2D
 	PerspectiveReady
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+//  Camera2D — 월드 속의 눈. 그것만.
+//
+//  "월드 어디를 보는가"만 답한다: 위치·회전은 오너 오브젝트의 트랜스폼, 시야 범위는
+//  OrthographicSize. 화면 어디에 그릴지(뷰포트 렉트), 무엇을 그릴지(레이어 필터),
+//  어떤 순서로 그릴지는 캔버스의 뷰포트 목록(CanvasViewport)이 정하고, 바탕색은
+//  캔버스 속성이다 — 월드의 오브젝트가 화면 배치까지 아는 반쪽 신이 되지 않게.
+//
+//  카메라가 여러 개 있어도 되고(플레이어 추적·컷신·미니맵 탑다운), 뷰포트가 그중
+//  어느 눈을 쓸지 고른다. 소속 레이어는 수명만 정할 뿐 보는 대상과 무관하다.
+// ─────────────────────────────────────────────────────────────────────────────
 class Camera2D final : public CComponent
 {
 	JBRO_COMPONENT(Camera2D)
@@ -19,18 +28,4 @@ public:
 	float PerspectiveFovDegrees = 60.0f;
 	float NearClip = -1.0f;
 	float FarClip = 1.0f;
-
-	// ──────────────────────────────────────────────────────────────────
-	// 카메라 뷰포트 레이아웃 (Layout2D: Normalized × 해상도 + Pixel)
-	//   Position : 게임 렌더 타겟 상의 뷰포트 좌상단 오프셋
-	//              기본값 (0,0)(0,0) → 좌상단 원점
-	//   Size     : 뷰포트의 픽셀 크기
-	//              기본값 (1,1)(0,0) → 전체 해상도
-	// ──────────────────────────────────────────────────────────────────
-	Layout2D Position = { Vector2(0.0f, 0.0f), Vector2(0.0f, 0.0f) };
-	Layout2D Size     = { Vector2(1.0f, 1.0f), Vector2(0.0f, 0.0f) };
-
-	float ClearColor[4] = { 0.08f, 0.09f, 0.11f, 1.0f };
-	std::int32_t Priority = 0;
 };
-

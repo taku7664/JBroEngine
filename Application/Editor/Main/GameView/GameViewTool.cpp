@@ -90,18 +90,20 @@ void CGameViewTool::OnRenderStay()
 	// 씬 업데이트 전) 수집분은 "활성 카메라 존재" 판정(RT 요청/해제)에만 쓴다.
 	if (Editor::ImEditor)
 	{
-		std::vector<GameRenderCameraDesc> cameras;
+		std::vector<GameRenderViewportDesc> viewports;
 		SafePtr<CGameScene> scene;
 		if (Engine.SceneManager)
 		{
 			scene = EditorContext::GetActiveScene();
 			if (scene)
 			{
-				cameras = CollectGameRenderCameras(*scene, resW, resH);
+				// 뷰포트 수집은 카메라 Ref 를 해석한다 — 눈이 하나도 없으면 빈 목록이 되므로
+				// "그릴 게 있는가" 판정이 그대로 성립한다.
+				viewports = CollectGameRenderViewports(*scene, resW, resH);
 			}
 		}
 
-		if (false == cameras.empty())
+		if (false == viewports.empty())
 		{
 			Editor::ImEditor->SetGameViewScene(scene);
 			// RT는 프로젝트 해상도로 요청합니다.

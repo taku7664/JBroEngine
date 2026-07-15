@@ -277,6 +277,69 @@ void CGameScene::SetLayerInstanceGuid(CGameLayer& layer, const File::Guid& guid)
 	layer.SetInstanceGuid(guid);
 }
 
+CanvasViewport* CGameScene::CreateViewport(const char* name)
+{
+	CanvasViewport viewport;
+	viewport.Name = (name && '\0' != name[0]) ? name : ("Viewport " + std::to_string(m_viewports.size() + 1));
+	m_viewports.push_back(std::move(viewport));
+	return &m_viewports.back();
+}
+
+bool CGameScene::DestroyViewport(std::size_t index)
+{
+	if (index >= m_viewports.size())
+	{
+		return false;
+	}
+	m_viewports.erase(m_viewports.begin() + static_cast<std::ptrdiff_t>(index));
+	return true;
+}
+
+CanvasViewport* CGameScene::GetViewportAt(std::size_t index)
+{
+	return index < m_viewports.size() ? &m_viewports[index] : nullptr;
+}
+
+const CanvasViewport* CGameScene::GetViewportAt(std::size_t index) const
+{
+	return index < m_viewports.size() ? &m_viewports[index] : nullptr;
+}
+
+CanvasViewport* CGameScene::FindViewportByName(const char* name)
+{
+	if (nullptr == name)
+	{
+		return nullptr;
+	}
+	for (CanvasViewport& viewport : m_viewports)
+	{
+		if (viewport.Name == name)
+		{
+			return &viewport;
+		}
+	}
+	return nullptr;
+}
+
+CanvasViewport& CGameScene::GetOrCreateDefaultViewport()
+{
+	if (m_viewports.empty())
+	{
+		// 기본 뷰포트 = 풀스크린 + 카메라 미지정(폴백). 스플릿을 안 쓰는 게임은 이 하나로
+		// 끝나고 뷰포트라는 개념을 볼 일이 없다.
+		CreateViewport("Default");
+	}
+	return m_viewports.front();
+}
+
+void CGameScene::SetBackgroundColor(float r, float g, float b, float a)
+{
+	m_backgroundColor[0] = r;
+	m_backgroundColor[1] = g;
+	m_backgroundColor[2] = b;
+	m_backgroundColor[3] = a;
+}
+
 CGameObject* CGameScene::CreateGameObject(const char* name, CGameLayer* layer)
 {
 	const File::Guid guid = File::GenerateGuid();
@@ -982,9 +1045,10 @@ void CGameScene::ClearObjects()
 	m_objectByGuid.clear();
 	m_objectPool.Clear();
 	m_referencedAssets.clear();
-	// 레이어는 오브젝트 정리 뒤 마지막에 — 직렬화 로드가 파일 기준으로 재구성한다.
+	// 레이어·뷰포트는 오브젝트 정리 뒤 마지막에 — 직렬화 로드가 파일 기준으로 재구성한다.
 	m_pendingDestroyLayers.clear();
 	m_layers.clear();
+	m_viewports.clear();
 }
 
 void CGameScene::Clear()

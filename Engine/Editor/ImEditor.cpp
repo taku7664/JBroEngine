@@ -703,7 +703,7 @@ void CImEditor::OnPrepareRender()
 		// 의 UI 빌드 시점(씬 업데이트 전) 수집은 1프레임 지연 카메라를 만든다.
 		if (CGameScene* gameViewScene = m_gameViewScene.TryGet())
 		{
-			m_gameViewCameras = CollectGameRenderCameras(
+			m_gameViewViewports = CollectGameRenderViewports(
 				*gameViewScene,
 				static_cast<float>(m_gameViewWidth),
 				static_cast<float>(m_gameViewHeight));
@@ -714,16 +714,18 @@ void CImEditor::OnPrepareRender()
 		}
 
 		std::vector<GameRenderCameraStats> cameraStats;
-		RenderGameCameraStack(
+		const CGameScene* gameViewScene = m_gameViewScene.TryGet();
+		RenderGameViewports(
 			*commandContext,
 			*engineCore->Renderer,
 			*engineCore->RenderScene,
-			m_gameViewCameras,
+			m_gameViewViewports,
 			RenderSurfaceSize{ static_cast<int>(m_gameViewWidth), static_cast<int>(m_gameViewHeight) },
 			m_gameViewRenderTarget.GetSafePtr(),
 			&cameraStats,
 			m_gameViewLights,
-			m_gameViewLayers);
+			m_gameViewLayers,
+			gameViewScene ? gameViewScene->GetBackgroundColor() : nullptr);
 		m_gameViewCameraCullingStats.clear();
 		for (const GameRenderCameraStats& stats : cameraStats)
 		{

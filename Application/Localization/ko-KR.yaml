@@ -487,8 +487,6 @@ Entries:
   editor.property.PerspectiveFovDegrees: 원근 FOV
   editor.property.NearClip: Near 클립
   editor.property.FarClip: Far 클립
-  editor.property.ClearColor: 클리어 색상
-  editor.property.Priority: 우선순위
   editor.property.Type: 타입
   editor.property.LightType: 라이트 타입
   editor.property.Intensity: 강도

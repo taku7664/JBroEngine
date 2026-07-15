@@ -529,22 +529,11 @@ namespace
 
 	void ReadCamera(const YAML::Node& node, Camera2D& camera)
 	{
+		// 카메라는 이제 눈일 뿐이다 — 뷰포트 렉트(구 Position/Size/Viewport 키)와 ClearColor·
+		// Priority 는 캔버스의 뷰포트 목록·배경색으로 이사했다. 구 씬의 그 키들은 읽지 않는다
+		// (미등록 키는 리플렉션 읽기가 무시하므로 로드는 그대로 성공한다).
 		const ComponentTypeInfo* ti = GetTypeInfo("Camera2D");
 		if (ti) ReadComponentReflected(node, &camera, *ti);
-
-		// 구버전 Viewport 포맷 → Layout2D 변환 (하위 호환)
-		if (!node["Position"] && !node["Size"])
-		{
-			if (const YAML::Node viewport = node["Viewport"]; viewport && viewport.IsSequence() && viewport.size() >= 4)
-			{
-				camera.Position.Normalized.x = viewport[0].as<float>(0.0f);
-				camera.Position.Normalized.y = viewport[1].as<float>(0.0f);
-				camera.Position.Pixel        = { 0.0f, 0.0f };
-				camera.Size.Normalized.x     = viewport[2].as<float>(1.0f);
-				camera.Size.Normalized.y     = viewport[3].as<float>(1.0f);
-				camera.Size.Pixel            = { 0.0f, 0.0f };
-			}
-		}
 	}
 
 	YAML::Node WriteLight(const Light2D& light)

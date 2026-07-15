@@ -487,8 +487,6 @@ Entries:
   editor.property.PerspectiveFovDegrees: Perspective FOV
   editor.property.NearClip: Near Clip
   editor.property.FarClip: Far Clip
-  editor.property.ClearColor: Clear Color
-  editor.property.Priority: Priority
   editor.property.Type: Type
   editor.property.LightType: Light Type
   editor.property.Intensity: Intensity

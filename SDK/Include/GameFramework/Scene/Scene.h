@@ -7,6 +7,7 @@
 #include "GameFramework/Object/GameObject.h"
 #include "GameFramework/Object/ObjectPool.h"
 #include "GameFramework/Reflection/ReflectionTypes.h"
+#include "GameFramework/Scene/CanvasViewport.h"
 #include "GameFramework/System/GameSystem.h"
 #include "Utillity/File/FilePath.h"
 #include "Utillity/File/Guid128.h"
@@ -68,6 +69,21 @@ public:
 	CGameLayer*         GetDefaultLayer();
 	// 루트 오브젝트(부모 없음)만 허용 — 서브트리 전체를 대상 레이어로 전파.
 	bool MoveObjectToLayer(CGameObject& object, CGameLayer& layer);
+
+	// ── 뷰포트 / 캔버스 속성 ──────────────────────────────────────────────────
+	// 화면 분할은 캔버스급 결정 — 카메라는 눈일 뿐이고 "어디에 그릴지"는 여기서 정한다.
+	CanvasViewport*       CreateViewport(const char* name = nullptr);
+	bool                  DestroyViewport(std::size_t index);
+	std::size_t           GetViewportCount() const { return m_viewports.size(); }
+	CanvasViewport*       GetViewportAt(std::size_t index);
+	const CanvasViewport* GetViewportAt(std::size_t index) const;
+	CanvasViewport*       FindViewportByName(const char* name);
+	// 뷰포트가 하나도 없으면 기본(풀스크린·카메라 미지정) 1개를 만들어 보장한다.
+	CanvasViewport&       GetOrCreateDefaultViewport();
+
+	// 컴포짓 맨 아래 바탕색. 레이어 RT 는 투명으로 클리어되고, 이 색 위에 순서대로 얹힌다.
+	const float* GetBackgroundColor() const { return m_backgroundColor; }
+	void         SetBackgroundColor(float r, float g, float b, float a);
 
 	// ── 오브젝트 ──────────────────────────────────────────────────────────────
 	// layer 미지정(nullptr) = 기본(첫) 레이어. 레이어가 없으면 만들어서 배정한다.
@@ -433,6 +449,11 @@ private:
 	std::string                        m_name; // SceneManager 키와 동일(CreateScene 설정)
 	// 레이어 목록 — 벡터 순서가 곧 컴포짓/실행 순서. 소유는 씬, 공유는 SafePtr.
 	std::vector<OwnerPtr<CGameLayer>>  m_layers;
+	// 뷰포트 목록 — 순서대로 그린다(뒤 항목이 화면 위). 값 타입: 개수가 적고 참조를
+	// 오래 들 일이 없다(에디터·스크립트는 인덱스/이름으로 접근).
+	std::vector<CanvasViewport>        m_viewports;
+	// 컴포짓 바탕색(구 Camera2D::ClearColor 의 캔버스급 승계).
+	float                              m_backgroundColor[4] = { 0.08f, 0.09f, 0.11f, 1.0f };
 	// 지연 파괴 레이어(소속 오브젝트 파괴 flush 후 목록에서 제거).
 	std::vector<SafePtr<CGameLayer>>   m_pendingDestroyLayers;
 	TObjectPool<CGameObject>           m_objectPool;
