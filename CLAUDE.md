@@ -318,4 +318,5 @@ For trivial tasks, answer directly.
   - **DLL 경계를 넘는 건 `ScriptCore` 뿐이다.** 호스트는 `SyncScriptCore()` 로 `Engine` → `Script` 부분집합을 **1회** 복사한다(부팅/지연초기화 시. **매 프레임 호출 금지** — 서비스 포인터는 수명 내 불변). 게임 DLL 은 `BindScriptCore(context.HostScriptCore)` 로 호스트의 `Script` 값을 받는다.
   - **게임 DLL 안에서 도는 코드(스크립트 + DLL에 링크되는 Engine.lib 코드 예: `Ref.cpp`)는 반드시 `Script.X` 를 쓴다.** DLL 에서는 `Engine`(EngineCore) 도 `Core::` 도 채워지지 않는다(null). `BindEngineCore` 는 존재하지 않는다.
   - 호스트 전용 코드는 `Core::X`(호스트 네임스페이스) 또는 전역 `Engine.X` 를 쓴다. DLL 에서 `Core::`/`Engine.` 금지.
+- **매 프레임 경로에 병목 패턴 금지(성능 최우선).** `dynamic_cast`·힙 할당·문자열 생성/비교·guid/Ref 반복 해석을 프레임 루프(Update/렌더 수집/드로우)에서 쓰지 않는다. 타입 분기는 타입소거 풀/정적 디스패치, 조회는 초기화 시 포인터 캐시(예: `FindSystem<T>` 는 dynamic_cast 순회이므로 프레임당 호출 금지), 수집 버퍼는 재사용한다.
 - **호스트↔게임 DLL 경계를 넘는 데이터(스크립트 인스턴스 필드, 경계 함수 인자)는 POD 여야 한다.** `std::string`/`std::filesystem::path`/`File::Guid`/STL 컨테이너를 그대로 공유하면 ABI/레이아웃 불일치로 깨진다(호스트가 쓴 값을 DLL이 빈 값으로 읽음). guid 류는 고정 크기 char 버퍼로 저장한다(예: `Ref<T>`의 `RefBase { char Guid[64]; }`).
