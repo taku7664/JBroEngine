@@ -332,6 +332,7 @@ xcopy /Y /I /E "$(ProjectDir)Localization" "$(SolutionDir)Localization\" &gt; nu
     <ClInclude Include="Editor\Main\Guizmo\Guizmo3D.h" />
     <ClInclude Include="Editor\Main\Guizmo\GuizmoTypes.h" />
     <ClInclude Include="Editor\Gui\EditorGuiActions.h" />
+    <ClInclude Include="Editor\Gui\EditorMessagePopup.h" />
     <ClInclude Include="Editor\EditorDragDrop.h" />
     <ClInclude Include="Editor\Icons\FontAwesomeIcons.h" />
     <ClInclude Include="Editor\ImItem\ImActionButton.h" />
@@ -432,6 +433,9 @@ xcopy /Y /I /E "$(ProjectDir)Localization" "$(SolutionDir)Localization\" &gt; nu
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="Editor\Main\Guizmo\Guizmo3D.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Editor\Gui\EditorMessagePopup.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="Editor\Gui\EditorGuiActions.cpp">

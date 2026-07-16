@@ -4,12 +4,20 @@
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
 
 #include "Editor/Editor.h"
+#include "Editor/EditorContext.h"
+#include "Editor/Gui/EditorMessagePopup.h"
+#include "Engine/Core/Asset/IAssetManager.h"
+#include "Engine/Core/Asset/IAssetRegistry.h"
+#include "Engine/Editor/Project/ProjectManager.h"
 #include "Engine/GameFramework/Object/GameObject.h"
 #include "Engine/GameFramework/Prefab/PrefabSerializer.h"
 #include "Engine/GameFramework/Scene/Scene.h"
 #include "Engine/GameFramework/Scene/SceneRuntimeAccess.h"
+#include "Engine/GameFramework/Serialization/LayerSerializer.h"
 
 #include <algorithm>
+#include <fstream>
+#include <sstream>
 #include <utility>
 
 namespace
@@ -296,6 +304,105 @@ void CDeleteLayerCommand::Redo()
 	{
 		Execute();
 	}
+}
+
+// ── CAddLayerFromAssetCommand ────────────────────────────────────────────────
+
+CAddLayerFromAssetCommand::CAddLayerFromAssetCommand(SafePtr<CGameScene> scene, const File::Guid& assetGuid)
+	: m_scene(scene)
+	, m_assetGuid(assetGuid)
+{
+}
+
+const char* CAddLayerFromAssetCommand::GetName() const
+{
+	return "Add Layer From Asset";
+}
+
+bool CAddLayerFromAssetCommand::Execute()
+{
+	if (false == m_scene.IsValid() || m_assetGuid.IsNull())
+	{
+		return false;
+	}
+
+	SafePtr<CProjectManager> projectManager = EditorContext::GetProjectManager();
+	SafePtr<IAssetManager> assetManager = EditorContext::GetAssetManager();
+	if (false == projectManager.IsValid() || false == assetManager.IsValid())
+	{
+		return false;
+	}
+
+	AssetMetaData metaData;
+	if (false == assetManager->GetRegistry().TryGetAsset(m_assetGuid, metaData))
+	{
+		return false;
+	}
+
+	// 경로는 Execute 마다 다시 푼다 — 에셋이 이동/리네임돼도 guid 로 따라간다.
+	const File::Path absolutePath(projectManager->GetAssetPath() / metaData.Path);
+	std::ifstream file(absolutePath);
+	if (false == file.is_open())
+	{
+		EditorMessagePopup::ShowInfo(
+			Loc::Text(EditorLocKeys::LayerAssetLoadFailedTitle),
+			Loc::Text(EditorLocKeys::LayerAssetLoadFailedMessage));
+		return false;
+	}
+	std::stringstream buffer;
+	buffer << file.rdbuf();
+
+	CGameLayer* layer = nullptr;
+	const ELayerSerializeResult result =
+		Serialization::DeserializeLayer(*m_scene, buffer.str().c_str(), &layer);
+	if (ELayerSerializeResult::DuplicateInstance == result)
+	{
+		// 같은 레이어 파일을 한 캔버스에 두 번 넣으려는 경우 — guid 가 겹쳐 조용히 재발급되면
+		// 승계/Ref 가 어긋나므로 아예 막는다. 사용자가 놓치지 않게 로그가 아니라 모달로.
+		EditorMessagePopup::ShowInfo(
+			Loc::Text(EditorLocKeys::LayerAssetDuplicateTitle),
+			Loc::Text(EditorLocKeys::LayerAssetDuplicateMessage));
+		return false;
+	}
+	if (ELayerSerializeResult::Success != result || nullptr == layer)
+	{
+		EditorMessagePopup::ShowInfo(
+			Loc::Text(EditorLocKeys::LayerAssetLoadFailedTitle),
+			Loc::Text(EditorLocKeys::LayerAssetLoadFailedMessage));
+		return false;
+	}
+
+	layer->SourceAssetGuid = m_assetGuid;
+	m_layerGuid = layer->GetInstanceGuid();
+	m_created = true;
+	return true;
+}
+
+void CAddLayerFromAssetCommand::Undo()
+{
+	if (false == m_created || false == m_scene.IsValid())
+	{
+		return;
+	}
+	if (CGameLayer* layer = ResolveLayer(m_scene, m_layerGuid))
+	{
+		m_scene->DestroyLayer(layer);
+	}
+	m_created = false;
+}
+
+void CAddLayerFromAssetCommand::Redo()
+{
+	if (false == m_created)
+	{
+		// undo 가 레이어와 그 오브젝트를 파괴했으므로 guid 충돌 없이 파일 그대로 되살아난다.
+		Execute();
+	}
+}
+
+CGameLayer* CAddLayerFromAssetCommand::GetLayer() const
+{
+	return ResolveLayer(m_scene, m_layerGuid);
 }
 
 // ── CMoveLayerCommand ────────────────────────────────────────────────────────

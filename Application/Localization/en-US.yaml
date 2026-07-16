@@ -308,6 +308,10 @@ Entries:
   inspector.viewport.camera_auto: (Auto - first active camera)
   inspector.viewport.position: Position
   inspector.viewport.size: Size
+  layer_asset.duplicate.title: Already Added
+  layer_asset.duplicate.message: This layer asset is already in this canvas. The same layer cannot be added twice.
+  layer_asset.load_failed.title: Load Failed
+  layer_asset.load_failed.message: Failed to load the layer asset.
   inspector.viewport.ratio: Ratio
   inspector.viewport.pixel: Pixel
   inspector.viewport.layer_filter: Layer Filter
@@ -320,6 +324,7 @@ Entries:
   inspector.layer.blend.screen: Screen
   inspector.layer.opacity: Opacity
   inspector.layer.visible: Visible
+  inspector.layer.source_asset: Layer Asset
   inspector.layer.static: Static (Freeze Render)
   inspector.layer.force_own_texture: Force Own Texture
   inspector.layer.parallax: Parallax Factor

@@ -77,6 +77,9 @@ public:
 	CGameLayer& operator=(const CGameLayer&) = delete;
 
 	std::string     Name;
+	// 이 레이어가 나온 `.jlayer` 에셋. null = 캔버스에 인라인으로만 존재하는 레이어.
+	// 캔버스 파일의 레이어 노드에만 저장한다 — 레이어 파일은 자기 자신을 참조하지 않는다.
+	File::Guid      SourceAssetGuid;
 	ELayerBlendMode BlendMode = ELayerBlendMode::Normal;
 	float           Opacity = 1.0f;          // 0~1. 컴포짓 시 알파 곱(페이드 연출용).
 	bool            Visible = true;          // false = 렌더 제외(시뮬은 계속).

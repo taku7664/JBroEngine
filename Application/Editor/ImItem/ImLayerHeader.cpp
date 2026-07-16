@@ -58,8 +58,9 @@ ImLayerHeaderResult ImLayerHeader(const char* id, const ImLayerHeaderDesc& desc)
 			result.RowRect.Min.y,
 			result.RowRect.Max.x - desc.ReservedRightWidth,
 			result.RowRect.Max.y);
+		const ImU32 labelColor = (0 != desc.LabelColor) ? desc.LabelColor : ImGui::GetColorU32(ImGuiCol_Text);
 		drawList->AddText(
-			nullptr, 0.0f, labelPos, ImGui::GetColorU32(ImGuiCol_Text), desc.Label, nullptr, 0.0f, &clipRect);
+			nullptr, 0.0f, labelPos, labelColor, desc.Label, nullptr, 0.0f, &clipRect);
 	}
 
 	return result;

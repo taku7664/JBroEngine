@@ -121,6 +121,29 @@ private:
 	bool                  m_deleted = false;
 };
 
+// `.jlayer` 에셋을 캔버스에 레이어로 추가한다(레이어 뷰에 에셋 드롭).
+// 오브젝트/레이어 guid 는 파일 값 그대로 복원되므로, 같은 에셋을 이미 로드한 캔버스에는
+// 들어가지 않는다(LayerSerializer 가 DuplicateInstance 로 거부 → 커맨드도 실패).
+class CAddLayerFromAssetCommand final : public IEditorCommand
+{
+public:
+	CAddLayerFromAssetCommand(SafePtr<CGameScene> scene, const File::Guid& assetGuid);
+	~CAddLayerFromAssetCommand() override = default;
+
+	const char* GetName() const override;
+	bool Execute() override;
+	void Undo() override;
+	void Redo() override;
+	// 추가된 레이어(없으면 nullptr). 호출자가 선택 처리에 사용.
+	CGameLayer* GetLayer() const;
+
+private:
+	SafePtr<CGameScene> m_scene;
+	File::Guid  m_assetGuid;
+	File::Guid  m_layerGuid;  // 파일에서 온 레이어 guid(undo 후 redo 가 같은 레이어를 지목)
+	bool        m_created = false;
+};
+
 namespace EditorLayerActions
 {
 	// 레이어 속성 편집을 undo 스택에 올리는 공용 진입점(하이어라키 눈 아이콘 / 인스펙터 패널).

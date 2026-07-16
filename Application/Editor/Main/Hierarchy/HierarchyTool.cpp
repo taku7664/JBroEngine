@@ -377,6 +377,12 @@ void CLayerTool::OnRenderStay()
 		headerDesc.Label = layer->GetName();
 		headerDesc.Selected = (Editor::GetSelectedLayer() == layer);
 		headerDesc.ReservedRightWidth = eyeButtonWidth;
+		// `.jlayer` 에서 온 레이어는 라벨 색으로 구분한다(유니티가 프리팹 인스턴스를 파랗게
+		// 칠하는 것과 같은 결). 인스펙터의 에셋 필드가 어떤 에셋인지까지 보여준다.
+		if (false == layer->SourceAssetGuid.IsNull())
+		{
+			headerDesc.LabelColor = ImGui::GetColorU32(ImVec4(0.45f, 0.72f, 1.00f, 1.00f));
+		}
 		if (hasImEditor && Editor::ImEditor->GetLayerThumbnailHeight() > 0)
 		{
 			headerDesc.Thumbnail = reinterpret_cast<ImTextureID>(
@@ -531,6 +537,25 @@ void CLayerTool::OnRenderStay()
 			ImLayerHeaderEnd();
 		}
 	};
+
+	// ── 에셋 브라우저에서 끌어온 `.jlayer` 드롭 — 캔버스에 레이어로 추가 ──────────
+	// 레이어 행이 아니라 창 전체를 받는다: 어느 레이어 위에 떨궜는지는 의미가 없다(추가되는
+	// 위치는 목록 맨 위로 고정). 아이템 위에서는 그 아이템의 타깃이 먼저 받아야 하므로 제외.
+	if (false == ImGui::IsAnyItemHovered())
+	{
+		EditorDragDrop::AssetPayload payload;
+		if (EditorDragDrop::AcceptAssetDragDropPayloadOnWindow(payload)
+			&& EAssetType::Layer == payload.Type)
+		{
+			auto cmd = MakeOwnerPtr<CAddLayerFromAssetCommand>(
+				activeScene, EditorDragDrop::GetGuid(payload));
+			CAddLayerFromAssetCommand* rawCmd = cmd.Get();
+			if (Editor::CommandManager.ExecuteCommand(std::move(cmd)) && rawCmd)
+			{
+				Editor::SelectLayer(rawCmd->GetLayer());
+			}
+		}
+	}
 
 	// ── 캔버스 노드 ─────────────────────────────────────────────────────────────
 	// 레이어보다 위, 트리 맨 위 한 줄. 레이어를 담는 부모 노드로 만들지 않는 이유: 그러면

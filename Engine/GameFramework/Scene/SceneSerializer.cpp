@@ -303,7 +303,16 @@ ESceneSerializeResult CSceneSerializer::SerializeToText(CGameScene& scene, std::
 	std::unordered_map<const CGameLayer*, int> layerIndexOf;
 	for (std::size_t i = 0; i < scene.GetLayerCount(); ++i)
 	{
-		layerIndexOf[scene.GetLayerAt(i)] = static_cast<int>(i);
+		const CGameLayer* layer = scene.GetLayerAt(i);
+		layerIndexOf[layer] = static_cast<int>(i);
+
+		// 파일에서 온 레이어는 캔버스가 그 `.jlayer` 를 참조하는 것이다 — ReferencedAssets 에
+		// 올려야 빌드 수집기가 캔버스→레이어 파일 의존을 보고 패키지에 담는다.
+		if (layer && false == layer->SourceAssetGuid.IsNull()
+			&& std::find(referencedAssets.begin(), referencedAssets.end(), layer->SourceAssetGuid) == referencedAssets.end())
+		{
+			referencedAssets.push_back(layer->SourceAssetGuid);
+		}
 	}
 
 	YAML::Node objects(YAML::NodeType::Sequence);

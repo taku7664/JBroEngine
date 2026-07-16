@@ -16,6 +16,46 @@ namespace
 		std::memcpy(destination, source.data(), copySize);
 		destination[copySize] = '\0';
 	}
+
+	// 아이템이 아니라 현재 창 사각형 전체를 타깃으로 연다(배경 드롭용).
+	bool BeginCurrentWindowDragDropTarget()
+	{
+		ImGuiWindow* window = ImGui::GetCurrentWindow();
+		return nullptr != window && ImGui::BeginDragDropTargetCustom(window->Rect(), window->ID);
+	}
+
+	// Begin*DragDropTarget 이 열린 뒤의 공통 수신부(아이템 타깃 / 창 타깃이 공유).
+	bool AcceptAssetPayloadInOpenTarget(EditorDragDrop::AssetPayload& outPayload, ImGuiDragDropFlags flags)
+	{
+		bool accepted = false;
+		if (const ImGuiPayload* payload =
+			ImGui::AcceptDragDropPayload(EditorDragDrop::ASSET_PAYLOAD_TYPE, flags))
+		{
+			if (payload->DataSize == sizeof(EditorDragDrop::AssetPayload))
+			{
+				outPayload = *static_cast<const EditorDragDrop::AssetPayload*>(payload->Data);
+				accepted = true;
+			}
+		}
+		ImGui::EndDragDropTarget();
+		return accepted;
+	}
+
+	bool AcceptLayerPayloadInOpenTarget(CGameLayer*& outLayer, ImGuiDragDropFlags flags)
+	{
+		bool accepted = false;
+		if (const ImGuiPayload* payload =
+			ImGui::AcceptDragDropPayload(EditorDragDrop::HIERARCHY_LAYER_PAYLOAD, flags))
+		{
+			if (payload->DataSize == sizeof(CGameLayer*))
+			{
+				outLayer = *static_cast<CGameLayer* const*>(payload->Data);
+				accepted = nullptr != outLayer;
+			}
+		}
+		ImGui::EndDragDropTarget();
+		return accepted;
+	}
 }
 
 bool EditorDragDrop::BeginAssetDragDropSource(const AssetPayloadDesc& desc)
@@ -69,39 +109,7 @@ bool EditorDragDrop::AcceptAssetDragDropPayload(AssetPayload& outPayload, ImGuiD
 	{
 		return false;
 	}
-
-	bool accepted = false;
-	if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(ASSET_PAYLOAD_TYPE, flags))
-	{
-		if (payload->DataSize == sizeof(AssetPayload))
-		{
-			outPayload = *static_cast<const AssetPayload*>(payload->Data);
-			accepted = true;
-		}
-	}
-
-	ImGui::EndDragDropTarget();
-	return accepted;
-}
-
-namespace
-{
-	// Begin*DragDropTarget 이 열린 뒤의 공통 수신부.
-	bool AcceptLayerPayloadInOpenTarget(CGameLayer*& outLayer, ImGuiDragDropFlags flags)
-	{
-		bool accepted = false;
-		if (const ImGuiPayload* payload =
-			ImGui::AcceptDragDropPayload(EditorDragDrop::HIERARCHY_LAYER_PAYLOAD, flags))
-		{
-			if (payload->DataSize == sizeof(CGameLayer*))
-			{
-				outLayer = *static_cast<CGameLayer* const*>(payload->Data);
-				accepted = nullptr != outLayer;
-			}
-		}
-		ImGui::EndDragDropTarget();
-		return accepted;
-	}
+	return AcceptAssetPayloadInOpenTarget(outPayload, flags);
 }
 
 bool EditorDragDrop::AcceptLayerDragDropPayload(CGameLayer*& outLayer, ImGuiDragDropFlags flags)
@@ -115,17 +123,20 @@ bool EditorDragDrop::AcceptLayerDragDropPayload(CGameLayer*& outLayer, ImGuiDrag
 
 bool EditorDragDrop::AcceptLayerDragDropPayloadOnWindow(CGameLayer*& outLayer, ImGuiDragDropFlags flags)
 {
-	ImGuiWindow* window = ImGui::GetCurrentWindow();
-	if (nullptr == window)
-	{
-		return false;
-	}
-	// 직전 아이템이 아니라 창 사각형 전체를 타깃으로 연다 — 배경엔 받을 아이템이 없다.
-	if (false == ImGui::BeginDragDropTargetCustom(window->Rect(), window->ID))
+	if (false == BeginCurrentWindowDragDropTarget())
 	{
 		return false;
 	}
 	return AcceptLayerPayloadInOpenTarget(outLayer, flags);
+}
+
+bool EditorDragDrop::AcceptAssetDragDropPayloadOnWindow(AssetPayload& outPayload, ImGuiDragDropFlags flags)
+{
+	if (false == BeginCurrentWindowDragDropTarget())
+	{
+		return false;
+	}
+	return AcceptAssetPayloadInOpenTarget(outPayload, flags);
 }
 
 File::Guid EditorDragDrop::GetGuid(const AssetPayload& payload)

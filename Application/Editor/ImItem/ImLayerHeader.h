@@ -17,6 +17,8 @@ struct ImLayerHeaderDesc
 	ImVec2      ThumbnailSize = ImVec2(0.0f, 0.0f); // (0,0) = 썸네일 영역 자체를 두지 않음
 	bool        Selected = false;
 	bool        DefaultOpen = true;
+	// 0 = 기본 텍스트색. 레이어가 `.jlayer` 에셋에서 온 경우를 구분하는 데 쓴다(프리팹 결).
+	ImU32       LabelColor = 0;
 	// 행 오른쪽에서 라벨을 그리지 않고 비워둘 폭(px). 호출자가 나중에 얹을 버튼 자리.
 	float       ReservedRightWidth = 0.0f;
 };

@@ -56,11 +56,15 @@ namespace
 	}
 }
 
-YAML::Node WriteLayerNode(const CGameLayer& layer)
+YAML::Node WriteLayerNode(const CGameLayer& layer, bool includeSourceAsset)
 {
 	YAML::Node node(YAML::NodeType::Map);
 	node["Name"]            = layer.Name;
 	node["Guid"]            = layer.GetInstanceGuid().generic_string();
+	if (includeSourceAsset && false == layer.SourceAssetGuid.IsNull())
+	{
+		node["SourceAsset"] = layer.SourceAssetGuid.generic_string();
+	}
 	node["Blend"]           = ToString(layer.BlendMode);
 	node["Opacity"]         = layer.Opacity;
 	node["Visible"]         = layer.Visible;
@@ -93,6 +97,10 @@ CGameLayer* ReadLayerNodeInto(CGameScene& scene, const YAML::Node& node)
 			{
 				CSceneRuntimeAccess::SetLayerInstanceGuid(scene, *layer, guid);
 			}
+		}
+		if (node["SourceAsset"])
+		{
+			layer->SourceAssetGuid = File::Guid(node["SourceAsset"].as<std::string>(""));
 		}
 	}
 	catch (const YAML::Exception&)
@@ -147,7 +155,7 @@ std::string SerializeLayer(const CGameScene& scene, const CGameLayer& layer)
 	YAML::Node root(YAML::NodeType::Map);
 	root["Version"]          = LAYER_FILE_VERSION;
 	root["ReferencedAssets"] = referenced;
-	root["Layer"]            = WriteLayerNode(layer);
+	root["Layer"]            = WriteLayerNode(layer, /*includeSourceAsset*/ false);
 	root["Objects"]          = objects;
 
 	YAML::Emitter emitter;

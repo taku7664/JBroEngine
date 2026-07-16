@@ -27,7 +27,9 @@ class CGameLayer;
 namespace Serialization
 {
 	// ── 노드 API (캔버스 파일의 Layers 섹션 / 레이어 파일이 공유) ────────────────
-	YAML::Node WriteLayerNode(const CGameLayer& layer);
+	// includeSourceAsset=false 면 SourceAsset 키를 빼고 쓴다 — 레이어 파일 안에 자기 자신을
+	// 가리키는 참조를 남기지 않기 위해서다(캔버스만 "이 레이어는 저 에셋에서 왔다"를 적는다).
+	YAML::Node WriteLayerNode(const CGameLayer& layer, bool includeSourceAsset = true);
 	// 노드에서 새 레이어를 만들어 scene 에 추가하고 속성 + InstanceGuid 를 복원한다.
 	// 실패 시 nullptr.
 	CGameLayer* ReadLayerNodeInto(CGameScene& scene, const YAML::Node& node);

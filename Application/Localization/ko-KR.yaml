@@ -308,6 +308,10 @@ Entries:
   inspector.viewport.camera_auto: (자동 — 첫 활성 카메라)
   inspector.viewport.position: 위치
   inspector.viewport.size: 크기
+  layer_asset.duplicate.title: 이미 추가됨
+  layer_asset.duplicate.message: 이 레이어 에셋은 이미 이 캔버스에 있습니다. 같은 레이어를 두 번 넣을 수 없습니다.
+  layer_asset.load_failed.title: 로드 실패
+  layer_asset.load_failed.message: 레이어 에셋을 불러오지 못했습니다.
   inspector.viewport.ratio: 비율
   inspector.viewport.pixel: 픽셀
   inspector.viewport.layer_filter: 레이어 필터
@@ -320,6 +324,7 @@ Entries:
   inspector.layer.blend.screen: 스크린
   inspector.layer.opacity: 불투명도
   inspector.layer.visible: 표시
+  inspector.layer.source_asset: 레이어 에셋
   inspector.layer.static: 정적(렌더 동결)
   inspector.layer.force_own_texture: 전용 텍스처 강제
   inspector.layer.parallax: 패럴랙스 계수

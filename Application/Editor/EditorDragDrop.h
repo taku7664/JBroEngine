@@ -57,6 +57,7 @@ namespace EditorDragDrop
 	// 아이템이 없는 배경용). 창 안의 아이템 드롭 타깃과 동시에 열리면 둘 다 받아버리므로
 	// 호출부가 IsAnyItemHovered() 로 걸러야 한다.
 	bool AcceptLayerDragDropPayloadOnWindow(CGameLayer*& outLayer, ImGuiDragDropFlags flags = 0);
+	bool AcceptAssetDragDropPayloadOnWindow(AssetPayload& outPayload, ImGuiDragDropFlags flags = 0);
 	File::Guid GetGuid(const AssetPayload& payload);
 	File::Path GetRelativePath(const AssetPayload& payload);
 }

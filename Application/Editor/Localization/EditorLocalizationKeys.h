@@ -323,6 +323,7 @@ namespace EditorLocKeys
 	constexpr const char* InspectorLayerOpacity = "inspector.layer.opacity";
 	constexpr const char* InspectorLayerParallax = "inspector.layer.parallax";
 	constexpr const char* InspectorLayerProperties = "inspector.layer.properties";
+	constexpr const char* InspectorLayerSourceAsset = "inspector.layer.source_asset";
 	constexpr const char* InspectorLayerStatic = "inspector.layer.static";
 	constexpr const char* InspectorLayerVisible = "inspector.layer.visible";
 	constexpr const char* InspectorLayerWarningStaticDynamic = "inspector.layer.warning.static_dynamic";
@@ -397,6 +398,10 @@ namespace EditorLocKeys
 	constexpr const char* InspectorViewportPosition = "inspector.viewport.position";
 	constexpr const char* InspectorViewportRatio = "inspector.viewport.ratio";
 	constexpr const char* InspectorViewportSize = "inspector.viewport.size";
+	constexpr const char* LayerAssetDuplicateMessage = "layer_asset.duplicate.message";
+	constexpr const char* LayerAssetDuplicateTitle = "layer_asset.duplicate.title";
+	constexpr const char* LayerAssetLoadFailedMessage = "layer_asset.load_failed.message";
+	constexpr const char* LayerAssetLoadFailedTitle = "layer_asset.load_failed.title";
 	constexpr const char* LogAutoScroll = "log.auto_scroll";
 	constexpr const char* LogLevelCritical = "log.level.critical";
 	constexpr const char* LogLevelDebug = "log.level.debug";

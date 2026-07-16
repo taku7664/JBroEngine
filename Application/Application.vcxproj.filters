@@ -66,6 +66,9 @@
     <ClInclude Include="Editor\Build\BuildSettingsUtils.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
+    <ClInclude Include="Editor\Gui\EditorMessagePopup.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
     <ClInclude Include="Editor\Gui\EditorGuiActions.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
@@ -288,6 +291,9 @@
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="Editor\Main\Guizmo\Guizmo3D.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\Gui\EditorMessagePopup.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="Editor\Gui\EditorGuiActions.cpp">
