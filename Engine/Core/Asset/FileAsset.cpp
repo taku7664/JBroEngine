@@ -70,7 +70,7 @@ OwnerPtr<IAsset> CFileAssetLoader::Load(const AssetLoadDesc& desc)
 	if (desc.HasMemoryPayload())
 	{
 		std::vector<std::uint8_t> data = desc.MemoryPayload;
-		return MakeOwnerPtr<CFileAsset>(*desc.MetaData, std::move(data));
+		return CreateAsset(*desc.MetaData, std::move(data));
 	}
 
 	std::ifstream file(desc.ResolvedPath, std::ios::binary);
@@ -98,6 +98,11 @@ OwnerPtr<IAsset> CFileAssetLoader::Load(const AssetLoadDesc& desc)
 	}
 
 	return MakeOwnerPtr<CFileAsset>(*desc.MetaData, std::move(data));
+}
+
+OwnerPtr<IAsset> CFileAssetLoader::CreateAsset(const AssetMetaData& metaData, std::vector<std::uint8_t>&& data) const
+{
+	return MakeOwnerPtr<CFileAsset>(metaData, std::move(data));
 }
 
 void CFileAssetLoader::Unload(IAsset& asset)

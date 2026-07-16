@@ -211,6 +211,13 @@ EAssetType CAssetTypeRules::ParseTypeName(const std::string& name)
 	{
 		return EAssetType::Custom;
 	}
+	// `Ref<CCanvasAsset>` 이 여기로 온다 — NormalizeTypeName 이 C 접두와 Asset 접미를 떼어
+	// "Canvas" 가 되는데, 규칙 이름은 아직 "Scene" 이다. 캔버스-레이어 개편의 코어 리네임
+	// (Type: Scene → Canvas)이 끝나면 이 별칭은 지워도 된다.
+	if (normalized == "Canvas")
+	{
+		return EAssetType::Scene;
+	}
 	return EAssetType::Unknown;
 }
 

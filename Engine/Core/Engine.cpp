@@ -13,6 +13,7 @@
 #include "Core/Resource/ResourceRegistry.h"
 #include "Core/Module/Module.h"
 #include "Core/Asset/AssetManager.h"
+#include "Core/Asset/CanvasAsset.h"
 #include "Core/Asset/FileAsset.h"
 #include "Core/Asset/AudioAsset.h"
 #include "Core/Asset/AudioEffectAsset.h"
@@ -559,7 +560,9 @@ bool CEngine::InitializeAssetManager()
 		return false;
 	}
 
-	m_assetManager->RegisterLoader(MakeOwnerPtr<CFileAssetLoader>(EAssetType::Scene));
+	// 캔버스만 전용 타입(CCanvasAsset)으로 적재한다 — Ref<CCanvasAsset> 이 캔버스만
+	// 받으려면 신원이 갈려 있어야 한다. 나머지는 공용 CFileAsset 로 충분하다.
+	m_assetManager->RegisterLoader(MakeOwnerPtr<CCanvasAssetLoader>());
 	m_assetManager->RegisterLoader(MakeOwnerPtr<CFileAssetLoader>(EAssetType::Prefab));
 	m_assetManager->RegisterLoader(MakeOwnerPtr<CFileAssetLoader>(EAssetType::Layer));
 	m_assetManager->RegisterLoader(MakeOwnerPtr<CFileAssetLoader>(EAssetType::Shader));

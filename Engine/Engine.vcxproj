@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug_Game|Win32">
@@ -336,6 +336,7 @@
     <ClInclude Include="Core\Asset\AssetRegistry.h" />
     <ClInclude Include="Core\Asset\AssetTypeRules.h" />
     <ClInclude Include="Core\Asset\AssetTypes.h" />
+    <ClInclude Include="Core\Asset\CanvasAsset.h" />
     <ClInclude Include="Core\Asset\FileAsset.h" />
     <ClInclude Include="Core\Asset\IAsset.h" />
     <ClInclude Include="Core\Asset\IAssetLoader.h" />
@@ -641,6 +642,7 @@
     <ClCompile Include="Core\Asset\AssetPath.cpp" />
     <ClCompile Include="Core\Asset\AssetRegistry.cpp" />
     <ClCompile Include="Core\Asset\AssetTypeRules.cpp" />
+    <ClCompile Include="Core\Asset\CanvasAsset.cpp" />
     <ClCompile Include="Core\Asset\FileAsset.cpp" />
     <ClCompile Include="Core\Asset\AudioAsset.cpp" />
     <ClCompile Include="Core\Asset\AudioEffectAsset.cpp" />
