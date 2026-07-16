@@ -4,6 +4,8 @@
 #include "Core/ScriptCore.h"
 #include "Core/Asset/IAssetManager.h"
 #include "Core/Asset/AssetRef.inl"   // LoadAsset 반환 AssetRef 의 복사/이동/소멸 인스턴스화
+#include "Core/Asset/FileAsset.h"    // 캔버스 파일 텍스트(전환)
+#include "Core/Logging/LoggerInternal.h"
 #include "Core/Time/Time.h"
 #include "GameFramework/Scene/Scene.h"
 #include "GameFramework/Scene/SceneSerializer.h"
@@ -31,6 +33,80 @@ void CSceneManager::SetCanvasName(const char* name)
 		// Ref<GameScene> 해석 키 — 여기 사본과 캔버스 쪽이 어긋나면 해석이 빗나간다.
 		m_canvas->SetName(m_canvasName.c_str());
 	}
+}
+
+void CSceneManager::RegisterCanvas(const char* name, const char* assetGuidText)
+{
+	if (nullptr == name || '\0' == name[0])
+	{
+		return;
+	}
+	m_canvasRegistry[name] = assetGuidText ? assetGuidText : "";
+}
+
+bool CSceneManager::ReadCanvasText(const std::string& name, std::string& outText) const
+{
+	if (false == Script.AssetManager.IsValid() || name.empty())
+	{
+		return false;
+	}
+
+	AssetRef<IAsset> asset;
+	const auto it = m_canvasRegistry.find(name);
+	if (it != m_canvasRegistry.end() && false == it->second.empty())
+	{
+		asset = Script.AssetManager->LoadAsset(AssetGuid(it->second));
+	}
+	else
+	{
+		// 미등록 = 에디터(디스크에 프로젝트 파일이 그대로 있다). 패키지에서 여기로 오면
+		// 그 캔버스가 빌드 씬 목록에 없다는 뜻이고, 경로 로드는 자연히 실패한다.
+		asset = Script.AssetManager->LoadAssetByPath(File::Path(name));
+	}
+
+	// 전환은 cold path — dynamic_cast 해도 된다(프레임 루프가 아니다).
+	const CFileAsset* fileAsset = asset.IsValid() ? dynamic_cast<const CFileAsset*>(asset.Get()) : nullptr;
+	if (nullptr == fileAsset)
+	{
+		return false;
+	}
+	outText = fileAsset->GetText();
+	return true;
+}
+
+void CSceneManager::FlushPendingCanvasTransition()
+{
+	if (m_pendingCanvasTransition.empty())
+	{
+		return;
+	}
+
+	// 먼저 비운다 — 실패해도 매 프레임 같은 전환을 다시 시도하지 않게.
+	const std::string name = std::move(m_pendingCanvasTransition);
+	m_pendingCanvasTransition.clear();
+
+	CGameScene* canvas = m_canvas.Get();
+	if (nullptr == canvas)
+	{
+		return;
+	}
+
+	std::string text;
+	if (false == ReadCanvasText(name, text))
+	{
+		CSystemLog::Error(std::string("Canvas transition failed (file not found): ") + name);
+		return;
+	}
+
+	CSceneSerializer serializer;
+	if (ESceneSerializeResult::Success != serializer.TransitionFromText(*canvas, text.c_str()))
+	{
+		CSystemLog::Error(std::string("Canvas transition failed (load error): ") + name);
+		return;
+	}
+
+	SetCanvasName(name.c_str());
+	RefreshReferencedAssets();
 }
 
 // GetActiveScene() 은 SceneManager.h 에 인라인으로 정의됨(DLL 링크 클로저에서
@@ -95,6 +171,10 @@ void CSceneManager::PlaySimulation()
 		CSceneSerializer serializer;
 		m_playModeSnapshot.clear();
 		serializer.SerializeToText(*canvas, m_playModeSnapshot);
+		// 이름도 함께 — 재생 중에 캔버스를 전환하면 이름이 목적지 것으로 바뀌는데, 정지 시
+		// 내용만 되돌리면 "내용은 A, 이름은 B" 가 된다(Ref<GameScene> 해석·에디터 문서 키가
+		// 어긋난다). 스냅샷은 캔버스 상태 전체다.
+		m_playModeCanvasName = m_canvasName;
 	}
 
 	if (nullptr != canvas && Script.Reflection.IsValid())
@@ -117,6 +197,10 @@ void CSceneManager::StopSimulation()
 {
 	CGameScene* canvas = m_canvas.Get();
 
+	// 재생 중 예약된 전환은 버린다 — 정지가 재생 직전 상태로 되돌리는 마당에 그 뒤에
+	// 전환이 터지면 편집 중인 캔버스가 남의 것으로 바뀐다.
+	m_pendingCanvasTransition.clear();
+
 	// 스냅샷 복원 전에 시스템 정리 — 시뮬 중 시작된 사운드 등을 해제한다.
 	// (편집 모드에선 시스템 Update 가 안 돌아 player GC 가 일어나지 않으므로 명시 정리 필요.)
 	if (ESceneSimulationState::Edit != m_simulationState && nullptr != canvas)
@@ -127,10 +211,15 @@ void CSceneManager::StopSimulation()
 	if (ESceneSimulationState::Edit != m_simulationState && nullptr != canvas && false == m_playModeSnapshot.empty())
 	{
 		CSceneSerializer serializer;
+		// 전체 교체다(전환 아님) — 재생 직전으로 되돌리는 것이지 승계할 게 없다.
 		serializer.DeserializeFromText(*canvas, m_playModeSnapshot.c_str());
+		SetCanvasName(m_playModeCanvasName.c_str());
+		// 재생 중 전환했다면 지금 들고 있는 건 목적지 캔버스의 리소스다 — 되돌린 내용에 맞춘다.
+		RefreshReferencedAssets();
 	}
 
 	m_playModeSnapshot.clear();
+	m_playModeCanvasName.clear();
 	m_simulationState    = ESceneSimulationState::Edit;
 	m_fixedAccumulator   = 0.0f;
 }
@@ -187,12 +276,19 @@ void CSceneManager::Update()
 
 	// ── Variable update ──────────────────────────────────────────────────────
 	canvas->Update(isPlaying);
+
+	// 전환은 시뮬 순회가 전부 끝난 뒤 — 캔버스를 갈아엎는 건 순회 중인 오브젝트를
+	// 발밑에서 없애는 일이다. 예약(RequestCanvasTransition)과 실행을 갈라 놓은 이유.
+	FlushPendingCanvasTransition();
 }
 
 void CSceneManager::Clear()
 {
 	m_canvas.Reset();
 	m_canvasName.clear();
+	m_canvasRegistry.clear();
+	m_pendingCanvasTransition.clear();
 	m_simulationState = ESceneSimulationState::Edit;
 	m_playModeSnapshot.clear();
+	m_playModeCanvasName.clear();
 }

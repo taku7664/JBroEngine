@@ -495,6 +495,21 @@ bool CGameApplication::LoadRuntimeStartupScene(const BuildManifest& manifest)
 		? manifest.StartupScene
 		: startupSceneGuid.generic_string();
 
+	// 빌드 씬을 전환 레지스트리에 등록한다 — 패키지에는 디스크 경로가 없어 캔버스를 guid 로만
+	// 찾을 수 있다. 프리로드를 걷어낸 지금 BuildScenes 가 하는 일이 이것이다.
+	for (std::size_t sceneIndex = 0; sceneIndex < manifest.BuildScenes.size(); ++sceneIndex)
+	{
+		const std::string& scenePath = manifest.BuildScenes[sceneIndex];
+		if (scenePath.empty())
+		{
+			continue;
+		}
+		const char* sceneGuid = sceneIndex < manifest.BuildSceneGuids.size()
+			? manifest.BuildSceneGuids[sceneIndex].c_str()
+			: "";
+		sceneManager->RegisterCanvas(scenePath.c_str(), sceneGuid);
+	}
+
 	// startup 캔버스만 로드한다 — 런타임 캔버스는 하나고, 전환은 그 하나에 diff 를 적용하는
 	// 것이라 나머지 빌드 씬을 미리 인스턴스화해 둘 자리가 없다(있으면 그게 곧 다중 씬이다).
 	// 다른 캔버스는 전환 시점에 파일에서 읽는다. startup 은 guid 로 로드해 경로 의존을 피한다.
