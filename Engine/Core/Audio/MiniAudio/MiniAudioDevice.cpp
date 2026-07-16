@@ -989,9 +989,15 @@ void CMiniAudioDevice::Tick(float)
 	// dispatch 등을 여기 채움.
 }
 
-OwnerPtr<IAudioPlayer> CMiniAudioDevice::CreatePlayer(const AudioPlayerDesc&)
+OwnerPtr<IAudioPlayer> CMiniAudioDevice::CreatePlayer(const AudioPlayerDesc& desc)
 {
-	// PR A 단계: 빈 player 만 반환. 실제 ma_sound 생성은 자산 PR(B) 에서.
+	if (nullptr != desc.StreamPathUtf8)
+	{
+		return CreatePlayerFromFile(desc.StreamPathUtf8);
+	}
+
+	// PCM 기반 생성은 아직 구현 전이다. 경로도 PCM도 없는 기존 호출에는 안전한
+	// 빈 player를 유지하되, 파일 로딩 실패는 아래 경로에서 null로 명확히 구분한다.
 	return MakeOwnerPtr<CMiniAudioPlayerStub>();
 }
 
@@ -999,7 +1005,7 @@ OwnerPtr<IAudioPlayer> CMiniAudioDevice::CreatePlayerFromFile(const char* filePa
 {
 	if (!m_impl || !m_impl->Backend || false == m_impl->Backend->IsOperational() || nullptr == filePathUtf8)
 	{
-		return MakeOwnerPtr<CMiniAudioPlayerStub>();
+		return nullptr;
 	}
 	// 지정 버스로 라우팅. 버스 미초기화 시 group=null → endpoint 직결(기존 동작).
 	CMiniAudioBus* busPtr = m_impl->GetBusPtr(bus);
@@ -1009,8 +1015,7 @@ OwnerPtr<IAudioPlayer> CMiniAudioDevice::CreatePlayerFromFile(const char* filePa
 		m_impl->Backend, filePathUtf8, group, busPtr);
 	if (false == player->IsInitialized())
 	{
-		// 로딩 실패해도 stub 으로 폴백 — 호출자는 IsPlaying/IsEnded 만으로 안전하게 처리 가능.
-		return MakeOwnerPtr<CMiniAudioPlayerStub>();
+		return nullptr;
 	}
 	return player;
 }

@@ -93,28 +93,28 @@
 
 ## 단계 3 - AudioSystem 재생 상태와 효과 해제 순서 수정
 
-상태: 대기
+상태: 완료
 
 ### 구현
 
-- [ ] `PlayerInstance::Reset()` 또는 동등한 명시적 해제 경로를 추가합니다.
-- [ ] Player가 효과를 분리하고 파괴된 뒤 Effect Owner가 파괴되도록 순서를 보장합니다.
-- [ ] non-loop `PlayOnStart`가 한 번 종료된 뒤 자동 재생성되지 않도록 상태를 기록합니다.
-- [ ] Disable/Enable, AudioGuid 변경, 컴포넌트 삭제, 시뮬레이션 중지 동작을 정의합니다.
-- [ ] 로딩 실패 Stub을 자동 재생 완료로 오인하지 않도록 실패 상태를 분리합니다.
+- [x] `PlayerInstance::Reset()` 또는 동등한 명시적 해제 경로를 추가합니다.
+- [x] Player가 효과를 분리하고 파괴된 뒤 Effect Owner가 파괴되도록 순서를 보장합니다.
+- [x] non-loop `PlayOnStart`가 한 번 종료된 뒤 자동 재생성되지 않도록 상태를 기록합니다.
+- [x] Disable/Enable, AudioGuid 변경, 컴포넌트 삭제, 시뮬레이션 중지 동작을 정의합니다.
+- [x] 로딩 실패 Stub을 자동 재생 완료로 오인하지 않도록 실패 상태를 분리합니다.
 
 ### 검증
 
-- [ ] non-loop PlayOnStart는 정확히 1회 재생
-- [ ] Loop는 명시적으로 중지할 때까지 재생
-- [ ] Disable/Enable 시 정책대로 재생 상태 전환
-- [ ] 효과 0/1/N개 상태에서 Simulation Stop과 Scene Clear 반복
-- [ ] AudioPlayer 멀티 컴포넌트가 독립 상태 유지
-- [ ] `Release_Editor|x64`, GameScript 빌드
+- [x] non-loop PlayOnStart는 정확히 1회 재생
+- [x] Loop는 명시적으로 중지할 때까지 재생
+- [x] Disable/Enable 시 정책대로 재생 상태 전환
+- [x] 효과 0/1/N개 상태에서 Simulation Stop과 Scene Clear 반복
+- [x] AudioPlayer 멀티 컴포넌트가 독립 상태 유지
+- [x] `Release_Editor|x64`, GameScript 빌드
 
 ### 커밋
 
-- [ ] `Make audio instance teardown deterministic` 형태의 단일 커밋
+- [x] `Make audio instance teardown deterministic` 형태의 단일 커밋
 
 ## 단계 4 - 자산 기반 Player 생성과 backend 추상화 복구
 
@@ -326,3 +326,11 @@
 - 검증: 전용 수명 테스트가 수정 전 `0xC0000005`로 실패함을 확인하고 수정 후 일반/ASan에서 각각 100/100회 성공, `Release_Editor|x64`와 `Release_Game|x64` 성공
 - 커밋: `Enforce audio backend child lifetime`
 - 남은 위험: Windows ASan은 leak detector를 지원하지 않아 누수 검사는 포함하지 못함. 오디오 제어 API는 기존 계약대로 엔진 제어 스레드에서 직렬 호출해야 함
+
+### 단계 3 완료 - 2026-07-16
+
+- 구현: PlayerInstance 명시적 backend reset, 활성 구간별 PlayOnStart 상태 머신, 자연 종료/로딩 실패 분리, 공통 `AudioPlayerDesc::StreamPathUtf8` 생성 경로
+- 정책: Disable은 즉시 해제하고 Enable에서 1회 재무장, AudioGuid 변경은 새 소스로 교체, 컴포넌트 삭제는 해당 인스턴스만 해제, Simulation Stop은 모든 재생 상태를 초기화
+- 검증: 수정 전 non-loop 자동 재생성 실패를 재현한 뒤 0/1/N 효과 해제 순서, Loop, Disable/Enable, AudioGuid 변경, 로딩 실패, 멀티 컴포넌트와 컴포넌트 삭제 회귀 테스트 통과
+- 빌드: `Release_Editor|x64`, `GameScriptSample Release|x64`, 기존 MiniAudio backend 수명 100/100 통과
+- 커밋: `Make audio instance teardown deterministic`

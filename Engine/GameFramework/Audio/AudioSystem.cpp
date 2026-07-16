@@ -10,7 +10,6 @@
 #include "Core/Audio/IAudioEffect.h"
 #include "Core/Audio/IAudioListener.h"
 #include "Core/Audio/IAudioPlayer.h"
-#include "Core/Audio/MiniAudio/MiniAudioDevice.h"
 #include "GameFramework/Component/AudioComponents.h"
 #include "GameFramework/Object/GameObject.h"
 #include "GameFramework/Scene/Scene.h"
@@ -66,6 +65,53 @@ namespace
 CAudioSystem::CAudioSystem(SafePtr<IAudioDevice> device, SafePtr<IAssetManager> assetMgr)
 	: m_device(device), m_assetManager(assetMgr)
 {
+}
+
+CAudioSystem::PlayerInstance::~PlayerInstance()
+{
+	ResetBackendResources();
+}
+
+CAudioSystem::PlayerInstance::PlayerInstance(PlayerInstance&& other) noexcept
+{
+	*this = std::move(other);
+}
+
+CAudioSystem::PlayerInstance& CAudioSystem::PlayerInstance::operator=(PlayerInstance&& other) noexcept
+{
+	if (this == &other)
+	{
+		return *this;
+	}
+
+	ResetBackendResources();
+	Player = std::move(other.Player);
+	SourceGuid = std::move(other.SourceGuid);
+	EffectGuids = std::move(other.EffectGuids);
+	Effects = std::move(other.Effects);
+	EffectGenerations = std::move(other.EffectGenerations);
+	State = other.State;
+	WasEffectivelyEnabled = other.WasEffectivelyEnabled;
+	PlayOnStartConsumed = other.PlayOnStartConsumed;
+
+	other.State = EState::Inactive;
+	other.WasEffectivelyEnabled = false;
+	other.PlayOnStartConsumed = false;
+	return *this;
+}
+
+void CAudioSystem::PlayerInstance::ResetBackendResources()
+{
+	if (Player)
+	{
+		Player->DetachAllEffects();
+		Player->Stop();
+		Player.Reset();
+	}
+
+	Effects.clear();
+	EffectGenerations.clear();
+	EffectGuids.clear();
 }
 
 void CAudioSystem::SetDevice(SafePtr<IAudioDevice> device)
@@ -176,83 +222,98 @@ void CAudioSystem::OnUpdate(CGameScene& scene)
 			const bool effectivelyEnabled = IsActiveComponent(player)
 				&& false == player.AudioGuid.IsNull();
 
-			auto it = m_instances.find(key);
+			auto [it, inserted] = m_instances.try_emplace(key);
+			PlayerInstance& instance = it->second;
+			const bool sourceChanged = inserted || instance.SourceGuid != player.AudioGuid;
+			if (sourceChanged)
+			{
+				instance.ResetBackendResources();
+				instance.SourceGuid = player.AudioGuid;
+				instance.State = effectivelyEnabled
+					? PlayerInstance::EState::PendingCreate
+					: PlayerInstance::EState::Inactive;
+				instance.PlayOnStartConsumed = false;
+			}
 
 			if (false == effectivelyEnabled)
 			{
-				// 비활성/자산 미지정 → 인스턴스가 있다면 즉시 해제 (자원 누수 방지).
-				if (it != m_instances.end())
+				// 비활성/자산 미지정은 backend 자원만 즉시 해제한다. 상태 레코드를 남겨
+				// 다음 활성 전환을 명시적으로 감지하고 PlayOnStart를 한 번만 재허용한다.
+				if (instance.WasEffectivelyEnabled || instance.Player)
 				{
-					if (it->second.Player) it->second.Player->Stop();
-					m_instances.erase(it);
+					instance.ResetBackendResources();
+					instance.PlayOnStartConsumed = false;
 				}
+				instance.WasEffectivelyEnabled = false;
+				instance.State = PlayerInstance::EState::Inactive;
 				return;
 			}
 
-			// 자산이 바뀌었다면 기존 인스턴스를 버리고 재생성.
-			if (it != m_instances.end() && it->second.SourceGuid != player.AudioGuid)
+			if (false == instance.WasEffectivelyEnabled)
 			{
-				if (it->second.Player) it->second.Player->Stop();
-				m_instances.erase(it);
-				it = m_instances.end();
+				instance.ResetBackendResources();
+				instance.State = PlayerInstance::EState::PendingCreate;
+				instance.PlayOnStartConsumed = false;
 			}
+			instance.WasEffectivelyEnabled = true;
 
 			// 인스턴스 신규 생성.
-			if (it == m_instances.end())
+			if (PlayerInstance::EState::PendingCreate == instance.State)
 			{
 				if (false == m_assetManager.IsValid()) return;
 
 				AssetMetaData metaData;
-				if (false == m_assetManager->GetRegistry().TryGetAsset(player.AudioGuid, metaData)) return;
+				if (false == m_assetManager->GetRegistry().TryGetAsset(player.AudioGuid, metaData))
+				{
+					instance.State = PlayerInstance::EState::LoadFailed;
+					return;
+				}
 
 				File::Path resolvedPath;
-				if (false == m_assetManager->ResolveAssetPath(metaData.Path, resolvedPath)) return;
-
-				// MiniAudioDevice 의 편의 메서드 사용 — 백엔드 비-mini 인 경우 stub player 폴백.
-				OwnerPtr<IAudioPlayer> created;
-#if defined(JBRO_HAS_MINIAUDIO) && JBRO_HAS_MINIAUDIO
-				if (CMiniAudioDevice* mini = dynamic_cast<CMiniAudioDevice*>(m_device.TryGet()))
+				if (false == m_assetManager->ResolveAssetPath(metaData.Path, resolvedPath))
 				{
-					const auto u8 = resolvedPath.generic_u8string();
-					const std::string utf8Path(reinterpret_cast<const char*>(u8.c_str()), u8.size());
-					created = mini->CreatePlayerFromFile(utf8Path.c_str());
+					instance.State = PlayerInstance::EState::LoadFailed;
+					return;
 				}
-#endif
+
+				const auto u8 = resolvedPath.generic_u8string();
+				const std::string utf8Path(reinterpret_cast<const char*>(u8.c_str()), u8.size());
+				AudioPlayerDesc desc;
+				desc.StreamPathUtf8 = utf8Path.c_str();
+				OwnerPtr<IAudioPlayer> created = m_device->CreatePlayer(desc);
 				if (false == bool(created))
 				{
-					// 백엔드가 desc 기반만 제공하는 경우의 폴백 — 빈 player.
-					AudioPlayerDesc desc;
-					created = m_device->CreatePlayer(desc);
+					// 실패를 자연 종료와 분리하고 같은 활성 구간에서는 매 프레임 재시도하지 않는다.
+					instance.State = PlayerInstance::EState::LoadFailed;
+					return;
 				}
-				if (false == bool(created)) return;
 
-				PlayerInstance inst;
-				inst.Player     = std::move(created);
-				inst.SourceGuid = player.AudioGuid;
+				instance.Player = std::move(created);
+				instance.State = PlayerInstance::EState::Ready;
 
 				// 시작 옵션 적용.
-				inst.Player->SetVolume(player.Volume);
-				inst.Player->SetPitch (player.Pitch);
-				inst.Player->SetLoop  (player.Loop);
-				if (player.PlayOnStart)
-				{
-					inst.Player->Play();
-				}
-
-				it = m_instances.emplace(key, std::move(inst)).first;
+				instance.Player->SetVolume(player.Volume);
+				instance.Player->SetPitch (player.Pitch);
+				instance.Player->SetLoop  (player.Loop);
 			}
 
 			// 매 프레임 갱신 — 인스턴스별 오버라이드를 player 에 반영.
-			if (it->second.Player)
+			if (instance.Player)
 			{
-				it->second.Player->SetVolume(player.Volume);
-				it->second.Player->SetPitch (player.Pitch);
-				it->second.Player->SetLoop  (player.Loop);
+				instance.Player->SetVolume(player.Volume);
+				instance.Player->SetPitch (player.Pitch);
+				instance.Player->SetLoop  (player.Loop);
 
 				// 효과 체인(EffectGuids) 동기.
 				if (m_assetManager.IsValid() && m_device.IsValid())
 				{
-					SyncEffectChain(it->second, player);
+					SyncEffectChain(instance, player);
+				}
+
+				if (player.PlayOnStart && false == instance.PlayOnStartConsumed)
+				{
+					instance.Player->Play();
+					instance.PlayOnStartConsumed = true;
 				}
 
 				if (player.Is3D)
@@ -261,17 +322,18 @@ void CAudioSystem::OnUpdate(CGameScene& scene)
 					spatial.Is3D        = true;
 					spatial.MinDistance = player.MinDistance;
 					spatial.MaxDistance = player.MaxDistance;
-					it->second.Player->SetSpatial(spatial);
+					instance.Player->SetSpatial(spatial);
 
 					// Transform 은 이제 GameObject 의 멤버라 항상 존재.
-					it->second.Player->SetPosition(ExtractWorldPosition(*owner));
+					instance.Player->SetPosition(ExtractWorldPosition(*owner));
 				}
 
-				// non-loop 자산이 끝까지 재생됐다면 인스턴스 해제 — GC.
-				if (false == player.Loop && it->second.Player->IsEnded())
+				// 자연 종료는 상태 레코드를 보존한다. 같은 활성 구간에서 PlayOnStart가
+				// 다시 생성되지 않고 Disable/Enable 또는 AudioGuid 변경 때만 재무장된다.
+				if (false == player.Loop && instance.Player->IsEnded())
 				{
-					it->second.Player->Stop();
-					m_instances.erase(it);
+					instance.ResetBackendResources();
+					instance.State = PlayerInstance::EState::Finished;
 				}
 			}
 		});
@@ -281,7 +343,7 @@ void CAudioSystem::OnUpdate(CGameScene& scene)
 	{
 		if (seen.find(it->first) == seen.end())
 		{
-			if (it->second.Player) it->second.Player->Stop();
+			it->second.ResetBackendResources();
 			it = m_instances.erase(it);
 		}
 		else
@@ -293,10 +355,10 @@ void CAudioSystem::OnUpdate(CGameScene& scene)
 
 void CAudioSystem::OnFinalize(CGameScene&)
 {
-	// 씬 종료 — 모든 player 정리.
+	// 씬 종료 — 명시적 순서로 player/effect를 정리하고 상태까지 폐기.
 	for (auto& kv : m_instances)
 	{
-		if (kv.second.Player) kv.second.Player->Stop();
+		kv.second.ResetBackendResources();
 	}
 	m_instances.clear();
 }
@@ -307,7 +369,7 @@ void CAudioSystem::OnSimulationStop(CGameScene&)
 	// 편집 모드에선 OnUpdate 가 안 돌아 자동 GC 가 없으므로 여기서 명시 정리.
 	for (auto& kv : m_instances)
 	{
-		if (kv.second.Player) kv.second.Player->Stop();
+		kv.second.ResetBackendResources();
 	}
 	m_instances.clear();
 }
