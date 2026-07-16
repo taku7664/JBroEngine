@@ -74,6 +74,9 @@ template<> inline EReflectPropertyType ScriptFieldTypeOf<File::Guid>()
 
 // ── 씬 / 오브젝트 ────────────────────────────────────────────────────────────
 #include "GameFramework/Scene/Scene.h"
+// Script.SceneManager 로 캔버스를 다루려면(전환 요청 등) 완전 타입이 필요하다.
+// 이 헤더는 yaml-cpp 를 끌어오지 않는다 — 게임 DLL 이 링크할 수 있는 인라인만 노출한다.
+#include "GameFramework/Scene/SceneManager.h"
 #include "GameFramework/Object/GameObject.h"
 
 // 스크립트 작성자용 별칭: 실체 타입은 CGameObject 지만 스크립트에선 GameObject 로 쓴다.
