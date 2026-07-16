@@ -45,6 +45,7 @@ LayerPropertySnapshot LayerPropertySnapshot::Capture(const CGameLayer& layer)
 	snapshot.Static = layer.Static;
 	snapshot.ForceOwnTexture = layer.ForceOwnTexture;
 	snapshot.ParallaxFactor = layer.ParallaxFactor;
+	snapshot.KeepOnCanvasChange = layer.KeepOnCanvasChange;
 	return snapshot;
 }
 
@@ -57,6 +58,7 @@ void LayerPropertySnapshot::ApplyTo(CGameLayer& layer) const
 	layer.Static = Static;
 	layer.ForceOwnTexture = ForceOwnTexture;
 	layer.ParallaxFactor = ParallaxFactor;
+	layer.KeepOnCanvasChange = KeepOnCanvasChange;
 }
 
 // ── CSetLayerPropertyCommand ─────────────────────────────────────────────────

@@ -328,6 +328,8 @@ Entries:
   inspector.layer.static: 정적(렌더 동결)
   inspector.layer.force_own_texture: 전용 텍스처 강제
   inspector.layer.parallax: 패럴랙스 계수
+  inspector.layer.keep_on_canvas_change: 캔버스 전환 시 승계
+  inspector.layer.keep_on_canvas_change.tooltip: "이 레이어 에셋을 함께 참조하는 다른 캔버스로 전환할 때, 새로 로드하지 않고 지금 살아있는 이 레이어를 그대로 물려받습니다. 오브젝트·스크립트·참조가 무손상으로 넘어갑니다. 끄면 파괴 후 파일에서 새로 로드합니다."
   inspector.layer.warning.static_dynamic: "정적 레이어인데 움직이는 오브젝트가 %d개 있습니다 — 렌더가 동결돼 움직임이 화면에 안 보입니다."
   inspector.remove_component: 컴포넌트 제거
   editor.menu.copy_object: 오브젝트 복사

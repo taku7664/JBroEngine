@@ -1908,6 +1908,22 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			}
 		});
 
+		// 승계는 `.jlayer` 에서 온 레이어만 가능하다 — 인라인 레이어는 전환 후 그 인스턴스를
+		// 지목할 방법이 없어(파일 신원이 없다) 언제나 새로 로드된다. 그래서 에셋 레이어에만 띄운다.
+		if (false == layer->SourceAssetGuid.IsNull())
+		{
+			bool keepOnCanvasChange = layer->KeepOnCanvasChange;
+			layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorLayerKeepOnCanvasChange)); }, [&]() {
+				if (ImGui::Checkbox("##inspector.layer.keep_on_canvas_change", &keepOnCanvasChange))
+				{
+					LayerPropertySnapshot properties = LayerPropertySnapshot::Capture(*layer);
+					properties.KeepOnCanvasChange = keepOnCanvasChange;
+					apply(EField::KeepOnCanvasChange, properties);
+				}
+				ImGui::SetItemTooltip("%s", Loc::Text(EditorLocKeys::InspectorLayerKeepOnCanvasChangeTooltip));
+			});
+		}
+
 		// Static 은 렌더 동결이라 그 안의 움직이는 오브젝트는 화면에 반영되지 않는다.
 		if (layer->Static && Engine.Reflection.IsValid())
 		{

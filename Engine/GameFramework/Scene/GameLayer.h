@@ -80,6 +80,16 @@ public:
 	// 이 레이어가 나온 `.jlayer` 에셋. null = 캔버스에 인라인으로만 존재하는 레이어.
 	// 캔버스 파일의 레이어 노드에만 저장한다 — 레이어 파일은 자기 자신을 참조하지 않는다.
 	File::Guid      SourceAssetGuid;
+	// 캔버스 전환 시 같은 `.jlayer` 에서 온 레이어가 이미 살아 있으면 그 인스턴스를 승계한다
+	// (오브젝트·스크립트·Ref 가 무손상으로 넘어온다). false = 파괴 후 파일에서 새로 로드.
+	//
+	// **수신 캔버스의 참조별 설정**이다 — 같은 레이어라도 캔버스마다 다르게 저작한다(던전B 는
+	// 플레이어를 승계, 보스캔버스는 리셋). 그래서 캔버스 파일의 레이어 노드에만 저장하고,
+	// SourceAssetGuid 가 null 인 인라인 레이어에는 의미가 없다(승계 대상이 아니다).
+	//
+	// 기본 false = 승계는 명시 opt-in — 초대장 모델의 취지이자, 기본값이 상태 이월이면
+	// 리셋을 원하는 캔버스마다 일일이 꺼야 한다.
+	bool            KeepOnCanvasChange = false;
 	ELayerBlendMode BlendMode = ELayerBlendMode::Normal;
 	float           Opacity = 1.0f;          // 0~1. 컴포짓 시 알파 곱(페이드 연출용).
 	bool            Visible = true;          // false = 렌더 제외(시뮬은 계속).

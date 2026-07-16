@@ -320,6 +320,8 @@ namespace EditorLocKeys
 	constexpr const char* InspectorLayerBlendNormal = "inspector.layer.blend.normal";
 	constexpr const char* InspectorLayerBlendScreen = "inspector.layer.blend.screen";
 	constexpr const char* InspectorLayerForceOwnTexture = "inspector.layer.force_own_texture";
+	constexpr const char* InspectorLayerKeepOnCanvasChange = "inspector.layer.keep_on_canvas_change";
+	constexpr const char* InspectorLayerKeepOnCanvasChangeTooltip = "inspector.layer.keep_on_canvas_change.tooltip";
 	constexpr const char* InspectorLayerOpacity = "inspector.layer.opacity";
 	constexpr const char* InspectorLayerParallax = "inspector.layer.parallax";
 	constexpr const char* InspectorLayerProperties = "inspector.layer.properties";

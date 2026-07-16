@@ -64,6 +64,8 @@ YAML::Node WriteLayerNode(const CGameLayer& layer, bool includeSourceAsset)
 	if (includeSourceAsset && false == layer.SourceAssetGuid.IsNull())
 	{
 		node["SourceAsset"] = layer.SourceAssetGuid.generic_string();
+		// 승계 여부는 SourceAsset 이 있을 때만 뜻이 있다(인라인 레이어는 승계 대상이 아니다).
+		node["KeepOnCanvasChange"] = layer.KeepOnCanvasChange;
 	}
 	node["Blend"]           = ToString(layer.BlendMode);
 	node["Opacity"]         = layer.Opacity;
@@ -72,6 +74,25 @@ YAML::Node WriteLayerNode(const CGameLayer& layer, bool includeSourceAsset)
 	node["ForceOwnTexture"] = layer.ForceOwnTexture;
 	node["Parallax"]        = layer.ParallaxFactor;
 	return node;
+}
+
+void ApplyLayerNodeProperties(CGameLayer& layer, const YAML::Node& node)
+{
+	if (!node || false == node.IsMap())
+	{
+		return;
+	}
+
+	layer.Name = node["Name"] ? node["Name"].as<std::string>("Layer") : "Layer";
+
+	const std::string blend = node["Blend"] ? node["Blend"].as<std::string>("Normal") : "Normal";
+	layer.BlendMode          = LayerBlendModeFromString(blend.c_str());
+	layer.Opacity            = node["Opacity"]            ? node["Opacity"].as<float>(1.0f)            : 1.0f;
+	layer.Visible            = node["Visible"]            ? node["Visible"].as<bool>(true)             : true;
+	layer.Static             = node["Static"]             ? node["Static"].as<bool>(false)             : false;
+	layer.ForceOwnTexture    = node["ForceOwnTexture"]    ? node["ForceOwnTexture"].as<bool>(false)    : false;
+	layer.ParallaxFactor     = node["Parallax"]           ? node["Parallax"].as<float>(1.0f)           : 1.0f;
+	layer.KeepOnCanvasChange = node["KeepOnCanvasChange"] ? node["KeepOnCanvasChange"].as<bool>(false) : false;
 }
 
 CGameLayer* ReadLayerNodeInto(CGameScene& scene, const YAML::Node& node)
@@ -107,13 +128,7 @@ CGameLayer* ReadLayerNodeInto(CGameScene& scene, const YAML::Node& node)
 	{
 	}
 
-	const std::string blend = node["Blend"] ? node["Blend"].as<std::string>("Normal") : "Normal";
-	layer->BlendMode       = LayerBlendModeFromString(blend.c_str());
-	layer->Opacity         = node["Opacity"]         ? node["Opacity"].as<float>(1.0f)         : 1.0f;
-	layer->Visible         = node["Visible"]         ? node["Visible"].as<bool>(true)          : true;
-	layer->Static          = node["Static"]          ? node["Static"].as<bool>(false)          : false;
-	layer->ForceOwnTexture = node["ForceOwnTexture"] ? node["ForceOwnTexture"].as<bool>(false) : false;
-	layer->ParallaxFactor  = node["Parallax"]        ? node["Parallax"].as<float>(1.0f)        : 1.0f;
+	ApplyLayerNodeProperties(*layer, node);
 	return layer;
 }
 

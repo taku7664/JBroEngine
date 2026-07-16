@@ -30,6 +30,11 @@ namespace Serialization
 	// includeSourceAsset=false 면 SourceAsset 키를 빼고 쓴다 — 레이어 파일 안에 자기 자신을
 	// 가리키는 참조를 남기지 않기 위해서다(캔버스만 "이 레이어는 저 에셋에서 왔다"를 적는다).
 	YAML::Node WriteLayerNode(const CGameLayer& layer, bool includeSourceAsset = true);
+	// 노드의 컴포짓 속성(이름·블렌드·Opacity·가시성·Static·ForceOwnTexture·Parallax·승계여부)을
+	// 기존 레이어에 덮는다. **InstanceGuid 와 SourceAsset 은 건드리지 않는다** — 신원은 노드가
+	// 아니라 인스턴스의 것이고, 캔버스 전환의 승계 레이어는 인스턴스가 살아남으므로 신원도
+	// 그대로여야 한다(guid 재발급 금지 = 크로스 레이어 Ref 의 전제).
+	void ApplyLayerNodeProperties(CGameLayer& layer, const YAML::Node& node);
 	// 노드에서 새 레이어를 만들어 scene 에 추가하고 속성 + InstanceGuid 를 복원한다.
 	// 실패 시 nullptr.
 	CGameLayer* ReadLayerNodeInto(CGameScene& scene, const YAML::Node& node);

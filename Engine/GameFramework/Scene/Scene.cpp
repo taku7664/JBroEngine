@@ -198,6 +198,22 @@ SafePtr<CGameLayer> CGameScene::FindLayerByName(const char* name) const
 	return nullptr;
 }
 
+SafePtr<CGameLayer> CGameScene::FindLayerBySourceAsset(const File::Guid& sourceAssetGuid) const
+{
+	if (sourceAssetGuid.IsNull())
+	{
+		return nullptr;
+	}
+	for (const OwnerPtr<CGameLayer>& layer : m_layers)
+	{
+		if (layer && layer->SourceAssetGuid == sourceAssetGuid)
+		{
+			return layer.GetSafePtr();
+		}
+	}
+	return nullptr;
+}
+
 SafePtr<CGameLayer> CGameScene::FindLayerByInstanceGuid(const File::Guid& guid) const
 {
 	if (guid.IsNull())
@@ -1063,6 +1079,11 @@ void CGameScene::ClearObjects()
 	// 레이어·뷰포트는 오브젝트 정리 뒤 마지막에 — 직렬화 로드가 파일 기준으로 재구성한다.
 	m_pendingDestroyLayers.clear();
 	m_layers.clear();
+	m_viewports.clear();
+}
+
+void CGameScene::ClearViewports()
+{
 	m_viewports.clear();
 }
 

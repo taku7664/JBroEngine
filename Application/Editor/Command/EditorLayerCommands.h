@@ -25,6 +25,7 @@ struct LayerPropertySnapshot
 	bool            Static = false;
 	bool            ForceOwnTexture = false;
 	float           ParallaxFactor = 1.0f;
+	bool            KeepOnCanvasChange = false;
 
 	static LayerPropertySnapshot Capture(const CGameLayer& layer);
 	void                         ApplyTo(CGameLayer& layer) const;
@@ -45,6 +46,7 @@ public:
 		Static,
 		ForceOwnTexture,
 		ParallaxFactor,
+		KeepOnCanvasChange,
 	};
 
 	CSetLayerPropertyCommand(

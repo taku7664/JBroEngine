@@ -328,6 +328,8 @@ Entries:
   inspector.layer.static: Static (Freeze Render)
   inspector.layer.force_own_texture: Force Own Texture
   inspector.layer.parallax: Parallax Factor
+  inspector.layer.keep_on_canvas_change: Keep On Canvas Change
+  inspector.layer.keep_on_canvas_change.tooltip: "When switching to another canvas that also references this layer asset, keep this live layer instead of reloading it. Objects, scripts and references carry over untouched. Off means the layer is destroyed and loaded fresh."
   inspector.layer.warning.static_dynamic: "Static layer contains %d moving object(s) - the render is frozen, so their motion will not show."
   inspector.remove_component: Remove Component
   editor.menu.copy_object: Copy Object

@@ -60,6 +60,10 @@ public:
 	bool                DestroyLayer(CGameLayer* layer);
 	SafePtr<CGameLayer> FindLayerByName(const char* name) const;
 	SafePtr<CGameLayer> FindLayerByInstanceGuid(const File::Guid& guid) const;
+	// 캔버스 전환의 승계 판정 키 — "같은 `.jlayer` 에서 온 레이어가 지금 살아 있는가".
+	// null guid 는 못 찾은 것으로 친다(인라인 레이어끼리 서로 매칭되면 안 된다).
+	// 같은 레이어 파일의 동시 2회 로드가 금지돼 있어 결과는 최대 1개다.
+	SafePtr<CGameLayer> FindLayerBySourceAsset(const File::Guid& sourceAssetGuid) const;
 	std::size_t         GetLayerCount() const { return m_layers.size(); }
 	CGameLayer*         GetLayerAt(std::size_t index) const;
 	// 없으면 -1. cold path 용(직렬화/에디터) — 프레임 루프에서 반복 호출 금지.
@@ -273,6 +277,11 @@ private:
 
 	void ClearObjects();
 	void Clear();
+	// 뷰포트 목록을 통째로 비운다 — 직렬화 로드가 파일 기준으로 재구성하는 사이에만 쓴다.
+	// "뷰포트 0개" 는 존재할 수 없는 상태라(렌더가 매 프레임 기본 1개를 되살린다) 프레임을
+	// 넘기면 안 된다. DestroyViewport 가 마지막 하나를 거부하는 것과 모순이 아니다 —
+	// 저건 사용자 조작, 이건 파일 교체다.
+	void ClearViewports();
 
 private:
 	friend class CGameObject;
