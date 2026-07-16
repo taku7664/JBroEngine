@@ -22,7 +22,8 @@ namespace EditorAudioPreview
     // 디바이스 lazy-init. 이미 초기화되어 있으면 no-op. 실패해도 안전(no-op stub 으로 폴백).
     void EnsureInitialized();
 
-    // 백엔드 종료 — 디바이스/플레이어 해제. 정상 종료 시 호출 권장 (호출 안 해도 누수는 없음).
+    // 백엔드 종료 — 디바이스/플레이어를 결정적으로 해제한다. 장치 소멸자도 안전망으로
+    // Finalize를 수행하지만, 에디터 종료와 프로젝트 전환에서는 명시적으로 호출한다.
     void Shutdown();
 
     // absPathUtf8 파일을 처음부터 재생. 이전 미리듣기는 자동 정지·해제.

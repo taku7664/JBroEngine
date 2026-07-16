@@ -622,10 +622,20 @@ struct MiniAudioDeviceImpl
 };
 
 CMiniAudioDevice::CMiniAudioDevice()  = default;
-CMiniAudioDevice::~CMiniAudioDevice() = default;
+CMiniAudioDevice::~CMiniAudioDevice()
+{
+	Finalize();
+}
 
 bool CMiniAudioDevice::Initialize(const AudioDeviceDesc& desc)
 {
+	// Initialize/Finalize 경계를 호출자가 명시적으로 관리한다. 이미 활성인 장치를
+	// 암묵적으로 재시작하면 외부 Player/Effect가 죽은 node graph를 참조할 수 있다.
+	if (m_impl)
+	{
+		return false;
+	}
+
 	m_impl = MakeOwnerPtr<MiniAudioDeviceImpl>();
 	if (!m_impl) return false;
 

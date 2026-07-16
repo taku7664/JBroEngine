@@ -29,6 +29,8 @@ public:
 	CMiniAudioDevice();
 	~CMiniAudioDevice();
 
+	// 활성 장치에 대한 중복 Initialize는 false를 반환한다. 재초기화하려면 먼저
+	// Finalize를 호출해야 하며, 소멸자는 누락된 Finalize를 안전망으로 수행한다.
 	bool Initialize(const AudioDeviceDesc& desc) override;
 	void Finalize() override;
 	void Tick(float deltaSeconds) override;

@@ -120,6 +120,7 @@ private:
 
 private:
 	bool InitializeImGui();
+	void FinalizeImWindows();
 	void FinalizeImGui();
 
 	bool DestroyImWindowEx(ImGuiID id);

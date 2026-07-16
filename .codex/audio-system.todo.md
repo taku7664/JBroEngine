@@ -42,29 +42,29 @@
 
 ## 단계 1 - 종료 크래시 차단과 RAII 복구
 
-상태: 대기
+상태: 구현 완료 / 실제 오디오 재생 종료 검증 대기
 
 ### 구현
 
-- [ ] `CMiniAudioDevice` 소멸자가 idempotent `Finalize()`를 호출하도록 변경합니다.
-- [ ] 중복 `Initialize()`가 기존 엔진을 누수시키지 않도록 재초기화 계약을 정합니다.
-- [ ] 에디터 종료 시 모든 ImWindow를 명시적으로 `Finalize()`하고 소유 컨테이너를 비운 뒤 ImGui를 종료합니다.
-- [ ] `EditorAudioPreview::Shutdown()`이 에디터 정상 종료에서 정확히 한 번 호출되는지 보장합니다.
-- [ ] 잘못된 "Shutdown 미호출도 안전" 주석을 실제 계약에 맞게 정리합니다.
+- [x] `CMiniAudioDevice` 소멸자가 idempotent `Finalize()`를 호출하도록 변경합니다.
+- [x] 중복 `Initialize()`가 기존 엔진을 누수시키지 않도록 재초기화 계약을 정합니다.
+- [x] 에디터 종료 시 모든 ImWindow를 명시적으로 `Finalize()`하고 소유 컨테이너를 비운 뒤 ImGui를 종료합니다.
+- [x] `EditorAudioPreview::Shutdown()`이 에디터 정상 종료에서 정확히 한 번 호출되는지 보장합니다.
+- [x] 잘못된 "Shutdown 미호출도 안전" 주석을 실제 계약에 맞게 정리합니다.
 
 ### 검증
 
-- [ ] 프리뷰 미사용 종료
+- [x] 프리뷰 미사용 종료
 - [ ] 오디오 에셋 선택 후 미재생 종료
 - [ ] Play -> Stop -> 에디터 종료 20회 반복
 - [ ] Play 중 에디터 종료 20회 반복
 - [ ] miniaudio device/thread가 종료 후 남지 않는지 디버거 또는 진단 로그로 확인
-- [ ] `Release_Editor|x64` 빌드
-- [ ] 관련 수명 테스트 또는 최소 재현 테스트 추가
+- [x] `Release_Editor|x64` 빌드
+- [x] 관련 수명 테스트 또는 최소 재현 테스트 추가
 
 ### 커밋
 
-- [ ] `Fix audio preview shutdown lifetime` 형태의 단일 커밋
+- [x] `Fix audio preview shutdown lifetime` 형태의 단일 커밋
 
 ## 단계 2 - Device와 자식 오디오 객체의 수명 계약
 
@@ -311,3 +311,11 @@
 - 커밋:
 - 남은 위험:
 ```
+
+### 단계 1 구현 완료 - 2026-07-16
+
+- 구현: 오디오 장치 소멸자 RAII, 중복 초기화 실패 계약, ImWindow 역순 종료와 컨테이너 정리, 정상 종료의 프리뷰 Shutdown 연결
+- 검증: `Release_Editor|x64` 성공, `BuildTools/Tests/AudioEditorShutdownSmoke.ps1`로 프리뷰 미사용 정상 종료 20/20회 성공
+- 커밋: `Fix audio preview shutdown lifetime`
+- 남은 위험: Windows UI 캡처가 `SetIsBorderRequired failed (0x80004002)`로 중단되어 오디오 선택, Play/Stop, 재생 중 종료와 device/thread 잔존 검사는 아직 수동 검증이 필요함
+- 진행 제한: 작업 원칙에 따라 위 실제 재생 종료 검증 전에는 단계 2로 넘어가지 않음

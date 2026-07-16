@@ -46,6 +46,10 @@ CImEditor::CImEditor()
 
 CImEditor::~CImEditor()
 {
+    // 정상 경로는 OnPreFinalize에서 먼저 비워진다. 초기화 중 실패처럼 모듈
+    // Finalize가 생략된 경로에서도 창별 OnDestroy와 ImGui 자원을 놓는 안전망이다.
+    FinalizeImWindows();
+    FinalizeImGui();
 }
 
 void CImEditor::BeginFrame()
@@ -550,6 +554,10 @@ void CImEditor::OnPreFinalize()
         }
     }
 
+    // 창의 OnDestroy는 ProjectManager, Engine 서비스와 ImGui context를 사용할 수 있다.
+    // 따라서 모든 창을 먼저 종료한 뒤 서비스와 ImGui backend를 내린다.
+    FinalizeImWindows();
+
     if (m_outlineRenderer)
     {
         m_outlineRenderer->Finalize();
@@ -1030,6 +1038,26 @@ bool CImEditor::InitializeImGui()
     colors[ImGuiCol_DragDropTarget] = ImVec4(0.2f, 0.6f, 0.4f, 1.0f);
 
     return true;
+}
+
+void CImEditor::FinalizeImWindows()
+{
+    // 생성의 역순으로 종료해 dock child가 보통 parent보다 먼저 정리되도록 한다.
+    for (auto it = m_imWindowVector.rbegin(); it != m_imWindowVector.rend(); ++it)
+    {
+        if (CImWindow* window = *it)
+        {
+            window->Finalize();
+        }
+    }
+
+    m_imWindowVector.clear();
+    m_imWindowTable.clear();
+    m_popups.clear();
+    while (false == m_delayEventQueue.empty())
+    {
+        m_delayEventQueue.pop();
+    }
 }
 
 void CImEditor::FinalizeImGui()
