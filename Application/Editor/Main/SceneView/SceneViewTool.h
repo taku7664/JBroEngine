@@ -10,11 +10,11 @@
 class CGameScene;
 class CGameObject;
 
-class CSceneViewTool : public CImWindow
+class CCanvasViewTool : public CImWindow
 {
 public:
     using CImWindow::CImWindow;
-    virtual ~CSceneViewTool() = default;
+    virtual ~CCanvasViewTool() = default;
 
     // 에디터 카메라 상태 getter (저장용: target 값 반환)
     Vector2 GetEditorCameraPos()  const { return m_targetCameraPos; }

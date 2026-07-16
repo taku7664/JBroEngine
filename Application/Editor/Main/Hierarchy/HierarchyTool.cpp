@@ -30,12 +30,12 @@
 #include <string>
 #include <unordered_map>
 
-void CHierarchyTool::OnCreate()
+void CLayerTool::OnCreate()
 {
-	SetLocalizedTitleKey(EditorLocKeys::WindowHierarchy);
+	SetLocalizedTitleKey(EditorLocKeys::WindowLayers);
 }
 
-void CHierarchyTool::OnDestroy()
+void CLayerTool::OnDestroy()
 {
 	// 레이어 썸네일은 이 창만 쓴다 — 창이 사라지면 RT 도 놓는다.
 	if (Editor::ImEditor.IsValid())
@@ -44,11 +44,11 @@ void CHierarchyTool::OnDestroy()
 	}
 }
 
-void CHierarchyTool::OnUpdate()
+void CLayerTool::OnUpdate()
 {
 }
 
-void CHierarchyTool::OnRenderStay()
+void CLayerTool::OnRenderStay()
 {
 	if (false == Engine.SceneManager.IsValid())
 	{
@@ -225,9 +225,9 @@ void CHierarchyTool::OnRenderStay()
 		{
 			Editor::SelectEntity(obj);
 			m_selectionAnchorGuid = obj->GetInstanceGuid();
-			if (Editor::SceneView)
+			if (Editor::CanvasView)
 			{
-				Editor::SceneView->SetFocusContext(obj, *activeScene);
+				Editor::CanvasView->SetFocusContext(obj, *activeScene);
 			}
 		}
 

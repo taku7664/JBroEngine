@@ -543,13 +543,13 @@ namespace EditorLocKeys
 	constexpr const char* WindowBuildSettings = "window.build_settings";
 	constexpr const char* WindowEditorStatistics = "window.editor_statistics";
 	constexpr const char* WindowGameView = "window.game_view";
-	constexpr const char* WindowHierarchy = "window.hierarchy";
+	constexpr const char* WindowLayers = "window.layers";
 	constexpr const char* WindowInspector = "window.inspector";
 	constexpr const char* WindowLog = "window.log";
 	constexpr const char* WindowMain = "window.main";
 	constexpr const char* WindowProjectSettings = "window.project_settings";
 	constexpr const char* WindowRoot = "window.root";
-	constexpr const char* WindowSceneView = "window.scene_view";
+	constexpr const char* WindowCanvasView = "window.canvas_view";
 	constexpr const char* WindowShortcutReference = "window.shortcut_reference";
 }
 

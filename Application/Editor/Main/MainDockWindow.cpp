@@ -57,8 +57,8 @@ void CMainDockWindow::OnCreate()
     SetLocalizedTitleKey(EditorLocKeys::WindowMain);
 
 	ImGuiID id = GetID();
-	Editor::Hierarchy    = Editor::ImEditor->CreateImWindow<CHierarchyTool>   ("Hierarchy",    id);
-	Editor::SceneView    = Editor::ImEditor->CreateImWindow<CSceneViewTool>   ("SceneView",    id);
+	Editor::Layers    = Editor::ImEditor->CreateImWindow<CLayerTool>   ("Hierarchy",    id);
+	Editor::CanvasView    = Editor::ImEditor->CreateImWindow<CCanvasViewTool>   ("SceneView",    id);
 	Editor::GameView     = Editor::ImEditor->CreateImWindow<CGameViewTool>    ("GameView",     id);
 	Editor::Inspector    = Editor::ImEditor->CreateImWindow<CInspectorTool>   ("Inspector",    id);
 	Editor::AssetBrowser = Editor::ImEditor->CreateImWindow<CAssetBrowserTool>("AssetBrowser", id);
@@ -67,9 +67,9 @@ void CMainDockWindow::OnCreate()
 	Editor::EditorStatistics  = Editor::ImEditor->CreateImWindow<CEditorStatisticsTool>("EditorStatistics", id);
 
 	// 슬롯 이름으로 창 배치
-	if (Editor::SceneView)
+	if (Editor::CanvasView)
 	{
-		Editor::SceneView->InitializeDockLayout("");        // 중앙 영역
+		Editor::CanvasView->InitializeDockLayout("");        // 중앙 영역
 	}
 	if (Editor::GameView)
 	{
@@ -93,9 +93,9 @@ void CMainDockWindow::OnCreate()
 		Editor::EditorStatistics->InitializeDockLayout("Bottom");
 		Editor::EditorStatistics->SetVisible(false);
 	}
-	if (Editor::Hierarchy)
+	if (Editor::Layers)
 	{
-		Editor::Hierarchy->InitializeDockLayout("Right");   // Step3 후 나머지
+		Editor::Layers->InitializeDockLayout("Right");   // Step3 후 나머지
 	}
 	if (Editor::Inspector)
 	{

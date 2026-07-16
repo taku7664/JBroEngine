@@ -36,13 +36,13 @@ namespace
 
 	void CaptureProjectState(CProjectManager& projectManager)
 	{
-		if (Editor::SceneView)
+		if (Editor::CanvasView)
 		{
-			const Vector2 cameraPosition = Editor::SceneView->GetEditorCameraPos();
+			const Vector2 cameraPosition = Editor::CanvasView->GetEditorCameraPos();
 			projectManager.SetSceneViewCamera(
 				cameraPosition.x,
 				cameraPosition.y,
-				Editor::SceneView->GetEditorCameraSize());
+				Editor::CanvasView->GetEditorCameraSize());
 		}
 
 		const File::Path& activeScenePath = Editor::GetActiveScenePath();

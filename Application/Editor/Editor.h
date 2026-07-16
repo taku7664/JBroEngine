@@ -16,8 +16,8 @@
 class CImEditor;
 class CRootDockWindow;
 class CMainDockWindow;
-class CHierarchyTool;
-class CSceneViewTool;
+class CLayerTool;
+class CCanvasViewTool;
 class CGameViewTool;
 class CInspectorTool;
 class CAssetBrowserTool;
@@ -37,8 +37,8 @@ public:
 	inline static SafePtr<CImEditor>				ImEditor = nullptr;
 	inline static SafePtr<CRootDockWindow>			RootDockWindow = nullptr;
 	inline static SafePtr<CMainDockWindow>			MainDockWindow = nullptr;
-	inline static SafePtr<CHierarchyTool>			Hierarchy = nullptr;
-	inline static SafePtr<CSceneViewTool>			SceneView = nullptr;
+	inline static SafePtr<CLayerTool>				Layers = nullptr;
+	inline static SafePtr<CCanvasViewTool>			CanvasView = nullptr;
 	inline static SafePtr<CGameViewTool>			GameView = nullptr;
 	inline static SafePtr<CInspectorTool>			Inspector = nullptr;
 	inline static SafePtr<CAssetBrowserTool>		AssetBrowser = nullptr;

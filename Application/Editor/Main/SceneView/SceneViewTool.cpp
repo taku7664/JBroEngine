@@ -247,9 +247,9 @@ namespace
 
 } // anonymous namespace
 
-// ── CSceneViewTool ─────────────────────────────────────────────────────────────
+// ── CCanvasViewTool ─────────────────────────────────────────────────────────────
 
-void CSceneViewTool::SetEditorCamera(float x, float y, float size)
+void CCanvasViewTool::SetEditorCamera(float x, float y, float size)
 {
     m_targetCameraPos  = Vector2(x, y);
     m_cameraPos        = Vector2(x, y);
@@ -257,7 +257,7 @@ void CSceneViewTool::SetEditorCamera(float x, float y, float size)
     m_cameraSize       = m_targetCameraSize;
 }
 
-void CSceneViewTool::FocusOnEntity(CGameObject* object, const CGameScene& scene)
+void CCanvasViewTool::FocusOnEntity(CGameObject* object, const CGameScene& scene)
 {
     (void)scene;
     if (nullptr == object) return;
@@ -290,7 +290,7 @@ void CSceneViewTool::FocusOnEntity(CGameObject* object, const CGameScene& scene)
     m_targetCameraSize = newSize;
 }
 
-void CSceneViewTool::SetFocusContext(CGameObject* object, const CGameScene& scene)
+void CCanvasViewTool::SetFocusContext(CGameObject* object, const CGameScene& scene)
 {
     if (nullptr == object) return;
 
@@ -301,12 +301,12 @@ void CSceneViewTool::SetFocusContext(CGameObject* object, const CGameScene& scen
     FocusOnEntity(object, scene);
 }
 
-void CSceneViewTool::ClearEditContext()
+void CCanvasViewTool::ClearEditContext()
 {
     m_editCtx.Clear();
 }
 
-Vector2 CSceneViewTool::GetPreferredPasteWorldPosition() const
+Vector2 CCanvasViewTool::GetPreferredPasteWorldPosition() const
 {
 	if (m_lastViewportHovered && m_lastViewportSize.x > 0.0f && m_lastViewportSize.y > 0.0f)
 	{
@@ -320,25 +320,25 @@ Vector2 CSceneViewTool::GetPreferredPasteWorldPosition() const
 	return m_cameraPos;
 }
 
-CGameObject* CSceneViewTool::GetFocusedEditContext() const
+CGameObject* CCanvasViewTool::GetFocusedEditContext() const
 {
 	return m_editCtx.GetContext();
 }
 
-void CSceneViewTool::OnCreate()
+void CCanvasViewTool::OnCreate()
 {
-    SetLocalizedTitleKey(EditorLocKeys::WindowSceneView);
+    SetLocalizedTitleKey(EditorLocKeys::WindowCanvasView);
 }
 
-void CSceneViewTool::OnDestroy()
-{
-}
-
-void CSceneViewTool::OnUpdate()
+void CCanvasViewTool::OnDestroy()
 {
 }
 
-void CSceneViewTool::OnRenderStay()
+void CCanvasViewTool::OnUpdate()
+{
+}
+
+void CCanvasViewTool::OnRenderStay()
 {
     ImVec2 vpSize = ImGui::GetContentRegionAvail();
     vpSize.x = std::max(vpSize.x, 1.0f);

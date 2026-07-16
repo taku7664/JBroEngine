@@ -3,11 +3,11 @@
 #include "Engine/Editor/ImWindow/ImWindow.h"
 #include "Utillity/File/FilePath.h"
 
-class CHierarchyTool : public CImWindow
+class CLayerTool : public CImWindow
 {
 public:
 	using CImWindow::CImWindow;
-	virtual ~CHierarchyTool() = default;
+	virtual ~CLayerTool() = default;
 
 private:
 	void OnCreate() override;

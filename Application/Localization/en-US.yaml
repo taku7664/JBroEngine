@@ -2,8 +2,8 @@ Locale: en-US
 Entries:
   window.root: Root
   window.main: Main
-  window.hierarchy: Canvas View
-  window.scene_view: Scene View
+  window.layers: Layers
+  window.canvas_view: Canvas View
   window.game_view: Game View
   window.inspector: Inspector
   window.asset_browser: Asset Browser

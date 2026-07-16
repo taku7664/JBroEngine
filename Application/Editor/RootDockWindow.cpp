@@ -533,9 +533,9 @@ void CRootDockWindow::OnMenuBar()
 						}
 
 						// 프로젝트에 저장된 씬뷰 카메라 위치 복원
-						if (Editor::SceneView)
+						if (Editor::CanvasView)
 						{
-							Editor::SceneView->SetEditorCamera(
+							Editor::CanvasView->SetEditorCamera(
 								projectManager->GetSceneViewCamX(),
 								projectManager->GetSceneViewCamY(),
 								projectManager->GetSceneViewCamSize());

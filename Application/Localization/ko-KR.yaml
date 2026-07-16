@@ -2,8 +2,8 @@ Locale: ko-KR
 Entries:
   window.root: Root
   window.main: Main
-  window.hierarchy: 캔버스 뷰
-  window.scene_view: 씬 뷰
+  window.layers: 레이어
+  window.canvas_view: 캔버스 뷰
   window.game_view: 게임 뷰
   window.inspector: 인스펙터
   window.asset_browser: 에셋 브라우저
