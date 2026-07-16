@@ -496,86 +496,83 @@ void CLiveCompileManager::TakeScriptSnapshot()
 		return;
 	}
 
-	std::vector<std::string> sceneNames;
-	if (false == sceneMgr->GetLoadedSceneNames(sceneNames))
+	// 런타임 캔버스는 하나뿐이다 — 예전처럼 로드된 씬 목록을 훑을 대상이 없다.
+	SafePtr<CGameScene> canvas = sceneMgr->GetActiveScene();
+	if (false == canvas.IsValid())
 	{
 		return;
 	}
 
-	for (const std::string& sceneName : sceneNames)
+	const std::string sceneName = canvas->GetName();
+	ForEachScriptInObjectOrder(*canvas,
+	[&, sceneName](CGameScript& script)
 	{
-		SafePtr<CGameScene> scene = sceneMgr->FindScene(sceneName.c_str());
-		if (false == scene.IsValid()) continue;
-		ForEachScriptInObjectOrder(*scene,
-		[&, sceneName](CGameScript& script)
+		if (script.GetTypeId() == INVALID_TYPE_ID)
 		{
-			if (script.GetTypeId() == INVALID_TYPE_ID)
-			{
-				return;
-			}
-			CGameObject* owner = script.GetOwner().TryGet();
-			if (nullptr == owner)
-			{
-				return;
-			}
+			return;
+		}
+		CGameObject* owner = script.GetOwner().TryGet();
+		if (nullptr == owner)
+		{
+			return;
+		}
 
-			const ScriptTypeInfo* info = reg->FindScript(script.GetTypeId());
-			if (!info)
+		const ScriptTypeInfo* info = reg->FindScript(script.GetTypeId());
+		if (!info)
+		{
+			return;
+		}
+
+		ScriptFieldSnapshot snapshot;
+		snapshot.SceneName     = sceneName;
+		snapshot.OwnerGuid     = owner->GetInstanceGuid();
+		snapshot.ComponentGuid = script.GetInstanceGuid();
+		snapshot.TypeName      = info->Type.Name ? info->Type.Name : "";
+		snapshot.IsEnabled     = script.IsEnabled();
+		const auto& components = owner->GetComponents();
+		for (std::size_t i = 0; i < components.size(); ++i)
+		{
+			if (components[i].TryGet() == &script) { snapshot.ComponentIndex = i; break; }
+		}
+
+		for (const ReflectPropertyInfo& prop : info->Properties)
+		{
+			const void* src = CReflectionRegistry::GetPropertyAddress(static_cast<const void*>(&script), prop);
+			if (nullptr == src)
 			{
-				return;
-			}
-
-			ScriptFieldSnapshot snapshot;
-			snapshot.SceneName     = sceneName;
-			snapshot.OwnerGuid     = owner->GetInstanceGuid();
-			snapshot.ComponentGuid = script.GetInstanceGuid();
-			snapshot.TypeName      = info->Type.Name ? info->Type.Name : "";
-			snapshot.IsEnabled     = script.IsEnabled();
-			const auto& components = owner->GetComponents();
-			for (std::size_t i = 0; i < components.size(); ++i)
-			{
-				if (components[i].TryGet() == &script) { snapshot.ComponentIndex = i; break; }
-			}
-
-			for (const ReflectPropertyInfo& prop : info->Properties)
-			{
-				const void* src = CReflectionRegistry::GetPropertyAddress(static_cast<const void*>(&script), prop);
-				if (nullptr == src)
-				{
-					continue;
-				}
-
-				ScriptFieldValue field;
-				field.Name = prop.Name ? prop.Name : "";
-				field.Type = prop.Type;   // 복원 시 ApplyPendingFields 가 타입별로 올바르게 적용하도록.
-
-				if (EReflectPropertyType::AssetGuid == prop.Type)
-				{
-					// AssetGuid 는 File::Guid(= std::filesystem::path 파생, 내부 포인터 보유) —
-					// raw memcpy 금지. 문자열로 보존하고 복원 시 재구성한다.
-					field.Text = static_cast<const File::Guid*>(src)->generic_string();
-				}
-				else if (EReflectPropertyType::Ref == prop.Type)
-				{
-					// Ref 는 RefBase 의 POD 버퍼 — 문자열로 그대로 읽는다.
-					field.Text = static_cast<const RefBase*>(src)->GuidText();
-				}
-				else if (EReflectPropertyType::String == prop.Type)
-				{
-					field.Text = *static_cast<const std::string*>(src);
-				}
-				else
-				{
-					// trivially-copyable 타입(bool/int/uint/float/Vector2)만 raw bytes 로 보존.
-					field.Data.resize(prop.Size);
-					std::memcpy(field.Data.data(), src, prop.Size);
-				}
-				snapshot.Fields.push_back(std::move(field));
+				continue;
 			}
 
-			m_scriptSnapshots.push_back(std::move(snapshot));
-		});
-	}
+			ScriptFieldValue field;
+			field.Name = prop.Name ? prop.Name : "";
+			field.Type = prop.Type;   // 복원 시 ApplyPendingFields 가 타입별로 올바르게 적용하도록.
+
+			if (EReflectPropertyType::AssetGuid == prop.Type)
+			{
+				// AssetGuid 는 File::Guid(= std::filesystem::path 파생, 내부 포인터 보유) —
+				// raw memcpy 금지. 문자열로 보존하고 복원 시 재구성한다.
+				field.Text = static_cast<const File::Guid*>(src)->generic_string();
+			}
+			else if (EReflectPropertyType::Ref == prop.Type)
+			{
+				// Ref 는 RefBase 의 POD 버퍼 — 문자열로 그대로 읽는다.
+				field.Text = static_cast<const RefBase*>(src)->GuidText();
+			}
+			else if (EReflectPropertyType::String == prop.Type)
+			{
+				field.Text = *static_cast<const std::string*>(src);
+			}
+			else
+			{
+				// trivially-copyable 타입(bool/int/uint/float/Vector2)만 raw bytes 로 보존.
+				field.Data.resize(prop.Size);
+				std::memcpy(field.Data.data(), src, prop.Size);
+			}
+			snapshot.Fields.push_back(std::move(field));
+		}
+
+		m_scriptSnapshots.push_back(std::move(snapshot));
+	});
 }
 
 // ── RestoreScriptSnapshot ─────────────────────────────────────────────────────

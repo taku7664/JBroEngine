@@ -50,17 +50,17 @@ void CSceneAssetOpenHandler::Open(CAssetBrowserTool&, const AssetBrowserEntry& e
 	const std::string sceneName = entry.RelativePath.empty()
 		? entry.DisplayNameUtf8
 		: EditorPathUtils::ToUtf8(entry.RelativePath);
-	CGameScene* scene = Engine.SceneManager->CreateScene(sceneName.c_str());
-	if (nullptr == scene)
-	{
-		CSystemLog::Error(Utillity::U8(u8"씬 로드에 실패하였습니다."));
-		return;
-	}
+	// 런타임 캔버스는 하나 — 파일을 열어도 인스턴스는 그대로 두고 내용만 갈아끼운다.
+	// 그래서 열기는 곧 현재 오브젝트·레이어의 파괴다. 선택은 파괴 전에 놓는다(SafePtr 라
+	// 댕글링은 아니지만, 놓지 않으면 인스펙터가 죽은 선택을 든 채 한 프레임을 넘긴다).
+	Editor::ClearSelection();
+	CGameScene* scene = &Engine.SceneManager->GetOrCreateCanvas();
 
 	CSceneSerializer serializer;
 	if (ESceneSerializeResult::Success == serializer.LoadFromFile(*scene, entry.AbsolutePath))
 	{
-		Engine.SceneManager->AcquireReferencedAssets(*scene);
+		Engine.SceneManager->SetCanvasName(sceneName.c_str());
+		Engine.SceneManager->RefreshReferencedAssets();
 		if (const EngineCore* context = Editor::ImEditor ? Editor::ImEditor->GetEditorEngineCore() : nullptr)
 		{
 			CSpriteAnimationSystem* animationSystem = CSceneRuntimeAccess::FindSystem<CSpriteAnimationSystem>(*scene);
@@ -119,7 +119,6 @@ void CSceneAssetOpenHandler::Open(CAssetBrowserTool&, const AssetBrowserEntry& e
 				audioSystem->SetAssetManager(context->AssetManager);
 			}
 		}
-		Engine.SceneManager->SetActiveScene(sceneName.c_str());
 		Editor::SetActiveScenePath(entry.AbsolutePath);
 		Editor::CommandManager.SetActiveDocument(sceneName.c_str());
 		Editor::CommandManager.MarkSaved(sceneName.c_str());

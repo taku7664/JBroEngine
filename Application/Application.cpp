@@ -346,24 +346,19 @@ namespace
 #endif
 	}
 
-	// 런타임 씬 1개의 노드(구조)만 로드한다 — 리소스(에셋)는 로드하지 않는다.
-	// 리소스는 그 씬이 active 가 될 때(SetActiveScene) 비로소 로드된다.
+	// 런타임 캔버스에 씬 파일 내용을 싣고 리소스(에셋)까지 확보한다.
 	//  · guid 가 유효하면 패키지 에셋(LoadAsset → text)에서, 아니면 경로(ResolveAssetPath)에서 로드.
-	//  · Sprite/Audio 시스템을 부착하고 ScriptCore 디바이스를 주입한다(씬마다 필요).
-	// 반환: 로드+부착 성공 여부. 실패 시 생성한 씬을 정리한다.
-	bool LoadRuntimeSceneNodes(CSceneManager& sceneManager,
-	                           IAssetManager& assetManager,
-	                           const ScriptCore* context,
-	                           const std::string& sceneName,
-	                           const AssetGuid& sceneGuid,
-	                           const std::string& scenePathText)
+	//  · Sprite/Audio 시스템을 부착하고 ScriptCore 디바이스를 주입한다.
+	// 캔버스는 런타임에 하나뿐이라 "실패 시 만든 씬을 지운다"가 성립하지 않는다 —
+	// 실패하면 캔버스는 로드 이전 상태(대개 빈 상태)로 남고 호출자가 부팅을 접는다.
+	bool LoadRuntimeCanvas(CSceneManager& sceneManager,
+	                       IAssetManager& assetManager,
+	                       const ScriptCore* context,
+	                       const std::string& sceneName,
+	                       const AssetGuid& sceneGuid,
+	                       const std::string& scenePathText)
 	{
-		CGameScene* scene = sceneManager.CreateScene(sceneName.c_str());
-		if (nullptr == scene)
-		{
-			CSystemLog::Error(std::string("Runtime scene creation failed: ") + sceneName);
-			return false;
-		}
+		CGameScene* scene = &sceneManager.GetOrCreateCanvas();
 
 		CSceneSerializer serializer;
 		ESceneSerializeResult loadResult = ESceneSerializeResult::IoError;
@@ -381,7 +376,6 @@ namespace
 		{
 			if constexpr (false == AllowRuntimeScenePathFallback())
 			{
-				sceneManager.DestroyScene(sceneName.c_str());
 				CSystemLog::Error(std::string("Runtime scene path fallback is not allowed in release package: ") + scenePathText);
 				return false;
 			}
@@ -389,7 +383,6 @@ namespace
 			File::Path scenePath;
 			if (false == assetManager.ResolveAssetPath(File::Path(scenePathText), scenePath))
 			{
-				sceneManager.DestroyScene(sceneName.c_str());
 				CSystemLog::Error(std::string("Runtime scene path resolve failed: ") + scenePathText);
 				return false;
 			}
@@ -398,12 +391,16 @@ namespace
 
 		if (ESceneSerializeResult::Success != loadResult)
 		{
-			sceneManager.DestroyScene(sceneName.c_str());
 			CSystemLog::Error(std::string("Runtime scene load failed: ") + sceneName);
 			return false;
 		}
 
-		// 씬마다 렌더/오디오 시스템을 부착하고 ScriptCore 디바이스를 주입한다.
+		// 내용이 실린 뒤에야 이름·리소스를 확정한다 — 실패 경로가 옛 이름을 덮어쓰지 않게.
+		sceneManager.SetCanvasName(sceneName.c_str());
+		sceneManager.RefreshReferencedAssets();
+
+		// 캔버스에 렌더/오디오 시스템을 부착하고 ScriptCore 디바이스를 주입한다.
+		// 시스템은 ClearObjects 로 지워지지 않으므로(캔버스 수명에 붙는다) Find→Add 로 멱등이다.
 		if (context)
 		{
 			// 렌더 시스템은 호스트 전용 — 전역 `Engine`(EngineCore)에서 직접 가져온다.
@@ -498,42 +495,13 @@ bool CGameApplication::LoadRuntimeStartupScene(const BuildManifest& manifest)
 		? manifest.StartupScene
 		: startupSceneGuid.generic_string();
 
-	// ── 1) 모든 빌드 씬의 노드(구조)를 선로드한다(리소스 제외) ──────────────────
-	// 빌드 패키지는 BuildScenes 를 모두 포함한다. 프로그램 시작 시 전 씬의 노드를 메모리에
-	// 올려 두고, 리소스는 그 씬이 active 가 될 때만 로드한다(SetActiveScene).
-	// startup 씬은 guid 로 로드(경로 의존 회피), 나머지는 경로 문자열로 로드한다.
-	if (false == LoadRuntimeSceneNodes(*sceneManager, *assetManager, context,
-	                                   startupName, startupSceneGuid,
-	                                   manifest.StartupScene))
+	// startup 캔버스만 로드한다 — 런타임 캔버스는 하나고, 전환은 그 하나에 diff 를 적용하는
+	// 것이라 나머지 빌드 씬을 미리 인스턴스화해 둘 자리가 없다(있으면 그게 곧 다중 씬이다).
+	// 다른 캔버스는 전환 시점에 파일에서 읽는다. startup 은 guid 로 로드해 경로 의존을 피한다.
+	if (false == LoadRuntimeCanvas(*sceneManager, *assetManager, context,
+	                               startupName, startupSceneGuid,
+	                               manifest.StartupScene))
 	{
-		return false;
-	}
-
-	for (std::size_t sceneIndex = 0; sceneIndex < manifest.BuildScenes.size(); ++sceneIndex)
-	{
-		const std::string& scenePath = manifest.BuildScenes[sceneIndex];
-		if (scenePath.empty() || scenePath == manifest.StartupScene || scenePath == startupName)
-		{
-			continue; // startup 은 위에서 이미 로드. 중복 스킵.
-		}
-		// BuildScenes 항목은 프로젝트 상대 경로 문자열 — 이를 씬 이름으로도 쓴다(에디터와 동일 키).
-		// GUID 가 있으면 GUID(패키지 에셋)로 로드한다 — release 패키지는 경로 폴백이 금지되므로
-		// GUID 가 비면 debug 에서만 경로 폴백으로 로드된다.
-		const AssetGuid sceneGuid = sceneIndex < manifest.BuildSceneGuids.size()
-			? AssetGuid(manifest.BuildSceneGuids[sceneIndex])
-			: AssetGuid();
-		if (false == LoadRuntimeSceneNodes(*sceneManager, *assetManager, context,
-		                                   scenePath, sceneGuid, scenePath))
-		{
-			// 한 씬 로드 실패는 치명적이지 않게 — 로그만 남기고 나머지를 계속 로드한다.
-			CSystemLog::Warning(std::string("Runtime build scene skipped (load failed): ") + scenePath);
-		}
-	}
-
-	// ── 2) startup 씬을 active 로 전환 → 그 시점에 startup 리소스만 로드된다 ───────
-	if (false == sceneManager->SetActiveScene(startupName.c_str()))
-	{
-		CSystemLog::Error(std::string("Runtime startup scene activation failed: ") + startupName);
 		return false;
 	}
 

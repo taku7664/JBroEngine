@@ -48,7 +48,7 @@ public:
 	CGameScene& operator=(const CGameScene&) = delete;
 
 	// ── 이름 ─────────────────────────────────────────────────────────────────
-	// SceneManager 의 m_scenes 유일 키와 동일(CreateScene 이 설정). Ref<GameScene> 해석 키.
+	// 캔버스 파일 키(SceneManager::SetCanvasName 이 설정). Ref<GameScene> 해석 키.
 	const char* GetName() const { return m_name.c_str(); }
 
 	// ── 레이어 ────────────────────────────────────────────────────────────────
@@ -254,14 +254,22 @@ private:
 	const std::vector<AssetGuid>& GetReferencedAssets() const;
 
 	// ── 로드된 리소스 보유(use-count) ─────────────────────────────────────────
-	// 씬은 노드(구조)만으로도 존재할 수 있다(부트 시 전 씬 노드 선로드). 리소스(에셋)는
-	// 씬이 active 가 될 때만 로드하며, 그 동안 AssetRef(strong) 로 잡아 use-count>0 을 유지해
-	// 자산이 unload/GC 되지 않게 보호한다. 로드 자체는 SceneManager(AssetManager 접근 가능)가
-	// 수행하고, 결과 AssetRef 묶음을 여기에 보관한다. 비active 가 되면 ClearLoadedAssets 로
-	// 해제 → use-count-- → (다른 사용자가 없으면) 추후 GC 대상.
+	// 캔버스가 참조하는 리소스(에셋)는 AssetRef(strong) 로 잡아 use-count>0 을 유지해 자산이
+	// unload/GC 되지 않게 보호한다. 로드 자체는 SceneManager(AssetManager 접근 가능)가 수행하고,
+	// 결과 AssetRef 묶음을 여기에 보관한다. 놓으면 use-count-- → (다른 사용자가 없으면) GC 대상.
 	void SetLoadedAssets(std::vector<AssetRef<IAsset>> loadedAssets) { m_loadedAssets = std::move(loadedAssets); }
 	void ClearLoadedAssets() { m_loadedAssets.clear(); }
 	bool HasLoadedAssets() const { return false == m_loadedAssets.empty(); }
+	// 캔버스 내용 교체 전용 — 보유분을 호출자에게 넘긴다(캔버스는 미보유 상태가 된다).
+	// 호출자는 이 반환값을 **살려 둔 채** 새 목록을 acquire 한 다음 놓아야 한다. 순서가
+	// 뒤집히면 두 캔버스가 공유하는 에셋이 use-count 0 으로 떨어져 unload 됐다가 곧바로
+	// 다시 로드된다(구 SetActiveScene 이 "새 씬 acquire 뒤 옛 씬 release" 였던 이유).
+	std::vector<AssetRef<IAsset>> TakeLoadedAssets()
+	{
+		std::vector<AssetRef<IAsset>> taken = std::move(m_loadedAssets);
+		m_loadedAssets.clear(); // move 후 상태는 미규정 — 명시적으로 빈 상태로 되돌린다.
+		return taken;
+	}
 
 	void ClearObjects();
 	void Clear();
@@ -450,7 +458,7 @@ private:
 	}
 
 private:
-	std::string                        m_name; // SceneManager 키와 동일(CreateScene 설정)
+	std::string                        m_name; // 캔버스 파일 키(SetCanvasName 설정)
 	// 레이어 목록 — 벡터 순서가 곧 컴포짓/실행 순서. 소유는 씬, 공유는 SafePtr.
 	std::vector<OwnerPtr<CGameLayer>>  m_layers;
 	// 뷰포트 목록 — 순서대로 그린다(뒤 항목이 화면 위). 값 타입: 개수가 적고 참조를

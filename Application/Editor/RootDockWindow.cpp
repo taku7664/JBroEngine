@@ -58,17 +58,14 @@ namespace
 			return;
 		}
 
-		CGameScene* scene = Engine.SceneManager->CreateScene(lastScenePath.c_str());
-		if (nullptr == scene)
-		{
-			CSystemLog::Error("Failed to create scene for last opened scene.");
-			return;
-		}
+		// 런타임 캔버스는 하나 — 파일을 열어도 인스턴스는 그대로 두고 내용만 갈아끼운다.
+		CGameScene* scene = &Engine.SceneManager->GetOrCreateCanvas();
 
 		CSceneSerializer serializer;
 		if (ESceneSerializeResult::Success == serializer.LoadFromFile(*scene, File::Path(absolutePath)))
 		{
-			Engine.SceneManager->AcquireReferencedAssets(*scene);
+			Engine.SceneManager->SetCanvasName(lastScenePath.c_str());
+			Engine.SceneManager->RefreshReferencedAssets();
 			if (const EngineCore* context = Editor::ImEditor ? Editor::ImEditor->GetEditorEngineCore() : nullptr)
 			{
 				CSpriteAnimationSystem* animationSystem = CSceneRuntimeAccess::FindSystem<CSpriteAnimationSystem>(*scene);
@@ -132,7 +129,6 @@ namespace
 					audioSystem->SetAssetManager(context->AssetManager);
 				}
 			}
-			Engine.SceneManager->SetActiveScene(lastScenePath.c_str());
 			Editor::SetActiveScenePath(File::Path(absolutePath));
 			Editor::CommandManager.SetActiveDocument(lastScenePath.c_str());
 			Editor::CommandManager.MarkSaved(lastScenePath.c_str());
