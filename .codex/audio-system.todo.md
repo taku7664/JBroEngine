@@ -68,28 +68,28 @@
 
 ## 단계 2 - Device와 자식 오디오 객체의 수명 계약
 
-상태: 대기
+상태: 완료
 
 ### 구현
 
-- [ ] Device가 생성한 Player/Effect/Custom Bus를 추적하거나 동일 효력의 backend-state 계약을 도입합니다.
-- [ ] Device 종료 시 `Player -> Effect -> child Bus -> standard child Bus -> Master Bus -> Engine` 순으로 안전하게 무효화합니다.
-- [ ] 자식 객체 소멸자가 이미 종료된 engine/node graph를 접근하지 않게 합니다.
-- [ ] 외부 OwnerPtr가 Device보다 오래 사는 반례를 명시적으로 지원합니다.
-- [ ] Debug 빌드에서 live child count와 잘못된 종료 순서를 진단합니다.
+- [x] Device가 생성한 Player/Effect/Custom Bus를 추적하거나 동일 효력의 backend-state 계약을 도입합니다.
+- [x] Device 종료 시 `Player -> Effect -> child Bus -> standard child Bus -> Master Bus -> Engine` 순으로 안전하게 무효화합니다.
+- [x] 자식 객체 소멸자가 이미 종료된 engine/node graph를 접근하지 않게 합니다.
+- [x] 외부 OwnerPtr가 Device보다 오래 사는 반례를 명시적으로 지원합니다.
+- [x] Debug 빌드에서 live child count와 잘못된 종료 순서를 진단합니다.
 
 ### 검증
 
-- [ ] 살아 있는 Player를 둔 채 Device Finalize
-- [ ] 살아 있는 Effect/Custom Bus를 둔 채 Device Finalize
-- [ ] Device Finalize 후 각 자식 OwnerPtr 파괴
-- [ ] Initialize/Finalize 100회 반복
-- [ ] ASan 가능 타깃 또는 VS 메모리 진단으로 UAF/이중 해제 확인
-- [ ] `Release_Editor|x64`, `Release_Game|x64` 빌드
+- [x] 살아 있는 Player를 둔 채 Device Finalize
+- [x] 살아 있는 Effect/Custom Bus를 둔 채 Device Finalize
+- [x] Device Finalize 후 각 자식 OwnerPtr 파괴
+- [x] Initialize/Finalize 100회 반복
+- [x] ASan 가능 타깃 또는 VS 메모리 진단으로 UAF/이중 해제 확인
+- [x] `Release_Editor|x64`, `Release_Game|x64` 빌드
 
 ### 커밋
 
-- [ ] `Enforce audio backend child lifetime` 형태의 단일 커밋
+- [x] `Enforce audio backend child lifetime` 형태의 단일 커밋
 
 ## 단계 3 - AudioSystem 재생 상태와 효과 해제 순서 수정
 
@@ -318,4 +318,11 @@
 - 검증: `Release_Editor|x64` 성공, `BuildTools/Tests/AudioEditorShutdownSmoke.ps1`로 프리뷰 미사용 정상 종료 20/20회 성공
 - 커밋: `Fix audio preview shutdown lifetime`
 - 남은 위험: Windows UI 캡처가 `SetIsBorderRequired failed (0x80004002)`로 중단되어 오디오 선택, Play/Stop, 재생 중 종료와 device/thread 잔존 검사는 아직 수동 검증이 필요함
-- 진행 제한: 작업 원칙에 따라 위 실제 재생 종료 검증 전에는 단계 2로 넘어가지 않음
+- 진행 예외: 실제 재생 종료 검증은 미완료지만 2026-07-16 사용자 지시로 단계 2 진행을 승인받음
+
+### 단계 2 완료 - 2026-07-16
+
+- 구현: 공유 backend-state 자식 추적, 오디오 스레드 정지 후 의존 순서 무효화, Effect/Bus 선행 파괴 통지와 Player 재배선, 교차 backend Effect 거부
+- 검증: 전용 수명 테스트가 수정 전 `0xC0000005`로 실패함을 확인하고 수정 후 일반/ASan에서 각각 100/100회 성공, `Release_Editor|x64`와 `Release_Game|x64` 성공
+- 커밋: `Enforce audio backend child lifetime`
+- 남은 위험: Windows ASan은 leak detector를 지원하지 않아 누수 검사는 포함하지 못함. 오디오 제어 API는 기존 계약대로 엔진 제어 스레드에서 직렬 호출해야 함
