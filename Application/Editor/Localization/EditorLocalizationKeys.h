@@ -40,6 +40,7 @@ namespace EditorLocKeys
 	constexpr const char* AssetTypeFontFamily = "asset_type.font_family";
 	constexpr const char* AssetTypeMaterial = "asset_type.material";
 	constexpr const char* AssetTypeMesh = "asset_type.mesh";
+	constexpr const char* AssetTypeLayer = "asset_type.layer";
 	constexpr const char* AssetTypePrefab = "asset_type.prefab";
 	constexpr const char* AssetTypeScene = "asset_type.scene";
 	constexpr const char* AssetTypeScript = "asset_type.script";

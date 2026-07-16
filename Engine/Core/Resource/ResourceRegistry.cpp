@@ -24,6 +24,7 @@ namespace
 		if (s == "AudioEffect") return EAssetType::AudioEffect;
 		if (s == "FontFace")  return EAssetType::FontFace;
 		if (s == "FontFamily") return EAssetType::FontFamily;
+		if (s == "Layer")     return EAssetType::Layer;
 		if (s == "Custom")    return EAssetType::Custom;
 		return EAssetType::Unknown;
 	}

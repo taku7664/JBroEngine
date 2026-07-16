@@ -1432,6 +1432,7 @@ const char* CProjectManager::ImporterNameForType(EAssetType type)
 	case EAssetType::AudioEffect: return "AudioEffect";
 	case EAssetType::FontFace: return "FontFace";
 	case EAssetType::FontFamily: return "FontFamily";
+	case EAssetType::Layer:    return "Layer";
 	default:                   return "Default";
 	}
 }

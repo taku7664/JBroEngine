@@ -12,12 +12,13 @@
 
 namespace
 {
-	// 씬/프리팹/폰트패밀리처럼 하위 의존을 가진 타입만 파일을 열어 전개한다.
+	// 씬/프리팹/레이어/폰트패밀리처럼 하위 의존을 가진 타입만 파일을 열어 전개한다.
 	// 그 외 타입은 리프이므로 파일 접근이 필요 없다.
 	bool TypeHasDependencies(EAssetType type)
 	{
 		return EAssetType::Scene == type
 			|| EAssetType::Prefab == type
+			|| EAssetType::Layer == type
 			|| EAssetType::FontFamily == type;
 	}
 
@@ -27,7 +28,8 @@ namespace
 		{
 			return CFontFamilyAsset::ReadDependencyGuids(absolutePath);
 		}
-		// Scene / Prefab — 프리팹은 씬과 동일한 파일 포맷(ReferencedAssets 시퀀스)이다.
+		// Scene / Prefab / Layer — 셋 다 ReferencedAssets 시퀀스를 최상위에 두는 같은 규약이라
+		// 오브젝트를 만들지 않고 그 키만 읽으면 된다.
 		const CSceneSerializer serializer;
 		return serializer.ReadReferencedAssetsFromFile(absolutePath);
 	}

@@ -167,6 +167,9 @@ private:
 	// 드래그된 항목(m_dragPrimaryPath)이 선택에 포함되면 선택 전체를, 아니면 그 항목만
 	// targetFolder 로 이동(MoveInto) 큐잉.
 	void DropAssetsIntoFolder(const File::Path& targetFolder);
+	// 캔버스 뷰에서 끌어온 레이어를 targetFolder 에 `.jlayer` 로 저장한다(유니티 프리팹 결).
+	// 파일만 쓰면 AssetWatcher 가 감지해 ImportAsset → `.jmeta`(에셋 guid) 를 만든다.
+	void SaveLayerAsAssetInFolder(class CGameLayer& layer, const File::Path& targetFolder);
 	// paths 를 잘라내기/복사 클립보드에 적재.
 	void CutToClipboard(std::vector<File::Path> paths);
 	void CopyToClipboard(std::vector<File::Path> paths);

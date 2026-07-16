@@ -96,6 +96,7 @@ Entries:
   asset_type.shader: 셰이더
   asset_type.scene: 씬
   asset_type.prefab: 프리팹
+  asset_type.layer: 레이어
   asset_type.script: 스크립트
   asset_type.audio: 사운드
   asset_type.audio_effect: 사운드 효과

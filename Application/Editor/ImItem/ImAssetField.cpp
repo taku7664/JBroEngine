@@ -46,6 +46,8 @@ namespace
 			return Loc::Text(EditorLocKeys::AssetTypeFontFace);
 		case EAssetType::FontFamily:
 			return Loc::Text(EditorLocKeys::AssetTypeFontFamily);
+		case EAssetType::Layer:
+			return Loc::Text(EditorLocKeys::AssetTypeLayer);
 		case EAssetType::Custom:
 			return Loc::Text(EditorLocKeys::AssetTypeCustom);
 		case EAssetType::Unknown:

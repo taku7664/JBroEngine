@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "SceneSerializer.h"
 
+#include "GameFramework/Serialization/LayerSerializer.h"
 #include "GameFramework/Serialization/ObjectSerializer.h"
 #include "GameFramework/Object/GameObject.h"
 #include "GameFramework/Reflection/ReflectionRegistry.h"
@@ -44,81 +45,36 @@ namespace
 		return node;
 	}
 
-	// 레이어 섹션 — 자기완결 노드(차후 레이어 파일 에셋 분리 대비, 씬 레벨 정보 미포함).
+	// 레이어 섹션 — 노드 자체는 LayerSerializer 가 정의한다(레이어 파일 `.jlayer` 와 공유).
 	// 순서 = 시퀀스 순서(컴포짓 아래→위).
 	YAML::Node WriteLayers(const CGameScene& scene)
 	{
 		YAML::Node node(YAML::NodeType::Sequence);
 		for (std::size_t i = 0; i < scene.GetLayerCount(); ++i)
 		{
-			const CGameLayer* layer = scene.GetLayerAt(i);
-			if (nullptr == layer)
+			if (const CGameLayer* layer = scene.GetLayerAt(i))
 			{
-				continue;
+				node.push_back(Serialization::WriteLayerNode(*layer));
 			}
-			YAML::Node layerNode(YAML::NodeType::Map);
-			layerNode["Name"]            = layer->Name;
-			layerNode["Guid"]            = layer->GetInstanceGuid().generic_string();
-			layerNode["Blend"]           = ToString(layer->BlendMode);
-			layerNode["Opacity"]         = layer->Opacity;
-			layerNode["Visible"]         = layer->Visible;
-			layerNode["Static"]          = layer->Static;
-			layerNode["ForceOwnTexture"] = layer->ForceOwnTexture;
-			layerNode["Parallax"]        = layer->ParallaxFactor;
-			node.push_back(layerNode);
 		}
 		return node;
 	}
 
 	// Layers 시퀀스를 씬에 재구성한다. 노드가 없거나 비면(구 포맷 마이그레이션) 기본
 	// 레이어 1개를 만든다 — "레이어 0개 + 오브젝트 존재" 불허 불변식.
-	// guid 복원은 씬 friend 권한이 필요해 호출측(CSceneSerializer 멤버)이 수행하도록
-	// (레이어, 파일 guid) 쌍을 돌려준다.
-	std::vector<std::pair<CGameLayer*, File::Guid>> ReadLayers(CGameScene& scene, const YAML::Node& node)
+	void ReadLayers(CGameScene& scene, const YAML::Node& node)
 	{
-		std::vector<std::pair<CGameLayer*, File::Guid>> layerGuids;
 		if (node && node.IsSequence())
 		{
 			for (const YAML::Node& layerNode : node)
 			{
-				if (!layerNode || false == layerNode.IsMap())
-				{
-					continue;
-				}
-				const std::string name = layerNode["Name"] ? layerNode["Name"].as<std::string>("Layer") : "Layer";
-				CGameLayer* layer = scene.CreateLayer(name.c_str());
-				if (nullptr == layer)
-				{
-					continue;
-				}
-				try
-				{
-					if (layerNode["Guid"])
-					{
-						const File::Guid guid(layerNode["Guid"].as<std::string>(""));
-						if (false == guid.IsNull())
-						{
-							layerGuids.emplace_back(layer, guid);
-						}
-					}
-				}
-				catch (const YAML::Exception&)
-				{
-				}
-				const std::string blend = layerNode["Blend"] ? layerNode["Blend"].as<std::string>("Normal") : "Normal";
-				layer->BlendMode       = LayerBlendModeFromString(blend.c_str());
-				layer->Opacity         = layerNode["Opacity"]         ? layerNode["Opacity"].as<float>(1.0f)        : 1.0f;
-				layer->Visible         = layerNode["Visible"]         ? layerNode["Visible"].as<bool>(true)         : true;
-				layer->Static          = layerNode["Static"]          ? layerNode["Static"].as<bool>(false)         : false;
-				layer->ForceOwnTexture = layerNode["ForceOwnTexture"] ? layerNode["ForceOwnTexture"].as<bool>(false): false;
-				layer->ParallaxFactor  = layerNode["Parallax"]        ? layerNode["Parallax"].as<float>(1.0f)       : 1.0f;
+				Serialization::ReadLayerNodeInto(scene, layerNode);
 			}
 		}
 		if (0 == scene.GetLayerCount())
 		{
 			scene.CreateLayer(nullptr);
 		}
-		return layerGuids;
 	}
 
 	YAML::Node WriteLayout2D(const Layout2D& layout)
@@ -428,14 +384,7 @@ ESceneSerializeResult CSceneSerializer::DeserializeFromText(CGameScene& scene, c
 	std::vector<AssetGuid> referencedAssets = ReadReferencedAssets(root["ReferencedAssets"]);
 
 	// 레이어 먼저 재구성(오브젝트 배정 대상). Layers 키 없는 구 포맷은 기본 레이어 1개.
-	const std::vector<std::pair<CGameLayer*, File::Guid>> layerGuids = ReadLayers(scene, root["Layers"]);
-	for (const auto& [layer, guid] : layerGuids)
-	{
-		if (layer)
-		{
-			scene.SetLayerInstanceGuid(*layer, guid);
-		}
-	}
+	ReadLayers(scene, root["Layers"]);
 
 	// 뷰포트는 레이어 필터가 레이어 guid 를 참조하므로 레이어 뒤에 읽는다.
 	// 카메라 Ref 는 guid 로만 들고 있다가 첫 렌더 때 해석되므로 오브젝트보다 앞이어도 무방.

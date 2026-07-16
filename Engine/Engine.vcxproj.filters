@@ -773,6 +773,9 @@
     <ClInclude Include="GameFramework\Serialization\ComponentSerializer.h">
       <Filter>Header\GameFramework\Serialization</Filter>
     </ClInclude>
+    <ClInclude Include="GameFramework\Serialization\LayerSerializer.h">
+      <Filter>Header\GameFramework\Serialization</Filter>
+    </ClInclude>
     <ClInclude Include="GameFramework\Serialization\ObjectSerializer.h">
       <Filter>Header\GameFramework\Serialization</Filter>
     </ClInclude>
@@ -1460,6 +1463,9 @@
       <Filter>Source\GameFramework\Scene</Filter>
     </ClCompile>
     <ClCompile Include="GameFramework\Serialization\ComponentSerializer.cpp">
+      <Filter>Source\GameFramework\Serialization</Filter>
+    </ClCompile>
+    <ClCompile Include="GameFramework\Serialization\LayerSerializer.cpp">
       <Filter>Source\GameFramework\Serialization</Filter>
     </ClCompile>
     <ClCompile Include="GameFramework\Serialization\ObjectSerializer.cpp">

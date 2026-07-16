@@ -98,6 +98,7 @@ namespace
 		case EAssetType::AudioEffect: return "EAssetType::AudioEffect";
 		case EAssetType::FontFace: return "EAssetType::FontFace";
 		case EAssetType::FontFamily: return "EAssetType::FontFamily";
+		case EAssetType::Layer: return "EAssetType::Layer";
 		case EAssetType::Custom: return "EAssetType::Custom";
 		case EAssetType::Unknown:
 		default:

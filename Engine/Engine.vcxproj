@@ -468,6 +468,7 @@
     <ClInclude Include="GameFramework\Scene\SceneManager.h" />
     <ClInclude Include="GameFramework\Scene\SceneSerializer.h" />
     <ClInclude Include="GameFramework\Serialization\ComponentSerializer.h" />
+    <ClInclude Include="GameFramework\Serialization\LayerSerializer.h" />
     <ClInclude Include="GameFramework\Serialization\ObjectSerializer.h" />
     <ClInclude Include="GameFramework\Scene\SceneTypes.h" />
     <ClInclude Include="GameFramework\Object\ObjectPool.h" />
@@ -729,6 +730,7 @@
     <ClCompile Include="GameFramework\Scene\SceneManager.cpp" />
     <ClCompile Include="GameFramework\Scene\SceneSerializer.cpp" />
     <ClCompile Include="GameFramework\Serialization\ComponentSerializer.cpp" />
+    <ClCompile Include="GameFramework\Serialization\LayerSerializer.cpp" />
     <ClCompile Include="GameFramework\Serialization\ObjectSerializer.cpp" />
     <ClCompile Include="GameFramework\System\GameSystem.cpp" />
     <ClCompile Include="Editor\ImEditor.cpp">

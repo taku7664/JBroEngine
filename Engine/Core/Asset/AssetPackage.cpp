@@ -199,6 +199,8 @@ namespace
 			return EAssetPayloadType::SerializedScene;
 		case EAssetType::Prefab:
 			return EAssetPayloadType::SerializedPrefab;
+		case EAssetType::Layer:
+			return EAssetPayloadType::SerializedLayer;
 		case EAssetType::Custom:
 		case EAssetType::Script:
 		case EAssetType::Shader:

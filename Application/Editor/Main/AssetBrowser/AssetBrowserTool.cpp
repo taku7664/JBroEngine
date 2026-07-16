@@ -6,6 +6,8 @@
 #include "Editor/EditorContext.h"
 #include "Editor/Command/EditorFileCommands.h"
 #include "Editor/EditorDragDrop.h"
+#include "Engine/GameFramework/Scene/GameLayer.h"
+#include "Engine/GameFramework/Serialization/LayerSerializer.h"
 #include "Editor/Main/AssetBrowser/AssetBrowserUtils.h"
 #include "Editor/Path/EditorPathUtils.h"
 #include "Editor/Script/ScriptSchema.h"
@@ -305,6 +307,8 @@ namespace
 			return "[SCN]";
 		case EAssetType::Prefab:
 			return "[PFB]";
+		case EAssetType::Layer:
+			return "[LYR]";
 		case EAssetType::Script:
 			return "[SCR]";
 		default:
@@ -327,6 +331,9 @@ namespace
 			return "icon-material";
 		case EAssetType::Prefab:
 			return "icon-object";
+		case EAssetType::Layer:
+			return "icon-scene";   // 전용 아이콘 추가 전까지 캔버스 아이콘 재사용
+
 		case EAssetType::Audio:
 			return "icon-audio";
 		case EAssetType::AudioEffect:
@@ -1223,6 +1230,14 @@ void CAssetBrowserTool::DrawFolderTreeNode(const File::Path& folderPath)
 			DropAssetsIntoFolder(folderPath);
 		}
 	}
+	// 캔버스 뷰에서 끌어온 레이어 — 이 폴더에 `.jlayer` 로 에셋화.
+	{
+		CGameLayer* droppedLayer = nullptr;
+		if (EditorDragDrop::AcceptLayerDragDropPayload(droppedLayer))
+		{
+			SaveLayerAsAssetInFolder(*droppedLayer, folderPath);
+		}
+	}
 
 	if (isClicked)
 	{
@@ -1415,13 +1430,18 @@ void CAssetBrowserTool::DrawListEntries()
 					{
 						m_dragPrimaryPath = entry.AbsolutePath;
 					}
-					// 폴더 행이면 드롭 타겟 — 이 폴더로 에셋 이동.
+					// 폴더 행이면 드롭 타겟 — 이 폴더로 에셋 이동 / 레이어 에셋화.
 					if (entry.IsDirectory)
 					{
 						EditorDragDrop::AssetPayload payload;
 						if (EditorDragDrop::AcceptAssetDragDropPayload(payload))
 						{
 							DropAssetsIntoFolder(entry.AbsolutePath);
+						}
+						CGameLayer* droppedLayer = nullptr;
+						if (EditorDragDrop::AcceptLayerDragDropPayload(droppedLayer))
+						{
+							SaveLayerAsAssetInFolder(*droppedLayer, entry.AbsolutePath);
 						}
 					}
 				}
@@ -1571,13 +1591,18 @@ void CAssetBrowserTool::DrawIconEntries()
 				{
 					m_dragPrimaryPath = entry.AbsolutePath;
 				}
-				// 폴더 셀이면 드롭 타겟 — 이 폴더로 에셋 이동.
+				// 폴더 셀이면 드롭 타겟 — 이 폴더로 에셋 이동 / 레이어 에셋화.
 				if (entry.IsDirectory)
 				{
 					EditorDragDrop::AssetPayload payload;
 					if (EditorDragDrop::AcceptAssetDragDropPayload(payload))
 					{
 						DropAssetsIntoFolder(entry.AbsolutePath);
+					}
+					CGameLayer* droppedLayer = nullptr;
+					if (EditorDragDrop::AcceptLayerDragDropPayload(droppedLayer))
+					{
+						SaveLayerAsAssetInFolder(*droppedLayer, entry.AbsolutePath);
 					}
 				}
 
@@ -2076,6 +2101,37 @@ std::vector<File::Path> CAssetBrowserTool::CollectOperationTargets(const File::P
 		return { contextEntryPath };
 	}
 	return selected;
+}
+
+void CAssetBrowserTool::SaveLayerAsAssetInFolder(CGameLayer& layer, const File::Path& targetFolder)
+{
+	if (targetFolder.empty())
+	{
+		return;
+	}
+
+	SafePtr<CGameScene> scene = EditorContext::GetActiveScene();
+	if (false == scene.IsValid())
+	{
+		return;
+	}
+
+	const std::string text = Serialization::SerializeLayer(*scene, layer);
+	if (text.empty())
+	{
+		return;
+	}
+
+	// 이름 충돌은 "Layer 2" 식으로 피한다(다른 신규 자산과 같은 규칙).
+	const File::Path destination = MakeUniqueFilePath(targetFolder, layer.GetName(), ".jlayer");
+	if (destination.empty() || false == WriteTextFile(destination, text))
+	{
+		CSystemLog::Error(Utillity::U8(u8"레이어 에셋 저장에 실패하였습니다."));
+		return;
+	}
+
+	// 임포트(= `.jmeta` 와 에셋 guid 발급)는 AssetWatcher 가 새 파일을 보고 처리한다.
+	StartRenameForNewPath(destination);
 }
 
 void CAssetBrowserTool::DropAssetsIntoFolder(const File::Path& targetFolder)

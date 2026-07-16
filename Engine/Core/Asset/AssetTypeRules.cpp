@@ -38,6 +38,7 @@ namespace
 	constexpr std::string_view AUDIO_EFFECT_EXTENSIONS[] = { ".jfx" };
 	constexpr std::string_view FONT_FACE_EXTENSIONS[]   = { ".ttf", ".otf" };
 	constexpr std::string_view FONT_FAMILY_EXTENSIONS[] = { ".jfontfamily" };
+	constexpr std::string_view LAYER_EXTENSIONS[]      = { ".jlayer" };
 
 	constexpr AssetTypeRule RULES[] = {
 		{ EAssetType::Sprite,     "Sprite",      MakeExtensionList(SPRITE_EXTENSIONS) },
@@ -51,6 +52,7 @@ namespace
 		{ EAssetType::AudioEffect,"AudioEffect", MakeExtensionList(AUDIO_EFFECT_EXTENSIONS) },
 		{ EAssetType::FontFace,   "FontFace",    MakeExtensionList(FONT_FACE_EXTENSIONS) },
 		{ EAssetType::FontFamily, "FontFamily",  MakeExtensionList(FONT_FAMILY_EXTENSIONS) },
+		{ EAssetType::Layer,      "Layer",       MakeExtensionList(LAYER_EXTENSIONS) },
 	};
 
 	std::string NormalizeExtension(const File::Path& path)

@@ -29,7 +29,8 @@ enum class EAssetType
 	// Custom 뒤에 추가 — 기존 타입의 정수값(빌드 스크립트/직렬화) 보존.
 	AudioEffect,
 	FontFace,
-	FontFamily
+	FontFamily,
+	Layer        // .jlayer — 레이어 파일(컴포짓 속성 + 소속 오브젝트)
 };
 
 enum class EAssetLoadState

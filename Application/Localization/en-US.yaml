@@ -96,6 +96,7 @@ Entries:
   asset_type.shader: Shader
   asset_type.scene: Scene
   asset_type.prefab: Prefab
+  asset_type.layer: Layer
   asset_type.script: Script
   asset_type.audio: Audio
   asset_type.audio_effect: Audio Effect

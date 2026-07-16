@@ -36,6 +36,7 @@ const char* AssetBrowserUtils::GetAssetTypeName(EAssetType type)
 	case EAssetType::AudioEffect: return Loc::Text(EditorLocKeys::AssetTypeAudioEffect);
 	case EAssetType::FontFace: return Loc::Text(EditorLocKeys::AssetTypeFontFace);
 	case EAssetType::FontFamily: return Loc::Text(EditorLocKeys::AssetTypeFontFamily);
+	case EAssetType::Layer: return Loc::Text(EditorLocKeys::AssetTypeLayer);
 	case EAssetType::Custom: return Loc::Text(EditorLocKeys::AssetTypeCustom);
 	default: return Loc::Text(EditorLocKeys::AssetTypeUnknown);
 	}

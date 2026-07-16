@@ -7,6 +7,7 @@
 #include "Utillity/File/FilePath.h"
 
 class CGameObject;
+class CGameLayer;
 
 namespace EditorDragDrop
 {
@@ -46,6 +47,11 @@ namespace EditorDragDrop
 
 	bool BeginAssetDragDropSource(const AssetPayloadDesc& desc);
 	bool AcceptAssetDragDropPayload(AssetPayload& outPayload, ImGuiDragDropFlags flags = 0);
+
+	// 캔버스 뷰에서 끌어온 레이어를 받는다(에셋 브라우저의 에셋화 드롭).
+	// AcceptAssetDragDropPayload 와 마찬가지로 안에서 Begin/EndDragDropTarget 을 직접 부르므로
+	// 호출부가 또 BeginDragDropTarget 으로 감싸면 안 된다.
+	bool AcceptLayerDragDropPayload(CGameLayer*& outLayer, ImGuiDragDropFlags flags = 0);
 	File::Guid GetGuid(const AssetPayload& payload);
 	File::Path GetRelativePath(const AssetPayload& payload);
 }

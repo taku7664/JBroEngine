@@ -84,6 +84,27 @@ bool EditorDragDrop::AcceptAssetDragDropPayload(AssetPayload& outPayload, ImGuiD
 	return accepted;
 }
 
+bool EditorDragDrop::AcceptLayerDragDropPayload(CGameLayer*& outLayer, ImGuiDragDropFlags flags)
+{
+	if (false == ImGui::BeginDragDropTarget())
+	{
+		return false;
+	}
+
+	bool accepted = false;
+	if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(HIERARCHY_LAYER_PAYLOAD, flags))
+	{
+		if (payload->DataSize == sizeof(CGameLayer*))
+		{
+			outLayer = *static_cast<CGameLayer* const*>(payload->Data);
+			accepted = nullptr != outLayer;
+		}
+	}
+
+	ImGui::EndDragDropTarget();
+	return accepted;
+}
+
 File::Guid EditorDragDrop::GetGuid(const AssetPayload& payload)
 {
 	return File::Guid(payload.Guid);

@@ -13,7 +13,8 @@ enum class EAssetPayloadType : std::uint32_t
 	CookedAudio,
 	SerializedScene,
 	SerializedPrefab,
-	BinaryBlob
+	BinaryBlob,
+	SerializedLayer   // 맨 뒤에 추가 — 기존 값이 패키지 파일에 박혀 있다.
 };
 
 enum class EAssetPackageEntryFlags : std::uint32_t
