@@ -52,6 +52,9 @@ public:
 
 public:
 	void SetFocusFolderPath(const File::Path& path, bool pushHistory = true);
+	// guid 로 에셋을 찾아 그 폴더로 이동하고 해당 항목을 선택한다(에셋 필드 더블클릭 →
+	// "이 에셋 보여줘"). 못 찾으면 아무것도 하지 않는다.
+	void RevealAsset(const File::Guid& guid);
 
 	class IAssetOpenHandler
 	{
@@ -212,6 +215,8 @@ private:
 	File::Path m_focusFolderPath;
 	// primary(활성) 선택 — Inspector 표시/이름변경 대상. 다중 선택의 대표 1개.
 	File::Path m_selectedEntryPath;
+	// RevealAsset 예약분 — 폴더를 바꾼 뒤 다음 리프레시에서 이 guid 엔트리를 선택한다.
+	File::Guid m_pendingRevealGuid = File::NULL_GUID;
 
 	// 다중 선택 저장소. id = AssetBrowserEntry::SelectionId.
 	// ImGui Multi-Select(Box/Ctrl/Shift) 결과가 여기에 누적된다.

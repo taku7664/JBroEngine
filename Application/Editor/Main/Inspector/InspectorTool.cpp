@@ -4,6 +4,7 @@
 #include "EffectEditorWindow.h"
 #include "Editor/Main/ProjectSettingsWindow.h"
 
+#include "Editor/ImItem/ImAssetField.h"
 #include "Editor/ImItem/ImText.h"
 #include "Editor/ImItem/ImSplitter.h"
 #include "Editor/ImItem/ImList.h"
@@ -272,13 +273,26 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 	// 시각(ReadOnly 버튼 + X 클리어)은 여기 한 곳. 드롭 수락/클리어는 저장부별 콜백으로 주입.
 	//   accept(): 자체 Begin/End 드롭 타깃 처리, 변경 시 true.
 	//   clear():  값 비우기.
+	//   revealAssetGuid: null 이 아니면 더블클릭 시 그 에셋을 브라우저에서 드러낸다(에셋 Ref
+	//   전용 — 오브젝트/컴포넌트/스크립트 참조는 브라우저에 없으므로 넘기지 않는다).
 	template <typename AcceptFn, typename ClearFn>
-	bool DrawReferenceField(const std::string& label, bool isNull, AcceptFn&& accept, ClearFn&& clear)
+	bool DrawReferenceField(const std::string& label, bool isNull, AcceptFn&& accept, ClearFn&& clear,
+	                        const File::Guid* revealAssetGuid = nullptr)
 	{
-		return ImReferenceField("##reference_field", label, isNull)
-			.OnAcceptDrop(std::forward<AcceptFn>(accept))
-			.OnClear(std::forward<ClearFn>(clear))
-			.Draw();
+		ImReferenceField widget("##reference_field", label, isNull);
+		widget.OnAcceptDrop(std::forward<AcceptFn>(accept))
+			.OnClear(std::forward<ClearFn>(clear));
+		if (nullptr != revealAssetGuid && false == revealAssetGuid->IsNull())
+		{
+			const File::Guid guid = *revealAssetGuid;
+			widget.OnActivate([guid]() {
+				if (Editor::AssetBrowser.IsValid())
+				{
+					Editor::AssetBrowser->RevealAsset(guid);
+				}
+			});
+		}
+		return widget.Draw();
 	}
 
 	bool DrawPropertyEditor(void* field, const ReflectPropertyInfo& property)
@@ -381,10 +395,18 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		{
 			// Ref<T>(스크립트 POD RefBase). 공유 위젯 + 카테고리별 페이로드 수락(ApplyRefDrop).
 			RefBase* ref = static_cast<RefBase*>(field);
+			// 에셋 Ref 만 더블클릭 reveal 대상 — guid 를 넘긴다(오브젝트/컴포넌트/스크립트 참조는
+			// 브라우저에 없으므로 제외).
+			File::Guid revealGuid;
+			if (ERefCategory::Asset == property.RefCategory && false == ref->IsNull())
+			{
+				revealGuid = File::Guid(ref->GuidText());
+			}
 			return DrawReferenceField(
 				BuildRefDisplayLabel(*ref, property), ref->IsNull(),
 				[&]() { return ApplyRefDrop(*ref, property); },
-				[&]() { ref->Clear(); });
+				[&]() { ref->Clear(); },
+				revealGuid.IsNull() ? nullptr : &revealGuid);
 		}
 		case EReflectPropertyType::Enum:
 		{
@@ -1780,6 +1802,23 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		ImSectionHeader(Loc::Text(EditorLocKeys::InspectorLayerProperties)).Draw();
 
 		ImGui::Utillity::FormLayout layout("##layer_properties", 4.0f, { 2.0f, 1.0f });
+
+		// 이 레이어가 `.jlayer` 에서 왔으면 어떤 에셋인지 보여준다. 읽기 전용이다 — 여기서
+		// 에셋을 바꾸면 "다른 레이어로 갈아끼우기"가 되는데, 그건 오브젝트 교체까지 뜻하므로
+		// 필드 하나로 처리할 일이 아니다(레이어 에셋 드롭 = 새 레이어 추가가 그 경로).
+		if (false == layer->SourceAssetGuid.IsNull())
+		{
+			AssetGuid sourceAsset = layer->SourceAssetGuid;
+			layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorLayerSourceAsset)); }, [&]() {
+				// 읽기 전용이되 더블클릭 reveal 은 살린다 — BeginDisabled 로 감싸면 hover 판정이
+				// 죽어 더블클릭이 안 먹으므로 AllowDrop(false)/AllowClear(false) 로 표현한다.
+				ImAssetField("##inspector.layer.source_asset", sourceAsset)
+					.Type(EAssetType::Layer)
+					.AllowClear(false)
+					.AllowDrop(false)
+					.Draw();
+			});
+		}
 
 		using EField = CSetLayerPropertyCommand::EField;
 		auto apply = [&scene, layer](EField field, const LayerPropertySnapshot& properties)

@@ -19,6 +19,9 @@ public:
 	ImReferenceField& AllowClear(bool allowClear = true);
 	ImReferenceField& OnAcceptDrop(Callback callback);
 	ImReferenceField& OnClear(VoidCallback callback);
+	// 필드 본체(clear 버튼 아님)를 더블클릭했을 때. 에셋 필드가 "그 에셋을 브라우저에서
+	// 드러내기" 에 쓴다 — 참조 위젯 공통이라 여기 둔다.
+	ImReferenceField& OnActivate(VoidCallback callback);
 
 	bool Draw() const;
 	bool operator()() const { return Draw(); }
@@ -33,6 +36,7 @@ private:
 	bool m_allowClear = true;
 	Callback m_acceptDrop;
 	VoidCallback m_clear;
+	VoidCallback m_onActivate;
 };
 
 #endif

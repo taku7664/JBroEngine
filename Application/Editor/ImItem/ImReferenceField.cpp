@@ -53,6 +53,12 @@ ImReferenceField& ImReferenceField::OnClear(VoidCallback callback)
 	return *this;
 }
 
+ImReferenceField& ImReferenceField::OnActivate(VoidCallback callback)
+{
+	m_onActivate = std::move(callback);
+	return *this;
+}
+
 bool ImReferenceField::Draw() const
 {
 	bool changed = false;
@@ -72,6 +78,12 @@ bool ImReferenceField::Draw() const
 		: m_label + "##reference_button";
 	ImGui::Button(buttonLabel.c_str(), ImVec2(fieldW, 0.0f));
 	ImGui::PopStyleColor(3);
+
+	// 더블클릭 감지는 라벨 버튼 바로 뒤에서 — drop 타깃/툴팁이 "마지막 아이템"을 넘기기 전에.
+	if (m_onActivate && ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+	{
+		m_onActivate();
+	}
 
 	if (m_acceptDrop && m_acceptDrop())
 	{

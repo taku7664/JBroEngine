@@ -522,6 +522,40 @@ void CAssetBrowserTool::OnRenderStay()
 	DrawDeleteConfirmPopup();
 }
 
+void CAssetBrowserTool::RevealAsset(const File::Guid& guid)
+{
+	if (guid.IsNull())
+	{
+		return;
+	}
+
+	SafePtr<CProjectManager> projectManager = EditorContext::GetProjectManager();
+	SafePtr<IAssetManager> assetManager = EditorContext::GetAssetManager();
+	if (false == projectManager.IsValid() || false == assetManager.IsValid())
+	{
+		return;
+	}
+
+	AssetMetaData metaData;
+	if (false == assetManager->GetRegistry().TryGetAsset(guid, metaData))
+	{
+		return;
+	}
+
+	const File::Path absolutePath(projectManager->GetAssetPath() / metaData.Path);
+	const File::Path folder(absolutePath.parent_path());
+
+	// 폴더 이동 — 트리·목록 둘 다 m_focusFolderPath 를 따른다.
+	SetFocusFolderPath(folder);
+
+	// 선택은 지금 하지 않는다. 엔트리는 다음 RefreshCurrentFolderEntries 에서 채워지고,
+	// SelectionId 는 엔트리의 절대경로 문자열 해시라 여기서 재구성한 경로와 구분자 정규화가
+	// 어긋날 수 있다. guid 를 pending 으로 두고, 리프레시 뒤 엔트리 목록에서 guid 로 정확히
+	// 찾아 선택한다(경로 문자열 비교를 피한다).
+	m_pendingRevealGuid = guid;
+	m_entriesDirty = true;
+}
+
 void CAssetBrowserTool::SetFocusFolderPath(const File::Path& path, bool pushHistory)
 {
 	// Assets / Scripts 둘 다 포커스 가능
@@ -715,6 +749,24 @@ void CAssetBrowserTool::RefreshCurrentFolderEntries()
 
 	m_entriesDirty = false;
 	m_filterDirty = true;
+
+	// RevealAsset 이 예약한 guid 를 이 폴더 엔트리에서 찾아 선택한다. 경로 문자열이 아니라
+	// guid 로 매칭하므로 구분자 정규화 차이에 안전하다.
+	if (false == m_pendingRevealGuid.IsNull())
+	{
+		for (const AssetBrowserEntry& entry : m_entries)
+		{
+			if (false == entry.IsDirectory && entry.Guid == m_pendingRevealGuid)
+			{
+				m_selection.Clear();
+				m_selection.SetItemSelected(entry.SelectionId, true);
+				m_selectedEntryPath = entry.AbsolutePath;
+				Editor::SelectAsset(entry.Guid, entry.AbsolutePath);
+				break;
+			}
+		}
+		m_pendingRevealGuid = File::NULL_GUID;
+	}
 }
 
 void CAssetBrowserTool::RebuildFilteredEntries()
@@ -2149,7 +2201,33 @@ void CAssetBrowserTool::SaveLayerAsAssetInFolder(CGameLayer& layer, const File::
 		return;
 	}
 
-	// 임포트(= `.jmeta` 와 에셋 guid 발급)는 AssetWatcher 가 새 파일을 보고 처리한다.
+	// 임포트를 AssetWatcher 에 맡기지 않고 여기서 직접 한다 — 워처는 나중에 비동기로 돌아서
+	// 지금 그 에셋 guid 를 알 수 없는데, 원본 레이어에 "너는 이 에셋에서 왔다"를 박으려면
+	// guid 가 당장 필요하다. 워처가 나중에 같은 파일을 봐도 이미 등록돼 있으면 재발급하지 않는다.
+	SafePtr<CProjectManager> projectManager = EditorContext::GetProjectManager();
+	std::string relativePath;
+	if (false == projectManager.IsValid()
+		|| false == projectManager->TryMakeProjectAssetRelativePath(destination, relativePath))
+	{
+		StartRenameForNewPath(destination);
+		return;
+	}
+
+	SafePtr<IAssetManager> assetManager = EditorContext::GetAssetManager();
+	const std::string displayName = ToUtf8(destination.stem());
+	AssetMetaData metaData;
+	AssetImportDesc desc;
+	desc.Type        = EAssetType::Layer;
+	desc.Path        = File::Path(relativePath);
+	desc.DisplayName = displayName.c_str();
+	desc.Importer    = "Layer";
+	if (assetManager.IsValid() && assetManager->ImportAsset(desc, &metaData))
+	{
+		layer.SourceAssetGuid = metaData.Guid;
+		// 캔버스가 이제 이 에셋을 참조한다 → 저장 필요 상태로.
+		Editor::CommandManager.MarkDirty();
+	}
+
 	StartRenameForNewPath(destination);
 }
 

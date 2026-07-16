@@ -3,7 +3,9 @@
 
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
 
+#include "Editor/Editor.h"
 #include "Editor/EditorDragDrop.h"
+#include "Editor/Main/AssetBrowser/AssetBrowserTool.h"
 #include "Editor/ImItem/ImItemLocalizationKeys.h"
 #include "Editor/ImItem/ImItemTypes.h"
 #include "Editor/ImItem/ImReferenceField.h"
@@ -113,6 +115,12 @@ ImAssetField& ImAssetField::AllowDirectories(bool allowDirectories)
 	return *this;
 }
 
+ImAssetField& ImAssetField::AllowDrop(bool allowDrop)
+{
+	m_allowDrop = allowDrop;
+	return *this;
+}
+
 ImAssetField& ImAssetField::NoneText(const char* text)
 {
 	m_noneText = text;
@@ -141,8 +149,15 @@ bool ImAssetField::Draw() const
 		.AllowClear(m_allowClear)
 		.Tooltip(BuildTooltip())
 		.ClearTooltip(Loc::Text(ImItemLocKeys::CommonRemove))
-		.OnAcceptDrop([this]() { return AcceptDrop(); })
+		.OnAcceptDrop(m_allowDrop ? ImReferenceField::Callback([this]() { return AcceptDrop(); }) : nullptr)
 		.OnClear([this]() { m_guid = INVALID_ASSET_GUID; })
+		.OnActivate([this]() {
+			// 더블클릭 = "이 에셋 어디 있어" — 브라우저를 그 폴더로 옮기고 항목을 선택한다.
+			if (false == m_guid.IsNull() && Editor::AssetBrowser.IsValid())
+			{
+				Editor::AssetBrowser->RevealAsset(m_guid);
+			}
+		})
 		.Draw();
 }
 
