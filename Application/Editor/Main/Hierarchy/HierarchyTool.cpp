@@ -477,7 +477,7 @@ void CHierarchyTool::OnRenderStay()
 			Editor::SelectLayer(layer);
 
 			EditorGuiActions::DrawAddObjectMenu(*activeScene, nullptr, nullptr, layer);
-			EditorGuiActions::DrawPasteObjectMenuItem(*activeScene);
+			EditorGuiActions::DrawPasteObjectMenuItem(*activeScene, nullptr, layer);
 			ImGui::Separator();
 			drawAddLayerMenuItem();
 			// 마지막 레이어는 삭제 불가 — 씬이 "레이어 0개"를 허용하지 않는다.

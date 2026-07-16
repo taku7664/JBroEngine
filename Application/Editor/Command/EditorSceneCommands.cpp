@@ -710,10 +710,12 @@ namespace
 
 CPasteObjectsCommand::CPasteObjectsCommand(SafePtr<CGameScene> scene, std::string clipboardText,
                                            const Vector2* spawnWorldPos,
-                                           CGameObject* parent)
+                                           CGameObject* parent,
+                                           CGameLayer* layer)
 	: m_scene(scene)
 	, m_clipboard(std::move(clipboardText))
 	, m_parentGuid(GuidOf(parent))
+	, m_layerGuid(GuidOf(layer))
 	, m_hasSpawnPos(nullptr != spawnWorldPos)
 	, m_spawnWorldPos(spawnWorldPos ? *spawnWorldPos : Vector2(0.0f, 0.0f))
 {
@@ -739,6 +741,7 @@ bool CPasteObjectsCommand::Execute()
 
 	// 최초 붙여넣기에서만 새 guid 발급 + 위치 이동 + 정규화 스냅샷 재보관.
 	// 이후 redo 는 정규화 스냅샷을 그대로 복원하므로 guid/위치가 동일하게 재현된다.
+	std::vector<Vector2> targetWorldPositions;
 	if (false == m_firstDone)
 	{
 		for (CGameObject* root : roots)
@@ -748,7 +751,6 @@ bool CPasteObjectsCommand::Execute()
 
 		// 위치: 역직렬화 직후 루트는 씬 루트에 있으므로 local==world 로 취급한다.
 		// parent 가 있으면 최종 월드 위치를 parent local 로 환산한 뒤 자식으로 붙인다.
-		std::vector<Vector2> targetWorldPositions;
 		targetWorldPositions.reserve(roots.size());
 		for (CGameObject* root : roots)
 		{
@@ -781,39 +783,57 @@ bool CPasteObjectsCommand::Execute()
 				}
 			}
 		}
+	}
 
-		CGameObject* parent = Resolve(m_scene, m_parentGuid);
-		Matrix3x2 parentInverse;
-		const bool hasParentInverse =
-			parent && GetWorldTransform(*parent).TryInvert(parentInverse);
+	// 부모·레이어 배정은 redo 에서도 매번 한다 — 정규화 스냅샷(오브젝트 직렬화)은 계층도
+	// 레이어도 담지 않아서(둘 다 씬 레벨 관심사) 역직렬화 직후 루트는 늘 씬 루트 + 기본
+	// 레이어로 되살아난다. 최초 실행에서만 하면 undo→redo 가 부모와 레이어를 잃는다.
+	CGameObject* parent = Resolve(m_scene, m_parentGuid);
+	Matrix3x2 parentInverse;
+	const bool hasParentInverse =
+		parent && GetWorldTransform(*parent).TryInvert(parentInverse);
+	// 부모가 있으면 레이어 인자는 무시된다 — SetParent 가 부모 레이어를 서브트리에 전파한다.
+	CGameLayer* layer = (nullptr == parent && false == m_layerGuid.IsNull())
+		? m_scene->FindLayerByInstanceGuid(m_layerGuid).TryGet()
+		: nullptr;
 
-		m_pastedGuids.clear();
-		std::vector<const CGameObject*> created;
-		created.reserve(roots.size());
-		for (std::size_t i = 0; i < roots.size(); ++i)
+	m_pastedGuids.clear();
+	std::vector<const CGameObject*> created;
+	created.reserve(roots.size());
+	for (std::size_t i = 0; i < roots.size(); ++i)
+	{
+		CGameObject* root = roots[i];
+		if (nullptr == root)
 		{
-			CGameObject* root = roots[i];
-			if (nullptr == root)
-			{
-				continue;
-			}
+			continue;
+		}
 
-			if (parent)
+		if (parent)
+		{
+			root->SetParent(*parent);
+			if (false == m_firstDone && hasParentInverse)
 			{
-				root->SetParent(*parent);
-				if (hasParentInverse)
-				{
-					root->GetTransform().Position = parentInverse.TransformPoint(targetWorldPositions[i]);
-				}
+				root->GetTransform().Position = parentInverse.TransformPoint(targetWorldPositions[i]);
 			}
-			else
+		}
+		else
+		{
+			if (layer)
+			{
+				m_scene->MoveObjectToLayer(*root, *layer);
+			}
+			if (false == m_firstDone)
 			{
 				root->GetTransform().Position = targetWorldPositions[i];
 			}
-
-			m_pastedGuids.push_back(root->GetInstanceGuid());
-			created.push_back(root);
 		}
+
+		m_pastedGuids.push_back(root->GetInstanceGuid());
+		created.push_back(root);
+	}
+
+	if (false == m_firstDone)
+	{
 		m_clipboard = Serialization::SerializeObjects(created);
 		m_firstDone = true;
 	}

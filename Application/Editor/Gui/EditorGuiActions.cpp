@@ -3,12 +3,14 @@
 
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
 
+#include "Editor/Command/EditorLayerCommands.h"
 #include "Editor/Command/EditorSceneCommands.h"
 #include "Editor/Editor.h"
 #include "Editor/Localization/EditorReflectionLabels.h"
 #include "Engine/Core/EngineCore.h"
 #include "Engine/GameFramework/Component/Component.h"
 #include "Engine/GameFramework/Object/GameObject.h"
+#include "Engine/GameFramework/Scene/GameLayer.h"
 #include "Engine/GameFramework/Reflection/ReflectionRegistry.h"
 #include "Engine/GameFramework/Scene/Scene.h"
 #include "Engine/GameFramework/Scene/SceneRuntimeAccess.h"
@@ -316,7 +318,7 @@ bool EditorGuiActions::DrawCopyObjectMenuItem(const CGameObject& object)
 	return false;
 }
 
-bool EditorGuiActions::DrawPasteObjectMenuItem(CGameScene& scene, CGameObject* parent)
+bool EditorGuiActions::DrawPasteObjectMenuItem(CGameScene& scene, CGameObject* parent, CGameLayer* layer)
 {
 	if (false == HasObjectClipboardData())
 	{
@@ -325,9 +327,24 @@ bool EditorGuiActions::DrawPasteObjectMenuItem(CGameScene& scene, CGameObject* p
 	if (ImGui::MenuItem(Loc::TextOr(EditorLocKeys::EditorMenuPasteObject, "Paste Object")))
 	{
 		// 원본 위치 유지(메뉴 붙여넣기). undo/새 guid 발급은 커맨드가 처리.
-		return PasteObjectsFromClipboard(scene, nullptr, parent);
+		return PasteObjectsFromClipboard(scene, nullptr, parent, layer);
 	}
 	return false;
+}
+
+CGameLayer* EditorGuiActions::ResolveTargetLayer(CGameScene& scene)
+{
+	// 레이어를 직접 골랐으면 그 의도가 가장 명확하다.
+	if (CGameLayer* selectedLayer = Editor::GetSelectedLayer())
+	{
+		return selectedLayer;
+	}
+	// 오브젝트를 골랐으면 그 오브젝트 옆에 놓는 것이 자연스럽다 = 같은 레이어.
+	if (const CGameObject* selectedObject = Editor::GetSelectedEntity())
+	{
+		return selectedObject->GetLayer().TryGet();
+	}
+	return nullptr;   // 씬 기본 레이어.
 }
 
 bool EditorGuiActions::HasObjectClipboardData()
@@ -353,15 +370,22 @@ bool EditorGuiActions::CopySelectedObjectsToClipboard()
 	return true;
 }
 
-bool EditorGuiActions::PasteObjectsFromClipboard(CGameScene& scene, const Vector2* spawnWorldPos, CGameObject* parent)
+bool EditorGuiActions::PasteObjectsFromClipboard(CGameScene& scene, const Vector2* spawnWorldPos,
+                                                CGameObject* parent, CGameLayer* layer)
 {
 	const char* clip = ImGui::GetClipboardText();
 	if (nullptr == clip || false == Serialization::LooksLikeObject(clip))
 	{
 		return false;
 	}
+	// 호출자가 레이어를 지정하지 않으면 현재 선택에서 정한다 — 지정 안 하면 기본(맨 아래)
+	// 레이어로 떨어지는 게 아니라 "고른 곳"으로 가는 것이 기대 동작이다.
+	if (nullptr == layer)
+	{
+		layer = ResolveTargetLayer(scene);
+	}
 	OwnerPtr<CPasteObjectsCommand> cmd =
-	    MakeOwnerPtr<CPasteObjectsCommand>(scene.SafeFromThis(), std::string(clip), spawnWorldPos, parent);
+	    MakeOwnerPtr<CPasteObjectsCommand>(scene.SafeFromThis(), std::string(clip), spawnWorldPos, parent, layer);
 	CPasteObjectsCommand* rawCmd = cmd.Get();
 	if (false == Editor::CommandManager.ExecuteCommand(std::move(cmd)) || nullptr == rawCmd)
 	{
@@ -386,6 +410,25 @@ bool EditorGuiActions::DeleteSelectedObjects(CGameScene& scene)
 	}
 
 	Editor::ClearSelection();
+	return true;
+}
+
+bool EditorGuiActions::DeleteSelectedLayer(CGameScene& scene)
+{
+	CGameLayer* layer = Editor::GetSelectedLayer();
+	if (nullptr == layer)
+	{
+		return false;
+	}
+
+	// 마지막 레이어면 씬이 거부한다("레이어 0개" 불허) → 커맨드도 실패로 끝나 스택에 안 쌓인다.
+	if (false == Editor::CommandManager.ExecuteCommand(
+		MakeOwnerPtr<CDeleteLayerCommand>(scene.SafeFromThis(), layer)))
+	{
+		return false;
+	}
+
+	Editor::ClearLayerSelection();
 	return true;
 }
 

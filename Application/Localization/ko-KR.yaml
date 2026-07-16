@@ -326,6 +326,8 @@ Entries:
   inspector.remove_component: 컴포넌트 제거
   editor.menu.copy_object: 오브젝트 복사
   editor.menu.paste_object: 오브젝트 붙여넣기
+  editor.menu.paste_object_as_child: 자식으로 붙여넣기
+  editor.menu.delete_selection: 선택 삭제
   editor.menu.copy_component: 컴포넌트 복사
   editor.menu.paste_component: 컴포넌트 붙여넣기
 

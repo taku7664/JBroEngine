@@ -326,6 +326,8 @@ Entries:
   inspector.remove_component: Remove Component
   editor.menu.copy_object: Copy Object
   editor.menu.paste_object: Paste Object
+  editor.menu.paste_object_as_child: Paste As Child
+  editor.menu.delete_selection: Delete Selection
   editor.menu.copy_component: Copy Component
   editor.menu.paste_component: Paste Component
 

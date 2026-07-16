@@ -22,13 +22,15 @@ namespace
 		return { key, ctrl, shift, alt };
 	}
 
-	const std::array<EditorShortcutDescriptor, 8> SHORTCUTS = {{
+	const std::array<EditorShortcutDescriptor, 9> SHORTCUTS = {{
 		{ EEditorShortcut::SaveProject,  EditorLocKeys::MenuFileSaveProject,     EditorLocKeys::MenuFile,       Bind(ImGuiKey_S, true), {} },
 		{ EEditorShortcut::Undo,         EditorLocKeys::MenuEditUndo,             EditorLocKeys::MenuEdit,       Bind(ImGuiKey_Z, true), {} },
 		{ EEditorShortcut::Redo,         EditorLocKeys::MenuEditRedo,             EditorLocKeys::MenuEdit,       Bind(ImGuiKey_Y, true), Bind(ImGuiKey_Z, true, true) },
 		{ EEditorShortcut::CopyObjects,  EditorLocKeys::EditorMenuCopyObject,    EditorLocKeys::MenuEdit,       Bind(ImGuiKey_C, true), {} },
 		{ EEditorShortcut::PasteObjects, EditorLocKeys::EditorMenuPasteObject,   EditorLocKeys::MenuEdit,       Bind(ImGuiKey_V, true), {} },
-		{ EEditorShortcut::DeleteObjects,EditorLocKeys::HierarchyDeleteObject,    EditorLocKeys::MenuEdit,       Bind(ImGuiKey_Delete), {} },
+		// IsPressed 가 Shift 를 정확히 비교하므로 Ctrl+Shift+V 가 위의 Ctrl+V 를 오발동시키지 않는다.
+		{ EEditorShortcut::PasteObjectsAsChild, EditorLocKeys::EditorMenuPasteObjectAsChild, EditorLocKeys::MenuEdit, Bind(ImGuiKey_V, true, true), {} },
+		{ EEditorShortcut::DeleteSelection, EditorLocKeys::EditorMenuDeleteSelection, EditorLocKeys::MenuEdit,   Bind(ImGuiKey_Delete), {} },
 		{ EEditorShortcut::TogglePlay,   EditorLocKeys::MenuSimulationPlayToggle, EditorLocKeys::MenuSimulation, Bind(ImGuiKey_F5), {} },
 		{ EEditorShortcut::TogglePause,  EditorLocKeys::MenuSimulationPauseToggle,EditorLocKeys::MenuSimulation, Bind(ImGuiKey_F6), {} },
 	}};
@@ -71,8 +73,21 @@ bool CEditorShortcutManager::CanExecute(EEditorShortcut shortcut) const
 		return false == Editor::GetSelectedEntities().empty();
 	case EEditorShortcut::PasteObjects:
 		return EditorContext::GetActiveScene().IsValid() && EditorGuiActions::HasObjectClipboardData();
-	case EEditorShortcut::DeleteObjects:
-		return EditorContext::GetActiveScene().IsValid() && false == Editor::GetSelectedEntities().empty();
+	case EEditorShortcut::PasteObjectsAsChild:
+		// 레이어만 골랐어도 허용 — 부모 없이 그 레이어 루트로 붙여넣는다.
+		return EditorContext::GetActiveScene().IsValid()
+			&& EditorGuiActions::HasObjectClipboardData()
+			&& (nullptr != Editor::GetSelectedEntity() || nullptr != Editor::GetSelectedLayer());
+	case EEditorShortcut::DeleteSelection:
+	{
+		if (false == EditorContext::GetActiveScene().IsValid())
+		{
+			return false;
+		}
+		// 오브젝트 우선 — 선택은 상호 배타지만 판정 순서를 Execute 와 맞춰 둔다.
+		return false == Editor::GetSelectedEntities().empty()
+			|| nullptr != Editor::GetSelectedLayer();
+	}
 	case EEditorShortcut::TogglePlay:
 		return EditorContext::GetActiveScene().IsValid();
 	case EEditorShortcut::TogglePause:
@@ -126,10 +141,30 @@ bool CEditorShortcutManager::Execute(EEditorShortcut shortcut) const
 		}
 		return EditorGuiActions::PasteObjectsFromClipboard(*scene);
 	}
-	case EEditorShortcut::DeleteObjects:
+	case EEditorShortcut::PasteObjectsAsChild:
 	{
 		SafePtr<CGameScene> scene = EditorContext::GetActiveScene();
-		return scene.IsValid() && EditorGuiActions::DeleteSelectedObjects(*scene);
+		if (false == scene.IsValid())
+		{
+			return false;
+		}
+		// 오브젝트를 골랐으면 그 자식으로, 레이어만 골랐으면 부모 없이 그 레이어의 루트로.
+		// 원본 위치를 유지한다 — 자식으로 넣는 의도는 배치가 아니라 계층이다.
+		CGameObject* parent = Editor::GetSelectedEntity();
+		return EditorGuiActions::PasteObjectsFromClipboard(*scene, nullptr, parent);
+	}
+	case EEditorShortcut::DeleteSelection:
+	{
+		SafePtr<CGameScene> scene = EditorContext::GetActiveScene();
+		if (false == scene.IsValid())
+		{
+			return false;
+		}
+		if (false == Editor::GetSelectedEntities().empty())
+		{
+			return EditorGuiActions::DeleteSelectedObjects(*scene);
+		}
+		return EditorGuiActions::DeleteSelectedLayer(*scene);
 	}
 	case EEditorShortcut::TogglePlay:
 		if (Engine.SceneManager->IsSimulationPlaying() || Engine.SceneManager->IsSimulationPaused())
@@ -160,7 +195,7 @@ bool CEditorShortcutManager::Execute(EEditorShortcut shortcut) const
 	}
 }
 
-const std::array<EditorShortcutDescriptor, 8>& CEditorShortcutManager::GetDescriptors() const
+const std::array<EditorShortcutDescriptor, 9>& CEditorShortcutManager::GetDescriptors() const
 {
 	return SHORTCUTS;
 }

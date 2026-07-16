@@ -162,8 +162,10 @@ namespace EditorLocKeys
 	constexpr const char* EditorCategoryComponents = "editor.category.Components";
 	constexpr const char* EditorMenuCopyComponent = "editor.menu.copy_component";
 	constexpr const char* EditorMenuCopyObject = "editor.menu.copy_object";
+	constexpr const char* EditorMenuDeleteSelection = "editor.menu.delete_selection";
 	constexpr const char* EditorMenuPasteComponent = "editor.menu.paste_component";
 	constexpr const char* EditorMenuPasteObject = "editor.menu.paste_object";
+	constexpr const char* EditorMenuPasteObjectAsChild = "editor.menu.paste_object_as_child";
 	constexpr const char* EditorPropertyIsActive = "editor.property.IsActive";
 	constexpr const char* EditorPropertyIsEnabled = "editor.property.IsEnabled";
 	constexpr const char* EditorPropertyName = "editor.property.Name";

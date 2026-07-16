@@ -308,9 +308,11 @@ public:
 	// clipboardText = Serialization::SerializeObjects 결과(레거시 단일 포맷도 허용).
 	// spawnWorldPos != nullptr 이면 붙여넣은 그룹 중심을 그 월드 좌표로 이동(상대 배치 보존).
 	// parent != nullptr 이면 붙여넣은 루트를 해당 오브젝트의 자식으로 둔다.
+	// layer != nullptr 이면 붙여넣은 루트를 그 레이어에 둔다(parent 가 있으면 부모 레이어가 이긴다).
 	CPasteObjectsCommand(SafePtr<CGameScene> scene, std::string clipboardText,
 	                     const Vector2* spawnWorldPos = nullptr,
-	                     CGameObject* parent = nullptr);
+	                     CGameObject* parent = nullptr,
+	                     CGameLayer* layer = nullptr);
 	~CPasteObjectsCommand() override = default;
 
 	const char* GetName() const override;
@@ -325,6 +327,9 @@ private:
 	SafePtr<CGameScene> m_scene;
 	std::string m_clipboard;        // 최초 실행 후엔 정규화 스냅샷(guid/위치 고정 → redo 재현)
 	File::Guid  m_parentGuid;       // null = 루트
+	// null = 기본 레이어. 오브젝트 직렬화는 계층·레이어를 담지 않으므로(둘 다 씬 레벨 관심사)
+	// 역직렬화 직후 루트는 항상 씬 루트 + 기본 레이어다 → 매 Execute 마다 다시 배정해야 한다.
+	File::Guid  m_layerGuid;
 	bool        m_hasSpawnPos = false;
 	Vector2     m_spawnWorldPos = Vector2(0.0f, 0.0f);
 	std::vector<File::Guid> m_pastedGuids; // 붙여넣은 루트(undo 파괴/선택)
