@@ -52,6 +52,11 @@ namespace EditorDragDrop
 	// AcceptAssetDragDropPayload 와 마찬가지로 안에서 Begin/EndDragDropTarget 을 직접 부르므로
 	// 호출부가 또 BeginDragDropTarget 으로 감싸면 안 된다.
 	bool AcceptLayerDragDropPayload(CGameLayer*& outLayer, ImGuiDragDropFlags flags = 0);
+
+	// 아이템이 아니라 "현재 창 전체"를 드롭 영역으로 연다(에셋 브라우저 빈 공간처럼 받을
+	// 아이템이 없는 배경용). 창 안의 아이템 드롭 타깃과 동시에 열리면 둘 다 받아버리므로
+	// 호출부가 IsAnyItemHovered() 로 걸러야 한다.
+	bool AcceptLayerDragDropPayloadOnWindow(CGameLayer*& outLayer, ImGuiDragDropFlags flags = 0);
 	File::Guid GetGuid(const AssetPayload& payload);
 	File::Path GetRelativePath(const AssetPayload& payload);
 }

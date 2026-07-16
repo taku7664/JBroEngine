@@ -318,6 +318,7 @@ namespace
 
 	// entry 타입에 대응하는 ResourceRegistry 아이콘 키.
 	// 이미지 확장자는 Thumbnail 에 실제 자산을 직접 로드하므로 여기서 처리하지 않는다.
+	// nullptr = 아이콘 없음 → 호출부가 텍스처를 안 잡고 GetEntryIcon 의 텍스트 태그로 그린다.
 	const char* GetIconResourceKey(const AssetBrowserEntry& entry)
 	{
 		if (entry.IsDirectory) return "icon-folder";
@@ -331,9 +332,12 @@ namespace
 			return "icon-material";
 		case EAssetType::Prefab:
 			return "icon-object";
+		// Layer 는 일부러 아이콘을 주지 않는다 — 전용 layer.png 가 없어서 캔버스 아이콘을
+		// 재사용하면 `.jcanvas` 와 구분이 안 되고, 기본 문서 아이콘(default)으로 두면
+		// 그것대로 다른 타입과 섞인다. nullptr 이면 "[LYR]" 텍스트가 뜬다.
+		// 전용 아이콘이 생기면 여기서 그 키를 반환할 것.
 		case EAssetType::Layer:
-			return "icon-scene";   // 전용 아이콘 추가 전까지 캔버스 아이콘 재사용
-
+			return nullptr;
 		case EAssetType::Audio:
 			return "icon-audio";
 		case EAssetType::AudioEffect:
@@ -413,7 +417,11 @@ namespace
 
 		if (false == entry.Thumbnail.IsValid() && nullptr == entry.ThumbnailRaw)
 		{
-			entry.ThumbnailRaw = Engine.ResourceRegistry->GetSprite(GetIconResourceKey(entry));
+			// 키가 없는 타입(= 전용 아이콘 미보유)은 텍스처를 잡지 않는다 → 텍스트 태그로 표시.
+			if (const char* iconKey = GetIconResourceKey(entry))
+			{
+				entry.ThumbnailRaw = Engine.ResourceRegistry->GetSprite(iconKey);
+			}
 		}
 
 		// GPU 텍스처가 아직 없으면 lazy 생성 (cache 경유).
@@ -1164,6 +1172,17 @@ void CAssetBrowserTool::DrawBrowserColumns()
 	ImGui::BeginChild("AssetBrowserEntries", ImVec2(0.0f, 0.0f),
 	                  ImGuiChildFlags_Borders, ImGuiWindowFlags_NoMove);
 	DrawEntries();
+	// 빈 공간에 레이어 드롭 — 지금 보고 있는 폴더에 `.jlayer` 로 에셋화.
+	// 폴더 행 위에서는 그 행의 타깃이 받아야 하므로 아이템 위가 아닐 때만 연다(둘 다 열리면
+	// 한 번의 드롭을 양쪽이 받아 파일이 두 개 생긴다). 배경 컨텍스트 메뉴와 같은 판정이다.
+	if (false == ImGui::IsAnyItemHovered())
+	{
+		CGameLayer* droppedLayer = nullptr;
+		if (EditorDragDrop::AcceptLayerDragDropPayloadOnWindow(droppedLayer))
+		{
+			SaveLayerAsAssetInFolder(*droppedLayer, m_focusFolderPath);
+		}
+	}
 	// 빈 공간 우클릭(다른 entry 위에서가 아닐 때) — body 통합 팝업 호출.
 	// ChildWindows 플래그가 없으면 리스트 모드의 ScrollY 테이블이 내부 child 를
 	// 만들어 부모 윈도우 hover 판정에서 누락된다.
