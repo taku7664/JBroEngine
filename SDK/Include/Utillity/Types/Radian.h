@@ -48,11 +48,10 @@ public:
 	Radian& operator*=(float rhs) noexcept { Value *= rhs; return *this; }
 	Radian& operator/=(float rhs) noexcept { Value /= rhs; return *this; }
 
+	// 각도 × 각도 / 각도 ÷ 각도는 뜻이 없어 일부러 없다 — 스칼라와의 곱/나눗셈만
+	// 클래스 밖 JBRO_STRONG_MIXED_* 로 만든다(리터럴까지 덮으려면 템플릿이어야 한다).
 	friend constexpr Radian operator+(Radian lhs, Radian rhs) noexcept { return Radian(lhs.Value + rhs.Value); }
 	friend constexpr Radian operator-(Radian lhs, Radian rhs) noexcept { return Radian(lhs.Value - rhs.Value); }
-	friend constexpr Radian operator*(Radian lhs, float rhs) noexcept { return Radian(lhs.Value * rhs); }
-	friend constexpr Radian operator*(float lhs, Radian rhs) noexcept { return Radian(lhs * rhs.Value); }
-	friend constexpr Radian operator/(Radian lhs, float rhs) noexcept { return Radian(lhs.Value / rhs); }
 
 	friend constexpr bool operator==(Radian lhs, Radian rhs) noexcept { return lhs.Value == rhs.Value; }
 	friend constexpr bool operator!=(Radian lhs, Radian rhs) noexcept { return !(lhs == rhs); }
@@ -68,6 +67,13 @@ public:
 
 constexpr Degree::Degree(const Radian& radian) noexcept : Value(radian.Get() * RAD_TO_DEG) {}
 constexpr Radian Degree::ToRadian() const noexcept { return Radian(Value * DEG_TO_RAD); }
+
+// 기본 산술 타입과의 혼합 연산 — Degree 와 같은 이유·같은 범위(StrongTypeOps.h 참조).
+JBRO_STRONG_MIXED_BINARY(Radian, float, +)
+JBRO_STRONG_MIXED_BINARY(Radian, float, -)
+JBRO_STRONG_MIXED_BINARY(Radian, float, *)
+JBRO_STRONG_MIXED_BINARY_LHS(Radian, float, /)
+JBRO_STRONG_MIXED_COMPARISONS(Radian, float)
 
 static_assert(sizeof(Radian) == sizeof(float));
 static_assert(alignof(Radian) == alignof(float));

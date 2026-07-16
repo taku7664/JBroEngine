@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Utillity/Types/StrongTypeOps.h"
+
 #include <cstdint>
 #include <functional>
 #include <limits>
@@ -57,6 +59,15 @@ public:
 
 	std::int64_t Value = 0;
 };
+
+// 기본 산술 타입과의 혼합 연산 — 없으면 `count * 2`(Int × int) 가 모호해서
+// 컴파일되지 않는다. 이유와 규칙은 StrongTypeOps.h 참조.
+JBRO_STRONG_MIXED_BINARY(Int, std::int64_t, +)
+JBRO_STRONG_MIXED_BINARY(Int, std::int64_t, -)
+JBRO_STRONG_MIXED_BINARY(Int, std::int64_t, *)
+JBRO_STRONG_MIXED_BINARY(Int, std::int64_t, /)
+JBRO_STRONG_MIXED_BINARY(Int, std::int64_t, %)
+JBRO_STRONG_MIXED_COMPARISONS(Int, std::int64_t)
 
 static_assert(sizeof(Int) == sizeof(std::int64_t));
 static_assert(alignof(Int) == alignof(std::int64_t));

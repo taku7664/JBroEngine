@@ -398,6 +398,9 @@
     <ClInclude Include="Utillity\Types\Float.h">
       <Filter>Header\Utillity\Types</Filter>
     </ClInclude>
+    <ClInclude Include="Utillity\Types\StrongTypeOps.h">
+      <Filter>Header\Utillity\Types</Filter>
+    </ClInclude>
     <ClInclude Include="Utillity\Types\Int.h">
       <Filter>Header\Utillity\Types</Filter>
     </ClInclude>

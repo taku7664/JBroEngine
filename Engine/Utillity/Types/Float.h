@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Utillity/Types/StrongTypeOps.h"
+
 #include <algorithm>
 #include <cmath>
 #include <functional>
@@ -76,6 +78,14 @@ public:
 
 	float Value = 0.0f;
 };
+
+// 기본 산술 타입과의 혼합 연산 — 없으면 `speed * dt`(Float × float) 가 모호해서
+// 컴파일되지 않는다. 이유와 규칙은 StrongTypeOps.h 참조.
+JBRO_STRONG_MIXED_BINARY(Float, float, +)
+JBRO_STRONG_MIXED_BINARY(Float, float, -)
+JBRO_STRONG_MIXED_BINARY(Float, float, *)
+JBRO_STRONG_MIXED_BINARY(Float, float, /)
+JBRO_STRONG_MIXED_COMPARISONS(Float, float)
 
 static_assert(sizeof(Float) == sizeof(float));
 static_assert(alignof(Float) == alignof(float));
