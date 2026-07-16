@@ -4,7 +4,6 @@
 #include "GameFramework/Scene/SceneTypes.h"
 
 #include <string>
-#include <unordered_map>
 
 class CGameScene;
 
@@ -34,23 +33,26 @@ public:
 	void SetCanvasName(const char* name);
 
 	// ── 캔버스 전환 ───────────────────────────────────────────────────────────
-	// 이름 → 캔버스 에셋 guid 등록(빌드 매니페스트의 빌드 씬 목록). **패키지에는 디스크 경로가
-	// 없어 guid 로만 캔버스를 찾을 수 있다.** 에디터는 등록 없이 경로로 찾는다(프로젝트 파일이
-	// 그대로 있으므로) — 그래서 이 등록은 런타임 부팅에서만 한다.
-	void RegisterCanvas(const char* name, const char* assetGuidText);
-
-	// 전환 예약. 이름 = 캔버스 파일 키(프로젝트 상대 경로, 매니페스트·에디터와 같은 키).
+	// 전환 예약. 키는 **캔버스 에셋 guid** 다 — 경로가 아니다.
+	//   · 이 엔진의 자산 신원은 guid + `.jmeta` 사이드카다. 경로로 지목하면 파일을 옮기거나
+	//     이름만 바꿔도 조용히 깨지는데, `.jmeta` 가 존재하는 이유가 바로 그걸 막는 것이다.
+	//   · 경로는 베이스가 여럿이라(프로젝트 상대 / 에셋 루트 상대 / 캔버스 이름 키) 어느 쪽인지
+	//     계속 헷갈린다. guid 는 고를 게 없다.
+	//   · guid 면 빌드 수집기가 "이 캔버스가 저 캔버스로 갈 수 있다"를 실제 의존 간선으로 본다.
+	//   · 에디터/패키지 분기도 사라진다 — LoadAsset(guid) 하나로 양쪽 다 된다.
+	// 스크립트는 `JPROP() Ref<CCanvasAsset> Target;` 으로 저작하고 `Target.GuidText()` 를 넘긴다
+	// (RefBase 는 고정 char 버퍼라 호스트↔게임 DLL 경계를 넘어도 안전하다).
 	//
 	// **인라인이어야 한다** — 게임 스크립트 DLL 이 Script.SceneManager 로 이걸 부른다.
 	// out-of-line 이면 SceneManager.obj 가 링크 클로저에 끌려오고 SceneSerializer.obj →
-	// yaml-cpp 연쇄로 DLL 링크가 깨진다. 그래서 여기서는 이름만 적어 둔다.
+	// yaml-cpp 연쇄로 DLL 링크가 깨진다. 그래서 여기서는 guid 만 적어 둔다.
 	//
 	// 실행은 호스트가 프레임 끝에 한다(설계 8차의 "프레임 끝 지연 실행"이기도 하다) —
 	// 스크립트 순회 도중 캔버스를 갈아엎으면 순회 중인 오브젝트가 발밑에서 사라진다.
 	// 같은 프레임에 두 번 부르면 마지막 것만 남는다(전환 목적지는 하나뿐이다).
-	void RequestCanvasTransition(const char* canvasName)
+	void RequestCanvasTransition(const char* canvasAssetGuidText)
 	{
-		m_pendingCanvasTransition = canvasName ? canvasName : "";
+		m_pendingCanvasTransition = canvasAssetGuidText ? canvasAssetGuidText : "";
 	}
 	bool HasPendingCanvasTransition() const { return false == m_pendingCanvasTransition.empty(); }
 
@@ -89,19 +91,16 @@ public:
 	void Clear();
 
 private:
-	// 예약된 전환을 실행한다(프레임 끝). 캔버스 파일을 읽어 diff 를 적용하고 이름·리소스를
+	// 예약된 전환을 실행한다(프레임 끝). 캔버스 자산을 읽어 diff 를 적용하고 이름·리소스를
 	// 갱신한다. 실패하면 현재 캔버스를 그대로 둔다 — 반쯤 전환된 캔버스를 만들지 않는다.
 	void FlushPendingCanvasTransition();
-	// 캔버스 파일 텍스트를 읽는다. 등록된 이름이면 guid(패키지 에셋)로, 아니면 경로로.
-	bool ReadCanvasText(const std::string& name, std::string& outText) const;
 
 private:
 	OwnerPtr<CGameScene> m_canvas;
 	// m_canvas->GetName() 의 사본 — FindScene 이 헤더 인라인이라 완전 타입을 못 쓴다.
 	std::string m_canvasName;
-	// 이름 → 캔버스 에셋 guid 문자열. guid 를 문자열로 드는 건 이 헤더가 게임 DLL 에도
+	// 예약된 전환 대상의 캔버스 에셋 guid. guid 를 문자열로 드는 건 이 헤더가 게임 DLL 에도
 	// 들어가기 때문이다(File::Guid 는 fs::path 파생 — 경계 밖으로 내보내지 않는다).
-	std::unordered_map<std::string, std::string> m_canvasRegistry;
 	std::string m_pendingCanvasTransition;
 	ESceneSimulationState m_simulationState = ESceneSimulationState::Edit;
 	std::string m_playModeSnapshot;

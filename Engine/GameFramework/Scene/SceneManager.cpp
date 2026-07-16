@@ -4,7 +4,7 @@
 #include "Core/ScriptCore.h"
 #include "Core/Asset/IAssetManager.h"
 #include "Core/Asset/AssetRef.inl"   // LoadAsset 반환 AssetRef 의 복사/이동/소멸 인스턴스화
-#include "Core/Asset/FileAsset.h"    // 캔버스 파일 텍스트(전환)
+#include "Core/Asset/CanvasAsset.h"  // 캔버스 자산 텍스트(전환)
 #include "Core/Logging/LoggerInternal.h"
 #include "Core/Time/Time.h"
 #include "GameFramework/Scene/Scene.h"
@@ -35,45 +35,6 @@ void CSceneManager::SetCanvasName(const char* name)
 	}
 }
 
-void CSceneManager::RegisterCanvas(const char* name, const char* assetGuidText)
-{
-	if (nullptr == name || '\0' == name[0])
-	{
-		return;
-	}
-	m_canvasRegistry[name] = assetGuidText ? assetGuidText : "";
-}
-
-bool CSceneManager::ReadCanvasText(const std::string& name, std::string& outText) const
-{
-	if (false == Script.AssetManager.IsValid() || name.empty())
-	{
-		return false;
-	}
-
-	AssetRef<IAsset> asset;
-	const auto it = m_canvasRegistry.find(name);
-	if (it != m_canvasRegistry.end() && false == it->second.empty())
-	{
-		asset = Script.AssetManager->LoadAsset(AssetGuid(it->second));
-	}
-	else
-	{
-		// 미등록 = 에디터(디스크에 프로젝트 파일이 그대로 있다). 패키지에서 여기로 오면
-		// 그 캔버스가 빌드 씬 목록에 없다는 뜻이고, 경로 로드는 자연히 실패한다.
-		asset = Script.AssetManager->LoadAssetByPath(File::Path(name));
-	}
-
-	// 전환은 cold path — dynamic_cast 해도 된다(프레임 루프가 아니다).
-	const CFileAsset* fileAsset = asset.IsValid() ? dynamic_cast<const CFileAsset*>(asset.Get()) : nullptr;
-	if (nullptr == fileAsset)
-	{
-		return false;
-	}
-	outText = fileAsset->GetText();
-	return true;
-}
-
 void CSceneManager::FlushPendingCanvasTransition()
 {
 	if (m_pendingCanvasTransition.empty())
@@ -82,30 +43,37 @@ void CSceneManager::FlushPendingCanvasTransition()
 	}
 
 	// 먼저 비운다 — 실패해도 매 프레임 같은 전환을 다시 시도하지 않게.
-	const std::string name = std::move(m_pendingCanvasTransition);
+	const std::string guidText = std::move(m_pendingCanvasTransition);
 	m_pendingCanvasTransition.clear();
 
 	CGameScene* canvas = m_canvas.Get();
-	if (nullptr == canvas)
+	if (nullptr == canvas || false == Script.AssetManager.IsValid())
 	{
 		return;
 	}
 
-	std::string text;
-	if (false == ReadCanvasText(name, text))
+	// guid 하나로 에디터·패키지가 같은 경로를 탄다 — 경로 폴백도, 이름 등록도 필요 없다.
+	// 전환은 cold path 라 dynamic_cast 해도 된다(프레임 루프가 아니다).
+	AssetRef<IAsset> asset = Script.AssetManager->LoadAsset(AssetGuid(guidText));
+	const CCanvasAsset* canvasAsset = asset.IsValid() ? dynamic_cast<const CCanvasAsset*>(asset.Get()) : nullptr;
+	if (nullptr == canvasAsset)
 	{
-		CSystemLog::Error(std::string("Canvas transition failed (file not found): ") + name);
+		// 캔버스가 아닌 자산을 가리키고 있어도 여기서 걸린다(Ref 가 타입을 지키지만
+		// guid 를 손으로 넣는 경로도 있다).
+		CSystemLog::Error(std::string("Canvas transition failed (canvas asset not found): ") + guidText);
 		return;
 	}
 
+	const std::string text(canvasAsset->GetText());
 	CSceneSerializer serializer;
 	if (ESceneSerializeResult::Success != serializer.TransitionFromText(*canvas, text.c_str()))
 	{
-		CSystemLog::Error(std::string("Canvas transition failed (load error): ") + name);
+		CSystemLog::Error(std::string("Canvas transition failed (load error): ") + guidText);
 		return;
 	}
 
-	SetCanvasName(name.c_str());
+	// 캔버스 이름은 여전히 파일 키다(에디터 문서 키·Ref<GameScene> 해석) — 자산 메타에서 꺼낸다.
+	SetCanvasName(canvasAsset->GetMetaData().Path.generic_string().c_str());
 	RefreshReferencedAssets();
 }
 
@@ -286,7 +254,6 @@ void CSceneManager::Clear()
 {
 	m_canvas.Reset();
 	m_canvasName.clear();
-	m_canvasRegistry.clear();
 	m_pendingCanvasTransition.clear();
 	m_simulationState = ESceneSimulationState::Edit;
 	m_playModeSnapshot.clear();

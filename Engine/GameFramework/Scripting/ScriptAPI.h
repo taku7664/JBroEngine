@@ -97,6 +97,9 @@ using GameObject = CGameObject;
 
 // ── 자산 ────────────────────────────────────────────────────────────────────
 #include "Core/Asset/AssetTypes.h"
+// Ref<T> 는 T 가 완전 타입이어야 한다(에셋 카테고리 판정이 is_base_of_v<IAsset, T>).
+// 캔버스는 `Ref<CCanvasAsset> Target` 으로 전환 대상을 저작하는 데 쓰인다.
+#include "Core/Asset/CanvasAsset.h"
 
 // ── 입력 ────────────────────────────────────────────────────────────────────
 #include "Core/Input/Input.h"          // Script.Input facade (전역설정/진동/연결조회)
