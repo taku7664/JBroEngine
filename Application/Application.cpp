@@ -20,10 +20,10 @@
 #include "Engine/GameFramework/Rendering/GameCamera.h"
 #include "Engine/GameFramework/Rendering/SpriteRenderSystem.h"
 #include "Engine/GameFramework/Rendering/TextRenderSystem.h"
-#include "Engine/GameFramework/Scene/Scene.h"
-#include "Engine/GameFramework/Scene/SceneManager.h"
-#include "Engine/GameFramework/Scene/SceneRuntimeAccess.h"
-#include "Engine/GameFramework/Scene/SceneSerializer.h"
+#include "Engine/GameFramework/Canvas/Canvas.h"
+#include "Engine/GameFramework/Canvas/CanvasManager.h"
+#include "Engine/GameFramework/Canvas/CanvasRuntimeAccess.h"
+#include "Engine/GameFramework/Canvas/CanvasSerializer.h"
 
 #include <algorithm>
 #endif
@@ -351,17 +351,17 @@ namespace
 	//  · Sprite/Audio 시스템을 부착하고 ScriptCore 디바이스를 주입한다.
 	// 캔버스는 런타임에 하나뿐이라 "실패 시 만든 씬을 지운다"가 성립하지 않는다 —
 	// 실패하면 캔버스는 로드 이전 상태(대개 빈 상태)로 남고 호출자가 부팅을 접는다.
-	bool LoadRuntimeCanvas(CSceneManager& sceneManager,
+	bool LoadRuntimeCanvas(CCanvasManager& canvasManager,
 	                       IAssetManager& assetManager,
 	                       const ScriptCore* context,
-	                       const std::string& sceneName,
+	                       const std::string& canvasName,
 	                       const AssetGuid& sceneGuid,
 	                       const std::string& scenePathText)
 	{
-		CGameScene* scene = &sceneManager.GetOrCreateCanvas();
+		CGameCanvas* scene = &canvasManager.GetOrCreateCanvas();
 
-		CSceneSerializer serializer;
-		ESceneSerializeResult loadResult = ESceneSerializeResult::IoError;
+		CCanvasSerializer serializer;
+		ECanvasSerializeResult loadResult = ECanvasSerializeResult::IoError;
 		if (false == sceneGuid.IsNull())
 		{
 			AssetRef<IAsset> sceneAsset = assetManager.LoadAsset(sceneGuid);
@@ -389,15 +389,15 @@ namespace
 			loadResult = serializer.LoadFromFile(*scene, scenePath);
 		}
 
-		if (ESceneSerializeResult::Success != loadResult)
+		if (ECanvasSerializeResult::Success != loadResult)
 		{
-			CSystemLog::Error(std::string("Runtime scene load failed: ") + sceneName);
+			CSystemLog::Error(std::string("Runtime scene load failed: ") + canvasName);
 			return false;
 		}
 
 		// 내용이 실린 뒤에야 이름·리소스를 확정한다 — 실패 경로가 옛 이름을 덮어쓰지 않게.
-		sceneManager.SetCanvasName(sceneName.c_str());
-		sceneManager.RefreshReferencedAssets();
+		canvasManager.SetCanvasName(canvasName.c_str());
+		canvasManager.RefreshReferencedAssets();
 
 		// 캔버스에 렌더/오디오 시스템을 부착하고 ScriptCore 디바이스를 주입한다.
 		// 시스템은 ClearObjects 로 지워지지 않으므로(캔버스 수명에 붙는다) Find→Add 로 멱등이다.
@@ -406,20 +406,20 @@ namespace
 			// 렌더 시스템은 호스트 전용 — 전역 `Engine`(EngineCore)에서 직접 가져온다.
 			// (RenderScene/RHIDevice/Renderer 는 스크립트에 노출하지 않으므로 ScriptCore 에 없다.)
 			// 애니메이션 시스템은 SpriteRenderSystem 보다 먼저 등록해 같은 프레임에 FrameIndex 반영.
-			CSpriteAnimationSystem* animationSystem = CSceneRuntimeAccess::FindSystem<CSpriteAnimationSystem>(*scene);
+			CSpriteAnimationSystem* animationSystem = CCanvasRuntimeAccess::FindSystem<CSpriteAnimationSystem>(*scene);
 			if (nullptr == animationSystem)
 			{
-				animationSystem = CSceneRuntimeAccess::AddSystem<CSpriteAnimationSystem>(*scene, Engine.AssetManager);
+				animationSystem = CCanvasRuntimeAccess::AddSystem<CSpriteAnimationSystem>(*scene, Engine.AssetManager);
 			}
 			if (nullptr != animationSystem)
 			{
 				animationSystem->SetAssetManager(Engine.AssetManager);
 			}
 
-			CSpriteRenderSystem* spriteSystem = CSceneRuntimeAccess::FindSystem<CSpriteRenderSystem>(*scene);
+			CSpriteRenderSystem* spriteSystem = CCanvasRuntimeAccess::FindSystem<CSpriteRenderSystem>(*scene);
 			if (nullptr == spriteSystem)
 			{
-				spriteSystem = CSceneRuntimeAccess::AddSystem<CSpriteRenderSystem>(*scene, Engine.RenderScene.TryGet());
+				spriteSystem = CCanvasRuntimeAccess::AddSystem<CSpriteRenderSystem>(*scene, Engine.RenderScene.TryGet());
 			}
 			if (nullptr != spriteSystem)
 			{
@@ -432,10 +432,10 @@ namespace
 					Runtime.PixelsPerUnit);
 			}
 
-			CShapeRenderSystem* shapeSystem = CSceneRuntimeAccess::FindSystem<CShapeRenderSystem>(*scene);
+			CShapeRenderSystem* shapeSystem = CCanvasRuntimeAccess::FindSystem<CShapeRenderSystem>(*scene);
 			if (nullptr == shapeSystem)
 			{
-				shapeSystem = CSceneRuntimeAccess::AddSystem<CShapeRenderSystem>(*scene, Engine.RenderScene.TryGet());
+				shapeSystem = CCanvasRuntimeAccess::AddSystem<CShapeRenderSystem>(*scene, Engine.RenderScene.TryGet());
 			}
 			if (nullptr != shapeSystem)
 			{
@@ -443,10 +443,10 @@ namespace
 				shapeSystem->SetDependencies(Engine.RHIDevice.TryGet(), Engine.Renderer.TryGet());
 			}
 
-			CTextRenderSystem* textSystem = CSceneRuntimeAccess::FindSystem<CTextRenderSystem>(*scene);
+			CTextRenderSystem* textSystem = CCanvasRuntimeAccess::FindSystem<CTextRenderSystem>(*scene);
 			if (nullptr == textSystem)
 			{
-				textSystem = CSceneRuntimeAccess::AddSystem<CTextRenderSystem>(*scene, Engine.RenderScene.TryGet());
+				textSystem = CCanvasRuntimeAccess::AddSystem<CTextRenderSystem>(*scene, Engine.RenderScene.TryGet());
 			}
 			if (nullptr != textSystem)
 			{
@@ -455,10 +455,10 @@ namespace
 					Runtime.PixelsPerUnit, Runtime.DefaultFontFamilyGuid, Runtime.FallbackFontFamilies);
 			}
 
-			CAudioSystem* audioSystem = CSceneRuntimeAccess::FindSystem<CAudioSystem>(*scene);
+			CAudioSystem* audioSystem = CCanvasRuntimeAccess::FindSystem<CAudioSystem>(*scene);
 			if (nullptr == audioSystem)
 			{
-				audioSystem = CSceneRuntimeAccess::AddSystem<CAudioSystem>(*scene, context->Audio, context->AssetManager);
+				audioSystem = CCanvasRuntimeAccess::AddSystem<CAudioSystem>(*scene, context->Audio, context->AssetManager);
 			}
 			if (nullptr != audioSystem)
 			{
@@ -480,11 +480,11 @@ bool CGameApplication::LoadRuntimeStartupScene(const BuildManifest& manifest)
 		return false;
 	}
 
-	SafePtr<CSceneManager> sceneManager = Engine.SceneManager;
+	SafePtr<CCanvasManager> canvasManager = Engine.CanvasManager;
 	SafePtr<IAssetManager> assetManager = Engine.AssetManager;
-	if (false == sceneManager.IsValid() || false == assetManager.IsValid())
+	if (false == canvasManager.IsValid() || false == assetManager.IsValid())
 	{
-		CSystemLog::Error("Runtime startup scene load failed: SceneManager or AssetManager is not available.");
+		CSystemLog::Error("Runtime startup scene load failed: CanvasManager or AssetManager is not available.");
 		return false;
 	}
 
@@ -498,27 +498,27 @@ bool CGameApplication::LoadRuntimeStartupScene(const BuildManifest& manifest)
 	// startup 캔버스만 로드한다 — 런타임 캔버스는 하나고, 전환은 그 하나에 diff 를 적용하는
 	// 것이라 나머지 빌드 씬을 미리 인스턴스화해 둘 자리가 없다(있으면 그게 곧 다중 씬이다).
 	// 다른 캔버스는 전환 시점에 파일에서 읽는다. startup 은 guid 로 로드해 경로 의존을 피한다.
-	if (false == LoadRuntimeCanvas(*sceneManager, *assetManager, context,
+	if (false == LoadRuntimeCanvas(*canvasManager, *assetManager, context,
 	                               startupName, startupSceneGuid,
 	                               manifest.StartupScene))
 	{
 		return false;
 	}
 
-	sceneManager->PlaySimulation();
+	canvasManager->PlaySimulation();
 	CSystemLog::Info(std::string("Runtime startup scene loaded: ") + startupName);
 	return true;
 }
 
 void CGameApplication::ConfigureRuntimeViewCamera()
 {
-	SafePtr<CSceneManager> sceneManager = Engine.SceneManager;
-	if (false == sceneManager.IsValid())
+	SafePtr<CCanvasManager> canvasManager = Engine.CanvasManager;
+	if (false == canvasManager.IsValid())
 	{
 		return;
 	}
 
-	SafePtr<CGameScene> scene = sceneManager->GetActiveScene();
+	SafePtr<CGameCanvas> scene = canvasManager->GetActiveCanvas();
 	if (false == scene.IsValid())
 	{
 		return;
@@ -554,9 +554,9 @@ void CGameApplication::ConfigureRuntimeViewCamera()
 
 void CGameApplication::ShutdownRuntimeGame()
 {
-	if (Engine.SceneManager)
+	if (Engine.CanvasManager)
 	{
-		Engine.SceneManager->DestroyScriptInstances();
+		Engine.CanvasManager->DestroyScriptInstances();
 	}
 	if (m_gameModuleLoader)
 	{

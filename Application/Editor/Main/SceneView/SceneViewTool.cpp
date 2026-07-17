@@ -19,8 +19,8 @@
 #include "Engine/GameFramework/Component/SpriteRenderer2D.h"
 #include "Engine/GameFramework/Component/Transform2D.h"
 #include "Engine/GameFramework/Debug/SceneDebugDrawSystem.h"
-#include "Engine/GameFramework/Scene/Scene.h"
-#include "Engine/GameFramework/Scene/SceneTransformUtils.h"
+#include "Engine/GameFramework/Canvas/Canvas.h"
+#include "Engine/GameFramework/Canvas/CanvasTransformUtils.h"
 
 using SceneViewCoordinates::GetAspect;
 using SceneViewCoordinates::ViewportToWorld;
@@ -43,7 +43,7 @@ namespace
         return o ? o->SafeFromThis() : SafePtr<CGameObject>();
     }
 
-    std::vector<CGameObject*> CollectSubtree(const CGameScene& /*scene*/, CGameObject* root)
+    std::vector<CGameObject*> CollectSubtree(const CGameCanvas& /*scene*/, CGameObject* root)
     {
         if (nullptr == root) return {};
         std::vector<CGameObject*> result;
@@ -257,7 +257,7 @@ void CCanvasViewTool::SetEditorCamera(float x, float y, float size)
     m_cameraSize       = m_targetCameraSize;
 }
 
-void CCanvasViewTool::FocusOnEntity(CGameObject* object, const CGameScene& scene)
+void CCanvasViewTool::FocusOnEntity(CGameObject* object, const CGameCanvas& scene)
 {
     (void)scene;
     if (nullptr == object) return;
@@ -290,7 +290,7 @@ void CCanvasViewTool::FocusOnEntity(CGameObject* object, const CGameScene& scene
     m_targetCameraSize = newSize;
 }
 
-void CCanvasViewTool::SetFocusContext(CGameObject* object, const CGameScene& scene)
+void CCanvasViewTool::SetFocusContext(CGameObject* object, const CGameCanvas& scene)
 {
     if (nullptr == object) return;
 
@@ -381,9 +381,9 @@ void CCanvasViewTool::OnRenderStay()
         const float aspect = GetAspect(vpSize);
         SubmitGrid(*Engine.DebugDraw2D, m_cameraPos.x, m_cameraPos.y, m_cameraSize, aspect);
 
-        if (Engine.SceneManager)
+        if (Engine.CanvasManager)
         {
-			SafePtr<CGameScene> scene = EditorContext::GetActiveScene();
+			SafePtr<CGameCanvas> scene = EditorContext::GetActiveCanvas();
             if (scene)
             {
                 // 씬 기본 디버그 (선택 엔티티 OBB 등)
@@ -525,9 +525,9 @@ void CCanvasViewTool::OnRenderStay()
     {
         dl->PushClipRect(vpMin, vpMin + vpSize, true);
 
-        if (Engine.SceneManager)
+        if (Engine.CanvasManager)
         {
-			SafePtr<CGameScene> gizmoScene = EditorContext::GetActiveScene();
+			SafePtr<CGameCanvas> gizmoScene = EditorContext::GetActiveCanvas();
             if (gizmoScene)
             {
                 constexpr float OUTER_R    = 5.0f;
@@ -586,9 +586,9 @@ void CCanvasViewTool::OnRenderStay()
         const bool polyTabActive   = inspTypeCol && std::strcmp(inspTypeCol, "PolygonCollider2D") == 0;
         const bool circleTabActive = inspTypeCol && std::strcmp(inspTypeCol, "CircleCollider2D")  == 0;
 
-        if (Engine.SceneManager)
+        if (Engine.CanvasManager)
         {
-			SafePtr<CGameScene> colScene = EditorContext::GetActiveScene();
+			SafePtr<CGameCanvas> colScene = EditorContext::GetActiveCanvas();
             if (colScene)
             {
                 // ── 공통 색상/두께 상수 ───────────────────────────────────────
@@ -909,9 +909,9 @@ void CCanvasViewTool::OnRenderStay()
 	m_lastViewportHovered = isHovered;
 
     GuizmoFrameResult guizmoResult;
-    if (Engine.SceneManager)
+    if (Engine.CanvasManager)
     {
-		SafePtr<CGameScene> scene = EditorContext::GetActiveScene();
+		SafePtr<CGameCanvas> scene = EditorContext::GetActiveCanvas();
         if (scene)
         {
             GuizmoFrameContext guizmoContext;
@@ -1039,9 +1039,9 @@ void CCanvasViewTool::OnRenderStay()
                     ViewportToWorld(ImVec2(rMaxS.x, rMinS.y),
                                     vpMin, vpSize, m_cameraPos, m_cameraSize);
 
-                if (Engine.SceneManager)
+                if (Engine.CanvasManager)
                 {
-					SafePtr<CGameScene> scene = EditorContext::GetActiveScene();
+					SafePtr<CGameCanvas> scene = EditorContext::GetActiveCanvas();
                     if (scene)
                     {
                         m_editCtx.Validate(*scene);
@@ -1073,9 +1073,9 @@ void CCanvasViewTool::OnRenderStay()
                 // ── 단일/더블 클릭 선택 ─────────────────────────────────────
                 m_clickPending = false;
 
-                if (Engine.SceneManager)
+                if (Engine.CanvasManager)
                 {
-					SafePtr<CGameScene> scene = EditorContext::GetActiveScene();
+					SafePtr<CGameCanvas> scene = EditorContext::GetActiveCanvas();
                     if (scene)
                     {
                         m_editCtx.Validate(*scene);
@@ -1159,9 +1159,9 @@ void CCanvasViewTool::OnRenderStay()
             if (m_rightClickPending && !m_rightDragging)
             {
                 m_rightClickPending = false;
-                if (Engine.SceneManager)
+                if (Engine.CanvasManager)
                 {
-					SafePtr<CGameScene> scene = EditorContext::GetActiveScene();
+					SafePtr<CGameCanvas> scene = EditorContext::GetActiveCanvas();
                     if (scene)
                     {
                         m_editCtx.Validate(*scene);
@@ -1219,7 +1219,7 @@ void CCanvasViewTool::OnRenderStay()
     // 각 섹션은 세팅된 상태가 유효할 때만 표시된다.
     if (ImGui::BeginPopup("##SVCtxMenu"))
     {
-		SafePtr<CGameScene> popupScene = EditorContext::GetActiveScene();
+		SafePtr<CGameCanvas> popupScene = EditorContext::GetActiveCanvas();
         if (popupScene)
         {
             // ── 섹션 1: 버텍스 삭제 ─────────────────────────────────────────
@@ -1293,7 +1293,7 @@ void CCanvasViewTool::OnRenderStay()
     // RT 파이프라인으로 이전됨 (ImEditor::OnRender에서 GPU 셰이더로 처리).
     // 여기서는 ImEditor에 상태만 전달.
     {
-		SafePtr<CGameScene> scene = EditorContext::GetActiveScene();
+		SafePtr<CGameCanvas> scene = EditorContext::GetActiveCanvas();
 
         // 포커스 컨텍스트
         if (m_editCtx.IsActive() && scene)
@@ -1358,7 +1358,7 @@ void CCanvasViewTool::OnRenderStay()
     }
 
     // ── Layer 4: 텍스트 오버레이 ─────────────────────────────────────────────
-	const bool hasScene = EditorContext::GetActiveScene().IsValid();
+	const bool hasScene = EditorContext::GetActiveCanvas().IsValid();
     const ImVec2 textPos = vpMin + ImVec2(12.0f, 10.0f);
     dl->AddText(textPos, IM_COL32(210, 216, 224, 255),
                 hasScene ? Loc::Text(EditorLocKeys::SceneViewOverlayActiveScene)
@@ -1399,9 +1399,9 @@ void CCanvasViewTool::OnRenderStay()
         const bool cameraTabActive =
             inspTypeCam && std::strcmp(inspTypeCam, "Camera2D") == 0;
 
-    if (cameraTabActive && nullptr != selectedObject && Engine.SceneManager)
+    if (cameraTabActive && nullptr != selectedObject && Engine.CanvasManager)
     {
-		SafePtr<CGameScene> sceneForVP = EditorContext::GetActiveScene();
+		SafePtr<CGameCanvas> sceneForVP = EditorContext::GetActiveCanvas();
         if (sceneForVP)
         {
             const Camera2D* cam    = selectedObject->GetComponent<Camera2D>();

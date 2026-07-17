@@ -14,14 +14,14 @@
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 #include "Core/Asset/AssetTypes.h"
-#include "GameFramework/Scene/SceneTypes.h"
+#include "GameFramework/Canvas/CanvasTypes.h"
 
 #include <string>
 #include <vector>
 
 namespace YAML { class Node; }
 
-class CGameScene;
+class CGameCanvas;
 class CGameLayer;
 
 namespace Serialization
@@ -37,7 +37,7 @@ namespace Serialization
 	void ApplyLayerNodeProperties(CGameLayer& layer, const YAML::Node& node);
 	// 노드에서 새 레이어를 만들어 scene 에 추가하고 속성 + InstanceGuid 를 복원한다.
 	// 실패 시 nullptr.
-	CGameLayer* ReadLayerNodeInto(CGameScene& scene, const YAML::Node& node);
+	CGameLayer* ReadLayerNodeInto(CGameCanvas& scene, const YAML::Node& node);
 
 	// ── 레이어 에셋(.jlayer) ──────────────────────────────────────────────────
 	// 포맷: { Version, ReferencedAssets, Layer: {레이어 노드}, Objects: [오브젝트 노드...] }
@@ -45,7 +45,7 @@ namespace Serialization
 	//     오브젝트를 만들지 않고 이 키만 읽어 전이 의존을 훑는다. 없으면 그 레이어가 쓰는
 	//     에셋이 패키지에서 통째로 빠진다.
 	//   · Objects 의 각 항목은 루트 1개 + 자식 서브트리(Children 중첩)다.
-	std::string SerializeLayer(const CGameScene& scene, const CGameLayer& layer);
+	std::string SerializeLayer(const CGameCanvas& scene, const CGameLayer& layer);
 
 	// 레이어 파일을 scene 에 새 레이어로 추가한다(목록 맨 위 = 컴포짓 최전면).
 	// 오브젝트/레이어의 InstanceGuid 는 파일 값 그대로 복원된다 — 재발급하지 않는다.
@@ -53,7 +53,7 @@ namespace Serialization
 	// 이미 같은 guid 의 오브젝트가 씬에 살아 있으면 DuplicateInstance 로 거부한다(아무것도
 	// 만들지 않는다). 같은 레이어 파일을 한 캔버스에 두 번 로드하면 guid 가 겹치는데,
 	// 그대로 두면 ObjectSerializer 가 조용히 새 guid 를 발급해 "guid 보존" 계약이 깨진다.
-	ELayerSerializeResult DeserializeLayer(CGameScene& scene, const char* text, CGameLayer** outLayer = nullptr);
+	ELayerSerializeResult DeserializeLayer(CGameCanvas& scene, const char* text, CGameLayer** outLayer = nullptr);
 
 	bool LooksLikeLayer(const char* text);
 }

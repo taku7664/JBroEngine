@@ -43,9 +43,9 @@ public:
 	bool ShouldUpdateInEditMode() const override { return false; }
 
 protected:
-	void OnUpdate  (CGameScene& scene) override;
-	void OnFinalize(CGameScene& scene) override;
-	void OnSimulationStop(CGameScene& scene) override;
+	void OnUpdate  (CGameCanvas& scene) override;
+	void OnFinalize(CGameCanvas& scene) override;
+	void OnSimulationStop(CGameCanvas& scene) override;
 
 private:
 	struct PlayerInstance

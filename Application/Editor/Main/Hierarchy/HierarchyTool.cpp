@@ -17,8 +17,8 @@
 #include "Engine/Core/EngineCore.h"
 #include "Engine/GameFramework/Reflection/ReflectionRegistry.h"
 #include "Engine/GameFramework/Object/GameObject.h"
-#include "Engine/GameFramework/Scene/GameLayer.h"
-#include "Engine/GameFramework/Scene/Scene.h"
+#include "Engine/GameFramework/Canvas/GameLayer.h"
+#include "Engine/GameFramework/Canvas/Canvas.h"
 
 #include <vector>
 
@@ -50,13 +50,13 @@ void CLayerTool::OnUpdate()
 
 void CLayerTool::OnRenderStay()
 {
-	if (false == Engine.SceneManager.IsValid())
+	if (false == Engine.CanvasManager.IsValid())
 	{
 		ImGui::TextDisabled(Loc::Text(EditorLocKeys::HierarchySceneManagerUnavailable));
 		return;
 	}
 
-	SafePtr<CGameScene> activeScene = EditorContext::GetActiveScene();
+	SafePtr<CGameCanvas> activeScene = EditorContext::GetActiveCanvas();
 	if (false == activeScene.IsValid())
 	{
 		ImGui::TextDisabled(Loc::Text(EditorLocKeys::HierarchyNoActiveScene));
@@ -562,7 +562,7 @@ void CLayerTool::OnRenderStay()
 	// 전 레이어가 한 단계 들여쓰기되는데, 캔버스는 어차피 런타임에 하나뿐이라 접을 일이 없다.
 	// 클릭 = 캔버스 선택 → 인스펙터가 캔버스 설정(배경색·뷰포트)을 띄운다.
 	{
-		// 씬 이름은 SceneManager 키(= 프로젝트 상대 경로)라 그대로 쓰면 한 줄을 넘긴다 —
+		// 씬 이름은 CanvasManager 키(= 프로젝트 상대 경로)라 그대로 쓰면 한 줄을 넘긴다 —
 		// 파일 이름만 보여준다.
 		const std::string canvasName = Editor::GetActiveScenePath().empty()
 			? std::string(activeScene->GetName())

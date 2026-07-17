@@ -8,7 +8,7 @@ class IRHIDevice;
 class IRenderSurface;
 class IGameModule;
 class CReflectionRegistry;
-class CSceneManager;
+class CCanvasManager;
 class CLogger;
 struct ScriptCore;
 

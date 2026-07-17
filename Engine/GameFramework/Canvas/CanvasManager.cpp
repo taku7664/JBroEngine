@@ -1,5 +1,5 @@
 #include "pch.h"
-#include "SceneManager.h"
+#include "CanvasManager.h"
 
 #include "Core/ScriptCore.h"
 #include "Core/Asset/IAssetManager.h"
@@ -8,25 +8,25 @@
 #include "Core/Asset/AssetTypeRules.h"
 #include "Core/Logging/LoggerInternal.h"
 #include "Core/Time/Time.h"
-#include "GameFramework/Scene/Scene.h"
-#include "GameFramework/Scene/SceneSerializer.h"
+#include "GameFramework/Canvas/Canvas.h"
+#include "GameFramework/Canvas/CanvasSerializer.h"
 
-CSceneManager::~CSceneManager()
+CCanvasManager::~CCanvasManager()
 {
 	Clear();
 }
 
-CGameScene& CSceneManager::GetOrCreateCanvas()
+CGameCanvas& CCanvasManager::GetOrCreateCanvas()
 {
 	if (nullptr == m_canvas.Get())
 	{
-		m_canvas = MakeOwnerPtr<CGameScene>();
+		m_canvas = MakeOwnerPtr<CGameCanvas>();
 		m_canvas->SetName(m_canvasName.c_str());
 	}
 	return *m_canvas.Get();
 }
 
-void CSceneManager::SetCanvasName(const char* name)
+void CCanvasManager::SetCanvasName(const char* name)
 {
 	m_canvasName = name ? name : "";
 	if (nullptr != m_canvas.Get())
@@ -36,7 +36,7 @@ void CSceneManager::SetCanvasName(const char* name)
 	}
 }
 
-void CSceneManager::FlushPendingCanvasTransition()
+void CCanvasManager::FlushPendingCanvasTransition()
 {
 	if (m_pendingCanvasTransition.empty())
 	{
@@ -47,7 +47,7 @@ void CSceneManager::FlushPendingCanvasTransition()
 	const std::string guidText = std::move(m_pendingCanvasTransition);
 	m_pendingCanvasTransition.clear();
 
-	CGameScene* canvas = m_canvas.Get();
+	CGameCanvas* canvas = m_canvas.Get();
 	if (nullptr == canvas || false == Script.AssetManager.IsValid())
 	{
 		return;
@@ -84,9 +84,9 @@ void CSceneManager::FlushPendingCanvasTransition()
 	}
 
 	const std::string text(canvasAsset->GetText());
-	CSceneSerializer serializer;
+	CCanvasSerializer serializer;
 	std::vector<SafePtr<CGameLayer>> inheritedLayers;
-	if (ESceneSerializeResult::Success != serializer.TransitionFromText(*canvas, text.c_str(), inheritedLayers))
+	if (ECanvasSerializeResult::Success != serializer.TransitionFromText(*canvas, text.c_str(), inheritedLayers))
 	{
 		CSystemLog::Error(std::string("Canvas transition failed (load error): ") + guidText);
 		return;
@@ -101,10 +101,10 @@ void CSceneManager::FlushPendingCanvasTransition()
 	canvas->DispatchCanvasChangedToScripts(inheritedLayers);
 }
 
-// GetActiveScene() 은 SceneManager.h 에 인라인으로 정의됨(DLL 링크 클로저에서
-// SceneManager.obj → SceneSerializer.obj → yaml-cpp 연쇄 풀을 끊기 위함).
+// GetActiveCanvas() 은 CanvasManager.h 에 인라인으로 정의됨(DLL 링크 클로저에서
+// CanvasManager.obj → SceneSerializer.obj → yaml-cpp 연쇄 풀을 끊기 위함).
 
-void CSceneManager::AcquireReferencedAssets(CGameScene& scene) const
+void CCanvasManager::AcquireReferencedAssets(CGameCanvas& scene) const
 {
 	if (scene.HasLoadedAssets())
 	{
@@ -131,9 +131,9 @@ void CSceneManager::AcquireReferencedAssets(CGameScene& scene) const
 	scene.SetLoadedAssets(std::move(loaded));
 }
 
-void CSceneManager::RefreshReferencedAssets()
+void CCanvasManager::RefreshReferencedAssets()
 {
-	CGameScene* canvas = m_canvas.Get();
+	CGameCanvas* canvas = m_canvas.Get();
 	if (nullptr == canvas)
 	{
 		return;
@@ -147,20 +147,20 @@ void CSceneManager::RefreshReferencedAssets()
 	previous.clear();
 }
 
-void CSceneManager::DestroyScriptInstances()
+void CCanvasManager::DestroyScriptInstances()
 {
-	if (CGameScene* canvas = m_canvas.Get())
+	if (CGameCanvas* canvas = m_canvas.Get())
 	{
 		canvas->DestroyScriptInstances();
 	}
 }
 
-void CSceneManager::PlaySimulation()
+void CCanvasManager::PlaySimulation()
 {
-	CGameScene* canvas = m_canvas.Get();
-	if (ESceneSimulationState::Edit == m_simulationState && nullptr != canvas)
+	CGameCanvas* canvas = m_canvas.Get();
+	if (ECanvasSimulationState::Edit == m_simulationState && nullptr != canvas)
 	{
-		CSceneSerializer serializer;
+		CCanvasSerializer serializer;
 		m_playModeSnapshot.clear();
 		serializer.SerializeToText(*canvas, m_playModeSnapshot);
 		// 이름도 함께 — 재생 중에 캔버스를 전환하면 이름이 목적지 것으로 바뀌는데, 정지 시
@@ -174,20 +174,20 @@ void CSceneManager::PlaySimulation()
 		canvas->ReserveScriptMemoryForCurrentScripts(*Script.Reflection);
 	}
 
-	m_simulationState = ESceneSimulationState::Playing;
+	m_simulationState = ECanvasSimulationState::Playing;
 }
 
-void CSceneManager::PauseSimulation()
+void CCanvasManager::PauseSimulation()
 {
-	if (ESceneSimulationState::Playing == m_simulationState)
+	if (ECanvasSimulationState::Playing == m_simulationState)
 	{
-		m_simulationState = ESceneSimulationState::Paused;
+		m_simulationState = ECanvasSimulationState::Paused;
 	}
 }
 
-void CSceneManager::StopSimulation()
+void CCanvasManager::StopSimulation()
 {
-	CGameScene* canvas = m_canvas.Get();
+	CGameCanvas* canvas = m_canvas.Get();
 
 	// 재생 중 예약된 전환은 버린다 — 정지가 재생 직전 상태로 되돌리는 마당에 그 뒤에
 	// 전환이 터지면 편집 중인 캔버스가 남의 것으로 바뀐다.
@@ -195,14 +195,14 @@ void CSceneManager::StopSimulation()
 
 	// 스냅샷 복원 전에 시스템 정리 — 시뮬 중 시작된 사운드 등을 해제한다.
 	// (편집 모드에선 시스템 Update 가 안 돌아 player GC 가 일어나지 않으므로 명시 정리 필요.)
-	if (ESceneSimulationState::Edit != m_simulationState && nullptr != canvas)
+	if (ECanvasSimulationState::Edit != m_simulationState && nullptr != canvas)
 	{
 		canvas->NotifySimulationStop();
 	}
 
-	if (ESceneSimulationState::Edit != m_simulationState && nullptr != canvas && false == m_playModeSnapshot.empty())
+	if (ECanvasSimulationState::Edit != m_simulationState && nullptr != canvas && false == m_playModeSnapshot.empty())
 	{
-		CSceneSerializer serializer;
+		CCanvasSerializer serializer;
 		// 전체 교체다(전환 아님) — 재생 직전으로 되돌리는 것이지 승계할 게 없다.
 		serializer.DeserializeFromText(*canvas, m_playModeSnapshot.c_str());
 		SetCanvasName(m_playModeCanvasName.c_str());
@@ -212,28 +212,28 @@ void CSceneManager::StopSimulation()
 
 	m_playModeSnapshot.clear();
 	m_playModeCanvasName.clear();
-	m_simulationState    = ESceneSimulationState::Edit;
+	m_simulationState    = ECanvasSimulationState::Edit;
 	m_fixedAccumulator   = 0.0f;
 }
 
-bool CSceneManager::IsSimulationPlaying() const
+bool CCanvasManager::IsSimulationPlaying() const
 {
-	return ESceneSimulationState::Playing == m_simulationState;
+	return ECanvasSimulationState::Playing == m_simulationState;
 }
 
-bool CSceneManager::IsSimulationPaused() const
+bool CCanvasManager::IsSimulationPaused() const
 {
-	return ESceneSimulationState::Paused == m_simulationState;
+	return ECanvasSimulationState::Paused == m_simulationState;
 }
 
-ESceneSimulationState CSceneManager::GetSimulationState() const
+ECanvasSimulationState CCanvasManager::GetSimulationState() const
 {
 	return m_simulationState;
 }
 
-void CSceneManager::Update()
+void CCanvasManager::Update()
 {
-	CGameScene* canvas = m_canvas.Get();
+	CGameCanvas* canvas = m_canvas.Get();
 	if (nullptr == canvas)
 	{
 		return;
@@ -274,12 +274,12 @@ void CSceneManager::Update()
 	FlushPendingCanvasTransition();
 }
 
-void CSceneManager::Clear()
+void CCanvasManager::Clear()
 {
 	m_canvas.Reset();
 	m_canvasName.clear();
 	m_pendingCanvasTransition.clear();
-	m_simulationState = ESceneSimulationState::Edit;
+	m_simulationState = ECanvasSimulationState::Edit;
 	m_playModeSnapshot.clear();
 	m_playModeCanvasName.clear();
 }

@@ -10,7 +10,7 @@
 #include "GameFramework/Component/Transform2D.h"
 #include "GameFramework/Physics2D/Collision2D.h"
 #include "GameFramework/Physics2D/Physics2DTypes.h"
-#include "GameFramework/Scene/Scene.h"
+#include "GameFramework/Canvas/Canvas.h"
 #include "GameFramework/Scripting/GameScript.h"
 
 #include <algorithm>
@@ -1334,7 +1334,7 @@ const std::vector<Physics2DManifold>& CPhysics2DSystem::GetManifolds() const { r
 
 // ── Fixed-step 진입점 ─────────────────────────────────────────────────────────
 
-void CPhysics2DSystem::OnFixedUpdate(CGameScene& scene)
+void CPhysics2DSystem::OnFixedUpdate(CGameCanvas& scene)
 {
 	const float fixedDelta = Script.Time ? Script.Time->GetFixedDeltaSeconds() : 0.02f;
 	if (fixedDelta < MIN_PHYSICS_DELTA_SECONDS)
@@ -1476,13 +1476,13 @@ void CPhysics2DSystem::DispatchToScript(
 	collision.Penetration  = penetration;
 	collision.IsTrigger    = isTrigger;
 
-	CGameScene* scene = self->GetScene();
+	CGameCanvas* scene = self->GetCanvas();
 	if (nullptr == scene)
 	{
 		return;
 	}
 
-	scene->ForEachScriptOnObject(*self, [&](CGameScript& script, CGameScene::ScriptRuntimeState&)
+	scene->ForEachScriptOnObject(*self, [&](CGameScript& script, CGameCanvas::ScriptRuntimeState&)
 	{
 		CGameObject* owner = script.GetOwner().TryGet();
 		if (false == script.IsEnabled() || nullptr == owner || false == owner->IsActiveInHierarchy() || false == script.IsStarted())
@@ -1527,7 +1527,7 @@ void CPhysics2DSystem::DispatchPair(
 	DispatchToScript(b, a, normalBtoA, contactPoint, penetration, isTrigger, phase);
 }
 
-void CPhysics2DSystem::DispatchContactEvents(CGameScene& scene)
+void CPhysics2DSystem::DispatchContactEvents(CGameCanvas& scene)
 {
 	// ── 1. 이번 fixed step 의 접촉 페어 수집 ──────────────────────────────────
 	// 매니폴드에서 (A,B) 를 주소 오름차순으로 정규화(A<B)해 페어 키를 안정화한다.
@@ -1647,7 +1647,7 @@ void CPhysics2DSystem::DispatchContactEvents(CGameScene& scene)
 	}
 }
 
-void CPhysics2DSystem::OnSimulationStop(CGameScene& /*scene*/)
+void CPhysics2DSystem::OnSimulationStop(CGameCanvas& /*scene*/)
 {
 	// 재생 정지 — 접촉/매니폴드 상태를 비워 재개 시 잔여 Exit 이벤트가 튀지 않게 한다.
 	m_prevContacts.clear();
@@ -1655,17 +1655,17 @@ void CPhysics2DSystem::OnSimulationStop(CGameScene& /*scene*/)
 	m_prevManifolds.clear();
 }
 
-void CPhysics2DSystem::OnInitialize(CGameScene& scene)
+void CPhysics2DSystem::OnInitialize(CGameCanvas& scene)
 {
 	// 질의(Raycast/Overlap)가 scene 인자 없이 동작하도록 캐싱. 시스템 수명 = 씬 수명.
-	m_scene = &scene;
+	m_canvas = &scene;
 }
 
 bool CPhysics2DSystem::Raycast(const Vector2& origin, const Vector2& direction, float maxDistance, RaycastHit2D& outHit,
                                std::uint32_t layerMask) const
 {
 	outHit = RaycastHit2D{};
-	if (nullptr == m_scene || maxDistance <= 0.0f)
+	if (nullptr == m_canvas || maxDistance <= 0.0f)
 	{
 		return false;
 	}
@@ -1684,7 +1684,7 @@ bool CPhysics2DSystem::Raycast(const Vector2& origin, const Vector2& direction, 
 	Vector2      bestNormal(0.0f, 0.0f);
 
 	// ── 원 콜라이더 (해석적 ray-circle) ──────────────────────────────────────
-	m_scene->ForEach<CircleCollider2D>(
+	m_canvas->ForEach<CircleCollider2D>(
 		[&](const CircleCollider2D& collider)
 		{
 			if (false == IsActiveComponent(collider) || 0u == (collider.CollisionLayer & layerMask))
@@ -1720,7 +1720,7 @@ bool CPhysics2DSystem::Raycast(const Vector2& origin, const Vector2& direction, 
 		});
 
 	// ── 폴리곤 콜라이더 (엣지별 세그먼트 교차) ───────────────────────────────
-	m_scene->ForEach<PolygonCollider2D>(
+	m_canvas->ForEach<PolygonCollider2D>(
 		[&](const PolygonCollider2D& collider)
 		{
 			if (false == IsActiveComponent(collider) || 0u == (collider.CollisionLayer & layerMask))
@@ -1779,13 +1779,13 @@ bool CPhysics2DSystem::Raycast(const Vector2& origin, const Vector2& direction, 
 
 CGameObject* CPhysics2DSystem::OverlapPoint(const Vector2& point, std::uint32_t layerMask) const
 {
-	if (nullptr == m_scene)
+	if (nullptr == m_canvas)
 	{
 		return nullptr;
 	}
 
 	CGameObject* found = nullptr;
-	m_scene->ForEach<CircleCollider2D>(
+	m_canvas->ForEach<CircleCollider2D>(
 		[&](const CircleCollider2D& collider)
 		{
 			if (nullptr != found || false == IsActiveComponent(collider) || 0u == (collider.CollisionLayer & layerMask))
@@ -1803,7 +1803,7 @@ CGameObject* CPhysics2DSystem::OverlapPoint(const Vector2& point, std::uint32_t 
 		return found;
 	}
 
-	m_scene->ForEach<PolygonCollider2D>(
+	m_canvas->ForEach<PolygonCollider2D>(
 		[&](const PolygonCollider2D& collider)
 		{
 			if (nullptr != found || false == IsActiveComponent(collider) || 0u == (collider.CollisionLayer & layerMask))
@@ -1822,12 +1822,12 @@ void CPhysics2DSystem::OverlapCircle(const Vector2& center, float radius, std::v
                                      std::uint32_t layerMask) const
 {
 	outResults.clear();
-	if (nullptr == m_scene || radius < 0.0f)
+	if (nullptr == m_canvas || radius < 0.0f)
 	{
 		return;
 	}
 
-	m_scene->ForEach<CircleCollider2D>(
+	m_canvas->ForEach<CircleCollider2D>(
 		[&](const CircleCollider2D& collider)
 		{
 			if (false == IsActiveComponent(collider) || 0u == (collider.CollisionLayer & layerMask))
@@ -1842,7 +1842,7 @@ void CPhysics2DSystem::OverlapCircle(const Vector2& center, float radius, std::v
 			}
 		});
 
-	m_scene->ForEach<PolygonCollider2D>(
+	m_canvas->ForEach<PolygonCollider2D>(
 		[&](const PolygonCollider2D& collider)
 		{
 			if (false == IsActiveComponent(collider) || 0u == (collider.CollisionLayer & layerMask))
@@ -1876,7 +1876,7 @@ void CPhysics2DSystem::OverlapCircle(const Vector2& center, float radius, std::v
 		});
 }
 
-void CPhysics2DSystem::Step(CGameScene& scene, float deltaSeconds)
+void CPhysics2DSystem::Step(CGameCanvas& scene, float deltaSeconds)
 {
 	// 직전 sub-step 의 매니폴드를 prev 로 보존 — contact persistence 매칭에 사용.
 	m_prevManifolds.swap(m_manifolds);
@@ -1904,7 +1904,7 @@ void CPhysics2DSystem::Step(CGameScene& scene, float deltaSeconds)
 
 // ── 적분 ──────────────────────────────────────────────────────────────────────
 
-void CPhysics2DSystem::IntegrateBodies(CGameScene& scene, float deltaSeconds)
+void CPhysics2DSystem::IntegrateBodies(CGameCanvas& scene, float deltaSeconds)
 {
 	scene.ForEach<Rigidbody2D>([this, deltaSeconds](Rigidbody2D& body)
 	{
@@ -1987,7 +1987,7 @@ void CPhysics2DSystem::IntegrateBodies(CGameScene& scene, float deltaSeconds)
 
 // ── Collider 경계 업데이트 ────────────────────────────────────────────────────
 
-void CPhysics2DSystem::UpdateColliderBounds(CGameScene& scene)
+void CPhysics2DSystem::UpdateColliderBounds(CGameCanvas& scene)
 {
 	// Pass 1a: 폴리곤 월드 기하
 	scene.ForEach<PolygonCollider2D>([](PolygonCollider2D& collider)
@@ -2111,7 +2111,7 @@ namespace
 	}
 }
 
-void CPhysics2DSystem::DetectContacts(CGameScene& scene)
+void CPhysics2DSystem::DetectContacts(CGameCanvas& scene)
 {
 	m_manifolds.clear();
 
@@ -2557,7 +2557,7 @@ void CPhysics2DSystem::DetectContacts(CGameScene& scene)
 //   - friction clamp 가 매 step 새로 시작되지 않고 누적값 기준으로 동작 → friction 정상
 //   - 정지 접촉이 빠르게 수렴 (warm-start 가 거의 정답에 가까운 초기값 제공)
 //   - velocity solver iteration 수가 적어도 수렴
-void CPhysics2DSystem::MatchAndWarmStart(CGameScene& scene)
+void CPhysics2DSystem::MatchAndWarmStart(CGameCanvas& scene)
 {
 	if (m_prevManifolds.empty() || m_manifolds.empty())
 	{
@@ -2645,7 +2645,7 @@ void CPhysics2DSystem::MatchAndWarmStart(CGameScene& scene)
 // → friction clamp 가 매 step 0 부터 시작하지 않고 점차 커진 누적 normal 기준으로
 //    동작하므로 friction 이 실제로 효과적으로 작용.
 
-void CPhysics2DSystem::ResolveContactVelocity(CGameScene& scene)
+void CPhysics2DSystem::ResolveContactVelocity(CGameCanvas& scene)
 {
 	for (Physics2DManifold& manifold : m_manifolds)
 	{
@@ -2762,7 +2762,7 @@ void CPhysics2DSystem::ResolveContactVelocity(CGameScene& scene)
 // 같은 (A,B) 페어의 중복 매니폴드는 DetectContacts 끝에서 이미 1개로 병합되므로
 // 여기서는 모든 매니폴드에 standard 보정만 적용한다.
 
-void CPhysics2DSystem::ResolveContactPosition(CGameScene& scene)
+void CPhysics2DSystem::ResolveContactPosition(CGameCanvas& scene)
 {
 	for (const Physics2DManifold& manifold : m_manifolds)
 	{
@@ -2791,7 +2791,7 @@ void CPhysics2DSystem::ResolveContactPosition(CGameScene& scene)
 
 // ── 정지 접촉 안정화 ──────────────────────────────────────────────────────────
 
-void CPhysics2DSystem::StabilizeRestingContacts(CGameScene& scene)
+void CPhysics2DSystem::StabilizeRestingContacts(CGameCanvas& scene)
 {
 	scene.ForEach<Rigidbody2D>([](Rigidbody2D& body)
 	{

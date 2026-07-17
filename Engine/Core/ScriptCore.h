@@ -10,7 +10,7 @@ class CInput;
 class CLocalizationManager;
 class CLogger;
 class CReflectionRegistry;
-class CSceneManager;
+class CCanvasManager;
 class CRandomService;
 class CMathService;
 class CTime;
@@ -35,7 +35,7 @@ struct ScriptCore
 	SafePtr<CDebug>               Debug;
 	SafePtr<CTime>                Time;
 	SafePtr<CInput>               Input;
-	SafePtr<CSceneManager>        SceneManager;
+	SafePtr<CCanvasManager>        CanvasManager;
 	SafePtr<CFileSystem>          FileSystem;
 	SafePtr<CRandomService>       Random;
 	SafePtr<CMathService>         Math;

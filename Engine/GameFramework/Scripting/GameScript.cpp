@@ -1,24 +1,24 @@
 #include "pch.h"
 #include "GameScript.h"
 
-#include "GameFramework/Scene/Scene.h"
+#include "GameFramework/Canvas/Canvas.h"
 
 #include <algorithm>
 #include <cstring>
 
-void CGameScript::Bind(CGameScene& scene, const char* typeName)
+void CGameScript::Bind(CGameCanvas& scene, const char* typeName)
 {
 	// 씬 참조와 스크립트 타입 메타만 바인딩한다. Owner는 CComponent 생성자에서 확정된다.
-	m_scene = scene.SafeFromThis();
+	m_canvas = scene.SafeFromThis();
 	const char* sourceName = typeName ? typeName : "CGameScript";
 	const std::size_t length = std::min(std::strlen(sourceName), sizeof(m_typeName) - 1);
 	std::memcpy(m_typeName, sourceName, length);
 	m_typeName[length] = '\0';
 }
 
-SafePtr<CGameScene> CGameScript::GetScene() const
+SafePtr<CGameCanvas> CGameScript::GetCanvas() const
 {
-	return m_scene;
+	return m_canvas;
 }
 
 void CGameScript::Create()
@@ -77,10 +77,10 @@ void CGameScript::Destroy()
 
 	m_isCreated = false;
 	m_isStarted = false;
-	m_scene.Reset();
+	m_canvas.Reset();
 }
 
-void CGameScript::CanvasChanged(CGameScene& canvas)
+void CGameScript::CanvasChanged(CGameCanvas& canvas)
 {
 	if (m_isStarted)
 	{

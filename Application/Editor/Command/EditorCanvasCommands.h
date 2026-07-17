@@ -3,7 +3,7 @@
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
 
 #include "Editor/Command/EditorCommandManager.h"
-#include "Engine/GameFramework/Scene/CanvasViewport.h"
+#include "Engine/GameFramework/Canvas/CanvasViewport.h"
 #include "Utillity/File/FilePath.h"
 
 #include <cstddef>
@@ -11,7 +11,7 @@
 #include <string>
 #include <vector>
 
-class CGameScene;
+class CGameCanvas;
 
 // 캔버스 속성(배경색)과 뷰포트 목록 편집 커맨드.
 //
@@ -41,7 +41,7 @@ struct ViewportSnapshot
 class CSetCanvasBackgroundColorCommand final : public IEditorCommand
 {
 public:
-	CSetCanvasBackgroundColorCommand(SafePtr<CGameScene> scene, const float (&oldColor)[4], const float (&newColor)[4]);
+	CSetCanvasBackgroundColorCommand(SafePtr<CGameCanvas> scene, const float (&oldColor)[4], const float (&newColor)[4]);
 	~CSetCanvasBackgroundColorCommand() override = default;
 
 	const char* GetName() const override;
@@ -54,7 +54,7 @@ private:
 	bool Apply(const float (&color)[4]);
 
 private:
-	SafePtr<CGameScene> m_scene;
+	SafePtr<CGameCanvas> m_canvas;
 	float               m_oldColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
 	float               m_newColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
 };
@@ -73,7 +73,7 @@ public:
 	};
 
 	CSetViewportPropertyCommand(
-		SafePtr<CGameScene> scene,
+		SafePtr<CGameCanvas> scene,
 		std::size_t index,
 		EField field,
 		ViewportSnapshot oldProperties,
@@ -90,7 +90,7 @@ private:
 	bool Apply(const ViewportSnapshot& properties);
 
 private:
-	SafePtr<CGameScene> m_scene;
+	SafePtr<CGameCanvas> m_canvas;
 	std::size_t         m_index = 0;
 	EField              m_field = EField::Name;
 	ViewportSnapshot    m_oldProperties;
@@ -101,7 +101,7 @@ private:
 class CCreateViewportCommand final : public IEditorCommand
 {
 public:
-	explicit CCreateViewportCommand(SafePtr<CGameScene> scene);
+	explicit CCreateViewportCommand(SafePtr<CGameCanvas> scene);
 	~CCreateViewportCommand() override = default;
 
 	const char* GetName() const override;
@@ -112,7 +112,7 @@ public:
 	std::size_t GetIndex() const { return m_index; }
 
 private:
-	SafePtr<CGameScene> m_scene;
+	SafePtr<CGameCanvas> m_canvas;
 	std::string         m_name;   // 최초 실행 시 씬이 붙인 자동 이름 — redo 가 같은 이름을 재현
 	std::size_t         m_index = 0;
 	bool                m_created = false;
@@ -122,7 +122,7 @@ private:
 class CDeleteViewportCommand final : public IEditorCommand
 {
 public:
-	CDeleteViewportCommand(SafePtr<CGameScene> scene, std::size_t index);
+	CDeleteViewportCommand(SafePtr<CGameCanvas> scene, std::size_t index);
 	~CDeleteViewportCommand() override = default;
 
 	const char* GetName() const override;
@@ -131,7 +131,7 @@ public:
 	void Redo() override;
 
 private:
-	SafePtr<CGameScene> m_scene;
+	SafePtr<CGameCanvas> m_canvas;
 	std::size_t         m_index = 0;
 	ViewportSnapshot    m_properties;
 	bool                m_deleted = false;
@@ -141,10 +141,10 @@ namespace EditorCanvasActions
 {
 	// 캔버스 편집을 undo 스택에 올리는 공용 진입점. 호출자는 Capture 로 뜬 스냅샷의 필드
 	// 하나만 바꿔서 넘긴다(레이어의 EditorLayerActions 와 같은 규칙).
-	bool SetViewportProperty(CGameScene& scene, std::size_t index,
+	bool SetViewportProperty(CGameCanvas& scene, std::size_t index,
 	                         CSetViewportPropertyCommand::EField field,
 	                         const ViewportSnapshot& newProperties);
-	bool SetBackgroundColor(CGameScene& scene, const float (&newColor)[4]);
+	bool SetBackgroundColor(CGameCanvas& scene, const float (&newColor)[4]);
 }
 
 #endif

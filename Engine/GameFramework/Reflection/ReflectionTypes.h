@@ -84,7 +84,7 @@ enum class ERefCategory : std::uint8_t
 	Script,
 	Asset,
 	Object, // CGameObject 자체 참조(컴포넌트 아님) — InstanceGuid 로 오브젝트 해석
-	Scene,  // CGameScene 참조 — guid 가 아니라 씬 이름(SceneManager 의 유일 키)으로 해석
+	Canvas, // CGameCanvas 참조 — guid 가 아니라 캔버스 이름(CanvasManager 의 유일 키)으로 해석
 };
 
 // Ref<T> 의 직렬화/저장부(타입소거 공통 레이아웃).

@@ -1,6 +1,6 @@
 #pragma once
 
-class CGameScene;
+class CGameCanvas;
 class CGameObject;
 class IDebugDraw2D;
 
@@ -19,7 +19,7 @@ namespace SceneDebugDraw
 	//
 	// Call once per frame after scene update, before the editor renders the overlay.
 	void Submit(
-		const CGameScene&       scene,
+		const CGameCanvas&       scene,
 		IDebugDraw2D&       debugDraw,
 		const CGameObject*  selectedObject  = nullptr,
 		float               resW            = 0.0f,

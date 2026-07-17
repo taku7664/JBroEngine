@@ -38,7 +38,7 @@ public:
 	bool TryGetLocalBounds(const Text2D& text, float& outCenterX, float& outCenterY, float& outWidth, float& outHeight) const;
 
 protected:
-	void OnUpdate(CGameScene& scene) override;
+	void OnUpdate(CGameCanvas& scene) override;
 
 private:
 	struct GlyphInfo

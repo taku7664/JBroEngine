@@ -17,7 +17,7 @@
 #include "Engine/Core/EngineCore.h"
 #include "Engine/Editor/ImEditor.h"
 #include "Engine/Editor/Project/ProjectManager.h"
-#include "Engine/GameFramework/Scene/SceneManager.h"
+#include "Engine/GameFramework/Canvas/CanvasManager.h"
 #include "Utillity/File/FileUtillities.h"
 
 void CMainDockWindow::OnCreate()

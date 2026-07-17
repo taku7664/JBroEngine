@@ -30,8 +30,8 @@ protected:
 	}
 
 private:
-	friend class CGameScene;
-	friend class CSceneRuntimeAccess;
+	friend class CGameCanvas;
+	friend class CCanvasRuntimeAccess;
 
 	void SetInstanceGuid(const File::Guid& instanceGuid) { m_instanceGuid = instanceGuid; }
 

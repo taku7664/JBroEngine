@@ -6,7 +6,7 @@
 #include "Editor/EditorContext.h"
 #include "Editor/Command/EditorFileCommands.h"
 #include "Editor/EditorDragDrop.h"
-#include "Engine/GameFramework/Scene/GameLayer.h"
+#include "Engine/GameFramework/Canvas/GameLayer.h"
 #include "Engine/GameFramework/Serialization/LayerSerializer.h"
 #include "Editor/Main/AssetBrowser/AssetBrowserUtils.h"
 #include "Editor/Path/EditorPathUtils.h"
@@ -155,7 +155,7 @@ namespace
 	bool IsReservedScriptName(const std::string& name)
 	{
 		static const std::array<const char*, 7> kReserved = {
-			"OnCreate", "OnStart", "OnUpdate", "OnFixedUpdate", "OnDestroy", "GetOwner", "GetScene"
+			"OnCreate", "OnStart", "OnUpdate", "OnFixedUpdate", "OnDestroy", "GetOwner", "GetCanvas"
 		};
 		for (const char* r : kReserved)
 		{
@@ -472,7 +472,7 @@ void CAssetBrowserTool::OnCreate()
 	SetLocalizedTitleKey(EditorLocKeys::WindowAssetBrowser);
 	// 등록 순서 = 우선순위 (먼저 CanOpen=true 인 핸들러가 잡음).
 	// Default 는 catch-all 이므로 항상 마지막.
-	m_openDispatcher.RegisterHandler(MakeOwnerPtr<CSceneAssetOpenHandler>());
+	m_openDispatcher.RegisterHandler(MakeOwnerPtr<CCanvasAssetOpenHandler>());
 	m_openDispatcher.RegisterHandler(MakeOwnerPtr<CScriptAssetOpenHandler>());
 	m_openDispatcher.RegisterHandler(MakeOwnerPtr<CEffectAssetOpenHandler>());
 	m_openDispatcher.RegisterHandler(MakeOwnerPtr<CDefaultAssetOpenHandler>());
@@ -2181,7 +2181,7 @@ void CAssetBrowserTool::SaveLayerAsAssetInFolder(CGameLayer& layer, const File::
 		return;
 	}
 
-	SafePtr<CGameScene> scene = EditorContext::GetActiveScene();
+	SafePtr<CGameCanvas> scene = EditorContext::GetActiveCanvas();
 	if (false == scene.IsValid())
 	{
 		return;

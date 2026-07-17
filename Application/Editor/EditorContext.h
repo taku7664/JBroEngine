@@ -4,7 +4,7 @@
 
 #include "Utillity/Pointer/SafePtr.h"
 
-class CGameScene;
+class CGameCanvas;
 class CProjectManager;
 class IAssetManager;
 
@@ -12,8 +12,8 @@ namespace EditorContext
 {
 	SafePtr<CProjectManager> GetProjectManager();
 	SafePtr<IAssetManager> GetAssetManager();
-	SafePtr<CGameScene> GetActiveScene();
-	CGameScene* TryGetActiveScene();
+	SafePtr<CGameCanvas> GetActiveCanvas();
+	CGameCanvas* TryGetActiveScene();
 }
 
 #endif

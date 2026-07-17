@@ -13,7 +13,7 @@
 #include "Engine/Core/EngineCore.h"
 #include "Engine/Editor/Build/MSBuildLocator.h"
 #include "Engine/Editor/Project/ProjectManager.h"
-#include "Engine/GameFramework/Scene/SceneSerializer.h"
+#include "Engine/GameFramework/Canvas/CanvasSerializer.h"
 #include "Utillity/File/FileUtillities.h"
 #include "Utillity/String/StringUtillity.h"
 

@@ -10,10 +10,10 @@
 #include "Engine/GameFramework/Component/Transform2D.h"
 #include "Engine/GameFramework/Object/GameObject.h"
 #include "Engine/GameFramework/Reflection/ReflectionRegistry.h"
-#include "Engine/GameFramework/Scene/GameLayer.h"
-#include "Engine/GameFramework/Scene/Scene.h"
-#include "Engine/GameFramework/Scene/SceneRuntimeAccess.h"
-#include "Engine/GameFramework/Scene/SceneTransformUtils.h"
+#include "Engine/GameFramework/Canvas/GameLayer.h"
+#include "Engine/GameFramework/Canvas/Canvas.h"
+#include "Engine/GameFramework/Canvas/CanvasRuntimeAccess.h"
+#include "Engine/GameFramework/Canvas/CanvasTransformUtils.h"
 #include "Engine/GameFramework/Serialization/ComponentSerializer.h"
 #include "Engine/GameFramework/Serialization/ObjectSerializer.h"
 #include "Engine/GameFramework/Prefab/PrefabSerializer.h"
@@ -25,7 +25,7 @@ namespace
 {
 	// 명령은 오브젝트를 InstanceGuid 로 보관한다(포인터/정수 id 아님).
 	// 실제 조작 시점에 활성 씬에서 guid 로 다시 해석한다(파괴→재생성 후에도 안전).
-	CGameObject* Resolve(const SafePtr<CGameScene>& scene, const File::Guid& guid)
+	CGameObject* Resolve(const SafePtr<CGameCanvas>& scene, const File::Guid& guid)
 	{
 		return scene.IsValid() ? scene->FindByInstanceGuid(guid).TryGet() : nullptr;
 	}
@@ -46,8 +46,8 @@ namespace
 	}
 }
 
-CAddComponentCommand::CAddComponentCommand(SafePtr<CGameScene> scene, CGameObject* object, TypeId componentTypeId)
-	: m_scene(scene)
+CAddComponentCommand::CAddComponentCommand(SafePtr<CGameCanvas> scene, CGameObject* object, TypeId componentTypeId)
+	: m_canvas(scene)
 	, m_objectGuid(GuidOf(object))
 	, m_componentTypeId(componentTypeId)
 {
@@ -60,7 +60,7 @@ const char* CAddComponentCommand::GetName() const
 
 bool CAddComponentCommand::Execute()
 {
-	CGameObject* object = Resolve(m_scene, m_objectGuid);
+	CGameObject* object = Resolve(m_canvas, m_objectGuid);
 	if (nullptr == object || false == Engine.Reflection.IsValid())
 	{
 		return false;
@@ -76,7 +76,7 @@ bool CAddComponentCommand::Execute()
 	{
 		return false;
 	}
-	m_added = reflection.AddComponent(*m_scene, *object, m_componentTypeId);
+	m_added = reflection.AddComponent(*m_canvas, *object, m_componentTypeId);
 	if (m_added)
 	{
 		const std::vector<void*> instances = reflection.GetComponentAddresses(*object, m_componentTypeId);
@@ -95,13 +95,13 @@ bool CAddComponentCommand::Execute()
 
 void CAddComponentCommand::Undo()
 {
-	CGameObject* object = Resolve(m_scene, m_objectGuid);
+	CGameObject* object = Resolve(m_canvas, m_objectGuid);
 	if (false == m_added || nullptr == object || false == Engine.Reflection.IsValid())
 	{
 		return;
 	}
 
-	Engine.Reflection->RemoveComponentByGuid(*m_scene, *object, m_componentTypeId, m_componentGuid);
+	Engine.Reflection->RemoveComponentByGuid(*m_canvas, *object, m_componentTypeId, m_componentGuid);
 	m_added = false;
 }
 
@@ -113,8 +113,8 @@ void CAddComponentCommand::Redo()
 	}
 }
 
-CAddScriptCommand::CAddScriptCommand(SafePtr<CGameScene> scene, CGameObject* object, TypeId scriptTypeId)
-	: m_scene(scene)
+CAddScriptCommand::CAddScriptCommand(SafePtr<CGameCanvas> scene, CGameObject* object, TypeId scriptTypeId)
+	: m_canvas(scene)
 	, m_objectGuid(GuidOf(object))
 	, m_scriptTypeId(scriptTypeId)
 {
@@ -127,7 +127,7 @@ const char* CAddScriptCommand::GetName() const
 
 bool CAddScriptCommand::Execute()
 {
-	CGameObject* object = Resolve(m_scene, m_objectGuid);
+	CGameObject* object = Resolve(m_canvas, m_objectGuid);
 	if (nullptr == object || false == Engine.Reflection.IsValid())
 	{
 		return false;
@@ -140,7 +140,7 @@ bool CAddScriptCommand::Execute()
 		return false;
 	}
 
-	CGameScript* scriptComponent = CSceneRuntimeAccess::AddScript(*m_scene, *object, m_scriptTypeId, reflection);
+	CGameScript* scriptComponent = CCanvasRuntimeAccess::AddScript(*m_canvas, *object, m_scriptTypeId, reflection);
 	if (nullptr == scriptComponent)
 	{
 		CSystemLog::Warning("Failed to resolve added script component.");
@@ -154,18 +154,18 @@ bool CAddScriptCommand::Execute()
 
 void CAddScriptCommand::Undo()
 {
-	CGameObject* object = Resolve(m_scene, m_objectGuid);
+	CGameObject* object = Resolve(m_canvas, m_objectGuid);
 	if (false == m_added || nullptr == object || false == Engine.Reflection.IsValid())
 	{
 		return;
 	}
 
-	if (CGameScript* script = CSceneRuntimeAccess::FindScript(
-		*m_scene,
+	if (CGameScript* script = CCanvasRuntimeAccess::FindScript(
+		*m_canvas,
 		*object,
 		m_scriptComponentGuid))
 	{
-		CSceneRuntimeAccess::DestroyComponent(*m_scene, script);
+		CCanvasRuntimeAccess::DestroyComponent(*m_canvas, script);
 	}
 
 	m_added = false;
@@ -179,12 +179,12 @@ void CAddScriptCommand::Redo()
 	}
 }
 
-CRemoveScriptCommand::CRemoveScriptCommand(SafePtr<CGameScene> scene, CGameObject* object, const File::Guid& componentGuid)
-	: m_scene(scene), m_objectGuid(GuidOf(object)), m_componentGuid(componentGuid)
+CRemoveScriptCommand::CRemoveScriptCommand(SafePtr<CGameCanvas> scene, CGameObject* object, const File::Guid& componentGuid)
+	: m_canvas(scene), m_objectGuid(GuidOf(object)), m_componentGuid(componentGuid)
 {
 	if (object)
 	{
-		if (CComponent* component = CSceneRuntimeAccess::FindComponentByGuid(*object, componentGuid))
+		if (CComponent* component = CCanvasRuntimeAccess::FindComponentByGuid(*object, componentGuid))
 		{
 			m_snapshot = Serialization::SerializeComponent(*component);
 		}
@@ -204,20 +204,20 @@ CRemoveScriptCommand::CRemoveScriptCommand(SafePtr<CGameScene> scene, CGameObjec
 const char* CRemoveScriptCommand::GetName() const { return "Remove Script"; }
 bool CRemoveScriptCommand::Execute()
 {
-	CGameObject* object = Resolve(m_scene, m_objectGuid);
+	CGameObject* object = Resolve(m_canvas, m_objectGuid);
 	CGameScript* script = object
-		? CSceneRuntimeAccess::FindScript(*m_scene, *object, m_componentGuid)
+		? CCanvasRuntimeAccess::FindScript(*m_canvas, *object, m_componentGuid)
 		: nullptr;
 	m_removed = nullptr != script;
 	if (script)
 	{
-		CSceneRuntimeAccess::DestroyComponent(*m_scene, script);
+		CCanvasRuntimeAccess::DestroyComponent(*m_canvas, script);
 	}
 	return m_removed;
 }
 void CRemoveScriptCommand::Undo()
 {
-	CGameObject* object = Resolve(m_scene, m_objectGuid);
+	CGameObject* object = Resolve(m_canvas, m_objectGuid);
 	if (false == m_removed || nullptr == object) return;
 	if (Serialization::DeserializeComponentInto(*object, m_snapshot.c_str()))
 	{
@@ -226,29 +226,29 @@ void CRemoveScriptCommand::Undo()
 		{
 			m_componentGuid = restored->GetInstanceGuid();
 		}
-		CSceneRuntimeAccess::MoveComponent(*object, m_componentGuid, m_componentIndex);
+		CCanvasRuntimeAccess::MoveComponent(*object, m_componentGuid, m_componentIndex);
 		m_removed = false;
 	}
 }
 void CRemoveScriptCommand::Redo() { if (false == m_removed) Execute(); }
 
-CReorderComponentCommand::CReorderComponentCommand(SafePtr<CGameScene> scene, CGameObject* object, const File::Guid& componentGuid, std::size_t oldIndex, std::size_t newIndex)
-	: m_scene(scene), m_objectGuid(GuidOf(object)), m_componentGuid(componentGuid), m_oldIndex(oldIndex), m_newIndex(newIndex) {}
+CReorderComponentCommand::CReorderComponentCommand(SafePtr<CGameCanvas> scene, CGameObject* object, const File::Guid& componentGuid, std::size_t oldIndex, std::size_t newIndex)
+	: m_canvas(scene), m_objectGuid(GuidOf(object)), m_componentGuid(componentGuid), m_oldIndex(oldIndex), m_newIndex(newIndex) {}
 const char* CReorderComponentCommand::GetName() const { return "Reorder Component"; }
 bool CReorderComponentCommand::Move(std::size_t index)
 {
-	CGameObject* object = Resolve(m_scene, m_objectGuid);
-	return object && CSceneRuntimeAccess::MoveComponent(*object, m_componentGuid, index);
+	CGameObject* object = Resolve(m_canvas, m_objectGuid);
+	return object && CCanvasRuntimeAccess::MoveComponent(*object, m_componentGuid, index);
 }
 bool CReorderComponentCommand::Execute() { m_executed = Move(m_newIndex); return m_executed; }
 void CReorderComponentCommand::Undo() { if (m_executed) { Move(m_oldIndex); m_executed = false; } }
 void CReorderComponentCommand::Redo() { if (false == m_executed) m_executed = Move(m_newIndex); }
 
-CCreateGameObjectCommand::CCreateGameObjectCommand(SafePtr<CGameScene> scene, const char* name,
+CCreateGameObjectCommand::CCreateGameObjectCommand(SafePtr<CGameCanvas> scene, const char* name,
                                                    CGameObject* parent,
                                                    const Vector2* spawnWorldPos,
                                                    CGameLayer* layer)
-	: m_scene(scene)
+	: m_canvas(scene)
 	, m_name(name ? name : "GameObject")
 	, m_parentGuid(GuidOf(parent))
 	, m_layerGuid(GuidOf(layer))
@@ -264,7 +264,7 @@ const char* CCreateGameObjectCommand::GetName() const
 
 bool CCreateGameObjectCommand::Execute()
 {
-	if (false == m_scene.IsValid())
+	if (false == m_canvas.IsValid())
 	{
 		return false;
 	}
@@ -273,8 +273,8 @@ bool CCreateGameObjectCommand::Execute()
 	// 아래 SetParent 가 부모 레이어로 덮어쓰므로 여기 값은 루트일 때만 남는다.
 	CGameLayer* layer = m_layerGuid.IsNull()
 		? nullptr
-		: m_scene->FindLayerByInstanceGuid(m_layerGuid).TryGet();
-	CGameObject* gameObject = m_scene->CreateGameObject(m_name.c_str(), layer);
+		: m_canvas->FindLayerByInstanceGuid(m_layerGuid).TryGet();
+	CGameObject* gameObject = m_canvas->CreateGameObject(m_name.c_str(), layer);
 	m_created = (nullptr != gameObject);
 	if (false == m_created)
 	{
@@ -284,7 +284,7 @@ bool CCreateGameObjectCommand::Execute()
 	// redo(재생성)면 첫 생성 때의 guid 를 강제 복원해 이후 명령이 동일 오브젝트로 해석되게 한다.
 	if (false == m_objectGuid.IsNull())
 	{
-		CSceneRuntimeAccess::SetObjectInstanceGuid(*m_scene, *gameObject, m_objectGuid);
+		CCanvasRuntimeAccess::SetObjectInstanceGuid(*m_canvas, *gameObject, m_objectGuid);
 	}
 	else
 	{
@@ -294,7 +294,7 @@ bool CCreateGameObjectCommand::Execute()
 	// parent 지정 시 자식으로 등록.
 	if (false == m_parentGuid.IsNull())
 	{
-		if (CGameObject* parent = Resolve(m_scene, m_parentGuid))
+		if (CGameObject* parent = Resolve(m_canvas, m_parentGuid))
 		{
 			gameObject->SetParent(*parent);
 		}
@@ -306,7 +306,7 @@ bool CCreateGameObjectCommand::Execute()
 	if (m_hasSpawnPos)
 	{
 		Vector2 localPos = m_spawnWorldPos;
-		if (CGameObject* parent = Resolve(m_scene, m_parentGuid))
+		if (CGameObject* parent = Resolve(m_canvas, m_parentGuid))
 		{
 			Matrix3x2 inverse;
 			if (GetWorldTransform(*parent).TryInvert(inverse))
@@ -322,10 +322,10 @@ bool CCreateGameObjectCommand::Execute()
 
 void CCreateGameObjectCommand::Undo()
 {
-	CGameObject* object = Resolve(m_scene, m_objectGuid);
+	CGameObject* object = Resolve(m_canvas, m_objectGuid);
 	if (m_created && object)
 	{
-		m_scene->DestroyGameObject(object);
+		m_canvas->DestroyGameObject(object);
 		m_created = false;
 	}
 }
@@ -340,18 +340,18 @@ void CCreateGameObjectCommand::Redo()
 
 CGameObject* CCreateGameObjectCommand::GetEntity() const
 {
-	return Resolve(m_scene, m_objectGuid);
+	return Resolve(m_canvas, m_objectGuid);
 }
 
 CSetComponentPropertyCommand::CSetComponentPropertyCommand(
-	SafePtr<CGameScene> scene,
+	SafePtr<CGameCanvas> scene,
 	CGameObject* object,
 	TypeId componentTypeId,
 	std::size_t propertyOffset,
 	std::vector<std::uint8_t> oldValue,
 	std::vector<std::uint8_t> newValue,
 	const File::Guid& componentGuid)
-	: m_scene(scene)
+	: m_canvas(scene)
 	, m_objectGuid(GuidOf(object))
 	, m_componentTypeId(componentTypeId)
 	, m_propertyOffset(propertyOffset)
@@ -406,13 +406,13 @@ bool CSetComponentPropertyCommand::TryMerge(const IEditorCommand& newer)
 
 bool CSetComponentPropertyCommand::WriteValue(const std::vector<std::uint8_t>& value)
 {
-	CGameObject* object = Resolve(m_scene, m_objectGuid);
-	if (value.empty() || nullptr == object || nullptr == m_scene.TryGet())
+	CGameObject* object = Resolve(m_canvas, m_objectGuid);
+	if (value.empty() || nullptr == object || nullptr == m_canvas.TryGet())
 	{
 		return false;
 	}
 
-	CComponent* component = CSceneRuntimeAccess::FindComponentByGuid(*object, m_componentGuid);
+	CComponent* component = CCanvasRuntimeAccess::FindComponentByGuid(*object, m_componentGuid);
 	if (nullptr == component)
 	{
 		return false;
@@ -423,12 +423,12 @@ bool CSetComponentPropertyCommand::WriteValue(const std::vector<std::uint8_t>& v
 }
 
 CSetComponentEnabledCommand::CSetComponentEnabledCommand(
-	SafePtr<CGameScene> scene,
+	SafePtr<CGameCanvas> scene,
 	CGameObject* object,
 	const File::Guid& componentGuid,
 	bool oldValue,
 	bool newValue)
-	: m_scene(scene)
+	: m_canvas(scene)
 	, m_objectGuid(GuidOf(object))
 	, m_componentGuid(componentGuid)
 	, m_oldValue(oldValue)
@@ -458,9 +458,9 @@ void CSetComponentEnabledCommand::Redo()
 
 bool CSetComponentEnabledCommand::Apply(bool value)
 {
-	CGameObject* object = Resolve(m_scene, m_objectGuid);
+	CGameObject* object = Resolve(m_canvas, m_objectGuid);
 	CComponent* component = object
-		? CSceneRuntimeAccess::FindComponentByGuid(*object, m_componentGuid)
+		? CCanvasRuntimeAccess::FindComponentByGuid(*object, m_componentGuid)
 		: nullptr;
 	if (nullptr == component)
 	{
@@ -470,9 +470,9 @@ bool CSetComponentEnabledCommand::Apply(bool value)
 	return true;
 }
 
-CSetComponentStringPropertyCommand::CSetComponentStringPropertyCommand(SafePtr<CGameScene> scene,
+CSetComponentStringPropertyCommand::CSetComponentStringPropertyCommand(SafePtr<CGameCanvas> scene,
 	CGameObject* object, TypeId componentTypeId, std::size_t propertyOffset, std::string oldValue, std::string newValue, const File::Guid& componentGuid)
-	: m_scene(scene), m_objectGuid(GuidOf(object)), m_componentTypeId(componentTypeId),
+	: m_canvas(scene), m_objectGuid(GuidOf(object)), m_componentTypeId(componentTypeId),
 	  m_componentGuid(componentGuid), m_propertyOffset(propertyOffset), m_oldValue(std::move(oldValue)), m_newValue(std::move(newValue)) {}
 
 const char* CSetComponentStringPropertyCommand::GetName() const { return "Set Component String Property"; }
@@ -488,9 +488,9 @@ bool CSetComponentStringPropertyCommand::TryMerge(const IEditorCommand& newer)
 }
 bool CSetComponentStringPropertyCommand::WriteValue(const std::string& value)
 {
-	CGameObject* object = Resolve(m_scene, m_objectGuid);
-	if (!object || nullptr == m_scene.TryGet()) return false;
-	CComponent* component = CSceneRuntimeAccess::FindComponentByGuid(*object, m_componentGuid);
+	CGameObject* object = Resolve(m_canvas, m_objectGuid);
+	if (!object || nullptr == m_canvas.TryGet()) return false;
+	CComponent* component = CCanvasRuntimeAccess::FindComponentByGuid(*object, m_componentGuid);
 	if (!component) return false;
 	*reinterpret_cast<std::string*>(reinterpret_cast<std::uint8_t*>(component) + m_propertyOffset) = value;
 	return true;
@@ -498,16 +498,16 @@ bool CSetComponentStringPropertyCommand::WriteValue(const std::string& value)
 
 // ── CDeleteGameObjectCommand ──────────────────────────────────────────────────
 
-CDeleteGameObjectCommand::CDeleteGameObjectCommand(SafePtr<CGameScene> scene, CGameObject* object)
-	: m_scene(scene)
+CDeleteGameObjectCommand::CDeleteGameObjectCommand(SafePtr<CGameCanvas> scene, CGameObject* object)
+	: m_canvas(scene)
 	, m_objectGuid(GuidOf(object))
 {
-	if (object && m_scene.IsValid())
+	if (object && m_canvas.IsValid())
 	{
 		m_parentGuid = GuidOf(object->GetParent().TryGet());
 		m_layerGuid = GuidOf(object->GetLayer().TryGet());
 		CPrefabSerializer serializer;
-		serializer.SerializePrefabToText(*m_scene, object, m_snapshot);
+		serializer.SerializePrefabToText(*m_canvas, object, m_snapshot);
 	}
 }
 
@@ -518,18 +518,18 @@ const char* CDeleteGameObjectCommand::GetName() const
 
 bool CDeleteGameObjectCommand::Execute()
 {
-	CGameObject* object = Resolve(m_scene, m_objectGuid);
+	CGameObject* object = Resolve(m_canvas, m_objectGuid);
 	if (nullptr == object)
 	{
 		return false;
 	}
-	m_deleted = m_scene->DestroyGameObject(object);
+	m_deleted = m_canvas->DestroyGameObject(object);
 	return m_deleted;
 }
 
 void CDeleteGameObjectCommand::Undo()
 {
-	if (false == m_deleted || false == m_scene.IsValid() || m_snapshot.empty())
+	if (false == m_deleted || false == m_canvas.IsValid() || m_snapshot.empty())
 	{
 		return;
 	}
@@ -538,7 +538,7 @@ void CDeleteGameObjectCommand::Undo()
 	CPrefabSerializer serializer;
 	CGameObject* root = nullptr;
 	if (EPrefabSerializeResult::Success !=
-	    serializer.DeserializePrefabFromText(*m_scene, m_snapshot.c_str(), &root))
+	    serializer.DeserializePrefabFromText(*m_canvas, m_snapshot.c_str(), &root))
 	{
 		return;
 	}
@@ -546,7 +546,7 @@ void CDeleteGameObjectCommand::Undo()
 	// 부모 복원(null = 루트).
 	if (root && false == m_parentGuid.IsNull())
 	{
-		if (CGameObject* parent = Resolve(m_scene, m_parentGuid))
+		if (CGameObject* parent = Resolve(m_canvas, m_parentGuid))
 		{
 			root->SetParent(*parent);
 		}
@@ -555,9 +555,9 @@ void CDeleteGameObjectCommand::Undo()
 	// 뒤집히면 덮어쓴다. 루트로 복원될 때만 의미가 있다(자식은 부모 레이어를 따른다).
 	else if (root && false == m_layerGuid.IsNull())
 	{
-		if (CGameLayer* layer = m_scene->FindLayerByInstanceGuid(m_layerGuid).TryGet())
+		if (CGameLayer* layer = m_canvas->FindLayerByInstanceGuid(m_layerGuid).TryGet())
 		{
-			m_scene->MoveObjectToLayer(*root, *layer);
+			m_canvas->MoveObjectToLayer(*root, *layer);
 		}
 	}
 	m_deleted = false;
@@ -574,11 +574,11 @@ void CDeleteGameObjectCommand::Redo()
 // ── CDeleteGameObjectsCommand ─────────────────────────────────────────────────
 
 CDeleteGameObjectsCommand::CDeleteGameObjectsCommand(
-	SafePtr<CGameScene> scene,
+	SafePtr<CGameCanvas> scene,
 	const std::vector<CGameObject*>& objects)
-	: m_scene(scene)
+	: m_canvas(scene)
 {
-	if (false == m_scene.IsValid())
+	if (false == m_canvas.IsValid())
 	{
 		return;
 	}
@@ -596,7 +596,7 @@ CDeleteGameObjectsCommand::CDeleteGameObjectsCommand(
 		entry.ObjectGuid = GuidOf(object);
 		entry.ParentGuid = GuidOf(object->GetParent().TryGet());
 		entry.LayerGuid = GuidOf(object->GetLayer().TryGet());
-		serializer.SerializePrefabToText(*m_scene, object, entry.Snapshot);
+		serializer.SerializePrefabToText(*m_canvas, object, entry.Snapshot);
 		if (false == entry.ObjectGuid.IsNull() && false == entry.Snapshot.empty())
 		{
 			m_entries.push_back(std::move(entry));
@@ -611,7 +611,7 @@ const char* CDeleteGameObjectsCommand::GetName() const
 
 bool CDeleteGameObjectsCommand::Execute()
 {
-	if (false == m_scene.IsValid() || m_entries.empty())
+	if (false == m_canvas.IsValid() || m_entries.empty())
 	{
 		return false;
 	}
@@ -619,14 +619,14 @@ bool CDeleteGameObjectsCommand::Execute()
 	bool deletedAny = false;
 	for (Entry& entry : m_entries)
 	{
-		CGameObject* object = Resolve(m_scene, entry.ObjectGuid);
+		CGameObject* object = Resolve(m_canvas, entry.ObjectGuid);
 		if (nullptr == object)
 		{
 			entry.Deleted = false;
 			continue;
 		}
 
-		entry.Deleted = m_scene->DestroyGameObject(object);
+		entry.Deleted = m_canvas->DestroyGameObject(object);
 		deletedAny = deletedAny || entry.Deleted;
 	}
 	return deletedAny;
@@ -634,7 +634,7 @@ bool CDeleteGameObjectsCommand::Execute()
 
 void CDeleteGameObjectsCommand::Undo()
 {
-	if (false == m_scene.IsValid())
+	if (false == m_canvas.IsValid())
 	{
 		return;
 	}
@@ -649,14 +649,14 @@ void CDeleteGameObjectsCommand::Undo()
 
 		CGameObject* root = nullptr;
 		if (EPrefabSerializeResult::Success !=
-		    serializer.DeserializePrefabFromText(*m_scene, entry.Snapshot.c_str(), &root))
+		    serializer.DeserializePrefabFromText(*m_canvas, entry.Snapshot.c_str(), &root))
 		{
 			continue;
 		}
 
 		if (root && false == entry.ParentGuid.IsNull())
 		{
-			if (CGameObject* parent = Resolve(m_scene, entry.ParentGuid))
+			if (CGameObject* parent = Resolve(m_canvas, entry.ParentGuid))
 			{
 				root->SetParent(*parent);
 			}
@@ -664,9 +664,9 @@ void CDeleteGameObjectsCommand::Undo()
 		// 단일 삭제 undo 와 같은 규칙 — 부모 배정 뒤, 루트일 때만.
 		else if (root && false == entry.LayerGuid.IsNull())
 		{
-			if (CGameLayer* layer = m_scene->FindLayerByInstanceGuid(entry.LayerGuid).TryGet())
+			if (CGameLayer* layer = m_canvas->FindLayerByInstanceGuid(entry.LayerGuid).TryGet())
 			{
-				m_scene->MoveObjectToLayer(*root, *layer);
+				m_canvas->MoveObjectToLayer(*root, *layer);
 			}
 		}
 		entry.Deleted = false;
@@ -687,15 +687,15 @@ namespace
 	// 오브젝트 guid 는 반드시 씬 API(SetObjectInstanceGuid)로 재발급해야 m_objectByGuid 인덱스가
 	// 함께 갱신된다. 직접 대입하면 인덱스가 옛 guid 로 남아 FindByInstanceGuid 가 실패
 	// → 붙여넣은 오브젝트를 기즈모/커맨드가 못 찾아 이동 등 편집이 안 된다.
-	void ReissuePastedGuids(CGameScene& scene, CGameObject& object)
+	void ReissuePastedGuids(CGameCanvas& scene, CGameObject& object)
 	{
-		CSceneRuntimeAccess::SetObjectInstanceGuid(scene, object, File::GenerateGuid());
+		CCanvasRuntimeAccess::SetObjectInstanceGuid(scene, object, File::GenerateGuid());
 		for (const SafePtr<CComponent>& cref : object.GetComponents())
 		{
 			if (CComponent* comp = cref.TryGet())
 			{
 				// 컴포넌트는 씬 guid 인덱스가 없어 직접 대입으로 충분.
-				CSceneRuntimeAccess::SetComponentInstanceGuid(*comp, File::GenerateGuid());
+				CCanvasRuntimeAccess::SetComponentInstanceGuid(*comp, File::GenerateGuid());
 			}
 		}
 		for (const SafePtr<CGameObject>& childRef : object.GetChildren())
@@ -708,11 +708,11 @@ namespace
 	}
 }
 
-CPasteObjectsCommand::CPasteObjectsCommand(SafePtr<CGameScene> scene, std::string clipboardText,
+CPasteObjectsCommand::CPasteObjectsCommand(SafePtr<CGameCanvas> scene, std::string clipboardText,
                                            const Vector2* spawnWorldPos,
                                            CGameObject* parent,
                                            CGameLayer* layer)
-	: m_scene(scene)
+	: m_canvas(scene)
 	, m_clipboard(std::move(clipboardText))
 	, m_parentGuid(GuidOf(parent))
 	, m_layerGuid(GuidOf(layer))
@@ -728,12 +728,12 @@ const char* CPasteObjectsCommand::GetName() const
 
 bool CPasteObjectsCommand::Execute()
 {
-	if (false == m_scene.IsValid())
+	if (false == m_canvas.IsValid())
 	{
 		return false;
 	}
 
-	std::vector<CGameObject*> roots = Serialization::DeserializeObjects(*m_scene, m_clipboard.c_str());
+	std::vector<CGameObject*> roots = Serialization::DeserializeObjects(*m_canvas, m_clipboard.c_str());
 	if (roots.empty())
 	{
 		return false;
@@ -746,7 +746,7 @@ bool CPasteObjectsCommand::Execute()
 	{
 		for (CGameObject* root : roots)
 		{
-			if (root) ReissuePastedGuids(*m_scene, *root);
+			if (root) ReissuePastedGuids(*m_canvas, *root);
 		}
 
 		// 위치: 역직렬화 직후 루트는 씬 루트에 있으므로 local==world 로 취급한다.
@@ -788,13 +788,13 @@ bool CPasteObjectsCommand::Execute()
 	// 부모·레이어 배정은 redo 에서도 매번 한다 — 정규화 스냅샷(오브젝트 직렬화)은 계층도
 	// 레이어도 담지 않아서(둘 다 씬 레벨 관심사) 역직렬화 직후 루트는 늘 씬 루트 + 기본
 	// 레이어로 되살아난다. 최초 실행에서만 하면 undo→redo 가 부모와 레이어를 잃는다.
-	CGameObject* parent = Resolve(m_scene, m_parentGuid);
+	CGameObject* parent = Resolve(m_canvas, m_parentGuid);
 	Matrix3x2 parentInverse;
 	const bool hasParentInverse =
 		parent && GetWorldTransform(*parent).TryInvert(parentInverse);
 	// 부모가 있으면 레이어 인자는 무시된다 — SetParent 가 부모 레이어를 서브트리에 전파한다.
 	CGameLayer* layer = (nullptr == parent && false == m_layerGuid.IsNull())
-		? m_scene->FindLayerByInstanceGuid(m_layerGuid).TryGet()
+		? m_canvas->FindLayerByInstanceGuid(m_layerGuid).TryGet()
 		: nullptr;
 
 	m_pastedGuids.clear();
@@ -820,7 +820,7 @@ bool CPasteObjectsCommand::Execute()
 		{
 			if (layer)
 			{
-				m_scene->MoveObjectToLayer(*root, *layer);
+				m_canvas->MoveObjectToLayer(*root, *layer);
 			}
 			if (false == m_firstDone)
 			{
@@ -843,15 +843,15 @@ bool CPasteObjectsCommand::Execute()
 
 void CPasteObjectsCommand::Undo()
 {
-	if (false == m_scene.IsValid())
+	if (false == m_canvas.IsValid())
 	{
 		return;
 	}
 	for (const File::Guid& guid : m_pastedGuids)
 	{
-		if (CGameObject* object = Resolve(m_scene, guid))
+		if (CGameObject* object = Resolve(m_canvas, guid))
 		{
-			m_scene->DestroyGameObject(object);
+			m_canvas->DestroyGameObject(object);
 		}
 	}
 }
@@ -866,7 +866,7 @@ std::vector<CGameObject*> CPasteObjectsCommand::GetPastedRoots() const
 	std::vector<CGameObject*> result;
 	for (const File::Guid& guid : m_pastedGuids)
 	{
-		if (CGameObject* object = Resolve(m_scene, guid))
+		if (CGameObject* object = Resolve(m_canvas, guid))
 		{
 			result.push_back(object);
 		}
@@ -876,8 +876,8 @@ std::vector<CGameObject*> CPasteObjectsCommand::GetPastedRoots() const
 
 // ── CRemoveComponentCommand ───────────────────────────────────────────────────
 
-CRemoveComponentCommand::CRemoveComponentCommand(SafePtr<CGameScene> scene, CGameObject* object, TypeId componentTypeId, const File::Guid& componentGuid)
-	: m_scene(scene)
+CRemoveComponentCommand::CRemoveComponentCommand(SafePtr<CGameCanvas> scene, CGameObject* object, TypeId componentTypeId, const File::Guid& componentGuid)
+	: m_canvas(scene)
 	, m_objectGuid(GuidOf(object))
 	, m_componentGuid(componentGuid)
 	, m_componentTypeId(componentTypeId)
@@ -900,12 +900,12 @@ const char* CRemoveComponentCommand::GetName() const
 
 bool CRemoveComponentCommand::RemoveNow()
 {
-	CGameObject* object = Resolve(m_scene, m_objectGuid);
+	CGameObject* object = Resolve(m_canvas, m_objectGuid);
 	if (nullptr == object || false == Engine.Reflection.IsValid())
 	{
 		return false;
 	}
-	return Engine.Reflection->RemoveComponentByGuid(*m_scene, *object, m_componentTypeId, m_componentGuid);
+	return Engine.Reflection->RemoveComponentByGuid(*m_canvas, *object, m_componentTypeId, m_componentGuid);
 }
 
 bool CRemoveComponentCommand::Execute()
@@ -916,7 +916,7 @@ bool CRemoveComponentCommand::Execute()
 
 void CRemoveComponentCommand::Undo()
 {
-	CGameObject* object = Resolve(m_scene, m_objectGuid);
+	CGameObject* object = Resolve(m_canvas, m_objectGuid);
 	if (false == m_removed || nullptr == object || m_snapshot.empty())
 	{
 		return;
@@ -935,10 +935,10 @@ void CRemoveComponentCommand::Redo()
 
 // ── CSetObjectTransformCommand ────────────────────────────────────────────────
 
-CSetObjectTransformCommand::CSetObjectTransformCommand(SafePtr<CGameScene> scene,
+CSetObjectTransformCommand::CSetObjectTransformCommand(SafePtr<CGameCanvas> scene,
                                                        const std::vector<CGameObject*>& objects,
                                                        const Transform2D& delta)
-	: m_scene(scene)
+	: m_canvas(scene)
 	, m_delta(delta)
 {
 	// 각 대상의 현재 Transform 을 시작값으로 캡처(병렬). guid 로 보관해 파괴/재생성에도 안전.
@@ -962,7 +962,7 @@ void CSetObjectTransformCommand::Apply(bool withDelta)
 {
 	for (std::size_t i = 0; i < m_objectGuids.size(); ++i)
 	{
-		CGameObject* object = Resolve(m_scene, m_objectGuids[i]);
+		CGameObject* object = Resolve(m_canvas, m_objectGuids[i]);
 		if (nullptr == object)
 		{
 			continue;
@@ -1010,11 +1010,11 @@ bool CSetObjectTransformCommand::TryMerge(const IEditorCommand& newer)
 // ── CSetObjectTransformsCommand ───────────────────────────────────────────────
 
 CSetObjectTransformsCommand::CSetObjectTransformsCommand(
-	SafePtr<CGameScene> scene,
+	SafePtr<CGameCanvas> scene,
 	const std::vector<CGameObject*>& objects,
 	const std::vector<Transform2D>& oldTransforms,
 	const std::vector<Transform2D>& newTransforms)
-	: m_scene(scene)
+	: m_canvas(scene)
 {
 	const std::size_t count = std::min(objects.size(), std::min(oldTransforms.size(), newTransforms.size()));
 	m_objectGuids.reserve(count);
@@ -1060,7 +1060,7 @@ void CSetObjectTransformsCommand::Apply(const std::vector<Transform2D>& transfor
 	const std::size_t count = std::min(m_objectGuids.size(), transforms.size());
 	for (std::size_t i = 0; i < count; ++i)
 	{
-		CGameObject* object = Resolve(m_scene, m_objectGuids[i]);
+		CGameObject* object = Resolve(m_canvas, m_objectGuids[i]);
 		if (nullptr == object)
 		{
 			continue;
@@ -1086,8 +1086,8 @@ namespace
 	}
 } // anonymous namespace
 
-CSetParentCommand::CSetParentCommand(SafePtr<CGameScene> scene, CGameObject* child, CGameObject* newParent)
-	: m_scene(scene)
+CSetParentCommand::CSetParentCommand(SafePtr<CGameCanvas> scene, CGameObject* child, CGameObject* newParent)
+	: m_canvas(scene)
 	, m_childGuid(GuidOf(child))
 	, m_newParentGuid(GuidOf(newParent))
 {
@@ -1108,7 +1108,7 @@ const char* CSetParentCommand::GetName() const
 namespace
 {
 	// child 의 부모를 newParent(null guid 면 루트)로 설정. 성공 시 true.
-	bool ApplyParent(CGameScene& scene, CGameObject& child, const File::Guid& newParentGuid)
+	bool ApplyParent(CGameCanvas& scene, CGameObject& child, const File::Guid& newParentGuid)
 	{
 		if (newParentGuid.IsNull())
 		{
@@ -1122,12 +1122,12 @@ namespace
 
 bool CSetParentCommand::Execute()
 {
-	CGameObject* childObject = Resolve(m_scene, m_childGuid);
+	CGameObject* childObject = Resolve(m_canvas, m_childGuid);
 	if (nullptr == childObject)
 	{
 		return false;
 	}
-	CGameScene& scene = *m_scene;
+	CGameCanvas& scene = *m_canvas;
 
 	// ── WorldStay: SetParent 이전 world transform 캡처 ───────────────────────
 	const Matrix3x2 childWorld = GetWorldTransform(*childObject);
@@ -1158,26 +1158,26 @@ bool CSetParentCommand::Execute()
 
 void CSetParentCommand::Undo()
 {
-	CGameObject* childObject = Resolve(m_scene, m_childGuid);
+	CGameObject* childObject = Resolve(m_canvas, m_childGuid);
 	if (false == m_executed || nullptr == childObject)
 	{
 		return;
 	}
 
-	ApplyParent(*m_scene, *childObject, m_oldParentGuid);
+	ApplyParent(*m_canvas, *childObject, m_oldParentGuid);
 	childObject->GetTransform() = m_oldLocalTransform;
 	m_executed = false;
 }
 
 void CSetParentCommand::Redo()
 {
-	CGameObject* childObject = Resolve(m_scene, m_childGuid);
+	CGameObject* childObject = Resolve(m_canvas, m_childGuid);
 	if (m_executed || nullptr == childObject)
 	{
 		return;
 	}
 
-	ApplyParent(*m_scene, *childObject, m_newParentGuid);
+	ApplyParent(*m_canvas, *childObject, m_newParentGuid);
 	childObject->GetTransform() = m_newLocalTransform;
 	m_executed = true;
 }
@@ -1185,13 +1185,13 @@ void CSetParentCommand::Redo()
 // ── CMoveGameObjectInHierarchyCommand ────────────────────────────────────────
 
 CMoveGameObjectInHierarchyCommand::CMoveGameObjectInHierarchyCommand(
-	SafePtr<CGameScene> scene,
+	SafePtr<CGameCanvas> scene,
 	CGameObject* object,
 	CGameObject* newParent,
 	CGameObject* insertNear,
 	bool insertAfter,
 	CGameLayer* newLayer)
-	: m_scene(scene)
+	: m_canvas(scene)
 	, m_objectGuid(GuidOf(object))
 	, m_newParentGuid(GuidOf(newParent))
 	, m_insertNearGuid(GuidOf(insertNear))
@@ -1214,8 +1214,8 @@ const char* CMoveGameObjectInHierarchyCommand::GetName() const
 
 bool CMoveGameObjectInHierarchyCommand::Execute()
 {
-	CGameObject* object = Resolve(m_scene, m_objectGuid);
-	if (nullptr == object || false == m_scene.IsValid())
+	CGameObject* object = Resolve(m_canvas, m_objectGuid);
+	if (nullptr == object || false == m_canvas.IsValid())
 	{
 		return false;
 	}
@@ -1233,7 +1233,7 @@ bool CMoveGameObjectInHierarchyCommand::Execute()
 
 void CMoveGameObjectInHierarchyCommand::Undo()
 {
-	if (false == m_executed || false == m_scene.IsValid())
+	if (false == m_executed || false == m_canvas.IsValid())
 	{
 		return;
 	}
@@ -1245,7 +1245,7 @@ void CMoveGameObjectInHierarchyCommand::Undo()
 
 void CMoveGameObjectInHierarchyCommand::Redo()
 {
-	if (m_executed || false == m_scene.IsValid())
+	if (m_executed || false == m_canvas.IsValid())
 	{
 		return;
 	}
@@ -1261,18 +1261,18 @@ bool CMoveGameObjectInHierarchyCommand::Apply(
 	const Transform2D* localTransform,
 	bool computeWorldStay)
 {
-	CGameObject* object = Resolve(m_scene, m_objectGuid);
-	if (nullptr == object || false == m_scene.IsValid())
+	CGameObject* object = Resolve(m_canvas, m_objectGuid);
+	if (nullptr == object || false == m_canvas.IsValid())
 	{
 		return false;
 	}
 
-	CGameScene& scene = *m_scene;
+	CGameCanvas& scene = *m_canvas;
 	Transform2D targetLocalTransform = localTransform ? *localTransform : object->GetTransform();
 	if (computeWorldStay)
 	{
 		const Matrix3x2 objectWorld = GetWorldTransform(*object);
-		CGameObject* parent = parentGuid.IsNull() ? nullptr : Resolve(m_scene, parentGuid);
+		CGameObject* parent = parentGuid.IsNull() ? nullptr : Resolve(m_canvas, parentGuid);
 		const Matrix3x2 parentWorld = parent ? GetWorldTransform(*parent) : Matrix3x2::Identity();
 		Matrix3x2 local = objectWorld;
 		if (parent)
@@ -1307,12 +1307,12 @@ bool CMoveGameObjectInHierarchyCommand::Apply(
 void CMoveGameObjectInHierarchyCommand::CaptureOrders(std::vector<OrderSnapshot>& out) const
 {
 	out.clear();
-	if (false == m_scene.IsValid())
+	if (false == m_canvas.IsValid())
 	{
 		return;
 	}
 
-	m_scene->ForEachObject([&out](CGameObject& object)
+	m_canvas->ForEachObject([&out](CGameObject& object)
 	{
 		out.push_back({ object.GetInstanceGuid(), object.GetCreationOrder() });
 	});
@@ -1320,29 +1320,29 @@ void CMoveGameObjectInHierarchyCommand::CaptureOrders(std::vector<OrderSnapshot>
 
 void CMoveGameObjectInHierarchyCommand::RestoreOrders(const std::vector<OrderSnapshot>& orders)
 {
-	if (false == m_scene.IsValid())
+	if (false == m_canvas.IsValid())
 	{
 		return;
 	}
 
 	for (const OrderSnapshot& order : orders)
 	{
-		if (CGameObject* object = Resolve(m_scene, order.ObjectGuid))
+		if (CGameObject* object = Resolve(m_canvas, order.ObjectGuid))
 		{
-			CSceneRuntimeAccess::SetCreationOrder(*object, order.CreationOrder);
+			CCanvasRuntimeAccess::SetCreationOrder(*object, order.CreationOrder);
 		}
 	}
 }
 
 void CMoveGameObjectInHierarchyCommand::RebuildOrder(CGameObject& object)
 {
-	if (false == m_scene.IsValid())
+	if (false == m_canvas.IsValid())
 	{
 		return;
 	}
 
 	std::vector<CGameObject*> ordered;
-	m_scene->ForEachObject([&ordered](CGameObject& sceneObject)
+	m_canvas->ForEachObject([&ordered](CGameObject& sceneObject)
 	{
 		ordered.push_back(&sceneObject);
 	});
@@ -1354,7 +1354,7 @@ void CMoveGameObjectInHierarchyCommand::RebuildOrder(CGameObject& object)
 	ordered.erase(std::remove(ordered.begin(), ordered.end(), &object), ordered.end());
 
 	auto insertIt = ordered.end();
-	if (CGameObject* nearObject = Resolve(m_scene, m_insertNearGuid))
+	if (CGameObject* nearObject = Resolve(m_canvas, m_insertNearGuid))
 	{
 		insertIt = std::find(ordered.begin(), ordered.end(), nearObject);
 		if (insertIt != ordered.end() && m_insertAfter)
@@ -1364,7 +1364,7 @@ void CMoveGameObjectInHierarchyCommand::RebuildOrder(CGameObject& object)
 	}
 	else
 	{
-		CGameObject* newParent = Resolve(m_scene, m_newParentGuid);
+		CGameObject* newParent = Resolve(m_canvas, m_newParentGuid);
 		for (auto it = ordered.begin(); it != ordered.end(); ++it)
 		{
 			CGameObject* candidateParent = (*it)->GetParent().TryGet();
@@ -1386,17 +1386,17 @@ void CMoveGameObjectInHierarchyCommand::RebuildOrder(CGameObject& object)
 	ordered.insert(insertIt, &object);
 	for (std::size_t i = 0; i < ordered.size(); ++i)
 	{
-		CSceneRuntimeAccess::SetCreationOrder(*ordered[i], static_cast<std::uint64_t>(i));
+		CCanvasRuntimeAccess::SetCreationOrder(*ordered[i], static_cast<std::uint64_t>(i));
 	}
 }
 
 // ── CModifyPolygonVerticesCommand ─────────────────────────────────────────────
 
 CModifyPolygonVerticesCommand::CModifyPolygonVerticesCommand(
-	SafePtr<CGameScene>             scene,
+	SafePtr<CGameCanvas>             scene,
 	CGameObject*                object,
 	std::vector<Vector2> newPoints)
-	: m_scene(scene)
+	: m_canvas(scene)
 	, m_objectGuid(GuidOf(object))
 	, m_newPoints(std::move(newPoints))
 {
@@ -1440,7 +1440,7 @@ void CModifyPolygonVerticesCommand::Redo()
 bool CModifyPolygonVerticesCommand::Apply(
 	const std::vector<Vector2>& points)
 {
-	CGameObject* object = Resolve(m_scene, m_objectGuid);
+	CGameObject* object = Resolve(m_canvas, m_objectGuid);
 	if (nullptr == object)
 		return false;
 

@@ -6,7 +6,7 @@
 #include "Utillity/Pointer/SafePtr.h"
 
 class CGameObject;
-class CGameScene;
+class CGameCanvas;
 class CReflectionRegistry;
 
 class ComponentConstructionToken final
@@ -24,7 +24,7 @@ private:
 	TypeId m_typeId = INVALID_TYPE_ID;
 
 	friend class CComponent;
-	friend class CGameScene;
+	friend class CGameCanvas;
 	friend class CReflectionRegistry;
 };
 
@@ -53,7 +53,7 @@ public:
 
 	// InstanceGuid 는 GameInstance 베이스가 보유한다. Ref<T> 가 (오브젝트 guid + 컴포넌트
 	// guid) 쌍으로 특정 1개를 지목하므로, 같은 타입 컴포넌트가 한 오브젝트에 여러 개
-	// 있어도 구분된다. CGameScene::AddComponent 가 부여하고 직렬화가 보존한다.
+	// 있어도 구분된다. CGameCanvas::AddComponent 가 부여하고 직렬화가 보존한다.
 
 	// 직렬화/인스펙터 타입 키 (리플렉션 레지스트리에 등록된 이름과 일치해야 함).
 	virtual const char* GetTypeName() const = 0;
@@ -66,8 +66,8 @@ protected:
 	}
 
 private:
-	friend class CGameScene;
-	friend class CSceneRuntimeAccess;
+	friend class CGameCanvas;
+	friend class CCanvasRuntimeAccess;
 
 	bool m_isEnabled = true;
 	SafePtr<CGameObject> m_owner;

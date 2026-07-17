@@ -14,10 +14,10 @@
 
 // ── Scene / Object ──────────────────────────────────────────────────────────
 #include "GameFramework/System/GameSystem.h"
-#include "GameFramework/Scene/SceneTypes.h"
-#include "GameFramework/Scene/SceneSerializer.h"
-#include "GameFramework/Scene/SceneManager.h"
-#include "GameFramework/Scene/Scene.h"
+#include "GameFramework/Canvas/CanvasTypes.h"
+#include "GameFramework/Canvas/CanvasSerializer.h"
+#include "GameFramework/Canvas/CanvasManager.h"
+#include "GameFramework/Canvas/Canvas.h"
 
 // ── 자주 쓰이는 컴포넌트들 ────────────────────────────────────────────────
 #include "GameFramework/Component/Transform2D.h"

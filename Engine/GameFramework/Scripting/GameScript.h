@@ -6,7 +6,7 @@
 #include "Utillity/Math/SizeT.h"
 #include "Utillity/Pointer/SafePtr.h"
 
-class CGameScene;
+class CGameCanvas;
 class CScriptSystem;
 class CPhysics2DSystem;
 
@@ -26,7 +26,7 @@ public:
 public:
 	// ── 사용자 API ────────────────────────────────────────────────────────────
 	// 전부 SafePtr 를 돌려준다 — 멤버로 저장해도 안전(대상 파괴 시 IsValid()==false).
-	SafePtr<CGameScene> GetScene() const;
+	SafePtr<CGameCanvas> GetCanvas() const;
 	const char* GetTypeName() const override { return m_typeName; }
 
 	// 부착된 오브젝트의 T 컴포넌트(첫 매치) SafePtr. 없으면 빈 SafePtr.
@@ -70,9 +70,9 @@ protected:
 	// 호출 시점은 전환이 완전히 끝난 뒤다 — 캔버스 이름·레이어 구성·참조 에셋이 모두 새 것이다.
 	// 승계되지 않은 레이어는 파괴 후 재로드되므로 OnStart 가 그 자리를 대신한다.
 	//
-	// canvas = 전환이 끝난 캔버스. 런타임 캔버스는 하나뿐이라 GetScene() 과 같은 객체지만,
+	// canvas = 전환이 끝난 캔버스. 런타임 캔버스는 하나뿐이라 GetCanvas() 과 같은 객체지만,
 	// 재맥락화가 캔버스를 읽기만 하는 일이 아니라서(레이어 조회 등) non-const 로 준다.
-	virtual void OnCanvasChanged(CGameScene& /*canvas*/) {}
+	virtual void OnCanvasChanged(CGameCanvas& /*canvas*/) {}
 
 	// 윈도우 이벤트 훅(스크립트가 override). 인자는 Utillity 타입만 사용.
 	virtual void OnApplicationFocusGained() {}
@@ -94,11 +94,11 @@ private:
 	// ── 호스트 전용 진입점 ────────────────────────────────────────────────────
 	// 사용자 스크립트가 직접 호출하면 생명주기 플래그가 깨지므로 private + friend.
 	friend class CScriptSystem;    // Bind / Start / Update / FixedUpdate
-	friend class CGameScene;       // 윈도우 이벤트 디스패치
+	friend class CGameCanvas;       // 윈도우 이벤트 디스패치
 	friend class CPhysics2DSystem; // 충돌/트리거 디스패치
 	friend class CReflectionRegistry;
 
-	void Bind(CGameScene& scene, const char* typeName);
+	void Bind(CGameCanvas& scene, const char* typeName);
 	void Create();
 	void Start();
 	void Update();
@@ -106,8 +106,8 @@ private:
 	void Destroy();
 	bool IsStarted() const;
 
-	// 캔버스 전환 완료 후 CGameScene 이 승계 레이어의 스크립트에만 호출하는 디스패치 진입점.
-	void CanvasChanged(CGameScene& canvas);
+	// 캔버스 전환 완료 후 CGameCanvas 이 승계 레이어의 스크립트에만 호출하는 디스패치 진입점.
+	void CanvasChanged(CGameCanvas& canvas);
 
 	// 호스트가 윈도우 이벤트를 받아 호출하는 디스패치 진입점(시작된 인스턴스에만 전달).
 	void ApplicationFocusGained();
@@ -124,7 +124,7 @@ private:
 	void TriggerExit(const Collision2D& collision);
 
 private:
-	SafePtr<CGameScene> m_scene;
+	SafePtr<CGameCanvas> m_canvas;
 	char m_typeName[128] = "CGameScript";
 	bool m_isCreated = false;
 	bool m_isStarted = false;

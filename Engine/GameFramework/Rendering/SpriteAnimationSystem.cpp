@@ -10,7 +10,7 @@
 #include "GameFramework/Component/SpriteAnimator2D.h"
 #include "GameFramework/Component/SpriteRenderer2D.h"
 #include "GameFramework/Object/GameObject.h"
-#include "GameFramework/Scene/Scene.h"
+#include "GameFramework/Canvas/Canvas.h"
 
 #include <cstdint>
 
@@ -24,7 +24,7 @@ void CSpriteAnimationSystem::SetAssetManager(SafePtr<IAssetManager> assetManager
 	m_assetManager = assetManager;
 }
 
-void CSpriteAnimationSystem::OnUpdate(CGameScene& scene)
+void CSpriteAnimationSystem::OnUpdate(CGameCanvas& scene)
 {
 	const float delta = Script.Time.IsValid() ? Script.Time->GetDeltaSeconds() : 0.0f;
 
@@ -113,7 +113,7 @@ void CSpriteAnimationSystem::OnUpdate(CGameScene& scene)
 		});
 }
 
-void CSpriteAnimationSystem::OnSimulationStop(CGameScene& scene)
+void CSpriteAnimationSystem::OnSimulationStop(CGameCanvas& scene)
 {
 	// 재생 정지 — 런타임 진행 상태 초기화(재개 시 처음부터).
 	scene.ForEach<SpriteAnimator2D>(

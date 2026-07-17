@@ -21,8 +21,8 @@
 #include "Engine/GameFramework/Audio/AudioSystem.h"
 #include "Engine/GameFramework/Rendering/SpriteRenderSystem.h"
 #include "Engine/GameFramework/Rendering/TextRenderSystem.h"
-#include "Engine/GameFramework/Scene/SceneRuntimeAccess.h"
-#include "Engine/GameFramework/Scene/SceneSerializer.h"
+#include "Engine/GameFramework/Canvas/CanvasRuntimeAccess.h"
+#include "Engine/GameFramework/Canvas/CanvasSerializer.h"
 #include "Utillity/File/FileUtillities.h"
 #include "Utillity/String/StringUtillity.h"
 
@@ -45,7 +45,7 @@ namespace
 			return;
 		}
 
-		if (false == Engine.SceneManager.IsValid())
+		if (false == Engine.CanvasManager.IsValid())
 		{
 			return;
 		}
@@ -59,29 +59,29 @@ namespace
 		}
 
 		// 런타임 캔버스는 하나 — 파일을 열어도 인스턴스는 그대로 두고 내용만 갈아끼운다.
-		CGameScene* scene = &Engine.SceneManager->GetOrCreateCanvas();
+		CGameCanvas* scene = &Engine.CanvasManager->GetOrCreateCanvas();
 
-		CSceneSerializer serializer;
-		if (ESceneSerializeResult::Success == serializer.LoadFromFile(*scene, File::Path(absolutePath)))
+		CCanvasSerializer serializer;
+		if (ECanvasSerializeResult::Success == serializer.LoadFromFile(*scene, File::Path(absolutePath)))
 		{
-			Engine.SceneManager->SetCanvasName(lastScenePath.c_str());
-			Engine.SceneManager->RefreshReferencedAssets();
+			Engine.CanvasManager->SetCanvasName(lastScenePath.c_str());
+			Engine.CanvasManager->RefreshReferencedAssets();
 			if (const EngineCore* context = Editor::ImEditor ? Editor::ImEditor->GetEditorEngineCore() : nullptr)
 			{
-				CSpriteAnimationSystem* animationSystem = CSceneRuntimeAccess::FindSystem<CSpriteAnimationSystem>(*scene);
+				CSpriteAnimationSystem* animationSystem = CCanvasRuntimeAccess::FindSystem<CSpriteAnimationSystem>(*scene);
 				if (nullptr == animationSystem)
 				{
-					animationSystem = CSceneRuntimeAccess::AddSystem<CSpriteAnimationSystem>(*scene, context->AssetManager);
+					animationSystem = CCanvasRuntimeAccess::AddSystem<CSpriteAnimationSystem>(*scene, context->AssetManager);
 				}
 				if (nullptr != animationSystem)
 				{
 					animationSystem->SetAssetManager(context->AssetManager);
 				}
 
-				CSpriteRenderSystem* spriteSystem = CSceneRuntimeAccess::FindSystem<CSpriteRenderSystem>(*scene);
+				CSpriteRenderSystem* spriteSystem = CCanvasRuntimeAccess::FindSystem<CSpriteRenderSystem>(*scene);
 				if (nullptr == spriteSystem)
 				{
-					spriteSystem = CSceneRuntimeAccess::AddSystem<CSpriteRenderSystem>(*scene, context->RenderScene.TryGet());
+					spriteSystem = CCanvasRuntimeAccess::AddSystem<CSpriteRenderSystem>(*scene, context->RenderScene.TryGet());
 				}
 				if (nullptr != spriteSystem)
 				{
@@ -94,10 +94,10 @@ namespace
 						Runtime.PixelsPerUnit);
 				}
 
-				CShapeRenderSystem* shapeSystem = CSceneRuntimeAccess::FindSystem<CShapeRenderSystem>(*scene);
+				CShapeRenderSystem* shapeSystem = CCanvasRuntimeAccess::FindSystem<CShapeRenderSystem>(*scene);
 				if (nullptr == shapeSystem)
 				{
-					shapeSystem = CSceneRuntimeAccess::AddSystem<CShapeRenderSystem>(*scene, context->RenderScene.TryGet());
+					shapeSystem = CCanvasRuntimeAccess::AddSystem<CShapeRenderSystem>(*scene, context->RenderScene.TryGet());
 				}
 				if (nullptr != shapeSystem)
 				{
@@ -105,10 +105,10 @@ namespace
 					shapeSystem->SetDependencies(context->RHIDevice.TryGet(), context->Renderer.TryGet());
 				}
 
-				CTextRenderSystem* textSystem = CSceneRuntimeAccess::FindSystem<CTextRenderSystem>(*scene);
+				CTextRenderSystem* textSystem = CCanvasRuntimeAccess::FindSystem<CTextRenderSystem>(*scene);
 				if (nullptr == textSystem)
 				{
-					textSystem = CSceneRuntimeAccess::AddSystem<CTextRenderSystem>(*scene, context->RenderScene.TryGet());
+					textSystem = CCanvasRuntimeAccess::AddSystem<CTextRenderSystem>(*scene, context->RenderScene.TryGet());
 				}
 				if (nullptr != textSystem)
 				{
@@ -117,10 +117,10 @@ namespace
 						Runtime.PixelsPerUnit, Runtime.DefaultFontFamilyGuid, Runtime.FallbackFontFamilies);
 				}
 
-				CAudioSystem* audioSystem = CSceneRuntimeAccess::FindSystem<CAudioSystem>(*scene);
+				CAudioSystem* audioSystem = CCanvasRuntimeAccess::FindSystem<CAudioSystem>(*scene);
 				if (nullptr == audioSystem)
 				{
-					audioSystem = CSceneRuntimeAccess::AddSystem<CAudioSystem>(*scene,
+					audioSystem = CCanvasRuntimeAccess::AddSystem<CAudioSystem>(*scene,
 						context->Audio, context->AssetManager);
 				}
 				if (nullptr != audioSystem)

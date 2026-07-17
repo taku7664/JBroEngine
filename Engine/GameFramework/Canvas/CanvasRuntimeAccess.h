@@ -1,33 +1,33 @@
 #pragma once
 
-#include "GameFramework/Scene/Scene.h"
+#include "GameFramework/Canvas/Canvas.h"
 #include "GameFramework/Scripting/GameScript.h"
 
 // 호스트 런타임과 에디터만 사용하는 Scene 내부 접근점입니다.
 // 게임 스크립트 SDK에는 스테이징하지 않습니다.
-class CSceneRuntimeAccess final
+class CCanvasRuntimeAccess final
 {
 public:
 	template<typename TSystem, typename... Args>
-	static TSystem* AddSystem(CGameScene& scene, Args&&... args)
+	static TSystem* AddSystem(CGameCanvas& scene, Args&&... args)
 	{
 		return scene.AddSystem<TSystem>(std::forward<Args>(args)...);
 	}
 
 	template<typename TSystem>
-	static TSystem* FindSystem(CGameScene& scene)
+	static TSystem* FindSystem(CGameCanvas& scene)
 	{
 		return scene.FindSystem<TSystem>();
 	}
 
 	template<typename TSystem>
-	static const TSystem* FindSystem(const CGameScene& scene)
+	static const TSystem* FindSystem(const CGameCanvas& scene)
 	{
 		return scene.FindSystem<TSystem>();
 	}
 
 	static CGameScript* AddScript(
-		CGameScene& scene,
+		CGameCanvas& scene,
 		CGameObject& object,
 		TypeId scriptTypeId,
 		const CReflectionRegistry& registry)
@@ -35,7 +35,7 @@ public:
 		return scene.AddScript(object, scriptTypeId, registry);
 	}
 
-	static void DestroyComponent(CGameScene& scene, CComponent* component)
+	static void DestroyComponent(CGameCanvas& scene, CComponent* component)
 	{
 		scene.DestroyComponent(component);
 	}
@@ -58,7 +58,7 @@ public:
 		return object.MoveComponent(componentGuid, newIndex);
 	}
 
-	static void SetObjectInstanceGuid(CGameScene& scene, CGameObject& object, const File::Guid& guid)
+	static void SetObjectInstanceGuid(CGameCanvas& scene, CGameObject& object, const File::Guid& guid)
 	{
 		scene.SetObjectInstanceGuid(object, guid);
 	}
@@ -70,7 +70,7 @@ public:
 
 	// 에디터 undo/redo 전용 — 레이어를 파괴했다가 되살릴 때 원래 guid 를 되돌린다.
 	// guid 가 바뀌면 뷰포트 LayerFilter·파일 레이어 승계가 대상을 잃는다.
-	static void SetLayerInstanceGuid(CGameScene& scene, CGameLayer& layer, const File::Guid& guid)
+	static void SetLayerInstanceGuid(CGameCanvas& scene, CGameLayer& layer, const File::Guid& guid)
 	{
 		scene.SetLayerInstanceGuid(layer, guid);
 	}
@@ -78,19 +78,19 @@ public:
 	static void SetCreationOrder(CGameObject& object, std::uint64_t creationOrder)
 	{
 		object.m_creationOrder = creationOrder;
-		if (CGameScene* scene = object.GetScene())
+		if (CGameCanvas* scene = object.GetCanvas())
 		{
 			scene->MarkScriptExecutionOrderDirty();
 		}
 	}
 
-	static std::vector<CGameScene::ScriptMemoryPoolStats> GetScriptMemoryPoolStats(const CGameScene& scene)
+	static std::vector<CGameCanvas::ScriptMemoryPoolStats> GetScriptMemoryPoolStats(const CGameCanvas& scene)
 	{
 		return scene.GetScriptMemoryPoolStats();
 	}
 
 	static void ReserveScriptMemory(
-		CGameScene& scene,
+		CGameCanvas& scene,
 		TypeId scriptTypeId,
 		std::size_t size,
 		std::size_t alignment,
@@ -99,12 +99,12 @@ public:
 		scene.ReserveScriptMemory(scriptTypeId, size, alignment, capacity);
 	}
 
-	static void DispatchSurfaceEvent(CGameScene& scene, const SurfaceEvent& surfaceEvent)
+	static void DispatchSurfaceEvent(CGameCanvas& scene, const SurfaceEvent& surfaceEvent)
 	{
 		scene.DispatchSurfaceEventToScripts(surfaceEvent);
 	}
 
-	static CGameScript* AsScript(CGameScene& scene, CComponent* component)
+	static CGameScript* AsScript(CGameCanvas& scene, CComponent* component)
 	{
 		if (nullptr == component)
 		{
@@ -116,7 +116,7 @@ public:
 			: it->second->Instance;
 	}
 
-	static const CGameScript* AsScript(const CGameScene& scene, const CComponent* component)
+	static const CGameScript* AsScript(const CGameCanvas& scene, const CComponent* component)
 	{
 		if (nullptr == component)
 		{
@@ -129,7 +129,7 @@ public:
 	}
 
 	static CGameScript* FindScript(
-		CGameScene& scene,
+		CGameCanvas& scene,
 		CGameObject& object,
 		const File::Guid& componentGuid,
 		TypeId expectedType = INVALID_TYPE_ID)
@@ -141,11 +141,11 @@ public:
 			return nullptr;
 		}
 
-		const CGameScene::ScriptObjectRange range = rangeIt->second;
+		const CGameCanvas::ScriptObjectRange range = rangeIt->second;
 		const std::size_t end = range.Begin + range.Count;
 		for (std::size_t index = range.Begin; index < end; ++index)
 		{
-			CGameScene::ScriptRuntimeState* runtime = scene.m_scriptExecutionOrder[index];
+			CGameCanvas::ScriptRuntimeState* runtime = scene.m_scriptExecutionOrder[index];
 			CGameScript* script = runtime ? runtime->Instance : nullptr;
 			if (nullptr == script)
 			{
@@ -165,12 +165,12 @@ public:
 	}
 
 	template<typename Fn>
-	static void ForEachScriptInExecutionOrder(CGameScene& scene, Fn&& fn)
+	static void ForEachScriptInExecutionOrder(CGameCanvas& scene, Fn&& fn)
 	{
 		scene.EnsureScriptExecutionOrder();
 		// fn 이 스폰·Ref 해석으로 캐시를 재빌드하지 못하게 순회 잠금.
-		CGameScene::ScriptIterationGuard iterationGuard(scene);
-		for (CGameScene::ScriptRuntimeState* runtime : scene.m_scriptExecutionOrder)
+		CGameCanvas::ScriptIterationGuard iterationGuard(scene);
+		for (CGameCanvas::ScriptRuntimeState* runtime : scene.m_scriptExecutionOrder)
 		{
 			if (runtime && runtime->Instance)
 			{

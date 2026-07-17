@@ -761,19 +761,19 @@
     <ClInclude Include="GameFramework\Rendering\ShapeRenderSystem.h">
       <Filter>Header\GameFramework\Rendering</Filter>
     </ClInclude>
-    <ClInclude Include="GameFramework\Scene\CanvasViewport.h">
+    <ClInclude Include="GameFramework\Canvas\CanvasViewport.h">
       <Filter>Header\GameFramework\Scene</Filter>
     </ClInclude>
-    <ClInclude Include="GameFramework\Scene\GameLayer.h">
+    <ClInclude Include="GameFramework\Canvas\GameLayer.h">
       <Filter>Header\GameFramework\Scene</Filter>
     </ClInclude>
-    <ClInclude Include="GameFramework\Scene\Scene.h">
+    <ClInclude Include="GameFramework\Canvas\Canvas.h">
       <Filter>Header\GameFramework\Scene</Filter>
     </ClInclude>
-    <ClInclude Include="GameFramework\Scene\SceneRuntimeAccess.h">
+    <ClInclude Include="GameFramework\Canvas\CanvasRuntimeAccess.h">
       <Filter>Header\GameFramework\Scene</Filter>
     </ClInclude>
-    <ClInclude Include="GameFramework\Scene\SceneManager.h">
+    <ClInclude Include="GameFramework\Canvas\CanvasManager.h">
       <Filter>Header\GameFramework\Scene</Filter>
     </ClInclude>
     <ClInclude Include="GameFramework\Serialization\ComponentSerializer.h">
@@ -785,10 +785,10 @@
     <ClInclude Include="GameFramework\Serialization\ObjectSerializer.h">
       <Filter>Header\GameFramework\Serialization</Filter>
     </ClInclude>
-    <ClInclude Include="GameFramework\Scene\SceneSerializer.h">
+    <ClInclude Include="GameFramework\Canvas\CanvasSerializer.h">
       <Filter>Header\GameFramework\Scene</Filter>
     </ClInclude>
-    <ClInclude Include="GameFramework\Scene\SceneTypes.h">
+    <ClInclude Include="GameFramework\Canvas\CanvasTypes.h">
       <Filter>Header\GameFramework\Scene</Filter>
     </ClInclude>
     <ClInclude Include="GameFramework\System\GameSystem.h">
@@ -1465,10 +1465,10 @@
     <ClCompile Include="GameFramework\Rendering\ShapeRenderSystem.cpp">
       <Filter>Source\GameFramework\Rendering</Filter>
     </ClCompile>
-    <ClCompile Include="GameFramework\Scene\Scene.cpp">
+    <ClCompile Include="GameFramework\Canvas\Canvas.cpp">
       <Filter>Source\GameFramework\Scene</Filter>
     </ClCompile>
-    <ClCompile Include="GameFramework\Scene\SceneManager.cpp">
+    <ClCompile Include="GameFramework\Canvas\CanvasManager.cpp">
       <Filter>Source\GameFramework\Scene</Filter>
     </ClCompile>
     <ClCompile Include="GameFramework\Serialization\ComponentSerializer.cpp">
@@ -1480,7 +1480,7 @@
     <ClCompile Include="GameFramework\Serialization\ObjectSerializer.cpp">
       <Filter>Source\GameFramework\Serialization</Filter>
     </ClCompile>
-    <ClCompile Include="GameFramework\Scene\SceneSerializer.cpp">
+    <ClCompile Include="GameFramework\Canvas\CanvasSerializer.cpp">
       <Filter>Source\GameFramework\Scene</Filter>
     </ClCompile>
     <ClCompile Include="GameFramework\System\GameSystem.cpp">

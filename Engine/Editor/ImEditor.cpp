@@ -13,7 +13,7 @@
 #include "Core/RHI/IRHIDevice.h"
 #include "Core/RHI/IRHITexture.h"
 #include "Editor/Project/ProjectManager.h"
-#include "GameFramework/Scene/Scene.h"
+#include "GameFramework/Canvas/Canvas.h"
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
@@ -289,12 +289,12 @@ void CImEditor::RenderLayerThumbnails()
 	const EngineCore* engineCore = GetEditorEngineCore();
 	if (nullptr == engineCore || false == engineCore->RHIDevice.IsValid()
 		|| false == engineCore->Renderer.IsValid() || false == engineCore->RenderScene.IsValid()
-		|| false == Engine.SceneManager.IsValid())
+		|| false == Engine.CanvasManager.IsValid())
 	{
 		return;
 	}
 
-	CGameScene* activeScene = Engine.SceneManager->GetActiveScene().TryGet();
+	CGameCanvas* activeScene = Engine.CanvasManager->GetActiveCanvas().TryGet();
 	if (nullptr == activeScene || m_sceneViewLayers.empty())
 	{
 		return;
@@ -400,7 +400,7 @@ void CImEditor::RequestGameViewRenderTarget(std::uint32_t width, std::uint32_t h
 	}
 }
 
-void CImEditor::SetGameViewScene(SafePtr<CGameScene> scene)
+void CImEditor::SetGameViewScene(SafePtr<CGameCanvas> scene)
 {
 	m_gameViewScene = scene;
 }
@@ -655,9 +655,9 @@ void CImEditor::OnPrepareRender()
 	// 씬뷰 레이어 스냅샷 — 편집 뷰가 그리는 대상은 활성 씬이다(게임뷰는 자기 씬을 따로 지정).
 	// 전 레이어 RT 강제: 에디터에선 레이어별 결과가 그대로 보여야 하고 성능 여유가 있다.
 	m_sceneViewLayers.clear();
-	if (Engine.SceneManager.IsValid())
+	if (Engine.CanvasManager.IsValid())
 	{
-		if (const CGameScene* activeScene = Engine.SceneManager->GetActiveScene().TryGet())
+		if (const CGameCanvas* activeScene = Engine.CanvasManager->GetActiveCanvas().TryGet())
 		{
 			m_sceneViewLayers = CollectGameRenderLayers(*activeScene, /*forceOwnTextureAll*/ true);
 		}
@@ -845,7 +845,7 @@ void CImEditor::OnPrepareRender()
 	{
 		// 카메라/라이트 스냅샷을 여기(시뮬 이후·렌더 직전)서 수집한다 — GameViewTool
 		// 의 UI 빌드 시점(씬 업데이트 전) 수집은 1프레임 지연 카메라를 만든다.
-		if (CGameScene* gameViewScene = m_gameViewScene.TryGet())
+		if (CGameCanvas* gameViewScene = m_gameViewScene.TryGet())
 		{
 			m_gameViewViewports = CollectGameRenderViewports(
 				*gameViewScene,
@@ -858,7 +858,7 @@ void CImEditor::OnPrepareRender()
 		}
 
 		std::vector<GameRenderCameraStats> cameraStats;
-		const CGameScene* gameViewScene = m_gameViewScene.TryGet();
+		const CGameCanvas* gameViewScene = m_gameViewScene.TryGet();
 		RenderGameViewports(
 			*commandContext,
 			*engineCore->Renderer,

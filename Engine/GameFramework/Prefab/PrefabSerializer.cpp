@@ -15,7 +15,7 @@
 // 이름 맵에 없어 조회에 걸리지 않는다). Serialization 계층은 오브젝트/컴포넌트 guid 를 보존하고
 // 스크립트를 별도 분기로 처리하므로, 복제 단계를 없애는 것이 곧 그 손실을 없애는 것이다.
 
-EPrefabSerializeResult CPrefabSerializer::SerializePrefabToText(const CGameScene& /*scene*/, const CGameObject* root, std::string& outText) const
+EPrefabSerializeResult CPrefabSerializer::SerializePrefabToText(const CGameCanvas& /*scene*/, const CGameObject* root, std::string& outText) const
 {
 	if (nullptr == root)
 	{
@@ -27,7 +27,7 @@ EPrefabSerializeResult CPrefabSerializer::SerializePrefabToText(const CGameScene
 	return outText.empty() ? EPrefabSerializeResult::ParseError : EPrefabSerializeResult::Success;
 }
 
-EPrefabSerializeResult CPrefabSerializer::DeserializePrefabFromText(CGameScene& scene, const char* text, CGameObject** outRoot) const
+EPrefabSerializeResult CPrefabSerializer::DeserializePrefabFromText(CGameCanvas& scene, const char* text, CGameObject** outRoot) const
 {
 	if (nullptr == text)
 	{
@@ -45,7 +45,7 @@ EPrefabSerializeResult CPrefabSerializer::DeserializePrefabFromText(CGameScene& 
 	return root ? EPrefabSerializeResult::Success : EPrefabSerializeResult::ParseError;
 }
 
-EPrefabSerializeResult CPrefabSerializer::SavePrefabToFile(const CGameScene& scene, const CGameObject* root, const File::Path& path) const
+EPrefabSerializeResult CPrefabSerializer::SavePrefabToFile(const CGameCanvas& scene, const CGameObject* root, const File::Path& path) const
 {
 	if (path.empty())
 	{
@@ -69,7 +69,7 @@ EPrefabSerializeResult CPrefabSerializer::SavePrefabToFile(const CGameScene& sce
 	return EPrefabSerializeResult::Success;
 }
 
-EPrefabSerializeResult CPrefabSerializer::LoadPrefabFromFile(CGameScene& scene, const File::Path& path, CGameObject** outRoot) const
+EPrefabSerializeResult CPrefabSerializer::LoadPrefabFromFile(CGameCanvas& scene, const File::Path& path, CGameObject** outRoot) const
 {
 	if (path.empty())
 	{

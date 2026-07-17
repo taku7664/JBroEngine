@@ -4,8 +4,8 @@
 #include "Core/Debug/DebugDraw2D.h"
 #include "GameFramework/Component/Camera2D.h"
 #include "GameFramework/Object/GameObject.h"
-#include "GameFramework/Scene/Scene.h"
-#include "GameFramework/Scene/SceneTransformUtils.h"
+#include "GameFramework/Canvas/Canvas.h"
+#include "GameFramework/Canvas/CanvasTransformUtils.h"
 
 #include <cmath>
 
@@ -49,7 +49,7 @@ namespace
 }
 
 void SceneDebugDraw::Submit(
-	const CGameScene&      scene,
+	const CGameCanvas&      scene,
 	IDebugDraw2D&      debugDraw,
 	const CGameObject* /*selectedObject*/,
 	float              resW,

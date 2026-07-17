@@ -4,23 +4,23 @@
 #include "Core/Asset/IAssetManager.h"
 #include "Core/ScriptCore.h"                         // 전역 Script (BindScriptCore 로 채워짐)
 #include "GameFramework/Scripting/GameScript.h"
-#include "GameFramework/Scene/Scene.h"
-#include "GameFramework/Scene/SceneManager.h"
-#include "GameFramework/Scene/SceneRuntimeAccess.h"
+#include "GameFramework/Canvas/Canvas.h"
+#include "GameFramework/Canvas/CanvasManager.h"
+#include "GameFramework/Canvas/CanvasRuntimeAccess.h"
 
 namespace
 {
 	// Ref 해석의 기준 활성 씬.
 	// ⚠️ 게임 DLL 에서는 전역 `Engine`(EngineCore) 이 채워지지 않는다 — BindScriptCore 는
 	//    전역 `Script`(ScriptCore) 만 호스트 값으로 복사한다. 이 코드는 Engine.lib 이지만 게임
-	//    DLL 에도 링크되어 DLL 안에서 돌므로, 반드시 `Script.SceneManager` 를 써야 한다.
-	CGameScene* ActiveScene()
+	//    DLL 에도 링크되어 DLL 안에서 돌므로, 반드시 `Script.CanvasManager` 를 써야 한다.
+	CGameCanvas* ActiveScene()
 	{
-		if (false == static_cast<bool>(Script.SceneManager))
+		if (false == static_cast<bool>(Script.CanvasManager))
 		{
 			return nullptr;
 		}
-		return Script.SceneManager->GetActiveScene().TryGet();
+		return Script.CanvasManager->GetActiveCanvas().TryGet();
 	}
 }
 
@@ -28,14 +28,14 @@ namespace
 
 void* RefDetail::ResolveComponent(const char* objectGuid, const char* componentGuid, TypeId componentTypeId)
 {
-	CGameScene* scene = ActiveScene();
+	CGameCanvas* scene = ActiveScene();
 	if (nullptr == scene)
 	{
 		return nullptr;
 	}
 	CGameObject* object = scene->FindByInstanceGuidText(objectGuid).TryGet();
 	return object
-		? CSceneRuntimeAccess::FindComponentByGuidAndType(
+		? CCanvasRuntimeAccess::FindComponentByGuidAndType(
 			*object,
 			File::Guid(componentGuid),
 			componentTypeId)
@@ -44,7 +44,7 @@ void* RefDetail::ResolveComponent(const char* objectGuid, const char* componentG
 
 CGameObject* RefDetail::ResolveObject(const char* instanceGuid)
 {
-	CGameScene* scene = ActiveScene();
+	CGameCanvas* scene = ActiveScene();
 	if (nullptr == scene)
 	{
 		return nullptr;
@@ -54,7 +54,7 @@ CGameObject* RefDetail::ResolveObject(const char* instanceGuid)
 
 CGameScript* RefDetail::ResolveScript(const char* objectGuid, const char* componentGuid, TypeId scriptTypeId)
 {
-	CGameScene* scene = ActiveScene();
+	CGameCanvas* scene = ActiveScene();
 	if (nullptr == scene)
 	{
 		return nullptr;
@@ -64,17 +64,17 @@ CGameScript* RefDetail::ResolveScript(const char* objectGuid, const char* compon
 	{
 		return nullptr;
 	}
-	return CSceneRuntimeAccess::FindScript(*scene, *object, File::Guid(componentGuid), scriptTypeId);
+	return CCanvasRuntimeAccess::FindScript(*scene, *object, File::Guid(componentGuid), scriptTypeId);
 }
 
-CGameScene* RefDetail::ResolveScene(const char* sceneName)
+CGameCanvas* RefDetail::ResolveCanvas(const char* canvasName)
 {
-	if (false == static_cast<bool>(Script.SceneManager))
+	if (false == static_cast<bool>(Script.CanvasManager))
 	{
 		return nullptr;
 	}
-	// FindScene 은 헤더 인라인(GetActiveScene 과 동일한 DLL 링크 체인 사유).
-	return Script.SceneManager->FindScene(sceneName).TryGet();
+	// FindCanvas 은 헤더 인라인(GetActiveCanvas 과 동일한 DLL 링크 체인 사유).
+	return Script.CanvasManager->FindCanvas(canvasName).TryGet();
 }
 
 IAsset* RefDetail::ResolveAsset(const char* assetGuid)

@@ -24,7 +24,7 @@ struct ScriptFieldValue
 // 핫리로드 직전, 스크립트 인스턴스의 REFLECT_FIELD 값을 보존한다.
 struct ScriptFieldSnapshot
 {
-	std::string                     SceneName;
+	std::string                     CanvasName;
 	File::Guid                      OwnerGuid; // 오브젝트 안정 식별자(주소 아님 — 리로드 넘어 유효)
 	File::Guid                      ComponentGuid;
 	std::string                     TypeName;  // 재로드 후 이름으로 타입 재탐색

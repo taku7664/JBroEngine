@@ -13,7 +13,7 @@
 #include "Core/RHI/IRHIDevice.h"
 #include "GameFramework/Component/Text2D.h"
 #include "GameFramework/Object/GameObject.h"
-#include "GameFramework/Scene/Scene.h"
+#include "GameFramework/Canvas/Canvas.h"
 
 #include <ft2build.h>
 #include FT_FREETYPE_H
@@ -564,7 +564,7 @@ bool CTextRenderSystem::AnyFaceGenerationStale() const
 	return false;
 }
 
-void CTextRenderSystem::OnUpdate(CGameScene& scene)
+void CTextRenderSystem::OnUpdate(CGameCanvas& scene)
 {
 	CForward2DRenderer* renderer = m_renderer;
 	if (nullptr == renderer || nullptr == m_renderScene || false == renderer->GetTextPipeline().IsValid()) return;

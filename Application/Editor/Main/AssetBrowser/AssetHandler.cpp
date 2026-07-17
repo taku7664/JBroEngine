@@ -12,7 +12,7 @@
 #include "Engine/Core/Logging/LoggerInternal.h"
 #include "Engine/GameFramework/Audio/AudioSystem.h"
 #include "Engine/GameFramework/Rendering/TextRenderSystem.h"
-#include "Engine/GameFramework/Scene/SceneRuntimeAccess.h"
+#include "Engine/GameFramework/Canvas/CanvasRuntimeAccess.h"
 #include "Utillity/File/FileUtillities.h"
 #include "Utillity/String/StringUtillity.h"
 
@@ -32,51 +32,51 @@ void CDefaultAssetOpenHandler::Open(CAssetBrowserTool& browser, const AssetBrows
 	File::OpenFile(entry.AbsolutePath);
 }
 
-bool CSceneAssetOpenHandler::CanOpen(const AssetBrowserEntry& entry) const
+bool CCanvasAssetOpenHandler::CanOpen(const AssetBrowserEntry& entry) const
 {
 	return false == entry.IsDirectory
 		&& (EAssetType::Scene == entry.Type || entry.ExtensionUtf8 == ".jcanvas");
 }
 
-void CSceneAssetOpenHandler::Open(CAssetBrowserTool&, const AssetBrowserEntry& entry)
+void CCanvasAssetOpenHandler::Open(CAssetBrowserTool&, const AssetBrowserEntry& entry)
 {
-	if (false == Engine.SceneManager.IsValid())
+	if (false == Engine.CanvasManager.IsValid())
 	{
 		CSystemLog::Error(Utillity::U8(u8"씬 로드에 실패하였습니다."));
 		File::OpenFile(entry.AbsolutePath);
 		return;
 	}
 
-	const std::string sceneName = entry.RelativePath.empty()
+	const std::string canvasName = entry.RelativePath.empty()
 		? entry.DisplayNameUtf8
 		: EditorPathUtils::ToUtf8(entry.RelativePath);
 	// 런타임 캔버스는 하나 — 파일을 열어도 인스턴스는 그대로 두고 내용만 갈아끼운다.
 	// 그래서 열기는 곧 현재 오브젝트·레이어의 파괴다. 선택은 파괴 전에 놓는다(SafePtr 라
 	// 댕글링은 아니지만, 놓지 않으면 인스펙터가 죽은 선택을 든 채 한 프레임을 넘긴다).
 	Editor::ClearSelection();
-	CGameScene* scene = &Engine.SceneManager->GetOrCreateCanvas();
+	CGameCanvas* scene = &Engine.CanvasManager->GetOrCreateCanvas();
 
-	CSceneSerializer serializer;
-	if (ESceneSerializeResult::Success == serializer.LoadFromFile(*scene, entry.AbsolutePath))
+	CCanvasSerializer serializer;
+	if (ECanvasSerializeResult::Success == serializer.LoadFromFile(*scene, entry.AbsolutePath))
 	{
-		Engine.SceneManager->SetCanvasName(sceneName.c_str());
-		Engine.SceneManager->RefreshReferencedAssets();
+		Engine.CanvasManager->SetCanvasName(canvasName.c_str());
+		Engine.CanvasManager->RefreshReferencedAssets();
 		if (const EngineCore* context = Editor::ImEditor ? Editor::ImEditor->GetEditorEngineCore() : nullptr)
 		{
-			CSpriteAnimationSystem* animationSystem = CSceneRuntimeAccess::FindSystem<CSpriteAnimationSystem>(*scene);
+			CSpriteAnimationSystem* animationSystem = CCanvasRuntimeAccess::FindSystem<CSpriteAnimationSystem>(*scene);
 			if (nullptr == animationSystem)
 			{
-				animationSystem = CSceneRuntimeAccess::AddSystem<CSpriteAnimationSystem>(*scene, context->AssetManager);
+				animationSystem = CCanvasRuntimeAccess::AddSystem<CSpriteAnimationSystem>(*scene, context->AssetManager);
 			}
 			if (nullptr != animationSystem)
 			{
 				animationSystem->SetAssetManager(context->AssetManager);
 			}
 
-			CSpriteRenderSystem* spriteSystem = CSceneRuntimeAccess::FindSystem<CSpriteRenderSystem>(*scene);
+			CSpriteRenderSystem* spriteSystem = CCanvasRuntimeAccess::FindSystem<CSpriteRenderSystem>(*scene);
 			if (nullptr == spriteSystem)
 			{
-				spriteSystem = CSceneRuntimeAccess::AddSystem<CSpriteRenderSystem>(*scene, context->RenderScene.TryGet());
+				spriteSystem = CCanvasRuntimeAccess::AddSystem<CSpriteRenderSystem>(*scene, context->RenderScene.TryGet());
 			}
 			if (nullptr != spriteSystem)
 			{
@@ -85,10 +85,10 @@ void CSceneAssetOpenHandler::Open(CAssetBrowserTool&, const AssetBrowserEntry& e
 					context->RenderResourceCache.TryGet(), Runtime.PixelsPerUnit);
 			}
 
-			CShapeRenderSystem* shapeSystem = CSceneRuntimeAccess::FindSystem<CShapeRenderSystem>(*scene);
+			CShapeRenderSystem* shapeSystem = CCanvasRuntimeAccess::FindSystem<CShapeRenderSystem>(*scene);
 			if (nullptr == shapeSystem)
 			{
-				shapeSystem = CSceneRuntimeAccess::AddSystem<CShapeRenderSystem>(*scene, context->RenderScene.TryGet());
+				shapeSystem = CCanvasRuntimeAccess::AddSystem<CShapeRenderSystem>(*scene, context->RenderScene.TryGet());
 			}
 			if (nullptr != shapeSystem)
 			{
@@ -96,10 +96,10 @@ void CSceneAssetOpenHandler::Open(CAssetBrowserTool&, const AssetBrowserEntry& e
 				shapeSystem->SetDependencies(context->RHIDevice.TryGet(), context->Renderer.TryGet());
 			}
 
-			CTextRenderSystem* textSystem = CSceneRuntimeAccess::FindSystem<CTextRenderSystem>(*scene);
+			CTextRenderSystem* textSystem = CCanvasRuntimeAccess::FindSystem<CTextRenderSystem>(*scene);
 			if (nullptr == textSystem)
 			{
-				textSystem = CSceneRuntimeAccess::AddSystem<CTextRenderSystem>(*scene, context->RenderScene.TryGet());
+				textSystem = CCanvasRuntimeAccess::AddSystem<CTextRenderSystem>(*scene, context->RenderScene.TryGet());
 			}
 			if (nullptr != textSystem)
 			{
@@ -108,10 +108,10 @@ void CSceneAssetOpenHandler::Open(CAssetBrowserTool&, const AssetBrowserEntry& e
 					Runtime.PixelsPerUnit, Runtime.DefaultFontFamilyGuid, Runtime.FallbackFontFamilies);
 			}
 
-			CAudioSystem* audioSystem = CSceneRuntimeAccess::FindSystem<CAudioSystem>(*scene);
+			CAudioSystem* audioSystem = CCanvasRuntimeAccess::FindSystem<CAudioSystem>(*scene);
 			if (nullptr == audioSystem)
 			{
-				audioSystem = CSceneRuntimeAccess::AddSystem<CAudioSystem>(*scene, context->Audio, context->AssetManager);
+				audioSystem = CCanvasRuntimeAccess::AddSystem<CAudioSystem>(*scene, context->Audio, context->AssetManager);
 			}
 			if (nullptr != audioSystem)
 			{
@@ -120,8 +120,8 @@ void CSceneAssetOpenHandler::Open(CAssetBrowserTool&, const AssetBrowserEntry& e
 			}
 		}
 		Editor::SetActiveScenePath(entry.AbsolutePath);
-		Editor::CommandManager.SetActiveDocument(sceneName.c_str());
-		Editor::CommandManager.MarkSaved(sceneName.c_str());
+		Editor::CommandManager.SetActiveDocument(canvasName.c_str());
+		Editor::CommandManager.MarkSaved(canvasName.c_str());
 		CSystemLog::Info("Scene loaded.");
 	}
 	else

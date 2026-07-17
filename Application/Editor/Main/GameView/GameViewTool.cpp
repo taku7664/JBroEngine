@@ -6,7 +6,7 @@
 #include "Engine/Editor/ImEditor.h"
 #include "Engine/Editor/Project/ProjectManager.h"
 #include "Engine/GameFramework/Rendering/GameCamera.h"
-#include "Engine/GameFramework/Scene/Scene.h"
+#include "Engine/GameFramework/Canvas/Canvas.h"
 #include "Core/EngineCore.h"
 #include "Core/Input/InputSystem.h"
 
@@ -91,10 +91,10 @@ void CGameViewTool::OnRenderStay()
 	if (Editor::ImEditor)
 	{
 		std::vector<GameRenderViewportDesc> viewports;
-		SafePtr<CGameScene> scene;
-		if (Engine.SceneManager)
+		SafePtr<CGameCanvas> scene;
+		if (Engine.CanvasManager)
 		{
-			scene = EditorContext::GetActiveScene();
+			scene = EditorContext::GetActiveCanvas();
 			if (scene)
 			{
 				// 뷰포트 수집은 카메라 Ref 를 해석한다 — 눈이 하나도 없으면 빈 목록이 되므로
@@ -170,8 +170,8 @@ void CGameViewTool::OnRenderStay()
 	}
 
 	// ── Status overlay ─────────────────────────────────────────────────────────
-	const bool hasScene  = EditorContext::GetActiveScene().IsValid();
-	const bool isPlaying = Engine.SceneManager.IsValid() && Engine.SceneManager->IsSimulationPlaying();
+	const bool hasScene  = EditorContext::GetActiveCanvas().IsValid();
+	const bool isPlaying = Engine.CanvasManager.IsValid() && Engine.CanvasManager->IsSimulationPlaying();
 
 	const ImVec2 textPos = vpMin + ImVec2(12.0f, 10.0f);
 	const ImU32  textCol = isPlaying ? IM_COL32(100, 230, 120, 255) : IM_COL32(210, 216, 224, 255);

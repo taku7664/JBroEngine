@@ -46,8 +46,8 @@
 #include "Engine/GameFramework/Component/Transform2D.h"
 #include "Engine/GameFramework/Physics2D/Physics2DSystem.h"
 #include "Engine/GameFramework/Physics2D/Physics2DTypes.h"
-#include "Engine/GameFramework/Scene/SceneTransformUtils.h"
-#include "Engine/GameFramework/Scene/SceneRuntimeAccess.h"
+#include "Engine/GameFramework/Canvas/CanvasTransformUtils.h"
+#include "Engine/GameFramework/Canvas/CanvasRuntimeAccess.h"
 #include "Utillity/Math/RectT.h"
 #include "Utillity/Types/EngineTypes.h"
 
@@ -124,14 +124,14 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		const char* wantType  = property.RefTypeName;
 		if (wantScript)
 		{
-			CGameScene* scene = object.GetScene();
+			CGameCanvas* scene = object.GetCanvas();
 			if (nullptr == scene)
 			{
 				return File::Guid();
 			}
 			for (const SafePtr<CComponent>& componentRef : object.GetComponents())
 			{
-				CGameScript* script = CSceneRuntimeAccess::AsScript(*scene, componentRef.TryGet());
+				CGameScript* script = CCanvasRuntimeAccess::AsScript(*scene, componentRef.TryGet());
 				if (nullptr == script) continue;
 				if (nullptr == wantType || '\0' == wantType[0]) return script->GetInstanceGuid();
 				if (Engine.Reflection.IsValid())
@@ -181,7 +181,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			return name + "  [" + typeName + "]";
 		}
 		// 오브젝트/컴포넌트/스크립트 — InstanceGuid → 오브젝트 이름.
-		if (CGameScene* scene = EditorContext::TryGetActiveScene())
+		if (CGameCanvas* scene = EditorContext::TryGetActiveScene())
 		{
 			if (CGameObject* obj = scene->FindByInstanceGuid(guid).TryGet())
 			{
@@ -225,7 +225,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		}
 
 		// 오브젝트/컴포넌트/스크립트 — 하이어라키 페이로드.
-		CGameScene* scene = EditorContext::TryGetActiveScene();
+		CGameCanvas* scene = EditorContext::TryGetActiveScene();
 		if (nullptr == scene || false == ImGui::BeginDragDropTarget())
 		{
 			return false;
@@ -497,7 +497,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 	}
 
 	void DrawReflectedPropertyRow(
-		CGameScene& scene,
+		CGameCanvas& scene,
 		CGameObject* selectedObject,
 		CComponent& component,
 		const ReflectPropertyInfo& property,
@@ -582,7 +582,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		ImGui::EndDisabled();
 	}
 
-	void DrawPhysicsContactDebug(const CGameScene& scene, const CGameObject* selectedObject)
+	void DrawPhysicsContactDebug(const CGameCanvas& scene, const CGameObject* selectedObject)
 	{
 		const CPhysics2DSystem* physicsSystem = scene.GetPhysics2DSystem();
 		if (nullptr == physicsSystem)
@@ -616,7 +616,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		}
 	}
 
-	void DrawRigidbodyDebug(const CGameScene& scene, const CGameObject* selectedObject, const Rigidbody2D& rigidbody)
+	void DrawRigidbodyDebug(const CGameCanvas& scene, const CGameObject* selectedObject, const Rigidbody2D& rigidbody)
 	{
 		ImGui::SeparatorText(Loc::Text(EditorLocKeys::InspectorRigidbodyDebug));
 		const float inverseMass = rigidbody.Mass > 0.0f ? 1.0f / rigidbody.Mass : 0.0f;
@@ -632,7 +632,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		DrawPhysicsContactDebug(scene, selectedObject);
 	}
 
-	void DrawCircleColliderDebug(const CGameScene& scene, const CGameObject* selectedObject, const CircleCollider2D& collider)
+	void DrawCircleColliderDebug(const CGameCanvas& scene, const CGameObject* selectedObject, const CircleCollider2D& collider)
 	{
 		(void)scene;
 		const Matrix3x2 worldTransform = selectedObject ? GetWorldTransform(*selectedObject) : Matrix3x2::Identity();
@@ -646,7 +646,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		DrawReadOnlyFloat(Loc::Text(EditorLocKeys::InspectorColliderWorldRadius), worldRadius);
 	}
 
-	void DrawPolygonColliderDebug(const CGameScene& scene, const CGameObject* selectedObject, const PolygonCollider2D& collider)
+	void DrawPolygonColliderDebug(const CGameCanvas& scene, const CGameObject* selectedObject, const PolygonCollider2D& collider)
 	{
 		(void)scene;
 		std::vector<Vector2> generatedPoints;
@@ -714,7 +714,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 	//   sameLineAfter=true  → "##enabled" 체크박스 + SameLine() (CollapsingHeader 왼쪽)
 	//   sameLineAfter=false → "IsEnabled" 라벨 체크박스 + Separator  (탭 최상단 단독)
 	void DrawIsEnabledCheckbox(
-		CGameScene& scene, CGameObject* selectedObject,
+		CGameCanvas& scene, CGameObject* selectedObject,
 		const ComponentTypeInfo& componentType,
 		std::size_t instanceIdx, void* component, bool sameLineAfter)
 	{
@@ -739,7 +739,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 	// ── DrawComponentProperties ───────────────────────────────────────────────
 	// IsEnabled·non-editable 프로퍼티를 제외하고 에디터 + 특수 디버그 섹션 렌더링.
 	void DrawComponentProperties(
-		CGameScene& scene, CGameObject* selectedObject,
+		CGameCanvas& scene, CGameObject* selectedObject,
 		const ComponentTypeInfo& componentType,
 		std::size_t instanceIdx, void* component)
 	{
@@ -1464,7 +1464,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		std::string Label;
 	};
 
-	std::vector<CameraChoice> CollectCameraChoices(CGameScene& scene)
+	std::vector<CameraChoice> CollectCameraChoices(CGameCanvas& scene)
 	{
 		std::vector<CameraChoice> choices;
 		scene.ForEachObject([&choices](CGameObject& object)
@@ -1482,7 +1482,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 	}
 
 	// 폴백(뷰포트가 카메라를 안 고른 경우)이 "임의로 하나"를 고르게 되는지 판단용.
-	int CountActiveCameras(CGameScene& scene)
+	int CountActiveCameras(CGameCanvas& scene)
 	{
 		int count = 0;
 		scene.ForEach<Camera2D>([&count](Camera2D& camera)
@@ -1499,7 +1499,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 	// 움직여도 화면은 그대로다. "움직인다" 판정: 스크립트가 붙어 있거나(무엇이든 할 수 있다),
 	// Rigidbody2D 가 Static 이 아니거나(물리가 옮긴다).
 	// 스크립트 판정에 dynamic_cast 대신 리플렉션 조회를 쓴다 — 인스펙터는 매 프레임 돈다.
-	int CountMovingObjectsInLayer(CGameScene& scene, const CGameLayer& layer, const CReflectionRegistry& reflection)
+	int CountMovingObjectsInLayer(CGameCanvas& scene, const CGameLayer& layer, const CReflectionRegistry& reflection)
 	{
 		int count = 0;
 		scene.ForEachObject([&](CGameObject& object)
@@ -1534,7 +1534,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 	// 뷰포트 하나의 속성 편집. 레이어 패널과 같은 규칙 — 라이브 대입이 아니라 스냅샷 교체다
 	// (커맨드가 "적용 직전 값"을 old 로 캡처하므로 먼저 라이브로 바꾸면 undo 가 무효가 된다).
 	void DrawViewportProperties(
-		CGameScene& scene,
+		CGameCanvas& scene,
 		std::size_t viewportIndex,
 		const std::vector<CameraChoice>& cameras,
 		int activeCameraCount)
@@ -1721,7 +1721,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 
 	// 캔버스 설정 — 배경색 + 뷰포트 목록. 캔버스 뷰의 캔버스 노드와 에셋 브라우저의 활성
 	// `.jcanvas` 선택이 같은 패널로 들어온다.
-	void DrawCanvasInspector(CGameScene& scene)
+	void DrawCanvasInspector(CGameCanvas& scene)
 	{
 		ImSectionHeader(Loc::Text(EditorLocKeys::InspectorCanvasProperties)).Draw();
 
@@ -1791,7 +1791,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 	// 레이어 선택 시 컴포짓 속성 편집. 표시 중이면 true(호출자는 다른 패널을 그리지 않는다).
 	// 편집은 라이브 대입이 아니라 스냅샷 교체로 한다 — 커맨드가 "적용 직전 값"을 old 로 캡처하므로
 	// 먼저 라이브로 바꿔버리면 undo 가 새 값으로 되돌아간다(=무효).
-	bool DrawSelectedLayerInspector(CGameScene& scene)
+	bool DrawSelectedLayerInspector(CGameCanvas& scene)
 	{
 		CGameLayer* layer = Editor::GetSelectedLayer();
 		if (nullptr == layer)
@@ -1964,7 +1964,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		return activeRelative == metaData.Path.generic_string();
 	}
 
-	bool DrawSelectedAssetInspector(CGameScene& scene)
+	bool DrawSelectedAssetInspector(CGameCanvas& scene)
 	{
 		const File::Guid& selectedGuid = Editor::GetSelectedAssetGuid();
 		if (selectedGuid.IsNull())
@@ -2039,7 +2039,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			}
 			else
 			{
-				// 여는 경로는 에셋 브라우저 더블클릭(CSceneAssetOpenHandler) 하나뿐이다 —
+				// 여는 경로는 에셋 브라우저 더블클릭(CCanvasAssetOpenHandler) 하나뿐이다 —
 				// 여기 열기 버튼을 두려면 그 로직을 AssetBrowserEntry 에서 떼어내야 해서
 				// 지금은 안내만 한다.
 				ImGui::TextWrapped("%s", Loc::Text(EditorLocKeys::InspectorCanvasOpenToEdit));
@@ -2072,7 +2072,7 @@ void CInspectorTool::OnRenderStay()
 	// 매 프레임 초기화: 컴포넌트 미표시 상태가 기본값
 	m_activeComponentTypeName = nullptr;
 
-	CGameScene* scene = EditorContext::TryGetActiveScene();
+	CGameCanvas* scene = EditorContext::TryGetActiveScene();
 	if (nullptr == scene)
 	{
 		AssetInspectorPreview::NotifyInspectionLost();
@@ -2242,7 +2242,7 @@ void CInspectorTool::OnRenderStay()
 	{
 		CComponent* component = componentRef.TryGet();
 		if (nullptr == component) continue;
-		if (CGameScript* script = CSceneRuntimeAccess::AsScript(*scene, component))
+		if (CGameScript* script = CCanvasRuntimeAccess::AsScript(*scene, component))
 		{
 			listItems.push_back({ GetScriptInstanceDisplayName(script) ? GetScriptInstanceDisplayName(script) : Loc::Text(EditorLocKeys::InspectorUnknownScript), nullptr, 0, script, script->GetInstanceGuid() });
 			continue;

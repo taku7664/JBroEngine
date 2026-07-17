@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-enum class ESceneSerializeResult
+enum class ECanvasSerializeResult
 {
 	Success,
 	InvalidArgument,
@@ -22,7 +22,7 @@ enum class ELayerSerializeResult
 	DuplicateInstance
 };
 
-enum class ESceneSimulationState
+enum class ECanvasSimulationState
 {
 	Edit,
 	Playing,

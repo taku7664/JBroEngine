@@ -10,10 +10,10 @@
 #include "Engine/Core/EngineCore.h"
 #include "Engine/GameFramework/Component/Component.h"
 #include "Engine/GameFramework/Object/GameObject.h"
-#include "Engine/GameFramework/Scene/GameLayer.h"
+#include "Engine/GameFramework/Canvas/GameLayer.h"
 #include "Engine/GameFramework/Reflection/ReflectionRegistry.h"
-#include "Engine/GameFramework/Scene/Scene.h"
-#include "Engine/GameFramework/Scene/SceneRuntimeAccess.h"
+#include "Engine/GameFramework/Canvas/Canvas.h"
+#include "Engine/GameFramework/Canvas/CanvasRuntimeAccess.h"
 #include "Engine/GameFramework/Serialization/ComponentSerializer.h"
 #include "Engine/GameFramework/Serialization/ObjectSerializer.h"
 
@@ -31,7 +31,7 @@ namespace
 		return value;
 	}
 
-	bool DrawScriptList(CGameScene& scene, CGameObject* object, CReflectionRegistry& reflection)
+	bool DrawScriptList(CGameCanvas& scene, CGameObject* object, CReflectionRegistry& reflection)
 	{
 		if (nullptr == object)
 		{
@@ -66,21 +66,21 @@ namespace
 		return added;
 	}
 
-	bool AddComponent(CGameScene& scene, CGameObject* object, const ComponentTypeInfo& componentType)
+	bool AddComponent(CGameCanvas& scene, CGameObject* object, const ComponentTypeInfo& componentType)
 	{
 		return Editor::CommandManager.ExecuteCommand(
 			MakeOwnerPtr<CAddComponentCommand>(
 				scene.SafeFromThis(), object, componentType.Type.Id));
 	}
 
-	bool AddScript(CGameScene& scene, CGameObject* object, const ScriptTypeInfo& scriptType)
+	bool AddScript(CGameCanvas& scene, CGameObject* object, const ScriptTypeInfo& scriptType)
 	{
 		return Editor::CommandManager.ExecuteCommand(
 			MakeOwnerPtr<CAddScriptCommand>(
 				scene.SafeFromThis(), object, scriptType.Type.Id));
 	}
 
-	bool DrawComponentList(CGameScene& scene, CGameObject* object, const char* filterText = "")
+	bool DrawComponentList(CGameCanvas& scene, CGameObject* object, const char* filterText = "")
 	{
 		if (false == Engine.Reflection.IsValid() || nullptr == object)
 		{
@@ -224,7 +224,7 @@ namespace
 	}
 } // namespace
 
-bool EditorGuiActions::DrawAddComponentMenu(CGameScene& scene, CGameObject* object)
+bool EditorGuiActions::DrawAddComponentMenu(CGameCanvas& scene, CGameObject* object)
 {
 	if (ImGui::BeginMenu(Loc::Text(EditorLocKeys::InspectorAddComponent)))
 	{
@@ -235,7 +235,7 @@ bool EditorGuiActions::DrawAddComponentMenu(CGameScene& scene, CGameObject* obje
 	return false;
 }
 
-bool EditorGuiActions::DrawAddComponentButton(CGameScene& scene, CGameObject* object, const char* buttonLabel)
+bool EditorGuiActions::DrawAddComponentButton(CGameCanvas& scene, CGameObject* object, const char* buttonLabel)
 {
 	bool added = false;
 	const char* label = buttonLabel ? buttonLabel : Loc::Text(EditorLocKeys::InspectorAddComponent);
@@ -260,7 +260,7 @@ bool EditorGuiActions::DrawAddComponentButton(CGameScene& scene, CGameObject* ob
 	return added;
 }
 
-bool EditorGuiActions::DrawAddObjectMenu(CGameScene& scene, CGameObject* parent, const Vector2* spawnWorldPos,
+bool EditorGuiActions::DrawAddObjectMenu(CGameCanvas& scene, CGameObject* parent, const Vector2* spawnWorldPos,
                                          CGameLayer* layer)
 {
 	// parent 유무에 따라 레이블 변경
@@ -282,7 +282,7 @@ bool EditorGuiActions::DrawAddObjectMenu(CGameScene& scene, CGameObject* parent,
 	return false;
 }
 
-bool EditorGuiActions::DrawRemoveObjectMenu(CGameScene& scene, CGameObject* object)
+bool EditorGuiActions::DrawRemoveObjectMenu(CGameCanvas& scene, CGameObject* object)
 {
 	if (nullptr == object)
 	{
@@ -318,7 +318,7 @@ bool EditorGuiActions::DrawCopyObjectMenuItem(const CGameObject& object)
 	return false;
 }
 
-bool EditorGuiActions::DrawPasteObjectMenuItem(CGameScene& scene, CGameObject* parent, CGameLayer* layer)
+bool EditorGuiActions::DrawPasteObjectMenuItem(CGameCanvas& scene, CGameObject* parent, CGameLayer* layer)
 {
 	if (false == HasObjectClipboardData())
 	{
@@ -332,7 +332,7 @@ bool EditorGuiActions::DrawPasteObjectMenuItem(CGameScene& scene, CGameObject* p
 	return false;
 }
 
-CGameLayer* EditorGuiActions::ResolveTargetLayer(CGameScene& scene)
+CGameLayer* EditorGuiActions::ResolveTargetLayer(CGameCanvas& scene)
 {
 	// 레이어를 직접 골랐으면 그 의도가 가장 명확하다.
 	if (CGameLayer* selectedLayer = Editor::GetSelectedLayer())
@@ -370,7 +370,7 @@ bool EditorGuiActions::CopySelectedObjectsToClipboard()
 	return true;
 }
 
-bool EditorGuiActions::PasteObjectsFromClipboard(CGameScene& scene, const Vector2* spawnWorldPos,
+bool EditorGuiActions::PasteObjectsFromClipboard(CGameCanvas& scene, const Vector2* spawnWorldPos,
                                                 CGameObject* parent, CGameLayer* layer)
 {
 	const char* clip = ImGui::GetClipboardText();
@@ -395,7 +395,7 @@ bool EditorGuiActions::PasteObjectsFromClipboard(CGameScene& scene, const Vector
 	return true;
 }
 
-bool EditorGuiActions::DeleteSelectedObjects(CGameScene& scene)
+bool EditorGuiActions::DeleteSelectedObjects(CGameCanvas& scene)
 {
 	const std::vector<CGameObject*> roots = Editor::GetSelectedTopLevel();
 	if (roots.empty())
@@ -413,7 +413,7 @@ bool EditorGuiActions::DeleteSelectedObjects(CGameScene& scene)
 	return true;
 }
 
-bool EditorGuiActions::DeleteSelectedLayer(CGameScene& scene)
+bool EditorGuiActions::DeleteSelectedLayer(CGameCanvas& scene)
 {
 	CGameLayer* layer = Editor::GetSelectedLayer();
 	if (nullptr == layer)
@@ -464,7 +464,7 @@ bool EditorGuiActions::DrawPasteComponentMenuItem(CGameObject& object)
 			{
 				if (CComponent* component = components.back().TryGet())
 				{
-					CSceneRuntimeAccess::SetComponentInstanceGuid(*component, File::GenerateGuid());
+					CCanvasRuntimeAccess::SetComponentInstanceGuid(*component, File::GenerateGuid());
 				}
 			}
 			return true;

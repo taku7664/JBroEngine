@@ -10,7 +10,7 @@
 //  있다. Ref 의 에셋 해석은 `dynamic_cast<T*>` 라(Ref.h), CFileAsset 으로 두면 `.jlayer`
 //  든 셰이더든 전부 같은 타입이라 해석이 통과해 버린다.
 //
-//  파싱은 여기서 하지 않는다. 캔버스 YAML 을 읽는 건 CSceneSerializer 의 일이고, 자산
+//  파싱은 여기서 하지 않는다. 캔버스 YAML 을 읽는 건 CCanvasSerializer 의 일이고, 자산
 //  계층은 바이트만 나른다(로더가 yaml-cpp 를 끌어오면 게임 DLL 링크가 깨진다).
 // ─────────────────────────────────────────────────────────────────────────────
 class CCanvasAsset final : public CFileAsset

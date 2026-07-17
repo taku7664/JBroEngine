@@ -9,7 +9,7 @@ public:
 };
 
 
-class CSceneAssetOpenHandler final : public CAssetBrowserTool::IAssetOpenHandler
+class CCanvasAssetOpenHandler final : public CAssetBrowserTool::IAssetOpenHandler
 {
 public:
 	bool CanOpen(const AssetBrowserEntry& entry) const override;

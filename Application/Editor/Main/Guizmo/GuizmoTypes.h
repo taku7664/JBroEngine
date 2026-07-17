@@ -9,7 +9,7 @@
 #include <vector>
 
 class CGameObject;
-class CGameScene;
+class CGameCanvas;
 
 enum class EGuizmoDimension
 {
@@ -50,7 +50,7 @@ enum class EGuizmoHandle2D
 
 struct GuizmoFrameContext
 {
-	CGameScene* Scene = nullptr;
+	CGameCanvas* Scene = nullptr;
 	ImRect ViewportRect;
 	ImDrawList* DrawList = nullptr;
 	Vector2 CameraPosition = Vector2(0.0f, 0.0f);

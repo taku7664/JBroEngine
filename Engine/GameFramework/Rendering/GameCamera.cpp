@@ -9,9 +9,9 @@
 #include "GameFramework/Component/Camera2D.h"
 #include "GameFramework/Component/Light2D.h"
 #include "GameFramework/Object/GameObject.h"
-#include "GameFramework/Scene/GameLayer.h"
-#include "GameFramework/Scene/Scene.h"
-#include "GameFramework/Scene/SceneTransformUtils.h"
+#include "GameFramework/Canvas/GameLayer.h"
+#include "GameFramework/Canvas/Canvas.h"
+#include "GameFramework/Canvas/CanvasTransformUtils.h"
 
 #include <algorithm>
 #include <array>
@@ -22,7 +22,7 @@ namespace
 	// 폴백 카메라 — 뷰포트가 카메라를 지목하지 않았을 때 쓸 "첫 활성 카메라".
 	// 순서 규약 = 레이어 순서 → 레이어 내 하이라키(생성) 순서. 스크립트 실행 순서와 같은 축이라
 	// 예측 가능하다. 풀 순회 순서(비결정)에 의존하지 않는다.
-	const Camera2D* FindFallbackCamera(const CGameScene& scene)
+	const Camera2D* FindFallbackCamera(const CGameCanvas& scene)
 	{
 		const Camera2D* best = nullptr;
 		std::uint16_t bestLayerIndex = 0;
@@ -56,7 +56,7 @@ namespace
 	// 뷰포트의 카메라 Ref 해석. SafePtr 캐시가 살아 있으면 그대로 쓰고(매 프레임 guid
 	// 문자열 파싱 회피), 죽었을 때만 guid 로 재해석한다 — 레이어 재로드로 카메라 오브젝트가
 	// 새로 태어나도 같은 guid 면 다시 붙는다.
-	const Camera2D* ResolveViewportCamera(CGameScene& scene, CanvasViewport& viewport)
+	const Camera2D* ResolveViewportCamera(CGameCanvas& scene, CanvasViewport& viewport)
 	{
 		CGameObject* cameraObject = viewport.ResolvedCamera.TryGet();
 		if (nullptr == cameraObject && false == viewport.CameraObjectGuid.IsNull())
@@ -80,7 +80,7 @@ namespace
 
 	// 뷰포트의 레이어 필터(guid 목록)를 캔버스 순서의 인덱스 목록으로 해석한다.
 	// 비어 있으면(대부분) 전체 레이어 — 빈 목록을 그대로 돌려주고 렌더가 전체로 해석한다.
-	std::vector<RenderLayerIndex> ResolveViewportLayers(const CGameScene& scene, const CanvasViewport& viewport)
+	std::vector<RenderLayerIndex> ResolveViewportLayers(const CGameCanvas& scene, const CanvasViewport& viewport)
 	{
 		std::vector<RenderLayerIndex> layerIndices;
 		if (viewport.LayerFilter.empty())
@@ -101,7 +101,7 @@ namespace
 	}
 }
 
-std::vector<GameRenderViewportDesc> CollectGameRenderViewports(CGameScene& scene, float renderWidth, float renderHeight)
+std::vector<GameRenderViewportDesc> CollectGameRenderViewports(CGameCanvas& scene, float renderWidth, float renderHeight)
 {
 	renderWidth = std::max(renderWidth, 1.0f);
 	renderHeight = std::max(renderHeight, 1.0f);
@@ -164,7 +164,7 @@ std::vector<GameRenderViewportDesc> CollectGameRenderViewports(CGameScene& scene
 	return viewports;
 }
 
-std::vector<GameRenderLightDesc> CollectGameRenderLights(const CGameScene& scene)
+std::vector<GameRenderLightDesc> CollectGameRenderLights(const CGameCanvas& scene)
 {
 	std::vector<GameRenderLightDesc> lights;
 	scene.ForEach<Light2D>(
@@ -209,7 +209,7 @@ std::vector<GameRenderLightDesc> CollectGameRenderLights(const CGameScene& scene
 	return lights;
 }
 
-std::vector<GameRenderLayerDesc> CollectGameRenderLayers(const CGameScene& scene, bool forceOwnTextureAll)
+std::vector<GameRenderLayerDesc> CollectGameRenderLayers(const CGameCanvas& scene, bool forceOwnTextureAll)
 {
 	std::vector<GameRenderLayerDesc> layers;
 	const std::size_t layerCount = scene.GetLayerCount();

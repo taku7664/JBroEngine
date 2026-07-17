@@ -11,8 +11,8 @@
 #include "Engine/Editor/Project/ProjectManager.h"
 #include "Engine/GameFramework/Object/GameObject.h"
 #include "Engine/GameFramework/Prefab/PrefabSerializer.h"
-#include "Engine/GameFramework/Scene/Scene.h"
-#include "Engine/GameFramework/Scene/SceneRuntimeAccess.h"
+#include "Engine/GameFramework/Canvas/Canvas.h"
+#include "Engine/GameFramework/Canvas/CanvasRuntimeAccess.h"
 #include "Engine/GameFramework/Serialization/LayerSerializer.h"
 
 #include <algorithm>
@@ -22,7 +22,7 @@
 
 namespace
 {
-	CGameLayer* ResolveLayer(const SafePtr<CGameScene>& scene, const File::Guid& guid)
+	CGameLayer* ResolveLayer(const SafePtr<CGameCanvas>& scene, const File::Guid& guid)
 	{
 		return scene.IsValid() ? scene->FindLayerByInstanceGuid(guid).TryGet() : nullptr;
 	}
@@ -64,12 +64,12 @@ void LayerPropertySnapshot::ApplyTo(CGameLayer& layer) const
 // ── CSetLayerPropertyCommand ─────────────────────────────────────────────────
 
 CSetLayerPropertyCommand::CSetLayerPropertyCommand(
-	SafePtr<CGameScene> scene,
+	SafePtr<CGameCanvas> scene,
 	CGameLayer* layer,
 	EField field,
 	LayerPropertySnapshot oldProperties,
 	LayerPropertySnapshot newProperties)
-	: m_scene(scene)
+	: m_canvas(scene)
 	, m_layerGuid(GuidOfLayer(layer))
 	, m_field(field)
 	, m_oldProperties(std::move(oldProperties))
@@ -115,7 +115,7 @@ bool CSetLayerPropertyCommand::TryMerge(const IEditorCommand& newer)
 
 bool CSetLayerPropertyCommand::Apply(const LayerPropertySnapshot& properties)
 {
-	CGameLayer* layer = ResolveLayer(m_scene, m_layerGuid);
+	CGameLayer* layer = ResolveLayer(m_canvas, m_layerGuid);
 	if (nullptr == layer)
 	{
 		return false;
@@ -125,7 +125,7 @@ bool CSetLayerPropertyCommand::Apply(const LayerPropertySnapshot& properties)
 }
 
 bool EditorLayerActions::SetLayerProperty(
-	CGameScene& scene,
+	CGameCanvas& scene,
 	CGameLayer& layer,
 	CSetLayerPropertyCommand::EField field,
 	const LayerPropertySnapshot& newProperties)
@@ -137,8 +137,8 @@ bool EditorLayerActions::SetLayerProperty(
 
 // ── CCreateLayerCommand ──────────────────────────────────────────────────────
 
-CCreateLayerCommand::CCreateLayerCommand(SafePtr<CGameScene> scene, const char* name)
-	: m_scene(scene)
+CCreateLayerCommand::CCreateLayerCommand(SafePtr<CGameCanvas> scene, const char* name)
+	: m_canvas(scene)
 	, m_name(name ? name : "")
 {
 }
@@ -150,12 +150,12 @@ const char* CCreateLayerCommand::GetName() const
 
 bool CCreateLayerCommand::Execute()
 {
-	if (false == m_scene.IsValid())
+	if (false == m_canvas.IsValid())
 	{
 		return false;
 	}
 
-	CGameLayer* layer = m_scene->CreateLayer(m_name.empty() ? nullptr : m_name.c_str());
+	CGameLayer* layer = m_canvas->CreateLayer(m_name.empty() ? nullptr : m_name.c_str());
 	if (nullptr == layer)
 	{
 		return false;
@@ -169,7 +169,7 @@ bool CCreateLayerCommand::Execute()
 	}
 	else
 	{
-		CSceneRuntimeAccess::SetLayerInstanceGuid(*m_scene, *layer, m_layerGuid);
+		CCanvasRuntimeAccess::SetLayerInstanceGuid(*m_canvas, *layer, m_layerGuid);
 	}
 
 	m_created = true;
@@ -178,13 +178,13 @@ bool CCreateLayerCommand::Execute()
 
 void CCreateLayerCommand::Undo()
 {
-	if (false == m_created || false == m_scene.IsValid())
+	if (false == m_created || false == m_canvas.IsValid())
 	{
 		return;
 	}
-	if (CGameLayer* layer = ResolveLayer(m_scene, m_layerGuid))
+	if (CGameLayer* layer = ResolveLayer(m_canvas, m_layerGuid))
 	{
-		m_scene->DestroyLayer(layer);
+		m_canvas->DestroyLayer(layer);
 	}
 	m_created = false;
 }
@@ -199,27 +199,27 @@ void CCreateLayerCommand::Redo()
 
 CGameLayer* CCreateLayerCommand::GetLayer() const
 {
-	return ResolveLayer(m_scene, m_layerGuid);
+	return ResolveLayer(m_canvas, m_layerGuid);
 }
 
 // ── CDeleteLayerCommand ──────────────────────────────────────────────────────
 
-CDeleteLayerCommand::CDeleteLayerCommand(SafePtr<CGameScene> scene, CGameLayer* layer)
-	: m_scene(scene)
+CDeleteLayerCommand::CDeleteLayerCommand(SafePtr<CGameCanvas> scene, CGameLayer* layer)
+	: m_canvas(scene)
 	, m_layerGuid(GuidOfLayer(layer))
 {
-	if (nullptr == layer || false == m_scene.IsValid())
+	if (nullptr == layer || false == m_canvas.IsValid())
 	{
 		return;
 	}
 
 	m_properties = LayerPropertySnapshot::Capture(*layer);
-	const int index = m_scene->GetLayerIndex(layer);
+	const int index = m_canvas->GetLayerIndex(layer);
 	m_index = index > 0 ? static_cast<std::size_t>(index) : 0;
 
 	// 소속 루트만 직렬화한다 — 자식은 서브트리 스냅샷에 포함된다(자식=부모 레이어 불변식).
 	std::vector<CGameObject*> roots;
-	m_scene->ForEachObject([layer, &roots](CGameObject& object)
+	m_canvas->ForEachObject([layer, &roots](CGameObject& object)
 	{
 		if (object.GetLayer().TryGet() == layer && false == object.GetParent().IsValid())
 		{
@@ -238,7 +238,7 @@ CDeleteLayerCommand::CDeleteLayerCommand(SafePtr<CGameScene> scene, CGameLayer* 
 	{
 		RootEntry entry;
 		entry.ObjectGuid = root->GetInstanceGuid();
-		serializer.SerializePrefabToText(*m_scene, root, entry.Snapshot);
+		serializer.SerializePrefabToText(*m_canvas, root, entry.Snapshot);
 		if (false == entry.Snapshot.empty())
 		{
 			m_roots.push_back(std::move(entry));
@@ -253,32 +253,32 @@ const char* CDeleteLayerCommand::GetName() const
 
 bool CDeleteLayerCommand::Execute()
 {
-	CGameLayer* layer = ResolveLayer(m_scene, m_layerGuid);
+	CGameLayer* layer = ResolveLayer(m_canvas, m_layerGuid);
 	if (nullptr == layer)
 	{
 		return false;
 	}
 	// 마지막 남은 레이어면 씬이 거부한다("레이어 0개" 불허).
-	m_deleted = m_scene->DestroyLayer(layer);
+	m_deleted = m_canvas->DestroyLayer(layer);
 	return m_deleted;
 }
 
 void CDeleteLayerCommand::Undo()
 {
-	if (false == m_deleted || false == m_scene.IsValid())
+	if (false == m_deleted || false == m_canvas.IsValid())
 	{
 		return;
 	}
 
-	CGameLayer* layer = m_scene->CreateLayer(m_properties.Name.c_str());
+	CGameLayer* layer = m_canvas->CreateLayer(m_properties.Name.c_str());
 	if (nullptr == layer)
 	{
 		return;
 	}
 	// guid 복원이 먼저 — 뷰포트 LayerFilter 가 이 guid 로 레이어를 찾는다.
-	CSceneRuntimeAccess::SetLayerInstanceGuid(*m_scene, *layer, m_layerGuid);
+	CCanvasRuntimeAccess::SetLayerInstanceGuid(*m_canvas, *layer, m_layerGuid);
 	m_properties.ApplyTo(*layer);
-	m_scene->MoveLayer(layer, m_index);
+	m_canvas->MoveLayer(layer, m_index);
 
 	// 오브젝트 복원: 직렬화가 InstanceGuid 를 보존하므로 Ref/뷰포트 카메라 참조가 되살아난다.
 	CPrefabSerializer serializer;
@@ -286,14 +286,14 @@ void CDeleteLayerCommand::Undo()
 	{
 		CGameObject* root = nullptr;
 		if (EPrefabSerializeResult::Success !=
-		    serializer.DeserializePrefabFromText(*m_scene, entry.Snapshot.c_str(), &root))
+		    serializer.DeserializePrefabFromText(*m_canvas, entry.Snapshot.c_str(), &root))
 		{
 			continue;
 		}
 		// 프리팹 역직렬화는 기본 레이어에 만든다 — 원래 레이어로 되돌린다.
 		if (root)
 		{
-			m_scene->MoveObjectToLayer(*root, *layer);
+			m_canvas->MoveObjectToLayer(*root, *layer);
 		}
 	}
 
@@ -310,8 +310,8 @@ void CDeleteLayerCommand::Redo()
 
 // ── CAddLayerFromAssetCommand ────────────────────────────────────────────────
 
-CAddLayerFromAssetCommand::CAddLayerFromAssetCommand(SafePtr<CGameScene> scene, const File::Guid& assetGuid)
-	: m_scene(scene)
+CAddLayerFromAssetCommand::CAddLayerFromAssetCommand(SafePtr<CGameCanvas> scene, const File::Guid& assetGuid)
+	: m_canvas(scene)
 	, m_assetGuid(assetGuid)
 {
 }
@@ -323,7 +323,7 @@ const char* CAddLayerFromAssetCommand::GetName() const
 
 bool CAddLayerFromAssetCommand::Execute()
 {
-	if (false == m_scene.IsValid() || m_assetGuid.IsNull())
+	if (false == m_canvas.IsValid() || m_assetGuid.IsNull())
 	{
 		return false;
 	}
@@ -356,7 +356,7 @@ bool CAddLayerFromAssetCommand::Execute()
 
 	CGameLayer* layer = nullptr;
 	const ELayerSerializeResult result =
-		Serialization::DeserializeLayer(*m_scene, buffer.str().c_str(), &layer);
+		Serialization::DeserializeLayer(*m_canvas, buffer.str().c_str(), &layer);
 	if (ELayerSerializeResult::DuplicateInstance == result)
 	{
 		// 같은 레이어 파일을 한 캔버스에 두 번 넣으려는 경우 — guid 가 겹쳐 조용히 재발급되면
@@ -382,13 +382,13 @@ bool CAddLayerFromAssetCommand::Execute()
 
 void CAddLayerFromAssetCommand::Undo()
 {
-	if (false == m_created || false == m_scene.IsValid())
+	if (false == m_created || false == m_canvas.IsValid())
 	{
 		return;
 	}
-	if (CGameLayer* layer = ResolveLayer(m_scene, m_layerGuid))
+	if (CGameLayer* layer = ResolveLayer(m_canvas, m_layerGuid))
 	{
-		m_scene->DestroyLayer(layer);
+		m_canvas->DestroyLayer(layer);
 	}
 	m_created = false;
 }
@@ -404,19 +404,19 @@ void CAddLayerFromAssetCommand::Redo()
 
 CGameLayer* CAddLayerFromAssetCommand::GetLayer() const
 {
-	return ResolveLayer(m_scene, m_layerGuid);
+	return ResolveLayer(m_canvas, m_layerGuid);
 }
 
 // ── CMoveLayerCommand ────────────────────────────────────────────────────────
 
-CMoveLayerCommand::CMoveLayerCommand(SafePtr<CGameScene> scene, CGameLayer* layer, std::size_t newIndex)
-	: m_scene(scene)
+CMoveLayerCommand::CMoveLayerCommand(SafePtr<CGameCanvas> scene, CGameLayer* layer, std::size_t newIndex)
+	: m_canvas(scene)
 	, m_layerGuid(GuidOfLayer(layer))
 	, m_newIndex(newIndex)
 {
-	if (layer && m_scene.IsValid())
+	if (layer && m_canvas.IsValid())
 	{
-		const int index = m_scene->GetLayerIndex(layer);
+		const int index = m_canvas->GetLayerIndex(layer);
 		m_oldIndex = index > 0 ? static_cast<std::size_t>(index) : 0;
 	}
 }
@@ -428,12 +428,12 @@ const char* CMoveLayerCommand::GetName() const
 
 bool CMoveLayerCommand::Execute()
 {
-	CGameLayer* layer = ResolveLayer(m_scene, m_layerGuid);
+	CGameLayer* layer = ResolveLayer(m_canvas, m_layerGuid);
 	if (nullptr == layer)
 	{
 		return false;
 	}
-	m_executed = m_scene->MoveLayer(layer, m_newIndex);
+	m_executed = m_canvas->MoveLayer(layer, m_newIndex);
 	return m_executed;
 }
 
@@ -443,9 +443,9 @@ void CMoveLayerCommand::Undo()
 	{
 		return;
 	}
-	if (CGameLayer* layer = ResolveLayer(m_scene, m_layerGuid))
+	if (CGameLayer* layer = ResolveLayer(m_canvas, m_layerGuid))
 	{
-		m_scene->MoveLayer(layer, m_oldIndex);
+		m_canvas->MoveLayer(layer, m_oldIndex);
 	}
 	m_executed = false;
 }

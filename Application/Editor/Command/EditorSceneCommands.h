@@ -9,7 +9,7 @@
 
 #include <vector>
 
-class CGameScene;
+class CGameCanvas;
 class CGameObject;
 class CGameLayer;
 
@@ -19,7 +19,7 @@ class CGameLayer;
 class CAddComponentCommand final : public IEditorCommand
 {
 public:
-	CAddComponentCommand(SafePtr<CGameScene> scene, CGameObject* object, TypeId componentTypeId);
+	CAddComponentCommand(SafePtr<CGameCanvas> scene, CGameObject* object, TypeId componentTypeId);
 	~CAddComponentCommand() override = default;
 
 	const char* GetName() const override;
@@ -28,7 +28,7 @@ public:
 	void Redo() override;
 
 private:
-	SafePtr<CGameScene> m_scene;
+	SafePtr<CGameCanvas> m_canvas;
 	File::Guid m_objectGuid;
 	TypeId m_componentTypeId = INVALID_TYPE_ID;
 	File::Guid m_componentGuid;
@@ -38,7 +38,7 @@ private:
 class CAddScriptCommand final : public IEditorCommand
 {
 public:
-	CAddScriptCommand(SafePtr<CGameScene> scene, CGameObject* object, TypeId scriptTypeId);
+	CAddScriptCommand(SafePtr<CGameCanvas> scene, CGameObject* object, TypeId scriptTypeId);
 	~CAddScriptCommand() override = default;
 
 	const char* GetName() const override;
@@ -47,7 +47,7 @@ public:
 	void Redo() override;
 
 private:
-	SafePtr<CGameScene> m_scene;
+	SafePtr<CGameCanvas> m_canvas;
 	File::Guid m_objectGuid;
 	TypeId m_scriptTypeId = INVALID_TYPE_ID;
 	File::Guid m_scriptComponentGuid;
@@ -57,13 +57,13 @@ private:
 class CRemoveScriptCommand final : public IEditorCommand
 {
 public:
-	CRemoveScriptCommand(SafePtr<CGameScene> scene, CGameObject* object, const File::Guid& componentGuid);
+	CRemoveScriptCommand(SafePtr<CGameCanvas> scene, CGameObject* object, const File::Guid& componentGuid);
 	const char* GetName() const override;
 	bool Execute() override;
 	void Undo() override;
 	void Redo() override;
 private:
-	SafePtr<CGameScene> m_scene;
+	SafePtr<CGameCanvas> m_canvas;
 	File::Guid m_objectGuid;
 	File::Guid m_componentGuid;
 	std::string m_snapshot;
@@ -74,14 +74,14 @@ private:
 class CReorderComponentCommand final : public IEditorCommand
 {
 public:
-	CReorderComponentCommand(SafePtr<CGameScene> scene, CGameObject* object, const File::Guid& componentGuid, std::size_t oldIndex, std::size_t newIndex);
+	CReorderComponentCommand(SafePtr<CGameCanvas> scene, CGameObject* object, const File::Guid& componentGuid, std::size_t oldIndex, std::size_t newIndex);
 	const char* GetName() const override;
 	bool Execute() override;
 	void Undo() override;
 	void Redo() override;
 private:
 	bool Move(std::size_t index);
-	SafePtr<CGameScene> m_scene;
+	SafePtr<CGameCanvas> m_canvas;
 	File::Guid m_objectGuid;
 	File::Guid m_componentGuid;
 	std::size_t m_oldIndex = 0;
@@ -96,7 +96,7 @@ public:
 	// spawnWorldPos != nullptr 이면 그 월드 좌표에 생성한다(씬뷰 우클릭 위치). parent 가
 	// 있으면 부모 월드 역행렬로 로컬 좌표를 환산한다. null 이면 기본(원점) 생성.
 	// layer == nullptr 이면 씬 기본 레이어. parent 가 있으면 레이어는 부모를 따르므로 무시된다.
-	CCreateGameObjectCommand(SafePtr<CGameScene> scene, const char* name,
+	CCreateGameObjectCommand(SafePtr<CGameCanvas> scene, const char* name,
 	                         CGameObject* parent = nullptr,
 	                         const Vector2* spawnWorldPos = nullptr,
 	                         CGameLayer* layer = nullptr);
@@ -110,7 +110,7 @@ public:
 	CGameObject* GetEntity() const;
 
 private:
-	SafePtr<CGameScene> m_scene;
+	SafePtr<CGameCanvas> m_canvas;
 	std::string m_name;
 	File::Guid m_parentGuid; // null = 루트
 	File::Guid m_layerGuid;  // null = 기본 레이어
@@ -124,7 +124,7 @@ class CSetComponentPropertyCommand final : public IEditorCommand
 {
 public:
 	CSetComponentPropertyCommand(
-		SafePtr<CGameScene> scene,
+		SafePtr<CGameCanvas> scene,
 		CGameObject* object,
 		TypeId componentTypeId,
 		std::size_t propertyOffset,
@@ -144,7 +144,7 @@ private:
 	bool WriteValue(const std::vector<std::uint8_t>& value);
 
 private:
-	SafePtr<CGameScene> m_scene;
+	SafePtr<CGameCanvas> m_canvas;
 	File::Guid m_objectGuid;
 	File::Guid m_componentGuid;
 	TypeId m_componentTypeId = INVALID_TYPE_ID;
@@ -157,7 +157,7 @@ class CSetComponentEnabledCommand final : public IEditorCommand
 {
 public:
 	CSetComponentEnabledCommand(
-		SafePtr<CGameScene> scene,
+		SafePtr<CGameCanvas> scene,
 		CGameObject* object,
 		const File::Guid& componentGuid,
 		bool oldValue,
@@ -171,7 +171,7 @@ public:
 private:
 	bool Apply(bool value);
 
-	SafePtr<CGameScene> m_scene;
+	SafePtr<CGameCanvas> m_canvas;
 	File::Guid m_objectGuid;
 	File::Guid m_componentGuid;
 	bool m_oldValue = true;
@@ -181,7 +181,7 @@ private:
 class CSetComponentStringPropertyCommand final : public IEditorCommand
 {
 public:
-	CSetComponentStringPropertyCommand(SafePtr<CGameScene> scene, CGameObject* object, TypeId componentTypeId,
+	CSetComponentStringPropertyCommand(SafePtr<CGameCanvas> scene, CGameObject* object, TypeId componentTypeId,
 		std::size_t propertyOffset, std::string oldValue, std::string newValue, const File::Guid& componentGuid);
 	const char* GetName() const override;
 	bool Execute() override;
@@ -190,7 +190,7 @@ public:
 	bool TryMerge(const IEditorCommand& newer) override;
 private:
 	bool WriteValue(const std::string& value);
-	SafePtr<CGameScene> m_scene;
+	SafePtr<CGameCanvas> m_canvas;
 	File::Guid m_objectGuid;
 	File::Guid m_componentGuid;
 	TypeId m_componentTypeId = INVALID_TYPE_ID;
@@ -206,7 +206,7 @@ private:
 class CSetObjectTransformCommand final : public IEditorCommand
 {
 public:
-	CSetObjectTransformCommand(SafePtr<CGameScene> scene,
+	CSetObjectTransformCommand(SafePtr<CGameCanvas> scene,
 	                           const std::vector<CGameObject*>& objects,
 	                           const Transform2D& delta);
 	~CSetObjectTransformCommand() override = default;
@@ -220,7 +220,7 @@ public:
 private:
 	void Apply(bool withDelta);
 
-	SafePtr<CGameScene>          m_scene;
+	SafePtr<CGameCanvas>          m_canvas;
 	std::vector<File::Guid>  m_objectGuids; // 대상 오브젝트들
 	std::vector<Transform2D> m_oldTransforms; // 드래그 시작 시점 각 오브젝트 Transform(병렬)
 	Transform2D              m_delta;        // 누적 델타(Position/Rotation/Scale 가산)
@@ -231,7 +231,7 @@ private:
 class CSetObjectTransformsCommand final : public IEditorCommand
 {
 public:
-	CSetObjectTransformsCommand(SafePtr<CGameScene> scene,
+	CSetObjectTransformsCommand(SafePtr<CGameCanvas> scene,
 	                            const std::vector<CGameObject*>& objects,
 	                            const std::vector<Transform2D>& oldTransforms,
 	                            const std::vector<Transform2D>& newTransforms);
@@ -245,7 +245,7 @@ public:
 private:
 	void Apply(const std::vector<Transform2D>& transforms);
 
-	SafePtr<CGameScene>          m_scene;
+	SafePtr<CGameCanvas>          m_canvas;
 	std::vector<File::Guid>  m_objectGuids;
 	std::vector<Transform2D> m_oldTransforms;
 	std::vector<Transform2D> m_newTransforms;
@@ -255,7 +255,7 @@ private:
 class CDeleteGameObjectCommand final : public IEditorCommand
 {
 public:
-	CDeleteGameObjectCommand(SafePtr<CGameScene> scene, CGameObject* object);
+	CDeleteGameObjectCommand(SafePtr<CGameCanvas> scene, CGameObject* object);
 	~CDeleteGameObjectCommand() override = default;
 
 	const char* GetName() const override;
@@ -264,7 +264,7 @@ public:
 	void Redo() override;
 
 private:
-	SafePtr<CGameScene> m_scene;
+	SafePtr<CGameCanvas> m_canvas;
 	File::Guid  m_objectGuid;  // 삭제 대상(redo 재삭제·undo 후 재해석 키)
 	File::Guid  m_parentGuid;  // 복원 시 재부모(null = 루트)
 	// 복원 시 소속 레이어. 역직렬화는 기본 레이어에 만들므로 루트는 여기서 되돌려야 한다
@@ -279,7 +279,7 @@ private:
 class CDeleteGameObjectsCommand final : public IEditorCommand
 {
 public:
-	CDeleteGameObjectsCommand(SafePtr<CGameScene> scene, const std::vector<CGameObject*>& objects);
+	CDeleteGameObjectsCommand(SafePtr<CGameCanvas> scene, const std::vector<CGameObject*>& objects);
 	~CDeleteGameObjectsCommand() override = default;
 
 	const char* GetName() const override;
@@ -297,7 +297,7 @@ private:
 		bool Deleted = false;
 	};
 
-	SafePtr<CGameScene> m_scene;
+	SafePtr<CGameCanvas> m_canvas;
 	std::vector<Entry> m_entries;
 };
 
@@ -309,7 +309,7 @@ public:
 	// spawnWorldPos != nullptr 이면 붙여넣은 그룹 중심을 그 월드 좌표로 이동(상대 배치 보존).
 	// parent != nullptr 이면 붙여넣은 루트를 해당 오브젝트의 자식으로 둔다.
 	// layer != nullptr 이면 붙여넣은 루트를 그 레이어에 둔다(parent 가 있으면 부모 레이어가 이긴다).
-	CPasteObjectsCommand(SafePtr<CGameScene> scene, std::string clipboardText,
+	CPasteObjectsCommand(SafePtr<CGameCanvas> scene, std::string clipboardText,
 	                     const Vector2* spawnWorldPos = nullptr,
 	                     CGameObject* parent = nullptr,
 	                     CGameLayer* layer = nullptr);
@@ -324,7 +324,7 @@ public:
 	std::vector<CGameObject*> GetPastedRoots() const;
 
 private:
-	SafePtr<CGameScene> m_scene;
+	SafePtr<CGameCanvas> m_canvas;
 	std::string m_clipboard;        // 최초 실행 후엔 정규화 스냅샷(guid/위치 고정 → redo 재현)
 	File::Guid  m_parentGuid;       // null = 루트
 	// null = 기본 레이어. 오브젝트 직렬화는 계층·레이어를 담지 않으므로(둘 다 씬 레벨 관심사)
@@ -340,7 +340,7 @@ private:
 class CRemoveComponentCommand final : public IEditorCommand
 {
 public:
-	CRemoveComponentCommand(SafePtr<CGameScene> scene, CGameObject* object, TypeId componentTypeId, const File::Guid& componentGuid);
+	CRemoveComponentCommand(SafePtr<CGameCanvas> scene, CGameObject* object, TypeId componentTypeId, const File::Guid& componentGuid);
 	~CRemoveComponentCommand() override = default;
 
 	const char* GetName() const override;
@@ -351,7 +351,7 @@ public:
 private:
 	bool RemoveNow();
 
-	SafePtr<CGameScene> m_scene;
+	SafePtr<CGameCanvas> m_canvas;
 	File::Guid  m_objectGuid;
 	File::Guid  m_componentGuid;
 	TypeId      m_componentTypeId = INVALID_TYPE_ID;
@@ -366,7 +366,7 @@ class CSetParentCommand final : public IEditorCommand
 {
 public:
 	// newParent = nullptr 이면 부모 해제(루트로 이동).
-	CSetParentCommand(SafePtr<CGameScene> scene, CGameObject* child, CGameObject* newParent);
+	CSetParentCommand(SafePtr<CGameCanvas> scene, CGameObject* child, CGameObject* newParent);
 	~CSetParentCommand() override = default;
 
 	const char* GetName() const override;
@@ -375,7 +375,7 @@ public:
 	void Redo() override;
 
 private:
-	SafePtr<CGameScene> m_scene;
+	SafePtr<CGameCanvas> m_canvas;
 	File::Guid      m_childGuid;
 	File::Guid      m_oldParentGuid; // null = 루트
 	File::Guid      m_newParentGuid; // null = 루트
@@ -395,7 +395,7 @@ public:
 	// newLayer = nullptr 이면 레이어 유지. 자식으로 이동하는 경우 레이어는 부모를 따라가므로
 	// (자식=부모 레이어 불변식) 루트로 이동할 때만 의미가 있다.
 	CMoveGameObjectInHierarchyCommand(
-		SafePtr<CGameScene> scene,
+		SafePtr<CGameCanvas> scene,
 		CGameObject* object,
 		CGameObject* newParent,
 		CGameObject* insertNear = nullptr,
@@ -422,7 +422,7 @@ private:
 	void RebuildOrder(CGameObject& object);
 
 private:
-	SafePtr<CGameScene> m_scene;
+	SafePtr<CGameCanvas> m_canvas;
 	File::Guid m_objectGuid;
 	File::Guid m_oldParentGuid;
 	File::Guid m_newParentGuid;
@@ -444,7 +444,7 @@ class CModifyPolygonVerticesCommand final : public IEditorCommand
 {
 public:
 	CModifyPolygonVerticesCommand(
-		SafePtr<CGameScene>                   scene,
+		SafePtr<CGameCanvas>                   scene,
 		CGameObject*                      object,
 		std::vector<Vector2>       newPoints);
 	~CModifyPolygonVerticesCommand() override = default;
@@ -458,7 +458,7 @@ private:
 	bool Apply(const std::vector<Vector2>& points);
 
 private:
-	SafePtr<CGameScene>               m_scene;
+	SafePtr<CGameCanvas>               m_canvas;
 	File::Guid                    m_objectGuid;
 	std::vector<Vector2>   m_oldPoints;
 	std::vector<Vector2>   m_newPoints;

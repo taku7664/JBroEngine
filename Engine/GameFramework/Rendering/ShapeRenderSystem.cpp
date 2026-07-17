@@ -9,7 +9,7 @@
 #include "Core/RHI/IRHIDevice.h"
 #include "GameFramework/Component/ShapeRenderers2D.h"
 #include "GameFramework/Object/GameObject.h"
-#include "GameFramework/Scene/Scene.h"
+#include "GameFramework/Canvas/Canvas.h"
 
 #include <algorithm>
 #include <cmath>
@@ -212,7 +212,7 @@ void CShapeRenderSystem::SubmitPolygon(Polygon2D& shape, CForward2DRenderer& ren
 	}, renderer);
 }
 
-void CShapeRenderSystem::OnUpdate(CGameScene& scene)
+void CShapeRenderSystem::OnUpdate(CGameCanvas& scene)
 {
 	if (nullptr == m_renderScene || nullptr == m_rhiDevice)
 	{

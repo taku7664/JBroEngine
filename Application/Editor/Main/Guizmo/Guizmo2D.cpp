@@ -4,8 +4,8 @@
 #include "Editor/Command/EditorSceneCommands.h"
 #include "Editor/Editor.h"
 #include "Engine/GameFramework/Object/GameObject.h"
-#include "Engine/GameFramework/Scene/Scene.h"
-#include "Engine/GameFramework/Scene/SceneTransformUtils.h"
+#include "Engine/GameFramework/Canvas/Canvas.h"
+#include "Engine/GameFramework/Canvas/CanvasTransformUtils.h"
 
 #include <cmath>
 

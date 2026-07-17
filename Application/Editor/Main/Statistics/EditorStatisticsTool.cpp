@@ -5,8 +5,8 @@
 #include "Editor/EditorContext.h"
 #include "Engine/Core/EngineCore.h"
 #include "Engine/Core/Renderer/IRenderScene.h"
-#include "Engine/GameFramework/Scene/Scene.h"
-#include "Engine/GameFramework/Scene/SceneRuntimeAccess.h"
+#include "Engine/GameFramework/Canvas/Canvas.h"
+#include "Engine/GameFramework/Canvas/CanvasRuntimeAccess.h"
 
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
 
@@ -19,7 +19,7 @@ void CEditorStatisticsTool::OnRenderStay()
 {
 	const ImGuiIO& io = ImGui::GetIO();
 	const float frameMilliseconds = io.Framerate > 0.0f ? 1000.0f / io.Framerate : 0.0f;
-	SafePtr<CGameScene> scene = EditorContext::GetActiveScene();
+	SafePtr<CGameCanvas> scene = EditorContext::GetActiveCanvas();
 	const std::size_t objectCount = scene.IsValid() ? scene->GetObjectCount() : 0;
 	const std::uint32_t renderItemCount = Engine.RenderScene.IsValid()
 		? Engine.RenderScene->GetRenderItemCount()
@@ -43,11 +43,11 @@ void CEditorStatisticsTool::OnRenderStay()
 		drawRow(Loc::Text(EditorLocKeys::EditorStatisticsFrameTime), value);
 		std::snprintf(value, sizeof(value), "%zu", objectCount);
 		drawRow(Loc::Text(EditorLocKeys::EditorStatisticsSceneObjects), value);
-		const std::vector<CGameScene::ScriptMemoryPoolStats> scriptPoolStats = scene.IsValid()
-			? CSceneRuntimeAccess::GetScriptMemoryPoolStats(*scene)
-			: std::vector<CGameScene::ScriptMemoryPoolStats>();
+		const std::vector<CGameCanvas::ScriptMemoryPoolStats> scriptPoolStats = scene.IsValid()
+			? CCanvasRuntimeAccess::GetScriptMemoryPoolStats(*scene)
+			: std::vector<CGameCanvas::ScriptMemoryPoolStats>();
 		std::size_t expansionCount = 0;
-		for (const CGameScene::ScriptMemoryPoolStats& stats : scriptPoolStats)
+		for (const CGameCanvas::ScriptMemoryPoolStats& stats : scriptPoolStats)
 		{
 			expansionCount += stats.ExpansionCount;
 		}

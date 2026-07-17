@@ -7,7 +7,7 @@
 #include "Editor/Path/EditorPathUtils.h"
 #include "Engine/Core/EngineCore.h"
 #include "Engine/Editor/Project/ProjectManager.h"
-#include "Engine/GameFramework/Scene/SceneSerializer.h"
+#include "Engine/GameFramework/Canvas/CanvasSerializer.h"
 #include "ThirdParty/imgui/imgui.h"
 
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
@@ -16,15 +16,15 @@ namespace
 {
 	bool SaveActiveScene(std::string& outError)
 	{
-		SafePtr<CGameScene> scene = EditorContext::GetActiveScene();
+		SafePtr<CGameCanvas> scene = EditorContext::GetActiveCanvas();
 		const File::Path& scenePath = Editor::GetActiveScenePath();
 		if (false == scene.IsValid() || scenePath.empty())
 		{
 			return true;
 		}
 
-		CSceneSerializer serializer;
-		if (ESceneSerializeResult::Success != serializer.SaveToFile(*scene, scenePath))
+		CCanvasSerializer serializer;
+		if (ECanvasSerializeResult::Success != serializer.SaveToFile(*scene, scenePath))
 		{
 			outError = "Failed to save the active scene.";
 			return false;

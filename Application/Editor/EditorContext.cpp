@@ -6,7 +6,7 @@
 #include "Engine/Editor/ImEditor.h"
 #include "Engine/Editor/Project/ProjectManager.h"
 #include "Engine/Core/Asset/IAssetManager.h"
-#include "Engine/GameFramework/Scene/SceneManager.h"
+#include "Engine/GameFramework/Canvas/CanvasManager.h"
 
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
 
@@ -15,11 +15,11 @@ SafePtr<CProjectManager> EditorContext::GetProjectManager()
 	return Editor::ImEditor ? Editor::ImEditor->GetProjectManager() : SafePtr<CProjectManager>();
 }
 
-SafePtr<CGameScene> EditorContext::GetActiveScene()
+SafePtr<CGameCanvas> EditorContext::GetActiveCanvas()
 {
-	return Engine.SceneManager.IsValid()
-		? Engine.SceneManager->GetActiveScene()
-		: SafePtr<CGameScene>();
+	return Engine.CanvasManager.IsValid()
+		? Engine.CanvasManager->GetActiveCanvas()
+		: SafePtr<CGameCanvas>();
 }
 
 SafePtr<IAssetManager> EditorContext::GetAssetManager()
@@ -30,9 +30,9 @@ SafePtr<IAssetManager> EditorContext::GetAssetManager()
 		: SafePtr<IAssetManager>();
 }
 
-CGameScene* EditorContext::TryGetActiveScene()
+CGameCanvas* EditorContext::TryGetActiveScene()
 {
-	return GetActiveScene().TryGet();
+	return GetActiveCanvas().TryGet();
 }
 
 #endif

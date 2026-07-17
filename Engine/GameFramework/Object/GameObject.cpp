@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "GameObject.h"
 
-#include "GameFramework/Scene/Scene.h"
+#include "GameFramework/Canvas/Canvas.h"
 bool CGameObject::MoveComponent(const File::Guid& instanceGuid, std::size_t newIndex)
 {
 	auto it = std::find_if(m_components.begin(), m_components.end(), [&](const SafePtr<CComponent>& component)
@@ -14,16 +14,16 @@ bool CGameObject::MoveComponent(const File::Guid& instanceGuid, std::size_t newI
 	m_components.erase(it);
 	newIndex = std::min(newIndex, m_components.size());
 	m_components.insert(m_components.begin() + static_cast<std::ptrdiff_t>(newIndex), std::move(moved));
-	if (m_scene)
+	if (m_canvas)
 	{
-		m_scene->MarkScriptExecutionOrderDirty();
+		m_canvas->MarkScriptExecutionOrderDirty();
 	}
 	return true;
 }
 
 bool CGameObject::SetParent(CGameObject& parent)
 {
-	if (m_scene != parent.m_scene || this == &parent || parent.IsDescendantOf(*this))
+	if (m_canvas != parent.m_canvas || this == &parent || parent.IsDescendantOf(*this))
 	{
 		return false;
 	}
@@ -36,9 +36,9 @@ bool CGameObject::SetParent(CGameObject& parent)
 	{
 		SetLayerRecursive(parent.m_layer);
 	}
-	if (m_scene)
+	if (m_canvas)
 	{
-		m_scene->MarkScriptExecutionOrderDirty();
+		m_canvas->MarkScriptExecutionOrderDirty();
 	}
 	return true;
 }
@@ -63,9 +63,9 @@ void CGameObject::ClearParent()
 		parent->RemoveChildInternal(this);
 	}
 	m_parent.Reset();
-	if (hadParent && m_scene)
+	if (hadParent && m_canvas)
 	{
-		m_scene->MarkScriptExecutionOrderDirty();
+		m_canvas->MarkScriptExecutionOrderDirty();
 	}
 }
 
@@ -85,8 +85,8 @@ bool CGameObject::IsDescendantOf(const CGameObject& possibleAncestor) const
 
 void CGameObject::Destroy()
 {
-	if (m_scene)
+	if (m_canvas)
 	{
-		m_scene->DestroyGameObject(this);
+		m_canvas->DestroyGameObject(this);
 	}
 }

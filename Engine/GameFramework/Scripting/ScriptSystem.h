@@ -7,6 +7,6 @@
 class CScriptSystem final : public CGameSystem
 {
 protected:
-	void OnUpdate(CGameScene& scene) override;
-	void OnFixedUpdate(CGameScene& scene) override;
+	void OnUpdate(CGameCanvas& scene) override;
+	void OnFixedUpdate(CGameCanvas& scene) override;
 };

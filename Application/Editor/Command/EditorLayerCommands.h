@@ -3,13 +3,13 @@
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
 
 #include "Editor/Command/EditorCommandManager.h"
-#include "Engine/GameFramework/Scene/GameLayer.h"
+#include "Engine/GameFramework/Canvas/GameLayer.h"
 #include "Utillity/File/FilePath.h" // File::Guid (레이어 안정 식별자 = InstanceGuid)
 
 #include <string>
 #include <vector>
 
-class CGameScene;
+class CGameCanvas;
 
 // 오브젝트 커맨드(EditorSceneCommands)와 같은 규칙: 레이어를 InstanceGuid 로 보관하고
 // 조작 시점에 활성 씬에서 다시 해석한다. 파괴→undo→redo 로 주소가 바뀌어도 안전하다.
@@ -50,7 +50,7 @@ public:
 	};
 
 	CSetLayerPropertyCommand(
-		SafePtr<CGameScene> scene,
+		SafePtr<CGameCanvas> scene,
 		CGameLayer* layer,
 		EField field,
 		LayerPropertySnapshot oldProperties,
@@ -67,7 +67,7 @@ private:
 	bool Apply(const LayerPropertySnapshot& properties);
 
 private:
-	SafePtr<CGameScene>   m_scene;
+	SafePtr<CGameCanvas>   m_canvas;
 	File::Guid            m_layerGuid;
 	EField                m_field = EField::Name;
 	LayerPropertySnapshot m_oldProperties;
@@ -78,7 +78,7 @@ private:
 class CCreateLayerCommand final : public IEditorCommand
 {
 public:
-	CCreateLayerCommand(SafePtr<CGameScene> scene, const char* name);
+	CCreateLayerCommand(SafePtr<CGameCanvas> scene, const char* name);
 	~CCreateLayerCommand() override = default;
 
 	const char* GetName() const override;
@@ -89,7 +89,7 @@ public:
 	CGameLayer* GetLayer() const;
 
 private:
-	SafePtr<CGameScene> m_scene;
+	SafePtr<CGameCanvas> m_canvas;
 	std::string m_name;
 	File::Guid  m_layerGuid; // 생성된 레이어의 안정 식별자(redo 시 동일 guid 강제)
 	bool        m_created = false;
@@ -100,7 +100,7 @@ private:
 class CDeleteLayerCommand final : public IEditorCommand
 {
 public:
-	CDeleteLayerCommand(SafePtr<CGameScene> scene, CGameLayer* layer);
+	CDeleteLayerCommand(SafePtr<CGameCanvas> scene, CGameLayer* layer);
 	~CDeleteLayerCommand() override = default;
 
 	const char* GetName() const override;
@@ -115,7 +115,7 @@ private:
 		std::string Snapshot;
 	};
 
-	SafePtr<CGameScene>   m_scene;
+	SafePtr<CGameCanvas>   m_canvas;
 	File::Guid            m_layerGuid;
 	LayerPropertySnapshot m_properties;
 	std::size_t           m_index = 0;   // 삭제 전 컴포짓 순서(undo 복원 위치)
@@ -129,7 +129,7 @@ private:
 class CAddLayerFromAssetCommand final : public IEditorCommand
 {
 public:
-	CAddLayerFromAssetCommand(SafePtr<CGameScene> scene, const File::Guid& assetGuid);
+	CAddLayerFromAssetCommand(SafePtr<CGameCanvas> scene, const File::Guid& assetGuid);
 	~CAddLayerFromAssetCommand() override = default;
 
 	const char* GetName() const override;
@@ -140,7 +140,7 @@ public:
 	CGameLayer* GetLayer() const;
 
 private:
-	SafePtr<CGameScene> m_scene;
+	SafePtr<CGameCanvas> m_canvas;
 	File::Guid  m_assetGuid;
 	File::Guid  m_layerGuid;  // 파일에서 온 레이어 guid(undo 후 redo 가 같은 레이어를 지목)
 	bool        m_created = false;
@@ -150,7 +150,7 @@ namespace EditorLayerActions
 {
 	// 레이어 속성 편집을 undo 스택에 올리는 공용 진입점(하이어라키 눈 아이콘 / 인스펙터 패널).
 	// 호출자는 Capture 로 뜬 스냅샷의 필드 하나만 바꿔서 넘긴다.
-	bool SetLayerProperty(CGameScene& scene, CGameLayer& layer,
+	bool SetLayerProperty(CGameCanvas& scene, CGameLayer& layer,
 	                      CSetLayerPropertyCommand::EField field,
 	                      const LayerPropertySnapshot& newProperties);
 }
@@ -159,7 +159,7 @@ namespace EditorLayerActions
 class CMoveLayerCommand final : public IEditorCommand
 {
 public:
-	CMoveLayerCommand(SafePtr<CGameScene> scene, CGameLayer* layer, std::size_t newIndex);
+	CMoveLayerCommand(SafePtr<CGameCanvas> scene, CGameLayer* layer, std::size_t newIndex);
 	~CMoveLayerCommand() override = default;
 
 	const char* GetName() const override;
@@ -168,7 +168,7 @@ public:
 	void Redo() override;
 
 private:
-	SafePtr<CGameScene> m_scene;
+	SafePtr<CGameCanvas> m_canvas;
 	File::Guid  m_layerGuid;
 	std::size_t m_oldIndex = 0;
 	std::size_t m_newIndex = 0;

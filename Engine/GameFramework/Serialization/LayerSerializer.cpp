@@ -2,9 +2,9 @@
 #include "GameFramework/Serialization/LayerSerializer.h"
 
 #include "GameFramework/Object/GameObject.h"
-#include "GameFramework/Scene/GameLayer.h"
-#include "GameFramework/Scene/Scene.h"
-#include "GameFramework/Scene/SceneRuntimeAccess.h"
+#include "GameFramework/Canvas/GameLayer.h"
+#include "GameFramework/Canvas/Canvas.h"
+#include "GameFramework/Canvas/CanvasRuntimeAccess.h"
 #include "GameFramework/Serialization/ObjectSerializer.h"
 
 #include "yaml-cpp/yaml.h"
@@ -22,7 +22,7 @@ namespace
 
 	// 파일이 되살릴 오브젝트 guid 가 이미 씬에 살아 있는지. 하나라도 겹치면 로드를 거부한다.
 	// 자식은 Children 에 중첩돼 있으므로 재귀로 훑는다.
-	bool AnyInstanceGuidAlive(CGameScene& scene, const YAML::Node& objectNode)
+	bool AnyInstanceGuidAlive(CGameCanvas& scene, const YAML::Node& objectNode)
 	{
 		if (!objectNode || false == objectNode.IsMap())
 		{
@@ -95,7 +95,7 @@ void ApplyLayerNodeProperties(CGameLayer& layer, const YAML::Node& node)
 	layer.KeepOnCanvasChange = node["KeepOnCanvasChange"] ? node["KeepOnCanvasChange"].as<bool>(false) : false;
 }
 
-CGameLayer* ReadLayerNodeInto(CGameScene& scene, const YAML::Node& node)
+CGameLayer* ReadLayerNodeInto(CGameCanvas& scene, const YAML::Node& node)
 {
 	if (!node || false == node.IsMap())
 	{
@@ -116,7 +116,7 @@ CGameLayer* ReadLayerNodeInto(CGameScene& scene, const YAML::Node& node)
 			const File::Guid guid(node["Guid"].as<std::string>(""));
 			if (false == guid.IsNull())
 			{
-				CSceneRuntimeAccess::SetLayerInstanceGuid(scene, *layer, guid);
+				CCanvasRuntimeAccess::SetLayerInstanceGuid(scene, *layer, guid);
 			}
 		}
 		if (node["SourceAsset"])
@@ -132,11 +132,11 @@ CGameLayer* ReadLayerNodeInto(CGameScene& scene, const YAML::Node& node)
 	return layer;
 }
 
-std::string SerializeLayer(const CGameScene& scene, const CGameLayer& layer)
+std::string SerializeLayer(const CGameCanvas& scene, const CGameLayer& layer)
 {
 	// 소속 루트만 모은다 — 자식은 각 루트의 Children 에 중첩된다(자식=부모 레이어 불변식).
 	std::vector<const CGameObject*> roots;
-	const_cast<CGameScene&>(scene).ForEachObject([&layer, &roots](CGameObject& object)
+	const_cast<CGameCanvas&>(scene).ForEachObject([&layer, &roots](CGameObject& object)
 	{
 		if (object.GetLayer().TryGet() == &layer && false == object.GetParent().IsValid())
 		{
@@ -178,7 +178,7 @@ std::string SerializeLayer(const CGameScene& scene, const CGameLayer& layer)
 	return std::string(emitter.c_str());
 }
 
-ELayerSerializeResult DeserializeLayer(CGameScene& scene, const char* text, CGameLayer** outLayer)
+ELayerSerializeResult DeserializeLayer(CGameCanvas& scene, const char* text, CGameLayer** outLayer)
 {
 	if (outLayer)
 	{

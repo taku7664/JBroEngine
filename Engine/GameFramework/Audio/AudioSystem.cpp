@@ -12,7 +12,7 @@
 #include "Core/Audio/IAudioPlayer.h"
 #include "GameFramework/Component/AudioComponents.h"
 #include "GameFramework/Object/GameObject.h"
-#include "GameFramework/Scene/Scene.h"
+#include "GameFramework/Canvas/Canvas.h"
 
 namespace
 {
@@ -183,7 +183,7 @@ void CAudioSystem::SyncEffectChain(PlayerInstance& instance, const AudioPlayer& 
 	instance.EffectGuids       = player.EffectGuids;
 }
 
-void CAudioSystem::OnUpdate(CGameScene& scene)
+void CAudioSystem::OnUpdate(CGameCanvas& scene)
 {
 	if (false == m_device.IsValid())
 	{
@@ -353,7 +353,7 @@ void CAudioSystem::OnUpdate(CGameScene& scene)
 	}
 }
 
-void CAudioSystem::OnFinalize(CGameScene&)
+void CAudioSystem::OnFinalize(CGameCanvas&)
 {
 	// 씬 종료 — 명시적 순서로 player/effect를 정리하고 상태까지 폐기.
 	for (auto& kv : m_instances)
@@ -363,7 +363,7 @@ void CAudioSystem::OnFinalize(CGameScene&)
 	m_instances.clear();
 }
 
-void CAudioSystem::OnSimulationStop(CGameScene&)
+void CAudioSystem::OnSimulationStop(CGameCanvas&)
 {
 	// 시뮬레이션 정지 — 재생 중이던 player 를 모두 정지·해제한다.
 	// 편집 모드에선 OnUpdate 가 안 돌아 자동 GC 가 없으므로 여기서 명시 정리.

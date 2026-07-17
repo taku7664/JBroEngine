@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "GameSystem.h"
 
-void CGameSystem::Initialize(CGameScene& scene)
+void CGameSystem::Initialize(CGameCanvas& scene)
 {
 	if (m_isInitialized)
 	{
@@ -12,7 +12,7 @@ void CGameSystem::Initialize(CGameScene& scene)
 	m_isInitialized = true;
 }
 
-void CGameSystem::Update(CGameScene& scene)
+void CGameSystem::Update(CGameCanvas& scene)
 {
 	if (false == m_isInitialized)
 	{
@@ -22,7 +22,7 @@ void CGameSystem::Update(CGameScene& scene)
 	OnUpdate(scene);
 }
 
-void CGameSystem::FixedUpdate(CGameScene& scene)
+void CGameSystem::FixedUpdate(CGameCanvas& scene)
 {
 	if (false == m_isInitialized)
 	{
@@ -32,7 +32,7 @@ void CGameSystem::FixedUpdate(CGameScene& scene)
 	OnFixedUpdate(scene);
 }
 
-void CGameSystem::Finalize(CGameScene& scene)
+void CGameSystem::Finalize(CGameCanvas& scene)
 {
 	if (false == m_isInitialized)
 	{
@@ -43,7 +43,7 @@ void CGameSystem::Finalize(CGameScene& scene)
 	m_isInitialized = false;
 }
 
-void CGameSystem::SimulationStop(CGameScene& scene)
+void CGameSystem::SimulationStop(CGameCanvas& scene)
 {
 	if (false == m_isInitialized)
 	{

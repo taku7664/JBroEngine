@@ -6,9 +6,9 @@
 #include "Core/Game/IGameModule.h"
 #include "GameFramework/Scripting/GameScript.h"
 #include "GameFramework/Reflection/ReflectionRegistry.h"
-#include "GameFramework/Scene/Scene.h"
-#include "GameFramework/Scene/SceneManager.h"
-#include "GameFramework/Scene/SceneRuntimeAccess.h"
+#include "GameFramework/Canvas/Canvas.h"
+#include "GameFramework/Canvas/CanvasManager.h"
+#include "GameFramework/Canvas/CanvasRuntimeAccess.h"
 #include "Editor/LiveCompile/CompilePipeline.h"
 #include "Editor/LiveCompile/Windows/WindowsDynamicLibrary.h"
 #include "Core/Logging/LoggerInternal.h"
@@ -27,9 +27,9 @@
 
 namespace
 {
-	CSceneManager* GetModuleSceneManager(const GameModuleContext& context)
+	CCanvasManager* GetModuleSceneManager(const GameModuleContext& context)
 	{
-		return context.HostScriptCore ? context.HostScriptCore->SceneManager.TryGet() : nullptr;
+		return context.HostScriptCore ? context.HostScriptCore->CanvasManager.TryGet() : nullptr;
 	}
 
 	CReflectionRegistry* GetModuleReflection(const GameModuleContext& context)
@@ -38,9 +38,9 @@ namespace
 	}
 
 	template<typename Fn>
-	void ForEachScriptInObjectOrder(CGameScene& scene, Fn&& fn)
+	void ForEachScriptInObjectOrder(CGameCanvas& scene, Fn&& fn)
 	{
-		CSceneRuntimeAccess::ForEachScriptInExecutionOrder(scene, std::forward<Fn>(fn));
+		CCanvasRuntimeAccess::ForEachScriptInExecutionOrder(scene, std::forward<Fn>(fn));
 	}
 
 	void* AllocateModuleMemory(std::size_t size, std::size_t alignment)
@@ -338,7 +338,7 @@ void CLiveCompileManager::PollAsyncCompile()
 }
 
 // 메인 스레드 전용: 컴파일 결과를 받아 DLL 교체 + 모듈 재로드 + 스냅샷 복원.
-// 워커 스레드에서 절대 호출하면 안 됨 (Reflection/SceneManager 접근).
+// 워커 스레드에서 절대 호출하면 안 됨 (Reflection/CanvasManager 접근).
 // 함수 끝의 모든 실패 경로에서 같은 처리(상태 = Failed + 메시지 저장)를 보장하기 위한
 // 헬퍼.  RAII / NRVO 에 의존하지 않고 명시적으로 호출.
 #define MARK_FAILURE() do { \
@@ -465,9 +465,9 @@ File::Path CLiveCompileManager::MakeLoadableLibraryPath() const
 
 void CLiveCompileManager::DestroyCurrentModule()
 {
-	if (CSceneManager* sceneManager = GetModuleSceneManager(m_desc.ModuleContext))
+	if (CCanvasManager* canvasManager = GetModuleSceneManager(m_desc.ModuleContext))
 	{
-		sceneManager->DestroyScriptInstances();
+		canvasManager->DestroyScriptInstances();
 	}
 
 	if (m_gameModule)
@@ -489,7 +489,7 @@ void CLiveCompileManager::TakeScriptSnapshot()
 {
 	m_scriptSnapshots.clear();
 
-	CSceneManager* sceneMgr  = GetModuleSceneManager(m_desc.ModuleContext);
+	CCanvasManager* sceneMgr  = GetModuleSceneManager(m_desc.ModuleContext);
 	CReflectionRegistry* reg = GetModuleReflection(m_desc.ModuleContext);
 	if (!sceneMgr || !reg)
 	{
@@ -497,15 +497,15 @@ void CLiveCompileManager::TakeScriptSnapshot()
 	}
 
 	// 런타임 캔버스는 하나뿐이다 — 예전처럼 로드된 씬 목록을 훑을 대상이 없다.
-	SafePtr<CGameScene> canvas = sceneMgr->GetActiveScene();
+	SafePtr<CGameCanvas> canvas = sceneMgr->GetActiveCanvas();
 	if (false == canvas.IsValid())
 	{
 		return;
 	}
 
-	const std::string sceneName = canvas->GetName();
+	const std::string canvasName = canvas->GetName();
 	ForEachScriptInObjectOrder(*canvas,
-	[&, sceneName](CGameScript& script)
+	[&, canvasName](CGameScript& script)
 	{
 		if (script.GetTypeId() == INVALID_TYPE_ID)
 		{
@@ -524,7 +524,7 @@ void CLiveCompileManager::TakeScriptSnapshot()
 		}
 
 		ScriptFieldSnapshot snapshot;
-		snapshot.SceneName     = sceneName;
+		snapshot.CanvasName     = canvasName;
 		snapshot.OwnerGuid     = owner->GetInstanceGuid();
 		snapshot.ComponentGuid = script.GetInstanceGuid();
 		snapshot.TypeName      = info->Type.Name ? info->Type.Name : "";
@@ -584,7 +584,7 @@ void CLiveCompileManager::RestoreScriptSnapshot()
 		return;
 	}
 
-	CSceneManager* sceneMgr  = GetModuleSceneManager(m_desc.ModuleContext);
+	CCanvasManager* sceneMgr  = GetModuleSceneManager(m_desc.ModuleContext);
 	CReflectionRegistry* reg = GetModuleReflection(m_desc.ModuleContext);
 	if (!sceneMgr || !reg)
 	{
@@ -594,7 +594,7 @@ void CLiveCompileManager::RestoreScriptSnapshot()
 
 	for (ScriptFieldSnapshot& snapshot : m_scriptSnapshots)
 	{
-		SafePtr<CGameScene> scene = sceneMgr->FindScene(snapshot.SceneName.c_str());
+		SafePtr<CGameCanvas> scene = sceneMgr->FindCanvas(snapshot.CanvasName.c_str());
 		if (false == scene.IsValid()) continue;
 		CGameObject* owner = scene->FindByInstanceGuid(snapshot.OwnerGuid).TryGet();
 		if (!owner)
@@ -608,11 +608,11 @@ void CLiveCompileManager::RestoreScriptSnapshot()
 		{
 			continue;
 		}
-		CGameScript* script = CSceneRuntimeAccess::AddScript(*scene, *owner, info->Type.Id, *reg);
+		CGameScript* script = CCanvasRuntimeAccess::AddScript(*scene, *owner, info->Type.Id, *reg);
 		if (nullptr == script) continue;
-		CSceneRuntimeAccess::SetComponentInstanceGuid(*script, snapshot.ComponentGuid);
+		CCanvasRuntimeAccess::SetComponentInstanceGuid(*script, snapshot.ComponentGuid);
 		script->SetEnabled(snapshot.IsEnabled);
-		CSceneRuntimeAccess::MoveComponent(*owner, script->GetInstanceGuid(), snapshot.ComponentIndex);
+		CCanvasRuntimeAccess::MoveComponent(*owner, script->GetInstanceGuid(), snapshot.ComponentIndex);
 		for (const ScriptFieldValue& value : snapshot.Fields)
 		{
 			for (const ReflectPropertyInfo& prop : info->Properties)

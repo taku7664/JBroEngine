@@ -9,8 +9,8 @@
 #include "Editor/Main/SceneView/SceneViewTool.h"
 #include "Engine/Core/EngineCore.h"
 #include "Engine/Core/Logging/LoggerInternal.h"
-#include "Engine/GameFramework/Scene/Scene.h"
-#include "Engine/GameFramework/Scene/SceneManager.h"
+#include "Engine/GameFramework/Canvas/Canvas.h"
+#include "Engine/GameFramework/Canvas/CanvasManager.h"
 #include "Engine/Editor/Project/ProjectManager.h"
 
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
@@ -72,15 +72,15 @@ bool CEditorShortcutManager::CanExecute(EEditorShortcut shortcut) const
 	case EEditorShortcut::CopyObjects:
 		return false == Editor::GetSelectedEntities().empty();
 	case EEditorShortcut::PasteObjects:
-		return EditorContext::GetActiveScene().IsValid() && EditorGuiActions::HasObjectClipboardData();
+		return EditorContext::GetActiveCanvas().IsValid() && EditorGuiActions::HasObjectClipboardData();
 	case EEditorShortcut::PasteObjectsAsChild:
 		// 레이어만 골랐어도 허용 — 부모 없이 그 레이어 루트로 붙여넣는다.
-		return EditorContext::GetActiveScene().IsValid()
+		return EditorContext::GetActiveCanvas().IsValid()
 			&& EditorGuiActions::HasObjectClipboardData()
 			&& (nullptr != Editor::GetSelectedEntity() || nullptr != Editor::GetSelectedLayer());
 	case EEditorShortcut::DeleteSelection:
 	{
-		if (false == EditorContext::GetActiveScene().IsValid())
+		if (false == EditorContext::GetActiveCanvas().IsValid())
 		{
 			return false;
 		}
@@ -89,10 +89,10 @@ bool CEditorShortcutManager::CanExecute(EEditorShortcut shortcut) const
 			|| nullptr != Editor::GetSelectedLayer();
 	}
 	case EEditorShortcut::TogglePlay:
-		return EditorContext::GetActiveScene().IsValid();
+		return EditorContext::GetActiveCanvas().IsValid();
 	case EEditorShortcut::TogglePause:
-		return Engine.SceneManager.IsValid()
-			&& (Engine.SceneManager->IsSimulationPlaying() || Engine.SceneManager->IsSimulationPaused());
+		return Engine.CanvasManager.IsValid()
+			&& (Engine.CanvasManager->IsSimulationPlaying() || Engine.CanvasManager->IsSimulationPaused());
 	default:
 		return false;
 	}
@@ -126,7 +126,7 @@ bool CEditorShortcutManager::Execute(EEditorShortcut shortcut) const
 		return EditorGuiActions::CopySelectedObjectsToClipboard();
 	case EEditorShortcut::PasteObjects:
 	{
-		SafePtr<CGameScene> scene = EditorContext::GetActiveScene();
+		SafePtr<CGameCanvas> scene = EditorContext::GetActiveCanvas();
 		if (false == scene.IsValid())
 		{
 			return false;
@@ -143,7 +143,7 @@ bool CEditorShortcutManager::Execute(EEditorShortcut shortcut) const
 	}
 	case EEditorShortcut::PasteObjectsAsChild:
 	{
-		SafePtr<CGameScene> scene = EditorContext::GetActiveScene();
+		SafePtr<CGameCanvas> scene = EditorContext::GetActiveCanvas();
 		if (false == scene.IsValid())
 		{
 			return false;
@@ -155,7 +155,7 @@ bool CEditorShortcutManager::Execute(EEditorShortcut shortcut) const
 	}
 	case EEditorShortcut::DeleteSelection:
 	{
-		SafePtr<CGameScene> scene = EditorContext::GetActiveScene();
+		SafePtr<CGameCanvas> scene = EditorContext::GetActiveCanvas();
 		if (false == scene.IsValid())
 		{
 			return false;
@@ -167,13 +167,13 @@ bool CEditorShortcutManager::Execute(EEditorShortcut shortcut) const
 		return EditorGuiActions::DeleteSelectedLayer(*scene);
 	}
 	case EEditorShortcut::TogglePlay:
-		if (Engine.SceneManager->IsSimulationPlaying() || Engine.SceneManager->IsSimulationPaused())
+		if (Engine.CanvasManager->IsSimulationPlaying() || Engine.CanvasManager->IsSimulationPaused())
 		{
-			Engine.SceneManager->StopSimulation();
+			Engine.CanvasManager->StopSimulation();
 		}
 		else
 		{
-			Engine.SceneManager->PlaySimulation();
+			Engine.CanvasManager->PlaySimulation();
 			if (Editor::GameView)
 			{
 				Editor::GameView->Focus();
@@ -181,13 +181,13 @@ bool CEditorShortcutManager::Execute(EEditorShortcut shortcut) const
 		}
 		return true;
 	case EEditorShortcut::TogglePause:
-		if (Engine.SceneManager->IsSimulationPaused())
+		if (Engine.CanvasManager->IsSimulationPaused())
 		{
-			Engine.SceneManager->PlaySimulation();
+			Engine.CanvasManager->PlaySimulation();
 		}
 		else
 		{
-			Engine.SceneManager->PauseSimulation();
+			Engine.CanvasManager->PauseSimulation();
 		}
 		return true;
 	default:

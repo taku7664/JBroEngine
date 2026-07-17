@@ -19,8 +19,8 @@
 #include "Editor/Project/GameScriptProjectGenerator.h"
 #include "Editor/LiveCompile/LiveCompileManager.h"
 #include "Editor/ScriptModule/ScriptModuleLoader.h"
-#include "GameFramework/Scene/SceneManager.h"
-#include "GameFramework/Scene/SceneSerializer.h"
+#include "GameFramework/Canvas/CanvasManager.h"
+#include "GameFramework/Canvas/CanvasSerializer.h"
 #include "ThirdParty/magic_enum/magic_enum.hpp"
 #include "yaml-cpp/yaml.h"
 
@@ -67,8 +67,8 @@ namespace
 
 	bool IsEditorSimulationActive()
 	{
-		return Engine.SceneManager.IsValid()
-			&& (Engine.SceneManager->IsSimulationPlaying() || Engine.SceneManager->IsSimulationPaused());
+		return Engine.CanvasManager.IsValid()
+			&& (Engine.CanvasManager->IsSimulationPlaying() || Engine.CanvasManager->IsSimulationPaused());
 	}
 
 	// ── InputMap 바인딩 Code ↔ 이름 (magic_enum, 호스트 전용) ─────────────────────
@@ -1314,7 +1314,7 @@ std::vector<AssetGuid> CProjectManager::CollectSceneLoadAssets(const std::string
 		return result;
 	}
 
-	CSceneSerializer serializer;
+	CCanvasSerializer serializer;
 	const IAssetRegistry& registry = m_assetManager->GetRegistry();
 
 	// 씬 파일의 ReferencedAssets 를 시작점으로, 프리팹이면 그 프리팹 파일의
@@ -2445,9 +2445,9 @@ bool CProjectManager::LoadScriptModule()
 
 void CProjectManager::UnloadScriptModule()
 {
-	if (Engine.SceneManager)
+	if (Engine.CanvasManager)
 	{
-		Engine.SceneManager->DestroyScriptInstances();
+		Engine.CanvasManager->DestroyScriptInstances();
 	}
 	if (m_scriptLoader)
 	{

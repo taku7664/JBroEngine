@@ -54,24 +54,24 @@ public:
 
 protected:
 	// 질의가 scene 참조 없이 동작하도록 초기화 시 scene 포인터를 캐싱한다(시스템 수명=씬 수명).
-	void OnInitialize(CGameScene& scene) override;
-	void OnFixedUpdate(CGameScene& scene) override;
+	void OnInitialize(CGameCanvas& scene) override;
+	void OnFixedUpdate(CGameCanvas& scene) override;
 	// 시뮬레이션 정지 시 접촉 상태 초기화 — 재생 재개 시 잔여 Exit 이벤트가 튀지 않게 한다.
-	void OnSimulationStop(CGameScene& scene) override;
+	void OnSimulationStop(CGameCanvas& scene) override;
 
 private:
-	void Step(CGameScene& scene, float deltaSeconds);
-	void IntegrateBodies(CGameScene& scene, float deltaSeconds);
-	void UpdateColliderBounds(CGameScene& scene);
-	void DetectContacts(CGameScene& scene);
-	void ResolveContactVelocity(CGameScene& scene);   // 속도 impulse — 접촉점별 (velocity only)
-	void ResolveContactPosition(CGameScene& scene);   // 위치 보정    — 매니폴드별 1회
-	void StabilizeRestingContacts(CGameScene& scene);
+	void Step(CGameCanvas& scene, float deltaSeconds);
+	void IntegrateBodies(CGameCanvas& scene, float deltaSeconds);
+	void UpdateColliderBounds(CGameCanvas& scene);
+	void DetectContacts(CGameCanvas& scene);
+	void ResolveContactVelocity(CGameCanvas& scene);   // 속도 impulse — 접촉점별 (velocity only)
+	void ResolveContactPosition(CGameCanvas& scene);   // 위치 보정    — 매니폴드별 1회
+	void StabilizeRestingContacts(CGameCanvas& scene);
 	void DrawManifoldDebugLines();                // 매니폴드 normal/contact 시각화 (fixed step 종료 후 1회)
 
 	// 이번 fixed step 의 접촉 페어를 직전 step 과 비교해 Enter/Stay/Exit 를 판정하고,
 	// 부착된 CGameScript 인스턴스의 충돌/트리거 훅으로 전달한다(fixed step 종료 후 1회).
-	void DispatchContactEvents(CGameScene& scene);
+	void DispatchContactEvents(CGameCanvas& scene);
 
 	// 충돌/트리거 훅 디스패치 헬퍼. CGameScript 의 훅 진입점(CollisionEnter 등)은 private 이고
 	// 이 시스템이 friend 이므로, 접근하려면 자유함수가 아니라 멤버여야 한다.
@@ -84,7 +84,7 @@ private:
 	// 직전 step 의 매니폴드와 매칭해 누적 impulse 복원 + warm-start 적용.
 	// DetectContacts 직후 호출되어 m_manifolds 의 AccumulatedXxxImpulse 를 prev 에서 복원,
 	// 그 시점에 body 에 warm-start impulse 한 번 적용.
-	void MatchAndWarmStart(CGameScene& scene);
+	void MatchAndWarmStart(CGameCanvas& scene);
 
 private:
 	Vector2                  m_gravity             = Vector2(0.0f, -9.8f);
@@ -107,5 +107,5 @@ private:
 	std::vector<ContactPairState>   m_prevContacts;
 
 	// 질의용 scene 캐시(OnInitialize 에서 설정). 시스템은 씬이 소유하므로 수명 내 유효.
-	CGameScene*                     m_scene = nullptr;
+	CGameCanvas*                     m_canvas = nullptr;
 };

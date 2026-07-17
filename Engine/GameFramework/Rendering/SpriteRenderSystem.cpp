@@ -13,7 +13,7 @@
 #include "Core/RHI/IRHIDevice.h"
 #include "GameFramework/Component/SpriteRenderer2D.h"
 #include "GameFramework/Object/GameObject.h"
-#include "GameFramework/Scene/Scene.h"
+#include "GameFramework/Canvas/Canvas.h"
 
 #include <unordered_set>
 
@@ -47,7 +47,7 @@ void CSpriteRenderSystem::ClearMaterialCache()
 	m_materialCache.clear();
 }
 
-void CSpriteRenderSystem::OnUpdate(CGameScene& scene)
+void CSpriteRenderSystem::OnUpdate(CGameCanvas& scene)
 {
 	if (nullptr == m_renderScene)
 	{

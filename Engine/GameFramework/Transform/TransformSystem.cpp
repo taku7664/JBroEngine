@@ -2,7 +2,7 @@
 #include "TransformSystem.h"
 
 #include "GameFramework/Object/GameObject.h"
-#include "GameFramework/Scene/Scene.h"
+#include "GameFramework/Canvas/Canvas.h"
 #include "Utillity/Math/Matrix3x2.h"
 
 namespace
@@ -23,7 +23,7 @@ namespace
 	}
 } // anonymous namespace
 
-void CTransformSystem::OnUpdate(CGameScene& scene)
+void CTransformSystem::OnUpdate(CGameCanvas& scene)
 {
 	// 루트(부모 없음)만 처리 — 자손은 PropagateWorldTransform 내부에서 재귀 처리.
 	scene.ForEachObject([](CGameObject& object)

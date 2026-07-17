@@ -1,5 +1,5 @@
 #include "pch.h"
-#include "Scene.h"
+#include "Canvas.h"
 
 #include "Core/Asset/AssetRef.inl"   // m_loadedAssets(AssetRef) 소멸자 인스턴스화에 필요
 #include "Core/Logging/LoggerInternal.h"
@@ -8,7 +8,7 @@
 #include "GameFramework/Scripting/GameScript.h"
 #include "GameFramework/Physics2D/Physics2DSystem.h"
 #include "GameFramework/Reflection/ReflectionRegistry.h"
-#include "GameFramework/Scene/GameLayer.h"
+#include "GameFramework/Canvas/GameLayer.h"
 #include "GameFramework/Scripting/ScriptSystem.h"
 #include "GameFramework/Transform/TransformSystem.h"
 
@@ -49,25 +49,25 @@ namespace
 	}
 }
 
-CGameScene::ScriptMemoryPool::ScriptMemoryPool(TypeId typeId, std::size_t slotSize, std::size_t slotAlignment)
+CGameCanvas::ScriptMemoryPool::ScriptMemoryPool(TypeId typeId, std::size_t slotSize, std::size_t slotAlignment)
 	: m_typeId(typeId)
 	, m_slotSize(std::max<std::size_t>(slotSize, 1))
 	, m_slotAlignment(std::max<std::size_t>(slotAlignment, alignof(void*)))
 {
 }
 
-CGameScene::ScriptMemoryPool::~ScriptMemoryPool()
+CGameCanvas::ScriptMemoryPool::~ScriptMemoryPool()
 {
 	Clear();
 }
 
-bool CGameScene::ScriptMemoryPool::Matches(std::size_t slotSize, std::size_t slotAlignment) const
+bool CGameCanvas::ScriptMemoryPool::Matches(std::size_t slotSize, std::size_t slotAlignment) const
 {
 	return m_slotSize == std::max<std::size_t>(slotSize, 1)
 		&& m_slotAlignment == std::max<std::size_t>(slotAlignment, alignof(void*));
 }
 
-void CGameScene::ScriptMemoryPool::Reserve(std::size_t capacity)
+void CGameCanvas::ScriptMemoryPool::Reserve(std::size_t capacity)
 {
 	while (m_slots.size() < capacity)
 	{
@@ -77,7 +77,7 @@ void CGameScene::ScriptMemoryPool::Reserve(std::size_t capacity)
 	}
 }
 
-void* CGameScene::ScriptMemoryPool::Allocate()
+void* CGameCanvas::ScriptMemoryPool::Allocate()
 {
 	if (false == m_freeList.empty())
 	{
@@ -92,7 +92,7 @@ void* CGameScene::ScriptMemoryPool::Allocate()
 	return ptr;
 }
 
-void CGameScene::ScriptMemoryPool::Free(void* ptr)
+void CGameCanvas::ScriptMemoryPool::Free(void* ptr)
 {
 	if (nullptr == ptr)
 	{
@@ -101,7 +101,7 @@ void CGameScene::ScriptMemoryPool::Free(void* ptr)
 	m_freeList.push_back(ptr);
 }
 
-void CGameScene::ScriptMemoryPool::Clear()
+void CGameCanvas::ScriptMemoryPool::Clear()
 {
 	for (void* ptr : m_slots)
 	{
@@ -111,7 +111,7 @@ void CGameScene::ScriptMemoryPool::Clear()
 	m_freeList.clear();
 }
 
-CGameScene::CGameScene()
+CGameCanvas::CGameCanvas()
 {
 	m_transformSystem = MakeOwnerPtr<CTransformSystem>();
 	if (m_transformSystem)
@@ -132,12 +132,12 @@ CGameScene::CGameScene()
 	}
 }
 
-CGameScene::~CGameScene()
+CGameCanvas::~CGameCanvas()
 {
 	Clear();
 }
 
-CGameLayer* CGameScene::CreateLayer(const char* name)
+CGameLayer* CGameCanvas::CreateLayer(const char* name)
 {
 	std::string autoName;
 	if (nullptr == name || '\0' == name[0])
@@ -153,7 +153,7 @@ CGameLayer* CGameScene::CreateLayer(const char* name)
 	return raw;
 }
 
-void CGameScene::ReindexLayers()
+void CGameCanvas::ReindexLayers()
 {
 	for (std::size_t i = 0; i < m_layers.size(); ++i)
 	{
@@ -164,7 +164,7 @@ void CGameScene::ReindexLayers()
 	}
 }
 
-bool CGameScene::DestroyLayer(CGameLayer* layer)
+bool CGameCanvas::DestroyLayer(CGameLayer* layer)
 {
 	if (nullptr == layer || m_layers.size() <= 1 || GetLayerIndex(layer) < 0)
 	{
@@ -182,7 +182,7 @@ bool CGameScene::DestroyLayer(CGameLayer* layer)
 	return true;
 }
 
-SafePtr<CGameLayer> CGameScene::FindLayerByName(const char* name) const
+SafePtr<CGameLayer> CGameCanvas::FindLayerByName(const char* name) const
 {
 	if (nullptr == name)
 	{
@@ -198,7 +198,7 @@ SafePtr<CGameLayer> CGameScene::FindLayerByName(const char* name) const
 	return nullptr;
 }
 
-SafePtr<CGameLayer> CGameScene::FindLayerBySourceAsset(const File::Guid& sourceAssetGuid) const
+SafePtr<CGameLayer> CGameCanvas::FindLayerBySourceAsset(const File::Guid& sourceAssetGuid) const
 {
 	if (sourceAssetGuid.IsNull())
 	{
@@ -214,7 +214,7 @@ SafePtr<CGameLayer> CGameScene::FindLayerBySourceAsset(const File::Guid& sourceA
 	return nullptr;
 }
 
-SafePtr<CGameLayer> CGameScene::FindLayerByInstanceGuid(const File::Guid& guid) const
+SafePtr<CGameLayer> CGameCanvas::FindLayerByInstanceGuid(const File::Guid& guid) const
 {
 	if (guid.IsNull())
 	{
@@ -230,12 +230,12 @@ SafePtr<CGameLayer> CGameScene::FindLayerByInstanceGuid(const File::Guid& guid) 
 	return nullptr;
 }
 
-CGameLayer* CGameScene::GetLayerAt(std::size_t index) const
+CGameLayer* CGameCanvas::GetLayerAt(std::size_t index) const
 {
 	return index < m_layers.size() ? m_layers[index].Get() : nullptr;
 }
 
-int CGameScene::GetLayerIndex(const CGameLayer* layer) const
+int CGameCanvas::GetLayerIndex(const CGameLayer* layer) const
 {
 	if (nullptr == layer)
 	{
@@ -251,7 +251,7 @@ int CGameScene::GetLayerIndex(const CGameLayer* layer) const
 	return -1;
 }
 
-bool CGameScene::MoveLayer(CGameLayer* layer, std::size_t newIndex)
+bool CGameCanvas::MoveLayer(CGameLayer* layer, std::size_t newIndex)
 {
 	const int currentIndex = GetLayerIndex(layer);
 	if (currentIndex < 0)
@@ -267,7 +267,7 @@ bool CGameScene::MoveLayer(CGameLayer* layer, std::size_t newIndex)
 	return true;
 }
 
-CGameLayer* CGameScene::GetDefaultLayer()
+CGameLayer* CGameCanvas::GetDefaultLayer()
 {
 	if (m_layers.empty())
 	{
@@ -276,10 +276,10 @@ CGameLayer* CGameScene::GetDefaultLayer()
 	return m_layers.front().Get();
 }
 
-bool CGameScene::MoveObjectToLayer(CGameObject& object, CGameLayer& layer)
+bool CGameCanvas::MoveObjectToLayer(CGameObject& object, CGameLayer& layer)
 {
 	// 루트 서브트리 단위만 — 비루트 이동은 "자식=부모 레이어" 불변식을 깬다.
-	if (object.GetScene() != this || object.GetParent().IsValid() || GetLayerIndex(&layer) < 0)
+	if (object.GetCanvas() != this || object.GetParent().IsValid() || GetLayerIndex(&layer) < 0)
 	{
 		return false;
 	}
@@ -288,17 +288,17 @@ bool CGameScene::MoveObjectToLayer(CGameObject& object, CGameLayer& layer)
 	return true;
 }
 
-void CGameScene::SetLayerInstanceGuid(CGameLayer& layer, const File::Guid& guid)
+void CGameCanvas::SetLayerInstanceGuid(CGameLayer& layer, const File::Guid& guid)
 {
 	layer.SetInstanceGuid(guid);
 }
 
-CanvasViewport* CGameScene::CreateViewport(const char* name)
+CanvasViewport* CGameCanvas::CreateViewport(const char* name)
 {
 	return InsertViewport(m_viewports.size(), name);
 }
 
-CanvasViewport* CGameScene::InsertViewport(std::size_t index, const char* name)
+CanvasViewport* CGameCanvas::InsertViewport(std::size_t index, const char* name)
 {
 	CanvasViewport viewport;
 	viewport.Name = (name && '\0' != name[0]) ? name : ("Viewport " + std::to_string(m_viewports.size() + 1));
@@ -309,7 +309,7 @@ CanvasViewport* CGameScene::InsertViewport(std::size_t index, const char* name)
 	return &(*it);
 }
 
-bool CGameScene::DestroyViewport(std::size_t index)
+bool CGameCanvas::DestroyViewport(std::size_t index)
 {
 	if (index >= m_viewports.size())
 	{
@@ -326,17 +326,17 @@ bool CGameScene::DestroyViewport(std::size_t index)
 	return true;
 }
 
-CanvasViewport* CGameScene::GetViewportAt(std::size_t index)
+CanvasViewport* CGameCanvas::GetViewportAt(std::size_t index)
 {
 	return index < m_viewports.size() ? &m_viewports[index] : nullptr;
 }
 
-const CanvasViewport* CGameScene::GetViewportAt(std::size_t index) const
+const CanvasViewport* CGameCanvas::GetViewportAt(std::size_t index) const
 {
 	return index < m_viewports.size() ? &m_viewports[index] : nullptr;
 }
 
-CanvasViewport* CGameScene::FindViewportByName(const char* name)
+CanvasViewport* CGameCanvas::FindViewportByName(const char* name)
 {
 	if (nullptr == name)
 	{
@@ -352,7 +352,7 @@ CanvasViewport* CGameScene::FindViewportByName(const char* name)
 	return nullptr;
 }
 
-CanvasViewport& CGameScene::GetOrCreateDefaultViewport()
+CanvasViewport& CGameCanvas::GetOrCreateDefaultViewport()
 {
 	if (m_viewports.empty())
 	{
@@ -363,7 +363,7 @@ CanvasViewport& CGameScene::GetOrCreateDefaultViewport()
 	return m_viewports.front();
 }
 
-void CGameScene::SetBackgroundColor(float r, float g, float b, float a)
+void CGameCanvas::SetBackgroundColor(float r, float g, float b, float a)
 {
 	m_backgroundColor[0] = r;
 	m_backgroundColor[1] = g;
@@ -371,7 +371,7 @@ void CGameScene::SetBackgroundColor(float r, float g, float b, float a)
 	m_backgroundColor[3] = a;
 }
 
-CGameObject* CGameScene::CreateGameObject(const char* name, CGameLayer* layer)
+CGameObject* CGameCanvas::CreateGameObject(const char* name, CGameLayer* layer)
 {
 	const File::Guid guid = File::GenerateGuid();
 	CGameObject* object = m_objectPool.Allocate(*this, name, guid);
@@ -389,9 +389,9 @@ CGameObject* CGameScene::CreateGameObject(const char* name, CGameLayer* layer)
 	return object;
 }
 
-bool CGameScene::DestroyGameObject(CGameObject* gameObject)
+bool CGameCanvas::DestroyGameObject(CGameObject* gameObject)
 {
-	if (nullptr == gameObject || gameObject->GetScene() != this)
+	if (nullptr == gameObject || gameObject->GetCanvas() != this)
 	{
 		return false;
 	}
@@ -400,7 +400,7 @@ bool CGameScene::DestroyGameObject(CGameObject* gameObject)
 	return true;
 }
 
-void CGameScene::DestroyObjectRecursive(CGameObject* object)
+void CGameCanvas::DestroyObjectRecursive(CGameObject* object)
 {
 	if (nullptr == object)
 	{
@@ -432,7 +432,7 @@ void CGameScene::DestroyObjectRecursive(CGameObject* object)
 	m_objectPool.Free(object);
 }
 
-void CGameScene::DestroyComponent(CComponent* component)
+void CGameCanvas::DestroyComponent(CComponent* component)
 {
 	if (nullptr == component)
 	{
@@ -499,7 +499,7 @@ void CGameScene::DestroyComponent(CComponent* component)
 	}
 }
 
-CGameScript* CGameScene::AddScript(
+CGameScript* CGameCanvas::AddScript(
 	CGameObject& object,
 	TypeId scriptTypeId,
 	const CReflectionRegistry& registry)
@@ -554,12 +554,12 @@ CGameScript* CGameScene::AddScript(
 	return script;
 }
 
-void CGameScene::MarkScriptExecutionOrderDirty()
+void CGameCanvas::MarkScriptExecutionOrderDirty()
 {
 	m_scriptExecutionOrderDirty = true;
 }
 
-void CGameScene::EnsureScriptExecutionOrder()
+void CGameCanvas::EnsureScriptExecutionOrder()
 {
 	// 순회 중(가드 활성)에는 재빌드하지 않는다 — clear/refill 이 바깥 순회의 iterator·
 	// 인덱스를 무효화(UB)한다. dirty 는 유지되어 순회 밖 다음 호출에서 반영된다.
@@ -573,7 +573,7 @@ void CGameScene::EnsureScriptExecutionOrder()
 	}
 }
 
-void CGameScene::RebuildScriptExecutionOrder()
+void CGameCanvas::RebuildScriptExecutionOrder()
 {
 	m_scriptExecutionOrder.clear();
 	m_scriptRangesByObject.clear();
@@ -625,7 +625,7 @@ void CGameScene::RebuildScriptExecutionOrder()
 	m_scriptExecutionOrderDirty = false;
 }
 
-void CGameScene::AppendObjectScriptsInHierarchyOrder(CGameObject& object)
+void CGameCanvas::AppendObjectScriptsInHierarchyOrder(CGameObject& object)
 {
 	const std::size_t begin = m_scriptExecutionOrder.size();
 	for (const SafePtr<CComponent>& componentRef : object.GetComponents())
@@ -663,7 +663,7 @@ void CGameScene::AppendObjectScriptsInHierarchyOrder(CGameObject& object)
 	}
 }
 
-SafePtr<CGameObject> CGameScene::FindByInstanceGuid(const File::Guid& guid)
+SafePtr<CGameObject> CGameCanvas::FindByInstanceGuid(const File::Guid& guid)
 {
 	if (guid.IsNull())
 	{
@@ -672,7 +672,7 @@ SafePtr<CGameObject> CGameScene::FindByInstanceGuid(const File::Guid& guid)
 	return LookupByGuid128(m_objectByGuid, ToGuid128(guid));
 }
 
-SafePtr<CGameObject> CGameScene::FindByInstanceGuidText(const char* guidText)
+SafePtr<CGameObject> CGameCanvas::FindByInstanceGuidText(const char* guidText)
 {
 	if (nullptr == guidText || '\0' == guidText[0])
 	{
@@ -681,7 +681,7 @@ SafePtr<CGameObject> CGameScene::FindByInstanceGuidText(const char* guidText)
 	return LookupByGuid128(m_objectByGuid, Guid128::FromText(guidText));
 }
 
-void CGameScene::SetObjectInstanceGuid(CGameObject& object, const File::Guid& guid)
+void CGameCanvas::SetObjectInstanceGuid(CGameObject& object, const File::Guid& guid)
 {
 	// guid 재설정 시 맵도 rekey — 안 하면 옛 guid 로 계속 찾히거나 새 guid 가 안 찾힌다.
 	if (false == object.GetInstanceGuid().IsNull())
@@ -695,7 +695,7 @@ void CGameScene::SetObjectInstanceGuid(CGameObject& object, const File::Guid& gu
 	}
 }
 
-void CGameScene::Update(bool isSimulationPlaying)
+void CGameCanvas::Update(bool isSimulationPlaying)
 {
 	// 순서 계약: 스크립트 → 파괴 flush → 시스템(transform 전파 → 렌더 제출).
 	// 스크립트가 옮긴 트랜스폼·스폰·파괴가 같은 프레임 렌더에 반영된다.
@@ -710,12 +710,12 @@ void CGameScene::Update(bool isSimulationPlaying)
 	UpdateSystems(isSimulationPlaying);
 }
 
-void CGameScene::Update()
+void CGameCanvas::Update()
 {
 	Update(true);
 }
 
-void CGameScene::FixedUpdate()
+void CGameCanvas::FixedUpdate()
 {
 	if (m_physicsSystem)
 	{
@@ -738,7 +738,7 @@ void CGameScene::FixedUpdate()
 	FlushPendingDestroys();
 }
 
-void CGameScene::FlushPendingDestroys()
+void CGameCanvas::FlushPendingDestroys()
 {
 	// 컴포넌트 먼저(개별 RemoveComponent), 그다음 오브젝트(자식 재귀 포함).
 	// SafePtr 가 null 이면 이미 다른 경로로 파괴된 것 → 스킵.
@@ -787,7 +787,7 @@ void CGameScene::FlushPendingDestroys()
 	}
 }
 
-void CGameScene::UpdateSystems(bool isSimulationPlaying)
+void CGameCanvas::UpdateSystems(bool isSimulationPlaying)
 {
 	if (m_transformSystem)
 	{
@@ -803,7 +803,7 @@ void CGameScene::UpdateSystems(bool isSimulationPlaying)
 	}
 }
 
-void CGameScene::UpdateScripts()
+void CGameCanvas::UpdateScripts()
 {
 	if (m_scriptSystem)
 	{
@@ -811,7 +811,7 @@ void CGameScene::UpdateScripts()
 	}
 }
 
-void CGameScene::NotifySimulationStop()
+void CGameCanvas::NotifySimulationStop()
 {
 	for (OwnerPtr<CGameSystem>& system : m_systems)
 	{
@@ -822,7 +822,7 @@ void CGameScene::NotifySimulationStop()
 	}
 }
 
-void CGameScene::DestroyScriptInstances()
+void CGameCanvas::DestroyScriptInstances()
 {
 	std::vector<CGameScript*> scripts;
 	for (const ScriptRuntimeState& state : m_scriptRuntimeStates)
@@ -836,7 +836,7 @@ void CGameScene::DestroyScriptInstances()
 	ClearScriptMemoryPools();
 }
 
-void CGameScene::ClearScriptMemoryPools()
+void CGameCanvas::ClearScriptMemoryPools()
 {
 	CReflectionRegistry::ForgetScriptAllocationsForScene(*this);
 	m_scriptMemoryPools.clear();
@@ -847,7 +847,7 @@ void CGameScene::ClearScriptMemoryPools()
 	}
 }
 
-void CGameScene::ReserveScriptMemoryForCurrentScripts(const CReflectionRegistry& registry, float capacityMultiplier)
+void CGameCanvas::ReserveScriptMemoryForCurrentScripts(const CReflectionRegistry& registry, float capacityMultiplier)
 {
 	std::unordered_map<TypeId, std::size_t> counts;
 	for (const ScriptRuntimeState& script : m_scriptRuntimeStates)
@@ -889,7 +889,7 @@ void CGameScene::ReserveScriptMemoryForCurrentScripts(const CReflectionRegistry&
 	}
 }
 
-void CGameScene::ReserveScriptMemory(TypeId scriptTypeId, std::size_t size, std::size_t alignment, std::size_t capacity)
+void CGameCanvas::ReserveScriptMemory(TypeId scriptTypeId, std::size_t size, std::size_t alignment, std::size_t capacity)
 {
 	if (INVALID_TYPE_ID == scriptTypeId || 0 == capacity)
 	{
@@ -917,7 +917,7 @@ void CGameScene::ReserveScriptMemory(TypeId scriptTypeId, std::size_t size, std:
 	}
 }
 
-std::vector<CGameScene::ScriptMemoryPoolStats> CGameScene::GetScriptMemoryPoolStats() const
+std::vector<CGameCanvas::ScriptMemoryPoolStats> CGameCanvas::GetScriptMemoryPoolStats() const
 {
 	std::vector<ScriptMemoryPoolStats> result;
 	result.reserve(m_scriptMemoryPools.size());
@@ -931,7 +931,7 @@ std::vector<CGameScene::ScriptMemoryPoolStats> CGameScene::GetScriptMemoryPoolSt
 	return result;
 }
 
-void* CGameScene::AllocateScriptMemory(TypeId scriptTypeId, std::size_t size, std::size_t alignment)
+void* CGameCanvas::AllocateScriptMemory(TypeId scriptTypeId, std::size_t size, std::size_t alignment)
 {
 	const std::size_t effectiveSize = std::max<std::size_t>(size, 1);
 	const std::size_t effectiveAlignment = std::max<std::size_t>(alignment, alignof(void*));
@@ -978,7 +978,7 @@ void* CGameScene::AllocateScriptMemory(TypeId scriptTypeId, std::size_t size, st
 	return ptr;
 }
 
-void CGameScene::FreeScriptMemory(TypeId scriptTypeId, void* ptr, std::size_t size, std::size_t alignment)
+void CGameCanvas::FreeScriptMemory(TypeId scriptTypeId, void* ptr, std::size_t size, std::size_t alignment)
 {
 	if (nullptr == ptr)
 	{
@@ -1010,7 +1010,7 @@ void CGameScene::FreeScriptMemory(TypeId scriptTypeId, void* ptr, std::size_t si
 	::operator delete(ptr, std::align_val_t(std::max<std::size_t>(alignment, alignof(void*))));
 }
 
-void CGameScene::DispatchSurfaceEventToScripts(const SurfaceEvent& surfaceEvent)
+void CGameCanvas::DispatchSurfaceEventToScripts(const SurfaceEvent& surfaceEvent)
 {
 	EnsureScriptExecutionOrder();
 	// 훅(유저 스크립트)이 스폰·Ref 해석으로 캐시를 재빌드하지 못하게 순회 잠금.
@@ -1031,7 +1031,7 @@ void CGameScene::DispatchSurfaceEventToScripts(const SurfaceEvent& surfaceEvent)
 	}
 }
 
-void CGameScene::DispatchCanvasChangedToScripts(const std::vector<SafePtr<CGameLayer>>& inheritedLayers)
+void CGameCanvas::DispatchCanvasChangedToScripts(const std::vector<SafePtr<CGameLayer>>& inheritedLayers)
 {
 	if (inheritedLayers.empty())
 	{
@@ -1069,27 +1069,27 @@ void CGameScene::DispatchCanvasChangedToScripts(const std::vector<SafePtr<CGameL
 	}
 }
 
-CPhysics2DSystem* CGameScene::GetPhysics2DSystem()
+CPhysics2DSystem* CGameCanvas::GetPhysics2DSystem()
 {
 	return m_physicsSystem.Get();
 }
 
-const CPhysics2DSystem* CGameScene::GetPhysics2DSystem() const
+const CPhysics2DSystem* CGameCanvas::GetPhysics2DSystem() const
 {
 	return m_physicsSystem.Get();
 }
 
-void CGameScene::SetReferencedAssets(std::vector<AssetGuid> referencedAssets)
+void CGameCanvas::SetReferencedAssets(std::vector<AssetGuid> referencedAssets)
 {
 	m_referencedAssets = std::move(referencedAssets);
 }
 
-const std::vector<AssetGuid>& CGameScene::GetReferencedAssets() const
+const std::vector<AssetGuid>& CGameCanvas::GetReferencedAssets() const
 {
 	return m_referencedAssets;
 }
 
-void CGameScene::ClearObjects()
+void CGameCanvas::ClearObjects()
 {
 	DestroyScriptInstances();
 
@@ -1120,12 +1120,12 @@ void CGameScene::ClearObjects()
 	m_viewports.clear();
 }
 
-void CGameScene::ClearViewports()
+void CGameCanvas::ClearViewports()
 {
 	m_viewports.clear();
 }
 
-void CGameScene::Clear()
+void CGameCanvas::Clear()
 {
 	for (OwnerPtr<CGameSystem>& system : m_systems)
 	{

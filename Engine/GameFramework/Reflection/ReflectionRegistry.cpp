@@ -15,13 +15,13 @@ namespace
 {
 	struct ScriptAllocationContext
 	{
-		CGameScene* Scene = nullptr;
+		CGameCanvas* Scene = nullptr;
 		TypeId ScriptTypeId = INVALID_TYPE_ID;
 	};
 
 	struct ScriptAllocationRecord
 	{
-		CGameScene* Scene = nullptr;
+		CGameCanvas* Scene = nullptr;
 		TypeId ScriptTypeId = INVALID_TYPE_ID;
 		std::uint64_t SceneGeneration = 0;
 	};
@@ -33,7 +33,7 @@ namespace
 	public:
 		void Register(
 			void* ptr,
-			CGameScene& scene,
+			CGameCanvas& scene,
 			TypeId scriptTypeId,
 			std::uint64_t sceneGeneration)
 		{
@@ -65,7 +65,7 @@ namespace
 			return true;
 		}
 
-		void ForgetScene(const CGameScene& scene)
+		void ForgetScene(const CGameCanvas& scene)
 		{
 			std::lock_guard<std::mutex> lock(m_mutex);
 			for (auto it = m_records.begin(); it != m_records.end();)
@@ -95,7 +95,7 @@ namespace
 	class ScriptAllocationScope final
 	{
 	public:
-		ScriptAllocationScope(CGameScene* scene, TypeId scriptTypeId)
+		ScriptAllocationScope(CGameCanvas* scene, TypeId scriptTypeId)
 			: m_previous(g_scriptAllocationContext)
 		{
 			g_scriptAllocationContext.Scene = scene;
@@ -202,14 +202,14 @@ const ScriptTypeInfo* CReflectionRegistry::GetScriptType(std::size_t index) cons
 	return index < m_scriptTypes.size() ? &m_scriptTypes[index] : nullptr;
 }
 
-bool CReflectionRegistry::AddComponent(CGameScene& scene, CGameObject& object, TypeId typeId) const
+bool CReflectionRegistry::AddComponent(CGameCanvas& scene, CGameObject& object, TypeId typeId) const
 {
 	const ComponentTypeInfo* typeInfo = FindComponent(typeId);
 	if (!typeInfo || false == CanAddComponent(object, typeId)) return false;
 	return typeInfo->AddToObject && typeInfo->AddToObject(scene, object);
 }
 
-bool CReflectionRegistry::ReserveComponentPool(CGameScene& scene, TypeId typeId, std::size_t capacity) const
+bool CReflectionRegistry::ReserveComponentPool(CGameCanvas& scene, TypeId typeId, std::size_t capacity) const
 {
 	const ComponentTypeInfo* typeInfo = FindComponent(typeId);
 	if (nullptr == typeInfo || nullptr == typeInfo->ReserveInScene)
@@ -234,13 +234,13 @@ bool CReflectionRegistry::CanAddComponent(const CGameObject& object, TypeId type
 	return true;
 }
 
-bool CReflectionRegistry::RemoveComponent(CGameScene& scene, CGameObject& object, TypeId typeId) const
+bool CReflectionRegistry::RemoveComponent(CGameCanvas& scene, CGameObject& object, TypeId typeId) const
 {
 	const ComponentTypeInfo* typeInfo = FindComponent(typeId);
 	return typeInfo && typeInfo->RemoveFromObject && typeInfo->RemoveFromObject(scene, object);
 }
 
-bool CReflectionRegistry::RemoveComponentByGuid(CGameScene& scene, CGameObject& object, TypeId typeId, const File::Guid& componentGuid) const
+bool CReflectionRegistry::RemoveComponentByGuid(CGameCanvas& scene, CGameObject& object, TypeId typeId, const File::Guid& componentGuid) const
 {
 	if (componentGuid.IsNull())
 	{
@@ -429,7 +429,7 @@ bool CReflectionRegistry::UnregisterScript(TypeId typeId)
 
 ScriptInstanceHandle CReflectionRegistry::CreateScriptInstance(
 	TypeId typeId,
-	CGameScene& scene,
+	CGameCanvas& scene,
 	CGameObject& owner) const
 {
 	ScriptInstanceHandle handle;
@@ -449,7 +449,7 @@ ScriptInstanceHandle CReflectionRegistry::CreateScriptInstance(
 	return handle;
 }
 
-void CReflectionRegistry::ForgetScriptAllocationsForScene(const CGameScene& scene)
+void CReflectionRegistry::ForgetScriptAllocationsForScene(const CGameCanvas& scene)
 {
 	GetScriptAllocationRegistry().ForgetScene(scene);
 }

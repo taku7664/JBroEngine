@@ -234,7 +234,7 @@ namespace ScriptSchema
 	bool IsReservedName(const std::string& s)
 	{
 		static const std::array<const char*, 7> kReserved = {
-			"OnCreate", "OnStart", "OnUpdate", "OnFixedUpdate", "OnDestroy", "GetOwner", "GetScene"
+			"OnCreate", "OnStart", "OnUpdate", "OnFixedUpdate", "OnDestroy", "GetOwner", "GetCanvas"
 		};
 		for (const char* r : kReserved)
 		{

@@ -53,9 +53,9 @@
 #include "GameFramework/Component/BuiltinComponentRegistry.h"
 #include "GameFramework/Rendering/GameCamera.h"
 #include "GameFramework/Reflection/ReflectionRegistry.h"
-#include "GameFramework/Scene/Scene.h"
-#include "GameFramework/Scene/SceneRuntimeAccess.h"
-#include "GameFramework/Scene/SceneManager.h"
+#include "GameFramework/Canvas/Canvas.h"
+#include "GameFramework/Canvas/CanvasRuntimeAccess.h"
+#include "GameFramework/Canvas/CanvasManager.h"
 
 #include <algorithm>
 
@@ -142,9 +142,9 @@ void CEngine::OnSurfaceEvent(const SurfaceEvent& surfaceEvent)
 	// 윈도우 이벤트를 활성 씬의 스크립트 인스턴스들에 전달(재생 중에만 인스턴스 존재 → 자동 게이팅).
 	if (m_sceneManager)
 	{
-		if (CGameScene* scene = m_sceneManager->GetActiveScene().TryGet())
+		if (CGameCanvas* scene = m_sceneManager->GetActiveCanvas().TryGet())
 		{
-			CSceneRuntimeAccess::DispatchSurfaceEvent(*scene, surfaceEvent);
+			CCanvasRuntimeAccess::DispatchSurfaceEvent(*scene, surfaceEvent);
 		}
 	}
 }
@@ -233,7 +233,7 @@ void CEngine::Finalize()
 	Engine.DebugDraw2D = nullptr;
 	m_debugDraw.Reset();
 
-	Engine.SceneManager = nullptr;
+	Engine.CanvasManager = nullptr;
 	m_sceneManager.Reset();
 	Engine.Random = nullptr;
 	m_randomService.Reset();
@@ -413,7 +413,7 @@ bool CEngine::InitializeCoreServices()
 #if JBRO_EDITOR
 	m_localization = MakeOwnerPtr<CLocalizationManager>();
 #endif
-	m_sceneManager = MakeOwnerPtr<CSceneManager>();
+	m_sceneManager = MakeOwnerPtr<CCanvasManager>();
 	if (!m_time || !m_input || !m_inputSystem || !m_fileSystem || !m_taskManager || !m_randomService || !m_mathService || !m_reflectionRegistry || !m_logger || !m_debug || !m_sceneManager)
 	{
 		return false;
@@ -457,7 +457,7 @@ bool CEngine::InitializeCoreServices()
 #else
 	Engine.Localization = nullptr;
 #endif
-	Engine.SceneManager = m_sceneManager.GetSafePtr();
+	Engine.CanvasManager = m_sceneManager.GetSafePtr();
 	Engine.DebugDraw2D = m_debugDraw.GetSafePtr();
 	CSystemLog::Info("Core services initialized.");
 
@@ -901,7 +901,7 @@ void CEngine::SyncScriptCore()
 	Script.Debug        = Engine.Debug;
 	Script.Time         = Engine.Time;
 	Script.Input        = Engine.Input;
-	Script.SceneManager = Engine.SceneManager;
+	Script.CanvasManager = Engine.CanvasManager;
 	Script.FileSystem   = Engine.FileSystem;
 	Script.Random       = Engine.Random;
 	Script.Math         = Engine.Math;

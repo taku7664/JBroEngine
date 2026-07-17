@@ -4,13 +4,13 @@
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
 
 #include "Editor/Editor.h"
-#include "Engine/GameFramework/Scene/Scene.h"
+#include "Engine/GameFramework/Canvas/Canvas.h"
 
 #include <utility>
 
 namespace
 {
-	CanvasViewport* ResolveViewport(const SafePtr<CGameScene>& scene, std::size_t index)
+	CanvasViewport* ResolveViewport(const SafePtr<CGameCanvas>& scene, std::size_t index)
 	{
 		return scene.IsValid() ? scene->GetViewportAt(index) : nullptr;
 	}
@@ -53,8 +53,8 @@ void ViewportSnapshot::ApplyTo(CanvasViewport& viewport) const
 // ── CSetCanvasBackgroundColorCommand ─────────────────────────────────────────
 
 CSetCanvasBackgroundColorCommand::CSetCanvasBackgroundColorCommand(
-	SafePtr<CGameScene> scene, const float (&oldColor)[4], const float (&newColor)[4])
-	: m_scene(scene)
+	SafePtr<CGameCanvas> scene, const float (&oldColor)[4], const float (&newColor)[4])
+	: m_canvas(scene)
 {
 	CopyColor(m_oldColor, oldColor);
 	CopyColor(m_newColor, newColor);
@@ -94,23 +94,23 @@ bool CSetCanvasBackgroundColorCommand::TryMerge(const IEditorCommand& newer)
 
 bool CSetCanvasBackgroundColorCommand::Apply(const float (&color)[4])
 {
-	if (false == m_scene.IsValid())
+	if (false == m_canvas.IsValid())
 	{
 		return false;
 	}
-	m_scene->SetBackgroundColor(color[0], color[1], color[2], color[3]);
+	m_canvas->SetBackgroundColor(color[0], color[1], color[2], color[3]);
 	return true;
 }
 
 // ── CSetViewportPropertyCommand ──────────────────────────────────────────────
 
 CSetViewportPropertyCommand::CSetViewportPropertyCommand(
-	SafePtr<CGameScene> scene,
+	SafePtr<CGameCanvas> scene,
 	std::size_t index,
 	EField field,
 	ViewportSnapshot oldProperties,
 	ViewportSnapshot newProperties)
-	: m_scene(scene)
+	: m_canvas(scene)
 	, m_index(index)
 	, m_field(field)
 	, m_oldProperties(std::move(oldProperties))
@@ -155,7 +155,7 @@ bool CSetViewportPropertyCommand::TryMerge(const IEditorCommand& newer)
 
 bool CSetViewportPropertyCommand::Apply(const ViewportSnapshot& properties)
 {
-	CanvasViewport* viewport = ResolveViewport(m_scene, m_index);
+	CanvasViewport* viewport = ResolveViewport(m_canvas, m_index);
 	if (nullptr == viewport)
 	{
 		return false;
@@ -165,7 +165,7 @@ bool CSetViewportPropertyCommand::Apply(const ViewportSnapshot& properties)
 }
 
 bool EditorCanvasActions::SetViewportProperty(
-	CGameScene& scene,
+	CGameCanvas& scene,
 	std::size_t index,
 	CSetViewportPropertyCommand::EField field,
 	const ViewportSnapshot& newProperties)
@@ -181,7 +181,7 @@ bool EditorCanvasActions::SetViewportProperty(
 	return Editor::CommandManager.ExecuteCommand(std::move(command));
 }
 
-bool EditorCanvasActions::SetBackgroundColor(CGameScene& scene, const float (&newColor)[4])
+bool EditorCanvasActions::SetBackgroundColor(CGameCanvas& scene, const float (&newColor)[4])
 {
 	const float* current = scene.GetBackgroundColor();
 	const float oldColor[4] = { current[0], current[1], current[2], current[3] };
@@ -192,8 +192,8 @@ bool EditorCanvasActions::SetBackgroundColor(CGameScene& scene, const float (&ne
 
 // ── CCreateViewportCommand ───────────────────────────────────────────────────
 
-CCreateViewportCommand::CCreateViewportCommand(SafePtr<CGameScene> scene)
-	: m_scene(scene)
+CCreateViewportCommand::CCreateViewportCommand(SafePtr<CGameCanvas> scene)
+	: m_canvas(scene)
 {
 }
 
@@ -204,30 +204,30 @@ const char* CCreateViewportCommand::GetName() const
 
 bool CCreateViewportCommand::Execute()
 {
-	if (false == m_scene.IsValid())
+	if (false == m_canvas.IsValid())
 	{
 		return false;
 	}
 
-	CanvasViewport* viewport = m_scene->CreateViewport(m_name.empty() ? nullptr : m_name.c_str());
+	CanvasViewport* viewport = m_canvas->CreateViewport(m_name.empty() ? nullptr : m_name.c_str());
 	if (nullptr == viewport)
 	{
 		return false;
 	}
 
 	m_name = viewport->Name;   // 자동 이름("Viewport N")도 redo 시 동일하게.
-	m_index = m_scene->GetViewportCount() - 1;
+	m_index = m_canvas->GetViewportCount() - 1;
 	m_created = true;
 	return true;
 }
 
 void CCreateViewportCommand::Undo()
 {
-	if (false == m_created || false == m_scene.IsValid())
+	if (false == m_created || false == m_canvas.IsValid())
 	{
 		return;
 	}
-	m_scene->DestroyViewport(m_index);
+	m_canvas->DestroyViewport(m_index);
 	m_created = false;
 }
 
@@ -241,11 +241,11 @@ void CCreateViewportCommand::Redo()
 
 // ── CDeleteViewportCommand ───────────────────────────────────────────────────
 
-CDeleteViewportCommand::CDeleteViewportCommand(SafePtr<CGameScene> scene, std::size_t index)
-	: m_scene(scene)
+CDeleteViewportCommand::CDeleteViewportCommand(SafePtr<CGameCanvas> scene, std::size_t index)
+	: m_canvas(scene)
 	, m_index(index)
 {
-	if (const CanvasViewport* viewport = ResolveViewport(m_scene, m_index))
+	if (const CanvasViewport* viewport = ResolveViewport(m_canvas, m_index))
 	{
 		m_properties = ViewportSnapshot::Capture(*viewport);
 	}
@@ -258,23 +258,23 @@ const char* CDeleteViewportCommand::GetName() const
 
 bool CDeleteViewportCommand::Execute()
 {
-	if (false == m_scene.IsValid())
+	if (false == m_canvas.IsValid())
 	{
 		return false;
 	}
-	m_deleted = m_scene->DestroyViewport(m_index);
+	m_deleted = m_canvas->DestroyViewport(m_index);
 	return m_deleted;
 }
 
 void CDeleteViewportCommand::Undo()
 {
-	if (false == m_deleted || false == m_scene.IsValid())
+	if (false == m_deleted || false == m_canvas.IsValid())
 	{
 		return;
 	}
 
 	// 원래 자리에 되살린다 — 뷰포트 순서가 곧 그리는 순서다.
-	CanvasViewport* viewport = m_scene->InsertViewport(m_index, m_properties.Name.c_str());
+	CanvasViewport* viewport = m_canvas->InsertViewport(m_index, m_properties.Name.c_str());
 	if (nullptr == viewport)
 	{
 		return;

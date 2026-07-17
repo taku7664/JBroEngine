@@ -31,7 +31,7 @@ namespace
 	constexpr std::string_view MESH_EXTENSIONS[]        = { ".obj", ".fbx", ".gltf", ".glb" };
 	constexpr std::string_view MATERIAL_EXTENSIONS[]    = { ".jmat" };
 	constexpr std::string_view SHADER_EXTENSIONS[]      = { ".hlsl", ".wgsl", ".glsl", ".shader" };
-	constexpr std::string_view SCENE_EXTENSIONS[]       = { ".jcanvas" };
+	constexpr std::string_view CANVAS_EXTENSIONS[]       = { ".jcanvas" };
 	constexpr std::string_view PREFAB_EXTENSIONS[]      = { ".jprefab" };
 	constexpr std::string_view SCRIPT_EXTENSIONS[]      = { ".cpp", ".h", ".hpp" };
 	constexpr std::string_view AUDIO_EXTENSIONS[]       = { ".wav", ".mp3", ".flac", ".ogg" };
@@ -45,7 +45,7 @@ namespace
 		{ EAssetType::Mesh,       "Mesh",        MakeExtensionList(MESH_EXTENSIONS) },
 		{ EAssetType::Material,   "Material",    MakeExtensionList(MATERIAL_EXTENSIONS) },
 		{ EAssetType::Shader,     "Shader",      MakeExtensionList(SHADER_EXTENSIONS) },
-		{ EAssetType::Scene,      "Scene",       MakeExtensionList(SCENE_EXTENSIONS) },
+		{ EAssetType::Scene,      "Scene",       MakeExtensionList(CANVAS_EXTENSIONS) },
 		{ EAssetType::Prefab,     "Prefab",      MakeExtensionList(PREFAB_EXTENSIONS) },
 		{ EAssetType::Script,     "Script",      MakeExtensionList(SCRIPT_EXTENSIONS) },
 		{ EAssetType::Audio,      "Audio",       MakeExtensionList(AUDIO_EXTENSIONS) },

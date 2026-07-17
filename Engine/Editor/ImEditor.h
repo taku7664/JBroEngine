@@ -12,7 +12,7 @@
 #include "Core/Platform/PlatformTypes.h"   // SurfaceEvent / SurfaceEventToken
 #include "Core/Renderer/RendererTypes.h"
 #include "GameFramework/Rendering/GameCamera.h"
-#include "GameFramework/Scene/SceneTypes.h"
+#include "GameFramework/Canvas/CanvasTypes.h"
 
 // ImEditor 의 멤버에서 사용하는 ImWindow 패밀리 — self-contained 보장.
 #include "Editor/ImWindow/IImWindow.h"
@@ -23,7 +23,7 @@
 
 class CProjectManager;
 class CDebugRenderer2D;
-class CGameScene;
+class CGameCanvas;
 class COutlineRenderer2D;
 class IRHITexture;
 struct ScriptCore;
@@ -102,7 +102,7 @@ public:
 	void RequestGameViewRenderTarget(std::uint32_t width, std::uint32_t height);
 	// 게임뷰가 그릴 씬 — 카메라/라이트 스냅샷은 PrepareRender(시뮬 이후·렌더 직전)가
 	// 이 씬에서 직접 수집한다. UI 빌드 시점 수집은 1프레임 지연 카메라를 만든다.
-	void SetGameViewScene(SafePtr<CGameScene> scene);
+	void SetGameViewScene(SafePtr<CGameCanvas> scene);
 	void* GetGameViewTextureID() const;
 	std::uint32_t GetGameViewWidth()  const { return m_gameViewWidth;  }
 	std::uint32_t GetGameViewHeight() const { return m_gameViewHeight; }
@@ -172,7 +172,7 @@ private:
 	std::uint32_t              m_gameViewWidth    = 0;
 	std::uint32_t              m_gameViewHeight   = 0;
 	bool                       m_gameViewRequested = false;
-	SafePtr<CGameScene>        m_gameViewScene;
+	SafePtr<CGameCanvas>        m_gameViewScene;
 	std::vector<GameRenderViewportDesc> m_gameViewViewports;
 	std::vector<GameRenderLightDesc> m_gameViewLights;
 	std::vector<GameRenderLayerDesc> m_gameViewLayers;

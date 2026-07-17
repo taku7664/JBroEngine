@@ -7,7 +7,7 @@
 #include "GameFramework/Object/GameObject.h"
 #include "GameFramework/Object/ObjectPool.h"
 #include "GameFramework/Reflection/ReflectionTypes.h"
-#include "GameFramework/Scene/CanvasViewport.h"
+#include "GameFramework/Canvas/CanvasViewport.h"
 #include "GameFramework/System/GameSystem.h"
 #include "Utillity/File/FilePath.h"
 #include "Utillity/File/Guid128.h"
@@ -27,28 +27,28 @@
 class CGameLayer;
 class CPhysics2DSystem;
 class CReflectionRegistry;
-class CSceneManager;
-class CSceneRuntimeAccess;
-class CSceneSerializer;
+class CCanvasManager;
+class CCanvasRuntimeAccess;
+class CCanvasSerializer;
 class CScriptSystem;
 class CTransformSystem;
 class CGameScript;
 class IInputHandler;
 struct GameModuleHostApi;
 
-// CGameScene 은 GameScript 가 소유하는 런타임 객체다. CGameScene/GameObject/Component 포인터를
+// CGameCanvas 은 GameScript 가 소유하는 런타임 객체다. CGameCanvas/GameObject/Component 포인터를
 // 라이브 컴파일 DLL 경계로 그대로 넘기지 말 것(안전참조는 SafePtr, 직렬화는 리플렉션).
-class CGameScene final : public EnableSafeFromThis<CGameScene>
+class CGameCanvas final : public EnableSafeFromThis<CGameCanvas>
 {
 public:
-	CGameScene();
-	~CGameScene();
+	CGameCanvas();
+	~CGameCanvas();
 
-	CGameScene(const CGameScene&) = delete;
-	CGameScene& operator=(const CGameScene&) = delete;
+	CGameCanvas(const CGameCanvas&) = delete;
+	CGameCanvas& operator=(const CGameCanvas&) = delete;
 
 	// ── 이름 ─────────────────────────────────────────────────────────────────
-	// 캔버스 파일 키(SceneManager::SetCanvasName 이 설정). Ref<GameScene> 해석 키.
+	// 캔버스 파일 키(CanvasManager::SetCanvasName 이 설정). Ref<GameScene> 해석 키.
 	const char* GetName() const { return m_name.c_str(); }
 
 	// ── 레이어 ────────────────────────────────────────────────────────────────
@@ -264,7 +264,7 @@ private:
 
 	// ── 로드된 리소스 보유(use-count) ─────────────────────────────────────────
 	// 캔버스가 참조하는 리소스(에셋)는 AssetRef(strong) 로 잡아 use-count>0 을 유지해 자산이
-	// unload/GC 되지 않게 보호한다. 로드 자체는 SceneManager(AssetManager 접근 가능)가 수행하고,
+	// unload/GC 되지 않게 보호한다. 로드 자체는 CanvasManager(AssetManager 접근 가능)가 수행하고,
 	// 결과 AssetRef 묶음을 여기에 보관한다. 놓으면 use-count-- → (다른 사용자가 없으면) GC 대상.
 	void SetLoadedAssets(std::vector<AssetRef<IAsset>> loadedAssets) { m_loadedAssets = std::move(loadedAssets); }
 	void ClearLoadedAssets() { m_loadedAssets.clear(); }
@@ -292,9 +292,9 @@ private:
 	friend class CGameObject;
 	friend class CPhysics2DSystem;
 	friend class CReflectionRegistry;
-	friend class CSceneManager;
-	friend class CSceneRuntimeAccess;
-	friend class CSceneSerializer;
+	friend class CCanvasManager;
+	friend class CCanvasRuntimeAccess;
+	friend class CCanvasSerializer;
 	friend class CScriptSystem;
 
 	void SetName(const char* name) { m_name = name ? name : ""; }
@@ -333,12 +333,12 @@ private:
 	class ScriptIterationGuard
 	{
 	public:
-		explicit ScriptIterationGuard(CGameScene& scene) : m_scene(scene) { ++m_scene.m_scriptIterationDepth; }
-		~ScriptIterationGuard() { --m_scene.m_scriptIterationDepth; }
+		explicit ScriptIterationGuard(CGameCanvas& scene) : m_canvas(scene) { ++m_canvas.m_scriptIterationDepth; }
+		~ScriptIterationGuard() { --m_canvas.m_scriptIterationDepth; }
 		ScriptIterationGuard(const ScriptIterationGuard&) = delete;
 		ScriptIterationGuard& operator=(const ScriptIterationGuard&) = delete;
 	private:
-		CGameScene& m_scene;
+		CGameCanvas& m_canvas;
 	};
 
 	// ── 타입별 컴포넌트 풀 (타입소거) ─────────────────────────────────────────
@@ -517,21 +517,21 @@ private:
 	std::vector<SafePtr<CComponent>>   m_pendingDestroyComponents;
 };
 
-// 사용자 대면 별칭 — 스크립트/문서는 접두사 없는 Scene 으로 쓴다.
-using Scene = CGameScene;
+// 사용자 대면 별칭 — 스크립트/문서는 접두사 없는 Canvas 로 쓴다.
+using Canvas = CGameCanvas;
 
-// ── CGameObject 템플릿 메서드 정의 (CGameScene 완전형 필요) ──────────────────────
+// ── CGameObject 템플릿 메서드 정의 (CGameCanvas 완전형 필요) ──────────────────────
 template<typename T, typename... Args>
 T* CGameObject::AddComponent(Args&&... args)
 {
-	return m_scene ? m_scene->AddComponent<T>(*this, std::forward<Args>(args)...) : nullptr;
+	return m_canvas ? m_canvas->AddComponent<T>(*this, std::forward<Args>(args)...) : nullptr;
 }
 
 template<typename T>
 void CGameObject::RemoveComponent()
 {
-	if (m_scene)
+	if (m_canvas)
 	{
-		m_scene->RemoveComponent<T>(*this);
+		m_canvas->RemoveComponent<T>(*this);
 	}
 }

@@ -5,8 +5,8 @@
 #include "GameFramework/Component/Component.h"
 #include "GameFramework/Component/Transform2D.h"
 #include "GameFramework/Object/GameObject.h"
-#include "GameFramework/Scene/Scene.h"
-#include "GameFramework/Scene/SceneRuntimeAccess.h"
+#include "GameFramework/Canvas/Canvas.h"
+#include "GameFramework/Canvas/CanvasRuntimeAccess.h"
 #include "yaml-cpp/yaml.h"
 
 namespace Serialization
@@ -94,7 +94,7 @@ YAML::Node WriteObject(const CGameObject& object, std::vector<AssetGuid>* refere
 	return node;
 }
 
-CGameObject* ReadObjectInto(CGameScene& scene, const YAML::Node& node,
+CGameObject* ReadObjectInto(CGameCanvas& scene, const YAML::Node& node,
                             std::vector<AssetGuid>* referencedAssets)
 {
 	if (!node || false == node.IsMap())
@@ -130,7 +130,7 @@ CGameObject* ReadObjectInto(CGameScene& scene, const YAML::Node& node,
 			{
 				parsed = File::GenerateGuid();
 			}
-			CSceneRuntimeAccess::SetObjectInstanceGuid(scene, *object, parsed);
+			CCanvasRuntimeAccess::SetObjectInstanceGuid(scene, *object, parsed);
 		}
 	}
 
@@ -180,7 +180,7 @@ std::string SerializeObjects(const std::vector<const CGameObject*>& objects)
 	return std::string(emitter.c_str());
 }
 
-std::vector<CGameObject*> DeserializeObjects(CGameScene& scene, const char* text)
+std::vector<CGameObject*> DeserializeObjects(CGameCanvas& scene, const char* text)
 {
 	std::vector<CGameObject*> result;
 	if (nullptr == text)
@@ -221,7 +221,7 @@ std::string SerializeObject(const CGameObject& object)
 	return SerializeObjects({ &object });
 }
 
-CGameObject* DeserializeObject(CGameScene& scene, const char* text)
+CGameObject* DeserializeObject(CGameCanvas& scene, const char* text)
 {
 	std::vector<CGameObject*> all = DeserializeObjects(scene, text);
 	return all.empty() ? nullptr : all.front();

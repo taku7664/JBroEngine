@@ -28,16 +28,16 @@
 //  카테고리는 T 로부터 컴파일타임에 결정된다:
 //      IAsset 파생      → Asset
 //      CGameScript 파생 → Script
-//      CGameScene       → Scene (guid 대신 씬 이름 저장 — SceneManager 의 유일 키)
+//      CGameCanvas       → Scene (guid 대신 씬 이름 저장 — CanvasManager 의 유일 키)
 //      그 외(POD 컴포넌트, GameObject 포함) → Component
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ERefCategory / RefBase 는 GameFramework/Reflection/ReflectionTypes.h 에 단일 정의.
 
 // Scene 카테고리는 is_same 으로만 판별하므로 전방 선언으로 충분하다.
-// (단, Ref<CGameScene> 을 실제 인스턴스화하는 TU 는 Scene.h 를 포함해야 한다 —
+// (단, Ref<CGameCanvas> 을 실제 인스턴스화하는 TU 는 Scene.h 를 포함해야 한다 —
 //  나머지 트레이트 평가에 완전형이 필요.)
-class CGameScene;
+class CGameCanvas;
 
 namespace RefDetail
 {
@@ -59,8 +59,8 @@ namespace RefDetail
 	// AssetGuid → 활성 에셋 매니저에서 로드/조회한 IAsset*.
 	IAsset* ResolveAsset(const char* assetGuid);
 
-	// 씬 이름 → SceneManager 의 로드된 씬(CGameScene*). 파괴/미로드면 nullptr.
-	CGameScene* ResolveScene(const char* sceneName);
+	// 씬 이름 → CanvasManager 의 로드된 씬(CGameCanvas*). 파괴/미로드면 nullptr.
+	CGameCanvas* ResolveCanvas(const char* canvasName);
 }
 
 template<typename T>
@@ -70,12 +70,12 @@ public:
 	// Ref<T> 는 5가지 카테고리 중 하나여야 한다. 그 외(예: Ref<Transform2D>, Ref<int>)는
 	// 해석 경로가 없어 항상 null 로 조용히 실패하므로 컴파일 타임에 막는다.
 	static_assert(
-		std::is_same_v<CGameScene, T>      ||
+		std::is_same_v<CGameCanvas, T>      ||
 		std::is_base_of_v<IAsset, T>       ||
 		std::is_base_of_v<CGameScript, T>  ||
 		std::is_base_of_v<CGameObject, T>  ||
 		std::is_base_of_v<CComponent, T>,
-		"Ref<T>: T must be CGameScene or derive from IAsset, CGameScript, CGameObject, or CComponent.");
+		"Ref<T>: T must be CGameCanvas or derive from IAsset, CGameScript, CGameObject, or CComponent.");
 
 	// 에셋 참조는 T 가 자기 자산 타입을 컴파일타임에 알려줘야 한다 — Get() 이 RTTI 대신
 	// 그 값으로 타입을 확인한다. 짝이 없는 클래스(여러 자산 타입을 겸하는 CFileAsset 등)를
@@ -86,7 +86,7 @@ public:
 		"Ref<T>: asset T must expose `static constexpr EAssetType StaticAssetType()`.");
 
 	static constexpr ERefCategory Category =
-		std::is_same_v<CGameScene, T>     ? ERefCategory::Scene  :
+		std::is_same_v<CGameCanvas, T>     ? ERefCategory::Canvas  :
 		std::is_base_of_v<IAsset, T>      ? ERefCategory::Asset  :
 		std::is_base_of_v<CGameScript, T> ? ERefCategory::Script :
 		std::is_base_of_v<CGameObject, T> ? ERefCategory::Object :
@@ -150,10 +150,10 @@ public:
 			// GameObject(CGameObject) 자체 — InstanceGuid 로 오브젝트 해석.
 			return static_cast<T*>(RefDetail::ResolveObject(Guid));
 		}
-		else if constexpr (ERefCategory::Scene == Category)
+		else if constexpr (ERefCategory::Canvas == Category)
 		{
-			// 씬 — guid 가 아니라 씬 이름으로 SceneManager 에서 해석.
-			return static_cast<T*>(RefDetail::ResolveScene(Guid));
+			// 씬 — guid 가 아니라 씬 이름으로 CanvasManager 에서 해석.
+			return static_cast<T*>(RefDetail::ResolveCanvas(Guid));
 		}
 		else
 		{

@@ -271,14 +271,14 @@ namespace
 			}
 			for (std::uint32_t i = 0; i < buildSceneCount; ++i)
 			{
-				std::string sceneName;
+				std::string canvasName;
 				std::string sceneGuid;
-				if (false == ReadString(payload, cursor, sceneName) || false == ReadString(payload, cursor, sceneGuid))
+				if (false == ReadString(payload, cursor, canvasName) || false == ReadString(payload, cursor, sceneGuid))
 				{
 					SetError(outError, "Binary build manifest build scene entry is invalid.");
 					return false;
 				}
-				outManifest.BuildScenes.push_back(std::move(sceneName));
+				outManifest.BuildScenes.push_back(std::move(canvasName));
 				outManifest.BuildSceneGuids.push_back(std::move(sceneGuid));
 			}
 		}

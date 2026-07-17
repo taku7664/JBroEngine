@@ -5,7 +5,7 @@
 #include "GameFramework/Component/WorldTransform2D.h"
 #include "GameFramework/Object/GameInstance.h"
 #include "GameFramework/Reflection/ReflectionTypes.h"
-#include "GameFramework/Scene/GameLayer.h"
+#include "GameFramework/Canvas/GameLayer.h"
 #include "Utillity/Base/BitFlag.h"
 #include "Utillity/File/FilePath.h"
 #include "Utillity/Pointer/SafePtr.h"
@@ -15,7 +15,7 @@
 #include <type_traits>
 #include <vector>
 
-class CGameScene;
+class CGameCanvas;
 
 // 오브젝트 비트 플래그. 상시 멤버(호스트/DLL/게임 동일 레이아웃 → ABI 안전).
 // 비트의 *의미*는 레이어별로 다를 수 있다(EditorHidden 은 에디터 씬뷰 전용).
@@ -28,24 +28,24 @@ enum EObjectFlags : unsigned int
 // ─────────────────────────────────────────────────────────────────────────────
 //  CGameObject — 씬의 실체 객체(다형성 컴포넌트 구조).
 //
-//  · 고정 크기 → CGameScene 의 TObjectPool<CGameObject> 에 거주(메모리 소유=풀).
+//  · 고정 크기 → CGameCanvas 의 TObjectPool<CGameObject> 에 거주(메모리 소유=풀).
 //  · Transform(Local) / WorldTransform(World) / 계층(Parent·Children)을 멤버로 직접
 //    보유한다 — 컴포넌트가 아니다.
 //  · 컴포넌트는 타입별 풀에 살고, 여기서는 SafePtr 로 참조만 들고 lifetime 을
 //    결정한다(Destroy 시 scene 을 통해 각 풀에서 해제).
 //  · 외부 공유는 SafeFromThis()/SafePtr<CGameObject>.
 //
-//  템플릿 메서드 AddComponent/RemoveComponent 는 CGameScene 완전형이 필요하므로
+//  템플릿 메서드 AddComponent/RemoveComponent 는 CGameCanvas 완전형이 필요하므로
 //  본체는 Scene.h 하단에 정의한다(GetComponent 류는 scene 불필요 → 여기 인라인).
 // ─────────────────────────────────────────────────────────────────────────────
 class CGameObject final : public GameInstance, public EnableSafeFromThis<CGameObject>
 {
 public:
 	CGameObject() = default;
-	CGameObject(CGameScene& scene, const char* name, const File::Guid& instanceGuid)
+	CGameObject(CGameCanvas& scene, const char* name, const File::Guid& instanceGuid)
 		: GameInstance(instanceGuid)
 		, Name(name ? name : "GameObject")
-		, m_scene(&scene)
+		, m_canvas(&scene)
 	{
 	}
 
@@ -101,12 +101,12 @@ public:
 	WorldTransform2D&       GetWorld()           { return World; }
 	const WorldTransform2D& GetWorld()     const { return World; }
 
-	CGameScene* GetScene() const { return m_scene; }
+	CGameCanvas* GetCanvas() const { return m_canvas; }
 	std::uint64_t GetCreationOrder() const { return m_creationOrder; }
 
 	// ── 레이어 ────────────────────────────────────────────────────────────────
 	// 소속 레이어. 불변식: 자식은 항상 부모와 같은 레이어(SetParent 가 서브트리 전파).
-	// 재배정은 CGameScene::MoveObjectToLayer(루트 서브트리 단위)로만 한다.
+	// 재배정은 CGameCanvas::MoveObjectToLayer(루트 서브트리 단위)로만 한다.
 	SafePtr<CGameLayer> GetLayer() const { return m_layer; }
 	// 소속 레이어의 컴포짓 순서 — 렌더 수집이 아이템마다 읽는다(매 프레임). 레이어가 인덱스를
 	// 캐시하므로 O(1). 미배정(로드 과도기 등)은 0 = 맨 아래 레이어로 간주.
@@ -356,8 +356,8 @@ public:
 	void Destroy();
 
 private:
-	friend class CGameScene;
-	friend class CSceneRuntimeAccess;
+	friend class CGameCanvas;
+	friend class CCanvasRuntimeAccess;
 
 	// 계층 링크 조작 — SetParent/ClearParent 내부 전용(예약 식별자 `__` 제거).
 	void AddChildInternal(const SafePtr<CGameObject>& child) { m_children.push_back(child); }
@@ -374,10 +374,10 @@ private:
 	}
 
 	// 소속 레이어를 서브트리 전체에 적용한다 — SetParent(부모 레이어 상속)와
-	// CGameScene::MoveObjectToLayer 전용.
+	// CGameCanvas::MoveObjectToLayer 전용.
 	void SetLayerRecursive(const SafePtr<CGameLayer>& layer);
 
-	CGameScene*                       m_scene = nullptr;
+	CGameCanvas*                       m_canvas = nullptr;
 	// 하이라키 표시/저장용 내부 정렬 키. 변경은 CSceneRuntimeAccess만 수행한다.
 	std::uint64_t                     m_creationOrder = 0;
 	SafePtr<CGameLayer>               m_layer;

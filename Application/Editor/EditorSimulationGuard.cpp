@@ -4,12 +4,12 @@
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
 
 #include "Engine/Core/EngineCore.h"
-#include "Engine/GameFramework/Scene/SceneManager.h"
+#include "Engine/GameFramework/Canvas/CanvasManager.h"
 
 bool EditorSimulationGuard::IsSimulationActive()
 {
-	return Engine.SceneManager.IsValid()
-		&& (Engine.SceneManager->IsSimulationPlaying() || Engine.SceneManager->IsSimulationPaused());
+	return Engine.CanvasManager.IsValid()
+		&& (Engine.CanvasManager->IsSimulationPlaying() || Engine.CanvasManager->IsSimulationPaused());
 }
 
 bool EditorSimulationGuard::CanSaveProject()

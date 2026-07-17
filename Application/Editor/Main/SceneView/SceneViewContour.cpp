@@ -9,9 +9,9 @@
 #include "Engine/GameFramework/Component/Text2D.h"
 #include "Engine/GameFramework/Rendering/TextRenderSystem.h"
 #include "Engine/GameFramework/Component/Transform2D.h"
-#include "Engine/GameFramework/Scene/Scene.h"
-#include "Engine/GameFramework/Scene/SceneRuntimeAccess.h"
-#include "Engine/GameFramework/Scene/SceneTransformUtils.h"
+#include "Engine/GameFramework/Canvas/Canvas.h"
+#include "Engine/GameFramework/Canvas/CanvasRuntimeAccess.h"
+#include "Engine/GameFramework/Canvas/CanvasTransformUtils.h"
 
 #include <unordered_set>
 #include <cmath>
@@ -301,7 +301,7 @@ const std::vector<std::vector<Vector2>>* CSceneViewContour::GetOrBuild(
 
 void CSceneViewContour::DrawOutlinesImGui(
     ImDrawList* dl,
-    const CGameScene& scene,
+    const CGameCanvas& scene,
     IAssetManager* assetMgr,
     const std::vector<CGameObject*>& selectedObjects,
     const ImVec2& vpMin, const ImVec2& vpSize,
@@ -367,7 +367,7 @@ void CSceneViewContour::DrawOutlinesImGui(
     //
     // 포커스 모드에서 자식 클릭: selectedEntities = CollectSubtree(child)
     //   → 자식 + 자식의 모든 자손 각각의 스프라이트를 그림.
-    const CTextRenderSystem* textSystem = CSceneRuntimeAccess::FindSystem<CTextRenderSystem>(scene);
+    const CTextRenderSystem* textSystem = CCanvasRuntimeAccess::FindSystem<CTextRenderSystem>(scene);
     for (CGameObject* object : selectedObjects)
     {
         if (!object || !object->IsActive) continue;

@@ -16,8 +16,8 @@
 #include "GameFramework/Object/GameObject.h"
 #include "GameFramework/Object/Ref.h"
 #include "GameFramework/Reflection/ReflectionRegistry.h"
-#include "GameFramework/Scene/Scene.h"
-#include "GameFramework/Scene/SceneRuntimeAccess.h"
+#include "GameFramework/Canvas/Canvas.h"
+#include "GameFramework/Canvas/CanvasRuntimeAccess.h"
 #include "Utillity/Math/RectT.h"
 #include "yaml-cpp/yaml.h"
 
@@ -910,8 +910,8 @@ YAML::Node WriteComponent(const CComponent& component, std::vector<AssetGuid>* r
 	YAML::Node cn;
 	const char* serializedType = tn;
 	const CGameObject* owner = c->GetOwner().TryGet();
-	const CGameScene* scene = owner ? owner->GetScene() : nullptr;
-	if (const CGameScript* script = scene ? CSceneRuntimeAccess::AsScript(*scene, c) : nullptr)
+	const CGameCanvas* scene = owner ? owner->GetCanvas() : nullptr;
+	if (const CGameScript* script = scene ? CCanvasRuntimeAccess::AsScript(*scene, c) : nullptr)
 	{
 		cn = WriteScriptNode(script, assets);
 		serializedType = "Script";
@@ -1076,13 +1076,13 @@ CComponent* ReadComponentInto(CGameObject& object, const YAML::Node& node,
 	else if (type == "Script")
 	{
 		const std::string scriptTypeName = ReadValueOr<std::string>(node, "ScriptType", ReadValueOr<std::string>(node, "TypeName", ""));
-		if (false == scriptTypeName.empty() && Script.Reflection && object.GetScene())
+		if (false == scriptTypeName.empty() && Script.Reflection && object.GetCanvas())
 		{
 			const ScriptTypeInfo* scriptInfo = Script.Reflection->FindScriptByName(scriptTypeName.c_str());
 			if (scriptInfo)
 			{
-				CGameScript* script = CSceneRuntimeAccess::AddScript(
-					*object.GetScene(),
+				CGameScript* script = CCanvasRuntimeAccess::AddScript(
+					*object.GetCanvas(),
 					object,
 					scriptInfo->Type.Id,
 					*Script.Reflection);
@@ -1100,7 +1100,7 @@ CComponent* ReadComponentInto(CGameObject& object, const YAML::Node& node,
 	else
 	{
 		const ComponentTypeInfo* ti = GetTypeInfo(type.c_str());
-		if (ti && Script.Reflection && Script.Reflection->AddComponent(*object.GetScene(), object, ti->Type.Id))
+		if (ti && Script.Reflection && Script.Reflection->AddComponent(*object.GetCanvas(), object, ti->Type.Id))
 		{
 			const std::vector<SafePtr<CComponent>>& components = object.GetComponents();
 			added = components.empty() ? nullptr : components.back().TryGet();
@@ -1118,11 +1118,11 @@ CComponent* ReadComponentInto(CGameObject& object, const YAML::Node& node,
 		if (false == compGuid.empty())
 		{
 			File::Guid restoredGuid(compGuid);
-			if (CSceneRuntimeAccess::FindComponentByGuid(object, restoredGuid))
+			if (CCanvasRuntimeAccess::FindComponentByGuid(object, restoredGuid))
 			{
 				restoredGuid = File::GenerateGuid();
 			}
-			CSceneRuntimeAccess::SetComponentInstanceGuid(*added, restoredGuid);
+			CCanvasRuntimeAccess::SetComponentInstanceGuid(*added, restoredGuid);
 		}
 	}
 	return added;

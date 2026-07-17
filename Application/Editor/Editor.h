@@ -3,7 +3,7 @@
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
 
 #include "Engine/GameFramework/Object/GameObject.h"    // CGameObject (선택 = SafePtr)
-#include "Engine/GameFramework/Scene/GameLayer.h"      // CGameLayer (레이어 선택 = SafePtr)
+#include "Engine/GameFramework/Canvas/GameLayer.h"      // CGameLayer (레이어 선택 = SafePtr)
 #include "Editor/Command/EditorCommandManager.h"
 #include "Editor/Shortcut/EditorShortcutManager.h"
 #include "Utillity/File/FilePath.h"
@@ -29,7 +29,7 @@ class CProjectSettingsWindow;
 class CSpriteImporterWindow;
 class CAudioImporterWindow;
 class CProjectManager;
-class CGameScene;
+class CGameCanvas;
 
 struct Editor
 {
