@@ -443,6 +443,9 @@
     <ClInclude Include="Core\Asset\CanvasAsset.h">
       <Filter>Header\Core\Asset</Filter>
     </ClInclude>
+    <ClInclude Include="Core\Asset\LayerAsset.h">
+      <Filter>Header\Core\Asset</Filter>
+    </ClInclude>
     <ClInclude Include="Core\Asset\FileAsset.h">
       <Filter>Header\Core\Asset</Filter>
     </ClInclude>
@@ -1250,6 +1253,9 @@
       <Filter>Source\Core\Asset</Filter>
     </ClCompile>
     <ClCompile Include="Core\Asset\CanvasAsset.cpp">
+      <Filter>Source\Core\Asset</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Asset\LayerAsset.cpp">
       <Filter>Source\Core\Asset</Filter>
     </ClCompile>
     <ClCompile Include="Core\Asset\FileAsset.cpp">

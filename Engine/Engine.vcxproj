@@ -337,6 +337,7 @@
     <ClInclude Include="Core\Asset\AssetTypeRules.h" />
     <ClInclude Include="Core\Asset\AssetTypes.h" />
     <ClInclude Include="Core\Asset\CanvasAsset.h" />
+    <ClInclude Include="Core\Asset\LayerAsset.h" />
     <ClInclude Include="Core\Asset\FileAsset.h" />
     <ClInclude Include="Core\Asset\IAsset.h" />
     <ClInclude Include="Core\Asset\IAssetLoader.h" />
@@ -645,6 +646,7 @@
     <ClCompile Include="Core\Asset\AssetRegistry.cpp" />
     <ClCompile Include="Core\Asset\AssetTypeRules.cpp" />
     <ClCompile Include="Core\Asset\CanvasAsset.cpp" />
+    <ClCompile Include="Core\Asset\LayerAsset.cpp" />
     <ClCompile Include="Core\Asset\FileAsset.cpp" />
     <ClCompile Include="Core\Asset\AudioAsset.cpp" />
     <ClCompile Include="Core\Asset\AudioEffectAsset.cpp" />
