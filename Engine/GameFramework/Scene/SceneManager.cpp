@@ -5,6 +5,7 @@
 #include "Core/Asset/IAssetManager.h"
 #include "Core/Asset/AssetRef.inl"   // LoadAsset 반환 AssetRef 의 복사/이동/소멸 인스턴스화
 #include "Core/Asset/CanvasAsset.h"  // 캔버스 자산 텍스트(전환)
+#include "Core/Asset/AssetTypeRules.h"
 #include "Core/Logging/LoggerInternal.h"
 #include "Core/Time/Time.h"
 #include "GameFramework/Scene/Scene.h"
@@ -53,14 +54,32 @@ void CSceneManager::FlushPendingCanvasTransition()
 	}
 
 	// guid 하나로 에디터·패키지가 같은 경로를 탄다 — 경로 폴백도, 이름 등록도 필요 없다.
-	// 전환은 cold path 라 dynamic_cast 해도 된다(프레임 루프가 아니다).
+	//
+	// 실패는 두 갈래고 원인이 전혀 다르다 — 뭉뚱그리면 어디를 고쳐야 할지 알 수 없다.
+	//   · 로드 실패  = guid 가 레지스트리에 없거나(임포트 안 됨/`.jmeta` 문제) 파일을 못 읽음
+	//   · 타입 불일치 = 그 guid 가 캔버스가 아닌 다른 자산을 가리킴
 	AssetRef<IAsset> asset = Script.AssetManager->LoadAsset(AssetGuid(guidText));
-	const CCanvasAsset* canvasAsset = asset.IsValid() ? dynamic_cast<const CCanvasAsset*>(asset.Get()) : nullptr;
-	if (nullptr == canvasAsset)
+	if (false == asset.IsValid())
 	{
-		// 캔버스가 아닌 자산을 가리키고 있어도 여기서 걸린다(Ref 가 타입을 지키지만
-		// guid 를 손으로 넣는 경로도 있다).
-		CSystemLog::Error(std::string("Canvas transition failed (canvas asset not found): ") + guidText);
+		CSystemLog::Error(std::string("Canvas transition failed (asset not loaded - unregistered guid or unreadable file): ") + guidText);
+		return;
+	}
+
+	// 타입 판정은 **자산 타입 enum** 으로 한다 — RTTI(dynamic_cast)를 쓸 이유가 없다.
+	// 타입→클래스는 로더 등록이 지키는 계약이고(Scene = CCanvasAssetLoader = CCanvasAsset),
+	// 검증을 마친 뒤 StaticAssetRefCast 로 내려가는 게 이 엔진의 정식 경로다.
+	// AssetRef 로 받는 것도 계약이다 — strong ref 가 수명을 잡는다(로우 포인터로 빼지 않는다).
+	if (EAssetType::Scene != asset->GetAssetType())
+	{
+		CSystemLog::Error(std::string("Canvas transition failed (asset is not a canvas): ") + guidText
+			+ ", type=" + CAssetTypeRules::GetTypeName(asset->GetAssetType()));
+		return;
+	}
+
+	AssetRef<CCanvasAsset> canvasAsset = StaticAssetRefCast<CCanvasAsset>(asset);
+	if (false == canvasAsset.IsValid())
+	{
+		CSystemLog::Error(std::string("Canvas transition failed (canvas asset cast failed): ") + guidText);
 		return;
 	}
 

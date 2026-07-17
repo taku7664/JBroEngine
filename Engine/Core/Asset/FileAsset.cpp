@@ -97,7 +97,7 @@ OwnerPtr<IAsset> CFileAssetLoader::Load(const AssetLoadDesc& desc)
 		}
 	}
 
-	return MakeOwnerPtr<CFileAsset>(*desc.MetaData, std::move(data));
+	return CreateAsset(*desc.MetaData, std::move(data));
 }
 
 OwnerPtr<IAsset> CFileAssetLoader::CreateAsset(const AssetMetaData& metaData, std::vector<std::uint8_t>&& data) const
