@@ -219,6 +219,20 @@ bool CAssetMetaFile::LoadYaml(std::istream& stream, AssetMetaData& outMetaData)
 		}
 	}
 
+	// 임포터 이름도 현재 타입명으로 맞춘다 — 리네임 이전에 임포트된 .jmeta 는 `Importer: Scene`
+	// 을 적고 있고, 이 문자열은 인스펙터에 **그대로 표시된다**(사용자에게 옛 이름이 보인다).
+	// Type 을 ParseType 이 흡수하는 것과 같은 처리를 이름에도 해 준다 — 여기서 정규화해 두면
+	// 표시도 새 이름이고, 그 자산이 다시 저장될 때 파일도 자연히 옮겨간다.
+	// 타입명이 아닌 임포터(예: "Default")는 ParseType 이 Unknown 을 주므로 원본을 유지한다.
+	if (false == metaData.Importer.empty())
+	{
+		const EAssetType importerType = ParseType(metaData.Importer);
+		if (EAssetType::Unknown != importerType)
+		{
+			metaData.Importer = ToString(importerType);
+		}
+	}
+
 	if (root[YAML_KEY_IMPORT_OPTIONS])
 	{
 		metaData.ImportOptionsYaml = YAML::Dump(root[YAML_KEY_IMPORT_OPTIONS]);

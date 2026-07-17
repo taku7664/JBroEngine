@@ -19,7 +19,7 @@ resources:
   icon-folder:           { path: "Resources/folder.png" }
   icon-file:             { path: "Resources/file.png" }
   icon-file-default:     { path: "Resources/file_default.png" }
-  icon-scene:            { path: "Resources/scene.png" }
+  icon-canvas:           { path: "Resources/canvas.png" }
   icon-script:           { path: "Resources/script.png" }
   icon-material:         { path: "Resources/material.png" }
   icon-object:           { path: "Resources/object.png" }

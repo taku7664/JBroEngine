@@ -507,7 +507,7 @@ public static class JBroPackWriterV2
         // Script-side packaging keeps Sprite/Audio raw-compatible until it is moved to an engine-owned pack tool.
         switch (assetType)
         {
-            case 5: return 4; // Scene -> SerializedScene
+            case 5: return 4; // Canvas -> SerializedCanvas
             case 6: return 5; // Prefab -> SerializedPrefab
             case 2: // Mesh
             case 3: // Material
@@ -672,7 +672,7 @@ function Write-JBroBuildManifest {
     # 빈 문자열 인자는 Windows PowerShell 5.x 의 native-exe splatting 에서 누락되어 인자가
     # 한 칸씩 어긋난다(예: --script-module 뒤 값이 사라져 tool 이 Usage 출력 후 exit 2 →
     # "BuildManifestTool failed to write manifest"). tool 에서 선택 인자인 product-name /
-    # startup-scene / script-module 은 비어 있으면 아예 넘기지 않는다(빈 기본값으로 처리됨).
+    # startup-canvas / script-module 은 비어 있으면 아예 넘기지 않는다(빈 기본값으로 처리됨).
     $args = @(
         "--out", $ManifestPath,
         "--startup-canvas-guid", $StartupCanvasGuid,
@@ -802,7 +802,7 @@ function Invoke-ReleasePackageSmokeTests {
     )
 
     if ([string]::IsNullOrWhiteSpace($StartupCanvasGuid)) {
-        throw "Package smoke failed: startup scene GUID is empty."
+        throw "Package smoke failed: startup canvas GUID is empty."
     }
 
     Test-JBroBinaryFileMagic -Path $ManifestPath -Magic ([byte[]](0x4A,0x42,0x4D,0x41,0x4E,0x31,0x00,0x00)) -Name "build manifest"
@@ -1542,19 +1542,19 @@ if ($Platform -eq "IOS") {
 }
 
 if ([string]::IsNullOrWhiteSpace($projectInfo.Build.StartupCanvas)) {
-    throw "Startup scene is not configured. Set Build.StartupCanvas in the project build settings."
+    throw "Startup canvas is not configured. Set Build.StartupCanvas in the project build settings."
 }
 
-$scenesToValidate = @()
+$canvasesToValidate = @()
 if (-not [string]::IsNullOrWhiteSpace($projectInfo.Build.StartupCanvas)) {
-    $scenesToValidate += $projectInfo.Build.StartupCanvas
+    $canvasesToValidate += $projectInfo.Build.StartupCanvas
 }
-$scenesToValidate += @($projectInfo.Build.BuildCanvases)
-$scenesToValidate = $scenesToValidate | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
-foreach ($scene in $scenesToValidate) {
-    $scenePath = Join-Path $assetPath $scene
-    if (-not (Test-Path -LiteralPath $scenePath)) {
-        throw "Build scene was not found under Contents/Assets: $scene"
+$canvasesToValidate += @($projectInfo.Build.BuildCanvases)
+$canvasesToValidate = $canvasesToValidate | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
+foreach ($canvas in $canvasesToValidate) {
+    $canvasPath = Join-Path $assetPath $canvas
+    if (-not (Test-Path -LiteralPath $canvasPath)) {
+        throw "Build canvas was not found under Contents/Assets: $canvas"
     }
 }
 
@@ -1666,22 +1666,22 @@ $startupCanvasGuid = ""
 if (-not [string]::IsNullOrWhiteSpace($projectInfo.Build.StartupCanvas)) {
     $startupCanvasGuid = Find-JBroAssetGuid -AssetRoot $assetPath -RelativePath $projectInfo.Build.StartupCanvas
     if ([string]::IsNullOrWhiteSpace($startupCanvasGuid)) {
-        throw "Startup scene has no registered asset GUID: $($projectInfo.Build.StartupCanvas)"
+        throw "Startup canvas has no registered asset GUID: $($projectInfo.Build.StartupCanvas)"
     }
 }
 
 # 빌드 씬 목록 + 각 씬 GUID 해석 — 런타임이 startup 외 씬을 GUID 로 선로드한다.
 # GUID 가 없으면(에셋 미등록) release 런타임에서 로드 불가하므로 빌드를 실패시킨다.
-$buildSceneNames = @()
-$buildSceneGuids = @()
-foreach ($scene in $projectInfo.Build.BuildCanvases) {
-    if ([string]::IsNullOrWhiteSpace($scene)) { continue }
-    $canvasGuid = Find-JBroAssetGuid -AssetRoot $assetPath -RelativePath $scene
+$buildCanvasNames = @()
+$buildCanvasGuids = @()
+foreach ($canvas in $projectInfo.Build.BuildCanvases) {
+    if ([string]::IsNullOrWhiteSpace($canvas)) { continue }
+    $canvasGuid = Find-JBroAssetGuid -AssetRoot $assetPath -RelativePath $canvas
     if ([string]::IsNullOrWhiteSpace($canvasGuid)) {
-        throw "Build scene has no registered asset GUID: $scene"
+        throw "Build canvas has no registered asset GUID: $canvas"
     }
-    $buildSceneNames += $scene
-    $buildSceneGuids += $canvasGuid
+    $buildCanvasNames += $canvas
+    $buildCanvasGuids += $canvasGuid
 }
 
 $manifestPath = Join-Path $packageContentDir "build_manifest.jbmanifest"
@@ -1700,8 +1700,8 @@ Write-JBroBuildManifest `
     -ScriptMode $manifestScriptMode `
     -ScriptModule $manifestScriptModule `
     -Orientation $projectInfo.Build.AndroidOrientation `
-    -BuildCanvases $buildSceneNames `
-    -BuildCanvasGuids $buildSceneGuids
+    -BuildCanvases $buildCanvasNames `
+    -BuildCanvasGuids $buildCanvasGuids
 
 Assert-RootArtifactMissing -PackageDir $packageDir -Names @("SDK", "Localization", "Editor")
 

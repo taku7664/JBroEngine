@@ -378,7 +378,7 @@ private:
 	void SetLayerRecursive(const SafePtr<CGameLayer>& layer);
 
 	CGameCanvas*                       m_canvas = nullptr;
-	// 하이라키 표시/저장용 내부 정렬 키. 변경은 CSceneRuntimeAccess만 수행한다.
+	// 하이라키 표시/저장용 내부 정렬 키. 변경은 CCanvasRuntimeAccess만 수행한다.
 	std::uint64_t                     m_creationOrder = 0;
 	SafePtr<CGameLayer>               m_layer;
 	SafePtr<CGameObject>              m_parent;

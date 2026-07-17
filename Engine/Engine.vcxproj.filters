@@ -92,7 +92,7 @@
     <Filter Include="Source\GameFramework\Rendering">
       <UniqueIdentifier>{742220BF-234E-42DB-9431-29A0CFD5392C}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source\GameFramework\Scene">
+    <Filter Include="Source\GameFramework\Canvas">
       <UniqueIdentifier>{D37B3D6A-8F6C-4F5B-A2B6-B3F11DB6D209}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source\GameFramework\Serialization">
@@ -180,7 +180,7 @@
     <Filter Include="Header\GameFramework\Rendering">
       <UniqueIdentifier>{8A9E6E3B-9326-422A-9497-62E86B812D71}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Header\GameFramework\Scene">
+    <Filter Include="Header\GameFramework\Canvas">
       <UniqueIdentifier>{C4E6D094-340C-48B0-BE3A-D077549BA85C}</UniqueIdentifier>
     </Filter>
     <Filter Include="Header\GameFramework\Serialization">
@@ -762,19 +762,19 @@
       <Filter>Header\GameFramework\Rendering</Filter>
     </ClInclude>
     <ClInclude Include="GameFramework\Canvas\CanvasViewport.h">
-      <Filter>Header\GameFramework\Scene</Filter>
+      <Filter>Header\GameFramework\Canvas</Filter>
     </ClInclude>
     <ClInclude Include="GameFramework\Canvas\GameLayer.h">
-      <Filter>Header\GameFramework\Scene</Filter>
+      <Filter>Header\GameFramework\Canvas</Filter>
     </ClInclude>
     <ClInclude Include="GameFramework\Canvas\Canvas.h">
-      <Filter>Header\GameFramework\Scene</Filter>
+      <Filter>Header\GameFramework\Canvas</Filter>
     </ClInclude>
     <ClInclude Include="GameFramework\Canvas\CanvasRuntimeAccess.h">
-      <Filter>Header\GameFramework\Scene</Filter>
+      <Filter>Header\GameFramework\Canvas</Filter>
     </ClInclude>
     <ClInclude Include="GameFramework\Canvas\CanvasManager.h">
-      <Filter>Header\GameFramework\Scene</Filter>
+      <Filter>Header\GameFramework\Canvas</Filter>
     </ClInclude>
     <ClInclude Include="GameFramework\Serialization\ComponentSerializer.h">
       <Filter>Header\GameFramework\Serialization</Filter>
@@ -786,10 +786,10 @@
       <Filter>Header\GameFramework\Serialization</Filter>
     </ClInclude>
     <ClInclude Include="GameFramework\Canvas\CanvasSerializer.h">
-      <Filter>Header\GameFramework\Scene</Filter>
+      <Filter>Header\GameFramework\Canvas</Filter>
     </ClInclude>
     <ClInclude Include="GameFramework\Canvas\CanvasTypes.h">
-      <Filter>Header\GameFramework\Scene</Filter>
+      <Filter>Header\GameFramework\Canvas</Filter>
     </ClInclude>
     <ClInclude Include="GameFramework\System\GameSystem.h">
       <Filter>Header\GameFramework\System</Filter>
@@ -1469,10 +1469,10 @@
       <Filter>Source\GameFramework\Rendering</Filter>
     </ClCompile>
     <ClCompile Include="GameFramework\Canvas\Canvas.cpp">
-      <Filter>Source\GameFramework\Scene</Filter>
+      <Filter>Source\GameFramework\Canvas</Filter>
     </ClCompile>
     <ClCompile Include="GameFramework\Canvas\CanvasManager.cpp">
-      <Filter>Source\GameFramework\Scene</Filter>
+      <Filter>Source\GameFramework\Canvas</Filter>
     </ClCompile>
     <ClCompile Include="GameFramework\Serialization\ComponentSerializer.cpp">
       <Filter>Source\GameFramework\Serialization</Filter>
@@ -1484,7 +1484,7 @@
       <Filter>Source\GameFramework\Serialization</Filter>
     </ClCompile>
     <ClCompile Include="GameFramework\Canvas\CanvasSerializer.cpp">
-      <Filter>Source\GameFramework\Scene</Filter>
+      <Filter>Source\GameFramework\Canvas</Filter>
     </ClCompile>
     <ClCompile Include="GameFramework\System\GameSystem.cpp">
       <Filter>Source\GameFramework\System</Filter>
