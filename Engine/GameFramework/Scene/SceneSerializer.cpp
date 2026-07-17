@@ -403,8 +403,12 @@ ESceneSerializeResult CSceneSerializer::DeserializeFromText(CGameScene& scene, c
 	return result;
 }
 
-ESceneSerializeResult CSceneSerializer::TransitionFromText(CGameScene& canvas, const char* text) const
+ESceneSerializeResult CSceneSerializer::TransitionFromText(CGameScene& canvas,
+                                                           const char* text,
+                                                           std::vector<SafePtr<CGameLayer>>& outInheritedLayers) const
 {
+	outInheritedLayers.clear();
+
 	YAML::Node root;
 	const ESceneSerializeResult parsed = ParseCanvasRoot(text, root);
 	if (ESceneSerializeResult::Success != parsed)
@@ -451,6 +455,21 @@ ESceneSerializeResult CSceneSerializer::TransitionFromText(CGameScene& canvas, c
 	std::vector<AssetGuid> referencedAssets;
 	const ESceneSerializeResult result = ReadCanvasBody(canvas, root, inherited, referencedAssets);
 	canvas.SetReferencedAssets(std::move(referencedAssets));
+
+	// 승계 목록은 성공했을 때만 돌려준다 — 반쯤 전환된 캔버스에 훅을 보내면 스크립트가 새
+	// 캔버스라고 믿고 자기 상태를 재구성하는데 정작 캔버스는 옛 것과 새 것이 섞여 있다.
+	// `inherited` 는 파일의 레이어 노드와 자리를 맞춘 배열이라 승계 없는 칸이 nullptr 로 남는다.
+	if (ESceneSerializeResult::Success == result)
+	{
+		outInheritedLayers.reserve(inherited.size());
+		for (CGameLayer* layer : inherited)
+		{
+			if (nullptr != layer)
+			{
+				outInheritedLayers.push_back(layer->SafeFromThis());
+			}
+		}
+	}
 	return result;
 }
 

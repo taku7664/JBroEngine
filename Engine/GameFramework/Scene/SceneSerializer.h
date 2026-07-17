@@ -2,6 +2,7 @@
 
 #include "Core/Asset/AssetTypes.h"
 #include "GameFramework/Scene/SceneTypes.h"
+#include "Utillity/Pointer/SafePtr.h"
 
 #include <string>
 #include <vector>
@@ -25,7 +26,13 @@ public:
 	// 오브젝트·스크립트·SafePtr·Ref 는 무손상으로 넘어오고, 컴포짓 속성과 스택 위치만 수신
 	// 캔버스 저작으로 덮인다.
 	// 승계 대상이 하나도 없으면 DeserializeFromText 와 결과가 같다(그대로 위임한다).
-	ESceneSerializeResult TransitionFromText(CGameScene& canvas, const char* text) const;
+	//
+	// outInheritedLayers = 실제로 승계된 레이어들(중복·nullptr 없음). 호출자가 전환을 끝낸 뒤
+	// OnCanvasChanged 를 보낼 대상이다 — 훅은 이름·참조 에셋까지 갱신된 다음에 나가야 해서
+	// 여기서 직접 보내지 않고 목록만 돌려준다. 승계 0개면 비어 있다.
+	ESceneSerializeResult TransitionFromText(CGameScene& canvas,
+	                                         const char* text,
+	                                         std::vector<SafePtr<CGameLayer>>& outInheritedLayers) const;
 
 	ESceneSerializeResult SaveToFile(CGameScene& scene, const File::Path& path) const;
 	ESceneSerializeResult LoadFromFile(CGameScene& scene, const File::Path& path) const;

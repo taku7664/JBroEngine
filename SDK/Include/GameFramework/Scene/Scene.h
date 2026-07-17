@@ -249,6 +249,11 @@ private:
 	// 인스턴스는 시뮬레이션(재생) 중에만 존재하므로 편집 모드에선 자연히 no-op.
 	void DispatchSurfaceEventToScripts(const SurfaceEvent& surfaceEvent);
 
+	// 캔버스 전환 직후 **승계된 레이어**의 스크립트에만 OnCanvasChanged 를 1회 전달한다.
+	// 전환이 완전히 끝난 뒤(이름·참조 에셋 갱신 후) 부를 것 — 훅이 보는 캔버스는 새 것이어야 한다.
+	// 신규 로드 레이어는 목록에 없어 자연히 제외된다(그쪽은 OnStart 가 같은 자리를 맡는다).
+	void DispatchCanvasChangedToScripts(const std::vector<SafePtr<CGameLayer>>& inheritedLayers);
+
 public:
 	CPhysics2DSystem* GetPhysics2DSystem();
 	const CPhysics2DSystem* GetPhysics2DSystem() const;

@@ -85,7 +85,8 @@ void CSceneManager::FlushPendingCanvasTransition()
 
 	const std::string text(canvasAsset->GetText());
 	CSceneSerializer serializer;
-	if (ESceneSerializeResult::Success != serializer.TransitionFromText(*canvas, text.c_str()))
+	std::vector<SafePtr<CGameLayer>> inheritedLayers;
+	if (ESceneSerializeResult::Success != serializer.TransitionFromText(*canvas, text.c_str(), inheritedLayers))
 	{
 		CSystemLog::Error(std::string("Canvas transition failed (load error): ") + guidText);
 		return;
@@ -94,6 +95,10 @@ void CSceneManager::FlushPendingCanvasTransition()
 	// 캔버스 이름은 여전히 파일 키다(에디터 문서 키·Ref<GameScene> 해석) — 자산 메타에서 꺼낸다.
 	SetCanvasName(canvasAsset->GetMetaData().Path.generic_string().c_str());
 	RefreshReferencedAssets();
+
+	// 훅은 **맨 마지막**이다 — 승계 스크립트가 여기서 새 캔버스를 기준으로 자기를 다시 잡는데
+	// (스폰 재배치·속도 리셋·UI 정리), 이름이나 참조 에셋이 아직 옛 것이면 그 판단이 틀린다.
+	canvas->DispatchCanvasChangedToScripts(inheritedLayers);
 }
 
 // GetActiveScene() 은 SceneManager.h 에 인라인으로 정의됨(DLL 링크 클로저에서

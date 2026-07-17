@@ -1031,6 +1031,44 @@ void CGameScene::DispatchSurfaceEventToScripts(const SurfaceEvent& surfaceEvent)
 	}
 }
 
+void CGameScene::DispatchCanvasChangedToScripts(const std::vector<SafePtr<CGameLayer>>& inheritedLayers)
+{
+	if (inheritedLayers.empty())
+	{
+		return;
+	}
+
+	EnsureScriptExecutionOrder();
+	// 훅(유저 스크립트)이 스폰·Ref 해석으로 캐시를 재빌드하지 못하게 순회 잠금.
+	ScriptIterationGuard iterationGuard(*this);
+	for (ScriptRuntimeState* runtime : m_scriptExecutionOrder)
+	{
+		CGameScript* instance = runtime ? runtime->Instance : nullptr;
+		if (nullptr == instance)
+		{
+			continue;
+		}
+
+		const CGameObject* owner = instance->GetOwner().TryGet();
+		if (nullptr == owner)
+		{
+			continue;
+		}
+
+		// 승계 레이어 소속만 — 선형 검색이지만 전환 1회당 (스크립트 수 × 레이어 수)이고
+		// 레이어는 몇 개뿐이다. 프레임 경로가 아니라 전환 경로다.
+		const CGameLayer* layer = owner->GetLayer().TryGet();
+		const bool isInherited = std::any_of(
+			inheritedLayers.begin(),
+			inheritedLayers.end(),
+			[layer](const SafePtr<CGameLayer>& inherited) { return nullptr != layer && inherited.TryGet() == layer; });
+		if (isInherited)
+		{
+			instance->CanvasChanged(*this);
+		}
+	}
+}
+
 CPhysics2DSystem* CGameScene::GetPhysics2DSystem()
 {
 	return m_physicsSystem.Get();

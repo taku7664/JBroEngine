@@ -80,6 +80,14 @@ void CGameScript::Destroy()
 	m_scene.Reset();
 }
 
+void CGameScript::CanvasChanged(CGameScene& canvas)
+{
+	if (m_isStarted)
+	{
+		OnCanvasChanged(canvas);
+	}
+}
+
 void CGameScript::ApplicationFocusGained()
 {
 	if (m_isStarted)

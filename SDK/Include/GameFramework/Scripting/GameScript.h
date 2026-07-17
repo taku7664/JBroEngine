@@ -63,6 +63,17 @@ protected:
 	virtual void OnFixedUpdate() {}
 	virtual void OnDestroy() {}
 
+	// 캔버스 전환에서 **승계된** 레이어의 스크립트에만 전환 직후 1회 호출된다(설계 13·14차).
+	// 승계는 "생존"을 보장할 뿐 "재맥락화"를 보장하지 않는다 — 인스턴스는 옛 캔버스의 상태를
+	// 그대로 들고 넘어온다. 스폰 지점 재배치·물리 속도 리셋·UI 정리처럼 새 캔버스 기준으로
+	// 다시 잡아야 하는 것이 여기 자리다.
+	// 호출 시점은 전환이 완전히 끝난 뒤다 — 캔버스 이름·레이어 구성·참조 에셋이 모두 새 것이다.
+	// 승계되지 않은 레이어는 파괴 후 재로드되므로 OnStart 가 그 자리를 대신한다.
+	//
+	// canvas = 전환이 끝난 캔버스. 런타임 캔버스는 하나뿐이라 GetScene() 과 같은 객체지만,
+	// 재맥락화가 캔버스를 읽기만 하는 일이 아니라서(레이어 조회 등) non-const 로 준다.
+	virtual void OnCanvasChanged(CGameScene& /*canvas*/) {}
+
 	// 윈도우 이벤트 훅(스크립트가 override). 인자는 Utillity 타입만 사용.
 	virtual void OnApplicationFocusGained() {}
 	virtual void OnApplicationFocusLost() {}
@@ -94,6 +105,9 @@ private:
 	void FixedUpdate();
 	void Destroy();
 	bool IsStarted() const;
+
+	// 캔버스 전환 완료 후 CGameScene 이 승계 레이어의 스크립트에만 호출하는 디스패치 진입점.
+	void CanvasChanged(CGameScene& canvas);
 
 	// 호스트가 윈도우 이벤트를 받아 호출하는 디스패치 진입점(시작된 인스턴스에만 전달).
 	void ApplicationFocusGained();
