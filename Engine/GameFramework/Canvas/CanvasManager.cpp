@@ -69,7 +69,7 @@ void CCanvasManager::FlushPendingCanvasTransition()
 	// 타입→클래스는 로더 등록이 지키는 계약이고(Scene = CCanvasAssetLoader = CCanvasAsset),
 	// 검증을 마친 뒤 StaticAssetRefCast 로 내려가는 게 이 엔진의 정식 경로다.
 	// AssetRef 로 받는 것도 계약이다 — strong ref 가 수명을 잡는다(로우 포인터로 빼지 않는다).
-	if (EAssetType::Scene != asset->GetAssetType())
+	if (EAssetType::Canvas != asset->GetAssetType())
 	{
 		CSystemLog::Error(std::string("Canvas transition failed (asset is not a canvas): ") + guidText
 			+ ", type=" + CAssetTypeRules::GetTypeName(asset->GetAssetType()));

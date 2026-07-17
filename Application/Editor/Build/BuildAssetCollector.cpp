@@ -16,7 +16,7 @@ namespace
 	// 그 외 타입은 리프이므로 파일 접근이 필요 없다.
 	bool TypeHasDependencies(EAssetType type)
 	{
-		return EAssetType::Scene == type
+		return EAssetType::Canvas == type
 			|| EAssetType::Prefab == type
 			|| EAssetType::Layer == type
 			|| EAssetType::FontFamily == type;

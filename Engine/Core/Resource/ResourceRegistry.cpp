@@ -17,7 +17,7 @@ namespace
 		if (s == "Mesh")      return EAssetType::Mesh;
 		if (s == "Material")  return EAssetType::Material;
 		if (s == "Shader")    return EAssetType::Shader;
-		if (s == "Scene")     return EAssetType::Scene;
+		if (s == "Scene")     return EAssetType::Canvas;
 		if (s == "Prefab")    return EAssetType::Prefab;
 		if (s == "Script")    return EAssetType::Script;
 		if (s == "Audio")     return EAssetType::Audio;

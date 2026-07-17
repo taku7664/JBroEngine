@@ -35,7 +35,7 @@ void CDefaultAssetOpenHandler::Open(CAssetBrowserTool& browser, const AssetBrows
 bool CCanvasAssetOpenHandler::CanOpen(const AssetBrowserEntry& entry) const
 {
 	return false == entry.IsDirectory
-		&& (EAssetType::Scene == entry.Type || entry.ExtensionUtf8 == ".jcanvas");
+		&& (EAssetType::Canvas == entry.Type || entry.ExtensionUtf8 == ".jcanvas");
 }
 
 void CCanvasAssetOpenHandler::Open(CAssetBrowserTool&, const AssetBrowserEntry& entry)

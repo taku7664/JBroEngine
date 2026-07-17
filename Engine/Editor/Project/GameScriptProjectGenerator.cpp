@@ -91,7 +91,7 @@ namespace
 		case EAssetType::Mesh: return "EAssetType::Mesh";
 		case EAssetType::Material: return "EAssetType::Material";
 		case EAssetType::Shader: return "EAssetType::Shader";
-		case EAssetType::Scene: return "EAssetType::Scene";
+		case EAssetType::Canvas: return "EAssetType::Canvas";
 		case EAssetType::Prefab: return "EAssetType::Prefab";
 		case EAssetType::Script: return "EAssetType::Script";
 		case EAssetType::Audio: return "EAssetType::Audio";

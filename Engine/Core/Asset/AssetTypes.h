@@ -21,7 +21,8 @@ enum class EAssetType
 	Mesh,
 	Material,
 	Shader,
-	Scene,
+	Canvas,      // .jcanvas — 구 이름 Scene. 정수값(5)은 그대로 둘 것(BuildGame.ps1 이 하드코딩).
+	             // 리네임 이전에 저장된 `.jmeta` 는 "Scene" 을 적고 있고, ParseType 이 계속 받아 준다.
 	Prefab,
 	Script,
 	Audio,

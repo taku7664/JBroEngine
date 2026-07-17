@@ -240,8 +240,8 @@ const char* CAssetMetaFile::ToString(EAssetType type)
 		return "Material";
 	case EAssetType::Shader:
 		return "Shader";
-	case EAssetType::Scene:
-		return "Scene";
+	case EAssetType::Canvas:
+		return "Canvas";
 	case EAssetType::Prefab:
 		return "Prefab";
 	case EAssetType::Script:
@@ -271,7 +271,9 @@ EAssetType CAssetMetaFile::ParseType(const std::string& value)
 	if (value == "Mesh") return EAssetType::Mesh;
 	if (value == "Material") return EAssetType::Material;
 	if (value == "Shader") return EAssetType::Shader;
-	if (value == "Scene") return EAssetType::Scene;
+	// Scene 폐기 — 리네임 이전에 임포트된 `.jmeta` 는 전부 "Scene" 을 적고 있다(Texture 와 같은 처리).
+	if (value == "Scene") return EAssetType::Canvas;
+	if (value == "Canvas") return EAssetType::Canvas;
 	if (value == "Prefab") return EAssetType::Prefab;
 	if (value == "Script") return EAssetType::Script;
 	if (value == "Audio")  return EAssetType::Audio;

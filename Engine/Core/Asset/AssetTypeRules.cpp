@@ -45,7 +45,7 @@ namespace
 		{ EAssetType::Mesh,       "Mesh",        MakeExtensionList(MESH_EXTENSIONS) },
 		{ EAssetType::Material,   "Material",    MakeExtensionList(MATERIAL_EXTENSIONS) },
 		{ EAssetType::Shader,     "Shader",      MakeExtensionList(SHADER_EXTENSIONS) },
-		{ EAssetType::Scene,      "Scene",       MakeExtensionList(CANVAS_EXTENSIONS) },
+		{ EAssetType::Canvas,     "Canvas",      MakeExtensionList(CANVAS_EXTENSIONS) },
 		{ EAssetType::Prefab,     "Prefab",      MakeExtensionList(PREFAB_EXTENSIONS) },
 		{ EAssetType::Script,     "Script",      MakeExtensionList(SCRIPT_EXTENSIONS) },
 		{ EAssetType::Audio,      "Audio",       MakeExtensionList(AUDIO_EXTENSIONS) },
@@ -211,12 +211,13 @@ EAssetType CAssetTypeRules::ParseTypeName(const std::string& name)
 	{
 		return EAssetType::Custom;
 	}
-	// `Ref<CCanvasAsset>` 이 여기로 온다 — NormalizeTypeName 이 C 접두와 Asset 접미를 떼어
-	// "Canvas" 가 되는데, 규칙 이름은 아직 "Scene" 이다. 캔버스-레이어 개편의 코어 리네임
-	// (Type: Scene → Canvas)이 끝나면 이 별칭은 지워도 된다.
-	if (normalized == "Canvas")
+	// legacy — 캔버스는 예전에 "Scene" 이었고, 그때 임포트된 `.jmeta` 는 전부 `Type: Scene` 을
+	// 적고 있다. 읽기는 계속 받아 준다(쓰기는 위 규칙표대로 "Canvas" — 다시 저장되면 옮겨간다).
+	// 지우면 리네임 이전에 임포트된 캔버스가 전부 Unknown 이 되어 참조가 끊긴다.
+	// (`.Jmeta` → `.jmeta` 때 구 확장자를 계속 받아 준 것과 같은 처리다.)
+	if (normalized == "Scene")
 	{
-		return EAssetType::Scene;
+		return EAssetType::Canvas;
 	}
 	return EAssetType::Unknown;
 }

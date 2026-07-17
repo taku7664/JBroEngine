@@ -303,7 +303,7 @@ namespace
 			return "[FAMILY]";
 		case EAssetType::AudioEffect:
 			return "[FX]";
-		case EAssetType::Scene:
+		case EAssetType::Canvas:
 			return "[SCN]";
 		case EAssetType::Prefab:
 			return "[PFB]";
@@ -324,7 +324,7 @@ namespace
 		if (entry.IsDirectory) return "icon-folder";
 		switch (entry.Type)
 		{
-		case EAssetType::Scene:
+		case EAssetType::Canvas:
 			return "icon-scene";
 		case EAssetType::Script:
 			return "icon-script";
@@ -922,7 +922,7 @@ void CAssetBrowserTool::ProcessPendingOperations()
 		case EPendingOperationType::CreateScene:
 		{
 			if (false == insideAssetRoot) break;
-			File::Path dst = MakeUniqueFilePath(operation.Path, "NewScene", ".jcanvas");
+			File::Path dst = MakeUniqueFilePath(operation.Path, "NewCanvas", ".jcanvas");
 			if (false == dst.empty() && WriteTextFile(dst, EMPTY_SCENE_YAML))
 			{
 				StartRenameForNewPath(dst);
@@ -2506,7 +2506,7 @@ void CAssetBrowserTool::CommitRename(const File::Path& sourcePath)
 	}
 
 	// 새 이름의 마지막 확장자가 원본과 정확히 같지 않으면 원본 확장자를 강제 부여한다.
-	// 예: 원본이 NewScene.jcanvas 일 때
+	// 예: 원본이 NewCanvas.jcanvas 일 때
 	//   "test.Jcanvas" → 그대로
 	//   "test"        → "test.jcanvas"
 	//   "test.dd"     → "test.dd.jcanvas"

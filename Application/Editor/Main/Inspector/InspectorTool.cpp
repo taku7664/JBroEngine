@@ -2029,7 +2029,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		{
 			DrawFontFamilyEditor(metaData, *assetManager);
 		}
-		else if (EAssetType::Scene == metaData.Type)
+		else if (EAssetType::Canvas == metaData.Type)
 		{
 			// 캔버스 = 임포트 옵션이 아니라 저작 데이터. 열려 있으면 캔버스 뷰의 캔버스 노드와
 			// 같은 패널을 여기서도 띄운다(사용자 확정: 선택 경로는 양쪽 다).

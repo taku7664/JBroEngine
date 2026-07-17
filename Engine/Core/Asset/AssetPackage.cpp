@@ -195,7 +195,7 @@ namespace
 	{
 		switch (type)
 		{
-		case EAssetType::Scene:
+		case EAssetType::Canvas:
 			return EAssetPayloadType::SerializedScene;
 		case EAssetType::Prefab:
 			return EAssetPayloadType::SerializedPrefab;

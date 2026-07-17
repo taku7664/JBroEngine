@@ -34,7 +34,7 @@ namespace
 			return Loc::Text(EditorLocKeys::AssetTypeMaterial);
 		case EAssetType::Shader:
 			return Loc::Text(EditorLocKeys::AssetTypeShader);
-		case EAssetType::Scene:
+		case EAssetType::Canvas:
 			return Loc::Text(EditorLocKeys::AssetTypeScene);
 		case EAssetType::Prefab:
 			return Loc::Text(EditorLocKeys::AssetTypePrefab);

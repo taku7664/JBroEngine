@@ -1425,7 +1425,7 @@ const char* CProjectManager::ImporterNameForType(EAssetType type)
 	case EAssetType::Audio:    return "Audio";
 	case EAssetType::Material: return "Material";
 	case EAssetType::Shader:   return "Shader";
-	case EAssetType::Scene:    return "Scene";
+	case EAssetType::Canvas:    return "Scene";
 	case EAssetType::Prefab:   return "Prefab";
 	case EAssetType::Script:   return "Script";
 	case EAssetType::Mesh:     return "Mesh";
