@@ -29,7 +29,7 @@ const char* AssetBrowserUtils::GetAssetTypeName(EAssetType type)
 	case EAssetType::Mesh: return Loc::Text(EditorLocKeys::AssetTypeMesh);
 	case EAssetType::Material: return Loc::Text(EditorLocKeys::AssetTypeMaterial);
 	case EAssetType::Shader: return Loc::Text(EditorLocKeys::AssetTypeShader);
-	case EAssetType::Canvas: return Loc::Text(EditorLocKeys::AssetTypeScene);
+	case EAssetType::Canvas: return Loc::Text(EditorLocKeys::AssetTypeCanvas);
 	case EAssetType::Prefab: return Loc::Text(EditorLocKeys::AssetTypePrefab);
 	case EAssetType::Script: return Loc::Text(EditorLocKeys::AssetTypeScript);
 	case EAssetType::Audio: return Loc::Text(EditorLocKeys::AssetTypeAudio);

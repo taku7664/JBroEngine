@@ -1,56 +1,56 @@
 #include "pch.h"
 #include "GameSystem.h"
 
-void CGameSystem::Initialize(CGameCanvas& scene)
+void CGameSystem::Initialize(CGameCanvas& canvas)
 {
 	if (m_isInitialized)
 	{
 		return;
 	}
 
-	OnInitialize(scene);
+	OnInitialize(canvas);
 	m_isInitialized = true;
 }
 
-void CGameSystem::Update(CGameCanvas& scene)
+void CGameSystem::Update(CGameCanvas& canvas)
 {
 	if (false == m_isInitialized)
 	{
 		return;
 	}
 
-	OnUpdate(scene);
+	OnUpdate(canvas);
 }
 
-void CGameSystem::FixedUpdate(CGameCanvas& scene)
+void CGameSystem::FixedUpdate(CGameCanvas& canvas)
 {
 	if (false == m_isInitialized)
 	{
 		return;
 	}
 
-	OnFixedUpdate(scene);
+	OnFixedUpdate(canvas);
 }
 
-void CGameSystem::Finalize(CGameCanvas& scene)
+void CGameSystem::Finalize(CGameCanvas& canvas)
 {
 	if (false == m_isInitialized)
 	{
 		return;
 	}
 
-	OnFinalize(scene);
+	OnFinalize(canvas);
 	m_isInitialized = false;
 }
 
-void CGameSystem::SimulationStop(CGameCanvas& scene)
+void CGameSystem::SimulationStop(CGameCanvas& canvas)
 {
 	if (false == m_isInitialized)
 	{
 		return;
 	}
 
-	OnSimulationStop(scene);
+	OnSimulationStop(canvas);
 }
 
 bool CGameSystem::IsInitialized() const

@@ -10,7 +10,7 @@ class IAssetManager;
 //
 // 시드(빌드 캔버스 / 스타트업 캔버스 / Always Include / 기본·폴백 폰트 패밀리)에서 출발해
 // 전이 의존을 BFS 로 전개한다:
-//   · Scene / Prefab  → 파일의 ReferencedAssets (프리팹은 캔버스와 동일 포맷)
+//   · Canvas / Prefab  → 파일의 ReferencedAssets (프리팹은 캔버스와 동일 포맷)
 //   · FontFamily      → 스타일별 FontFace + FallbackFamilies (패밀리는 다시 전개)
 //   · 그 외 타입       → 리프(추가 의존 없음)
 //

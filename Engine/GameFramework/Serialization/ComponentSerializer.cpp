@@ -910,8 +910,8 @@ YAML::Node WriteComponent(const CComponent& component, std::vector<AssetGuid>* r
 	YAML::Node cn;
 	const char* serializedType = tn;
 	const CGameObject* owner = c->GetOwner().TryGet();
-	const CGameCanvas* scene = owner ? owner->GetCanvas() : nullptr;
-	if (const CGameScript* script = scene ? CCanvasRuntimeAccess::AsScript(*scene, c) : nullptr)
+	const CGameCanvas* canvas = owner ? owner->GetCanvas() : nullptr;
+	if (const CGameScript* script = canvas ? CCanvasRuntimeAccess::AsScript(*canvas, c) : nullptr)
 	{
 		cn = WriteScriptNode(script, assets);
 		serializedType = "Script";

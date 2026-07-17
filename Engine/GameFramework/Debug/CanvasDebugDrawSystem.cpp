@@ -48,22 +48,22 @@ namespace
 	}
 }
 
-void SceneDebugDraw::Submit(
-	const CGameCanvas&      scene,
+void CanvasDebugDraw::Submit(
+	const CGameCanvas&      canvas,
 	IDebugDraw2D&      debugDraw,
 	const CGameObject* /*selectedObject*/,
 	float              resW,
 	float              resH,
 	const char*        /*activeCompType*/)
 {
-	// ── 콜라이더(Circle / Polygon) 렌더링은 SceneViewTool Layer 2.8 의 ImGui 경로로 이전됨 ──
+	// ── 콜라이더(Circle / Polygon) 렌더링은 CanvasViewTool Layer 2.8 의 ImGui 경로로 이전됨 ──
 	// CanvasDebugDrawSystem 은 카메라 프러스텀만 담당한다.
 
 	// ── Camera2D frustum rectangles ────────────────────────────────────────────
 	if (resW <= 0.0f || resH <= 0.0f)
 		return;
 
-	scene.ForEach<Camera2D>(
+	canvas.ForEach<Camera2D>(
 		[&](const Camera2D& cam)
 		{
 			const CGameObject* owner = cam.GetOwner().TryGet();

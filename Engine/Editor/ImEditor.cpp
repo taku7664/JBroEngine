@@ -216,41 +216,41 @@ bool CImEditor::TryGetCameraCullingStats(const void* cameraOwnerObject, RenderCu
 	return true;
 }
 
-void CImEditor::RequestSceneViewRenderTarget(std::uint32_t width, std::uint32_t height)
+void CImEditor::RequestCanvasViewRenderTarget(std::uint32_t width, std::uint32_t height)
 {
-	m_sceneViewRequested = 0 != width && 0 != height;
-	if (false == m_sceneViewRequested)
+	m_canvasViewRequested = 0 != width && 0 != height;
+	if (false == m_canvasViewRequested)
 	{
 		return;
 	}
 
-	if (m_sceneViewWidth != width || m_sceneViewHeight != height)
+	if (m_canvasViewWidth != width || m_canvasViewHeight != height)
 	{
-		m_sceneViewRenderTarget.Reset();
-		m_sceneViewWidth  = width;
-		m_sceneViewHeight = height;
+		m_canvasViewRenderTarget.Reset();
+		m_canvasViewWidth  = width;
+		m_canvasViewHeight = height;
 	}
 }
 
 void CImEditor::SetCanvasViewCamera(float posX, float posY, float orthographicSize)
 {
-	m_sceneViewCamX    = posX;
-	m_sceneViewCamY    = posY;
-	m_sceneViewCamSize = orthographicSize > 0.0f ? orthographicSize : 5.0f;
+	m_canvasViewCamX    = posX;
+	m_canvasViewCamY    = posY;
+	m_canvasViewCamSize = orthographicSize > 0.0f ? orthographicSize : 5.0f;
 }
 
-SafePtr<IRHITexture> CImEditor::GetSceneViewRenderTarget() const
+SafePtr<IRHITexture> CImEditor::GetCanvasViewRenderTarget() const
 {
-	return m_sceneViewRenderTarget.GetSafePtr();
+	return m_canvasViewRenderTarget.GetSafePtr();
 }
 
-void* CImEditor::GetSceneViewTextureID() const
+void* CImEditor::GetCanvasViewTextureID() const
 {
-	if (false == static_cast<bool>(m_sceneViewRenderTarget))
+	if (false == static_cast<bool>(m_canvasViewRenderTarget))
 	{
 		return nullptr;
 	}
-	return m_sceneViewRenderTarget->GetNativeHandle().ShaderResourceView;
+	return m_canvasViewRenderTarget->GetNativeHandle().ShaderResourceView;
 }
 
 void CImEditor::RequestLayerThumbnails(std::uint32_t height)
@@ -294,8 +294,8 @@ void CImEditor::RenderLayerThumbnails()
 		return;
 	}
 
-	CGameCanvas* activeScene = Engine.CanvasManager->GetActiveCanvas().TryGet();
-	if (nullptr == activeScene || m_sceneViewLayers.empty())
+	CGameCanvas* activeCanvas = Engine.CanvasManager->GetActiveCanvas().TryGet();
+	if (nullptr == activeCanvas || m_canvasViewLayers.empty())
 	{
 		return;
 	}
@@ -322,10 +322,10 @@ void CImEditor::RenderLayerThumbnails()
 		static_cast<float>(thumbnailHeight) * canvasWidth / std::max(1.0f, canvasHeight)));
 
 	if (m_layerThumbnailWidth != thumbnailWidth || m_layerThumbnailHeight != thumbnailHeight
-		|| m_layerThumbnails.size() != m_sceneViewLayers.size())
+		|| m_layerThumbnails.size() != m_canvasViewLayers.size())
 	{
 		m_layerThumbnails.clear();
-		m_layerThumbnails.resize(m_sceneViewLayers.size());
+		m_layerThumbnails.resize(m_canvasViewLayers.size());
 		m_layerThumbnailWidth  = thumbnailWidth;
 		m_layerThumbnailHeight = thumbnailHeight;
 	}
@@ -339,7 +339,7 @@ void CImEditor::RenderLayerThumbnails()
 	// 뷰포트 렉트(스플릿)·뷰포트별 레이어 필터·패럴랙스가 전부 그 안에 있다. 카메라 하나를
 	// 뽑아 쓰면 스플릿에서 나머지 뷰포트의 내용이 통째로 빠진다.
 	const std::vector<GameRenderViewportDesc> viewports = CollectGameRenderViewports(
-		*activeScene, static_cast<float>(thumbnailWidth), static_cast<float>(thumbnailHeight));
+		*activeCanvas, static_cast<float>(thumbnailWidth), static_cast<float>(thumbnailHeight));
 
 	// 바탕은 불투명으로 — 스프라이트가 premultiplied 로 얹혀 결과 알파가 1 로 유지된다.
 	// (투명 배경이면 ImGui 의 straight-alpha 블렌드에서 색이 어두워진다.)
@@ -347,7 +347,7 @@ void CImEditor::RenderLayerThumbnails()
 	const RenderSurfaceSize thumbnailSize{
 		static_cast<int>(thumbnailWidth), static_cast<int>(thumbnailHeight) };
 
-	for (const GameRenderLayerDesc& layer : m_sceneViewLayers)
+	for (const GameRenderLayerDesc& layer : m_canvasViewLayers)
 	{
 		if (layer.Index >= m_layerThumbnails.size()
 			|| false == static_cast<bool>(m_layerThumbnails[layer.Index]))
@@ -400,9 +400,9 @@ void CImEditor::RequestGameViewRenderTarget(std::uint32_t width, std::uint32_t h
 	}
 }
 
-void CImEditor::SetGameViewScene(SafePtr<CGameCanvas> scene)
+void CImEditor::SetGameViewCanvas(SafePtr<CGameCanvas> canvas)
 {
-	m_gameViewScene = scene;
+	m_gameViewCanvas = canvas;
 }
 
 void* CImEditor::GetGameViewTextureID() const
@@ -580,40 +580,40 @@ void CImEditor::OnPostFinalize()
 {
 }
 
-// ── Scene view focus context ────────────────────────────────────────────────
+// ── Canvas view focus context ────────────────────────────────────────────────
 
-void CImEditor::SetSceneViewFocusContext(std::vector<const void*> contextObjects)
+void CImEditor::SetCanvasViewFocusContext(std::vector<const void*> contextObjects)
 {
-    m_sceneViewFocusActive = !contextObjects.empty();
-    m_sceneViewFocusEntities.clear();
-    for (const void* o : contextObjects) m_sceneViewFocusEntities.insert(o);
+    m_canvasViewFocusActive = !contextObjects.empty();
+    m_canvasViewFocusEntities.clear();
+    for (const void* o : contextObjects) m_canvasViewFocusEntities.insert(o);
 }
 
-void CImEditor::ClearSceneViewFocusContext()
+void CImEditor::ClearCanvasViewFocusContext()
 {
-    m_sceneViewFocusActive = false;
-    m_sceneViewFocusEntities.clear();
+    m_canvasViewFocusActive = false;
+    m_canvasViewFocusEntities.clear();
 }
 
-// ── Scene view selection ────────────────────────────────────────────────────
+// ── Canvas view selection ────────────────────────────────────────────────────
 
-void CImEditor::SetSceneViewSelection(std::vector<const void*> selectedObjects)
+void CImEditor::SetCanvasViewSelection(std::vector<const void*> selectedObjects)
 {
-    m_sceneViewHasSelection = !selectedObjects.empty();
-    m_sceneViewSelectedEntities.clear();
-    for (const void* o : selectedObjects) m_sceneViewSelectedEntities.insert(o);
+    m_canvasViewHasSelection = !selectedObjects.empty();
+    m_canvasViewSelectedEntities.clear();
+    for (const void* o : selectedObjects) m_canvasViewSelectedEntities.insert(o);
 }
 
-void CImEditor::SetSceneViewHidden(std::vector<const void*> hiddenObjects)
+void CImEditor::SetCanvasViewHidden(std::vector<const void*> hiddenObjects)
 {
-    m_sceneViewHidden.clear();
-    for (const void* o : hiddenObjects) m_sceneViewHidden.insert(o);
+    m_canvasViewHidden.clear();
+    for (const void* o : hiddenObjects) m_canvasViewHidden.insert(o);
 }
 
-void CImEditor::ClearSceneViewSelection()
+void CImEditor::ClearCanvasViewSelection()
 {
-    m_sceneViewHasSelection = false;
-    m_sceneViewSelectedEntities.clear();
+    m_canvasViewHasSelection = false;
+    m_canvasViewSelectedEntities.clear();
 }
 
 void CImEditor::OnBeginFrame()
@@ -654,16 +654,16 @@ void CImEditor::OnPrepareRender()
 
 	// 캔버스뷰 레이어 스냅샷 — 편집 뷰가 그리는 대상은 활성 캔버스가다(게임뷰는 자기 캔버스를 따로 지정).
 	// 전 레이어 RT 강제: 에디터에선 레이어별 결과가 그대로 보여야 하고 성능 여유가 있다.
-	m_sceneViewLayers.clear();
+	m_canvasViewLayers.clear();
 	if (Engine.CanvasManager.IsValid())
 	{
-		if (const CGameCanvas* activeScene = Engine.CanvasManager->GetActiveCanvas().TryGet())
+		if (const CGameCanvas* activeCanvas = Engine.CanvasManager->GetActiveCanvas().TryGet())
 		{
-			m_sceneViewLayers = CollectGameRenderLayers(*activeScene, /*forceOwnTextureAll*/ true);
+			m_canvasViewLayers = CollectGameRenderLayers(*activeCanvas, /*forceOwnTextureAll*/ true);
 		}
 	}
 
-	// ── Scene view (editor camera) ────────────────────────────────────────────────
+	// ── Canvas view (editor camera) ────────────────────────────────────────────────
 	//
 	// RT 파이프라인 순서:
 	//   ① 그리드 (DebugDraw, Entity==INVALID)
@@ -671,25 +671,25 @@ void CImEditor::OnPrepareRender()
 	//   ③ [포커스 모드] 흰 반투명 오버레이 + 포커스 스프라이트 + 포커스 콜라이더
 	//      [루트 모드] 모든 콜라이더 (Entity!=INVALID)
 	//   ④ [선택 아웃라인] Alpha Dilation 셰이더
-	if (m_sceneViewRequested && EnsureRT(m_sceneViewRenderTarget, m_sceneViewWidth, m_sceneViewHeight))
+	if (m_canvasViewRequested && EnsureRT(m_canvasViewRenderTarget, m_canvasViewWidth, m_canvasViewHeight))
 	{
-		const int viewW = static_cast<int>(m_sceneViewWidth);
-		const int viewH = static_cast<int>(m_sceneViewHeight);
-		const float camX    = m_sceneViewCamX;
-		const float camY    = m_sceneViewCamY;
-		const float camSize = m_sceneViewCamSize;
+		const int viewW = static_cast<int>(m_canvasViewWidth);
+		const int viewH = static_cast<int>(m_canvasViewHeight);
+		const float camX    = m_canvasViewCamX;
+		const float camY    = m_canvasViewCamY;
+		const float camSize = m_canvasViewCamSize;
 
 		engineCore->Renderer->SetRenderTargetSize(RenderSurfaceSize{ viewW, viewH });
 		engineCore->Renderer->SetViewCamera(camX, camY, camSize);
 
 		// ── Step 0: 선택 마스크 패스 (아웃라인용, BeginRenderPass 밖) ─────────────
-		if (m_sceneViewHasSelection && m_outlineRenderer && !m_sceneViewSelectedEntities.empty())
+		if (m_canvasViewHasSelection && m_outlineRenderer && !m_canvasViewSelectedEntities.empty())
 		{
 			if (CForward2DRenderer* fwd = engineCore->Renderer->AsForward2DRenderer())
 			{
 				m_outlineRenderer->RenderMask(
 					commandContext, *fwd, *engineCore->RenderScene,
-					m_sceneViewSelectedEntities,
+					m_canvasViewSelectedEntities,
 					camX, camY, camSize, viewW, viewH);
 				// 카메라 설정 복원 (RenderMask 내부에서 변경됨)
 				engineCore->Renderer->SetRenderTargetSize(RenderSurfaceSize{ viewW, viewH });
@@ -699,7 +699,7 @@ void CImEditor::OnPrepareRender()
 
 		// ── Step 1~4: 메인 캔버스 패스 ───────────────────────────────────────────────
 		RenderPassDesc rpDesc;
-		rpDesc.ColorAttachment.Target     = m_sceneViewRenderTarget.GetSafePtr();
+		rpDesc.ColorAttachment.Target     = m_canvasViewRenderTarget.GetSafePtr();
 		rpDesc.ColorAttachment.LoadOp     = ERHILoadOp::Clear;
 		rpDesc.ColorAttachment.StoreOp    = ERHIStoreOp::Store;
 		rpDesc.ColorAttachment.ClearColor = Color{ 0.08f, 0.09f, 0.11f, 0.0f };
@@ -720,9 +720,9 @@ void CImEditor::OnPrepareRender()
 		{
 			CForward2DRenderer* fwd = engineCore->Renderer->AsForward2DRenderer();
 			const std::unordered_set<RenderObjectId>* hidden =
-				m_sceneViewHidden.empty() ? nullptr : &m_sceneViewHidden;
+				m_canvasViewHidden.empty() ? nullptr : &m_canvasViewHidden;
 
-			if (nullptr == fwd || m_sceneViewLayers.empty())
+			if (nullptr == fwd || m_canvasViewLayers.empty())
 			{
 				if (fwd && hidden)
 				{
@@ -738,12 +738,12 @@ void CImEditor::OnPrepareRender()
 				commandContext->EndRenderPass();
 
 				RenderPassDesc resumeDesc;
-				resumeDesc.ColorAttachment.Target  = m_sceneViewRenderTarget.GetSafePtr();
+				resumeDesc.ColorAttachment.Target  = m_canvasViewRenderTarget.GetSafePtr();
 				resumeDesc.ColorAttachment.LoadOp  = ERHILoadOp::Load;
 				resumeDesc.ColorAttachment.StoreOp = ERHIStoreOp::Store;
 
 				engineCore->RenderScene->Sort();
-				for (const GameRenderLayerDesc& layer : m_sceneViewLayers)
+				for (const GameRenderLayerDesc& layer : m_canvasViewLayers)
 				{
 					// 비가시/빈 레이어는 스크래치 RT 자체를 빌리지 않는다.
 					if (false == layer.Visible
@@ -797,14 +797,14 @@ void CImEditor::OnPrepareRender()
 			}
 		}
 
-		if (m_sceneViewFocusActive && !m_sceneViewFocusEntities.empty())
+		if (m_canvasViewFocusActive && !m_canvasViewFocusEntities.empty())
 		{
 			// ③ 포커스 모드: 흰 오버레이 → 포커스 스프라이트 → 포커스 콜라이더
 			engineCore->Renderer->FillViewportColor(1.0f, 1.0f, 1.0f, 0.7f);
 
 			if (CForward2DRenderer* fwd = engineCore->Renderer->AsForward2DRenderer())
 			{
-				fwd->RenderFiltered(*engineCore->RenderScene, m_sceneViewFocusEntities);
+				fwd->RenderFiltered(*engineCore->RenderScene, m_canvasViewFocusEntities);
 			}
 
 			if (m_debugRenderer && Engine.DebugDraw2D.IsValid())
@@ -812,7 +812,7 @@ void CImEditor::OnPrepareRender()
 				m_debugRenderer->RenderEntities(
 					commandContext, *Engine.DebugDraw2D,
 					camX, camY, camSize, viewW, viewH,
-					&m_sceneViewFocusEntities);
+					&m_canvasViewFocusEntities);
 			}
 		}
 		else
@@ -828,7 +828,7 @@ void CImEditor::OnPrepareRender()
 		}
 
 		// ④ 선택 아웃라인 합성 (Alpha Dilation)
-		if (m_sceneViewHasSelection && m_outlineRenderer && !m_sceneViewSelectedEntities.empty())
+		if (m_canvasViewHasSelection && m_outlineRenderer && !m_canvasViewSelectedEntities.empty())
 		{
 			m_outlineRenderer->RenderOutline(
 				commandContext,
@@ -845,20 +845,20 @@ void CImEditor::OnPrepareRender()
 	{
 		// 카메라/라이트 스냅샷을 여기(시뮬 이후·렌더 직전)서 수집한다 — GameViewTool
 		// 의 UI 빌드 시점(캔버스 업데이트 전) 수집은 1프레임 지연 카메라를 만든다.
-		if (CGameCanvas* gameViewScene = m_gameViewScene.TryGet())
+		if (CGameCanvas* gameViewCanvas = m_gameViewCanvas.TryGet())
 		{
 			m_gameViewViewports = CollectGameRenderViewports(
-				*gameViewScene,
+				*gameViewCanvas,
 				static_cast<float>(m_gameViewWidth),
 				static_cast<float>(m_gameViewHeight));
-			m_gameViewLights = CollectGameRenderLights(*gameViewScene);
+			m_gameViewLights = CollectGameRenderLights(*gameViewCanvas);
 			// 에디터는 전 레이어를 RT 경유로 강제한다 — 레이어별 결과를 그대로 볼 수 있어야
 			// 썸네일·디버깅이 되기 때문. 화면 결과는 lazy 경로와 동일하고 비용만 다르다.
-			m_gameViewLayers = CollectGameRenderLayers(*gameViewScene, /*forceOwnTextureAll*/ true);
+			m_gameViewLayers = CollectGameRenderLayers(*gameViewCanvas, /*forceOwnTextureAll*/ true);
 		}
 
 		std::vector<GameRenderCameraStats> cameraStats;
-		const CGameCanvas* gameViewScene = m_gameViewScene.TryGet();
+		const CGameCanvas* gameViewCanvas = m_gameViewCanvas.TryGet();
 		RenderGameViewports(
 			*commandContext,
 			*engineCore->Renderer,
@@ -869,7 +869,7 @@ void CImEditor::OnPrepareRender()
 			&cameraStats,
 			m_gameViewLights,
 			m_gameViewLayers,
-			gameViewScene ? gameViewScene->GetBackgroundColor() : nullptr);
+			gameViewCanvas ? gameViewCanvas->GetBackgroundColor() : nullptr);
 		m_gameViewCameraCullingStats.clear();
 		for (const GameRenderCameraStats& stats : cameraStats)
 		{

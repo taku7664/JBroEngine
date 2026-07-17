@@ -25,9 +25,9 @@ namespace
 {
 	// 명령은 오브젝트를 InstanceGuid 로 보관한다(포인터/정수 id 아님).
 	// 실제 조작 시점에 활성 캔버스에서 guid 로 다시 해석한다(파괴→재생성 후에도 안전).
-	CGameObject* Resolve(const SafePtr<CGameCanvas>& scene, const File::Guid& guid)
+	CGameObject* Resolve(const SafePtr<CGameCanvas>& canvas, const File::Guid& guid)
 	{
-		return scene.IsValid() ? scene->FindByInstanceGuid(guid).TryGet() : nullptr;
+		return canvas.IsValid() ? canvas->FindByInstanceGuid(guid).TryGet() : nullptr;
 	}
 
 	File::Guid GuidOf(const CGameObject* object)
@@ -46,8 +46,8 @@ namespace
 	}
 }
 
-CAddComponentCommand::CAddComponentCommand(SafePtr<CGameCanvas> scene, CGameObject* object, TypeId componentTypeId)
-	: m_canvas(scene)
+CAddComponentCommand::CAddComponentCommand(SafePtr<CGameCanvas> canvas, CGameObject* object, TypeId componentTypeId)
+	: m_canvas(canvas)
 	, m_objectGuid(GuidOf(object))
 	, m_componentTypeId(componentTypeId)
 {
@@ -113,8 +113,8 @@ void CAddComponentCommand::Redo()
 	}
 }
 
-CAddScriptCommand::CAddScriptCommand(SafePtr<CGameCanvas> scene, CGameObject* object, TypeId scriptTypeId)
-	: m_canvas(scene)
+CAddScriptCommand::CAddScriptCommand(SafePtr<CGameCanvas> canvas, CGameObject* object, TypeId scriptTypeId)
+	: m_canvas(canvas)
 	, m_objectGuid(GuidOf(object))
 	, m_scriptTypeId(scriptTypeId)
 {
@@ -179,8 +179,8 @@ void CAddScriptCommand::Redo()
 	}
 }
 
-CRemoveScriptCommand::CRemoveScriptCommand(SafePtr<CGameCanvas> scene, CGameObject* object, const File::Guid& componentGuid)
-	: m_canvas(scene), m_objectGuid(GuidOf(object)), m_componentGuid(componentGuid)
+CRemoveScriptCommand::CRemoveScriptCommand(SafePtr<CGameCanvas> canvas, CGameObject* object, const File::Guid& componentGuid)
+	: m_canvas(canvas), m_objectGuid(GuidOf(object)), m_componentGuid(componentGuid)
 {
 	if (object)
 	{
@@ -232,8 +232,8 @@ void CRemoveScriptCommand::Undo()
 }
 void CRemoveScriptCommand::Redo() { if (false == m_removed) Execute(); }
 
-CReorderComponentCommand::CReorderComponentCommand(SafePtr<CGameCanvas> scene, CGameObject* object, const File::Guid& componentGuid, std::size_t oldIndex, std::size_t newIndex)
-	: m_canvas(scene), m_objectGuid(GuidOf(object)), m_componentGuid(componentGuid), m_oldIndex(oldIndex), m_newIndex(newIndex) {}
+CReorderComponentCommand::CReorderComponentCommand(SafePtr<CGameCanvas> canvas, CGameObject* object, const File::Guid& componentGuid, std::size_t oldIndex, std::size_t newIndex)
+	: m_canvas(canvas), m_objectGuid(GuidOf(object)), m_componentGuid(componentGuid), m_oldIndex(oldIndex), m_newIndex(newIndex) {}
 const char* CReorderComponentCommand::GetName() const { return "Reorder Component"; }
 bool CReorderComponentCommand::Move(std::size_t index)
 {
@@ -244,11 +244,11 @@ bool CReorderComponentCommand::Execute() { m_executed = Move(m_newIndex); return
 void CReorderComponentCommand::Undo() { if (m_executed) { Move(m_oldIndex); m_executed = false; } }
 void CReorderComponentCommand::Redo() { if (false == m_executed) m_executed = Move(m_newIndex); }
 
-CCreateGameObjectCommand::CCreateGameObjectCommand(SafePtr<CGameCanvas> scene, const char* name,
+CCreateGameObjectCommand::CCreateGameObjectCommand(SafePtr<CGameCanvas> canvas, const char* name,
                                                    CGameObject* parent,
                                                    const Vector2* spawnWorldPos,
                                                    CGameLayer* layer)
-	: m_canvas(scene)
+	: m_canvas(canvas)
 	, m_name(name ? name : "GameObject")
 	, m_parentGuid(GuidOf(parent))
 	, m_layerGuid(GuidOf(layer))
@@ -344,14 +344,14 @@ CGameObject* CCreateGameObjectCommand::GetEntity() const
 }
 
 CSetComponentPropertyCommand::CSetComponentPropertyCommand(
-	SafePtr<CGameCanvas> scene,
+	SafePtr<CGameCanvas> canvas,
 	CGameObject* object,
 	TypeId componentTypeId,
 	std::size_t propertyOffset,
 	std::vector<std::uint8_t> oldValue,
 	std::vector<std::uint8_t> newValue,
 	const File::Guid& componentGuid)
-	: m_canvas(scene)
+	: m_canvas(canvas)
 	, m_objectGuid(GuidOf(object))
 	, m_componentTypeId(componentTypeId)
 	, m_propertyOffset(propertyOffset)
@@ -423,12 +423,12 @@ bool CSetComponentPropertyCommand::WriteValue(const std::vector<std::uint8_t>& v
 }
 
 CSetComponentEnabledCommand::CSetComponentEnabledCommand(
-	SafePtr<CGameCanvas> scene,
+	SafePtr<CGameCanvas> canvas,
 	CGameObject* object,
 	const File::Guid& componentGuid,
 	bool oldValue,
 	bool newValue)
-	: m_canvas(scene)
+	: m_canvas(canvas)
 	, m_objectGuid(GuidOf(object))
 	, m_componentGuid(componentGuid)
 	, m_oldValue(oldValue)
@@ -470,9 +470,9 @@ bool CSetComponentEnabledCommand::Apply(bool value)
 	return true;
 }
 
-CSetComponentStringPropertyCommand::CSetComponentStringPropertyCommand(SafePtr<CGameCanvas> scene,
+CSetComponentStringPropertyCommand::CSetComponentStringPropertyCommand(SafePtr<CGameCanvas> canvas,
 	CGameObject* object, TypeId componentTypeId, std::size_t propertyOffset, std::string oldValue, std::string newValue, const File::Guid& componentGuid)
-	: m_canvas(scene), m_objectGuid(GuidOf(object)), m_componentTypeId(componentTypeId),
+	: m_canvas(canvas), m_objectGuid(GuidOf(object)), m_componentTypeId(componentTypeId),
 	  m_componentGuid(componentGuid), m_propertyOffset(propertyOffset), m_oldValue(std::move(oldValue)), m_newValue(std::move(newValue)) {}
 
 const char* CSetComponentStringPropertyCommand::GetName() const { return "Set Component String Property"; }
@@ -498,8 +498,8 @@ bool CSetComponentStringPropertyCommand::WriteValue(const std::string& value)
 
 // ── CDeleteGameObjectCommand ──────────────────────────────────────────────────
 
-CDeleteGameObjectCommand::CDeleteGameObjectCommand(SafePtr<CGameCanvas> scene, CGameObject* object)
-	: m_canvas(scene)
+CDeleteGameObjectCommand::CDeleteGameObjectCommand(SafePtr<CGameCanvas> canvas, CGameObject* object)
+	: m_canvas(canvas)
 	, m_objectGuid(GuidOf(object))
 {
 	if (object && m_canvas.IsValid())
@@ -574,9 +574,9 @@ void CDeleteGameObjectCommand::Redo()
 // ── CDeleteGameObjectsCommand ─────────────────────────────────────────────────
 
 CDeleteGameObjectsCommand::CDeleteGameObjectsCommand(
-	SafePtr<CGameCanvas> scene,
+	SafePtr<CGameCanvas> canvas,
 	const std::vector<CGameObject*>& objects)
-	: m_canvas(scene)
+	: m_canvas(canvas)
 {
 	if (false == m_canvas.IsValid())
 	{
@@ -687,9 +687,9 @@ namespace
 	// 오브젝트 guid 는 반드시 캔버스 API(SetObjectInstanceGuid)로 재발급해야 m_objectByGuid 인덱스가
 	// 함께 갱신된다. 직접 대입하면 인덱스가 옛 guid 로 남아 FindByInstanceGuid 가 실패
 	// → 붙여넣은 오브젝트를 기즈모/커맨드가 못 찾아 이동 등 편집이 안 된다.
-	void ReissuePastedGuids(CGameCanvas& scene, CGameObject& object)
+	void ReissuePastedGuids(CGameCanvas& canvas, CGameObject& object)
 	{
-		CCanvasRuntimeAccess::SetObjectInstanceGuid(scene, object, File::GenerateGuid());
+		CCanvasRuntimeAccess::SetObjectInstanceGuid(canvas, object, File::GenerateGuid());
 		for (const SafePtr<CComponent>& cref : object.GetComponents())
 		{
 			if (CComponent* comp = cref.TryGet())
@@ -702,17 +702,17 @@ namespace
 		{
 			if (CGameObject* child = childRef.TryGet())
 			{
-				ReissuePastedGuids(scene, *child);
+				ReissuePastedGuids(canvas, *child);
 			}
 		}
 	}
 }
 
-CPasteObjectsCommand::CPasteObjectsCommand(SafePtr<CGameCanvas> scene, std::string clipboardText,
+CPasteObjectsCommand::CPasteObjectsCommand(SafePtr<CGameCanvas> canvas, std::string clipboardText,
                                            const Vector2* spawnWorldPos,
                                            CGameObject* parent,
                                            CGameLayer* layer)
-	: m_canvas(scene)
+	: m_canvas(canvas)
 	, m_clipboard(std::move(clipboardText))
 	, m_parentGuid(GuidOf(parent))
 	, m_layerGuid(GuidOf(layer))
@@ -876,8 +876,8 @@ std::vector<CGameObject*> CPasteObjectsCommand::GetPastedRoots() const
 
 // ── CRemoveComponentCommand ───────────────────────────────────────────────────
 
-CRemoveComponentCommand::CRemoveComponentCommand(SafePtr<CGameCanvas> scene, CGameObject* object, TypeId componentTypeId, const File::Guid& componentGuid)
-	: m_canvas(scene)
+CRemoveComponentCommand::CRemoveComponentCommand(SafePtr<CGameCanvas> canvas, CGameObject* object, TypeId componentTypeId, const File::Guid& componentGuid)
+	: m_canvas(canvas)
 	, m_objectGuid(GuidOf(object))
 	, m_componentGuid(componentGuid)
 	, m_componentTypeId(componentTypeId)
@@ -935,10 +935,10 @@ void CRemoveComponentCommand::Redo()
 
 // ── CSetObjectTransformCommand ────────────────────────────────────────────────
 
-CSetObjectTransformCommand::CSetObjectTransformCommand(SafePtr<CGameCanvas> scene,
+CSetObjectTransformCommand::CSetObjectTransformCommand(SafePtr<CGameCanvas> canvas,
                                                        const std::vector<CGameObject*>& objects,
                                                        const Transform2D& delta)
-	: m_canvas(scene)
+	: m_canvas(canvas)
 	, m_delta(delta)
 {
 	// 각 대상의 현재 Transform 을 시작값으로 캡처(병렬). guid 로 보관해 파괴/재생성에도 안전.
@@ -1010,11 +1010,11 @@ bool CSetObjectTransformCommand::TryMerge(const IEditorCommand& newer)
 // ── CSetObjectTransformsCommand ───────────────────────────────────────────────
 
 CSetObjectTransformsCommand::CSetObjectTransformsCommand(
-	SafePtr<CGameCanvas> scene,
+	SafePtr<CGameCanvas> canvas,
 	const std::vector<CGameObject*>& objects,
 	const std::vector<Transform2D>& oldTransforms,
 	const std::vector<Transform2D>& newTransforms)
-	: m_canvas(scene)
+	: m_canvas(canvas)
 {
 	const std::size_t count = std::min(objects.size(), std::min(oldTransforms.size(), newTransforms.size()));
 	m_objectGuids.reserve(count);
@@ -1086,8 +1086,8 @@ namespace
 	}
 } // anonymous namespace
 
-CSetParentCommand::CSetParentCommand(SafePtr<CGameCanvas> scene, CGameObject* child, CGameObject* newParent)
-	: m_canvas(scene)
+CSetParentCommand::CSetParentCommand(SafePtr<CGameCanvas> canvas, CGameObject* child, CGameObject* newParent)
+	: m_canvas(canvas)
 	, m_childGuid(GuidOf(child))
 	, m_newParentGuid(GuidOf(newParent))
 {
@@ -1108,14 +1108,14 @@ const char* CSetParentCommand::GetName() const
 namespace
 {
 	// child 의 부모를 newParent(null guid 면 루트)로 설정. 성공 시 true.
-	bool ApplyParent(CGameCanvas& scene, CGameObject& child, const File::Guid& newParentGuid)
+	bool ApplyParent(CGameCanvas& canvas, CGameObject& child, const File::Guid& newParentGuid)
 	{
 		if (newParentGuid.IsNull())
 		{
 			child.ClearParent();
 			return true;
 		}
-		CGameObject* parent = scene.FindByInstanceGuid(newParentGuid).TryGet();
+		CGameObject* parent = canvas.FindByInstanceGuid(newParentGuid).TryGet();
 		return parent ? child.SetParent(*parent) : false;
 	}
 }
@@ -1127,14 +1127,14 @@ bool CSetParentCommand::Execute()
 	{
 		return false;
 	}
-	CGameCanvas& scene = *m_canvas;
+	CGameCanvas& canvas = *m_canvas;
 
 	// ── WorldStay: SetParent 이전 world transform 캡처 ───────────────────────
 	const Matrix3x2 childWorld = GetWorldTransform(*childObject);
-	CGameObject* newParentObject = m_newParentGuid.IsNull() ? nullptr : scene.FindByInstanceGuid(m_newParentGuid).TryGet();
+	CGameObject* newParentObject = m_newParentGuid.IsNull() ? nullptr : canvas.FindByInstanceGuid(m_newParentGuid).TryGet();
 	const Matrix3x2 newParentWorld = newParentObject ? GetWorldTransform(*newParentObject) : Matrix3x2::Identity();
 
-	if (false == ApplyParent(scene, *childObject, m_newParentGuid))
+	if (false == ApplyParent(canvas, *childObject, m_newParentGuid))
 	{
 		return false;   // 사이클/자기자신 등 거부
 	}
@@ -1185,13 +1185,13 @@ void CSetParentCommand::Redo()
 // ── CMoveGameObjectInHierarchyCommand ────────────────────────────────────────
 
 CMoveGameObjectInHierarchyCommand::CMoveGameObjectInHierarchyCommand(
-	SafePtr<CGameCanvas> scene,
+	SafePtr<CGameCanvas> canvas,
 	CGameObject* object,
 	CGameObject* newParent,
 	CGameObject* insertNear,
 	bool insertAfter,
 	CGameLayer* newLayer)
-	: m_canvas(scene)
+	: m_canvas(canvas)
 	, m_objectGuid(GuidOf(object))
 	, m_newParentGuid(GuidOf(newParent))
 	, m_insertNearGuid(GuidOf(insertNear))
@@ -1267,7 +1267,7 @@ bool CMoveGameObjectInHierarchyCommand::Apply(
 		return false;
 	}
 
-	CGameCanvas& scene = *m_canvas;
+	CGameCanvas& canvas = *m_canvas;
 	Transform2D targetLocalTransform = localTransform ? *localTransform : object->GetTransform();
 	if (computeWorldStay)
 	{
@@ -1287,7 +1287,7 @@ bool CMoveGameObjectInHierarchyCommand::Apply(
 		m_newLocalTransform = targetLocalTransform;
 	}
 
-	if (false == ApplyParent(scene, *object, parentGuid))
+	if (false == ApplyParent(canvas, *object, parentGuid))
 	{
 		return false;
 	}
@@ -1295,9 +1295,9 @@ bool CMoveGameObjectInHierarchyCommand::Apply(
 	// 지정 레이어가 덮어써진다. 루트일 때만 유효(자식은 부모 레이어를 따른다).
 	if (parentGuid.IsNull() && false == layerGuid.IsNull())
 	{
-		if (CGameLayer* layer = scene.FindLayerByInstanceGuid(layerGuid).TryGet())
+		if (CGameLayer* layer = canvas.FindLayerByInstanceGuid(layerGuid).TryGet())
 		{
-			scene.MoveObjectToLayer(*object, *layer);
+			canvas.MoveObjectToLayer(*object, *layer);
 		}
 	}
 	object->GetTransform() = targetLocalTransform;
@@ -1342,9 +1342,9 @@ void CMoveGameObjectInHierarchyCommand::RebuildOrder(CGameObject& object)
 	}
 
 	std::vector<CGameObject*> ordered;
-	m_canvas->ForEachObject([&ordered](CGameObject& sceneObject)
+	m_canvas->ForEachObject([&ordered](CGameObject& canvasObject)
 	{
-		ordered.push_back(&sceneObject);
+		ordered.push_back(&canvasObject);
 	});
 	std::sort(ordered.begin(), ordered.end(), [](const CGameObject* lhs, const CGameObject* rhs)
 	{
@@ -1393,10 +1393,10 @@ void CMoveGameObjectInHierarchyCommand::RebuildOrder(CGameObject& object)
 // ── CModifyPolygonVerticesCommand ─────────────────────────────────────────────
 
 CModifyPolygonVerticesCommand::CModifyPolygonVerticesCommand(
-	SafePtr<CGameCanvas>             scene,
+	SafePtr<CGameCanvas>             canvas,
 	CGameObject*                object,
 	std::vector<Vector2> newPoints)
-	: m_canvas(scene)
+	: m_canvas(canvas)
 	, m_objectGuid(GuidOf(object))
 	, m_newPoints(std::move(newPoints))
 {

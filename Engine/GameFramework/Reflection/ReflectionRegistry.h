@@ -17,13 +17,13 @@
 
 class CGameObject;
 
-using ComponentAddFunc              = bool(*)(CGameCanvas& scene, CGameObject& object);
-using ComponentRemoveFunc           = bool(*)(CGameCanvas& scene, CGameObject& object);
+using ComponentAddFunc              = bool(*)(CGameCanvas& canvas, CGameObject& object);
+using ComponentRemoveFunc           = bool(*)(CGameCanvas& canvas, CGameObject& object);
 using ComponentHasFunc              = bool(*)(const CGameObject& object);
 using ComponentAddressFunc          = void*       (*)(CGameObject& object);
 using ConstComponentAddressFunc     = const void* (*)(const CGameObject& object);
 using ComponentAddressesFunc        = std::vector<void*>(*)(CGameObject& object); // 멀티 컴포넌트: 같은 타입 전부
-using ComponentReserveFunc          = void(*)(CGameCanvas& scene, std::size_t capacity);
+using ComponentReserveFunc          = void(*)(CGameCanvas& canvas, std::size_t capacity);
 
 // 스크립트 인스턴스 팩토리 함수 타입
 using CreateScriptFunc = CGameScript*(*)(
@@ -56,7 +56,7 @@ struct ComponentTypeInfo
 	ComponentAddressFunc      GetAddress      = nullptr;   // 첫 인스턴스(없으면 nullptr)
 	ComponentAddressesFunc    GetAddresses    = nullptr;   // 같은 타입 전부
 	ConstComponentAddressFunc GetConstAddress = nullptr;
-	ComponentReserveFunc      ReserveInScene  = nullptr;
+	ComponentReserveFunc      ReserveInCanvas  = nullptr;
 	bool CanAddToObject = true;
 	EComponentMultiplicity Multiplicity = EComponentMultiplicity::Multiple;
 };
@@ -124,14 +124,14 @@ public:
 	bool UnregisterScript(TypeId typeId);
 
 	// 등록된 스크립트 타입의 인스턴스를 생성합니다. 호출자는 DestroyScriptInstance로 파괴해야 합니다.
-	ScriptInstanceHandle CreateScriptInstance(TypeId typeId, CGameCanvas& scene, CGameObject& owner) const;
-	static void ForgetScriptAllocationsForScene(const CGameCanvas& scene);
+	ScriptInstanceHandle CreateScriptInstance(TypeId typeId, CGameCanvas& canvas, CGameObject& owner) const;
+	static void ForgetScriptAllocationsForCanvas(const CGameCanvas& canvas);
 
-	bool AddComponent(CGameCanvas& scene, CGameObject& object, TypeId typeId) const;
-	bool ReserveComponentPool(CGameCanvas& scene, TypeId typeId, std::size_t capacity) const;
+	bool AddComponent(CGameCanvas& canvas, CGameObject& object, TypeId typeId) const;
+	bool ReserveComponentPool(CGameCanvas& canvas, TypeId typeId, std::size_t capacity) const;
 	bool CanAddComponent(const CGameObject& object, TypeId typeId) const;
-	bool RemoveComponent(CGameCanvas& scene, CGameObject& object, TypeId typeId) const;
-	bool RemoveComponentByGuid(CGameCanvas& scene, CGameObject& object, TypeId typeId, const File::Guid& componentGuid) const;
+	bool RemoveComponent(CGameCanvas& canvas, CGameObject& object, TypeId typeId) const;
+	bool RemoveComponentByGuid(CGameCanvas& canvas, CGameObject& object, TypeId typeId, const File::Guid& componentGuid) const;
 	bool HasComponent(const CGameObject& object, TypeId typeId) const;
 	void* GetComponentAddress(CGameObject& object, TypeId typeId) const;
 	const void* GetComponentAddress(const CGameObject& object, TypeId typeId) const;
@@ -177,15 +177,15 @@ CComponentRegistration CReflectionRegistry::RegisterComponent(const ComponentReg
 	typeInfo.Type.Alignment = alignof(T);
 	typeInfo.CanAddToObject = desc.CanAddToEntity;
 	typeInfo.Multiplicity = desc.Multiplicity;
-	typeInfo.AddToObject = [](CGameCanvas& scene, CGameObject& object) -> bool {
-		return nullptr != scene.AddComponent<T>(object);
+	typeInfo.AddToObject = [](CGameCanvas& canvas, CGameObject& object) -> bool {
+		return nullptr != canvas.AddComponent<T>(object);
 	};
-	typeInfo.RemoveFromObject = [](CGameCanvas& scene, CGameObject& object) -> bool {
+	typeInfo.RemoveFromObject = [](CGameCanvas& canvas, CGameObject& object) -> bool {
 		if (false == object.HasComponent<T>())
 		{
 			return false;
 		}
-		scene.RemoveComponent<T>(object);
+		canvas.RemoveComponent<T>(object);
 		return true;
 	};
 	typeInfo.HasComponent = [](const CGameObject& object) -> bool {
@@ -205,8 +205,8 @@ CComponentRegistration CReflectionRegistry::RegisterComponent(const ComponentReg
 	typeInfo.GetConstAddress = [](const CGameObject& object) -> const void* {
 		return object.GetComponent<T>();
 	};
-	typeInfo.ReserveInScene = [](CGameCanvas& scene, std::size_t capacity) {
-		scene.ReserveComponentPool<T>(capacity);
+	typeInfo.ReserveInCanvas = [](CGameCanvas& canvas, std::size_t capacity) {
+		canvas.ReserveComponentPool<T>(capacity);
 	};
 
 	ComponentTypeInfo* registeredType = RegisterComponentInternal(std::move(typeInfo));

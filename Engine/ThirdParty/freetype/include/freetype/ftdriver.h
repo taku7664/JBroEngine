@@ -182,7 +182,7 @@ FT_BEGIN_HEADER
    *   It is possible to control the behaviour of FreeType's Type~1 and
    *   Type~1 CID drivers with @FT_Property_Set and @FT_Property_Get.
    *
-   *   Behind the scenes, both drivers use the Adobe CFF engine for hinting;
+   *   Behind the canvases, both drivers use the Adobe CFF engine for hinting;
    *   however, the used properties must be specified separately.
    *
    *   The Type~1 driver's module name is 'type1'; the CID driver's module

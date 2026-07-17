@@ -499,6 +499,7 @@
     <ClInclude Include="Editor\ScriptModule\ScriptModuleLoader.h" />
     <ClInclude Include="Editor\Project\GameScriptProjectGenerator.h" />
     <ClInclude Include="Editor\Project\ProjectManager.h" />
+    <ClInclude Include="Editor\Project\ImGuiIniMigration.h" />
     <ClInclude Include="Editor\Project\AssetDatabase.h" />
     <ClInclude Include="Editor\Project\ProjectTypes.h" />
     <ClInclude Include="Framework.h" />
@@ -785,6 +786,9 @@
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="Editor\Project\ProjectManager.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Editor\Project\ImGuiIniMigration.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="Editor\Project\AssetDatabase.cpp">

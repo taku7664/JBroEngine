@@ -150,7 +150,7 @@ GuizmoFrameResult CGuizmo2D::UpdateAndDraw(const GuizmoFrameContext& context,
 		return result;
 	}
 
-	if (nullptr == context.Scene || nullptr == context.DrawList || context.Selection.empty())
+	if (nullptr == context.Canvas || nullptr == context.DrawList || context.Selection.empty())
 	{
 		return result;
 	}
@@ -165,7 +165,7 @@ GuizmoFrameResult CGuizmo2D::UpdateAndDraw(const GuizmoFrameContext& context,
 	CalculateTranslateBasis(context, space, translateAxisX, translateAxisY);
 
 	EGuizmoHandle2D hotHandle = EGuizmoHandle2D::None;
-	if (context.IsSceneViewHovered && false == context.IsBlockedByOverlay)
+	if (context.IsCanvasViewHovered && false == context.IsBlockedByOverlay)
 	{
 		if (mode == EGuizmoMode::Rotate)
 		{
@@ -726,11 +726,11 @@ void CGuizmo2D::EndDrag(const GuizmoFrameContext& context, bool commit)
 		snapshot.Object->GetTransform() = snapshot.InitialTransform;
 	}
 
-	if (commit && changed && nullptr != context.Scene)
+	if (commit && changed && nullptr != context.Canvas)
 	{
 		Editor::CommandManager.ExecuteCommand(
 			MakeOwnerPtr<CSetObjectTransformsCommand>(
-				context.Scene->SafeFromThis(),
+				context.Canvas->SafeFromThis(),
 				objects,
 				oldTransforms,
 				newTransforms));

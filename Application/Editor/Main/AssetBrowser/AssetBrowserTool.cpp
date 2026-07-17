@@ -59,7 +59,7 @@ namespace
 	constexpr float FOLDER_PANEL_WIDTH = 260.0f;
 	constexpr float ICON_CELL_WIDTH = 112.0f;
 	constexpr float ICON_CELL_HEIGHT = 92.0f;
-	// SceneView 의 ##SVCtxMenu 와 동일한 패턴: 단일 ID 로 모든 우클릭 통합.
+	// CanvasView 의 ##SVCtxMenu 와 동일한 패턴: 단일 ID 로 모든 우클릭 통합.
 	constexpr const char* ASSET_BROWSER_CTX_POPUP_ID = "##asset_browser_popup";
 
 	// 같은 폴더에 같은 이름이 있을 경우 BaseName, BaseName2, BaseName3 ...
@@ -98,7 +98,7 @@ namespace
 	// ── 신규 자산 템플릿 ────────────────────────────────────────────────────
 	// AssetWatcher 가 새 파일 감지 후 자동으로 ImportAsset 을 호출하므로
 	// 우리는 디스크에 텍스트 파일만 작성하면 된다.
-	// 현 SceneSerializer 포맷(Version/ReferencedAssets/Objects). 구 ECS 포맷("Scene:/Entities:")
+	// 현 CanvasSerializer 포맷(Version/ReferencedAssets/Objects). 구 ECS 포맷("Canvas:/Entities:")
 	// 은 Version 키가 없어 DeserializeFromText 가 ParseError 로 거부한다.
 	constexpr std::string_view EMPTY_SCENE_YAML =
 	    "Version: 1\n"
@@ -325,7 +325,7 @@ namespace
 		switch (entry.Type)
 		{
 		case EAssetType::Canvas:
-			return "icon-scene";
+			return "icon-canvas";
 		case EAssetType::Script:
 			return "icon-script";
 		case EAssetType::Material:
@@ -919,7 +919,7 @@ void CAssetBrowserTool::ProcessPendingOperations()
 			break;
 		}
 
-		case EPendingOperationType::CreateScene:
+		case EPendingOperationType::CreateCanvas:
 		{
 			if (false == insideAssetRoot) break;
 			File::Path dst = MakeUniqueFilePath(operation.Path, "NewCanvas", ".jcanvas");
@@ -1492,7 +1492,7 @@ void CAssetBrowserTool::DrawListEntries()
 					{
 						OpenEntry(entry);
 					}
-					// 우클릭: 통합 컨텍스트 메뉴(SceneView 와 동일 패턴)
+					// 우클릭: 통합 컨텍스트 메뉴(CanvasView 와 동일 패턴)
 					if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Right))
 					{
 						OpenBodyContextMenuForEntry(entry);
@@ -1877,9 +1877,9 @@ void CAssetBrowserTool::DrawBrowserBodyContextMenu()
 		{
 			if (ImGui::BeginMenu(Loc::Text(EditorLocKeys::AssetBrowserAddAsset)))
 			{
-				if (ImGui::MenuItem(Loc::Text(EditorLocKeys::AssetBrowserAddAssetScene)))
+				if (ImGui::MenuItem(Loc::Text(EditorLocKeys::AssetBrowserAddAssetCanvas)))
 				{
-					QueueOperation({ EPendingOperationType::CreateScene, m_focusFolderPath, File::NULL_PATH });
+					QueueOperation({ EPendingOperationType::CreateCanvas, m_focusFolderPath, File::NULL_PATH });
 				}
 				if (ImGui::MenuItem(Loc::Text(EditorLocKeys::AssetBrowserAddAssetMaterial)))
 				{
@@ -1984,9 +1984,9 @@ void CAssetBrowserTool::DrawFolderTreeContextMenu()
 	{
 		if (ImGui::BeginMenu(Loc::Text(EditorLocKeys::AssetBrowserAddAsset)))
 		{
-			if (ImGui::MenuItem(Loc::Text(EditorLocKeys::AssetBrowserAddAssetScene)))
+			if (ImGui::MenuItem(Loc::Text(EditorLocKeys::AssetBrowserAddAssetCanvas)))
 			{
-				QueueOperation({ EPendingOperationType::CreateScene, folder, File::NULL_PATH });
+				QueueOperation({ EPendingOperationType::CreateCanvas, folder, File::NULL_PATH });
 			}
 			if (ImGui::MenuItem(Loc::Text(EditorLocKeys::AssetBrowserAddAssetMaterial)))
 			{
@@ -2181,13 +2181,13 @@ void CAssetBrowserTool::SaveLayerAsAssetInFolder(CGameLayer& layer, const File::
 		return;
 	}
 
-	SafePtr<CGameCanvas> scene = EditorContext::GetActiveCanvas();
-	if (false == scene.IsValid())
+	SafePtr<CGameCanvas> canvas = EditorContext::GetActiveCanvas();
+	if (false == canvas.IsValid())
 	{
 		return;
 	}
 
-	const std::string text = Serialization::SerializeLayer(*scene, layer);
+	const std::string text = Serialization::SerializeLayer(*canvas, layer);
 	if (text.empty())
 	{
 		return;

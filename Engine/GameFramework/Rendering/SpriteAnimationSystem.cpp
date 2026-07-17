@@ -24,11 +24,11 @@ void CSpriteAnimationSystem::SetAssetManager(SafePtr<IAssetManager> assetManager
 	m_assetManager = assetManager;
 }
 
-void CSpriteAnimationSystem::OnUpdate(CGameCanvas& scene)
+void CSpriteAnimationSystem::OnUpdate(CGameCanvas& canvas)
 {
 	const float delta = Script.Time.IsValid() ? Script.Time->GetDeltaSeconds() : 0.0f;
 
-	scene.ForEach<SpriteAnimator2D>(
+	canvas.ForEach<SpriteAnimator2D>(
 		[&](SpriteAnimator2D& animator)
 		{
 			if (false == IsActiveComponent(animator))
@@ -113,10 +113,10 @@ void CSpriteAnimationSystem::OnUpdate(CGameCanvas& scene)
 		});
 }
 
-void CSpriteAnimationSystem::OnSimulationStop(CGameCanvas& scene)
+void CSpriteAnimationSystem::OnSimulationStop(CGameCanvas& canvas)
 {
 	// 재생 정지 — 런타임 진행 상태 초기화(재개 시 처음부터).
-	scene.ForEach<SpriteAnimator2D>(
+	canvas.ForEach<SpriteAnimator2D>(
 		[](SpriteAnimator2D& animator)
 		{
 			animator.RuntimeElapsedSeconds = 0.0f;

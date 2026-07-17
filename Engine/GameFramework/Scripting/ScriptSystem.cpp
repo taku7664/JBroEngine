@@ -7,13 +7,13 @@
 #include "GameFramework/Canvas/Canvas.h"
 #include "GameFramework/Scripting/GameScript.h"
 
-void CScriptSystem::OnUpdate(CGameCanvas& scene)
+void CScriptSystem::OnUpdate(CGameCanvas& canvas)
 {
-	scene.EnsureScriptExecutionOrder();
+	canvas.EnsureScriptExecutionOrder();
 	// Start/Update 안에서 유저가 스폰·Ref 해석으로 캐시를 재빌드하면 이 순회가 무효화된다.
 	// 가드가 재빌드를 미룬다(스폰된 스크립트는 다음 프레임 반영).
-	CGameCanvas::ScriptIterationGuard iterationGuard(scene);
-	for (CGameCanvas::ScriptRuntimeState* runtime : scene.m_scriptExecutionOrder)
+	CGameCanvas::ScriptIterationGuard iterationGuard(canvas);
+	for (CGameCanvas::ScriptRuntimeState* runtime : canvas.m_scriptExecutionOrder)
 	{
 		if (nullptr == runtime || nullptr == runtime->Instance)
 		{
@@ -44,7 +44,7 @@ void CScriptSystem::OnUpdate(CGameCanvas& scene)
 		}
 	}
 
-	for (CGameCanvas::ScriptRuntimeState* runtime : scene.m_scriptExecutionOrder)
+	for (CGameCanvas::ScriptRuntimeState* runtime : canvas.m_scriptExecutionOrder)
 	{
 		if (nullptr == runtime || nullptr == runtime->Instance)
 		{
@@ -59,12 +59,12 @@ void CScriptSystem::OnUpdate(CGameCanvas& scene)
 	}
 }
 
-void CScriptSystem::OnFixedUpdate(CGameCanvas& scene)
+void CScriptSystem::OnFixedUpdate(CGameCanvas& canvas)
 {
-	scene.EnsureScriptExecutionOrder();
+	canvas.EnsureScriptExecutionOrder();
 	// FixedUpdate 안 스폰·Ref 해석이 이 순회를 재빌드하지 못하게 잠금.
-	CGameCanvas::ScriptIterationGuard iterationGuard(scene);
-	for (CGameCanvas::ScriptRuntimeState* runtime : scene.m_scriptExecutionOrder)
+	CGameCanvas::ScriptIterationGuard iterationGuard(canvas);
+	for (CGameCanvas::ScriptRuntimeState* runtime : canvas.m_scriptExecutionOrder)
 	{
 		if (nullptr == runtime || nullptr == runtime->Instance)
 		{

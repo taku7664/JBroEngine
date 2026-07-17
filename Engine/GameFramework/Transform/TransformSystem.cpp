@@ -23,10 +23,10 @@ namespace
 	}
 } // anonymous namespace
 
-void CTransformSystem::OnUpdate(CGameCanvas& scene)
+void CTransformSystem::OnUpdate(CGameCanvas& canvas)
 {
 	// 루트(부모 없음)만 처리 — 자손은 PropagateWorldTransform 내부에서 재귀 처리.
-	scene.ForEachObject([](CGameObject& object)
+	canvas.ForEachObject([](CGameObject& object)
 	{
 		if (false == object.GetParent().IsValid())
 		{

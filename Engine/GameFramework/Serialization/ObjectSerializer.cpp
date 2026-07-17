@@ -94,7 +94,7 @@ YAML::Node WriteObject(const CGameObject& object, std::vector<AssetGuid>* refere
 	return node;
 }
 
-CGameObject* ReadObjectInto(CGameCanvas& scene, const YAML::Node& node,
+CGameObject* ReadObjectInto(CGameCanvas& canvas, const YAML::Node& node,
                             std::vector<AssetGuid>* referencedAssets)
 {
 	if (!node || false == node.IsMap())
@@ -103,7 +103,7 @@ CGameObject* ReadObjectInto(CGameCanvas& scene, const YAML::Node& node,
 	}
 
 	const std::string name = node["Name"] ? node["Name"].as<std::string>("GameObject") : "GameObject";
-	CGameObject* object = scene.CreateGameObject(name.c_str());
+	CGameObject* object = canvas.CreateGameObject(name.c_str());
 	if (nullptr == object)
 	{
 		return nullptr;
@@ -126,11 +126,11 @@ CGameObject* ReadObjectInto(CGameCanvas& scene, const YAML::Node& node,
 			File::Guid parsed(guid);
 			// 같은 캔버스 복사-붙여넣기: 클립보드 guid 가 원본과 동일 → 그대로 쓰면 원본의
 			// guid 인덱스 슬롯을 뺏어 원본이 조회 불가가 된다. 이미 있으면 새 guid 발급.
-			if (scene.FindByInstanceGuid(parsed).IsValid())
+			if (canvas.FindByInstanceGuid(parsed).IsValid())
 			{
 				parsed = File::GenerateGuid();
 			}
-			CCanvasRuntimeAccess::SetObjectInstanceGuid(scene, *object, parsed);
+			CCanvasRuntimeAccess::SetObjectInstanceGuid(canvas, *object, parsed);
 		}
 	}
 
@@ -152,7 +152,7 @@ CGameObject* ReadObjectInto(CGameCanvas& scene, const YAML::Node& node,
 	{
 		for (const YAML::Node& childNode : children)
 		{
-			if (CGameObject* child = ReadObjectInto(scene, childNode, referencedAssets))
+			if (CGameObject* child = ReadObjectInto(canvas, childNode, referencedAssets))
 			{
 				child->SetParent(*object);
 			}
@@ -180,7 +180,7 @@ std::string SerializeObjects(const std::vector<const CGameObject*>& objects)
 	return std::string(emitter.c_str());
 }
 
-std::vector<CGameObject*> DeserializeObjects(CGameCanvas& scene, const char* text)
+std::vector<CGameObject*> DeserializeObjects(CGameCanvas& canvas, const char* text)
 {
 	std::vector<CGameObject*> result;
 	if (nullptr == text)
@@ -200,7 +200,7 @@ std::vector<CGameObject*> DeserializeObjects(CGameCanvas& scene, const char* tex
 	{
 		for (const YAML::Node& on : objects)
 		{
-			if (CGameObject* o = ReadObjectInto(scene, on, nullptr))
+			if (CGameObject* o = ReadObjectInto(canvas, on, nullptr))
 			{
 				result.push_back(o);
 			}
@@ -208,7 +208,7 @@ std::vector<CGameObject*> DeserializeObjects(CGameCanvas& scene, const char* tex
 	}
 	else if (node["Components"])
 	{
-		if (CGameObject* o = ReadObjectInto(scene, node, nullptr))
+		if (CGameObject* o = ReadObjectInto(canvas, node, nullptr))
 		{
 			result.push_back(o);
 		}
@@ -221,9 +221,9 @@ std::string SerializeObject(const CGameObject& object)
 	return SerializeObjects({ &object });
 }
 
-CGameObject* DeserializeObject(CGameCanvas& scene, const char* text)
+CGameObject* DeserializeObject(CGameCanvas& canvas, const char* text)
 {
-	std::vector<CGameObject*> all = DeserializeObjects(scene, text);
+	std::vector<CGameObject*> all = DeserializeObjects(canvas, text);
 	return all.empty() ? nullptr : all.front();
 }
 

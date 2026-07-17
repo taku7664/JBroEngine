@@ -14,19 +14,19 @@
 
 namespace
 {
-	bool SaveActiveScene(std::string& outError)
+	bool SaveActiveCanvas(std::string& outError)
 	{
-		SafePtr<CGameCanvas> scene = EditorContext::GetActiveCanvas();
-		const File::Path& canvasPath = Editor::GetActiveScenePath();
-		if (false == scene.IsValid() || canvasPath.empty())
+		SafePtr<CGameCanvas> canvas = EditorContext::GetActiveCanvas();
+		const File::Path& canvasPath = Editor::GetActiveCanvasPath();
+		if (false == canvas.IsValid() || canvasPath.empty())
 		{
 			return true;
 		}
 
 		CCanvasSerializer serializer;
-		if (ECanvasSerializeResult::Success != serializer.SaveToFile(*scene, canvasPath))
+		if (ECanvasSerializeResult::Success != serializer.SaveToFile(*canvas, canvasPath))
 		{
-			outError = "Failed to save the active scene.";
+			outError = "Failed to save the active canvas.";
 			return false;
 		}
 
@@ -45,16 +45,16 @@ namespace
 				Editor::CanvasView->GetEditorCameraSize());
 		}
 
-		const File::Path& activeScenePath = Editor::GetActiveScenePath();
-		if (false == activeScenePath.empty() && false == projectManager.GetAssetPath().empty())
+		const File::Path& activeCanvasPath = Editor::GetActiveCanvasPath();
+		if (false == activeCanvasPath.empty() && false == projectManager.GetAssetPath().empty())
 		{
 			File::Path relativePath;
 			if (EditorPathUtils::TryMakeRelativeSubPath(
-				activeScenePath,
+				activeCanvasPath,
 				projectManager.GetAssetPath(),
 				relativePath))
 			{
-				projectManager.SetLastOpenedScenePath(relativePath.generic_string());
+				projectManager.SetLastOpenedCanvasPath(relativePath.generic_string());
 			}
 		}
 
@@ -79,7 +79,7 @@ bool EditorSessionPersistence::Save(std::string& outError)
 		return false;
 	}
 
-	if (false == SaveActiveScene(outError))
+	if (false == SaveActiveCanvas(outError))
 	{
 		return false;
 	}

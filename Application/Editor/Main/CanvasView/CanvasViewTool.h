@@ -24,17 +24,17 @@ public:
     void SetEditorCamera(float x, float y, float size);
 
     // 지정 오브젝트를 화면 중앙에 포커싱 (카메라 이동만)
-    void FocusOnEntity(CGameObject* object, const CGameCanvas& scene);
+    void FocusOnEntity(CGameObject* object, const CGameCanvas& canvas);
 
     // 하이어라키 더블클릭용: 편집 컨텍스트를 object로 전환 + 카메라 이동
     // 캔버스뷰 내 더블클릭과 동일하게 m_editCtx 를 갱신하므로,
     // 이후 캔버스뷰 클릭은 object 컨텍스트(직계 자식) 기준으로 동작함
-    void SetFocusContext(CGameObject* object, const CGameCanvas& scene);
+    void SetFocusContext(CGameObject* object, const CGameCanvas& canvas);
 
     // Flash-like 포커스 컨텍스트 초기화 (캔버스 변경, 프로젝트 닫기 시 호출)
     void ClearEditContext();
 
-	// Global paste uses the cursor position while it is over the Scene View,
+	// Global paste uses the cursor position while it is over the Canvas View,
 	// and falls back to the editor camera center otherwise.
 	Vector2 GetPreferredPasteWorldPosition() const;
 	CGameObject* GetFocusedEditContext() const;
@@ -48,7 +48,7 @@ private:
 private:
     // ── 에디터 카메라 ─────────────────────────────────────────────────────────
     // target: 입력으로 즉시 수정, display: target 을 향해 부드럽게 보간.
-    // CAMERA_SMOOTH_SPEED 는 SceneViewTool.cpp 에서 조절합니다.
+    // CAMERA_SMOOTH_SPEED 는 CanvasViewTool.cpp 에서 조절합니다.
     Vector2 m_targetCameraPos  = Vector2(0.0f, 0.0f);
     float          m_targetCameraSize = 5.0f;
     Vector2 m_cameraPos        = Vector2(0.0f, 0.0f);

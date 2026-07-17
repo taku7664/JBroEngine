@@ -30,7 +30,7 @@ SafePtr<IAssetManager> EditorContext::GetAssetManager()
 		: SafePtr<IAssetManager>();
 }
 
-CGameCanvas* EditorContext::TryGetActiveScene()
+CGameCanvas* EditorContext::TryGetActiveCanvas()
 {
 	return GetActiveCanvas().TryGet();
 }

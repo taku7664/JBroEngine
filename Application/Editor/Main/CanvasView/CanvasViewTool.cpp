@@ -22,9 +22,9 @@
 #include "Engine/GameFramework/Canvas/Canvas.h"
 #include "Engine/GameFramework/Canvas/CanvasTransformUtils.h"
 
-using SceneViewCoordinates::GetAspect;
-using SceneViewCoordinates::ViewportToWorld;
-using SceneViewCoordinates::WorldToViewport;
+using CanvasViewCoordinates::GetAspect;
+using CanvasViewCoordinates::ViewportToWorld;
+using CanvasViewCoordinates::WorldToViewport;
 
 namespace
 {
@@ -43,7 +43,7 @@ namespace
         return o ? o->SafeFromThis() : SafePtr<CGameObject>();
     }
 
-    std::vector<CGameObject*> CollectSubtree(const CGameCanvas& /*scene*/, CGameObject* root)
+    std::vector<CGameObject*> CollectSubtree(const CGameCanvas& /*canvas*/, CGameObject* root)
     {
         if (nullptr == root) return {};
         std::vector<CGameObject*> result;
@@ -257,9 +257,9 @@ void CCanvasViewTool::SetEditorCamera(float x, float y, float size)
     m_cameraSize       = m_targetCameraSize;
 }
 
-void CCanvasViewTool::FocusOnEntity(CGameObject* object, const CGameCanvas& scene)
+void CCanvasViewTool::FocusOnEntity(CGameObject* object, const CGameCanvas& canvas)
 {
-    (void)scene;
+    (void)canvas;
     if (nullptr == object) return;
 
     const Matrix3x2      worldTransform = GetWorldTransform(*object);
@@ -290,15 +290,15 @@ void CCanvasViewTool::FocusOnEntity(CGameObject* object, const CGameCanvas& scen
     m_targetCameraSize = newSize;
 }
 
-void CCanvasViewTool::SetFocusContext(CGameObject* object, const CGameCanvas& scene)
+void CCanvasViewTool::SetFocusContext(CGameObject* object, const CGameCanvas& canvas)
 {
     if (nullptr == object) return;
 
     // 편집 컨텍스트를 object로 전환 (캔버스뷰 더블클릭과 동일한 경로)
-    m_editCtx.OnDoubleClick(scene, object);
+    m_editCtx.OnDoubleClick(canvas, object);
 
     // 카메라도 해당 오브젝트 위치로 이동
-    FocusOnEntity(object, scene);
+    FocusOnEntity(object, canvas);
 }
 
 void CCanvasViewTool::ClearEditContext()
@@ -357,7 +357,7 @@ void CCanvasViewTool::OnRenderStay()
     if (Editor::ImEditor)
     {
         Editor::ImEditor->SetCanvasViewCamera(m_cameraPos.x, m_cameraPos.y, m_cameraSize);
-        Editor::ImEditor->RequestSceneViewRenderTarget(
+        Editor::ImEditor->RequestCanvasViewRenderTarget(
             static_cast<std::uint32_t>(vpSize.x),
             static_cast<std::uint32_t>(vpSize.y));
     }
@@ -383,8 +383,8 @@ void CCanvasViewTool::OnRenderStay()
 
         if (Engine.CanvasManager)
         {
-			SafePtr<CGameCanvas> scene = EditorContext::GetActiveCanvas();
-            if (scene)
+			SafePtr<CGameCanvas> canvas = EditorContext::GetActiveCanvas();
+            if (canvas)
             {
                 // 캔버스 기본 디버그 (선택 엔티티 OBB 등)
                 float resW = 0.0f, resH = 0.0f;
@@ -409,7 +409,7 @@ void CCanvasViewTool::OnRenderStay()
                 }
                 const char* activeCompType =
                     Editor::Inspector ? Editor::Inspector->GetActiveComponentTypeName() : nullptr;
-                SceneDebugDraw::Submit(*scene, *Engine.DebugDraw2D,
+                CanvasDebugDraw::Submit(*canvas, *Engine.DebugDraw2D,
                                        Editor::GetSelectedEntity(), resW, resH, activeCompType);
             }
         }
@@ -419,14 +419,14 @@ void CCanvasViewTool::OnRenderStay()
     const ImVec2 vpMin = ImGui::GetCursorScreenPos();
     ImDrawList* dl     = ImGui::GetWindowDrawList();
 
-    ImGui::InvisibleButton("##SceneViewInput", vpSize,
+    ImGui::InvisibleButton("##CanvasViewInput", vpSize,
         ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
 
     // Layer 1: 배경
     dl->AddRectFilled(vpMin, vpMin + vpSize, IM_COL32(26, 28, 32, 255));
 
     // Layer 2: 캔버스 RT (그리드 + 스프라이트 + GPU 외곽선 포함)
-    void* texID = Editor::ImEditor ? Editor::ImEditor->GetSceneViewTextureID() : nullptr;
+    void* texID = Editor::ImEditor ? Editor::ImEditor->GetCanvasViewTextureID() : nullptr;
     if (texID)
     {
         dl->AddImage(reinterpret_cast<ImTextureID>(texID),
@@ -455,8 +455,8 @@ void CCanvasViewTool::OnRenderStay()
     dl->AddRect(btnMin, btnMax, IM_COL32(88, 100, 120, 200), 4.0f);
     {
         const char* btnLabel = m_showPixelGrid
-            ? Loc::Text(EditorLocKeys::SceneViewUnitTogglePixel)
-            : Loc::Text(EditorLocKeys::SceneViewUnitToggleUnit);
+            ? Loc::Text(EditorLocKeys::CanvasViewUnitTogglePixel)
+            : Loc::Text(EditorLocKeys::CanvasViewUnitToggleUnit);
         const ImVec2 ts = ImGui::CalcTextSize(btnLabel);
         dl->AddText(
             ImVec2(btnMin.x + (BTN_W - ts.x) * 0.5f,
@@ -527,8 +527,8 @@ void CCanvasViewTool::OnRenderStay()
 
         if (Engine.CanvasManager)
         {
-			SafePtr<CGameCanvas> gizmoScene = EditorContext::GetActiveCanvas();
-            if (gizmoScene)
+			SafePtr<CGameCanvas> gizmoCanvas = EditorContext::GetActiveCanvas();
+            if (gizmoCanvas)
             {
                 constexpr float OUTER_R    = 5.0f;
                 constexpr float INNER_R    = 3.0f;
@@ -588,8 +588,8 @@ void CCanvasViewTool::OnRenderStay()
 
         if (Engine.CanvasManager)
         {
-			SafePtr<CGameCanvas> colScene = EditorContext::GetActiveCanvas();
-            if (colScene)
+			SafePtr<CGameCanvas> colCanvas = EditorContext::GetActiveCanvas();
+            if (colCanvas)
             {
                 // ── 공통 색상/두께 상수 ───────────────────────────────────────
                 constexpr ImU32 CIRCLE_COL_N    = IM_COL32( 80, 255, 140, 179); // 일반 (서클/폴리곤 동일)
@@ -628,7 +628,7 @@ void CCanvasViewTool::OnRenderStay()
                 // ════════════════════════════════════════════════════════════
                 // A) Circle Colliders
                 // ════════════════════════════════════════════════════════════
-                colScene->ForEach<CircleCollider2D>(
+                colCanvas->ForEach<CircleCollider2D>(
                     [&](CircleCollider2D& col)
                     {
                         if (!col.IsEnabled()) return;
@@ -666,7 +666,7 @@ void CCanvasViewTool::OnRenderStay()
                 // ════════════════════════════════════════════════════════════
                 // B) Polygon Colliders
                 // ════════════════════════════════════════════════════════════
-                colScene->ForEach<PolygonCollider2D>(
+                colCanvas->ForEach<PolygonCollider2D>(
                     [&](PolygonCollider2D& col)
                     {
                         if (!col.IsEnabled()) return;
@@ -764,7 +764,7 @@ void CCanvasViewTool::OnRenderStay()
                                 {
                                     Editor::CommandManager.ExecuteCommand(
                                         MakeOwnerPtr<CModifyPolygonVerticesCommand>(
-                                            colScene, entity, m_dragPreviewPts));
+                                            colCanvas, entity, m_dragPreviewPts));
                                 }
                                 m_dragPolyEntity  = nullptr;
                                 m_dragVertexIndex = -1;
@@ -889,7 +889,7 @@ void CCanvasViewTool::OnRenderStay()
                                 }
                                 Editor::CommandManager.ExecuteCommand(
                                     MakeOwnerPtr<CModifyPolygonVerticesCommand>(
-                                        colScene, entity, std::move(newPts)));
+                                        colCanvas, entity, std::move(newPts)));
                                 m_suppressNextClick = true;
                             }
                         }
@@ -911,11 +911,11 @@ void CCanvasViewTool::OnRenderStay()
     GuizmoFrameResult guizmoResult;
     if (Engine.CanvasManager)
     {
-		SafePtr<CGameCanvas> scene = EditorContext::GetActiveCanvas();
-        if (scene)
+		SafePtr<CGameCanvas> canvas = EditorContext::GetActiveCanvas();
+        if (canvas)
         {
             GuizmoFrameContext guizmoContext;
-            guizmoContext.Scene = scene.TryGet();
+            guizmoContext.Canvas = canvas.TryGet();
             guizmoContext.ViewportRect = ImRect(vpMin, vpMin + vpSize);
             guizmoContext.DrawList = dl;
             guizmoContext.CameraPosition = m_cameraPos;
@@ -923,8 +923,8 @@ void CCanvasViewTool::OnRenderStay()
             guizmoContext.PixelsPerUnit = ppu;
             guizmoContext.Selection = Editor::GetSelectedEntities();
             guizmoContext.ActiveObject = Editor::GetSelectedEntity();
-            guizmoContext.IsSceneViewHovered = isHovered;
-            guizmoContext.IsSceneViewActive = isActive;
+            guizmoContext.IsCanvasViewHovered = isHovered;
+            guizmoContext.IsCanvasViewActive = isActive;
             guizmoContext.IsBlockedByOverlay = overlayBlocked;
             guizmoResult = m_guizmo.UpdateAndDraw(guizmoContext);
         }
@@ -1041,12 +1041,12 @@ void CCanvasViewTool::OnRenderStay()
 
                 if (Engine.CanvasManager)
                 {
-					SafePtr<CGameCanvas> scene = EditorContext::GetActiveCanvas();
-                    if (scene)
+					SafePtr<CGameCanvas> canvas = EditorContext::GetActiveCanvas();
+                    if (canvas)
                     {
-                        m_editCtx.Validate(*scene);
+                        m_editCtx.Validate(*canvas);
                         const std::vector<CGameObject*> picked =
-                            m_editCtx.PickBox(*scene, boxWorldMin, boxWorldMax, assetMgr);
+                            m_editCtx.PickBox(*canvas, boxWorldMin, boxWorldMax, assetMgr);
 
                         std::vector<CGameObject*> toSelect;
                         toSelect.reserve(picked.size() * 4);
@@ -1058,7 +1058,7 @@ void CCanvasViewTool::OnRenderStay()
                                 toSelect.push_back(e);
                             else
                             {
-                                auto subtree = CollectSubtree(*scene, e);
+                                auto subtree = CollectSubtree(*canvas, e);
                                 toSelect.insert(toSelect.end(), subtree.begin(), subtree.end());
                             }
                         }
@@ -1075,10 +1075,10 @@ void CCanvasViewTool::OnRenderStay()
 
                 if (Engine.CanvasManager)
                 {
-					SafePtr<CGameCanvas> scene = EditorContext::GetActiveCanvas();
-                    if (scene)
+					SafePtr<CGameCanvas> canvas = EditorContext::GetActiveCanvas();
+                    if (canvas)
                     {
-                        m_editCtx.Validate(*scene);
+                        m_editCtx.Validate(*canvas);
 
                         const Vector2 worldPt =
                             ViewportToWorld(ImGui::GetIO().MousePos,
@@ -1086,27 +1086,27 @@ void CCanvasViewTool::OnRenderStay()
 
                         if (m_clickPendingDouble)
                         {
-                            CGameObject* picked = m_editCtx.Pick(*scene, worldPt, assetMgr);
+                            CGameObject* picked = m_editCtx.Pick(*canvas, worldPt, assetMgr);
                             if (nullptr != picked)
                             {
                                 const bool wasSelfInFocus =
                                     m_editCtx.IsActive() && (picked == m_editCtx.GetContext());
-                                CGameObject* toFocus = m_editCtx.OnDoubleClick(*scene, picked);
+                                CGameObject* toFocus = m_editCtx.OnDoubleClick(*canvas, picked);
                                 if (wasSelfInFocus)
                                     Editor::SelectEntities({ picked });
                                 else
-                                    Editor::SelectEntities(CollectSubtree(*scene, picked));
+                                    Editor::SelectEntities(CollectSubtree(*canvas, picked));
                                 if (nullptr != toFocus)
-                                    FocusOnEntity(toFocus, *scene);
+                                    FocusOnEntity(toFocus, *canvas);
                             }
                             else
                             {
                                 // 빈 공간 더블클릭: 한 뎁스 탈출 + 탈출한 오브젝트 선택 & 포커싱
-                                CGameObject* exited = m_editCtx.OnDoubleClickEmpty(*scene);
+                                CGameObject* exited = m_editCtx.OnDoubleClickEmpty(*canvas);
                                 if (nullptr != exited)
                                 {
-                                    Editor::SelectEntities(CollectSubtree(*scene, exited));
-                                    FocusOnEntity(exited, *scene);
+                                    Editor::SelectEntities(CollectSubtree(*canvas, exited));
+                                    FocusOnEntity(exited, *canvas);
                                 }
                                 else
                                 {
@@ -1117,7 +1117,7 @@ void CCanvasViewTool::OnRenderStay()
                         else
                         {
                             // ── 단일 클릭: 선택 + 컨텍스트 메뉴 ───────────────
-                            CGameObject* picked = m_editCtx.Pick(*scene, worldPt, assetMgr);
+                            CGameObject* picked = m_editCtx.Pick(*canvas, worldPt, assetMgr);
                             if (nullptr != picked)
                             {
                                 const bool isSelfInFocus =
@@ -1129,7 +1129,7 @@ void CCanvasViewTool::OnRenderStay()
                                 {
                                     std::vector<CGameObject*> targets =
                                         isSelfInFocus ? std::vector<CGameObject*>{ picked }
-                                                      : CollectSubtree(*scene, picked);
+                                                      : CollectSubtree(*canvas, picked);
                                     if (ctrlSelect && Editor::IsSelected(picked))
                                         for (CGameObject* e : targets) Editor::RemoveFromSelection(e);
                                     else
@@ -1140,7 +1140,7 @@ void CCanvasViewTool::OnRenderStay()
                                     if (isSelfInFocus)
                                         Editor::SelectEntities({ picked });
                                     else
-                                        Editor::SelectEntities(CollectSubtree(*scene, picked));
+                                        Editor::SelectEntities(CollectSubtree(*canvas, picked));
                                 }
                             }
                             else
@@ -1161,15 +1161,15 @@ void CCanvasViewTool::OnRenderStay()
                 m_rightClickPending = false;
                 if (Engine.CanvasManager)
                 {
-					SafePtr<CGameCanvas> scene = EditorContext::GetActiveCanvas();
-                    if (scene)
+					SafePtr<CGameCanvas> canvas = EditorContext::GetActiveCanvas();
+                    if (canvas)
                     {
-                        m_editCtx.Validate(*scene);
+                        m_editCtx.Validate(*canvas);
                         const Vector2 worldPt =
                             ViewportToWorld(ImGui::GetIO().MousePos,
                                             vpMin, vpSize, m_cameraPos, m_cameraSize);
                         m_contextMenuWorldPos = worldPt; // "Add Object" 생성 위치
-                        CGameObject* picked = m_editCtx.Pick(*scene, worldPt, assetMgr);
+                        CGameObject* picked = m_editCtx.Pick(*canvas, worldPt, assetMgr);
                         if (nullptr != picked)
                         {
                             // 오브젝트 우클릭 → 선택 후 컨텍스트 메뉴
@@ -1178,7 +1178,7 @@ void CCanvasViewTool::OnRenderStay()
                             if (isSelfInFocus)
                                 Editor::SelectEntities({ picked });
                             else
-                                Editor::SelectEntities(CollectSubtree(*scene, picked));
+                                Editor::SelectEntities(CollectSubtree(*canvas, picked));
                             m_contextMenuEntity = AsSafe(picked);
                             m_contextMenuParent = AsSafe(picked);
                         }
@@ -1203,7 +1203,7 @@ void CCanvasViewTool::OnRenderStay()
     }
     else
     {
-        // Overlay 또는 Guizmo가 입력을 소비한 경우 SceneView 선택 인텐트 취소.
+        // Overlay 또는 Guizmo가 입력을 소비한 경우 CanvasView 선택 인텐트 취소.
         m_clickPending      = false;
         m_isDraggingLeft    = false;
         m_rightClickPending = false;
@@ -1219,8 +1219,8 @@ void CCanvasViewTool::OnRenderStay()
     // 각 섹션은 세팅된 상태가 유효할 때만 표시된다.
     if (ImGui::BeginPopup("##SVCtxMenu"))
     {
-		SafePtr<CGameCanvas> popupScene = EditorContext::GetActiveCanvas();
-        if (popupScene)
+		SafePtr<CGameCanvas> popupCanvas = EditorContext::GetActiveCanvas();
+        if (popupCanvas)
         {
             // ── 섹션 1: 버텍스 삭제 ─────────────────────────────────────────
             CGameObject* vtxObj = m_deleteVtxEntity.TryGet();
@@ -1235,25 +1235,25 @@ void CCanvasViewTool::OnRenderStay()
 
                 if (canDelete)
                 {
-                    if (ImGui::MenuItem(Loc::Text(EditorLocKeys::SceneViewVertexDelete)))
+                    if (ImGui::MenuItem(Loc::Text(EditorLocKeys::CanvasViewVertexDelete)))
                     {
                         std::vector<Vector2> newPts = delPoly->LocalPoints;
                         newPts.erase(newPts.begin() + m_deleteVtxIndex);
                         Editor::CommandManager.ExecuteCommand(
                             MakeOwnerPtr<CModifyPolygonVerticesCommand>(
-                                popupScene, vtxObj, std::move(newPts)));
+                                popupCanvas, vtxObj, std::move(newPts)));
                     }
                 }
                 else
                 {
-                    ImGui::TextDisabled(Loc::Text(EditorLocKeys::SceneViewVertexDeleteMin));
+                    ImGui::TextDisabled(Loc::Text(EditorLocKeys::CanvasViewVertexDeleteMin));
                 }
 
                 // 캔버스 오브젝트 메뉴도 같이 표시될 경우를 위한 구분선
-                const bool hasSceneSection =
+                const bool hasCanvasSection =
                     m_contextMenuEntity.IsValid()
                     || m_contextMenuParent.IsValid();
-                if (hasSceneSection)
+                if (hasCanvasSection)
                     ImGui::Separator();
             }
 
@@ -1264,20 +1264,20 @@ void CCanvasViewTool::OnRenderStay()
             if (nullptr != menuObject)
             {
                 // 오브젝트 우클릭: "Add Child Object" + "Add Component ▶" + 복사/붙여넣기 + "Delete"
-				EditorGuiActions::DrawAddObjectMenu(*popupScene, menuObject, &m_contextMenuWorldPos);
+				EditorGuiActions::DrawAddObjectMenu(*popupCanvas, menuObject, &m_contextMenuWorldPos);
                 ImGui::Separator();
-				EditorGuiActions::DrawAddComponentMenu(*popupScene, menuObject);
+				EditorGuiActions::DrawAddComponentMenu(*popupCanvas, menuObject);
                 ImGui::Separator();
 				EditorGuiActions::DrawCopyObjectMenuItem(*menuObject);
-				EditorGuiActions::DrawPasteObjectMenuItem(*popupScene, menuObject);
+				EditorGuiActions::DrawPasteObjectMenuItem(*popupCanvas, menuObject);
                 ImGui::Separator();
-				EditorGuiActions::DrawRemoveObjectMenu(*popupScene, menuObject);
+				EditorGuiActions::DrawRemoveObjectMenu(*popupCanvas, menuObject);
             }
             else if (!vtxValid || menuParent)
             {
                 // 빈 공간 우클릭 (버텍스 전용 팝업이 아닐 때 or 부모가 지정된 경우)
-				EditorGuiActions::DrawAddObjectMenu(*popupScene, menuParent, &m_contextMenuWorldPos);
-				EditorGuiActions::DrawPasteObjectMenuItem(*popupScene, menuParent);
+				EditorGuiActions::DrawAddObjectMenu(*popupCanvas, menuParent, &m_contextMenuWorldPos);
+				EditorGuiActions::DrawPasteObjectMenuItem(*popupCanvas, menuParent);
             }
         }
         ImGui::EndPopup();
@@ -1293,52 +1293,52 @@ void CCanvasViewTool::OnRenderStay()
     // RT 파이프라인으로 이전됨 (ImEditor::OnRender에서 GPU 셰이더로 처리).
     // 여기서는 ImEditor에 상태만 전달.
     {
-		SafePtr<CGameCanvas> scene = EditorContext::GetActiveCanvas();
+		SafePtr<CGameCanvas> canvas = EditorContext::GetActiveCanvas();
 
         // 포커스 컨텍스트
-        if (m_editCtx.IsActive() && scene)
+        if (m_editCtx.IsActive() && canvas)
         {
-            m_editCtx.Validate(*scene);
+            m_editCtx.Validate(*canvas);
             if (m_editCtx.IsActive())
             {
-                std::vector<CGameObject*> subtree = CollectSubtree(*scene, m_editCtx.GetContext());
+                std::vector<CGameObject*> subtree = CollectSubtree(*canvas, m_editCtx.GetContext());
                 std::vector<const void*>  contextKeys(subtree.begin(), subtree.end());
                 if (Editor::ImEditor)
-                    Editor::ImEditor->SetSceneViewFocusContext(std::move(contextKeys));
+                    Editor::ImEditor->SetCanvasViewFocusContext(std::move(contextKeys));
             }
             else
             {
-                if (Editor::ImEditor) Editor::ImEditor->ClearSceneViewFocusContext();
+                if (Editor::ImEditor) Editor::ImEditor->ClearCanvasViewFocusContext();
             }
         }
         else
         {
-            if (Editor::ImEditor) Editor::ImEditor->ClearSceneViewFocusContext();
+            if (Editor::ImEditor) Editor::ImEditor->ClearCanvasViewFocusContext();
         }
 
         // 선택 아웃라인
         const std::vector<CGameObject*> sel = Editor::GetSelectedEntities();
-        if (!sel.empty() && scene)
+        if (!sel.empty() && canvas)
         {
             // GetSelectedEntities 가 이미 살아있는 것만 반환 — 포인터 키로 변환.
             std::vector<const void*> alive(sel.begin(), sel.end());
             if (Editor::ImEditor)
-                Editor::ImEditor->SetSceneViewSelection(std::move(alive));
+                Editor::ImEditor->SetCanvasViewSelection(std::move(alive));
         }
         else
         {
-            if (Editor::ImEditor) Editor::ImEditor->ClearSceneViewSelection();
+            if (Editor::ImEditor) Editor::ImEditor->ClearCanvasViewSelection();
         }
 
         // 캔버스뷰 숨김(EditorHidden 플래그) — 오브젝트 주소 키 집합 전달.
-        if (scene && Editor::ImEditor)
+        if (canvas && Editor::ImEditor)
         {
             std::vector<const void*> hidden;
-            scene->ForEachObject([&hidden](CGameObject& o)
+            canvas->ForEachObject([&hidden](CGameObject& o)
             {
                 if (o.IsEditorHidden()) hidden.push_back(&o);
             });
-            Editor::ImEditor->SetSceneViewHidden(std::move(hidden));
+            Editor::ImEditor->SetCanvasViewHidden(std::move(hidden));
         }
     }
 
@@ -1358,25 +1358,25 @@ void CCanvasViewTool::OnRenderStay()
     }
 
     // ── Layer 4: 텍스트 오버레이 ─────────────────────────────────────────────
-	const bool hasScene = EditorContext::GetActiveCanvas().IsValid();
+	const bool hasCanvas = EditorContext::GetActiveCanvas().IsValid();
     const ImVec2 textPos = vpMin + ImVec2(12.0f, 10.0f);
     dl->AddText(textPos, IM_COL32(210, 216, 224, 255),
-                hasScene ? Loc::Text(EditorLocKeys::SceneViewOverlayActiveScene)
-                         : Loc::Text(EditorLocKeys::SceneViewOverlayNoActiveScene));
+                hasCanvas ? Loc::Text(EditorLocKeys::CanvasViewOverlayActiveCanvas)
+                         : Loc::Text(EditorLocKeys::CanvasViewOverlayNoActiveCanvas));
 
     CGameObject* selectedObject = Editor::GetSelectedEntity();
     char selText[128] = {};
     if (nullptr == selectedObject)
-        std::snprintf(selText, sizeof(selText), "%s", Loc::Text(EditorLocKeys::SceneViewOverlaySelectedNone));
+        std::snprintf(selText, sizeof(selText), "%s", Loc::Text(EditorLocKeys::CanvasViewOverlaySelectedNone));
     else
         std::snprintf(selText, sizeof(selText),
-                      Loc::Text(EditorLocKeys::SceneViewOverlaySelectedFormat),
+                      Loc::Text(EditorLocKeys::CanvasViewOverlaySelectedFormat),
                       selectedObject->GetName());
     dl->AddText(textPos + ImVec2(0.0f, 20.0f), IM_COL32(150, 158, 170, 255), selText);
 
     char camText[128] = {};
     std::snprintf(camText, sizeof(camText),
-                  Loc::Text(EditorLocKeys::SceneViewOverlayCameraFormat),
+                  Loc::Text(EditorLocKeys::CanvasViewOverlayCameraFormat),
                   m_cameraPos.x, m_cameraPos.y, m_cameraSize);
     dl->AddText(textPos + ImVec2(0.0f, 40.0f), IM_COL32(130, 140, 155, 200), camText);
 
@@ -1385,7 +1385,7 @@ void CCanvasViewTool::OnRenderStay()
         char ctxText[128] = {};
         CGameObject* ctxObj = m_editCtx.GetContext();
         std::snprintf(ctxText, sizeof(ctxText),
-                      Loc::Text(EditorLocKeys::SceneViewOverlayFocusFormat),
+                      Loc::Text(EditorLocKeys::CanvasViewOverlayFocusFormat),
                       ctxObj ? ctxObj->GetName() : "");
         dl->AddText(textPos + ImVec2(0.0f, 60.0f),
                     IM_COL32(255, 220, 50, 200), ctxText);
@@ -1401,16 +1401,16 @@ void CCanvasViewTool::OnRenderStay()
 
     if (cameraTabActive && nullptr != selectedObject && Engine.CanvasManager)
     {
-		SafePtr<CGameCanvas> sceneForVP = EditorContext::GetActiveCanvas();
-        if (sceneForVP)
+		SafePtr<CGameCanvas> canvasForVP = EditorContext::GetActiveCanvas();
+        if (canvasForVP)
         {
             const Camera2D* cam    = selectedObject->GetComponent<Camera2D>();
             // 출력 렉트는 카메라가 아니라 이 카메라를 쓰는 뷰포트가 갖는다(카메라 = 눈).
             // 이 카메라를 지목한 뷰포트가 없으면 화면에 나올 일이 없으므로 인디케이터도 없다.
             const CanvasViewport* camViewport = nullptr;
-            for (std::size_t vi = 0; nullptr == camViewport && vi < sceneForVP->GetViewportCount(); ++vi)
+            for (std::size_t vi = 0; nullptr == camViewport && vi < canvasForVP->GetViewportCount(); ++vi)
             {
-                const CanvasViewport* candidate = sceneForVP->GetViewportAt(vi);
+                const CanvasViewport* candidate = canvasForVP->GetViewportAt(vi);
                 if (candidate && candidate->CameraObjectGuid == selectedObject->GetInstanceGuid())
                 {
                     camViewport = candidate;
@@ -1460,7 +1460,7 @@ void CCanvasViewTool::OnRenderStay()
                             IM_COL32(80, 230, 110, 230), 0.0f, 0, 1.5f);
                 dl->AddText(ImVec2(indMin.x, indMin.y - 18.0f),
                             IM_COL32(80, 230, 110, 220),
-                            Loc::Text(EditorLocKeys::SceneViewOverlayViewportSelectedCamera));
+                            Loc::Text(EditorLocKeys::CanvasViewOverlayViewportSelectedCamera));
                 dl->PopClipRect();
             }
         }

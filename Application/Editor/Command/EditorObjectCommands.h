@@ -19,7 +19,7 @@ class CGameLayer;
 class CAddComponentCommand final : public IEditorCommand
 {
 public:
-	CAddComponentCommand(SafePtr<CGameCanvas> scene, CGameObject* object, TypeId componentTypeId);
+	CAddComponentCommand(SafePtr<CGameCanvas> canvas, CGameObject* object, TypeId componentTypeId);
 	~CAddComponentCommand() override = default;
 
 	const char* GetName() const override;
@@ -38,7 +38,7 @@ private:
 class CAddScriptCommand final : public IEditorCommand
 {
 public:
-	CAddScriptCommand(SafePtr<CGameCanvas> scene, CGameObject* object, TypeId scriptTypeId);
+	CAddScriptCommand(SafePtr<CGameCanvas> canvas, CGameObject* object, TypeId scriptTypeId);
 	~CAddScriptCommand() override = default;
 
 	const char* GetName() const override;
@@ -57,7 +57,7 @@ private:
 class CRemoveScriptCommand final : public IEditorCommand
 {
 public:
-	CRemoveScriptCommand(SafePtr<CGameCanvas> scene, CGameObject* object, const File::Guid& componentGuid);
+	CRemoveScriptCommand(SafePtr<CGameCanvas> canvas, CGameObject* object, const File::Guid& componentGuid);
 	const char* GetName() const override;
 	bool Execute() override;
 	void Undo() override;
@@ -74,7 +74,7 @@ private:
 class CReorderComponentCommand final : public IEditorCommand
 {
 public:
-	CReorderComponentCommand(SafePtr<CGameCanvas> scene, CGameObject* object, const File::Guid& componentGuid, std::size_t oldIndex, std::size_t newIndex);
+	CReorderComponentCommand(SafePtr<CGameCanvas> canvas, CGameObject* object, const File::Guid& componentGuid, std::size_t oldIndex, std::size_t newIndex);
 	const char* GetName() const override;
 	bool Execute() override;
 	void Undo() override;
@@ -96,7 +96,7 @@ public:
 	// spawnWorldPos != nullptr 이면 그 월드 좌표에 생성한다(캔버스뷰 우클릭 위치). parent 가
 	// 있으면 부모 월드 역행렬로 로컬 좌표를 환산한다. null 이면 기본(원점) 생성.
 	// layer == nullptr 이면 캔버스 기본 레이어. parent 가 있으면 레이어는 부모를 따르므로 무시된다.
-	CCreateGameObjectCommand(SafePtr<CGameCanvas> scene, const char* name,
+	CCreateGameObjectCommand(SafePtr<CGameCanvas> canvas, const char* name,
 	                         CGameObject* parent = nullptr,
 	                         const Vector2* spawnWorldPos = nullptr,
 	                         CGameLayer* layer = nullptr);
@@ -124,7 +124,7 @@ class CSetComponentPropertyCommand final : public IEditorCommand
 {
 public:
 	CSetComponentPropertyCommand(
-		SafePtr<CGameCanvas> scene,
+		SafePtr<CGameCanvas> canvas,
 		CGameObject* object,
 		TypeId componentTypeId,
 		std::size_t propertyOffset,
@@ -157,7 +157,7 @@ class CSetComponentEnabledCommand final : public IEditorCommand
 {
 public:
 	CSetComponentEnabledCommand(
-		SafePtr<CGameCanvas> scene,
+		SafePtr<CGameCanvas> canvas,
 		CGameObject* object,
 		const File::Guid& componentGuid,
 		bool oldValue,
@@ -181,7 +181,7 @@ private:
 class CSetComponentStringPropertyCommand final : public IEditorCommand
 {
 public:
-	CSetComponentStringPropertyCommand(SafePtr<CGameCanvas> scene, CGameObject* object, TypeId componentTypeId,
+	CSetComponentStringPropertyCommand(SafePtr<CGameCanvas> canvas, CGameObject* object, TypeId componentTypeId,
 		std::size_t propertyOffset, std::string oldValue, std::string newValue, const File::Guid& componentGuid);
 	const char* GetName() const override;
 	bool Execute() override;
@@ -206,7 +206,7 @@ private:
 class CSetObjectTransformCommand final : public IEditorCommand
 {
 public:
-	CSetObjectTransformCommand(SafePtr<CGameCanvas> scene,
+	CSetObjectTransformCommand(SafePtr<CGameCanvas> canvas,
 	                           const std::vector<CGameObject*>& objects,
 	                           const Transform2D& delta);
 	~CSetObjectTransformCommand() override = default;
@@ -231,7 +231,7 @@ private:
 class CSetObjectTransformsCommand final : public IEditorCommand
 {
 public:
-	CSetObjectTransformsCommand(SafePtr<CGameCanvas> scene,
+	CSetObjectTransformsCommand(SafePtr<CGameCanvas> canvas,
 	                            const std::vector<CGameObject*>& objects,
 	                            const std::vector<Transform2D>& oldTransforms,
 	                            const std::vector<Transform2D>& newTransforms);
@@ -255,7 +255,7 @@ private:
 class CDeleteGameObjectCommand final : public IEditorCommand
 {
 public:
-	CDeleteGameObjectCommand(SafePtr<CGameCanvas> scene, CGameObject* object);
+	CDeleteGameObjectCommand(SafePtr<CGameCanvas> canvas, CGameObject* object);
 	~CDeleteGameObjectCommand() override = default;
 
 	const char* GetName() const override;
@@ -279,7 +279,7 @@ private:
 class CDeleteGameObjectsCommand final : public IEditorCommand
 {
 public:
-	CDeleteGameObjectsCommand(SafePtr<CGameCanvas> scene, const std::vector<CGameObject*>& objects);
+	CDeleteGameObjectsCommand(SafePtr<CGameCanvas> canvas, const std::vector<CGameObject*>& objects);
 	~CDeleteGameObjectsCommand() override = default;
 
 	const char* GetName() const override;
@@ -309,7 +309,7 @@ public:
 	// spawnWorldPos != nullptr 이면 붙여넣은 그룹 중심을 그 월드 좌표로 이동(상대 배치 보존).
 	// parent != nullptr 이면 붙여넣은 루트를 해당 오브젝트의 자식으로 둔다.
 	// layer != nullptr 이면 붙여넣은 루트를 그 레이어에 둔다(parent 가 있으면 부모 레이어가 이긴다).
-	CPasteObjectsCommand(SafePtr<CGameCanvas> scene, std::string clipboardText,
+	CPasteObjectsCommand(SafePtr<CGameCanvas> canvas, std::string clipboardText,
 	                     const Vector2* spawnWorldPos = nullptr,
 	                     CGameObject* parent = nullptr,
 	                     CGameLayer* layer = nullptr);
@@ -340,7 +340,7 @@ private:
 class CRemoveComponentCommand final : public IEditorCommand
 {
 public:
-	CRemoveComponentCommand(SafePtr<CGameCanvas> scene, CGameObject* object, TypeId componentTypeId, const File::Guid& componentGuid);
+	CRemoveComponentCommand(SafePtr<CGameCanvas> canvas, CGameObject* object, TypeId componentTypeId, const File::Guid& componentGuid);
 	~CRemoveComponentCommand() override = default;
 
 	const char* GetName() const override;
@@ -366,7 +366,7 @@ class CSetParentCommand final : public IEditorCommand
 {
 public:
 	// newParent = nullptr 이면 부모 해제(루트로 이동).
-	CSetParentCommand(SafePtr<CGameCanvas> scene, CGameObject* child, CGameObject* newParent);
+	CSetParentCommand(SafePtr<CGameCanvas> canvas, CGameObject* child, CGameObject* newParent);
 	~CSetParentCommand() override = default;
 
 	const char* GetName() const override;
@@ -395,7 +395,7 @@ public:
 	// newLayer = nullptr 이면 레이어 유지. 자식으로 이동하는 경우 레이어는 부모를 따라가므로
 	// (자식=부모 레이어 불변식) 루트로 이동할 때만 의미가 있다.
 	CMoveGameObjectInHierarchyCommand(
-		SafePtr<CGameCanvas> scene,
+		SafePtr<CGameCanvas> canvas,
 		CGameObject* object,
 		CGameObject* newParent,
 		CGameObject* insertNear = nullptr,
@@ -444,7 +444,7 @@ class CModifyPolygonVerticesCommand final : public IEditorCommand
 {
 public:
 	CModifyPolygonVerticesCommand(
-		SafePtr<CGameCanvas>                   scene,
+		SafePtr<CGameCanvas>                   canvas,
 		CGameObject*                      object,
 		std::vector<Vector2>       newPoints);
 	~CModifyPolygonVerticesCommand() override = default;

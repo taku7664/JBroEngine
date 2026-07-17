@@ -16,7 +16,7 @@
 #include <unordered_set>
 #include <cmath>
 
-using SceneViewCoordinates::WorldToViewport;
+using CanvasViewCoordinates::WorldToViewport;
 
 namespace
 {
@@ -301,7 +301,7 @@ const std::vector<std::vector<Vector2>>* CCanvasViewContour::GetOrBuild(
 
 void CCanvasViewContour::DrawOutlinesImGui(
     ImDrawList* dl,
-    const CGameCanvas& scene,
+    const CGameCanvas& canvas,
     IAssetManager* assetMgr,
     const std::vector<CGameObject*>& selectedObjects,
     const ImVec2& vpMin, const ImVec2& vpSize,
@@ -367,7 +367,7 @@ void CCanvasViewContour::DrawOutlinesImGui(
     //
     // 포커스 모드에서 자식 클릭: selectedEntities = CollectSubtree(child)
     //   → 자식 + 자식의 모든 자손 각각의 스프라이트를 그림.
-    const CTextRenderSystem* textSystem = CCanvasRuntimeAccess::FindSystem<CTextRenderSystem>(scene);
+    const CTextRenderSystem* textSystem = CCanvasRuntimeAccess::FindSystem<CTextRenderSystem>(canvas);
     for (CGameObject* object : selectedObjects)
     {
         if (!object || !object->IsActive) continue;

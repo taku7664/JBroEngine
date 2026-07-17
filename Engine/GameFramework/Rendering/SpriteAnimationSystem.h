@@ -24,8 +24,8 @@ public:
 	bool ShouldUpdateInEditMode() const override { return false; }
 
 protected:
-	void OnUpdate(CGameCanvas& scene) override;
-	void OnSimulationStop(CGameCanvas& scene) override;
+	void OnUpdate(CGameCanvas& canvas) override;
+	void OnSimulationStop(CGameCanvas& canvas) override;
 
 private:
 	SafePtr<IAssetManager> m_assetManager;

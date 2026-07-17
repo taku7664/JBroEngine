@@ -41,7 +41,7 @@ struct ViewportSnapshot
 class CSetCanvasBackgroundColorCommand final : public IEditorCommand
 {
 public:
-	CSetCanvasBackgroundColorCommand(SafePtr<CGameCanvas> scene, const float (&oldColor)[4], const float (&newColor)[4]);
+	CSetCanvasBackgroundColorCommand(SafePtr<CGameCanvas> canvas, const float (&oldColor)[4], const float (&newColor)[4]);
 	~CSetCanvasBackgroundColorCommand() override = default;
 
 	const char* GetName() const override;
@@ -73,7 +73,7 @@ public:
 	};
 
 	CSetViewportPropertyCommand(
-		SafePtr<CGameCanvas> scene,
+		SafePtr<CGameCanvas> canvas,
 		std::size_t index,
 		EField field,
 		ViewportSnapshot oldProperties,
@@ -101,7 +101,7 @@ private:
 class CCreateViewportCommand final : public IEditorCommand
 {
 public:
-	explicit CCreateViewportCommand(SafePtr<CGameCanvas> scene);
+	explicit CCreateViewportCommand(SafePtr<CGameCanvas> canvas);
 	~CCreateViewportCommand() override = default;
 
 	const char* GetName() const override;
@@ -122,7 +122,7 @@ private:
 class CDeleteViewportCommand final : public IEditorCommand
 {
 public:
-	CDeleteViewportCommand(SafePtr<CGameCanvas> scene, std::size_t index);
+	CDeleteViewportCommand(SafePtr<CGameCanvas> canvas, std::size_t index);
 	~CDeleteViewportCommand() override = default;
 
 	const char* GetName() const override;
@@ -141,10 +141,10 @@ namespace EditorCanvasActions
 {
 	// 캔버스 편집을 undo 스택에 올리는 공용 진입점. 호출자는 Capture 로 뜬 스냅샷의 필드
 	// 하나만 바꿔서 넘긴다(레이어의 EditorLayerActions 와 같은 규칙).
-	bool SetViewportProperty(CGameCanvas& scene, std::size_t index,
+	bool SetViewportProperty(CGameCanvas& canvas, std::size_t index,
 	                         CSetViewportPropertyCommand::EField field,
 	                         const ViewportSnapshot& newProperties);
-	bool SetBackgroundColor(CGameCanvas& scene, const float (&newColor)[4]);
+	bool SetBackgroundColor(CGameCanvas& canvas, const float (&newColor)[4]);
 }
 
 #endif

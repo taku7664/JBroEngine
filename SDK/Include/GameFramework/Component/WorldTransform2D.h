@@ -4,7 +4,7 @@
 
 // Cached world-space transform for an entity.
 // Populated every frame by CTransformSystem before physics and rendering.
-// Read via GetWorldTransform() in SceneTransformUtils.h.
+// Read via GetWorldTransform() in CanvasTransformUtils.h.
 struct WorldTransform2D
 {
 	Matrix3x2 Matrix = Matrix3x2::Identity();

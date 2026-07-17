@@ -11,7 +11,7 @@ enum class EAssetPayloadType : std::uint32_t
 	RawSource,
 	CookedTexture,
 	CookedAudio,
-	SerializedScene,
+	SerializedCanvas,
 	SerializedPrefab,
 	BinaryBlob,
 	SerializedLayer   // 맨 뒤에 추가 — 기존 값이 패키지 파일에 박혀 있다.

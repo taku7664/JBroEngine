@@ -12,7 +12,7 @@
 //  스크립트 사용자는 이 헤더가 아니라 ScriptAPI.h 를 쓰면 된다.
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-// ── Scene / Object ──────────────────────────────────────────────────────────
+// ── Canvas / Object ──────────────────────────────────────────────────────────
 #include "GameFramework/System/GameSystem.h"
 #include "GameFramework/Canvas/CanvasTypes.h"
 #include "GameFramework/Canvas/CanvasSerializer.h"

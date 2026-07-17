@@ -19,7 +19,7 @@
 #include <vector>
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-//  SceneSerializer ─ 캔버스 파일(여러 오브젝트 + 메타) ↔ YAML (직렬화 3계층의 최상단)
+//  CanvasSerializer ─ 캔버스 파일(여러 오브젝트 + 메타) ↔ YAML (직렬화 3계층의 최상단)
 //
 //  · 오브젝트 1개 직렬화는 ObjectSerializer 에, 컴포넌트는 ComponentSerializer 에 위임.
 //  · 여기서는 파일 레벨 관심사만 다룬다: Version, ReferencedAssets, 오브젝트 목록,
@@ -47,12 +47,12 @@ namespace
 
 	// 레이어 섹션 — 노드 자체는 LayerSerializer 가 정의한다(레이어 파일 `.jlayer` 와 공유).
 	// 순서 = 시퀀스 순서(컴포짓 아래→위).
-	YAML::Node WriteLayers(const CGameCanvas& scene)
+	YAML::Node WriteLayers(const CGameCanvas& canvas)
 	{
 		YAML::Node node(YAML::NodeType::Sequence);
-		for (std::size_t i = 0; i < scene.GetLayerCount(); ++i)
+		for (std::size_t i = 0; i < canvas.GetLayerCount(); ++i)
 		{
-			if (const CGameLayer* layer = scene.GetLayerAt(i))
+			if (const CGameLayer* layer = canvas.GetLayerAt(i))
 			{
 				node.push_back(Serialization::WriteLayerNode(*layer));
 			}
@@ -67,7 +67,7 @@ namespace
 	// inherited[i] 가 nullptr 이 아니면 i 번 노드는 **이미 살아 있는 그 인스턴스**를 쓴다
 	// (캔버스 전환의 승계). 새로 만들지 않고 컴포짓 속성만 덮는다 — 신원(guid)과 소속
 	// 오브젝트는 살아 있는 쪽이 이긴다. 전체 교체 경로는 빈 목록을 넘긴다.
-	std::vector<CGameLayer*> ReadLayers(CGameCanvas& scene, const YAML::Node& node,
+	std::vector<CGameLayer*> ReadLayers(CGameCanvas& canvas, const YAML::Node& node,
 	                                    const std::vector<CGameLayer*>& inherited)
 	{
 		std::vector<CGameLayer*> layers;
@@ -83,14 +83,14 @@ namespace
 				}
 				else
 				{
-					layer = Serialization::ReadLayerNodeInto(scene, layerNode);
+					layer = Serialization::ReadLayerNodeInto(canvas, layerNode);
 				}
 				layers.push_back(layer);
 			}
 		}
-		if (0 == scene.GetLayerCount())
+		if (0 == canvas.GetLayerCount())
 		{
-			layers.push_back(scene.CreateLayer(nullptr));
+			layers.push_back(canvas.CreateLayer(nullptr));
 		}
 
 		// 파일 순서 = 컴포짓 순서. 승계 레이어는 구 캔버스에서의 자리에 남아 있으므로 여기서
@@ -101,7 +101,7 @@ namespace
 		{
 			if (nullptr != layers[index])
 			{
-				scene.MoveLayer(layers[index], index);
+				canvas.MoveLayer(layers[index], index);
 			}
 		}
 		return layers;
@@ -141,12 +141,12 @@ namespace
 
 	// 뷰포트 섹션 — 캔버스 저작 데이터(카메라 Ref × 출력 렉트 × 레이어 필터).
 	// 카메라·레이어는 guid 로 지목한다: 인덱스는 에디터에서 순서를 바꾸면 어긋난다.
-	YAML::Node WriteViewports(const CGameCanvas& scene)
+	YAML::Node WriteViewports(const CGameCanvas& canvas)
 	{
 		YAML::Node node(YAML::NodeType::Sequence);
-		for (std::size_t i = 0; i < scene.GetViewportCount(); ++i)
+		for (std::size_t i = 0; i < canvas.GetViewportCount(); ++i)
 		{
-			const CanvasViewport* viewport = scene.GetViewportAt(i);
+			const CanvasViewport* viewport = canvas.GetViewportAt(i);
 			if (nullptr == viewport)
 			{
 				continue;
@@ -174,7 +174,7 @@ namespace
 		return node;
 	}
 
-	void ReadViewports(CGameCanvas& scene, const YAML::Node& node)
+	void ReadViewports(CGameCanvas& canvas, const YAML::Node& node)
 	{
 		if (node && node.IsSequence())
 		{
@@ -185,7 +185,7 @@ namespace
 					continue;
 				}
 				const std::string name = viewportNode["Name"] ? viewportNode["Name"].as<std::string>("") : "";
-				CanvasViewport* viewport = scene.CreateViewport(name.empty() ? nullptr : name.c_str());
+				CanvasViewport* viewport = canvas.CreateViewport(name.empty() ? nullptr : name.c_str());
 				if (nullptr == viewport)
 				{
 					continue;
@@ -222,7 +222,7 @@ namespace
 		}
 		// 뷰포트 없는 캔버스(구 포맷 포함)는 기본 풀스크린 뷰포트 1개로 — 카메라 미지정이라
 		// 폴백(첫 활성 카메라)이 잡힌다. 즉 구 캔버스는 저작 없이 그대로 그려진다.
-		scene.GetOrCreateDefaultViewport();
+		canvas.GetOrCreateDefaultViewport();
 	}
 
 	std::vector<AssetGuid> ReadReferencedAssets(const YAML::Node& node)
@@ -250,7 +250,7 @@ namespace
 		return assets;
 	}
 
-	void ReserveScenePools(CGameCanvas& scene, const YAML::Node& objectsNode)
+	void ReserveCanvasPools(CGameCanvas& canvas, const YAML::Node& objectsNode)
 	{
 		if (false == static_cast<bool>(Script.Reflection))
 		{
@@ -293,14 +293,14 @@ namespace
 		};
 		for (const auto& [typeId, count] : componentCounts)
 		{
-			Script.Reflection->ReserveComponentPool(scene, typeId, reserveCount(count));
+			Script.Reflection->ReserveComponentPool(canvas, typeId, reserveCount(count));
 		}
 		for (const auto& [typeId, count] : scriptCounts)
 		{
 			if (const ScriptTypeInfo* info = Script.Reflection->FindScript(typeId))
 			{
 				CCanvasRuntimeAccess::ReserveScriptMemory(
-					scene,
+					canvas,
 					typeId,
 					info->Type.Size,
 					info->Type.Alignment,
@@ -310,13 +310,13 @@ namespace
 	}
 }
 
-ECanvasSerializeResult CCanvasSerializer::SerializeToText(CGameCanvas& scene, std::string& outText) const
+ECanvasSerializeResult CCanvasSerializer::SerializeToText(CGameCanvas& canvas, std::string& outText) const
 {
 	std::vector<AssetGuid> referencedAssets;
 
 	// 활성 오브젝트를 순서대로 수집하고 인덱스 맵을 만든다(부모 인덱스 해석용).
 	std::vector<const CGameObject*> objectList;
-	scene.ForEachObject([&](const CGameObject& obj) { objectList.push_back(&obj); });
+	canvas.ForEachObject([&](const CGameObject& obj) { objectList.push_back(&obj); });
 
 	// 생성순서로 저장 → 로드 시 파일 순서대로 CreationOrder 가 재부여되어 표시 순서가 보존된다
 	// (풀 슬롯 순회 순서는 생성순서와 무관).
@@ -331,9 +331,9 @@ ECanvasSerializeResult CCanvasSerializer::SerializeToText(CGameCanvas& scene, st
 
 	// 레이어 포인터 → 파일 내 레이어 인덱스(레이어 시퀀스 순서와 동일).
 	std::unordered_map<const CGameLayer*, int> layerIndexOf;
-	for (std::size_t i = 0; i < scene.GetLayerCount(); ++i)
+	for (std::size_t i = 0; i < canvas.GetLayerCount(); ++i)
 	{
-		const CGameLayer* layer = scene.GetLayerAt(i);
+		const CGameLayer* layer = canvas.GetLayerAt(i);
 		layerIndexOf[layer] = static_cast<int>(i);
 
 		// 파일에서 온 레이어는 캔버스가 그 `.jlayer` 를 참조하는 것이다 — ReferencedAssets 에
@@ -365,26 +365,26 @@ ECanvasSerializeResult CCanvasSerializer::SerializeToText(CGameCanvas& scene, st
 	YAML::Node backgroundColor(YAML::NodeType::Sequence);
 	for (int i = 0; i < 4; ++i)
 	{
-		backgroundColor.push_back(scene.GetBackgroundColor()[i]);
+		backgroundColor.push_back(canvas.GetBackgroundColor()[i]);
 	}
 
 	YAML::Node root(YAML::NodeType::Map);
 	root["Version"]          = CANVAS_FILE_VERSION;
 	root["ReferencedAssets"] = WriteReferencedAssets(referencedAssets);
 	root["BackgroundColor"]  = backgroundColor;
-	root["Layers"]           = WriteLayers(scene);
-	root["Viewports"]        = WriteViewports(scene);
+	root["Layers"]           = WriteLayers(canvas);
+	root["Viewports"]        = WriteViewports(canvas);
 	root["Objects"]          = objects;
 
 	YAML::Emitter emitter;
 	emitter << root;
 	outText = emitter.c_str();
 	outText.push_back('\n');
-	scene.SetReferencedAssets(std::move(referencedAssets));
+	canvas.SetReferencedAssets(std::move(referencedAssets));
 	return ECanvasSerializeResult::Success;
 }
 
-ECanvasSerializeResult CCanvasSerializer::DeserializeFromText(CGameCanvas& scene, const char* text) const
+ECanvasSerializeResult CCanvasSerializer::DeserializeFromText(CGameCanvas& canvas, const char* text) const
 {
 	YAML::Node root;
 	const ECanvasSerializeResult parsed = ParseCanvasRoot(text, root);
@@ -393,13 +393,13 @@ ECanvasSerializeResult CCanvasSerializer::DeserializeFromText(CGameCanvas& scene
 		return parsed;
 	}
 
-	scene.ClearObjects();
+	canvas.ClearObjects();
 
 	// 승계 없음 = 전부 새로 만든다. 전환 경로와 같은 리더를 쓴다 — 캔버스 포맷을 읽는 코드가
 	// 두 벌이 되면 한쪽만 새 필드를 배워 같은 파일이 경로마다 다르게 읽힌다.
 	std::vector<AssetGuid> referencedAssets;
-	const ECanvasSerializeResult result = ReadCanvasBody(scene, root, {}, referencedAssets);
-	scene.SetReferencedAssets(std::move(referencedAssets));
+	const ECanvasSerializeResult result = ReadCanvasBody(canvas, root, {}, referencedAssets);
+	canvas.SetReferencedAssets(std::move(referencedAssets));
 	return result;
 }
 
@@ -539,25 +539,25 @@ std::vector<CGameLayer*> CCanvasSerializer::ResolveInheritedLayers(CGameCanvas& 
 	return inherited;
 }
 
-ECanvasSerializeResult CCanvasSerializer::ReadCanvasBody(CGameCanvas& scene,
+ECanvasSerializeResult CCanvasSerializer::ReadCanvasBody(CGameCanvas& canvas,
                                                        const YAML::Node& root,
                                                        const std::vector<CGameLayer*>& inherited,
                                                        std::vector<AssetGuid>& outReferencedAssets) const
 {
 	const YAML::Node objectsNode = root["Objects"];
-	ReserveScenePools(scene, objectsNode);
+	ReserveCanvasPools(canvas, objectsNode);
 	outReferencedAssets = ReadReferencedAssets(root["ReferencedAssets"]);
 
 	// 레이어 먼저 재구성(오브젝트 배정 대상). Layers 키 없는 구 포맷은 기본 레이어 1개.
-	const std::vector<CGameLayer*> layers = ReadLayers(scene, root["Layers"], inherited);
+	const std::vector<CGameLayer*> layers = ReadLayers(canvas, root["Layers"], inherited);
 
 	// 뷰포트는 레이어 필터가 레이어 guid 를 참조하므로 레이어 뒤에 읽는다.
 	// 카메라 Ref 는 guid 로만 들고 있다가 첫 렌더 때 해석되므로 오브젝트보다 앞이어도 무방.
-	ReadViewports(scene, root["Viewports"]);
+	ReadViewports(canvas, root["Viewports"]);
 
 	if (const YAML::Node background = root["BackgroundColor"]; background && background.IsSequence() && background.size() >= 4)
 	{
-		scene.SetBackgroundColor(
+		canvas.SetBackgroundColor(
 			background[0].as<float>(0.08f),
 			background[1].as<float>(0.09f),
 			background[2].as<float>(0.11f),
@@ -587,7 +587,7 @@ ECanvasSerializeResult CCanvasSerializer::ReadCanvasBody(CGameCanvas& scene,
 			continue;
 		}
 
-		CGameObject* object = Serialization::ReadObjectInto(scene, objectNode, &outReferencedAssets);
+		CGameObject* object = Serialization::ReadObjectInto(canvas, objectNode, &outReferencedAssets);
 		if (nullptr == object)
 		{
 			return ECanvasSerializeResult::ParseError;
@@ -597,11 +597,11 @@ ECanvasSerializeResult CCanvasSerializer::ReadCanvasBody(CGameCanvas& scene,
 		CGameLayer* layer = layerSlot < layers.size() ? layers[layerSlot] : nullptr;
 		if (nullptr == layer)
 		{
-			layer = scene.GetDefaultLayer();
+			layer = canvas.GetDefaultLayer();
 		}
 		if (nullptr != layer)
 		{
-			scene.MoveObjectToLayer(*object, *layer);
+			canvas.MoveObjectToLayer(*object, *layer);
 		}
 
 		objects.push_back(object);
@@ -631,7 +631,7 @@ ECanvasSerializeResult CCanvasSerializer::ReadCanvasBody(CGameCanvas& scene,
 	return ECanvasSerializeResult::Success;
 }
 
-ECanvasSerializeResult CCanvasSerializer::SaveToFile(CGameCanvas& scene, const File::Path& path) const
+ECanvasSerializeResult CCanvasSerializer::SaveToFile(CGameCanvas& canvas, const File::Path& path) const
 {
 	if (path.empty())
 	{
@@ -639,7 +639,7 @@ ECanvasSerializeResult CCanvasSerializer::SaveToFile(CGameCanvas& scene, const F
 	}
 
 	std::string text;
-	SerializeToText(scene, text);
+	SerializeToText(canvas, text);
 
 	std::ofstream file(path, std::ios::out | std::ios::trunc);
 	if (false == file.is_open())
@@ -651,7 +651,7 @@ ECanvasSerializeResult CCanvasSerializer::SaveToFile(CGameCanvas& scene, const F
 	return ECanvasSerializeResult::Success;
 }
 
-ECanvasSerializeResult CCanvasSerializer::LoadFromFile(CGameCanvas& scene, const File::Path& path) const
+ECanvasSerializeResult CCanvasSerializer::LoadFromFile(CGameCanvas& canvas, const File::Path& path) const
 {
 	if (path.empty())
 	{
@@ -666,7 +666,7 @@ ECanvasSerializeResult CCanvasSerializer::LoadFromFile(CGameCanvas& scene, const
 
 	std::stringstream buffer;
 	buffer << file.rdbuf();
-	return DeserializeFromText(scene, buffer.str().c_str());
+	return DeserializeFromText(canvas, buffer.str().c_str());
 }
 
 std::vector<AssetGuid> CCanvasSerializer::ReadReferencedAssetsFromFile(const File::Path& path) const

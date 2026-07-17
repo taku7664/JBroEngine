@@ -50,7 +50,7 @@ public:
 	};
 
 	CSetLayerPropertyCommand(
-		SafePtr<CGameCanvas> scene,
+		SafePtr<CGameCanvas> canvas,
 		CGameLayer* layer,
 		EField field,
 		LayerPropertySnapshot oldProperties,
@@ -78,7 +78,7 @@ private:
 class CCreateLayerCommand final : public IEditorCommand
 {
 public:
-	CCreateLayerCommand(SafePtr<CGameCanvas> scene, const char* name);
+	CCreateLayerCommand(SafePtr<CGameCanvas> canvas, const char* name);
 	~CCreateLayerCommand() override = default;
 
 	const char* GetName() const override;
@@ -100,7 +100,7 @@ private:
 class CDeleteLayerCommand final : public IEditorCommand
 {
 public:
-	CDeleteLayerCommand(SafePtr<CGameCanvas> scene, CGameLayer* layer);
+	CDeleteLayerCommand(SafePtr<CGameCanvas> canvas, CGameLayer* layer);
 	~CDeleteLayerCommand() override = default;
 
 	const char* GetName() const override;
@@ -129,7 +129,7 @@ private:
 class CAddLayerFromAssetCommand final : public IEditorCommand
 {
 public:
-	CAddLayerFromAssetCommand(SafePtr<CGameCanvas> scene, const File::Guid& assetGuid);
+	CAddLayerFromAssetCommand(SafePtr<CGameCanvas> canvas, const File::Guid& assetGuid);
 	~CAddLayerFromAssetCommand() override = default;
 
 	const char* GetName() const override;
@@ -150,7 +150,7 @@ namespace EditorLayerActions
 {
 	// 레이어 속성 편집을 undo 스택에 올리는 공용 진입점(하이어라키 눈 아이콘 / 인스펙터 패널).
 	// 호출자는 Capture 로 뜬 스냅샷의 필드 하나만 바꿔서 넘긴다.
-	bool SetLayerProperty(CGameCanvas& scene, CGameLayer& layer,
+	bool SetLayerProperty(CGameCanvas& canvas, CGameLayer& layer,
 	                      CSetLayerPropertyCommand::EField field,
 	                      const LayerPropertySnapshot& newProperties);
 }
@@ -159,7 +159,7 @@ namespace EditorLayerActions
 class CMoveLayerCommand final : public IEditorCommand
 {
 public:
-	CMoveLayerCommand(SafePtr<CGameCanvas> scene, CGameLayer* layer, std::size_t newIndex);
+	CMoveLayerCommand(SafePtr<CGameCanvas> canvas, CGameLayer* layer, std::size_t newIndex);
 	~CMoveLayerCommand() override = default;
 
 	const char* GetName() const override;

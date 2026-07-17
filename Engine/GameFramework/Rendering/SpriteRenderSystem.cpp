@@ -47,7 +47,7 @@ void CSpriteRenderSystem::ClearMaterialCache()
 	m_materialCache.clear();
 }
 
-void CSpriteRenderSystem::OnUpdate(CGameCanvas& scene)
+void CSpriteRenderSystem::OnUpdate(CGameCanvas& canvas)
 {
 	if (nullptr == m_renderScene)
 	{
@@ -60,7 +60,7 @@ void CSpriteRenderSystem::OnUpdate(CGameCanvas& scene)
 	// (파괴/비활성 스프라이트의 머티리얼이 GPU 텍스처를 물고 무한 누적되는 것을 막는다. Shape/Text 와 동일).
 	std::unordered_set<const void*> seen;
 
-	scene.ForEach<SpriteRenderer2D>(
+	canvas.ForEach<SpriteRenderer2D>(
 		[this, forwardRenderer, &seen](SpriteRenderer2D& sprite)
 		{
 			CGameObject* owner = sprite.GetOwner().TryGet();

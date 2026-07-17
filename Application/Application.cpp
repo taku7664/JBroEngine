@@ -177,7 +177,7 @@ bool CGameApplication::InitializeRuntimeGame()
 		return false;
 	}
 
-	if (false == LoadRuntimeStartupScene(manifest))
+	if (false == LoadRuntimeStartupCanvas(manifest))
 	{
 		return false;
 	}
@@ -337,7 +337,7 @@ bool CGameApplication::LoadRuntimeScriptModule(const BuildManifest& manifest)
 
 namespace
 {
-	constexpr bool AllowRuntimeScenePathFallback()
+	constexpr bool AllowRuntimeCanvasPathFallback()
 	{
 #if defined(JBRO_EDITOR) || !defined(NDEBUG)
 		return true;
@@ -355,38 +355,38 @@ namespace
 	                       IAssetManager& assetManager,
 	                       const ScriptCore* context,
 	                       const std::string& canvasName,
-	                       const AssetGuid& sceneGuid,
+	                       const AssetGuid& canvasGuid,
 	                       const std::string& canvasPathText)
 	{
-		CGameCanvas* scene = &canvasManager.GetOrCreateCanvas();
+		CGameCanvas* canvas = &canvasManager.GetOrCreateCanvas();
 
 		CCanvasSerializer serializer;
 		ECanvasSerializeResult loadResult = ECanvasSerializeResult::IoError;
-		if (false == sceneGuid.IsNull())
+		if (false == canvasGuid.IsNull())
 		{
-			AssetRef<IAsset> sceneAsset = assetManager.LoadAsset(sceneGuid);
-			const CFileAsset* fileAsset = sceneAsset.IsValid() ? dynamic_cast<const CFileAsset*>(sceneAsset.Get()) : nullptr;
+			AssetRef<IAsset> canvasAsset = assetManager.LoadAsset(canvasGuid);
+			const CFileAsset* fileAsset = canvasAsset.IsValid() ? dynamic_cast<const CFileAsset*>(canvasAsset.Get()) : nullptr;
 			if (nullptr != fileAsset)
 			{
-				std::string_view sceneText = fileAsset->GetText();
-				loadResult = serializer.DeserializeFromText(*scene, std::string(sceneText).c_str());
+				std::string_view canvasText = fileAsset->GetText();
+				loadResult = serializer.DeserializeFromText(*canvas, std::string(canvasText).c_str());
 			}
 		}
 		else
 		{
-			if constexpr (false == AllowRuntimeScenePathFallback())
+			if constexpr (false == AllowRuntimeCanvasPathFallback())
 			{
 				CSystemLog::Error(std::string("Runtime canvas path fallback is not allowed in release package: ") + canvasPathText);
 				return false;
 			}
 
-			File::Path scenePath;
-			if (false == assetManager.ResolveAssetPath(File::Path(canvasPathText), scenePath))
+			File::Path canvasPath;
+			if (false == assetManager.ResolveAssetPath(File::Path(canvasPathText), canvasPath))
 			{
 				CSystemLog::Error(std::string("Runtime canvas path resolve failed: ") + canvasPathText);
 				return false;
 			}
-			loadResult = serializer.LoadFromFile(*scene, scenePath);
+			loadResult = serializer.LoadFromFile(*canvas, canvasPath);
 		}
 
 		if (ECanvasSerializeResult::Success != loadResult)
@@ -406,20 +406,20 @@ namespace
 			// 렌더 시스템은 호스트 전용 — 전역 `Engine`(EngineCore)에서 직접 가져온다.
 			// (RenderScene/RHIDevice/Renderer 는 스크립트에 노출하지 않으므로 ScriptCore 에 없다.)
 			// 애니메이션 시스템은 SpriteRenderSystem 보다 먼저 등록해 같은 프레임에 FrameIndex 반영.
-			CSpriteAnimationSystem* animationSystem = CCanvasRuntimeAccess::FindSystem<CSpriteAnimationSystem>(*scene);
+			CSpriteAnimationSystem* animationSystem = CCanvasRuntimeAccess::FindSystem<CSpriteAnimationSystem>(*canvas);
 			if (nullptr == animationSystem)
 			{
-				animationSystem = CCanvasRuntimeAccess::AddSystem<CSpriteAnimationSystem>(*scene, Engine.AssetManager);
+				animationSystem = CCanvasRuntimeAccess::AddSystem<CSpriteAnimationSystem>(*canvas, Engine.AssetManager);
 			}
 			if (nullptr != animationSystem)
 			{
 				animationSystem->SetAssetManager(Engine.AssetManager);
 			}
 
-			CSpriteRenderSystem* spriteSystem = CCanvasRuntimeAccess::FindSystem<CSpriteRenderSystem>(*scene);
+			CSpriteRenderSystem* spriteSystem = CCanvasRuntimeAccess::FindSystem<CSpriteRenderSystem>(*canvas);
 			if (nullptr == spriteSystem)
 			{
-				spriteSystem = CCanvasRuntimeAccess::AddSystem<CSpriteRenderSystem>(*scene, Engine.RenderScene.TryGet());
+				spriteSystem = CCanvasRuntimeAccess::AddSystem<CSpriteRenderSystem>(*canvas, Engine.RenderScene.TryGet());
 			}
 			if (nullptr != spriteSystem)
 			{
@@ -432,10 +432,10 @@ namespace
 					Runtime.PixelsPerUnit);
 			}
 
-			CShapeRenderSystem* shapeSystem = CCanvasRuntimeAccess::FindSystem<CShapeRenderSystem>(*scene);
+			CShapeRenderSystem* shapeSystem = CCanvasRuntimeAccess::FindSystem<CShapeRenderSystem>(*canvas);
 			if (nullptr == shapeSystem)
 			{
-				shapeSystem = CCanvasRuntimeAccess::AddSystem<CShapeRenderSystem>(*scene, Engine.RenderScene.TryGet());
+				shapeSystem = CCanvasRuntimeAccess::AddSystem<CShapeRenderSystem>(*canvas, Engine.RenderScene.TryGet());
 			}
 			if (nullptr != shapeSystem)
 			{
@@ -443,10 +443,10 @@ namespace
 				shapeSystem->SetDependencies(Engine.RHIDevice.TryGet(), Engine.Renderer.TryGet());
 			}
 
-			CTextRenderSystem* textSystem = CCanvasRuntimeAccess::FindSystem<CTextRenderSystem>(*scene);
+			CTextRenderSystem* textSystem = CCanvasRuntimeAccess::FindSystem<CTextRenderSystem>(*canvas);
 			if (nullptr == textSystem)
 			{
-				textSystem = CCanvasRuntimeAccess::AddSystem<CTextRenderSystem>(*scene, Engine.RenderScene.TryGet());
+				textSystem = CCanvasRuntimeAccess::AddSystem<CTextRenderSystem>(*canvas, Engine.RenderScene.TryGet());
 			}
 			if (nullptr != textSystem)
 			{
@@ -455,10 +455,10 @@ namespace
 					Runtime.PixelsPerUnit, Runtime.DefaultFontFamilyGuid, Runtime.FallbackFontFamilies);
 			}
 
-			CAudioSystem* audioSystem = CCanvasRuntimeAccess::FindSystem<CAudioSystem>(*scene);
+			CAudioSystem* audioSystem = CCanvasRuntimeAccess::FindSystem<CAudioSystem>(*canvas);
 			if (nullptr == audioSystem)
 			{
-				audioSystem = CCanvasRuntimeAccess::AddSystem<CAudioSystem>(*scene, context->Audio, context->AssetManager);
+				audioSystem = CCanvasRuntimeAccess::AddSystem<CAudioSystem>(*canvas, context->Audio, context->AssetManager);
 			}
 			if (nullptr != audioSystem)
 			{
@@ -471,12 +471,12 @@ namespace
 	}
 }
 
-bool CGameApplication::LoadRuntimeStartupScene(const BuildManifest& manifest)
+bool CGameApplication::LoadRuntimeStartupCanvas(const BuildManifest& manifest)
 {
-	const AssetGuid startupSceneGuid(manifest.StartupCanvasGuid);
-	if (manifest.StartupCanvas.empty() && startupSceneGuid.IsNull())
+	const AssetGuid startupCanvasGuid(manifest.StartupCanvasGuid);
+	if (manifest.StartupCanvas.empty() && startupCanvasGuid.IsNull())
 	{
-		CSystemLog::Error("Runtime startup scene is empty.");
+		CSystemLog::Error("Runtime startup canvas is empty.");
 		return false;
 	}
 
@@ -484,7 +484,7 @@ bool CGameApplication::LoadRuntimeStartupScene(const BuildManifest& manifest)
 	SafePtr<IAssetManager> assetManager = Engine.AssetManager;
 	if (false == canvasManager.IsValid() || false == assetManager.IsValid())
 	{
-		CSystemLog::Error("Runtime startup scene load failed: CanvasManager or AssetManager is not available.");
+		CSystemLog::Error("Runtime startup canvas load failed: CanvasManager or AssetManager is not available.");
 		return false;
 	}
 
@@ -493,20 +493,20 @@ bool CGameApplication::LoadRuntimeStartupScene(const BuildManifest& manifest)
 
 	const std::string startupName = false == manifest.StartupCanvas.empty()
 		? manifest.StartupCanvas
-		: startupSceneGuid.generic_string();
+		: startupCanvasGuid.generic_string();
 
 	// startup 캔버스만 로드한다 — 런타임 캔버스는 하나고, 전환은 그 하나에 diff 를 적용하는
 	// 것이라 나머지 빌드 캔버스를 미리 인스턴스화해 둘 자리가 없다(있으면 그게 곧 다중 캔버스가다).
 	// 다른 캔버스는 전환 시점에 파일에서 읽는다. startup 은 guid 로 로드해 경로 의존을 피한다.
 	if (false == LoadRuntimeCanvas(*canvasManager, *assetManager, context,
-	                               startupName, startupSceneGuid,
+	                               startupName, startupCanvasGuid,
 	                               manifest.StartupCanvas))
 	{
 		return false;
 	}
 
 	canvasManager->PlaySimulation();
-	CSystemLog::Info(std::string("Runtime startup scene loaded: ") + startupName);
+	CSystemLog::Info(std::string("Runtime startup canvas loaded: ") + startupName);
 	return true;
 }
 
@@ -518,8 +518,8 @@ void CGameApplication::ConfigureRuntimeViewCamera()
 		return;
 	}
 
-	SafePtr<CGameCanvas> scene = canvasManager->GetActiveCanvas();
-	if (false == scene.IsValid())
+	SafePtr<CGameCanvas> canvas = canvasManager->GetActiveCanvas();
+	if (false == canvas.IsValid())
 	{
 		return;
 	}
@@ -538,17 +538,17 @@ void CGameApplication::ConfigureRuntimeViewCamera()
 			renderHeight = static_cast<float>(renderSize.Height);
 		}
 	}
-	std::vector<GameRenderViewportDesc> viewports = CollectGameRenderViewports(*scene, renderWidth, renderHeight);
-	std::vector<GameRenderLightDesc> lights = CollectGameRenderLights(*scene);
+	std::vector<GameRenderViewportDesc> viewports = CollectGameRenderViewports(*canvas, renderWidth, renderHeight);
+	std::vector<GameRenderLightDesc> lights = CollectGameRenderLights(*canvas);
 	// 런타임은 lazy RT 승격 — 블렌드/Opacity/Static/강제가 걸린 레이어만 자기 RT 를 쓴다.
-	std::vector<GameRenderLayerDesc> layers = CollectGameRenderLayers(*scene, /*forceOwnTextureAll*/ false);
+	std::vector<GameRenderLayerDesc> layers = CollectGameRenderLayers(*canvas, /*forceOwnTextureAll*/ false);
 
 	if (CEngine* engine = GetEngine())
 	{
 		engine->SetGameRenderViewports(std::move(viewports));
 		engine->SetGameRenderLights(std::move(lights));
 		engine->SetGameRenderLayers(std::move(layers));
-		engine->SetGameRenderBackgroundColor(scene->GetBackgroundColor());
+		engine->SetGameRenderBackgroundColor(canvas->GetBackgroundColor());
 	}
 }
 

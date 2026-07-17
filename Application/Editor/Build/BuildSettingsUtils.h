@@ -18,7 +18,7 @@ namespace BuildSettingsUtils
 	bool IsValidAndroidApplicationId(const std::string& value);
 	bool IsValidIOSBundleIdentifier(const std::string& value);
 	bool IsValidVersionString(const std::string& value);
-	bool HasSceneFileExtension(const std::string& value);
+	bool HasCanvasFileExtension(const std::string& value);
 	bool HasRequiredIssueForPlatform(const ProjectBuildSettings& settings, EBuildTargetPlatform platform);
 	std::vector<EBuildTargetPlatform> GetEnabledPlatforms(const ProjectBuildSettings& settings);
 }

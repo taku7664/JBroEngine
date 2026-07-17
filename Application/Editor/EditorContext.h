@@ -13,7 +13,7 @@ namespace EditorContext
 	SafePtr<CProjectManager> GetProjectManager();
 	SafePtr<IAssetManager> GetAssetManager();
 	SafePtr<CGameCanvas> GetActiveCanvas();
-	CGameCanvas* TryGetActiveScene();
+	CGameCanvas* TryGetActiveCanvas();
 }
 
 #endif

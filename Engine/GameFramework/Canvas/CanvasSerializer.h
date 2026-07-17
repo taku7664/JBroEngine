@@ -15,9 +15,9 @@ class CGameLayer;
 class CCanvasSerializer final
 {
 public:
-	ECanvasSerializeResult SerializeToText(CGameCanvas& scene, std::string& outText) const;
+	ECanvasSerializeResult SerializeToText(CGameCanvas& canvas, std::string& outText) const;
 	// 캔버스 내용을 파일 그대로 갈아끼운다 — 살아있는 것은 전부 파괴된다.
-	ECanvasSerializeResult DeserializeFromText(CGameCanvas& scene, const char* text) const;
+	ECanvasSerializeResult DeserializeFromText(CGameCanvas& canvas, const char* text) const;
 
 	// 캔버스 전환 — "파괴→생성"이 아니라 이 캔버스에 **diff 를 적용**한다:
 	// 승계 레이어 판정 → 비승계 레이어 파괴 → 신규 로드 → 캔버스 속성 교체.
@@ -34,8 +34,8 @@ public:
 	                                         const char* text,
 	                                         std::vector<SafePtr<CGameLayer>>& outInheritedLayers) const;
 
-	ECanvasSerializeResult SaveToFile(CGameCanvas& scene, const File::Path& path) const;
-	ECanvasSerializeResult LoadFromFile(CGameCanvas& scene, const File::Path& path) const;
+	ECanvasSerializeResult SaveToFile(CGameCanvas& canvas, const File::Path& path) const;
+	ECanvasSerializeResult LoadFromFile(CGameCanvas& canvas, const File::Path& path) const;
 
 	// 캔버스/프리팹 파일에서 ReferencedAssets 목록만 가볍게 읽는다 — 게임오브젝트나 에셋
 	// 데이터를 만들지 않고 YAML 의 ReferencedAssets 시퀀스만 파싱한다. 프로젝트 로드 시
@@ -51,7 +51,7 @@ private:
 	std::vector<CGameLayer*> ResolveInheritedLayers(CGameCanvas& canvas, const YAML::Node& layersNode) const;
 	// Layers/Viewports/BackgroundColor/Objects 를 캔버스에 싣는다. 호출 전에 캔버스는 이미 받을
 	// 준비가 돼 있어야 한다(전체 교체 = ClearObjects, 전환 = 비승계 파괴 + flush).
-	ECanvasSerializeResult ReadCanvasBody(CGameCanvas& scene,
+	ECanvasSerializeResult ReadCanvasBody(CGameCanvas& canvas,
 	                                     const YAML::Node& root,
 	                                     const std::vector<CGameLayer*>& inherited,
 	                                     std::vector<AssetGuid>& outReferencedAssets) const;

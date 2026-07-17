@@ -116,8 +116,8 @@ public:
 	void SetLiveCompileEnabled(bool enabled);
 
 	// 마지막으로 열었던 캔버스 경로 (Assets 폴더 기준 상대경로)
-	const std::string& GetLastOpenedScenePath() const;
-	void               SetLastOpenedScenePath(const std::string& relativePath);
+	const std::string& GetLastOpenedCanvasPath() const;
+	void               SetLastOpenedCanvasPath(const std::string& relativePath);
 
 	// 게임 빌드본 생성 설정
 	const ProjectBuildSettings& GetBuildSettings() const;
@@ -187,7 +187,7 @@ private:
 	// loadData=true: 메타 등록 + 데이터 로드(ReloadAsset). false: 메타 등록만(데이터 미로드).
 	bool ImportOrReloadAsset(const File::Path& absolutePath, bool loadData = true);
 	// 마지막 캔버스(상대경로)이 참조하는 에셋 GUID 를 전이적으로 수집한다(프리팹 참조 포함).
-	std::vector<AssetGuid> CollectSceneLoadAssets(const std::string& sceneRelativePath) const;
+	std::vector<AssetGuid> CollectCanvasLoadAssets(const std::string& canvasRelativePath) const;
 	bool IsImportableAssetPath(const File::Path& absolutePath) const;
 	bool MakeAssetRelativePath(const File::Path& absolutePath, std::string& outRelativePath) const;
 	EAssetType DetectAssetType(const File::Path& relativePath) const;

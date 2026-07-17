@@ -102,7 +102,7 @@ private:
 	void SetFinished(EGameBuildState state, std::string message);
 	void AppendLog(const BuildDesc& desc, const std::string& text) const;
 
-	bool ValidateScenes(const BuildDesc& desc, std::string& outError) const;
+	bool ValidateCanvases(const BuildDesc& desc, std::string& outError) const;
 	bool BuildEngineGame(const BuildDesc& desc, std::string& outError) const;
 	bool BuildScriptModule(const BuildDesc& desc, File::Path& outScriptDll, std::string& outError) const;
 	bool BuildWebPackage(const BuildDesc& desc, std::string& outError) const;

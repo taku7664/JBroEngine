@@ -452,7 +452,7 @@ bool CGameBuildManager::StartBuild(SafePtr<CProjectManager> projectManager, EBui
 	{
 		std::lock_guard lock(m_mutex);
 		m_state = EGameBuildState::Failed;
-		m_message = "Startup scene is not configured.";
+		m_message = "Startup canvas is not configured.";
 		m_tasks.clear();
 		m_completedCount = 0;
 		m_packageDirectory.clear();
@@ -633,7 +633,7 @@ void CGameBuildManager::WorkerMain(BuildDesc desc)
 		return true;
 	};
 
-	if (false == runStep(0, [&]() { return ValidateScenes(desc, error); })) return;
+	if (false == runStep(0, [&]() { return ValidateCanvases(desc, error); })) return;
 	if (EBuildTargetPlatform::Web == desc.TargetPlatform)
 	{
 		if (false == runStep(1, [&]() { return BuildWebPackage(desc, error); })) return;
@@ -696,37 +696,37 @@ void CGameBuildManager::AppendLog(const BuildDesc& desc, const std::string& text
 	}
 }
 
-bool CGameBuildManager::ValidateScenes(const BuildDesc& desc, std::string& outError) const
+bool CGameBuildManager::ValidateCanvases(const BuildDesc& desc, std::string& outError) const
 {
 	if (desc.StartupCanvas.empty())
 	{
-		outError = "Startup scene is empty.";
+		outError = "Startup canvas is empty.";
 		return false;
 	}
-	std::vector<std::string> scenes = desc.BuildCanvases;
-	if (std::find(scenes.begin(), scenes.end(), desc.StartupCanvas) == scenes.end())
+	std::vector<std::string> canvases = desc.BuildCanvases;
+	if (std::find(canvases.begin(), canvases.end(), desc.StartupCanvas) == canvases.end())
 	{
-		scenes.insert(scenes.begin(), desc.StartupCanvas);
+		canvases.insert(canvases.begin(), desc.StartupCanvas);
 	}
-	for (const std::string& scene : scenes)
+	for (const std::string& canvas : canvases)
 	{
-		if (scene.empty()) continue;
-		const File::Path canvasPath = desc.AssetPath / File::Path(Utillity::U8ToWString(scene));
+		if (canvas.empty()) continue;
+		const File::Path canvasPath = desc.AssetPath / File::Path(Utillity::U8ToWString(canvas));
 		std::error_code ec;
 		if (false == std::filesystem::exists(canvasPath, ec))
 		{
-			outError = "Build scene was not found: " + scene;
+			outError = "Build canvas was not found: " + canvas;
 			return false;
 		}
-		if (FindAssetGuidByPath(File::Path(Utillity::U8ToWString(scene))).IsNull())
+		if (FindAssetGuidByPath(File::Path(Utillity::U8ToWString(canvas))).IsNull())
 		{
-			outError = "Build scene has no registered asset GUID: " + scene;
+			outError = "Build canvas has no registered asset GUID: " + canvas;
 			return false;
 		}
 	}
 	if (AssetGuid(desc.StartupCanvasGuid).IsNull())
 	{
-		outError = "Startup scene has no registered asset GUID: " + desc.StartupCanvas;
+		outError = "Startup canvas has no registered asset GUID: " + desc.StartupCanvas;
 		return false;
 	}
 	return true;
@@ -907,9 +907,9 @@ bool CGameBuildManager::StagePackage(const BuildDesc& desc, const File::Path& sc
 	// 참조 기반 패키징 시드: 빌드 캔버스 + 스타트업 캔버스 + Always Include + 기본/폴백 폰트 패밀리.
 	// 수집기가 여기서 프리팹·폰트 전이 의존까지 전개한다.
 	std::vector<AssetGuid> collectorSeeds;
-	for (const std::string& scene : desc.BuildCanvases)
+	for (const std::string& canvas : desc.BuildCanvases)
 	{
-		const AssetGuid canvasGuid = FindAssetGuidByPath(File::Path(Utillity::U8ToWString(scene)));
+		const AssetGuid canvasGuid = FindAssetGuidByPath(File::Path(Utillity::U8ToWString(canvas)));
 		if (false == canvasGuid.IsNull())
 		{
 			collectorSeeds.push_back(canvasGuid);
@@ -949,7 +949,7 @@ bool CGameBuildManager::StagePackage(const BuildDesc& desc, const File::Path& sc
 	}
 	if (collected.Included.empty())
 	{
-		outError = "No assets resolved for packaging. Check build scenes and asset references.";
+		outError = "No assets resolved for packaging. Check build canvases and asset references.";
 		return false;
 	}
 
@@ -973,10 +973,10 @@ bool CGameBuildManager::StagePackage(const BuildDesc& desc, const File::Path& sc
 	manifest.BuildCanvases = desc.BuildCanvases;
 	manifest.InputActions = desc.InputActions;
 	manifest.BuildCanvasGuids.reserve(desc.BuildCanvases.size());
-	for (const std::string& scene : desc.BuildCanvases)
+	for (const std::string& canvas : desc.BuildCanvases)
 	{
 		manifest.BuildCanvasGuids.push_back(
-			FindAssetGuidByPath(File::Path(Utillity::U8ToWString(scene))).generic_string());
+			FindAssetGuidByPath(File::Path(Utillity::U8ToWString(canvas))).generic_string());
 	}
 	manifest.ResolutionWidth = static_cast<int>(desc.ResolutionWidth);
 	manifest.ResolutionHeight = static_cast<int>(desc.ResolutionHeight);

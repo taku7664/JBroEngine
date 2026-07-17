@@ -31,7 +31,7 @@ namespace
 		return value;
 	}
 
-	bool DrawScriptList(CGameCanvas& scene, CGameObject* object, CReflectionRegistry& reflection)
+	bool DrawScriptList(CGameCanvas& canvas, CGameObject* object, CReflectionRegistry& reflection)
 	{
 		if (nullptr == object)
 		{
@@ -59,28 +59,28 @@ namespace
 			{
 				added = Editor::CommandManager.ExecuteCommand(
 					MakeOwnerPtr<CAddScriptCommand>(
-						scene.SafeFromThis(), object, scriptType->Type.Id));
+						canvas.SafeFromThis(), object, scriptType->Type.Id));
 			}
 		}
 
 		return added;
 	}
 
-	bool AddComponent(CGameCanvas& scene, CGameObject* object, const ComponentTypeInfo& componentType)
+	bool AddComponent(CGameCanvas& canvas, CGameObject* object, const ComponentTypeInfo& componentType)
 	{
 		return Editor::CommandManager.ExecuteCommand(
 			MakeOwnerPtr<CAddComponentCommand>(
-				scene.SafeFromThis(), object, componentType.Type.Id));
+				canvas.SafeFromThis(), object, componentType.Type.Id));
 	}
 
-	bool AddScript(CGameCanvas& scene, CGameObject* object, const ScriptTypeInfo& scriptType)
+	bool AddScript(CGameCanvas& canvas, CGameObject* object, const ScriptTypeInfo& scriptType)
 	{
 		return Editor::CommandManager.ExecuteCommand(
 			MakeOwnerPtr<CAddScriptCommand>(
-				scene.SafeFromThis(), object, scriptType.Type.Id));
+				canvas.SafeFromThis(), object, scriptType.Type.Id));
 	}
 
-	bool DrawComponentList(CGameCanvas& scene, CGameObject* object, const char* filterText = "")
+	bool DrawComponentList(CGameCanvas& canvas, CGameObject* object, const char* filterText = "")
 	{
 		if (false == Engine.Reflection.IsValid() || nullptr == object)
 		{
@@ -126,7 +126,7 @@ namespace
 				ImGui::BeginDisabled(false == canAdd);
 				if (ImGui::Selectable(label.c_str()) && canAdd)
 				{
-					added = AddComponent(scene, object, *componentType);
+					added = AddComponent(canvas, object, *componentType);
 					if (added)
 					{
 						ImGui::CloseCurrentPopup();
@@ -159,7 +159,7 @@ namespace
 				++resultCount;
 				if (ImGui::Selectable(label.c_str()))
 				{
-					added = AddScript(scene, object, *scriptType);
+					added = AddScript(canvas, object, *scriptType);
 					if (added)
 					{
 						ImGui::CloseCurrentPopup();
@@ -203,7 +203,7 @@ namespace
 					const bool canAdd = canAddComponent(componentType);
 					if (ImGui::MenuItem(componentLabel.c_str(), nullptr, false, canAdd))
 					{
-						added = AddComponent(scene, object, *componentType);
+						added = AddComponent(canvas, object, *componentType);
 					}
 					if (false == canAdd && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
 					{
@@ -216,7 +216,7 @@ namespace
 
 		if (ImGui::BeginMenu(Loc::Text(EditorLocKeys::InspectorScriptMenu)))
 		{
-			added = DrawScriptList(scene, object, reflection) || added;
+			added = DrawScriptList(canvas, object, reflection) || added;
 			ImGui::EndMenu();
 		}
 
@@ -224,18 +224,18 @@ namespace
 	}
 } // namespace
 
-bool EditorGuiActions::DrawAddComponentMenu(CGameCanvas& scene, CGameObject* object)
+bool EditorGuiActions::DrawAddComponentMenu(CGameCanvas& canvas, CGameObject* object)
 {
 	if (ImGui::BeginMenu(Loc::Text(EditorLocKeys::InspectorAddComponent)))
 	{
-		const bool added = DrawComponentList(scene, object);
+		const bool added = DrawComponentList(canvas, object);
 		ImGui::EndMenu();
 		return added;
 	}
 	return false;
 }
 
-bool EditorGuiActions::DrawAddComponentButton(CGameCanvas& scene, CGameObject* object, const char* buttonLabel)
+bool EditorGuiActions::DrawAddComponentButton(CGameCanvas& canvas, CGameObject* object, const char* buttonLabel)
 {
 	bool added = false;
 	const char* label = buttonLabel ? buttonLabel : Loc::Text(EditorLocKeys::InspectorAddComponent);
@@ -250,7 +250,7 @@ bool EditorGuiActions::DrawAddComponentButton(CGameCanvas& scene, CGameObject* o
 		ImGui::SetNextItemWidth(130.0f);
 		ImGui::InputTextWithHint("##component_filter", Loc::Text(EditorLocKeys::CommonFilter), filter, sizeof(filter));
 		ImGui::Separator();
-		added = DrawComponentList(scene, object, filter);
+		added = DrawComponentList(canvas, object, filter);
 		if (added)
 		{
 			filter[0] = '\0';
@@ -260,7 +260,7 @@ bool EditorGuiActions::DrawAddComponentButton(CGameCanvas& scene, CGameObject* o
 	return added;
 }
 
-bool EditorGuiActions::DrawAddObjectMenu(CGameCanvas& scene, CGameObject* parent, const Vector2* spawnWorldPos,
+bool EditorGuiActions::DrawAddObjectMenu(CGameCanvas& canvas, CGameObject* parent, const Vector2* spawnWorldPos,
                                          CGameLayer* layer)
 {
 	// parent 유무에 따라 레이블 변경
@@ -271,7 +271,7 @@ bool EditorGuiActions::DrawAddObjectMenu(CGameCanvas& scene, CGameObject* parent
 	if (ImGui::MenuItem(label))
 	{
 		OwnerPtr<CCreateGameObjectCommand> cmd =
-		    MakeOwnerPtr<CCreateGameObjectCommand>(scene.SafeFromThis(), "GameObject", parent, spawnWorldPos, layer);
+		    MakeOwnerPtr<CCreateGameObjectCommand>(canvas.SafeFromThis(), "GameObject", parent, spawnWorldPos, layer);
 		CCreateGameObjectCommand* rawCmd = cmd.Get();
 		if (Editor::CommandManager.ExecuteCommand(std::move(cmd)) && rawCmd)
 		{
@@ -282,7 +282,7 @@ bool EditorGuiActions::DrawAddObjectMenu(CGameCanvas& scene, CGameObject* parent
 	return false;
 }
 
-bool EditorGuiActions::DrawRemoveObjectMenu(CGameCanvas& scene, CGameObject* object)
+bool EditorGuiActions::DrawRemoveObjectMenu(CGameCanvas& canvas, CGameObject* object)
 {
 	if (nullptr == object)
 	{
@@ -293,7 +293,7 @@ bool EditorGuiActions::DrawRemoveObjectMenu(CGameCanvas& scene, CGameObject* obj
 	{
 		const bool wasSelected = Editor::IsSelected(object);
 		Editor::CommandManager.ExecuteCommand(
-			MakeOwnerPtr<CDeleteGameObjectCommand>(scene.SafeFromThis(), object));
+			MakeOwnerPtr<CDeleteGameObjectCommand>(canvas.SafeFromThis(), object));
 		// 삭제된 오브젝트가 선택돼 있었으면 선택 해제(다음 프레임 파괴 → SafePtr null 이지만
 		// 즉시 정리해 인스펙터 잔상 방지).
 		if (wasSelected)
@@ -318,7 +318,7 @@ bool EditorGuiActions::DrawCopyObjectMenuItem(const CGameObject& object)
 	return false;
 }
 
-bool EditorGuiActions::DrawPasteObjectMenuItem(CGameCanvas& scene, CGameObject* parent, CGameLayer* layer)
+bool EditorGuiActions::DrawPasteObjectMenuItem(CGameCanvas& canvas, CGameObject* parent, CGameLayer* layer)
 {
 	if (false == HasObjectClipboardData())
 	{
@@ -327,12 +327,12 @@ bool EditorGuiActions::DrawPasteObjectMenuItem(CGameCanvas& scene, CGameObject* 
 	if (ImGui::MenuItem(Loc::TextOr(EditorLocKeys::EditorMenuPasteObject, "Paste Object")))
 	{
 		// 원본 위치 유지(메뉴 붙여넣기). undo/새 guid 발급은 커맨드가 처리.
-		return PasteObjectsFromClipboard(scene, nullptr, parent, layer);
+		return PasteObjectsFromClipboard(canvas, nullptr, parent, layer);
 	}
 	return false;
 }
 
-CGameLayer* EditorGuiActions::ResolveTargetLayer(CGameCanvas& scene)
+CGameLayer* EditorGuiActions::ResolveTargetLayer(CGameCanvas& canvas)
 {
 	// 레이어를 직접 골랐으면 그 의도가 가장 명확하다.
 	if (CGameLayer* selectedLayer = Editor::GetSelectedLayer())
@@ -370,7 +370,7 @@ bool EditorGuiActions::CopySelectedObjectsToClipboard()
 	return true;
 }
 
-bool EditorGuiActions::PasteObjectsFromClipboard(CGameCanvas& scene, const Vector2* spawnWorldPos,
+bool EditorGuiActions::PasteObjectsFromClipboard(CGameCanvas& canvas, const Vector2* spawnWorldPos,
                                                 CGameObject* parent, CGameLayer* layer)
 {
 	const char* clip = ImGui::GetClipboardText();
@@ -382,10 +382,10 @@ bool EditorGuiActions::PasteObjectsFromClipboard(CGameCanvas& scene, const Vecto
 	// 레이어로 떨어지는 게 아니라 "고른 곳"으로 가는 것이 기대 동작이다.
 	if (nullptr == layer)
 	{
-		layer = ResolveTargetLayer(scene);
+		layer = ResolveTargetLayer(canvas);
 	}
 	OwnerPtr<CPasteObjectsCommand> cmd =
-	    MakeOwnerPtr<CPasteObjectsCommand>(scene.SafeFromThis(), std::string(clip), spawnWorldPos, parent, layer);
+	    MakeOwnerPtr<CPasteObjectsCommand>(canvas.SafeFromThis(), std::string(clip), spawnWorldPos, parent, layer);
 	CPasteObjectsCommand* rawCmd = cmd.Get();
 	if (false == Editor::CommandManager.ExecuteCommand(std::move(cmd)) || nullptr == rawCmd)
 	{
@@ -395,7 +395,7 @@ bool EditorGuiActions::PasteObjectsFromClipboard(CGameCanvas& scene, const Vecto
 	return true;
 }
 
-bool EditorGuiActions::DeleteSelectedObjects(CGameCanvas& scene)
+bool EditorGuiActions::DeleteSelectedObjects(CGameCanvas& canvas)
 {
 	const std::vector<CGameObject*> roots = Editor::GetSelectedTopLevel();
 	if (roots.empty())
@@ -404,7 +404,7 @@ bool EditorGuiActions::DeleteSelectedObjects(CGameCanvas& scene)
 	}
 
 	if (false == Editor::CommandManager.ExecuteCommand(
-		MakeOwnerPtr<CDeleteGameObjectsCommand>(scene.SafeFromThis(), roots)))
+		MakeOwnerPtr<CDeleteGameObjectsCommand>(canvas.SafeFromThis(), roots)))
 	{
 		return false;
 	}
@@ -413,7 +413,7 @@ bool EditorGuiActions::DeleteSelectedObjects(CGameCanvas& scene)
 	return true;
 }
 
-bool EditorGuiActions::DeleteSelectedLayer(CGameCanvas& scene)
+bool EditorGuiActions::DeleteSelectedLayer(CGameCanvas& canvas)
 {
 	CGameLayer* layer = Editor::GetSelectedLayer();
 	if (nullptr == layer)
@@ -423,7 +423,7 @@ bool EditorGuiActions::DeleteSelectedLayer(CGameCanvas& scene)
 
 	// 마지막 레이어면 캔버스가 거부한다("레이어 0개" 불허) → 커맨드도 실패로 끝나 스택에 안 쌓인다.
 	if (false == Editor::CommandManager.ExecuteCommand(
-		MakeOwnerPtr<CDeleteLayerCommand>(scene.SafeFromThis(), layer)))
+		MakeOwnerPtr<CDeleteLayerCommand>(canvas.SafeFromThis(), layer)))
 	{
 		return false;
 	}

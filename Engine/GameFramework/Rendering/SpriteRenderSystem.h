@@ -30,7 +30,7 @@ public:
 	void ClearMaterialCache();
 
 protected:
-	void OnUpdate(CGameCanvas& scene) override;
+	void OnUpdate(CGameCanvas& canvas) override;
 
 private:
 	IRenderScene*         m_renderScene         = nullptr;

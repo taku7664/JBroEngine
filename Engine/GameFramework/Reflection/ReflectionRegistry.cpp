@@ -15,15 +15,15 @@ namespace
 {
 	struct ScriptAllocationContext
 	{
-		CGameCanvas* Scene = nullptr;
+		CGameCanvas* Canvas = nullptr;
 		TypeId ScriptTypeId = INVALID_TYPE_ID;
 	};
 
 	struct ScriptAllocationRecord
 	{
-		CGameCanvas* Scene = nullptr;
+		CGameCanvas* Canvas = nullptr;
 		TypeId ScriptTypeId = INVALID_TYPE_ID;
-		std::uint64_t SceneGeneration = 0;
+		std::uint64_t CanvasGeneration = 0;
 	};
 
 	thread_local ScriptAllocationContext g_scriptAllocationContext;
@@ -33,9 +33,9 @@ namespace
 	public:
 		void Register(
 			void* ptr,
-			CGameCanvas& scene,
+			CGameCanvas& canvas,
 			TypeId scriptTypeId,
-			std::uint64_t sceneGeneration)
+			std::uint64_t canvasGeneration)
 		{
 			if (nullptr == ptr || INVALID_TYPE_ID == scriptTypeId)
 			{
@@ -43,7 +43,7 @@ namespace
 			}
 
 			std::lock_guard<std::mutex> lock(m_mutex);
-			m_records[ptr] = { &scene, scriptTypeId, sceneGeneration };
+			m_records[ptr] = { &canvas, scriptTypeId, canvasGeneration };
 		}
 
 		bool Consume(void* ptr, ScriptAllocationRecord& outRecord)
@@ -65,12 +65,12 @@ namespace
 			return true;
 		}
 
-		void ForgetScene(const CGameCanvas& scene)
+		void ForgetCanvas(const CGameCanvas& canvas)
 		{
 			std::lock_guard<std::mutex> lock(m_mutex);
 			for (auto it = m_records.begin(); it != m_records.end();)
 			{
-				if (it->second.Scene == &scene)
+				if (it->second.Canvas == &canvas)
 				{
 					it = m_records.erase(it);
 				}
@@ -95,10 +95,10 @@ namespace
 	class ScriptAllocationScope final
 	{
 	public:
-		ScriptAllocationScope(CGameCanvas* scene, TypeId scriptTypeId)
+		ScriptAllocationScope(CGameCanvas* canvas, TypeId scriptTypeId)
 			: m_previous(g_scriptAllocationContext)
 		{
-			g_scriptAllocationContext.Scene = scene;
+			g_scriptAllocationContext.Canvas = canvas;
 			g_scriptAllocationContext.ScriptTypeId = scriptTypeId;
 		}
 
@@ -202,21 +202,21 @@ const ScriptTypeInfo* CReflectionRegistry::GetScriptType(std::size_t index) cons
 	return index < m_scriptTypes.size() ? &m_scriptTypes[index] : nullptr;
 }
 
-bool CReflectionRegistry::AddComponent(CGameCanvas& scene, CGameObject& object, TypeId typeId) const
+bool CReflectionRegistry::AddComponent(CGameCanvas& canvas, CGameObject& object, TypeId typeId) const
 {
 	const ComponentTypeInfo* typeInfo = FindComponent(typeId);
 	if (!typeInfo || false == CanAddComponent(object, typeId)) return false;
-	return typeInfo->AddToObject && typeInfo->AddToObject(scene, object);
+	return typeInfo->AddToObject && typeInfo->AddToObject(canvas, object);
 }
 
-bool CReflectionRegistry::ReserveComponentPool(CGameCanvas& scene, TypeId typeId, std::size_t capacity) const
+bool CReflectionRegistry::ReserveComponentPool(CGameCanvas& canvas, TypeId typeId, std::size_t capacity) const
 {
 	const ComponentTypeInfo* typeInfo = FindComponent(typeId);
-	if (nullptr == typeInfo || nullptr == typeInfo->ReserveInScene)
+	if (nullptr == typeInfo || nullptr == typeInfo->ReserveInCanvas)
 	{
 		return false;
 	}
-	typeInfo->ReserveInScene(scene, capacity);
+	typeInfo->ReserveInCanvas(canvas, capacity);
 	return true;
 }
 
@@ -234,17 +234,17 @@ bool CReflectionRegistry::CanAddComponent(const CGameObject& object, TypeId type
 	return true;
 }
 
-bool CReflectionRegistry::RemoveComponent(CGameCanvas& scene, CGameObject& object, TypeId typeId) const
+bool CReflectionRegistry::RemoveComponent(CGameCanvas& canvas, CGameObject& object, TypeId typeId) const
 {
 	const ComponentTypeInfo* typeInfo = FindComponent(typeId);
-	return typeInfo && typeInfo->RemoveFromObject && typeInfo->RemoveFromObject(scene, object);
+	return typeInfo && typeInfo->RemoveFromObject && typeInfo->RemoveFromObject(canvas, object);
 }
 
-bool CReflectionRegistry::RemoveComponentByGuid(CGameCanvas& scene, CGameObject& object, TypeId typeId, const File::Guid& componentGuid) const
+bool CReflectionRegistry::RemoveComponentByGuid(CGameCanvas& canvas, CGameObject& object, TypeId typeId, const File::Guid& componentGuid) const
 {
 	if (componentGuid.IsNull())
 	{
-		return RemoveComponent(scene, object, typeId);
+		return RemoveComponent(canvas, object, typeId);
 	}
 
 	CComponent* component = static_cast<CComponent*>(GetComponentAddressByGuid(object, typeId, componentGuid));
@@ -252,7 +252,7 @@ bool CReflectionRegistry::RemoveComponentByGuid(CGameCanvas& scene, CGameObject&
 	{
 		return false;
 	}
-	scene.RemoveComponent(component);
+	canvas.RemoveComponent(component);
 	return true;
 }
 
@@ -429,7 +429,7 @@ bool CReflectionRegistry::UnregisterScript(TypeId typeId)
 
 ScriptInstanceHandle CReflectionRegistry::CreateScriptInstance(
 	TypeId typeId,
-	CGameCanvas& scene,
+	CGameCanvas& canvas,
 	CGameObject& owner) const
 {
 	ScriptInstanceHandle handle;
@@ -439,7 +439,7 @@ ScriptInstanceHandle CReflectionRegistry::CreateScriptInstance(
 		return handle;
 	}
 
-	ScriptAllocationScope allocationScope(&scene, typeId);
+	ScriptAllocationScope allocationScope(&canvas, typeId);
 	handle.Instance = info->CreateInstance(
 		&m_scriptHostApi,
 		ComponentConstructionToken{ typeId },
@@ -449,9 +449,9 @@ ScriptInstanceHandle CReflectionRegistry::CreateScriptInstance(
 	return handle;
 }
 
-void CReflectionRegistry::ForgetScriptAllocationsForScene(const CGameCanvas& scene)
+void CReflectionRegistry::ForgetScriptAllocationsForCanvas(const CGameCanvas& canvas)
 {
-	GetScriptAllocationRegistry().ForgetScene(scene);
+	GetScriptAllocationRegistry().ForgetCanvas(canvas);
 }
 
 bool CReflectionRegistry::RegisterScriptInternal(ScriptTypeInfo&& typeInfo)
@@ -485,9 +485,9 @@ void* CReflectionRegistry::AllocateScriptMemory(std::size_t size, std::size_t al
 	const std::size_t effectiveSize = std::max<std::size_t>(size, 1);
 	const std::size_t effectiveAlignment = std::max<std::size_t>(alignment, alignof(void*));
 
-	if (g_scriptAllocationContext.Scene && INVALID_TYPE_ID != g_scriptAllocationContext.ScriptTypeId)
+	if (g_scriptAllocationContext.Canvas && INVALID_TYPE_ID != g_scriptAllocationContext.ScriptTypeId)
 	{
-		void* ptr = g_scriptAllocationContext.Scene->AllocateScriptMemory(
+		void* ptr = g_scriptAllocationContext.Canvas->AllocateScriptMemory(
 			g_scriptAllocationContext.ScriptTypeId,
 			effectiveSize,
 			effectiveAlignment);
@@ -495,9 +495,9 @@ void* CReflectionRegistry::AllocateScriptMemory(std::size_t size, std::size_t al
 		{
 			GetScriptAllocationRegistry().Register(
 				ptr,
-				*g_scriptAllocationContext.Scene,
+				*g_scriptAllocationContext.Canvas,
 				g_scriptAllocationContext.ScriptTypeId,
-				g_scriptAllocationContext.Scene->GetScriptAllocationGeneration());
+				g_scriptAllocationContext.Canvas->GetScriptAllocationGeneration());
 		}
 		return ptr;
 	}
@@ -530,12 +530,12 @@ void CReflectionRegistry::FreeScriptMemory(void* ptr, std::size_t size, std::siz
 	ScriptAllocationRecord record;
 	if (GetScriptAllocationRegistry().Consume(ptr, record))
 	{
-		if (record.Scene && record.Scene->GetScriptAllocationGeneration() == record.SceneGeneration)
+		if (record.Canvas && record.Canvas->GetScriptAllocationGeneration() == record.CanvasGeneration)
 		{
-			record.Scene->FreeScriptMemory(record.ScriptTypeId, ptr, size, alignment);
+			record.Canvas->FreeScriptMemory(record.ScriptTypeId, ptr, size, alignment);
 			return;
 		}
-		// The scene already cleared the owning pool. Its storage has been released;
+		// The canvas already cleared the owning pool. Its storage has been released;
 		// falling through to the direct allocator would double-free the pointer.
 		return;
 	}

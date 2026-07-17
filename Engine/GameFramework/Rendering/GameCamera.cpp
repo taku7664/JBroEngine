@@ -22,12 +22,12 @@ namespace
 	// 폴백 카메라 — 뷰포트가 카메라를 지목하지 않았을 때 쓸 "첫 활성 카메라".
 	// 순서 규약 = 레이어 순서 → 레이어 내 하이라키(생성) 순서. 스크립트 실행 순서와 같은 축이라
 	// 예측 가능하다. 풀 순회 순서(비결정)에 의존하지 않는다.
-	const Camera2D* FindFallbackCamera(const CGameCanvas& scene)
+	const Camera2D* FindFallbackCamera(const CGameCanvas& canvas)
 	{
 		const Camera2D* best = nullptr;
 		std::uint16_t bestLayerIndex = 0;
 		std::uint64_t bestCreationOrder = 0;
-		scene.ForEach<Camera2D>(
+		canvas.ForEach<Camera2D>(
 			[&](const Camera2D& camera)
 			{
 				if (false == IsActiveComponent(camera))
@@ -56,12 +56,12 @@ namespace
 	// 뷰포트의 카메라 Ref 해석. SafePtr 캐시가 살아 있으면 그대로 쓰고(매 프레임 guid
 	// 문자열 파싱 회피), 죽었을 때만 guid 로 재해석한다 — 레이어 재로드로 카메라 오브젝트가
 	// 새로 태어나도 같은 guid 면 다시 붙는다.
-	const Camera2D* ResolveViewportCamera(CGameCanvas& scene, CanvasViewport& viewport)
+	const Camera2D* ResolveViewportCamera(CGameCanvas& canvas, CanvasViewport& viewport)
 	{
 		CGameObject* cameraObject = viewport.ResolvedCamera.TryGet();
 		if (nullptr == cameraObject && false == viewport.CameraObjectGuid.IsNull())
 		{
-			viewport.ResolvedCamera = scene.FindByInstanceGuid(viewport.CameraObjectGuid);
+			viewport.ResolvedCamera = canvas.FindByInstanceGuid(viewport.CameraObjectGuid);
 			cameraObject = viewport.ResolvedCamera.TryGet();
 		}
 
@@ -75,12 +75,12 @@ namespace
 				}
 			}
 		}
-		return FindFallbackCamera(scene);
+		return FindFallbackCamera(canvas);
 	}
 
 	// 뷰포트의 레이어 필터(guid 목록)를 캔버스 순서의 인덱스 목록으로 해석한다.
 	// 비어 있으면(대부분) 전체 레이어 — 빈 목록을 그대로 돌려주고 렌더가 전체로 해석한다.
-	std::vector<RenderLayerIndex> ResolveViewportLayers(const CGameCanvas& scene, const CanvasViewport& viewport)
+	std::vector<RenderLayerIndex> ResolveViewportLayers(const CGameCanvas& canvas, const CanvasViewport& viewport)
 	{
 		std::vector<RenderLayerIndex> layerIndices;
 		if (viewport.LayerFilter.empty())
@@ -90,7 +90,7 @@ namespace
 		layerIndices.reserve(viewport.LayerFilter.size());
 		for (const File::Guid& layerGuid : viewport.LayerFilter)
 		{
-			if (const CGameLayer* layer = scene.FindLayerByInstanceGuid(layerGuid).TryGet())
+			if (const CGameLayer* layer = canvas.FindLayerByInstanceGuid(layerGuid).TryGet())
 			{
 				layerIndices.push_back(layer->GetIndex());
 			}
@@ -101,25 +101,25 @@ namespace
 	}
 }
 
-std::vector<GameRenderViewportDesc> CollectGameRenderViewports(CGameCanvas& scene, float renderWidth, float renderHeight)
+std::vector<GameRenderViewportDesc> CollectGameRenderViewports(CGameCanvas& canvas, float renderWidth, float renderHeight)
 {
 	renderWidth = std::max(renderWidth, 1.0f);
 	renderHeight = std::max(renderHeight, 1.0f);
 
 	// 뷰포트를 저작하지 않은 캔버스(대부분)는 풀스크린 기본 뷰포트 1개로 그린다.
-	scene.GetOrCreateDefaultViewport();
+	canvas.GetOrCreateDefaultViewport();
 
 	std::vector<GameRenderViewportDesc> viewports;
-	viewports.reserve(scene.GetViewportCount());
-	for (std::size_t i = 0; i < scene.GetViewportCount(); ++i)
+	viewports.reserve(canvas.GetViewportCount());
+	for (std::size_t i = 0; i < canvas.GetViewportCount(); ++i)
 	{
-		CanvasViewport* viewport = scene.GetViewportAt(i);
+		CanvasViewport* viewport = canvas.GetViewportAt(i);
 		if (nullptr == viewport || false == viewport->Active)
 		{
 			continue;
 		}
 
-		const Camera2D* camera = ResolveViewportCamera(scene, *viewport);
+		const Camera2D* camera = ResolveViewportCamera(canvas, *viewport);
 		if (nullptr == camera)
 		{
 			continue;   // 눈이 없으면 그릴 수 없다.
@@ -156,7 +156,7 @@ std::vector<GameRenderViewportDesc> CollectGameRenderViewports(CGameCanvas& scen
 		desc.RectY = posPixel.y / renderHeight;
 		desc.RectW = sizePixel.x / renderWidth;
 		desc.RectH = sizePixel.y / renderHeight;
-		desc.Layers = ResolveViewportLayers(scene, *viewport);
+		desc.Layers = ResolveViewportLayers(canvas, *viewport);
 		desc.CameraOwnerObject = owner;
 		viewports.push_back(std::move(desc));
 	}
@@ -164,10 +164,10 @@ std::vector<GameRenderViewportDesc> CollectGameRenderViewports(CGameCanvas& scen
 	return viewports;
 }
 
-std::vector<GameRenderLightDesc> CollectGameRenderLights(const CGameCanvas& scene)
+std::vector<GameRenderLightDesc> CollectGameRenderLights(const CGameCanvas& canvas)
 {
 	std::vector<GameRenderLightDesc> lights;
-	scene.ForEach<Light2D>(
+	canvas.ForEach<Light2D>(
 		[&](const Light2D& light)
 		{
 			const CGameObject* owner = light.GetOwner().TryGet();
@@ -209,14 +209,14 @@ std::vector<GameRenderLightDesc> CollectGameRenderLights(const CGameCanvas& scen
 	return lights;
 }
 
-std::vector<GameRenderLayerDesc> CollectGameRenderLayers(const CGameCanvas& scene, bool forceOwnTextureAll)
+std::vector<GameRenderLayerDesc> CollectGameRenderLayers(const CGameCanvas& canvas, bool forceOwnTextureAll)
 {
 	std::vector<GameRenderLayerDesc> layers;
-	const std::size_t layerCount = scene.GetLayerCount();
+	const std::size_t layerCount = canvas.GetLayerCount();
 	layers.reserve(layerCount);
 	for (std::size_t i = 0; i < layerCount; ++i)
 	{
-		const CGameLayer* layer = scene.GetLayerAt(i);
+		const CGameLayer* layer = canvas.GetLayerAt(i);
 		if (nullptr == layer)
 		{
 			continue;

@@ -142,7 +142,7 @@ bool BuildSettingsUtils::IsValidVersionString(const std::string& value)
 	return hasDigitInSegment;
 }
 
-bool BuildSettingsUtils::HasSceneFileExtension(const std::string& value)
+bool BuildSettingsUtils::HasCanvasFileExtension(const std::string& value)
 {
 	if (IsBlank(value))
 	{
@@ -162,7 +162,7 @@ bool BuildSettingsUtils::HasRequiredIssueForPlatform(
 {
 	if (IsBlank(settings.ProductName)
 		|| IsBlank(settings.OutputDirectory)
-		|| false == HasSceneFileExtension(settings.StartupCanvas))
+		|| false == HasCanvasFileExtension(settings.StartupCanvas))
 	{
 		return true;
 	}

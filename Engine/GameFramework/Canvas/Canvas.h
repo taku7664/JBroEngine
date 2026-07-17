@@ -48,7 +48,7 @@ public:
 	CGameCanvas& operator=(const CGameCanvas&) = delete;
 
 	// ── 이름 ─────────────────────────────────────────────────────────────────
-	// 캔버스 파일 키(CanvasManager::SetCanvasName 이 설정). Ref<GameScene> 해석 키.
+	// 캔버스 파일 키(CanvasManager::SetCanvasName 이 설정). Ref<Canvas> 해석 키.
 	const char* GetName() const { return m_name.c_str(); }
 
 	// ── 레이어 ────────────────────────────────────────────────────────────────
@@ -272,7 +272,7 @@ private:
 	// 캔버스 내용 교체 전용 — 보유분을 호출자에게 넘긴다(캔버스는 미보유 상태가 된다).
 	// 호출자는 이 반환값을 **살려 둔 채** 새 목록을 acquire 한 다음 놓아야 한다. 순서가
 	// 뒤집히면 두 캔버스가 공유하는 에셋이 use-count 0 으로 떨어져 unload 됐다가 곧바로
-	// 다시 로드된다(구 SetActiveScene 이 "새 캔버스 acquire 뒤 옛 캔버스 release" 였던 이유).
+	// 다시 로드된다(구 SetActiveCanvas 이 "새 캔버스 acquire 뒤 옛 캔버스 release" 였던 이유).
 	std::vector<AssetRef<IAsset>> TakeLoadedAssets()
 	{
 		std::vector<AssetRef<IAsset>> taken = std::move(m_loadedAssets);
@@ -333,7 +333,7 @@ private:
 	class ScriptIterationGuard
 	{
 	public:
-		explicit ScriptIterationGuard(CGameCanvas& scene) : m_canvas(scene) { ++m_canvas.m_scriptIterationDepth; }
+		explicit ScriptIterationGuard(CGameCanvas& canvas) : m_canvas(canvas) { ++m_canvas.m_scriptIterationDepth; }
 		~ScriptIterationGuard() { --m_canvas.m_scriptIterationDepth; }
 		ScriptIterationGuard(const ScriptIterationGuard&) = delete;
 		ScriptIterationGuard& operator=(const ScriptIterationGuard&) = delete;

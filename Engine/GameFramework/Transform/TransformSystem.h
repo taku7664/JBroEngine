@@ -9,7 +9,7 @@
 // After this system runs, every call to GetWorldTransform() in the same frame
 // simply reads the cached WorldTransform2D — no parent-chain traversal needed.
 //
-// ShouldUpdateInEditMode() returns true so the editor scene view also shows
+// ShouldUpdateInEditMode() returns true so the editor canvas view also shows
 // correct world-space positions while the simulation is paused.
 class CTransformSystem final : public CGameSystem
 {
@@ -17,5 +17,5 @@ public:
 	bool ShouldUpdateInEditMode() const override { return true; }
 
 private:
-	void OnUpdate(CGameCanvas& scene) override;
+	void OnUpdate(CGameCanvas& canvas) override;
 };

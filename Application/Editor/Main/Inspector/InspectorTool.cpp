@@ -124,14 +124,14 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		const char* wantType  = property.RefTypeName;
 		if (wantScript)
 		{
-			CGameCanvas* scene = object.GetCanvas();
-			if (nullptr == scene)
+			CGameCanvas* canvas = object.GetCanvas();
+			if (nullptr == canvas)
 			{
 				return File::Guid();
 			}
 			for (const SafePtr<CComponent>& componentRef : object.GetComponents())
 			{
-				CGameScript* script = CCanvasRuntimeAccess::AsScript(*scene, componentRef.TryGet());
+				CGameScript* script = CCanvasRuntimeAccess::AsScript(*canvas, componentRef.TryGet());
 				if (nullptr == script) continue;
 				if (nullptr == wantType || '\0' == wantType[0]) return script->GetInstanceGuid();
 				if (Engine.Reflection.IsValid())
@@ -181,9 +181,9 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			return name + "  [" + typeName + "]";
 		}
 		// 오브젝트/컴포넌트/스크립트 — InstanceGuid → 오브젝트 이름.
-		if (CGameCanvas* scene = EditorContext::TryGetActiveScene())
+		if (CGameCanvas* canvas = EditorContext::TryGetActiveCanvas())
 		{
-			if (CGameObject* obj = scene->FindByInstanceGuid(guid).TryGet())
+			if (CGameObject* obj = canvas->FindByInstanceGuid(guid).TryGet())
 			{
 				return std::string(obj->GetName()) + "  [" + typeName + "]";
 			}
@@ -225,8 +225,8 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		}
 
 		// 오브젝트/컴포넌트/스크립트 — 하이어라키 페이로드.
-		CGameCanvas* scene = EditorContext::TryGetActiveScene();
-		if (nullptr == scene || false == ImGui::BeginDragDropTarget())
+		CGameCanvas* canvas = EditorContext::TryGetActiveCanvas();
+		if (nullptr == canvas || false == ImGui::BeginDragDropTarget())
 		{
 			return false;
 		}
@@ -497,7 +497,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 	}
 
 	void DrawReflectedPropertyRow(
-		CGameCanvas& scene,
+		CGameCanvas& canvas,
 		CGameObject* selectedObject,
 		CComponent& component,
 		const ReflectPropertyInfo& property,
@@ -530,7 +530,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 				if (oldValue != newValue)
 				{
 					Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CSetComponentPropertyCommand>(
-						scene.SafeFromThis(), selectedObject, component.GetTypeId(), property.Offset,
+						canvas.SafeFromThis(), selectedObject, component.GetTypeId(), property.Offset,
 						std::move(oldValue), std::move(newValue), component.GetInstanceGuid()));
 				}
 			}
@@ -540,7 +540,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 				if (oldString != newString)
 				{
 					Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CSetComponentStringPropertyCommand>(
-						scene.SafeFromThis(), selectedObject, component.GetTypeId(), property.Offset,
+						canvas.SafeFromThis(), selectedObject, component.GetTypeId(), property.Offset,
 						oldString, newString, component.GetInstanceGuid()));
 				}
 			}
@@ -582,9 +582,9 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		ImGui::EndDisabled();
 	}
 
-	void DrawPhysicsContactDebug(const CGameCanvas& scene, const CGameObject* selectedObject)
+	void DrawPhysicsContactDebug(const CGameCanvas& canvas, const CGameObject* selectedObject)
 	{
-		const CPhysics2DSystem* physicsSystem = scene.GetPhysics2DSystem();
+		const CPhysics2DSystem* physicsSystem = canvas.GetPhysics2DSystem();
 		if (nullptr == physicsSystem)
 		{
 			return;
@@ -616,7 +616,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		}
 	}
 
-	void DrawRigidbodyDebug(const CGameCanvas& scene, const CGameObject* selectedObject, const Rigidbody2D& rigidbody)
+	void DrawRigidbodyDebug(const CGameCanvas& canvas, const CGameObject* selectedObject, const Rigidbody2D& rigidbody)
 	{
 		ImGui::SeparatorText(Loc::Text(EditorLocKeys::InspectorRigidbodyDebug));
 		const float inverseMass = rigidbody.Mass > 0.0f ? 1.0f / rigidbody.Mass : 0.0f;
@@ -629,12 +629,12 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		DrawReadOnlyFloat(Loc::Text(EditorLocKeys::InspectorRigidbodyLastNormalImpulse), rigidbody.LastNormalImpulse);
 		DrawReadOnlyFloat(Loc::Text(EditorLocKeys::InspectorRigidbodyLastFrictionImpulse), rigidbody.LastFrictionImpulse);
 		DrawReadOnlyFloat(Loc::Text(EditorLocKeys::InspectorRigidbodyLastAngularImpulse), rigidbody.LastAngularImpulse);
-		DrawPhysicsContactDebug(scene, selectedObject);
+		DrawPhysicsContactDebug(canvas, selectedObject);
 	}
 
-	void DrawCircleColliderDebug(const CGameCanvas& scene, const CGameObject* selectedObject, const CircleCollider2D& collider)
+	void DrawCircleColliderDebug(const CGameCanvas& canvas, const CGameObject* selectedObject, const CircleCollider2D& collider)
 	{
-		(void)scene;
+		(void)canvas;
 		const Matrix3x2 worldTransform = selectedObject ? GetWorldTransform(*selectedObject) : Matrix3x2::Identity();
 		const Vector2 worldCenter = worldTransform.TransformPoint(Vector2(0.0f, 0.0f));
 		const float scaleX = std::sqrt(worldTransform.M11 * worldTransform.M11 + worldTransform.M12 * worldTransform.M12);
@@ -646,9 +646,9 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		DrawReadOnlyFloat(Loc::Text(EditorLocKeys::InspectorColliderWorldRadius), worldRadius);
 	}
 
-	void DrawPolygonColliderDebug(const CGameCanvas& scene, const CGameObject* selectedObject, const PolygonCollider2D& collider)
+	void DrawPolygonColliderDebug(const CGameCanvas& canvas, const CGameObject* selectedObject, const PolygonCollider2D& collider)
 	{
-		(void)scene;
+		(void)canvas;
 		std::vector<Vector2> generatedPoints;
 		const std::vector<Vector2>* localPoints = &collider.LocalPoints;
 		if (localPoints->empty())
@@ -714,7 +714,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 	//   sameLineAfter=true  → "##enabled" 체크박스 + SameLine() (CollapsingHeader 왼쪽)
 	//   sameLineAfter=false → "IsEnabled" 라벨 체크박스 + Separator  (탭 최상단 단독)
 	void DrawIsEnabledCheckbox(
-		CGameCanvas& scene, CGameObject* selectedObject,
+		CGameCanvas& canvas, CGameObject* selectedObject,
 		const ComponentTypeInfo& componentType,
 		std::size_t instanceIdx, void* component, bool sameLineAfter)
 	{
@@ -728,7 +728,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		{
 			target->SetEnabled(newEnabled);
 			Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CSetComponentEnabledCommand>(
-				scene.SafeFromThis(), selectedObject, GetComponentGuid(component), oldEnabled, newEnabled));
+				canvas.SafeFromThis(), selectedObject, GetComponentGuid(component), oldEnabled, newEnabled));
 		}
 		if (sameLineAfter)
 			ImGui::SameLine();
@@ -739,7 +739,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 	// ── DrawComponentProperties ───────────────────────────────────────────────
 	// IsEnabled·non-editable 프로퍼티를 제외하고 에디터 + 특수 디버그 섹션 렌더링.
 	void DrawComponentProperties(
-		CGameCanvas& scene, CGameObject* selectedObject,
+		CGameCanvas& canvas, CGameObject* selectedObject,
 		const ComponentTypeInfo& componentType,
 		std::size_t instanceIdx, void* component)
 	{
@@ -763,18 +763,18 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 					&& false == text.AutoSizeEnabled) continue;
 			}
 
-			DrawReflectedPropertyRow(scene, selectedObject, *static_cast<CComponent*>(component), property, leftText);
+			DrawReflectedPropertyRow(canvas, selectedObject, *static_cast<CComponent*>(component), property, leftText);
 		}
 
 		// 특수 디버그 섹션
 		if (componentType.Type.Id == CReflectionRegistry::MakeTypeId("Transform2D"))
 			DrawTransformMatrixReadOnly(*static_cast<Transform2D*>(component));
 		else if (componentType.Type.Id == CReflectionRegistry::MakeTypeId("Rigidbody2D"))
-			DrawRigidbodyDebug(scene, selectedObject, *static_cast<Rigidbody2D*>(component));
+			DrawRigidbodyDebug(canvas, selectedObject, *static_cast<Rigidbody2D*>(component));
 		else if (componentType.Type.Id == CReflectionRegistry::MakeTypeId("CircleCollider2D"))
-			DrawCircleColliderDebug(scene, selectedObject, *static_cast<CircleCollider2D*>(component));
+			DrawCircleColliderDebug(canvas, selectedObject, *static_cast<CircleCollider2D*>(component));
 		else if (componentType.Type.Id == CReflectionRegistry::MakeTypeId("PolygonCollider2D"))
-			DrawPolygonColliderDebug(scene, selectedObject, *static_cast<PolygonCollider2D*>(component));
+			DrawPolygonColliderDebug(canvas, selectedObject, *static_cast<PolygonCollider2D*>(component));
 		else if (componentType.Type.Id == CReflectionRegistry::MakeTypeId("Camera2D"))
 			DrawCamera2DDebug(selectedObject);
 		else if (componentType.Type.Id == CReflectionRegistry::MakeTypeId("Text2D"))
@@ -1464,10 +1464,10 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		std::string Label;
 	};
 
-	std::vector<CameraChoice> CollectCameraChoices(CGameCanvas& scene)
+	std::vector<CameraChoice> CollectCameraChoices(CGameCanvas& canvas)
 	{
 		std::vector<CameraChoice> choices;
-		scene.ForEachObject([&choices](CGameObject& object)
+		canvas.ForEachObject([&choices](CGameObject& object)
 		{
 			if (nullptr == object.GetComponent<Camera2D>())
 			{
@@ -1482,10 +1482,10 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 	}
 
 	// 폴백(뷰포트가 카메라를 안 고른 경우)이 "임의로 하나"를 고르게 되는지 판단용.
-	int CountActiveCameras(CGameCanvas& scene)
+	int CountActiveCameras(CGameCanvas& canvas)
 	{
 		int count = 0;
-		scene.ForEach<Camera2D>([&count](Camera2D& camera)
+		canvas.ForEach<Camera2D>([&count](Camera2D& camera)
 		{
 			if (IsActiveComponent(camera))
 			{
@@ -1499,10 +1499,10 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 	// 움직여도 화면은 그대로다. "움직인다" 판정: 스크립트가 붙어 있거나(무엇이든 할 수 있다),
 	// Rigidbody2D 가 Static 이 아니거나(물리가 옮긴다).
 	// 스크립트 판정에 dynamic_cast 대신 리플렉션 조회를 쓴다 — 인스펙터는 매 프레임 돈다.
-	int CountMovingObjectsInLayer(CGameCanvas& scene, const CGameLayer& layer, const CReflectionRegistry& reflection)
+	int CountMovingObjectsInLayer(CGameCanvas& canvas, const CGameLayer& layer, const CReflectionRegistry& reflection)
 	{
 		int count = 0;
-		scene.ForEachObject([&](CGameObject& object)
+		canvas.ForEachObject([&](CGameObject& object)
 		{
 			if (object.GetLayer().TryGet() != &layer)
 			{
@@ -1534,21 +1534,21 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 	// 뷰포트 하나의 속성 편집. 레이어 패널과 같은 규칙 — 라이브 대입이 아니라 스냅샷 교체다
 	// (커맨드가 "적용 직전 값"을 old 로 캡처하므로 먼저 라이브로 바꾸면 undo 가 무효가 된다).
 	void DrawViewportProperties(
-		CGameCanvas& scene,
+		CGameCanvas& canvas,
 		std::size_t viewportIndex,
 		const std::vector<CameraChoice>& cameras,
 		int activeCameraCount)
 	{
-		CanvasViewport* viewport = scene.GetViewportAt(viewportIndex);
+		CanvasViewport* viewport = canvas.GetViewportAt(viewportIndex);
 		if (nullptr == viewport)
 		{
 			return;
 		}
 
 		using EField = CSetViewportPropertyCommand::EField;
-		auto apply = [&scene, viewportIndex](EField field, const ViewportSnapshot& properties)
+		auto apply = [&canvas, viewportIndex](EField field, const ViewportSnapshot& properties)
 		{
-			EditorCanvasActions::SetViewportProperty(scene, viewportIndex, field, properties);
+			EditorCanvasActions::SetViewportProperty(canvas, viewportIndex, field, properties);
 		};
 
 		ImGui::Utillity::FormLayout layout("##viewport_properties", 4.0f, { 2.0f, 1.0f });
@@ -1653,13 +1653,13 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			else
 			{
 				ImGui::Text("%d / %d", static_cast<int>(viewport->LayerFilter.size()),
-					static_cast<int>(scene.GetLayerCount()));
+					static_cast<int>(canvas.GetLayerCount()));
 			}
 		});
 
-		for (std::size_t i = scene.GetLayerCount(); i > 0; --i)
+		for (std::size_t i = canvas.GetLayerCount(); i > 0; --i)
 		{
-			CGameLayer* layer = scene.GetLayerAt(i - 1);
+			CGameLayer* layer = canvas.GetLayerAt(i - 1);
 			if (nullptr == layer)
 			{
 				continue;
@@ -1681,9 +1681,9 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 				if (properties.LayerFilter.empty() && false == included)
 				{
 					// 전체(빈 목록)에서 하나를 빼는 순간 명시 목록으로 굳는다 — 나머지 전부.
-					for (std::size_t other = 0; other < scene.GetLayerCount(); ++other)
+					for (std::size_t other = 0; other < canvas.GetLayerCount(); ++other)
 					{
-						CGameLayer* otherLayer = scene.GetLayerAt(other);
+						CGameLayer* otherLayer = canvas.GetLayerAt(other);
 						if (otherLayer && otherLayer != layer)
 						{
 							properties.LayerFilter.push_back(otherLayer->GetInstanceGuid());
@@ -1721,19 +1721,19 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 
 	// 캔버스 설정 — 배경색 + 뷰포트 목록. 캔버스 뷰의 캔버스 노드와 에셋 브라우저의 활성
 	// `.jcanvas` 선택이 같은 패널로 들어온다.
-	void DrawCanvasInspector(CGameCanvas& scene)
+	void DrawCanvasInspector(CGameCanvas& canvas)
 	{
 		ImSectionHeader(Loc::Text(EditorLocKeys::InspectorCanvasProperties)).Draw();
 
 		{
 			ImGui::Utillity::FormLayout layout("##canvas_properties", 4.0f, { 2.0f, 1.0f });
 
-			const float* current = scene.GetBackgroundColor();
+			const float* current = canvas.GetBackgroundColor();
 			float background[4] = { current[0], current[1], current[2], current[3] };
 			layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorCanvasBackgroundColor)); }, [&]() {
 				if (ImGui::ColorEdit4("##inspector.canvas.background", background, ImGuiColorEditFlags_NoInputs))
 				{
-					EditorCanvasActions::SetBackgroundColor(scene, background);
+					EditorCanvasActions::SetBackgroundColor(canvas, background);
 				}
 			});
 		}
@@ -1741,16 +1741,16 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		ImGui::Spacing();
 		ImSectionHeader(Loc::Text(EditorLocKeys::InspectorCanvasViewports)).Draw();
 
-		const std::vector<CameraChoice> cameras = CollectCameraChoices(scene);
-		const int activeCameraCount = CountActiveCameras(scene);
+		const std::vector<CameraChoice> cameras = CollectCameraChoices(canvas);
+		const int activeCameraCount = CountActiveCameras(canvas);
 
 		// 삭제는 순회가 끝난 뒤에 — 목록을 순회 중에 줄이면 이후 인덱스가 어긋난다.
 		bool        hasPendingDelete = false;
 		std::size_t pendingDeleteIndex = 0;
 
-		for (std::size_t i = 0; i < scene.GetViewportCount(); ++i)
+		for (std::size_t i = 0; i < canvas.GetViewportCount(); ++i)
 		{
-			const CanvasViewport* viewport = scene.GetViewportAt(i);
+			const CanvasViewport* viewport = canvas.GetViewportAt(i);
 			if (nullptr == viewport)
 			{
 				continue;
@@ -1760,10 +1760,10 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			ImGui::Utillity::IDGroup idGroup(i);
 			if (ImGui::CollapsingHeader(viewport->Name.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
 			{
-				DrawViewportProperties(scene, i, cameras, activeCameraCount);
+				DrawViewportProperties(canvas, i, cameras, activeCameraCount);
 
 				// 마지막 뷰포트는 삭제 불가 — 캔버스가 "뷰포트 0개"를 허용하지 않는다(레이어와 같은 규칙).
-				const bool canDelete = scene.GetViewportCount() > 1;
+				const bool canDelete = canvas.GetViewportCount() > 1;
 				ImGui::BeginDisabled(false == canDelete);
 				if (ImGui::Button(Loc::Text(EditorLocKeys::InspectorCanvasDeleteViewport)))
 				{
@@ -1777,13 +1777,13 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 
 		if (hasPendingDelete)
 		{
-			auto command = MakeOwnerPtr<CDeleteViewportCommand>(scene.SafeFromThis(), pendingDeleteIndex);
+			auto command = MakeOwnerPtr<CDeleteViewportCommand>(canvas.SafeFromThis(), pendingDeleteIndex);
 			Editor::CommandManager.ExecuteCommand(std::move(command));
 		}
 
 		if (ImGui::Button(Loc::Text(EditorLocKeys::InspectorCanvasAddViewport), ImVec2(-FLT_MIN, 0.0f)))
 		{
-			auto command = MakeOwnerPtr<CCreateViewportCommand>(scene.SafeFromThis());
+			auto command = MakeOwnerPtr<CCreateViewportCommand>(canvas.SafeFromThis());
 			Editor::CommandManager.ExecuteCommand(std::move(command));
 		}
 	}
@@ -1791,7 +1791,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 	// 레이어 선택 시 컴포짓 속성 편집. 표시 중이면 true(호출자는 다른 패널을 그리지 않는다).
 	// 편집은 라이브 대입이 아니라 스냅샷 교체로 한다 — 커맨드가 "적용 직전 값"을 old 로 캡처하므로
 	// 먼저 라이브로 바꿔버리면 undo 가 새 값으로 되돌아간다(=무효).
-	bool DrawSelectedLayerInspector(CGameCanvas& scene)
+	bool DrawSelectedLayerInspector(CGameCanvas& canvas)
 	{
 		CGameLayer* layer = Editor::GetSelectedLayer();
 		if (nullptr == layer)
@@ -1821,9 +1821,9 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		}
 
 		using EField = CSetLayerPropertyCommand::EField;
-		auto apply = [&scene, layer](EField field, const LayerPropertySnapshot& properties)
+		auto apply = [&canvas, layer](EField field, const LayerPropertySnapshot& properties)
 		{
-			EditorLayerActions::SetLayerProperty(scene, *layer, field, properties);
+			EditorLayerActions::SetLayerProperty(canvas, *layer, field, properties);
 		};
 
 		// 이름은 편집이 끝날 때 1회만 커맨드로 커밋한다 — 글자마다 커밋하면 undo 가 글자 수만큼
@@ -1927,7 +1927,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		// Static 은 렌더 동결이라 그 안의 움직이는 오브젝트는 화면에 반영되지 않는다.
 		if (layer->Static && Engine.Reflection.IsValid())
 		{
-			const int movingCount = CountMovingObjectsInLayer(scene, *layer, *Engine.Reflection);
+			const int movingCount = CountMovingObjectsInLayer(canvas, *layer, *Engine.Reflection);
 			if (movingCount > 0)
 			{
 				char warning[256];
@@ -1944,7 +1944,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 	// 편집하는 것이라, 열지 않은 파일은 편집 대상이 없다 — 안내 + 열기 버튼만 준다.
 	bool IsActiveCanvasAsset(const AssetMetaData& metaData)
 	{
-		const File::Path& activePath = Editor::GetActiveScenePath();
+		const File::Path& activePath = Editor::GetActiveCanvasPath();
 		if (activePath.empty())
 		{
 			return false;
@@ -1964,7 +1964,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		return activeRelative == metaData.Path.generic_string();
 	}
 
-	bool DrawSelectedAssetInspector(CGameCanvas& scene)
+	bool DrawSelectedAssetInspector(CGameCanvas& canvas)
 	{
 		const File::Guid& selectedGuid = Editor::GetSelectedAssetGuid();
 		if (selectedGuid.IsNull())
@@ -2035,7 +2035,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			// 같은 패널을 여기서도 띄운다(사용자 확정: 선택 경로는 양쪽 다).
 			if (IsActiveCanvasAsset(metaData))
 			{
-				DrawCanvasInspector(scene);
+				DrawCanvasInspector(canvas);
 			}
 			else
 			{
@@ -2072,11 +2072,11 @@ void CInspectorTool::OnRenderStay()
 	// 매 프레임 초기화: 컴포넌트 미표시 상태가 기본값
 	m_activeComponentTypeName = nullptr;
 
-	CGameCanvas* scene = EditorContext::TryGetActiveScene();
-	if (nullptr == scene)
+	CGameCanvas* canvas = EditorContext::TryGetActiveCanvas();
+	if (nullptr == canvas)
 	{
 		AssetInspectorPreview::NotifyInspectionLost();
-		ImGui::TextDisabled(Loc::Text(EditorLocKeys::InspectorNoActiveScene));
+		ImGui::TextDisabled(Loc::Text(EditorLocKeys::InspectorNoActiveCanvas));
 		return;
 	}
 
@@ -2087,11 +2087,11 @@ void CInspectorTool::OnRenderStay()
 		if (Editor::IsCanvasSelected())
 		{
 			AssetInspectorPreview::NotifyInspectionLost();
-			DrawCanvasInspector(*scene);
+			DrawCanvasInspector(*canvas);
 			return;
 		}
 		// 레이어 선택 — 컴포짓 속성 패널.
-		if (DrawSelectedLayerInspector(*scene))
+		if (DrawSelectedLayerInspector(*canvas))
 		{
 			AssetInspectorPreview::NotifyInspectionLost();
 			return;
@@ -2102,7 +2102,7 @@ void CInspectorTool::OnRenderStay()
 			AssetInspectorPreview::NotifyInspectionLost();
 			return;
 		}
-		if (DrawSelectedAssetInspector(*scene))
+		if (DrawSelectedAssetInspector(*canvas))
 			return;
 		// 자산도 엔티티도 없음 — 활성 미리보기 핸들러 정리.
 		AssetInspectorPreview::NotifyInspectionLost();
@@ -2194,7 +2194,7 @@ void CInspectorTool::OnRenderStay()
 			// 부모+자식 동시 선택 시 부모만(자식은 부모 따라 이동) — 최상위만 타깃.
 			std::vector<CGameObject*> targets = Editor::GetSelectedTopLevel();
 			Editor::CommandManager.ExecuteCommand(
-				MakeOwnerPtr<CSetObjectTransformCommand>(scene->SafeFromThis(), targets, delta));
+				MakeOwnerPtr<CSetObjectTransformCommand>(canvas->SafeFromThis(), targets, delta));
 		};
 
 		// Position
@@ -2242,7 +2242,7 @@ void CInspectorTool::OnRenderStay()
 	{
 		CComponent* component = componentRef.TryGet();
 		if (nullptr == component) continue;
-		if (CGameScript* script = CCanvasRuntimeAccess::AsScript(*scene, component))
+		if (CGameScript* script = CCanvasRuntimeAccess::AsScript(*canvas, component))
 		{
 			listItems.push_back({ GetScriptInstanceDisplayName(script) ? GetScriptInstanceDisplayName(script) : Loc::Text(EditorLocKeys::InspectorUnknownScript), nullptr, 0, script, script->GetInstanceGuid() });
 			continue;
@@ -2284,7 +2284,7 @@ void CInspectorTool::OnRenderStay()
 		Editor::ClearFocusComponent();
 	}
 
-	// 현재 선택된 탭의 컴포넌트 타입 이름 캐시 (SceneViewTool 등 외부 시스템이 참조)
+	// 현재 선택된 탭의 컴포넌트 타입 이름 캐시 (CanvasViewTool 등 외부 시스템이 참조)
 	if (false == listItems.empty())
 	{
 		const ListEntry& activeItem = listItems[static_cast<std::size_t>(m_selectedTabIndex)];
@@ -2363,7 +2363,7 @@ void CInspectorTool::OnRenderStay()
 						const int sourceIndex = *static_cast<const int*>(payload->Data);
 						if (sourceIndex >= 0 && sourceIndex < static_cast<int>(listItems.size()) && sourceIndex != idx)
 						{
-							Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CReorderComponentCommand>(scene->SafeFromThis(), selectedObject, listItems[static_cast<std::size_t>(sourceIndex)].componentGuid, static_cast<std::size_t>(sourceIndex), static_cast<std::size_t>(idx)));
+							Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CReorderComponentCommand>(canvas->SafeFromThis(), selectedObject, listItems[static_cast<std::size_t>(sourceIndex)].componentGuid, static_cast<std::size_t>(sourceIndex), static_cast<std::size_t>(idx)));
 							m_selectedTabIndex = idx;
 						}
 					}
@@ -2387,8 +2387,8 @@ void CInspectorTool::OnRenderStay()
 					ImGui::Separator();
 					if (ImGui::MenuItem(Loc::Text(EditorLocKeys::InspectorRemoveComponent)))
 					{
-						if (item.script) Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CRemoveScriptCommand>(scene->SafeFromThis(), selectedObject, item.script->GetInstanceGuid()));
-						else Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CRemoveComponentCommand>(scene->SafeFromThis(), selectedObject, ce->typeInfo->Type.Id, GetComponentGuid(firstInst)));
+						if (item.script) Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CRemoveScriptCommand>(canvas->SafeFromThis(), selectedObject, item.script->GetInstanceGuid()));
+						else Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CRemoveComponentCommand>(canvas->SafeFromThis(), selectedObject, ce->typeInfo->Type.Id, GetComponentGuid(firstInst)));
 					}
 					ImGui::EndPopup();
 				}
@@ -2398,7 +2398,7 @@ void CInspectorTool::OnRenderStay()
 		ImGui::Separator();
 		const std::string addComponentLabel =
 			std::string("+ ") + Loc::Text(EditorLocKeys::InspectorAddComponent);
-		EditorGuiActions::DrawAddComponentButton(*scene, selectedObject, addComponentLabel.c_str());
+		EditorGuiActions::DrawAddComponentButton(*canvas, selectedObject, addComponentLabel.c_str());
 		ImGui::PopStyleVar();
 	}
 	ImGui::EndChild();
@@ -2438,7 +2438,7 @@ void CInspectorTool::OnRenderStay()
 					const bool oldEnabled = script->IsEnabled();
 					script->SetEnabled(enabled);
 					Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CSetComponentEnabledCommand>(
-						scene->SafeFromThis(), selectedObject, script->GetInstanceGuid(), oldEnabled, enabled));
+						canvas->SafeFromThis(), selectedObject, script->GetInstanceGuid(), oldEnabled, enabled));
 				}
 				const ScriptTypeInfo* scriptInfo = Engine.Reflection.IsValid() ? Engine.Reflection->FindScript(script->GetTypeId()) : nullptr;
 				if (scriptInfo)
@@ -2449,7 +2449,7 @@ void CInspectorTool::OnRenderStay()
 					{
 						if (prop.IsEditable)
 						{
-							DrawReflectedPropertyRow(*scene, selectedObject, *script, prop, labelText);
+							DrawReflectedPropertyRow(*canvas, selectedObject, *script, prop, labelText);
 						}
 					}
 				}
@@ -2458,8 +2458,8 @@ void CInspectorTool::OnRenderStay()
 			else if (comp)
 			{
 				ImGui::PushID(static_cast<int>(e->typeIndex * 1000 + instIdx));
-				DrawIsEnabledCheckbox(*scene, selectedObject, *e->typeInfo, instIdx, comp, false);
-				DrawComponentProperties(*scene, selectedObject, *e->typeInfo, instIdx, comp);
+				DrawIsEnabledCheckbox(*canvas, selectedObject, *e->typeInfo, instIdx, comp, false);
+				DrawComponentProperties(*canvas, selectedObject, *e->typeInfo, instIdx, comp);
 
 			// ── AudioPlayer: EffectGuids 효과 체인 (리플렉션 밖, 커스텀 ImList) ──
 			// EffectGuids 는 가변 길이라 리플렉션 자동 그리기에서 빠진다. 효과 에셋을

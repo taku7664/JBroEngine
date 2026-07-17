@@ -66,13 +66,13 @@ public:
 	const EngineCore* GetEditorEngineCore() const;
 	SafePtr<CProjectManager> GetProjectManager() const;
 
-	// Scene view (editor camera)
-	void RequestSceneViewRenderTarget(std::uint32_t width, std::uint32_t height);
+	// Canvas view (editor camera)
+	void RequestCanvasViewRenderTarget(std::uint32_t width, std::uint32_t height);
 	void SetCanvasViewCamera(float posX, float posY, float orthographicSize);
-	SafePtr<IRHITexture> GetSceneViewRenderTarget() const;
-	void* GetSceneViewTextureID() const;
-	std::uint32_t GetSceneViewWidth()  const { return m_sceneViewWidth;  }
-	std::uint32_t GetSceneViewHeight() const { return m_sceneViewHeight; }
+	SafePtr<IRHITexture> GetCanvasViewRenderTarget() const;
+	void* GetCanvasViewTextureID() const;
+	std::uint32_t GetCanvasViewWidth()  const { return m_canvasViewWidth;  }
+	std::uint32_t GetCanvasViewHeight() const { return m_canvasViewHeight; }
 
 	// 레이어 썸네일 — 캔버스(기본 뷰포트) 카메라로 레이어를 하나씩 그린 축소판. 편집 카메라와
 	// 무관하다(캔버스뷰 팬/줌·창 개폐에 영향받지 않는다). 하이어라키가 매 프레임 원하는 높이를
@@ -86,23 +86,23 @@ public:
 	std::uint32_t GetLayerThumbnailHeight() const { return m_layerThumbnailHeight; }
 
 	// 포커스 오버레이: 흰 반투명 박스 + 포커스 스프라이트/콜라이더 재렌더 (RT 파이프라인).
-	// SceneViewTool이 매 프레임 호출.
-	void SetSceneViewFocusContext(std::vector<const void*> contextObjects);
-	void ClearSceneViewFocusContext();
+	// CanvasViewTool이 매 프레임 호출.
+	void SetCanvasViewFocusContext(std::vector<const void*> contextObjects);
+	void ClearCanvasViewFocusContext();
 
 	// 선택 아웃라인: 셰이더 기반 Alpha Dilation (RT 파이프라인).
-	// SceneViewTool이 매 프레임 호출.
-	void SetSceneViewSelection(std::vector<const void*> selectedObjects);
-	void ClearSceneViewSelection();
+	// CanvasViewTool이 매 프레임 호출.
+	void SetCanvasViewSelection(std::vector<const void*> selectedObjects);
+	void ClearCanvasViewSelection();
 
-	// 에디터 캔버스뷰에서만 렌더 제외할 오브젝트 키(주소) 집합. 매 프레임 SceneViewTool 이 갱신.
-	void SetSceneViewHidden(std::vector<const void*> hiddenObjects);
+	// 에디터 캔버스뷰에서만 렌더 제외할 오브젝트 키(주소) 집합. 매 프레임 CanvasViewTool 이 갱신.
+	void SetCanvasViewHidden(std::vector<const void*> hiddenObjects);
 
 	// Game view (multi-camera)
 	void RequestGameViewRenderTarget(std::uint32_t width, std::uint32_t height);
 	// 게임뷰가 그릴 캔버스 — 카메라/라이트 스냅샷은 PrepareRender(시뮬 이후·렌더 직전)가
 	// 이 캔버스에서 직접 수집한다. UI 빌드 시점 수집은 1프레임 지연 카메라를 만든다.
-	void SetGameViewScene(SafePtr<CGameCanvas> scene);
+	void SetGameViewCanvas(SafePtr<CGameCanvas> canvas);
 	void* GetGameViewTextureID() const;
 	std::uint32_t GetGameViewWidth()  const { return m_gameViewWidth;  }
 	std::uint32_t GetGameViewHeight() const { return m_gameViewHeight; }
@@ -150,16 +150,16 @@ private:
 	// 메인 surface 윈도우 이벤트 구독 토큰(OnPostInitialize 구독, OnPreFinalize 해지).
 	SurfaceEventToken m_surfaceEventToken = 0;
 
-	// Scene view (editor camera)
-	OwnerPtr<IRHITexture> m_sceneViewRenderTarget;
-	std::uint32_t m_sceneViewWidth  = 0;
-	std::uint32_t m_sceneViewHeight = 0;
-	float m_sceneViewCamX    = 0.0f;
-	float m_sceneViewCamY    = 0.0f;
-	float m_sceneViewCamSize = 5.0f;
-	bool m_sceneViewRequested = false;
+	// Canvas view (editor camera)
+	OwnerPtr<IRHITexture> m_canvasViewRenderTarget;
+	std::uint32_t m_canvasViewWidth  = 0;
+	std::uint32_t m_canvasViewHeight = 0;
+	float m_canvasViewCamX    = 0.0f;
+	float m_canvasViewCamY    = 0.0f;
+	float m_canvasViewCamSize = 5.0f;
+	bool m_canvasViewRequested = false;
 	// 편집 뷰가 합성할 활성 캔버스의 레이어 스냅샷(OnPrepareRender 가 매 프레임 갱신).
-	std::vector<GameRenderLayerDesc> m_sceneViewLayers;
+	std::vector<GameRenderLayerDesc> m_canvasViewLayers;
 
 	// 레이어 썸네일 — 인덱스 = 레이어 인덱스. 크기가 바뀌면 전부 재생성한다.
 	std::vector<OwnerPtr<IRHITexture>> m_layerThumbnails;
@@ -172,28 +172,28 @@ private:
 	std::uint32_t              m_gameViewWidth    = 0;
 	std::uint32_t              m_gameViewHeight   = 0;
 	bool                       m_gameViewRequested = false;
-	SafePtr<CGameCanvas>        m_gameViewScene;
+	SafePtr<CGameCanvas>        m_gameViewCanvas;
 	std::vector<GameRenderViewportDesc> m_gameViewViewports;
 	std::vector<GameRenderLightDesc> m_gameViewLights;
 	std::vector<GameRenderLayerDesc> m_gameViewLayers;
 	std::unordered_map<const void*, RenderCullingStats> m_gameViewCameraCullingStats;
 
-	// GPU renderer for IDebugDraw2D primitives — renders into scene RT.
+	// GPU renderer for IDebugDraw2D primitives — renders into canvas RT.
 	OwnerPtr<CDebugRenderer2D>  m_debugRenderer;
 	// GPU Alpha-Dilation 아웃라인 렌더러.
 	OwnerPtr<COutlineRenderer2D> m_outlineRenderer;
 
-	// 포커스 오버레이 상태 (SceneViewTool → ImEditor)
+	// 포커스 오버레이 상태 (CanvasViewTool → ImEditor)
 	// 키 = 오브젝트 주소(불투명). 렌더 필터 집합 비교 전용 — 역참조 안 함.
-	bool                            m_sceneViewFocusActive = false;
-	std::unordered_set<const void*> m_sceneViewFocusEntities;
+	bool                            m_canvasViewFocusActive = false;
+	std::unordered_set<const void*> m_canvasViewFocusEntities;
 
 	// 선택 아웃라인 상태
-	bool                            m_sceneViewHasSelection = false;
-	std::unordered_set<const void*> m_sceneViewSelectedEntities;
+	bool                            m_canvasViewHasSelection = false;
+	std::unordered_set<const void*> m_canvasViewSelectedEntities;
 
-	// 에디터 캔버스뷰 숨김(EditorHidden) 키 집합 — 매 프레임 SceneViewTool 이 채움.
-	std::unordered_set<const void*> m_sceneViewHidden;
+	// 에디터 캔버스뷰 숨김(EditorHidden) 키 집합 — 매 프레임 CanvasViewTool 이 채움.
+	std::unordered_set<const void*> m_canvasViewHidden;
 };
 
 template<typename T>

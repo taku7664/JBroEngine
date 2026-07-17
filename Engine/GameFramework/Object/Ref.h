@@ -28,20 +28,20 @@
 //  카테고리는 T 로부터 컴파일타임에 결정된다:
 //      IAsset 파생      → Asset
 //      CGameScript 파생 → Script
-//      CGameCanvas       → Scene (guid 대신 캔버스 이름 저장 — CanvasManager 의 유일 키)
+//      CGameCanvas       → Canvas (guid 대신 캔버스 이름 저장 — CanvasManager 의 유일 키)
 //      그 외(POD 컴포넌트, GameObject 포함) → Component
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ERefCategory / RefBase 는 GameFramework/Reflection/ReflectionTypes.h 에 단일 정의.
 
-// Scene 카테고리는 is_same 으로만 판별하므로 전방 선언으로 충분하다.
-// (단, Ref<CGameCanvas> 을 실제 인스턴스화하는 TU 는 Scene.h 를 포함해야 한다 —
+// Canvas 카테고리는 is_same 으로만 판별하므로 전방 선언으로 충분하다.
+// (단, Ref<CGameCanvas> 을 실제 인스턴스화하는 TU 는 Canvas.h 를 포함해야 한다 —
 //  나머지 트레이트 평가에 완전형이 필요.)
 class CGameCanvas;
 
 namespace RefDetail
 {
-	// Ref.cpp 에서 정의 — 무거운 헤더(Scene/Core/AssetManager)를 헤더로 끌어오지 않는다.
+	// Ref.cpp 에서 정의 — 무거운 헤더(Canvas/Core/AssetManager)를 헤더로 끌어오지 않는다.
 	// 경계엔 POD(const char*) 만 넘긴다 — File::Guid 는 Ref.cpp 내부에서만 구성.
 
 	// (오브젝트 guid + 컴포넌트 guid) → 활성 캔버스의 그 오브젝트에서 컴포넌트 guid 로 특정

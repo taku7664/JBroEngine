@@ -212,7 +212,7 @@ void CShapeRenderSystem::SubmitPolygon(Polygon2D& shape, CForward2DRenderer& ren
 	}, renderer);
 }
 
-void CShapeRenderSystem::OnUpdate(CGameCanvas& scene)
+void CShapeRenderSystem::OnUpdate(CGameCanvas& canvas)
 {
 	if (nullptr == m_renderScene || nullptr == m_rhiDevice)
 	{
@@ -225,21 +225,21 @@ void CShapeRenderSystem::OnUpdate(CGameCanvas& scene)
 	}
 
 	m_seenShapes.clear();
-	scene.ForEach<Square2D>([this, renderer](Square2D& shape)
+	canvas.ForEach<Square2D>([this, renderer](Square2D& shape)
 	{
 		if (IsActiveComponent(shape))
 		{
 			SubmitSquare(shape, *renderer);
 		}
 	});
-	scene.ForEach<Circle2D>([this, renderer](Circle2D& shape)
+	canvas.ForEach<Circle2D>([this, renderer](Circle2D& shape)
 	{
 		if (IsActiveComponent(shape))
 		{
 			SubmitCircle(shape, *renderer);
 		}
 	});
-	scene.ForEach<Polygon2D>([this, renderer](Polygon2D& shape)
+	canvas.ForEach<Polygon2D>([this, renderer](Polygon2D& shape)
 	{
 		if (IsActiveComponent(shape))
 		{

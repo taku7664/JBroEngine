@@ -107,7 +107,7 @@ private:
 		// TargetPath 는 사용하지 않고 Path 는 부모 폴더 절대경로.
 		CreateScript,
 		// 루트가 Assets 일 때.  Path 는 부모 폴더, TargetPath 는 새 파일명(상대).
-		CreateScene,
+		CreateCanvas,
 		CreateMaterial,
 		CreateFontFamily,
 		CreateEffect,
@@ -140,7 +140,7 @@ private:
 	void DrawEntries();
 	void DrawListEntries();
 	void DrawIconEntries();
-	// SceneView 의 ##SVCtxMenu 와 동일한 패턴 — 우클릭 시점에 컨텍스트 상태만
+	// CanvasView 의 ##SVCtxMenu 와 동일한 패턴 — 우클릭 시점에 컨텍스트 상태만
 	// 세팅하고 단일 OpenPopup 호출. BeginPopup 내부에서 상태별 섹션 분기.
 	//
 	// 폴더 트리(좌측 패널)와 브라우저 바디(우측 entry 영역)는 의미가 다르므로

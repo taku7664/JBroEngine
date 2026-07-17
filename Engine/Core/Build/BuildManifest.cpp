@@ -263,13 +263,13 @@ namespace
 		// 빌드 캔버스 목록(name + guid) — 이 섹션이 없는 구 매니페스트는 cursor 가 끝에 있어 스킵된다.
 		if (cursor < payload.size())
 		{
-			std::uint32_t buildSceneCount = 0;
-			if (false == ReadPod(payload, cursor, buildSceneCount) || buildSceneCount > 4096)
+			std::uint32_t buildCanvasCount = 0;
+			if (false == ReadPod(payload, cursor, buildCanvasCount) || buildCanvasCount > 4096)
 			{
 				SetError(outError, "Binary build manifest build canvas count is invalid.");
 				return false;
 			}
-			for (std::uint32_t i = 0; i < buildSceneCount; ++i)
+			for (std::uint32_t i = 0; i < buildCanvasCount; ++i)
 			{
 				std::string canvasName;
 				std::string canvasGuid;
@@ -669,9 +669,9 @@ bool CBuildManifestLoader::WriteBinaryFile(const File::Path& manifestPath, const
 
 	// 빌드 캔버스 목록(name + guid). 릴리즈 런타임이 startup 외 캔버스를 GUID 로 선로드하는 데 쓴다.
 	// 기존 매니페스트(이 섹션이 없던 것)는 읽기 측 cursor 가드로 자연히 빈 목록이 된다(전방호환).
-	const std::uint32_t buildSceneCount = static_cast<std::uint32_t>(manifest.BuildCanvases.size());
-	WritePod(payload, buildSceneCount);
-	for (std::uint32_t i = 0; i < buildSceneCount; ++i)
+	const std::uint32_t buildCanvasCount = static_cast<std::uint32_t>(manifest.BuildCanvases.size());
+	WritePod(payload, buildCanvasCount);
+	for (std::uint32_t i = 0; i < buildCanvasCount; ++i)
 	{
 		WriteString(payload, manifest.BuildCanvases[i]);
 		WriteString(payload, i < manifest.BuildCanvasGuids.size() ? manifest.BuildCanvasGuids[i] : std::string());

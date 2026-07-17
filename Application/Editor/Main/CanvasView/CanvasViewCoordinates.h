@@ -5,7 +5,7 @@
 #include "ThirdParty/imgui/imgui.h"
 #include "Utillity/Math/Vector2T.h"
 
-namespace SceneViewCoordinates
+namespace CanvasViewCoordinates
 {
 	float GetAspect(const ImVec2& viewportSize);
 	Vector2 ViewportToWorld(

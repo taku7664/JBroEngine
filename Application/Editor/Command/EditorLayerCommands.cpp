@@ -22,9 +22,9 @@
 
 namespace
 {
-	CGameLayer* ResolveLayer(const SafePtr<CGameCanvas>& scene, const File::Guid& guid)
+	CGameLayer* ResolveLayer(const SafePtr<CGameCanvas>& canvas, const File::Guid& guid)
 	{
-		return scene.IsValid() ? scene->FindLayerByInstanceGuid(guid).TryGet() : nullptr;
+		return canvas.IsValid() ? canvas->FindLayerByInstanceGuid(guid).TryGet() : nullptr;
 	}
 
 	File::Guid GuidOfLayer(const CGameLayer* layer)
@@ -64,12 +64,12 @@ void LayerPropertySnapshot::ApplyTo(CGameLayer& layer) const
 // ── CSetLayerPropertyCommand ─────────────────────────────────────────────────
 
 CSetLayerPropertyCommand::CSetLayerPropertyCommand(
-	SafePtr<CGameCanvas> scene,
+	SafePtr<CGameCanvas> canvas,
 	CGameLayer* layer,
 	EField field,
 	LayerPropertySnapshot oldProperties,
 	LayerPropertySnapshot newProperties)
-	: m_canvas(scene)
+	: m_canvas(canvas)
 	, m_layerGuid(GuidOfLayer(layer))
 	, m_field(field)
 	, m_oldProperties(std::move(oldProperties))
@@ -125,20 +125,20 @@ bool CSetLayerPropertyCommand::Apply(const LayerPropertySnapshot& properties)
 }
 
 bool EditorLayerActions::SetLayerProperty(
-	CGameCanvas& scene,
+	CGameCanvas& canvas,
 	CGameLayer& layer,
 	CSetLayerPropertyCommand::EField field,
 	const LayerPropertySnapshot& newProperties)
 {
 	auto command = MakeOwnerPtr<CSetLayerPropertyCommand>(
-		scene.SafeFromThis(), &layer, field, LayerPropertySnapshot::Capture(layer), newProperties);
+		canvas.SafeFromThis(), &layer, field, LayerPropertySnapshot::Capture(layer), newProperties);
 	return Editor::CommandManager.ExecuteCommand(std::move(command));
 }
 
 // ── CCreateLayerCommand ──────────────────────────────────────────────────────
 
-CCreateLayerCommand::CCreateLayerCommand(SafePtr<CGameCanvas> scene, const char* name)
-	: m_canvas(scene)
+CCreateLayerCommand::CCreateLayerCommand(SafePtr<CGameCanvas> canvas, const char* name)
+	: m_canvas(canvas)
 	, m_name(name ? name : "")
 {
 }
@@ -204,8 +204,8 @@ CGameLayer* CCreateLayerCommand::GetLayer() const
 
 // ── CDeleteLayerCommand ──────────────────────────────────────────────────────
 
-CDeleteLayerCommand::CDeleteLayerCommand(SafePtr<CGameCanvas> scene, CGameLayer* layer)
-	: m_canvas(scene)
+CDeleteLayerCommand::CDeleteLayerCommand(SafePtr<CGameCanvas> canvas, CGameLayer* layer)
+	: m_canvas(canvas)
 	, m_layerGuid(GuidOfLayer(layer))
 {
 	if (nullptr == layer || false == m_canvas.IsValid())
@@ -310,8 +310,8 @@ void CDeleteLayerCommand::Redo()
 
 // ── CAddLayerFromAssetCommand ────────────────────────────────────────────────
 
-CAddLayerFromAssetCommand::CAddLayerFromAssetCommand(SafePtr<CGameCanvas> scene, const File::Guid& assetGuid)
-	: m_canvas(scene)
+CAddLayerFromAssetCommand::CAddLayerFromAssetCommand(SafePtr<CGameCanvas> canvas, const File::Guid& assetGuid)
+	: m_canvas(canvas)
 	, m_assetGuid(assetGuid)
 {
 }
@@ -409,8 +409,8 @@ CGameLayer* CAddLayerFromAssetCommand::GetLayer() const
 
 // ── CMoveLayerCommand ────────────────────────────────────────────────────────
 
-CMoveLayerCommand::CMoveLayerCommand(SafePtr<CGameCanvas> scene, CGameLayer* layer, std::size_t newIndex)
-	: m_canvas(scene)
+CMoveLayerCommand::CMoveLayerCommand(SafePtr<CGameCanvas> canvas, CGameLayer* layer, std::size_t newIndex)
+	: m_canvas(canvas)
 	, m_layerGuid(GuidOfLayer(layer))
 	, m_newIndex(newIndex)
 {

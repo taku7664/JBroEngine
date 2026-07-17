@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "ProjectManager.h"
+#include "ImGuiIniMigration.h"
 
 #include "Core/Asset/AssetPath.h"
 #include "Core/Asset/AssetMetaFile.h"
@@ -312,17 +313,17 @@ namespace
 		return EBuildScriptMode::Static == mode ? "Static" : "DynamicLibrary";
 	}
 
-	ProjectBuildSettings MakeDefaultBuildSettings(const std::filesystem::path& projectPath, const std::string& startupScene)
+	ProjectBuildSettings MakeDefaultBuildSettings(const std::filesystem::path& projectPath, const std::string& startupCanvas)
 	{
 		ProjectBuildSettings settings;
 		settings.ProductName = projectPath.stem().string();
 		settings.EnableWindows = true; // 신규 프로젝트는 Windows 만 활성(기존 기본 TargetPlatform 과 동등).
 		settings.BuildConfiguration = EBuildConfiguration::Release;
 		settings.OutputDirectory = "Dist/Games";
-		settings.StartupCanvas = startupScene;
-		if (false == startupScene.empty())
+		settings.StartupCanvas = startupCanvas;
+		if (false == startupCanvas.empty())
 		{
-			settings.BuildCanvases.push_back(startupScene);
+			settings.BuildCanvases.push_back(startupCanvas);
 		}
 		settings.ScriptMode = EBuildScriptMode::DynamicLibrary;
 		settings.ScriptProjectPath = std::string(CONTENTS_DIRECTORY_NAME) + "/GameScript.vcxproj";
@@ -417,9 +418,9 @@ namespace
 		out << YAML::Key << PROJECT_KEY_BUILD_STARTUP_CANVAS << YAML::Value << settings.StartupCanvas;
 		out << YAML::Key << PROJECT_KEY_BUILD_CANVASES << YAML::Value;
 		out << YAML::BeginSeq;
-		for (const std::string& scene : settings.BuildCanvases)
+		for (const std::string& canvas : settings.BuildCanvases)
 		{
-			out << scene;
+			out << canvas;
 		}
 		out << YAML::EndSeq;
 		out << YAML::Key << PROJECT_KEY_BUILD_ALWAYS_INCLUDE << YAML::Value;
@@ -445,9 +446,9 @@ namespace
 		out << YAML::EndMap;
 	}
 
-	ProjectBuildSettings ReadBuildSettings(const YAML::Node& root, const std::filesystem::path& projectPath, const std::string& startupScene)
+	ProjectBuildSettings ReadBuildSettings(const YAML::Node& root, const std::filesystem::path& projectPath, const std::string& startupCanvas)
 	{
-		ProjectBuildSettings settings = MakeDefaultBuildSettings(projectPath, startupScene);
+		ProjectBuildSettings settings = MakeDefaultBuildSettings(projectPath, startupCanvas);
 		const YAML::Node buildNode = root[PROJECT_KEY_BUILD];
 		if (false == static_cast<bool>(buildNode) || false == buildNode.IsMap())
 		{
@@ -1030,6 +1031,9 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 	}
 	if (false == m_info.ImGuiIniSettings.empty())
 	{
+		// 창 안정 ID 를 바꾼 적이 있으면 저장된 배치가 그 창을 못 찾아 도킹이 통째로 풀린다.
+		// 옛 ID 를 새 ID 로 옮겨 준다 — `.jproject` 의 다른 키에 legacy 리더를 단 것과 같은 이유다.
+		m_info.ImGuiIniSettings = EditorImGuiIni::MigrateKnownWindowIds(m_info.ImGuiIniSettings);
 		ImGui::LoadIniSettingsFromMemory(m_info.ImGuiIniSettings.c_str(), m_info.ImGuiIniSettings.size());
 	}
 
@@ -1069,14 +1073,14 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 	// ── 마지막 캔버스가 참조하는 에셋만 수집 (프리팹 참조까지 전이적으로 확장) ──
 	// 캔버스 파일의 ReferencedAssets 목록을 기반으로, 프리팹이면 그 프리팹의 참조까지
 	// 펼쳐 "이 캔버스를 띄우는 데 실제로 필요한" 자산 GUID 들만 모은다.
-	const std::vector<AssetGuid> sceneAssets = CollectSceneLoadAssets(m_info.LastOpenedCanvasPath);
+	const std::vector<AssetGuid> canvasAssets = CollectCanvasLoadAssets(m_info.LastOpenedCanvasPath);
 
 	// ── 동기 폴백 — TaskManager/Group 이 없을 때 메인 스레드에서 직접 로드 ──
-	auto runSyncFallback = [this, &sceneAssets, &runScriptBuildSync]()
+	auto runSyncFallback = [this, &canvasAssets, &runScriptBuildSync]()
 	{
 		if (m_assetManager.IsValid())
 		{
-			for (const AssetGuid& guid : sceneAssets)
+			for (const AssetGuid& guid : canvasAssets)
 			{
 				m_assetManager->LoadAsset(guid);
 			}
@@ -1103,7 +1107,7 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 
 	// 에셋 로드 태스크 개수 = min(5, 참조 에셋 수).  캔버스가 참조하는 에셋을 ≤5 개의
 	// 청크로 분배해 각 청크를 하나의 로드 태스크로 만든다. 스크립트 빌드 태스크 1개 추가.
-	const std::size_t assetCount     = sceneAssets.size();
+	const std::size_t assetCount     = canvasAssets.size();
 	const std::size_t assetTaskCount = (0 == assetCount) ? 0 : (assetCount < 5 ? assetCount : 5);
 	const std::size_t totalTasks     = assetTaskCount + (m_liveCompileManager ? 1u : 0u);
 
@@ -1150,12 +1154,12 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 		for (std::size_t t = 0; t < assetTaskCount; ++t)
 		{
 			const std::size_t chunkSize = baseChunk + (t < remainder ? 1u : 0u);
-			std::vector<AssetGuid> chunk(sceneAssets.begin() + cursor, sceneAssets.begin() + cursor + chunkSize);
+			std::vector<AssetGuid> chunk(canvasAssets.begin() + cursor, canvasAssets.begin() + cursor + chunkSize);
 			cursor += chunkSize;
 
 			// 작업 설명 = "리소스 로드 (i/N)" — 진행률 팝업의 작업 목록에 표시된다.
 			std::string taskDescription = loadAssetsLabel + " (" + std::to_string(t + 1) + "/" + std::to_string(assetTaskCount) + ")";
-			SafePtr<CTask> task = group->CreateTask("LoadSceneAssets", [selfRef, chunk]()
+			SafePtr<CTask> task = group->CreateTask("LoadCanvasAssets", [selfRef, chunk]()
 			{
 				CProjectManager* self = selfRef.TryGet();
 				if (nullptr == self || false == self->m_assetManager.IsValid()) return;
@@ -1327,17 +1331,17 @@ std::vector<TaskProgressInfo> CProjectManager::GetLoadTaskSnapshot() const
 	return m_loadTaskGroup.IsValid() ? m_loadTaskGroup->GetTaskProgressSnapshot() : std::vector<TaskProgressInfo>{};
 }
 
-std::vector<AssetGuid> CProjectManager::CollectSceneLoadAssets(const std::string& sceneRelativePath) const
+std::vector<AssetGuid> CProjectManager::CollectCanvasLoadAssets(const std::string& canvasRelativePath) const
 {
 	std::vector<AssetGuid> result;
-	if (sceneRelativePath.empty() || false == m_assetManager.IsValid())
+	if (canvasRelativePath.empty() || false == m_assetManager.IsValid())
 	{
 		return result;
 	}
 
 	std::error_code errorCode;
-	const std::filesystem::path sceneFile = m_info.AssetPath / sceneRelativePath;
-	if (false == std::filesystem::exists(sceneFile, errorCode))
+	const std::filesystem::path canvasFile = m_info.AssetPath / canvasRelativePath;
+	if (false == std::filesystem::exists(canvasFile, errorCode))
 	{
 		return result;
 	}
@@ -1349,7 +1353,7 @@ std::vector<AssetGuid> CProjectManager::CollectSceneLoadAssets(const std::string
 	// ReferencedAssets 까지 BFS/DFS 로 전이 확장한다. (프리팹도 같은 캔버스 직렬화
 	// 포맷이라 ReferencedAssets 블록을 그대로 가진다.)
 	std::unordered_set<AssetGuid> visited;
-	std::vector<AssetGuid> pending = serializer.ReadReferencedAssetsFromFile(File::Path(sceneFile.generic_string()));
+	std::vector<AssetGuid> pending = serializer.ReadReferencedAssetsFromFile(File::Path(canvasFile.generic_string()));
 
 	while (false == pending.empty())
 	{
@@ -2405,12 +2409,12 @@ void CProjectManager::SetLiveCompileEnabled(bool enabled)
 	SetScriptAutoRebuildEnabled(enabled);
 }
 
-const std::string& CProjectManager::GetLastOpenedScenePath() const
+const std::string& CProjectManager::GetLastOpenedCanvasPath() const
 {
 	return m_info.LastOpenedCanvasPath;
 }
 
-void CProjectManager::SetLastOpenedScenePath(const std::string& relativePath)
+void CProjectManager::SetLastOpenedCanvasPath(const std::string& relativePath)
 {
 	m_info.LastOpenedCanvasPath = relativePath;
 }

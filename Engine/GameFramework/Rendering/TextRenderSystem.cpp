@@ -564,7 +564,7 @@ bool CTextRenderSystem::AnyFaceGenerationStale() const
 	return false;
 }
 
-void CTextRenderSystem::OnUpdate(CGameCanvas& scene)
+void CTextRenderSystem::OnUpdate(CGameCanvas& canvas)
 {
 	CForward2DRenderer* renderer = m_renderer;
 	if (nullptr == renderer || nullptr == m_renderScene || false == renderer->GetTextPipeline().IsValid()) return;
@@ -577,7 +577,7 @@ void CTextRenderSystem::OnUpdate(CGameCanvas& scene)
 		ClearCaches();
 	}
 	std::unordered_set<const void*> seen;
-	scene.ForEach<Text2D>([&](Text2D& text)
+	canvas.ForEach<Text2D>([&](Text2D& text)
 	{
 		if (false == IsActiveComponent(text) || text.Text.empty()) return;
 		if (false == IsVisibleColor(text.FillEnabled, text.FillColor) && false == IsVisibleColor(text.OutlineEnabled, text.OutlineColor)) return;

@@ -28,7 +28,7 @@ namespace
 		{
 			return CFontFamilyAsset::ReadDependencyGuids(absolutePath);
 		}
-		// Scene / Prefab / Layer — 셋 다 ReferencedAssets 시퀀스를 최상위에 두는 같은 규약이라
+		// Canvas / Prefab / Layer — 셋 다 ReferencedAssets 시퀀스를 최상위에 두는 같은 규약이라
 		// 오브젝트를 만들지 않고 그 키만 읽으면 된다.
 		const CCanvasSerializer serializer;
 		return serializer.ReadReferencedAssetsFromFile(absolutePath);

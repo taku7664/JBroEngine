@@ -30,14 +30,14 @@ public:
     void Clear() { m_context = SafePtr<CGameObject>(); }
 
     // m_context 가 이미 죽은 오브젝트면 초기화.
-    void Validate(const CGameCanvas& scene);
+    void Validate(const CGameCanvas& canvas);
 
     // 현재 컨텍스트 레벨에서 worldPt 에 가장 위에 있는 오브젝트 반환.
     //  루트 모드 → 루트 조상 오브젝트
     //  포커스 모드 → m_context 의 직계 자식 오브젝트
     //  없으면 nullptr
     CGameObject* Pick(
-        const CGameCanvas& scene,
+        const CGameCanvas& canvas,
         const Vector2& worldPt,
         IAssetManager* assetMgr) const;
 
@@ -48,22 +48,22 @@ public:
     //  루트 모드 → 루트 조상 엔티티
     //  포커스 모드 → m_context 의 직계 자식 (또는 m_context 자신)
     std::vector<CGameObject*> PickBox(
-        const CGameCanvas& scene,
+        const CGameCanvas& canvas,
         const Vector2& worldMin,
         const Vector2& worldMax,
         IAssetManager* assetMgr = nullptr) const;
 
     // 더블 클릭 on 오브젝트:
     //   - m_context = picked (자식 유무 무관, 항상 진입)
-    //   - 선택(Editor::SelectEntities)은 호출자(SceneViewTool)가 담당
+    //   - 선택(Editor::SelectEntities)은 호출자(CanvasViewTool)가 담당
     //   - 반환값 = 카메라가 포커싱할 엔티티 (항상 picked 반환)
-    CGameObject* OnDoubleClick(const CGameCanvas& scene, CGameObject* picked);
+    CGameObject* OnDoubleClick(const CGameCanvas& canvas, CGameObject* picked);
 
     // 더블 클릭 on 빈 공간:
     //   - m_context = m_context 의 부모 (루트면 INVALID)
     //   - 반환값 = 탈출한 엔티티 (호출자가 SelectEntities + FocusOnEntity에 사용)
     //             루트에서 탈출할 게 없으면 nullptr
-    CGameObject* OnDoubleClickEmpty(const CGameCanvas& scene);
+    CGameObject* OnDoubleClickEmpty(const CGameCanvas& canvas);
 
 private:
     SafePtr<CGameObject> m_context;

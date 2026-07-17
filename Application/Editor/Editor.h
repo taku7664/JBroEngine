@@ -261,14 +261,14 @@ public:
 		return m_selectedScriptPath;
 	}
 
-	static void SetActiveScenePath(const File::Path& path)
+	static void SetActiveCanvasPath(const File::Path& path)
 	{
-		m_activeScenePath = path;
+		m_activeCanvasPath = path;
 	}
 
-	static const File::Path& GetActiveScenePath()
+	static const File::Path& GetActiveCanvasPath()
 	{
-		return m_activeScenePath;
+		return m_activeCanvasPath;
 	}
 
 	// ── 인스펙터 컴포넌트 포커스 힌트 ─────────────────────────────────────────
@@ -292,7 +292,7 @@ private:
 	inline static std::vector<SafePtr<CGameObject>> m_selectedObjects;
 	inline static SafePtr<CGameLayer>              m_selectedLayer;
 	inline static bool                            m_canvasSelected = false;
-	inline static File::Path            m_activeScenePath   = File::NULL_PATH;
+	inline static File::Path            m_activeCanvasPath   = File::NULL_PATH;
 	inline static File::Guid            m_selectedAssetGuid = File::NULL_GUID;
 	inline static File::Path            m_selectedAssetPath = File::NULL_PATH;
 	inline static File::Path            m_selectedScriptPath = File::NULL_PATH;

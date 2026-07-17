@@ -32,15 +32,15 @@
 
 namespace
 {
-	void TryLoadLastScene(SafePtr<CProjectManager> pm)
+	void TryLoadLastCanvas(SafePtr<CProjectManager> pm)
 	{
 		if (false == pm.IsValid() || false == pm->IsProjectLoaded())
 		{
 			return;
 		}
 
-		const std::string& lastScenePath = pm->GetLastOpenedScenePath();
-		if (lastScenePath.empty())
+		const std::string& lastCanvasPath = pm->GetLastOpenedCanvasPath();
+		if (lastCanvasPath.empty())
 		{
 			return;
 		}
@@ -50,38 +50,38 @@ namespace
 			return;
 		}
 
-		const std::filesystem::path absolutePath = pm->GetAssetPath() / lastScenePath;
+		const std::filesystem::path absolutePath = pm->GetAssetPath() / lastCanvasPath;
 		std::error_code ec;
 		if (false == std::filesystem::exists(absolutePath, ec))
 		{
-			CSystemLog::Warning("Last scene file not found, skipping auto-load.");
+			CSystemLog::Warning("Last canvas file not found, skipping auto-load.");
 			return;
 		}
 
 		// 런타임 캔버스는 하나 — 파일을 열어도 인스턴스는 그대로 두고 내용만 갈아끼운다.
-		CGameCanvas* scene = &Engine.CanvasManager->GetOrCreateCanvas();
+		CGameCanvas* canvas = &Engine.CanvasManager->GetOrCreateCanvas();
 
 		CCanvasSerializer serializer;
-		if (ECanvasSerializeResult::Success == serializer.LoadFromFile(*scene, File::Path(absolutePath)))
+		if (ECanvasSerializeResult::Success == serializer.LoadFromFile(*canvas, File::Path(absolutePath)))
 		{
-			Engine.CanvasManager->SetCanvasName(lastScenePath.c_str());
+			Engine.CanvasManager->SetCanvasName(lastCanvasPath.c_str());
 			Engine.CanvasManager->RefreshReferencedAssets();
 			if (const EngineCore* context = Editor::ImEditor ? Editor::ImEditor->GetEditorEngineCore() : nullptr)
 			{
-				CSpriteAnimationSystem* animationSystem = CCanvasRuntimeAccess::FindSystem<CSpriteAnimationSystem>(*scene);
+				CSpriteAnimationSystem* animationSystem = CCanvasRuntimeAccess::FindSystem<CSpriteAnimationSystem>(*canvas);
 				if (nullptr == animationSystem)
 				{
-					animationSystem = CCanvasRuntimeAccess::AddSystem<CSpriteAnimationSystem>(*scene, context->AssetManager);
+					animationSystem = CCanvasRuntimeAccess::AddSystem<CSpriteAnimationSystem>(*canvas, context->AssetManager);
 				}
 				if (nullptr != animationSystem)
 				{
 					animationSystem->SetAssetManager(context->AssetManager);
 				}
 
-				CSpriteRenderSystem* spriteSystem = CCanvasRuntimeAccess::FindSystem<CSpriteRenderSystem>(*scene);
+				CSpriteRenderSystem* spriteSystem = CCanvasRuntimeAccess::FindSystem<CSpriteRenderSystem>(*canvas);
 				if (nullptr == spriteSystem)
 				{
-					spriteSystem = CCanvasRuntimeAccess::AddSystem<CSpriteRenderSystem>(*scene, context->RenderScene.TryGet());
+					spriteSystem = CCanvasRuntimeAccess::AddSystem<CSpriteRenderSystem>(*canvas, context->RenderScene.TryGet());
 				}
 				if (nullptr != spriteSystem)
 				{
@@ -94,10 +94,10 @@ namespace
 						Runtime.PixelsPerUnit);
 				}
 
-				CShapeRenderSystem* shapeSystem = CCanvasRuntimeAccess::FindSystem<CShapeRenderSystem>(*scene);
+				CShapeRenderSystem* shapeSystem = CCanvasRuntimeAccess::FindSystem<CShapeRenderSystem>(*canvas);
 				if (nullptr == shapeSystem)
 				{
-					shapeSystem = CCanvasRuntimeAccess::AddSystem<CShapeRenderSystem>(*scene, context->RenderScene.TryGet());
+					shapeSystem = CCanvasRuntimeAccess::AddSystem<CShapeRenderSystem>(*canvas, context->RenderScene.TryGet());
 				}
 				if (nullptr != shapeSystem)
 				{
@@ -105,10 +105,10 @@ namespace
 					shapeSystem->SetDependencies(context->RHIDevice.TryGet(), context->Renderer.TryGet());
 				}
 
-				CTextRenderSystem* textSystem = CCanvasRuntimeAccess::FindSystem<CTextRenderSystem>(*scene);
+				CTextRenderSystem* textSystem = CCanvasRuntimeAccess::FindSystem<CTextRenderSystem>(*canvas);
 				if (nullptr == textSystem)
 				{
-					textSystem = CCanvasRuntimeAccess::AddSystem<CTextRenderSystem>(*scene, context->RenderScene.TryGet());
+					textSystem = CCanvasRuntimeAccess::AddSystem<CTextRenderSystem>(*canvas, context->RenderScene.TryGet());
 				}
 				if (nullptr != textSystem)
 				{
@@ -117,10 +117,10 @@ namespace
 						Runtime.PixelsPerUnit, Runtime.DefaultFontFamilyGuid, Runtime.FallbackFontFamilies);
 				}
 
-				CAudioSystem* audioSystem = CCanvasRuntimeAccess::FindSystem<CAudioSystem>(*scene);
+				CAudioSystem* audioSystem = CCanvasRuntimeAccess::FindSystem<CAudioSystem>(*canvas);
 				if (nullptr == audioSystem)
 				{
-					audioSystem = CCanvasRuntimeAccess::AddSystem<CAudioSystem>(*scene,
+					audioSystem = CCanvasRuntimeAccess::AddSystem<CAudioSystem>(*canvas,
 						context->Audio, context->AssetManager);
 				}
 				if (nullptr != audioSystem)
@@ -129,14 +129,14 @@ namespace
 					audioSystem->SetAssetManager(context->AssetManager);
 				}
 			}
-			Editor::SetActiveScenePath(File::Path(absolutePath));
-			Editor::CommandManager.SetActiveDocument(lastScenePath.c_str());
-			Editor::CommandManager.MarkSaved(lastScenePath.c_str());
-			CSystemLog::Info("Last scene auto-loaded.");
+			Editor::SetActiveCanvasPath(File::Path(absolutePath));
+			Editor::CommandManager.SetActiveDocument(lastCanvasPath.c_str());
+			Editor::CommandManager.MarkSaved(lastCanvasPath.c_str());
+			CSystemLog::Info("Last canvas auto-loaded.");
 		}
 		else
 		{
-			CSystemLog::Warning("Failed to auto-load last scene.");
+			CSystemLog::Warning("Failed to auto-load last canvas.");
 		}
 	}
 
@@ -199,16 +199,16 @@ void CRootDockWindow::OnRenderStay()
 
 	// 비동기 프로젝트 로드가 끝나면, 그때 마지막 캔버스를 메인 스레드에서 로드한다.
 	// (자산 임포트/스크립트 빌드 태스크 완료 후라 참조 에셋이 모두 준비된 상태.)
-	if (m_pendingLoadLastScene)
+	if (m_pendingLoadLastCanvas)
 	{
 		if (false == projectManager.IsValid() || false == projectManager->IsProjectLoaded())
 		{
-			m_pendingLoadLastScene = false;   // 프로젝트가 닫혔거나 로드 실패 — 취소.
+			m_pendingLoadLastCanvas = false;   // 프로젝트가 닫혔거나 로드 실패 — 취소.
 		}
 		else if (false == projectManager->HasLoadingTasks())
 		{
-			m_pendingLoadLastScene = false;
-			TryLoadLastScene(projectManager);
+			m_pendingLoadLastCanvas = false;
+			TryLoadLastCanvas(projectManager);
 		}
 	}
 }
@@ -541,7 +541,7 @@ void CRootDockWindow::OnMenuBar()
 						// (여기서 동기 호출하면 PreloadReferencedAssets 가 메인 스레드를 막아
 						//  비동기 로드가 무의미해지고 에디터가 프리즈된다. OnRenderStay 에서
 						//  HasLoadingTasks()==false 가 되면 처리한다.)
-						m_pendingLoadLastScene = true;
+						m_pendingLoadLastCanvas = true;
 					}
 				}
 			}

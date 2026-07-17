@@ -3,12 +3,12 @@
 
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
 
-float SceneViewCoordinates::GetAspect(const ImVec2& viewportSize)
+float CanvasViewCoordinates::GetAspect(const ImVec2& viewportSize)
 {
 	return viewportSize.y > 0.0f ? viewportSize.x / viewportSize.y : 1.0f;
 }
 
-Vector2 SceneViewCoordinates::ViewportToWorld(
+Vector2 CanvasViewCoordinates::ViewportToWorld(
 	const ImVec2& viewportPoint,
 	const ImVec2& viewportMin,
 	const ImVec2& viewportSize,
@@ -23,7 +23,7 @@ Vector2 SceneViewCoordinates::ViewportToWorld(
 		ndcY * cameraSize + cameraPosition.y);
 }
 
-ImVec2 SceneViewCoordinates::WorldToViewport(
+ImVec2 CanvasViewCoordinates::WorldToViewport(
 	const Vector2& worldPoint,
 	const ImVec2& viewportMin,
 	const ImVec2& viewportSize,

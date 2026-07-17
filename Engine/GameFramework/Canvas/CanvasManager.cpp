@@ -31,7 +31,7 @@ void CCanvasManager::SetCanvasName(const char* name)
 	m_canvasName = name ? name : "";
 	if (nullptr != m_canvas.Get())
 	{
-		// Ref<GameScene> 해석 키 — 여기 사본과 캔버스 쪽이 어긋나면 해석이 빗나간다.
+		// Ref<Canvas> 해석 키 — 여기 사본과 캔버스 쪽이 어긋나면 해석이 빗나간다.
 		m_canvas->SetName(m_canvasName.c_str());
 	}
 }
@@ -66,7 +66,7 @@ void CCanvasManager::FlushPendingCanvasTransition()
 	}
 
 	// 타입 판정은 **자산 타입 enum** 으로 한다 — RTTI(dynamic_cast)를 쓸 이유가 없다.
-	// 타입→클래스는 로더 등록이 지키는 계약이고(Scene = CCanvasAssetLoader = CCanvasAsset),
+	// 타입→클래스는 로더 등록이 지키는 계약이고(Canvas = CCanvasAssetLoader = CCanvasAsset),
 	// 검증을 마친 뒤 StaticAssetRefCast 로 내려가는 게 이 엔진의 정식 경로다.
 	// AssetRef 로 받는 것도 계약이다 — strong ref 가 수명을 잡는다(로우 포인터로 빼지 않는다).
 	if (EAssetType::Canvas != asset->GetAssetType())
@@ -92,7 +92,7 @@ void CCanvasManager::FlushPendingCanvasTransition()
 		return;
 	}
 
-	// 캔버스 이름은 여전히 파일 키다(에디터 문서 키·Ref<GameScene> 해석) — 자산 메타에서 꺼낸다.
+	// 캔버스 이름은 여전히 파일 키다(에디터 문서 키·Ref<Canvas> 해석) — 자산 메타에서 꺼낸다.
 	SetCanvasName(canvasAsset->GetMetaData().Path.generic_string().c_str());
 	RefreshReferencedAssets();
 
@@ -102,11 +102,11 @@ void CCanvasManager::FlushPendingCanvasTransition()
 }
 
 // GetActiveCanvas() 은 CanvasManager.h 에 인라인으로 정의됨(DLL 링크 클로저에서
-// CanvasManager.obj → SceneSerializer.obj → yaml-cpp 연쇄 풀을 끊기 위함).
+// CanvasManager.obj → CanvasSerializer.obj → yaml-cpp 연쇄 풀을 끊기 위함).
 
-void CCanvasManager::AcquireReferencedAssets(CGameCanvas& scene) const
+void CCanvasManager::AcquireReferencedAssets(CGameCanvas& canvas) const
 {
-	if (scene.HasLoadedAssets())
+	if (canvas.HasLoadedAssets())
 	{
 		return; // 이미 보유 중(중복 active 등) — 재로드 불필요.
 	}
@@ -117,7 +117,7 @@ void CCanvasManager::AcquireReferencedAssets(CGameCanvas& scene) const
 
 	// referenced 에셋을 LoadAsset 으로 로드하고, 반환된 AssetRef(strong)를 캔버스가 보유한다.
 	// AssetRef 가 살아있는 동안 use-count>0 → 자산이 unload/GC 되지 않는다.
-	const std::vector<AssetGuid>& referenced = scene.GetReferencedAssets();
+	const std::vector<AssetGuid>& referenced = canvas.GetReferencedAssets();
 	std::vector<AssetRef<IAsset>> loaded;
 	loaded.reserve(referenced.size());
 	for (const AssetGuid& guid : referenced)
@@ -128,7 +128,7 @@ void CCanvasManager::AcquireReferencedAssets(CGameCanvas& scene) const
 			loaded.push_back(std::move(ref));
 		}
 	}
-	scene.SetLoadedAssets(std::move(loaded));
+	canvas.SetLoadedAssets(std::move(loaded));
 }
 
 void CCanvasManager::RefreshReferencedAssets()
@@ -164,7 +164,7 @@ void CCanvasManager::PlaySimulation()
 		m_playModeSnapshot.clear();
 		serializer.SerializeToText(*canvas, m_playModeSnapshot);
 		// 이름도 함께 — 재생 중에 캔버스를 전환하면 이름이 목적지 것으로 바뀌는데, 정지 시
-		// 내용만 되돌리면 "내용은 A, 이름은 B" 가 된다(Ref<GameScene> 해석·에디터 문서 키가
+		// 내용만 되돌리면 "내용은 A, 이름은 B" 가 된다(Ref<Canvas> 해석·에디터 문서 키가
 		// 어긋난다). 스냅샷은 캔버스 상태 전체다.
 		m_playModeCanvasName = m_canvasName;
 	}

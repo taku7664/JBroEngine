@@ -29,7 +29,7 @@ public:
 	void ClearMeshCache();
 
 protected:
-	void OnUpdate(CGameCanvas& scene) override;
+	void OnUpdate(CGameCanvas& canvas) override;
 
 private:
 	struct GeometrySignature

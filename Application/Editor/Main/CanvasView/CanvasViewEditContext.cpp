@@ -19,7 +19,7 @@
 #include "Engine/GameFramework/Canvas/CanvasRuntimeAccess.h"
 #include "Engine/GameFramework/Canvas/CanvasTransformUtils.h"
 
-using SceneViewCoordinates::WorldToViewport;
+using CanvasViewCoordinates::WorldToViewport;
 
 namespace
 {
@@ -264,16 +264,16 @@ namespace
 
 // ── CCanvasViewEditContext implementation ─────────────────────────────────────
 
-void CCanvasViewEditContext::Validate(const CGameCanvas& scene)
+void CCanvasViewEditContext::Validate(const CGameCanvas& canvas)
 {
-    (void)scene;
+    (void)canvas;
     // SafePtr 가 파괴된 오브젝트를 자동으로 null 로 만든다 — TryGet 으로 확정만.
     if (m_context.IsValid() && nullptr == m_context.TryGet())
         m_context = SafePtr<CGameObject>();
 }
 
 CGameObject* CCanvasViewEditContext::Pick(
-    const CGameCanvas& scene,
+    const CGameCanvas& canvas,
     const Vector2& worldPt,
     IAssetManager* assetMgr) const
 {
@@ -281,7 +281,7 @@ CGameObject* CCanvasViewEditContext::Pick(
     CGameObject* pickedObject = nullptr;
     std::int32_t pickedOrd   = std::numeric_limits<std::int32_t>::min();
 
-    const_cast<CGameCanvas&>(scene).ForEach<SpriteRenderer2D>(
+    const_cast<CGameCanvas&>(canvas).ForEach<SpriteRenderer2D>(
         [&](SpriteRenderer2D& sprite)
         {
             CGameObject* owner = sprite.GetOwner().TryGet();
@@ -374,7 +374,7 @@ CGameObject* CCanvasViewEditContext::Pick(
         }
     };
 
-    const_cast<CGameCanvas&>(scene).ForEach<Square2D>(
+    const_cast<CGameCanvas&>(canvas).ForEach<Square2D>(
         [&](Square2D& shape)
         {
             CGameObject* owner = shape.GetOwner().TryGet();
@@ -389,7 +389,7 @@ CGameObject* CCanvasViewEditContext::Pick(
                 });
         });
 
-    const_cast<CGameCanvas&>(scene).ForEach<Circle2D>(
+    const_cast<CGameCanvas&>(canvas).ForEach<Circle2D>(
         [&](Circle2D& shape)
         {
             CGameObject* owner = shape.GetOwner().TryGet();
@@ -405,7 +405,7 @@ CGameObject* CCanvasViewEditContext::Pick(
                 });
         });
 
-    const_cast<CGameCanvas&>(scene).ForEach<Polygon2D>(
+    const_cast<CGameCanvas&>(canvas).ForEach<Polygon2D>(
         [&](Polygon2D& shape)
         {
             CGameObject* owner = shape.GetOwner().TryGet();
@@ -421,10 +421,10 @@ CGameObject* CCanvasViewEditContext::Pick(
                 });
         });
 
-    const CTextRenderSystem* textSystem = CCanvasRuntimeAccess::FindSystem<CTextRenderSystem>(scene);
+    const CTextRenderSystem* textSystem = CCanvasRuntimeAccess::FindSystem<CTextRenderSystem>(canvas);
     if (textSystem)
     {
-        const_cast<CGameCanvas&>(scene).ForEach<Text2D>(
+        const_cast<CGameCanvas&>(canvas).ForEach<Text2D>(
             [&](Text2D& text)
             {
                 CGameObject* owner = text.GetOwner().TryGet();
@@ -453,19 +453,19 @@ CGameObject* CCanvasViewEditContext::Pick(
 }
 
 std::vector<CGameObject*> CCanvasViewEditContext::PickBox(
-    const CGameCanvas& scene,
+    const CGameCanvas& canvas,
     const Vector2& worldMin,
     const Vector2& worldMax,
     IAssetManager* assetMgr) const
 {
     CGameObject* context = m_context.TryGet();
     std::unordered_set<CGameObject*> foundSet;
-    const CTextRenderSystem* textSystem = CCanvasRuntimeAccess::FindSystem<CTextRenderSystem>(scene);
+    const CTextRenderSystem* textSystem = CCanvasRuntimeAccess::FindSystem<CTextRenderSystem>(canvas);
 
     // 전체 오브젝트 순회:
     //   - SpriteRenderer2D 있음 → 불투명 픽셀 tight AABB (없으면 OBB 폴백)
     //   - SpriteRenderer2D 없음 → 1×1 단위 OBB (엔티티 로컬 공간 기준)
-    const_cast<CGameCanvas&>(scene).ForEachObject(
+    const_cast<CGameCanvas&>(canvas).ForEachObject(
         [&](CGameObject& object)
         {
             if (!object.IsActive) return;
@@ -577,18 +577,18 @@ std::vector<CGameObject*> CCanvasViewEditContext::PickBox(
     return std::vector<CGameObject*>(foundSet.begin(), foundSet.end());
 }
 
-CGameObject* CCanvasViewEditContext::OnDoubleClick(const CGameCanvas& /*scene*/, CGameObject* picked)
+CGameObject* CCanvasViewEditContext::OnDoubleClick(const CGameCanvas& /*canvas*/, CGameObject* picked)
 {
     if (nullptr == picked) return nullptr;
 
     // 자식 유무와 무관하게 항상 해당 오브젝트 컨텍스트로 진입.
-    // 선택 처리(Editor::SelectEntities)는 호출자(SceneViewTool)가 담당.
+    // 선택 처리(Editor::SelectEntities)는 호출자(CanvasViewTool)가 담당.
     m_context = picked->SafeFromThis();
 
     return picked; // 호출자가 FocusOnEntity 에 전달
 }
 
-CGameObject* CCanvasViewEditContext::OnDoubleClickEmpty(const CGameCanvas& /*scene*/)
+CGameObject* CCanvasViewEditContext::OnDoubleClickEmpty(const CGameCanvas& /*canvas*/)
 {
     CGameObject* ctxObj = m_context.TryGet();
     if (nullptr == ctxObj)

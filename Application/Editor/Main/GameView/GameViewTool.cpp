@@ -91,21 +91,21 @@ void CGameViewTool::OnRenderStay()
 	if (Editor::ImEditor)
 	{
 		std::vector<GameRenderViewportDesc> viewports;
-		SafePtr<CGameCanvas> scene;
+		SafePtr<CGameCanvas> canvas;
 		if (Engine.CanvasManager)
 		{
-			scene = EditorContext::GetActiveCanvas();
-			if (scene)
+			canvas = EditorContext::GetActiveCanvas();
+			if (canvas)
 			{
 				// 뷰포트 수집은 카메라 Ref 를 해석한다 — 눈이 하나도 없으면 빈 목록이 되므로
 				// "그릴 게 있는가" 판정이 그대로 성립한다.
-				viewports = CollectGameRenderViewports(*scene, resW, resH);
+				viewports = CollectGameRenderViewports(*canvas, resW, resH);
 			}
 		}
 
 		if (false == viewports.empty())
 		{
-			Editor::ImEditor->SetGameViewScene(scene);
+			Editor::ImEditor->SetGameViewCanvas(canvas);
 			// RT는 프로젝트 해상도로 요청합니다.
 			Editor::ImEditor->RequestGameViewRenderTarget(
 				static_cast<std::uint32_t>(resW),
@@ -114,7 +114,7 @@ void CGameViewTool::OnRenderStay()
 		else
 		{
 			// No active Camera2D — release the RT so texID becomes null.
-			Editor::ImEditor->SetGameViewScene(nullptr);
+			Editor::ImEditor->SetGameViewCanvas(nullptr);
 			Editor::ImEditor->RequestGameViewRenderTarget(0, 0);
 		}
 	}
@@ -170,14 +170,14 @@ void CGameViewTool::OnRenderStay()
 	}
 
 	// ── Status overlay ─────────────────────────────────────────────────────────
-	const bool hasScene  = EditorContext::GetActiveCanvas().IsValid();
+	const bool hasCanvas  = EditorContext::GetActiveCanvas().IsValid();
 	const bool isPlaying = Engine.CanvasManager.IsValid() && Engine.CanvasManager->IsSimulationPlaying();
 
 	const ImVec2 textPos = vpMin + ImVec2(12.0f, 10.0f);
 	const ImU32  textCol = isPlaying ? IM_COL32(100, 230, 120, 255) : IM_COL32(210, 216, 224, 255);
 	const char* statusText = isPlaying
 		? Loc::Text(EditorLocKeys::GameViewStatusPlaying)
-		: (hasScene ? Loc::Text(EditorLocKeys::GameViewStatusSceneStopped) : Loc::Text(EditorLocKeys::GameViewStatusNoActiveScene));
+		: (hasCanvas ? Loc::Text(EditorLocKeys::GameViewStatusCanvasStopped) : Loc::Text(EditorLocKeys::GameViewStatusNoActiveCanvas));
 	dl->AddText(textPos, textCol, statusText);
 
 	if (nullptr == texID)

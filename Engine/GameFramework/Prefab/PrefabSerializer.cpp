@@ -15,7 +15,7 @@
 // 이름 맵에 없어 조회에 걸리지 않는다). Serialization 계층은 오브젝트/컴포넌트 guid 를 보존하고
 // 스크립트를 별도 분기로 처리하므로, 복제 단계를 없애는 것이 곧 그 손실을 없애는 것이다.
 
-EPrefabSerializeResult CPrefabSerializer::SerializePrefabToText(const CGameCanvas& /*scene*/, const CGameObject* root, std::string& outText) const
+EPrefabSerializeResult CPrefabSerializer::SerializePrefabToText(const CGameCanvas& /*canvas*/, const CGameObject* root, std::string& outText) const
 {
 	if (nullptr == root)
 	{
@@ -27,7 +27,7 @@ EPrefabSerializeResult CPrefabSerializer::SerializePrefabToText(const CGameCanva
 	return outText.empty() ? EPrefabSerializeResult::ParseError : EPrefabSerializeResult::Success;
 }
 
-EPrefabSerializeResult CPrefabSerializer::DeserializePrefabFromText(CGameCanvas& scene, const char* text, CGameObject** outRoot) const
+EPrefabSerializeResult CPrefabSerializer::DeserializePrefabFromText(CGameCanvas& canvas, const char* text, CGameObject** outRoot) const
 {
 	if (nullptr == text)
 	{
@@ -37,7 +37,7 @@ EPrefabSerializeResult CPrefabSerializer::DeserializePrefabFromText(CGameCanvas&
 	// guid 는 파일 값 그대로 복원된다 — 단 대상 캔버스에 같은 guid 가 살아 있으면(원본을 남긴 채
 	// 붙여넣기·같은 프리팹 2회 인스턴싱) 새로 발급된다. 삭제 undo 는 원본이 이미 사라진
 	// 뒤라 충돌이 없어 guid 가 그대로 돌아온다 — 뷰포트 카메라 지목과 Ref 가 되살아난다.
-	CGameObject* root = Serialization::DeserializeObject(scene, text);
+	CGameObject* root = Serialization::DeserializeObject(canvas, text);
 	if (outRoot)
 	{
 		*outRoot = root;
@@ -45,7 +45,7 @@ EPrefabSerializeResult CPrefabSerializer::DeserializePrefabFromText(CGameCanvas&
 	return root ? EPrefabSerializeResult::Success : EPrefabSerializeResult::ParseError;
 }
 
-EPrefabSerializeResult CPrefabSerializer::SavePrefabToFile(const CGameCanvas& scene, const CGameObject* root, const File::Path& path) const
+EPrefabSerializeResult CPrefabSerializer::SavePrefabToFile(const CGameCanvas& canvas, const CGameObject* root, const File::Path& path) const
 {
 	if (path.empty())
 	{
@@ -53,7 +53,7 @@ EPrefabSerializeResult CPrefabSerializer::SavePrefabToFile(const CGameCanvas& sc
 	}
 
 	std::string text;
-	const EPrefabSerializeResult serializeResult = SerializePrefabToText(scene, root, text);
+	const EPrefabSerializeResult serializeResult = SerializePrefabToText(canvas, root, text);
 	if (EPrefabSerializeResult::Success != serializeResult)
 	{
 		return serializeResult;
@@ -69,7 +69,7 @@ EPrefabSerializeResult CPrefabSerializer::SavePrefabToFile(const CGameCanvas& sc
 	return EPrefabSerializeResult::Success;
 }
 
-EPrefabSerializeResult CPrefabSerializer::LoadPrefabFromFile(CGameCanvas& scene, const File::Path& path, CGameObject** outRoot) const
+EPrefabSerializeResult CPrefabSerializer::LoadPrefabFromFile(CGameCanvas& canvas, const File::Path& path, CGameObject** outRoot) const
 {
 	if (path.empty())
 	{
@@ -84,5 +84,5 @@ EPrefabSerializeResult CPrefabSerializer::LoadPrefabFromFile(CGameCanvas& scene,
 
 	std::stringstream buffer;
 	buffer << file.rdbuf();
-	return DeserializePrefabFromText(scene, buffer.str().c_str(), outRoot);
+	return DeserializePrefabFromText(canvas, buffer.str().c_str(), outRoot);
 }

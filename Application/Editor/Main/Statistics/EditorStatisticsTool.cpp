@@ -19,8 +19,8 @@ void CEditorStatisticsTool::OnRenderStay()
 {
 	const ImGuiIO& io = ImGui::GetIO();
 	const float frameMilliseconds = io.Framerate > 0.0f ? 1000.0f / io.Framerate : 0.0f;
-	SafePtr<CGameCanvas> scene = EditorContext::GetActiveCanvas();
-	const std::size_t objectCount = scene.IsValid() ? scene->GetObjectCount() : 0;
+	SafePtr<CGameCanvas> canvas = EditorContext::GetActiveCanvas();
+	const std::size_t objectCount = canvas.IsValid() ? canvas->GetObjectCount() : 0;
 	const std::uint32_t renderItemCount = Engine.RenderScene.IsValid()
 		? Engine.RenderScene->GetRenderItemCount()
 		: 0;
@@ -42,9 +42,9 @@ void CEditorStatisticsTool::OnRenderStay()
 		std::snprintf(value, sizeof(value), "%.2f ms", frameMilliseconds);
 		drawRow(Loc::Text(EditorLocKeys::EditorStatisticsFrameTime), value);
 		std::snprintf(value, sizeof(value), "%zu", objectCount);
-		drawRow(Loc::Text(EditorLocKeys::EditorStatisticsSceneObjects), value);
-		const std::vector<CGameCanvas::ScriptMemoryPoolStats> scriptPoolStats = scene.IsValid()
-			? CCanvasRuntimeAccess::GetScriptMemoryPoolStats(*scene)
+		drawRow(Loc::Text(EditorLocKeys::EditorStatisticsCanvasObjects), value);
+		const std::vector<CGameCanvas::ScriptMemoryPoolStats> scriptPoolStats = canvas.IsValid()
+			? CCanvasRuntimeAccess::GetScriptMemoryPoolStats(*canvas)
 			: std::vector<CGameCanvas::ScriptMemoryPoolStats>();
 		std::size_t expansionCount = 0;
 		for (const CGameCanvas::ScriptMemoryPoolStats& stats : scriptPoolStats)

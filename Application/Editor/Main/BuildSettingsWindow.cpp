@@ -214,7 +214,7 @@ void CBuildSettingsWindow::DrawCategoryList(float)
 	struct CommonEntry { ECategory Kind; const char* LocKey; };
 	static const CommonEntry commonEntry[] = {
 		{ ECategory::General, EditorLocKeys::BuildSettingsCategoryGeneral },
-		{ ECategory::Scenes,  EditorLocKeys::BuildSettingsCategoryScenes  },
+		{ ECategory::Canvases,  EditorLocKeys::BuildSettingsCategoryCanvases  },
 		{ ECategory::Output,  EditorLocKeys::BuildSettingsCategoryOutput  },
 	};
 	struct PlatformEntry { ECategory Kind; EBuildTargetPlatform Platform; const char* LocKey; };
@@ -225,7 +225,7 @@ void CBuildSettingsWindow::DrawCategoryList(float)
 		{ ECategory::IOS,     EBuildTargetPlatform::IOS,     EditorLocKeys::BuildSettingsCategoryIos     },
 	};
 
-	// 공통 카테고리(General/Scenes/Output)는 플랫폼 활성화 개념이 없으므로 체크박스 없이 나열한다.
+	// 공통 카테고리(General/Canvases/Output)는 플랫폼 활성화 개념이 없으므로 체크박스 없이 나열한다.
 	ImText header;
 	header.UseSeparator(true);
 	header.SetHoveredTooltip(Loc::Text(EditorLocKeys::BuildSettingsCommonCategoryTooltip));
@@ -291,7 +291,7 @@ void CBuildSettingsWindow::DrawCategoryContent(float)
 	switch (m_selectedCategory)
 	{
 	case ECategory::General: DrawGeneralCategory(); break;
-	case ECategory::Scenes:  DrawScenesCategory();  break;
+	case ECategory::Canvases:  DrawCanvasesCategory();  break;
 	case ECategory::Output:  DrawOutputCategory();  break;
 	case ECategory::Windows: DrawWindowsCategory(); break;
 	case ECategory::Web:     DrawWebCategory();     break;
@@ -542,67 +542,67 @@ void CBuildSettingsWindow::DrawWindowsIconSelector()
 	ImGui::EndGroup();
 }
 
-void CBuildSettingsWindow::DrawScenesCategory()
+void CBuildSettingsWindow::DrawCanvasesCategory()
 {
-	ImSectionHeader(Loc::Text(EditorLocKeys::BuildSettingsScenes)).Draw();
+	ImSectionHeader(Loc::Text(EditorLocKeys::BuildSettingsCanvases)).Draw();
 
-	ImGui::Utillity::FormLayout layout("##build_settings_scenes", 4.0f, { 2.0f, 1.0f }, 150.0f);
+	ImGui::Utillity::FormLayout layout("##build_settings_canvases", 4.0f, { 2.0f, 1.0f }, 150.0f);
 	layout.Row(
 		[&]() {
-			DrawFieldLabel(EditorLocKeys::BuildSettingsStartupScene, EditorLocKeys::BuildSettingsStartupSceneDesc, true);
+			DrawFieldLabel(EditorLocKeys::BuildSettingsStartupCanvas, EditorLocKeys::BuildSettingsStartupCanvasDesc, true);
 		},
 		[&]() {
-			std::string selectedPath = m_startupScene;
-			const std::wstring title = Utillity::U8ToWString(Loc::Text(EditorLocKeys::BuildSettingsSelectStartupScene));
+			std::string selectedPath = m_startupCanvas;
+			const std::wstring title = Utillity::U8ToWString(Loc::Text(EditorLocKeys::BuildSettingsSelectStartupCanvas));
 			if (DrawReadOnlyPathWithFileBrowse(
-				"##build.startup_scene",
+				"##build.startup_canvas",
 				selectedPath,
-				"##build.startup_scene.browse",
+				"##build.startup_canvas.browse",
 				title.c_str(),
 				GetAssetDialogPath(),
-				{ { L"JBro Scene", L"*.JScene" }, { L"All Files", L"*.*" } },
-				IsStartupSceneInvalid()))
+				{ { L"JBro Canvas", L"*.JCanvas" }, { L"All Files", L"*.*" } },
+				IsStartupCanvasInvalid()))
 			{
 				SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
-				m_startupScene = NormalizePathForProject(selectedPath, pm ? pm->GetAssetPath() : File::Path());
-				if (false == m_startupScene.empty()
-					&& std::find(m_buildScenes.begin(), m_buildScenes.end(), m_startupScene) == m_buildScenes.end())
+				m_startupCanvas = NormalizePathForProject(selectedPath, pm ? pm->GetAssetPath() : File::Path());
+				if (false == m_startupCanvas.empty()
+					&& std::find(m_buildCanvases.begin(), m_buildCanvases.end(), m_startupCanvas) == m_buildCanvases.end())
 				{
-					m_buildScenes.insert(m_buildScenes.begin(), m_startupScene);
+					m_buildCanvases.insert(m_buildCanvases.begin(), m_startupCanvas);
 				}
 				MarkDirty();
 			}
 		});
 
 	ImGui::Spacing();
-	if (ImGui::Button(Loc::Text(EditorLocKeys::BuildSettingsUseCurrentScene)))
+	if (ImGui::Button(Loc::Text(EditorLocKeys::BuildSettingsUseCurrentCanvas)))
 	{
 		SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
-		const File::Path& activeScenePath = Editor::GetActiveScenePath();
-		if (pm && false == activeScenePath.empty())
+		const File::Path& activeCanvasPath = Editor::GetActiveCanvasPath();
+		if (pm && false == activeCanvasPath.empty())
 		{
-			m_startupScene = NormalizePathForProject(activeScenePath, pm->GetAssetPath());
-			if (false == m_startupScene.empty()
-				&& std::find(m_buildScenes.begin(), m_buildScenes.end(), m_startupScene) == m_buildScenes.end())
+			m_startupCanvas = NormalizePathForProject(activeCanvasPath, pm->GetAssetPath());
+			if (false == m_startupCanvas.empty()
+				&& std::find(m_buildCanvases.begin(), m_buildCanvases.end(), m_startupCanvas) == m_buildCanvases.end())
 			{
-				m_buildScenes.insert(m_buildScenes.begin(), m_startupScene);
+				m_buildCanvases.insert(m_buildCanvases.begin(), m_startupCanvas);
 			}
 			MarkDirty();
 		}
 	}
-	ImGui::Utillity::HoveredToolTip(Loc::Text(EditorLocKeys::BuildSettingsUseCurrentSceneDesc));
+	ImGui::Utillity::HoveredToolTip(Loc::Text(EditorLocKeys::BuildSettingsUseCurrentCanvasDesc));
 
 	ImGui::Spacing();
-	ImSectionHeader(Loc::Text(EditorLocKeys::BuildSettingsBuildScenes)).SpacingBefore(true).Draw();
-	ImGui::BeginChild("##build_scenes", ImVec2(0.0f, 150.0f), true);
-	for (std::size_t i = 0; i < m_buildScenes.size();)
+	ImSectionHeader(Loc::Text(EditorLocKeys::BuildSettingsBuildCanvases)).SpacingBefore(true).Draw();
+	ImGui::BeginChild("##build_canvases", ImVec2(0.0f, 150.0f), true);
+	for (std::size_t i = 0; i < m_buildCanvases.size();)
 	{
 		ImGui::PushID(static_cast<int>(i));
-		ImGui::TextUnformatted(m_buildScenes[i].c_str());
+		ImGui::TextUnformatted(m_buildCanvases[i].c_str());
 		ImGui::SameLine(ImGui::GetContentRegionAvail().x - 64.0f);
 		if (ImGui::SmallButton(Loc::Text(EditorLocKeys::CommonDelete)))
 		{
-			m_buildScenes.erase(m_buildScenes.begin() + static_cast<std::ptrdiff_t>(i));
+			m_buildCanvases.erase(m_buildCanvases.begin() + static_cast<std::ptrdiff_t>(i));
 			MarkDirty();
 			ImGui::PopID();
 			continue;
@@ -612,24 +612,24 @@ void CBuildSettingsWindow::DrawScenesCategory()
 	}
 	ImGui::EndChild();
 
-	std::vector<File::Path> selectedScenes;
-	const std::wstring addSceneTitle = Utillity::U8ToWString(Loc::Text(EditorLocKeys::BuildSettingsAddScene));
+	std::vector<File::Path> selectedCanvases;
+	const std::wstring addCanvasTitle = Utillity::U8ToWString(Loc::Text(EditorLocKeys::BuildSettingsAddCanvas));
 	if (ImGui::Utillity::BrowseFilesButton(
-		Loc::Text(EditorLocKeys::BuildSettingsAddScene),
-		selectedScenes,
-		addSceneTitle.c_str(),
+		Loc::Text(EditorLocKeys::BuildSettingsAddCanvas),
+		selectedCanvases,
+		addCanvasTitle.c_str(),
 		GetAssetDialogPath().c_str(),
-		{ { L"JBro Scene", L"*.JScene" }, { L"All Files", L"*.*" } }))
+		{ { L"JBro Canvas", L"*.JCanvas" }, { L"All Files", L"*.*" } }))
 	{
 		SafePtr<CProjectManager> pm = EditorContext::GetProjectManager();
 		const File::Path assetPath = pm ? pm->GetAssetPath() : File::Path();
-		for (const File::Path& selectedScene : selectedScenes)
+		for (const File::Path& selectedCanvas : selectedCanvases)
 		{
-			std::string scene = NormalizePathForProject(selectedScene, assetPath);
-			if (false == scene.empty()
-				&& std::find(m_buildScenes.begin(), m_buildScenes.end(), scene) == m_buildScenes.end())
+			std::string canvas = NormalizePathForProject(selectedCanvas, assetPath);
+			if (false == canvas.empty()
+				&& std::find(m_buildCanvases.begin(), m_buildCanvases.end(), canvas) == m_buildCanvases.end())
 			{
-				m_buildScenes.push_back(std::move(scene));
+				m_buildCanvases.push_back(std::move(canvas));
 				MarkDirty();
 			}
 		}
@@ -761,8 +761,8 @@ void CBuildSettingsWindow::LoadFromProject()
 	m_enableIOS     = build.EnableIOS;
 	m_buildConfiguration = ToIndex(build.BuildConfiguration);
 	m_outputDirectory = build.OutputDirectory;
-	m_startupScene = build.StartupCanvas;
-	m_buildScenes = build.BuildCanvases;
+	m_startupCanvas = build.StartupCanvas;
+	m_buildCanvases = build.BuildCanvases;
 	m_alwaysIncludeAssets = build.AlwaysIncludeAssets;
 	m_windowsIconGuid = build.WindowsIconGuid;
 	m_androidApplicationId = build.AndroidApplicationId;
@@ -802,8 +802,8 @@ bool CBuildSettingsWindow::ApplyToProject(std::string* outError)
 	buildSettings.EnableIOS     = m_enableIOS;
 	buildSettings.BuildConfiguration = ToBuildConfiguration(m_buildConfiguration);
 	buildSettings.OutputDirectory = m_outputDirectory;
-	buildSettings.StartupCanvas = m_startupScene;
-	buildSettings.BuildCanvases = m_buildScenes;
+	buildSettings.StartupCanvas = m_startupCanvas;
+	buildSettings.BuildCanvases = m_buildCanvases;
 	buildSettings.AlwaysIncludeAssets = m_alwaysIncludeAssets;
 	buildSettings.WindowsIconGuid = m_windowsIconGuid;
 	buildSettings.AndroidApplicationId = m_androidApplicationId;
@@ -976,7 +976,7 @@ void CBuildSettingsWindow::FocusFirstInvalidCategory()
 
 	static const ECategory orderedCategories[] = {
 		ECategory::General,
-		ECategory::Scenes,
+		ECategory::Canvases,
 		ECategory::Output,
 		ECategory::Windows,
 		ECategory::Web,
@@ -1017,8 +1017,8 @@ bool CBuildSettingsWindow::HasCategoryInvalid(ECategory category) const
 	{
 	case ECategory::General:
 		return IsProductNameInvalid();
-	case ECategory::Scenes:
-		return IsStartupSceneInvalid();
+	case ECategory::Canvases:
+		return IsStartupCanvasInvalid();
 	case ECategory::Output:
 		return IsOutputDirectoryInvalid();
 	case ECategory::Android:
@@ -1040,9 +1040,9 @@ bool CBuildSettingsWindow::IsProductNameInvalid() const
 	return BuildSettingsUtils::IsBlank(m_productName);
 }
 
-bool CBuildSettingsWindow::IsStartupSceneInvalid() const
+bool CBuildSettingsWindow::IsStartupCanvasInvalid() const
 {
-	return false == HasExtensionIgnoreCase(m_startupScene, L".jcanvas");
+	return false == HasExtensionIgnoreCase(m_startupCanvas, L".jcanvas");
 }
 
 bool CBuildSettingsWindow::IsOutputDirectoryInvalid() const

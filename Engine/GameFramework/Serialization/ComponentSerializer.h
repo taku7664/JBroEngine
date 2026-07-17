@@ -4,7 +4,7 @@
 //  ComponentSerializer ─ 컴포넌트 1개 ↔ YAML/문자열 변환 (직렬화 3계층의 최하단)
 //
 //  · 모든 per-type write/read 헬퍼와 리플렉션/Ref 직렬화 로직을 한곳에 둔다.
-//    ObjectSerializer / SceneSerializer 는 이 위에 얇게 쌓인다.
+//    ObjectSerializer / CanvasSerializer 는 이 위에 얇게 쌓인다.
 //  · YAML::Node 레벨 API(WriteComponent/ReadComponentInto)는 ObjectSerializer 가
 //    오브젝트 노드에 컴포넌트를 박을 때 쓴다. 문자열 API는 단일 컴포넌트 복사용.
 //

@@ -81,16 +81,16 @@ struct GameRenderLightDesc
 // 캔버스의 뷰포트 목록을 렌더 스냅샷으로 해석한다(카메라 Ref 해석 + 렉트 계산 + 레이어 필터).
 // 뷰포트가 하나도 없으면 풀스크린 기본 뷰포트 1개로 간주한다 — 스플릿을 안 쓰는 게임은
 // 뷰포트를 저작하지 않아도 그대로 그려진다.
-// scene 을 const 로 받지 않는 이유: 카메라 Ref 해석 결과를 뷰포트에 캐시한다(매 프레임
+// canvas 을 const 로 받지 않는 이유: 카메라 Ref 해석 결과를 뷰포트에 캐시한다(매 프레임
 // guid 문자열 파싱을 피하기 위함).
-std::vector<GameRenderViewportDesc> CollectGameRenderViewports(CGameCanvas& scene, float renderWidth, float renderHeight);
+std::vector<GameRenderViewportDesc> CollectGameRenderViewports(CGameCanvas& canvas, float renderWidth, float renderHeight);
 
 // 캔버스의 활성 Light2D 를 월드 공간 스냅샷으로 수집한다(카메라 수집과 동일 계층에서 호출).
-std::vector<GameRenderLightDesc> CollectGameRenderLights(const CGameCanvas& scene);
+std::vector<GameRenderLightDesc> CollectGameRenderLights(const CGameCanvas& canvas);
 
 // 캔버스 레이어를 컴포짓 순서대로 수집한다(카메라/라이트 수집과 동일 계층에서 호출).
 // forceOwnTextureAll = 전 레이어를 RT 경유로 강제(에디터 — 레이어별 썸네일·디버깅용).
-std::vector<GameRenderLayerDesc> CollectGameRenderLayers(const CGameCanvas& scene, bool forceOwnTextureAll = false);
+std::vector<GameRenderLayerDesc> CollectGameRenderLayers(const CGameCanvas& canvas, bool forceOwnTextureAll = false);
 
 // 뷰포트 목록을 순서대로 그린다: 배경색 → for 뷰포트 { for 레이어: 드로우 → 렉트에 컴포짓 }.
 // backgroundColor = 캔버스 바탕색(float[4], null 이면 투명).

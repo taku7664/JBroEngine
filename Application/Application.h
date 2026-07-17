@@ -32,7 +32,7 @@ private:
 	bool InitializeRuntimeGame();
 	bool MountRuntimeAssets(const BuildManifest& manifest);
 	bool LoadRuntimeScriptModule(const BuildManifest& manifest);
-	bool LoadRuntimeStartupScene(const BuildManifest& manifest);
+	bool LoadRuntimeStartupCanvas(const BuildManifest& manifest);
 	void ConfigureRuntimeViewCamera();
 	void ShutdownRuntimeGame();
 

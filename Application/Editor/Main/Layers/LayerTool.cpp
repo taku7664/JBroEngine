@@ -52,14 +52,14 @@ void CLayerTool::OnRenderStay()
 {
 	if (false == Engine.CanvasManager.IsValid())
 	{
-		ImGui::TextDisabled(Loc::Text(EditorLocKeys::HierarchySceneManagerUnavailable));
+		ImGui::TextDisabled(Loc::Text(EditorLocKeys::HierarchyCanvasManagerUnavailable));
 		return;
 	}
 
-	SafePtr<CGameCanvas> activeScene = EditorContext::GetActiveCanvas();
-	if (false == activeScene.IsValid())
+	SafePtr<CGameCanvas> activeCanvas = EditorContext::GetActiveCanvas();
+	if (false == activeCanvas.IsValid())
 	{
-		ImGui::TextDisabled(Loc::Text(EditorLocKeys::HierarchyNoActiveScene));
+		ImGui::TextDisabled(Loc::Text(EditorLocKeys::HierarchyNoActiveCanvas));
 		Editor::ClearSelection();
 		return;
 	}
@@ -69,7 +69,7 @@ void CLayerTool::OnRenderStay()
 	{
 		if (ImGui::MenuItem(Loc::Text(EditorLocKeys::HierarchyAddLayer)))
 		{
-			auto cmd = MakeOwnerPtr<CCreateLayerCommand>(activeScene, nullptr);
+			auto cmd = MakeOwnerPtr<CCreateLayerCommand>(activeCanvas, nullptr);
 			CCreateLayerCommand* rawCmd = cmd.Get();
 			if (Editor::CommandManager.ExecuteCommand(std::move(cmd)) && rawCmd)
 			{
@@ -85,8 +85,8 @@ void CLayerTool::OnRenderStay()
 		if (ImGui::BeginPopupContextWindow("HierarchyBackgroundContext",
 		    ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems))
 		{
-			EditorGuiActions::DrawAddObjectMenu(*activeScene, nullptr, nullptr, Editor::GetSelectedLayer());
-			EditorGuiActions::DrawPasteObjectMenuItem(*activeScene);
+			EditorGuiActions::DrawAddObjectMenu(*activeCanvas, nullptr, nullptr, Editor::GetSelectedLayer());
+			EditorGuiActions::DrawPasteObjectMenuItem(*activeCanvas);
 			ImGui::Separator();
 			drawAddLayerMenuItem();
 			ImGui::EndPopup();
@@ -96,7 +96,7 @@ void CLayerTool::OnRenderStay()
 	// ── 활성 오브젝트 수집 + 계층 인덱스 빌드(id 기반) ──────────────────────────
 	// 오브젝트가 0개여도 레이어는 그린다(레이어는 오브젝트와 독립된 캔버스 구성 요소).
 	std::vector<CGameObject*> objects;
-	activeScene->ForEachObject([&objects](CGameObject& o){ objects.push_back(&o); });
+	activeCanvas->ForEachObject([&objects](CGameObject& o){ objects.push_back(&o); });
 
 	std::unordered_map<const CGameObject*, std::vector<std::size_t>> childrenByParent;
 	std::unordered_map<const CGameLayer*, std::vector<std::size_t>> rootsByLayer;
@@ -159,7 +159,7 @@ void CLayerTool::OnRenderStay()
 		}
 
 		auto cmd = MakeOwnerPtr<CMoveGameObjectInHierarchyCommand>(
-			activeScene, draggedObj, newParent, insertNear, insertAfter, newLayer);
+			activeCanvas, draggedObj, newParent, insertNear, insertAfter, newLayer);
 		if (false == Editor::CommandManager.ExecuteCommand(std::move(cmd)))
 		{
 			return false;
@@ -227,7 +227,7 @@ void CLayerTool::OnRenderStay()
 			m_selectionAnchorGuid = obj->GetInstanceGuid();
 			if (Editor::CanvasView)
 			{
-				Editor::CanvasView->SetFocusContext(obj, *activeScene);
+				Editor::CanvasView->SetFocusContext(obj, *activeCanvas);
 			}
 		}
 
@@ -300,18 +300,18 @@ void CLayerTool::OnRenderStay()
 			{
 				if (ImGui::MenuItem(Loc::Text(EditorLocKeys::HierarchyUnparent)))
 				{
-					auto cmd = MakeOwnerPtr<CSetParentCommand>(activeScene, obj, nullptr);
+					auto cmd = MakeOwnerPtr<CSetParentCommand>(activeCanvas, obj, nullptr);
 					Editor::CommandManager.ExecuteCommand(std::move(cmd));
 				}
 				ImGui::Separator();
 			}
 
-			EditorGuiActions::DrawAddComponentMenu(*activeScene, obj);
+			EditorGuiActions::DrawAddComponentMenu(*activeCanvas, obj);
 			ImGui::Separator();
 			EditorGuiActions::DrawCopyObjectMenuItem(*obj);
-			EditorGuiActions::DrawPasteObjectMenuItem(*activeScene);
+			EditorGuiActions::DrawPasteObjectMenuItem(*activeCanvas);
 			ImGui::Separator();
-			EditorGuiActions::DrawRemoveObjectMenu(*activeScene, obj);
+			EditorGuiActions::DrawRemoveObjectMenu(*activeCanvas, obj);
 			ImGui::EndPopup();
 		}
 
@@ -349,7 +349,7 @@ void CLayerTool::OnRenderStay()
 	// ── 레이어 노드 렌더링 ──────────────────────────────────────────────────────
 	// 표시 순서는 포토샵식(위 = 컴포짓 마지막 = 화면 최전면)이므로 모델 인덱스의 역순으로
 	// 그린다. 모델(m_layers)은 0 = 맨 아래 그대로 두고 표시만 뒤집는다.
-	const std::size_t layerCount = activeScene->GetLayerCount();
+	const std::size_t layerCount = activeCanvas->GetLayerCount();
 
 	// 썸네일 크기 = 캔버스뷰 종횡비 × 요청 높이. ImEditor 가 캔버스뷰 레이어 합성 중에 채운다.
 	const float thumbnailHeight = ImGui::GetTextLineHeight() * 2.0f;
@@ -361,7 +361,7 @@ void CLayerTool::OnRenderStay()
 
 	auto drawLayer = [&](std::size_t layerIndex)
 	{
-		CGameLayer* layer = activeScene->GetLayerAt(layerIndex);
+		CGameLayer* layer = activeCanvas->GetLayerAt(layerIndex);
 		if (nullptr == layer)
 		{
 			return;
@@ -441,7 +441,7 @@ void CLayerTool::OnRenderStay()
 					if (payload)
 					{
 						CGameLayer* draggedLayer = *static_cast<CGameLayer* const*>(payload->Data);
-						const int draggedIndex = activeScene->GetLayerIndex(draggedLayer);
+						const int draggedIndex = activeCanvas->GetLayerIndex(draggedLayer);
 						if (draggedLayer && draggedLayer != layer && draggedIndex >= 0)
 						{
 							// 목적지는 "드래그 레이어를 뺀 목록" 기준으로 계산한다 —
@@ -453,7 +453,7 @@ void CLayerTool::OnRenderStay()
 							}
 							// 표시가 뒤집혀 있으므로 "위에 놓기" = 모델 인덱스 +1.
 							const std::size_t newIndex = dropAbove ? targetIndex + 1 : targetIndex;
-							auto cmd = MakeOwnerPtr<CMoveLayerCommand>(activeScene, draggedLayer, newIndex);
+							auto cmd = MakeOwnerPtr<CMoveLayerCommand>(activeCanvas, draggedLayer, newIndex);
 							if (Editor::CommandManager.ExecuteCommand(std::move(cmd)))
 							{
 								Editor::SelectLayer(draggedLayer);
@@ -482,15 +482,15 @@ void CLayerTool::OnRenderStay()
 		{
 			Editor::SelectLayer(layer);
 
-			EditorGuiActions::DrawAddObjectMenu(*activeScene, nullptr, nullptr, layer);
-			EditorGuiActions::DrawPasteObjectMenuItem(*activeScene, nullptr, layer);
+			EditorGuiActions::DrawAddObjectMenu(*activeCanvas, nullptr, nullptr, layer);
+			EditorGuiActions::DrawPasteObjectMenuItem(*activeCanvas, nullptr, layer);
 			ImGui::Separator();
 			drawAddLayerMenuItem();
 			// 마지막 레이어는 삭제 불가 — 캔버스가 "레이어 0개"를 허용하지 않는다.
 			const bool canDelete = layerCount > 1;
 			if (ImGui::MenuItem(Loc::Text(EditorLocKeys::HierarchyDeleteLayer), nullptr, false, canDelete))
 			{
-				auto cmd = MakeOwnerPtr<CDeleteLayerCommand>(activeScene, layer);
+				auto cmd = MakeOwnerPtr<CDeleteLayerCommand>(activeCanvas, layer);
 				if (Editor::CommandManager.ExecuteCommand(std::move(cmd)))
 				{
 					Editor::ClearLayerSelection();
@@ -518,7 +518,7 @@ void CLayerTool::OnRenderStay()
 				LayerPropertySnapshot properties = LayerPropertySnapshot::Capture(*layer);
 				properties.Visible = !properties.Visible;
 				EditorLayerActions::SetLayerProperty(
-					*activeScene, *layer, CSetLayerPropertyCommand::EField::Visible, properties);
+					*activeCanvas, *layer, CSetLayerPropertyCommand::EField::Visible, properties);
 			}
 
 			ImGui::SetCursorScreenPos(cursorAfterHeader);
@@ -548,7 +548,7 @@ void CLayerTool::OnRenderStay()
 			&& EAssetType::Layer == payload.Type)
 		{
 			auto cmd = MakeOwnerPtr<CAddLayerFromAssetCommand>(
-				activeScene, EditorDragDrop::GetGuid(payload));
+				activeCanvas, EditorDragDrop::GetGuid(payload));
 			CAddLayerFromAssetCommand* rawCmd = cmd.Get();
 			if (Editor::CommandManager.ExecuteCommand(std::move(cmd)) && rawCmd)
 			{
@@ -564,9 +564,9 @@ void CLayerTool::OnRenderStay()
 	{
 		// 캔버스 이름은 CanvasManager 키(= 프로젝트 상대 경로)라 그대로 쓰면 한 줄을 넘긴다 —
 		// 파일 이름만 보여준다.
-		const std::string canvasName = Editor::GetActiveScenePath().empty()
-			? std::string(activeScene->GetName())
-			: Editor::GetActiveScenePath().stem().string();
+		const std::string canvasName = Editor::GetActiveCanvasPath().empty()
+			? std::string(activeCanvas->GetName())
+			: Editor::GetActiveCanvasPath().stem().string();
 
 		char canvasLabel[256];
 		std::snprintf(canvasLabel, sizeof(canvasLabel),

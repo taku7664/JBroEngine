@@ -183,7 +183,7 @@ void CAudioSystem::SyncEffectChain(PlayerInstance& instance, const AudioPlayer& 
 	instance.EffectGuids       = player.EffectGuids;
 }
 
-void CAudioSystem::OnUpdate(CGameCanvas& scene)
+void CAudioSystem::OnUpdate(CGameCanvas& canvas)
 {
 	if (false == m_device.IsValid())
 	{
@@ -193,7 +193,7 @@ void CAudioSystem::OnUpdate(CGameCanvas& scene)
 	// ── 1) Listener — 첫 번째 활성 청취자만 사용 ────────────────────────
 	SafePtr<IAudioListener> primary = m_device->GetPrimaryListener();
 	bool listenerSet = false;
-	scene.ForEach<AudioListener>(
+	canvas.ForEach<AudioListener>(
 		[&](AudioListener& listener)
 		{
 			if (listenerSet) return;
@@ -210,7 +210,7 @@ void CAudioSystem::OnUpdate(CGameCanvas& scene)
 	// ── 2) Player — 컴포넌트별 인스턴스 생성/동기/해제 ─────────────────
 	std::unordered_set<File::Guid> seen;
 
-	scene.ForEach<AudioPlayer>(
+	canvas.ForEach<AudioPlayer>(
 		[&](AudioPlayer& player)
 		{
 			CGameObject* owner = player.GetOwner().TryGet();

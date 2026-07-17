@@ -98,7 +98,7 @@ private:
 	friend class CPhysics2DSystem; // 충돌/트리거 디스패치
 	friend class CReflectionRegistry;
 
-	void Bind(CGameCanvas& scene, const char* typeName);
+	void Bind(CGameCanvas& canvas, const char* typeName);
 	void Create();
 	void Start();
 	void Update();

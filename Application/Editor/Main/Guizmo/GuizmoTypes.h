@@ -50,7 +50,7 @@ enum class EGuizmoHandle2D
 
 struct GuizmoFrameContext
 {
-	CGameCanvas* Scene = nullptr;
+	CGameCanvas* Canvas = nullptr;
 	ImRect ViewportRect;
 	ImDrawList* DrawList = nullptr;
 	Vector2 CameraPosition = Vector2(0.0f, 0.0f);
@@ -58,8 +58,8 @@ struct GuizmoFrameContext
 	float PixelsPerUnit = 100.0f;
 	std::vector<CGameObject*> Selection;
 	CGameObject* ActiveObject = nullptr;
-	bool IsSceneViewHovered = false;
-	bool IsSceneViewActive = false;
+	bool IsCanvasViewHovered = false;
+	bool IsCanvasViewActive = false;
 	bool IsBlockedByOverlay = false;
 };
 

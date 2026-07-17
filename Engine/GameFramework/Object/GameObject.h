@@ -32,20 +32,20 @@ enum EObjectFlags : unsigned int
 //  · Transform(Local) / WorldTransform(World) / 계층(Parent·Children)을 멤버로 직접
 //    보유한다 — 컴포넌트가 아니다.
 //  · 컴포넌트는 타입별 풀에 살고, 여기서는 SafePtr 로 참조만 들고 lifetime 을
-//    결정한다(Destroy 시 scene 을 통해 각 풀에서 해제).
+//    결정한다(Destroy 시 canvas 을 통해 각 풀에서 해제).
 //  · 외부 공유는 SafeFromThis()/SafePtr<CGameObject>.
 //
 //  템플릿 메서드 AddComponent/RemoveComponent 는 CGameCanvas 완전형이 필요하므로
-//  본체는 Scene.h 하단에 정의한다(GetComponent 류는 scene 불필요 → 여기 인라인).
+//  본체는 Canvas.h 하단에 정의한다(GetComponent 류는 canvas 불필요 → 여기 인라인).
 // ─────────────────────────────────────────────────────────────────────────────
 class CGameObject final : public GameInstance, public EnableSafeFromThis<CGameObject>
 {
 public:
 	CGameObject() = default;
-	CGameObject(CGameCanvas& scene, const char* name, const File::Guid& instanceGuid)
+	CGameObject(CGameCanvas& canvas, const char* name, const File::Guid& instanceGuid)
 		: GameInstance(instanceGuid)
 		, Name(name ? name : "GameObject")
-		, m_canvas(&scene)
+		, m_canvas(&canvas)
 	{
 	}
 
@@ -117,7 +117,7 @@ public:
 	}
 
 	// ── 컴포넌트 ──────────────────────────────────────────────────────────────
-	// AddComponent/RemoveComponent: Scene.h 하단 정의.
+	// AddComponent/RemoveComponent: Canvas.h 하단 정의.
 	template<typename T, typename... Args> T* AddComponent(Args&&... args);
 	template<typename T>                    void RemoveComponent();
 
@@ -326,7 +326,7 @@ private:
 		return nullptr;
 	}
 
-	// scene 의 AddComponent/RemoveComponent 가 호출하는 부착/탈착 훅.
+	// canvas 의 AddComponent/RemoveComponent 가 호출하는 부착/탈착 훅.
 	void AttachComponent(const SafePtr<CComponent>& component)
 	{
 		m_components.push_back(component);

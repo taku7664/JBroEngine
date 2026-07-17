@@ -35,7 +35,7 @@ namespace
 		case EAssetType::Shader:
 			return Loc::Text(EditorLocKeys::AssetTypeShader);
 		case EAssetType::Canvas:
-			return Loc::Text(EditorLocKeys::AssetTypeScene);
+			return Loc::Text(EditorLocKeys::AssetTypeCanvas);
 		case EAssetType::Prefab:
 			return Loc::Text(EditorLocKeys::AssetTypePrefab);
 		case EAssetType::Script:

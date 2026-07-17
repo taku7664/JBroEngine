@@ -956,6 +956,9 @@
     <ClInclude Include="Editor\Project\ProjectManager.h">
       <Filter>Header\Editor</Filter>
     </ClInclude>
+    <ClInclude Include="Editor\Project\ImGuiIniMigration.h">
+      <Filter>Header\Editor</Filter>
+    </ClInclude>
     <ClInclude Include="Editor\Project\AssetDatabase.h">
       <Filter>Header\Editor</Filter>
     </ClInclude>
@@ -1550,6 +1553,9 @@
       <Filter>Source\Editor</Filter>
     </ClCompile>
     <ClCompile Include="Editor\Project\ProjectManager.cpp">
+      <Filter>Source\Editor</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\Project\ImGuiIniMigration.cpp">
       <Filter>Source\Editor</Filter>
     </ClCompile>
     <ClCompile Include="Editor\Project\AssetDatabase.cpp">

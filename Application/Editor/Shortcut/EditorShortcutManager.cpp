@@ -126,8 +126,8 @@ bool CEditorShortcutManager::Execute(EEditorShortcut shortcut) const
 		return EditorGuiActions::CopySelectedObjectsToClipboard();
 	case EEditorShortcut::PasteObjects:
 	{
-		SafePtr<CGameCanvas> scene = EditorContext::GetActiveCanvas();
-		if (false == scene.IsValid())
+		SafePtr<CGameCanvas> canvas = EditorContext::GetActiveCanvas();
+		if (false == canvas.IsValid())
 		{
 			return false;
 		}
@@ -135,36 +135,36 @@ bool CEditorShortcutManager::Execute(EEditorShortcut shortcut) const
 		{
 			const Vector2 pastePosition = Editor::CanvasView->GetPreferredPasteWorldPosition();
 			return EditorGuiActions::PasteObjectsFromClipboard(
-				*scene,
+				*canvas,
 				&pastePosition,
 				Editor::CanvasView->GetFocusedEditContext());
 		}
-		return EditorGuiActions::PasteObjectsFromClipboard(*scene);
+		return EditorGuiActions::PasteObjectsFromClipboard(*canvas);
 	}
 	case EEditorShortcut::PasteObjectsAsChild:
 	{
-		SafePtr<CGameCanvas> scene = EditorContext::GetActiveCanvas();
-		if (false == scene.IsValid())
+		SafePtr<CGameCanvas> canvas = EditorContext::GetActiveCanvas();
+		if (false == canvas.IsValid())
 		{
 			return false;
 		}
 		// 오브젝트를 골랐으면 그 자식으로, 레이어만 골랐으면 부모 없이 그 레이어의 루트로.
 		// 원본 위치를 유지한다 — 자식으로 넣는 의도는 배치가 아니라 계층이다.
 		CGameObject* parent = Editor::GetSelectedEntity();
-		return EditorGuiActions::PasteObjectsFromClipboard(*scene, nullptr, parent);
+		return EditorGuiActions::PasteObjectsFromClipboard(*canvas, nullptr, parent);
 	}
 	case EEditorShortcut::DeleteSelection:
 	{
-		SafePtr<CGameCanvas> scene = EditorContext::GetActiveCanvas();
-		if (false == scene.IsValid())
+		SafePtr<CGameCanvas> canvas = EditorContext::GetActiveCanvas();
+		if (false == canvas.IsValid())
 		{
 			return false;
 		}
 		if (false == Editor::GetSelectedEntities().empty())
 		{
-			return EditorGuiActions::DeleteSelectedObjects(*scene);
+			return EditorGuiActions::DeleteSelectedObjects(*canvas);
 		}
-		return EditorGuiActions::DeleteSelectedLayer(*scene);
+		return EditorGuiActions::DeleteSelectedLayer(*canvas);
 	}
 	case EEditorShortcut::TogglePlay:
 		if (Engine.CanvasManager->IsSimulationPlaying() || Engine.CanvasManager->IsSimulationPaused())

@@ -10,9 +10,9 @@
 
 namespace
 {
-	CanvasViewport* ResolveViewport(const SafePtr<CGameCanvas>& scene, std::size_t index)
+	CanvasViewport* ResolveViewport(const SafePtr<CGameCanvas>& canvas, std::size_t index)
 	{
-		return scene.IsValid() ? scene->GetViewportAt(index) : nullptr;
+		return canvas.IsValid() ? canvas->GetViewportAt(index) : nullptr;
 	}
 
 	void CopyColor(float (&dst)[4], const float (&src)[4])
@@ -53,8 +53,8 @@ void ViewportSnapshot::ApplyTo(CanvasViewport& viewport) const
 // ── CSetCanvasBackgroundColorCommand ─────────────────────────────────────────
 
 CSetCanvasBackgroundColorCommand::CSetCanvasBackgroundColorCommand(
-	SafePtr<CGameCanvas> scene, const float (&oldColor)[4], const float (&newColor)[4])
-	: m_canvas(scene)
+	SafePtr<CGameCanvas> canvas, const float (&oldColor)[4], const float (&newColor)[4])
+	: m_canvas(canvas)
 {
 	CopyColor(m_oldColor, oldColor);
 	CopyColor(m_newColor, newColor);
@@ -105,12 +105,12 @@ bool CSetCanvasBackgroundColorCommand::Apply(const float (&color)[4])
 // ── CSetViewportPropertyCommand ──────────────────────────────────────────────
 
 CSetViewportPropertyCommand::CSetViewportPropertyCommand(
-	SafePtr<CGameCanvas> scene,
+	SafePtr<CGameCanvas> canvas,
 	std::size_t index,
 	EField field,
 	ViewportSnapshot oldProperties,
 	ViewportSnapshot newProperties)
-	: m_canvas(scene)
+	: m_canvas(canvas)
 	, m_index(index)
 	, m_field(field)
 	, m_oldProperties(std::move(oldProperties))
@@ -165,35 +165,35 @@ bool CSetViewportPropertyCommand::Apply(const ViewportSnapshot& properties)
 }
 
 bool EditorCanvasActions::SetViewportProperty(
-	CGameCanvas& scene,
+	CGameCanvas& canvas,
 	std::size_t index,
 	CSetViewportPropertyCommand::EField field,
 	const ViewportSnapshot& newProperties)
 {
-	const CanvasViewport* viewport = scene.GetViewportAt(index);
+	const CanvasViewport* viewport = canvas.GetViewportAt(index);
 	if (nullptr == viewport)
 	{
 		return false;
 	}
 
 	auto command = MakeOwnerPtr<CSetViewportPropertyCommand>(
-		scene.SafeFromThis(), index, field, ViewportSnapshot::Capture(*viewport), newProperties);
+		canvas.SafeFromThis(), index, field, ViewportSnapshot::Capture(*viewport), newProperties);
 	return Editor::CommandManager.ExecuteCommand(std::move(command));
 }
 
-bool EditorCanvasActions::SetBackgroundColor(CGameCanvas& scene, const float (&newColor)[4])
+bool EditorCanvasActions::SetBackgroundColor(CGameCanvas& canvas, const float (&newColor)[4])
 {
-	const float* current = scene.GetBackgroundColor();
+	const float* current = canvas.GetBackgroundColor();
 	const float oldColor[4] = { current[0], current[1], current[2], current[3] };
 
-	auto command = MakeOwnerPtr<CSetCanvasBackgroundColorCommand>(scene.SafeFromThis(), oldColor, newColor);
+	auto command = MakeOwnerPtr<CSetCanvasBackgroundColorCommand>(canvas.SafeFromThis(), oldColor, newColor);
 	return Editor::CommandManager.ExecuteCommand(std::move(command));
 }
 
 // ── CCreateViewportCommand ───────────────────────────────────────────────────
 
-CCreateViewportCommand::CCreateViewportCommand(SafePtr<CGameCanvas> scene)
-	: m_canvas(scene)
+CCreateViewportCommand::CCreateViewportCommand(SafePtr<CGameCanvas> canvas)
+	: m_canvas(canvas)
 {
 }
 
@@ -241,8 +241,8 @@ void CCreateViewportCommand::Redo()
 
 // ── CDeleteViewportCommand ───────────────────────────────────────────────────
 
-CDeleteViewportCommand::CDeleteViewportCommand(SafePtr<CGameCanvas> scene, std::size_t index)
-	: m_canvas(scene)
+CDeleteViewportCommand::CDeleteViewportCommand(SafePtr<CGameCanvas> canvas, std::size_t index)
+	: m_canvas(canvas)
 	, m_index(index)
 {
 	if (const CanvasViewport* viewport = ResolveViewport(m_canvas, m_index))

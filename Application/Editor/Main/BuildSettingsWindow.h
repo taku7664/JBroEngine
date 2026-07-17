@@ -24,7 +24,7 @@ private:
 	enum class ECategory
 	{
 		General,
-		Scenes,
+		Canvases,
 		Output,
 		Windows,
 		Web,
@@ -40,7 +40,7 @@ private:
 	void DrawCategoryList(float panelWidth);
 	void DrawCategoryContent(float panelWidth);
 	void DrawGeneralCategory();
-	void DrawScenesCategory();
+	void DrawCanvasesCategory();
 	void DrawOutputCategory();
 	void DrawWindowsCategory();
 	void DrawWebCategory();
@@ -57,7 +57,7 @@ private:
 	void MarkDirty();
 	bool HasCategoryInvalid(ECategory category) const;
 	bool IsProductNameInvalid() const;
-	bool IsStartupSceneInvalid() const;
+	bool IsStartupCanvasInvalid() const;
 	bool IsOutputDirectoryInvalid() const;
 	bool IsAndroidApplicationIdInvalid() const;
 	bool IsAndroidSdkInvalid() const;
@@ -85,8 +85,8 @@ private:
 	bool m_enableIOS     = false;
 	int m_buildConfiguration = 1;
 	std::string m_outputDirectory;
-	std::string m_startupScene;
-	std::vector<std::string> m_buildScenes;
+	std::string m_startupCanvas;
+	std::vector<std::string> m_buildCanvases;
 	std::vector<AssetGuid> m_alwaysIncludeAssets;
 	AssetGuid m_windowsIconGuid = INVALID_ASSET_GUID;
 	std::string m_androidApplicationId;
