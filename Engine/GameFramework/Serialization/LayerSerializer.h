@@ -56,4 +56,9 @@ namespace Serialization
 	ELayerSerializeResult DeserializeLayer(CGameCanvas& canvas, const char* text, CGameLayer** outLayer = nullptr);
 
 	bool LooksLikeLayer(const char* text);
+
+	// `.jlayer` 텍스트의 최상위 ReferencedAssets 만 파싱한다(오브젝트는 만들지 않는다).
+	// 런타임 레이어 로드가 이 에셋들을 strong 보유하기 위해 필요하다 — 캔버스 파일과 달리 단독
+	// 로드되는 레이어는 캔버스의 저작 목록(m_referencedAssets)에 없어 자동으로 잡히지 않는다.
+	std::vector<AssetGuid> ReadLayerReferencedAssets(const char* text);
 }

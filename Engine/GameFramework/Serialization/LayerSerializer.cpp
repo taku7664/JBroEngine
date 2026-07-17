@@ -261,4 +261,33 @@ bool LooksLikeLayer(const char* text)
 	return node.IsMap() && static_cast<bool>(node["Layer"]) && static_cast<bool>(node["Objects"]);
 }
 
+std::vector<AssetGuid> ReadLayerReferencedAssets(const char* text)
+{
+	std::vector<AssetGuid> referenced;
+	if (nullptr == text)
+	{
+		return referenced;
+	}
+
+	YAML::Node root;
+	try { root = YAML::Load(text); }
+	catch (const YAML::Exception&) { return referenced; }
+
+	const YAML::Node node = root["ReferencedAssets"];
+	if (false == node.IsSequence())
+	{
+		return referenced;
+	}
+	referenced.reserve(node.size());
+	for (const YAML::Node& entry : node)
+	{
+		AssetGuid guid(entry.as<std::string>(std::string()));
+		if (false == guid.IsNull())
+		{
+			referenced.push_back(std::move(guid));
+		}
+	}
+	return referenced;
+}
+
 } // namespace Serialization

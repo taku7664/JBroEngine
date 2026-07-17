@@ -470,6 +470,15 @@ bool CGameCanvas::ScreenToWorld(float screenX, float screenY, Vector2& outWorld)
 	return false;
 }
 
+void CGameCanvas::AttachRuntimeLayerAssets(const File::Guid& layerGuid, std::vector<AssetRef<IAsset>> assets)
+{
+	if (layerGuid.IsNull())
+	{
+		return;
+	}
+	m_runtimeLayerAssets[ToGuid128(layerGuid)] = std::move(assets);
+}
+
 void CGameCanvas::SetBackgroundColor(float r, float g, float b, float a)
 {
 	m_backgroundColor[0] = r;
@@ -886,6 +895,8 @@ void CGameCanvas::FlushPendingDestroys()
 			const int index = GetLayerIndex(layer);
 			if (index >= 0)
 			{
+				// 런타임 로드 레이어면 물고 있던 에셋을 함께 놓는다(다른 사용자가 없으면 GC 대상).
+				m_runtimeLayerAssets.erase(ToGuid128(layer->GetInstanceGuid()));
 				m_layers.erase(m_layers.begin() + index);
 			}
 		}
@@ -1223,6 +1234,9 @@ void CGameCanvas::ClearObjects()
 	m_referencedAssets.clear();
 	// 레이어·뷰포트는 오브젝트 정리 뒤 마지막에 — 직렬화 로드가 파일 기준으로 재구성한다.
 	m_pendingDestroyLayers.clear();
+	// 레이어를 통째로 버리므로(파괴 flush 를 거치지 않는다) 런타임 로드 에셋 보유도 함께 놓는다 —
+	// 안 그러면 사라진 레이어의 에셋이 고아로 남아 use-count 가 떨어지지 않는다.
+	m_runtimeLayerAssets.clear();
 	m_layers.clear();
 	m_viewports.clear();
 }

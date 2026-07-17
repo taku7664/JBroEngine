@@ -5,11 +5,14 @@
 #include "Core/Asset/IAssetManager.h"
 #include "Core/Asset/AssetRef.inl"   // LoadAsset 반환 AssetRef 의 복사/이동/소멸 인스턴스화
 #include "Core/Asset/CanvasAsset.h"  // 캔버스 자산 텍스트(전환)
+#include "Core/Asset/FileAsset.h"    // `.jlayer` 텍스트(레이어 로드) — 전용 클래스 없이 CFileAsset
 #include "Core/Asset/AssetTypeRules.h"
 #include "Core/Logging/LoggerInternal.h"
 #include "Core/Time/Time.h"
 #include "GameFramework/Canvas/Canvas.h"
+#include "GameFramework/Canvas/GameLayer.h"   // 로드된 레이어의 InstanceGuid 로 에셋 보유
 #include "GameFramework/Canvas/CanvasSerializer.h"
+#include "GameFramework/Serialization/LayerSerializer.h"   // DeserializeLayer / ReadLayerReferencedAssets
 
 CCanvasManager::~CCanvasManager()
 {
@@ -101,6 +104,79 @@ void CCanvasManager::FlushPendingCanvasTransition()
 	canvas->DispatchCanvasChangedToScripts(inheritedLayers);
 }
 
+void CCanvasManager::FlushPendingLayerLoads()
+{
+	if (m_pendingLayerLoads.empty())
+	{
+		return;
+	}
+
+	// 먼저 비운다 — 실패해도 매 프레임 같은 로드를 되풀이하지 않게.
+	std::vector<std::string> loads;
+	loads.swap(m_pendingLayerLoads);
+
+	CGameCanvas* canvas = m_canvas.Get();
+	if (nullptr == canvas || false == Script.AssetManager.IsValid())
+	{
+		return;
+	}
+
+	for (const std::string& guidText : loads)
+	{
+		AssetRef<IAsset> asset = Script.AssetManager->LoadAsset(AssetGuid(guidText));
+		if (false == asset.IsValid())
+		{
+			CSystemLog::Error(std::string("Layer load failed (asset not loaded - unregistered guid or unreadable file): ") + guidText);
+			continue;
+		}
+		if (EAssetType::Layer != asset->GetAssetType())
+		{
+			CSystemLog::Error(std::string("Layer load failed (asset is not a layer): ") + guidText
+				+ ", type=" + CAssetTypeRules::GetTypeName(asset->GetAssetType()));
+			continue;
+		}
+
+		// `.jlayer` 는 전용 자산 클래스가 없다(CFileAsset 를 Prefab/Layer/Shader/Script 가 공유하므로
+		// StaticAssetType 이 없어 StaticAssetRefCast 를 못 쓴다). 타입 enum 을 검증했으니 로더 계약상
+		// CFileAsset 이 확실하다 — cold path 라 static_cast 로 내린다(dynamic_cast 아님).
+		const CFileAsset* layerFile = static_cast<const CFileAsset*>(asset.Get());
+		if (nullptr == layerFile)
+		{
+			continue;
+		}
+		// 텍스트를 복사해 파싱 동안 자산 수명과 독립시킨다(레이어 오브젝트 로드가 끝나면 `.jlayer`
+		// 자체는 더 필요 없다 — 보유 대상은 그 안의 ReferencedAssets 다).
+		const std::string text(layerFile->GetText());
+
+		// 레이어 파일이 참조하는 에셋을 먼저 로드해 손에 쥔다 — 이 레이어는 캔버스 파일에 없어
+		// m_loadedAssets(저작 목록)가 잡아 주지 않으므로, 여기서 strong 보유하지 않으면 스프라이트
+		// 등이 곧바로 GC 된다.
+		const std::vector<AssetGuid> referenced = Serialization::ReadLayerReferencedAssets(text.c_str());
+		std::vector<AssetRef<IAsset>> held;
+		held.reserve(referenced.size());
+		for (const AssetGuid& refGuid : referenced)
+		{
+			AssetRef<IAsset> ref = Script.AssetManager->LoadAsset(refGuid);
+			if (ref.IsValid())
+			{
+				held.push_back(std::move(ref));
+			}
+		}
+
+		CGameLayer* newLayer = nullptr;
+		const ELayerSerializeResult result = Serialization::DeserializeLayer(*canvas, text.c_str(), &newLayer);
+		if (ELayerSerializeResult::Success != result || nullptr == newLayer)
+		{
+			// DuplicateInstance = 같은 레이어를 이미 로드해 둔 경우다(guid 재발급 금지 계약이라 거부).
+			CSystemLog::Error(std::string("Layer load failed (deserialize): ") + guidText);
+			continue;
+		}
+
+		// 로드된 레이어의 InstanceGuid 에 보유분을 묶는다 — 이 레이어가 파괴되면 함께 놓인다.
+		canvas->AttachRuntimeLayerAssets(newLayer->GetInstanceGuid(), std::move(held));
+	}
+}
+
 // GetActiveCanvas() 은 CanvasManager.h 에 인라인으로 정의됨(DLL 링크 클로저에서
 // CanvasManager.obj → CanvasSerializer.obj → yaml-cpp 연쇄 풀을 끊기 위함).
 
@@ -190,8 +266,9 @@ void CCanvasManager::StopSimulation()
 	CGameCanvas* canvas = m_canvas.Get();
 
 	// 재생 중 예약된 전환은 버린다 — 정지가 재생 직전 상태로 되돌리는 마당에 그 뒤에
-	// 전환이 터지면 편집 중인 캔버스가 남의 것으로 바뀐다.
+	// 전환이 터지면 편집 중인 캔버스가 남의 것으로 바뀐다. 레이어 로드도 같은 이유로 버린다.
 	m_pendingCanvasTransition.clear();
+	m_pendingLayerLoads.clear();
 
 	// 스냅샷 복원 전에 시스템 정리 — 시뮬 중 시작된 사운드 등을 해제한다.
 	// (편집 모드에선 시스템 Update 가 안 돌아 player GC 가 일어나지 않으므로 명시 정리 필요.)
@@ -272,6 +349,11 @@ void CCanvasManager::Update()
 	// 전환은 시뮬 순회가 전부 끝난 뒤 — 캔버스를 갈아엎는 건 순회 중인 오브젝트를
 	// 발밑에서 없애는 일이다. 예약(RequestCanvasTransition)과 실행을 갈라 놓은 이유.
 	FlushPendingCanvasTransition();
+
+	// 레이어 로드도 순회 뒤 — 레이어 추가가 실행순서 캐시를 흔든다. 전환 뒤에 두는 건 같은
+	// 프레임에 전환이 캔버스를 갈아엎었다면 그 새 캔버스에 얹히게 하기 위함이다(전환+로드 동시
+	// 예약은 비정상이지만 크래시가 아니라 정의된 순서로 처리한다).
+	FlushPendingLayerLoads();
 }
 
 void CCanvasManager::Clear()
@@ -279,6 +361,7 @@ void CCanvasManager::Clear()
 	m_canvas.Reset();
 	m_canvasName.clear();
 	m_pendingCanvasTransition.clear();
+	m_pendingLayerLoads.clear();
 	m_simulationState = ECanvasSimulationState::Edit;
 	m_playModeSnapshot.clear();
 	m_playModeCanvasName.clear();

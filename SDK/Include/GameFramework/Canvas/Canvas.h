@@ -292,6 +292,11 @@ private:
 	// 결과 AssetRef 묶음을 여기에 보관한다. 놓으면 use-count-- → (다른 사용자가 없으면) GC 대상.
 	void SetLoadedAssets(std::vector<AssetRef<IAsset>> loadedAssets) { m_loadedAssets = std::move(loadedAssets); }
 	void ClearLoadedAssets() { m_loadedAssets.clear(); }
+	// 런타임에 로드된 레이어(캔버스 파일엔 없던 `.jlayer`)가 물고 있는 에셋을 그 레이어의 수명에
+	// 묶어 strong 보유한다. 레이어가 파괴되면(FlushPendingDestroys) 함께 놓여 use-count 가 떨어진다.
+	// 캔버스 파일에서 로드된 레이어의 에셋은 m_loadedAssets(저작 목록)가 이미 잡으므로 대상이 아니다.
+	// 같은 레이어 guid 로 다시 부르면 이전 보유분을 교체한다.
+	void AttachRuntimeLayerAssets(const File::Guid& layerGuid, std::vector<AssetRef<IAsset>> assets);
 	bool HasLoadedAssets() const { return false == m_loadedAssets.empty(); }
 	// 캔버스 내용 교체 전용 — 보유분을 호출자에게 넘긴다(캔버스는 미보유 상태가 된다).
 	// 호출자는 이 반환값을 **살려 둔 채** 새 목록을 acquire 한 다음 놓아야 한다. 순서가
@@ -539,6 +544,9 @@ private:
 	std::vector<AssetGuid>             m_referencedAssets;
 	// active 인 동안 referenced 에셋을 strong 으로 잡는다(use-count>0 유지). 비active 시 clear.
 	std::vector<AssetRef<IAsset>>      m_loadedAssets;
+	// 런타임 로드 레이어(InstanceGuid → 그 레이어가 물고 온 에셋). 레이어 파괴 시 항목을 지워
+	// use-count 를 떨어뜨린다(m_loadedAssets 와 분리 — 저작 목록이 아니라 세션 한정 보유).
+	std::unordered_map<Guid128, std::vector<AssetRef<IAsset>>> m_runtimeLayerAssets;
 
 	// 지연 파괴 큐(SafePtr 보유 → 부모 재귀로 이미 죽은 항목은 TryGet null 로 스킵).
 	std::vector<SafePtr<CGameObject>>  m_pendingDestroyObjects;

@@ -4,6 +4,7 @@
 #include "GameFramework/Canvas/CanvasTypes.h"
 
 #include <string>
+#include <vector>
 
 class CGameCanvas;
 
@@ -56,6 +57,22 @@ public:
 	}
 	bool HasPendingCanvasTransition() const { return false == m_pendingCanvasTransition.empty(); }
 
+	// ── 레이어 런타임 로드 ────────────────────────────────────────────────────
+	// `.jlayer` 에셋을 지금 캔버스로 로드 예약한다(목록 맨 위 = 컴포짓 최전면). 키는 레이어 에셋
+	// guid — 전환과 같은 이유다(경로는 베이스가 여럿, guid 는 고를 게 없다). 인라인이어야 하는
+	// 것도 같다 — 게임 DLL 이 Script.CanvasManager 로 부른다(out-of-line 이면 CanvasSerializer →
+	// yaml-cpp 가 DLL 링크 클로저에 끌려온다). 그래서 여기서는 guid 만 쌓아 둔다.
+	// 실행은 호스트가 프레임 끝에 한다 — 스크립트 순회 중 레이어를 추가하면 실행순서 캐시가
+	// 순회 도중 흔들린다. 언로드는 GetActiveCanvas()->DestroyLayer(layer) 로 한다(이미 공개).
+	void RequestLayerLoad(const char* layerAssetGuidText)
+	{
+		if (layerAssetGuidText && '\0' != layerAssetGuidText[0])
+		{
+			m_pendingLayerLoads.emplace_back(layerAssetGuidText);
+		}
+	}
+	bool HasPendingLayerLoads() const { return false == m_pendingLayerLoads.empty(); }
+
 	// 인라인 정의 — 게임 스크립트 DLL 의 Ref<T> 해석(Ref.cpp)이 이 함수를 호출하는데,
 	// out-of-line 이면 CanvasManager.obj 가 링크 클로저에 끌려오고, 그 obj 가
 	// CCanvasSerializer(PlaySimulation/StopSimulation) → CanvasSerializer.obj → yaml-cpp
@@ -95,6 +112,10 @@ private:
 	// 갱신한다. 실패하면 현재 캔버스를 그대로 둔다 — 반쯤 전환된 캔버스를 만들지 않는다.
 	void FlushPendingCanvasTransition();
 
+	// 예약된 레이어 로드를 실행한다(프레임 끝). 각 `.jlayer` 를 읽어 캔버스에 레이어를 추가하고,
+	// 그 레이어 파일의 ReferencedAssets 를 로드해 레이어 수명에 묶어 보유한다(레이어 파괴 시 해제).
+	void FlushPendingLayerLoads();
+
 private:
 	OwnerPtr<CGameCanvas> m_canvas;
 	// m_canvas->GetName() 의 사본 — FindCanvas 이 헤더 인라인이라 완전 타입을 못 쓴다.
@@ -102,6 +123,9 @@ private:
 	// 예약된 전환 대상의 캔버스 에셋 guid. guid 를 문자열로 드는 건 이 헤더가 게임 DLL 에도
 	// 들어가기 때문이다(File::Guid 는 fs::path 파생 — 경계 밖으로 내보내지 않는다).
 	std::string m_pendingCanvasTransition;
+	// 예약된 레이어 로드 대상의 `.jlayer` 에셋 guid 들(예약 순서대로 로드). 전환과 같은 이유로
+	// 문자열이다 — 이 헤더가 게임 DLL 에도 들어가므로 File::Guid(fs::path 파생)를 두지 않는다.
+	std::vector<std::string> m_pendingLayerLoads;
 	ECanvasSimulationState m_simulationState = ECanvasSimulationState::Edit;
 	std::string m_playModeSnapshot;
 	// 스냅샷 시점의 캔버스 이름 — 재생 중 전환하면 이름이 바뀌므로 내용과 함께 되돌린다.
