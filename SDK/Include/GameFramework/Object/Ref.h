@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Core/Asset/IAsset.h"               // IAsset (is_base_of, dynamic_cast)
+#include "Core/Asset/IAsset.h"               // IAsset (is_base_of, GetAssetType)
 #include "GameFramework/Object/GameObject.h"  // CGameObject (is_base_of, Object 카테고리)
 #include "GameFramework/Reflection/ReflectionTypes.h" // ERefCategory, RefBase (단일 정의)
 #include "GameFramework/Scripting/GameScript.h" // CGameScript (is_base_of, dynamic_cast)
@@ -77,6 +77,14 @@ public:
 		std::is_base_of_v<CComponent, T>,
 		"Ref<T>: T must be CGameScene or derive from IAsset, CGameScript, CGameObject, or CComponent.");
 
+	// 에셋 참조는 T 가 자기 자산 타입을 컴파일타임에 알려줘야 한다 — Get() 이 RTTI 대신
+	// 그 값으로 타입을 확인한다. 짝이 없는 클래스(여러 자산 타입을 겸하는 CFileAsset 등)를
+	// static_cast 로 내려보내면 엉뚱한 자산을 그 타입으로 읽게 되므로 여기서 막는다.
+	// 그런 참조가 필요하면 자산 타입 하나에 대응하는 전용 클래스를 만들 것(예: CCanvasAsset).
+	static_assert(
+		false == std::is_base_of_v<IAsset, T> || requires { T::StaticAssetType(); },
+		"Ref<T>: asset T must expose `static constexpr EAssetType StaticAssetType()`.");
+
 	static constexpr ERefCategory Category =
 		std::is_same_v<CGameScene, T>     ? ERefCategory::Scene  :
 		std::is_base_of_v<IAsset, T>      ? ERefCategory::Asset  :
@@ -110,7 +118,17 @@ public:
 
 		if constexpr (ERefCategory::Asset == Category)
 		{
-			return dynamic_cast<T*>(RefDetail::ResolveAsset(Guid));
+			// 타입 판정은 **자산 타입 enum** 으로 한다 — RTTI 를 쓰지 않는다.
+			// Get() 은 스크립트가 매 프레임 부를 수 있는 자리라 dynamic_cast 는 곧 병목이고,
+			// 애초에 물어볼 필요도 없다: "이 자산 타입은 이 클래스"는 로더 등록이 지키는
+			// 계약이고 StaticAssetType() 이 그 짝을 컴파일타임에 들고 있다.
+			// (오브젝트/스크립트/컴포넌트 분기가 TypeId 로 검증하고 static_cast 하는 것과 같은 결.)
+			IAsset* asset = RefDetail::ResolveAsset(Guid);
+			if (nullptr == asset || T::StaticAssetType() != asset->GetAssetType())
+			{
+				return nullptr;
+			}
+			return static_cast<T*>(asset);
 		}
 		else if constexpr (ERefCategory::Script == Category)
 		{

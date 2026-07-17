@@ -26,6 +26,10 @@ public:
 	explicit CMaterialAsset(const AssetMetaData& metaData);
 
 	AssetGuid GetGuid() const override;
+	// Ref<T> 가 RTTI 없이 타입을 확인하는 컴파일타임 짝 — 로더 등록이 지키는
+	// "이 타입은 이 클래스" 계약을 코드로 적어 둔 것이다.
+	static constexpr EAssetType StaticAssetType() { return EAssetType::Material; }
+
 	EAssetType GetAssetType() const override;
 	EAssetLoadState GetLoadState() const override;
 	const AssetMetaData& GetMetaData() const override;
