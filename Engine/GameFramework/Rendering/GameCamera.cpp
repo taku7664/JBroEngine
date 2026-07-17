@@ -12,6 +12,7 @@
 #include "GameFramework/Canvas/GameLayer.h"
 #include "GameFramework/Canvas/Canvas.h"
 #include "GameFramework/Canvas/CanvasTransformUtils.h"
+#include "GameFramework/Canvas/CanvasViewProjection.h"   // ComputeCanvasViewProjection — 뷰 파라미터 공용 계산
 
 #include <algorithm>
 #include <array>
@@ -19,39 +20,8 @@
 
 namespace
 {
-	// 폴백 카메라 — 뷰포트가 카메라를 지목하지 않았을 때 쓸 "첫 활성 카메라".
-	// 순서 규약 = 레이어 순서 → 레이어 내 하이라키(생성) 순서. 스크립트 실행 순서와 같은 축이라
-	// 예측 가능하다. 풀 순회 순서(비결정)에 의존하지 않는다.
-	const Camera2D* FindFallbackCamera(const CGameCanvas& canvas)
-	{
-		const Camera2D* best = nullptr;
-		std::uint16_t bestLayerIndex = 0;
-		std::uint64_t bestCreationOrder = 0;
-		canvas.ForEach<Camera2D>(
-			[&](const Camera2D& camera)
-			{
-				if (false == IsActiveComponent(camera))
-				{
-					return;
-				}
-				const CGameObject* owner = camera.GetOwner().TryGet();
-				if (nullptr == owner)
-				{
-					return;
-				}
-				const std::uint16_t layerIndex = owner->GetLayerIndex();
-				const std::uint64_t creationOrder = owner->GetCreationOrder();
-				if (nullptr == best
-					|| layerIndex < bestLayerIndex
-					|| (layerIndex == bestLayerIndex && creationOrder < bestCreationOrder))
-				{
-					best = &camera;
-					bestLayerIndex = layerIndex;
-					bestCreationOrder = creationOrder;
-				}
-			});
-		return best;
-	}
+	// 폴백 카메라("첫 활성 카메라")는 입력 역투영(ScreenToWorld)도 같은 규약을 써야 하므로
+	// CGameCanvas::FindFallbackCamera 로 승격했다 — 여기서 재현하면 두 경로가 어긋난다.
 
 	// 뷰포트의 카메라 Ref 해석. SafePtr 캐시가 살아 있으면 그대로 쓰고(매 프레임 guid
 	// 문자열 파싱 회피), 죽었을 때만 guid 로 재해석한다 — 레이어 재로드로 카메라 오브젝트가
@@ -75,7 +45,7 @@ namespace
 				}
 			}
 		}
-		return FindFallbackCamera(canvas);
+		return canvas.FindFallbackCamera();
 	}
 
 	// 뷰포트의 레이어 필터(guid 목록)를 캔버스 순서의 인덱스 목록으로 해석한다.
@@ -106,6 +76,11 @@ std::vector<GameRenderViewportDesc> CollectGameRenderViewports(CGameCanvas& canv
 	renderWidth = std::max(renderWidth, 1.0f);
 	renderHeight = std::max(renderHeight, 1.0f);
 
+	// 이번 프레임의 렌더 타깃 픽셀 크기를 캔버스에 남긴다 — 스크립트의 ScreenToWorld 역투영이
+	// 뷰포트 Layout2D 를 픽셀로 되돌릴 기준이다. 이 값의 출처는 렌더 수집 호출자뿐이라(게임은
+	// 프로젝트 해상도를 직접 못 본다) 여기서 기록하는 게 유일한 경로다.
+	canvas.SetLastRenderSize(renderWidth, renderHeight);
+
 	// 뷰포트를 저작하지 않은 캔버스(대부분)는 풀스크린 기본 뷰포트 1개로 그린다.
 	canvas.GetOrCreateDefaultViewport();
 
@@ -130,32 +105,21 @@ std::vector<GameRenderViewportDesc> CollectGameRenderViewports(CGameCanvas& canv
 			continue;
 		}
 
-		const Vector2 posPixel = viewport->Position.Resolve(renderWidth, renderHeight);
-		Vector2 sizePixel = viewport->Size.Resolve(renderWidth, renderHeight);
-		sizePixel.x = std::max(sizePixel.x, 1.0f);
-		sizePixel.y = std::max(sizePixel.y, 1.0f);
-
-		const Matrix3x2 worldTransform = GetWorldTransform(*owner);
-		const float scaleX = std::sqrt(worldTransform.M11 * worldTransform.M11 + worldTransform.M12 * worldTransform.M12);
-		const float scaleY = std::sqrt(worldTransform.M21 * worldTransform.M21 + worldTransform.M22 * worldTransform.M22);
-		const float safeScaleX = std::max(scaleX, 0.0001f);
-		const float safeScaleY = std::max(scaleY, 0.0001f);
-		const float baseOrtho = camera->OrthographicSize > 0.0f ? camera->OrthographicSize : 5.0f;
-		// 종횡비는 화면 전체가 아니라 이 뷰포트의 렉트 기준 — 스플릿(좌/우 반쪽)에서
-		// 화면 전체 비율을 쓰면 내용이 찌그러진다.
-		const float aspect = sizePixel.x / std::max(sizePixel.y, 1.0f);
+		// 카메라 뷰 파라미터 계산은 입력 역투영(CGameCanvas::ScreenToWorld)과 공유한다 —
+		// 여기서 desc 를 계산하는 방식과 역투영이 어긋나면 마우스 피킹이 조용히 빗나간다.
+		const CanvasViewProjection view = ComputeCanvasViewProjection(*viewport, *camera, *owner, renderWidth, renderHeight);
 
 		GameRenderViewportDesc desc;
-		desc.PosX = worldTransform.Dx;
-		desc.PosY = worldTransform.Dy;
-		desc.OrthoSize = baseOrtho * safeScaleY;
-		desc.OrthoSizeX = baseOrtho * safeScaleX * aspect;
-		desc.CosR = scaleX > 1e-6f ? worldTransform.M11 / scaleX : 1.0f;
-		desc.SinR = scaleX > 1e-6f ? worldTransform.M12 / scaleX : 0.0f;
-		desc.RectX = posPixel.x / renderWidth;
-		desc.RectY = posPixel.y / renderHeight;
-		desc.RectW = sizePixel.x / renderWidth;
-		desc.RectH = sizePixel.y / renderHeight;
+		desc.PosX = view.PosX;
+		desc.PosY = view.PosY;
+		desc.OrthoSize = view.OrthoSize;
+		desc.OrthoSizeX = view.OrthoSizeX;
+		desc.CosR = view.CosR;
+		desc.SinR = view.SinR;
+		desc.RectX = view.RectPixelX / renderWidth;
+		desc.RectY = view.RectPixelY / renderHeight;
+		desc.RectW = view.RectPixelW / renderWidth;
+		desc.RectH = view.RectPixelH / renderHeight;
 		desc.Layers = ResolveViewportLayers(canvas, *viewport);
 		desc.CameraOwnerObject = owner;
 		viewports.push_back(std::move(desc));

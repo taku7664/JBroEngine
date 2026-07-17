@@ -9,6 +9,7 @@
 #include "GameFramework/Physics2D/Physics2DSystem.h"
 #include "GameFramework/Reflection/ReflectionRegistry.h"
 #include "GameFramework/Canvas/GameLayer.h"
+#include "GameFramework/Canvas/CanvasViewProjection.h"   // ComputeCanvasViewProjection — 역투영 공용 계산
 #include "GameFramework/Scripting/ScriptSystem.h"
 #include "GameFramework/Transform/TransformSystem.h"
 
@@ -361,6 +362,112 @@ CanvasViewport& CGameCanvas::GetOrCreateDefaultViewport()
 		CreateViewport("Default");
 	}
 	return m_viewports.front();
+}
+
+bool CGameCanvas::SetViewportCamera(std::size_t viewportIndex, CGameObject* cameraObject)
+{
+	if (viewportIndex >= m_viewports.size())
+	{
+		return false;
+	}
+
+	CanvasViewport& viewport = m_viewports[viewportIndex];
+	if (nullptr == cameraObject)
+	{
+		// 카메라 미지정으로 되돌림 — guid 와 캐시를 함께 비운다. 렌더는 폴백 카메라를 쓴다.
+		viewport.CameraObjectGuid = File::Guid();
+		viewport.ResolvedCamera = nullptr;
+		return true;
+	}
+
+	// guid(영속 키)와 SafePtr(프레임 캐시)를 함께 대입한다 — 캐시를 갱신하지 않으면 렌더가
+	// 살아 있는 옛 캐시를 그대로 써서 이번 변경이 무시된다(필드 직접 대입이 조용히 깨지는 이유).
+	viewport.CameraObjectGuid = cameraObject->GetInstanceGuid();
+	viewport.ResolvedCamera = cameraObject->SafeFromThis();
+	return true;
+}
+
+const Camera2D* CGameCanvas::FindFallbackCamera() const
+{
+	// "첫 활성 카메라" — 순서 규약은 레이어 순서 → 레이어 내 하이라키(생성) 순서다. 스크립트
+	// 실행 순서와 같은 축이라 예측 가능하고, 풀 순회 순서(비결정)에 의존하지 않는다.
+	const Camera2D* best = nullptr;
+	std::uint16_t bestLayerIndex = 0;
+	std::uint64_t bestCreationOrder = 0;
+	ForEach<Camera2D>(
+		[&](const Camera2D& camera)
+		{
+			if (false == IsActiveComponent(camera))
+			{
+				return;
+			}
+			const CGameObject* owner = camera.GetOwner().TryGet();
+			if (nullptr == owner)
+			{
+				return;
+			}
+			const std::uint16_t layerIndex = owner->GetLayerIndex();
+			const std::uint64_t creationOrder = owner->GetCreationOrder();
+			if (nullptr == best
+				|| layerIndex < bestLayerIndex
+				|| (layerIndex == bestLayerIndex && creationOrder < bestCreationOrder))
+			{
+				best = &camera;
+				bestLayerIndex = layerIndex;
+				bestCreationOrder = creationOrder;
+			}
+		});
+	return best;
+}
+
+bool CGameCanvas::ScreenToWorld(float screenX, float screenY, Vector2& outWorld) const
+{
+	if (m_lastRenderWidth < 1.0f || m_lastRenderHeight < 1.0f)
+	{
+		return false;   // 아직 렌더된 적이 없다 — 뷰포트 렉트를 픽셀로 되돌릴 기준이 없다.
+	}
+
+	// 위에 있는 뷰포트가 클릭을 먹는다(그리는 순서 = 목록 순서, 뒤 항목이 화면 위) → 역순 탐색.
+	for (std::size_t reverse = m_viewports.size(); reverse > 0; --reverse)
+	{
+		const CanvasViewport& viewport = m_viewports[reverse - 1];
+		if (false == viewport.Active)
+		{
+			continue;
+		}
+
+		// 카메라 해석은 렌더가 채운 ResolvedCamera 캐시를 그대로 쓴다(같은 프레임 = 같은 카메라).
+		// 캐시가 비어 있으면(카메라 미지정 뷰포트 = 가장 흔한 경우) 폴백으로 해석한다.
+		const Camera2D* camera = nullptr;
+		if (CGameObject* cameraObject = viewport.ResolvedCamera.TryGet())
+		{
+			camera = cameraObject->GetComponent<Camera2D>();
+		}
+		if (nullptr == camera)
+		{
+			camera = FindFallbackCamera();
+		}
+		if (nullptr == camera)
+		{
+			continue;   // 눈이 없으면 이 뷰포트로는 역투영할 수 없다.
+		}
+		const CGameObject* owner = camera->GetOwner().TryGet();
+		if (nullptr == owner)
+		{
+			continue;
+		}
+
+		const CanvasViewProjection view = ComputeCanvasViewProjection(viewport, *camera, *owner, m_lastRenderWidth, m_lastRenderHeight);
+		if (false == CanvasViewProjectionContainsScreen(view, screenX, screenY))
+		{
+			continue;   // 스크린점이 이 뷰포트 렉트 밖 — 다음(아래) 뷰포트를 본다.
+		}
+
+		outWorld = CanvasViewProjectionScreenToWorld(view, screenX, screenY);
+		return true;
+	}
+
+	return false;
 }
 
 void CGameCanvas::SetBackgroundColor(float r, float g, float b, float a)

@@ -764,6 +764,9 @@
     <ClInclude Include="GameFramework\Canvas\CanvasViewport.h">
       <Filter>Header\GameFramework\Canvas</Filter>
     </ClInclude>
+    <ClInclude Include="GameFramework\Canvas\CanvasViewProjection.h">
+      <Filter>Header\GameFramework\Canvas</Filter>
+    </ClInclude>
     <ClInclude Include="GameFramework\Canvas\GameLayer.h">
       <Filter>Header\GameFramework\Canvas</Filter>
     </ClInclude>

@@ -11,6 +11,7 @@
 #include "GameFramework/System/GameSystem.h"
 #include "Utillity/File/FilePath.h"
 #include "Utillity/File/Guid128.h"
+#include "Utillity/Math/Vector2T.h"   // ScreenToWorld 반환/출력
 #include "Utillity/Pointer/SafePtr.h"
 
 #include <algorithm>
@@ -25,6 +26,7 @@
 #include <vector>
 
 class CGameLayer;
+class Camera2D;
 class CPhysics2DSystem;
 class CReflectionRegistry;
 class CCanvasManager;
@@ -88,6 +90,28 @@ public:
 	CanvasViewport*       FindViewportByName(const char* name);
 	// 뷰포트가 하나도 없으면 기본(풀스크린·카메라 미지정) 1개를 만들어 보장한다.
 	CanvasViewport&       GetOrCreateDefaultViewport();
+
+	// 뷰포트의 눈(카메라)을 바꾼다 — guid 대입과 SafePtr 캐시 무효화를 한 번에 한다.
+	// CanvasViewport::CameraObjectGuid 에 직접 대입하면 ResolvedCamera 캐시가 살아 있어 렌더가
+	// 옛 카메라로 계속 그린다(캐시는 죽었을 때만 재해석한다). cameraObject == nullptr 이면
+	// 카메라 미지정(폴백)으로 되돌린다. 범위를 벗어난 인덱스면 false.
+	// (File::Guid 는 fs::path 파생이라 게임 DLL 경계로 내보내면 안 된다 — 스크립트가 guid 를
+	//  직접 만지지 않고 오브젝트로 지목하게 하는 진입점이기도 하다.)
+	bool                  SetViewportCamera(std::size_t viewportIndex, CGameObject* cameraObject);
+
+	// 뷰포트가 카메라를 지목하지 않았을 때 쓰는 "첫 활성 카메라"(레이어 순 → 생성 순).
+	// 렌더 수집과 입력 역투영이 같은 규약을 써야 하므로 여기 한 곳에 둔다(GameCamera 는 이걸 부른다).
+	const Camera2D*       FindFallbackCamera() const;
+
+	// 스크린 픽셀(렌더 타깃 좌상단 원점) → 월드 좌표. 스크린점을 담은 뷰포트를 위→아래로 찾아
+	// 그 카메라·렉트로 역투영한다(렌더가 그리는 좌표와 정확히 일치). 성공 시 outWorld 채우고 true.
+	//   · 아직 한 번도 렌더되지 않았거나(해상도 미상) 어느 뷰포트에도 안 담기면 false.
+	//   · 패럴랙스 팩터 1(메인 월드) 기준이다 — 원경/UI 레이어는 카메라 위치가 스케일되어 다르다.
+	bool                  ScreenToWorld(float screenX, float screenY, Vector2& outWorld) const;
+
+	// 렌더 수집이 매 프레임 이번 렌더 타깃 픽셀 크기를 남긴다(ScreenToWorld 역투영 기준).
+	// 게임은 프로젝트 해상도를 직접 못 보므로 렌더 경로가 유일한 출처다.
+	void                  SetLastRenderSize(float width, float height) { m_lastRenderWidth = width; m_lastRenderHeight = height; }
 
 	// 컴포짓 맨 아래 바탕색. 레이어 RT 는 투명으로 클리어되고, 이 색 위에 순서대로 얹힌다.
 	const float* GetBackgroundColor() const { return m_backgroundColor; }
@@ -480,6 +504,10 @@ private:
 	std::vector<CanvasViewport>        m_viewports;
 	// 컴포짓 바탕색(구 Camera2D::ClearColor 의 캔버스급 승계).
 	float                              m_backgroundColor[4] = { 0.08f, 0.09f, 0.11f, 1.0f };
+	// 마지막 렌더 타깃 픽셀 크기(SetLastRenderSize 가 매 프레임 갱신). 0 = 아직 렌더 안 됨
+	// → ScreenToWorld 가 false 를 돌려준다(변환 기준이 없다). 직렬화하지 않는다(런타임 캐시).
+	float                              m_lastRenderWidth = 0.0f;
+	float                              m_lastRenderHeight = 0.0f;
 	// 지연 파괴 레이어(소속 오브젝트 파괴 flush 후 목록에서 제거).
 	std::vector<SafePtr<CGameLayer>>   m_pendingDestroyLayers;
 	TObjectPool<CGameObject>           m_objectPool;

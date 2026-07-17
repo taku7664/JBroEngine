@@ -1,0 +1,113 @@
+#pragma once
+
+#include "GameFramework/Canvas/CanvasViewport.h"
+#include "GameFramework/Canvas/CanvasTransformUtils.h"   // GetWorldTransform
+#include "GameFramework/Component/Camera2D.h"
+#include "GameFramework/Object/GameObject.h"
+#include "Utillity/Math/Matrix3x2.h"
+#include "Utillity/Math/Vector2T.h"
+
+#include <algorithm>
+#include <cmath>
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  CanvasViewProjection ─ 뷰포트 1개의 카메라 뷰 파라미터(RHI 비의존).
+//
+//  카메라 오너 트랜스폼 + OrthographicSize + 뷰포트 렉트를 하나로 해석한 결과다.
+//  같은 계산을 두 곳이 쓴다:
+//    · CollectGameRenderViewports (렌더 수집) — GameRenderViewportDesc 를 채운다.
+//    · CGameCanvas::ScreenToWorld (입력 역투영) — 스크린 픽셀을 월드로 되돌린다.
+//  둘이 계산을 각자 재현하면 역투영이 렌더와 미세하게 어긋난다(마우스 피킹이 조용히 빗나간다).
+//  그래서 한 함수(ComputeCanvasViewProjection)로 뽑고 양쪽이 공유한다.
+//
+//  이 헤더는 RHI/렌더러 타입을 전혀 의존하지 않는다 — GameFramework 헤더만 쓰므로
+//  게임 스크립트 DLL 이 링크하는 Canvas.obj 에서 include 해도 링크 클로저를 오염시키지 않는다.
+// ─────────────────────────────────────────────────────────────────────────────
+struct CanvasViewProjection
+{
+	// 카메라 뷰(월드 공간).
+	float PosX = 0.0f;        // 카메라 월드 위치 x
+	float PosY = 0.0f;        // 카메라 월드 위치 y
+	float OrthoSize = 5.0f;   // 세로 반높이(HalfH, 월드 유닛)
+	float OrthoSizeX = 5.0f;  // 가로 반폭(HalfW, 월드 유닛) — 뷰포트 종횡비 반영
+	float CosR = 1.0f;        // 카메라 회전 코사인
+	float SinR = 0.0f;        // 카메라 회전 사인
+
+	// 출력 렉트(렌더 타깃 픽셀, 좌상단 원점).
+	float RectPixelX = 0.0f;
+	float RectPixelY = 0.0f;
+	float RectPixelW = 1.0f;
+	float RectPixelH = 1.0f;
+};
+
+// 카메라 오너 트랜스폼 + OrthographicSize + 뷰포트 렉트 → 뷰 파라미터.
+// renderWidth/Height 는 렌더 타깃 픽셀 크기(뷰포트 Layout2D 를 픽셀로 Resolve 하는 기준).
+inline CanvasViewProjection ComputeCanvasViewProjection(
+	const CanvasViewport& viewport,
+	const Camera2D& camera,
+	const CGameObject& cameraOwner,
+	float renderWidth,
+	float renderHeight)
+{
+	CanvasViewProjection view;
+
+	const Vector2 posPixel = viewport.Position.Resolve(renderWidth, renderHeight);
+	Vector2 sizePixel = viewport.Size.Resolve(renderWidth, renderHeight);
+	sizePixel.x = std::max(sizePixel.x, 1.0f);
+	sizePixel.y = std::max(sizePixel.y, 1.0f);
+
+	const Matrix3x2 worldTransform = GetWorldTransform(cameraOwner);
+	const float scaleX = std::sqrt(worldTransform.M11 * worldTransform.M11 + worldTransform.M12 * worldTransform.M12);
+	const float scaleY = std::sqrt(worldTransform.M21 * worldTransform.M21 + worldTransform.M22 * worldTransform.M22);
+	const float safeScaleX = std::max(scaleX, 0.0001f);
+	const float safeScaleY = std::max(scaleY, 0.0001f);
+	const float baseOrtho = camera.OrthographicSize > 0.0f ? camera.OrthographicSize : 5.0f;
+	// 종횡비는 화면 전체가 아니라 이 뷰포트의 렉트 기준 — 스플릿(좌/우 반쪽)에서
+	// 화면 전체 비율을 쓰면 내용이 찌그러진다.
+	const float aspect = sizePixel.x / std::max(sizePixel.y, 1.0f);
+
+	view.PosX = worldTransform.Dx;
+	view.PosY = worldTransform.Dy;
+	view.OrthoSize = baseOrtho * safeScaleY;
+	view.OrthoSizeX = baseOrtho * safeScaleX * aspect;
+	view.CosR = scaleX > 1e-6f ? worldTransform.M11 / scaleX : 1.0f;
+	view.SinR = scaleX > 1e-6f ? worldTransform.M12 / scaleX : 0.0f;
+	view.RectPixelX = posPixel.x;
+	view.RectPixelY = posPixel.y;
+	view.RectPixelW = sizePixel.x;
+	view.RectPixelH = sizePixel.y;
+
+	return view;
+}
+
+// 스크린 픽셀(좌상단 원점)이 이 뷰포트 렉트 안에 있는가.
+inline bool CanvasViewProjectionContainsScreen(const CanvasViewProjection& view, float screenX, float screenY)
+{
+	const float localX = screenX - view.RectPixelX;
+	const float localY = screenY - view.RectPixelY;
+	return localX >= 0.0f && localX <= view.RectPixelW
+		&& localY >= 0.0f && localY <= view.RectPixelH;
+}
+
+// 스크린 픽셀(좌상단 원점) → 월드 좌표. 뷰포트 렉트·카메라(위치·회전·오쏘 범위)의 역투영이다.
+// Forward2DRenderer 의 뷰 행렬(ndc = R·(world-cam)/half)을 정확히 뒤집는다 — 렌더가 그리는
+// 좌표와 피킹 좌표가 일치한다. 패럴랙스 팩터 1(메인 월드) 기준이다: 패럴랙스 레이어(원경·UI)는
+// 카메라 위치가 factor 로 스케일되므로 이 결과와 다르다(그 좌표가 필요하면 별도 역투영이 필요).
+inline Vector2 CanvasViewProjectionScreenToWorld(const CanvasViewProjection& view, float screenX, float screenY)
+{
+	// 렉트 로컬 정규화 → NDC. 스크린 y 는 아래로 증가, NDC y 는 위로 증가하므로 y 를 뒤집는다.
+	const float u = (screenX - view.RectPixelX) / std::max(view.RectPixelW, 1.0f);
+	const float v = (screenY - view.RectPixelY) / std::max(view.RectPixelH, 1.0f);
+	const float ndcX = u * 2.0f - 1.0f;
+	const float ndcY = 1.0f - v * 2.0f;
+
+	// NDC → 뷰 공간(카메라 중심 원점, 회전 전).
+	const float viewX = ndcX * view.OrthoSizeX;
+	const float viewY = ndcY * view.OrthoSize;
+
+	// 뷰 → 월드: 카메라 회전 R 을 적용하고 카메라 위치를 더한다.
+	//   world = camPos + R * viewOffset,  R = [CosR -SinR; SinR CosR]
+	const float dx = view.CosR * viewX - view.SinR * viewY;
+	const float dy = view.SinR * viewX + view.CosR * viewY;
+	return Vector2(view.PosX + dx, view.PosY + dy);
+}

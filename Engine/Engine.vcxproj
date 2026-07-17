@@ -463,6 +463,7 @@
     <ClInclude Include="GameFramework\Rendering\ShapeGeometry2D.h" />
     <ClInclude Include="GameFramework\Rendering\ShapeRenderSystem.h" />
     <ClInclude Include="GameFramework\Canvas\CanvasViewport.h" />
+    <ClInclude Include="GameFramework\Canvas\CanvasViewProjection.h" />
     <ClInclude Include="GameFramework\Canvas\GameLayer.h" />
     <ClInclude Include="GameFramework\Canvas\Canvas.h" />
     <ClInclude Include="GameFramework\Canvas\CanvasRuntimeAccess.h" />
