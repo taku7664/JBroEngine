@@ -21,7 +21,7 @@ public:
 	float FramesPerSecond = 12.0f;
 	// 끝 프레임 이후 처음으로 순환. false 면 마지막 프레임에서 멈추고 Playing=false.
 	bool  Loop = true;
-	// 재생 상태(직렬화 — 씬 시작 시 재생 여부). non-loop 종료 시 false 로 전환된다.
+	// 재생 상태(직렬화 — 캔버스 시작 시 재생 여부). non-loop 종료 시 false 로 전환된다.
 	bool  Playing = true;
 	// 시트에서 재생을 시작할 프레임 인덱스.
 	std::uint32_t StartFrame = 0;

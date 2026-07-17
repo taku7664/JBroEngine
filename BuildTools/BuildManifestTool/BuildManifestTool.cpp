@@ -19,15 +19,15 @@ namespace
 		File::Path OutputPath;
 		File::Path ValidatePath;
 		File::Path InputMapPath;
-		std::string StartupSceneGuid;
-		std::string StartupScene;
+		std::string StartupCanvasGuid;
+		std::string StartupCanvas;
 		std::string ProductName;
 		std::string TargetPlatform;
 		std::string ScriptMode;
 		std::string ScriptModule;
 		std::string Orientation;
-		std::vector<std::string> BuildScenes;      // 런타임 선로드 씬 이름(경로) — 인덱스 1:1
-		std::vector<std::string> BuildSceneGuids;  // 각 씬의 에셋 GUID
+		std::vector<std::string> BuildCanvases;      // 런타임 선로드 씬 이름(경로) — 인덱스 1:1
+		std::vector<std::string> BuildCanvasGuids;  // 각 씬의 에셋 GUID
 		int Width = 1280;
 		int Height = 720;
 		float PixelsPerUnit = 100.0f;
@@ -239,9 +239,9 @@ namespace
 	{
 		std::wcerr << L"Usage: BuildManifestTool"
 			<< L" --out <path>"
-			<< L" --startup-scene-guid <guid>"
+			<< L" --startup-canvas-guid <guid>"
 			<< L" [--product-name <name>]"
-			<< L" [--startup-scene <path>]"
+			<< L" [--startup-canvas <path>]"
 			<< L" [--width <int>]"
 			<< L" [--height <int>]"
 			<< L" [--pixels-per-unit <float>]"
@@ -250,10 +250,10 @@ namespace
 			<< L" [--script-module <path>]"
 			<< L" [--orientation <Landscape|Portrait|Auto>]"
 			<< L" [--input-map <project.jproject>]"
-			<< L" [--build-scene <path> --build-scene-guid <guid>]..."
+			<< L" [--build-canvas <path> --build-canvas-guid <guid>]..."
 			<< std::endl
 			<< L"   or: BuildManifestTool --validate <path>"
-			<< L" [--startup-scene-guid <guid>]"
+			<< L" [--startup-canvas-guid <guid>]"
 			<< L" [--product-name <name>]"
 			<< L" [--width <int>]"
 			<< L" [--height <int>]"
@@ -283,15 +283,15 @@ namespace
 				if (false == RequireValue(argc, argv, i)) return false;
 				outOptions.ValidatePath = File::Path(argv[++i]);
 			}
-			else if (arg == L"--startup-scene-guid")
+			else if (arg == L"--startup-canvas-guid")
 			{
 				if (false == RequireValue(argc, argv, i)) return false;
-				outOptions.StartupSceneGuid = NarrowAscii(argv[++i]);
+				outOptions.StartupCanvasGuid = NarrowAscii(argv[++i]);
 			}
-			else if (arg == L"--startup-scene")
+			else if (arg == L"--startup-canvas")
 			{
 				if (false == RequireValue(argc, argv, i)) return false;
-				outOptions.StartupScene = std::filesystem::path(argv[++i]).generic_string();
+				outOptions.StartupCanvas = std::filesystem::path(argv[++i]).generic_string();
 			}
 			else if (arg == L"--product-name")
 			{
@@ -337,15 +337,15 @@ namespace
 				if (false == RequireValue(argc, argv, i)) return false;
 				outOptions.InputMapPath = File::Path(argv[++i]);
 			}
-			else if (arg == L"--build-scene")
+			else if (arg == L"--build-canvas")
 			{
 				if (false == RequireValue(argc, argv, i)) return false;
-				outOptions.BuildScenes.push_back(std::filesystem::path(argv[++i]).generic_string());
+				outOptions.BuildCanvases.push_back(std::filesystem::path(argv[++i]).generic_string());
 			}
-			else if (arg == L"--build-scene-guid")
+			else if (arg == L"--build-canvas-guid")
 			{
 				if (false == RequireValue(argc, argv, i)) return false;
-				outOptions.BuildSceneGuids.push_back(NarrowAscii(argv[++i]));
+				outOptions.BuildCanvasGuids.push_back(NarrowAscii(argv[++i]));
 			}
 			else
 			{
@@ -359,7 +359,7 @@ namespace
 		}
 
 		return false == outOptions.OutputPath.empty()
-			&& false == outOptions.StartupSceneGuid.empty();
+			&& false == outOptions.StartupCanvasGuid.empty();
 	}
 
 	bool ValidateManifest(const ToolOptions& options)
@@ -372,7 +372,7 @@ namespace
 			return false;
 		}
 
-		if (false == options.StartupSceneGuid.empty() && manifest.StartupSceneGuid != options.StartupSceneGuid)
+		if (false == options.StartupCanvasGuid.empty() && manifest.StartupCanvasGuid != options.StartupCanvasGuid)
 		{
 			std::cerr << "Build manifest startup scene GUID mismatch." << std::endl;
 			return false;
@@ -445,17 +445,17 @@ int wmain(int argc, wchar_t** argv)
 	manifest.ProductName = options.ProductName;
 	manifest.ResolutionWidth = options.Width;
 	manifest.ResolutionHeight = options.Height;
-	manifest.StartupSceneGuid = options.StartupSceneGuid;
-	manifest.StartupScene = options.StartupScene;
+	manifest.StartupCanvasGuid = options.StartupCanvasGuid;
+	manifest.StartupCanvas = options.StartupCanvas;
 	manifest.PixelsPerUnit = options.PixelsPerUnit;
 	manifest.TargetPlatform = options.TargetPlatform;
 	manifest.ScriptMode = options.ScriptMode;
 	manifest.ScriptModule = options.ScriptModule;
 	manifest.Orientation = options.Orientation;
-	manifest.BuildScenes = options.BuildScenes;
-	manifest.BuildSceneGuids = options.BuildSceneGuids;
+	manifest.BuildCanvases = options.BuildCanvases;
+	manifest.BuildCanvasGuids = options.BuildCanvasGuids;
 	// name/guid 는 항상 쌍으로 넘어오지만, 방어적으로 길이를 맞춘다(짧으면 빈 GUID 로 패딩).
-	manifest.BuildSceneGuids.resize(manifest.BuildScenes.size());
+	manifest.BuildCanvasGuids.resize(manifest.BuildCanvases.size());
 	if (false == LoadInputMap(options.InputMapPath, manifest.InputActions))
 	{
 		std::cerr << "Failed to read input map from project." << std::endl;
@@ -480,7 +480,7 @@ int wmain(int argc, wchar_t** argv)
 		std::cerr << (error.empty() ? "Failed to read generated build manifest." : error) << std::endl;
 		return 1;
 	}
-	if (loadedManifest.StartupSceneGuid != manifest.StartupSceneGuid
+	if (loadedManifest.StartupCanvasGuid != manifest.StartupCanvasGuid
 		|| loadedManifest.ProductName != manifest.ProductName
 		|| loadedManifest.ResolutionWidth != (manifest.ResolutionWidth > 0 ? manifest.ResolutionWidth : 1280)
 		|| loadedManifest.ResolutionHeight != (manifest.ResolutionHeight > 0 ? manifest.ResolutionHeight : 720)

@@ -50,7 +50,7 @@ namespace Serialization
 	// 레이어 파일을 scene 에 새 레이어로 추가한다(목록 맨 위 = 컴포짓 최전면).
 	// 오브젝트/레이어의 InstanceGuid 는 파일 값 그대로 복원된다 — 재발급하지 않는다.
 	//   outLayer != nullptr 이면 만들어진 레이어를 기록한다.
-	// 이미 같은 guid 의 오브젝트가 씬에 살아 있으면 DuplicateInstance 로 거부한다(아무것도
+	// 이미 같은 guid 의 오브젝트가 캔버스에 살아 있으면 DuplicateInstance 로 거부한다(아무것도
 	// 만들지 않는다). 같은 레이어 파일을 한 캔버스에 두 번 로드하면 guid 가 겹치는데,
 	// 그대로 두면 ObjectSerializer 가 조용히 새 guid 를 발급해 "guid 보존" 계약이 깨진다.
 	ELayerSerializeResult DeserializeLayer(CGameCanvas& scene, const char* text, CGameLayer** outLayer = nullptr);

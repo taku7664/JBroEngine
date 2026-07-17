@@ -9029,7 +9029,7 @@ bool ImGui::IsWindowHovered(ImGuiHoveredFlags flags)
     // When changing hovered window we requires a bit of stationary delay before activating hover timer.
     // FIXME: We don't support delay other than stationary one for now, other delay would need a way
     // to fulfill the possibility that multiple IsWindowHovered() with varying flag could return true
-    // for different windows of the hierarchy. Possibly need a Hash(Current+Flags) ==> (Timer) cache.
+    // for different windows of the layers. Possibly need a Hash(Current+Flags) ==> (Timer) cache.
     // We can implement this for _Stationary because the data is linked to HoveredWindow rather than CurrentWindow.
     if (flags & ImGuiHoveredFlags_ForTooltip)
         flags = ApplyHoverFlagsForTooltip(flags, g.Style.HoverFlagsForTooltipMouse);
@@ -21013,7 +21013,7 @@ void ImGui::DockBuilderCopyDockSpace(ImGuiID src_dockspace_id, ImGuiID dst_docks
 
         if (dst_dock_id != 0)
         {
-            // Docked windows gets redocked into the new node hierarchy.
+            // Docked windows gets redocked into the new node layers.
             IMGUI_DEBUG_LOG_DOCKING("[docking] Remap live window '%s' 0x%08X -> '%s' 0x%08X\n", src_window_name, src_dock_id, dst_window_name, dst_dock_id);
             DockBuilderDockWindow(dst_window_name, dst_dock_id);
         }
@@ -21042,7 +21042,7 @@ void ImGui::DockBuilderCopyDockSpace(ImGuiID src_dockspace_id, ImGuiID dst_docks
                 if (src_windows.contains(window->ID))
                     continue;
 
-                // Docked windows gets redocked into the new node hierarchy.
+                // Docked windows gets redocked into the new node layers.
                 IMGUI_DEBUG_LOG_DOCKING("[docking] Remap window '%s' %08X -> %08X\n", window->Name, src_dock_id, dst_dock_id);
                 dock_remaining_windows.push_back(DockRemainingWindowTask(window, dst_dock_id));
             }

@@ -14,7 +14,7 @@
 //    {
 //        SCRIPT_CLASS(MyScript)                       // 클래스 최상단에 한 번
 //    public:
-//        REFLECT_FIELD(float,       Speed,     5.0f)  // Inspector 노출 + 씬 직렬화
+//        REFLECT_FIELD(float,       Speed,     5.0f)  // Inspector 노출 + 캔버스 직렬화
 //        REFLECT_FIELD(bool,        IsGrounded, false)
 //        REFLECT_FIELD(std::int32_t, MaxJumps,  2)
 //
@@ -56,7 +56,7 @@
 //   Tooltip("..")   — 마우스오버 설명
 //   Category("..")  — 인스펙터 그룹 헤더
 //   Range(min, max) — 슬라이더 + 값 클램프
-//   NoSerialize     — 인스펙터엔 노출하되 씬 파일에는 저장/복원하지 않음(런타임 전용)
+//   NoSerialize     — 인스펙터엔 노출하되 캔버스 파일에는 저장/복원하지 않음(런타임 전용)
 // 지원 타입: Bool, Int, UInt, Float, Degree, Radian, String, Vector2, Rect, Asset
 //            레거시 표기(bool, std::int32_t, std::int64_t, std::uint32_t, float, Vector2, AssetGuid)도 허용
 // (SCRIPT_CLASS / REFLECT_FIELD 없이 JPROP 만으로 충분하다. REFLECT_FIELD 는 레거시 호환.)
@@ -123,7 +123,7 @@ public:                                                                         
 //
 // 효과:
 //   1. Inspector 에 해당 필드가 자동으로 표시된다.
-//   2. 씬 파일 저장/로드 시 값이 자동으로 직렬화된다.
+//   2. 캔버스 파일 저장/로드 시 값이 자동으로 직렬화된다.
 //   3. 라이브 리로드(DLL 교체) 후에도 값이 유지된다.
 //
 // 주의:

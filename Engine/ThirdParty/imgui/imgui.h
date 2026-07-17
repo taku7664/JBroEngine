@@ -1368,7 +1368,7 @@ enum ImGuiTreeNodeFlags_
     ImGuiTreeNodeFlags_NavLeftJumpsToParent = 1 << 17,  // Nav: left arrow moves back to parent. This is processed in TreePop() when there's an unfulfilled Left nav request remaining.
     ImGuiTreeNodeFlags_CollapsingHeader     = ImGuiTreeNodeFlags_Framed | ImGuiTreeNodeFlags_NoTreePushOnOpen | ImGuiTreeNodeFlags_NoAutoOpenOnLog,
 
-    // [EXPERIMENTAL] Draw lines connecting TreeNode hierarchy. Discuss in GitHub issue #2920.
+    // [EXPERIMENTAL] Draw lines connecting TreeNode layers. Discuss in GitHub issue #2920.
     // Default value is pulled from style.TreeLinesFlags. May be overridden in TreeNode calls.
     ImGuiTreeNodeFlags_DrawLinesNone        = 1 << 18,  // No lines drawn
     ImGuiTreeNodeFlags_DrawLinesFull        = 1 << 19,  // Horizontal lines to child nodes. Vertical line drawn down to TreePop() position: cover full contents. Faster (for large trees).
@@ -2411,7 +2411,7 @@ struct ImGuiStyle
     float       TabBarOverlineSize;         // Thickness of tab-bar overline, which highlights the selected tab-bar.
     float       TableAngledHeadersAngle;    // Angle of angled headers (supported values range from -50.0f degrees to +50.0f degrees).
     ImVec2      TableAngledHeadersTextAlign;// Alignment of angled headers within the cell
-    ImGuiTreeNodeFlags TreeLinesFlags;      // Default way to draw lines connecting TreeNode hierarchy. ImGuiTreeNodeFlags_DrawLinesNone or ImGuiTreeNodeFlags_DrawLinesFull or ImGuiTreeNodeFlags_DrawLinesToNodes.
+    ImGuiTreeNodeFlags TreeLinesFlags;      // Default way to draw lines connecting TreeNode layers. ImGuiTreeNodeFlags_DrawLinesNone or ImGuiTreeNodeFlags_DrawLinesFull or ImGuiTreeNodeFlags_DrawLinesToNodes.
     float       TreeLinesSize;              // Thickness of outlines when using ImGuiTreeNodeFlags_DrawLines.
     float       TreeLinesRounding;          // Radius of lines connecting child nodes to the vertical line.
     float       DragDropTargetRounding;     // Radius of the drag and drop target frame.

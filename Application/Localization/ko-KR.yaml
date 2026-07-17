@@ -94,7 +94,7 @@ Entries:
   asset_type.mesh: 메시
   asset_type.material: 머터리얼
   asset_type.shader: 셰이더
-  asset_type.scene: 씬
+  asset_type.canvas: 캔버스
   asset_type.prefab: 프리팹
   asset_type.layer: 레이어
   asset_type.script: 스크립트
@@ -114,7 +114,7 @@ Entries:
 
   editor_statistics.fps: FPS
   editor_statistics.frame_time: 프레임 시간
-  editor_statistics.scene_objects: 씬 오브젝트
+  editor_statistics.canvas_objects: 캔버스 오브젝트
   editor_statistics.script_pools: 스크립트 풀
   editor_statistics.script_pool_expansions: 스크립트 풀 확장
   editor_statistics.render_items: 렌더 아이템
@@ -174,7 +174,7 @@ Entries:
   project_settings.input.gamepad_index: 게임패드 슬롯 인덱스. -1 = 연결된 아무 패드.
   build_settings.no_project: 프로젝트가 열려있지 않습니다.
   build_settings.category.general: 일반
-  build_settings.category.scenes: 씬
+  build_settings.category.canvases: 캔버스
   build_settings.category.output: 출력
   build_settings.category.web: Web
   build_settings.category.windows: Windows
@@ -210,16 +210,16 @@ Entries:
   build_settings.ios_team_id: Team ID
   build_settings.ios_minimum_os: 최소 iOS
   build_settings.output_directory: 출력 폴더
-  build_settings.scenes: 씬
-  build_settings.startup_scene: 시작 씬
-  build_settings.use_current_scene: 현재 씬 사용
-  build_settings.build_scenes: 빌드 씬 목록
-  build_settings.add_scene: 씬 추가
+  build_settings.canvases: 캔버스
+  build_settings.startup_canvas: 시작 캔버스
+  build_settings.use_current_canvas: 현재 캔버스 사용
+  build_settings.build_canvases: 빌드 캔버스 목록
+  build_settings.add_canvas: 캔버스 추가
   build_settings.always_include: 항상 포함 자산
-  build_settings.always_include.desc: 어떤 씬도 참조하지 않지만 런타임에 직접 로드하는 자산을 등록한다. 참조 기반 패키징에서 누락을 방지한다.
+  build_settings.always_include.desc: 어떤 캔버스도 참조하지 않지만 런타임에 직접 로드하는 자산을 등록한다. 참조 기반 패키징에서 누락을 방지한다.
   build_settings.add_always_include: 자산 추가
   build_settings.package_preview: 패키지 경로
-  build_settings.select_startup_scene: 시작 씬 선택
+  build_settings.select_startup_canvas: 시작 캔버스 선택
   build_settings.select_windows_icon: Windows 아이콘 선택
   build_settings.select_output_directory: 빌드 출력 폴더 선택
   build_settings.save_failed: 빌드 설정 저장에 실패했습니다.
@@ -268,7 +268,7 @@ Entries:
   asset_browser.compile_fail.title: 스크립트 컴파일 실패
   asset_browser.compile_fail.description: 자동 컴파일이 실패했습니다. 빌드 로그는 아래와 같습니다.
   asset_browser.add_asset: 에셋 추가
-  asset_browser.add_asset.scene: 씬
+  asset_browser.add_asset.canvas: 캔버스
   asset_browser.add_asset.material: 머티리얼
   asset_browser.add_asset.font_family: 폰트 패밀리
   asset_browser.add_asset.effect: 사운드 효과
@@ -276,7 +276,7 @@ Entries:
   inspector.font_face.title: 폰트 임포트 설정
   inspector.font_face.face_index: Face Index
   inspector.font_face.apply: 적용
-  inspector.font_face.applied: 저장되었습니다. 사용 중인 폰트는 씬을 다시 열면 갱신됩니다.
+  inspector.font_face.applied: 저장되었습니다. 사용 중인 폰트는 캔버스를 다시 열면 갱신됩니다.
   inspector.font_face.create_family: 이 폰트로 Font Family 생성
   inspector.font_face.family_created: Font Family를 생성하고 선택했습니다.
   inspector.font_face.family_create_failed: Font Family 생성에 실패했습니다.
@@ -286,15 +286,15 @@ Entries:
   asset_browser.contents_folders: 콘텐츠
   asset_browser.favorite_folders: 즐겨찾기
 
-  hierarchy.scene_manager_unavailable: SceneManager를 사용할 수 없습니다.
-  hierarchy.no_active_scene: 활성 씬이 없습니다.
-  hierarchy.move_format: "이동: %s"
-  hierarchy.layer_move_format: "레이어 이동: %s"
-  hierarchy.unparent: 부모 해제
-  hierarchy.delete_object: 오브젝트 삭제
-  hierarchy.add_layer: 레이어 추가
-  hierarchy.delete_layer: 레이어 삭제
-  hierarchy.canvas_node_format: "캔버스: %s"
+  layers.canvas_manager_unavailable: CanvasManager를 사용할 수 없습니다.
+  layers.no_active_canvas: 활성 캔버스가 없습니다.
+  layers.move_format: "이동: %s"
+  layers.layer_move_format: "레이어 이동: %s"
+  layers.unparent: 부모 해제
+  layers.delete_object: 오브젝트 삭제
+  layers.add_layer: 레이어 추가
+  layers.delete_layer: 레이어 삭제
+  layers.canvas_node_format: "캔버스: %s"
   inspector.canvas.properties: 캔버스 속성
   inspector.canvas.background_color: 배경색
   inspector.canvas.viewports: 뷰포트
@@ -339,7 +339,7 @@ Entries:
   editor.menu.copy_component: 컴포넌트 복사
   editor.menu.paste_component: 컴포넌트 붙여넣기
 
-  inspector.no_active_scene: 활성 씬이 없습니다.
+  inspector.no_active_canvas: 활성 캔버스가 없습니다.
   inspector.no_entity_selected: 선택한 엔티티가 없습니다.
   inspector.reflection_unavailable: Reflection registry를 사용할 수 없습니다.
   inspector.no_other_components: 다른 컴포넌트가 없습니다.
@@ -438,7 +438,7 @@ Entries:
   script_prop.tooltip_tooltip: 인스펙터에서 이 프로퍼티에 마우스를 올리면 보일 설명.
   script_prop.tooltip_hint: 설명
   script_prop.serialize: 직렬화
-  script_prop.serialize_tooltip: 끄면 인스펙터엔 보이지만 씬 파일에 저장하지 않습니다(NoSerialize).
+  script_prop.serialize_tooltip: 끄면 인스펙터엔 보이지만 캔버스 파일에 저장하지 않습니다(NoSerialize).
   script_prop.range: 범위 제한
   script_prop.range_tooltip: 켜면 숫자 입력을 min~max 로 제한합니다(Range).
   script_prop.range_min: 최소
@@ -565,21 +565,21 @@ Entries:
   editor.property.Radius: 반지름
   editor.property.SourcePrefabGuid: 원본 프리팹 GUID
 
-  scene_view.unit.toggle_unit: "단위: Unit"
-  scene_view.unit.toggle_pixel: "단위: Pixel"
-  scene_view.vertex.delete: 버텍스 삭제
-  scene_view.vertex.delete_min: 버텍스 삭제 불가 (최소 3개 유지)
-  scene_view.overlay.active_scene: 활성 씬
-  scene_view.overlay.no_active_scene: 활성 씬 없음
-  scene_view.overlay.selected_none: "선택: 없음"
-  scene_view.overlay.selected_format: "선택: %s"
-  scene_view.overlay.camera_format: "카메라 (%.2f, %.2f) | 크기 %.2f"
-  scene_view.overlay.focus_format: "포커스: %s  [빈 공간 더블클릭으로 빠져나오기]"
-  scene_view.overlay.viewport_selected_camera: 뷰포트 (선택된 카메라)
+  canvas_view.unit.toggle_unit: "단위: Unit"
+  canvas_view.unit.toggle_pixel: "단위: Pixel"
+  canvas_view.vertex.delete: 버텍스 삭제
+  canvas_view.vertex.delete_min: 버텍스 삭제 불가 (최소 3개 유지)
+  canvas_view.overlay.active_canvas: 활성 캔버스
+  canvas_view.overlay.no_active_canvas: 활성 캔버스 없음
+  canvas_view.overlay.selected_none: "선택: 없음"
+  canvas_view.overlay.selected_format: "선택: %s"
+  canvas_view.overlay.camera_format: "카메라 (%.2f, %.2f) | 크기 %.2f"
+  canvas_view.overlay.focus_format: "포커스: %s  [빈 공간 더블클릭으로 빠져나오기]"
+  canvas_view.overlay.viewport_selected_camera: 뷰포트 (선택된 카메라)
   game_view.status.playing: 실행 중
-  game_view.status.scene_stopped: 씬 (정지)
-  game_view.status.no_active_scene: 활성 씬 없음
-  game_view.no_camera: 씬에 Camera2D가 없음
+  game_view.status.canvas_stopped: 캔버스 (정지)
+  game_view.status.no_active_canvas: 활성 캔버스 없음
+  game_view.no_camera: 캔버스에 Camera2D가 없음
 
   inspector.contacts.detected: 감지된 접촉
   inspector.contacts.last_normal: 최근 접촉 노멀
@@ -646,8 +646,8 @@ Entries:
   build_settings.ios_team_id.desc: Apple Developer Team ID입니다. 서명 단계에서 사용합니다.
   build_settings.ios_minimum_os.desc: iOS 앱이 지원할 최소 OS 버전입니다.
   build_settings.output_directory.desc: 게임 패키지가 생성될 출력 폴더입니다. 프로젝트 내부 경로는 프로젝트 루트 기준 상대 경로로 저장합니다.
-  build_settings.startup_scene.desc: 게임 시작 시 열 씬입니다. Assets 폴더 내부 파일은 Assets 기준 상대 경로로 저장합니다.
-  build_settings.use_current_scene.desc: 현재 열려있는 씬을 시작 씬으로 설정하고 빌드 씬 목록에 추가합니다.
+  build_settings.startup_canvas.desc: 게임 시작 시 열 캔버스입니다. Assets 폴더 내부 파일은 Assets 기준 상대 경로로 저장합니다.
+  build_settings.use_current_canvas.desc: 현재 열려있는 캔버스를 시작 캔버스로 설정하고 빌드 캔버스 목록에 추가합니다.
   build_settings.package_preview.desc: 현재 설정으로 생성될 최종 패키지 폴더입니다.
   build_settings.apply.desc: 변경된 빌드 설정을 프로젝트에 저장하고 창을 닫습니다.
   build_settings.cancel.desc: 변경 사항을 버리고 창을 닫습니다.

@@ -20,7 +20,6 @@ public:
 
 	// Ref<T> 가 RTTI 없이 타입을 확인하는 컴파일타임 짝 — 로더 등록이 지키는
 	// "이 타입은 이 클래스" 계약을 코드로 적어 둔 것이다.
-	// 값이 Scene 인 건 자산 타입 이름을 아직 안 옮겼기 때문이다(코어 리네임 단계에서 Canvas 로).
 	static constexpr EAssetType StaticAssetType() { return EAssetType::Canvas; }
 };
 

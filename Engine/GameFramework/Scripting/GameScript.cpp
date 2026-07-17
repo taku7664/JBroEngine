@@ -8,7 +8,7 @@
 
 void CGameScript::Bind(CGameCanvas& scene, const char* typeName)
 {
-	// 씬 참조와 스크립트 타입 메타만 바인딩한다. Owner는 CComponent 생성자에서 확정된다.
+	// 캔버스 참조와 스크립트 타입 메타만 바인딩한다. Owner는 CComponent 생성자에서 확정된다.
 	m_canvas = scene.SafeFromThis();
 	const char* sourceName = typeName ? typeName : "CGameScript";
 	const std::size_t length = std::min(std::strlen(sourceName), sizeof(m_typeName) - 1);

@@ -28,7 +28,7 @@ namespace
 	//
 	// Pass 1 (PSHDilate):  maskRT → hDilatedRT, 수평 max-alpha 팽창
 	// Pass 2 (PSVDilate):  hDilatedRT → vDilatedRT, 수직 max-alpha 팽창
-	// Pass 3 (PSComposite): maskRT + vDilatedRT → 씬 RT, 엣지 픽셀 합성
+	// Pass 3 (PSComposite): maskRT + vDilatedRT → 캔버스 RT, 엣지 픽셀 합성
 	//
 	// 분리 팽창(Separable Dilation)은 체비쇼프(정사각형) 거리 기반으로
 	// 아웃라인을 생성합니다. r=2px 수준에서 원형과 시각적 차이가 거의 없습니다.
@@ -397,7 +397,7 @@ bool COutlineRenderer2D::CreatePipelines()
 	m_vDilationPipeline = m_rhiDevice->CreateGraphicsPipeline(vPipeDesc);
 	if (!m_vDilationPipeline) return false;
 
-	// ── 합성 파이프라인 (AlphaBlend: 씬 RT 위에 아웃라인 덧그리기) ─────────────
+	// ── 합성 파이프라인 (AlphaBlend: 캔버스 RT 위에 아웃라인 덧그리기) ─────────────
 	RHIGraphicsPipelineDesc compPipeDesc;
 	compPipeDesc.VertexProgram      = m_vsProgram.GetSafePtr();
 	compPipeDesc.PixelProgram       = m_compositePS.GetSafePtr();

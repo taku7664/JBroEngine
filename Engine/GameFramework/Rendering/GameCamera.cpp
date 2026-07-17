@@ -177,7 +177,7 @@ std::vector<GameRenderLightDesc> CollectGameRenderLights(const CGameCanvas& scen
 			}
 
 			const Matrix3x2 worldTransform = GetWorldTransform(*owner);
-			// 방향 = 로컬 +X 의 월드 방향(회전에서). 씬뷰 기즈모와 동일 규약.
+			// 방향 = 로컬 +X 의 월드 방향(회전에서). 캔버스뷰 기즈모와 동일 규약.
 			const float dirLen = std::sqrt(worldTransform.M11 * worldTransform.M11 + worldTransform.M12 * worldTransform.M12);
 			const float dirX = dirLen > 1e-6f ? worldTransform.M11 / dirLen : 1.0f;
 			const float dirY = dirLen > 1e-6f ? worldTransform.M12 / dirLen : 0.0f;
@@ -270,7 +270,7 @@ namespace
 	}
 
 	// 한 레이어를 현재 바인딩된 타겟(뷰포트 설정 완료 상태)에 그린다.
-	// drawAllItems = 레이어 구간이 아니라 씬 전체를 그린다(레이어 스냅샷이 없는 폴백 경로).
+	// drawAllItems = 레이어 구간이 아니라 캔버스 전체를 그린다(레이어 스냅샷이 없는 폴백 경로).
 	void DrawLayerItems(
 		IRenderer& renderer,
 		CForward2DRenderer* forward,
@@ -326,7 +326,7 @@ namespace
 
 		CForward2DRenderer* forward = renderer.AsForward2DRenderer();
 
-		// 레이어 스냅샷이 없으면(레이어를 안 넘긴 호출자) 씬 전체를 한 레이어처럼 그린다 —
+		// 레이어 스냅샷이 없으면(레이어를 안 넘긴 호출자) 캔버스 전체를 한 레이어처럼 그린다 —
 		// 조용히 레이어 0 만 그리는 사고를 막는 폴백.
 		const bool drawAllItems = layers.empty();
 		const std::vector<GameRenderLayerDesc> implicitLayers(drawAllItems ? 1 : 0);
@@ -478,7 +478,7 @@ void RenderGameViewports(
 	// 라이팅 활성: LightMap(앰비언트 클리어 + Light2D 가산) → Composite(SceneColor × LightMap → 최종).
 	// 패스를 데이터로 선언하면 그래프가 RT 대여/컬링/실행을 담당한다.
 	const float* ambient = Runtime.AmbientLight;
-	// 라이트가 있을 때만 라이팅 경로. 라이트0 씬 = 패스스루(앰비언트 무관, 화면 불변).
+	// 라이트가 있을 때만 라이팅 경로. 라이트0 캔버스 = 패스스루(앰비언트 무관, 화면 불변).
 	const bool lightingActive = (false == lights.empty());
 
 	RWGraph graph(forward->GetRenderWeavePool());

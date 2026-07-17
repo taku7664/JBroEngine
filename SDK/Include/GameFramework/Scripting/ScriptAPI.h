@@ -11,7 +11,7 @@
 //    - CGameScript 기반 클래스 (상속 대상)
 //    - SCRIPT_CLASS / REFLECT_FIELD 매크로
 //    - Vector2 REFLECT_FIELD 지원
-//    - 씬/오브젝트 접근 (GetCanvas(), GetOwner(), GetComponent<T>())
+//    - 캔버스/오브젝트 접근 (GetCanvas(), GetOwner(), GetComponent<T>())
 //    - 자주 사용하는 컴포넌트 타입
 //    - 입력 시스템
 //    - 수학 유틸리티
@@ -72,7 +72,7 @@ template<> inline EReflectPropertyType ScriptFieldTypeOf<File::Guid>()
 	return EReflectPropertyType::AssetGuid;
 }
 
-// ── 씬 / 오브젝트 ────────────────────────────────────────────────────────────
+// ── 캔버스 / 오브젝트 ────────────────────────────────────────────────────────────
 #include "GameFramework/Canvas/Canvas.h"
 // Script.CanvasManager 로 캔버스를 다루려면(전환 요청 등) 완전 타입이 필요하다.
 // 이 헤더는 yaml-cpp 를 끌어오지 않는다 — 게임 DLL 이 링크할 수 있는 인라인만 노출한다.

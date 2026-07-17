@@ -120,7 +120,7 @@ bool CEffectEditorWidget::SaveToDisk()
 	stream.write(yaml.data(), static_cast<std::streamsize>(yaml.size()));
 	stream.close();
 
-	// 로드되어 있으면 in-place 갱신 — 외부 AssetRef(씬/미리듣기) 보존.
+	// 로드되어 있으면 in-place 갱신 — 외부 AssetRef(캔버스/미리듣기) 보존.
 	if (AssetRef<IAsset> loaded = am->FindLoadedAsset(m_guid))
 	{
 		loaded->ApplyImportOptions(yaml);

@@ -258,7 +258,7 @@ bool CDeleteLayerCommand::Execute()
 	{
 		return false;
 	}
-	// 마지막 남은 레이어면 씬이 거부한다("레이어 0개" 불허).
+	// 마지막 남은 레이어면 캔버스가 거부한다("레이어 0개" 불허).
 	m_deleted = m_canvas->DestroyLayer(layer);
 	return m_deleted;
 }

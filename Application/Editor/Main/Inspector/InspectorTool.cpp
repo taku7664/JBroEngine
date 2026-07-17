@@ -16,7 +16,7 @@
 #include "Editor/EditorContext.h"
 #include "Editor/Command/EditorCanvasCommands.h"
 #include "Editor/Command/EditorLayerCommands.h"
-#include "Editor/Command/EditorSceneCommands.h"
+#include "Editor/Command/EditorObjectCommands.h"
 #include "Editor/EditorDragDrop.h"
 #include "Editor/Gui/EditorGuiActions.h"
 #include "Editor/Localization/EditorReflectionLabels.h"
@@ -818,7 +818,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		}
 
 		// 자산이 이미 로드되어 있으면 자산이 자기 ImportOptions 를 in-place 갱신.
-		// 자산 객체는 destroy 되지 않으므로 외부 SafePtr(씬/인스펙터 미리보기 등) 가 살아남는다.
+		// 자산 객체는 destroy 되지 않으므로 외부 SafePtr(캔버스/인스펙터 미리보기 등) 가 살아남는다.
 		if (AssetRef<IAsset> loaded = assetManager->FindLoadedAsset(updatedMetaData.Guid))
 		{
 			loaded->ApplyImportOptions(updatedMetaData.ImportOptionsYaml);
@@ -1762,7 +1762,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			{
 				DrawViewportProperties(scene, i, cameras, activeCameraCount);
 
-				// 마지막 뷰포트는 삭제 불가 — 씬이 "뷰포트 0개"를 허용하지 않는다(레이어와 같은 규칙).
+				// 마지막 뷰포트는 삭제 불가 — 캔버스가 "뷰포트 0개"를 허용하지 않는다(레이어와 같은 규칙).
 				const bool canDelete = scene.GetViewportCount() > 1;
 				ImGui::BeginDisabled(false == canDelete);
 				if (ImGui::Button(Loc::Text(EditorLocKeys::InspectorCanvasDeleteViewport)))
@@ -1940,7 +1940,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		return true;
 	}
 
-	// 선택한 `.jcanvas` 가 지금 열려 있는 캔버스인지. 캔버스 설정은 런타임 객체(활성 씬)를
+	// 선택한 `.jcanvas` 가 지금 열려 있는 캔버스인지. 캔버스 설정은 런타임 객체(활성 캔버스)를
 	// 편집하는 것이라, 열지 않은 파일은 편집 대상이 없다 — 안내 + 열기 버튼만 준다.
 	bool IsActiveCanvasAsset(const AssetMetaData& metaData)
 	{

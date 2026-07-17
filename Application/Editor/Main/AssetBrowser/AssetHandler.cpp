@@ -42,7 +42,7 @@ void CCanvasAssetOpenHandler::Open(CAssetBrowserTool&, const AssetBrowserEntry& 
 {
 	if (false == Engine.CanvasManager.IsValid())
 	{
-		CSystemLog::Error(Utillity::U8(u8"씬 로드에 실패하였습니다."));
+		CSystemLog::Error(Utillity::U8(u8"캔버스 로드에 실패하였습니다."));
 		File::OpenFile(entry.AbsolutePath);
 		return;
 	}
@@ -126,7 +126,7 @@ void CCanvasAssetOpenHandler::Open(CAssetBrowserTool&, const AssetBrowserEntry& 
 	}
 	else
 	{
-		CSystemLog::Error(Utillity::U8(u8"씬 로드에 실패하였습니다."));
+		CSystemLog::Error(Utillity::U8(u8"캔버스 로드에 실패하였습니다."));
 	}
 }
 

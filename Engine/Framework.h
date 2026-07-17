@@ -63,7 +63,7 @@
 // Engine.lib 내부 cpp 는 self-contained 원칙으로 명시 include 권장 (점진).
 
 // 3단계 PCH 슬림화 — GameFramework/* 헤더는 PCH 에서 모두 제거.
-// 엔진/에디터 cpp 가 "씬 + 컴포넌트 + 시스템" 을 자주 같이 만지므로
+// 엔진/에디터 cpp 가 "캔버스 + 컴포넌트 + 시스템" 을 자주 같이 만지므로
 // 한 줄 편의용 umbrella 를 제공: #include "GameFramework/GameFrameworkAll.h"
 // 스크립트 사용자는 그대로 ScriptAPI.h umbrella 사용.
 

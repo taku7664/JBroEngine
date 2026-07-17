@@ -11,7 +11,7 @@ class IAssetManager;
 // SafePtr<T> 는 weak (객체 사망 감지만), AssetRef<T> 는 strong (객체 수명 보호) 으로 의미가 갈린다.
 //
 // 사용처:
-//  - 씬 진입 시 sceneAssets 를 AssetRef 들로 보유 → 씬이 active 인 동안 자산 보호.
+//  - 캔버스 진입 시 참조 자산을 AssetRef 들로 보유 → 그 캔버스가 사는 동안 자산 보호.
 //  - 인스펙터 미리듣기/미리보기 → 인스펙터가 표시 중인 자산을 AssetRef 로 잡음.
 //  - ResourceRegistry → 에디터 영구 리소스를 AssetRef 로 보유 (IsPersistent 와 양립).
 //

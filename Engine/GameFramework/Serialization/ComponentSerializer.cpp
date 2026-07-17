@@ -530,7 +530,7 @@ namespace
 	void ReadCamera(const YAML::Node& node, Camera2D& camera)
 	{
 		// 카메라는 이제 눈일 뿐이다 — 뷰포트 렉트(구 Position/Size/Viewport 키)와 ClearColor·
-		// Priority 는 캔버스의 뷰포트 목록·배경색으로 이사했다. 구 씬의 그 키들은 읽지 않는다
+		// Priority 는 캔버스의 뷰포트 목록·배경색으로 이사했다. 구 캔버스의 그 키들은 읽지 않는다
 		// (미등록 키는 리플렉션 읽기가 무시하므로 로드는 그대로 성공한다).
 		const ComponentTypeInfo* ti = GetTypeInfo("Camera2D");
 		if (ti) ReadComponentReflected(node, &camera, *ti);
@@ -690,7 +690,7 @@ namespace
 		{
 			if (false == prop.Serialize)
 			{
-				continue;   // JPROP(NoSerialize) — 씬 파일에 저장하지 않는다.
+				continue;   // JPROP(NoSerialize) — 캔버스 파일에 저장하지 않는다.
 			}
 			const void* field = CReflectionRegistry::GetPropertyAddress(static_cast<const void*>(instance), prop);
 			if (nullptr == field)
@@ -768,7 +768,7 @@ namespace
 		{
 			if (false == prop.Serialize)
 			{
-				continue;   // JPROP(NoSerialize) — 씬에서 복원하지 않는다.
+				continue;   // JPROP(NoSerialize) — 캔버스에서 복원하지 않는다.
 			}
 			if (!node[prop.Name])
 			{

@@ -753,7 +753,7 @@ void CAssetManager::UnloadNonPersistentAssets()
 {
 	std::lock_guard lock(m_mutex);
 	// 1) 로드된 자산 중 non-persistent + use-count == 0 인 것만 unload.
-	//    use-count > 0 (씬/인스펙터가 사용 중) 인 자산은 보호.
+	//    use-count > 0 (캔버스/인스펙터가 사용 중) 인 자산은 보호.
 	for (auto it = m_loadedAssetTable.begin(); it != m_loadedAssetTable.end(); )
 	{
 		AssetMetaData meta;

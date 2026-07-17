@@ -1,6 +1,6 @@
 #include "pch.h"
-#include "SceneViewContour.h"
-#include "SceneViewCoordinates.h"
+#include "CanvasViewContour.h"
+#include "CanvasViewCoordinates.h"
 
 #include "Engine/Core/Asset/IAssetManager.h"
 #include "Engine/Core/Asset/SpriteAsset.h"
@@ -276,9 +276,9 @@ namespace
 
 } // anonymous namespace
 
-// ── CSceneViewContour implementation ─────────────────────────────────────────
+// ── CCanvasViewContour implementation ─────────────────────────────────────────
 
-const std::vector<std::vector<Vector2>>* CSceneViewContour::GetOrBuild(
+const std::vector<std::vector<Vector2>>* CCanvasViewContour::GetOrBuild(
     IAssetManager& assetMgr,
     const AssetGuid& spriteGuid,
     std::uint32_t frameIndex)
@@ -299,7 +299,7 @@ const std::vector<std::vector<Vector2>>* CSceneViewContour::GetOrBuild(
     return &entry;
 }
 
-void CSceneViewContour::DrawOutlinesImGui(
+void CCanvasViewContour::DrawOutlinesImGui(
     ImDrawList* dl,
     const CGameCanvas& scene,
     IAssetManager* assetMgr,

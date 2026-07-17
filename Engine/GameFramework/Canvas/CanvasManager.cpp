@@ -115,7 +115,7 @@ void CCanvasManager::AcquireReferencedAssets(CGameCanvas& scene) const
 		return;
 	}
 
-	// referenced 에셋을 LoadAsset 으로 로드하고, 반환된 AssetRef(strong)를 씬이 보유한다.
+	// referenced 에셋을 LoadAsset 으로 로드하고, 반환된 AssetRef(strong)를 캔버스가 보유한다.
 	// AssetRef 가 살아있는 동안 use-count>0 → 자산이 unload/GC 되지 않는다.
 	const std::vector<AssetGuid>& referenced = scene.GetReferencedAssets();
 	std::vector<AssetRef<IAsset>> loaded;

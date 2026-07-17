@@ -6,7 +6,7 @@
 class IAudioPlayer;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-//  IAudioListener ─ 씬당 활성 1개 — 보통 Camera2D 의 엔티티에 부착된 컴포넌트가
+//  IAudioListener ─ 캔버스당 활성 1개 — 보통 Camera2D 의 엔티티에 부착된 컴포넌트가
 //  관리한다.  position / forward / 마스터 볼륨을 backend 로 push.
 //
 //  향후 occlusion 은 게임 측에서 raycast 결과를 SetOcclusionForPlayer 로 넘긴다.

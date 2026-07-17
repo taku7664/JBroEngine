@@ -109,7 +109,7 @@ bool CEngine::Initialize()
 		return false;
 	}
 
-	// 메인 surface 윈도우 이벤트(포커스/리사이즈) 구독 → 활성 씬 스크립트로 전달.
+	// 메인 surface 윈도우 이벤트(포커스/리사이즈) 구독 → 활성 캔버스 스크립트로 전달.
 	if (Engine.MainRenderSurface)
 	{
 		m_surfaceEventToken = Engine.MainRenderSurface->Subscribe(
@@ -139,12 +139,12 @@ void CEngine::OnSurfaceEvent(const SurfaceEvent& surfaceEvent)
 		m_surfaceFocused = false;
 	}
 
-	// 윈도우 이벤트를 활성 씬의 스크립트 인스턴스들에 전달(재생 중에만 인스턴스 존재 → 자동 게이팅).
-	if (m_sceneManager)
+	// 윈도우 이벤트를 활성 캔버스의 스크립트 인스턴스들에 전달(재생 중에만 인스턴스 존재 → 자동 게이팅).
+	if (m_canvasManager)
 	{
-		if (CGameCanvas* scene = m_sceneManager->GetActiveCanvas().TryGet())
+		if (CGameCanvas* canvas = m_canvasManager->GetActiveCanvas().TryGet())
 		{
-			CCanvasRuntimeAccess::DispatchSurfaceEvent(*scene, surfaceEvent);
+			CCanvasRuntimeAccess::DispatchSurfaceEvent(*canvas, surfaceEvent);
 		}
 	}
 }
@@ -228,13 +228,13 @@ void CEngine::Finalize()
 		m_networkManager.Reset();
 	}
 
-	// DebugDraw2D must be cleared before scene manager so any scene-system
+	// DebugDraw2D must be cleared before the canvas manager so any canvas-system
 	// destructors that draw debug primitives don't hit a dangling pointer.
 	Engine.DebugDraw2D = nullptr;
 	m_debugDraw.Reset();
 
 	Engine.CanvasManager = nullptr;
-	m_sceneManager.Reset();
+	m_canvasManager.Reset();
 	Engine.Random = nullptr;
 	m_randomService.Reset();
 	Engine.Math = nullptr;
@@ -413,8 +413,8 @@ bool CEngine::InitializeCoreServices()
 #if JBRO_EDITOR
 	m_localization = MakeOwnerPtr<CLocalizationManager>();
 #endif
-	m_sceneManager = MakeOwnerPtr<CCanvasManager>();
-	if (!m_time || !m_input || !m_inputSystem || !m_fileSystem || !m_taskManager || !m_randomService || !m_mathService || !m_reflectionRegistry || !m_logger || !m_debug || !m_sceneManager)
+	m_canvasManager = MakeOwnerPtr<CCanvasManager>();
+	if (!m_time || !m_input || !m_inputSystem || !m_fileSystem || !m_taskManager || !m_randomService || !m_mathService || !m_reflectionRegistry || !m_logger || !m_debug || !m_canvasManager)
 	{
 		return false;
 	}
@@ -457,7 +457,7 @@ bool CEngine::InitializeCoreServices()
 #else
 	Engine.Localization = nullptr;
 #endif
-	Engine.CanvasManager = m_sceneManager.GetSafePtr();
+	Engine.CanvasManager = m_canvasManager.GetSafePtr();
 	Engine.DebugDraw2D = m_debugDraw.GetSafePtr();
 	CSystemLog::Info("Core services initialized.");
 
@@ -681,9 +681,9 @@ void CEngine::UpdateCoreServices()
 		const float dt = m_time ? m_time->GetDeltaSeconds() : 0.0f;
 		m_audioDevice->Tick(dt);
 	}
-	if (m_sceneManager)
+	if (m_canvasManager)
 	{
-		m_sceneManager->Update();
+		m_canvasManager->Update();
 	}
 	if (m_networkManager)
 	{

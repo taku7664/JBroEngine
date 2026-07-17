@@ -5,7 +5,7 @@
 #include "Utillity/Pointer/SafePtr.h"
 
 #include "Editor/Main/Guizmo/EditorGuizmoController.h"
-#include "SceneViewEditContext.h"
+#include "CanvasViewEditContext.h"
 
 class CGameCanvas;
 class CGameObject;
@@ -27,11 +27,11 @@ public:
     void FocusOnEntity(CGameObject* object, const CGameCanvas& scene);
 
     // 하이어라키 더블클릭용: 편집 컨텍스트를 object로 전환 + 카메라 이동
-    // 씬뷰 내 더블클릭과 동일하게 m_editCtx 를 갱신하므로,
-    // 이후 씬뷰 클릭은 object 컨텍스트(직계 자식) 기준으로 동작함
+    // 캔버스뷰 내 더블클릭과 동일하게 m_editCtx 를 갱신하므로,
+    // 이후 캔버스뷰 클릭은 object 컨텍스트(직계 자식) 기준으로 동작함
     void SetFocusContext(CGameObject* object, const CGameCanvas& scene);
 
-    // Flash-like 포커스 컨텍스트 초기화 (씬 변경, 프로젝트 닫기 시 호출)
+    // Flash-like 포커스 컨텍스트 초기화 (캔버스 변경, 프로젝트 닫기 시 호출)
     void ClearEditContext();
 
 	// Global paste uses the cursor position while it is over the Scene View,
@@ -58,7 +58,7 @@ private:
 	bool           m_lastViewportHovered = false;
 
     // ── Flash-like 포커스 내비게이션 ────────────────────────────────────────
-    CSceneViewEditContext m_editCtx;
+    CCanvasViewEditContext m_editCtx;
     CEditorGuizmoController m_guizmo;
 
     // ── 그리드 눈금 단위 표시 ─────────────────────────────────────────────────
@@ -79,7 +79,7 @@ private:
     std::vector<Vector2>    m_dragOldPts;     // 드래그 시작 시점 스냅샷 (Undo용)
 
     // ── 엣지/버텍스 클릭 소비 ─────────────────────────────────────────────────
-    // Layer 2.8 에서 핸들 조작이 처리됐을 때 입력 블록의 씬 선택을 억제한다.
+    // Layer 2.8 에서 핸들 조작이 처리됐을 때 입력 블록의 캔버스 선택을 억제한다.
     bool m_suppressNextClick = false;
 
     // ── 버텍스 삭제 팝업 ─────────────────────────────────────────────────────

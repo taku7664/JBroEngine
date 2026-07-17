@@ -26,7 +26,7 @@ namespace EditorGuiActions
 	//   parent == nullptr : 루트에 오브젝트 추가 → 레이블 "Add Object"
 	//   parent != nullptr : parent의 자식으로 추가 → 레이블 "Add Child Object"
 	// 성공 시 생성된 오브젝트를 선택 상태로 만들고 true 반환.
-	//   spawnWorldPos != nullptr : 그 월드 좌표에 생성(씬뷰 우클릭 위치). null = 기본(원점).
+	//   spawnWorldPos != nullptr : 그 월드 좌표에 생성(캔버스뷰 우클릭 위치). null = 기본(원점).
 	//   layer != nullptr : 그 레이어에 생성(하이어라키의 레이어 컨텍스트 메뉴). null = 기본 레이어.
 	bool DrawAddObjectMenu(CGameCanvas& scene, CGameObject* parent, const Vector2* spawnWorldPos = nullptr,
 	                       CGameLayer* layer = nullptr);
@@ -46,7 +46,7 @@ namespace EditorGuiActions
 
 	// ── 대상 레이어 결정 ──────────────────────────────────────────────────────
 	// "새로 놓는 오브젝트가 어느 레이어로 가는가"의 단일 규칙: 레이어를 골랐으면 그 레이어,
-	// 아니면 고른 오브젝트가 속한 레이어, 둘 다 없으면 nullptr(= 씬 기본 레이어).
+	// 아니면 고른 오브젝트가 속한 레이어, 둘 다 없으면 nullptr(= 캔버스 기본 레이어).
 	// 붙여넣기 메뉴와 단축키가 공유한다 — 규칙이 갈리면 같은 동작이 진입점마다 달라진다.
 	CGameLayer* ResolveTargetLayer(CGameCanvas& scene);
 

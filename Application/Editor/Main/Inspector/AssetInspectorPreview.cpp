@@ -248,7 +248,7 @@ namespace
             m_isStreaming = false;
 
             // 미리듣기가 LoadAsset 으로 캐시에 올린 자산을 놓아준다.
-            // use-count>0 (인스펙터/씬 등 다른 사용자) 이면 UnloadAsset 가드가 알아서 거부 — 안전.
+            // use-count>0 (인스펙터/캔버스 등 다른 사용자) 이면 UnloadAsset 가드가 알아서 거부 — 안전.
             if (false == m_loadedGuid.IsNull())
             {
 				if (SafePtr<IAssetManager> am = EditorContext::GetAssetManager())

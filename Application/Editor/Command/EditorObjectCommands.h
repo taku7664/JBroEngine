@@ -93,9 +93,9 @@ class CCreateGameObjectCommand final : public IEditorCommand
 {
 public:
 	// parent == nullptr 이면 루트에 생성, 그 외에는 parent 의 자식으로 생성.
-	// spawnWorldPos != nullptr 이면 그 월드 좌표에 생성한다(씬뷰 우클릭 위치). parent 가
+	// spawnWorldPos != nullptr 이면 그 월드 좌표에 생성한다(캔버스뷰 우클릭 위치). parent 가
 	// 있으면 부모 월드 역행렬로 로컬 좌표를 환산한다. null 이면 기본(원점) 생성.
-	// layer == nullptr 이면 씬 기본 레이어. parent 가 있으면 레이어는 부모를 따르므로 무시된다.
+	// layer == nullptr 이면 캔버스 기본 레이어. parent 가 있으면 레이어는 부모를 따르므로 무시된다.
 	CCreateGameObjectCommand(SafePtr<CGameCanvas> scene, const char* name,
 	                         CGameObject* parent = nullptr,
 	                         const Vector2* spawnWorldPos = nullptr,
@@ -320,15 +320,15 @@ public:
 	void Undo() override;
 	void Redo() override;
 
-	// 붙여넣은 루트 오브젝트들(현재 씬 기준 재해석). 호출자가 선택 처리에 사용.
+	// 붙여넣은 루트 오브젝트들(현재 캔버스 기준 재해석). 호출자가 선택 처리에 사용.
 	std::vector<CGameObject*> GetPastedRoots() const;
 
 private:
 	SafePtr<CGameCanvas> m_canvas;
 	std::string m_clipboard;        // 최초 실행 후엔 정규화 스냅샷(guid/위치 고정 → redo 재현)
 	File::Guid  m_parentGuid;       // null = 루트
-	// null = 기본 레이어. 오브젝트 직렬화는 계층·레이어를 담지 않으므로(둘 다 씬 레벨 관심사)
-	// 역직렬화 직후 루트는 항상 씬 루트 + 기본 레이어다 → 매 Execute 마다 다시 배정해야 한다.
+	// null = 기본 레이어. 오브젝트 직렬화는 계층·레이어를 담지 않으므로(둘 다 캔버스 레벨 관심사)
+	// 역직렬화 직후 루트는 항상 캔버스 루트 + 기본 레이어다 → 매 Execute 마다 다시 배정해야 한다.
 	File::Guid  m_layerGuid;
 	bool        m_hasSpawnPos = false;
 	Vector2     m_spawnWorldPos = Vector2(0.0f, 0.0f);

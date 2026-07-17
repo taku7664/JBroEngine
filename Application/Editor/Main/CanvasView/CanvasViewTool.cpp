@@ -1,10 +1,10 @@
 #include "pch.h"
-#include "SceneViewTool.h"
-#include "SceneViewCoordinates.h"
+#include "CanvasViewTool.h"
+#include "CanvasViewCoordinates.h"
 
 #include "Editor/Editor.h"
 #include "Editor/EditorContext.h"
-#include "Editor/Command/EditorSceneCommands.h"
+#include "Editor/Command/EditorObjectCommands.h"
 #include "Editor/Gui/EditorGuiActions.h"
 #include "Editor/Main/Inspector/InspectorTool.h"
 #include "Engine/Core/EngineCore.h"
@@ -18,7 +18,7 @@
 #include "Engine/GameFramework/Component/Physics2DComponents.h"
 #include "Engine/GameFramework/Component/SpriteRenderer2D.h"
 #include "Engine/GameFramework/Component/Transform2D.h"
-#include "Engine/GameFramework/Debug/SceneDebugDrawSystem.h"
+#include "Engine/GameFramework/Debug/CanvasDebugDrawSystem.h"
 #include "Engine/GameFramework/Canvas/Canvas.h"
 #include "Engine/GameFramework/Canvas/CanvasTransformUtils.h"
 
@@ -294,7 +294,7 @@ void CCanvasViewTool::SetFocusContext(CGameObject* object, const CGameCanvas& sc
 {
     if (nullptr == object) return;
 
-    // 편집 컨텍스트를 object로 전환 (씬뷰 더블클릭과 동일한 경로)
+    // 편집 컨텍스트를 object로 전환 (캔버스뷰 더블클릭과 동일한 경로)
     m_editCtx.OnDoubleClick(scene, object);
 
     // 카메라도 해당 오브젝트 위치로 이동
@@ -356,7 +356,7 @@ void CCanvasViewTool::OnRenderStay()
     // ── 카메라 → ImEditor 전달 및 RT 요청 ────────────────────────────────────
     if (Editor::ImEditor)
     {
-        Editor::ImEditor->SetSceneViewCamera(m_cameraPos.x, m_cameraPos.y, m_cameraSize);
+        Editor::ImEditor->SetCanvasViewCamera(m_cameraPos.x, m_cameraPos.y, m_cameraSize);
         Editor::ImEditor->RequestSceneViewRenderTarget(
             static_cast<std::uint32_t>(vpSize.x),
             static_cast<std::uint32_t>(vpSize.y));
@@ -386,7 +386,7 @@ void CCanvasViewTool::OnRenderStay()
 			SafePtr<CGameCanvas> scene = EditorContext::GetActiveCanvas();
             if (scene)
             {
-                // 씬 기본 디버그 (선택 엔티티 OBB 등)
+                // 캔버스 기본 디버그 (선택 엔티티 OBB 등)
                 float resW = 0.0f, resH = 0.0f;
                 if (Editor::ImEditor)
                 {
@@ -425,7 +425,7 @@ void CCanvasViewTool::OnRenderStay()
     // Layer 1: 배경
     dl->AddRectFilled(vpMin, vpMin + vpSize, IM_COL32(26, 28, 32, 255));
 
-    // Layer 2: 씬 RT (그리드 + 스프라이트 + GPU 외곽선 포함)
+    // Layer 2: 캔버스 RT (그리드 + 스프라이트 + GPU 외곽선 포함)
     void* texID = Editor::ImEditor ? Editor::ImEditor->GetSceneViewTextureID() : nullptr;
     if (texID)
     {
@@ -839,12 +839,12 @@ void CCanvasViewTool::OnRenderStay()
                         {
                             m_deleteVtxEntity  = entity->SafeFromThis();
                             m_deleteVtxIndex   = closestVtx;
-                            // 씬 컨텍스트 메뉴와 동일한 ID — 상태를 세팅하고 오픈
+                            // 캔버스 컨텍스트 메뉴와 동일한 ID — 상태를 세팅하고 오픈
                             m_contextMenuEntity = nullptr;
                             m_contextMenuParent = nullptr;
                             ImGui::OpenPopup("##SVCtxMenu");
                             m_suppressNextClick = true;
-                            m_rightClickPending = false; // 씬 컨텍스트 메뉴 중복 억제
+                            m_rightClickPending = false; // 캔버스 컨텍스트 메뉴 중복 억제
                         }
 
                         if (mouseInVp && ImGui::IsItemClicked(ImGuiMouseButton_Left))
@@ -971,7 +971,7 @@ void CCanvasViewTool::OnRenderStay()
     //   mouse-up (drag) → 박스 선택 실행
     //   mouse-up (click) → 단일/더블 클릭 처리
     //
-    // 토글 버튼 영역은 씬 입력에서 제외.
+    // 토글 버튼 영역은 캔버스 입력에서 제외.
 
     // 이미 진행 중인 좌클릭 드래그(박스 선택)는 guizmo 호버에 가로채이면 안 된다.
     // guizmo 가 자기 드래그를 "시작"할 때(IsActive)는 ConsumedMouse 로 막는 게 맞지만,
@@ -1190,7 +1190,7 @@ void CCanvasViewTool::OnRenderStay()
                                 ? AsSafe(m_editCtx.GetContext())
                                 : SafePtr<CGameObject>();
                         }
-                        // 씬 오브젝트/빈공간 메뉴: 버텍스 섹션 상태 초기화
+                        // 캔버스 오브젝트/빈공간 메뉴: 버텍스 섹션 상태 초기화
                         m_deleteVtxEntity = nullptr;
                         m_deleteVtxIndex  = -1;
                         ImGui::OpenPopup("##SVCtxMenu");
@@ -1210,7 +1210,7 @@ void CCanvasViewTool::OnRenderStay()
         m_rightDragging     = false;
     }
 
-    // ── 씬뷰 컨텍스트 메뉴 (단일 팝업 ID로 모든 우클릭 통합) ──────────────────
+    // ── 캔버스뷰 컨텍스트 메뉴 (단일 팝업 ID로 모든 우클릭 통합) ──────────────────
     //
     // 열리는 경우:
     //   1. 포커스 폴리곤 버텍스 우클릭   → m_deleteVtxEntity/Index 세팅
@@ -1249,7 +1249,7 @@ void CCanvasViewTool::OnRenderStay()
                     ImGui::TextDisabled(Loc::Text(EditorLocKeys::SceneViewVertexDeleteMin));
                 }
 
-                // 씬 오브젝트 메뉴도 같이 표시될 경우를 위한 구분선
+                // 캔버스 오브젝트 메뉴도 같이 표시될 경우를 위한 구분선
                 const bool hasSceneSection =
                     m_contextMenuEntity.IsValid()
                     || m_contextMenuParent.IsValid();
@@ -1330,7 +1330,7 @@ void CCanvasViewTool::OnRenderStay()
             if (Editor::ImEditor) Editor::ImEditor->ClearSceneViewSelection();
         }
 
-        // 씬뷰 숨김(EditorHidden 플래그) — 오브젝트 주소 키 집합 전달.
+        // 캔버스뷰 숨김(EditorHidden 플래그) — 오브젝트 주소 키 집합 전달.
         if (scene && Editor::ImEditor)
         {
             std::vector<const void*> hidden;

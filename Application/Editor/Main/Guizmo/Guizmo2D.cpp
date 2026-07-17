@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "Guizmo2D.h"
 
-#include "Editor/Command/EditorSceneCommands.h"
+#include "Editor/Command/EditorObjectCommands.h"
 #include "Editor/Editor.h"
 #include "Engine/GameFramework/Object/GameObject.h"
 #include "Engine/GameFramework/Canvas/Canvas.h"

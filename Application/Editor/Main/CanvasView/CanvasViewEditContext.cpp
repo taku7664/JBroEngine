@@ -1,6 +1,6 @@
 #include "pch.h"
-#include "SceneViewEditContext.h"
-#include "SceneViewCoordinates.h"
+#include "CanvasViewEditContext.h"
+#include "CanvasViewCoordinates.h"
 
 #include <unordered_set>
 #include <vector>
@@ -29,7 +29,7 @@ namespace
 
     // ── 계층 탐색 헬퍼 ────────────────────────────────────────────────────────
 
-    // 씬 루트까지 올라가서 최상위 조상 반환
+    // 캔버스 루트까지 올라가서 최상위 조상 반환
     CGameObject* GetRootAncestor(CGameObject* obj)
     {
         if (!obj) return nullptr;
@@ -262,9 +262,9 @@ namespace
 
 } // anonymous namespace
 
-// ── CSceneViewEditContext implementation ─────────────────────────────────────
+// ── CCanvasViewEditContext implementation ─────────────────────────────────────
 
-void CSceneViewEditContext::Validate(const CGameCanvas& scene)
+void CCanvasViewEditContext::Validate(const CGameCanvas& scene)
 {
     (void)scene;
     // SafePtr 가 파괴된 오브젝트를 자동으로 null 로 만든다 — TryGet 으로 확정만.
@@ -272,7 +272,7 @@ void CSceneViewEditContext::Validate(const CGameCanvas& scene)
         m_context = SafePtr<CGameObject>();
 }
 
-CGameObject* CSceneViewEditContext::Pick(
+CGameObject* CCanvasViewEditContext::Pick(
     const CGameCanvas& scene,
     const Vector2& worldPt,
     IAssetManager* assetMgr) const
@@ -286,7 +286,7 @@ CGameObject* CSceneViewEditContext::Pick(
         {
             CGameObject* owner = sprite.GetOwner().TryGet();
             if (!owner || !owner->IsActive || !sprite.IsEnabled()) return;
-            if (owner->IsEditorHidden()) return; // 씬뷰 숨김 → 픽킹 제외
+            if (owner->IsEditorHidden()) return; // 캔버스뷰 숨김 → 픽킹 제외
 
             // 포커스 모드: m_context 자신 또는 그 자손만 대상
             if (context)
@@ -452,7 +452,7 @@ CGameObject* CSceneViewEditContext::Pick(
     return GetDirectChildOfContext(context, pickedObject);
 }
 
-std::vector<CGameObject*> CSceneViewEditContext::PickBox(
+std::vector<CGameObject*> CCanvasViewEditContext::PickBox(
     const CGameCanvas& scene,
     const Vector2& worldMin,
     const Vector2& worldMax,
@@ -469,7 +469,7 @@ std::vector<CGameObject*> CSceneViewEditContext::PickBox(
         [&](CGameObject& object)
         {
             if (!object.IsActive) return;
-            if (object.IsEditorHidden()) return; // 씬뷰 숨김 → 박스선택 제외
+            if (object.IsEditorHidden()) return; // 캔버스뷰 숨김 → 박스선택 제외
 
             // 컨텍스트 필터
             if (context)
@@ -577,7 +577,7 @@ std::vector<CGameObject*> CSceneViewEditContext::PickBox(
     return std::vector<CGameObject*>(foundSet.begin(), foundSet.end());
 }
 
-CGameObject* CSceneViewEditContext::OnDoubleClick(const CGameCanvas& /*scene*/, CGameObject* picked)
+CGameObject* CCanvasViewEditContext::OnDoubleClick(const CGameCanvas& /*scene*/, CGameObject* picked)
 {
     if (nullptr == picked) return nullptr;
 
@@ -588,7 +588,7 @@ CGameObject* CSceneViewEditContext::OnDoubleClick(const CGameCanvas& /*scene*/, 
     return picked; // 호출자가 FocusOnEntity 에 전달
 }
 
-CGameObject* CSceneViewEditContext::OnDoubleClickEmpty(const CGameCanvas& /*scene*/)
+CGameObject* CCanvasViewEditContext::OnDoubleClickEmpty(const CGameCanvas& /*scene*/)
 {
     CGameObject* ctxObj = m_context.TryGet();
     if (nullptr == ctxObj)

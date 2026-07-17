@@ -483,7 +483,7 @@ void CLiveCompileManager::DestroyCurrentModule()
 }
 
 // ── TakeScriptSnapshot ────────────────────────────────────────────────────────
-// DLL 언로드 직전에 활성 씬의 모든 스크립트 컴포넌트 필드를 저장한다.
+// DLL 언로드 직전에 활성 캔버스의 모든 스크립트 컴포넌트 필드를 저장한다.
 // Reflection 정보가 있는 REFLECT_FIELD 만 보존되며, 내부 런타임 상태는 초기화된다.
 void CLiveCompileManager::TakeScriptSnapshot()
 {
@@ -496,7 +496,7 @@ void CLiveCompileManager::TakeScriptSnapshot()
 		return;
 	}
 
-	// 런타임 캔버스는 하나뿐이다 — 예전처럼 로드된 씬 목록을 훑을 대상이 없다.
+	// 런타임 캔버스는 하나뿐이다 — 예전처럼 로드된 캔버스 목록을 훑을 대상이 없다.
 	SafePtr<CGameCanvas> canvas = sceneMgr->GetActiveCanvas();
 	if (false == canvas.IsValid())
 	{

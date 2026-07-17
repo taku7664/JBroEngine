@@ -60,9 +60,9 @@ private:
 	// 프로젝트 로딩 팝업 핸들 — 같은 팝업 중복 OpenPopup 방지용.
 	PopupHandle       m_loadingPopupHandle      = INVALID_POPUP_HANDLE;
 
-	// 마지막 씬 자동 로드 지연 플래그.
+	// 마지막 캔버스 자동 로드 지연 플래그.
 	// LoadProject 는 자산 임포트/스크립트 빌드를 비동기 태스크로 큐잉만 하고 즉시 반환한다.
-	// 씬 프리로드(PreloadReferencedAssets)는 메인 스레드 동기 작업이라, 비동기 로드가
+	// 캔버스 프리로드(PreloadReferencedAssets)는 메인 스레드 동기 작업이라, 비동기 로드가
 	// 끝나기 전에 호출하면 메인 스레드가 막혀 에디터가 프리즈된다(+ 자산이 아직 임포트되지
 	// 않아 참조가 풀리지 않음). 따라서 HasLoadingTasks() 가 false 가 된 뒤에 로드한다.
 	bool              m_pendingLoadLastScene    = false;

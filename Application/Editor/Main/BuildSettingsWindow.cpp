@@ -635,7 +635,7 @@ void CBuildSettingsWindow::DrawScenesCategory()
 		}
 	}
 
-	// Always Include — 어떤 씬도 참조하지 않지만 런타임에 직접 로드할 자산.
+	// Always Include — 어떤 캔버스도 참조하지 않지만 런타임에 직접 로드할 자산.
 	// 참조 기반 패키징에서 이 목록이 코드 로드 자산의 누락 방지 장치가 된다.
 	ImGui::Spacing();
 	ImSectionHeader(Loc::Text(EditorLocKeys::BuildSettingsAlwaysInclude))
@@ -761,8 +761,8 @@ void CBuildSettingsWindow::LoadFromProject()
 	m_enableIOS     = build.EnableIOS;
 	m_buildConfiguration = ToIndex(build.BuildConfiguration);
 	m_outputDirectory = build.OutputDirectory;
-	m_startupScene = build.StartupScene;
-	m_buildScenes = build.BuildScenes;
+	m_startupScene = build.StartupCanvas;
+	m_buildScenes = build.BuildCanvases;
 	m_alwaysIncludeAssets = build.AlwaysIncludeAssets;
 	m_windowsIconGuid = build.WindowsIconGuid;
 	m_androidApplicationId = build.AndroidApplicationId;
@@ -802,8 +802,8 @@ bool CBuildSettingsWindow::ApplyToProject(std::string* outError)
 	buildSettings.EnableIOS     = m_enableIOS;
 	buildSettings.BuildConfiguration = ToBuildConfiguration(m_buildConfiguration);
 	buildSettings.OutputDirectory = m_outputDirectory;
-	buildSettings.StartupScene = m_startupScene;
-	buildSettings.BuildScenes = m_buildScenes;
+	buildSettings.StartupCanvas = m_startupScene;
+	buildSettings.BuildCanvases = m_buildScenes;
 	buildSettings.AlwaysIncludeAssets = m_alwaysIncludeAssets;
 	buildSettings.WindowsIconGuid = m_windowsIconGuid;
 	buildSettings.AndroidApplicationId = m_androidApplicationId;

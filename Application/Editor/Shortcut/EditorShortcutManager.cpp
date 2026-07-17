@@ -6,7 +6,7 @@
 #include "Editor/EditorSessionPersistence.h"
 #include "Editor/Gui/EditorGuiActions.h"
 #include "Editor/Main/GameView/GameViewTool.h"
-#include "Editor/Main/SceneView/SceneViewTool.h"
+#include "Editor/Main/CanvasView/CanvasViewTool.h"
 #include "Engine/Core/EngineCore.h"
 #include "Engine/Core/Logging/LoggerInternal.h"
 #include "Engine/GameFramework/Canvas/Canvas.h"

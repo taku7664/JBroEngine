@@ -90,11 +90,11 @@ public:
 	bool IsDebugModeEnabled() const;
 	void SetDebugModeEnabled(bool enabled);
 
-	// 씬 뷰 에디터 카메라 (저장/복원용)
-	float GetSceneViewCamX()    const;
-	float GetSceneViewCamY()    const;
-	float GetSceneViewCamSize() const;
-	void  SetSceneViewCamera(float x, float y, float size);
+	// 캔버스 뷰 에디터 카메라 (저장/복원용)
+	float GetCanvasViewCamX()    const;
+	float GetCanvasViewCamY()    const;
+	float GetCanvasViewCamSize() const;
+	void  SetCanvasViewCamera(float x, float y, float size);
 
 	// 스크립트 DLL 경로
 	const std::string& GetScriptDllPath() const;
@@ -115,7 +115,7 @@ public:
 	bool IsLiveCompileEnabled() const;
 	void SetLiveCompileEnabled(bool enabled);
 
-	// 마지막으로 열었던 씬 경로 (Assets 폴더 기준 상대경로)
+	// 마지막으로 열었던 캔버스 경로 (Assets 폴더 기준 상대경로)
 	const std::string& GetLastOpenedScenePath() const;
 	void               SetLastOpenedScenePath(const std::string& relativePath);
 
@@ -186,7 +186,7 @@ private:
 	void ProcessAssetEvent(const FileWatchEvent& event);
 	// loadData=true: 메타 등록 + 데이터 로드(ReloadAsset). false: 메타 등록만(데이터 미로드).
 	bool ImportOrReloadAsset(const File::Path& absolutePath, bool loadData = true);
-	// 마지막 씬(상대경로)이 참조하는 에셋 GUID 를 전이적으로 수집한다(프리팹 참조 포함).
+	// 마지막 캔버스(상대경로)이 참조하는 에셋 GUID 를 전이적으로 수집한다(프리팹 참조 포함).
 	std::vector<AssetGuid> CollectSceneLoadAssets(const std::string& sceneRelativePath) const;
 	bool IsImportableAssetPath(const File::Path& absolutePath) const;
 	bool MakeAssetRelativePath(const File::Path& absolutePath, std::string& outRelativePath) const;

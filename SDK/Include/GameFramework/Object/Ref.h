@@ -16,19 +16,19 @@
 //  - 직접 포인터를 들고 있지 않고, 대상의 안정 식별자(guid 문자열)만 저장한다.
 //      · GameObject / Component / Script : 대상 오브젝트의 InstanceGuid
 //      · Asset                            : 에셋의 AssetGuid
-//    덕분에 씬 저장/로드, 컴포넌트 재배치(sparse-set 재할당), DLL 핫리로드를
+//    덕분에 캔버스 저장/로드, 컴포넌트 재배치(sparse-set 재할당), DLL 핫리로드를
 //    넘어서도 참조가 끊기지 않는다.
 //
 //  - 저장부는 RefBase 의 고정 길이 char 버퍼(POD)다. File::Guid(std::filesystem::path)
 //    같은 힙 포인터 보유 객체를 게임 스크립트 인스턴스에 두면 호스트↔게임 DLL ABI
 //    불일치로 값이 깨지므로, guid 는 POD 버퍼로만 저장하고 해석 시점에만 File::Guid 로 변환.
 //
-//  - Get() 은 매 호출 시 활성 씬/에셋 매니저에서 다시 해석한다(캐시 없음).
+//  - Get() 은 매 호출 시 활성 캔버스/에셋 매니저에서 다시 해석한다(캐시 없음).
 //
 //  카테고리는 T 로부터 컴파일타임에 결정된다:
 //      IAsset 파생      → Asset
 //      CGameScript 파생 → Script
-//      CGameCanvas       → Scene (guid 대신 씬 이름 저장 — CanvasManager 의 유일 키)
+//      CGameCanvas       → Scene (guid 대신 캔버스 이름 저장 — CanvasManager 의 유일 키)
 //      그 외(POD 컴포넌트, GameObject 포함) → Component
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -44,12 +44,12 @@ namespace RefDetail
 	// Ref.cpp 에서 정의 — 무거운 헤더(Scene/Core/AssetManager)를 헤더로 끌어오지 않는다.
 	// 경계엔 POD(const char*) 만 넘긴다 — File::Guid 는 Ref.cpp 내부에서만 구성.
 
-	// (오브젝트 guid + 컴포넌트 guid) → 활성 씬의 그 오브젝트에서 컴포넌트 guid 로 특정
+	// (오브젝트 guid + 컴포넌트 guid) → 활성 캔버스의 그 오브젝트에서 컴포넌트 guid 로 특정
 	// 컴포넌트를 찾고, 타입이 맞으면 주소(void*)를 반환. 같은 타입이 여럿이어도 1개 지목.
 	// 컴포넌트 guid 가 비어 있으면(구 데이터) 타입 첫 매치로 폴백.
 	void* ResolveComponent(const char* objectGuid, const char* componentGuid, TypeId componentTypeId);
 
-	// InstanceGuid → 활성 씬의 오브젝트(CGameObject*) 자체.
+	// InstanceGuid → 활성 캔버스의 오브젝트(CGameObject*) 자체.
 	CGameObject* ResolveObject(const char* instanceGuid);
 
 	// (오브젝트 guid + 컴포넌트 guid) → 그 오브젝트의 특정 CGameScript.
@@ -59,7 +59,7 @@ namespace RefDetail
 	// AssetGuid → 활성 에셋 매니저에서 로드/조회한 IAsset*.
 	IAsset* ResolveAsset(const char* assetGuid);
 
-	// 씬 이름 → CanvasManager 의 로드된 씬(CGameCanvas*). 파괴/미로드면 nullptr.
+	// 캔버스 이름 → CanvasManager 의 로드된 캔버스(CGameCanvas*). 파괴/미로드면 nullptr.
 	CGameCanvas* ResolveCanvas(const char* canvasName);
 }
 
@@ -152,7 +152,7 @@ public:
 		}
 		else if constexpr (ERefCategory::Canvas == Category)
 		{
-			// 씬 — guid 가 아니라 씬 이름으로 CanvasManager 에서 해석.
+			// 캔버스 — guid 가 아니라 캔버스 이름으로 CanvasManager 에서 해석.
 			return static_cast<T*>(RefDetail::ResolveCanvas(Guid));
 		}
 		else

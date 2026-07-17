@@ -41,7 +41,7 @@ public:
 	virtual SafePtr<IAudioBus>      GetBus       (EAudioBusKind kind) = 0;
 	virtual OwnerPtr<IAudioEffect>  CreateEffect (EAudioEffectKind kind) = 0;
 
-	// 씬당 활성 1개 (backend 가 소유). 게임 측 AudioListener 컴포넌트가
+	// 캔버스당 활성 1개 (backend 가 소유). 게임 측 AudioListener 컴포넌트가
 	// SetPosition 등으로 매 프레임 갱신.
 	virtual SafePtr<IAudioListener> GetPrimaryListener() = 0;
 

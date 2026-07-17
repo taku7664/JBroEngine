@@ -245,7 +245,7 @@ private:
 	void* AllocateScriptMemory(TypeId scriptTypeId, std::size_t size, std::size_t alignment);
 	void FreeScriptMemory(TypeId scriptTypeId, void* ptr, std::size_t size, std::size_t alignment);
 
-	// 호스트가 받은 윈도우 이벤트를 이 씬의 살아있는 스크립트 인스턴스들에 전달한다.
+	// 호스트가 받은 윈도우 이벤트를 이 캔버스의 살아있는 스크립트 인스턴스들에 전달한다.
 	// 인스턴스는 시뮬레이션(재생) 중에만 존재하므로 편집 모드에선 자연히 no-op.
 	void DispatchSurfaceEventToScripts(const SurfaceEvent& surfaceEvent);
 
@@ -272,7 +272,7 @@ private:
 	// 캔버스 내용 교체 전용 — 보유분을 호출자에게 넘긴다(캔버스는 미보유 상태가 된다).
 	// 호출자는 이 반환값을 **살려 둔 채** 새 목록을 acquire 한 다음 놓아야 한다. 순서가
 	// 뒤집히면 두 캔버스가 공유하는 에셋이 use-count 0 으로 떨어져 unload 됐다가 곧바로
-	// 다시 로드된다(구 SetActiveScene 이 "새 씬 acquire 뒤 옛 씬 release" 였던 이유).
+	// 다시 로드된다(구 SetActiveScene 이 "새 캔버스 acquire 뒤 옛 캔버스 release" 였던 이유).
 	std::vector<AssetRef<IAsset>> TakeLoadedAssets()
 	{
 		std::vector<AssetRef<IAsset>> taken = std::move(m_loadedAssets);
@@ -473,7 +473,7 @@ private:
 
 private:
 	std::string                        m_name; // 캔버스 파일 키(SetCanvasName 설정)
-	// 레이어 목록 — 벡터 순서가 곧 컴포짓/실행 순서. 소유는 씬, 공유는 SafePtr.
+	// 레이어 목록 — 벡터 순서가 곧 컴포짓/실행 순서. 소유는 캔버스, 공유는 SafePtr.
 	std::vector<OwnerPtr<CGameLayer>>  m_layers;
 	// 뷰포트 목록 — 순서대로 그린다(뒤 항목이 화면 위). 값 타입: 개수가 적고 참조를
 	// 오래 들 일이 없다(에디터·스크립트는 인덱스/이름으로 접근).

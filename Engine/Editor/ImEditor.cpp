@@ -19,7 +19,7 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg
 
 namespace
 {
-	// 셰이더 리소스 겸용 렌더타겟 생성(없을 때만). 씬뷰/게임뷰/레이어 썸네일 공용.
+	// 셰이더 리소스 겸용 렌더타겟 생성(없을 때만). 캔버스뷰/게임뷰/레이어 썸네일 공용.
 	bool EnsureRenderTexture(IRHIDevice& device, OwnerPtr<IRHITexture>& texture,
 	                         std::uint32_t width, std::uint32_t height)
 	{
@@ -232,7 +232,7 @@ void CImEditor::RequestSceneViewRenderTarget(std::uint32_t width, std::uint32_t 
 	}
 }
 
-void CImEditor::SetSceneViewCamera(float posX, float posY, float orthographicSize)
+void CImEditor::SetCanvasViewCamera(float posX, float posY, float orthographicSize)
 {
 	m_sceneViewCamX    = posX;
 	m_sceneViewCamY    = posY;
@@ -652,7 +652,7 @@ void CImEditor::OnPrepareRender()
 		return EnsureRenderTexture(*engineCore->RHIDevice, rt, w, h);
 	};
 
-	// 씬뷰 레이어 스냅샷 — 편집 뷰가 그리는 대상은 활성 씬이다(게임뷰는 자기 씬을 따로 지정).
+	// 캔버스뷰 레이어 스냅샷 — 편집 뷰가 그리는 대상은 활성 캔버스가다(게임뷰는 자기 캔버스를 따로 지정).
 	// 전 레이어 RT 강제: 에디터에선 레이어별 결과가 그대로 보여야 하고 성능 여유가 있다.
 	m_sceneViewLayers.clear();
 	if (Engine.CanvasManager.IsValid())
@@ -697,7 +697,7 @@ void CImEditor::OnPrepareRender()
 			}
 		}
 
-		// ── Step 1~4: 메인 씬 패스 ───────────────────────────────────────────────
+		// ── Step 1~4: 메인 캔버스 패스 ───────────────────────────────────────────────
 		RenderPassDesc rpDesc;
 		rpDesc.ColorAttachment.Target     = m_sceneViewRenderTarget.GetSafePtr();
 		rpDesc.ColorAttachment.LoadOp     = ERHILoadOp::Clear;
@@ -714,7 +714,7 @@ void CImEditor::OnPrepareRender()
 		}
 
 		// ② 스프라이트 — 캔버스 레이어를 순서대로 합성한다(편집 뷰도 WYSIWYG).
-		//    EditorHidden 오브젝트는 씬뷰에서만 제외. 레이어 스냅샷이 없으면 평면 렌더로 폴백.
+		//    EditorHidden 오브젝트는 캔버스뷰에서만 제외. 레이어 스냅샷이 없으면 평면 렌더로 폴백.
 		//    편집 카메라는 자유 카메라라 패럴랙스를 적용하지 않는다 — 레이어를 같은 뷰로 보여
 		//    배치 작업이 되게 하고, 패럴랙스 확인은 게임뷰에서 한다.
 		{
@@ -844,7 +844,7 @@ void CImEditor::OnPrepareRender()
 	if (m_gameViewRequested && EnsureRT(m_gameViewRenderTarget, m_gameViewWidth, m_gameViewHeight))
 	{
 		// 카메라/라이트 스냅샷을 여기(시뮬 이후·렌더 직전)서 수집한다 — GameViewTool
-		// 의 UI 빌드 시점(씬 업데이트 전) 수집은 1프레임 지연 카메라를 만든다.
+		// 의 UI 빌드 시점(캔버스 업데이트 전) 수집은 1프레임 지연 카메라를 만든다.
 		if (CGameCanvas* gameViewScene = m_gameViewScene.TryGet())
 		{
 			m_gameViewViewports = CollectGameRenderViewports(
@@ -884,7 +884,7 @@ void CImEditor::OnPrepareRender()
 		m_gameViewCameraCullingStats.clear();
 	}
 
-	// 씬뷰/게임뷰와 독립 — 둘 다 닫혀 있어도 하이어라키가 요청하면 그린다.
+	// 캔버스뷰/게임뷰와 독립 — 둘 다 닫혀 있어도 하이어라키가 요청하면 그린다.
 	// 렌더러 뷰 상태를 바꾸므로 다른 뷰의 렌더가 끝난 뒤 마지막에 돈다.
 	RenderLayerThumbnails();
 }

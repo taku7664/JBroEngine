@@ -375,7 +375,7 @@ namespace
 	}
 
 	// entry 에 SafePtr<CSpriteAsset> 썸네일을 채워둔다 (RefreshCurrentFolderEntries 에서 1회).
-	// - 폴더/씬/스크립트 등: ResourceRegistry 의 아이콘
+	// - 폴더/캔버스/스크립트 등: ResourceRegistry 의 아이콘
 	// - 이미지 파일      : 해당 파일 자체를 path-based persistent 자산으로 로드
 	void PopulateEntryThumbnail(AssetBrowserEntry& entry,
 	                            SafePtr<IAssetManager> assetManager,

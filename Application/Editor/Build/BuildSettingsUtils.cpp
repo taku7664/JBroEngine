@@ -162,7 +162,7 @@ bool BuildSettingsUtils::HasRequiredIssueForPlatform(
 {
 	if (IsBlank(settings.ProductName)
 		|| IsBlank(settings.OutputDirectory)
-		|| false == HasSceneFileExtension(settings.StartupScene))
+		|| false == HasSceneFileExtension(settings.StartupCanvas))
 	{
 		return true;
 	}

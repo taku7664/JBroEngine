@@ -42,7 +42,7 @@
     <ClInclude Include="Editor\Command\EditorLayerCommands.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
-    <ClInclude Include="Editor\Command\EditorSceneCommands.h">
+    <ClInclude Include="Editor\Command\EditorObjectCommands.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="Editor\Main\Guizmo\EditorGuizmoController.h">
@@ -180,13 +180,13 @@
     <ClInclude Include="Editor\Main\AssetBrowser\AssetBrowserUtils.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
-    <ClInclude Include="Editor\Main\SceneView\SceneViewTool.h">
+    <ClInclude Include="Editor\Main\CanvasView\CanvasViewTool.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
-    <ClInclude Include="Editor\Main\SceneView\SceneViewContour.h">
+    <ClInclude Include="Editor\Main\CanvasView\CanvasViewContour.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
-    <ClInclude Include="Editor\Main\SceneView\SceneViewEditContext.h">
+    <ClInclude Include="Editor\Main\CanvasView\CanvasViewEditContext.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="Editor\Main\GameView\GameViewTool.h">
@@ -195,7 +195,7 @@
     <ClInclude Include="Editor\Main\Inspector\InspectorTool.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
-    <ClInclude Include="Editor\Main\Hierarchy\HierarchyTool.h">
+    <ClInclude Include="Editor\Main\Layers\LayerTool.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="Editor\Main\AssetBrowser\AssetBrowserTool.h">
@@ -213,7 +213,7 @@
     <ClInclude Include="Editor\Theme\EditorTheme.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
-    <ClInclude Include="Editor\Main\SceneView\SceneViewCoordinates.h">
+    <ClInclude Include="Editor\Main\CanvasView\CanvasViewCoordinates.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="Editor\Main\Importer\ImporterGui.h">
@@ -281,7 +281,7 @@
     <ClCompile Include="Editor\Command\EditorLayerCommands.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
-    <ClCompile Include="Editor\Command\EditorSceneCommands.cpp">
+    <ClCompile Include="Editor\Command\EditorObjectCommands.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="Editor\Main\Guizmo\EditorGuizmoController.cpp">
@@ -377,13 +377,13 @@
     <ClCompile Include="Editor\RootDockWindow.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
-    <ClCompile Include="Editor\Main\SceneView\SceneViewTool.cpp">
+    <ClCompile Include="Editor\Main\CanvasView\CanvasViewTool.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
-    <ClCompile Include="Editor\Main\SceneView\SceneViewContour.cpp">
+    <ClCompile Include="Editor\Main\CanvasView\CanvasViewContour.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
-    <ClCompile Include="Editor\Main\SceneView\SceneViewEditContext.cpp">
+    <ClCompile Include="Editor\Main\CanvasView\CanvasViewEditContext.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="Editor\Main\GameView\GameViewTool.cpp">
@@ -392,7 +392,7 @@
     <ClCompile Include="Editor\Main\Inspector\InspectorTool.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
-    <ClCompile Include="Editor\Main\Hierarchy\HierarchyTool.cpp">
+    <ClCompile Include="Editor\Main\Layers\LayerTool.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="Editor\Main\AssetBrowser\AssetBrowserTool.cpp">
@@ -434,7 +434,7 @@
     <ClCompile Include="Editor\Theme\EditorTheme.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
-    <ClCompile Include="Editor\Main\SceneView\SceneViewCoordinates.cpp">
+    <ClCompile Include="Editor\Main\CanvasView\CanvasViewCoordinates.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="Editor\Main\AssetBrowser\AssetHandler.cpp">

@@ -9,7 +9,7 @@
 //  AudioListener / AudioPlayer 컴포넌트
 //
 //  AudioListener
-//    - 씬에 0~1 개. 여러 개가 있으면 CAudioSystem 이 첫 번째 활성 인스턴스만 사용.
+//    - 캔버스에 0~1 개. 여러 개가 있으면 CAudioSystem 이 첫 번째 활성 인스턴스만 사용.
 //    - Transform2D 의 월드 위치가 IAudioDevice 의 primary listener 로 매 프레임 push.
 //
 //  AudioPlayer
@@ -48,6 +48,6 @@ public:
 	float     MinDistance = 1.0f;
 	float     MaxDistance = 50.0f;
 
-	// 컴포넌트가 활성화될 때(또는 씬 시작 시) 자동 재생.
+	// 컴포넌트가 활성화될 때(또는 캔버스 시작 시) 자동 재생.
 	bool      PlayOnStart = true;
 };

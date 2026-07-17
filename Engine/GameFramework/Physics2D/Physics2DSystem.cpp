@@ -31,7 +31,7 @@
 #endif
 
 // 충돌 시각화 — DebugDraw2D 로 매니폴드 normal 화살표 + contact point 그림.
-// 씬뷰에서 normal 방향이 잘못 정렬되는지 즉시 확인 가능.  0: 비활성.
+// 캔버스뷰에서 normal 방향이 잘못 정렬되는지 즉시 확인 가능.  0: 비활성.
 #ifndef JBRO_PHYSICS_DEBUG_DRAW
 #define JBRO_PHYSICS_DEBUG_DRAW 1
 #endif
@@ -1657,7 +1657,7 @@ void CPhysics2DSystem::OnSimulationStop(CGameCanvas& /*scene*/)
 
 void CPhysics2DSystem::OnInitialize(CGameCanvas& scene)
 {
-	// 질의(Raycast/Overlap)가 scene 인자 없이 동작하도록 캐싱. 시스템 수명 = 씬 수명.
+	// 질의(Raycast/Overlap)가 scene 인자 없이 동작하도록 캐싱. 시스템 수명 = 캔버스 수명.
 	m_canvas = &scene;
 }
 

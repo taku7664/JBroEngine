@@ -613,7 +613,7 @@
     <ClInclude Include="Core\Network\Web\WebSocketTransport.h" />
     <ClInclude Include="GameFramework\Component\Light2D.h" />
     <ClInclude Include="GameFramework\Physics2D\Physics2DGeometry.h" />
-    <ClInclude Include="GameFramework\Debug\SceneDebugDrawSystem.h" />
+    <ClInclude Include="GameFramework\Debug\CanvasDebugDrawSystem.h" />
     <ClInclude Include="GameFramework\Physics2D\Physics2DSystem.h" />
     <ClInclude Include="GameFramework\Physics2D\Physics2DTypes.h" />
     <ClInclude Include="GameFramework\Component\Physics2DComponents.h" />
@@ -809,7 +809,7 @@
     <ClCompile Include="Core\Resource\ResourceRegistry.cpp" />
     <ClCompile Include="Core\Logging\Logger.cpp" />
     <ClCompile Include="GameFramework\Physics2D\Physics2DGeometry.cpp" />
-    <ClCompile Include="GameFramework\Debug\SceneDebugDrawSystem.cpp" />
+    <ClCompile Include="GameFramework\Debug\CanvasDebugDrawSystem.cpp" />
     <ClCompile Include="GameFramework\Physics2D\Physics2DSystem.cpp" />
     <ClCompile Include="GameFramework\Component\BuiltinComponentRegistry.cpp" />
     <ClCompile Include="GameFramework\Reflection\ReflectionRegistry.cpp" />

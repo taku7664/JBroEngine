@@ -265,7 +265,7 @@ bool CReflectionRegistry::RegisterScript(const ScriptRegisterDesc& desc)
 
 	// ── 입력 핸들러 사이드캐스트 썽크 ───────────────────────────────────────
 	// T 가 IInputHandler 를 상속하면(InputHandler<...> 경유) CGameScript*→IInputHandler*
-	// 정적 캐스트 썽크를 채운다. 씬의 스크립트 런타임 상태가 입력 등록에 사용한다.
+	// 정적 캐스트 썽크를 채운다. 캔버스의 스크립트 런타임 상태가 입력 등록에 사용한다.
 	if constexpr (std::is_base_of_v<IInputHandler, T>)
 	{
 		typeInfo.ToInputHandler = [](CGameScript* script) -> IInputHandler* {

@@ -158,7 +158,7 @@ struct ReflectPropertyInfo
 	bool                 HasRange     = false;      // true 면 슬라이더 + 클램프
 	float                RangeMin     = 0.0f;
 	float                RangeMax     = 0.0f;
-	// false 면 인스펙터엔 노출하되 씬 파일에는 저장/복원하지 않는다(JPROP(NoSerialize)).
+	// false 면 인스펙터엔 노출하되 캔버스 파일에는 저장/복원하지 않는다(JPROP(NoSerialize)).
 	bool                 Serialize    = true;
 
 	// ── Ref 전용 (Type == Ref 일 때만 유효) ───────────────────────────────────

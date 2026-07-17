@@ -53,7 +53,7 @@ public:
 	const std::vector<Physics2DManifold>& GetManifolds() const;
 
 protected:
-	// 질의가 scene 참조 없이 동작하도록 초기화 시 scene 포인터를 캐싱한다(시스템 수명=씬 수명).
+	// 질의가 scene 참조 없이 동작하도록 초기화 시 scene 포인터를 캐싱한다(시스템 수명=캔버스 수명).
 	void OnInitialize(CGameCanvas& scene) override;
 	void OnFixedUpdate(CGameCanvas& scene) override;
 	// 시뮬레이션 정지 시 접촉 상태 초기화 — 재생 재개 시 잔여 Exit 이벤트가 튀지 않게 한다.
@@ -106,6 +106,6 @@ private:
 	};
 	std::vector<ContactPairState>   m_prevContacts;
 
-	// 질의용 scene 캐시(OnInitialize 에서 설정). 시스템은 씬이 소유하므로 수명 내 유효.
+	// 질의용 scene 캐시(OnInitialize 에서 설정). 시스템은 캔버스가 소유하므로 수명 내 유효.
 	CGameCanvas*                     m_canvas = nullptr;
 };

@@ -10,18 +10,18 @@ class IAssetManager;
 struct ImDrawList;
 struct ImVec2;
 
-// ── CSceneViewEditContext ─────────────────────────────────────────────────────
+// ── CCanvasViewEditContext ─────────────────────────────────────────────────────
 //
 //  포커스 내비게이션 상태 및 오버레이 렌더링 담당.
 //
-//  루트 모드  (m_context == nullptr) : 씬 최상위 레벨 탐색
+//  루트 모드  (m_context == nullptr) : 캔버스 최상위 레벨 탐색
 //  포커스 모드 (m_context 유효)      : 해당 오브젝트 "안" 에서 직계 자식 탐색
 //
 //  단일 클릭               → 현재 레벨에서 엔티티 선택 (컨텍스트 변경 없음)
 //  더블 클릭 on 오브젝트   → 자식 있는 경우 진입 + 카메라 포커싱
 //  더블 클릭 on 빈 공간   → 상위 컨텍스트로 탈출
 
-class CSceneViewEditContext
+class CCanvasViewEditContext
 {
 public:
     CGameObject* GetContext() const { return m_context.TryGet(); }

@@ -346,17 +346,17 @@ namespace
 #endif
 	}
 
-	// 런타임 캔버스에 씬 파일 내용을 싣고 리소스(에셋)까지 확보한다.
+	// 런타임 캔버스에 캔버스 파일 내용을 싣고 리소스(에셋)까지 확보한다.
 	//  · guid 가 유효하면 패키지 에셋(LoadAsset → text)에서, 아니면 경로(ResolveAssetPath)에서 로드.
 	//  · Sprite/Audio 시스템을 부착하고 ScriptCore 디바이스를 주입한다.
-	// 캔버스는 런타임에 하나뿐이라 "실패 시 만든 씬을 지운다"가 성립하지 않는다 —
+	// 캔버스는 런타임에 하나뿐이라 "실패 시 만든 캔버스를 지운다"가 성립하지 않는다 —
 	// 실패하면 캔버스는 로드 이전 상태(대개 빈 상태)로 남고 호출자가 부팅을 접는다.
 	bool LoadRuntimeCanvas(CCanvasManager& canvasManager,
 	                       IAssetManager& assetManager,
 	                       const ScriptCore* context,
 	                       const std::string& canvasName,
 	                       const AssetGuid& sceneGuid,
-	                       const std::string& scenePathText)
+	                       const std::string& canvasPathText)
 	{
 		CGameCanvas* scene = &canvasManager.GetOrCreateCanvas();
 
@@ -376,14 +376,14 @@ namespace
 		{
 			if constexpr (false == AllowRuntimeScenePathFallback())
 			{
-				CSystemLog::Error(std::string("Runtime scene path fallback is not allowed in release package: ") + scenePathText);
+				CSystemLog::Error(std::string("Runtime canvas path fallback is not allowed in release package: ") + canvasPathText);
 				return false;
 			}
 
 			File::Path scenePath;
-			if (false == assetManager.ResolveAssetPath(File::Path(scenePathText), scenePath))
+			if (false == assetManager.ResolveAssetPath(File::Path(canvasPathText), scenePath))
 			{
-				CSystemLog::Error(std::string("Runtime scene path resolve failed: ") + scenePathText);
+				CSystemLog::Error(std::string("Runtime canvas path resolve failed: ") + canvasPathText);
 				return false;
 			}
 			loadResult = serializer.LoadFromFile(*scene, scenePath);
@@ -391,7 +391,7 @@ namespace
 
 		if (ECanvasSerializeResult::Success != loadResult)
 		{
-			CSystemLog::Error(std::string("Runtime scene load failed: ") + canvasName);
+			CSystemLog::Error(std::string("Runtime canvas load failed: ") + canvasName);
 			return false;
 		}
 
@@ -473,8 +473,8 @@ namespace
 
 bool CGameApplication::LoadRuntimeStartupScene(const BuildManifest& manifest)
 {
-	const AssetGuid startupSceneGuid(manifest.StartupSceneGuid);
-	if (manifest.StartupScene.empty() && startupSceneGuid.IsNull())
+	const AssetGuid startupSceneGuid(manifest.StartupCanvasGuid);
+	if (manifest.StartupCanvas.empty() && startupSceneGuid.IsNull())
 	{
 		CSystemLog::Error("Runtime startup scene is empty.");
 		return false;
@@ -491,16 +491,16 @@ bool CGameApplication::LoadRuntimeStartupScene(const BuildManifest& manifest)
 	CEngine* engine = GetEngine();
 	const ScriptCore* context = engine ? &engine->GetScriptCore() : nullptr;
 
-	const std::string startupName = false == manifest.StartupScene.empty()
-		? manifest.StartupScene
+	const std::string startupName = false == manifest.StartupCanvas.empty()
+		? manifest.StartupCanvas
 		: startupSceneGuid.generic_string();
 
 	// startup 캔버스만 로드한다 — 런타임 캔버스는 하나고, 전환은 그 하나에 diff 를 적용하는
-	// 것이라 나머지 빌드 씬을 미리 인스턴스화해 둘 자리가 없다(있으면 그게 곧 다중 씬이다).
+	// 것이라 나머지 빌드 캔버스를 미리 인스턴스화해 둘 자리가 없다(있으면 그게 곧 다중 캔버스가다).
 	// 다른 캔버스는 전환 시점에 파일에서 읽는다. startup 은 guid 로 로드해 경로 의존을 피한다.
 	if (false == LoadRuntimeCanvas(*canvasManager, *assetManager, context,
 	                               startupName, startupSceneGuid,
-	                               manifest.StartupScene))
+	                               manifest.StartupCanvas))
 	{
 		return false;
 	}

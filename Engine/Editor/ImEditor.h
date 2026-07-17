@@ -68,14 +68,14 @@ public:
 
 	// Scene view (editor camera)
 	void RequestSceneViewRenderTarget(std::uint32_t width, std::uint32_t height);
-	void SetSceneViewCamera(float posX, float posY, float orthographicSize);
+	void SetCanvasViewCamera(float posX, float posY, float orthographicSize);
 	SafePtr<IRHITexture> GetSceneViewRenderTarget() const;
 	void* GetSceneViewTextureID() const;
 	std::uint32_t GetSceneViewWidth()  const { return m_sceneViewWidth;  }
 	std::uint32_t GetSceneViewHeight() const { return m_sceneViewHeight; }
 
 	// 레이어 썸네일 — 캔버스(기본 뷰포트) 카메라로 레이어를 하나씩 그린 축소판. 편집 카메라와
-	// 무관하다(씬뷰 팬/줌·창 개폐에 영향받지 않는다). 하이어라키가 매 프레임 원하는 높이를
+	// 무관하다(캔버스뷰 팬/줌·창 개폐에 영향받지 않는다). 하이어라키가 매 프레임 원하는 높이를
 	// 요청하고(0 = 사용 안 함 → RT 해제·작업 생략), 폭은 프로젝트 해상도 종횡비로 정해진다.
 	void RequestLayerThumbnails(std::uint32_t height);
 	// layerIndex = CGameLayer::GetIndex(). 없거나 아직 안 그려졌으면 nullptr.
@@ -95,13 +95,13 @@ public:
 	void SetSceneViewSelection(std::vector<const void*> selectedObjects);
 	void ClearSceneViewSelection();
 
-	// 에디터 씬뷰에서만 렌더 제외할 오브젝트 키(주소) 집합. 매 프레임 SceneViewTool 이 갱신.
+	// 에디터 캔버스뷰에서만 렌더 제외할 오브젝트 키(주소) 집합. 매 프레임 SceneViewTool 이 갱신.
 	void SetSceneViewHidden(std::vector<const void*> hiddenObjects);
 
 	// Game view (multi-camera)
 	void RequestGameViewRenderTarget(std::uint32_t width, std::uint32_t height);
-	// 게임뷰가 그릴 씬 — 카메라/라이트 스냅샷은 PrepareRender(시뮬 이후·렌더 직전)가
-	// 이 씬에서 직접 수집한다. UI 빌드 시점 수집은 1프레임 지연 카메라를 만든다.
+	// 게임뷰가 그릴 캔버스 — 카메라/라이트 스냅샷은 PrepareRender(시뮬 이후·렌더 직전)가
+	// 이 캔버스에서 직접 수집한다. UI 빌드 시점 수집은 1프레임 지연 카메라를 만든다.
 	void SetGameViewScene(SafePtr<CGameCanvas> scene);
 	void* GetGameViewTextureID() const;
 	std::uint32_t GetGameViewWidth()  const { return m_gameViewWidth;  }
@@ -158,7 +158,7 @@ private:
 	float m_sceneViewCamY    = 0.0f;
 	float m_sceneViewCamSize = 5.0f;
 	bool m_sceneViewRequested = false;
-	// 편집 뷰가 합성할 활성 씬의 레이어 스냅샷(OnPrepareRender 가 매 프레임 갱신).
+	// 편집 뷰가 합성할 활성 캔버스의 레이어 스냅샷(OnPrepareRender 가 매 프레임 갱신).
 	std::vector<GameRenderLayerDesc> m_sceneViewLayers;
 
 	// 레이어 썸네일 — 인덱스 = 레이어 인덱스. 크기가 바뀌면 전부 재생성한다.
@@ -192,7 +192,7 @@ private:
 	bool                            m_sceneViewHasSelection = false;
 	std::unordered_set<const void*> m_sceneViewSelectedEntities;
 
-	// 에디터 씬뷰 숨김(EditorHidden) 키 집합 — 매 프레임 SceneViewTool 이 채움.
+	// 에디터 캔버스뷰 숨김(EditorHidden) 키 집합 — 매 프레임 SceneViewTool 이 채움.
 	std::unordered_set<const void*> m_sceneViewHidden;
 };
 

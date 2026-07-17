@@ -37,9 +37,9 @@ public:
 	ECanvasSerializeResult SaveToFile(CGameCanvas& scene, const File::Path& path) const;
 	ECanvasSerializeResult LoadFromFile(CGameCanvas& scene, const File::Path& path) const;
 
-	// 씬/프리팹 파일에서 ReferencedAssets 목록만 가볍게 읽는다 — 게임오브젝트나 에셋
+	// 캔버스/프리팹 파일에서 ReferencedAssets 목록만 가볍게 읽는다 — 게임오브젝트나 에셋
 	// 데이터를 만들지 않고 YAML 의 ReferencedAssets 시퀀스만 파싱한다. 프로젝트 로드 시
-	// "이 씬을 띄우는 데 필요한 에셋"을 미리 알아내 선택적으로 로드하는 용도.
+	// "이 캔버스를 띄우는 데 필요한 에셋"을 미리 알아내 선택적으로 로드하는 용도.
 	std::vector<AssetGuid> ReadReferencedAssetsFromFile(const File::Path& path) const;
 
 private:
@@ -49,7 +49,7 @@ private:
 	// 파일의 레이어 노드마다 "승계할 살아있는 인스턴스"를 찾아 대응시킨다(없으면 nullptr).
 	// 인덱스 = 노드 순서 = 오브젝트의 LayerIndex 공간. 파괴 전에 부를 것.
 	std::vector<CGameLayer*> ResolveInheritedLayers(CGameCanvas& canvas, const YAML::Node& layersNode) const;
-	// Layers/Viewports/BackgroundColor/Objects 를 씬에 싣는다. 호출 전에 씬은 이미 받을
+	// Layers/Viewports/BackgroundColor/Objects 를 캔버스에 싣는다. 호출 전에 캔버스는 이미 받을
 	// 준비가 돼 있어야 한다(전체 교체 = ClearObjects, 전환 = 비승계 파괴 + flush).
 	ECanvasSerializeResult ReadCanvasBody(CGameCanvas& scene,
 	                                     const YAML::Node& root,

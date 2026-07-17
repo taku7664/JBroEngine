@@ -20,7 +20,7 @@ namespace
 	// 파일 껍데기는 다르다).
 	constexpr std::uint32_t LAYER_FILE_VERSION = 1;
 
-	// 파일이 되살릴 오브젝트 guid 가 이미 씬에 살아 있는지. 하나라도 겹치면 로드를 거부한다.
+	// 파일이 되살릴 오브젝트 guid 가 이미 캔버스에 살아 있는지. 하나라도 겹치면 로드를 거부한다.
 	// 자식은 Children 에 중첩돼 있으므로 재귀로 훑는다.
 	bool AnyInstanceGuidAlive(CGameCanvas& scene, const YAML::Node& objectNode)
 	{

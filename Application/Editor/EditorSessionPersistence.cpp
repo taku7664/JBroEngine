@@ -3,7 +3,7 @@
 
 #include "Editor/Editor.h"
 #include "Editor/EditorContext.h"
-#include "Editor/Main/SceneView/SceneViewTool.h"
+#include "Editor/Main/CanvasView/CanvasViewTool.h"
 #include "Editor/Path/EditorPathUtils.h"
 #include "Engine/Core/EngineCore.h"
 #include "Engine/Editor/Project/ProjectManager.h"
@@ -17,14 +17,14 @@ namespace
 	bool SaveActiveScene(std::string& outError)
 	{
 		SafePtr<CGameCanvas> scene = EditorContext::GetActiveCanvas();
-		const File::Path& scenePath = Editor::GetActiveScenePath();
-		if (false == scene.IsValid() || scenePath.empty())
+		const File::Path& canvasPath = Editor::GetActiveScenePath();
+		if (false == scene.IsValid() || canvasPath.empty())
 		{
 			return true;
 		}
 
 		CCanvasSerializer serializer;
-		if (ECanvasSerializeResult::Success != serializer.SaveToFile(*scene, scenePath))
+		if (ECanvasSerializeResult::Success != serializer.SaveToFile(*scene, canvasPath))
 		{
 			outError = "Failed to save the active scene.";
 			return false;
@@ -39,7 +39,7 @@ namespace
 		if (Editor::CanvasView)
 		{
 			const Vector2 cameraPosition = Editor::CanvasView->GetEditorCameraPos();
-			projectManager.SetSceneViewCamera(
+			projectManager.SetCanvasViewCamera(
 				cameraPosition.x,
 				cameraPosition.y,
 				Editor::CanvasView->GetEditorCameraSize());

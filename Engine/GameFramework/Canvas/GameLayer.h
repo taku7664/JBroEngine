@@ -53,13 +53,13 @@ inline ELayerBlendMode LayerBlendModeFromString(const char* text)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  CGameLayer — 캔버스(씬)의 컴포짓 단위이자 오브젝트 그룹.
+//  CGameLayer — 캔버스(캔버스)의 컴포짓 단위이자 오브젝트 그룹.
 //
 //  · 트랜스폼 없음 — 순수 컴포짓 속성(순서·블렌드·Opacity·가시성·Static·Parallax)만.
 //    순서는 CGameCanvas::m_layers 벡터 순서가 곧 컴포짓(아래→위) 순서다.
 //  · 오브젝트 소속은 CGameObject::m_layer(SafePtr) 가 표현한다. 레이어는 소속 목록을
 //    들지 않는다 — SetParent/파괴 지점마다 목록을 동기화하는 비용·불일치 버그를 피하고,
-//    순회가 필요한 곳(직렬화·실행순서 재빌드·렌더 수집)은 씬 전체 1회 순회로 버킷팅한다.
+//    순회가 필요한 곳(직렬화·실행순서 재빌드·렌더 수집)은 캔버스 전체 1회 순회로 버킷팅한다.
 //  · 메모리 소유 = CGameCanvas(OwnerPtr). 외부 공유는 SafePtr.
 //  · Visible=false 는 렌더만 끈다(시뮬 계속). Static 은 렌더 동결만(시뮬은 유저 책임).
 // ─────────────────────────────────────────────────────────────────────────────
@@ -101,7 +101,7 @@ public:
 	void        SetName(const char* name) { Name = name ? name : ""; }
 
 	// 캔버스 내 순서 = 컴포짓 순서 = 렌더 아이템 정렬 키. 렌더 수집이 오브젝트마다
-	// 읽으므로(매 프레임) 씬 목록을 선형 탐색하지 않도록 여기 캐시한다. 갱신 주체는
+	// 읽으므로(매 프레임) 캔버스 목록을 선형 탐색하지 않도록 여기 캐시한다. 갱신 주체는
 	// CGameCanvas(레이어 생성/파괴/이동 시 ReindexLayers) — 그 외에는 쓰지 않는다.
 	std::uint16_t GetIndex() const { return m_index; }
 

@@ -1,5 +1,5 @@
 #include "pch.h"
-#include "HierarchyTool.h"
+#include "LayerTool.h"
 
 #include "Editor/ImItem/ImTree.h"
 #include "Editor/ImItem/ImButton.h"
@@ -7,13 +7,13 @@
 #include "Engine/Editor/ImEditor.h"
 
 #include "Editor/Command/EditorLayerCommands.h"
-#include "Editor/Command/EditorSceneCommands.h"
+#include "Editor/Command/EditorObjectCommands.h"
 #include "Editor/Icons/FontAwesomeIcons.h"
 #include "Editor/Gui/EditorGuiActions.h"
 #include "Editor/Editor.h"
 #include "Editor/EditorContext.h"
 #include "Editor/EditorDragDrop.h"
-#include "Editor/Main/SceneView/SceneViewTool.h"
+#include "Editor/Main/CanvasView/CanvasViewTool.h"
 #include "Engine/Core/EngineCore.h"
 #include "Engine/GameFramework/Reflection/ReflectionRegistry.h"
 #include "Engine/GameFramework/Object/GameObject.h"
@@ -79,7 +79,7 @@ void CLayerTool::OnRenderStay()
 	};
 
 	// ── 빈 영역 우클릭 컨텍스트 메뉴 ────────────────────────────────────────────
-	// 오브젝트 추가 대상 레이어 = 현재 선택 레이어(없으면 씬 기본 레이어).
+	// 오브젝트 추가 대상 레이어 = 현재 선택 레이어(없으면 캔버스 기본 레이어).
 	auto drawBackgroundPopup = [&]()
 	{
 		if (ImGui::BeginPopupContextWindow("HierarchyBackgroundContext",
@@ -218,7 +218,7 @@ void CLayerTool::OnRenderStay()
 			pendingSelection.Shift = ImGui::GetIO().KeyShift;
 		}
 
-		// ── 더블클릭 → 씬뷰 포커스 컨텍스트 전환 ──────────────────────────────
+		// ── 더블클릭 → 캔버스뷰 포커스 컨텍스트 전환 ──────────────────────────────
 		// A가 포커스 컨텍스트여도 관계없이 C로 전환 가능.
 		// FocusOnEntity(카메라만) 대신 SetFocusContext(컨텍스트 + 카메라)를 호출.
 		if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
@@ -315,7 +315,7 @@ void CLayerTool::OnRenderStay()
 			ImGui::EndPopup();
 		}
 
-		// ── 가시성 토글(눈 아이콘, 우측 정렬). 씬뷰 전용 EditorHidden 플래그. ──
+		// ── 가시성 토글(눈 아이콘, 우측 정렬). 캔버스뷰 전용 EditorHidden 플래그. ──
 		// 트리노드 상호작용(선택/드래그/드롭/컨텍스트) 처리 뒤에 그려야 IsItem* 이
 		// 트리노드를 가리킨다. SameLine(절대x)로 같은 행 우측에 배치.
 		{
@@ -351,7 +351,7 @@ void CLayerTool::OnRenderStay()
 	// 그린다. 모델(m_layers)은 0 = 맨 아래 그대로 두고 표시만 뒤집는다.
 	const std::size_t layerCount = activeScene->GetLayerCount();
 
-	// 썸네일 크기 = 씬뷰 종횡비 × 요청 높이. ImEditor 가 씬뷰 레이어 합성 중에 채운다.
+	// 썸네일 크기 = 캔버스뷰 종횡비 × 요청 높이. ImEditor 가 캔버스뷰 레이어 합성 중에 채운다.
 	const float thumbnailHeight = ImGui::GetTextLineHeight() * 2.0f;
 	const bool hasImEditor = Editor::ImEditor.IsValid();
 	if (hasImEditor)
@@ -486,7 +486,7 @@ void CLayerTool::OnRenderStay()
 			EditorGuiActions::DrawPasteObjectMenuItem(*activeScene, nullptr, layer);
 			ImGui::Separator();
 			drawAddLayerMenuItem();
-			// 마지막 레이어는 삭제 불가 — 씬이 "레이어 0개"를 허용하지 않는다.
+			// 마지막 레이어는 삭제 불가 — 캔버스가 "레이어 0개"를 허용하지 않는다.
 			const bool canDelete = layerCount > 1;
 			if (ImGui::MenuItem(Loc::Text(EditorLocKeys::HierarchyDeleteLayer), nullptr, false, canDelete))
 			{
@@ -562,7 +562,7 @@ void CLayerTool::OnRenderStay()
 	// 전 레이어가 한 단계 들여쓰기되는데, 캔버스는 어차피 런타임에 하나뿐이라 접을 일이 없다.
 	// 클릭 = 캔버스 선택 → 인스펙터가 캔버스 설정(배경색·뷰포트)을 띄운다.
 	{
-		// 씬 이름은 CanvasManager 키(= 프로젝트 상대 경로)라 그대로 쓰면 한 줄을 넘긴다 —
+		// 캔버스 이름은 CanvasManager 키(= 프로젝트 상대 경로)라 그대로 쓰면 한 줄을 넘긴다 —
 		// 파일 이름만 보여준다.
 		const std::string canvasName = Editor::GetActiveScenePath().empty()
 			? std::string(activeScene->GetName())

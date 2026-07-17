@@ -19,7 +19,7 @@
 #include <vector>
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-//  SceneSerializer ─ 씬 파일(여러 오브젝트 + 메타) ↔ YAML (직렬화 3계층의 최상단)
+//  SceneSerializer ─ 캔버스 파일(여러 오브젝트 + 메타) ↔ YAML (직렬화 3계층의 최상단)
 //
 //  · 오브젝트 1개 직렬화는 ObjectSerializer 에, 컴포넌트는 ComponentSerializer 에 위임.
 //  · 여기서는 파일 레벨 관심사만 다룬다: Version, ReferencedAssets, 오브젝트 목록,
@@ -60,7 +60,7 @@ namespace
 		return node;
 	}
 
-	// Layers 시퀀스를 씬에 재구성하고 노드 인덱스 → 레이어 대응을 돌려준다(오브젝트의
+	// Layers 시퀀스를 캔버스에 재구성하고 노드 인덱스 → 레이어 대응을 돌려준다(오브젝트의
 	// LayerIndex 와 같은 인덱스 공간이다). 노드가 없거나 비면(구 포맷 마이그레이션) 기본
 	// 레이어 1개를 만든다 — "레이어 0개 + 오브젝트 존재" 불허 불변식.
 	//
@@ -221,7 +221,7 @@ namespace
 			}
 		}
 		// 뷰포트 없는 캔버스(구 포맷 포함)는 기본 풀스크린 뷰포트 1개로 — 카메라 미지정이라
-		// 폴백(첫 활성 카메라)이 잡힌다. 즉 구 씬은 저작 없이 그대로 그려진다.
+		// 폴백(첫 활성 카메라)이 잡힌다. 즉 구 캔버스는 저작 없이 그대로 그려진다.
 		scene.GetOrCreateDefaultViewport();
 	}
 
@@ -350,7 +350,7 @@ ECanvasSerializeResult CCanvasSerializer::SerializeToText(CGameCanvas& scene, st
 	{
 		YAML::Node node = Serialization::WriteObject(*obj, &referencedAssets);
 
-		// 계층·레이어 소속은 씬 레벨 관심사 — 인덱스를 오브젝트 노드에 덧붙인다.
+		// 계층·레이어 소속은 캔버스 레벨 관심사 — 인덱스를 오브젝트 노드에 덧붙인다.
 		const CGameObject* parent = obj->GetParent().TryGet();
 		const auto parentIt = parent ? indexOf.find(parent) : indexOf.end();
 		node["ParentIndex"] = (parentIt != indexOf.end()) ? parentIt->second : -1;

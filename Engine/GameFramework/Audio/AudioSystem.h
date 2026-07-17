@@ -19,7 +19,7 @@ class AudioPlayer;
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  CAudioSystem
 //
-//  씬 단위 오디오 시스템. AudioListener / AudioPlayer 컴포넌트를 매 프레임 갱신.
+//  캔버스 단위 오디오 시스템. AudioListener / AudioPlayer 컴포넌트를 매 프레임 갱신.
 //    1. listener: 활성 청취자의 월드 위치를 IAudioDevice::GetPrimaryListener() 로 push.
 //    2. player:
 //       - 활성 구간 진입 시 자산 path 로 생성 후 PlayOnStart 옵션에 따라 한 번 시작.

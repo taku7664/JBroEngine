@@ -10,7 +10,7 @@
 
 namespace
 {
-	// Ref 해석의 기준 활성 씬.
+	// Ref 해석의 기준 활성 캔버스.
 	// ⚠️ 게임 DLL 에서는 전역 `Engine`(EngineCore) 이 채워지지 않는다 — BindScriptCore 는
 	//    전역 `Script`(ScriptCore) 만 호스트 값으로 복사한다. 이 코드는 Engine.lib 이지만 게임
 	//    DLL 에도 링크되어 DLL 안에서 돌므로, 반드시 `Script.CanvasManager` 를 써야 한다.

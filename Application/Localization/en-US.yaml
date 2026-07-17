@@ -94,7 +94,7 @@ Entries:
   asset_type.mesh: Mesh
   asset_type.material: Material
   asset_type.shader: Shader
-  asset_type.scene: Scene
+  asset_type.canvas: Canvas
   asset_type.prefab: Prefab
   asset_type.layer: Layer
   asset_type.script: Script
@@ -114,7 +114,7 @@ Entries:
 
   editor_statistics.fps: FPS
   editor_statistics.frame_time: Frame Time
-  editor_statistics.scene_objects: Scene Objects
+  editor_statistics.canvas_objects: Canvas Objects
   editor_statistics.script_pools: Script Pools
   editor_statistics.script_pool_expansions: Script Pool Expansions
   editor_statistics.render_items: Render Items
@@ -174,7 +174,7 @@ Entries:
   project_settings.input.gamepad_index: "Gamepad slot index. -1 = any connected pad."
   build_settings.no_project: No project loaded.
   build_settings.category.general: General
-  build_settings.category.scenes: Scenes
+  build_settings.category.canvases: Canvases
   build_settings.category.output: Output
   build_settings.category.web: Web
   build_settings.category.windows: Windows
@@ -210,16 +210,16 @@ Entries:
   build_settings.ios_team_id: Team ID
   build_settings.ios_minimum_os: Minimum iOS
   build_settings.output_directory: Output Directory
-  build_settings.scenes: Scenes
-  build_settings.startup_scene: Startup Scene
-  build_settings.use_current_scene: Use Current Scene
-  build_settings.build_scenes: Build Scenes
-  build_settings.add_scene: Add Scene
+  build_settings.canvases: Canvases
+  build_settings.startup_canvas: Startup Canvas
+  build_settings.use_current_canvas: Use Current Canvas
+  build_settings.build_canvases: Build Canvases
+  build_settings.add_canvas: Add Canvas
   build_settings.always_include: Always Include Assets
-  build_settings.always_include.desc: Assets that no scene references but are loaded directly at runtime. Prevents them from being dropped by reference-based packaging.
+  build_settings.always_include.desc: Assets that no canvas references but are loaded directly at runtime. Prevents them from being dropped by reference-based packaging.
   build_settings.add_always_include: Add Asset
   build_settings.package_preview: Package Path
-  build_settings.select_startup_scene: Select Startup Scene
+  build_settings.select_startup_canvas: Select Startup Canvas
   build_settings.select_windows_icon: Select Windows Icon
   build_settings.select_output_directory: Select Build Output Folder
   build_settings.save_failed: Failed to save build settings.
@@ -268,7 +268,7 @@ Entries:
   asset_browser.compile_fail.title: Script Compile Failed
   asset_browser.compile_fail.description: The automatic compile has failed. Build log is shown below.
   asset_browser.add_asset: Add Asset
-  asset_browser.add_asset.scene: Scene
+  asset_browser.add_asset.canvas: Canvas
   asset_browser.add_asset.material: Material
   asset_browser.add_asset.font_family: Font Family
   asset_browser.add_asset.effect: Sound Effect
@@ -276,7 +276,7 @@ Entries:
   inspector.font_face.title: Font Import Settings
   inspector.font_face.face_index: Face Index
   inspector.font_face.apply: Apply
-  inspector.font_face.applied: Saved. Reopen the scene to refresh a font that is already in use.
+  inspector.font_face.applied: Saved. Reopen the canvas to refresh a font that is already in use.
   inspector.font_face.create_family: Create Font Family From This Font
   inspector.font_face.family_created: Created and selected the Font Family.
   inspector.font_face.family_create_failed: Failed to create the Font Family.
@@ -286,15 +286,15 @@ Entries:
   asset_browser.contents_folders: Contents
   asset_browser.favorite_folders: Favorites
 
-  hierarchy.scene_manager_unavailable: SceneManager is not available.
-  hierarchy.no_active_scene: No active scene.
-  hierarchy.move_format: "Move: %s"
-  hierarchy.layer_move_format: "Move Layer: %s"
-  hierarchy.unparent: Unparent
-  hierarchy.delete_object: Delete Object
-  hierarchy.add_layer: Add Layer
-  hierarchy.delete_layer: Delete Layer
-  hierarchy.canvas_node_format: "Canvas: %s"
+  layers.canvas_manager_unavailable: CanvasManager is not available.
+  layers.no_active_canvas: No active canvas.
+  layers.move_format: "Move: %s"
+  layers.layer_move_format: "Move Layer: %s"
+  layers.unparent: Unparent
+  layers.delete_object: Delete Object
+  layers.add_layer: Add Layer
+  layers.delete_layer: Delete Layer
+  layers.canvas_node_format: "Canvas: %s"
   inspector.canvas.properties: Canvas Properties
   inspector.canvas.background_color: Background Color
   inspector.canvas.viewports: Viewports
@@ -339,7 +339,7 @@ Entries:
   editor.menu.copy_component: Copy Component
   editor.menu.paste_component: Paste Component
 
-  inspector.no_active_scene: No active scene.
+  inspector.no_active_canvas: No active canvas.
   inspector.no_entity_selected: No entity selected.
   inspector.reflection_unavailable: Reflection registry is not available.
   inspector.no_other_components: No other components.
@@ -438,7 +438,7 @@ Entries:
   script_prop.tooltip_tooltip: Description shown when hovering this property in the inspector.
   script_prop.tooltip_hint: Description
   script_prop.serialize: Serialize
-  script_prop.serialize_tooltip: Off = shown in inspector but not saved to the scene file (NoSerialize).
+  script_prop.serialize_tooltip: Off = shown in inspector but not saved to the canvas file (NoSerialize).
   script_prop.range: Limit range
   script_prop.range_tooltip: On = clamp numeric input to min..max (Range).
   script_prop.range_min: Min
@@ -565,21 +565,21 @@ Entries:
   editor.property.Radius: Radius
   editor.property.SourcePrefabGuid: Source Prefab GUID
 
-  scene_view.unit.toggle_unit: "Unit: Unit"
-  scene_view.unit.toggle_pixel: "Unit: Pixel"
-  scene_view.vertex.delete: Delete Vertex
-  scene_view.vertex.delete_min: Cannot delete vertex (minimum 3 required)
-  scene_view.overlay.active_scene: Active Scene
-  scene_view.overlay.no_active_scene: No Active Scene
-  scene_view.overlay.selected_none: "Selected: None"
-  scene_view.overlay.selected_format: "Selected: %s"
-  scene_view.overlay.camera_format: "Cam (%.2f, %.2f) | Size %.2f"
-  scene_view.overlay.focus_format: "Focus: %s  [Dbl-click empty to exit]"
-  scene_view.overlay.viewport_selected_camera: Viewport (Selected Camera)
+  canvas_view.unit.toggle_unit: "Unit: Unit"
+  canvas_view.unit.toggle_pixel: "Unit: Pixel"
+  canvas_view.vertex.delete: Delete Vertex
+  canvas_view.vertex.delete_min: Cannot delete vertex (minimum 3 required)
+  canvas_view.overlay.active_canvas: Active Canvas
+  canvas_view.overlay.no_active_canvas: No Active Canvas
+  canvas_view.overlay.selected_none: "Selected: None"
+  canvas_view.overlay.selected_format: "Selected: %s"
+  canvas_view.overlay.camera_format: "Cam (%.2f, %.2f) | Size %.2f"
+  canvas_view.overlay.focus_format: "Focus: %s  [Dbl-click empty to exit]"
+  canvas_view.overlay.viewport_selected_camera: Viewport (Selected Camera)
   game_view.status.playing: Playing
-  game_view.status.scene_stopped: Scene (stopped)
-  game_view.status.no_active_scene: No Active Scene
-  game_view.no_camera: No Camera2D in scene
+  game_view.status.canvas_stopped: Canvas (stopped)
+  game_view.status.no_active_canvas: No Active Canvas
+  game_view.no_camera: No Camera2D in canvas
 
   inspector.contacts.detected: Detected Contacts
   inspector.contacts.last_normal: Last Contact Normal
@@ -646,8 +646,8 @@ Entries:
   build_settings.ios_team_id.desc: Apple Developer Team ID used by signing.
   build_settings.ios_minimum_os.desc: Minimum iOS version supported by the app.
   build_settings.output_directory.desc: Output directory for the game package. Paths inside the project are saved relative to the project root.
-  build_settings.startup_scene.desc: Scene opened when the game starts. Files inside Assets are saved relative to the Assets folder.
-  build_settings.use_current_scene.desc: Set the currently opened scene as the startup scene and add it to build scenes.
+  build_settings.startup_canvas.desc: Canvas opened when the game starts. Files inside Assets are saved relative to the Assets folder.
+  build_settings.use_current_canvas.desc: Set the currently opened canvas as the startup canvas and add it to build canvass.
   build_settings.package_preview.desc: Final package folder for the current settings.
   build_settings.apply.desc: Save changed build settings to the project and close the window.
   build_settings.cancel.desc: Discard changes and close the window.

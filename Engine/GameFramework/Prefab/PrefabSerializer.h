@@ -16,7 +16,7 @@ public:
 	// root = 직렬화할 루트 오브젝트. scene 은 쓰지 않는다(호출부 호환용).
 	EPrefabSerializeResult SerializePrefabToText(const CGameCanvas& scene, const CGameObject* root, std::string& outText) const;
 	// outRoot != nullptr 이면 복원된 첫 루트 오브젝트 포인터를 기록한다(풀 소유, SafePtr 로 보유 권장).
-	// 복원 오브젝트는 씬의 기본 레이어에 붙는다 — 다른 레이어로 보내는 건 호출자 몫이다.
+	// 복원 오브젝트는 캔버스의 기본 레이어에 붙는다 — 다른 레이어로 보내는 건 호출자 몫이다.
 	EPrefabSerializeResult DeserializePrefabFromText(CGameCanvas& scene, const char* text, CGameObject** outRoot = nullptr) const;
 	EPrefabSerializeResult SavePrefabToFile(const CGameCanvas& scene, const CGameObject* root, const File::Path& path) const;
 	EPrefabSerializeResult LoadPrefabFromFile(CGameCanvas& scene, const File::Path& path, CGameObject** outRoot = nullptr) const;

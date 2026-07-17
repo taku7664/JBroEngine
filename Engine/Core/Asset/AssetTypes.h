@@ -21,7 +21,7 @@ enum class EAssetType
 	Mesh,
 	Material,
 	Shader,
-	Canvas,      // .jcanvas — 구 이름 Scene. 정수값(5)은 그대로 둘 것(BuildGame.ps1 이 하드코딩).
+	Canvas,      // .jcanvas — 정수값(5)은 그대로 둘 것(BuildGame.ps1 이 하드코딩).
 	             // 리네임 이전에 저장된 `.jmeta` 는 "Scene" 을 적고 있고, ParseType 이 계속 받아 준다.
 	Prefab,
 	Script,
@@ -93,7 +93,7 @@ struct AssetRegistrySnapshot
 struct AssetPackageBuildDesc
 {
 	File::Path OutputBlobPath;
-	// 패키지에 포함할 자산 GUID 집합(참조 기반 패키징). 빌드 파이프라인이 빌드 씬 →
+	// 패키지에 포함할 자산 GUID 집합(참조 기반 패키징). 빌드 파이프라인이 빌드 캔버스 →
 	// 참조 자산 → 프리팹/폰트 전이 의존 → Always Include 를 전개해 채운다.
 	// 비어 있으면 패키징은 실패로 처리한다(전체 레지스트리 덤프 금지).
 	std::vector<AssetGuid> IncludedAssets;

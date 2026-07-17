@@ -28,7 +28,7 @@ namespace
 		bool        HasRange = false;
 		std::string RangeMin;
 		std::string RangeMax;
-		bool        NoSerialize = false;   // JPROP(NoSerialize) — 인스펙터 노출, 씬 저장 제외
+		bool        NoSerialize = false;   // JPROP(NoSerialize) — 인스펙터 노출, 캔버스 저장 제외
 
 		bool        IsRef = false;         // Ref<X> 필드인가
 		std::string RefTypeName;           // 드롭 필터/표시용 단순 타입명("X", 네임스페이스 제거)

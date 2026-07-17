@@ -6,10 +6,10 @@
 #include "Editor/Editor.h"
 #include "Editor/Main/AssetBrowser/AssetBrowserTool.h"
 #include "Editor/Main/GameView/GameViewTool.h"
-#include "Editor/Main/Hierarchy/HierarchyTool.h"
+#include "Editor/Main/Layers/LayerTool.h"
 #include "Editor/Main/Inspector/InspectorTool.h"
 #include "Editor/Main/Log/LogTool.h"
-#include "Editor/Main/SceneView/SceneViewTool.h"
+#include "Editor/Main/CanvasView/CanvasViewTool.h"
 #include "Editor/Main/ShortcutReference/ShortcutReferenceTool.h"
 #include "Editor/Main/Statistics/EditorStatisticsTool.h"
 #include "Editor/Main/Importer/SpriteImporterWindow.h"
@@ -34,7 +34,7 @@ void CMainDockWindow::OnCreate()
 	//
 	//  ┌──────────────────────────────┬───────────────┐
 	//  │                              │               │
-	//  │  SceneView | GameView (탭)   │  Hierarchy    │
+	//  │  CanvasView | GameView (탭)  │  Layers       │
 	//  │                              │               │
 	//  │                              ├───────────────┤
 	//  │                              │               │
@@ -47,18 +47,20 @@ void CMainDockWindow::OnCreate()
 	AddDockSplit("",      ImGuiDir_Right, 0.25f, "Right");
 
 	// Step 2: 중앙("")을 Down(22%) 방향으로 분할
-	//         → "Bottom" = 하단 스트립, "" = 나머지(SceneView 영역)
+	//         → "Bottom" = 하단 스트립, "" = 나머지(CanvasView 영역)
 	AddDockSplit("",      ImGuiDir_Down,  0.35f, "Bottom");
 
 	// Step 3: 오른쪽("Right")을 Down(50%) 방향으로 분할
-	//         → "RightBottom" = Inspector, "Right" = Hierarchy
+	//         → "RightBottom" = Inspector, "Right" = Layers
 	AddDockSplit("Right", ImGuiDir_Down,  0.50f, "RightBottom");
 
     SetLocalizedTitleKey(EditorLocKeys::WindowMain);
 
 	ImGuiID id = GetID();
-	Editor::Layers    = Editor::ImEditor->CreateImWindow<CLayerTool>   ("Hierarchy",    id);
-	Editor::CanvasView    = Editor::ImEditor->CreateImWindow<CCanvasViewTool>   ("SceneView",    id);
+	// 안정 ID = ImGui 도킹 키다. 여기를 바꾸면 이미 저장된 창 배치(.jproject 의 ImGuiIniSettings)가
+	// 그 창을 못 찾아 기본 배치로 한 번 돌아간다 — 이름을 끝까지 맞추는 값으로 감수한다.
+	Editor::Layers    = Editor::ImEditor->CreateImWindow<CLayerTool>   ("Layers",       id);
+	Editor::CanvasView    = Editor::ImEditor->CreateImWindow<CCanvasViewTool>   ("CanvasView",   id);
 	Editor::GameView     = Editor::ImEditor->CreateImWindow<CGameViewTool>    ("GameView",     id);
 	Editor::Inspector    = Editor::ImEditor->CreateImWindow<CInspectorTool>   ("Inspector",    id);
 	Editor::AssetBrowser = Editor::ImEditor->CreateImWindow<CAssetBrowserTool>("AssetBrowser", id);
@@ -73,7 +75,7 @@ void CMainDockWindow::OnCreate()
 	}
 	if (Editor::GameView)
 	{
-		Editor::GameView->InitializeDockLayout("");         // SceneView와 탭으로 합침
+		Editor::GameView->InitializeDockLayout("");         // CanvasView와 탭으로 합침
 	}
 	if (Editor::AssetBrowser)
 	{
@@ -200,7 +202,7 @@ void CMainDockWindow::OnMenuBar()
 	// ── "창" 메뉴 — "에디터" + "임포터" 서브메뉴 ──────────────────────────
 	if (ImGui::BeginMenu(Loc::Text(EditorLocKeys::MenuWindow)))
 	{
-		// 에디터 — 도킹된 자식 윈도우(인스펙터/씬뷰/하이라키 등) 토글
+		// 에디터 — 도킹된 자식 윈도우(인스펙터/캔버스뷰/하이라키 등) 토글
 		if (ImGui::BeginMenu(Loc::Text(EditorLocKeys::MenuWindowEditor)))
 		{
 			for (SafePtr<CImWindow>& child : m_childImWindowVector)

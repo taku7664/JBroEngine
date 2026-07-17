@@ -83,9 +83,9 @@ private:
 		AssetGuid DefaultFontFamilyGuid = INVALID_ASSET_GUID;
 		std::vector<AssetGuid> FallbackFontFamilies;
 		std::string OutputDirectory;
-		std::string StartupScene;
-		std::string StartupSceneGuid;
-		std::vector<std::string> BuildScenes;
+		std::string StartupCanvas;
+		std::string StartupCanvasGuid;
+		std::vector<std::string> BuildCanvases;
 		std::vector<AssetGuid> AlwaysIncludeAssets;
 		std::vector<InputActionDef> InputActions;
 		AssetGuid WindowsIconGuid = INVALID_ASSET_GUID;

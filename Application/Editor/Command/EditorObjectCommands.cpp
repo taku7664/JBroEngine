@@ -1,5 +1,5 @@
 #include "pch.h"
-#include "EditorSceneCommands.h"
+#include "EditorObjectCommands.h"
 
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
 
@@ -24,7 +24,7 @@
 namespace
 {
 	// 명령은 오브젝트를 InstanceGuid 로 보관한다(포인터/정수 id 아님).
-	// 실제 조작 시점에 활성 씬에서 guid 로 다시 해석한다(파괴→재생성 후에도 안전).
+	// 실제 조작 시점에 활성 캔버스에서 guid 로 다시 해석한다(파괴→재생성 후에도 안전).
 	CGameObject* Resolve(const SafePtr<CGameCanvas>& scene, const File::Guid& guid)
 	{
 		return scene.IsValid() ? scene->FindByInstanceGuid(guid).TryGet() : nullptr;
@@ -269,7 +269,7 @@ bool CCreateGameObjectCommand::Execute()
 		return false;
 	}
 
-	// 레이어 지정 생성 — 씬이 배정까지 해준다(미지정 = 기본 레이어). 자식으로 붙는 경우
+	// 레이어 지정 생성 — 캔버스가 배정까지 해준다(미지정 = 기본 레이어). 자식으로 붙는 경우
 	// 아래 SetParent 가 부모 레이어로 덮어쓰므로 여기 값은 루트일 때만 남는다.
 	CGameLayer* layer = m_layerGuid.IsNull()
 		? nullptr
@@ -300,7 +300,7 @@ bool CCreateGameObjectCommand::Execute()
 		}
 	}
 
-	// 씬뷰 우클릭 위치 생성: 월드 좌표를 로컬 좌표로 환산해 배치한다. 부모가 있으면 부모
+	// 캔버스뷰 우클릭 위치 생성: 월드 좌표를 로컬 좌표로 환산해 배치한다. 부모가 있으면 부모
 	// 월드 역행렬로 변환(부모의 캐시된 World 행렬 사용), 루트면 월드=로컬이므로 그대로.
 	// 새 오브젝트는 scale=1/rot=0 이라 world 위치 = parentWorld.TransformPoint(localPos).
 	if (m_hasSpawnPos)
@@ -683,8 +683,8 @@ void CDeleteGameObjectsCommand::Redo()
 namespace
 {
 	// 붙여넣은 서브트리 전체에 새 InstanceGuid 를 발급한다(오브젝트 + 컴포넌트 + 자식 재귀).
-	// 원본과 guid 가 겹치면 씬에 같은 guid 가 둘이 되어 Ref/해석이 깨지므로 필수.
-	// 오브젝트 guid 는 반드시 씬 API(SetObjectInstanceGuid)로 재발급해야 m_objectByGuid 인덱스가
+	// 원본과 guid 가 겹치면 캔버스에 같은 guid 가 둘이 되어 Ref/해석이 깨지므로 필수.
+	// 오브젝트 guid 는 반드시 캔버스 API(SetObjectInstanceGuid)로 재발급해야 m_objectByGuid 인덱스가
 	// 함께 갱신된다. 직접 대입하면 인덱스가 옛 guid 로 남아 FindByInstanceGuid 가 실패
 	// → 붙여넣은 오브젝트를 기즈모/커맨드가 못 찾아 이동 등 편집이 안 된다.
 	void ReissuePastedGuids(CGameCanvas& scene, CGameObject& object)
@@ -694,7 +694,7 @@ namespace
 		{
 			if (CComponent* comp = cref.TryGet())
 			{
-				// 컴포넌트는 씬 guid 인덱스가 없어 직접 대입으로 충분.
+				// 컴포넌트는 캔버스 guid 인덱스가 없어 직접 대입으로 충분.
 				CCanvasRuntimeAccess::SetComponentInstanceGuid(*comp, File::GenerateGuid());
 			}
 		}
@@ -749,7 +749,7 @@ bool CPasteObjectsCommand::Execute()
 			if (root) ReissuePastedGuids(*m_canvas, *root);
 		}
 
-		// 위치: 역직렬화 직후 루트는 씬 루트에 있으므로 local==world 로 취급한다.
+		// 위치: 역직렬화 직후 루트는 캔버스 루트에 있으므로 local==world 로 취급한다.
 		// parent 가 있으면 최종 월드 위치를 parent local 로 환산한 뒤 자식으로 붙인다.
 		targetWorldPositions.reserve(roots.size());
 		for (CGameObject* root : roots)
@@ -786,7 +786,7 @@ bool CPasteObjectsCommand::Execute()
 	}
 
 	// 부모·레이어 배정은 redo 에서도 매번 한다 — 정규화 스냅샷(오브젝트 직렬화)은 계층도
-	// 레이어도 담지 않아서(둘 다 씬 레벨 관심사) 역직렬화 직후 루트는 늘 씬 루트 + 기본
+	// 레이어도 담지 않아서(둘 다 캔버스 레벨 관심사) 역직렬화 직후 루트는 늘 캔버스 루트 + 기본
 	// 레이어로 되살아난다. 최초 실행에서만 하면 undo→redo 가 부모와 레이어를 잃는다.
 	CGameObject* parent = Resolve(m_canvas, m_parentGuid);
 	Matrix3x2 parentInverse;

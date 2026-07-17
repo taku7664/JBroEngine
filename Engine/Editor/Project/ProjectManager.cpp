@@ -39,9 +39,13 @@ namespace
 	constexpr const char* PROJECT_KEY_ROOT_PATH         = "RootPath";
 	constexpr const char* PROJECT_KEY_RES_WIDTH         = "ResolutionWidth";
 	constexpr const char* PROJECT_KEY_RES_HEIGHT        = "ResolutionHeight";
-	constexpr const char* PROJECT_KEY_SCENE_CAM_X       = "SceneViewCamX";
-	constexpr const char* PROJECT_KEY_SCENE_CAM_Y       = "SceneViewCamY";
-	constexpr const char* PROJECT_KEY_SCENE_CAM_SIZE    = "SceneViewCamSize";
+	constexpr const char* PROJECT_KEY_CANVAS_CAM_X       = "CanvasViewCamX";
+	constexpr const char* PROJECT_KEY_CANVAS_CAM_Y       = "CanvasViewCamY";
+	constexpr const char* PROJECT_KEY_CANVAS_CAM_SIZE    = "CanvasViewCamSize";
+	// legacy — 리네임 이전에 저장된 `.jproject` 는 "SceneViewCam*" 이다(읽기만 받아 준다).
+	constexpr const char* PROJECT_KEY_SCENE_CAM_X_LEGACY    = "SceneViewCamX";
+	constexpr const char* PROJECT_KEY_SCENE_CAM_Y_LEGACY    = "SceneViewCamY";
+	constexpr const char* PROJECT_KEY_SCENE_CAM_SIZE_LEGACY = "SceneViewCamSize";
 	constexpr const char* PROJECT_KEY_SCRIPT_DLL_PATH   = "ScriptDllPath";
 	constexpr const char* PROJECT_KEY_SCRIPT_SOURCE_DIR  = "ScriptSourceDirectory";
 	constexpr const char* PROJECT_KEY_SCRIPT_BUILD_CMD   = "ScriptBuildCommand";
@@ -50,7 +54,9 @@ namespace
 	constexpr const char* PROJECT_KEY_SCRIPT_BUILD_CONFIG = "ScriptBuildConfiguration";
 	constexpr const char* PROJECT_KEY_SCRIPT_AUTO_REBUILD_ENABLED = "ScriptAutoRebuildEnabled";
 	constexpr const char* PROJECT_KEY_LEGACY_LIVE_COMPILE_ENABLED = "LiveCompileEnabled";
-	constexpr const char* PROJECT_KEY_LAST_SCENE_PATH   = "LastOpenedScenePath";
+	constexpr const char* PROJECT_KEY_LAST_CANVAS_PATH   = "LastOpenedCanvasPath";
+	// legacy — 리네임 이전에 저장된 `.jproject` 는 "LastOpenedScenePath" 다(읽기만 받아 준다).
+	constexpr const char* PROJECT_KEY_LAST_SCENE_PATH_LEGACY = "LastOpenedScenePath";
 	constexpr const char* PROJECT_KEY_PIXELS_PER_UNIT   = "PixelsPerUnit";
 	constexpr const char* PROJECT_KEY_DEFAULT_FONT_FAMILY = "DefaultFontFamilyGuid";
 	constexpr const char* PROJECT_KEY_FALLBACK_FONT_FAMILIES = "FallbackFontFamilies";
@@ -125,8 +131,12 @@ namespace
 	constexpr const char* PROJECT_KEY_BUILD_ENABLE_IOS     = "EnableIOS";
 	constexpr const char* PROJECT_KEY_BUILD_CONFIGURATION = "BuildConfiguration";
 	constexpr const char* PROJECT_KEY_BUILD_OUTPUT_DIR = "OutputDirectory";
-	constexpr const char* PROJECT_KEY_BUILD_STARTUP_SCENE = "StartupScene";
-	constexpr const char* PROJECT_KEY_BUILD_SCENES = "BuildScenes";
+	constexpr const char* PROJECT_KEY_BUILD_STARTUP_CANVAS = "StartupCanvas";
+	constexpr const char* PROJECT_KEY_BUILD_CANVASES = "BuildCanvases";
+	// legacy — 캔버스는 예전에 "Scene" 이었다. 이미 저장된 `.jproject` 를 계속 읽어 준다
+	// (쓰기는 위 키로만 한다 — 프로젝트가 한 번 저장되면 자연히 옮겨간다).
+	constexpr const char* PROJECT_KEY_BUILD_STARTUP_SCENE_LEGACY = "StartupScene";
+	constexpr const char* PROJECT_KEY_BUILD_CANVASES_LEGACY = "BuildScenes";
 	constexpr const char* PROJECT_KEY_BUILD_ALWAYS_INCLUDE = "AlwaysIncludeAssets";
 	constexpr const char* PROJECT_KEY_BUILD_SCRIPT_MODE = "ScriptMode";
 	constexpr const char* PROJECT_KEY_BUILD_SCRIPT_PROJECT = "ScriptProjectPath";
@@ -309,10 +319,10 @@ namespace
 		settings.EnableWindows = true; // 신규 프로젝트는 Windows 만 활성(기존 기본 TargetPlatform 과 동등).
 		settings.BuildConfiguration = EBuildConfiguration::Release;
 		settings.OutputDirectory = "Dist/Games";
-		settings.StartupScene = startupScene;
+		settings.StartupCanvas = startupScene;
 		if (false == startupScene.empty())
 		{
-			settings.BuildScenes.push_back(startupScene);
+			settings.BuildCanvases.push_back(startupScene);
 		}
 		settings.ScriptMode = EBuildScriptMode::DynamicLibrary;
 		settings.ScriptProjectPath = std::string(CONTENTS_DIRECTORY_NAME) + "/GameScript.vcxproj";
@@ -375,14 +385,14 @@ namespace
 				? "GameScript.dll"
 				: "";
 		}
-		if (settings.BuildScenes.empty() && false == settings.StartupScene.empty())
+		if (settings.BuildCanvases.empty() && false == settings.StartupCanvas.empty())
 		{
-			settings.BuildScenes.push_back(settings.StartupScene);
+			settings.BuildCanvases.push_back(settings.StartupCanvas);
 		}
-		if (false == settings.StartupScene.empty()
-			&& std::find(settings.BuildScenes.begin(), settings.BuildScenes.end(), settings.StartupScene) == settings.BuildScenes.end())
+		if (false == settings.StartupCanvas.empty()
+			&& std::find(settings.BuildCanvases.begin(), settings.BuildCanvases.end(), settings.StartupCanvas) == settings.BuildCanvases.end())
 		{
-			settings.BuildScenes.insert(settings.BuildScenes.begin(), settings.StartupScene);
+			settings.BuildCanvases.insert(settings.BuildCanvases.begin(), settings.StartupCanvas);
 		}
 		// ScriptMode 는 DynamicLibrary 기준으로 보정한다(Windows 빌드 기본). Web/모바일 빌드는
 		// 정적 링크가 필요한데, 그 강제는 빌드 1회당 플랫폼이 정해지는 빌드 디스크립터 생성
@@ -404,10 +414,10 @@ namespace
 		out << YAML::Key << PROJECT_KEY_BUILD_ENABLE_IOS     << YAML::Value << settings.EnableIOS;
 		out << YAML::Key << PROJECT_KEY_BUILD_CONFIGURATION << YAML::Value << ToString(settings.BuildConfiguration);
 		out << YAML::Key << PROJECT_KEY_BUILD_OUTPUT_DIR << YAML::Value << settings.OutputDirectory;
-		out << YAML::Key << PROJECT_KEY_BUILD_STARTUP_SCENE << YAML::Value << settings.StartupScene;
-		out << YAML::Key << PROJECT_KEY_BUILD_SCENES << YAML::Value;
+		out << YAML::Key << PROJECT_KEY_BUILD_STARTUP_CANVAS << YAML::Value << settings.StartupCanvas;
+		out << YAML::Key << PROJECT_KEY_BUILD_CANVASES << YAML::Value;
 		out << YAML::BeginSeq;
-		for (const std::string& scene : settings.BuildScenes)
+		for (const std::string& scene : settings.BuildCanvases)
 		{
 			out << scene;
 		}
@@ -469,7 +479,10 @@ namespace
 
 		settings.BuildConfiguration = ParseBuildConfiguration(buildNode[PROJECT_KEY_BUILD_CONFIGURATION].as<std::string>(ToString(settings.BuildConfiguration)));
 		settings.OutputDirectory = buildNode[PROJECT_KEY_BUILD_OUTPUT_DIR].as<std::string>(settings.OutputDirectory);
-		settings.StartupScene = buildNode[PROJECT_KEY_BUILD_STARTUP_SCENE].as<std::string>(settings.StartupScene);
+		// 새 키가 없으면 legacy 를 본다 — 리네임 이전에 저장된 `.jproject` 는 "StartupScene" 이다.
+		settings.StartupCanvas = buildNode[PROJECT_KEY_BUILD_STARTUP_CANVAS]
+			? buildNode[PROJECT_KEY_BUILD_STARTUP_CANVAS].as<std::string>(settings.StartupCanvas)
+			: buildNode[PROJECT_KEY_BUILD_STARTUP_SCENE_LEGACY].as<std::string>(settings.StartupCanvas);
 		settings.ScriptMode = ParseBuildScriptMode(buildNode[PROJECT_KEY_BUILD_SCRIPT_MODE].as<std::string>(ToString(settings.ScriptMode)));
 		settings.ScriptProjectPath = buildNode[PROJECT_KEY_BUILD_SCRIPT_PROJECT].as<std::string>(settings.ScriptProjectPath);
 		settings.ScriptBuildConfiguration = ParseScriptBuildConfiguration(buildNode[PROJECT_KEY_BUILD_SCRIPT_CONFIG].as<std::string>(ToString(settings.ScriptBuildConfiguration)));
@@ -484,16 +497,17 @@ namespace
 		settings.IOSTeamId = buildNode[PROJECT_KEY_BUILD_IOS_TEAM_ID].as<std::string>(settings.IOSTeamId);
 		settings.IOSMinimumOSVersion = buildNode[PROJECT_KEY_BUILD_IOS_MINIMUM_OS].as<std::string>(settings.IOSMinimumOSVersion);
 
-		settings.BuildScenes.clear();
-		const YAML::Node scenesNode = buildNode[PROJECT_KEY_BUILD_SCENES];
-		if (scenesNode && scenesNode.IsSequence())
+		settings.BuildCanvases.clear();
+		const YAML::Node authoredNode = buildNode[PROJECT_KEY_BUILD_CANVASES];
+		const YAML::Node canvasesNode = authoredNode ? authoredNode : buildNode[PROJECT_KEY_BUILD_CANVASES_LEGACY];
+		if (canvasesNode && canvasesNode.IsSequence())
 		{
-			for (const YAML::Node& sceneNode : scenesNode)
+			for (const YAML::Node& canvasNode : canvasesNode)
 			{
-				const std::string scene = sceneNode.as<std::string>("");
-				if (false == scene.empty())
+				const std::string canvas = canvasNode.as<std::string>("");
+				if (false == canvas.empty())
 				{
-					settings.BuildScenes.push_back(scene);
+					settings.BuildCanvases.push_back(canvas);
 				}
 			}
 		}
@@ -698,21 +712,31 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 		resolutionHeight = root[PROJECT_KEY_RES_HEIGHT].as<std::uint32_t>(1080);
 	}
 
-	float sceneViewCamX    = 0.0f;
-	float sceneViewCamY    = 0.0f;
-	float sceneViewCamSize = 5.0f;
-	if (root[PROJECT_KEY_SCENE_CAM_X])
+	float canvasViewCamX    = 0.0f;
+	float canvasViewCamY    = 0.0f;
+	float canvasViewCamSize = 5.0f;
+	if (root[PROJECT_KEY_CANVAS_CAM_X])
 	{
-		sceneViewCamX = root[PROJECT_KEY_SCENE_CAM_X].as<float>(0.0f);
+		canvasViewCamX = root[PROJECT_KEY_CANVAS_CAM_X].as<float>(0.0f);
 	}
-	if (root[PROJECT_KEY_SCENE_CAM_Y])
+	else if (root[PROJECT_KEY_SCENE_CAM_X_LEGACY])
 	{
-		sceneViewCamY = root[PROJECT_KEY_SCENE_CAM_Y].as<float>(0.0f);
+		canvasViewCamX = root[PROJECT_KEY_SCENE_CAM_X_LEGACY].as<float>(0.0f);
 	}
-	if (root[PROJECT_KEY_SCENE_CAM_SIZE])
+	if (root[PROJECT_KEY_CANVAS_CAM_Y])
 	{
-		sceneViewCamSize = root[PROJECT_KEY_SCENE_CAM_SIZE].as<float>(5.0f);
-		if (sceneViewCamSize <= 0.0f) sceneViewCamSize = 5.0f;
+		canvasViewCamY = root[PROJECT_KEY_CANVAS_CAM_Y].as<float>(0.0f);
+	}
+	else if (root[PROJECT_KEY_SCENE_CAM_Y_LEGACY])
+	{
+		canvasViewCamY = root[PROJECT_KEY_SCENE_CAM_Y_LEGACY].as<float>(0.0f);
+	}
+	if (root[PROJECT_KEY_CANVAS_CAM_SIZE] || root[PROJECT_KEY_SCENE_CAM_SIZE_LEGACY])
+	{
+		canvasViewCamSize = root[PROJECT_KEY_CANVAS_CAM_SIZE]
+			? root[PROJECT_KEY_CANVAS_CAM_SIZE].as<float>(5.0f)
+			: root[PROJECT_KEY_SCENE_CAM_SIZE_LEGACY].as<float>(5.0f);
+		if (canvasViewCamSize <= 0.0f) canvasViewCamSize = 5.0f;
 	}
 
 	std::string scriptDllPath;
@@ -757,10 +781,14 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 		scriptAutoRebuildEnabled = root[PROJECT_KEY_LEGACY_LIVE_COMPILE_ENABLED].as<bool>(true);
 	}
 
-	std::string lastOpenedScenePath;
-	if (root[PROJECT_KEY_LAST_SCENE_PATH])
+	std::string lastOpenedCanvasPath;
+	if (root[PROJECT_KEY_LAST_CANVAS_PATH])
 	{
-		lastOpenedScenePath = root[PROJECT_KEY_LAST_SCENE_PATH].as<std::string>("");
+		lastOpenedCanvasPath = root[PROJECT_KEY_LAST_CANVAS_PATH].as<std::string>("");
+	}
+	else if (root[PROJECT_KEY_LAST_SCENE_PATH_LEGACY])
+	{
+		lastOpenedCanvasPath = root[PROJECT_KEY_LAST_SCENE_PATH_LEGACY].as<std::string>("");
 	}
 
 	std::string editorLocaleCode = Engine.Localization.IsValid()
@@ -870,7 +898,7 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 		debugModeEnabled = root[PROJECT_KEY_DEBUG_MODE_ENABLED].as<bool>(false);
 	}
 
-	ProjectBuildSettings buildSettings = ReadBuildSettings(root, projectPath, lastOpenedScenePath);
+	ProjectBuildSettings buildSettings = ReadBuildSettings(root, projectPath, lastOpenedCanvasPath);
 
 	std::filesystem::path rootRelativePath = ".";
 	if (root[PROJECT_KEY_ROOT_PATH])
@@ -922,9 +950,9 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 	m_info.ScriptPath       = File::Path(scriptPath);
 	m_info.ResolutionWidth  = (resolutionWidth  > 0) ? resolutionWidth  : 1920;
 	m_info.ResolutionHeight = (resolutionHeight > 0) ? resolutionHeight : 1080;
-	m_info.SceneViewCamX    = sceneViewCamX;
-	m_info.SceneViewCamY    = sceneViewCamY;
-	m_info.SceneViewCamSize = sceneViewCamSize;
+	m_info.CanvasViewCamX    = canvasViewCamX;
+	m_info.CanvasViewCamY    = canvasViewCamY;
+	m_info.CanvasViewCamSize = canvasViewCamSize;
 	m_info.ScriptDllPath    = scriptDllPath;
 	m_info.ScriptSourceDirectory = scriptSourceDirectory;
 	m_info.ScriptBuildCommand = scriptBuildCommand;
@@ -932,7 +960,7 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 	m_info.ScriptIntermediateDirectory = scriptIntermediateDirectory;
 	m_info.ScriptBuildConfiguration = scriptBuildConfiguration;
 	m_info.ScriptAutoRebuildEnabled = scriptAutoRebuildEnabled;
-	m_info.LastOpenedScenePath = lastOpenedScenePath;
+	m_info.LastOpenedCanvasPath = lastOpenedCanvasPath;
 	m_info.BuildSettings       = buildSettings;
 	m_info.PixelsPerUnit       = pixelsPerUnit;
 	m_info.DefaultFontFamilyGuid = defaultFontFamily;
@@ -970,7 +998,7 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 	// Assets 트리를 1회 스캔하며 디스크 실제 상태 ↔ 레지스트리를 일관·치유 상태로
 	// 맞춘다: 메타 없는 raw 는 생성, 분실/이동된 메타는 복구 캐시(해시)로 같은 GUID
 	// 복구, 중복 GUID 는 결정적으로 재발급, 고아 메타는 격리. 모두 로그로 남긴다.
-	// 텍스처 디코드/GPU 업로드는 없다(데이터 로드는 아래 "마지막 씬 참조 에셋"만).
+	// 텍스처 디코드/GPU 업로드는 없다(데이터 로드는 아래 "마지막 캔버스 참조 에셋"만).
 	// 파일 워처는 reconcile 이후에 Watch 한다 — reconcile 이 생성/격리한 메타가
 	// 초기 스냅샷에 이미 반영되어 불필요한(자기-유발) 이벤트가 안 생기도록.
 	m_assetDb.Load(GetAssetDbPath());
@@ -1038,10 +1066,10 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 	Runtime.DefaultFontFamilyGuid = m_info.DefaultFontFamilyGuid;
 	Runtime.FallbackFontFamilies = m_info.FallbackFontFamilies;
 
-	// ── 마지막 씬이 참조하는 에셋만 수집 (프리팹 참조까지 전이적으로 확장) ──
-	// 씬 파일의 ReferencedAssets 목록을 기반으로, 프리팹이면 그 프리팹의 참조까지
-	// 펼쳐 "이 씬을 띄우는 데 실제로 필요한" 자산 GUID 들만 모은다.
-	const std::vector<AssetGuid> sceneAssets = CollectSceneLoadAssets(m_info.LastOpenedScenePath);
+	// ── 마지막 캔버스가 참조하는 에셋만 수집 (프리팹 참조까지 전이적으로 확장) ──
+	// 캔버스 파일의 ReferencedAssets 목록을 기반으로, 프리팹이면 그 프리팹의 참조까지
+	// 펼쳐 "이 캔버스를 띄우는 데 실제로 필요한" 자산 GUID 들만 모은다.
+	const std::vector<AssetGuid> sceneAssets = CollectSceneLoadAssets(m_info.LastOpenedCanvasPath);
 
 	// ── 동기 폴백 — TaskManager/Group 이 없을 때 메인 스레드에서 직접 로드 ──
 	auto runSyncFallback = [this, &sceneAssets, &runScriptBuildSync]()
@@ -1073,13 +1101,13 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 
 	SafePtr<CProjectManager> selfRef = SafeFromThis();
 
-	// 에셋 로드 태스크 개수 = min(5, 참조 에셋 수).  씬이 참조하는 에셋을 ≤5 개의
+	// 에셋 로드 태스크 개수 = min(5, 참조 에셋 수).  캔버스가 참조하는 에셋을 ≤5 개의
 	// 청크로 분배해 각 청크를 하나의 로드 태스크로 만든다. 스크립트 빌드 태스크 1개 추가.
 	const std::size_t assetCount     = sceneAssets.size();
 	const std::size_t assetTaskCount = (0 == assetCount) ? 0 : (assetCount < 5 ? assetCount : 5);
 	const std::size_t totalTasks     = assetTaskCount + (m_liveCompileManager ? 1u : 0u);
 
-	// 로드할 게 전혀 없으면(씬도 스크립트도 없음) 그룹을 만들지 않고 즉시 후처리.
+	// 로드할 게 전혀 없으면(캔버스도 스크립트도 없음) 그룹을 만들지 않고 즉시 후처리.
 	if (0 == totalTasks)
 	{
 		runSyncFallback();
@@ -1109,7 +1137,7 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 		}
 	};
 
-	// ── 씬 참조 에셋 로드 — 최대 5 개의 태스크로 분배 ────────────────────
+	// ── 캔버스 참조 에셋 로드 — 최대 5 개의 태스크로 분배 ────────────────────
 	if (assetTaskCount > 0)
 	{
 		const std::string loadAssetsLabel = Engine.Localization.IsValid()
@@ -1190,7 +1218,7 @@ void CProjectManager::CloseProject()
 	m_postLoadAction = nullptr;
 	m_loadTaskGroup  = nullptr;
 
-	// 스크립트 DLL 먼저 언로드 (씬보다 먼저)
+	// 스크립트 DLL 먼저 언로드 (캔버스보다 먼저)
 	if (m_liveCompileManager)
 	{
 		m_liveCompileManager->Finalize();
@@ -1224,7 +1252,7 @@ void CProjectManager::CloseProject()
 	m_info.ScriptIntermediateDirectory = "Build/Intermediate/LiveCompile";
 	m_info.ScriptBuildConfiguration = EScriptBuildConfiguration::Debug;
 	m_info.ScriptAutoRebuildEnabled = false;
-	m_info.LastOpenedScenePath = {};
+	m_info.LastOpenedCanvasPath = {};
 	m_info.BuildSettings = ProjectBuildSettings{};
 	m_info.ImGuiIniSettings    = {};
 	m_lastOpenedScriptIdePath = File::NULL_PATH;
@@ -1317,8 +1345,8 @@ std::vector<AssetGuid> CProjectManager::CollectSceneLoadAssets(const std::string
 	CCanvasSerializer serializer;
 	const IAssetRegistry& registry = m_assetManager->GetRegistry();
 
-	// 씬 파일의 ReferencedAssets 를 시작점으로, 프리팹이면 그 프리팹 파일의
-	// ReferencedAssets 까지 BFS/DFS 로 전이 확장한다. (프리팹도 같은 씬 직렬화
+	// 캔버스 파일의 ReferencedAssets 를 시작점으로, 프리팹이면 그 프리팹 파일의
+	// ReferencedAssets 까지 BFS/DFS 로 전이 확장한다. (프리팹도 같은 캔버스 직렬화
 	// 포맷이라 ReferencedAssets 블록을 그대로 가진다.)
 	std::unordered_set<AssetGuid> visited;
 	std::vector<AssetGuid> pending = serializer.ReadReferencedAssetsFromFile(File::Path(sceneFile.generic_string()));
@@ -1425,7 +1453,7 @@ const char* CProjectManager::ImporterNameForType(EAssetType type)
 	case EAssetType::Audio:    return "Audio";
 	case EAssetType::Material: return "Material";
 	case EAssetType::Shader:   return "Shader";
-	case EAssetType::Canvas:    return "Scene";
+	case EAssetType::Canvas:   return "Canvas";
 	case EAssetType::Prefab:   return "Prefab";
 	case EAssetType::Script:   return "Script";
 	case EAssetType::Mesh:     return "Mesh";
@@ -1731,7 +1759,7 @@ void CProjectManager::ProcessAssetEvents(const std::vector<FileWatchEvent>& even
 	// ── 1) 이동/이름변경 먼저 처리 ───────────────────────────────────────────
 	// Created(newAsset) 마다 매칭되는 Deleted(oldAsset) 를 찾아 레지스트리 경로만
 	// 갱신한다(언로드 X). 이렇게 하면 그 GUID 로 로드돼 있던 에셋(스프라이트 텍스처
-	// 등)이 파괴되지 않아 씬의 라이브 참조가 깨지지 않는다.
+	// 등)이 파괴되지 않아 캔버스의 라이브 참조가 깨지지 않는다.
 	for (const FileWatchEvent& event : events)
 	{
 		if (EFileWatchEventType::Created != event.Type)
@@ -2271,26 +2299,26 @@ bool CProjectManager::IsAssetPathIgnored(const File::Path& absoluteOrRelativePat
 	return MatchAnyPattern(m_info.AssetWatchIgnorePatterns, fileName, relativePath);
 }
 
-float CProjectManager::GetSceneViewCamX() const
+float CProjectManager::GetCanvasViewCamX() const
 {
-	return m_info.SceneViewCamX;
+	return m_info.CanvasViewCamX;
 }
 
-float CProjectManager::GetSceneViewCamY() const
+float CProjectManager::GetCanvasViewCamY() const
 {
-	return m_info.SceneViewCamY;
+	return m_info.CanvasViewCamY;
 }
 
-float CProjectManager::GetSceneViewCamSize() const
+float CProjectManager::GetCanvasViewCamSize() const
 {
-	return m_info.SceneViewCamSize;
+	return m_info.CanvasViewCamSize;
 }
 
-void CProjectManager::SetSceneViewCamera(float x, float y, float size)
+void CProjectManager::SetCanvasViewCamera(float x, float y, float size)
 {
-	m_info.SceneViewCamX    = x;
-	m_info.SceneViewCamY    = y;
-	m_info.SceneViewCamSize = (size > 0.0f) ? size : 5.0f;
+	m_info.CanvasViewCamX    = x;
+	m_info.CanvasViewCamY    = y;
+	m_info.CanvasViewCamSize = (size > 0.0f) ? size : 5.0f;
 }
 
 const std::string& CProjectManager::GetScriptDllPath() const
@@ -2379,12 +2407,12 @@ void CProjectManager::SetLiveCompileEnabled(bool enabled)
 
 const std::string& CProjectManager::GetLastOpenedScenePath() const
 {
-	return m_info.LastOpenedScenePath;
+	return m_info.LastOpenedCanvasPath;
 }
 
 void CProjectManager::SetLastOpenedScenePath(const std::string& relativePath)
 {
-	m_info.LastOpenedScenePath = relativePath;
+	m_info.LastOpenedCanvasPath = relativePath;
 }
 
 const ProjectBuildSettings& CProjectManager::GetBuildSettings() const
@@ -2712,9 +2740,9 @@ bool CProjectManager::SaveProject(std::string* outError) const
 	out << YAML::Key << PROJECT_KEY_ROOT_PATH       << YAML::Value << ".";
 	out << YAML::Key << PROJECT_KEY_RES_WIDTH       << YAML::Value << m_info.ResolutionWidth;
 	out << YAML::Key << PROJECT_KEY_RES_HEIGHT      << YAML::Value << m_info.ResolutionHeight;
-	out << YAML::Key << PROJECT_KEY_SCENE_CAM_X     << YAML::Value << m_info.SceneViewCamX;
-	out << YAML::Key << PROJECT_KEY_SCENE_CAM_Y     << YAML::Value << m_info.SceneViewCamY;
-	out << YAML::Key << PROJECT_KEY_SCENE_CAM_SIZE  << YAML::Value << m_info.SceneViewCamSize;
+	out << YAML::Key << PROJECT_KEY_CANVAS_CAM_X     << YAML::Value << m_info.CanvasViewCamX;
+	out << YAML::Key << PROJECT_KEY_CANVAS_CAM_Y     << YAML::Value << m_info.CanvasViewCamY;
+	out << YAML::Key << PROJECT_KEY_CANVAS_CAM_SIZE  << YAML::Value << m_info.CanvasViewCamSize;
 	out << YAML::Key << PROJECT_KEY_PIXELS_PER_UNIT << YAML::Value << m_info.PixelsPerUnit;
 	out << YAML::Key << PROJECT_KEY_DEFAULT_FONT_FAMILY << YAML::Value << m_info.DefaultFontFamilyGuid.generic_string();
 	out << YAML::Key << PROJECT_KEY_FALLBACK_FONT_FAMILIES << YAML::Value << YAML::BeginSeq;
@@ -2733,9 +2761,9 @@ bool CProjectManager::SaveProject(std::string* outError) const
 	{
 		out << YAML::Key << PROJECT_KEY_SCRIPT_DLL_PATH << YAML::Value << m_info.ScriptDllPath;
 	}
-	if (false == m_info.LastOpenedScenePath.empty())
+	if (false == m_info.LastOpenedCanvasPath.empty())
 	{
-		out << YAML::Key << PROJECT_KEY_LAST_SCENE_PATH << YAML::Value << m_info.LastOpenedScenePath;
+		out << YAML::Key << PROJECT_KEY_LAST_CANVAS_PATH << YAML::Value << m_info.LastOpenedCanvasPath;
 	}
 	out << YAML::Key << PROJECT_KEY_WATCH_IGNORE << YAML::Value;
 	out << YAML::BeginSeq;

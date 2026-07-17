@@ -11,8 +11,8 @@
 
 class CGameCanvas;
 
-// 오브젝트 커맨드(EditorSceneCommands)와 같은 규칙: 레이어를 InstanceGuid 로 보관하고
-// 조작 시점에 활성 씬에서 다시 해석한다. 파괴→undo→redo 로 주소가 바뀌어도 안전하다.
+// 오브젝트 커맨드(EditorObjectCommands)와 같은 규칙: 레이어를 InstanceGuid 로 보관하고
+// 조작 시점에 활성 캔버스에서 다시 해석한다. 파괴→undo→redo 로 주소가 바뀌어도 안전하다.
 
 // 레이어 편집 대상 속성 묶음. 필드가 7개뿐이고 서로 독립이라 필드별 커맨드를 만들지 않고
 // 한 벌을 통째로 캡처/복원한다(undo 는 값 비교가 아니라 스냅샷 교체).

@@ -884,7 +884,7 @@
     <ClInclude Include="Core\Resource\ResourceRegistry.h">
       <Filter>Header\Core\Resource</Filter>
     </ClInclude>
-    <ClInclude Include="GameFramework\Debug\SceneDebugDrawSystem.h">
+    <ClInclude Include="GameFramework\Debug\CanvasDebugDrawSystem.h">
       <Filter>Header\GameFramework\Debug</Filter>
     </ClInclude>
     <ClInclude Include="GameFramework\Physics2D\Physics2DSystem.h">
@@ -1486,7 +1486,7 @@
     <ClCompile Include="GameFramework\System\GameSystem.cpp">
       <Filter>Source\GameFramework\System</Filter>
     </ClCompile>
-    <ClCompile Include="GameFramework\Debug\SceneDebugDrawSystem.cpp">
+    <ClCompile Include="GameFramework\Debug\CanvasDebugDrawSystem.cpp">
       <Filter>Source\GameFramework\Debug</Filter>
     </ClCompile>
     <ClCompile Include="GameFramework\Physics2D\Physics2DSystem.cpp">

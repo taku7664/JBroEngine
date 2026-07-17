@@ -222,7 +222,7 @@ namespace
 		outManifest.Version = static_cast<int>(version);
 		if (false == ReadPod(payload, cursor, outManifest.ResolutionWidth)
 			|| false == ReadPod(payload, cursor, outManifest.ResolutionHeight)
-			|| false == ReadString(payload, cursor, outManifest.StartupSceneGuid))
+			|| false == ReadString(payload, cursor, outManifest.StartupCanvasGuid))
 		{
 			SetError(outError, "Binary build manifest payload is invalid.");
 			return false;
@@ -260,26 +260,26 @@ namespace
 			return false;
 		}
 
-		// 빌드 씬 목록(name + guid) — 이 섹션이 없는 구 매니페스트는 cursor 가 끝에 있어 스킵된다.
+		// 빌드 캔버스 목록(name + guid) — 이 섹션이 없는 구 매니페스트는 cursor 가 끝에 있어 스킵된다.
 		if (cursor < payload.size())
 		{
 			std::uint32_t buildSceneCount = 0;
 			if (false == ReadPod(payload, cursor, buildSceneCount) || buildSceneCount > 4096)
 			{
-				SetError(outError, "Binary build manifest build scene count is invalid.");
+				SetError(outError, "Binary build manifest build canvas count is invalid.");
 				return false;
 			}
 			for (std::uint32_t i = 0; i < buildSceneCount; ++i)
 			{
 				std::string canvasName;
-				std::string sceneGuid;
-				if (false == ReadString(payload, cursor, canvasName) || false == ReadString(payload, cursor, sceneGuid))
+				std::string canvasGuid;
+				if (false == ReadString(payload, cursor, canvasName) || false == ReadString(payload, cursor, canvasGuid))
 				{
-					SetError(outError, "Binary build manifest build scene entry is invalid.");
+					SetError(outError, "Binary build manifest build canvas entry is invalid.");
 					return false;
 				}
-				outManifest.BuildScenes.push_back(std::move(canvasName));
-				outManifest.BuildSceneGuids.push_back(std::move(sceneGuid));
+				outManifest.BuildCanvases.push_back(std::move(canvasName));
+				outManifest.BuildCanvasGuids.push_back(std::move(canvasGuid));
 			}
 		}
 
@@ -360,9 +360,9 @@ namespace
 		outManifest.PackageRootPath = File::Path(packageRootPath.generic_string());
 		ApplyRuntimeDefaults(outManifest);
 
-		if (outManifest.StartupSceneGuid.empty())
+		if (outManifest.StartupCanvasGuid.empty())
 		{
-			SetError(outError, "Binary build manifest has no startup scene GUID.");
+			SetError(outError, "Binary build manifest has no startup canvas GUID.");
 			return false;
 		}
 
@@ -535,8 +535,8 @@ bool CBuildManifestLoader::LoadFromFile(const File::Path& manifestPath, BuildMan
 	outManifest.ProductName = ReadValueOr<std::string>(root, "productName", "");
 	outManifest.TargetPlatform = ReadValueOr<std::string>(root, "targetPlatform", "");
 	outManifest.Configuration = ReadValueOr<std::string>(root, "configuration", "");
-	outManifest.StartupScene = ReadValueOr<std::string>(root, "startupScene", "");
-	outManifest.StartupSceneGuid = ReadValueOr<std::string>(root, "startupSceneGuid", "");
+	outManifest.StartupCanvas = ReadValueOr<std::string>(root, "startupCanvas", "");
+	outManifest.StartupCanvasGuid = ReadValueOr<std::string>(root, "startupCanvasGuid", "");
 	outManifest.ScriptMode = ReadValueOr<std::string>(root, "scriptMode", "");
 	outManifest.ScriptModule = ReadValueOr<std::string>(root, "scriptModule", "");
 	outManifest.Orientation = ReadValueOr<std::string>(root, "orientation", "");
@@ -553,16 +553,16 @@ bool CBuildManifestLoader::LoadFromFile(const File::Path& manifestPath, BuildMan
 		}
 	}
 
-	if (const YAML::Node scenes = root["buildScenes"]; scenes && scenes.IsSequence())
+	if (const YAML::Node canvases = root["buildCanvases"]; canvases && canvases.IsSequence())
 	{
-		for (const YAML::Node& scene : scenes)
+		for (const YAML::Node& canvas : canvases)
 		{
 			try
 			{
-				std::string value = scene.as<std::string>("");
+				std::string value = canvas.as<std::string>("");
 				if (false == value.empty())
 				{
-					outManifest.BuildScenes.push_back(std::move(value));
+					outManifest.BuildCanvases.push_back(std::move(value));
 				}
 			}
 			catch (const YAML::Exception&)
@@ -571,13 +571,13 @@ bool CBuildManifestLoader::LoadFromFile(const File::Path& manifestPath, BuildMan
 		}
 	}
 
-	if (const YAML::Node guids = root["buildSceneGuids"]; guids && guids.IsSequence())
+	if (const YAML::Node guids = root["buildCanvasGuids"]; guids && guids.IsSequence())
 	{
 		for (const YAML::Node& guidNode : guids)
 		{
 			try
 			{
-				outManifest.BuildSceneGuids.push_back(guidNode.as<std::string>(""));
+				outManifest.BuildCanvasGuids.push_back(guidNode.as<std::string>(""));
 			}
 			catch (const YAML::Exception&)
 			{
@@ -611,9 +611,9 @@ bool CBuildManifestLoader::LoadFromFile(const File::Path& manifestPath, BuildMan
 		}
 	}
 
-	if (outManifest.StartupScene.empty())
+	if (outManifest.StartupCanvas.empty())
 	{
-		SetError(outError, "Build manifest has no startup scene.");
+		SetError(outError, "Build manifest has no startup canvas.");
 		return false;
 	}
 	if (outManifest.AssetMounts.empty())
@@ -658,7 +658,7 @@ bool CBuildManifestLoader::WriteBinaryFile(const File::Path& manifestPath, const
 	const int height = manifest.ResolutionHeight > 0 ? manifest.ResolutionHeight : 720;
 	WritePod(payload, width);
 	WritePod(payload, height);
-	WriteString(payload, manifest.StartupSceneGuid);
+	WriteString(payload, manifest.StartupCanvasGuid);
 	const float pixelsPerUnit = NormalizePixelsPerUnit(manifest.PixelsPerUnit);
 	WritePod(payload, pixelsPerUnit);
 	WriteString(payload, manifest.TargetPlatform);
@@ -667,14 +667,14 @@ bool CBuildManifestLoader::WriteBinaryFile(const File::Path& manifestPath, const
 	WriteString(payload, manifest.ProductName);
 	WriteString(payload, manifest.Orientation);
 
-	// 빌드 씬 목록(name + guid). 릴리즈 런타임이 startup 외 씬을 GUID 로 선로드하는 데 쓴다.
+	// 빌드 캔버스 목록(name + guid). 릴리즈 런타임이 startup 외 캔버스를 GUID 로 선로드하는 데 쓴다.
 	// 기존 매니페스트(이 섹션이 없던 것)는 읽기 측 cursor 가드로 자연히 빈 목록이 된다(전방호환).
-	const std::uint32_t buildSceneCount = static_cast<std::uint32_t>(manifest.BuildScenes.size());
+	const std::uint32_t buildSceneCount = static_cast<std::uint32_t>(manifest.BuildCanvases.size());
 	WritePod(payload, buildSceneCount);
 	for (std::uint32_t i = 0; i < buildSceneCount; ++i)
 	{
-		WriteString(payload, manifest.BuildScenes[i]);
-		WriteString(payload, i < manifest.BuildSceneGuids.size() ? manifest.BuildSceneGuids[i] : std::string());
+		WriteString(payload, manifest.BuildCanvases[i]);
+		WriteString(payload, i < manifest.BuildCanvasGuids.size() ? manifest.BuildCanvasGuids[i] : std::string());
 	}
 
 	const std::uint32_t actionCount = static_cast<std::uint32_t>(

@@ -26,7 +26,7 @@ public:
 	IRenderScene* GetRenderScene() const;
 	bool ShouldUpdateInEditMode() const override { return true; }
 
-	// 씬 변경/언로드 시 호출 — 생성된 머티리얼 캐시를 비웁니다.
+	// 캔버스 변경/언로드 시 호출 — 생성된 머티리얼 캐시를 비웁니다.
 	void ClearMaterialCache();
 
 protected:

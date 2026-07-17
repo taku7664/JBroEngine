@@ -33,7 +33,7 @@ namespace ScriptSchema
 		std::string DisplayName = "";      // Name("..") 인스펙터 표시 이름(C++ 멤버명과 별개)
 		std::string Category    = "";      // Category("..") 인스펙터 그룹
 		std::string Tooltip     = "";      // Tooltip("..") 인스펙터 설명
-		bool        NoSerialize = false;   // NoSerialize 씬 저장 제외(인스펙터엔 노출)
+		bool        NoSerialize = false;   // NoSerialize 캔버스 저장 제외(인스펙터엔 노출)
 		bool        HasRange    = false;   // Range(min,max) 슬라이더 범위
 		double      RangeMin    = 0.0;
 		double      RangeMax    = 1.0;

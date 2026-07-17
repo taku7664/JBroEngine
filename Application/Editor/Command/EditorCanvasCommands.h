@@ -113,7 +113,7 @@ public:
 
 private:
 	SafePtr<CGameCanvas> m_canvas;
-	std::string         m_name;   // 최초 실행 시 씬이 붙인 자동 이름 — redo 가 같은 이름을 재현
+	std::string         m_name;   // 최초 실행 시 캔버스가 붙인 자동 이름 — redo 가 같은 이름을 재현
 	std::size_t         m_index = 0;
 	bool                m_created = false;
 };

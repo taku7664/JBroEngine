@@ -6,7 +6,7 @@
 #include "Editor/Build/BuildSettingsUtils.h"
 #include "Editor/Path/EditorPathUtils.h"
 #include "Editor/EditorSessionPersistence.h"
-#include "Editor/Main/SceneView/SceneViewTool.h"
+#include "Editor/Main/CanvasView/CanvasViewTool.h"
 #include "Engine/Core/Asset/IAssetManager.h"
 #include "Engine/Core/Asset/IAssetRegistry.h"
 #include "Engine/Core/Build/BuildManifest.h"
@@ -429,9 +429,9 @@ bool CGameBuildManager::StartBuild(SafePtr<CProjectManager> projectManager, EBui
 	}
 
 	ProjectBuildSettings settings = projectManager->GetBuildSettings();
-	if (settings.BuildScenes.empty() && false == settings.StartupScene.empty())
+	if (settings.BuildCanvases.empty() && false == settings.StartupCanvas.empty())
 	{
-		settings.BuildScenes.push_back(settings.StartupScene);
+		settings.BuildCanvases.push_back(settings.StartupCanvas);
 	}
 	if (EBuildTargetPlatform::Windows == targetPlatform)
 	{
@@ -448,7 +448,7 @@ bool CGameBuildManager::StartBuild(SafePtr<CProjectManager> projectManager, EBui
 	settings.ScriptBuildConfiguration = EBuildConfiguration::Debug == settings.BuildConfiguration
 		? EScriptBuildConfiguration::Debug
 		: EScriptBuildConfiguration::Release;
-	if (settings.StartupScene.empty())
+	if (settings.StartupCanvas.empty())
 	{
 		std::lock_guard lock(m_mutex);
 		m_state = EGameBuildState::Failed;
@@ -503,9 +503,9 @@ bool CGameBuildManager::StartBuild(SafePtr<CProjectManager> projectManager, EBui
 	desc.DefaultFontFamilyGuid = projectManager->GetDefaultFontFamilyGuid();
 	desc.FallbackFontFamilies = projectManager->GetFallbackFontFamilies();
 	desc.OutputDirectory = settings.OutputDirectory;
-	desc.StartupScene = settings.StartupScene;
-	desc.StartupSceneGuid = FindAssetGuidByPath(File::Path(Utillity::U8ToWString(settings.StartupScene))).generic_string();
-	desc.BuildScenes = settings.BuildScenes;
+	desc.StartupCanvas = settings.StartupCanvas;
+	desc.StartupCanvasGuid = FindAssetGuidByPath(File::Path(Utillity::U8ToWString(settings.StartupCanvas))).generic_string();
+	desc.BuildCanvases = settings.BuildCanvases;
 	desc.AlwaysIncludeAssets = settings.AlwaysIncludeAssets;
 	desc.InputActions = projectManager->GetInputActions();
 	desc.WindowsIconGuid = settings.WindowsIconGuid;
@@ -698,22 +698,22 @@ void CGameBuildManager::AppendLog(const BuildDesc& desc, const std::string& text
 
 bool CGameBuildManager::ValidateScenes(const BuildDesc& desc, std::string& outError) const
 {
-	if (desc.StartupScene.empty())
+	if (desc.StartupCanvas.empty())
 	{
 		outError = "Startup scene is empty.";
 		return false;
 	}
-	std::vector<std::string> scenes = desc.BuildScenes;
-	if (std::find(scenes.begin(), scenes.end(), desc.StartupScene) == scenes.end())
+	std::vector<std::string> scenes = desc.BuildCanvases;
+	if (std::find(scenes.begin(), scenes.end(), desc.StartupCanvas) == scenes.end())
 	{
-		scenes.insert(scenes.begin(), desc.StartupScene);
+		scenes.insert(scenes.begin(), desc.StartupCanvas);
 	}
 	for (const std::string& scene : scenes)
 	{
 		if (scene.empty()) continue;
-		const File::Path scenePath = desc.AssetPath / File::Path(Utillity::U8ToWString(scene));
+		const File::Path canvasPath = desc.AssetPath / File::Path(Utillity::U8ToWString(scene));
 		std::error_code ec;
-		if (false == std::filesystem::exists(scenePath, ec))
+		if (false == std::filesystem::exists(canvasPath, ec))
 		{
 			outError = "Build scene was not found: " + scene;
 			return false;
@@ -724,9 +724,9 @@ bool CGameBuildManager::ValidateScenes(const BuildDesc& desc, std::string& outEr
 			return false;
 		}
 	}
-	if (AssetGuid(desc.StartupSceneGuid).IsNull())
+	if (AssetGuid(desc.StartupCanvasGuid).IsNull())
 	{
-		outError = "Startup scene has no registered asset GUID: " + desc.StartupScene;
+		outError = "Startup scene has no registered asset GUID: " + desc.StartupCanvas;
 		return false;
 	}
 	return true;
@@ -904,20 +904,20 @@ bool CGameBuildManager::StagePackage(const BuildDesc& desc, const File::Path& sc
 		outError = "AssetManager is not available for packaging.";
 		return false;
 	}
-	// 참조 기반 패키징 시드: 빌드 씬 + 스타트업 씬 + Always Include + 기본/폴백 폰트 패밀리.
+	// 참조 기반 패키징 시드: 빌드 캔버스 + 스타트업 캔버스 + Always Include + 기본/폴백 폰트 패밀리.
 	// 수집기가 여기서 프리팹·폰트 전이 의존까지 전개한다.
 	std::vector<AssetGuid> collectorSeeds;
-	for (const std::string& scene : desc.BuildScenes)
+	for (const std::string& scene : desc.BuildCanvases)
 	{
-		const AssetGuid sceneGuid = FindAssetGuidByPath(File::Path(Utillity::U8ToWString(scene)));
-		if (false == sceneGuid.IsNull())
+		const AssetGuid canvasGuid = FindAssetGuidByPath(File::Path(Utillity::U8ToWString(scene)));
+		if (false == canvasGuid.IsNull())
 		{
-			collectorSeeds.push_back(sceneGuid);
+			collectorSeeds.push_back(canvasGuid);
 		}
 	}
-	if (false == desc.StartupSceneGuid.empty())
+	if (false == desc.StartupCanvasGuid.empty())
 	{
-		collectorSeeds.push_back(AssetGuid(desc.StartupSceneGuid));
+		collectorSeeds.push_back(AssetGuid(desc.StartupCanvasGuid));
 	}
 	for (const AssetGuid& guid : desc.AlwaysIncludeAssets)
 	{
@@ -966,16 +966,16 @@ bool CGameBuildManager::StagePackage(const BuildDesc& desc, const File::Path& sc
 	manifest.Version = 1;
 	manifest.ProductName = desc.ProductName;
 	manifest.TargetPlatform = BuildSettingsUtils::GetTargetPlatformName(desc.TargetPlatform);
-	manifest.StartupScene = desc.StartupScene;
-	manifest.StartupSceneGuid = desc.StartupSceneGuid;
-	// 빌드 씬 목록 + 각 씬의 GUID(런타임 선로드용). ValidateBuild 가 이미 전 씬의 GUID 존재를
+	manifest.StartupCanvas = desc.StartupCanvas;
+	manifest.StartupCanvasGuid = desc.StartupCanvasGuid;
+	// 빌드 캔버스 목록 + 각 캔버스의 GUID(런타임 선로드용). ValidateBuild 가 이미 전 캔버스의 GUID 존재를
 	// 보증하므로 여기선 해석만 한다. release 패키지는 경로 폴백이 금지되어 GUID 가 필수.
-	manifest.BuildScenes = desc.BuildScenes;
+	manifest.BuildCanvases = desc.BuildCanvases;
 	manifest.InputActions = desc.InputActions;
-	manifest.BuildSceneGuids.reserve(desc.BuildScenes.size());
-	for (const std::string& scene : desc.BuildScenes)
+	manifest.BuildCanvasGuids.reserve(desc.BuildCanvases.size());
+	for (const std::string& scene : desc.BuildCanvases)
 	{
-		manifest.BuildSceneGuids.push_back(
+		manifest.BuildCanvasGuids.push_back(
 			FindAssetGuidByPath(File::Path(Utillity::U8ToWString(scene))).generic_string());
 	}
 	manifest.ResolutionWidth = static_cast<int>(desc.ResolutionWidth);

@@ -15,7 +15,7 @@ class IDebugDraw2D;
 struct ImDrawList;
 struct ImVec2;
 
-// ── CSceneViewContour ─────────────────────────────────────────────────────────
+// ── CCanvasViewContour ─────────────────────────────────────────────────────────
 //
 // 스프라이트 Alpha 외곽선 폴리곤 캐시 및 렌더링 담당.
 //
@@ -25,7 +25,7 @@ struct ImVec2;
 // 하나의 스프라이트가 여러 개의 분리된 컨투어를 가질 수 있으므로
 // 캐시 값은 vector<vector<Vector2>> (컨투어 목록) 입니다.
 
-class CSceneViewContour
+class CCanvasViewContour
 {
 public:
     void Clear() { m_cache.clear(); }

@@ -9,7 +9,7 @@
 #include "Editor/Main/BuildSettingsWindow.h"
 #include "Editor/Main/ProjectSettingsWindow.h"
 #include "Editor/Main/MainDockWindow.h"
-#include "Editor/Main/SceneView/SceneViewTool.h"
+#include "Editor/Main/CanvasView/CanvasViewTool.h"
 #include "Engine/Core/EngineCore.h"
 #include "Engine/Core/RuntimeConfig.h"
 #include "Engine/Core/ScriptCore.h"
@@ -197,7 +197,7 @@ void CRootDockWindow::OnRenderStay()
 	// 프로젝트 로드 직후(전이 감지) 자산 정합성 요약을 1회 평가.
 	MaybeShowReconcileSummary();
 
-	// 비동기 프로젝트 로드가 끝나면, 그때 마지막 씬을 메인 스레드에서 로드한다.
+	// 비동기 프로젝트 로드가 끝나면, 그때 마지막 캔버스를 메인 스레드에서 로드한다.
 	// (자산 임포트/스크립트 빌드 태스크 완료 후라 참조 에셋이 모두 준비된 상태.)
 	if (m_pendingLoadLastScene)
 	{
@@ -528,16 +528,16 @@ void CRootDockWindow::OnMenuBar()
 							Editor::MainDockWindow->UseStoredDockLayout();
 						}
 
-						// 프로젝트에 저장된 씬뷰 카메라 위치 복원
+						// 프로젝트에 저장된 캔버스뷰 카메라 위치 복원
 						if (Editor::CanvasView)
 						{
 							Editor::CanvasView->SetEditorCamera(
-								projectManager->GetSceneViewCamX(),
-								projectManager->GetSceneViewCamY(),
-								projectManager->GetSceneViewCamSize());
+								projectManager->GetCanvasViewCamX(),
+								projectManager->GetCanvasViewCamY(),
+								projectManager->GetCanvasViewCamSize());
 						}
 
-						// 마지막으로 열었던 씬 자동 로드 — 비동기 자산 로드가 끝난 뒤로 지연.
+						// 마지막으로 열었던 캔버스 자동 로드 — 비동기 자산 로드가 끝난 뒤로 지연.
 						// (여기서 동기 호출하면 PreloadReferencedAssets 가 메인 스레드를 막아
 						//  비동기 로드가 무의미해지고 에디터가 프리즈된다. OnRenderStay 에서
 						//  HasLoadingTasks()==false 가 되면 처리한다.)

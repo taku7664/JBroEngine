@@ -952,7 +952,7 @@ void* CGameCanvas::AllocateScriptMemory(TypeId scriptTypeId, std::size_t size, s
 			// Live compile can change size/alignment for the same script name.
 			// Instances are destroyed before reload; replacing an empty pool is the safe path.
 			CSystemLog::Info(std::format(
-				"Script memory pool replaced after script layout changed. scene='{}', typeId={}, oldCapacity={}",
+				"Script memory pool replaced after script layout changed. canvas='{}', typeId={}, oldCapacity={}",
 				GetName(),
 				static_cast<unsigned long long>(scriptTypeId),
 				(*it)->GetCapacity()));
@@ -963,7 +963,7 @@ void* CGameCanvas::AllocateScriptMemory(TypeId scriptTypeId, std::size_t size, s
 		if ((*it)->GetCapacity() > beforeCapacity)
 		{
 			CSystemLog::Warning(std::format(
-				"Script memory pool expanded at runtime. scene='{}', typeId={}, capacity={} -> {}. Consider increasing preallocation.",
+				"Script memory pool expanded at runtime. canvas='{}', typeId={}, capacity={} -> {}. Consider increasing preallocation.",
 				GetName(),
 				static_cast<unsigned long long>(scriptTypeId),
 				beforeCapacity,
@@ -1002,7 +1002,7 @@ void CGameCanvas::FreeScriptMemory(TypeId scriptTypeId, void* ptr, std::size_t s
 	}
 
 	CSystemLog::Warning(std::format(
-		"Script memory was freed outside its owning pool. scene='{}', typeId={}, size={}, alignment={}.",
+		"Script memory was freed outside its owning pool. canvas='{}', typeId={}, size={}, alignment={}.",
 		GetName(),
 		static_cast<unsigned long long>(scriptTypeId),
 		static_cast<unsigned long long>(size),

@@ -97,7 +97,7 @@ private:
 	// Auto 면 플랫폼 디스플레이 회전(JNI), 그 외엔 desired-vs-버퍼방향 비교.
 	int GetEffectiveDisplayRotation() const;
 
-	// 메인 surface 윈도우 이벤트(포커스/리사이즈) → 활성 씬 스크립트로 전달.
+	// 메인 surface 윈도우 이벤트(포커스/리사이즈) → 활성 캔버스 스크립트로 전달.
 	void OnSurfaceEvent(const SurfaceEvent& surfaceEvent);
 
 private:
@@ -122,7 +122,7 @@ private:
 	OwnerPtr<CLocalizationManager> m_localization;
 #endif
 	OwnerPtr<CResourceRegistry>   m_resourceRegistry;
-	OwnerPtr<CCanvasManager>       m_sceneManager;
+	OwnerPtr<CCanvasManager>       m_canvasManager;
 	OwnerPtr<CNetworkManager>     m_networkManager;   // null until InitializeNetwork()
 	OwnerPtr<CDebugDraw2D>        m_debugDraw;
 	std::vector<CModule*>         m_modules;

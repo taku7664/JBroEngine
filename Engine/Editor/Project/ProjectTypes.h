@@ -49,10 +49,10 @@ struct ProjectBuildSettings
 	bool EnableIOS     = false;
 	EBuildConfiguration BuildConfiguration = EBuildConfiguration::Release;
 	std::string OutputDirectory = "Dist/Games";
-	std::string StartupScene;
-	std::vector<std::string> BuildScenes;
-	// 참조 기반 패키징에서 어떤 씬도 참조하지 않지만 런타임에 직접 로드할 자산.
-	// (씬/프리팹/폰트 전이 참조로는 안 잡히는 코드 로드 자산의 누락 방지 장치.)
+	std::string StartupCanvas;
+	std::vector<std::string> BuildCanvases;
+	// 참조 기반 패키징에서 어떤 캔버스도 참조하지 않지만 런타임에 직접 로드할 자산.
+	// (캔버스/프리팹/폰트 전이 참조로는 안 잡히는 코드 로드 자산의 누락 방지 장치.)
 	std::vector<AssetGuid> AlwaysIncludeAssets;
 	EBuildScriptMode ScriptMode = EBuildScriptMode::DynamicLibrary;
 	std::string ScriptProjectPath = "Contents/GameScript.vcxproj";
@@ -83,10 +83,10 @@ struct ProjectInfo
 	std::uint32_t ResolutionWidth  = 1920;
 	std::uint32_t ResolutionHeight = 1080;
 
-	// 씬 뷰 에디터 카메라 (저장/복원용)
-	float SceneViewCamX    = 0.0f;
-	float SceneViewCamY    = 0.0f;
-	float SceneViewCamSize = 5.0f;
+	// 캔버스 뷰 에디터 카메라 (저장/복원용)
+	float CanvasViewCamX    = 0.0f;
+	float CanvasViewCamY    = 0.0f;
+	float CanvasViewCamSize = 5.0f;
 
 	// 좌표계 단위: 1 월드 유닛 = PixelsPerUnit 픽셀
 	float PixelsPerUnit = 100.0f;
@@ -107,8 +107,8 @@ struct ProjectInfo
 	EScriptBuildConfiguration ScriptBuildConfiguration = EScriptBuildConfiguration::Debug;
 	bool ScriptAutoRebuildEnabled = true;
 
-	// 마지막으로 열었던 씬 경로 (Assets 폴더 기준 상대경로)
-	std::string LastOpenedScenePath;
+	// 마지막으로 열었던 캔버스 경로 (Assets 폴더 기준 상대경로)
+	std::string LastOpenedCanvasPath;
 
 	// 게임 빌드본 생성 설정. 에디터 상태/LiveCompile 설정과 분리한다.
 	ProjectBuildSettings BuildSettings;

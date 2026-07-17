@@ -3,7 +3,7 @@
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  GameFrameworkAll.h ─ 엔진/에디터 내부에서 쓰는 GameFramework 묶음 umbrella
 //
-//  엔진/에디터 cpp 가 "씬 + 컴포넌트 + 시스템" 을 동시에 만지는 경우가 많아
+//  엔진/에디터 cpp 가 "캔버스 + 컴포넌트 + 시스템" 을 동시에 만지는 경우가 많아
 //  이 헤더 하나로 자주 쓰이는 헤더들을 한꺼번에 가져온다.
 //
 //  사용 예 (Editor / Engine 내부):
@@ -46,7 +46,7 @@
 #include "GameFramework/Scripting/ScriptSystem.h"
 
 // ── 디버그 / 물리 ───────────────────────────────────────────────────────
-#include "GameFramework/Debug/SceneDebugDrawSystem.h"
+#include "GameFramework/Debug/CanvasDebugDrawSystem.h"
 #include "GameFramework/Physics2D/Physics2DTypes.h"
 #include "GameFramework/Physics2D/Physics2DGeometry.h"
 #include "GameFramework/Physics2D/Physics2DSystem.h"

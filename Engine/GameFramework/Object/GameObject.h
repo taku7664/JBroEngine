@@ -18,15 +18,15 @@
 class CGameCanvas;
 
 // 오브젝트 비트 플래그. 상시 멤버(호스트/DLL/게임 동일 레이아웃 → ABI 안전).
-// 비트의 *의미*는 레이어별로 다를 수 있다(EditorHidden 은 에디터 씬뷰 전용).
+// 비트의 *의미*는 레이어별로 다를 수 있다(EditorHidden 은 에디터 캔버스뷰 전용).
 enum EObjectFlags : unsigned int
 {
 	ObjectFlag_None         = 0u,
-	ObjectFlag_EditorHidden = 1u << 0, // 에디터 씬뷰 렌더 제외. 런타임/게임은 무시.
+	ObjectFlag_EditorHidden = 1u << 0, // 에디터 캔버스뷰 렌더 제외. 런타임/게임은 무시.
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  CGameObject — 씬의 실체 객체(다형성 컴포넌트 구조).
+//  CGameObject — 캔버스의 실체 객체(다형성 컴포넌트 구조).
 //
 //  · 고정 크기 → CGameCanvas 의 TObjectPool<CGameObject> 에 거주(메모리 소유=풀).
 //  · Transform(Local) / WorldTransform(World) / 계층(Parent·Children)을 멤버로 직접

@@ -1,5 +1,5 @@
 #include "pch.h"
-#include "SceneDebugDrawSystem.h"
+#include "CanvasDebugDrawSystem.h"
 
 #include "Core/Debug/DebugDraw2D.h"
 #include "GameFramework/Component/Camera2D.h"
@@ -57,7 +57,7 @@ void SceneDebugDraw::Submit(
 	const char*        /*activeCompType*/)
 {
 	// ── 콜라이더(Circle / Polygon) 렌더링은 SceneViewTool Layer 2.8 의 ImGui 경로로 이전됨 ──
-	// SceneDebugDrawSystem 은 카메라 프러스텀만 담당한다.
+	// CanvasDebugDrawSystem 은 카메라 프러스텀만 담당한다.
 
 	// ── Camera2D frustum rectangles ────────────────────────────────────────────
 	if (resW <= 0.0f || resH <= 0.0f)

@@ -1,5 +1,5 @@
 #include "pch.h"
-#include "SceneViewCoordinates.h"
+#include "CanvasViewCoordinates.h"
 
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
 

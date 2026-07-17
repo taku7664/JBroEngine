@@ -130,14 +130,14 @@ function Read-JBroProject {
         ResolutionWidth = 1920
         ResolutionHeight = 1080
         PixelsPerUnit = 100.0
-        LastOpenedScenePath = ""
+        LastOpenedCanvasPath = ""
         Build = [ordered]@{
             ProductName = [System.IO.Path]::GetFileNameWithoutExtension($ProjectPath)
             TargetPlatform = "Windows"
             BuildConfiguration = "Release"
             OutputDirectory = "Dist/Games"
-            StartupScene = ""
-            BuildScenes = @()
+            StartupCanvas = ""
+            BuildCanvases = @()
             ScriptMode = "DynamicLibrary"
             ScriptProjectPath = "Contents/GameScript.vcxproj"
             ScriptBuildConfiguration = "Release"
@@ -155,14 +155,14 @@ function Read-JBroProject {
     }
 
     $inBuild = $false
-    $inBuildScenes = $false
+    $inBuildCanvases = $false
     foreach ($line in Get-Content -LiteralPath $ProjectPath) {
         if ($line.Trim().Length -eq 0) {
             continue
         }
 
-        if ($line -match '^\s*-\s*(.+)$' -and $inBuild -and $inBuildScenes) {
-            $projectInfo.Build.BuildScenes += ConvertFrom-JBroScalar $Matches[1]
+        if ($line -match '^\s*-\s*(.+)$' -and $inBuild -and $inBuildCanvases) {
+            $projectInfo.Build.BuildCanvases += ConvertFrom-JBroScalar $Matches[1]
             continue
         }
 
@@ -170,7 +170,7 @@ function Read-JBroProject {
             $key = $Matches[1]
             $value = ConvertFrom-JBroScalar $Matches[2]
             $inBuild = $false
-            $inBuildScenes = $false
+            $inBuildCanvases = $false
 
             switch ($key) {
                 "Version" { $projectInfo.Version = [int]$value }
@@ -178,7 +178,9 @@ function Read-JBroProject {
                 "ResolutionWidth" { $projectInfo.ResolutionWidth = [int]$value }
                 "ResolutionHeight" { $projectInfo.ResolutionHeight = [int]$value }
                 "PixelsPerUnit" { $projectInfo.PixelsPerUnit = [float]$value }
-                "LastOpenedScenePath" { $projectInfo.LastOpenedScenePath = $value }
+                "LastOpenedCanvasPath" { $projectInfo.LastOpenedCanvasPath = $value }
+                # legacy — 리네임 이전에 저장된 .jproject
+                "LastOpenedScenePath" { $projectInfo.LastOpenedCanvasPath = $value }
                 "Build" { $inBuild = $true }
             }
             continue
@@ -187,11 +189,16 @@ function Read-JBroProject {
         if ($line -match '^\s+([A-Za-z0-9_]+):\s*(.*)$' -and $inBuild) {
             $key = $Matches[1]
             $value = ConvertFrom-JBroScalar $Matches[2]
-            $inBuildScenes = $false
+            $inBuildCanvases = $false
 
-            if ($key -eq "BuildScenes") {
-                $inBuildScenes = $true
+            # legacy — 캔버스는 예전에 "Scene" 이었다. 이 파서는 .jproject 를 직접 읽으므로
+            # 에디터를 거치지 않고 CLI 로 빌드할 때 구 키가 그대로 들어온다.
+            if ($key -eq "BuildCanvases" -or $key -eq "BuildScenes") {
+                $inBuildCanvases = $true
                 continue
+            }
+            if ($key -eq "StartupScene") {
+                $key = "StartupCanvas"
             }
 
             if ($projectInfo.Build.Contains($key)) {
@@ -203,9 +210,9 @@ function Read-JBroProject {
     if ([string]::IsNullOrWhiteSpace($projectInfo.Build.ProductName)) {
         $projectInfo.Build.ProductName = [System.IO.Path]::GetFileNameWithoutExtension($ProjectPath)
     }
-    if ($projectInfo.Build.BuildScenes.Count -eq 0 -and
-        -not [string]::IsNullOrWhiteSpace($projectInfo.Build.StartupScene)) {
-        $projectInfo.Build.BuildScenes += $projectInfo.Build.StartupScene
+    if ($projectInfo.Build.BuildCanvases.Count -eq 0 -and
+        -not [string]::IsNullOrWhiteSpace($projectInfo.Build.StartupCanvas)) {
+        $projectInfo.Build.BuildCanvases += $projectInfo.Build.StartupCanvas
     }
     if ($projectInfo.PixelsPerUnit -lt 1.0) {
         $projectInfo.PixelsPerUnit = 100.0
@@ -309,7 +316,8 @@ function ConvertTo-AssetTypeValue {
         "Mesh" { return 2 }
         "Material" { return 3 }
         "Shader" { return 4 }
-        "Scene" { return 5 }
+        "Canvas" { return 5 }
+        "Scene" { return 5 }   # legacy — 리네임 이전에 임포트된 .jmeta
         "Prefab" { return 6 }
         "Script" { return 7 }
         "Audio" { return 8 }
@@ -644,9 +652,9 @@ function Get-JBroBuildManifestTool {
 function Write-JBroBuildManifest {
     param(
         [Parameter(Mandatory=$true)][string]$ManifestPath,
-        [Parameter(Mandatory=$true)][string]$StartupSceneGuid,
+        [Parameter(Mandatory=$true)][string]$StartupCanvasGuid,
         [string]$ProductName = "",
-        [string]$StartupScene = "",
+        [string]$StartupCanvas = "",
         [int]$Width = 1280,
         [int]$Height = 720,
         [float]$PixelsPerUnit = 100.0,
@@ -655,8 +663,8 @@ function Write-JBroBuildManifest {
         [string]$ScriptModule = "",
         [string]$Orientation = "",
         [string]$ProjectPath = "",
-        [string[]]$BuildScenes = @(),
-        [string[]]$BuildSceneGuids = @()
+        [string[]]$BuildCanvases = @(),
+        [string[]]$BuildCanvasGuids = @()
     )
 
     $toolExe = Get-JBroBuildManifestTool
@@ -667,7 +675,7 @@ function Write-JBroBuildManifest {
     # startup-scene / script-module 은 비어 있으면 아예 넘기지 않는다(빈 기본값으로 처리됨).
     $args = @(
         "--out", $ManifestPath,
-        "--startup-scene-guid", $StartupSceneGuid,
+        "--startup-canvas-guid", $StartupCanvasGuid,
         "--width", ([string]$Width),
         "--height", ([string]$Height),
         "--pixels-per-unit", ([string]::Format([System.Globalization.CultureInfo]::InvariantCulture, "{0}", $PixelsPerUnit)),
@@ -677,8 +685,8 @@ function Write-JBroBuildManifest {
     if (-not [string]::IsNullOrWhiteSpace($ProductName)) {
         $args += @("--product-name", $ProductName)
     }
-    if (-not [string]::IsNullOrWhiteSpace($StartupScene)) {
-        $args += @("--startup-scene", $StartupScene)
+    if (-not [string]::IsNullOrWhiteSpace($StartupCanvas)) {
+        $args += @("--startup-canvas", $StartupCanvas)
     }
     if (-not [string]::IsNullOrWhiteSpace($ScriptModule)) {
         $args += @("--script-module", $ScriptModule)
@@ -691,11 +699,11 @@ function Write-JBroBuildManifest {
     }
     # 빌드 씬 목록 — 런타임이 startup 외 씬을 GUID 로 선로드하도록 name/guid 쌍을 넘긴다.
     # 빈 값 인자를 넘기지 않도록(PS 5.x splatting 트랩) 둘 다 있는 항목만 append.
-    for ($si = 0; $si -lt $BuildScenes.Count; ++$si) {
-        $sceneName = $BuildScenes[$si]
-        $sceneGuid = if ($si -lt $BuildSceneGuids.Count) { $BuildSceneGuids[$si] } else { "" }
-        if ((-not [string]::IsNullOrWhiteSpace($sceneName)) -and (-not [string]::IsNullOrWhiteSpace($sceneGuid))) {
-            $args += @("--build-scene", $sceneName, "--build-scene-guid", $sceneGuid)
+    for ($si = 0; $si -lt $BuildCanvases.Count; ++$si) {
+        $canvasName = $BuildCanvases[$si]
+        $canvasGuid = if ($si -lt $BuildCanvasGuids.Count) { $BuildCanvasGuids[$si] } else { "" }
+        if ((-not [string]::IsNullOrWhiteSpace($canvasName)) -and (-not [string]::IsNullOrWhiteSpace($canvasGuid))) {
+            $args += @("--build-canvas", $canvasName, "--build-canvas-guid", $canvasGuid)
         }
     }
     & $toolExe @args
@@ -740,7 +748,7 @@ function Test-JBroBinaryFileMagic {
 function Invoke-JBroBuildManifestValidation {
     param(
         [Parameter(Mandatory=$true)][string]$ManifestPath,
-        [Parameter(Mandatory=$true)][string]$StartupSceneGuid,
+        [Parameter(Mandatory=$true)][string]$StartupCanvasGuid,
         [string]$ProductName = "",
         [Parameter(Mandatory=$true)][string]$TargetPlatform,
         [Parameter(Mandatory=$true)][string]$ScriptMode,
@@ -755,7 +763,7 @@ function Invoke-JBroBuildManifestValidation {
     # 선택 인자(product-name / script-module)는 값이 있을 때만 추가한다.
     $args = @(
         "--validate", $ManifestPath,
-        "--startup-scene-guid", $StartupSceneGuid,
+        "--startup-canvas-guid", $StartupCanvasGuid,
         "--width", ([string]$Width),
         "--height", ([string]$Height),
         "--target-platform", $TargetPlatform,
@@ -783,7 +791,7 @@ function Invoke-ReleasePackageSmokeTests {
         [Parameter(Mandatory=$true)][string]$PackageContentDir,
         [Parameter(Mandatory=$true)][string]$ManifestPath,
         [Parameter(Mandatory=$true)][string]$AssetPackPath,
-        [Parameter(Mandatory=$true)][string]$StartupSceneGuid,
+        [Parameter(Mandatory=$true)][string]$StartupCanvasGuid,
         [string]$ProductName = "",
         [Parameter(Mandatory=$true)][string]$TargetPlatform,
         [Parameter(Mandatory=$true)][string]$ScriptMode,
@@ -793,14 +801,14 @@ function Invoke-ReleasePackageSmokeTests {
         [int]$Height = 720
     )
 
-    if ([string]::IsNullOrWhiteSpace($StartupSceneGuid)) {
+    if ([string]::IsNullOrWhiteSpace($StartupCanvasGuid)) {
         throw "Package smoke failed: startup scene GUID is empty."
     }
 
     Test-JBroBinaryFileMagic -Path $ManifestPath -Magic ([byte[]](0x4A,0x42,0x4D,0x41,0x4E,0x31,0x00,0x00)) -Name "build manifest"
     Invoke-JBroBuildManifestValidation `
         -ManifestPath $ManifestPath `
-        -StartupSceneGuid $StartupSceneGuid `
+        -StartupCanvasGuid $StartupCanvasGuid `
         -ProductName $ProductName `
         -TargetPlatform $TargetPlatform `
         -ScriptMode $ScriptMode `
@@ -1533,15 +1541,15 @@ if ($Platform -eq "IOS") {
     throw "iOS package build is not implemented yet. Platform=IOS. The project settings are recognized, but Xcode signing and MoltenVK packaging are not implemented."
 }
 
-if ([string]::IsNullOrWhiteSpace($projectInfo.Build.StartupScene)) {
-    throw "Startup scene is not configured. Set Build.StartupScene in the project build settings."
+if ([string]::IsNullOrWhiteSpace($projectInfo.Build.StartupCanvas)) {
+    throw "Startup scene is not configured. Set Build.StartupCanvas in the project build settings."
 }
 
 $scenesToValidate = @()
-if (-not [string]::IsNullOrWhiteSpace($projectInfo.Build.StartupScene)) {
-    $scenesToValidate += $projectInfo.Build.StartupScene
+if (-not [string]::IsNullOrWhiteSpace($projectInfo.Build.StartupCanvas)) {
+    $scenesToValidate += $projectInfo.Build.StartupCanvas
 }
-$scenesToValidate += @($projectInfo.Build.BuildScenes)
+$scenesToValidate += @($projectInfo.Build.BuildCanvases)
 $scenesToValidate = $scenesToValidate | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
 foreach ($scene in $scenesToValidate) {
     $scenePath = Join-Path $assetPath $scene
@@ -1654,11 +1662,11 @@ if ($Platform -eq "Windows") {
 }
 
 Write-JBroAssetPack -AssetRoot $assetPath -PackPath $packageAssetPack
-$startupSceneGuid = ""
-if (-not [string]::IsNullOrWhiteSpace($projectInfo.Build.StartupScene)) {
-    $startupSceneGuid = Find-JBroAssetGuid -AssetRoot $assetPath -RelativePath $projectInfo.Build.StartupScene
-    if ([string]::IsNullOrWhiteSpace($startupSceneGuid)) {
-        throw "Startup scene has no registered asset GUID: $($projectInfo.Build.StartupScene)"
+$startupCanvasGuid = ""
+if (-not [string]::IsNullOrWhiteSpace($projectInfo.Build.StartupCanvas)) {
+    $startupCanvasGuid = Find-JBroAssetGuid -AssetRoot $assetPath -RelativePath $projectInfo.Build.StartupCanvas
+    if ([string]::IsNullOrWhiteSpace($startupCanvasGuid)) {
+        throw "Startup scene has no registered asset GUID: $($projectInfo.Build.StartupCanvas)"
     }
 }
 
@@ -1666,14 +1674,14 @@ if (-not [string]::IsNullOrWhiteSpace($projectInfo.Build.StartupScene)) {
 # GUID 가 없으면(에셋 미등록) release 런타임에서 로드 불가하므로 빌드를 실패시킨다.
 $buildSceneNames = @()
 $buildSceneGuids = @()
-foreach ($scene in $projectInfo.Build.BuildScenes) {
+foreach ($scene in $projectInfo.Build.BuildCanvases) {
     if ([string]::IsNullOrWhiteSpace($scene)) { continue }
-    $sceneGuid = Find-JBroAssetGuid -AssetRoot $assetPath -RelativePath $scene
-    if ([string]::IsNullOrWhiteSpace($sceneGuid)) {
+    $canvasGuid = Find-JBroAssetGuid -AssetRoot $assetPath -RelativePath $scene
+    if ([string]::IsNullOrWhiteSpace($canvasGuid)) {
         throw "Build scene has no registered asset GUID: $scene"
     }
     $buildSceneNames += $scene
-    $buildSceneGuids += $sceneGuid
+    $buildSceneGuids += $canvasGuid
 }
 
 $manifestPath = Join-Path $packageContentDir "build_manifest.jbmanifest"
@@ -1682,9 +1690,9 @@ $manifestScriptModule = if ($Platform -eq "Windows") { "GameScript.dll" } else {
 Write-JBroBuildManifest `
     -ManifestPath $manifestPath `
     -ProjectPath $projectPath `
-    -StartupSceneGuid $startupSceneGuid `
+    -StartupCanvasGuid $startupCanvasGuid `
     -ProductName $productName `
-    -StartupScene $projectInfo.Build.StartupScene `
+    -StartupCanvas $projectInfo.Build.StartupCanvas `
     -Width ([int]$projectInfo.ResolutionWidth) `
     -Height ([int]$projectInfo.ResolutionHeight) `
     -PixelsPerUnit ([float]$projectInfo.PixelsPerUnit) `
@@ -1692,8 +1700,8 @@ Write-JBroBuildManifest `
     -ScriptMode $manifestScriptMode `
     -ScriptModule $manifestScriptModule `
     -Orientation $projectInfo.Build.AndroidOrientation `
-    -BuildScenes $buildSceneNames `
-    -BuildSceneGuids $buildSceneGuids
+    -BuildCanvases $buildSceneNames `
+    -BuildCanvasGuids $buildSceneGuids
 
 Assert-RootArtifactMissing -PackageDir $packageDir -Names @("SDK", "Localization", "Editor")
 
@@ -1780,7 +1788,7 @@ if ($Configuration -eq "Release") {
         -PackageContentDir $packageContentDir `
         -ManifestPath $manifestPath `
         -AssetPackPath $packageAssetPack `
-        -StartupSceneGuid $startupSceneGuid `
+        -StartupCanvasGuid $startupCanvasGuid `
         -ProductName $productName `
         -TargetPlatform $Platform `
         -ScriptMode $manifestScriptMode `

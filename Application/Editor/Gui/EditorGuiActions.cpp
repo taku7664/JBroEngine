@@ -4,7 +4,7 @@
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
 
 #include "Editor/Command/EditorLayerCommands.h"
-#include "Editor/Command/EditorSceneCommands.h"
+#include "Editor/Command/EditorObjectCommands.h"
 #include "Editor/Editor.h"
 #include "Editor/Localization/EditorReflectionLabels.h"
 #include "Engine/Core/EngineCore.h"
@@ -344,7 +344,7 @@ CGameLayer* EditorGuiActions::ResolveTargetLayer(CGameCanvas& scene)
 	{
 		return selectedObject->GetLayer().TryGet();
 	}
-	return nullptr;   // 씬 기본 레이어.
+	return nullptr;   // 캔버스 기본 레이어.
 }
 
 bool EditorGuiActions::HasObjectClipboardData()
@@ -421,7 +421,7 @@ bool EditorGuiActions::DeleteSelectedLayer(CGameCanvas& scene)
 		return false;
 	}
 
-	// 마지막 레이어면 씬이 거부한다("레이어 0개" 불허) → 커맨드도 실패로 끝나 스택에 안 쌓인다.
+	// 마지막 레이어면 캔버스가 거부한다("레이어 0개" 불허) → 커맨드도 실패로 끝나 스택에 안 쌓인다.
 	if (false == Editor::CommandManager.ExecuteCommand(
 		MakeOwnerPtr<CDeleteLayerCommand>(scene.SafeFromThis(), layer)))
 	{

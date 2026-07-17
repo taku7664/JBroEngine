@@ -16,7 +16,7 @@ class IRenderer;
 class IRenderScene;
 
 // 뷰포트 1개의 렌더 스냅샷(프레임마다 수집). = 해석된 카메라 뷰 × 출력 렉트 × 레이어 필터.
-// 렌더 코드가 씬/카메라 컴포넌트를 직접 들여다보지 않게 하는 경계(라이트 수집과 동일 규약).
+// 렌더 코드가 캔버스/카메라 컴포넌트를 직접 들여다보지 않게 하는 경계(라이트 수집과 동일 규약).
 struct GameRenderViewportDesc
 {
 	// 카메라 뷰(해석 완료) — 오너 트랜스폼 + OrthographicSize 에서 뽑는다.
@@ -44,7 +44,7 @@ struct GameRenderCameraStats
 };
 
 // 레이어 컴포짓 스냅샷(POD). 캔버스 레이어 목록을 렌더가 쓰는 형태로 프레임마다 수집한다
-// (렌더 코드가 CGameLayer/씬을 직접 들여다보지 않게 — 카메라/라이트 수집과 동일 규약).
+// (렌더 코드가 CGameLayer/캔버스를 직접 들여다보지 않게 — 카메라/라이트 수집과 동일 규약).
 // 순서 = 캔버스 순서(아래→위) = Index 오름차순.
 struct GameRenderLayerDesc
 {
@@ -85,7 +85,7 @@ struct GameRenderLightDesc
 // guid 문자열 파싱을 피하기 위함).
 std::vector<GameRenderViewportDesc> CollectGameRenderViewports(CGameCanvas& scene, float renderWidth, float renderHeight);
 
-// 씬의 활성 Light2D 를 월드 공간 스냅샷으로 수집한다(카메라 수집과 동일 계층에서 호출).
+// 캔버스의 활성 Light2D 를 월드 공간 스냅샷으로 수집한다(카메라 수집과 동일 계층에서 호출).
 std::vector<GameRenderLightDesc> CollectGameRenderLights(const CGameCanvas& scene);
 
 // 캔버스 레이어를 컴포짓 순서대로 수집한다(카메라/라이트 수집과 동일 계층에서 호출).

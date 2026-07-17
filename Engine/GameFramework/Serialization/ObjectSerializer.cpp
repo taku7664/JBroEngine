@@ -124,7 +124,7 @@ CGameObject* ReadObjectInto(CGameCanvas& scene, const YAML::Node& node,
 		if (false == guid.empty())
 		{
 			File::Guid parsed(guid);
-			// 같은 씬 복사-붙여넣기: 클립보드 guid 가 원본과 동일 → 그대로 쓰면 원본의
+			// 같은 캔버스 복사-붙여넣기: 클립보드 guid 가 원본과 동일 → 그대로 쓰면 원본의
 			// guid 인덱스 슬롯을 뺏어 원본이 조회 불가가 된다. 이미 있으면 새 guid 발급.
 			if (scene.FindByInstanceGuid(parsed).IsValid())
 			{

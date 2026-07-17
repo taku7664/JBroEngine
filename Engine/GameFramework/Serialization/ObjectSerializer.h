@@ -26,7 +26,7 @@ namespace Serialization
 	// 오브젝트의 속성/Transform/컴포넌트를 YAML 맵으로 직렬화한다.
 	// referencedAssets 가 있으면 컴포넌트가 참조하는 에셋을 누적한다.
 	// includeChildren=true 면 자식 서브트리를 Children 키에 재귀 중첩한다(복사용).
-	//   씬 직렬화(SceneSerializer)는 계층을 평탄 목록+ParentIndex 로 다루므로 false 를 쓴다.
+	//   캔버스 직렬화(SceneSerializer)는 계층을 평탄 목록+ParentIndex 로 다루므로 false 를 쓴다.
 	YAML::Node WriteObject(const CGameObject& object, std::vector<AssetGuid>* referencedAssets,
 	                       bool includeChildren = false);
 

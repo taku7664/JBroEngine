@@ -27,7 +27,7 @@ class CForward2DRenderer;
 // Separable Alpha Dilation:
 //   Pass 1 (H-Dilate): maskRT → hDilatedRT  — 수평 방향 max-alpha 팽창
 //   Pass 2 (V-Dilate): hDilatedRT → vDilatedRT — 수직 방향 max-alpha 팽창
-//   Pass 3 (Composite): maskRT + vDilatedRT → 씬 RT
+//   Pass 3 (Composite): maskRT + vDilatedRT → 캔버스 RT
 //                        vDilated.a > 0.5 && mask.a < 0.5 → 아웃라인 픽셀
 //
 // 성능:

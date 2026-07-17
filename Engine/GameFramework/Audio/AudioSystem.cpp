@@ -355,7 +355,7 @@ void CAudioSystem::OnUpdate(CGameCanvas& scene)
 
 void CAudioSystem::OnFinalize(CGameCanvas&)
 {
-	// 씬 종료 — 명시적 순서로 player/effect를 정리하고 상태까지 폐기.
+	// 캔버스 종료 — 명시적 순서로 player/effect를 정리하고 상태까지 폐기.
 	for (auto& kv : m_instances)
 	{
 		kv.second.ResetBackendResources();
