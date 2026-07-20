@@ -1,4 +1,6 @@
 #include "Utillity/Types/Array.h"
+#include "Utillity/Types/Float.h"
+#include "Utillity/Types/Int.h"
 #include "Utillity/Types/Simd128.h"
 #include "Utillity/Types/Table.h"
 #include "GameFramework/Reflection/ReflectionContainerOps.h"
@@ -300,6 +302,20 @@ namespace
 
 		const int removed = 13;
 		if (false == ops.RemoveKey(&values, &removed) || ops.ContainsKey(&values, &removed))
+		{
+			return false;
+		}
+
+		// 코드젠이 `Table<Int, Float>` 프로퍼티에 대해 실제로 뱉는 인스턴스화다
+		// (GameScriptProjectGenerator 의 GetTableReflectTypeDesc 분기와 같은 모양).
+		// 강타입 키는 std::hash 특수화가 있어야 Hash<K> 가 서므로, 여기서 안 서면 코드젠 출력이
+		// 사용자 프로젝트에서 컴파일에 실패한다 — 에디터를 띄우지 않고 그 조합을 잡아 둔다.
+		const ReflectTypeDesc& strongDescriptor = GetTableReflectTypeDesc<
+			Int, EReflectPropertyType::Int64,
+			Float, EReflectPropertyType::Float>();
+		if (EReflectPropertyType::Table != strongDescriptor.Type
+			|| nullptr == strongDescriptor.TableOps->AssignKey
+			|| nullptr == strongDescriptor.TableOps->CreateValue)
 		{
 			return false;
 		}

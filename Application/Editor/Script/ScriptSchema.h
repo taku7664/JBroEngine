@@ -29,6 +29,10 @@ namespace ScriptSchema
 		std::string RefInclude = "";
 		std::string Name       = "";
 
+		// Table<K,V> 의 값 타입(3차 콤보). RefTarget 이 키를 맡는다.
+		// Array 는 원소가 하나뿐이라 RefTarget 재사용으로 충분했지만, Table 은 둘이라 자리가 하나 더 필요하다.
+		std::string ValueTarget = "Float";
+
 		// JPROP 어트리뷰트(⋮ 메뉴에서 편집). 코드젠이 reflection 으로 전파.
 		std::string DisplayName = "";      // Name("..") 인스펙터 표시 이름(C++ 멤버명과 별개)
 		std::string Category    = "";      // Category("..") 인스펙터 그룹
@@ -67,11 +71,14 @@ namespace ScriptSchema
 	std::vector<RefTargetInfo>      ComponentTargets();   // Ref<Component>: 등록 컴포넌트+스크립트
 	std::vector<RefTargetInfo>      AssetTargets();       // Ref<Asset>: 엔진 에셋 타입
 
-	std::vector<RefTargetInfo>      ArrayElementTargets(); // Array: 원소로 쓸 수 있는 스칼라 타입
+	std::vector<RefTargetInfo>      ArrayElementTargets(); // Array/Table: 인자로 쓸 수 있는 스칼라 타입
+	std::vector<RefTargetInfo>      TableKeyTargets();     // Table 키: 위에서 해시 불가 타입을 뺀 것
 
 	bool        IsRefToken(const std::string& token);         // "Ref<" 접두
 	bool        IsArrayToken(const std::string& token);       // "Array"
-	bool        NeedsTargetCombo(const std::string& token);   // Component/Asset/Array 만 true
+	bool        IsTableToken(const std::string& token);       // "Table"
+	bool        NeedsTargetCombo(const std::string& token);   // Component/Asset/Array/Table 만 true
+	bool        NeedsValueCombo(const std::string& token);    // Table 만 true(3차 콤보)
 	bool        SupportsRange(const std::string& token);      // 숫자/각도 타입만 true
 	void        ResetRefTargetForToken(Property& p);          // 1차 변경 시 2차 기본값
 	std::string FinalTypeToken(const Property& p);            // 헤더에 쓸 C++ 타입

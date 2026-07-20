@@ -66,7 +66,8 @@ namespace ScriptSchemaUI
 			p.TypeToken = baseLabels[typeCur];
 			// Array 도 2차 콤보를 쓰므로 같이 초기화해야 한다 — 안 그러면 이전 타입의
 			// 대상(예: CSpriteAsset)이 원소 타입 자리에 남아 Array<CSpriteAsset> 가 된다.
-			if (ScriptSchema::IsRefToken(p.TypeToken) || ScriptSchema::IsArrayToken(p.TypeToken))
+			if (ScriptSchema::IsRefToken(p.TypeToken) || ScriptSchema::IsArrayToken(p.TypeToken)
+				|| ScriptSchema::IsTableToken(p.TypeToken))
 			{
 				ScriptSchema::ResetRefTargetForToken(p);
 			}
@@ -78,6 +79,7 @@ namespace ScriptSchemaUI
 		{
 			const std::vector<ScriptSchema::RefTargetInfo> targets =
 				ScriptSchema::IsArrayToken(p.TypeToken) ? ScriptSchema::ArrayElementTargets() :
+				ScriptSchema::IsTableToken(p.TypeToken) ? ScriptSchema::TableKeyTargets() :
 				(p.TypeToken == "Ref<Asset>")           ? ScriptSchema::AssetTargets()
 				                                        : ScriptSchema::ComponentTargets();
 			std::vector<std::string> tLabels;
@@ -100,6 +102,31 @@ namespace ScriptSchemaUI
 				changed = true;
 			}
 			ImGui::Utillity::HoveredToolTip(Loc::Text(EditorLocKeys::ScriptPropReftargetTooltip));
+		}
+
+		// Table 만 3차 콤보(값 타입)가 붙는다. 2차는 키를 맡는다.
+		if (ScriptSchema::NeedsValueCombo(p.TypeToken))
+		{
+			const std::vector<ScriptSchema::RefTargetInfo> valueTargets = ScriptSchema::ArrayElementTargets();
+			std::vector<std::string> vLabels;
+			vLabels.reserve(valueTargets.size());
+			int vCur = 0;
+			for (int i = 0; i < static_cast<int>(valueTargets.size()); ++i)
+			{
+				vLabels.push_back(valueTargets[i].Label);
+				if (valueTargets[i].TypeName == p.ValueTarget)
+				{
+					vCur = i;
+				}
+			}
+			ImGui::SameLine(0.0f, 4.0f);
+			ImGui::SetNextItemWidth(colW);
+			if (FilterableCombo("##valuetarget", &vCur, vLabels))
+			{
+				p.ValueTarget = valueTargets[vCur].TypeName;
+				changed = true;
+			}
+			ImGui::Utillity::HoveredToolTip(Loc::Text(EditorLocKeys::ScriptPropValuetargetTooltip));
 		}
 		return changed;
 	}
@@ -194,7 +221,9 @@ namespace ScriptSchemaUI
 		const float fullW      = ImGui::CalcItemWidth();
 		const float gap        = 4.0f;
 		const bool  needsTarget= ScriptSchema::NeedsTargetCombo(p.TypeToken);
-		const int   comboCount = needsTarget ? 2 : 1;              // 타입 (+Ref 대상)
+		const bool  needsValue = ScriptSchema::NeedsValueCombo(p.TypeToken);
+		// 타입 (+Ref/원소/키 대상) (+Table 값). Table 만 3개다.
+		const int   comboCount = 1 + (needsTarget ? 1 : 0) + (needsValue ? 1 : 0);
 		const int   slots      = comboCount + 1;                   // 콤보들 + 이름
 		const float menuW      = ImGui::GetFrameHeight();          // ⋮ 메뉴 폭(버튼 텍스트 대신 아이콘)
 		const float avail      = fullW - menuW - gap * static_cast<float>(slots);

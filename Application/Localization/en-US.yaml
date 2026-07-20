@@ -422,7 +422,8 @@ Entries:
   inspector.script_apply_fail: Apply failed - could not write .h.
 
   script_prop.type_tooltip: Property value type. For Ref<Component>/Ref<Asset>, pick the target kind in the next combo.
-  script_prop.reftarget_tooltip: Reference target type (component/script, or asset kind).
+  script_prop.reftarget_tooltip: Reference target type (component/script, or asset kind). For Array this is the element type; for Table it is the key type.
+  script_prop.valuetarget_tooltip: Table value type.
   script_prop.name: Name
   script_prop.name_hint: Property name
   script_prop.name_tooltip: C++ field name. Must be a valid identifier, no duplicates or reserved names.

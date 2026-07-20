@@ -512,6 +512,168 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			}
 			return changed;
 		}
+		case EReflectPropertyType::Table:
+		{
+			const ReflectTypeDesc* descriptor = property.Descriptor;
+			const ReflectTableOps* ops = descriptor ? descriptor->TableOps : nullptr;
+			if (!ops || !descriptor->Key || !descriptor->Value)
+			{
+				ImGui::TextDisabled("%s", Loc::Text(EditorLocKeys::InspectorUnsupported));
+				return false;
+			}
+
+			// 행 인덱스 → 슬롯. Table 슬롯은 조밀하지 않아 ImList 의 0..N-1 인덱스와 직접
+			// 대응하지 않는다. 매 프레임 다시 만들되 버퍼는 재사용한다(인스펙터도 프레임 경로다).
+			static std::vector<std::size_t> slots;
+			slots.clear();
+			for (std::size_t slot = ops->BeginSlot(field);
+				InvalidTableSlot != slot;
+				slot = ops->NextSlot(field, slot))
+			{
+				slots.push_back(slot);
+			}
+
+			ReflectPropertyInfo keyProperty{};
+			keyProperty.Type = descriptor->Key->Type;
+			keyProperty.Size = descriptor->Key->Size;
+			keyProperty.ElementCount = 1;
+			keyProperty.IsEditable = property.IsEditable;
+			keyProperty.Descriptor = descriptor->Key;
+
+			ReflectPropertyInfo valueProperty{};
+			valueProperty.Type = descriptor->Value->Type;
+			valueProperty.Size = descriptor->Value->Size;
+			valueProperty.ElementCount = 1;
+			valueProperty.IsEditable = property.IsEditable;
+			valueProperty.Descriptor = descriptor->Value;
+			valueProperty.ExpectedAssetType = property.ExpectedAssetType;
+
+			// 키 편집은 제자리에서 못 한다 — 키를 바꾸면 해시 자리가 바뀌므로 삭제 후 재삽입이다.
+			// 순회 중에 그러면 커서가 무효가 되니 편집분을 모아 뒀다가 루프가 끝난 뒤 적용한다.
+			void* editedOldKey = nullptr;
+			void* editedNewKey = nullptr;
+
+			bool changed = false;
+			changed |= ImListVirtual("##table", static_cast<int>(slots.size()),
+				[&](int index) -> bool
+				{
+					const std::size_t slot = slots[static_cast<std::size_t>(index)];
+					const void* key   = ops->GetKeyAt(field, slot);
+					void*       value = ops->GetValueAt(field, slot);
+					if (nullptr == key || nullptr == value)
+					{
+						return false;
+					}
+
+					bool rowChanged = false;
+
+					// 키는 사본을 편집한다. 원본을 직접 고치면 해시 자리와 어긋나 그 순간부터
+					// Find 가 못 찾는다(맵이 조용히 깨진다).
+					void* keyCopy = ops->CreateKey();
+					if (nullptr != keyCopy)
+					{
+						ops->AssignKey(keyCopy, key);
+						ImGui::PushID("k");
+						ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.45f);
+						const bool keyEdited = DrawPropertyEditor(keyCopy, keyProperty);
+						ImGui::PopID();
+
+						if (keyEdited && nullptr == editedOldKey)
+						{
+							// 한 프레임에 한 건만 처리한다 — 여러 건을 모으면 앞선 재삽입이
+							// 뒤 항목의 슬롯을 바꿔 놓는다.
+							editedOldKey = ops->CreateKey();
+							if (nullptr != editedOldKey)
+							{
+								ops->AssignKey(editedOldKey, key);
+								editedNewKey = keyCopy;
+								keyCopy = nullptr;   // 소유권이 넘어갔다
+							}
+						}
+						if (nullptr != keyCopy)
+						{
+							ops->DestroyKey(keyCopy);
+						}
+					}
+
+					ImGui::SameLine();
+					ImGui::PushID("v");
+					rowChanged |= DrawPropertyEditor(value, valueProperty);
+					ImGui::PopID();
+					return rowChanged;
+				},
+				[&]()
+				{
+					// 기본 키로 넣는다. 이미 있으면 아무 일도 일어나지 않는다 — 그 상태에서
+					// 항목을 더 넣으려면 먼저 기존 키를 다른 값으로 바꿔야 한다.
+					void* key = ops->CreateKey();
+					if (nullptr != key)
+					{
+						ops->InsertDefault(field, key);
+						ops->DestroyKey(key);
+					}
+				},
+				[&](int index)
+				{
+					const void* key = ops->GetKeyAt(field, slots[static_cast<std::size_t>(index)]);
+					if (nullptr != key)
+					{
+						ops->RemoveKey(field, key);
+					}
+				},
+				// Table 은 순서가 없다 — 재정렬만 막고 추가/삭제/편집은 연다.
+				[](int, int) {},
+				property.IsEditable ? IMLIST_FLAGS_NO_REORDER
+				                    : static_cast<EImListFlags>(IMLIST_FLAGS_READ_ONLY | IMLIST_FLAGS_NO_REORDER));
+
+			if (nullptr != editedOldKey)
+			{
+				// 새 키가 이미 있으면 병합이 되어 다른 항목이 사라진다 — 편집을 버린다.
+				if (false == ops->ContainsKey(field, editedNewKey))
+				{
+					const void* existing = ops->FindValue(field, editedOldKey);
+					// 값을 **먼저** 빼낸다. InsertDefault 가 리해시하면 저장소가 통째로 옮겨가
+					// existing 이 가리키던 자리가 무효가 된다.
+					void* staged = (nullptr != existing) ? ops->CreateValue() : nullptr;
+					if (nullptr != staged)
+					{
+						ops->AssignValue(staged, existing);
+						if (ops->InsertDefault(field, editedNewKey))
+						{
+							void* moved = ops->FindValue(field, editedNewKey);
+							if (nullptr != moved)
+							{
+								ops->AssignValue(moved, staged);
+							}
+							ops->RemoveKey(field, editedOldKey);
+							changed = true;
+						}
+						ops->DestroyValue(staged);
+					}
+				}
+				ops->DestroyKey(editedOldKey);
+				ops->DestroyKey(editedNewKey);
+			}
+
+			if (property.IsEditable)
+			{
+				const char*  clearLabel = Loc::Text(EditorLocKeys::CommonClear);
+				const float  clearWidth = ImGui::CalcTextSize(clearLabel).x
+					+ ImGui::GetStyle().FramePadding.x * 2.0f;
+				const float  rightAlign = ImGui::GetCursorPosX()
+					+ ImGui::GetContentRegionAvail().x - clearWidth;
+				ImGui::SetCursorPosX(rightAlign);
+
+				ImGui::BeginDisabled(0 == ops->GetSize(field));
+				if (ImGui::Button(clearLabel))
+				{
+					ops->Clear(field);
+					changed = true;
+				}
+				ImGui::EndDisabled();
+			}
+			return changed;
+		}
 		case EReflectPropertyType::Layout2D:
 		{
 			// Layout2D 편집 UI:

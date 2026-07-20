@@ -422,7 +422,8 @@ Entries:
   inspector.script_apply_fail: 적용 실패 — .h 를 기록하지 못했습니다.
 
   script_prop.type_tooltip: 프로퍼티 값 타입. Ref<Component>/Ref<Asset> 는 옆 콤보에서 대상 종류를 고릅니다.
-  script_prop.reftarget_tooltip: 참조 대상 타입(컴포넌트/스크립트 또는 에셋 종류).
+  script_prop.reftarget_tooltip: 참조 대상 타입(컴포넌트/스크립트 또는 에셋 종류). Array 는 원소 타입, Table 은 키 타입.
+  script_prop.valuetarget_tooltip: Table 값 타입.
   script_prop.name: 이름
   script_prop.name_hint: 프로퍼티 이름
   script_prop.name_tooltip: C++ 필드 이름. 유효한 식별자여야 하고 중복/예약어는 안 됩니다.

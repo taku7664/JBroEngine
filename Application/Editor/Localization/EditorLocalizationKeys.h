@@ -532,6 +532,7 @@ namespace EditorLocKeys
 	constexpr const char* ScriptPropNameHint = "script_prop.name_hint";
 	constexpr const char* ScriptPropNameTooltip = "script_prop.name_tooltip";
 	constexpr const char* ScriptPropReftargetTooltip = "script_prop.reftarget_tooltip";
+	constexpr const char* ScriptPropValuetargetTooltip = "script_prop.valuetarget_tooltip";
 	constexpr const char* ScriptPropRange = "script_prop.range";
 	constexpr const char* ScriptPropRangeTooltip = "script_prop.range_tooltip";
 	constexpr const char* ScriptPropRangeMin = "script_prop.range_min";

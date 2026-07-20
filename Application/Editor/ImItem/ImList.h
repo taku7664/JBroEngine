@@ -13,6 +13,9 @@ enum EImListFlags
 {
     IMLIST_FLAGS_NONE = 0,
     IMLIST_FLAGS_READ_ONLY = 1 << 0,
+    // 추가/삭제/편집은 되되 **드래그 재정렬만** 막는다. 저장소에 순서 개념이 없는
+    // 컨테이너(Table 등)용 — READ_ONLY 로는 편집까지 같이 막혀서 대신 쓸 수 없다.
+    IMLIST_FLAGS_NO_REORDER = 1 << 1,
 };
 
 // ── ListVirtual (코어) ───────────────────────────────────────────────
@@ -35,6 +38,8 @@ bool ImListVirtual(const char* id, int count,
     ImGuiStyle& style = ImGui::GetStyle();
 
     const bool readOnly = (0 != (flags & IMLIST_FLAGS_READ_ONLY));
+    // 읽기 전용이면 당연히 재정렬도 안 되고, NO_REORDER 면 편집만 열어 둔다.
+    const bool reorderable = (false == readOnly) && (0 == (flags & IMLIST_FLAGS_NO_REORDER));
 
     bool changed = false;
     ImGui::PushID(id);
@@ -88,8 +93,8 @@ bool ImListVirtual(const char* id, int count,
 
     for (int i = 0; i < count; ++i)
     {
-        // 읽기 전용이면 재정렬도 막아야 하므로 드롭 슬롯 자체를 두지 않는다.
-        if (false == readOnly)
+        // 재정렬을 안 받으면 드롭 슬롯 자체를 두지 않는다.
+        if (reorderable)
         {
             drawDropSlot(i);
         }
@@ -107,7 +112,7 @@ bool ImListVirtual(const char* id, int count,
         const char* selectableLabel = "\xEF\x83\x89";
         ImVec2 bodySize = ImVec2(availSpace.x, frameHeight);
         ImGui::Selectable("##row_body", false, ImGuiSelectableFlags_AllowOverlap, bodySize);
-        if (false == readOnly)
+        if (reorderable)
         {	// DragDrop Start
             ImGui::Utillity::StyleBuilder styleBuilder;
             styleBuilder.PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
@@ -161,7 +166,7 @@ bool ImListVirtual(const char* id, int count,
         ImGui::SetCursorPos(bodyEndCursor);
     }
 
-    if (false == readOnly)
+    if (reorderable)
     {
         // 마지막 원소 뒤의 슬롯 (맨 끝으로 이동)
         drawDropSlot(count);

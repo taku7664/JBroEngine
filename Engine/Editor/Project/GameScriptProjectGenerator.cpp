@@ -38,6 +38,12 @@ namespace
 		bool        IsArray = false;       // Array<X> 필드인가
 		std::string ArrayElementCppType;   // 원소의 C++ 타입("Float" 등)
 		std::string ArrayElementEnum;      // 원소의 EReflectPropertyType
+
+		bool        IsTable = false;       // Table<K,V> 필드인가
+		std::string TableKeyCppType;
+		std::string TableKeyEnum;
+		std::string TableValueCppType;
+		std::string TableValueEnum;
 	};
 
 	struct ScriptClassDesc
@@ -47,15 +53,47 @@ namespace
 		std::vector<ScriptPropParse> Props;   // JPROP 멤버 (없으면 레거시 REFLECT_FIELD 경로)
 	};
 
+	// 컨테이너 타입 인자를 받아 오는 자리. Array<E> 는 Element 만, Table<K,V> 는 Key/Value 만 채운다.
+	struct ContainerTypeArgs
+	{
+		std::string ElementCppType;
+		std::string ElementEnum;
+		std::string KeyCppType;
+		std::string KeyEnum;
+		std::string ValueCppType;
+		std::string ValueEnum;
+	};
+
+	// "K,V" 를 꺾쇠 깊이 0 의 첫 쉼표에서 가른다. Table<int, Array<float>> 처럼 인자 안에
+	// 또 템플릿이 오면 단순 find(',') 는 엉뚱한 데를 자른다(그런 조합은 뒤에서 거르지만,
+	// 자르기 자체가 틀리면 걸러야 할 것이 뭔지도 못 읽는다).
+	bool SplitTemplateArgs(const std::string& text, std::string& outFirst, std::string& outSecond)
+	{
+		int depth = 0;
+		for (std::size_t i = 0; i < text.size(); ++i)
+		{
+			const char c = text[i];
+			if ('<' == c) { ++depth; }
+			else if ('>' == c) { --depth; }
+			else if (',' == c && 0 == depth)
+			{
+				outFirst  = text.substr(0, i);
+				outSecond = text.substr(i + 1);
+				return false == outFirst.empty() && false == outSecond.empty();
+			}
+		}
+		return false;
+	}
+
 	// C++ 타입 토큰 → EReflectPropertyType. 미지원이면 false.
-	// Array<X> 를 받으려면 원소 정보를 담을 out 포인터를 함께 넘겨야 한다 — 원소 타입을 알아야
-	// desc(GetArrayReflectTypeDesc)를 조립할 수 있기 때문이다. 안 넘기면 Array 는 미지원 처리된다
-	// (그래서 중첩 Array<Array<X>> 는 재귀 호출에서 자연히 걸러진다).
+	// Array<X>/Table<K,V> 를 받으려면 인자 정보를 담을 out 포인터를 함께 넘겨야 한다 — 인자 타입을
+	// 알아야 desc(GetArrayReflectTypeDesc / GetTableReflectTypeDesc)를 조립할 수 있기 때문이다.
+	// 안 넘기면 컨테이너는 미지원 처리된다(그래서 중첩 Array<Array<X>>, Table<int, Array<X>> 같은
+	// 조합은 재귀 호출에서 자연히 걸러진다).
 	bool MapScriptPropType(
 		std::string cppType,
 		std::string& outEnum,
-		std::string* outElementCppType = nullptr,
-		std::string* outElementEnum = nullptr)
+		ContainerTypeArgs* outArgs = nullptr)
 	{
 		// 공백 제거(예: "Vector2" -> "Vector2").
 		cppType.erase(std::remove_if(cppType.begin(), cppType.end(),
@@ -87,28 +125,58 @@ namespace
 		if (cppType == "Asset" || cppType == "AssetGuid")              { outEnum = "EReflectPropertyType::AssetGuid";     return true; }
 		// Ref<X> — 오브젝트/컴포넌트/스크립트/에셋 참조. 카테고리/타입명은 호출부에서 추출.
 		if (cppType.rfind("Ref<", 0) == 0 && cppType.back() == '>') { outEnum = "EReflectPropertyType::Ref"; return true; }
+		// Ref 인자는 컨테이너에 못 넣는다 — 인자 desc 는 GetScalarReflectTypeDesc 로만 만드는데
+		// Ref 는 RefCategory/RefTypeName 이 프로퍼티 단위라 인자에 실을 자리가 없다.
+		const auto mapContainerArg = [](const std::string& argType, std::string& outArgEnum)
+		{
+			return MapScriptPropType(argType, outArgEnum)
+				&& outArgEnum != "EReflectPropertyType::Ref";
+		};
+
 		// Array<X> — 원소를 한 겹 풀어 스칼라로 떨어져야 받는다.
 		if (cppType.rfind("Array<", 0) == 0 && cppType.back() == '>')
 		{
-			if (nullptr == outElementCppType || nullptr == outElementEnum)
+			if (nullptr == outArgs)
 			{
 				return false;
 			}
 			const std::string element = cppType.substr(6, cppType.size() - 7);
 			std::string elementEnum;
-			if (false == MapScriptPropType(element, elementEnum))
+			if (false == mapContainerArg(element, elementEnum))
 			{
 				return false;
 			}
-			// Ref 원소는 제외한다 — 원소 desc 는 GetScalarReflectTypeDesc 로만 만드는데 Ref 는
-			// RefCategory/RefTypeName 이 프로퍼티 단위라 원소에 실을 자리가 없다.
-			if (elementEnum == "EReflectPropertyType::Ref")
-			{
-				return false;
-			}
-			*outElementCppType = element;
-			*outElementEnum    = elementEnum;
+			outArgs->ElementCppType = element;
+			outArgs->ElementEnum    = elementEnum;
 			outEnum = "EReflectPropertyType::Array";
+			return true;
+		}
+		// Table<K,V> — 키·값 둘 다 스칼라로 떨어져야 받는다.
+		if (cppType.rfind("Table<", 0) == 0 && cppType.back() == '>')
+		{
+			if (nullptr == outArgs)
+			{
+				return false;
+			}
+			std::string key;
+			std::string value;
+			if (false == SplitTemplateArgs(cppType.substr(6, cppType.size() - 7), key, value))
+			{
+				return false;
+			}
+			// Table 은 Hasher/KeyEqual/Allocator 까지 기본 인자가 있다. 그걸 손으로 지정한
+			// 형태는 받지 않는다 — 인자가 3개 이상이면 value 안에 쉼표가 남아 매핑에서 걸린다.
+			std::string keyEnum;
+			std::string valueEnum;
+			if (false == mapContainerArg(key, keyEnum) || false == mapContainerArg(value, valueEnum))
+			{
+				return false;
+			}
+			outArgs->KeyCppType   = key;
+			outArgs->KeyEnum      = keyEnum;
+			outArgs->ValueCppType = value;
+			outArgs->ValueEnum    = valueEnum;
+			outEnum = "EReflectPropertyType::Table";
 			return true;
 		}
 		return false;
@@ -460,18 +528,28 @@ namespace
 				WarnUnknownJpropAttributes((*it)[1].str(), ownerName, prop.Name);
 
 				// 미지원 타입 — 등록 제외 + 경고.
-				if (false == MapScriptPropType(prop.CppType, prop.EnumType,
-					&prop.ArrayElementCppType, &prop.ArrayElementEnum))
+				ContainerTypeArgs containerArgs;
+				if (false == MapScriptPropType(prop.CppType, prop.EnumType, &containerArgs))
 				{
 					CSystemLog::Warning("[JPROP] " + ownerName + "." + prop.Name
-						+ ": unsupported type '" + prop.CppType + "' - excluded. Supported: Bool, Int, UInt, Float, Degree, Radian, String, Vector2, Rect, Asset, Ref<T>, Array<T>, "
+						+ ": unsupported type '" + prop.CppType + "' - excluded. Supported: Bool, Int, UInt, Float, Degree, Radian, String, Vector2, Rect, Asset, Ref<T>, Array<T>, Table<K,V>, "
 						+ "bool, int, unsigned int, int64_t, uint64_t, float, std::string.");
 					continue;
 				}
+				prop.ArrayElementCppType = containerArgs.ElementCppType;
+				prop.ArrayElementEnum    = containerArgs.ElementEnum;
+				prop.TableKeyCppType     = containerArgs.KeyCppType;
+				prop.TableKeyEnum        = containerArgs.KeyEnum;
+				prop.TableValueCppType   = containerArgs.ValueCppType;
+				prop.TableValueEnum      = containerArgs.ValueEnum;
 				if (prop.EnumType == "EReflectPropertyType::Ref")
 				{
 					prop.IsRef       = true;
 					prop.RefTypeName = ExtractRefSimpleTypeName(prop.CppType);
+				}
+				else if (prop.EnumType == "EReflectPropertyType::Table")
+				{
+					prop.IsTable = true;
 				}
 				else if (prop.EnumType == "EReflectPropertyType::Array")
 				{
@@ -948,11 +1026,23 @@ void RegisterGeneratedScripts(CReflectionRegistry& registry)
 			const std::string refTypeName = p.IsRef
 				? ("\"" + EscapeCppString(p.RefTypeName) + "\"")
 				: std::string("nullptr");
-			// Array 는 원소 desc 를 품은 컨테이너 desc 가 필요하다 — 스칼라 desc 를 붙이면
-			// 직렬화·인스펙터가 ArrayOps 를 못 찾아 조용히 빈 값으로 떨어진다.
-			const std::string descriptor = p.IsArray
-				? ("&GetArrayReflectTypeDesc<" + p.ArrayElementCppType + ", " + p.ArrayElementEnum + ">()")
-				: ("&GetScalarReflectTypeDesc<" + p.CppType + ", " + p.EnumType + ">()");
+			// 컨테이너는 인자 desc 를 품은 컨테이너 desc 가 필요하다 — 스칼라 desc 를 붙이면
+			// 직렬화·인스펙터가 ArrayOps/TableOps 를 못 찾아 조용히 빈 값으로 떨어진다.
+			std::string descriptor;
+			if (p.IsArray)
+			{
+				descriptor = "&GetArrayReflectTypeDesc<" + p.ArrayElementCppType + ", " + p.ArrayElementEnum + ">()";
+			}
+			else if (p.IsTable)
+			{
+				descriptor = "&GetTableReflectTypeDesc<"
+					+ p.TableKeyCppType + ", " + p.TableKeyEnum + ", "
+					+ p.TableValueCppType + ", " + p.TableValueEnum + ">()";
+			}
+			else
+			{
+				descriptor = "&GetScalarReflectTypeDesc<" + p.CppType + ", " + p.EnumType + ">()";
+			}
 
 			// 구조체 필드 추가·재정렬이 생성 코드의 의미를 바꾸지 않도록 지정 초기화한다.
 			out << "\t\t\tScriptPropertyDesc{\r\n"

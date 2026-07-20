@@ -22,8 +22,8 @@ namespace ScriptSchema
 			"Ref<GameObject>", "Ref<Component>", "Ref<Asset>",
 			"Bool", "Int", "UInt", "Float", "Degree", "Radian",
 			"String", "Vector2", "Rect",
-			// 컨테이너 — Ref 처럼 2차 콤보(원소 타입)를 함께 쓴다.
-			"Array",
+			// 컨테이너 — Ref 처럼 2차 콤보(원소/키 타입)를 함께 쓴다. Table 은 값 타입 콤보가 하나 더 붙는다.
+			"Array", "Table",
 		};
 
 		// Array 의 원소로 쓸 수 있는 타입. 코드젠이 원소 desc 를 GetScalarReflectTypeDesc 로만
@@ -32,6 +32,13 @@ namespace ScriptSchema
 		const std::vector<std::string> kArrayElementTypes = {
 			"Bool", "Int", "UInt", "Float", "Degree", "Radian",
 			"String", "Vector2", "Rect",
+		};
+
+		// Table 키로 쓸 수 있는 타입. 위 목록에서 Vector2/Rect 를 뺀 것이다 — 둘은 std::hash
+		// 특수화가 없어 Hash<K> 가 인스턴스화되지 않고, 고르면 **생성된 코드가 컴파일에 실패한다**
+		// (조용한 누락이 아니라 빌드가 깨지므로 목록에서 아예 막는다).
+		const std::vector<std::string> kTableKeyTypes = {
+			"Bool", "Int", "UInt", "Float", "Degree", "Radian", "String",
 		};
 
 		// 스크립트에서 참조 가능한 엔진 에셋 타입. 라벨(친숙명) / 클래스명(C 접두) / 헤더.
@@ -169,10 +176,12 @@ namespace ScriptSchema
 
 	bool IsRefToken(const std::string& t)        { return 0 == t.rfind("Ref<", 0); }
 	bool IsArrayToken(const std::string& t)      { return t == "Array"; }
+	bool IsTableToken(const std::string& t)      { return t == "Table"; }
 	bool NeedsTargetCombo(const std::string& t)
 	{
-		return t == "Ref<Component>" || t == "Ref<Asset>" || IsArrayToken(t);
+		return t == "Ref<Component>" || t == "Ref<Asset>" || IsArrayToken(t) || IsTableToken(t);
 	}
+	bool NeedsValueCombo(const std::string& t)   { return IsTableToken(t); }
 
 	std::vector<RefTargetInfo> ArrayElementTargets()
 	{
@@ -181,6 +190,17 @@ namespace ScriptSchema
 		for (const std::string& t : kArrayElementTypes)
 		{
 			// 원소는 엔진 기본 타입이라 별도 헤더가 필요 없다(라벨 = 타입명).
+			out.push_back({ t, t, "" });
+		}
+		return out;
+	}
+
+	std::vector<RefTargetInfo> TableKeyTargets()
+	{
+		std::vector<RefTargetInfo> out;
+		out.reserve(kTableKeyTypes.size());
+		for (const std::string& t : kTableKeyTypes)
+		{
 			out.push_back({ t, t, "" });
 		}
 		return out;
@@ -204,6 +224,14 @@ namespace ScriptSchema
 			p.RefTarget = "Float"; p.RefInclude = "";
 			return;
 		}
+		if (IsTableToken(p.TypeToken))
+		{
+			// 키는 RefTarget, 값은 ValueTarget. 키 기본값을 Int 로 두는 건 Float 키가
+			// 정확 일치 비교라 실수하기 쉬워서다(고를 수는 있게 두되 기본값으로는 안 민다).
+			p.RefTarget = "Int"; p.RefInclude = "";
+			p.ValueTarget = "Float";
+			return;
+		}
 		const std::vector<RefTargetInfo> targets =
 			(p.TypeToken == "Ref<Asset>") ? AssetTargets() : ComponentTargets();
 		if (targets.empty()) { p.RefTarget = ""; p.RefInclude = ""; return; }
@@ -215,6 +243,7 @@ namespace ScriptSchema
 	{
 		if (p.TypeToken == "Ref<GameObject>") return "Ref<GameObject>";
 		if (IsArrayToken(p.TypeToken))        return "Array<" + p.RefTarget + ">";
+		if (IsTableToken(p.TypeToken))        return "Table<" + p.RefTarget + ", " + p.ValueTarget + ">";
 		if (NeedsTargetCombo(p.TypeToken))    return "Ref<" + p.RefTarget + ">";
 		return p.TypeToken;
 	}
@@ -360,6 +389,24 @@ namespace ScriptSchema
 				p.TypeToken = "Array";
 				p.RefTarget = ExtractRefInner(cppType);
 				p.RefInclude = "";
+			}
+			else if (0 == cppType.rfind("Table<", 0))
+			{
+				// 키는 RefTarget, 값은 ValueTarget (기록 경로 FinalTypeToken 과 짝).
+				const std::string inner = ExtractRefInner(cppType);
+				const std::size_t comma = inner.find(',');
+				if (std::string::npos == comma)
+				{
+					// 인자를 못 가르면 토큰을 못 만든다 — 손대지 않고 그대로 둔다.
+					// (기본 토큰 Float 로 떨어지면 헤더에 있는 Table 필드를 다른 타입으로
+					//  덮어써 버린다.)
+					continue;
+				}
+				p.TypeToken   = "Table";
+				// ExtractRefInner 가 공백을 이미 다 걷어냈으므로 그대로 자른다.
+				p.RefTarget   = inner.substr(0, comma);
+				p.ValueTarget = inner.substr(comma + 1);
+				p.RefInclude  = "";
 			}
 			else if (0 == cppType.rfind("Ref<", 0))
 			{

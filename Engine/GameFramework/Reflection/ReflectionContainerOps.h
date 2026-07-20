@@ -181,6 +181,29 @@ const ReflectTableOps& GetReflectTableOps()
 			static_cast<Key*>(key)->~Key();
 			Allocator::Deallocate(key, sizeof(Key), alignof(Key), EMemoryTag::Unknown);
 		},
+		[]() -> void*
+		{
+			static_assert(std::is_default_constructible_v<Value>);
+			void* storage = Allocator::Allocate(sizeof(Value), alignof(Value), EMemoryTag::Unknown);
+			return nullptr == storage ? nullptr : new (storage) Value();
+		},
+		[](void* value)
+		{
+			if (nullptr == value)
+			{
+				return;
+			}
+			static_cast<Value*>(value)->~Value();
+			Allocator::Deallocate(value, sizeof(Value), alignof(Value), EMemoryTag::Unknown);
+		},
+		[](void* destination, const void* source)
+		{
+			*static_cast<Key*>(destination) = *static_cast<const Key*>(source);
+		},
+		[](void* destination, const void* source)
+		{
+			*static_cast<Value*>(destination) = *static_cast<const Value*>(source);
+		},
 		[](void* table)
 		{
 			static_cast<TableType*>(table)->Clear();

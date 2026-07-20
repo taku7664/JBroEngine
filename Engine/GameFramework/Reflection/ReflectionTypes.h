@@ -107,6 +107,13 @@ struct ReflectTableOps
 	// CreateKey 로 받은 것은 반드시 같은 desc 의 DestroyKey 로 돌려준다.
 	void* (*CreateKey)() = nullptr;
 	void (*DestroyKey)(void* key) = nullptr;
+	void* (*CreateValue)() = nullptr;
+	void (*DestroyValue)(void* value) = nullptr;
+
+	// 키/값 복사. std::memcpy 로 대신할 수 없다 — String 처럼 내용이 밖에 있는 타입은 얕은
+	// 복사가 되어 양쪽이 같은 버퍼를 물고, 먼저 소멸하는 쪽이 남은 쪽을 망가뜨린다.
+	void (*AssignKey)(void* destination, const void* source) = nullptr;
+	void (*AssignValue)(void* destination, const void* source) = nullptr;
 
 	void (*Clear)(void* table) = nullptr;
 };
