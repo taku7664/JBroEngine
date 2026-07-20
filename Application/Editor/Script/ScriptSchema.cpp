@@ -19,25 +19,53 @@ namespace ScriptSchema
 	{
 		// 1차 콤보 토큰. Int/UInt 는 64비트(향후 32비트는 Int32/UInt32 명시).
 		const std::vector<std::string> kBaseTypes = {
+			"Ref<GameObject>", "Ref<Component>", "Ref<Asset>",
 			"Bool", "Int", "UInt", "Float", "Degree", "Radian",
 			"String", "Vector2", "Rect",
-			"Ref<GameObject>", "Ref<Component>", "Ref<Asset>",
 		};
 
 		// 스크립트에서 참조 가능한 엔진 에셋 타입. 라벨(친숙명) / 클래스명(C 접두) / 헤더.
 		struct AssetRefType { const char* Label; const char* TypeName; const char* Include; };
-		constexpr std::array<AssetRefType, 4> kAssetTypes = {{
+		constexpr std::array<AssetRefType, 8> kAssetTypes = {{
 			{ "SpriteAsset",   "CSpriteAsset",   "Core/Asset/SpriteAsset.h"   },
 			{ "AudioAsset",    "CAudioAsset",    "Core/Asset/AudioAsset.h"    },
+			{ "AudioEffectAsset", "CAudioEffectAsset", "Core/Asset/AudioEffectAsset.h" },
 			{ "MaterialAsset", "CMaterialAsset", "Core/Asset/MaterialAsset.h" },
-			{ "FileAsset",     "CFileAsset",     "Core/Asset/FileAsset.h"     },
+			{ "CanvasAsset",   "CCanvasAsset",   "Core/Asset/CanvasAsset.h"   },
+			{ "LayerAsset",    "CLayerAsset",    "Core/Asset/LayerAsset.h"    },
+			{ "FontFaceAsset", "CFontFaceAsset", "Core/Asset/FontAsset.h"     },
+			{ "FontFamilyAsset", "CFontFamilyAsset", "Core/Asset/FontAsset.h" },
 		}};
+
+		const char* BuiltinComponentIncludeFor(const std::string& typeName)
+		{
+			if (typeName == "Square2D" || typeName == "Circle2D" || typeName == "Polygon2D")
+			{
+				return "GameFramework/Component/ShapeRenderers2D.h";
+			}
+			if (typeName == "Rigidbody2D" || typeName == "PolygonCollider2D" || typeName == "CircleCollider2D")
+			{
+				return "GameFramework/Component/Physics2DComponents.h";
+			}
+			if (typeName == "AudioListener" || typeName == "AudioPlayer")
+			{
+				return "GameFramework/Component/AudioComponents.h";
+			}
+			return nullptr;
+		}
 
 		// 컴포넌트/스크립트 타입명 → 헤더 경로(리플렉션으로 스크립트 여부 판정).
 		std::string IncludeForComponentOrScript(const std::string& typeName)
 		{
 			const bool isScript = Engine.Reflection.IsValid()
 				&& nullptr != Engine.Reflection->FindScriptByName(typeName.c_str());
+			if (false == isScript)
+			{
+				if (const char* include = BuiltinComponentIncludeFor(typeName))
+				{
+					return include;
+				}
+			}
 			return isScript
 				? ("Scripts/" + typeName + ".h")
 				: ("GameFramework/Component/" + typeName + ".h");
@@ -106,7 +134,7 @@ namespace ScriptSchema
 				const char* n = ti->Type.Name;
 				if (0 == std::strcmp(n, "GameObject")) continue;            // Ref<GameObject> 로 분리
 				if (0 == std::strcmp(n, "TransformHierarchy2D")) continue;  // 내부용
-				out.push_back({ n, n, std::string("GameFramework/Component/") + n + ".h" });
+				out.push_back({ n, n, IncludeForComponentOrScript(n) });
 			}
 			for (std::size_t i = 0; i < Engine.Reflection->GetScriptTypeCount(); ++i)
 			{
@@ -131,6 +159,10 @@ namespace ScriptSchema
 
 	bool IsRefToken(const std::string& t)        { return 0 == t.rfind("Ref<", 0); }
 	bool NeedsTargetCombo(const std::string& t)  { return t == "Ref<Component>" || t == "Ref<Asset>"; }
+	bool SupportsRange(const std::string& t)
+	{
+		return t == "Int" || t == "UInt" || t == "Float" || t == "Degree" || t == "Radian";
+	}
 
 	void ResetRefTargetForToken(Property& p)
 	{

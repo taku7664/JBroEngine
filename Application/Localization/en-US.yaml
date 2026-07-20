@@ -325,12 +325,10 @@ Entries:
   inspector.layer.opacity: Opacity
   inspector.layer.visible: Visible
   inspector.layer.source_asset: Layer Asset
-  inspector.layer.static: Static (Freeze Render)
   inspector.layer.force_own_texture: Force Own Texture
   inspector.layer.parallax: Parallax Factor
   inspector.layer.keep_on_canvas_change: Keep On Canvas Change
   inspector.layer.keep_on_canvas_change.tooltip: "When switching to another canvas that also references this layer asset, keep this live layer instead of reloading it. Objects, scripts and references carry over untouched. Off means the layer is destroyed and loaded fresh."
-  inspector.layer.warning.static_dynamic: "Static layer contains %d moving object(s) - the render is frozen, so their motion will not show."
   inspector.remove_component: Remove Component
   editor.menu.copy_object: Copy Object
   editor.menu.paste_object: Paste Object
@@ -710,8 +708,11 @@ Entries:
   editor.property.MinDistance:  Min Distance
   editor.property.MaxDistance:  Max Distance
   editor.property.PlayOnStart:  Play On Start
+  common.add: Add
+  common.clear: Clear
   common.remove: Remove
   common.move_up: Move Up
+  common.move_down: Move Down
   inspector.font_family.title: Font Family
   inspector.font_family.regular: Regular
   inspector.font_family.bold: Bold

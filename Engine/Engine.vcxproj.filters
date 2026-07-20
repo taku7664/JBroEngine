@@ -383,6 +383,15 @@
     <ClInclude Include="Utillity\Types\AngleConstants.h">
       <Filter>Header\Utillity\Types</Filter>
     </ClInclude>
+    <ClInclude Include="Utillity\Types\Allocator.h">
+      <Filter>Header\Utillity\Types</Filter>
+    </ClInclude>
+    <ClInclude Include="Utillity\Types\Array.h">
+      <Filter>Header\Utillity\Types</Filter>
+    </ClInclude>
+    <ClInclude Include="Utillity\Types\ArrayView.h">
+      <Filter>Header\Utillity\Types</Filter>
+    </ClInclude>
     <ClInclude Include="Utillity\Types\Asset.h">
       <Filter>Header\Utillity\Types</Filter>
     </ClInclude>
@@ -398,6 +407,9 @@
     <ClInclude Include="Utillity\Types\Float.h">
       <Filter>Header\Utillity\Types</Filter>
     </ClInclude>
+    <ClInclude Include="Utillity\Types\Hash.h">
+      <Filter>Header\Utillity\Types</Filter>
+    </ClInclude>
     <ClInclude Include="Utillity\Types\StrongTypeOps.h">
       <Filter>Header\Utillity\Types</Filter>
     </ClInclude>
@@ -407,7 +419,16 @@
     <ClInclude Include="Utillity\Types\Radian.h">
       <Filter>Header\Utillity\Types</Filter>
     </ClInclude>
+    <ClInclude Include="Utillity\Types\Simd128.h">
+      <Filter>Header\Utillity\Types</Filter>
+    </ClInclude>
     <ClInclude Include="Utillity\Types\String.h">
+      <Filter>Header\Utillity\Types</Filter>
+    </ClInclude>
+    <ClInclude Include="Utillity\Types\Table.h">
+      <Filter>Header\Utillity\Types</Filter>
+    </ClInclude>
+    <ClInclude Include="Utillity\Types\TypeTraits.h">
       <Filter>Header\Utillity\Types</Filter>
     </ClInclude>
     <ClInclude Include="Utillity\Types\Types.h">
@@ -909,6 +930,9 @@
       <Filter>Header\GameFramework\Reflection</Filter>
     </ClInclude>
     <ClInclude Include="GameFramework\Reflection\ReflectionRegistry.h">
+      <Filter>Header\GameFramework\Reflection</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Reflection\ReflectionContainerOps.h">
       <Filter>Header\GameFramework\Reflection</Filter>
     </ClInclude>
     <ClInclude Include="GameFramework\Scripting\GameScript.h">

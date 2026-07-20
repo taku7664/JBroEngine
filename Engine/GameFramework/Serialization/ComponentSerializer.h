@@ -21,6 +21,7 @@ namespace YAML { class Node; }
 
 class CComponent;
 class CGameObject;
+struct ReflectPropertyInfo;
 
 namespace Serialization
 {
@@ -41,4 +42,7 @@ namespace Serialization
 
 	// 텍스트가 SerializeComponent 가 만든 단일 컴포넌트 직렬화인지 검사한다(붙여넣기 가능 판별).
 	bool        LooksLikeComponent(const char* text);
+
+	std::string SerializeReflectedPropertyValue(const void* field, const ReflectPropertyInfo& property);
+	bool DeserializeReflectedPropertyValue(void* field, const ReflectPropertyInfo& property, const char* text);
 }

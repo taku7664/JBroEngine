@@ -134,7 +134,9 @@ void CAudioSystem::SyncEffectChain(PlayerInstance& instance, const AudioPlayer& 
 	IAssetManager& am     = *m_assetManager.TryGet();
 
 	// 리스트(추가/삭제/재정렬)가 그대로면 — 효과 .jfx 값만 바뀌었는지 generation 으로 확인.
-	if (instance.EffectGuids == player.EffectGuids)
+	const bool sameEffectGuids = instance.EffectGuids.size() == player.EffectGuids.Size()
+		&& std::equal(instance.EffectGuids.begin(), instance.EffectGuids.end(), player.EffectGuids.begin());
+	if (sameEffectGuids)
 	{
 		for (std::size_t i = 0; i < instance.EffectGuids.size(); ++i)
 		{
@@ -162,9 +164,9 @@ void CAudioSystem::SyncEffectChain(PlayerInstance& instance, const AudioPlayer& 
 	std::vector<OwnerPtr<IAudioEffect>> effects;
 	std::vector<std::uint32_t>          generations;
 	std::vector<SafePtr<IAudioEffect>>  chain;
-	effects.reserve(player.EffectGuids.size());
-	generations.reserve(player.EffectGuids.size());
-	chain.reserve(player.EffectGuids.size());
+	effects.reserve(player.EffectGuids.Size());
+	generations.reserve(player.EffectGuids.Size());
+	chain.reserve(player.EffectGuids.Size());
 
 	for (const AssetGuid& effectGuid : player.EffectGuids)
 	{
@@ -180,7 +182,7 @@ void CAudioSystem::SyncEffectChain(PlayerInstance& instance, const AudioPlayer& 
 	instance.Player->SetEffectChain(chain);
 	instance.Effects           = std::move(effects);
 	instance.EffectGenerations = std::move(generations);
-	instance.EffectGuids       = player.EffectGuids;
+	instance.EffectGuids.assign(player.EffectGuids.begin(), player.EffectGuids.end());
 }
 
 void CAudioSystem::OnUpdate(CGameCanvas& canvas)

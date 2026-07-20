@@ -30,23 +30,23 @@ namespace
 
 	// m_objectByGuid 공통 조회 — 죽은 엔트리는 방어적으로 제거한다.
 	SafePtr<CGameObject> LookupByGuid128(
-		std::unordered_map<Guid128, SafePtr<CGameObject>>& objectByGuid, const Guid128& id)
+		Table<Guid128, SafePtr<CGameObject>>& objectByGuid, const Guid128& id)
 	{
 		if (id.IsNull())
 		{
 			return nullptr;
 		}
-		const auto it = objectByGuid.find(id);
-		if (it == objectByGuid.end())
+		SafePtr<CGameObject>* object = objectByGuid.Find(id);
+		if (nullptr == object)
 		{
 			return nullptr;
 		}
-		if (false == it->second.IsValid())
+		if (false == object->IsValid())
 		{
-			objectByGuid.erase(it);
+			objectByGuid.Remove(id);
 			return nullptr;
 		}
-		return it->second;
+		return *object;
 	}
 }
 
@@ -176,10 +176,10 @@ bool CGameCanvas::DestroyLayer(CGameLayer* layer)
 	{
 		if (object.GetLayer().TryGet() == layer && false == object.GetParent().IsValid())
 		{
-			m_pendingDestroyObjects.push_back(object.SafeFromThis());
+			m_pendingDestroyObjects.Add(object.SafeFromThis());
 		}
 	});
-	m_pendingDestroyLayers.push_back(layer->SafeFromThis());
+	m_pendingDestroyLayers.Add(layer->SafeFromThis());
 	return true;
 }
 
@@ -499,7 +499,7 @@ CGameObject* CGameCanvas::CreateGameObject(const char* name, CGameLayer* layer)
 		}
 		object->m_layer = layer->SafeFromThis();
 		object->m_creationOrder = m_nextCreationOrder++;
-		m_objectByGuid[ToGuid128(guid)] = object->SafeFromThis();
+		m_objectByGuid.InsertOrAssign(ToGuid128(guid), object->SafeFromThis());
 		MarkScriptExecutionOrderDirty();
 	}
 	return object;
@@ -512,7 +512,7 @@ bool CGameCanvas::DestroyGameObject(CGameObject* gameObject)
 		return false;
 	}
 	// 지연 파괴 — 순회 중 즉시 해제 금지. flush 에서 실제 파괴.
-	m_pendingDestroyObjects.push_back(gameObject->SafeFromThis());
+	m_pendingDestroyObjects.Add(gameObject->SafeFromThis());
 	return true;
 }
 
@@ -544,7 +544,7 @@ void CGameCanvas::DestroyObjectRecursive(CGameObject* object)
 			DestroyComponent(raw);
 		}
 	}
-	m_objectByGuid.erase(ToGuid128(object->GetInstanceGuid()));
+	m_objectByGuid.Remove(ToGuid128(object->GetInstanceGuid()));
 	m_objectPool.Free(object);
 }
 
@@ -802,12 +802,12 @@ void CGameCanvas::SetObjectInstanceGuid(CGameObject& object, const File::Guid& g
 	// guid 재설정 시 맵도 rekey — 안 하면 옛 guid 로 계속 찾히거나 새 guid 가 안 찾힌다.
 	if (false == object.GetInstanceGuid().IsNull())
 	{
-		m_objectByGuid.erase(ToGuid128(object.GetInstanceGuid()));
+		m_objectByGuid.Remove(ToGuid128(object.GetInstanceGuid()));
 	}
 	object.SetInstanceGuid(guid);
 	if (false == guid.IsNull())
 	{
-		m_objectByGuid[ToGuid128(guid)] = object.SafeFromThis();
+		m_objectByGuid.InsertOrAssign(ToGuid128(guid), object.SafeFromThis());
 	}
 }
 
@@ -858,10 +858,10 @@ void CGameCanvas::FlushPendingDestroys()
 {
 	// 컴포넌트 먼저(개별 RemoveComponent), 그다음 오브젝트(자식 재귀 포함).
 	// SafePtr 가 null 이면 이미 다른 경로로 파괴된 것 → 스킵.
-	if (false == m_pendingDestroyComponents.empty())
+	if (false == m_pendingDestroyComponents.IsEmpty())
 	{
-		std::vector<SafePtr<CComponent>> pending;
-		pending.swap(m_pendingDestroyComponents);
+		Array<SafePtr<CComponent>> pending;
+		pending.Swap(m_pendingDestroyComponents);
 		for (const SafePtr<CComponent>& ref : pending)
 		{
 			if (CComponent* component = ref.TryGet())
@@ -871,10 +871,10 @@ void CGameCanvas::FlushPendingDestroys()
 		}
 	}
 
-	if (false == m_pendingDestroyObjects.empty())
+	if (false == m_pendingDestroyObjects.IsEmpty())
 	{
-		std::vector<SafePtr<CGameObject>> pending;
-		pending.swap(m_pendingDestroyObjects);
+		Array<SafePtr<CGameObject>> pending;
+		pending.Swap(m_pendingDestroyObjects);
 		for (const SafePtr<CGameObject>& ref : pending)
 		{
 			if (CGameObject* object = ref.TryGet())
@@ -885,10 +885,10 @@ void CGameCanvas::FlushPendingDestroys()
 	}
 
 	// 레이어는 소속 오브젝트 파괴가 끝난 뒤 제거한다(순서 계약).
-	if (false == m_pendingDestroyLayers.empty())
+	if (false == m_pendingDestroyLayers.IsEmpty())
 	{
-		std::vector<SafePtr<CGameLayer>> pendingLayers;
-		pendingLayers.swap(m_pendingDestroyLayers);
+		Array<SafePtr<CGameLayer>> pendingLayers;
+		pendingLayers.Swap(m_pendingDestroyLayers);
 		for (const SafePtr<CGameLayer>& ref : pendingLayers)
 		{
 			const CGameLayer* layer = ref.TryGet();
@@ -1211,8 +1211,8 @@ void CGameCanvas::ClearObjects()
 {
 	DestroyScriptInstances();
 
-	m_pendingDestroyComponents.clear();
-	m_pendingDestroyObjects.clear();
+	m_pendingDestroyComponents.Clear();
+	m_pendingDestroyObjects.Clear();
 
 	// 컴포넌트 풀 먼저 해제 → 오브젝트 풀 해제(상호참조 없이 안전).
 	for (PoolEntry& entry : m_componentPools)
@@ -1229,11 +1229,11 @@ void CGameCanvas::ClearObjects()
 	m_scriptExecutionOrder.clear();
 	m_scriptRangesByObject.clear();
 	m_scriptExecutionOrderDirty = true;
-	m_objectByGuid.clear();
+	m_objectByGuid.Clear();
 	m_objectPool.Clear();
 	m_referencedAssets.clear();
 	// 레이어·뷰포트는 오브젝트 정리 뒤 마지막에 — 직렬화 로드가 파일 기준으로 재구성한다.
-	m_pendingDestroyLayers.clear();
+	m_pendingDestroyLayers.Clear();
 	// 레이어를 통째로 버리므로(파괴 flush 를 거치지 않는다) 런타임 로드 에셋 보유도 함께 놓는다 —
 	// 안 그러면 사라진 레이어의 에셋이 고아로 남아 use-count 가 떨어지지 않는다.
 	m_runtimeLayerAssets.clear();

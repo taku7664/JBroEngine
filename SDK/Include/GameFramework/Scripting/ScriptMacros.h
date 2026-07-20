@@ -45,7 +45,7 @@
 //
 //   JBRO_SCRIPT MyScript final : public CGameScript
 //   {
-//       JPROP() float Speed = 5.0f;
+//       JPROP() Float Speed = 5.0f;
 //       JPROP(Name("이동 속도"), Range(0, 100), Tooltip("초당 이동"), Category("Movement"))
 //       float MoveSpeed = 3.0f;
 //       JPROP() AssetGuid Icon;       // 에셋 picker

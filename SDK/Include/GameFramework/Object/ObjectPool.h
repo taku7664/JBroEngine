@@ -7,6 +7,7 @@
 #include <memory>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  TObjectPool<T> — 고정 크기 객체용 청크 풀.
@@ -24,7 +25,8 @@
 //    살아있는 SafePtr 를 무효화하고, 참조 0 이면 block 을 해제한다(아니면 마지막
 //    SafePtr::ReleaseRef 가 해제).
 //
-//  순회: ForEachLive 는 모든 청크의 점유 슬롯을 방문한다(시스템용).
+//  순회: ForEachLive 는 별도의 dense live-pointer index 만 방문한다(시스템용).
+//  이 배열은 순회 비용을 live 수에 비례시키기 위한 저장 인덱스이며 순서를 보장하지 않는다.
 // ─────────────────────────────────────────────────────────────────────────────
 
 template<typename T>
@@ -64,7 +66,8 @@ public:
 
 		slot->Block = block;
 		slot->Occupied = true;
-		++m_liveCount;
+		slot->LiveIndex = m_liveObjects.size();
+		m_liveObjects.push_back(object);
 		return object;
 	}
 
@@ -83,62 +86,44 @@ public:
 			return;
 		}
 
+		RemoveLiveObject(*slot);
 		DestroySlot(*slot);
 		ReleaseSlot(slot);
 	}
 
 	void Clear()
 	{
-		for (Chunk* chunk = m_head; nullptr != chunk; chunk = chunk->Next)
+		for (T* object : m_liveObjects)
 		{
-			for (std::size_t i = 0; i < SlotsPerChunk; ++i)
-			{
-				Slot& slot = chunk->Slots[i];
-				if (slot.Occupied)
-				{
-					DestroySlot(slot);
-					slot.Occupied = false;
-				}
-			}
+			Slot& slot = *reinterpret_cast<Slot*>(object);
+			DestroySlot(slot);
+			slot.Occupied = false;
+			slot.LiveIndex = InvalidLiveIndex;
 		}
+		m_liveObjects.clear();
 		m_freeHead = nullptr;
-		m_liveCount = 0;
 		RebuildFreeList();
 	}
 
 	template<typename Fn>
 	void ForEachLive(Fn&& fn)
 	{
-		for (Chunk* chunk = m_head; nullptr != chunk; chunk = chunk->Next)
+		for (T* object : m_liveObjects)
 		{
-			for (std::size_t i = 0; i < SlotsPerChunk; ++i)
-			{
-				Slot& slot = chunk->Slots[i];
-				if (slot.Occupied)
-				{
-					fn(*reinterpret_cast<T*>(slot.Storage));
-				}
-			}
+			fn(*object);
 		}
 	}
 
 	template<typename Fn>
 	void ForEachLive(Fn&& fn) const
 	{
-		for (const Chunk* chunk = m_head; nullptr != chunk; chunk = chunk->Next)
+		for (const T* object : m_liveObjects)
 		{
-			for (std::size_t i = 0; i < SlotsPerChunk; ++i)
-			{
-				const Slot& slot = chunk->Slots[i];
-				if (slot.Occupied)
-				{
-					fn(*reinterpret_cast<const T*>(slot.Storage));
-				}
-			}
+			fn(*object);
 		}
 	}
 
-	std::size_t GetLiveCount() const { return m_liveCount; }
+	std::size_t GetLiveCount() const { return m_liveObjects.size(); }
 	std::size_t GetCapacity() const { return m_chunkCount * SlotsPerChunk; }
 	void Reserve(std::size_t capacity)
 	{
@@ -152,11 +137,14 @@ public:
 	}
 
 private:
+	static constexpr std::size_t InvalidLiveIndex = static_cast<std::size_t>(-1);
+
 	struct Slot
 	{
 		alignas(T) unsigned char     Storage[sizeof(T)];   // 반드시 첫 멤버 (T* ↔ Slot* 역변환)
 		SafePtrDetail::ControlBlock* Block    = nullptr;
 		Slot*                        NextFree = nullptr;
+		std::size_t                  LiveIndex = InvalidLiveIndex;
 		bool                         Occupied = false;
 	};
 
@@ -184,7 +172,21 @@ private:
 			}
 			slot.Block = nullptr;
 		}
-		--m_liveCount;
+	}
+
+	void RemoveLiveObject(Slot& slot)
+	{
+		const std::size_t removeIndex = slot.LiveIndex;
+		T* movedObject = m_liveObjects.back();
+		m_liveObjects[removeIndex] = movedObject;
+		m_liveObjects.pop_back();
+
+		if (removeIndex < m_liveObjects.size())
+		{
+			Slot* movedSlot = reinterpret_cast<Slot*>(movedObject);
+			movedSlot->LiveIndex = removeIndex;
+		}
+		slot.LiveIndex = InvalidLiveIndex;
 	}
 
 	Slot* AcquireSlot()
@@ -208,6 +210,7 @@ private:
 
 	bool AddChunk()
 	{
+		m_liveObjects.reserve(GetCapacity() + SlotsPerChunk);
 		Chunk* chunk = new (std::nothrow) Chunk();
 		if (nullptr == chunk)
 		{
@@ -251,11 +254,12 @@ private:
 		m_head = nullptr;
 		m_freeHead = nullptr;
 		m_chunkCount = 0;
+		m_liveObjects.clear();
 	}
 
 private:
 	Chunk*      m_head      = nullptr;
 	Slot*       m_freeHead  = nullptr;
-	std::size_t m_liveCount = 0;
 	std::size_t m_chunkCount = 0;
+	std::vector<T*> m_liveObjects;
 };

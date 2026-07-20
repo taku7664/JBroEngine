@@ -3,7 +3,7 @@
 #include "Core/Asset/AssetTypes.h"   // AssetGuid
 #include "GameFramework/Component/Component.h"
 
-#include <vector>
+#include "Utillity/Types/Array.h"
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  AudioListener / AudioPlayer 컴포넌트
@@ -37,7 +37,7 @@ public:
 	//   sound -> EffectGuids[0] -> EffectGuids[1] -> ... -> endpoint.
 	// 비어 있으면 효과 없음. 런타임 효과 노드 캐시/strong ref 는 CAudioSystem 이
 	// per-instance 로 보유한다(컴포넌트는 순수 데이터만).
-	std::vector<AssetGuid> EffectGuids;
+	Array<AssetGuid> EffectGuids;
 
 	// ── 인스턴스 단위 오버라이드 ──────────────────────────────────────────
 	// 임포트 옵션의 동명 필드를 인스턴스 단위로 덮어쓴다.

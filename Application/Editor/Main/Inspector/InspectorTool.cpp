@@ -23,6 +23,7 @@
 #include "Engine/GameFramework/Object/GameObject.h"
 #include "Engine/GameFramework/Object/Ref.h"
 #include "Engine/GameFramework/Reflection/ReflectionRegistry.h"
+#include "Engine/GameFramework/Serialization/ComponentSerializer.h"
 #include "Engine/Core/Asset/AssetMetaFile.h"
 #include "Engine/Core/Asset/AssetTypeRules.h"
 #include "Engine/Core/Asset/IAssetManager.h"
@@ -450,6 +451,61 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			}
 			return false;
 		}
+		case EReflectPropertyType::Array:
+		{
+			const ReflectTypeDesc* descriptor = property.Descriptor;
+			const ReflectArrayOps* ops = descriptor ? descriptor->ArrayOps : nullptr;
+			if (!ops || !descriptor->Element)
+			{
+				ImGui::TextDisabled("%s", Loc::Text(EditorLocKeys::InspectorUnsupported));
+				return false;
+			}
+
+			bool changed = false;
+			if (ImGui::SmallButton(Loc::Text(EditorLocKeys::CommonAdd)))
+			{
+				ops->AddDefault(field);
+				changed = true;
+			}
+			ImGui::SameLine();
+			if (ImGui::SmallButton(Loc::Text(EditorLocKeys::CommonClear)) && ops->GetSize(field) > 0)
+			{
+				ops->Clear(field);
+				return true;
+			}
+
+			std::size_t removeIndex = SIZE_MAX;
+			std::size_t moveFrom = SIZE_MAX;
+			std::size_t moveTo = SIZE_MAX;
+			const std::size_t count = ops->GetSize(field);
+			for (std::size_t index = 0; index < count; ++index)
+			{
+				ImGui::PushID(static_cast<int>(index));
+				void* element = ops->GetElement(field, index);
+				ReflectPropertyInfo elementProperty{};
+				elementProperty.Type = descriptor->Element->LegacyType;
+				elementProperty.Size = descriptor->Element->Size;
+				elementProperty.ElementCount = 1;
+				elementProperty.IsEditable = true;
+				elementProperty.Descriptor = descriptor->Element;
+				elementProperty.ExpectedAssetType = property.ExpectedAssetType;
+				ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 92.0f);
+				changed |= DrawPropertyEditor(element, elementProperty);
+				ImGui::SameLine();
+				if (ImGui::SmallButton("^") && index > 0) { moveFrom = index; moveTo = index - 1; }
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", Loc::Text(EditorLocKeys::CommonMoveUp));
+				ImGui::SameLine();
+				if (ImGui::SmallButton("v") && index + 1 < count) { moveFrom = index; moveTo = index + 1; }
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", Loc::Text(EditorLocKeys::CommonMoveDown));
+				ImGui::SameLine();
+				if (ImGui::SmallButton("x")) removeIndex = index;
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", Loc::Text(EditorLocKeys::CommonRemove));
+				ImGui::PopID();
+			}
+			if (SIZE_MAX != removeIndex) { ops->RemoveAt(field, removeIndex); changed = true; }
+			else if (SIZE_MAX != moveFrom) { ops->Move(field, moveFrom, moveTo); changed = true; }
+			return changed;
+		}
 		case EReflectPropertyType::Layout2D:
 		{
 			// Layout2D 편집 UI:
@@ -510,9 +566,12 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		}
 
 		std::vector<std::uint8_t> oldValue(property.Size);
-		const bool canRawUndo = !(property.Type == EReflectPropertyType::String && property.ElementCount <= 1);
+		const bool canSerializedUndo = property.Type == EReflectPropertyType::Array && property.Descriptor;
+		const bool canRawUndo = !canSerializedUndo && !(property.Type == EReflectPropertyType::String && property.ElementCount <= 1);
 		const bool canStringUndo = property.Type == EReflectPropertyType::String && property.ElementCount <= 1;
 		const std::string oldString = canStringUndo ? *static_cast<std::string*>(field) : std::string();
+		const std::string oldSerialized = canSerializedUndo
+			? Serialization::SerializeReflectedPropertyValue(field, property) : std::string();
 		if (canRawUndo && property.Size > 0)
 		{
 			std::memcpy(oldValue.data(), field, property.Size);
@@ -532,6 +591,16 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 					Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CSetComponentPropertyCommand>(
 						canvas.SafeFromThis(), selectedObject, component.GetTypeId(), property.Offset,
 						std::move(oldValue), std::move(newValue), component.GetInstanceGuid()));
+				}
+			}
+			else if (changed && canSerializedUndo)
+			{
+				const std::string newSerialized = Serialization::SerializeReflectedPropertyValue(field, property);
+				if (oldSerialized != newSerialized)
+				{
+					Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CSetComponentSerializedPropertyCommand>(
+						canvas.SafeFromThis(), selectedObject, component.GetTypeId(), property.Offset,
+						oldSerialized, newSerialized, component.GetInstanceGuid()));
 				}
 			}
 			else if (changed && canStringUndo)
@@ -1495,42 +1564,6 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		return count;
 	}
 
-	// Static 레이어는 RT 를 한 번 그린 뒤 재그리기를 건너뛴다 — 시뮬은 계속 도니까 오브젝트가
-	// 움직여도 화면은 그대로다. "움직인다" 판정: 스크립트가 붙어 있거나(무엇이든 할 수 있다),
-	// Rigidbody2D 가 Static 이 아니거나(물리가 옮긴다).
-	// 스크립트 판정에 dynamic_cast 대신 리플렉션 조회를 쓴다 — 인스펙터는 매 프레임 돈다.
-	int CountMovingObjectsInLayer(CGameCanvas& canvas, const CGameLayer& layer, const CReflectionRegistry& reflection)
-	{
-		int count = 0;
-		canvas.ForEachObject([&](CGameObject& object)
-		{
-			if (object.GetLayer().TryGet() != &layer)
-			{
-				return;
-			}
-
-			if (const Rigidbody2D* body = object.GetComponent<Rigidbody2D>())
-			{
-				if (EPhysics2DBodyType::Static != body->BodyType)
-				{
-					++count;
-					return;
-				}
-			}
-
-			for (const SafePtr<CComponent>& componentRef : object.GetComponents())
-			{
-				const CComponent* component = componentRef.TryGet();
-				if (component && reflection.FindScript(component->GetTypeId()))
-				{
-					++count;
-					return;
-				}
-			}
-		});
-		return count;
-	}
-
 	// 뷰포트 하나의 속성 편집. 레이어 패널과 같은 규칙 — 라이브 대입이 아니라 스냅샷 교체다
 	// (커맨드가 "적용 직전 값"을 old 로 캡처하므로 먼저 라이브로 바꾸면 undo 가 무효가 된다).
 	void DrawViewportProperties(
@@ -1878,16 +1911,6 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			}
 		});
 
-		bool isStatic = layer->Static;
-		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorLayerStatic)); }, [&]() {
-			if (ImGui::Checkbox("##inspector.layer.static", &isStatic))
-			{
-				LayerPropertySnapshot properties = LayerPropertySnapshot::Capture(*layer);
-				properties.Static = isStatic;
-				apply(EField::Static, properties);
-			}
-		});
-
 		bool forceOwnTexture = layer->ForceOwnTexture;
 		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorLayerForceOwnTexture)); }, [&]() {
 			if (ImGui::Checkbox("##inspector.layer.force_own_texture", &forceOwnTexture))
@@ -1922,19 +1945,6 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 				}
 				ImGui::SetItemTooltip("%s", Loc::Text(EditorLocKeys::InspectorLayerKeepOnCanvasChangeTooltip));
 			});
-		}
-
-		// Static 은 렌더 동결이라 그 안의 움직이는 오브젝트는 화면에 반영되지 않는다.
-		if (layer->Static && Engine.Reflection.IsValid())
-		{
-			const int movingCount = CountMovingObjectsInLayer(canvas, *layer, *Engine.Reflection);
-			if (movingCount > 0)
-			{
-				char warning[256];
-				std::snprintf(warning, sizeof(warning),
-					Loc::Text(EditorLocKeys::InspectorLayerWarningStaticDynamic), movingCount);
-				DrawInspectorWarning(warning);
-			}
 		}
 
 		return true;
@@ -2460,28 +2470,6 @@ void CInspectorTool::OnRenderStay()
 				ImGui::PushID(static_cast<int>(e->typeIndex * 1000 + instIdx));
 				DrawIsEnabledCheckbox(*canvas, selectedObject, *e->typeInfo, instIdx, comp, false);
 				DrawComponentProperties(*canvas, selectedObject, *e->typeInfo, instIdx, comp);
-
-			// ── AudioPlayer: EffectGuids 효과 체인 (리플렉션 밖, 커스텀 ImList) ──
-			// EffectGuids 는 가변 길이라 리플렉션 자동 그리기에서 빠진다. 효과 에셋을
-			// 드래그&드롭으로 추가/삭제하고, 리스트 순서대로 적용된다(ImList 가 재정렬 제공).
-			if (e->typeInfo->Type.Name && 0 == strcmp(e->typeInfo->Type.Name, "AudioPlayer"))
-			{
-				AudioPlayer* audioPlayer = static_cast<AudioPlayer*>(comp);
-				if (audioPlayer)
-				{
-					ImGui::Spacing();
-					ImSectionHeader(Loc::Text(EditorLocKeys::InspectorAudioEffectChain)).Draw();
-					ImList<AssetGuid>(
-						"##audio_effect_chain", audioPlayer->EffectGuids,
-						[](AssetGuid& effectGuid, int /*idx*/)
-						{
-							ImAssetField("##audio_effect_asset", effectGuid)
-								.Type(EAssetType::AudioEffect)
-								.Draw();
-						},
-						INVALID_ASSET_GUID);
-				}
-			}
 
 			ImGui::PopID();
 		}

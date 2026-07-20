@@ -158,7 +158,8 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 
 	registry.RegisterComponent<AudioPlayer>({ "AudioPlayer", "Audio Player", "Audio", true })
 		.AddAssetProperty("AudioGuid", offsetof(AudioPlayer, AudioGuid), EAssetType::Audio)
-		// EffectGuids(체인)는 가변 길이라 리플렉션 밖 — 인스펙터/직렬화에서 수동 처리.
+		.AddArrayProperty<AssetGuid, EReflectPropertyType::AssetGuid>(
+			"EffectGuids", offsetof(AudioPlayer, EffectGuids), true, EAssetType::AudioEffect)
 		.AddProperty("Volume",      EReflectPropertyType::Float,     offsetof(AudioPlayer, Volume),      sizeof(float))
 		.AddProperty("Pitch",       EReflectPropertyType::Float,     offsetof(AudioPlayer, Pitch),       sizeof(float))
 		.AddProperty("Loop",        EReflectPropertyType::Bool,      offsetof(AudioPlayer, Loop),        sizeof(bool))

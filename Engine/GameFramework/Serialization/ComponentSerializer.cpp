@@ -284,6 +284,111 @@ namespace
 		}
 	}
 
+	YAML::Node WriteValueByDescriptor(const void* value, const ReflectTypeDesc& descriptor)
+	{
+		switch (descriptor.LegacyType)
+		{
+		case EReflectPropertyType::Bool: return YAML::Node(*static_cast<const bool*>(value));
+		case EReflectPropertyType::Int32: return YAML::Node(*static_cast<const std::int32_t*>(value));
+		case EReflectPropertyType::Int64: return YAML::Node(*static_cast<const std::int64_t*>(value));
+		case EReflectPropertyType::UInt32: return YAML::Node(*static_cast<const std::uint32_t*>(value));
+		case EReflectPropertyType::UInt64: return YAML::Node(*static_cast<const std::uint64_t*>(value));
+		case EReflectPropertyType::Float:
+		case EReflectPropertyType::Degree:
+		case EReflectPropertyType::Radian:
+		case EReflectPropertyType::AngleDegrees:
+			return YAML::Node(*static_cast<const float*>(value));
+		case EReflectPropertyType::String:
+			return YAML::Node(*static_cast<const std::string*>(value));
+		case EReflectPropertyType::Vector2Float:
+			return WriteVector2(*static_cast<const Vector2*>(value));
+		case EReflectPropertyType::RectFloat:
+			return WriteRect(*static_cast<const Rect*>(value));
+		case EReflectPropertyType::AssetGuid:
+			return YAML::Node(static_cast<const File::Guid*>(value)->generic_string());
+		case EReflectPropertyType::Ref:
+			return WriteRef(*static_cast<const RefBase*>(value));
+		default:
+			return YAML::Node();
+		}
+	}
+
+	bool ReadValueByDescriptor(const YAML::Node& node, void* value, const ReflectTypeDesc& descriptor)
+	{
+		try
+		{
+			switch (descriptor.LegacyType)
+			{
+			case EReflectPropertyType::Bool: *static_cast<bool*>(value) = node.as<bool>(); return true;
+			case EReflectPropertyType::Int32: *static_cast<std::int32_t*>(value) = node.as<std::int32_t>(); return true;
+			case EReflectPropertyType::Int64: *static_cast<std::int64_t*>(value) = node.as<std::int64_t>(); return true;
+			case EReflectPropertyType::UInt32: *static_cast<std::uint32_t*>(value) = node.as<std::uint32_t>(); return true;
+			case EReflectPropertyType::UInt64: *static_cast<std::uint64_t*>(value) = node.as<std::uint64_t>(); return true;
+			case EReflectPropertyType::Float:
+			case EReflectPropertyType::Degree:
+			case EReflectPropertyType::Radian:
+			case EReflectPropertyType::AngleDegrees:
+				*static_cast<float*>(value) = node.as<float>(); return true;
+			case EReflectPropertyType::String:
+				*static_cast<std::string*>(value) = node.as<std::string>(); return true;
+			case EReflectPropertyType::Vector2Float:
+				ReadVector2(node, *static_cast<Vector2*>(value)); return true;
+			case EReflectPropertyType::RectFloat:
+				ReadRect(node, *static_cast<Rect*>(value)); return true;
+			case EReflectPropertyType::AssetGuid:
+				*static_cast<File::Guid*>(value) = File::Guid(node.as<std::string>()); return true;
+			case EReflectPropertyType::Ref:
+				ReadRef(node, *static_cast<RefBase*>(value)); return true;
+			default:
+				return false;
+			}
+		}
+		catch (const YAML::Exception&)
+		{
+			return false;
+		}
+	}
+
+	YAML::Node WriteArrayValue(const void* field, const ReflectTypeDesc& descriptor)
+	{
+		YAML::Node result(YAML::NodeType::Sequence);
+		if (nullptr == descriptor.ArrayOps || nullptr == descriptor.Element)
+		{
+			return result;
+		}
+		const std::size_t count = descriptor.ArrayOps->GetSize(field);
+		for (std::size_t index = 0; index < count; ++index)
+		{
+			const void* element = descriptor.ArrayOps->GetConstElement(field, index);
+			if (element)
+			{
+				result.push_back(WriteValueByDescriptor(element, *descriptor.Element));
+			}
+		}
+		return result;
+	}
+
+	bool ReadArrayValue(const YAML::Node& node, void* field, const ReflectTypeDesc& descriptor)
+	{
+		if (false == node.IsSequence() || nullptr == descriptor.ArrayOps || nullptr == descriptor.Element)
+		{
+			return false;
+		}
+		descriptor.ArrayOps->Clear(field);
+		for (const YAML::Node& elementNode : node)
+		{
+			descriptor.ArrayOps->AddDefault(field);
+			const std::size_t index = descriptor.ArrayOps->GetSize(field) - 1;
+			void* element = descriptor.ArrayOps->GetElement(field, index);
+			if (nullptr == element || false == ReadValueByDescriptor(elementNode, element, *descriptor.Element))
+			{
+				descriptor.ArrayOps->RemoveAt(field, index);
+				return false;
+			}
+		}
+		return true;
+	}
+
 	// ── 리플렉션 기반 제네릭 직렬화 ──────────────────────────────────────────
 
 	// 등록된 모든 프로퍼티를 EReflectPropertyType에 따라 YAML로 직렬화합니다.
@@ -374,6 +479,23 @@ namespace
 				break;
 			case EReflectPropertyType::String:
 				node[prop.Name] = ReadStringField(field, prop);
+				break;
+			case EReflectPropertyType::Array:
+				if (prop.Descriptor)
+				{
+					node[prop.Name] = WriteArrayValue(field, *prop.Descriptor);
+					if (referencedAssets && prop.Descriptor->Element
+						&& EReflectPropertyType::AssetGuid == prop.Descriptor->Element->LegacyType
+						&& prop.Descriptor->ArrayOps)
+					{
+						const std::size_t count = prop.Descriptor->ArrayOps->GetSize(field);
+						for (std::size_t index = 0; index < count; ++index)
+						{
+							const void* element = prop.Descriptor->ArrayOps->GetConstElement(field, index);
+							if (element) AddReferencedAsset(*referencedAssets, *static_cast<const AssetGuid*>(element));
+						}
+					}
+				}
 				break;
 			default:
 				break;
@@ -474,6 +596,12 @@ namespace
 					}
 				}
 				break;
+			case EReflectPropertyType::Array:
+				if (prop.Descriptor)
+				{
+					ReadArrayValue(node[prop.Name], field, *prop.Descriptor);
+				}
+				break;
 			default:
 				break;
 			}
@@ -561,14 +689,6 @@ namespace
 		// 리플렉션은 등록 프로퍼티(AudioGuid/Volume...)만 직렬화 — 런타임 캐시 멤버는 무시.
 		YAML::Node node = WriteComponentReflected(&audioPlayer, *ti, &referencedAssets);
 
-		// EffectGuids(효과 체인)는 리플렉션 밖 — 시퀀스로 수동 직렬화(순서 = 적용 순서).
-		YAML::Node effectsNode(YAML::NodeType::Sequence);
-		for (const AssetGuid& effectGuid : audioPlayer.EffectGuids)
-		{
-			effectsNode.push_back(effectGuid.generic_string());
-			AddReferencedAsset(referencedAssets, effectGuid);
-		}
-		node["EffectGuids"] = effectsNode;
 		return node;
 	}
 
@@ -577,25 +697,13 @@ namespace
 		const ComponentTypeInfo* ti = GetTypeInfo("AudioPlayer");
 		if (ti) ReadComponentReflected(node, &audioPlayer, *ti);
 
-		// EffectGuids 수동 파싱. 하위호환: 구 단일 EffectGuid 키가 있으면 1개로 마이그레이션.
-		audioPlayer.EffectGuids.clear();
-		if (node["EffectGuids"] && node["EffectGuids"].IsSequence())
-		{
-			for (const YAML::Node& guidNode : node["EffectGuids"])
-			{
-				AssetGuid effectGuid(guidNode.as<std::string>(std::string()));
-				if (false == effectGuid.IsNull())
-				{
-					audioPlayer.EffectGuids.push_back(effectGuid);
-				}
-			}
-		}
-		else if (node["EffectGuid"])
+		// 하위호환: 구 단일 EffectGuid 키가 있으면 새 배열로 마이그레이션.
+		if (!node["EffectGuids"] && node["EffectGuid"])
 		{
 			AssetGuid legacy(node["EffectGuid"].as<std::string>(std::string()));
 			if (false == legacy.IsNull())
 			{
-				audioPlayer.EffectGuids.push_back(legacy);
+				audioPlayer.EffectGuids.Add(legacy);
 			}
 		}
 	}
@@ -1163,6 +1271,50 @@ bool LooksLikeComponent(const char* text)
 	catch (const YAML::Exception&) { return false; }
 	// 단일 컴포넌트: Type 키 보유 + 오브젝트 컨테이너 키(Components) 없음.
 	return node.IsMap() && node["Type"] && !node["Components"];
+}
+
+std::string SerializeReflectedPropertyValue(const void* field, const ReflectPropertyInfo& property)
+{
+	if (nullptr == field || nullptr == property.Descriptor)
+	{
+		return std::string();
+	}
+	YAML::Node node;
+	if (EReflectPropertyType::Array == property.Type)
+	{
+		node = WriteArrayValue(field, *property.Descriptor);
+	}
+	else
+	{
+		node = WriteValueByDescriptor(field, *property.Descriptor);
+	}
+	if (false == node.IsDefined())
+	{
+		return std::string();
+	}
+	YAML::Emitter emitter;
+	emitter << node;
+	return std::string(emitter.c_str());
+}
+
+bool DeserializeReflectedPropertyValue(void* field, const ReflectPropertyInfo& property, const char* text)
+{
+	if (nullptr == field || nullptr == property.Descriptor || nullptr == text)
+	{
+		return false;
+	}
+	YAML::Node node;
+	try
+	{
+		node = YAML::Load(text);
+	}
+	catch (const YAML::Exception&)
+	{
+		return false;
+	}
+	return EReflectPropertyType::Array == property.Type
+		? ReadArrayValue(node, field, *property.Descriptor)
+		: ReadValueByDescriptor(node, field, *property.Descriptor);
 }
 
 } // namespace Serialization

@@ -20,6 +20,7 @@
 #include "Editor/Icons/FontAwesomeIcons.h"
 #include "Editor/Localization/EditorLocalizationKeys.h"
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -136,11 +137,47 @@ namespace ScriptSchemaUI
 				}
 			});
 		layout.Row([]() { LabelWithTip(EditorLocKeys::ScriptPropSerialize, EditorLocKeys::ScriptPropSerializeTooltip); }, [&]() {
-			if(ImGui::Checkbox("##serialize", &p.NoSerialize))
+			bool serialize = false == p.NoSerialize;
+			if (ImGui::Checkbox("##serialize", &serialize))
 			{
+				p.NoSerialize = false == serialize;
 				changed = true;
 			}
 		});
+		if (ScriptSchema::SupportsRange(p.TypeToken))
+		{
+			layout.Row([]() { LabelWithTip(EditorLocKeys::ScriptPropRange, EditorLocKeys::ScriptPropRangeTooltip); }, [&]() {
+				if (ImGui::Checkbox("##range", &p.HasRange))
+				{
+					changed = true;
+				}
+			});
+			if (p.HasRange)
+			{
+				layout.Row([]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::ScriptPropRangeMin)); }, [&]() {
+					if (ImGui::InputDouble("##range_min", &p.RangeMin))
+					{
+						changed = true;
+					}
+				});
+				layout.Row([]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::ScriptPropRangeMax)); }, [&]() {
+					if (ImGui::InputDouble("##range_max", &p.RangeMax))
+					{
+						changed = true;
+					}
+				});
+				if (p.RangeMin > p.RangeMax)
+				{
+					std::swap(p.RangeMin, p.RangeMax);
+					changed = true;
+				}
+			}
+		}
+		else if (p.HasRange)
+		{
+			p.HasRange = false;
+			changed = true;
+		}
 		return changed;
 	}
 

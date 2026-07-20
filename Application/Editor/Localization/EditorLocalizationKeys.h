@@ -134,6 +134,8 @@ namespace EditorLocKeys
 	constexpr const char* CommonAlreadyAdded = "common.already_added";
 	constexpr const char* CommonAsset = "common.asset";
 	constexpr const char* CommonBrowse = "common.browse";
+	constexpr const char* CommonAdd = "common.add";
+	constexpr const char* CommonClear = "common.clear";
 	constexpr const char* CommonCancel = "common.cancel";
 	constexpr const char* CommonCopy = "common.copy";
 	constexpr const char* CommonCreate = "common.create";
@@ -146,6 +148,7 @@ namespace EditorLocKeys
 	constexpr const char* CommonImporter = "common.importer";
 	constexpr const char* CommonModified = "common.modified";
 	constexpr const char* CommonMoveUp = "common.move_up";
+	constexpr const char* CommonMoveDown = "common.move_down";
 	constexpr const char* CommonName = "common.name";
 	constexpr const char* CommonNo = "common.no";
 	constexpr const char* CommonNoResults = "common.no_results";
@@ -326,9 +329,7 @@ namespace EditorLocKeys
 	constexpr const char* InspectorLayerParallax = "inspector.layer.parallax";
 	constexpr const char* InspectorLayerProperties = "inspector.layer.properties";
 	constexpr const char* InspectorLayerSourceAsset = "inspector.layer.source_asset";
-	constexpr const char* InspectorLayerStatic = "inspector.layer.static";
 	constexpr const char* InspectorLayerVisible = "inspector.layer.visible";
-	constexpr const char* InspectorLayerWarningStaticDynamic = "inspector.layer.warning.static_dynamic";
 	constexpr const char* InspectorMarginX = "inspector.margin_x";
 	constexpr const char* InspectorMarginXDesc = "inspector.margin_x.desc";
 	constexpr const char* InspectorMarginY = "inspector.margin_y";
@@ -533,6 +534,10 @@ namespace EditorLocKeys
 	constexpr const char* ScriptPropNameHint = "script_prop.name_hint";
 	constexpr const char* ScriptPropNameTooltip = "script_prop.name_tooltip";
 	constexpr const char* ScriptPropReftargetTooltip = "script_prop.reftarget_tooltip";
+	constexpr const char* ScriptPropRange = "script_prop.range";
+	constexpr const char* ScriptPropRangeTooltip = "script_prop.range_tooltip";
+	constexpr const char* ScriptPropRangeMin = "script_prop.range_min";
+	constexpr const char* ScriptPropRangeMax = "script_prop.range_max";
 	constexpr const char* ScriptPropSerialize = "script_prop.serialize";
 	constexpr const char* ScriptPropSerializeTooltip = "script_prop.serialize_tooltip";
 	constexpr const char* ScriptPropTooltip = "script_prop.tooltip";

@@ -81,6 +81,7 @@ bool ImFilterCombo::Draw() const
 		return false;
 	}
 
+	const float triggerWidth = (0.0f != m_width) ? m_width : ImGui::CalcItemWidth();
 	if (0.0f != m_width)
 	{
 		ImGui::SetNextItemWidth(m_width);
@@ -90,10 +91,22 @@ bool ImFilterCombo::Draw() const
 	const char* preview = (*m_currentIndex >= 0 && *m_currentIndex < itemCount)
 		? (*m_items)[static_cast<std::size_t>(*m_currentIndex)].c_str()
 		: (nullptr != m_emptyText ? m_emptyText : "");
+	float popupWidth = ImGui::CalcTextSize(preview).x;
+	for (const std::string& item : *m_items)
+	{
+		popupWidth = std::max(popupWidth, ImGui::CalcTextSize(item.c_str()).x);
+	}
+	// 트리거 칸이 좁아도 타입명/검색창/스크롤바가 잘리지 않는 독립 팝업 폭을 확보한다.
+	popupWidth = std::max(popupWidth + ImGui::GetStyle().FramePadding.x * 4.0f
+		+ ImGui::GetStyle().ScrollbarSize, triggerWidth);
+	const int maxVisible = std::max(1, std::min(m_maxVisibleItems, 8));
+	const float rowHeight = ImGui::GetTextLineHeightWithSpacing();
+	const float popupMaxHeight = ImGui::GetFrameHeightWithSpacing()
+		+ rowHeight * static_cast<float>(maxVisible) + ImGui::GetStyle().WindowPadding.y * 2.0f;
+	ImGui::SetNextWindowSizeConstraints(
+		ImVec2(popupWidth, 0.0f), ImVec2(FLT_MAX, popupMaxHeight));
 
 	bool changed = false;
-	ImGui::Utillity::StyleBuilder comboStyle;
-	comboStyle.PushStyleVar(ImGuiStyleVar_ScrollbarSize, 0.0f);
 	if (ImGui::BeginCombo(nullptr != m_id ? m_id : "##filter_combo", preview))
 	{
 		static char filter[128] = "";
@@ -111,33 +124,25 @@ bool ImFilterCombo::Draw() const
 			sizeof(filter));
 		ImGui::Separator();
 
-		const int maxVisible = std::max(1, m_maxVisibleItems);
-		const float rowHeight = ImGui::GetTextLineHeightWithSpacing();
-		const float childHeight = rowHeight * static_cast<float>(maxVisible);
-		const float visibleHeight = std::min(childHeight, rowHeight * static_cast<float>(std::max(1, itemCount)));
-		if (ImGui::BeginChild("##filter_combo_items", ImVec2(0.0f, visibleHeight), false))
+		for (int i = 0; i < itemCount; ++i)
 		{
-			for (int i = 0; i < itemCount; ++i)
+			const std::string& item = (*m_items)[static_cast<std::size_t>(i)];
+			if (false == ContainsCaseInsensitive(item, filter))
 			{
-				const std::string& item = (*m_items)[static_cast<std::size_t>(i)];
-				if (false == ContainsCaseInsensitive(item, filter))
-				{
-					continue;
-				}
+				continue;
+			}
 
-				const bool selected = (i == *m_currentIndex);
-				if (ImGui::Selectable(item.c_str(), selected))
-				{
-					*m_currentIndex = i;
-					changed = true;
-				}
-				if (selected)
-				{
-					ImGui::SetItemDefaultFocus();
-				}
+			const bool selected = (i == *m_currentIndex);
+			if (ImGui::Selectable(item.c_str(), selected))
+			{
+				*m_currentIndex = i;
+				changed = true;
+			}
+			if (selected)
+			{
+				ImGui::SetItemDefaultFocus();
 			}
 		}
-		ImGui::EndChild();
 		ImGui::EndCombo();
 	}
 

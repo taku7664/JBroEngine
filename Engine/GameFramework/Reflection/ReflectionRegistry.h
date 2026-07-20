@@ -1,6 +1,7 @@
 #pragma once
 
 #include "GameFramework/Reflection/ReflectionTypes.h"
+#include "GameFramework/Reflection/ReflectionContainerOps.h"
 #include "GameFramework/Scripting/ScriptMacros.h"
 #include "Core/Game/GameModuleTypes.h"
 #include "Core/Input/IInputHandler.h"
@@ -79,6 +80,16 @@ public:
 	CComponentRegistration& AddProperty(const char* name, EReflectPropertyType propertyType, std::size_t offset, std::size_t size, std::size_t elementCount = 1, bool isEditable = true);
 	CComponentRegistration& AddAssetProperty(const char* name, std::size_t offset, EAssetType expectedType, bool isEditable = true);
 
+	template<
+		typename T,
+		EReflectPropertyType ElementType,
+		typename Allocator = HeapAllocator>
+	CComponentRegistration& AddArrayProperty(
+		const char* name,
+		std::size_t offset,
+		bool isEditable = true,
+		EAssetType expectedElementAssetType = EAssetType::Unknown);
+
 	// Enum 프로퍼티 등록 — magic_enum 으로 이름/변환 메타를 자동 생성한다(보일러플레이트 없음).
 	// 호출부는 .AddEnumProperty<EMyEnum>("Field", offsetof(C, Field)) 한 줄.
 	//
@@ -95,6 +106,29 @@ public:
 private:
 	ComponentTypeInfo* m_typeInfo = nullptr;
 };
+
+template<typename T, EReflectPropertyType ElementType, typename Allocator>
+CComponentRegistration& CComponentRegistration::AddArrayProperty(
+	const char* name,
+	std::size_t offset,
+	bool isEditable,
+	EAssetType expectedElementAssetType)
+{
+	AddProperty(
+		name,
+		EReflectPropertyType::Array,
+		offset,
+		sizeof(Array<T, Allocator>),
+		1,
+		isEditable);
+	if (m_typeInfo && false == m_typeInfo->Properties.empty())
+	{
+		m_typeInfo->Properties.back().Descriptor =
+			&GetArrayReflectTypeDesc<T, ElementType, Allocator>();
+		m_typeInfo->Properties.back().ExpectedAssetType = expectedElementAssetType;
+	}
+	return *this;
+}
 
 class CReflectionRegistry final : public EnableSafeFromThis<CReflectionRegistry>
 {
@@ -346,6 +380,7 @@ bool CReflectionRegistry::RegisterScript(const ScriptRegisterDesc& desc, const s
 		prop.RangeMin     = d.RangeMin;
 		prop.RangeMax     = d.RangeMax;
 		prop.Serialize    = d.Serialize;
+		prop.Descriptor   = d.Descriptor;
 		prop.RefCategory  = d.RefCategory;
 		prop.RefTypeName  = d.RefTypeName;
 		prop.ExpectedAssetType = d.ExpectedAssetType;

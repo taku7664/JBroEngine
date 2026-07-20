@@ -50,18 +50,16 @@ namespace
 		cppType.erase(std::remove_if(cppType.begin(), cppType.end(),
 			[](unsigned char c) { return std::isspace(c); }), cppType.end());
 
-		if (cppType == "Bool" || cppType == "bool")                    { outEnum = "EReflectPropertyType::Bool";          return true; }
-		if (cppType == "Int" || cppType == "int64_t" || cppType == "std::int64_t" || cppType == "longlong") { outEnum = "EReflectPropertyType::Int64"; return true; }
-		if (cppType == "int" || cppType == "int32_t" || cppType == "std::int32_t") { outEnum = "EReflectPropertyType::Int32";  return true; }
-		if (cppType == "UInt" || cppType == "uint64_t" || cppType == "std::uint64_t") { outEnum = "EReflectPropertyType::UInt64"; return true; }
-		if (cppType == "uint32_t" || cppType == "std::uint32_t" || cppType == "unsignedint") { outEnum = "EReflectPropertyType::UInt32"; return true; }
-		if (cppType == "Float" || cppType == "float")                  { outEnum = "EReflectPropertyType::Float";         return true; }
+		if (cppType == "Bool")                                         { outEnum = "EReflectPropertyType::Bool";          return true; }
+		if (cppType == "Int")                                          { outEnum = "EReflectPropertyType::Int64";         return true; }
+		if (cppType == "UInt")                                         { outEnum = "EReflectPropertyType::UInt64";        return true; }
+		if (cppType == "Float")                                        { outEnum = "EReflectPropertyType::Float";         return true; }
 		if (cppType == "Degree")                                       { outEnum = "EReflectPropertyType::Degree";        return true; }
 		if (cppType == "Radian")                                       { outEnum = "EReflectPropertyType::Radian";        return true; }
 		if (cppType == "String")                                       { outEnum = "EReflectPropertyType::String";        return true; }
 		if (cppType == "Vector2")                                      { outEnum = "EReflectPropertyType::Vector2Float";  return true; }
 		if (cppType == "Rect")                                         { outEnum = "EReflectPropertyType::RectFloat";     return true; }
-		if (cppType == "Asset" || cppType == "AssetGuid" || cppType == "File::Guid") { outEnum = "EReflectPropertyType::AssetGuid"; return true; }
+		if (cppType == "Asset" || cppType == "AssetGuid")              { outEnum = "EReflectPropertyType::AssetGuid";     return true; }
 		// Ref<X> — 오브젝트/컴포넌트/스크립트/에셋 참조. 카테고리/타입명은 호출부에서 추출.
 		if (cppType.rfind("Ref<", 0) == 0 && cppType.back() == '>') { outEnum = "EReflectPropertyType::Ref"; return true; }
 		return false;
@@ -882,23 +880,32 @@ void RegisterGeneratedScripts(CReflectionRegistry& registry)
 			const std::string rmin     = p.HasRange ? p.RangeMin : "0.0f";
 			const std::string rmax     = p.HasRange ? p.RangeMax : "0.0f";
 			const std::string serialize = p.NoSerialize ? "false" : "true";
-			out << "\t\t\tScriptPropertyDesc{ \"" << p.Name << "\", " << p.EnumType
-				<< ", offsetof(" << script.ClassName << ", " << p.Name << ")"
-				<< ", sizeof(" << p.CppType << "), 1, "
-				<< display << ", " << tooltip << ", " << category << ", "
-				<< hasRange << ", static_cast<float>(" << rmin << "), static_cast<float>(" << rmax << ")"
-				<< ", " << serialize;
-			// Ref<T> 는 카테고리(컴파일타임 상수)와 단순 타입명을 추가로 채운다.
-			// ExpectedAssetType 은 필드 순서상 RefCategory/RefTypeName 뒤라,
-			// Ref 이거나 AssetType 힌트가 있으면 앞 두 필드를 함께 채워야 위치가 맞는다.
-			const bool emitAssetInfo = p.IsRef || ("EAssetType::Unknown" != p.ExpectedAssetTypeEnum);
-			if (emitAssetInfo)
-			{
-				const std::string refCategory = p.IsRef ? (p.CppType + "::Category") : std::string("ERefCategory::Component");
-				const std::string refTypeName = p.IsRef ? ("\"" + EscapeCppString(p.RefTypeName) + "\"") : std::string("nullptr");
-				out << ", " << refCategory << ", " << refTypeName << ", " << p.ExpectedAssetTypeEnum;
-			}
-			out << " },\r\n";
+			const std::string refCategory = p.IsRef
+				? (p.CppType + "::Category")
+				: std::string("ERefCategory::Component");
+			const std::string refTypeName = p.IsRef
+				? ("\"" + EscapeCppString(p.RefTypeName) + "\"")
+				: std::string("nullptr");
+
+			// 구조체 필드 추가·재정렬이 생성 코드의 의미를 바꾸지 않도록 지정 초기화한다.
+			out << "\t\t\tScriptPropertyDesc{\r\n"
+				<< "\t\t\t\t.Name = \"" << EscapeCppString(p.Name) << "\",\r\n"
+				<< "\t\t\t\t.Type = " << p.EnumType << ",\r\n"
+				<< "\t\t\t\t.Offset = offsetof(" << script.ClassName << ", " << p.Name << "),\r\n"
+				<< "\t\t\t\t.Size = sizeof(" << p.CppType << "),\r\n"
+				<< "\t\t\t\t.ElementCount = 1,\r\n"
+				<< "\t\t\t\t.DisplayName = " << display << ",\r\n"
+				<< "\t\t\t\t.Tooltip = " << tooltip << ",\r\n"
+				<< "\t\t\t\t.Category = " << category << ",\r\n"
+				<< "\t\t\t\t.HasRange = " << hasRange << ",\r\n"
+				<< "\t\t\t\t.RangeMin = static_cast<float>(" << rmin << "),\r\n"
+				<< "\t\t\t\t.RangeMax = static_cast<float>(" << rmax << "),\r\n"
+				<< "\t\t\t\t.Serialize = " << serialize << ",\r\n"
+				<< "\t\t\t\t.Descriptor = &GetScalarReflectTypeDesc<" << p.CppType << ", " << p.EnumType << ">(),\r\n"
+				<< "\t\t\t\t.RefCategory = " << refCategory << ",\r\n"
+				<< "\t\t\t\t.RefTypeName = " << refTypeName << ",\r\n"
+				<< "\t\t\t\t.ExpectedAssetType = " << p.ExpectedAssetTypeEnum << "\r\n"
+				<< "\t\t\t},\r\n";
 		}
 		out << "\t\t});\r\n";
 	}

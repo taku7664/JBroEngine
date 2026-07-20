@@ -57,7 +57,51 @@ enum class EReflectPropertyType
 	AssetGuid,
 	Enum,
 	Layout2D,  // Normalized(x,y) + Pixel(x,y) — maps to struct Layout2D
-	Ref        // Ref<T> — 오브젝트/컴포넌트/스크립트/에셋 참조. RefCategory/RefTypeName 참고.
+	Ref,       // Ref<T> — 오브젝트/컴포넌트/스크립트/에셋 참조. RefCategory/RefTypeName 참고.
+	Array,
+	Table
+};
+
+enum class EReflectPropertyKind : std::uint8_t
+{
+	Scalar,
+	Enum,
+	Ref,
+	Struct,
+	Array,
+	Table
+};
+
+struct ReflectArrayOps
+{
+	std::size_t (*GetSize)(const void* array) = nullptr;
+	std::size_t (*GetCapacity)(const void* array) = nullptr;
+	void* (*GetElement)(void* array, std::size_t index) = nullptr;
+	const void* (*GetConstElement)(const void* array, std::size_t index) = nullptr;
+	void (*AddDefault)(void* array) = nullptr;
+	void (*RemoveAt)(void* array, std::size_t index) = nullptr;
+	void (*Move)(void* array, std::size_t fromIndex, std::size_t toIndex) = nullptr;
+	void (*Clear)(void* array) = nullptr;
+};
+
+struct ReflectTableOps
+{
+	std::size_t (*GetSize)(const void* table) = nullptr;
+	void (*Clear)(void* table) = nullptr;
+};
+
+struct ReflectTypeDesc
+{
+	EReflectPropertyKind Kind = EReflectPropertyKind::Scalar;
+	EReflectPropertyType LegacyType = EReflectPropertyType::Float;
+	std::size_t Size = 0;
+	std::size_t Alignment = 0;
+	bool IsTriviallyCopyable = false;
+	const ReflectTypeDesc* Element = nullptr;
+	const ReflectTypeDesc* Key = nullptr;
+	const ReflectTypeDesc* Value = nullptr;
+	const ReflectArrayOps* ArrayOps = nullptr;
+	const ReflectTableOps* TableOps = nullptr;
 };
 
 // Enum 프로퍼티(Type == Enum)의 타입소거 메타. magic_enum 으로 자동 생성한다
@@ -151,6 +195,7 @@ struct ReflectPropertyInfo
 	std::size_t          Size         = 0;
 	std::size_t          ElementCount = 1;
 	bool                 IsEditable   = true;
+	const ReflectTypeDesc* Descriptor = nullptr;
 
 	// ── 인스펙터 메타데이터 (JPROP 어트리뷰트로 지정) ─────────────────────────
 	const char*          Tooltip      = nullptr;   // 마우스오버 설명
@@ -188,6 +233,7 @@ struct ScriptPropertyDesc
 	float                RangeMin     = 0.0f;
 	float                RangeMax     = 0.0f;
 	bool                 Serialize    = true;       // false = JPROP(NoSerialize)
+	const ReflectTypeDesc* Descriptor = nullptr;
 
 	// ── Ref 전용 (Type == Ref 일 때만 유효) ───────────────────────────────────
 	// 생성 코드가 Ref<X>::Category 와 "X" 를 채운다(코드젠은 분류 안 함).

@@ -496,6 +496,44 @@ bool CSetComponentStringPropertyCommand::WriteValue(const std::string& value)
 	return true;
 }
 
+CSetComponentSerializedPropertyCommand::CSetComponentSerializedPropertyCommand(
+	SafePtr<CGameCanvas> canvas, CGameObject* object, TypeId componentTypeId,
+	std::size_t propertyOffset, std::string oldValue, std::string newValue,
+	const File::Guid& componentGuid)
+	: m_canvas(canvas), m_objectGuid(GuidOf(object)), m_componentGuid(componentGuid),
+	  m_componentTypeId(componentTypeId), m_propertyOffset(propertyOffset),
+	  m_oldValue(std::move(oldValue)), m_newValue(std::move(newValue)) {}
+
+const char* CSetComponentSerializedPropertyCommand::GetName() const { return "Set Component Property"; }
+bool CSetComponentSerializedPropertyCommand::Execute() { return WriteValue(m_newValue); }
+void CSetComponentSerializedPropertyCommand::Undo() { WriteValue(m_oldValue); }
+void CSetComponentSerializedPropertyCommand::Redo() { WriteValue(m_newValue); }
+bool CSetComponentSerializedPropertyCommand::TryMerge(const IEditorCommand& newer)
+{
+	const auto* other = dynamic_cast<const CSetComponentSerializedPropertyCommand*>(&newer);
+	if (!other || m_objectGuid != other->m_objectGuid || m_componentGuid != other->m_componentGuid
+		|| m_componentTypeId != other->m_componentTypeId || m_propertyOffset != other->m_propertyOffset) return false;
+	m_newValue = other->m_newValue;
+	return true;
+}
+bool CSetComponentSerializedPropertyCommand::WriteValue(const std::string& value)
+{
+	CGameObject* object = Resolve(m_canvas, m_objectGuid);
+	CComponent* component = object ? CCanvasRuntimeAccess::FindComponentByGuid(*object, m_componentGuid) : nullptr;
+	if (!component || !Engine.Reflection.IsValid()) return false;
+	const ComponentTypeInfo* type = Engine.Reflection->FindComponent(m_componentTypeId);
+	const ScriptTypeInfo* script = type ? nullptr : Engine.Reflection->FindScript(m_componentTypeId);
+	const std::vector<ReflectPropertyInfo>* properties = type ? &type->Properties : (script ? &script->Properties : nullptr);
+	if (!properties) return false;
+	for (const ReflectPropertyInfo& property : *properties)
+	{
+		if (property.Offset != m_propertyOffset) continue;
+		void* field = CReflectionRegistry::GetPropertyAddress(component, property);
+		return Serialization::DeserializeReflectedPropertyValue(field, property, value.c_str());
+	}
+	return false;
+}
+
 // ── CDeleteGameObjectCommand ──────────────────────────────────────────────────
 
 CDeleteGameObjectCommand::CDeleteGameObjectCommand(SafePtr<CGameCanvas> canvas, CGameObject* object)

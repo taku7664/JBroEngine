@@ -199,6 +199,30 @@ private:
 	std::string m_newValue;
 };
 
+// 소유 메모리를 가진 리플렉션 프로퍼티(Array 등)는 바이트 복사가 불가능하므로
+// 타입 메타데이터를 통해 YAML 값 스냅샷으로 undo/redo 한다.
+class CSetComponentSerializedPropertyCommand final : public IEditorCommand
+{
+public:
+	CSetComponentSerializedPropertyCommand(SafePtr<CGameCanvas> canvas, CGameObject* object,
+		TypeId componentTypeId, std::size_t propertyOffset, std::string oldValue,
+		std::string newValue, const File::Guid& componentGuid);
+	const char* GetName() const override;
+	bool Execute() override;
+	void Undo() override;
+	void Redo() override;
+	bool TryMerge(const IEditorCommand& newer) override;
+private:
+	bool WriteValue(const std::string& value);
+	SafePtr<CGameCanvas> m_canvas;
+	File::Guid m_objectGuid;
+	File::Guid m_componentGuid;
+	TypeId m_componentTypeId = INVALID_TYPE_ID;
+	std::size_t m_propertyOffset = 0;
+	std::string m_oldValue;
+	std::string m_newValue;
+};
+
 // 오브젝트 Transform(Local) 편집. Transform 은 컴포넌트가 아니라 CGameObject 멤버라
 // 컴포넌트 프로퍼티 커맨드 경로를 못 탄다 → 전용 커맨드. 다중 선택 지원: 한 번의 편집을
 // 델타로 보고 선택된 모든 오브젝트에 같은 델타를 적용한다(undo 1개). 드래그는 TryMerge 로 묶인다.

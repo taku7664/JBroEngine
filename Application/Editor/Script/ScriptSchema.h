@@ -61,6 +61,7 @@ namespace ScriptSchema
 
 	bool        IsRefToken(const std::string& token);         // "Ref<" 접두
 	bool        NeedsTargetCombo(const std::string& token);   // Component/Asset 만 true
+	bool        SupportsRange(const std::string& token);      // 숫자/각도 타입만 true
 	void        ResetRefTargetForToken(Property& p);          // 1차 변경 시 2차 기본값
 	std::string FinalTypeToken(const Property& p);            // 헤더에 쓸 C++ 타입
 	std::string DefaultValueForToken(const std::string& finalToken);

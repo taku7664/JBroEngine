@@ -13,6 +13,8 @@
 #include "Utillity/File/Guid128.h"
 #include "Utillity/Math/Vector2T.h"   // ScreenToWorld 반환/출력
 #include "Utillity/Pointer/SafePtr.h"
+#include "Utillity/Types/Array.h"
+#include "Utillity/Types/Table.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -176,7 +178,7 @@ public:
 		if (T* component = object.GetComponent<T>())
 		{
 			// 지연 파괴 — 순회 중 즉시 해제 금지(슬롯 무효화 회피). flush 에서 처리.
-			m_pendingDestroyComponents.push_back(component->SafeFromThis());
+			m_pendingDestroyComponents.Add(component->SafeFromThis());
 		}
 	}
 
@@ -212,7 +214,7 @@ private:
 	{
 		if (component)
 		{
-			m_pendingDestroyComponents.push_back(component->SafeFromThis());
+			m_pendingDestroyComponents.Add(component->SafeFromThis());
 		}
 	}
 	CGameScript* AddScript(CGameObject& object, TypeId scriptTypeId, const CReflectionRegistry& registry);
@@ -519,13 +521,13 @@ private:
 	float                              m_lastRenderWidth = 0.0f;
 	float                              m_lastRenderHeight = 0.0f;
 	// 지연 파괴 레이어(소속 오브젝트 파괴 flush 후 목록에서 제거).
-	std::vector<SafePtr<CGameLayer>>   m_pendingDestroyLayers;
+	Array<SafePtr<CGameLayer>>         m_pendingDestroyLayers;
 	TObjectPool<CGameObject>           m_objectPool;
 	// InstanceGuid → 오브젝트 빠른 해석. FindByInstanceGuid / Ref<T>::Get 이 매 호출
 	// O(n) 풀 스캔 + path 비교를 하던 것을 O(1) 해시 조회로 바꾼다. 생성/파괴/guid 재설정
 	// 지점에서 동기화한다(그 외 경로로 오브젝트가 생기지 않음 — 유일 생성자 CreateGameObject).
 	// 키는 Guid128(오브젝트 InstanceGuid 의 정수 표현) — File::Guid(fs::path) 해싱/힙을 피한다.
-	std::unordered_map<Guid128, SafePtr<CGameObject>> m_objectByGuid;
+	Table<Guid128, SafePtr<CGameObject>> m_objectByGuid;
 	std::uint64_t                      m_nextCreationOrder = 0; // 단조 증가 — 하이라키 정렬 키
 	std::vector<PoolEntry>             m_componentPools;   // sorted by Key
 	std::vector<OwnerPtr<ScriptMemoryPool>> m_scriptMemoryPools;
@@ -554,8 +556,8 @@ private:
 	std::unordered_map<Guid128, std::vector<AssetRef<IAsset>>> m_runtimeLayerAssets;
 
 	// 지연 파괴 큐(SafePtr 보유 → 부모 재귀로 이미 죽은 항목은 TryGet null 로 스킵).
-	std::vector<SafePtr<CGameObject>>  m_pendingDestroyObjects;
-	std::vector<SafePtr<CComponent>>   m_pendingDestroyComponents;
+	Array<SafePtr<CGameObject>>        m_pendingDestroyObjects;
+	Array<SafePtr<CComponent>>         m_pendingDestroyComponents;
 };
 
 // 사용자 대면 별칭 — 스크립트/문서는 접두사 없는 Canvas 로 쓴다.
