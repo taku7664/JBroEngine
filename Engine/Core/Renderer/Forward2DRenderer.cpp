@@ -622,15 +622,16 @@ struct VSOut
 @fragment
 fn PSMain(input : VSOut) -> @location(0) vec4<f32>
 {
-	let type = gConstants.ShaderParams.x;   // 0=Directional, 1=Point, 2=Spot
+	// `type` 은 WGSL 예약어다(HLSL 쪽은 아니라서 D3D11 변형은 그대로 둔다).
+	let lightType = gConstants.ShaderParams.x;   // 0=Directional, 1=Point, 2=Spot
 	let intensity = gConstants.ShaderParams.y;
 	var atten = 1.0;
-	if (type > 0.5)
+	if (lightType > 0.5)
 	{
 		let d = (input.Uv - 0.5) * 2.0;
 		let r = clamp(1.0 - length(d), 0.0, 1.0);
 		atten = r * r;
-		if (type > 1.5)
+		if (lightType > 1.5)
 		{
 			let pdir = vec2<f32>(input.Uv.x - 0.5, -(input.Uv.y - 0.5));
 			let pl = length(pdir);
