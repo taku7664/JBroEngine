@@ -353,6 +353,7 @@ Entries:
   inspector.normalized: 정규화
   inspector.pixel: 픽셀
   inspector.ref_none: (없음)
+  list.add_element: + 원소 추가
   inspector.ref_missing: (유실됨)
   inspector.unsupported: 지원 안 함
   inspector.matrix_3x2: Matrix 3x2
@@ -709,11 +710,9 @@ Entries:
   editor.property.MinDistance:  최소 거리
   editor.property.MaxDistance:  최대 거리
   editor.property.PlayOnStart:  시작 시 재생
-  common.add: 추가
   common.clear: 비우기
   common.remove: 제거
   common.move_up: 위로
-  common.move_down: 아래로
   inspector.font_family.title: 폰트 패밀리
   inspector.font_family.regular: 기본
   inspector.font_family.bold: 굵게

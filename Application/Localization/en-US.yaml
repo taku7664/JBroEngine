@@ -353,6 +353,7 @@ Entries:
   inspector.normalized: Normalized
   inspector.pixel: Pixel
   inspector.ref_none: (None)
+  list.add_element: + Add Element
   inspector.ref_missing: (Missing)
   inspector.unsupported: unsupported
   inspector.matrix_3x2: Matrix 3x2
@@ -708,11 +709,9 @@ Entries:
   editor.property.MinDistance:  Min Distance
   editor.property.MaxDistance:  Max Distance
   editor.property.PlayOnStart:  Play On Start
-  common.add: Add
   common.clear: Clear
   common.remove: Remove
   common.move_up: Move Up
-  common.move_down: Move Down
   inspector.font_family.title: Font Family
   inspector.font_family.regular: Regular
   inspector.font_family.bold: Bold

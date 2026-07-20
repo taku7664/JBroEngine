@@ -461,49 +461,55 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 				return false;
 			}
 
-			bool changed = false;
-			if (ImGui::SmallButton(Loc::Text(EditorLocKeys::CommonAdd)))
-			{
-				ops->AddDefault(field);
-				changed = true;
-			}
-			ImGui::SameLine();
-			if (ImGui::SmallButton(Loc::Text(EditorLocKeys::CommonClear)) && ops->GetSize(field) > 0)
-			{
-				ops->Clear(field);
-				return true;
-			}
+			// 원소 편집기용 프로퍼티 정보 — 타입/크기는 원소 desc 가 들고 있다.
+			// 루프 밖에서 한 번만 만든다(원소마다 동일하다).
+			ReflectPropertyInfo elementProperty{};
+			elementProperty.Type = descriptor->Element->LegacyType;
+			elementProperty.Size = descriptor->Element->Size;
+			elementProperty.ElementCount = 1;
+			elementProperty.IsEditable = property.IsEditable;
+			elementProperty.Descriptor = descriptor->Element;
+			elementProperty.ExpectedAssetType = property.ExpectedAssetType;
 
-			std::size_t removeIndex = SIZE_MAX;
-			std::size_t moveFrom = SIZE_MAX;
-			std::size_t moveTo = SIZE_MAX;
-			const std::size_t count = ops->GetSize(field);
-			for (std::size_t index = 0; index < count; ++index)
+			bool changed = false;
+			// 추가/삭제/재정렬(핸들 드래그) 은 전부 ImList 코어가 처리한다.
+			changed |= ImListVirtual("##array", static_cast<int>(ops->GetSize(field)),
+				[&](int index) -> bool
+				{
+					void* element = ops->GetElement(field, static_cast<std::size_t>(index));
+					return element ? DrawPropertyEditor(element, elementProperty) : false;
+				},
+				[&]() { ops->AddDefault(field); },
+				[&](int index) { ops->RemoveAt(field, static_cast<std::size_t>(index)); },
+				[&](int fromIndex, int toIndex)
+				{
+					ops->Move(field,
+						static_cast<std::size_t>(fromIndex), static_cast<std::size_t>(toIndex));
+				},
+				property.IsEditable ? IMLIST_FLAGS_NONE : IMLIST_FLAGS_READ_ONLY);
+
+			// 비우기는 ImList 에 없는 동작이라 목록 **아래 우측**에 따로 둔다.
+			// (목록 위에 두면 프로퍼티 이름 옆에 붙어 라벨과 섞여 읽기 나쁘다.)
+			// 원소가 없으면 할 일이 없으므로 비활성 — 자리는 유지해 레이아웃이 튀지 않게 한다.
+			if (property.IsEditable)
 			{
-				ImGui::PushID(static_cast<int>(index));
-				void* element = ops->GetElement(field, index);
-				ReflectPropertyInfo elementProperty{};
-				elementProperty.Type = descriptor->Element->LegacyType;
-				elementProperty.Size = descriptor->Element->Size;
-				elementProperty.ElementCount = 1;
-				elementProperty.IsEditable = true;
-				elementProperty.Descriptor = descriptor->Element;
-				elementProperty.ExpectedAssetType = property.ExpectedAssetType;
-				ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 92.0f);
-				changed |= DrawPropertyEditor(element, elementProperty);
-				ImGui::SameLine();
-				if (ImGui::SmallButton("^") && index > 0) { moveFrom = index; moveTo = index - 1; }
-				if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", Loc::Text(EditorLocKeys::CommonMoveUp));
-				ImGui::SameLine();
-				if (ImGui::SmallButton("v") && index + 1 < count) { moveFrom = index; moveTo = index + 1; }
-				if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", Loc::Text(EditorLocKeys::CommonMoveDown));
-				ImGui::SameLine();
-				if (ImGui::SmallButton("x")) removeIndex = index;
-				if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", Loc::Text(EditorLocKeys::CommonRemove));
-				ImGui::PopID();
+				// SmallButton 이 아니라 일반 Button 이다 — SmallButton 은 세로 패딩을 0 으로
+				// 강제해서 글자가 테두리에 달라붙는다.
+				const char*  clearLabel = Loc::Text(EditorLocKeys::CommonClear);
+				const float  clearWidth = ImGui::CalcTextSize(clearLabel).x
+					+ ImGui::GetStyle().FramePadding.x * 2.0f;
+				const float  rightAlign = ImGui::GetCursorPosX()
+					+ ImGui::GetContentRegionAvail().x - clearWidth;
+				ImGui::SetCursorPosX(rightAlign);
+
+				ImGui::BeginDisabled(0 == ops->GetSize(field));
+				if (ImGui::Button(clearLabel))
+				{
+					ops->Clear(field);
+					changed = true;
+				}
+				ImGui::EndDisabled();
 			}
-			if (SIZE_MAX != removeIndex) { ops->RemoveAt(field, removeIndex); changed = true; }
-			else if (SIZE_MAX != moveFrom) { ops->Move(field, moveFrom, moveTo); changed = true; }
 			return changed;
 		}
 		case EReflectPropertyType::Layout2D:
@@ -1330,14 +1336,20 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		ImGui::Separator();
 		ImGui::TextUnformatted(Loc::Text(EditorLocKeys::AssetBrowserScriptPopupProperties));
 
-		// ── 프로퍼티 목록(공유 행 위젯). 인스펙터에선 이름 read-only ──
+		// ── 프로퍼티 목록(공유 행 위젯) ──
+		// 이름은 **기존 항목만** read-only 다. 기존 이름을 바꾸면 그 이름을 참조하는 .cpp 가
+		// 조용히 깨진다(기록은 .h 만 고친다). 새로 추가한 항목은 아직 아무도 참조하지 않으므로
+		// 적용 전까지 자유롭게 정할 수 있게 둔다 — 적용하면 재파싱되어 read-only 로 굳는다.
+		ScriptSchema::Property newProperty;
+		newProperty.IsNew = true;
 		ImList<ScriptSchema::Property>(
 			"##script_schema", s_props,
 			[](ScriptSchema::Property& p, int /*idx*/)
 			{
-				ScriptSchemaUI::DrawPropertyRow(p, IsSchemaNameInvalid(p.Name, s_props), /*nameReadOnly*/ true);
+				ScriptSchemaUI::DrawPropertyRow(p, IsSchemaNameInvalid(p.Name, s_props),
+					/*nameReadOnly*/ false == p.IsNew);
 			},
-			ScriptSchema::Property{});
+			newProperty);
 
 		// 전체 유효성(모든 이름이 유효+유일).
 		bool allValid = true;

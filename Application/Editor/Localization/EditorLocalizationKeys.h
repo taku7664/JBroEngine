@@ -134,7 +134,6 @@ namespace EditorLocKeys
 	constexpr const char* CommonAlreadyAdded = "common.already_added";
 	constexpr const char* CommonAsset = "common.asset";
 	constexpr const char* CommonBrowse = "common.browse";
-	constexpr const char* CommonAdd = "common.add";
 	constexpr const char* CommonClear = "common.clear";
 	constexpr const char* CommonCancel = "common.cancel";
 	constexpr const char* CommonCopy = "common.copy";
@@ -148,7 +147,6 @@ namespace EditorLocKeys
 	constexpr const char* CommonImporter = "common.importer";
 	constexpr const char* CommonModified = "common.modified";
 	constexpr const char* CommonMoveUp = "common.move_up";
-	constexpr const char* CommonMoveDown = "common.move_down";
 	constexpr const char* CommonName = "common.name";
 	constexpr const char* CommonNo = "common.no";
 	constexpr const char* CommonNoResults = "common.no_results";

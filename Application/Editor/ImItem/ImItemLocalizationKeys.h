@@ -13,6 +13,7 @@ namespace ImItemLocKeys
 	constexpr const char* AssetDropDirectoriesNotAllowed = "asset_drop.directories_not_allowed";
 	constexpr const char* InspectorRefMissing = "inspector.ref_missing";
 	constexpr const char* InspectorRefNone = "inspector.ref_none";
+	constexpr const char* ListAddElement = "list.add_element";
 }
 
 #endif
