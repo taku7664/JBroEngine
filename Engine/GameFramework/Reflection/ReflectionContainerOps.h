@@ -2,6 +2,7 @@
 
 #include "GameFramework/Reflection/ReflectionTypes.h"
 #include "Utillity/Types/Array.h"
+#include "Utillity/Types/Table.h"
 
 #include <type_traits>
 
@@ -87,6 +88,107 @@ const ReflectTypeDesc& GetArrayReflectTypeDesc()
 		value.IsTriviallyCopyable = false;
 		value.Element = &GetScalarReflectTypeDesc<T, ElementType>();
 		value.ArrayOps = &GetReflectArrayOps<T, Allocator>();
+		return value;
+	}();
+
+	return descriptor;
+}
+
+template<typename Key, typename Value, typename Allocator>
+const ReflectTableOps& GetReflectTableOps()
+{
+	using TableType = Table<Key, Value, Hash<Key>, EqualTo<>, Allocator>;
+
+	// 슬롯 커서를 앞으로 밀어 유효 슬롯을 찾는다. 없으면 InvalidTableSlot.
+	// 인스펙터가 프레임마다 도는 경로라 Capacity() 를 한 번만 읽는다.
+	static const auto advance = [](const TableType& table, std::size_t slot) -> std::size_t
+	{
+		const std::size_t capacity = table.Capacity();
+		for (; slot < capacity; ++slot)
+		{
+			if (table.IsSlotOccupied(slot))
+			{
+				return slot;
+			}
+		}
+		return InvalidTableSlot;
+	};
+
+	static const ReflectTableOps operations = {
+		[](const void* table) -> std::size_t
+		{
+			return static_cast<const TableType*>(table)->Size();
+		},
+		[](const void* table) -> std::size_t
+		{
+			return advance(*static_cast<const TableType*>(table), 0);
+		},
+		[](const void* table, std::size_t slot) -> std::size_t
+		{
+			// slot 이 이미 끝이면 더 밀지 않는다(InvalidTableSlot + 1 = 0 으로 감싸 도는 것 방지).
+			if (InvalidTableSlot == slot)
+			{
+				return InvalidTableSlot;
+			}
+			return advance(*static_cast<const TableType*>(table), slot + 1);
+		},
+		[](const void* table, std::size_t slot) -> const void*
+		{
+			const TableType& values = *static_cast<const TableType*>(table);
+			return values.IsSlotOccupied(slot) ? &values.KeyAt(slot) : nullptr;
+		},
+		[](void* table, std::size_t slot) -> void*
+		{
+			TableType& values = *static_cast<TableType*>(table);
+			return values.IsSlotOccupied(slot) ? &values.ValueAt(slot) : nullptr;
+		},
+		[](const void* table, std::size_t slot) -> const void*
+		{
+			const TableType& values = *static_cast<const TableType*>(table);
+			return values.IsSlotOccupied(slot) ? &values.ValueAt(slot) : nullptr;
+		},
+		[](const void* table, const void* key) -> bool
+		{
+			return static_cast<const TableType*>(table)->Contains(*static_cast<const Key*>(key));
+		},
+		[](void* table, const void* key) -> bool
+		{
+			static_assert(std::is_default_constructible_v<Value>);
+			return static_cast<TableType*>(table)->TryAdd(*static_cast<const Key*>(key), Value{});
+		},
+		[](void* table, const void* key) -> bool
+		{
+			return static_cast<TableType*>(table)->Remove(*static_cast<const Key*>(key));
+		},
+		[](void* table)
+		{
+			static_cast<TableType*>(table)->Clear();
+		}
+	};
+
+	return operations;
+}
+
+template<
+	typename Key,
+	EReflectPropertyType KeyType,
+	typename Value,
+	EReflectPropertyType ValueType,
+	typename Allocator = HeapAllocator>
+const ReflectTypeDesc& GetTableReflectTypeDesc()
+{
+	using TableType = Table<Key, Value, Hash<Key>, EqualTo<>, Allocator>;
+
+	static const ReflectTypeDesc descriptor = []
+	{
+		ReflectTypeDesc value;
+		value.Type = EReflectPropertyType::Table;
+		value.Size = sizeof(TableType);
+		value.Alignment = alignof(TableType);
+		value.IsTriviallyCopyable = false;
+		value.Key = &GetScalarReflectTypeDesc<Key, KeyType>();
+		value.Value = &GetScalarReflectTypeDesc<Value, ValueType>();
+		value.TableOps = &GetReflectTableOps<Key, Value, Allocator>();
 		return value;
 	}();
 

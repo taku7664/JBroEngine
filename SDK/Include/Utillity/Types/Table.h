@@ -239,6 +239,31 @@ public:
 		return 0 == m_size;
 	}
 
+	// ── 슬롯 단위 접근 ────────────────────────────────────────────────────────
+	// open addressing 이라 슬롯은 조밀하지 않다 — [0, Capacity()) 를 훑되 IsSlotOccupied
+	// 로 걸러야 한다. 일반 순회는 begin()/end() 를 쓰는 게 맞고, 이쪽은 리플렉션의
+	// 타입소거 순회(ReflectTableOps)용이다: Iterator 는 객체라 void* 뒤로 숨기려면 힙
+	// 할당이 필요하지만, 슬롯 인덱스는 정수라 그대로 불투명 커서가 된다.
+	bool IsSlotOccupied(SizeType slot) const noexcept
+	{
+		return slot < m_capacity && IsFull(m_controls[slot]);
+	}
+
+	const Key& KeyAt(SizeType slot) const noexcept
+	{
+		return EntryAt(slot).KeyValue;
+	}
+
+	Value& ValueAt(SizeType slot) noexcept
+	{
+		return EntryAt(slot).MappedValue;
+	}
+
+	const Value& ValueAt(SizeType slot) const noexcept
+	{
+		return EntryAt(slot).MappedValue;
+	}
+
 	template<typename LookupKey>
 	Value* Find(const LookupKey& key)
 	{

@@ -74,11 +74,33 @@ struct ReflectArrayOps
 	void (*Clear)(void* array) = nullptr;
 };
 
+// Table 의 타입소거 조작. Array 와 달리 **인덱스로 원소를 지목할 수 없다** — open addressing
+// 이라 슬롯이 조밀하지 않고, 삽입 한 번에 리해시가 일어나면 기존 슬롯 번호가 전부 무효가 된다.
+// 그래서 순회는 불투명한 슬롯 커서로 하고, 수정은 슬롯이 아니라 **키**로 지목한다.
+//
+// 커서 계약: BeginSlot 이 첫 유효 슬롯을, NextSlot 이 그 다음을 준다. 더 없으면 둘 다
+// InvalidTableSlot 을 돌려준다. 순회 도중 삽입/삭제하면 커서는 무효다(리해시 가능).
 struct ReflectTableOps
 {
 	std::size_t (*GetSize)(const void* table) = nullptr;
+
+	std::size_t (*BeginSlot)(const void* table) = nullptr;
+	std::size_t (*NextSlot)(const void* table, std::size_t slot) = nullptr;
+
+	const void* (*GetKeyAt)(const void* table, std::size_t slot) = nullptr;
+	void* (*GetValueAt)(void* table, std::size_t slot) = nullptr;
+	const void* (*GetConstValueAt)(const void* table, std::size_t slot) = nullptr;
+
+	// key 는 Key 타입의 객체 주소. 이미 있는 키면 InsertDefault 는 아무것도 하지 않고 false.
+	bool (*ContainsKey)(const void* table, const void* key) = nullptr;
+	bool (*InsertDefault)(void* table, const void* key) = nullptr;
+	bool (*RemoveKey)(void* table, const void* key) = nullptr;
+
 	void (*Clear)(void* table) = nullptr;
 };
+
+// BeginSlot/NextSlot 의 "끝" 표식.
+inline constexpr std::size_t InvalidTableSlot = static_cast<std::size_t>(-1);
 
 // 타입 하나의 타입소거 명세. 컨테이너면 Element / Key+Value 로 원소 타입을 재귀 기술하고,
 // 저장소 조작은 ArrayOps / TableOps 함수포인터로만 한다(인스펙터·직렬화가 레이아웃을 직접 캐스팅하지 않는다).

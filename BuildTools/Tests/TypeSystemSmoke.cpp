@@ -244,6 +244,70 @@ namespace
 		return 2 == values.Size() && 30 == values[0] && 20 == values[1];
 	}
 
+	bool TestTableReflectionOps()
+	{
+		const ReflectTypeDesc& tableDescriptor = GetTableReflectTypeDesc<
+			int, EReflectPropertyType::Int32,
+			float, EReflectPropertyType::Float>();
+		if (EReflectPropertyType::Table != tableDescriptor.Type ||
+			nullptr == tableDescriptor.TableOps ||
+			nullptr == tableDescriptor.Key ||
+			nullptr == tableDescriptor.Value)
+		{
+			return false;
+		}
+
+		const ReflectTableOps& ops = *tableDescriptor.TableOps;
+		Table<int, float> values;
+		for (int key = 0; key < 64; ++key)
+		{
+			const int stored = key;
+			if (false == ops.InsertDefault(&values, &stored))
+			{
+				return false;
+			}
+			values.InsertOrAssign(key, static_cast<float>(key));
+		}
+
+		// 중복 키는 실패해야 한다(기존 값을 덮지 않는다).
+		const int duplicate = 7;
+		if (ops.InsertDefault(&values, &duplicate) || 64 != ops.GetSize(&values))
+		{
+			return false;
+		}
+
+		// 슬롯 커서로 전부 훑어 키/값이 짝을 유지하는지 본다.
+		// 슬롯은 조밀하지 않으므로 방문 횟수와 Size() 가 같아야 통과다.
+		std::size_t visited = 0;
+		bool seen[64] = {};
+		for (std::size_t slot = ops.BeginSlot(&values);
+			InvalidTableSlot != slot;
+			slot = ops.NextSlot(&values, slot))
+		{
+			const int   key   = *static_cast<const int*>(ops.GetKeyAt(&values, slot));
+			const float value = *static_cast<const float*>(ops.GetConstValueAt(&values, slot));
+			if (key < 0 || key >= 64 || seen[key] || value != static_cast<float>(key))
+			{
+				return false;
+			}
+			seen[key] = true;
+			++visited;
+		}
+		if (64 != visited)
+		{
+			return false;
+		}
+
+		const int removed = 13;
+		if (false == ops.RemoveKey(&values, &removed) || ops.ContainsKey(&values, &removed))
+		{
+			return false;
+		}
+
+		ops.Clear(&values);
+		return 0 == ops.GetSize(&values) && InvalidTableSlot == ops.BeginSlot(&values);
+	}
+
 	bool TestObjectPoolDenseIndex()
 	{
 		TObjectPool<PoolProbe> pool;
@@ -334,6 +398,12 @@ int main()
 	{
 		std::cerr << "Array reflection ops smoke test failed.\n";
 		return 4;
+	}
+
+	if (false == TestTableReflectionOps())
+	{
+		std::cerr << "Table reflection ops smoke test failed.\n";
+		return 6;
 	}
 
 	if (false == TestObjectPoolDenseIndex())
