@@ -3,6 +3,9 @@
 
 #if JBRO_PLATFORM_WEB
 #include <emscripten/html5.h>
+
+#include "Core/EngineCore.h"
+#include "Core/Input/InputSystem.h"
 #endif
 
 namespace
@@ -50,6 +53,13 @@ void CWebCanvasSurface::PollEvents(PlatformEvent& platformEvent)
 		m_resized = false;
 		DispatchSurfaceEvent({ ESurfaceEventType::Resized, Size<int>(m_resizeWidth, m_resizeHeight) });
 	}
+
+#if JBRO_PLATFORM_WEB
+	if (m_gameSurfaceRectPending)
+	{
+		UpdateGameSurfaceRect();
+	}
+#endif
 }
 
 #if JBRO_PLATFORM_WEB
@@ -89,7 +99,39 @@ EM_BOOL CWebCanvasSurface::OnCanvasResize(int /*eventType*/, const EmscriptenUiE
 		self->m_desc.Width = width;
 		self->m_desc.Height = height;
 	}
+	// 표시 크기가 달라졌으니 마우스 환산도 다시 잡는다(셸의 레터박스가 CSS 크기를 바꾼다).
+	self->m_gameSurfaceRectPending = true;
 	return EM_TRUE;
+}
+
+void CWebCanvasSurface::UpdateGameSurfaceRect()
+{
+	if (false == Engine.InputSystem.IsValid())
+	{
+		return; // 아직 입력 시스템이 없다 — 다음 프레임에 다시 시도한다.
+	}
+
+	double cssWidth = 0.0;
+	double cssHeight = 0.0;
+	if (EMSCRIPTEN_RESULT_SUCCESS != emscripten_get_element_css_size(WEB_CANVAS_SELECTOR, &cssWidth, &cssHeight))
+	{
+		return;
+	}
+
+	int backingWidth = 0;
+	int backingHeight = 0;
+	emscripten_get_canvas_element_size(WEB_CANVAS_SELECTOR, &backingWidth, &backingHeight);
+	if (cssWidth <= 0.0 || cssHeight <= 0.0 || backingWidth <= 0 || backingHeight <= 0)
+	{
+		return; // 아직 어느 쪽 크기도 확정되지 않았다.
+	}
+
+	// 마우스 콜백이 캔버스 기준 CSS 좌표를 주므로 원점은 0 이다 — 크기 환산만 하면 된다.
+	Engine.InputSystem->SetGameSurfaceRect(
+		0.0f, 0.0f,
+		static_cast<float>(cssWidth), static_cast<float>(cssHeight),
+		static_cast<float>(backingWidth), static_cast<float>(backingHeight));
+	m_gameSurfaceRectPending = false;
 }
 #endif
 

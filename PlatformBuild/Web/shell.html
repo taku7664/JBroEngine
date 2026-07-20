@@ -22,11 +22,9 @@
       height: 100%;
     }
 
+    /* 표시 크기는 스크립트가 백킹(렌더) 해상도의 종횡비에 맞춰 잡는다. 여기서 고정하면
+       세로 해상도 프로젝트가 가로 창에 눌려 늘어난다. */
     #jbro-canvas {
-      width: 1280px;
-      height: 720px;
-      max-width: 100vw;
-      max-height: 100vh;
       background: #151820;
       outline: none;
     }
@@ -100,6 +98,38 @@
 
     window.addEventListener('unhandledrejection', function (event) {
       jbroShowError(event.reason || 'Unhandled promise rejection');
+    });
+
+    // ── 레터박스 ───────────────────────────────────────────────────────────────
+    // 캔버스 백킹 크기 = 프로젝트 해상도(엔진이 부팅 후에 잡는다). 표시 크기는 그 종횡비를
+    // 유지한 채 창 안에 맞춘다 — 데스크톱 패키지·에디터 게임뷰와 같은 규칙이다.
+    function jbroFitCanvas(notifyEngine) {
+      var canvas = document.getElementById('jbro-canvas');
+      if (!canvas || canvas.width <= 0 || canvas.height <= 0) {
+        return;
+      }
+
+      var scale = Math.min(window.innerWidth / canvas.width, window.innerHeight / canvas.height);
+      canvas.style.width = Math.max(1, Math.round(canvas.width * scale)) + 'px';
+      canvas.style.height = Math.max(1, Math.round(canvas.height * scale)) + 'px';
+
+      // 표시 크기가 바뀌면 입력이 쓰는 CSS→백킹 환산도 다시 잡혀야 한다. 엔진은 창 리사이즈를
+      // 듣고 있으므로, 창 크기가 아니라 백킹이 바뀌어서 여기 들어온 경우에만 한 번 깨워 준다.
+      if (notifyEngine) {
+        window.dispatchEvent(new Event('resize'));
+      }
+    }
+
+    window.addEventListener('resize', function () {
+      jbroFitCanvas(false);
+    });
+
+    // 백킹 크기는 엔진 부팅 뒤에 정해진다. canvas 의 width/height 는 반영 속성이라 감시가 된다.
+    new MutationObserver(function () {
+      jbroFitCanvas(true);
+    }).observe(document.getElementById('jbro-canvas'), {
+      attributes: true,
+      attributeFilter: ['width', 'height']
     });
 
     var Module = {
