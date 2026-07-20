@@ -938,6 +938,9 @@ void CInputSystem::PollDevices()
 			}
 		}
 	}
+	// 창 클라이언트 좌표 → 게임 표면 픽셀. 게임 스크립트가 보는 마우스는 늘 게임 화면 기준이다
+	// (에디터 게임뷰는 패널 안 레터박스라 창 좌표를 그대로 주면 월드 피킹이 어긋난다).
+	ToGameSurfacePoint(newX, newY);
 	m_context.m_mouse.m_x      = newX;
 	m_context.m_mouse.m_y      = newY;
 	m_context.m_mouse.m_deltaX = newX - m_lastMouseX;
@@ -955,8 +958,10 @@ void CInputSystem::PollDevices()
 	m_context.m_mouse.m_current[static_cast<std::size_t>(EMouseButton::Right)]  = mouseEnabled && m_webMouseButton[static_cast<std::size_t>(EMouseButton::Right)];
 	m_context.m_mouse.m_current[static_cast<std::size_t>(EMouseButton::Middle)] = mouseEnabled && m_webMouseButton[static_cast<std::size_t>(EMouseButton::Middle)];
 
-	const int newX = mouseEnabled ? m_webMouseX : m_lastMouseX;
-	const int newY = mouseEnabled ? m_webMouseY : m_lastMouseY;
+	int newX = mouseEnabled ? m_webMouseX : m_lastMouseX;
+	int newY = mouseEnabled ? m_webMouseY : m_lastMouseY;
+	// 윈도우와 같은 변환 — 웹도 캔버스 크기와 렌더 해상도가 다를 수 있다.
+	ToGameSurfacePoint(newX, newY);
 	m_context.m_mouse.m_x      = newX;
 	m_context.m_mouse.m_y      = newY;
 	m_context.m_mouse.m_deltaX = newX - m_lastMouseX;

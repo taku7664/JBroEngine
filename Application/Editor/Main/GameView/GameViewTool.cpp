@@ -163,6 +163,22 @@ void CGameViewTool::OnRenderStay()
 			ImVec2(drawX, drawY),
 			ImVec2(drawX + drawW, drawY + drawH),
 			ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f));
+
+		// 게임 입력이 쓸 마우스 좌표계를 이 그림 렉트에 맞춘다 — 스크립트가 보는 마우스는
+		// 창이 아니라 **게임 화면** 기준이어야 Canvas::ScreenToWorld 와 좌표계가 맞는다.
+		//
+		// 멀티뷰포트(ImGuiConfigFlags_ViewportsEnable)가 켜져 있어 ImGui 의 "스크린 좌표"는
+		// 데스크톱 좌표다. 반면 InputSystem 은 메인 창의 **클라이언트** 좌표로 마우스를 폴링한다
+		// (ScreenToClient). 그대로 넘기면 창 위치만큼 어긋난다 — 뷰포트 원점을 빼서 맞춘다.
+		// 게임뷰를 메인 창 밖으로 떼어내면(별도 OS 창) 마우스 폴링 기준 창이 달라져 여전히
+		// 어긋난다 — 그건 별개 한계다(도킹 상태가 정상 사용).
+		if (Engine.InputSystem)
+		{
+			const ImGuiViewport* windowViewport = ImGui::GetWindowViewport();
+			const ImVec2 viewportOrigin = windowViewport ? windowViewport->Pos : ImVec2(0.0f, 0.0f);
+			Engine.InputSystem->SetGameSurfaceRect(
+				drawX - viewportOrigin.x, drawY - viewportOrigin.y, drawW, drawH, resW, resH);
+		}
 	}
 	else
 	{

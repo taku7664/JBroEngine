@@ -51,6 +51,27 @@ public:
 	// 스탠드얼론 게임: GameView 가 없어 호출되지 않음 → 기본 true 유지(윈도우 포커스만으로 게이팅).
 	void SetViewportActive(bool active) { m_viewportActive = active; }
 
+	// 게임 표면(플레이어가 보는 화면)이 창 클라이언트 좌표계의 어디에 어떤 크기로 그려지는지와,
+	// 그 표면의 픽셀 해상도. 마우스 좌표를 **게임 표면 픽셀 기준**으로 주기 위해 필요하다.
+	//   · 에디터: 게임뷰 패널 안의 레터박스 렉트(패널 위치·비율 보정) × RT 해상도.
+	//   · 패키지: 창 클라이언트 전체 × 렌더 타깃 해상도(창 크기 ≠ 해상도면 스케일이 걸린다).
+	// 설정하지 않으면 항등(창 좌표 = 표면 좌표)으로 둔다.
+	// 게임 스크립트에 창 좌표는 의미가 없다 — 마우스로 월드를 집으려면(Canvas::ScreenToWorld)
+	// 렌더 타깃과 같은 좌표계여야 한다. 에디터 UI 는 ImGui 자체 입력을 쓰므로 영향받지 않는다.
+	void SetGameSurfaceRect(
+		float clientX, float clientY, float clientWidth, float clientHeight,
+		float surfaceWidth, float surfaceHeight)
+	{
+		m_gameSurfaceClientX      = clientX;
+		m_gameSurfaceClientY      = clientY;
+		m_gameSurfaceClientWidth  = clientWidth;
+		m_gameSurfaceClientHeight = clientHeight;
+		m_gameSurfaceWidth        = surfaceWidth;
+		m_gameSurfaceHeight       = surfaceHeight;
+		m_hasGameSurfaceRect      = clientWidth > 0.0f && clientHeight > 0.0f
+			&& surfaceWidth > 0.0f && surfaceHeight > 0.0f;
+	}
+
 	// 매 프레임 호출. surfaceFocused 면 디바이스 갱신 + dispatch. 아니면 디바이스 클리어.
 	void Update(bool surfaceFocused);
 
@@ -158,6 +179,30 @@ private:
 	// 터치 작업 버퍼 — 프레임을 넘겨 유지되는 활성 손가락 상태(id 추적). 프레임마다 스냅샷으로 복사.
 	// (휠/텍스트는 프레임 transient 지만 터치는 손가락이 떼질 때까지 활성 유지 → 별도 영속 버퍼.)
 	TouchPoint      m_workingTouches[Touch::MaxTouchCount] = {};
+
+	// 창 클라이언트 좌표 → 게임 표면 픽셀. 렉트가 설정되지 않았으면 항등이다.
+	// 표면 밖이면 음수/초과 값이 그대로 나온다 — 그걸 받는 쪽(ScreenToWorld)이 "밖"으로 판정한다.
+	void ToGameSurfacePoint(int& x, int& y) const
+	{
+		if (false == m_hasGameSurfaceRect)
+		{
+			return;
+		}
+		const float localX = (static_cast<float>(x) - m_gameSurfaceClientX) / m_gameSurfaceClientWidth;
+		const float localY = (static_cast<float>(y) - m_gameSurfaceClientY) / m_gameSurfaceClientHeight;
+		x = static_cast<int>(localX * m_gameSurfaceWidth);
+		y = static_cast<int>(localY * m_gameSurfaceHeight);
+	}
+
+	// 게임 표면 렉트(창 클라이언트 좌표) + 표면 해상도 — SetGameSurfaceRect 가 채운다.
+	// 마우스를 창 좌표에서 표면 픽셀로 옮기는 데 쓴다(미설정이면 항등).
+	float           m_gameSurfaceClientX      = 0.0f;
+	float           m_gameSurfaceClientY      = 0.0f;
+	float           m_gameSurfaceClientWidth  = 0.0f;
+	float           m_gameSurfaceClientHeight = 0.0f;
+	float           m_gameSurfaceWidth        = 0.0f;
+	float           m_gameSurfaceHeight       = 0.0f;
+	bool            m_hasGameSurfaceRect      = false;
 
 	int             m_lastMouseX  = 0;
 	int             m_lastMouseY  = 0;
