@@ -286,7 +286,7 @@ namespace
 
 	YAML::Node WriteValueByDescriptor(const void* value, const ReflectTypeDesc& descriptor)
 	{
-		switch (descriptor.LegacyType)
+		switch (descriptor.Type)
 		{
 		case EReflectPropertyType::Bool: return YAML::Node(*static_cast<const bool*>(value));
 		case EReflectPropertyType::Int32: return YAML::Node(*static_cast<const std::int32_t*>(value));
@@ -317,7 +317,7 @@ namespace
 	{
 		try
 		{
-			switch (descriptor.LegacyType)
+			switch (descriptor.Type)
 			{
 			case EReflectPropertyType::Bool: *static_cast<bool*>(value) = node.as<bool>(); return true;
 			case EReflectPropertyType::Int32: *static_cast<std::int32_t*>(value) = node.as<std::int32_t>(); return true;
@@ -485,7 +485,7 @@ namespace
 				{
 					node[prop.Name] = WriteArrayValue(field, *prop.Descriptor);
 					if (referencedAssets && prop.Descriptor->Element
-						&& EReflectPropertyType::AssetGuid == prop.Descriptor->Element->LegacyType
+						&& EReflectPropertyType::AssetGuid == prop.Descriptor->Element->Type
 						&& prop.Descriptor->ArrayOps)
 					{
 						const std::size_t count = prop.Descriptor->ArrayOps->GetSize(field);
@@ -865,7 +865,7 @@ namespace
 				{
 					node[prop.Name] = WriteArrayValue(field, *prop.Descriptor);
 					if (referencedAssets && prop.Descriptor->Element
-						&& EReflectPropertyType::AssetGuid == prop.Descriptor->Element->LegacyType
+						&& EReflectPropertyType::AssetGuid == prop.Descriptor->Element->Type
 						&& prop.Descriptor->ArrayOps)
 					{
 						const std::size_t count = prop.Descriptor->ArrayOps->GetSize(field);
@@ -993,7 +993,7 @@ namespace
 					{
 						ReadArrayValue(node[prop.Name], field, *prop.Descriptor);
 						if (referencedAssets && prop.Descriptor->Element
-							&& EReflectPropertyType::AssetGuid == prop.Descriptor->Element->LegacyType
+							&& EReflectPropertyType::AssetGuid == prop.Descriptor->Element->Type
 							&& prop.Descriptor->ArrayOps)
 						{
 							const std::size_t count = prop.Descriptor->ArrayOps->GetSize(field);

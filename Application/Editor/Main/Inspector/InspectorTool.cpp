@@ -464,7 +464,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			// 원소 편집기용 프로퍼티 정보 — 타입/크기는 원소 desc 가 들고 있다.
 			// 루프 밖에서 한 번만 만든다(원소마다 동일하다).
 			ReflectPropertyInfo elementProperty{};
-			elementProperty.Type = descriptor->Element->LegacyType;
+			elementProperty.Type = descriptor->Element->Type;
 			elementProperty.Size = descriptor->Element->Size;
 			elementProperty.ElementCount = 1;
 			elementProperty.IsEditable = property.IsEditable;

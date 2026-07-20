@@ -214,7 +214,7 @@ namespace
 			GetArrayReflectTypeDesc<int, EReflectPropertyType::Int32>();
 		const ReflectTypeDesc& integerDescriptor =
 			GetScalarReflectTypeDesc<int, EReflectPropertyType::Int32>();
-		if (EReflectPropertyKind::Array != arrayDescriptor.Kind ||
+		if (EReflectPropertyType::Array != arrayDescriptor.Type ||
 			nullptr == arrayDescriptor.ArrayOps ||
 			&integerDescriptor != arrayDescriptor.Element)
 		{

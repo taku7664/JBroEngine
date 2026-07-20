@@ -9,7 +9,6 @@ template<typename T, EReflectPropertyType Type>
 const ReflectTypeDesc& GetScalarReflectTypeDesc()
 {
 	static const ReflectTypeDesc descriptor = {
-		EReflectPropertyKind::Scalar,
 		Type,
 		sizeof(T),
 		alignof(T),
@@ -82,8 +81,7 @@ const ReflectTypeDesc& GetArrayReflectTypeDesc()
 	static const ReflectTypeDesc descriptor = []
 	{
 		ReflectTypeDesc value;
-		value.Kind = EReflectPropertyKind::Array;
-		value.LegacyType = EReflectPropertyType::Array;
+		value.Type = EReflectPropertyType::Array;
 		value.Size = sizeof(Array<T, Allocator>);
 		value.Alignment = alignof(Array<T, Allocator>);
 		value.IsTriviallyCopyable = false;

@@ -62,16 +62,6 @@ enum class EReflectPropertyType
 	Table
 };
 
-enum class EReflectPropertyKind : std::uint8_t
-{
-	Scalar,
-	Enum,
-	Ref,
-	Struct,
-	Array,
-	Table
-};
-
 struct ReflectArrayOps
 {
 	std::size_t (*GetSize)(const void* array) = nullptr;
@@ -90,10 +80,16 @@ struct ReflectTableOps
 	void (*Clear)(void* table) = nullptr;
 };
 
+// 타입 하나의 타입소거 명세. 컨테이너면 Element / Key+Value 로 원소 타입을 재귀 기술하고,
+// 저장소 조작은 ArrayOps / TableOps 함수포인터로만 한다(인스펙터·직렬화가 레이아웃을 직접 캐스팅하지 않는다).
+//
+// Type 은 ReflectPropertyInfo::Type / ScriptPropertyDesc::Type 과 같은 값·같은 의미다.
+// 한때 Kind(Scalar/Enum/Ref/Struct/Array/Table) 라는 별도 축이 함께 있었지만, 실제 분기는
+// 전부 이 Type 으로만 이뤄졌고 Kind 는 Type 에서 그대로 유도되는 값이었다 — 채우는 곳마다
+// 손으로 동기화해야 하는 이중 진실이라 삭제했다.
 struct ReflectTypeDesc
 {
-	EReflectPropertyKind Kind = EReflectPropertyKind::Scalar;
-	EReflectPropertyType LegacyType = EReflectPropertyType::Float;
+	EReflectPropertyType Type = EReflectPropertyType::Float;
 	std::size_t Size = 0;
 	std::size_t Alignment = 0;
 	bool IsTriviallyCopyable = false;
