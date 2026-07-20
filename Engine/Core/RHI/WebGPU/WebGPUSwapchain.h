@@ -30,7 +30,7 @@ private:
 #if JBRO_PLATFORM_WEB
 	WGPUDevice m_device = nullptr;
 	WGPUSurface m_surface = nullptr;
-	WGPUTextureFormat m_format = WGPUTextureFormat_BGRA8Unorm;
+	WGPUTextureFormat m_format = WGPUTextureFormat_RGBA8Unorm;
 	WGPUTexture m_currentTexture = nullptr;
 	WGPUTextureView m_currentTextureView = nullptr;
 #endif

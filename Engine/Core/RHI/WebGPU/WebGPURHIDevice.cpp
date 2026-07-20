@@ -187,7 +187,11 @@ bool CWebGPURHIDevice::Initialize(const RHIDesc& desc)
 		Finalize();
 		return false;
 	}
-	if (false == static_cast<CWebGPUSwapchain*>(m_rhiSwapchain.Get())->BindNativeSurface(m_device, m_surface, WGPUTextureFormat_BGRA8Unorm))
+	// 스왑체인도 오프스크린 RT 와 같은 RGBA8 로 맞춘다. WebGPU 는 파이프라인의 컬러 타겟 포맷이
+	// 렌더패스 어태치먼트와 정확히 일치할 것을 요구하는데(D3D11 은 검사하지 않는다), 여기만
+	// BGRA8 이면 같은 파이프라인으로 화면과 레이어 RT 를 둘 다 그릴 수 없다.
+	// rgba8unorm 은 캔버스 컨텍스트가 반드시 지원하는 포맷이다.
+	if (false == static_cast<CWebGPUSwapchain*>(m_rhiSwapchain.Get())->BindNativeSurface(m_device, m_surface, WGPUTextureFormat_RGBA8Unorm))
 	{
 		Finalize();
 		return false;
@@ -567,7 +571,10 @@ OwnerPtr<IRHIGraphicsPipeline> CWebGPURHIDevice::CreateGraphicsPipeline(const RH
 	}
 
 	WGPUColorTargetState colorTarget = {};
-	colorTarget.format = WGPUTextureFormat_BGRA8Unorm;
+	// 엔진이 만드는 컬러 타겟은 스왑체인까지 전부 RGBA8 이라 파이프라인도 그 하나로 족하다.
+	// 다른 포맷(HDR RGBA16F 등)의 타겟을 도입하는 순간 파이프라인 desc 가 타겟 포맷을 실어
+	// 날라야 한다 — WebGPU 는 불일치를 거부한다.
+	colorTarget.format = ToWebGPUTextureFormat(ERHITextureFormat::RGBA8);
 	colorTarget.writeMask = WGPUColorWriteMask_All;
 	WGPUBlendState blendState = {};
 	WGPUBlendComponent colorBlend = {};
