@@ -70,7 +70,6 @@ YAML::Node WriteLayerNode(const CGameLayer& layer, bool includeSourceAsset)
 	node["Blend"]           = ToString(layer.BlendMode);
 	node["Opacity"]         = layer.Opacity;
 	node["Visible"]         = layer.Visible;
-	node["Static"]          = layer.Static;
 	node["ForceOwnTexture"] = layer.ForceOwnTexture;
 	node["Parallax"]        = layer.ParallaxFactor;
 	return node;
@@ -89,7 +88,6 @@ void ApplyLayerNodeProperties(CGameLayer& layer, const YAML::Node& node)
 	layer.BlendMode          = LayerBlendModeFromString(blend.c_str());
 	layer.Opacity            = node["Opacity"]            ? node["Opacity"].as<float>(1.0f)            : 1.0f;
 	layer.Visible            = node["Visible"]            ? node["Visible"].as<bool>(true)             : true;
-	layer.Static             = node["Static"]             ? node["Static"].as<bool>(false)             : false;
 	layer.ForceOwnTexture    = node["ForceOwnTexture"]    ? node["ForceOwnTexture"].as<bool>(false)    : false;
 	layer.ParallaxFactor     = node["Parallax"]           ? node["Parallax"].as<float>(1.0f)           : 1.0f;
 	layer.KeepOnCanvasChange = node["KeepOnCanvasChange"] ? node["KeepOnCanvasChange"].as<bool>(false) : false;

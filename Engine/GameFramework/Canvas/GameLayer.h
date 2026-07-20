@@ -55,13 +55,13 @@ inline ELayerBlendMode LayerBlendModeFromString(const char* text)
 // ─────────────────────────────────────────────────────────────────────────────
 //  CGameLayer — 캔버스(캔버스)의 컴포짓 단위이자 오브젝트 그룹.
 //
-//  · 트랜스폼 없음 — 순수 컴포짓 속성(순서·블렌드·Opacity·가시성·Static·Parallax)만.
+//  · 트랜스폼 없음 — 순수 컴포짓 속성(순서·블렌드·Opacity·가시성·Parallax)만.
 //    순서는 CGameCanvas::m_layers 벡터 순서가 곧 컴포짓(아래→위) 순서다.
 //  · 오브젝트 소속은 CGameObject::m_layer(SafePtr) 가 표현한다. 레이어는 소속 목록을
 //    들지 않는다 — SetParent/파괴 지점마다 목록을 동기화하는 비용·불일치 버그를 피하고,
 //    순회가 필요한 곳(직렬화·실행순서 재빌드·렌더 수집)은 캔버스 전체 1회 순회로 버킷팅한다.
 //  · 메모리 소유 = CGameCanvas(OwnerPtr). 외부 공유는 SafePtr.
-//  · Visible=false 는 렌더만 끈다(시뮬 계속). Static 은 렌더 동결만(시뮬은 유저 책임).
+//  · Visible=false 는 렌더만 끈다(시뮬 계속).
 // ─────────────────────────────────────────────────────────────────────────────
 class CGameLayer final : public GameInstance, public EnableSafeFromThis<CGameLayer>
 {
@@ -93,7 +93,6 @@ public:
 	ELayerBlendMode BlendMode = ELayerBlendMode::Normal;
 	float           Opacity = 1.0f;          // 0~1. 컴포짓 시 알파 곱(페이드 연출용).
 	bool            Visible = true;          // false = 렌더 제외(시뮬은 계속).
-	bool            Static = false;          // true = RT 1회 그린 뒤 재그리기 스킵(렌더 동결).
 	bool            ForceOwnTexture = false; // true = 항상 RT 경유(차후 레이어 이펙트용).
 	float           ParallaxFactor = 1.0f;   // 1=월드, 0=뷰포트 고정(UI), 0.5=원경 패럴랙스.
 

@@ -543,7 +543,7 @@ void CGameApplication::ConfigureRuntimeViewCamera()
 	canvas->SetLastRenderSize(renderWidth, renderHeight);
 	std::vector<GameRenderViewportDesc> viewports = CollectGameRenderViewports(*canvas, renderWidth, renderHeight);
 	std::vector<GameRenderLightDesc> lights = CollectGameRenderLights(*canvas);
-	// 런타임은 lazy RT 승격 — 블렌드/Opacity/Static/강제가 걸린 레이어만 자기 RT 를 쓴다.
+	// 런타임은 lazy RT 승격 — 블렌드/Opacity/강제가 걸린 레이어만 자기 RT 를 쓴다.
 	std::vector<GameRenderLayerDesc> layers = CollectGameRenderLayers(*canvas, /*forceOwnTextureAll*/ false);
 
 	if (CEngine* engine = GetEngine())

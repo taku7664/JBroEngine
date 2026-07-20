@@ -361,7 +361,6 @@ void CImEditor::RenderLayerThumbnails()
 		thumbnailLayer.Visible         = true;                      // 꺼둔 레이어도 내용은 보여준다
 		thumbnailLayer.Opacity         = 1.0f;                      // 페이드 상태 무시
 		thumbnailLayer.BlendMode       = ERHIBlendMode::LayerNormal; // 아래 레이어가 없으니 무의미
-		thumbnailLayer.Static          = false;                     // 렌더 동결 무시(항상 최신)
 		thumbnailLayer.NeedsOwnTexture = false;                     // 합성할 게 없다 → RT 왕복 생략
 		const std::vector<GameRenderLayerDesc> singleLayer{ thumbnailLayer };
 

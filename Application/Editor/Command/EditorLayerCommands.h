@@ -22,7 +22,6 @@ struct LayerPropertySnapshot
 	ELayerBlendMode BlendMode = ELayerBlendMode::Normal;
 	float           Opacity = 1.0f;
 	bool            Visible = true;
-	bool            Static = false;
 	bool            ForceOwnTexture = false;
 	float           ParallaxFactor = 1.0f;
 	bool            KeepOnCanvasChange = false;
@@ -31,7 +30,7 @@ struct LayerPropertySnapshot
 	void                         ApplyTo(CGameLayer& layer) const;
 };
 
-// 레이어 속성 편집(이름/블렌드/Opacity/가시성/Static/ForceOwnTexture/Parallax).
+// 레이어 속성 편집(이름/블렌드/Opacity/가시성/ForceOwnTexture/Parallax).
 // fieldId 는 병합 판정에만 쓴다 — 같은 레이어의 같은 필드를 연속 편집(슬라이더 드래그)하면
 // 한 undo 단위로 묶고, 다른 필드로 넘어가면 새 커맨드가 된다.
 class CSetLayerPropertyCommand final : public IEditorCommand
@@ -43,7 +42,6 @@ public:
 		BlendMode,
 		Opacity,
 		Visible,
-		Static,
 		ForceOwnTexture,
 		ParallaxFactor,
 		KeepOnCanvasChange,

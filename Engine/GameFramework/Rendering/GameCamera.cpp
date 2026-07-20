@@ -199,13 +199,11 @@ std::vector<GameRenderLayerDesc> CollectGameRenderLayers(const CGameCanvas& canv
 		desc.Opacity = std::clamp(layer->Opacity, 0.0f, 1.0f);
 		desc.ParallaxFactor = layer->ParallaxFactor;
 		desc.Visible = layer->Visible;
-		desc.Static = layer->Static;
 		desc.ForceOwnTexture = layer->ForceOwnTexture;
 		// 자기 RT 가 필요한 조건 — 이 중 아무것도 아니면 대상에 직접 그린다(RT 왕복 없음).
-		// Normal + Opacity 1 + 비Static 레이어(대다수)는 레이어 도입 전과 동일 비용이 된다.
+		// Normal + Opacity 1 인 레이어(대다수)는 레이어 도입 전과 동일 비용이 된다.
 		desc.NeedsOwnTexture = forceOwnTextureAll
 			|| layer->ForceOwnTexture
-			|| layer->Static
 			|| desc.Opacity < 1.0f
 			|| ELayerBlendMode::Normal != layer->BlendMode;
 		layers.push_back(desc);
@@ -258,7 +256,7 @@ namespace
 	// 뷰포트 목록을 지정 타겟에 그린다. 그래프 Base 패스와 폴백 경로가 공유한다.
 	// 바탕색을 한 번 깔고, 뷰포트마다 그 뷰포트가 맡은 레이어를 캔버스 순서(아래→위)로
 	// 그린 뒤 즉시 합성한다:
-	//   · 평범한 레이어(Normal+불투명+비Static) → 타겟에 직접 드로우(RT 왕복 없음)
+	//   · 평범한 레이어(Normal+불투명) → 타겟에 직접 드로우(RT 왕복 없음)
 	//   · 그 외                                → 스크래치 RT 에 그린 뒤 블렌드·Opacity 로 합성
 	// 같은 레이어가 뷰포트마다 각자의 눈으로 다시 그려지는 것이 멀티뷰포트의 본체다.
 	// outCameraStats 에 뷰포트별 통계를 append(호출자가 미리 clear).

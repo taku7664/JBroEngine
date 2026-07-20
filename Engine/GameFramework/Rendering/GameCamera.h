@@ -53,9 +53,8 @@ struct GameRenderLayerDesc
 	float            Opacity = 1.0f;
 	float            ParallaxFactor = 1.0f;
 	bool             Visible = true;
-	bool             Static = false;
 	bool             ForceOwnTexture = false;
-	// 자기 RT 를 거쳐야 하는가 — 블렌드/Opacity/Static/강제 중 하나라도 걸리면 true.
+	// 자기 RT 를 거쳐야 하는가 — 블렌드/Opacity/강제 중 하나라도 걸리면 true.
 	// 아니면 대상에 직접 그린다(평범한 레이어에 RT 왕복 대역폭을 물리지 않는다).
 	bool             NeedsOwnTexture = false;
 };

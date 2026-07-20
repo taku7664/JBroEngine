@@ -42,7 +42,6 @@ LayerPropertySnapshot LayerPropertySnapshot::Capture(const CGameLayer& layer)
 	snapshot.BlendMode = layer.BlendMode;
 	snapshot.Opacity = layer.Opacity;
 	snapshot.Visible = layer.Visible;
-	snapshot.Static = layer.Static;
 	snapshot.ForceOwnTexture = layer.ForceOwnTexture;
 	snapshot.ParallaxFactor = layer.ParallaxFactor;
 	snapshot.KeepOnCanvasChange = layer.KeepOnCanvasChange;
@@ -55,7 +54,6 @@ void LayerPropertySnapshot::ApplyTo(CGameLayer& layer) const
 	layer.BlendMode = BlendMode;
 	layer.Opacity = Opacity;
 	layer.Visible = Visible;
-	layer.Static = Static;
 	layer.ForceOwnTexture = ForceOwnTexture;
 	layer.ParallaxFactor = ParallaxFactor;
 	layer.KeepOnCanvasChange = KeepOnCanvasChange;
