@@ -1106,7 +1106,10 @@ void CInputSystem::PollGamepads()
 		ApplyVibration(i);
 	}
 #elif JBRO_PLATFORM_WEB
-	const int count = emscripten_get_num_gamepads();
+	// 게임패드 상태는 프레임마다 명시적으로 샘플링해야 한다. 샘플링 전에는 emscripten 내부
+	// 상태 배열이 없어서, 패드가 하나도 없더라도 개수 조회 자체가 예외로 죽는다.
+	const bool gamepadDataSampled = (EMSCRIPTEN_RESULT_SUCCESS == emscripten_sample_gamepad_data());
+	const int count = gamepadDataSampled ? emscripten_get_num_gamepads() : 0;
 	for (std::size_t i = 0; i < InputDeviceContext::MaxGamepadCount; ++i)
 	{
 		Gamepad& pad = m_context.m_gamepads[i];
