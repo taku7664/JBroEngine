@@ -37,6 +37,14 @@ namespace ScriptSchema
 		bool        HasRange    = false;   // Range(min,max) 슬라이더 범위
 		double      RangeMin    = 0.0;
 		double      RangeMax    = 1.0;
+
+		// 이 세션에서 새로 추가돼 **아직 헤더에 기록되지 않은** 프로퍼티인가.
+		// 인스펙터는 기존 프로퍼티의 이름 변경을 막는다(.cpp 가 그 이름을 참조하는데
+		// 기록은 .h 만 고치므로 조용히 깨진다). 반면 새 항목은 아직 아무도 참조하지 않으므로
+		// 적용 전까지 자유롭게 이름을 정할 수 있다.
+		// ParseHeaderFile 은 항상 false 로 둔다 → 적용 후 재파싱되면 자연히 read-only 가 된다.
+		// 인덱스로 판별하지 않는 이유: ImList 가 드래그 재정렬·삭제를 지원해서 위치가 바뀐다.
+		bool        IsNew       = false;
 	};
 
 	// 2차 콤보 한 항목.
@@ -59,8 +67,11 @@ namespace ScriptSchema
 	std::vector<RefTargetInfo>      ComponentTargets();   // Ref<Component>: 등록 컴포넌트+스크립트
 	std::vector<RefTargetInfo>      AssetTargets();       // Ref<Asset>: 엔진 에셋 타입
 
+	std::vector<RefTargetInfo>      ArrayElementTargets(); // Array: 원소로 쓸 수 있는 스칼라 타입
+
 	bool        IsRefToken(const std::string& token);         // "Ref<" 접두
-	bool        NeedsTargetCombo(const std::string& token);   // Component/Asset 만 true
+	bool        IsArrayToken(const std::string& token);       // "Array"
+	bool        NeedsTargetCombo(const std::string& token);   // Component/Asset/Array 만 true
 	bool        SupportsRange(const std::string& token);      // 숫자/각도 타입만 true
 	void        ResetRefTargetForToken(Property& p);          // 1차 변경 시 2차 기본값
 	std::string FinalTypeToken(const Property& p);            // 헤더에 쓸 C++ 타입

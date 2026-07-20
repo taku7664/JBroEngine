@@ -22,6 +22,16 @@ namespace ScriptSchema
 			"Ref<GameObject>", "Ref<Component>", "Ref<Asset>",
 			"Bool", "Int", "UInt", "Float", "Degree", "Radian",
 			"String", "Vector2", "Rect",
+			// 컨테이너 — Ref 처럼 2차 콤보(원소 타입)를 함께 쓴다.
+			"Array",
+		};
+
+		// Array 의 원소로 쓸 수 있는 타입. 코드젠이 원소 desc 를 GetScalarReflectTypeDesc 로만
+		// 만들기 때문에 **스칼라만** 가능하다 — Ref 원소는 RefCategory 를 실을 자리가 없고,
+		// 중첩 Array 는 코드젠이 거부한다. 여기 없는 걸 고르면 조용히 누락되므로 목록을 맞춰 둔다.
+		const std::vector<std::string> kArrayElementTypes = {
+			"Bool", "Int", "UInt", "Float", "Degree", "Radian",
+			"String", "Vector2", "Rect",
 		};
 
 		// 스크립트에서 참조 가능한 엔진 에셋 타입. 라벨(친숙명) / 클래스명(C 접두) / 헤더.
@@ -158,7 +168,23 @@ namespace ScriptSchema
 	}
 
 	bool IsRefToken(const std::string& t)        { return 0 == t.rfind("Ref<", 0); }
-	bool NeedsTargetCombo(const std::string& t)  { return t == "Ref<Component>" || t == "Ref<Asset>"; }
+	bool IsArrayToken(const std::string& t)      { return t == "Array"; }
+	bool NeedsTargetCombo(const std::string& t)
+	{
+		return t == "Ref<Component>" || t == "Ref<Asset>" || IsArrayToken(t);
+	}
+
+	std::vector<RefTargetInfo> ArrayElementTargets()
+	{
+		std::vector<RefTargetInfo> out;
+		out.reserve(kArrayElementTypes.size());
+		for (const std::string& t : kArrayElementTypes)
+		{
+			// 원소는 엔진 기본 타입이라 별도 헤더가 필요 없다(라벨 = 타입명).
+			out.push_back({ t, t, "" });
+		}
+		return out;
+	}
 	bool SupportsRange(const std::string& t)
 	{
 		return t == "Int" || t == "UInt" || t == "Float" || t == "Degree" || t == "Radian";
@@ -171,6 +197,13 @@ namespace ScriptSchema
 			p.RefTarget = "GameObject"; p.RefInclude = "";
 			return;
 		}
+		if (IsArrayToken(p.TypeToken))
+		{
+			// 원소 타입은 RefTarget 을 그대로 재사용한다 — 2차 콤보 배선(초기화/파싱/기록)이
+			// 이미 이 필드를 타므로, 컨테이너용 필드를 따로 두면 같은 경로가 두 벌이 된다.
+			p.RefTarget = "Float"; p.RefInclude = "";
+			return;
+		}
 		const std::vector<RefTargetInfo> targets =
 			(p.TypeToken == "Ref<Asset>") ? AssetTargets() : ComponentTargets();
 		if (targets.empty()) { p.RefTarget = ""; p.RefInclude = ""; return; }
@@ -181,6 +214,7 @@ namespace ScriptSchema
 	std::string FinalTypeToken(const Property& p)
 	{
 		if (p.TypeToken == "Ref<GameObject>") return "Ref<GameObject>";
+		if (IsArrayToken(p.TypeToken))        return "Array<" + p.RefTarget + ">";
 		if (NeedsTargetCombo(p.TypeToken))    return "Ref<" + p.RefTarget + ">";
 		return p.TypeToken;
 	}
@@ -320,7 +354,14 @@ namespace ScriptSchema
 			if (std::regex_search(attrs, serRe)) p.NoSerialize = true;
 
 			// 타입 역매핑.
-			if (0 == cppType.rfind("Ref<", 0))
+			if (0 == cppType.rfind("Array<", 0))
+			{
+				// 원소는 RefTarget 에 담는다(기록 경로 FinalTypeToken 과 짝).
+				p.TypeToken = "Array";
+				p.RefTarget = ExtractRefInner(cppType);
+				p.RefInclude = "";
+			}
+			else if (0 == cppType.rfind("Ref<", 0))
 			{
 				const std::string inner = ExtractRefInner(cppType);
 				if (inner == "GameObject")

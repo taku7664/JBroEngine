@@ -647,6 +647,11 @@
     <ClCompile Include="Utillity\File\FilePath.cpp" />
     <ClCompile Include="Utillity\File\FileUtillities.cpp" />
     <ClCompile Include="Utillity\String\StringUtillity.cpp" />
+    <ClCompile Include="Utillity\Types\Allocator.cpp">
+      <!-- pch.h 는 Core/GameFramework 엄브렐라를 통째로 끌어온다. 이 파일은 스모크 테스트와
+           웹 빌드에서도 그대로 컴파일되어야 하므로 PCH 에 묶지 않는다. -->
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="Core\Asset\AssetManager.cpp" />
     <ClCompile Include="Core\Asset\AssetMetaFile.cpp" />
     <ClCompile Include="Core\Asset\AssetPackage.cpp" />

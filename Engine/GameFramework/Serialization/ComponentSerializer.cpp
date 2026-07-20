@@ -858,6 +858,25 @@ namespace
 			case EReflectPropertyType::String:
 				node[prop.Name] = *static_cast<const std::string*>(field);
 				break;
+			case EReflectPropertyType::Array:
+				// 컴포넌트 경로(WriteReflectedFields)와 같은 헬퍼를 탄다 — 원소 타입 분기는
+				// descriptor.Element 가 들고 있으므로 여기서 다시 나눌 필요가 없다.
+				if (prop.Descriptor)
+				{
+					node[prop.Name] = WriteArrayValue(field, *prop.Descriptor);
+					if (referencedAssets && prop.Descriptor->Element
+						&& EReflectPropertyType::AssetGuid == prop.Descriptor->Element->LegacyType
+						&& prop.Descriptor->ArrayOps)
+					{
+						const std::size_t count = prop.Descriptor->ArrayOps->GetSize(field);
+						for (std::size_t index = 0; index < count; ++index)
+						{
+							const void* element = prop.Descriptor->ArrayOps->GetConstElement(field, index);
+							if (element) AddReferencedAsset(*referencedAssets, *static_cast<const AssetGuid*>(element));
+						}
+					}
+				}
+				break;
 			default:
 				break;
 			}
@@ -966,6 +985,25 @@ namespace
 				case EReflectPropertyType::String:
 				{
 					*static_cast<std::string*>(field) = node[prop.Name].as<std::string>("");
+					break;
+				}
+				case EReflectPropertyType::Array:
+				{
+					if (prop.Descriptor)
+					{
+						ReadArrayValue(node[prop.Name], field, *prop.Descriptor);
+						if (referencedAssets && prop.Descriptor->Element
+							&& EReflectPropertyType::AssetGuid == prop.Descriptor->Element->LegacyType
+							&& prop.Descriptor->ArrayOps)
+						{
+							const std::size_t count = prop.Descriptor->ArrayOps->GetSize(field);
+							for (std::size_t index = 0; index < count; ++index)
+							{
+								const void* element = prop.Descriptor->ArrayOps->GetConstElement(field, index);
+								if (element) AddReferencedAsset(*referencedAssets, *static_cast<const AssetGuid*>(element));
+							}
+						}
+					}
 					break;
 				}
 				default:

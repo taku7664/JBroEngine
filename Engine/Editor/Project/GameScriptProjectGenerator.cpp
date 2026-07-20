@@ -34,6 +34,10 @@ namespace
 		std::string RefTypeName;           // 드롭 필터/표시용 단순 타입명("X", 네임스페이스 제거)
 		std::string AssetTypeName;         // AssetType(Sprite)
 		std::string ExpectedAssetTypeEnum = "EAssetType::Unknown";
+
+		bool        IsArray = false;       // Array<X> 필드인가
+		std::string ArrayElementCppType;   // 원소의 C++ 타입("Float" 등)
+		std::string ArrayElementEnum;      // 원소의 EReflectPropertyType
 	};
 
 	struct ScriptClassDesc
@@ -44,7 +48,14 @@ namespace
 	};
 
 	// C++ 타입 토큰 → EReflectPropertyType. 미지원이면 false.
-	bool MapScriptPropType(std::string cppType, std::string& outEnum)
+	// Array<X> 를 받으려면 원소 정보를 담을 out 포인터를 함께 넘겨야 한다 — 원소 타입을 알아야
+	// desc(GetArrayReflectTypeDesc)를 조립할 수 있기 때문이다. 안 넘기면 Array 는 미지원 처리된다
+	// (그래서 중첩 Array<Array<X>> 는 재귀 호출에서 자연히 걸러진다).
+	bool MapScriptPropType(
+		std::string cppType,
+		std::string& outEnum,
+		std::string* outElementCppType = nullptr,
+		std::string* outElementEnum = nullptr)
 	{
 		// 공백 제거(예: "Vector2" -> "Vector2").
 		cppType.erase(std::remove_if(cppType.begin(), cppType.end(),
@@ -54,6 +65,20 @@ namespace
 		if (cppType == "Int")                                          { outEnum = "EReflectPropertyType::Int64";         return true; }
 		if (cppType == "UInt")                                         { outEnum = "EReflectPropertyType::UInt64";        return true; }
 		if (cppType == "Float")                                        { outEnum = "EReflectPropertyType::Float";         return true; }
+		// ── 원시 타입 ────────────────────────────────────────────────────────────
+		// 강타입(Int/UInt)이 64비트인 것과 달리 raw int/unsigned 는 **32비트로** 매핑한다.
+		// 폭을 맞춰 주지 않으면 offsetof 로 잡은 4바이트 필드를 8바이트로 읽어 옆 필드를
+		// 덮어쓴다. `double` 은 대응하는 프로퍼티 타입이 없어 일부러 받지 않는다 —
+		// Float 로 받으면 조용히 정밀도가 깎인다(미지원 경고가 낫다).
+		// 공백은 위에서 제거되므로 "unsigned int" 는 "unsignedint" 로 들어온다.
+		if (cppType == "bool")                                         { outEnum = "EReflectPropertyType::Bool";          return true; }
+		if (cppType == "int" || cppType == "int32_t")                  { outEnum = "EReflectPropertyType::Int32";         return true; }
+		if (cppType == "unsigned" || cppType == "unsignedint"
+			|| cppType == "uint32_t")                                  { outEnum = "EReflectPropertyType::UInt32";        return true; }
+		if (cppType == "int64_t" || cppType == "longlong")             { outEnum = "EReflectPropertyType::Int64";         return true; }
+		if (cppType == "uint64_t" || cppType == "unsignedlonglong")    { outEnum = "EReflectPropertyType::UInt64";        return true; }
+		if (cppType == "float")                                        { outEnum = "EReflectPropertyType::Float";         return true; }
+		if (cppType == "std::string")                                  { outEnum = "EReflectPropertyType::String";        return true; }
 		if (cppType == "Degree")                                       { outEnum = "EReflectPropertyType::Degree";        return true; }
 		if (cppType == "Radian")                                       { outEnum = "EReflectPropertyType::Radian";        return true; }
 		if (cppType == "String")                                       { outEnum = "EReflectPropertyType::String";        return true; }
@@ -62,6 +87,30 @@ namespace
 		if (cppType == "Asset" || cppType == "AssetGuid")              { outEnum = "EReflectPropertyType::AssetGuid";     return true; }
 		// Ref<X> — 오브젝트/컴포넌트/스크립트/에셋 참조. 카테고리/타입명은 호출부에서 추출.
 		if (cppType.rfind("Ref<", 0) == 0 && cppType.back() == '>') { outEnum = "EReflectPropertyType::Ref"; return true; }
+		// Array<X> — 원소를 한 겹 풀어 스칼라로 떨어져야 받는다.
+		if (cppType.rfind("Array<", 0) == 0 && cppType.back() == '>')
+		{
+			if (nullptr == outElementCppType || nullptr == outElementEnum)
+			{
+				return false;
+			}
+			const std::string element = cppType.substr(6, cppType.size() - 7);
+			std::string elementEnum;
+			if (false == MapScriptPropType(element, elementEnum))
+			{
+				return false;
+			}
+			// Ref 원소는 제외한다 — 원소 desc 는 GetScalarReflectTypeDesc 로만 만드는데 Ref 는
+			// RefCategory/RefTypeName 이 프로퍼티 단위라 원소에 실을 자리가 없다.
+			if (elementEnum == "EReflectPropertyType::Ref")
+			{
+				return false;
+			}
+			*outElementCppType = element;
+			*outElementEnum    = elementEnum;
+			outEnum = "EReflectPropertyType::Array";
+			return true;
+		}
 		return false;
 	}
 
@@ -411,16 +460,22 @@ namespace
 				WarnUnknownJpropAttributes((*it)[1].str(), ownerName, prop.Name);
 
 				// 미지원 타입 — 등록 제외 + 경고.
-				if (false == MapScriptPropType(prop.CppType, prop.EnumType))
+				if (false == MapScriptPropType(prop.CppType, prop.EnumType,
+					&prop.ArrayElementCppType, &prop.ArrayElementEnum))
 				{
 					CSystemLog::Warning("[JPROP] " + ownerName + "." + prop.Name
-						+ ": unsupported type '" + prop.CppType + "' - excluded. Supported: Bool, Int, UInt, Float, Degree, Radian, String, Vector2, Rect, Asset, Ref<T>.");
+						+ ": unsupported type '" + prop.CppType + "' - excluded. Supported: Bool, Int, UInt, Float, Degree, Radian, String, Vector2, Rect, Asset, Ref<T>, Array<T>, "
+						+ "bool, int, unsigned int, int64_t, uint64_t, float, std::string.");
 					continue;
 				}
 				if (prop.EnumType == "EReflectPropertyType::Ref")
 				{
 					prop.IsRef       = true;
 					prop.RefTypeName = ExtractRefSimpleTypeName(prop.CppType);
+				}
+				else if (prop.EnumType == "EReflectPropertyType::Array")
+				{
+					prop.IsArray = true;
 				}
 				ParseScriptPropAttributes((*it)[1].str(), prop);
 				EAssetType expectedAssetType = EAssetType::Unknown;
@@ -748,6 +803,7 @@ std::string CGameScriptProjectGenerator::BuildGameModuleSource() const
 #include "GameFramework/Reflection/ReflectionRegistry.h"
 #include "GameModuleEntry.h"
 #include "GeneratedScriptRegistry.h"
+#include "Utillity/Types/Allocator.h"
 
 class GameScriptModule final : public IGameModule
 {
@@ -798,6 +854,12 @@ IGameModule* CreateGameModule(const GameModuleHostApi* hostApi)
 	{
 		return nullptr;
 	}
+
+	// Array 등 엔진 컨테이너가 잡는 버퍼를 호스트 힙으로 모은다. 이 DLL 이 링크한 Engine.lib
+	// 사본은 자기 CRT 힙을 기본값으로 들고 있어서, 이걸 안 하면 에디터가 인스펙터로 채운 버퍼를
+	// 여기서 해제할 때 다른 힙을 건드린다(호스트와 구성이 다르면 크래시).
+	// 스크립트 코드가 돌기 전인 이 시점이 가장 이른 지점이다.
+	BindHeapAllocator(hostApi->Allocate, hostApi->Free);
 
 	void* memory = hostApi->Allocate(sizeof(GameScriptModule), alignof(GameScriptModule));
 	return memory ? new (memory) GameScriptModule() : nullptr;
@@ -886,6 +948,11 @@ void RegisterGeneratedScripts(CReflectionRegistry& registry)
 			const std::string refTypeName = p.IsRef
 				? ("\"" + EscapeCppString(p.RefTypeName) + "\"")
 				: std::string("nullptr");
+			// Array 는 원소 desc 를 품은 컨테이너 desc 가 필요하다 — 스칼라 desc 를 붙이면
+			// 직렬화·인스펙터가 ArrayOps 를 못 찾아 조용히 빈 값으로 떨어진다.
+			const std::string descriptor = p.IsArray
+				? ("&GetArrayReflectTypeDesc<" + p.ArrayElementCppType + ", " + p.ArrayElementEnum + ">()")
+				: ("&GetScalarReflectTypeDesc<" + p.CppType + ", " + p.EnumType + ">()");
 
 			// 구조체 필드 추가·재정렬이 생성 코드의 의미를 바꾸지 않도록 지정 초기화한다.
 			out << "\t\t\tScriptPropertyDesc{\r\n"
@@ -901,7 +968,7 @@ void RegisterGeneratedScripts(CReflectionRegistry& registry)
 				<< "\t\t\t\t.RangeMin = static_cast<float>(" << rmin << "),\r\n"
 				<< "\t\t\t\t.RangeMax = static_cast<float>(" << rmax << "),\r\n"
 				<< "\t\t\t\t.Serialize = " << serialize << ",\r\n"
-				<< "\t\t\t\t.Descriptor = &GetScalarReflectTypeDesc<" << p.CppType << ", " << p.EnumType << ">(),\r\n"
+				<< "\t\t\t\t.Descriptor = " << descriptor << ",\r\n"
 				<< "\t\t\t\t.RefCategory = " << refCategory << ",\r\n"
 				<< "\t\t\t\t.RefTypeName = " << refTypeName << ",\r\n"
 				<< "\t\t\t\t.ExpectedAssetType = " << p.ExpectedAssetTypeEnum << "\r\n"

@@ -44,6 +44,9 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="TypeSystemSmoke.cpp" />
+    <!-- HeapAllocator 의 정의는 헤더가 아니라 여기 있다(모듈별 힙 분리 때문). 헤더만 포함해서는
+         링크되지 않으므로 스모크 테스트도 이 원본을 같이 컴파일한다. -->
+    <ClCompile Include="..\..\Engine\Utillity\Types\Allocator.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

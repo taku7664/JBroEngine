@@ -5,6 +5,7 @@ Engine/Utillity/Base/Error.cpp
 Engine/Utillity/File/FilePath.cpp
 Engine/Utillity/File/FileUtillities.cpp
 Engine/Utillity/String/StringUtillity.cpp
+Engine/Utillity/Types/Allocator.cpp
 Engine/Core/Asset/AssetManager.cpp
 Engine/Core/Asset/AssetMetaFile.cpp
 Engine/Core/Asset/AssetPackage.cpp

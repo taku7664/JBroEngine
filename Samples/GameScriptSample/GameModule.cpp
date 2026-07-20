@@ -5,6 +5,7 @@
 #include "Core/Game/GameModuleTypes.h"
 #include "GameFramework/Reflection/ReflectionRegistry.h"
 #include "GameModuleEntry.h"
+#include "Utillity/Types/Allocator.h"
 
 // ── 스크립트 헤더 추가 ────────────────────────────────────────────────────────
 // Scripts/ 폴더에 새 스크립트를 추가하면 여기에 include 한 줄만 추가하세요.
@@ -78,6 +79,11 @@ IGameModule* CreateGameModule(const GameModuleHostApi* hostApi)
     {
         return nullptr;
     }
+
+    // Array 등 엔진 컨테이너가 잡는 버퍼를 호스트 힙으로 모은다. 이 DLL 이 링크한 Engine.lib
+    // 사본은 자기 CRT 힙을 기본값으로 들고 있어서, 이걸 안 하면 에디터가 인스펙터로 채운 버퍼를
+    // 여기서 해제할 때 다른 힙을 건드린다(호스트와 구성이 다르면 크래시).
+    BindHeapAllocator(hostApi->Allocate, hostApi->Free);
 
     void* memory = hostApi->Allocate(sizeof(GameScriptSampleModule), alignof(GameScriptSampleModule));
     return memory ? new (memory) GameScriptSampleModule() : nullptr;

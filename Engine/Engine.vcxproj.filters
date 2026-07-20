@@ -34,6 +34,9 @@
     <Filter Include="Source\Utillity\String">
       <UniqueIdentifier>{40C5D1AD-DA1E-4D31-B582-71C9CFF9F7B4}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source\Utillity\Types">
+      <UniqueIdentifier>{6B0F2C34-9A87-4E15-8D6C-3F1A5B7E2D08}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Source">
       <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
       <Extensions>cpp;c;cc;cxx;c++;cppm;ixx</Extensions>
@@ -1254,6 +1257,9 @@
     </ClCompile>
     <ClCompile Include="Utillity\String\StringUtillity.cpp">
       <Filter>Source\Utillity\String</Filter>
+    </ClCompile>
+    <ClCompile Include="Utillity\Types\Allocator.cpp">
+      <Filter>Source\Utillity\Types</Filter>
     </ClCompile>
     <ClCompile Include="Application\Application.cpp">
       <Filter>Source\Application</Filter>
