@@ -4,6 +4,7 @@
 #include "Utillity/Types/Array.h"
 #include "Utillity/Types/Table.h"
 
+#include <new>
 #include <type_traits>
 
 template<typename T, EReflectPropertyType Type>
@@ -159,6 +160,26 @@ const ReflectTableOps& GetReflectTableOps()
 		[](void* table, const void* key) -> bool
 		{
 			return static_cast<TableType*>(table)->Remove(*static_cast<const Key*>(key));
+		},
+		[](void* table, const void* key) -> void*
+		{
+			return static_cast<TableType*>(table)->Find(*static_cast<const Key*>(key));
+		},
+		[]() -> void*
+		{
+			// Table 과 같은 얼로케이터로 잡는다 — 호스트가 만든 키를 게임 DLL 이 돌려줘도
+			// (또는 그 반대) 같은 힙으로 돌아가야 한다.
+			void* storage = Allocator::Allocate(sizeof(Key), alignof(Key), EMemoryTag::Unknown);
+			return nullptr == storage ? nullptr : new (storage) Key();
+		},
+		[](void* key)
+		{
+			if (nullptr == key)
+			{
+				return;
+			}
+			static_cast<Key*>(key)->~Key();
+			Allocator::Deallocate(key, sizeof(Key), alignof(Key), EMemoryTag::Unknown);
 		},
 		[](void* table)
 		{

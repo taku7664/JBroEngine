@@ -96,6 +96,18 @@ struct ReflectTableOps
 	bool (*InsertDefault)(void* table, const void* key) = nullptr;
 	bool (*RemoveKey)(void* table, const void* key) = nullptr;
 
+	// 키로 값을 찾는다(없으면 nullptr). 슬롯 커서는 삽입 한 번에 무효가 되므로, 방금 넣은
+	// 자리를 다시 잡으려면 이쪽을 써야 한다. 바이트 비교로 대신할 수 없다 — std::string 처럼
+	// 내용이 밖에 있는 키는 객체 바이트가 달라도 같은 키다.
+	void* (*FindValue)(void* table, const void* key) = nullptr;
+
+	// 기본 생성된 Key 1개를 만들고 없앤다. 위 셋이 Key 객체 주소를 받는데, 호출부는 타입이
+	// 소거돼 있어 스택에 Key 를 만들 수 없다 — 역직렬화가 YAML 에서 키를 복원할 때 필요하다.
+	// **할당이 일어난다.** 직렬화/에디터 경로 전용이고 프레임 루프에서 쓰지 말 것.
+	// CreateKey 로 받은 것은 반드시 같은 desc 의 DestroyKey 로 돌려준다.
+	void* (*CreateKey)() = nullptr;
+	void (*DestroyKey)(void* key) = nullptr;
+
 	void (*Clear)(void* table) = nullptr;
 };
 

@@ -389,6 +389,128 @@ namespace
 		return true;
 	}
 
+	// Table 은 {Key, Value} 맵의 **시퀀스**로 적는다. YAML 매핑(`{1: x}`)이 더 짧아 보이지만
+	// 그러면 키 타입마다 표현이 갈리고(문자열 키만 자연스럽다), 나중에 키가 구조체로 확장되면
+	// 형식이 통째로 바뀐다. 시퀀스는 키 타입과 무관하게 형태가 하나로 유지된다.
+	//
+	// 순서는 보장하지 않는다 — Table 은 순서가 없고 슬롯 순회 결과는 해시/삽입 이력에 달렸다.
+	// 같은 내용이라도 저장할 때마다 줄 순서가 달라질 수 있다.
+	YAML::Node WriteTableValue(const void* field, const ReflectTypeDesc& descriptor)
+	{
+		YAML::Node result(YAML::NodeType::Sequence);
+		if (nullptr == descriptor.TableOps || nullptr == descriptor.Key || nullptr == descriptor.Value)
+		{
+			return result;
+		}
+
+		const ReflectTableOps& ops = *descriptor.TableOps;
+		for (std::size_t slot = ops.BeginSlot(field);
+			InvalidTableSlot != slot;
+			slot = ops.NextSlot(field, slot))
+		{
+			const void* key   = ops.GetKeyAt(field, slot);
+			const void* value = ops.GetConstValueAt(field, slot);
+			if (nullptr == key || nullptr == value)
+			{
+				continue;
+			}
+
+			YAML::Node entry(YAML::NodeType::Map);
+			entry["Key"]   = WriteValueByDescriptor(key, *descriptor.Key);
+			entry["Value"] = WriteValueByDescriptor(value, *descriptor.Value);
+			result.push_back(entry);
+		}
+		return result;
+	}
+
+	bool ReadTableValue(const YAML::Node& node, void* field, const ReflectTypeDesc& descriptor)
+	{
+		if (false == node.IsSequence() || nullptr == descriptor.TableOps
+			|| nullptr == descriptor.Key || nullptr == descriptor.Value)
+		{
+			return false;
+		}
+
+		const ReflectTableOps& ops = *descriptor.TableOps;
+		if (nullptr == ops.CreateKey || nullptr == ops.DestroyKey || nullptr == ops.FindValue)
+		{
+			return false;
+		}
+
+		ops.Clear(field);
+
+		// 키는 타입이 소거돼 있어 스택에 못 만든다 — ops 가 만들어 주는 것 하나를 재활용한다.
+		void* key = ops.CreateKey();
+		if (nullptr == key)
+		{
+			return false;
+		}
+
+		bool succeeded = true;
+		for (const YAML::Node& entryNode : node)
+		{
+			if (false == entryNode.IsMap()
+				|| false == entryNode["Key"].IsDefined()
+				|| false == entryNode["Value"].IsDefined())
+			{
+				succeeded = false;
+				break;
+			}
+			if (false == ReadValueByDescriptor(entryNode["Key"], key, *descriptor.Key))
+			{
+				succeeded = false;
+				break;
+			}
+			// 중복 키는 파일이 깨진 것이다. InsertDefault 가 false 를 주면 값을 못 채우므로
+			// 조용히 넘기지 않고 실패로 본다.
+			if (false == ops.InsertDefault(field, key))
+			{
+				succeeded = false;
+				break;
+			}
+
+			// 삽입이 리해시했을 수 있어 슬롯 커서로는 방금 넣은 자리를 못 잡는다. 키로 찾는다.
+			void* value = ops.FindValue(field, key);
+			if (nullptr == value || false == ReadValueByDescriptor(entryNode["Value"], value, *descriptor.Value))
+			{
+				succeeded = false;
+				break;
+			}
+		}
+
+		ops.DestroyKey(key);
+		if (false == succeeded)
+		{
+			ops.Clear(field);
+		}
+		return succeeded;
+	}
+
+	// Table 값에 들어 있는 에셋 guid 를 패키징용 참조 목록에 모은다.
+	// 값만 본다 — 키는 조회용 식별자라 에셋을 키로 삼는 건 설계상 의미가 없고, 실제로 그렇게
+	// 쓰이면 값 쪽에 두는 게 맞다. (Array 쪽 수집과 같은 역할이다.)
+	void CollectTableAssetReferences(const void* field, const ReflectTypeDesc& descriptor,
+		std::vector<AssetGuid>* referencedAssets)
+	{
+		if (nullptr == referencedAssets || nullptr == descriptor.TableOps || nullptr == descriptor.Value
+			|| EReflectPropertyType::AssetGuid != descriptor.Value->Type)
+		{
+			return;
+		}
+
+		const ReflectTableOps& ops = *descriptor.TableOps;
+		for (std::size_t slot = ops.BeginSlot(field);
+			InvalidTableSlot != slot;
+			slot = ops.NextSlot(field, slot))
+		{
+			const void* value = ops.GetConstValueAt(field, slot);
+			if (nullptr != value)
+			{
+				AddReferencedAsset(*referencedAssets, *static_cast<const AssetGuid*>(value));
+			}
+		}
+	}
+
 	// ── 리플렉션 기반 제네릭 직렬화 ──────────────────────────────────────────
 
 	// 등록된 모든 프로퍼티를 EReflectPropertyType에 따라 YAML로 직렬화합니다.
@@ -497,6 +619,13 @@ namespace
 					}
 				}
 				break;
+			case EReflectPropertyType::Table:
+				if (prop.Descriptor)
+				{
+					node[prop.Name] = WriteTableValue(field, *prop.Descriptor);
+					CollectTableAssetReferences(field, *prop.Descriptor, referencedAssets);
+				}
+				break;
 			default:
 				break;
 			}
@@ -600,6 +729,12 @@ namespace
 				if (prop.Descriptor)
 				{
 					ReadArrayValue(node[prop.Name], field, *prop.Descriptor);
+				}
+				break;
+			case EReflectPropertyType::Table:
+				if (prop.Descriptor)
+				{
+					ReadTableValue(node[prop.Name], field, *prop.Descriptor);
 				}
 				break;
 			default:
@@ -877,6 +1012,13 @@ namespace
 					}
 				}
 				break;
+			case EReflectPropertyType::Table:
+				if (prop.Descriptor)
+				{
+					node[prop.Name] = WriteTableValue(field, *prop.Descriptor);
+					CollectTableAssetReferences(field, *prop.Descriptor, referencedAssets);
+				}
+				break;
 			default:
 				break;
 			}
@@ -1003,6 +1145,15 @@ namespace
 								if (element) AddReferencedAsset(*referencedAssets, *static_cast<const AssetGuid*>(element));
 							}
 						}
+					}
+					break;
+				}
+				case EReflectPropertyType::Table:
+				{
+					if (prop.Descriptor)
+					{
+						ReadTableValue(node[prop.Name], field, *prop.Descriptor);
+						CollectTableAssetReferences(field, *prop.Descriptor, referencedAssets);
 					}
 					break;
 				}
@@ -1322,6 +1473,10 @@ std::string SerializeReflectedPropertyValue(const void* field, const ReflectProp
 	{
 		node = WriteArrayValue(field, *property.Descriptor);
 	}
+	else if (EReflectPropertyType::Table == property.Type)
+	{
+		node = WriteTableValue(field, *property.Descriptor);
+	}
 	else
 	{
 		node = WriteValueByDescriptor(field, *property.Descriptor);
@@ -1350,9 +1505,15 @@ bool DeserializeReflectedPropertyValue(void* field, const ReflectPropertyInfo& p
 	{
 		return false;
 	}
-	return EReflectPropertyType::Array == property.Type
-		? ReadArrayValue(node, field, *property.Descriptor)
-		: ReadValueByDescriptor(node, field, *property.Descriptor);
+	if (EReflectPropertyType::Array == property.Type)
+	{
+		return ReadArrayValue(node, field, *property.Descriptor);
+	}
+	if (EReflectPropertyType::Table == property.Type)
+	{
+		return ReadTableValue(node, field, *property.Descriptor);
+	}
+	return ReadValueByDescriptor(node, field, *property.Descriptor);
 }
 
 } // namespace Serialization

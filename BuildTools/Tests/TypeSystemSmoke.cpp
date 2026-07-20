@@ -304,6 +304,28 @@ namespace
 			return false;
 		}
 
+		// FindValue 는 키로 값을 되찾는다 — 직렬화가 삽입 직후 값을 채울 때 쓰는 경로다.
+		const int probe = 21;
+		const float* found = static_cast<const float*>(ops.FindValue(&values, &probe));
+		if (nullptr == found || 21.0f != *found)
+		{
+			return false;
+		}
+
+		// CreateKey/DestroyKey 왕복. 역직렬화가 타입소거된 키를 만들 때 쓴다.
+		void* scratch = ops.CreateKey();
+		if (nullptr == scratch)
+		{
+			return false;
+		}
+		*static_cast<int*>(scratch) = 40;
+		const bool scratchWorks = ops.ContainsKey(&values, scratch);
+		ops.DestroyKey(scratch);
+		if (false == scratchWorks)
+		{
+			return false;
+		}
+
 		ops.Clear(&values);
 		return 0 == ops.GetSize(&values) && InvalidTableSlot == ops.BeginSlot(&values);
 	}
