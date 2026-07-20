@@ -538,6 +538,9 @@ void CGameApplication::ConfigureRuntimeViewCamera()
 			renderHeight = static_cast<float>(renderSize.Height);
 		}
 	}
+	// 이게 플레이어가 보는 표면이다 — 스크립트의 ScreenToWorld 가 역투영 기준으로 쓴다.
+	// (렌더 수집기는 썸네일 등에서도 불리므로 기록은 게임 표면을 아는 여기서 한다.)
+	canvas->SetLastRenderSize(renderWidth, renderHeight);
 	std::vector<GameRenderViewportDesc> viewports = CollectGameRenderViewports(*canvas, renderWidth, renderHeight);
 	std::vector<GameRenderLightDesc> lights = CollectGameRenderLights(*canvas);
 	// 런타임은 lazy RT 승격 — 블렌드/Opacity/Static/강제가 걸린 레이어만 자기 RT 를 쓴다.

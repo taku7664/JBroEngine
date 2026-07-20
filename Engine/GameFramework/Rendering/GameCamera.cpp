@@ -76,10 +76,10 @@ std::vector<GameRenderViewportDesc> CollectGameRenderViewports(CGameCanvas& canv
 	renderWidth = std::max(renderWidth, 1.0f);
 	renderHeight = std::max(renderHeight, 1.0f);
 
-	// 이번 프레임의 렌더 타깃 픽셀 크기를 캔버스에 남긴다 — 스크립트의 ScreenToWorld 역투영이
-	// 뷰포트 Layout2D 를 픽셀로 되돌릴 기준이다. 이 값의 출처는 렌더 수집 호출자뿐이라(게임은
-	// 프로젝트 해상도를 직접 못 본다) 여기서 기록하는 게 유일한 경로다.
-	canvas.SetLastRenderSize(renderWidth, renderHeight);
+	// 여기서 캔버스에 렌더 해상도를 기록하지 않는다 — 이 수집기는 게임 화면 말고도
+	// 레이어 썸네일(작은 RT)·"활성 카메라 있나" 판정에서도 불린다. 여기서 기록하면 마지막
+	// 호출자(대개 썸네일)의 크기가 남아 ScreenToWorld 가 22x30 같은 값을 기준으로 삼는다.
+	// 기록은 "플레이어가 보는 표면"을 아는 호출자(패키지 게임 루프 / 에디터 게임뷰)가 한다.
 
 	// 뷰포트를 저작하지 않은 캔버스(대부분)는 풀스크린 기본 뷰포트 1개로 그린다.
 	canvas.GetOrCreateDefaultViewport();

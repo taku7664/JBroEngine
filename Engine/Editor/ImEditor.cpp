@@ -847,6 +847,11 @@ void CImEditor::OnPrepareRender()
 		// 의 UI 빌드 시점(캔버스 업데이트 전) 수집은 1프레임 지연 카메라를 만든다.
 		if (CGameCanvas* gameViewCanvas = m_gameViewCanvas.TryGet())
 		{
+			// 에디터에서 "플레이어가 보는 표면" = 게임뷰 RT. 스크립트의 ScreenToWorld 가 역투영
+			// 기준으로 쓴다(레이어 썸네일도 같은 수집기를 타므로 기록은 여기서만 한다).
+			gameViewCanvas->SetLastRenderSize(
+				static_cast<float>(m_gameViewWidth),
+				static_cast<float>(m_gameViewHeight));
 			m_gameViewViewports = CollectGameRenderViewports(
 				*gameViewCanvas,
 				static_cast<float>(m_gameViewWidth),

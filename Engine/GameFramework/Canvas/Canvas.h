@@ -109,9 +109,14 @@ public:
 	//   · 패럴랙스 팩터 1(메인 월드) 기준이다 — 원경/UI 레이어는 카메라 위치가 스케일되어 다르다.
 	bool                  ScreenToWorld(float screenX, float screenY, Vector2& outWorld) const;
 
-	// 렌더 수집이 매 프레임 이번 렌더 타깃 픽셀 크기를 남긴다(ScreenToWorld 역투영 기준).
-	// 게임은 프로젝트 해상도를 직접 못 보므로 렌더 경로가 유일한 출처다.
+	// "플레이어가 보는 표면"의 픽셀 크기를 남긴다(ScreenToWorld 역투영 기준). 게임은 프로젝트
+	// 해상도를 직접 못 보므로 렌더 경로가 유일한 출처다.
+	// **부르는 곳은 게임 표면 렌더 경로뿐이다** — 패키지 게임 루프(Application) 와 에디터 게임뷰
+	// (ImEditor). 렌더 수집기(CollectGameRenderViewports)에서 부르면 안 된다: 그 수집기는 레이어
+	// 썸네일(작은 RT)·"활성 카메라 있나" 판정에서도 불려서, 마지막 호출자의 크기가 남는다.
 	void                  SetLastRenderSize(float width, float height) { m_lastRenderWidth = width; m_lastRenderHeight = height; }
+	float                 GetLastRenderWidth() const { return m_lastRenderWidth; }
+	float                 GetLastRenderHeight() const { return m_lastRenderHeight; }
 
 	// 컴포짓 맨 아래 바탕색. 레이어 RT 는 투명으로 클리어되고, 이 색 위에 순서대로 얹힌다.
 	const float* GetBackgroundColor() const { return m_backgroundColor; }
