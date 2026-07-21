@@ -312,14 +312,23 @@
     </Link>
   </ItemDefinitionGroup>
   <!-- Editor 구성만: 빌드 후 로컬라이징 yaml 을 출력 폴더로 복사(실행 시 cwd/Localization 을 읽음).
-       Game 구성(Debug_Game/Release_Game)은 editor-only Localization 을 출력하지 않는다. -->
-  <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug' Or '$(Configuration)'=='Release'">
-    <PostBuildEvent>
-      <Command>xcopy /Y /I /E "$(ProjectDir)Localization" "$(OutDir)Localization\" &gt; nul
-xcopy /Y /I /E "$(ProjectDir)Localization" "$(SolutionDir)Localization\" &gt; nul</Command>
-      <Message>Sync Localization to OutDir and SolutionDir</Message>
-    </PostBuildEvent>
-  </ItemDefinitionGroup>
+       Game 구성(Debug_Game/Release_Game)은 editor-only Localization 을 출력하지 않는다.
+
+       xcopy 가 아니라 Copy 태스크를 쓴다. PostBuildEvent 의 셸은 툴셋이 구성한 PATH 를
+       물려받는데 거기에 System32 가 없어서 xcopy 가 9009(명령 없음)로 죽는다. -->
+  <ItemGroup Condition="'$(Configuration)'=='Debug' Or '$(Configuration)'=='Release'">
+    <_LocalizationFile Include="$(ProjectDir)Localization\**\*" />
+  </ItemGroup>
+  <Target Name="SyncLocalization" AfterTargets="Build"
+          Condition="'$(Configuration)'=='Debug' Or '$(Configuration)'=='Release'">
+    <Copy SourceFiles="@(_LocalizationFile)"
+          DestinationFolder="$(OutDir)Localization\%(RecursiveDir)"
+          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(_LocalizationFile)"
+          DestinationFolder="$(SolutionDir)Localization\%(RecursiveDir)"
+          SkipUnchangedFiles="true" />
+    <Message Text="Sync Localization to OutDir and SolutionDir" Importance="high" />
+  </Target>
   <ItemGroup>
     <ClInclude Include="Application.h" />
     <ClInclude Include="Editor\Main\AssetBrowser\AssetHandler.h" />
