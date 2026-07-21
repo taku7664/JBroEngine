@@ -392,6 +392,9 @@
     <ClInclude Include="Utillity\Types\Array.h">
       <Filter>Header\Utillity\Types</Filter>
     </ClInclude>
+    <ClInclude Include="Utillity\Types\FrameLiveness.h">
+      <Filter>Header\Utillity\Types</Filter>
+    </ClInclude>
     <ClInclude Include="Utillity\Types\ArrayView.h">
       <Filter>Header\Utillity\Types</Filter>
     </ClInclude>

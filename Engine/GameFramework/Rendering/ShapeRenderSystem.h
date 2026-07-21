@@ -50,6 +50,7 @@ private:
 		GeometrySignature Signature;
 		OwnerPtr<IRenderMesh> FillMesh;
 		OwnerPtr<IRenderMesh> OutlineMesh;
+		std::uint64_t LastSeenFrame = 0;
 	};
 
 	OwnerPtr<IRenderMesh> CreateMesh(const ShapeMeshData2D& data) const;
@@ -67,5 +68,5 @@ private:
 	CForward2DRenderer* m_renderer = nullptr;
 	OwnerPtr<IRenderMaterial> m_material;
 	std::unordered_map<const void*, CachedShape> m_meshCache;
-	std::unordered_map<const void*, bool> m_seenShapes;
+	std::uint64_t m_frameStamp = 0;
 };

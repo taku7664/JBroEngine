@@ -10,6 +10,7 @@
 #include "GameFramework/Component/ShapeRenderers2D.h"
 #include "GameFramework/Object/GameObject.h"
 #include "GameFramework/Canvas/Canvas.h"
+#include "Utillity/Types/FrameLiveness.h"
 
 #include <algorithm>
 #include <cmath>
@@ -118,7 +119,6 @@ void CShapeRenderSystem::SubmitGeometry(T& shape, const GeometrySignature& signa
 	}
 
 	const void* cacheKey = &shape;
-	m_seenShapes[cacheKey] = true;
 	auto found = m_meshCache.find(cacheKey);
 	if (found == m_meshCache.end() || false == (found->second.Signature == signature))
 	{
@@ -129,6 +129,7 @@ void CShapeRenderSystem::SubmitGeometry(T& shape, const GeometrySignature& signa
 		rebuilt.OutlineMesh = CreateMesh(geometry.Outline);
 		found = m_meshCache.insert_or_assign(cacheKey, std::move(rebuilt)).first;
 	}
+	found->second.LastSeenFrame = m_frameStamp;
 
 	auto submitPass = [this, &shape, owner, &renderer, &halfExtents](SafePtr<IRenderMesh> mesh, const float (&color)[4])
 	{
@@ -224,7 +225,7 @@ void CShapeRenderSystem::OnUpdate(CGameCanvas& canvas)
 		return;
 	}
 
-	m_seenShapes.clear();
+	++m_frameStamp;
 	canvas.ForEach<Square2D>([this, renderer](Square2D& shape)
 	{
 		if (IsActiveComponent(shape))
@@ -247,15 +248,6 @@ void CShapeRenderSystem::OnUpdate(CGameCanvas& canvas)
 		}
 	});
 
-	for (auto it = m_meshCache.begin(); it != m_meshCache.end();)
-	{
-		if (m_seenShapes.find(it->first) == m_seenShapes.end())
-		{
-			it = m_meshCache.erase(it);
-		}
-		else
-		{
-			++it;
-		}
-	}
+	RemoveStaleEntries(m_meshCache, m_frameStamp,
+		[](const CachedShape& cached) { return cached.LastSeenFrame; });
 }

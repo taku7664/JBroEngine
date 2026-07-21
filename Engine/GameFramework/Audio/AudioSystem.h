@@ -7,7 +7,6 @@
 
 #include <cstdint>
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 class IAudioDevice;
@@ -79,6 +78,9 @@ private:
 		EState                              State = EState::Inactive;
 		bool                                WasEffectivelyEnabled = false;
 		bool                                PlayOnStartConsumed = false;
+		// 이번 프레임에 대응 컴포넌트를 봤는지. OnUpdate 끝의 청소가 이 값으로 판단한다.
+		// ⚠ 이동 대입이 필드를 손으로 나열하므로 그쪽에도 반드시 함께 넣을 것.
+		std::uint64_t                       LastSeenFrame = 0;
 	};
 
 	// 효과 체인 동기 — 리스트 변경(추가/삭제/재정렬)이면 전체 재구성+재배선,
@@ -91,4 +93,5 @@ private:
 	// ⚠ 컴포넌트 raw 주소를 키로 쓰면 안 된다 — 파괴 후 풀 슬롯이 재사용되면 새 컴포넌트가
 	//    같은 주소를 받아 죽은 인스턴스(재생 상태/보이스)를 물려받는다. guid 는 재발급되므로 안전.
 	std::unordered_map<File::Guid, PlayerInstance> m_instances;
+	std::uint64_t m_frameStamp = 0;
 };

@@ -8,7 +8,6 @@
 #include <cstdint>
 #include <string>
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 class CForward2DRenderer;
@@ -87,6 +86,7 @@ private:
 		float Height = 0.0f;
 		float CenterX = 0.0f;
 		float CenterY = 0.0f;
+		std::uint64_t LastSeenFrame = 0;
 	};
 
 	struct PositionedGlyph
@@ -131,6 +131,13 @@ private:
 	void* m_freeTypeLibrary = nullptr;
 	std::unordered_map<AssetGuid, FaceCache> m_faces;
 	std::unordered_map<const void*, CachedText> m_textCache;
-	std::unordered_set<const void*> m_warnedMissingFonts;
+	// 값 = 마지막으로 본 프레임 스탬프. 집합이 아니라 맵인 이유는 m_textCache 와 같은 방식으로
+	// 청소하기 위해서다(별도 seen 집합을 매 프레임 만들지 않으려고).
+	std::unordered_map<const void*, std::uint64_t> m_warnedMissingFonts;
 	std::unordered_map<std::string, OwnerPtr<IRenderMaterial>> m_materials;
+	std::uint64_t m_frameStamp = 0;
+	// 매 프레임 텍스트마다 vector 를 새로 만들지 않으려고 재사용하는 작업 버퍼.
+	// 용량을 유지한 채 clear 만 하므로 워밍업 이후 할당이 없다.
+	std::vector<AssetGuid> m_faceProbeScratch;
+	std::vector<AssetGuid> m_faceVisitedScratch;
 };

@@ -93,6 +93,7 @@ CAudioSystem::PlayerInstance& CAudioSystem::PlayerInstance::operator=(PlayerInst
 	State = other.State;
 	WasEffectivelyEnabled = other.WasEffectivelyEnabled;
 	PlayOnStartConsumed = other.PlayOnStartConsumed;
+	LastSeenFrame = other.LastSeenFrame;
 
 	other.State = EState::Inactive;
 	other.WasEffectivelyEnabled = false;
@@ -210,7 +211,7 @@ void CAudioSystem::OnUpdate(CGameCanvas& canvas)
 		});
 
 	// ── 2) Player — 컴포넌트별 인스턴스 생성/동기/해제 ─────────────────
-	std::unordered_set<File::Guid> seen;
+	++m_frameStamp;
 
 	canvas.ForEach<AudioPlayer>(
 		[&](AudioPlayer& player)
@@ -219,13 +220,13 @@ void CAudioSystem::OnUpdate(CGameCanvas& canvas)
 			if (nullptr == owner) return;
 
 			const File::Guid& key = player.GetInstanceGuid(); // 슬롯 재사용 안전(주소 아님).
-			seen.insert(key);
 
 			const bool effectivelyEnabled = IsActiveComponent(player)
 				&& false == player.AudioGuid.IsNull();
 
 			auto [it, inserted] = m_instances.try_emplace(key);
 			PlayerInstance& instance = it->second;
+			instance.LastSeenFrame = m_frameStamp;
 			const bool sourceChanged = inserted || instance.SourceGuid != player.AudioGuid;
 			if (sourceChanged)
 			{
@@ -343,7 +344,7 @@ void CAudioSystem::OnUpdate(CGameCanvas& canvas)
 	// ── 3) AudioPlayer 컴포넌트가 사라진(파괴된) 엔티티의 인스턴스 청소 ─
 	for (auto it = m_instances.begin(); it != m_instances.end(); )
 	{
-		if (seen.find(it->first) == seen.end())
+		if (it->second.LastSeenFrame != m_frameStamp)
 		{
 			it->second.ResetBackendResources();
 			it = m_instances.erase(it);

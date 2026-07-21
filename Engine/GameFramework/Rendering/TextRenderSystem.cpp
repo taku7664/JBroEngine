@@ -14,6 +14,7 @@
 #include "GameFramework/Component/Text2D.h"
 #include "GameFramework/Object/GameObject.h"
 #include "GameFramework/Canvas/Canvas.h"
+#include "Utillity/Types/FrameLiveness.h"
 
 #include <ft2build.h>
 #include FT_FREETYPE_H
@@ -25,7 +26,6 @@
 #include <cstring>
 #include <functional>
 #include <limits>
-#include <unordered_set>
 
 namespace
 {
@@ -217,9 +217,11 @@ bool CTextRenderSystem::AppendFamilyFaces(const AssetGuid& familyGuid, const Tex
 
 bool CTextRenderSystem::ResolveFamilyFaces(const Text2D& text, std::vector<AssetGuid>& outFaces)
 {
+	// visited 는 멤버 작업 버퍼를 재사용한다. AppendFamilyFaces 는 자기 자신만 재귀하고
+	// ResolveFamilyFaces 를 다시 부르지 않으므로 중첩 사용이 없다(순차 호출뿐).
 	outFaces.clear();
-	std::vector<AssetGuid> visited;
-	return AppendFamilyFaces(GetEffectiveFamily(text), text, outFaces, visited);
+	m_faceVisitedScratch.clear();
+	return AppendFamilyFaces(GetEffectiveFamily(text), text, outFaces, m_faceVisitedScratch);
 }
 
 bool CTextRenderSystem::ShapeRun(const char* utf8, std::size_t length, const AssetGuid& faceGuid,
@@ -576,24 +578,33 @@ void CTextRenderSystem::OnUpdate(CGameCanvas& canvas)
 	{
 		ClearCaches();
 	}
-	std::unordered_set<const void*> seen;
+	const std::uint64_t stamp = ++m_frameStamp;
 	canvas.ForEach<Text2D>([&](Text2D& text)
 	{
 		if (false == IsActiveComponent(text) || text.Text.empty()) return;
 		if (false == IsVisibleColor(text.FillEnabled, text.FillColor) && false == IsVisibleColor(text.OutlineEnabled, text.OutlineColor)) return;
-		const void* key = &text; seen.insert(key);
+		const void* key = &text;
 		const AssetGuid family = GetEffectiveFamily(text);
-		std::vector<AssetGuid> resolvedFaces;
-		if (family.IsNull() || false == ResolveFamilyFaces(text, resolvedFaces))
+		if (family.IsNull() || false == ResolveFamilyFaces(text, m_faceProbeScratch))
 		{
-			if (m_warnedMissingFonts.insert(key).second)
+			const auto [warned, firstTime] = m_warnedMissingFonts.try_emplace(key, stamp);
+			warned->second = stamp;
+			if (firstTime)
 			{
 				CSystemLog::Warning("Text2D was not rendered because no usable Font Family was configured.");
+			}
+			// 폰트를 못 찾아도 캐시는 살려 둔다 — 예전에는 이 경로도 seen 에 들어 있었다.
+			// 자산이 잠시 사라졌다 돌아오는 동안 메시를 버리지 않기 위해서다.
+			const auto cached = m_textCache.find(key);
+			if (cached != m_textCache.end())
+			{
+				cached->second.LastSeenFrame = stamp;
 			}
 			return;
 		}
 		m_warnedMissingFonts.erase(key);
 		CachedText& cache = m_textCache[key];
+		cache.LastSeenFrame = stamp;
 		const std::size_t signature = BuildSignature(text, family);
 		if (cache.Signature != signature && false == RebuildText(text, cache, *renderer)) return;
 		for (CachedMesh& mesh : cache.Meshes)
@@ -621,12 +632,8 @@ void CTextRenderSystem::OnUpdate(CGameCanvas& canvas)
 			m_renderScene->Submit(item);
 		}
 	});
-	for (auto it = m_textCache.begin(); it != m_textCache.end(); )
-	{
-		if (seen.find(it->first) == seen.end()) it = m_textCache.erase(it); else ++it;
-	}
-	for (auto it = m_warnedMissingFonts.begin(); it != m_warnedMissingFonts.end(); )
-	{
-		if (seen.find(*it) == seen.end()) it = m_warnedMissingFonts.erase(it); else ++it;
-	}
+	RemoveStaleEntries(m_textCache, stamp,
+		[](const CachedText& cached) { return cached.LastSeenFrame; });
+	RemoveStaleEntries(m_warnedMissingFonts, stamp,
+		[](std::uint64_t lastSeen) { return lastSeen; });
 }

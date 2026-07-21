@@ -532,6 +532,7 @@
     <ClInclude Include="Utillity\Types\Degree.h" />
     <ClInclude Include="Utillity\Types\EngineTypes.h" />
     <ClInclude Include="Utillity\Types\Float.h" />
+    <ClInclude Include="Utillity\Types\FrameLiveness.h" />
     <ClInclude Include="Utillity\Types\Hash.h" />
     <ClInclude Include="Utillity\Types\Int.h" />
     <ClInclude Include="Utillity\Types\Radian.h" />
