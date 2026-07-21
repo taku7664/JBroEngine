@@ -48,6 +48,27 @@ ImGui::Utillity::DisableScope::~DisableScope()
 	}
 }
 
+ImGui::Utillity::InvalidFieldScope::InvalidFieldScope(bool invalid)
+	: m_invalid(invalid)
+{
+	if (m_invalid)
+	{
+		// 기본 테마는 FrameBorderSize 가 0 이라 색만 바꾸면 아무것도 안 보인다 — 두께도 같이 준다.
+		const ImVec4 red(0.85f, 0.20f, 0.20f, 1.0f);
+		ImGui::PushStyleColor(ImGuiCol_Border, red);
+		ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.5f);
+	}
+}
+
+ImGui::Utillity::InvalidFieldScope::~InvalidFieldScope()
+{
+	if (m_invalid)
+	{
+		ImGui::PopStyleVar();
+		ImGui::PopStyleColor();
+	}
+}
+
 ImGui::Utillity::FormLayout::FormLayout(
 	const char* id,
 	float spacing,

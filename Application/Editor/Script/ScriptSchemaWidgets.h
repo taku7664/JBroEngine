@@ -228,12 +228,19 @@ namespace ScriptSchemaUI
 		const float menuW      = ImGui::GetFrameHeight();          // ⋮ 메뉴 폭(버튼 텍스트 대신 아이콘)
 		const float avail      = fullW - menuW - gap * static_cast<float>(slots);
 		const float colW       = (avail > 0.0f) ? (avail / static_cast<float>(slots)) : 60.0f;
+		// 행 시작 X. 아래에서 ⋮ 를 오른쪽 끝에 **직접** 앉히는 데 쓴다.
+		// colW 는 대개 소수라 위젯마다 픽셀로 반올림되고, 그 오차가 열 개수만큼 쌓인다.
+		// 그래서 콤보가 3개인 Table 행이 1개인 Float 행보다 끝이 더 밀려 열이 어긋나 보였다.
+		const float rowStartX  = ImGui::GetCursorPosX();
 
 		changed |= TypeAndRefCombos(p, colW);
 
-		// 이름
+		// 이름 — 남은 공간을 그대로 먹는다. 누적된 반올림 오차를 여기서 흡수해야
+		// 뒤따르는 ⋮ 가 모든 행에서 같은 X 에 온다.
 		ImGui::SameLine(0.0f, gap);
-		ImGui::SetNextItemWidth(colW);
+		const float nameEndX = rowStartX + fullW - menuW - gap;
+		const float nameW    = nameEndX - ImGui::GetCursorPosX();
+		ImGui::SetNextItemWidth(nameW > 16.0f ? nameW : colW);
 		{
 			ImGui::BeginDisabled(nameReadOnly);
 			ImInputText input;
@@ -244,8 +251,9 @@ namespace ScriptSchemaUI
 		}
 		ImGui::Utillity::HoveredToolTip(Loc::Text(EditorLocKeys::ScriptPropNameTooltip));
 
-		// 메뉴
+		// 메뉴 — 행 오른쪽 끝에 고정한다(SameLine 이 누적 오차를 그대로 물려받지 않도록).
 		ImGui::SameLine(0.0f, gap);
+		ImGui::SetCursorPosX(rowStartX + fullW - menuW);
 		if (ImTextButton(EditorIcons::ICON_ELLIPSIS_VERTICAL, ImVec2(menuW, 0.0f), ImVec2(0, -2)))
 		{
 			ImGui::OpenPopup("##prop_menu");   // U+22EE

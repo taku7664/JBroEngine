@@ -356,6 +356,7 @@ Entries:
   list.add_element: + 원소 추가
   inspector.ref_missing: (유실됨)
   inspector.unsupported: 지원 안 함
+  inspector.table_duplicate_key: 이미 있는 키입니다. 다른 키를 입력하세요.
   inspector.matrix_3x2: Matrix 3x2
   inspector.physics_contacts: 물리 접촉
   inspector.rigidbody_debug: Rigidbody 디버그

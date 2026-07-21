@@ -356,6 +356,7 @@ Entries:
   list.add_element: + Add Element
   inspector.ref_missing: (Missing)
   inspector.unsupported: unsupported
+  inspector.table_duplicate_key: This key already exists. Enter a different one.
   inspector.matrix_3x2: Matrix 3x2
   inspector.physics_contacts: Physics Contacts
   inspector.rigidbody_debug: Rigidbody Debug

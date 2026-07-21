@@ -296,14 +296,18 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		return widget.Draw();
 	}
 
-	bool DrawPropertyEditor(void* field, const ReflectPropertyInfo& property)
+	// idSeed 는 ImGui ID 의 기준점이다. 기본은 field 자신 — 편집 대상이 곧 고유 주소인
+	// 보통의 경우엔 그걸로 충분하다. 하지만 **매 프레임 새로 할당한 임시 버퍼**를 편집시킬 때는
+	// 주소가 프레임마다 달라져 ID 가 흔들리고, ImGui 가 활성 편집 상태를 잃어 입력이 아예
+	// 안 먹는다. 그런 호출부(Table 의 키 편집)는 안정적인 주소를 따로 넘긴다.
+	bool DrawPropertyEditor(void* field, const ReflectPropertyInfo& property, const void* idSeed = nullptr)
 	{
 		if (nullptr == field || false == property.IsEditable)
 		{
 			return false;
 		}
 
-		ImGui::Utillity::IDGroup idGroup(field);
+		ImGui::Utillity::IDGroup idGroup(nullptr != idSeed ? idSeed : field);
 
 		switch (property.Type)
 		{
@@ -548,10 +552,50 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			valueProperty.Descriptor = descriptor->Value;
 			valueProperty.ExpectedAssetType = property.ExpectedAssetType;
 
-			// 키 편집은 제자리에서 못 한다 — 키를 바꾸면 해시 자리가 바뀌므로 삭제 후 재삽입이다.
-			// 순회 중에 그러면 커서가 무효가 되니 편집분을 모아 뒀다가 루프가 끝난 뒤 적용한다.
-			void* editedOldKey = nullptr;
-			void* editedNewKey = nullptr;
+			// 키 편집은 제자리에서 못 한다 — 키를 바꾸면 해시 자리가 어긋나 그 순간부터 Find 가
+			// 못 찾는다(맵이 조용히 깨진다). 그래서 사본을 편집하고, 편집이 **끝났을 때만**
+			// 삭제+재삽입으로 반영한다. 순회 중에 재삽입하면 커서가 무효가 되므로 루프 뒤로 미룬다.
+			std::size_t renameSlot   = InvalidTableSlot;
+			void*        renamedKey  = nullptr;
+
+			const float rowSpacing = ImGui::GetStyle().ItemSpacing.x;
+
+			// 키/값 폭을 명시적으로 나눈다. 지정하지 않으면 둘 다 주변 item width 를 통째로 받아
+			// 값이 행 밖으로 밀려난다 — 클립된 위젯은 잘려 보이는 데 그치지 않고 클릭도 안 먹는다.
+			// **행 콜백 안에서** 재야 한다. ImList 가 핸들·버튼을 뺀 폭을 거기서 밀어 넣기 때문에,
+			// 바깥에서 재면 실제 행보다 넓은 값이 나온다.
+			const auto splitRowWidth = [rowSpacing](float& outKeyWidth, float& outValueWidth)
+			{
+				const float rowWidth = ImGui::CalcItemWidth();
+				outKeyWidth   = (rowWidth - rowSpacing) * 0.45f;
+				outValueWidth = (rowWidth - rowSpacing) - outKeyWidth;
+			};
+
+			// 맨 아래 예비 입력 행이 들고 있는 키/값.
+			// 프레임을 넘겨 유지해야 편집이 이어지고, **주소가 고정돼야** ImGui 가 편집 상태를
+			// 잃지 않는다(ID 를 편집 대상 주소로 잡기 때문). 그래서 지역 변수가 아니라 여기 둔다.
+			// 해제는 소유 테이블이 바뀔 때만 한다 — 프로그램 종료 시엔 정적 소멸 순서가 얽히므로
+			// 일부러 정리하지 않는다(마지막 한 벌은 프로세스와 함께 사라진다).
+			struct TableDraftEntry
+			{
+				const void*            Owner = nullptr;
+				const ReflectTableOps* Ops   = nullptr;
+				void*                  Key   = nullptr;
+				void*                  Value = nullptr;
+			};
+			static TableDraftEntry draft;
+			if (draft.Owner != field || draft.Ops != ops)
+			{
+				if (nullptr != draft.Ops)
+				{
+					draft.Ops->DestroyKey(draft.Key);
+					draft.Ops->DestroyValue(draft.Value);
+				}
+				draft.Owner = field;
+				draft.Ops   = ops;
+				draft.Key   = ops->CreateKey();
+				draft.Value = ops->CreateValue();
+			}
 
 			bool changed = false;
 			changed |= ImListVirtual("##table", static_cast<int>(slots.size()),
@@ -565,30 +609,26 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 						return false;
 					}
 
-					bool rowChanged = false;
+					float keyWidth   = 0.0f;
+					float valueWidth = 0.0f;
+					splitRowWidth(keyWidth, valueWidth);
 
-					// 키는 사본을 편집한다. 원본을 직접 고치면 해시 자리와 어긋나 그 순간부터
-					// Find 가 못 찾는다(맵이 조용히 깨진다).
 					void* keyCopy = ops->CreateKey();
 					if (nullptr != keyCopy)
 					{
 						ops->AssignKey(keyCopy, key);
-						ImGui::PushID("k");
-						ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.45f);
-						const bool keyEdited = DrawPropertyEditor(keyCopy, keyProperty);
-						ImGui::PopID();
+						ImGui::SetNextItemWidth(keyWidth);
+						// ID 는 사본이 아니라 **슬롯에 있는 실제 키 주소**로 잡는다. 사본은 매 프레임
+						// 새로 할당돼 주소가 달라지므로, 그걸 ID 로 쓰면 편집 상태가 매 프레임 날아간다.
+						DrawPropertyEditor(keyCopy, keyProperty, key);
 
-						if (keyEdited && nullptr == editedOldKey)
+						// 타이핑 중에 반영하면 재삽입이 슬롯을 옮겨 ID(=키 주소)가 바뀌고 편집이 끊긴다.
+						// 확정된 뒤에 한 번만 처리한다. 한 프레임에 한 건이면 충분하다 — 편집은 한 곳에서만 끝난다.
+						if (ImGui::IsItemDeactivatedAfterEdit() && InvalidTableSlot == renameSlot)
 						{
-							// 한 프레임에 한 건만 처리한다 — 여러 건을 모으면 앞선 재삽입이
-							// 뒤 항목의 슬롯을 바꿔 놓는다.
-							editedOldKey = ops->CreateKey();
-							if (nullptr != editedOldKey)
-							{
-								ops->AssignKey(editedOldKey, key);
-								editedNewKey = keyCopy;
-								keyCopy = nullptr;   // 소유권이 넘어갔다
-							}
+							renameSlot = slot;
+							renamedKey = keyCopy;
+							keyCopy    = nullptr;   // 소유권이 넘어갔다
 						}
 						if (nullptr != keyCopy)
 						{
@@ -596,23 +636,12 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 						}
 					}
 
-					ImGui::SameLine();
-					ImGui::PushID("v");
-					rowChanged |= DrawPropertyEditor(value, valueProperty);
-					ImGui::PopID();
-					return rowChanged;
+					ImGui::SameLine(0.0f, rowSpacing);
+					ImGui::SetNextItemWidth(valueWidth);
+					return DrawPropertyEditor(value, valueProperty);
 				},
-				[&]()
-				{
-					// 기본 키로 넣는다. 이미 있으면 아무 일도 일어나지 않는다 — 그 상태에서
-					// 항목을 더 넣으려면 먼저 기존 키를 다른 값으로 바꿔야 한다.
-					void* key = ops->CreateKey();
-					if (nullptr != key)
-					{
-						ops->InsertDefault(field, key);
-						ops->DestroyKey(key);
-					}
-				},
+				// 추가는 아래 예비 입력 행이 맡는다(키를 정해서 넣어야 하므로).
+				[]() {},
 				[&](int index)
 				{
 					const void* key = ops->GetKeyAt(field, slots[static_cast<std::size_t>(index)]);
@@ -624,35 +653,96 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 				// Table 은 순서가 없다 — 재정렬만 막고 추가/삭제/편집은 연다.
 				[](int, int) {},
 				property.IsEditable ? IMLIST_FLAGS_NO_REORDER
-				                    : static_cast<EImListFlags>(IMLIST_FLAGS_READ_ONLY | IMLIST_FLAGS_NO_REORDER));
-
-			if (nullptr != editedOldKey)
-			{
-				// 새 키가 이미 있으면 병합이 되어 다른 항목이 사라진다 — 편집을 버린다.
-				if (false == ops->ContainsKey(field, editedNewKey))
+				                    : static_cast<EImListFlags>(IMLIST_FLAGS_READ_ONLY | IMLIST_FLAGS_NO_REORDER),
+				// 예비 입력 행 — 아직 테이블에 없는 한 벌이다. 그래서 인덱스도 핸들도 없고,
+				// 오른쪽 버튼은 삭제(X)가 아니라 추가(+)다. 키가 이미 있으면 넣을 수 없으므로
+				// 빨간 외곽선으로 알리고 버튼을 막는다(눌러도 아무 일 없는 침묵보다 낫다).
+				[&]() -> bool
 				{
-					const void* existing = ops->FindValue(field, editedOldKey);
-					// 값을 **먼저** 빼낸다. InsertDefault 가 리해시하면 저장소가 통째로 옮겨가
-					// existing 이 가리키던 자리가 무효가 된다.
-					void* staged = (nullptr != existing) ? ops->CreateValue() : nullptr;
-					if (nullptr != staged)
+					if (nullptr == draft.Key || nullptr == draft.Value)
 					{
-						ops->AssignValue(staged, existing);
-						if (ops->InsertDefault(field, editedNewKey))
+						return false;
+					}
+
+					float keyWidth   = 0.0f;
+					float valueWidth = 0.0f;
+					splitRowWidth(keyWidth, valueWidth);
+
+					const bool duplicate = ops->ContainsKey(field, draft.Key);
+
+					// ID 시드는 버퍼가 아니라 **draft 구조체의 멤버 주소**다. draft 는 static 이라
+					// 그 주소가 영원히 고정된다. 반면 draft.Key 가 가리키는 힙 버퍼는 소유 테이블이
+					// 바뀔 때 재생성돼 주소가 달라지므로, 그걸 ID 로 쓰면 편집 상태가 날아간다.
+					ImGui::SetNextItemWidth(keyWidth);
+					{
+						ImGui::Utillity::InvalidFieldScope invalidScope(duplicate);
+						DrawPropertyEditor(draft.Key, keyProperty, &draft.Key);
+					}
+					if (duplicate)
+					{
+						ImGui::Utillity::HoveredToolTip(Loc::Text(EditorLocKeys::InspectorTableDuplicateKey));
+					}
+
+					ImGui::SameLine(0.0f, rowSpacing);
+					ImGui::SetNextItemWidth(valueWidth);
+					DrawPropertyEditor(draft.Value, valueProperty, &draft.Value);
+
+					ImGui::SameLine();
+					bool added = false;
+					{
+						ImGui::Utillity::DisableScope disable(duplicate);
+						if (ImTextButton("\xEF\x81\xA7", ImVec2(0, 0), ImVec2(0, -1))
+							&& ops->InsertDefault(field, draft.Key))
 						{
-							void* moved = ops->FindValue(field, editedNewKey);
-							if (nullptr != moved)
+							// 삽입은 값을 기본값으로 넣는다 — 입력해 둔 값을 그 자리에 덮어쓴다.
+							if (void* inserted = ops->FindValue(field, draft.Key))
 							{
-								ops->AssignValue(moved, staged);
+								ops->AssignValue(inserted, draft.Value);
 							}
-							ops->RemoveKey(field, editedOldKey);
-							changed = true;
+							added = true;
 						}
-						ops->DestroyValue(staged);
+					}
+					return added;
+				});
+
+			if (nullptr != renamedKey)
+			{
+				// 옛 키도 사본이 필요하다 — 아래 InsertDefault 가 리해시하면 슬롯에 있던
+				// 원본 주소가 무효가 되는데, 지우려면 그때까지 값이 남아 있어야 한다.
+				void* oldKey = ops->CreateKey();
+				const void* slotKey = ops->GetKeyAt(field, renameSlot);
+				if (nullptr != oldKey && nullptr != slotKey)
+				{
+					ops->AssignKey(oldKey, slotKey);
+
+					// 새 키가 이미 있으면 병합이 되어 다른 항목이 소리 없이 사라진다 — 편집을 버린다.
+					if (false == ops->ContainsKey(field, renamedKey))
+					{
+						const void* existing = ops->FindValue(field, oldKey);
+						// 값도 **먼저** 빼낸다. 같은 이유로 삽입 뒤엔 existing 이 무효다.
+						void* staged = (nullptr != existing) ? ops->CreateValue() : nullptr;
+						if (nullptr != staged)
+						{
+							ops->AssignValue(staged, existing);
+							if (ops->InsertDefault(field, renamedKey))
+							{
+								void* moved = ops->FindValue(field, renamedKey);
+								if (nullptr != moved)
+								{
+									ops->AssignValue(moved, staged);
+								}
+								ops->RemoveKey(field, oldKey);
+								changed = true;
+							}
+							ops->DestroyValue(staged);
+						}
 					}
 				}
-				ops->DestroyKey(editedOldKey);
-				ops->DestroyKey(editedNewKey);
+				if (nullptr != oldKey)
+				{
+					ops->DestroyKey(oldKey);
+				}
+				ops->DestroyKey(renamedKey);
 			}
 
 			if (property.IsEditable)
@@ -734,7 +824,11 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		}
 
 		std::vector<std::uint8_t> oldValue(property.Size);
-		const bool canSerializedUndo = property.Type == EReflectPropertyType::Array && property.Descriptor;
+		// Array/Table 은 **raw 바이트로 스냅샷을 뜨면 안 된다.** 둘 다 힙 버퍼를 가리키는
+		// 포인터를 품고 있어서, 옛 헤더 바이트를 되돌리면 이미 해제됐거나 남의 것이 된 버퍼를
+		// 다시 가리키게 된다(값이 초기화된 것처럼 보이고, 그 뒤엔 손상이다).
+		// 판정은 라이브 컴파일의 상태 보존과 공유한다 — 둘이 어긋나면 한쪽만 조용히 깨진다.
+		const bool canSerializedUndo = Serialization::IsSerializedContainerProperty(property);
 		const bool canRawUndo = !canSerializedUndo && !(property.Type == EReflectPropertyType::String && property.ElementCount <= 1);
 		const bool canStringUndo = property.Type == EReflectPropertyType::String && property.ElementCount <= 1;
 		const std::string oldString = canStringUndo ? *static_cast<std::string*>(field) : std::string();

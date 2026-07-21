@@ -93,6 +93,22 @@ namespace ImGui
 			bool m_disabled = false;
 		};
 
+		// 값이 유효하지 않은 입력 필드에 빨간 외곽선을 두른다. 범위 안에서 그려지는 프레임 위젯
+		// 전체에 걸리므로 InputText 뿐 아니라 InputScalar/DragFloat 같은 것에도 쓸 수 있다.
+		// invalid 가 false 면 아무것도 하지 않는다(호출부에서 분기하지 않아도 되게).
+		class InvalidFieldScope
+		{
+		public:
+			InvalidFieldScope(bool invalid = true);
+			~InvalidFieldScope();
+
+			InvalidFieldScope(const InvalidFieldScope&) = delete;
+			InvalidFieldScope& operator=(const InvalidFieldScope&) = delete;
+
+		private:
+			bool m_invalid = false;
+		};
+
 		class FormLayout
 		{
 		public:

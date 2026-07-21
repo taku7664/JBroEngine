@@ -1,5 +1,6 @@
 #pragma once
 
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -30,11 +31,24 @@ enum EImListFlags
 //                            원소 인덱스다(슬롯 인덱스가 아니다 — 보정은 코어가 한다).
 //
 // 반환: true 면 추가/삭제/재정렬 또는 행 편집으로 상태가 변했음.
-template <typename TDrawRowFunc, typename TAddFunc, typename TRemoveFunc, typename TMoveFunc>
+//
+// drawAddRow 를 넘기면 목록 맨 아래의 "원소 추가" 자리를 그것이 대신 그린다(반환 true = 상태 변경).
+// 그 자리에 그냥 버튼 하나가 아니라 **입력 행**을 두어야 하는 경우를 위한 것이다 — 예를 들어
+// Table 은 새 원소에 키가 있어야 하는데, 키는 중복될 수 있어 넣어 보기 전에 사용자가 정해야 한다.
+// 콜백은 일반 행과 같은 들여쓰기·폭 안에서 호출되므로 위아래 행과 자연히 정렬된다.
+// 넘기지 않으면 종전대로 "원소 추가" 항목이 그려지고 addElement 가 불린다.
+struct ImListNoAddRow {};
+
+template <typename TDrawRowFunc, typename TAddFunc, typename TRemoveFunc, typename TMoveFunc,
+    typename TDrawAddRowFunc = ImListNoAddRow>
 bool ImListVirtual(const char* id, int count,
     TDrawRowFunc&& drawRow, TAddFunc&& addElement, TRemoveFunc&& removeElement, TMoveFunc&& moveElement,
-    EImListFlags flags = IMLIST_FLAGS_NONE)
+    EImListFlags flags = IMLIST_FLAGS_NONE,
+    TDrawAddRowFunc&& drawAddRow = ImListNoAddRow{})
 {
+    constexpr bool hasCustomAddRow =
+        false == std::is_same_v<std::decay_t<TDrawAddRowFunc>, ImListNoAddRow>;
+
     ImGuiStyle& style = ImGui::GetStyle();
 
     const bool readOnly = (0 != (flags & IMLIST_FLAGS_READ_ONLY));
@@ -53,6 +67,8 @@ bool ImListVirtual(const char* id, int count,
     const ImGuiChildFlags childFlags = ImGuiChildFlags_Borders | ImGuiChildFlags_AutoResizeY;
     ImGui::BeginChild("##list_body", ImVec2(0.0f, 0.0f), childFlags);
 
+    // 좌측 드래그 핸들 글리프. 추가 행도 같은 폭만큼 들여써야 위 행들과 세로로 맞는다.
+    constexpr const char* ROW_HANDLE_GLYPH = "\xEF\x83\x89";
     constexpr float ROW_HANDLE_W = 14.0f;
     constexpr float ROW_REMOVE_W = 22.0f;
     constexpr float SLOT_HEIGHT = 3.0f;
@@ -109,7 +125,7 @@ bool ImListVirtual(const char* id, int count,
 
         // 좌측 핸들 — 드래그 소스. 핸들만 잡아야 콘텐츠의 일반 InputText 와
         // 충돌하지 않는다. 행 높이는 콘텐츠(프레임)와 동일하게 — 컴팩트.
-        const char* selectableLabel = "\xEF\x83\x89";
+        const char* selectableLabel = ROW_HANDLE_GLYPH;
         ImVec2 bodySize = ImVec2(availSpace.x, frameHeight);
         ImGui::Selectable("##row_body", false, ImGuiSelectableFlags_AllowOverlap, bodySize);
         if (reorderable)
@@ -194,10 +210,25 @@ bool ImListVirtual(const char* id, int count,
 
     if (false == readOnly)
     {
-        if (ImGui::Selectable(Loc::Text(ImItemLocKeys::ListAddElement), false, ImGuiSelectableFlags_None))
+        if constexpr (hasCustomAddRow)
         {
-            addElement();
-            changed = true;
+            // 일반 행과 같은 자리에 오도록 핸들 폭만큼 들여쓰고, 콘텐츠 폭도 동일하게 밀어 넣는다.
+            // 오른쪽 버튼 자리(ROW_REMOVE_W)를 빼 두었으므로 호출부가 SameLine 으로 그리면 맞춰진다.
+            const float addAvailW   = ImGui::GetContentRegionAvail().x;
+            const float addContentW = addAvailW - ROW_HANDLE_W - ROW_REMOVE_W - 8.0f;
+            ImGui::Dummy(ImVec2(ImGui::CalcTextSize(ROW_HANDLE_GLYPH).x, 0.0f));
+            ImGui::SameLine();
+            ImGui::PushItemWidth(addContentW);
+            changed |= drawAddRow();
+            ImGui::PopItemWidth();
+        }
+        else
+        {
+            if (ImGui::Selectable(Loc::Text(ImItemLocKeys::ListAddElement), false, ImGuiSelectableFlags_None))
+            {
+                addElement();
+                changed = true;
+            }
         }
     }
     ImGui::EndChild();

@@ -390,6 +390,7 @@ namespace EditorLocKeys
 	constexpr const char* InspectorText2dOpenFontSettings = "inspector.text2d.open_font_settings";
 	constexpr const char* InspectorUnknownScript = "inspector.unknown_script";
 	constexpr const char* InspectorUnsupported = "inspector.unsupported";
+	constexpr const char* InspectorTableDuplicateKey = "inspector.table_duplicate_key";
 	constexpr const char* InspectorViewportActive = "inspector.viewport.active";
 	constexpr const char* InspectorViewportCamera = "inspector.viewport.camera";
 	constexpr const char* InspectorViewportCameraAuto = "inspector.viewport.camera_auto";

@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "ImText.h"
+#include "Editor/ImGuiUtillity.h"
 #include <algorithm>
 
 ImText::ImText()
@@ -135,12 +136,7 @@ const char* ImInputText::GetBuffer() const
 
 bool ImInputText::operator()(ImGuiInputTextFlags flags, bool invalid)
 {
-    if (invalid)
-    {
-        const ImVec4 red(0.85f, 0.20f, 0.20f, 1.0f);
-        ImGui::PushStyleColor(ImGuiCol_Border, red);
-        ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.5f);
-    }
+    ImGui::Utillity::InvalidFieldScope invalidScope(invalid);
     ImGui::PushID(this);
     // 원본 값 동기화 — 편집 중이 아닐 때만 버퍼를 갱신한다. InputText 가 쓸 ID 를 미리 구해
     // 활성 여부를 본다(PushID 이후라 같은 ID 스택 → 동일 ID).
@@ -156,11 +152,6 @@ bool ImInputText::operator()(ImGuiInputTextFlags flags, bool invalid)
     if (m_maxLength != ULLONG_MAX && m_buffer.size() > m_maxLength)
     {
         m_buffer.resize(m_maxLength);
-    }
-    if (invalid)
-    {
-        ImGui::PopStyleVar();
-        ImGui::PopStyleColor();
     }
     ImGui::PopID();
     return changed;
