@@ -470,7 +470,7 @@ OwnerPtr<IRHIProgram> CD3D11RHIDevice::CreateProgram(const RHIProgramDesc& desc)
 	ID3DBlob* bytecode = nullptr;
 	ID3DBlob* errors = nullptr;
 	UINT flags = D3DCOMPILE_ENABLE_STRICTNESS;
-#if defined(_DEBUG)
+#if defined(JBRO_DEBUG)
 	flags |= D3DCOMPILE_DEBUG;
 #endif
 	HRESULT result = D3DCompile(desc.Source, std::strlen(desc.Source), nullptr, nullptr, nullptr, desc.EntryPoint, GetShaderProfile(desc.Stage), flags, 0, &bytecode, &errors);

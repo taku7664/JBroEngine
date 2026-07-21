@@ -539,7 +539,7 @@ bool CEngine::InitializeRHI()
 	desc.Api = ERHIApi::None;
 #endif
 	FillRenderSurfaceDesc(desc);
-#if defined(_DEBUG)
+#if defined(JBRO_DEBUG)
 	desc.EnableDebugLayer = true;
 #endif
 	if (!m_rhiDevice || false == m_rhiDevice->Initialize(desc))
