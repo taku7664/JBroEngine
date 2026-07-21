@@ -490,7 +490,10 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 					ops->Move(field,
 						static_cast<std::size_t>(fromIndex), static_cast<std::size_t>(toIndex));
 				},
-				property.IsEditable ? IMLIST_FLAGS_NONE : IMLIST_FLAGS_READ_ONLY);
+				// Array 는 순서가 곧 의미라 행 번호를 보여 준다(Table 은 순서가 없어 켜지 않는다).
+				property.IsEditable
+					? IMLIST_FLAGS_SHOW_INDEX
+					: static_cast<EImListFlags>(IMLIST_FLAGS_READ_ONLY | IMLIST_FLAGS_SHOW_INDEX));
 
 			// 비우기는 ImList 에 없는 동작이라 목록 **아래 우측**에 따로 둔다.
 			// (목록 위에 두면 프로퍼티 이름 옆에 붙어 라벨과 섞여 읽기 나쁘다.)

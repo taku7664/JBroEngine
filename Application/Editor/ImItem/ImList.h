@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdio>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -17,6 +18,10 @@ enum EImListFlags
     // 추가/삭제/편집은 되되 **드래그 재정렬만** 막는다. 저장소에 순서 개념이 없는
     // 컨테이너(Table 등)용 — READ_ONLY 로는 편집까지 같이 막혀서 대신 쓸 수 없다.
     IMLIST_FLAGS_NO_REORDER = 1 << 1,
+    // 핸들 옆에 [0] [1] … 행 번호를 표시한다. 순서가 의미를 갖는 목록(Array)용이다.
+    // 기본으로 켜지 않는 이유: Table 처럼 순서가 없는 목록에선 번호가 거짓 정보가 되고,
+    // 스키마 편집처럼 가로가 빠듯한 목록에선 콘텐츠 폭만 깎아 먹는다.
+    IMLIST_FLAGS_SHOW_INDEX = 1 << 2,
 };
 
 // ── ListVirtual (코어) ───────────────────────────────────────────────
@@ -54,6 +59,17 @@ bool ImListVirtual(const char* id, int count,
     const bool readOnly = (0 != (flags & IMLIST_FLAGS_READ_ONLY));
     // 읽기 전용이면 당연히 재정렬도 안 되고, NO_REORDER 면 편집만 열어 둔다.
     const bool reorderable = (false == readOnly) && (0 == (flags & IMLIST_FLAGS_NO_REORDER));
+
+    // 행 번호 칸의 폭. 자릿수가 늘어도 콘텐츠 시작이 흔들리지 않도록 **가장 긴 번호**
+    // 기준으로 한 번 재서 모든 행에 같은 폭을 쓴다(행마다 재면 9→10 에서 칸이 튄다).
+    const bool showIndex = (0 != (flags & IMLIST_FLAGS_SHOW_INDEX));
+    float indexWidth = 0.0f;
+    if (showIndex)
+    {
+        char widestIndex[16] = {};
+        std::snprintf(widestIndex, sizeof(widestIndex), "[%d]", count > 0 ? count - 1 : 0);
+        indexWidth = ImGui::CalcTextSize(widestIndex).x + style.ItemSpacing.x;
+    }
 
     bool changed = false;
     ImGui::PushID(id);
@@ -120,7 +136,7 @@ bool ImListVirtual(const char* id, int count,
         const ImVec2    availSpace = ImGui::GetContentRegionAvail();
         const float     frameHeight = ImGui::GetFrameHeight();
         const float		rowAvailW = ImGui::GetContentRegionAvail().x;
-        const float		contentW = rowAvailW - ROW_HANDLE_W - ROW_REMOVE_W - 8.0f;
+        const float		contentW = rowAvailW - ROW_HANDLE_W - ROW_REMOVE_W - indexWidth - 8.0f;
         const ImVec2    bodyStartCursor = ImGui::GetCursorPos();
 
         // 좌측 핸들 — 드래그 소스. 핸들만 잡아야 콘텐츠의 일반 InputText 와
@@ -152,6 +168,20 @@ bool ImListVirtual(const char* id, int count,
         ImGui::AlignTextToFramePadding();
         ImGui::TextUnformatted(selectableLabel);
         ImGui::SameLine();
+
+        if (showIndex)
+        {
+            // ⚠ 여기서 AlignTextToFramePadding 을 **다시 부르거나** 커서 Y 를 만지면 안 된다.
+            //   그 함수는 커서를 옮기는 게 아니라 이 줄의 TextBaseOffset 을 세우는 것이고,
+            //   핸들을 그릴 때 이미 세워졌다. 같은 줄에서 Y 를 건드리면 그 정렬과 충돌해
+            //   숫자만 아래로 밀린다(예전에 그렇게 어긋났다). X 만 조정한다.
+            char indexText[16] = {};
+            std::snprintf(indexText, sizeof(indexText), "[%d]", i);
+            const float indexStartX = ImGui::GetCursorPosX();
+            ImGui::TextDisabled("%s", indexText);
+            ImGui::SameLine(0.0f, 0.0f);
+            ImGui::SetCursorPosX(indexStartX + indexWidth);
+        }
 
         // 컨텐츠 영역
         ImGui::BeginGroup();
