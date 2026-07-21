@@ -179,7 +179,8 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_WINDOW;JBRO_PLATFORM_WINDOWS;JBRO_EDITOR;_DEBUG;_LIB;YAML_CPP_STATIC_DEFINE;JBRO_HAS_MINIAUDIO=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_WINDOW;JBRO_PLATFORM_WINDOWS;JBRO_EDITOR;JBRO_DEBUG;_ITERATOR_DEBUG_LEVEL=0;_LIB;YAML_CPP_STATIC_DEFINE;JBRO_HAS_MINIAUDIO=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
@@ -197,7 +198,8 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_WINDOW;JBRO_PLATFORM_WINDOWS;JBRO_GAME;_DEBUG;_LIB;YAML_CPP_STATIC_DEFINE;JBRO_HAS_MINIAUDIO=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_WINDOW;JBRO_PLATFORM_WINDOWS;JBRO_GAME;JBRO_DEBUG;_ITERATOR_DEBUG_LEVEL=0;_LIB;YAML_CPP_STATIC_DEFINE;JBRO_HAS_MINIAUDIO=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
@@ -255,7 +257,8 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_WINDOW;JBRO_PLATFORM_WINDOWS;JBRO_EDITOR;_DEBUG;_LIB;YAML_CPP_STATIC_DEFINE;JBRO_HAS_MINIAUDIO=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_WINDOW;JBRO_PLATFORM_WINDOWS;JBRO_EDITOR;JBRO_DEBUG;_ITERATOR_DEBUG_LEVEL=0;_LIB;YAML_CPP_STATIC_DEFINE;JBRO_HAS_MINIAUDIO=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
@@ -273,7 +276,8 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_WINDOW;JBRO_PLATFORM_WINDOWS;JBRO_GAME;_DEBUG;_LIB;YAML_CPP_STATIC_DEFINE;JBRO_HAS_MINIAUDIO=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_WINDOW;JBRO_PLATFORM_WINDOWS;JBRO_GAME;JBRO_DEBUG;_ITERATOR_DEBUG_LEVEL=0;_LIB;YAML_CPP_STATIC_DEFINE;JBRO_HAS_MINIAUDIO=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>

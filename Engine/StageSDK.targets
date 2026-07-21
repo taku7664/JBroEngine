@@ -105,23 +105,19 @@
           SkipUnchangedFiles="true" />
 
     <!-- yaml-cpp prebuilt lib -> SDK/Lib/{Debug|Release}/
-         Engine.lib 가 yaml-cpp 심볼을 외부로 남기므로 게임 DLL 도 함께 링크해야 한다. -->
-    <Copy SourceFiles="$(_EngineDir)ThirdParty\lib\yaml-cppd.lib"
-          DestinationFolder="$(_SDKLib)Debug\"
-          SkipUnchangedFiles="true"
-          Condition="'$(_SDKLibConfig)'=='Debug'" />
-    <Copy SourceFiles="$(_EngineDir)ThirdParty\lib\yaml-cppd.pdb"
-          DestinationFolder="$(_SDKLib)Debug\"
-          SkipUnchangedFiles="true"
-          Condition="'$(_SDKLibConfig)'=='Debug' And Exists('$(_EngineDir)ThirdParty\lib\yaml-cppd.pdb')" />
+         Engine.lib 가 yaml-cpp 심볼을 외부로 남기므로 게임 DLL 도 함께 링크해야 한다.
+
+         구성과 무관하게 **릴리즈 CRT(/MD)로 빌드된 yaml-cpp.lib 하나만** 스테이징한다.
+         호스트와 스크립트 DLL 의 CRT 를 통일했기 때문이다(Debug 구성도 /MD + IDL=0).
+         디버그 CRT 로 빌드된 yaml-cppd.lib 을 섞으면 링커가
+         "_ITERATOR_DEBUG_LEVEL 불일치 '2' vs '0'" 으로 거부한다. -->
     <Copy SourceFiles="$(_EngineDir)ThirdParty\lib\yaml-cpp.lib"
-          DestinationFolder="$(_SDKLib)Release\"
-          SkipUnchangedFiles="true"
-          Condition="'$(_SDKLibConfig)'=='Release'" />
+          DestinationFolder="$(_SDKLib)$(_SDKLibConfig)\"
+          SkipUnchangedFiles="true" />
     <Copy SourceFiles="$(_EngineDir)ThirdParty\lib\yaml-cpp.pdb"
-          DestinationFolder="$(_SDKLib)Release\"
+          DestinationFolder="$(_SDKLib)$(_SDKLibConfig)\"
           SkipUnchangedFiles="true"
-          Condition="'$(_SDKLibConfig)'=='Release' And Exists('$(_EngineDir)ThirdParty\lib\yaml-cpp.pdb')" />
+          Condition="Exists('$(_EngineDir)ThirdParty\lib\yaml-cpp.pdb')" />
 
     <Message Text="[SDK Stage] $(Configuration) -> SDK\Include\ + SDK\Lib\$(_SDKLibConfig)\Engine.lib + yaml-cpp"
              Importance="high" />

@@ -123,7 +123,10 @@ struct MiniAudioBackendState
 		ShuttingDown = true;
 		ma_engine_stop(&Engine);
 
-#if defined(_DEBUG)
+// CRT 의 _DEBUG 가 아니라 엔진 자체 매크로를 쓴다. 호스트와 스크립트 DLL 의 CRT 를 통일하려고
+// 모든 구성이 릴리즈 CRT(/MD)를 쓰는데, _DEBUG 를 정의하면 CRT 헤더가 _calloc_dbg /
+// _CrtDbgReport 같은 디버그 전용 심볼을 요구해 링크가 깨진다.
+#if defined(JBRO_DEBUG)
 		const std::size_t players = CountChildren(EMiniAudioBackendChildKind::Player);
 		const std::size_t effects = CountChildren(EMiniAudioBackendChildKind::Effect);
 		const std::size_t customBuses = CountChildren(EMiniAudioBackendChildKind::CustomBus);
