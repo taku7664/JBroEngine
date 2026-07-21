@@ -45,4 +45,12 @@ namespace Serialization
 
 	std::string SerializeReflectedPropertyValue(const void* field, const ReflectPropertyInfo& property);
 	bool DeserializeReflectedPropertyValue(void* field, const ReflectPropertyInfo& property, const char* text);
+
+	// 이 프로퍼티를 raw 바이트로 복사해도 되는가, 아니면 위 두 함수로 오가야 하는가.
+	//
+	// Array/Table 은 힙 버퍼를 가리키는 포인터를 품는다. 바이트를 그대로 뜨면 사본이 같은 버퍼를
+	// 가리키게 되고, 어느 한쪽이 먼저 소멸하는 순간 다른 쪽은 해제된 메모리를 들고 있게 된다.
+	// 인스펙터 undo 스냅샷과 라이브 컴파일 상태 보존이 둘 다 이 판정을 필요로 하므로, 둘이
+	// 어긋나지 않도록 여기 한 곳에 둔다 — 컨테이너 타입을 새로 추가하면 이 함수만 고치면 된다.
+	bool IsSerializedContainerProperty(const ReflectPropertyInfo& property);
 }

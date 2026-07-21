@@ -9,6 +9,7 @@
 #include "GameFramework/Canvas/Canvas.h"
 #include "GameFramework/Canvas/CanvasManager.h"
 #include "GameFramework/Canvas/CanvasRuntimeAccess.h"
+#include "GameFramework/Serialization/ComponentSerializer.h"
 #include "Editor/LiveCompile/CompilePipeline.h"
 #include "Editor/LiveCompile/Windows/WindowsDynamicLibrary.h"
 #include "Core/Logging/LoggerInternal.h"
@@ -562,9 +563,18 @@ void CLiveCompileManager::TakeScriptSnapshot()
 			{
 				field.Text = *static_cast<const std::string*>(src);
 			}
+			else if (Serialization::IsSerializedContainerProperty(prop))
+			{
+				// Array/Table 은 힙 버퍼를 가리키는 포인터를 품고 있다. raw bytes 로 떠 두면
+				// 복원 때 **이미 파괴된 이전 인스턴스의 포인터**가 새 인스턴스에 그대로 박히고,
+				// 새 인스턴스가 소멸할 때 해제된 메모리를 다시 free 해서 힙이 깨진다.
+				// 인스펙터 undo 가 같은 이유로 직렬화 문자열을 쓴다 — 여기도 같은 수단을 쓴다.
+				field.Text = Serialization::SerializeReflectedPropertyValue(src, prop);
+			}
 			else
 			{
-				// trivially-copyable 타입(bool/int/uint/float/Vector2)만 raw bytes 로 보존.
+				// 여기 오는 것은 trivially-copyable 이어야 한다(bool/int/uint/float/Vector2 등).
+				// 포인터를 품는 타입을 새로 추가하면 위 분기에 반드시 함께 넣을 것.
 				field.Data.resize(prop.Size);
 				std::memcpy(field.Data.data(), src, prop.Size);
 			}
@@ -623,6 +633,11 @@ void CLiveCompileManager::RestoreScriptSnapshot()
 				if (EReflectPropertyType::AssetGuid == prop.Type) *static_cast<File::Guid*>(field) = File::Guid(value.Text);
 				else if (EReflectPropertyType::Ref == prop.Type) static_cast<RefBase*>(field)->SetGuidText(value.Text.c_str());
 				else if (EReflectPropertyType::String == prop.Type) *static_cast<std::string*>(field) = value.Text;
+				else if (Serialization::IsSerializedContainerProperty(prop))
+				{
+					// 저장 때와 대칭 — raw memcpy 로 되돌리면 해제된 버퍼를 가리키게 된다.
+					Serialization::DeserializeReflectedPropertyValue(field, prop, value.Text.c_str());
+				}
 				else if (value.Data.size() == prop.Size) std::memcpy(field, value.Data.data(), prop.Size);
 				break;
 			}

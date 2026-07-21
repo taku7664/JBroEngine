@@ -1516,4 +1516,14 @@ bool DeserializeReflectedPropertyValue(void* field, const ReflectPropertyInfo& p
 	return ReadValueByDescriptor(node, field, *property.Descriptor);
 }
 
+bool IsSerializedContainerProperty(const ReflectPropertyInfo& property)
+{
+	if (nullptr == property.Descriptor)
+	{
+		return false;
+	}
+	return EReflectPropertyType::Array == property.Type
+		|| EReflectPropertyType::Table == property.Type;
+}
+
 } // namespace Serialization
