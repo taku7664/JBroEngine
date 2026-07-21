@@ -148,6 +148,58 @@ public:
 		return m_data[m_size - 1];
 	}
 
+	// ── 선형 검색 ─────────────────────────────────────────────────────────────
+	// 정렬을 가정하지 않으므로 전부 O(n) 이다. 키로 자주 찾아야 하면 Table 을 쓸 것.
+	// 비교는 U 를 그대로 받는다 — T 로 변환하지 않으므로 임시 객체가 생기지 않는다.
+	static constexpr SizeType InvalidIndex = static_cast<SizeType>(-1);
+
+	template<typename U>
+	SizeType IndexOf(const U& value) const
+	{
+		for (SizeType index = 0; index < m_size; ++index)
+		{
+			if (m_data[index] == value)
+			{
+				return index;
+			}
+		}
+		return InvalidIndex;
+	}
+
+	template<typename U>
+	bool Contains(const U& value) const
+	{
+		return InvalidIndex != IndexOf(value);
+	}
+
+	template<typename Predicate>
+	SizeType IndexOfBy(Predicate&& predicate) const
+	{
+		for (SizeType index = 0; index < m_size; ++index)
+		{
+			if (predicate(m_data[index]))
+			{
+				return index;
+			}
+		}
+		return InvalidIndex;
+	}
+
+	// 찾은 원소의 주소(없으면 nullptr). 인덱스와 달리 바로 역참조할 수 있다.
+	template<typename Predicate>
+	T* FindBy(Predicate&& predicate)
+	{
+		const SizeType index = IndexOfBy(std::forward<Predicate>(predicate));
+		return InvalidIndex == index ? nullptr : m_data + index;
+	}
+
+	template<typename Predicate>
+	const T* FindBy(Predicate&& predicate) const
+	{
+		const SizeType index = IndexOfBy(std::forward<Predicate>(predicate));
+		return InvalidIndex == index ? nullptr : m_data + index;
+	}
+
 	Iterator begin() noexcept
 	{
 		return m_data;

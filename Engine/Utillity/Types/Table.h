@@ -278,6 +278,66 @@ public:
 		return index == m_capacity ? nullptr : &EntryAt(index).MappedValue;
 	}
 
+	// 키에 해당하는 값을 준다. **없으면 기본값으로 만들어 넣고** 그 참조를 준다
+	// (std::unordered_map::operator[] 와 같은 계약). 없는 키를 읽기만 할 생각이면
+	// Find 를 쓸 것 — 이쪽은 조회만 해도 원소가 늘어난다.
+	//
+	// 탐색은 한 번만 한다. Find 로 확인하고 없으면 InsertOrAssign 을 부르면 같은 키를
+	// 두 번 훑게 되므로, TryAdd/InsertOrAssign 과 같은 자리(FindInsertIndex)를 직접 쓴다.
+	template<typename KeyArg>
+	Value& FindOrAdd(KeyArg&& key)
+	{
+		static_assert(std::is_default_constructible_v<Value>);
+
+		EnsureInsertCapacity();
+		const std::size_t hash = m_hasher(key);
+		const FindResult result = FindInsertIndex(key, hash);
+		if (result.Found)
+		{
+			return EntryAt(result.Index).MappedValue;
+		}
+
+		const bool reusedDeleted = DeletedControl == m_controls[result.Index];
+		std::construct_at(
+			EntryPointer(result.Index),
+			Entry{ std::forward<KeyArg>(key), Value{} });
+		m_controls[result.Index] = HashFragment(hash);
+		++m_size;
+		if (reusedDeleted)
+		{
+			--m_deleted;
+		}
+		return EntryAt(result.Index).MappedValue;
+	}
+
+	Value& operator[](const Key& key)
+	{
+		return FindOrAdd(key);
+	}
+
+	Value& operator[](Key&& key)
+	{
+		return FindOrAdd(std::move(key));
+	}
+
+	// 이미 있는 키를 전제로 값을 준다. 없으면 프로그래밍 오류다(assert).
+	// operator[] 와 달리 원소를 만들지 않으므로 const 객체에도 쓸 수 있다.
+	template<typename LookupKey>
+	Value& At(const LookupKey& key)
+	{
+		Value* found = Find(key);
+		assert(nullptr != found);
+		return *found;
+	}
+
+	template<typename LookupKey>
+	const Value& At(const LookupKey& key) const
+	{
+		const Value* found = Find(key);
+		assert(nullptr != found);
+		return *found;
+	}
+
 	template<typename LookupKey>
 	bool Contains(const LookupKey& key) const
 	{

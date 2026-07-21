@@ -210,6 +210,57 @@ namespace
 		return values.Size() == copy.Size() && nullptr != copy.Find(1499);
 	}
 
+	bool TestContainerLookupApi()
+	{
+		Array<int> values{ 10, 20, 30, 20 };
+		if (1 != values.IndexOf(20) || false == values.Contains(30) || values.Contains(99))
+		{
+			return false;
+		}
+		if (Array<int>::InvalidIndex != values.IndexOf(99))
+		{
+			return false;
+		}
+		if (2 != values.IndexOfBy([](int v) { return v > 25; }))
+		{
+			return false;
+		}
+		const int* found = values.FindBy([](int v) { return v > 25; });
+		if (nullptr == found || 30 != *found)
+		{
+			return false;
+		}
+		if (nullptr != values.FindBy([](int v) { return v < 0; }))
+		{
+			return false;
+		}
+
+		// operator[] 는 없는 키를 **만들어 넣는다**. 있으면 그대로 준다.
+		Table<int, int> scores;
+		scores[7] = 42;
+		if (1 != scores.Size() || 42 != scores[7] || 1 != scores.Size())
+		{
+			return false;
+		}
+		scores[7] += 8;
+		if (50 != scores.At(7) || 1 != scores.Size())
+		{
+			return false;
+		}
+
+		// 조회만 해도 늘어나는 계약을 확인한다(오해하기 쉬운 지점이라 못 박아 둔다).
+		(void)scores[99];
+		if (2 != scores.Size() || 0 != scores.At(99))
+		{
+			return false;
+		}
+
+		// FindOrAdd 는 삭제된 슬롯을 재사용해도 크기 회계가 맞아야 한다.
+		scores.Remove(7);
+		scores.FindOrAdd(7) = 1;
+		return 2 == scores.Size() && 1 == scores.At(7);
+	}
+
 	bool TestArrayReflectionOps()
 	{
 		const ReflectTypeDesc& arrayDescriptor =
@@ -346,6 +397,44 @@ namespace
 		return 0 == ops.GetSize(&values) && InvalidTableSlot == ops.BeginSlot(&values);
 	}
 
+	// 리플렉션에 노출하지 않는(JPROP 없는) 컨테이너 중첩. 프로퍼티로 못 쓰는 것과 별개로
+	// **순수 C++ 타입으로는 정상이어야 한다** — 스크립트가 내부 상태로 들고 쓰는 경우다.
+	bool TestNestedContainerWithoutReflection()
+	{
+		Table<int, Array<float>> buckets;
+		for (int key = 0; key < 32; ++key)
+		{
+			Array<float> values;
+			for (int i = 0; i <= key; ++i)
+			{
+				values.Emplace(static_cast<float>(i));
+			}
+			if (false == buckets.TryAdd(key, std::move(values)))
+			{
+				return false;
+			}
+		}
+
+		// 리해시를 넘긴 뒤에도 안쪽 Array 가 살아 있어야 한다(이동이 얕게 되면 여기서 깨진다).
+		for (int key = 0; key < 32; ++key)
+		{
+			const Array<float>* values = buckets.Find(key);
+			if (nullptr == values || values->Size() != static_cast<std::size_t>(key + 1))
+			{
+				return false;
+			}
+			if (static_cast<float>(key) != (*values)[static_cast<std::size_t>(key)])
+			{
+				return false;
+			}
+		}
+
+		Table<int, Array<float>> copy(buckets);
+		buckets.Clear();
+		const Array<float>* survived = copy.Find(31);
+		return 0 == buckets.Size() && nullptr != survived && 32 == survived->Size();
+	}
+
 	bool TestObjectPoolDenseIndex()
 	{
 		TObjectPool<PoolProbe> pool;
@@ -432,6 +521,12 @@ int main()
 		return 3;
 	}
 
+	if (false == TestContainerLookupApi())
+	{
+		std::cerr << "Container lookup API smoke test failed.\n";
+		return 8;
+	}
+
 	if (false == TestArrayReflectionOps())
 	{
 		std::cerr << "Array reflection ops smoke test failed.\n";
@@ -442,6 +537,12 @@ int main()
 	{
 		std::cerr << "Table reflection ops smoke test failed.\n";
 		return 6;
+	}
+
+	if (false == TestNestedContainerWithoutReflection())
+	{
+		std::cerr << "Nested container smoke test failed.\n";
+		return 7;
 	}
 
 	if (false == TestObjectPoolDenseIndex())
