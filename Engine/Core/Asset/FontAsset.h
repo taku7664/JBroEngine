@@ -68,6 +68,12 @@ public:
 	EAssetLoadState GetLoadState() const override;
 	const AssetMetaData& GetMetaData() const override;
 	const FontFamilyData& GetData() const;
+	std::uint32_t GetGeneration() const;
+
+	// 재임포트 in-place 갱신 — 같은 객체에 새 데이터를 덮어쓰고 generation 을 올린다.
+	// (CFontFaceAsset::ReplaceBytes 와 같은 모델. 외부 AssetRef 가 살아남고, 소비자는
+	//  generation 비교로 무효화를 감지한다 — 패밀리는 폴백 목록이 바뀌어도 guid 가 그대로라
+	//  이 값이 없으면 텍스트가 옛 face 로 계속 렌더된다.)
 	void SetData(FontFamilyData data);
 	AssetGuid ResolveFace(EFontStyle style, bool& usedRegularFallback) const;
 
@@ -79,6 +85,7 @@ public:
 private:
 	AssetMetaData m_metaData;
 	FontFamilyData m_data;
+	std::uint32_t m_generation = 1;
 	EAssetLoadState m_loadState = EAssetLoadState::Loaded;
 };
 

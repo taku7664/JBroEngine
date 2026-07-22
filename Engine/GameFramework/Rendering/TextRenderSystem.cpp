@@ -197,42 +197,47 @@ AssetGuid CTextRenderSystem::GetEffectiveFamily(const Text2D& text) const
 }
 
 bool CTextRenderSystem::AppendFamilyFaces(const AssetGuid& familyGuid, EFontStyle style,
-	std::vector<AssetGuid>& outFaces, std::vector<AssetGuid>& visited)
+	std::vector<AssetGuid>& outFaces, std::vector<AssetGuid>& visited, std::size_t& generationHash)
 {
 	if (familyGuid.IsNull() || nullptr == m_assetManager || std::find(visited.begin(), visited.end(), familyGuid) != visited.end()) return false;
 	visited.push_back(familyGuid);
 	AssetRef<IAsset> asset = m_assetManager->LoadAsset(familyGuid);
 	if (false == asset.IsValid() || EAssetType::FontFamily != asset->GetAssetType()) return false;
 	const CFontFamilyAsset& family = *static_cast<CFontFamilyAsset*>(asset.Get());
+	// 체인에 참여한 패밀리의 generation 을 전부 섞는다. 폴백 목록만 바뀌어도 guid 는 그대로라
+	// 텍스트 시그니처가 안 움직이므로, 재구축 판정은 이 해시가 맡는다.
+	HashCombine(generationHash, static_cast<std::size_t>(family.GetGeneration()));
 	bool regularFallback = false;
 	const AssetGuid faceGuid = family.ResolveFace(style, regularFallback);
 	if (false == faceGuid.IsNull() && std::find(outFaces.begin(), outFaces.end(), faceGuid) == outFaces.end()) outFaces.push_back(faceGuid);
-	for (const AssetGuid& fallback : family.GetData().FallbackFamilies) AppendFamilyFaces(fallback, style, outFaces, visited);
+	for (const AssetGuid& fallback : family.GetData().FallbackFamilies) AppendFamilyFaces(fallback, style, outFaces, visited, generationHash);
 	if (family.GetData().UseProjectFallbacks)
 	{
-		for (const AssetGuid& fallback : m_projectFallbacks) AppendFamilyFaces(fallback, style, outFaces, visited);
+		for (const AssetGuid& fallback : m_projectFallbacks) AppendFamilyFaces(fallback, style, outFaces, visited, generationHash);
 	}
 	return false == outFaces.empty();
 }
 
 bool CTextRenderSystem::ResolveFamilyFaces(const AssetGuid& family, EFontStyle style,
-	std::vector<AssetGuid>& outFaces)
+	std::vector<AssetGuid>& outFaces, std::size_t& outGenerationHash)
 {
 	// visited 는 멤버 작업 버퍼를 재사용한다. AppendFamilyFaces 는 자기 자신만 재귀하고
 	// ResolveFamilyFaces 를 다시 부르지 않으므로 중첩 사용이 없다(순차 호출뿐).
 	outFaces.clear();
 	m_faceVisitedScratch.clear();
-	return AppendFamilyFaces(family, style, outFaces, m_faceVisitedScratch);
+	outGenerationHash = 0;
+	return AppendFamilyFaces(family, style, outFaces, m_faceVisitedScratch, outGenerationHash);
 }
 
-const std::vector<AssetGuid>* CTextRenderSystem::AcquireResolvedFaces(const AssetGuid& family, EFontStyle style)
+const CTextRenderSystem::ResolvedFamily* CTextRenderSystem::AcquireResolvedFaces(
+	const AssetGuid& family, EFontStyle style)
 {
 	for (std::size_t index = 0; index < m_familyResolveCount; ++index)
 	{
 		const ResolvedFamily& cached = m_familyResolveMemo[index];
 		if (cached.Family == family && cached.Style == style)
 		{
-			return cached.Resolved ? &cached.Faces : nullptr;
+			return cached.Resolved ? &cached : nullptr;
 		}
 	}
 
@@ -244,8 +249,8 @@ const std::vector<AssetGuid>* CTextRenderSystem::AcquireResolvedFaces(const Asse
 	++m_familyResolveCount;
 	entry.Family = family;
 	entry.Style = style;
-	entry.Resolved = ResolveFamilyFaces(family, style, entry.Faces);
-	return entry.Resolved ? &entry.Faces : nullptr;
+	entry.Resolved = ResolveFamilyFaces(family, style, entry.Faces, entry.GenerationHash);
+	return entry.Resolved ? &entry : nullptr;
 }
 
 bool CTextRenderSystem::ShapeRun(const char* utf8, std::size_t length, const AssetGuid& faceGuid,
@@ -611,8 +616,8 @@ void CTextRenderSystem::OnUpdate(CGameCanvas& canvas)
 		if (false == IsVisibleColor(text.FillEnabled, text.FillColor) && false == IsVisibleColor(text.OutlineEnabled, text.OutlineColor)) return;
 		const void* key = &text;
 		const AssetGuid family = GetEffectiveFamily(text);
-		const std::vector<AssetGuid>* faces = family.IsNull() ? nullptr : AcquireResolvedFaces(family, text.FontStyle);
-		if (nullptr == faces)
+		const ResolvedFamily* resolved = family.IsNull() ? nullptr : AcquireResolvedFaces(family, text.FontStyle);
+		if (nullptr == resolved)
 		{
 			const auto [warned, firstTime] = m_warnedMissingFonts.try_emplace(key, stamp);
 			warned->second = stamp;
@@ -632,8 +637,13 @@ void CTextRenderSystem::OnUpdate(CGameCanvas& canvas)
 		m_warnedMissingFonts.erase(key);
 		CachedText& cache = m_textCache[key];
 		cache.LastSeenFrame = stamp;
+		// 패밀리 자산이 편집되면 텍스트 시그니처는 그대로인 채 해석 결과만 달라진다.
+		// generation 해시를 함께 봐야 그 경우에도 메시가 다시 만들어진다.
 		const std::size_t signature = BuildSignature(text, family);
-		if (cache.Signature != signature && false == RebuildText(text, *faces, cache, *renderer)) return;
+		const bool stale = cache.Signature != signature
+			|| cache.FamilyGenerationHash != resolved->GenerationHash;
+		if (stale && false == RebuildText(text, resolved->Faces, cache, *renderer)) return;
+		cache.FamilyGenerationHash = resolved->GenerationHash;
 		for (CachedMesh& mesh : cache.Meshes)
 		{
 			OwnerPtr<IRenderMaterial>& material = AcquireMaterial(mesh.FaceGuid, mesh.Page, *renderer);

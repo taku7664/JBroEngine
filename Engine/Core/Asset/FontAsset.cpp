@@ -68,7 +68,13 @@ EAssetType CFontFamilyAsset::GetAssetType() const { return EAssetType::FontFamil
 EAssetLoadState CFontFamilyAsset::GetLoadState() const { return m_loadState; }
 const AssetMetaData& CFontFamilyAsset::GetMetaData() const { return m_metaData; }
 const FontFamilyData& CFontFamilyAsset::GetData() const { return m_data; }
-void CFontFamilyAsset::SetData(FontFamilyData data) { m_data = std::move(data); }
+std::uint32_t CFontFamilyAsset::GetGeneration() const { return m_generation; }
+
+void CFontFamilyAsset::SetData(FontFamilyData data)
+{
+	m_data = std::move(data);
+	++m_generation;
+}
 
 AssetGuid CFontFamilyAsset::ResolveFace(EFontStyle style, bool& usedRegularFallback) const
 {

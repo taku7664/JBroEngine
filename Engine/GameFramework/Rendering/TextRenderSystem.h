@@ -90,6 +90,19 @@ private:
 		float CenterX = 0.0f;
 		float CenterY = 0.0f;
 		std::uint64_t LastSeenFrame = 0;
+		// 이 메시를 만들 때 쓴 패밀리 체인의 generation 해시. 패밀리 자산이 편집되면
+		// 텍스트 시그니처는 그대로여서, 재구축 판정은 이 값이 맡는다.
+		std::size_t FamilyGenerationHash = 0;
+	};
+
+	// 한 프레임 안에서 (패밀리, 스타일) → 해석 결과. 자세한 설명은 m_familyResolveMemo 참조.
+	struct ResolvedFamily
+	{
+		AssetGuid Family = INVALID_ASSET_GUID;
+		EFontStyle Style{};
+		bool Resolved = false;
+		std::vector<AssetGuid> Faces;
+		std::size_t GenerationHash = 0;
 	};
 
 	struct PositionedGlyph
@@ -109,12 +122,13 @@ private:
 	FaceCache* AcquireFace(const AssetGuid& guid);
 	// 해석은 (패밀리, 스타일) 만의 함수다 — Text2D 의 다른 필드는 쓰지 않는다.
 	// 시그니처에서 Text2D 를 걷어낸 이유가 그것이고, 프레임 memo 가 성립하는 근거이기도 하다.
-	bool ResolveFamilyFaces(const AssetGuid& family, EFontStyle style, std::vector<AssetGuid>& outFaces);
+	bool ResolveFamilyFaces(const AssetGuid& family, EFontStyle style, std::vector<AssetGuid>& outFaces,
+		std::size_t& outGenerationHash);
 	bool AppendFamilyFaces(const AssetGuid& familyGuid, EFontStyle style, std::vector<AssetGuid>& outFaces,
-		std::vector<AssetGuid>& visited);
+		std::vector<AssetGuid>& visited, std::size_t& generationHash);
 	// 프레임 memo 를 거쳐 해석 결과를 얻는다. 해석 실패면 nullptr.
 	// ⚠ 반환 포인터는 다음 AcquireResolvedFaces 호출까지만 유효하다(memo 벡터가 자랄 수 있다).
-	const std::vector<AssetGuid>* AcquireResolvedFaces(const AssetGuid& family, EFontStyle style);
+	const ResolvedFamily* AcquireResolvedFaces(const AssetGuid& family, EFontStyle style);
 	bool BuildLayout(const Text2D& text, const std::vector<AssetGuid>& faces,
 		std::vector<PositionedGlyph>& outGlyphs, float& outWidth, float& outHeight, float fontSizePixels);
 	bool ShapeRun(const char* utf8, std::size_t length, const AssetGuid& faceGuid, std::uint32_t line,
@@ -156,13 +170,6 @@ private:
 	//
 	// 항목이 한두 개에 그치므로 해시맵이 아니라 선형 탐색이 맞다. 프레임마다 비우는 대신
 	// m_familyResolveCount 를 0 으로 되돌려 슬롯과 그 안의 vector 용량을 재사용한다.
-	struct ResolvedFamily
-	{
-		AssetGuid Family = INVALID_ASSET_GUID;
-		EFontStyle Style{};
-		bool Resolved = false;
-		std::vector<AssetGuid> Faces;
-	};
 	std::vector<ResolvedFamily> m_familyResolveMemo;
 	std::size_t m_familyResolveCount = 0;
 };
