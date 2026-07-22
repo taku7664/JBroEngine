@@ -87,8 +87,8 @@ void CEditorStatisticsTool::OnRenderStay()
 					if (fixedStep)
 					{
 						// 고정 스텝은 프레임당 횟수가 달라진다 — 합계와 횟수를 함께 봐야 읽힌다.
-						std::snprintf(value, sizeof(value), "%.3f ms  x%u",
-							section.AverageMicroseconds / 1000.0, section.CallsPerFrame);
+						std::snprintf(value, sizeof(value), "%.3f ms  x%.2f",
+							section.AverageMicroseconds / 1000.0, section.AverageCallsPerFrame);
 					}
 					else
 					{

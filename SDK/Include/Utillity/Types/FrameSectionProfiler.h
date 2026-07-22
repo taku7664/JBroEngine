@@ -19,7 +19,9 @@ struct FrameSectionTiming
 	const char* Label = nullptr;
 	bool         IsFixedStep = false;
 	double       AverageMicroseconds = 0.0;
-	unsigned int CallsPerFrame = 0;          // 마지막으로 접힌 프레임의 호출 횟수
+	// 프레임당 호출 횟수도 평균이어야 한다. 50Hz 고정 스텝을 200fps 로 돌리면 4 프레임에 한 번
+	// 도는데, 마지막 프레임 값만 보여 주면 대부분 0 이 찍혀 "안 돈다" 로 읽힌다.
+	double       AverageCallsPerFrame = 0.0;
 	double       AccumulatedMicroseconds = 0.0;
 	unsigned int CallsThisFrame = 0;
 };
@@ -43,7 +45,9 @@ public:
 			// 0.05 는 대략 최근 20 프레임을 보는 창.
 			const double delta = section.AccumulatedMicroseconds - section.AverageMicroseconds;
 			section.AverageMicroseconds += delta * SmoothingFactor;
-			section.CallsPerFrame = section.CallsThisFrame;
+			const double callsDelta =
+				static_cast<double>(section.CallsThisFrame) - section.AverageCallsPerFrame;
+			section.AverageCallsPerFrame += callsDelta * SmoothingFactor;
 			section.AccumulatedMicroseconds = 0.0;
 			section.CallsThisFrame = 0;
 		}
