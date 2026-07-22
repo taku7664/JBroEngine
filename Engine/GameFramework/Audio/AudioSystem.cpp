@@ -201,6 +201,9 @@ void CAudioSystem::OnUpdate(CGameCanvas& canvas)
 		{
 			if (listenerSet) return;
 			CGameObject* owner = listener.GetOwner().TryGet();
+			// TryGet 은 null 을 줄 수 있다(아래 AudioPlayer 루프는 막고 있었는데 여기만 빠져 있었다).
+			// SetPosition 이 빈 함수이던 동안에는 드러나지 않던 역참조다.
+			if (nullptr == owner) return;
 			if (false == IsActiveComponent(listener)) return;
 			if (primary.IsValid())
 			{
@@ -319,14 +322,18 @@ void CAudioSystem::OnUpdate(CGameCanvas& canvas)
 					instance.PlayOnStartConsumed = true;
 				}
 
+				// Is3D 여부와 무관하게 매번 넘긴다. 3D 일 때만 부르면 재생 중에 Is3D 를 끄더라도
+				// 공간화가 켜진 채로 남는다(끄는 신호를 아무도 보내지 않으므로).
+				AudioSpatialParams spatial;
+				spatial.Is3D             = player.Is3D;
+				spatial.MinDistance      = player.MinDistance;
+				spatial.MaxDistance      = player.MaxDistance;
+				spatial.AttenuationModel = player.AttenuationModel;
+				spatial.Rolloff          = player.Rolloff;
+				instance.Player->SetSpatial(spatial);
+
 				if (player.Is3D)
 				{
-					AudioSpatialParams spatial;
-					spatial.Is3D        = true;
-					spatial.MinDistance = player.MinDistance;
-					spatial.MaxDistance = player.MaxDistance;
-					instance.Player->SetSpatial(spatial);
-
 					// Transform 은 이제 GameObject 의 멤버라 항상 존재.
 					instance.Player->SetPosition(ExtractWorldPosition(*owner));
 				}

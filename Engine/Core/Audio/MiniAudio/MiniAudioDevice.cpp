@@ -150,6 +150,19 @@ struct MiniAudioBackendState
 	}
 };
 
+// 엔진 열거형 → miniaudio 열거형. 새 값을 엔진 쪽에 추가하면 여기도 함께 채울 것.
+ma_attenuation_model ToMiniAudioAttenuation(EAudioAttenuationModel model)
+{
+	switch (model)
+	{
+	case EAudioAttenuationModel::None:        return ma_attenuation_model_none;
+	case EAudioAttenuationModel::Linear:      return ma_attenuation_model_linear;
+	case EAudioAttenuationModel::Exponential: return ma_attenuation_model_exponential;
+	case EAudioAttenuationModel::Inverse:     return ma_attenuation_model_inverse;
+	}
+	return ma_attenuation_model_inverse;
+}
+
 // ── Player ─────────────────────────────────────────────────────────────────
 // 빈 스텁 — Desc 기반 CreatePlayer 가 아직 자산 PCM 라우팅을 채우지 못한 동안 사용.
 class CMiniAudioPlayerStub final : public IAudioPlayer
@@ -193,8 +206,11 @@ public:
 		if (nullptr == engine || nullptr == filePathUtf8) return;
 		// STREAM 플래그를 쓰면 ma_sound_get_length_in_seconds 가 0 을 반환해
 		// 인스펙터의 슬라이더가 표시되지 않는다. 프리뷰는 전체 디코딩 비용을 감수.
-		// (NO_SPATIALIZATION = 2D 처럼 평면 출력, 위치 무관)
-		const ma_uint32 flags = MA_SOUND_FLAG_DECODE | MA_SOUND_FLAG_NO_SPATIALIZATION;
+		//
+		// NO_SPATIALIZATION 은 쓰지 않는다. 그 플래그는 spatializer 노드를 아예 만들지 않아서
+		// 나중에 SetSpatial 로 3D 를 켤 수 없다. 대신 노드는 만들어 두고 초기화 직후 꺼서
+		// 기본 상태를 2D 로 맞춘다(SetSpatial 을 받지 않는 에디터 미리듣기가 그대로 동작한다).
+		const ma_uint32 flags = MA_SOUND_FLAG_DECODE;
 
 #if defined(_WIN32)
 		// 사용자 폴더에 비-ASCII(예: 한글) 가 있으면 ma_sound_init_from_file 의 char* 경로가
@@ -208,8 +224,7 @@ public:
 			if (false == wpath.empty() && L'\0' == wpath.back()) wpath.pop_back();
 			if (MA_SUCCESS == ma_sound_init_from_file_w(engine, wpath.c_str(), flags, group, nullptr, &m_sound))
 			{
-				m_initialized = true;
-				m_state->RegisterChild(this);
+				OnSoundInitialized();
 				return;
 			}
 		}
@@ -217,8 +232,7 @@ public:
 
 		if (MA_SUCCESS == ma_sound_init_from_file(engine, filePathUtf8, flags, group, nullptr, &m_sound))
 		{
-			m_initialized = true;
-			m_state->RegisterChild(this);
+			OnSoundInitialized();
 		}
 	}
 
@@ -339,8 +353,26 @@ public:
 		if (m_initialized) ma_sound_set_looping(&m_sound, loop ? MA_TRUE : MA_FALSE);
 	}
 
-	void SetPosition(AudioVec3) override {}
-	void SetSpatial (const AudioSpatialParams&) override {}
+	void SetPosition(AudioVec3 worldPos) override
+	{
+		if (m_initialized) ma_sound_set_position(&m_sound, worldPos.X, worldPos.Y, worldPos.Z);
+	}
+
+	void SetSpatial(const AudioSpatialParams& params) override
+	{
+		if (false == m_initialized) return;
+		// 켜고 끄기는 재생 중에도 안전하다 — spatializer 노드는 생성 시 이미 만들어 두었다.
+		ma_sound_set_spatialization_enabled(&m_sound, params.Is3D ? MA_TRUE : MA_FALSE);
+		if (false == params.Is3D) return;
+
+		ma_sound_set_attenuation_model(&m_sound, ToMiniAudioAttenuation(params.AttenuationModel));
+		// Min > Max 면 miniaudio 가 이상하게 동작하므로 여기서 정리한다.
+		const float minDistance = params.MinDistance > 0.0f ? params.MinDistance : 0.0f;
+		const float maxDistance = params.MaxDistance > minDistance ? params.MaxDistance : minDistance;
+		ma_sound_set_min_distance(&m_sound, minDistance);
+		ma_sound_set_max_distance(&m_sound, maxDistance);
+		ma_sound_set_rolloff(&m_sound, params.Rolloff > 0.0f ? params.Rolloff : 0.0f);
+	}
 
 	// 효과 노드를 sound 와 출력 bus 사이에 삽입한다. SafePtr는 소유하지 않으므로
 	// effect가 먼저 파괴되면 backend-state 통지로 이 Player를 즉시 재배선한다.
@@ -378,6 +410,16 @@ private:
 	}
 	void RebuildEffectRouting();
 
+	// 두 초기화 경로(wide / narrow)가 공유하는 마무리.
+	// 공간화는 꺼진 상태에서 시작한다 — SetSpatial 을 받지 않는 소비자(에디터 미리듣기)가
+	// 갑자기 3D 로 들리면 안 되기 때문이다. 3D 는 SetSpatial 이 명시적으로 켠다.
+	void OnSoundInitialized()
+	{
+		ma_sound_set_spatialization_enabled(&m_sound, MA_FALSE);
+		m_initialized = true;
+		m_state->RegisterChild(this);
+	}
+
 	std::shared_ptr<MiniAudioBackendState> m_state;
 	ma_sound                           m_sound{};
 	bool                               m_initialized = false;
@@ -390,13 +432,49 @@ private:
 };
 
 // ── Listener ────────────────────────────────────────────────────────────────
+struct MiniAudioDeviceImpl;   // 정의는 아래 — SetMasterVolume 이 게인 합성에 쓴다.
+
 class CMiniAudioListener final : public IAudioListener
 {
 public:
-	void SetPosition    (AudioVec3) override {}
-	void SetForward     (AudioVec3) override {}
-	void SetMasterVolume(float)     override {}
+	CMiniAudioListener(std::shared_ptr<MiniAudioBackendState> state, MiniAudioDeviceImpl* owner)
+		: m_state(std::move(state))
+		, m_owner(owner)
+	{
+	}
+
+	void SetPosition(AudioVec3 worldPos) override
+	{
+		if (ma_engine* engine = GetEngine())
+		{
+			ma_engine_listener_set_position(engine, 0, worldPos.X, worldPos.Y, worldPos.Z);
+		}
+	}
+
+	void SetForward(AudioVec3 forwardDir) override
+	{
+		if (ma_engine* engine = GetEngine())
+		{
+			ma_engine_listener_set_direction(engine, 0, forwardDir.X, forwardDir.Y, forwardDir.Z);
+		}
+	}
+
+	// ⚠ 여기서 ma_engine_set_volume 을 직접 부르면 안 된다. 프로젝트 마스터 볼륨이 같은
+	//   자리를 쓰고 있어서, 매 프레임 도는 이쪽이 그걸 덮어써 무력화한다.
+	//   둘은 곱해져야 하므로 Impl 이 합성해 한 번만 적용한다.
+	void SetMasterVolume(float volume) override;
+
+	// 미구현 — 호출하는 곳이 아직 없다(게임 쪽 raycast 결과를 받는 설계).
 	void SetOcclusionForPlayer(SafePtr<IAudioPlayer>, float) override {}
+
+private:
+	ma_engine* GetEngine() const
+	{
+		return (m_state && m_state->IsOperational()) ? &m_state->Engine : nullptr;
+	}
+
+	std::shared_ptr<MiniAudioBackendState> m_state;
+	MiniAudioDeviceImpl* m_owner = nullptr;
 };
 
 // ── Bus ─────────────────────────────────────────────────────────────────────
@@ -905,7 +983,18 @@ struct MiniAudioDeviceImpl
 	OwnerPtr<CMiniAudioListener>    Listener;
 	// 표준 믹싱 버스 — Master(endpoint 직결) ← Music/SFX/Voice/UI/Custom.
 	OwnerPtr<CMiniAudioBus>         Buses[static_cast<std::size_t>(EAudioBusKind::Count)];
-	float                           MasterVolume = 1.0f;
+	// 엔진 볼륨 자리를 둘이 나눠 쓴다 — 프로젝트 설정과 AudioListener 컴포넌트.
+	// 한쪽이 직접 ma_engine_set_volume 을 부르면 다른 쪽을 덮어쓰므로 여기서 곱해 적용한다.
+	float                           MasterVolume = 1.0f;   // 프로젝트 전역
+	float                           ListenerGain = 1.0f;   // AudioListener.MasterVolume
+
+	void ApplyEngineVolume()
+	{
+		if (Backend && Backend->IsOperational())
+		{
+			ma_engine_set_volume(&Backend->Engine, MasterVolume * ListenerGain);
+		}
+	}
 
 	CMiniAudioBus* GetBusPtr(EAudioBusKind kind)
 	{
@@ -948,7 +1037,7 @@ bool CMiniAudioDevice::Initialize(const AudioDeviceDesc& desc)
 		return false;
 	}
 	m_impl->Backend->EngineInitialized = true;
-	m_impl->Listener = MakeOwnerPtr<CMiniAudioListener>();
+	m_impl->Listener = MakeOwnerPtr<CMiniAudioListener>(m_impl->Backend, m_impl.Get());
 
 	// 표준 믹싱 버스 계층 구성 — Master 는 endpoint 직결(parent=null),
 	// 나머지는 Master 의 group 을 parent 로 둬 카테고리 볼륨이 Master 로 합쳐진다.
@@ -1079,10 +1168,14 @@ void  CMiniAudioDevice::SetMasterVolume(float v)
 {
 	if (!m_impl) return;
 	m_impl->MasterVolume = v;
-	if (m_impl->Backend && m_impl->Backend->IsOperational())
-	{
-		ma_engine_set_volume(&m_impl->Backend->Engine, v);
-	}
+	m_impl->ApplyEngineVolume();
+}
+
+void CMiniAudioListener::SetMasterVolume(float volume)
+{
+	if (nullptr == m_owner) return;
+	m_owner->ListenerGain = volume;
+	m_owner->ApplyEngineVolume();
 }
 
 float CMiniAudioDevice::GetMasterVolume() const

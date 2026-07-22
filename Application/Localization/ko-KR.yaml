@@ -711,7 +711,13 @@ Entries:
   editor.property.Is3D:         3D 음향
   editor.property.MinDistance:  최소 거리
   editor.property.MaxDistance:  최대 거리
+  editor.property.AttenuationModel: 감쇠 모델
+  editor.property.Rolloff:      감쇠 정도
   editor.property.PlayOnStart:  시작 시 재생
+  editor.enum.EAudioAttenuationModel.None: 없음
+  editor.enum.EAudioAttenuationModel.Inverse: 반비례
+  editor.enum.EAudioAttenuationModel.Linear: 선형
+  editor.enum.EAudioAttenuationModel.Exponential: 지수
   common.clear: 비우기
   common.remove: 제거
   common.move_up: 위로

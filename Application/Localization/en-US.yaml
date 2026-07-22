@@ -710,7 +710,13 @@ Entries:
   editor.property.Is3D:         3D Sound
   editor.property.MinDistance:  Min Distance
   editor.property.MaxDistance:  Max Distance
+  editor.property.AttenuationModel: Attenuation
+  editor.property.Rolloff:      Rolloff
   editor.property.PlayOnStart:  Play On Start
+  editor.enum.EAudioAttenuationModel.None: None
+  editor.enum.EAudioAttenuationModel.Inverse: Inverse
+  editor.enum.EAudioAttenuationModel.Linear: Linear
+  editor.enum.EAudioAttenuationModel.Exponential: Exponential
   common.clear: Clear
   common.remove: Remove
   common.move_up: Move Up

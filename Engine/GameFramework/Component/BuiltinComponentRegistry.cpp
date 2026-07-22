@@ -166,5 +166,7 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 		.AddProperty("Is3D",        EReflectPropertyType::Bool,      offsetof(AudioPlayer, Is3D),        sizeof(bool))
 		.AddProperty("MinDistance", EReflectPropertyType::Float,     offsetof(AudioPlayer, MinDistance), sizeof(float))
 		.AddProperty("MaxDistance", EReflectPropertyType::Float,     offsetof(AudioPlayer, MaxDistance), sizeof(float))
+		.AddEnumProperty<EAudioAttenuationModel>("AttenuationModel", offsetof(AudioPlayer, AttenuationModel))
+		.AddProperty("Rolloff",     EReflectPropertyType::Float,     offsetof(AudioPlayer, Rolloff),     sizeof(float))
 		.AddProperty("PlayOnStart", EReflectPropertyType::Bool,      offsetof(AudioPlayer, PlayOnStart), sizeof(bool));
 }

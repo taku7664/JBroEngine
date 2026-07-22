@@ -62,6 +62,11 @@
     <_SDKHeader Include="$(_EngineDir)Core\Logging\**\*.h"  DestDir="Core\Logging" />
     <_SDKHeader Include="$(_EngineDir)Core\Game\**\*.h"     DestDir="Core\Game" />
     <_SDKHeader Include="$(_EngineDir)Core\Asset\**\*.h"    DestDir="Core\Asset" />
+    <!-- Core\Asset\AudioAsset.h 가 Core\Audio\AudioTypes.h 를 include 하므로 함께 미러해야
+         한다(빠져 있어서 스크립트가 AudioAsset.h 를 쓰는 순간 컴파일이 깨졌다).
+         ScriptCore 의 SafePtr<IAudioDevice> Audio 도 이 헤더들이 있어야 실제로 쓸 수 있다. -->
+    <!-- 하위 디렉토리(MiniAudio/EmptyAudio)는 백엔드 구현이라 제외 — 글롭이 * 하나인 이유. -->
+    <_SDKHeader Include="$(_EngineDir)Core\Audio\*.h"       DestDir="Core\Audio" />
     <_SDKHeader Include="$(_EngineDir)Core\Renderer\**\*.h" DestDir="Core\Renderer" />
     <_SDKHeader Include="$(_EngineDir)Core\Task\**\*.h"     DestDir="Core\Task" />
     <_SDKHeader Include="$(_EngineDir)Core\Random\**\*.h"   DestDir="Core\Random" />

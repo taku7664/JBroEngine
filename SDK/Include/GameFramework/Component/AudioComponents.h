@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Core/Asset/AssetTypes.h"   // AssetGuid
+#include "Core/Audio/AudioTypes.h"   // EAudioAttenuationModel
 #include "GameFramework/Component/Component.h"
 
 #include "Utillity/Types/Array.h"
@@ -47,6 +48,9 @@ public:
 	bool      Is3D        = false;
 	float     MinDistance = 1.0f;
 	float     MaxDistance = 50.0f;
+	// 아래 둘은 Is3D 일 때만 의미가 있다.
+	EAudioAttenuationModel AttenuationModel = EAudioAttenuationModel::Inverse;
+	float     Rolloff     = 1.0f;
 
 	// 컴포넌트가 활성화될 때(또는 캔버스 시작 시) 자동 재생.
 	bool      PlayOnStart = true;
