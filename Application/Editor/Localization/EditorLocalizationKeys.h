@@ -184,6 +184,7 @@ namespace EditorLocKeys
 	constexpr const char* EditorStatisticsRenderItems = "editor_statistics.render_items";
 	constexpr const char* EditorStatisticsSystemTimes = "editor_statistics.system_times";
 	constexpr const char* EditorStatisticsFixedStepTimes = "editor_statistics.fixed_step_times";
+	constexpr const char* EditorStatisticsEngineTimes = "editor_statistics.engine_times";
 	constexpr const char* EditorStatisticsCanvasObjects = "editor_statistics.canvas_objects";
 	constexpr const char* EditorStatisticsScriptPools = "editor_statistics.script_pools";
 	constexpr const char* EditorStatisticsScriptPoolExpansions = "editor_statistics.script_pool_expansions";

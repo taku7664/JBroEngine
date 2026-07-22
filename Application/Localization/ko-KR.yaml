@@ -118,8 +118,9 @@ Entries:
   editor_statistics.script_pools: 스크립트 풀
   editor_statistics.script_pool_expansions: 스크립트 풀 확장
   editor_statistics.render_items: 렌더 아이템
-  editor_statistics.system_times: 프레임 구간 (가변)
-  editor_statistics.fixed_step_times: 프레임 구간 (고정 스텝)
+  editor_statistics.engine_times: 프레임 구간 (엔진, 합=프레임)
+  editor_statistics.system_times: 캔버스 구간 (가변, 위 UpdateCoreServices 내부)
+  editor_statistics.fixed_step_times: 캔버스 구간 (고정 스텝)
   editor_statistics.selection: 선택된 오브젝트
   editor_statistics.undo: 되돌리기 가능
   editor_statistics.redo: 다시 실행 가능

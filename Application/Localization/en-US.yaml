@@ -118,8 +118,9 @@ Entries:
   editor_statistics.script_pools: Script Pools
   editor_statistics.script_pool_expansions: Script Pool Expansions
   editor_statistics.render_items: Render Items
-  editor_statistics.system_times: Frame Sections (variable)
-  editor_statistics.fixed_step_times: Frame Sections (fixed step)
+  editor_statistics.engine_times: Frame Sections (engine, sums to frame)
+  editor_statistics.system_times: Canvas Sections (variable, inside UpdateCoreServices)
+  editor_statistics.fixed_step_times: Canvas Sections (fixed step)
   editor_statistics.selection: Selected Objects
   editor_statistics.undo: Can Undo
   editor_statistics.redo: Can Redo

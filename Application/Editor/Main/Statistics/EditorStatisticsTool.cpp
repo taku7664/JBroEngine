@@ -63,14 +63,12 @@ void CEditorStatisticsTool::OnRenderStay()
 		drawRow(Loc::Text(EditorLocKeys::EditorStatisticsRedo), Loc::Text(Editor::CommandManager.CanRedo() ? EditorLocKeys::CommonYes : EditorLocKeys::CommonNo));
 		drawRow(Loc::Text(EditorLocKeys::EditorStatisticsDirty), Loc::Text(Editor::CommandManager.IsDirty() ? EditorLocKeys::CommonYes : EditorLocKeys::CommonNo));
 
-		// 프레임 구간별 소요 시간. 가변(Update)과 고정 스텝(FixedUpdate)을 나눠 보여 준다.
-		// 편집 모드에서는 ShouldUpdateInEditMode 인 시스템만 돌고, 고정 스텝은 아예 안 돈다.
-		if (canvas.IsValid())
+		// 프레임 구간별 소요 시간.
+		//   엔진 = 프레임 전체를 겹치지 않게 쪼갠 것 → 합이 프레임 시간에 가까워야 한다.
+		//   캔버스 = 그중 UpdateCoreServices **안쪽** 세부. 엔진 목록과 더하면 이중 계산이다.
 		{
-			const std::vector<FrameSectionTiming>& sections =
-				CCanvasRuntimeAccess::GetFrameSections(*canvas);
-
-			auto drawSections = [&](const char* headerKey, bool fixedStep)
+			auto drawSectionList = [&](const std::vector<FrameSectionTiming>& sections,
+				const char* headerKey, bool fixedStep)
 			{
 				bool headerDrawn = false;
 				for (const FrameSectionTiming& section : sections)
@@ -86,7 +84,6 @@ void CEditorStatisticsTool::OnRenderStay()
 					}
 					if (fixedStep)
 					{
-						// 고정 스텝은 프레임당 횟수가 달라진다 — 합계와 횟수를 함께 봐야 읽힌다.
 						std::snprintf(value, sizeof(value), "%.3f ms  x%.2f",
 							section.AverageMicroseconds / 1000.0, section.AverageCallsPerFrame);
 					}
@@ -95,7 +92,6 @@ void CEditorStatisticsTool::OnRenderStay()
 						std::snprintf(value, sizeof(value), "%.3f ms",
 							section.AverageMicroseconds / 1000.0);
 					}
-					// typeid 이름은 "class CShapeRenderSystem" 형태 — 접두사를 건너뛴다.
 					const char* label = std::strncmp(section.Label, "class ", 6) == 0
 						? section.Label + 6
 						: section.Label;
@@ -103,9 +99,20 @@ void CEditorStatisticsTool::OnRenderStay()
 				}
 			};
 
-			drawSections(EditorLocKeys::EditorStatisticsSystemTimes, false);
-			drawSections(EditorLocKeys::EditorStatisticsFixedStepTimes, true);
+			if (Engine.FrameProfiler.IsValid())
+			{
+				drawSectionList(Engine.FrameProfiler->GetSections(),
+					EditorLocKeys::EditorStatisticsEngineTimes, false);
+			}
+			if (canvas.IsValid())
+			{
+				const std::vector<FrameSectionTiming>& sections =
+					CCanvasRuntimeAccess::GetFrameSections(*canvas);
+				drawSectionList(sections, EditorLocKeys::EditorStatisticsSystemTimes, false);
+				drawSectionList(sections, EditorLocKeys::EditorStatisticsFixedStepTimes, true);
+			}
 		}
+
 
 		ImGui::EndTable();
 	}

@@ -152,9 +152,12 @@ void CEngine::OnSurfaceEvent(const SurfaceEvent& surfaceEvent)
 
 bool CEngine::Update()
 {
+	// 아래 구간들은 서로 겹치지 않는다 — 합이 곧 프레임 시간이다.
+	// 부모와 자식을 같이 재면 합계가 이중 계산돼 읽는 사람을 속인다.
 	PlatformEvent platformEvent;
 	if (m_platform)
 	{
+		CFrameSectionScope scope(*m_frameProfiler, "PollEvents", false);
 		m_platform->PollEvents(platformEvent);
 	}
 
@@ -163,11 +166,28 @@ bool CEngine::Update()
 		return false;
 	}
 
-	BeginFrame();
-	UpdateModules();
-	UpdateCoreServices();
+	{
+		CFrameSectionScope scope(*m_frameProfiler, "BeginFrame", false);
+		BeginFrame();
+	}
+	{
+		// 에디터 UI(ImGui) 가 모듈로 붙어 있다 — 에디터에서는 이 구간이 크다.
+		CFrameSectionScope scope(*m_frameProfiler, "UpdateModules", false);
+		UpdateModules();
+	}
+	{
+		// 캔버스(스크립트/시스템/물리)가 이 안에 있다. 세부는 캔버스 쪽 구간 목록 참고.
+		CFrameSectionScope scope(*m_frameProfiler, "UpdateCoreServices", false);
+		UpdateCoreServices();
+	}
 	RenderFrame();
-	EndFrame();
+	{
+		CFrameSectionScope scope(*m_frameProfiler, "EndFrame", false);
+		EndFrame();
+	}
+
+	// 프레임의 진짜 끝. 여기서 한 번만 접는다.
+	m_frameProfiler->EndFrame();
 	return true;
 }
 
@@ -402,6 +422,8 @@ SafePtr<IRenderScene> CEngine::GetRenderScene() const
 bool CEngine::InitializeCoreServices()
 {
 	m_time = MakeOwnerPtr<CTime>();
+	// Update 가 첫 프레임부터 쓰므로 다른 서비스보다 먼저 만들어 둔다.
+	m_frameProfiler = MakeOwnerPtr<CFrameSectionProfiler>();
 	m_input = MakeOwnerPtr<CInput>();
 	m_inputSystem = MakeOwnerPtr<CInputSystem>();
 	m_fileSystem = MakeOwnerPtr<CFileSystem>();
@@ -443,6 +465,7 @@ bool CEngine::InitializeCoreServices()
 	m_input->BindSystem(m_inputSystem.Get());
 
 	Engine.Time = m_time.GetSafePtr();
+	Engine.FrameProfiler = m_frameProfiler.GetSafePtr();
 	Engine.Input = m_input.GetSafePtr();
 	Engine.InputSystem = m_inputSystem.GetSafePtr();
 	Engine.FileSystem = m_fileSystem.GetSafePtr();
@@ -732,6 +755,7 @@ void CEngine::RenderFrame()
 	// GetRenderTargetSize 도 최신). OnPreTick 수집은 1프레임 지연 카메라를 만든다.
 	if (m_preRenderCallback)
 	{
+		CFrameSectionScope scope(*m_frameProfiler, "PreRender (camera/light)", false);
 		m_preRenderCallback();
 	}
 
@@ -754,11 +778,16 @@ void CEngine::RenderFrame()
 		}
 		m_renderer->SetSurfacePreRotation(preRotCos, preRotSin);
 	}
-	PrepareRenderModules();
+	{
+		CFrameSectionScope scope(*m_frameProfiler, "PrepareRenderModules", false);
+		PrepareRenderModules();
+	}
 
 	SafePtr<IRHICommandContext> commandContext = m_rhiDevice->GetImmediateCommandContext();
 	if (commandContext)
 	{
+		{
+		CFrameSectionScope sceneScope(*m_frameProfiler, "Scene Render", false);
 		if (m_renderer && m_renderScene && false == m_gameRenderViewports.empty())
 		{
 			if (SafePtr<IRenderSurface> mainRenderSurface = GetMainRenderSurface())
@@ -796,22 +825,32 @@ void CEngine::RenderFrame()
 			}
 			commandContext->EndRenderPass();
 		}
+		}   // Scene Render 끝 — 아래 모듈 렌더와 겹치지 않게 여기서 닫는다.
 
-		RenderPassDesc moduleRenderPassDesc;
-		moduleRenderPassDesc.ColorAttachment.LoadOp = ERHILoadOp::Load;
-		moduleRenderPassDesc.ColorAttachment.StoreOp = ERHIStoreOp::Store;
-		commandContext->BeginRenderPass(moduleRenderPassDesc);
-		for (CModule* module : m_modules)
 		{
-			if (module)
+			// 에디터 ImGui 가 여기서 그려진다.
+			CFrameSectionScope scope(*m_frameProfiler, "Module Render (ImGui)", false);
+			RenderPassDesc moduleRenderPassDesc;
+			moduleRenderPassDesc.ColorAttachment.LoadOp = ERHILoadOp::Load;
+			moduleRenderPassDesc.ColorAttachment.StoreOp = ERHIStoreOp::Store;
+			commandContext->BeginRenderPass(moduleRenderPassDesc);
+			for (CModule* module : m_modules)
 			{
-				module->Render();
+				if (module)
+				{
+					module->Render();
+				}
 			}
+			commandContext->EndRenderPass();
 		}
-		commandContext->EndRenderPass();
 	}
 
-	m_rhiDevice->EndFrame();
+	{
+		// Present. GPU 를 기다리거나 vsync 에 걸리면 프레임 시간이 여기 전부 쌓인다 —
+		// CPU 가 한가한데 프레임이 긴 경우 대개 범인이 이 구간이다.
+		CFrameSectionScope scope(*m_frameProfiler, "RHI Present", false);
+		m_rhiDevice->EndFrame();
+	}
 }
 
 void CEngine::EndFrame()

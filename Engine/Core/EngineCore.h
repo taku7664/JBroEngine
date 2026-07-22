@@ -25,6 +25,7 @@ class CTime;
 class IDebugDraw2D;
 class INetworkManager;
 class IRenderResourceCache;
+class CFrameSectionProfiler;
 
 
 struct EngineCore
@@ -52,6 +53,8 @@ struct EngineCore
 	SafePtr<CResourceRegistry>    ResourceRegistry;
 	SafePtr<INetworkManager>      Network;
 	SafePtr<IDebugDraw2D>         DebugDraw2D;
+	// 프레임 구간별 소요 시간(진단용). 에디터 빌드에서만 채워진다.
+	SafePtr<CFrameSectionProfiler> FrameProfiler;
 };
 
 extern EngineCore Engine;
