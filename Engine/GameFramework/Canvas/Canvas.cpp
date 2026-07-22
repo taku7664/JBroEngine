@@ -14,7 +14,9 @@
 #include "GameFramework/Transform/TransformSystem.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <typeinfo>
 #include <new>
 #include <unordered_map>
 #include <vector>
@@ -912,13 +914,50 @@ void CGameCanvas::UpdateSystems(bool isSimulationPlaying)
 		m_transformSystem->Update(*this);
 	}
 
-	for (OwnerPtr<CGameSystem>& system : m_systems)
+	for (std::size_t index = 0; index < m_systems.size(); ++index)
 	{
-		if (system && (isSimulationPlaying || system->ShouldUpdateInEditMode()))
+		CGameSystem* system = m_systems[index].Get();
+		if (nullptr == system)
 		{
-			system->Update(*this);
+			continue;
 		}
+		if (false == isSimulationPlaying && false == system->ShouldUpdateInEditMode())
+		{
+			continue;
+		}
+		UpdateSystemMeasured(index, *system);
 	}
+}
+
+void CGameCanvas::UpdateSystemMeasured(std::size_t index, CGameSystem& system)
+{
+#if defined(JBRO_EDITOR)
+	const std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+	system.Update(*this);
+	const double microseconds = std::chrono::duration<double, std::micro>(
+		std::chrono::steady_clock::now() - begin).count();
+
+	// AddSystem 으로 목록이 늘어날 수 있으므로 크기를 맞춰 둔다(라벨은 다시 뽑힌다).
+	if (m_systemTimings.size() != m_systems.size())
+	{
+		m_systemTimings.assign(m_systems.size(), SystemUpdateTiming{});
+	}
+
+	SystemUpdateTiming& timing = m_systemTimings[index];
+	if (nullptr == timing.Label)
+	{
+		// typeid 는 슬롯당 한 번만 부른다 — 프레임마다 부를 이유가 없다.
+		timing.Label = typeid(system).name();
+		timing.AverageMicroseconds = microseconds;
+		return;
+	}
+	// 지수 평활. 순간값은 프레임마다 몇 배씩 흔들려 눈으로 읽을 수가 없다.
+	// 0.05 는 대략 최근 20 프레임을 보는 창.
+	timing.AverageMicroseconds += (microseconds - timing.AverageMicroseconds) * 0.05;
+#else
+	(void)index;
+	system.Update(*this);
+#endif
 }
 
 void CGameCanvas::UpdateScripts()

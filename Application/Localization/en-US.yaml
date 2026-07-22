@@ -118,6 +118,7 @@ Entries:
   editor_statistics.script_pools: Script Pools
   editor_statistics.script_pool_expansions: Script Pool Expansions
   editor_statistics.render_items: Render Items
+  editor_statistics.system_times: System Update Times
   editor_statistics.selection: Selected Objects
   editor_statistics.undo: Can Undo
   editor_statistics.redo: Can Redo

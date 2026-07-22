@@ -89,6 +89,12 @@ public:
 		return canvas.GetScriptMemoryPoolStats();
 	}
 
+	// 시스템별 Update 소요 시간(에디터 빌드에서만 채워진다). 매 프레임 읽히므로 참조로 준다.
+	static const std::vector<CGameCanvas::SystemUpdateTiming>& GetSystemUpdateTimings(const CGameCanvas& canvas)
+	{
+		return canvas.GetSystemUpdateTimings();
+	}
+
 	static void ReserveScriptMemory(
 		CGameCanvas& canvas,
 		TypeId scriptTypeId,

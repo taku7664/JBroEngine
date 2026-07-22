@@ -118,6 +118,7 @@ Entries:
   editor_statistics.script_pools: 스크립트 풀
   editor_statistics.script_pool_expansions: 스크립트 풀 확장
   editor_statistics.render_items: 렌더 아이템
+  editor_statistics.system_times: 시스템 갱신 시간
   editor_statistics.selection: 선택된 오브젝트
   editor_statistics.undo: 되돌리기 가능
   editor_statistics.redo: 다시 실행 가능

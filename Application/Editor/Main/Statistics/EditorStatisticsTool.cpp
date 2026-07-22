@@ -62,6 +62,31 @@ void CEditorStatisticsTool::OnRenderStay()
 		drawRow(Loc::Text(EditorLocKeys::EditorStatisticsUndo), Loc::Text(Editor::CommandManager.CanUndo() ? EditorLocKeys::CommonYes : EditorLocKeys::CommonNo));
 		drawRow(Loc::Text(EditorLocKeys::EditorStatisticsRedo), Loc::Text(Editor::CommandManager.CanRedo() ? EditorLocKeys::CommonYes : EditorLocKeys::CommonNo));
 		drawRow(Loc::Text(EditorLocKeys::EditorStatisticsDirty), Loc::Text(Editor::CommandManager.IsDirty() ? EditorLocKeys::CommonYes : EditorLocKeys::CommonNo));
+
+		// 시스템별 Update 소요 시간. 편집 모드에서는 ShouldUpdateInEditMode 인 시스템만 돈다.
+		if (canvas.IsValid())
+		{
+			const std::vector<CGameCanvas::SystemUpdateTiming>& timings =
+				CCanvasRuntimeAccess::GetSystemUpdateTimings(*canvas);
+			if (false == timings.empty())
+			{
+				drawRow(Loc::Text(EditorLocKeys::EditorStatisticsSystemTimes), "");
+			}
+			for (const CGameCanvas::SystemUpdateTiming& timing : timings)
+			{
+				if (nullptr == timing.Label)
+				{
+					continue;
+				}
+				std::snprintf(value, sizeof(value), "%.3f ms", timing.AverageMicroseconds / 1000.0);
+				// typeid 이름은 "class CShapeRenderSystem" 형태 — 접두사를 건너뛰고 보여 준다.
+				const char* label = std::strncmp(timing.Label, "class ", 6) == 0
+					? timing.Label + 6
+					: timing.Label;
+				drawRow(label, value);
+			}
+		}
+
 		ImGui::EndTable();
 	}
 }
