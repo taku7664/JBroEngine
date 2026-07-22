@@ -14,6 +14,7 @@
 #include "Utillity/Math/Vector2T.h"   // ScreenToWorld 반환/출력
 #include "Utillity/Pointer/SafePtr.h"
 #include "Utillity/Types/Array.h"
+#include "Utillity/Types/FrameSectionProfiler.h"
 #include "Utillity/Types/Table.h"
 
 #include <algorithm>
@@ -138,14 +139,6 @@ public:
 		std::size_t ExpansionCount = 0;
 	};
 
-	// 시스템 하나의 Update 가 프레임에서 차지하는 시간(진단용). 에디터 통계 창이 읽는다.
-	// 순간값은 프레임마다 크게 흔들려 읽을 수 없으므로 지수 평활 평균을 들고 있는다.
-	// **에디터 빌드에서만 채워진다** — 게임 빌드는 측정 자체를 하지 않는다.
-	struct SystemUpdateTiming
-	{
-		const char* Label = nullptr;   // typeid 이름. 정적 저장 기간이라 보관해도 안전하다.
-		double AverageMicroseconds = 0.0;
-	};
 
 	// InstanceGuid → 활성 오브젝트(Ref<T> 직렬화 키 해석).
 	SafePtr<CGameObject> FindByInstanceGuid(const File::Guid& guid);
@@ -272,8 +265,8 @@ private:
 	void Update(bool isSimulationPlaying);
 	void Update();
 	void UpdateSystems(bool isSimulationPlaying);
-	// 에디터 빌드에서는 시간을 재서 m_systemTimings 에 섞고, 게임 빌드에서는 그냥 통과시킨다.
-	void UpdateSystemMeasured(std::size_t index, CGameSystem& system);
+	// 시스템 슬롯의 진단 라벨(typeid 이름)을 슬롯당 한 번만 뽑아 캐시한다.
+	const char* SystemLabel(std::size_t index, const CGameSystem& system);
 	void UpdateScripts();
 	// 지연 파괴 큐 처리 — 모든 시스템/스크립트 순회가 끝난 뒤 호출(슬롯 무효화 회피).
 	void FlushPendingDestroys();
@@ -283,7 +276,7 @@ private:
 	void ReserveScriptMemoryForCurrentScripts(const CReflectionRegistry& registry, float capacityMultiplier = 1.5f);
 	void ReserveScriptMemory(TypeId scriptTypeId, std::size_t size, std::size_t alignment, std::size_t capacity);
 	std::vector<ScriptMemoryPoolStats> GetScriptMemoryPoolStats() const;
-	const std::vector<SystemUpdateTiming>& GetSystemUpdateTimings() const { return m_systemTimings; }
+	const CFrameSectionProfiler& GetFrameProfiler() const { return m_frameProfiler; }
 	std::uint64_t GetScriptAllocationGeneration() const { return m_scriptAllocationGeneration; }
 	void* AllocateScriptMemory(TypeId scriptTypeId, std::size_t size, std::size_t alignment);
 	void FreeScriptMemory(TypeId scriptTypeId, void* ptr, std::size_t size, std::size_t alignment);
@@ -560,8 +553,10 @@ private:
 	OwnerPtr<CPhysics2DSystem>         m_physicsSystem;
 	OwnerPtr<CScriptSystem>            m_scriptSystem;
 	std::vector<OwnerPtr<CGameSystem>> m_systems;
-	// m_systems 와 인덱스가 1:1. 에디터 빌드에서만 채워진다.
-	std::vector<SystemUpdateTiming> m_systemTimings;
+	// 프레임 구간별 소요 시간(진단용). 에디터 빌드에서만 채워진다.
+	CFrameSectionProfiler m_frameProfiler;
+	// m_systems 와 인덱스가 1:1. 목록 크기가 바뀌면 다시 뽑는다.
+	std::vector<const char*> m_systemLabels;
 	std::vector<AssetGuid>             m_referencedAssets;
 	// active 인 동안 referenced 에셋을 strong 으로 잡는다(use-count>0 유지). 비active 시 clear.
 	std::vector<AssetRef<IAsset>>      m_loadedAssets;

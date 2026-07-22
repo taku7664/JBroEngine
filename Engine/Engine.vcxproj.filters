@@ -395,6 +395,9 @@
     <ClInclude Include="Utillity\Types\FrameLiveness.h">
       <Filter>Header\Utillity\Types</Filter>
     </ClInclude>
+    <ClInclude Include="Utillity\Types\FrameSectionProfiler.h">
+      <Filter>Header\Utillity\Types</Filter>
+    </ClInclude>
     <ClInclude Include="Utillity\Types\ArrayView.h">
       <Filter>Header\Utillity\Types</Filter>
     </ClInclude>

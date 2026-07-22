@@ -63,28 +63,48 @@ void CEditorStatisticsTool::OnRenderStay()
 		drawRow(Loc::Text(EditorLocKeys::EditorStatisticsRedo), Loc::Text(Editor::CommandManager.CanRedo() ? EditorLocKeys::CommonYes : EditorLocKeys::CommonNo));
 		drawRow(Loc::Text(EditorLocKeys::EditorStatisticsDirty), Loc::Text(Editor::CommandManager.IsDirty() ? EditorLocKeys::CommonYes : EditorLocKeys::CommonNo));
 
-		// 시스템별 Update 소요 시간. 편집 모드에서는 ShouldUpdateInEditMode 인 시스템만 돈다.
+		// 프레임 구간별 소요 시간. 가변(Update)과 고정 스텝(FixedUpdate)을 나눠 보여 준다.
+		// 편집 모드에서는 ShouldUpdateInEditMode 인 시스템만 돌고, 고정 스텝은 아예 안 돈다.
 		if (canvas.IsValid())
 		{
-			const std::vector<CGameCanvas::SystemUpdateTiming>& timings =
-				CCanvasRuntimeAccess::GetSystemUpdateTimings(*canvas);
-			if (false == timings.empty())
+			const std::vector<FrameSectionTiming>& sections =
+				CCanvasRuntimeAccess::GetFrameSections(*canvas);
+
+			auto drawSections = [&](const char* headerKey, bool fixedStep)
 			{
-				drawRow(Loc::Text(EditorLocKeys::EditorStatisticsSystemTimes), "");
-			}
-			for (const CGameCanvas::SystemUpdateTiming& timing : timings)
-			{
-				if (nullptr == timing.Label)
+				bool headerDrawn = false;
+				for (const FrameSectionTiming& section : sections)
 				{
-					continue;
+					if (nullptr == section.Label || section.IsFixedStep != fixedStep)
+					{
+						continue;
+					}
+					if (false == headerDrawn)
+					{
+						drawRow(Loc::Text(headerKey), "");
+						headerDrawn = true;
+					}
+					if (fixedStep)
+					{
+						// 고정 스텝은 프레임당 횟수가 달라진다 — 합계와 횟수를 함께 봐야 읽힌다.
+						std::snprintf(value, sizeof(value), "%.3f ms  x%u",
+							section.AverageMicroseconds / 1000.0, section.CallsPerFrame);
+					}
+					else
+					{
+						std::snprintf(value, sizeof(value), "%.3f ms",
+							section.AverageMicroseconds / 1000.0);
+					}
+					// typeid 이름은 "class CShapeRenderSystem" 형태 — 접두사를 건너뛴다.
+					const char* label = std::strncmp(section.Label, "class ", 6) == 0
+						? section.Label + 6
+						: section.Label;
+					drawRow(label, value);
 				}
-				std::snprintf(value, sizeof(value), "%.3f ms", timing.AverageMicroseconds / 1000.0);
-				// typeid 이름은 "class CShapeRenderSystem" 형태 — 접두사를 건너뛰고 보여 준다.
-				const char* label = std::strncmp(timing.Label, "class ", 6) == 0
-					? timing.Label + 6
-					: timing.Label;
-				drawRow(label, value);
-			}
+			};
+
+			drawSections(EditorLocKeys::EditorStatisticsSystemTimes, false);
+			drawSections(EditorLocKeys::EditorStatisticsFixedStepTimes, true);
 		}
 
 		ImGui::EndTable();

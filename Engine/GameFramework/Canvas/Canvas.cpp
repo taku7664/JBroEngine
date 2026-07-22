@@ -824,8 +824,15 @@ void CGameCanvas::Update(bool isSimulationPlaying)
 	{
 		UpdateScripts();
 	}
-	FlushPendingDestroys();
+	{
+		CFrameSectionScope scope(m_frameProfiler, "FlushPendingDestroys", false);
+		FlushPendingDestroys();
+	}
 	UpdateSystems(isSimulationPlaying);
+
+	// 프레임의 마지막 구간이 여기서 끝난다. FixedUpdate 는 CanvasManager 가 이 앞에서
+	// 0~8 번 돌리므로, 여기서 접으면 같은 프레임의 고정 스텝까지 함께 잡힌다.
+	m_frameProfiler.EndFrame();
 }
 
 void CGameCanvas::Update()
@@ -835,25 +842,37 @@ void CGameCanvas::Update()
 
 void CGameCanvas::FixedUpdate()
 {
+	// 이 함수는 프레임당 0~8 번 돈다(CanvasManager 의 고정 스텝 누산기). 그래서 계측이
+	// 호출마다 접지 않고 누적한다 — 접으면 마지막 스텝만 남아 물리가 과소보고된다.
 	if (m_physicsSystem)
 	{
+		CFrameSectionScope scope(m_frameProfiler, "CPhysics2DSystem", true);
 		m_physicsSystem->FixedUpdate(*this);
 	}
 
-	for (OwnerPtr<CGameSystem>& system : m_systems)
+	// 현재 이 목록에서 OnFixedUpdate 를 구현한 시스템은 없다(전부 기본 no-op).
+	// 그래도 하나로 묶어 재 둔다 — 누가 구현했는데 아무도 모르는 상황을 막는다.
 	{
-		if (system)
+		CFrameSectionScope scope(m_frameProfiler, "Systems", true);
+		for (OwnerPtr<CGameSystem>& system : m_systems)
 		{
-			system->FixedUpdate(*this);
+			if (system)
+			{
+				system->FixedUpdate(*this);
+			}
 		}
 	}
 
 	if (m_scriptSystem)
 	{
+		CFrameSectionScope scope(m_frameProfiler, "CScriptSystem", true);
 		m_scriptSystem->FixedUpdate(*this);
 	}
 
-	FlushPendingDestroys();
+	{
+		CFrameSectionScope scope(m_frameProfiler, "FlushPendingDestroys", true);
+		FlushPendingDestroys();
+	}
 }
 
 void CGameCanvas::FlushPendingDestroys()
@@ -911,6 +930,8 @@ void CGameCanvas::UpdateSystems(bool isSimulationPlaying)
 {
 	if (m_transformSystem)
 	{
+		// 단일 멤버라 타입이 고정 — typeid 대신 리터럴을 쓴다(같은 TU 안이라 주소가 안정적).
+		CFrameSectionScope scope(m_frameProfiler, "CTransformSystem", false);
 		m_transformSystem->Update(*this);
 	}
 
@@ -925,45 +946,31 @@ void CGameCanvas::UpdateSystems(bool isSimulationPlaying)
 		{
 			continue;
 		}
-		UpdateSystemMeasured(index, *system);
+		CFrameSectionScope scope(m_frameProfiler, SystemLabel(index, *system), false);
+		system->Update(*this);
 	}
 }
 
-void CGameCanvas::UpdateSystemMeasured(std::size_t index, CGameSystem& system)
+// typeid 이름을 슬롯당 한 번만 뽑는다. 매 프레임 부르면 계측이 스스로를 오염시킨다
+// (MSVC 의 type_info::name 은 첫 호출에서 undecorate + 캐시라 공짜가 아니다).
+const char* CGameCanvas::SystemLabel(std::size_t index, const CGameSystem& system)
 {
-#if defined(JBRO_EDITOR)
-	const std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-	system.Update(*this);
-	const double microseconds = std::chrono::duration<double, std::micro>(
-		std::chrono::steady_clock::now() - begin).count();
-
-	// AddSystem 으로 목록이 늘어날 수 있으므로 크기를 맞춰 둔다(라벨은 다시 뽑힌다).
-	if (m_systemTimings.size() != m_systems.size())
+	if (m_systemLabels.size() != m_systems.size())
 	{
-		m_systemTimings.assign(m_systems.size(), SystemUpdateTiming{});
+		m_systemLabels.assign(m_systems.size(), nullptr);
 	}
-
-	SystemUpdateTiming& timing = m_systemTimings[index];
-	if (nullptr == timing.Label)
+	if (nullptr == m_systemLabels[index])
 	{
-		// typeid 는 슬롯당 한 번만 부른다 — 프레임마다 부를 이유가 없다.
-		timing.Label = typeid(system).name();
-		timing.AverageMicroseconds = microseconds;
-		return;
+		m_systemLabels[index] = typeid(system).name();
 	}
-	// 지수 평활. 순간값은 프레임마다 몇 배씩 흔들려 눈으로 읽을 수가 없다.
-	// 0.05 는 대략 최근 20 프레임을 보는 창.
-	timing.AverageMicroseconds += (microseconds - timing.AverageMicroseconds) * 0.05;
-#else
-	(void)index;
-	system.Update(*this);
-#endif
+	return m_systemLabels[index];
 }
 
 void CGameCanvas::UpdateScripts()
 {
 	if (m_scriptSystem)
 	{
+		CFrameSectionScope scope(m_frameProfiler, "CScriptSystem", false);
 		m_scriptSystem->Update(*this);
 	}
 }
