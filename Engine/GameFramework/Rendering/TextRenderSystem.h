@@ -10,6 +10,9 @@
 #include <unordered_map>
 #include <vector>
 
+// 해석 함수가 스타일만 받으므로 필요하다. 정의는 Core/Asset/FontAsset.h (cpp 에서 포함).
+enum class EFontStyle : std::uint8_t;
+
 class CForward2DRenderer;
 class CFontFaceAsset;
 class CFontFamilyAsset;
@@ -104,9 +107,14 @@ private:
 	// 캐시된 face 중 자산 generation 이 재임포트로 바뀐 것이 있는지(폰트 핫리로드 감지).
 	bool AnyFaceGenerationStale() const;
 	FaceCache* AcquireFace(const AssetGuid& guid);
-	bool ResolveFamilyFaces(const Text2D& text, std::vector<AssetGuid>& outFaces);
-	bool AppendFamilyFaces(const AssetGuid& familyGuid, const Text2D& text, std::vector<AssetGuid>& outFaces,
+	// 해석은 (패밀리, 스타일) 만의 함수다 — Text2D 의 다른 필드는 쓰지 않는다.
+	// 시그니처에서 Text2D 를 걷어낸 이유가 그것이고, 프레임 memo 가 성립하는 근거이기도 하다.
+	bool ResolveFamilyFaces(const AssetGuid& family, EFontStyle style, std::vector<AssetGuid>& outFaces);
+	bool AppendFamilyFaces(const AssetGuid& familyGuid, EFontStyle style, std::vector<AssetGuid>& outFaces,
 		std::vector<AssetGuid>& visited);
+	// 프레임 memo 를 거쳐 해석 결과를 얻는다. 해석 실패면 nullptr.
+	// ⚠ 반환 포인터는 다음 AcquireResolvedFaces 호출까지만 유효하다(memo 벡터가 자랄 수 있다).
+	const std::vector<AssetGuid>* AcquireResolvedFaces(const AssetGuid& family, EFontStyle style);
 	bool BuildLayout(const Text2D& text, const std::vector<AssetGuid>& faces,
 		std::vector<PositionedGlyph>& outGlyphs, float& outWidth, float& outHeight, float fontSizePixels);
 	bool ShapeRun(const char* utf8, std::size_t length, const AssetGuid& faceGuid, std::uint32_t line,
@@ -114,7 +122,8 @@ private:
 	bool EnsureGlyph(FaceCache& face, std::uint32_t glyphId, GlyphInfo& outGlyph);
 	bool AllocateAtlasRect(FaceCache& face, std::uint32_t width, std::uint32_t height,
 		std::uint32_t& outPage, std::uint32_t& outX, std::uint32_t& outY);
-	bool RebuildText(Text2D& text, CachedText& cache, CForward2DRenderer& renderer);
+	bool RebuildText(Text2D& text, const std::vector<AssetGuid>& faces, CachedText& cache,
+		CForward2DRenderer& renderer);
 	OwnerPtr<IRenderMesh> CreateMesh(const std::vector<float>& vertices, const std::vector<std::uint32_t>& indices) const;
 	std::size_t BuildSignature(const Text2D& text, const AssetGuid& effectiveFamily) const;
 	AssetGuid GetEffectiveFamily(const Text2D& text) const;
@@ -138,6 +147,22 @@ private:
 	std::uint64_t m_frameStamp = 0;
 	// 매 프레임 텍스트마다 vector 를 새로 만들지 않으려고 재사용하는 작업 버퍼.
 	// 용량을 유지한 채 clear 만 하므로 워밍업 이후 할당이 없다.
-	std::vector<AssetGuid> m_faceProbeScratch;
 	std::vector<AssetGuid> m_faceVisitedScratch;
+
+	// 한 프레임 안에서 (패밀리, 스타일) → 해석된 face 목록을 기억한다.
+	// 폰트 해석은 패밀리마다 자산 매니저를 타는데(폴백 체인까지 전부, 호출마다 뮤텍스),
+	// 보통 한 캔버스의 텍스트가 전부 같은 패밀리를 쓴다. 그래서 텍스트 수만큼 반복하던 것이
+	// 서로 다른 패밀리 수만큼으로 줄어든다.
+	//
+	// 항목이 한두 개에 그치므로 해시맵이 아니라 선형 탐색이 맞다. 프레임마다 비우는 대신
+	// m_familyResolveCount 를 0 으로 되돌려 슬롯과 그 안의 vector 용량을 재사용한다.
+	struct ResolvedFamily
+	{
+		AssetGuid Family = INVALID_ASSET_GUID;
+		EFontStyle Style{};
+		bool Resolved = false;
+		std::vector<AssetGuid> Faces;
+	};
+	std::vector<ResolvedFamily> m_familyResolveMemo;
+	std::size_t m_familyResolveCount = 0;
 };

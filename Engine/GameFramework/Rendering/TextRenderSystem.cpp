@@ -196,7 +196,7 @@ AssetGuid CTextRenderSystem::GetEffectiveFamily(const Text2D& text) const
 	return text.FontFamilyGuid.IsNull() ? m_defaultFamily : text.FontFamilyGuid;
 }
 
-bool CTextRenderSystem::AppendFamilyFaces(const AssetGuid& familyGuid, const Text2D& text,
+bool CTextRenderSystem::AppendFamilyFaces(const AssetGuid& familyGuid, EFontStyle style,
 	std::vector<AssetGuid>& outFaces, std::vector<AssetGuid>& visited)
 {
 	if (familyGuid.IsNull() || nullptr == m_assetManager || std::find(visited.begin(), visited.end(), familyGuid) != visited.end()) return false;
@@ -205,23 +205,47 @@ bool CTextRenderSystem::AppendFamilyFaces(const AssetGuid& familyGuid, const Tex
 	if (false == asset.IsValid() || EAssetType::FontFamily != asset->GetAssetType()) return false;
 	const CFontFamilyAsset& family = *static_cast<CFontFamilyAsset*>(asset.Get());
 	bool regularFallback = false;
-	const AssetGuid faceGuid = family.ResolveFace(text.FontStyle, regularFallback);
+	const AssetGuid faceGuid = family.ResolveFace(style, regularFallback);
 	if (false == faceGuid.IsNull() && std::find(outFaces.begin(), outFaces.end(), faceGuid) == outFaces.end()) outFaces.push_back(faceGuid);
-	for (const AssetGuid& fallback : family.GetData().FallbackFamilies) AppendFamilyFaces(fallback, text, outFaces, visited);
+	for (const AssetGuid& fallback : family.GetData().FallbackFamilies) AppendFamilyFaces(fallback, style, outFaces, visited);
 	if (family.GetData().UseProjectFallbacks)
 	{
-		for (const AssetGuid& fallback : m_projectFallbacks) AppendFamilyFaces(fallback, text, outFaces, visited);
+		for (const AssetGuid& fallback : m_projectFallbacks) AppendFamilyFaces(fallback, style, outFaces, visited);
 	}
 	return false == outFaces.empty();
 }
 
-bool CTextRenderSystem::ResolveFamilyFaces(const Text2D& text, std::vector<AssetGuid>& outFaces)
+bool CTextRenderSystem::ResolveFamilyFaces(const AssetGuid& family, EFontStyle style,
+	std::vector<AssetGuid>& outFaces)
 {
 	// visited 는 멤버 작업 버퍼를 재사용한다. AppendFamilyFaces 는 자기 자신만 재귀하고
 	// ResolveFamilyFaces 를 다시 부르지 않으므로 중첩 사용이 없다(순차 호출뿐).
 	outFaces.clear();
 	m_faceVisitedScratch.clear();
-	return AppendFamilyFaces(GetEffectiveFamily(text), text, outFaces, m_faceVisitedScratch);
+	return AppendFamilyFaces(family, style, outFaces, m_faceVisitedScratch);
+}
+
+const std::vector<AssetGuid>* CTextRenderSystem::AcquireResolvedFaces(const AssetGuid& family, EFontStyle style)
+{
+	for (std::size_t index = 0; index < m_familyResolveCount; ++index)
+	{
+		const ResolvedFamily& cached = m_familyResolveMemo[index];
+		if (cached.Family == family && cached.Style == style)
+		{
+			return cached.Resolved ? &cached.Faces : nullptr;
+		}
+	}
+
+	if (m_familyResolveCount == m_familyResolveMemo.size())
+	{
+		m_familyResolveMemo.emplace_back();
+	}
+	ResolvedFamily& entry = m_familyResolveMemo[m_familyResolveCount];
+	++m_familyResolveCount;
+	entry.Family = family;
+	entry.Style = style;
+	entry.Resolved = ResolveFamilyFaces(family, style, entry.Faces);
+	return entry.Resolved ? &entry.Faces : nullptr;
 }
 
 bool CTextRenderSystem::ShapeRun(const char* utf8, std::size_t length, const AssetGuid& faceGuid,
@@ -428,10 +452,11 @@ std::size_t CTextRenderSystem::BuildSignature(const Text2D& text, const AssetGui
 	return hash;
 }
 
-bool CTextRenderSystem::RebuildText(Text2D& text, CachedText& cache, CForward2DRenderer& renderer)
+bool CTextRenderSystem::RebuildText(Text2D& text, const std::vector<AssetGuid>& faces,
+	CachedText& cache, CForward2DRenderer& renderer)
 {
-	std::vector<AssetGuid> faces;
-	if (false == ResolveFamilyFaces(text, faces)) return false;
+	// faces 는 호출자가 프레임 memo 에서 얻어 넘긴다. 예전에는 여기서 다시 해석했는데,
+	// OnUpdate 가 이미 같은 해석을 하고 버리고 있었다(자산 매니저 락을 두 번 잡던 자리).
 	float fontSize = std::max(1.0f, text.FontSizePixels);
 	std::vector<PositionedGlyph> glyphs;
 	float width = 0.0f, height = 0.0f;
@@ -579,13 +604,15 @@ void CTextRenderSystem::OnUpdate(CGameCanvas& canvas)
 		ClearCaches();
 	}
 	const std::uint64_t stamp = ++m_frameStamp;
+	m_familyResolveCount = 0;
 	canvas.ForEach<Text2D>([&](Text2D& text)
 	{
 		if (false == IsActiveComponent(text) || text.Text.empty()) return;
 		if (false == IsVisibleColor(text.FillEnabled, text.FillColor) && false == IsVisibleColor(text.OutlineEnabled, text.OutlineColor)) return;
 		const void* key = &text;
 		const AssetGuid family = GetEffectiveFamily(text);
-		if (family.IsNull() || false == ResolveFamilyFaces(text, m_faceProbeScratch))
+		const std::vector<AssetGuid>* faces = family.IsNull() ? nullptr : AcquireResolvedFaces(family, text.FontStyle);
+		if (nullptr == faces)
 		{
 			const auto [warned, firstTime] = m_warnedMissingFonts.try_emplace(key, stamp);
 			warned->second = stamp;
@@ -606,7 +633,7 @@ void CTextRenderSystem::OnUpdate(CGameCanvas& canvas)
 		CachedText& cache = m_textCache[key];
 		cache.LastSeenFrame = stamp;
 		const std::size_t signature = BuildSignature(text, family);
-		if (cache.Signature != signature && false == RebuildText(text, cache, *renderer)) return;
+		if (cache.Signature != signature && false == RebuildText(text, *faces, cache, *renderer)) return;
 		for (CachedMesh& mesh : cache.Meshes)
 		{
 			OwnerPtr<IRenderMaterial>& material = AcquireMaterial(mesh.FaceGuid, mesh.Page, *renderer);
