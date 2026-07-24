@@ -180,6 +180,8 @@ void CGpuProfilerWindow::DrawLayerDetail(CGameCanvas& canvas)
 		if (ImGui::Selectable(label, selected) && nullptr != object)
 		{
 			Editor::SelectEntity(object);
+			// 계층뷰가 접혀 있어도 이 오브젝트가 보이도록 조상 트리·레이어를 펼치고 스크롤한다.
+			Editor::RevealEntityInHierarchy(object);
 		}
 		if (drawItem.Culled)
 		{

@@ -29,6 +29,7 @@
 #include <functional>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 
 void CLayerTool::OnCreate()
 {
@@ -168,6 +169,28 @@ void CLayerTool::OnRenderStay()
 		return true;
 	};
 
+	// ── 계층뷰 표시 요청(핑) 소비 ────────────────────────────────────────────────
+	// 계층뷰 밖(GPU 프로파일러 등)에서 고른 오브젝트가 접힌 트리 안에 있으면 이번 프레임에
+	// 그 조상 트리·레이어를 강제로 펼치고(SetNextItemOpen → ImTreeRender 가 같은 프레임에 반영)
+	// 그 행으로 스크롤한다. 1회성이라 여기서 읽고 바로 해제한다.
+	CGameObject* revealTarget = Editor::GetHierarchyRevealTarget();
+	std::unordered_set<const CGameObject*> revealAncestors;   // 펼칠 조상들(타깃 자신은 제외).
+	const CGameLayer* revealLayer = nullptr;                  // 타깃 루트가 속한 레이어(헤더도 펼침).
+	if (revealTarget)
+	{
+		for (CGameObject* parent = revealTarget->GetParent().TryGet(); parent; parent = parent->GetParent().TryGet())
+		{
+			revealAncestors.insert(parent);
+		}
+		CGameObject* root = revealTarget;
+		while (CGameObject* parent = root->GetParent().TryGet())
+		{
+			root = parent;
+		}
+		revealLayer = root->GetLayer().TryGet();
+		Editor::ClearHierarchyRevealTarget();
+	}
+
 	// ── 트리 노드 재귀 렌더링 ────────────────────────────────────────────────────
 	struct PendingSelectionClick
 	{
@@ -201,7 +224,17 @@ void CLayerTool::OnRenderStay()
 		}
 		const char* objName = obj->GetName();
 		const char* name = (objName && objName[0]) ? objName : "GameObject";
+		// 표시 요청 대상의 조상이면 이 프레임에 강제로 펼친다(자식이 즉시 렌더돼 타깃까지 도달).
+		if (revealTarget && revealAncestors.count(obj) > 0)
+		{
+			ImGui::SetNextItemOpen(true, ImGuiCond_Always);
+		}
 		const bool isOpen = ImTree(name, flags);
+		// 타깃 행이면 뷰 중앙으로 스크롤(접혀 있던 경우 조상은 위에서 이미 펼쳐졌다).
+		if (revealTarget == obj)
+		{
+			ImGui::SetScrollHereY(0.5f);
+		}
 		const ImRect treeRowRect = GImGui->LastItemData.DisplayRect;
 		const float nodeH = ImGui::GetItemRectSize().y; // 실제 트리노드 줄 높이(눈 버튼 정렬용)
 
@@ -392,6 +425,11 @@ void CLayerTool::OnRenderStay()
 				static_cast<float>(Editor::ImEditor->GetLayerThumbnailHeight()));
 		}
 
+		// 표시 요청 대상이 이 레이어 안에 있으면 레이어 헤더도 이 프레임에 강제로 펼친다.
+		if (revealLayer == layer)
+		{
+			ImGui::SetNextItemOpen(true, ImGuiCond_Always);
+		}
 		const ImLayerHeaderResult header = ImLayerHeader("##LayerHeader", headerDesc);
 		const bool isOpen = header.IsOpen;
 		const ImRect layerRowRect = header.RowRect;

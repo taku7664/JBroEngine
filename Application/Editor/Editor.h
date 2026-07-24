@@ -217,6 +217,25 @@ public:
 		return m_selectedLayer.TryGet();
 	}
 
+	// ── 계층뷰 표시 요청(핑) ──────────────────────────────────────────────────
+	// 계층뷰 밖(예: GPU 프로파일러 드로우순서)에서 오브젝트를 고르면, 그 오브젝트가 접힌 트리
+	// 안에 숨어 있을 수 있다. 이 요청을 세우면 다음 계층뷰 렌더가 타깃의 레이어·조상 트리를
+	// 펼치고 그 행으로 스크롤한다. CLayerTool 이 1회 소비 후 해제한다(1프레임 핑).
+	static void RevealEntityInHierarchy(CGameObject* object)
+	{
+		m_revealTarget = object ? object->SafeFromThis() : SafePtr<CGameObject>();
+	}
+
+	static CGameObject* GetHierarchyRevealTarget()
+	{
+		return m_revealTarget.TryGet();
+	}
+
+	static void ClearHierarchyRevealTarget()
+	{
+		m_revealTarget = SafePtr<CGameObject>();
+	}
+
 	static void SelectAsset(const File::Guid& guid, const File::Path& path)
 	{
 		m_selectedAssetGuid = guid;
@@ -292,6 +311,8 @@ public:
 private:
 	inline static SafePtr<CGameObject>              m_primarySelected;
 	inline static std::vector<SafePtr<CGameObject>> m_selectedObjects;
+	// 계층뷰 밖에서 요청한 "펼쳐서 보여줄" 오브젝트(1프레임 핑, CLayerTool 이 소비).
+	inline static SafePtr<CGameObject>              m_revealTarget;
 	inline static SafePtr<CGameLayer>              m_selectedLayer;
 	inline static bool                            m_canvasSelected = false;
 	inline static File::Path            m_activeCanvasPath   = File::NULL_PATH;
