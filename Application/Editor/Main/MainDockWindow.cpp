@@ -12,6 +12,7 @@
 #include "Editor/Main/CanvasView/CanvasViewTool.h"
 #include "Editor/Main/ShortcutReference/ShortcutReferenceTool.h"
 #include "Editor/Main/Statistics/EditorStatisticsTool.h"
+#include "Editor/Main/Debug/GpuProfilerWindow.h"
 #include "Editor/Main/Importer/SpriteImporterWindow.h"
 #include "Editor/Main/Importer/AudioImporterWindow.h"
 #include "Engine/Core/EngineCore.h"
@@ -67,6 +68,7 @@ void CMainDockWindow::OnCreate()
 	Editor::LogTool      = Editor::ImEditor->CreateImWindow<CLogTool>         ("Log",          id);
 	Editor::ShortcutReference = Editor::ImEditor->CreateImWindow<CShortcutReferenceTool>("ShortcutReference", id);
 	Editor::EditorStatistics  = Editor::ImEditor->CreateImWindow<CEditorStatisticsTool>("EditorStatistics", id);
+	Editor::GpuProfiler       = Editor::ImEditor->CreateImWindow<CGpuProfilerWindow>("GpuProfiler", id);
 
 	// 슬롯 이름으로 창 배치
 	if (Editor::CanvasView)
@@ -94,6 +96,11 @@ void CMainDockWindow::OnCreate()
 	{
 		Editor::EditorStatistics->InitializeDockLayout("Bottom");
 		Editor::EditorStatistics->SetVisible(false);
+	}
+	if (Editor::GpuProfiler)
+	{
+		Editor::GpuProfiler->InitializeDockLayout("Bottom");
+		Editor::GpuProfiler->SetVisible(false);
 	}
 	if (Editor::Layers)
 	{

@@ -1530,6 +1530,21 @@ bool CForward2DRenderer::CanBatchSpriteItem(const RenderItem& item, const Sprite
 	return resources.Pipeline == m_spritePipeline.GetSafePtr();
 }
 
+CForward2DRenderer::RenderItemBatchKey CForward2DRenderer::GetItemBatchKey(const RenderItem& item) const
+{
+	// 진단 전용 — RenderWithSkip 와 같은 예측자로 판정한다(단일 출처). 배치 가능하면 텍스처/샘플러
+	// 원시 포인터를 키로 준다(호출자가 연속 아이템끼리 == 비교로 같은 배치 런인지 판단).
+	RenderItemBatchKey key;
+	const SpriteDrawResources resources = ResolveSpriteDrawResources(item);
+	if (CanBatchSpriteItem(item, resources))
+	{
+		key.Batchable = true;
+		key.Texture = resources.Texture.TryGet();
+		key.Sampler = resources.Sampler.TryGet();
+	}
+	return key;
+}
+
 bool CForward2DRenderer::DrawSpriteBatch(IRHICommandContext& commandContext, RenderStateCache& stateCache, const RenderItem* items, std::uint32_t itemCount, const SpriteDrawResources& resources, const ViewParameters& view)
 {
 	if (nullptr == items || 0 == itemCount || !m_spriteBatchPipeline || !m_quadMesh)

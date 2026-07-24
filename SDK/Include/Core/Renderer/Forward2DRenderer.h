@@ -49,6 +49,19 @@ public:
 	SafePtr<IRenderMesh> GetQuadMesh() const;
 	SafePtr<IRHITexture> GetWhiteTexture() const;
 
+	// ── 진단(에디터 GPU 프로파일러 드로우순서/배칭 표시) ─────────────────────────
+	// 이 아이템이 인스턴싱 배치 대상인지와, 같은 배치로 묶이려면 일치해야 하는 텍스처/샘플러
+	// 식별자(불투명 포인터, 비교 전용). RenderWithSkip 의 배치 판정과 동일 근거를 쓴다
+	// (ResolveSpriteDrawResources + CanBatchSpriteItem). 뷰 무관 — 연속 런을 묶는 그룹핑
+	// 루프는 호출자(GameCamera 드로우순서 캡처)가 돌린다. 계측 on 일 때만 호출되는 진단 경로.
+	struct RenderItemBatchKey
+	{
+		bool        Batchable = false;
+		const void* Texture   = nullptr;
+		const void* Sampler   = nullptr;
+	};
+	RenderItemBatchKey GetItemBatchKey(const RenderItem& item) const;
+
 	// ── RenderWeave: 렌더그래프 RT 풀 + 풀스크린 blit ────────────────────────
 	// transient RT 대여 풀. RenderGameCameraStack 이 프레임마다 RWGraph 를 구성해 쓴다.
 	RWTexturePool& GetRenderWeavePool();

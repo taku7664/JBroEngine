@@ -14,6 +14,15 @@ class IRHICommandContext;
 class IRHITexture;
 class IRenderer;
 class IRenderScene;
+class IRHIGpuTimer;
+
+// GPU 타이머 구간 키 = 레이어 인덱스 + 1.
+//   +1 오프셋: 프레임 전체 구간(키=nullptr=0)과 레이어 0 을 구별한다.
+//   RHI 는 이 키를 불투명 포인터로만 다루고, GPU 프로파일러 창이 레이어 인덱스로 역매핑한다.
+inline const void* GpuLayerKey(std::uint16_t layerIndex)
+{
+	return reinterpret_cast<const void*>(static_cast<std::uintptr_t>(layerIndex) + 1u);
+}
 
 // 뷰포트 1개의 렌더 스냅샷(프레임마다 수집). = 해석된 카메라 뷰 × 출력 렉트 × 레이어 필터.
 // 렌더 코드가 캔버스/카메라 컴포넌트를 직접 들여다보지 않게 하는 경계(라이트 수집과 동일 규약).
@@ -103,4 +112,6 @@ void RenderGameViewports(
 	std::vector<GameRenderCameraStats>* outCameraStats = nullptr,
 	const std::vector<GameRenderLightDesc>& lights = {},
 	const std::vector<GameRenderLayerDesc>& layers = {},
-	const float* backgroundColor = nullptr);
+	const float* backgroundColor = nullptr,
+	// null 이 아니면 레이어별 GPU 시간을 이 타이머로 잰다(게임뷰 렌더에서만 넘긴다 — 예외 5).
+	IRHIGpuTimer* gpuTimer = nullptr);

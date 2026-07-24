@@ -8,6 +8,9 @@
 #include "Editor/EditorContext.h"
 #include "Editor/Main/BuildSettingsWindow.h"
 #include "Editor/Main/ProjectSettingsWindow.h"
+#include "Editor/Main/Debug/GpuProfilerWindow.h"
+#include "Engine/Core/EngineCore.h"
+#include "Engine/Core/Debug/GpuProfiler.h"
 #include "Editor/Main/MainDockWindow.h"
 #include "Editor/Main/CanvasView/CanvasViewTool.h"
 #include "Engine/Core/EngineCore.h"
@@ -677,6 +680,26 @@ void CRootDockWindow::OnMenuBar()
 			if (Editor::BuildSettings)
 			{
 				Editor::BuildSettings->SetVisible(true);
+			}
+		}
+		ImGui::EndMenu();
+	}
+
+	if (ImGui::BeginMenu(Loc::Text(EditorLocKeys::MenuDebug)))
+	{
+		// GPU 프로파일링 토글(체크박스). 상태 소유처는 Engine.GpuProfiler. 켜면 프로파일러 창도 띄운다.
+		const bool gpuProfilingEnabled =
+			Engine.GpuProfiler.IsValid() && Engine.GpuProfiler->IsEnabled();
+		if (ImGui::MenuItem(Loc::Text(EditorLocKeys::MenuDebugGpuProfiling), nullptr, gpuProfilingEnabled))
+		{
+			if (Engine.GpuProfiler.IsValid())
+			{
+				const bool newEnabled = (false == gpuProfilingEnabled);
+				Engine.GpuProfiler->SetEnabled(newEnabled);
+				if (newEnabled && Editor::GpuProfiler)
+				{
+					Editor::GpuProfiler->SetVisible(true);
+				}
 			}
 		}
 		ImGui::EndMenu();

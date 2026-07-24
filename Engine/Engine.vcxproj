@@ -389,6 +389,7 @@
     <ClInclude Include="Core\RHI\D3D11\D3D11Program.h" />
     <ClInclude Include="Core\RHI\D3D11\D3D11Sampler.h" />
     <ClInclude Include="Core\RHI\D3D11\D3D11RHIDevice.h" />
+    <ClInclude Include="Core\RHI\D3D11\D3D11GpuTimer.h" />
     <ClInclude Include="Core\RHI\D3D11\D3D11Swapchain.h" />
     <ClInclude Include="Core\RHI\D3D11\D3D11Texture.h" />
     <ClInclude Include="Core\RHI\EmptyRHIDevice.h" />
@@ -404,6 +405,7 @@
     <ClInclude Include="Core\RHI\IRHIBuffer.h" />
     <ClInclude Include="Core\RHI\IRHICommandContext.h" />
     <ClInclude Include="Core\RHI\IRHIDevice.h" />
+    <ClInclude Include="Core\RHI\IRHIGpuTimer.h" />
     <ClInclude Include="Core\RHI\IRHIGraphicsPipeline.h" />
     <ClInclude Include="Core\RHI\IRHIProgram.h" />
     <ClInclude Include="Core\RHI\IRHISampler.h" />
@@ -424,6 +426,7 @@
     <ClInclude Include="Core\RHI\WebGPU\WebGPUTexture.h" />
     <ClInclude Include="Core\Debug\DebugDraw.h" />
     <ClInclude Include="Core\Debug\DebugDraw2D.h" />
+    <ClInclude Include="Core\Debug\GpuProfiler.h" />
     <ClInclude Include="Core\Debug\DebugRenderer.h" />
     <ClInclude Include="Core\Debug\DebugRenderer2D.h" />
     <ClInclude Include="Core\Debug\OutlineRenderer2D.h" />
@@ -708,6 +711,7 @@
     <ClCompile Include="Core\RHI\D3D11\D3D11Program.cpp" />
     <ClCompile Include="Core\RHI\D3D11\D3D11Sampler.cpp" />
     <ClCompile Include="Core\RHI\D3D11\D3D11RHIDevice.cpp" />
+    <ClCompile Include="Core\RHI\D3D11\D3D11GpuTimer.cpp" />
     <ClCompile Include="Core\RHI\D3D11\D3D11Swapchain.cpp" />
     <ClCompile Include="Core\RHI\D3D11\D3D11Texture.cpp" />
     <ClCompile Include="Core\RHI\EmptyRHIDevice.cpp" />

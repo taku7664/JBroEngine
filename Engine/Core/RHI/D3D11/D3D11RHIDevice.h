@@ -9,6 +9,8 @@ struct ID3D11DeviceContext;
 struct IDXGISwapChain;
 #endif
 
+class CD3D11GpuTimer;
+
 class CD3D11RHIDevice final : public IRHIDevice
 {
 public:
@@ -32,11 +34,13 @@ public:
 
 	ERHIApi GetApi() const override;
 	const char* GetName() const override;
+	IRHIGpuTimer* GetGpuTimer() override;
 
 private:
 	RHIDesc m_desc;
 	OwnerPtr<IRHISwapchain> m_rhiSwapchain;
 	OwnerPtr<IRHICommandContext> m_immediateCommandContext;
+	OwnerPtr<CD3D11GpuTimer> m_gpuTimer;
 	bool m_isInitialized = false;
 
 #if JBRO_PLATFORM_WINDOWS

@@ -581,6 +581,9 @@
     <ClInclude Include="Core\RHI\D3D11\D3D11RHIDevice.h">
       <Filter>Header\Core\RHI\D3D11</Filter>
     </ClInclude>
+    <ClInclude Include="Core\RHI\D3D11\D3D11GpuTimer.h">
+      <Filter>Header\Core\RHI\D3D11</Filter>
+    </ClInclude>
     <ClInclude Include="Core\RHI\D3D11\D3D11Swapchain.h">
       <Filter>Header\Core\RHI\D3D11</Filter>
     </ClInclude>
@@ -624,6 +627,9 @@
       <Filter>Header\Core\RHI</Filter>
     </ClInclude>
     <ClInclude Include="Core\RHI\IRHIDevice.h">
+      <Filter>Header\Core\RHI</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\RHI\IRHIGpuTimer.h">
       <Filter>Header\Core\RHI</Filter>
     </ClInclude>
     <ClInclude Include="Core\RHI\IRHIGraphicsPipeline.h">
@@ -681,6 +687,9 @@
       <Filter>Header\Core\RHI\WebGPU</Filter>
     </ClInclude>
     <ClInclude Include="Core\Debug\DebugDraw.h">
+      <Filter>Header\Core\Debug</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Debug\GpuProfiler.h">
       <Filter>Header\Core\Debug</Filter>
     </ClInclude>
     <ClInclude Include="Core\Debug\DebugDraw2D.h">
@@ -1388,6 +1397,9 @@
       <Filter>Source\Core\RHI\D3D11</Filter>
     </ClCompile>
     <ClCompile Include="Core\RHI\D3D11\D3D11RHIDevice.cpp">
+      <Filter>Source\Core\RHI\D3D11</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\RHI\D3D11\D3D11GpuTimer.cpp">
       <Filter>Source\Core\RHI\D3D11</Filter>
     </ClCompile>
     <ClCompile Include="Core\RHI\D3D11\D3D11Swapchain.cpp">

@@ -5,6 +5,7 @@
 #include "Core/RHI/RHITypes.h"
 #include "GameFramework/Rendering/GameCamera.h"
 #include "Utillity/Types/FrameSectionProfiler.h"
+#include "Core/Debug/GpuProfiler.h"
 
 #include <functional>
 #include <vector>
@@ -111,6 +112,7 @@ private:
 	OwnerPtr<IAudioDevice>        m_audioDevice;
 	OwnerPtr<CTime>               m_time;
 	OwnerPtr<CFrameSectionProfiler> m_frameProfiler;
+	OwnerPtr<CGpuProfiler>        m_gpuProfiler;
 	OwnerPtr<CInput>              m_input;
 	OwnerPtr<CInputSystem>        m_inputSystem;
 	OwnerPtr<CFileSystem>         m_fileSystem;

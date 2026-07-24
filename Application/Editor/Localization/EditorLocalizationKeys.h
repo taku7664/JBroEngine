@@ -415,6 +415,8 @@ namespace EditorLocKeys
 	constexpr const char* LogLevelTrace = "log.level.trace";
 	constexpr const char* LogLevelUnknown = "log.level.unknown";
 	constexpr const char* LogLevelWarning = "log.level.warning";
+	constexpr const char* MenuDebug = "menu.debug";
+	constexpr const char* MenuDebugGpuProfiling = "menu.debug.gpu_profiling";
 	constexpr const char* MenuEdit = "menu.edit";
 	constexpr const char* MenuEditRedo = "menu.edit.redo";
 	constexpr const char* MenuEditUndo = "menu.edit.undo";
@@ -557,6 +559,18 @@ namespace EditorLocKeys
 	constexpr const char* WindowAssetBrowser = "window.asset_browser";
 	constexpr const char* WindowBuildSettings = "window.build_settings";
 	constexpr const char* WindowEditorStatistics = "window.editor_statistics";
+	constexpr const char* WindowGpuProfiler = "window.gpu_profiler";
+	// GPU 프로파일러 창 내용
+	constexpr const char* GpuProfilerDisabledHint = "gpu_profiler.disabled_hint";
+	constexpr const char* GpuProfilerBackendUnsupported = "gpu_profiler.backend_unsupported";
+	constexpr const char* GpuProfilerGameViewGpu = "gpu_profiler.game_view_gpu";
+	constexpr const char* GpuProfilerNoCanvas = "gpu_profiler.no_canvas";
+	constexpr const char* GpuProfilerLayersHeader = "gpu_profiler.layers_header";
+	constexpr const char* GpuProfilerTimePending = "gpu_profiler.time_pending";
+	constexpr const char* GpuProfilerSelectLayerHint = "gpu_profiler.select_layer_hint";
+	constexpr const char* GpuProfilerDrawOrderHeader = "gpu_profiler.draw_order_header";
+	constexpr const char* GpuProfilerDrawOrderEmpty = "gpu_profiler.draw_order_empty";
+	constexpr const char* GpuProfilerBatchGroup = "gpu_profiler.batch_group";
 	constexpr const char* WindowGameView = "window.game_view";
 	constexpr const char* WindowLayers = "window.layers";
 	constexpr const char* WindowInspector = "window.inspector";

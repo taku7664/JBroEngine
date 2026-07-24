@@ -11,6 +11,7 @@
 #include "Core/Renderer/IRenderScene.h"
 #include "Core/RHI/IRHICommandContext.h"
 #include "Core/RHI/IRHIDevice.h"
+#include "Core/RHI/IRHIGpuTimer.h"
 #include "Core/RHI/IRHITexture.h"
 #include "Editor/Project/ProjectManager.h"
 #include "GameFramework/Canvas/Canvas.h"
@@ -863,6 +864,12 @@ void CImEditor::OnPrepareRender()
 
 		std::vector<GameRenderCameraStats> cameraStats;
 		const CGameCanvas* gameViewCanvas = m_gameViewCanvas.TryGet();
+		// 예외 5: 레이어별 GPU 시간은 게임뷰 렌더에서만 잰다(썸네일·캔버스뷰는 실제 게임과 다르다).
+		// 타이머는 프로파일링이 꺼져 있으면 스스로 no-op 이라, 항상 넘겨도 비용이 없다.
+		IRHIGpuTimer* gpuTimer = engineCore->RHIDevice.IsValid() ? engineCore->RHIDevice->GetGpuTimer() : nullptr;
+		// 게임뷰 전체 GPU 시간(레이어 + 라이팅/컴포짓 총합, 키=nullptr). 게임뷰가 안 그려지면
+		// 이 구간이 아예 안 열려 결과가 0 이 된다 → 게임뷰를 끄면 총합이 뚝 떨어지는 게 보인다.
+		const std::uint32_t gpuTotalScope = gpuTimer ? gpuTimer->BeginScope(nullptr) : INVALID_GPU_SCOPE;
 		RenderGameViewports(
 			*commandContext,
 			*engineCore->Renderer,
@@ -873,7 +880,12 @@ void CImEditor::OnPrepareRender()
 			&cameraStats,
 			m_gameViewLights,
 			m_gameViewLayers,
-			gameViewCanvas ? gameViewCanvas->GetBackgroundColor() : nullptr);
+			gameViewCanvas ? gameViewCanvas->GetBackgroundColor() : nullptr,
+			gpuTimer);
+		if (gpuTimer)
+		{
+			gpuTimer->EndScope(gpuTotalScope);
+		}
 		m_gameViewCameraCullingStats.clear();
 		for (const GameRenderCameraStats& stats : cameraStats)
 		{
@@ -887,6 +899,12 @@ void CImEditor::OnPrepareRender()
 	{
 		m_gameViewCameraCullingStats.clear();
 	}
+
+	// 게임뷰 렌더 요청은 매 프레임 opt-in 이다 — 여기서 내려 두고, 게임뷰 패널이 실제로 그려질
+	// 때만(GameViewTool::OnRenderStay, 이 함수보다 뒤의 ImGui 렌더 단계) 다음 프레임용으로 다시
+	// 켠다. 그래서 게임뷰 탭이 닫히거나 배경 탭으로 가려지면 요청이 안 들어와 렌더가 멈춘다.
+	// (RT 는 파기하지 않아 다시 보일 때 재할당 없이 매끄럽게 이어진다.)
+	m_gameViewRequested = false;
 
 	// 캔버스뷰/게임뷰와 독립 — 둘 다 닫혀 있어도 하이어라키가 요청하면 그린다.
 	// 렌더러 뷰 상태를 바꾸므로 다른 뷰의 렌더가 끝난 뒤 마지막에 돈다.

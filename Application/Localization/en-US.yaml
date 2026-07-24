@@ -12,6 +12,17 @@ Entries:
   window.build_settings: Build Settings
   window.shortcut_reference: Shortcut Reference
   window.editor_statistics: Editor Statistics
+  window.gpu_profiler: GPU Profiler
+  gpu_profiler.disabled_hint: Enable "GPU Profile" in the Debug menu
+  gpu_profiler.backend_unsupported: This render backend does not support GPU timestamps
+  gpu_profiler.game_view_gpu: "Game View GPU: %.3f ms"
+  gpu_profiler.no_canvas: No active canvas
+  gpu_profiler.layers_header: Layers
+  gpu_profiler.time_pending: (pending)
+  gpu_profiler.select_layer_hint: Select a layer on the left
+  gpu_profiler.draw_order_header: Draw Order
+  gpu_profiler.draw_order_empty: No objects drawn in this layer
+  gpu_profiler.batch_group: "Batch ×%d (one draw call)"
 
   menu.file: File
   menu.file.new_project: New Project
@@ -21,6 +32,8 @@ Entries:
   menu.settings: Settings
   menu.settings.project_settings: Project Settings
   menu.settings.build_settings: Build Settings
+  menu.debug: Debug
+  menu.debug.gpu_profiling: GPU Profiling
   menu.simulation: Simulation
   menu.simulation.play: Play
   menu.simulation.pause: Pause

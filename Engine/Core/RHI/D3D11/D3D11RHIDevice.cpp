@@ -8,6 +8,7 @@
 #include "Core/RHI/D3D11/D3D11Sampler.h"
 #include "Core/RHI/D3D11/D3D11Swapchain.h"
 #include "Core/RHI/D3D11/D3D11Texture.h"
+#include "Core/RHI/D3D11/D3D11GpuTimer.h"
 
 #include <cstring>
 
@@ -223,6 +224,9 @@ bool CD3D11RHIDevice::Initialize(const RHIDesc& desc)
 		static_cast<CD3D11Swapchain*>(m_rhiSwapchain.Get())->GetRenderTargetView(),
 		desc.Surface.Size
 	);
+
+	// GPU 타이머(진단용). 생성 실패해도 렌더는 정상 — GetGpuTimer 가 미지원으로 보고할 뿐이다.
+	m_gpuTimer = MakeOwnerPtr<CD3D11GpuTimer>(m_device, m_deviceContext);
 #endif
 
 	m_isInitialized = true;
@@ -231,6 +235,11 @@ bool CD3D11RHIDevice::Initialize(const RHIDesc& desc)
 
 void CD3D11RHIDevice::BeginFrame()
 {
+	// disjoint + 프레임 시작 타임스탬프를 먼저 꽂는다(렌더 커맨드 이전에).
+	if (m_gpuTimer)
+	{
+		m_gpuTimer->BeginFrame();
+	}
 	if (m_immediateCommandContext)
 	{
 		m_immediateCommandContext->BeginFrame();
@@ -244,6 +253,13 @@ void CD3D11RHIDevice::EndFrame()
 		m_immediateCommandContext->EndFrame();
 	}
 
+	// 프레임 종료 타임스탬프 + disjoint 종료를 Present 앞에서 찍는다 →
+	// 측정값이 순수 렌더 GPU 시간이 되어 vsync/Present 대기가 섞이지 않는다.
+	if (m_gpuTimer)
+	{
+		m_gpuTimer->EndFrame();
+	}
+
 	if (m_rhiSwapchain)
 	{
 		m_rhiSwapchain->Present();
@@ -252,6 +268,8 @@ void CD3D11RHIDevice::EndFrame()
 
 void CD3D11RHIDevice::Finalize()
 {
+	// 타이머의 쿼리는 디바이스 파괴 전에 반드시 해제해야 한다.
+	m_gpuTimer.Reset();
 	m_immediateCommandContext.Reset();
 
 	if (m_rhiSwapchain)
@@ -683,4 +701,9 @@ ERHIApi CD3D11RHIDevice::GetApi() const
 const char* CD3D11RHIDevice::GetName() const
 {
 	return "D3D11";
+}
+
+IRHIGpuTimer* CD3D11RHIDevice::GetGpuTimer()
+{
+	return m_gpuTimer.Get();
 }

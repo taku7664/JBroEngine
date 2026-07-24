@@ -424,6 +424,7 @@ bool CEngine::InitializeCoreServices()
 	m_time = MakeOwnerPtr<CTime>();
 	// Update 가 첫 프레임부터 쓰므로 다른 서비스보다 먼저 만들어 둔다.
 	m_frameProfiler = MakeOwnerPtr<CFrameSectionProfiler>();
+	m_gpuProfiler = MakeOwnerPtr<CGpuProfiler>();
 	m_input = MakeOwnerPtr<CInput>();
 	m_inputSystem = MakeOwnerPtr<CInputSystem>();
 	m_fileSystem = MakeOwnerPtr<CFileSystem>();
@@ -466,6 +467,7 @@ bool CEngine::InitializeCoreServices()
 
 	Engine.Time = m_time.GetSafePtr();
 	Engine.FrameProfiler = m_frameProfiler.GetSafePtr();
+	Engine.GpuProfiler = m_gpuProfiler.GetSafePtr();
 	Engine.Input = m_input.GetSafePtr();
 	Engine.InputSystem = m_inputSystem.GetSafePtr();
 	Engine.FileSystem = m_fileSystem.GetSafePtr();
@@ -759,7 +761,35 @@ void CEngine::RenderFrame()
 		m_preRenderCallback();
 	}
 
-	m_rhiDevice->BeginFrame();
+	// GPU 프로파일러 브리지: 계측 on/off 를 RHI 타이머에 넘기고, 백엔드 지원 여부를 UI 로 되돌린다.
+	// (에디터 전용 진단 — Engine.GpuProfiler 는 에디터 빌드에서만 켜진다.)
+	IRHIGpuTimer* gpuTimer = m_rhiDevice ? m_rhiDevice->GetGpuTimer() : nullptr;
+	if (Engine.GpuProfiler.IsValid())
+	{
+		if (gpuTimer)
+		{
+			gpuTimer->SetEnabled(Engine.GpuProfiler->IsEnabled());
+			Engine.GpuProfiler->SetBackendSupported(gpuTimer->IsSupported());
+		}
+		else
+		{
+			Engine.GpuProfiler->SetBackendSupported(false);
+		}
+	}
+
+	m_rhiDevice->BeginFrame();   // 타이머 BeginFrame 이 여기서 N프레임 전 결과를 해소한다.
+
+	// 해소된 결과(약 N프레임 전 GPU 시간)를 UI-facing 프로파일러로 복사한다.
+	if (Engine.GpuProfiler.IsValid() && gpuTimer)
+	{
+		Engine.GpuProfiler->SetResults(gpuTimer->GetResults());
+	}
+	// 이번 프레임 드로우순서 캡처 버퍼를 비운다 — 이후 게임뷰 렌더가 레이어별로 다시 채운다.
+	if (Engine.GpuProfiler.IsValid())
+	{
+		Engine.GpuProfiler->ClearDrawOrder();
+	}
+
 	if (m_renderer)
 	{
 		m_renderer->BeginFrame();

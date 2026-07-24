@@ -66,6 +66,8 @@ bld/
 !/Engine/GameFramework/Debug/**
 !/Application/Editor/Main/Log/
 !/Application/Editor/Main/Log/**
+!/Application/Editor/Main/Debug/
+!/Application/Editor/Main/Debug/**
 
 # Visual Studio 2015/2017 cache/options directory
 .vs/

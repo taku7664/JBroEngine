@@ -10,6 +10,7 @@ class IRHIProgram;
 class IRHIGraphicsPipeline;
 class IRHITexture;
 class IRHISampler;
+class IRHIGpuTimer;
 
 class IRHIDevice : public EnableSafeFromThis<IRHIDevice>
 {
@@ -40,4 +41,7 @@ public:
 
 	virtual ERHIApi GetApi() const = 0;
 	virtual const char* GetName() const = 0;
+
+	// GPU 구간 타이머(진단용). 미지원 백엔드는 null 을 돌려준다(기본).
+	virtual IRHIGpuTimer* GetGpuTimer() { return nullptr; }
 };

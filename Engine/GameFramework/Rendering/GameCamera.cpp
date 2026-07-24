@@ -1,7 +1,10 @@
 #include "pch.h"
 #include "GameCamera.h"
 
+#include "Core/EngineCore.h"                    // Engine.GpuProfiler — 드로우순서 캡처(에디터 진단)
+#include "Core/Debug/GpuProfiler.h"
 #include "Core/RHI/IRHICommandContext.h"
+#include "Core/RHI/IRHIGpuTimer.h"              // 레이어별 GPU 시간 계측(에디터 진단)
 #include "Core/Renderer/Forward2DRenderer.h"   // CForward2DRenderer — 오프스크린 blit 경로
 #include "Core/Renderer/IRenderScene.h"
 #include "Core/Renderer/IRenderer.h"
@@ -17,6 +20,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <limits>
 
 namespace
 {
@@ -231,6 +235,45 @@ namespace
 		return view;
 	}
 
+	// CForward2DRenderer::IsSpriteItemVisibleInView 의 뷰공간 AABB 컬링을 그대로 옮긴 것.
+	// GameView 프로파일러가 오브젝트별 컬링 여부를 표시하려고 같은 판정을 재현한다(진단 전용).
+	// GameView 는 excluded 없이 프러스텀 컬링만 적용하므로 이 판정이 실제 드로우 여부와 일치한다.
+	bool ItemVisibleInView(const RenderItem& item, const GameRenderViewportDesc& view)
+	{
+		const float halfW = view.OrthoSizeX;
+		const float halfH = view.OrthoSize;
+		if (halfW <= 0.0f || halfH <= 0.0f)
+		{
+			return true;
+		}
+
+		const float corners[4][2] = {
+			{ -item.LocalHalfExtents[0], -item.LocalHalfExtents[1] },
+			{  item.LocalHalfExtents[0], -item.LocalHalfExtents[1] },
+			{  item.LocalHalfExtents[0],  item.LocalHalfExtents[1] },
+			{ -item.LocalHalfExtents[0],  item.LocalHalfExtents[1] },
+		};
+
+		float minX =  std::numeric_limits<float>::max();
+		float minY =  std::numeric_limits<float>::max();
+		float maxX = -std::numeric_limits<float>::max();
+		float maxY = -std::numeric_limits<float>::max();
+		for (const auto& corner : corners)
+		{
+			const float worldX = item.Transform.M11 * corner[0] + item.Transform.M21 * corner[1] + item.Transform.Dx;
+			const float worldY = item.Transform.M12 * corner[0] + item.Transform.M22 * corner[1] + item.Transform.Dy;
+			const float dx = worldX - view.PosX;
+			const float dy = worldY - view.PosY;
+			const float viewX =  view.CosR * dx + view.SinR * dy;
+			const float viewY = -view.SinR * dx + view.CosR * dy;
+			minX = std::min(minX, viewX);
+			minY = std::min(minY, viewY);
+			maxX = std::max(maxX, viewX);
+			maxY = std::max(maxY, viewY);
+		}
+		return !(maxX < -halfW || minX > halfW || maxY < -halfH || minY > halfH);
+	}
+
 	// 한 레이어를 현재 바인딩된 타겟(뷰포트 설정 완료 상태)에 그린다.
 	// drawAllItems = 레이어 구간이 아니라 캔버스 전체를 그린다(레이어 스냅샷이 없는 폴백 경로).
 	void DrawLayerItems(
@@ -269,7 +312,8 @@ namespace
 		const RenderSurfaceSize& renderTargetSize,
 		SafePtr<IRHITexture> target,
 		std::vector<GameRenderCameraStats>* outCameraStats,
-		const float* backgroundColor)
+		const float* backgroundColor,
+		IRHIGpuTimer* gpuTimer)
 	{
 		const float rtW = std::max(1.0f, static_cast<float>(renderTargetSize.Width));
 		const float rtH = std::max(1.0f, static_cast<float>(renderTargetSize.Height));
@@ -334,6 +378,63 @@ namespace
 
 				const GameRenderViewportDesc view = ApplyLayerParallax(viewport, layer.ParallaxFactor);
 
+				// 레이어 GPU 구간 시작(게임뷰에서만 gpuTimer != null). 컬링/필터로 건너뛴 레이어는
+				// 여기 도달 전에 continue 되므로, 실제로 그리는 레이어만 계측된다.
+				const std::uint32_t gpuScope =
+					gpuTimer ? gpuTimer->BeginScope(GpuLayerKey(layer.Index)) : INVALID_GPU_SCOPE;
+
+				// 드로우순서 오브젝트 캡처(게임뷰 + 계측 on). 씬이 살아있는 지금 담아 두면,
+				// 창이 같은 프레임에 오브젝트 포인터를 이름으로 역해석한다. GetLayerRange 는
+				// 위 컬링 검사에서 이미 Sort 를 거쳤다. 컬링 여부는 이 레이어 뷰로 재판정한다.
+				if (gpuTimer && Engine.GpuProfiler.IsValid() && Engine.GpuProfiler->IsEnabled())
+				{
+					const RenderItemRange drawRange = renderScene.GetLayerRange(layer.Index);
+					const RenderItem* drawItems = renderScene.GetRenderItems();
+					CGpuProfiler* profiler = Engine.GpuProfiler.TryGet();
+					profiler->BeginLayerDrawOrder(layer.Index);
+
+					// 배치 그룹핑을 RenderWithSkip 와 같은 규칙으로 재현한다 — 연속·가시·같은 텍스처/샘플러·
+					// 배치가능 아이템의 최대 런이 하나의 인스턴싱 드로우콜(같은 group). 컬링/배치불가 아이템은
+					// 런을 끊는다. 배치 판정 근거는 forward->GetItemBatchKey 가 유일 출처라 핫패스와 안 어긋난다.
+					// (게임뷰는 excluded 없이 컬링만 적용하므로 shouldSkip 재현 없이 실제 드로우와 일치한다.)
+					std::uint32_t nextGroup = 0;
+					std::uint32_t runGroup = 0;
+					bool runOpen = false;
+					const void* runTexture = nullptr;
+					const void* runSampler = nullptr;
+					for (std::uint32_t di = 0; di < drawRange.Count; ++di)
+					{
+						const RenderItem& drawItem = drawItems[drawRange.Begin + di];
+						if (false == ItemVisibleInView(drawItem, view))
+						{
+							profiler->RecordDrawOrderItem(drawItem.Entity, true, INVALID_DRAW_GROUP);
+							runOpen = false;   // 컬링 아이템은 배치 런을 끊는다.
+							continue;
+						}
+
+						const CForward2DRenderer::RenderItemBatchKey key =
+							forward ? forward->GetItemBatchKey(drawItem) : CForward2DRenderer::RenderItemBatchKey{};
+						std::uint32_t group;
+						if (key.Batchable && runOpen && key.Texture == runTexture && key.Sampler == runSampler)
+						{
+							group = runGroup;   // 같은 배치 런 연장.
+						}
+						else if (key.Batchable)
+						{
+							group = runGroup = nextGroup++;   // 새 배치 런 시작.
+							runOpen = true;
+							runTexture = key.Texture;
+							runSampler = key.Sampler;
+						}
+						else
+						{
+							group = nextGroup++;   // 배치 불가 — 독립 드로우, 런 종료.
+							runOpen = false;
+						}
+						profiler->RecordDrawOrderItem(drawItem.Entity, false, group);
+					}
+				}
+
 				if (false == layer.NeedsOwnTexture || nullptr == forward)
 				{
 					// 직접 경로 — 레이어 도입 전과 동일한 드로우 비용.
@@ -383,6 +484,11 @@ namespace
 					commandContext.EndRenderPass();
 				}
 
+				if (gpuTimer)
+				{
+					gpuTimer->EndScope(gpuScope);
+				}
+
 				const RenderCullingStats layerStats = renderer.GetLastCullingStats();
 				cameraStats.SubmittedCount += layerStats.SubmittedCount;
 				cameraStats.DrawnCount += layerStats.DrawnCount;
@@ -410,7 +516,8 @@ void RenderGameViewports(
 	std::vector<GameRenderCameraStats>* outCameraStats,
 	const std::vector<GameRenderLightDesc>& lights,
 	const std::vector<GameRenderLayerDesc>& layers,
-	const float* backgroundColor)
+	const float* backgroundColor,
+	IRHIGpuTimer* gpuTimer)
 {
 	if (outCameraStats)
 	{
@@ -429,7 +536,7 @@ void RenderGameViewports(
 	CForward2DRenderer* forward = renderer.AsForward2DRenderer();
 	if (nullptr == forward)
 	{
-		RenderViewportsInto(commandContext, renderer, renderScene, viewports, layers, renderTargetSize, renderTarget, outCameraStats, backgroundColor);
+		RenderViewportsInto(commandContext, renderer, renderScene, viewports, layers, renderTargetSize, renderTarget, outCameraStats, backgroundColor, gpuTimer);
 		renderer.SetViewCamera(0.0f, 0.0f, 1.0f);
 		return;
 	}
@@ -455,10 +562,10 @@ void RenderGameViewports(
 	RWPassDesc basePass;
 	basePass.Name  = "Base";
 	basePass.Write = hScene;
-	basePass.Execute = [&renderer, &renderScene, &viewports, &layers, renderTargetSize, outCameraStats, backgroundColor, hScene]
+	basePass.Execute = [&renderer, &renderScene, &viewports, &layers, renderTargetSize, outCameraStats, backgroundColor, hScene, gpuTimer]
 		(IRHICommandContext& ctx, RWGraph& g)
 	{
-		RenderViewportsInto(ctx, renderer, renderScene, viewports, layers, renderTargetSize, g.Resolve(hScene), outCameraStats, backgroundColor);
+		RenderViewportsInto(ctx, renderer, renderScene, viewports, layers, renderTargetSize, g.Resolve(hScene), outCameraStats, backgroundColor, gpuTimer);
 	};
 	graph.AddPass(std::move(basePass));
 
