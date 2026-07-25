@@ -747,6 +747,9 @@ void CImEditor::OnPrepareRender()
 		return;
 	}
 
+	// 이 프레임 게임뷰 렌더 여부 초기화 — 아래 게임뷰 블록이 실제로 그리면 true 로 올린다.
+	m_gameViewRenderedThisFrame = false;
+
 	auto EnsureRT = [&](OwnerPtr<IRHITexture>& rt, std::uint32_t w, std::uint32_t h) -> bool
 	{
 		return EnsureRenderTexture(*engineCore->RHIDevice, rt, w, h);
@@ -943,6 +946,7 @@ void CImEditor::OnPrepareRender()
 	// ── Game view (multi-camera) ───────────────────────────────────────────────────
 	if (m_gameViewRequested && EnsureRT(m_gameViewRenderTarget, m_gameViewWidth, m_gameViewHeight))
 	{
+		m_gameViewRenderedThisFrame = true;   // 드로우순서 캡처가 이 블록에서 일어난다.
 		// 카메라/라이트 스냅샷을 여기(시뮬 이후·렌더 직전)서 수집한다 — GameViewTool
 		// 의 UI 빌드 시점(캔버스 업데이트 전) 수집은 1프레임 지연 카메라를 만든다.
 		if (CGameCanvas* gameViewCanvas = m_gameViewCanvas.TryGet())

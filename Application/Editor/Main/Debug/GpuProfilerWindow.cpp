@@ -237,6 +237,20 @@ void CGpuProfilerWindow::DrawLayerDetail(CGameCanvas& canvas)
 	ImGui::Text("%s", layer->GetName());
 	ImGui::Separator();
 
+	// 드로우순서는 게임뷰 렌더에서만 캡처된다 — 게임뷰가 안 켜져 있으면 목록이 비므로, "빈 레이어"로
+	// 오해하지 않게 게임뷰를 켜라고 가운데에 명시한다(그래야 오브젝트 단위 컷오프 프리뷰도 쓸 수 있다).
+	if (Editor::ImEditor.IsValid() && false == Editor::ImEditor->WasGameViewRenderedThisFrame())
+	{
+		const char* hint = Loc::Text(EditorLocKeys::GpuProfilerGameViewOff);
+		const ImVec2 avail = ImGui::GetContentRegionAvail();
+		const ImVec2 textSize = ImGui::CalcTextSize(hint);
+		ImGui::SetCursorPos(ImVec2(
+			ImGui::GetCursorPosX() + (avail.x - textSize.x) * 0.5f,
+			ImGui::GetCursorPosY() + (avail.y - textSize.y) * 0.5f));
+		ImGui::TextDisabled("%s", hint);
+		return;
+	}
+
 	// OnRenderStay 가 계측 꺼짐일 때 조기 반환하므로, 여기 도달했으면 항상 계측 on 이다.
 	const std::vector<GpuDrawOrderItem>* order = Engine.GpuProfiler->GetLayerDrawOrder(layer->GetIndex());
 	if (nullptr == order || order->empty())
