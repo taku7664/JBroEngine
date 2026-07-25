@@ -4,6 +4,8 @@
 
 #include "Engine/Editor/ImWindow/ImWindow.h"
 
+#include <cstdint>
+
 class CGameCanvas;
 
 // GPU 프로파일러 창.
@@ -21,6 +23,9 @@ private:
 	void OnCreate() override;
 	void OnRenderStay() override;
 
+	// 상단: 렌더타겟 진행 프리뷰. 선택(레이어/오브젝트)까지만 그린 부분 씬 최종 화면을 표시하고,
+	// 매 프레임 ImEditor 에 그 컷오프로 프리뷰 렌더를 요청한다(opt-in).
+	void DrawPreview(CGameCanvas& canvas);
 	// 좌측: 레이어 목록. 항목을 선택하면 m_selectedLayerKey 를 갱신한다.
 	void DrawLayerList(CGameCanvas& canvas);
 	// 우측: 선택된 레이어의 상세(드로우순서 오브젝트). 선택이 없으면 안내만 띄운다.
@@ -28,6 +33,9 @@ private:
 
 	// 선택된 레이어 식별용 안정 포인터(CGameLayer*). 프레임 사이에 유지한다.
 	const void* m_selectedLayerKey = nullptr;
+	// 프리뷰 컷오프용 오브젝트 드로우순서 인덱스. UINT32_MAX = 오브젝트 미선택(레이어 전체까지).
+	// 레이어 선택이 바뀌면 UINT32_MAX 로 리셋한다.
+	std::uint32_t m_previewObjectIndex = 0xFFFFFFFFu;
 };
 
 #endif

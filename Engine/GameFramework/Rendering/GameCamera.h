@@ -24,6 +24,19 @@ inline const void* GpuLayerKey(std::uint16_t layerIndex)
 	return reinterpret_cast<const void*>(static_cast<std::uintptr_t>(layerIndex) + 1u);
 }
 
+// 렌더타겟 진행 프리뷰 컷오프(에디터 GPU 프로파일러 진단). Active 면 드로우순서상 여기까지만 그린다:
+//   · LayerIndex 보다 위(인덱스 큰) 레이어는 그리지 않는다.
+//   · LayerIndex 레이어는 그 레이어의 드로우순서에서 ObjectDrawIndex(포함)까지만 그린다.
+//     ObjectDrawIndex == UINT32_MAX 면 그 레이어 전체(= 레이어 단위 컷오프).
+// 라이팅/컴포짓/톤맵 포스트체인은 부분 씬 위에 그대로 돈다(부분 씬 최종 화면). 파라미터로만
+// 전달하므로 메인 게임뷰 렌더(컷오프 미전달)는 영향받지 않는다.
+struct GpuRenderCutoff
+{
+	bool          Active = false;
+	std::uint16_t LayerIndex = 0;
+	std::uint32_t ObjectDrawIndex = 0xFFFFFFFFu;
+};
+
 // 뷰포트 1개의 렌더 스냅샷(프레임마다 수집). = 해석된 카메라 뷰 × 출력 렉트 × 레이어 필터.
 // 렌더 코드가 캔버스/카메라 컴포넌트를 직접 들여다보지 않게 하는 경계(라이트 수집과 동일 규약).
 struct GameRenderViewportDesc
@@ -114,4 +127,6 @@ void RenderGameViewports(
 	const std::vector<GameRenderLayerDesc>& layers = {},
 	const float* backgroundColor = nullptr,
 	// null 이 아니면 레이어별 GPU 시간을 이 타이머로 잰다(게임뷰 렌더에서만 넘긴다 — 예외 5).
-	IRHIGpuTimer* gpuTimer = nullptr);
+	IRHIGpuTimer* gpuTimer = nullptr,
+	// Active 면 드로우순서상 컷오프까지만 그린다(프로파일러 렌더타겟 진행 프리뷰). 기본 비활성.
+	GpuRenderCutoff cutoff = {});

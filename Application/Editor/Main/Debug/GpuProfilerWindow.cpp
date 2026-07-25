@@ -9,10 +9,20 @@
 #include "Engine/Core/EngineCore.h"
 #include "Engine/Core/Debug/GpuProfiler.h"
 #include "Engine/Core/Localization/LocalizationManager.h"
+#include "Engine/Editor/ImEditor.h"                       // 렌더타겟 진행 프리뷰 요청/표시
 #include "Engine/GameFramework/Canvas/Canvas.h"
 #include "Engine/GameFramework/Canvas/GameLayer.h"
 #include "Engine/GameFramework/Object/GameObject.h"       // 드로우순서 키(=CGameObject*) 이름 역해석
-#include "Engine/GameFramework/Rendering/GameCamera.h"   // GpuLayerKey — 결과 키 ↔ 레이어 인덱스
+#include "Engine/GameFramework/Rendering/GameCamera.h"   // GpuLayerKey/GpuRenderCutoff — 키·컷오프
+
+#include <algorithm>
+
+namespace
+{
+	// 프리뷰 RT 렌더 높이(px). 폭은 프로젝트 해상도 종횡비로 ImEditor 가 계산. 진단 프리뷰라
+	// 게임 해상도 원본이 아니라 이 정도로 충분하고, 두 번째 렌더 비용도 억제된다.
+	constexpr std::uint32_t PREVIEW_RENDER_HEIGHT = 360;
+}
 
 namespace
 {
@@ -47,6 +57,11 @@ void CGpuProfilerWindow::OnRenderStay()
 	// GPU 프로파일이 꺼져 있으면 내용 없이 안내만 가운데 띄운다(디버그 메뉴에서 "사용" 을 켜라).
 	if (false == (Engine.GpuProfiler.IsValid() && Engine.GpuProfiler->IsEnabled()))
 	{
+		// 꺼짐 = 비용 0. 프리뷰 RT 도 반납한다(두 번째 렌더도 멈춘다).
+		if (Editor::ImEditor.IsValid())
+		{
+			Editor::ImEditor->RequestGpuProfilerPreview(0, GpuRenderCutoff{});
+		}
 		const char* hint = Loc::Text(EditorLocKeys::GpuProfilerDisabledHint);
 		const ImVec2 avail = ImGui::GetContentRegionAvail();
 		const ImVec2 textSize = ImGui::CalcTextSize(hint);
@@ -73,8 +88,16 @@ void CGpuProfilerWindow::OnRenderStay()
 	if (false == canvas.IsValid())
 	{
 		ImGui::TextUnformatted(Loc::Text(EditorLocKeys::GpuProfilerNoCanvas));
+		// 선택 없음 → 프리뷰 요청 해제(RT 반납).
+		if (Editor::ImEditor.IsValid())
+		{
+			Editor::ImEditor->RequestGpuProfilerPreview(0, GpuRenderCutoff{});
+		}
 		return;
 	}
+
+	// 상단: 렌더타겟 진행 프리뷰(선택 지점까지 그린 부분 씬 최종). 프리뷰 요청도 여기서 낸다.
+	DrawPreview(*canvas);
 
 	// 좌 레이어 목록 / 우 상세, 각각 독립 스크롤. 좌측 폭은 가용 폭의 40%.
 	const float leftWidth = ImGui::GetContentRegionAvail().x * 0.4f;
@@ -89,6 +112,67 @@ void CGpuProfilerWindow::OnRenderStay()
 	if (ImGui::BeginChild("##gpu_profiler_detail", ImVec2(0.0f, 0.0f), true))
 	{
 		DrawLayerDetail(*canvas);
+	}
+	ImGui::EndChild();
+}
+
+void CGpuProfilerWindow::DrawPreview(CGameCanvas& canvas)
+{
+	// 선택 상태 → 컷오프 계산. 레이어 미선택이면 프리뷰 없음(요청 0 → RT 반납).
+	GpuRenderCutoff cutoff;
+	if (const CGameLayer* layer = FindLayerByKey(canvas, m_selectedLayerKey))
+	{
+		cutoff.Active = true;
+		cutoff.LayerIndex = layer->GetIndex();
+		cutoff.ObjectDrawIndex = m_previewObjectIndex;   // UINT32_MAX = 레이어 전체까지
+	}
+
+	// 매 프레임 opt-in 요청 — 다음 OnPrepareRender 가 이 컷오프로 프리뷰 RT 를 그린다. 창이
+	// 배경 탭이면 OnRenderStay 가 안 돌아 요청이 끊기고 RT 가 반납된다(낭비 방지).
+	if (Editor::ImEditor.IsValid())
+	{
+		Editor::ImEditor->RequestGpuProfilerPreview(cutoff.Active ? PREVIEW_RENDER_HEIGHT : 0u, cutoff);
+	}
+
+	// 표시 스트립(고정 높이). 게임 화면 비율을 유지하도록 레터박스로 가운데 맞춘다.
+	const float stripHeight = ImGui::GetTextLineHeightWithSpacing() * 10.0f;
+	if (ImGui::BeginChild("##gpu_preview", ImVec2(0.0f, stripHeight), true))
+	{
+		void* tex = Editor::ImEditor.IsValid() ? Editor::ImEditor->GetGpuProfilerPreviewTextureID() : nullptr;
+		const std::uint32_t pw = Editor::ImEditor.IsValid() ? Editor::ImEditor->GetGpuProfilerPreviewWidth()  : 0u;
+		const std::uint32_t ph = Editor::ImEditor.IsValid() ? Editor::ImEditor->GetGpuProfilerPreviewHeight() : 0u;
+
+		if (false == cutoff.Active || nullptr == tex || 0u == pw || 0u == ph)
+		{
+			// 아직 선택이 없거나 프리뷰가 준비되기 전 — 안내만 가운데.
+			const char* hint = Loc::Text(EditorLocKeys::GpuProfilerPreviewHint);
+			const ImVec2 avail = ImGui::GetContentRegionAvail();
+			const ImVec2 textSize = ImGui::CalcTextSize(hint);
+			ImGui::SetCursorPos(ImVec2(
+				ImGui::GetCursorPosX() + (avail.x - textSize.x) * 0.5f,
+				ImGui::GetCursorPosY() + (avail.y - textSize.y) * 0.5f));
+			ImGui::TextDisabled("%s", hint);
+		}
+		else
+		{
+			const ImVec2 avail = ImGui::GetContentRegionAvail();
+			const float texAspect = static_cast<float>(pw) / static_cast<float>(ph);
+			const float availAspect = avail.x / std::max(1.0f, avail.y);
+			float drawW = avail.x;
+			float drawH = avail.y;
+			if (texAspect > availAspect)
+			{
+				drawH = avail.x / std::max(0.0001f, texAspect);
+			}
+			else
+			{
+				drawW = avail.y * texAspect;
+			}
+			ImGui::SetCursorPos(ImVec2(
+				ImGui::GetCursorPosX() + (avail.x - drawW) * 0.5f,
+				ImGui::GetCursorPosY() + (avail.y - drawH) * 0.5f));
+			ImGui::Image(reinterpret_cast<ImTextureID>(tex), ImVec2(drawW, drawH));
+		}
 	}
 	ImGui::EndChild();
 }
@@ -119,6 +203,11 @@ void CGpuProfilerWindow::DrawLayerList(CGameCanvas& canvas)
 		std::snprintf(label, sizeof(label), "%s##gpu_layer_%zu", layer->GetName(), i);
 		if (ImGui::Selectable(label, selected))
 		{
+			// 레이어를 바꾸면 오브젝트 컷오프는 해제 — 이 레이어 "전체까지" 프리뷰로 돌아간다.
+			if (key != m_selectedLayerKey)
+			{
+				m_previewObjectIndex = 0xFFFFFFFFu;
+			}
 			m_selectedLayerKey = key;
 		}
 
@@ -177,11 +266,16 @@ void CGpuProfilerWindow::DrawLayerDetail(CGameCanvas& canvas)
 			ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
 		}
 		const bool selected = (nullptr != object && object == selectedObject);
-		if (ImGui::Selectable(label, selected) && nullptr != object)
+		if (ImGui::Selectable(label, selected))
 		{
-			Editor::SelectEntity(object);
-			// 계층뷰가 접혀 있어도 이 오브젝트가 보이도록 조상 트리·레이어를 펼치고 스크롤한다.
-			Editor::RevealEntityInHierarchy(object);
+			// 이 오브젝트를 컷오프로 — 프리뷰가 드로우순서상 여기까지만 그린다(widgetId = 순서 인덱스).
+			m_previewObjectIndex = static_cast<std::uint32_t>(widgetId);
+			if (nullptr != object)
+			{
+				Editor::SelectEntity(object);
+				// 계층뷰가 접혀 있어도 이 오브젝트가 보이도록 조상 트리·레이어를 펼치고 스크롤한다.
+				Editor::RevealEntityInHierarchy(object);
+			}
 		}
 		if (drawItem.Culled)
 		{

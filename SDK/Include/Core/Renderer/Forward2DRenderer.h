@@ -34,10 +34,13 @@ public:
 	// 한 레이어의 아이템만 렌더링한다. 정렬 1순위가 LayerIndex 라 레이어 구간이 연속이므로
 	// 전체 순회 후 필터링이 아니라 구간만 훑는다(레이어 수 × 아이템 수 비용 회피).
 	// excluded = 에디터 숨김 키 집합(없으면 nullptr).
+	// maxDrawCount = 레이어 드로우순서에서 앞에서부터 이 개수까지만 그린다(기본 = 전체). 프로파일러
+	// 렌더타겟 진행 프리뷰가 "이 오브젝트까지" 컷오프를 걸 때 쓴다.
 	void RenderLayer(
 		IRenderScene& scene,
 		RenderLayerIndex layerIndex,
-		const std::unordered_set<RenderObjectId>* excluded = nullptr);
+		const std::unordered_set<RenderObjectId>* excluded = nullptr,
+		std::uint32_t maxDrawCount = 0xFFFFFFFFu);
 	void Finalize() override;
 
 	bool CreateGpuResource(IRenderResource& resource) override;

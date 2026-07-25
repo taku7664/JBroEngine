@@ -108,6 +108,14 @@ public:
 	std::uint32_t GetGameViewHeight() const { return m_gameViewHeight; }
 	bool TryGetCameraCullingStats(const void* cameraOwnerObject, RenderCullingStats& outStats) const;
 
+	// ── GPU 프로파일러 렌더타겟 진행 프리뷰(에디터 진단) ────────────────────────────
+	// 프로파일러 창이 매 프레임 opt-in 으로 요청한다(heightPx=0 이면 프리뷰 정지·RT 해제). cutoff
+	// 지점까지만 그린 부분 씬에 라이팅/컴포짓 풀 포스트를 태워 별도 RT 에 낸다(게임뷰와 독립).
+	void RequestGpuProfilerPreview(std::uint32_t heightPx, const GpuRenderCutoff& cutoff);
+	void* GetGpuProfilerPreviewTextureID() const;
+	std::uint32_t GetGpuProfilerPreviewWidth()  const { return m_gpuPreviewWidth;  }
+	std::uint32_t GetGpuProfilerPreviewHeight() const { return m_gpuPreviewHeight; }
+
 private:
 	void OnPreInitialize() override;
 	void OnPostInitialize() override;
@@ -124,6 +132,9 @@ private:
 	void FinalizeImGui();
 
 	bool DestroyImWindowEx(ImGuiID id);
+
+	// GPU 프로파일러 렌더타겟 진행 프리뷰를 별도 RT 에 그린다(OnPrepareRender, opt-in 시에만).
+	void RenderGpuProfilerPreview();
 
 	// 윈도우 이벤트(메인 surface) 단일 구독자. ImEditor 가 받아 에디터 하위로 분배한다.
 	// 현재: 포커스 복귀 시 라이브 컴파일 재빌드 1회.
@@ -177,6 +188,13 @@ private:
 	std::vector<GameRenderLightDesc> m_gameViewLights;
 	std::vector<GameRenderLayerDesc> m_gameViewLayers;
 	std::unordered_map<const void*, RenderCullingStats> m_gameViewCameraCullingStats;
+
+	// GPU 프로파일러 렌더타겟 진행 프리뷰 — 게임뷰와 독립된 자체 RT/스냅샷. 매 프레임 opt-in.
+	OwnerPtr<IRHITexture>      m_gpuPreviewRenderTarget;
+	std::uint32_t              m_gpuPreviewWidth = 0;
+	std::uint32_t              m_gpuPreviewHeight = 0;
+	std::uint32_t              m_gpuPreviewRequestedHeight = 0;   // 0 = 이번 프레임 프리뷰 없음(opt-in).
+	GpuRenderCutoff            m_gpuPreviewCutoff;                 // 이 프레임 프리뷰 컷오프.
 
 	// GPU renderer for IDebugDraw2D primitives — renders into canvas RT.
 	OwnerPtr<CDebugRenderer2D>  m_debugRenderer;

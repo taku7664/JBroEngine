@@ -379,6 +379,84 @@ void CImEditor::RenderLayerThumbnails()
 	}
 }
 
+void CImEditor::RenderGpuProfilerPreview()
+{
+	if (0 == m_gpuPreviewRequestedHeight)
+	{
+		return;   // opt-in: 프로파일러 창이 이 프레임에 프리뷰를 요청하지 않았다.
+	}
+
+	const EngineCore* engineCore = GetEditorEngineCore();
+	if (nullptr == engineCore || false == engineCore->RHIDevice.IsValid()
+		|| false == engineCore->Renderer.IsValid() || false == engineCore->RenderScene.IsValid()
+		|| false == Engine.CanvasManager.IsValid())
+	{
+		return;
+	}
+
+	CGameCanvas* activeCanvas = Engine.CanvasManager->GetActiveCanvas().TryGet();
+	if (nullptr == activeCanvas)
+	{
+		return;
+	}
+
+	SafePtr<IRHICommandContext> commandContext = engineCore->RHIDevice->GetImmediateCommandContext();
+	if (false == commandContext.IsValid())
+	{
+		return;
+	}
+
+	// 크기 = 요청 높이 × 프로젝트 해상도 종횡비(게임 화면 비율 유지). 레이어 썸네일과 동일 계산.
+	float canvasWidth  = 16.0f;
+	float canvasHeight = 9.0f;
+	if (SafePtr<CProjectManager> projectManager = GetProjectManager();
+	    projectManager.IsValid() && projectManager->IsProjectLoaded())
+	{
+		canvasWidth  = static_cast<float>(projectManager->GetResolutionWidth());
+		canvasHeight = static_cast<float>(projectManager->GetResolutionHeight());
+	}
+	const std::uint32_t previewHeight = m_gpuPreviewRequestedHeight;
+	const std::uint32_t previewWidth  = std::max(1u, static_cast<std::uint32_t>(
+		static_cast<float>(previewHeight) * canvasWidth / std::max(1.0f, canvasHeight)));
+
+	if (m_gpuPreviewWidth != previewWidth || m_gpuPreviewHeight != previewHeight)
+	{
+		m_gpuPreviewRenderTarget.Reset();
+		m_gpuPreviewWidth  = previewWidth;
+		m_gpuPreviewHeight = previewHeight;
+	}
+	EnsureRenderTexture(*engineCore->RHIDevice, m_gpuPreviewRenderTarget, previewWidth, previewHeight);
+	if (false == static_cast<bool>(m_gpuPreviewRenderTarget))
+	{
+		return;
+	}
+
+	// 게임뷰와 같은 경로/스냅샷을 태운다(멀티뷰포트·레이어 필터·패럴랙스·라이팅 전부 포함).
+	// forceOwnTextureAll=true 라 레이어별 컷오프 합성이 성립한다. gpuTimer=nullptr — 이 렌더는
+	// 진단 시각화일 뿐이라 게임뷰 GPU 계측을 건드리지 않는다.
+	const std::vector<GameRenderViewportDesc> viewports = CollectGameRenderViewports(
+		*activeCanvas, static_cast<float>(previewWidth), static_cast<float>(previewHeight));
+	const std::vector<GameRenderLightDesc> lights = CollectGameRenderLights(*activeCanvas);
+	const std::vector<GameRenderLayerDesc> layers = CollectGameRenderLayers(*activeCanvas, /*forceOwnTextureAll*/ true);
+	const RenderSurfaceSize previewSize{ static_cast<int>(previewWidth), static_cast<int>(previewHeight) };
+
+	RenderGameViewports(
+		*commandContext,
+		*engineCore->Renderer,
+		*engineCore->RenderScene,
+		viewports,
+		previewSize,
+		m_gpuPreviewRenderTarget.GetSafePtr(),
+		nullptr,
+		lights,
+		layers,
+		activeCanvas->GetBackgroundColor(),
+		nullptr,
+		m_gpuPreviewCutoff);
+
+	m_gpuPreviewRequestedHeight = 0;   // opt-in 리셋 — 창이 다음 프레임 다시 요청해야 유지된다.
+}
+
 void CImEditor::RequestGameViewRenderTarget(std::uint32_t width, std::uint32_t height)
 {
 	m_gameViewRequested = 0 != width && 0 != height;
@@ -412,6 +490,28 @@ void* CImEditor::GetGameViewTextureID() const
 		return nullptr;
 	}
 	return m_gameViewRenderTarget->GetNativeHandle().ShaderResourceView;
+}
+
+void CImEditor::RequestGpuProfilerPreview(std::uint32_t heightPx, const GpuRenderCutoff& cutoff)
+{
+	m_gpuPreviewRequestedHeight = heightPx;
+	m_gpuPreviewCutoff = cutoff;
+	if (0 == heightPx)
+	{
+		// 프로파일러 창이 안 보이거나 선택이 없으면 프리뷰 RT 를 물고 있을 이유가 없다.
+		m_gpuPreviewRenderTarget.Reset();
+		m_gpuPreviewWidth  = 0;
+		m_gpuPreviewHeight = 0;
+	}
+}
+
+void* CImEditor::GetGpuProfilerPreviewTextureID() const
+{
+	if (false == static_cast<bool>(m_gpuPreviewRenderTarget))
+	{
+		return nullptr;
+	}
+	return m_gpuPreviewRenderTarget->GetNativeHandle().ShaderResourceView;
 }
 
 PopupHandle CImEditor::OpenPopup(const ImPopupDesc& desc)
@@ -909,6 +1009,10 @@ void CImEditor::OnPrepareRender()
 	// 캔버스뷰/게임뷰와 독립 — 둘 다 닫혀 있어도 하이어라키가 요청하면 그린다.
 	// 렌더러 뷰 상태를 바꾸므로 다른 뷰의 렌더가 끝난 뒤 마지막에 돈다.
 	RenderLayerThumbnails();
+
+	// GPU 프로파일러 렌더타겟 진행 프리뷰 — 게임뷰와 독립, opt-in 요청 시에만. 렌더러 뷰 상태를
+	// 바꾸므로 역시 마지막에 돈다(자체 뷰 리셋 포함).
+	RenderGpuProfilerPreview();
 }
 
 void CImEditor::OnRender()

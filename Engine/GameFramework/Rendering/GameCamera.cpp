@@ -282,12 +282,14 @@ namespace
 		IRenderScene& renderScene,
 		const GameRenderViewportDesc& view,
 		const GameRenderLayerDesc& layer,
-		bool drawAllItems)
+		bool drawAllItems,
+		std::uint32_t maxDrawCount = 0xFFFFFFFFu)
 	{
 		renderer.SetViewCameraEx(view.PosX, view.PosY, view.OrthoSizeX, view.OrthoSize, view.CosR, view.SinR);
 		if (forward && false == drawAllItems)
 		{
-			forward->RenderLayer(renderScene, layer.Index);
+			// maxDrawCount = 프로파일러 컷오프 프리뷰에서 이 레이어의 드로우순서 앞부분만 그릴 때 쓴다.
+			forward->RenderLayer(renderScene, layer.Index, nullptr, maxDrawCount);
 		}
 		else
 		{
@@ -313,7 +315,8 @@ namespace
 		SafePtr<IRHITexture> target,
 		std::vector<GameRenderCameraStats>* outCameraStats,
 		const float* backgroundColor,
-		IRHIGpuTimer* gpuTimer)
+		IRHIGpuTimer* gpuTimer,
+		GpuRenderCutoff cutoff)
 	{
 		const float rtW = std::max(1.0f, static_cast<float>(renderTargetSize.Width));
 		const float rtH = std::max(1.0f, static_cast<float>(renderTargetSize.Height));
@@ -363,6 +366,17 @@ namespace
 					&& std::find(viewport.Layers.begin(), viewport.Layers.end(), layer.Index) == viewport.Layers.end())
 				{
 					continue;
+				}
+				// 프로파일러 컷오프 프리뷰 — 선택 지점보다 위(인덱스 큰) 레이어는 아직 안 그린 상태로 둔다.
+				if (cutoff.Active && layer.Index > cutoff.LayerIndex)
+				{
+					continue;
+				}
+				// 컷오프 레이어면 드로우순서상 ObjectDrawIndex(포함)까지만. UINT32_MAX 면 레이어 전체.
+				std::uint32_t layerMaxDraw = 0xFFFFFFFFu;
+				if (cutoff.Active && layer.Index == cutoff.LayerIndex && cutoff.ObjectDrawIndex != 0xFFFFFFFFu)
+				{
+					layerMaxDraw = cutoff.ObjectDrawIndex + 1u;
 				}
 				// 아이템 없는 레이어는 통째로 건너뛴다 — 특히 RT 경유 레이어에서 빈 스크래치를
 				// 빌려 투명 합성하는 낭비를 없앤다(에디터는 전 레이어 RT 강제라 더 크게 절약).
@@ -441,7 +455,7 @@ namespace
 					commandContext.BeginRenderPass(renderPassDesc);
 					commandContext.SetViewport(vpX, vpY, vpW, vpH);
 					renderer.SetRenderTargetSize(viewportSize);
-					DrawLayerItems(renderer, forward, renderScene, view, layer, drawAllItems);
+					DrawLayerItems(renderer, forward, renderScene, view, layer, drawAllItems, layerMaxDraw);
 					commandContext.EndRenderPass();
 				}
 				else
@@ -474,7 +488,7 @@ namespace
 					commandContext.BeginRenderPass(layerPass);
 					commandContext.SetViewport(0.0f, 0.0f, vpW, vpH);
 					renderer.SetRenderTargetSize(viewportSize);
-					DrawLayerItems(renderer, forward, renderScene, view, layer, drawAllItems);
+					DrawLayerItems(renderer, forward, renderScene, view, layer, drawAllItems, layerMaxDraw);
 					commandContext.EndRenderPass();
 
 					commandContext.BeginRenderPass(renderPassDesc);
@@ -517,7 +531,8 @@ void RenderGameViewports(
 	const std::vector<GameRenderLightDesc>& lights,
 	const std::vector<GameRenderLayerDesc>& layers,
 	const float* backgroundColor,
-	IRHIGpuTimer* gpuTimer)
+	IRHIGpuTimer* gpuTimer,
+	GpuRenderCutoff cutoff)
 {
 	if (outCameraStats)
 	{
@@ -536,7 +551,7 @@ void RenderGameViewports(
 	CForward2DRenderer* forward = renderer.AsForward2DRenderer();
 	if (nullptr == forward)
 	{
-		RenderViewportsInto(commandContext, renderer, renderScene, viewports, layers, renderTargetSize, renderTarget, outCameraStats, backgroundColor, gpuTimer);
+		RenderViewportsInto(commandContext, renderer, renderScene, viewports, layers, renderTargetSize, renderTarget, outCameraStats, backgroundColor, gpuTimer, cutoff);
 		renderer.SetViewCamera(0.0f, 0.0f, 1.0f);
 		return;
 	}
@@ -562,10 +577,10 @@ void RenderGameViewports(
 	RWPassDesc basePass;
 	basePass.Name  = "Base";
 	basePass.Write = hScene;
-	basePass.Execute = [&renderer, &renderScene, &viewports, &layers, renderTargetSize, outCameraStats, backgroundColor, hScene, gpuTimer]
+	basePass.Execute = [&renderer, &renderScene, &viewports, &layers, renderTargetSize, outCameraStats, backgroundColor, hScene, gpuTimer, cutoff]
 		(IRHICommandContext& ctx, RWGraph& g)
 	{
-		RenderViewportsInto(ctx, renderer, renderScene, viewports, layers, renderTargetSize, g.Resolve(hScene), outCameraStats, backgroundColor, gpuTimer);
+		RenderViewportsInto(ctx, renderer, renderScene, viewports, layers, renderTargetSize, g.Resolve(hScene), outCameraStats, backgroundColor, gpuTimer, cutoff);
 	};
 	graph.AddPass(std::move(basePass));
 

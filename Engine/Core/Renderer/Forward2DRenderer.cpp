@@ -1749,15 +1749,22 @@ void CForward2DRenderer::RenderImpl(IRenderScene& scene, const std::unordered_se
 void CForward2DRenderer::RenderLayer(
 	IRenderScene& scene,
 	RenderLayerIndex layerIndex,
-	const std::unordered_set<RenderObjectId>* excluded)
+	const std::unordered_set<RenderObjectId>* excluded,
+	std::uint32_t maxDrawCount)
 {
 	// 구간 조회는 정렬 이후에만 유효하다 — Sort 는 프레임당 1회만 실제 작업을 한다.
 	scene.Sort();
-	const RenderItemRange range = scene.GetLayerRange(layerIndex);
+	RenderItemRange range = scene.GetLayerRange(layerIndex);
 	if (0 == range.Count)
 	{
 		m_lastCullingStats = {};
 		return;
+	}
+	// 컷오프 프리뷰 — 이 레이어의 드로우순서 앞부분만(뒤 오브젝트는 아직 안 그린 상태). 컬링
+	// 아이템도 순서상 한 칸을 차지하므로, 프로파일러 드로우순서 목록 인덱스와 그대로 대응한다.
+	if (maxDrawCount < range.Count)
+	{
+		range.Count = maxDrawCount;
 	}
 	RenderWithSkip(scene, range, [excluded](RenderObjectId entity)
 	{

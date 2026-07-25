@@ -23,6 +23,7 @@ Entries:
   gpu_profiler.draw_order_header: Draw Order
   gpu_profiler.draw_order_empty: No objects drawn in this layer
   gpu_profiler.batch_group: "Batch ×%d (one draw call)"
+  gpu_profiler.preview_hint: Select a layer or object to preview the render up to that point
 
   menu.file: File
   menu.file.new_project: New Project
