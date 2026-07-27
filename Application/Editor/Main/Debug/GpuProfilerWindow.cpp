@@ -5,6 +5,7 @@
 
 #include "Editor/Editor.h"                                // Editor::SelectEntity — 드로우순서 클릭 → 인스펙터
 #include "Editor/EditorContext.h"
+#include "Editor/ImItem/ImSplitter.h"                     // ImGui::Utillity::VerticalSplitter — 좌/우 드래그 분할
 #include "Editor/Localization/EditorLocalizationKeys.h"
 #include "Engine/Core/EngineCore.h"
 #include "Engine/Core/Debug/GpuProfiler.h"
@@ -99,20 +100,24 @@ void CGpuProfilerWindow::OnRenderStay()
 	// 상단: 렌더타겟 진행 프리뷰(선택 지점까지 그린 부분 씬 최종). 프리뷰 요청도 여기서 낸다.
 	DrawPreview(*canvas);
 
-	// 좌 레이어 목록 / 우 상세, 각각 독립 스크롤. 좌측 폭은 가용 폭의 40%.
-	const float leftWidth = ImGui::GetContentRegionAvail().x * 0.4f;
-	if (ImGui::BeginChild("##gpu_profiler_layers", ImVec2(leftWidth, 0.0f), true))
-	{
-		DrawLayerList(*canvas);
-	}
+	// 좌 레이어 목록 / 우 상세 — 사이의 드래그 스플리터로 비율 조절(m_splitRatio). CPU 프로파일러·
+	// BuildSettings 와 동일 패턴: 스플리터가 내부에서 SameLine 을 처리하므로 좌 → 스플리터 → 우
+	// 순으로만 부르면 된다. 프리뷰 스트립 아래 남은 영역을 좌/우가 나눠 채운다.
+	constexpr float SPLITTER_W = 3.0f;
+	constexpr float MIN_RATIO = 0.2f;
+	constexpr float MAX_RATIO = 0.8f;
+	const ImVec2 bodyAvail = ImGui::GetContentRegionAvail();
+	const float leftWidth = bodyAvail.x * m_splitRatio - SPLITTER_W * 0.5f;
+	const float rightWidth = bodyAvail.x - leftWidth - SPLITTER_W;
+
+	ImGui::BeginChild("##gpu_profiler_layers", ImVec2(leftWidth, bodyAvail.y), true);
+	DrawLayerList(*canvas);
 	ImGui::EndChild();
 
-	ImGui::SameLine();
+	ImGui::Utillity::VerticalSplitter("##GpuProfilerSplitter", m_splitRatio, bodyAvail, MIN_RATIO, MAX_RATIO, SPLITTER_W);
 
-	if (ImGui::BeginChild("##gpu_profiler_detail", ImVec2(0.0f, 0.0f), true))
-	{
-		DrawLayerDetail(*canvas);
-	}
+	ImGui::BeginChild("##gpu_profiler_detail", ImVec2(rightWidth, bodyAvail.y), true);
+	DrawLayerDetail(*canvas);
 	ImGui::EndChild();
 }
 
@@ -237,20 +242,9 @@ void CGpuProfilerWindow::DrawLayerDetail(CGameCanvas& canvas)
 	ImGui::Text("%s", layer->GetName());
 	ImGui::Separator();
 
-	// 드로우순서는 게임뷰 렌더에서만 캡처된다 — 게임뷰가 안 켜져 있으면 목록이 비므로, "빈 레이어"로
-	// 오해하지 않게 게임뷰를 켜라고 가운데에 명시한다(그래야 오브젝트 단위 컷오프 프리뷰도 쓸 수 있다).
-	if (Editor::ImEditor.IsValid() && false == Editor::ImEditor->WasGameViewRenderedThisFrame())
-	{
-		const char* hint = Loc::Text(EditorLocKeys::GpuProfilerGameViewOff);
-		const ImVec2 avail = ImGui::GetContentRegionAvail();
-		const ImVec2 textSize = ImGui::CalcTextSize(hint);
-		ImGui::SetCursorPos(ImVec2(
-			ImGui::GetCursorPosX() + (avail.x - textSize.x) * 0.5f,
-			ImGui::GetCursorPosY() + (avail.y - textSize.y) * 0.5f));
-		ImGui::TextDisabled("%s", hint);
-		return;
-	}
-
+	// 드로우순서는 게임뷰 렌더 또는 프리뷰 렌더에서 캡처된다(게임뷰가 꺼져 있으면 이 창의 컷오프
+	// 프리뷰 렌더가 대신 캡처한다). 선택 직후 1프레임은 아직 비어 있을 수 있어 아래 "빈 목록" 안내로
+	// 처리한다 — 별도의 "게임뷰를 켜세요" 안내는 더 이상 필요 없다.
 	// OnRenderStay 가 계측 꺼짐일 때 조기 반환하므로, 여기 도달했으면 항상 계측 on 이다.
 	const std::vector<GpuDrawOrderItem>* order = Engine.GpuProfiler->GetLayerDrawOrder(layer->GetIndex());
 	if (nullptr == order || order->empty())

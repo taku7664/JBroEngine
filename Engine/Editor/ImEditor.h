@@ -115,10 +115,6 @@ public:
 	void* GetGpuProfilerPreviewTextureID() const;
 	std::uint32_t GetGpuProfilerPreviewWidth()  const { return m_gpuPreviewWidth;  }
 	std::uint32_t GetGpuProfilerPreviewHeight() const { return m_gpuPreviewHeight; }
-	// 이번 프레임에 게임뷰가 실제로 렌더됐는가 — 드로우순서 캡처는 게임뷰 렌더에서만 일어나므로,
-	// 프로파일러가 "빈 레이어"와 "게임뷰 꺼짐"을 구별해 안내하는 데 쓴다.
-	bool WasGameViewRenderedThisFrame() const { return m_gameViewRenderedThisFrame; }
-
 private:
 	void OnPreInitialize() override;
 	void OnPostInitialize() override;
@@ -198,7 +194,8 @@ private:
 	std::uint32_t              m_gpuPreviewHeight = 0;
 	std::uint32_t              m_gpuPreviewRequestedHeight = 0;   // 0 = 이번 프레임 프리뷰 없음(opt-in).
 	GpuRenderCutoff            m_gpuPreviewCutoff;                 // 이 프레임 프리뷰 컷오프.
-	// 이번 프레임 게임뷰 렌더 여부(OnPrepareRender 에서 갱신). 프로파일러 드로우순서 안내용.
+	// 이번 프레임 게임뷰 렌더 여부(OnPrepareRender 에서 갱신). 게임뷰가 이미 드로우순서를 캡처했으면
+	// 프로파일러 프리뷰 렌더는 중복 캡처를 피한다(게임뷰가 꺼진 프레임에만 프리뷰가 대신 캡처).
 	bool                       m_gameViewRenderedThisFrame = false;
 
 	// GPU renderer for IDebugDraw2D primitives — renders into canvas RT.

@@ -36,6 +36,8 @@ private:
 	// 프리뷰 컷오프용 오브젝트 드로우순서 인덱스. UINT32_MAX = 오브젝트 미선택(레이어 전체까지).
 	// 레이어 선택이 바뀌면 UINT32_MAX 로 리셋한다.
 	std::uint32_t m_previewObjectIndex = 0xFFFFFFFFu;
+	// 좌(레이어 목록) / 우(상세) 분할 비율 — 사이의 드래그 스플리터로 조절, 프레임 사이 유지.
+	float m_splitRatio = 0.4f;
 };
 
 #endif

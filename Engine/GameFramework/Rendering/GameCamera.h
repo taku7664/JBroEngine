@@ -129,4 +129,8 @@ void RenderGameViewports(
 	// null 이 아니면 레이어별 GPU 시간을 이 타이머로 잰다(게임뷰 렌더에서만 넘긴다 — 예외 5).
 	IRHIGpuTimer* gpuTimer = nullptr,
 	// Active 면 드로우순서상 컷오프까지만 그린다(프로파일러 렌더타겟 진행 프리뷰). 기본 비활성.
-	GpuRenderCutoff cutoff = {});
+	GpuRenderCutoff cutoff = {},
+	// 프로파일러 드로우순서 목록을 이 렌더에서 캡처할지. 게임뷰 렌더는 true, 프리뷰 렌더는
+	// 게임뷰가 안 그려진 프레임에만 true(그래야 게임뷰 없이도 오브젝트 컷오프가 가능하다).
+	// 컷오프가 걸려 있어도 캡처는 레이어 전체를 담는다(컷오프는 시각만 자른다).
+	bool captureDrawOrder = false);

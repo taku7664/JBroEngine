@@ -452,7 +452,11 @@ void CImEditor::RenderGpuProfilerPreview()
 		layers,
 		activeCanvas->GetBackgroundColor(),
 		nullptr,
-		m_gpuPreviewCutoff);
+		m_gpuPreviewCutoff,
+		// 게임뷰가 이 프레임에 안 그려졌으면 이 프리뷰 렌더에서 드로우순서를 캡처한다 — 그래야
+		// 게임뷰 탭을 열지 않아도 오브젝트 단위 컷오프가 동작한다. 게임뷰가 그려졌으면 그쪽이
+		// 이미 캡처했으므로 여기선 캡처하지 않는다(중복 방지).
+		/*captureDrawOrder*/ false == m_gameViewRenderedThisFrame);
 
 	m_gpuPreviewRequestedHeight = 0;   // opt-in 리셋 — 창이 다음 프레임 다시 요청해야 유지된다.
 }
@@ -985,7 +989,9 @@ void CImEditor::OnPrepareRender()
 			m_gameViewLights,
 			m_gameViewLayers,
 			gameViewCanvas ? gameViewCanvas->GetBackgroundColor() : nullptr,
-			gpuTimer);
+			gpuTimer,
+			GpuRenderCutoff{},
+			/*captureDrawOrder*/ true);   // 게임뷰 렌더에서 드로우순서를 캡처한다.
 		if (gpuTimer)
 		{
 			gpuTimer->EndScope(gpuTotalScope);

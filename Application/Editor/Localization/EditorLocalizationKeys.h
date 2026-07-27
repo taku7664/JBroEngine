@@ -581,7 +581,6 @@ namespace EditorLocKeys
 	constexpr const char* GpuProfilerDrawOrderEmpty = "gpu_profiler.draw_order_empty";
 	constexpr const char* GpuProfilerBatchGroup = "gpu_profiler.batch_group";
 	constexpr const char* GpuProfilerPreviewHint = "gpu_profiler.preview_hint";
-	constexpr const char* GpuProfilerGameViewOff = "gpu_profiler.game_view_off";
 	constexpr const char* WindowGameView = "window.game_view";
 	constexpr const char* WindowLayers = "window.layers";
 	constexpr const char* WindowInspector = "window.inspector";

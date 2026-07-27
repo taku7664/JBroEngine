@@ -32,7 +32,6 @@ Entries:
   gpu_profiler.draw_order_empty: 이 레이어에 그려진 오브젝트가 없습니다
   gpu_profiler.batch_group: "배치 ×%d (한 번의 드로우콜)"
   gpu_profiler.preview_hint: 레이어나 오브젝트를 선택하면 그 지점까지 그려진 화면이 여기 표시됩니다
-  gpu_profiler.game_view_off: 드로우순서와 오브젝트별 프리뷰를 보려면 게임뷰를 켜세요
 
   menu.file: 파일
   menu.file.new_project: 새 프로젝트

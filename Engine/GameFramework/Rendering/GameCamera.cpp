@@ -316,7 +316,8 @@ namespace
 		std::vector<GameRenderCameraStats>* outCameraStats,
 		const float* backgroundColor,
 		IRHIGpuTimer* gpuTimer,
-		GpuRenderCutoff cutoff)
+		GpuRenderCutoff cutoff,
+		bool captureDrawOrder)
 	{
 		const float rtW = std::max(1.0f, static_cast<float>(renderTargetSize.Width));
 		const float rtH = std::max(1.0f, static_cast<float>(renderTargetSize.Height));
@@ -367,11 +368,6 @@ namespace
 				{
 					continue;
 				}
-				// 프로파일러 컷오프 프리뷰 — 선택 지점보다 위(인덱스 큰) 레이어는 아직 안 그린 상태로 둔다.
-				if (cutoff.Active && layer.Index > cutoff.LayerIndex)
-				{
-					continue;
-				}
 				// 컷오프 레이어면 드로우순서상 ObjectDrawIndex(포함)까지만. UINT32_MAX 면 레이어 전체.
 				std::uint32_t layerMaxDraw = 0xFFFFFFFFu;
 				if (cutoff.Active && layer.Index == cutoff.LayerIndex && cutoff.ObjectDrawIndex != 0xFFFFFFFFu)
@@ -392,15 +388,12 @@ namespace
 
 				const GameRenderViewportDesc view = ApplyLayerParallax(viewport, layer.ParallaxFactor);
 
-				// 레이어 GPU 구간 시작(게임뷰에서만 gpuTimer != null). 컬링/필터로 건너뛴 레이어는
-				// 여기 도달 전에 continue 되므로, 실제로 그리는 레이어만 계측된다.
-				const std::uint32_t gpuScope =
-					gpuTimer ? gpuTimer->BeginScope(GpuLayerKey(layer.Index)) : INVALID_GPU_SCOPE;
-
-				// 드로우순서 오브젝트 캡처(게임뷰 + 계측 on). 씬이 살아있는 지금 담아 두면,
-				// 창이 같은 프레임에 오브젝트 포인터를 이름으로 역해석한다. GetLayerRange 는
-				// 위 컬링 검사에서 이미 Sort 를 거쳤다. 컬링 여부는 이 레이어 뷰로 재판정한다.
-				if (gpuTimer && Engine.GpuProfiler.IsValid() && Engine.GpuProfiler->IsEnabled())
+				// 드로우순서 오브젝트 캡처(captureDrawOrder + 계측 on). 씬이 살아있는 지금 담아 두면,
+				// 창이 같은 프레임에 오브젝트 포인터를 이름으로 역해석한다. GetLayerRange 는 위 컬링
+				// 검사에서 이미 Sort 를 거쳤다. 컬링 여부는 이 레이어 뷰로 재판정한다.
+				// 컷오프 '위' 레이어 skip 보다 먼저 돌기 때문에, 컷오프 프리뷰(게임뷰 꺼짐)에서도
+				// 전체 드로우순서가 채워진다 — 컷오프는 아래 시각(드로우)만 자르고 캡처는 레이어 전체를 담는다.
+				if (captureDrawOrder && Engine.GpuProfiler.IsValid() && Engine.GpuProfiler->IsEnabled())
 				{
 					const RenderItemRange drawRange = renderScene.GetLayerRange(layer.Index);
 					const RenderItem* drawItems = renderScene.GetRenderItems();
@@ -448,6 +441,18 @@ namespace
 						profiler->RecordDrawOrderItem(drawItem.Entity, false, group);
 					}
 				}
+
+				// 프로파일러 컷오프 프리뷰 — 선택 지점보다 위(인덱스 큰) 레이어는 시각적으로만 안 그린다
+				// (드로우순서 목록 캡처는 위에서 이미 끝냈다). 캡처 뒤에 두어야 게임뷰 없이도 목록이 찬다.
+				if (cutoff.Active && layer.Index > cutoff.LayerIndex)
+				{
+					continue;
+				}
+
+				// 레이어 GPU 구간 시작(게임뷰에서만 gpuTimer != null). 컬링/필터/컷오프로 건너뛴 레이어는
+				// 여기 도달 전에 continue 되므로, 실제로 그리는 레이어만 계측된다.
+				const std::uint32_t gpuScope =
+					gpuTimer ? gpuTimer->BeginScope(GpuLayerKey(layer.Index)) : INVALID_GPU_SCOPE;
 
 				if (false == layer.NeedsOwnTexture || nullptr == forward)
 				{
@@ -532,7 +537,8 @@ void RenderGameViewports(
 	const std::vector<GameRenderLayerDesc>& layers,
 	const float* backgroundColor,
 	IRHIGpuTimer* gpuTimer,
-	GpuRenderCutoff cutoff)
+	GpuRenderCutoff cutoff,
+	bool captureDrawOrder)
 {
 	if (outCameraStats)
 	{
@@ -551,7 +557,7 @@ void RenderGameViewports(
 	CForward2DRenderer* forward = renderer.AsForward2DRenderer();
 	if (nullptr == forward)
 	{
-		RenderViewportsInto(commandContext, renderer, renderScene, viewports, layers, renderTargetSize, renderTarget, outCameraStats, backgroundColor, gpuTimer, cutoff);
+		RenderViewportsInto(commandContext, renderer, renderScene, viewports, layers, renderTargetSize, renderTarget, outCameraStats, backgroundColor, gpuTimer, cutoff, captureDrawOrder);
 		renderer.SetViewCamera(0.0f, 0.0f, 1.0f);
 		return;
 	}
@@ -577,10 +583,10 @@ void RenderGameViewports(
 	RWPassDesc basePass;
 	basePass.Name  = "Base";
 	basePass.Write = hScene;
-	basePass.Execute = [&renderer, &renderScene, &viewports, &layers, renderTargetSize, outCameraStats, backgroundColor, hScene, gpuTimer, cutoff]
+	basePass.Execute = [&renderer, &renderScene, &viewports, &layers, renderTargetSize, outCameraStats, backgroundColor, hScene, gpuTimer, cutoff, captureDrawOrder]
 		(IRHICommandContext& ctx, RWGraph& g)
 	{
-		RenderViewportsInto(ctx, renderer, renderScene, viewports, layers, renderTargetSize, g.Resolve(hScene), outCameraStats, backgroundColor, gpuTimer, cutoff);
+		RenderViewportsInto(ctx, renderer, renderScene, viewports, layers, renderTargetSize, g.Resolve(hScene), outCameraStats, backgroundColor, gpuTimer, cutoff, captureDrawOrder);
 	};
 	graph.AddPass(std::move(basePass));
 
