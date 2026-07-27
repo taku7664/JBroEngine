@@ -11,8 +11,16 @@ Entries:
   window.project_settings: 프로젝트 세팅
   window.build_settings: 빌드 세팅
   window.shortcut_reference: 단축키 안내
-  window.editor_statistics: 에디터 통계
   window.gpu_profiler: GPU 프로파일러
+  window.cpu_profiler: CPU 프로파일러
+  cpu_profiler.disabled_hint: 디버그 메뉴에서 "CPU 프로파일링" 을 켜세요
+  cpu_profiler.pools_header: 컴포넌트 풀 (순회시간)
+  cpu_profiler.select_pool_hint: 왼쪽에서 풀을 선택하세요
+  cpu_profiler.script_objects_header: 스크립트 오브젝트별 Update
+  cpu_profiler.no_scripts: 측정된 스크립트가 없습니다 (재생 중 + Script 풀 선택 시 다음 프레임부터)
+  cpu_profiler.update: Update
+  cpu_profiler.fixed_update: FixedUpdate (고정 스텝)
+  cpu_profiler.batch_note: 배치 처리라 오브젝트별 분해는 없습니다
   gpu_profiler.disabled_hint: 디버그 메뉴에서 GPU 프로파일 "사용" 을 켜세요
   gpu_profiler.backend_unsupported: 이 렌더 백엔드는 GPU 타임스탬프를 지원하지 않습니다
   gpu_profiler.game_view_gpu: "게임뷰 GPU: %.3f ms"
@@ -36,6 +44,7 @@ Entries:
   menu.settings.build_settings: 빌드 세팅
   menu.debug: 디버그
   menu.debug.gpu_profiling: GPU 프로파일링
+  menu.debug.cpu_profiling: CPU 프로파일링
   menu.simulation: 시뮬레이션
   menu.simulation.play: 실행
   menu.simulation.pause: 일시정지

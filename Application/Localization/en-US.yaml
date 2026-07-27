@@ -11,8 +11,16 @@ Entries:
   window.project_settings: Project Settings
   window.build_settings: Build Settings
   window.shortcut_reference: Shortcut Reference
-  window.editor_statistics: Editor Statistics
   window.gpu_profiler: GPU Profiler
+  window.cpu_profiler: CPU Profiler
+  cpu_profiler.disabled_hint: Enable "CPU Profiling" in the Debug menu
+  cpu_profiler.pools_header: Component Pools (iteration time)
+  cpu_profiler.select_pool_hint: Select a pool on the left
+  cpu_profiler.script_objects_header: Per-object Script Update
+  cpu_profiler.no_scripts: No scripts measured (play and select the Script pool; fills next frame)
+  cpu_profiler.update: Update
+  cpu_profiler.fixed_update: FixedUpdate (fixed step)
+  cpu_profiler.batch_note: Batch-processed — no per-object breakdown
   gpu_profiler.disabled_hint: Enable "GPU Profile" in the Debug menu
   gpu_profiler.backend_unsupported: This render backend does not support GPU timestamps
   gpu_profiler.game_view_gpu: "Game View GPU: %.3f ms"
@@ -36,6 +44,7 @@ Entries:
   menu.settings.build_settings: Build Settings
   menu.debug: Debug
   menu.debug.gpu_profiling: GPU Profiling
+  menu.debug.cpu_profiling: CPU Profiling
   menu.simulation: Simulation
   menu.simulation.play: Play
   menu.simulation.pause: Pause

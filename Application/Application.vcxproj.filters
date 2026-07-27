@@ -252,10 +252,10 @@
     <ClInclude Include="Editor\Main\ShortcutReference\ShortcutReferenceTool.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
-    <ClInclude Include="Editor\Main\Statistics\EditorStatisticsTool.h">
+    <ClInclude Include="Editor\Main\Debug\GpuProfilerWindow.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
-    <ClInclude Include="Editor\Main\Debug\GpuProfilerWindow.h">
+    <ClInclude Include="Editor\Main\Debug\CpuProfilerWindow.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
   </ItemGroup>
@@ -425,10 +425,10 @@
     <ClCompile Include="Editor\Main\ShortcutReference\ShortcutReferenceTool.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
-    <ClCompile Include="Editor\Main\Statistics\EditorStatisticsTool.cpp">
+    <ClCompile Include="Editor\Main\Debug\GpuProfilerWindow.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
-    <ClCompile Include="Editor\Main\Debug\GpuProfilerWindow.cpp">
+    <ClCompile Include="Editor\Main\Debug\CpuProfilerWindow.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="Editor\Main\BuildSettingsWindow.cpp">

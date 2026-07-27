@@ -692,6 +692,9 @@
     <ClInclude Include="Core\Debug\GpuProfiler.h">
       <Filter>Header\Core\Debug</Filter>
     </ClInclude>
+    <ClInclude Include="Core\Debug\CpuProfiler.h">
+      <Filter>Header\Core\Debug</Filter>
+    </ClInclude>
     <ClInclude Include="Core\Debug\DebugDraw2D.h">
       <Filter>Header\Core\Debug</Filter>
     </ClInclude>

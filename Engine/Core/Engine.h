@@ -6,6 +6,7 @@
 #include "GameFramework/Rendering/GameCamera.h"
 #include "Utillity/Types/FrameSectionProfiler.h"
 #include "Core/Debug/GpuProfiler.h"
+#include "Core/Debug/CpuProfiler.h"
 
 #include <functional>
 #include <vector>
@@ -113,6 +114,7 @@ private:
 	OwnerPtr<CTime>               m_time;
 	OwnerPtr<CFrameSectionProfiler> m_frameProfiler;
 	OwnerPtr<CGpuProfiler>        m_gpuProfiler;
+	OwnerPtr<CCpuProfiler>        m_cpuProfiler;
 	OwnerPtr<CInput>              m_input;
 	OwnerPtr<CInputSystem>        m_inputSystem;
 	OwnerPtr<CFileSystem>         m_fileSystem;

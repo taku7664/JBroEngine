@@ -9,8 +9,10 @@
 #include "Editor/Main/BuildSettingsWindow.h"
 #include "Editor/Main/ProjectSettingsWindow.h"
 #include "Editor/Main/Debug/GpuProfilerWindow.h"
+#include "Editor/Main/Debug/CpuProfilerWindow.h"
 #include "Engine/Core/EngineCore.h"
 #include "Engine/Core/Debug/GpuProfiler.h"
+#include "Engine/Core/Debug/CpuProfiler.h"
 #include "Editor/Main/MainDockWindow.h"
 #include "Editor/Main/CanvasView/CanvasViewTool.h"
 #include "Engine/Core/EngineCore.h"
@@ -699,6 +701,22 @@ void CRootDockWindow::OnMenuBar()
 				if (newEnabled && Editor::GpuProfiler)
 				{
 					Editor::GpuProfiler->SetVisible(true);
+				}
+			}
+		}
+
+		// CPU 프로파일링 토글. 상태 소유처는 Engine.CpuProfiler. 켜면 CPU 프로파일러 창도 띄운다.
+		const bool cpuProfilingEnabled =
+			Engine.CpuProfiler.IsValid() && Engine.CpuProfiler->IsEnabled();
+		if (ImGui::MenuItem(Loc::Text(EditorLocKeys::MenuDebugCpuProfiling), nullptr, cpuProfilingEnabled))
+		{
+			if (Engine.CpuProfiler.IsValid())
+			{
+				const bool newEnabled = (false == cpuProfilingEnabled);
+				Engine.CpuProfiler->SetEnabled(newEnabled);
+				if (newEnabled && Editor::CpuProfiler)
+				{
+					Editor::CpuProfiler->SetVisible(true);
 				}
 			}
 		}

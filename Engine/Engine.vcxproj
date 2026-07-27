@@ -427,6 +427,7 @@
     <ClInclude Include="Core\Debug\DebugDraw.h" />
     <ClInclude Include="Core\Debug\DebugDraw2D.h" />
     <ClInclude Include="Core\Debug\GpuProfiler.h" />
+    <ClInclude Include="Core\Debug\CpuProfiler.h" />
     <ClInclude Include="Core\Debug\DebugRenderer.h" />
     <ClInclude Include="Core\Debug\DebugRenderer2D.h" />
     <ClInclude Include="Core\Debug\OutlineRenderer2D.h" />

@@ -175,10 +175,21 @@ bool CEngine::Update()
 		CFrameSectionScope scope(*m_frameProfiler, "UpdateModules", false);
 		UpdateModules();
 	}
+	// CPU 프로파일러: 스크립트 per-object 타이밍 버퍼를 캡처 직전(캔버스 업데이트 전)에 클리어한다.
+	if (Engine.CpuProfiler.IsValid())
+	{
+		Engine.CpuProfiler->BeginFrame();
+	}
 	{
 		// 캔버스(스크립트/시스템/물리)가 이 안에 있다. 세부는 캔버스 쪽 구간 목록 참고.
 		CFrameSectionScope scope(*m_frameProfiler, "UpdateCoreServices", false);
 		UpdateCoreServices();
+	}
+	// 캡처 소비 후, 아래 RenderFrame 의 CPU 프로파일러 창이 다음 프레임용으로 다시 요청하기 전에
+	// opt-in 플래그를 내린다(창이 닫히거나 다른 풀을 고르면 캡처가 저절로 멈춘다).
+	if (Engine.CpuProfiler.IsValid())
+	{
+		Engine.CpuProfiler->EndFrame();
 	}
 	RenderFrame();
 	{
@@ -425,6 +436,7 @@ bool CEngine::InitializeCoreServices()
 	// Update 가 첫 프레임부터 쓰므로 다른 서비스보다 먼저 만들어 둔다.
 	m_frameProfiler = MakeOwnerPtr<CFrameSectionProfiler>();
 	m_gpuProfiler = MakeOwnerPtr<CGpuProfiler>();
+	m_cpuProfiler = MakeOwnerPtr<CCpuProfiler>();
 	m_input = MakeOwnerPtr<CInput>();
 	m_inputSystem = MakeOwnerPtr<CInputSystem>();
 	m_fileSystem = MakeOwnerPtr<CFileSystem>();
@@ -468,6 +480,7 @@ bool CEngine::InitializeCoreServices()
 	Engine.Time = m_time.GetSafePtr();
 	Engine.FrameProfiler = m_frameProfiler.GetSafePtr();
 	Engine.GpuProfiler = m_gpuProfiler.GetSafePtr();
+	Engine.CpuProfiler = m_cpuProfiler.GetSafePtr();
 	Engine.Input = m_input.GetSafePtr();
 	Engine.InputSystem = m_inputSystem.GetSafePtr();
 	Engine.FileSystem = m_fileSystem.GetSafePtr();

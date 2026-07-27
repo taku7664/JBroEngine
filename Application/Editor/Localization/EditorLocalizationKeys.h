@@ -417,6 +417,7 @@ namespace EditorLocKeys
 	constexpr const char* LogLevelWarning = "log.level.warning";
 	constexpr const char* MenuDebug = "menu.debug";
 	constexpr const char* MenuDebugGpuProfiling = "menu.debug.gpu_profiling";
+	constexpr const char* MenuDebugCpuProfiling = "menu.debug.cpu_profiling";
 	constexpr const char* MenuEdit = "menu.edit";
 	constexpr const char* MenuEditRedo = "menu.edit.redo";
 	constexpr const char* MenuEditUndo = "menu.edit.undo";
@@ -558,8 +559,16 @@ namespace EditorLocKeys
 	constexpr const char* ShortcutReferenceUnavailable = "shortcut_reference.unavailable";
 	constexpr const char* WindowAssetBrowser = "window.asset_browser";
 	constexpr const char* WindowBuildSettings = "window.build_settings";
-	constexpr const char* WindowEditorStatistics = "window.editor_statistics";
 	constexpr const char* WindowGpuProfiler = "window.gpu_profiler";
+	constexpr const char* WindowCpuProfiler = "window.cpu_profiler";
+	constexpr const char* CpuProfilerDisabledHint = "cpu_profiler.disabled_hint";
+	constexpr const char* CpuProfilerPoolsHeader = "cpu_profiler.pools_header";
+	constexpr const char* CpuProfilerSelectPoolHint = "cpu_profiler.select_pool_hint";
+	constexpr const char* CpuProfilerScriptObjectsHeader = "cpu_profiler.script_objects_header";
+	constexpr const char* CpuProfilerNoScripts = "cpu_profiler.no_scripts";
+	constexpr const char* CpuProfilerUpdate = "cpu_profiler.update";
+	constexpr const char* CpuProfilerFixedUpdate = "cpu_profiler.fixed_update";
+	constexpr const char* CpuProfilerBatchNote = "cpu_profiler.batch_note";
 	// GPU 프로파일러 창 내용
 	constexpr const char* GpuProfilerDisabledHint = "gpu_profiler.disabled_hint";
 	constexpr const char* GpuProfilerBackendUnsupported = "gpu_profiler.backend_unsupported";

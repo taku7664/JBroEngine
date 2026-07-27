@@ -27,6 +27,7 @@ class INetworkManager;
 class IRenderResourceCache;
 class CFrameSectionProfiler;
 class CGpuProfiler;
+class CCpuProfiler;
 
 
 struct EngineCore
@@ -58,6 +59,7 @@ struct EngineCore
 	SafePtr<CFrameSectionProfiler> FrameProfiler;
 	// 레이어/패스 단위 GPU 시간(진단용). 에디터 빌드에서만 채워진다.
 	SafePtr<CGpuProfiler>          GpuProfiler;
+	SafePtr<CCpuProfiler>          CpuProfiler;
 };
 
 extern EngineCore Engine;

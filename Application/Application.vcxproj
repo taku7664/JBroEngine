@@ -398,8 +398,8 @@
     <ClInclude Include="Editor\Main\GameView\GameViewTool.h" />
     <ClInclude Include="Editor\Main\Log\LogTool.h" />
     <ClInclude Include="Editor\Main\ShortcutReference\ShortcutReferenceTool.h" />
-    <ClInclude Include="Editor\Main\Statistics\EditorStatisticsTool.h" />
     <ClInclude Include="Editor\Main\Debug\GpuProfilerWindow.h" />
+    <ClInclude Include="Editor\Main\Debug\CpuProfilerWindow.h" />
     <ClInclude Include="Editor\Main\BuildSettingsWindow.h" />
     <ClInclude Include="Editor\Main\ProjectSettingsWindow.h" />
     <ClInclude Include="Editor\Main\Importer\ImporterWindowBase.h" />
@@ -555,10 +555,10 @@
     <ClCompile Include="Editor\Main\ShortcutReference\ShortcutReferenceTool.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="Editor\Main\Statistics\EditorStatisticsTool.cpp">
+    <ClCompile Include="Editor\Main\Debug\GpuProfilerWindow.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="Editor\Main\Debug\GpuProfilerWindow.cpp">
+    <ClCompile Include="Editor\Main\Debug\CpuProfilerWindow.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="Entry\WindowsMain.cpp" />
