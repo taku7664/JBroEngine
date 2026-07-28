@@ -11,6 +11,7 @@
 // Scripts/ 폴더에 새 스크립트를 추가하면 여기에 include 한 줄만 추가하세요.
 // 등록(RegisterScript) / 해제(UnregisterScript) 는 아래 코드가 자동 처리합니다.
 #include "Scripts/DefaultScript.h"
+#include "Scripts/CoroutineTestScript.h"
 
 // ── GameScriptSampleModule ───────────────────────────────────────────────────────
 // DLL 진입점 모듈. Initialize() 에서 스크립트를 등록하고
@@ -40,6 +41,12 @@ public:
             "GameScriptSample"
         });
 
+        m_registry->RegisterScript<CCoroutineTestScript>({
+            "CCoroutineTestScript",
+            "Coroutine Test",
+            "GameScriptSample"
+        });
+
         return true;
     }
 
@@ -53,6 +60,7 @@ public:
         }
 
         m_registry->UnregisterScript(CReflectionRegistry::MakeTypeId("CDefaultScript"));
+        m_registry->UnregisterScript(CReflectionRegistry::MakeTypeId("CCoroutineTestScript"));
 
         m_registry = nullptr;
 
