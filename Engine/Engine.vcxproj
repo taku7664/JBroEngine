@@ -643,6 +643,8 @@
     <ClInclude Include="GameFramework\Reflection\ReflectionContainerOps.h" />
     <ClInclude Include="GameFramework\Reflection\ReflectionEnumRegister.h" />
     <ClInclude Include="GameFramework\GameFrameworkAll.h" />
+    <ClInclude Include="GameFramework\Scripting\Coroutine.h" />
+    <ClInclude Include="GameFramework\Scripting\CoroutineScheduler.h" />
     <ClInclude Include="GameFramework\Scripting\GameScript.h" />
     <ClInclude Include="GameFramework\Scripting\ScriptAPI.h" />
     <ClInclude Include="GameFramework\Scripting\ScriptAPI_Physics.h" />
@@ -844,6 +846,7 @@
     <ClCompile Include="GameFramework\Physics2D\Physics2DSystem.cpp" />
     <ClCompile Include="GameFramework\Component\BuiltinComponentRegistry.cpp" />
     <ClCompile Include="GameFramework\Reflection\ReflectionRegistry.cpp" />
+    <ClCompile Include="GameFramework\Scripting\CoroutineScheduler.cpp" />
     <ClCompile Include="GameFramework\Scripting\GameScript.cpp" />
     <ClCompile Include="GameFramework\Scripting\ScriptSystem.cpp" />
     <ClCompile Include="GameFramework\Transform\TransformSystem.cpp" />

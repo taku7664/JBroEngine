@@ -956,6 +956,12 @@
     <ClInclude Include="GameFramework\Reflection\ReflectionContainerOps.h">
       <Filter>Header\GameFramework\Reflection</Filter>
     </ClInclude>
+    <ClInclude Include="GameFramework\Scripting\Coroutine.h">
+      <Filter>Header\GameFramework\Scripting</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Scripting\CoroutineScheduler.h">
+      <Filter>Header\GameFramework\Scripting</Filter>
+    </ClInclude>
     <ClInclude Include="GameFramework\Scripting\GameScript.h">
       <Filter>Header\GameFramework\Scripting</Filter>
     </ClInclude>
@@ -1584,6 +1590,9 @@
     </ClCompile>
     <ClCompile Include="GameFramework\Reflection\ReflectionRegistry.cpp">
       <Filter>Source\GameFramework\Reflection</Filter>
+    </ClCompile>
+    <ClCompile Include="GameFramework\Scripting\CoroutineScheduler.cpp">
+      <Filter>Source\GameFramework\Scripting</Filter>
     </ClCompile>
     <ClCompile Include="GameFramework\Scripting\GameScript.cpp">
       <Filter>Source\GameFramework\Scripting</Filter>

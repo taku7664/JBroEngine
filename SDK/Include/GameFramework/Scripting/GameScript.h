@@ -3,6 +3,7 @@
 #include "GameFramework/Component/Component.h"
 #include "GameFramework/Object/GameObject.h"
 #include "GameFramework/Physics2D/Collision2D.h"
+#include "GameFramework/Scripting/Coroutine.h"
 #include "Utillity/Math/SizeT.h"
 #include "Utillity/Pointer/SafePtr.h"
 
@@ -47,6 +48,15 @@ public:
 		// 컴포넌트도 EnableSafeFromThis<CComponent> — SafeFromThis 로 안전참조를 얻어 T 로 다운캐스트.
 		return StaticSafePtrCast<T>(component->SafeFromThis());
 	}
+
+	// ── 코루틴 ────────────────────────────────────────────────────────────────
+	// 이 스크립트를 owner 로 코루틴을 시작한다. `co_await Wait::Seconds/Frames/Until/...` 로
+	// 여러 프레임에 걸쳐 실행을 중단·재개한다. 이 스크립트나 부착 오브젝트가 파괴되면 자동 취소되고,
+	// 비활성 상태에선 pause(다시 활성화되면 이어서 재개)된다. 반환 id 로 개별 중지할 수 있다.
+	//   예:  StartCoroutine(OpenDoorAfterDelay());
+	CoroutineId StartCoroutine(Coroutine&& routine);
+	void StopCoroutine(CoroutineId id);
+	void StopAllCoroutines();
 
 public:
 	CGameScript(

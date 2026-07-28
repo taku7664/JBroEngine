@@ -5,6 +5,7 @@
 #include "Core/Logging/LoggerInternal.h"
 #include "Core/EngineCore.h"
 #include "Core/Input/InputSystem.h"
+#include "Core/Time/Time.h"   // 코루틴 tick 의 스케일/언스케일 dt
 #include "GameFramework/Scripting/GameScript.h"
 #include "GameFramework/Physics2D/Physics2DSystem.h"
 #include "GameFramework/Reflection/ReflectionRegistry.h"
@@ -869,6 +870,9 @@ void CGameCanvas::FixedUpdate()
 		m_scriptSystem->FixedUpdate(*this);
 	}
 
+	// WaitFixedUpdate 로 멈춘 코루틴을 이 고정 스텝에 재개한다(프레임당 0~N회 호출).
+	m_coroutineScheduler.NotifyFixedUpdate();
+
 	{
 		CFrameSectionScope scope(m_frameProfiler, "FlushPendingDestroys", true);
 		FlushPendingDestroys();
@@ -973,6 +977,35 @@ void CGameCanvas::UpdateScripts()
 		CFrameSectionScope scope(m_frameProfiler, "CScriptSystem", false);
 		m_scriptSystem->Update(*this);
 	}
+
+	// 코루틴 재개(스크립트 Update 직후). UpdateScripts 는 재생 중에만 호출되므로 편집 모드엔 tick 안 됨.
+	// dt 는 호스트 Engine.Time 에서 — 스케일(Seconds)·언스케일(SecondsRealtime) 둘 다 넘긴다.
+	{
+		CFrameSectionScope scope(m_frameProfiler, "CCoroutineScheduler", false);
+		float deltaSeconds = 0.0f;
+		float unscaledDeltaSeconds = 0.0f;
+		if (Engine.Time.IsValid())
+		{
+			deltaSeconds = Engine.Time->GetDeltaSeconds();
+			unscaledDeltaSeconds = Engine.Time->GetUnscaledDeltaSeconds();
+		}
+		m_coroutineScheduler.Tick(deltaSeconds, unscaledDeltaSeconds);
+	}
+}
+
+CoroutineId CGameCanvas::StartCoroutine(Coroutine&& routine, const SafePtr<CGameScript>& owner)
+{
+	return m_coroutineScheduler.Start(std::move(routine), owner);
+}
+
+void CGameCanvas::StopCoroutine(CoroutineId id)
+{
+	m_coroutineScheduler.Stop(id);
+}
+
+void CGameCanvas::StopCoroutinesForOwner(const CGameScript* owner)
+{
+	m_coroutineScheduler.StopForOwner(owner);
 }
 
 void CGameCanvas::NotifySimulationStop()
@@ -988,6 +1021,10 @@ void CGameCanvas::NotifySimulationStop()
 
 void CGameCanvas::DestroyScriptInstances()
 {
+	// 살아있는 코루틴 프레임을 먼저 일괄 파괴한다 — 소유 스크립트 인스턴스와 게임 DLL 이
+	// 사라지기 전에(시뮬 정지·DLL 라이브 리컴파일·프로젝트 언로드·앱 종료·캔버스 클리어 공용 관문).
+	m_coroutineScheduler.CancelAll();
+
 	std::vector<CGameScript*> scripts;
 	for (const ScriptRuntimeState& state : m_scriptRuntimeStates)
 	{

@@ -8,6 +8,7 @@
 #include "GameFramework/Object/ObjectPool.h"
 #include "GameFramework/Reflection/ReflectionTypes.h"
 #include "GameFramework/Canvas/CanvasViewport.h"
+#include "GameFramework/Scripting/CoroutineScheduler.h"
 #include "GameFramework/System/GameSystem.h"
 #include "Utillity/File/FilePath.h"
 #include "Utillity/File/Guid128.h"
@@ -290,6 +291,14 @@ private:
 	// 신규 로드 레이어는 목록에 없어 자연히 제외된다(그쪽은 OnStart 가 같은 자리를 맡는다).
 	void DispatchCanvasChangedToScripts(const std::vector<SafePtr<CGameLayer>>& inheritedLayers);
 
+	// ── 코루틴 ────────────────────────────────────────────────────────────────
+	// CGameScript::StartCoroutine 등이 위임한다. owner = 시작한 스크립트(수명/활성 판정).
+	// 스케줄러는 재생 중(UpdateScripts)에만 tick 되고, 시뮬 정지/DLL 리로드 관문
+	// (DestroyScriptInstances)에서 살아있는 프레임이 일괄 파괴된다.
+	CoroutineId StartCoroutine(Coroutine&& routine, const SafePtr<CGameScript>& owner);
+	void StopCoroutine(CoroutineId id);
+	void StopCoroutinesForOwner(const CGameScript* owner);
+
 public:
 	CPhysics2DSystem* GetPhysics2DSystem();
 	const CPhysics2DSystem* GetPhysics2DSystem() const;
@@ -337,6 +346,7 @@ private:
 	friend class CCanvasRuntimeAccess;
 	friend class CCanvasSerializer;
 	friend class CScriptSystem;
+	friend class CGameScript;   // StartCoroutine/StopCoroutine/StopCoroutinesForOwner 위임 접근.
 
 	void SetName(const char* name) { m_name = name ? name : ""; }
 	void SetObjectInstanceGuid(CGameObject& object, const File::Guid& guid);
@@ -553,6 +563,8 @@ private:
 	OwnerPtr<CPhysics2DSystem>         m_physicsSystem;
 	OwnerPtr<CScriptSystem>            m_scriptSystem;
 	std::vector<OwnerPtr<CGameSystem>> m_systems;
+	// 스크립트 코루틴 스케줄러 — 재생 중 UpdateScripts 에서 tick, 파괴 관문에서 CancelAll.
+	CCoroutineScheduler                m_coroutineScheduler;
 	// 프레임 구간별 소요 시간(진단용). 에디터 빌드에서만 채워진다.
 	CFrameSectionProfiler m_frameProfiler;
 	// m_systems 와 인덱스가 1:1. 목록 크기가 바뀌면 다시 뽑는다.

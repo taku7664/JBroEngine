@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <utility>
 
 void CGameScript::Bind(CGameCanvas& canvas, const char* typeName)
 {
@@ -75,9 +76,44 @@ void CGameScript::Destroy()
 		OnDestroy();
 	}
 
+	// 이 스크립트가 남긴 코루틴을 취소한다 — 이후 재개가 파괴된 인스턴스를 건드리지 못하게.
+	// (일괄 파괴 경로는 DestroyScriptInstances 가 이미 CancelAll 하지만, 단건 파괴는 여기가 관문.)
+	if (CGameCanvas* canvas = m_canvas.TryGet())
+	{
+		canvas->StopCoroutinesForOwner(this);
+	}
+
 	m_isCreated = false;
 	m_isStarted = false;
 	m_canvas.Reset();
+}
+
+CoroutineId CGameScript::StartCoroutine(Coroutine&& routine)
+{
+	CGameCanvas* canvas = m_canvas.TryGet();
+	if (nullptr == canvas)
+	{
+		return CoroutineId{};
+	}
+	// owner = 이 스크립트의 안전참조. 스케줄러가 파괴/활성 판정에 쓴다.
+	SafePtr<CGameScript> self = StaticSafePtrCast<CGameScript>(SafeFromThis());
+	return canvas->StartCoroutine(std::move(routine), self);
+}
+
+void CGameScript::StopCoroutine(CoroutineId id)
+{
+	if (CGameCanvas* canvas = m_canvas.TryGet())
+	{
+		canvas->StopCoroutine(id);
+	}
+}
+
+void CGameScript::StopAllCoroutines()
+{
+	if (CGameCanvas* canvas = m_canvas.TryGet())
+	{
+		canvas->StopCoroutinesForOwner(this);
+	}
 }
 
 void CGameScript::CanvasChanged(CGameCanvas& canvas)
