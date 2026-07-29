@@ -48,6 +48,49 @@ public:
 
 	bool IsEmpty() const noexcept { return m_entries.empty(); }
 
+	// ── 진단(에디터 CPU 프로파일러 전용) ─────────────────────────────────────────
+	// 살아있는 코루틴 수(제거 대기 제외). 순회 중 시작된 것(m_pendingStarts)도 센다.
+	std::size_t GetActiveCount() const
+	{
+		std::size_t count = 0;
+		for (const Entry& entry : m_entries)
+		{
+			if (false == entry.PendingRemoval)
+			{
+				++count;
+			}
+		}
+		for (const Entry& entry : m_pendingStarts)
+		{
+			if (false == entry.PendingRemoval)
+			{
+				++count;
+			}
+		}
+		return count;
+	}
+
+	// 살아있는 각 코루틴의 owner 스크립트를 콜백으로 넘긴다(owner 무효면 nullptr). 소유자별
+	// 개수 집계 등 UI 진단용 — 힙을 스케줄러 밖(호출자)에서 잡게 하려는 템플릿 순회.
+	template<typename Fn>
+	void ForEachActiveOwner(Fn&& callback) const
+	{
+		for (const Entry& entry : m_entries)
+		{
+			if (false == entry.PendingRemoval)
+			{
+				callback(entry.Owner.TryGet());
+			}
+		}
+		for (const Entry& entry : m_pendingStarts)
+		{
+			if (false == entry.PendingRemoval)
+			{
+				callback(entry.Owner.TryGet());
+			}
+		}
+	}
+
 private:
 	struct Entry
 	{

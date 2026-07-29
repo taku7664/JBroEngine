@@ -21,6 +21,9 @@ Entries:
   cpu_profiler.update: Update
   cpu_profiler.fixed_update: FixedUpdate (고정 스텝)
   cpu_profiler.batch_note: 배치 처리라 오브젝트별 분해는 없습니다
+  cpu_profiler.coroutines_active: 활성 코루틴
+  cpu_profiler.coroutine_owners_header: 소유자별 코루틴
+  cpu_profiler.no_coroutines: 실행 중인 코루틴이 없습니다 (재생 중 StartCoroutine 시)
   gpu_profiler.disabled_hint: 디버그 메뉴에서 GPU 프로파일 "사용" 을 켜세요
   gpu_profiler.backend_unsupported: 이 렌더 백엔드는 GPU 타임스탬프를 지원하지 않습니다
   gpu_profiler.game_view_gpu: "게임뷰 GPU: %.3f ms"

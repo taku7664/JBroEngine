@@ -21,6 +21,9 @@ Entries:
   cpu_profiler.update: Update
   cpu_profiler.fixed_update: FixedUpdate (fixed step)
   cpu_profiler.batch_note: Batch-processed — no per-object breakdown
+  cpu_profiler.coroutines_active: Active Coroutines
+  cpu_profiler.coroutine_owners_header: Coroutines by Owner
+  cpu_profiler.no_coroutines: No active coroutines (start one while playing)
   gpu_profiler.disabled_hint: Enable "GPU Profile" in the Debug menu
   gpu_profiler.backend_unsupported: This render backend does not support GPU timestamps
   gpu_profiler.game_view_gpu: "Game View GPU: %.3f ms"

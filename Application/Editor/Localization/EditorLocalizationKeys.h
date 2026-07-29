@@ -569,6 +569,10 @@ namespace EditorLocKeys
 	constexpr const char* CpuProfilerUpdate = "cpu_profiler.update";
 	constexpr const char* CpuProfilerFixedUpdate = "cpu_profiler.fixed_update";
 	constexpr const char* CpuProfilerBatchNote = "cpu_profiler.batch_note";
+	// 코루틴 스케줄러 풀 상세
+	constexpr const char* CpuProfilerCoroutinesActive = "cpu_profiler.coroutines_active";
+	constexpr const char* CpuProfilerCoroutineOwnersHeader = "cpu_profiler.coroutine_owners_header";
+	constexpr const char* CpuProfilerNoCoroutines = "cpu_profiler.no_coroutines";
 	// GPU 프로파일러 창 내용
 	constexpr const char* GpuProfilerDisabledHint = "gpu_profiler.disabled_hint";
 	constexpr const char* GpuProfilerBackendUnsupported = "gpu_profiler.backend_unsupported";

@@ -13,12 +13,15 @@
 #include "Engine/Core/Renderer/IRenderScene.h"             // 렌더 아이템 수(일반 통계)
 #include "Engine/Utillity/Types/FrameSectionProfiler.h"    // FrameSectionTiming — 풀별 순회시간
 #include "Engine/GameFramework/Canvas/Canvas.h"
-#include "Engine/GameFramework/Canvas/CanvasRuntimeAccess.h"   // GetFrameSections / GetScriptMemoryPoolStats
+#include "Engine/GameFramework/Canvas/CanvasRuntimeAccess.h"   // GetFrameSections / GetScriptMemoryPoolStats / GetCoroutineScheduler
 #include "Engine/GameFramework/Object/GameObject.h"        // 스크립트 오브젝트 이름 역해석
+#include "Engine/GameFramework/Scripting/CoroutineScheduler.h"   // 코루틴 활성 수/소유자별 분해
+#include "Engine/GameFramework/Scripting/GameScript.h"     // 코루틴 owner → 오브젝트 이름/선택
 
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
+#include <utility>
 #include <vector>
 
 namespace
@@ -35,6 +38,14 @@ namespace
 	bool IsScriptPool(const char* label)
 	{
 		return label && std::strcmp(StripClassPrefix(label), SCRIPT_POOL_LABEL) == 0;
+	}
+
+	// 소유자별 코루틴 드릴다운 대상인 코루틴 스케줄러 풀의 라벨. Canvas.cpp 가 이 리터럴로 잰다.
+	constexpr const char* COROUTINE_POOL_LABEL = "CCoroutineScheduler";
+
+	bool IsCoroutinePool(const char* label)
+	{
+		return label && std::strcmp(StripClassPrefix(label), COROUTINE_POOL_LABEL) == 0;
 	}
 }
 
@@ -133,6 +144,12 @@ void CCpuProfilerWindow::DrawGeneralStats(CGameCanvas* canvas)
 	drawRow(Loc::Text(EditorLocKeys::EditorStatisticsScriptPools), value);
 	std::snprintf(value, sizeof(value), "%zu", expansionCount);
 	drawRow(Loc::Text(EditorLocKeys::EditorStatisticsScriptPoolExpansions), value);
+	if (nullptr != canvas)
+	{
+		const std::size_t activeCoroutines = CCanvasRuntimeAccess::GetCoroutineScheduler(*canvas).GetActiveCount();
+		std::snprintf(value, sizeof(value), "%zu", activeCoroutines);
+		drawRow(Loc::Text(EditorLocKeys::CpuProfilerCoroutinesActive), value);
+	}
 	std::snprintf(value, sizeof(value), "%u", renderItemCount);
 	drawRow(Loc::Text(EditorLocKeys::EditorStatisticsRenderItems), value);
 	std::snprintf(value, sizeof(value), "%zu", Editor::GetSelectedEntities().size());
@@ -286,6 +303,91 @@ void CCpuProfilerWindow::DrawPoolDetail(CGameCanvas* canvas)
 			}
 			ImGui::SameLine();
 			ImGui::TextDisabled("%.3f ms", timing.Microseconds / 1000.0);
+		}
+		return;
+	}
+
+	if (IsCoroutinePool(m_selectedPoolLabel))
+	{
+		if (nullptr == canvas)
+		{
+			ImGui::TextDisabled("%s", Loc::Text(EditorLocKeys::GpuProfilerNoCanvas));
+			return;
+		}
+
+		// 구간 시간(Update tick + FixedUpdate notify) — 다른 풀과 동일 표기.
+		const std::vector<FrameSectionTiming>& coroutineSections = CCanvasRuntimeAccess::GetFrameSections(*canvas);
+		for (const FrameSectionTiming& section : coroutineSections)
+		{
+			if (section.Label != m_selectedPoolLabel)
+			{
+				continue;
+			}
+			if (section.IsFixedStep)
+			{
+				ImGui::Text("%s: %.3f ms  x%.2f", Loc::Text(EditorLocKeys::CpuProfilerFixedUpdate),
+					section.AverageMicroseconds / 1000.0, section.AverageCallsPerFrame);
+			}
+			else
+			{
+				ImGui::Text("%s: %.3f ms", Loc::Text(EditorLocKeys::CpuProfilerUpdate),
+					section.AverageMicroseconds / 1000.0);
+			}
+		}
+
+		const CCoroutineScheduler& scheduler = CCanvasRuntimeAccess::GetCoroutineScheduler(*canvas);
+		ImGui::Text("%s: %zu", Loc::Text(EditorLocKeys::CpuProfilerCoroutinesActive), scheduler.GetActiveCount());
+
+		// 소유자(스크립트)별 코루틴 수 집계 — 목록이 작아 선형 누적으로 충분하다(UI 경로).
+		std::vector<std::pair<const CGameScript*, std::size_t>> owners;
+		scheduler.ForEachActiveOwner([&owners](const CGameScript* owner)
+		{
+			for (std::pair<const CGameScript*, std::size_t>& entry : owners)
+			{
+				if (entry.first == owner)
+				{
+					++entry.second;
+					return;
+				}
+			}
+			owners.push_back({ owner, static_cast<std::size_t>(1) });
+		});
+
+		ImGui::Spacing();
+		if (owners.empty())
+		{
+			ImGui::TextDisabled("%s", Loc::Text(EditorLocKeys::CpuProfilerNoCoroutines));
+			return;
+		}
+
+		// 개수 많은 순.
+		std::sort(owners.begin(), owners.end(),
+			[](const std::pair<const CGameScript*, std::size_t>& a, const std::pair<const CGameScript*, std::size_t>& b)
+			{
+				return a.second > b.second;
+			});
+
+		ImGui::TextUnformatted(Loc::Text(EditorLocKeys::CpuProfilerCoroutineOwnersHeader));
+		ImGui::Separator();
+
+		const CGameObject* selectedObject = Editor::GetSelectedEntity();
+		for (std::size_t i = 0; i < owners.size(); ++i)
+		{
+			// owner 파괴 대기 중이면 nullptr 일 수 있다(다음 프레임 정리) — 이름/선택은 오브젝트가 있을 때만.
+			CGameScript* owner = const_cast<CGameScript*>(owners[i].first);
+			CGameObject* object = owner ? owner->GetOwner().TryGet() : nullptr;
+			const char* name = object ? object->GetName() : (owner ? owner->GetTypeName() : "?");
+
+			char row[192] = {};
+			std::snprintf(row, sizeof(row), "%s##coroutineowner%zu", name, i);
+			const bool selected = (nullptr != object && object == selectedObject);
+			if (ImGui::Selectable(row, selected) && nullptr != object)
+			{
+				Editor::SelectEntity(object);
+				Editor::RevealEntityInHierarchy(object);
+			}
+			ImGui::SameLine();
+			ImGui::TextDisabled("x%zu", owners[i].second);
 		}
 		return;
 	}

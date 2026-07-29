@@ -871,7 +871,12 @@ void CGameCanvas::FixedUpdate()
 	}
 
 	// WaitFixedUpdate 로 멈춘 코루틴을 이 고정 스텝에 재개한다(프레임당 0~N회 호출).
-	m_coroutineScheduler.NotifyFixedUpdate();
+	// 라벨은 UpdateScripts 의 tick 과 같은 리터럴 — CPU 프로파일러가 Update/FixedUpdate 를
+	// 한 풀(CoroutineScheduler)로 함께 선택·표시한다.
+	{
+		CFrameSectionScope scope(m_frameProfiler, "CCoroutineScheduler", true);
+		m_coroutineScheduler.NotifyFixedUpdate();
+	}
 
 	{
 		CFrameSectionScope scope(m_frameProfiler, "FlushPendingDestroys", true);

@@ -95,6 +95,12 @@ public:
 		return canvas.GetFrameProfiler().GetSections();
 	}
 
+	// 코루틴 스케줄러(진단 UI 전용) — CPU 프로파일러가 활성 수/소유자별 분해를 읽는다.
+	static const CCoroutineScheduler& GetCoroutineScheduler(const CGameCanvas& canvas)
+	{
+		return canvas.m_coroutineScheduler;
+	}
+
 	static void ReserveScriptMemory(
 		CGameCanvas& canvas,
 		TypeId scriptTypeId,
