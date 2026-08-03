@@ -23,6 +23,7 @@ class IRenderResourceCache;
 class CCanvasManager;
 class CNetworkManager;
 class CDebugDraw2D;
+class CPrefabSpawner;
 class CDebug;
 class CTime;
 class CInput;
@@ -134,6 +135,7 @@ private:
 	OwnerPtr<CCanvasManager>       m_canvasManager;
 	OwnerPtr<CNetworkManager>     m_networkManager;   // null until InitializeNetwork()
 	OwnerPtr<CDebugDraw2D>        m_debugDraw;
+	OwnerPtr<CPrefabSpawner>      m_prefabSpawner;
 	std::vector<CModule*>         m_modules;
 	std::vector<GameRenderViewportDesc> m_gameRenderViewports;
 	std::vector<GameRenderLightDesc> m_gameRenderLights;

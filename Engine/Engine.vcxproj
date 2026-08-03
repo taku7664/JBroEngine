@@ -343,6 +343,7 @@
     <ClInclude Include="Core\Asset\AssetTypes.h" />
     <ClInclude Include="Core\Asset\CanvasAsset.h" />
     <ClInclude Include="Core\Asset\LayerAsset.h" />
+    <ClInclude Include="Core\Asset\PrefabAsset.h" />
     <ClInclude Include="Core\Asset\FileAsset.h" />
     <ClInclude Include="Core\Asset\IAsset.h" />
     <ClInclude Include="Core\Asset\IAssetLoader.h" />
@@ -463,7 +464,9 @@
     <ClInclude Include="GameFramework\Object\GameObject.h" />
     <ClInclude Include="GameFramework\Object\Ref.h" />
     <ClInclude Include="GameFramework\Component\PrefabInstance.h" />
+    <ClInclude Include="GameFramework\Prefab\IPrefabSpawner.h" />
     <ClInclude Include="GameFramework\Prefab\PrefabSerializer.h" />
+    <ClInclude Include="GameFramework\Prefab\PrefabSpawner.h" />
     <ClInclude Include="GameFramework\Prefab\PrefabTypes.h" />
     <ClInclude Include="GameFramework\Audio\AudioSystem.h" />
     <ClInclude Include="GameFramework\Component\AudioComponents.h" />
@@ -674,6 +677,7 @@
     <ClCompile Include="Core\Asset\AssetTypeRules.cpp" />
     <ClCompile Include="Core\Asset\CanvasAsset.cpp" />
     <ClCompile Include="Core\Asset\LayerAsset.cpp" />
+    <ClCompile Include="Core\Asset\PrefabAsset.cpp" />
     <ClCompile Include="Core\Asset\FileAsset.cpp" />
     <ClCompile Include="Core\Asset\AudioAsset.cpp" />
     <ClCompile Include="Core\Asset\AudioEffectAsset.cpp" />
@@ -753,7 +757,9 @@
     <ClCompile Include="Core\Time\Time.cpp" />
     <ClCompile Include="GameFramework\Object\GameObject.cpp" />
     <ClCompile Include="GameFramework\Object\Ref.cpp" />
+    <ClCompile Include="GameFramework\Prefab\IPrefabSpawner.cpp" />
     <ClCompile Include="GameFramework\Prefab\PrefabSerializer.cpp" />
+    <ClCompile Include="GameFramework\Prefab\PrefabSpawner.cpp" />
     <ClCompile Include="GameFramework\Audio\AudioSystem.cpp" />
     <ClCompile Include="GameFramework\Rendering\GameCamera.cpp" />
     <ClCompile Include="GameFramework\Rendering\SpriteAnimationSystem.cpp" />

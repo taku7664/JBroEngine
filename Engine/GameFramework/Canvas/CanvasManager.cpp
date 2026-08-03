@@ -12,6 +12,7 @@
 #include "GameFramework/Canvas/Canvas.h"
 #include "GameFramework/Canvas/GameLayer.h"   // 로드된 레이어의 InstanceGuid 로 에셋 보유
 #include "GameFramework/Canvas/CanvasSerializer.h"
+#include "GameFramework/Prefab/IPrefabSpawner.h"           // 시뮬 정지 시 프리팹 원문 캐시 무효화
 #include "GameFramework/Serialization/LayerSerializer.h"   // DeserializeLayer / ReadLayerReferencedAssets
 
 CCanvasManager::~CCanvasManager()
@@ -285,6 +286,13 @@ void CCanvasManager::StopSimulation()
 		SetCanvasName(m_playModeCanvasName.c_str());
 		// 재생 중 전환했다면 지금 들고 있는 건 목적지 캔버스의 리소스다 — 되돌린 내용에 맞춘다.
 		RefreshReferencedAssets();
+	}
+
+	// 프리팹 원문 캐시를 버린다 — 에디터에서 `.jprefab` 을 고치고 다시 재생하면 옛 내용이
+	// 스폰되기 때문이다. 스포너는 재생 중에만 캐시를 채우므로 정지가 자연스러운 무효화 지점이다.
+	if (Script.PrefabSpawner.IsValid())
+	{
+		Script.PrefabSpawner->ClearCache();
 	}
 
 	m_playModeSnapshot.clear();

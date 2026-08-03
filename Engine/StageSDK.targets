@@ -51,6 +51,10 @@
     <_SDKHeader Include="$(_EngineDir)GameFramework\Physics2D\**\*.h"   DestDir="GameFramework\Physics2D"
                 Exclude="$(_EngineDir)GameFramework\Physics2D\Physics2DSystem.h" />
     <_SDKHeader Include="$(_EngineDir)GameFramework\Object\**\*.h"      DestDir="GameFramework\Object" />
+    <!-- Prefab: 스크립트가 보는 건 IPrefabSpawner(추상 인터페이스)뿐이다. PrefabSpawner.h(호스트
+         구현)와 PrefabSerializer.h 는 직렬화 계층(yaml-cpp)에 닿으므로 미러하지 않는다 —
+         게임 DLL 은 yaml-cpp 를 링크하지 않는다. -->
+    <_SDKHeader Include="$(_EngineDir)GameFramework\Prefab\IPrefabSpawner.h" DestDir="GameFramework\Prefab" />
 
     <!-- Core: 타입 정의 / 인터페이스만 포함된 공개 모듈 -->
     <!-- RHI, Renderer(구현), Platform(구현), Network 등은 의도적으로 제외 -->

@@ -24,6 +24,7 @@ class CMathService;
 class CTime;
 class IDebugDraw2D;
 class INetworkManager;
+class IPrefabSpawner;
 class IRenderResourceCache;
 class CFrameSectionProfiler;
 class CGpuProfiler;
@@ -55,6 +56,7 @@ struct EngineCore
 	SafePtr<CResourceRegistry>    ResourceRegistry;
 	SafePtr<INetworkManager>      Network;
 	SafePtr<IDebugDraw2D>         DebugDraw2D;
+	SafePtr<IPrefabSpawner>       PrefabSpawner;
 	// 프레임 구간별 소요 시간(진단용). 에디터 빌드에서만 채워진다.
 	SafePtr<CFrameSectionProfiler> FrameProfiler;
 	// 레이어/패스 단위 GPU 시간(진단용). 에디터 빌드에서만 채워진다.

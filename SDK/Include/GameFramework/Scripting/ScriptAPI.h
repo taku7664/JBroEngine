@@ -101,6 +101,12 @@ using GameObject = CGameObject;
 // 캔버스는 `Ref<CCanvasAsset> Target` 으로 전환 대상을 저작하는 데 쓰인다.
 #include "Core/Asset/CanvasAsset.h"
 #include "Core/Asset/LayerAsset.h"    // Ref<CLayerAsset> — 런타임 레이어 로드 대상 저작
+#include "Core/Asset/PrefabAsset.h"   // Ref<CPrefabAsset> — 런타임 스폰 대상 저작
+
+// ── 프리팹 스폰 ──────────────────────────────────────────────────────────────
+//   JPROP() Ref<CPrefabAsset> Bullet;  로 저작하고
+//   Script.PrefabSpawner->Spawn(Bullet.GuidText(), muzzlePosition) 으로 스폰한다.
+#include "GameFramework/Prefab/IPrefabSpawner.h"
 
 // ── 입력 ────────────────────────────────────────────────────────────────────
 #include "Core/Input/Input.h"          // Script.Input facade (전역설정/진동/연결조회)

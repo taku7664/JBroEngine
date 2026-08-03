@@ -12,6 +12,7 @@
 // 등록(RegisterScript) / 해제(UnregisterScript) 는 아래 코드가 자동 처리합니다.
 #include "Scripts/DefaultScript.h"
 #include "Scripts/CoroutineTestScript.h"
+#include "Scripts/PrefabSpawnTestScript.h"
 
 // ── GameScriptSampleModule ───────────────────────────────────────────────────────
 // DLL 진입점 모듈. Initialize() 에서 스크립트를 등록하고
@@ -47,6 +48,54 @@ public:
             "GameScriptSample"
         });
 
+        // 프로퍼티를 인스펙터에 노출하려면 목록을 함께 넘긴다. 에디터의 코드 생성기를 쓰는
+        // 프로젝트(JPROP 마커)는 이 목록이 자동 생성되지만, 이 샘플은 손으로 등록하므로
+        // 스크립트의 필드를 바꾸면 여기도 같이 고쳐야 한다.
+        m_registry->RegisterScript<CPrefabSpawnTestScript>(
+            ScriptRegisterDesc{
+                "CPrefabSpawnTestScript",
+                "Prefab Spawn Test",
+                "GameScriptSample"
+            },
+            std::vector<ScriptPropertyDesc>{
+                ScriptPropertyDesc{
+                    .Name = "Prefab",
+                    .Type = EReflectPropertyType::Ref,
+                    .Offset = offsetof(CPrefabSpawnTestScript, Prefab),
+                    .Size = sizeof(Ref<CPrefabAsset>),
+                    .ElementCount = 1,
+                    .DisplayName = "스폰할 프리팹",
+                    .Serialize = true,
+                    .Descriptor = &GetScalarReflectTypeDesc<Ref<CPrefabAsset>, EReflectPropertyType::Ref>(),
+                    .RefCategory = Ref<CPrefabAsset>::Category,
+                    .RefTypeName = "CPrefabAsset",
+                    .ExpectedAssetType = EAssetType::Prefab
+                },
+                ScriptPropertyDesc{
+                    .Name = "SpawnCount",
+                    .Type = EReflectPropertyType::Int64,
+                    .Offset = offsetof(CPrefabSpawnTestScript, SpawnCount),
+                    .Size = sizeof(Int),
+                    .ElementCount = 1,
+                    .DisplayName = "한 번에 스폰할 개수",
+                    .HasRange = true,
+                    .RangeMin = 1.0f,
+                    .RangeMax = 32.0f,
+                    .Serialize = true,
+                    .Descriptor = &GetScalarReflectTypeDesc<Int, EReflectPropertyType::Int64>()
+                },
+                ScriptPropertyDesc{
+                    .Name = "SpawnSpacing",
+                    .Type = EReflectPropertyType::Float,
+                    .Offset = offsetof(CPrefabSpawnTestScript, SpawnSpacing),
+                    .Size = sizeof(Float),
+                    .ElementCount = 1,
+                    .DisplayName = "스폰 간격",
+                    .Serialize = true,
+                    .Descriptor = &GetScalarReflectTypeDesc<Float, EReflectPropertyType::Float>()
+                }
+            });
+
         return true;
     }
 
@@ -61,6 +110,7 @@ public:
 
         m_registry->UnregisterScript(CReflectionRegistry::MakeTypeId("CDefaultScript"));
         m_registry->UnregisterScript(CReflectionRegistry::MakeTypeId("CCoroutineTestScript"));
+        m_registry->UnregisterScript(CReflectionRegistry::MakeTypeId("CPrefabSpawnTestScript"));
 
         m_registry = nullptr;
 

@@ -18,6 +18,7 @@ Engine/Core/Asset/AudioEffectAsset.cpp
 Engine/Core/Asset/CanvasAsset.cpp
 Engine/Core/Asset/FileAsset.cpp
 Engine/Core/Asset/LayerAsset.cpp
+Engine/Core/Asset/PrefabAsset.cpp
 Engine/Core/Asset/MaterialAsset.cpp
 Engine/Core/Asset/SpriteAsset.cpp
 Engine/Core/Asset/FontAsset.cpp
@@ -68,7 +69,9 @@ Engine/GameFramework/Object/GameObject.cpp
 Engine/GameFramework/Object/Ref.cpp
 Engine/GameFramework/Physics2D/Physics2DGeometry.cpp
 Engine/GameFramework/Physics2D/Physics2DSystem.cpp
+Engine/GameFramework/Prefab/IPrefabSpawner.cpp
 Engine/GameFramework/Prefab/PrefabSerializer.cpp
+Engine/GameFramework/Prefab/PrefabSpawner.cpp
 Engine/GameFramework/Reflection/ReflectionRegistry.cpp
 Engine/GameFramework/Rendering/GameCamera.cpp
 Engine/GameFramework/Rendering/SpriteAnimationSystem.cpp

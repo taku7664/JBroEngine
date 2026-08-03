@@ -479,6 +479,9 @@
     <ClInclude Include="Core\Asset\LayerAsset.h">
       <Filter>Header\Core\Asset</Filter>
     </ClInclude>
+    <ClInclude Include="Core\Asset\PrefabAsset.h">
+      <Filter>Header\Core\Asset</Filter>
+    </ClInclude>
     <ClInclude Include="Core\Asset\FileAsset.h">
       <Filter>Header\Core\Asset</Filter>
     </ClInclude>
@@ -789,6 +792,12 @@
       <Filter>Header\GameFramework\Component</Filter>
     </ClInclude>
     <ClInclude Include="GameFramework\Prefab\PrefabSerializer.h">
+      <Filter>Header\GameFramework\Prefab</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Prefab\IPrefabSpawner.h">
+      <Filter>Header\GameFramework\Prefab</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Prefab\PrefabSpawner.h">
       <Filter>Header\GameFramework\Prefab</Filter>
     </ClInclude>
     <ClInclude Include="GameFramework\Prefab\PrefabTypes.h">
@@ -1318,6 +1327,9 @@
     <ClCompile Include="Core\Asset\LayerAsset.cpp">
       <Filter>Source\Core\Asset</Filter>
     </ClCompile>
+    <ClCompile Include="Core\Asset\PrefabAsset.cpp">
+      <Filter>Source\Core\Asset</Filter>
+    </ClCompile>
     <ClCompile Include="Core\Asset\FileAsset.cpp">
       <Filter>Source\Core\Asset</Filter>
     </ClCompile>
@@ -1523,6 +1535,12 @@
       <Filter>Source\GameFramework\Object</Filter>
     </ClCompile>
     <ClCompile Include="GameFramework\Prefab\PrefabSerializer.cpp">
+      <Filter>Source\GameFramework\Prefab</Filter>
+    </ClCompile>
+    <ClCompile Include="GameFramework\Prefab\IPrefabSpawner.cpp">
+      <Filter>Source\GameFramework\Prefab</Filter>
+    </ClCompile>
+    <ClCompile Include="GameFramework\Prefab\PrefabSpawner.cpp">
       <Filter>Source\GameFramework\Prefab</Filter>
     </ClCompile>
     <ClCompile Include="GameFramework\Rendering\GameCamera.cpp">

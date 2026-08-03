@@ -11,7 +11,7 @@
 //   · Wait::Frames           — N 프레임 경과(정확히 요청 프레임 수)
 //   · Wait::SecondsRealtime  — 언스케일 시간 경과(≈0.5s)
 //   · 중첩 코루틴(co_await)   — 자식 코루틴 완료까지 대기 후 이어서 재개
-//   · Wait::Until            — captureless 술어가 true 될 때까지 대기
+//   · Wait::Until            — 술어가 true 될 때까지 대기(함수 포인터 / 캡처 람다 둘 다)
 //   · Wait::FixedUpdate      — 다음 고정 스텝에 재개
 //   · StopCoroutine          — 중지한 코루틴은 완료 로그를 남기지 않음(중지 검증)
 class CCoroutineTestScript final : public CGameScript
@@ -28,7 +28,8 @@ private:
 	Coroutine ChildRoutine();
 	Coroutine LongRoutine();
 
-	// Wait::Until 은 캡처 없는 bool(*)() 만 받으므로, 상태를 정적 플래그로 두고 정적 술어로 읽는다.
+	// 5) 는 함수 포인터 경로를 확인하려고 정적 술어를 쓴다. 캡처 람다도 받으므로(5-b 참조)
+	// 실제 게임 코드는 보통 람다 쪽이 더 간단하다 — 상태를 정적으로 끌어올릴 필요가 없다.
 	static bool UntilReady();
 	static inline bool s_untilReady = false;
 

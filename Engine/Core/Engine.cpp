@@ -15,6 +15,7 @@
 #include "Core/Asset/AssetManager.h"
 #include "Core/Asset/CanvasAsset.h"
 #include "Core/Asset/LayerAsset.h"
+#include "Core/Asset/PrefabAsset.h"
 #include "Core/Asset/FileAsset.h"
 #include "Core/Asset/AudioAsset.h"
 #include "Core/Asset/AudioEffectAsset.h"
@@ -46,6 +47,7 @@
 #include "Core/Network/NetworkManager.h"
 #include "Core/Network/INetworkManager.h"
 #include "Core/Debug/DebugDraw2D.h"
+#include "GameFramework/Prefab/PrefabSpawner.h"
 #if JBRO_PLATFORM_WEB
 #include "Core/Network/Web/WebSocketTransport.h"
 #else
@@ -265,6 +267,11 @@ void CEngine::Finalize()
 	Engine.DebugDraw2D = nullptr;
 	m_debugDraw.Reset();
 
+	// 스포너는 캔버스 매니저보다 먼저 내린다 — 스폰은 활성 캔버스를 찾아 들어가므로,
+	// 캔버스가 사라진 뒤에도 스포너가 살아 있으면 종료 중 스폰 요청이 죽은 캔버스를 짚는다.
+	Engine.PrefabSpawner = nullptr;
+	m_prefabSpawner.Reset();
+
 	Engine.CanvasManager = nullptr;
 	m_canvasManager.Reset();
 	Engine.Random = nullptr;
@@ -472,6 +479,7 @@ bool CEngine::InitializeCoreServices()
 	}
 
 	m_debugDraw = MakeOwnerPtr<CDebugDraw2D>();
+	m_prefabSpawner = MakeOwnerPtr<CPrefabSpawner>();
 
 	m_inputSystem->Initialize();
 	m_inputSystem->SetTaskManager(m_taskManager.Get()); // 진동 타이머 워커 스레드용
@@ -498,6 +506,7 @@ bool CEngine::InitializeCoreServices()
 #endif
 	Engine.CanvasManager = m_canvasManager.GetSafePtr();
 	Engine.DebugDraw2D = m_debugDraw.GetSafePtr();
+	Engine.PrefabSpawner = m_prefabSpawner.GetSafePtr();
 	CSystemLog::Info("Core services initialized.");
 
 	RegisterBuiltinComponents(*m_reflectionRegistry);
@@ -599,10 +608,10 @@ bool CEngine::InitializeAssetManager()
 		return false;
 	}
 
-	// 캔버스만 전용 타입(CCanvasAsset)으로 적재한다 — Ref<CCanvasAsset> 이 캔버스만
-	// 받으려면 신원이 갈려 있어야 한다. 나머지는 공용 CFileAsset 로 충분하다.
+	// 캔버스·프리팹은 전용 타입(CCanvasAsset/CPrefabAsset)으로 적재한다 — Ref<T> 가 그
+	// 종류만 받으려면 신원이 갈려 있어야 한다. 나머지는 공용 CFileAsset 로 충분하다.
 	m_assetManager->RegisterLoader(MakeOwnerPtr<CCanvasAssetLoader>());
-	m_assetManager->RegisterLoader(MakeOwnerPtr<CFileAssetLoader>(EAssetType::Prefab));
+	m_assetManager->RegisterLoader(MakeOwnerPtr<CPrefabAssetLoader>());
 	m_assetManager->RegisterLoader(MakeOwnerPtr<CLayerAssetLoader>());
 	m_assetManager->RegisterLoader(MakeOwnerPtr<CFileAssetLoader>(EAssetType::Shader));
 	m_assetManager->RegisterLoader(MakeOwnerPtr<CFileAssetLoader>(EAssetType::Script));
@@ -993,4 +1002,5 @@ void CEngine::SyncScriptCore()
 	Script.Localization = Engine.Localization;
 	Script.Network      = Engine.Network;
 	Script.DebugDraw2D  = Engine.DebugDraw2D;
+	Script.PrefabSpawner = Engine.PrefabSpawner;
 }
