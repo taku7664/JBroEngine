@@ -33,6 +33,10 @@ public:
 	bool IsCompleted() const;
 	// 현재 그룹에 속한 각 태스크의 (이름/설명/완료여부) 스냅샷. UI 진행률 목록 표시용.
 	std::vector<TaskProgressInfo> GetTaskProgressSnapshot() const;
+	// 그룹의 모든 태스크가 끝날 때까지 **메인 스레드에서** 대기한다. 워커가 raw 포인터로
+	// 참조하는 소유자를 파괴하기 직전에 부른다(프로젝트 닫기·종료 등). 반환 후에는 이 그룹의
+	// 어떤 태스크 본문도 실행 중이지 않다. 대기 중 메인 콜백을 계속 펌프하므로 UI 는 멈춘다.
+	void WaitUntilCompleted();
 
 public:
 	GroupCallback AllCompletedCallback;

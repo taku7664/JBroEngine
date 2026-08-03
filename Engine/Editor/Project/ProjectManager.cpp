@@ -1159,13 +1159,17 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 
 			// 작업 설명 = "리소스 로드 (i/N)" — 진행률 팝업의 작업 목록에 표시된다.
 			std::string taskDescription = loadAssetsLabel + " (" + std::to_string(t + 1) + "/" + std::to_string(assetTaskCount) + ")";
-			SafePtr<CTask> task = group->CreateTask("LoadCanvasAssets", [selfRef, chunk]()
+			// 워커 스레드 본문 — SafePtr 를 캡처하지 않는다(메인 스레드 전용 계약: 람다가
+			// 워커에서 소멸하면 캡처된 SafePtr 의 ReleaseRef 가 워커에서 돌아 메인과 경쟁한다).
+			// AssetManager 는 여기(메인)서 한 번 raw 로 풀어 넘긴다. 유효성은 CloseProject 가
+			// 로드 태스크 완료를 기다린 뒤에야 정리하는 것으로 보장된다.
+			IAssetManager* assetManager = m_assetManager.TryGet();
+			SafePtr<CTask> task = group->CreateTask("LoadCanvasAssets", [assetManager, chunk]()
 			{
-				CProjectManager* self = selfRef.TryGet();
-				if (nullptr == self || false == self->m_assetManager.IsValid()) return;
+				if (nullptr == assetManager) return;
 				for (const AssetGuid& guid : chunk)
 				{
-					self->m_assetManager->LoadAsset(guid);
+					assetManager->LoadAsset(guid);
 				}
 			}, taskDescription.c_str());
 			if (task.IsValid()) task->EndCallback = onTaskFinished;
@@ -1180,11 +1184,10 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 		const std::string scriptBuildDescription = Engine.Localization.IsValid()
 			? Engine.Localization->Text("project.loading.task.script_build")
 			: std::string("Building Scripts");
-		SafePtr<CTask> task = group->CreateTask("ScriptBuild", [selfRef]()
+		// 위와 같은 이유로 raw this 캡처 — 수명은 CloseProject 의 완료 대기가 보장한다.
+		SafePtr<CTask> task = group->CreateTask("ScriptBuild", [self = this]()
 		{
-			if (false == selfRef.IsValid()) return;
-			CProjectManager* self = selfRef.TryGet();
-			if (nullptr == self || false == static_cast<bool>(self->m_liveCompileManager)) return;
+			if (false == static_cast<bool>(self->m_liveCompileManager)) return;
 
 			if (false == self->m_liveCompileManager->Initialize(self->BuildLiveCompileDesc()))
 			{
@@ -1209,6 +1212,20 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 
 void CProjectManager::CloseProject()
 {
+	// 로드 후처리는 먼저 취소한다 — 닫는 중에 "로드 완료 후처리"(캔버스 열기 등)가 도는 건
+	// 무의미하다. 아래 대기가 완료 콜백을 실행시키므로, 대기 전에 비워야 한다.
+	m_postLoadAction = nullptr;
+
+	// 그다음 워커에서 도는 로드 태스크가 끝날 때까지 기다린다. 태스크 본문은 raw this 로
+	// 이 객체와 m_assetManager/m_liveCompileManager 를 만지므로(SafePtr 는 메인 스레드 전용
+	// 계약이라 워커로 넘길 수 없다), 여기서 마무리하지 않고 아래를 정리하면 워커가 파괴된
+	// 객체를 쓰게 된다. 옛 코드는 "워커는 마저 완료된다"고만 두어 이 창이 열려 있었다.
+	if (CTaskGroup* loadGroup = m_loadTaskGroup.TryGet())
+	{
+		loadGroup->WaitUntilCompleted();
+	}
+	m_loadTaskGroup = nullptr;
+
 	// 복구 캐시를 디스크에 보존(다음 로드의 GUID 복구 힌트). 그 뒤 메모리 캐시 비움.
 	if (m_isProjectLoaded && m_assetDbDirty)
 	{
@@ -1217,10 +1234,6 @@ void CProjectManager::CloseProject()
 	m_assetDb.Clear();
 	m_assetDbDirty = false;
 	m_lastReconcileReport = AssetReconcileReport{};
-
-	// 진행 중이던 자산 로드 후크 해제. 워커는 마저 완료되지만 (mutex 로 안전), 후처리 콜백은 호출되지 않는다.
-	m_postLoadAction = nullptr;
-	m_loadTaskGroup  = nullptr;
 
 	// 스크립트 DLL 먼저 언로드 (캔버스보다 먼저)
 	if (m_liveCompileManager)

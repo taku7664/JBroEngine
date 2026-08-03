@@ -249,14 +249,24 @@ void CTaskManager::RunTask(CTask& task)
 		}
 	}
 
-	PostMainThreadTask([safeTask = task.SafeFromThis()]()
+	// RunTask 는 **워커 스레드**에서 돈다 — 여기서 SafePtr 를 만들면 안 된다(SafePtr 는
+	// 메인 스레드 전용 계약, Utillity/Pointer/SafePtr.h 참조). 옛 코드의
+	// `task.SafeFromThis()` 는 워커에서 AddRef 를 돌려, 같은 CTask 의 SafePtr 를 들고 있는
+	// 메인 스레드(CreateTask 반환값 · CTaskGroup::m_tasks)와 SafeCount 를 두고 경쟁했다.
+	//
+	// raw 포인터로 넘겨도 안전하다 — CTask 수명은 m_tasks(OwnerPtr) 가 쥐고 있고,
+	// 해제는 Finalize 의 "워커 join → 콜백 드레인 → m_tasks.clear()" 순서뿐이라
+	// 이 콜백이 실행되는 시점에는 반드시 살아 있다. SafePtr 는 메인 스레드인 콜백 안에서
+	// 필요할 때만 만든다(GetGroup()).
+	CTask* finishedTask = &task;
+	PostMainThreadTask([finishedTask]()
 	{
-		if (safeTask && safeTask->EndCallback)
+		if (finishedTask->EndCallback)
 		{
-			safeTask->EndCallback();
+			finishedTask->EndCallback();
 		}
 
-		if (SafePtr<CTaskGroup> group = safeTask ? safeTask->GetGroup() : nullptr)
+		if (SafePtr<CTaskGroup> group = finishedTask->GetGroup())
 		{
 			group->NotifyTaskFinished();
 		}

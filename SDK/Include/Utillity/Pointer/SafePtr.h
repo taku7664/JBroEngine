@@ -2,6 +2,31 @@
 
 #include <type_traits>
 
+// ─────────────────────────────────────────────────────────────────────────────
+//  SafePtr / OwnerPtr — 소유(OwnerPtr) 와 비소유 안전참조(SafePtr) 한 쌍.
+//
+//  ■ 스레드 계약: **메인 스레드 전용이다.**
+//    ControlBlock 의 `SafeCount`/`Alive` 는 의도적으로 비원자(non-atomic)다. SafePtr 는
+//    렌더 수집·오브젝트 순회 같은 프레임 핫패스에서 초당 수만 번 복사되므로, 원자
+//    read-modify-write 비용과 cache-line contention 을 지불할 자리가 아니다.
+//
+//    따라서 다음을 금지한다.
+//      · 워커 스레드에서 SafePtr/OwnerPtr 을 **생성·복사·파괴**하는 것
+//        (SafeFromThis(), GetSafePtr(), 값 전달, 람다 캡처 복사·소멸 전부 포함)
+//      · SafePtr 을 캡처한 람다를 워커 스레드에서 실행/파괴하는 것
+//        (std::function 이 소멸하며 캡처된 SafePtr 의 ReleaseRef 가 워커에서 돈다)
+//
+//    워커 스레드로 넘길 데이터는 **값·raw 포인터·std::shared_ptr** 중 하나를 쓰고,
+//    대상 객체의 수명은 태스크를 스폰한 쪽이 "태스크가 끝나기 전엔 파괴하지 않는다" 로
+//    보장한다(TryGet() 은 검사 직후 파괴되는 TOCTOU 를 막지 못하므로 애초에 보호가 아니다).
+//    참고 선례: CInputSystem 의 진동 타이머 태스크는 shared_ptr + POD 만 캡처한다.
+//
+//  ■ 비교 의미: operator== 는 **소유권 identity(ControlBlock)** 비교다. 주소 비교가 아니다.
+//      · 같은 객체의 서로 다른 베이스 서브오브젝트 SafePtr 는 서로 같다(== true).
+//      · 만료된 서로 다른 SafePtr 는 각각 nullptr 과 같지만, 서로는 같지 않을 수 있다.
+//    주소 동일성이 필요하면 TryGet() 결과를 직접 비교한다.
+// ─────────────────────────────────────────────────────────────────────────────
+
 template<typename T>
 class SafePtr;
 
@@ -268,7 +293,15 @@ public:
 	SafePtr& operator=(const SafePtr<U>& rhs)
 	{
 		if (m_controlBlock == rhs.m_controlBlock)
+		{
+			// 참조 수는 그대로 두되(같은 블록이라 증감이 상쇄된다) **접근 포인터는 갱신한다**.
+			// ControlBlock 이 같아도 정적 타입이 다르면 보정 오프셋이 달라질 수 있다
+			// (다중상속의 2차 베이스). 옛 코드는 여기서 즉시 return 해 m_ptr 을 옛 값으로
+			// 남겼다 — 현재 생성 경로에서는 두 값이 항상 일치해 재현되지 않지만,
+			// "같은 블록 = 같은 주소" 라는 암묵 가정에 기대는 자리라 명시적으로 대입한다.
+			m_ptr = rhs.m_ptr;
 			return *this;
+		}
 
 		ReleaseRef();
 		m_controlBlock = rhs.m_controlBlock;
@@ -331,6 +364,22 @@ public:
 
 	template<typename U>
 	bool operator!=(const SafePtr<U>& rhs) const
+	{
+		return false == (*this == rhs);
+	}
+
+	// OwnerPtr 와의 소유권 identity 비교 — `safe == owner.GetSafePtr()` 는 임시 SafePtr 를
+	// 만들어 AddRef/ReleaseRef 를 왕복한다. 렌더 핫패스의 "이게 그 기본 메시/파이프라인인가"
+	// 판정은 드로우마다 돌기 때문에, ControlBlock 만 비교하는 경로를 따로 둔다.
+	// (C++20 은 역방향 후보를 자동 생성하므로 `owner == safe` 도 이 연산자로 접힌다.)
+	template<typename U>
+	bool operator==(const OwnerPtr<U>& rhs) const
+	{
+		return m_controlBlock == rhs.m_controlBlock;
+	}
+
+	template<typename U>
+	bool operator!=(const OwnerPtr<U>& rhs) const
 	{
 		return false == (*this == rhs);
 	}
