@@ -430,6 +430,12 @@ bool CGameCanvas::ScreenToWorld(float screenX, float screenY, Vector2& outWorld)
 		return false;   // 아직 렌더된 적이 없다 — 뷰포트 렉트를 픽셀로 되돌릴 기준이 없다.
 	}
 
+	// 폴백 카메라는 뷰포트와 무관하게 캔버스당 하나로 정해진다("첫 활성 카메라") — 루프 안에서
+	// 부르면 카메라 미지정 뷰포트 수만큼 Camera2D 풀 전체를 다시 순회한다. 스크립트가 매 프레임
+	// 마우스 피킹으로 부르는 경로라, 실제로 필요해진 시점에 한 번만 해석하고 재사용한다.
+	const Camera2D* fallbackCamera = nullptr;
+	bool fallbackCameraResolved = false;
+
 	// 위에 있는 뷰포트가 클릭을 먹는다(그리는 순서 = 목록 순서, 뒤 항목이 화면 위) → 역순 탐색.
 	for (std::size_t reverse = m_viewports.size(); reverse > 0; --reverse)
 	{
@@ -448,7 +454,12 @@ bool CGameCanvas::ScreenToWorld(float screenX, float screenY, Vector2& outWorld)
 		}
 		if (nullptr == camera)
 		{
-			camera = FindFallbackCamera();
+			if (false == fallbackCameraResolved)
+			{
+				fallbackCamera = FindFallbackCamera();
+				fallbackCameraResolved = true;
+			}
+			camera = fallbackCamera;
 		}
 		if (nullptr == camera)
 		{
