@@ -12,6 +12,7 @@
 #include "GameFramework/Physics2D/Physics2DTypes.h"
 #include "GameFramework/Canvas/Canvas.h"
 #include "GameFramework/Scripting/GameScript.h"
+#include "Utillity/Types/Hash.h"   // HashCombine — 매니폴드 페어 키 해시
 
 #include <algorithm>
 #include <array>
@@ -1527,23 +1528,62 @@ void CPhysics2DSystem::DispatchPair(
 	DispatchToScript(b, a, normalBtoA, contactPoint, penetration, isTrigger, phase);
 }
 
+std::size_t CPhysics2DSystem::HashManifoldPairKey(const ManifoldPairKey& key)
+{
+	std::size_t seed = std::hash<std::uintptr_t>{}(key.Lo);
+	HashCombine(seed, std::hash<std::uintptr_t>{}(key.Hi));
+	return seed;
+}
+
+void CPhysics2DSystem::ResetManifoldMergeTable(std::size_t minSlots)
+{
+	// 부하율을 0.5 이하로 유지한다 — 선형 탐사가 빈 슬롯을 반드시 만나고(무한 루프 방지),
+	// 탐사 길이도 짧게 유지된다.
+	std::size_t slots = 16;
+	while (slots < minSlots * 2)
+	{
+		slots *= 2;
+	}
+
+	// 필요할 때만 키운다(축소 없음) — 크기가 줄었다 늘었다 하면 재할당 churn 만 생긴다.
+	// 테이블이 필요보다 커도 2의 거듭제곱이라 마스크 연산은 그대로 성립한다.
+	if (m_manifoldMergeTable.size() < slots)
+	{
+		m_manifoldMergeTable.resize(slots);
+	}
+	for (ManifoldMergeSlot& slot : m_manifoldMergeTable)
+	{
+		slot.MergedIndex = INVALID_MERGE_SLOT;
+	}
+}
+
+std::uint32_t CPhysics2DSystem::FindManifoldMergeSlot(const ManifoldPairKey& key, std::size_t& outSlot) const
+{
+	const std::size_t mask = m_manifoldMergeTable.size() - 1;
+	std::size_t slot = HashManifoldPairKey(key) & mask;
+	while (INVALID_MERGE_SLOT != m_manifoldMergeTable[slot].MergedIndex)
+	{
+		if (m_manifoldMergeTable[slot].Key == key)
+		{
+			outSlot = slot;
+			return m_manifoldMergeTable[slot].MergedIndex;
+		}
+		slot = (slot + 1) & mask;
+	}
+	outSlot = slot;   // 빈 슬롯 = 여기에 삽입하면 된다.
+	return INVALID_MERGE_SLOT;
+}
+
 void CPhysics2DSystem::DispatchContactEvents(CGameCanvas& canvas)
 {
 	// ── 1. 이번 fixed step 의 접촉 페어 수집 ──────────────────────────────────
 	// 매니폴드에서 (A,B) 를 주소 오름차순으로 정규화(A<B)해 페어 키를 안정화한다.
 	// Normal 은 정규화 후에도 A→B 방향을 유지하도록 뒤집는다. 같은 페어가 여러
 	// 매니폴드(멀티 콜라이더)로 나와도 첫 번째만 대표로 쓴다(방어적 중복 제거).
-	struct CurrentContact
-	{
-		CGameObject* A = nullptr;
-		CGameObject* B = nullptr;
-		Vector2      Normal = Vector2(0.0f, 0.0f);
-		Vector2      Point  = Vector2(0.0f, 0.0f);
-		float        Penetration = 0.0f;
-		bool         IsTrigger   = false;
-	};
-
-	std::vector<CurrentContact> current;
+	// 버퍼는 멤버 스크래치다(CurrentContact 정의는 헤더) — 이 함수는 fixed step 마다
+	// 도므로 지역 vector 면 스텝당 힙 할당이 붙는다.
+	std::vector<CurrentContact>& current = m_currentContacts;
+	current.clear();
 	current.reserve(m_manifolds.size());
 
 	for (const Physics2DManifold& m : m_manifolds)
@@ -1650,9 +1690,12 @@ void CPhysics2DSystem::DispatchContactEvents(CGameCanvas& canvas)
 void CPhysics2DSystem::OnSimulationStop(CGameCanvas& /*canvas*/)
 {
 	// 재생 정지 — 접촉/매니폴드 상태를 비워 재개 시 잔여 Exit 이벤트가 튀지 않게 한다.
+	// 스크래치도 함께 비운다 — 파괴된 오브젝트의 raw 포인터를 스텝 사이에 들고 있지 않게.
 	m_prevContacts.clear();
 	m_manifolds.clear();
 	m_prevManifolds.clear();
+	m_currentContacts.clear();
+	m_mergedManifolds.clear();
 }
 
 void CPhysics2DSystem::OnInitialize(CGameCanvas& canvas)
@@ -2422,25 +2465,30 @@ void CPhysics2DSystem::DetectContacts(CGameCanvas& canvas)
 	// 추가(최대 2개). normal 안정성을 위해 base 의 normal 그대로 사용.
 	if (m_manifolds.size() > 1)
 	{
-		std::unordered_map<std::uint64_t, std::size_t> firstIndexOfPair;
-		std::vector<Physics2DManifold> merged;
+		// 키/테이블 정의는 헤더(private 중첩 타입)에 있다 — 이 경로는 sub-step 마다 도는
+		// 핫패스라 인덱스 테이블과 출력 버퍼를 멤버 스크래치로 두고 용량을 재사용한다.
+		std::vector<Physics2DManifold>& merged = m_mergedManifolds;
+		ResetManifoldMergeTable(m_manifolds.size());
+		merged.clear();
 		merged.reserve(m_manifolds.size());
 
 		for (const Physics2DManifold& m : m_manifolds)
 		{
-			const std::uint64_t lo  = std::min(reinterpret_cast<std::uintptr_t>(m.A), reinterpret_cast<std::uintptr_t>(m.B));
-			const std::uint64_t hi  = std::max(reinterpret_cast<std::uintptr_t>(m.A), reinterpret_cast<std::uintptr_t>(m.B));
-			const std::uint64_t key = (lo << 32) | hi;
+			ManifoldPairKey key;
+			key.Lo = std::min(reinterpret_cast<std::uintptr_t>(m.A), reinterpret_cast<std::uintptr_t>(m.B));
+			key.Hi = std::max(reinterpret_cast<std::uintptr_t>(m.A), reinterpret_cast<std::uintptr_t>(m.B));
 
-			auto it = firstIndexOfPair.find(key);
-			if (it == firstIndexOfPair.end())
+			std::size_t tableSlot = 0;
+			const std::uint32_t existing = FindManifoldMergeSlot(key, tableSlot);
+			if (INVALID_MERGE_SLOT == existing)
 			{
-				firstIndexOfPair[key] = merged.size();
+				m_manifoldMergeTable[tableSlot].Key = key;
+				m_manifoldMergeTable[tableSlot].MergedIndex = static_cast<std::uint32_t>(merged.size());
 				merged.push_back(m);
 				continue;
 			}
 
-			Physics2DManifold& dst = merged[it->second];
+			Physics2DManifold& dst = merged[existing];
 
 			// 더 깊은 침투 매니폴드의 normal/penetration 으로 교체.
 			// 이렇게 해야 normal 이 max-pen 쪽으로 안정적으로 정렬.
@@ -2483,7 +2531,9 @@ void CPhysics2DSystem::DetectContacts(CGameCanvas& canvas)
 			dst.IsTrigger = dst.IsTrigger || m.IsTrigger;
 		}
 
-		m_manifolds = std::move(merged);
+		// move 가 아니라 swap — move 면 m_mergedManifolds 가 빈 채 남아 다음 sub-step 에서
+		// 다시 할당한다. swap 이면 두 버퍼가 자리를 바꿔 양쪽 용량이 모두 살아남는다.
+		m_manifolds.swap(merged);
 	}
 
 #if JBRO_PHYSICS_DEBUG_LOG

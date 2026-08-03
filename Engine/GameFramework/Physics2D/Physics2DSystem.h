@@ -4,6 +4,7 @@
 #include "GameFramework/System/GameSystem.h"
 #include "Utillity/Pointer/SafePtr.h"
 
+#include <cstdint>
 #include <vector>
 
 class CGameObject;
@@ -105,6 +106,52 @@ private:
 		bool                 IsTrigger = false;
 	};
 	std::vector<ContactPairState>   m_prevContacts;
+
+	// ── 프레임 스크래치 ──────────────────────────────────────────────────────
+	// 아래 컨테이너들은 매 fixed step(프레임당 0~8회) · 매 sub-step(스텝당 4회) 도는
+	// 경로에서 쓰인다. 지역 변수로 두면 그 횟수만큼 힙 할당이 발생하므로 멤버로 올려
+	// clear() 로 용량을 재사용한다(프레임 루프 힙 할당 금지 규칙).
+
+	// DispatchContactEvents 가 이번 스텝의 접촉 페어를 모으는 버퍼.
+	struct CurrentContact
+	{
+		CGameObject* A = nullptr;
+		CGameObject* B = nullptr;
+		Vector2      Normal = Vector2(0.0f, 0.0f);
+		Vector2      Point  = Vector2(0.0f, 0.0f);
+		float        Penetration = 0.0f;
+		bool         IsTrigger   = false;
+	};
+	std::vector<CurrentContact>     m_currentContacts;
+
+	// 같은 (A,B) 페어 매니폴드 병합용 키. 포인터 두 개를 좁은 정수로 패킹하면 비트가 겹쳐
+	// 서로 다른 페어가 충돌하므로, 키는 원본을 들고 해시만 결합한다.
+	struct ManifoldPairKey
+	{
+		std::uintptr_t Lo = 0;
+		std::uintptr_t Hi = 0;
+		bool operator==(const ManifoldPairKey&) const = default;
+	};
+
+	// 병합 인덱스 — unordered_map 이 아니라 오픈 어드레싱 테이블이다. map 은 clear() 해도
+	// 원소마다 노드를 다시 할당하는데, 이 경로는 sub-step 마다 매니폴드 수만큼 도는 자리라
+	// 프레임당 수천 번의 힙 할당이 된다. 테이블은 멤버로 재사용하므로 용량이 찬 뒤엔 0 할당이다.
+	// (범용 해시맵을 새로 만들지 않는 건 사용처가 여기 하나뿐이기 때문이다.)
+	static constexpr std::uint32_t INVALID_MERGE_SLOT = 0xFFFFFFFFu;
+	struct ManifoldMergeSlot
+	{
+		ManifoldPairKey Key;
+		std::uint32_t   MergedIndex = INVALID_MERGE_SLOT;
+	};
+	// 키를 테이블 슬롯으로 — 사용처가 하나라 멤버 함수로 둔다(별도 해시 타입 불필요).
+	static std::size_t HashManifoldPairKey(const ManifoldPairKey& key);
+	// 최소 minSlots 이상·2의 거듭제곱 크기로 테이블을 비운다(선형 탐사 종료 보장용 여유 포함).
+	void ResetManifoldMergeTable(std::size_t minSlots);
+	// 키가 있으면 merged 인덱스를, 없으면 INVALID_MERGE_SLOT 을 돌려주고 outSlot 에 삽입 위치를 준다.
+	std::uint32_t FindManifoldMergeSlot(const ManifoldPairKey& key, std::size_t& outSlot) const;
+
+	std::vector<ManifoldMergeSlot>  m_manifoldMergeTable;
+	std::vector<Physics2DManifold>  m_mergedManifolds;
 
 	// 질의용 canvas 캐시(OnInitialize 에서 설정). 시스템은 캔버스가 소유하므로 수명 내 유효.
 	CGameCanvas*                     m_canvas = nullptr;

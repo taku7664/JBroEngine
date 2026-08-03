@@ -15,6 +15,7 @@
 #include "GameFramework/Object/GameObject.h"
 #include "GameFramework/Canvas/Canvas.h"
 #include "Utillity/Types/FrameLiveness.h"
+#include "Utillity/Types/Hash.h"   // HashCombine — 텍스트 시그니처/generation 해시 결합
 
 #include <ft2build.h>
 #include FT_FREETYPE_H
@@ -32,10 +33,7 @@ namespace
 	constexpr std::uint32_t ATLAS_SIZE = 1024;
 	constexpr std::uint32_t GLYPH_PIXEL_SIZE = 64;
 
-	void HashCombine(std::size_t& seed, std::size_t value)
-	{
-		seed ^= value + 0x9e3779b9u + (seed << 6) + (seed >> 2);
-	}
+	// HashCombine 은 Utillity/Types/Hash.h 의 공용 헬퍼를 쓴다(로컬 중복 정의 제거).
 
 	std::string MaterialKey(const AssetGuid& guid, std::uint32_t page)
 	{
