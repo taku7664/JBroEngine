@@ -28,6 +28,7 @@
 #include "Engine/Core/Asset/AssetTypeRules.h"
 #include "Engine/Core/Asset/IAssetManager.h"
 #include "Engine/Core/Asset/IAssetRegistry.h"
+#include "Engine/Core/Asset/TransientAssetLoad.h"   // 인스펙터 일회성 로드(캐시 누적 방지)
 #include "Engine/Core/Asset/MaterialAsset.h"
 #include "Engine/Core/Asset/SpriteAsset.h"
 #include "Engine/Core/Asset/AudioAsset.h"
@@ -1262,7 +1263,10 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		std::uint32_t textureHeight = 0;
 		if (assetManager)
 		{
-			if (AssetRef<IAsset> loadedAsset = assetManager->LoadAsset(metaData.Guid))
+			// 크기만 읽고 마는 일회성 로드 — 그냥 LoadAsset 하면 눌러 본 스프라이트가 전부
+			// 캐시에 남는다(자동 GC 없음). 홀더가 선택이 바뀔 때 이전 것을 내린다.
+			static CTransientAssetLoad s_spriteInfoLoad;
+			if (const AssetRef<IAsset>& loadedAsset = s_spriteInfoLoad.Acquire(*assetManager, metaData.Guid))
 			{
 				if (EAssetType::Sprite == loadedAsset->GetAssetType())
 				{
@@ -1406,7 +1410,10 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		SafePtr<IAssetManager> assetManager = EditorContext::GetAssetManager();
 		if (assetManager)
 		{
-			if (AssetRef<IAsset> loadedAsset = assetManager->LoadAsset(metaData.Guid))
+			// 포맷/길이만 읽고 마는 일회성 로드. 오디오는 디코딩된 PCM 이 커서, 안 내리면
+			// 자산을 눌러 볼 때마다 메모리가 계단식으로 누적된다(미리듣기에서 실제로 터졌던 경로).
+			static CTransientAssetLoad s_audioInfoLoad;
+			if (const AssetRef<IAsset>& loadedAsset = s_audioInfoLoad.Acquire(*assetManager, metaData.Guid))
 			{
 				if (EAssetType::Audio == loadedAsset->GetAssetType())
 				{
@@ -1664,7 +1671,10 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		if (cachedGuid != metaData.Guid)
 		{
 			cachedGuid = metaData.Guid; data = {}; dirty = false;
-			if (AssetRef<IAsset> asset = assetManager.LoadAsset(metaData.Guid))
+			// 데이터를 값으로 복사해 오면 자산 자체는 더 필요 없다 — 지역 홀더가 이 블록을
+			// 벗어나며 캐시에서 내린다(우리가 올린 경우에만).
+			CTransientAssetLoad transientLoad;
+			if (const AssetRef<IAsset>& asset = transientLoad.Acquire(assetManager, metaData.Guid))
 			{
 				if (asset->GetAssetType() == EAssetType::FontFamily)
 					data = static_cast<CFontFamilyAsset*>(asset.Get())->GetData();

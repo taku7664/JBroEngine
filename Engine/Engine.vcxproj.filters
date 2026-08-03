@@ -464,6 +464,9 @@
     <ClInclude Include="Core\Asset\AssetRegistry.h">
       <Filter>Header\Core\Asset</Filter>
     </ClInclude>
+    <ClInclude Include="Core\Asset\TransientAssetLoad.h">
+      <Filter>Header\Core\Asset</Filter>
+    </ClInclude>
     <ClInclude Include="Core\Asset\AssetTypeRules.h">
       <Filter>Header\Core\Asset</Filter>
     </ClInclude>
@@ -1301,6 +1304,9 @@
       <Filter>Source\Core\Asset</Filter>
     </ClCompile>
     <ClCompile Include="Core\Asset\AssetRegistry.cpp">
+      <Filter>Source\Core\Asset</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Asset\TransientAssetLoad.cpp">
       <Filter>Source\Core\Asset</Filter>
     </ClCompile>
     <ClCompile Include="Core\Asset\AssetTypeRules.cpp">

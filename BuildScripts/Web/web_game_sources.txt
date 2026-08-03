@@ -12,6 +12,7 @@ Engine/Core/Asset/AssetPackage.cpp
 Engine/Core/Asset/AssetPath.cpp
 Engine/Core/Asset/AssetRegistry.cpp
 Engine/Core/Asset/AssetTypeRules.cpp
+Engine/Core/Asset/TransientAssetLoad.cpp
 Engine/Core/Asset/AudioAsset.cpp
 Engine/Core/Asset/AudioEffectAsset.cpp
 Engine/Core/Asset/CanvasAsset.cpp
