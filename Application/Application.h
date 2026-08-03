@@ -8,8 +8,10 @@
 
 #if !JBRO_EDITOR
 #include "Engine/Core/Game/GameModuleLoader.h"
+#include "Engine/GameFramework/Rendering/GameCamera.h"   // 렌더 스냅샷 스크래치 멤버 타입
 
 #include <string>
+#include <vector>
 #endif
 
 struct BuildManifest;
@@ -41,5 +43,11 @@ private:
 	float m_runtimeRenderWidth = 1.0f;
 	float m_runtimeRenderHeight = 1.0f;
 	bool m_runtimeGameInitialized = false;
+
+	// 매 프레임 렌더 스냅샷 수집 버퍼 — 엔진과 swap 으로 주고받아 양쪽 용량을 유지한다
+	// (지역 변수로 두면 프레임마다 힙 할당·해제가 붙는다).
+	std::vector<GameRenderViewportDesc> m_runtimeRenderViewports;
+	std::vector<GameRenderLightDesc> m_runtimeRenderLights;
+	std::vector<GameRenderLayerDesc> m_runtimeRenderLayers;
 #endif
 };

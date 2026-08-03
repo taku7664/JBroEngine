@@ -104,14 +104,20 @@ struct GameRenderLightDesc
 // 뷰포트를 저작하지 않아도 그대로 그려진다.
 // canvas 을 const 로 받지 않는 이유: 카메라 Ref 해석 결과를 뷰포트에 캐시한다(매 프레임
 // guid 문자열 파싱을 피하기 위함).
-std::vector<GameRenderViewportDesc> CollectGameRenderViewports(CGameCanvas& canvas, float renderWidth, float renderHeight);
+//
+// 세 수집기 모두 **결과를 out 파라미터에 채운다**(append 아님 — 먼저 clear). 매 프레임 도는
+// 경로라 vector 를 반환하면 호출마다 힙 할당이 붙기 때문이다. 호출자가 버퍼를 멤버로 들고
+// 재사용하면 용량이 유지되어 프레임 할당이 사라진다(프레임 루프 힙 할당 금지 규칙).
+void CollectGameRenderViewports(CGameCanvas& canvas, float renderWidth, float renderHeight,
+	std::vector<GameRenderViewportDesc>& outViewports);
 
 // 캔버스의 활성 Light2D 를 월드 공간 스냅샷으로 수집한다(카메라 수집과 동일 계층에서 호출).
-std::vector<GameRenderLightDesc> CollectGameRenderLights(const CGameCanvas& canvas);
+void CollectGameRenderLights(const CGameCanvas& canvas, std::vector<GameRenderLightDesc>& outLights);
 
 // 캔버스 레이어를 컴포짓 순서대로 수집한다(카메라/라이트 수집과 동일 계층에서 호출).
 // forceOwnTextureAll = 전 레이어를 RT 경유로 강제(에디터 — 레이어별 썸네일·디버깅용).
-std::vector<GameRenderLayerDesc> CollectGameRenderLayers(const CGameCanvas& canvas, bool forceOwnTextureAll = false);
+void CollectGameRenderLayers(const CGameCanvas& canvas, bool forceOwnTextureAll,
+	std::vector<GameRenderLayerDesc>& outLayers);
 
 // 뷰포트 목록을 순서대로 그린다: 배경색 → for 뷰포트 { for 레이어: 드로우 → 렉트에 컴포짓 }.
 // backgroundColor = 캔버스 바탕색(float[4], null 이면 투명).

@@ -99,7 +99,7 @@ void CGameViewTool::OnRenderStay()
 			{
 				// 뷰포트 수집은 카메라 Ref 를 해석한다 — 눈이 하나도 없으면 빈 목록이 되므로
 				// "그릴 게 있는가" 판정이 그대로 성립한다.
-				viewports = CollectGameRenderViewports(*canvas, resW, resH);
+				CollectGameRenderViewports(*canvas, resW, resH, viewports);
 			}
 		}
 

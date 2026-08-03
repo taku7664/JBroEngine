@@ -357,9 +357,9 @@ void CEngine::SetMainClearColor(const Color& color)
 	m_mainClearColor = color;
 }
 
-void CEngine::SetGameRenderViewports(std::vector<GameRenderViewportDesc> viewports)
+void CEngine::SwapGameRenderViewports(std::vector<GameRenderViewportDesc>& viewports)
 {
-	m_gameRenderViewports = std::move(viewports);
+	m_gameRenderViewports.swap(viewports);
 }
 
 void CEngine::SetGameRenderBackgroundColor(const float color[4])
@@ -370,14 +370,14 @@ void CEngine::SetGameRenderBackgroundColor(const float color[4])
 	}
 }
 
-void CEngine::SetGameRenderLights(std::vector<GameRenderLightDesc> lights)
+void CEngine::SwapGameRenderLights(std::vector<GameRenderLightDesc>& lights)
 {
-	m_gameRenderLights = std::move(lights);
+	m_gameRenderLights.swap(lights);
 }
 
-void CEngine::SetGameRenderLayers(std::vector<GameRenderLayerDesc> layers)
+void CEngine::SwapGameRenderLayers(std::vector<GameRenderLayerDesc>& layers)
 {
-	m_gameRenderLayers = std::move(layers);
+	m_gameRenderLayers.swap(layers);
 }
 
 void CEngine::SetPreRenderCallback(std::function<void()> callback)

@@ -52,9 +52,12 @@ public:
 	void Finalize();
 	void SetPlatformDesc(const PlatformDesc& desc);
 	void SetMainClearColor(const Color& color);
-	void SetGameRenderViewports(std::vector<GameRenderViewportDesc> viewports);
-	void SetGameRenderLights(std::vector<GameRenderLightDesc> lights);
-	void SetGameRenderLayers(std::vector<GameRenderLayerDesc> layers);
+	// 매 프레임 도는 스냅샷 교체 — 값 전달(move)이 아니라 **swap** 이다. move 면 호출자의
+	// 버퍼가 빈 채 남아 다음 프레임에 다시 할당한다. swap 이면 두 버퍼가 자리를 바꿔
+	// 양쪽 용량이 살아남는다(호출자는 스크래치 멤버를 그대로 다음 프레임에 재사용).
+	void SwapGameRenderViewports(std::vector<GameRenderViewportDesc>& viewports);
+	void SwapGameRenderLights(std::vector<GameRenderLightDesc>& lights);
+	void SwapGameRenderLayers(std::vector<GameRenderLayerDesc>& layers);
 	// 캔버스 바탕색 — 컴포짓 맨 아래에 깔린다.
 	void SetGameRenderBackgroundColor(const float color[4]);
 	// 렌더 직전(리사이즈 반영 후, 카메라 스택 사용 전) 훅 — 카메라/라이트 스냅샷을

@@ -171,6 +171,13 @@ private:
 	// 편집 뷰가 합성할 활성 캔버스의 레이어 스냅샷(OnPrepareRender 가 매 프레임 갱신).
 	std::vector<GameRenderLayerDesc> m_canvasViewLayers;
 
+	// 에디터 부가 렌더(레이어 썸네일 / GPU 프리뷰)용 스냅샷 버퍼. 각 경로가 채운 직후 바로
+	// 소비하고 끝나므로 공유해도 안전하다(같은 프레임에 순차 실행). 지역 변수로 두면 이
+	// 경로들이 도는 프레임마다 힙 할당이 붙어 멤버로 올려 용량을 재사용한다.
+	std::vector<GameRenderViewportDesc> m_scratchViewports;
+	std::vector<GameRenderLightDesc> m_scratchLights;
+	std::vector<GameRenderLayerDesc> m_scratchLayers;
+
 	// 레이어 썸네일 — 인덱스 = 레이어 인덱스. 크기가 바뀌면 전부 재생성한다.
 	std::vector<OwnerPtr<IRHITexture>> m_layerThumbnails;
 	std::uint32_t m_layerThumbnailWidth  = 0;

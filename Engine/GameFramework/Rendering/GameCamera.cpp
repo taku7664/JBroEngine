@@ -52,14 +52,16 @@ namespace
 		return canvas.FindFallbackCamera();
 	}
 
-	// 뷰포트의 레이어 필터(guid 목록)를 캔버스 순서의 인덱스 목록으로 해석한다.
-	// 비어 있으면(대부분) 전체 레이어 — 빈 목록을 그대로 돌려주고 렌더가 전체로 해석한다.
-	std::vector<RenderLayerIndex> ResolveViewportLayers(const CGameCanvas& canvas, const CanvasViewport& viewport)
+	// 뷰포트의 레이어 필터(guid 목록)를 캔버스 순서의 인덱스 목록으로 해석해 out 에 채운다.
+	// 비어 있으면(대부분) 전체 레이어 — 빈 목록을 그대로 두고 렌더가 전체로 해석한다.
+	// out 을 재사용하므로 필터를 안 쓰는 흔한 경우엔 할당이 전혀 없다.
+	void ResolveViewportLayers(const CGameCanvas& canvas, const CanvasViewport& viewport,
+		std::vector<RenderLayerIndex>& layerIndices)
 	{
-		std::vector<RenderLayerIndex> layerIndices;
+		layerIndices.clear();
 		if (viewport.LayerFilter.empty())
 		{
-			return layerIndices;
+			return;
 		}
 		layerIndices.reserve(viewport.LayerFilter.size());
 		for (const File::Guid& layerGuid : viewport.LayerFilter)
@@ -71,11 +73,11 @@ namespace
 		}
 		// 캔버스 순서(아래→위)로 그려야 하므로 필터 저작 순서가 아니라 인덱스 순으로 정렬한다.
 		std::sort(layerIndices.begin(), layerIndices.end());
-		return layerIndices;
 	}
 }
 
-std::vector<GameRenderViewportDesc> CollectGameRenderViewports(CGameCanvas& canvas, float renderWidth, float renderHeight)
+void CollectGameRenderViewports(CGameCanvas& canvas, float renderWidth, float renderHeight,
+	std::vector<GameRenderViewportDesc>& outViewports)
 {
 	renderWidth = std::max(renderWidth, 1.0f);
 	renderHeight = std::max(renderHeight, 1.0f);
@@ -88,8 +90,11 @@ std::vector<GameRenderViewportDesc> CollectGameRenderViewports(CGameCanvas& canv
 	// 뷰포트를 저작하지 않은 캔버스(대부분)는 풀스크린 기본 뷰포트 1개로 그린다.
 	canvas.GetOrCreateDefaultViewport();
 
-	std::vector<GameRenderViewportDesc> viewports;
-	viewports.reserve(canvas.GetViewportCount());
+	// clear() 대신 쓰기 인덱스로 앞에서부터 덮어쓴다 — clear 는 각 desc 의 Layers 벡터까지
+	// 파괴해 레이어 필터를 쓰는 뷰포트가 매 프레임 다시 할당하게 된다. 살아남는 앞부분은
+	// 바깥 버퍼와 안쪽 Layers 버퍼가 모두 유지된다.
+	std::size_t writeIndex = 0;
+	outViewports.reserve(canvas.GetViewportCount());
 	for (std::size_t i = 0; i < canvas.GetViewportCount(); ++i)
 	{
 		CanvasViewport* viewport = canvas.GetViewportAt(i);
@@ -113,7 +118,11 @@ std::vector<GameRenderViewportDesc> CollectGameRenderViewports(CGameCanvas& canv
 		// 여기서 desc 를 계산하는 방식과 역투영이 어긋나면 마우스 피킹이 조용히 빗나간다.
 		const CanvasViewProjection view = ComputeCanvasViewProjection(*viewport, *camera, *owner, renderWidth, renderHeight);
 
-		GameRenderViewportDesc desc;
+		if (outViewports.size() <= writeIndex)
+		{
+			outViewports.emplace_back();
+		}
+		GameRenderViewportDesc& desc = outViewports[writeIndex];
 		desc.PosX = view.PosX;
 		desc.PosY = view.PosY;
 		desc.OrthoSize = view.OrthoSize;
@@ -124,17 +133,19 @@ std::vector<GameRenderViewportDesc> CollectGameRenderViewports(CGameCanvas& canv
 		desc.RectY = view.RectPixelY / renderHeight;
 		desc.RectW = view.RectPixelW / renderWidth;
 		desc.RectH = view.RectPixelH / renderHeight;
-		desc.Layers = ResolveViewportLayers(canvas, *viewport);
+		ResolveViewportLayers(canvas, *viewport, desc.Layers);
 		desc.CameraOwnerObject = owner;
-		viewports.push_back(std::move(desc));
+		++writeIndex;
 	}
 
-	return viewports;
+	// 이번에 안 쓴 뒷부분은 잘라낸다(용량은 유지).
+	outViewports.resize(writeIndex);
 }
 
-std::vector<GameRenderLightDesc> CollectGameRenderLights(const CGameCanvas& canvas)
+void CollectGameRenderLights(const CGameCanvas& canvas, std::vector<GameRenderLightDesc>& outLights)
 {
-	std::vector<GameRenderLightDesc> lights;
+	std::vector<GameRenderLightDesc>& lights = outLights;
+	lights.clear();
 	canvas.ForEach<Light2D>(
 		[&](const Light2D& light)
 		{
@@ -174,12 +185,13 @@ std::vector<GameRenderLightDesc> CollectGameRenderLights(const CGameCanvas& canv
 			lights.push_back(desc);
 		});
 
-	return lights;
 }
 
-std::vector<GameRenderLayerDesc> CollectGameRenderLayers(const CGameCanvas& canvas, bool forceOwnTextureAll)
+void CollectGameRenderLayers(const CGameCanvas& canvas, bool forceOwnTextureAll,
+	std::vector<GameRenderLayerDesc>& outLayers)
 {
-	std::vector<GameRenderLayerDesc> layers;
+	std::vector<GameRenderLayerDesc>& layers = outLayers;
+	layers.clear();
 	const std::size_t layerCount = canvas.GetLayerCount();
 	layers.reserve(layerCount);
 	for (std::size_t i = 0; i < layerCount; ++i)
@@ -212,7 +224,6 @@ std::vector<GameRenderLayerDesc> CollectGameRenderLayers(const CGameCanvas& canv
 			|| ELayerBlendMode::Normal != layer->BlendMode;
 		layers.push_back(desc);
 	}
-	return layers;
 }
 
 namespace

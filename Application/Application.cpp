@@ -541,16 +541,18 @@ void CGameApplication::ConfigureRuntimeViewCamera()
 	// 이게 플레이어가 보는 표면이다 — 스크립트의 ScreenToWorld 가 역투영 기준으로 쓴다.
 	// (렌더 수집기는 썸네일 등에서도 불리므로 기록은 게임 표면을 아는 여기서 한다.)
 	canvas->SetLastRenderSize(renderWidth, renderHeight);
-	std::vector<GameRenderViewportDesc> viewports = CollectGameRenderViewports(*canvas, renderWidth, renderHeight);
-	std::vector<GameRenderLightDesc> lights = CollectGameRenderLights(*canvas);
+	// 스크래치는 멤버다 — 매 프레임 도는 경로라 지역 vector 면 프레임마다 힙 할당이 붙는다.
+	// 수집기가 채우고, 엔진과 swap 해 다음 프레임에 엔진의 직전 버퍼를 돌려받아 재사용한다.
+	CollectGameRenderViewports(*canvas, renderWidth, renderHeight, m_runtimeRenderViewports);
+	CollectGameRenderLights(*canvas, m_runtimeRenderLights);
 	// 런타임은 lazy RT 승격 — 블렌드/Opacity/강제가 걸린 레이어만 자기 RT 를 쓴다.
-	std::vector<GameRenderLayerDesc> layers = CollectGameRenderLayers(*canvas, /*forceOwnTextureAll*/ false);
+	CollectGameRenderLayers(*canvas, /*forceOwnTextureAll*/ false, m_runtimeRenderLayers);
 
 	if (CEngine* engine = GetEngine())
 	{
-		engine->SetGameRenderViewports(std::move(viewports));
-		engine->SetGameRenderLights(std::move(lights));
-		engine->SetGameRenderLayers(std::move(layers));
+		engine->SwapGameRenderViewports(m_runtimeRenderViewports);
+		engine->SwapGameRenderLights(m_runtimeRenderLights);
+		engine->SwapGameRenderLayers(m_runtimeRenderLayers);
 		engine->SetGameRenderBackgroundColor(canvas->GetBackgroundColor());
 	}
 }

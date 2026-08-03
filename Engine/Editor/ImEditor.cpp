@@ -339,8 +339,9 @@ void CImEditor::RenderLayerThumbnails()
 	// 썸네일 = "게임 화면에서 이 레이어만 켠 그림". 그래서 게임뷰와 같은 경로를 태운다 —
 	// 뷰포트 렉트(스플릿)·뷰포트별 레이어 필터·패럴랙스가 전부 그 안에 있다. 카메라 하나를
 	// 뽑아 쓰면 스플릿에서 나머지 뷰포트의 내용이 통째로 빠진다.
-	const std::vector<GameRenderViewportDesc> viewports = CollectGameRenderViewports(
-		*activeCanvas, static_cast<float>(thumbnailWidth), static_cast<float>(thumbnailHeight));
+	std::vector<GameRenderViewportDesc>& viewports = m_scratchViewports;
+	CollectGameRenderViewports(
+		*activeCanvas, static_cast<float>(thumbnailWidth), static_cast<float>(thumbnailHeight), viewports);
 
 	// 바탕은 불투명으로 — 스프라이트가 premultiplied 로 얹혀 결과 알파가 1 로 유지된다.
 	// (투명 배경이면 ImGui 의 straight-alpha 블렌드에서 색이 어두워진다.)
@@ -434,10 +435,13 @@ void CImEditor::RenderGpuProfilerPreview()
 	// 게임뷰와 같은 경로/스냅샷을 태운다(멀티뷰포트·레이어 필터·패럴랙스·라이팅 전부 포함).
 	// forceOwnTextureAll=true 라 레이어별 컷오프 합성이 성립한다. gpuTimer=nullptr — 이 렌더는
 	// 진단 시각화일 뿐이라 게임뷰 GPU 계측을 건드리지 않는다.
-	const std::vector<GameRenderViewportDesc> viewports = CollectGameRenderViewports(
-		*activeCanvas, static_cast<float>(previewWidth), static_cast<float>(previewHeight));
-	const std::vector<GameRenderLightDesc> lights = CollectGameRenderLights(*activeCanvas);
-	const std::vector<GameRenderLayerDesc> layers = CollectGameRenderLayers(*activeCanvas, /*forceOwnTextureAll*/ true);
+	std::vector<GameRenderViewportDesc>& viewports = m_scratchViewports;
+	std::vector<GameRenderLightDesc>& lights = m_scratchLights;
+	std::vector<GameRenderLayerDesc>& layers = m_scratchLayers;
+	CollectGameRenderViewports(
+		*activeCanvas, static_cast<float>(previewWidth), static_cast<float>(previewHeight), viewports);
+	CollectGameRenderLights(*activeCanvas, lights);
+	CollectGameRenderLayers(*activeCanvas, /*forceOwnTextureAll*/ true, layers);
 	const RenderSurfaceSize previewSize{ static_cast<int>(previewWidth), static_cast<int>(previewHeight) };
 
 	RenderGameViewports(
@@ -766,7 +770,7 @@ void CImEditor::OnPrepareRender()
 	{
 		if (const CGameCanvas* activeCanvas = Engine.CanvasManager->GetActiveCanvas().TryGet())
 		{
-			m_canvasViewLayers = CollectGameRenderLayers(*activeCanvas, /*forceOwnTextureAll*/ true);
+			CollectGameRenderLayers(*activeCanvas, /*forceOwnTextureAll*/ true, m_canvasViewLayers);
 		}
 	}
 
@@ -960,14 +964,15 @@ void CImEditor::OnPrepareRender()
 			gameViewCanvas->SetLastRenderSize(
 				static_cast<float>(m_gameViewWidth),
 				static_cast<float>(m_gameViewHeight));
-			m_gameViewViewports = CollectGameRenderViewports(
+			CollectGameRenderViewports(
 				*gameViewCanvas,
 				static_cast<float>(m_gameViewWidth),
-				static_cast<float>(m_gameViewHeight));
-			m_gameViewLights = CollectGameRenderLights(*gameViewCanvas);
+				static_cast<float>(m_gameViewHeight),
+				m_gameViewViewports);
+			CollectGameRenderLights(*gameViewCanvas, m_gameViewLights);
 			// 에디터는 전 레이어를 RT 경유로 강제한다 — 레이어별 결과를 그대로 볼 수 있어야
 			// 썸네일·디버깅이 되기 때문. 화면 결과는 lazy 경로와 동일하고 비용만 다르다.
-			m_gameViewLayers = CollectGameRenderLayers(*gameViewCanvas, /*forceOwnTextureAll*/ true);
+			CollectGameRenderLayers(*gameViewCanvas, /*forceOwnTextureAll*/ true, m_gameViewLayers);
 		}
 
 		std::vector<GameRenderCameraStats> cameraStats;
