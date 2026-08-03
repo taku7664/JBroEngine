@@ -81,6 +81,7 @@ Engine/GameFramework/Canvas/CanvasSerializer.cpp
 Engine/GameFramework/Serialization/ComponentSerializer.cpp
 Engine/GameFramework/Serialization/LayerSerializer.cpp
 Engine/GameFramework/Serialization/ObjectSerializer.cpp
+Engine/GameFramework/Scripting/CoroutineScheduler.cpp
 Engine/GameFramework/Scripting/GameScript.cpp
 Engine/GameFramework/Scripting/ScriptSystem.cpp
 Engine/GameFramework/System/GameSystem.cpp
