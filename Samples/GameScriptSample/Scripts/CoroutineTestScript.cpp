@@ -137,6 +137,38 @@ Coroutine CCoroutineTestScript::RunTests()
 			+ ((5 == elapsed) ? "(PASS)" : "(FAIL)"));
 	}
 
+	// 5-c) Tween — 코루틴 위에 얹혀 있는 트윈. 값이 from→to 로 가는지와,
+	// **끝값을 정확히 찍는지**를 본다(프레임 경계 때문에 0.97 에서 멈추면 안 된다).
+	{
+		float tweened = -1.0f;
+		int   tickCount = 0;
+		const float start = ElapsedSeconds();
+		TestLog("Tween: running Value(0->10) over 0.3s with OutCubic ...");
+		co_await Tween::Value(0.0f, 10.0f, 0.3f, Ease::OutCubic,
+			[&tweened, &tickCount](float v) { tweened = v; ++tickCount; });
+		const bool reachedEnd = (tweened > 9.999f && tweened < 10.001f);
+		TestLog("Tween: final=" + Fixed2(tweened) + " (expect 10.00), ticks=" + std::to_string(tickCount)
+			+ ", elapsed=" + Fixed2(ElapsedSeconds() - start) + "s (expect ~0.30) "
+			+ (reachedEnd ? "(PASS)" : "(FAIL)"));
+	}
+
+	// 5-d) Tween::MoveTo — 오브젝트를 실제로 움직인다. 끝나면 제자리로 되돌린다
+	// — 이 스크립트는 검증용이라 씨을 영구히 바꾸면 다음 항목의 기준이 흘러진다.
+	{
+		if (CGameObject* owner = GetOwner().TryGet())
+		{
+			const Vector2 origin = owner->GetTransform().Position;
+			const Vector2 target(origin.x + 2.0f, origin.y);
+			TestLog("Tween: MoveTo +2 on X over 0.2s ...");
+			co_await Tween::MoveTo(GetOwner(), target, 0.2f, Ease::OutQuad);
+			const Vector2 landed = owner->GetTransform().Position;
+			const bool onTarget = (landed.x > target.x - 0.001f && landed.x < target.x + 0.001f);
+			TestLog("Tween: landed x=" + Fixed2(landed.x) + " (expect " + Fixed2(target.x) + ") "
+				+ (onTarget ? "(PASS)" : "(FAIL)"));
+			owner->GetTransform().Position = origin;
+		}
+	}
+
 	// 6) Wait::FixedUpdate — 다음 고정 스텝에 재개.
 	{
 		TestLog("FixedUpdate: waiting for next fixed step ...");

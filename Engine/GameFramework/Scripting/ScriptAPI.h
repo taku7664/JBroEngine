@@ -91,6 +91,12 @@ using GameObject = CGameObject;
 #include "GameFramework/Component/Camera2D.h"
 // Physics2D 관련 컴포넌트(Rigidbody2D / 콜라이더)는 ScriptAPI_Physics.h 로 분리.
 
+// ── 트윈 / 이징 ──────────────────────────────────────────────────────────────
+//   StartCoroutine(Tween::MoveTo(GetOwner(), Vector2(5, 0), 0.4f, Ease::OutCubic));
+// 코루틴 위에 얹혀 있어 수명·정지·취소 규칙을 그대로 물려받는다(별도 매니저 없음).
+#include "GameFramework/Scripting/Ease.h"
+#include "GameFramework/Scripting/Tween.h"
+
 // ── 참조: Ref<T> (오브젝트/컴포넌트/스크립트/에셋) ───────────────────────────
 //   JPROP() Ref<GameObject> Target;  처럼 선언하면 인스펙터에서 드래그-드랍으로 지정.
 #include "GameFramework/Object/Ref.h"

@@ -977,6 +977,12 @@
     <ClInclude Include="GameFramework\Scripting\Coroutine.h">
       <Filter>Header\GameFramework\Scripting</Filter>
     </ClInclude>
+    <ClInclude Include="GameFramework\Scripting\Ease.h">
+      <Filter>Header\GameFramework\Scripting</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Scripting\Tween.h">
+      <Filter>Header\GameFramework\Scripting</Filter>
+    </ClInclude>
     <ClInclude Include="GameFramework\Scripting\CoroutineScheduler.h">
       <Filter>Header\GameFramework\Scripting</Filter>
     </ClInclude>

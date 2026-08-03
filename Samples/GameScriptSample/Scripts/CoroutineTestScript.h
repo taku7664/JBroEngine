@@ -12,6 +12,7 @@
 //   · Wait::SecondsRealtime  — 언스케일 시간 경과(≈0.5s)
 //   · 중첩 코루틴(co_await)   — 자식 코루틴 완료까지 대기 후 이어서 재개
 //   · Wait::Until            — 술어가 true 될 때까지 대기(함수 포인터 / 캡처 람다 둘 다)
+//   · Tween::Value / MoveTo  — 코루틴 위의 트윈(끝값 정확도 포함)
 //   · Wait::FixedUpdate      — 다음 고정 스텝에 재개
 //   · StopCoroutine          — 중지한 코루틴은 완료 로그를 남기지 않음(중지 검증)
 class CCoroutineTestScript final : public CGameScript
