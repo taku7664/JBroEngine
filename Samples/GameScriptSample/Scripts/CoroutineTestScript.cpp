@@ -119,6 +119,24 @@ Coroutine CCoroutineTestScript::RunTests()
 		TestLog("Until: predicate satisfied after " + std::to_string(FrameCount() - start) + " frames (PASS)");
 	}
 
+	// 5-b) Wait::Until — **캡처 람다**. 술어가 지역 상태(목표 프레임)와 this 를 함께 캡처한다.
+	// 술어는 코루틴 프레임 안에 값으로 복사되므로 힙 할당 없이 대기 내내 살아 있다.
+	{
+		const std::uint64_t start = FrameCount();
+		const std::uint64_t target = start + 5;
+		int callCount = 0;
+		TestLog("Until(lambda): waiting 5 frames via capturing predicate ...");
+		co_await Wait::Until([this, target, &callCount]()
+		{
+			++callCount;
+			return FrameCount() >= target;
+		});
+		const std::uint64_t elapsed = FrameCount() - start;
+		TestLog("Until(lambda): resumed after " + std::to_string(elapsed) + " frames, predicate called "
+			+ std::to_string(callCount) + " times (expected 5 frames) "
+			+ ((5 == elapsed) ? "(PASS)" : "(FAIL)"));
+	}
+
 	// 6) Wait::FixedUpdate — 다음 고정 스텝에 재개.
 	{
 		TestLog("FixedUpdate: waiting for next fixed step ...");

@@ -308,7 +308,9 @@ bool CCoroutineScheduler::IsWaitReady(Coroutine::promise_type& promise, float de
 		{
 			return false;
 		}
-		return (nullptr != promise.Predicate) ? promise.Predicate() : true;
+		// 타입 소거 호출 — Invoke 는 게임 DLL 이 만든 정적 호출자, Context 는 코루틴 프레임 안의
+		// 술어 객체다. 호스트는 술어 타입을 모른 채 호출만 한다(캡처 유무와 무관).
+		return (nullptr != promise.PredicateInvoke) ? promise.PredicateInvoke(promise.PredicateContext) : true;
 	case CoroutineWaitKind::Nested:
 	default:
 		return false;   // Nested 는 DescendPop 이 처리하므로 여기 도달하지 않는다.

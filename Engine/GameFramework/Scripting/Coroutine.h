@@ -2,6 +2,8 @@
 
 #include <coroutine>
 #include <cstdint>
+#include <type_traits>
+#include <utility>
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Coroutine — 스크립트용 C++20 네이티브 코루틴 반환 타입.
@@ -42,7 +44,7 @@ enum class CoroutineWaitKind : std::uint8_t
 	SecondsRealtime,  // 언스케일 시간(초) 경과 대기(timeScale 무시).
 	Frames,           // N 프레임(Update tick) 경과 대기.
 	FixedUpdate,      // 다음 고정 스텝(FixedUpdate) 대기.
-	Until,            // 술어가 true 를 반환할 때까지 대기(captureless).
+	Until,            // 술어가 true 를 반환할 때까지 대기(캡처 람다 가능).
 	Nested,           // 다른 Coroutine 이 끝날 때까지 대기(co_await Coroutine).
 };
 
@@ -54,7 +56,11 @@ public:
 	struct WaitSecondsRealtime { float Seconds = 0.0f; };
 	struct WaitFrames { int Frames = 1; };
 	struct WaitFixedUpdate {};
-	struct WaitUntil { bool (*Predicate)() = nullptr; };   // 캡처 없는 술어/자유함수만.
+	// 술어를 **값으로** 담는다(캡처 람다 포함). 이 객체는 co_await 식의 피연산자로 awaiter 에
+	// 옮겨지고, awaiter 는 중단 구간 동안 코루틴 프레임 안에 산다 — 그래서 std::function 같은
+	// 별도 힙 할당이 필요 없고 주소도 안정적이다.
+	template<typename TPredicate>
+	struct WaitUntil { TPredicate Predicate; };
 
 	struct promise_type;
 	using handle_type = std::coroutine_handle<promise_type>;
@@ -65,8 +71,32 @@ public:
 		CoroutineWaitKind Kind = CoroutineWaitKind::None;
 		float             WaitTime = 0.0f;         // Seconds/SecondsRealtime 남은 시간.
 		int               FramesRemaining = 0;     // Frames 남은 프레임(멤버명이 타입 WaitFrames 를 가리지 않게 구분).
-		bool (*Predicate)() = nullptr;             // Until 술어.
+		// Until 술어 — 타입 소거된 POD 두 개(호스트↔DLL 경계 계약). Context 는 코루틴 프레임 안
+		// awaiter 의 술어 객체를, Invoke 는 그 타입 전용 정적 호출자(게임 DLL 코드)를 가리킨다.
+		// 스케줄러(호스트)는 타입을 모른 채 Invoke(Context) 만 호출한다.
+		void*             PredicateContext = nullptr;
+		bool            (*PredicateInvoke)(void*) = nullptr;
 		handle_type       Nested{};             // Nested — co_await 한 자식 코루틴.
+
+		// Wait::Until 전용 awaiter. 술어를 값으로 들고 있어 중단 구간 동안 프레임 안에서 살아 있다.
+		template<typename TPredicate>
+		struct UntilAwaiter
+		{
+			TPredicate    Predicate;
+			promise_type* Owner = nullptr;
+
+			bool await_ready() const noexcept { return false; }
+			void await_suspend(handle_type) noexcept
+			{
+				Owner->Kind = CoroutineWaitKind::Until;
+				Owner->PredicateContext = static_cast<void*>(&Predicate);
+				Owner->PredicateInvoke = [](void* context) -> bool
+				{
+					return (*static_cast<TPredicate*>(context))();
+				};
+			}
+			void await_resume() const noexcept {}
+		};
 
 		Coroutine get_return_object() noexcept { return Coroutine{ handle_type::from_promise(*this) }; }
 
@@ -103,11 +133,12 @@ public:
 			Kind = CoroutineWaitKind::FixedUpdate;
 			return {};
 		}
-		std::suspend_always await_transform(WaitUntil w) noexcept
+		// 여기서 Kind 를 세우지 않는다 — 술어를 담은 awaiter 가 프레임에 자리잡은 뒤
+		// (await_suspend) 그 주소를 promise 에 기록해야 한다.
+		template<typename TPredicate>
+		UntilAwaiter<TPredicate> await_transform(WaitUntil<TPredicate> w) noexcept
 		{
-			Kind = CoroutineWaitKind::Until;
-			Predicate = w.Predicate;
-			return {};
+			return UntilAwaiter<TPredicate>{ std::move(w.Predicate), this };
 		}
 		// co_await OtherRoutine() — 자식 코루틴 소유를 넘겨받아 끝날 때까지 대기.
 		std::suspend_always await_transform(Coroutine&& child) noexcept
@@ -170,6 +201,14 @@ namespace Wait
 	inline Coroutine::WaitFrames Frames(int frames) noexcept { return { frames }; }
 	inline Coroutine::WaitFrames NextFrame() noexcept { return { 1 }; }
 	inline Coroutine::WaitFixedUpdate FixedUpdate() noexcept { return {}; }
-	// 술어는 캡처가 없어야 한다(bool(*)()). 캡처 조건은 `while (!cond) co_await Wait::NextFrame();`.
-	inline Coroutine::WaitUntil Until(bool (*predicate)()) noexcept { return { predicate }; }
+	// 술어는 아무 호출 가능 객체나 된다 — 자유함수, 캡처 없는 람다, **캡처 람다**(`[this]`, `[=]`)
+	// 모두 가능하다. 술어는 코루틴 프레임 안에 값으로 복사되므로 힙 할당이 없다.
+	// 주의: 캡처한 대상(예: this)이 대기 도중 파괴되면 술어가 죽은 객체를 만진다. 오브젝트를
+	// 캡처할 땐 그 코루틴이 소유 스크립트와 함께 취소된다는 점에 기대거나(자동 취소),
+	// SafePtr 를 캡처해 유효성을 확인할 것.
+	template<typename TPredicate>
+	Coroutine::WaitUntil<std::decay_t<TPredicate>> Until(TPredicate&& predicate)
+	{
+		return { std::forward<TPredicate>(predicate) };
+	}
 }
