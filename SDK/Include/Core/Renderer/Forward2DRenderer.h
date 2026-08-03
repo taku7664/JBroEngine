@@ -185,13 +185,16 @@ private:
 	SpriteConstants BuildLightConstants(int type, float worldX, float worldY, float range, const float color[4], float intensity, const ViewParameters& view) const;
 	// DrawLight2D/DrawLight2DSpot 공통 꼬리 — 그림자 파라미터를 채우고 라이트 쿼드를 그린다.
 	void SubmitLightQuad(IRHICommandContext& commandContext, SpriteConstants& constants,
-		SafePtr<IRHITexture> shadowAtlas, int shadowRow, int shadowRowCount, float softness01);
+		const SafePtr<IRHITexture>& shadowAtlas, int shadowRow, int shadowRowCount, float softness01);
 	bool IsSpriteItemVisibleInView(const RenderItem& item, const ViewParameters& view) const;
 	SafePtr<IRHIBuffer> AcquireSpriteConstantBuffer(IRHICommandContext& commandContext, const SpriteConstants& constants);
 	SafePtr<IRHIBuffer> AcquireSpriteViewConstantBuffer(IRHICommandContext& commandContext, const SpriteViewConstants& constants);
 	SafePtr<IRHIBuffer> AcquireSpriteInstanceBuffer(IRHICommandContext& commandContext, const SpriteInstanceData* instances, std::uint32_t instanceCount);
 	bool DrawSpriteItem(IRHICommandContext& commandContext, RenderStateCache& stateCache, const RenderItem& item, const SpriteDrawResources& resources, const ViewParameters& view);
-	bool DrawSpriteQuad(IRHICommandContext& commandContext, RenderStateCache& stateCache, SafePtr<IRHIGraphicsPipeline> pipeline, SafePtr<IRenderMesh> mesh, SafePtr<IRHITexture> texture, SafePtr<IRHISampler> sampler, const SpriteConstants& constants);
+	// 리소스 4종은 **관찰 전용**이라 const& 로 받는다 — 값으로 받으면 드로우 한 건마다
+	// AddRef/ReleaseRef 가 4쌍 발생한다(비원자라 개별 비용은 작지만 드로우 수에 곱해진다).
+	// 호출 구간 동안 소유자(렌더러/머티리얼/RT풀)가 살아 있는 것은 프레임 계약으로 보장된다.
+	bool DrawSpriteQuad(IRHICommandContext& commandContext, RenderStateCache& stateCache, const SafePtr<IRHIGraphicsPipeline>& pipeline, const SafePtr<IRenderMesh>& mesh, const SafePtr<IRHITexture>& texture, const SafePtr<IRHISampler>& sampler, const SpriteConstants& constants);
 	bool DrawSpriteBatch(IRHICommandContext& commandContext, RenderStateCache& stateCache, const RenderItem* items, std::uint32_t itemCount, const SpriteDrawResources& resources, const ViewParameters& view);
 	bool CanBatchSpriteItem(const RenderItem& item, const SpriteDrawResources& resources) const;
 	bool CreateSpritePipeline();

@@ -1165,7 +1165,7 @@ void CForward2DRenderer::DrawLight2DSpot(IRHICommandContext& commandContext, flo
 }
 
 void CForward2DRenderer::SubmitLightQuad(IRHICommandContext& commandContext, SpriteConstants& constants,
-	SafePtr<IRHITexture> shadowAtlas, int shadowRow, int shadowRowCount, float softness01)
+	const SafePtr<IRHITexture>& shadowAtlas, int shadowRow, int shadowRowCount, float softness01)
 {
 	// 그림자면 ShadowAtlas 바인딩 + ShadowParams(행/행수/softness) → PS 가 (θ,r) 폴라 샘플로 light 차폐.
 	const bool useShadow = shadowAtlas.IsValid() && shadowRow >= 0;
@@ -1443,10 +1443,10 @@ bool CForward2DRenderer::DrawSpriteItem(
 bool CForward2DRenderer::DrawSpriteQuad(
 	IRHICommandContext& commandContext,
 	RenderStateCache& stateCache,
-	SafePtr<IRHIGraphicsPipeline> pipeline,
-	SafePtr<IRenderMesh> mesh,
-	SafePtr<IRHITexture> texture,
-	SafePtr<IRHISampler> sampler,
+	const SafePtr<IRHIGraphicsPipeline>& pipeline,
+	const SafePtr<IRenderMesh>& mesh,
+	const SafePtr<IRHITexture>& texture,
+	const SafePtr<IRHISampler>& sampler,
 	const SpriteConstants& constants)
 {
 	if (false == pipeline.IsValid() || false == mesh.IsValid() || false == texture.IsValid() || false == sampler.IsValid())
@@ -1522,12 +1522,14 @@ bool CForward2DRenderer::CanBatchSpriteItem(const RenderItem& item, const Sprite
 	{
 		return false;
 	}
-	if (resources.Mesh != m_quadMesh.GetSafePtr())
+	// OwnerPtr 직접 비교 — GetSafePtr() 임시는 AddRef/ReleaseRef 를 왕복한다. 이 함수는
+	// 아이템마다(배치 look-ahead 포함) 불리는 핫패스라 임시 생성을 없앤다.
+	if (resources.Mesh != m_quadMesh)
 	{
 		return false;
 	}
 
-	return resources.Pipeline == m_spritePipeline.GetSafePtr();
+	return resources.Pipeline == m_spritePipeline;
 }
 
 CForward2DRenderer::RenderItemBatchKey CForward2DRenderer::GetItemBatchKey(const RenderItem& item) const
