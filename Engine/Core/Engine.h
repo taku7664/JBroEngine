@@ -24,6 +24,7 @@ class CCanvasManager;
 class CNetworkManager;
 class CDebugDraw2D;
 class CPrefabSpawner;
+class CSaveStorage;
 class CDebug;
 class CTime;
 class CInput;
@@ -67,6 +68,11 @@ public:
 
 	void InitializeModule(CModule& module, const char* moduleName);
 	void FinalizeModule(CModule& module);
+
+	// 세이브 저장소의 뿌리를 제품명으로 다시 잡는다. 제품명을 아는 시점이 호스트마다 다르므로
+	// (게임=빌드 매니페스트 로드 후, 에디터=프로젝트 열기 후) 초기화와 분리해 둔다.
+	// 부팅 시 이미 기본 이름으로 열려 있으므로, 이걸 안 불러도 저장 자체는 동작한다.
+	bool SetSaveProductName(const char* productName);
 
 	// Optional subsystem — call after Initialize() to enable networking.
 	// Safe to call multiple times; subsequent calls are no-ops.
@@ -136,6 +142,7 @@ private:
 	OwnerPtr<CNetworkManager>     m_networkManager;   // null until InitializeNetwork()
 	OwnerPtr<CDebugDraw2D>        m_debugDraw;
 	OwnerPtr<CPrefabSpawner>      m_prefabSpawner;
+	OwnerPtr<CSaveStorage>        m_saveStorage;
 	std::vector<CModule*>         m_modules;
 	std::vector<GameRenderViewportDesc> m_gameRenderViewports;
 	std::vector<GameRenderLightDesc> m_gameRenderLights;

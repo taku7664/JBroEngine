@@ -1,0 +1,63 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Release_Game|x64">
+      <Configuration>Release_Game</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{2F8A61D4-9C07-4B35-8E12-7A5D3F0C9B64}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>SaveStorageSmoke</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0.22621.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release_Game|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <PropertyGroup>
+    <RepoRoot>$(MSBuildProjectDirectory)\..\..\</RepoRoot>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release_Game|x64'">
+    <OutDir>$(RepoRoot)Build\SaveStorageSmoke\</OutDir>
+    <IntDir>$(RepoRoot)Build\Intermediate\SaveStorageSmoke\$(Platform)\</IntDir>
+    <TargetName>SaveStorageSmoke</TargetName>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release_Game|x64'">
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
+      <TreatWarningAsError>true</TreatWarningAsError>
+      <!-- Engine.lib 와 같은 매크로 집합이어야 한다 — 다르면 헤더 레이아웃이 갈려 ODR 로 깨진다. -->
+      <PreprocessorDefinitions>_CONSOLE;JBRO_PLATFORM_WINDOWS;JBRO_GAME;NDEBUG;YAML_CPP_STATIC_DEFINE;JBRO_HAS_MINIAUDIO=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalIncludeDirectories>$(RepoRoot);$(RepoRoot)Engine;$(RepoRoot)Engine\ThirdParty;$(VULKAN_SDK)\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>$(RepoRoot)x64\$(Configuration);$(RepoRoot)Engine\ThirdParty\lib;$(VULKAN_SDK)\Lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>Engine.lib;yaml-cpp.lib;vulkan-1.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="SaveStorageSmoke.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- BuildManifestTool 과 같은 이유로 project reference 를 건다 — Engine.lib 가 스테일이면
+         구조체 레이아웃이 어긋나 링크는 되고 런타임에 깨진다. LinkLibraryDependencies=false 는
+         위 AdditionalDependencies 로 직접 링크하기 때문. -->
+    <ProjectReference Include="..\..\Engine\Engine.vcxproj">
+      <Project>{5d2895fa-d410-489e-a334-d61cfe6c33a3}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

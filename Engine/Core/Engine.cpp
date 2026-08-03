@@ -47,6 +47,7 @@
 #include "Core/Network/NetworkManager.h"
 #include "Core/Network/INetworkManager.h"
 #include "Core/Debug/DebugDraw2D.h"
+#include "Core/Save/SaveStorage.h"
 #include "GameFramework/Prefab/PrefabSpawner.h"
 #if JBRO_PLATFORM_WEB
 #include "Core/Network/Web/WebSocketTransport.h"
@@ -272,6 +273,14 @@ void CEngine::Finalize()
 	Engine.PrefabSpawner = nullptr;
 	m_prefabSpawner.Reset();
 
+	// 닫기 전에 한 번 밀어 준다(웹은 Flush 없이는 IndexedDB 에 안 남는다).
+	Engine.SaveStorage = nullptr;
+	if (m_saveStorage)
+	{
+		m_saveStorage->Finalize();
+	}
+	m_saveStorage.Reset();
+
 	Engine.CanvasManager = nullptr;
 	m_canvasManager.Reset();
 	Engine.Random = nullptr;
@@ -480,6 +489,10 @@ bool CEngine::InitializeCoreServices()
 
 	m_debugDraw = MakeOwnerPtr<CDebugDraw2D>();
 	m_prefabSpawner = MakeOwnerPtr<CPrefabSpawner>();
+	// 제품명은 호스트가 나중에 알려 준다(게임=빌드 매니페스트, 에디터=프로젝트).
+	// 그전까지도 저장이 동작하도록 기본 이름으로 미리 열어 둔다.
+	m_saveStorage = MakeOwnerPtr<CSaveStorage>();
+	m_saveStorage->Initialize(nullptr);
 
 	m_inputSystem->Initialize();
 	m_inputSystem->SetTaskManager(m_taskManager.Get()); // 진동 타이머 워커 스레드용
@@ -507,10 +520,20 @@ bool CEngine::InitializeCoreServices()
 	Engine.CanvasManager = m_canvasManager.GetSafePtr();
 	Engine.DebugDraw2D = m_debugDraw.GetSafePtr();
 	Engine.PrefabSpawner = m_prefabSpawner.GetSafePtr();
+	Engine.SaveStorage = m_saveStorage.GetSafePtr();
 	CSystemLog::Info("Core services initialized.");
 
 	RegisterBuiltinComponents(*m_reflectionRegistry);
 	return true;
+}
+
+bool CEngine::SetSaveProductName(const char* productName)
+{
+	if (!m_saveStorage)
+	{
+		return false;
+	}
+	return m_saveStorage->Initialize(productName);
 }
 
 bool CEngine::InitializeNetwork()
@@ -1003,4 +1026,5 @@ void CEngine::SyncScriptCore()
 	Script.Network      = Engine.Network;
 	Script.DebugDraw2D  = Engine.DebugDraw2D;
 	Script.PrefabSpawner = Engine.PrefabSpawner;
+	Script.SaveStorage  = Engine.SaveStorage;
 }

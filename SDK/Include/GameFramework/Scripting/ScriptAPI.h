@@ -108,6 +108,12 @@ using GameObject = CGameObject;
 //   Script.PrefabSpawner->Spawn(Bullet.GuidText(), muzzlePosition) 으로 스폰한다.
 #include "GameFramework/Prefab/IPrefabSpawner.h"
 
+// ── 세이브 / 설정 저장 ────────────────────────────────────────────────────────
+//   Script.SaveStorage->WriteText("slot0.yaml", text);
+//   Script.SaveStorage->Flush();   // 웹은 이걸 불러야 다음 방문에 남는다
+// Script.FileSystem 은 에셋 **읽기** 전용이다 — 게임 데이터를 그쪽에 쓸 수 없다.
+#include "Core/Save/ISaveStorage.h"
+
 // ── 입력 ────────────────────────────────────────────────────────────────────
 #include "Core/Input/Input.h"          // Script.Input facade (전역설정/진동/연결조회)
 #include "Core/Input/IInputHandler.h"  // IInputHandler + InputHandler<Layer,Order> (핸들러 상속용)

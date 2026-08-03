@@ -74,6 +74,9 @@
     <_SDKHeader Include="$(_EngineDir)Core\Renderer\**\*.h" DestDir="Core\Renderer" />
     <_SDKHeader Include="$(_EngineDir)Core\Task\**\*.h"     DestDir="Core\Task" />
     <_SDKHeader Include="$(_EngineDir)Core\Random\**\*.h"   DestDir="Core\Random" />
+    <!-- 세이브: 스크립트가 보는 건 ISaveStorage(추상 인터페이스)뿐이다. CSaveStorage 는
+         플랫폼 코드(Win32 환경변수 / Emscripten IDBFS)에 닿으므로 미러하지 않는다. -->
+    <_SDKHeader Include="$(_EngineDir)Core\Save\ISaveStorage.h" DestDir="Core\Save" />
     <_SDKHeader Include="$(_EngineDir)Core\Math\**\*.h"     DestDir="Core\Math" />
     <_SDKHeader Include="$(_EngineDir)Core\Time\**\*.h"     DestDir="Core\Time" />
     <_SDKHeader Include="$(_EngineDir)Core\Module\**\*.h"   DestDir="Core\Module" />

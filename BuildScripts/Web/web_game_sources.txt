@@ -44,6 +44,7 @@ Engine/Core/Network/Web/WebSocketTransport.cpp
 Engine/Core/Platform/Web/WebCanvasSurface.cpp
 Engine/Core/Platform/Web/WebPlatform.cpp
 Engine/Core/Random/RandomService.cpp
+Engine/Core/Save/SaveStorage.cpp
 Engine/Core/Renderer/Forward2DRenderer.cpp
 Engine/Core/Renderer/RenderResourceCache.cpp
 Engine/Core/Renderer/RenderResources2D.cpp

@@ -752,6 +752,12 @@
     <ClInclude Include="Core\Random\RandomService.h">
       <Filter>Header\Core\Random</Filter>
     </ClInclude>
+    <ClInclude Include="Core\Save\ISaveStorage.h">
+      <Filter>Header\Core\Save</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Save\SaveStorage.h">
+      <Filter>Header\Core\Save</Filter>
+    </ClInclude>
     <ClInclude Include="Core\Task\Task.h">
       <Filter>Header\Core\Task</Filter>
     </ClInclude>
@@ -1515,6 +1521,9 @@
     </ClCompile>
     <ClCompile Include="Core\Random\RandomService.cpp">
       <Filter>Source\Core\Random</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Save\SaveStorage.cpp">
+      <Filter>Source\Core\Save</Filter>
     </ClCompile>
     <ClCompile Include="Core\Task\Task.cpp">
       <Filter>Source\Core\Task</Filter>

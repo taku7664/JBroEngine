@@ -17,6 +17,7 @@ class CTime;
 class IDebugDraw2D;
 class INetworkManager;
 class IPrefabSpawner;
+class ISaveStorage;
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  ScriptCore — 게임 스크립트(유저)에게 노출하는 *엄선된* 공개 서비스 번들.
@@ -48,6 +49,8 @@ struct ScriptCore
 	// 런타임 프리팹 스폰. 구현(CPrefabSpawner)은 직렬화 계층을 쓰므로 호스트에만 있고,
 	// DLL 은 이 추상 인터페이스의 vtable 을 통해서만 부른다.
 	SafePtr<IPrefabSpawner>       PrefabSpawner;
+	// 게임이 쓸 수 있는 유일한 저장소(세이브/설정). FileSystem 은 에셋 읽기 전용이다.
+	SafePtr<ISaveStorage>         SaveStorage;
 };
 
 inline ScriptCore Script;
