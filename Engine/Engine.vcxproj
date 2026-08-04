@@ -546,6 +546,7 @@
     <ClInclude Include="Utillity\Types\FrameSectionProfiler.h" />
     <ClInclude Include="Utillity\Types\Hash.h" />
     <ClInclude Include="Utillity\Types\Int.h" />
+    <ClInclude Include="Utillity\Types\IntegerType.h" />
     <ClInclude Include="Utillity\Types\Radian.h" />
     <ClInclude Include="Utillity\Types\Simd128.h" />
     <ClInclude Include="Utillity\Types\StrongTypeOps.h" />

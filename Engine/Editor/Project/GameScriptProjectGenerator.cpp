@@ -100,8 +100,11 @@ namespace
 			[](unsigned char c) { return std::isspace(c); }), cppType.end());
 
 		if (cppType == "Bool")                                         { outEnum = "EReflectPropertyType::Bool";          return true; }
-		if (cppType == "Int")                                          { outEnum = "EReflectPropertyType::Int64";         return true; }
-		if (cppType == "UInt")                                         { outEnum = "EReflectPropertyType::UInt64";        return true; }
+		// 정수 강타입 — 실체는 폭이 붙은 이름이고 Int/UInt 는 64비트 별칭이다(Int.h).
+		if (cppType == "Int" || cppType == "Int64")                    { outEnum = "EReflectPropertyType::Int64";         return true; }
+		if (cppType == "UInt" || cppType == "UInt64")                  { outEnum = "EReflectPropertyType::UInt64";        return true; }
+		if (cppType == "Int32")                                        { outEnum = "EReflectPropertyType::Int32";         return true; }
+		if (cppType == "UInt32")                                       { outEnum = "EReflectPropertyType::UInt32";        return true; }
 		if (cppType == "Float")                                        { outEnum = "EReflectPropertyType::Float";         return true; }
 		// ── 원시 타입 ────────────────────────────────────────────────────────────
 		// 강타입(Int/UInt)이 64비트인 것과 달리 raw int/unsigned 는 **32비트로** 매핑한다.

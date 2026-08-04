@@ -17,10 +17,13 @@ namespace ScriptSchema
 {
 	namespace
 	{
-		// 1차 콤보 토큰. Int/UInt 는 64비트(향후 32비트는 Int32/UInt32 명시).
+		// 1차 콤보 토큰. 정수는 **폭을 밝힌 이름만** 고르게 한다 — `Int`/`UInt` 도 여전히
+		// 유효한 별칭이지만(Int.h), 콤보에 별칭과 실체를 함께 놓으면 같은 코드를 뱉는
+		// 항목이 둘이 되어 고를 이유를 설명할 수 없다. 옛 헤더의 `Int` 는 읽을 때
+		// NormalizeScalarToken 이 `Int64` 로 바꿔 준다.
 		const std::vector<std::string> kBaseTypes = {
 			"Ref<GameObject>", "Ref<Component>", "Ref<Asset>",
-			"Bool", "Int", "UInt", "Float", "Degree", "Radian",
+			"Bool", "Int32", "Int64", "UInt32", "UInt64", "Float", "Degree", "Radian",
 			"String", "Vector2", "Rect",
 			// 컨테이너 — Ref 처럼 2차 콤보(원소/키 타입)를 함께 쓴다. Table 은 값 타입 콤보가 하나 더 붙는다.
 			"Array", "Table",
@@ -30,7 +33,7 @@ namespace ScriptSchema
 		// 만들기 때문에 **스칼라만** 가능하다 — Ref 원소는 RefCategory 를 실을 자리가 없고,
 		// 중첩 Array 는 코드젠이 거부한다. 여기 없는 걸 고르면 조용히 누락되므로 목록을 맞춰 둔다.
 		const std::vector<std::string> kArrayElementTypes = {
-			"Bool", "Int", "UInt", "Float", "Degree", "Radian",
+			"Bool", "Int32", "Int64", "UInt32", "UInt64", "Float", "Degree", "Radian",
 			"String", "Vector2", "Rect",
 		};
 
@@ -38,7 +41,7 @@ namespace ScriptSchema
 		// 특수화가 없어 Hash<K> 가 인스턴스화되지 않고, 고르면 **생성된 코드가 컴파일에 실패한다**
 		// (조용한 누락이 아니라 빌드가 깨지므로 목록에서 아예 막는다).
 		const std::vector<std::string> kTableKeyTypes = {
-			"Bool", "Int", "UInt", "Float", "Degree", "Radian", "String",
+			"Bool", "Int32", "Int64", "UInt32", "UInt64", "Float", "Degree", "Radian", "String",
 		};
 
 		// 스크립트에서 참조 가능한 엔진 에셋 타입. 라벨(친숙명) / 클래스명(C 접두) / 헤더.
@@ -100,6 +103,16 @@ namespace ScriptSchema
 				if (typeName == a.TypeName) return a.Include;
 			}
 			return nullptr;
+		}
+
+		// 옛 헤더가 쓰는 폭 없는 별칭을 콤보 목록에 있는 실체 이름으로 바꾼다.
+		// 별칭이라 생성되는 코드는 어느 쪽이든 같다 — 콤보가 현재 값을 못 찾아
+		// 다른 타입으로 튀는 것만 막으면 된다.
+		std::string NormalizeScalarToken(const std::string& token)
+		{
+			if (token == "Int")  return "Int64";
+			if (token == "UInt") return "UInt64";
+			return token;
 		}
 
 		// Ref<X> 의 X 추출(공백 제거). Ref 가 아니면 "".
@@ -211,7 +224,8 @@ namespace ScriptSchema
 	}
 	bool SupportsRange(const std::string& t)
 	{
-		return t == "Int" || t == "UInt" || t == "Float" || t == "Degree" || t == "Radian";
+		return t == "Int32" || t == "Int64" || t == "UInt32" || t == "UInt64"
+		    || t == "Float" || t == "Degree" || t == "Radian";
 	}
 
 	void ResetRefTargetForToken(Property& p)
@@ -230,9 +244,9 @@ namespace ScriptSchema
 		}
 		if (IsTableToken(p.TypeToken))
 		{
-			// 키는 RefTarget, 값은 ValueTarget. 키 기본값을 Int 로 두는 건 Float 키가
+			// 키는 RefTarget, 값은 ValueTarget. 키 기본값을 Int64 로 두는 건 Float 키가
 			// 정확 일치 비교라 실수하기 쉬워서다(고를 수는 있게 두되 기본값으로는 안 민다).
-			p.RefTarget = "Int"; p.RefInclude = "";
+			p.RefTarget = "Int64"; p.RefInclude = "";
 			p.ValueTarget = "Float";
 			return;
 		}
@@ -255,8 +269,8 @@ namespace ScriptSchema
 	std::string DefaultValueForToken(const std::string& finalToken)
 	{
 		if (finalToken == "Bool")   return "false";
-		if (finalToken == "Int")    return "0";
-		if (finalToken == "UInt")   return "0u";
+		if (finalToken == "Int32" || finalToken == "Int64")   return "0";
+		if (finalToken == "UInt32" || finalToken == "UInt64") return "0u";
 		if (finalToken == "Float")  return "0.0f";
 		if (finalToken == "Degree") return "Degree(0.0f)";
 		if (finalToken == "Radian") return "Radian(0.0f)";
@@ -391,7 +405,7 @@ namespace ScriptSchema
 			{
 				// 원소는 RefTarget 에 담는다(기록 경로 FinalTypeToken 과 짝).
 				p.TypeToken = "Array";
-				p.RefTarget = ExtractRefInner(cppType);
+				p.RefTarget = NormalizeScalarToken(ExtractRefInner(cppType));
 				p.RefInclude = "";
 			}
 			else if (0 == cppType.rfind("Table<", 0))
@@ -408,8 +422,8 @@ namespace ScriptSchema
 				}
 				p.TypeToken   = "Table";
 				// ExtractRefInner 가 공백을 이미 다 걷어냈으므로 그대로 자른다.
-				p.RefTarget   = inner.substr(0, comma);
-				p.ValueTarget = inner.substr(comma + 1);
+				p.RefTarget   = NormalizeScalarToken(inner.substr(0, comma));
+				p.ValueTarget = NormalizeScalarToken(inner.substr(comma + 1));
 				p.RefInclude  = "";
 			}
 			else if (0 == cppType.rfind("Ref<", 0))
@@ -431,7 +445,7 @@ namespace ScriptSchema
 			}
 			else
 			{
-				p.TypeToken = cppType;   // 스칼라 — 그대로
+				p.TypeToken = NormalizeScalarToken(cppType);   // 스칼라
 			}
 
 			result.Properties.push_back(std::move(p));

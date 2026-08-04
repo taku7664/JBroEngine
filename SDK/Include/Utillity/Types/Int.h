@@ -1,87 +1,25 @@
 #pragma once
 
-#include "Utillity/Types/StrongTypeOps.h"
+#include "Utillity/Types/IntegerType.h"
 
 #include <cstdint>
-#include <functional>
-#include <limits>
 #include <type_traits>
 
-class Int
-{
-public:
-	constexpr Int() noexcept = default;
-	constexpr Int(std::int64_t value) noexcept : Value(value) {}
+// 부호 있는 정수 강타입. 본체는 IntegerType<T> 하나이고 여기선 이름만 붙인다.
+//
+// **실체는 폭이 붙은 Int64 / Int32 다.** `Int` 는 Int64 의 별칭으로 남겨 둔다 —
+// 기존 코드와 스크립트가 전부 이 이름을 쓰고 있고, 폭을 밝히지 않은 정수는
+// 64비트라는 규칙이 이미 서 있다.
+using Int64 = IntegerType<std::int64_t>;
+using Int32 = IntegerType<std::int32_t>;
+using Int   = Int64;
 
-	constexpr operator std::int64_t() const noexcept { return Value; }
-	constexpr std::int64_t Get() const noexcept { return Value; }
-	constexpr void Set(std::int64_t value) noexcept { Value = value; }
+static_assert(sizeof(Int64) == sizeof(std::int64_t));
+static_assert(alignof(Int64) == alignof(std::int64_t));
+static_assert(std::is_trivially_copyable_v<Int64>);
+static_assert(std::is_standard_layout_v<Int64>);
 
-	Int& operator=(std::int64_t value) noexcept { Value = value; return *this; }
-	Int& operator+=(std::int64_t rhs) noexcept { Value += rhs; return *this; }
-	Int& operator-=(std::int64_t rhs) noexcept { Value -= rhs; return *this; }
-	Int& operator*=(std::int64_t rhs) noexcept { Value *= rhs; return *this; }
-	Int& operator/=(std::int64_t rhs) noexcept { Value /= rhs; return *this; }
-	Int& operator%=(std::int64_t rhs) noexcept { Value %= rhs; return *this; }
-	Int& operator++() noexcept { ++Value; return *this; }
-	Int operator++(int) noexcept { Int copy(*this); ++Value; return copy; }
-	Int& operator--() noexcept { --Value; return *this; }
-	Int operator--(int) noexcept { Int copy(*this); --Value; return copy; }
-
-	constexpr bool IsZero() const noexcept { return 0 == Value; }
-	constexpr bool IsPositive() const noexcept { return Value > 0; }
-	constexpr bool IsNegative() const noexcept { return Value < 0; }
-	constexpr Int Abs() const noexcept { return Int(Value < 0 ? -Value : Value); }
-	constexpr Int Clamp(std::int64_t min, std::int64_t max) const noexcept
-	{
-		return Int(Value < min ? min : (Value > max ? max : Value));
-	}
-
-	static constexpr Int MinValue() noexcept { return Int(std::numeric_limits<std::int64_t>::min()); }
-	static constexpr Int MaxValue() noexcept { return Int(std::numeric_limits<std::int64_t>::max()); }
-	static constexpr Int Clamp(std::int64_t value, std::int64_t min, std::int64_t max) noexcept
-	{
-		return Int(value < min ? min : (value > max ? max : value));
-	}
-
-	friend constexpr Int operator+(Int lhs, Int rhs) noexcept { return Int(lhs.Value + rhs.Value); }
-	friend constexpr Int operator-(Int lhs, Int rhs) noexcept { return Int(lhs.Value - rhs.Value); }
-	friend constexpr Int operator*(Int lhs, Int rhs) noexcept { return Int(lhs.Value * rhs.Value); }
-	friend constexpr Int operator/(Int lhs, Int rhs) noexcept { return Int(lhs.Value / rhs.Value); }
-	friend constexpr Int operator%(Int lhs, Int rhs) noexcept { return Int(lhs.Value % rhs.Value); }
-
-	friend constexpr bool operator==(Int lhs, Int rhs) noexcept { return lhs.Value == rhs.Value; }
-	friend constexpr bool operator!=(Int lhs, Int rhs) noexcept { return !(lhs == rhs); }
-	friend constexpr bool operator<(Int lhs, Int rhs) noexcept { return lhs.Value < rhs.Value; }
-	friend constexpr bool operator<=(Int lhs, Int rhs) noexcept { return lhs.Value <= rhs.Value; }
-	friend constexpr bool operator>(Int lhs, Int rhs) noexcept { return lhs.Value > rhs.Value; }
-	friend constexpr bool operator>=(Int lhs, Int rhs) noexcept { return lhs.Value >= rhs.Value; }
-
-	std::int64_t Value = 0;
-};
-
-// 기본 산술 타입과의 혼합 연산 — 없으면 `count * 2`(Int × int) 가 모호해서
-// 컴파일되지 않는다. 이유와 규칙은 StrongTypeOps.h 참조.
-JBRO_STRONG_MIXED_BINARY(Int, std::int64_t, +)
-JBRO_STRONG_MIXED_BINARY(Int, std::int64_t, -)
-JBRO_STRONG_MIXED_BINARY(Int, std::int64_t, *)
-JBRO_STRONG_MIXED_BINARY(Int, std::int64_t, /)
-JBRO_STRONG_MIXED_BINARY(Int, std::int64_t, %)
-JBRO_STRONG_MIXED_COMPARISONS(Int, std::int64_t)
-
-static_assert(sizeof(Int) == sizeof(std::int64_t));
-static_assert(alignof(Int) == alignof(std::int64_t));
-static_assert(std::is_trivially_copyable_v<Int>);
-static_assert(std::is_standard_layout_v<Int>);
-
-namespace std
-{
-	template <>
-	struct hash<Int>
-	{
-		std::size_t operator()(Int value) const noexcept
-		{
-			return hash<std::int64_t>()(value.Get());
-		}
-	};
-}
+static_assert(sizeof(Int32) == sizeof(std::int32_t));
+static_assert(alignof(Int32) == alignof(std::int32_t));
+static_assert(std::is_trivially_copyable_v<Int32>);
+static_assert(std::is_standard_layout_v<Int32>);

@@ -39,13 +39,22 @@ template<> inline EReflectPropertyType ScriptFieldTypeOf<Bool>()
 {
 	return EReflectPropertyType::Bool;
 }
-template<> inline EReflectPropertyType ScriptFieldTypeOf<Int>()
+// Int / UInt 는 Int64 / UInt64 의 별칭이라 특수화가 따로 필요 없다(같은 타입).
+template<> inline EReflectPropertyType ScriptFieldTypeOf<Int64>()
 {
 	return EReflectPropertyType::Int64;
 }
-template<> inline EReflectPropertyType ScriptFieldTypeOf<UInt>()
+template<> inline EReflectPropertyType ScriptFieldTypeOf<Int32>()
+{
+	return EReflectPropertyType::Int32;
+}
+template<> inline EReflectPropertyType ScriptFieldTypeOf<UInt64>()
 {
 	return EReflectPropertyType::UInt64;
+}
+template<> inline EReflectPropertyType ScriptFieldTypeOf<UInt32>()
+{
+	return EReflectPropertyType::UInt32;
 }
 template<> inline EReflectPropertyType ScriptFieldTypeOf<Float>()
 {

@@ -21,7 +21,9 @@
 //        int m_internalTimer = 0;  // 일반 멤버: Inspector 미노출, 리로드 시 초기화
 //    };
 //
-//  지원 타입: Bool, Int, UInt, Float, Degree, Radian, String, Asset, Vector2, Rect
+//  지원 타입: Bool, Int32, Int64, UInt32, UInt64, Float, Degree, Radian,
+//             String, Asset, Vector2, Rect
+//             (Int/UInt 는 Int64/UInt64 의 별칭 — Int.h 참조)
 //             (ScriptAPI.h 를 #include 해야 사용 가능)
 //
 //  JBRO_SCRIPT 매크로:
@@ -57,7 +59,8 @@
 //   Category("..")  — 인스펙터 그룹 헤더
 //   Range(min, max) — 슬라이더 + 값 클램프
 //   NoSerialize     — 인스펙터엔 노출하되 캔버스 파일에는 저장/복원하지 않음(런타임 전용)
-// 지원 타입: Bool, Int, UInt, Float, Degree, Radian, String, Vector2, Rect, Asset
+// 지원 타입: Bool, Int32, Int64, UInt32, UInt64, Float, Degree, Radian,
+//            String, Vector2, Rect, Asset  (Int/UInt 는 Int64/UInt64 별칭)
 //            레거시 표기(bool, std::int32_t, std::int64_t, std::uint32_t, float, Vector2, AssetGuid)도 허용
 // (SCRIPT_CLASS / REFLECT_FIELD 없이 JPROP 만으로 충분하다. REFLECT_FIELD 는 레거시 호환.)
 #define JPROP(...)
@@ -88,7 +91,7 @@ template<typename T> inline EReflectPropertyType ScriptFieldTypeOf()
 {
 	static_assert(sizeof(T) == 0,
 		"REFLECT_FIELD: unsupported type. "
-		"Supported: Bool, Int, UInt, Float, Degree, Radian, String, Vector2, Rect, Asset. "
+		"Supported: Bool, Int32, Int64, UInt32, UInt64, Float, Degree, Radian, String, Vector2, Rect, Asset. "
 		"Include ScriptAPI.h for engine type support.");
 	return EReflectPropertyType::Float;
 }

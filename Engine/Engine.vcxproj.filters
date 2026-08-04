@@ -425,6 +425,9 @@
     <ClInclude Include="Utillity\Types\Int.h">
       <Filter>Header\Utillity\Types</Filter>
     </ClInclude>
+    <ClInclude Include="Utillity\Types\IntegerType.h">
+      <Filter>Header\Utillity\Types</Filter>
+    </ClInclude>
     <ClInclude Include="Utillity\Types\Radian.h">
       <Filter>Header\Utillity\Types</Filter>
     </ClInclude>

@@ -3,13 +3,16 @@
 #include "Utillity/Types/Int.h"
 #include "Utillity/Types/Simd128.h"
 #include "Utillity/Types/Table.h"
+#include "Utillity/Types/UInt.h"
 #include "GameFramework/Reflection/ReflectionContainerOps.h"
 #include "GameFramework/Object/ObjectPool.h"
 
 #include <cstdint>
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <string>
+#include <type_traits>
 
 namespace
 {
@@ -499,6 +502,60 @@ namespace
 		pool.Clear();
 		return 0 == pool.GetLiveCount() && 0 == PoolProbe::Alive && false == retained.IsValid();
 	}
+
+	// 정수 강타입 — 실체는 Int64/UInt64/Int32/UInt32 이고 Int/UInt 는 64비트 별칭이다.
+	// 보는 것은 넷이다:
+	//   (1) 별칭이 실제로 같은 타입인지, 폭이 다른 것끼리는 서로 다른 타입인지
+	//   (2) 폭(sizeof)이 이름과 맞는지 — 어긋나면 offsetof 로 잡은 필드를 옆까지 덮어쓴다
+	//   (3) 기본 산술 타입과의 혼합 연산이 모호하지 않은지
+	//   (4) std::hash 가 서는지 — Table 키로 쓰는 코드젠 출력이 여기 걸린다
+	// (3)/(4) 가 깨지면 에디터가 아니라 **사용자 프로젝트의 빌드**가 깨지므로 여기서 막는다.
+	bool TestIntegerStrongTypes()
+	{
+		static_assert(std::is_same_v<Int, Int64>);
+		static_assert(std::is_same_v<UInt, UInt64>);
+		static_assert(false == std::is_same_v<Int32, Int64>);
+		static_assert(false == std::is_same_v<Int32, UInt32>);
+		static_assert(4 == sizeof(Int32) && 8 == sizeof(Int64));
+		static_assert(4 == sizeof(UInt32) && 8 == sizeof(UInt64));
+
+		Int32 count = 3;
+		count += 2;
+		if (5 != count.Get())
+		{
+			return false;
+		}
+		// 강타입 × 리터럴 / 리터럴 × 강타입 — 둘 다 모호하지 않아야 한다.
+		if (10 != (count * 2).Get() || 20 != (4 * count).Get())
+		{
+			return false;
+		}
+		if (false == (count < 6) || false == (4 < count) || false == (count == 5))
+		{
+			return false;
+		}
+
+		if (7 != Int64(-7).Abs().Get() || false == Int32(-1).IsNegative())
+		{
+			return false;
+		}
+		if (9 != Int32::Clamp(12, 0, 9).Get())
+		{
+			return false;
+		}
+		if (std::numeric_limits<std::uint32_t>::max() != UInt32::MaxValue().Get())
+		{
+			return false;
+		}
+
+		// 코드젠이 `Table<Int32, Float>` 프로퍼티에 대해 뱉는 인스턴스화.
+		// Hash<Int32> 가 서지 않으면 여기서 컴파일이 멈춘다.
+		const ReflectTypeDesc& descriptor = GetTableReflectTypeDesc<
+			Int32, EReflectPropertyType::Int32,
+			Float, EReflectPropertyType::Float>();
+		return EReflectPropertyType::Table == descriptor.Type
+			&& nullptr != descriptor.TableOps->AssignKey;
+	}
 }
 
 int main()
@@ -549,6 +606,12 @@ int main()
 	{
 		std::cerr << "Object pool dense-index smoke test failed.\n";
 		return 5;
+	}
+
+	if (false == TestIntegerStrongTypes())
+	{
+		std::cerr << "Integer strong type smoke test failed.\n";
+		return 9;
 	}
 
 	std::cout << "Type system smoke test passed.\n";
