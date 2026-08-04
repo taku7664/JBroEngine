@@ -22,8 +22,9 @@
 //    };
 //
 //  지원 타입: Bool, Int32, Int64, UInt32, UInt64, Float, Degree, Radian,
-//             String, Asset, Vector2, Rect
+//             String, Vector2, Rect, Color, Layout2D
 //             (Int/UInt 는 Int64/UInt64 의 별칭 — Int.h 참조)
+//             (에셋 참조는 Ref<CXxxAsset> 을 쓴다 — Asset/AssetGuid 는 POD 가 아니라 미지원)
 //             (ScriptAPI.h 를 #include 해야 사용 가능)
 //
 //  JBRO_SCRIPT 매크로:
@@ -50,7 +51,7 @@
 //       JPROP() Float Speed = 5.0f;
 //       JPROP(Name("이동 속도"), Range(0, 100), Tooltip("초당 이동"), Category("Movement"))
 //       float MoveSpeed = 3.0f;
-//       JPROP() AssetGuid Icon;       // 에셋 picker
+//       JPROP() Ref<CSpriteAsset> Icon;   // 에셋 picker
 //   };
 //
 // 지원 어트리뷰트:
@@ -60,8 +61,9 @@
 //   Range(min, max) — 슬라이더 + 값 클램프
 //   NoSerialize     — 인스펙터엔 노출하되 캔버스 파일에는 저장/복원하지 않음(런타임 전용)
 // 지원 타입: Bool, Int32, Int64, UInt32, UInt64, Float, Degree, Radian,
-//            String, Vector2, Rect, Asset  (Int/UInt 는 Int64/UInt64 별칭)
-//            레거시 표기(bool, std::int32_t, std::int64_t, std::uint32_t, float, Vector2, AssetGuid)도 허용
+//            String, Vector2, Rect, Color, Layout2D  (Int/UInt 는 Int64/UInt64 별칭)
+//            에셋은 Ref<CXxxAsset> — Asset/AssetGuid 직접 선언은 POD 가 아니라 받지 않는다
+//            레거시 표기(bool, std::int32_t, std::int64_t, std::uint32_t, float, Vector2)도 허용
 // (SCRIPT_CLASS / REFLECT_FIELD 없이 JPROP 만으로 충분하다. REFLECT_FIELD 는 레거시 호환.)
 #define JPROP(...)
 
@@ -91,7 +93,8 @@ template<typename T> inline EReflectPropertyType ScriptFieldTypeOf()
 {
 	static_assert(sizeof(T) == 0,
 		"REFLECT_FIELD: unsupported type. "
-		"Supported: Bool, Int32, Int64, UInt32, UInt64, Float, Degree, Radian, String, Vector2, Rect, Asset. "
+		"Supported: Bool, Int32, Int64, UInt32, UInt64, Float, Degree, Radian, String, Vector2, Rect, Color, Layout2D. "
+		"For assets use Ref<CXxxAsset>. "
 		"Include ScriptAPI.h for engine type support.");
 	return EReflectPropertyType::Float;
 }

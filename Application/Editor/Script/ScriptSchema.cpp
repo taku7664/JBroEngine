@@ -24,7 +24,7 @@ namespace ScriptSchema
 		const std::vector<std::string> kBaseTypes = {
 			"Ref<GameObject>", "Ref<Component>", "Ref<Asset>",
 			"Bool", "Int32", "Int64", "UInt32", "UInt64", "Float", "Degree", "Radian",
-			"String", "Vector2", "Rect", "Color",
+			"String", "Vector2", "Rect", "Color", "Layout2D",
 			// 컨테이너 — Ref 처럼 2차 콤보(원소/키 타입)를 함께 쓴다. Table 은 값 타입 콤보가 하나 더 붙는다.
 			"Array", "Table",
 		};

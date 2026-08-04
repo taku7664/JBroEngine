@@ -967,6 +967,9 @@ namespace
 			case EReflectPropertyType::ColorFloat4:
 				node[prop.Name] = WriteColor4(*static_cast<const Color*>(field));
 				break;
+			case EReflectPropertyType::Layout2D:
+				node[prop.Name] = WriteLayout2D(*static_cast<const Layout2D*>(field));
+				break;
 			case EReflectPropertyType::AssetGuid:
 				{
 					const File::Guid& guid = *static_cast<const File::Guid*>(field);
@@ -1104,6 +1107,12 @@ namespace
 				case EReflectPropertyType::ColorFloat4:
 				{
 					ReadColor4(node[prop.Name], *static_cast<Color*>(field));
+					break;
+				}
+				case EReflectPropertyType::Layout2D:
+				{
+					Layout2D* layout = static_cast<Layout2D*>(field);
+					*layout = ReadLayout2D(node[prop.Name], *layout);
 					break;
 				}
 				case EReflectPropertyType::AssetGuid:

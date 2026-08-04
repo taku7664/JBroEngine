@@ -8,7 +8,6 @@
 #include "Utillity/Types/Degree.h"
 #include "Utillity/Types/Radian.h"
 #include "Utillity/Types/String.h"
-#include "Utillity/Types/Asset.h"
 #include "Utillity/Types/Array.h"
 #include "Utillity/Types/ArrayView.h"
 #include "Utillity/Types/Table.h"

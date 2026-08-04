@@ -537,7 +537,6 @@
     <ClInclude Include="Utillity\Types\Allocator.h" />
     <ClInclude Include="Utillity\Types\Array.h" />
     <ClInclude Include="Utillity\Types\ArrayView.h" />
-    <ClInclude Include="Utillity\Types\Asset.h" />
     <ClInclude Include="Utillity\Types\Bool.h" />
     <ClInclude Include="Utillity\Types\Color.h" />
     <ClInclude Include="Utillity\Types\Degree.h" />

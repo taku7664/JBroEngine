@@ -401,9 +401,6 @@
     <ClInclude Include="Utillity\Types\ArrayView.h">
       <Filter>Header\Utillity\Types</Filter>
     </ClInclude>
-    <ClInclude Include="Utillity\Types\Asset.h">
-      <Filter>Header\Utillity\Types</Filter>
-    </ClInclude>
     <ClInclude Include="Utillity\Types\Bool.h">
       <Filter>Header\Utillity\Types</Filter>
     </ClInclude>

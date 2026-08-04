@@ -126,7 +126,11 @@ namespace
 		if (cppType == "Vector2")                                      { outEnum = "EReflectPropertyType::Vector2Float";  return true; }
 		if (cppType == "Rect")                                         { outEnum = "EReflectPropertyType::RectFloat";     return true; }
 		if (cppType == "Color")                                        { outEnum = "EReflectPropertyType::ColorFloat4";   return true; }
-		if (cppType == "Asset" || cppType == "AssetGuid")              { outEnum = "EReflectPropertyType::AssetGuid";     return true; }
+		if (cppType == "Layout2D")                                     { outEnum = "EReflectPropertyType::Layout2D";      return true; }
+		// Asset / AssetGuid 는 **일부러 받지 않는다**. 둘 다 fs::path 파생이라 스크립트
+		// 인스턴스 필드로 두면 호스트↔게임 DLL POD 경계 규칙을 어긴다. 미지원으로 떨어뜨려
+		// `Ref<CXxxAsset>` 으로 쓰게 한다(EReflectPropertyType::AssetGuid 자체는 빌트인
+		// 컴포넌트가 계속 쓰므로 남아 있다).
 		// Ref<X> — 오브젝트/컴포넌트/스크립트/에셋 참조. 카테고리/타입명은 호출부에서 추출.
 		if (cppType.rfind("Ref<", 0) == 0 && cppType.back() == '>') { outEnum = "EReflectPropertyType::Ref"; return true; }
 		// Ref 인자는 컨테이너에 못 넣는다 — 인자 desc 는 GetScalarReflectTypeDesc 로만 만드는데

@@ -24,6 +24,7 @@
 // ── 수학 ────────────────────────────────────────────────────────────────────
 #include "Utillity/Math/Vector2T.h"
 #include "Utillity/Math/RectT.h"
+#include "Utillity/Math/Layout2D.h"   // 화면 비율 + 픽셀 오프셋 — HUD/UI 배치 저작용
 #include "Utillity/Types/EngineTypes.h"
 
 // Vector2 → REFLECT_FIELD 지원 (ScriptMacros.h 가 먼저 정의된 이후)
@@ -34,6 +35,10 @@ template<> inline EReflectPropertyType ScriptFieldTypeOf<Vector2>()
 template<> inline EReflectPropertyType ScriptFieldTypeOf<Rect>()
 {
 	return EReflectPropertyType::RectFloat;
+}
+template<> inline EReflectPropertyType ScriptFieldTypeOf<Layout2D>()
+{
+	return EReflectPropertyType::Layout2D;
 }
 template<> inline EReflectPropertyType ScriptFieldTypeOf<Color>()
 {
@@ -76,14 +81,11 @@ template<> inline EReflectPropertyType ScriptFieldTypeOf<String>()
 {
 	return EReflectPropertyType::String;
 }
-template<> inline EReflectPropertyType ScriptFieldTypeOf<Asset>()
-{
-	return EReflectPropertyType::AssetGuid;
-}
-template<> inline EReflectPropertyType ScriptFieldTypeOf<File::Guid>()
-{
-	return EReflectPropertyType::AssetGuid;
-}
+// Asset / File::Guid 특수화는 없다. 둘 다 std::filesystem::path 파생이라 내부에 힙
+// 포인터를 갖는데, 스크립트 인스턴스 필드는 호스트↔게임 DLL 경계를 넘으므로 POD 여야
+// 한다(호스트가 써 넣은 값을 DLL 이 다른 레이아웃으로 읽어 깨진다).
+// 에셋 참조는 `Ref<CXxxAsset>` 을 쓴다 — 고정 크기 char 버퍼라 경계에서 안전하고
+// 타입까지 지목한다.
 
 // ── 캔버스 / 오브젝트 ────────────────────────────────────────────────────────────
 #include "GameFramework/Canvas/Canvas.h"
