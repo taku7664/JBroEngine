@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug_Game|x64">
@@ -56,7 +56,12 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_CONSOLE;JBRO_PLATFORM_WINDOWS;JBRO_GAME;_DEBUG;YAML_CPP_STATIC_DEFINE;JBRO_HAS_MINIAUDIO=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <!-- 엔진과 같은 CRT 계약이어야 한다: Engine.lib 은 Debug 구성에서도 /MD + IDL=0 으로
+           빌드된다(호스트와 게임 DLL 의 CRT 를 통일한 결과). _DEBUG 를 그대로 두면
+           MSBuild 가 /MDd 를 골라 LNK2038(_ITERATOR_DEBUG_LEVEL / RuntimeLibrary 불일치)로
+           링크가 깨진다 — 그래서 엔진처럼 JBRO_DEBUG 를 쓴다. -->
+      <PreprocessorDefinitions>_CONSOLE;JBRO_PLATFORM_WINDOWS;JBRO_GAME;JBRO_DEBUG;_ITERATOR_DEBUG_LEVEL=0;YAML_CPP_STATIC_DEFINE;JBRO_HAS_MINIAUDIO=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <LanguageStandard>stdcpp20</LanguageStandard>
@@ -67,7 +72,7 @@
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(RepoRoot)x64\$(Configuration);$(RepoRoot)Engine\ThirdParty\lib;$(VULKAN_SDK)\Lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>Engine.lib;yaml-cppd.lib;vulkan-1.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>Engine.lib;yaml-cpp.lib;vulkan-1.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release_Game|x64'">
