@@ -298,7 +298,6 @@ namespace
 		case EReflectPropertyType::Float:
 		case EReflectPropertyType::Degree:
 		case EReflectPropertyType::Radian:
-		case EReflectPropertyType::AngleDegrees:
 			return YAML::Node(*static_cast<const float*>(value));
 		case EReflectPropertyType::String:
 			return YAML::Node(*static_cast<const std::string*>(value));
@@ -329,7 +328,6 @@ namespace
 			case EReflectPropertyType::Float:
 			case EReflectPropertyType::Degree:
 			case EReflectPropertyType::Radian:
-			case EReflectPropertyType::AngleDegrees:
 				*static_cast<float*>(value) = node.as<float>(); return true;
 			case EReflectPropertyType::String:
 				*static_cast<std::string*>(value) = node.as<std::string>(); return true;
@@ -542,7 +540,6 @@ namespace
 			case EReflectPropertyType::Float:
 			case EReflectPropertyType::Degree:
 			case EReflectPropertyType::Radian:
-			case EReflectPropertyType::AngleDegrees:
 				node[prop.Name] = *static_cast<const float*>(field);
 				break;
 			case EReflectPropertyType::Vector2Float:
@@ -659,7 +656,6 @@ namespace
 			case EReflectPropertyType::Float:
 			case EReflectPropertyType::Degree:
 			case EReflectPropertyType::Radian:
-			case EReflectPropertyType::AngleDegrees:
 				ReadValue(node, prop.Name, *static_cast<float*>(field));
 				break;
 			case EReflectPropertyType::Vector2Float:
@@ -955,7 +951,6 @@ namespace
 			case EReflectPropertyType::Float:
 			case EReflectPropertyType::Degree:
 			case EReflectPropertyType::Radian:
-			case EReflectPropertyType::AngleDegrees:
 				node[prop.Name] = *static_cast<const float*>(field);
 				break;
 			case EReflectPropertyType::Vector2Float:
@@ -1084,7 +1079,6 @@ namespace
 				case EReflectPropertyType::Float:
 				case EReflectPropertyType::Degree:
 				case EReflectPropertyType::Radian:
-				case EReflectPropertyType::AngleDegrees:
 				{
 					float v = node[prop.Name].as<float>(0.0f);
 					*static_cast<float*>(field) = v;

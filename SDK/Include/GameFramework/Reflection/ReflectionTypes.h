@@ -49,7 +49,6 @@ enum class EReflectPropertyType
 	Float,
 	Degree,
 	Radian,
-	AngleDegrees,  // float (radians) stored in memory, displayed/edited as degrees in inspector
 	String,
 	Vector2Float,
 	RectFloat,

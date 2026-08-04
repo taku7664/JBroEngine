@@ -4,6 +4,7 @@
 #include "GameFramework/Component/Component.h"
 #include "Utillity/Math/Vector2T.h"
 #include "Utillity/Types/Color.h"
+#include "Utillity/Types/Radian.h"
 
 #include <cstdint>
 
@@ -42,7 +43,7 @@ class Polygon2D final : public CComponent
 public:
 	float Radius = 0.5f;
 	std::uint32_t VertexCount = 6;
-	float StartAngle = 0.0f;
+	Radian StartAngle = 0.0f;
 	Vector2 Offset = Vector2(0.0f, 0.0f);
 	bool FillEnabled = true;
 	Color FillColor = { 1.0f, 1.0f, 1.0f, 1.0f };

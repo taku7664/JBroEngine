@@ -344,20 +344,6 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			return ImGui::DragFloat("", static_cast<float*>(field), 0.5f, 0.0f, 0.0f, "%.2f deg");
 		case EReflectPropertyType::Radian:
 			return ImGui::DragFloat("", static_cast<float*>(field), 0.01f, 0.0f, 0.0f, "%.2f rad");
-		case EReflectPropertyType::AngleDegrees:
-		{
-			// 내부 저장값은 Radians, Inspector에서는 Degrees로 표시/편집.
-			float* rad = static_cast<float*>(field);
-			constexpr float kRad2Deg = RAD_TO_DEG;
-			constexpr float kDeg2Rad = DEG_TO_RAD;
-			float deg = *rad * kRad2Deg;
-			if (ImGui::DragFloat("", &deg, 0.5f, 0.0f, 0.0f, "%.2f deg"))
-			{
-				*rad = deg * kDeg2Rad;
-				return true;
-			}
-			return false;
-		}
 		case EReflectPropertyType::Vector2Float:
 			return ImGui::DragFloat2("", static_cast<float*>(field), 0.01f);
 		case EReflectPropertyType::RectFloat:
