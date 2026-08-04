@@ -13,6 +13,7 @@
 #include "Scripts/DefaultScript.h"
 #include "Scripts/CoroutineTestScript.h"
 #include "Scripts/PrefabSpawnTestScript.h"
+#include "Scripts/AudioBusProbeScript.h"
 
 // ── GameScriptSampleModule ───────────────────────────────────────────────────────
 // DLL 진입점 모듈. Initialize() 에서 스크립트를 등록하고
@@ -45,6 +46,13 @@ public:
         m_registry->RegisterScript<CCoroutineTestScript>({
             "CCoroutineTestScript",
             "Coroutine Test",
+            "GameScriptSample"
+        });
+
+        // 프로퍼티가 없으므로 목록 없이 한 줄로 등록한다.
+        m_registry->RegisterScript<CAudioBusProbeScript>({
+            "CAudioBusProbeScript",
+            "Audio Bus Probe",
             "GameScriptSample"
         });
 

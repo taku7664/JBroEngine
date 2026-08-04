@@ -111,6 +111,7 @@
     <ClCompile Include="Scripts\DefaultScript.cpp" />
     <ClCompile Include="Scripts\CoroutineTestScript.cpp" />
     <ClCompile Include="Scripts\PrefabSpawnTestScript.cpp" />
+    <ClCompile Include="Scripts\AudioBusProbeScript.cpp" />
   </ItemGroup>
 
   <!-- Header Files -->
@@ -121,6 +122,7 @@
     <ClInclude Include="Scripts\DefaultScript.h" />
     <ClInclude Include="Scripts\CoroutineTestScript.h" />
     <ClInclude Include="Scripts\PrefabSpawnTestScript.h" />
+    <ClInclude Include="Scripts\AudioBusProbeScript.h" />
   </ItemGroup>
 
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
