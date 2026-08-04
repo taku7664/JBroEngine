@@ -148,9 +148,9 @@ namespace
 
     constexpr float SHAPE_PICK_EPSILON = 0.000001f;
 
-    bool IsVisiblePass(bool enabled, const float (&color)[4])
+    bool IsVisiblePass(bool enabled, const Color& color)
     {
-        return enabled && color[3] > 0.0f;
+        return enabled && color.A > 0.0f;
     }
 
     bool ContainsRegularPolygon(

@@ -231,7 +231,7 @@ void COutlineRenderer2D::RenderMask(
 		maskDesc.ColorAttachment.Target     = m_maskRT.GetSafePtr();
 		maskDesc.ColorAttachment.LoadOp     = ERHILoadOp::Clear;
 		maskDesc.ColorAttachment.StoreOp    = ERHIStoreOp::Store;
-		maskDesc.ColorAttachment.ClearColor = Color{ 0.0f, 0.0f, 0.0f, 0.0f };
+		maskDesc.ColorAttachment.SetClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 		ctx->BeginRenderPass(maskDesc);
 
 		spriteRenderer.SetRenderTargetSize(RenderSurfaceSize{ viewW, viewH });
@@ -247,7 +247,7 @@ void COutlineRenderer2D::RenderMask(
 		hDesc.ColorAttachment.Target     = m_hDilatedRT.GetSafePtr();
 		hDesc.ColorAttachment.LoadOp     = ERHILoadOp::Clear;
 		hDesc.ColorAttachment.StoreOp    = ERHIStoreOp::Store;
-		hDesc.ColorAttachment.ClearColor = Color{ 0.0f, 0.0f, 0.0f, 0.0f };
+		hDesc.ColorAttachment.SetClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 		ctx->BeginRenderPass(hDesc);
 
 		ctx->SetGraphicsPipeline(m_hDilationPipeline.GetSafePtr());
@@ -265,7 +265,7 @@ void COutlineRenderer2D::RenderMask(
 		vDesc.ColorAttachment.Target     = m_vDilatedRT.GetSafePtr();
 		vDesc.ColorAttachment.LoadOp     = ERHILoadOp::Clear;
 		vDesc.ColorAttachment.StoreOp    = ERHIStoreOp::Store;
-		vDesc.ColorAttachment.ClearColor = Color{ 0.0f, 0.0f, 0.0f, 0.0f };
+		vDesc.ColorAttachment.SetClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 		ctx->BeginRenderPass(vDesc);
 
 		ctx->SetGraphicsPipeline(m_vDilationPipeline.GetSafePtr());

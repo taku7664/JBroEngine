@@ -75,10 +75,10 @@ void CWebGPUCommandContext::BeginRenderPass(const RenderPassDesc& desc)
 	colorAttachment.depthSlice = WGPU_DEPTH_SLICE_UNDEFINED;
 	colorAttachment.loadOp = ERHILoadOp::Clear == desc.ColorAttachment.LoadOp ? WGPULoadOp_Clear : WGPULoadOp_Load;
 	colorAttachment.storeOp = ERHIStoreOp::Store == desc.ColorAttachment.StoreOp ? WGPUStoreOp_Store : WGPUStoreOp_Discard;
-	colorAttachment.clearValue.r = desc.ColorAttachment.ClearColor.R;
-	colorAttachment.clearValue.g = desc.ColorAttachment.ClearColor.G;
-	colorAttachment.clearValue.b = desc.ColorAttachment.ClearColor.B;
-	colorAttachment.clearValue.a = desc.ColorAttachment.ClearColor.A;
+	colorAttachment.clearValue.r = desc.ColorAttachment.ClearColor[0];
+	colorAttachment.clearValue.g = desc.ColorAttachment.ClearColor[1];
+	colorAttachment.clearValue.b = desc.ColorAttachment.ClearColor[2];
+	colorAttachment.clearValue.a = desc.ColorAttachment.ClearColor[3];
 
 	WGPURenderPassDescriptor renderPassDesc = {};
 	renderPassDesc.colorAttachmentCount = 1;

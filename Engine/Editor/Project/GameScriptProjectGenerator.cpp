@@ -125,6 +125,7 @@ namespace
 		if (cppType == "String")                                       { outEnum = "EReflectPropertyType::String";        return true; }
 		if (cppType == "Vector2")                                      { outEnum = "EReflectPropertyType::Vector2Float";  return true; }
 		if (cppType == "Rect")                                         { outEnum = "EReflectPropertyType::RectFloat";     return true; }
+		if (cppType == "Color")                                        { outEnum = "EReflectPropertyType::ColorFloat4";   return true; }
 		if (cppType == "Asset" || cppType == "AssetGuid")              { outEnum = "EReflectPropertyType::AssetGuid";     return true; }
 		// Ref<X> — 오브젝트/컴포넌트/스크립트/에셋 참조. 카테고리/타입명은 호출부에서 추출.
 		if (cppType.rfind("Ref<", 0) == 0 && cppType.back() == '>') { outEnum = "EReflectPropertyType::Ref"; return true; }

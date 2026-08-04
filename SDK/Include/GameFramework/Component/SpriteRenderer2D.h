@@ -5,6 +5,7 @@
 #include "Core/Renderer/RendererTypes.h"
 #include "GameFramework/Component/Component.h"
 #include "Utillity/Math/Vector2T.h"
+#include "Utillity/Types/Color.h"
 
 #include <cstdint>
 
@@ -38,7 +39,7 @@ public:
 	// 스프라이트시트 프레임 인덱스 — 자산의 SpriteFrame 목록에서 표시할 프레임.
 	// 슬라이스 없는 자산은 무시(항상 전체). SpriteAnimator2D 가 매 프레임 갱신할 수 있다.
 	std::uint32_t FrameIndex = 0;
-	float Color[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+	::Color Color = { 1.0f, 1.0f, 1.0f, 1.0f };
 	std::int32_t SortOrder = 0;
 	// 그림자 캐스터 — 켜면 이 스프라이트의 실루엣(알파)이 CastShadows 라이트의 그림자를 만든다.
 	bool CastShadow = false;

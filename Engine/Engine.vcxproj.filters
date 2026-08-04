@@ -407,6 +407,9 @@
     <ClInclude Include="Utillity\Types\Bool.h">
       <Filter>Header\Utillity\Types</Filter>
     </ClInclude>
+    <ClInclude Include="Utillity\Types\Color.h">
+      <Filter>Header\Utillity\Types</Filter>
+    </ClInclude>
     <ClInclude Include="Utillity\Types\Degree.h">
       <Filter>Header\Utillity\Types</Filter>
     </ClInclude>

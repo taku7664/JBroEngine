@@ -2,6 +2,7 @@
 
 #include "GameFramework/Component/Component.h"
 #include "Utillity/Math/Vector2T.h"
+#include "Utillity/Types/Color.h"
 
 #include <cstdint>
 
@@ -17,7 +18,7 @@ class Light2D final : public CComponent
 	JBRO_COMPONENT(Light2D)
 public:
 	ELight2DType Type = ELight2DType::Point;
-	float Color[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+	::Color Color = { 1.0f, 1.0f, 1.0f, 1.0f };
 	float Intensity = 1.0f;
 	float Range = 5.0f;
 	float InnerAngleRadians = 0.5f;

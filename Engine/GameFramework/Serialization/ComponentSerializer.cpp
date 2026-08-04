@@ -114,17 +114,19 @@ namespace
 		}
 	}
 
-	YAML::Node WriteColor4(const float (&color)[4])
+	// 색은 스칼라 4개 시퀀스로 쓴다 — Color 타입이 생기기 전 `float[4]` 시절과 같은 포맷이라
+	// 기존 .jcanvas 가 그대로 읽힌다.
+	YAML::Node WriteColor4(const Color& color)
 	{
 		YAML::Node node(YAML::NodeType::Sequence);
-		node.push_back(color[0]);
-		node.push_back(color[1]);
-		node.push_back(color[2]);
-		node.push_back(color[3]);
+		node.push_back(color.R);
+		node.push_back(color.G);
+		node.push_back(color.B);
+		node.push_back(color.A);
 		return node;
 	}
 
-	bool ReadColor4(const YAML::Node& node, float (&outColor)[4])
+	bool ReadColor4(const YAML::Node& node, Color& outColor)
 	{
 		if (!node || false == node.IsSequence() || node.size() < 4)
 		{
@@ -550,11 +552,7 @@ namespace
 				node[prop.Name] = WriteRect(*static_cast<const Rect*>(field));
 				break;
 			case EReflectPropertyType::ColorFloat4:
-				{
-					const float* c = static_cast<const float*>(field);
-					float arr[4] = { c[0], c[1], c[2], c[3] };
-					node[prop.Name] = WriteColor4(arr);
-				}
+				node[prop.Name] = WriteColor4(*static_cast<const Color*>(field));
 				break;
 			case EReflectPropertyType::AssetGuid:
 				{
@@ -671,11 +669,7 @@ namespace
 				ReadRect(node[prop.Name], *static_cast<Rect*>(field));
 				break;
 			case EReflectPropertyType::ColorFloat4:
-				{
-					float tmp[4] = {};
-					ReadColor4(node[prop.Name], tmp);
-					std::memcpy(field, tmp, sizeof(float) * 4);
-				}
+				ReadColor4(node[prop.Name], *static_cast<Color*>(field));
 				break;
 			case EReflectPropertyType::AssetGuid:
 				{
@@ -970,6 +964,9 @@ namespace
 			case EReflectPropertyType::RectFloat:
 				node[prop.Name] = WriteRect(*static_cast<const Rect*>(field));
 				break;
+			case EReflectPropertyType::ColorFloat4:
+				node[prop.Name] = WriteColor4(*static_cast<const Color*>(field));
+				break;
 			case EReflectPropertyType::AssetGuid:
 				{
 					const File::Guid& guid = *static_cast<const File::Guid*>(field);
@@ -1102,6 +1099,11 @@ namespace
 					Rect v;
 					ReadRect(node[prop.Name], v);
 					*static_cast<Rect*>(field) = v;
+					break;
+				}
+				case EReflectPropertyType::ColorFloat4:
+				{
+					ReadColor4(node[prop.Name], *static_cast<Color*>(field));
 					break;
 				}
 				case EReflectPropertyType::AssetGuid:

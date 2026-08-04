@@ -345,7 +345,7 @@ void CImEditor::RenderLayerThumbnails()
 
 	// 바탕은 불투명으로 — 스프라이트가 premultiplied 로 얹혀 결과 알파가 1 로 유지된다.
 	// (투명 배경이면 ImGui 의 straight-alpha 블렌드에서 색이 어두워진다.)
-	const float thumbnailBackground[4] = { 0.08f, 0.09f, 0.11f, 1.0f };
+	const Color thumbnailBackground = { 0.08f, 0.09f, 0.11f, 1.0f };
 	const RenderSurfaceSize thumbnailSize{
 		static_cast<int>(thumbnailWidth), static_cast<int>(thumbnailHeight) };
 
@@ -376,7 +376,7 @@ void CImEditor::RenderLayerThumbnails()
 			nullptr,
 			/*lights*/ {},   // 썸네일은 라이팅 미적용 — 레이어 내용 식별이 목적이다
 			singleLayer,
-			thumbnailBackground);
+			&thumbnailBackground);
 	}
 }
 
@@ -454,7 +454,7 @@ void CImEditor::RenderGpuProfilerPreview()
 		nullptr,
 		lights,
 		layers,
-		activeCanvas->GetBackgroundColor(),
+		&activeCanvas->GetBackgroundColor(),
 		nullptr,
 		m_gpuPreviewCutoff,
 		// 게임뷰가 이 프레임에 안 그려졌으면 이 프리뷰 렌더에서 드로우순서를 캡처한다 — 그래야
@@ -813,7 +813,7 @@ void CImEditor::OnPrepareRender()
 		rpDesc.ColorAttachment.Target     = m_canvasViewRenderTarget.GetSafePtr();
 		rpDesc.ColorAttachment.LoadOp     = ERHILoadOp::Clear;
 		rpDesc.ColorAttachment.StoreOp    = ERHIStoreOp::Store;
-		rpDesc.ColorAttachment.ClearColor = Color{ 0.08f, 0.09f, 0.11f, 0.0f };
+		rpDesc.ColorAttachment.SetClearColor(0.08f, 0.09f, 0.11f, 0.0f);
 		commandContext->BeginRenderPass(rpDesc);
 
 		// ① 그리드 (전역 DebugDraw, Entity==INVALID)
@@ -879,7 +879,7 @@ void CImEditor::OnPrepareRender()
 					layerClear.ColorAttachment.Target     = scratch;
 					layerClear.ColorAttachment.LoadOp     = ERHILoadOp::Clear;
 					layerClear.ColorAttachment.StoreOp    = ERHIStoreOp::Store;
-					layerClear.ColorAttachment.ClearColor = Color{ 0.0f, 0.0f, 0.0f, 0.0f };
+					layerClear.ColorAttachment.SetClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 					commandContext->BeginRenderPass(layerClear);
 					commandContext->EndRenderPass();
 
@@ -993,7 +993,7 @@ void CImEditor::OnPrepareRender()
 			&cameraStats,
 			m_gameViewLights,
 			m_gameViewLayers,
-			gameViewCanvas ? gameViewCanvas->GetBackgroundColor() : nullptr,
+			gameViewCanvas ? &gameViewCanvas->GetBackgroundColor() : nullptr,
 			gpuTimer,
 			GpuRenderCutoff{},
 			/*captureDrawOrder*/ true);   // 게임뷰 렌더에서 드로우순서를 캡처한다.

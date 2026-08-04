@@ -539,6 +539,7 @@
     <ClInclude Include="Utillity\Types\ArrayView.h" />
     <ClInclude Include="Utillity\Types\Asset.h" />
     <ClInclude Include="Utillity\Types\Bool.h" />
+    <ClInclude Include="Utillity\Types\Color.h" />
     <ClInclude Include="Utillity\Types\Degree.h" />
     <ClInclude Include="Utillity\Types\EngineTypes.h" />
     <ClInclude Include="Utillity\Types\Float.h" />

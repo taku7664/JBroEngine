@@ -15,6 +15,7 @@
 #include "Utillity/Math/Vector2T.h"   // ScreenToWorld 반환/출력
 #include "Utillity/Pointer/SafePtr.h"
 #include "Utillity/Types/Array.h"
+#include "Utillity/Types/Color.h"
 #include "Utillity/Types/FrameSectionProfiler.h"
 #include "Utillity/Types/Table.h"
 
@@ -123,7 +124,7 @@ public:
 	float                 GetLastRenderHeight() const { return m_lastRenderHeight; }
 
 	// 컴포짓 맨 아래 바탕색. 레이어 RT 는 투명으로 클리어되고, 이 색 위에 순서대로 얹힌다.
-	const float* GetBackgroundColor() const { return m_backgroundColor; }
+	const Color& GetBackgroundColor() const { return m_backgroundColor; }
 	void         SetBackgroundColor(float r, float g, float b, float a);
 
 	// ── 오브젝트 ──────────────────────────────────────────────────────────────
@@ -530,7 +531,7 @@ private:
 	// 오래 들 일이 없다(에디터·스크립트는 인덱스/이름으로 접근).
 	std::vector<CanvasViewport>        m_viewports;
 	// 컴포짓 바탕색(구 Camera2D::ClearColor 의 캔버스급 승계).
-	float                              m_backgroundColor[4] = { 0.08f, 0.09f, 0.11f, 1.0f };
+	Color                              m_backgroundColor = { 0.08f, 0.09f, 0.11f, 1.0f };
 	// 마지막 렌더 타깃 픽셀 크기(SetLastRenderSize 가 매 프레임 갱신). 0 = 아직 렌더 안 됨
 	// → ScreenToWorld 가 false 를 돌려준다(변환 기준이 없다). 직렬화하지 않는다(런타임 캐시).
 	float                              m_lastRenderWidth = 0.0f;

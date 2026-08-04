@@ -2042,10 +2042,9 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		{
 			ImGui::Utillity::FormLayout layout("##canvas_properties", 4.0f, { 2.0f, 1.0f });
 
-			const float* current = canvas.GetBackgroundColor();
-			float background[4] = { current[0], current[1], current[2], current[3] };
+			Color background = canvas.GetBackgroundColor();
 			layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorCanvasBackgroundColor)); }, [&]() {
-				if (ImGui::ColorEdit4("##inspector.canvas.background", background, ImGuiColorEditFlags_NoInputs))
+				if (ImGui::ColorEdit4("##inspector.canvas.background", background.Data(), ImGuiColorEditFlags_NoInputs))
 				{
 					EditorCanvasActions::SetBackgroundColor(canvas, background);
 				}

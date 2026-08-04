@@ -143,10 +143,10 @@ void CVulkanCommandContext::BeginRenderPass(const RenderPassDesc& desc)
 	}
 
 	VkClearValue clearValue = {};
-	clearValue.color.float32[0] = desc.ColorAttachment.ClearColor.R;
-	clearValue.color.float32[1] = desc.ColorAttachment.ClearColor.G;
-	clearValue.color.float32[2] = desc.ColorAttachment.ClearColor.B;
-	clearValue.color.float32[3] = desc.ColorAttachment.ClearColor.A;
+	clearValue.color.float32[0] = desc.ColorAttachment.ClearColor[0];
+	clearValue.color.float32[1] = desc.ColorAttachment.ClearColor[1];
+	clearValue.color.float32[2] = desc.ColorAttachment.ClearColor[2];
+	clearValue.color.float32[3] = desc.ColorAttachment.ClearColor[3];
 
 	VkRenderPassBeginInfo passInfo = {};
 	passInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;

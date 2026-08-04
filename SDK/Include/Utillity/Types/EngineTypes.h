@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Utillity/Types/Bool.h"
+#include "Utillity/Types/Color.h"
 #include "Utillity/Types/Int.h"
 #include "Utillity/Types/UInt.h"
 #include "Utillity/Types/Float.h"

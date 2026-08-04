@@ -325,7 +325,7 @@ namespace
 		const RenderSurfaceSize& renderTargetSize,
 		SafePtr<IRHITexture> target,
 		std::vector<GameRenderCameraStats>* outCameraStats,
-		const float* backgroundColor,
+		const Color* backgroundColor,
 		IRHIGpuTimer* gpuTimer,
 		GpuRenderCutoff cutoff,
 		bool captureDrawOrder)
@@ -339,9 +339,14 @@ namespace
 		clearDesc.ColorAttachment.Target = target;
 		clearDesc.ColorAttachment.LoadOp = ERHILoadOp::Clear;
 		clearDesc.ColorAttachment.StoreOp = ERHIStoreOp::Store;
-		clearDesc.ColorAttachment.ClearColor = backgroundColor
-			? Color{ backgroundColor[0], backgroundColor[1], backgroundColor[2], backgroundColor[3] }
-			: Color{ 0.0f, 0.0f, 0.0f, 0.0f };
+		if (nullptr != backgroundColor)
+		{
+			clearDesc.ColorAttachment.SetClearColor(backgroundColor->Data());
+		}
+		else
+		{
+			clearDesc.ColorAttachment.SetClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+		}
 		commandContext.BeginRenderPass(clearDesc);
 		commandContext.EndRenderPass();
 
@@ -493,7 +498,7 @@ namespace
 					layerClear.ColorAttachment.Target = scratch;
 					layerClear.ColorAttachment.LoadOp = ERHILoadOp::Clear;
 					layerClear.ColorAttachment.StoreOp = ERHIStoreOp::Store;
-					layerClear.ColorAttachment.ClearColor = Color{ 0.0f, 0.0f, 0.0f, 0.0f };
+					layerClear.ColorAttachment.SetClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 					commandContext.BeginRenderPass(layerClear);
 					commandContext.EndRenderPass();
 
@@ -546,7 +551,7 @@ void RenderGameViewports(
 	std::vector<GameRenderCameraStats>* outCameraStats,
 	const std::vector<GameRenderLightDesc>& lights,
 	const std::vector<GameRenderLayerDesc>& layers,
-	const float* backgroundColor,
+	const Color* backgroundColor,
 	IRHIGpuTimer* gpuTimer,
 	GpuRenderCutoff cutoff,
 	bool captureDrawOrder)
@@ -614,7 +619,7 @@ void RenderGameViewports(
 			blit.ColorAttachment.Target = g.Resolve(hFinal);
 			blit.ColorAttachment.LoadOp = ERHILoadOp::Clear;
 			blit.ColorAttachment.StoreOp = ERHIStoreOp::Store;
-			blit.ColorAttachment.ClearColor = Color{ 0.0f, 0.0f, 0.0f, 0.0f };
+			blit.ColorAttachment.SetClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 			ctx.BeginRenderPass(blit);
 			ctx.SetViewport(0.0f, 0.0f, rtW, rtH);
 			renderer.SetRenderTargetSize(renderTargetSize);
@@ -679,7 +684,7 @@ void RenderGameViewports(
 				clearDesc.ColorAttachment.Target = target;
 				clearDesc.ColorAttachment.LoadOp = ERHILoadOp::Clear;
 				clearDesc.ColorAttachment.StoreOp = ERHIStoreOp::Store;
-				clearDesc.ColorAttachment.ClearColor = Color{ 0.0f, 0.0f, 0.0f, 0.0f };
+				clearDesc.ColorAttachment.SetClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 				ctx.BeginRenderPass(clearDesc);
 				ctx.EndRenderPass();
 
@@ -720,7 +725,7 @@ void RenderGameViewports(
 				clearDesc.ColorAttachment.Target = target;
 				clearDesc.ColorAttachment.LoadOp = ERHILoadOp::Clear;
 				clearDesc.ColorAttachment.StoreOp = ERHIStoreOp::Store;
-				clearDesc.ColorAttachment.ClearColor = Color{ 1.0f, 1.0f, 1.0f, 1.0f };   // 미차폐=최대거리
+				clearDesc.ColorAttachment.SetClearColor(1.0f, 1.0f, 1.0f, 1.0f);   // 미차폐=최대거리
 				ctx.BeginRenderPass(clearDesc);
 				ctx.EndRenderPass();
 
@@ -761,7 +766,7 @@ void RenderGameViewports(
 			clearDesc.ColorAttachment.Target = target;
 			clearDesc.ColorAttachment.LoadOp = ERHILoadOp::Clear;
 			clearDesc.ColorAttachment.StoreOp = ERHIStoreOp::Store;
-			clearDesc.ColorAttachment.ClearColor = ambientColor;
+			clearDesc.ColorAttachment.SetClearColor(ambientColor.Data());
 			ctx.BeginRenderPass(clearDesc);
 			ctx.EndRenderPass();
 
@@ -838,7 +843,7 @@ void RenderGameViewports(
 			composite.ColorAttachment.Target = g.Resolve(hPost);
 			composite.ColorAttachment.LoadOp = ERHILoadOp::Clear;
 			composite.ColorAttachment.StoreOp = ERHIStoreOp::Store;
-			composite.ColorAttachment.ClearColor = Color{ 0.0f, 0.0f, 0.0f, 0.0f };
+			composite.ColorAttachment.SetClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 			ctx.BeginRenderPass(composite);
 			ctx.SetViewport(0.0f, 0.0f, rtW, rtH);
 			renderer.SetRenderTargetSize(renderTargetSize);
@@ -858,7 +863,7 @@ void RenderGameViewports(
 			tonemap.ColorAttachment.Target = g.Resolve(hFinal);
 			tonemap.ColorAttachment.LoadOp = ERHILoadOp::Clear;
 			tonemap.ColorAttachment.StoreOp = ERHIStoreOp::Store;
-			tonemap.ColorAttachment.ClearColor = Color{ 0.0f, 0.0f, 0.0f, 0.0f };
+			tonemap.ColorAttachment.SetClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 			ctx.BeginRenderPass(tonemap);
 			ctx.SetViewport(0.0f, 0.0f, rtW, rtH);
 			renderer.SetRenderTargetSize(renderTargetSize);

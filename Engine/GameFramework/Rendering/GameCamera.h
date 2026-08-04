@@ -5,6 +5,7 @@
 #include "Core/RHI/RHIGraphicsTypes.h"   // ERHIBlendMode — 레이어 컴포짓 블렌드
 #include "Core/Renderer/RendererTypes.h"
 #include "Utillity/Pointer/SafePtr.h"
+#include "Utillity/Types/Color.h"
 
 #include <cstdint>
 #include <vector>
@@ -120,7 +121,7 @@ void CollectGameRenderLayers(const CGameCanvas& canvas, bool forceOwnTextureAll,
 	std::vector<GameRenderLayerDesc>& outLayers);
 
 // 뷰포트 목록을 순서대로 그린다: 배경색 → for 뷰포트 { for 레이어: 드로우 → 렉트에 컴포짓 }.
-// backgroundColor = 캔버스 바탕색(float[4], null 이면 투명).
+// backgroundColor = 캔버스 바탕색(null 이면 투명).
 void RenderGameViewports(
 	IRHICommandContext& commandContext,
 	IRenderer& renderer,
@@ -131,7 +132,7 @@ void RenderGameViewports(
 	std::vector<GameRenderCameraStats>* outCameraStats = nullptr,
 	const std::vector<GameRenderLightDesc>& lights = {},
 	const std::vector<GameRenderLayerDesc>& layers = {},
-	const float* backgroundColor = nullptr,
+	const Color* backgroundColor = nullptr,
 	// null 이 아니면 레이어별 GPU 시간을 이 타이머로 잰다(게임뷰 렌더에서만 넘긴다 — 예외 5).
 	IRHIGpuTimer* gpuTimer = nullptr,
 	// Active 면 드로우순서상 컷오프까지만 그린다(프로파일러 렌더타겟 진행 프리뷰). 기본 비활성.

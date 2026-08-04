@@ -5,6 +5,7 @@
 #include "Editor/Command/EditorCommandManager.h"
 #include "Engine/GameFramework/Canvas/CanvasViewport.h"
 #include "Utillity/File/FilePath.h"
+#include "Utillity/Types/Color.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -41,7 +42,7 @@ struct ViewportSnapshot
 class CSetCanvasBackgroundColorCommand final : public IEditorCommand
 {
 public:
-	CSetCanvasBackgroundColorCommand(SafePtr<CGameCanvas> canvas, const float (&oldColor)[4], const float (&newColor)[4]);
+	CSetCanvasBackgroundColorCommand(SafePtr<CGameCanvas> canvas, const Color& oldColor, const Color& newColor);
 	~CSetCanvasBackgroundColorCommand() override = default;
 
 	const char* GetName() const override;
@@ -51,12 +52,12 @@ public:
 	bool TryMerge(const IEditorCommand& newer) override;
 
 private:
-	bool Apply(const float (&color)[4]);
+	bool Apply(const Color& color);
 
 private:
 	SafePtr<CGameCanvas> m_canvas;
-	float               m_oldColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
-	float               m_newColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+	Color               m_oldColor = { 0.0f, 0.0f, 0.0f, 1.0f };
+	Color               m_newColor = { 0.0f, 0.0f, 0.0f, 1.0f };
 };
 
 // 뷰포트 속성 편집. field 는 병합 판정에만 쓴다(같은 뷰포트의 같은 필드 연속 편집 = undo 1개).
@@ -144,7 +145,7 @@ namespace EditorCanvasActions
 	bool SetViewportProperty(CGameCanvas& canvas, std::size_t index,
 	                         CSetViewportPropertyCommand::EField field,
 	                         const ViewportSnapshot& newProperties);
-	bool SetBackgroundColor(CGameCanvas& canvas, const float (&newColor)[4]);
+	bool SetBackgroundColor(CGameCanvas& canvas, const Color& newColor);
 }
 
 #endif

@@ -40,9 +40,9 @@ namespace
 		return guid.generic_string() + "#" + std::to_string(page);
 	}
 
-	bool IsVisibleColor(bool enabled, const float* color)
+	bool IsVisibleColor(bool enabled, const Color& color)
 	{
-		return enabled && color[3] > 0.0f;
+		return enabled && color.A > 0.0f;
 	}
 
 	std::uint32_t DecodeOneUtf8(const char* text, std::size_t length, std::size_t& cursor)

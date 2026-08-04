@@ -3,6 +3,7 @@
 #include "Core/Renderer/RendererTypes.h"
 #include "GameFramework/Component/Component.h"
 #include "Utillity/Math/Vector2T.h"
+#include "Utillity/Types/Color.h"
 
 #include <cstdint>
 
@@ -13,9 +14,9 @@ public:
 	Vector2 Size = Vector2(1.0f, 1.0f);
 	Vector2 Offset = Vector2(0.0f, 0.0f);
 	bool FillEnabled = true;
-	float FillColor[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+	Color FillColor = { 1.0f, 1.0f, 1.0f, 1.0f };
 	bool OutlineEnabled = false;
-	float OutlineColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+	Color OutlineColor = { 0.0f, 0.0f, 0.0f, 1.0f };
 	float OutlineWidth = 0.05f;
 	std::int32_t SortOrder = 0;
 };
@@ -28,9 +29,9 @@ public:
 	std::uint32_t Segments = 64;
 	Vector2 Offset = Vector2(0.0f, 0.0f);
 	bool FillEnabled = true;
-	float FillColor[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+	Color FillColor = { 1.0f, 1.0f, 1.0f, 1.0f };
 	bool OutlineEnabled = false;
-	float OutlineColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+	Color OutlineColor = { 0.0f, 0.0f, 0.0f, 1.0f };
 	float OutlineWidth = 0.05f;
 	std::int32_t SortOrder = 0;
 };
@@ -44,9 +45,9 @@ public:
 	float StartAngle = 0.0f;
 	Vector2 Offset = Vector2(0.0f, 0.0f);
 	bool FillEnabled = true;
-	float FillColor[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+	Color FillColor = { 1.0f, 1.0f, 1.0f, 1.0f };
 	bool OutlineEnabled = false;
-	float OutlineColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+	Color OutlineColor = { 0.0f, 0.0f, 0.0f, 1.0f };
 	float OutlineWidth = 0.05f;
 	std::int32_t SortOrder = 0;
 };

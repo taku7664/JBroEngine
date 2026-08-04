@@ -385,12 +385,9 @@ void CEngine::SwapGameRenderViewports(std::vector<GameRenderViewportDesc>& viewp
 	m_gameRenderViewports.swap(viewports);
 }
 
-void CEngine::SetGameRenderBackgroundColor(const float color[4])
+void CEngine::SetGameRenderBackgroundColor(const Color& color)
 {
-	for (int i = 0; i < 4; ++i)
-	{
-		m_gameRenderBackgroundColor[i] = color[i];
-	}
+	m_gameRenderBackgroundColor = color;
 }
 
 void CEngine::SwapGameRenderLights(std::vector<GameRenderLightDesc>& lights)
@@ -932,7 +929,7 @@ void CEngine::RenderFrame()
 					nullptr,
 					m_gameRenderLights,
 					m_gameRenderLayers,
-					m_gameRenderBackgroundColor);
+						&m_gameRenderBackgroundColor);
 				m_renderScene->Clear();
 			}
 		}
@@ -941,7 +938,7 @@ void CEngine::RenderFrame()
 			RenderPassDesc renderPassDesc;
 			renderPassDesc.ColorAttachment.LoadOp = ERHILoadOp::Clear;
 			renderPassDesc.ColorAttachment.StoreOp = ERHIStoreOp::Store;
-			renderPassDesc.ColorAttachment.ClearColor = m_mainClearColor;
+			renderPassDesc.ColorAttachment.SetClearColor(m_mainClearColor.Data());
 
 			commandContext->BeginRenderPass(renderPassDesc);
 			if (m_renderer && m_renderScene)

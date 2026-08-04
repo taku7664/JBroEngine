@@ -35,6 +35,10 @@ template<> inline EReflectPropertyType ScriptFieldTypeOf<Rect>()
 {
 	return EReflectPropertyType::RectFloat;
 }
+template<> inline EReflectPropertyType ScriptFieldTypeOf<Color>()
+{
+	return EReflectPropertyType::ColorFloat4;
+}
 template<> inline EReflectPropertyType ScriptFieldTypeOf<Bool>()
 {
 	return EReflectPropertyType::Bool;

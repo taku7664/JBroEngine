@@ -4,6 +4,7 @@
 #include "Core/Platform/PlatformTypes.h"
 #include "Core/RHI/RHITypes.h"
 #include "GameFramework/Rendering/GameCamera.h"
+#include "Utillity/Types/Color.h"
 #include "Utillity/Types/FrameSectionProfiler.h"
 #include "Core/Debug/GpuProfiler.h"
 #include "Core/Debug/CpuProfiler.h"
@@ -61,7 +62,7 @@ public:
 	void SwapGameRenderLights(std::vector<GameRenderLightDesc>& lights);
 	void SwapGameRenderLayers(std::vector<GameRenderLayerDesc>& layers);
 	// 캔버스 바탕색 — 컴포짓 맨 아래에 깔린다.
-	void SetGameRenderBackgroundColor(const float color[4]);
+	void SetGameRenderBackgroundColor(const Color& color);
 	// 렌더 직전(리사이즈 반영 후, 카메라 스택 사용 전) 훅 — 카메라/라이트 스냅샷을
 	// 시뮬레이션 *이후* 상태로 수집하기 위한 것. OnPreTick 수집은 1프레임 지연을 만든다.
 	void SetPreRenderCallback(std::function<void()> callback);
@@ -149,7 +150,7 @@ private:
 	std::vector<GameRenderViewportDesc> m_gameRenderViewports;
 	std::vector<GameRenderLightDesc> m_gameRenderLights;
 	std::vector<GameRenderLayerDesc> m_gameRenderLayers;
-	float m_gameRenderBackgroundColor[4] = { 0.08f, 0.09f, 0.11f, 1.0f };
+	Color                         m_gameRenderBackgroundColor = { 0.08f, 0.09f, 0.11f, 1.0f };
 	std::function<void()>         m_preRenderCallback;
 	PlatformDesc                  m_platformDesc;
 	Color                         m_mainClearColor = Color{ 0.08f, 0.09f, 0.11f, 1.0f };

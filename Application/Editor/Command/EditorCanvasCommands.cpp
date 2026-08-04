@@ -15,13 +15,6 @@ namespace
 		return canvas.IsValid() ? canvas->GetViewportAt(index) : nullptr;
 	}
 
-	void CopyColor(float (&dst)[4], const float (&src)[4])
-	{
-		for (int i = 0; i < 4; ++i)
-		{
-			dst[i] = src[i];
-		}
-	}
 }
 
 // ── ViewportSnapshot ─────────────────────────────────────────────────────────
@@ -53,11 +46,11 @@ void ViewportSnapshot::ApplyTo(CanvasViewport& viewport) const
 // ── CSetCanvasBackgroundColorCommand ─────────────────────────────────────────
 
 CSetCanvasBackgroundColorCommand::CSetCanvasBackgroundColorCommand(
-	SafePtr<CGameCanvas> canvas, const float (&oldColor)[4], const float (&newColor)[4])
+	SafePtr<CGameCanvas> canvas, const Color& oldColor, const Color& newColor)
 	: m_canvas(canvas)
 {
-	CopyColor(m_oldColor, oldColor);
-	CopyColor(m_newColor, newColor);
+	m_oldColor = oldColor;
+	m_newColor = newColor;
 }
 
 const char* CSetCanvasBackgroundColorCommand::GetName() const
@@ -88,17 +81,17 @@ bool CSetCanvasBackgroundColorCommand::TryMerge(const IEditorCommand& newer)
 		return false;
 	}
 	// old 는 드래그 시작값 유지, new 만 최신값으로 교체.
-	CopyColor(m_newColor, other->m_newColor);
+	m_newColor = other->m_newColor;
 	return true;
 }
 
-bool CSetCanvasBackgroundColorCommand::Apply(const float (&color)[4])
+bool CSetCanvasBackgroundColorCommand::Apply(const Color& color)
 {
 	if (false == m_canvas.IsValid())
 	{
 		return false;
 	}
-	m_canvas->SetBackgroundColor(color[0], color[1], color[2], color[3]);
+	m_canvas->SetBackgroundColor(color.R, color.G, color.B, color.A);
 	return true;
 }
 
@@ -181,10 +174,9 @@ bool EditorCanvasActions::SetViewportProperty(
 	return Editor::CommandManager.ExecuteCommand(std::move(command));
 }
 
-bool EditorCanvasActions::SetBackgroundColor(CGameCanvas& canvas, const float (&newColor)[4])
+bool EditorCanvasActions::SetBackgroundColor(CGameCanvas& canvas, const Color& newColor)
 {
-	const float* current = canvas.GetBackgroundColor();
-	const float oldColor[4] = { current[0], current[1], current[2], current[3] };
+	const Color oldColor = canvas.GetBackgroundColor();
 
 	auto command = MakeOwnerPtr<CSetCanvasBackgroundColorCommand>(canvas.SafeFromThis(), oldColor, newColor);
 	return Editor::CommandManager.ExecuteCommand(std::move(command));

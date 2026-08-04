@@ -131,9 +131,9 @@ void CShapeRenderSystem::SubmitGeometry(T& shape, const GeometrySignature& signa
 	}
 	found->second.LastSeenFrame = m_frameStamp;
 
-	auto submitPass = [this, &shape, owner, &renderer, &halfExtents](SafePtr<IRenderMesh> mesh, const float (&color)[4])
+	auto submitPass = [this, &shape, owner, &renderer, &halfExtents](SafePtr<IRenderMesh> mesh, const Color& color)
 	{
-		if (false == mesh.IsValid() || color[3] <= 0.0f)
+		if (false == mesh.IsValid() || color.A <= 0.0f)
 		{
 			return;
 		}

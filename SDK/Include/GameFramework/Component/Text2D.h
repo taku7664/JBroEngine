@@ -5,6 +5,7 @@
 #include "Core/Renderer/RendererTypes.h"
 #include "GameFramework/Component/Component.h"
 #include "Utillity/Math/Vector2T.h"
+#include "Utillity/Types/Color.h"
 #include "Utillity/Types/String.h"
 
 #include <cstdint>
@@ -32,9 +33,9 @@ public:
 	float LineSpacing = 1.0f;
 	float LetterSpacingPixels = 0.0f;
 	bool FillEnabled = true;
-	float FillColor[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+	Color FillColor = { 1.0f, 1.0f, 1.0f, 1.0f };
 	bool OutlineEnabled = false;
-	float OutlineColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+	Color OutlineColor = { 0.0f, 0.0f, 0.0f, 1.0f };
 	float OutlineWidthPixels = 0.0f;
 	bool PixelSnap = false;
 	Vector2 Offset = Vector2(0.0f, 0.0f);

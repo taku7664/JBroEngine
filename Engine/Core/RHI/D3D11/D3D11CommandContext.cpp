@@ -87,13 +87,7 @@ void CD3D11CommandContext::BeginRenderPass(const RenderPassDesc& desc)
 
 	if (ERHILoadOp::Clear == desc.ColorAttachment.LoadOp)
 	{
-		const float clearColor[4] = {
-			desc.ColorAttachment.ClearColor.R,
-			desc.ColorAttachment.ClearColor.G,
-			desc.ColorAttachment.ClearColor.B,
-			desc.ColorAttachment.ClearColor.A,
-		};
-		m_deviceContext->ClearRenderTargetView(renderTargetView, clearColor);
+		m_deviceContext->ClearRenderTargetView(renderTargetView, desc.ColorAttachment.ClearColor);
 	}
 #else
 	(void)desc;
