@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -27,6 +28,10 @@ enum class EAudioImportMode : std::uint8_t
 
 // ── 믹싱 버스 종류 ──────────────────────────────────────────────────────────
 // 게임 측에서 카테고리별 볼륨 조절 / 효과 부착 단위.
+//
+// **끝 sentinel(Count)을 두지 않는다.** 이 enum 은 AudioPlayer 컴포넌트의 프로퍼티라
+// 인스펙터 드롭다운에 그대로 뜨는데, sentinel 이 있으면 "Count" 라는 고를 수 있지만
+// 아무 데도 라우팅되지 않는 항목이 생긴다. 배열 크기는 아래 상수를 쓴다.
 enum class EAudioBusKind : std::uint8_t
 {
 	Master,
@@ -35,8 +40,12 @@ enum class EAudioBusKind : std::uint8_t
 	Voice,
 	UI,
 	Custom,
-	Count,   // enum 끝 sentinel (배열 크기용)
 };
+
+// 버스 배열 크기. 마지막 항목에서 유도하므로 enum 에 항목을 추가하면 자동으로 따라온다
+// (새 항목은 반드시 Custom **앞에** 넣을 것).
+inline constexpr std::size_t AUDIO_BUS_KIND_COUNT =
+	static_cast<std::size_t>(EAudioBusKind::Custom) + 1;
 
 // ── DSP 효과 종류 (향후 확장) ──────────────────────────────────────────────
 enum class EAudioEffectKind : std::uint8_t

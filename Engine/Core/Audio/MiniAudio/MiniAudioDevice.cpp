@@ -982,7 +982,7 @@ struct MiniAudioDeviceImpl
 	std::shared_ptr<MiniAudioBackendState> Backend;
 	OwnerPtr<CMiniAudioListener>    Listener;
 	// 표준 믹싱 버스 — Master(endpoint 직결) ← Music/SFX/Voice/UI/Custom.
-	OwnerPtr<CMiniAudioBus>         Buses[static_cast<std::size_t>(EAudioBusKind::Count)];
+	OwnerPtr<CMiniAudioBus>         Buses[AUDIO_BUS_KIND_COUNT];
 	// 엔진 볼륨 자리를 둘이 나눠 쓴다 — 프로젝트 설정과 AudioListener 컴포넌트.
 	// 한쪽이 직접 ma_engine_set_volume 을 부르면 다른 쪽을 덮어쓰므로 여기서 곱해 적용한다.
 	float                           MasterVolume = 1.0f;   // 프로젝트 전역
@@ -999,7 +999,7 @@ struct MiniAudioDeviceImpl
 	CMiniAudioBus* GetBusPtr(EAudioBusKind kind)
 	{
 		const std::size_t i = static_cast<std::size_t>(kind);
-		return (i < static_cast<std::size_t>(EAudioBusKind::Count)) ? Buses[i].Get() : nullptr;
+		return (i < AUDIO_BUS_KIND_COUNT) ? Buses[i].Get() : nullptr;
 	}
 };
 
@@ -1047,7 +1047,7 @@ bool CMiniAudioDevice::Initialize(const AudioDeviceDesc& desc)
 			m_impl->Backend, EAudioBusKind::Master, nullptr, EMiniAudioBackendChildKind::MasterBus);
 		ma_sound_group* masterGroup = m_impl->Buses[masterIdx] ? m_impl->Buses[masterIdx]->GetGroup() : nullptr;
 
-		for (std::size_t i = 0; i < static_cast<std::size_t>(EAudioBusKind::Count); ++i)
+		for (std::size_t i = 0; i < AUDIO_BUS_KIND_COUNT; ++i)
 		{
 			if (i == masterIdx) continue;
 			m_impl->Buses[i] = MakeOwnerPtr<CMiniAudioBus>(
@@ -1085,7 +1085,10 @@ OwnerPtr<IAudioPlayer> CMiniAudioDevice::CreatePlayer(const AudioPlayerDesc& des
 {
 	if (nullptr != desc.StreamPathUtf8)
 	{
-		return CreatePlayerFromFile(desc.StreamPathUtf8);
+		// desc.Bus 는 라우팅 대상 버스다. 예전엔 여기서 버려져 무엇을 지정하든 Master 로
+		// 갔다 — 카테고리 볼륨이 동작하지 않던 원인.
+		const EAudioBusKind kind = desc.Bus.IsValid() ? desc.Bus->GetKind() : EAudioBusKind::Master;
+		return CreatePlayerFromFile(desc.StreamPathUtf8, kind);
 	}
 
 	// PCM 기반 생성은 아직 구현 전이다. 경로도 PCM도 없는 기존 호출에는 안전한
@@ -1128,7 +1131,7 @@ SafePtr<IAudioBus> CMiniAudioDevice::GetBus(EAudioBusKind kind)
 {
 	if (!m_impl) return SafePtr<IAudioBus>();
 	const std::size_t i = static_cast<std::size_t>(kind);
-	if (i >= static_cast<std::size_t>(EAudioBusKind::Count)) return SafePtr<IAudioBus>();
+	if (i >= AUDIO_BUS_KIND_COUNT) return SafePtr<IAudioBus>();
 	return m_impl->Buses[i] ? m_impl->Buses[i].GetSafePtr() : SafePtr<IAudioBus>();
 }
 

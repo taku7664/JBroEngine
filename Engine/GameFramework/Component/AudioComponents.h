@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Core/Asset/AssetTypes.h"   // AssetGuid
-#include "Core/Audio/AudioTypes.h"   // EAudioAttenuationModel
+#include "Core/Audio/AudioTypes.h"   // EAudioAttenuationModel / EAudioBusKind
 #include "GameFramework/Component/Component.h"
 
 #include "Utillity/Types/Array.h"
@@ -33,6 +33,14 @@ class AudioPlayer final : public CComponent
 public:
 	// 재생할 사운드 자산.
 	AssetGuid AudioGuid;
+
+	// 라우팅될 믹싱 버스. 카테고리 볼륨(옵션 화면의 BGM/SFX 슬라이더)은 이 버스 단위로
+	// 걸린다 — 스크립트에서 `Script.Audio->GetBus(EAudioBusKind::Music)->SetVolume(v)`.
+	// 표준 버스는 전부 Master 하위라 Master 볼륨이 그대로 위에 곱해진다.
+	// 기본값이 SFX 인 건 배치되는 AudioPlayer 대부분이 효과음이기 때문이다. 버스를
+	// 저작하지 않은 기존 씬은 이 기본값으로 읽히는데, SFX 버스 초기 볼륨이 1.0 이고
+	// Master 하위이므로 **들리는 결과는 예전(Master 직결)과 같다**.
+	EAudioBusKind Bus = EAudioBusKind::SFX;
 
 	// DSP 효과 에셋(reverb 등) 체인. 리스트 순서대로 적용된다:
 	//   sound -> EffectGuids[0] -> EffectGuids[1] -> ... -> endpoint.

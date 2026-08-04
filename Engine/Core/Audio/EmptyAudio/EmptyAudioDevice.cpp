@@ -6,7 +6,7 @@ bool CEmptyAudioDevice::Initialize(const AudioDeviceDesc&)
 	m_listener = MakeOwnerPtr<CEmptyAudioListener>();
 
 	// 표준 믹싱 버스 — no-op 백엔드라 상태만 보관. GetBus 진입점 일관성 유지.
-	for (std::size_t i = 0; i < static_cast<std::size_t>(EAudioBusKind::Count); ++i)
+	for (std::size_t i = 0; i < AUDIO_BUS_KIND_COUNT; ++i)
 	{
 		m_buses[i] = MakeOwnerPtr<CEmptyAudioBus>(static_cast<EAudioBusKind>(i));
 	}
@@ -32,7 +32,7 @@ OwnerPtr<IAudioBus> CEmptyAudioDevice::CreateBus(EAudioBusKind kind)
 SafePtr<IAudioBus> CEmptyAudioDevice::GetBus(EAudioBusKind kind)
 {
 	const std::size_t i = static_cast<std::size_t>(kind);
-	if (i >= static_cast<std::size_t>(EAudioBusKind::Count)) return SafePtr<IAudioBus>();
+	if (i >= AUDIO_BUS_KIND_COUNT) return SafePtr<IAudioBus>();
 	return m_buses[i] ? m_buses[i].GetSafePtr() : SafePtr<IAudioBus>();
 }
 

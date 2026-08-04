@@ -87,6 +87,7 @@ CAudioSystem::PlayerInstance& CAudioSystem::PlayerInstance::operator=(PlayerInst
 	ResetBackendResources();
 	Player = std::move(other.Player);
 	SourceGuid = std::move(other.SourceGuid);
+	Bus = other.Bus;
 	EffectGuids = std::move(other.EffectGuids);
 	Effects = std::move(other.Effects);
 	EffectGenerations = std::move(other.EffectGenerations);
@@ -230,11 +231,16 @@ void CAudioSystem::OnUpdate(CGameCanvas& canvas)
 			auto [it, inserted] = m_instances.try_emplace(key);
 			PlayerInstance& instance = it->second;
 			instance.LastSeenFrame = m_frameStamp;
-			const bool sourceChanged = inserted || instance.SourceGuid != player.AudioGuid;
+			// 버스도 자산과 같이 취급한다 — 둘 다 backend 인스턴스를 만들 때 확정되는
+			// 값이라 살아 있는 player 에 나중에 반영할 수 없다(재생 위치는 초기화된다).
+			const bool sourceChanged = inserted
+				|| instance.SourceGuid != player.AudioGuid
+				|| instance.Bus != player.Bus;
 			if (sourceChanged)
 			{
 				instance.ResetBackendResources();
 				instance.SourceGuid = player.AudioGuid;
+				instance.Bus = player.Bus;
 				instance.State = effectivelyEnabled
 					? PlayerInstance::EState::PendingCreate
 					: PlayerInstance::EState::Inactive;
@@ -286,6 +292,9 @@ void CAudioSystem::OnUpdate(CGameCanvas& canvas)
 				const std::string utf8Path(reinterpret_cast<const char*>(u8.c_str()), u8.size());
 				AudioPlayerDesc desc;
 				desc.StreamPathUtf8 = utf8Path.c_str();
+				// 버스로 라우팅 — 이게 없으면 전부 Master 로 붙어 카테고리 볼륨이 무의미해진다.
+				// 디바이스가 그 버스를 못 주면 desc.Bus 는 비고 backend 가 Master 로 떨군다.
+				desc.Bus = m_device->GetBus(player.Bus);
 				OwnerPtr<IAudioPlayer> created = m_device->CreatePlayer(desc);
 				if (false == bool(created))
 				{

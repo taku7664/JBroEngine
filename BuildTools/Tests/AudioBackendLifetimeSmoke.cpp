@@ -163,8 +163,68 @@ int main()
     effectAfterDevice.Reset();
     busAfterDevice.Reset();
 
+    // ── Bus routing ────────────────────────────────────────────────────────
+    // Standard buses back the per-category volume that AudioPlayer components
+    // route into. Two things are easy to break and impossible to hear in a log:
+    // the bus array losing its last entry (AUDIO_BUS_KIND_COUNT is derived from
+    // the last enumerator, so an off-by-one drops Custom), and CreatePlayer
+    // ignoring desc.Bus the way it used to.
+    {
+        CMiniAudioDevice device;
+        AudioDeviceDesc desc;
+        if (false == device.Initialize(desc))
+        {
+            std::cerr << "Audio device initialization failed for bus routing coverage.\n";
+            return 6;
+        }
+
+        constexpr std::array<EAudioBusKind, 6> kStandardBuses = {
+            EAudioBusKind::Master,
+            EAudioBusKind::Music,
+            EAudioBusKind::SFX,
+            EAudioBusKind::Voice,
+            EAudioBusKind::UI,
+            EAudioBusKind::Custom,
+        };
+        static_assert(kStandardBuses.size() == AUDIO_BUS_KIND_COUNT,
+            "A bus kind was added or removed without updating this coverage list.");
+
+        for (const EAudioBusKind kind : kStandardBuses)
+        {
+            SafePtr<IAudioBus> bus = device.GetBus(kind);
+            if (false == bus.IsValid() || bus->GetKind() != kind)
+            {
+                std::cerr << "Standard bus " << static_cast<int>(kind) << " is missing or mislabelled.\n";
+                return 7;
+            }
+        }
+
+        SafePtr<IAudioBus> musicBus = device.GetBus(EAudioBusKind::Music);
+        AudioPlayerDesc playerDesc;
+        playerDesc.StreamPathUtf8 = wavePathUtf8.c_str();
+        playerDesc.Bus = musicBus;
+        OwnerPtr<IAudioPlayer> routed = device.CreatePlayer(playerDesc);
+        if (false == bool(routed))
+        {
+            std::cerr << "CreatePlayer refused a bus-routed descriptor.\n";
+            return 8;
+        }
+        // Category volume must reach the bus a player was routed into. This only
+        // proves the call path survives; whether it is audible is a listening test.
+        musicBus->SetVolume(0.5f);
+        if (musicBus->GetVolume() != 0.5f)
+        {
+            std::cerr << "Bus volume did not stick.\n";
+            return 9;
+        }
+
+        routed.Reset();
+        device.Finalize();
+    }
+
     std::error_code removeError;
     std::filesystem::remove(wavePath, removeError);
     std::cout << "100/100 audio backend lifetime iterations passed.\n";
+    std::cout << "Audio bus routing checks passed.\n";
     return 0;
 }

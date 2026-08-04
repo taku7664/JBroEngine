@@ -100,6 +100,6 @@ public:
 
 private:
 	OwnerPtr<CEmptyAudioListener> m_listener;
-	OwnerPtr<CEmptyAudioBus>      m_buses[static_cast<std::size_t>(EAudioBusKind::Count)];
+	OwnerPtr<CEmptyAudioBus>      m_buses[AUDIO_BUS_KIND_COUNT];
 	float                         m_master = 1.0f;
 };

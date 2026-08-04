@@ -135,6 +135,15 @@ using GameObject = CGameObject;
 // Script.FileSystem 은 에셋 **읽기** 전용이다 — 게임 데이터를 그쪽에 쓸 수 없다.
 #include "Core/Save/ISaveStorage.h"
 
+// ── 오디오 ──────────────────────────────────────────────────────────────────
+// 옵션 화면의 카테고리 볼륨은 버스 단위로 건다:
+//   if (SafePtr<IAudioBus> music = Script.Audio->GetBus(EAudioBusKind::Music))
+//       music->SetVolume(slider);
+// 어떤 소리가 어느 버스로 갈지는 AudioPlayer 컴포넌트의 Bus 프로퍼티가 정한다.
+#include "Core/Audio/IAudioDevice.h"
+#include "Core/Audio/IAudioBus.h"
+#include "Core/Audio/IAudioPlayer.h"
+
 // ── 입력 ────────────────────────────────────────────────────────────────────
 #include "Core/Input/Input.h"          // Script.Input facade (전역설정/진동/연결조회)
 #include "Core/Input/IInputHandler.h"  // IInputHandler + InputHandler<Layer,Order> (핸들러 상속용)
