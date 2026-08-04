@@ -384,6 +384,9 @@ bool CReflectionRegistry::RegisterScript(const ScriptRegisterDesc& desc, const s
 		prop.RefCategory  = d.RefCategory;
 		prop.RefTypeName  = d.RefTypeName;
 		prop.ExpectedAssetType = d.ExpectedAssetType;
+		// 이름표는 생성 코드가 만든 정적 EnumTypeMeta 를 가리킨다(게임 DLL 소유).
+		// 여기서 빠뜨리면 스크립트 enum 이 인스펙터에서 이름 없는 정수로 떨어진다.
+		prop.Enum         = d.Enum;
 		typeInfo.Properties.push_back(prop);
 	}
 

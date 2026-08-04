@@ -514,6 +514,7 @@
     <ClInclude Include="Editor\LiveCompile\Windows\WindowsDynamicLibrary.h" />
     <ClInclude Include="Editor\ScriptModule\ScriptModuleLoader.h" />
     <ClInclude Include="Editor\Project\GameScriptProjectGenerator.h" />
+    <ClInclude Include="Editor\Project\ScriptEnumScanner.h" />
     <ClInclude Include="Editor\Project\ProjectManager.h" />
     <ClInclude Include="Editor\Project\ImGuiIniMigration.h" />
     <ClInclude Include="Editor\Project\AssetDatabase.h" />
@@ -827,6 +828,9 @@
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="Editor\Project\GameScriptProjectGenerator.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Editor\Project\ScriptEnumScanner.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="Editor\Project\ProjectManager.cpp">

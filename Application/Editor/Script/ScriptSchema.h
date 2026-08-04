@@ -73,10 +73,12 @@ namespace ScriptSchema
 
 	std::vector<RefTargetInfo>      ArrayElementTargets(); // Array/Table: 인자로 쓸 수 있는 스칼라 타입
 	std::vector<RefTargetInfo>      TableKeyTargets();     // Table 키: 위에서 해시 불가 타입을 뺀 것
+	std::vector<RefTargetInfo>      EnumTargets();         // Enum: 현재 프로젝트 Scripts/ 의 enum class
 
 	bool        IsRefToken(const std::string& token);         // "Ref<" 접두
 	bool        IsArrayToken(const std::string& token);       // "Array"
 	bool        IsTableToken(const std::string& token);       // "Table"
+	bool        IsEnumToken(const std::string& token);        // "Enum"
 	bool        NeedsTargetCombo(const std::string& token);   // Component/Asset/Array/Table 만 true
 	bool        NeedsValueCombo(const std::string& token);    // Table 만 true(3차 콤보)
 	bool        SupportsRange(const std::string& token);      // 숫자/각도 타입만 true

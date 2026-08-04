@@ -1,7 +1,10 @@
 #include "pch.h"
 #include "ScriptSchema.h"
 
+#include "Editor/EditorContext.h"
 #include "Engine/Core/EngineCore.h"
+#include "Engine/Editor/Project/ProjectManager.h"
+#include "Engine/Editor/Project/ScriptEnumScanner.h"
 #include "Engine/GameFramework/Reflection/ReflectionRegistry.h"
 
 #include <array>
@@ -25,6 +28,8 @@ namespace ScriptSchema
 			"Ref<GameObject>", "Ref<Component>", "Ref<Asset>",
 			"Bool", "Int32", "Int64", "UInt32", "UInt64", "Float", "Degree", "Radian",
 			"String", "Vector2", "Rect", "Color", "Layout2D",
+			// Enum — 2차 콤보가 Scripts/ 에 선언된 enum class 목록을 채운다.
+			"Enum",
 			// 컨테이너 — Ref 처럼 2차 콤보(원소/키 타입)를 함께 쓴다. Table 은 값 타입 콤보가 하나 더 붙는다.
 			"Array", "Table",
 		};
@@ -103,6 +108,18 @@ namespace ScriptSchema
 				if (typeName == a.TypeName) return a.Include;
 			}
 			return nullptr;
+		}
+
+		// 현재 프로젝트 Scripts/ 의 enum class 목록. 코드 생성기와 같은 스캐너를 쓴다 —
+		// 여기서 따로 파싱하면 "생성기는 아는데 콤보엔 안 뜨는" 목록이 또 생긴다.
+		std::vector<ScriptEnumInfo> ProjectScriptEnums()
+		{
+			SafePtr<CProjectManager> projectManager = EditorContext::GetProjectManager();
+			if (false == projectManager.IsValid())
+			{
+				return {};
+			}
+			return ScanScriptEnums(projectManager->GetScriptPath());
 		}
 
 		// 옛 헤더가 쓰는 폭 없는 별칭을 콤보 목록에 있는 실체 이름으로 바꾼다.
@@ -196,7 +213,8 @@ namespace ScriptSchema
 	bool IsTableToken(const std::string& t)      { return t == "Table"; }
 	bool NeedsTargetCombo(const std::string& t)
 	{
-		return t == "Ref<Component>" || t == "Ref<Asset>" || IsArrayToken(t) || IsTableToken(t);
+		return t == "Ref<Component>" || t == "Ref<Asset>" || IsArrayToken(t) || IsTableToken(t)
+			|| IsEnumToken(t);
 	}
 	bool NeedsValueCombo(const std::string& t)   { return IsTableToken(t); }
 
@@ -211,6 +229,21 @@ namespace ScriptSchema
 		}
 		return out;
 	}
+
+	std::vector<RefTargetInfo> EnumTargets()
+	{
+		std::vector<RefTargetInfo> out;
+		for (const ScriptEnumInfo& e : ProjectScriptEnums())
+		{
+			// enum 은 스크립트 헤더에 선언돼 있고 그 헤더는 자기 자신이므로 include 가 없다
+			// (다른 헤더의 enum 을 쓰려면 사용자가 직접 include 한다 — Ref 와 달리 코드젠이
+			//  대신 넣어 주지 않는다).
+			out.push_back({ e.ClassName, e.ClassName, "" });
+		}
+		return out;
+	}
+
+	bool IsEnumToken(const std::string& t) { return t == "Enum"; }
 
 	std::vector<RefTargetInfo> TableKeyTargets()
 	{
@@ -251,6 +284,7 @@ namespace ScriptSchema
 			return;
 		}
 		const std::vector<RefTargetInfo> targets =
+			IsEnumToken(p.TypeToken)      ? EnumTargets() :
 			(p.TypeToken == "Ref<Asset>") ? AssetTargets() : ComponentTargets();
 		if (targets.empty()) { p.RefTarget = ""; p.RefInclude = ""; return; }
 		p.RefTarget  = targets.front().TypeName;
@@ -262,6 +296,8 @@ namespace ScriptSchema
 		if (p.TypeToken == "Ref<GameObject>") return "Ref<GameObject>";
 		if (IsArrayToken(p.TypeToken))        return "Array<" + p.RefTarget + ">";
 		if (IsTableToken(p.TypeToken))        return "Table<" + p.RefTarget + ", " + p.ValueTarget + ">";
+		// enum 은 감싸는 템플릿이 없다 — 고른 enum 클래스 이름이 곧 필드 타입이다.
+		if (IsEnumToken(p.TypeToken))         return p.RefTarget;
 		if (NeedsTargetCombo(p.TypeToken))    return "Ref<" + p.RefTarget + ">";
 		return p.TypeToken;
 	}
@@ -360,6 +396,8 @@ namespace ScriptSchema
 	ParsedScript ParseHeaderFile(const File::Path& headerPath)
 	{
 		ParsedScript result;
+		// 프로퍼티마다 다시 스캔하지 않도록 파일당 한 번만 읽는다(디스크를 훑는 작업이다).
+		const std::vector<RefTargetInfo> enumTargets = EnumTargets();
 		std::ifstream file(headerPath, std::ios::in | std::ios::binary);
 		if (false == file.is_open()) return result;
 		const std::string text((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
@@ -447,6 +485,19 @@ namespace ScriptSchema
 			else
 			{
 				p.TypeToken = NormalizeScalarToken(cppType);   // 스칼라
+				// Scripts/ 에 선언된 enum 이면 "Enum" 토큰 + 2차 콤보 대상으로 되돌린다.
+				// 안 그러면 콤보가 현재 값을 못 찾아 첫 항목으로 떨어지고, 기록할 때
+				// 헤더의 enum 필드가 엉뚱한 타입으로 덮인다.
+				for (const RefTargetInfo& e : enumTargets)
+				{
+					if (p.TypeToken == e.TypeName)
+					{
+						p.TypeToken = "Enum";
+						p.RefTarget = e.TypeName;
+						p.RefInclude = "";
+						break;
+					}
+				}
 			}
 
 			result.Properties.push_back(std::move(p));

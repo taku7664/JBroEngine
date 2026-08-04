@@ -67,7 +67,7 @@ namespace ScriptSchemaUI
 			// Array 도 2차 콤보를 쓰므로 같이 초기화해야 한다 — 안 그러면 이전 타입의
 			// 대상(예: CSpriteAsset)이 원소 타입 자리에 남아 Array<CSpriteAsset> 가 된다.
 			if (ScriptSchema::IsRefToken(p.TypeToken) || ScriptSchema::IsArrayToken(p.TypeToken)
-				|| ScriptSchema::IsTableToken(p.TypeToken))
+				|| ScriptSchema::IsTableToken(p.TypeToken) || ScriptSchema::IsEnumToken(p.TypeToken))
 			{
 				ScriptSchema::ResetRefTargetForToken(p);
 			}
@@ -80,6 +80,7 @@ namespace ScriptSchemaUI
 			const std::vector<ScriptSchema::RefTargetInfo> targets =
 				ScriptSchema::IsArrayToken(p.TypeToken) ? ScriptSchema::ArrayElementTargets() :
 				ScriptSchema::IsTableToken(p.TypeToken) ? ScriptSchema::TableKeyTargets() :
+				ScriptSchema::IsEnumToken(p.TypeToken)  ? ScriptSchema::EnumTargets() :
 				(p.TypeToken == "Ref<Asset>")           ? ScriptSchema::AssetTargets()
 				                                        : ScriptSchema::ComponentTargets();
 			std::vector<std::string> tLabels;

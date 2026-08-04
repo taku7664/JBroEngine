@@ -1040,6 +1040,9 @@
     <ClInclude Include="Editor\Project\GameScriptProjectGenerator.h">
       <Filter>Header\Editor</Filter>
     </ClInclude>
+    <ClInclude Include="Editor\Project\ScriptEnumScanner.h">
+      <Filter>Header\Editor</Filter>
+    </ClInclude>
     <ClInclude Include="Editor\Project\ProjectManager.h">
       <Filter>Header\Editor</Filter>
     </ClInclude>
@@ -1667,6 +1670,9 @@
       <Filter>Source\Editor</Filter>
     </ClCompile>
     <ClCompile Include="Editor\Project\GameScriptProjectGenerator.cpp">
+      <Filter>Source\Editor</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\Project\ScriptEnumScanner.cpp">
       <Filter>Source\Editor</Filter>
     </ClCompile>
     <ClCompile Include="Editor\Project\ProjectManager.cpp">

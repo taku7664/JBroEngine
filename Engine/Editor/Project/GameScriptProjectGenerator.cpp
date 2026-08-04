@@ -3,6 +3,7 @@
 
 #include "Core/Asset/AssetTypeRules.h"
 #include "Core/Logging/LoggerInternal.h"
+#include "Editor/Project/ScriptEnumScanner.h"
 
 #include <algorithm>
 #include <cctype>
@@ -39,6 +40,8 @@ namespace
 		std::string ArrayElementCppType;   // 원소의 C++ 타입("Float" 등)
 		std::string ArrayElementEnum;      // 원소의 EReflectPropertyType
 
+		bool        IsEnum = false;        // 스크립트가 선언한 enum class 필드인가
+
 		bool        IsTable = false;       // Table<K,V> 필드인가
 		std::string TableKeyCppType;
 		std::string TableKeyEnum;
@@ -52,6 +55,10 @@ namespace
 		std::string ClassName;
 		std::vector<ScriptPropParse> Props;   // JPROP 멤버 (없으면 레거시 REFLECT_FIELD 경로)
 	};
+
+	// enum 목록은 ScriptEnumScanner 가 만든다(저작 UI 와 공유 — 규칙이 갈라지면
+	// "코드는 되는데 에디터엔 안 뜨는" 상태가 된다).
+	using ScriptEnumDesc = ScriptEnumInfo;
 
 	// 컨테이너 타입 인자를 받아 오는 자리. Array<E> 는 Element 만, Table<K,V> 는 Key/Value 만 채운다.
 	struct ContainerTypeArgs
@@ -93,7 +100,8 @@ namespace
 	bool MapScriptPropType(
 		std::string cppType,
 		std::string& outEnum,
-		ContainerTypeArgs* outArgs = nullptr)
+		ContainerTypeArgs* outArgs = nullptr,
+		const std::vector<ScriptEnumDesc>* scriptEnums = nullptr)
 	{
 		// 공백 제거(예: "Vector2" -> "Vector2").
 		cppType.erase(std::remove_if(cppType.begin(), cppType.end(),
@@ -131,6 +139,21 @@ namespace
 		// 인스턴스 필드로 두면 호스트↔게임 DLL POD 경계 규칙을 어긴다. 미지원으로 떨어뜨려
 		// `Ref<CXxxAsset>` 으로 쓰게 한다(EReflectPropertyType::AssetGuid 자체는 빌트인
 		// 컴포넌트가 계속 쓰므로 남아 있다).
+		// 스크립트가 선언한 enum class. 이름표는 생성기가 정적 테이블로 뽑아 두므로
+		// 게임 DLL 이 magic_enum 을 가질 필요가 없다.
+		// 컨테이너 안에는 넣지 못한다 — 원소 desc 에는 enum 메타를 실을 자리가 없다.
+		// (그래서 이 목록은 재귀 호출로 내려가지 않는다.)
+		if (scriptEnums)
+		{
+			for (const ScriptEnumDesc& e : *scriptEnums)
+			{
+				if (cppType == e.ClassName)
+				{
+					outEnum = "EReflectPropertyType::Enum";
+					return true;
+				}
+			}
+		}
 		// Ref<X> — 오브젝트/컴포넌트/스크립트/에셋 참조. 카테고리/타입명은 호출부에서 추출.
 		if (cppType.rfind("Ref<", 0) == 0 && cppType.back() == '>') { outEnum = "EReflectPropertyType::Ref"; return true; }
 		// Ref 인자는 컨테이너에 못 넣는다 — 인자 desc 는 GetScalarReflectTypeDesc 로만 만드는데
@@ -437,28 +460,19 @@ namespace
 		return path.generic_string();
 	}
 
-	std::vector<ScriptClassDesc> CollectScriptClasses(const ProjectInfo& projectInfo)
+	// 스캔한 스크립트 헤더 1개(경로 + 본문). 본문을 들고 도는 건 두 번 훑기 때문이다 —
+	// enum 은 어느 헤더에서 선언되든 다른 헤더의 JPROP 이 쓸 수 있으므로, 프로퍼티 타입을
+	// 해석하기 전에 전체 enum 목록이 먼저 모여 있어야 한다.
+	struct ScriptHeaderFile
 	{
-		std::vector<ScriptClassDesc> scripts;
-		const std::filesystem::path scriptPath = projectInfo.ScriptPath;
-		if (scriptPath.empty())
-		{
-			return scripts;
-		}
+		std::filesystem::path Path;
+		std::string           Text;
+	};
 
+	std::vector<ScriptHeaderFile> GatherScriptHeaders(const std::filesystem::path& scriptPath)
+	{
+		std::vector<ScriptHeaderFile> headers;
 		std::error_code errorCode;
-		if (false == std::filesystem::exists(scriptPath, errorCode) || false == std::filesystem::is_directory(scriptPath, errorCode))
-		{
-			return scripts;
-		}
-
-		// "JBRO_SCRIPT <ClassName> [final] (':' 또는 '{')" 형태를 정의로 인정한다.
-		// 주의: C++ 의 'final' 은 클래스명 "뒤"에 온다(JBRO_SCRIPT Foo final : ...).
-		// (예전 정규식은 final 을 이름 "앞"에서 찾아, final 을 쓰는 모든 스크립트가
-		//  스캔에서 누락 → 레지스트리가 비어 "등록된 스크립트 없음" 이 떴다.)
-		// forward declaration("JBRO_SCRIPT Foo;") 은 ';' 라 자연스럽게 제외된다.
-		const std::regex scriptClassRegex(
-			R"(\bJBRO_SCRIPT\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:final\b\s*)?(?::|\{))");
 		for (const std::filesystem::directory_entry& entry : std::filesystem::recursive_directory_iterator(scriptPath, errorCode))
 		{
 			if (errorCode)
@@ -485,7 +499,47 @@ namespace
 				continue;
 			}
 
-			const std::string text((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+			ScriptHeaderFile header;
+			header.Path = entry.path();
+			header.Text.assign((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+			headers.push_back(std::move(header));
+		}
+		return headers;
+	}
+
+	std::vector<ScriptClassDesc> CollectScriptClasses(
+		const ProjectInfo& projectInfo,
+		std::vector<ScriptEnumDesc>& outEnums)
+	{
+		std::vector<ScriptClassDesc> scripts;
+		outEnums.clear();
+		const std::filesystem::path scriptPath = projectInfo.ScriptPath;
+		if (scriptPath.empty())
+		{
+			return scripts;
+		}
+
+		std::error_code errorCode;
+		if (false == std::filesystem::exists(scriptPath, errorCode) || false == std::filesystem::is_directory(scriptPath, errorCode))
+		{
+			return scripts;
+		}
+
+		const std::vector<ScriptHeaderFile> headers = GatherScriptHeaders(scriptPath);
+		// enum 은 어느 헤더에서 선언되든 다른 헤더의 JPROP 이 쓸 수 있으므로,
+		// 프로퍼티 타입을 해석하기 전에 전체 목록이 먼저 모여 있어야 한다.
+		outEnums = ScanScriptEnums(scriptPath);
+
+		// "JBRO_SCRIPT <ClassName> [final] (':' 또는 '{')" 형태를 정의로 인정한다.
+		// 주의: C++ 의 'final' 은 클래스명 "뒤"에 온다(JBRO_SCRIPT Foo final : ...).
+		// (예전 정규식은 final 을 이름 "앞"에서 찾아, final 을 쓰는 모든 스크립트가
+		//  스캔에서 누락 → 레지스트리가 비어 "등록된 스크립트 없음" 이 떴다.)
+		// forward declaration("JBRO_SCRIPT Foo;") 은 ';' 라 자연스럽게 제외된다.
+		const std::regex scriptClassRegex(
+			R"(\bJBRO_SCRIPT\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:final\b\s*)?(?::|\{))");
+		for (const ScriptHeaderFile& header : headers)
+		{
+			const std::string& text = header.Text;
 
 			// 이 파일의 클래스 정의 위치들을 수집한다(여러 클래스 가능).
 			struct LocalClass { std::size_t Pos; ScriptClassDesc Desc; };
@@ -495,8 +549,8 @@ namespace
 			{
 				LocalClass lc;
 				lc.Pos = static_cast<std::size_t>(it->position(0));
-				lc.Desc.HeaderPath = std::filesystem::relative(entry.path(), projectInfo.ContentPath, errorCode);
-				if (errorCode) { errorCode.clear(); lc.Desc.HeaderPath = entry.path().filename(); }
+				lc.Desc.HeaderPath = std::filesystem::relative(header.Path, projectInfo.ContentPath, errorCode);
+				if (errorCode) { errorCode.clear(); lc.Desc.HeaderPath = header.Path.filename(); }
 				lc.Desc.ClassName = (*it)[1].str();
 				localClasses.push_back(std::move(lc));
 			}
@@ -505,7 +559,7 @@ namespace
 			// (예: Range(0,100)). 각 JPROP 은 바로 앞에 선언된 클래스에 귀속시킨다.
 			static const std::regex jpropRegex(
 				R"(\bJPROP\s*\(((?:[^()]|\([^()]*\))*)\)\s*([A-Za-z_][A-Za-z0-9_:]*(?:\s*<[^>]*>)?)\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:=\s*[^;]*?)?\s*;)");
-			const std::string fileName = entry.path().filename().generic_string();
+			const std::string fileName = header.Path.filename().generic_string();
 
 			// 파싱 성공/실패를 비교하기 위해 파일 내 JPROP 마커 총 개수를 센다.
 			// (sregex_iterator 는 regex 포인터를 보관하므로 임시 regex 금지 — named 사용.)
@@ -537,10 +591,11 @@ namespace
 
 				// 미지원 타입 — 등록 제외 + 경고.
 				ContainerTypeArgs containerArgs;
-				if (false == MapScriptPropType(prop.CppType, prop.EnumType, &containerArgs))
+				if (false == MapScriptPropType(prop.CppType, prop.EnumType, &containerArgs, &outEnums))
 				{
 					CSystemLog::Warning("[JPROP] " + ownerName + "." + prop.Name
-						+ ": unsupported type '" + prop.CppType + "' - excluded. Supported: Bool, Int, UInt, Float, Degree, Radian, String, Vector2, Rect, Asset, Ref<T>, Array<T>, Table<K,V>, "
+						+ ": unsupported type '" + prop.CppType + "' - excluded. Supported: Bool, Int32, Int64, UInt32, UInt64, Float, Degree, Radian, String, Vector2, Rect, Color, Layout2D, "
+						+ "enum class declared in Scripts/, Ref<T>, Array<T>, Table<K,V>, "
 						+ "bool, int, unsigned int, int64_t, uint64_t, float, std::string.");
 					continue;
 				}
@@ -562,6 +617,10 @@ namespace
 				else if (prop.EnumType == "EReflectPropertyType::Array")
 				{
 					prop.IsArray = true;
+				}
+				else if (prop.EnumType == "EReflectPropertyType::Enum")
+				{
+					prop.IsEnum = true;
 				}
 				ParseScriptPropAttributes((*it)[1].str(), prop);
 				EAssetType expectedAssetType = EAssetType::Unknown;
@@ -982,7 +1041,8 @@ void UnregisterGeneratedScripts(CReflectionRegistry& registry);
 
 std::string CGameScriptProjectGenerator::BuildGeneratedRegistrySource(const ProjectInfo& projectInfo) const
 {
-	const std::vector<ScriptClassDesc> scripts = CollectScriptClasses(projectInfo);
+	std::vector<ScriptEnumDesc> scriptEnums;
+	const std::vector<ScriptClassDesc> scripts = CollectScriptClasses(projectInfo, scriptEnums);
 
 	std::ostringstream out;
 	out << R"(#include "pch.h"
@@ -991,12 +1051,117 @@ std::string CGameScriptProjectGenerator::BuildGeneratedRegistrySource(const Proj
 #include "GameFramework/Reflection/ReflectionRegistry.h"
 
 #include <cstddef>
+#include <cstdint>
+#include <cstring>
 #include <vector>
 )";
 
 	for (const ScriptClassDesc& script : scripts)
 	{
 		out << "#include \"" << ToIncludePath(script.HeaderPath) << "\"\r\n";
+	}
+
+	// ── enum 이름표 ─────────────────────────────────────────────────────────
+	// 게임 DLL 에는 magic_enum 이 없다(호스트 전용). 대신 여기서 이름 배열과 값 배열을
+	// 정적으로 뱉는다. 값은 enumerator 를 그대로 적어 컴파일러가 계산하므로 `= 1 << 3`
+	// 같은 초기화식도 그대로 맞는다. 정적 수명이라 DLL 이 살아 있는 동안 유효하고,
+	// 언로드 전에 UnregisterGeneratedScripts 가 등록을 걷어내므로 댕글링이 없다.
+	if (false == scriptEnums.empty())
+	{
+		out << R"(
+namespace
+{
+	int JBroEnumIndexOf(const std::int64_t* values, int count, const void* field, std::size_t size)
+	{
+		std::int64_t raw = 0;
+		std::memcpy(&raw, field, size < sizeof(raw) ? size : sizeof(raw));
+		for (int i = 0; i < count; ++i)
+		{
+			if (values[i] == raw)
+			{
+				return i;
+			}
+		}
+		return -1;
+	}
+
+	void JBroEnumWriteIndex(const std::int64_t* values, int count, void* field, std::size_t size, int index)
+	{
+		if (index < 0 || index >= count)
+		{
+			return;
+		}
+		const std::int64_t raw = values[index];
+		std::memcpy(field, &raw, size < sizeof(raw) ? size : sizeof(raw));
+	}
+}
+)";
+		for (const ScriptEnumDesc& e : scriptEnums)
+		{
+			const std::string prefix = "JBroEnum_" + e.ClassName;
+			out << "\r\nnamespace\r\n{\r\n";
+
+			out << "\tconst char* const " << prefix << "_Names[] = {\r\n";
+			for (const std::string& name : e.Enumerators)
+			{
+				out << "\t\t\"" << EscapeCppString(name) << "\",\r\n";
+			}
+			out << "\t};\r\n";
+
+			out << "\tconst std::int64_t " << prefix << "_Values[] = {\r\n";
+			for (const std::string& name : e.Enumerators)
+			{
+				out << "\t\tstatic_cast<std::int64_t>(" << e.ClassName << "::" << name << "),\r\n";
+			}
+			out << "\t};\r\n";
+
+			out << "\tconstexpr int " << prefix << "_Count = "
+				<< e.Enumerators.size() << ";\r\n\r\n";
+
+			out << "\tint " << prefix << "_ToIndex(const void* field, std::size_t size)\r\n"
+				<< "\t{\r\n"
+				<< "\t\treturn JBroEnumIndexOf(" << prefix << "_Values, " << prefix << "_Count, field, size);\r\n"
+				<< "\t}\r\n\r\n";
+
+			out << "\tvoid " << prefix << "_SetIndex(void* field, std::size_t size, int index)\r\n"
+				<< "\t{\r\n"
+				<< "\t\tJBroEnumWriteIndex(" << prefix << "_Values, " << prefix << "_Count, field, size, index);\r\n"
+				<< "\t}\r\n\r\n";
+
+			out << "\tconst char* " << prefix << "_ToName(const void* field, std::size_t size)\r\n"
+				<< "\t{\r\n"
+				<< "\t\tconst int index = " << prefix << "_ToIndex(field, size);\r\n"
+				<< "\t\treturn index < 0 ? nullptr : " << prefix << "_Names[index];\r\n"
+				<< "\t}\r\n\r\n";
+
+			out << "\tbool " << prefix << "_FromName(void* field, std::size_t size, const char* name)\r\n"
+				<< "\t{\r\n"
+				<< "\t\tif (nullptr == name)\r\n"
+				<< "\t\t{\r\n"
+				<< "\t\t\treturn false;\r\n"
+				<< "\t\t}\r\n"
+				<< "\t\tfor (int i = 0; i < " << prefix << "_Count; ++i)\r\n"
+				<< "\t\t{\r\n"
+				<< "\t\t\tif (0 == std::strcmp(" << prefix << "_Names[i], name))\r\n"
+				<< "\t\t\t{\r\n"
+				<< "\t\t\t\t" << prefix << "_SetIndex(field, size, i);\r\n"
+				<< "\t\t\t\treturn true;\r\n"
+				<< "\t\t\t}\r\n"
+				<< "\t\t}\r\n"
+				<< "\t\treturn false;\r\n"
+				<< "\t}\r\n\r\n";
+
+			out << "\tconst EnumTypeMeta " << prefix << "_Meta = {\r\n"
+				<< "\t\t" << prefix << "_Names,\r\n"
+				<< "\t\t" << prefix << "_Count,\r\n"
+				<< "\t\t&" << prefix << "_ToIndex,\r\n"
+				<< "\t\t&" << prefix << "_SetIndex,\r\n"
+				<< "\t\t&" << prefix << "_ToName,\r\n"
+				<< "\t\t&" << prefix << "_FromName,\r\n"
+				<< "\t};\r\n";
+
+			out << "}\r\n";
+		}
 	}
 
 	out << R"(
@@ -1051,6 +1216,10 @@ void RegisterGeneratedScripts(CReflectionRegistry& registry)
 			{
 				descriptor = "&GetScalarReflectTypeDesc<" + p.CppType + ", " + p.EnumType + ">()";
 			}
+			// enum 은 이름표(EnumTypeMeta)가 있어야 인스펙터 드롭다운과 이름 직렬화가 선다.
+			const std::string enumMeta = p.IsEnum
+				? ("&JBroEnum_" + p.CppType + "_Meta")
+				: std::string("nullptr");
 
 			// 구조체 필드 추가·재정렬이 생성 코드의 의미를 바꾸지 않도록 지정 초기화한다.
 			out << "\t\t\tScriptPropertyDesc{\r\n"
@@ -1069,7 +1238,8 @@ void RegisterGeneratedScripts(CReflectionRegistry& registry)
 				<< "\t\t\t\t.Descriptor = " << descriptor << ",\r\n"
 				<< "\t\t\t\t.RefCategory = " << refCategory << ",\r\n"
 				<< "\t\t\t\t.RefTypeName = " << refTypeName << ",\r\n"
-				<< "\t\t\t\t.ExpectedAssetType = " << p.ExpectedAssetTypeEnum << "\r\n"
+				<< "\t\t\t\t.ExpectedAssetType = " << p.ExpectedAssetTypeEnum << ",\r\n"
+				<< "\t\t\t\t.Enum = " << enumMeta << "\r\n"
 				<< "\t\t\t},\r\n";
 		}
 		out << "\t\t});\r\n";

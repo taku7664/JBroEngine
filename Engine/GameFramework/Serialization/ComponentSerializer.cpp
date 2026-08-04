@@ -965,6 +965,22 @@ namespace
 			case EReflectPropertyType::Layout2D:
 				node[prop.Name] = WriteLayout2D(*static_cast<const Layout2D*>(field));
 				break;
+			case EReflectPropertyType::Enum:
+				{
+					// 컴포넌트 경로와 같은 규칙 — 이름 우선, 메타가 없으면 정수 폴백.
+					if (prop.Enum && prop.Enum->ToName)
+					{
+						if (const char* name = prop.Enum->ToName(field, prop.Size))
+						{
+							node[prop.Name] = std::string(name);
+							break;
+						}
+					}
+					int value = 0;
+					std::memcpy(&value, field, std::min(prop.Size, sizeof(int)));
+					node[prop.Name] = value;
+				}
+				break;
 			case EReflectPropertyType::AssetGuid:
 				{
 					const File::Guid& guid = *static_cast<const File::Guid*>(field);
@@ -1107,6 +1123,27 @@ namespace
 				{
 					Layout2D* layout = static_cast<Layout2D*>(field);
 					*layout = ReadLayout2D(node[prop.Name], *layout);
+					break;
+				}
+				case EReflectPropertyType::Enum:
+				{
+					bool applied = false;
+					if (prop.Enum && prop.Enum->FromName)
+					{
+						std::string name;
+						if (ReadValue(node, prop.Name, name))
+						{
+							applied = prop.Enum->FromName(field, prop.Size, name.c_str());
+						}
+					}
+					if (false == applied)
+					{
+						int value = 0;
+						if (ReadValue(node, prop.Name, value))
+						{
+							std::memcpy(field, &value, std::min(prop.Size, sizeof(int)));
+						}
+					}
 					break;
 				}
 				case EReflectPropertyType::AssetGuid:

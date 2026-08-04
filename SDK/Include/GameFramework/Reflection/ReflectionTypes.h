@@ -140,8 +140,10 @@ struct ReflectTypeDesc
 	const ReflectTableOps* TableOps = nullptr;
 };
 
-// Enum 프로퍼티(Type == Enum)의 타입소거 메타. magic_enum 으로 자동 생성한다
-// (MakeEnumTypeMeta<T>). 인스펙터 드롭다운 / 이름 직렬화에 필요한 변환을 함수포인터로
+// Enum 프로퍼티(Type == Enum)의 타입소거 메타.
+//   · 빌트인 컴포넌트 — 호스트에서 magic_enum 으로 생성(MakeEnumTypeMeta<T>).
+//   · 스크립트       — 코드 생성기가 이름/값 정적 테이블과 훅을 게임 DLL 안에 뱉는다.
+// 인스펙터 드롭다운 / 이름 직렬화에 필요한 변환을 함수포인터로
 // 들고 있다. 정적 수명(타입당 1개) + 함수포인터 + 정적 이름배열이라 호스트↔게임 DLL
 // 경계에 안전하다(각 모듈이 자기 모듈의 메타를 가리킨다 — POD 규칙 위반 아님).
 struct EnumTypeMeta
@@ -278,7 +280,8 @@ struct ScriptPropertyDesc
 	EAssetType           ExpectedAssetType = EAssetType::Unknown;
 
 	// ── Enum 전용 (Type == Enum 일 때만 유효) ─────────────────────────────────
-	// 스크립트 enum 은 후속(JPROP codegen) — 현재 컴포넌트만 채운다.
+	// 스크립트 enum 은 코드 생성기가 이름/값 정적 테이블과 함께 이 메타를 뱉는다
+	// (게임 DLL 은 magic_enum 을 갖지 않는다 — ReflectionEnumRegister.h 는 호스트 전용).
 	const EnumTypeMeta*  Enum         = nullptr;
 };
 
