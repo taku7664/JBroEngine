@@ -167,14 +167,14 @@ bool CGameApplication::InitializeRuntimeGame()
 		Engine.InputSystem->SetInputMap(manifest.InputActions);
 	}
 
-	// 세이브 뿌리를 제품명으로 확정한다 — 여기가 실행 중 제품명을 처음 아는 지점이다.
-	// 엔진은 부팅 때 기본 이름으로 한 번 열어 두므로, 실패해도 저장 자체가 죽지는 않는다
-	// (다만 세이브가 제품별로 갈리지 않으니 실패는 로그로 남긴다).
+	// 유저 데이터 뿌리(세이브 + 로그 파일)를 제품명으로 확정한다 — 여기가 실행 중 제품명을
+	// 처음 아는 지점이다. 엔진은 부팅 때 기본 이름으로 한 번 열어 두므로, 실패해도 저장과
+	// 로깅 자체가 죽지는 않는다(다만 제품별로 갈리지 않으니 실패는 로그로 남긴다).
 	if (CEngine* engine = GetEngine())
 	{
-		if (false == engine->SetSaveProductName(manifest.ProductName.c_str()))
+		if (false == engine->SetProductName(manifest.ProductName.c_str()))
 		{
-			CSystemLog::Warning("Save storage could not be re-rooted to the product name; using the default root.");
+			CSystemLog::Warning("User data root could not be re-rooted to the product name; using the default root.");
 		}
 	}
 

@@ -606,6 +606,7 @@
     <ClInclude Include="ThirdParty\yaml-cpp\traits.h" />
     <ClInclude Include="ThirdParty\yaml-cpp\yaml.h" />
     <ClInclude Include="Core\FileSystem\FileSystem.h" />
+    <ClInclude Include="Core\FileSystem\UserDataPath.h" />
     <ClInclude Include="Core\FileSystem\FileSystemTypes.h" />
     <ClInclude Include="Core\Input\Input.h" />
     <ClInclude Include="Core\Input\InputTypes.h" />
@@ -847,6 +848,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release_Game|x64'">Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="Core\FileSystem\FileSystem.cpp" />
+    <ClCompile Include="Core\FileSystem\UserDataPath.cpp" />
     <ClCompile Include="Core\Input\Input.cpp" />
     <ClCompile Include="Core\Input\InputSystem.cpp" />
     <ClCompile Include="Core\Localization\LocalizationManager.cpp">

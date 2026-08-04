@@ -106,6 +106,81 @@ void CLogger::GetEntriesByLevel(ELogLevel level, std::vector<LogEntry>& outEntri
 	}
 }
 
+bool CLogger::OpenFile(const File::Path& path)
+{
+	const File::Path logPath = NormalizeLogFilePath(path);
+	if (logPath.empty())
+	{
+		return false;
+	}
+
+	// 지금까지 쌓인 걸 먼저 확보한다. 아래에서 잠그기 전에 스냅샷을 떠야 한다 —
+	// GetEntriesSnapshot 이 같은 뮤텍스를 잡으므로 안에서 부르면 자기 자신과 교착한다.
+	std::vector<LogEntry> backlog;
+	GetEntriesSnapshot(backlog);
+
+	std::error_code errorCode;
+	if (false == logPath.parent_path().empty())
+	{
+		File::fs::create_directories(logPath.parent_path(), errorCode);
+		if (errorCode)
+		{
+			return false;
+		}
+	}
+
+	// 이전 실행분을 한 세대 밀어 둔다. 크래시 → 재실행이 정작 필요한 로그를 덮어쓰는 걸 막는다.
+	if (File::fs::exists(logPath, errorCode))
+	{
+		File::Path previousPath = logPath;
+		previousPath += File::FString(".prev");
+		File::fs::remove(previousPath, errorCode);
+		File::fs::rename(logPath, previousPath, errorCode);
+	}
+
+	std::lock_guard<std::mutex> lock(m_mutex);
+	if (m_file.is_open())
+	{
+		m_file.close();
+	}
+	m_file.open(logPath, std::ios::out | std::ios::trunc);
+	if (false == m_file.is_open())
+	{
+		m_filePath = File::Path();
+		return false;
+	}
+	m_filePath = logPath;
+
+	for (const LogEntry& entry : backlog)
+	{
+		m_file << entry.FormattedMessage << '\n';
+	}
+	m_file.flush();
+	return true;
+}
+
+void CLogger::CloseFile()
+{
+	std::lock_guard<std::mutex> lock(m_mutex);
+	if (m_file.is_open())
+	{
+		m_file.flush();
+		m_file.close();
+	}
+	m_filePath = File::Path();
+}
+
+bool CLogger::IsFileOpen() const
+{
+	std::lock_guard<std::mutex> lock(m_mutex);
+	return m_file.is_open();
+}
+
+const File::Path& CLogger::GetFilePath() const
+{
+	return m_filePath;
+}
+
 bool CLogger::SaveToFile(const File::Path& path) const
 {
 	const File::Path logPath = NormalizeLogFilePath(path);
@@ -167,6 +242,16 @@ void CLogger::Write(ELogSource source, ELogLevel level, std::string_view message
 		entry.Sequence = m_nextSequence++;
 		m_entries.push_back(std::move(entry));
 		++m_revision;
+
+		if (m_file.is_open())
+		{
+			// 줄마다 내린다. 이 파일이 존재하는 이유가 "죽고 난 뒤에 읽는 것"이라
+			// 버퍼에 남겨 두면 정작 원인 직전의 몇 줄이 사라진다 — 크래시든 강제 종료든
+			// 마지막 줄이 가장 중요하다. 레벨로 나눠 봐야 Info 로 남긴 단서를 잃을 뿐이다.
+			// 비용은 게임이 프레임 루프에서 로그를 뿜지 않는다는 전제에 기댄다(그건 별도 문제).
+			m_file << formattedMessage << '\n';
+			m_file.flush();
+		}
 	}
 
 #if JBRO_PLATFORM_WINDOWS

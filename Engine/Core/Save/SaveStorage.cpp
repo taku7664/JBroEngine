@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "SaveStorage.h"
 
+#include "Core/FileSystem/UserDataPath.h"
 #include "Core/Logging/LoggerInternal.h"
 
 #include <cstdlib>
@@ -15,26 +16,6 @@
 
 namespace
 {
-	// 제품명을 못 받았을 때의 뿌리 이름. 실제 게임 세이브와 섞이지 않게 이름을 구분한다.
-	constexpr const char* DEFAULT_PRODUCT_NAME = "JBroEngine-Unnamed";
-
-	// 파일 이름으로 쓸 수 없는 문자를 밑줄로 바꾼다. 제품명은 사람이 프로젝트 설정에 적는
-	// 값이라 공백·기호가 섞일 수 있는데, 그대로 경로에 붙이면 플랫폼마다 다르게 깨진다.
-	std::string SanitizeProductName(const char* productName)
-	{
-		std::string result = (productName && '\0' != productName[0]) ? productName : DEFAULT_PRODUCT_NAME;
-		for (char& c : result)
-		{
-			const bool allowed = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
-				|| (c >= '0' && c <= '9') || '-' == c || '_' == c || ' ' == c;
-			if (false == allowed)
-			{
-				c = '_';
-			}
-		}
-		return result;
-	}
-
 #if JBRO_PLATFORM_WEB
 	// IDBFS 를 `/UserData` 에 마운트하고 IndexedDB 에 있던 내용을 메모리 FS 로 끌어온다.
 	// ASYNCIFY 가 켜져 있어(-sASYNCIFY=1) C++ 쪽에서는 동기 호출처럼 보인다 —
@@ -77,37 +58,6 @@ namespace
 	});
 #endif
 
-	// 플랫폼별 저장 뿌리. 실패하면 빈 경로.
-	File::Path ResolveStorageRoot(const std::string& productName)
-	{
-#if JBRO_PLATFORM_WEB
-		// 웹은 오리진 단위로 IndexedDB 가 갈리므로 제품명을 경로에 넣지 않아도 섞이지 않는다.
-		(void)productName;
-		return File::Path("/UserData/Saves");
-#elif JBRO_PLATFORM_WINDOWS
-		// 설치 경로가 아니라 사용자 프로필에 쓴다 — Program Files 아래는 쓰기 권한이 없다.
-		// getenv 는 MSVC 에서 폐기 경고(C4996) 대상이라 _dupenv_s 를 쓴다. 반환 버퍼는 호출자 몫.
-		// 와이드 판(_wdupenv_s)을 쓰는 이유는 사용자 이름에 한글이 들어가는 경우 때문이다 —
-		// 좁은 문자 판은 현재 코드 페이지로 변환되어 경로가 깨질 수 있다.
-		wchar_t* localAppData = nullptr;
-		std::size_t localAppDataLength = 0;
-		if (0 != _wdupenv_s(&localAppData, &localAppDataLength, L"LOCALAPPDATA") || nullptr == localAppData)
-		{
-			return File::Path();
-		}
-		File::Path root = File::Path(localAppData) / File::FString(productName) / File::FString("Saves");
-		std::free(localAppData);
-		return root;
-#else
-		const char* home = std::getenv("HOME");
-		if (nullptr == home || '\0' == home[0])
-		{
-			return File::Path();
-		}
-		return File::Path(home) / File::FString(".local") / File::FString("share")
-			/ File::FString(productName) / File::FString("Saves");
-#endif
-	}
 }
 
 bool CSaveStorage::Initialize(const char* productName)
@@ -123,13 +73,14 @@ bool CSaveStorage::Initialize(const char* productName)
 	}
 #endif
 
-	const std::string sanitized = SanitizeProductName(productName);
-	File::Path root = ResolveStorageRoot(sanitized);
-	if (root.empty())
+	// 뿌리 결정은 UserData 공용 헬퍼가 한다 — 로그도 같은 뿌리를 쓴다.
+	const File::Path userRoot = UserData::ResolveRoot(productName);
+	if (userRoot.empty())
 	{
 		CSystemLog::Error("Save storage init failed (no writable user directory for this platform).");
 		return false;
 	}
+	File::Path root = userRoot / File::FString("Saves");
 
 	std::error_code error;
 	File::fs::create_directories(root, error);

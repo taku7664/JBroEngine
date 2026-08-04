@@ -872,6 +872,9 @@
     <ClInclude Include="Core\FileSystem\FileSystem.h">
       <Filter>Header\Core\FileSystem</Filter>
     </ClInclude>
+    <ClInclude Include="Core\FileSystem\UserDataPath.h">
+      <Filter>Header\Core\FileSystem</Filter>
+    </ClInclude>
     <ClInclude Include="Core\Input\InputTypes.h">
       <Filter>Header\Core\Input</Filter>
     </ClInclude>
@@ -1622,6 +1625,9 @@
       <Filter>Source\GameFramework\Physics2D</Filter>
     </ClCompile>
     <ClCompile Include="Core\FileSystem\FileSystem.cpp">
+      <Filter>Source\Core\FileSystem</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\FileSystem\UserDataPath.cpp">
       <Filter>Source\Core\FileSystem</Filter>
     </ClCompile>
     <ClCompile Include="GameFramework\Component\BuiltinComponentRegistry.cpp">

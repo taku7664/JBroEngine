@@ -33,6 +33,7 @@ Engine/Core/Engine.cpp
 Engine/Core/EngineCore.cpp
 Engine/Core/ScriptCore.cpp
 Engine/Core/FileSystem/FileSystem.cpp
+Engine/Core/FileSystem/UserDataPath.cpp
 Engine/Core/Game/GameModuleLoader.cpp
 Engine/Core/Input/Input.cpp
 Engine/Core/Input/InputSystem.cpp

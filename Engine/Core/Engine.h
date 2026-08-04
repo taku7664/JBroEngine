@@ -69,10 +69,10 @@ public:
 	void InitializeModule(CModule& module, const char* moduleName);
 	void FinalizeModule(CModule& module);
 
-	// 세이브 저장소의 뿌리를 제품명으로 다시 잡는다. 제품명을 아는 시점이 호스트마다 다르므로
-	// (게임=빌드 매니페스트 로드 후, 에디터=프로젝트 열기 후) 초기화와 분리해 둔다.
-	// 부팅 시 이미 기본 이름으로 열려 있으므로, 이걸 안 불러도 저장 자체는 동작한다.
-	bool SetSaveProductName(const char* productName);
+	// 유저 데이터 뿌리(세이브 + 로그 파일)를 제품명으로 다시 잡는다. 제품명을 아는 시점이
+	// 호스트마다 다르므로(게임=빌드 매니페스트 로드 후, 에디터=프로젝트 열기 후) 초기화와
+	// 분리해 둔다. 부팅 시 이미 기본 이름으로 열려 있어, 안 불러도 둘 다 동작은 한다.
+	bool SetProductName(const char* productName);
 
 	// Optional subsystem — call after Initialize() to enable networking.
 	// Safe to call multiple times; subsequent calls are no-ops.
@@ -103,6 +103,8 @@ private:
 	void EndFrame();
 	void FillRenderSurfaceDesc(RHIDesc& desc) const;
 	void SyncScriptCore();
+	// 로그 파일을 제품명 아래로 (다시) 연다. 웹에서는 브라우저 콘솔이 대신하므로 no-op.
+	bool OpenProductLogFile(const char* productName);
 
 	// 네이티브 렌더 버퍼(스왑체인) 크기. 표시 방향과 다를 수 있다(모바일 회전).
 	RenderSurfaceSize GetNativeRenderBufferSize() const;

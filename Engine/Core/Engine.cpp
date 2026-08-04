@@ -47,6 +47,7 @@
 #include "Core/Network/NetworkManager.h"
 #include "Core/Network/INetworkManager.h"
 #include "Core/Debug/DebugDraw2D.h"
+#include "Core/FileSystem/UserDataPath.h"
 #include "Core/Save/SaveStorage.h"
 #include "GameFramework/Prefab/PrefabSpawner.h"
 #if JBRO_PLATFORM_WEB
@@ -290,6 +291,12 @@ void CEngine::Finalize()
 	Engine.Reflection = nullptr;
 	m_reflectionRegistry.Reset();
 	Engine.Logger = nullptr;
+	if (m_logger)
+	{
+		// 버퍼에 남은 줄을 마저 내린다 — Info/Debug 는 flush 를 미뤄 두므로 여기서
+		// 닫지 않으면 정상 종료인데도 마지막 몇 줄이 사라진다.
+		m_logger->CloseFile();
+	}
 	m_logger.Reset();
 	m_debug.Reset();
 #if JBRO_EDITOR
@@ -510,6 +517,9 @@ bool CEngine::InitializeCoreServices()
 	Engine.Math = m_mathService.GetSafePtr();
 	Engine.Reflection = m_reflectionRegistry.GetSafePtr();
 	Engine.Logger = m_logger.GetSafePtr();
+	// 제품명을 알기 전(빌드 매니페스트 로드 전)의 로그도 남도록 기본 이름으로 먼저 연다.
+	// 제품명이 정해지면 SetProductName 이 옮기면서 그때까지의 내용을 새 파일로 옮겨 담는다.
+	OpenProductLogFile(nullptr);
 	Engine.Debug = m_debug.GetSafePtr();
 #if JBRO_EDITOR
 	m_localization->Initialize(m_fileSystem.GetSafePtr());
@@ -527,13 +537,58 @@ bool CEngine::InitializeCoreServices()
 	return true;
 }
 
-bool CEngine::SetSaveProductName(const char* productName)
+bool CEngine::SetProductName(const char* productName)
 {
-	if (!m_saveStorage)
+	// 세이브와 로그가 같은 유저 데이터 뿌리를 공유한다. 제품명을 아는 시점이 여기라
+	// 둘을 함께 옮긴다 — 한쪽만 옮기면 세이브와 로그가 다른 폴더로 갈린다.
+	bool ok = true;
+	if (m_saveStorage)
+	{
+		ok = m_saveStorage->Initialize(productName) && ok;
+	}
+	else
+	{
+		ok = false;
+	}
+	ok = OpenProductLogFile(productName) && ok;
+	return ok;
+}
+
+// 로그 파일을 제품명 아래로 연다. 이미 열려 있던(기본 이름) 파일은 닫고 지운 뒤 새로
+// 연다 — OpenFile 이 그때까지 쌓인 항목을 다시 쏟으므로 새 파일 하나에 전부 들어간다.
+// 두 파일을 남기면 나중에 어느 쪽이 진짜인지 헷갈린다.
+bool CEngine::OpenProductLogFile(const char* productName)
+{
+#if JBRO_PLATFORM_WEB
+	// 웹은 브라우저 콘솔이 이미 로그 표면이다(Write 가 stderr 로 흘린다). IDBFS 에 매
+	// 줄 쓰는 건 syncfs 비용만 물고 얻는 게 없다.
+	(void)productName;
+	return true;
+#else
+	if (!m_logger)
 	{
 		return false;
 	}
-	return m_saveStorage->Initialize(productName);
+	const File::Path root = UserData::ResolveRoot(productName);
+	if (root.empty())
+	{
+		return false;
+	}
+	const File::Path logPath = root / File::FString("Logs") / File::FString("Game.log");
+	if (logPath == m_logger->GetFilePath())
+	{
+		return true;
+	}
+
+	const File::Path previous = m_logger->GetFilePath();
+	m_logger->CloseFile();
+	if (false == previous.empty())
+	{
+		std::error_code errorCode;
+		File::fs::remove(previous, errorCode);
+	}
+	return m_logger->OpenFile(logPath);
+#endif
 }
 
 bool CEngine::InitializeNetwork()
