@@ -1696,6 +1696,8 @@ void CPhysics2DSystem::OnSimulationStop(CGameCanvas& /*canvas*/)
 	m_prevManifolds.clear();
 	m_currentContacts.clear();
 	m_mergedManifolds.clear();
+	m_detectPolygons.clear();
+	m_detectCircles.clear();
 }
 
 void CPhysics2DSystem::OnInitialize(CGameCanvas& canvas)
@@ -2158,7 +2160,12 @@ void CPhysics2DSystem::DetectContacts(CGameCanvas& canvas)
 {
 	m_manifolds.clear();
 
-	std::vector<std::pair<CGameObject*, PolygonCollider2D*>> polygons;
+	// 멤버 스크래치다 — clear() 는 용량을 남기므로 두 번째 sub-step 부터는 할당이 없다.
+	std::vector<std::pair<CGameObject*, PolygonCollider2D*>>& polygons = m_detectPolygons;
+	std::vector<std::pair<CGameObject*, CircleCollider2D*>>&  circles  = m_detectCircles;
+	polygons.clear();
+	circles.clear();
+
 	canvas.ForEach<PolygonCollider2D>([&polygons](PolygonCollider2D& c)
 	{
 		if (IsActiveComponent(c) && c.WorldPoints.size() >= 3)
@@ -2167,7 +2174,6 @@ void CPhysics2DSystem::DetectContacts(CGameCanvas& canvas)
 		}
 	});
 
-	std::vector<std::pair<CGameObject*, CircleCollider2D*>> circles;
 	canvas.ForEach<CircleCollider2D>([&circles](CircleCollider2D& c)
 	{
 		if (IsActiveComponent(c))

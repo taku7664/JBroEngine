@@ -124,6 +124,12 @@ private:
 	};
 	std::vector<CurrentContact>     m_currentContacts;
 
+	// DetectContacts 가 활성 콜라이더를 모으는 버퍼. 이건 sub-step 마다 도는 경로라
+	// (프레임당 최대 fixed step 8 × sub-step 4 = 32회) 지역 변수로 두면 그 횟수만큼
+	// 할당 + push_back 성장 재할당이 붙는다.
+	std::vector<std::pair<CGameObject*, PolygonCollider2D*>> m_detectPolygons;
+	std::vector<std::pair<CGameObject*, CircleCollider2D*>>  m_detectCircles;
+
 	// 같은 (A,B) 페어 매니폴드 병합용 키. 포인터 두 개를 좁은 정수로 패킹하면 비트가 겹쳐
 	// 서로 다른 페어가 충돌하므로, 키는 원본을 들고 해시만 결합한다.
 	struct ManifoldPairKey
