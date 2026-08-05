@@ -4,7 +4,8 @@
 #include "Engine/Editor/ImWindow/ImWindowFlag.h"
 #include "Editor/ImItem/ImSplitter.h"   // ImGui::Utillity::VerticalSplitter
 #include "Editor/ImItem/ImText.h"       // ImText (라벨 + 설명 툴팁)
-#include "Editor/ImItem/ImNameListEdit.h"  // 한 줄 = 한 이름 목록 편집(입력 레이어 / 오디오 버스 공유)
+#include "Editor/ImItem/ImNameListEdit.h"  // 한 줄 = 한 이름 목록 편집(입력 레이어)
+#include "Editor/ImItem/ImList.h"         // 믹싱 버스 목록(이름 + 기본 음량)
 #include "Engine/Editor/ImGuiUtillity.h"       // ImGui::Utillity::FormLayout, HoveredToolTip
 
 #include "Editor/Editor.h"
@@ -127,7 +128,6 @@ void CProjectSettingsWindow::OnShow()
         // 입력 레이어 — 동일 패턴(한 줄당 하나, 위 = 최우선).
         m_editInputLayers = pm->GetInputLayers();
         m_editAudioBuses = pm->GetAudioBuses();
-        ImGui::Utillity::BuildNameListBuffer(m_editAudioBuses, m_audioBusesBuffer);
         m_editInputActions = pm->GetInputActions();
         ImGui::Utillity::BuildNameListBuffer(m_editInputLayers, m_inputLayersBuffer);
     }
@@ -554,13 +554,35 @@ void CProjectSettingsWindow::DrawCategoryAudio()
     }
 
     // ── 믹싱 버스 ────────────────────────────────────────────────────────────
-    // 입력 레이어와 같은 편집 방식 — 한 줄이 버스 하나다. AudioPlayer 컴포넌트의 Bus 가
-    // 여기 적은 이름을 가리킨다. "Master" 는 항상 존재하므로 적지 않는다.
+    // 버스 하나 = 목록 한 행(이름 + 기본 음량). AudioPlayer 컴포넌트의 Bus 가 여기 적은
+    // 이름을 가리킨다. "Master" 는 항상 존재하므로 적지 않아도 된다.
     ImGui::Spacing();
     ImSectionHeader(Loc::Text(EditorLocKeys::ProjectSettingsAudioBusesTitle)).SpacingBefore(true).Draw();
     ImGui::TextWrapped("%s", Loc::Text(EditorLocKeys::ProjectSettingsAudioBusesDesc));
     ImGui::Spacing();
-    ImGui::Utillity::NameListEditor("##ps.audio.buses", m_audioBusesBuffer, m_editAudioBuses, 8.0f);
+
+    // 음량 칸은 고정폭으로 잡고 남은 폭을 이름이 먹는다 — 행마다 열이 흔들리지 않게.
+    const float volumeWidth = ImGui::CalcTextSize("0.00").x + ImGui::GetStyle().FramePadding.x * 6.0f;
+    ImList<AudioBusDef>(
+        "##ps.audio.buses", m_editAudioBuses,
+        [&](AudioBusDef& bus, int /*index*/)
+        {
+            const float nameWidth = ImGui::CalcItemWidth() - volumeWidth - ImGui::GetStyle().ItemSpacing.x;
+            ImGui::SetNextItemWidth(nameWidth > 40.0f ? nameWidth : ImGui::CalcItemWidth() * 0.5f);
+            ImInputText nameInput("##bus_name");
+            nameInput.SetText(bus.Name);
+            nameInput.SetHintText(Loc::Text(EditorLocKeys::ProjectSettingsAudioBusNameHint));
+            if (nameInput(ImGuiInputTextFlags_None))
+            {
+                bus.Name = static_cast<const char*>(nameInput);
+            }
+            ImGui::SameLine(0.0f, ImGui::GetStyle().ItemSpacing.x);
+            ImGui::SetNextItemWidth(volumeWidth);
+            ImGui::DragFloat("##bus_volume", &bus.Volume, 0.01f, 0.0f, 2.0f, "%.2f");
+            ImGui::Utillity::HoveredToolTip(Loc::Text(EditorLocKeys::ProjectSettingsAudioBusVolumeDesc));
+        },
+        AudioBusDef{});
+
     ImGui::Spacing();
     ImGui::TextDisabled("%s", Loc::Text(EditorLocKeys::ProjectSettingsAudioBusesHelp));
 }

@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  AudioTypes.h ─ 사운드 시스템 공통 타입
@@ -66,6 +67,18 @@ inline void CopyAudioBusName(char (&destination)[AUDIO_BUS_NAME_CAPACITY], const
 	}
 	destination[i] = '\0';
 }
+
+// ── 버스 정의(저작/설정 측) ─────────────────────────────────────────────────
+// 프로젝트 세팅이 편집하고 .jproject / BuildManifest 를 거쳐 디바이스로 들어간다.
+// InputActionDef 와 같은 위치의 타입이다 — 위쪽 POD 들과 달리 STL 을 쓰지만, 이건
+// 매 프레임 경로가 아니라 **로드 시점에 한 번** 도는 설정 데이터라 문제되지 않는다.
+struct AudioBusDef
+{
+	std::string Name;
+	// 이 버스의 시작 음량. 스크립트가 SetVolume 으로 바꾸면 그쪽이 이긴다
+	// (옵션 화면이 저장된 값을 불러와 덮어쓰는 것이 정상 흐름이다).
+	float       Volume = 1.0f;
+};
 
 // 버스 이름 비교. 양쪽 다 빈 이름/nullptr 을 Master 로 정규화한 뒤 비교한다.
 inline bool IsSameAudioBusName(const char* lhs, const char* rhs)

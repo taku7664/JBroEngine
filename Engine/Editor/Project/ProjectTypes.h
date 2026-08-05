@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Core/Asset/AssetTypes.h"
+#include "Core/Audio/AudioTypes.h"  // AudioBusDef
 #include "Core/Input/InputAction.h" // InputActionDef
 
 #include <string>
@@ -150,10 +151,10 @@ struct ProjectInfo
 	// "Master" 는 적지 않아도 항상 존재하는 루트다(적어도 무시된다).
 	// 프로젝트 로드 시 IAudioDevice::ConfigureBuses 로 주입되고, 패키지 게임에는
 	// BuildManifest 를 통해 전달된다.
-	std::vector<std::string> AudioBuses = {
-		"Music",
-		"SFX",
-		"Voice",
-		"UI",
+	std::vector<AudioBusDef> AudioBuses = {
+		{ "Music", 1.0f },
+		{ "SFX",   1.0f },
+		{ "Voice", 1.0f },
+		{ "UI",    1.0f },
 	};
 };

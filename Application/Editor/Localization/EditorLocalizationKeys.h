@@ -442,6 +442,8 @@ namespace EditorLocKeys
 	constexpr const char* ProjectSettingsAssetWatcherTitle = "project_settings.asset_watcher.title";
 	constexpr const char* ProjectSettingsAudio = "project_settings.audio";
 	constexpr const char* ProjectSettingsAudioBusesTitle = "project_settings.audio.buses_title";
+	constexpr const char* ProjectSettingsAudioBusNameHint = "project_settings.audio.bus_name_hint";
+	constexpr const char* ProjectSettingsAudioBusVolumeDesc = "project_settings.audio.bus_volume_desc";
 	constexpr const char* ProjectSettingsAudioBusesDesc = "project_settings.audio.buses_desc";
 	constexpr const char* ProjectSettingsAudioBusesHelp = "project_settings.audio.buses_help";
 	constexpr const char* ProjectSettingsAudioMasterVolume = "project_settings.audio.master_volume";

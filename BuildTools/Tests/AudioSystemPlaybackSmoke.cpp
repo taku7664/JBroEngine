@@ -169,14 +169,16 @@ namespace
         {
             return MakeOwnerPtr<TestAudioBus>(ResolveAudioBusName(name));
         }
-        void ConfigureBuses(const std::vector<std::string>& names) override
+        void ConfigureBuses(const std::vector<AudioBusDef>& buses) override
         {
             m_buses.clear();
             m_buses.push_back(MakeOwnerPtr<TestAudioBus>(AUDIO_MASTER_BUS_NAME));
-            for (const std::string& name : names)
+            for (const AudioBusDef& bus : buses)
             {
-                if (name.empty() || IsSameAudioBusName(name.c_str(), AUDIO_MASTER_BUS_NAME)) continue;
-                m_buses.push_back(MakeOwnerPtr<TestAudioBus>(name));
+                if (bus.Name.empty() || IsSameAudioBusName(bus.Name.c_str(), AUDIO_MASTER_BUS_NAME)) continue;
+                OwnerPtr<TestAudioBus> created = MakeOwnerPtr<TestAudioBus>(bus.Name);
+                created->SetVolume(bus.Volume);
+                m_buses.push_back(std::move(created));
             }
         }
         std::vector<std::string> GetBusNames() const override
@@ -438,7 +440,7 @@ int main()
     {
         // 실제 흐름에서 ProjectManager(에디터) / 매니페스트(패키지) 가 하는 주입.
         // 이게 없으면 디바이스는 Master 하나뿐이라 무엇을 지정해도 Master 로 떨어진다.
-        device->ConfigureBuses({ "Music", "SFX", "Ambience" });
+        device->ConfigureBuses({ { "Music", 0.5f }, { "SFX", 1.0f }, { "Ambience", 0.25f } });
 
         CGameCanvas busCanvas;
         CAudioSystem* busSystem = CCanvasRuntimeAccess::AddSystem<CAudioSystem>(
@@ -485,7 +487,7 @@ int main()
         BuildManifest written;
         written.StartupCanvasGuid = "0123456789abcdef0123456789abcdef";
         written.ProductName = "BusRoundTrip";
-        written.AudioBuses = { "Music", "SFX", "Ambience" };
+        written.AudioBuses = { { "Music", 0.5f }, { "SFX", 1.0f }, { "Ambience", 0.25f } };
 
         const std::filesystem::path manifestPath = root / "roundtrip.jbmanifest";
         std::string manifestError;
@@ -503,7 +505,14 @@ int main()
             std::cerr << "Failed to read the round-trip manifest: " << manifestError << '\n';
             return 27;
         }
-        if (false == Expect(written.AudioBuses == loaded.AudioBuses,
+        bool busesMatch = written.AudioBuses.size() == loaded.AudioBuses.size();
+        for (std::size_t i = 0; busesMatch && i < written.AudioBuses.size(); ++i)
+        {
+            busesMatch = written.AudioBuses[i].Name == loaded.AudioBuses[i].Name
+                && written.AudioBuses[i].Volume == loaded.AudioBuses[i].Volume;
+        }
+        // 음량까지 봐야 한다 — 이름만 비교하면 float 를 안 싣는 회귀를 놓친다.
+        if (false == Expect(busesMatch,
             "Audio buses did not survive the build manifest round trip.")) return 28;
     }
 

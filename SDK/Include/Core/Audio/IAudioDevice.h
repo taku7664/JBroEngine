@@ -46,12 +46,13 @@ public:
 	virtual SafePtr<IAudioBus>      GetBus       (const char* name) = 0;
 
 	// 프로젝트가 정의한 버스 목록을 주입한다. "Master" 는 목록에 없어도 항상 만들어지고,
-	// 나머지는 전부 Master 의 자식이 된다. 목록에 있는 Master 항목은 무시된다(중복 방지).
+	// 나머지는 전부 Master 의 자식이 된다. 목록에 Master 가 있으면 그 볼륨만 반영한다.
+	// 각 버스는 정의된 Volume 으로 시작한다(스크립트가 SetVolume 하면 그쪽이 이긴다).
 	//
 	// **플레이어가 생기기 전에만 부를 것** — miniaudio 는 살아 있는 sound 의 출력 group 을
 	// 바꾸지 못하므로, 이미 붙은 소리가 있는 상태에서 버스를 갈아엎으면 그 소리들이 갈 곳을
 	// 잃는다. 호출 지점은 디바이스 초기화 직후 / 프로젝트 로드 시점이다.
-	virtual void ConfigureBuses(const std::vector<std::string>& names) = 0;
+	virtual void ConfigureBuses(const std::vector<AudioBusDef>& buses) = 0;
 
 	// 현재 구성된 버스 이름들(정의 순서, Master 가 항상 첫 번째). 저작 UI 표시용.
 	virtual std::vector<std::string> GetBusNames() const = 0;

@@ -69,6 +69,19 @@ namespace
 	constexpr const char* PROJECT_KEY_INPUT_LAYERS      = "InputLayers";
 	constexpr const char* PROJECT_KEY_INPUT_ACTIONS     = "InputActions";
 	constexpr const char* PROJECT_KEY_AUDIO_BUSES       = "AudioBuses";
+
+	// 사용자가 손으로 적는 값이라 앞뒤 공백과 CR 이 섞여 들어온다.
+	void TrimAudioBusName(std::string& name)
+	{
+		while (false == name.empty() && (name.back() == '\r' || name.back() == ' ' || name.back() == '\t'))
+		{
+			name.pop_back();
+		}
+		while (false == name.empty() && (name.front() == ' ' || name.front() == '\t'))
+		{
+			name.erase(name.begin());
+		}
+	}
 	constexpr const char* PROJECT_SAVE_BLOCKED_DURING_SIMULATION =
 		"Project saving is disabled while game simulation is running.";
 	constexpr const char* SCRIPT_BUILD_BLOCKED_DURING_SIMULATION =
@@ -839,19 +852,27 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 		}
 	}
 
-	// AudioBuses — InputLayers 와 같은 규칙: 키가 있으면 그 값으로 덮어쓰고
-	// 없으면 ProjectInfo 기본값(Music/SFX/Voice/UI)을 유지한다.
-	std::vector<std::string> audioBuses;
+	// AudioBuses — 키가 있으면 그 값으로 덮어쓰고 없으면 ProjectInfo 기본값을 유지한다.
+	// 항목은 { Name, Volume } 맵이다. 스칼라(이름만)도 받는다 — 음량이 붙기 전 포맷.
+	std::vector<AudioBusDef> audioBuses;
 	bool hasAudioBuses = false;
 	if (root[PROJECT_KEY_AUDIO_BUSES] && root[PROJECT_KEY_AUDIO_BUSES].IsSequence())
 	{
 		hasAudioBuses = true;
 		for (const YAML::Node& busNode : root[PROJECT_KEY_AUDIO_BUSES])
 		{
-			std::string bus = busNode.as<std::string>("");
-			while (false == bus.empty() && (bus.back() == '' || bus.back() == ' ' || bus.back() == '	')) bus.pop_back();
-			while (false == bus.empty() && (bus.front() == ' ' || bus.front() == '	')) bus.erase(bus.begin());
-			if (false == bus.empty()) audioBuses.push_back(std::move(bus));
+			AudioBusDef bus;
+			if (busNode.IsMap())
+			{
+				bus.Name   = busNode["Name"].as<std::string>("");
+				bus.Volume = busNode["Volume"].as<float>(1.0f);
+			}
+			else
+			{
+				bus.Name = busNode.as<std::string>("");
+			}
+			TrimAudioBusName(bus.Name);
+			if (false == bus.Name.empty()) audioBuses.push_back(std::move(bus));
 		}
 	}
 
@@ -2301,12 +2322,12 @@ void CProjectManager::ApplyInputLayersToSystem() const
 	}
 }
 
-const std::vector<std::string>& CProjectManager::GetAudioBuses() const
+const std::vector<AudioBusDef>& CProjectManager::GetAudioBuses() const
 {
 	return m_info.AudioBuses;
 }
 
-void CProjectManager::SetAudioBuses(std::vector<std::string> buses)
+void CProjectManager::SetAudioBuses(std::vector<AudioBusDef> buses)
 {
 	m_info.AudioBuses = std::move(buses);
 	ApplyAudioBusesToDevice();
@@ -2841,9 +2862,12 @@ bool CProjectManager::SaveProject(std::string* outError) const
 	out << YAML::EndSeq;
 	out << YAML::Key << PROJECT_KEY_AUDIO_BUSES << YAML::Value;
 	out << YAML::BeginSeq;
-	for (const std::string& bus : m_info.AudioBuses)
+	for (const AudioBusDef& bus : m_info.AudioBuses)
 	{
-		out << bus;
+		out << YAML::BeginMap;
+		out << YAML::Key << "Name"   << YAML::Value << bus.Name;
+		out << YAML::Key << "Volume" << YAML::Value << bus.Volume;
+		out << YAML::EndMap;
 	}
 	out << YAML::EndSeq;
 	out << YAML::Key << PROJECT_KEY_INPUT_ACTIONS << YAML::Value;

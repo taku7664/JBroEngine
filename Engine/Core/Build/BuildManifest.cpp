@@ -14,7 +14,10 @@ namespace
 	constexpr const char* MANIFEST_RELATIVE_PATH = "Content/build_manifest.jbmanifest";
 	constexpr const char* LEGACY_MANIFEST_RELATIVE_PATH = "Content/build_manifest.yaml";
 	constexpr std::array<char, 8> MANIFEST_MAGIC = { 'J', 'B', 'M', 'A', 'N', '1', '\0', '\0' };
-	constexpr std::uint32_t MANIFEST_VERSION = 1;
+	// 2: 오디오 버스 꼬리 섹션이 이름만에서 (이름 + 음량)으로 바뀌었다. 꼬리 추가와 달리
+	//    같은 섹션의 레이아웃이 달라진 것이라, 버전을 올려 구 매니페스트를 조용히
+	//    오독하는 대신 명시적으로 거부하게 한다(패키징하면 새로 생성된다).
+	constexpr std::uint32_t MANIFEST_VERSION = 2;
 	constexpr std::uint64_t MANIFEST_CRYPT_KEY = 0xC3A5C85C97CB3127ull;
 	constexpr std::uint64_t FNV_OFFSET = 14695981039346656037ull;
 	constexpr std::uint64_t FNV_PRIME = 1099511628211ull;
@@ -364,8 +367,9 @@ namespace
 			}
 			for (std::uint32_t index = 0; index < busCount; ++index)
 			{
-				std::string bus;
-				if (false == ReadString(payload, cursor, bus))
+				AudioBusDef bus;
+				if (false == ReadString(payload, cursor, bus.Name)
+					|| false == ReadPod(payload, cursor, bus.Volume))
 				{
 					SetError(outError, "Binary build manifest audio bus entry is invalid.");
 					return false;
@@ -578,7 +582,20 @@ bool CBuildManifestLoader::LoadFromFile(const File::Path& manifestPath, BuildMan
 	{
 		for (const YAML::Node& node : buses)
 		{
-			try { outManifest.AudioBuses.push_back(node.as<std::string>("")); }
+			try
+			{
+				AudioBusDef bus;
+				if (node.IsMap())
+				{
+					bus.Name   = node["name"].as<std::string>("");
+					bus.Volume = node["volume"].as<float>(1.0f);
+				}
+				else
+				{
+					bus.Name = node.as<std::string>("");
+				}
+				if (false == bus.Name.empty()) outManifest.AudioBuses.push_back(std::move(bus));
+			}
 			catch (const YAML::Exception&) {}
 		}
 	}
@@ -736,7 +753,11 @@ bool CBuildManifestLoader::WriteBinaryFile(const File::Path& manifestPath, const
 	const std::uint32_t busCount = static_cast<std::uint32_t>(
 		std::min<std::size_t>(manifest.AudioBuses.size(), MAX_AUDIO_BUSES));
 	WritePod(payload, busCount);
-	for (std::uint32_t index = 0; index < busCount; ++index) WriteString(payload, manifest.AudioBuses[index]);
+	for (std::uint32_t index = 0; index < busCount; ++index)
+	{
+		WriteString(payload, manifest.AudioBuses[index].Name);
+		WritePod(payload, manifest.AudioBuses[index].Volume);
+	}
 
 	const std::uint32_t payloadSize = static_cast<std::uint32_t>(payload.size());
 	const std::uint64_t payloadHash = HashBytes(payload);

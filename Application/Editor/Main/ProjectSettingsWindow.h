@@ -75,10 +75,9 @@ private:
 
     // 입력 레이어 — 한 줄당 하나의 레이어 이름. 위 = 최우선. Apply 시 ProjectManager 에 set.
     std::vector<std::string> m_editInputLayers;
-    std::vector<std::string> m_editAudioBuses;
+    std::vector<AudioBusDef> m_editAudioBuses;
     // InputTextMultiline 의 백킹 버퍼. OnShow 에서 레이어 벡터로부터 재구축한다.
     std::string m_inputLayersBuffer;
-    std::string m_audioBusesBuffer;
 
     // 입력 액션 맵 — 이름 기반 액션→바인딩. OnShow 로드, Apply 시 ProjectManager 에 set.
     std::vector<InputActionDef> m_editInputActions;

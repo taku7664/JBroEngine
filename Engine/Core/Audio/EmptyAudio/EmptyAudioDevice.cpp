@@ -16,16 +16,23 @@ void CEmptyAudioDevice::Finalize()
 	m_listener.Reset();
 }
 
-void CEmptyAudioDevice::ConfigureBuses(const std::vector<std::string>& names)
+void CEmptyAudioDevice::ConfigureBuses(const std::vector<AudioBusDef>& buses)
 {
 	m_buses.clear();
 	// Master 는 목록과 무관하게 항상 첫 번째 — 미니오디오 백엔드와 같은 규약.
 	m_buses.push_back(MakeOwnerPtr<CEmptyAudioBus>(AUDIO_MASTER_BUS_NAME));
-	for (const std::string& name : names)
+	for (const AudioBusDef& bus : buses)
 	{
-		if (name.empty() || IsSameAudioBusName(name.c_str(), AUDIO_MASTER_BUS_NAME)) continue;
+		if (IsSameAudioBusName(bus.Name.c_str(), AUDIO_MASTER_BUS_NAME))
+		{
+			m_buses.front()->SetVolume(bus.Volume);
+			continue;
+		}
+		if (bus.Name.empty()) continue;
 		if (m_buses.size() >= MAX_AUDIO_BUSES) break;
-		m_buses.push_back(MakeOwnerPtr<CEmptyAudioBus>(name.c_str()));
+		OwnerPtr<CEmptyAudioBus> created = MakeOwnerPtr<CEmptyAudioBus>(bus.Name.c_str());
+		created->SetVolume(bus.Volume);
+		m_buses.push_back(std::move(created));
 	}
 }
 

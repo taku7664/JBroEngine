@@ -88,7 +88,7 @@ public:
 	OwnerPtr<IAudioPlayer>  CreatePlayer (const AudioPlayerDesc&) override;
 	OwnerPtr<IAudioBus>     CreateBus    (const char* name) override;
 	SafePtr<IAudioBus>      GetBus       (const char* name) override;
-	void                    ConfigureBuses(const std::vector<std::string>& names) override;
+	void                    ConfigureBuses(const std::vector<AudioBusDef>& buses) override;
 	std::vector<std::string> GetBusNames () const override;
 	OwnerPtr<IAudioEffect>  CreateEffect (EAudioEffectKind kind) override;
 	SafePtr<IAudioListener> GetPrimaryListener() override;

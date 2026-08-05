@@ -150,7 +150,7 @@ namespace
 
 	// 오디오 믹싱 버스 이름 목록. 없으면 빈 목록 — 런타임이 Master 만 갖는다(예전 동작).
 	// 매니페스트에 싣지 않으면 패키지 게임에서만 카테고리 볼륨이 죽으므로 반드시 옮긴다.
-	bool LoadAudioBuses(const File::Path& projectPath, std::vector<std::string>& outBuses)
+	bool LoadAudioBuses(const File::Path& projectPath, std::vector<AudioBusDef>& outBuses)
 	{
 		outBuses.clear();
 		if (projectPath.empty()) return true;
@@ -161,8 +161,18 @@ namespace
 			{
 				for (const YAML::Node& node : buses)
 				{
-					const std::string bus = node.as<std::string>("");
-					if (false == bus.empty()) outBuses.push_back(bus);
+					AudioBusDef bus;
+					// 스칼라(이름만)도 받는다 — 음량이 붙기 전 포맷.
+					if (node.IsMap())
+					{
+						bus.Name   = node["Name"].as<std::string>("");
+						bus.Volume = node["Volume"].as<float>(1.0f);
+					}
+					else
+					{
+						bus.Name = node.as<std::string>("");
+					}
+					if (false == bus.Name.empty()) outBuses.push_back(std::move(bus));
 				}
 			}
 			return true;
@@ -171,6 +181,17 @@ namespace
 		{
 			return false;
 		}
+	}
+
+	// 매니페스트 검증용 비교 — 이름과 음량이 모두 같아야 최신이다.
+	bool AudioBusesEqual(const std::vector<AudioBusDef>& lhs, const std::vector<AudioBusDef>& rhs)
+	{
+		if (lhs.size() != rhs.size()) return false;
+		for (std::size_t i = 0; i < lhs.size(); ++i)
+		{
+			if (lhs[i].Name != rhs[i].Name || lhs[i].Volume != rhs[i].Volume) return false;
+		}
+		return true;
 	}
 
 	bool InputMapsEqual(const std::vector<InputActionDef>& lhs, const std::vector<InputActionDef>& rhs)
@@ -437,14 +458,14 @@ namespace
 			std::vector<InputActionDef> expectedActions;
 			std::string expectedDefaultFamily;
 			std::vector<std::string> expectedFallbackFamilies;
-			std::vector<std::string> expectedBuses;
+			std::vector<AudioBusDef> expectedBuses;
 			if (false == LoadInputMap(options.InputMapPath, expectedActions)
 				|| false == LoadFontSettings(options.InputMapPath, expectedDefaultFamily, expectedFallbackFamilies)
 				|| false == LoadAudioBuses(options.InputMapPath, expectedBuses)
 				|| false == InputMapsEqual(manifest.InputActions, expectedActions)
 				|| manifest.DefaultFontFamilyGuid != expectedDefaultFamily
 				|| manifest.FallbackFontFamilyGuids != expectedFallbackFamilies
-				|| manifest.AudioBuses != expectedBuses)
+				|| false == AudioBusesEqual(manifest.AudioBuses, expectedBuses))
 			{
 				std::cerr << "Build manifest project settings mismatch." << std::endl;
 				return false;

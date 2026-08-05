@@ -34,9 +34,9 @@ struct BuildManifest
 	// 캔버스 노드를 선로드한다(경로 폴백은 release 에서 금지). 비어 있거나 GUID 가 없는 항목은 스킵.
 	std::vector<std::string> BuildCanvasGuids;
 	std::vector<InputActionDef> InputActions;
-	// 오디오 믹싱 버스 이름(프로젝트 세팅). 런타임이 IAudioDevice::ConfigureBuses 로 주입한다.
+	// 오디오 믹싱 버스(이름 + 기본 음량, 프로젝트 세팅). 런타임이 ConfigureBuses 로 주입한다.
 	// 이게 없으면 패키지 게임에서만 모든 소리가 Master 로 몰려 카테고리 볼륨이 죽는다.
-	std::vector<std::string> AudioBuses;
+	std::vector<AudioBusDef> AudioBuses;
 	int ResolutionWidth = 0;
 	int ResolutionHeight = 0;
 	float PixelsPerUnit = 100.0f;

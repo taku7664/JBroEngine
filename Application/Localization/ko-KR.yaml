@@ -272,7 +272,9 @@ Entries:
   project_settings.audio: 사운드
   project_settings.audio.master_volume: 마스터 볼륨
   project_settings.audio.buses_title: "믹싱 버스"
-  project_settings.audio.buses_desc: "한 줄에 버스 이름 하나. AudioPlayer 컴포넌트의 Bus 가 이 이름을 가리킵니다. \"Master\" 는 항상 존재하므로 적지 않아도 됩니다."
+  project_settings.audio.buses_desc: "버스 하나에 한 행 — 이름과 기본 음량. AudioPlayer 컴포넌트의 Bus 가 이 이름을 가리킵니다. \"Master\" 는 항상 존재하므로 적지 않아도 됩니다."
+  project_settings.audio.bus_name_hint: "버스 이름"
+  project_settings.audio.bus_volume_desc: "이 버스의 시작 음량. 스크립트가 SetVolume 으로 바꾸면 그쪽이 우선합니다(옵션 화면이 저장된 값을 불러오는 흐름)."
   project_settings.audio.buses_help: "목록에 없는 이름으로 라우팅하면 Master 로 폴백되며 경고 로그가 1회 출력됩니다. 스크립트에서는 Script.Audio->GetBus(\"이름\")->SetVolume(v) 으로 카테고리 볼륨을 조절합니다."
   project_settings.localization_unavailable: 로컬라이저를 사용할 수 없습니다.
   project_settings.localization_no_locales: 사용 가능한 언어가 없습니다.

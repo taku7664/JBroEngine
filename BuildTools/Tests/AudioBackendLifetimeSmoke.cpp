@@ -179,7 +179,8 @@ int main()
             return 6;
         }
 
-        const std::vector<std::string> configured = { "Music", "SFX", "Ambience" };
+        const std::vector<AudioBusDef> configured = {
+            { "Music", 0.5f }, { "SFX", 1.0f }, { "Ambience", 0.25f } };
         device.ConfigureBuses(configured);
 
         // Master is implicit and always first; the rest follow the configured order.
@@ -188,6 +189,18 @@ int main()
         {
             std::cerr << "Configured bus list did not round-trip through the device.\n";
             return 7;
+        }
+
+        // 정의된 기본 음량이 실제로 걸려야 한다 — 이름만 만들고 볼륨을 흘리면
+        // 프로젝트 세팅의 슬라이더가 아무 일도 안 하는 것처럼 보인다.
+        for (const AudioBusDef& definition : configured)
+        {
+            SafePtr<IAudioBus> bus = device.GetBus(definition.Name.c_str());
+            if (false == bus.IsValid() || bus->GetVolume() != definition.Volume)
+            {
+                std::cerr << "Bus '" << definition.Name << "' did not take its configured volume.\n";
+                return 12;
+            }
         }
 
         for (const std::string& name : expected)

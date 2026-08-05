@@ -1079,7 +1079,7 @@ bool CMiniAudioDevice::Initialize(const AudioDeviceDesc& desc)
 	return true;
 }
 
-void CMiniAudioDevice::ConfigureBuses(const std::vector<std::string>& names)
+void CMiniAudioDevice::ConfigureBuses(const std::vector<AudioBusDef>& buses)
 {
 	if (!m_impl || !m_impl->Backend || false == m_impl->Backend->IsOperational())
 	{
@@ -1094,15 +1094,22 @@ void CMiniAudioDevice::ConfigureBuses(const std::vector<std::string>& names)
 	// Master 는 목록과 무관하게 항상 첫 번째. endpoint 직결(parent=null).
 	m_impl->Buses.push_back(MakeOwnerPtr<CMiniAudioBus>(
 		m_impl->Backend, AUDIO_MASTER_BUS_NAME, nullptr, EMiniAudioBackendChildKind::MasterBus));
-	ma_sound_group* masterGroup = m_impl->Buses.front() ? m_impl->Buses.front()->GetGroup() : nullptr;
+	CMiniAudioBus* master = m_impl->Buses.front().Get();
+	ma_sound_group* masterGroup = master ? master->GetGroup() : nullptr;
 
-	for (const std::string& name : names)
+	for (const AudioBusDef& bus : buses)
 	{
-		if (name.empty() || IsSameAudioBusName(name.c_str(), AUDIO_MASTER_BUS_NAME))
+		// 목록에 Master 가 적혀 있으면 새로 만들지 않고 볼륨만 받는다.
+		if (IsSameAudioBusName(bus.Name.c_str(), AUDIO_MASTER_BUS_NAME))
 		{
-			continue;   // Master 는 이미 있다. 목록에 또 적혀 있어도 중복 생성하지 않는다.
+			if (master) { master->SetVolume(bus.Volume); }
+			continue;
 		}
-		if (nullptr != m_impl->FindBusPtr(name.c_str()))
+		if (bus.Name.empty())
+		{
+			continue;
+		}
+		if (nullptr != m_impl->FindBusPtr(bus.Name.c_str()))
 		{
 			continue;   // 같은 이름이 두 번 — 먼저 것만 남긴다.
 		}
@@ -1110,11 +1117,13 @@ void CMiniAudioDevice::ConfigureBuses(const std::vector<std::string>& names)
 		{
 			std::fprintf(stderr,
 				"[Audio] Bus '%s' exceeds the %zu bus limit - ignored.\n",
-				name.c_str(), MAX_AUDIO_BUSES);
+				bus.Name.c_str(), MAX_AUDIO_BUSES);
 			continue;
 		}
-		m_impl->Buses.push_back(MakeOwnerPtr<CMiniAudioBus>(
-			m_impl->Backend, name.c_str(), masterGroup, EMiniAudioBackendChildKind::StandardBus));
+		OwnerPtr<CMiniAudioBus> created = MakeOwnerPtr<CMiniAudioBus>(
+			m_impl->Backend, bus.Name.c_str(), masterGroup, EMiniAudioBackendChildKind::StandardBus);
+		created->SetVolume(bus.Volume);
+		m_impl->Buses.push_back(std::move(created));
 	}
 }
 
