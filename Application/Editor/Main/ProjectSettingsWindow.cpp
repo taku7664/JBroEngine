@@ -555,7 +555,7 @@ void CProjectSettingsWindow::DrawCategoryAudio()
             // 음량은 범위가 정해진 값이라 슬라이더가 맞다 — 현재 위치가 한눈에 보이고
             // 아무 데나 집어 바로 그 값으로 갈 수 있다. DragFloat 은 범위가 열린 값
             // (좌표·크기 등)에서 상대적으로 밀 때 쓰는 컨트롤이다.
-            [&]() { ImGui::SliderFloat("##ps.master_volume", &m_masterVolume, 0.0f, 2.0f, "%.2f"); });
+            [&]() { ImGui::SliderFloat("##ps.master_volume", &m_masterVolume, 0.0f, 1.0f, "%.2f"); });
     }
 
     // ── 믹싱 버스 ────────────────────────────────────────────────────────────
@@ -590,7 +590,7 @@ void CProjectSettingsWindow::DrawCategoryAudio()
 
             ImGui::SameLine(0.0f, spacing);
             ImGui::SetNextItemWidth(volumeWidth);
-            ImGui::SliderFloat("##bus_volume", &bus.Volume, 0.0f, 2.0f, "%.2f");
+            ImGui::SliderFloat("##bus_volume", &bus.Volume, 0.0f, 1.0f, "%.2f");
             ImGui::Utillity::HoveredToolTip(Loc::Text(EditorLocKeys::ProjectSettingsAudioBusVolumeDesc));
         },
         AudioBusDef{});

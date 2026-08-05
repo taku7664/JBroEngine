@@ -59,8 +59,8 @@ void CSpriteImporterWindow::DrawImportOptions()
 		ImporterGui::DrawLocalizedRow(layout, EditorLocKeys::InspectorGapX,    EditorLocKeys::InspectorGapXDesc,    [&]() { ImGui::InputInt("##importer.gap_x",    &gapX); });
 		ImporterGui::DrawLocalizedRow(layout, EditorLocKeys::InspectorGapY,    EditorLocKeys::InspectorGapYDesc,    [&]() { ImGui::InputInt("##importer.gap_y",    &gapY); });
 	}
-	ImporterGui::DrawLocalizedRow(layout, EditorLocKeys::InspectorPivotX,         EditorLocKeys::InspectorPivotXDesc,         [&]() { ImGui::DragFloat("##importer.pivot_x", &m_options.PivotX, 0.01f, 0.0f, 1.0f); });
-	ImporterGui::DrawLocalizedRow(layout, EditorLocKeys::InspectorPivotY,         EditorLocKeys::InspectorPivotYDesc,         [&]() { ImGui::DragFloat("##importer.pivot_y", &m_options.PivotY, 0.01f, 0.0f, 1.0f); });
+	ImporterGui::DrawLocalizedRow(layout, EditorLocKeys::InspectorPivotX,         EditorLocKeys::InspectorPivotXDesc,         [&]() { ImGui::SliderFloat("##importer.pivot_x", &m_options.PivotX, 0.0f, 1.0f, "%.2f"); });
+	ImporterGui::DrawLocalizedRow(layout, EditorLocKeys::InspectorPivotY,         EditorLocKeys::InspectorPivotYDesc,         [&]() { ImGui::SliderFloat("##importer.pivot_y", &m_options.PivotY, 0.0f, 1.0f, "%.2f"); });
 	{
 		SafePtr<CProjectManager> projectManager = EditorContext::GetProjectManager();
 		const float projectPPU = projectManager ? projectManager->GetPixelsPerUnit() : 0.0f;

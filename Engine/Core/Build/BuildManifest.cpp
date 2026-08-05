@@ -374,6 +374,7 @@ namespace
 					SetError(outError, "Binary build manifest audio bus entry is invalid.");
 					return false;
 				}
+				bus.Volume = ClampAudioVolume(bus.Volume);
 				outManifest.AudioBuses.push_back(std::move(bus));
 			}
 		}
@@ -588,7 +589,7 @@ bool CBuildManifestLoader::LoadFromFile(const File::Path& manifestPath, BuildMan
 				if (node.IsMap())
 				{
 					bus.Name   = node["name"].as<std::string>("");
-					bus.Volume = node["volume"].as<float>(1.0f);
+					bus.Volume = ClampAudioVolume(node["volume"].as<float>(1.0f));
 				}
 				else
 				{

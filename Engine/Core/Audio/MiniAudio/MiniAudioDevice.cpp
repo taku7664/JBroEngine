@@ -1102,7 +1102,7 @@ void CMiniAudioDevice::ConfigureBuses(const std::vector<AudioBusDef>& buses)
 		// 목록에 Master 가 적혀 있으면 새로 만들지 않고 볼륨만 받는다.
 		if (IsSameAudioBusName(bus.Name.c_str(), AUDIO_MASTER_BUS_NAME))
 		{
-			if (master) { master->SetVolume(bus.Volume); }
+			if (master) { master->SetVolume(ClampAudioVolume(bus.Volume)); }
 			continue;
 		}
 		if (bus.Name.empty())
@@ -1122,7 +1122,7 @@ void CMiniAudioDevice::ConfigureBuses(const std::vector<AudioBusDef>& buses)
 		}
 		OwnerPtr<CMiniAudioBus> created = MakeOwnerPtr<CMiniAudioBus>(
 			m_impl->Backend, bus.Name.c_str(), masterGroup, EMiniAudioBackendChildKind::StandardBus);
-		created->SetVolume(bus.Volume);
+		created->SetVolume(ClampAudioVolume(bus.Volume));
 		m_impl->Buses.push_back(std::move(created));
 	}
 }

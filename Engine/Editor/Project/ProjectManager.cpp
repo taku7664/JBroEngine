@@ -865,7 +865,7 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 			if (busNode.IsMap())
 			{
 				bus.Name   = busNode["Name"].as<std::string>("");
-				bus.Volume = busNode["Volume"].as<float>(1.0f);
+				bus.Volume = ClampAudioVolume(busNode["Volume"].as<float>(1.0f));
 			}
 			else
 			{

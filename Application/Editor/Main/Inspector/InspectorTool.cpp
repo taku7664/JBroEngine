@@ -1220,8 +1220,8 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		const float projectPPU = projectManager ? projectManager->GetPixelsPerUnit() : 0.0f;
 
 		// ── 공용: 피벗/PPU ────────────────────────────────────────────────────
-		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorPivotX)); },         [&]() { changed |= ImGui::DragFloat("##inspector.pivot_x", &options.PivotX, 0.01f, 0.0f, 1.0f); });
-		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorPivotY)); },         [&]() { changed |= ImGui::DragFloat("##inspector.pivot_y", &options.PivotY, 0.01f, 0.0f, 1.0f); });
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorPivotX)); },         [&]() { changed |= ImGui::SliderFloat("##inspector.pivot_x", &options.PivotX, 0.0f, 1.0f, "%.2f"); });
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorPivotY)); },         [&]() { changed |= ImGui::SliderFloat("##inspector.pivot_y", &options.PivotY, 0.0f, 1.0f, "%.2f"); });
 		layout.Row(
 			[&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorPixelsPerUnit)); },
 			[&]() {
@@ -1367,7 +1367,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		// ── 기본 볼륨 / 루프 ──────────────────────────────────────────────
 		layout.Row(
 			[&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorAudioDefaultVolume)); },
-			[&]() { changed |= ImGui::SliderFloat("##inspector.audio.default_volume", &options.DefaultVolume, 0.0f, 2.0f, "%.2f"); });
+			[&]() { changed |= ImGui::SliderFloat("##inspector.audio.default_volume", &options.DefaultVolume, 0.0f, 1.0f, "%.2f"); });
 		layout.Row(
 			[&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorAudioLoop)); },
 			[&]() { changed |= ImGui::Checkbox("##inspector.audio.loop", &options.Loop); });

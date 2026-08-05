@@ -25,13 +25,13 @@ void CEmptyAudioDevice::ConfigureBuses(const std::vector<AudioBusDef>& buses)
 	{
 		if (IsSameAudioBusName(bus.Name.c_str(), AUDIO_MASTER_BUS_NAME))
 		{
-			m_buses.front()->SetVolume(bus.Volume);
+			m_buses.front()->SetVolume(ClampAudioVolume(bus.Volume));
 			continue;
 		}
 		if (bus.Name.empty()) continue;
 		if (m_buses.size() >= MAX_AUDIO_BUSES) break;
 		OwnerPtr<CEmptyAudioBus> created = MakeOwnerPtr<CEmptyAudioBus>(bus.Name.c_str());
-		created->SetVolume(bus.Volume);
+		created->SetVolume(ClampAudioVolume(bus.Volume));
 		m_buses.push_back(std::move(created));
 	}
 }

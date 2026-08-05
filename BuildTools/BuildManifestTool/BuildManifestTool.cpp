@@ -166,7 +166,7 @@ namespace
 					if (node.IsMap())
 					{
 						bus.Name   = node["Name"].as<std::string>("");
-						bus.Volume = node["Volume"].as<float>(1.0f);
+						bus.Volume = ClampAudioVolume(node["Volume"].as<float>(1.0f));
 					}
 					else
 					{

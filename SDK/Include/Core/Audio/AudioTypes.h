@@ -72,10 +72,20 @@ inline void CopyAudioBusName(char (&destination)[AUDIO_BUS_NAME_CAPACITY], const
 // 프로젝트 세팅이 편집하고 .jproject / BuildManifest 를 거쳐 디바이스로 들어간다.
 // InputActionDef 와 같은 위치의 타입이다 — 위쪽 POD 들과 달리 STL 을 쓰지만, 이건
 // 매 프레임 경로가 아니라 **로드 시점에 한 번** 도는 설정 데이터라 문제되지 않는다.
+// 음량은 0..1 정규화 값이다. 1.0 이 무보정(unity gain)이고 그 위는 없다.
+// 저작 UI 가 슬라이더로 막지만, 손으로 고친 .jproject 나 옛 파일이 범위를 넘겨 올 수
+// 있으므로 읽어 들이는 지점에서 한 번 더 조인다.
+inline float ClampAudioVolume(float volume)
+{
+	if (volume < 0.0f) { return 0.0f; }
+	if (volume > 1.0f) { return 1.0f; }
+	return volume;
+}
+
 struct AudioBusDef
 {
 	std::string Name;
-	// 이 버스의 시작 음량. 스크립트가 SetVolume 으로 바꾸면 그쪽이 이긴다
+	// 이 버스의 시작 음량(0..1). 스크립트가 SetVolume 으로 바꾸면 그쪽이 이긴다
 	// (옵션 화면이 저장된 값을 불러와 덮어쓰는 것이 정상 흐름이다).
 	float       Volume = 1.0f;
 };
