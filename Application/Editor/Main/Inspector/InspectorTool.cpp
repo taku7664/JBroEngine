@@ -1367,7 +1367,7 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		// ── 기본 볼륨 / 루프 ──────────────────────────────────────────────
 		layout.Row(
 			[&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorAudioDefaultVolume)); },
-			[&]() { changed |= ImGui::DragFloat("##inspector.audio.default_volume", &options.DefaultVolume, 0.01f, 0.0f, 2.0f); });
+			[&]() { changed |= ImGui::SliderFloat("##inspector.audio.default_volume", &options.DefaultVolume, 0.0f, 2.0f, "%.2f"); });
 		layout.Row(
 			[&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorAudioLoop)); },
 			[&]() { changed |= ImGui::Checkbox("##inspector.audio.loop", &options.Loop); });

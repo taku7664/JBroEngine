@@ -16,6 +16,8 @@
 #include "Core/Input/InputAction.h"
 #include "Core/Input/InputTypes.h"
 
+#include <algorithm>   // std::clamp — 버스 행의 슬라이더 폭 제한
+
 namespace
 {
     const char* ToScriptStateText(ELiveCompileState state)
@@ -550,7 +552,10 @@ void CProjectSettingsWindow::DrawCategoryAudio()
                 label.SetHoveredTooltip(Loc::Text(EditorLocKeys::ProjectSettingsAudioMasterVolumeDesc));
                 label(Loc::Text(EditorLocKeys::ProjectSettingsAudioMasterVolume));
             },
-            [&]() { ImGui::DragFloat("##ps.master_volume", &m_masterVolume, 0.01f, 0.0f, 2.0f); });
+            // 음량은 범위가 정해진 값이라 슬라이더가 맞다 — 현재 위치가 한눈에 보이고
+            // 아무 데나 집어 바로 그 값으로 갈 수 있다. DragFloat 은 범위가 열린 값
+            // (좌표·크기 등)에서 상대적으로 밀 때 쓰는 컨트롤이다.
+            [&]() { ImGui::SliderFloat("##ps.master_volume", &m_masterVolume, 0.0f, 2.0f, "%.2f"); });
     }
 
     // ── 믹싱 버스 ────────────────────────────────────────────────────────────
@@ -561,14 +566,20 @@ void CProjectSettingsWindow::DrawCategoryAudio()
     ImGui::TextWrapped("%s", Loc::Text(EditorLocKeys::ProjectSettingsAudioBusesDesc));
     ImGui::Spacing();
 
-    // 음량 칸은 고정폭으로 잡고 남은 폭을 이름이 먹는다 — 행마다 열이 흔들리지 않게.
-    const float volumeWidth = ImGui::CalcTextSize("0.00").x + ImGui::GetStyle().FramePadding.x * 6.0f;
     ImList<AudioBusDef>(
         "##ps.audio.buses", m_editAudioBuses,
         [&](AudioBusDef& bus, int /*index*/)
         {
-            const float nameWidth = ImGui::CalcItemWidth() - volumeWidth - ImGui::GetStyle().ItemSpacing.x;
-            ImGui::SetNextItemWidth(nameWidth > 40.0f ? nameWidth : ImGui::CalcItemWidth() * 0.5f);
+            // 폭은 **행 콜백 안에서** 잰다 — ImList 가 핸들·삭제 버튼을 뺀 폭을 여기서
+            // PushItemWidth 로 밀어 넣는다. 밖에서 재면 그 둘만큼 넘쳐 버튼이 잘린다.
+            const float rowWidth = ImGui::CalcItemWidth();
+            const float spacing  = ImGui::GetStyle().ItemSpacing.x;
+            // 이름은 짧아도 읽히지만 슬라이더는 좁으면 조작이 안 된다 — 절반 넘게 준다.
+            // 패널이 아주 넓어져도 슬라이더만 끝없이 늘어나지 않게 상한을 둔다.
+            const float volumeWidth = std::clamp(rowWidth * 0.55f, 90.0f, 220.0f);
+            const float nameWidth   = rowWidth - volumeWidth - spacing;
+
+            ImGui::SetNextItemWidth(nameWidth > 40.0f ? nameWidth : rowWidth * 0.4f);
             ImInputText nameInput("##bus_name");
             nameInput.SetText(bus.Name);
             nameInput.SetHintText(Loc::Text(EditorLocKeys::ProjectSettingsAudioBusNameHint));
@@ -576,9 +587,10 @@ void CProjectSettingsWindow::DrawCategoryAudio()
             {
                 bus.Name = static_cast<const char*>(nameInput);
             }
-            ImGui::SameLine(0.0f, ImGui::GetStyle().ItemSpacing.x);
+
+            ImGui::SameLine(0.0f, spacing);
             ImGui::SetNextItemWidth(volumeWidth);
-            ImGui::DragFloat("##bus_volume", &bus.Volume, 0.01f, 0.0f, 2.0f, "%.2f");
+            ImGui::SliderFloat("##bus_volume", &bus.Volume, 0.0f, 2.0f, "%.2f");
             ImGui::Utillity::HoveredToolTip(Loc::Text(EditorLocKeys::ProjectSettingsAudioBusVolumeDesc));
         },
         AudioBusDef{});

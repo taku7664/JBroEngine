@@ -40,7 +40,7 @@ void CAudioImporterWindow::DrawImportOptions()
 		});
 
 	ImporterGui::DrawLocalizedRow(layout, EditorLocKeys::InspectorAudioDefaultVolume, EditorLocKeys::InspectorAudioDefaultVolumeDesc,
-		[&]() { ImGui::DragFloat("##importer.audio.default_volume", &m_options.DefaultVolume, 0.01f, 0.0f, 2.0f); });
+		[&]() { ImGui::SliderFloat("##importer.audio.default_volume", &m_options.DefaultVolume, 0.0f, 2.0f, "%.2f"); });
 	ImporterGui::DrawLocalizedRow(layout, EditorLocKeys::InspectorAudioLoop, EditorLocKeys::InspectorAudioLoopDesc,
 		[&]() { ImGui::Checkbox("##importer.audio.loop", &m_options.Loop); });
 	ImporterGui::DrawLocalizedRow(layout, EditorLocKeys::InspectorAudioIs3d, EditorLocKeys::InspectorAudioIs3dDesc,
