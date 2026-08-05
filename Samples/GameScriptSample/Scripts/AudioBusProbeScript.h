@@ -22,9 +22,12 @@
 //  · 1번(Master)은 어느 버스에 있든 항상 꺼야 한다 — 표준 버스는 전부 Master 하위다.
 //    2/3번이 안 먹는데 1번만 먹으면 예전 동작(전부 Master 직결)이라는 뜻이다.
 //
-// 이 샘플 프로젝트는 스크립트 등록을 GameModule.cpp 에서 손으로 한다(에디터 코드
-// 생성기를 쓰지 않는다). 프로퍼티가 없는 스크립트라 등록은 한 줄이면 된다.
-class CAudioBusProbeScript final
+// 등록 경로가 프로젝트마다 다르다 — 이 샘플은 GameModule.cpp 에서 손으로 등록하지만,
+// 사용자 프로젝트는 에디터 코드 생성기가 `JBRO_SCRIPT` 마커를 grep 해서 자동 등록한다.
+// 그래서 `class` 가 아니라 **JBRO_SCRIPT 로 선언한다**(매크로 확장 결과가 class 라 여기서도
+// 그대로 컴파일된다). `class` 로 두면 생성기가 못 찾아 사용자 프로젝트의 에디터 목록에
+// 아예 안 뜬다 — 컴파일도 되고 에러도 없어서 원인을 찾기 어렵다.
+JBRO_SCRIPT CAudioBusProbeScript final
 	: public CGameScript
 	, public InputHandler<"Game">
 {

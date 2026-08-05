@@ -47,6 +47,17 @@ public:
 	JPROP() Int32 Hits = 0;
 	JPROP() Int64 Score = 0;
 };
+
+// 두 번째 클래스는 **선언 형태**를 검사한다. 기반 클래스가 둘이라 선언이 여러 줄로
+// 갈라지는 흔한 모양인데, 스캐너 정규식이 줄바꿈을 못 넘으면 여기서 조용히 누락된다.
+// 실제로 이 형태를 `class` 로 적었다가 등록이 통째로 빠진 적이 있다 — 컴파일도 되고
+// 에러도 없이 에디터 목록에만 안 뜬다.
+JBRO_SCRIPT CCodegenProbeMultiline final
+	: public GameScript
+	, public InputHandler<"Game">
+{
+	SCRIPT_CLASS(CCodegenProbeMultiline)
+};
 )";
 
 	bool WriteText(const std::filesystem::path& path, const std::string& content)
@@ -197,6 +208,12 @@ int main(int argc, char** /*argv*/)
 	if (false == contains("EReflectPropertyType::Int64"))
 	{
 		return Fail(15, "an Int64 property did not map to Int64.");
+	}
+
+	// 선언이 여러 줄로 갈라진 클래스도 스캔에 잡혀야 한다.
+	if (false == contains("RegisterScript<CCodegenProbeMultiline>"))
+	{
+		return Fail(17, "a multi-line script declaration was not picked up by the scanner.");
 	}
 
 	// 다섯 프로퍼티가 전부 등록됐는지 — 하나라도 미지원으로 걸러지면 조용히 사라진다.

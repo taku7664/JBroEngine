@@ -311,6 +311,11 @@ For trivial tasks, answer directly.
 - 수정 보고는 중요한 항목마다 코드를 읽고 "어떻게 생각했고 / 어떤 반례를 찾았고 / 어떻게 고쳤다" 흐름으로 남길 것.
 - 직렬화는 JSON보다 YAML/바이너리 방향을 우선한다.
 - 임시 bool 플래그 추가로 회피 금지
+- **게임 스크립트 클래스는 `class` 가 아니라 `JBRO_SCRIPT` 로 선언한다.** 매크로 확장 결과가
+  `class` 라 어느 프로젝트에서든 그대로 컴파일되지만, 에디터 코드 생성기는 이 마커를 grep 해서
+  스크립트를 자동 등록한다. `class` 로 적으면 **컴파일도 되고 에러도 없이 에디터 목록에만 안 뜬다.**
+  (Samples/GameScriptSample 은 GameModule.cpp 에서 손으로 등록해 `class` 로도 도는데, 그 형태를
+  사용자 프로젝트로 복사하면 등록이 통째로 빠진다 — 실제로 겪은 사고다.)
 - 패키지 실행 파일이 켜지는 것만으로 빌드 검증을 완료 처리하지 않는다. 빌드 매니페스트 등 런타임 설정이 실제로 전달되는지와 핵심 게임 동작이 패키지에서 정상인지까지 확인한다.
 - **`EngineCore`(전역 `Engine`) 와 `ScriptCore`(전역 `Script`) 는 용도가 다르다. 절대 혼동 금지.**
   - **`Engine`(EngineCore)** = 엔진 *내부* 전체 공개 API. 모든 서비스(Platform/RHIDevice/Renderer/RenderScene/AssetManager/SceneManager/…)를 담는다. **호스트 프로세스에서만 채워진다**(CEngine 초기화가 각 서비스 생성 시 `Engine.X = …` 대입). 엔진/에디터 코드는 이 전역 `Engine.X` 를 **직접** 쓴다. CModule 이나 ProjectManager 가 EngineCore 포인터를 따로 들고 다니지 않는다(extern 전역이라 불필요).
