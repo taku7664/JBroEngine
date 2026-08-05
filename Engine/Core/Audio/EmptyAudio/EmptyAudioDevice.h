@@ -53,8 +53,8 @@ public:
 class CEmptyAudioBus final : public IAudioBus
 {
 public:
-	explicit CEmptyAudioBus(EAudioBusKind kind) : m_kind(kind) {}
-	EAudioBusKind GetKind() const override { return m_kind; }
+	explicit CEmptyAudioBus(const char* name) { CopyAudioBusName(m_name, name); }
+	const char* GetName() const override { return m_name; }
 	void  SetVolume(float v) override { m_volume = v; }
 	float GetVolume() const override { return m_volume; }
 	void  SetMuted (bool m)  override { m_muted = m; }
@@ -62,7 +62,7 @@ public:
 	void  AttachEffect(SafePtr<IAudioEffect>) override {}
 	void  DetachAllEffects() override {}
 private:
-	EAudioBusKind m_kind  = EAudioBusKind::Master;
+	char          m_name[AUDIO_BUS_NAME_CAPACITY] = {};
 	float         m_volume = 1.0f;
 	bool          m_muted  = false;
 };
@@ -86,8 +86,10 @@ public:
 	void Tick(float) override {}
 
 	OwnerPtr<IAudioPlayer>  CreatePlayer (const AudioPlayerDesc&) override;
-	OwnerPtr<IAudioBus>     CreateBus    (EAudioBusKind kind) override;
-	SafePtr<IAudioBus>      GetBus       (EAudioBusKind kind) override;
+	OwnerPtr<IAudioBus>     CreateBus    (const char* name) override;
+	SafePtr<IAudioBus>      GetBus       (const char* name) override;
+	void                    ConfigureBuses(const std::vector<std::string>& names) override;
+	std::vector<std::string> GetBusNames () const override;
 	OwnerPtr<IAudioEffect>  CreateEffect (EAudioEffectKind kind) override;
 	SafePtr<IAudioListener> GetPrimaryListener() override;
 
@@ -100,6 +102,7 @@ public:
 
 private:
 	OwnerPtr<CEmptyAudioListener> m_listener;
-	OwnerPtr<CEmptyAudioBus>      m_buses[AUDIO_BUS_KIND_COUNT];
+	// 이름으로 찾는다. [0] 은 항상 Master(미니오디오 백엔드와 같은 규약).
+	std::vector<OwnerPtr<CEmptyAudioBus>> m_buses;
 	float                         m_master = 1.0f;
 };

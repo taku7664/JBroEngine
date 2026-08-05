@@ -141,6 +141,10 @@ public:
 	const std::vector<std::string>& GetInputLayers() const;
 	void                            SetInputLayers(std::vector<std::string> layers);
 
+	// 오디오 믹싱 버스 이름 목록. 입력 레이어와 같은 규약 — 설정하면 즉시 디바이스에 반영된다.
+	const std::vector<std::string>& GetAudioBuses() const;
+	void                            SetAudioBuses(std::vector<std::string> buses);
+
 	// 입력 액션 맵 — 이름 기반 액션→바인딩. 스크립트가 ctx.GetAction().GetValue<T> 로 읽는다.
 	// Set 시 즉시 CInputSystem 에 적용(SetInputMap) + m_info 갱신(저장은 SaveProject 별도).
 	const std::vector<InputActionDef>& GetInputActions() const;
@@ -216,6 +220,7 @@ private:
 	LiveCompileDesc BuildLiveCompileDesc() const;
 	// 현재 m_info.InputLayers 를 엔진 InputSystem 에 주입(프로젝트 로드/레이어 변경 시).
 	void ApplyInputLayersToSystem() const;
+	void ApplyAudioBusesToDevice() const;
 	// 현재 m_info.InputActions 를 엔진 InputSystem 에 주입(프로젝트 로드/액션 변경 시).
 	void ApplyInputMapToSystem() const;
 

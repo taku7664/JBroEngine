@@ -144,4 +144,16 @@ struct ProjectInfo
 	// 입력 액션 맵 — 이름 기반 액션→바인딩. 스크립트가 ctx.GetAction().GetValue<T>("이름") 으로 읽는다.
 	// 프로젝트 로드 시 CInputSystem::SetInputMap 으로 주입. 직렬화는 ProjectManager(magic_enum, 호스트).
 	std::vector<InputActionDef> InputActions;
+
+	// 오디오 믹싱 버스 — AudioPlayer 컴포넌트의 Bus 가 이 이름들을 가리킨다.
+	// 스크립트가 Script.Audio->GetBus("Music")->SetVolume(v) 로 카테고리 볼륨을 건다.
+	// "Master" 는 적지 않아도 항상 존재하는 루트다(적어도 무시된다).
+	// 프로젝트 로드 시 IAudioDevice::ConfigureBuses 로 주입되고, 패키지 게임에는
+	// BuildManifest 를 통해 전달된다.
+	std::vector<std::string> AudioBuses = {
+		"Music",
+		"SFX",
+		"Voice",
+		"UI",
+	};
 };

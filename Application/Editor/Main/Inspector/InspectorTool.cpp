@@ -1347,26 +1347,22 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			});
 		options.Mode = static_cast<EAudioImportMode>(modeIndex);
 
-		// ── 기본 버스 (Master / Music / SFX / Voice / UI / Custom) ─────────
-		const char* busItems[] = {
-			Loc::Text(EditorLocKeys::InspectorAudioBusMaster),
-			Loc::Text(EditorLocKeys::InspectorAudioBusMusic),
-			Loc::Text(EditorLocKeys::InspectorAudioBusSfx),
-			Loc::Text(EditorLocKeys::InspectorAudioBusVoice),
-			Loc::Text(EditorLocKeys::InspectorAudioBusUi),
-			Loc::Text(EditorLocKeys::InspectorAudioBusCustom),
-		};
-		int busIndex = static_cast<int>(options.DefaultBus);
+		// ── 기본 버스 ─────────────────────────────────────────────────────
+		// 버스 목록은 프로젝트 세팅이 정하므로 고정 콤보를 둘 수 없다 — 이름을 직접 적는다.
+		// 빈 값은 Master 로 해석된다.
 		layout.Row(
 			[&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorAudioDefaultBus)); },
 			[&]()
 			{
-				if (ImGui::Combo("##inspector.audio.bus", &busIndex, busItems, IM_ARRAYSIZE(busItems)))
+				ImInputText busInput("##inspector.audio.bus");
+				busInput.SetText(options.DefaultBus);
+				busInput.SetHintText(AUDIO_MASTER_BUS_NAME);
+				if (busInput(ImGuiInputTextFlags_None))
 				{
+					options.DefaultBus = static_cast<const char*>(busInput);
 					changed = true;
 				}
 			});
-		options.DefaultBus = static_cast<EAudioBusKind>(busIndex);
 
 		// ── 기본 볼륨 / 루프 ──────────────────────────────────────────────
 		layout.Row(

@@ -485,13 +485,15 @@ class CMiniAudioBus final : public IAudioBus, public IMiniAudioBackendChild
 public:
 	CMiniAudioBus(
 		std::shared_ptr<MiniAudioBackendState> state,
-		EAudioBusKind kind,
+		const char* name,
 		ma_sound_group* parent,
 		EMiniAudioBackendChildKind childKind)
 		: m_state(std::move(state))
-		, m_kind(kind)
 		, m_childKind(childKind)
 	{
+		// 이름은 POD 버퍼에 복사해 둔다 — 호출자(프로젝트 세팅 벡터)의 수명과 무관해야 한다.
+		CopyAudioBusName(m_name, name);
+
 		ma_engine* engine = m_state && m_state->IsOperational() ? &m_state->Engine : nullptr;
 		if (nullptr == engine) return;
 		if (MA_SUCCESS == ma_sound_group_init(engine, 0, parent, &m_group))
@@ -520,7 +522,7 @@ public:
 		m_initialized = false;
 	}
 
-	EAudioBusKind GetKind() const override { return m_kind; }
+	const char* GetName() const override { return m_name; }
 
 	void SetVolume(float v) override
 	{
@@ -544,7 +546,7 @@ public:
 
 private:
 	std::shared_ptr<MiniAudioBackendState> m_state;
-	EAudioBusKind   m_kind        = EAudioBusKind::Master;
+	char            m_name[AUDIO_BUS_NAME_CAPACITY] = {};
 	EMiniAudioBackendChildKind m_childKind = EMiniAudioBackendChildKind::CustomBus;
 	ma_sound_group  m_group{};
 	bool            m_initialized = false;
@@ -981,8 +983,11 @@ struct MiniAudioDeviceImpl
 {
 	std::shared_ptr<MiniAudioBackendState> Backend;
 	OwnerPtr<CMiniAudioListener>    Listener;
-	// 표준 믹싱 버스 — Master(endpoint 직결) ← Music/SFX/Voice/UI/Custom.
-	OwnerPtr<CMiniAudioBus>         Buses[AUDIO_BUS_KIND_COUNT];
+	// 프로젝트가 정의한 믹싱 버스 — [0] 은 항상 Master(endpoint 직결)이고 나머지는 그 자식.
+	// 이름으로 찾으므로 순서는 정의 순서를 그대로 보존한다(저작 UI 표시 순서와 일치).
+	std::vector<OwnerPtr<CMiniAudioBus>> Buses;
+	// 이미 경고한 미등록 버스 이름 — 매 프레임 같은 경고가 쏟아지는 걸 막는다.
+	std::vector<std::string>             WarnedMissingBuses;
 	// 엔진 볼륨 자리를 둘이 나눠 쓴다 — 프로젝트 설정과 AudioListener 컴포넌트.
 	// 한쪽이 직접 ma_engine_set_volume 을 부르면 다른 쪽을 덮어쓰므로 여기서 곱해 적용한다.
 	float                           MasterVolume = 1.0f;   // 프로젝트 전역
@@ -996,10 +1001,39 @@ struct MiniAudioDeviceImpl
 		}
 	}
 
-	CMiniAudioBus* GetBusPtr(EAudioBusKind kind)
+	CMiniAudioBus* GetMasterBusPtr()
 	{
-		const std::size_t i = static_cast<std::size_t>(kind);
-		return (i < AUDIO_BUS_KIND_COUNT) ? Buses[i].Get() : nullptr;
+		return Buses.empty() ? nullptr : Buses.front().Get();
+	}
+
+	// 이름으로 버스를 찾는다. 못 찾으면 null — 폴백 판단은 호출부가 한다.
+	// 버스 수가 16 이하라 선형 탐색으로 충분하다(플레이어 생성 시에만 도는 경로).
+	CMiniAudioBus* FindBusPtr(const char* name)
+	{
+		const char* wanted = ResolveAudioBusName(name);
+		for (OwnerPtr<CMiniAudioBus>& bus : Buses)
+		{
+			if (bus && IsSameAudioBusName(bus->GetName(), wanted))
+			{
+				return bus.Get();
+			}
+		}
+		return nullptr;
+	}
+
+	// 미등록 버스 이름을 한 번만 경고한다. 프로젝트 세팅에서 버스를 지운 뒤 그 이름을
+	// 가리키는 AudioPlayer 가 남아 있으면 조용히 Master 로 가는데, 그게 제일 헷갈린다.
+	void WarnMissingBusOnce(const char* name)
+	{
+		const std::string key = ResolveAudioBusName(name);
+		if (std::find(WarnedMissingBuses.begin(), WarnedMissingBuses.end(), key) != WarnedMissingBuses.end())
+		{
+			return;
+		}
+		WarnedMissingBuses.push_back(key);
+		std::fprintf(stderr,
+			"[Audio] Bus '%s' is not defined in the project settings - routing to %s.\n",
+			key.c_str(), AUDIO_MASTER_BUS_NAME);
 	}
 };
 
@@ -1039,25 +1073,67 @@ bool CMiniAudioDevice::Initialize(const AudioDeviceDesc& desc)
 	m_impl->Backend->EngineInitialized = true;
 	m_impl->Listener = MakeOwnerPtr<CMiniAudioListener>(m_impl->Backend, m_impl.Get());
 
-	// 표준 믹싱 버스 계층 구성 — Master 는 endpoint 직결(parent=null),
-	// 나머지는 Master 의 group 을 parent 로 둬 카테고리 볼륨이 Master 로 합쳐진다.
-	{
-		const std::size_t masterIdx = static_cast<std::size_t>(EAudioBusKind::Master);
-		m_impl->Buses[masterIdx] = MakeOwnerPtr<CMiniAudioBus>(
-			m_impl->Backend, EAudioBusKind::Master, nullptr, EMiniAudioBackendChildKind::MasterBus);
-		ma_sound_group* masterGroup = m_impl->Buses[masterIdx] ? m_impl->Buses[masterIdx]->GetGroup() : nullptr;
+	// 버스는 Master 하나만 만들어 둔다. 프로젝트가 정의한 목록은 ConfigureBuses 가 주입한다
+	// (프로젝트 없이 디바이스만 쓰는 경로 — 에디터 미리듣기 등 — 는 Master 만으로 동작한다).
+	ConfigureBuses({});
+	return true;
+}
 
-		for (std::size_t i = 0; i < AUDIO_BUS_KIND_COUNT; ++i)
+void CMiniAudioDevice::ConfigureBuses(const std::vector<std::string>& names)
+{
+	if (!m_impl || !m_impl->Backend || false == m_impl->Backend->IsOperational())
+	{
+		return;
+	}
+
+	// 기존 버스를 먼저 내린다. 살아 있는 sound 가 붙어 있으면 갈 곳을 잃으므로 이 함수는
+	// 플레이어가 생기기 전에만 부른다는 계약이다(IAudioDevice 선언부 참조).
+	m_impl->Buses.clear();
+	m_impl->WarnedMissingBuses.clear();
+
+	// Master 는 목록과 무관하게 항상 첫 번째. endpoint 직결(parent=null).
+	m_impl->Buses.push_back(MakeOwnerPtr<CMiniAudioBus>(
+		m_impl->Backend, AUDIO_MASTER_BUS_NAME, nullptr, EMiniAudioBackendChildKind::MasterBus));
+	ma_sound_group* masterGroup = m_impl->Buses.front() ? m_impl->Buses.front()->GetGroup() : nullptr;
+
+	for (const std::string& name : names)
+	{
+		if (name.empty() || IsSameAudioBusName(name.c_str(), AUDIO_MASTER_BUS_NAME))
 		{
-			if (i == masterIdx) continue;
-			m_impl->Buses[i] = MakeOwnerPtr<CMiniAudioBus>(
-				m_impl->Backend,
-				static_cast<EAudioBusKind>(i),
-				masterGroup,
-				EMiniAudioBackendChildKind::StandardBus);
+			continue;   // Master 는 이미 있다. 목록에 또 적혀 있어도 중복 생성하지 않는다.
+		}
+		if (nullptr != m_impl->FindBusPtr(name.c_str()))
+		{
+			continue;   // 같은 이름이 두 번 — 먼저 것만 남긴다.
+		}
+		if (m_impl->Buses.size() >= MAX_AUDIO_BUSES)
+		{
+			std::fprintf(stderr,
+				"[Audio] Bus '%s' exceeds the %zu bus limit - ignored.\n",
+				name.c_str(), MAX_AUDIO_BUSES);
+			continue;
+		}
+		m_impl->Buses.push_back(MakeOwnerPtr<CMiniAudioBus>(
+			m_impl->Backend, name.c_str(), masterGroup, EMiniAudioBackendChildKind::StandardBus));
+	}
+}
+
+std::vector<std::string> CMiniAudioDevice::GetBusNames() const
+{
+	std::vector<std::string> names;
+	if (!m_impl)
+	{
+		return names;
+	}
+	names.reserve(m_impl->Buses.size());
+	for (const OwnerPtr<CMiniAudioBus>& bus : m_impl->Buses)
+	{
+		if (bus)
+		{
+			names.emplace_back(bus->GetName());
 		}
 	}
-	return true;
+	return names;
 }
 
 void CMiniAudioDevice::Finalize()
@@ -1087,8 +1163,8 @@ OwnerPtr<IAudioPlayer> CMiniAudioDevice::CreatePlayer(const AudioPlayerDesc& des
 	{
 		// desc.Bus 는 라우팅 대상 버스다. 예전엔 여기서 버려져 무엇을 지정하든 Master 로
 		// 갔다 — 카테고리 볼륨이 동작하지 않던 원인.
-		const EAudioBusKind kind = desc.Bus.IsValid() ? desc.Bus->GetKind() : EAudioBusKind::Master;
-		return CreatePlayerFromFile(desc.StreamPathUtf8, kind);
+		const char* busName = desc.Bus.IsValid() ? desc.Bus->GetName() : AUDIO_MASTER_BUS_NAME;
+		return CreatePlayerFromFile(desc.StreamPathUtf8, busName);
 	}
 
 	// PCM 기반 생성은 아직 구현 전이다. 경로도 PCM도 없는 기존 호출에는 안전한
@@ -1096,14 +1172,19 @@ OwnerPtr<IAudioPlayer> CMiniAudioDevice::CreatePlayer(const AudioPlayerDesc& des
 	return MakeOwnerPtr<CMiniAudioPlayerStub>();
 }
 
-OwnerPtr<IAudioPlayer> CMiniAudioDevice::CreatePlayerFromFile(const char* filePathUtf8, EAudioBusKind bus)
+OwnerPtr<IAudioPlayer> CMiniAudioDevice::CreatePlayerFromFile(const char* filePathUtf8, const char* busName)
 {
 	if (!m_impl || !m_impl->Backend || false == m_impl->Backend->IsOperational() || nullptr == filePathUtf8)
 	{
 		return nullptr;
 	}
-	// 지정 버스로 라우팅. 버스 미초기화 시 group=null → endpoint 직결(기존 동작).
-	CMiniAudioBus* busPtr = m_impl->GetBusPtr(bus);
+	// 지정 버스로 라우팅. 목록에 없는 이름이면 Master 로 떨어뜨리고 한 번 경고한다.
+	CMiniAudioBus* busPtr = m_impl->FindBusPtr(busName);
+	if (nullptr == busPtr)
+	{
+		m_impl->WarnMissingBusOnce(busName);
+		busPtr = m_impl->GetMasterBusPtr();
+	}
 	ma_sound_group* group = busPtr ? busPtr->GetGroup() : nullptr;
 
 	OwnerPtr<CMiniAudioFilePlayer> player = MakeOwnerPtr<CMiniAudioFilePlayer>(
@@ -1115,24 +1196,30 @@ OwnerPtr<IAudioPlayer> CMiniAudioDevice::CreatePlayerFromFile(const char* filePa
 	return player;
 }
 
-OwnerPtr<IAudioBus> CMiniAudioDevice::CreateBus(EAudioBusKind kind)
+OwnerPtr<IAudioBus> CMiniAudioDevice::CreateBus(const char* name)
 {
-	// Custom 등 표준 외 버스 — Master 하위에 새 group 생성.
-	CMiniAudioBus* master = m_impl ? m_impl->GetBusPtr(EAudioBusKind::Master) : nullptr;
+	// 프로젝트 목록 밖의 임시 버스 — Master 하위에 새 group 생성. 소유권은 호출자에게 간다.
+	CMiniAudioBus* master = m_impl ? m_impl->GetMasterBusPtr() : nullptr;
 	ma_sound_group* parent = master ? master->GetGroup() : nullptr;
 	return MakeOwnerPtr<CMiniAudioBus>(
 		m_impl ? m_impl->Backend : std::shared_ptr<MiniAudioBackendState>{},
-		kind,
+		name,
 		parent,
 		EMiniAudioBackendChildKind::CustomBus);
 }
 
-SafePtr<IAudioBus> CMiniAudioDevice::GetBus(EAudioBusKind kind)
+SafePtr<IAudioBus> CMiniAudioDevice::GetBus(const char* name)
 {
 	if (!m_impl) return SafePtr<IAudioBus>();
-	const std::size_t i = static_cast<std::size_t>(kind);
-	if (i >= AUDIO_BUS_KIND_COUNT) return SafePtr<IAudioBus>();
-	return m_impl->Buses[i] ? m_impl->Buses[i].GetSafePtr() : SafePtr<IAudioBus>();
+	CMiniAudioBus* bus = m_impl->FindBusPtr(name);
+	if (nullptr == bus)
+	{
+		// 못 찾으면 Master 로 떨어뜨린다 — 호출부가 null 검사를 빠뜨렸을 때 소리가 통째로
+		// 사라지는 것보다 낫고, 경고로 원인이 남는다.
+		m_impl->WarnMissingBusOnce(name);
+		bus = m_impl->GetMasterBusPtr();
+	}
+	return bus ? bus->SafeFromThis() : SafePtr<IAudioBus>();
 }
 
 OwnerPtr<IAudioEffect> CMiniAudioDevice::CreateEffect(EAudioEffectKind kind)

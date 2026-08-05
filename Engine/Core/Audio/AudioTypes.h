@@ -26,26 +26,65 @@ enum class EAudioImportMode : std::uint8_t
 	Streaming,
 };
 
-// ── 믹싱 버스 종류 ──────────────────────────────────────────────────────────
-// 게임 측에서 카테고리별 볼륨 조절 / 효과 부착 단위.
+// ── 믹싱 버스 ───────────────────────────────────────────────────────────────
+// 게임 측에서 카테고리별 볼륨 조절 / 효과 부착 단위. **버스는 이름(문자열)으로 지목한다.**
 //
-// **끝 sentinel(Count)을 두지 않는다.** 이 enum 은 AudioPlayer 컴포넌트의 프로퍼티라
-// 인스펙터 드롭다운에 그대로 뜨는데, sentinel 이 있으면 "Count" 라는 고를 수 있지만
-// 아무 데도 라우팅되지 않는 항목이 생긴다. 배열 크기는 아래 상수를 쓴다.
-enum class EAudioBusKind : std::uint8_t
-{
-	Master,
-	Music,
-	SFX,
-	Voice,
-	UI,
-	Custom,
-};
+// enum 이 아닌 이유: 어떤 카테고리가 필요한지는 게임마다 다르다. enum 이면 엔진이 미리
+// 정한 목록 밖으로 못 나가고, 안 쓰는 항목이 인스펙터에 남는다. 입력 레이어
+// (ProjectInfo::InputLayers)와 같은 방식으로 프로젝트 세팅에서 목록을 편집한다.
+//
+// 규칙:
+//  · "Master" 는 예약 이름 — 항상 존재하는 루트 버스이고 나머지는 전부 그 자식이다.
+//    그래서 Master 볼륨은 모든 소리에 곱해진다.
+//  · 빈 이름은 Master 로 해석한다(= 버스 미지정).
+//  · 목록에 없는 이름으로 라우팅을 요청하면 Master 로 떨어지고 경고가 한 번 남는다.
+inline constexpr const char* AUDIO_MASTER_BUS_NAME = "Master";
 
-// 버스 배열 크기. 마지막 항목에서 유도하므로 enum 에 항목을 추가하면 자동으로 따라온다
-// (새 항목은 반드시 Custom **앞에** 넣을 것).
-inline constexpr std::size_t AUDIO_BUS_KIND_COUNT =
-	static_cast<std::size_t>(EAudioBusKind::Custom) + 1;
+// 한 프로젝트가 가질 수 있는 버스 수 상한. 버스는 사람이 손으로 관리하는 카테고리라
+// 이 정도면 넉넉하고, 조회가 선형 탐색이라 상한이 있는 편이 낫다.
+inline constexpr std::size_t MAX_AUDIO_BUSES = 16;
+
+// 버스 이름 한 개의 최대 길이(null 포함). 백엔드가 POD 버퍼로 들고 있는다.
+inline constexpr std::size_t AUDIO_BUS_NAME_CAPACITY = 64;
+
+// 이름 없음/빈 이름은 Master 로 본다. 라우팅 판정을 한 곳으로 모아 두면
+// "빈 문자열이면 어디로 가지?" 를 호출부마다 다시 정하지 않아도 된다.
+inline const char* ResolveAudioBusName(const char* name)
+{
+	return (nullptr == name || '\0' == name[0]) ? AUDIO_MASTER_BUS_NAME : name;
+}
+
+// 버스 이름을 고정 버퍼로 복사한다(넘치면 자르고 항상 null 종료).
+// 백엔드는 호출자(프로젝트 세팅 벡터)의 수명과 무관하게 이름을 들고 있어야 한다.
+inline void CopyAudioBusName(char (&destination)[AUDIO_BUS_NAME_CAPACITY], const char* name)
+{
+	const char* source = ResolveAudioBusName(name);
+	std::size_t i = 0;
+	for (; i + 1 < AUDIO_BUS_NAME_CAPACITY && '\0' != source[i]; ++i)
+	{
+		destination[i] = source[i];
+	}
+	destination[i] = '\0';
+}
+
+// 버스 이름 비교. 양쪽 다 빈 이름/nullptr 을 Master 로 정규화한 뒤 비교한다.
+inline bool IsSameAudioBusName(const char* lhs, const char* rhs)
+{
+	const char* a = ResolveAudioBusName(lhs);
+	const char* b = ResolveAudioBusName(rhs);
+	for (std::size_t i = 0; i < AUDIO_BUS_NAME_CAPACITY; ++i)
+	{
+		if (a[i] != b[i])
+		{
+			return false;
+		}
+		if ('\0' == a[i])
+		{
+			return true;
+		}
+	}
+	return true;
+}
 
 // ── DSP 효과 종류 (향후 확장) ──────────────────────────────────────────────
 enum class EAudioEffectKind : std::uint8_t

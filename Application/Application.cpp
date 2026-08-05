@@ -12,6 +12,7 @@
 #include "Engine/Core/Engine.h"
 #include "Engine/Core/RuntimeConfig.h"
 #include "Engine/Core/Logging/LoggerInternal.h"
+#include "Engine/Core/Audio/IAudioDevice.h"   // ConfigureBuses — 매니페스트의 버스 목록 주입
 #include "Engine/Core/Input/InputSystem.h"
 #include "Engine/Core/Platform/IRenderSurface.h"
 #include "Engine/Core/Renderer/IRenderer.h"
@@ -165,6 +166,12 @@ bool CGameApplication::InitializeRuntimeGame()
 	if (Engine.InputSystem)
 	{
 		Engine.InputSystem->SetInputMap(manifest.InputActions);
+	}
+	// 프로젝트가 정의한 믹싱 버스. 이게 빠지면 패키지에서만 모든 소리가 Master 로 몰려
+	// 카테고리 볼륨이 죽는다. 플레이어가 생기기 전이어야 하므로 캠버스 로드보다 앞이다.
+	if (Engine.Audio)
+	{
+		Engine.Audio->ConfigureBuses(manifest.AudioBuses);
 	}
 
 	// 유저 데이터 뿌리(세이브 + 로그 파일)를 제품명으로 확정한다 — 여기가 실행 중 제품명을

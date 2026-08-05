@@ -6,6 +6,8 @@
 
 #include <cstdint>
 #include <functional>
+#include <string>
+#include <vector>
 
 class IAudioBus;
 class IAudioEffect;
@@ -34,11 +36,25 @@ public:
 
 	// ── 생성 ───────────────────────────────────────────────────────────────
 	virtual OwnerPtr<IAudioPlayer>  CreatePlayer (const AudioPlayerDesc& desc) = 0;
-	virtual OwnerPtr<IAudioBus>     CreateBus    (EAudioBusKind kind) = 0;
 
-	// 디바이스가 소유하는 표준 믹싱 버스(Master/Music/SFX/Voice/UI)를 반환.
-	// player 라우팅·카테고리 볼륨 제어의 진입점. Custom 은 CreateBus 로 별도 생성.
-	virtual SafePtr<IAudioBus>      GetBus       (EAudioBusKind kind) = 0;
+	// 디바이스 소유 목록 **밖의** 버스를 따로 만든다(Master 하위). 목록에 있는 버스는
+	// ConfigureBuses 가 만들고 GetBus 로 얻는다.
+	virtual OwnerPtr<IAudioBus>     CreateBus    (const char* name) = 0;
+
+	// 디바이스가 소유하는 믹싱 버스를 이름으로 반환. player 라우팅·카테고리 볼륨의 진입점.
+	// 이름이 없거나 비어 있으면 Master 를 준다(목록에 없는 이름은 경고 1회).
+	virtual SafePtr<IAudioBus>      GetBus       (const char* name) = 0;
+
+	// 프로젝트가 정의한 버스 목록을 주입한다. "Master" 는 목록에 없어도 항상 만들어지고,
+	// 나머지는 전부 Master 의 자식이 된다. 목록에 있는 Master 항목은 무시된다(중복 방지).
+	//
+	// **플레이어가 생기기 전에만 부를 것** — miniaudio 는 살아 있는 sound 의 출력 group 을
+	// 바꾸지 못하므로, 이미 붙은 소리가 있는 상태에서 버스를 갈아엎으면 그 소리들이 갈 곳을
+	// 잃는다. 호출 지점은 디바이스 초기화 직후 / 프로젝트 로드 시점이다.
+	virtual void ConfigureBuses(const std::vector<std::string>& names) = 0;
+
+	// 현재 구성된 버스 이름들(정의 순서, Master 가 항상 첫 번째). 저작 UI 표시용.
+	virtual std::vector<std::string> GetBusNames() const = 0;
 	virtual OwnerPtr<IAudioEffect>  CreateEffect (EAudioEffectKind kind) = 0;
 
 	// 캔버스당 활성 1개 (backend 가 소유). 게임 측 AudioListener 컴포넌트가

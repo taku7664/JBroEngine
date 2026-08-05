@@ -104,27 +104,7 @@ namespace
 		return EAudioImportMode::Streaming == m ? "Streaming" : "Decompressed";
 	}
 
-	EAudioBusKind ParseBusKind(const std::string& s)
-	{
-		if (s == "Master") return EAudioBusKind::Master;
-		if (s == "Music")  return EAudioBusKind::Music;
-		if (s == "Voice")  return EAudioBusKind::Voice;
-		if (s == "UI")     return EAudioBusKind::UI;
-		if (s == "Custom") return EAudioBusKind::Custom;
-		return EAudioBusKind::SFX;
-	}
-	const char* BusKindToString(EAudioBusKind b)
-	{
-		switch (b)
-		{
-		case EAudioBusKind::Master: return "Master";
-		case EAudioBusKind::Music:  return "Music";
-		case EAudioBusKind::Voice:  return "Voice";
-		case EAudioBusKind::UI:     return "UI";
-		case EAudioBusKind::Custom: return "Custom";
-		default:                    return "SFX";
-		}
-	}
+	// 버스는 이름으로 다룬다 — 변환 함수가 필요 없다(예전 Parse/ToString 은 enum 왕복용이었다).
 }
 
 AudioImportOptions CAudioImportOptions::FromYaml(const std::string& yamlText)
@@ -145,7 +125,7 @@ AudioImportOptions CAudioImportOptions::FromYaml(const std::string& yamlText)
 	options.Is3D          = ReadOption<bool> (audioNode, "Is3D",          options.Is3D);
 	options.MinDistance   = ReadOption<float>(audioNode, "MinDistance",   options.MinDistance);
 	options.MaxDistance   = ReadOption<float>(audioNode, "MaxDistance",   options.MaxDistance);
-	options.DefaultBus    = ParseBusKind(ReadOption<std::string>(audioNode, "DefaultBus", "SFX"));
+	options.DefaultBus    = ReadOption<std::string>(audioNode, "DefaultBus", "SFX");
 	return options;
 }
 
@@ -161,7 +141,7 @@ std::string CAudioImportOptions::ToYaml(const AudioImportOptions& options)
 	emitter << YAML::Key << "Is3D"          << YAML::Value << options.Is3D;
 	emitter << YAML::Key << "MinDistance"   << YAML::Value << options.MinDistance;
 	emitter << YAML::Key << "MaxDistance"   << YAML::Value << options.MaxDistance;
-	emitter << YAML::Key << "DefaultBus"    << YAML::Value << BusKindToString(options.DefaultBus);
+	emitter << YAML::Key << "DefaultBus"    << YAML::Value << options.DefaultBus;
 	emitter << YAML::EndMap;
 	emitter << YAML::EndMap;
 	return emitter.c_str();

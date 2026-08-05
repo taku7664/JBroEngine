@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "AudioBusProbeScript.h"
 
+#include <cstdio>
 #include <string>
 
 namespace
@@ -14,21 +15,6 @@ namespace
 		}
 	}
 
-	// 게임 DLL 에는 magic_enum 이 없다(호스트 전용). 로그용 이름은 손으로 적는다.
-	const char* BusName(EAudioBusKind kind)
-	{
-		switch (kind)
-		{
-		case EAudioBusKind::Master: return "Master";
-		case EAudioBusKind::Music:  return "Music";
-		case EAudioBusKind::SFX:    return "SFX";
-		case EAudioBusKind::Voice:  return "Voice";
-		case EAudioBusKind::UI:     return "UI";
-		case EAudioBusKind::Custom: return "Custom";
-		}
-		return "?";
-	}
-
 	// 소수 둘째 자리까지 — 로그에서 0.00 / 1.00 만 구분되면 충분하다.
 	std::string FormatVolume(float volume)
 	{
@@ -36,14 +22,6 @@ namespace
 		std::snprintf(buffer, sizeof(buffer), "%.2f", volume);
 		return buffer;
 	}
-
-	constexpr EAudioBusKind kProbeBuses[] = {
-		EAudioBusKind::Master,
-		EAudioBusKind::Music,
-		EAudioBusKind::SFX,
-		EAudioBusKind::Voice,
-		EAudioBusKind::UI,
-	};
 }
 
 void CAudioBusProbeScript::OnStart()
@@ -53,7 +31,20 @@ void CAudioBusProbeScript::OnStart()
 		BusLog("audio device is unavailable - nothing to probe.");
 		return;
 	}
-	BusLog("ready - 1=Master 2=Music 3=SFX 4=Voice 5=UI toggle, 0=reset all to 1.0");
+	// 버스 목록은 프로젝트 세팅이 정한다 — 디바이스에 물어봐야 지금 무엇이 있는지 안다.
+	m_busNames = Script.Audio->GetBusNames();
+	if (m_busNames.empty())
+	{
+		BusLog("no buses are configured - check Project Settings > Audio.");
+		return;
+	}
+
+	std::string keys = "ready - 0=reset all,";
+	for (std::size_t i = 0; i < m_busNames.size() && i < kMaxProbeKeys; ++i)
+	{
+		keys += " " + std::to_string(i + 1) + "=" + m_busNames[i];
+	}
+	BusLog(keys);
 	LogAllBuses("start");
 }
 
@@ -67,21 +58,22 @@ bool CAudioBusProbeScript::HandleInput(const InputDeviceContext& ctx)
 		return true;
 	}
 
-	// Num1..Num5 는 EKeyCode 에서 연속이라 인덱스로 훑는다.
-	for (std::size_t i = 0; i < std::size(kProbeBuses); ++i)
+	// Num1..Num9 는 EKeyCode 에서 연속이라 인덱스로 훑는다.
+	const std::size_t count = m_busNames.size() < kMaxProbeKeys ? m_busNames.size() : kMaxProbeKeys;
+	for (std::size_t i = 0; i < count; ++i)
 	{
 		const EKeyCode key = static_cast<EKeyCode>(
 			static_cast<std::uint16_t>(EKeyCode::Num1) + static_cast<std::uint16_t>(i));
 		if (keyboard.IsPressed(key))
 		{
-			ToggleBus(kProbeBuses[i]);
+			ToggleBus(m_busNames[i]);
 			return true;
 		}
 	}
 	return false;
 }
 
-void CAudioBusProbeScript::ToggleBus(EAudioBusKind kind)
+void CAudioBusProbeScript::ToggleBus(const std::string& name)
 {
 	if (false == Script.Audio.IsValid())
 	{
@@ -89,17 +81,20 @@ void CAudioBusProbeScript::ToggleBus(EAudioBusKind kind)
 		return;
 	}
 
-	SafePtr<IAudioBus> bus = Script.Audio->GetBus(kind);
+	SafePtr<IAudioBus> bus = Script.Audio->GetBus(name.c_str());
 	if (false == bus.IsValid())
 	{
 		// 조용히 넘어가면 "눌렀는데 아무 일도 없다" 가 되어 원인 파악이 안 된다.
-		BusLog(std::string(BusName(kind)) + " bus is unavailable.");
+		BusLog(name + " bus is unavailable.");
 		return;
 	}
 
 	const float next = (bus->GetVolume() > 0.0f) ? 0.0f : 1.0f;
 	bus->SetVolume(next);
-	BusLog(std::string(BusName(kind)) + " -> " + FormatVolume(bus->GetVolume()));
+	// 요청한 이름과 실제로 잡힌 버스 이름을 같이 찍는다 — 목록에 없는 이름이면
+	// 디바이스가 Master 로 떨구므로 둘이 달라지고, 그게 바로 진단이 된다.
+	BusLog(name + " -> " + FormatVolume(bus->GetVolume())
+		+ " (bus=" + bus->GetName() + ")");
 }
 
 void CAudioBusProbeScript::ResetAllBuses()
@@ -109,9 +104,9 @@ void CAudioBusProbeScript::ResetAllBuses()
 		BusLog("audio device is unavailable.");
 		return;
 	}
-	for (const EAudioBusKind kind : kProbeBuses)
+	for (const std::string& name : m_busNames)
 	{
-		if (SafePtr<IAudioBus> bus = Script.Audio->GetBus(kind))
+		if (SafePtr<IAudioBus> bus = Script.Audio->GetBus(name.c_str()))
 		{
 			bus->SetVolume(1.0f);
 		}
@@ -122,10 +117,10 @@ void CAudioBusProbeScript::ResetAllBuses()
 void CAudioBusProbeScript::LogAllBuses(const char* reason)
 {
 	std::string line = std::string("volumes (") + reason + "):";
-	for (const EAudioBusKind kind : kProbeBuses)
+	for (const std::string& name : m_busNames)
 	{
-		SafePtr<IAudioBus> bus = Script.Audio.IsValid() ? Script.Audio->GetBus(kind) : SafePtr<IAudioBus>();
-		line += std::string(" ") + BusName(kind) + "=";
+		SafePtr<IAudioBus> bus = Script.Audio.IsValid() ? Script.Audio->GetBus(name.c_str()) : SafePtr<IAudioBus>();
+		line += " " + name + "=";
 		line += bus.IsValid() ? FormatVolume(bus->GetVolume()) : std::string("n/a");
 	}
 	BusLog(line);

@@ -4,6 +4,7 @@
 #include "Engine/Editor/ImWindow/ImWindowFlag.h"
 #include "Editor/ImItem/ImSplitter.h"   // ImGui::Utillity::VerticalSplitter
 #include "Editor/ImItem/ImText.h"       // ImText (라벨 + 설명 툴팁)
+#include "Editor/ImItem/ImNameListEdit.h"  // 한 줄 = 한 이름 목록 편집(입력 레이어 / 오디오 버스 공유)
 #include "Engine/Editor/ImGuiUtillity.h"       // ImGui::Utillity::FormLayout, HoveredToolTip
 
 #include "Editor/Editor.h"
@@ -125,13 +126,10 @@ void CProjectSettingsWindow::OnShow()
 
         // 입력 레이어 — 동일 패턴(한 줄당 하나, 위 = 최우선).
         m_editInputLayers = pm->GetInputLayers();
+        m_editAudioBuses = pm->GetAudioBuses();
+        ImGui::Utillity::BuildNameListBuffer(m_editAudioBuses, m_audioBusesBuffer);
         m_editInputActions = pm->GetInputActions();
-        m_inputLayersBuffer.clear();
-        for (const std::string& layer : m_editInputLayers)
-        {
-            m_inputLayersBuffer += layer;
-            m_inputLayersBuffer.push_back('\n');
-        }
+        ImGui::Utillity::BuildNameListBuffer(m_editInputLayers, m_inputLayersBuffer);
     }
 
     if (Engine.Localization.IsValid())
@@ -383,40 +381,8 @@ void CProjectSettingsWindow::DrawCategoryInput()
     ImGui::Spacing();
 
     // 백킹 버퍼는 멤버(m_inputLayersBuffer) — OnShow 에서 레이어 벡터로부터 재구축됨.
-    // 편집 시 다음 프레임에 벡터로 재파싱. 한 줄 = 한 레이어, 위 = 최우선.
-    const ImVec2 boxSize(ImGui::GetContentRegionAvail().x, ImGui::GetTextLineHeightWithSpacing() * 12.0f);
-    m_inputLayersBuffer.reserve(m_inputLayersBuffer.size() + 1024);
-    if (ImGui::InputTextMultiline("##ps.input.layers",
-        m_inputLayersBuffer.data(), m_inputLayersBuffer.capacity(),
-        boxSize, ImGuiInputTextFlags_CallbackResize,
-        [](ImGuiInputTextCallbackData* data) -> int
-        {
-            if (data->EventFlag == ImGuiInputTextFlags_CallbackResize)
-            {
-                std::string* buf = static_cast<std::string*>(data->UserData);
-                buf->resize(data->BufTextLen);
-                data->Buf = buf->data();
-            }
-            return 0;
-        }, &m_inputLayersBuffer))
-    {
-        m_editInputLayers.clear();
-        std::size_t start = 0;
-        for (std::size_t i = 0; i <= m_inputLayersBuffer.size(); ++i)
-        {
-            if (i == m_inputLayersBuffer.size() || '\n' == m_inputLayersBuffer[i] || '\r' == m_inputLayersBuffer[i])
-            {
-                if (i > start)
-                {
-                    std::string line(m_inputLayersBuffer, start, i - start);
-                    while (false == line.empty() && (line.front() == ' ' || line.front() == '\t')) line.erase(line.begin());
-                    while (false == line.empty() && (line.back()  == ' ' || line.back()  == '\t')) line.pop_back();
-                    if (false == line.empty()) m_editInputLayers.push_back(std::move(line));
-                }
-                start = i + 1;
-            }
-        }
-    }
+    // 편집 시 벡터로 재파싱. 한 줄 = 한 레이어, 위 = 최우선.
+    ImGui::Utillity::NameListEditor("##ps.input.layers", m_inputLayersBuffer, m_editInputLayers);
 
     ImGui::Spacing();
     ImGui::TextDisabled("%s", Loc::Text(EditorLocKeys::ProjectSettingsInputHint));
@@ -587,10 +553,16 @@ void CProjectSettingsWindow::DrawCategoryAudio()
             [&]() { ImGui::DragFloat("##ps.master_volume", &m_masterVolume, 0.01f, 0.0f, 2.0f); });
     }
 
+    // ── 믹싱 버스 ────────────────────────────────────────────────────────────
+    // 입력 레이어와 같은 편집 방식 — 한 줄이 버스 하나다. AudioPlayer 컴포넌트의 Bus 가
+    // 여기 적은 이름을 가리킨다. "Master" 는 항상 존재하므로 적지 않는다.
+    ImGui::Spacing();
+    ImSectionHeader(Loc::Text(EditorLocKeys::ProjectSettingsAudioBusesTitle)).SpacingBefore(true).Draw();
+    ImGui::TextWrapped("%s", Loc::Text(EditorLocKeys::ProjectSettingsAudioBusesDesc));
+    ImGui::Spacing();
+    ImGui::Utillity::NameListEditor("##ps.audio.buses", m_audioBusesBuffer, m_editAudioBuses, 8.0f);
     ImGui::Spacing();
     ImGui::TextDisabled("%s", Loc::Text(EditorLocKeys::ProjectSettingsAudioBusesHelp));
-    // PR D 의 CAudioService 가 도입되면 여기에 버스별 볼륨 / 사용자 정의 버스
-    // 추가 UI 가 들어간다.
 }
 
 void CProjectSettingsWindow::DrawCategoryFonts()
@@ -728,6 +700,7 @@ void CProjectSettingsWindow::DrawFooterButtons()
             pm->SetDebugModeEnabled(m_debugModeEnabled);
             pm->SetAssetWatchIgnorePatterns(m_editAssetWatchIgnorePatterns);
             pm->SetInputLayers(m_editInputLayers);
+            pm->SetAudioBuses(m_editAudioBuses);
             pm->SetInputActions(m_editInputActions);
         }
         if (Engine.Localization.IsValid())

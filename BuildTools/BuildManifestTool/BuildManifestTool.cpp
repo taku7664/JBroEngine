@@ -148,6 +148,31 @@ namespace
 		}
 	}
 
+	// 오디오 믹싱 버스 이름 목록. 없으면 빈 목록 — 런타임이 Master 만 갖는다(예전 동작).
+	// 매니페스트에 싣지 않으면 패키지 게임에서만 카테고리 볼륨이 죽으므로 반드시 옮긴다.
+	bool LoadAudioBuses(const File::Path& projectPath, std::vector<std::string>& outBuses)
+	{
+		outBuses.clear();
+		if (projectPath.empty()) return true;
+		try
+		{
+			const YAML::Node root = YAML::LoadFile(projectPath.string());
+			if (const YAML::Node buses = root["AudioBuses"]; buses && buses.IsSequence())
+			{
+				for (const YAML::Node& node : buses)
+				{
+					const std::string bus = node.as<std::string>("");
+					if (false == bus.empty()) outBuses.push_back(bus);
+				}
+			}
+			return true;
+		}
+		catch (const YAML::Exception&)
+		{
+			return false;
+		}
+	}
+
 	bool InputMapsEqual(const std::vector<InputActionDef>& lhs, const std::vector<InputActionDef>& rhs)
 	{
 		if (lhs.size() != rhs.size())
@@ -412,11 +437,14 @@ namespace
 			std::vector<InputActionDef> expectedActions;
 			std::string expectedDefaultFamily;
 			std::vector<std::string> expectedFallbackFamilies;
+			std::vector<std::string> expectedBuses;
 			if (false == LoadInputMap(options.InputMapPath, expectedActions)
 				|| false == LoadFontSettings(options.InputMapPath, expectedDefaultFamily, expectedFallbackFamilies)
+				|| false == LoadAudioBuses(options.InputMapPath, expectedBuses)
 				|| false == InputMapsEqual(manifest.InputActions, expectedActions)
 				|| manifest.DefaultFontFamilyGuid != expectedDefaultFamily
-				|| manifest.FallbackFontFamilyGuids != expectedFallbackFamilies)
+				|| manifest.FallbackFontFamilyGuids != expectedFallbackFamilies
+				|| manifest.AudioBuses != expectedBuses)
 			{
 				std::cerr << "Build manifest project settings mismatch." << std::endl;
 				return false;
@@ -459,6 +487,11 @@ int wmain(int argc, wchar_t** argv)
 	if (false == LoadInputMap(options.InputMapPath, manifest.InputActions))
 	{
 		std::cerr << "Failed to read input map from project." << std::endl;
+		return 1;
+	}
+	if (false == LoadAudioBuses(options.InputMapPath, manifest.AudioBuses))
+	{
+		std::cerr << "Failed to read audio buses from the project file." << std::endl;
 		return 1;
 	}
 	if (false == LoadFontSettings(options.InputMapPath, manifest.DefaultFontFamilyGuid, manifest.FallbackFontFamilyGuids))

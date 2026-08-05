@@ -7,11 +7,13 @@
 #include <windows.h>
 
 #include <array>
+#include <cstring>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <vector>
 
 namespace
 {
@@ -101,7 +103,7 @@ int main()
             return 3;
         }
 
-        OwnerPtr<IAudioBus> customBus = device.CreateBus(EAudioBusKind::Custom);
+        OwnerPtr<IAudioBus> customBus = device.CreateBus("Ambience");
         OwnerPtr<IAudioEffect> effect = device.CreateEffect(EAudioEffectKind::Reverb);
         OwnerPtr<IAudioEffect> lingeringEffect = device.CreateEffect(EAudioEffectKind::Echo);
         OwnerPtr<IAudioPlayer> player = device.CreatePlayerFromFile(wavePathUtf8.c_str());
@@ -153,7 +155,7 @@ int main()
         }
         playerAfterDevice = device.CreatePlayerFromFile(wavePathUtf8.c_str());
         effectAfterDevice = device.CreateEffect(EAudioEffectKind::LowPass);
-        busAfterDevice = device.CreateBus(EAudioBusKind::Custom);
+        busAfterDevice = device.CreateBus("Ambience");
         playerAfterDevice->AttachEffect(effectAfterDevice.GetSafePtr());
     }
     playerAfterDevice->Stop();
@@ -163,12 +165,11 @@ int main()
     effectAfterDevice.Reset();
     busAfterDevice.Reset();
 
-    // ── Bus routing ────────────────────────────────────────────────────────
-    // Standard buses back the per-category volume that AudioPlayer components
-    // route into. Two things are easy to break and impossible to hear in a log:
-    // the bus array losing its last entry (AUDIO_BUS_KIND_COUNT is derived from
-    // the last enumerator, so an off-by-one drops Custom), and CreatePlayer
-    // ignoring desc.Bus the way it used to.
+    // ── Bus routing ─────────────────────────────────────────────────
+    // Buses are named by the project settings, so the device must build exactly the
+    // list it was handed - plus Master, which is implicit. Two things are easy to
+    // break and impossible to hear in a log: a configured name not producing a bus,
+    // and CreatePlayer ignoring desc.Bus the way it used to.
     {
         CMiniAudioDevice device;
         AudioDeviceDesc desc;
@@ -178,28 +179,37 @@ int main()
             return 6;
         }
 
-        constexpr std::array<EAudioBusKind, 6> kStandardBuses = {
-            EAudioBusKind::Master,
-            EAudioBusKind::Music,
-            EAudioBusKind::SFX,
-            EAudioBusKind::Voice,
-            EAudioBusKind::UI,
-            EAudioBusKind::Custom,
-        };
-        static_assert(kStandardBuses.size() == AUDIO_BUS_KIND_COUNT,
-            "A bus kind was added or removed without updating this coverage list.");
+        const std::vector<std::string> configured = { "Music", "SFX", "Ambience" };
+        device.ConfigureBuses(configured);
 
-        for (const EAudioBusKind kind : kStandardBuses)
+        // Master is implicit and always first; the rest follow the configured order.
+        const std::vector<std::string> expected = { AUDIO_MASTER_BUS_NAME, "Music", "SFX", "Ambience" };
+        if (device.GetBusNames() != expected)
         {
-            SafePtr<IAudioBus> bus = device.GetBus(kind);
-            if (false == bus.IsValid() || bus->GetKind() != kind)
+            std::cerr << "Configured bus list did not round-trip through the device.\n";
+            return 7;
+        }
+
+        for (const std::string& name : expected)
+        {
+            SafePtr<IAudioBus> bus = device.GetBus(name.c_str());
+            if (false == bus.IsValid() || name != bus->GetName())
             {
-                std::cerr << "Standard bus " << static_cast<int>(kind) << " is missing or mislabelled.\n";
-                return 7;
+                std::cerr << "Bus '" << name << "' is missing or mislabelled.\n";
+                return 8;
             }
         }
 
-        SafePtr<IAudioBus> musicBus = device.GetBus(EAudioBusKind::Music);
+        // An unknown name must not vanish - it falls back to Master so the sound is
+        // still audible and the warning explains why it moved.
+        SafePtr<IAudioBus> unknown = device.GetBus("NoSuchBus");
+        if (false == unknown.IsValid() || 0 != std::strcmp(unknown->GetName(), AUDIO_MASTER_BUS_NAME))
+        {
+            std::cerr << "An unknown bus name did not fall back to Master.\n";
+            return 9;
+        }
+
+        SafePtr<IAudioBus> musicBus = device.GetBus("Music");
         AudioPlayerDesc playerDesc;
         playerDesc.StreamPathUtf8 = wavePathUtf8.c_str();
         playerDesc.Bus = musicBus;
@@ -207,7 +217,7 @@ int main()
         if (false == bool(routed))
         {
             std::cerr << "CreatePlayer refused a bus-routed descriptor.\n";
-            return 8;
+            return 10;
         }
         // Category volume must reach the bus a player was routed into. This only
         // proves the call path survives; whether it is audible is a listening test.
@@ -215,7 +225,7 @@ int main()
         if (musicBus->GetVolume() != 0.5f)
         {
             std::cerr << "Bus volume did not stick.\n";
-            return 9;
+            return 11;
         }
 
         routed.Reset();

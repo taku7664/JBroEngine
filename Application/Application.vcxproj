@@ -367,6 +367,7 @@
     <ClInclude Include="Editor\ImItem\ImSplitter.h" />
     <ClInclude Include="Editor\ImItem\ImStatusBadge.h" />
     <ClInclude Include="Editor\ImItem\ImText.h" />
+    <ClInclude Include="Editor\ImItem\ImNameListEdit.h" />
     <ClInclude Include="Editor\ImItem\ImLayerHeader.h" />
     <ClInclude Include="Editor\ImItem\ImTree.h" />
     <ClInclude Include="Editor\ImItem\ImValidationMessage.h" />

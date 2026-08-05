@@ -8,6 +8,7 @@
 #include "Core/Asset/IAssetManager.h"
 #include "Core/Asset/IAssetRegistry.h"
 #include "Core/EngineCore.h"
+#include "Core/Audio/IAudioDevice.h"   // ConfigureBuses — 프로젝트 버스 목록 주입
 #include "Core/Input/InputSystem.h"
 #include "Core/RuntimeConfig.h"
 #include "Core/ScriptCore.h"
@@ -67,6 +68,7 @@ namespace
 	constexpr const char* PROJECT_KEY_WATCH_IGNORE      = "AssetWatchIgnorePatterns";
 	constexpr const char* PROJECT_KEY_INPUT_LAYERS      = "InputLayers";
 	constexpr const char* PROJECT_KEY_INPUT_ACTIONS     = "InputActions";
+	constexpr const char* PROJECT_KEY_AUDIO_BUSES       = "AudioBuses";
 	constexpr const char* PROJECT_SAVE_BLOCKED_DURING_SIMULATION =
 		"Project saving is disabled while game simulation is running.";
 	constexpr const char* SCRIPT_BUILD_BLOCKED_DURING_SIMULATION =
@@ -837,6 +839,22 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 		}
 	}
 
+	// AudioBuses — InputLayers 와 같은 규칙: 키가 있으면 그 값으로 덮어쓰고
+	// 없으면 ProjectInfo 기본값(Music/SFX/Voice/UI)을 유지한다.
+	std::vector<std::string> audioBuses;
+	bool hasAudioBuses = false;
+	if (root[PROJECT_KEY_AUDIO_BUSES] && root[PROJECT_KEY_AUDIO_BUSES].IsSequence())
+	{
+		hasAudioBuses = true;
+		for (const YAML::Node& busNode : root[PROJECT_KEY_AUDIO_BUSES])
+		{
+			std::string bus = busNode.as<std::string>("");
+			while (false == bus.empty() && (bus.back() == '' || bus.back() == ' ' || bus.back() == '	')) bus.pop_back();
+			while (false == bus.empty() && (bus.front() == ' ' || bus.front() == '	')) bus.erase(bus.begin());
+			if (false == bus.empty()) audioBuses.push_back(std::move(bus));
+		}
+	}
+
 	// InputActions — 키가 있으면 그 값으로 덮어쓴다(없으면 ProjectInfo 기본값=빈 목록 유지).
 	std::vector<InputActionDef> inputActions;
 	bool hasInputActions = false;
@@ -983,6 +1001,11 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 	{
 		m_info.InputActions = std::move(inputActions);
 	}
+	if (hasAudioBuses)
+	{
+		m_info.AudioBuses = std::move(audioBuses);
+	}
+	// else: ProjectInfo 의 기본값(Music/SFX/Voice/UI) 그대로 유지.
 
 	if (false == m_assetManager->SetAssetRootPath(m_info.AssetPath))
 	{
@@ -1039,6 +1062,7 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 
 	// 입력 레이어 우선순위 + 액션 맵을 엔진 InputSystem 에 주입.
 	ApplyInputLayersToSystem();
+	ApplyAudioBusesToDevice();
 	ApplyInputMapToSystem();
 
 	// ── 동기 폴백용 헬퍼 — Task 경로가 아닐 때 메인 스레드에서 직접 실행 ──
@@ -2277,6 +2301,25 @@ void CProjectManager::ApplyInputLayersToSystem() const
 	}
 }
 
+const std::vector<std::string>& CProjectManager::GetAudioBuses() const
+{
+	return m_info.AudioBuses;
+}
+
+void CProjectManager::SetAudioBuses(std::vector<std::string> buses)
+{
+	m_info.AudioBuses = std::move(buses);
+	ApplyAudioBusesToDevice();
+}
+
+void CProjectManager::ApplyAudioBusesToDevice() const
+{
+	if (Engine.Audio.IsValid())
+	{
+		Engine.Audio->ConfigureBuses(m_info.AudioBuses);
+	}
+}
+
 const std::vector<InputActionDef>& CProjectManager::GetInputActions() const
 {
 	return m_info.InputActions;
@@ -2794,6 +2837,13 @@ bool CProjectManager::SaveProject(std::string* outError) const
 	for (const std::string& layer : m_info.InputLayers)
 	{
 		out << layer;
+	}
+	out << YAML::EndSeq;
+	out << YAML::Key << PROJECT_KEY_AUDIO_BUSES << YAML::Value;
+	out << YAML::BeginSeq;
+	for (const std::string& bus : m_info.AudioBuses)
+	{
+		out << bus;
 	}
 	out << YAML::EndSeq;
 	out << YAML::Key << PROJECT_KEY_INPUT_ACTIONS << YAML::Value;

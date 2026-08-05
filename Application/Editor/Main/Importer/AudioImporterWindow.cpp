@@ -26,20 +26,16 @@ void CAudioImporterWindow::DrawImportOptions()
 			}
 		});
 
-	const char* busItems[] = {
-		Loc::Text(EditorLocKeys::InspectorAudioBusMaster),
-		Loc::Text(EditorLocKeys::InspectorAudioBusMusic),
-		Loc::Text(EditorLocKeys::InspectorAudioBusSfx),
-		Loc::Text(EditorLocKeys::InspectorAudioBusVoice),
-		Loc::Text(EditorLocKeys::InspectorAudioBusUi),
-		Loc::Text(EditorLocKeys::InspectorAudioBusCustom),
-	};
-	int busIndex = static_cast<int>(m_options.DefaultBus);
+	// 버스는 이름으로 지목한다 — 목록이 프로젝트마다 다르므로 고정 콤보를 둘 수 없다.
+	// 프로젝트 세팅(오디오 버스)에 적은 이름을 그대로 쓴다. 빈 값은 Master 로 해석된다.
 	ImporterGui::DrawLocalizedRow(layout, EditorLocKeys::InspectorAudioDefaultBus, EditorLocKeys::InspectorAudioDefaultBusDesc,
 		[&]() {
-			if (ImGui::Combo("##importer.audio.bus", &busIndex, busItems, IM_ARRAYSIZE(busItems)))
+			ImInputText input("##importer.audio.bus");
+			input.SetText(m_options.DefaultBus);
+			input.SetHintText(AUDIO_MASTER_BUS_NAME);
+			if (input(ImGuiInputTextFlags_None))
 			{
-				m_options.DefaultBus = static_cast<EAudioBusKind>(busIndex);
+				m_options.DefaultBus = static_cast<const char*>(input);
 			}
 		});
 

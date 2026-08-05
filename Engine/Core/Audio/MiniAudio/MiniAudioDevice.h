@@ -39,9 +39,12 @@ public:
 	// 편의 메서드 — 디스크 파일에서 직접 ma_sound 기반 Player 생성.
 	// 에디터 미리듣기 처럼 PCM/Streaming 분기 없이 빠르게 한 인스턴스를 띄울 때 사용.
 	// bus 로 라우팅 (기본 Master). 버스 미초기화 시 endpoint 직결로 폴백.
-	OwnerPtr<IAudioPlayer>  CreatePlayerFromFile(const char* filePathUtf8, EAudioBusKind bus = EAudioBusKind::Master);
-	OwnerPtr<IAudioBus>     CreateBus    (EAudioBusKind kind) override;
-	SafePtr<IAudioBus>      GetBus       (EAudioBusKind kind) override;
+	OwnerPtr<IAudioPlayer>  CreatePlayerFromFile(const char* filePathUtf8,
+	                                            const char* busName = AUDIO_MASTER_BUS_NAME);
+	OwnerPtr<IAudioBus>     CreateBus    (const char* name) override;
+	SafePtr<IAudioBus>      GetBus       (const char* name) override;
+	void                    ConfigureBuses(const std::vector<std::string>& names) override;
+	std::vector<std::string> GetBusNames () const override;
 	OwnerPtr<IAudioEffect>  CreateEffect (EAudioEffectKind kind) override;
 	SafePtr<IAudioListener> GetPrimaryListener() override;
 

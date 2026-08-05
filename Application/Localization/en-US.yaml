@@ -271,7 +271,9 @@ Entries:
   build.progress.open_log: Open Log
   project_settings.audio: Audio
   project_settings.audio.master_volume: Master Volume
-  project_settings.audio.buses_help: Per-bus (channel) volume / effect controls coming soon.
+  project_settings.audio.buses_title: "Mixing Buses"
+  project_settings.audio.buses_desc: "One bus name per line. The Bus property on AudioPlayer refers to these names. \"Master\" always exists and does not need to be listed."
+  project_settings.audio.buses_help: "Routing to a name that is not listed falls back to Master with a one-time warning. Scripts set category volume with Script.Audio->GetBus(\"Name\")->SetVolume(v)."
   project_settings.localization_unavailable: Localization service unavailable.
   project_settings.localization_no_locales: No locales available.
   project_settings.language: Language
@@ -429,12 +431,6 @@ Entries:
   inspector.audio.mode.streaming: Streaming
   inspector.audio.default_bus: Default Bus
   inspector.audio.effect_chain: Effect Chain
-  inspector.audio.bus.master: Master
-  inspector.audio.bus.music: Music
-  inspector.audio.bus.sfx: SFX
-  inspector.audio.bus.voice: Voice
-  inspector.audio.bus.ui: UI
-  inspector.audio.bus.custom: Custom
   inspector.audio.default_volume: Default Volume
   inspector.audio.loop: Loop
   inspector.audio.is_3d: 3D Spatial

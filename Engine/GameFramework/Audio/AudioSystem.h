@@ -1,12 +1,13 @@
 #pragma once
 
 #include "Core/Asset/AssetTypes.h"
-#include "Core/Audio/AudioTypes.h"   // EAudioBusKind (인스턴스가 라우팅된 버스를 기억한다)
+#include "Core/Audio/AudioTypes.h"   // IsSameAudioBusName (인스턴스가 라우팅된 버스를 기억한다)
 #include "GameFramework/System/GameSystem.h"
 #include "Utillity/File/FilePath.h"   // File::Guid (인스턴스 키)
 #include "Utillity/Pointer/SafePtr.h"
 
 #include <cstdint>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -72,10 +73,10 @@ private:
 
 		OwnerPtr<IAudioPlayer>              Player;
 		AssetGuid                           SourceGuid;        // 자산이 바뀌면 인스턴스를 재생성하기 위해.
-		// 이 인스턴스가 실제로 붙어 있는 버스. 라우팅은 backend 에서 생성 시점에 정해지고
-		// (miniaudio 는 살아 있는 sound 의 출력 group 을 바꿀 수 없다) 나중에 못 바꾸므로,
-		// 컴포넌트의 Bus 가 달라지면 자산이 바뀐 것과 똑같이 인스턴스를 다시 만든다.
-		EAudioBusKind                       Bus = EAudioBusKind::SFX;
+		// 이 인스턴스가 실제로 붙어 있는 버스 **이름**. 라우팅은 backend 에서 생성 시점에
+		// 정해지고(miniaudio 는 살아 있는 sound 의 출력 group 을 바꿀 수 없다) 나중에 못
+		// 바꾸므로, 컴포넌트의 Bus 가 달라지면 자산이 바뀐 것과 똑같이 인스턴스를 다시 만든다.
+		std::string                         Bus;
 		// 효과 체인 — 컴포넌트 EffectGuids 와 동기. 셋은 항상 같은 길이/순서를 유지한다.
 		std::vector<AssetGuid>              EffectGuids;       // 리스트 변경(추가/삭제/재정렬) 감지용.
 		std::vector<OwnerPtr<IAudioEffect>> Effects;           // 부착된 효과 노드 — player 보다 오래 살아야.

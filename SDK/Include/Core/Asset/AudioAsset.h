@@ -26,7 +26,9 @@ struct AudioImportOptions
 	bool             Is3D          = false;
 	float            MinDistance   = 1.0f;
 	float             MaxDistance  = 50.0f;
-	EAudioBusKind    DefaultBus    = EAudioBusKind::SFX;
+	// 버스 이름. 목록은 프로젝트 세팅이 정한다(AudioTypes.h 참조). .jmeta 에는 예전부터
+	// 문자열로 저장돼 있었으므로 기존 메타 파일이 그대로 읽힌다.
+	std::string      DefaultBus    = "SFX";
 };
 
 // ── CAudioAsset ──────────────────────────────────────────────────────────────

@@ -5,18 +5,39 @@ bool CEmptyAudioDevice::Initialize(const AudioDeviceDesc&)
 {
 	m_listener = MakeOwnerPtr<CEmptyAudioListener>();
 
-	// 표준 믹싱 버스 — no-op 백엔드라 상태만 보관. GetBus 진입점 일관성 유지.
-	for (std::size_t i = 0; i < AUDIO_BUS_KIND_COUNT; ++i)
-	{
-		m_buses[i] = MakeOwnerPtr<CEmptyAudioBus>(static_cast<EAudioBusKind>(i));
-	}
+	// no-op 백엔드라 상태만 보관한다. 프로젝트 목록은 ConfigureBuses 가 주입한다.
+	ConfigureBuses({});
 	return static_cast<bool>(m_listener);
 }
 
 void CEmptyAudioDevice::Finalize()
 {
-	for (auto& bus : m_buses) bus.Reset();
+	m_buses.clear();
 	m_listener.Reset();
+}
+
+void CEmptyAudioDevice::ConfigureBuses(const std::vector<std::string>& names)
+{
+	m_buses.clear();
+	// Master 는 목록과 무관하게 항상 첫 번째 — 미니오디오 백엔드와 같은 규약.
+	m_buses.push_back(MakeOwnerPtr<CEmptyAudioBus>(AUDIO_MASTER_BUS_NAME));
+	for (const std::string& name : names)
+	{
+		if (name.empty() || IsSameAudioBusName(name.c_str(), AUDIO_MASTER_BUS_NAME)) continue;
+		if (m_buses.size() >= MAX_AUDIO_BUSES) break;
+		m_buses.push_back(MakeOwnerPtr<CEmptyAudioBus>(name.c_str()));
+	}
+}
+
+std::vector<std::string> CEmptyAudioDevice::GetBusNames() const
+{
+	std::vector<std::string> names;
+	names.reserve(m_buses.size());
+	for (const OwnerPtr<CEmptyAudioBus>& bus : m_buses)
+	{
+		if (bus) names.emplace_back(bus->GetName());
+	}
+	return names;
 }
 
 OwnerPtr<IAudioPlayer> CEmptyAudioDevice::CreatePlayer(const AudioPlayerDesc&)
@@ -24,16 +45,23 @@ OwnerPtr<IAudioPlayer> CEmptyAudioDevice::CreatePlayer(const AudioPlayerDesc&)
 	return MakeOwnerPtr<CEmptyAudioPlayer>();
 }
 
-OwnerPtr<IAudioBus> CEmptyAudioDevice::CreateBus(EAudioBusKind kind)
+OwnerPtr<IAudioBus> CEmptyAudioDevice::CreateBus(const char* name)
 {
-	return MakeOwnerPtr<CEmptyAudioBus>(kind);
+	return MakeOwnerPtr<CEmptyAudioBus>(name);
 }
 
-SafePtr<IAudioBus> CEmptyAudioDevice::GetBus(EAudioBusKind kind)
+SafePtr<IAudioBus> CEmptyAudioDevice::GetBus(const char* name)
 {
-	const std::size_t i = static_cast<std::size_t>(kind);
-	if (i >= AUDIO_BUS_KIND_COUNT) return SafePtr<IAudioBus>();
-	return m_buses[i] ? m_buses[i].GetSafePtr() : SafePtr<IAudioBus>();
+	const char* wanted = ResolveAudioBusName(name);
+	for (OwnerPtr<CEmptyAudioBus>& bus : m_buses)
+	{
+		if (bus && IsSameAudioBusName(bus->GetName(), wanted))
+		{
+			return bus.GetSafePtr();
+		}
+	}
+	// 미니오디오 백엔드와 같은 폴백 — 못 찾으면 Master.
+	return m_buses.empty() ? SafePtr<IAudioBus>() : m_buses.front().GetSafePtr();
 }
 
 OwnerPtr<IAudioEffect> CEmptyAudioDevice::CreateEffect(EAudioEffectKind kind)

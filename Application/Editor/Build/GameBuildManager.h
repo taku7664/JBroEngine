@@ -88,6 +88,8 @@ private:
 		std::vector<std::string> BuildCanvases;
 		std::vector<AssetGuid> AlwaysIncludeAssets;
 		std::vector<InputActionDef> InputActions;
+		// 오디오 믹싱 버스 이름 — 패키지 게임이 ConfigureBuses 로 주입받는다.
+		std::vector<std::string> AudioBuses;
 		AssetGuid WindowsIconGuid = INVALID_ASSET_GUID;
 		File::Path OutputRoot;
 		File::Path PackageDirectory;

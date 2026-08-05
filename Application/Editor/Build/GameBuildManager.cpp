@@ -508,6 +508,7 @@ bool CGameBuildManager::StartBuild(SafePtr<CProjectManager> projectManager, EBui
 	desc.BuildCanvases = settings.BuildCanvases;
 	desc.AlwaysIncludeAssets = settings.AlwaysIncludeAssets;
 	desc.InputActions = projectManager->GetInputActions();
+	desc.AudioBuses = projectManager->GetAudioBuses();
 	desc.WindowsIconGuid = settings.WindowsIconGuid;
 	desc.OutputRoot = ResolveOutputRoot(desc.ProjectRoot, settings.OutputDirectory);
 	desc.PackageDirectory = desc.OutputRoot / (desc.ProductName + "-" + BuildSettingsUtils::GetTargetPlatformName(desc.TargetPlatform) + "-" + BuildSettingsUtils::GetBuildConfigurationName(desc.BuildConfiguration));
@@ -972,6 +973,7 @@ bool CGameBuildManager::StagePackage(const BuildDesc& desc, const File::Path& sc
 	// 보증하므로 여기선 해석만 한다. release 패키지는 경로 폴백이 금지되어 GUID 가 필수.
 	manifest.BuildCanvases = desc.BuildCanvases;
 	manifest.InputActions = desc.InputActions;
+	manifest.AudioBuses = desc.AudioBuses;
 	manifest.BuildCanvasGuids.reserve(desc.BuildCanvases.size());
 	for (const std::string& canvas : desc.BuildCanvases)
 	{

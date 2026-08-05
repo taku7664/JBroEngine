@@ -137,9 +137,10 @@ using GameObject = CGameObject;
 
 // ── 오디오 ──────────────────────────────────────────────────────────────────
 // 옵션 화면의 카테고리 볼륨은 버스 단위로 건다:
-//   if (SafePtr<IAudioBus> music = Script.Audio->GetBus(EAudioBusKind::Music))
+//   if (SafePtr<IAudioBus> music = Script.Audio->GetBus("Music"))
 //       music->SetVolume(slider);
-// 어떤 소리가 어느 버스로 갈지는 AudioPlayer 컴포넌트의 Bus 프로퍼티가 정한다.
+// 버스 이름 목록은 프로젝트 세팅(오디오)에서 정하고, 어떤 소리가 어느 버스로 갈지는
+// AudioPlayer 컴포넌트의 Bus 프로퍼티가 정한다. 지금 무엇이 있는지는 GetBusNames().
 #include "Core/Audio/IAudioDevice.h"
 #include "Core/Audio/IAudioBus.h"
 #include "Core/Audio/IAudioPlayer.h"

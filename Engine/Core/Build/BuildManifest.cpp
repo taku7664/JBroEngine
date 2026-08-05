@@ -352,6 +352,28 @@ namespace
 			}
 		}
 
+		// 오디오 믹싱 버스 이름. 다른 꼬리 섹션과 같은 규칙 — 구 매니페스트엔 없으므로
+		// 비어 있으면 디바이스가 Master 만 갖는다(= 전부 Master 라우팅, 예전 동작).
+		if (cursor < payload.size())
+		{
+			std::uint32_t busCount = 0;
+			if (false == ReadPod(payload, cursor, busCount) || busCount > MAX_AUDIO_BUSES)
+			{
+				SetError(outError, "Binary build manifest audio bus count is invalid.");
+				return false;
+			}
+			for (std::uint32_t index = 0; index < busCount; ++index)
+			{
+				std::string bus;
+				if (false == ReadString(payload, cursor, bus))
+				{
+					SetError(outError, "Binary build manifest audio bus entry is invalid.");
+					return false;
+				}
+				outManifest.AudioBuses.push_back(std::move(bus));
+			}
+		}
+
 		const std::filesystem::path absoluteManifestPath = std::filesystem::path(ToCanonicalPath(manifestPath));
 		const std::filesystem::path contentRootPath = absoluteManifestPath.parent_path();
 		const std::filesystem::path packageRootPath = contentRootPath.parent_path();
@@ -552,6 +574,14 @@ bool CBuildManifestLoader::LoadFromFile(const File::Path& manifestPath, BuildMan
 			catch (const YAML::Exception&) {}
 		}
 	}
+	if (const YAML::Node buses = root["audioBuses"]; buses && buses.IsSequence())
+	{
+		for (const YAML::Node& node : buses)
+		{
+			try { outManifest.AudioBuses.push_back(node.as<std::string>("")); }
+			catch (const YAML::Exception&) {}
+		}
+	}
 
 	if (const YAML::Node canvases = root["buildCanvases"]; canvases && canvases.IsSequence())
 	{
@@ -701,6 +731,12 @@ bool CBuildManifestLoader::WriteBinaryFile(const File::Path& manifestPath, const
 	const std::uint32_t fallbackFontCount = static_cast<std::uint32_t>(std::min<std::size_t>(manifest.FallbackFontFamilyGuids.size(), 64));
 	WritePod(payload, fallbackFontCount);
 	for (std::uint32_t index = 0; index < fallbackFontCount; ++index) WriteString(payload, manifest.FallbackFontFamilyGuids[index]);
+
+	// 오디오 버스 — 읽기 쪽과 같은 순서로 맨 뒤 꼬리 섹션에 붙인다.
+	const std::uint32_t busCount = static_cast<std::uint32_t>(
+		std::min<std::size_t>(manifest.AudioBuses.size(), MAX_AUDIO_BUSES));
+	WritePod(payload, busCount);
+	for (std::uint32_t index = 0; index < busCount; ++index) WriteString(payload, manifest.AudioBuses[index]);
 
 	const std::uint32_t payloadSize = static_cast<std::uint32_t>(payload.size());
 	const std::uint64_t payloadHash = HashBytes(payload);

@@ -229,12 +229,6 @@ namespace EditorLocKeys
 	constexpr const char* InspectorApplyAudioImportOptions = "inspector.apply_audio_import_options";
 	constexpr const char* InspectorApplySpriteImportOptions = "inspector.apply_sprite_import_options";
 	constexpr const char* InspectorAssetManagerUnavailable = "inspector.asset_manager_unavailable";
-	constexpr const char* InspectorAudioBusCustom = "inspector.audio.bus.custom";
-	constexpr const char* InspectorAudioBusMaster = "inspector.audio.bus.master";
-	constexpr const char* InspectorAudioBusMusic = "inspector.audio.bus.music";
-	constexpr const char* InspectorAudioBusSfx = "inspector.audio.bus.sfx";
-	constexpr const char* InspectorAudioBusUi = "inspector.audio.bus.ui";
-	constexpr const char* InspectorAudioBusVoice = "inspector.audio.bus.voice";
 	constexpr const char* InspectorAudioDefaultBus = "inspector.audio.default_bus";
 	constexpr const char* InspectorAudioDefaultBusDesc = "inspector.audio.default_bus.desc";
 	constexpr const char* InspectorAudioDefaultVolume = "inspector.audio.default_volume";
@@ -447,6 +441,8 @@ namespace EditorLocKeys
 	constexpr const char* ProjectSettingsAssetWatcherSyntaxHint = "project_settings.asset_watcher.syntax_hint";
 	constexpr const char* ProjectSettingsAssetWatcherTitle = "project_settings.asset_watcher.title";
 	constexpr const char* ProjectSettingsAudio = "project_settings.audio";
+	constexpr const char* ProjectSettingsAudioBusesTitle = "project_settings.audio.buses_title";
+	constexpr const char* ProjectSettingsAudioBusesDesc = "project_settings.audio.buses_desc";
 	constexpr const char* ProjectSettingsAudioBusesHelp = "project_settings.audio.buses_help";
 	constexpr const char* ProjectSettingsAudioMasterVolume = "project_settings.audio.master_volume";
 	constexpr const char* ProjectSettingsAudioMasterVolumeDesc = "project_settings.audio.master_volume.desc";

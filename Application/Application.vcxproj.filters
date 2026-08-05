@@ -135,6 +135,9 @@
     <ClInclude Include="Editor\ImItem\ImText.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
+    <ClInclude Include="Editor\ImItem\ImNameListEdit.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
     <ClInclude Include="Editor\ImItem\ImLayerHeader.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>

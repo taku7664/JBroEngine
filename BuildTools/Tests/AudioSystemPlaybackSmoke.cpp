@@ -1,5 +1,6 @@
 #include "Core/Asset/AssetManager.h"
 #include "Core/Asset/AudioEffectAsset.h"
+#include "Core/Build/BuildManifest.h"   // 버스 목록이 패키지까지 가는지 왕복 확인
 #include "Core/Audio/IAudioBus.h"
 #include "Core/Audio/IAudioDevice.h"
 #include "Core/Audio/IAudioEffect.h"
@@ -35,18 +36,18 @@ namespace
         bool FailCreate = false;
         std::unordered_map<int, bool> EndedByPlayer;
         std::vector<std::string> Events;
-        // 마지막 CreatePlayer 가 요청받은 버스. AudioPlayer 의 Bus 프로퍼티가 실제로
+        // 마지막 CreatePlayer 가 요청받은 버스 이름. AudioPlayer 의 Bus 프로퍼티가 실제로
         // 디스크립터까지 흘러가는지 보는 자리다 — 예전엔 여기가 늘 비어 있었다.
-        EAudioBusKind LastRequestedBus = EAudioBusKind::Master;
-        bool          LastRequestHadBus = false;
+        std::string LastRequestedBus;
+        bool        LastRequestHadBus = false;
     };
 
-    // 디바이스가 돌려주는 버스 스텁. GetKind 만 있으면 라우팅 검사는 충분하다.
+    // 디바이스가 돌려주는 버스 스텁. 이름만 있으면 라우팅 검사는 충분하다.
     class TestAudioBus final : public IAudioBus
     {
     public:
-        explicit TestAudioBus(EAudioBusKind kind) : m_kind(kind) {}
-        EAudioBusKind GetKind() const override { return m_kind; }
+        explicit TestAudioBus(std::string name) : m_name(std::move(name)) {}
+        const char* GetName() const override { return m_name.c_str(); }
         void  SetVolume(float volume) override { m_volume = volume; }
         float GetVolume() const override { return m_volume; }
         void  SetMuted(bool muted) override { m_muted = muted; }
@@ -55,7 +56,7 @@ namespace
         void  DetachAllEffects() override {}
 
     private:
-        EAudioBusKind m_kind = EAudioBusKind::Master;
+        std::string m_name;
         float m_volume = 1.0f;
         bool  m_muted = false;
     };
@@ -156,7 +157,7 @@ namespace
         {
             ++m_state.CreateAttempts;
             m_state.LastRequestHadBus = desc.Bus.IsValid();
-            m_state.LastRequestedBus = desc.Bus.IsValid() ? desc.Bus->GetKind() : EAudioBusKind::Master;
+            m_state.LastRequestedBus = desc.Bus.IsValid() ? desc.Bus->GetName() : AUDIO_MASTER_BUS_NAME;
             if (m_state.FailCreate)
             {
                 return nullptr;
@@ -164,24 +165,46 @@ namespace
             const int id = ++m_state.NextPlayerId;
             return MakeOwnerPtr<TestAudioPlayer>(m_state, id);
         }
-        OwnerPtr<IAudioBus> CreateBus(EAudioBusKind kind) override
+        OwnerPtr<IAudioBus> CreateBus(const char* name) override
         {
-            return MakeOwnerPtr<TestAudioBus>(kind);
+            return MakeOwnerPtr<TestAudioBus>(ResolveAudioBusName(name));
         }
-        // 실제 디바이스처럼 종류별로 같은 인스턴스를 돌려준다 — 매번 새로 만들면
-        // 호출부가 버스를 붙들고 있는 동안 수명이 끊긴다.
-        SafePtr<IAudioBus> GetBus(EAudioBusKind kind) override
+        void ConfigureBuses(const std::vector<std::string>& names) override
         {
-            const std::size_t index = static_cast<std::size_t>(kind);
-            if (index >= AUDIO_BUS_KIND_COUNT)
+            m_buses.clear();
+            m_buses.push_back(MakeOwnerPtr<TestAudioBus>(AUDIO_MASTER_BUS_NAME));
+            for (const std::string& name : names)
             {
-                return SafePtr<IAudioBus>();
+                if (name.empty() || IsSameAudioBusName(name.c_str(), AUDIO_MASTER_BUS_NAME)) continue;
+                m_buses.push_back(MakeOwnerPtr<TestAudioBus>(name));
             }
-            if (false == bool(m_buses[index]))
+        }
+        std::vector<std::string> GetBusNames() const override
+        {
+            std::vector<std::string> names;
+            for (const OwnerPtr<TestAudioBus>& bus : m_buses)
             {
-                m_buses[index] = MakeOwnerPtr<TestAudioBus>(kind);
+                if (bus) names.emplace_back(bus->GetName());
             }
-            return m_buses[index].GetSafePtr();
+            return names;
+        }
+        // 실제 디바이스처럼 이름별로 같은 인스턴스를 돌려주고, 모르는 이름은 Master 로
+        // 떨어뜨린다 — 매번 새로 만들면 호출부가 버스를 붙들고 있는 동안 수명이 끊긴다.
+        SafePtr<IAudioBus> GetBus(const char* name) override
+        {
+            if (m_buses.empty())
+            {
+                ConfigureBuses({});
+            }
+            const char* wanted = ResolveAudioBusName(name);
+            for (OwnerPtr<TestAudioBus>& bus : m_buses)
+            {
+                if (bus && IsSameAudioBusName(bus->GetName(), wanted))
+                {
+                    return bus.GetSafePtr();
+                }
+            }
+            return m_buses.front().GetSafePtr();
         }
         OwnerPtr<IAudioEffect> CreateEffect(EAudioEffectKind kind) override
         {
@@ -196,7 +219,7 @@ namespace
 
     private:
         AudioTestState& m_state;
-        OwnerPtr<TestAudioBus> m_buses[AUDIO_BUS_KIND_COUNT];
+        std::vector<OwnerPtr<TestAudioBus>> m_buses;
     };
 
     bool Expect(bool condition, const char* message)
@@ -413,6 +436,10 @@ int main()
     // group 을 못 바꾸기 때문에 필요한 계약이다 — 재생성이 빠지면 버스를 바꿔도
     // 소리는 옛 버스에 남고 인스펙터만 새 값을 보여 준다.
     {
+        // 실제 흐름에서 ProjectManager(에디터) / 매니페스트(패키지) 가 하는 주입.
+        // 이게 없으면 디바이스는 Master 하나뿐이라 무엇을 지정해도 Master 로 떨어진다.
+        device->ConfigureBuses({ "Music", "SFX", "Ambience" });
+
         CGameCanvas busCanvas;
         CAudioSystem* busSystem = CCanvasRuntimeAccess::AddSystem<CAudioSystem>(
             busCanvas, device.GetSafePtr(), assetManager.GetSafePtr());
@@ -425,13 +452,13 @@ int main()
         }
 
         // 기본값은 SFX — 버스를 저작하지 않은 기존 씬이 이 값으로 읽힌다.
-        if (false == Expect(EAudioBusKind::SFX == busPlayer->Bus,
+        if (false == Expect("SFX" == busPlayer->Bus,
             "A fresh AudioPlayer did not default to the SFX bus.")) return 21;
 
         busPlayer->AudioGuid = audioGuid;
-        busPlayer->Bus = EAudioBusKind::Music;
+        busPlayer->Bus = "Music";
         busSystem->Update(busCanvas);
-        if (false == Expect(state.LastRequestHadBus && EAudioBusKind::Music == state.LastRequestedBus,
+        if (false == Expect(state.LastRequestHadBus && "Music" == state.LastRequestedBus,
             "The audio system did not route the player into its bus.")) return 22;
 
         const int createsBeforeBusChange = state.CreateAttempts;
@@ -439,14 +466,45 @@ int main()
         if (false == Expect(createsBeforeBusChange == state.CreateAttempts,
             "An unchanged bus recreated the player every frame.")) return 23;
 
-        busPlayer->Bus = EAudioBusKind::UI;
+        // 프로젝트가 정의한 임의 이름으로도 라우팅돼야 한다 — enum 이던 시절엔 불가능했다.
+        busPlayer->Bus = "Ambience";
         busSystem->Update(busCanvas);
         if (false == Expect(createsBeforeBusChange + 1 == state.CreateAttempts,
             "Changing the bus did not rebuild the backend instance.")) return 24;
-        if (false == Expect(EAudioBusKind::UI == state.LastRequestedBus,
+        if (false == Expect("Ambience" == state.LastRequestedBus,
             "The rebuilt instance did not follow the new bus.")) return 25;
 
         busSystem->SimulationStop(busCanvas);
+    }
+
+    // ── 매니페스트 왕복 ─────────────────────────────────────────────────────
+    // 버스 목록은 프로젝트 세팅(에디터)에만 있으면 소용이 없다. 패키지 게임은 매니페스트로
+    // 받으므로 그 경로가 끊기면 **패키지에서만** 모든 소리가 Master 로 몰린다. 바이너리
+    // 매니페스트는 난독화돼 있어 파일을 들여다봐도 확인할 수 없으니 왕복으로 본다.
+    {
+        BuildManifest written;
+        written.StartupCanvasGuid = "0123456789abcdef0123456789abcdef";
+        written.ProductName = "BusRoundTrip";
+        written.AudioBuses = { "Music", "SFX", "Ambience" };
+
+        const std::filesystem::path manifestPath = root / "roundtrip.jbmanifest";
+        std::string manifestError;
+        if (false == CBuildManifestLoader::WriteBinaryFile(
+            File::Path(manifestPath.generic_string()), written, &manifestError))
+        {
+            std::cerr << "Failed to write the round-trip manifest: " << manifestError << '\n';
+            return 26;
+        }
+
+        BuildManifest loaded;
+        if (false == CBuildManifestLoader::LoadFromFile(
+            File::Path(manifestPath.generic_string()), loaded, &manifestError))
+        {
+            std::cerr << "Failed to read the round-trip manifest: " << manifestError << '\n';
+            return 27;
+        }
+        if (false == Expect(written.AudioBuses == loaded.AudioBuses,
+            "Audio buses did not survive the build manifest round trip.")) return 28;
     }
 
     assetManager->Finalize();
