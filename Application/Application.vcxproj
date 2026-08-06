@@ -350,6 +350,7 @@
     <ClInclude Include="Editor\Icons\FontAwesomeIcons.h" />
     <ClInclude Include="Editor\ImItem\ImActionButton.h" />
     <ClInclude Include="Editor\ImItem\ImAssetField.h" />
+    <ClInclude Include="Editor\ImItem\ImAudioBusField.h" />
     <ClInclude Include="Editor\ImItem\ImAudioVisualizer.h" />
     <ClInclude Include="Editor\ImItem\ImButton.h" />
     <ClInclude Include="Editor\ImItem\ImEnumCombo.h" />
@@ -463,6 +464,9 @@
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="Editor\ImItem\ImAssetField.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Editor\ImItem\ImAudioBusField.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="Editor\ImItem\ImAudioVisualizer.cpp">

@@ -276,6 +276,9 @@ Entries:
   project_settings.audio.bus_name_hint: "버스 이름"
   project_settings.audio.bus_volume_desc: "이 버스의 시작 음량. 스크립트가 SetVolume 으로 바꾸면 그쪽이 우선합니다(옵션 화면이 저장된 값을 불러오는 흐름)."
   project_settings.audio.buses_help: "목록에 없는 이름으로 라우팅하면 Master 로 폴백되며 경고 로그가 1회 출력됩니다. 스크립트에서는 Script.Audio->GetBus(\"이름\")->SetVolume(v) 으로 카테고리 볼륨을 조절합니다."
+  project_settings.audio.bus_name_invalid: "쓸 수 없는 이름입니다. 비어 있거나 다른 행과 겹칩니다."
+  project_settings.audio.bus_name_renamed: "이름을 바꾸면 옛 이름을 가리키던 AudioPlayer 와 스크립트의 GetBus(\"옛 이름\") 이 조용히 Master 로 떨어집니다. 그쪽도 같이 고쳐야 합니다."
+  project_settings.audio.buses_removed: "사라지는 버스 — 이 이름을 가리키던 소리는 Master 로 떨어집니다:"
   project_settings.localization_unavailable: 로컬라이저를 사용할 수 없습니다.
   project_settings.localization_no_locales: 사용 가능한 언어가 없습니다.
   project_settings.language: 언어
@@ -440,6 +443,7 @@ Entries:
   inspector.audio.max_distance: 최대 거리
   inspector.audio.format: 포맷
   inspector.audio.duration: 길이
+  inspector.audio.bus_missing: "(프로젝트에 없는 버스)"
   inspector.asset_manager_unavailable: 에셋 매니저를 사용할 수 없습니다.
   inspector.selected_asset_not_registered: 선택한 에셋이 등록되어 있지 않습니다.
   inspector.no_editable_import_options: 이 에셋 타입에는 편집 가능한 임포트 옵션이 없습니다.

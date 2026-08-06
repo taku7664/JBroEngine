@@ -80,6 +80,10 @@ public:
 	CComponentRegistration& AddProperty(const char* name, EReflectPropertyType propertyType, std::size_t offset, std::size_t size, std::size_t elementCount = 1, bool isEditable = true);
 	CComponentRegistration& AddAssetProperty(const char* name, std::size_t offset, EAssetType expectedType, bool isEditable = true);
 
+	// 오디오 믹싱 버스 **이름** 프로퍼티. 저장 형태는 String 그대로이고, 인스펙터만
+	// 프로젝트 세팅에 정의된 버스 목록 드롭다운으로 바뀐다(오타로 인한 Master 폴백 방지).
+	CComponentRegistration& AddAudioBusProperty(const char* name, std::size_t offset, std::size_t size, bool isEditable = true);
+
 	template<
 		typename T,
 		EReflectPropertyType ElementType,

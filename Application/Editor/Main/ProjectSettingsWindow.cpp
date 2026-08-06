@@ -6,6 +6,7 @@
 #include "Editor/ImItem/ImText.h"       // ImText (라벨 + 설명 툴팁)
 #include "Editor/ImItem/ImNameListEdit.h"  // 한 줄 = 한 이름 목록 편집(입력 레이어)
 #include "Editor/ImItem/ImList.h"         // 믹싱 버스 목록(이름 + 기본 음량)
+#include "Editor/ImItem/ImAudioBusField.h" // 버스 이름 검증(중복/리네임)
 #include "Engine/Editor/ImGuiUtillity.h"       // ImGui::Utillity::FormLayout, HoveredToolTip
 
 #include "Editor/Editor.h"
@@ -20,6 +21,21 @@
 
 namespace
 {
+    // 버스 목록에서 이름만 뽑는다. 기준선(baseline)을 잡을 때만 쓴다.
+    std::vector<std::string> CollectAudioBusNames(const std::vector<AudioBusDef>& buses)
+    {
+        std::vector<std::string> names;
+        names.reserve(buses.size());
+        for (const AudioBusDef& bus : buses)
+        {
+            if (false == bus.Name.empty())
+            {
+                names.push_back(bus.Name);
+            }
+        }
+        return names;
+    }
+
     const char* ToScriptStateText(ELiveCompileState state)
     {
         switch (state)
@@ -130,6 +146,7 @@ void CProjectSettingsWindow::OnShow()
         // 입력 레이어 — 동일 패턴(한 줄당 하나, 위 = 최우선).
         m_editInputLayers = pm->GetInputLayers();
         m_editAudioBuses = pm->GetAudioBuses();
+        m_audioBusNamesBaseline = CollectAudioBusNames(m_editAudioBuses);
         m_editInputActions = pm->GetInputActions();
         ImGui::Utillity::BuildNameListBuffer(m_editInputLayers, m_inputLayersBuffer);
     }
@@ -579,13 +596,27 @@ void CProjectSettingsWindow::DrawCategoryAudio()
             const float volumeWidth = std::clamp(rowWidth * 0.55f, 90.0f, 220.0f);
             const float nameWidth   = rowWidth - volumeWidth - spacing;
 
+            // 이름이 곧 참조라서 잘못된 이름은 조용히 Master 폴백이 된다. 스크립트
+            // 프로퍼티 이름과 같은 방식으로 빨간 테두리를 씌워 눈에 보이게 한다.
+            const bool invalid = AudioBusUI::IsBusNameInvalid(bus.Name, m_editAudioBuses);
+            const bool renamed = AudioBusUI::IsBusNameRenamed(
+                bus.Name, m_editAudioBuses, m_audioBusNamesBaseline);
+
             ImGui::SetNextItemWidth(nameWidth > 40.0f ? nameWidth : rowWidth * 0.4f);
             ImInputText nameInput("##bus_name");
             nameInput.SetText(bus.Name);
             nameInput.SetHintText(Loc::Text(EditorLocKeys::ProjectSettingsAudioBusNameHint));
-            if (nameInput(ImGuiInputTextFlags_None))
+            if (nameInput(ImGuiInputTextFlags_None, invalid || renamed))
             {
                 bus.Name = static_cast<const char*>(nameInput);
+            }
+            if (invalid)
+            {
+                ImGui::Utillity::HoveredToolTip(Loc::Text(EditorLocKeys::ProjectSettingsAudioBusNameInvalid));
+            }
+            else if (renamed)
+            {
+                ImGui::Utillity::HoveredToolTip(Loc::Text(EditorLocKeys::ProjectSettingsAudioBusNameRenamed));
             }
 
             ImGui::SameLine(0.0f, spacing);
@@ -594,6 +625,27 @@ void CProjectSettingsWindow::DrawCategoryAudio()
             ImGui::Utillity::HoveredToolTip(Loc::Text(EditorLocKeys::ProjectSettingsAudioBusVolumeDesc));
         },
         AudioBusDef{});
+
+    // 삭제만 한 경우엔 빨갛게 칠할 행이 남지 않는다 — 사라진 이름을 여기서 나열한다.
+    // 리네임도 같이 걸린다(옛 이름이 사라진 것으로 잡히므로).
+    const std::vector<std::string> removedBuses =
+        AudioBusUI::FindRemovedBusNames(m_editAudioBuses, m_audioBusNamesBaseline);
+    if (false == removedBuses.empty())
+    {
+        std::string message = Loc::Text(EditorLocKeys::ProjectSettingsAudioBusesRemoved);
+        message += ' ';
+        for (std::size_t index = 0; index < removedBuses.size(); ++index)
+        {
+            if (index > 0)
+            {
+                message += ", ";
+            }
+            message += removedBuses[index];
+        }
+        ImGui::Spacing();
+        // 메시지는 포인터로만 들고 있으므로 Draw 가 끝날 때까지 살아 있어야 한다.
+        ImValidationMessage(message.c_str(), EImValidationSeverity::Warning).Draw();
+    }
 
     ImGui::Spacing();
     ImGui::TextDisabled("%s", Loc::Text(EditorLocKeys::ProjectSettingsAudioBusesHelp));
@@ -735,6 +787,8 @@ void CProjectSettingsWindow::DrawFooterButtons()
             pm->SetAssetWatchIgnorePatterns(m_editAssetWatchIgnorePatterns);
             pm->SetInputLayers(m_editInputLayers);
             pm->SetAudioBuses(m_editAudioBuses);
+            // 적용했으면 이게 새 기준선이다. 안 잡으면 "사라진 이름" 경고가 계속 남는다.
+            m_audioBusNamesBaseline = CollectAudioBusNames(m_editAudioBuses);
             pm->SetInputActions(m_editInputActions);
         }
         if (Engine.Localization.IsValid())

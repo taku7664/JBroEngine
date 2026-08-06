@@ -84,6 +84,9 @@
     <ClInclude Include="Editor\ImItem\ImAssetField.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
+    <ClInclude Include="Editor\ImItem\ImAudioBusField.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
     <ClInclude Include="Editor\ImItem\ImAudioVisualizer.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
@@ -312,6 +315,9 @@
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="Editor\ImItem\ImAssetField.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\ImItem\ImAudioBusField.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="Editor\ImItem\ImAudioVisualizer.cpp">

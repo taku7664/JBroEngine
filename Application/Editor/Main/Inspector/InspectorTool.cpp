@@ -5,6 +5,7 @@
 #include "Editor/Main/ProjectSettingsWindow.h"
 
 #include "Editor/ImItem/ImAssetField.h"
+#include "Editor/ImItem/ImAudioBusField.h"   // AudioBusUI::DrawBusCombo
 #include "Editor/ImItem/ImText.h"
 #include "Editor/ImItem/ImSplitter.h"
 #include "Editor/ImItem/ImList.h"
@@ -366,6 +367,12 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			if (property.ElementCount > 1)
 			{
 				return ImGui::InputText("", static_cast<char*>(field), property.ElementCount);
+			}
+			// 저장은 문자열 그대로지만 편집은 목록에서 고른다(오디오 버스). 자유 입력이면
+			// 오타 하나가 조용한 Master 폴백이 되고, 그건 소리로만 알 수 있다.
+			if (EStringEditKind::AudioBusName == property.StringEdit)
+			{
+				return AudioBusUI::DrawBusCombo("##audio_bus", *static_cast<std::string*>(field));
 			}
 			if (property.Name && 0 == std::strcmp(property.Name, "Text"))
 			{
@@ -1348,20 +1355,13 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		options.Mode = static_cast<EAudioImportMode>(modeIndex);
 
 		// ── 기본 버스 ─────────────────────────────────────────────────────
-		// 버스 목록은 프로젝트 세팅이 정하므로 고정 콤보를 둘 수 없다 — 이름을 직접 적는다.
-		// 빈 값은 Master 로 해석된다.
+		// 목록은 프로젝트 세팅이 정하므로 **런타임에** 만든다(고정 콤보가 아니다).
+		// 빈 값은 Master 로 해석되고, 목록에 없는 이름도 지워지지 않고 그대로 보인다.
 		layout.Row(
 			[&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorAudioDefaultBus)); },
 			[&]()
 			{
-				ImInputText busInput("##inspector.audio.bus");
-				busInput.SetText(options.DefaultBus);
-				busInput.SetHintText(AUDIO_MASTER_BUS_NAME);
-				if (busInput(ImGuiInputTextFlags_None))
-				{
-					options.DefaultBus = static_cast<const char*>(busInput);
-					changed = true;
-				}
+				changed |= AudioBusUI::DrawBusCombo("##inspector.audio.bus", options.DefaultBus);
 			});
 
 		// ── 기본 볼륨 / 루프 ──────────────────────────────────────────────

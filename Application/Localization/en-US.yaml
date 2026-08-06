@@ -276,6 +276,9 @@ Entries:
   project_settings.audio.bus_name_hint: "Bus name"
   project_settings.audio.bus_volume_desc: "This bus's starting volume. A script calling SetVolume wins over it, which is how an options screen restores a saved value."
   project_settings.audio.buses_help: "Routing to a name that is not listed falls back to Master with a one-time warning. Scripts set category volume with Script.Audio->GetBus(\"Name\")->SetVolume(v)."
+  project_settings.audio.bus_name_invalid: "Unusable name. It is empty or duplicates another row."
+  project_settings.audio.bus_name_renamed: "Renaming silently drops AudioPlayers and script GetBus(\"old name\") calls that point at the old name down to Master. Update those too."
+  project_settings.audio.buses_removed: "Buses about to disappear - sounds pointing at these names fall back to Master:"
   project_settings.localization_unavailable: Localization service unavailable.
   project_settings.localization_no_locales: No locales available.
   project_settings.language: Language
@@ -440,6 +443,7 @@ Entries:
   inspector.audio.max_distance: Max Distance
   inspector.audio.format: Format
   inspector.audio.duration: Duration
+  inspector.audio.bus_missing: "(not in this project)"
   inspector.asset_manager_unavailable: Asset manager is not available.
   inspector.selected_asset_not_registered: Selected asset is not registered.
   inspector.no_editable_import_options: No editable import options for this asset type.

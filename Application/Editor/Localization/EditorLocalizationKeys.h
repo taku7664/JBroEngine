@@ -233,6 +233,7 @@ namespace EditorLocKeys
 	constexpr const char* InspectorAudioDefaultBusDesc = "inspector.audio.default_bus.desc";
 	constexpr const char* InspectorAudioDefaultVolume = "inspector.audio.default_volume";
 	constexpr const char* InspectorAudioDefaultVolumeDesc = "inspector.audio.default_volume.desc";
+	constexpr const char* InspectorAudioBusMissing = "inspector.audio.bus_missing";
 	constexpr const char* InspectorAudioDuration = "inspector.audio.duration";
 	constexpr const char* InspectorAudioEffectChain = "inspector.audio.effect_chain";
 	constexpr const char* InspectorAudioFormat = "inspector.audio.format";
@@ -446,6 +447,9 @@ namespace EditorLocKeys
 	constexpr const char* ProjectSettingsAudioBusVolumeDesc = "project_settings.audio.bus_volume_desc";
 	constexpr const char* ProjectSettingsAudioBusesDesc = "project_settings.audio.buses_desc";
 	constexpr const char* ProjectSettingsAudioBusesHelp = "project_settings.audio.buses_help";
+	constexpr const char* ProjectSettingsAudioBusNameInvalid = "project_settings.audio.bus_name_invalid";
+	constexpr const char* ProjectSettingsAudioBusNameRenamed = "project_settings.audio.bus_name_renamed";
+	constexpr const char* ProjectSettingsAudioBusesRemoved = "project_settings.audio.buses_removed";
 	constexpr const char* ProjectSettingsAudioMasterVolume = "project_settings.audio.master_volume";
 	constexpr const char* ProjectSettingsAudioMasterVolumeDesc = "project_settings.audio.master_volume.desc";
 	constexpr const char* ProjectSettingsCancelDesc = "project_settings.cancel.desc";

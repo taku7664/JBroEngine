@@ -160,7 +160,7 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 		.AddAssetProperty("AudioGuid", offsetof(AudioPlayer, AudioGuid), EAssetType::Audio)
 		.AddArrayProperty<AssetGuid, EReflectPropertyType::AssetGuid>(
 			"EffectGuids", offsetof(AudioPlayer, EffectGuids), true, EAssetType::AudioEffect)
-		.AddProperty("Bus",         EReflectPropertyType::String,    offsetof(AudioPlayer, Bus),         sizeof(String))
+		.AddAudioBusProperty("Bus", offsetof(AudioPlayer, Bus), sizeof(String))
 		.AddProperty("Volume",      EReflectPropertyType::Float,     offsetof(AudioPlayer, Volume),      sizeof(float))
 		.AddProperty("Pitch",       EReflectPropertyType::Float,     offsetof(AudioPlayer, Pitch),       sizeof(float))
 		.AddProperty("Loop",        EReflectPropertyType::Bool,      offsetof(AudioPlayer, Loop),        sizeof(bool))

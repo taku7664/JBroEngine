@@ -76,6 +76,10 @@ private:
     // 입력 레이어 — 한 줄당 하나의 레이어 이름. 위 = 최우선. Apply 시 ProjectManager 에 set.
     std::vector<std::string> m_editInputLayers;
     std::vector<AudioBusDef> m_editAudioBuses;
+    // 편집을 시작한 시점의 버스 이름들. "이름이 사라졌다"(= 리네임 또는 삭제)를 판정하는
+    // 기준선이다. 버스에는 ID 가 없어서 이 비교 말고는 참조가 끊기는 것을 알 방법이 없다.
+    // OnShow 와 **적용 직후** 다시 잡는다 — 적용 후에도 경고가 남으면 거짓말이 된다.
+    std::vector<std::string> m_audioBusNamesBaseline;
     // InputTextMultiline 의 백킹 버퍼. OnShow 에서 레이어 벡터로부터 재구축한다.
     std::string m_inputLayersBuffer;
 

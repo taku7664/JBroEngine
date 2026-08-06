@@ -148,6 +148,18 @@ CComponentRegistration& CComponentRegistration::AddAssetProperty(const char* nam
 	return *this;
 }
 
+CComponentRegistration& CComponentRegistration::AddAudioBusProperty(const char* name, std::size_t offset, std::size_t size, bool isEditable)
+{
+	// 저장은 평범한 String 이다 — 직렬화/undo/라이브 컴파일은 손댈 것이 없다.
+	// 달라지는 건 인스펙터가 입력창 대신 버스 목록 콤보를 그린다는 것뿐이다.
+	AddProperty(name, EReflectPropertyType::String, offset, size, 1, isEditable);
+	if (m_typeInfo && false == m_typeInfo->Properties.empty())
+	{
+		m_typeInfo->Properties.back().StringEdit = EStringEditKind::AudioBusName;
+	}
+	return *this;
+}
+
 const ComponentTypeInfo* CReflectionRegistry::FindComponent(TypeId typeId) const
 {
 	auto it = m_componentIndexById.find(typeId);

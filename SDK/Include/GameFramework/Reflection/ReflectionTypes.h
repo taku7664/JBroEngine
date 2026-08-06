@@ -61,6 +61,14 @@ enum class EReflectPropertyType
 	Table
 };
 
+// String 프로퍼티의 편집 UI 종류. **저장 형태는 어느 쪽이든 평범한 문자열이다** —
+// 이건 인스펙터가 무엇을 그릴지만 고른다(ReflectPropertyInfo::StringEdit 참고).
+enum class EStringEditKind : std::uint8_t
+{
+	SingleLine,     // 기본 — 한 줄 입력창
+	AudioBusName,   // 프로젝트 세팅의 믹싱 버스 목록 드롭다운
+};
+
 struct ReflectArrayOps
 {
 	std::size_t (*GetSize)(const void* array) = nullptr;
@@ -253,6 +261,13 @@ struct ReflectPropertyInfo
 
 	// ── Enum 전용 (Type == Enum 일 때만 유효) ─────────────────────────────────
 	const EnumTypeMeta*  Enum         = nullptr;                  // 이름 목록/변환(magic_enum)
+
+	// ── String 전용 (Type == String 일 때만 유효) ─────────────────────────────
+	// 저장 형태는 그대로 문자열이고 **인스펙터 편집 UI 만** 달라진다.
+	// 새 EReflectPropertyType 을 만들지 않는 이유: 직렬화·undo·라이브 컴파일이 전부
+	// `Type == String` 으로 문자열 여부를 판정하므로, 열거값을 늘리면 그 경로가 전부
+	// 갈라진다(특히 undo 는 문자열을 raw memcpy 로 되돌려 손상시킨다).
+	EStringEditKind      StringEdit   = EStringEditKind::SingleLine;
 };
 
 // JPROP codegen 이 생성하는 스크립트 프로퍼티 1개의 명세.

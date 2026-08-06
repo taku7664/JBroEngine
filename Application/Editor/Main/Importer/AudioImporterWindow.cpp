@@ -5,7 +5,7 @@
 #include "Engine/Core/Asset/AssetMetaFile.h"
 #include "Engine/Core/Asset/AssetPath.h"
 #include "Engine/Editor/ImGuiUtillity.h"
-#include "Editor/ImItem/ImText.h"
+#include "Editor/ImItem/ImAudioBusField.h"   // AudioBusUI::DrawBusCombo
 
 #include <filesystem>
 
@@ -26,17 +26,11 @@ void CAudioImporterWindow::DrawImportOptions()
 			}
 		});
 
-	// 버스는 이름으로 지목한다 — 목록이 프로젝트마다 다르므로 고정 콤보를 둘 수 없다.
-	// 프로젝트 세팅(오디오 버스)에 적은 이름을 그대로 쓴다. 빈 값은 Master 로 해석된다.
+	// 버스는 이름으로 지목한다. 목록이 프로젝트마다 다르므로 **런타임에** 만든다.
+	// 프로젝트 세팅(오디오 버스)에 적은 이름이 그대로 항목이 된다. 빈 값은 Master.
 	ImporterGui::DrawLocalizedRow(layout, EditorLocKeys::InspectorAudioDefaultBus, EditorLocKeys::InspectorAudioDefaultBusDesc,
 		[&]() {
-			ImInputText input("##importer.audio.bus");
-			input.SetText(m_options.DefaultBus);
-			input.SetHintText(AUDIO_MASTER_BUS_NAME);
-			if (input(ImGuiInputTextFlags_None))
-			{
-				m_options.DefaultBus = static_cast<const char*>(input);
-			}
+			AudioBusUI::DrawBusCombo("##importer.audio.bus", m_options.DefaultBus);
 		});
 
 	ImporterGui::DrawLocalizedRow(layout, EditorLocKeys::InspectorAudioDefaultVolume, EditorLocKeys::InspectorAudioDefaultVolumeDesc,
