@@ -14,6 +14,7 @@
 #include "Scripts/CoroutineTestScript.h"
 #include "Scripts/PrefabSpawnTestScript.h"
 #include "Scripts/AudioBusProbeScript.h"
+#include "Scripts/QueryProbeScript.h"
 
 // ── GameScriptSampleModule ───────────────────────────────────────────────────────
 // DLL 진입점 모듈. Initialize() 에서 스크립트를 등록하고
@@ -53,6 +54,12 @@ public:
         m_registry->RegisterScript<CAudioBusProbeScript>({
             "CAudioBusProbeScript",
             "Audio Bus Probe",
+            "GameScriptSample"
+        });
+
+        m_registry->RegisterScript<CQueryProbeScript>({
+            "CQueryProbeScript",
+            "Query Probe",
             "GameScriptSample"
         });
 
@@ -119,6 +126,7 @@ public:
         m_registry->UnregisterScript(CReflectionRegistry::MakeTypeId("CDefaultScript"));
         m_registry->UnregisterScript(CReflectionRegistry::MakeTypeId("CCoroutineTestScript"));
         m_registry->UnregisterScript(CReflectionRegistry::MakeTypeId("CPrefabSpawnTestScript"));
+        m_registry->UnregisterScript(CReflectionRegistry::MakeTypeId("CQueryProbeScript"));
 
         m_registry = nullptr;
 
