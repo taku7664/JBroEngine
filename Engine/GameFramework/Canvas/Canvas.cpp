@@ -811,6 +811,64 @@ SafePtr<CGameObject> CGameCanvas::FindByInstanceGuidText(const char* guidText)
 	return LookupByGuid128(m_objectByGuid, Guid128::FromText(guidText));
 }
 
+SafePtr<CGameObject> CGameCanvas::FindByTag(const char* tag)
+{
+	if (nullptr == tag || '\0' == tag[0])
+	{
+		return nullptr;
+	}
+
+	SafePtr<CGameObject> found;
+	ForEachObject(
+		[&](CGameObject& object)
+		{
+			if (found.IsValid() || object.Tag != tag)
+			{
+				return;
+			}
+			found = object.SafeFromThis();
+		});
+	return found;
+}
+
+void CGameCanvas::FindAllByTag(const char* tag, std::vector<CGameObject*>& outResults)
+{
+	outResults.clear();
+	if (nullptr == tag || '\0' == tag[0])
+	{
+		return;
+	}
+
+	ForEachObject(
+		[&](CGameObject& object)
+		{
+			if (object.Tag == tag)
+			{
+				outResults.push_back(&object);
+			}
+		});
+}
+
+SafePtr<CGameObject> CGameCanvas::FindByName(const char* name)
+{
+	if (nullptr == name || '\0' == name[0])
+	{
+		return nullptr;
+	}
+
+	SafePtr<CGameObject> found;
+	ForEachObject(
+		[&](CGameObject& object)
+		{
+			if (found.IsValid() || object.Name != name)
+			{
+				return;
+			}
+			found = object.SafeFromThis();
+		});
+	return found;
+}
+
 void CGameCanvas::SetObjectInstanceGuid(CGameObject& object, const File::Guid& guid)
 {
 	// guid 재설정 시 맵도 rekey — 안 하면 옛 guid 로 계속 찾히거나 새 guid 가 안 찾힌다.

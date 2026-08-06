@@ -148,6 +148,22 @@ public:
 	// 파싱해 조회한다(Ref::Get 이 프레임마다 부르므로 힙 할당·트랜스코딩을 피한다).
 	SafePtr<CGameObject> FindByInstanceGuidText(const char* guidText);
 
+	// ── 태그/이름 조회 ────────────────────────────────────────────────────────
+	// guid 조회와 달리 인덱스가 없다 — 살아 있는 오브젝트를 **선형 순회**한다.
+	// 따라서 매 프레임 부르지 말고 OnStart 등에서 한 번 찾아 SafePtr 로 들고 있어라.
+	// (인덱스를 두지 않는 이유: Tag/Name 은 공개 필드라 누구나 대입할 수 있어 맵이 조용히
+	//  낡는다. 인덱스를 원하면 필드를 세터로 닫는 것이 선행이다.)
+	// 비교는 정확 일치. tag/name 이 nullptr 이거나 빈 문자열이면 아무것도 찾지 않는다
+	// (태그 없는 오브젝트가 전부 걸리는 사고 방지).
+
+	// 태그가 일치하는 첫 오브젝트. 없으면 빈 SafePtr.
+	SafePtr<CGameObject> FindByTag(const char* tag);
+	// 태그가 일치하는 모든 오브젝트를 outResults 에 채운다(append 아님, 먼저 clear).
+	// 반환 포인터는 프레임 내에서만 유효하다 — 보관하려면 SafeFromThis() 로 SafePtr 를 떠라.
+	void FindAllByTag(const char* tag, std::vector<CGameObject*>& outResults);
+	// 이름이 일치하는 첫 오브젝트. 이름은 고유하지 않으므로 "첫" 이상을 보장하지 않는다.
+	SafePtr<CGameObject> FindByName(const char* name);
+
 	template<typename Fn> void ForEachObject(Fn&& fn)       { m_objectPool.ForEachLive(std::forward<Fn>(fn)); }
 	template<typename Fn> void ForEachObject(Fn&& fn) const { m_objectPool.ForEachLive(std::forward<Fn>(fn)); }
 	// ── 컴포넌트 ──────────────────────────────────────────────────────────────
