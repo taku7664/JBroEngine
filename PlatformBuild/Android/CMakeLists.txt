@@ -93,6 +93,7 @@ set(JBRO_ENGINE_SOURCES
     Engine/GameFramework/Object/GameObject.cpp
     Engine/GameFramework/Object/Ref.cpp
     Engine/GameFramework/Physics2D/Physics2DGeometry.cpp
+    Engine/GameFramework/Physics2D/Physics2DQueryGeometry.cpp
     Engine/GameFramework/Physics2D/Physics2DSystem.cpp
     Engine/GameFramework/Prefab/PrefabSerializer.cpp
     Engine/GameFramework/Reflection/ReflectionRegistry.cpp

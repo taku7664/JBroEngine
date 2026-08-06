@@ -4,6 +4,7 @@
 #include "GameFramework/System/GameSystem.h"
 #include "Utillity/Pointer/SafePtr.h"
 
+#include <cstdint>
 #include <vector>
 
 class CGameObject;
@@ -29,8 +30,35 @@ public:
 	CGameObject* OverlapPoint(const Vector2& point, std::uint32_t layerMask = 0xffffffffu) const;
 
 	// 반지름 radius 의 원과 겹치는 콜라이더들의 오브젝트를 outResults 에 채운다(append 아님, 먼저 clear).
+	// 결과는 **오브젝트 단위**다 — 한 오브젝트에 콜라이더가 여럿이어도 한 번만 들어간다.
 	void OverlapCircle(const Vector2& center, float radius, std::vector<CGameObject*>& outResults,
 	                   std::uint32_t layerMask = 0xffffffffu) const;
+
+	// 레이 경로에 걸리는 **모든** 콜라이더를 거리 오름차순으로 outResults 에 채운다(먼저 clear).
+	// Raycast 와 히트 판정은 완전히 같다 — 최근접 1개만 고르느냐 전부 모으느냐의 차이다.
+	// 한 오브젝트에 콜라이더가 여럿이면 각각 별개 히트로 들어간다(관통 판정에 필요).
+	void RaycastAll(const Vector2& origin, const Vector2& direction, float maxDistance,
+	                std::vector<RaycastHit2D>& outHits, std::uint32_t layerMask = 0xffffffffu) const;
+
+	// 회전 박스(OBB)와 겹치는 콜라이더들의 오브젝트. halfExtents 는 중심에서 각 축까지의 절반 크기,
+	// rotationRadians 는 반시계 양수. OverlapCircle 과 같이 오브젝트 단위로 중복 제거된다.
+	void OverlapBox(const Vector2& center, const Vector2& halfExtents, float rotationRadians,
+	                std::vector<CGameObject*>& outResults, std::uint32_t layerMask = 0xffffffffu) const;
+
+	// ── 스윕(모양 캐스트) ────────────────────────────────────────────────────
+	// 도형을 direction 으로 maxDistance 만큼 밀면서 **처음 닿는** 콜라이더를 찾는다.
+	// 스윕 중 도형은 회전하지 않는다. 출발 시점에 이미 겹쳐 있으면 Distance = 0,
+	// Normal = -direction, Point = 도형 중심으로 보고한다(파고든 상태를 감추지 않기 위함).
+	// Raycast 로는 못 하는 "폭을 가진 이동" 판정용이다 — 캐릭터 폭만큼의 지면/벽 체크 등.
+
+	// 반지름 radius 의 원 스윕.
+	bool CircleCast(const Vector2& origin, float radius, const Vector2& direction, float maxDistance,
+	                RaycastHit2D& outHit, std::uint32_t layerMask = 0xffffffffu) const;
+
+	// 회전 박스(OBB) 스윕.
+	bool BoxCast(const Vector2& center, const Vector2& halfExtents, float rotationRadians,
+	             const Vector2& direction, float maxDistance,
+	             RaycastHit2D& outHit, std::uint32_t layerMask = 0xffffffffu) const;
 
 	// Velocity-solver 반복 횟수.  높을수록 쌓인 물체 안정성/마찰 정확도↑, CPU↑.  기본: 8
 	void SetVelocityIterations(int iterations);
@@ -53,30 +81,38 @@ public:
 	const std::vector<Physics2DManifold>& GetManifolds() const;
 
 protected:
-	// 질의가 scene 참조 없이 동작하도록 초기화 시 scene 포인터를 캐싱한다(시스템 수명=씬 수명).
-	void OnInitialize(CGameScene& scene) override;
-	void OnFixedUpdate(CGameScene& scene) override;
+	// 질의가 canvas 참조 없이 동작하도록 초기화 시 canvas 포인터를 캐싱한다(시스템 수명=캔버스 수명).
+	void OnInitialize(CGameCanvas& canvas) override;
+	void OnFixedUpdate(CGameCanvas& canvas) override;
 	// 시뮬레이션 정지 시 접촉 상태 초기화 — 재생 재개 시 잔여 Exit 이벤트가 튀지 않게 한다.
-	void OnSimulationStop(CGameScene& scene) override;
+	void OnSimulationStop(CGameCanvas& canvas) override;
 
 private:
-	void Step(CGameScene& scene, float deltaSeconds);
-	void IntegrateBodies(CGameScene& scene, float deltaSeconds);
-	void UpdateColliderBounds(CGameScene& scene);
-	void DetectContacts(CGameScene& scene);
-	void ResolveContactVelocity(CGameScene& scene);   // 속도 impulse — 접촉점별 (velocity only)
-	void ResolveContactPosition(CGameScene& scene);   // 위치 보정    — 매니폴드별 1회
-	void StabilizeRestingContacts(CGameScene& scene);
+	void Step(CGameCanvas& canvas, float deltaSeconds);
+	void IntegrateBodies(CGameCanvas& canvas, float deltaSeconds);
+	void UpdateColliderBounds(CGameCanvas& canvas);
+	void DetectContacts(CGameCanvas& canvas);
+	void ResolveContactVelocity(CGameCanvas& canvas);   // 속도 impulse — 접촉점별 (velocity only)
+	void ResolveContactPosition(CGameCanvas& canvas);   // 위치 보정    — 매니폴드별 1회
+	void StabilizeRestingContacts(CGameCanvas& canvas);
 	void DrawManifoldDebugLines();                // 매니폴드 normal/contact 시각화 (fixed step 종료 후 1회)
 
 	// 이번 fixed step 의 접촉 페어를 직전 step 과 비교해 Enter/Stay/Exit 를 판정하고,
 	// 부착된 CGameScript 인스턴스의 충돌/트리거 훅으로 전달한다(fixed step 종료 후 1회).
-	void DispatchContactEvents(CGameScene& scene);
+	void DispatchContactEvents(CGameCanvas& canvas);
+
+	// 충돌/트리거 훅 디스패치 헬퍼. CGameScript 의 훅 진입점(CollisionEnter 등)은 private 이고
+	// 이 시스템이 friend 이므로, 접근하려면 자유함수가 아니라 멤버여야 한다.
+	enum class EContactPhase { Enter, Stay, Exit };
+	static void DispatchToScript(CGameObject* self, CGameObject* other, const Vector2& normal,
+	                             const Vector2& contactPoint, float penetration, bool isTrigger, EContactPhase phase);
+	static void DispatchPair(CGameObject* a, CGameObject* b, const Vector2& normalAtoB,
+	                         const Vector2& contactPoint, float penetration, bool isTrigger, EContactPhase phase);
 
 	// 직전 step 의 매니폴드와 매칭해 누적 impulse 복원 + warm-start 적용.
 	// DetectContacts 직후 호출되어 m_manifolds 의 AccumulatedXxxImpulse 를 prev 에서 복원,
 	// 그 시점에 body 에 warm-start impulse 한 번 적용.
-	void MatchAndWarmStart(CGameScene& scene);
+	void MatchAndWarmStart(CGameCanvas& canvas);
 
 private:
 	Vector2                  m_gravity             = Vector2(0.0f, -9.8f);
@@ -98,6 +134,58 @@ private:
 	};
 	std::vector<ContactPairState>   m_prevContacts;
 
-	// 질의용 scene 캐시(OnInitialize 에서 설정). 시스템은 씬이 소유하므로 수명 내 유효.
-	CGameScene*                     m_scene = nullptr;
+	// ── 프레임 스크래치 ──────────────────────────────────────────────────────
+	// 아래 컨테이너들은 매 fixed step(프레임당 0~8회) · 매 sub-step(스텝당 4회) 도는
+	// 경로에서 쓰인다. 지역 변수로 두면 그 횟수만큼 힙 할당이 발생하므로 멤버로 올려
+	// clear() 로 용량을 재사용한다(프레임 루프 힙 할당 금지 규칙).
+
+	// DispatchContactEvents 가 이번 스텝의 접촉 페어를 모으는 버퍼.
+	struct CurrentContact
+	{
+		CGameObject* A = nullptr;
+		CGameObject* B = nullptr;
+		Vector2      Normal = Vector2(0.0f, 0.0f);
+		Vector2      Point  = Vector2(0.0f, 0.0f);
+		float        Penetration = 0.0f;
+		bool         IsTrigger   = false;
+	};
+	std::vector<CurrentContact>     m_currentContacts;
+
+	// DetectContacts 가 활성 콜라이더를 모으는 버퍼. 이건 sub-step 마다 도는 경로라
+	// (프레임당 최대 fixed step 8 × sub-step 4 = 32회) 지역 변수로 두면 그 횟수만큼
+	// 할당 + push_back 성장 재할당이 붙는다.
+	std::vector<std::pair<CGameObject*, PolygonCollider2D*>> m_detectPolygons;
+	std::vector<std::pair<CGameObject*, CircleCollider2D*>>  m_detectCircles;
+
+	// 같은 (A,B) 페어 매니폴드 병합용 키. 포인터 두 개를 좁은 정수로 패킹하면 비트가 겹쳐
+	// 서로 다른 페어가 충돌하므로, 키는 원본을 들고 해시만 결합한다.
+	struct ManifoldPairKey
+	{
+		std::uintptr_t Lo = 0;
+		std::uintptr_t Hi = 0;
+		bool operator==(const ManifoldPairKey&) const = default;
+	};
+
+	// 병합 인덱스 — unordered_map 이 아니라 오픈 어드레싱 테이블이다. map 은 clear() 해도
+	// 원소마다 노드를 다시 할당하는데, 이 경로는 sub-step 마다 매니폴드 수만큼 도는 자리라
+	// 프레임당 수천 번의 힙 할당이 된다. 테이블은 멤버로 재사용하므로 용량이 찬 뒤엔 0 할당이다.
+	// (범용 해시맵을 새로 만들지 않는 건 사용처가 여기 하나뿐이기 때문이다.)
+	static constexpr std::uint32_t INVALID_MERGE_SLOT = 0xFFFFFFFFu;
+	struct ManifoldMergeSlot
+	{
+		ManifoldPairKey Key;
+		std::uint32_t   MergedIndex = INVALID_MERGE_SLOT;
+	};
+	// 키를 테이블 슬롯으로 — 사용처가 하나라 멤버 함수로 둔다(별도 해시 타입 불필요).
+	static std::size_t HashManifoldPairKey(const ManifoldPairKey& key);
+	// 최소 minSlots 이상·2의 거듭제곱 크기로 테이블을 비운다(선형 탐사 종료 보장용 여유 포함).
+	void ResetManifoldMergeTable(std::size_t minSlots);
+	// 키가 있으면 merged 인덱스를, 없으면 INVALID_MERGE_SLOT 을 돌려주고 outSlot 에 삽입 위치를 준다.
+	std::uint32_t FindManifoldMergeSlot(const ManifoldPairKey& key, std::size_t& outSlot) const;
+
+	std::vector<ManifoldMergeSlot>  m_manifoldMergeTable;
+	std::vector<Physics2DManifold>  m_mergedManifolds;
+
+	// 질의용 canvas 캐시(OnInitialize 에서 설정). 시스템은 캔버스가 소유하므로 수명 내 유효.
+	CGameCanvas*                     m_canvas = nullptr;
 };

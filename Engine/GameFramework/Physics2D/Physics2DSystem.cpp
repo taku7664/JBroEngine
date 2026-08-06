@@ -9,6 +9,7 @@
 #include "GameFramework/Scripting/GameScript.h"
 #include "GameFramework/Component/Transform2D.h"
 #include "GameFramework/Physics2D/Collision2D.h"
+#include "GameFramework/Physics2D/Physics2DQueryGeometry.h"
 #include "GameFramework/Physics2D/Physics2DTypes.h"
 #include "GameFramework/Canvas/Canvas.h"
 #include "GameFramework/Scripting/GameScript.h"
@@ -1706,6 +1707,142 @@ void CPhysics2DSystem::OnInitialize(CGameCanvas& canvas)
 	m_canvas = &canvas;
 }
 
+namespace
+{
+	// 레이 방향 정규화 + 유효성 검사. 성공 시 outDir 에 단위벡터를 채운다.
+	bool NormalizeQueryDirection(const Vector2& direction, Vector2& outDir)
+	{
+		const float lenSq = Dot(direction, direction);
+		if (lenSq <= 1e-12f)
+		{
+			return false;
+		}
+		outDir = direction * (1.0f / std::sqrt(lenSq));
+		return true;
+	}
+
+	// 다건 질의는 콜라이더가 아니라 **오브젝트** 단위 결과다 — 콜라이더 2개짜리 오브젝트가
+	// 두 번 나오면 호출자가 매번 중복을 걸러야 한다. 결과 집합이 작아 선형 탐색으로 충분하다.
+	void AddUniqueObject(std::vector<CGameObject*>& results, CGameObject* object)
+	{
+		if (nullptr == object)
+		{
+			return;
+		}
+		for (const CGameObject* existing : results)
+		{
+			if (existing == object)
+			{
+				return;
+			}
+		}
+		results.push_back(object);
+	}
+
+	// 레이 경로상의 히트를 **콜라이더당 최대 1개**(그 콜라이더에서 가장 가까운 교차) 통보한다.
+	// 순서는 보장하지 않는다 — 정렬은 호출자 몫.
+	//
+	// Raycast(최근접 1개)와 RaycastAll(전부)이 같은 지오메트리를 쓰도록 순회만 떼어낸 것이다.
+	// 둘이 각자 판정하면 한쪽만 고쳐졌을 때 "Raycast 는 맞다는데 RaycastAll 엔 없다"가 된다.
+	template<typename OnHit>
+	void ForEachRayHit(CGameCanvas& canvas, const Vector2& origin, const Vector2& dir, float maxDistance,
+	                   std::uint32_t layerMask, OnHit&& onHit)
+	{
+		const Vector2 rayEnd = origin + dir * maxDistance;
+
+		// ── 원 콜라이더 (해석적 ray-circle) ──────────────────────────────────────
+		canvas.ForEach<CircleCollider2D>(
+			[&](const CircleCollider2D& collider)
+			{
+				if (false == IsActiveComponent(collider) || 0u == (collider.CollisionLayer & layerMask))
+				{
+					return;
+				}
+				const Vector2 oc = origin - collider.WorldCenter;
+				const float   b  = Dot(oc, dir);                                      // a = 1 (dir 정규화)
+				const float   c  = Dot(oc, oc) - collider.WorldRadius * collider.WorldRadius;
+				const float   disc = b * b - c;
+				if (disc < 0.0f)
+				{
+					return;
+				}
+				const float sq = std::sqrt(disc);
+				float       t  = -b - sq;
+				if (t < 0.0f)
+				{
+					t = -b + sq;   // origin 이 원 내부면 반대편(exit) 지점.
+				}
+				if (t < 0.0f || t > maxDistance)
+				{
+					return;
+				}
+				const Vector2 point = origin + dir * t;
+				Vector2       normal = point - collider.WorldCenter;
+				const float   nl = std::sqrt(Dot(normal, normal));
+				normal = nl > 1e-6f ? normal * (1.0f / nl) : Vector2(-dir.x, -dir.y);
+				onHit(collider.GetOwner().TryGet(), point, normal, t);
+			});
+
+		// ── 폴리곤 콜라이더 (엣지별 세그먼트 교차) ───────────────────────────────
+		canvas.ForEach<PolygonCollider2D>(
+			[&](const PolygonCollider2D& collider)
+			{
+				if (false == IsActiveComponent(collider) || 0u == (collider.CollisionLayer & layerMask))
+				{
+					return;
+				}
+				const std::vector<Vector2>& pts = collider.WorldPoints;
+				const std::size_t           n   = pts.size();
+				if (n < 2)
+				{
+					return;
+				}
+
+				// 한 폴리곤에서 여러 엣지를 통과하더라도(입구/출구) 가장 가까운 교차 1건만 낸다.
+				float   nearestT      = maxDistance;
+				Vector2 nearestPoint(0.0f, 0.0f);
+				Vector2 nearestNormal(0.0f, 0.0f);
+				bool    found         = false;
+
+				for (std::size_t i = 0; i < n; ++i)
+				{
+					const Vector2& p0 = pts[i];
+					const Vector2& p1 = pts[(i + 1) % n];
+					Vector2        hitPoint;
+					if (false == TrySegmentIntersection(origin, rayEnd, p0, p1, hitPoint))
+					{
+						continue;
+					}
+					const float t = Dot(hitPoint - origin, dir);
+					if (t < 0.0f || t > nearestT)
+					{
+						continue;
+					}
+					Vector2     normal(p1.y - p0.y, -(p1.x - p0.x));   // 엣지 수직
+					const float nl = std::sqrt(Dot(normal, normal));
+					if (nl <= 1e-6f)
+					{
+						continue;
+					}
+					normal = normal * (1.0f / nl);
+					if (Dot(normal, dir) > 0.0f)   // 레이 반대 방향으로 정렬.
+					{
+						normal = Vector2(-normal.x, -normal.y);
+					}
+					nearestT      = t;
+					nearestPoint  = hitPoint;
+					nearestNormal = normal;
+					found         = true;
+				}
+
+				if (found)
+				{
+					onHit(collider.GetOwner().TryGet(), nearestPoint, nearestNormal, nearestT);
+				}
+			});
+	}
+}
+
 bool CPhysics2DSystem::Raycast(const Vector2& origin, const Vector2& direction, float maxDistance, RaycastHit2D& outHit,
                                std::uint32_t layerMask) const
 {
@@ -1715,99 +1852,28 @@ bool CPhysics2DSystem::Raycast(const Vector2& origin, const Vector2& direction, 
 		return false;
 	}
 
-	const float dirLenSq = Dot(direction, direction);
-	if (dirLenSq <= 1e-12f)
+	Vector2 dir;
+	if (false == NormalizeQueryDirection(direction, dir))
 	{
 		return false;
 	}
-	const Vector2 dir    = direction * (1.0f / std::sqrt(dirLenSq));
-	const Vector2 rayEnd = origin + dir * maxDistance;
 
 	float        bestDist   = maxDistance;
 	CGameObject* bestObject = nullptr;
 	Vector2      bestPoint(0.0f, 0.0f);
 	Vector2      bestNormal(0.0f, 0.0f);
 
-	// ── 원 콜라이더 (해석적 ray-circle) ──────────────────────────────────────
-	m_canvas->ForEach<CircleCollider2D>(
-		[&](const CircleCollider2D& collider)
+	ForEachRayHit(*m_canvas, origin, dir, maxDistance, layerMask,
+		[&](CGameObject* object, const Vector2& point, const Vector2& normal, float distance)
 		{
-			if (false == IsActiveComponent(collider) || 0u == (collider.CollisionLayer & layerMask))
+			if (nullptr == object || distance > bestDist)
 			{
 				return;
 			}
-			const Vector2 oc = origin - collider.WorldCenter;
-			const float   b  = Dot(oc, dir);                                      // a = 1 (dir 정규화)
-			const float   c  = Dot(oc, oc) - collider.WorldRadius * collider.WorldRadius;
-			const float   disc = b * b - c;
-			if (disc < 0.0f)
-			{
-				return;
-			}
-			const float sq = std::sqrt(disc);
-			float       t  = -b - sq;
-			if (t < 0.0f)
-			{
-				t = -b + sq;   // origin 이 원 내부면 반대편(exit) 지점.
-			}
-			if (t < 0.0f || t > bestDist)
-			{
-				return;
-			}
-			const Vector2 point = origin + dir * t;
-			Vector2       normal = point - collider.WorldCenter;
-			const float   nl = std::sqrt(Dot(normal, normal));
-			normal = nl > 1e-6f ? normal * (1.0f / nl) : Vector2(-dir.x, -dir.y);
-			bestDist   = t;
-			bestObject = collider.GetOwner().TryGet();
+			bestDist   = distance;
+			bestObject = object;
 			bestPoint  = point;
 			bestNormal = normal;
-		});
-
-	// ── 폴리곤 콜라이더 (엣지별 세그먼트 교차) ───────────────────────────────
-	m_canvas->ForEach<PolygonCollider2D>(
-		[&](const PolygonCollider2D& collider)
-		{
-			if (false == IsActiveComponent(collider) || 0u == (collider.CollisionLayer & layerMask))
-			{
-				return;
-			}
-			const std::vector<Vector2>& pts = collider.WorldPoints;
-			const std::size_t           n   = pts.size();
-			if (n < 2)
-			{
-				return;
-			}
-			for (std::size_t i = 0; i < n; ++i)
-			{
-				const Vector2& p0 = pts[i];
-				const Vector2& p1 = pts[(i + 1) % n];
-				Vector2        hitPoint;
-				if (false == TrySegmentIntersection(origin, rayEnd, p0, p1, hitPoint))
-				{
-					continue;
-				}
-				const float t = Dot(hitPoint - origin, dir);
-				if (t < 0.0f || t > bestDist)
-				{
-					continue;
-				}
-				Vector2     normal(p1.y - p0.y, -(p1.x - p0.x));   // 엣지 수직
-				const float nl = std::sqrt(Dot(normal, normal));
-				if (nl <= 1e-6f)
-				{
-					continue;
-				}
-				normal = normal * (1.0f / nl);
-				if (Dot(normal, dir) > 0.0f)   // 레이 반대 방향으로 정렬.
-				{
-					normal = Vector2(-normal.x, -normal.y);
-				}
-				bestDist   = t;
-				bestObject = collider.GetOwner().TryGet();
-				bestPoint  = hitPoint;
-				bestNormal = normal;
-			}
 		});
 
 	if (nullptr == bestObject)
@@ -1820,6 +1886,41 @@ bool CPhysics2DSystem::Raycast(const Vector2& origin, const Vector2& direction, 
 	outHit.Distance = bestDist;
 	outHit.Hit      = true;
 	return true;
+}
+
+void CPhysics2DSystem::RaycastAll(const Vector2& origin, const Vector2& direction, float maxDistance,
+                                  std::vector<RaycastHit2D>& outHits, std::uint32_t layerMask) const
+{
+	outHits.clear();
+	if (nullptr == m_canvas || maxDistance <= 0.0f)
+	{
+		return;
+	}
+
+	Vector2 dir;
+	if (false == NormalizeQueryDirection(direction, dir))
+	{
+		return;
+	}
+
+	ForEachRayHit(*m_canvas, origin, dir, maxDistance, layerMask,
+		[&](CGameObject* object, const Vector2& point, const Vector2& normal, float distance)
+		{
+			if (nullptr == object)
+			{
+				return;
+			}
+			RaycastHit2D hit;
+			hit.Object   = object;
+			hit.Point    = point;
+			hit.Normal   = normal;
+			hit.Distance = distance;
+			hit.Hit      = true;
+			outHits.push_back(hit);
+		});
+
+	std::sort(outHits.begin(), outHits.end(),
+		[](const RaycastHit2D& a, const RaycastHit2D& b) { return a.Distance < b.Distance; });
 }
 
 CGameObject* CPhysics2DSystem::OverlapPoint(const Vector2& point, std::uint32_t layerMask) const
@@ -1883,7 +1984,7 @@ void CPhysics2DSystem::OverlapCircle(const Vector2& center, float radius, std::v
 			const float   sum = radius + collider.WorldRadius;
 			if (Dot(d, d) <= sum * sum)
 			{
-				outResults.push_back(collider.GetOwner().TryGet());
+				AddUniqueObject(outResults, collider.GetOwner().TryGet());
 			}
 		});
 
@@ -1916,9 +2017,345 @@ void CPhysics2DSystem::OverlapCircle(const Vector2& center, float radius, std::v
 			}
 			if (overlap)
 			{
-				outResults.push_back(collider.GetOwner().TryGet());
+				AddUniqueObject(outResults, collider.GetOwner().TryGet());
 			}
 		});
+}
+
+namespace
+{
+	// 폴리곤 콜라이더를 **충돌 경로와 같은 규칙**으로 볼록 단위로 훑는다:
+	// 볼록이면 WorldPoints 통짜, 오목이면 ConvexPieces(삼각형), 조각이 아직 없으면 WorldPoints 폴백.
+	// DetectContacts 의 분기(IsConvexPolygon → WorldPoints / else → ConvexPieces)와 어긋나면
+	// "질의는 맞는다는데 실제로는 안 부딪힌다"가 생긴다.
+	template<typename OnConvex>
+	void ForEachConvexPart(const PolygonCollider2D& collider, OnConvex&& onConvex)
+	{
+		const std::vector<Vector2>& worldPoints = collider.WorldPoints;
+
+		if (worldPoints.size() >= 3 && IsConvexPolygon(worldPoints))
+		{
+			onConvex(ArrayView<const Vector2>(worldPoints.data(), worldPoints.size()));
+			return;
+		}
+
+		if (false == collider.ConvexPieces.empty())
+		{
+			for (const ConvexPiece2D& piece : collider.ConvexPieces)
+			{
+				if (piece.WorldPoints.size() >= 3)
+				{
+					onConvex(ArrayView<const Vector2>(piece.WorldPoints.data(), piece.WorldPoints.size()));
+				}
+			}
+			return;
+		}
+
+		if (worldPoints.size() >= 3)
+		{
+			onConvex(ArrayView<const Vector2>(worldPoints.data(), worldPoints.size()));
+		}
+	}
+
+	PhysicsAABB2D MakePointsAABB(ArrayView<const Vector2> points)
+	{
+		PhysicsAABB2D bounds;
+		bounds.Min = Vector2(std::numeric_limits<float>::max(), std::numeric_limits<float>::max());
+		bounds.Max = Vector2(std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest());
+		for (std::size_t i = 0; i < points.Size(); ++i)
+		{
+			bounds.Min.x = std::min(bounds.Min.x, points[i].x);
+			bounds.Min.y = std::min(bounds.Min.y, points[i].y);
+			bounds.Max.x = std::max(bounds.Max.x, points[i].x);
+			bounds.Max.y = std::max(bounds.Max.y, points[i].y);
+		}
+		return bounds;
+	}
+
+	PhysicsAABB2D MakeCircleAABB(const Vector2& center, float radius)
+	{
+		PhysicsAABB2D bounds;
+		bounds.Min = Vector2(center.x - radius, center.y - radius);
+		bounds.Max = Vector2(center.x + radius, center.y + radius);
+		return bounds;
+	}
+
+	// 시작 AABB 와 도착 AABB 를 합친 경로 AABB. 브로드페이즈가 없으므로 스윕의 선기각용.
+	PhysicsAABB2D ExpandAABBBySweep(const PhysicsAABB2D& bounds, const Vector2& dir, float maxDistance)
+	{
+		const Vector2 offset = dir * maxDistance;
+		PhysicsAABB2D swept;
+		swept.Min = Vector2(std::min(bounds.Min.x, bounds.Min.x + offset.x),
+		                    std::min(bounds.Min.y, bounds.Min.y + offset.y));
+		swept.Max = Vector2(std::max(bounds.Max.x, bounds.Max.x + offset.x),
+		                    std::max(bounds.Max.y, bounds.Max.y + offset.y));
+		return swept;
+	}
+
+	// direction 방향으로 가장 멀리 있는 점(볼록 도형의 지지점). 스윕 접촉점 근사에 쓴다.
+	Vector2 SupportPoint(ArrayView<const Vector2> points, const Vector2& direction, const Vector2& offset)
+	{
+		Vector2 best      = points[0] + offset;
+		float   bestValue = best.Dot(direction);
+		for (std::size_t i = 1; i < points.Size(); ++i)
+		{
+			const Vector2 candidate = points[i] + offset;
+			const float   value     = candidate.Dot(direction);
+			if (value > bestValue)
+			{
+				bestValue = value;
+				best      = candidate;
+			}
+		}
+		return best;
+	}
+}
+
+void CPhysics2DSystem::OverlapBox(const Vector2& center, const Vector2& halfExtents, float rotationRadians,
+                                  std::vector<CGameObject*>& outResults, std::uint32_t layerMask) const
+{
+	outResults.clear();
+	if (nullptr == m_canvas)
+	{
+		return;
+	}
+
+	Vector2 boxPoints[4];
+	CPhysics2DQueryGeometry::BuildBoxPoints(center, halfExtents, rotationRadians, boxPoints);
+	const ArrayView<const Vector2> box(boxPoints, 4);
+	const PhysicsAABB2D           boxBounds = MakePointsAABB(box);
+
+	m_canvas->ForEach<CircleCollider2D>(
+		[&](const CircleCollider2D& collider)
+		{
+			if (false == IsActiveComponent(collider) || 0u == (collider.CollisionLayer & layerMask))
+			{
+				return;
+			}
+			if (false == IntersectsAABB(boxBounds, collider.WorldAABB))
+			{
+				return;
+			}
+			if (CPhysics2DQueryGeometry::ConvexOverlapsCircle(box, collider.WorldCenter, collider.WorldRadius))
+			{
+				AddUniqueObject(outResults, collider.GetOwner().TryGet());
+			}
+		});
+
+	m_canvas->ForEach<PolygonCollider2D>(
+		[&](const PolygonCollider2D& collider)
+		{
+			if (false == IsActiveComponent(collider) || 0u == (collider.CollisionLayer & layerMask))
+			{
+				return;
+			}
+			if (false == IntersectsAABB(boxBounds, collider.WorldAABB))
+			{
+				return;
+			}
+
+			bool overlap = false;
+			ForEachConvexPart(collider,
+				[&](ArrayView<const Vector2> part)
+				{
+					if (false == overlap && CPhysics2DQueryGeometry::ConvexOverlapsConvex(box, part))
+					{
+						overlap = true;
+					}
+				});
+
+			if (overlap)
+			{
+				AddUniqueObject(outResults, collider.GetOwner().TryGet());
+			}
+		});
+}
+
+bool CPhysics2DSystem::CircleCast(const Vector2& origin, float radius, const Vector2& direction, float maxDistance,
+                                  RaycastHit2D& outHit, std::uint32_t layerMask) const
+{
+	outHit = RaycastHit2D{};
+	if (nullptr == m_canvas || maxDistance <= 0.0f || radius < 0.0f)
+	{
+		return false;
+	}
+
+	Vector2 dir;
+	if (false == NormalizeQueryDirection(direction, dir))
+	{
+		return false;
+	}
+
+	const PhysicsAABB2D sweptBounds = ExpandAABBBySweep(MakeCircleAABB(origin, radius), dir, maxDistance);
+
+	float        bestT      = maxDistance;
+	CGameObject* bestObject = nullptr;
+	Vector2      bestNormal(0.0f, 0.0f);
+
+	// 원 스윕 vs 원 = 반지름을 합친 원에 레이(Minkowski).
+	m_canvas->ForEach<CircleCollider2D>(
+		[&](const CircleCollider2D& collider)
+		{
+			if (false == IsActiveComponent(collider) || 0u == (collider.CollisionLayer & layerMask))
+			{
+				return;
+			}
+			if (false == IntersectsAABB(sweptBounds, collider.WorldAABB))
+			{
+				return;
+			}
+
+			float   t = 0.0f;
+			Vector2 normal;
+			if (CPhysics2DQueryGeometry::RayVsCircle(origin, dir, bestT, collider.WorldCenter,
+			                                         radius + collider.WorldRadius, t, normal))
+			{
+				bestT      = t;
+				bestNormal = normal;
+				bestObject = collider.GetOwner().TryGet();
+			}
+		});
+
+	// 원 스윕 vs 볼록 = 그 볼록을 반지름만큼 부풀린 도형에 레이(Minkowski).
+	m_canvas->ForEach<PolygonCollider2D>(
+		[&](const PolygonCollider2D& collider)
+		{
+			if (false == IsActiveComponent(collider) || 0u == (collider.CollisionLayer & layerMask))
+			{
+				return;
+			}
+			if (false == IntersectsAABB(sweptBounds, collider.WorldAABB))
+			{
+				return;
+			}
+
+			ForEachConvexPart(collider,
+				[&](ArrayView<const Vector2> part)
+				{
+					float   t = 0.0f;
+					Vector2 normal;
+					if (CPhysics2DQueryGeometry::RayVsRoundedConvex(origin, dir, bestT, part, radius, t, normal))
+					{
+						bestT      = t;
+						bestNormal = normal;
+						bestObject = collider.GetOwner().TryGet();
+					}
+				});
+		});
+
+	if (nullptr == bestObject)
+	{
+		return false;
+	}
+
+	// 접촉점 = 스윕이 멈춘 위치의 원 중심에서 법선 반대 방향으로 반지름만큼.
+	const Vector2 sweptCenter = origin + dir * bestT;
+	outHit.Object   = bestObject;
+	outHit.Point    = sweptCenter - bestNormal * radius;
+	outHit.Normal   = bestNormal;
+	outHit.Distance = bestT;
+	outHit.Hit      = true;
+	return true;
+}
+
+bool CPhysics2DSystem::BoxCast(const Vector2& center, const Vector2& halfExtents, float rotationRadians,
+                               const Vector2& direction, float maxDistance,
+                               RaycastHit2D& outHit, std::uint32_t layerMask) const
+{
+	outHit = RaycastHit2D{};
+	if (nullptr == m_canvas || maxDistance <= 0.0f)
+	{
+		return false;
+	}
+
+	Vector2 dir;
+	if (false == NormalizeQueryDirection(direction, dir))
+	{
+		return false;
+	}
+
+	Vector2 boxPoints[4];
+	CPhysics2DQueryGeometry::BuildBoxPoints(center, halfExtents, rotationRadians, boxPoints);
+	const ArrayView<const Vector2> box(boxPoints, 4);
+	const PhysicsAABB2D sweptBounds = ExpandAABBBySweep(MakePointsAABB(box), dir, maxDistance);
+
+	float        bestT      = maxDistance;
+	CGameObject* bestObject = nullptr;
+	Vector2      bestNormal(0.0f, 0.0f);
+	Vector2      bestPoint(0.0f, 0.0f);
+
+	// 박스 스윕 vs 원은 관점을 뒤집는다 — 원이 -dir 로 움직여 정지한 박스에 닿는 시각과 같다.
+	// 그러면 "원 스윕 vs 볼록" 이 되어 라운드 볼록 레이 하나로 풀린다.
+	m_canvas->ForEach<CircleCollider2D>(
+		[&](const CircleCollider2D& collider)
+		{
+			if (false == IsActiveComponent(collider) || 0u == (collider.CollisionLayer & layerMask))
+			{
+				return;
+			}
+			if (false == IntersectsAABB(sweptBounds, collider.WorldAABB))
+			{
+				return;
+			}
+
+			float   t = 0.0f;
+			Vector2 normal;
+			if (false == CPhysics2DQueryGeometry::RayVsRoundedConvex(collider.WorldCenter, -dir, bestT, box,
+			                                                        collider.WorldRadius, t, normal))
+			{
+				return;
+			}
+
+			// normal 은 박스 표면 기준(박스 → 원 방향) → 맞은 콜라이더(원) 표면 법선은 반대다.
+			bestT      = t;
+			bestNormal = -normal;
+			bestPoint  = collider.WorldCenter - normal * collider.WorldRadius;
+			bestObject = collider.GetOwner().TryGet();
+		});
+
+	// 박스 스윕 vs 볼록 다각형 = 평행이동 swept SAT.
+	m_canvas->ForEach<PolygonCollider2D>(
+		[&](const PolygonCollider2D& collider)
+		{
+			if (false == IsActiveComponent(collider) || 0u == (collider.CollisionLayer & layerMask))
+			{
+				return;
+			}
+			if (false == IntersectsAABB(sweptBounds, collider.WorldAABB))
+			{
+				return;
+			}
+
+			ForEachConvexPart(collider,
+				[&](ArrayView<const Vector2> part)
+				{
+					float   t = 0.0f;
+					Vector2 normal;
+					if (false == CPhysics2DQueryGeometry::SweptConvexVsConvex(box, part, dir, bestT, t, normal))
+					{
+						return;
+					}
+
+					bestT      = t;
+					bestNormal = normal;
+					// 접촉점 근사 — 멈춘 위치의 박스에서 진행 방향(=법선 반대) 최전방 꼭짓점.
+					// 면-면 접촉이면 두 꼭짓점 중 하나가 잡힌다.
+					bestPoint  = SupportPoint(box, -normal, dir * t);
+					bestObject = collider.GetOwner().TryGet();
+				});
+		});
+
+	if (nullptr == bestObject)
+	{
+		return false;
+	}
+
+	outHit.Object   = bestObject;
+	outHit.Point    = bestPoint;
+	outHit.Normal   = bestNormal;
+	outHit.Distance = bestT;
+	outHit.Hit      = true;
+	return true;
 }
 
 void CPhysics2DSystem::Step(CGameCanvas& canvas, float deltaSeconds)

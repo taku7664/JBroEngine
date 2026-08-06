@@ -14,6 +14,9 @@
 
 #include "GameFramework/Component/Physics2DComponents.h"
 #include "GameFramework/Physics2D/Physics2DTypes.h"
-// 질의 API(Raycast/OverlapPoint/OverlapCircle) + RaycastHit2D.
+// 질의 API + RaycastHit2D.
+//   레이  : Raycast(최근접) / RaycastAll(경로상 전부, 거리순)
+//   오버랩: OverlapPoint / OverlapCircle / OverlapBox
+//   스윕  : CircleCast / BoxCast — 폭을 가진 이동 판정(캐릭터 지면·벽 체크)
 // 스크립트에서 GetCanvas()->GetPhysics2DSystem()->Raycast(...) 로 사용.
 #include "GameFramework/Physics2D/Physics2DSystem.h"

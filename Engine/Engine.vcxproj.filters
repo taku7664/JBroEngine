@@ -884,6 +884,9 @@
     <ClInclude Include="GameFramework\Physics2D\Physics2DGeometry.h">
       <Filter>Header\GameFramework\Physics2D</Filter>
     </ClInclude>
+    <ClInclude Include="GameFramework\Physics2D\Physics2DQueryGeometry.h">
+      <Filter>Header\GameFramework\Physics2D</Filter>
+    </ClInclude>
     <ClInclude Include="Core\Network\NetworkTypes.h">
       <Filter>Header\Core\Network</Filter>
     </ClInclude>
@@ -1628,6 +1631,9 @@
       <Filter>Source\Core\Game</Filter>
     </ClCompile>
     <ClCompile Include="GameFramework\Physics2D\Physics2DGeometry.cpp">
+      <Filter>Source\GameFramework\Physics2D</Filter>
+    </ClCompile>
+    <ClCompile Include="GameFramework\Physics2D\Physics2DQueryGeometry.cpp">
       <Filter>Source\GameFramework\Physics2D</Filter>
     </ClCompile>
     <ClCompile Include="Core\FileSystem\FileSystem.cpp">

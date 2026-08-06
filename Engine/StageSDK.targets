@@ -48,8 +48,12 @@
     <_SDKHeader Include="$(_EngineDir)GameFramework\Canvas\**\*.h"      DestDir="GameFramework\Canvas"
                 Exclude="$(_EngineDir)GameFramework\Canvas\CanvasRuntimeAccess.h" />
     <_SDKHeader Include="$(_EngineDir)GameFramework\System\**\*.h"      DestDir="GameFramework\System" />
-    <_SDKHeader Include="$(_EngineDir)GameFramework\Physics2D\**\*.h"   DestDir="GameFramework\Physics2D"
-                Exclude="$(_EngineDir)GameFramework\Physics2D\Physics2DSystem.h" />
+    <!-- Physics2DSystem.h 는 *System 규칙의 예외다. "System=엔진 전용"은 **확장**(유저가 System 을
+         추가/구동)을 막는 규칙이지 **질의**를 막는 규칙이 아니다. Raycast/Overlap/Cast 는 콜라이더
+         월드 지오메트리를 쥔 이 시스템에만 있고, ScriptAPI_Physics.h 가 스크립트에 그 사용법을
+         안내한다 → 미러하지 않으면 안내대로 쓴 스크립트가 컴파일되지 않는다.
+         (GameSystem.h 예외와 같은 성격이라 같은 형태로 남긴다.) -->
+    <_SDKHeader Include="$(_EngineDir)GameFramework\Physics2D\**\*.h"   DestDir="GameFramework\Physics2D" />
     <_SDKHeader Include="$(_EngineDir)GameFramework\Object\**\*.h"      DestDir="GameFramework\Object" />
     <!-- Prefab: 스크립트가 보는 건 IPrefabSpawner(추상 인터페이스)뿐이다. PrefabSpawner.h(호스트
          구현)와 PrefabSerializer.h 는 직렬화 계층(yaml-cpp)에 닿으므로 미러하지 않는다 —

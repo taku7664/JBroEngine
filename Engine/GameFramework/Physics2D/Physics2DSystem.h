@@ -30,8 +30,35 @@ public:
 	CGameObject* OverlapPoint(const Vector2& point, std::uint32_t layerMask = 0xffffffffu) const;
 
 	// 반지름 radius 의 원과 겹치는 콜라이더들의 오브젝트를 outResults 에 채운다(append 아님, 먼저 clear).
+	// 결과는 **오브젝트 단위**다 — 한 오브젝트에 콜라이더가 여럿이어도 한 번만 들어간다.
 	void OverlapCircle(const Vector2& center, float radius, std::vector<CGameObject*>& outResults,
 	                   std::uint32_t layerMask = 0xffffffffu) const;
+
+	// 레이 경로에 걸리는 **모든** 콜라이더를 거리 오름차순으로 outResults 에 채운다(먼저 clear).
+	// Raycast 와 히트 판정은 완전히 같다 — 최근접 1개만 고르느냐 전부 모으느냐의 차이다.
+	// 한 오브젝트에 콜라이더가 여럿이면 각각 별개 히트로 들어간다(관통 판정에 필요).
+	void RaycastAll(const Vector2& origin, const Vector2& direction, float maxDistance,
+	                std::vector<RaycastHit2D>& outHits, std::uint32_t layerMask = 0xffffffffu) const;
+
+	// 회전 박스(OBB)와 겹치는 콜라이더들의 오브젝트. halfExtents 는 중심에서 각 축까지의 절반 크기,
+	// rotationRadians 는 반시계 양수. OverlapCircle 과 같이 오브젝트 단위로 중복 제거된다.
+	void OverlapBox(const Vector2& center, const Vector2& halfExtents, float rotationRadians,
+	                std::vector<CGameObject*>& outResults, std::uint32_t layerMask = 0xffffffffu) const;
+
+	// ── 스윕(모양 캐스트) ────────────────────────────────────────────────────
+	// 도형을 direction 으로 maxDistance 만큼 밀면서 **처음 닿는** 콜라이더를 찾는다.
+	// 스윕 중 도형은 회전하지 않는다. 출발 시점에 이미 겹쳐 있으면 Distance = 0,
+	// Normal = -direction, Point = 도형 중심으로 보고한다(파고든 상태를 감추지 않기 위함).
+	// Raycast 로는 못 하는 "폭을 가진 이동" 판정용이다 — 캐릭터 폭만큼의 지면/벽 체크 등.
+
+	// 반지름 radius 의 원 스윕.
+	bool CircleCast(const Vector2& origin, float radius, const Vector2& direction, float maxDistance,
+	                RaycastHit2D& outHit, std::uint32_t layerMask = 0xffffffffu) const;
+
+	// 회전 박스(OBB) 스윕.
+	bool BoxCast(const Vector2& center, const Vector2& halfExtents, float rotationRadians,
+	             const Vector2& direction, float maxDistance,
+	             RaycastHit2D& outHit, std::uint32_t layerMask = 0xffffffffu) const;
 
 	// Velocity-solver 반복 횟수.  높을수록 쌓인 물체 안정성/마찰 정확도↑, CPU↑.  기본: 8
 	void SetVelocityIterations(int iterations);
