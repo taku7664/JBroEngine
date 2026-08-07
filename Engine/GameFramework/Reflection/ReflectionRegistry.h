@@ -17,6 +17,8 @@
 #include <vector>
 
 class CGameObject;
+// AddRefProperty<T> 정의가 참조한다. 실제 인스턴스화는 Ref.h 를 포함한 등록 지점에서 일어난다.
+template<typename T> class Ref;
 
 using ComponentAddFunc              = bool(*)(CGameCanvas& canvas, CGameObject& object);
 using ComponentRemoveFunc           = bool(*)(CGameCanvas& canvas, CGameObject& object);
@@ -84,6 +86,16 @@ public:
 	// 프로젝트 세팅에 정의된 버스 목록 드롭다운으로 바뀐다(오타로 인한 Master 폴백 방지).
 	CComponentRegistration& AddAudioBusProperty(const char* name, std::size_t offset, std::size_t size, bool isEditable = true);
 
+	// Ref<T> 프로퍼티 — 컴포넌트가 **다른 오브젝트/컴포넌트/스크립트/에셋**을 가리킨다.
+	// 스크립트 쪽에는 원래 있던 경로인데(ScriptPropertyDesc.RefCategory) 컴포넌트 쪽에는 없어서,
+	// 조인트처럼 상대를 지목해야 하는 빌트인 컴포넌트를 만들 수 없었다.
+	// 인스펙터/직렬화는 손댈 것이 없다 — 둘 다 Type==Ref 를 이미 제네릭하게 처리한다.
+	//
+	// refTypeName 을 인자로 받는 이유: 드롭 필터/표시에 쓰는 이름인데 CGameObject 처럼
+	// StaticTypeName() 이 없는 타입도 대상이라 T 에서 뽑아낼 수 없다.
+	template<typename T>
+	CComponentRegistration& AddRefProperty(const char* name, std::size_t offset, const char* refTypeName, bool isEditable = true);
+
 	template<
 		typename T,
 		EReflectPropertyType ElementType,
@@ -110,6 +122,20 @@ public:
 private:
 	ComponentTypeInfo* m_typeInfo = nullptr;
 };
+
+template<typename T>
+CComponentRegistration& CComponentRegistration::AddRefProperty(const char* name, std::size_t offset, const char* refTypeName, bool isEditable)
+{
+	AddProperty(name, EReflectPropertyType::Ref, offset, sizeof(Ref<T>), 1, isEditable);
+	if (m_typeInfo && false == m_typeInfo->Properties.empty())
+	{
+		ReflectPropertyInfo& info = m_typeInfo->Properties.back();
+		info.Descriptor  = &GetScalarReflectTypeDesc<Ref<T>, EReflectPropertyType::Ref>();
+		info.RefCategory = Ref<T>::Category;
+		info.RefTypeName = refTypeName;
+	}
+	return *this;
+}
 
 template<typename T, EReflectPropertyType ElementType, typename Allocator>
 CComponentRegistration& CComponentRegistration::AddArrayProperty(

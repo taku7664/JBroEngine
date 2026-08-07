@@ -112,6 +112,7 @@
     <ClCompile Include="Scripts\CoroutineTestScript.cpp" />
     <ClCompile Include="Scripts\PrefabSpawnTestScript.cpp" />
     <ClCompile Include="Scripts\AudioBusProbeScript.cpp" />
+    <ClCompile Include="Scripts\JointProbeScript.cpp" />
     <ClCompile Include="Scripts\QueryProbeScript.cpp" />
   </ItemGroup>
 
@@ -124,6 +125,7 @@
     <ClInclude Include="Scripts\CoroutineTestScript.h" />
     <ClInclude Include="Scripts\PrefabSpawnTestScript.h" />
     <ClInclude Include="Scripts\AudioBusProbeScript.h" />
+    <ClInclude Include="Scripts\JointProbeScript.h" />
     <ClInclude Include="Scripts\QueryProbeScript.h" />
   </ItemGroup>
 

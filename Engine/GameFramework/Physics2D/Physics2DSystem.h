@@ -92,6 +92,13 @@ private:
 	void IntegrateBodies(CGameCanvas& canvas, float deltaSeconds);
 	void UpdateColliderBounds(CGameCanvas& canvas);
 	void DetectContacts(CGameCanvas& canvas);
+	// ── 조인트 ───────────────────────────────────────────────────────────────
+	// PrepareJoints: 스텝 시작 1회 — 자동 설정(쉬는 길이/연결점) 확정 + 워밍스타트 임펄스 적용.
+	// SolveJointVelocity: 속도 반복 루프 안에서 접촉과 **함께** 수렴시킨다. 따로 풀면 조인트와
+	//   접촉이 서로의 결과를 되돌린다(매달린 물체가 바닥에 닿는 순간 튀는 형태로 드러난다).
+	void PrepareJoints(CGameCanvas& canvas, float deltaSeconds);
+	void SolveJointVelocity(CGameCanvas& canvas, float deltaSeconds);
+
 	void ResolveContactVelocity(CGameCanvas& canvas);   // 속도 impulse — 접촉점별 (velocity only)
 	void ResolveContactPosition(CGameCanvas& canvas);   // 위치 보정    — 매니폴드별 1회
 	void StabilizeRestingContacts(CGameCanvas& canvas);

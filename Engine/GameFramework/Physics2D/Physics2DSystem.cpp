@@ -6,6 +6,7 @@
 #include "Core/Logging/LoggerInternal.h"
 #include "Core/Time/Time.h"
 #include "GameFramework/Component/Physics2DComponents.h"
+#include "GameFramework/Component/Physics2DJoints.h"
 #include "GameFramework/Scripting/GameScript.h"
 #include "GameFramework/Component/Transform2D.h"
 #include "GameFramework/Physics2D/Collision2D.h"
@@ -1688,7 +1689,7 @@ void CPhysics2DSystem::DispatchContactEvents(CGameCanvas& canvas)
 	}
 }
 
-void CPhysics2DSystem::OnSimulationStop(CGameCanvas& /*canvas*/)
+void CPhysics2DSystem::OnSimulationStop(CGameCanvas& canvas)
 {
 	// 재생 정지 — 접촉/매니폴드 상태를 비워 재개 시 잔여 Exit 이벤트가 튀지 않게 한다.
 	// 스크래치도 함께 비운다 — 파괴된 오브젝트의 raw 포인터를 스텝 사이에 들고 있지 않게.
@@ -1699,6 +1700,19 @@ void CPhysics2DSystem::OnSimulationStop(CGameCanvas& /*canvas*/)
 	m_mergedManifolds.clear();
 	m_detectPolygons.clear();
 	m_detectCircles.clear();
+
+	// 조인트도 재생 상태를 버린다 — 누적 임펄스를 들고 재개하면 첫 스텝에 튀고,
+	// AutoConfigure 는 다시 배치된 위치 기준으로 잡혀야 한다.
+	canvas.ForEach<DistanceJoint2D>([](DistanceJoint2D& joint)
+	{
+		joint.RuntimeAccumulatedImpulse = 0.0f;
+		joint.RuntimeConfigured         = false;
+	});
+	canvas.ForEach<HingeJoint2D>([](HingeJoint2D& joint)
+	{
+		joint.RuntimeAccumulatedImpulse = Vector2(0.0f, 0.0f);
+		joint.RuntimeConfigured         = false;
+	});
 }
 
 void CPhysics2DSystem::OnInitialize(CGameCanvas& canvas)
@@ -2358,6 +2372,261 @@ bool CPhysics2DSystem::BoxCast(const Vector2& center, const Vector2& halfExtents
 	return true;
 }
 
+// ── 조인트 ────────────────────────────────────────────────────────────────────
+
+namespace
+{
+	// 조인트 한쪽 끝을 푼 결과. 상대가 비어 있으면 "월드에 고정된 점"이다
+	// (질량 무한 = 임펄스를 줘도 안 움직이는 쪽).
+	struct JointEnds
+	{
+		CGameObject* ObjectA = nullptr;
+		CGameObject* ObjectB = nullptr;   // nullptr = 월드
+		Rigidbody2D* BodyA   = nullptr;
+		Rigidbody2D* BodyB   = nullptr;
+		Vector2      CenterA;
+		Vector2      CenterB;
+		Vector2      AnchorA;             // 월드
+		Vector2      AnchorB;             // 월드
+		bool         Valid = false;
+	};
+
+	JointEnds ResolveJointEnds(const CComponent& joint, CGameObject* connectedObject,
+	                           const Vector2& localAnchor, const Vector2& connectedAnchor)
+	{
+		JointEnds ends;
+		ends.ObjectA = joint.GetOwner().TryGet();
+		if (nullptr == ends.ObjectA)
+		{
+			return ends;
+		}
+
+		ends.BodyA   = ends.ObjectA->GetComponent<Rigidbody2D>();
+		ends.CenterA = GetBodyWorldCenter(ends.ObjectA);
+		ends.AnchorA = CalculateWorldTransformNow(ends.ObjectA).TransformPoint(localAnchor);
+
+		ends.ObjectB = connectedObject;
+		if (nullptr != ends.ObjectB)
+		{
+			ends.BodyB   = ends.ObjectB->GetComponent<Rigidbody2D>();
+			ends.CenterB = GetBodyWorldCenter(ends.ObjectB);
+			ends.AnchorB = CalculateWorldTransformNow(ends.ObjectB).TransformPoint(connectedAnchor);
+		}
+		else
+		{
+			// 월드 고정점 — 중심과 앵커를 같게 두면 회전 항이 0 이 되어 자연히 부동점이 된다.
+			ends.CenterB = connectedAnchor;
+			ends.AnchorB = connectedAnchor;
+		}
+
+		// 양쪽 다 움직일 수 없으면 풀 것이 없다.
+		ends.Valid = (GetInverseMass(ends.BodyA) + GetInverseMass(ends.BodyB)) > 0.0f;
+		return ends;
+	}
+
+	// 스프링(soft constraint) 계수. Frequency 가 0 이면 강체 구속(gamma=0, bias=Baumgarte).
+	// Box2D 의 soft constraint 유도와 같다: 진동수·감쇠비 → (gamma, biasFactor).
+	void ComputeSoftness(float frequencyHz, float dampingRatio, float effectiveMass,
+	                     float positionError, float deltaSeconds,
+	                     float& outGamma, float& outBias)
+	{
+		constexpr float BAUMGARTE = 0.2f;
+
+		if (frequencyHz <= 0.0f || effectiveMass <= 0.0f || deltaSeconds <= 0.0f)
+		{
+			outGamma = 0.0f;
+			outBias  = (deltaSeconds > 0.0f) ? (BAUMGARTE / deltaSeconds) * positionError : 0.0f;
+			return;
+		}
+
+		const float omega     = 2.0f * 3.14159265358979323846f * frequencyHz;
+		const float damping   = 2.0f * effectiveMass * dampingRatio * omega;
+		const float stiffness = effectiveMass * omega * omega;
+
+		const float denominator = deltaSeconds * (damping + deltaSeconds * stiffness);
+		outGamma = denominator > 0.0f ? 1.0f / denominator : 0.0f;
+		outBias  = positionError * deltaSeconds * stiffness * outGamma;
+	}
+}
+
+void CPhysics2DSystem::PrepareJoints(CGameCanvas& canvas, float deltaSeconds)
+{
+	(void)deltaSeconds;
+
+	canvas.ForEach<DistanceJoint2D>([](DistanceJoint2D& joint)
+	{
+		if (false == IsActiveComponent(joint)) return;
+
+		const JointEnds ends = ResolveJointEnds(
+			joint, joint.ConnectedObject.Get(), joint.LocalAnchor, joint.ConnectedAnchor);
+		if (false == ends.Valid) return;
+
+		// 배치된 그대로가 쉬는 길이 — 시뮬레이션이 처음 볼 때 1회만 확정한다.
+		if (joint.AutoConfigureDistance && false == joint.RuntimeConfigured)
+		{
+			joint.Distance = (ends.AnchorB - ends.AnchorA).Length();
+		}
+		joint.RuntimeConfigured = true;
+
+		// 워밍스타트 — 직전 스텝의 누적 임펄스를 그대로 한 번 적용한다.
+		const Vector2 axis = NormalizeSafe(ends.AnchorB - ends.AnchorA);
+		const Vector2 impulse = axis * joint.RuntimeAccumulatedImpulse;
+		ApplyImpulse(ends.BodyA, ends.CenterA, -impulse, ends.AnchorA);
+		ApplyImpulse(ends.BodyB, ends.CenterB,  impulse, ends.AnchorB);
+	});
+
+	canvas.ForEach<HingeJoint2D>([](HingeJoint2D& joint)
+	{
+		if (false == IsActiveComponent(joint)) return;
+
+		CGameObject* connected = joint.ConnectedObject.Get();
+		if (joint.AutoConfigureConnectedAnchor && false == joint.RuntimeConfigured)
+		{
+			CGameObject* owner = joint.GetOwner().TryGet();
+			if (nullptr != owner)
+			{
+				const Vector2 worldAnchor = CalculateWorldTransformNow(owner).TransformPoint(joint.LocalAnchor);
+				if (nullptr != connected)
+				{
+					// 상대의 로컬 좌표로 역산 — 상대가 회전/이동해도 같은 점을 가리키게.
+					Matrix3x2 inverse;
+					if (CalculateWorldTransformNow(connected).TryInvert(inverse))
+					{
+						joint.ConnectedAnchor = inverse.TransformPoint(worldAnchor);
+					}
+				}
+				else
+				{
+					joint.ConnectedAnchor = worldAnchor;   // 월드 고정점
+				}
+			}
+		}
+		joint.RuntimeConfigured = true;
+
+		const JointEnds ends = ResolveJointEnds(
+			joint, connected, joint.LocalAnchor, joint.ConnectedAnchor);
+		if (false == ends.Valid) return;
+
+		const Vector2 impulse = joint.RuntimeAccumulatedImpulse;
+		ApplyImpulse(ends.BodyA, ends.CenterA, -impulse, ends.AnchorA);
+		ApplyImpulse(ends.BodyB, ends.CenterB,  impulse, ends.AnchorB);
+	});
+}
+
+void CPhysics2DSystem::SolveJointVelocity(CGameCanvas& canvas, float deltaSeconds)
+{
+	// ── 거리 조인트 (1 자유도) ───────────────────────────────────────────────
+	canvas.ForEach<DistanceJoint2D>([deltaSeconds](DistanceJoint2D& joint)
+	{
+		if (false == IsActiveComponent(joint)) return;
+
+		const JointEnds ends = ResolveJointEnds(
+			joint, joint.ConnectedObject.Get(), joint.LocalAnchor, joint.ConnectedAnchor);
+		if (false == ends.Valid) return;
+
+		const Vector2 delta      = ends.AnchorB - ends.AnchorA;
+		const float   currentLen = delta.Length();
+		const Vector2 axis       = NormalizeSafe(delta);
+
+		// 로프 모드: 쉬는 길이보다 짧으면 구속하지 않는다(늘어진 줄).
+		const float error = currentLen - joint.Distance;
+		if (joint.MaxDistanceOnly && error < 0.0f)
+		{
+			joint.RuntimeAccumulatedImpulse = 0.0f;
+			return;
+		}
+
+		const Vector2 ra = ends.AnchorA - ends.CenterA;
+		const Vector2 rb = ends.AnchorB - ends.CenterB;
+		const float raCross = Cross(ra, axis);
+		const float rbCross = Cross(rb, axis);
+
+		const float denominator = GetInverseMass(ends.BodyA) + GetInverseMass(ends.BodyB)
+			+ raCross * raCross * GetInverseInertia(ends.BodyA)
+			+ rbCross * rbCross * GetInverseInertia(ends.BodyB);
+		if (denominator <= 0.0f) return;
+
+		const float effectiveMass = 1.0f / denominator;
+
+		float gamma = 0.0f;
+		float bias  = 0.0f;
+		ComputeSoftness(joint.Frequency, joint.DampingRatio, effectiveMass, error, deltaSeconds, gamma, bias);
+
+		const Vector2 velA = GetContactVelocity(ends.BodyA, ends.CenterA, ends.AnchorA);
+		const Vector2 velB = GetContactVelocity(ends.BodyB, ends.CenterB, ends.AnchorB);
+		const float   relativeSpeed = Dot(velB - velA, axis);
+
+		// soft constraint: (m^-1 + gamma) 로 나눈다. gamma=0 이면 강체 구속과 같다.
+		const float softDenominator = denominator + gamma;
+		if (softDenominator <= 0.0f) return;
+
+		const float deltaImpulse =
+			-(relativeSpeed + bias + gamma * joint.RuntimeAccumulatedImpulse) / softDenominator;
+
+		float newAccumulated = joint.RuntimeAccumulatedImpulse + deltaImpulse;
+		// 로프는 당기기만 한다 — **미는 방향을 버린다**.
+		// 부호 주의: axis 는 A→B 이고 A 에는 -impulse 가 걸린다. 즉 A 를 B 쪽으로 당기는 것은
+		// **음수** 임펄스다. 여기서 음수를 잘라내면 당기는 힘만 골라 버려 구속이 통째로 사라진다
+		// (로프에 매단 물체가 그냥 낙하한다 — 실측으로 잡은 버그다).
+		if (joint.MaxDistanceOnly && newAccumulated > 0.0f)
+		{
+			newAccumulated = 0.0f;
+		}
+		const float applied = newAccumulated - joint.RuntimeAccumulatedImpulse;
+		joint.RuntimeAccumulatedImpulse = newAccumulated;
+
+		const Vector2 impulse = axis * applied;
+		ApplyImpulse(ends.BodyA, ends.CenterA, -impulse, ends.AnchorA);
+		ApplyImpulse(ends.BodyB, ends.CenterB,  impulse, ends.AnchorB);
+	});
+
+	// ── 힌지(점) 조인트 (2 자유도) ───────────────────────────────────────────
+	canvas.ForEach<HingeJoint2D>([deltaSeconds](HingeJoint2D& joint)
+	{
+		if (false == IsActiveComponent(joint)) return;
+
+		const JointEnds ends = ResolveJointEnds(
+			joint, joint.ConnectedObject.Get(), joint.LocalAnchor, joint.ConnectedAnchor);
+		if (false == ends.Valid) return;
+
+		const Vector2 ra = ends.AnchorA - ends.CenterA;
+		const Vector2 rb = ends.AnchorB - ends.CenterB;
+
+		const float invMassSum = GetInverseMass(ends.BodyA) + GetInverseMass(ends.BodyB);
+		const float invInertiaA = GetInverseInertia(ends.BodyA);
+		const float invInertiaB = GetInverseInertia(ends.BodyB);
+
+		// 2x2 유효질량 행렬 K. 점 구속은 x/y 가 회전을 통해 얽히므로 대각이 아니다.
+		const float k11 = invMassSum + invInertiaA * ra.y * ra.y + invInertiaB * rb.y * rb.y;
+		const float k12 = -invInertiaA * ra.x * ra.y - invInertiaB * rb.x * rb.y;
+		const float k22 = invMassSum + invInertiaA * ra.x * ra.x + invInertiaB * rb.x * rb.x;
+
+		const float determinant = k11 * k22 - k12 * k12;
+		if (std::abs(determinant) <= 1e-12f) return;
+		const float invDet = 1.0f / determinant;
+
+		constexpr float BAUMGARTE = 0.2f;
+		const Vector2 positionError = ends.AnchorB - ends.AnchorA;
+		const Vector2 bias = deltaSeconds > 0.0f
+			? positionError * (BAUMGARTE / deltaSeconds)
+			: Vector2(0.0f, 0.0f);
+
+		const Vector2 velA = GetContactVelocity(ends.BodyA, ends.CenterA, ends.AnchorA);
+		const Vector2 velB = GetContactVelocity(ends.BodyB, ends.CenterB, ends.AnchorB);
+		const Vector2 relative = (velB - velA) + bias;
+
+		// impulse = -K^-1 * relative
+		const Vector2 impulse(
+			-( k22 * relative.x - k12 * relative.y) * invDet,
+			-(-k12 * relative.x + k11 * relative.y) * invDet);
+
+		joint.RuntimeAccumulatedImpulse += impulse;
+
+		ApplyImpulse(ends.BodyA, ends.CenterA, -impulse, ends.AnchorA);
+		ApplyImpulse(ends.BodyB, ends.CenterB,  impulse, ends.AnchorB);
+	});
+}
+
 void CPhysics2DSystem::Step(CGameCanvas& canvas, float deltaSeconds)
 {
 	// 직전 sub-step 의 매니폴드를 prev 로 보존 — contact persistence 매칭에 사용.
@@ -2371,8 +2640,11 @@ void CPhysics2DSystem::Step(CGameCanvas& canvas, float deltaSeconds)
 	// prev 매니폴드와 매칭 → 누적 impulse 복원 + body 에 warm-start impulse 적용.
 	MatchAndWarmStart(canvas);
 
+	PrepareJoints(canvas, deltaSeconds);
+
 	for (int i = 0; i < m_velocityIterations; ++i)
 	{
+		SolveJointVelocity(canvas, deltaSeconds);
 		ResolveContactVelocity(canvas);
 	}
 

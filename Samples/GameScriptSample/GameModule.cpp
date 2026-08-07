@@ -14,6 +14,7 @@
 #include "Scripts/CoroutineTestScript.h"
 #include "Scripts/PrefabSpawnTestScript.h"
 #include "Scripts/AudioBusProbeScript.h"
+#include "Scripts/JointProbeScript.h"
 #include "Scripts/QueryProbeScript.h"
 
 // ── GameScriptSampleModule ───────────────────────────────────────────────────────
@@ -60,6 +61,12 @@ public:
         m_registry->RegisterScript<CQueryProbeScript>({
             "CQueryProbeScript",
             "Query Probe",
+            "GameScriptSample"
+        });
+
+        m_registry->RegisterScript<CJointProbeScript>({
+            "CJointProbeScript",
+            "Joint Probe",
             "GameScriptSample"
         });
 
@@ -127,6 +134,7 @@ public:
         m_registry->UnregisterScript(CReflectionRegistry::MakeTypeId("CCoroutineTestScript"));
         m_registry->UnregisterScript(CReflectionRegistry::MakeTypeId("CPrefabSpawnTestScript"));
         m_registry->UnregisterScript(CReflectionRegistry::MakeTypeId("CQueryProbeScript"));
+        m_registry->UnregisterScript(CReflectionRegistry::MakeTypeId("CJointProbeScript"));
 
         m_registry = nullptr;
 

@@ -971,6 +971,9 @@
     <ClInclude Include="GameFramework\Component\Physics2DComponents.h">
       <Filter>Header\GameFramework\Component</Filter>
     </ClInclude>
+    <ClInclude Include="GameFramework\Component\Physics2DJoints.h">
+      <Filter>Header\GameFramework\Component</Filter>
+    </ClInclude>
     <ClInclude Include="GameFramework\Component\BuiltinComponentRegistry.h">
       <Filter>Header\GameFramework\Component</Filter>
     </ClInclude>

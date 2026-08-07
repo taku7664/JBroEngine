@@ -6,6 +6,7 @@
 #include "GameFramework/Component/Light2D.h"
 #include "GameFramework/Component/AudioComponents.h"
 #include "GameFramework/Component/Physics2DComponents.h"
+#include "GameFramework/Component/Physics2DJoints.h"
 #include "GameFramework/Component/PrefabInstance.h"
 #include "GameFramework/Scripting/GameScript.h"
 #include "GameFramework/Component/ShapeRenderers2D.h"
@@ -1394,6 +1395,22 @@ CComponent* ReadComponentInto(CGameObject& object, const YAML::Node& node,
 	else if (type == "Rigidbody2D")
 	{
 		if (Rigidbody2D* rigidbody = object.AddComponent<Rigidbody2D>()) { ReadRigidbody(node, *rigidbody); added = rigidbody; }
+	}
+	else if (type == "DistanceJoint2D")
+	{
+		if (DistanceJoint2D* joint = object.AddComponent<DistanceJoint2D>())
+		{
+			if (const ComponentTypeInfo* ti = GetTypeInfo("DistanceJoint2D")) ReadComponentReflected(node, joint, *ti);
+			added = joint;
+		}
+	}
+	else if (type == "HingeJoint2D")
+	{
+		if (HingeJoint2D* joint = object.AddComponent<HingeJoint2D>())
+		{
+			if (const ComponentTypeInfo* ti = GetTypeInfo("HingeJoint2D")) ReadComponentReflected(node, joint, *ti);
+			added = joint;
+		}
 	}
 	else if (type == "PolygonCollider2D")
 	{

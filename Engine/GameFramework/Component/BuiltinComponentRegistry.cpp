@@ -5,6 +5,7 @@
 #include "GameFramework/Component/Camera2D.h"
 #include "GameFramework/Component/Light2D.h"
 #include "GameFramework/Component/Physics2DComponents.h"
+#include "GameFramework/Component/Physics2DJoints.h"
 #include "GameFramework/Component/PrefabInstance.h"
 #include "GameFramework/Component/ShapeRenderers2D.h"
 #include "GameFramework/Component/SpriteAnimator2D.h"
@@ -98,6 +99,23 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 		.AddProperty("Playing", EReflectPropertyType::Bool, offsetof(SpriteAnimator2D, Playing), sizeof(bool))
 		.AddProperty("StartFrame", EReflectPropertyType::UInt32, offsetof(SpriteAnimator2D, StartFrame), sizeof(std::uint32_t))
 		.AddProperty("FrameCount", EReflectPropertyType::UInt32, offsetof(SpriteAnimator2D, FrameCount), sizeof(std::uint32_t));
+
+	// 조인트 — 상대 오브젝트를 Ref 로 지목한다. 비워 두면 ConnectedAnchor 가 월드 고정점이다.
+	registry.RegisterComponent<DistanceJoint2D>({ "DistanceJoint2D", "Distance Joint 2D", "Physics", true })
+		.AddRefProperty<CGameObject>("ConnectedObject", offsetof(DistanceJoint2D, ConnectedObject), "CGameObject")
+		.AddProperty("LocalAnchor", EReflectPropertyType::Vector2Float, offsetof(DistanceJoint2D, LocalAnchor), sizeof(Vector2))
+		.AddProperty("ConnectedAnchor", EReflectPropertyType::Vector2Float, offsetof(DistanceJoint2D, ConnectedAnchor), sizeof(Vector2))
+		.AddProperty("AutoConfigureDistance", EReflectPropertyType::Bool, offsetof(DistanceJoint2D, AutoConfigureDistance), sizeof(bool))
+		.AddProperty("Distance", EReflectPropertyType::Float, offsetof(DistanceJoint2D, Distance), sizeof(float))
+		.AddProperty("MaxDistanceOnly", EReflectPropertyType::Bool, offsetof(DistanceJoint2D, MaxDistanceOnly), sizeof(bool))
+		.AddProperty("Frequency", EReflectPropertyType::Float, offsetof(DistanceJoint2D, Frequency), sizeof(float))
+		.AddProperty("DampingRatio", EReflectPropertyType::Float, offsetof(DistanceJoint2D, DampingRatio), sizeof(float));
+
+	registry.RegisterComponent<HingeJoint2D>({ "HingeJoint2D", "Hinge Joint 2D", "Physics", true })
+		.AddRefProperty<CGameObject>("ConnectedObject", offsetof(HingeJoint2D, ConnectedObject), "CGameObject")
+		.AddProperty("LocalAnchor", EReflectPropertyType::Vector2Float, offsetof(HingeJoint2D, LocalAnchor), sizeof(Vector2))
+		.AddProperty("ConnectedAnchor", EReflectPropertyType::Vector2Float, offsetof(HingeJoint2D, ConnectedAnchor), sizeof(Vector2))
+		.AddProperty("AutoConfigureConnectedAnchor", EReflectPropertyType::Bool, offsetof(HingeJoint2D, AutoConfigureConnectedAnchor), sizeof(bool));
 
 	registry.RegisterComponent<Camera2D>({ "Camera2D", "Camera 2D", "Rendering", true, EComponentMultiplicity::Single })
 		.AddEnumProperty<ECameraProjectionMode2D>("ProjectionMode", offsetof(Camera2D, ProjectionMode))
