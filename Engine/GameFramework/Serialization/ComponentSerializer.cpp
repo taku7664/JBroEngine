@@ -12,7 +12,6 @@
 #include "GameFramework/Component/ShapeRenderers2D.h"
 #include "GameFramework/Component/SpriteRenderer2D.h"
 #include "GameFramework/Component/Text2D.h"
-#include "GameFramework/Component/Transform2D.h"
 #include "GameFramework/Component/Component.h"
 #include "GameFramework/Object/GameObject.h"
 #include "GameFramework/Object/Ref.h"
@@ -741,24 +740,9 @@ namespace
 	}
 
 	// ── 컴포넌트별 직렬화 (제네릭 + 예외 처리) ──────────────────────────────
-
-	// Transform2D 는 더 이상 컴포넌트가 아니라 CGameObject 멤버 → 레지스트리 없이 직접 직렬화.
-	YAML::Node WriteTransform(const Transform2D& transform)
-	{
-		YAML::Node node(YAML::NodeType::Map);
-		node["Position"]        = WriteVector2(transform.Position);
-		node["RotationRadians"] = transform.RotationRadians.Value;
-		node["Scale"]           = WriteVector2(transform.Scale);
-		return node;
-	}
-
-	void ReadTransform(const YAML::Node& node, Transform2D& transform)
-	{
-		if (!node) return;
-		ReadVector2(node["Position"], transform.Position);
-		ReadValue(node, "RotationRadians", transform.RotationRadians.Value);
-		ReadVector2(node["Scale"], transform.Scale);
-	}
+	//
+	// Transform2D 는 여기 없다. 컴포넌트가 아니라 CGameObject 멤버라 오브젝트 노드에 직접
+	// 실린다 — ObjectSerializer.cpp 의 WriteTransform2D / ReadTransform2D 가 유일한 경로다.
 
 	YAML::Node WriteSpriteRenderer(const SpriteRenderer2D& sprite, std::vector<AssetGuid>& referencedAssets)
 	{
