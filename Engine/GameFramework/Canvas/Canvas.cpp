@@ -483,6 +483,122 @@ Vector2 CGameCanvas::GetRootAnchorOffset(const CGameObject& object) const
 		bottom + (top   - bottom) * anchor.y);
 }
 
+bool CGameCanvas::TryComputeLayerCameraView(const CGameLayer& layer, CanvasViewProjection& outView) const
+{
+	if (m_lastRenderWidth < 1.0f || m_lastRenderHeight < 1.0f)
+	{
+		return false;
+	}
+
+	const File::Guid layerGuid = layer.GetInstanceGuid();
+	const Camera2D* fallbackCamera = nullptr;
+	bool fallbackCameraResolved = false;
+
+	for (const CanvasViewport& viewport : m_viewports)
+	{
+		if (false == viewport.Active)
+		{
+			continue;
+		}
+		// 레이어 필터가 비면 전체 레이어를 그린다 = 이 레이어도 포함.
+		if (false == viewport.LayerFilter.empty()
+			&& std::find(viewport.LayerFilter.begin(), viewport.LayerFilter.end(), layerGuid) == viewport.LayerFilter.end())
+		{
+			continue;
+		}
+
+		const Camera2D* camera = nullptr;
+		if (CGameObject* cameraObject = viewport.ResolvedCamera.TryGet())
+		{
+			camera = cameraObject->GetComponent<Camera2D>();
+		}
+		if (nullptr == camera)
+		{
+			if (false == fallbackCameraResolved)
+			{
+				fallbackCamera = FindFallbackCamera();
+				fallbackCameraResolved = true;
+			}
+			camera = fallbackCamera;
+		}
+		if (nullptr == camera)
+		{
+			continue;
+		}
+		const CGameObject* owner = camera->GetOwner().TryGet();
+		if (nullptr == owner)
+		{
+			continue;
+		}
+
+		outView = ComputeCanvasViewProjection(viewport, *camera, *owner, m_lastRenderWidth, m_lastRenderHeight);
+		return true;
+	}
+
+	// 뷰포트가 하나도 저작되지 않은 캔버스(가장 흔한 경우) — 풀스크린 기본 뷰포트로 간주한다.
+	// 렌더 수집기(CollectGameRenderViewports)가 같은 폴백을 쓴다.
+	if (m_viewports.empty())
+	{
+		if (const Camera2D* camera = FindFallbackCamera())
+		{
+			if (const CGameObject* owner = camera->GetOwner().TryGet())
+			{
+				const CanvasViewport defaultViewport;
+				outView = ComputeCanvasViewProjection(defaultViewport, *camera, *owner, m_lastRenderWidth, m_lastRenderHeight);
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+bool CGameCanvas::ScreenToUI(const CGameLayer& layer, float screenX, float screenY, Vector2& outUI) const
+{
+	if (ELayerSpace::Screen != layer.Space)
+	{
+		return false;
+	}
+	if (m_lastRenderWidth < 1.0f || m_lastRenderHeight < 1.0f)
+	{
+		return false;   // 아직 렌더된 적이 없다 — 화면 렉트를 픽셀로 되돌릴 기준이 없다.
+	}
+
+	const ScreenSpaceReference reference = ScreenSpaceReference::FromResolution(
+		m_screenReferenceWidth, m_screenReferenceHeight, m_screenPixelsPerUnit);
+
+	// 렌더가 세우는 것과 같은 뷰를 세우고 같은 역투영 함수를 태운다. 여기서 수식을 다시 쓰면
+	// 렌더와 미세하게 어긋나 피킹이 조용히 빗나간다(CanvasViewProjection.h 의 계약).
+	CanvasViewProjection view;
+	view.PosX = 0.0f;
+	view.PosY = 0.0f;
+	view.CosR = 1.0f;
+	view.SinR = 0.0f;
+	view.RectPixelX = 0.0f;
+	view.RectPixelY = 0.0f;
+	view.RectPixelW = m_lastRenderWidth;
+	view.RectPixelH = m_lastRenderHeight;
+	ComputeScreenSpaceExtents(layer.ScaleMode, reference,
+		m_lastRenderWidth, m_lastRenderHeight, view.OrthoSizeX, view.OrthoSize);
+
+	outUI = CanvasViewProjectionScreenToWorld(view, screenX, screenY);
+	return true;
+}
+
+bool CGameCanvas::ScreenToUI(float screenX, float screenY, Vector2& outUI) const
+{
+	// 위에서부터 — 화면 위에 있는 레이어가 클릭을 먹는 것과 같은 순서다.
+	for (std::size_t reverse = m_layers.size(); reverse > 0; --reverse)
+	{
+		const CGameLayer* layer = m_layers[reverse - 1].Get();
+		if (nullptr == layer || false == layer->Visible || ELayerSpace::Screen != layer->Space)
+		{
+			continue;
+		}
+		return ScreenToUI(*layer, screenX, screenY, outUI);
+	}
+	return false;
+}
+
 bool CGameCanvas::ScreenToWorld(float screenX, float screenY, Vector2& outWorld) const
 {
 	if (m_lastRenderWidth < 1.0f || m_lastRenderHeight < 1.0f)

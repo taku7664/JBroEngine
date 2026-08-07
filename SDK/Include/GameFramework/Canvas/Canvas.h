@@ -42,6 +42,9 @@ class CTransformSystem;
 class CGameScript;
 class IInputHandler;
 struct GameModuleHostApi;
+// 전방 선언으로 둔다 — CanvasViewProjection.h 는 Camera2D/GameObject 를 다 끌고 오는데
+// 이 헤더는 게임 DLL 이 include 하는 경로라 include 클로저를 불필요하게 키우지 않는다.
+struct CanvasViewProjection;
 
 // CGameCanvas 은 GameScript 가 소유하는 런타임 객체다. CGameCanvas/GameObject/Component 포인터를
 // 라이브 컴파일 DLL 경계로 그대로 넘기지 말 것(안전참조는 SafePtr, 직렬화는 리플렉션).
@@ -129,6 +132,15 @@ public:
 	// 안전영역 인셋(표면 픽셀). 현재 전 플랫폼 0 — 켜도 꺼도 결과가 같다.
 	void SetSafeAreaInsets(float left, float top, float right, float bottom);
 
+	float GetScreenReferenceWidth() const { return m_screenReferenceWidth; }
+	float GetScreenReferenceHeight() const { return m_screenReferenceHeight; }
+	float GetScreenPixelsPerUnit() const { return m_screenPixelsPerUnit; }
+
+	// 이 레이어를 그리는 첫 활성 뷰포트의 카메라 뷰. 스페이스 전환 변환처럼 "이 레이어를
+	// 지금 보고 있는 눈"이 필요한 곳이 쓴다(그림자 패스가 viewports.front() 를 primary 로
+	// 삼는 것과 같은 규약). 카메라를 못 찾으면 false — 호출자는 변환을 포기해야 한다.
+	bool TryComputeLayerCameraView(const CGameLayer& layer, CanvasViewProjection& outView) const;
+
 	// Screen 레이어 루트 오브젝트가 붙을 앵커점(유닛). World 레이어·자식·기준 미확립이면 (0,0).
 	//
 	// **Transform2D.Position 을 건드리지 않는다** — CTransformSystem 이 이 값을 루트의 *부모
@@ -139,6 +151,19 @@ public:
 	// 애초에 표현이 불가능하다. 스플릿스크린에서 플레이어별 HUD 를 자기 반쪽에 앵커하려면
 	// 해석을 렌더 시점으로 옮겨야 한다 — 알려진 한계다.
 	Vector2 GetRootAnchorOffset(const CGameObject& object) const;
+
+	// 스크린 픽셀 → 화면 공간 좌표(유닛). Screen 레이어의 오브젝트가 사는 좌표계이므로
+	// 결과를 그 오브젝트의 World 행렬 위치와 직접 비교하면 된다(앵커는 이미 반영돼 있다).
+	//
+	// 스케일 모드가 레이어마다 다를 수 있어 기준 레이어가 필요하다. 인자 없는 쪽은 가장 위의
+	// 보이는 Screen 레이어를 쓴다 — UI 레이어가 하나인 대부분의 게임을 위한 편의 함수다.
+	// Screen 레이어가 아니거나 아직 렌더된 적이 없으면 false.
+	//
+	// 앵커와 마찬가지로 **렌더 표면 전체**를 기준으로 삼는다. 뷰포트 하나가 풀스크린인
+	// 통상 구성에서는 렌더 경로와 정확히 일치하고, 화면 레이어를 부분 렉트 뷰포트로 그리는
+	// 구성에서만 어긋난다(GetRootAnchorOffset 주석의 한계와 같은 뿌리다).
+	bool ScreenToUI(const CGameLayer& layer, float screenX, float screenY, Vector2& outUI) const;
+	bool ScreenToUI(float screenX, float screenY, Vector2& outUI) const;
 
 	// 컴포짓 맨 아래 바탕색. 레이어 RT 는 투명으로 클리어되고, 이 색 위에 순서대로 얹힌다.
 	const Color& GetBackgroundColor() const { return m_backgroundColor; }
