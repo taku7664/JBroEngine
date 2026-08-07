@@ -4,6 +4,7 @@
 
 #include "Editor/Command/EditorCommandManager.h"
 #include "Engine/GameFramework/Canvas/GameLayer.h"
+#include "Engine/GameFramework/Component/Transform2D.h"
 #include "Utillity/File/FilePath.h" // File::Guid (레이어 안정 식별자 = InstanceGuid)
 
 #include <string>
@@ -18,13 +19,16 @@ class CGameCanvas;
 // 한 벌을 통째로 캡처/복원한다(undo 는 값 비교가 아니라 스냅샷 교체).
 struct LayerPropertySnapshot
 {
-	std::string     Name;
-	ELayerBlendMode BlendMode = ELayerBlendMode::Normal;
-	float           Opacity = 1.0f;
-	bool            Visible = true;
-	bool            ForceOwnTexture = false;
-	float           ParallaxFactor = 1.0f;
-	bool            KeepOnCanvasChange = false;
+	std::string      Name;
+	ELayerBlendMode  BlendMode = ELayerBlendMode::Normal;
+	float            Opacity = 1.0f;
+	bool             Visible = true;
+	bool             ForceOwnTexture = false;
+	float            ParallaxFactor = 1.0f;
+	bool             KeepOnCanvasChange = false;
+	ELayerSpace      Space = ELayerSpace::World;
+	EScreenScaleMode ScaleMode = EScreenScaleMode::FixedHeight;
+	bool             AnchorToSafeArea = false;
 
 	static LayerPropertySnapshot Capture(const CGameLayer& layer);
 	void                         ApplyTo(CGameLayer& layer) const;
@@ -45,6 +49,9 @@ public:
 		ForceOwnTexture,
 		ParallaxFactor,
 		KeepOnCanvasChange,
+		Space,
+		ScaleMode,
+		AnchorToSafeArea,
 	};
 
 	CSetLayerPropertyCommand(
@@ -62,7 +69,9 @@ public:
 	bool TryMerge(const IEditorCommand& newer) override;
 
 private:
-	bool Apply(const LayerPropertySnapshot& properties);
+	bool Apply(const LayerPropertySnapshot& properties, bool toNew);
+	// Space 가 바뀔 때 소속 루트 오브젝트의 변환 전/후를 미리 계산해 둔다(생성자에서 1회).
+	void CaptureSpaceConversion();
 
 private:
 	SafePtr<CGameCanvas>   m_canvas;
@@ -70,6 +79,18 @@ private:
 	EField                m_field = EField::Name;
 	LayerPropertySnapshot m_oldProperties;
 	LayerPropertySnapshot m_newProperties;
+
+	// ── 스페이스 전환 시의 위치 보존 변환 ────────────────────────────────────
+	// 레이어 스페이스를 바꾸면 소속 오브젝트가 화면상 같은 자리에 같은 크기로 남아야 한다.
+	// 델타가 아니라 **절대값 스냅샷**을 든다 — Transform2D 를 델타 타입으로 쓰는 경로
+	// (CSetObjectTransformCommand)는 항등원이 전 필드 0 이 아니라서(Scale 1, Anchor 0.5)
+	// 필드가 늘 때마다 함정이 된다. 여기선 old/new 를 통째로 들어 구조상 안전하게 둔다.
+	//
+	// 루트만 담는다. 자식 트랜스폼은 부모 기준 로컬이라 부모를 따라오므로, 자식까지 변환하면
+	// 이중 적용된다.
+	std::vector<File::Guid>  m_convertedObjectGuids;
+	std::vector<Transform2D> m_oldTransforms;
+	std::vector<Transform2D> m_newTransforms;
 };
 
 // 레이어 생성(맨 위 = 목록 끝). Undo 는 빈 레이어 파괴.

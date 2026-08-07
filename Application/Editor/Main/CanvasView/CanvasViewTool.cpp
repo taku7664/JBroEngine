@@ -11,6 +11,7 @@
 #include <cstring>
 #include "Engine/Core/Asset/IAssetManager.h"
 #include "Engine/Core/Debug/DebugDraw2D.h"
+#include "Engine/Core/RuntimeConfig.h"
 #include "Engine/Editor/ImEditor.h"
 #include "Engine/Editor/Project/ProjectManager.h"
 #include "Engine/GameFramework/Component/Camera2D.h"
@@ -122,6 +123,41 @@ namespace
 
     // ── 그리드 눈금 레이블 ────────────────────────────────────────────────────
     //
+    // 화면 공간 레이어의 저작 기준 렉트를 원점 기준 사각형으로 그린다.
+    //
+    // 편집 뷰는 화면 레이어도 **에디터 카메라로** 그린다(런타임 투영을 그대로 쓰면 팬·줌이
+    // 안 먹어 UI 를 확대해 볼 수조차 없다). 대신 "여기가 화면 가장자리"를 알 방법이 필요해서
+    // 이 가이드를 그린다. 실제 결과는 게임뷰가 보여준다.
+    //
+    // 종횡비 보정을 하지 않고 **기준 렉트 그대로** 그린다 — 에디터 뷰포트 종횡비는 임의라
+    // 그걸 반영하면 저작 기준이 창 크기에 따라 흔들린다.
+    void SubmitScreenSpaceBounds(IDebugDraw2D& debugDraw, float halfWidth, float halfHeight)
+    {
+        constexpr DebugColor boundsCol = DebugColorRGBA(120, 190, 255, 200);
+        const float left   = -halfWidth;
+        const float right  =  halfWidth;
+        const float bottom = -halfHeight;
+        const float top    =  halfHeight;
+        debugDraw.DrawLine(Vector2(left,  bottom), Vector2(right, bottom), boundsCol);
+        debugDraw.DrawLine(Vector2(right, bottom), Vector2(right, top),    boundsCol);
+        debugDraw.DrawLine(Vector2(right, top),    Vector2(left,  top),    boundsCol);
+        debugDraw.DrawLine(Vector2(left,  top),    Vector2(left,  bottom), boundsCol);
+    }
+
+    // 이 캔버스에 보이는 화면 공간 레이어가 있는가(가이드를 띄울지 판단).
+    bool HasVisibleScreenLayer(const CGameCanvas& canvas)
+    {
+        for (std::size_t i = 0; i < canvas.GetLayerCount(); ++i)
+        {
+            const CGameLayer* layer = canvas.GetLayerAt(i);
+            if (nullptr != layer && layer->Visible && ELayerSpace::Screen == layer->Space)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     // SubmitGrid와 동일한 step 계산으로 각 그리드 선에 좌표값 레이블을 표시.
     //   showPixel = false: 월드 유닛값 (예: "1", "2.5")
     //   showPixel = true : 픽셀값 (예: "100px", "-50px")
@@ -411,6 +447,14 @@ void CCanvasViewTool::OnRenderStay()
                     Editor::Inspector ? Editor::Inspector->GetActiveComponentTypeName() : nullptr;
                 CanvasDebugDraw::Submit(*canvas, *Engine.DebugDraw2D,
                                        Editor::GetSelectedEntity(), resW, resH, activeCompType);
+
+                // 화면 공간 레이어가 있으면 저작 기준 렉트를 가이드로 띄운다.
+                if (HasVisibleScreenLayer(*canvas))
+                {
+                    SubmitScreenSpaceBounds(*Engine.DebugDraw2D,
+                        Runtime.ReferenceResolutionWidth  / std::max(Runtime.PixelsPerUnit, 0.0001f) * 0.5f,
+                        Runtime.ReferenceResolutionHeight / std::max(Runtime.PixelsPerUnit, 0.0001f) * 0.5f);
+                }
             }
         }
     }
@@ -462,6 +506,39 @@ void CCanvasViewTool::OnRenderStay()
             ImVec2(btnMin.x + (BTN_W - ts.x) * 0.5f,
                    btnMin.y + (BTN_H - ts.y) * 0.5f),
             IM_COL32(200, 210, 225, 255), btnLabel);
+    }
+
+    // Layer 2.6a: "화면에 맞추기" — 화면 공간 레이어가 있을 때만 뜬다.
+    //
+    // UI 전용 편집 모드를 만들지 않은 이유가 이것이다. 그 모드가 하는 일은 결국 "카메라를
+    // 화면 렉트에 맞추고 월드 레이어를 숨기는 것"인데, 앞은 이 버튼이고 뒤는 레이어 가시성
+    // 토글이라 둘 다 이미 있는 기능이다. 모드를 새로 만들면 에디터 카메라 상태 저장과
+    // 충돌할 여지만 생긴다.
+    if (SafePtr<CGameCanvas> fitCanvas = EditorContext::GetActiveCanvas();
+        fitCanvas && HasVisibleScreenLayer(*fitCanvas))
+    {
+        constexpr float FIT_BTN_W = 110.0f;
+        const ImVec2 fitMin(btnMin.x - FIT_BTN_W - 6.0f, btnMin.y);
+        const ImVec2 fitMax(fitMin.x + FIT_BTN_W, fitMin.y + BTN_H);
+
+        const bool fitHovered = ImGui::IsMouseHoveringRect(fitMin, fitMax);
+        if (fitHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+        {
+            // 화면 공간은 원점 고정이므로 카메라를 원점으로, 줌은 기준 렉트 반높이로.
+            const float referenceHalfHeight =
+                Runtime.ReferenceResolutionHeight / std::max(Runtime.PixelsPerUnit, 0.0001f) * 0.5f;
+            SetEditorCamera(0.0f, 0.0f, referenceHalfHeight);
+        }
+
+        dl->AddRectFilled(fitMin, fitMax,
+            fitHovered ? IM_COL32(60, 72, 88, 230) : IM_COL32(28, 33, 42, 175), 4.0f);
+        dl->AddRect(fitMin, fitMax, IM_COL32(88, 100, 120, 200), 4.0f);
+        const char* fitLabel = Loc::Text(EditorLocKeys::CanvasViewFitToScreen);
+        const ImVec2 fitTextSize = ImGui::CalcTextSize(fitLabel);
+        dl->AddText(
+            ImVec2(fitMin.x + (FIT_BTN_W - fitTextSize.x) * 0.5f,
+                   fitMin.y + (BTN_H - fitTextSize.y) * 0.5f),
+            IM_COL32(200, 210, 225, 255), fitLabel);
     }
 
     // Layer 2.6b: Guizmo mode toolbar (좌상단 오버레이)

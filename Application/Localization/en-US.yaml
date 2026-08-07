@@ -380,6 +380,18 @@ Entries:
   inspector.layer.source_asset: Layer Asset
   inspector.layer.force_own_texture: Force Own Texture
   inspector.layer.parallax: Parallax Factor
+  inspector.layer.space: Space
+  inspector.layer.space.tooltip: "World follows the camera (this is what parallax applies to). Screen ignores the camera entirely -- position, rotation and zoom are all fixed, which is what HUDs and menus want. Changing the space converts the layer's objects so they stay in the same place at the same size on screen."
+  inspector.layer.space.world: World
+  inspector.layer.space.screen: Screen
+  inspector.layer.scale_mode: Screen Scale
+  inspector.layer.scale_mode.tooltip: "Decides how big one unit is when the surface aspect differs from the project resolution. Fixed Height suits landscape games, Fixed Width suits portrait. Contain keeps the whole reference screen visible but adds margins. Constant Pixel keeps one unit at the same pixel count always."
+  inspector.layer.scale_mode.fixed_height: Fixed Height
+  inspector.layer.scale_mode.fixed_width: Fixed Width
+  inspector.layer.scale_mode.contain: Contain
+  inspector.layer.scale_mode.constant_pixel: Constant Pixel
+  inspector.layer.anchor_to_safe_area: Anchor To Safe Area
+  inspector.layer.anchor_to_safe_area.tooltip: "Anchors against the safe area (excluding notches, punch holes and gesture bars) instead of the full screen. Every platform reports zero insets today, so this changes nothing yet -- once insets arrive only this layer moves inward."
   inspector.layer.keep_on_canvas_change: Keep On Canvas Change
   inspector.layer.keep_on_canvas_change.tooltip: "When switching to another canvas that also references this layer asset, keep this live layer instead of reloading it. Objects, scripts and references carry over untouched. Off means the layer is destroyed and loaded fresh."
   inspector.remove_component: Remove Component
@@ -614,6 +626,7 @@ Entries:
   editor.property.Radius: Radius
   editor.property.SourcePrefabGuid: Source Prefab GUID
 
+  canvas_view.fit_to_screen: Fit To Screen
   canvas_view.unit.toggle_unit: "Unit: Unit"
   canvas_view.unit.toggle_pixel: "Unit: Pixel"
   canvas_view.vertex.delete: Delete Vertex

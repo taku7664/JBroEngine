@@ -2392,15 +2392,82 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			}
 		});
 
-		float parallax = layer->ParallaxFactor;
-		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorLayerParallax)); }, [&]() {
-			if (ImGui::DragFloat("##inspector.layer.parallax", &parallax, 0.01f))
+		// 항목 순서 = ELayerSpace 값 순서(World/Screen).
+		const char* spaceItems[] = {
+			Loc::Text(EditorLocKeys::InspectorLayerSpaceWorld),
+			Loc::Text(EditorLocKeys::InspectorLayerSpaceScreen),
+		};
+		int spaceIndex = static_cast<int>(layer->Space);
+		layout.Row([&]() {
+			ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorLayerSpace));
+			if (ImGui::IsItemHovered())
+			{
+				ImGui::SetTooltip("%s", Loc::Text(EditorLocKeys::InspectorLayerSpaceTooltip));
+			}
+		}, [&]() {
+			if (ImGui::Combo("##inspector.layer.space", &spaceIndex, spaceItems, IM_ARRAYSIZE(spaceItems)))
 			{
 				LayerPropertySnapshot properties = LayerPropertySnapshot::Capture(*layer);
-				properties.ParallaxFactor = parallax;
-				apply(EField::ParallaxFactor, properties);
+				properties.Space = static_cast<ELayerSpace>(spaceIndex);
+				apply(EField::Space, properties);
 			}
 		});
+
+		// 화면 공간에서만 읽히는 값들 — 월드 레이어에서는 행을 숨긴다.
+		if (ELayerSpace::Screen == layer->Space)
+		{
+			// 항목 순서 = EScreenScaleMode 값 순서.
+			const char* scaleItems[] = {
+				Loc::Text(EditorLocKeys::InspectorLayerScaleModeFixedHeight),
+				Loc::Text(EditorLocKeys::InspectorLayerScaleModeFixedWidth),
+				Loc::Text(EditorLocKeys::InspectorLayerScaleModeContain),
+				Loc::Text(EditorLocKeys::InspectorLayerScaleModeConstantPixel),
+			};
+			int scaleIndex = static_cast<int>(layer->ScaleMode);
+			layout.Row([&]() {
+				ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorLayerScaleMode));
+				if (ImGui::IsItemHovered())
+				{
+					ImGui::SetTooltip("%s", Loc::Text(EditorLocKeys::InspectorLayerScaleModeTooltip));
+				}
+			}, [&]() {
+				if (ImGui::Combo("##inspector.layer.scale_mode", &scaleIndex, scaleItems, IM_ARRAYSIZE(scaleItems)))
+				{
+					LayerPropertySnapshot properties = LayerPropertySnapshot::Capture(*layer);
+					properties.ScaleMode = static_cast<EScreenScaleMode>(scaleIndex);
+					apply(EField::ScaleMode, properties);
+				}
+			});
+
+			bool anchorToSafeArea = layer->AnchorToSafeArea;
+			layout.Row([&]() {
+				ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorLayerAnchorToSafeArea));
+				if (ImGui::IsItemHovered())
+				{
+					ImGui::SetTooltip("%s", Loc::Text(EditorLocKeys::InspectorLayerAnchorToSafeAreaTooltip));
+				}
+			}, [&]() {
+				if (ImGui::Checkbox("##inspector.layer.anchor_to_safe_area", &anchorToSafeArea))
+				{
+					LayerPropertySnapshot properties = LayerPropertySnapshot::Capture(*layer);
+					properties.AnchorToSafeArea = anchorToSafeArea;
+					apply(EField::AnchorToSafeArea, properties);
+				}
+			});
+		}
+		else
+		{
+			// 패럴랙스는 월드 공간 안에서의 카메라 추종 배율이라 화면 레이어에는 의미가 없다.
+			float parallax = layer->ParallaxFactor;
+			layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorLayerParallax)); }, [&]() {
+				if (ImGui::DragFloat("##inspector.layer.parallax", &parallax, 0.01f))
+				{
+					LayerPropertySnapshot properties = LayerPropertySnapshot::Capture(*layer);
+					properties.ParallaxFactor = parallax;
+					apply(EField::ParallaxFactor, properties);
+				}
+			});
+		}
 
 		// 승계는 `.jlayer` 에서 온 레이어만 가능하다 — 인라인 레이어는 전환 후 그 인스턴스를
 		// 지목할 방법이 없어(파일 신원이 없다) 언제나 새로 로드된다. 그래서 에셋 레이어에만 띄운다.
@@ -2706,6 +2773,42 @@ void CInspectorTool::OnRenderStay()
 			if (ImGui::DragFloat2(Loc::TextOr(EditorLocKeys::EditorPropertyScale, "Scale"), &t.Scale.x, 0.01f))
 				pushTransform(before);
 			});
+
+		// Anchor — 화면 공간 레이어의 루트에서만 의미가 있다. 그 밖에서는 읽히지 않는 값이라
+		// 행 자체를 숨긴다(보이는데 아무 일도 안 일어나는 필드를 만들지 않는다).
+		const CGameLayer* objectLayer = selectedObject->GetLayer().TryGet();
+		const bool isScreenRoot = (nullptr != objectLayer)
+			&& (ELayerSpace::Screen == objectLayer->Space)
+			&& (false == selectedObject->GetParent().IsValid());
+		if (isScreenRoot)
+		{
+			layout.Row([&]() {
+				ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorTransformAnchor));
+				if (ImGui::IsItemHovered())
+				{
+					ImGui::SetTooltip("%s", Loc::Text(EditorLocKeys::InspectorTransformAnchorTooltip));
+				}
+			}, [&]() {
+				Vector2 anchor = t.Anchor;
+				// 0~1 정규화 값 → 슬라이더. 위치가 한눈에 보이고 아무 지점이나 바로 집는다.
+				if (ImGui::SliderFloat2("##inspector.transform.anchor", &anchor.x, 0.0f, 1.0f))
+				{
+					// 델타 커맨드를 타지 않는다 — 그쪽은 Transform2D 를 델타 타입으로 쓰는데
+					// 항등원이 전 필드 0 이 아니라서(Scale 1, Anchor 0.5) 필드가 늘 때마다 함정이다.
+					// 절대값 스냅샷 커맨드가 구조상 안전하다.
+					const Transform2D before = t;
+					Transform2D after = t;
+					after.Anchor = anchor;
+					t = before;
+					const std::vector<CGameObject*> targets{ selectedObject };
+					Editor::CommandManager.ExecuteCommand(
+						MakeOwnerPtr<CSetObjectTransformsCommand>(
+							canvas->SafeFromThis(), targets,
+							std::vector<Transform2D>{ before },
+							std::vector<Transform2D>{ after }));
+				}
+			});
+		}
 	}
 
 	ImText separatorText;
