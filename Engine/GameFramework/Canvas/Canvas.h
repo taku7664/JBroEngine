@@ -123,6 +123,23 @@ public:
 	float                 GetLastRenderWidth() const { return m_lastRenderWidth; }
 	float                 GetLastRenderHeight() const { return m_lastRenderHeight; }
 
+	// 화면 공간(ELayerSpace::Screen) 저작 기준 — SetLastRenderSize 와 같은 자리에서 주입한다.
+	// RuntimeConfig 는 호스트 전용이라 게임 DLL 에 링크된 Canvas.obj 가 직접 읽을 수 없다.
+	void SetScreenSpaceReference(float referenceResolutionWidth, float referenceResolutionHeight, float pixelsPerUnit);
+	// 안전영역 인셋(표면 픽셀). 현재 전 플랫폼 0 — 켜도 꺼도 결과가 같다.
+	void SetSafeAreaInsets(float left, float top, float right, float bottom);
+
+	// Screen 레이어 루트 오브젝트가 붙을 앵커점(유닛). World 레이어·자식·기준 미확립이면 (0,0).
+	//
+	// **Transform2D.Position 을 건드리지 않는다** — CTransformSystem 이 이 값을 루트의 *부모
+	// 행렬*로 넣는다. 그래야 인스펙터·기즈모·스크립트가 Position 에 쓰는 것이 그대로 유효하다.
+	//
+	// 기준 렉트는 **렌더 표면 전체**다(뷰포트 렉트가 아니다). Transform2D 는 위치를 하나만
+	// 들 수 있는데 같은 레이어가 여러 뷰포트에 그려질 수 있어, 뷰포트별로 다른 앵커점은
+	// 애초에 표현이 불가능하다. 스플릿스크린에서 플레이어별 HUD 를 자기 반쪽에 앵커하려면
+	// 해석을 렌더 시점으로 옮겨야 한다 — 알려진 한계다.
+	Vector2 GetRootAnchorOffset(const CGameObject& object) const;
+
 	// 컴포짓 맨 아래 바탕색. 레이어 RT 는 투명으로 클리어되고, 이 색 위에 순서대로 얹힌다.
 	const Color& GetBackgroundColor() const { return m_backgroundColor; }
 	void         SetBackgroundColor(float r, float g, float b, float a);
@@ -553,6 +570,18 @@ private:
 	// → ScreenToWorld 가 false 를 돌려준다(변환 기준이 없다). 직렬화하지 않는다(런타임 캐시).
 	float                              m_lastRenderWidth = 0.0f;
 	float                              m_lastRenderHeight = 0.0f;
+	// 화면 공간 저작 기준(프로젝트 해상도 픽셀 + PPU)과 안전영역 인셋(표면 픽셀).
+	// 호스트가 주입한다 — RuntimeConfig 는 호스트 전용이라 게임 DLL 에 링크된 이 파일에서
+	// 직접 읽으면 채워지지 않은 기본값을 조용히 읽는다. 직렬화하지 않는다(런타임 캐시).
+	// 인셋은 SafeAreaInsets 구조체를 쓰지 않고 float 4개로 둔다 — 이 헤더에 플랫폼 헤더를
+	// 끌어들이지 않기 위해서다.
+	float                              m_screenReferenceWidth = 1920.0f;
+	float                              m_screenReferenceHeight = 1080.0f;
+	float                              m_screenPixelsPerUnit = 100.0f;
+	float                              m_safeAreaLeft = 0.0f;
+	float                              m_safeAreaTop = 0.0f;
+	float                              m_safeAreaRight = 0.0f;
+	float                              m_safeAreaBottom = 0.0f;
 	// 지연 파괴 레이어(소속 오브젝트 파괴 flush 후 목록에서 제거).
 	Array<SafePtr<CGameLayer>>         m_pendingDestroyLayers;
 	TObjectPool<CGameObject>           m_objectPool;

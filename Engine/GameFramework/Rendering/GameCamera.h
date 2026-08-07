@@ -4,6 +4,7 @@
 #include "Core/RHI/RHICommandTypes.h"
 #include "Core/RHI/RHIGraphicsTypes.h"   // ERHIBlendMode — 레이어 컴포짓 블렌드
 #include "Core/Renderer/RendererTypes.h"
+#include "GameFramework/Canvas/GameLayer.h"   // ELayerSpace / EScreenScaleMode
 #include "Utillity/Pointer/SafePtr.h"
 #include "Utillity/Types/Color.h"
 
@@ -74,6 +75,11 @@ struct GameRenderLayerDesc
 	RenderLayerIndex Index = 0;
 	ERHIBlendMode    BlendMode = ERHIBlendMode::LayerNormal;
 	float            Opacity = 1.0f;
+	// 사는 공간. Screen 이면 카메라를 아예 안 보고 화면 기준 투영으로 그린다.
+	// **라이팅 이후에 그려진다** — Base 에 섞으면 월드 라이트맵이 UI 에 곱해진다.
+	ELayerSpace      Space = ELayerSpace::World;
+	EScreenScaleMode ScaleMode = EScreenScaleMode::FixedHeight;
+	// World 스페이스에서만 의미. Screen 은 카메라를 안 따르므로 무관.
 	float            ParallaxFactor = 1.0f;
 	bool             Visible = true;
 	bool             ForceOwnTexture = false;

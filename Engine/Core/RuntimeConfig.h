@@ -19,6 +19,15 @@ struct RuntimeConfig
 {
 	// 프로젝트 Default PPU 의 런타임 캐시. 자산별 PPU 가 0(미지정) 일 때 폴백으로 사용.
 	float PixelsPerUnit = 100.0f;
+
+	// 프로젝트 해상도(픽셀)의 런타임 캐시 = **화면 공간 레이어의 저작 기준 렉트**.
+	// PPU 로 나눠 유닛 렉트가 된다(1920x1080 @ 100 → 19.2 x 10.8).
+	//
+	// 실제 렌더 표면 크기와는 다른 값이다. 표면은 창 리사이즈·기기 종횡비로 달라지고,
+	// 그때 이 기준과 표면의 차이를 어떻게 메울지는 레이어의 EScreenScaleMode 가 정한다.
+	// 표면 크기를 그대로 기준으로 삼으면 저작 좌표가 기기마다 달라진다.
+	float ReferenceResolutionWidth  = 1920.0f;
+	float ReferenceResolutionHeight = 1080.0f;
 	AssetGuid DefaultFontFamilyGuid = INVALID_ASSET_GUID;
 	std::vector<AssetGuid> FallbackFontFamilies;
 

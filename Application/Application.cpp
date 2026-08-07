@@ -156,6 +156,10 @@ bool CGameApplication::InitializeRuntimeGame()
 	m_runtimeRenderWidth = static_cast<float>(manifest.ResolutionWidth > 0 ? manifest.ResolutionWidth : 1);
 	m_runtimeRenderHeight = static_cast<float>(manifest.ResolutionHeight > 0 ? manifest.ResolutionHeight : 1);
 	::Runtime.PixelsPerUnit = manifest.PixelsPerUnit >= 1.0f ? manifest.PixelsPerUnit : 100.0f;
+	// 화면 공간 레이어의 저작 기준 렉트 — 실제 표면 크기가 아니라 **매니페스트 해상도**다.
+	// 표면은 창 리사이즈·기기 종횡비로 달라지므로 그걸 기준 삼으면 저작 좌표가 기기마다 변한다.
+	::Runtime.ReferenceResolutionWidth  = m_runtimeRenderWidth;
+	::Runtime.ReferenceResolutionHeight = m_runtimeRenderHeight;
 	::Runtime.DefaultFontFamilyGuid = AssetGuid(manifest.DefaultFontFamilyGuid);
 	::Runtime.FallbackFontFamilies.clear();
 	for (const std::string& guid : manifest.FallbackFontFamilyGuids)
@@ -559,6 +563,17 @@ void CGameApplication::ConfigureRuntimeViewCamera()
 	// 이게 플레이어가 보는 표면이다 — 스크립트의 ScreenToWorld 가 역투영 기준으로 쓴다.
 	// (렌더 수집기는 썸네일 등에서도 불리므로 기록은 게임 표면을 아는 여기서 한다.)
 	canvas->SetLastRenderSize(renderWidth, renderHeight);
+	// 화면 공간 레이어 기준값 주입 — 캔버스는 게임 DLL 에도 링크되므로 Runtime 을 직접 못 읽는다.
+	canvas->SetScreenSpaceReference(
+		::Runtime.ReferenceResolutionWidth, ::Runtime.ReferenceResolutionHeight, ::Runtime.PixelsPerUnit);
+	if (CEngine* engine = GetEngine())
+	{
+		if (SafePtr<IPlatform> platform = engine->GetPlatform(); platform.IsValid())
+		{
+			const SafeAreaInsets insets = platform->GetSafeAreaInsets();
+			canvas->SetSafeAreaInsets(insets.Left, insets.Top, insets.Right, insets.Bottom);
+		}
+	}
 	// 스크래치는 멤버다 — 매 프레임 도는 경로라 지역 vector 면 프레임마다 힙 할당이 붙는다.
 	// 수집기가 채우고, 엔진과 swap 해 다음 프레임에 엔진의 직전 버퍼를 돌려받아 재사용한다.
 	CollectGameRenderViewports(*canvas, renderWidth, renderHeight, m_runtimeRenderViewports);

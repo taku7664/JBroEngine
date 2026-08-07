@@ -214,6 +214,8 @@ void CollectGameRenderLayers(const CGameCanvas& canvas, bool forceOwnTextureAll,
 		}
 		desc.Opacity = std::clamp(layer->Opacity, 0.0f, 1.0f);
 		desc.ParallaxFactor = layer->ParallaxFactor;
+		desc.Space = layer->Space;
+		desc.ScaleMode = layer->ScaleMode;
 		desc.Visible = layer->Visible;
 		desc.ForceOwnTexture = layer->ForceOwnTexture;
 		// 자기 RT 가 필요한 조건 — 이 중 아무것도 아니면 대상에 직접 그린다(RT 왕복 없음).
@@ -230,19 +232,43 @@ namespace
 {
 	// 카메라 스택(클리어 + 카메라별 렌더)을 지정 타겟에 그린다. 그래프 Base 패스와
 	// 폴백 경로가 공유한다. outCameraStats 에 카메라별 통계를 append(호출자가 미리 clear).
-	// 레이어 뷰 = 뷰포트 카메라 뷰에 ParallaxFactor 적용. 현재는 "위치만 배율"이다
-	// (factor 1 = 카메라와 동일, 0.5 = 절반 속도 원경, 0 = 월드 원점 고정).
-	// 회전·줌은 카메라를 그대로 따른다 — factor 0 레이어를 화면 완전 고정(UI)으로 만들려면
-	// 회전·줌 독립까지 필요하며, 그건 설계 문서에 미결로 남은 항목이다.
-	GameRenderViewportDesc ApplyLayerParallax(const GameRenderViewportDesc& viewport, float parallaxFactor)
+	// 레이어 뷰 = 뷰포트 뷰를 레이어의 스페이스로 해석한 것.
+	//
+	//  · Screen : 카메라를 아예 안 본다 — 원점 고정 · 무회전 · 스케일 모드가 정하는 오쏘 범위.
+	//             그래서 카메라가 움직이든 줌하든 회전하든 화면상 위치가 불변이다.
+	//  · World  : ParallaxFactor 로 카메라 **위치만** 배율(1=동일, 0.5=절반 속도 원경,
+	//             0=월드 원점 고정). 회전·줌은 카메라를 그대로 따른다 — 그래서 factor 0 은
+	//             "화면 고정"이 아니다(줌하면 커지고 회전하면 기운다). 화면 고정은 Screen 이다.
+	//
+	// rtW/rtH = 렌더 타깃 픽셀 크기. 뷰포트 렉트가 정규화라 픽셀로 되돌려야 종횡비가 나온다
+	// (화면 전체가 아니라 이 뷰포트 렉트 기준 — 스플릿에서 내용이 찌그러지지 않게).
+	GameRenderViewportDesc ApplyLayerSpace(
+		const GameRenderViewportDesc& viewport,
+		const GameRenderLayerDesc& layer,
+		const ScreenSpaceReference& screenReference,
+		float rtW,
+		float rtH)
 	{
-		if (1.0f == parallaxFactor)
+		if (ELayerSpace::Screen == layer.Space)
+		{
+			GameRenderViewportDesc view = viewport;
+			view.PosX = 0.0f;
+			view.PosY = 0.0f;
+			view.CosR = 1.0f;
+			view.SinR = 0.0f;
+			ComputeScreenSpaceExtents(layer.ScaleMode, screenReference,
+				viewport.RectW * rtW, viewport.RectH * rtH,
+				view.OrthoSizeX, view.OrthoSize);
+			return view;
+		}
+
+		if (1.0f == layer.ParallaxFactor)
 		{
 			return viewport;
 		}
 		GameRenderViewportDesc view = viewport;
-		view.PosX = viewport.PosX * parallaxFactor;
-		view.PosY = viewport.PosY * parallaxFactor;
+		view.PosX = viewport.PosX * layer.ParallaxFactor;
+		view.PosY = viewport.PosY * layer.ParallaxFactor;
 		return view;
 	}
 
@@ -328,27 +354,41 @@ namespace
 		const Color* backgroundColor,
 		IRHIGpuTimer* gpuTimer,
 		GpuRenderCutoff cutoff,
-		bool captureDrawOrder)
+		bool captureDrawOrder,
+		// 이 호출이 그릴 스페이스. 월드 패스와 화면 오버레이 패스가 같은 함수를 두 번 타되
+		// 서로의 레이어를 건너뛴다. 목록을 둘로 쪼개 넘기지 않는 이유는 매 프레임 도는
+		// 경로라 vector 두 개가 곧 프레임당 힙 할당이기 때문이다.
+		ELayerSpace spaceFilter = ELayerSpace::World,
+		// 오버레이 호출은 이미 그려진 화면 위에 얹혀야 하므로 클리어하면 안 된다.
+		bool clearTarget = true)
 	{
 		const float rtW = std::max(1.0f, static_cast<float>(renderTargetSize.Width));
 		const float rtH = std::max(1.0f, static_cast<float>(renderTargetSize.Height));
 
+		// 화면 공간 저작 기준 — 호스트 전용 코드라 Runtime 을 직접 읽어도 된다
+		// (공용 계산 함수 쪽은 DLL 에도 링크되므로 인자로 받는다).
+		const ScreenSpaceReference screenReference = ScreenSpaceReference::FromResolution(
+			Runtime.ReferenceResolutionWidth, Runtime.ReferenceResolutionHeight, Runtime.PixelsPerUnit);
+
 		// 컴포짓 바탕 = 캔버스 배경색(없으면 투명). 레이어 RT 는 투명으로 클리어되고
 		// 이 위에 순서대로 얹힌다 — 구 카메라별 ClearColor 를 캔버스급으로 승계한 것.
-		RenderPassDesc clearDesc;
-		clearDesc.ColorAttachment.Target = target;
-		clearDesc.ColorAttachment.LoadOp = ERHILoadOp::Clear;
-		clearDesc.ColorAttachment.StoreOp = ERHIStoreOp::Store;
-		if (nullptr != backgroundColor)
+		if (clearTarget)
 		{
-			clearDesc.ColorAttachment.SetClearColor(backgroundColor->Data());
+			RenderPassDesc clearDesc;
+			clearDesc.ColorAttachment.Target = target;
+			clearDesc.ColorAttachment.LoadOp = ERHILoadOp::Clear;
+			clearDesc.ColorAttachment.StoreOp = ERHIStoreOp::Store;
+			if (nullptr != backgroundColor)
+			{
+				clearDesc.ColorAttachment.SetClearColor(backgroundColor->Data());
+			}
+			else
+			{
+				clearDesc.ColorAttachment.SetClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+			}
+			commandContext.BeginRenderPass(clearDesc);
+			commandContext.EndRenderPass();
 		}
-		else
-		{
-			clearDesc.ColorAttachment.SetClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-		}
-		commandContext.BeginRenderPass(clearDesc);
-		commandContext.EndRenderPass();
 
 		CForward2DRenderer* forward = renderer.AsForward2DRenderer();
 
@@ -378,6 +418,11 @@ namespace
 				{
 					continue;
 				}
+				// 이 호출이 맡은 스페이스만. 나머지는 짝이 되는 다른 호출이 그린다.
+				if (layer.Space != spaceFilter)
+				{
+					continue;
+				}
 				// 레이어 필터 — 비면 전체 레이어(대부분). 목록이 작아 선형 탐색으로 충분하다.
 				if (false == viewport.Layers.empty()
 					&& std::find(viewport.Layers.begin(), viewport.Layers.end(), layer.Index) == viewport.Layers.end())
@@ -402,7 +447,7 @@ namespace
 					}
 				}
 
-				const GameRenderViewportDesc view = ApplyLayerParallax(viewport, layer.ParallaxFactor);
+				const GameRenderViewportDesc view = ApplyLayerSpace(viewport, layer, screenReference, rtW, rtH);
 
 				// 드로우순서 오브젝트 캡처(captureDrawOrder + 계측 on). 씬이 살아있는 지금 담아 두면,
 				// 창이 같은 프레임에 오브젝트 포인터를 이름으로 역해석한다. GetLayerRange 는 위 컬링
@@ -569,19 +614,37 @@ void RenderGameViewports(
 	const float rtW = std::max(1.0f, static_cast<float>(renderTargetSize.Width));
 	const float rtH = std::max(1.0f, static_cast<float>(renderTargetSize.Height));
 
+	// 화면 공간 레이어가 하나라도 있으면 라이팅 뒤에 따로 그려야 한다(아래 Overlay).
+	// 스캔만 하고 목록을 만들지 않는다 — 매 프레임 도는 경로라 vector 가 곧 힙 할당이다.
+	bool hasScreenLayers = false;
+	for (const GameRenderLayerDesc& layer : layers)
+	{
+		if (layer.Visible && ELayerSpace::Screen == layer.Space)
+		{
+			hasScreenLayers = true;
+			break;
+		}
+	}
+
 	// Forward2DRenderer 가 아니면 렌더그래프/RT풀이 없으므로 최종 타겟에 직접 렌더(폴백).
 	CForward2DRenderer* forward = renderer.AsForward2DRenderer();
 	if (nullptr == forward)
 	{
-		RenderViewportsInto(commandContext, renderer, renderScene, viewports, layers, renderTargetSize, renderTarget, outCameraStats, backgroundColor, gpuTimer, cutoff, captureDrawOrder);
+		RenderViewportsInto(commandContext, renderer, renderScene, viewports, layers, renderTargetSize, renderTarget, outCameraStats, backgroundColor, gpuTimer, cutoff, captureDrawOrder, ELayerSpace::World, true);
+		if (hasScreenLayers)
+		{
+			// 폴백엔 라이팅 자체가 없지만 순서는 같게 — 화면 레이어는 항상 월드 위다.
+			RenderViewportsInto(commandContext, renderer, renderScene, viewports, layers, renderTargetSize, renderTarget, nullptr, nullptr, gpuTimer, cutoff, captureDrawOrder, ELayerSpace::Screen, false);
+		}
 		renderer.SetViewCamera(0.0f, 0.0f, 1.0f);
 		return;
 	}
 
 	// ── RenderWeave 그래프 ──────────────────────────────────────────────────────
-	// 항상: Base(뷰포트 × 레이어 → SceneColor).
-	// 라이팅 비활성(라이트 0 + 앰비언트 백색): Blit(SceneColor → 최종). 화면 불변.
-	// 라이팅 활성: LightMap(앰비언트 클리어 + Light2D 가산) → Composite(SceneColor × LightMap → 최종).
+	// 항상: Base(뷰포트 × **월드** 레이어 → SceneColor).
+	// 라이팅 비활성(라이트 0 + 앰비언트 백색): Blit(SceneColor → 월드결과). 화면 불변.
+	// 라이팅 활성: LightMap(앰비언트 클리어 + Light2D 가산) → Composite(SceneColor × LightMap) → Tonemap.
+	// 화면 레이어가 있으면 마지막에: Overlay(월드결과 → 최종, 그 위에 화면 레이어).
 	// 패스를 데이터로 선언하면 그래프가 RT 대여/컬링/실행을 담당한다.
 	const float* ambient = Runtime.AmbientLight;
 	// 라이트가 있을 때만 라이팅 경로. 라이트0 캔버스 = 패스스루(앰비언트 무관, 화면 불변).
@@ -596,13 +659,23 @@ void RenderGameViewports(
 	sceneDesc.Format = ERHITextureFormat::RGBA8;
 	const RWTextureHandle hScene = graph.CreateTexture(sceneDesc);
 
+	// 월드 체인이 써 내는 곳. 화면 레이어가 없으면 곧바로 최종 타깃이라 **기존과 완전히 동일한
+	// 패스 구성**이 된다(UI 를 안 쓰는 게임에 비용 0).
+	//
+	// 있으면 중간 텍스처를 거친다. Overlay 가 hFinal 을 쓰면서 아무것도 안 읽으면
+	// RWGraph::Compile 의 역방향 도달 분석이 **월드 체인을 통째로 컬링한다** —
+	// producerOf 는 그 텍스처의 마지막 writer 만 찾고 거기서 Reads 를 따라 거슬러 올라가므로,
+	// Overlay 가 hFinal 의 마지막 writer 가 되는 순간 Base/Blit/Tonemap 이 죽어 UI 만 남는다.
+	// 중간 핸들을 읽게 해서 의존을 명시한다.
+	const RWTextureHandle hWorldOut = hasScreenLayers ? graph.CreateTexture(sceneDesc) : hFinal;
+
 	RWPassDesc basePass;
 	basePass.Name  = "Base";
 	basePass.Write = hScene;
 	basePass.Execute = [&renderer, &renderScene, &viewports, &layers, renderTargetSize, outCameraStats, backgroundColor, hScene, gpuTimer, cutoff, captureDrawOrder]
 		(IRHICommandContext& ctx, RWGraph& g)
 	{
-		RenderViewportsInto(ctx, renderer, renderScene, viewports, layers, renderTargetSize, g.Resolve(hScene), outCameraStats, backgroundColor, gpuTimer, cutoff, captureDrawOrder);
+		RenderViewportsInto(ctx, renderer, renderScene, viewports, layers, renderTargetSize, g.Resolve(hScene), outCameraStats, backgroundColor, gpuTimer, cutoff, captureDrawOrder, ELayerSpace::World, true);
 	};
 	graph.AddPass(std::move(basePass));
 
@@ -611,12 +684,12 @@ void RenderGameViewports(
 		RWPassDesc blitPass;
 		blitPass.Name  = "Blit";
 		blitPass.Reads = { hScene };
-		blitPass.Write = hFinal;
-		blitPass.Execute = [forward, &renderer, renderTargetSize, rtW, rtH, hScene, hFinal]
+		blitPass.Write = hWorldOut;
+		blitPass.Execute = [forward, &renderer, renderTargetSize, rtW, rtH, hScene, hWorldOut]
 			(IRHICommandContext& ctx, RWGraph& g)
 		{
 			RenderPassDesc blit;
-			blit.ColorAttachment.Target = g.Resolve(hFinal);
+			blit.ColorAttachment.Target = g.Resolve(hWorldOut);
 			blit.ColorAttachment.LoadOp = ERHILoadOp::Clear;
 			blit.ColorAttachment.StoreOp = ERHIStoreOp::Store;
 			blit.ColorAttachment.SetClearColor(0.0f, 0.0f, 0.0f, 0.0f);
@@ -855,12 +928,12 @@ void RenderGameViewports(
 		RWPassDesc tonemapPass;
 		tonemapPass.Name  = "Tonemap";
 		tonemapPass.Reads = { hPost };
-		tonemapPass.Write = hFinal;
-		tonemapPass.Execute = [forward, &renderer, renderTargetSize, rtW, rtH, hPost, hFinal]
+		tonemapPass.Write = hWorldOut;
+		tonemapPass.Execute = [forward, &renderer, renderTargetSize, rtW, rtH, hPost, hWorldOut]
 			(IRHICommandContext& ctx, RWGraph& g)
 		{
 			RenderPassDesc tonemap;
-			tonemap.ColorAttachment.Target = g.Resolve(hFinal);
+			tonemap.ColorAttachment.Target = g.Resolve(hWorldOut);
 			tonemap.ColorAttachment.LoadOp = ERHILoadOp::Clear;
 			tonemap.ColorAttachment.StoreOp = ERHIStoreOp::Store;
 			tonemap.ColorAttachment.SetClearColor(0.0f, 0.0f, 0.0f, 0.0f);
@@ -871,6 +944,42 @@ void RenderGameViewports(
 			ctx.EndRenderPass();
 		};
 		graph.AddPass(std::move(tonemapPass));
+	}
+
+	// ── Overlay — 화면 공간 레이어 ─────────────────────────────────────────────
+	// **라이팅 이후**에 그린다. Base 에 섞으면 Composite(SceneColor × LightMap)이 UI 에도
+	// 곱해져서, 어두운 캔버스에서 체력바가 같이 어두워진다. 게다가 화면 레이어의 뷰는 원점
+	// 고정이라 월드 원점 근처의 라이트가 UI 를 국소적으로 밝히는 더 이상한 결과가 난다.
+	//
+	// 월드 결과를 최종에 한 번 옮기고(이 Blit 이 hWorldOut 의존을 만들어 월드 체인이 컬링되지
+	// 않게 하는 장치이기도 하다) 그 위에 화면 레이어를 얹는다.
+	if (hasScreenLayers)
+	{
+		RWPassDesc overlayPass;
+		overlayPass.Name  = "Overlay";
+		overlayPass.Reads = { hWorldOut };
+		overlayPass.Write = hFinal;
+		overlayPass.Execute = [forward, &renderer, &renderScene, &viewports, &layers, renderTargetSize, rtW, rtH, hWorldOut, hFinal, gpuTimer, cutoff, captureDrawOrder]
+			(IRHICommandContext& ctx, RWGraph& g)
+		{
+			RenderPassDesc blit;
+			blit.ColorAttachment.Target = g.Resolve(hFinal);
+			blit.ColorAttachment.LoadOp = ERHILoadOp::Clear;
+			blit.ColorAttachment.StoreOp = ERHIStoreOp::Store;
+			blit.ColorAttachment.SetClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+			ctx.BeginRenderPass(blit);
+			ctx.SetViewport(0.0f, 0.0f, rtW, rtH);
+			renderer.SetRenderTargetSize(renderTargetSize);
+			forward->BlitFullscreen(ctx, g.Resolve(hWorldOut));
+			ctx.EndRenderPass();
+
+			// 통계는 넘기지 않는다 — Base 가 이미 뷰포트별로 append 했으므로 여기서 또 넣으면
+			// 같은 뷰포트가 두 번 잡힌다. 배경색도 없다(클리어는 위 Blit 이 끝냈다).
+			RenderViewportsInto(ctx, renderer, renderScene, viewports, layers, renderTargetSize,
+				g.Resolve(hFinal), nullptr, nullptr, gpuTimer, cutoff, captureDrawOrder,
+				ELayerSpace::Screen, false);
+		};
+		graph.AddPass(std::move(overlayPass));
 	}
 
 	graph.Compile(hFinal);

@@ -18,10 +18,13 @@ namespace
 	{
 		YAML::Node pos(YAML::NodeType::Sequence); pos.push_back(t.Position.x); pos.push_back(t.Position.y);
 		YAML::Node scl(YAML::NodeType::Sequence); scl.push_back(t.Scale.x);    scl.push_back(t.Scale.y);
+		YAML::Node anc(YAML::NodeType::Sequence); anc.push_back(t.Anchor.x);   anc.push_back(t.Anchor.y);
 		YAML::Node node(YAML::NodeType::Map);
 		node["Position"]        = pos;
 		node["RotationRadians"] = t.RotationRadians.Value;
 		node["Scale"]           = scl;
+		// 화면 공간 레이어 전용. 키가 없는 옛 오브젝트는 기본 중앙(0.5,0.5)이라 무변화다.
+		node["Anchor"]          = anc;
 		return node;
 	}
 
@@ -38,6 +41,11 @@ namespace
 		{
 			t.Scale.x = s[0].as<float>(t.Scale.x);
 			t.Scale.y = s[1].as<float>(t.Scale.y);
+		}
+		if (const YAML::Node a = node["Anchor"]; a && a.IsSequence() && a.size() >= 2)
+		{
+			t.Anchor.x = a[0].as<float>(t.Anchor.x);
+			t.Anchor.y = a[1].as<float>(t.Anchor.y);
 		}
 	}
 }

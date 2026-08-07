@@ -1112,6 +1112,9 @@ bool CProjectManager::LoadProject(const ProjectLoadDesc& desc)
 
 	// 자산(스프라이트) 폴백 PPU 를 런타임 측에서도 보이게. 스프라이트가 처음 렌더되기 전에 채운다.
 	Runtime.PixelsPerUnit = m_info.PixelsPerUnit;
+	// 화면 공간 레이어의 저작 기준 렉트. 같은 자리에서 채워야 PPU 와 어긋나지 않는다.
+	Runtime.ReferenceResolutionWidth  = static_cast<float>(m_info.ResolutionWidth);
+	Runtime.ReferenceResolutionHeight = static_cast<float>(m_info.ResolutionHeight);
 	Runtime.DefaultFontFamilyGuid = m_info.DefaultFontFamilyGuid;
 	Runtime.FallbackFontFamilies = m_info.FallbackFontFamilies;
 
@@ -2251,6 +2254,10 @@ void CProjectManager::SetResolution(std::uint32_t width, std::uint32_t height)
 {
 	m_info.ResolutionWidth  = (width  > 0) ? width  : 1920;
 	m_info.ResolutionHeight = (height > 0) ? height : 1080;
+	// 화면 공간 레이어의 저작 기준 렉트도 즉시 반영 — PPU 와 같은 계약(ProjectSettings Apply
+	// 직후 다음 프레임부터 렌더에 보인다). 안 하면 해상도를 바꿔도 UI 레이어가 옛 기준으로 남는다.
+	Runtime.ReferenceResolutionWidth  = static_cast<float>(m_info.ResolutionWidth);
+	Runtime.ReferenceResolutionHeight = static_cast<float>(m_info.ResolutionHeight);
 }
 
 float CProjectManager::GetPixelsPerUnit() const

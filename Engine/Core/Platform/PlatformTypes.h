@@ -12,6 +12,18 @@
 #endif
 #endif
 
+// 화면 가장자리 중 시스템 UI(노치·펀치홀·둥근 모서리·제스처바)가 가리는 폭. 렌더 표면 픽셀.
+// 전부 0 이면 안전영역 = 화면 전체다. 비대칭이 정상이다 — 노치는 한쪽에만 있다.
+struct SafeAreaInsets
+{
+	float Left   = 0.0f;
+	float Top    = 0.0f;
+	float Right  = 0.0f;
+	float Bottom = 0.0f;
+
+	bool IsZero() const { return 0.0f == Left && 0.0f == Top && 0.0f == Right && 0.0f == Bottom; }
+};
+
 // 게임이 요구하는 화면 방향. 모바일 회전 보정의 권위 신호다(버퍼 방향과 비교해 회전량 결정).
 // Auto 는 회전을 게임이 강제하지 않음 → 플랫폼의 실제 디스플레이 회전(JNI getRotation)을 따른다.
 enum class EScreenOrientation

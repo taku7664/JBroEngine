@@ -18,7 +18,84 @@ enum class ELayerBlendMode : std::uint8_t
 	Screen,
 };
 
+// 레이어가 사는 공간. 카메라를 따르는가, 화면에 못박히는가.
+//
+// ParallaxFactor 로는 이걸 표현할 수 없다 — 그건 카메라 뷰의 **위치만** 배율하고
+// 회전·줌은 카메라를 그대로 물려받기 때문에, factor 0 레이어도 카메라가 줌하면 커지고
+// 회전하면 기운다. 투영을 카메라에서 뽑느냐 화면에서 뽑느냐는 보간할 수 없는 이산 선택이라
+// float 이 아니라 enum 이다.
+enum class ELayerSpace : std::uint8_t
+{
+	World,    // 기본. 카메라를 따른다(ParallaxFactor 가 적용되는 쪽).
+	Screen,   // 카메라 무관 — 위치·회전·줌 전부 독립. UI/HUD 가 이것.
+};
+
+// Screen 레이어에서 "1 유닛이 몇 픽셀인가". 표면 종횡비가 기준과 다를 때의 정책이다.
+//
+// 종횡비 가변은 모바일 전용 문제가 아니다 — Windows 패키지 창이 리사이즈 가능하고
+// (RenderSurfaceTypes.h 의 IsResizable 기본 true, 런타임이 덮지 않는다) 데스크톱 패키지엔
+// 레터박스가 없다. 그래서 플랫폼 분기가 아니라 전 플랫폼 공용 저작 속성이다.
+enum class EScreenScaleMode : std::uint8_t
+{
+	FixedHeight,     // 기본. 기준 높이 유지 → 가로가 종횡비 따라 늘고 준다.
+	FixedWidth,      // 기준 폭 유지 → 세로가 늘고 준다. 세로 게임용.
+	Contain,         // 기준 렉트 전체가 항상 보인다(둘 중 넉넉한 쪽). 여백 생김, 잘림 없음.
+	ConstantPixel,   // 1 유닛 = 항상 PPU 픽셀. 픽셀아트/픽셀퍼펙트 UI 용.
+};
+
 // 직렬화/에디터 공용 — enum ↔ 문자열.
+inline const char* ToString(ELayerSpace space)
+{
+	switch (space)
+	{
+	case ELayerSpace::Screen: return "Screen";
+	case ELayerSpace::World:
+	default:                  return "World";
+	}
+}
+
+inline ELayerSpace LayerSpaceFromString(const char* text)
+{
+	if (nullptr != text && 0 == std::strcmp(text, "Screen"))
+	{
+		return ELayerSpace::Screen;
+	}
+	return ELayerSpace::World;
+}
+
+inline const char* ToString(EScreenScaleMode mode)
+{
+	switch (mode)
+	{
+	case EScreenScaleMode::FixedWidth:    return "FixedWidth";
+	case EScreenScaleMode::Contain:       return "Contain";
+	case EScreenScaleMode::ConstantPixel: return "ConstantPixel";
+	case EScreenScaleMode::FixedHeight:
+	default:                              return "FixedHeight";
+	}
+}
+
+inline EScreenScaleMode ScreenScaleModeFromString(const char* text)
+{
+	if (nullptr == text)
+	{
+		return EScreenScaleMode::FixedHeight;
+	}
+	if (0 == std::strcmp(text, "FixedWidth"))
+	{
+		return EScreenScaleMode::FixedWidth;
+	}
+	if (0 == std::strcmp(text, "Contain"))
+	{
+		return EScreenScaleMode::Contain;
+	}
+	if (0 == std::strcmp(text, "ConstantPixel"))
+	{
+		return EScreenScaleMode::ConstantPixel;
+	}
+	return EScreenScaleMode::FixedHeight;
+}
+
 inline const char* ToString(ELayerBlendMode mode)
 {
 	switch (mode)
@@ -94,7 +171,21 @@ public:
 	float           Opacity = 1.0f;          // 0~1. 컴포짓 시 알파 곱(페이드 연출용).
 	bool            Visible = true;          // false = 렌더 제외(시뮬은 계속).
 	bool            ForceOwnTexture = false; // true = 항상 RT 경유(차후 레이어 이펙트용).
-	float           ParallaxFactor = 1.0f;   // 1=월드, 0=뷰포트 고정(UI), 0.5=원경 패럴랙스.
+
+	// 이 레이어가 사는 공간. Screen 이면 아래 ParallaxFactor 는 의미가 없다(카메라를 아예 안 쓴다).
+	ELayerSpace      Space = ELayerSpace::World;
+	// Screen 일 때만 읽는다. World 레이어에서는 무시.
+	EScreenScaleMode ScaleMode = EScreenScaleMode::FixedHeight;
+	// 앵커 기준 렉트를 화면 전체가 아니라 안전영역(노치·펀치홀·제스처바를 제외한 영역)으로.
+	// 위젯 단위가 아니라 레이어 단위인 이유: 안전영역은 UI '면'의 성질이지 개별 위젯의 성질이
+	// 아니다(배경은 컷아웃까지 덮고 HUD 만 들어와야 하면 레이어를 나눈다 — 순서 때문에 어차피 나눈다).
+	// 현재 전 플랫폼 인셋이 0 이라 켜도 꺼도 결과가 같다.
+	bool             AnchorToSafeArea = false;
+
+	// World 스페이스 안에서의 카메라 추종 배율. 1=카메라와 동일, 0.5=절반 속도 원경,
+	// 0=월드 원점 고정. **화면 고정(UI)은 이 값이 아니라 Space=Screen 이다** — factor 0 은
+	// 위치만 멈출 뿐 카메라 줌·회전은 그대로 따라간다.
+	float           ParallaxFactor = 1.0f;
 
 	const char* GetName() const { return Name.c_str(); }
 	void        SetName(const char* name) { Name = name ? name : ""; }

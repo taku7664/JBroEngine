@@ -72,6 +72,9 @@ YAML::Node WriteLayerNode(const CGameLayer& layer, bool includeSourceAsset)
 	node["Visible"]         = layer.Visible;
 	node["ForceOwnTexture"] = layer.ForceOwnTexture;
 	node["Parallax"]        = layer.ParallaxFactor;
+	node["Space"]           = ToString(layer.Space);
+	node["ScaleMode"]       = ToString(layer.ScaleMode);
+	node["AnchorToSafeArea"] = layer.AnchorToSafeArea;
 	return node;
 }
 
@@ -90,6 +93,14 @@ void ApplyLayerNodeProperties(CGameLayer& layer, const YAML::Node& node)
 	layer.Visible            = node["Visible"]            ? node["Visible"].as<bool>(true)             : true;
 	layer.ForceOwnTexture    = node["ForceOwnTexture"]    ? node["ForceOwnTexture"].as<bool>(false)    : false;
 	layer.ParallaxFactor     = node["Parallax"]           ? node["Parallax"].as<float>(1.0f)           : 1.0f;
+	// 키가 없는 옛 레이어 = World/FixedHeight → 기존 콘텐츠는 무변화.
+	// Parallax 0 을 Screen 으로 자동 승격하지 않는다 — 둘은 줌·회전에서 렌더 결과가 다르므로
+	// 조용히 화면이 바뀐다.
+	const std::string space  = node["Space"]     ? node["Space"].as<std::string>("World")           : std::string("World");
+	const std::string scale  = node["ScaleMode"] ? node["ScaleMode"].as<std::string>("FixedHeight") : std::string("FixedHeight");
+	layer.Space              = LayerSpaceFromString(space.c_str());
+	layer.ScaleMode          = ScreenScaleModeFromString(scale.c_str());
+	layer.AnchorToSafeArea   = node["AnchorToSafeArea"] ? node["AnchorToSafeArea"].as<bool>(false) : false;
 	layer.KeepOnCanvasChange = node["KeepOnCanvasChange"] ? node["KeepOnCanvasChange"].as<bool>(false) : false;
 }
 

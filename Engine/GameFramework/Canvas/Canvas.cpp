@@ -423,6 +423,66 @@ const Camera2D* CGameCanvas::FindFallbackCamera() const
 	return best;
 }
 
+void CGameCanvas::SetScreenSpaceReference(float referenceResolutionWidth, float referenceResolutionHeight, float pixelsPerUnit)
+{
+	m_screenReferenceWidth  = referenceResolutionWidth  > 0.0f ? referenceResolutionWidth  : 1920.0f;
+	m_screenReferenceHeight = referenceResolutionHeight > 0.0f ? referenceResolutionHeight : 1080.0f;
+	m_screenPixelsPerUnit   = pixelsPerUnit             > 0.0f ? pixelsPerUnit             : 100.0f;
+}
+
+void CGameCanvas::SetSafeAreaInsets(float left, float top, float right, float bottom)
+{
+	m_safeAreaLeft   = std::max(left,   0.0f);
+	m_safeAreaTop    = std::max(top,    0.0f);
+	m_safeAreaRight  = std::max(right,  0.0f);
+	m_safeAreaBottom = std::max(bottom, 0.0f);
+}
+
+Vector2 CGameCanvas::GetRootAnchorOffset(const CGameObject& object) const
+{
+	const CGameLayer* layer = object.GetLayer().TryGet();
+	if (nullptr == layer || ELayerSpace::Screen != layer->Space)
+	{
+		return Vector2(0.0f, 0.0f);   // 월드 레이어 — 앵커 개념이 없다.
+	}
+	if (m_lastRenderWidth < 1.0f || m_lastRenderHeight < 1.0f)
+	{
+		return Vector2(0.0f, 0.0f);   // 아직 렌더된 적이 없다 — 화면 렉트를 잡을 기준이 없다.
+	}
+
+	const ScreenSpaceReference reference = ScreenSpaceReference::FromResolution(
+		m_screenReferenceWidth, m_screenReferenceHeight, m_screenPixelsPerUnit);
+
+	float halfWidth = 0.0f;
+	float halfHeight = 0.0f;
+	ComputeScreenSpaceExtents(layer->ScaleMode, reference,
+		m_lastRenderWidth, m_lastRenderHeight, halfWidth, halfHeight);
+
+	// 앵커 기준 렉트(유닛). 안전영역을 쓰면 인셋만큼 안으로 좁힌다.
+	float left   = -halfWidth;
+	float right  =  halfWidth;
+	float bottom = -halfHeight;
+	float top    =  halfHeight;
+	if (layer->AnchorToSafeArea)
+	{
+		// 인셋은 표면 픽셀 → 유닛 환산. y 는 스크린이 아래로 증가하고 유닛은 위로 증가하므로
+		// 인셋 Top 이 유닛 top 을 깎고 인셋 Bottom 이 유닛 bottom 을 올린다.
+		const float unitsPerPixelX = (halfWidth  * 2.0f) / m_lastRenderWidth;
+		const float unitsPerPixelY = (halfHeight * 2.0f) / m_lastRenderHeight;
+		left   += m_safeAreaLeft   * unitsPerPixelX;
+		right  -= m_safeAreaRight  * unitsPerPixelX;
+		top    -= m_safeAreaTop    * unitsPerPixelY;
+		bottom += m_safeAreaBottom * unitsPerPixelY;
+	}
+
+	// lerp 로 푸는 이유: 인셋이 비대칭이라(노치는 한쪽에만) 반폭·반높이로는 중심 이동을
+	// 표현할 수 없다. 렉트 양끝을 직접 보간해야 한다.
+	const Vector2 anchor = object.GetTransform().Anchor;
+	return Vector2(
+		left   + (right - left)   * anchor.x,
+		bottom + (top   - bottom) * anchor.y);
+}
+
 bool CGameCanvas::ScreenToWorld(float screenX, float screenY, Vector2& outWorld) const
 {
 	if (m_lastRenderWidth < 1.0f || m_lastRenderHeight < 1.0f)

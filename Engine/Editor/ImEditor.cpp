@@ -2,6 +2,7 @@
 #include "ImEditor.h"
 
 #include "Core/EngineCore.h"
+#include "Core/RuntimeConfig.h"
 #include "Core/Platform/IRenderSurface.h"
 #include "Core/Debug/DebugDraw2D.h"
 #include "Core/Debug/DebugRenderer2D.h"
@@ -964,6 +965,10 @@ void CImEditor::OnPrepareRender()
 			gameViewCanvas->SetLastRenderSize(
 				static_cast<float>(m_gameViewWidth),
 				static_cast<float>(m_gameViewHeight));
+			// 화면 공간 레이어 기준값 — 캔버스가 게임 DLL 에도 링크되므로 Runtime 을 직접 못 읽는다.
+			// 에디터에는 안전영역 개념이 없다(전부 0 = 화면 전체).
+			gameViewCanvas->SetScreenSpaceReference(
+				Runtime.ReferenceResolutionWidth, Runtime.ReferenceResolutionHeight, Runtime.PixelsPerUnit);
 			CollectGameRenderViewports(
 				*gameViewCanvas,
 				static_cast<float>(m_gameViewWidth),
