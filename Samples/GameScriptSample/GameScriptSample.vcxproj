@@ -115,6 +115,7 @@
     <ClCompile Include="Scripts\AnimationProbeScript.cpp" />
     <ClCompile Include="Scripts\JointProbeScript.cpp" />
     <ClCompile Include="Scripts\QueryProbeScript.cpp" />
+    <ClCompile Include="Scripts\ScreenSpaceProbeScript.cpp" />
   </ItemGroup>
 
   <!-- Header Files -->
@@ -129,6 +130,7 @@
     <ClInclude Include="Scripts\AnimationProbeScript.h" />
     <ClInclude Include="Scripts\JointProbeScript.h" />
     <ClInclude Include="Scripts\QueryProbeScript.h" />
+    <ClInclude Include="Scripts\ScreenSpaceProbeScript.h" />
   </ItemGroup>
 
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

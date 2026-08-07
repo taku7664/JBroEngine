@@ -17,6 +17,7 @@
 #include "Scripts/AnimationProbeScript.h"
 #include "Scripts/JointProbeScript.h"
 #include "Scripts/QueryProbeScript.h"
+#include "Scripts/ScreenSpaceProbeScript.h"
 
 // ── GameScriptSampleModule ───────────────────────────────────────────────────────
 // DLL 진입점 모듈. Initialize() 에서 스크립트를 등록하고
@@ -74,6 +75,12 @@ public:
         m_registry->RegisterScript<CAnimationProbeScript>({
             "CAnimationProbeScript",
             "Animation Probe",
+            "GameScriptSample"
+        });
+
+        m_registry->RegisterScript<CScreenSpaceProbeScript>({
+            "CScreenSpaceProbeScript",
+            "Screen Space Probe",
             "GameScriptSample"
         });
 
@@ -142,7 +149,8 @@ public:
         m_registry->UnregisterScript(CReflectionRegistry::MakeTypeId("CPrefabSpawnTestScript"));
         m_registry->UnregisterScript(CReflectionRegistry::MakeTypeId("CQueryProbeScript"));
         m_registry->UnregisterScript(CReflectionRegistry::MakeTypeId("CJointProbeScript"));
-        m_registry->UnregisterScript(CReflectionRegistry::MakeTypeId("CAnimationProbeScript"));
+            m_registry->UnregisterScript(CReflectionRegistry::MakeTypeId("CAnimationProbeScript"));
+        m_registry->UnregisterScript(CReflectionRegistry::MakeTypeId("CScreenSpaceProbeScript"));
 
         m_registry = nullptr;
 
