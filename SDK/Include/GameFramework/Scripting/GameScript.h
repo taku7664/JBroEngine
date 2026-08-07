@@ -100,12 +100,25 @@ protected:
 	virtual void OnTriggerStay(const Collision2D& /*collision*/) {}
 	virtual void OnTriggerExit(const Collision2D& /*collision*/) {}
 
+	// 애니메이션 훅(스크립트가 override). 같은 오브젝트의 SpriteAnimator2D 가 클립을
+	// 재생하는 동안 호출된다 — 단일 시트 모드(클립 없음)에서는 호출되지 않는다.
+	//
+	// OnAnimationEvent: 클립에 심어 둔 프레임에 **도달한 그 틱에** 1회. 피격 판정을 켜거나
+	//   발소리를 내는 자리다. 프레임을 건너뛸 만큼 프레임률이 낮아도 지나친 이벤트는 모두
+	//   순서대로 발화한다(놓치지 않는다).
+	// OnAnimationEnd: 비루프 클립이 마지막 프레임에서 멈출 때 1회. 루프 클립은 호출되지 않는다.
+	//
+	// 인자는 char 포인터다 — 호출 중에만 유효하니 보관하려면 복사할 것.
+	virtual void OnAnimationEvent(const char* /*clipName*/, const char* /*eventName*/) {}
+	virtual void OnAnimationEnd(const char* /*clipName*/) {}
+
 private:
 	// ── 호스트 전용 진입점 ────────────────────────────────────────────────────
 	// 사용자 스크립트가 직접 호출하면 생명주기 플래그가 깨지므로 private + friend.
 	friend class CScriptSystem;    // Bind / Start / Update / FixedUpdate
 	friend class CGameCanvas;       // 윈도우 이벤트 디스패치
 	friend class CPhysics2DSystem; // 충돌/트리거 디스패치
+	friend class CSpriteAnimationSystem; // 애니메이션 이벤트/종료 디스패치
 	friend class CReflectionRegistry;
 
 	void Bind(CGameCanvas& canvas, const char* typeName);
@@ -132,6 +145,10 @@ private:
 	void TriggerEnter(const Collision2D& collision);
 	void TriggerStay(const Collision2D& collision);
 	void TriggerExit(const Collision2D& collision);
+
+	// CSpriteAnimationSystem 이 클립 재생 중 호출하는 디스패치 진입점(시작된 인스턴스에만 전달).
+	void AnimationEvent(const char* clipName, const char* eventName);
+	void AnimationEnd(const char* clipName);
 
 private:
 	SafePtr<CGameCanvas> m_canvas;

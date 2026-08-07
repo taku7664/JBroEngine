@@ -18,6 +18,7 @@
 #include "Core/Asset/PrefabAsset.h"
 #include "Core/Asset/FileAsset.h"
 #include "Core/Asset/AudioAsset.h"
+#include "Core/Asset/AnimationClipAsset.h"
 #include "Core/Asset/AudioEffectAsset.h"
 #include "Core/Asset/FontAsset.h"
 #include "Core/Asset/MaterialAsset.h"
@@ -695,6 +696,7 @@ bool CEngine::InitializeAssetManager()
 	m_assetManager->RegisterLoader(MakeOwnerPtr<CMaterialAssetLoader>());
 	m_assetManager->RegisterLoader(MakeOwnerPtr<CAudioAssetLoader>());
 	m_assetManager->RegisterLoader(MakeOwnerPtr<CAudioEffectAssetLoader>());
+	m_assetManager->RegisterLoader(MakeOwnerPtr<CAnimationClipAssetLoader>());
 	m_assetManager->RegisterLoader(MakeOwnerPtr<CFontFaceAssetLoader>());
 	m_assetManager->RegisterLoader(MakeOwnerPtr<CFontFamilyAssetLoader>());
 

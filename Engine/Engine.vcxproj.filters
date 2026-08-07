@@ -1235,6 +1235,9 @@
     <ClInclude Include="Core\Asset\AudioAsset.h">
       <Filter>Header</Filter>
     </ClInclude>
+    <ClInclude Include="Core\Asset\AnimationClipAsset.h">
+      <Filter>Header</Filter>
+    </ClInclude>
     <ClInclude Include="Core\Asset\AudioEffectAsset.h">
       <Filter>Header</Filter>
     </ClInclude>
@@ -1742,6 +1745,9 @@
       <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="Core\Asset\AudioAsset.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Asset\AnimationClipAsset.cpp">
       <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="Core\Asset\AudioEffectAsset.cpp">

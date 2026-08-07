@@ -111,6 +111,7 @@ private:
 		CreateMaterial,
 		CreateFontFamily,
 		CreateEffect,
+		CreateAnimationClip,
 		CreatePrefab,
 		// 드래그&드롭 이동 / 잘라내기-붙여넣기.  Path = 원본, TargetPath = 대상 폴더.
 		MoveInto,

@@ -196,6 +196,22 @@ void CGameScript::TriggerExit(const Collision2D& collision)
 	}
 }
 
+void CGameScript::AnimationEvent(const char* clipName, const char* eventName)
+{
+	if (m_isStarted)
+	{
+		OnAnimationEvent(clipName, eventName);
+	}
+}
+
+void CGameScript::AnimationEnd(const char* clipName)
+{
+	if (m_isStarted)
+	{
+		OnAnimationEnd(clipName);
+	}
+}
+
 bool CGameScript::IsStarted() const
 {
 	return m_isStarted;

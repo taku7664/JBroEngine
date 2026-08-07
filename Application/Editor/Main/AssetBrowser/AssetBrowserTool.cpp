@@ -112,6 +112,17 @@ namespace
 	    "Effect:\n"
 	    "  Kind: Reverb\n"
 	    "  Parameters: {}\n";
+	// Sprite 를 비워 두면 SpriteRenderer2D 가 이미 들고 있는 시트를 그대로 쓴다.
+	// Name 이 비면 파일 이름이 곧 재생 이름 — 만들자마자 Play("NewAnimationClip") 이 된다.
+	constexpr std::string_view EMPTY_ANIMATION_CLIP_YAML =
+	    "Clip:\n"
+	    "  Sprite: \"\"\n"
+	    "  Name: \"\"\n"
+	    "  StartFrame: 0\n"
+	    "  FrameCount: 0\n"
+	    "  FramesPerSecond: 12\n"
+	    "  Loop: true\n"
+	    "  Events: []\n";
 	constexpr std::string_view EMPTY_FONT_FAMILY_YAML =
 	    "Regular: \"\"\n"
 	    "Bold: \"\"\n"
@@ -951,6 +962,16 @@ void CAssetBrowserTool::ProcessPendingOperations()
 			if (false == insideAssetRoot) break;
 			File::Path dst = MakeUniqueFilePath(operation.Path, "NewEffect", ".jfx");
 			if (false == dst.empty() && WriteTextFile(dst, EMPTY_EFFECT_YAML))
+			{
+				StartRenameForNewPath(dst);
+			}
+			break;
+		}
+		case EPendingOperationType::CreateAnimationClip:
+		{
+			if (false == insideAssetRoot) break;
+			File::Path dst = MakeUniqueFilePath(operation.Path, "NewAnimationClip", ".janimclip");
+			if (false == dst.empty() && WriteTextFile(dst, EMPTY_ANIMATION_CLIP_YAML))
 			{
 				StartRenameForNewPath(dst);
 			}
@@ -1893,6 +1914,10 @@ void CAssetBrowserTool::DrawBrowserBodyContextMenu()
 				{
 					QueueOperation({ EPendingOperationType::CreateEffect, m_focusFolderPath, File::NULL_PATH });
 				}
+				if (ImGui::MenuItem(Loc::Text(EditorLocKeys::AssetBrowserAddAssetAnimationClip)))
+				{
+					QueueOperation({ EPendingOperationType::CreateAnimationClip, m_focusFolderPath, File::NULL_PATH });
+				}
 				if (ImGui::MenuItem(Loc::Text(EditorLocKeys::AssetBrowserAddAssetPrefab)))
 				{
 					QueueOperation({ EPendingOperationType::CreatePrefab, m_focusFolderPath, File::NULL_PATH });
@@ -1999,6 +2024,10 @@ void CAssetBrowserTool::DrawFolderTreeContextMenu()
 			if (ImGui::MenuItem(Loc::Text(EditorLocKeys::AssetBrowserAddAssetEffect)))
 			{
 				QueueOperation({ EPendingOperationType::CreateEffect, folder, File::NULL_PATH });
+			}
+			if (ImGui::MenuItem(Loc::Text(EditorLocKeys::AssetBrowserAddAssetAnimationClip)))
+			{
+				QueueOperation({ EPendingOperationType::CreateAnimationClip, folder, File::NULL_PATH });
 			}
 			if (ImGui::MenuItem(Loc::Text(EditorLocKeys::AssetBrowserAddAssetPrefab)))
 			{

@@ -358,6 +358,7 @@ private:
 private:
 	friend class CGameObject;
 	friend class CPhysics2DSystem;
+	friend class CSpriteAnimationSystem;   // 애니메이션 이벤트/종료를 오브젝트의 스크립트에 디스패치.
 	friend class CReflectionRegistry;
 	friend class CCanvasManager;
 	friend class CCanvasRuntimeAccess;

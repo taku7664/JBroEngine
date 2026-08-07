@@ -350,6 +350,7 @@
     <ClInclude Include="Core\Asset\IAssetManager.h" />
     <ClInclude Include="Core\Asset\IAssetRegistry.h" />
     <ClInclude Include="Core\Asset\AudioAsset.h" />
+    <ClInclude Include="Core\Asset\AnimationClipAsset.h" />
     <ClInclude Include="Core\Asset\AudioEffectAsset.h" />
     <ClInclude Include="Core\Asset\MaterialAsset.h" />
     <ClInclude Include="Core\Asset\SpriteAsset.h" />
@@ -688,6 +689,7 @@
     <ClCompile Include="Core\Asset\PrefabAsset.cpp" />
     <ClCompile Include="Core\Asset\FileAsset.cpp" />
     <ClCompile Include="Core\Asset\AudioAsset.cpp" />
+    <ClCompile Include="Core\Asset\AnimationClipAsset.cpp" />
     <ClCompile Include="Core\Asset\AudioEffectAsset.cpp" />
     <ClCompile Include="Core\Asset\MaterialAsset.cpp" />
     <ClCompile Include="Core\Asset\SpriteAsset.cpp" />

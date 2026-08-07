@@ -31,7 +31,8 @@ enum class EAssetType
 	AudioEffect,
 	FontFace,
 	FontFamily,
-	Layer        // .jlayer — 레이어 파일(컴포짓 속성 + 소속 오브젝트)
+	Layer,       // .jlayer — 레이어 파일(컴포짓 속성 + 소속 오브젝트)
+	AnimationClip // .janimclip — 시트의 한 구간에 이름을 붙인 스프라이트 애니메이션
 };
 
 enum class EAssetLoadState

@@ -6,6 +6,7 @@ namespace EditorLocKeys
 {
 	constexpr const char* AssetBrowserAddAsset = "asset_browser.add_asset";
 	constexpr const char* AssetBrowserAddAssetEffect = "asset_browser.add_asset.effect";
+	constexpr const char* AssetBrowserAddAssetAnimationClip = "asset_browser.add_asset.animation_clip";
 	constexpr const char* AssetBrowserAddAssetFontFamily = "asset_browser.add_asset.font_family";
 	constexpr const char* AssetBrowserAddAssetMaterial = "asset_browser.add_asset.material";
 	constexpr const char* AssetBrowserAddAssetPrefab = "asset_browser.add_asset.prefab";
@@ -35,6 +36,22 @@ namespace EditorLocKeys
 	constexpr const char* AssetBrowserViewList = "asset_browser.view_list";
 	constexpr const char* AssetTypeAudio = "asset_type.audio";
 	constexpr const char* AssetTypeAudioEffect = "asset_type.audio_effect";
+	constexpr const char* AssetTypeAnimationClip = "asset_type.animation_clip";
+	constexpr const char* InspectorAnimationClipHeader = "inspector.animation_clip.header";
+	constexpr const char* InspectorAnimationClipSprite = "inspector.animation_clip.sprite";
+	constexpr const char* InspectorAnimationClipSpriteDesc = "inspector.animation_clip.sprite_desc";
+	constexpr const char* InspectorAnimationClipName = "inspector.animation_clip.name";
+	constexpr const char* InspectorAnimationClipNameDesc = "inspector.animation_clip.name_desc";
+	constexpr const char* InspectorAnimationClipStartFrame = "inspector.animation_clip.start_frame";
+	constexpr const char* InspectorAnimationClipFrameCount = "inspector.animation_clip.frame_count";
+	constexpr const char* InspectorAnimationClipFrameCountDesc = "inspector.animation_clip.frame_count_desc";
+	constexpr const char* InspectorAnimationClipFps = "inspector.animation_clip.fps";
+	constexpr const char* InspectorAnimationClipLoop = "inspector.animation_clip.loop";
+	constexpr const char* InspectorAnimationClipEvents = "inspector.animation_clip.events";
+	constexpr const char* InspectorAnimationClipEventsDesc = "inspector.animation_clip.events_desc";
+	constexpr const char* InspectorAnimationClipAddEvent = "inspector.animation_clip.add_event";
+	constexpr const char* InspectorAnimationClipRemoveEvent = "inspector.animation_clip.remove_event";
+	constexpr const char* InspectorAnimationClipApply = "inspector.animation_clip.apply";
 	constexpr const char* AssetTypeCustom = "asset_type.custom";
 	constexpr const char* AssetTypeFontFace = "asset_type.font_face";
 	constexpr const char* AssetTypeFontFamily = "asset_type.font_family";

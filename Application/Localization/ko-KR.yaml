@@ -126,6 +126,22 @@ Entries:
   asset_type.script: 스크립트
   asset_type.audio: 사운드
   asset_type.audio_effect: 사운드 효과
+  asset_type.animation_clip: 애니메이션 클립
+  inspector.animation_clip.header: 애니메이션 클립
+  inspector.animation_clip.sprite: 시트
+  inspector.animation_clip.sprite_desc: 비워 두면 Sprite Renderer 2D 가 이미 쓰고 있는 시트를 그대로 재생한다.
+  inspector.animation_clip.name: 재생 이름
+  inspector.animation_clip.name_desc: Play("이름") 으로 지목할 이름. 비우면 파일 이름을 쓴다.
+  inspector.animation_clip.start_frame: 시작 프레임
+  inspector.animation_clip.frame_count: 프레임 수
+  inspector.animation_clip.frame_count_desc: 0 이면 시작 프레임부터 시트 끝까지.
+  inspector.animation_clip.fps: 초당 프레임
+  inspector.animation_clip.loop: 반복
+  inspector.animation_clip.events: 프레임 이벤트
+  inspector.animation_clip.events_desc: 프레임은 클립 기준 상대 번호다(0 = 클립의 첫 프레임).
+  inspector.animation_clip.add_event: 이벤트 추가
+  inspector.animation_clip.remove_event: 삭제
+  inspector.animation_clip.apply: 클립 저장
   asset_type.font_face: 폰트 페이스
   asset_type.font_family: 폰트 패밀리
   asset_type.custom: 커스텀
@@ -308,6 +324,7 @@ Entries:
   asset_browser.add_asset.material: 머티리얼
   asset_browser.add_asset.font_family: 폰트 패밀리
   asset_browser.add_asset.effect: 사운드 효과
+  asset_browser.add_asset.animation_clip: 애니메이션 클립
   asset_browser.add_asset.prefab: 프리팹
   inspector.font_face.title: 폰트 임포트 설정
   inspector.font_face.face_index: Face Index

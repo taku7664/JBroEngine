@@ -25,6 +25,7 @@
 #include "Engine/GameFramework/Object/Ref.h"
 #include "Engine/GameFramework/Reflection/ReflectionRegistry.h"
 #include "Engine/GameFramework/Serialization/ComponentSerializer.h"
+#include "Engine/Core/Asset/AnimationClipAsset.h"
 #include "Engine/Core/Asset/AssetMetaFile.h"
 #include "Engine/Core/Asset/AssetTypeRules.h"
 #include "Engine/Core/Asset/IAssetManager.h"
@@ -1536,6 +1537,214 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 	}
 
 
+	// 애니메이션 클립 편집 — 데이터가 .jmeta 임포트 옵션이 아니라 `.janimclip` **본문**에 있다.
+	// 그래서 저장은 파일을 직접 쓰고, 이미 로드된 자산은 in-place 갱신해 재생 중인 애니메이터가
+	// 끊기지 않게 한다(효과 에디터와 같은 방식).
+	bool SaveAnimationClip(const AssetMetaData& metaData, const AnimationClipData& data)
+	{
+		SafePtr<IAssetManager> assetManager = EditorContext::GetAssetManager();
+		if (false == assetManager.IsValid())
+		{
+			return false;
+		}
+
+		File::Path resolvedPath;
+		if (false == assetManager->ResolveAssetPath(metaData.Path, resolvedPath))
+		{
+			return false;
+		}
+
+		const std::string yaml = CAnimationClipSerializer::ToYaml(data);
+		std::ofstream stream(resolvedPath, std::ios::binary | std::ios::trunc);
+		if (false == stream.is_open())
+		{
+			return false;
+		}
+		stream.write(yaml.data(), static_cast<std::streamsize>(yaml.size()));
+		stream.close();
+
+		if (AssetRef<IAsset> loaded = assetManager->FindLoadedAsset(metaData.Guid))
+		{
+			loaded->ApplyImportOptions(yaml);
+		}
+		return true;
+	}
+
+	void DrawAnimationClipEditor(const AssetMetaData& metaData)
+	{
+		// 선택이 바뀐 프레임에만 디스크에서 읽는다(편집 중 덮어쓰기 방지).
+		static AssetGuid         s_cachedGuid;
+		static AnimationClipData s_data;
+		static bool              s_dirty = false;
+		if (s_cachedGuid != metaData.Guid)
+		{
+			s_cachedGuid = metaData.Guid;
+			s_data       = AnimationClipData{};
+			s_dirty      = false;
+
+			SafePtr<IAssetManager> assetManager = EditorContext::GetAssetManager();
+			File::Path resolvedPath;
+			if (assetManager.IsValid() && assetManager->ResolveAssetPath(metaData.Path, resolvedPath))
+			{
+				std::ifstream stream(resolvedPath, std::ios::binary);
+				if (stream.is_open())
+				{
+					const std::string text((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>());
+					s_data = CAnimationClipSerializer::FromYaml(text);
+				}
+			}
+		}
+
+		AnimationClipData& data = s_data;
+		ImSectionHeader(Loc::Text(EditorLocKeys::InspectorAnimationClipHeader)).Draw();
+
+		ImGui::Utillity::FormLayout layout("##animation_clip_editor");
+		bool changed = false;
+
+		layout.Row(
+			[&]() {
+				ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorAnimationClipSprite));
+				ImGui::Utillity::HoveredToolTip(Loc::Text(EditorLocKeys::InspectorAnimationClipSpriteDesc));
+			},
+			[&]() {
+				if (ImAssetField("##inspector.animation_clip.sprite", data.SpriteGuid)
+					.Type(EAssetType::Sprite)
+					.Draw())
+				{
+					changed = true;
+				}
+			});
+
+		layout.Row(
+			[&]() {
+				ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorAnimationClipName));
+				ImGui::Utillity::HoveredToolTip(Loc::Text(EditorLocKeys::InspectorAnimationClipNameDesc));
+			},
+			[&]() {
+				char buffer[64] = {};
+				const std::size_t copyCount = data.Name.size() < sizeof(buffer) - 1 ? data.Name.size() : sizeof(buffer) - 1;
+				std::memcpy(buffer, data.Name.data(), copyCount);
+				if (ImGui::InputText("##inspector.animation_clip.name", buffer, sizeof(buffer)))
+				{
+					data.Name = buffer;
+					changed   = true;
+				}
+			});
+
+		layout.Row(
+			[&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorAnimationClipStartFrame)); },
+			[&]() {
+				int startFrame = static_cast<int>(data.StartFrame);
+				// 프레임 인덱스는 범위가 열린 값(시트 길이에 달림) → DragInt.
+				if (ImGui::DragInt("##inspector.animation_clip.start_frame", &startFrame, 1.0f, 0, 100000))
+				{
+					data.StartFrame = static_cast<std::uint32_t>(startFrame < 0 ? 0 : startFrame);
+					changed         = true;
+				}
+			});
+
+		layout.Row(
+			[&]() {
+				ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorAnimationClipFrameCount));
+				ImGui::Utillity::HoveredToolTip(Loc::Text(EditorLocKeys::InspectorAnimationClipFrameCountDesc));
+			},
+			[&]() {
+				int frameCount = static_cast<int>(data.FrameCount);
+				if (ImGui::DragInt("##inspector.animation_clip.frame_count", &frameCount, 1.0f, 0, 100000))
+				{
+					data.FrameCount = static_cast<std::uint32_t>(frameCount < 0 ? 0 : frameCount);
+					changed         = true;
+				}
+			});
+
+		layout.Row(
+			[&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorAnimationClipFps)); },
+			[&]() {
+				if (ImGui::DragFloat("##inspector.animation_clip.fps", &data.FramesPerSecond, 0.5f, 0.0f, 240.0f))
+				{
+					if (data.FramesPerSecond < 0.0f) data.FramesPerSecond = 0.0f;
+					changed = true;
+				}
+			});
+
+		layout.Row(
+			[&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorAnimationClipLoop)); },
+			[&]() {
+				if (ImGui::Checkbox("##inspector.animation_clip.loop", &data.Loop))
+				{
+					changed = true;
+				}
+			});
+
+		// ── 프레임 이벤트 ────────────────────────────────────────────────────
+		ImGui::Spacing();
+		ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorAnimationClipEvents));
+		ImGui::Utillity::HoveredToolTip(Loc::Text(EditorLocKeys::InspectorAnimationClipEventsDesc));
+
+		int removeIndex = -1;
+		for (std::size_t i = 0; i < data.Events.size(); ++i)
+		{
+			ImGui::PushID(static_cast<int>(i));
+
+			int frame = static_cast<int>(data.Events[i].Frame);
+			ImGui::SetNextItemWidth(80.0f);
+			if (ImGui::DragInt("##frame", &frame, 1.0f, 0, 100000))
+			{
+				data.Events[i].Frame = static_cast<std::uint32_t>(frame < 0 ? 0 : frame);
+				changed              = true;
+			}
+
+			ImGui::SameLine();
+			char nameBuffer[64] = {};
+			const std::string& eventName = data.Events[i].Name;
+			const std::size_t copyCount = eventName.size() < sizeof(nameBuffer) - 1 ? eventName.size() : sizeof(nameBuffer) - 1;
+			std::memcpy(nameBuffer, eventName.data(), copyCount);
+			ImGui::SetNextItemWidth(-80.0f);
+			if (ImGui::InputText("##name", nameBuffer, sizeof(nameBuffer)))
+			{
+				data.Events[i].Name = nameBuffer;
+				changed             = true;
+			}
+
+			ImGui::SameLine();
+			if (ImGui::SmallButton(Loc::Text(EditorLocKeys::InspectorAnimationClipRemoveEvent)))
+			{
+				removeIndex = static_cast<int>(i);
+			}
+
+			ImGui::PopID();
+		}
+		if (removeIndex >= 0)
+		{
+			data.Events.erase(data.Events.begin() + removeIndex);
+			changed = true;
+		}
+
+		if (ImGui::Button(Loc::Text(EditorLocKeys::InspectorAnimationClipAddEvent)))
+		{
+			data.Events.push_back(AnimationClipEvent{});
+			changed = true;
+		}
+
+		if (changed)
+		{
+			s_dirty = true;
+		}
+
+		ImGui::Spacing();
+		ImGui::BeginDisabled(false == s_dirty);
+		if (ImActionButton(Loc::Text(EditorLocKeys::InspectorAnimationClipApply))
+			.Severity(EImValidationSeverity::Success)
+			.Draw())
+		{
+			if (SaveAnimationClip(metaData, data))
+			{
+				s_dirty = false;
+			}
+		}
+		ImGui::EndDisabled();
+	}
+
 	// 이름이 무효(식별자 아님/예약어/목록 내 중복)인지.
 	bool IsSchemaNameInvalid(const std::string& name, const std::vector<ScriptSchema::Property>& all)
 	{
@@ -2292,6 +2501,10 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			{
 				EffectEditorWindow::Open(metaData.Guid, metaData.DisplayName);
 			}
+		}
+		else if (EAssetType::AnimationClip == metaData.Type)
+		{
+			DrawAnimationClipEditor(metaData);
 		}
 		else if (EAssetType::FontFace == metaData.Type)
 		{

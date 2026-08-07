@@ -323,6 +323,7 @@ function ConvertTo-AssetTypeValue {
         "Audio" { return 8 }
         "Custom" { return 9 }
         "Layer" { return 13 }
+        "AnimationClip" { return 14 }
     }
 
     $ext = [System.IO.Path]::GetExtension($AssetPath).ToLowerInvariant()
@@ -335,6 +336,7 @@ function ConvertTo-AssetTypeValue {
         ".jcanvas" { return 5 }
         ".jprefab" { return 6 }
         ".jlayer" { return 13 }
+        ".janimclip" { return 14 }
         ".hlsl" { return 4 }
         ".fx" { return 4 }
         ".cpp" { return 7 }

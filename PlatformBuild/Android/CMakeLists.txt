@@ -44,6 +44,7 @@ set(JBRO_ENGINE_SOURCES
     Engine/Core/Asset/AssetPath.cpp
     Engine/Core/Asset/AssetRegistry.cpp
     Engine/Core/Asset/AudioAsset.cpp
+    Engine/Core/Asset/AnimationClipAsset.cpp
     Engine/Core/Asset/AudioEffectAsset.cpp
     Engine/Core/Asset/FileAsset.cpp
     Engine/Core/Asset/MaterialAsset.cpp

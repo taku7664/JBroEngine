@@ -54,7 +54,7 @@ namespace ScriptSchema
 		// ⚠ 새 에셋 클래스를 만들면 **여기에도** 넣어야 한다. 이 목록이 스크립트 프로퍼티
 		//    저작 UI 의 `Ref<Asset>` 2차 콤보를 채운다 — 빠뜨리면 런타임/인스펙터는 멀쩡히
 		//    동작하는데 사용자가 그 프로퍼티를 **만들 수가 없다**(에디터에 항목이 안 뜬다).
-		constexpr std::array<AssetRefType, 9> kAssetTypes = {{
+		constexpr std::array<AssetRefType, 10> kAssetTypes = {{
 			{ "SpriteAsset",   "CSpriteAsset",   "Core/Asset/SpriteAsset.h"   },
 			{ "AudioAsset",    "CAudioAsset",    "Core/Asset/AudioAsset.h"    },
 			{ "AudioEffectAsset", "CAudioEffectAsset", "Core/Asset/AudioEffectAsset.h" },
@@ -64,6 +64,7 @@ namespace ScriptSchema
 			{ "LayerAsset",    "CLayerAsset",    "Core/Asset/LayerAsset.h"    },
 			{ "FontFaceAsset", "CFontFaceAsset", "Core/Asset/FontAsset.h"     },
 			{ "FontFamilyAsset", "CFontFamilyAsset", "Core/Asset/FontAsset.h" },
+			{ "AnimationClipAsset", "CAnimationClipAsset", "Core/Asset/AnimationClipAsset.h" },
 		}};
 
 		const char* BuiltinComponentIncludeFor(const std::string& typeName)

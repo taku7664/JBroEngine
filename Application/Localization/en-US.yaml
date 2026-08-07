@@ -126,6 +126,22 @@ Entries:
   asset_type.script: Script
   asset_type.audio: Audio
   asset_type.audio_effect: Audio Effect
+  asset_type.animation_clip: Animation Clip
+  inspector.animation_clip.header: Animation Clip
+  inspector.animation_clip.sprite: Sheet
+  inspector.animation_clip.sprite_desc: Leave empty to play whatever sheet the Sprite Renderer 2D already uses.
+  inspector.animation_clip.name: Play Name
+  inspector.animation_clip.name_desc: The name Play("name") looks for. Empty uses the file name.
+  inspector.animation_clip.start_frame: Start Frame
+  inspector.animation_clip.frame_count: Frame Count
+  inspector.animation_clip.frame_count_desc: 0 means from the start frame to the end of the sheet.
+  inspector.animation_clip.fps: Frames Per Second
+  inspector.animation_clip.loop: Loop
+  inspector.animation_clip.events: Frame Events
+  inspector.animation_clip.events_desc: Frames are clip-relative (0 = the clip's first frame).
+  inspector.animation_clip.add_event: Add Event
+  inspector.animation_clip.remove_event: Remove
+  inspector.animation_clip.apply: Save Clip
   asset_type.font_face: Font Face
   asset_type.font_family: Font Family
   asset_type.custom: Custom
@@ -308,6 +324,7 @@ Entries:
   asset_browser.add_asset.material: Material
   asset_browser.add_asset.font_family: Font Family
   asset_browser.add_asset.effect: Sound Effect
+  asset_browser.add_asset.animation_clip: Animation Clip
   asset_browser.add_asset.prefab: Prefab
   inspector.font_face.title: Font Import Settings
   inspector.font_face.face_index: Face Index

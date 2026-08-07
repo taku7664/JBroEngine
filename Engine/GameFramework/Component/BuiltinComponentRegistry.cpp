@@ -90,6 +90,9 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 		.AddProperty("SortOrder", EReflectPropertyType::Int32, offsetof(Polygon2D, SortOrder), sizeof(std::int32_t));
 
 	registry.RegisterComponent<SpriteAnimator2D>({ "SpriteAnimator2D", "Sprite Animator 2D", "Rendering", true })
+		.AddArrayProperty<AssetGuid, EReflectPropertyType::AssetGuid>(
+			"ClipGuids", offsetof(SpriteAnimator2D, ClipGuids), true, EAssetType::AnimationClip)
+		.AddProperty("DefaultClip", EReflectPropertyType::String, offsetof(SpriteAnimator2D, DefaultClip), sizeof(String))
 		.AddProperty("FramesPerSecond", EReflectPropertyType::Float, offsetof(SpriteAnimator2D, FramesPerSecond), sizeof(float))
 		.AddProperty("Loop", EReflectPropertyType::Bool, offsetof(SpriteAnimator2D, Loop), sizeof(bool))
 		.AddProperty("Playing", EReflectPropertyType::Bool, offsetof(SpriteAnimator2D, Playing), sizeof(bool))
