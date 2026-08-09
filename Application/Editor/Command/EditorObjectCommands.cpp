@@ -1093,6 +1093,19 @@ void CSetObjectTransformsCommand::Redo()
 	Apply(m_newTransforms);
 }
 
+bool CSetObjectTransformsCommand::TryMerge(const IEditorCommand& newer)
+{
+	const CSetObjectTransformsCommand* other = dynamic_cast<const CSetObjectTransformsCommand*>(&newer);
+	if (nullptr == other || m_objectGuids != other->m_objectGuids)
+	{
+		return false;
+	}
+	// old 는 드래그 시작값을 유지하고 new 만 최신으로 교체 → undo 1개로 시작↔끝을 오간다.
+	// 절대값 스냅샷이라 몇 번을 교체해도 시작값이 오염되지 않는다(델타였다면 누적됐다).
+	m_newTransforms = other->m_newTransforms;
+	return true;
+}
+
 void CSetObjectTransformsCommand::Apply(const std::vector<Transform2D>& transforms)
 {
 	const std::size_t count = std::min(m_objectGuids.size(), transforms.size());

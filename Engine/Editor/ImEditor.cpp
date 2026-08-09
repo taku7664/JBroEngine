@@ -759,6 +759,33 @@ void CImEditor::OnPrepareRender()
 	// 이 프레임 게임뷰 렌더 여부 초기화 — 아래 게임뷰 블록이 실제로 그리면 true 로 올린다.
 	m_gameViewRenderedThisFrame = false;
 
+	// ── 화면 공간 기준값 주입 ──────────────────────────────────────────────────
+	// 게임뷰 블록 **밖**에서 무조건 한다. 안에 두면 게임뷰를 한 번도 안 띄운 세션에서
+	// 캔버스가 기본값(1920x1080)을 들고 있게 되어, 화면 레이어의 앵커가 프로젝트 해상도와
+	// 다른 렉트로 풀리고 스페이스 전환 변환은 아예 거부된다 — 둘 다 조용히 틀린다.
+	// (캔버스는 게임 DLL 에도 링크되므로 Runtime 을 직접 못 읽어 주입이 유일한 경로다.)
+	if (CGameCanvas* activeCanvas = Engine.CanvasManager.IsValid()
+		? Engine.CanvasManager->GetActiveCanvas().TryGet() : nullptr)
+	{
+		activeCanvas->SetScreenSpaceReference(
+			Runtime.ReferenceResolutionWidth, Runtime.ReferenceResolutionHeight, Runtime.PixelsPerUnit);
+
+		// 게임뷰가 아직 한 번도 안 그려졌으면 "플레이어가 보는 표면"의 자리를 프로젝트 해상도로
+		// 메운다. 앵커 해석과 역투영이 표면 크기를 필요로 하는데, 그게 0 이면 앵커가 통째로
+		// 안 먹어 화면 레이어가 원점에 뭉친다. 이미 값이 있으면 건드리지 않는다 — 게임뷰가
+		// 그리는 실제 RT 크기가 언제나 우선이다(썸네일 등이 덮어쓰지 못하게 하는 기존 계약).
+		if (activeCanvas->GetLastRenderWidth() < 1.0f || activeCanvas->GetLastRenderHeight() < 1.0f)
+		{
+			if (SafePtr<CProjectManager> projectManager = GetProjectManager();
+				projectManager.IsValid() && projectManager->IsProjectLoaded())
+			{
+				activeCanvas->SetLastRenderSize(
+					static_cast<float>(projectManager->GetResolutionWidth()),
+					static_cast<float>(projectManager->GetResolutionHeight()));
+			}
+		}
+	}
+
 	auto EnsureRT = [&](OwnerPtr<IRHITexture>& rt, std::uint32_t w, std::uint32_t h) -> bool
 	{
 		return EnsureRenderTexture(*engineCore->RHIDevice, rt, w, h);
@@ -965,10 +992,8 @@ void CImEditor::OnPrepareRender()
 			gameViewCanvas->SetLastRenderSize(
 				static_cast<float>(m_gameViewWidth),
 				static_cast<float>(m_gameViewHeight));
-			// 화면 공간 레이어 기준값 — 캔버스가 게임 DLL 에도 링크되므로 Runtime 을 직접 못 읽는다.
-			// 에디터에는 안전영역 개념이 없다(전부 0 = 화면 전체).
-			gameViewCanvas->SetScreenSpaceReference(
-				Runtime.ReferenceResolutionWidth, Runtime.ReferenceResolutionHeight, Runtime.PixelsPerUnit);
+			// 화면 공간 기준값은 위(게임뷰 블록 밖)에서 이미 주입했다 — 게임뷰를 안 띄운
+			// 세션에서도 화면 레이어가 성립해야 하기 때문이다. 여기서는 표면 크기만 갱신한다.
 			CollectGameRenderViewports(
 				*gameViewCanvas,
 				static_cast<float>(m_gameViewWidth),

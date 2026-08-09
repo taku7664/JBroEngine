@@ -265,6 +265,10 @@ public:
 	bool Execute() override;
 	void Undo() override;
 	void Redo() override;
+	// 드래그 = undo 1개. 이게 없으면 슬라이더/기즈모가 움직이는 **틱마다** 스택에 쌓여서
+	// Ctrl+Z 를 수십 번 눌러야 원래 값으로 돌아온다(CEditorCommandManager 는 드래그 경계를
+	// 감지해 TryMerge 를 부르는데, 기본 구현이 false 라 병합이 아예 시도되지 않았다).
+	bool TryMerge(const IEditorCommand& newer) override;
 
 private:
 	void Apply(const std::vector<Transform2D>& transforms);

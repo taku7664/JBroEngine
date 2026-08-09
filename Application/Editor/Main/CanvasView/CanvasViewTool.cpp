@@ -144,15 +144,26 @@ namespace
         debugDraw.DrawLine(Vector2(left,  top),    Vector2(left,  bottom), boundsCol);
     }
 
-    // 이 캔버스에 보이는 화면 공간 레이어가 있는가(가이드를 띄울지 판단).
-    bool HasVisibleScreenLayer(const CGameCanvas& canvas)
+    // 지금 화면 공간을 편집 중인가 — 가이드와 "화면에 맞추기" 버튼을 띄울 조건.
+    //
+    // "캔버스에 화면 레이어가 하나라도 있으면"으로 하면, UI 를 한 번 만든 캔버스에서는
+    // 월드를 편집하는 내내 사각형이 따라다닌다. 지금 보고 있는 대상이 화면 공간일 때만 띄운다:
+    //   · 레이어를 선택했고 그 레이어가 화면 공간이거나
+    //   · 오브젝트를 선택했고 그 오브젝트가 속한 레이어가 화면 공간이거나
+    bool IsEditingScreenSpace()
     {
-        for (std::size_t i = 0; i < canvas.GetLayerCount(); ++i)
+        if (const CGameLayer* selectedLayer = Editor::GetSelectedLayer())
         {
-            const CGameLayer* layer = canvas.GetLayerAt(i);
-            if (nullptr != layer && layer->Visible && ELayerSpace::Screen == layer->Space)
+            if (ELayerSpace::Screen == selectedLayer->Space)
             {
                 return true;
+            }
+        }
+        if (const CGameObject* selectedObject = Editor::GetSelectedEntity())
+        {
+            if (const CGameLayer* objectLayer = selectedObject->GetLayer().TryGet())
+            {
+                return ELayerSpace::Screen == objectLayer->Space;
             }
         }
         return false;
@@ -448,8 +459,8 @@ void CCanvasViewTool::OnRenderStay()
                 CanvasDebugDraw::Submit(*canvas, *Engine.DebugDraw2D,
                                        Editor::GetSelectedEntity(), resW, resH, activeCompType);
 
-                // 화면 공간 레이어가 있으면 저작 기준 렉트를 가이드로 띄운다.
-                if (HasVisibleScreenLayer(*canvas))
+                // 화면 공간을 편집 중일 때만 저작 기준 렉트를 가이드로 띄운다.
+                if (IsEditingScreenSpace())
                 {
                     SubmitScreenSpaceBounds(*Engine.DebugDraw2D,
                         Runtime.ReferenceResolutionWidth  / std::max(Runtime.PixelsPerUnit, 0.0001f) * 0.5f,
@@ -514,8 +525,7 @@ void CCanvasViewTool::OnRenderStay()
     // 화면 렉트에 맞추고 월드 레이어를 숨기는 것"인데, 앞은 이 버튼이고 뒤는 레이어 가시성
     // 토글이라 둘 다 이미 있는 기능이다. 모드를 새로 만들면 에디터 카메라 상태 저장과
     // 충돌할 여지만 생긴다.
-    if (SafePtr<CGameCanvas> fitCanvas = EditorContext::GetActiveCanvas();
-        fitCanvas && HasVisibleScreenLayer(*fitCanvas))
+    if (IsEditingScreenSpace())
     {
         constexpr float FIT_BTN_W = 110.0f;
         const ImVec2 fitMin(btnMin.x - FIT_BTN_W - 6.0f, btnMin.y);

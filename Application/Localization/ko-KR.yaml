@@ -390,6 +390,8 @@ Entries:
   inspector.layer.scale_mode.fixed_width: 폭 고정
   inspector.layer.scale_mode.contain: 맞추기
   inspector.layer.scale_mode.constant_pixel: 픽셀 고정
+  inspector.transform.anchor: 앵커
+  inspector.transform.anchor.tooltip: "화면 어디에 붙을지 정합니다. (0,0)=좌하단, (1,1)=우상단, (0.5,0.5)=중앙. 위쪽이 y=1 인 것은 엔진 좌표계가 +y 위이기 때문이며, 화면 공간도 같은 규약을 씁니다. 위치 값은 이 앵커점으로부터의 오프셋이라 앵커를 바꿔도 위치 숫자는 그대로입니다."
   inspector.layer.anchor_to_safe_area: 안전영역에 앵커
   inspector.layer.anchor_to_safe_area.tooltip: "앵커 기준을 화면 전체가 아니라 안전영역(노치·펀치홀·제스처바를 제외한 영역)으로 잡습니다. 현재 모든 플랫폼이 인셋 0을 보고하므로 켜도 결과가 같습니다 — 값이 들어오면 이 레이어만 안쪽으로 들어옵니다."
   inspector.layer.keep_on_canvas_change: 캔버스 전환 시 승계
