@@ -31,11 +31,19 @@ public:
 	std::uint32_t GetFrameIndex() const { return m_frameIndex; }
 	void SetFrameIndex(std::uint32_t frameIndex) { m_frameIndex = frameIndex; MarkBoundsDirty(); }
 
-	AssetGuid MaterialGuid = INVALID_ASSET_GUID;
 	// 좌우/상하 반전 — 월드 크기 부호를 뒤집어 쿼드를 미러링한다(별도 텍스처 불필요).
-	// 쿼드는 Offset 을 중심으로 그려지므로 반전해도 경계는 그대로다 → 세터로 닫지 않는다.
-	bool FlipX = false;
-	bool FlipY = false;
+	// 피벗을 축으로 미러링되므로 피벗이 중앙이 아니면 **경계도 움직인다** → 세터로 닫는다.
+	bool GetFlipX() const { return m_flipX; }
+	void SetFlipX(bool flipX) { m_flipX = flipX; MarkBoundsDirty(); }
+	bool GetFlipY() const { return m_flipY; }
+	void SetFlipY(bool flipY) { m_flipY = flipY; MarkBoundsDirty(); }
+
+	// 실제로 그려지는 쿼드의 오브젝트-로컬 중심과 크기(반전 부호 포함).
+	// 렌더·경계·에디터 피킹이 **모두 이 하나를 쓴다** — 피벗 계산이 갈리면 그리는 자리와
+	// 집는 자리가 어긋난다. 자산이 아직 해석되지 않았으면 false.
+	bool TryGetLocalQuad(Vector2& outCenter, Vector2& outSize) const;
+
+	AssetGuid MaterialGuid = INVALID_ASSET_GUID;
 	::Color Color = { 1.0f, 1.0f, 1.0f, 1.0f };
 	// 그림자 캐스터 — 켜면 이 스프라이트의 실루엣(알파)이 CastShadows 라이트의 그림자를 만든다.
 	bool CastShadow = false;
@@ -71,4 +79,6 @@ private:
 	AssetGuid m_spriteGuid = INVALID_ASSET_GUID;
 	Vector2 m_size = Vector2(1.0f, 1.0f);
 	std::uint32_t m_frameIndex = 0;
+	bool m_flipX = false;
+	bool m_flipY = false;
 };

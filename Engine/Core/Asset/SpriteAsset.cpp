@@ -120,11 +120,14 @@ namespace
 			return {};
 		}
 
-		const float left = -frame.PivotX * static_cast<float>(frame.Width) / pixelsPerUnit;
-		const float top = frame.PivotY * static_cast<float>(frame.Height) / pixelsPerUnit;
+		// 피벗 규약은 **Y-up** 이다 — (0,0)=좌하단, (0.5,0.5)=중앙, (0,1)=좌상단.
+		// Transform2D.Anchor 와 같은 방향이고, 예전(Y-down)과는 반대다.
+		// 반환 Rect 는 Top=최소 y, Bottom=최대 y (엔진 공통 경계 규약).
+		const float left  = -frame.PivotX * static_cast<float>(frame.Width) / pixelsPerUnit;
 		const float right = (1.0f - frame.PivotX) * static_cast<float>(frame.Width) / pixelsPerUnit;
-		const float bottom = -(1.0f - frame.PivotY) * static_cast<float>(frame.Height) / pixelsPerUnit;
-		return Rect(left, bottom, right, top);
+		const float minY  = -frame.PivotY * static_cast<float>(frame.Height) / pixelsPerUnit;
+		const float maxY  = (1.0f - frame.PivotY) * static_cast<float>(frame.Height) / pixelsPerUnit;
+		return Rect(left, minY, right, maxY);
 	}
 
 	Rect ComputeLocalOpaqueBounds(const SpriteFrame& frame, float pixelsPerUnit)
@@ -134,12 +137,15 @@ namespace
 			return {};
 		}
 
+		// opaque.Y 는 프레임 **위쪽**에서부터 센 픽셀 행이다. 프레임 위 모서리의 월드 y 가
+		// (1-PivotY)·H 이므로, 행 r 의 월드 y 는 ((1-PivotY)·H - r) 이다.
 		const SpritePixelBounds& opaque = frame.OpaqueBoundsPixels;
-		const float left = (static_cast<float>(opaque.X) - frame.PivotX * static_cast<float>(frame.Width)) / pixelsPerUnit;
+		const float pivotTop = (1.0f - frame.PivotY) * static_cast<float>(frame.Height);
+		const float left  = (static_cast<float>(opaque.X) - frame.PivotX * static_cast<float>(frame.Width)) / pixelsPerUnit;
 		const float right = (static_cast<float>(opaque.X + opaque.Width) - frame.PivotX * static_cast<float>(frame.Width)) / pixelsPerUnit;
-		const float bottom = (frame.PivotY * static_cast<float>(frame.Height) - static_cast<float>(opaque.Y + opaque.Height)) / pixelsPerUnit;
-		const float top = (frame.PivotY * static_cast<float>(frame.Height) - static_cast<float>(opaque.Y)) / pixelsPerUnit;
-		return Rect(left, bottom, right, top);
+		const float minY  = (pivotTop - static_cast<float>(opaque.Y + opaque.Height)) / pixelsPerUnit;
+		const float maxY  = (pivotTop - static_cast<float>(opaque.Y)) / pixelsPerUnit;
+		return Rect(left, minY, right, maxY);
 	}
 
 	void BuildFrameBounds(

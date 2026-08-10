@@ -153,40 +153,35 @@ void CSpriteRenderSystem::OnUpdate(CGameCanvas& canvas)
 				return;
 			}
 
-			// 월드 크기 = (픽셀 크기 / 유효 PPU) × sprite.Size (스케일 배수).
-			// 자산 PPU 가 0 이면 ScriptCore 폴백(프로젝트 Default PPU) 사용.
-			Vector2 finalSize = sprite.GetSize();
+			// 프레임 선택 — 시트 슬라이스가 있으면 FrameIndex 프레임, 없으면 전체(항등 UV).
 			float uvRect[4] = { 0.0f, 0.0f, 1.0f, 1.0f };
 			if (spriteAsset)
 			{
-				const float effectivePPU = resolvedPixelsPerUnit;
 				const float texW = static_cast<float>(spriteAsset->GetWidth());
 				const float texH = static_cast<float>(spriteAsset->GetHeight());
-
-				// 프레임 선택 — 시트 슬라이스가 있으면 FrameIndex 프레임, 없으면 전체(항등 UV).
-				float frameW = texW;
-				float frameH = texH;
 				const std::vector<SpriteFrame>& frames = spriteAsset->GetFrames();
 				if (false == frames.empty() && texW > 0.0f && texH > 0.0f)
 				{
 					const std::uint32_t count = static_cast<std::uint32_t>(frames.size());
 					const std::uint32_t idx = sprite.GetFrameIndex() < count ? sprite.GetFrameIndex() : count - 1;
 					const SpriteFrame& frame = frames[idx];
-					frameW = static_cast<float>(frame.Width);
-					frameH = static_cast<float>(frame.Height);
 					uvRect[0] = static_cast<float>(frame.X) / texW;
 					uvRect[1] = static_cast<float>(frame.Y) / texH;
-					uvRect[2] = frameW / texW;
-					uvRect[3] = frameH / texH;
+					uvRect[2] = static_cast<float>(frame.Width) / texW;
+					uvRect[3] = static_cast<float>(frame.Height) / texH;
 				}
-
-				finalSize.x = (frameW / effectivePPU) * sprite.GetSize().x;
-				finalSize.y = (frameH / effectivePPU) * sprite.GetSize().y;
 			}
 
-			// 반전 — 월드 크기 부호를 뒤집으면 쿼드가 미러링된다(음수 스케일).
-			if (sprite.FlipX) finalSize.x = -finalSize.x;
-			if (sprite.FlipY) finalSize.y = -finalSize.y;
+			// 쿼드의 중심/크기는 **컴포넌트가 낸다**(피벗·반전·유효 PPU 반영).
+			// 경계 계산과 에디터 피킹이 같은 함수를 쓰므로 그리는 자리와 집는 자리가 갈릴 수 없다.
+			Vector2 quadCenter = sprite.GetOffset();
+			Vector2 quadSize   = sprite.GetSize();
+			if (false == sprite.TryGetLocalQuad(quadCenter, quadSize))
+			{
+				// 자산 미해석 폴백 — 크기 배수를 유닛으로 그대로 쓰고 반전만 반영한다.
+				if (sprite.GetFlipX()) quadSize.x = -quadSize.x;
+				if (sprite.GetFlipY()) quadSize.y = -quadSize.y;
+			}
 
 			RenderItem item;
 			item.Mesh = mesh;
@@ -196,7 +191,7 @@ void CSpriteRenderSystem::OnUpdate(CGameCanvas& canvas)
 			item.Sampler = material->GetSampler();
 			item.Queue = material->GetRenderQueue();
 			item.LayerIndex = owner->GetLayerIndex();
-			const Matrix3x2 spriteLocalTransform = Matrix3x2::Transform(sprite.GetOffset(), 0.0f, finalSize);
+			const Matrix3x2 spriteLocalTransform = Matrix3x2::Transform(quadCenter, 0.0f, quadSize);
 			item.Transform = spriteLocalTransform * owner->GetWorld().Matrix;
 			for (int i = 0; i < 4; ++i)
 			{
