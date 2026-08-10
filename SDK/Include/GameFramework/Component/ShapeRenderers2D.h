@@ -20,15 +20,11 @@ public:
 	const Vector2& GetSize() const { return m_size; }
 	void SetSize(const Vector2& size) { m_size = size; MarkBoundsDirty(); }
 
-	const Vector2& GetOffset() const { return m_offset; }
-	void SetOffset(const Vector2& offset) { m_offset = offset; MarkBoundsDirty(); }
-
 	bool FillEnabled = true;
 	Color FillColor = { 1.0f, 1.0f, 1.0f, 1.0f };
 	bool OutlineEnabled = false;
 	Color OutlineColor = { 0.0f, 0.0f, 0.0f, 1.0f };
 	float OutlineWidth = 0.05f;
-	std::int32_t SortOrder = 0;
 
 protected:
 	void ComputeLocalBounds(Rect& outBounds) const override;
@@ -38,7 +34,6 @@ private:
 	friend void RegisterBuiltinComponents(CReflectionRegistry&);
 
 	Vector2 m_size = Vector2(1.0f, 1.0f);
-	Vector2 m_offset = Vector2(0.0f, 0.0f);
 };
 
 class Circle2D final : public CRenderer2DComponent
@@ -48,9 +43,6 @@ public:
 	float GetRadius() const { return m_radius; }
 	void SetRadius(float radius) { m_radius = radius; MarkBoundsDirty(); }
 
-	const Vector2& GetOffset() const { return m_offset; }
-	void SetOffset(const Vector2& offset) { m_offset = offset; MarkBoundsDirty(); }
-
 	// Segments 는 테셀레이션 품질일 뿐 경계를 바꾸지 않는다 → 공개 유지.
 	std::uint32_t Segments = 64;
 	bool FillEnabled = true;
@@ -58,7 +50,6 @@ public:
 	bool OutlineEnabled = false;
 	Color OutlineColor = { 0.0f, 0.0f, 0.0f, 1.0f };
 	float OutlineWidth = 0.05f;
-	std::int32_t SortOrder = 0;
 
 protected:
 	void ComputeLocalBounds(Rect& outBounds) const override;
@@ -67,7 +58,6 @@ private:
 	friend void RegisterBuiltinComponents(CReflectionRegistry&);
 
 	float m_radius = 0.5f;
-	Vector2 m_offset = Vector2(0.0f, 0.0f);
 };
 
 class Polygon2D final : public CRenderer2DComponent
@@ -83,15 +73,11 @@ public:
 	Radian GetStartAngle() const { return m_startAngle; }
 	void SetStartAngle(Radian startAngle) { m_startAngle = startAngle; MarkBoundsDirty(); }
 
-	const Vector2& GetOffset() const { return m_offset; }
-	void SetOffset(const Vector2& offset) { m_offset = offset; MarkBoundsDirty(); }
-
 	bool FillEnabled = true;
 	Color FillColor = { 1.0f, 1.0f, 1.0f, 1.0f };
 	bool OutlineEnabled = false;
 	Color OutlineColor = { 0.0f, 0.0f, 0.0f, 1.0f };
 	float OutlineWidth = 0.05f;
-	std::int32_t SortOrder = 0;
 
 protected:
 	// 정다각형이라 꼭짓점을 실제로 돌며 min/max 를 낸다(외접원으로 근사하지 않는다 —
@@ -104,5 +90,4 @@ private:
 	float m_radius = 0.5f;
 	std::uint32_t m_vertexCount = 6;
 	Radian m_startAngle = 0.0f;
-	Vector2 m_offset = Vector2(0.0f, 0.0f);
 };

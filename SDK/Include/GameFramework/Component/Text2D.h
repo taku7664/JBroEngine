@@ -47,10 +47,6 @@ public:
 	Color OutlineColor = { 0.0f, 0.0f, 0.0f, 1.0f };
 	float OutlineWidthPixels = 0.0f;
 	bool PixelSnap = false;
-	std::int32_t SortOrder = 0;
-
-	const Vector2& GetOffset() const { return m_offset; }
-	void SetOffset(const Vector2& offset) { m_offset = offset; MarkBoundsDirty(); }
 
 protected:
 	void ComputeLocalBounds(Rect& outBounds) const override;
@@ -63,7 +59,6 @@ private:
 	// (시스템이 매 프레임 부르지만 텍스트는 대개 그대로다).
 	void SetShapedBounds(float centerX, float centerY, float width, float height);
 
-	Vector2 m_offset = Vector2(0.0f, 0.0f);
 	Vector2 m_shapedCenter = Vector2(0.0f, 0.0f);
 	float m_shapedWidth = 0.0f;
 	float m_shapedHeight = 0.0f;

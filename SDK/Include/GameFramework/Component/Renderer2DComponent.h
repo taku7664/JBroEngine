@@ -4,6 +4,10 @@
 #include "Utillity/Math/RectT.h"
 #include "Utillity/Math/Vector2T.h"
 
+#include <cstdint>
+
+class CReflectionRegistry;
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  CRenderer2DComponent — 화면에 무언가를 그리는 컴포넌트의 공통 베이스.
 //
@@ -41,6 +45,17 @@ public:
 	// 순서는 좌하 → 우하 → 우상 → 좌상 (반시계).
 	void GetWorldCorners(Vector2 outCorners[4]) const;
 
+	// ── 렌더러블 공통 필드 ───────────────────────────────────────────────────
+	// 5종이 전부 같은 의미로 따로 들고 있던 값이라 베이스로 올렸다.
+
+	// 그리는 지점의 로컬 오프셋(유닛, 오브젝트 원점 기준).
+	// 경계를 바꾸므로 세터로만 바꾼다.
+	const Vector2& GetOffset() const { return m_offset; }
+	void SetOffset(const Vector2& offset) { m_offset = offset; MarkBoundsDirty(); }
+
+	// 같은 레이어 안에서의 드로우 순서. 경계와 무관하므로 열어 둔다.
+	std::int32_t SortOrder = 0;
+
 	CRenderer2DComponent* AsRenderer2DComponent() override { return this; }
 
 protected:
@@ -57,9 +72,13 @@ protected:
 	// protected 인 이유: 파생 렌더러의 세터는 불러야 하지만, 스크립트 사용자가 알 필요는 없다.
 	void MarkBoundsDirty() const { m_boundsDirty = true; }
 
+	Vector2 m_offset = Vector2(0.0f, 0.0f);
+
 private:
 	// 리플렉션 raw 쓰기 경로가 더티를 알리는 유일한 통로. 접근자 헤더는 SDK 로 나가지 않는다.
 	friend class CRendererComponentAccess;
+	// 리플렉션 등록만 raw offset 을 본다 — 파생 타입에서 offsetof(X, m_offset) 로 접근한다.
+	friend void RegisterBuiltinComponents(CReflectionRegistry&);
 
 	mutable Rect m_localBounds;
 	mutable bool m_boundsDirty = true;
