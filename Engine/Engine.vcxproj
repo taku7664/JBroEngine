@@ -491,6 +491,8 @@
     <ClInclude Include="GameFramework\Canvas\CanvasTypes.h" />
     <ClInclude Include="GameFramework\Object\ObjectPool.h" />
     <ClInclude Include="GameFramework\Component\Component.h" />
+    <ClInclude Include="GameFramework\Component\Renderer2DComponent.h" />
+    <ClInclude Include="GameFramework\Component\RendererComponentAccess.h" />
     <ClInclude Include="GameFramework\System\GameSystem.h" />
     <ClInclude Include="Editor\ImEditor.h" />
     <ClInclude Include="Editor\ImGuiUtillity.h" />
@@ -870,6 +872,10 @@
     <ClCompile Include="GameFramework\Debug\CanvasDebugDrawSystem.cpp" />
     <ClCompile Include="GameFramework\Physics2D\Physics2DSystem.cpp" />
     <ClCompile Include="GameFramework\Component\BuiltinComponentRegistry.cpp" />
+    <ClCompile Include="GameFramework\Component\Renderer2DComponent.cpp" />
+    <ClCompile Include="GameFramework\Component\ShapeRenderers2D.cpp" />
+    <ClCompile Include="GameFramework\Component\SpriteRenderer2D.cpp" />
+    <ClCompile Include="GameFramework\Component\Text2D.cpp" />
     <ClCompile Include="GameFramework\Reflection\ReflectionRegistry.cpp" />
     <ClCompile Include="GameFramework\Scripting\CoroutineScheduler.cpp" />
     <ClCompile Include="GameFramework\Scripting\GameScript.cpp" />

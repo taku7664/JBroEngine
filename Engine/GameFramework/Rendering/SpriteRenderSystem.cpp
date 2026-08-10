@@ -77,11 +77,13 @@ void CSpriteRenderSystem::OnUpdate(CGameCanvas& canvas)
 			// SpriteGuid 는 CSpriteAsset 을 가리킨다 (이전 CTextureAsset 통합됨).
 			// 자산 캐시 — SpriteGuid 가 바뀌었거나 캐시가 죽었을 때만 LoadAsset 호출.
 			// AssetRef 가 strong 이라 캐시가 살아있는 동안 자산이 unload 되지 않음.
-			if (sprite.CachedSpriteGuid != sprite.SpriteGuid || false == sprite.SpriteAssetCache.IsValid())
+			if (sprite.CachedSpriteGuid != sprite.GetSpriteGuid() || false == sprite.SpriteAssetCache.IsValid())
 			{
-				if (m_assetManager) sprite.SpriteAssetCache = m_assetManager->LoadAsset(sprite.SpriteGuid);
+				if (m_assetManager) sprite.SpriteAssetCache = m_assetManager->LoadAsset(sprite.GetSpriteGuid());
 				else                sprite.SpriteAssetCache.Reset();
-				sprite.CachedSpriteGuid = sprite.SpriteGuid;
+				sprite.CachedSpriteGuid = sprite.GetSpriteGuid();
+				// 자산이 바뀌면 프레임 픽셀 크기가 달라진다 → 경계 캐시 무효화.
+				sprite.NotifyAssetCacheChanged();
 				// guid 가 바뀌면 옛 Mesh/Material 무효 — 옛 텍스처로 계속 그리지 않도록 비움.
 				// (SpriteGuid = INVALID 로 해서 sprite 를 제거한 경우도 여기로 들어와 화면에서 사라진다.)
 				mesh.Reset();
@@ -98,6 +100,18 @@ void CSpriteRenderSystem::OnUpdate(CGameCanvas& canvas)
 				spriteAsset = static_cast<CSpriteAsset*>(sprite.SpriteAssetCache.Get());
 			}
 
+			// 유효 PPU 를 컴포넌트에 주입한다 — 컴포넌트는 전역 Runtime 을 읽을 수 없으므로
+			// (호스트 전용) 이 값 없이는 스스로 경계를 낼 수 없다. 아래 GPU 리소스 분기에서
+			// 조기 반환할 수 있으니 그보다 먼저 채운다.
+			const float resolvedPixelsPerUnit = spriteAsset
+				? spriteAsset->GetEffectivePixelsPerUnit(m_pixelsPerUnit)
+				: 0.0f;
+			if (sprite.CachedPixelsPerUnit != resolvedPixelsPerUnit)
+			{
+				sprite.CachedPixelsPerUnit = resolvedPixelsPerUnit;
+				sprite.NotifyAssetCacheChanged();
+			}
+
 			// 자산 픽셀이 reload 되었으면 캐시된 Mesh/Material 의 텍스처 참조가 죽었을 수 있다.
 			// pixelGeneration 이 증가하면 invalidate → 아래 분기에서 새 GPU 텍스처로 재생성.
 			if (spriteAsset && spriteAsset->GetPixelGeneration() != sprite.CachedPixelGeneration)
@@ -108,6 +122,8 @@ void CSpriteRenderSystem::OnUpdate(CGameCanvas& canvas)
 				sprite.Material.Reset();
 				m_materialCache.erase(cacheKey);
 				sprite.CachedPixelGeneration = spriteAsset->GetPixelGeneration();
+				// 픽셀 재로드로 텍스처 크기/슬라이스가 달라졌을 수 있다 → 경계 캐시 무효화.
+				sprite.NotifyAssetCacheChanged();
 			}
 
 			if ((false == mesh.IsValid() || false == material.IsValid()) && m_rhiDevice && forwardRenderer)
@@ -139,11 +155,11 @@ void CSpriteRenderSystem::OnUpdate(CGameCanvas& canvas)
 
 			// 월드 크기 = (픽셀 크기 / 유효 PPU) × sprite.Size (스케일 배수).
 			// 자산 PPU 가 0 이면 ScriptCore 폴백(프로젝트 Default PPU) 사용.
-			Vector2 finalSize = sprite.Size;
+			Vector2 finalSize = sprite.GetSize();
 			float uvRect[4] = { 0.0f, 0.0f, 1.0f, 1.0f };
 			if (spriteAsset)
 			{
-				const float effectivePPU = spriteAsset->GetEffectivePixelsPerUnit(m_pixelsPerUnit);
+				const float effectivePPU = resolvedPixelsPerUnit;
 				const float texW = static_cast<float>(spriteAsset->GetWidth());
 				const float texH = static_cast<float>(spriteAsset->GetHeight());
 
@@ -154,7 +170,7 @@ void CSpriteRenderSystem::OnUpdate(CGameCanvas& canvas)
 				if (false == frames.empty() && texW > 0.0f && texH > 0.0f)
 				{
 					const std::uint32_t count = static_cast<std::uint32_t>(frames.size());
-					const std::uint32_t idx = sprite.FrameIndex < count ? sprite.FrameIndex : count - 1;
+					const std::uint32_t idx = sprite.GetFrameIndex() < count ? sprite.GetFrameIndex() : count - 1;
 					const SpriteFrame& frame = frames[idx];
 					frameW = static_cast<float>(frame.Width);
 					frameH = static_cast<float>(frame.Height);
@@ -164,8 +180,8 @@ void CSpriteRenderSystem::OnUpdate(CGameCanvas& canvas)
 					uvRect[3] = frameH / texH;
 				}
 
-				finalSize.x = (frameW / effectivePPU) * sprite.Size.x;
-				finalSize.y = (frameH / effectivePPU) * sprite.Size.y;
+				finalSize.x = (frameW / effectivePPU) * sprite.GetSize().x;
+				finalSize.y = (frameH / effectivePPU) * sprite.GetSize().y;
 			}
 
 			// 반전 — 월드 크기 부호를 뒤집으면 쿼드가 미러링된다(음수 스케일).
@@ -180,7 +196,7 @@ void CSpriteRenderSystem::OnUpdate(CGameCanvas& canvas)
 			item.Sampler = material->GetSampler();
 			item.Queue = material->GetRenderQueue();
 			item.LayerIndex = owner->GetLayerIndex();
-			const Matrix3x2 spriteLocalTransform = Matrix3x2::Transform(sprite.Offset, 0.0f, finalSize);
+			const Matrix3x2 spriteLocalTransform = Matrix3x2::Transform(sprite.GetOffset(), 0.0f, finalSize);
 			item.Transform = spriteLocalTransform * owner->GetWorld().Matrix;
 			for (int i = 0; i < 4; ++i)
 			{

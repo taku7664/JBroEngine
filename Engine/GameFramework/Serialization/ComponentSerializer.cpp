@@ -13,6 +13,7 @@
 #include "GameFramework/Component/SpriteRenderer2D.h"
 #include "GameFramework/Component/Text2D.h"
 #include "GameFramework/Component/Component.h"
+#include "GameFramework/Component/RendererComponentAccess.h"
 #include "GameFramework/Object/GameObject.h"
 #include "GameFramework/Object/Ref.h"
 #include "GameFramework/Reflection/ReflectionRegistry.h"
@@ -1285,7 +1286,7 @@ CComponent* ReadComponentInto(CGameObject& object, const YAML::Node& node,
 		if (SpriteRenderer2D* sprite = object.AddComponent<SpriteRenderer2D>())
 		{
 			ReadSpriteRenderer(node, *sprite);
-			AddReferencedAsset(assets, sprite->SpriteGuid);
+			AddReferencedAsset(assets, sprite->GetSpriteGuid());
 			AddReferencedAsset(assets, sprite->MaterialGuid);
 			added = sprite;
 		}
@@ -1321,8 +1322,7 @@ CComponent* ReadComponentInto(CGameObject& object, const YAML::Node& node,
 			{
 				ReadComponentReflected(node, shape, *ti);
 			}
-			shape->Size.x = std::abs(shape->Size.x);
-			shape->Size.y = std::abs(shape->Size.y);
+			shape->SetSize(Vector2(std::abs(shape->GetSize().x), std::abs(shape->GetSize().y)));
 			shape->OutlineWidth = std::max(0.0f, shape->OutlineWidth);
 			added = shape;
 		}
@@ -1335,7 +1335,7 @@ CComponent* ReadComponentInto(CGameObject& object, const YAML::Node& node,
 			{
 				ReadComponentReflected(node, shape, *ti);
 			}
-			shape->Radius = std::abs(shape->Radius);
+			shape->SetRadius(std::abs(shape->GetRadius()));
 			shape->Segments = std::clamp(shape->Segments, 8u, 256u);
 			shape->OutlineWidth = std::max(0.0f, shape->OutlineWidth);
 			added = shape;
@@ -1349,8 +1349,8 @@ CComponent* ReadComponentInto(CGameObject& object, const YAML::Node& node,
 			{
 				ReadComponentReflected(node, shape, *ti);
 			}
-			shape->Radius = std::abs(shape->Radius);
-			shape->VertexCount = std::clamp(shape->VertexCount, 3u, 256u);
+			shape->SetRadius(std::abs(shape->GetRadius()));
+			shape->SetVertexCount(std::clamp(shape->GetVertexCount(), 3u, 256u));
 			shape->OutlineWidth = std::max(0.0f, shape->OutlineWidth);
 			added = shape;
 		}
@@ -1453,6 +1453,11 @@ CComponent* ReadComponentInto(CGameObject& object, const YAML::Node& node,
 
 	if (added)
 	{
+		// 역직렬화는 리플렉션으로 필드를 raw 로 덮어쓴다 — 세터를 타지 않으므로 여기서 알린다.
+		// 갓 생성된 컴포넌트는 이미 더티지만, 그건 **강제되지 않은 암묵 불변식**이다. 살아 있는
+		// 컴포넌트에 역직렬화하는 경로(프리팹 되돌리기·핫리로드·상태 동기화)가 생기면 조용히
+		// 틀린다. 타입 무관 한 줄이라 여기 두는 비용이 없다.
+		CRendererComponentAccess::NotifyReflectedWrite(*added);
 		added->SetEnabled(ReadValueOr<bool>(node, "IsEnabled", true));
 		const std::string compGuid = ReadValueOr<std::string>(node, "InstanceGuid", "");
 		if (false == compGuid.empty())

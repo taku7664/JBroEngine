@@ -148,9 +148,9 @@ void CSpriteAnimationSystem::StartClip(SpriteAnimator2D& animator, SpriteRendere
 
 	// 클립이 자기 시트를 지정했으면 렌더러의 시트를 갈아 끼운다. 지정하지 않았으면
 	// 렌더러가 이미 들고 있는 시트를 그대로 쓴다(한 시트를 구간으로 나눠 쓰는 흔한 경우).
-	if (false == data.SpriteGuid.IsNull() && data.SpriteGuid != sprite.SpriteGuid)
+	if (false == data.SpriteGuid.IsNull() && data.SpriteGuid != sprite.GetSpriteGuid())
 	{
-		sprite.SpriteGuid = data.SpriteGuid;
+		sprite.SetSpriteGuid(data.SpriteGuid);
 	}
 
 	animator.RuntimeClipIndex      = clipIndex;
@@ -223,7 +223,7 @@ void CSpriteAnimationSystem::UpdateClipMode(SpriteAnimator2D& animator, SpriteRe
 	}
 	const AnimationClipData& data = clip->GetData();
 
-	const AssetGuid& sheetGuid = data.SpriteGuid.IsNull() ? sprite.SpriteGuid : data.SpriteGuid;
+	const AssetGuid& sheetGuid = data.SpriteGuid.IsNull() ? sprite.GetSpriteGuid() : data.SpriteGuid;
 	const std::uint32_t totalFrames = GetSheetFrameCount(sheetGuid);
 	if (0 == totalFrames)
 	{
@@ -237,7 +237,7 @@ void CSpriteAnimationSystem::UpdateClipMode(SpriteAnimator2D& animator, SpriteRe
 	// 애니메이션할 프레임이 1 이하면 정적 표시.
 	if (range <= 1)
 	{
-		sprite.FrameIndex              = start;
+		sprite.SetFrameIndex(start);
 		animator.RuntimeLocalFrame     = 0;
 		animator.RuntimeElapsedSeconds = 0.0f;
 		return;
@@ -283,12 +283,12 @@ void CSpriteAnimationSystem::UpdateClipMode(SpriteAnimator2D& animator, SpriteRe
 	{
 		animator.RuntimeLocalFrame = range - 1;
 	}
-	sprite.FrameIndex = start + animator.RuntimeLocalFrame;
+	sprite.SetFrameIndex(start + animator.RuntimeLocalFrame);
 }
 
 void CSpriteAnimationSystem::UpdateSheetMode(SpriteAnimator2D& animator, SpriteRenderer2D& sprite, float deltaSeconds)
 {
-	const std::uint32_t totalFrames = GetSheetFrameCount(sprite.SpriteGuid);
+	const std::uint32_t totalFrames = GetSheetFrameCount(sprite.GetSpriteGuid());
 	if (0 == totalFrames)
 	{
 		return;
@@ -301,7 +301,7 @@ void CSpriteAnimationSystem::UpdateSheetMode(SpriteAnimator2D& animator, SpriteR
 	// 애니메이션할 프레임이 1 이하면 정적 표시.
 	if (range <= 1)
 	{
-		sprite.FrameIndex              = start;
+		sprite.SetFrameIndex(start);
 		animator.RuntimeLocalFrame     = 0;
 		animator.RuntimeElapsedSeconds = 0.0f;
 		return;
@@ -335,7 +335,7 @@ void CSpriteAnimationSystem::UpdateSheetMode(SpriteAnimator2D& animator, SpriteR
 	{
 		animator.RuntimeLocalFrame = range - 1;
 	}
-	sprite.FrameIndex = start + animator.RuntimeLocalFrame;
+	sprite.SetFrameIndex(start + animator.RuntimeLocalFrame);
 }
 
 void CSpriteAnimationSystem::OnUpdate(CGameCanvas& canvas)

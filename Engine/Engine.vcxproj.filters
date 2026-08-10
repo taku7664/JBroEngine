@@ -788,6 +788,12 @@
     <ClInclude Include="GameFramework\Component\ShapeRenderers2D.h">
       <Filter>Header\GameFramework\Component</Filter>
     </ClInclude>
+    <ClInclude Include="GameFramework\Component\Renderer2DComponent.h">
+      <Filter>Header\GameFramework\Component</Filter>
+    </ClInclude>
+    <ClInclude Include="GameFramework\Component\RendererComponentAccess.h">
+      <Filter>Header\GameFramework\Component</Filter>
+    </ClInclude>
     <ClInclude Include="GameFramework\Component\Transform2D.h">
       <Filter>Header\GameFramework\Component</Filter>
     </ClInclude>
@@ -1649,6 +1655,18 @@
       <Filter>Source\Core\FileSystem</Filter>
     </ClCompile>
     <ClCompile Include="GameFramework\Component\BuiltinComponentRegistry.cpp">
+      <Filter>Source\GameFramework\Component</Filter>
+    </ClCompile>
+    <ClCompile Include="GameFramework\Component\Renderer2DComponent.cpp">
+      <Filter>Source\GameFramework\Component</Filter>
+    </ClCompile>
+    <ClCompile Include="GameFramework\Component\ShapeRenderers2D.cpp">
+      <Filter>Source\GameFramework\Component</Filter>
+    </ClCompile>
+    <ClCompile Include="GameFramework\Component\SpriteRenderer2D.cpp">
+      <Filter>Source\GameFramework\Component</Filter>
+    </ClCompile>
+    <ClCompile Include="GameFramework\Component\Text2D.cpp">
       <Filter>Source\GameFramework\Component</Filter>
     </ClCompile>
     <ClCompile Include="GameFramework\Reflection\ReflectionRegistry.cpp">

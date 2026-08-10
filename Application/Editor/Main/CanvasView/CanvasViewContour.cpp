@@ -318,12 +318,12 @@ void CCanvasViewContour::DrawOutlinesImGui(
         if (!processed.insert(&object).second) return; // 이미 처리됨
 
         const Matrix3x2 spriteMat =
-            Matrix3x2::Transform(sprite.Offset, 0.0f, sprite.Size)
+            Matrix3x2::Transform(sprite.GetOffset(), 0.0f, sprite.GetSize())
             * GetWorldTransform(object);
 
         const std::vector<std::vector<Vector2>>* contours = nullptr;
-        if (assetMgr && sprite.SpriteGuid != INVALID_ASSET_GUID)
-            contours = GetOrBuild(*assetMgr, sprite.SpriteGuid, 0);
+        if (assetMgr && sprite.GetSpriteGuid() != INVALID_ASSET_GUID)
+            contours = GetOrBuild(*assetMgr, sprite.GetSpriteGuid(), 0);
 
         if (!contours || contours->empty())
         {
@@ -383,7 +383,7 @@ void CCanvasViewContour::DrawOutlinesImGui(
         if (!text || !text->IsEnabled() || nullptr == textSystem) continue;
         float centerX = 0.0f, centerY = 0.0f, width = 0.0f, height = 0.0f;
         if (false == textSystem->TryGetLocalBounds(*text, centerX, centerY, width, height)) continue;
-        const Matrix3x2 matrix = Matrix3x2::Transform(text->Offset + Vector2(centerX, centerY), 0.0f, Vector2(1.0f, 1.0f))
+        const Matrix3x2 matrix = Matrix3x2::Transform(text->GetOffset() + Vector2(centerX, centerY), 0.0f, Vector2(1.0f, 1.0f))
             * GetWorldTransform(*object);
         const Vector2 corners[4] = {
             matrix.TransformPoint({-width * 0.5f,  height * 0.5f}),

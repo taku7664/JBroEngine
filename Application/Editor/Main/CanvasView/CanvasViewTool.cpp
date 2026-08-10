@@ -321,8 +321,8 @@ void CCanvasViewTool::FocusOnEntity(CGameObject* object, const CGameCanvas& canv
     const SpriteRenderer2D* sprite = object->GetComponent<SpriteRenderer2D>();
     if (sprite && sprite->IsEnabled())
     {
-        const float wx = sprite->Size.x * scaleX;
-        const float wy = sprite->Size.y * scaleY;
+        const float wx = sprite->GetSize().x * scaleX;
+        const float wy = sprite->GetSize().y * scaleY;
         halfExtent = std::max(wx, wy) * 0.5f;
     }
     else

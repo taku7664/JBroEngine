@@ -7,6 +7,7 @@
 #include "Engine/Core/Logging/LoggerInternal.h"
 #include "Engine/GameFramework/Component/Physics2DComponents.h"
 #include "Engine/GameFramework/Scripting/GameScript.h"
+#include "Engine/GameFramework/Component/RendererComponentAccess.h"
 #include "Engine/GameFramework/Component/Transform2D.h"
 #include "Engine/GameFramework/Object/GameObject.h"
 #include "Engine/GameFramework/Reflection/ReflectionRegistry.h"
@@ -419,6 +420,9 @@ bool CSetComponentPropertyCommand::WriteValue(const std::vector<std::uint8_t>& v
 	}
 
 	std::memcpy(reinterpret_cast<std::uint8_t*>(component) + m_propertyOffset, value.data(), value.size());
+	// 여기가 인스펙터 편집 · undo · redo 가 전부 지나가는 **단일 관문**이다. raw 로 썼으니
+	// 세터가 하던 일(렌더러 경계 캐시 무효화)을 대신 알린다. 렌더러가 아니면 무시된다.
+	CRendererComponentAccess::NotifyReflectedWrite(*component);
 	return true;
 }
 
@@ -493,6 +497,7 @@ bool CSetComponentStringPropertyCommand::WriteValue(const std::string& value)
 	CComponent* component = CCanvasRuntimeAccess::FindComponentByGuid(*object, m_componentGuid);
 	if (!component) return false;
 	*reinterpret_cast<std::string*>(reinterpret_cast<std::uint8_t*>(component) + m_propertyOffset) = value;
+	CRendererComponentAccess::NotifyReflectedWrite(*component);
 	return true;
 }
 
@@ -529,7 +534,12 @@ bool CSetComponentSerializedPropertyCommand::WriteValue(const std::string& value
 	{
 		if (property.Offset != m_propertyOffset) continue;
 		void* field = CReflectionRegistry::GetPropertyAddress(component, property);
-		return Serialization::DeserializeReflectedPropertyValue(field, property, value.c_str());
+		const bool written = Serialization::DeserializeReflectedPropertyValue(field, property, value.c_str());
+		if (written)
+		{
+			CRendererComponentAccess::NotifyReflectedWrite(*component);
+		}
+		return written;
 	}
 	return false;
 }

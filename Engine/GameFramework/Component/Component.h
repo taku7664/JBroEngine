@@ -8,6 +8,7 @@
 class CGameObject;
 class CGameCanvas;
 class CReflectionRegistry;
+class CRenderer2DComponent;
 
 class ComponentConstructionToken final
 {
@@ -58,6 +59,16 @@ public:
 	// 직렬화/인스펙터 타입 키 (리플렉션 레지스트리에 등록된 이름과 일치해야 함).
 	virtual const char* GetTypeName() const = 0;
 
+	// 렌더러 식별 — RTTI(dynamic_cast) 없이 "이 컴포넌트가 2D 렌더러인가"를 묻는다.
+	// CRenderer2DComponent 가 this 를 반환하도록 재정의한다. 가상 호출 1회로 끝나므로
+	// 매 프레임 경로(버튼 히트테스트 등)에서 써도 된다.
+	// 선례: IRenderer::AsForward2DRenderer().
+	virtual CRenderer2DComponent* AsRenderer2DComponent() { return nullptr; }
+	const CRenderer2DComponent* AsRenderer2DComponent() const
+	{
+		return const_cast<CComponent*>(this)->AsRenderer2DComponent();
+	}
+
 protected:
 	CComponent(ComponentConstructionToken token, const SafePtr<CGameObject>& owner)
 		: m_owner(owner)
@@ -75,10 +86,14 @@ private:
 };
 
 // 빌트인 컴포넌트 클래스 본문에 한 번 기재 — GetTypeName 을 자동 구현한다.
-#define JBRO_COMPONENT(NAME)                                       \
+// BASE 는 직접 상속하는 컴포넌트 베이스(생성자 위임 대상)다.
+#define JBRO_COMPONENT_BASE(NAME, BASE)                            \
 public:                                                            \
 	static constexpr const char* StaticTypeName() { return #NAME; }   \
 	NAME(ComponentConstructionToken token,                           \
 		const SafePtr<CGameObject>& owner)                            \
-		: CComponent(token, owner) {}                                 \
+		: BASE(token, owner) {}                                       \
 	const char* GetTypeName() const override { return #NAME; }
+
+// CComponent 를 직접 상속하는 컴포넌트용 단축형.
+#define JBRO_COMPONENT(NAME) JBRO_COMPONENT_BASE(NAME, CComponent)

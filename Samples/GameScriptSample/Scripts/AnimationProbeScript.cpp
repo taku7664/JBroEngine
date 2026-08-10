@@ -102,7 +102,7 @@ Coroutine CAnimationProbeScript::RunProbe()
 
 	// 애니메이터는 **자기 오브젝트**에 붙인다 — 그래야 이벤트 훅이 여기로 온다.
 	SpriteRenderer2D* renderer = canvas->AddComponent<SpriteRenderer2D>(*owner);
-	renderer->SpriteGuid = AssetGuid(std::string(SHEET_GUID));
+	renderer->SetSpriteGuid(AssetGuid(std::string(SHEET_GUID)));
 
 	SpriteAnimator2D* animator = canvas->AddComponent<SpriteAnimator2D>(*owner);
 	animator->ClipGuids.Add(AssetGuid(std::string(LOOP_GUID)));
@@ -123,7 +123,7 @@ Coroutine CAnimationProbeScript::RunProbe()
 	Check(m_loopTick3Count >= 2, "frame-3 event fired on repeat");
 	CheckText(m_lastEventClip.c_str(), "probeLoop", "event carries its clip name");
 	CheckCount(m_endCount, 0, "looping clip never reports end");
-	Check(renderer->FrameIndex <= 3, "frame index stays inside the sheet");
+	Check(renderer->GetFrameIndex() <= 3, "frame index stays inside the sheet");
 
 	// ── 이름으로 전환 ────────────────────────────────────────────────────────
 	ProbeLog("--- switch by name ---");
@@ -140,7 +140,7 @@ Coroutine CAnimationProbeScript::RunProbe()
 	CheckCount(m_endCount, 1, "end hook fired exactly once");
 	CheckText(m_lastEndClip.c_str(), "probeOnce", "end hook carries its clip name");
 	Check(false == animator->IsPlaying(), "clip stopped at its last frame");
-	CheckCount(static_cast<int>(renderer->FrameIndex), 2, "stopped on the clip's last frame");
+	CheckCount(static_cast<int>(renderer->GetFrameIndex()), 2, "stopped on the clip's last frame");
 	CheckCount(m_loopTick1Count, tick1Before, "old clip stops firing after the switch");
 
 	// ── 없는 이름은 무시 ─────────────────────────────────────────────────────
@@ -160,9 +160,9 @@ Coroutine CAnimationProbeScript::RunProbe()
 	animator->Stop();
 	co_await Wait::Seconds(0.1f);
 	Check(false == animator->IsPlaying(), "Stop halts playback");
-	const std::uint32_t frozenFrame = renderer->FrameIndex;
+	const std::uint32_t frozenFrame = renderer->GetFrameIndex();
 	co_await Wait::Seconds(0.4f);
-	CheckCount(static_cast<int>(renderer->FrameIndex), static_cast<int>(frozenFrame), "frame frozen while stopped");
+	CheckCount(static_cast<int>(renderer->GetFrameIndex()), static_cast<int>(frozenFrame), "frame frozen while stopped");
 
 	const int total = m_passCount + m_failCount;
 	if (0 == m_failCount)

@@ -642,6 +642,9 @@ void CTextRenderSystem::OnUpdate(CGameCanvas& canvas)
 			|| cache.FamilyGenerationHash != resolved->GenerationHash;
 		if (stale && false == RebuildText(text, resolved->Faces, cache, *renderer)) return;
 		cache.FamilyGenerationHash = resolved->GenerationHash;
+		// 셰이핑 결과를 컴포넌트에 되돌려 준다 — Text2D 는 이 값 없이 자기 경계를 낼 수 없다
+		// (크기가 폰트/아틀라스 해석 결과라서). 값이 그대로면 SetShapedBounds 가 무시한다.
+		text.SetShapedBounds(cache.CenterX, cache.CenterY, cache.Width, cache.Height);
 		for (CachedMesh& mesh : cache.Meshes)
 		{
 			OwnerPtr<IRenderMaterial>& material = AcquireMaterial(mesh.FaceGuid, mesh.Page, *renderer);
@@ -650,7 +653,7 @@ void CTextRenderSystem::OnUpdate(CGameCanvas& canvas)
 			item.Mesh = mesh.Mesh.GetSafePtr(); item.Material = material.GetSafePtr(); item.Pipeline = renderer->GetTextPipeline();
 			item.Texture = material->GetTexture(); item.Sampler = material->GetSampler(); item.Queue = ERenderQueue::Transparent;
 			item.LayerIndex = text.GetOwner()->GetLayerIndex(); item.SortOrder = text.SortOrder; item.Entity = text.GetOwner().TryGet();
-			item.Transform = Matrix3x2::Transform(text.Offset + Vector2(cache.CenterX, cache.CenterY), 0.0f, Vector2(1.0f, 1.0f)) * text.GetOwner()->GetWorld().Matrix;
+			item.Transform = Matrix3x2::Transform(text.GetOffset() + Vector2(cache.CenterX, cache.CenterY), 0.0f, Vector2(1.0f, 1.0f)) * text.GetOwner()->GetWorld().Matrix;
 			if (text.PixelSnap && std::abs(item.Transform.M12) < 0.00001f && std::abs(item.Transform.M21) < 0.00001f)
 			{
 				item.Transform.Dx = std::round(item.Transform.Dx * m_pixelsPerUnit) / m_pixelsPerUnit;

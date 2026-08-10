@@ -47,6 +47,7 @@
 #include "Engine/GameFramework/Component/Camera2D.h"
 #include "Engine/GameFramework/Component/Physics2DComponents.h"
 #include "Engine/GameFramework/Scripting/GameScript.h"
+#include "Engine/GameFramework/Component/RendererComponentAccess.h"
 #include "Engine/GameFramework/Component/Transform2D.h"
 #include "Engine/GameFramework/Physics2D/Physics2DSystem.h"
 #include "Engine/GameFramework/Physics2D/Physics2DTypes.h"
@@ -842,6 +843,13 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		layout.Row([&]() { labelText(label.c_str()); }, [&]()
 		{
 			const bool changed = DrawPropertyEditor(field, property);
+			// 에디터는 필드를 **먼저 직접 쓰고** 커맨드는 undo 기록용으로 뒤에 만든다.
+			// 세 undo 갈래(raw/serialized/string) 중 무엇을 타든 값은 이미 바뀌었으므로,
+			// 갈래를 따지기 전에 여기서 한 번 알린다(렌더러가 아니면 무시된다).
+			if (changed)
+			{
+				CRendererComponentAccess::NotifyReflectedWrite(component);
+			}
 			if (changed && canRawUndo && property.Size > 0)
 			{
 				std::vector<std::uint8_t> newValue(property.Size);

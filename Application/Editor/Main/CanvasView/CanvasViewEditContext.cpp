@@ -128,18 +128,18 @@ namespace
     // 피커 OBB 가 실제 렌더 크기와 일치해야 스케일 반영된 클릭이 맞는다.
     Vector2 ComputeSpriteWorldSize(IAssetManager* assetMgr, const SpriteRenderer2D& sprite)
     {
-        Vector2 finalSize = sprite.Size;
-        if (assetMgr && sprite.SpriteGuid != INVALID_ASSET_GUID)
+        Vector2 finalSize = sprite.GetSize();
+        if (assetMgr && sprite.GetSpriteGuid() != INVALID_ASSET_GUID)
         {
-            AssetRef<IAsset> asset = assetMgr->FindLoadedAsset(sprite.SpriteGuid);
+            AssetRef<IAsset> asset = assetMgr->FindLoadedAsset(sprite.GetSpriteGuid());
             if (asset && EAssetType::Sprite == asset->GetAssetType())
             {
                 const CSpriteAsset* spriteAsset = static_cast<const CSpriteAsset*>(asset.Get());
                 const float effectivePPU = spriteAsset->GetEffectivePixelsPerUnit(Runtime.PixelsPerUnit);
                 if (effectivePPU > 0.0f)
                 {
-                    finalSize.x = (static_cast<float>(spriteAsset->GetWidth())  / effectivePPU) * sprite.Size.x;
-                    finalSize.y = (static_cast<float>(spriteAsset->GetHeight()) / effectivePPU) * sprite.Size.y;
+                    finalSize.x = (static_cast<float>(spriteAsset->GetWidth())  / effectivePPU) * sprite.GetSize().x;
+                    finalSize.y = (static_cast<float>(spriteAsset->GetHeight()) / effectivePPU) * sprite.GetSize().y;
                 }
             }
         }
@@ -190,8 +190,8 @@ namespace
 
     bool ContainsSquareShape(const Square2D& shape, const Vector2& point)
     {
-        const float halfWidth = std::abs(shape.Size.x) * 0.5f;
-        const float halfHeight = std::abs(shape.Size.y) * 0.5f;
+        const float halfWidth = std::abs(shape.GetSize().x) * 0.5f;
+        const float halfHeight = std::abs(shape.GetSize().y) * 0.5f;
         if (halfWidth <= SHAPE_PICK_EPSILON || halfHeight <= SHAPE_PICK_EPSILON)
         {
             return false;
@@ -232,7 +232,7 @@ namespace
         std::uint32_t vertexCount,
         float startAngle)
     {
-        const float radius = std::abs(shape.Radius);
+        const float radius = std::abs(shape.GetRadius());
         if (false == ContainsRegularPolygon(point, radius, vertexCount, startAngle))
         {
             return false;
@@ -297,7 +297,7 @@ CGameObject* CCanvasViewEditContext::Pick(
             // OBB 히트 테스트 — 렌더와 동일한 월드 크기(자산 픽셀/PPU 반영).
             const Vector2 worldSize = ComputeSpriteWorldSize(assetMgr, sprite);
             const Matrix3x2 spriteMat =
-                Matrix3x2::Transform(sprite.Offset, 0.0f, worldSize)
+                Matrix3x2::Transform(sprite.GetOffset(), 0.0f, worldSize)
                 * GetWorldTransform(*owner);
             Matrix3x2 inv;
             if (!spriteMat.TryInvert(inv)) return;
@@ -307,10 +307,10 @@ CGameObject* CCanvasViewEditContext::Pick(
                 local.y < -0.5f || local.y > 0.5f) return;
 
             // Alpha test (에셋 없으면 OBB 히트 그대로 사용)
-            if (assetMgr && sprite.SpriteGuid != INVALID_ASSET_GUID)
+            if (assetMgr && sprite.GetSpriteGuid() != INVALID_ASSET_GUID)
             {
                 const ResolvedTexture rt =
-                    ResolveAssetTexture(*assetMgr, sprite.SpriteGuid, 0);
+                    ResolveAssetTexture(*assetMgr, sprite.GetSpriteGuid(), 0);
                 if (rt.IsValid())
                 {
                     const float u = local.x + 0.5f;
@@ -382,7 +382,7 @@ CGameObject* CCanvasViewEditContext::Pick(
             {
                 return;
             }
-            considerShape(owner, shape.Offset, shape.SortOrder,
+            considerShape(owner, shape.GetOffset(), shape.SortOrder,
                 [&shape](const Vector2& point)
                 {
                     return ContainsSquareShape(shape, point);
@@ -398,7 +398,7 @@ CGameObject* CCanvasViewEditContext::Pick(
                 return;
             }
             const std::uint32_t segments = std::clamp(shape.Segments, 8u, 256u);
-            considerShape(owner, shape.Offset, shape.SortOrder,
+            considerShape(owner, shape.GetOffset(), shape.SortOrder,
                 [&shape, segments](const Vector2& point)
                 {
                     return ContainsRegularShape(shape, point, segments, 0.0f);
@@ -413,11 +413,11 @@ CGameObject* CCanvasViewEditContext::Pick(
             {
                 return;
             }
-            const std::uint32_t vertexCount = std::clamp(shape.VertexCount, 3u, 256u);
-            considerShape(owner, shape.Offset, shape.SortOrder,
+            const std::uint32_t vertexCount = std::clamp(shape.GetVertexCount(), 3u, 256u);
+            considerShape(owner, shape.GetOffset(), shape.SortOrder,
                 [&shape, vertexCount](const Vector2& point)
                 {
-                    return ContainsRegularShape(shape, point, vertexCount, shape.StartAngle);
+                    return ContainsRegularShape(shape, point, vertexCount, shape.GetStartAngle());
                 });
         });
 
@@ -431,7 +431,7 @@ CGameObject* CCanvasViewEditContext::Pick(
                 if (false == canPickOwner(owner, text)) return;
                 float centerX = 0.0f, centerY = 0.0f, width = 0.0f, height = 0.0f;
                 if (false == textSystem->TryGetLocalBounds(text, centerX, centerY, width, height) || width <= 0.0f || height <= 0.0f) return;
-                considerShape(owner, text.Offset + Vector2(centerX, centerY), text.SortOrder,
+                considerShape(owner, text.GetOffset() + Vector2(centerX, centerY), text.SortOrder,
                     [width, height](const Vector2& point)
                     {
                         return std::abs(point.x) <= width * 0.5f && std::abs(point.y) <= height * 0.5f;
@@ -487,15 +487,15 @@ std::vector<CGameObject*> CCanvasViewEditContext::PickBox(
             {
                 const Vector2 worldSize = ComputeSpriteWorldSize(assetMgr, *sprite);
                 const Matrix3x2 spriteMat =
-                    Matrix3x2::Transform(sprite->Offset, 0.0f, worldSize)
+                    Matrix3x2::Transform(sprite->GetOffset(), 0.0f, worldSize)
                     * entityWorldMat;
 
                 // 픽셀 기반 tight AABB 시도
                 bool tightComputed = false;
-                if (assetMgr && sprite->SpriteGuid != INVALID_ASSET_GUID)
+                if (assetMgr && sprite->GetSpriteGuid() != INVALID_ASSET_GUID)
                 {
                     const ResolvedTexture rt =
-                        ResolveAssetTexture(*assetMgr, sprite->SpriteGuid, 0);
+                        ResolveAssetTexture(*assetMgr, sprite->GetSpriteGuid(), 0);
                     if (rt.IsValid())
                     {
                         const SpriteFrame* frame = ResolveSpriteFrame(*rt.tex, 0);
@@ -537,7 +537,7 @@ std::vector<CGameObject*> CCanvasViewEditContext::PickBox(
                 float centerX = 0.0f, centerY = 0.0f, width = 0.0f, height = 0.0f;
                 if (false == textSystem->TryGetLocalBounds(*text, centerX, centerY, width, height)
                     || width <= 0.0f || height <= 0.0f) return;
-                const Matrix3x2 textMat = Matrix3x2::Transform(text->Offset + Vector2(centerX, centerY), 0.0f,
+                const Matrix3x2 textMat = Matrix3x2::Transform(text->GetOffset() + Vector2(centerX, centerY), 0.0f,
                     Vector2(1.0f, 1.0f)) * entityWorldMat;
                 corners[0] = textMat.TransformPoint({-width * 0.5f,  height * 0.5f});
                 corners[1] = textMat.TransformPoint({ width * 0.5f,  height * 0.5f});

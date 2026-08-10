@@ -146,7 +146,7 @@ void CShapeRenderSystem::SubmitGeometry(T& shape, const GeometrySignature& signa
 		item.Sampler = renderer.GetDefaultSampler();
 		item.Queue = ERenderQueue::Transparent;
 		item.LayerIndex = owner->GetLayerIndex();
-		item.Transform = Matrix3x2::Transform(shape.Offset, 0.0f, Vector2(1.0f, 1.0f)) * owner->GetWorld().Matrix;
+		item.Transform = Matrix3x2::Transform(shape.GetOffset(), 0.0f, Vector2(1.0f, 1.0f)) * owner->GetWorld().Matrix;
 		item.LocalHalfExtents[0] = halfExtents.x;
 		item.LocalHalfExtents[1] = halfExtents.y;
 		for (int i = 0; i < 4; ++i)
@@ -165,15 +165,15 @@ void CShapeRenderSystem::SubmitGeometry(T& shape, const GeometrySignature& signa
 void CShapeRenderSystem::SubmitSquare(Square2D& shape, CForward2DRenderer& renderer)
 {
 	GeometrySignature signature;
-	signature.Value0 = std::abs(shape.Size.x);
-	signature.Value1 = std::abs(shape.Size.y);
+	signature.Value0 = std::abs(shape.GetSize().x);
+	signature.Value1 = std::abs(shape.GetSize().y);
 	signature.OutlineWidth = std::max(0.0f, shape.OutlineWidth);
 	signature.FillEnabled = shape.FillEnabled;
 	signature.OutlineEnabled = shape.OutlineEnabled;
 	const Vector2 halfExtents(signature.Value0 * 0.5f, signature.Value1 * 0.5f);
 	SubmitGeometry(shape, signature, halfExtents, [&shape]()
 	{
-		return CShapeGeometryBuilder2D::BuildRectangle(shape.Size,
+		return CShapeGeometryBuilder2D::BuildRectangle(shape.GetSize(),
 			shape.FillEnabled, shape.OutlineEnabled, shape.OutlineWidth);
 	}, renderer);
 }
@@ -182,7 +182,7 @@ void CShapeRenderSystem::SubmitCircle(Circle2D& shape, CForward2DRenderer& rende
 {
 	const std::uint32_t segments = std::clamp(shape.Segments, 8u, 256u);
 	GeometrySignature signature;
-	signature.Value0 = std::abs(shape.Radius);
+	signature.Value0 = std::abs(shape.GetRadius());
 	signature.OutlineWidth = std::max(0.0f, shape.OutlineWidth);
 	signature.Count = segments;
 	signature.FillEnabled = shape.FillEnabled;
@@ -190,17 +190,17 @@ void CShapeRenderSystem::SubmitCircle(Circle2D& shape, CForward2DRenderer& rende
 	const Vector2 halfExtents(signature.Value0, signature.Value0);
 	SubmitGeometry(shape, signature, halfExtents, [&shape, segments]()
 	{
-		return CShapeGeometryBuilder2D::BuildRegularPolygon(shape.Radius, segments, 0.0f,
+		return CShapeGeometryBuilder2D::BuildRegularPolygon(shape.GetRadius(), segments, 0.0f,
 			shape.FillEnabled, shape.OutlineEnabled, shape.OutlineWidth);
 	}, renderer);
 }
 
 void CShapeRenderSystem::SubmitPolygon(Polygon2D& shape, CForward2DRenderer& renderer)
 {
-	const std::uint32_t vertexCount = std::clamp(shape.VertexCount, 3u, 256u);
+	const std::uint32_t vertexCount = std::clamp(shape.GetVertexCount(), 3u, 256u);
 	GeometrySignature signature;
-	signature.Value0 = std::abs(shape.Radius);
-	signature.Value2 = shape.StartAngle;
+	signature.Value0 = std::abs(shape.GetRadius());
+	signature.Value2 = shape.GetStartAngle();
 	signature.OutlineWidth = std::max(0.0f, shape.OutlineWidth);
 	signature.Count = vertexCount;
 	signature.FillEnabled = shape.FillEnabled;
@@ -208,8 +208,8 @@ void CShapeRenderSystem::SubmitPolygon(Polygon2D& shape, CForward2DRenderer& ren
 	const Vector2 halfExtents(signature.Value0, signature.Value0);
 	SubmitGeometry(shape, signature, halfExtents, [&shape, vertexCount]()
 	{
-		return CShapeGeometryBuilder2D::BuildRegularPolygon(shape.Radius, vertexCount,
-			shape.StartAngle, shape.FillEnabled, shape.OutlineEnabled, shape.OutlineWidth);
+		return CShapeGeometryBuilder2D::BuildRegularPolygon(shape.GetRadius(), vertexCount,
+			shape.GetStartAngle(), shape.FillEnabled, shape.OutlineEnabled, shape.OutlineWidth);
 	}, renderer);
 }
 

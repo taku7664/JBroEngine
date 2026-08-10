@@ -44,7 +44,10 @@
          (게임 스크립트 DLL 은 magic_enum 을 갖지 않는다). -->
     <_SDKHeader Include="$(_EngineDir)GameFramework\Reflection\**\*.h"  DestDir="GameFramework\Reflection"
                 Exclude="$(_EngineDir)GameFramework\Reflection\ReflectionEnumRegister.h" />
-    <_SDKHeader Include="$(_EngineDir)GameFramework\Component\**\*.h"   DestDir="GameFramework\Component" />
+    <!-- RendererComponentAccess.h 는 리플렉션 raw 쓰기 뒤 경계 캐시를 무효화하는 호스트 전용
+         통로다. 스크립트가 알아야 할 API 가 아니므로(자동완성에도 뜨면 안 된다) 미러 제외. -->
+    <_SDKHeader Include="$(_EngineDir)GameFramework\Component\**\*.h"   DestDir="GameFramework\Component"
+                Exclude="$(_EngineDir)GameFramework\Component\RendererComponentAccess.h" />
     <_SDKHeader Include="$(_EngineDir)GameFramework\Canvas\**\*.h"      DestDir="GameFramework\Canvas"
                 Exclude="$(_EngineDir)GameFramework\Canvas\CanvasRuntimeAccess.h" />
     <_SDKHeader Include="$(_EngineDir)GameFramework\System\**\*.h"      DestDir="GameFramework\System" />
