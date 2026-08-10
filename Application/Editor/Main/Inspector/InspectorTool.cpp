@@ -33,6 +33,7 @@
 #include "Engine/Core/Asset/TransientAssetLoad.h"   // 인스펙터 일회성 로드(캐시 누적 방지)
 #include "Engine/Core/Asset/MaterialAsset.h"
 #include "Engine/Core/Asset/SpriteAsset.h"
+#include "Editor/Main/Importer/SpriteSheetViewerWindow.h"
 #include "Engine/Core/Asset/AudioAsset.h"
 #include "Engine/Core/Asset/FontAsset.h"
 #include "Engine/Core/RuntimeConfig.h"
@@ -1290,6 +1291,15 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		if (changed)
 		{
 			s_dirty = true;
+		}
+
+		// 시트 뷰어 — 격자를 눈으로 보면서 자른다.
+		// 편집 중인 옵션을 매 프레임 밀어 넣어야 슬라이더를 움직일 때 격자가 즉시 따라온다.
+		// 저장은 여전히 아래 Apply 가 한다 — 편집 주체는 한 곳이어야 한다.
+		SpriteSheetViewer::PushOptions(metaData.Guid, options);
+		if (ImActionButton(Loc::Text(EditorLocKeys::InspectorSpriteOpenSheetViewer)).Draw())
+		{
+			SpriteSheetViewer::Open(metaData.Guid, metaData.DisplayName);
 		}
 
 		ImGui::BeginDisabled(false == s_dirty);

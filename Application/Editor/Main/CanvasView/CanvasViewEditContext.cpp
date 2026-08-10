@@ -123,27 +123,19 @@ namespace
         return &frames[frameIndex];
     }
 
-    // 스프라이트의 월드 크기 = 렌더러(CSpriteRenderSystem)와 동일 계약.
-    //   자산 있음 → (픽셀크기 / 유효PPU) × sprite.Size,  없음 → sprite.Size.
-    // 피커 OBB 가 실제 렌더 크기와 일치해야 스케일 반영된 클릭이 맞는다.
-    Vector2 ComputeSpriteWorldSize(IAssetManager* assetMgr, const SpriteRenderer2D& sprite)
+    // 스프라이트가 실제로 그려지는 오브젝트-로컬 쿼드 변환.
+    // 중심/크기는 **컴포넌트가 낸다**(피벗·반전·유효 PPU 반영) — 렌더가 쓰는 것과 같은 함수라
+    // 그리는 자리와 집는 자리가 갈릴 수 없다. 자산 미해석이면 크기 배수를 그대로 폴백.
+    Matrix3x2 ComputeSpriteQuadMatrix(const SpriteRenderer2D& sprite, const CGameObject& owner)
     {
-        Vector2 finalSize = sprite.GetSize();
-        if (assetMgr && sprite.GetSpriteGuid() != INVALID_ASSET_GUID)
+        Vector2 center = sprite.GetOffset();
+        Vector2 size   = sprite.GetSize();
+        if (false == sprite.TryGetLocalQuad(center, size))
         {
-            AssetRef<IAsset> asset = assetMgr->FindLoadedAsset(sprite.GetSpriteGuid());
-            if (asset && EAssetType::Sprite == asset->GetAssetType())
-            {
-                const CSpriteAsset* spriteAsset = static_cast<const CSpriteAsset*>(asset.Get());
-                const float effectivePPU = spriteAsset->GetEffectivePixelsPerUnit(Runtime.PixelsPerUnit);
-                if (effectivePPU > 0.0f)
-                {
-                    finalSize.x = (static_cast<float>(spriteAsset->GetWidth())  / effectivePPU) * sprite.GetSize().x;
-                    finalSize.y = (static_cast<float>(spriteAsset->GetHeight()) / effectivePPU) * sprite.GetSize().y;
-                }
-            }
+            if (sprite.GetFlipX()) size.x = -size.x;
+            if (sprite.GetFlipY()) size.y = -size.y;
         }
-        return finalSize;
+        return Matrix3x2::Transform(center, 0.0f, size) * GetWorldTransform(owner);
     }
 
     constexpr float SHAPE_PICK_EPSILON = 0.000001f;
@@ -294,11 +286,8 @@ CGameObject* CCanvasViewEditContext::Pick(
                 if (owner != context && !IsDescendantOfObj(owner, context)) return;
             }
 
-            // OBB 히트 테스트 — 렌더와 동일한 월드 크기(자산 픽셀/PPU 반영).
-            const Vector2 worldSize = ComputeSpriteWorldSize(assetMgr, sprite);
-            const Matrix3x2 spriteMat =
-                Matrix3x2::Transform(sprite.GetOffset(), 0.0f, worldSize)
-                * GetWorldTransform(*owner);
+            // OBB 히트 테스트 — 렌더와 동일한 쿼드(자산 픽셀/PPU·피벗·반전 반영).
+            const Matrix3x2 spriteMat = ComputeSpriteQuadMatrix(sprite, *owner);
             Matrix3x2 inv;
             if (!spriteMat.TryInvert(inv)) return;
 
@@ -485,10 +474,7 @@ std::vector<CGameObject*> CCanvasViewEditContext::PickBox(
             const SpriteRenderer2D* sprite = object.GetComponent<SpriteRenderer2D>();
             if (sprite && sprite->IsEnabled())
             {
-                const Vector2 worldSize = ComputeSpriteWorldSize(assetMgr, *sprite);
-                const Matrix3x2 spriteMat =
-                    Matrix3x2::Transform(sprite->GetOffset(), 0.0f, worldSize)
-                    * entityWorldMat;
+                const Matrix3x2 spriteMat = ComputeSpriteQuadMatrix(*sprite, object);
 
                 // 픽셀 기반 tight AABB 시도
                 bool tightComputed = false;
@@ -508,11 +494,16 @@ std::vector<CGameObject*> CCanvasViewEditContext::PickBox(
                             const float frameWorldH = static_cast<float>(frame->Height) / effectivePPU;
                             if (frameWorldW <= 0.0f || frameWorldH <= 0.0f) return;
 
+                            // LocalOpaqueBounds 는 **피벗 기준** 유닛이고 spriteMat 의 로컬은
+                            // 쿼드 중심 기준 -0.5~0.5 다. 피벗이 중앙이 아니면 그 차이만큼 밀어야
+                            // 한다 — 예전엔 이 항이 없어서 피벗을 옮기면 외곽선만 그림에서 빗나갔다.
+                            const float pivotShiftX = 0.5f - frame->PivotX;
+                            const float pivotShiftY = 0.5f - frame->PivotY;
                             const Rect& opaque = frame->LocalOpaqueBounds;
-                            const float lxMin = opaque.Left / frameWorldW;
-                            const float lxMax = opaque.Right / frameWorldW;
-                            const float lyMin = opaque.Top / frameWorldH;
-                            const float lyMax = opaque.Bottom / frameWorldH;
+                            const float lxMin = opaque.Left / frameWorldW - pivotShiftX;
+                            const float lxMax = opaque.Right / frameWorldW - pivotShiftX;
+                            const float lyMin = opaque.Top / frameWorldH - pivotShiftY;
+                            const float lyMax = opaque.Bottom / frameWorldH - pivotShiftY;
 
                             corners[0] = spriteMat.TransformPoint({lxMin, lyMax});
                             corners[1] = spriteMat.TransformPoint({lxMax, lyMax});

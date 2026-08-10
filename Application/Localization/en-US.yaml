@@ -487,6 +487,12 @@ Entries:
   script_prop.type_tooltip: Property value type. For Ref<Component>/Ref<Asset>, pick the target kind in the next combo.
   script_prop.reftarget_tooltip: Reference target type (component/script, or asset kind). For Array this is the element type; for Table it is the key type.
   script_prop.valuetarget_tooltip: Table value type.
+  sprite_sheet_viewer.zoom: Zoom
+  sprite_sheet_viewer.fit: Fit
+  sprite_sheet_viewer.show_pivot: Show Pivot
+  sprite_sheet_viewer.frame_count: Frames
+  sprite_sheet_viewer.hovered_frame: Frame
+  sprite_sheet_viewer.no_texture: This sprite could not be loaded.
   script_prop.name: Name
   script_prop.name_hint: Property name
   script_prop.name_tooltip: C++ field name. Must be a valid identifier, no duplicates or reserved names.
@@ -668,6 +674,7 @@ Entries:
   inspector.camera_debug.submitted: Culling Candidates
   inspector.camera_debug.culled: Culled
   inspector.camera_debug.drawn: Drawn
+  inspector.sprite.open_sheet_viewer: Open Sheet Viewer
   inspector.sprite.preview_frame_count: Preview Frame Count
   inspector.sprite.frame_width: Frame Width
   inspector.sprite.frame_height: Frame Height

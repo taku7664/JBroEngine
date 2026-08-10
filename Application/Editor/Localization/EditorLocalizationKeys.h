@@ -413,6 +413,7 @@ namespace EditorLocKeys
 	constexpr const char* InspectorSliceTypeNone = "inspector.slice_type.none";
 	constexpr const char* InspectorSpriteFrameHeight = "inspector.sprite.frame_height";
 	constexpr const char* InspectorSpriteFrameWidth = "inspector.sprite.frame_width";
+	constexpr const char* InspectorSpriteOpenSheetViewer = "inspector.sprite.open_sheet_viewer";
 	constexpr const char* InspectorSpritePreviewFrameCount = "inspector.sprite.preview_frame_count";
 	constexpr const char* InspectorSpriteImportOptions = "inspector.sprite_import_options";
 	constexpr const char* InspectorText2dFontMissing = "inspector.text2d.font_missing";
@@ -573,6 +574,12 @@ namespace EditorLocKeys
 	constexpr const char* ScriptPropNameHint = "script_prop.name_hint";
 	constexpr const char* ScriptPropNameTooltip = "script_prop.name_tooltip";
 	constexpr const char* ScriptPropReftargetTooltip = "script_prop.reftarget_tooltip";
+	constexpr const char* SpriteSheetViewerFit = "sprite_sheet_viewer.fit";
+	constexpr const char* SpriteSheetViewerFrameCount = "sprite_sheet_viewer.frame_count";
+	constexpr const char* SpriteSheetViewerHoveredFrame = "sprite_sheet_viewer.hovered_frame";
+	constexpr const char* SpriteSheetViewerNoTexture = "sprite_sheet_viewer.no_texture";
+	constexpr const char* SpriteSheetViewerShowPivot = "sprite_sheet_viewer.show_pivot";
+	constexpr const char* SpriteSheetViewerZoom = "sprite_sheet_viewer.zoom";
 	constexpr const char* ScriptPropValuetargetTooltip = "script_prop.valuetarget_tooltip";
 	constexpr const char* ScriptPropRange = "script_prop.range";
 	constexpr const char* ScriptPropRangeTooltip = "script_prop.range_tooltip";

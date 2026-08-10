@@ -317,8 +317,18 @@ void CCanvasViewContour::DrawOutlinesImGui(
     {
         if (!processed.insert(&object).second) return; // 이미 처리됨
 
+        // 쿼드 중심/크기는 컴포넌트가 낸다(피벗·반전·유효 PPU 반영) — 렌더와 같은 근거.
+        // 예전에는 sprite.Size(픽셀 크기에 곱해지는 **배수**)를 월드 크기로 그대로 써서
+        // 픽셀/PPU 가 1 이 아닌 스프라이트의 외곽선이 어긋나 있었다.
+        Vector2 quadCenter = sprite.GetOffset();
+        Vector2 quadSize   = sprite.GetSize();
+        if (false == sprite.TryGetLocalQuad(quadCenter, quadSize))
+        {
+            if (sprite.GetFlipX()) quadSize.x = -quadSize.x;
+            if (sprite.GetFlipY()) quadSize.y = -quadSize.y;
+        }
         const Matrix3x2 spriteMat =
-            Matrix3x2::Transform(sprite.GetOffset(), 0.0f, sprite.GetSize())
+            Matrix3x2::Transform(quadCenter, 0.0f, quadSize)
             * GetWorldTransform(object);
 
         const std::vector<std::vector<Vector2>>* contours = nullptr;

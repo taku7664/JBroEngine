@@ -487,6 +487,12 @@ Entries:
   script_prop.type_tooltip: 프로퍼티 값 타입. Ref<Component>/Ref<Asset> 는 옆 콤보에서 대상 종류를 고릅니다.
   script_prop.reftarget_tooltip: 참조 대상 타입(컴포넌트/스크립트 또는 에셋 종류). Array 는 원소 타입, Table 은 키 타입.
   script_prop.valuetarget_tooltip: Table 값 타입.
+  sprite_sheet_viewer.zoom: 확대
+  sprite_sheet_viewer.fit: 창에 맞추기
+  sprite_sheet_viewer.show_pivot: 피벗 표시
+  sprite_sheet_viewer.frame_count: 프레임 수
+  sprite_sheet_viewer.hovered_frame: 프레임
+  sprite_sheet_viewer.no_texture: 스프라이트를 불러올 수 없습니다.
   script_prop.name: 이름
   script_prop.name_hint: 프로퍼티 이름
   script_prop.name_tooltip: C++ 필드 이름. 유효한 식별자여야 하고 중복/예약어는 안 됩니다.
@@ -668,6 +674,7 @@ Entries:
   inspector.camera_debug.submitted: 컬링 후보
   inspector.camera_debug.culled: 컬링됨
   inspector.camera_debug.drawn: 드로우됨
+  inspector.sprite.open_sheet_viewer: 시트 뷰어 열기
   inspector.sprite.preview_frame_count: 미리보기 프레임 수
   inspector.sprite.frame_width: 프레임 너비
   inspector.sprite.frame_height: 프레임 높이
