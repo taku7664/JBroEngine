@@ -191,6 +191,9 @@ void CSpriteRenderSystem::OnUpdate(CGameCanvas& canvas)
 			item.Sampler = material->GetSampler();
 			item.Queue = material->GetRenderQueue();
 			item.LayerIndex = owner->GetLayerIndex();
+			// 스프라이트는 LocalHalfExtents 를 건드리지 않는다 — 공유 쿼드가 ±0.5 이고 크기는
+			// 이 변환의 스케일이 들고 있으므로 기본값 {0.5, 0.5} 가 이미 정확한 컬링 상자다.
+			// (도형·텍스트는 스케일이 1 이고 메시가 유닛 크기라 경계를 따로 넘겨야 한다.)
 			const Matrix3x2 spriteLocalTransform = Matrix3x2::Transform(quadCenter, 0.0f, quadSize);
 			item.Transform = spriteLocalTransform * owner->GetWorld().Matrix;
 			for (int i = 0; i < 4; ++i)

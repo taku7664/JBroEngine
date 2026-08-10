@@ -110,7 +110,7 @@ bool CShapeRenderSystem::EnsureMaterial(CForward2DRenderer& renderer)
 
 template<typename T, typename TBuilder>
 void CShapeRenderSystem::SubmitGeometry(T& shape, const GeometrySignature& signature,
-	const Vector2& halfExtents, TBuilder&& builder, CForward2DRenderer& renderer)
+	TBuilder&& builder, CForward2DRenderer& renderer)
 {
 	CGameObject* owner = shape.GetOwner().TryGet();
 	if (nullptr == owner)
@@ -131,7 +131,7 @@ void CShapeRenderSystem::SubmitGeometry(T& shape, const GeometrySignature& signa
 	}
 	found->second.LastSeenFrame = m_frameStamp;
 
-	auto submitPass = [this, &shape, owner, &renderer, &halfExtents](SafePtr<IRenderMesh> mesh, const Color& color)
+	auto submitPass = [this, &shape, owner, &renderer](SafePtr<IRenderMesh> mesh, const Color& color)
 	{
 		if (false == mesh.IsValid() || color.A <= 0.0f)
 		{
@@ -147,8 +147,9 @@ void CShapeRenderSystem::SubmitGeometry(T& shape, const GeometrySignature& signa
 		item.Queue = ERenderQueue::Transparent;
 		item.LayerIndex = owner->GetLayerIndex();
 		item.Transform = Matrix3x2::Transform(shape.GetOffset(), 0.0f, Vector2(1.0f, 1.0f)) * owner->GetWorld().Matrix;
-		item.LocalHalfExtents[0] = halfExtents.x;
-		item.LocalHalfExtents[1] = halfExtents.y;
+		// 컬링 상자는 컴포넌트의 로컬 경계에서 온다 — 여기서 따로 계산하면 그리는 영역과
+		// 조회되는 영역이 갈라진다. Transform 의 이동 성분이 Offset 이므로 기준점도 Offset.
+		item.SetCullBoundsFromLocal(shape.GetLocalBounds(), shape.GetOffset());
 		for (int i = 0; i < 4; ++i)
 		{
 			item.Color[i] = color[i];
@@ -170,8 +171,7 @@ void CShapeRenderSystem::SubmitSquare(Square2D& shape, CForward2DRenderer& rende
 	signature.OutlineWidth = std::max(0.0f, shape.OutlineWidth);
 	signature.FillEnabled = shape.FillEnabled;
 	signature.OutlineEnabled = shape.OutlineEnabled;
-	const Vector2 halfExtents(signature.Value0 * 0.5f, signature.Value1 * 0.5f);
-	SubmitGeometry(shape, signature, halfExtents, [&shape]()
+	SubmitGeometry(shape, signature, [&shape]()
 	{
 		return CShapeGeometryBuilder2D::BuildRectangle(shape.GetSize(),
 			shape.FillEnabled, shape.OutlineEnabled, shape.OutlineWidth);
@@ -187,8 +187,7 @@ void CShapeRenderSystem::SubmitCircle(Circle2D& shape, CForward2DRenderer& rende
 	signature.Count = segments;
 	signature.FillEnabled = shape.FillEnabled;
 	signature.OutlineEnabled = shape.OutlineEnabled;
-	const Vector2 halfExtents(signature.Value0, signature.Value0);
-	SubmitGeometry(shape, signature, halfExtents, [&shape, segments]()
+	SubmitGeometry(shape, signature, [&shape, segments]()
 	{
 		return CShapeGeometryBuilder2D::BuildRegularPolygon(shape.GetRadius(), segments, 0.0f,
 			shape.FillEnabled, shape.OutlineEnabled, shape.OutlineWidth);
@@ -205,8 +204,7 @@ void CShapeRenderSystem::SubmitPolygon(Polygon2D& shape, CForward2DRenderer& ren
 	signature.Count = vertexCount;
 	signature.FillEnabled = shape.FillEnabled;
 	signature.OutlineEnabled = shape.OutlineEnabled;
-	const Vector2 halfExtents(signature.Value0, signature.Value0);
-	SubmitGeometry(shape, signature, halfExtents, [&shape, vertexCount]()
+	SubmitGeometry(shape, signature, [&shape, vertexCount]()
 	{
 		return CShapeGeometryBuilder2D::BuildRegularPolygon(shape.GetRadius(), vertexCount,
 			shape.GetStartAngle(), shape.FillEnabled, shape.OutlineEnabled, shape.OutlineWidth);

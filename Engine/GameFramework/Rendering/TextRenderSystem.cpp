@@ -659,7 +659,10 @@ void CTextRenderSystem::OnUpdate(CGameCanvas& canvas)
 				item.Transform.Dx = std::round(item.Transform.Dx * m_pixelsPerUnit) / m_pixelsPerUnit;
 				item.Transform.Dy = std::round(item.Transform.Dy * m_pixelsPerUnit) / m_pixelsPerUnit;
 			}
-			item.LocalHalfExtents[0] = std::max(cache.Width * 0.5f, 0.001f); item.LocalHalfExtents[1] = std::max(cache.Height * 0.5f, 0.001f);
+			// 컬링 상자는 컴포넌트의 로컬 경계에서 온다(위에서 SetShapedBounds 로 방금 써 준 값).
+			// Transform 의 이동 성분이 Offset + 셰이핑 중심이므로 기준점도 그것이다.
+			item.SetCullBoundsFromLocal(text.GetLocalBounds(),
+				text.GetOffset() + Vector2(cache.CenterX, cache.CenterY));
 			for (int c = 0; c < 4; ++c)
 			{
 				item.Color[c] = text.FillEnabled ? text.FillColor[c] : 0.0f;

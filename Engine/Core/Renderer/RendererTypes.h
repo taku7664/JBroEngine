@@ -6,6 +6,9 @@
 
 #include "Utillity/Pointer/SafePtr.h"
 #include "Utillity/Math/Matrix3x2.h"
+#include "Utillity/Math/RectT.h"
+
+#include <algorithm>
 
 class IRHIDevice;
 class IRHIGraphicsPipeline;
@@ -68,4 +71,27 @@ struct RenderItem
 	RenderObjectId Entity = nullptr;
 	// 그림자 캐스터 — OccluderMap 패스가 이 아이템만 골라 월드공간 공유 오클루더 맵에 알파 실루엣을 그린다.
 	bool CastShadow = false;
+
+	// 렌더러 컴포넌트의 로컬 경계로 컬링 반경을 채운다.
+	//
+	// LocalHalfExtents 는 Transform 원점 기준 **대칭** 반경인데 경계는 대칭이 아닐 수 있다
+	// (정삼각형처럼 꼭짓점 배치가 한쪽으로 쏠린 도형). 그래서 양쪽 중 **먼 쪽**으로 덮는다 —
+	// 작게 잡으면 실제로 그려지는 부분이 화면 가장자리에서 일찍 잘린다.
+	//
+	// transformOrigin 은 Transform 의 이동 성분에 해당하는 로컬 지점이다(도형은 Offset,
+	// 텍스트는 Offset + 셰이핑 중심). 경계와 같은 공간이어야 한다.
+	//
+	// 빈 경계(= 아직 알 수 없음)는 무시하고 기존 값을 남긴다. 빈 Rect 를 그대로 먹이면
+	// 원점까지의 거리가 반경이 되어 엉뚱한 상자가 나온다.
+	void SetCullBoundsFromLocal(const Rect& localBounds, const Vector2& transformOrigin)
+	{
+		if (localBounds.IsEmpty())
+		{
+			return;
+		}
+		LocalHalfExtents[0] = std::max(std::abs(localBounds.Left - transformOrigin.x),
+		                               std::abs(localBounds.Right - transformOrigin.x));
+		LocalHalfExtents[1] = std::max(std::abs(localBounds.Top - transformOrigin.y),
+		                               std::abs(localBounds.Bottom - transformOrigin.y));
+	}
 };

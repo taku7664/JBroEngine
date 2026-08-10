@@ -59,7 +59,7 @@ private:
 	void SubmitCircle(Circle2D& shape, CForward2DRenderer& renderer);
 	void SubmitPolygon(Polygon2D& shape, CForward2DRenderer& renderer);
 	template<typename T, typename TBuilder>
-	void SubmitGeometry(T& shape, const GeometrySignature& signature, const Vector2& halfExtents,
+	void SubmitGeometry(T& shape, const GeometrySignature& signature,
 		TBuilder&& builder, CForward2DRenderer& renderer);
 
 private:
