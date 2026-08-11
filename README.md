@@ -66,7 +66,7 @@ float이 아니라 별개의 선택지로 뒀습니다.
 
 ---
 ## Physics
-<img width="1275" height="713" alt="engine1" src="https://github.com/user-attachments/assets/79531fcb-f5e6-43b0-a2cc-e0c5d824bd7b" />
+<img width="1275" height="713" alt="engine6" src="https://github.com/user-attachments/assets/7e64357d-7591-4b75-b670-89a9101555ef" />
 
 2D 강체 물리를 직접 구현했습니다. 고정 스텝으로 돌며 시퀀셜 임펄스로 접촉을 풉니다.
 
