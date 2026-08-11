@@ -4,7 +4,14 @@
 # 로컬라이징 단일 출처 = Application/Localization. 아래는 빌드/패키징이 생성하는 사본(추적 제외).
 /Localization/
 /Build/**/Localization/
-/Dist/**/Localization/
+
+# 패키징 산출물. PackageEditor.ps1 이 매 실행마다 통째로 지우고 다시 만든다
+# (Application.exe + DLL + Localization/ + SDK/ 사본). BuildGame.ps1 은 Dist/Games 에 게임을 낸다.
+/Dist/
+
+# 인스톨러 산출물. Installers/JBroEngineEditor.iss 의 OutputDir=Output 이 만든다.
+# .iss 스크립트 자체는 소스라 추적을 유지한다.
+/Installers/Output/
 
 # 루트 Build 폴더는 에디터 런타임 리소스가 일부 추적되어 있으므로 폴더 전체를 막지 않는다.
 # 실행 파일/디버그 심볼 등 빌드 산출물만 명시적으로 제외한다.
@@ -16,9 +23,15 @@
 /Build/**/*.lib
 
 # 내부 작업노트/메모/도구 설정 (저장소 외부 — 깃허브에 안 올림). CLAUDE.md 는 프로젝트 규약이라 유지.
+# Docs/Internal 은 검수·검토 보고 모음이라 WorkNotes 와 동급이다.
+# Docs/Text2DDesign.md(설계)·Docs/ThirdPartyNotices.md(라이선스 고지)는 공개 문서라 추적 유지.
 /tasks/
+/todo.txt
 /Docs/WorkNotes/
+/Docs/Internal/
 /.claude/
+/.codex/
+/.agents/
 /PlatformBuild/Android/README.md
 
 ### VisualStudio ###
