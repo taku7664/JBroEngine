@@ -95,8 +95,8 @@ bool CLiveCompileManager::Initialize(const LiveCompileDesc& desc)
 		m_sourceWatcher->Watch(watcherDesc);
 	}
 
-	// 누적된 stamp 폴더 / 핫리로드 DLL 정리.  최근 10 빌드만 유지.
-	CleanupOldArtifacts(10);
+	// 누적된 stamp 폴더 / 핫리로드 DLL 정리.  최근 ARTIFACT_KEEP_COUNT 빌드만 유지.
+	CleanupOldArtifacts(ARTIFACT_KEEP_COUNT);
 
 	m_state = ELiveCompileState::Idle;
 	return true;
@@ -153,7 +153,10 @@ void CLiveCompileManager::CleanupOldArtifacts(int keepMostRecent) const
 		pruneByMTime(std::move(reloadFiles), keepMostRecent);
 	}
 
-	// 2) IntermediateDirectory/Debug, Release 안의 stamp 폴더 정리
+	// 2) IntermediateDirectory/Debug, Release 안의 stamp 폴더 + 링커 stamp PDB 정리.
+	//    stamp 는 재사용되지 않으므로(MakeBuildDesc) GameScript_<stamp>.pdb 가 빌드마다
+	//    하나씩(개당 수십 MB) 쌓인다 — 여기서 최신순 상한을 잡는 것이 그 대가다.
+	//    컴파일러 PDB(GameScript.compile.pdb)는 stamp 가 없어 prefix 검사에 걸리지 않는다.
 	const char* configurations[] = { "Debug", "Release" };
 	for (const char* cfg : configurations)
 	{
@@ -164,6 +167,7 @@ void CLiveCompileManager::CleanupOldArtifacts(int keepMostRecent) const
 			continue;
 		}
 		std::vector<std::filesystem::path> stampFolders;
+		std::vector<std::filesystem::path> stampPdbs;
 		for (const auto& entry : std::filesystem::directory_iterator(cfgDir, ec))
 		{
 			if (ec) { ec.clear(); break; }
@@ -171,9 +175,18 @@ void CLiveCompileManager::CleanupOldArtifacts(int keepMostRecent) const
 			{
 				stampFolders.push_back(entry.path());
 			}
+			else if (entry.is_regular_file(ec))
+			{
+				const std::string name = entry.path().filename().generic_string();
+				if (name.rfind("GameScript_", 0) == 0 && entry.path().extension() == ".pdb")
+				{
+					stampPdbs.push_back(entry.path());
+				}
+			}
 			ec.clear();
 		}
 		pruneByMTime(std::move(stampFolders), keepMostRecent);
+		pruneByMTime(std::move(stampPdbs), keepMostRecent);
 	}
 }
 
@@ -300,16 +313,17 @@ void CLiveCompileManager::StartAsyncCompile()
 	m_pendingCompile = m_compilePipeline->CompileAsync(MakeBuildDesc());
 }
 
-// 빌드마다 stamp 를 회전시킨 desc 사본. m_desc.BuildCommand 가 비어 있으면(=MSBuild
+// 빌드마다 stamp 를 하나 올린 desc 사본. m_desc.BuildCommand 가 비어 있으면(=MSBuild
 // 미탐색) stamp 를 붙이지 않는다 — 실패 예정 명령을 만들지 않고 CompilePipeline 이
 // 빈 명령으로 진단 메시지를 내도록 둔다.
+// stamp 는 절대 재사용하지 않는다(이유는 헤더의 MakeBuildDesc 주석 참고).
 LiveCompileDesc CLiveCompileManager::MakeBuildDesc()
 {
 	LiveCompileDesc desc = m_desc;
 	if (false == desc.BuildCommand.empty())
 	{
-		desc.BuildCommand += " /p:JBroLiveCompileStamp=LC" + std::to_string(m_buildStampRing);
-		m_buildStampRing = (m_buildStampRing + 1) % 4;
+		desc.BuildCommand += " /p:JBroLiveCompileStamp=LC" + std::to_string(m_buildStampSerial);
+		++m_buildStampSerial;
 	}
 	return desc;
 }
@@ -435,6 +449,10 @@ LiveCompileResult CLiveCompileManager::ApplyCompileResult(LiveCompileResult resu
 
 	result.OutputLibraryPath = loadablePath.generic_string();
 	m_state = ELiveCompileState::Loaded;
+
+	// 세션 중 누적 차단 — stamp 를 재사용하지 않으므로 오픈 시 1회 정리만으로는 부족하다.
+	// 최신순 유지라 방금 로드한 DLL/PDB 는 항상 남고, 잠긴 파일은 삭제 실패로 스킵된다.
+	CleanupOldArtifacts(ARTIFACT_KEEP_COUNT);
 	return result;
 }
 
