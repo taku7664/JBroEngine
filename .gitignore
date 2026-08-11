@@ -22,9 +22,11 @@
 /Build/**/*.exp
 /Build/**/*.lib
 
-# 내부 작업노트/메모/도구 설정 (저장소 외부 — 깃허브에 안 올림). CLAUDE.md 는 프로젝트 규약이라 유지.
-# Docs/Internal 은 검수·검토 보고 모음이라 WorkNotes 와 동급이다.
-# Docs/Text2DDesign.md(설계)·Docs/ThirdPartyNotices.md(라이선스 고지)는 공개 문서라 추적 유지.
+# 마크다운은 전부 저장소 밖으로 뺀다(작업노트·설계메모·규약 문서 모두). README 만 예외.
+*.md
+!README.md
+
+# 내부 작업노트/메모/도구 설정 (저장소 외부 — 깃허브에 안 올림).
 /tasks/
 /todo.txt
 /Docs/WorkNotes/
