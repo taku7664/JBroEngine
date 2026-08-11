@@ -66,7 +66,7 @@ float이 아니라 별개의 선택지로 뒀습니다.
 
 ---
 ## Physics
-<img width="1275" height="713" alt="engine2" src="https://github.com/user-attachments/assets/3258c1fe-23ee-4751-947c-9969e0bc63f0" />
+<img width="1275" height="713" alt="engine1" src="https://github.com/user-attachments/assets/79531fcb-f5e6-43b0-a2cc-e0c5d824bd7b" />
 
 2D 강체 물리를 직접 구현했습니다. 고정 스텝으로 돌며 시퀀셜 임펄스로 접촉을 풉니다.
 
@@ -98,7 +98,7 @@ float이 아니라 별개의 선택지로 뒀습니다.
 
 ---
 ## Light
-<img width="1275" height="713" alt="engine1" src="https://github.com/user-attachments/assets/79531fcb-f5e6-43b0-a2cc-e0c5d824bd7b" />
+<img width="1275" height="713" alt="engine2" src="https://github.com/user-attachments/assets/3258c1fe-23ee-4751-947c-9969e0bc63f0" />
 
 2D 라이팅과 그림자입니다. 라이트는 컴포넌트 하나로 세 종류를 지원합니다.
 
