@@ -407,6 +407,7 @@
     <ClInclude Include="Editor\Main\Importer\ImporterWindowBase.h" />
     <ClInclude Include="Editor\Main\Importer\SpriteImporterWindow.h" />
     <ClInclude Include="Editor\Main\Importer\SpriteViewerWindow.h" />
+    <ClInclude Include="Editor\Main\Importer\SpriteImportOptionsEditor.h" />
     <ClInclude Include="Editor\Main\Importer\AudioImporterWindow.h" />
     <ClInclude Include="Editor\Main\Inspector\AssetInspectorPreview.h" />
     <ClInclude Include="Editor\Main\Inspector\EditorAudioPreview.h" />
@@ -612,6 +613,9 @@
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="Editor\Main\Importer\SpriteViewerWindow.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Editor\Main\Importer\SpriteImportOptionsEditor.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Debug_Game' Or '$(Configuration)'=='Release_Game'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="Editor\Main\Importer\AudioImporterWindow.cpp">

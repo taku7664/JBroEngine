@@ -575,15 +575,12 @@ namespace EditorLocKeys
 	constexpr const char* ScriptPropNameTooltip = "script_prop.name_tooltip";
 	constexpr const char* ScriptPropReftargetTooltip = "script_prop.reftarget_tooltip";
 	constexpr const char* SpriteViewerFit = "sprite_viewer.fit";
-	constexpr const char* SpriteViewerFrameCount = "sprite_viewer.frame_count";
 	constexpr const char* SpriteViewerFrameIndexFormat = "sprite_viewer.frame_index_format";
 	constexpr const char* SpriteViewerFramesPerSecond = "sprite_viewer.frames_per_second";
 	constexpr const char* SpriteViewerHoveredFrame = "sprite_viewer.hovered_frame";
-	constexpr const char* SpriteViewerModeFrame = "sprite_viewer.mode_frame";
-	constexpr const char* SpriteViewerModeSheet = "sprite_viewer.mode_sheet";
 	constexpr const char* SpriteViewerNoTexture = "sprite_viewer.no_texture";
 	constexpr const char* SpriteViewerPlay = "sprite_viewer.play";
-	constexpr const char* SpriteViewerSelectedFrame = "sprite_viewer.selected_frame";
+	constexpr const char* SpriteViewerPreview = "sprite_viewer.preview";
 	constexpr const char* SpriteViewerShowPivot = "sprite_viewer.show_pivot";
 	constexpr const char* SpriteViewerStop = "sprite_viewer.stop";
 	constexpr const char* SpriteViewerTitle = "sprite_viewer.title";

@@ -488,16 +488,13 @@ Entries:
   script_prop.reftarget_tooltip: Reference target type (component/script, or asset kind). For Array this is the element type; for Table it is the key type.
   script_prop.valuetarget_tooltip: Table value type.
   sprite_viewer.title: Sprite Viewer
-  sprite_viewer.mode_sheet: Sheet
-  sprite_viewer.mode_frame: Frame
+  sprite_viewer.preview: Preview
   sprite_viewer.zoom: Zoom
   sprite_viewer.fit: Fit
   sprite_viewer.show_pivot: Show Pivot
-  sprite_viewer.frame_count: Frame
   sprite_viewer.frame_index_format: Frame %d
   sprite_viewer.frames_per_second: FPS
   sprite_viewer.hovered_frame: hovered
-  sprite_viewer.selected_frame: selected
   sprite_viewer.play: Play
   sprite_viewer.stop: Stop
   sprite_viewer.no_texture: This sprite could not be loaded.

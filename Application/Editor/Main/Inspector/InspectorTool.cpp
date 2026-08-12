@@ -1,4 +1,4 @@
-#include "pch.h"
+﻿#include "pch.h"
 #include "InspectorTool.h"
 #include "AssetInspectorPreview.h"
 #include "EffectEditorWindow.h"
@@ -33,6 +33,7 @@
 #include "Engine/Core/Asset/TransientAssetLoad.h"   // 인스펙터 일회성 로드(캐시 누적 방지)
 #include "Engine/Core/Asset/MaterialAsset.h"
 #include "Engine/Core/Asset/SpriteAsset.h"
+#include "Editor/Main/Importer/SpriteImportOptionsEditor.h"
 #include "Editor/Main/Importer/SpriteViewerWindow.h"
 #include "Engine/Core/Asset/AudioAsset.h"
 #include "Engine/Core/Asset/FontAsset.h"
@@ -1134,185 +1135,22 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		}
 	}
 
-	bool SaveSpriteImportOptions(const AssetMetaData& metaData, const SpriteImportOptions& options)
-	{
-		SafePtr<IAssetManager> assetManager = EditorContext::GetAssetManager();
-		if (false == assetManager.IsValid())
-		{
-			return false;
-		}
-
-		File::Path resolvedMetaPath;
-		if (false == assetManager->ResolveAssetPath(metaData.MetaPath, resolvedMetaPath))
-		{
-			return false;
-		}
-
-		AssetMetaData updatedMetaData = metaData;
-		updatedMetaData.ImportOptionsYaml = CSpriteImportOptions::ToYaml(options);
-		if (false == CAssetMetaFile::Save(resolvedMetaPath, updatedMetaData))
-		{
-			return false;
-		}
-
-		// 자산이 이미 로드되어 있으면 자산이 자기 ImportOptions 를 in-place 갱신.
-		// 자산 객체는 destroy 되지 않으므로 외부 SafePtr(캔버스/인스펙터 미리보기 등) 가 살아남는다.
-		if (AssetRef<IAsset> loaded = assetManager->FindLoadedAsset(updatedMetaData.Guid))
-		{
-			loaded->ApplyImportOptions(updatedMetaData.ImportOptionsYaml);
-		}
-		return true;
-	}
-
+	// 스프라이트 임포트 옵션은 인스펙터 전용이 아니다 — 스프라이트 뷰어도 같은 값을 편집한다.
+	// 그래서 상태와 UI 를 SpriteImportOptionsEditor 로 빼서 **한 값에 창이 둘**인 형태로 둔다.
+	// (예전엔 여기 static 슬롯 하나가 진짜였는데, 뷰어가 파일당 창이라 그 형태로는 못 받는다.)
 	void DrawSpriteImportOptions(const AssetMetaData& metaData)
 	{
-		// 매 프레임 디스크 yaml 로 덮어쓰면 사용자가 ImGui 에서 만진 값이 1프레임 만에 reset 된다.
-		// 자산이 바뀔 때(혹은 처음)만 디스크 값에서 로드하고, 그 외에는 편집 중 값을 그대로 유지.
-		// SaveSpriteImportOptions 가 디스크에 쓴 뒤에도 캐시 값과 디스크 값이 동일하므로 무해.
-		static AssetGuid           s_cachedGuid;
-		static SpriteImportOptions s_options;
-		static bool                s_dirty = false;
-		if (s_cachedGuid != metaData.Guid)
-		{
-			s_cachedGuid = metaData.Guid;
-			s_options    = CSpriteImportOptions::FromYaml(metaData.ImportOptionsYaml);
-			s_dirty      = false;
-		}
-		SpriteImportOptions& options = s_options;
-		int rowCount    = static_cast<int>(options.RowCount);
-		int columnCount = static_cast<int>(options.ColumnCount);
-		int cellWidth   = static_cast<int>(options.CellWidth);
-		int cellHeight  = static_cast<int>(options.CellHeight);
-		int marginX     = static_cast<int>(options.MarginX);
-		int marginY     = static_cast<int>(options.MarginY);
-		int gapX        = static_cast<int>(options.GapX);
-		int gapY        = static_cast<int>(options.GapY);
-
 		ImSectionHeader(Loc::Text(EditorLocKeys::InspectorSpriteImportOptions)).Draw();
 
-		ImGui::Utillity::FormLayout layout("##sprite_import_options");
-		bool changed = false;
+		SpriteImportOptionsEditor::DrawEditor(metaData);
+		SpriteImportOptionsEditor::DrawSliceSummary(metaData);
 
-		// ── 슬라이스 모드 콤보 ─────────────────────────────────────────────────
-		const char* sliceItems[] = {
-			Loc::Text(EditorLocKeys::InspectorSliceTypeNone),
-			Loc::Text(EditorLocKeys::InspectorSliceTypeAutomatic),
-			Loc::Text(EditorLocKeys::InspectorSliceTypeCellSize),
-			Loc::Text(EditorLocKeys::InspectorSliceTypeCellCount),
-		};
-		int sliceTypeIndex = static_cast<int>(options.SliceType);
-		layout.Row(
-			[&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorSliceType)); },
-			[&]()
-			{
-				if (ImGui::Combo("##inspector.slice_type", &sliceTypeIndex, sliceItems, IM_ARRAYSIZE(sliceItems)))
-				{
-					changed = true;
-				}
-			});
-		options.SliceType = static_cast<ESpriteSliceType>(sliceTypeIndex);
-
-		// ── 모드별 입력란 ─────────────────────────────────────────────────────
-		if (ESpriteSliceType::CellCount == options.SliceType)
-		{
-			layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorRowCount)); },    [&]() { changed |= ImGui::InputInt("##inspector.row_count", &rowCount); });
-			layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorColumnCount)); }, [&]() { changed |= ImGui::InputInt("##inspector.column_count", &columnCount); });
-		}
-		else if (ESpriteSliceType::CellSize == options.SliceType)
-		{
-			layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorCellWidth)); },  [&]() { changed |= ImGui::InputInt("##inspector.cell_width", &cellWidth); });
-			layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorCellHeight)); }, [&]() { changed |= ImGui::InputInt("##inspector.cell_height", &cellHeight); });
-		}
-
-		// ── 그리드/여백 (None/Automatic 에서는 의미 없으므로 슬라이스 모드일 때만) ─
-		if (ESpriteSliceType::CellSize == options.SliceType || ESpriteSliceType::CellCount == options.SliceType)
-		{
-			layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorMarginX)); }, [&]() { changed |= ImGui::InputInt("##inspector.margin_x", &marginX); });
-			layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorMarginY)); }, [&]() { changed |= ImGui::InputInt("##inspector.margin_y", &marginY); });
-			layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorGapX)); },    [&]() { changed |= ImGui::InputInt("##inspector.gap_x", &gapX); });
-			layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorGapY)); },    [&]() { changed |= ImGui::InputInt("##inspector.gap_y", &gapY); });
-		}
-
-		SafePtr<CProjectManager> projectManager = EditorContext::GetProjectManager();
-		const float projectPPU = projectManager ? projectManager->GetPixelsPerUnit() : 0.0f;
-
-		// ── 공용: 피벗/PPU ────────────────────────────────────────────────────
-		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorPivotX)); },         [&]() { changed |= ImGui::SliderFloat("##inspector.pivot_x", &options.PivotX, 0.0f, 1.0f, "%.2f"); });
-		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorPivotY)); },         [&]() { changed |= ImGui::SliderFloat("##inspector.pivot_y", &options.PivotY, 0.0f, 1.0f, "%.2f"); });
-		layout.Row(
-			[&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorPixelsPerUnit)); },
-			[&]() {
-				// 0 = 프로젝트 기본값 사용. 0 보다 큰 값이면 그 값으로 오버라이드.
-				changed |= ImGui::DragFloat("##inspector.pixels_per_unit", &options.PixelsPerUnit, 1.0f, 0.0f, 10000.0f);
-				if (options.PixelsPerUnit <= 0.0f)
-				{
-					ImGui::SameLine();
-					ImGui::TextDisabled("%.1f %s", projectPPU, Loc::Text(EditorLocKeys::InspectorPpuProjectDefaultSuffix));
-				}
-			}
-		);
-
-		options.RowCount    = static_cast<std::uint32_t>(std::max(1, rowCount));
-		options.ColumnCount = static_cast<std::uint32_t>(std::max(1, columnCount));
-		options.CellWidth   = static_cast<std::uint32_t>(std::max(1, cellWidth));
-		options.CellHeight  = static_cast<std::uint32_t>(std::max(1, cellHeight));
-		options.MarginX     = static_cast<std::uint32_t>(std::max(0, marginX));
-		options.MarginY     = static_cast<std::uint32_t>(std::max(0, marginY));
-		options.GapX        = static_cast<std::uint32_t>(std::max(0, gapX));
-		options.GapY        = static_cast<std::uint32_t>(std::max(0, gapY));
-
-		SafePtr<IAssetManager> assetManager = EditorContext::GetAssetManager();
-		std::uint32_t textureWidth = 0;
-		std::uint32_t textureHeight = 0;
-		if (assetManager)
-		{
-			// 크기만 읽고 마는 일회성 로드 — 그냥 LoadAsset 하면 눌러 본 스프라이트가 전부
-			// 캐시에 남는다(자동 GC 없음). 홀더가 선택이 바뀔 때 이전 것을 내린다.
-			static CTransientAssetLoad s_spriteInfoLoad;
-			if (const AssetRef<IAsset>& loadedAsset = s_spriteInfoLoad.Acquire(*assetManager, metaData.Guid))
-			{
-				if (EAssetType::Sprite == loadedAsset->GetAssetType())
-				{
-					CSpriteAsset* spriteAsset = static_cast<CSpriteAsset*>(loadedAsset.Get());
-					textureWidth = spriteAsset ? spriteAsset->GetWidth() : 0;
-					textureHeight = spriteAsset ? spriteAsset->GetHeight() : 0;
-				}
-			}
-		}
-
-		const std::vector<SpriteFrame> previewFrames = CSpriteImportOptions::BuildFrames(textureWidth, textureHeight, options);
-		DrawReadOnlyUInt(Loc::Text(EditorLocKeys::InspectorSpritePreviewFrameCount), static_cast<std::uint32_t>(previewFrames.size()));
-		if (false == previewFrames.empty())
-		{
-			DrawReadOnlyUInt(Loc::Text(EditorLocKeys::InspectorSpriteFrameWidth), previewFrames.front().Width);
-			DrawReadOnlyUInt(Loc::Text(EditorLocKeys::InspectorSpriteFrameHeight), previewFrames.front().Height);
-		}
-
-		if (changed)
-		{
-			s_dirty = true;
-		}
-
-		// 스프라이트 뷰어 — 격자를 눈으로 보면서 자르고, 프레임 하나를 재생해 본다.
-		// 편집 중인 옵션을 매 프레임 밀어 넣어야 슬라이더를 움직일 때 격자가 즉시 따라온다.
-		// 저장은 여전히 아래 Apply 가 한다 — 편집 주체는 한 곳이어야 한다.
-		SpriteViewer::PushOptions(metaData.Guid, options);
 		if (ImActionButton(Loc::Text(EditorLocKeys::InspectorSpriteOpenViewer)).Draw())
 		{
 			SpriteViewer::Open(metaData.Guid, metaData.DisplayName);
 		}
 
-		ImGui::BeginDisabled(false == s_dirty);
-		if (ImActionButton(Loc::Text(EditorLocKeys::InspectorApplySpriteImportOptions))
-			.Severity(EImValidationSeverity::Success)
-			.Draw())
-		{
-			if (SaveSpriteImportOptions(metaData, options))
-			{
-				s_dirty = false;
-			}
-		}
-		ImGui::EndDisabled();
+		SpriteImportOptionsEditor::DrawApplyButton(metaData);
 	}
 
 	// ── 사운드 자산 임포트 옵션 ──────────────────────────────────────────────

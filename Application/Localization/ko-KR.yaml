@@ -488,16 +488,13 @@ Entries:
   script_prop.reftarget_tooltip: 참조 대상 타입(컴포넌트/스크립트 또는 에셋 종류). Array 는 원소 타입, Table 은 키 타입.
   script_prop.valuetarget_tooltip: Table 값 타입.
   sprite_viewer.title: 스프라이트 뷰어
-  sprite_viewer.mode_sheet: 시트
-  sprite_viewer.mode_frame: 프레임
+  sprite_viewer.preview: 미리보기
   sprite_viewer.zoom: 확대
   sprite_viewer.fit: 창에 맞추기
   sprite_viewer.show_pivot: 피벗 표시
-  sprite_viewer.frame_count: 프레임
   sprite_viewer.frame_index_format: 프레임 %d
   sprite_viewer.frames_per_second: 초당 프레임
   sprite_viewer.hovered_frame: 가리킴
-  sprite_viewer.selected_frame: 선택
   sprite_viewer.play: 재생
   sprite_viewer.stop: 정지
   sprite_viewer.no_texture: 스프라이트를 불러올 수 없습니다.

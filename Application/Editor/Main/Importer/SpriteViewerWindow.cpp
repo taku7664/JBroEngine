@@ -3,9 +3,13 @@
 
 #include "Editor/Editor.h"
 #include "Editor/EditorContext.h"
+#include "Editor/ImItem/ImSectionHeader.h"
+#include "Editor/ImItem/ImSplitter.h"
 #include "Editor/Localization/EditorLocalizationKeys.h"
+#include "Editor/Main/Importer/SpriteImportOptionsEditor.h"
 #include "Engine/Core/Asset/IAssetManager.h"
 #include "Engine/Core/EngineCore.h"
+#include "Engine/Core/Localization/LocalizationManager.h"
 #include "Engine/Core/Renderer/IRenderResourceCache.h"
 #include "Engine/Core/RHI/IRHITexture.h"
 #include "Engine/Editor/ImEditor.h"
@@ -13,18 +17,20 @@
 
 #include <algorithm>
 #include <cstdio>
-#include <vector>
 
 namespace
 {
 	constexpr float ZOOM_MIN = 0.05f;
 	constexpr float ZOOM_MAX = 16.0f;
+	constexpr float SPLITTER_WIDTH = 4.0f;
+	constexpr float SPLIT_MIN_RATIO = 0.25f;
+	constexpr float SPLIT_MAX_RATIO = 0.85f;
 
 	// 셀이 이보다 작으면 인덱스 라벨을 그리지 않는다 — 겹쳐서 격자만 더럽힌다.
 	constexpr float LABEL_MIN_CELL_PIXELS = 22.0f;
 
 	// 한 프레임에 애니메이션이 건너뛸 수 있는 최대 프레임 수. 창을 오래 멈춰 뒀다가
-	// 돌아왔을 때(브레이크포인트·드래그) 델타가 커져도 루프가 폭주하지 않게 막는다.
+	// 돌아왔을 때(브레이크포인트·드래그) 델타가 커져도 폭주하지 않게 막는다.
 	constexpr int MAX_PLAYBACK_ADVANCE = 240;
 
 	const ImU32 GRID_COLOR     = IM_COL32(80, 200, 255, 180);
@@ -50,15 +56,19 @@ namespace
 		return reinterpret_cast<ImTextureID>(texture->GetNativeHandle().ShaderResourceView);
 	}
 
-	// 프레임 하나를 감싸는 피벗 십자. 피벗은 **Y-up**(0=아래, 1=위)이고 텍스처 좌표는
-	// Y-down 이라 세로를 뒤집어 찍는다.
-	void DrawPivotCross(ImDrawList& drawList, const ImVec2& topLeft, const ImVec2& size,
-	                    float pivotX, float pivotY)
+	// 피벗은 **Y-up**(0=아래, 1=위)이고 텍스처 좌표는 Y-down 이라 세로를 뒤집어 찍는다.
+	void DrawPivotCross(ImDrawList& drawList, const ImVec2& topLeft, const ImVec2& size, float pivotX, float pivotY)
 	{
 		const float x = topLeft.x + pivotX * size.x;
 		const float y = topLeft.y + (1.0f - pivotY) * size.y;
 		drawList.AddLine(ImVec2(x - 5.0f, y), ImVec2(x + 5.0f, y), PIVOT_COLOR, 1.5f);
 		drawList.AddLine(ImVec2(x, y - 5.0f), ImVec2(x, y + 5.0f), PIVOT_COLOR, 1.5f);
+	}
+
+	bool TryGetMetaData(const AssetGuid& guid, AssetMetaData& outMetaData)
+	{
+		SafePtr<IAssetManager> assetManager = EditorContext::GetAssetManager();
+		return assetManager.IsValid() && assetManager->GetRegistry().TryGetAsset(guid, outMetaData);
 	}
 }
 
@@ -81,7 +91,6 @@ void SpriteViewer::Open(const AssetGuid& guid, const std::string& title)
 		const ImGuiID dockId  = ImHashStr(DockKey(guid).c_str());
 		const ImGuiID panelId = ImHashStr(PanelKey(guid).c_str());
 
-		// 이미 열려 있으면 새로 만들지 않고 다시 보여 준다.
 		if (SafePtr<CSpriteViewerPanel> existing =
 			DynamicSafePtrCast<CSpriteViewerPanel>(Editor::ImEditor->FindImWindow(panelId)))
 		{
@@ -107,7 +116,7 @@ void SpriteViewer::Open(const AssetGuid& guid, const std::string& title)
 		// Dock 제목은 파일명이 아니라 "스프라이트 뷰어" 로 고정한다(언어 전환도 반영).
 		// 파일명은 안쪽 패널 탭이 들고 있다 — 사운드 효과 에디터와 같은 규칙.
 		dock->SetLocalizedTitleKey(EditorLocKeys::SpriteViewerTitle);
-		dock->SetSize(ImVec2(760.0f, 620.0f));
+		dock->SetSize(ImVec2(960.0f, 640.0f));
 
 		SafePtr<CSpriteViewerPanel> panel =
 			Editor::ImEditor->CreateImWindow<CSpriteViewerPanel>(PanelKey(guid).c_str(), dockId);
@@ -120,22 +129,15 @@ void SpriteViewer::Open(const AssetGuid& guid, const std::string& title)
 	});
 }
 
-void SpriteViewer::PushOptions(const AssetGuid& guid, const SpriteImportOptions& options)
-{
-	if (false == Editor::ImEditor.IsValid() || guid.IsNull())
-	{
-		return;
-	}
-	const ImGuiID panelId = ImHashStr(PanelKey(guid).c_str());
-	if (SafePtr<CSpriteViewerPanel> panel =
-		DynamicSafePtrCast<CSpriteViewerPanel>(Editor::ImEditor->FindImWindow(panelId)))
-	{
-		panel->SetOptions(options);
-	}
-}
-
 void CSpriteViewerPanel::OnRenderStay()
 {
+	AssetMetaData metaData;
+	if (false == TryGetMetaData(m_guid, metaData))
+	{
+		ImGui::TextUnformatted(Loc::Text(EditorLocKeys::SpriteViewerNoTexture));
+		return;
+	}
+
 	SafePtr<IAssetManager> assetManager = EditorContext::GetAssetManager();
 	CSpriteAsset* spriteAsset = nullptr;
 	if (assetManager)
@@ -156,70 +158,53 @@ void CSpriteViewerPanel::OnRenderStay()
 		return;
 	}
 
-	// 격자는 **편집 중인 옵션**으로 다시 계산한다. 자산이 들고 있는 프레임은 마지막으로
-	// Apply 된 결과라, 슬라이더를 움직이는 동안에는 화면과 어긋난다.
+	// 격자는 **편집 중인 옵션**으로 계산한다. 자산이 들고 있는 프레임은 마지막으로 Apply 된
+	// 결과라, 슬라이더를 움직이는 동안에는 화면과 어긋난다.
+	const SpriteImportOptions& options = SpriteImportOptionsEditor::Get(metaData);
 	const std::vector<SpriteFrame> frames =
-		CSpriteImportOptions::BuildFrames(spriteAsset->GetWidth(), spriteAsset->GetHeight(), m_options);
+		CSpriteImportOptions::BuildFrames(spriteAsset->GetWidth(), spriteAsset->GetHeight(), options);
 
-	// 슬라이스를 다시 잘라 프레임 수가 줄면 선택/재생 인덱스가 범위를 벗어난다.
-	if (false == frames.empty())
-	{
-		m_selectedFrame = std::clamp(m_selectedFrame, 0, static_cast<int>(frames.size()) - 1);
-	}
-	else
-	{
-		m_selectedFrame = 0;
-	}
+	// 다시 잘라 프레임 수가 줄면 선택/재생 인덱스가 범위를 벗어난다.
+	m_selectedFrame = frames.empty()
+		? 0
+		: std::clamp(m_selectedFrame, 0, static_cast<int>(frames.size()) - 1);
 
 	DrawToolbar(static_cast<float>(spriteAsset->GetWidth()), static_cast<float>(spriteAsset->GetHeight()));
-	if (ESpriteViewerMode::Frame == m_mode)
-	{
-		DrawFrameControls(frames.size());
-	}
 	ImGui::Separator();
 
-	// 캔버스를 먼저 그린다 — 호버 판정이 여기서 나오므로 상태줄은 그 **뒤**여야 한다.
-	// 반대로 두면 표시가 한 프레임 늦어 커서를 못 따라온다.
-	if (ESpriteViewerMode::Sheet == m_mode)
-	{
-		DrawSheet(*spriteAsset, frames);
-	}
-	else
-	{
-		DrawSingleFrame(*spriteAsset, frames);
-	}
+	// 아래쪽 재생 바 높이를 빼고 본문을 나눈다.
+	const float playbackHeight = ImGui::GetFrameHeightWithSpacing() + ImGui::GetStyle().ItemSpacing.y;
+	const ImVec2 totalAvail = ImGui::GetContentRegionAvail();
+	const ImVec2 bodyAvail(totalAvail.x, std::max(totalAvail.y - playbackHeight, 1.0f));
 
-	DrawStatusLine(frames);
+	const float leftWidth = bodyAvail.x * m_splitRatio - SPLITTER_WIDTH * 0.5f;
+	const float rightWidth = bodyAvail.x - leftWidth - SPLITTER_WIDTH;
+
+	DrawSheetPane(*spriteAsset, frames, ImVec2(leftWidth, bodyAvail.y));
+
+	ImGui::Utillity::VerticalSplitter("##SpriteViewerSplitter", m_splitRatio, bodyAvail,
+		SPLIT_MIN_RATIO, SPLIT_MAX_RATIO, SPLITTER_WIDTH);
+
+	DrawSidePane(metaData, *spriteAsset, frames, ImVec2(rightWidth, bodyAvail.y));
+
+	DrawPlaybackBar(frames);
 }
 
 void CSpriteViewerPanel::DrawToolbar(float textureWidth, float textureHeight)
 {
-	const bool sheetMode = (ESpriteViewerMode::Sheet == m_mode);
-	if (ImGui::RadioButton(Loc::Text(EditorLocKeys::SpriteViewerModeSheet), sheetMode))
-	{
-		m_mode = ESpriteViewerMode::Sheet;
-		m_playing = false;
-	}
-	ImGui::SameLine();
-	if (ImGui::RadioButton(Loc::Text(EditorLocKeys::SpriteViewerModeFrame), false == sheetMode))
-	{
-		m_mode = ESpriteViewerMode::Frame;
-	}
-
-	ImGui::SameLine();
 	ImGui::SetNextItemWidth(160.0f);
 	ImGui::SliderFloat(Loc::Text(EditorLocKeys::SpriteViewerZoom), &m_zoom, ZOOM_MIN, ZOOM_MAX, "%.2fx");
 
 	ImGui::SameLine();
 	if (ImGui::Button(Loc::Text(EditorLocKeys::SpriteViewerFit)))
 	{
-		// 캔버스에 남을 높이 = 지금 남은 높이 - (아래에 더 그릴 줄들). 폰트/DPI 가 바뀌어도
-		// 따라가도록 상수 대신 ImGui 의 실제 줄 높이를 쓴다.
-		const float reservedRows = (ESpriteViewerMode::Frame == m_mode) ? 3.0f : 2.0f;
-		const float reserved = ImGui::GetFrameHeightWithSpacing() * reservedRows;
+		// 시트 칸에 남을 크기에 맞춘다. 폰트/DPI 가 바뀌어도 따라가도록 상수 대신
+		// ImGui 의 실제 줄 높이를 쓴다.
 		const ImVec2 available = ImGui::GetContentRegionAvail();
-		const float fitX = textureWidth > 0.0f ? available.x / textureWidth : 1.0f;
-		const float fitY = textureHeight > 0.0f ? (available.y - reserved) / textureHeight : 1.0f;
+		const float paneWidth = available.x * m_splitRatio;
+		const float paneHeight = available.y - ImGui::GetFrameHeightWithSpacing() * 2.0f;
+		const float fitX = textureWidth > 0.0f ? paneWidth / textureWidth : 1.0f;
+		const float fitY = textureHeight > 0.0f ? paneHeight / textureHeight : 1.0f;
 		m_zoom = std::clamp(std::min(fitX, fitY), ZOOM_MIN, ZOOM_MAX);
 	}
 
@@ -230,66 +215,17 @@ void CSpriteViewerPanel::DrawToolbar(float textureWidth, float textureHeight)
 	ImGui::TextDisabled("%.0f x %.0f", textureWidth, textureHeight);
 }
 
-void CSpriteViewerPanel::DrawFrameControls(std::size_t frameCount)
+void CSpriteViewerPanel::DrawSheetPane(const CSpriteAsset& spriteAsset,
+                                       const std::vector<SpriteFrame>& frames,
+                                       const ImVec2& paneSize)
 {
-	const int lastIndex = frameCount > 0 ? static_cast<int>(frameCount) - 1 : 0;
-
-	ImGui::BeginDisabled(frameCount <= 1);
-	if (ImGui::Button(m_playing ? Loc::Text(EditorLocKeys::SpriteViewerStop)
-	                            : Loc::Text(EditorLocKeys::SpriteViewerPlay)))
-	{
-		m_playing = false == m_playing;
-		m_elapsedSeconds = 0.0f;
-	}
-	ImGui::EndDisabled();
-
-	ImGui::SameLine();
-	ImGui::SetNextItemWidth(200.0f);
-	// 재생 중에는 인덱스를 직접 못 끌게 한다 — 끌자마자 재생이 덮어써서 조작이 안 먹는 것처럼 보인다.
-	ImGui::BeginDisabled(m_playing);
-	ImGui::SliderInt("##sprite_viewer.frame_index", &m_selectedFrame, 0, lastIndex,
-		Loc::Text(EditorLocKeys::SpriteViewerFrameIndexFormat));
-	ImGui::EndDisabled();
-
-	ImGui::SameLine();
-	ImGui::SetNextItemWidth(140.0f);
-	ImGui::SliderFloat(Loc::Text(EditorLocKeys::SpriteViewerFramesPerSecond), &m_framesPerSecond, 1.0f, 60.0f, "%.0f");
-
-	AdvancePlayback(frameCount);
-}
-
-void CSpriteViewerPanel::AdvancePlayback(std::size_t frameCount)
-{
-	if (false == m_playing || frameCount <= 1 || m_framesPerSecond <= 0.0f)
-	{
-		return;
-	}
-
-	m_elapsedSeconds += ImGui::GetIO().DeltaTime;
-	const float frameDuration = 1.0f / m_framesPerSecond;
-	if (m_elapsedSeconds < frameDuration)
-	{
-		return;
-	}
-
-	// while 로 돌리면 창이 오래 멈췄다 돌아왔을 때 델타가 커져 수천 번 돈다. 나눗셈 한 번으로 끝낸다.
-	const int advance = std::min(static_cast<int>(m_elapsedSeconds / frameDuration), MAX_PLAYBACK_ADVANCE);
-	m_elapsedSeconds -= static_cast<float>(advance) * frameDuration;
-	m_selectedFrame = (m_selectedFrame + advance) % static_cast<int>(frameCount);
-}
-
-void CSpriteViewerPanel::DrawSheet(const CSpriteAsset& spriteAsset, const std::vector<SpriteFrame>& frames)
-{
-	const float textureWidth = static_cast<float>(spriteAsset.GetWidth());
-	const float textureHeight = static_cast<float>(spriteAsset.GetHeight());
-
-	ImGui::BeginChild("##sprite_sheet_canvas", ImVec2(0.0f, -ImGui::GetFrameHeightWithSpacing()), false,
-		ImGuiWindowFlags_HorizontalScrollbar);
+	ImGui::BeginChild("##sprite_sheet_pane", paneSize, true, ImGuiWindowFlags_HorizontalScrollbar);
 
 	const ImVec2 origin = ImGui::GetCursorScreenPos();
 	CSpriteAsset& mutableAsset = const_cast<CSpriteAsset&>(spriteAsset);
 	const ImTextureID textureId = AcquireTextureId(m_guid, mutableAsset);
-	const ImVec2 drawSize(textureWidth * m_zoom, textureHeight * m_zoom);
+	const ImVec2 drawSize(static_cast<float>(spriteAsset.GetWidth()) * m_zoom,
+	                      static_cast<float>(spriteAsset.GetHeight()) * m_zoom);
 
 	if (0 != textureId)
 	{
@@ -321,10 +257,11 @@ void CSpriteViewerPanel::DrawSheet(const CSpriteAsset& spriteAsset, const std::v
 		if (hovered)
 		{
 			m_hoveredFrame = static_cast<int>(index);
-			// 칸을 클릭하면 그 프레임을 고른다 — 프레임 모드로 넘어가면 바로 그게 보인다.
+			// 칸을 클릭하면 그 프레임을 고른다 — 오른쪽 미리보기가 바로 그걸 보여 준다.
 			if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
 			{
 				m_selectedFrame = static_cast<int>(index);
+				m_playing = false;
 			}
 		}
 
@@ -348,12 +285,38 @@ void CSpriteViewerPanel::DrawSheet(const CSpriteAsset& spriteAsset, const std::v
 	ImGui::EndChild();
 }
 
-void CSpriteViewerPanel::DrawSingleFrame(const CSpriteAsset& spriteAsset, const std::vector<SpriteFrame>& frames)
+void CSpriteViewerPanel::DrawSidePane(const AssetMetaData& metaData,
+                                      const CSpriteAsset& spriteAsset,
+                                      const std::vector<SpriteFrame>& frames,
+                                      const ImVec2& paneSize)
 {
-	ImGui::BeginChild("##sprite_frame_canvas", ImVec2(0.0f, -ImGui::GetFrameHeightWithSpacing()), false,
-		ImGuiWindowFlags_HorizontalScrollbar);
+	ImGui::SameLine();
+	ImGui::BeginChild("##sprite_side_pane", paneSize, true);
 
-	m_hoveredFrame = -1;
+	DrawPreview(spriteAsset, frames, paneSize.x);
+
+	ImGui::Separator();
+
+	// 임포트 옵션 — 인스펙터와 **같은 값**을 편집한다(SpriteImportOptionsEditor 소유).
+	// 여기서 고친 게 인스펙터에도 그대로 보이고, 그 반대도 같다.
+	ImSectionHeader(Loc::Text(EditorLocKeys::InspectorSpriteImportOptions)).Draw();
+	SpriteImportOptionsEditor::DrawEditor(metaData);
+	SpriteImportOptionsEditor::DrawSliceSummary(metaData);
+	SpriteImportOptionsEditor::DrawApplyButton(metaData);
+
+	ImGui::EndChild();
+}
+
+void CSpriteViewerPanel::DrawPreview(const CSpriteAsset& spriteAsset,
+                                     const std::vector<SpriteFrame>& frames,
+                                     float paneWidth)
+{
+	ImGui::TextUnformatted(Loc::Text(EditorLocKeys::SpriteViewerPreview));
+
+	// 미리보기 칸 높이는 고정한다 — 프레임마다 크기가 달라도 아래 옵션이 들썩이지 않게.
+	const float previewHeight = std::max(paneWidth * 0.6f, 120.0f);
+	ImGui::BeginChild("##sprite_preview", ImVec2(0.0f, previewHeight), true);
+
 	if (frames.empty())
 	{
 		ImGui::EndChild();
@@ -363,13 +326,27 @@ void CSpriteViewerPanel::DrawSingleFrame(const CSpriteAsset& spriteAsset, const 
 	const SpriteFrame& frame = frames[static_cast<std::size_t>(m_selectedFrame)];
 	const float textureWidth = static_cast<float>(spriteAsset.GetWidth());
 	const float textureHeight = static_cast<float>(spriteAsset.GetHeight());
+	const float frameWidth = static_cast<float>(frame.Width);
+	const float frameHeight = static_cast<float>(frame.Height);
 
+	// 칸 안에 통째로 들어가되 확대는 하지 않는다(픽셀아트가 뭉개지지 않게).
+	const ImVec2 boxAvail = ImGui::GetContentRegionAvail();
+	float scale = 1.0f;
+	if (frameWidth > 0.0f && frameHeight > 0.0f)
+	{
+		scale = std::min(boxAvail.x / frameWidth, boxAvail.y / frameHeight);
+		scale = std::min(scale, 8.0f);
+	}
+	const ImVec2 drawSize(frameWidth * scale, frameHeight * scale);
+
+	// 가운데 정렬.
+	const ImVec2 pad((boxAvail.x - drawSize.x) * 0.5f, (boxAvail.y - drawSize.y) * 0.5f);
+	ImGui::SetCursorPos(ImVec2(ImGui::GetCursorPosX() + std::max(pad.x, 0.0f),
+	                           ImGui::GetCursorPosY() + std::max(pad.y, 0.0f)));
+
+	const ImVec2 origin = ImGui::GetCursorScreenPos();
 	CSpriteAsset& mutableAsset = const_cast<CSpriteAsset&>(spriteAsset);
 	const ImTextureID textureId = AcquireTextureId(m_guid, mutableAsset);
-	const ImVec2 drawSize(static_cast<float>(frame.Width) * m_zoom,
-	                      static_cast<float>(frame.Height) * m_zoom);
-	const ImVec2 origin = ImGui::GetCursorScreenPos();
-
 	if (0 != textureId && textureWidth > 0.0f && textureHeight > 0.0f)
 	{
 		// 프레임 하나만 잘라 그린다 — 시트 전체를 그린 뒤 가리는 것보다 확대에 유리하다.
@@ -384,33 +361,69 @@ void CSpriteViewerPanel::DrawSingleFrame(const CSpriteAsset& spriteAsset, const 
 		ImGui::Dummy(drawSize);
 	}
 
-	ImDrawList* drawList = ImGui::GetWindowDrawList();
-	drawList->AddRect(origin, ImVec2(origin.x + drawSize.x, origin.y + drawSize.y), GRID_COLOR);
 	if (m_showPivot)
 	{
-		DrawPivotCross(*drawList, origin, drawSize, frame.PivotX, frame.PivotY);
+		DrawPivotCross(*ImGui::GetWindowDrawList(), origin, drawSize, frame.PivotX, frame.PivotY);
 	}
 
 	ImGui::EndChild();
 }
 
-void CSpriteViewerPanel::DrawStatusLine(const std::vector<SpriteFrame>& frames)
+void CSpriteViewerPanel::DrawPlaybackBar(const std::vector<SpriteFrame>& frames)
 {
-	if (frames.empty())
+	const std::size_t frameCount = frames.size();
+	const int lastIndex = frameCount > 0 ? static_cast<int>(frameCount) - 1 : 0;
+
+	ImGui::BeginDisabled(frameCount <= 1);
+	if (ImGui::Button(m_playing ? Loc::Text(EditorLocKeys::SpriteViewerStop)
+	                            : Loc::Text(EditorLocKeys::SpriteViewerPlay)))
 	{
-		ImGui::TextDisabled("%s 0", Loc::Text(EditorLocKeys::SpriteViewerFrameCount));
+		m_playing = false == m_playing;
+		m_elapsedSeconds = 0.0f;
+	}
+	ImGui::EndDisabled();
+
+	ImGui::SameLine();
+	ImGui::SetNextItemWidth(260.0f);
+	// 재생 중에는 직접 못 끌게 한다 — 끌자마자 재생이 덮어써서 조작이 안 먹는 것처럼 보인다.
+	ImGui::BeginDisabled(m_playing || frameCount == 0);
+	ImGui::SliderInt("##sprite_viewer.frame_index", &m_selectedFrame, 0, lastIndex,
+		Loc::Text(EditorLocKeys::SpriteViewerFrameIndexFormat));
+	ImGui::EndDisabled();
+
+	ImGui::SameLine();
+	ImGui::SetNextItemWidth(130.0f);
+	ImGui::SliderFloat(Loc::Text(EditorLocKeys::SpriteViewerFramesPerSecond), &m_framesPerSecond, 1.0f, 60.0f, "%.0f");
+
+	// 가리키고 있는 칸이 있으면 그쪽 정보를 보여 준다(격자에서 찾을 때 유용).
+	if (m_hoveredFrame >= 0 && m_hoveredFrame < static_cast<int>(frameCount))
+	{
+		const SpriteFrame& hovered = frames[static_cast<std::size_t>(m_hoveredFrame)];
+		ImGui::SameLine();
+		ImGui::TextDisabled("%s %d   (%u, %u)  %u x %u",
+			Loc::Text(EditorLocKeys::SpriteViewerHoveredFrame), m_hoveredFrame,
+			hovered.X, hovered.Y, hovered.Width, hovered.Height);
+	}
+
+	AdvancePlayback(frameCount);
+}
+
+void CSpriteViewerPanel::AdvancePlayback(std::size_t frameCount)
+{
+	if (false == m_playing || frameCount <= 1 || m_framesPerSecond <= 0.0f)
+	{
 		return;
 	}
 
-	// 호버가 있으면 그쪽을, 없으면 선택된 프레임을 설명한다.
-	const int described = (m_hoveredFrame >= 0 && m_hoveredFrame < static_cast<int>(frames.size()))
-		? m_hoveredFrame
-		: m_selectedFrame;
-	const SpriteFrame& frame = frames[static_cast<std::size_t>(described)];
+	m_elapsedSeconds += ImGui::GetIO().DeltaTime;
+	const float frameDuration = 1.0f / m_framesPerSecond;
+	if (m_elapsedSeconds < frameDuration)
+	{
+		return;
+	}
 
-	ImGui::Text("%s %d / %d      %s %d      (%u, %u)  %u x %u",
-		Loc::Text(EditorLocKeys::SpriteViewerFrameCount), described, static_cast<int>(frames.size()) - 1,
-		(m_hoveredFrame >= 0) ? Loc::Text(EditorLocKeys::SpriteViewerHoveredFrame)
-		                      : Loc::Text(EditorLocKeys::SpriteViewerSelectedFrame),
-		described, frame.X, frame.Y, frame.Width, frame.Height);
+	// while 로 돌리면 창이 오래 멈췄다 돌아왔을 때 델타가 커져 수천 번 돈다. 나눗셈으로 끝낸다.
+	const int advance = std::min(static_cast<int>(m_elapsedSeconds / frameDuration), MAX_PLAYBACK_ADVANCE);
+	m_elapsedSeconds -= static_cast<float>(advance) * frameDuration;
+	m_selectedFrame = (m_selectedFrame + advance) % static_cast<int>(frameCount);
 }
