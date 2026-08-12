@@ -16,6 +16,25 @@
 
 #include <cstddef>
 
+// ── 베이스가 보유한 공통 프로퍼티 ────────────────────────────────────────────
+// 필드는 베이스로 합쳤지만 **등록은 타입마다 해야 한다**(offsetof 는 구체 타입 기준).
+// 그대로 두면 새 렌더러를 넣을 때마다 같은 줄을 복붙하게 되고, 하나 빠뜨리면
+// 컴파일도 되고 에러도 없이 **인스펙터에서만 사라진다**. 그래서 한 곳에 모은다.
+//
+// 함수가 아니라 매크로인 이유: offsetof 가 private 멤버를 보려면 각 컴포넌트의 friend
+// 안에서 평가돼야 하고, 그 friend 는 RegisterBuiltinComponents 다. 별도 헬퍼 함수로 빼면
+// 컴포넌트마다 friend 를 하나씩 더 달아야 한다.
+#define JBRO_RENDERER2D_PROPERTIES(TYPE)                                                                       \
+	.AddProperty("Offset", EReflectPropertyType::Vector2Float, offsetof(TYPE, m_offset), sizeof(Vector2))       \
+	.AddProperty("SortOrder", EReflectPropertyType::Int32, offsetof(TYPE, SortOrder), sizeof(std::int32_t))
+
+#define JBRO_SHAPE_PROPERTIES(TYPE)                                                                            \
+	.AddProperty("FillEnabled", EReflectPropertyType::Bool, offsetof(TYPE, FillEnabled), sizeof(bool))          \
+	.AddProperty("FillColor", EReflectPropertyType::ColorFloat4, offsetof(TYPE, FillColor), sizeof(Color))      \
+	.AddProperty("OutlineEnabled", EReflectPropertyType::Bool, offsetof(TYPE, OutlineEnabled), sizeof(bool))    \
+	.AddProperty("OutlineColor", EReflectPropertyType::ColorFloat4, offsetof(TYPE, OutlineColor), sizeof(Color))\
+	.AddProperty("OutlineWidth", EReflectPropertyType::Float, offsetof(TYPE, OutlineWidth), sizeof(float))
+
 // GameObject(Name/Active/Layer) 와 Transform2D 는 더 이상 컴포넌트가 아니다(CGameObject 멤버).
 // 인스펙터/직렬화는 이를 오브젝트 헤더로 직접 처리한다. 계층도 CGameObject 멤버(폐지된
 // TransformHierarchy2D 없음). 컴포넌트 공통 IsEnabled 는 CComponent 베이스 → 제네릭 처리.
@@ -25,12 +44,11 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 		.AddAssetProperty("SpriteGuid", offsetof(SpriteRenderer2D, m_spriteGuid), EAssetType::Sprite)
 		.AddAssetProperty("MaterialGuid", offsetof(SpriteRenderer2D, MaterialGuid), EAssetType::Material)
 		.AddProperty("Size", EReflectPropertyType::Vector2Float, offsetof(SpriteRenderer2D, m_size), sizeof(Vector2))
-		.AddProperty("Offset", EReflectPropertyType::Vector2Float, offsetof(SpriteRenderer2D, m_offset), sizeof(Vector2))
+		JBRO_RENDERER2D_PROPERTIES(SpriteRenderer2D)
 		.AddProperty("FlipX", EReflectPropertyType::Bool, offsetof(SpriteRenderer2D, m_flipX), sizeof(bool))
 		.AddProperty("FlipY", EReflectPropertyType::Bool, offsetof(SpriteRenderer2D, m_flipY), sizeof(bool))
 		.AddProperty("FrameIndex", EReflectPropertyType::UInt32, offsetof(SpriteRenderer2D, m_frameIndex), sizeof(std::uint32_t))
 		.AddProperty("Color", EReflectPropertyType::ColorFloat4, offsetof(SpriteRenderer2D, Color), sizeof(Color))
-		.AddProperty("SortOrder", EReflectPropertyType::Int32, offsetof(SpriteRenderer2D, SortOrder), sizeof(std::int32_t))
 		.AddProperty("CastShadow", EReflectPropertyType::Bool, offsetof(SpriteRenderer2D, CastShadow), sizeof(bool));
 
 	registry.RegisterComponent<Text2D>({ "Text2D", "Text 2D", "Rendering", true })
@@ -54,41 +72,25 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 		.AddProperty("OutlineColor", EReflectPropertyType::ColorFloat4, offsetof(Text2D, OutlineColor), sizeof(Color))
 		.AddProperty("OutlineWidthPixels", EReflectPropertyType::Float, offsetof(Text2D, OutlineWidthPixels), sizeof(float))
 		.AddProperty("PixelSnap", EReflectPropertyType::Bool, offsetof(Text2D, PixelSnap), sizeof(bool))
-		.AddProperty("Offset", EReflectPropertyType::Vector2Float, offsetof(Text2D, m_offset), sizeof(Vector2))
-		.AddProperty("SortOrder", EReflectPropertyType::Int32, offsetof(Text2D, SortOrder), sizeof(std::int32_t));
+		JBRO_RENDERER2D_PROPERTIES(Text2D);
 
 	registry.RegisterComponent<Square2D>({ "Square2D", "Square 2D", "Rendering", true })
 		.AddProperty("Size", EReflectPropertyType::Vector2Float, offsetof(Square2D, m_size), sizeof(Vector2))
-		.AddProperty("Offset", EReflectPropertyType::Vector2Float, offsetof(Square2D, m_offset), sizeof(Vector2))
-		.AddProperty("FillEnabled", EReflectPropertyType::Bool, offsetof(Square2D, FillEnabled), sizeof(bool))
-		.AddProperty("FillColor", EReflectPropertyType::ColorFloat4, offsetof(Square2D, FillColor), sizeof(Color))
-		.AddProperty("OutlineEnabled", EReflectPropertyType::Bool, offsetof(Square2D, OutlineEnabled), sizeof(bool))
-		.AddProperty("OutlineColor", EReflectPropertyType::ColorFloat4, offsetof(Square2D, OutlineColor), sizeof(Color))
-		.AddProperty("OutlineWidth", EReflectPropertyType::Float, offsetof(Square2D, OutlineWidth), sizeof(float))
-		.AddProperty("SortOrder", EReflectPropertyType::Int32, offsetof(Square2D, SortOrder), sizeof(std::int32_t));
+		JBRO_RENDERER2D_PROPERTIES(Square2D)
+		JBRO_SHAPE_PROPERTIES(Square2D);
 
 	registry.RegisterComponent<Circle2D>({ "Circle2D", "Circle 2D", "Rendering", true })
 		.AddProperty("Radius", EReflectPropertyType::Float, offsetof(Circle2D, m_radius), sizeof(float))
 		.AddProperty("Segments", EReflectPropertyType::UInt32, offsetof(Circle2D, Segments), sizeof(std::uint32_t))
-		.AddProperty("Offset", EReflectPropertyType::Vector2Float, offsetof(Circle2D, m_offset), sizeof(Vector2))
-		.AddProperty("FillEnabled", EReflectPropertyType::Bool, offsetof(Circle2D, FillEnabled), sizeof(bool))
-		.AddProperty("FillColor", EReflectPropertyType::ColorFloat4, offsetof(Circle2D, FillColor), sizeof(Color))
-		.AddProperty("OutlineEnabled", EReflectPropertyType::Bool, offsetof(Circle2D, OutlineEnabled), sizeof(bool))
-		.AddProperty("OutlineColor", EReflectPropertyType::ColorFloat4, offsetof(Circle2D, OutlineColor), sizeof(Color))
-		.AddProperty("OutlineWidth", EReflectPropertyType::Float, offsetof(Circle2D, OutlineWidth), sizeof(float))
-		.AddProperty("SortOrder", EReflectPropertyType::Int32, offsetof(Circle2D, SortOrder), sizeof(std::int32_t));
+		JBRO_RENDERER2D_PROPERTIES(Circle2D)
+		JBRO_SHAPE_PROPERTIES(Circle2D);
 
 	registry.RegisterComponent<Polygon2D>({ "Polygon2D", "Polygon 2D", "Rendering", true })
 		.AddProperty("Radius", EReflectPropertyType::Float, offsetof(Polygon2D, m_radius), sizeof(float))
 		.AddProperty("VertexCount", EReflectPropertyType::UInt32, offsetof(Polygon2D, m_vertexCount), sizeof(std::uint32_t))
 		.AddProperty("StartAngle", EReflectPropertyType::Radian, offsetof(Polygon2D, m_startAngle), sizeof(Radian))
-		.AddProperty("Offset", EReflectPropertyType::Vector2Float, offsetof(Polygon2D, m_offset), sizeof(Vector2))
-		.AddProperty("FillEnabled", EReflectPropertyType::Bool, offsetof(Polygon2D, FillEnabled), sizeof(bool))
-		.AddProperty("FillColor", EReflectPropertyType::ColorFloat4, offsetof(Polygon2D, FillColor), sizeof(Color))
-		.AddProperty("OutlineEnabled", EReflectPropertyType::Bool, offsetof(Polygon2D, OutlineEnabled), sizeof(bool))
-		.AddProperty("OutlineColor", EReflectPropertyType::ColorFloat4, offsetof(Polygon2D, OutlineColor), sizeof(Color))
-		.AddProperty("OutlineWidth", EReflectPropertyType::Float, offsetof(Polygon2D, OutlineWidth), sizeof(float))
-		.AddProperty("SortOrder", EReflectPropertyType::Int32, offsetof(Polygon2D, SortOrder), sizeof(std::int32_t));
+		JBRO_RENDERER2D_PROPERTIES(Polygon2D)
+		JBRO_SHAPE_PROPERTIES(Polygon2D);
 
 	registry.RegisterComponent<SpriteAnimator2D>({ "SpriteAnimator2D", "Sprite Animator 2D", "Rendering", true })
 		.AddArrayProperty<AssetGuid, EReflectPropertyType::AssetGuid>(

@@ -18,6 +18,7 @@
 #include "Scripts/JointProbeScript.h"
 #include "Scripts/QueryProbeScript.h"
 #include "Scripts/ScreenSpaceProbeScript.h"
+#include "Scripts/SpriteBoundsProbeScript.h"
 
 // ── GameScriptSampleModule ───────────────────────────────────────────────────────
 // DLL 진입점 모듈. Initialize() 에서 스크립트를 등록하고
@@ -83,6 +84,29 @@ public:
             "Screen Space Probe",
             "GameScriptSample"
         });
+
+        // 검사할 시트를 캔버스에서 꽂아야 하므로 프로퍼티까지 함께 등록한다.
+        m_registry->RegisterScript<CSpriteBoundsProbeScript>(
+            ScriptRegisterDesc{
+                "CSpriteBoundsProbeScript",
+                "Sprite Bounds Probe",
+                "GameScriptSample"
+            },
+            std::vector<ScriptPropertyDesc>{
+                ScriptPropertyDesc{
+                    .Name = "Sheet",
+                    .Type = EReflectPropertyType::Ref,
+                    .Offset = offsetof(CSpriteBoundsProbeScript, Sheet),
+                    .Size = sizeof(Ref<CSpriteAsset>),
+                    .ElementCount = 1,
+                    .DisplayName = "검사할 스프라이트",
+                    .Serialize = true,
+                    .Descriptor = &GetScalarReflectTypeDesc<Ref<CSpriteAsset>, EReflectPropertyType::Ref>(),
+                    .RefCategory = Ref<CSpriteAsset>::Category,
+                    .RefTypeName = "CSpriteAsset",
+                    .ExpectedAssetType = EAssetType::Sprite
+                }
+            });
 
         // 프로퍼티를 인스펙터에 노출하려면 목록을 함께 넘긴다. 에디터의 코드 생성기를 쓰는
         // 프로젝트(JPROP 마커)는 이 목록이 자동 생성되지만, 이 샘플은 손으로 등록하므로
@@ -151,6 +175,7 @@ public:
         m_registry->UnregisterScript(CReflectionRegistry::MakeTypeId("CJointProbeScript"));
             m_registry->UnregisterScript(CReflectionRegistry::MakeTypeId("CAnimationProbeScript"));
         m_registry->UnregisterScript(CReflectionRegistry::MakeTypeId("CScreenSpaceProbeScript"));
+        m_registry->UnregisterScript(CReflectionRegistry::MakeTypeId("CSpriteBoundsProbeScript"));
 
         m_registry = nullptr;
 

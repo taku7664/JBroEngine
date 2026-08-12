@@ -12,9 +12,6 @@
 
 namespace
 {
-	// AnimProbeSheet.png — 1행 4열 슬라이스, 피벗 0.5, 자산 PPU 0(프로젝트 기본값 사용).
-	constexpr const char* SHEET_GUID = "aa11000000000000000000000000ee01";
-
 	std::string Format(float value)
 	{
 		char buffer[32] = {};
@@ -168,8 +165,19 @@ Coroutine CSpriteBoundsProbeScript::RunProbe()
 	CGameObject* spriteObject = canvas->CreateGameObject("Probe.Sprite");
 	m_spawned.push_back(spriteObject->SafeFromThis());
 
+	if (Sheet.IsNull())
+	{
+		// 시트를 안 꽂았으면 스프라이트 구간은 검사할 수 없다. 도형 결과는 이미 나왔으므로
+		// 조용히 넘기지 말고 왜 건너뛰는지 남긴다.
+		ProbeLog("SKIP   sprite section — Sheet is empty (assign one on the script)");
+		ProbeLog("RESULT " + std::to_string(m_passCount) + "/"
+			+ std::to_string(m_passCount + m_failCount) + " PASS");
+		TearDown();
+		co_return;
+	}
+
 	SpriteRenderer2D* sprite = spriteObject->AddComponent<SpriteRenderer2D>();
-	sprite->SetSpriteGuid(AssetGuid(std::string(SHEET_GUID)));
+	sprite->SetSpriteGuid(AssetGuid(Sheet.GetGuid().generic_string()));
 
 	// 렌더 시스템이 아직 자산을 해석하지 않았다 → 경계 미상이어야 한다.
 	// (0 크기 경계를 "원점의 점"으로 오해하면 안 된다는 계약.)

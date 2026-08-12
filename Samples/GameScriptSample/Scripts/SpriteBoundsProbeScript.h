@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Core/Asset/SpriteAsset.h"
+#include "GameFramework/Object/Ref.h"
 #include "GameFramework/Scripting/ScriptAPI.h"
 
 // ── CSpriteBoundsProbeScript ─────────────────────────────────────────────────
@@ -20,6 +22,14 @@
 JBRO_SCRIPT CSpriteBoundsProbeScript final : public CGameScript
 {
 	SCRIPT_CLASS(CSpriteBoundsProbeScript)
+
+public:
+	// 검사에 쓸 스프라이트 시트 — **캔버스에서 꽂는다.**
+	// guid 를 코드에 박으면 그 자산이 없는 프로젝트에서는 아무것도 검증하지 못하는
+	// 죽은 프로브가 된다. 슬라이스된 시트가 아니어도 되지만, 프레임이 있으면 프레임
+	// 크기 기준으로 검사한다. 비워 두면 도형 검사만 하고 스프라이트 구간을 건너뛴다.
+	JPROP(Name("검사할 스프라이트"))
+		Ref<CSpriteAsset> Sheet;
 
 protected:
 	void OnStart() override;
