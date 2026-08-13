@@ -98,13 +98,9 @@ void SpriteViewer::Open(const AssetGuid& guid, const std::string& title)
 		SafePtr<CImWindow> dock = DynamicSafePtrCast<CImWindow>(Editor::ImEditor->FindImWindow(dockId));
 		if (false == dock.IsValid())
 		{
-			// **부모는 0(최상위)이다. Root 를 부모로 주면 안 된다** —
-			// CImDockWindow::AddChildImWindow 가 부모의 m_bNeedRebuildDockLayout 을 세우고,
-			// 그 재빌드는 DockBuilderRemoveNode 로 부모 노드를 통째로 지운다.
-			// Root 를 건드리면 사용자가 배치해 둔 툴 도킹이 전부 풀린다.
-			// ProjectSettings / BuildSettings 도 같은 이유로 최상위로 뜬다.
 			dock = DynamicSafePtrCast<CImWindow>(
-				Editor::ImEditor->CreateImWindow<CSpriteViewerDockWindow>(SHARED_DOCK_KEY, 0));
+				Editor::ImEditor->CreateImWindow<CSpriteViewerDockWindow>(
+					SHARED_DOCK_KEY, Editor::RootDockWindow.IsValid() ? Editor::RootDockWindow->GetID() : 0));
 			if (false == dock.IsValid())
 			{
 				return;

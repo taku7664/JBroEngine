@@ -68,5 +68,13 @@ protected:
 	bool    m_bUseDocking;
 
 	std::vector<SafePtr<CImWindow>> m_childImWindowVector;
+
+	// 아직 dock node 에 배치되지 않은 자식들.
+	//
+	// 자식이 늘었다고 레이아웃을 재빌드하면 안 된다 — 재빌드는 DockBuilderRemoveNode 로
+	// 이 dock 의 노드를 통째로 지우므로, 사용자가 끌어다 놓은 기존 창 배치가 전부 사라진다.
+	// 새로 들어온 자식만 다음 프레임에 DockBuilderDockWindow 로 붙이고 끝낸다.
+	std::vector<ImGuiID> m_pendingDockChildIDs;
+
 	ImGui::Utillity::StyleBuilder m_dockStyleBuilder;
 };

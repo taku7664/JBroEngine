@@ -96,7 +96,9 @@ bool CImDockWindow::AddChildImWindow(SafePtr<IImWindow> child)
 		m_childImWindowVector.push_back(castedChild);
 		castedChild->m_ownerID = GetID();
 		castedChild->m_ownerWindow = SafeFromThis();
-		m_bNeedRebuildDockLayout = true;
+		// 재빌드가 아니라 **이 자식만** 배치 예약한다. 재빌드는 노드를 지우므로
+		// 창 하나 추가할 때마다 사용자의 도킹 배치가 초기화된다.
+		m_pendingDockChildIDs.push_back(castedChild->GetID());
 		return true;
 	}
 	return false;
@@ -122,7 +124,12 @@ void CImDockWindow::RemoveChildImWindow(ImGuiID id)
 		}),
 		m_childImWindowVector.end()
 	);
-	m_bNeedRebuildDockLayout = true;
+	// 자식이 빠졌다고 재빌드할 이유가 없다 — 남은 창들은 이미 제자리에 있고,
+	// 사라진 창의 탭은 ImGui 가 제출이 끊기면 알아서 정리한다.
+	// 여기서 재빌드하면 창 하나 닫을 때마다 배치가 초기화된다.
+	m_pendingDockChildIDs.erase(
+		std::remove(m_pendingDockChildIDs.begin(), m_pendingDockChildIDs.end(), id),
+		m_pendingDockChildIDs.end());
 }
 
 SafePtr<CImWindow> CImDockWindow::FindChildImWindow(ImGuiID id)
@@ -178,7 +185,11 @@ void CImDockWindow::OnPostBegin()
 			// "다시 안 켜지는" 것처럼 보인다.
 			const bool justBecameVisible =
 				childWnd->m_bIsVisible.first && (childWnd->m_bIsVisible.first != childWnd->m_bIsVisible.second);
-			if (isBeginDockBuild || justBecameVisible)
+			// 방금 추가돼 아직 어느 노드에도 안 붙은 자식(AddChildImWindow 예약분).
+			const bool pendingDock =
+				std::find(m_pendingDockChildIDs.begin(), m_pendingDockChildIDs.end(), childWnd->GetID())
+					!= m_pendingDockChildIDs.end();
+			if (isBeginDockBuild || justBecameVisible || pendingDock)
 			{
 				const char* label = childWnd->GetImGuiLabel();
 
@@ -209,11 +220,19 @@ void CImDockWindow::OnPostBegin()
 					}
 				}
 
+				// 재빌드를 거치지 않은 dock(ini 로 복원된 경우)은 분할 ID 가 비어 있다.
+				// 0 을 넘기면 창이 도킹 해제되므로 dockspace 루트로 떨어뜨린다.
+				if (0 == targetID)
+				{
+					targetID = m_mainDockID;
+				}
+
 				ImGui::DockBuilderDockWindow(label, targetID);
 			}
 			childWnd->Update();
 		}
 	}
+	m_pendingDockChildIDs.clear();
 
 	if (isBeginDockBuild)
 	{
