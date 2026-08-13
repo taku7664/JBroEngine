@@ -1147,7 +1147,9 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 
 		if (ImActionButton(Loc::Text(EditorLocKeys::InspectorSpriteOpenViewer)).Draw())
 		{
-			SpriteViewer::Open(metaData.Guid, metaData.DisplayName);
+			// 탭 이름은 확장자까지 붙인 **파일명**이다(사운드 효과 에디터가 NewEffect.jfx 로
+			// 뜨는 것과 같은 규칙). DisplayName 은 확장자가 빠져 있어 png/jpg 구분이 안 된다.
+			SpriteViewer::Open(metaData.Guid, metaData.Path.filename().string());
 		}
 
 		SpriteImportOptionsEditor::DrawApplyButton(metaData);

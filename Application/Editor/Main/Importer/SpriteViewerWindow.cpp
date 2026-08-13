@@ -39,7 +39,10 @@ namespace
 	const ImU32 PIVOT_COLOR    = IM_COL32(255, 110, 110, 230);
 	const ImU32 LABEL_COLOR    = IM_COL32(255, 255, 255, 200);
 
-	std::string DockKey(const AssetGuid& guid)  { return std::string("SpriteViewerDock_")  + guid.generic_string(); }
+	// 도킹 컨테이너는 **하나만** 둔다. 파일마다 새 dock 을 만들면 "스프라이트 뷰어" 탭이
+	// 여러 개 생겨 버린다 — 원하는 건 뷰어 하나에 파일 탭이 여러 개 붙는 형태다.
+	constexpr const char* SHARED_DOCK_KEY = "SpriteViewerDock";
+
 	std::string PanelKey(const AssetGuid& guid) { return std::string("SpriteViewerPanel_") + guid.generic_string(); }
 
 	ImTextureID AcquireTextureId(const AssetGuid& guid, CSpriteAsset& spriteAsset)
@@ -88,35 +91,34 @@ void SpriteViewer::Open(const AssetGuid& guid, const std::string& title)
 			return;
 		}
 
-		const ImGuiID dockId  = ImHashStr(DockKey(guid).c_str());
+		const ImGuiID dockId  = ImHashStr(SHARED_DOCK_KEY);
 		const ImGuiID panelId = ImHashStr(PanelKey(guid).c_str());
 
+		// 공용 dock 을 먼저 확보한다. 이미 있으면 그대로 쓰고, 없을 때만 만든다.
+		SafePtr<CImWindow> dock = DynamicSafePtrCast<CImWindow>(Editor::ImEditor->FindImWindow(dockId));
+		if (false == dock.IsValid())
+		{
+			dock = DynamicSafePtrCast<CImWindow>(
+				Editor::ImEditor->CreateImWindow<CSpriteViewerDockWindow>(SHARED_DOCK_KEY, Editor::RootDockWindow->GetID()));
+			if (false == dock.IsValid())
+			{
+				return;
+			}
+			// Dock 제목은 파일명이 아니라 "스프라이트 뷰어" 로 고정한다(언어 전환도 반영).
+			// 파일명은 안쪽 패널 탭이 들고 있다 — 사운드 효과 에디터와 같은 규칙.
+			dock->SetLocalizedTitleKey(EditorLocKeys::SpriteViewerTitle);
+			dock->SetSize(ImVec2(960.0f, 640.0f));
+		}
+		dock->SetVisible(true);
+
+		// 이 파일의 탭이 이미 있으면 그걸 앞으로 가져온다.
 		if (SafePtr<CSpriteViewerPanel> existing =
 			DynamicSafePtrCast<CSpriteViewerPanel>(Editor::ImEditor->FindImWindow(panelId)))
 		{
-			if (SafePtr<CImWindow> existingDock = DynamicSafePtrCast<CImWindow>(Editor::ImEditor->FindImWindow(dockId)))
-			{
-				existingDock->SetVisible(true);
-			}
 			existing->SetVisible(true);
 			existing->Focus();
 			return;
 		}
-
-		SafePtr<CSpriteViewerDockWindow> dock =
-			Editor::ImEditor->CreateImWindow<CSpriteViewerDockWindow>(DockKey(guid).c_str(), Editor::RootDockWindow->GetID());
-		if (false == dock.IsValid())
-		{
-			if (SafePtr<CImWindow> d = DynamicSafePtrCast<CImWindow>(Editor::ImEditor->FindImWindow(dockId)))
-			{
-				d->Focus();
-			}
-			return;
-		}
-		// Dock 제목은 파일명이 아니라 "스프라이트 뷰어" 로 고정한다(언어 전환도 반영).
-		// 파일명은 안쪽 패널 탭이 들고 있다 — 사운드 효과 에디터와 같은 규칙.
-		dock->SetLocalizedTitleKey(EditorLocKeys::SpriteViewerTitle);
-		dock->SetSize(ImVec2(960.0f, 640.0f));
 
 		SafePtr<CSpriteViewerPanel> panel =
 			Editor::ImEditor->CreateImWindow<CSpriteViewerPanel>(PanelKey(guid).c_str(), dockId);
@@ -291,18 +293,23 @@ void CSpriteViewerPanel::DrawSidePane(const AssetMetaData& metaData,
                                       const ImVec2& paneSize)
 {
 	ImGui::SameLine();
-	ImGui::BeginChild("##sprite_side_pane", paneSize, true);
+
+	// 겉 껍데기는 스크롤하지 않는다 — 옵션이 길어졌을 때 미리보기까지 같이 밀려 올라가면
+	// 정작 보려던 그림이 화면 밖으로 나간다.
+	ImGui::BeginChild("##sprite_side_pane", paneSize, false,
+		ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 
 	DrawPreview(spriteAsset, frames, paneSize.x);
 
-	ImGui::Separator();
-
 	// 임포트 옵션 — 인스펙터와 **같은 값**을 편집한다(SpriteImportOptionsEditor 소유).
 	// 여기서 고친 게 인스펙터에도 그대로 보이고, 그 반대도 같다.
+	// 스크롤은 이 안쪽에만 생긴다.
+	ImGui::BeginChild("##sprite_options_scroll", ImVec2(0.0f, 0.0f), true);
 	ImSectionHeader(Loc::Text(EditorLocKeys::InspectorSpriteImportOptions)).Draw();
 	SpriteImportOptionsEditor::DrawEditor(metaData);
 	SpriteImportOptionsEditor::DrawSliceSummary(metaData);
 	SpriteImportOptionsEditor::DrawApplyButton(metaData);
+	ImGui::EndChild();
 
 	ImGui::EndChild();
 }
@@ -314,8 +321,11 @@ void CSpriteViewerPanel::DrawPreview(const CSpriteAsset& spriteAsset,
 	ImGui::TextUnformatted(Loc::Text(EditorLocKeys::SpriteViewerPreview));
 
 	// 미리보기 칸 높이는 고정한다 — 프레임마다 크기가 달라도 아래 옵션이 들썩이지 않게.
+	// 스크롤도 막는다. 그림은 항상 칸 안에 맞춰 그리므로 넘칠 일이 없고,
+	// 휠은 아래 옵션 목록이 받아야 한다.
 	const float previewHeight = std::max(paneWidth * 0.6f, 120.0f);
-	ImGui::BeginChild("##sprite_preview", ImVec2(0.0f, previewHeight), true);
+	ImGui::BeginChild("##sprite_preview", ImVec2(0.0f, previewHeight), true,
+		ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 
 	if (frames.empty())
 	{
