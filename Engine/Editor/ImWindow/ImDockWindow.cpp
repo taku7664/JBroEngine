@@ -73,6 +73,11 @@ BitFlag& CImDockWindow::GetCustomDockFlags()
 void CImDockWindow::UseStoredDockLayout()
 {
 	m_bNeedRebuildDockLayout = false;
+	// "저장된 배치를 쓴다" = **아무것도 명시적으로 배치하지 않는다.**
+	// 시작 시 등록된 자식들은 배치 예약이 걸려 있는데, 그걸 남겨 두면 첫 프레임에
+	// DockBuilderDockWindow 로 전부 다시 붙여 버려서 ini 로 복원한 배치가 날아간다.
+	// (분할 ID 가 아직 0 이라 죄다 dockspace 루트에 탭으로 몰린다.)
+	m_pendingDockChildIDs.clear();
 }
 
 bool CImDockWindow::AddChildImWindow(SafePtr<IImWindow> child)
@@ -220,9 +225,11 @@ void CImDockWindow::OnPostBegin()
 					}
 				}
 
-				// 재빌드를 거치지 않은 dock(ini 로 복원된 경우)은 분할 ID 가 비어 있다.
-				// 0 을 넘기면 창이 도킹 해제되므로 dockspace 루트로 떨어뜨린다.
-				if (0 == targetID)
+				// 재빌드를 거치지 않은 dock(ini 로 복원)은 분할 ID 가 비어 있다. 0 을 넘기면
+				// DockBuilderDockWindow 가 창을 배치하는 게 아니라 도킹을 **해제**한다.
+				// **새로 추가된 자식에만** 적용한다 — 숨김→표시 경로까지 건드리면 ini 에
+				// 저장된 자리로 돌아가야 할 창이 dockspace 루트로 튀어나온다.
+				if (0 == targetID && pendingDock)
 				{
 					targetID = m_mainDockID;
 				}
