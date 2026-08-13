@@ -8,7 +8,9 @@
 #include "Engine/Core/Asset/AssetPath.h"
 #include "Engine/Editor/ImEditor.h"
 #include "Engine/Editor/ImGuiUtillity.h"
+#include "Editor/ImItem/ImDragScalar.h"
 #include "Editor/ImItem/ImText.h"
+#include "Editor/Main/Importer/SpriteImportOptionsEditor.h"   // 슬라이스 수치 클램프 상수 공유
 #include "Engine/Editor/Project/ProjectManager.h"
 
 #include <filesystem>
@@ -44,20 +46,20 @@ void CSpriteImporterWindow::DrawImportOptions()
 
 	if (ESpriteSliceType::CellCount == m_options.SliceType)
 	{
-		ImporterGui::DrawLocalizedRow(layout, EditorLocKeys::InspectorRowCount,    EditorLocKeys::InspectorRowCountDesc,    [&]() { ImGui::InputInt("##importer.row_count",    &rowCount); });
-		ImporterGui::DrawLocalizedRow(layout, EditorLocKeys::InspectorColumnCount, EditorLocKeys::InspectorColumnCountDesc, [&]() { ImGui::InputInt("##importer.column_count", &columnCount); });
+		ImporterGui::DrawLocalizedRow(layout, EditorLocKeys::InspectorRowCount,    EditorLocKeys::InspectorRowCountDesc,    [&]() { ImDragInt("importer.row_count").Range(1, MAX_CELL_COUNT).Speed(COUNT_DRAG_SPEED).Draw(rowCount); });
+		ImporterGui::DrawLocalizedRow(layout, EditorLocKeys::InspectorColumnCount, EditorLocKeys::InspectorColumnCountDesc, [&]() { ImDragInt("importer.column_count").Range(1, MAX_CELL_COUNT).Speed(COUNT_DRAG_SPEED).Draw(columnCount); });
 	}
 	else if (ESpriteSliceType::CellSize == m_options.SliceType)
 	{
-		ImporterGui::DrawLocalizedRow(layout, EditorLocKeys::InspectorCellWidth,  EditorLocKeys::InspectorCellWidthDesc,  [&]() { ImGui::InputInt("##importer.cell_width",  &cellWidth); });
-		ImporterGui::DrawLocalizedRow(layout, EditorLocKeys::InspectorCellHeight, EditorLocKeys::InspectorCellHeightDesc, [&]() { ImGui::InputInt("##importer.cell_height", &cellHeight); });
+		ImporterGui::DrawLocalizedRow(layout, EditorLocKeys::InspectorCellWidth,  EditorLocKeys::InspectorCellWidthDesc,  [&]() { ImDragInt("importer.cell_width").Range(1, MAX_PIXELS).Draw(cellWidth); });
+		ImporterGui::DrawLocalizedRow(layout, EditorLocKeys::InspectorCellHeight, EditorLocKeys::InspectorCellHeightDesc, [&]() { ImDragInt("importer.cell_height").Range(1, MAX_PIXELS).Draw(cellHeight); });
 	}
 	if (ESpriteSliceType::CellSize == m_options.SliceType || ESpriteSliceType::CellCount == m_options.SliceType)
 	{
-		ImporterGui::DrawLocalizedRow(layout, EditorLocKeys::InspectorMarginX, EditorLocKeys::InspectorMarginXDesc, [&]() { ImGui::InputInt("##importer.margin_x", &marginX); });
-		ImporterGui::DrawLocalizedRow(layout, EditorLocKeys::InspectorMarginY, EditorLocKeys::InspectorMarginYDesc, [&]() { ImGui::InputInt("##importer.margin_y", &marginY); });
-		ImporterGui::DrawLocalizedRow(layout, EditorLocKeys::InspectorGapX,    EditorLocKeys::InspectorGapXDesc,    [&]() { ImGui::InputInt("##importer.gap_x",    &gapX); });
-		ImporterGui::DrawLocalizedRow(layout, EditorLocKeys::InspectorGapY,    EditorLocKeys::InspectorGapYDesc,    [&]() { ImGui::InputInt("##importer.gap_y",    &gapY); });
+		ImporterGui::DrawLocalizedRow(layout, EditorLocKeys::InspectorMarginX, EditorLocKeys::InspectorMarginXDesc, [&]() { ImDragInt("importer.margin_x").Range(0, MAX_PIXELS).Draw(marginX); });
+		ImporterGui::DrawLocalizedRow(layout, EditorLocKeys::InspectorMarginY, EditorLocKeys::InspectorMarginYDesc, [&]() { ImDragInt("importer.margin_y").Range(0, MAX_PIXELS).Draw(marginY); });
+		ImporterGui::DrawLocalizedRow(layout, EditorLocKeys::InspectorGapX,    EditorLocKeys::InspectorGapXDesc,    [&]() { ImDragInt("importer.gap_x").Range(0, MAX_PIXELS).Draw(gapX); });
+		ImporterGui::DrawLocalizedRow(layout, EditorLocKeys::InspectorGapY,    EditorLocKeys::InspectorGapYDesc,    [&]() { ImDragInt("importer.gap_y").Range(0, MAX_PIXELS).Draw(gapY); });
 	}
 	ImporterGui::DrawLocalizedRow(layout, EditorLocKeys::InspectorPivotX,         EditorLocKeys::InspectorPivotXDesc,         [&]() { ImGui::SliderFloat("##importer.pivot_x", &m_options.PivotX, 0.0f, 1.0f, "%.2f"); });
 	ImporterGui::DrawLocalizedRow(layout, EditorLocKeys::InspectorPivotY,         EditorLocKeys::InspectorPivotYDesc,         [&]() { ImGui::SliderFloat("##importer.pivot_y", &m_options.PivotY, 0.0f, 1.0f, "%.2f"); });
@@ -67,7 +69,12 @@ void CSpriteImporterWindow::DrawImportOptions()
 		ImporterGui::DrawLocalizedRow(layout, EditorLocKeys::InspectorPixelsPerUnit, EditorLocKeys::InspectorPixelsPerUnitDesc,
 			[&]() {
 				// 0 = 프로젝트 기본값 사용. 0 보다 큰 값이면 그 값으로 오버라이드.
-				ImGui::DragFloat("##importer.ppu", &m_options.PixelsPerUnit, 1.0f, 0.0f, 10000.0f);
+				ImDragFloat("importer.ppu")
+					.Range(0.0f, MAX_PIXELS_PER_UNIT)
+					.Speed(1.0f)
+					.Step(1.0f)
+					.Format("%.1f")
+					.Draw(m_options.PixelsPerUnit);
 				if (m_options.PixelsPerUnit <= 0.0f)
 				{
 					ImGui::SameLine();

@@ -15,6 +15,14 @@
 //
 //  디스크(.jmeta)에는 Apply 를 눌러야 쓴다. 편집 중 값은 저장 전까지 여기에만 있다.
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 슬라이스 수치의 상한 — "말도 안 되는 값 방지"용 클램프다(실제 시트가 여기까지 갈 일은 없다).
+// 임포트 다이얼로그도 같은 옵션 구조체를 편집하므로 한 곳에서 정의한다.
+constexpr int   MAX_CELL_COUNT      = 4096;
+constexpr int   MAX_PIXELS          = 16384;
+constexpr float MAX_PIXELS_PER_UNIT = 10000.0f;
+// 개수는 픽셀 값보다 훨씬 작은 범위를 오가므로 드래그를 느리게 잡는다(4px 당 1칸).
+constexpr float COUNT_DRAG_SPEED    = 0.25f;
+
 namespace SpriteImportOptionsEditor
 {
 	// 편집 중인 값. 처음 보는 guid 면 .jmeta 의 yaml 에서 읽어 온다.

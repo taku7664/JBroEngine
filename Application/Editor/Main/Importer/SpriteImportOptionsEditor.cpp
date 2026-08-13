@@ -3,6 +3,7 @@
 
 #include "Editor/EditorContext.h"
 #include "Editor/ImItem/ImActionButton.h"
+#include "Editor/ImItem/ImDragScalar.h"
 #include "Editor/ImItem/ImItemTypes.h"
 #include "Editor/Localization/EditorLocalizationKeys.h"
 #include "Engine/Editor/Project/ProjectManager.h"
@@ -153,22 +154,22 @@ void SpriteImportOptionsEditor::DrawEditor(const AssetMetaData& metaData)
 	// ── 모드별 입력란 ────────────────────────────────────────────────────────
 	if (ESpriteSliceType::CellCount == options.SliceType)
 	{
-		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorRowCount)); },    [&]() { changed |= ImGui::InputInt("##sprite_options.row_count", &rowCount); });
-		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorColumnCount)); }, [&]() { changed |= ImGui::InputInt("##sprite_options.column_count", &columnCount); });
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorRowCount)); },    [&]() { changed |= ImDragInt("sprite_options.row_count").Range(1, MAX_CELL_COUNT).Speed(COUNT_DRAG_SPEED).Draw(rowCount); });
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorColumnCount)); }, [&]() { changed |= ImDragInt("sprite_options.column_count").Range(1, MAX_CELL_COUNT).Speed(COUNT_DRAG_SPEED).Draw(columnCount); });
 	}
 	else if (ESpriteSliceType::CellSize == options.SliceType)
 	{
-		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorCellWidth)); },  [&]() { changed |= ImGui::InputInt("##sprite_options.cell_width", &cellWidth); });
-		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorCellHeight)); }, [&]() { changed |= ImGui::InputInt("##sprite_options.cell_height", &cellHeight); });
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorCellWidth)); },  [&]() { changed |= ImDragInt("sprite_options.cell_width").Range(1, MAX_PIXELS).Draw(cellWidth); });
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorCellHeight)); }, [&]() { changed |= ImDragInt("sprite_options.cell_height").Range(1, MAX_PIXELS).Draw(cellHeight); });
 	}
 
 	// ── 그리드 여백 (슬라이스 모드일 때만 의미가 있다) ───────────────────────
 	if (ESpriteSliceType::CellSize == options.SliceType || ESpriteSliceType::CellCount == options.SliceType)
 	{
-		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorMarginX)); }, [&]() { changed |= ImGui::InputInt("##sprite_options.margin_x", &marginX); });
-		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorMarginY)); }, [&]() { changed |= ImGui::InputInt("##sprite_options.margin_y", &marginY); });
-		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorGapX)); },    [&]() { changed |= ImGui::InputInt("##sprite_options.gap_x", &gapX); });
-		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorGapY)); },    [&]() { changed |= ImGui::InputInt("##sprite_options.gap_y", &gapY); });
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorMarginX)); }, [&]() { changed |= ImDragInt("sprite_options.margin_x").Range(0, MAX_PIXELS).Draw(marginX); });
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorMarginY)); }, [&]() { changed |= ImDragInt("sprite_options.margin_y").Range(0, MAX_PIXELS).Draw(marginY); });
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorGapX)); },    [&]() { changed |= ImDragInt("sprite_options.gap_x").Range(0, MAX_PIXELS).Draw(gapX); });
+		layout.Row([&]() { ImGui::TextUnformatted(Loc::Text(EditorLocKeys::InspectorGapY)); },    [&]() { changed |= ImDragInt("sprite_options.gap_y").Range(0, MAX_PIXELS).Draw(gapY); });
 	}
 
 	// ── 피벗 / PPU ───────────────────────────────────────────────────────────
@@ -182,7 +183,12 @@ void SpriteImportOptionsEditor::DrawEditor(const AssetMetaData& metaData)
 		[&]()
 		{
 			// 0 = 프로젝트 기본값 사용. 0 보다 크면 그 값으로 오버라이드.
-			changed |= ImGui::DragFloat("##sprite_options.pixels_per_unit", &options.PixelsPerUnit, 1.0f, 0.0f, 10000.0f);
+			changed |= ImDragFloat("sprite_options.pixels_per_unit")
+				.Range(0.0f, MAX_PIXELS_PER_UNIT)
+				.Speed(1.0f)
+				.Step(1.0f)
+				.Format("%.1f")
+				.Draw(options.PixelsPerUnit);
 			if (options.PixelsPerUnit <= 0.0f)
 			{
 				ImGui::SameLine();
