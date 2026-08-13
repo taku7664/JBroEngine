@@ -77,7 +77,7 @@ namespace
 
 void SpriteViewer::Open(const AssetGuid& guid, const std::string& title)
 {
-	if (false == Editor::ImEditor.IsValid() || false == Editor::RootDockWindow.IsValid() || guid.IsNull())
+	if (false == Editor::ImEditor.IsValid() || guid.IsNull())
 	{
 		return;
 	}
@@ -86,7 +86,7 @@ void SpriteViewer::Open(const AssetGuid& guid, const std::string& title)
 	// 윈도우 벡터가 재할당되어 순회 중 반복자가 무효화된다 → 다음 Update 끝으로 지연.
 	Editor::ImEditor->QueueDeferred([guid, title]()
 	{
-		if (false == Editor::ImEditor.IsValid() || false == Editor::RootDockWindow.IsValid())
+		if (false == Editor::ImEditor.IsValid())
 		{
 			return;
 		}
@@ -98,8 +98,13 @@ void SpriteViewer::Open(const AssetGuid& guid, const std::string& title)
 		SafePtr<CImWindow> dock = DynamicSafePtrCast<CImWindow>(Editor::ImEditor->FindImWindow(dockId));
 		if (false == dock.IsValid())
 		{
+			// **부모는 0(최상위)이다. Root 를 부모로 주면 안 된다** —
+			// CImDockWindow::AddChildImWindow 가 부모의 m_bNeedRebuildDockLayout 을 세우고,
+			// 그 재빌드는 DockBuilderRemoveNode 로 부모 노드를 통째로 지운다.
+			// Root 를 건드리면 사용자가 배치해 둔 툴 도킹이 전부 풀린다.
+			// ProjectSettings / BuildSettings 도 같은 이유로 최상위로 뜬다.
 			dock = DynamicSafePtrCast<CImWindow>(
-				Editor::ImEditor->CreateImWindow<CSpriteViewerDockWindow>(SHARED_DOCK_KEY, Editor::RootDockWindow->GetID()));
+				Editor::ImEditor->CreateImWindow<CSpriteViewerDockWindow>(SHARED_DOCK_KEY, 0));
 			if (false == dock.IsValid())
 			{
 				return;
@@ -110,6 +115,8 @@ void SpriteViewer::Open(const AssetGuid& guid, const std::string& title)
 			dock->SetSize(ImVec2(960.0f, 640.0f));
 		}
 		dock->SetVisible(true);
+		// 패널만 Focus 하면 dock 안에서 탭만 바뀌고 창 자체는 뒤에 남는다. 둘 다 요청한다.
+		dock->Focus();
 
 		// 이 파일의 탭이 이미 있으면 그걸 앞으로 가져온다.
 		if (SafePtr<CSpriteViewerPanel> existing =
