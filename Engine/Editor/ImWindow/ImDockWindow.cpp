@@ -194,10 +194,24 @@ void CImDockWindow::OnPostBegin()
 			const bool pendingDock =
 				std::find(m_pendingDockChildIDs.begin(), m_pendingDockChildIDs.end(), childWnd->GetID())
 					!= m_pendingDockChildIDs.end();
-			if (isBeginDockBuild || justBecameVisible || pendingDock)
-			{
-				const char* label = childWnd->GetImGuiLabel();
+			const char* label = childWnd->GetImGuiLabel();
 
+			// 자리를 잡아 줘야 하는가.
+			// 재빌드와 신규 자식은 무조건 배치한다. 숨김→표시로 돌아오는 창은 다르다 —
+			// ImGui 가 그 창의 도킹 위치를 이미 기억하고 있으므로, 거기에 대고
+			// DockBuilderDockWindow 를 부르면 기억을 덮어써서 오히려 어긋난다.
+			// (ini 로 복원된 dock 은 분할 ID 가 0 이라 아예 도킹이 풀린다 — 툴을 껐다 켜면
+			//  떠다니는 창이 되던 증상이 이것이다.)
+			// 그래서 **도킹 정보가 없는 창만** 배치한다.
+			bool needsPlacement = isBeginDockBuild || pendingDock;
+			if (false == needsPlacement && justBecameVisible)
+			{
+				const ImGuiWindow* existing = ImGui::FindWindowByName(label);
+				needsPlacement = (nullptr == existing) || (0 == existing->DockId);
+			}
+
+			if (needsPlacement)
+			{
 				ImGuiID targetID = m_mainSplitedID;
 
 				if (childWnd->m_initDockSlotIsSet)
@@ -227,9 +241,9 @@ void CImDockWindow::OnPostBegin()
 
 				// 재빌드를 거치지 않은 dock(ini 로 복원)은 분할 ID 가 비어 있다. 0 을 넘기면
 				// DockBuilderDockWindow 가 창을 배치하는 게 아니라 도킹을 **해제**한다.
-				// **새로 추가된 자식에만** 적용한다 — 숨김→표시 경로까지 건드리면 ini 에
-				// 저장된 자리로 돌아가야 할 창이 dockspace 루트로 튀어나온다.
-				if (0 == targetID && pendingDock)
+				// 위에서 "도킹 정보가 있는 창"은 이미 걸러 냈으므로 여기 오는 창은
+				// 어디든 붙여 줘야 하는 창이다 → dockspace 루트로 떨어뜨린다.
+				if (0 == targetID)
 				{
 					targetID = m_mainDockID;
 				}
