@@ -149,40 +149,35 @@ bool ImGui::Utillity::IsWindowDrawable(ImGuiWindow* window)
     return !window->SkipItems;
 }
 
-bool ImGui::Utillity::SelectDockTabChain(ImGuiWindow* window)
+bool ImGui::Utillity::SelectDockTab(ImGuiWindow* window)
 {
-	// 중첩 dockspace 깊이 상한. 노드 그래프가 꼬여도 여기서 멈춘다.
-	constexpr int MAX_DOCK_DEPTH = 8;
-
-	for (int depth = 0; depth < MAX_DOCK_DEPTH && nullptr != window; ++depth)
+	if (nullptr == window)
 	{
-		ImGuiDockNode* node = window->DockNode;
-		if (nullptr == node)
-		{
-			// 떠 있는 창 — 앞으로 가져올 탭이 없다.
-			return true;
-		}
-
-		// 탭바가 없는 노드는 창이 하나뿐이라 언제나 보인다. 선택할 것 없이 위로만 올라간다.
-		if (nullptr != node->TabBar)
-		{
-			ImGuiTabItem* tab = ImGui::TabBarFindTabByID(node->TabBar, window->TabId);
-			if (nullptr == tab)
-			{
-				// 이번 프레임에 막 도킹된 창 — 탭은 호스트가 다음 프레임에 만든다.
-				return false;
-			}
-			ImGui::TabBarQueueFocus(node->TabBar, tab);
-		}
-
-		// 이 노드를 담고 있는 호스트 창이 또 도킹돼 있을 수 있다(중첩 dockspace).
-		ImGuiWindow* host = node->HostWindow;
-		if (host == window)
-		{
-			break;
-		}
-		window = host;
+		return false;
 	}
+
+	ImGuiDockNode* node = window->DockNode;
+	if (nullptr == node)
+	{
+		// DockId 만 걸려 있으면 아직 노드에 안 붙었을 뿐이다(막 만든 창).
+		// 진짜로 떠 있는 창이면 고를 탭이 없으니 그대로 끝낸다.
+		return (0 == window->DockId);
+	}
+
+	// 탭바가 없는 노드는 창이 하나뿐이라 언제나 보인다 — 고를 것이 없다.
+	if (nullptr == node->TabBar)
+	{
+		return true;
+	}
+
+	ImGuiTabItem* tab = ImGui::TabBarFindTabByID(node->TabBar, window->TabId);
+	if (nullptr == tab)
+	{
+		// 이번 프레임에 막 도킹된 창 — 탭은 호스트가 다음 프레임에 만든다.
+		return false;
+	}
+
+	ImGui::TabBarQueueFocus(node->TabBar, tab);
 	return true;
 }
 

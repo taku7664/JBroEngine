@@ -175,10 +175,18 @@ void CImWindow::Focus()
 	// SetWindowFocus(name) 은 FindWindowByName=ImHashStr(전체 label) 로 윈도우를 찾는다.
 	// title 이 바뀌면(로컬라이즈/SetTitle) name 해시가 달라져 매칭이 실패한다.
 	// 대신 다음 Begin 직전에 SetNextWindowFocus 로 그 윈도우를 직접 포커스하고,
-	// Begin 직후에 조상 도킹 탭까지 선택한다(HandleBegin 참고).
+	// Begin 직후에 자기 도킹 탭을 고른다(HandleBegin 참고).
 	if (m_bIsAlive)
 	{
 		m_focusRequestFrames = FOCUS_REQUEST_FRAME_BUDGET;
+		// 도킹 조상도 같이 앞으로 와야 한다. 안쪽 패널만 앞세우면 그 패널을 담은 툴 창이
+		// 다른 탭 뒤에 그대로 남아 아무것도 안 보인다.
+		// 각 창이 **자기 노드만** 처리하게 두는 것이 요점이다 — ImGui 노드 그래프를 대신
+		// 타고 올라가면 중간 호스트가 숨어 있을 때(=지금 앞세우려는 바로 그 상황) 길이 끊긴다.
+		if (m_ownerWindow)
+		{
+			m_ownerWindow->Focus();
+		}
 	}
 }
 
@@ -393,8 +401,8 @@ void CImWindow::HandleBegin()
 
 	// nav 포커스만으로는 도킹 탭이 따라오지 않는다 — ImGui 는 바로 위 노드 한 단계만
 	// 되돌려 주므로, 도킹이 중첩되면 바깥 탭바가 다른 탭을 계속 앞에 둔다.
-	// 창의 DockNode 는 Begin 이 끝나야 확정되니 여기서 조상 탭까지 직접 선택한다.
-	if (focusRequested && ImGui::Utillity::SelectDockTabChain(m_imWindow))
+	// 창의 DockNode 는 Begin 이 끝나야 확정되니 여기서 자기 탭을 직접 고른다.
+	if (focusRequested && ImGui::Utillity::SelectDockTab(m_imWindow))
 	{
 		m_focusRequestFrames = 0;
 	}
