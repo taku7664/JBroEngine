@@ -110,7 +110,11 @@ protected:
 	bool				m_bIsFirstTick;
 	bool				m_bIsAlive;
 	bool				m_bBeginResult;
-	bool				m_bRequestFocus;   // Focus() 요청 — 다음 Begin 직전에 SetNextWindowFocus
+	// Focus() 요청의 잔여 프레임 수.
+	// SetNextWindowFocus 는 Begin **전에**, 도킹 탭 선택은 Begin **후에**만 할 수 있고,
+	// 막 도킹된 창은 탭이 아직 없어 한 프레임 안에 끝나지 않는다. 탭 선택까지 성공하면
+	// 즉시 0 으로 끊고, 실패하면 예산만큼만 재시도한다(무한 포커스 탈취 방지).
+	int					m_focusRequestFrames;
 
 	ImGuiDir			m_initDockLayoutDirection;
 	std::string			m_initDockSlot;         // 슬롯 기반 도킹 레이아웃 이름 ("" = main)

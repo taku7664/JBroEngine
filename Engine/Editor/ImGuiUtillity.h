@@ -19,6 +19,16 @@ namespace ImGui
 
 		bool HoveredToolTip(const char* toolTip, ImGuiHoveredFlags flags = ImGuiHoveredFlags_None);
 
+		// 도킹된 창을 조상 탭바에서 모두 앞으로 가져온다.
+		// SetNextWindowFocus 는 nav 포커스만 옮긴다. 탭 선택은 ImGui 가
+		// DockNodeUpdateTabBar 의 "Apply NavWindow focus back to the tab bar" 한 곳에서만
+		// 되돌려 주는데, 조건이 NavWindow->RootWindow->DockNode == node 라 **한 단계**만 통한다.
+		// 그래서 dockspace 가 중첩되면(루트 > 툴 dock > 패널) 안쪽 창을 포커스해도 바깥
+		// 탭바는 그 사실을 모른 채 다른 탭을 계속 앞에 둔다.
+		// 반환값: 조상 전부에 선택을 요청했으면 true.
+		//         이번 프레임에 막 도킹돼 탭이 아직 없으면 false — 호출부가 다음 프레임에 재시도한다.
+		bool SelectDockTabChain(ImGuiWindow* window);
+
 #if JBRO_PLATFORM_WINDOWS && JBRO_EDITOR
 		File::FileDialogOwnerHandle GetDialogOwnerHandle(File::FileDialogOwnerHandle owner = nullptr);
 

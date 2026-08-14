@@ -111,7 +111,7 @@ void SpriteViewer::Open(const AssetGuid& guid, const std::string& title)
 			dock->SetSize(ImVec2(960.0f, 640.0f));
 		}
 		dock->SetVisible(true);
-		// 패널만 Focus 하면 dock 안에서 탭만 바뀌고 창 자체는 뒤에 남는다. 둘 다 요청한다.
+		// 아직 패널이 없을 수도 있으니(첫 파일) dock 자체도 앞으로 가져온다.
 		dock->Focus();
 
 		// 이 파일의 탭이 이미 있으면 그걸 앞으로 가져온다.

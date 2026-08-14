@@ -4,6 +4,14 @@
 #include "Editor/ImWindow/ImWindowFlag.h"   // IMWINDOW_FLAG_*
 #include "Editor/ImGuiUtillity.h"            // ImGui::Utillity::*
 
+namespace
+{
+	// Focus() 한 번이 소비할 수 있는 최대 프레임 수. 탭 선택은 창이 도킹 노드에 등록된
+	// 다음 프레임에야 가능해서 1 프레임으로는 부족하지만, 무한정 끌면 매 프레임
+	// SetNextWindowFocus 가 포커스를 빼앗아 다른 창을 못 만지게 된다.
+	constexpr int FOCUS_REQUEST_FRAME_BUDGET = 4;
+}
+
 CImWindow::CImWindow(ImGuiID id, ImGuiID parentId)
 	: m_title("new frame")
 	, m_stableID(std::to_string(id))
@@ -23,7 +31,7 @@ CImWindow::CImWindow(ImGuiID id, ImGuiID parentId)
 	, m_bIsFirstTick(true)
 	, m_bIsAlive(true)
 	, m_bBeginResult(false)
-	, m_bRequestFocus(false)
+	, m_focusRequestFrames(0)
 	, m_initDockLayoutDirection(ImGuiDir_None)
 	, m_initDockSlotIsSet(false)
 	, m_bIsVisible({true, true})
@@ -166,10 +174,11 @@ void CImWindow::Focus()
 {
 	// SetWindowFocus(name) 은 FindWindowByName=ImHashStr(전체 label) 로 윈도우를 찾는다.
 	// title 이 바뀌면(로컬라이즈/SetTitle) name 해시가 달라져 매칭이 실패한다.
-	// 대신 다음 Begin 직전에 SetNextWindowFocus 로 그 윈도우를 직접 포커스한다.
+	// 대신 다음 Begin 직전에 SetNextWindowFocus 로 그 윈도우를 직접 포커스하고,
+	// Begin 직후에 조상 도킹 탭까지 선택한다(HandleBegin 참고).
 	if (m_bIsAlive)
 	{
-		m_bRequestFocus = true;
+		m_focusRequestFrames = FOCUS_REQUEST_FRAME_BUDGET;
 	}
 }
 
@@ -367,10 +376,11 @@ void CImWindow::HandleBegin()
 	{
 		ImGui::SetNextWindowClass(&m_ownerWindow->m_imWndClass);
 	}
-	// Focus() 요청이 있었으면 이 Begin 윈도우를 직접 포커스(도킹 탭 활성).
-	if (m_bRequestFocus)
+	// Focus() 요청이 있었으면 이 Begin 윈도우를 직접 포커스한다.
+	const bool focusRequested = (m_focusRequestFrames > 0);
+	if (focusRequested)
 	{
-		m_bRequestFocus = false;
+		--m_focusRequestFrames;
 		ImGui::SetNextWindowFocus();
 	}
 	m_bBeginResult = ImGui::Begin(GetImGuiLabel(), pOpen, flags);
@@ -380,6 +390,14 @@ void CImWindow::HandleBegin()
 	}
 
 	m_imWindow = ImGui::GetCurrentWindow();
+
+	// nav 포커스만으로는 도킹 탭이 따라오지 않는다 — ImGui 는 바로 위 노드 한 단계만
+	// 되돌려 주므로, 도킹이 중첩되면 바깥 탭바가 다른 탭을 계속 앞에 둔다.
+	// 창의 DockNode 는 Begin 이 끝나야 확정되니 여기서 조상 탭까지 직접 선택한다.
+	if (focusRequested && ImGui::Utillity::SelectDockTabChain(m_imWindow))
+	{
+		m_focusRequestFrames = 0;
+	}
 
 	OnPostBegin();
 
