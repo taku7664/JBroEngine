@@ -59,6 +59,8 @@ private:
 
 	float m_splitRatio = 0.68f;
 	float m_zoom = 1.0f;
+	// 미리보기 배율 — 칸 맞춤 배율에 곱한다(1.0 = 칸에 꽉 차게). Ctrl+휠로 조절.
+	float m_previewZoom = 1.0f;
 	bool  m_showPivot = true;
 
 	int   m_hoveredFrame = -1;

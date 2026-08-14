@@ -16,12 +16,19 @@
 #include "ThirdParty/imgui/imgui.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 
 namespace
 {
 	constexpr float ZOOM_MIN = 0.05f;
 	constexpr float ZOOM_MAX = 16.0f;
+
+	// 미리보기 Ctrl+휠 배율. 시트 쪽 확대와 달리 **칸 맞춤 배율에 곱하는 값**이라
+	// 1.0 이 "칸에 꽉 차게"를 뜻한다.
+	constexpr float PREVIEW_ZOOM_MIN  = 0.25f;
+	constexpr float PREVIEW_ZOOM_MAX  = 32.0f;
+	constexpr float PREVIEW_ZOOM_STEP = 1.15f;   // 휠 한 칸당 곱
 	constexpr float SPLITTER_WIDTH = 4.0f;
 	constexpr float SPLIT_MIN_RATIO = 0.25f;
 	constexpr float SPLIT_MAX_RATIO = 0.85f;
@@ -342,22 +349,44 @@ void CSpriteViewerPanel::DrawPreview(const CSpriteAsset& spriteAsset,
 	const float frameWidth = static_cast<float>(frame.Width);
 	const float frameHeight = static_cast<float>(frame.Height);
 
-	// 칸 안에 통째로 들어가되 확대는 하지 않는다(픽셀아트가 뭉개지지 않게).
+	// Ctrl + 휠로 배율을 바꾼다. Ctrl 이 눌린 동안에는 휠 소유권을 이 창이 가져가야
+	// 아래 옵션 목록이 같이 스크롤되지 않는다(소유권은 다음 프레임부터 적용된다).
+	const ImGuiID previewId = ImGui::GetCurrentWindow()->ID;
+	if (ImGui::IsWindowHovered() && ImGui::GetIO().KeyCtrl)
+	{
+		ImGui::SetKeyOwner(ImGuiKey_MouseWheelY, previewId);
+
+		const float wheel = ImGui::GetIO().MouseWheel;
+		if (0.0f != wheel)
+		{
+			m_previewZoom = std::clamp(m_previewZoom * std::pow(PREVIEW_ZOOM_STEP, wheel),
+			                           PREVIEW_ZOOM_MIN, PREVIEW_ZOOM_MAX);
+		}
+	}
+
+	// 기본은 칸에 맞추되 확대는 하지 않는다(픽셀아트가 뭉개지지 않게).
+	// 사용자가 올린 배율은 그 위에 곱한다.
 	const ImVec2 boxAvail = ImGui::GetContentRegionAvail();
-	float scale = 1.0f;
+	float fitScale = 1.0f;
 	if (frameWidth > 0.0f && frameHeight > 0.0f)
 	{
-		scale = std::min(boxAvail.x / frameWidth, boxAvail.y / frameHeight);
-		scale = std::min(scale, 8.0f);
+		fitScale = std::min(boxAvail.x / frameWidth, boxAvail.y / frameHeight);
+		fitScale = std::min(fitScale, 8.0f);
 	}
+	const float scale = fitScale * m_previewZoom;
 	const ImVec2 drawSize(frameWidth * scale, frameHeight * scale);
 
-	// 가운데 정렬.
-	const ImVec2 pad((boxAvail.x - drawSize.x) * 0.5f, (boxAvail.y - drawSize.y) * 0.5f);
-	ImGui::SetCursorPos(ImVec2(ImGui::GetCursorPosX() + std::max(pad.x, 0.0f),
-	                           ImGui::GetCursorPosY() + std::max(pad.y, 0.0f)));
+	// 확대하면 그림이 칸을 넘으므로 ImGui::Image(커서 기반) 대신 직접 그린다.
+	// 커서로는 음수 위치가 잘려 나가 가운데 정렬이 무너진다 — 여기선 칸 중심을 기준으로
+	// 놓고 칸 밖을 잘라 낸다.
+	const ImVec2 boxMin = ImGui::GetCursorScreenPos();
+	const ImVec2 boxMax(boxMin.x + boxAvail.x, boxMin.y + boxAvail.y);
+	const ImVec2 origin((boxMin.x + boxMax.x - drawSize.x) * 0.5f,
+	                    (boxMin.y + boxMax.y - drawSize.y) * 0.5f);
 
-	const ImVec2 origin = ImGui::GetCursorScreenPos();
+	ImDrawList* drawList = ImGui::GetWindowDrawList();
+	drawList->PushClipRect(boxMin, boxMax, true);
+
 	CSpriteAsset& mutableAsset = const_cast<CSpriteAsset&>(spriteAsset);
 	const ImTextureID textureId = AcquireTextureId(m_guid, mutableAsset);
 	if (0 != textureId && textureWidth > 0.0f && textureHeight > 0.0f)
@@ -367,17 +396,23 @@ void CSpriteViewerPanel::DrawPreview(const CSpriteAsset& spriteAsset,
 		                 static_cast<float>(frame.Y) / textureHeight);
 		const ImVec2 uv1(static_cast<float>(frame.X + frame.Width) / textureWidth,
 		                 static_cast<float>(frame.Y + frame.Height) / textureHeight);
-		ImGui::Image(textureId, drawSize, uv0, uv1);
-	}
-	else
-	{
-		ImGui::Dummy(drawSize);
+		drawList->AddImage(textureId, origin, ImVec2(origin.x + drawSize.x, origin.y + drawSize.y), uv0, uv1);
 	}
 
 	if (m_showPivot)
 	{
-		DrawPivotCross(*ImGui::GetWindowDrawList(), origin, drawSize, frame.PivotX, frame.PivotY);
+		DrawPivotCross(*drawList, origin, drawSize, frame.PivotX, frame.PivotY);
 	}
+
+	drawList->PopClipRect();
+	ImGui::Dummy(boxAvail);
+
+	// 우측 상단에 현재 배율. 그림을 가리지 않게 작고 흐리게 둔다.
+	char zoomText[32] = {};
+	std::snprintf(zoomText, sizeof(zoomText), "%.2fx", scale);
+	const ImVec2 zoomTextSize = ImGui::CalcTextSize(zoomText);
+	drawList->AddText(ImVec2(boxMax.x - zoomTextSize.x, boxMin.y),
+	                  ImGui::GetColorU32(ImGuiCol_TextDisabled), zoomText);
 
 	ImGui::EndChild();
 }
