@@ -7,6 +7,12 @@ CImDockWindow::CImDockWindow(ImGuiID id, ImGuiID parentId)
 	: CImWindow(id, parentId)
 	, m_mainDockID(0)
 	, m_mainSplitedID(0)
+	// 도킹 노드가 스스로 그리는 버튼(우측 상단 닫기 · 좌측 창 메뉴)은 기본으로 끈다.
+	// 노드 닫기는 그 노드 안 창을 **전부** 닫아 버리는데, 이 프로젝트의 dock 창은
+	// 전부 "탭을 하나씩 닫고 창 메뉴로 되켠다"는 방식이라 쓸 자리가 없다.
+	// 기본값이 아니라 창마다 적으면 새 dock 창을 만들 때마다 빠뜨린다 — 실제로 그랬다.
+	// 노드 닫기 버튼이 필요한 dock 이 생기면 그 창에서 이 플래그를 빼면 된다.
+	, m_imguiDockFlags(ImGuiDockNodeFlags_NoWindowMenuButton | ImGuiDockNodeFlags_NoCloseButton)
 	, m_bNeedRebuildDockLayout(true)
 	, m_bUseDocking(true)
 {

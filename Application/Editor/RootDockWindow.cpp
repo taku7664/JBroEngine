@@ -158,9 +158,7 @@ void CRootDockWindow::OnCreate()
         ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus |
         ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_MenuBar;
 
-	m_imguiDockFlags =
-		ImGuiDockNodeFlags_NoWindowMenuButton | ImGuiDockNodeFlags_NoCloseButton;
-
+    // 노드 버튼(닫기·창 메뉴) 끄기는 CImDockWindow 기본값이라 여기서 다시 적지 않는다.
     m_customDockFlags =
 		IMDOCKWINDOW_FLAG_NO_DOCKING | IMDOCKWINDOW_FLAG_FULLSCREEN | IMDOCKWINDOW_FLAG_PADDING;
 

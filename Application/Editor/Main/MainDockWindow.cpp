@@ -28,8 +28,9 @@ void CMainDockWindow::OnCreate()
     m_imWndClass.DockingAlwaysTabBar = true;
 
     m_imguiFlags = ImGuiWindowFlags_MenuBar;
+    // 메인 독은 닫을 수 없다 — 닫으면 에디터에 남는 게 없다.
+    // (노드 버튼 끄기는 CImDockWindow 기본값이라 여기서 다시 적지 않는다.)
     m_windowFlags = IMWINDOW_FLAG_NO_CLOSE_BUTTON;
-    m_imguiDockFlags = ImGuiDockNodeFlags_NoWindowMenuButton | ImGuiDockNodeFlags_NoCloseButton;
 
 	// ─── 레이아웃 정의 (등록 순서대로 적용) ────────────────────────────────
 	//
