@@ -66,11 +66,19 @@ namespace
 		return reinterpret_cast<ImTextureID>(texture->GetNativeHandle().ShaderResourceView);
 	}
 
-	// 피벗은 **Y-up**(0=아래, 1=위)이고 텍스처 좌표는 Y-down 이라 세로를 뒤집어 찍는다.
+	// 그려진 프레임의 좌상단으로부터 피벗까지의 픽셀 거리.
+	// 피벗은 **Y-up**(0=아래, 1=위)이고 화면 좌표는 Y-down 이라 세로를 뒤집는다.
+	// 십자 표시와 확대 기준점이 **같은 식을 써야** 배율을 올렸을 때 둘이 어긋나지 않는다.
+	ImVec2 PivotOffset(const ImVec2& size, float pivotX, float pivotY)
+	{
+		return ImVec2(pivotX * size.x, (1.0f - pivotY) * size.y);
+	}
+
 	void DrawPivotCross(ImDrawList& drawList, const ImVec2& topLeft, const ImVec2& size, float pivotX, float pivotY)
 	{
-		const float x = topLeft.x + pivotX * size.x;
-		const float y = topLeft.y + (1.0f - pivotY) * size.y;
+		const ImVec2 offset = PivotOffset(size, pivotX, pivotY);
+		const float x = topLeft.x + offset.x;
+		const float y = topLeft.y + offset.y;
 		drawList.AddLine(ImVec2(x - 5.0f, y), ImVec2(x + 5.0f, y), PIVOT_COLOR, 1.5f);
 		drawList.AddLine(ImVec2(x, y - 5.0f), ImVec2(x, y + 5.0f), PIVOT_COLOR, 1.5f);
 	}
@@ -377,12 +385,21 @@ void CSpriteViewerPanel::DrawPreview(const CSpriteAsset& spriteAsset,
 	const ImVec2 drawSize(frameWidth * scale, frameHeight * scale);
 
 	// 확대하면 그림이 칸을 넘으므로 ImGui::Image(커서 기반) 대신 직접 그린다.
-	// 커서로는 음수 위치가 잘려 나가 가운데 정렬이 무너진다 — 여기선 칸 중심을 기준으로
-	// 놓고 칸 밖을 잘라 낸다.
+	// 커서로는 음수 위치가 잘려 나가 정렬이 무너진다 — 여기선 화면 좌표로 놓고 칸 밖을 잘라 낸다.
 	const ImVec2 boxMin = ImGui::GetCursorScreenPos();
 	const ImVec2 boxMax(boxMin.x + boxAvail.x, boxMin.y + boxAvail.y);
-	const ImVec2 origin((boxMin.x + boxMax.x - drawSize.x) * 0.5f,
-	                    (boxMin.y + boxMax.y - drawSize.y) * 0.5f);
+
+	// 확대 기준점은 **피벗**이다. 배율을 올려도 피벗이 화면에서 안 움직여야
+	// 보려던 지점이 칸 밖으로 밀려나지 않는다.
+	// 기준 배율(칸 맞춤)에서의 피벗 위치를 고정점으로 잡는다 — 그래서 1.00x 는
+	// 예전처럼 그냥 가운데 정렬이고, 배율을 올릴 때만 피벗을 축으로 커진다.
+	const ImVec2 fitSize(frameWidth * fitScale, frameHeight * fitScale);
+	const ImVec2 fitOrigin((boxMin.x + boxMax.x - fitSize.x) * 0.5f,
+	                       (boxMin.y + boxMax.y - fitSize.y) * 0.5f);
+	const ImVec2 fitPivot = PivotOffset(fitSize, frame.PivotX, frame.PivotY);
+	const ImVec2 drawPivot = PivotOffset(drawSize, frame.PivotX, frame.PivotY);
+	const ImVec2 origin(fitOrigin.x + fitPivot.x - drawPivot.x,
+	                    fitOrigin.y + fitPivot.y - drawPivot.y);
 
 	ImDrawList* drawList = ImGui::GetWindowDrawList();
 	drawList->PushClipRect(boxMin, boxMax, true);
