@@ -25,6 +25,13 @@ public:
 	// 매 프레임 UI 그리기 (ImGui 컨텍스트 안에서 호출).
 	void Draw();
 
+	// ── 창 메뉴가 부르는 동작 ────────────────────────────────────────────────
+	// 편집 결과를 .jfx 에 쓴다. 성공하면 dirty 해제.
+	bool Save();
+	// 편집 중이던 값을 버리고 디스크 내용으로 되돌린다.
+	void Reload();
+	bool IsDirty() const { return m_dirty; }
+
 private:
 	void LoadFromDisk();
 	bool SaveToDisk();

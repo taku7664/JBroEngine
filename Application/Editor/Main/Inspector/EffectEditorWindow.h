@@ -23,6 +23,9 @@ public:
 
 	void SetTargetGuid(const AssetGuid& guid) { m_widget.SetTargetGuid(guid); }
 
+	// 창 메뉴(저장·되돌리기)가 위젯 상태를 직접 다룬다.
+	CEffectEditorWidget& GetWidget() { return m_widget; }
+
 private:
 	void OnRenderStay() override;
 
@@ -34,6 +37,14 @@ class CEffectEditorDockWindow final : public CImDockWindow
 {
 public:
 	using CImDockWindow::CImDockWindow;
+
+private:
+	void OnCreate() override;
+	void OnMenuBar() override;
+
+	// 이 dock 은 파일당 하나라 패널도 하나뿐이다 — 스프라이트 뷰어처럼 활성 탭을
+	// 따질 필요가 없다.
+	SafePtr<CEffectEditorPanel> GetPanel();
 };
 
 #include <string>

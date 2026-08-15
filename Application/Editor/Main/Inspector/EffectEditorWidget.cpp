@@ -128,6 +128,23 @@ bool CEffectEditorWidget::SaveToDisk()
 	return true;
 }
 
+bool CEffectEditorWidget::Save()
+{
+	if (false == SaveToDisk())
+	{
+		return false;
+	}
+	m_dirty = false;
+	return true;
+}
+
+void CEffectEditorWidget::Reload()
+{
+	// 편집 중이던 값을 버리고 디스크 내용으로 되돌린다.
+	// SetTargetGuid 는 같은 guid 면 아무것도 안 하므로 여기서는 직접 읽는다.
+	LoadFromDisk();
+}
+
 void CEffectEditorWidget::Draw()
 {
 	if (false == m_loaded) LoadFromDisk();
@@ -185,7 +202,7 @@ void CEffectEditorWidget::Draw()
 		.Disabled(false == m_dirty)
 		.Draw())
 	{
-		if (SaveToDisk()) m_dirty = false;
+		Save();
 	}
 
 	DrawPreview();

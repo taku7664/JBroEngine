@@ -2,7 +2,12 @@
 #include "EffectEditorWindow.h"
 
 #include "Editor/Editor.h"
+#include "Editor/Localization/EditorLocalizationKeys.h"
+#include "Editor/Main/EditorAssetPickDialog.h"
+#include "Engine/Core/Localization/LocalizationManager.h"
 #include "Engine/Editor/ImEditor.h"
+#include "Engine/Editor/ImGuiUtillity.h"
+#include "Utillity/String/StringUtillity.h"
 #include "ThirdParty/imgui/imgui.h"
 
 void EffectEditorWindow::Open(const AssetGuid& guid, const std::string& title)
@@ -75,4 +80,75 @@ void EffectEditorWindow::Open(const AssetGuid& guid, const std::string& title)
 void CEffectEditorPanel::OnRenderStay()
 {
 	m_widget.Draw();
+}
+
+void CEffectEditorDockWindow::OnCreate()
+{
+	m_imguiFlags = ImGuiWindowFlags_MenuBar;
+}
+
+SafePtr<CEffectEditorPanel> CEffectEditorDockWindow::GetPanel()
+{
+	for (SafePtr<CImWindow>& child : m_childImWindowVector)
+	{
+		if (SafePtr<CEffectEditorPanel> panel = DynamicSafePtrCast<CEffectEditorPanel>(child))
+		{
+			return panel;
+		}
+	}
+	return nullptr;
+}
+
+void CEffectEditorDockWindow::OnMenuBar()
+{
+	SafePtr<CEffectEditorPanel> panel = GetPanel();
+
+	if (false == ImGui::BeginMenu(Loc::Text(EditorLocKeys::MenuFile)))
+	{
+		return;
+	}
+
+	if (ImGui::MenuItem(Loc::Text(EditorLocKeys::EffectEditorMenuOpen)))
+	{
+		// 필터 문자열은 raw 포인터로 넘어간다 — 다이얼로그가 닫힐 때까지 붙잡아 둔다.
+		const std::wstring effectFilter = Utillity::U8ToWString(Loc::Text(EditorLocKeys::FileDialogFilterAudioEffect));
+
+		AssetMetaData metaData;
+		if (EditorAssetPick::PickRegisteredAsset(
+			EditorLocKeys::FileDialogOpenEffectTitle,
+			{ { effectFilter.c_str(), L"*.jfx" }, { L"All Files", L"*.*" } },
+			EAssetType::AudioEffect,
+			metaData))
+		{
+			// 효과 에디터는 **파일당 dock 하나**다 — 여는 순간 새 창이 뜨고 이 창은 그대로 남는다.
+			EffectEditorWindow::Open(metaData.Guid, metaData.Path.filename().string());
+		}
+	}
+
+	ImGui::Separator();
+
+	const bool dirty = panel.IsValid() && panel->GetWidget().IsDirty();
+	{
+		ImGui::Utillity::DisableScope disable(false == dirty);
+		if (ImGui::MenuItem(Loc::Text(EditorLocKeys::CommonSave)))
+		{
+			panel->GetWidget().Save();
+		}
+	}
+	{
+		ImGui::Utillity::DisableScope disable(false == panel.IsValid());
+		if (ImGui::MenuItem(Loc::Text(EditorLocKeys::EffectEditorMenuReload)))
+		{
+			panel->GetWidget().Reload();
+		}
+	}
+
+	ImGui::Separator();
+
+	if (ImGui::MenuItem(Loc::Text(EditorLocKeys::CommonClose)))
+	{
+		SetVisible(false);
+	}
+
+	ImGui::EndMenu();
 }

@@ -41,6 +41,7 @@ Entries:
   menu.file.open_project: Open Project
   menu.file.save_project: Save Project
   menu.file.build: Build
+  menu.view: View
   menu.settings: Settings
   menu.settings.project_settings: Project Settings
   menu.settings.build_settings: Build Settings
@@ -93,6 +94,8 @@ Entries:
   common.cut: Cut
   common.paste: Paste
   common.ok: OK
+  common.save: Save
+  common.close: Close
   common.refresh: Refresh
   common.filter: Filter
   common.entity: Entity
@@ -498,6 +501,12 @@ Entries:
   sprite_viewer.play: Play
   sprite_viewer.stop: Stop
   sprite_viewer.no_texture: This sprite could not be loaded.
+  sprite_viewer.menu.open: Open Sprite...
+  sprite_viewer.menu.close_tab: Close Tab
+  sprite_viewer.menu.close_all: Close All Tabs
+  sprite_viewer.menu.reset_preview_zoom: Reset Preview Zoom
+  effect_editor.menu.open: Open Sound Effect...
+  effect_editor.menu.reload: Reload From Disk
   script_prop.name: Name
   script_prop.name_hint: Property name
   script_prop.name_tooltip: C++ field name. Must be a valid identifier, no duplicates or reserved names.
@@ -687,6 +696,16 @@ Entries:
   file_dialog.new_project_folder_title: Select Folder For New Project
   file_dialog.open_project_title: Open Project
   file_dialog.filter.jbro_project: JBro Project
+  file_dialog.open_sprite_title: Open Sprite
+  file_dialog.open_effect_title: Open Sound Effect
+  file_dialog.filter.image: Image
+  file_dialog.filter.audio_effect: Sound Effect
+
+  asset_pick.error.title: Cannot Open
+  asset_pick.error.no_project: Open a project first.
+  asset_pick.error.outside_assets: Only files inside the project asset folder can be opened.
+  asset_pick.error.not_registered: This file has not been imported yet. Import it in the Asset Browser and try again.
+  asset_pick.error.type_mismatch: This window cannot open that kind of asset.
 
   script.status.idle: Script Idle
   script.status.building: Script Building

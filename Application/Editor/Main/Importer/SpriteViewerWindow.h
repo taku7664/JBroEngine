@@ -39,6 +39,14 @@ public:
 	void SetTargetGuid(const AssetGuid& guid) { m_guid = guid; }
 	const AssetGuid& GetTargetGuid() const { return m_guid; }
 
+	// ── dock 메뉴가 부르는 동작 ──────────────────────────────────────────────
+	// 시트 배율을 칸에 맞춘다. 맞춤 값은 툴바가 매 프레임 계산해 두므로(m_fitZoom)
+	// 여기서는 지형 계산 없이 그 값을 쓴다 — 메뉴는 그릴 영역 크기를 모른다.
+	void ApplyFitZoom() { m_zoom = m_fitZoom; }
+	void ResetPreviewZoom() { m_previewZoom = 1.0f; }
+	bool IsPivotVisible() const { return m_showPivot; }
+	void SetPivotVisible(bool visible) { m_showPivot = visible; }
+
 private:
 	void OnRenderStay() override;
 
@@ -59,6 +67,9 @@ private:
 
 	float m_splitRatio = 0.68f;
 	float m_zoom = 1.0f;
+	// "창에 맞추기"가 만들 배율. 툴바가 매 프레임 갱신한다 — 메뉴에서도 같은 값을 써야
+	// 버튼과 메뉴가 어긋나지 않는다.
+	float m_fitZoom = 1.0f;
 	// 미리보기 배율 — 칸 맞춤 배율에 곱한다(1.0 = 칸에 꽉 차게). Ctrl+휠로 조절.
 	float m_previewZoom = 1.0f;
 	bool  m_showPivot = true;
@@ -71,11 +82,26 @@ private:
 	float m_elapsedSeconds = 0.0f;
 };
 
-// 파일당 하나씩 뜨는 도킹 컨테이너. Root 의 자식.
+// 열린 시트들을 한데 담는 도킹 컨테이너(하나만 존재). Root 의 자식.
 class CSpriteViewerDockWindow final : public CImDockWindow
 {
 public:
 	using CImDockWindow::CImDockWindow;
+
+	// 패널이 그려질 때 자기를 알린다. 메뉴는 "지금 보고 있는 탭"에 대해 동작해야 하는데,
+	// 숨은 탭은 그려지지 않으므로 이번 프레임에 그려진 패널이 곧 활성 탭이다.
+	// 프레임 번호를 같이 남겨, 탭이 숨겨진 뒤 남은 예전 값을 쓰지 않게 한다.
+	void NotifyPanelDrawn(SafePtr<CSpriteViewerPanel> panel);
+
+private:
+	void OnCreate() override;
+	void OnMenuBar() override;
+
+	// 이번 프레임에 그려진 패널. 없으면(=모든 탭이 숨김) 탭 대상 메뉴는 비활성.
+	SafePtr<CSpriteViewerPanel> GetActivePanel() const;
+
+	SafePtr<CSpriteViewerPanel> m_activePanel;
+	int                         m_activePanelFrame = -1;
 };
 
 namespace SpriteViewer

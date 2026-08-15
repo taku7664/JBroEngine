@@ -6,6 +6,7 @@
 #include "Editor/ImItem/ImSectionHeader.h"
 #include "Editor/ImItem/ImSplitter.h"
 #include "Editor/Localization/EditorLocalizationKeys.h"
+#include "Editor/Main/EditorAssetPickDialog.h"
 #include "Editor/Main/Importer/SpriteImportOptionsEditor.h"
 #include "Engine/Core/Asset/IAssetManager.h"
 #include "Engine/Core/EngineCore.h"
@@ -13,6 +14,8 @@
 #include "Engine/Core/Renderer/IRenderResourceCache.h"
 #include "Engine/Core/RHI/IRHITexture.h"
 #include "Engine/Editor/ImEditor.h"
+#include "Engine/Editor/ImGuiUtillity.h"
+#include "Utillity/String/StringUtillity.h"
 #include "ThirdParty/imgui/imgui.h"
 
 #include <algorithm>
@@ -149,8 +152,109 @@ void SpriteViewer::Open(const AssetGuid& guid, const std::string& title)
 	});
 }
 
+void CSpriteViewerDockWindow::OnCreate()
+{
+	m_imguiFlags = ImGuiWindowFlags_MenuBar;
+}
+
+void CSpriteViewerDockWindow::NotifyPanelDrawn(SafePtr<CSpriteViewerPanel> panel)
+{
+	m_activePanel = panel;
+	m_activePanelFrame = ImGui::GetFrameCount();
+}
+
+SafePtr<CSpriteViewerPanel> CSpriteViewerDockWindow::GetActivePanel() const
+{
+	// 이번 프레임에 그려진 것만 유효하다. 탭이 숨겨지면 등록이 끊기는데, 값만 남겨 두면
+	// 안 보이는 탭을 상대로 메뉴가 동작한다.
+	// 메뉴바는 자식들을 그린 **뒤**에 그려지므로(CImWindow::HandleBegin) 이 프레임 값이 이미 있다.
+	if (m_activePanelFrame == ImGui::GetFrameCount())
+	{
+		return m_activePanel;
+	}
+	return nullptr;
+}
+
+void CSpriteViewerDockWindow::OnMenuBar()
+{
+	SafePtr<CSpriteViewerPanel> panel = GetActivePanel();
+
+	if (ImGui::BeginMenu(Loc::Text(EditorLocKeys::MenuFile)))
+	{
+		if (ImGui::MenuItem(Loc::Text(EditorLocKeys::SpriteViewerMenuOpen)))
+		{
+			// 필터 문자열은 raw 포인터로 넘어간다(File::FileDialogFilter = pair<const wchar_t*, ...>).
+			// 다이얼로그가 닫힐 때까지 살아 있어야 하므로 지역 변수로 붙잡아 둔다.
+			const std::wstring imageFilter = Utillity::U8ToWString(Loc::Text(EditorLocKeys::FileDialogFilterImage));
+
+			AssetMetaData metaData;
+			if (EditorAssetPick::PickRegisteredAsset(
+				EditorLocKeys::FileDialogOpenSpriteTitle,
+				{ { imageFilter.c_str(), L"*.png;*.jpg;*.jpeg;*.bmp;*.tga" }, { L"All Files", L"*.*" } },
+				EAssetType::Sprite,
+				metaData))
+			{
+				// 탭 이름 규칙은 자산 브라우저/인스펙터와 같다 — 확장자까지 붙인 파일명.
+				SpriteViewer::Open(metaData.Guid, metaData.Path.filename().string());
+			}
+		}
+
+		ImGui::Separator();
+
+		{
+			// 활성 탭이 없다 = 열린 탭이 하나도 없다(보이는 탭은 반드시 그려지므로).
+			// 그래서 닫기 항목 두 개가 같은 조건을 쓴다.
+			ImGui::Utillity::DisableScope disable(false == panel.IsValid());
+			if (ImGui::MenuItem(Loc::Text(EditorLocKeys::SpriteViewerMenuCloseTab)))
+			{
+				panel->SetVisible(false);
+			}
+			if (ImGui::MenuItem(Loc::Text(EditorLocKeys::SpriteViewerMenuCloseAll)))
+			{
+				for (SafePtr<CImWindow>& child : m_childImWindowVector)
+				{
+					if (child)
+					{
+						child->SetVisible(false);
+					}
+				}
+			}
+		}
+		ImGui::EndMenu();
+	}
+
+	// 보기 메뉴는 전부 "지금 보고 있는 탭"의 상태다 — 탭이 없으면 손댈 대상이 없다.
+	ImGui::Utillity::DisableScope disableView(false == panel.IsValid());
+	if (ImGui::BeginMenu(Loc::Text(EditorLocKeys::MenuView)))
+	{
+		if (ImGui::MenuItem(Loc::Text(EditorLocKeys::SpriteViewerFit)))
+		{
+			panel->ApplyFitZoom();
+		}
+		if (ImGui::MenuItem(Loc::Text(EditorLocKeys::SpriteViewerMenuResetPreviewZoom)))
+		{
+			panel->ResetPreviewZoom();
+		}
+		ImGui::Separator();
+		bool showPivot = panel.IsValid() && panel->IsPivotVisible();
+		if (ImGui::MenuItem(Loc::Text(EditorLocKeys::SpriteViewerShowPivot), nullptr, showPivot))
+		{
+			panel->SetPivotVisible(false == showPivot);
+		}
+		ImGui::EndMenu();
+	}
+}
+
 void CSpriteViewerPanel::OnRenderStay()
 {
+	// 숨은 탭은 그려지지 않는다 — 그리고 있다는 것 자체가 "이 탭이 활성"이라는 뜻이다.
+	// dock 메뉴가 어느 탭에 대해 동작할지 여기서 정해진다. 자산을 못 읽어 아래에서
+	// 일찍 빠져나가는 경우에도 탭은 활성이므로 **가장 먼저** 알린다.
+	if (SafePtr<CSpriteViewerDockWindow> dock = DynamicSafePtrCast<CSpriteViewerDockWindow>(m_ownerWindow))
+	{
+		dock->NotifyPanelDrawn(DynamicSafePtrCast<CSpriteViewerPanel>(SafeFromThis()));
+	}
+
 	AssetMetaData metaData;
 	if (false == TryGetMetaData(m_guid, metaData))
 	{
@@ -216,16 +320,23 @@ void CSpriteViewerPanel::DrawToolbar(float textureWidth, float textureHeight)
 	ImGui::SliderFloat(Loc::Text(EditorLocKeys::SpriteViewerZoom), &m_zoom, ZOOM_MIN, ZOOM_MAX, "%.2fx");
 
 	ImGui::SameLine();
-	if (ImGui::Button(Loc::Text(EditorLocKeys::SpriteViewerFit)))
+	const bool fitPressed = ImGui::Button(Loc::Text(EditorLocKeys::SpriteViewerFit));
+
+	// 맞춤 배율은 **매 프레임** 계산해 둔다 — dock 메뉴의 "창에 맞추기"도 같은 값을 써야
+	// 버튼과 메뉴가 어긋나지 않고, 메뉴는 그릴 영역 크기를 알 방법이 없다.
+	// 버튼 바로 다음 줄이 곧 시트가 그려질 영역이라 여기서 재야 값이 맞는다.
+	// 폰트/DPI 가 바뀌어도 따라가도록 상수 대신 ImGui 의 실제 줄 높이를 쓴다.
 	{
-		// 시트 칸에 남을 크기에 맞춘다. 폰트/DPI 가 바뀌어도 따라가도록 상수 대신
-		// ImGui 의 실제 줄 높이를 쓴다.
 		const ImVec2 available = ImGui::GetContentRegionAvail();
 		const float paneWidth = available.x * m_splitRatio;
 		const float paneHeight = available.y - ImGui::GetFrameHeightWithSpacing() * 2.0f;
 		const float fitX = textureWidth > 0.0f ? paneWidth / textureWidth : 1.0f;
 		const float fitY = textureHeight > 0.0f ? paneHeight / textureHeight : 1.0f;
-		m_zoom = std::clamp(std::min(fitX, fitY), ZOOM_MIN, ZOOM_MAX);
+		m_fitZoom = std::clamp(std::min(fitX, fitY), ZOOM_MIN, ZOOM_MAX);
+	}
+	if (fitPressed)
+	{
+		ApplyFitZoom();
 	}
 
 	ImGui::SameLine();

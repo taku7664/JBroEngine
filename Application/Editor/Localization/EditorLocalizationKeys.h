@@ -152,6 +152,7 @@ namespace EditorLocKeys
 	constexpr const char* CommonAsset = "common.asset";
 	constexpr const char* CommonBrowse = "common.browse";
 	constexpr const char* CommonClear = "common.clear";
+	constexpr const char* CommonClose = "common.close";
 	constexpr const char* CommonCancel = "common.cancel";
 	constexpr const char* CommonCopy = "common.copy";
 	constexpr const char* CommonCreate = "common.create";
@@ -174,6 +175,7 @@ namespace EditorLocKeys
 	constexpr const char* CommonRefresh = "common.refresh";
 	constexpr const char* CommonRemove = "common.remove";
 	constexpr const char* CommonRename = "common.rename";
+	constexpr const char* CommonSave = "common.save";
 	constexpr const char* CommonSearch = "common.search";
 	constexpr const char* CommonType = "common.type";
 	constexpr const char* CommonUnload = "common.unload";
@@ -205,11 +207,22 @@ namespace EditorLocKeys
 	constexpr const char* EditorStatisticsCanvasObjects = "editor_statistics.canvas_objects";
 	constexpr const char* EditorStatisticsScriptPools = "editor_statistics.script_pools";
 	constexpr const char* EditorStatisticsScriptPoolExpansions = "editor_statistics.script_pool_expansions";
+	constexpr const char* AssetPickErrorNoProject = "asset_pick.error.no_project";
+	constexpr const char* AssetPickErrorNotRegistered = "asset_pick.error.not_registered";
+	constexpr const char* AssetPickErrorOutsideAssets = "asset_pick.error.outside_assets";
+	constexpr const char* AssetPickErrorTitle = "asset_pick.error.title";
+	constexpr const char* AssetPickErrorTypeMismatch = "asset_pick.error.type_mismatch";
+	constexpr const char* EffectEditorMenuOpen = "effect_editor.menu.open";
+	constexpr const char* EffectEditorMenuReload = "effect_editor.menu.reload";
 	constexpr const char* EditorStatisticsSelection = "editor_statistics.selection";
 	constexpr const char* EditorStatisticsUndo = "editor_statistics.undo";
+	constexpr const char* FileDialogFilterAudioEffect = "file_dialog.filter.audio_effect";
+	constexpr const char* FileDialogFilterImage = "file_dialog.filter.image";
 	constexpr const char* FileDialogFilterJbroProject = "file_dialog.filter.jbro_project";
 	constexpr const char* FileDialogNewProjectFolderTitle = "file_dialog.new_project_folder_title";
+	constexpr const char* FileDialogOpenEffectTitle = "file_dialog.open_effect_title";
 	constexpr const char* FileDialogOpenProjectTitle = "file_dialog.open_project_title";
+	constexpr const char* FileDialogOpenSpriteTitle = "file_dialog.open_sprite_title";
 	constexpr const char* GameViewNoCamera = "game_view.no_camera";
 	constexpr const char* GameViewStatusNoActiveCanvas = "game_view.status.no_active_canvas";
 	constexpr const char* GameViewStatusPlaying = "game_view.status.playing";
@@ -461,6 +474,7 @@ namespace EditorLocKeys
 	constexpr const char* MenuSimulation = "menu.simulation";
 	constexpr const char* MenuSimulationPauseToggle = "menu.simulation.pause_toggle";
 	constexpr const char* MenuSimulationPlayToggle = "menu.simulation.play_toggle";
+	constexpr const char* MenuView = "menu.view";
 	constexpr const char* MenuWindow = "menu.window";
 	constexpr const char* MenuWindowEditor = "menu.window.editor";
 	constexpr const char* MenuWindowImporter = "menu.window.importer";
@@ -578,6 +592,10 @@ namespace EditorLocKeys
 	constexpr const char* SpriteViewerFrameIndexFormat = "sprite_viewer.frame_index_format";
 	constexpr const char* SpriteViewerFramesPerSecond = "sprite_viewer.frames_per_second";
 	constexpr const char* SpriteViewerHoveredFrame = "sprite_viewer.hovered_frame";
+	constexpr const char* SpriteViewerMenuCloseAll = "sprite_viewer.menu.close_all";
+	constexpr const char* SpriteViewerMenuCloseTab = "sprite_viewer.menu.close_tab";
+	constexpr const char* SpriteViewerMenuOpen = "sprite_viewer.menu.open";
+	constexpr const char* SpriteViewerMenuResetPreviewZoom = "sprite_viewer.menu.reset_preview_zoom";
 	constexpr const char* SpriteViewerNoTexture = "sprite_viewer.no_texture";
 	constexpr const char* SpriteViewerPlay = "sprite_viewer.play";
 	constexpr const char* SpriteViewerPreview = "sprite_viewer.preview";

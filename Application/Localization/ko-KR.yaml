@@ -41,6 +41,7 @@ Entries:
   menu.file.open_project: 프로젝트 열기
   menu.file.save_project: 프로젝트 저장
   menu.file.build: 빌드
+  menu.view: 보기
   menu.settings: 설정
   menu.settings.project_settings: 프로젝트 세팅
   menu.settings.build_settings: 빌드 세팅
@@ -93,6 +94,8 @@ Entries:
   common.cut: 잘라내기
   common.paste: 붙여넣기
   common.ok: 확인
+  common.save: 저장
+  common.close: 닫기
   common.refresh: 새로고침
   common.filter: 필터
   common.entity: 엔티티
@@ -498,6 +501,12 @@ Entries:
   sprite_viewer.play: 재생
   sprite_viewer.stop: 정지
   sprite_viewer.no_texture: 스프라이트를 불러올 수 없습니다.
+  sprite_viewer.menu.open: 스프라이트 열기...
+  sprite_viewer.menu.close_tab: 탭 닫기
+  sprite_viewer.menu.close_all: 모든 탭 닫기
+  sprite_viewer.menu.reset_preview_zoom: 미리보기 배율 초기화
+  effect_editor.menu.open: 사운드 효과 열기...
+  effect_editor.menu.reload: 디스크에서 다시 읽기
   script_prop.name: 이름
   script_prop.name_hint: 프로퍼티 이름
   script_prop.name_tooltip: C++ 필드 이름. 유효한 식별자여야 하고 중복/예약어는 안 됩니다.
@@ -687,6 +696,16 @@ Entries:
   file_dialog.new_project_folder_title: 새 프로젝트를 만들 폴더 선택
   file_dialog.open_project_title: 프로젝트 열기
   file_dialog.filter.jbro_project: JBro 프로젝트
+  file_dialog.open_sprite_title: 스프라이트 열기
+  file_dialog.open_effect_title: 사운드 효과 열기
+  file_dialog.filter.image: 이미지
+  file_dialog.filter.audio_effect: 사운드 효과
+
+  asset_pick.error.title: 열 수 없습니다
+  asset_pick.error.no_project: 프로젝트를 먼저 열어야 합니다.
+  asset_pick.error.outside_assets: 프로젝트 자산 폴더 안에 있는 파일만 열 수 있습니다.
+  asset_pick.error.not_registered: 아직 임포트되지 않은 파일입니다. 자산 브라우저에서 임포트한 뒤 다시 시도하세요.
+  asset_pick.error.type_mismatch: 이 창에서 열 수 있는 자산 종류가 아닙니다.
 
   script.status.idle: 스크립트 대기
   script.status.building: 스크립트 빌드 중
