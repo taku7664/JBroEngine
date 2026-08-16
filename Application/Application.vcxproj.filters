@@ -249,6 +249,9 @@
     <ClInclude Include="Editor\Main\EditorAssetPickDialog.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
+    <ClInclude Include="Editor\Main\Importer\SpriteFramePick.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
     <ClInclude Include="Editor\ImItem\ImDragScalar.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
@@ -483,6 +486,9 @@
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="Editor\Main\EditorAssetPickDialog.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="Editor\Main\Importer\SpriteFramePick.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="Editor\ImItem\ImDragScalar.cpp">

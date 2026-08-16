@@ -34,6 +34,7 @@
 #include "Engine/Core/Asset/MaterialAsset.h"
 #include "Engine/Core/Asset/SpriteAsset.h"
 #include "Editor/Main/Importer/SpriteImportOptionsEditor.h"
+#include "Editor/Main/Importer/SpriteFramePick.h"
 #include "Editor/Main/Importer/SpriteViewerWindow.h"
 #include "Engine/Core/Asset/AudioAsset.h"
 #include "Engine/Core/Asset/FontAsset.h"
@@ -50,6 +51,7 @@
 #include "Engine/GameFramework/Component/Physics2DComponents.h"
 #include "Engine/GameFramework/Scripting/GameScript.h"
 #include "Engine/GameFramework/Component/RendererComponentAccess.h"
+#include "Engine/GameFramework/Component/SpriteRenderer2D.h"
 #include "Engine/GameFramework/Component/Transform2D.h"
 #include "Engine/GameFramework/Physics2D/Physics2DSystem.h"
 #include "Engine/GameFramework/Physics2D/Physics2DTypes.h"
@@ -886,6 +888,86 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		});
 	}
 
+	// 픽커가 고른 프레임을 컴포넌트에 반영한다.
+	// 인스펙터 위젯과 **같은 순서**를 타야 한다 — 필드 직접 쓰기 → 경계 캐시 무효화 →
+	// raw undo 커맨드. 하나라도 빠지면 undo 가 어긋나거나 컬링 경계가 옛 프레임에 남는다.
+	void ApplyPickedFrameIndex(
+		CGameCanvas& canvas,
+		CGameObject* selectedObject,
+		CComponent& component,
+		const ReflectPropertyInfo& property,
+		std::uint32_t pickedIndex)
+	{
+		void* field = CReflectionRegistry::GetPropertyAddress(&component, property);
+		if (nullptr == field || property.Size != sizeof(std::uint32_t))
+		{
+			return;
+		}
+
+		std::vector<std::uint8_t> oldValue(property.Size);
+		std::memcpy(oldValue.data(), field, property.Size);
+
+		std::memcpy(field, &pickedIndex, sizeof(pickedIndex));
+		CRendererComponentAccess::NotifyReflectedWrite(component);
+
+		std::vector<std::uint8_t> newValue(property.Size);
+		std::memcpy(newValue.data(), field, property.Size);
+		if (oldValue == newValue)
+		{
+			return;
+		}
+
+		Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CSetComponentPropertyCommand>(
+			canvas.SafeFromThis(), selectedObject, component.GetTypeId(), property.Offset,
+			std::move(oldValue), std::move(newValue), component.GetInstanceGuid()));
+	}
+
+	// FrameIndex 행 바로 아래 붙는 픽커 버튼.
+	// 숫자를 외워서 치는 대신 시트에서 칸을 눌러 고른다 — 프레임이 40장 넘어가면
+	// 인덱스만 보고 원하는 그림을 찾을 방법이 없다.
+	void DrawSpriteFramePickRow(
+		CGameCanvas& canvas,
+		CGameObject* selectedObject,
+		SpriteRenderer2D& renderer,
+		const ReflectPropertyInfo& property)
+	{
+		const File::Guid& componentGuid = renderer.GetInstanceGuid();
+
+		// 뷰어는 숫자만 남겨 둔다. 쓰는 건 여기 — 커맨드에 필요한 캔버스·오브젝트가
+		// 살아 있음이 보장되는 유일한 자리다(SpriteFramePick.h 참고).
+		std::uint32_t pickedIndex = 0;
+		if (SpriteFramePick::TryTakeResult(componentGuid, pickedIndex))
+		{
+			ApplyPickedFrameIndex(canvas, selectedObject, renderer, property, pickedIndex);
+		}
+
+		const bool pending = SpriteFramePick::IsPendingFor(componentGuid);
+		const bool hasSheet = false == renderer.GetSpriteGuid().IsNull();
+
+		{
+			// 시트가 없으면 열어 볼 것도 없다. 단, 이미 고르는 중이면 취소는 되어야 한다.
+			ImGui::Utillity::DisableScope disable(false == hasSheet && false == pending);
+			if (ImGui::SmallButton(Loc::Text(pending
+				? EditorLocKeys::CommonCancel
+				: EditorLocKeys::InspectorSpritePickFrame)))
+			{
+				if (pending)
+				{
+					SpriteFramePick::Cancel();
+				}
+				else
+				{
+					SpriteFramePick::Begin(renderer.GetSpriteGuid(), componentGuid);
+				}
+			}
+		}
+		if (false == hasSheet)
+		{
+			ImGui::SameLine();
+			ImGui::TextDisabled("%s", Loc::Text(EditorLocKeys::InspectorSpritePickFrameNoSheet));
+		}
+	}
+
 	void DrawTransformMatrixReadOnly(const Transform2D& transform)
 	{
 		const Matrix3x2 matrix = transform.ToMatrix3x2();
@@ -1103,6 +1185,12 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			}
 
 			DrawReflectedPropertyRow(canvas, selectedObject, *static_cast<CComponent*>(component), property, leftText);
+
+			if (componentType.Type.Id == CReflectionRegistry::MakeTypeId("SpriteRenderer2D")
+				&& property.Name && 0 == std::strcmp(property.Name, "FrameIndex"))
+			{
+				DrawSpriteFramePickRow(canvas, selectedObject, *static_cast<SpriteRenderer2D*>(component), property);
+			}
 		}
 
 		// 특수 디버그 섹션

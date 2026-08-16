@@ -7,6 +7,7 @@
 #include "Editor/ImItem/ImSplitter.h"
 #include "Editor/Localization/EditorLocalizationKeys.h"
 #include "Editor/Main/EditorAssetPickDialog.h"
+#include "Editor/Main/Importer/SpriteFramePick.h"
 #include "Editor/Main/Importer/SpriteImportOptionsEditor.h"
 #include "Engine/Core/Asset/IAssetManager.h"
 #include "Engine/Core/EngineCore.h"
@@ -294,6 +295,7 @@ void CSpriteViewerPanel::OnRenderStay()
 		: std::clamp(m_selectedFrame, 0, static_cast<int>(frames.size()) - 1);
 
 	DrawToolbar(static_cast<float>(spriteAsset->GetWidth()), static_cast<float>(spriteAsset->GetHeight()));
+	DrawPickBanner();
 	ImGui::Separator();
 
 	// 아래쪽 재생 바 높이를 빼고 본문을 나눈다.
@@ -312,6 +314,28 @@ void CSpriteViewerPanel::OnRenderStay()
 	DrawSidePane(metaData, *spriteAsset, frames, ImVec2(rightWidth, bodyAvail.y));
 
 	DrawPlaybackBar(frames);
+}
+
+void CSpriteViewerPanel::DrawPickBanner()
+{
+	if (false == SpriteFramePick::IsWaitingFor(m_guid))
+	{
+		return;
+	}
+
+	// 고르기 모드는 창을 봐서는 알 수 없는 상태다 — 왜 여기 왔는지, 어떻게 빠져나가는지
+	// 둘 다 보여 준다. 색은 "지금 뭔가를 기다린다"는 뜻으로 강조색.
+	ImGui::Utillity::StyleBuilder style;
+	style.PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.85f, 0.40f, 1.0f));
+	ImGui::AlignTextToFramePadding();
+	ImGui::TextUnformatted(Loc::Text(EditorLocKeys::SpriteViewerPickHint));
+	style.PopStyle();
+
+	ImGui::SameLine();
+	if (ImGui::SmallButton(Loc::Text(EditorLocKeys::CommonCancel)))
+	{
+		SpriteFramePick::Cancel();
+	}
 }
 
 void CSpriteViewerPanel::DrawToolbar(float textureWidth, float textureHeight)
@@ -393,6 +417,12 @@ void CSpriteViewerPanel::DrawSheetPane(const CSpriteAsset& spriteAsset,
 			{
 				m_selectedFrame = static_cast<int>(index);
 				m_playing = false;
+				// 인스펙터가 프레임을 고르러 보냈으면 이 클릭이 곧 답이다.
+				// 값을 여기서 쓰지 않는 이유는 SpriteFramePick.h 참고.
+				if (SpriteFramePick::IsWaitingFor(m_guid))
+				{
+					SpriteFramePick::SetResult(static_cast<std::uint32_t>(index));
+				}
 			}
 		}
 

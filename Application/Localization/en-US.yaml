@@ -501,6 +501,7 @@ Entries:
   sprite_viewer.play: Play
   sprite_viewer.stop: Stop
   sprite_viewer.no_texture: This sprite could not be loaded.
+  sprite_viewer.pick.hint: Click a cell to send that frame to the Inspector.
   sprite_viewer.menu.open: Open Sprite...
   sprite_viewer.menu.close_tab: Close Tab
   sprite_viewer.menu.close_all: Close All Tabs
@@ -689,6 +690,8 @@ Entries:
   inspector.camera_debug.culled: Culled
   inspector.camera_debug.drawn: Drawn
   inspector.sprite.open_viewer: Open Sprite Viewer
+  inspector.sprite.pick_frame: Pick Frame
+  inspector.sprite.pick_frame.no_sheet: Assign a sprite first
   inspector.sprite.preview_frame_count: Preview Frame Count
   inspector.sprite.frame_width: Frame Width
   inspector.sprite.frame_height: Frame Height

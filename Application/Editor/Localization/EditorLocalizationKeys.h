@@ -426,6 +426,8 @@ namespace EditorLocKeys
 	constexpr const char* InspectorSliceTypeNone = "inspector.slice_type.none";
 	constexpr const char* InspectorSpriteFrameHeight = "inspector.sprite.frame_height";
 	constexpr const char* InspectorSpriteFrameWidth = "inspector.sprite.frame_width";
+	constexpr const char* InspectorSpritePickFrame = "inspector.sprite.pick_frame";
+	constexpr const char* InspectorSpritePickFrameNoSheet = "inspector.sprite.pick_frame.no_sheet";
 	constexpr const char* InspectorSpriteOpenViewer = "inspector.sprite.open_viewer";
 	constexpr const char* InspectorSpritePreviewFrameCount = "inspector.sprite.preview_frame_count";
 	constexpr const char* InspectorSpriteImportOptions = "inspector.sprite_import_options";
@@ -597,6 +599,7 @@ namespace EditorLocKeys
 	constexpr const char* SpriteViewerMenuOpen = "sprite_viewer.menu.open";
 	constexpr const char* SpriteViewerMenuResetPreviewZoom = "sprite_viewer.menu.reset_preview_zoom";
 	constexpr const char* SpriteViewerNoTexture = "sprite_viewer.no_texture";
+	constexpr const char* SpriteViewerPickHint = "sprite_viewer.pick.hint";
 	constexpr const char* SpriteViewerPlay = "sprite_viewer.play";
 	constexpr const char* SpriteViewerPreview = "sprite_viewer.preview";
 	constexpr const char* SpriteViewerShowPivot = "sprite_viewer.show_pivot";

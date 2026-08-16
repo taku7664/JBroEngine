@@ -55,6 +55,8 @@ private:
 	void OnHide() override { m_assetLoad.Release(); }
 
 	void DrawToolbar(float textureWidth, float textureHeight);
+	// 인스펙터가 프레임을 고르러 보냈을 때만 뜨는 안내 줄.
+	void DrawPickBanner();
 	void DrawSheetPane(const CSpriteAsset& spriteAsset, const std::vector<SpriteFrame>& frames, const ImVec2& paneSize);
 	void DrawSidePane(const AssetMetaData& metaData, const CSpriteAsset& spriteAsset,
 	                  const std::vector<SpriteFrame>& frames, const ImVec2& paneSize);
