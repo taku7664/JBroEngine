@@ -256,7 +256,9 @@ private:
 	// 컴포넌트 InstanceGuid 로 특정 1개를 찾는다(멀티 컴포넌트 지목). 같은 오브젝트에 같은
 	// 타입이 여럿이어도 guid 로 구분된다. componentGuid 가 비어 있으면 타입 첫 매치로 폴백
 	// (컴포넌트 guid 가 없던 구 데이터/단일 인스턴스 호환). 반환 주소는 단일 상속이라 곧 T*.
-	void* FindComponentRawByGuid(const File::Guid& componentGuid, TypeId typeId)
+	// guid 는 Guid128 로 받는다 — 이 함수는 Ref 해석이 프레임마다 부르는 자리라, File::Guid 를
+	// 받으면 호출자가 비교값을 만드는 것만으로 힙 할당이 생기고 비교 자체도 fs::path 비교가 된다.
+	void* FindComponentRawByGuid(const Guid128& componentGuid, TypeId typeId)
 	{
 		if (componentGuid.IsNull())
 		{
@@ -265,7 +267,7 @@ private:
 		for (const SafePtr<CComponent>& c : m_components)
 		{
 			CComponent* comp = c.TryGet();
-			if (comp && (INVALID_TYPE_ID == typeId || comp->GetTypeId() == typeId) && comp->GetInstanceGuid() == componentGuid)
+			if (comp && (INVALID_TYPE_ID == typeId || comp->GetTypeId() == typeId) && comp->GetInstanceGuid128() == componentGuid)
 			{
 				return comp;
 			}
@@ -273,7 +275,7 @@ private:
 		return nullptr;
 	}
 
-	const void* FindComponentRawByGuid(const File::Guid& componentGuid, TypeId typeId) const
+	const void* FindComponentRawByGuid(const Guid128& componentGuid, TypeId typeId) const
 	{
 		if (componentGuid.IsNull())
 		{
@@ -290,7 +292,7 @@ private:
 		for (const SafePtr<CComponent>& c : m_components)
 		{
 			const CComponent* comp = c.TryGet();
-			if (comp && (INVALID_TYPE_ID == typeId || comp->GetTypeId() == typeId) && comp->GetInstanceGuid() == componentGuid)
+			if (comp && (INVALID_TYPE_ID == typeId || comp->GetTypeId() == typeId) && comp->GetInstanceGuid128() == componentGuid)
 			{
 				return comp;
 			}

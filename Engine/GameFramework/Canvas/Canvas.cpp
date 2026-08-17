@@ -14,6 +14,7 @@
 #include "GameFramework/Canvas/CanvasViewProjection.h"   // ComputeCanvasViewProjection — 역투영 공용 계산
 #include "GameFramework/Scripting/ScriptSystem.h"
 #include "GameFramework/Transform/TransformSystem.h"
+#include "Utillity/File/GuidConvert.h"   // ToGuid128 — m_objectByGuid 키 변환(cold path)
 
 #include <algorithm>
 #include <chrono>
@@ -25,12 +26,7 @@
 
 namespace
 {
-	// File::Guid(fs::path) → Guid128. 오브젝트 생성/파괴/rekey 등 cold path 에서만 쓴다
-	// (문자열은 ASCII hex 라 fs::path::string() 왕복이 안전). hot path 는 Guid128::FromText(char*).
-	Guid128 ToGuid128(const File::Guid& guid)
-	{
-		return Guid128::FromText(guid.string().c_str());
-	}
+	// ToGuid128 은 Utillity/File/GuidConvert.h 의 공용 헬퍼를 쓴다(로컬 중복 정의 제거).
 
 	// m_objectByGuid 공통 조회 — 죽은 엔트리는 방어적으로 제거한다.
 	SafePtr<CGameObject> LookupByGuid128(

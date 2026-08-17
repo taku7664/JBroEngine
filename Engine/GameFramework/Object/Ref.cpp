@@ -24,7 +24,12 @@ namespace
 	}
 }
 
-// 경계엔 const char*(POD) 만 들어온다 — File::Guid 는 여기 Engine.lib 내부에서만 구성.
+// 경계엔 const char*(POD) 만 들어온다.
+//
+// 여기서 guid 텍스트를 File::Guid 로 만들지 않는다는 점이 중요하다 — File::Guid 는
+// fs::path 라 생성이 곧 UTF8→UTF16 트랜스코딩 + 힙 할당이고, Get() 은 스크립트가 프레임마다
+// 부를 수 있는 자리다. 대신 Guid128 로 접어 넘긴다(할당 0, 비교는 uint64 두 개).
+// 오브젝트 조회는 FindByInstanceGuidText 가 이미 같은 방식이다.
 
 void* RefDetail::ResolveComponent(const char* objectGuid, const char* componentGuid, TypeId componentTypeId)
 {
@@ -37,7 +42,7 @@ void* RefDetail::ResolveComponent(const char* objectGuid, const char* componentG
 	return object
 		? CCanvasRuntimeAccess::FindComponentByGuidAndType(
 			*object,
-			File::Guid(componentGuid),
+			Guid128::FromText(componentGuid),
 			componentTypeId)
 		: nullptr;
 }
@@ -64,7 +69,7 @@ CGameScript* RefDetail::ResolveScript(const char* objectGuid, const char* compon
 	{
 		return nullptr;
 	}
-	return CCanvasRuntimeAccess::FindScript(*canvas, *object, File::Guid(componentGuid), scriptTypeId);
+	return CCanvasRuntimeAccess::FindScript(*canvas, *object, Guid128::FromText(componentGuid), scriptTypeId);
 }
 
 CGameCanvas* RefDetail::ResolveCanvas(const char* canvasName)

@@ -771,6 +771,7 @@
     <ClCompile Include="Core\Task\TaskGroup.cpp" />
     <ClCompile Include="Core\Task\TaskManager.cpp" />
     <ClCompile Include="Core\Time\Time.cpp" />
+    <ClCompile Include="GameFramework\Object\GameInstance.cpp" />
     <ClCompile Include="GameFramework\Object\GameObject.cpp" />
     <ClCompile Include="GameFramework\Object\Ref.cpp" />
     <ClCompile Include="GameFramework\Prefab\IPrefabSpawner.cpp" />

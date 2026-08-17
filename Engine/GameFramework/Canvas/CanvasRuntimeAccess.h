@@ -45,9 +45,11 @@ public:
 		return object.FindComponentByGuid(componentGuid);
 	}
 
+	// Ref 해석 전용(프레임마다 도는 경로) — guid 는 Guid128 로 받는다. 이유는 GameObject.h 의
+	// FindComponentRawByGuid 주석 참조.
 	static void* FindComponentByGuidAndType(
 		CGameObject& object,
-		const File::Guid& componentGuid,
+		const Guid128& componentGuid,
 		TypeId typeId)
 	{
 		return object.FindComponentRawByGuid(componentGuid, typeId);
@@ -140,10 +142,11 @@ public:
 			: it->second->Instance;
 	}
 
+	// Ref 해석 전용 — guid 는 Guid128(위 FindComponentByGuidAndType 과 같은 이유).
 	static CGameScript* FindScript(
 		CGameCanvas& canvas,
 		CGameObject& object,
-		const File::Guid& componentGuid,
+		const Guid128& componentGuid,
 		TypeId expectedType = INVALID_TYPE_ID)
 	{
 		canvas.EnsureScriptExecutionOrder();
@@ -163,7 +166,7 @@ public:
 			{
 				continue;
 			}
-			if (false == componentGuid.IsNull() && script->GetInstanceGuid() != componentGuid)
+			if (false == componentGuid.IsNull() && script->GetInstanceGuid128() != componentGuid)
 			{
 				continue;
 			}
