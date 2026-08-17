@@ -17,6 +17,7 @@
 #include "Scripts/AnimationProbeScript.h"
 #include "Scripts/JointProbeScript.h"
 #include "Scripts/QueryProbeScript.h"
+#include "Scripts/ButtonProbeScript.h"
 #include "Scripts/ScreenSpaceProbeScript.h"
 #include "Scripts/SpriteBoundsProbeScript.h"
 
@@ -82,6 +83,12 @@ public:
         m_registry->RegisterScript<CScreenSpaceProbeScript>({
             "CScreenSpaceProbeScript",
             "Screen Space Probe",
+            "GameScriptSample"
+        });
+
+        m_registry->RegisterScript<CButtonProbeScript>({
+            "CButtonProbeScript",
+            "Button Probe",
             "GameScriptSample"
         });
 
@@ -175,6 +182,7 @@ public:
         m_registry->UnregisterScript(CReflectionRegistry::MakeTypeId("CJointProbeScript"));
             m_registry->UnregisterScript(CReflectionRegistry::MakeTypeId("CAnimationProbeScript"));
         m_registry->UnregisterScript(CReflectionRegistry::MakeTypeId("CScreenSpaceProbeScript"));
+        m_registry->UnregisterScript(CReflectionRegistry::MakeTypeId("CButtonProbeScript"));
         m_registry->UnregisterScript(CReflectionRegistry::MakeTypeId("CSpriteBoundsProbeScript"));
 
         m_registry = nullptr;

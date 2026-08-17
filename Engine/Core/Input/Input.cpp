@@ -57,3 +57,11 @@ void CInput::SetTriggerThreshold(float threshold)
 		m_system->SetTriggerThreshold(threshold);
 	}
 }
+
+void CInput::InjectTouch(std::int32_t pointerId, int x, int y, ETouchPhase phase)
+{
+	if (m_system)
+	{
+		m_system->AccumulateTouch(pointerId, x, y, phase);
+	}
+}

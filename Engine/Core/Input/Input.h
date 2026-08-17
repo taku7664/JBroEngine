@@ -1,9 +1,11 @@
 #pragma once
 
 #include "Core/Input/InputDevices.h" // EInputDevice
+#include "Core/Input/InputTypes.h"   // ETouchPhase
 #include "Utillity/Pointer/SafePtr.h"
 
 #include <cstddef>
+#include <cstdint>
 
 class CInputSystem;
 class IInputHandler;
@@ -48,6 +50,15 @@ public:
 	// 감도 — 전 패드 공통(정규화 0..1).
 	void SetStickDeadzone(float deadzone);
 	void SetTriggerThreshold(float threshold);
+
+	// ── 합성 터치 ─────────────────────────────────────────────────────────────
+	// 모바일/웹 백엔드가 쓰는 것과 **같은 입구**에 터치를 직접 넣는다.
+	// 화면 위 가상 조이스틱·자동 검증처럼 게임이 포인터를 스스로 만들어야 할 때 쓴다.
+	// 좌표는 surface(클라이언트) 픽셀. id 로 손가락을 추적한다.
+	//
+	// 윈도우에서 마우스는 매 프레임 GetCursorPos 로 덮어써지므로 합성이 통하지 않는다 —
+	// 그래서 주입 경로는 터치뿐이고, 포인터 판정은 터치를 마우스보다 먼저 본다.
+	void InjectTouch(std::int32_t pointerId, int x, int y, ETouchPhase phase);
 
 private:
 	CInputSystem* m_system = nullptr;
