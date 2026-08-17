@@ -156,7 +156,7 @@ void CShapeRenderSystem::SubmitGeometry(T& shape, const GeometrySignature& signa
 		}
 		item.SortOrder = shape.SortOrder;
 		item.Entity = owner;
-		m_renderScene->Submit(item);
+		m_renderScene->Submit(std::move(item));
 	};
 
 	submitPass(found->second.FillMesh.GetSafePtr(), shape.FillColor);

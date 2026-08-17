@@ -23,6 +23,17 @@ public:
 	void BeginFrame();
 	// desc 에 맞는 RT 를 대여. 재사용 가능한 미사용 엔트리가 있으면 그것을, 없으면 신규 생성.
 	SafePtr<IRHITexture> Acquire(const RWTextureDesc& desc);
+	// 프레임 중간 반납 — 이 RT 를 더 읽지 않게 된 시점에 부르면 같은 프레임의 다음 Acquire 가
+	// 재사용한다. 부르지 않아도 다음 BeginFrame 에 회수되므로 정확성에는 영향이 없다.
+	//
+	// 왜 필요한가: 레이어 컴포짓은 "스크래치에 그리고 → 대상에 합성" 을 레이어마다 반복한다.
+	// 반납이 없으면 레이어 수 × 뷰포트 수만큼의 뷰포트 크기 RT 가 프레임 내내 동시 상주한다
+	// (에디터는 전 레이어를 RT 경유로 강제하므로 1920×1080 RGBA8 × 20장 = 160MB 급).
+	// 실제로 동시에 필요한 것은 1장이다.
+	//
+	// ⚠ 즉시 실행 컨텍스트 전제 — 반납 시점에 앞선 드로우가 이미 GPU 에 제출되어 있어야 한다.
+	//    지연 커맨드리스트를 도입하면 반납을 프레임그래프의 last-use 분석으로 옮겨야 한다.
+	void Release(const SafePtr<IRHITexture>& texture);
 	// 모든 RT 해제(셧다운).
 	void Clear();
 
@@ -32,6 +43,10 @@ private:
 		RWTextureDesc         Desc;
 		OwnerPtr<IRHITexture> Texture;
 		bool                  InUse = false;
+		// 이번 프레임에 한 번이라도 대여됐는가. IdleFrames 판정은 **이 값**으로 한다 —
+		// InUse 로 판정하면 Release 로 반납한 RT 가 "안 쓴 RT" 로 오인되어 계속 쓰는데도
+		// kMaxIdleFrames 후 해제·재생성을 반복한다.
+		bool                  UsedThisFrame = false;
 		// 연속 미사용 프레임 수. 임계 초과 시 BeginFrame 이 해제(리사이즈/라이트 수 변동으로
 		// 더 이상 안 쓰는 desc 의 RT 가 영구 누적되는 것을 막는다).
 		std::uint32_t         IdleFrames = 0;

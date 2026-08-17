@@ -72,6 +72,34 @@ struct RenderItem
 	// 그림자 캐스터 — OccluderMap 패스가 이 아이템만 골라 월드공간 공유 오클루더 맵에 알파 실루엣을 그린다.
 	bool CastShadow = false;
 
+	// ── 파생 경계(제출 시 1회 산출, 뷰 무관) ────────────────────────────────────
+	// Transform × LocalHalfExtents 를 월드 OBB 로 펼친 값. 중심 + 반축 벡터 2개다.
+	//   코너 = WorldCenter ± WorldAxisX ± WorldAxisY
+	// 뷰마다 4코너를 다시 변환하지 않기 위해 존재한다. 컬링은 아이템 하나당 뷰포트 수 × 레이어
+	// 수만큼 돌고 배치 look-ahead 와 프로파일러 캡처가 같은 판정을 또 하므로, 뷰와 무관한 부분을
+	// 여기서 한 번에 끝낸다.
+	//
+	// AABB(중심+반경)가 아니라 **축을 보존**하는 이유: 회전된 스프라이트를 AABB 로 감싸면 판정이
+	// 보수적으로 커져 기존 4코너 판정과 컬링 통계가 달라진다. 축을 들고 있으면 뷰 축 투영이
+	// 4코너 min/max 와 수학적으로 같은 값을 준다(RenderCulling.h 참조).
+	//
+	// 채우는 주체는 IRenderScene::Submit 이다(제출 계약). 직접 채우지 말 것.
+	float WorldCenter[2] = { 0.0f, 0.0f };
+	float WorldAxisX[2] = { 0.0f, 0.0f };
+	float WorldAxisY[2] = { 0.0f, 0.0f };
+
+	// Transform + LocalHalfExtents 로부터 위 월드 OBB 필드를 채운다.
+	// Transform 의 이동 성분이 로컬 원점이고, 로컬 코너는 원점 기준 ±LocalHalfExtents 다.
+	void BuildWorldBounds()
+	{
+		WorldCenter[0] = Transform.Dx;
+		WorldCenter[1] = Transform.Dy;
+		WorldAxisX[0] = Transform.M11 * LocalHalfExtents[0];
+		WorldAxisX[1] = Transform.M12 * LocalHalfExtents[0];
+		WorldAxisY[0] = Transform.M21 * LocalHalfExtents[1];
+		WorldAxisY[1] = Transform.M22 * LocalHalfExtents[1];
+	}
+
 	// 렌더러 컴포넌트의 로컬 경계로 컬링 반경을 채운다.
 	//
 	// LocalHalfExtents 는 Transform 원점 기준 **대칭** 반경인데 경계는 대칭이 아닐 수 있다

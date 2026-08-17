@@ -4,13 +4,13 @@
 #include "Core/Renderer/IRenderMaterial.h"
 #include "Core/Renderer/IRenderMesh.h"
 #include "Core/Renderer/IRenderScene.h"
+#include "Core/Renderer/RenderCulling.h"
 #include "Core/Renderer/RenderResources2D.h"
 #include "Core/Renderer/SpriteVulkanShaders.h"
 #include "Core/RHI/IRHICommandContext.h"
 #include "Core/RHI/IRHIDevice.h"
 #include "Core/Logging/LoggerInternal.h"   // 진단 로그(CSystemLog)
 
-#include <cfloat>
 #include <cmath>
 #include <format>
 #include <utility>
@@ -1304,39 +1304,9 @@ bool CForward2DRenderer::CreateOccluderFillPipeline()
 
 bool CForward2DRenderer::IsSpriteItemVisibleInView(const RenderItem& item, const ViewParameters& view) const
 {
-	if (view.HalfW <= 0.0f || view.HalfH <= 0.0f)
-	{
-		return true;
-	}
-
-	const float corners[4][2] = {
-		{ -item.LocalHalfExtents[0], -item.LocalHalfExtents[1] },
-		{  item.LocalHalfExtents[0], -item.LocalHalfExtents[1] },
-		{  item.LocalHalfExtents[0],  item.LocalHalfExtents[1] },
-		{ -item.LocalHalfExtents[0],  item.LocalHalfExtents[1] },
-	};
-
-	float minX =  FLT_MAX;
-	float minY =  FLT_MAX;
-	float maxX = -FLT_MAX;
-	float maxY = -FLT_MAX;
-
-	for (const auto& corner : corners)
-	{
-		const float worldX = item.Transform.M11 * corner[0] + item.Transform.M21 * corner[1] + item.Transform.Dx;
-		const float worldY = item.Transform.M12 * corner[0] + item.Transform.M22 * corner[1] + item.Transform.Dy;
-		const float dx = worldX - m_viewCamX;
-		const float dy = worldY - m_viewCamY;
-		const float viewX =  view.CosR * dx + view.SinR * dy;
-		const float viewY = -view.SinR * dx + view.CosR * dy;
-
-		minX = std::min(minX, viewX);
-		minY = std::min(minY, viewY);
-		maxX = std::max(maxX, viewX);
-		maxY = std::max(maxY, viewY);
-	}
-
-	return !(maxX < -view.HalfW || minX > view.HalfW || maxY < -view.HalfH || minY > view.HalfH);
+	// 판정 본체는 공용 함수 하나다 — 프로파일러 드로우순서 캡처가 같은 함수를 쓴다.
+	// 아이템의 월드 OBB 는 제출 때 이미 산출돼 있어 여기서 코너를 다시 만들지 않는다.
+	return IsRenderItemVisible(item, m_viewCamX, m_viewCamY, view.HalfW, view.HalfH, view.CosR, view.SinR);
 }
 
 SafePtr<IRHIBuffer> CForward2DRenderer::AcquireSpriteConstantBuffer(IRHICommandContext& commandContext, const SpriteConstants& constants)

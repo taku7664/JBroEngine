@@ -670,7 +670,7 @@ void CTextRenderSystem::OnUpdate(CGameCanvas& canvas)
 			}
 			item.ShaderParams[0] = text.OutlineEnabled ? std::clamp(text.OutlineWidthPixels, 0.0f, 64.0f) : 0.0f;
 			item.ShaderParams[1] = 0.0f;
-			m_renderScene->Submit(item);
+			m_renderScene->Submit(std::move(item));
 		}
 	});
 	RemoveStaleEntries(m_textCache, stamp,

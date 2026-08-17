@@ -9,14 +9,17 @@ void CRenderScene::Clear()
 	m_isDirty = false;
 }
 
-void CRenderScene::Submit(const RenderItem& item)
+void CRenderScene::Submit(RenderItem&& item)
 {
 	if (false == m_renderItems.empty()
 		&& ShouldSortBefore(item, m_renderItems.back()))
 	{
 		m_needsSort = true;
 	}
-	m_renderItems.push_back(item);
+	// 뷰와 무관한 월드 경계는 지금 한 번만 낸다 — 뷰포트 × 레이어 × 배치 look-ahead 마다
+	// 4코너를 다시 변환하던 비용을 없앤다(IRenderScene::Submit 계약).
+	item.BuildWorldBounds();
+	m_renderItems.push_back(std::move(item));
 	m_isDirty = true;
 }
 
@@ -40,9 +43,36 @@ void CRenderScene::Sort()
 
 	if (m_needsSort)
 	{
-		// stable_sort — 큐/정렬키 동률 아이템은 제출 순서를 유지한다(std::sort 는 동률 순서가
-		// 불안정해 겹친 스프라이트가 프레임마다 앞뒤로 뒤바뀌며 z-플리커를 유발).
-		std::stable_sort(m_renderItems.begin(), m_renderItems.end(), ShouldSortBefore);
+		// 키 배열만 정렬하고 아이템은 1회 gather 로 재배치한다. 아이템 본체는 SafePtr 5개 +
+		// float 40여 개(200바이트급)라 비교 정렬로 직접 섞으면 N log N 번의 대형 이동이 된다.
+		//
+		// 동률은 제출 인덱스로 깨므로 std::sort 로도 제출 순서가 보존된다 — stable_sort 가
+		// 필요 없어지고(임시 버퍼 힙 할당도 사라진다), z-플리커 방지 계약은 그대로다.
+		const std::uint32_t itemCount = static_cast<std::uint32_t>(m_renderItems.size());
+		m_sortEntries.clear();
+		m_sortEntries.reserve(itemCount);
+		for (std::uint32_t i = 0; i < itemCount; ++i)
+		{
+			m_sortEntries.push_back(SortEntry{ MakeSortKey(m_renderItems[i]), i });
+		}
+
+		std::sort(m_sortEntries.begin(), m_sortEntries.end(),
+			[](const SortEntry& lhs, const SortEntry& rhs)
+			{
+				if (lhs.Key != rhs.Key)
+				{
+					return lhs.Key < rhs.Key;
+				}
+				return lhs.Index < rhs.Index;
+			});
+
+		m_sortScratch.clear();
+		m_sortScratch.reserve(itemCount);
+		for (const SortEntry& entry : m_sortEntries)
+		{
+			m_sortScratch.push_back(std::move(m_renderItems[entry.Index]));
+		}
+		m_renderItems.swap(m_sortScratch);
 	}
 	RebuildLayerRanges();
 	m_needsSort = false;
@@ -82,6 +112,24 @@ RenderItemRange CRenderScene::GetLayerRange(RenderLayerIndex layerIndex) const
 		return RenderItemRange{ 0, 0 };
 	}
 	return m_layerRanges[layerIndex];
+}
+
+std::uint64_t CRenderScene::MakeSortKey(const RenderItem& item)
+{
+	// [49:34] LayerIndex(16) | [33:32] Queue(2) | [31:0] SortOrder(32)
+	// ShouldSortBefore 와 같은 우선순위·같은 순서다(레이어 → 큐 → 정렬순서, 모두 오름차순).
+	//
+	// SortOrder 는 int32 이므로 부호 비트를 뒤집어 무부호 오름차순으로 옮긴다
+	// (INT_MIN → 0). 그냥 캐스팅하면 음수가 가장 큰 값이 되어 순서가 뒤집힌다.
+	// 큐가 4개를 넘으면 2비트 칸을 넘쳐 레이어 순서를 오염시킨다 — 조용히 깨지지 않게 막는다.
+	static_assert(static_cast<int>(ERenderQueue::Overlay) <= 3,
+		"ERenderQueue 가 4개를 넘었다 — MakeSortKey 의 비트 배치를 넓혀야 한다.");
+
+	const std::uint64_t layer = static_cast<std::uint64_t>(item.LayerIndex);
+	const std::uint64_t queue = static_cast<std::uint64_t>(static_cast<std::uint32_t>(item.Queue) & 0x3u);
+	const std::uint64_t order = static_cast<std::uint64_t>(
+		static_cast<std::uint32_t>(item.SortOrder) ^ 0x8000'0000u);
+	return (layer << 34) | (queue << 32) | order;
 }
 
 bool CRenderScene::ShouldSortBefore(const RenderItem& lhs, const RenderItem& rhs)

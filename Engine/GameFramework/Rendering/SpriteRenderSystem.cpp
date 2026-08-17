@@ -208,7 +208,7 @@ void CSpriteRenderSystem::OnUpdate(CGameCanvas& canvas)
 			item.SortOrder = sprite.SortOrder;
 			item.Entity    = owner; // 불투명 키(주소). 렌더러는 집합 비교만, 역참조 안 함.
 			item.CastShadow = sprite.CastShadow;
-			m_renderScene->Submit(item);
+			m_renderScene->Submit(std::move(item));
 		});
 
 	// 이번 프레임에 보이지 않은(파괴/비활성/제거된) 스프라이트의 머티리얼 캐시를 정리한다.
