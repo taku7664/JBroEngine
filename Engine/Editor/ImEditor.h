@@ -11,6 +11,7 @@
 #include "Core/Module/Module.h"
 #include "Core/Platform/PlatformTypes.h"   // SurfaceEvent / SurfaceEventToken
 #include "Core/Renderer/RendererTypes.h"
+#include "Core/Renderer/Render2DPipeline.h"
 #include "GameFramework/Rendering/GameCamera.h"
 #include "GameFramework/Canvas/CanvasTypes.h"
 
@@ -111,7 +112,7 @@ public:
 	// ── GPU 프로파일러 렌더타겟 진행 프리뷰(에디터 진단) ────────────────────────────
 	// 프로파일러 창이 매 프레임 opt-in 으로 요청한다(heightPx=0 이면 프리뷰 정지·RT 해제). cutoff
 	// 지점까지만 그린 부분 씬에 라이팅/컴포짓 풀 포스트를 태워 별도 RT 에 낸다(게임뷰와 독립).
-	void RequestGpuProfilerPreview(std::uint32_t heightPx, const GpuRenderCutoff& cutoff);
+	void RequestGpuProfilerPreview(std::uint32_t heightPx, const Render2DCutoff& cutoff);
 	void* GetGpuProfilerPreviewTextureID() const;
 	std::uint32_t GetGpuProfilerPreviewWidth()  const { return m_gpuPreviewWidth;  }
 	std::uint32_t GetGpuProfilerPreviewHeight() const { return m_gpuPreviewHeight; }
@@ -169,14 +170,14 @@ private:
 	float m_canvasViewCamSize = 5.0f;
 	bool m_canvasViewRequested = false;
 	// 편집 뷰가 합성할 활성 캔버스의 레이어 스냅샷(OnPrepareRender 가 매 프레임 갱신).
-	std::vector<GameRenderLayerDesc> m_canvasViewLayers;
+	std::vector<Render2DLayerDesc> m_canvasViewLayers;
 
 	// 에디터 부가 렌더(레이어 썸네일 / GPU 프리뷰)용 스냅샷 버퍼. 각 경로가 채운 직후 바로
 	// 소비하고 끝나므로 공유해도 안전하다(같은 프레임에 순차 실행). 지역 변수로 두면 이
 	// 경로들이 도는 프레임마다 힙 할당이 붙어 멤버로 올려 용량을 재사용한다.
-	std::vector<GameRenderViewportDesc> m_scratchViewports;
-	std::vector<GameRenderLightDesc> m_scratchLights;
-	std::vector<GameRenderLayerDesc> m_scratchLayers;
+	std::vector<Render2DViewportDesc> m_scratchViewports;
+	std::vector<Render2DLightDesc> m_scratchLights;
+	std::vector<Render2DLayerDesc> m_scratchLayers;
 
 	// 레이어 썸네일 — 인덱스 = 레이어 인덱스. 크기가 바뀌면 전부 재생성한다.
 	std::vector<OwnerPtr<IRHITexture>> m_layerThumbnails;
@@ -190,9 +191,9 @@ private:
 	std::uint32_t              m_gameViewHeight   = 0;
 	bool                       m_gameViewRequested = false;
 	SafePtr<CGameCanvas>        m_gameViewCanvas;
-	std::vector<GameRenderViewportDesc> m_gameViewViewports;
-	std::vector<GameRenderLightDesc> m_gameViewLights;
-	std::vector<GameRenderLayerDesc> m_gameViewLayers;
+	std::vector<Render2DViewportDesc> m_gameViewViewports;
+	std::vector<Render2DLightDesc> m_gameViewLights;
+	std::vector<Render2DLayerDesc> m_gameViewLayers;
 	std::unordered_map<const void*, RenderCullingStats> m_gameViewCameraCullingStats;
 
 	// GPU 프로파일러 렌더타겟 진행 프리뷰 — 게임뷰와 독립된 자체 RT/스냅샷. 매 프레임 opt-in.
@@ -200,7 +201,7 @@ private:
 	std::uint32_t              m_gpuPreviewWidth = 0;
 	std::uint32_t              m_gpuPreviewHeight = 0;
 	std::uint32_t              m_gpuPreviewRequestedHeight = 0;   // 0 = 이번 프레임 프리뷰 없음(opt-in).
-	GpuRenderCutoff            m_gpuPreviewCutoff;                 // 이 프레임 프리뷰 컷오프.
+	Render2DCutoff            m_gpuPreviewCutoff;                 // 이 프레임 프리뷰 컷오프.
 	// 이번 프레임 게임뷰 렌더 여부(OnPrepareRender 에서 갱신). 게임뷰가 이미 드로우순서를 캡처했으면
 	// 프로파일러 프리뷰 렌더는 중복 캡처를 피한다(게임뷰가 꺼진 프레임에만 프리뷰가 대신 캡처).
 	bool                       m_gameViewRenderedThisFrame = false;

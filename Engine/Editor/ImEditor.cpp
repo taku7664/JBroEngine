@@ -340,7 +340,7 @@ void CImEditor::RenderLayerThumbnails()
 	// 썸네일 = "게임 화면에서 이 레이어만 켠 그림". 그래서 게임뷰와 같은 경로를 태운다 —
 	// 뷰포트 렉트(스플릿)·뷰포트별 레이어 필터·패럴랙스가 전부 그 안에 있다. 카메라 하나를
 	// 뽑아 쓰면 스플릿에서 나머지 뷰포트의 내용이 통째로 빠진다.
-	std::vector<GameRenderViewportDesc>& viewports = m_scratchViewports;
+	std::vector<Render2DViewportDesc>& viewports = m_scratchViewports;
 	CollectGameRenderViewports(
 		*activeCanvas, static_cast<float>(thumbnailWidth), static_cast<float>(thumbnailHeight), viewports);
 
@@ -350,7 +350,7 @@ void CImEditor::RenderLayerThumbnails()
 	const RenderSurfaceSize thumbnailSize{
 		static_cast<int>(thumbnailWidth), static_cast<int>(thumbnailHeight) };
 
-	for (const GameRenderLayerDesc& layer : m_canvasViewLayers)
+	for (const Render2DLayerDesc& layer : m_canvasViewLayers)
 	{
 		if (layer.Index >= m_layerThumbnails.size()
 			|| false == static_cast<bool>(m_layerThumbnails[layer.Index]))
@@ -360,24 +360,21 @@ void CImEditor::RenderLayerThumbnails()
 
 		// 이 레이어 하나만 담은 목록으로 호출 → 뷰포트 순회는 그대로, 그리는 레이어만 하나.
 		// 포토샵 썸네일처럼 "원본 내용" 을 보여주려고 표시 속성은 중립값으로 덮는다.
-		GameRenderLayerDesc thumbnailLayer = layer;
+		Render2DLayerDesc thumbnailLayer = layer;
 		thumbnailLayer.Visible         = true;                      // 꺼둔 레이어도 내용은 보여준다
 		thumbnailLayer.Opacity         = 1.0f;                      // 페이드 상태 무시
 		thumbnailLayer.BlendMode       = ERHIBlendMode::LayerNormal; // 아래 레이어가 없으니 무의미
 		thumbnailLayer.NeedsOwnTexture = false;                     // 합성할 게 없다 → RT 왕복 생략
-		const std::vector<GameRenderLayerDesc> singleLayer{ thumbnailLayer };
+		const std::vector<Render2DLayerDesc> singleLayer{ thumbnailLayer };
 
-		RenderGameViewports(
-			*commandContext,
-			*engineCore->Renderer,
-			*engineCore->RenderScene,
-			viewports,
-			thumbnailSize,
-			m_layerThumbnails[layer.Index].GetSafePtr(),
-			nullptr,
-			/*lights*/ {},   // 썸네일은 라이팅 미적용 — 레이어 내용 식별이 목적이다
-			singleLayer,
-			&thumbnailBackground);
+		Render2DFrameDesc frame;
+		frame.Viewports = viewports;
+		frame.Layers = singleLayer;
+		// 썸네일은 라이팅 미적용 — 레이어 내용 식별이 목적이다(Lights 를 비워 두면 패스스루).
+		frame.TargetSize = thumbnailSize;
+		frame.Target = m_layerThumbnails[layer.Index].GetSafePtr();
+		frame.BackgroundColor = &thumbnailBackground;
+		RenderScene2D(*commandContext, *engineCore->Renderer, *engineCore->RenderScene, frame);
 	}
 }
 
@@ -436,32 +433,31 @@ void CImEditor::RenderGpuProfilerPreview()
 	// 게임뷰와 같은 경로/스냅샷을 태운다(멀티뷰포트·레이어 필터·패럴랙스·라이팅 전부 포함).
 	// forceOwnTextureAll=true 라 레이어별 컷오프 합성이 성립한다. gpuTimer=nullptr — 이 렌더는
 	// 진단 시각화일 뿐이라 게임뷰 GPU 계측을 건드리지 않는다.
-	std::vector<GameRenderViewportDesc>& viewports = m_scratchViewports;
-	std::vector<GameRenderLightDesc>& lights = m_scratchLights;
-	std::vector<GameRenderLayerDesc>& layers = m_scratchLayers;
+	std::vector<Render2DViewportDesc>& viewports = m_scratchViewports;
+	std::vector<Render2DLightDesc>& lights = m_scratchLights;
+	std::vector<Render2DLayerDesc>& layers = m_scratchLayers;
 	CollectGameRenderViewports(
 		*activeCanvas, static_cast<float>(previewWidth), static_cast<float>(previewHeight), viewports);
 	CollectGameRenderLights(*activeCanvas, lights);
 	CollectGameRenderLayers(*activeCanvas, /*forceOwnTextureAll*/ true, layers);
 	const RenderSurfaceSize previewSize{ static_cast<int>(previewWidth), static_cast<int>(previewHeight) };
 
-	RenderGameViewports(
-		*commandContext,
-		*engineCore->Renderer,
-		*engineCore->RenderScene,
-		viewports,
-		previewSize,
-		m_gpuPreviewRenderTarget.GetSafePtr(),
-		nullptr,
-		lights,
-		layers,
-		&activeCanvas->GetBackgroundColor(),
-		nullptr,
-		m_gpuPreviewCutoff,
-		// 게임뷰가 이 프레임에 안 그려졌으면 이 프리뷰 렌더에서 드로우순서를 캡처한다 — 그래야
-		// 게임뷰 탭을 열지 않아도 오브젝트 단위 컷오프가 동작한다. 게임뷰가 그려졌으면 그쪽이
-		// 이미 캡처했으므로 여기선 캡처하지 않는다(중복 방지).
-		/*captureDrawOrder*/ false == m_gameViewRenderedThisFrame);
+	Render2DFrameDesc frame;
+	frame.Viewports = viewports;
+	frame.Layers = layers;
+	frame.Lights = lights;
+	frame.TargetSize = previewSize;
+	frame.Target = m_gpuPreviewRenderTarget.GetSafePtr();
+	frame.BackgroundColor = &activeCanvas->GetBackgroundColor();
+	
+	Render2DDiagnostics diagnostics;
+	diagnostics.Cutoff = m_gpuPreviewCutoff;
+	// 게임뷰가 이 프레임에 안 그려졌으면 이 프리뷰 렌더에서 드로우순서를 캡처한다 — 그래야
+	// 게임뷰 탭을 열지 않아도 오브젝트 단위 컷오프가 동작한다. 게임뷰가 그려졌으면 그쪽이
+	// 이미 캡처했으므로 여기선 캡처하지 않는다(중복 방지).
+	diagnostics.CaptureDrawOrder = (false == m_gameViewRenderedThisFrame);
+	
+	RenderScene2D(*commandContext, *engineCore->Renderer, *engineCore->RenderScene, frame, diagnostics);
 
 	m_gpuPreviewRequestedHeight = 0;   // opt-in 리셋 — 창이 다음 프레임 다시 요청해야 유지된다.
 }
@@ -501,7 +497,7 @@ void* CImEditor::GetGameViewTextureID() const
 	return m_gameViewRenderTarget->GetNativeHandle().ShaderResourceView;
 }
 
-void CImEditor::RequestGpuProfilerPreview(std::uint32_t heightPx, const GpuRenderCutoff& cutoff)
+void CImEditor::RequestGpuProfilerPreview(std::uint32_t heightPx, const Render2DCutoff& cutoff)
 {
 	m_gpuPreviewRequestedHeight = heightPx;
 	m_gpuPreviewCutoff = cutoff;
@@ -882,7 +878,7 @@ void CImEditor::OnPrepareRender()
 				resumeDesc.ColorAttachment.StoreOp = ERHIStoreOp::Store;
 
 				engineCore->RenderScene->Sort();
-				for (const GameRenderLayerDesc& layer : m_canvasViewLayers)
+				for (const Render2DLayerDesc& layer : m_canvasViewLayers)
 				{
 					// 비가시/빈 레이어는 스크래치 RT 자체를 빌리지 않는다.
 					if (false == layer.Visible
@@ -1005,7 +1001,7 @@ void CImEditor::OnPrepareRender()
 			CollectGameRenderLayers(*gameViewCanvas, /*forceOwnTextureAll*/ true, m_gameViewLayers);
 		}
 
-		std::vector<GameRenderCameraStats> cameraStats;
+		std::vector<Render2DCameraStats> cameraStats;
 		const CGameCanvas* gameViewCanvas = m_gameViewCanvas.TryGet();
 		// 예외 5: 레이어별 GPU 시간은 게임뷰 렌더에서만 잰다(썸네일·캔버스뷰는 실제 게임과 다르다).
 		// 타이머는 프로파일링이 꺼져 있으면 스스로 no-op 이라, 항상 넘겨도 비용이 없다.
@@ -1013,26 +1009,26 @@ void CImEditor::OnPrepareRender()
 		// 게임뷰 전체 GPU 시간(레이어 + 라이팅/컴포짓 총합, 키=nullptr). 게임뷰가 안 그려지면
 		// 이 구간이 아예 안 열려 결과가 0 이 된다 → 게임뷰를 끄면 총합이 뚝 떨어지는 게 보인다.
 		const std::uint32_t gpuTotalScope = gpuTimer ? gpuTimer->BeginScope(nullptr) : INVALID_GPU_SCOPE;
-		RenderGameViewports(
-			*commandContext,
-			*engineCore->Renderer,
-			*engineCore->RenderScene,
-			m_gameViewViewports,
-			RenderSurfaceSize{ static_cast<int>(m_gameViewWidth), static_cast<int>(m_gameViewHeight) },
-			m_gameViewRenderTarget.GetSafePtr(),
-			&cameraStats,
-			m_gameViewLights,
-			m_gameViewLayers,
-			gameViewCanvas ? &gameViewCanvas->GetBackgroundColor() : nullptr,
-			gpuTimer,
-			GpuRenderCutoff{},
-			/*captureDrawOrder*/ true);   // 게임뷰 렌더에서 드로우순서를 캡처한다.
+		Render2DFrameDesc frame;
+		frame.Viewports = m_gameViewViewports;
+		frame.Layers = m_gameViewLayers;
+		frame.Lights = m_gameViewLights;
+		frame.TargetSize = RenderSurfaceSize{ static_cast<int>(m_gameViewWidth), static_cast<int>(m_gameViewHeight) };
+		frame.Target = m_gameViewRenderTarget.GetSafePtr();
+		frame.BackgroundColor = gameViewCanvas ? &gameViewCanvas->GetBackgroundColor() : nullptr;
+		
+		Render2DDiagnostics diagnostics;
+		diagnostics.OutCameraStats = &cameraStats;
+		diagnostics.GpuTimer = gpuTimer;
+		diagnostics.CaptureDrawOrder = true;   // 게임뷰 렌더에서 드로우순서를 캡처한다.
+		
+		RenderScene2D(*commandContext, *engineCore->Renderer, *engineCore->RenderScene, frame, diagnostics);   // 게임뷰 렌더에서 드로우순서를 캡처한다.
 		if (gpuTimer)
 		{
 			gpuTimer->EndScope(gpuTotalScope);
 		}
 		m_gameViewCameraCullingStats.clear();
-		for (const GameRenderCameraStats& stats : cameraStats)
+		for (const Render2DCameraStats& stats : cameraStats)
 		{
 			if (stats.OwnerObject)
 			{

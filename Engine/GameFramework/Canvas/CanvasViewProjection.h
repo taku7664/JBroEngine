@@ -2,7 +2,8 @@
 
 #include "GameFramework/Canvas/CanvasViewport.h"
 #include "GameFramework/Canvas/CanvasTransformUtils.h"   // GetWorldTransform
-#include "GameFramework/Canvas/GameLayer.h"              // ELayerSpace / EScreenScaleMode
+#include "Core/Renderer/ScreenSpaceProjection.h"           // ScreenSpaceReference / ComputeScreenSpaceExtents
+#include "GameFramework/Canvas/GameLayer.h"              // ELayerSpace
 #include "GameFramework/Component/Camera2D.h"
 #include "GameFramework/Object/GameObject.h"
 #include "Utillity/Math/Matrix3x2.h"
@@ -16,7 +17,7 @@
 //
 //  카메라 오너 트랜스폼 + OrthographicSize + 뷰포트 렉트를 하나로 해석한 결과다.
 //  같은 계산을 두 곳이 쓴다:
-//    · CollectGameRenderViewports (렌더 수집) — GameRenderViewportDesc 를 채운다.
+//    · CollectGameRenderViewports (렌더 수집) — Render2DViewportDesc 를 채운다.
 //    · CGameCanvas::ScreenToWorld (입력 역투영) — 스크린 픽셀을 월드로 되돌린다.
 //  둘이 계산을 각자 재현하면 역투영이 렌더와 미세하게 어긋난다(마우스 피킹이 조용히 빗나간다).
 //  그래서 한 함수(ComputeCanvasViewProjection)로 뽑고 양쪽이 공유한다.
@@ -91,62 +92,6 @@ inline CanvasViewProjection ComputeCanvasViewProjection(
 //  이 헤더는 게임 DLL 이 링크하는 Canvas.obj 가 include 한다 — DLL 안에서는 그 전역이
 //  채워지지 않아 조용히 기본값을 읽게 된다. 그래서 기준값은 전부 인자로 받는다.
 // ─────────────────────────────────────────────────────────────────────────────
-
-// 화면 공간 저작 기준. 프로젝트 해상도와 PPU 에서 유도한다(1920x1080 @ 100 → 9.6 x 5.4).
-struct ScreenSpaceReference
-{
-	float HalfWidth     = 9.6f;    // 기준 렉트 반폭(유닛)
-	float HalfHeight    = 5.4f;    // 기준 렉트 반높이(유닛)
-	float PixelsPerUnit = 100.0f;
-
-	static ScreenSpaceReference FromResolution(float resolutionWidth, float resolutionHeight, float pixelsPerUnit)
-	{
-		ScreenSpaceReference reference;
-		reference.PixelsPerUnit = pixelsPerUnit > 0.0f ? pixelsPerUnit : 100.0f;
-		reference.HalfWidth  = std::max(resolutionWidth,  1.0f) / reference.PixelsPerUnit * 0.5f;
-		reference.HalfHeight = std::max(resolutionHeight, 1.0f) / reference.PixelsPerUnit * 0.5f;
-		return reference;
-	}
-};
-
-// 스케일 모드가 정하는 화면 공간 반높이/반폭(유닛). rectPixel* 은 이 뷰포트 렉트의 픽셀 크기다
-// (화면 전체가 아니라 — 스플릿에서 화면 전체 비율을 쓰면 내용이 찌그러진다).
-inline void ComputeScreenSpaceExtents(
-	EScreenScaleMode mode,
-	const ScreenSpaceReference& reference,
-	float rectPixelW,
-	float rectPixelH,
-	float& outHalfWidth,
-	float& outHalfHeight)
-{
-	const float safeRectH = std::max(rectPixelH, 1.0f);
-	const float aspect    = std::max(rectPixelW, 1.0f) / safeRectH;
-
-	float halfHeight = reference.HalfHeight;
-	switch (mode)
-	{
-	case EScreenScaleMode::FixedWidth:
-		// 기준 폭 유지 → 반높이는 종횡비가 정한다.
-		halfHeight = reference.HalfWidth / std::max(aspect, 0.0001f);
-		break;
-	case EScreenScaleMode::Contain:
-		// 기준 렉트가 통째로 들어와야 한다: 반높이 ≥ 기준반높이 **그리고** 반폭 ≥ 기준반폭.
-		// 반폭 = 반높이 x aspect 이므로 두 요구를 반높이 하나로 합치면 max 다.
-		halfHeight = std::max(reference.HalfHeight, reference.HalfWidth / std::max(aspect, 0.0001f));
-		break;
-	case EScreenScaleMode::ConstantPixel:
-		// 1 유닛 = 항상 PPU 픽셀.
-		halfHeight = safeRectH / reference.PixelsPerUnit * 0.5f;
-		break;
-	case EScreenScaleMode::FixedHeight:
-	default:
-		halfHeight = reference.HalfHeight;
-		break;
-	}
-
-	outHalfHeight = std::max(halfHeight, 0.0001f);
-	outHalfWidth  = outHalfHeight * aspect;
-}
 
 // 화면 공간 뷰 파라미터. 카메라를 전혀 안 본다 — 그게 요점이다.
 // 출력 렉트는 호출자가 이미 픽셀로 해석해 둔 값을 그대로 물려준다(같은 뷰포트에 그린다).

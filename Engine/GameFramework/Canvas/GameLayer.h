@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Core/Renderer/ScreenSpaceProjection.h"   // EScreenScaleMode — 화면 레이어 투영 정책(Core 소유)
 #include "GameFramework/Object/GameInstance.h"
 #include "Utillity/File/FilePath.h"
 #include "Utillity/Pointer/SafePtr.h"
@@ -30,18 +31,10 @@ enum class ELayerSpace : std::uint8_t
 	Screen,   // 카메라 무관 — 위치·회전·줌 전부 독립. UI/HUD 가 이것.
 };
 
-// Screen 레이어에서 "1 유닛이 몇 픽셀인가". 표면 종횡비가 기준과 다를 때의 정책이다.
-//
-// 종횡비 가변은 모바일 전용 문제가 아니다 — Windows 패키지 창이 리사이즈 가능하고
-// (RenderSurfaceTypes.h 의 IsResizable 기본 true, 런타임이 덮지 않는다) 데스크톱 패키지엔
-// 레터박스가 없다. 그래서 플랫폼 분기가 아니라 전 플랫폼 공용 저작 속성이다.
-enum class EScreenScaleMode : std::uint8_t
-{
-	FixedHeight,     // 기본. 기준 높이 유지 → 가로가 종횡비 따라 늘고 준다.
-	FixedWidth,      // 기준 폭 유지 → 세로가 늘고 준다. 세로 게임용.
-	Contain,         // 기준 렉트 전체가 항상 보인다(둘 중 넉넉한 쪽). 여백 생김, 잘림 없음.
-	ConstantPixel,   // 1 유닛 = 항상 PPU 픽셀. 픽셀아트/픽셀퍼펙트 UI 용.
-};
+// EScreenScaleMode 와 ToString/ScreenScaleModeFromString 은 Core/Renderer/ScreenSpaceProjection.h
+// 에 있다 — 스케일 모드가 정하는 실제 투영 범위는 **최종 뷰포트 픽셀 렉트**가 있어야 나오고,
+// 그건 그리는 시점에만 확정되므로 계산 주체가 렌더 파이프라인이다. 저작 필드는 여기 그대로 있고
+// (CGameLayer::ScaleMode) 타입만 Core 것을 쓴다.
 
 // 직렬화/에디터 공용 — enum ↔ 문자열.
 inline const char* ToString(ELayerSpace space)
@@ -61,39 +54,6 @@ inline ELayerSpace LayerSpaceFromString(const char* text)
 		return ELayerSpace::Screen;
 	}
 	return ELayerSpace::World;
-}
-
-inline const char* ToString(EScreenScaleMode mode)
-{
-	switch (mode)
-	{
-	case EScreenScaleMode::FixedWidth:    return "FixedWidth";
-	case EScreenScaleMode::Contain:       return "Contain";
-	case EScreenScaleMode::ConstantPixel: return "ConstantPixel";
-	case EScreenScaleMode::FixedHeight:
-	default:                              return "FixedHeight";
-	}
-}
-
-inline EScreenScaleMode ScreenScaleModeFromString(const char* text)
-{
-	if (nullptr == text)
-	{
-		return EScreenScaleMode::FixedHeight;
-	}
-	if (0 == std::strcmp(text, "FixedWidth"))
-	{
-		return EScreenScaleMode::FixedWidth;
-	}
-	if (0 == std::strcmp(text, "Contain"))
-	{
-		return EScreenScaleMode::Contain;
-	}
-	if (0 == std::strcmp(text, "ConstantPixel"))
-	{
-		return EScreenScaleMode::ConstantPixel;
-	}
-	return EScreenScaleMode::FixedHeight;
 }
 
 inline const char* ToString(ELayerBlendMode mode)

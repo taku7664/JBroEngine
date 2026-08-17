@@ -27,6 +27,7 @@
 #include "Core/Platform/IRenderSurface.h"
 #include "Core/Renderer/Forward2DRenderer.h"
 #include "Core/Renderer/RenderResourceCache.h"
+#include "Core/Renderer/Render2DPipeline.h"
 #include "Core/Renderer/RenderScene.h"
 #include "Core/Platform/Mobile/MobilePlatform.h"
 #include "Core/Platform/Windows/WindowsPlatform.h"
@@ -381,7 +382,7 @@ void CEngine::SetMainClearColor(const Color& color)
 	m_mainClearColor = color;
 }
 
-void CEngine::SwapGameRenderViewports(std::vector<GameRenderViewportDesc>& viewports)
+void CEngine::SwapGameRenderViewports(std::vector<Render2DViewportDesc>& viewports)
 {
 	m_gameRenderViewports.swap(viewports);
 }
@@ -391,12 +392,12 @@ void CEngine::SetGameRenderBackgroundColor(const Color& color)
 	m_gameRenderBackgroundColor = color;
 }
 
-void CEngine::SwapGameRenderLights(std::vector<GameRenderLightDesc>& lights)
+void CEngine::SwapGameRenderLights(std::vector<Render2DLightDesc>& lights)
 {
 	m_gameRenderLights.swap(lights);
 }
 
-void CEngine::SwapGameRenderLayers(std::vector<GameRenderLayerDesc>& layers)
+void CEngine::SwapGameRenderLayers(std::vector<Render2DLayerDesc>& layers)
 {
 	m_gameRenderLayers.swap(layers);
 }
@@ -921,17 +922,14 @@ void CEngine::RenderFrame()
 		{
 			if (SafePtr<IRenderSurface> mainRenderSurface = GetMainRenderSurface())
 			{
-				RenderGameViewports(
-					*commandContext,
-					*m_renderer,
-					*m_renderScene,
-					m_gameRenderViewports,
-					mainRenderSurface->GetSize(),
-					nullptr,
-					nullptr,
-					m_gameRenderLights,
-					m_gameRenderLayers,
-						&m_gameRenderBackgroundColor);
+				Render2DFrameDesc frame;
+					frame.Viewports = m_gameRenderViewports;
+					frame.Layers = m_gameRenderLayers;
+					frame.Lights = m_gameRenderLights;
+					frame.TargetSize = mainRenderSurface->GetSize();
+					frame.Target = nullptr;   // null = 스왑체인 백버퍼
+					frame.BackgroundColor = &m_gameRenderBackgroundColor;
+					RenderScene2D(*commandContext, *m_renderer, *m_renderScene, frame);
 				m_renderScene->Clear();
 			}
 		}

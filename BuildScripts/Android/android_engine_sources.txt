@@ -38,6 +38,7 @@ Engine/Core/Renderer/Forward2DRenderer.cpp
 Engine/Core/Renderer/RenderResourceCache.cpp
 Engine/Core/Renderer/RenderResources2D.cpp
 Engine/Core/Renderer/RenderScene.cpp
+Engine/Core/Renderer/Render2DPipeline.cpp
 Engine/Core/Resource/ResourceRegistry.cpp
 Engine/Core/RHI/EmptyRHIDevice.cpp
 Engine/Core/Task/Task.cpp

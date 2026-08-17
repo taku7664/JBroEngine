@@ -58,9 +58,9 @@ public:
 	// 매 프레임 도는 스냅샷 교체 — 값 전달(move)이 아니라 **swap** 이다. move 면 호출자의
 	// 버퍼가 빈 채 남아 다음 프레임에 다시 할당한다. swap 이면 두 버퍼가 자리를 바꿔
 	// 양쪽 용량이 살아남는다(호출자는 스크래치 멤버를 그대로 다음 프레임에 재사용).
-	void SwapGameRenderViewports(std::vector<GameRenderViewportDesc>& viewports);
-	void SwapGameRenderLights(std::vector<GameRenderLightDesc>& lights);
-	void SwapGameRenderLayers(std::vector<GameRenderLayerDesc>& layers);
+	void SwapGameRenderViewports(std::vector<Render2DViewportDesc>& viewports);
+	void SwapGameRenderLights(std::vector<Render2DLightDesc>& lights);
+	void SwapGameRenderLayers(std::vector<Render2DLayerDesc>& layers);
 	// 캔버스 바탕색 — 컴포짓 맨 아래에 깔린다.
 	void SetGameRenderBackgroundColor(const Color& color);
 	// 렌더 직전(리사이즈 반영 후, 카메라 스택 사용 전) 훅 — 카메라/라이트 스냅샷을
@@ -147,9 +147,9 @@ private:
 	OwnerPtr<CPrefabSpawner>      m_prefabSpawner;
 	OwnerPtr<CSaveStorage>        m_saveStorage;
 	std::vector<CModule*>         m_modules;
-	std::vector<GameRenderViewportDesc> m_gameRenderViewports;
-	std::vector<GameRenderLightDesc> m_gameRenderLights;
-	std::vector<GameRenderLayerDesc> m_gameRenderLayers;
+	std::vector<Render2DViewportDesc> m_gameRenderViewports;
+	std::vector<Render2DLightDesc> m_gameRenderLights;
+	std::vector<Render2DLayerDesc> m_gameRenderLayers;
 	Color                         m_gameRenderBackgroundColor = { 0.08f, 0.09f, 0.11f, 1.0f };
 	std::function<void()>         m_preRenderCallback;
 	PlatformDesc                  m_platformDesc;
