@@ -42,6 +42,10 @@ private:
 	// 못 찾으면 nullptr.
 	static CGameObject* FindHitButton(CGameCanvas& canvas, const Pointer& pointer);
 
+	// 전이 적용/해제. 소유 계약은 Button2D.h 참고 — 래치했으면 반드시 되돌린다.
+	static void ApplyTransition(class Button2D& button);
+	static void ReleaseTransition(class Button2D& button);
+
 	static void DispatchEnter(CGameCanvas& canvas, CGameObject& object);
 	static void DispatchExit(CGameCanvas& canvas, CGameObject& object);
 	static void DispatchDown(CGameCanvas& canvas, CGameObject& object);

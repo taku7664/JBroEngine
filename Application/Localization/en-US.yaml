@@ -578,6 +578,14 @@ Entries:
   editor.property.Size: Size
   editor.property.Offset: Offset
   editor.property.Interactable: Interactable
+  editor.property.TargetGraphic: Target Graphic
+  editor.property.Transition: Transition
+  editor.property.HoverTint: Hover Tint
+  editor.property.PressedTint: Pressed Tint
+  editor.property.DisabledTint: Disabled Tint
+  editor.property.HoverSprite: Hover Sprite
+  editor.property.PressedSprite: Pressed Sprite
+  editor.property.DisabledSprite: Disabled Sprite
   editor.property.FlipX: Flip X
   editor.property.FlipY: Flip Y
   editor.property.FrameIndex: Frame Index
@@ -817,6 +825,9 @@ Entries:
   editor.property.Rolloff:      Rolloff
   editor.property.PlayOnStart:  Play On Start
   editor.enum.EAudioAttenuationModel.None: None
+  editor.enum.EButtonTransition.None: None
+  editor.enum.EButtonTransition.ColorTint: Color Tint
+  editor.enum.EButtonTransition.SpriteSwap: Sprite Swap
   editor.enum.EAudioAttenuationModel.Inverse: Inverse
   editor.enum.EAudioAttenuationModel.Linear: Linear
   editor.enum.EAudioAttenuationModel.Exponential: Exponential

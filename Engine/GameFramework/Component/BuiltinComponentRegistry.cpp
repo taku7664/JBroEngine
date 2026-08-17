@@ -55,7 +55,15 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 	registry.RegisterComponent<Button2D>({ "Button2D", "Button 2D", "UI", true })
 		.AddProperty("Size", EReflectPropertyType::Vector2Float, offsetof(Button2D, Size), sizeof(Vector2))
 		.AddProperty("Offset", EReflectPropertyType::Vector2Float, offsetof(Button2D, Offset), sizeof(Vector2))
-		.AddProperty("Interactable", EReflectPropertyType::Bool, offsetof(Button2D, Interactable), sizeof(bool));
+		.AddProperty("Interactable", EReflectPropertyType::Bool, offsetof(Button2D, Interactable), sizeof(bool))
+		.AddRefProperty<SpriteRenderer2D>("TargetGraphic", offsetof(Button2D, TargetGraphic), "SpriteRenderer2D")
+		.AddEnumProperty<EButtonTransition>("Transition", offsetof(Button2D, Transition))
+		.AddProperty("HoverTint", EReflectPropertyType::ColorFloat4, offsetof(Button2D, HoverTint), sizeof(Color))
+		.AddProperty("PressedTint", EReflectPropertyType::ColorFloat4, offsetof(Button2D, PressedTint), sizeof(Color))
+		.AddProperty("DisabledTint", EReflectPropertyType::ColorFloat4, offsetof(Button2D, DisabledTint), sizeof(Color))
+		.AddRefProperty<CSpriteAsset>("HoverSprite", offsetof(Button2D, HoverSprite), "CSpriteAsset")
+		.AddRefProperty<CSpriteAsset>("PressedSprite", offsetof(Button2D, PressedSprite), "CSpriteAsset")
+		.AddRefProperty<CSpriteAsset>("DisabledSprite", offsetof(Button2D, DisabledSprite), "CSpriteAsset");
 
 	registry.RegisterComponent<Text2D>({ "Text2D", "Text 2D", "Rendering", true })
 		.AddProperty("Text", EReflectPropertyType::String, offsetof(Text2D, Text), sizeof(String))

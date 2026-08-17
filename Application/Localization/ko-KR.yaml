@@ -578,6 +578,14 @@ Entries:
   editor.property.Size: 크기
   editor.property.Offset: 오프셋
   editor.property.Interactable: 상호작용 가능
+  editor.property.TargetGraphic: 대상 그래픽
+  editor.property.Transition: 전이
+  editor.property.HoverTint: 호버 틴트
+  editor.property.PressedTint: 눌림 틴트
+  editor.property.DisabledTint: 비활성 틴트
+  editor.property.HoverSprite: 호버 스프라이트
+  editor.property.PressedSprite: 눌림 스프라이트
+  editor.property.DisabledSprite: 비활성 스프라이트
   editor.property.FlipX: X 뒤집기
   editor.property.FlipY: Y 뒤집기
   editor.property.FrameIndex: 프레임 인덱스
@@ -818,6 +826,9 @@ Entries:
   editor.property.Rolloff:      감쇠 정도
   editor.property.PlayOnStart:  시작 시 재생
   editor.enum.EAudioAttenuationModel.None: 없음
+  editor.enum.EButtonTransition.None: 없음
+  editor.enum.EButtonTransition.ColorTint: 색 틴트
+  editor.enum.EButtonTransition.SpriteSwap: 스프라이트 교체
   editor.enum.EAudioAttenuationModel.Inverse: 반비례
   editor.enum.EAudioAttenuationModel.Linear: 선형
   editor.enum.EAudioAttenuationModel.Exponential: 지수

@@ -1,9 +1,24 @@
 #pragma once
 
+#include "Core/Asset/AssetTypes.h"          // AssetGuid — normal 값 래치
+#include "Core/Asset/SpriteAsset.h"         // Ref<CSpriteAsset>
 #include "GameFramework/Component/Component.h"
+#include "GameFramework/Component/SpriteRenderer2D.h"
+#include "GameFramework/Object/Ref.h"
 #include "Utillity/Math/Vector2T.h"
+#include "Utillity/Types/Color.h"
+
+#include <cstdint>
 
 class CReflectionRegistry;
+
+// 시각 전이 방식. None 이 기본인 이유는 소유권 계약(아래 TargetGraphic 주석) 때문이다.
+enum class EButtonTransition : std::uint8_t
+{
+	None,
+	ColorTint,
+	SpriteSwap,
+};
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  Button2D ─ 포인터 판정과 상태 훅.
@@ -32,6 +47,30 @@ public:
 	// 끄면 포인터가 **통과한다** — 뒤에 있는 버튼이 대신 먹는다(가리는 판이 아니다).
 	bool Interactable = true;
 
+	// ── 시각 전이 ─────────────────────────────────────────────────────────────
+	// 전이 대상. 유니티의 targetGraphic 자리다 — 판정 렉트와 **무관**하므로 여기서 무엇을
+	// 바꾸든 눌리는 영역은 안 흔들린다.
+	//
+	// Transition != None 이면 버튼이 이 렌더러의 해당 속성을 **소유한다**:
+	//   ColorTint  → Color
+	//   SpriteSwap → SpriteGuid
+	// 소유가 시작될 때 normal 값을 래치하고, 시뮬 정지/전이 해제 시 되돌린다.
+	// 기본이 None 인 이유: 매 프레임 남의 필드를 덮어쓰는 컴포넌트는 인스펙터 편집을
+	// 조용히 삼킨다. 소유는 명시적으로 켜야 한다.
+	Ref<SpriteRenderer2D> TargetGraphic;
+	EButtonTransition     Transition = EButtonTransition::None;
+
+	// Normal 칸을 두지 않는다 — **렌더러에 이미 설정된 값이 normal 이다.**
+	// 따로 두면 같은 값이 인스펙터 두 곳에 생기고 반드시 어긋난다.
+	Color HoverTint    = Color(0.95f, 0.95f, 0.95f, 1.0f);
+	Color PressedTint  = Color(0.78f, 0.78f, 0.78f, 1.0f);
+	Color DisabledTint = Color(0.50f, 0.50f, 0.50f, 0.5f);
+
+	// 비운 칸은 normal 스프라이트를 그대로 쓴다.
+	Ref<CSpriteAsset> HoverSprite;
+	Ref<CSpriteAsset> PressedSprite;
+	Ref<CSpriteAsset> DisabledSprite;
+
 	// 런타임 상태. 시스템이 쓰고 스크립트/에디터가 읽는다 — 직렬화 대상이 아니다.
 	bool IsHovered() const { return m_hovered; }
 	bool IsPressed() const { return m_pressed; }
@@ -41,4 +80,10 @@ private:
 
 	bool m_hovered = false;
 	bool m_pressed = false;
+
+	// 소유 시작 시점의 normal 값. 되돌릴 때 쓴다.
+	// m_latched 가 곧 "지금 이 버튼이 대상 속성을 쥐고 있다"는 뜻이다.
+	bool       m_latched = false;
+	Color      m_normalColor;
+	AssetGuid  m_normalSpriteGuid;
 };

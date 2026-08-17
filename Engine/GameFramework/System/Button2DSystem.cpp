@@ -82,6 +82,18 @@ namespace
 			&& std::abs(local.y - button.Offset.y) <= halfY;
 	}
 
+	// 눈에 보이는 상태. 우선순위는 비활성 > 눌림 > 호버 > 기본이다 —
+	// 못 누르는 버튼이 호버로 밝아지면 누를 수 있다고 거짓말하는 셈이다.
+	enum class EVisualState { Normal, Hovered, Pressed, Disabled };
+
+	EVisualState VisualStateOf(const Button2D& button)
+	{
+		if (false == button.Interactable) { return EVisualState::Disabled; }
+		if (button.IsPressed())           { return EVisualState::Pressed; }
+		if (button.IsHovered())           { return EVisualState::Hovered; }
+		return EVisualState::Normal;
+	}
+
 	// 훅을 받을 자격 — 애니메이션 디스패치(SpriteAnimationSystem.cpp:111)와 같은 판정이다.
 	bool CanReceive(const CGameScript& script)
 	{
@@ -186,6 +198,81 @@ CGameObject* CButton2DSystem::FindHitButton(CGameCanvas& canvas, const Pointer& 
 	return hasBest ? best.Object : nullptr;
 }
 
+void CButton2DSystem::ApplyTransition(Button2D& button)
+{
+	SpriteRenderer2D* target = button.TargetGraphic.Get();
+	if (EButtonTransition::None == button.Transition || nullptr == target)
+	{
+		// 전이를 껐거나 대상이 사라졌다 — 쥐고 있던 게 있으면 놓는다.
+		// 대상이 죽은 경우 되돌릴 곳이 없으므로 래치만 푼다(훅은 계속 발화한다).
+		ReleaseTransition(button);
+		return;
+	}
+
+	// 소유 시작 시점의 값이 normal 이다. 여기서 한 번만 뜬다 —
+	// 매 프레임 다시 뜨면 우리가 칠한 색을 normal 로 착각한다.
+	if (false == button.m_latched)
+	{
+		button.m_latched          = true;
+		button.m_normalColor      = target->Color;
+		button.m_normalSpriteGuid = target->GetSpriteGuid();
+	}
+
+	const EVisualState state = VisualStateOf(button);
+
+	if (EButtonTransition::ColorTint == button.Transition)
+	{
+		switch (state)
+		{
+		case EVisualState::Hovered:  target->Color = button.HoverTint;    break;
+		case EVisualState::Pressed:  target->Color = button.PressedTint;  break;
+		case EVisualState::Disabled: target->Color = button.DisabledTint; break;
+		default:                     target->Color = button.m_normalColor; break;
+		}
+		return;
+	}
+
+	// SpriteSwap — 비운 칸은 normal 유지. 스프라이트 크기가 달라도 판정 렉트는 안 움직인다
+	// (렉트가 렌더러와 무관하다는 것이 이 설계의 핵심이다).
+	const Ref<CSpriteAsset>* swap = nullptr;
+	switch (state)
+	{
+	case EVisualState::Hovered:  swap = &button.HoverSprite;    break;
+	case EVisualState::Pressed:  swap = &button.PressedSprite;  break;
+	case EVisualState::Disabled: swap = &button.DisabledSprite; break;
+	default: break;
+	}
+
+	const AssetGuid desired = (nullptr != swap && static_cast<bool>(*swap))
+		? swap->GetGuid()
+		: button.m_normalSpriteGuid;
+	if (target->GetSpriteGuid() != desired)
+	{
+		// 세터를 탄다 — 스프라이트가 바뀌면 컬링 경계도 다시 계산돼야 한다.
+		target->SetSpriteGuid(desired);
+	}
+}
+
+void CButton2DSystem::ReleaseTransition(Button2D& button)
+{
+	if (false == button.m_latched)
+	{
+		return;
+	}
+	button.m_latched = false;
+
+	SpriteRenderer2D* target = button.TargetGraphic.Get();
+	if (nullptr == target)
+	{
+		return;   // 대상이 사라졌다 — 되돌릴 곳이 없다.
+	}
+	target->Color = button.m_normalColor;
+	if (target->GetSpriteGuid() != button.m_normalSpriteGuid)
+	{
+		target->SetSpriteGuid(button.m_normalSpriteGuid);
+	}
+}
+
 void CButton2DSystem::DispatchEnter(CGameCanvas& canvas, CGameObject& object)
 {
 	JBRO_DISPATCH_BUTTON_HOOK(ButtonEnter);
@@ -277,6 +364,12 @@ void CButton2DSystem::Update(CGameCanvas& canvas)
 		}
 		m_pressedObject = nullptr;
 	}
+
+	// 상태가 확정된 뒤에 칠한다 — 훅과 같은 프레임에 그림이 바뀐다.
+	canvas.ForEach<Button2D>([](Button2D& button)
+	{
+		ApplyTransition(button);
+	});
 }
 
 void CButton2DSystem::ResetState(CGameCanvas& canvas)
@@ -287,6 +380,8 @@ void CButton2DSystem::ResetState(CGameCanvas& canvas)
 	{
 		button.m_hovered = false;
 		button.m_pressed = false;
+		// 눌린 그림이 편집 모드에 남으면 안 된다 — 게다가 그 값이 그대로 저장될 수 있다.
+		ReleaseTransition(button);
 	});
 
 	m_pointerOverButton = false;
