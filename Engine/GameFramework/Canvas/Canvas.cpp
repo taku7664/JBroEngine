@@ -8,6 +8,7 @@
 #include "Core/Time/Time.h"   // 코루틴 tick 의 스케일/언스케일 dt
 #include "GameFramework/Scripting/GameScript.h"
 #include "GameFramework/Physics2D/Physics2DSystem.h"
+#include "GameFramework/System/Button2DSystem.h"
 #include "GameFramework/Reflection/ReflectionRegistry.h"
 #include "GameFramework/Canvas/GameLayer.h"
 #include "GameFramework/Canvas/CanvasViewProjection.h"   // ComputeCanvasViewProjection — 역투영 공용 계산
@@ -123,6 +124,7 @@ CGameCanvas::CGameCanvas()
 		m_transformSystem->Initialize(*this);
 	}
 
+	m_buttonSystem = MakeOwnerPtr<CButton2DSystem>();
 	m_physicsSystem = MakeOwnerPtr<CPhysics2DSystem>();
 	if (m_physicsSystem)
 	{
@@ -599,7 +601,24 @@ bool CGameCanvas::ScreenToUI(float screenX, float screenY, Vector2& outUI) const
 	return false;
 }
 
+bool CGameCanvas::ScreenToLayer(const CGameLayer& layer, float screenX, float screenY, Vector2& outPoint) const
+{
+	// 렌더의 ApplyLayerSpace(GameCamera.cpp:245) 를 그대로 뒤집는다.
+	// 화면 레이어는 카메라를 아예 안 쓰고, 월드 레이어는 카메라 위치가 패럴랙스로 배율된다.
+	if (ELayerSpace::Screen == layer.Space)
+	{
+		return ScreenToUI(layer, screenX, screenY, outPoint);
+	}
+	return ScreenToWorldWithParallax(screenX, screenY, layer.ParallaxFactor, outPoint);
+}
+
 bool CGameCanvas::ScreenToWorld(float screenX, float screenY, Vector2& outWorld) const
+{
+	// 패럴랙스를 모르는 호출자용 — 카메라 평면(factor 1) 기준이다.
+	return ScreenToWorldWithParallax(screenX, screenY, 1.0f, outWorld);
+}
+
+bool CGameCanvas::ScreenToWorldWithParallax(float screenX, float screenY, float parallaxFactor, Vector2& outWorld) const
 {
 	if (m_lastRenderWidth < 1.0f || m_lastRenderHeight < 1.0f)
 	{
@@ -647,10 +666,18 @@ bool CGameCanvas::ScreenToWorld(float screenX, float screenY, Vector2& outWorld)
 			continue;
 		}
 
-		const CanvasViewProjection view = ComputeCanvasViewProjection(viewport, *camera, *owner, m_lastRenderWidth, m_lastRenderHeight);
+		CanvasViewProjection view = ComputeCanvasViewProjection(viewport, *camera, *owner, m_lastRenderWidth, m_lastRenderHeight);
 		if (false == CanvasViewProjectionContainsScreen(view, screenX, screenY))
 		{
 			continue;   // 스크린점이 이 뷰포트 렉트 밖 — 다음(아래) 뷰포트를 본다.
+		}
+
+		// 패럴랙스는 카메라 **위치만** 배율한다(GameCamera.cpp:270). 렉트 판정은 배율 전에
+		// 끝내야 한다 — 뷰포트 화면 렉트는 패럴랙스와 무관하다.
+		if (1.0f != parallaxFactor)
+		{
+			view.PosX *= parallaxFactor;
+			view.PosY *= parallaxFactor;
 		}
 
 		outWorld = CanvasViewProjectionScreenToWorld(view, screenX, screenY);
@@ -1066,6 +1093,13 @@ void CGameCanvas::Update(bool isSimulationPlaying)
 	// (구 순서: 시스템 제출이 스크립트보다 앞 → 스크립트 변경이 1프레임 늦게 그려짐.)
 	// 스크립트 Update 안에서 GetWorld().Matrix 는 아직 지난 프레임 전파값 —
 	// 신선한 월드값이 필요하면 CanvasTransformUtils::GetWorldTransform 을 쓴다.
+	// 버튼 판정은 스크립트 **앞**이다 — 스크립트의 입력이므로 뒤에 두면 항상 한 프레임 낡는다.
+	// (m_systems 에 넣을 수 없는 이유이기도 하다. 시스템은 스크립트의 출력을 받는 자리다.)
+	if (isSimulationPlaying && m_buttonSystem)
+	{
+		CFrameSectionScope scope(m_frameProfiler, "CButton2DSystem", false);
+		m_buttonSystem->Update(*this);
+	}
 	if (isSimulationPlaying)
 	{
 		UpdateScripts();
@@ -1260,6 +1294,12 @@ void CGameCanvas::StopCoroutinesForOwner(const CGameScript* owner)
 
 void CGameCanvas::NotifySimulationStop()
 {
+	// 눌린/호버된 상태가 편집 모드에 남으면 안 된다 — 다시 재생할 때 첫 클릭이 씹힌다.
+	if (m_buttonSystem)
+	{
+		m_buttonSystem->ResetState(*this);
+	}
+
 	for (OwnerPtr<CGameSystem>& system : m_systems)
 	{
 		if (system)
@@ -1267,6 +1307,11 @@ void CGameCanvas::NotifySimulationStop()
 			system->SimulationStop(*this);
 		}
 	}
+}
+
+bool CGameCanvas::IsPointerOverButton() const
+{
+	return m_buttonSystem && m_buttonSystem->IsPointerOverButton();
 }
 
 void CGameCanvas::DestroyScriptInstances()

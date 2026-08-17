@@ -2,6 +2,7 @@
 #include "BuiltinComponentRegistry.h"
 
 #include "GameFramework/Component/AudioComponents.h"
+#include "GameFramework/Component/Button2D.h"
 #include "GameFramework/Component/Camera2D.h"
 #include "GameFramework/Component/Light2D.h"
 #include "GameFramework/Component/Physics2DComponents.h"
@@ -50,6 +51,11 @@ void RegisterBuiltinComponents(CReflectionRegistry& registry)
 		.AddProperty("FrameIndex", EReflectPropertyType::UInt32, offsetof(SpriteRenderer2D, m_frameIndex), sizeof(std::uint32_t))
 		.AddProperty("Color", EReflectPropertyType::ColorFloat4, offsetof(SpriteRenderer2D, Color), sizeof(Color))
 		.AddProperty("CastShadow", EReflectPropertyType::Bool, offsetof(SpriteRenderer2D, CastShadow), sizeof(bool));
+
+	registry.RegisterComponent<Button2D>({ "Button2D", "Button 2D", "UI", true })
+		.AddProperty("Size", EReflectPropertyType::Vector2Float, offsetof(Button2D, Size), sizeof(Vector2))
+		.AddProperty("Offset", EReflectPropertyType::Vector2Float, offsetof(Button2D, Offset), sizeof(Vector2))
+		.AddProperty("Interactable", EReflectPropertyType::Bool, offsetof(Button2D, Interactable), sizeof(bool));
 
 	registry.RegisterComponent<Text2D>({ "Text2D", "Text 2D", "Rendering", true })
 		.AddProperty("Text", EReflectPropertyType::String, offsetof(Text2D, Text), sizeof(String))

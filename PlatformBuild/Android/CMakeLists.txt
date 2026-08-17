@@ -96,6 +96,7 @@ set(JBRO_ENGINE_SOURCES
     Engine/GameFramework/Physics2D/Physics2DGeometry.cpp
     Engine/GameFramework/Physics2D/Physics2DQueryGeometry.cpp
     Engine/GameFramework/Physics2D/Physics2DSystem.cpp
+    Engine/GameFramework/System/Button2DSystem.cpp
     Engine/GameFramework/Prefab/PrefabSerializer.cpp
     Engine/GameFramework/Reflection/ReflectionRegistry.cpp
     Engine/GameFramework/Rendering/GameCamera.cpp

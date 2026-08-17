@@ -459,6 +459,8 @@
     <ClInclude Include="GameFramework\Component\Camera2D.h" />
     <ClInclude Include="GameFramework\Component\SpriteAnimator2D.h" />
     <ClInclude Include="GameFramework\Component\SpriteRenderer2D.h" />
+    <ClInclude Include="GameFramework\Component\Button2D.h" />
+    <ClInclude Include="GameFramework\System\Button2DSystem.h" />
     <ClInclude Include="GameFramework\Component\Text2D.h" />
     <ClInclude Include="GameFramework\Rendering\TextRenderSystem.h" />
     <ClInclude Include="GameFramework\Component\ShapeRenderers2D.h" />
@@ -871,6 +873,7 @@
     <ClCompile Include="GameFramework\Physics2D\Physics2DQueryGeometry.cpp" />
     <ClCompile Include="GameFramework\Debug\CanvasDebugDrawSystem.cpp" />
     <ClCompile Include="GameFramework\Physics2D\Physics2DSystem.cpp" />
+    <ClCompile Include="GameFramework\System\Button2DSystem.cpp" />
     <ClCompile Include="GameFramework\Component\BuiltinComponentRegistry.cpp" />
     <ClCompile Include="GameFramework\Component\Renderer2DComponent.cpp" />
     <ClCompile Include="GameFramework\Component\ShapeRenderers2D.cpp" />

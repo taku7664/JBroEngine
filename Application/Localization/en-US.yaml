@@ -547,6 +547,7 @@ Entries:
   editor.category.Physics: Physics
   editor.category.Prefab: Prefab
   editor.category.Scripting: Scripting
+  editor.category.UI: UI
   editor.category.Components: Components
 
   editor.component.GameObject: Game Object
@@ -558,6 +559,7 @@ Entries:
   editor.component.Polygon2D: Polygon Renderer 2D
   editor.component.SpriteAnimator2D: Sprite Animator 2D
   editor.component.Camera2D: Camera 2D
+  editor.component.Button2D: Button 2D
   editor.component.Light2D: Light 2D
   editor.component.Rigidbody2D: Rigidbody 2D
   editor.component.PolygonCollider2D: Polygon Collider 2D
@@ -575,6 +577,7 @@ Entries:
   editor.property.MaterialGuid: Material GUID
   editor.property.Size: Size
   editor.property.Offset: Offset
+  editor.property.Interactable: Interactable
   editor.property.FlipX: Flip X
   editor.property.FlipY: Flip Y
   editor.property.FrameIndex: Frame Index

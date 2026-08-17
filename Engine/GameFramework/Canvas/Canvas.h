@@ -39,6 +39,7 @@ class CCanvasRuntimeAccess;
 class CCanvasSerializer;
 class CScriptSystem;
 class CTransformSystem;
+class CButton2DSystem;
 class CGameScript;
 class IInputHandler;
 struct GameModuleHostApi;
@@ -116,6 +117,16 @@ public:
 	//   · 아직 한 번도 렌더되지 않았거나(해상도 미상) 어느 뷰포트에도 안 담기면 false.
 	//   · 패럴랙스 팩터 1(메인 월드) 기준이다 — 원경/UI 레이어는 카메라 위치가 스케일되어 다르다.
 	bool                  ScreenToWorld(float screenX, float screenY, Vector2& outWorld) const;
+
+	// 그 레이어가 **실제로 그려지는 뷰**를 그대로 뒤집는다 — 화면 레이어면 화면 투영,
+	// 월드 레이어면 그 레이어의 패럴랙스가 적용된 카메라 뷰.
+	// 히트테스트가 레이어 스페이스를 몰라도 되게 하고, 동시에 패럴랙스 레이어(factor≠1)의
+	// 오브젝트를 마우스로 정확히 집을 수 없던 구멍을 닫는다(CanvasViewProjection.h:94 의 미결).
+	bool                  ScreenToLayer(const CGameLayer& layer, float screenX, float screenY, Vector2& outPoint) const;
+
+	// 이번 프레임 포인터가 버튼 위에 있는가. 게임 클릭을 억제할 때 쓴다.
+	// IsPointerOverUI 가 아닌 이유: 월드 레이어 버튼도 뒤의 게임플레이 클릭을 막아야 한다.
+	bool                  IsPointerOverButton() const;
 
 	// "플레이어가 보는 표면"의 픽셀 크기를 남긴다(ScreenToWorld 역투영 기준). 게임은 프로젝트
 	// 해상도를 직접 못 보므로 렌더 경로가 유일한 출처다.
@@ -321,6 +332,10 @@ private:
 		return nullptr;
 	}
 
+	// ScreenToWorld / ScreenToLayer 의 공용 몸통. 패럴랙스는 카메라 **위치만** 배율하므로
+	// 뷰포트 렉트 판정이 끝난 뒤에 곱한다.
+	bool ScreenToWorldWithParallax(float screenX, float screenY, float parallaxFactor, Vector2& outWorld) const;
+
 	void FixedUpdate();
 	void Update(bool isSimulationPlaying);
 	void Update();
@@ -401,6 +416,7 @@ private:
 	friend class CGameObject;
 	friend class CPhysics2DSystem;
 	friend class CSpriteAnimationSystem;   // 애니메이션 이벤트/종료를 오브젝트의 스크립트에 디스패치.
+	friend class CButton2DSystem;          // 버튼 상태 훅을 오브젝트의 스크립트에 디스패치.
 	friend class CReflectionRegistry;
 	friend class CCanvasManager;
 	friend class CCanvasRuntimeAccess;
@@ -633,6 +649,9 @@ private:
 	std::uint64_t                      m_scriptAllocationGeneration = 1;
 	OwnerPtr<CTransformSystem>         m_transformSystem;
 	OwnerPtr<CPhysics2DSystem>         m_physicsSystem;
+	// m_systems 가 아니라 전용 슬롯인 이유: Update 계약이 [스크립트 → flush → 시스템] 이라
+	// m_systems 에 넣으면 hover/click 이 항상 한 프레임 낡는다. 버튼은 스크립트의 **입력**이다.
+	OwnerPtr<CButton2DSystem>          m_buttonSystem;
 	OwnerPtr<CScriptSystem>            m_scriptSystem;
 	std::vector<OwnerPtr<CGameSystem>> m_systems;
 	// 스크립트 코루틴 스케줄러 — 재생 중 UpdateScripts 에서 tick, 파괴 관문에서 CancelAll.

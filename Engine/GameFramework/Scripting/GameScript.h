@@ -112,6 +112,15 @@ protected:
 	virtual void OnAnimationEvent(const char* /*clipName*/, const char* /*eventName*/) {}
 	virtual void OnAnimationEnd(const char* /*clipName*/) {}
 
+	// ── Button2D 훅 — 같은 오브젝트의 Button2D 가 쏜다 ────────────────────────
+	// OnButtonClick 은 Down 과 Up 이 **같은 버튼**에서 끝났을 때만 온다.
+	// 누른 채로 밖으로 끌고 나가 떼면 OnButtonUp 만 오고 Click 은 없다(취소).
+	virtual void OnButtonEnter() {}
+	virtual void OnButtonExit()  {}
+	virtual void OnButtonDown()  {}
+	virtual void OnButtonUp()    {}
+	virtual void OnButtonClick() {}
+
 private:
 	// ── 호스트 전용 진입점 ────────────────────────────────────────────────────
 	// 사용자 스크립트가 직접 호출하면 생명주기 플래그가 깨지므로 private + friend.
@@ -119,6 +128,7 @@ private:
 	friend class CGameCanvas;       // 윈도우 이벤트 디스패치
 	friend class CPhysics2DSystem; // 충돌/트리거 디스패치
 	friend class CSpriteAnimationSystem; // 애니메이션 이벤트/종료 디스패치
+	friend class CButton2DSystem;   // 버튼 상태 디스패치
 	friend class CReflectionRegistry;
 
 	void Bind(CGameCanvas& canvas, const char* typeName);
@@ -149,6 +159,11 @@ private:
 	// CSpriteAnimationSystem 이 클립 재생 중 호출하는 디스패치 진입점(시작된 인스턴스에만 전달).
 	void AnimationEvent(const char* clipName, const char* eventName);
 	void AnimationEnd(const char* clipName);
+	void ButtonEnter();
+	void ButtonExit();
+	void ButtonDown();
+	void ButtonUp();
+	void ButtonClick();
 
 private:
 	SafePtr<CGameCanvas> m_canvas;

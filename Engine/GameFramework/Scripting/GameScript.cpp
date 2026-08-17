@@ -212,6 +212,46 @@ void CGameScript::AnimationEnd(const char* clipName)
 	}
 }
 
+void CGameScript::ButtonEnter()
+{
+	if (m_isStarted)
+	{
+		OnButtonEnter();
+	}
+}
+
+void CGameScript::ButtonExit()
+{
+	if (m_isStarted)
+	{
+		OnButtonExit();
+	}
+}
+
+void CGameScript::ButtonDown()
+{
+	if (m_isStarted)
+	{
+		OnButtonDown();
+	}
+}
+
+void CGameScript::ButtonUp()
+{
+	if (m_isStarted)
+	{
+		OnButtonUp();
+	}
+}
+
+void CGameScript::ButtonClick()
+{
+	if (m_isStarted)
+	{
+		OnButtonClick();
+	}
+}
+
 bool CGameScript::IsStarted() const
 {
 	return m_isStarted;

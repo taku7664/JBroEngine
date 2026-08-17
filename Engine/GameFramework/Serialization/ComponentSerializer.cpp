@@ -2,6 +2,7 @@
 #include "GameFramework/Serialization/ComponentSerializer.h"
 
 #include "Core/ScriptCore.h"
+#include "GameFramework/Component/Button2D.h"
 #include "GameFramework/Component/Camera2D.h"
 #include "GameFramework/Component/Light2D.h"
 #include "GameFramework/Component/AudioComponents.h"
@@ -759,6 +760,19 @@ namespace
 		if (ti) ReadComponentReflected(node, &sprite, *ti);
 	}
 
+	YAML::Node WriteButton(const Button2D& button)
+	{
+		const ComponentTypeInfo* ti = GetTypeInfo("Button2D");
+		if (!ti) return YAML::Node(YAML::NodeType::Map);
+		return WriteComponentReflected(&button, *ti);
+	}
+
+	void ReadButton(const YAML::Node& node, Button2D& button)
+	{
+		const ComponentTypeInfo* ti = GetTypeInfo("Button2D");
+		if (ti) ReadComponentReflected(node, &button, *ti);
+	}
+
 	YAML::Node WriteCamera(const Camera2D& camera)
 	{
 		const ComponentTypeInfo* ti = GetTypeInfo("Camera2D");
@@ -1242,6 +1256,7 @@ YAML::Node WriteComponent(const CComponent& component, std::vector<AssetGuid>* r
 		serializedType = "Script";
 	}
 	else if (0 == std::strcmp(tn, "SpriteRenderer2D")) cn = WriteSpriteRenderer(*static_cast<SpriteRenderer2D*>(c), assets);
+	else if (0 == std::strcmp(tn, "Button2D"))         cn = WriteButton(*static_cast<Button2D*>(c));
 	else if (0 == std::strcmp(tn, "Camera2D"))         cn = WriteCamera(*static_cast<Camera2D*>(c));
 	else if (0 == std::strcmp(tn, "Light2D"))          cn = WriteLight(*static_cast<Light2D*>(c));
 	else if (0 == std::strcmp(tn, "AudioPlayer"))      cn = WriteAudioPlayer(*static_cast<AudioPlayer*>(c), assets);
@@ -1290,6 +1305,10 @@ CComponent* ReadComponentInto(CGameObject& object, const YAML::Node& node,
 			AddReferencedAsset(assets, sprite->MaterialGuid);
 			added = sprite;
 		}
+	}
+	else if (type == "Button2D")
+	{
+		if (Button2D* button = object.AddComponent<Button2D>()) { ReadButton(node, *button); added = button; }
 	}
 	else if (type == "Camera2D")
 	{

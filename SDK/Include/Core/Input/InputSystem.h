@@ -132,6 +132,11 @@ public:
 	// 최대 ActionState::MaxActions 개까지(초과분 무시 + 1회 경고).
 	void SetInputMap(const std::vector<InputActionDef>& actions);
 
+	// 이번 프레임 스냅샷을 직접 읽는다. 핸들러 dispatch 는 레이어 우선순위 순서라
+	// **정해진 시점에 돌아야 하는 엔진 단계**(예: 버튼 판정 — 스크립트 Update 직전)는
+	// 그 체인에 낄 수 없다. 그런 단계만 이 접근자를 쓴다.
+	const InputDeviceContext& GetDeviceContext() const { return m_context; }
+
 private:
 	struct HandlerEntry
 	{
