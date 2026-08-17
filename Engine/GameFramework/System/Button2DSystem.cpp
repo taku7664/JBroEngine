@@ -12,6 +12,7 @@
 #include "GameFramework/Object/GameObject.h"
 #include "GameFramework/Scripting/GameScript.h"
 
+#include <algorithm>
 #include <cmath>
 
 namespace
@@ -47,23 +48,40 @@ namespace
 		return lhs.CreationOrder > rhs.CreationOrder;
 	}
 
-	// 버튼은 렌더러가 아니라 SortOrder 가 없다. 같은 오브젝트의 렌더러에서 빌려 온다 —
-	// 판정 순서를 **보이는 순서**에 맞추기 위해서다. 렌더러가 없으면 0.
+	// 버튼은 렌더러가 아니라 자기 SortOrder 가 없다. 판정 순서를 **보이는 순서**에 맞추려면
+	// 같은 오브젝트의 렌더러에서 가져와야 하는데, 렌더러가 여럿일 수 있다.
+	//
+	// **가장 큰 값을 쓴다.** "첫 번째로 찾은 렌더러"는 컴포넌트 추가 순서에 따라 답이 바뀌는
+	// 은근한 지목이라, 아이콘 자식을 하나 붙이는 것만으로 판정 순서가 소리 없이 뒤집힌다
+	// (Button2D 가 TargetGraphic 으로 대상을 **명시**하게 만든 것과 같은 이유로 금지한다).
+	// 최댓값은 순서에 무관하고, 뜻도 맞는다 — 이 오브젝트가 화면에서 다른 것보다 위에 보이는지는
+	// 그것이 그리는 것 중 **가장 위**가 정한다.
+	//
 	// (GetComponent<CRenderer2DComponent> 는 못 쓴다 — 조회가 정확한 타입명 키다.)
-	std::int32_t BorrowSortOrder(const CGameObject& object)
+	std::int32_t TopmostRendererSortOrder(const CGameObject& object)
 	{
+		std::int32_t topmost = 0;
+		bool found = false;
 		for (const SafePtr<CComponent>& component : object.GetComponents())
 		{
 			if (false == component.IsValid())
 			{
 				continue;
 			}
-			if (const CRenderer2DComponent* renderer = component->AsRenderer2DComponent())
+			const CRenderer2DComponent* renderer = component->AsRenderer2DComponent();
+			if (nullptr == renderer)
 			{
-				return renderer->SortOrder;
+				continue;
 			}
+			// 꺼진 렌더러는 안 그려진다 — 안 보이는 것이 순서를 정하면 안 된다.
+			if (false == renderer->IsEnabled())
+			{
+				continue;
+			}
+			topmost = found ? std::max(topmost, renderer->SortOrder) : renderer->SortOrder;
+			found = true;
 		}
-		return 0;
+		return topmost;
 	}
 
 	bool HitTest(const CGameObject& object, const Button2D& button, const Vector2& pointInLayer)
@@ -184,7 +202,7 @@ CGameObject* CButton2DSystem::FindHitButton(CGameCanvas& canvas, const Pointer& 
 		candidate.Object        = owner;
 		candidate.ScreenSpace   = (ELayerSpace::Screen == layer->Space);
 		candidate.LayerIndex    = canvas.GetLayerIndex(layer);
-		candidate.SortOrder     = BorrowSortOrder(*owner);
+		candidate.SortOrder     = TopmostRendererSortOrder(*owner);
 		candidate.CreationOrder = owner->GetCreationOrder();
 
 		if (false == hasBest || IsAbove(candidate, best))

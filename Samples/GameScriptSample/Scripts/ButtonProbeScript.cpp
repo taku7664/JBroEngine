@@ -199,6 +199,11 @@ Coroutine CButtonProbeScript::RunProbe()
 	// ── 3) 판정 렉트는 대상 그래픽과 무관하다 ← 이번 개편의 핵심 ──────────────
 	// 전이를 켜고 대상 그래픽의 크기를 크게 바꿔도 눌리는 자리는 그대로여야 한다.
 	// (구 설계는 여기서 렉트가 따라 움직여 호버가 발진했다.)
+	//
+	// ⚠ 아래 Size/Offset 비교는 **약한 검사**다 — 이 스크립트가 쓴 값을 이 스크립트가 되읽는다.
+	// "렉트가 안 변했다"는 보지만 "그 렉트로 판정이 실제로 유지된다"는 못 본다. 그건 바로 아래
+	// IsHovered 검사가 봐야 하는데, 그게 지금 엔진 버그로 막혀 있다(ef188bb 참고).
+	// 버튼 버그를 고친 뒤 이 절을 다시 읽고 판정할 것.
 	{
 		CGameObject* owner = screenObject.TryGet();
 		SpriteRenderer2D* graphic = (nullptr != owner) ? owner->GetComponent<SpriteRenderer2D>() : nullptr;
@@ -214,9 +219,9 @@ Coroutine CButtonProbeScript::RunProbe()
 			co_await Wait::Frames(2);
 
 			Check(buttonOf(screenObject)->Size.x == sizeBefore.x && buttonOf(screenObject)->Size.y == sizeBefore.y,
-				"hit size survives a target-graphic change");
+				"[weak] hit size field unchanged after a target-graphic change");
 			Check(buttonOf(screenObject)->Offset.x == offsetBefore.x && buttonOf(screenObject)->Offset.y == offsetBefore.y,
-				"hit offset survives a target-graphic change");
+				"[weak] hit offset field unchanged after a target-graphic change");
 			Check(buttonOf(screenObject)->IsHovered(), "still hovered after the graphic changed shape");
 		}
 	}
