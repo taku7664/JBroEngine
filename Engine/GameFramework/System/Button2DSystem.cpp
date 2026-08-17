@@ -120,13 +120,17 @@ namespace
 	}
 }
 
-// ForEachScriptOnObject 는 CGameCanvas 의 private 이고 friend 는 이 클래스다 —
-// 그래서 디스패치를 익명 네임스페이스 헬퍼로 빼지 않고 멤버로 둔다.
-#define JBRO_DISPATCH_BUTTON_HOOK(NAME)                                              \
-	canvas.ForEachScriptOnObject(object, [](CGameScript& script, CGameCanvas::ScriptRuntimeState&) \
-	{                                                                                \
-		if (CanReceive(script)) { script.NAME(); }                                   \
-	})
+template <typename Fn>
+void CButton2DSystem::DispatchToScripts(CGameCanvas& canvas, CGameObject& object, Fn&& fn)
+{
+	canvas.ForEachScriptOnObject(object, [&fn](CGameScript& script, CGameCanvas::ScriptRuntimeState&)
+	{
+		if (CanReceive(script))
+		{
+			fn(script);
+		}
+	});
+}
 
 CButton2DSystem::Pointer CButton2DSystem::ReadPointer()
 {
@@ -164,9 +168,11 @@ CButton2DSystem::Pointer CButton2DSystem::ReadPointer()
 
 CGameObject* CButton2DSystem::FindHitButton(CGameCanvas& canvas, const Pointer& pointer)
 {
-	// 레이어마다 역투영이 다르므로(화면 투영 / 패럴랙스 적용 카메라 뷰) 레이어당 1회만 푼다.
-	// 버튼 수만큼 푸는 게 아니라 레이어 수만큼이다.
+	// 레이어마다 역투영이 다르다(화면 투영 / 패럴랙스 적용 카메라 뷰). 그 역투영은 뷰포트 순회 +
+	// 카메라 해석이라 싸지 않으므로 **레이어당 1회**만 풀고 재사용한다.
+	// 버퍼는 시스템이 들고 프레임마다 다시 쓴다 — 프레임 루프에서 새로 할당하지 않는다.
 	const std::size_t layerCount = canvas.GetLayerCount();
+	m_layerPointCache.assign(layerCount, LayerPoint{});
 
 	HitCandidate best;
 	bool hasBest = false;
@@ -188,12 +194,24 @@ CGameObject* CButton2DSystem::FindHitButton(CGameCanvas& canvas, const Pointer& 
 			return;   // 안 보이는 레이어는 안 눌린다.
 		}
 
-		Vector2 pointInLayer;
-		if (false == canvas.ScreenToLayer(*layer, pointer.X, pointer.Y, pointInLayer))
+		const int layerIndex = canvas.GetLayerIndex(layer);
+		if (layerIndex < 0 || static_cast<std::size_t>(layerIndex) >= m_layerPointCache.size())
+		{
+			return;   // 캔버스에 속하지 않은 레이어 — 역투영 기준이 없다.
+		}
+
+		LayerPoint& cached = m_layerPointCache[static_cast<std::size_t>(layerIndex)];
+		if (false == cached.Resolved)
+		{
+			// 실패도 결과다 — 못 푸는 레이어를 버튼마다 다시 풀지 않는다.
+			cached.Resolved = true;
+			cached.Valid    = canvas.ScreenToLayer(*layer, pointer.X, pointer.Y, cached.Point);
+		}
+		if (false == cached.Valid)
 		{
 			return;
 		}
-		if (false == HitTest(*owner, button, pointInLayer))
+		if (false == HitTest(*owner, button, cached.Point))
 		{
 			return;
 		}
@@ -201,7 +219,7 @@ CGameObject* CButton2DSystem::FindHitButton(CGameCanvas& canvas, const Pointer& 
 		HitCandidate candidate;
 		candidate.Object        = owner;
 		candidate.ScreenSpace   = (ELayerSpace::Screen == layer->Space);
-		candidate.LayerIndex    = canvas.GetLayerIndex(layer);
+		candidate.LayerIndex    = layerIndex;
 		candidate.SortOrder     = TopmostRendererSortOrder(*owner);
 		candidate.CreationOrder = owner->GetCreationOrder();
 
@@ -212,7 +230,6 @@ CGameObject* CButton2DSystem::FindHitButton(CGameCanvas& canvas, const Pointer& 
 		}
 	});
 
-	(void)layerCount;
 	return hasBest ? best.Object : nullptr;
 }
 
@@ -293,30 +310,29 @@ void CButton2DSystem::ReleaseTransition(Button2D& button)
 
 void CButton2DSystem::DispatchEnter(CGameCanvas& canvas, CGameObject& object)
 {
-	JBRO_DISPATCH_BUTTON_HOOK(ButtonEnter);
+	DispatchToScripts(canvas, object, [](CGameScript& script) { script.ButtonEnter(); });
 }
 
 void CButton2DSystem::DispatchExit(CGameCanvas& canvas, CGameObject& object)
 {
-	JBRO_DISPATCH_BUTTON_HOOK(ButtonExit);
+	DispatchToScripts(canvas, object, [](CGameScript& script) { script.ButtonExit(); });
 }
 
 void CButton2DSystem::DispatchDown(CGameCanvas& canvas, CGameObject& object)
 {
-	JBRO_DISPATCH_BUTTON_HOOK(ButtonDown);
+	DispatchToScripts(canvas, object, [](CGameScript& script) { script.ButtonDown(); });
 }
 
 void CButton2DSystem::DispatchUp(CGameCanvas& canvas, CGameObject& object)
 {
-	JBRO_DISPATCH_BUTTON_HOOK(ButtonUp);
+	DispatchToScripts(canvas, object, [](CGameScript& script) { script.ButtonUp(); });
 }
 
 void CButton2DSystem::DispatchClick(CGameCanvas& canvas, CGameObject& object)
 {
-	JBRO_DISPATCH_BUTTON_HOOK(ButtonClick);
+	DispatchToScripts(canvas, object, [](CGameScript& script) { script.ButtonClick(); });
 }
 
-#undef JBRO_DISPATCH_BUTTON_HOOK
 
 void CButton2DSystem::Update(CGameCanvas& canvas)
 {

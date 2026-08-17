@@ -3,6 +3,8 @@
 #include "Utillity/Math/Vector2T.h"
 #include "Utillity/Pointer/SafePtr.h"
 
+#include <vector>
+
 class CGameCanvas;
 class CGameObject;
 
@@ -40,17 +42,32 @@ private:
 
 	// 그리는 순서의 역순으로 훑어 첫 히트에서 멈춘다(위에 있는 버튼이 먹는다).
 	// 못 찾으면 nullptr.
-	static CGameObject* FindHitButton(CGameCanvas& canvas, const Pointer& pointer);
+	CGameObject* FindHitButton(CGameCanvas& canvas, const Pointer& pointer);
 
 	// 전이 적용/해제. 소유 계약은 Button2D.h 참고 — 래치했으면 반드시 되돌린다.
 	static void ApplyTransition(class Button2D& button);
 	static void ReleaseTransition(class Button2D& button);
+
+	// 훅 디스패치 공용부. **멤버**여야 한다 — ForEachScriptOnObject 는 CGameCanvas 의 private 이고
+	// friend 는 이 클래스다. 자유 함수로 빼면 접근이 막힌다(예전엔 매크로로 우회했었다).
+	template <typename Fn>
+	static void DispatchToScripts(CGameCanvas& canvas, CGameObject& object, Fn&& fn);
 
 	static void DispatchEnter(CGameCanvas& canvas, CGameObject& object);
 	static void DispatchExit(CGameCanvas& canvas, CGameObject& object);
 	static void DispatchDown(CGameCanvas& canvas, CGameObject& object);
 	static void DispatchUp(CGameCanvas& canvas, CGameObject& object);
 	static void DispatchClick(CGameCanvas& canvas, CGameObject& object);
+
+	// 레이어별 역투영 결과 캐시. **매 프레임 재사용**한다(할당 금지 규칙).
+	// 이게 없으면 ScreenToLayer 가 버튼 수만큼 불리고, 그 안은 뷰포트 순회 + 카메라 해석이다.
+	struct LayerPoint
+	{
+		Vector2 Point;
+		bool    Resolved = false;   // 이번 프레임에 이미 풀어 봤는가
+		bool    Valid    = false;   // 풀린 결과가 쓸 수 있는 값인가
+	};
+	std::vector<LayerPoint> m_layerPointCache;
 
 	bool                 m_pointerOverButton = false;
 	bool                 m_pointerWasDown    = false;
