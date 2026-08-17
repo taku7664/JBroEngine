@@ -44,5 +44,18 @@ private:
 
 	// 컴포넌트별 런타임 생성 머티리얼 소유권 캐시(키 = SpriteRenderer2D 주소).
 	// SpriteRenderer2D 컴포넌트는 여기서 발급한 SafePtr 만 보관합니다.
-	std::unordered_map<const void*, OwnerPtr<IRenderMaterial>> m_materialCache;
+	//
+	// LastSeenFrame 은 "이번 프레임에 제출됐다"는 표시입니다. 예전에는 프레임마다
+	// unordered_set 을 새로 만들어 모았는데, 그러면 살아있는 스프라이트 하나당 노드 하나를
+	// 할당했다가 프레임 끝에 전부 버리게 됩니다 — 캐시가 이미 그 키를 들고 있는데도.
+	// Text/Shape 렌더 시스템은 이미 스탬프 방식입니다(Utillity/Types/FrameLiveness.h).
+	struct CachedMaterial
+	{
+		OwnerPtr<IRenderMaterial> Material;
+		std::uint64_t             LastSeenFrame = 0;
+	};
+	std::unordered_map<const void*, CachedMaterial> m_materialCache;
+
+	// OnUpdate 진입에서 증가. 스탬프는 시스템마다 자기 것을 씁니다(시스템 간 비교 없음).
+	std::uint64_t m_frameStamp = 0;
 };

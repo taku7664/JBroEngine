@@ -14,8 +14,7 @@
 #include "GameFramework/Component/SpriteRenderer2D.h"
 #include "GameFramework/Object/GameObject.h"
 #include "GameFramework/Canvas/Canvas.h"
-
-#include <unordered_set>
+#include "Utillity/Types/FrameLiveness.h"
 
 CSpriteRenderSystem::CSpriteRenderSystem(IRenderScene* renderScene)
 	: m_renderScene(renderScene)
@@ -56,12 +55,12 @@ void CSpriteRenderSystem::OnUpdate(CGameCanvas& canvas)
 
 	CForward2DRenderer* forwardRenderer = m_renderer;
 
-	// 이번 프레임에 제출된 스프라이트 키 집합 — 순회 후 여기에 없는 캐시 엔트리를 제거한다
+	// 이번 프레임 스탬프 — 살아있는 캐시 엔트리에 찍고, 순회가 끝나면 뒤처진 엔트리를 지운다
 	// (파괴/비활성 스프라이트의 머티리얼이 GPU 텍스처를 물고 무한 누적되는 것을 막는다. Shape/Text 와 동일).
-	std::unordered_set<const void*> seen;
+	const std::uint64_t stamp = ++m_frameStamp;
 
 	canvas.ForEach<SpriteRenderer2D>(
-		[this, forwardRenderer, &seen](SpriteRenderer2D& sprite)
+		[this, forwardRenderer, stamp](SpriteRenderer2D& sprite)
 		{
 			CGameObject* owner = sprite.GetOwner().TryGet();
 			if (false == IsActiveComponent(sprite))
@@ -69,7 +68,12 @@ void CSpriteRenderSystem::OnUpdate(CGameCanvas& canvas)
 				return;
 			}
 			const void* cacheKey = &sprite;
-			seen.insert(cacheKey);
+			// 아직 캐시 엔트리가 없으면 표시할 대상도 없다 — 아래에서 생성될 때 현재
+			// 스탬프를 달고 들어간다. 엔트리가 없는 키를 "봤다"고 기록해 봐야 청소 결과는 같다.
+			if (const auto live = m_materialCache.find(cacheKey); live != m_materialCache.end())
+			{
+				live->second.LastSeenFrame = stamp;
+			}
 
 			SafePtr<IRenderMesh> mesh = sprite.Mesh;
 			SafePtr<IRenderMaterial> material = sprite.Material;
@@ -144,7 +148,7 @@ void CSpriteRenderSystem::OnUpdate(CGameCanvas& canvas)
 					material = generatedMaterial.GetSafePtr();
 					sprite.Mesh = mesh;
 					sprite.Material = material;
-					m_materialCache[cacheKey] = std::move(generatedMaterial);
+					m_materialCache[cacheKey] = CachedMaterial{ std::move(generatedMaterial), stamp };
 				}
 			}
 
@@ -208,15 +212,6 @@ void CSpriteRenderSystem::OnUpdate(CGameCanvas& canvas)
 		});
 
 	// 이번 프레임에 보이지 않은(파괴/비활성/제거된) 스프라이트의 머티리얼 캐시를 정리한다.
-	for (auto it = m_materialCache.begin(); it != m_materialCache.end();)
-	{
-		if (seen.find(it->first) == seen.end())
-		{
-			it = m_materialCache.erase(it);
-		}
-		else
-		{
-			++it;
-		}
-	}
+	RemoveStaleEntries(m_materialCache, stamp,
+		[](const CachedMaterial& cached) { return cached.LastSeenFrame; });
 }
