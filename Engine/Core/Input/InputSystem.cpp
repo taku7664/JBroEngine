@@ -707,6 +707,15 @@ void CInputSystem::AccumulateTouch(std::int32_t pointerId, int x, int y, ETouchP
 		std::size_t slot = found;
 		if (maxCount == slot)
 		{
+			// 빈 슬롯(Id=-1)을 먼저 쓴다. 아직 발행 전인 뗌 슬롯(Active=false, Id 유효)을
+			// 덮으면 그 손가락의 뗌이 통째로 사라진다 — 남는 자리가 없을 때만 양보한다.
+			for (std::size_t i = 0; i < maxCount; ++i)
+			{
+				if (-1 == m_workingTouches[i].Id) { slot = i; break; }
+			}
+		}
+		if (maxCount == slot)
+		{
 			for (std::size_t i = 0; i < maxCount; ++i)
 			{
 				if (false == m_workingTouches[i].Active) { slot = i; break; }
@@ -717,20 +726,27 @@ void CInputSystem::AccumulateTouch(std::int32_t pointerId, int x, int y, ETouchP
 		m_workingTouches[slot].X      = x;
 		m_workingTouches[slot].Y      = y;
 		m_workingTouches[slot].Active = true;
+		m_workingTouches[slot].Phase  = ETouchPhase::Began;
 		break;
 	}
 	case ETouchPhase::Moved:
 		if (maxCount != found)
 		{
-			m_workingTouches[found].X = x;
-			m_workingTouches[found].Y = y;
+			m_workingTouches[found].X     = x;
+			m_workingTouches[found].Y     = y;
+			m_workingTouches[found].Phase = ETouchPhase::Moved;
 		}
 		break;
 	case ETouchPhase::Ended:
 	case ETouchPhase::Cancelled:
 		if (maxCount != found)
 		{
-			m_workingTouches[found] = TouchPoint{}; // 슬롯 해제(Id=-1, Active=false)
+			// **슬롯을 여기서 지우지 않는다.** 뗀 자리를 담은 채로 한 프레임 발행되어야
+			// 소비자가 "여기서 뗐다"를 볼 수 있다. 해제는 다음 플러시가 한다.
+			m_workingTouches[found].X      = x;
+			m_workingTouches[found].Y      = y;
+			m_workingTouches[found].Active = false;
+			m_workingTouches[found].Phase  = phase;
 		}
 		break;
 	}
@@ -1014,10 +1030,17 @@ void CInputSystem::PollDevices()
 		int count = 0;
 		for (std::size_t i = 0; i < Touch::MaxTouchCount; ++i)
 		{
-			if (m_workingTouches[i].Active)
+			// 뗀 손가락(Active=false, Id 유효)도 **한 번은** 발행한다 — 뗀 자리가 사라지면
+			// 탭/클릭을 판정할 수 없다. 발행한 뒤 곧바로 슬롯을 해제해 다음 프레임엔 없다.
+			if (-1 == m_workingTouches[i].Id)
 			{
-				m_context.m_touch.m_points[count] = m_workingTouches[i];
-				++count;
+				continue;
+			}
+			m_context.m_touch.m_points[count] = m_workingTouches[i];
+			++count;
+			if (false == m_workingTouches[i].Active)
+			{
+				m_workingTouches[i] = TouchPoint{};
 			}
 		}
 		for (int i = count; i < static_cast<int>(Touch::MaxTouchCount); ++i)

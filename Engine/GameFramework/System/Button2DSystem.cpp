@@ -158,6 +158,29 @@ CButton2DSystem::Pointer CButton2DSystem::ReadPointer()
 		}
 	}
 
+	// 닿아 있는 손가락이 없다면, 이번 프레임에 **뗀** 손가락이 있는지 본다.
+	// 그 자리를 안 쓰고 마우스로 폴백하면 릴리스 판정이 엉뚱한 좌표에서 벌어져
+	// "누른 버튼에서 뗐는가"가 항상 거짓이 된다(터치에서 클릭이 영영 안 난다).
+	// 활성 손가락을 먼저 보는 순서는 유지한다 — 살아 있는 손가락이 뗀 자리에 밀리면 안 된다.
+	for (int index = 0; index < touch.GetCount(); ++index)
+	{
+		const TouchPoint& point = touch.Get(index);
+		if (ETouchPhase::Ended == point.Phase)
+		{
+			pointer.X = static_cast<float>(point.X);
+			pointer.Y = static_cast<float>(point.Y);
+			pointer.Down = false;
+			pointer.Valid = true;
+			return pointer;
+		}
+		if (ETouchPhase::Cancelled == point.Phase)
+		{
+			// 시스템이 터치를 가로챈 것이다(통화·제스처). 뗀 것이 아니므로 클릭이 아니다 —
+			// 포인터를 무효로 돌려 이번 프레임 히트를 없앤다. Up 은 나가고 Click 은 안 난다.
+			return pointer;   // Valid=false
+		}
+	}
+
 	const Mouse& mouse = context.GetMouse();
 	pointer.X = static_cast<float>(mouse.GetX());
 	pointer.Y = static_cast<float>(mouse.GetY());

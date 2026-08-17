@@ -201,9 +201,8 @@ Coroutine CButtonProbeScript::RunProbe()
 	// (구 설계는 여기서 렉트가 따라 움직여 호버가 발진했다.)
 	//
 	// ⚠ 아래 Size/Offset 비교는 **약한 검사**다 — 이 스크립트가 쓴 값을 이 스크립트가 되읽는다.
-	// "렉트가 안 변했다"는 보지만 "그 렉트로 판정이 실제로 유지된다"는 못 본다. 그건 바로 아래
-	// IsHovered 검사가 봐야 하는데, 그게 지금 엔진 버그로 막혀 있다(ef188bb 참고).
-	// 버튼 버그를 고친 뒤 이 절을 다시 읽고 판정할 것.
+	// "렉트가 안 변했다"는 보지만 "그 렉트로 판정이 실제로 유지된다"는 못 본다.
+	// 그 실증은 바로 뒤의 IsHovered 검사다 — 그래픽 모양을 크게 흔든 뒤에도 여전히 호버다.
 	{
 		CGameObject* owner = screenObject.TryGet();
 		SpriteRenderer2D* graphic = (nullptr != owner) ? owner->GetComponent<SpriteRenderer2D>() : nullptr;
@@ -246,9 +245,65 @@ Coroutine CButtonProbeScript::RunProbe()
 	Check(false == buttonOf(highObject)->IsHovered(), "non-interactable button is not hovered");
 	Check(buttonOf(lowObject)->IsHovered(), "the pointer falls through to the button behind");
 
-	// 손가락을 떼고 정리.
+	// 손가락을 뗀다.
 	pointerAt(centerX, centerY, false);
 	co_await Wait::Frames(2);
+
+	// ── 7) 훅 발화 ───────────────────────────────────────────────────────────
+	// 훅은 버튼과 **같은 오브젝트**의 스크립트로 간다. 런타임 AddScript 는 공개돼 있지
+	// 않으므로 프로브 자신의 오브젝트를 버튼으로 만든다 — 그러면 아래 카운터가 곧 발화다.
+	// 화면 레이어에 두면 아직 살아 있는 월드 버튼들보다 무조건 위다(스페이스가 먼저).
+	if (CGameObject* self = GetOwner().TryGet())
+	{
+		SafePtr<CGameLayer> previousLayer = self->GetLayer();
+		const Vector2 previousPosition = self->Local.Position;
+
+		self->Local.Position = screenPoint;
+		canvas->MoveObjectToLayer(*self, *screenLayer);
+		Button2D* selfButton = self->AddComponent<Button2D>();
+		Check(nullptr != selfButton, "probe object became a button");
+		if (nullptr != selfButton)
+		{
+			selfButton->Size = Vector2(4.0f, 4.0f);
+			co_await Wait::Frames(1);
+
+			// 눌렀다 같은 자리에서 뗀다 → Enter/Down/Up/Click 이 한 번씩.
+			pointerDown(centerX, centerY);
+			co_await Wait::Frames(2);
+			Check(1 == m_enterCount, "OnButtonEnter fires once on entry");
+			Check(1 == m_downCount,  "OnButtonDown fires on press");
+			Check(0 == m_clickCount, "OnButtonClick does not fire before release");
+
+			const int enterAfterPress = m_enterCount;
+			co_await Wait::Frames(2);
+			Check(enterAfterPress == m_enterCount, "OnButtonEnter does not repeat while held inside");
+
+			pointerAt(centerX, centerY, false);
+			co_await Wait::Frames(2);
+			Check(1 == m_upCount,    "OnButtonUp fires on release");
+			Check(1 == m_clickCount, "OnButtonClick fires when press and release share the button");
+
+			// 누른 채로 밖으로 끌고 나가 떼면 취소다 — Up 은 오지만 Click 은 안 온다.
+			pointerDown(centerX, centerY);
+			co_await Wait::Frames(2);
+			pointerAt(0.0f, 0.0f, true);
+			co_await Wait::Frames(2);
+			Check(m_exitCount >= 1, "OnButtonExit fires when the pointer leaves");
+			pointerAt(0.0f, 0.0f, false);
+			co_await Wait::Frames(2);
+			Check(2 == m_upCount,    "OnButtonUp fires again on the second release");
+			Check(1 == m_clickCount, "OnButtonClick does not fire when the release lands outside");
+		}
+
+		// 프로브 오브젝트는 캔버스가 저작한 것이다 — 빌린 것을 그대로 돌려놓는다.
+		// (아래 TearDown 이 화면 레이어를 지우므로 여기서 안 빼면 같이 파괴된다.)
+		self->RemoveComponent<Button2D>();
+		self->Local.Position = previousPosition;
+		if (CGameLayer* restored = previousLayer.TryGet())
+		{
+			canvas->MoveObjectToLayer(*self, *restored);
+		}
+	}
 
 	TearDown();
 	ProbeLog("RESULT " + std::to_string(m_passCount) + "/"

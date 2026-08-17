@@ -16,9 +16,13 @@
 // 버튼 상태기는 프레임 경계로 돈다(눌림 = "이번 프레임 down, 지난 프레임 up").
 // 한 프레임에 몰면 상태 전이를 볼 수 없다. 한 스텝마다 한 프레임씩 넘긴다.
 //
+// ── 훅은 어떻게 보는가 ───────────────────────────────────────────────────────
+// 훅은 **버튼과 같은 오브젝트**의 스크립트로 간다. 런타임에 스크립트를 붙이는 공개 API 는
+// 없으므로(AddScript 는 캔버스의 private), 마지막 절에서 **프로브 자신의 오브젝트에**
+// Button2D 를 붙여 프로브가 스스로 훅을 받는다. 카운터 스크립트가 따로 필요 없고,
+// 캔버스 저작에 의존하지도 않는다.
+//
 // ── 여기서 못 보는 것 ────────────────────────────────────────────────────────
-// · OnButtonClick 발화 여부 — 훅은 버튼 오브젝트의 스크립트로 가므로 카운터 스크립트를
-//   버튼마다 붙여야 한다. 여기서는 IsHovered/IsPressed 상태만 본다.
 // · 시뮬레이션 정지 시 normal 복원 — 프로브는 재생 중에만 돈다.
 JBRO_SCRIPT CButtonProbeScript final : public CGameScript
 {
@@ -26,6 +30,13 @@ JBRO_SCRIPT CButtonProbeScript final : public CGameScript
 
 protected:
 	void OnStart() override;
+
+	// 마지막 절에서 프로브 오브젝트 자신이 버튼이 된다 — 그때 이 훅들이 온다.
+	void OnButtonEnter() override { ++m_enterCount; }
+	void OnButtonExit()  override { ++m_exitCount; }
+	void OnButtonDown()  override { ++m_downCount; }
+	void OnButtonUp()    override { ++m_upCount; }
+	void OnButtonClick() override { ++m_clickCount; }
 
 private:
 	Coroutine RunProbe();
@@ -36,6 +47,12 @@ private:
 	bool m_started = false;
 	int  m_passCount = 0;
 	int  m_failCount = 0;
+
+	int  m_enterCount = 0;
+	int  m_exitCount  = 0;
+	int  m_downCount  = 0;
+	int  m_upCount    = 0;
+	int  m_clickCount = 0;
 
 	std::vector<SafePtr<CGameObject>> m_spawned;
 	SafePtr<CGameLayer>               m_screenLayer;

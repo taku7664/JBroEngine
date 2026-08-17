@@ -151,7 +151,11 @@ struct TouchPoint
 	std::int32_t Id  = -1;   // 플랫폼이 부여한 터치 식별자(-1=비활성)
 	int          X   = 0;
 	int          Y   = 0;
-	bool         Active = false;
+	bool         Active = false;   // 손가락이 지금 닿아 있는가
+	// 이 스냅샷을 만든 마지막 사건. **뗀 프레임도 한 번 발행된다**(Active=false + Ended).
+	// 그러지 않으면 "어디서 뗐는가"가 사라져서 탭/클릭 판정이 불가능하다 —
+	// 뗀 순간 터치가 통째로 없어지면 소비자는 마우스로 폴백하고 손가락 자리를 잃는다.
+	ETouchPhase  Phase = ETouchPhase::Ended;
 };
 
 class Touch
