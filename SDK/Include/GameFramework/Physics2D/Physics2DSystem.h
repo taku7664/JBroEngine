@@ -91,6 +91,9 @@ private:
 	void Step(CGameCanvas& canvas, float deltaSeconds);
 	void IntegrateBodies(CGameCanvas& canvas, float deltaSeconds);
 	void UpdateColliderBounds(CGameCanvas& canvas);
+	// 수집된 콜라이더에서 좁혀진 후보 쌍 목록(m_pairs*)을 만든다. DetectContacts 가 쌍마다
+	// 정밀 판정을 돌리기 **전에** x축 sweep-and-prune 으로 명백히 안 겹치는 쌍을 걷어낸다.
+	void BuildBroadPhasePairs();
 	void DetectContacts(CGameCanvas& canvas);
 	// ── 조인트 ───────────────────────────────────────────────────────────────
 	// PrepareJoints: 스텝 시작 1회 — 자동 설정(쉬는 길이/연결점) 확정 + 워밍스타트 임펄스 적용.
@@ -161,8 +164,63 @@ private:
 	// DetectContacts 가 활성 콜라이더를 모으는 버퍼. 이건 sub-step 마다 도는 경로라
 	// (프레임당 최대 fixed step 8 × sub-step 4 = 32회) 지역 변수로 두면 그 횟수만큼
 	// 할당 + push_back 성장 재할당이 붙는다.
-	std::vector<std::pair<CGameObject*, PolygonCollider2D*>> m_detectPolygons;
+	//
+	// 볼록 여부를 여기 함께 담는 이유: 볼록/오목은 콜라이더 하나의 `WorldPoints` 만으로 정해지는
+	// 성질인데, 예전에는 쌍 루프 **안에서** 매번 다시 판정했다(정점 전체 훑기). 쌍 수가 N² 이라
+	// 총 비용이 O(N²·V) 가 된다. 수집할 때 콜라이더마다 한 번 재서 들고 다니면 O(N·V) 다.
+	// `UpdateColliderBounds` 가 `DetectContacts` 앞에서 끝나고 쌍 루프는 기하를 읽기만 하므로,
+	// 수집 시점의 판정이 그 스텝 내내 유효하다.
+	struct DetectPolygon
+	{
+		CGameObject*       Owner    = nullptr;
+		PolygonCollider2D* Collider = nullptr;
+		bool               IsConvex = true;
+	};
+	std::vector<DetectPolygon>                              m_detectPolygons;
 	std::vector<std::pair<CGameObject*, CircleCollider2D*>>  m_detectCircles;
+
+	// ── 브로드페이즈(sweep-and-prune) ─────────────────────────────────────────
+	// 예전에는 세 조합(폴리곤×폴리곤, 원×원, 폴리곤×원)을 전 쌍 순회하며 AABB 로 걸렀다.
+	// 걸러도 **쌍을 방문하는 비용 자체가 O(N²)** 이고, 이 경로는 sub-step 마다 돈다.
+	//
+	// 대신 모든 콜라이더를 x축 구간(MinX~MaxX)으로 보고 MinX 순으로 훑는다. 훑는 동안
+	// "아직 끝나지 않은" 구간만 active 에 남겨 두면, 현재 구간과 x 로 겹치는 것은 active
+	// 안에 전부 있고 그 밖은 볼 필요가 없다. 겹침이 드문 보통 씬에서 방문 쌍이 급감한다.
+	//
+	// 세 종류를 한 번의 훑기로 처리하고 조합별 목록에 나눠 담는다 — 정밀 판정 코드는
+	// 조합마다 완전히 다르므로 목록만 나누고 판정부는 그대로 둔다.
+	struct SweepProxy
+	{
+		float         MinX     = 0.0f;
+		float         MaxX     = 0.0f;
+		std::uint32_t Index    = 0;       // m_detectPolygons / m_detectCircles 의 인덱스
+		bool          IsCircle = false;
+	};
+	// 조합별 후보 쌍. A/B 는 해당 배열의 인덱스(폴리곤×원은 A=폴리곤, B=원).
+	// 목록은 (A, B) 사전순으로 정렬해 둔다 — 전 쌍 순회 시절의 방문 순서와 같게 만들기 위해서다.
+	// 매니폴드 생성 순서가 곧 솔버 순회 순서이고 Gauss-Seidel 반복은 순서에 의존하므로,
+	// 훑는 순서(MinX 순, 오브젝트가 움직이면 프레임마다 뒤바뀜)를 그대로 흘리면 물리 결과가
+	// 위치에 따라 미세하게 흔들린다. 정렬해 두면 쌍의 **집합**만 줄고 순서는 종전과 동일하다.
+	struct BroadPhasePair
+	{
+		std::uint32_t A = 0;
+		std::uint32_t B = 0;
+	};
+	// A 별 구간(위 목록이 A 로 정렬돼 있으므로 연속이다). 정밀 판정부가 "i 의 후보 j 들"을
+	// 그대로 돌 수 있어 바깥 루프 구조를 바꾸지 않아도 된다.
+	struct BroadPhaseRange
+	{
+		std::uint32_t Begin = 0;
+		std::uint32_t Count = 0;
+	};
+	std::vector<SweepProxy>      m_sweepProxies;
+	std::vector<SweepProxy>      m_sweepActive;
+	std::vector<BroadPhasePair>  m_pairsPolygonPolygon;
+	std::vector<BroadPhasePair>  m_pairsCircleCircle;
+	std::vector<BroadPhasePair>  m_pairsPolygonCircle;
+	std::vector<BroadPhaseRange> m_rangesPolygonPolygon;
+	std::vector<BroadPhaseRange> m_rangesCircleCircle;
+	std::vector<BroadPhaseRange> m_rangesPolygonCircle;
 
 	// 같은 (A,B) 페어 매니폴드 병합용 키. 포인터 두 개를 좁은 정수로 패킹하면 비트가 겹쳐
 	// 서로 다른 페어가 충돌하므로, 키는 원본을 들고 해시만 결합한다.

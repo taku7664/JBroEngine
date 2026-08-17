@@ -2865,12 +2865,116 @@ namespace
 	}
 }
 
+void CPhysics2DSystem::BuildBroadPhasePairs()
+{
+	// 전부 멤버 스크래치다 — sub-step 마다 도는 경로라 clear() 로 용량을 재사용한다.
+	std::vector<SweepProxy>& proxies = m_sweepProxies;
+	std::vector<SweepProxy>& active  = m_sweepActive;
+	proxies.clear();
+	active.clear();
+	m_pairsPolygonPolygon.clear();
+	m_pairsCircleCircle.clear();
+	m_pairsPolygonCircle.clear();
+
+	// NaN 이 섞인 x 구간은 프록시로 만들지 않는다. 정렬 비교자가 strict weak ordering 을
+	// 잃어 std::sort 가 범위를 벗어날 수 있기 때문이다. 걸러도 판정 결과는 같다 —
+	// IntersectsAABB 는 비교식이라 NaN 이 하나라도 있으면 어차피 항상 false 다.
+	const auto hasFiniteSpan = [](const PhysicsAABB2D& box)
+	{
+		return std::isfinite(box.Min.x) && std::isfinite(box.Max.x);
+	};
+
+	proxies.reserve(m_detectPolygons.size() + m_detectCircles.size());
+	for (std::size_t i = 0; i < m_detectPolygons.size(); ++i)
+	{
+		const PhysicsAABB2D& box = m_detectPolygons[i].Collider->WorldAABB;
+		if (false == hasFiniteSpan(box)) continue;
+		proxies.push_back(SweepProxy{ box.Min.x, box.Max.x, static_cast<std::uint32_t>(i), false });
+	}
+	for (std::size_t i = 0; i < m_detectCircles.size(); ++i)
+	{
+		const PhysicsAABB2D& box = m_detectCircles[i].second->WorldAABB;
+		if (false == hasFiniteSpan(box)) continue;
+		proxies.push_back(SweepProxy{ box.Min.x, box.Max.x, static_cast<std::uint32_t>(i), true });
+	}
+
+	// MinX 오름차순. 동률은 어떻게 놓든 아래 겹침 판정 결과가 같다(같은 MinX 면 서로
+	// active 에 남아 반드시 한 번 만난다).
+	std::sort(proxies.begin(), proxies.end(),
+		[](const SweepProxy& lhs, const SweepProxy& rhs) { return lhs.MinX < rhs.MinX; });
+
+	for (const SweepProxy& current : proxies)
+	{
+		// x 로 이미 지나간 구간을 active 에서 걷어낸다. 이후 프록시의 MinX 는 current.MinX
+		// 이상이므로 여기서 버린 것은 남은 어떤 것과도 x 로 겹치지 않는다.
+		std::size_t write = 0;
+		for (std::size_t read = 0; read < active.size(); ++read)
+		{
+			if (active[read].MaxX >= current.MinX)
+			{
+				active[write] = active[read];
+				++write;
+			}
+		}
+		active.resize(write);
+
+		for (const SweepProxy& other : active)
+		{
+			if (current.IsCircle == other.IsCircle)
+			{
+				// 같은 종류 — 인덱스 오름차순으로 정규화해 담는다.
+				const std::uint32_t lo = std::min(current.Index, other.Index);
+				const std::uint32_t hi = std::max(current.Index, other.Index);
+				if (current.IsCircle) m_pairsCircleCircle.push_back(BroadPhasePair{ lo, hi });
+				else                  m_pairsPolygonPolygon.push_back(BroadPhasePair{ lo, hi });
+			}
+			else
+			{
+				// 혼합 — 항상 (폴리곤, 원) 순.
+				const SweepProxy& polygon = current.IsCircle ? other : current;
+				const SweepProxy& circle  = current.IsCircle ? current : other;
+				m_pairsPolygonCircle.push_back(BroadPhasePair{ polygon.Index, circle.Index });
+			}
+		}
+
+		active.push_back(current);
+	}
+
+	// 쌍 순서를 (A, B) 사전순으로 되돌린다(이유는 헤더의 BroadPhasePair 주석).
+	const auto byIndex = [](const BroadPhasePair& lhs, const BroadPhasePair& rhs)
+	{
+		return lhs.A != rhs.A ? lhs.A < rhs.A : lhs.B < rhs.B;
+	};
+	std::sort(m_pairsPolygonPolygon.begin(), m_pairsPolygonPolygon.end(), byIndex);
+	std::sort(m_pairsCircleCircle.begin(), m_pairsCircleCircle.end(), byIndex);
+	std::sort(m_pairsPolygonCircle.begin(), m_pairsPolygonCircle.end(), byIndex);
+
+	// A 별 구간 테이블. 목록이 A 로 정렬돼 있으므로 한 번 훑으며 시작 위치와 개수만 세면 된다.
+	const auto buildRanges = [](const std::vector<BroadPhasePair>& pairs, std::size_t ownerCount,
+		std::vector<BroadPhaseRange>& outRanges)
+	{
+		outRanges.assign(ownerCount, BroadPhaseRange{});
+		for (std::size_t k = 0; k < pairs.size(); ++k)
+		{
+			BroadPhaseRange& range = outRanges[pairs[k].A];
+			if (0 == range.Count)
+			{
+				range.Begin = static_cast<std::uint32_t>(k);
+			}
+			++range.Count;
+		}
+	};
+	buildRanges(m_pairsPolygonPolygon, m_detectPolygons.size(), m_rangesPolygonPolygon);
+	buildRanges(m_pairsCircleCircle,   m_detectCircles.size(),  m_rangesCircleCircle);
+	buildRanges(m_pairsPolygonCircle,  m_detectPolygons.size(), m_rangesPolygonCircle);
+}
+
 void CPhysics2DSystem::DetectContacts(CGameCanvas& canvas)
 {
 	m_manifolds.clear();
 
 	// 멤버 스크래치다 — clear() 는 용량을 남기므로 두 번째 sub-step 부터는 할당이 없다.
-	std::vector<std::pair<CGameObject*, PolygonCollider2D*>>& polygons = m_detectPolygons;
+	std::vector<DetectPolygon>&                               polygons = m_detectPolygons;
 	std::vector<std::pair<CGameObject*, CircleCollider2D*>>&  circles  = m_detectCircles;
 	polygons.clear();
 	circles.clear();
@@ -2879,7 +2983,8 @@ void CPhysics2DSystem::DetectContacts(CGameCanvas& canvas)
 	{
 		if (IsActiveComponent(c) && c.WorldPoints.size() >= 3)
 		{
-			polygons.emplace_back(c.GetOwner().TryGet(), &c);
+			// 볼록 판정은 여기서 콜라이더당 한 번. 아래 쌍 루프들은 이 값을 읽기만 한다.
+			polygons.push_back(DetectPolygon{ c.GetOwner().TryGet(), &c, IsConvexPolygon(c.WorldPoints) });
 		}
 	});
 
@@ -2890,6 +2995,9 @@ void CPhysics2DSystem::DetectContacts(CGameCanvas& canvas)
 			circles.emplace_back(c.GetOwner().TryGet(), &c);
 		}
 	});
+
+	// 아래 세 조합은 후보 쌍 목록만 방문한다 — x 로 명백히 벌어진 쌍은 여기서 이미 빠진다.
+	BuildBroadPhasePairs();
 
 	// ── Polygon vs Polygon ────────────────────────────────────────────────────
 	//
@@ -2904,19 +3012,22 @@ void CPhysics2DSystem::DetectContacts(CGameCanvas& canvas)
 	//   캐릭터가 바닥을 뚫는 것처럼 보이는 현상이 있었음.
 	for (std::size_t i = 0; i < polygons.size(); ++i)
 	{
-		for (std::size_t j = i + 1; j < polygons.size(); ++j)
+		const BroadPhaseRange ppRange = m_rangesPolygonPolygon[i];
+		for (std::uint32_t k = ppRange.Begin; k < ppRange.Begin + ppRange.Count; ++k)
 		{
-			CGameObject* ea = polygons[i].first;
-			CGameObject* eb = polygons[j].first;
+			const std::size_t j = m_pairsPolygonPolygon[k].B;
+			CGameObject* ea = polygons[i].Owner;
+			CGameObject* eb = polygons[j].Owner;
 			if (ea == eb) continue;
 
-			PolygonCollider2D* a = polygons[i].second;
-			PolygonCollider2D* b = polygons[j].second;
+			PolygonCollider2D* a = polygons[i].Collider;
+			PolygonCollider2D* b = polygons[j].Collider;
 			if (!ShouldCollidePair(a->CollisionLayer, a->CollisionMask, b->CollisionLayer, b->CollisionMask)) continue;
 			if (!IntersectsAABB(a->WorldAABB, b->WorldAABB)) continue;
 
-			const bool aIsConvex = IsConvexPolygon(a->WorldPoints);
-			const bool bIsConvex = IsConvexPolygon(b->WorldPoints);
+			// 수집 때 재 둔 값 — 여기서 다시 판정하면 쌍마다 정점 전체를 훑게 된다.
+			const bool aIsConvex = polygons[i].IsConvex;
+			const bool bIsConvex = polygons[j].IsConvex;
 
 			Vector2 bestNormal;
 			float          bestPen = 0.0f;
@@ -3058,8 +3169,10 @@ void CPhysics2DSystem::DetectContacts(CGameCanvas& canvas)
 	// ── Circle vs Circle ──────────────────────────────────────────────────────
 	for (std::size_t i = 0; i < circles.size(); ++i)
 	{
-		for (std::size_t j = i + 1; j < circles.size(); ++j)
+		const BroadPhaseRange ccRange = m_rangesCircleCircle[i];
+		for (std::uint32_t k = ccRange.Begin; k < ccRange.Begin + ccRange.Count; ++k)
 		{
+			const std::size_t j = m_pairsCircleCircle[k].B;
 			CGameObject* ea = circles[i].first;
 			CGameObject* eb = circles[j].first;
 			if (ea == eb) continue;
@@ -3094,10 +3207,16 @@ void CPhysics2DSystem::DetectContacts(CGameCanvas& canvas)
 
 	// ── Polygon vs Circle ─────────────────────────────────────────────────────
 	// 오목 폴리곤 지원: ConvexPiece 각각에 대해 원 충돌 검사, 최소 침투 채택.
-	for (auto& [pe, polygon] : polygons)
+	for (std::size_t i = 0; i < polygons.size(); ++i)
 	{
-		for (auto& [ce, circle] : circles)
+		const DetectPolygon&      polygonEntry = polygons[i];
+		CGameObject* const        pe      = polygonEntry.Owner;
+		PolygonCollider2D* const  polygon = polygonEntry.Collider;
+		const BroadPhaseRange pcRange = m_rangesPolygonCircle[i];
+		for (std::uint32_t k = pcRange.Begin; k < pcRange.Begin + pcRange.Count; ++k)
 		{
+			CGameObject* const      ce     = circles[m_pairsPolygonCircle[k].B].first;
+			CircleCollider2D* const circle = circles[m_pairsPolygonCircle[k].B].second;
 			if (pe == ce) continue;
 			if (!ShouldCollidePair(polygon->CollisionLayer, polygon->CollisionMask, circle->CollisionLayer, circle->CollisionMask)) continue;
 			if (!IntersectsAABB(polygon->WorldAABB, circle->WorldAABB)) continue;
@@ -3107,7 +3226,7 @@ void CPhysics2DSystem::DetectContacts(CGameCanvas& canvas)
 			Vector2 bestNormal;
 			Vector2 bestContactPoint;
 
-			if (IsConvexPolygon(polygon->WorldPoints))
+			if (polygonEntry.IsConvex)
 			{
 				// 볼록 폴리곤: 전체 WorldPoints 직접 SAT
 				Vector2 n; float pen;
