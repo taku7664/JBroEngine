@@ -153,6 +153,44 @@ private:
 	std::vector<std::uint8_t> m_newValue;
 };
 
+// 한 컴포넌트의 **여러 프로퍼티를 한 번에** 쓴다.
+// "렌더러에 맞추기" 처럼 버튼 한 번이 Size 와 Offset 을 같이 바꾸는 편집용 —
+// 단일 프로퍼티 커맨드를 두 개 쌓으면 되돌리는 데 Ctrl+Z 를 두 번 눌러야 한다.
+// 병합은 하지 않는다(드래그가 아니라 1회성 액션이다).
+class CSetComponentPropertiesCommand final : public IEditorCommand
+{
+public:
+	struct FieldWrite
+	{
+		std::size_t               Offset = 0;
+		std::vector<std::uint8_t> OldValue;
+		std::vector<std::uint8_t> NewValue;
+	};
+
+	CSetComponentPropertiesCommand(
+		SafePtr<CGameCanvas> canvas,
+		CGameObject* object,
+		TypeId componentTypeId,
+		std::vector<FieldWrite> writes,
+		const File::Guid& componentGuid);
+	~CSetComponentPropertiesCommand() override = default;
+
+	const char* GetName() const override;
+	bool Execute() override;
+	void Undo() override;
+	void Redo() override;
+
+private:
+	bool WriteAll(bool useNewValue);
+
+private:
+	SafePtr<CGameCanvas> m_canvas;
+	File::Guid m_objectGuid;
+	File::Guid m_componentGuid;
+	TypeId m_componentTypeId = INVALID_TYPE_ID;
+	std::vector<FieldWrite> m_writes;
+};
+
 class CSetComponentEnabledCommand final : public IEditorCommand
 {
 public:

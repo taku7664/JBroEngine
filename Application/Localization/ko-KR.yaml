@@ -693,6 +693,9 @@ Entries:
   inspector.camera_debug.culled: 컬링됨
   inspector.camera_debug.drawn: 드로우됨
   inspector.sprite.open_viewer: 스프라이트 뷰어 열기
+  inspector.button.fit_to_renderers: 렌더러에 맞추기
+  inspector.button.fit_padding: 여백
+  inspector.button.fit_empty: 맞출 렌더러가 없습니다 (자식 포함).
   inspector.sprite.pick_frame: 프레임 고르기
   inspector.sprite.pick_frame.no_sheet: 스프라이트를 먼저 지정하세요
   inspector.sprite.preview_frame_count: 미리보기 프레임 수

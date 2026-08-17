@@ -693,6 +693,9 @@ Entries:
   inspector.camera_debug.culled: Culled
   inspector.camera_debug.drawn: Drawn
   inspector.sprite.open_viewer: Open Sprite Viewer
+  inspector.button.fit_to_renderers: Fit To Renderers
+  inspector.button.fit_padding: Padding
+  inspector.button.fit_empty: No renderer to fit (including children).
   inspector.sprite.pick_frame: Pick Frame
   inspector.sprite.pick_frame.no_sheet: Assign a sprite first
   inspector.sprite.preview_frame_count: Preview Frame Count

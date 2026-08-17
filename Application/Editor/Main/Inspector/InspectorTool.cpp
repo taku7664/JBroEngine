@@ -35,6 +35,7 @@
 #include "Engine/Core/Asset/SpriteAsset.h"
 #include "Editor/Main/Importer/SpriteImportOptionsEditor.h"
 #include "Editor/Main/Importer/SpriteFramePick.h"
+#include "Editor/Main/Inspector/ButtonRectFit.h"
 #include "Editor/Main/Importer/SpriteViewerWindow.h"
 #include "Engine/Core/Asset/AudioAsset.h"
 #include "Engine/Core/Asset/FontAsset.h"
@@ -47,6 +48,7 @@
 #include "Engine/Editor/ImEditor.h"
 #include "Engine/Editor/Project/ProjectManager.h"
 #include "Engine/GameFramework/Component/AudioComponents.h"
+#include "Engine/GameFramework/Component/Button2D.h"
 #include "Engine/GameFramework/Component/Camera2D.h"
 #include "Engine/GameFramework/Component/Physics2DComponents.h"
 #include "Engine/GameFramework/Scripting/GameScript.h"
@@ -968,6 +970,67 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 		}
 	}
 
+	// "렌더러에 맞추기" — 나 + 자식 렌더러 경계 합집합을 Size/Offset 에 **1회 복사**한다.
+	// 런타임 추종이 아니라 복사인 이유는 Button2D.h 참고(판정 발진).
+	// Padding 은 런타임 필드가 아니라 이 액션의 인자다 — 컴포넌트에 두면 "적용된 값"과
+	// "적용할 값" 두 개가 생겨 어느 쪽이 진짜인지 알 수 없게 된다.
+	void DrawButtonRectFitSection(CGameCanvas& canvas, CGameObject* selectedObject, Button2D& button)
+	{
+		static float s_padding = 0.0f;
+
+		ImGui::Spacing();
+		ImGui::Separator();
+
+		// 합집합을 매 프레임 미리 구한다 — 붙일 렌더러가 없으면 **누르기 전에** 알 수 있어야 한다.
+		// 눌러 놓고 나서 0 렉트가 들어가면 조용히 안 눌리는 버튼이 된다.
+		Rect bounds;
+		const bool hasBounds = nullptr != selectedObject
+			&& ButtonRectFit::ComputeRendererUnion(*selectedObject, bounds);
+
+		ImGui::SetNextItemWidth(90.0f);
+		ImGui::DragFloat(Loc::Text(EditorLocKeys::InspectorButtonFitPadding), &s_padding, 0.01f, 0.0f, 100.0f, "%.3f");
+
+		ImGui::SameLine();
+		bool pressed = false;
+		{
+			ImGui::Utillity::DisableScope disable(false == hasBounds);
+			pressed = ImGui::Button(Loc::Text(EditorLocKeys::InspectorButtonFitToRenderers));
+		}
+		if (false == hasBounds)
+		{
+			ImGui::TextDisabled("%s", Loc::Text(EditorLocKeys::InspectorButtonFitEmpty));
+			return;
+		}
+		if (false == pressed)
+		{
+			return;
+		}
+
+		const Vector2 newSize(
+			(bounds.Right - bounds.Left) + s_padding * 2.0f,
+			(bounds.Bottom - bounds.Top) + s_padding * 2.0f);
+		const Vector2 newOffset(
+			(bounds.Left + bounds.Right) * 0.5f,
+			(bounds.Top + bounds.Bottom) * 0.5f);
+
+		// Size 와 Offset 은 한 번의 클릭이 만든 **하나의** 편집이다 —
+		// 커맨드를 둘로 쌓으면 되돌리는 데 Ctrl+Z 를 두 번 눌러야 한다.
+		auto bytesOf = [](const Vector2& value)
+		{
+			std::vector<std::uint8_t> bytes(sizeof(Vector2));
+			std::memcpy(bytes.data(), &value, sizeof(Vector2));
+			return bytes;
+		};
+
+		std::vector<CSetComponentPropertiesCommand::FieldWrite> writes;
+		writes.push_back({ offsetof(Button2D, Size),   bytesOf(button.Size),   bytesOf(newSize) });
+		writes.push_back({ offsetof(Button2D, Offset), bytesOf(button.Offset), bytesOf(newOffset) });
+
+		Editor::CommandManager.ExecuteCommand(MakeOwnerPtr<CSetComponentPropertiesCommand>(
+			canvas.SafeFromThis(), selectedObject, button.GetTypeId(),
+			std::move(writes), button.GetInstanceGuid()));
+	}
+
 	void DrawTransformMatrixReadOnly(const Transform2D& transform)
 	{
 		const Matrix3x2 matrix = transform.ToMatrix3x2();
@@ -1204,6 +1267,8 @@ CSpriteAsset* sprite = Engine.ResourceRegistry->GetSprite(key);
 			DrawPolygonColliderDebug(canvas, selectedObject, *static_cast<PolygonCollider2D*>(component));
 		else if (componentType.Type.Id == CReflectionRegistry::MakeTypeId("Camera2D"))
 			DrawCamera2DDebug(selectedObject);
+		else if (componentType.Type.Id == CReflectionRegistry::MakeTypeId("Button2D"))
+			DrawButtonRectFitSection(canvas, selectedObject, *static_cast<Button2D*>(component));
 		else if (componentType.Type.Id == CReflectionRegistry::MakeTypeId("Text2D"))
 		{
 			const Text2D& text = *static_cast<const Text2D*>(component);

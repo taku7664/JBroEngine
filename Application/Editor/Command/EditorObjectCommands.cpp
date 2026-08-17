@@ -426,6 +426,70 @@ bool CSetComponentPropertyCommand::WriteValue(const std::vector<std::uint8_t>& v
 	return true;
 }
 
+CSetComponentPropertiesCommand::CSetComponentPropertiesCommand(
+	SafePtr<CGameCanvas> canvas,
+	CGameObject* object,
+	TypeId componentTypeId,
+	std::vector<FieldWrite> writes,
+	const File::Guid& componentGuid)
+	: m_canvas(canvas)
+	, m_objectGuid(GuidOf(object))
+	, m_componentGuid(componentGuid)
+	, m_componentTypeId(componentTypeId)
+	, m_writes(std::move(writes))
+{
+}
+
+const char* CSetComponentPropertiesCommand::GetName() const
+{
+	return "Set Component Properties";
+}
+
+bool CSetComponentPropertiesCommand::Execute()
+{
+	return WriteAll(true);
+}
+
+void CSetComponentPropertiesCommand::Undo()
+{
+	WriteAll(false);
+}
+
+void CSetComponentPropertiesCommand::Redo()
+{
+	WriteAll(true);
+}
+
+bool CSetComponentPropertiesCommand::WriteAll(bool useNewValue)
+{
+	CGameObject* object = Resolve(m_canvas, m_objectGuid);
+	if (m_writes.empty() || nullptr == object || nullptr == m_canvas.TryGet())
+	{
+		return false;
+	}
+
+	CComponent* component = CCanvasRuntimeAccess::FindComponentByGuid(*object, m_componentGuid);
+	if (nullptr == component)
+	{
+		return false;
+	}
+
+	for (const FieldWrite& write : m_writes)
+	{
+		const std::vector<std::uint8_t>& value = useNewValue ? write.NewValue : write.OldValue;
+		if (value.empty())
+		{
+			continue;
+		}
+		std::memcpy(reinterpret_cast<std::uint8_t*>(component) + write.Offset, value.data(), value.size());
+	}
+
+	// raw 로 썼으니 세터가 하던 일(렌더러 경계 캐시 무효화)을 대신 알린다 —
+	// 단일 프로퍼티 커맨드와 같은 계약이다. 필드마다가 아니라 한 번이면 된다.
+	CRendererComponentAccess::NotifyReflectedWrite(*component);
+	return true;
+}
+
 CSetComponentEnabledCommand::CSetComponentEnabledCommand(
 	SafePtr<CGameCanvas> canvas,
 	CGameObject* object,

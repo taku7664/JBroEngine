@@ -310,6 +310,9 @@ namespace EditorLocKeys
 	constexpr const char* InspectorColliderWorldAabbMin = "inspector.collider.world_aabb_min";
 	constexpr const char* InspectorColliderWorldCenter = "inspector.collider.world_center";
 	constexpr const char* InspectorColliderWorldRadius = "inspector.collider.world_radius";
+	constexpr const char* InspectorButtonFitEmpty = "inspector.button.fit_empty";
+	constexpr const char* InspectorButtonFitPadding = "inspector.button.fit_padding";
+	constexpr const char* InspectorButtonFitToRenderers = "inspector.button.fit_to_renderers";
 	constexpr const char* InspectorColumnCount = "inspector.column_count";
 	constexpr const char* InspectorColumnCountDesc = "inspector.column_count.desc";
 	constexpr const char* InspectorContactsDetected = "inspector.contacts.detected";
