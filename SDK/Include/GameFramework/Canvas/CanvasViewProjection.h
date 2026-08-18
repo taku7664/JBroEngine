@@ -17,7 +17,7 @@
 //
 //  카메라 오너 트랜스폼 + OrthographicSize + 뷰포트 렉트를 하나로 해석한 결과다.
 //  같은 계산을 두 곳이 쓴다:
-//    · CollectGameRenderViewports (렌더 수집) — GameRenderViewportDesc 를 채운다.
+//    · CollectGameRenderViewports (렌더 수집) — Render2DViewportDesc 를 채운다.
 //    · CGameCanvas::ScreenToWorld (입력 역투영) — 스크린 픽셀을 월드로 되돌린다.
 //  둘이 계산을 각자 재현하면 역투영이 렌더와 미세하게 어긋난다(마우스 피킹이 조용히 빗나간다).
 //  그래서 한 함수(ComputeCanvasViewProjection)로 뽑고 양쪽이 공유한다.

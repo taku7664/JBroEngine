@@ -13,6 +13,7 @@
 #include "Engine/GameFramework/Reflection/ReflectionRegistry.h"
 #include "Engine/GameFramework/Canvas/GameLayer.h"
 #include "Engine/GameFramework/Canvas/Canvas.h"
+#include "Engine/Utillity/File/GuidConvert.h"   // ToGuid128 — FindScript 는 Guid128 로 받는다(에디터는 cold path)
 #include "Engine/GameFramework/Canvas/CanvasRuntimeAccess.h"
 #include "Engine/GameFramework/Canvas/CanvasTransformUtils.h"
 #include "Engine/GameFramework/Serialization/ComponentSerializer.h"
@@ -164,7 +165,7 @@ void CAddScriptCommand::Undo()
 	if (CGameScript* script = CCanvasRuntimeAccess::FindScript(
 		*m_canvas,
 		*object,
-		m_scriptComponentGuid))
+		ToGuid128(m_scriptComponentGuid)))
 	{
 		CCanvasRuntimeAccess::DestroyComponent(*m_canvas, script);
 	}
@@ -207,7 +208,7 @@ bool CRemoveScriptCommand::Execute()
 {
 	CGameObject* object = Resolve(m_canvas, m_objectGuid);
 	CGameScript* script = object
-		? CCanvasRuntimeAccess::FindScript(*m_canvas, *object, m_componentGuid)
+		? CCanvasRuntimeAccess::FindScript(*m_canvas, *object, ToGuid128(m_componentGuid))
 		: nullptr;
 	m_removed = nullptr != script;
 	if (script)

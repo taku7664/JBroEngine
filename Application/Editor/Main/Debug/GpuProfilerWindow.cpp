@@ -14,7 +14,7 @@
 #include "Engine/GameFramework/Canvas/Canvas.h"
 #include "Engine/GameFramework/Canvas/GameLayer.h"
 #include "Engine/GameFramework/Object/GameObject.h"       // 드로우순서 키(=CGameObject*) 이름 역해석
-#include "Engine/GameFramework/Rendering/GameCamera.h"   // GpuLayerKey/GpuRenderCutoff — 키·컷오프
+#include "Engine/GameFramework/Rendering/GameCamera.h"   // GpuLayerKey/Render2DCutoff — 키·컷오프
 
 #include <algorithm>
 
@@ -61,7 +61,7 @@ void CGpuProfilerWindow::OnRenderStay()
 		// 꺼짐 = 비용 0. 프리뷰 RT 도 반납한다(두 번째 렌더도 멈춘다).
 		if (Editor::ImEditor.IsValid())
 		{
-			Editor::ImEditor->RequestGpuProfilerPreview(0, GpuRenderCutoff{});
+			Editor::ImEditor->RequestGpuProfilerPreview(0, Render2DCutoff{});
 		}
 		const char* hint = Loc::Text(EditorLocKeys::GpuProfilerDisabledHint);
 		const ImVec2 avail = ImGui::GetContentRegionAvail();
@@ -92,7 +92,7 @@ void CGpuProfilerWindow::OnRenderStay()
 		// 선택 없음 → 프리뷰 요청 해제(RT 반납).
 		if (Editor::ImEditor.IsValid())
 		{
-			Editor::ImEditor->RequestGpuProfilerPreview(0, GpuRenderCutoff{});
+			Editor::ImEditor->RequestGpuProfilerPreview(0, Render2DCutoff{});
 		}
 		return;
 	}
@@ -124,7 +124,7 @@ void CGpuProfilerWindow::OnRenderStay()
 void CGpuProfilerWindow::DrawPreview(CGameCanvas& canvas)
 {
 	// 선택 상태 → 컷오프 계산. 레이어 미선택이면 프리뷰 없음(요청 0 → RT 반납).
-	GpuRenderCutoff cutoff;
+	Render2DCutoff cutoff;
 	if (const CGameLayer* layer = FindLayerByKey(canvas, m_selectedLayerKey))
 	{
 		cutoff.Active = true;

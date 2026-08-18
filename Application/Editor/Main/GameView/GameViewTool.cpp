@@ -90,7 +90,7 @@ void CGameViewTool::OnRenderStay()
 	// 캔버스 업데이트 전) 수집분은 "활성 카메라 존재" 판정(RT 요청/해제)에만 쓴다.
 	if (Editor::ImEditor)
 	{
-		std::vector<GameRenderViewportDesc> viewports;
+		std::vector<Render2DViewportDesc> viewports;
 		SafePtr<CGameCanvas> canvas;
 		if (Engine.CanvasManager)
 		{
