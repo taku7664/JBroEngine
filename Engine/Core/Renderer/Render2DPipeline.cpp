@@ -221,9 +221,11 @@ namespace
 					CGpuProfiler* profiler = Engine.GpuProfiler.TryGet();
 					profiler->BeginLayerDrawOrder(layer.Index);
 
-					// 배치 그룹핑을 RenderWithSkip 와 같은 규칙으로 재현한다 — 연속·가시·같은 텍스처/샘플러·
-					// 배치가능 아이템의 최대 런이 하나의 인스턴싱 드로우콜(같은 group). 컬링/배치불가 아이템은
-					// 런을 끊는다. 배치 판정 근거는 forward->GetItemBatchKey 가 유일 출처라 핫패스와 안 어긋난다.
+					// 배치 그룹핑을 RenderWithSkip 와 같은 규칙으로 재현한다 — 가시·같은 텍스처/샘플러·
+					// 배치가능 아이템의 최대 런이 하나의 인스턴싱 드로우콜(같은 group).
+					// **컬링된 아이템은 런을 끊지 않는다** — 그려지지 않으므로 렌더러도 건너뛰고 런을 잇는다.
+					// 배치불가 아이템만 런을 끊는다. 배치 판정 근거는 forward->GetItemBatchKey 가 유일
+					// 출처라 핫패스와 안 어긋난다.
 					// (게임뷰는 excluded 없이 컬링만 적용하므로 shouldSkip 재현 없이 실제 드로우와 일치한다.)
 					std::uint32_t nextGroup = 0;
 					std::uint32_t runGroup = 0;
@@ -236,8 +238,7 @@ namespace
 						if (false == ItemVisibleInView(drawItem, view))
 						{
 							profiler->RecordDrawOrderItem(drawItem.Entity, true, INVALID_DRAW_GROUP);
-							runOpen = false;   // 컬링 아이템은 배치 런을 끊는다.
-							continue;
+							continue;   // 런은 유지 — 렌더러도 이 아이템을 건너뛰고 런을 이어 간다.
 						}
 
 						const CForward2DRenderer::RenderItemBatchKey key =

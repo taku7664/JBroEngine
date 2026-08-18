@@ -1517,14 +1517,16 @@ CForward2DRenderer::RenderItemBatchKey CForward2DRenderer::GetItemBatchKey(const
 	return key;
 }
 
-bool CForward2DRenderer::DrawSpriteBatch(IRHICommandContext& commandContext, RenderStateCache& stateCache, const RenderItem* items, std::uint32_t itemCount, const SpriteDrawResources& resources, const ViewParameters& view)
+// 인스턴스 배열(m_spriteBatchInstances)은 호출자가 이미 채워 둔다 — 런이 연속 구간이 아니라
+// (컬링/스킵된 아이템을 건너뛴) 선별된 목록이라 여기서 다시 만들 수 없다.
+bool CForward2DRenderer::DrawSpriteBatch(IRHICommandContext& commandContext, RenderStateCache& stateCache, const RenderItem& firstItem, const SpriteDrawResources& resources, const ViewParameters& view)
 {
-	if (nullptr == items || 0 == itemCount || !m_spriteBatchPipeline || !m_quadMesh)
+	const std::uint32_t itemCount = static_cast<std::uint32_t>(m_spriteBatchInstances.size());
+	if (0 == itemCount || !m_spriteBatchPipeline || !m_quadMesh)
 	{
 		return false;
 	}
 
-	const RenderItem& firstItem = items[0];
 	if (false == firstItem.Material.IsValid())
 	{
 		return false;
@@ -1540,13 +1542,6 @@ bool CForward2DRenderer::DrawSpriteBatch(IRHICommandContext& commandContext, Ren
 	if (false == vertexBuffer.IsValid() || false == indexBuffer.IsValid())
 	{
 		return false;
-	}
-
-	m_spriteBatchInstances.clear();
-	m_spriteBatchInstances.reserve(itemCount);
-	for (std::uint32_t i = 0; i < itemCount; ++i)
-	{
-		m_spriteBatchInstances.push_back(BuildSpriteInstanceData(items[i]));
 	}
 
 	const SpriteViewConstants viewConstants = BuildSpriteViewConstants(view);
@@ -1662,20 +1657,36 @@ void CForward2DRenderer::RenderWithSkip(IRenderScene& scene, const RenderItemRan
 		}
 
 		const SpriteDrawResources resources = ResolveSpriteDrawResources(item);
+		std::uint32_t scan = i + 1;
 		if (CanBatchSpriteItem(item, resources))
 		{
-			std::uint32_t batchCount = 1;
-			while (i + batchCount < itemCount)
+			// 런 수집 — 컬링/스킵된 아이템은 **런을 끊지 않고 건너뛴다**. 안 그려지는 아이템이
+			// 사이에 끼었다고 드로우콜을 쪼갤 이유가 없다(겹침 순서는 그려지는 아이템들 사이에서만
+			// 의미가 있고, 그 상대 순서는 그대로다). 예전에는 여기서 break 해서, 넓은 맵을 훑는
+			// 카메라처럼 화면 밖 스프라이트가 정렬 순서 중간에 섞이는 상황마다 배치가 잘렸다.
+			m_spriteBatchInstances.clear();
+			m_spriteBatchInstances.push_back(BuildSpriteInstanceData(item));
+
+			// 통계는 런을 **실제로 소비했을 때만** 반영한다. 배치 드로우가 실패하면 아래에서
+			// 머리 아이템만 그리고 나머지를 다음 반복에 다시 보게 되는데, 여기서 미리 더하면
+			// 그때 이중 계수가 된다.
+			std::uint32_t runDrawable = 0;
+			std::uint32_t runCulled = 0;
+
+			while (scan < itemCount)
 			{
-				const RenderItem& nextItem = items[i + batchCount];
+				const RenderItem& nextItem = items[scan];
 				if (shouldSkip(nextItem.Entity))
 				{
-					break;
+					++scan;
+					continue;
 				}
 
 				if (false == IsSpriteItemVisibleInView(nextItem, view))
 				{
-					break;
+					++runCulled;
+					++scan;
+					continue;
 				}
 
 				const SpriteDrawResources nextResources = ResolveSpriteDrawResources(nextItem);
@@ -1683,23 +1694,28 @@ void CForward2DRenderer::RenderWithSkip(IRenderScene& scene, const RenderItemRan
 					|| nextResources.Sampler != resources.Sampler
 					|| false == CanBatchSpriteItem(nextItem, nextResources))
 				{
-					break;
+					break;   // 이 아이템은 다음 바깥 루프에서 새 런의 머리가 된다.
 				}
-				++batchCount;
+				m_spriteBatchInstances.push_back(BuildSpriteInstanceData(nextItem));
+				++runDrawable;
+				++scan;
 			}
 
-			if (batchCount > 1)
+			if (m_spriteBatchInstances.size() > 1
+				&& DrawSpriteBatch(*commandContext.TryGet(), stateCache, item, resources, view))
 			{
-				if (DrawSpriteBatch(*commandContext.TryGet(), stateCache, items + i, batchCount, resources, view))
-				{
-					m_lastCullingStats.SubmittedCount += batchCount - 1;
-					m_lastCullingStats.DrawnCount += batchCount;
-					i += batchCount;
-					continue;
-				}
+				// 방문한 아이템은 전부 제출로 센다(개별 드로우 경로와 같은 의미).
+				m_lastCullingStats.SubmittedCount += runDrawable + runCulled;
+				m_lastCullingStats.CulledCount    += runCulled;
+				m_lastCullingStats.DrawnCount     += runDrawable + 1;
+				i = scan;
+				continue;
 			}
 		}
 
+		// 배치를 못 했거나(런이 1개) 배치 드로우가 실패한 경로 — 머리 아이템만 개별로 그리고
+		// 한 칸만 전진한다. 뒤따르던 아이템들은 아직 아무것도 세지 않았으므로 다음 반복에서
+		// 처음 보는 것처럼 다시 처리된다.
 		if (DrawSpriteItem(*commandContext.TryGet(), stateCache, item, resources, view))
 		{
 			++m_lastCullingStats.DrawnCount;

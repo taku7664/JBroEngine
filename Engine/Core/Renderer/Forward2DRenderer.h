@@ -195,7 +195,7 @@ private:
 	// AddRef/ReleaseRef 가 4쌍 발생한다(비원자라 개별 비용은 작지만 드로우 수에 곱해진다).
 	// 호출 구간 동안 소유자(렌더러/머티리얼/RT풀)가 살아 있는 것은 프레임 계약으로 보장된다.
 	bool DrawSpriteQuad(IRHICommandContext& commandContext, RenderStateCache& stateCache, const SafePtr<IRHIGraphicsPipeline>& pipeline, const SafePtr<IRenderMesh>& mesh, const SafePtr<IRHITexture>& texture, const SafePtr<IRHISampler>& sampler, const SpriteConstants& constants);
-	bool DrawSpriteBatch(IRHICommandContext& commandContext, RenderStateCache& stateCache, const RenderItem* items, std::uint32_t itemCount, const SpriteDrawResources& resources, const ViewParameters& view);
+	bool DrawSpriteBatch(IRHICommandContext& commandContext, RenderStateCache& stateCache, const RenderItem& firstItem, const SpriteDrawResources& resources, const ViewParameters& view);
 	bool CanBatchSpriteItem(const RenderItem& item, const SpriteDrawResources& resources) const;
 	bool CreateSpritePipeline();
 	bool CreateTextPipeline();
