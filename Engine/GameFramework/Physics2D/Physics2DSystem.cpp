@@ -13,6 +13,7 @@
 #include "GameFramework/Physics2D/Physics2DQueryGeometry.h"
 #include "GameFramework/Physics2D/Physics2DTypes.h"
 #include "GameFramework/Canvas/Canvas.h"
+#include "GameFramework/Canvas/CanvasTransformUtils.h"   // ComputeWorldTransformNow — 즉석 계산 단일 출처
 #include "GameFramework/Scripting/GameScript.h"
 #include "Utillity/Types/Hash.h"   // HashCombine — 매니폴드 페어 키 해시
 
@@ -282,23 +283,15 @@ namespace
 		return NormalizeSafe(outward);
 	}
 
-	// Transform 은 CGameObject 의 멤버(Local). 부모 사슬을 걸어 월드 행렬을 즉석 계산.
-	// (물리는 FixedUpdate 에서 도는데 World 캐시는 Update 단계 산출물이라 stale 가능 →
-	//  물리는 항상 on-demand 계산을 쓴다.)
+	// 물리는 FixedUpdate 에서 도는데 World 캐시는 Update 단계 산출물이라 stale 가능 →
+	// 항상 즉석 계산을 쓴다. 구현은 CanvasTransformUtils 의 공용 함수 하나뿐이다.
+	//
+	// 예전에는 여기 사본이 있었고 그 사본은 **화면 공간 레이어의 앵커 평행이동을 빠뜨렸다** —
+	// 같은 오브젝트를 두고 물리와 렌더가 서로 다른 위치를 믿는 상태였다(World 레이어는
+	// 앵커가 (0,0) 이라 드러나지 않았다).
 	Matrix3x2 CalculateWorldTransformNow(const CGameObject* object)
 	{
-		if (nullptr == object)
-		{
-			return Matrix3x2::Identity();
-		}
-		Matrix3x2 worldTransform = object->GetTransform().ToMatrix3x2();
-		const CGameObject* parent = object->GetParent().TryGet();
-		while (nullptr != parent)
-		{
-			worldTransform = worldTransform * parent->GetTransform().ToMatrix3x2();
-			parent = parent->GetParent().TryGet();
-		}
-		return worldTransform;
+		return nullptr != object ? ComputeWorldTransformNow(*object) : Matrix3x2::Identity();
 	}
 
 	Matrix3x2 CalculateParentWorldTransformNow(const CGameObject* object)

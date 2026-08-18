@@ -91,6 +91,7 @@ Engine/GameFramework/Rendering/ShapeRenderSystem.cpp
 Engine/GameFramework/Rendering/TextRenderSystem.cpp
 Engine/GameFramework/Canvas/Canvas.cpp
 Engine/GameFramework/Canvas/CanvasManager.cpp
+Engine/GameFramework/Canvas/CanvasTransformUtils.cpp
 Engine/GameFramework/Canvas/CanvasSerializer.cpp
 Engine/GameFramework/Serialization/ComponentSerializer.cpp
 Engine/GameFramework/Serialization/LayerSerializer.cpp

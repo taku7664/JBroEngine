@@ -791,6 +791,7 @@
     <ClCompile Include="GameFramework\Rendering\TextRenderSystem.cpp" />
     <ClCompile Include="GameFramework\Canvas\Canvas.cpp" />
     <ClCompile Include="GameFramework\Canvas\CanvasManager.cpp" />
+    <ClCompile Include="GameFramework\Canvas\CanvasTransformUtils.cpp" />
     <ClCompile Include="GameFramework\Canvas\CanvasSerializer.cpp" />
     <ClCompile Include="GameFramework\Serialization\ComponentSerializer.cpp" />
     <ClCompile Include="GameFramework\Serialization\LayerSerializer.cpp" />
