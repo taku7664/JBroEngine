@@ -189,10 +189,17 @@ private:
 	//
 	// 세 종류를 한 번의 훑기로 처리하고 조합별 목록에 나눠 담는다 — 정밀 판정 코드는
 	// 조합마다 완전히 다르므로 목록만 나누고 판정부는 그대로 둔다.
+	// y 구간도 함께 든다. 훑기는 x 로만 진행하지만, 쌍을 담기 **전에** y 까지 보고 거르기
+	// 위해서다. x 만 보고 담으면 격자형 배치(같은 열의 콜라이더들이 x 를 공유)에서 한 열의
+	// 모든 조합이 후보로 쌓이고, 정밀 판정이 y 로 전부 버린다 — 실측에서 이게 브로드페이즈
+	// 비용의 대부분이었다. 여기서 보는 판정은 정밀 판정부의 IntersectsAABB 와 같은 것이라
+	// 결과가 달라지지 않는다(같은 검사를 앞당길 뿐).
 	struct SweepProxy
 	{
 		float         MinX     = 0.0f;
 		float         MaxX     = 0.0f;
+		float         MinY     = 0.0f;
+		float         MaxY     = 0.0f;
 		std::uint32_t Index    = 0;       // m_detectPolygons / m_detectCircles 의 인덱스
 		bool          IsCircle = false;
 	};

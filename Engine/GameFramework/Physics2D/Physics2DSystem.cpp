@@ -2889,13 +2889,15 @@ void CPhysics2DSystem::BuildBroadPhasePairs()
 	{
 		const PhysicsAABB2D& box = m_detectPolygons[i].Collider->WorldAABB;
 		if (false == hasFiniteSpan(box)) continue;
-		proxies.push_back(SweepProxy{ box.Min.x, box.Max.x, static_cast<std::uint32_t>(i), false });
+		proxies.push_back(SweepProxy{ box.Min.x, box.Max.x, box.Min.y, box.Max.y,
+			static_cast<std::uint32_t>(i), false });
 	}
 	for (std::size_t i = 0; i < m_detectCircles.size(); ++i)
 	{
 		const PhysicsAABB2D& box = m_detectCircles[i].second->WorldAABB;
 		if (false == hasFiniteSpan(box)) continue;
-		proxies.push_back(SweepProxy{ box.Min.x, box.Max.x, static_cast<std::uint32_t>(i), true });
+		proxies.push_back(SweepProxy{ box.Min.x, box.Max.x, box.Min.y, box.Max.y,
+			static_cast<std::uint32_t>(i), true });
 	}
 
 	// MinX 오름차순. 동률은 어떻게 놓든 아래 겹침 판정 결과가 같다(같은 MinX 면 서로
@@ -2920,6 +2922,14 @@ void CPhysics2DSystem::BuildBroadPhasePairs()
 
 		for (const SweepProxy& other : active)
 		{
+			// active 에 있다는 건 x 로 겹친다는 뜻뿐이다. y 는 아직 안 봤다 — 여기서 걸러야
+			// 격자형 배치에서 한 열의 모든 조합이 목록에 쌓였다가 정밀 판정에서 버려지는 일이
+			// 없다. 경계 포함 관계는 IntersectsAABB 와 같게 맞춘다(<=, >=).
+			if (current.MinY > other.MaxY || current.MaxY < other.MinY)
+			{
+				continue;
+			}
+
 			if (current.IsCircle == other.IsCircle)
 			{
 				// 같은 종류 — 인덱스 오름차순으로 정규화해 담는다.
