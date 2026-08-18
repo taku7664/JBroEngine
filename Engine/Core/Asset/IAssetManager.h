@@ -29,6 +29,11 @@ public:
 	virtual bool ResolveAssetPath(const File::Path& path, File::Path& outResolvedPath) const = 0;
 
 	virtual AssetRef<IAsset> FindLoadedAsset(const AssetGuid& guid) = 0;
+	// Ref<Asset>::Get() 전용 — guid **텍스트**로 곧장 조회한다. 스크립트가 매 프레임 부를 수
+	// 있는 자리라, 조회하려고 AssetGuid(fs::path)를 만드는 것만으로 붙던 트랜스코딩 + 힙 할당을
+	// 없앤다. 이미 로드돼 있으면 할당 없이 즉시 반환하고, 아직이면 그때만 로드 경로를 탄다.
+	// 반환은 raw 포인터다(use-count 를 잡지 않는다) — 호출자가 매번 다시 받는다는 전제.
+	virtual IAsset* FindOrLoadAssetByGuidText(const char* guidText) = 0;
 	virtual AssetRef<IAsset> LoadAsset(const AssetGuid& guid) = 0;
 	virtual AssetRef<IAsset> LoadAssetByPath(const File::Path& path) = 0;
 	virtual AssetRef<IAsset> ReloadAsset(const AssetGuid& guid) = 0;

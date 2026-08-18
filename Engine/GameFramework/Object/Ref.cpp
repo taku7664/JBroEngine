@@ -88,14 +88,9 @@ IAsset* RefDetail::ResolveAsset(const char* assetGuid)
 	{
 		return nullptr;
 	}
-	const File::Guid guid(assetGuid);
-	// 이미 로드돼 있으면 그것을, 아니면 로드한다(LoadAsset 은 멱등).
-	// 주의: 여기서 반환되는 raw pointer 는 호출자가 strong ref 를 유지하지 않으므로
-	// 자산이 unload 될 수 있다. 스크립트가 이 포인터를 매번 다시 받는다는 가정 하에 동작.
-	AssetRef<IAsset> asset = Script.AssetManager->FindLoadedAsset(guid);
-	if (false == asset.IsValid())
-	{
-		asset = Script.AssetManager->LoadAsset(guid);
-	}
-	return asset.Get();
+	// 이미 로드돼 있으면 그것을, 아니면 로드한다(멱등). guid 텍스트를 그대로 넘겨
+	// AssetGuid(fs::path) 생성을 피한다 — 적중 경로에 할당이 없다.
+	// 주의: 반환되는 raw pointer 는 호출자가 strong ref 를 유지하지 않으므로 자산이
+	// unload 될 수 있다. 스크립트가 이 포인터를 매번 다시 받는다는 가정 하에 동작.
+	return Script.AssetManager->FindOrLoadAssetByGuidText(assetGuid);
 }

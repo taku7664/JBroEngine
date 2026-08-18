@@ -3,6 +3,7 @@
 #include "Core/Asset/AssetRegistry.h"
 #include "Core/Asset/AssetPackage.h"
 #include "Core/Asset/IAssetManager.h"
+#include "Utillity/File/Guid128.h"
 #include "Core/Asset/IAssetLoader.h"
 #include "Core/Asset/IAsset.h"
 
@@ -26,6 +27,7 @@ public:
 	bool ResolveAssetPath(const File::Path& path, File::Path& outResolvedPath) const override;
 
 	AssetRef<IAsset> FindLoadedAsset(const AssetGuid& guid) override;
+	IAsset* FindOrLoadAssetByGuidText(const char* guidText) override;
 	AssetRef<IAsset> LoadAsset(const AssetGuid& guid) override;
 	AssetRef<IAsset> LoadAssetByPath(const File::Path& path) override;
 	AssetRef<IAsset> ReloadAsset(const AssetGuid& guid) override;
@@ -62,7 +64,16 @@ private:
 	mutable std::recursive_mutex m_mutex;
 	CAssetRegistry m_registry;
 	std::unordered_map<EAssetType, OwnerPtr<IAssetLoader>> m_loaderTable;
-	std::unordered_map<AssetGuid, OwnerPtr<IAsset>> m_loadedAssetTable;
+	// 로드된 자산 — 키는 Guid128(정수형)이다. AssetGuid(fs::path)를 키로 쓰면 조회마다
+	// 비교/해시가 경로 연산이고, 무엇보다 스크립트의 Ref<Asset>::Get() 이 조회할 때마다
+	// 문자열에서 키를 새로 만들어야 했다(UTF8→UTF16 트랜스코딩 + 힙 할당).
+	// 원본 guid 는 값에 함께 둔다 — 레지스트리·use-count·렌더 캐시가 그걸 요구한다.
+	struct LoadedAsset
+	{
+		AssetGuid        Guid;
+		OwnerPtr<IAsset> Asset;
+	};
+	std::unordered_map<Guid128, LoadedAsset> m_loadedAssetTable;
 	// AssetRef<T> 의 use-count. 0 보다 크면 UnloadAsset / UnloadNonPersistentAssets 에서 스킵.
 	std::unordered_map<AssetGuid, std::size_t> m_useCountTable;
 	OwnerPtr<CAssetPackReader> m_packReader;

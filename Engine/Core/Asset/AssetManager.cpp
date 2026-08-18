@@ -15,6 +15,7 @@
 #include <cwctype>
 #include <fstream>
 #include <unordered_set>
+#include "Utillity/File/GuidConvert.h"   // ToGuid128 — 자산 테이블 키 변환
 
 namespace
 {
@@ -290,19 +291,39 @@ bool CAssetManager::ResolveAssetPath(const File::Path& path, File::Path& outReso
 AssetRef<IAsset> CAssetManager::FindLoadedAsset(const AssetGuid& guid)
 {
 	std::lock_guard lock(m_mutex);
-	auto it = m_loadedAssetTable.find(guid);
+	auto it = m_loadedAssetTable.find(ToGuid128(guid));
 	if (it == m_loadedAssetTable.end()) return AssetRef<IAsset>();
-	return AssetRef<IAsset>(SafeFromThis(), guid, it->second.Get());
+	return AssetRef<IAsset>(SafeFromThis(), guid, it->second.Asset.Get());
+}
+
+IAsset* CAssetManager::FindOrLoadAssetByGuidText(const char* guidText)
+{
+	if (nullptr == guidText || '\0' == guidText[0])
+	{
+		return nullptr;
+	}
+
+	std::lock_guard lock(m_mutex);
+	// 적중 경로 — 텍스트를 정수로 접어 바로 조회한다. 할당 없음.
+	auto it = m_loadedAssetTable.find(Guid128::FromText(guidText));
+	if (it != m_loadedAssetTable.end())
+	{
+		return it->second.Asset.Get();
+	}
+
+	// 미로드 — 여기서만 문자열 guid 를 만든다. 로드 자체가 디스크/디코딩 비용이라 무시할 수 있다.
+	// (m_mutex 는 recursive 라 아래 재진입이 안전하다.)
+	return LoadAsset(AssetGuid(guidText)).Get();
 }
 
 AssetRef<IAsset> CAssetManager::LoadAsset(const AssetGuid& guid)
 {
 	std::lock_guard lock(m_mutex);
 
-	auto it = m_loadedAssetTable.find(guid);
+	auto it = m_loadedAssetTable.find(ToGuid128(guid));
 	if (it != m_loadedAssetTable.end())
 	{
-		return AssetRef<IAsset>(SafeFromThis(), guid, it->second.Get());
+		return AssetRef<IAsset>(SafeFromThis(), guid, it->second.Asset.Get());
 	}
 
 	AssetMetaData metaData;
@@ -312,7 +333,7 @@ AssetRef<IAsset> CAssetManager::LoadAsset(const AssetGuid& guid)
 	if (!asset) return AssetRef<IAsset>();
 
 	IAsset* raw = asset.Get();
-	m_loadedAssetTable.emplace(guid, std::move(asset));
+	m_loadedAssetTable.emplace(ToGuid128(guid), LoadedAsset{ guid, std::move(asset) });
 	return AssetRef<IAsset>(SafeFromThis(), guid, raw);
 }
 
@@ -329,13 +350,13 @@ AssetRef<IAsset> CAssetManager::ReloadAsset(const AssetGuid& guid)
 
 	// in-place data swap 시도 — 자산이 이미 로드되어 있고 loader 가 ReloadInto 를 지원하면
 	// 같은 객체에 새 디스크 상태를 덮어쓴다. 외부 AssetRef / 머티리얼 캐시가 모두 살아남는다.
-	auto it = m_loadedAssetTable.find(guid);
+	auto it = m_loadedAssetTable.find(ToGuid128(guid));
 	if (it != m_loadedAssetTable.end())
 	{
 		AssetMetaData meta;
 		if (m_registry.TryGetAsset(guid, meta))
 		{
-			if (IAssetLoader* loader = FindLoader(it->second->GetAssetType()))
+			if (IAssetLoader* loader = FindLoader(it->second.Asset->GetAssetType()))
 			{
 				// meta.Path 는 상대경로(프로젝트 자산) 또는 절대(외부 자산).
 				// loader 는 디스크 접근 시 그대로 쓰므로 여기서 resolve 한 사본을 넘긴다.
@@ -345,14 +366,14 @@ AssetRef<IAsset> CAssetManager::ReloadAsset(const AssetGuid& guid)
 				{
 					resolvedMeta.Path = resolvedPath;
 				}
-				if (loader->ReloadInto(*it->second, resolvedMeta))
+				if (loader->ReloadInto(*it->second.Asset, resolvedMeta))
 				{
 					// 픽셀만 바뀐 경우 — cache 에게 GPU 텍스처 재생성 요구.
 					if (Engine.RenderResourceCache.IsValid())
 					{
 						Engine.RenderResourceCache->InvalidateSpriteTexture(guid);
 					}
-					return AssetRef<IAsset>(SafeFromThis(), guid, it->second.Get());
+					return AssetRef<IAsset>(SafeFromThis(), guid, it->second.Asset.Get());
 				}
 			}
 		}
@@ -361,12 +382,12 @@ AssetRef<IAsset> CAssetManager::ReloadAsset(const AssetGuid& guid)
 	// fallback — in-place 가 안 되거나 자산이 없으면 unload (use-count 무시 강제) + load.
 	// 외부 AssetRef 의 m_asset 캐시가 dangling 되지만 ReleaseUseCount 는 GUID 기반이라
 	// AssetRef 소멸 시 정상 ref-- 수행. 다음 LoadAsset 호출자가 새 객체를 얻는다.
-	auto assetIt = m_loadedAssetTable.find(guid);
+	auto assetIt = m_loadedAssetTable.find(ToGuid128(guid));
 	if (assetIt != m_loadedAssetTable.end())
 	{
-		if (IAssetLoader* loader = FindLoader(assetIt->second->GetAssetType()))
+		if (IAssetLoader* loader = FindLoader(assetIt->second.Asset->GetAssetType()))
 		{
-			loader->Unload(*assetIt->second);
+			loader->Unload(*assetIt->second.Asset);
 		}
 		m_loadedAssetTable.erase(assetIt);
 		if (Engine.RenderResourceCache.IsValid())
@@ -383,7 +404,7 @@ AssetRef<IAsset> CAssetManager::ReloadAsset(const AssetGuid& guid)
 	if (!asset) return AssetRef<IAsset>();
 
 	IAsset* raw = asset.Get();
-	m_loadedAssetTable.emplace(guid, std::move(asset));
+	m_loadedAssetTable.emplace(ToGuid128(guid), LoadedAsset{ guid, std::move(asset) });
 	return AssetRef<IAsset>(SafeFromThis(), guid, raw);
 }
 
@@ -397,7 +418,7 @@ AssetRef<IAsset> CAssetManager::ReloadAssetByPath(const File::Path& path)
 void CAssetManager::UnloadAsset(const AssetGuid& guid)
 {
 	std::lock_guard lock(m_mutex);
-	auto assetIt = m_loadedAssetTable.find(guid);
+	auto assetIt = m_loadedAssetTable.find(ToGuid128(guid));
 	if (assetIt == m_loadedAssetTable.end())
 	{
 		return;
@@ -411,9 +432,9 @@ void CAssetManager::UnloadAsset(const AssetGuid& guid)
 		return;
 	}
 
-	if (IAssetLoader* loader = FindLoader(assetIt->second->GetAssetType()))
+	if (IAssetLoader* loader = FindLoader(assetIt->second.Asset->GetAssetType()))
 	{
-		loader->Unload(*assetIt->second);
+		loader->Unload(*assetIt->second.Asset);
 	}
 
 	m_loadedAssetTable.erase(assetIt);
@@ -757,24 +778,24 @@ void CAssetManager::UnloadNonPersistentAssets()
 	for (auto it = m_loadedAssetTable.begin(); it != m_loadedAssetTable.end(); )
 	{
 		AssetMetaData meta;
-		if (m_registry.TryGetAsset(it->first, meta) && meta.IsPersistent)
+		if (m_registry.TryGetAsset(it->second.Guid, meta) && meta.IsPersistent)
 		{
 			++it;
 			continue;
 		}
 
-		auto useIt = m_useCountTable.find(it->first);
+		auto useIt = m_useCountTable.find(it->second.Guid);
 		if (useIt != m_useCountTable.end() && useIt->second > 0)
 		{
 			++it;
 			continue;
 		}
 
-		if (IAssetLoader* loader = FindLoader(it->second->GetAssetType()))
+		if (IAssetLoader* loader = FindLoader(it->second.Asset->GetAssetType()))
 		{
-			loader->Unload(*it->second);
+			loader->Unload(*it->second.Asset);
 		}
-		const AssetGuid unloadedGuid = it->first;
+		const AssetGuid unloadedGuid = it->second.Guid;
 		it = m_loadedAssetTable.erase(it);
 		if (Engine.RenderResourceCache.IsValid())
 		{
@@ -823,9 +844,9 @@ void CAssetManager::UnloadAllAssets()
 	std::lock_guard lock(m_mutex);
 	for (auto& assetPair : m_loadedAssetTable)
 	{
-		if (IAssetLoader* loader = FindLoader(assetPair.second->GetAssetType()))
+		if (IAssetLoader* loader = FindLoader(assetPair.second.Asset->GetAssetType()))
 		{
-			loader->Unload(*assetPair.second);
+			loader->Unload(*assetPair.second.Asset);
 		}
 	}
 
