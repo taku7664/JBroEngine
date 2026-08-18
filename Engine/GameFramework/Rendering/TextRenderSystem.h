@@ -3,6 +3,7 @@
 #include "Core/Asset/AssetRef.h"
 #include "Core/Asset/AssetTypes.h"
 #include "GameFramework/System/GameSystem.h"
+#include "Utillity/File/Guid128.h"
 #include "Utillity/Pointer/SafePtr.h"
 
 #include <cstdint>
@@ -66,6 +67,10 @@ private:
 
 	struct FaceCache
 	{
+		// 이 face 의 guid 를 정수형으로 접어 둔 값. 머티리얼 캐시 키가 이걸 쓴다 —
+		// AssetGuid(fs::path)로 키를 만들면 조회마다 문자열 조립 + 힙 할당이 붙는데,
+		// 그 조회가 텍스트 메시마다·프레임마다 돈다. face 는 생성 시 한 번만 접으면 된다.
+		Guid128 Key;
 		AssetRef<IAsset> Asset;
 		void* FreeTypeFace = nullptr;
 		void* HarfBuzzFont = nullptr;
@@ -78,6 +83,8 @@ private:
 	{
 		std::uint32_t Page = 0;
 		AssetGuid FaceGuid = INVALID_ASSET_GUID;
+		// FaceGuid 의 정규형 — 프레임 경로(AcquireMaterial)는 이쪽만 본다.
+		Guid128 FaceKey;
 		OwnerPtr<IRenderMesh> Mesh;
 	};
 
@@ -141,7 +148,9 @@ private:
 	OwnerPtr<IRenderMesh> CreateMesh(const std::vector<float>& vertices, const std::vector<std::uint32_t>& indices) const;
 	std::size_t BuildSignature(const Text2D& text, const AssetGuid& effectiveFamily) const;
 	AssetGuid GetEffectiveFamily(const Text2D& text) const;
-	OwnerPtr<IRenderMaterial>& AcquireMaterial(const AssetGuid& faceGuid, std::uint32_t page, CForward2DRenderer& renderer);
+	// faceGuid 는 캐시 미스일 때 face 를 로드하는 데만 쓴다. 적중 경로(프레임마다)는 faceKey 만 본다.
+	OwnerPtr<IRenderMaterial>& AcquireMaterial(const AssetGuid& faceGuid, const Guid128& faceKey,
+		std::uint32_t page, CForward2DRenderer& renderer);
 
 private:
 	IRenderScene* m_renderScene = nullptr;
@@ -157,7 +166,24 @@ private:
 	// 값 = 마지막으로 본 프레임 스탬프. 집합이 아니라 맵인 이유는 m_textCache 와 같은 방식으로
 	// 청소하기 위해서다(별도 seen 집합을 매 프레임 만들지 않으려고).
 	std::unordered_map<const void*, std::uint64_t> m_warnedMissingFonts;
-	std::unordered_map<std::string, OwnerPtr<IRenderMaterial>> m_materials;
+	// 머티리얼 캐시 키 — (face, atlas page). 예전에는 "guid#page" 문자열이었고, 그 문자열을
+	// 프레임마다 텍스트 메시마다 새로 조립했다.
+	struct MaterialKey
+	{
+		Guid128       Face;
+		std::uint32_t Page = 0;
+		bool operator==(const MaterialKey& rhs) const { return Face == rhs.Face && Page == rhs.Page; }
+	};
+	struct MaterialKeyHash
+	{
+		std::size_t operator()(const MaterialKey& key) const noexcept
+		{
+			std::size_t hash = std::hash<Guid128>{}(key.Face);
+			hash ^= static_cast<std::size_t>(key.Page) + 0x9e3779b97f4a7c15ull + (hash << 6) + (hash >> 2);
+			return hash;
+		}
+	};
+	std::unordered_map<MaterialKey, OwnerPtr<IRenderMaterial>, MaterialKeyHash> m_materials;
 	std::uint64_t m_frameStamp = 0;
 	// 매 프레임 텍스트마다 vector 를 새로 만들지 않으려고 재사용하는 작업 버퍼.
 	// 용량을 유지한 채 clear 만 하므로 워밍업 이후 할당이 없다.

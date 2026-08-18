@@ -14,6 +14,7 @@
 #include "GameFramework/Component/Text2D.h"
 #include "GameFramework/Object/GameObject.h"
 #include "GameFramework/Canvas/Canvas.h"
+#include "Utillity/File/GuidConvert.h"   // ToGuid128 — face 생성 시 1회 접기(cold path)
 #include "Utillity/Types/FrameLiveness.h"
 #include "Utillity/Types/Hash.h"   // HashCombine — 텍스트 시그니처/generation 해시 결합
 
@@ -34,11 +35,6 @@ namespace
 	constexpr std::uint32_t GLYPH_PIXEL_SIZE = 64;
 
 	// HashCombine 은 Utillity/Types/Hash.h 의 공용 헬퍼를 쓴다(로컬 중복 정의 제거).
-
-	std::string MaterialKey(const AssetGuid& guid, std::uint32_t page)
-	{
-		return guid.generic_string() + "#" + std::to_string(page);
-	}
 
 	bool IsVisibleColor(bool enabled, const Color& color)
 	{
@@ -181,6 +177,8 @@ CTextRenderSystem::FaceCache* CTextRenderSystem::AcquireFace(const AssetGuid& gu
 	}
 	hb_font_set_scale(hbFont, GLYPH_PIXEL_SIZE * 64, GLYPH_PIXEL_SIZE * 64);
 	FaceCache cache;
+	// guid → 정수형 정규형은 여기서 딱 한 번. 프레임 경로는 이 값만 본다.
+	cache.Key = ToGuid128(guid);
 	cache.Asset = std::move(asset);
 	cache.FreeTypeFace = face;
 	cache.HarfBuzzFont = hbFont;
@@ -480,8 +478,8 @@ bool CTextRenderSystem::RebuildText(Text2D& text, const std::vector<AssetGuid>& 
 			else high = candidate;
 		}
 	}
-	struct Buffers { std::vector<float> Vertices; std::vector<std::uint32_t> Indices; AssetGuid Face; std::uint32_t Page = 0; };
-	std::unordered_map<std::string, Buffers> buffers;
+	struct Buffers { std::vector<float> Vertices; std::vector<std::uint32_t> Indices; AssetGuid Face; Guid128 FaceKey; std::uint32_t Page = 0; };
+	std::unordered_map<MaterialKey, Buffers, MaterialKeyHash> buffers;
 	const float glyphScale = fontSize / static_cast<float>(GLYPH_PIXEL_SIZE);
 	for (const PositionedGlyph& positioned : glyphs)
 	{
@@ -502,8 +500,8 @@ bool CTextRenderSystem::RebuildText(Text2D& text, const std::vector<AssetGuid>& 
 			if (top > clipTop) { v0 += (v1-v0) * ((top-clipTop)/(top-bottom)); top = clipTop; }
 			if (bottom < clipBottom) { v1 -= (v1-v0) * ((clipBottom-bottom)/(top-bottom)); bottom = clipBottom; }
 		}
-		const std::string key = MaterialKey(positioned.FaceGuid, glyph.Page);
-		Buffers& target = buffers[key]; target.Face = positioned.FaceGuid; target.Page = glyph.Page;
+		Buffers& target = buffers[MaterialKey{ face->Key, glyph.Page }];
+		target.Face = positioned.FaceGuid; target.FaceKey = face->Key; target.Page = glyph.Page;
 		const std::uint32_t base = static_cast<std::uint32_t>(target.Vertices.size() / 4);
 		const float ppu = m_pixelsPerUnit;
 		const float quad[] = { left/ppu, top/ppu, u0,v0, right/ppu,top/ppu,u1,v0,
@@ -544,7 +542,7 @@ bool CTextRenderSystem::RebuildText(Text2D& text, const std::vector<AssetGuid>& 
 	cache.Meshes.clear();
 	for (auto& pair : buffers)
 	{
-		CachedMesh mesh; mesh.FaceGuid = pair.second.Face; mesh.Page = pair.second.Page;
+		CachedMesh mesh; mesh.FaceGuid = pair.second.Face; mesh.FaceKey = pair.second.FaceKey; mesh.Page = pair.second.Page;
 		mesh.Mesh = CreateMesh(pair.second.Vertices, pair.second.Indices);
 		if (mesh.Mesh) cache.Meshes.push_back(std::move(mesh));
 	}
@@ -554,9 +552,10 @@ bool CTextRenderSystem::RebuildText(Text2D& text, const std::vector<AssetGuid>& 
 	return true;
 }
 
-OwnerPtr<IRenderMaterial>& CTextRenderSystem::AcquireMaterial(const AssetGuid& faceGuid, std::uint32_t page, CForward2DRenderer& renderer)
+OwnerPtr<IRenderMaterial>& CTextRenderSystem::AcquireMaterial(const AssetGuid& faceGuid, const Guid128& faceKey,
+	std::uint32_t page, CForward2DRenderer& renderer)
 {
-	const std::string key = MaterialKey(faceGuid, page);
+	const MaterialKey key{ faceKey, page };
 	auto found = m_materials.find(key);
 	if (found != m_materials.end()) return found->second;
 	FaceCache* face = AcquireFace(faceGuid);
@@ -647,7 +646,7 @@ void CTextRenderSystem::OnUpdate(CGameCanvas& canvas)
 		text.SetShapedBounds(cache.CenterX, cache.CenterY, cache.Width, cache.Height);
 		for (CachedMesh& mesh : cache.Meshes)
 		{
-			OwnerPtr<IRenderMaterial>& material = AcquireMaterial(mesh.FaceGuid, mesh.Page, *renderer);
+			OwnerPtr<IRenderMaterial>& material = AcquireMaterial(mesh.FaceGuid, mesh.FaceKey, mesh.Page, *renderer);
 			if (!mesh.Mesh || !material) continue;
 			RenderItem item;
 			item.Mesh = mesh.Mesh.GetSafePtr(); item.Material = material.GetSafePtr(); item.Pipeline = renderer->GetTextPipeline();
