@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" agent="Claude" version="24.7.17" type="device">
+
+  <diagram name="1. Modules (build units)" id="jbro-modules">
+    <mxGraphModel dx="1600" dy="1200" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1660" pageHeight="1180" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="t" value="1. 모듈 의존 그래프　—　빌드 단위" style="text;html=1;align=left;verticalAlign=middle;fontSize=26;fontStyle=1;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="40" y="14" width="900" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="ts" value="박스 하나 = vcxproj 하나. 화살표는 &quot;의존한다&quot; 방향이며 항상 아래를 가리킨다. 맨 아래가 뿌리." style="text;html=1;align=left;verticalAlign=middle;fontSize=13;fontColor=#666666;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="40" y="48" width="900" height="22" as="geometry" />
+        </mxCell>
+
+        <mxCell id="m-editor" value="&lt;b&gt;JBroEditor&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;EditorApplication&lt;br&gt;프로젝트 열기 / 닫기&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="60" y="110" width="240" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="m-script" value="&lt;b&gt;게임 스크립트 DLL&lt;/b&gt;　&lt;font color=&quot;#b85450&quot;&gt;유일한 DLL 경계&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;JBRO_SCRIPT 사용자 코드 · 핫 리로드 대상&lt;br&gt;#include &amp;lt;JBro/ScriptAPI.h&amp;gt; 하나만 본다&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="330" y="110" width="380" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="m-tests" value="&lt;b&gt;JBroTests&lt;/b&gt;　(exe)&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;TestMain 러너&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6e6e6;strokeColor=#666666;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="740" y="110" width="200" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="m-f2d" value="&lt;b&gt;JBroFramework2D&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;Canvas / Layer　·　Component:: 2D 컴포넌트&lt;br&gt;System:: 2D 시스템　·　Prefab / RenderWorld2D&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="60" y="240" width="420" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="m-f3d" value="&lt;b&gt;JBroFramework3D&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;골격만. 배타성 음성 테스트 상대&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="510" y="240" width="300" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="m-runtime" value="&lt;b&gt;JBroRuntime&lt;/b&gt;　&lt;font color=&quot;#666666&quot;&gt;차원과 무관한 실행 계층&lt;/font&gt;&lt;br&gt;GameObject　ComponentBase　GameSystem　SystemScheduler&lt;br&gt;&lt;b&gt;Ref&amp;lt;T&amp;gt;&lt;/b&gt; / InstanceRef　·　IFramework　·　Context 3종" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="60" y="370" width="750" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="m-graphics" value="&lt;b&gt;JBroGraphics&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;Renderer (디바이스 부착 흡수)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="60" y="510" width="330" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="m-d3d" value="&lt;b&gt;JBroD3D12RHI&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;IRHIModule 구현&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="420" y="510" width="250" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="m-defer" value="&lt;font color=&quot;#999999&quot;&gt;JBroVulkanRHI / JBroWebGPURHI&lt;br&gt;프로젝트 승격 보류&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="700" y="510" width="240" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="m-asset" value="&lt;b&gt;JBroAsset&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;Asset:: 에셋 타입 / 레지스트리&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="60" y="630" width="250" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="m-rhi" value="&lt;b&gt;JBroRHI&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;IRHIModule / IRHIDevice · GraphicsApi&lt;br&gt;BufferHandle / TextureHandle&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="340" y="630" width="290" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="m-platform" value="&lt;b&gt;JBroPlatform&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;IPlatform · WindowHandle · &lt;b&gt;SurfaceHandle&lt;/b&gt;&lt;br&gt;WindowsPlatform (Android / Web 보류)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="660" y="630" width="280" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="m-core" value="&lt;b&gt;JBroCore&lt;/b&gt;　—　의존 그래프의 뿌리. &lt;b&gt;아무것도 의존하지 않는다&lt;/b&gt;&lt;br&gt;&lt;br&gt;&lt;b&gt;Include/JBro/Core/Core.h&lt;/b&gt;&lt;br&gt;JAllocator ／ JMemoryContext　　　메모리&lt;br&gt;OwnerPtr&amp;lt;T&amp;gt; ／ MakeOwnerPtr　　　소유권&lt;br&gt;JStringView ／ JArrayView　　　　 DLL 경계 POD 뷰&lt;br&gt;IModule　　　　　　　　　　　　  모듈 수명 계약&lt;br&gt;TypeId ／ InstanceId　　　　　　  타입 · 인스턴스 식별" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#bac8d3;strokeColor=#23445d;fontSize=12;align=left;spacingLeft=16;" vertex="1" parent="1">
+          <mxGeometry x="60" y="750" width="880" height="170" as="geometry" />
+        </mxCell>
+
+        <mxCell id="n-core" value="&lt;b&gt;Core 입주 조건&lt;/b&gt;　—　둘 다 만족해야 한다&lt;br&gt;&lt;br&gt;① 두 개 이상의 모듈이 쓴다&lt;br&gt;② &lt;b&gt;특정 모듈의 개념이 아니다&lt;/b&gt;&lt;br&gt;&lt;br&gt;&lt;font color=&quot;#b85450&quot;&gt;&quot;여러 곳에서 쓰니까&quot; 만으로 넣지 않는다.&lt;br&gt;의존 문제를 뿌리를 넓혀서 푸는 것은&lt;br&gt;Core 를 잡동사니 헤더로 만든다.&lt;/font&gt;&lt;br&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;예: GraphicsApi 는 Platform·RHI 둘 다 쓰지만&lt;br&gt;그래픽스 개념이라 ②에서 탈락 → RHI 에 둔다.&lt;br&gt;SurfaceHandle 은 플랫폼이 만드는 것이라 Platform.&lt;br&gt;그래서 의존이 RHI → Platform 방향이 된다.&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#23445d;dashed=1;fontSize=11;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="990" y="750" width="380" height="230" as="geometry" />
+        </mxCell>
+        <mxCell id="n-rule" value="&lt;b&gt;모듈 규칙&lt;/b&gt;&lt;br&gt;&lt;br&gt;· 박스 하나 = vcxproj 하나. 폴더 분리만으로는 모듈이 아니다&lt;br&gt;· 공개 헤더는 Include/JBro/&amp;lt;이름&amp;gt;/ 아래, 참조는 &amp;lt;JBro/…&amp;gt; 로만&lt;br&gt;· 의존 선언한 모듈의 Include 경로만 받는다&lt;br&gt;&amp;nbsp;&amp;nbsp;→ 선언 안 한 모듈 헤더를 include 하면 &lt;b&gt;컴파일 실패&lt;/b&gt;&lt;br&gt;· 역방향 include 와 순환 의존 금지&lt;br&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;Stage A 에서 음성 테스트로 확인함:&lt;br&gt;JBroCore 에서 &amp;lt;JBro/Runtime/…&amp;gt; → C1083&lt;br&gt;2D 소비자에서 &amp;lt;JBro/Framework3D/…&amp;gt; → C1083&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;dashed=1;fontSize=11;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="990" y="480" width="380" height="230" as="geometry" />
+        </mxCell>
+        <mxCell id="n-link" value="&lt;b&gt;링크 방식&lt;/b&gt;&lt;br&gt;&lt;br&gt;· 위 모듈 전부 &lt;b&gt;정적 링크&lt;/b&gt; (StaticLibrary)&lt;br&gt;· &lt;b&gt;DLL 은 게임 스크립트 하나뿐&lt;/b&gt; — 핫 리로드 때문&lt;br&gt;· RHI 도 정적으로 시작. 두 번째 Windows 백엔드가&lt;br&gt;&amp;nbsp;&amp;nbsp;실제로 생기면 그때 DLL 로 승격&lt;br&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;DLL 경계는 POD 전달 · 소유권 규칙 · 수명 순서를&lt;br&gt;그 API 에 영구히 부과한다. 필요한 곳에만 만든다.&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b85450;dashed=1;fontSize=11;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="990" y="240" width="380" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="n-2d3d" value="&lt;b&gt;2D / 3D&lt;/b&gt;　에디터는 둘 다 포함, 게임 빌드는 선택한 것만 링크&lt;br&gt;&lt;font color=&quot;#b85450&quot;&gt;→ 2D 게임 실행 파일에 3D 코드는 들어가지 않는다&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="990" y="110" width="380" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="d1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;" edge="1" parent="1" source="m-editor" target="m-runtime"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="d2" value="ScriptAPI.h" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#b85450;strokeWidth=3;fontColor=#b85450;" edge="1" parent="1" source="m-script" target="m-runtime"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="d3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#999999;" edge="1" parent="1" source="m-tests" target="m-f2d"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="d4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#d79b00;" edge="1" parent="1" source="m-f2d" target="m-runtime"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="d5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#d79b00;" edge="1" parent="1" source="m-f3d" target="m-runtime"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="d6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#82b366;" edge="1" parent="1" source="m-runtime" target="m-graphics"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="d7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#82b366;" edge="1" parent="1" source="m-runtime" target="m-asset"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="d8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#82b366;" edge="1" parent="1" source="m-runtime" target="m-platform"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="d9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#9673a6;" edge="1" parent="1" source="m-graphics" target="m-asset"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="d10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#9673a6;" edge="1" parent="1" source="m-graphics" target="m-rhi"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="d11" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#9673a6;" edge="1" parent="1" source="m-d3d" target="m-rhi"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="d12" value="SurfaceHandle" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#9673a6;fontSize=10;" edge="1" parent="1" source="m-rhi" target="m-platform"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="d13" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#23445d;strokeWidth=2;" edge="1" parent="1" source="m-asset" target="m-core"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="d14" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#23445d;strokeWidth=2;" edge="1" parent="1" source="m-rhi" target="m-core"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="d15" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#23445d;strokeWidth=2;" edge="1" parent="1" source="m-platform" target="m-core"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="d16" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#23445d;strokeWidth=2;" edge="1" parent="1" source="m-runtime" target="m-core"><mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram name="2. Runtime objects" id="jbro-runtime">
+    <mxGraphModel dx="1400" dy="1100" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1500" pageHeight="1050" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="rt" value="2. 런타임 객체 구조　—　Canvas 안에서 무슨 일이 있나" style="text;html=1;align=left;verticalAlign=middle;fontSize=26;fontStyle=1;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="40" y="14" width="1000" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="rts" value="ECS 가 아니다. 오브젝트가 실체이고 컴포넌트는 다형성이며 오브젝트가 논리적으로 소유한다." style="text;html=1;align=left;verticalAlign=middle;fontSize=13;fontColor=#666666;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="40" y="48" width="1000" height="22" as="geometry" />
+        </mxCell>
+
+        <mxCell id="canvas" value="&lt;b&gt;JBro::Canvas&lt;/b&gt;　—　최상위 실행 단위. 중간 계층 없음&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;World · Scene · SceneManager 를 두지 않는다. 수명 계층은 Canvas → GameObject 하나뿐&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="40" y="90" width="900" height="66" as="geometry" />
+        </mxCell>
+
+        <mxCell id="pool-obj" value="&lt;b&gt;TObjectPool&amp;lt;GameObject&amp;gt;&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;청크 32슬롯 · 주소 불변 (compaction 없음)&lt;br&gt;ForEachObject(fn) — live 만 방문&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2f0d9;strokeColor=#82b366;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="190" width="290" height="76" as="geometry" />
+        </mxCell>
+        <mxCell id="pool-comp" value="&lt;b&gt;타입별 TObjectPool&amp;lt;T&amp;gt;&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;정렬된 [TypeKey → Pool]&lt;br&gt;ForEach&amp;lt;T&amp;gt;(fn) — 다중 타입 Query 없음&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2f0d9;strokeColor=#82b366;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="350" y="190" width="290" height="76" as="geometry" />
+        </mxCell>
+        <mxCell id="layers" value="&lt;b&gt;Layer 목록&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;표시 · 불투명도 · 블렌드 · 합성 순서&lt;br&gt;Entity 수명은 소유하지 않는다&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2f0d9;strokeColor=#82b366;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="660" y="190" width="280" height="76" as="geometry" />
+        </mxCell>
+
+        <mxCell id="obj" value="&lt;b&gt;JBro::GameObject&lt;/b&gt;　: GameInstance, EnableSafeFromThis&lt;br&gt;&lt;br&gt;&lt;b&gt;Transform2D Local ／ WorldTransform2D World&lt;/b&gt;　　&lt;font color=&quot;#b85450&quot;&gt;← 컴포넌트가 아니라 멤버&lt;/font&gt;&lt;br&gt;&lt;b&gt;SafePtr&amp;lt;GameObject&amp;gt; m_parent ／ m_children&lt;/b&gt;　　&lt;font color=&quot;#b85450&quot;&gt;← 계층도 멤버&lt;/font&gt;&lt;br&gt;SafePtr&amp;lt;Layer&amp;gt; m_layer　　&lt;font color=&quot;#666666&quot;&gt;GetLayerIndex() O(1)&lt;/font&gt;&lt;br&gt;&lt;b&gt;vector&amp;lt;SafePtr&amp;lt;ComponentBase&amp;gt;&amp;gt; m_components&lt;/b&gt;　&lt;font color=&quot;#666666&quot;&gt;논리 소유&lt;/font&gt;&lt;br&gt;Name ／ Tag ／ Flags ／ &lt;b&gt;InstanceId&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;align=left;spacingLeft=14;" vertex="1" parent="1">
+          <mxGeometry x="40" y="300" width="600" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="comp" value="&lt;b&gt;Component::ComponentBase&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;다형성 베이스. POD 구조체가 아니다&lt;br&gt;— 리플렉션·직렬화가 다형성에 의존한다&lt;/font&gt;&lt;br&gt;&lt;br&gt;Transform2D　SpriteRenderer2D&lt;br&gt;Rigidbody2D　Collider2D　Camera2D …&lt;br&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;TypeId = MakeStableTypeId(T::StaticTypeName())&lt;br&gt;같은 타입을 여러 개 붙일 수 있다 (InstanceId 로 구분)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;align=left;spacingLeft=14;" vertex="1" parent="1">
+          <mxGeometry x="660" y="300" width="280" height="140" as="geometry" />
+        </mxCell>
+
+        <mxCell id="own" value="&lt;b&gt;소유가 둘로 나뉜다&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;메모리 소유 = 풀 (슬롯과 ControlBlock 을 관리)&lt;br&gt;논리 소유 = 오브젝트 (파괴 시 각 풀에서 해제)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;dashed=1;fontSize=11;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="460" width="450" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="sys" value="&lt;b&gt;JBro::System&lt;/b&gt;　—　엔진 레이어. 사용자 접근 불가&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;컴포넌트 풀을 순회하며 갱신한다&lt;/font&gt;&lt;br&gt;&lt;br&gt;Transform2DSystem　Physics2DSystem&lt;br&gt;Camera2DSystem　SpriteRenderer2DSystem　ScriptSystem" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="560" width="430" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="svc" value="&lt;b&gt;JBro::Service&lt;/b&gt;　—　스크립트 레이어 공개&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;사용자에게 필요한 것만 추린 API. 프로세스당 하나&lt;/font&gt;&lt;br&gt;&lt;br&gt;TimeService　InputService　AudioService&lt;br&gt;GameObjectService　Physics2DService　AssetService" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="510" y="560" width="430" height="110" as="geometry" />
+        </mxCell>
+
+        <mxCell id="sysnote" value="&lt;b&gt;시스템은 Ref 를 거치지 않는다&lt;/b&gt;&lt;br&gt;&lt;br&gt;canvas.ForEach&amp;lt;Transform2D&amp;gt;([](Transform2D&amp;amp; t) { … });&lt;br&gt;&lt;br&gt;순회가 풀의 &lt;b&gt;실체 참조&lt;/b&gt;를 그대로 준다. 핸들도 해석도 없다.&lt;br&gt;풀이 live 만 방문하고 주소가 불변이라 가능하다.&lt;br&gt;&lt;br&gt;&lt;font color=&quot;#b85450&quot;&gt;순회 중 생성·파괴 금지&lt;/font&gt;&lt;font color=&quot;#666666&quot;&gt; — live 배열이 흔들려&lt;br&gt;바깥 순회가 무효화된다. 지연 큐나 재진입 가드를 쓴다.&lt;/font&gt;&lt;br&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;Ref&amp;lt;T&amp;gt; 는 &quot;이 오브젝트가 저 오브젝트를 가리킨다&quot; 는&lt;br&gt;&lt;b&gt;관계를 저장할 때만&lt;/b&gt; 쓴다.&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;dashed=1;fontSize=11;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="700" width="430" height="190" as="geometry" />
+        </mxCell>
+        <mxCell id="gate" value="&lt;b&gt;활성 판정은 단일 게이트&lt;/b&gt;&lt;br&gt;&lt;br&gt;IsActiveComponent(component)&lt;br&gt;&amp;nbsp;&amp;nbsp;= 오너 계층 활성 &amp;amp;&amp;amp; 컴포넌트 Enabled&lt;br&gt;&lt;br&gt;&lt;font color=&quot;#b85450&quot;&gt;모든 시스템이 반드시 이걸 쓴다.&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;시스템마다 owner-&amp;gt;IsActive 를 제각각 판단하던&lt;br&gt;불일치를 없애기 위한 것이다 — 이미 겪은 문제다.&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;dashed=1;fontSize=11;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="510" y="700" width="430" height="190" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cmp" value="&lt;b&gt;ECS 와 무엇이 다른가&lt;/b&gt;&lt;br&gt;&lt;br&gt;&lt;b&gt;ECS 라면&lt;/b&gt;&lt;br&gt;· Entity = 정수 ID&lt;br&gt;· 컴포넌트는 POD, 저장소가 소유&lt;br&gt;· Transform 도 컴포넌트&lt;br&gt;· Query&amp;lt;A,B&amp;gt; 로 교집합 순회&lt;br&gt;&lt;br&gt;&lt;b&gt;여기는&lt;/b&gt;&lt;br&gt;· GameObject = 실체 객체&lt;br&gt;· 컴포넌트는 다형성, 오브젝트가 논리 소유&lt;br&gt;· Transform 과 계층은 오브젝트 멤버&lt;br&gt;· ForEach&amp;lt;T&amp;gt; 단일 타입 순회&lt;br&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;공통점: 타입별 청크 풀 · 시스템이 풀을 순회&lt;br&gt;→ 이 둘은 ECS 만의 것이 아니다&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;dashed=1;fontSize=11;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="990" y="190" width="380" height="330" as="geometry" />
+        </mxCell>
+
+        <mxCell id="re1" value="owns" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#82b366;strokeWidth=2;" edge="1" parent="1" source="canvas" target="pool-obj"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="re2" value="owns" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#82b366;strokeWidth=2;" edge="1" parent="1" source="canvas" target="pool-comp"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="re3" value="owns" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#82b366;strokeWidth=2;" edge="1" parent="1" source="canvas" target="layers"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="re4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#82b366;" edge="1" parent="1" source="pool-obj" target="obj"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="re5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#82b366;" edge="1" parent="1" source="pool-comp" target="comp"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="re6" value="SafePtr 로 참조" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;endArrow=open;endFill=0;strokeColor=#82b366;" edge="1" parent="1" source="obj" target="comp"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="re7" value="ForEach&amp;lt;T&amp;gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;endArrow=open;endFill=0;strokeColor=#d79b00;strokeWidth=2;" edge="1" parent="1" source="sys" target="pool-comp"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="re8" value="위임" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;endArrow=open;endFill=0;strokeColor=#b85450;" edge="1" parent="1" source="svc" target="sys"><mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram name="3. Reference &amp; Context" id="jbro-reference">
+    <mxGraphModel dx="1400" dy="1100" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1450" pageHeight="1120" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="ft" value="3. 참조 · 식별자 · 컨텍스트" style="text;html=1;align=left;verticalAlign=middle;fontSize=26;fontStyle=1;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="40" y="14" width="900" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="fts" value="스크립트가 대상을 지목하는 방법. 엔진 내부는 SafePtr 를 그대로 쓰고, 여기 규칙은 스크립트 노출 표면에만 적용된다." style="text;html=1;align=left;verticalAlign=middle;fontSize=13;fontColor=#666666;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="40" y="48" width="1000" height="22" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ref" value="&lt;b&gt;Ref&amp;lt;T&amp;gt;&lt;/b&gt;　—　스크립트에 노출되는 &lt;b&gt;유일한&lt;/b&gt; 참조 타입　24B · POD&lt;br&gt;&lt;br&gt;InstanceId　　　ObjectId　　　&lt;font color=&quot;#666666&quot;&gt;영속. 직렬화되는 값&lt;/font&gt;&lt;br&gt;InstanceId　　　ComponentId　 &lt;font color=&quot;#666666&quot;&gt;컴포넌트·스크립트 카테고리만&lt;/font&gt;&lt;br&gt;InstanceHandle　Cached　　　　&lt;font color=&quot;#666666&quot;&gt;{ Slot, Gen } · 런타임 캐시. 저장 안 함&lt;/font&gt;&lt;br&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;InstanceId(영속) 와 InstanceHandle(런타임 위치) 은 짝이다.&lt;br&gt;카테고리는 T 로부터 컴파일타임에 결정된다.&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#b85450&quot;&gt;기존 char Guid[64] × 2 = 128B 문자열에서 축소. strcmp 소멸&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6e6;strokeColor=#b85450;fontSize=12;align=left;spacingLeft=14;" vertex="1" parent="1">
+          <mxGeometry x="40" y="90" width="620" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="use" value="&lt;b&gt;쓰는 법&lt;/b&gt;&lt;br&gt;&lt;br&gt;JPROP() Ref&amp;lt;Component::Rigidbody2D&amp;gt; Body;&lt;br&gt;JPROP() Ref&amp;lt;Enemy&amp;gt;                  Target;&lt;br&gt;JPROP() Ref&amp;lt;GameObject&amp;gt;             Player;&lt;br&gt;JPROP() Ref&amp;lt;Asset::SpriteAsset&amp;gt;     Icon;&lt;br&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;전부 인스펙터에 드래그-드랍 칸이 생기고,&lt;br&gt;전부 InstanceId 하나로 저장된다.&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff7f7;strokeColor=#b85450;fontSize=12;align=left;spacingLeft=14;" vertex="1" parent="1">
+          <mxGeometry x="690" y="90" width="440" height="150" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p-chk" value="&lt;b&gt;확인하고 쓰기&lt;/b&gt;&lt;br&gt;&lt;br&gt;if (T* p = ref.Get())&lt;br&gt;&amp;amp;nbsp;&amp;amp;nbsp;&amp;amp;nbsp;&amp;amp;nbsp;p-&amp;gt;AddForce(f);&lt;br&gt;&lt;br&gt;&lt;font color=&quot;#82b366&quot;&gt;무효면 nullptr — 블록을 건너뛴다&lt;/font&gt;&lt;br&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;저장이 필요하면 포인터가 아니라&lt;br&gt;Ref&amp;lt;T&amp;gt; 를 멤버로 둔다.&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2f0d9;strokeColor=#82b366;fontSize=12;align=left;spacingLeft=14;" vertex="1" parent="1">
+          <mxGeometry x="40" y="270" width="350" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="p-unchk" value="&lt;b&gt;확인 안 하고 쓰기&lt;/b&gt;&lt;br&gt;&lt;br&gt;ref-&amp;gt;AddForce(f);&lt;br&gt;&lt;br&gt;&lt;font color=&quot;#b85450&quot;&gt;무효면 크래시&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;Debug 에서 assert + 로그&lt;br&gt;&lt;br&gt;operator-&amp;gt; 는 내부적으로 Get() 을 부른다.&lt;br&gt;경로가 둘인 게 아니라 접근자 하나에&lt;br&gt;사용법이 둘이다.&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;align=left;spacingLeft=14;" vertex="1" parent="1">
+          <mxGeometry x="410" y="270" width="350" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="p-safe" value="&lt;b&gt;안전 멤버&lt;/b&gt;　Ref&amp;lt;GameObject&amp;gt; 특수화&lt;br&gt;&lt;br&gt;target.Destroy();&lt;br&gt;target.SetActive(false);&lt;br&gt;target.GetComponent&amp;lt;T&amp;gt;();&lt;br&gt;&lt;br&gt;&lt;font color=&quot;#82b366&quot;&gt;if 불필요 · 무효면 로그만&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;멤버 함수 안이라 그냥 return 할 수 있다.&lt;br&gt;안전 멤버는 -&amp;gt; 를 쓰지 않는다.&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;align=left;spacingLeft=14;" vertex="1" parent="1">
+          <mxGeometry x="780" y="270" width="350" height="180" as="geometry" />
+        </mxCell>
+
+        <mxCell id="id" value="&lt;b&gt;InstanceId&lt;/b&gt;　uint64 하나　&lt;font color=&quot;#666666&quot;&gt;— 영속 식별자&lt;/font&gt;&lt;br&gt;&lt;br&gt;&lt;b&gt;[ 42비트 타임스탬프(ms) ][ 10비트 세션 난수 ][ 12비트 시퀀스 ]&lt;/b&gt;&lt;br&gt;　　　　139년 분량　　　　　　머신·세션 구분　　　ms당 4096개&lt;br&gt;&lt;br&gt;· 시간은 프레임당 1회만 읽어 캐시 → 생성 비용은 사실상 ++counter&lt;br&gt;· 값이 시간순으로 정렬되어 GameObject::m_creationOrder 를 흡수한다&lt;br&gt;· 세션 난수가 없으면 다른 브랜치에서 같은 ms 에 만든 것끼리 충돌한다&lt;br&gt;&lt;br&gt;&lt;b&gt;InstanceHandle&lt;/b&gt;　{ uint32 Slot, uint32 Gen }　&lt;font color=&quot;#666666&quot;&gt;— 이번 실행에서의 위치&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;로드 시 InstanceId 로 이걸 채운다(패치업). 세대가 어긋나면 재해석한다.&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f9ff;strokeColor=#6c8ebf;fontSize=12;align=left;spacingLeft=14;" vertex="1" parent="1">
+          <mxGeometry x="40" y="480" width="720" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="patch" value="&lt;b&gt;로드 시 패치업&lt;/b&gt;&lt;br&gt;&lt;br&gt;1.  캔버스 로드 — 오브젝트를 풀에 생성 (슬롯·세대 확정)&lt;br&gt;2.  InstanceId → { Slot, Gen } 맵 구축 (1회)&lt;br&gt;3.  모든 Ref 를 순회하며 캐시를 채운다&lt;br&gt;4.  &lt;b&gt;이후 런타임 식별자 조회 0회&lt;/b&gt;&lt;br&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;런타임 생성 대상은 첫 접근에서만 1회 해석.&lt;br&gt;핫 리로드 때 ScriptAllocationGeneration 이 바뀌면 캐시를 버린다.&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2f0d9;strokeColor=#82b366;fontSize=12;align=left;spacingLeft=14;" vertex="1" parent="1">
+          <mxGeometry x="790" y="480" width="560" height="150" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ctxt" value="&lt;b&gt;컨텍스트 3단&lt;/b&gt;　조립은 전부, 전달은 좁게" style="text;html=1;align=left;verticalAlign=middle;fontSize=17;fontStyle=1;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="40" y="655" width="600" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="c1" value="&lt;b&gt;EngineContext&lt;/b&gt;　호스트가 조립. 저수준 포함 전부&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;수명은 EngineInstance 하나가 OwnerPtr 로 쥔다. 컨텍스트는 소유하지 않는다&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#bac8d3;strokeColor=#23445d;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="690" width="720" height="56" as="geometry" />
+        </mxCell>
+        <mxCell id="c2" value="&lt;b&gt;SystemContext&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;게임 DLL 은 받지만&lt;br&gt;사용자에겐 보이지 않는다&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="780" width="350" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="c3" value="&lt;b&gt;ServiceContext&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;서비스를 값으로 보유 (포인터 아님)&lt;br&gt;사용자에게 공개&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="410" y="780" width="350" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="c4" value="&lt;b&gt;시스템을 어떻게 숨기나&lt;/b&gt;&lt;br&gt;&lt;br&gt;서비스 헤더는 시스템을 &lt;b&gt;전방 선언만&lt;/b&gt; 한다.&lt;br&gt;실제 호출은 비인라인 .cpp (게임 DLL 에 컴파일) 에 둔다.&lt;br&gt;&lt;br&gt;&lt;font color=&quot;#b85450&quot;&gt;인라인으로 두면 시스템 정의가 프렐류드를 타고 사용자에게 노출된다.&lt;/font&gt;&lt;br&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;SystemContext.h 는 ScriptAPI.h 가 include 하지 않는다.&lt;br&gt;사용자 TU 에 선언 자체가 없으므로 이름을 쓸 수 없다.&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;dashed=1;fontSize=11;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="790" y="690" width="560" height="160" as="geometry" />
+        </mxCell>
+
+        <mxCell id="rej" value="&lt;b&gt;검토했으나 채택하지 않은 것&lt;/b&gt;&lt;br&gt;&lt;br&gt;&lt;b&gt;Access&amp;lt;T&amp;gt; 스코프 객체&lt;/b&gt;　→　복사·이동을 삭제해도 C++17 보장된 복사 생략 때문에&lt;br&gt;&amp;amp;nbsp;&amp;amp;nbsp;prvalue 로 멤버 초기화가 통과한다. 강제가 안 되므로 타입을 추가할 이유가 없다.&lt;br&gt;&lt;b&gt;엔진 컴포넌트를 값 타입 핸들로&lt;/b&gt;　→　컴포넌트와 스크립트의 관용구가 갈린다.&lt;br&gt;&lt;b&gt;스크립트별 핸들 코드 생성&lt;/b&gt;　→　생성 전까지 사용자 코드가 컴파일되지 않는다.&lt;br&gt;&lt;b&gt;예외 + 콜백에서 catch&lt;/b&gt;　→　웹 빌드 예외 확인이 따라붙는다.&lt;br&gt;&lt;b&gt;죽은 객체용 가짜 인스턴스&lt;/b&gt;　→　함수가 절반만 실행된다(죽은 적이 점수를 준다).&lt;br&gt;&lt;b&gt;ECS / Entity 정수 ID&lt;/b&gt;　→　기존 엔진이 이미 걷어낸 방향이다.&lt;br&gt;&lt;b&gt;GetComponent 가 원시 포인터 반환&lt;/b&gt;　→　저장 불가 + 매 프레임 선형 탐색." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;fontSize=12;align=left;spacingLeft=14;" vertex="1" parent="1">
+          <mxGeometry x="40" y="880" width="1310" height="170" as="geometry" />
+        </mxCell>
+
+        <mxCell id="fe1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#82b366;" edge="1" parent="1" source="ref" target="p-chk"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="fe2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#b85450;" edge="1" parent="1" source="ref" target="p-unchk"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="fe3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#82b366;" edge="1" parent="1" source="ref" target="p-safe"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="fe4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#d79b00;" edge="1" parent="1" source="c1" target="c2"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="fe5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#b85450;" edge="1" parent="1" source="c1" target="c3"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="fe6" value="시스템 위임" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;endArrow=open;endFill=0;strokeColor=#b85450;" edge="1" parent="1" source="c3" target="c2"><mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
