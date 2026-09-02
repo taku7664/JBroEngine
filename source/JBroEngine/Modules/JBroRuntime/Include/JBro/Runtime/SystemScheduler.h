@@ -1,9 +1,8 @@
 ﻿#pragma once
 
+#include <JBro/Core/Core.h>
 #include <JBro/Runtime/GameSystem.h>
-
-#include <memory>
-#include <vector>
+#include <JBro/Types/Array.h>
 
 namespace JBro
 {
@@ -28,7 +27,7 @@ namespace JBro
         GameSystem* GetSystem(std::size_t index);
 
     private:
-        std::vector<std::unique_ptr<GameSystem>> m_systems;
-        bool m_initialized = false;
+        Array<OwnerPtr<GameSystem>> m_systems;
+        bool                        m_initialized = false;
     };
 }

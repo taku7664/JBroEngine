@@ -5,12 +5,10 @@
 #include <JBro/Core/StableTypeId.h>
 #include <JBro/Framework2D/Canvas/Layer.h>
 #include <JBro/Runtime/GameObject.h>
+#include <JBro/Types/Array.h>
+#include <JBro/Types/Table.h>
 
 #include <cstddef>
-#include <memory>
-#include <unordered_map>
-#include <utility>
-#include <vector>
 
 namespace JBro
 {
@@ -61,12 +59,11 @@ namespace JBro
             virtual void DestroyAllOnObject(GameObject* owner) = 0;
         };
 
-        JAllocator                                                m_allocator;
-        std::unique_ptr<TObjectPool<GameObject>>                  m_objects;
-        std::vector<std::unique_ptr<Layer>>                       m_layers;
-        LayerIndex                                                m_defaultLayer = InvalidLayerIndex;
-        LayerIndex                                                m_nextLayer    = 0;
-        std::unordered_map<ComponentTypeId,
-            std::unique_ptr<IComponentBucket>>                    m_componentBuckets;
+        JAllocator                                     m_allocator;
+        OwnerPtr<TObjectPool<GameObject>>              m_objects;
+        Array<OwnerPtr<Layer>>                         m_layers;
+        LayerIndex                                     m_defaultLayer = InvalidLayerIndex;
+        LayerIndex                                     m_nextLayer    = 0;
+        Table<ComponentTypeId, OwnerPtr<IComponentBucket>> m_componentBuckets;
     };
 }

@@ -15,19 +15,19 @@ namespace JBro
     void SystemScheduler::Update     (Canvas& canvas, float deltaTime)      { for (auto& s : m_systems) s->Update     (canvas, deltaTime); }
     void SystemScheduler::Shutdown   (Canvas& canvas)
     {
-        for (auto it = m_systems.rbegin(); it != m_systems.rend(); ++it) (*it)->Shutdown(canvas);
+        for (std::size_t i = m_systems.Size(); i > 0; --i) m_systems[i - 1]->Shutdown(canvas);
         m_initialized = false;
     }
     void SystemScheduler::RemoveAllSystems(Canvas& canvas)
     {
         Shutdown(canvas);
-        m_systems.clear();
+        m_systems.Clear();
     }
     void SystemScheduler::SortByExecutionOrder()
     {
         std::sort(m_systems.begin(), m_systems.end(),
-            [](const auto& a, const auto& b) { return a->GetExecutionOrder() < b->GetExecutionOrder(); });
+            [](const OwnerPtr<GameSystem>& a, const OwnerPtr<GameSystem>& b) { return a->GetExecutionOrder() < b->GetExecutionOrder(); });
     }
-    std::size_t SystemScheduler::GetSystemCount() const { return m_systems.size(); }
-    GameSystem* SystemScheduler::GetSystem(std::size_t index) { return index < m_systems.size() ? m_systems[index].get() : nullptr; }
+    std::size_t SystemScheduler::GetSystemCount() const { return m_systems.Size(); }
+    GameSystem* SystemScheduler::GetSystem(std::size_t index) { return index < m_systems.Size() ? m_systems[index].get() : nullptr; }
 }

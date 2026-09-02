@@ -3,9 +3,9 @@
 #include <JBro/Asset/Asset.h>
 #include <JBro/Core/Core.h>
 #include <JBro/Framework2D/Math2D.h>
+#include <JBro/Types/Array.h>
 
 #include <cstdint>
-#include <vector>
 
 namespace JBro
 {
@@ -45,8 +45,8 @@ namespace JBro
         const SpriteRenderItem* GetSprites()     const;
 
     private:
-        RenderCamera2D                m_camera;
-        bool                          m_hasCamera = false;
-        std::vector<SpriteRenderItem> m_sprites;
+        RenderCamera2D          m_camera;
+        bool                    m_hasCamera = false;
+        Array<SpriteRenderItem> m_sprites;
     };
 }

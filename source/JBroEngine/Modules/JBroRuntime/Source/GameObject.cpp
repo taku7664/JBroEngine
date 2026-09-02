@@ -1,8 +1,6 @@
 ﻿#include <JBro/Runtime/GameObject.h>
 #include <JBro/Runtime/Component.h>
 
-#include <algorithm>
-
 namespace JBro
 {
     GameObject::GameObject()  = default;
@@ -15,18 +13,18 @@ namespace JBro
     void    GameObject::SetCanvas(Canvas* canvas) { m_canvas = canvas; }
 
     GameObject* GameObject::GetParent() const { return m_parent; }
-    void        GameObject::SetParent(GameObject* parent)
+    void GameObject::SetParent(GameObject* parent)
     {
         if (m_parent == parent) return;
         if (m_parent != nullptr)
         {
-            auto& siblings = m_parent->m_children;
-            siblings.erase(std::remove(siblings.begin(), siblings.end(), this), siblings.end());
+            GameObject* self = this;
+            m_parent->m_children.RemoveAll([self](GameObject* p) { return p == self; });
         }
         m_parent = parent;
-        if (m_parent != nullptr) m_parent->m_children.push_back(this);
+        if (m_parent != nullptr) m_parent->m_children.Add(this);
     }
-    const std::vector<GameObject*>& GameObject::GetChildren() const { return m_children; }
+    const Array<GameObject*>& GameObject::GetChildren() const { return m_children; }
 
     std::uint32_t GameObject::GetLayerIndex() const { return m_layerIndex; }
     void          GameObject::SetLayerIndex(std::uint32_t layerIndex) { m_layerIndex = layerIndex; }
@@ -47,19 +45,20 @@ namespace JBro
     std::uint32_t GameObject::GetFlags() const { return m_flags; }
     void          GameObject::SetFlags(std::uint32_t flags) { m_flags = flags; }
 
-    const std::vector<ComponentBase*>& GameObject::GetComponents() const { return m_components; }
+    const Array<ComponentBase*>& GameObject::GetComponents() const { return m_components; }
+
     void GameObject::AttachComponent(ComponentBase* component)
     {
         if (component == nullptr) return;
-        m_components.push_back(component);
+        m_components.Add(component);
         component->SetOwner(this);
     }
     bool GameObject::DetachComponent(ComponentBase* component)
     {
-        const auto found = std::find(m_components.begin(), m_components.end(), component);
-        if (found == m_components.end()) return false;
-        (*found)->SetOwner(nullptr);
-        m_components.erase(found);
+        const auto removed = m_components.RemoveAll(
+            [component](ComponentBase* p) { return p == component; });
+        if (removed == 0) return false;
+        component->SetOwner(nullptr);
         return true;
     }
 }

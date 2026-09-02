@@ -2,9 +2,9 @@
 
 #include <JBro/Core/Core.h>
 #include <JBro/Runtime/Ref.h>
+#include <JBro/Types/Array.h>
 
 #include <cstdint>
-#include <vector>
 
 namespace JBro
 {
@@ -29,11 +29,11 @@ namespace JBro
         void    SetCanvas(Canvas* canvas);
 
         // 계층
-        GameObject* GetParent() const;
-        void        SetParent(GameObject* parent);
-        const std::vector<GameObject*>& GetChildren() const;
+        GameObject*                GetParent() const;
+        void                       SetParent(GameObject* parent);
+        const Array<GameObject*>&  GetChildren() const;
 
-        // 레이어 소속. O(1). Layer 정수 인덱스는 Canvas 가 발급한다.
+        // 레이어 소속. O(1).
         std::uint32_t GetLayerIndex() const;
         void          SetLayerIndex(std::uint32_t layerIndex);
 
@@ -49,20 +49,20 @@ namespace JBro
         void          SetFlags(std::uint32_t flags);
 
         // 컴포넌트 접근. 실체 저장은 Canvas 의 타입별 풀에 있고 여기서는 논리 소유만 기록한다.
-        const std::vector<ComponentBase*>& GetComponents() const;
+        const Array<ComponentBase*>& GetComponents() const;
         void  AttachComponent(ComponentBase* component);
         bool  DetachComponent(ComponentBase* component);
 
     private:
-        InstanceId                   m_instanceId  = InvalidInstanceId;
-        InstanceHandle               m_handle;
-        Canvas*                      m_canvas      = nullptr;
-        GameObject*                  m_parent      = nullptr;
-        std::vector<GameObject*>     m_children;
-        std::vector<ComponentBase*>  m_components;
-        std::uint32_t                m_layerIndex  = 0;
-        std::uint32_t                m_flags       = 0;
-        bool                         m_active      = true;
-        const char*                  m_tag         = nullptr;
+        InstanceId              m_instanceId  = InvalidInstanceId;
+        InstanceHandle          m_handle;
+        Canvas*                 m_canvas      = nullptr;
+        GameObject*             m_parent      = nullptr;
+        Array<GameObject*>      m_children;
+        Array<ComponentBase*>   m_components;
+        std::uint32_t           m_layerIndex  = 0;
+        std::uint32_t           m_flags       = 0;
+        bool                    m_active      = true;
+        const char*             m_tag         = nullptr;
     };
 }
