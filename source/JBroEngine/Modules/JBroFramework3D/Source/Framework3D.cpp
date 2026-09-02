@@ -1,3 +1,11 @@
-#include <JBro/Framework3D/Framework3D.h>
+﻿#include <JBro/Framework3D/Framework3D.h>
 
-// Architecture preview only. 3D systems are intentionally not implemented yet.
+namespace JBro
+{
+    bool Framework3D::Initialize(const FrameworkContext&) { return true; }
+    void Framework3D::Update(float) {}
+    void Framework3D::Shutdown() {}
+
+    IFramework* CreateFramework3D()                          { return new Framework3D(); }
+    void        DestroyFramework3D(IFramework* framework)    { delete framework; }
+}

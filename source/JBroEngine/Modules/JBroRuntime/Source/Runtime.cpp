@@ -1,3 +1,7 @@
-#include <JBro/Runtime/Runtime.h>
+﻿#include <JBro/Runtime/Runtime.h>
 
-// Architecture preview only. Runtime behavior is intentionally not implemented yet.
+namespace JBro
+{
+    bool RuntimeModule::Initialize(const JMemoryContext&) { return true; }
+    void RuntimeModule::Shutdown() {}
+}

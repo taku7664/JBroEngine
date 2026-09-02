@@ -1,9 +1,9 @@
-#pragma once
+﻿#pragma once
 
 #include <JBro/Asset/Asset.h>
 #include <JBro/RHI/RHI.h>
 
-namespace JBro::Engine
+namespace JBro
 {
     struct TextureAsset
     {

@@ -1,18 +1,17 @@
-#pragma once
+﻿#pragma once
 
+#include <JBro/Core/Core.h>
 #include <JBro/Runtime/Component.h>
 #include <JBro/Runtime/GameObject.h>
 #include <JBro/Runtime/GameSystem.h>
 #include <JBro/Runtime/SystemScheduler.h>
-#include <JBro/Runtime/World.h>
 
-namespace JBro::Engine
+namespace JBro
 {
     class RuntimeModule final : public IModule
     {
     public:
         bool Initialize(const JMemoryContext& memory) override;
         void Shutdown() override;
-
     };
 }

@@ -1,8 +1,8 @@
-#pragma once
+﻿#pragma once
 
 #include <JBro/Platform/Platform.h>
 
-namespace JBro::Engine
+namespace JBro
 {
     class WindowsPlatform final : public IPlatform
     {

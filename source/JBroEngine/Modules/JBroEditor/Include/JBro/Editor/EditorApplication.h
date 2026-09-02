@@ -1,10 +1,10 @@
-#pragma once
+﻿#pragma once
 
 #include <JBro/Runtime/IFramework.h>
 #include <JBro/Platform/Platform.h>
 #include <JBro/RHI/RHI.h>
 
-namespace JBro::Engine
+namespace JBro
 {
     enum class FrameworkKind : std::uint8_t
     {

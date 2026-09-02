@@ -1,8 +1,8 @@
-#pragma once
+﻿#pragma once
 
 #include <JBro/RHI/RHI.h>
 
-namespace JBro::Engine
+namespace JBro
 {
     class D3D12Device;
 

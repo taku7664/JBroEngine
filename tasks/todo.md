@@ -300,7 +300,7 @@ Stage B 에서 생긴 뒤라야 의미가 있다. G5 가 담당한다.
 - [x] 새 헤더가 어느 모듈에서도 컴파일되는지 확인 (빈 `.cpp` 로 include 스모크)
 - [x] Debug / Release x64 빌드 통과
 - [x] `JBroTests` 통과 (기존 테스트가 깨지지 않았는지)
-- [ ] 커밋 — 여기까지가 워크트리 분기의 전제다
+- [x] 커밋 — 여기까지가 워크트리 분기의 전제다
 
 #### 워크트리 매핑
 
@@ -315,26 +315,26 @@ Stage B 에서 생긴 뒤라야 의미가 있다. G5 가 담당한다.
 
 **이 단계가 이번 작업의 본체다.** 되돌리기 어려우므로 단독 커밋으로 끊고 빌드를 통과시킨다.
 
-- [ ] B1. `CWorld` 제거. `Canvas` 가 오브젝트 풀과 컴포넌트 풀을 직접 소유한다.
-- [ ] B2. `Entity` 정수 ID 제거. `GameObject` 실객체를 도입한다.
-- [ ] B3. 컴포넌트 논리 소유를 오브젝트로 옮긴다(`vector<SafePtr<ComponentBase>>`).
-- [ ] B4. Transform 과 부모·자식 계층을 `GameObject` 멤버로 옮긴다.
+- [x] B1. `CWorld` 제거. `Canvas` 가 오브젝트 풀과 컴포넌트 풀을 직접 소유한다.
+- [x] B2. `Entity` 정수 ID 제거. `GameObject` 실객체를 도입한다.
+- [x] B3. 컴포넌트 논리 소유를 오브젝트로 옮긴다(`vector<SafePtr<ComponentBase>>`).
+- [x] B4. Transform 과 부모·자식 계층을 `GameObject` 멤버로 옮긴다.
       `HierarchyComponent` 를 제거한다.
 - [ ] B5. 컴포넌트를 POD `struct` 에서 다형성 `ComponentBase` 파생으로 바꾼다.
-- [ ] B6. 레이어 소속을 오브젝트 멤버로 옮기고 `GetLayerIndex()` 를 O(1) 로 만든다.
-- [ ] B7. `Query<A,B>` 를 제거하고 `ForEach<T>` / `ForEachObject` 로 바꾼다.
-- [ ] B8. `ComponentTypeId` 매직넘버를 `MakeStableTypeId(T::StaticTypeName())` 으로 대체한다.
-- [ ] B9. `IsActiveComponent()` 단일 활성 게이트를 도입하고 모든 시스템이 쓰게 한다.
-- [ ] B10. `Tag` / `Flags` 를 `GameObject` 에 추가한다. (`m_creationOrder` 는 `InstanceId` 가 흡수)
+- [x] B6. 레이어 소속을 오브젝트 멤버로 옮기고 `GetLayerIndex()` 를 O(1) 로 만든다.
+- [x] B7. `Query<A,B>` 를 제거하고 `ForEach<T>` / `ForEachObject` 로 바꾼다.
+- [x] B8. `ComponentTypeId` 매직넘버를 `MakeStableTypeId(T::StaticTypeName())` 으로 대체한다.
+- [x] B9. `IsActiveComponent()` 단일 활성 게이트를 도입하고 모든 시스템이 쓰게 한다.
+- [x] B10. `Tag` / `Flags` 를 `GameObject` 에 추가한다. (`m_creationOrder` 는 `InstanceId` 가 흡수)
 - [ ] B11. 같은 타입 컴포넌트를 여러 개 붙일 수 있게 한다.
-- [ ] B12. 기존 ECS 테스트를 새 모델 기준으로 다시 쓴다.
+- [x] B12. 기존 ECS 테스트를 새 모델 기준으로 다시 쓴다.
 
 ### Stage C. 네임스페이스와 이름 (D-11, D-12)
 
-- [ ] C1. `JBro::Engine` 을 §10.1 체계로 교체한다.
+- [x] C1. `JBro::Engine` 을 §10.1 체계로 교체한다.
       `Component` / `Asset` / `System` / `Service` / `Internal` + `JBro` 직속.
-- [ ] C2. 타입 접두사를 제거한다. 인터페이스 `I` 와 private `m_` 만 남긴다.
-- [ ] C3. 시스템·서비스 이름에 `System` / `Service` 접미를 붙인다.
+- [x] C2. 타입 접두사를 제거한다. 인터페이스 `I` 와 private `m_` 만 남긴다.
+- [x] C3. 시스템·서비스 이름에 `System` / `Service` 접미를 붙인다.
 - [ ] C4. 차원 마커 위치를 `<도메인><차원><역할>` 로 통일한다
       (`TransformSystem2D` → `Transform2DSystem`).
 - [ ] C5. F20 을 분리한다. `System::Physics2DSystem` + `Service::Physics2DService`.

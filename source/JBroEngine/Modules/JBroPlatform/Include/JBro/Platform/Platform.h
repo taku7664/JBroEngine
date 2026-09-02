@@ -1,9 +1,9 @@
-#pragma once
+﻿#pragma once
 
 #include <JBro/Core/Core.h>
 #include <JBro/RHI/RHI.h>
 
-namespace JBro::Engine
+namespace JBro
 {
     struct WindowDesc
     {

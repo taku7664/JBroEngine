@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <JBro/Asset/Asset.h>
 #include <JBro/Core/Core.h>
@@ -7,26 +7,28 @@
 #include <cstdint>
 #include <vector>
 
-namespace JBro::Engine
+namespace JBro
 {
+    class GameObject;
+
     struct RenderCamera2D
     {
-        Entity entity;
-        Matrix3x2 view;
-        float orthographicSize = 10.0f;
-        Color clearColor;
+        GameObject* owner            = nullptr;
+        Matrix3x2   view;
+        float       orthographicSize = 10.0f;
+        Color       clearColor;
     };
 
     struct SpriteRenderItem
     {
-        Entity entity;
-        Matrix3x2 world;
-        AssetHandle sprite;
-        AssetHandle material;
-        Color tint;
-        Vec2 pivot;
-        Vec2 size;
-        std::int32_t renderOrder = 0;
+        GameObject*   owner = nullptr;
+        Matrix3x2     world;
+        AssetHandle   sprite;
+        AssetHandle   material;
+        Color         tint;
+        Vec2          pivot;
+        Vec2          size;
+        std::int32_t  renderOrder = 0;
     };
 
     class RenderWorld2D
@@ -38,13 +40,13 @@ namespace JBro::Engine
         void Sort();
         void EndFrame();
 
-        const RenderCamera2D* GetCamera() const;
-        std::size_t GetSpriteCount() const;
-        const SpriteRenderItem* GetSprites() const;
+        const RenderCamera2D*   GetCamera()      const;
+        std::size_t             GetSpriteCount() const;
+        const SpriteRenderItem* GetSprites()     const;
 
     private:
-        RenderCamera2D mCamera;
-        bool mHasCamera = false;
-        std::vector<SpriteRenderItem> mSprites;
+        RenderCamera2D                m_camera;
+        bool                          m_hasCamera = false;
+        std::vector<SpriteRenderItem> m_sprites;
     };
 }

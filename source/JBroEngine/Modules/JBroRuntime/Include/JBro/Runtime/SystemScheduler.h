@@ -1,11 +1,11 @@
-#pragma once
+﻿#pragma once
 
 #include <JBro/Runtime/GameSystem.h>
 
 #include <memory>
 #include <vector>
 
-namespace JBro::Engine
+namespace JBro
 {
     class SystemScheduler
     {
@@ -16,19 +16,19 @@ namespace JBro::Engine
         template <typename T>
         T* FindSystem();
 
-        void RemoveAllSystems(CWorld& world);
-        void Initialize(CWorld& world);
-        void FixedUpdate(CWorld& world, float fixedDeltaTime);
-        void Update(CWorld& world, float deltaTime);
-        void ExtractRender(CWorld& world, RenderWorld2D& renderWorld);
-        void Shutdown(CWorld& world);
+        void Initialize (Canvas& canvas);
+        void FixedUpdate(Canvas& canvas, float fixedDeltaTime);
+        void Update     (Canvas& canvas, float deltaTime);
+        void Shutdown   (Canvas& canvas);
+
+        void RemoveAllSystems(Canvas& canvas);
         void SortByExecutionOrder();
 
         std::size_t GetSystemCount() const;
         GameSystem* GetSystem(std::size_t index);
 
     private:
-        std::vector<std::unique_ptr<GameSystem>> mSystems;
-        bool mInitialized = false;
+        std::vector<std::unique_ptr<GameSystem>> m_systems;
+        bool m_initialized = false;
     };
 }

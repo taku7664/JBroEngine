@@ -1,20 +1,22 @@
-#pragma once
+﻿#pragma once
 
 #include <JBro/Framework2D/Rendering/RenderWorld2D.h>
 #include <JBro/Runtime/GameSystem.h>
 
-namespace JBro::Engine
+namespace JBro::System
 {
-    class CameraSystem2D final : public GameSystem
+    class Camera2DSystem final : public GameSystem
     {
     public:
         int GetExecutionOrder() const override;
 
+        void SetRenderWorld(RenderWorld2D* renderWorld);
+        void ExtractRenderWorld(Canvas& canvas);
+
     protected:
-        void OnExtractRender(CWorld& world, RenderWorld2D& renderWorld) override;
+        void OnUpdate(Canvas& canvas, float deltaTime) override;
 
     private:
-        Entity FindPrimaryCamera(CWorld& world) const;
-        RenderCamera2D BuildRenderCamera(CWorld& world, Entity cameraEntity) const;
+        RenderWorld2D* m_renderWorld = nullptr;
     };
 }

@@ -1,10 +1,10 @@
-#pragma once
+﻿#pragma once
 
 #include <JBro/Asset/Asset.h>
 #include <JBro/Graphics/Graphics.h>
 #include <JBro/Runtime/Runtime.h>
 
-namespace JBro::Engine
+namespace JBro
 {
     struct FrameworkContext
     {

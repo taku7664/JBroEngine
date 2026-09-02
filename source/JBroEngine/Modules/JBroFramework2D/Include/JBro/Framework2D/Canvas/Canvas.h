@@ -1,45 +1,72 @@
-#pragma once
+﻿#pragma once
 
 #include <JBro/Core/Core.h>
+#include <JBro/Core/ObjectPool.h>
+#include <JBro/Core/StableTypeId.h>
 #include <JBro/Framework2D/Canvas/Layer.h>
+#include <JBro/Runtime/GameObject.h>
 
 #include <cstddef>
+#include <memory>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
-namespace JBro::Engine
+namespace JBro
 {
-    class CWorld;
+    class ComponentBase;
 
-    class CCanvas final
+    // §8. 씬의 최상위 단위. 오브젝트 풀과 타입별 컴포넌트 풀, 레이어를 직접 소유한다.
+    // CWorld 를 감싸지 않는다 — 캔버스가 곧 캔버스이다.
+    class Canvas final
     {
     public:
-        explicit CCanvas(JAllocator allocator);
+        explicit Canvas(JAllocator allocator);
+        ~Canvas();
 
-        CWorld& GetWorld();
-        const CWorld& GetWorld() const;
+        Canvas(const Canvas&)            = delete;
+        Canvas& operator=(const Canvas&) = delete;
 
-        CLayer& CreateLayer(const char* name = nullptr);
-        bool DestroyLayer(LayerId layer);
-        bool MoveLayer(LayerId layer, std::size_t newIndex);
-        CLayer* FindLayer(LayerId layer);
-        const CLayer* FindLayer(LayerId layer) const;
-        CLayer* FindLayerByName(const char* name);
+        // 오브젝트
+        GameObject* CreateObject(const char* name = nullptr);
+        bool        DestroyObject(GameObject* object);
+        std::size_t GetObjectCount() const;
+
+        template <typename Fn>
+        void ForEachObject(Fn&& function);
+
+        // 레이어
+        Layer&      CreateLayer(const char* name = nullptr);
+        bool        DestroyLayer(LayerIndex layer);
+        bool        MoveLayer(LayerIndex layer, std::size_t newIndex);
+        Layer*      FindLayer(LayerIndex layer);
         std::size_t GetLayerCount() const;
-        CLayer* GetLayerAt(std::size_t index);
-        const CLayer* GetLayerAt(std::size_t index) const;
-        LayerId GetDefaultLayerId() const;
+        Layer*      GetLayerAt(std::size_t index);
+        LayerIndex  GetDefaultLayer() const;
 
-        bool AssignEntity(Entity entity, LayerId layer);
-        LayerId GetEntityLayer(Entity entity) const;
-        void RemoveEntity(Entity entity);
-        void PruneDeadEntities();
+        // 타입별 컴포넌트 풀 접근. 인터페이스만 두고 구현은 F1~G4 에서 채운다.
+        template <typename T>
+        T*   AttachComponent(GameObject* owner);
+        template <typename T>
+        bool DetachComponent(GameObject* owner, T* component);
+        template <typename T>
+        T*   GetComponent(GameObject* owner);
+        template <typename T, typename Fn>
+        void ForEach(Fn&& function);
 
     private:
-        OwnerPtr<CWorld> m_world;
-        std::vector<OwnerPtr<CLayer>> m_layers;
-        std::unordered_map<Entity, LayerId> m_entityLayers;
-        LayerId m_defaultLayer = InvalidLayerId;
-        LayerId m_nextLayer = 0;
+        struct IComponentBucket
+        {
+            virtual ~IComponentBucket() = default;
+            virtual void DestroyAllOnObject(GameObject* owner) = 0;
+        };
+
+        JAllocator                                                m_allocator;
+        std::unique_ptr<TObjectPool<GameObject>>                  m_objects;
+        std::vector<std::unique_ptr<Layer>>                       m_layers;
+        LayerIndex                                                m_defaultLayer = InvalidLayerIndex;
+        LayerIndex                                                m_nextLayer    = 0;
+        std::unordered_map<ComponentTypeId,
+            std::unique_ptr<IComponentBucket>>                    m_componentBuckets;
     };
 }

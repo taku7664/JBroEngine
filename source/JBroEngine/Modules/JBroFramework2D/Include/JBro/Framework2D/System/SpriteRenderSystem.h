@@ -1,20 +1,22 @@
-#pragma once
+﻿#pragma once
 
 #include <JBro/Framework2D/Rendering/RenderWorld2D.h>
 #include <JBro/Runtime/GameSystem.h>
 
-namespace JBro::Engine
+namespace JBro::System
 {
-    class SpriteRenderSystem final : public GameSystem
+    class SpriteRender2DSystem final : public GameSystem
     {
     public:
         int GetExecutionOrder() const override;
 
+        void SetRenderWorld(RenderWorld2D* renderWorld);
+        void ExtractRenderWorld(Canvas& canvas);
+
     protected:
-        void OnExtractRender(CWorld& world, RenderWorld2D& renderWorld) override;
+        void OnUpdate(Canvas& canvas, float deltaTime) override;
 
     private:
-        SpriteRenderItem BuildRenderItem(CWorld& world, Entity entity) const;
-        bool ShouldSubmit(CWorld& world, Entity entity) const;
+        RenderWorld2D* m_renderWorld = nullptr;
     };
 }

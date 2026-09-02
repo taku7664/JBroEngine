@@ -1,8 +1,8 @@
-#pragma once
+﻿#pragma once
 
 #include <JBro/Core/Core.h>
 
-namespace JBro::Engine
+namespace JBro
 {
     enum class GraphicsApi : std::uint8_t
     {
