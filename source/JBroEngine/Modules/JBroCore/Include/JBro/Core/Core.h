@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <cstddef>
 #include <cstdint>
@@ -71,4 +71,12 @@ namespace JBro::Engine
     class CComponentRegistry;
     using ComponentRegistry = CComponentRegistry;
 
+}
+
+namespace JBro
+{
+    // 영속 식별자. 세션이 바뀌어도 같은 값이 같은 오브젝트를 가리킨다.
+    // 생성기는 상태를 가지므로 별도 헤더(InstanceIdGenerator.h)에 있다.
+    using InstanceId = std::uint64_t;
+    inline constexpr InstanceId InvalidInstanceId = 0;
 }

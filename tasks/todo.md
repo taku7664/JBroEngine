@@ -196,7 +196,7 @@ B0 는 선언만 만드는 덧붙이기라 먼저 하고, B·C 는 전 파일을
 
 #### B0-1. `JBroCore` — 식별자
 
-- [ ] `JBro/Core/Core.h` 에 추가
+- [x] `JBro/Core/Core.h` 에 추가
 
   ```cpp
   namespace JBro
@@ -206,7 +206,7 @@ B0 는 선언만 만드는 덧붙이기라 먼저 하고, B·C 는 전 파일을
   }
   ```
 
-- [ ] `JBro/Core/InstanceIdGenerator.h` 신규 — 선언만
+- [x] `JBro/Core/InstanceIdGenerator.h` 신규 — 선언만
 
   ```cpp
   namespace JBro
@@ -230,7 +230,7 @@ B0 는 선언만 만드는 덧붙이기라 먼저 하고, B·C 는 전 파일을
 
 #### B0-2. `JBroRuntime` — 참조
 
-- [ ] `JBro/Runtime/Ref.h` 신규 — 선언만
+- [x] `JBro/Runtime/Ref.h` 신규 — 선언만
 
   ```cpp
   namespace JBro
@@ -268,7 +268,7 @@ B0 는 선언만 만드는 덧붙이기라 먼저 하고, B·C 는 전 파일을
   }
   ```
 
-- [ ] `static_assert` 3 종을 같은 헤더에 둔다
+- [x] `static_assert` 3 종을 같은 헤더에 둔다
 
   ```cpp
   static_assert(sizeof(Ref<GameObject>) == sizeof(InstanceRef));
@@ -281,7 +281,7 @@ Stage B 에서 생긴 뒤라야 의미가 있다. G5 가 담당한다.
 
 #### B0-3. `JBroRuntime` — 컨텍스트
 
-- [ ] `JBro/Runtime/Context.h` 신규 — 빈 구조체 + 바인딩 선언
+- [x] `JBro/Runtime/Context.h` 신규 — 빈 구조체 + 바인딩 선언
 
   ```cpp
   namespace JBro
@@ -297,9 +297,9 @@ Stage B 에서 생긴 뒤라야 의미가 있다. G5 가 담당한다.
 
 #### B0-4. 검증
 
-- [ ] 새 헤더가 어느 모듈에서도 컴파일되는지 확인 (빈 `.cpp` 로 include 스모크)
-- [ ] Debug / Release x64 빌드 통과
-- [ ] `JBroTests` 통과 (기존 테스트가 깨지지 않았는지)
+- [x] 새 헤더가 어느 모듈에서도 컴파일되는지 확인 (빈 `.cpp` 로 include 스모크)
+- [x] Debug / Release x64 빌드 통과
+- [x] `JBroTests` 통과 (기존 테스트가 깨지지 않았는지)
 - [ ] 커밋 — 여기까지가 워크트리 분기의 전제다
 
 #### 워크트리 매핑
