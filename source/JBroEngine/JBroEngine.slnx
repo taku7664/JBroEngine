@@ -1,0 +1,20 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+  </Configurations>
+  <Folder Name="/Modules/">
+    <Project Path="Modules/JBroCore/JBroCore.vcxproj" />
+    <Project Path="Modules/JBroAsset/JBroAsset.vcxproj" />
+    <Project Path="Modules/JBroRHI/JBroRHI.vcxproj" />
+    <Project Path="Modules/JBroPlatform/JBroPlatform.vcxproj" />
+    <Project Path="Modules/JBroGraphics/JBroGraphics.vcxproj" />
+    <Project Path="Modules/JBroRuntime/JBroRuntime.vcxproj" />
+    <Project Path="Modules/JBroD3D12RHI/JBroD3D12RHI.vcxproj" />
+    <Project Path="Modules/JBroFramework2D/JBroFramework2D.vcxproj" />
+    <Project Path="Modules/JBroFramework3D/JBroFramework3D.vcxproj" />
+    <Project Path="Modules/JBroEditor/JBroEditor.vcxproj" />
+  </Folder>
+  <Folder Name="/Tests/">
+    <Project Path="Tests/JBroTests.vcxproj" />
+  </Folder>
+</Solution>
