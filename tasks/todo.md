@@ -170,6 +170,10 @@ GameInstance : File::Guid m_instanceGuid + Guid128 m_instanceGuid128
 
 ## Plan
 
+우선순위는 **B0 → B → C → (D · E · F) → G → H** 다.
+B0 는 선언만 만드는 덧붙이기라 먼저 하고, B·C 는 전 파일을 건드려 나눌 수 없다.
+워크트리 분기는 **C 까지 끝난 뒤**에 가능하다([worktree-plan.md](./worktree-plan.md)).
+
 ### Stage A. 빌드 단위 분리 — **완료**
 
 - [x] A1. 공통 property sheet `JBro.Common.props`
@@ -180,6 +184,132 @@ GameInstance : File::Guid m_instanceGuid + Guid128 m_instanceGuid128
 - [x] A6. slnx x86 구성 제거
 - [x] A7. `JBroFramework` 를 `JBroRuntime` 에 흡수 (F15 해소)
 - [x] A8. `Jbro` → `JBro` 케이싱 통일
+
+### Stage B0. 골격 선언 — **최우선**
+
+**구현이 아니라 선언만 만든다.** 각 워크트리가 나중에 채울 타입과 함수의 이름·시그니처를
+여기서 못박으면, 분기 후 공유 헤더를 두 곳에서 건드릴 일이 사라진다.
+
+기존 코드를 거의 건드리지 않는 **덧붙이기 작업**이라 B·C 보다 먼저 할 수 있고,
+먼저 해야 B·C 가 맞춰갈 목표가 생긴다. 새 타입은 처음부터 최종 네임스페이스로 만든다 —
+그러면 Stage C 는 기존 코드만 정리하면 된다.
+
+#### B0-1. `JBroCore` — 식별자
+
+- [ ] `JBro/Core/Core.h` 에 추가
+
+  ```cpp
+  namespace JBro
+  {
+      using InstanceId = std::uint64_t;
+      inline constexpr InstanceId InvalidInstanceId = 0;
+  }
+  ```
+
+- [ ] `JBro/Core/InstanceIdGenerator.h` 신규 — 선언만
+
+  ```cpp
+  namespace JBro
+  {
+      // [ 42비트 ms ][ 10비트 세션 난수 ][ 12비트 시퀀스 ]
+      class InstanceIdGenerator
+      {
+      public:
+          void       BeginFrame();          // 타임스탬프를 프레임당 1회만 읽는다
+          InstanceId Generate();            // 실질 비용은 ++m_sequence
+      private:
+          std::uint64_t m_cachedMs  = 0;
+          std::uint32_t m_session   = 0;    // 프로세스 시작 시 1회 난수
+          std::uint32_t m_sequence  = 0;
+      };
+  }
+  ```
+
+  `Core.h` 에 넣지 않고 별도 헤더로 둔다 — 상태를 가진 클래스이고
+  `Core.h` 는 상태 없는 기반 타입만 담는다(§3 Core 입주 조건).
+
+#### B0-2. `JBroRuntime` — 참조
+
+- [ ] `JBro/Runtime/Ref.h` 신규 — 선언만
+
+  ```cpp
+  namespace JBro
+  {
+      struct InstanceHandle                    // 8B. 이번 실행에서의 위치
+      {
+          std::uint32_t Slot = 0;
+          std::uint32_t Gen  = 0;
+          bool IsSet() const;
+      };
+
+      struct InstanceRef                       // 24B · POD · DLL 경계 통과
+      {
+          InstanceId     ObjectId    = InvalidInstanceId;
+          InstanceId     ComponentId = InvalidInstanceId;
+          InstanceHandle Cached;
+      };
+
+      enum class RefCategory : std::uint8_t { Object, Component, Script, Asset, Canvas };
+
+      template<typename T>
+      class Ref : public InstanceRef
+      {
+      public:
+          static constexpr RefCategory Category = /* T 로부터 결정 */;
+
+          T*   Get() const;                    // 무효면 nullptr
+          T*   operator->() const;             // Get() 과 같음 + Debug assert
+          T&   operator*()  const;
+          bool IsValid() const;
+          void Clear();
+          explicit operator bool() const;      // "설정됨" 만. 해석하지 않음
+          bool operator==(const Ref& rhs) const;
+      };
+  }
+  ```
+
+- [ ] `static_assert` 3 종을 같은 헤더에 둔다
+
+  ```cpp
+  static_assert(sizeof(Ref<GameObject>) == sizeof(InstanceRef));
+  static_assert(std::is_standard_layout_v<Ref<GameObject>>);
+  static_assert(std::is_trivially_copyable_v<Ref<GameObject>>);
+  ```
+
+`Ref<GameObject>` 부분 특수화(안전 멤버)는 **여기서 하지 않는다** — `GameObject` 실객체가
+Stage B 에서 생긴 뒤라야 의미가 있다. G5 가 담당한다.
+
+#### B0-3. `JBroRuntime` — 컨텍스트
+
+- [ ] `JBro/Runtime/Context.h` 신규 — 빈 구조체 + 바인딩 선언
+
+  ```cpp
+  namespace JBro
+  {
+      struct EngineContext  {};                // H1 이 채운다
+      struct SystemContext  {};                // H1
+      struct ServiceContext {};                // H1
+
+      void BindSystemContext(const SystemContext& context);    // H3
+      void BindServiceContext(const ServiceContext& context);  // H3
+  }
+  ```
+
+#### B0-4. 검증
+
+- [ ] 새 헤더가 어느 모듈에서도 컴파일되는지 확인 (빈 `.cpp` 로 include 스모크)
+- [ ] Debug / Release x64 빌드 통과
+- [ ] `JBroTests` 통과 (기존 테스트가 깨지지 않았는지)
+- [ ] 커밋 — 여기까지가 워크트리 분기의 전제다
+
+#### 워크트리 매핑
+
+| 선언 | 나중에 채우는 곳 |
+|---|---|
+| `InstanceIdGenerator` | W-ref (F1) |
+| `InstanceHandle` / `InstanceRef` / `Ref<T>` | W-ref (G1~G4) |
+| `Ref<GameObject>` 특수화 | W-ref (G5) |
+| `EngineContext` / `SystemContext` / `ServiceContext` | W-host (H1~H3) |
 
 ### Stage B. ECS 걷어내고 오브젝트-컴포넌트 모델로 (F1~F12)
 
@@ -241,14 +371,8 @@ GameInstance : File::Guid m_instanceGuid + Guid128 m_instanceGuid128
 값 타입 핸들 클래스를 따로 만들지 않는다. 모든 참조가 `Ref<T>` 하나다.
 
 - [ ] G1. 오브젝트·컴포넌트 슬롯에 generation 을 도입하고 파괴 시 증가시킨다.
-- [ ] G1b. `InstanceHandle { uint32 Slot; uint32 Gen; }` 과
-      `InstanceRef { InstanceId ObjectId; InstanceId ComponentId; InstanceHandle Cached; }`
-      를 정의한다. 24B POD.
-      `InstanceId`(영속) 와 `InstanceHandle`(런타임 위치) 은 짝이다.
-      저장부를 템플릿이 아닌 타입으로 빼는 이유는 리플렉션·직렬화·인스펙터가
-      `T` 를 모른 채 필드에 접근해야 하기 때문이다.
-      `Ref<T>` 는 데이터 멤버 추가와 virtual 을 금지하고 `static_assert` 3 종으로 고정한다
-      (`sizeof` 동일 · standard_layout · trivially_copyable).
+      *(`InstanceHandle` / `InstanceRef` / `Ref<T>` 선언은 Stage B0 에서 이미 만들었다.
+      여기서는 구현을 채운다.)*
 - [ ] G2. `Ref<T>` 에 해석 경로를 만든다.
       `Cached.Slot` 범위 검사 + `Cached.Gen` 비교, 실패 시 `InstanceId` 로 재해석.
 - [ ] G3. `Ref<T>` 에 접근자를 단다.
