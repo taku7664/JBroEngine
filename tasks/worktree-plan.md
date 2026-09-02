@@ -10,17 +10,26 @@
 - **Stage B(ECS 걷어내기)와 C(네임스페이스·이름)는 절대 나누지 않는다.** 둘 다 전 파일을 건드린다.
 - 나누면 워크트리 5 개가 나오지만, 1 인 작업이면 **2~3 개가 실용적**이다.
 
-## 0. 전제
+## 0. 전제 — 모두 충족됨
 
-워크트리는 커밋된 베이스를 공유한다. 커밋은 완료됐다.
+워크트리 5개는 이미 `main` 에서 갈라져 있다. 골격은 커밋된 베이스에 다 들어갔다.
 
 ```
+9fa0cb1  Bring the JBro value types over and put the skeleton on them
+76fad39  Land the object-component skeleton and one namespace
+ce2ce97  Nail down the shared type names so worktrees can start
+4ab5379  Put the shared declarations first so the work can be split later
 997207d  Write down the rules and plan the new tree is being built against
 79ac541  Split the engine into per-module build units
-641e654  Initial commit
 ```
 
-남은 전제는 **B0 · B · C 를 끝내는 것**이다.
+각 워크트리의 세부 작업 지시는 **워크트리 별 전용 문서**에 있다.
+
+- [worktree-build.md](./worktree-build.md) — W-build (Stage E · 빌드 구성)
+- [worktree-platform.md](./worktree-platform.md) — W-platform (Platform · RHI · Graphics · Asset)
+- [worktree-framework.md](./worktree-framework.md) — W-framework (Framework2D/3D + 시스템)
+- [worktree-ref.md](./worktree-ref.md) — W-ref (SafePtr · Ref · Handle · Canvas 구현)
+- [worktree-host.md](./worktree-host.md) — W-host (컨텍스트 · 스크립트 로더 · 프렐류드)
 
 ## 1. 왜 B·C 를 먼저 끝내야 하는가
 
@@ -48,7 +57,7 @@ B 는 **타입이 무엇인지**를, C 는 **그 타입을 뭐라 부르는지**
 - [x] **Stage B 완료** — 오브젝트-컴포넌트 모델 전환, 빌드·테스트 통과
 - [x] **Stage C 완료** — 네임스페이스·이름 적용, 빌드·테스트 통과
 - [x] Debug / Release x64 빌드 통과 + `JBroTests` 통과
-- [ ] 골격 커밋
+- [x] 골격 커밋 — `9fa0cb1` (Types 이식까지 포함)
 
 ### 2.2 공유 헤더 선언 확정
 
@@ -105,11 +114,11 @@ namespace JBro
 
 | 워크트리 | 담당 | 소유 파일 | 의존 |
 |---|---|---|---|
-| **W-build** | E (2D/3D 배타) | `*.vcxproj` · `JBro.Common.props` · `*.slnx` · 프로젝트 템플릿 | 없음 |
-| **W-platform** | D2 · D3 | `JBroPlatform/**` · `JBroRHI/**` | 없음 |
-| **W-framework** | D1 · D5 | `JBroRuntime/GameSystem.h` · `SystemScheduler.h` · `JBroFramework2D/**` | 없음 |
-| **W-ref** | F · G | `JBroCore/Source/InstanceId.cpp` · `JBroRuntime/Ref.*` · `GameInstance.*` | 없음 |
-| **W-host** | D4 · H | `EngineInstance.*` · `JBroEditor/**` · `Context.*` · 스크립트 로더 | **W-ref** |
+| **W-build** | E (2D/3D 배타) | `*.vcxproj` · `JBro.Common.props` · `*.slnx` · `Templates/**` | 없음 |
+| **W-platform** | D2 · D3 · D-17 · H4-API | `JBroPlatform/**` · `JBroRHI/**` · `JBroGraphics/**` · `JBroAsset/**` · `JBroD3D12RHI/**` | 없음 |
+| **W-framework** | B5 · B11 · C4 · C5-system · D1 · D5 | `JBroFramework2D/**` · `JBroFramework3D/**` · `JBroRuntime/GameSystem.*` · `SystemScheduler.*` | **W-ref** (컴포넌트 · 시스템 몸통) · **W-platform** (Renderer 인터페이스) |
+| **W-ref** | SafePtr 이식 · F · G · Canvas 구현 | `JBroCore/Types/SafePtr.*` · `Core/InstanceIdGenerator.cpp` · `Runtime/Ref.*` · `Runtime/GameObject.*` · `Runtime/Component.*` · `Runtime/GameObjectHandle.*` · `Framework2D/Canvas/Canvas.*` | 없음 |
+| **W-host** | D4 · H · C5-service · 프렐류드 · 매크로 | `Runtime/EngineInstance.*` · `Runtime/Context.*` · `Runtime/IFramework.h` · `Runtime/Service/*` · `Framework2D/Service/*` · `JBroEditor/**` · `JBroCore/ScriptAPI.h` · `JBroCore/Script/Macros.h` · `Runtime/ScriptDLLLoader.*` | **W-ref** · **W-platform** |
 
 ### 왜 이렇게 갈리나
 
@@ -146,11 +155,15 @@ git worktree add ../JBro-host      -b work/host
 
 ```
 1. W-build       빌드 설정만이라 다른 것에 영향 없음. 먼저 넣어도 무해
-2. W-platform    독립
-3. W-framework   독립
-4. W-ref         가장 큼. 여기까지 들어가야 W-host 가 완성 가능
-5. W-host        마지막
+2. W-platform    독립. Renderer 인터페이스 확정
+3. W-ref         가장 큼. SafePtr / Ref / GameObjectHandle / Canvas 구현
+4. W-framework   W-ref rebase 후 컴포넌트/시스템 몸통 마무리
+5. W-host        W-ref + W-platform rebase 후 컨텍스트/스크립트 로더 조립
 ```
+
+**변경 사유**: 원래 계획은 `W-framework` 를 3번으로 두었으나, W-framework 의 컴포넌트 파생(B5)과
+시스템 몸통(ForEach)이 W-ref 의 Canvas·ComponentBase 실 구현에 의존한다. W-ref 를 먼저 병합해
+W-framework 가 rebase 한 뒤 몸통을 얹는 순서가 자연스럽다.
 
 매 병합마다 Debug / Release 빌드 + 테스트를 통과시키고 다음으로 간다.
 
@@ -174,14 +187,17 @@ B·C 가 전 파일을 건드리기 때문이다.
 ## 7. 요약
 
 ```
-[커밋 완료] ──▶ Stage B0 ──▶ Stage B ──▶ Stage C ──▶ 골격 커밋
-                 선언만        ECS 제거    이름 정리        │
-                 덧붙이기      ├─ 전 파일을 건드린다 ─┤      │
-                              └─ 직렬. 나눌 수 없다 ─┘      │
-                                                            ▼
-                            ┌──────────┬──────────┬──────────┬──────────┐
-                         W-build  W-platform  W-framework  W-ref ──▶ W-host
-                            │          │          │          │          │
-                            └──────────┴──────────┴──────────┴──────────┘
-                                        병합 (위 순서)
+[골격 커밋 완료 · 9fa0cb1]
+                    │
+                    ▼
+   ┌──────────┬──────────┬──────────────────────┐
+   │          │          │                      │
+W-build  W-platform    W-ref ──▶ W-framework ──▶ W-host
+   │          │          │           │             │
+   1          2          3           4             5   ← 병합 순서
+   │          │          │           │             │
+   └──────────┴──────────┴───────────┴─────────────┘
+             각각 자기 소유 파일만 수정
 ```
+
+각 워크트리의 상세 작업은 §0 상단 링크의 5개 문서 참조.
