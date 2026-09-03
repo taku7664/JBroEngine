@@ -10,6 +10,12 @@
     <JBroBuildDir>$(JBroRoot)Build\</JBroBuildDir>
   </PropertyGroup>
 
+  <PropertyGroup Label="JBroScriptTarget">
+    <JBroScriptDimension Condition="'$(JBroScriptDimension)' == ''">2D</JBroScriptDimension>
+    <JBroScriptFrameworkIncludes Condition="'$(JBroScriptDimension)' == '2D'">$(JBroModulesDir)JBroFramework2D\Include</JBroScriptFrameworkIncludes>
+    <JBroScriptFrameworkIncludes Condition="'$(JBroScriptDimension)' == '3D'">$(JBroModulesDir)JBroFramework3D\Include</JBroScriptFrameworkIncludes>
+  </PropertyGroup>
+
   <PropertyGroup Label="JBroToolset">
     <PlatformToolset>v145</PlatformToolset>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
