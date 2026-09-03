@@ -1,3 +1,50 @@
 ﻿#include <JBro/Platform/AndroidPlatform.h>
 
-// Declaration-focused framework preview. Android platform calls are intentionally omitted.
+namespace JBro
+{
+    bool AndroidPlatform::Initialize(const JMemoryContext&)
+    {
+        return true;
+    }
+
+    void AndroidPlatform::Shutdown()
+    {
+    }
+
+    WindowHandle AndroidPlatform::OpenPlatformWindow(const WindowDesc&)
+    {
+        return {};
+    }
+
+    void AndroidPlatform::ClosePlatformWindow(WindowHandle)
+    {
+    }
+
+    SurfaceHandle AndroidPlatform::CreateSurface(WindowHandle window)
+    {
+        return {window.value};
+    }
+
+    void AndroidPlatform::PumpEvents()
+    {
+    }
+
+    bool AndroidPlatform::ShouldClose(WindowHandle) const
+    {
+        return false;
+    }
+
+    DynamicLibrary AndroidPlatform::LoadDynamicLibrary(const char*)
+    {
+        return {};
+    }
+
+    void* AndroidPlatform::GetSymbol(DynamicLibrary, const char*)
+    {
+        return nullptr;
+    }
+
+    void AndroidPlatform::UnloadDynamicLibrary(DynamicLibrary)
+    {
+    }
+}

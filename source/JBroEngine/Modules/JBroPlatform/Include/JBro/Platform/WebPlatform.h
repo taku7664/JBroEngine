@@ -9,10 +9,13 @@ namespace JBro
     public:
         bool Initialize(const JMemoryContext& memory) override;
         void Shutdown() override;
-        WindowHandle CreateWindow(const WindowDesc& desc) override;
-        void DestroyWindow(WindowHandle window) override;
-        SurfaceHandle CreateSurface(WindowHandle window, GraphicsApi api) override;
+        WindowHandle OpenPlatformWindow(const WindowDesc& desc) override;
+        void ClosePlatformWindow(WindowHandle window) override;
+        SurfaceHandle CreateSurface(WindowHandle window) override;
         void PumpEvents() override;
         bool ShouldClose(WindowHandle window) const override;
+        DynamicLibrary LoadDynamicLibrary(const char* utf8Path) override;
+        void* GetSymbol(DynamicLibrary library, const char* name) override;
+        void UnloadDynamicLibrary(DynamicLibrary library) override;
     };
 }

@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/Core/Core.h>
+#include <JBro/Platform/Platform.h>
 
 namespace JBro
 {
@@ -21,11 +22,6 @@ namespace JBro
     {
         std::uint32_t index = 0;
         std::uint32_t generation = 0;
-    };
-
-    struct SurfaceHandle
-    {
-        std::uintptr_t value = 0;
     };
 
     struct RHIDeviceCreateInfo
