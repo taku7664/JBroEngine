@@ -19,8 +19,7 @@
 
 ### 신규 (이식 · 신설)
 
-- `source/JBroEngine/Modules/JBroCore/Include/JBro/Types/SafePtr.h` (신규 이식)
-- `source/JBroEngine/Modules/JBroCore/Source/Types/SafePtr.cpp` (필요 시)
+- `source/JBroEngine/Modules/JBroCore/Include/JBro/Types/SafePtr.h` (신규 이식 · 헤더-온리)
 - `source/JBroEngine/Modules/JBroCore/Source/Core/InstanceIdGenerator.cpp` (신규)
 - `source/JBroEngine/Modules/JBroCore/Source/Core/ObjectPool.cpp` (필요 시. 대부분 헤더-온리)
 - `source/JBroEngine/Modules/JBroRuntime/Source/Ref.cpp` (신규 · Ref<T> 비-템플릿 부분)
@@ -96,14 +95,14 @@ class Ref : public InstanceRef { ... };
 
 **How**:
 
-1. 기존 엔진의 `C:\Users\박주형\source\repos\JBroEngine\Engine\Utillity\SafePtr\` 폴더 확인
-   (실제 위치는 `Engine\Utillity` 아래 `SafePtr` 서브폴더 예상. `find` 로 실 위치 파악).
+1. 원본 위치 확인: `C:\Users\박주형\source\repos\JBroEngine\Engine\Utillity\Pointer\SafePtr.h`
+   (**헤더-온리 · 477줄**. `.cpp` 없음).
 2. `SafePtr.h` 를 `JBroCore/Include/JBro/Types/SafePtr.h` 로 복사 이식.
    - 네임스페이스를 `namespace JBro { ... }` 로 감쌈.
    - include 경로 `"Utillity/…"` → `<JBro/…>` 조정.
 3. `ControlBlock` (비원자 refcount) 은 `SafePtr` 내부 구현 세부. 스레드-세이프하지 않음이 계약.
    메모리에 있는 `[SafePtr 는 메인 스레드 전용]` 규칙을 헤더 상단 주석으로 명시.
-4. `EnableSafeFromThis<T>` (기존 엔진에 있으면) 도 같이 이식. GameObject 가 상속한다.
+4. `EnableSafeFromThis<T>` (기존 엔진에 함께 정의됨) 도 같이 이식. GameObject 가 상속한다.
 5. `<JBro/Types/Types.h>` 에 `SafePtr.h` include 추가.
 
 ### 2. `InstanceIdGenerator` 구현
@@ -193,10 +192,12 @@ namespace JBro
        return resolved.pointer;
    }
    ```
-2. `ResolveByHandle<T>` / `ResolveByInstanceId<T>` 는 **전역 레지스트리**를 참조.
-   레지스트리는 `Canvas` 안에 (`Canvas::ResolveObject`, `Canvas::ResolveComponent`).
-   해당 캔버스 접근은 어디서? — 프로세스당 하나의 "현재 활성 캔버스" 개념이 필요.
-   → **결정 필요**: 캔버스 다중 지원? 지금은 하나로 가정.
+2. `ResolveByHandle<T>` / `ResolveByInstanceId<T>` 는 **프로세스-전역 레지스트리**를 참조 (D-26).
+   레지스트리는 `JBro::Internal::InstanceRegistry` 싱글턴이다.
+   `Canvas::CreateObject` 시 `registry.Register(instanceId, obj)`,
+   `Canvas::DestroyObject` 시 `registry.Unregister(instanceId)`.
+   여러 캔버스가 로드돼도 InstanceId 가 프로세스-유일 (세션×ms×시퀀스) 이라 충돌 없음.
+   Unity 의 (자산 GUID = 영구 / InstanceID = 활성 런타임) 이원 구조와 동일.
 3. `operator->()` — Debug 에서 `assert(IsValid())`, Release 에서는 `Get()` 과 동일 (무효면 nullptr
    deref → 크래시).
 4. `IsValid()` — `Get() != nullptr`.
@@ -251,7 +252,9 @@ namespace JBro
         InstanceHandle m_cached;                     // 8B (Slot + Gen)
         InstanceId     m_instanceId = InvalidInstanceId; // 8B
 
-        // 내부 해석 — Ref<T>::Get() 과 같은 캐시-히트-우선 경로를 쓴다.
+        // 내부 해석 — 캐시-히트-우선 경로.
+        // 1) m_cached 유효 → InstanceRegistry 에서 slot 범위/gen 확인 후 반환.
+        // 2) 캐시 미스 → InstanceRegistry.Find(m_instanceId) 로 재해석 + m_cached 갱신.
         GameObject* Resolve() const;
     };
 
@@ -283,20 +286,25 @@ void GameObjectHandle::Destroy()
 **How** (`GameObject.h/.cpp` 수정):
 
 1. 상속 추가: `class GameObject : public EnableSafeFromThis<GameObject>` (EnableSafeFromThis
-   이식했다면).
-2. 필드 교체:
+   함께 이식).
+2. 필드 교체 (D-3 완화 반영 — **Transform 필드는 두지 않는다**):
    ```cpp
-   SafePtr<GameObject>       m_parent;
-   Array<SafePtr<GameObject>> m_children;
-   Array<SafePtr<ComponentBase>> m_components;
-   SafePtr<Layer>            m_layer;     // Layer 참조. 인덱스 캐시는 별도.
-   uint32_t                  m_layerIndex = 0;  // GetLayerIndex() O(1) 캐시.
+   SafePtr<GameObject>            m_parent;
+   Array<SafePtr<GameObject>>     m_children;
+   Array<SafePtr<ComponentBase>>  m_components;
+   SafePtr<Layer>                 m_layer;      // Layer 참조.
+   uint32_t                       m_layerIndex = 0;  // GetLayerIndex() O(1) 캐시.
+   // Transform 은 컴포넌트로 존재 (Component::Transform2D 또는 Transform3D).
+   // 프레임워크가 attach 하고, GameObject 는 dimension 을 모른다.
    ```
 3. `GameObject::SetLayer(Layer*)` — SafePtr 갱신 + 인덱스 캐시 갱신. `SetLayerIndex(uint32)` 는
    삭제 (인덱스는 Layer 로부터 유도).
 4. `SetParent` / `AttachComponent` / `DetachComponent` 는 SafePtr 로 갱신.
 5. `InstanceId` 를 Canvas 로부터 발급받도록 생성자 수정 — Canvas 가 `Create` 시
    `object->m_instanceId = idgen.Generate()`.
+6. **`GameObject::GetComponent<T>()` 추가** — `m_components` 선형 순회 + `GetTypeId()` 비교.
+   기존 엔진의 `FindComponentRaw` 와 같은 구조. n=5 기준 캐시-핫이라 해시맵보다 빠르다 (D-30).
+   `GetComponents<T>()` 는 복수형 반환. 첫 매칭만 원하면 `GetComponent<T>()` (D-31).
 
 ### 7. `ComponentBase` 확정
 

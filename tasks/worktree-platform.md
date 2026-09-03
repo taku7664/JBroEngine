@@ -78,13 +78,16 @@ Platform 은 RHI 위가 아니라 아래. Graphics 가 Asset 을 소비 (텍스�
 1. `IPlatform` 에 세 함수를 추가한다:
    ```cpp
    struct DynamicLibrary { void* opaque = nullptr; };
-   virtual DynamicLibrary LoadDynamicLibrary(const char* path)             = 0;
-   virtual void*          GetSymbol(DynamicLibrary lib, const char* name)  = 0;
-   virtual void           UnloadDynamicLibrary(DynamicLibrary lib)         = 0;
+   virtual DynamicLibrary LoadDynamicLibrary(const char* utf8Path)            = 0;
+   virtual void*          GetSymbol(DynamicLibrary lib, const char* name)     = 0;
+   virtual void           UnloadDynamicLibrary(DynamicLibrary lib)            = 0;
    ```
-2. `WindowsPlatform` 구현: `LoadLibraryA` / `GetProcAddress` / `FreeLibrary` 감싼다.
+   **`utf8Path` 는 UTF-8**. 한글 경로 지원이 필수라 ANSI 경로 API 는 쓰지 않는다.
+2. `WindowsPlatform` 구현: `LoadLibraryW` / `GetProcAddress` / `FreeLibrary`. UTF-8 을
+   `MultiByteToWideChar(CP_UTF8, ...)` 로 UTF-16 변환 후 `LoadLibraryW`.
+   `LoadLibraryA` 는 CP949 만 받아서 한글 경로가 깨진다 — 절대 쓰지 않는다.
 3. `WebPlatform` 구현: 지금은 스텁 (nullptr 반환). 웹 스크립트 DLL 은 나중에.
-4. `AndroidPlatform` 구현: 지금은 스텁.
+4. `AndroidPlatform` 구현: 지금은 스텁 (`dlopen` 도 UTF-8 경로 그대로 받음).
 
 **W-host 가 이 API 를 소비**. 이 API 가 W-platform 에 들어가야 W-host 병합이 가능하다.
 
@@ -97,11 +100,15 @@ Platform 은 RHI 위가 아니라 아래. Graphics 가 Asset 을 소비 (텍스�
 **How**:
 
 1. **삭제**: `JBroGraphics::GraphicsSystem` 클래스 (헤더/소스 전체).
-2. **신규**: `JBroGraphics/Include/JBro/Graphics/Renderer.h`
+2. **신규**: `JBroGraphics/Include/JBro/Graphics/Renderer.h` — **저수준 API 만 노출**
+   (D-29). `RenderWorld2D` / `RenderWorld3D` 같은 프레임 타입을 인자로 받지 않는다 —
+   그러면 `JBroGraphics` 가 `JBroFramework2D` 를 참조하는 역방향 의존이 생긴다.
+   Framework2D/3D 의 시스템이 자기 안에서 프레임 데이터를 만들고 아래 API 를 반복 호출한다.
    ```cpp
    namespace JBro
    {
        class IRHIModule; class IRHIDevice;
+       struct AssetHandle;
 
        struct RendererConfig
        {
@@ -110,21 +117,46 @@ Platform 은 RHI 위가 아니라 아래. Graphics 가 Asset 을 소비 (텍스�
            bool          validation = false;
        };
 
+       struct CameraParams
+       {
+           Matrix4x4 view;
+           Matrix4x4 projection;
+           Color     clearColor;
+       };
+
+       struct SpriteSubmit
+       {
+           Matrix4x4    world;
+           AssetHandle  sprite;
+           AssetHandle  material;
+           Color        tint;
+           std::int32_t renderOrder = 0;
+       };
+
+       struct MeshSubmit
+       {
+           Matrix4x4   world;
+           AssetHandle mesh;
+           AssetHandle material;
+       };
+
        class Renderer final
        {
        public:
            bool Initialize(IRHIModule& rhi, const RendererConfig& config);
            void Shutdown();
 
+           // 프레임 진입.
            void BeginFrame();
+           void SetCamera(const CameraParams& camera);
+
+           // 그리기 원시.
+           void SubmitSprite(const SpriteSubmit& item);
+           void SubmitMesh  (const MeshSubmit& item);
+
            void EndFrame();
 
-           // 프레임 데이터 (RenderWorld2D 로부터 온) 를 처리하는 진입점.
-           // 실제 시그니처는 W-framework 의 RenderWorld2D 계약이 확정된 뒤 결정.
-           class RenderWorld2D;
-           void Render(const RenderWorld2D& world);
-
-           // 디바이스 로스트는 치명적 오류로 종료. 런타임 복구는 하지 않는다.
+           // 디바이스 로스트는 치명적 오류로 종료. 런타임 복구는 하지 않는다 (D-16).
            bool IsDeviceLost() const;
 
        private:
@@ -136,8 +168,8 @@ Platform 은 RHI 위가 아니라 아래. Graphics 가 Asset 을 소비 (텍스�
 3. `Renderer.cpp` 는 최소 스텁 (Initialize 는 `IRHIModule::CreateDevice` 호출까지만).
 4. `JBroGraphics.vcxproj` 는 `JBroRHI` + `JBroAsset` 참조 확인.
 
-**W-framework 가 `Renderer::Render(...)` 를 통해 자기 프레임 데이터를 넘긴다.** 시그니처 확정은
-공유 헤더 편집이라 main 병합 → rebase 순서로 한다.
+**W-framework 가 자기 `SpriteRender2DSystem` / `Camera2DSystem` 안에서 `RenderWorld2D` 를 만들고
+`Renderer::SubmitSprite` / `SetCamera` 를 반복 호출한다.** Renderer 는 프레임 타입을 모른다.
 
 ### C6-b. RHI 디바이스 포인터 노출 금지
 
@@ -189,7 +221,7 @@ Renderer 안에 가둔다.
 - [ ] `dumpbin /dependents JBroPlatform.lib` 에 `JBroRHI` 가 없어야 (역방향 없음)
 - [ ] `JBroTests` 통과 (Platform · Renderer 스켈레톤이 인스턴스화만 되어도 통과)
 - [ ] D3 개명 후 `CreateWindow` / `DestroyWindow` grep 하면 매크로 아닌 사용처 0 건
-- [ ] `IPlatform::LoadDynamicLibrary` 로 실제 dll (예: `Kernel32.dll`) 로드/언로드 왕복 테스트
+- [ ] `IPlatform::LoadDynamicLibrary` 로 실제 dll 로드/언로드 왕복 테스트 (한글 경로 포함)
 
 ## 다른 워크트리와의 인터페이스
 

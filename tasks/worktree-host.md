@@ -21,8 +21,10 @@
 
 ### 기존 편집
 
-- `source/JBroEngine/Modules/JBroRuntime/Include/JBro/Runtime/Context.h`
-- `source/JBroEngine/Modules/JBroRuntime/Source/Context.cpp` (신규)
+- `source/JBroEngine/Modules/JBroRuntime/Include/JBro/Runtime/EngineContext.h` (분리 · D-27)
+- `source/JBroEngine/Modules/JBroRuntime/Include/JBro/Runtime/SystemContext.h` (분리 · D-27)
+- `source/JBroEngine/Modules/JBroRuntime/Include/JBro/Runtime/ServiceContext.h` (분리 · D-27)
+- `source/JBroEngine/Modules/JBroRuntime/Source/Context.cpp` (신규 · 3구조체 · 바인딩)
 - `source/JBroEngine/Modules/JBroRuntime/Include/JBro/Runtime/EngineInstance.h`
 - `source/JBroEngine/Modules/JBroRuntime/Source/EngineInstance.cpp`
 - `source/JBroEngine/Modules/JBroRuntime/Include/JBro/Runtime/IFramework.h`
@@ -78,12 +80,15 @@ CLAUDE.md · memory 에 이미 명시:
 
 ## 작업 항목
 
-### H1. `EngineContext` / `SystemContext` / `ServiceContext` 채우기
+### H1. `EngineContext` / `SystemContext` / `ServiceContext` — 3파일로 분리
 
-**Why**: B0 에서 빈 구조체로 뒀다. 실제 필드 정의.
+**Why**: B0 에서 한 파일에 셋을 모아뒀다. 그러면 `ScriptAPI.h` 프렐류드가 `Context.h` 하나만
+include 해도 `SystemContext` 정의가 사용자 TU 에 노출된다. **파일을 분리해서 include 트리로
+노출 범위를 강제** (D-27).
 
-**How** (`Runtime/Context.h`):
+**How**:
 
+**`Runtime/EngineContext.h`** — 호스트 전용. 프렐류드 include 트리에 없음.
 ```cpp
 namespace JBro
 {
@@ -92,7 +97,21 @@ namespace JBro
     class Renderer;
     class AssetManager;
 
-    // 시스템들 — 전방 선언만 (사용자 노출 금지).
+    struct EngineContext
+    {
+        IPlatform*    Platform  = nullptr;
+        IRHIModule*   RHI       = nullptr;
+        Renderer*     Renderer  = nullptr;
+        AssetManager* Assets    = nullptr;
+        // ... 시스템 · 서비스 포인터 모음.
+    };
+}
+```
+
+**`Runtime/SystemContext.h`** — 게임 DLL 은 받지만 프렐류드에는 들어가지 않음.
+```cpp
+namespace JBro
+{
     namespace System
     {
         class Transform2DSystem;
@@ -102,7 +121,26 @@ namespace JBro
         class ScriptSystem;
     }
 
-    // 서비스들 — 값 포함.
+    struct SystemContext
+    {
+        std::uint32_t                 AbiVersion  = 1;  // D-28 · 안전망
+        System::Transform2DSystem*    Transform2D = nullptr;
+        System::SpriteRender2DSystem* SpriteRender2D = nullptr;
+        System::Camera2DSystem*       Camera2D    = nullptr;
+        System::Physics2DSystem*      Physics2D   = nullptr;
+        System::ScriptSystem*         Script      = nullptr;
+    };
+
+    void BindSystemContext(const SystemContext& context);
+}
+```
+`AbiVersion` 은 호스트/DLL 이 다른 버전이면 로드 거부용 안전망. 필드 순서가 바뀌면 버전 증가.
+게임 DLL 은 사용자 프로젝트마다 함께 빌드되므로 (D-28) 재빌드 강제가 자연 규약.
+
+**`Runtime/ServiceContext.h`** — `ScriptAPI.h` 가 include. 사용자에게 노출됨.
+```cpp
+namespace JBro
+{
     namespace Service
     {
         class TimeService;
@@ -114,37 +152,18 @@ namespace JBro
         class Physics2DService;
     }
 
-    // 호스트가 조립. 모든 것.
-    struct EngineContext
-    {
-        IPlatform*    Platform     = nullptr;
-        IRHIModule*   RHI          = nullptr;
-        Renderer*     Renderer     = nullptr;
-        AssetManager* Assets       = nullptr;
-        // ... 시스템 · 서비스 포인터 모음.
-    };
-
-    // 게임 DLL 은 받되 사용자 노출 안 함.
-    struct SystemContext
-    {
-        System::Transform2DSystem*    Transform2D    = nullptr;
-        System::Physics2DSystem*      Physics2D      = nullptr;
-        // ...
-    };
-
-    // 스크립트가 값으로 들고 다님.
     struct ServiceContext
     {
-        Service::TimeService*         Time     = nullptr;
-        Service::InputService*        Input    = nullptr;
-        Service::AudioService*        Audio    = nullptr;
-        Service::AssetService*        Asset    = nullptr;
-        Service::GameObjectService*   GameObject = nullptr;
-        Service::CanvasService*       Canvas   = nullptr;
-        Service::Physics2DService*    Physics2D = nullptr;
+        std::uint32_t                 AbiVersion       = 1;
+        Service::TimeService*         Time             = nullptr;
+        Service::InputService*        Input            = nullptr;
+        Service::AudioService*        Audio            = nullptr;
+        Service::AssetService*        Asset            = nullptr;
+        Service::GameObjectService*   GameObject       = nullptr;
+        Service::CanvasService*       Canvas           = nullptr;
+        Service::Physics2DService*    Physics2D        = nullptr;
     };
 
-    void BindSystemContext(const SystemContext& context);
     void BindServiceContext(const ServiceContext& context);
 }
 ```
@@ -307,7 +326,9 @@ namespace JBro
 #include <JBro/Runtime/Ref.h>
 #include <JBro/Runtime/GameObject.h>
 #include <JBro/Runtime/GameObjectHandle.h>
-#include <JBro/Runtime/Context.h>
+#include <JBro/Runtime/ServiceContext.h>          // 사용자 공개
+// SystemContext.h 는 여기서 include 하지 않는다 (D-27) — 사용자에게 시스템 노출 금지.
+// EngineContext.h 는 호스트 전용이라 프렐류드 트리에 없다.
 #include <JBro/Script/Macros.h>
 
 // 서비스 프렐류드 (도메인별. 게임 스크립트가 접근할 표면만).
@@ -329,9 +350,10 @@ namespace JBro
 using namespace JBro;
 ```
 
-**주의**: `SystemContext` 정의 헤더 (`Runtime/Context.h`) 를 프렐류드가 include 하면 사용자 TU 에
-시스템 이름이 노출된다. Context.h 를 두 헤더로 나눠 `SystemContext` 는 별도 헤더에 두고 프렐류드에
-서는 include 하지 않는 게 낫다.
+**주의**: `SystemContext.h` 는 프렐류드 include 트리에 없어야 한다. 게임 DLL 이 `BindSystemContext`
+를 호출하려면 그 함수 선언만 필요한데, 그 선언은 `SystemContext.h` 안에 있으므로 DLL 은 자기 TU
+안에서만 `SystemContext.h` 를 include (프렐류드 밖). 사용자 스크립트 파일은 SystemContext 존재
+자체를 모른다.
 
 ### H8. `JBRO_SCRIPT` 매크로
 
@@ -404,10 +426,12 @@ bool EngineInstance::Initialize(const EngineConfig& config, IPlatform& platform,
 
 - [ ] Debug / Release x64 빌드 통과
 - [ ] `JBroTests` 통과
-- [ ] `Kernel32.dll` 대신 실제 스크립트 스텁 DLL 로 Load/Unload/Reload 왕복 성공
+- [ ] 실제 스크립트 스텁 DLL 로 Load/Unload/Reload 왕복 성공 (한글 경로 포함)
 - [ ] H6 실측 통과 (재로드 후 새 로그 문자열 확인)
 - [ ] 프렐류드 자립: 사용자가 `#include <JBro/ScriptAPI.h>` 만 한 파일이 컴파일됨
-- [ ] `SystemContext` 정의는 프렐류드 include 트리에 없음 (grep 로 사용자 TU 에서 System 이름 못 씀)
+- [ ] `SystemContext` 정의는 프렐류드 include 트리에 없음 (`ScriptAPI.h` include 후 사용자 TU 에서 `System::` 이름 못 씀)
+- [ ] `EngineContext` 정의는 프렐류드 include 트리에 없음 (호스트 전용)
+- [ ] `AbiVersion` 필드 불일치 시 로드 거부
 
 ## 다른 워크트리와의 인터페이스
 

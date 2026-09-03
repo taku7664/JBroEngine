@@ -9,6 +9,31 @@ Framework2D / Framework3D 의 컴포넌트 데이터 정의와 시스템 로직�
 그리고 Runtime 의 `GameSystem` / `SystemScheduler` 가 계층 위쪽 (RenderWorld2D 등) 을 참조하지
 않도록 정리한다.
 
+## 진행 순서 — Phase 1 · Phase 2
+
+이 워크트리는 두 단계로 나뉜다.
+
+### Phase 1 (W-ref 병합 전에 진행 가능 · 독립)
+
+W-ref 의 실 구현에 의존하지 않는 작업. 파일 시그니처만 확정된 상태로 이 워크트리를 시작해도 된다.
+
+- **C4** — 차원 마커 위치 검색 (`grep`).
+- **D1** — `GameSystem` / `SystemScheduler` 가 `RenderWorld2D` 를 참조 안 하는지 확인.
+- **D5** — `GameScript` 차원 종속 분리 (`GameScriptBase` 를 Runtime 으로).
+
+### Phase 2 (W-ref 병합 · rebase 후)
+
+W-ref 의 `Canvas` · `ComponentBase` · `TObjectPool<T>` · `Ref<T>` · `GameObjectHandle` 실 구현이
+있어야 컴파일 가능.
+
+- **B5** — 6개 컴포넌트 `ComponentBase` 파생. `Component::Transform2D` 포함
+  (D-3 완화됨 — Transform 은 컴포넌트로 유지).
+- **B11** — 같은 타입 컴포넌트 다중 지원 (Canvas 저장구조에서).
+- **C5-system** — `System::Physics2DSystem` 시뮬레이션 몸통.
+- **5개 시스템 몸통** — Transform2D/SpriteRender2D/Camera2D/Physics2D/Script.
+- **Renderer 소비** — SpriteRender2DSystem / Camera2DSystem 이 W-platform 의 Renderer 저수준
+  API 를 반복 호출.
+
 ## 소유 파일
 
 - `source/JBroEngine/Modules/JBroFramework2D/**`
@@ -49,7 +74,7 @@ Framework2D / Framework3D 의 컴포넌트 데이터 정의와 시스템 로직�
 **Why**: 다이어그램/§8 계약. 리플렉션 · 직렬화 · 인스펙터가 다형성에 의존한다. 컴포넌트가 POD
 struct 면 vtable 이 없어 타입 판별을 매번 밖에서 해야 한다.
 
-**How** (컴포넌트 6개 각각):
+**How** (컴포넌트 6개 각각. `Transform2D`/`WorldTransform2D` 도 대상 — D-3 완화로 컴포넌트로 유지):
 
 1. `struct Component::Transform2D` → `class Transform2D : public ComponentBase`.
 2. 필수 오버라이드:
@@ -140,9 +165,11 @@ struct 면 vtable 이 없어 타입 판별을 매번 밖에서 해야 한다.
 
 - **Transform2DSystem**: `canvas.ForEach<Transform2D>` 로 local 을 world 로 곱한다.
   부모 계층은 `GameObject::GetParent()` 를 따라 재귀. 캐시 (`WorldTransform2D::dirty`) 로 optimization.
-- **SpriteRender2DSystem**: `canvas.ForEach<SpriteRenderer2D>` 로 렌더 아이템 생성 후
-  `m_renderWorld->SubmitSprite(item)`.
-- **Camera2DSystem**: primary 카메라 찾아 view 매트릭스 구성 → `m_renderWorld->SetCamera(cam)`.
+- **SpriteRender2DSystem**: `canvas.ForEach<SpriteRenderer2D>` 로 자기 안의 `RenderWorld2D`
+  에 아이템 축적. 프레임 끝에서 `Renderer::SubmitSprite(...)` 를 반복 호출 (D-29). Renderer 는
+  `RenderWorld2D` 자체를 모른다.
+- **Camera2DSystem**: primary 카메라 찾아 view · projection 매트릭스 구성 →
+  `Renderer::SetCamera(CameraParams{view, proj, clearColor})`.
 - **ScriptSystem**: `canvas.ForEach<GameScript>` (또는 `GameScript2D`) 로 Start/Update/FixedUpdate
   호출. `IsActiveComponent()` 체크 필수.
 
