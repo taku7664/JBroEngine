@@ -1,20 +1,103 @@
 <Solution>
   <Configurations>
+    <BuildType Name="Debug" />
+    <BuildType Name="Release" />
+    <BuildType Name="Debug_Game2D" />
+    <BuildType Name="Release_Game2D" />
+    <BuildType Name="Debug_Game3D" />
+    <BuildType Name="Release_Game3D" />
     <Platform Name="x64" />
   </Configurations>
   <Folder Name="/Modules/">
-    <Project Path="Modules/JBroCore/JBroCore.vcxproj" />
-    <Project Path="Modules/JBroAsset/JBroAsset.vcxproj" />
-    <Project Path="Modules/JBroRHI/JBroRHI.vcxproj" />
-    <Project Path="Modules/JBroPlatform/JBroPlatform.vcxproj" />
-    <Project Path="Modules/JBroGraphics/JBroGraphics.vcxproj" />
-    <Project Path="Modules/JBroRuntime/JBroRuntime.vcxproj" />
-    <Project Path="Modules/JBroD3D12RHI/JBroD3D12RHI.vcxproj" />
-    <Project Path="Modules/JBroFramework2D/JBroFramework2D.vcxproj" />
-    <Project Path="Modules/JBroFramework3D/JBroFramework3D.vcxproj" />
-    <Project Path="Modules/JBroEditor/JBroEditor.vcxproj" />
+    <Project Path="Modules/JBroCore/JBroCore.vcxproj">
+      <BuildType Solution="Debug_Game2D|x64" Project="Debug" />
+      <BuildType Solution="Release_Game2D|x64" Project="Release" />
+      <BuildType Solution="Debug_Game3D|x64" Project="Debug" />
+      <BuildType Solution="Release_Game3D|x64" Project="Release" />
+    </Project>
+    <Project Path="Modules/JBroAsset/JBroAsset.vcxproj">
+      <BuildType Solution="Debug_Game2D|x64" Project="Debug" />
+      <BuildType Solution="Release_Game2D|x64" Project="Release" />
+      <BuildType Solution="Debug_Game3D|x64" Project="Debug" />
+      <BuildType Solution="Release_Game3D|x64" Project="Release" />
+    </Project>
+    <Project Path="Modules/JBroRHI/JBroRHI.vcxproj">
+      <BuildType Solution="Debug_Game2D|x64" Project="Debug" />
+      <BuildType Solution="Release_Game2D|x64" Project="Release" />
+      <BuildType Solution="Debug_Game3D|x64" Project="Debug" />
+      <BuildType Solution="Release_Game3D|x64" Project="Release" />
+    </Project>
+    <Project Path="Modules/JBroPlatform/JBroPlatform.vcxproj">
+      <BuildType Solution="Debug_Game2D|x64" Project="Debug" />
+      <BuildType Solution="Release_Game2D|x64" Project="Release" />
+      <BuildType Solution="Debug_Game3D|x64" Project="Debug" />
+      <BuildType Solution="Release_Game3D|x64" Project="Release" />
+    </Project>
+    <Project Path="Modules/JBroGraphics/JBroGraphics.vcxproj">
+      <BuildType Solution="Debug_Game2D|x64" Project="Debug" />
+      <BuildType Solution="Release_Game2D|x64" Project="Release" />
+      <BuildType Solution="Debug_Game3D|x64" Project="Debug" />
+      <BuildType Solution="Release_Game3D|x64" Project="Release" />
+    </Project>
+    <Project Path="Modules/JBroRuntime/JBroRuntime.vcxproj">
+      <BuildType Solution="Debug_Game2D|x64" Project="Debug" />
+      <BuildType Solution="Release_Game2D|x64" Project="Release" />
+      <BuildType Solution="Debug_Game3D|x64" Project="Debug" />
+      <BuildType Solution="Release_Game3D|x64" Project="Release" />
+    </Project>
+    <Project Path="Modules/JBroD3D12RHI/JBroD3D12RHI.vcxproj">
+      <BuildType Solution="Debug_Game2D|x64" Project="Debug" />
+      <BuildType Solution="Release_Game2D|x64" Project="Release" />
+      <BuildType Solution="Debug_Game3D|x64" Project="Debug" />
+      <BuildType Solution="Release_Game3D|x64" Project="Release" />
+    </Project>
+    <Project Path="Modules/JBroFramework2D/JBroFramework2D.vcxproj">
+      <BuildType Solution="Debug_Game2D|x64" Project="Debug" />
+      <BuildType Solution="Release_Game2D|x64" Project="Release" />
+      <BuildType Solution="Debug_Game3D|x64" Project="Debug" />
+      <BuildType Solution="Release_Game3D|x64" Project="Release" />
+      <Build Solution="Debug_Game3D|x64" Project="false" />
+      <Build Solution="Release_Game3D|x64" Project="false" />
+    </Project>
+    <Project Path="Modules/JBroFramework3D/JBroFramework3D.vcxproj">
+      <BuildType Solution="Debug_Game2D|x64" Project="Debug" />
+      <BuildType Solution="Release_Game2D|x64" Project="Release" />
+      <BuildType Solution="Debug_Game3D|x64" Project="Debug" />
+      <BuildType Solution="Release_Game3D|x64" Project="Release" />
+      <Build Solution="Debug_Game2D|x64" Project="false" />
+      <Build Solution="Release_Game2D|x64" Project="false" />
+    </Project>
+    <Project Path="Modules/JBroGameHost/JBroGameHost.vcxproj">
+      <BuildType Solution="Debug|x64" Project="Debug_Game2D" />
+      <BuildType Solution="Release|x64" Project="Release_Game2D" />
+      <BuildType Solution="Debug_Game2D|x64" Project="Debug_Game2D" />
+      <BuildType Solution="Release_Game2D|x64" Project="Release_Game2D" />
+      <BuildType Solution="Debug_Game3D|x64" Project="Debug_Game3D" />
+      <BuildType Solution="Release_Game3D|x64" Project="Release_Game3D" />
+      <Build Solution="Debug|x64" Project="false" />
+      <Build Solution="Release|x64" Project="false" />
+    </Project>
+    <Project Path="Modules/JBroEditor/JBroEditor.vcxproj">
+      <BuildType Solution="Debug_Game2D|x64" Project="Debug" />
+      <BuildType Solution="Release_Game2D|x64" Project="Release" />
+      <BuildType Solution="Debug_Game3D|x64" Project="Debug" />
+      <BuildType Solution="Release_Game3D|x64" Project="Release" />
+      <Build Solution="Debug_Game2D|x64" Project="false" />
+      <Build Solution="Release_Game2D|x64" Project="false" />
+      <Build Solution="Debug_Game3D|x64" Project="false" />
+      <Build Solution="Release_Game3D|x64" Project="false" />
+    </Project>
   </Folder>
   <Folder Name="/Tests/">
-    <Project Path="Tests/JBroTests.vcxproj" />
+    <Project Path="Tests/JBroTests.vcxproj">
+      <BuildType Solution="Debug_Game2D|x64" Project="Debug" />
+      <BuildType Solution="Release_Game2D|x64" Project="Release" />
+      <BuildType Solution="Debug_Game3D|x64" Project="Debug" />
+      <BuildType Solution="Release_Game3D|x64" Project="Release" />
+      <Build Solution="Debug_Game2D|x64" Project="false" />
+      <Build Solution="Release_Game2D|x64" Project="false" />
+      <Build Solution="Debug_Game3D|x64" Project="false" />
+      <Build Solution="Release_Game3D|x64" Project="false" />
+    </Project>
   </Folder>
 </Solution>

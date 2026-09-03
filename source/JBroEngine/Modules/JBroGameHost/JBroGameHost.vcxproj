@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug_Game2D|x64">
+      <Configuration>Debug_Game2D</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release_Game2D|x64">
+      <Configuration>Release_Game2D</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug_Game3D|x64">
+      <Configuration>Debug_Game3D</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release_Game3D|x64">
+      <Configuration>Release_Game3D</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>18.0</VCProjectVersion>
+    <ProjectGuid>{1a00000c-0000-4000-8000-000000006a6d}</ProjectGuid>
+    <RootNamespace>JBroGameHost</RootNamespace>
+    <ProjectName>JBroGameHost</ProjectName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug_Game2D' Or '$(Configuration)' == 'Release_Game2D'">
+    <JBroScriptDimension>2D</JBroScriptDimension>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug_Game3D' Or '$(Configuration)' == 'Release_Game3D'">
+    <JBroScriptDimension>3D</JBroScriptDimension>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <Import Project="$(SolutionDir)JBro.Common.props" Condition="Exists('$(SolutionDir)JBro.Common.props')" />
+  <Import Project="$(MSBuildThisFileDirectory)..\..\JBro.Common.props" Condition="!Exists('$(SolutionDir)JBro.Common.props')" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug_Game2D' Or '$(Configuration)' == 'Debug_Game3D'">
+    <UseDebugLibraries>true</UseDebugLibraries>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Release_Game2D' Or '$(Configuration)' == 'Release_Game3D'">
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroRHI\Include;$(JBroModulesDir)JBroGraphics\Include;$(JBroModulesDir)JBroPlatform\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroScriptFrameworkIncludes);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions Condition="'$(JBroScriptDimension)' == '2D'">JBRO_GAME_DIMENSION_2D;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(JBroScriptDimension)' == '3D'">JBRO_GAME_DIMENSION_3D;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)' == 'Debug_Game2D' Or '$(Configuration)' == 'Debug_Game3D'">_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)' == 'Release_Game2D' Or '$(Configuration)' == 'Release_Game3D'">NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <ClCompile Condition="'$(Configuration)' == 'Release_Game2D' Or '$(Configuration)' == 'Release_Game3D'">
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="Source\**\*.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(JBroModulesDir)JBroCore\JBroCore.vcxproj">
+      <Project>{1a000001-0000-4000-8000-00000000c0de}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroAsset\JBroAsset.vcxproj">
+      <Project>{1a000002-0000-4000-8000-0000000a5537}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroRHI\JBroRHI.vcxproj">
+      <Project>{1a000003-0000-4000-8000-000000000271}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroPlatform\JBroPlatform.vcxproj">
+      <Project>{1a000004-0000-4000-8000-00000091a7f0}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroGraphics\JBroGraphics.vcxproj">
+      <Project>{1a000005-0000-4000-8000-000000024a12}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroRuntime\JBroRuntime.vcxproj">
+      <Project>{1a000006-0000-4000-8000-000000027417}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup Condition="'$(JBroScriptDimension)' == '2D'">
+    <ProjectReference Include="$(JBroModulesDir)JBroFramework2D\JBroFramework2D.vcxproj">
+      <Project>{1a000008-0000-4000-8000-000000000f2d}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup Condition="'$(JBroScriptDimension)' == '3D'">
+    <ProjectReference Include="$(JBroModulesDir)JBroFramework3D\JBroFramework3D.vcxproj">
+      <Project>{1a000009-0000-4000-8000-000000000f3d}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>
