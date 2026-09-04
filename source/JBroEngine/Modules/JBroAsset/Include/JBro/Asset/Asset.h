@@ -22,6 +22,34 @@ namespace JBro
         JStringView sourcePath;
     };
 
+    namespace Asset
+    {
+        struct TextureAsset
+        {
+            AssetId id;
+        };
+
+        struct SpriteAsset
+        {
+            AssetId id;
+        };
+
+        struct MeshAsset
+        {
+            AssetId id;
+        };
+
+        struct MaterialAsset
+        {
+            AssetId id;
+        };
+
+        struct ShaderAsset
+        {
+            AssetId id;
+        };
+    }
+
     class AssetRegistry
     {
     public:
@@ -37,6 +65,11 @@ namespace JBro
         void Shutdown() override;
 
         AssetHandle Load(AssetId id);
+        AssetHandle LoadTexture(AssetId id);
+        AssetHandle LoadSprite(AssetId id);
+        AssetHandle LoadMesh(AssetId id);
+        AssetHandle LoadMaterial(AssetId id);
+        AssetHandle LoadShader(AssetId id);
         void Unload(AssetHandle handle);
         bool IsLoaded(AssetHandle handle) const;
     };

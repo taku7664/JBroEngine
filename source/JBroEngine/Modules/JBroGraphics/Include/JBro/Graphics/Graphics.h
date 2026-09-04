@@ -5,18 +5,6 @@
 
 namespace JBro
 {
-    struct TextureAsset
-    {
-        AssetId id;
-        TextureHandle texture;
-    };
-
-    struct ShaderAsset
-    {
-        AssetId id;
-        JStringView entryPoint;
-    };
-
     // Temporary source-compatibility shell. W-host removes this after switching to Renderer.
     class GraphicsSystem final : public IModule
     {
