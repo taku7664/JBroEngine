@@ -204,6 +204,10 @@ namespace
 
         Check(renderer.EndView(), "active view must end");
         Check(renderer.EndFrame() == JBro::FrameStatus::Ready, "frame must end");
+        Check(module.device.commands.beginRenderPassCount == 1,
+            "renderer must record one render pass after packet collection");
+        Check(module.device.commands.endRenderPassCount == 1,
+            "renderer must close every recorded render pass");
 
         const JBro::RendererFrameStats stats = renderer.GetLastFrameStats();
         Check(stats.viewCount == 1, "completed frame must report one view");

@@ -104,6 +104,7 @@ namespace JBro
 
         static constexpr std::uint32_t InvalidViewIndex = 0xFFFFFFFFu;
 
+        bool RecordViews();
         void ResetSubmissionStorage();
 
         RendererConfig m_config;

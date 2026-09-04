@@ -4,6 +4,7 @@
 int RunWorldCanvasFoundationTests();
 int RunRendererContractTests();
 int RunPlatformContractTests();
+int RunD3D12SmokeTests();
 
 int main()
 {
@@ -18,6 +19,10 @@ int main()
             return 1;
         }
         if (RunPlatformContractTests() != 0)
+        {
+            return 1;
+        }
+        if (RunD3D12SmokeTests() != 0)
         {
             return 1;
         }

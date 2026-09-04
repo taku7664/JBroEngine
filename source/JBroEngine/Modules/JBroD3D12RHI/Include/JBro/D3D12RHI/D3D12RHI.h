@@ -4,7 +4,10 @@
 
 namespace JBro
 {
-    class D3D12Device;
+    namespace Internal
+    {
+        class D3D12Device;
+    }
 
     class D3D12RHIModule final : public IRHIModule
     {
@@ -16,6 +19,7 @@ namespace JBro
         void DestroyDevice(IRHIDevice* device) override;
 
     private:
-        D3D12Device* mActiveDevice = nullptr;
+        Internal::D3D12Device* m_activeDevice = nullptr;
+        bool m_initialized = false;
     };
 }

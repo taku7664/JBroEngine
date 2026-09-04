@@ -25,10 +25,11 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroRHI\Include;$(JBroModulesDir)JBroGraphics\Include;$(JBroModulesDir)JBroPlatform\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroFramework2D\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroRHI\Include;$(JBroModulesDir)JBroD3D12RHI\Include;$(JBroModulesDir)JBroGraphics\Include;$(JBroModulesDir)JBroPlatform\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroFramework2D\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
+      <AdditionalDependencies>d3d12.lib;dxgi.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -43,6 +44,9 @@
     </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroRHI\JBroRHI.vcxproj">
       <Project>{1a000003-0000-4000-8000-000000000271}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroD3D12RHI\JBroD3D12RHI.vcxproj">
+      <Project>{1a000007-0000-4000-8000-0000000d3d12}</Project>
     </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroPlatform\JBroPlatform.vcxproj">
       <Project>{1a000004-0000-4000-8000-00000091a7f0}</Project>

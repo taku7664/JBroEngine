@@ -1,6 +1,7 @@
 #include <JBro/Graphics/Renderer.h>
 
 #include <new>
+#include <limits>
 
 namespace JBro
 {
@@ -11,6 +12,8 @@ namespace JBro
             || config.surface.value == 0
             || config.surfaceExtent.width == 0
             || config.surfaceExtent.height == 0
+            || config.surfaceExtent.width > static_cast<std::uint32_t>((std::numeric_limits<std::int32_t>::max)())
+            || config.surfaceExtent.height > static_cast<std::uint32_t>((std::numeric_limits<std::int32_t>::max)())
             || config.backBufferCount < 2
             || config.maxFramesInFlight == 0
             || config.maxFramesInFlight >= config.backBufferCount
@@ -229,6 +232,15 @@ namespace JBro
             return FrameStatus::InvalidState;
         }
 
+        if (false == RecordViews())
+        {
+            m_device->AbortFrame(m_frame);
+            m_lastStats = m_currentStats;
+            m_frame = {};
+            m_frameActive = false;
+            return FrameStatus::InvalidState;
+        }
+
         const FrameStatus status = m_device->EndFrame(m_frame);
         m_lastStats = m_currentStats;
         m_frame = {};
@@ -242,7 +254,9 @@ namespace JBro
             || false == m_swapchain.IsValid()
             || m_frameActive
             || extent.width == 0
-            || extent.height == 0)
+            || extent.height == 0
+            || extent.width > static_cast<std::uint32_t>((std::numeric_limits<std::int32_t>::max)())
+            || extent.height > static_cast<std::uint32_t>((std::numeric_limits<std::int32_t>::max)()))
         {
             return false;
         }
@@ -264,6 +278,70 @@ namespace JBro
     bool Renderer::IsDeviceLost() const
     {
         return m_device != nullptr && m_device->GetStatus() == FrameStatus::DeviceLost;
+    }
+
+    bool Renderer::RecordViews()
+    {
+        if (m_frame.commands == nullptr)
+        {
+            return false;
+        }
+
+        for (std::size_t index = 0; index < m_views.Size(); ++index)
+        {
+            const ViewPacket& view = m_views[index];
+            Viewport viewport = view.camera.viewport;
+            if (viewport.width <= 0.0f || viewport.height <= 0.0f)
+            {
+                viewport.x = 0.0f;
+                viewport.y = 0.0f;
+                viewport.width = static_cast<float>(m_config.surfaceExtent.width);
+                viewport.height = static_cast<float>(m_config.surfaceExtent.height);
+            }
+
+            const float right = viewport.x + viewport.width;
+            const float bottom = viewport.y + viewport.height;
+            if (viewport.x < 0.0f
+                || viewport.y < 0.0f
+                || right > static_cast<float>(m_config.surfaceExtent.width)
+                || bottom > static_cast<float>(m_config.surfaceExtent.height)
+                || viewport.minDepth < 0.0f
+                || viewport.maxDepth > 1.0f
+                || viewport.minDepth > viewport.maxDepth)
+            {
+                return false;
+            }
+
+            ColorAttachmentDesc colorAttachment;
+            colorAttachment.texture = m_frame.backBuffer;
+            colorAttachment.loadOperation = index == 0
+                ? LoadOperation::Clear
+                : LoadOperation::Load;
+            colorAttachment.storeOperation = StoreOperation::Store;
+            colorAttachment.clearColor = {
+                view.camera.clearColor[0],
+                view.camera.clearColor[1],
+                view.camera.clearColor[2],
+                view.camera.clearColor[3]};
+
+            RenderPassDesc pass;
+            pass.colorAttachments = {&colorAttachment, 1};
+            if (false == m_frame.commands->BeginRenderPass(pass))
+            {
+                return false;
+            }
+
+            const ScissorRect scissor = {
+                static_cast<std::int32_t>(viewport.x),
+                static_cast<std::int32_t>(viewport.y),
+                static_cast<std::int32_t>(right),
+                static_cast<std::int32_t>(bottom)};
+            m_frame.commands->SetViewport(viewport);
+            m_frame.commands->SetScissor(scissor);
+            m_frame.commands->EndRenderPass();
+        }
+
+        return true;
     }
 
     void Renderer::ResetSubmissionStorage()
