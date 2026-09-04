@@ -2,12 +2,20 @@
 #include <iostream>
 
 int RunWorldCanvasFoundationTests();
+int RunRendererContractTests();
 
 int main()
 {
     try
     {
-        if (RunWorldCanvasFoundationTests() != 0) return 1;
+        if (RunWorldCanvasFoundationTests() != 0)
+        {
+            return 1;
+        }
+        if (RunRendererContractTests() != 0)
+        {
+            return 1;
+        }
     }
     catch (const std::exception& error)
     {
