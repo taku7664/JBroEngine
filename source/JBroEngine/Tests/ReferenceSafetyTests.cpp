@@ -1,5 +1,7 @@
 ﻿#include <JBro/Core/InstanceIdGenerator.h>
 #include <JBro/Core/ObjectPool.h>
+#include <JBro/Internal/InstanceRegistry.h>
+#include <JBro/Runtime/Ref.h>
 #include <JBro/Types/SafePtr.h>
 
 #include <iostream>
@@ -23,6 +25,11 @@ namespace
         {
         }
 
+        int Value = 0;
+    };
+
+    struct RegistryTarget
+    {
         int Value = 0;
     };
 
@@ -110,6 +117,42 @@ namespace
         Check(reused->Value == 201, "reused slot must contain the new object");
         Check(false == firstSafe.IsValid(), "slot reuse must not revive an old SafePtr");
     }
+
+    void TestRefUsesHandleCacheBeforePersistentLookup()
+    {
+        JBro::Internal::InstanceRegistry& registry =
+            JBro::Internal::InstanceRegistry::Get();
+        registry.Clear();
+
+        RegistryTarget first{42};
+        const JBro::InstanceHandle firstHandle = registry.Register(
+            100,
+            JBro::InvalidInstanceId,
+            JBro::RefCategory::Object,
+            &first);
+        Check(firstHandle.IsSet(), "registry must return a live handle");
+
+        JBro::Ref<RegistryTarget> reference;
+        reference.ObjectId = 100;
+        registry.ResetDiagnostics();
+        Check(reference.Get() == &first, "first Ref lookup must resolve its persistent id");
+        Check(reference.Cached.IsSet(), "first Ref lookup must fill the handle cache");
+        Check(registry.GetPersistentLookupCount() == 1, "first Ref lookup must read the id table once");
+        Check(reference.Get() == &first, "second Ref lookup must resolve the cached handle");
+        Check(registry.GetPersistentLookupCount() == 1, "cache hit must not read the persistent id table");
+
+        Check(registry.Unregister(firstHandle), "registry must unregister a live handle");
+        RegistryTarget replacement{84};
+        const JBro::InstanceHandle replacementHandle = registry.Register(
+            200,
+            JBro::InvalidInstanceId,
+            JBro::RefCategory::Object,
+            &replacement);
+        Check(replacementHandle.Slot == firstHandle.Slot, "registry must reuse a released slot");
+        Check(replacementHandle.Gen != firstHandle.Gen, "reused registry slots must change generation");
+        Check(reference.Get() == nullptr, "stale Ref must not resolve a different object in a reused slot");
+        registry.Clear();
+    }
 }
 
 int RunReferenceSafetyTests()
@@ -117,6 +160,7 @@ int RunReferenceSafetyTests()
     TestSafePtrExpiresWithOwner();
     TestInstanceIdGeneratorSequenceAndOverflow();
     TestObjectPoolAddressStabilityAndLifetime();
+    TestRefUsesHandleCacheBeforePersistentLookup();
     std::cout << "Reference safety tests passed.\n";
     return 0;
 }

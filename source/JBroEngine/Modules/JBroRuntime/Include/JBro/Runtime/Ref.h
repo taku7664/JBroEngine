@@ -2,6 +2,7 @@
 
 #include <JBro/Core/Core.h>
 
+#include <cassert>
 #include <cstdint>
 #include <type_traits>
 
@@ -16,7 +17,10 @@ namespace JBro
         std::uint32_t Slot = 0;
         std::uint32_t Gen  = 0;
 
-        bool IsSet() const;
+        constexpr bool IsSet() const
+        {
+            return Slot != 0 && Gen != 0;
+        }
     };
 
     struct InstanceRef                       // 24B · POD · DLL 경계 통과
@@ -34,6 +38,23 @@ namespace JBro
         Asset,
         Canvas,
     };
+
+    namespace Internal
+    {
+        struct ResolvedInstance
+        {
+            void* Pointer = nullptr;
+            InstanceHandle Handle;
+        };
+
+        void* ResolveInstanceByHandle(
+            InstanceHandle handle,
+            RefCategory category);
+        ResolvedInstance ResolveInstanceById(
+            InstanceId objectId,
+            InstanceId componentId,
+            RefCategory category);
+    }
 
     // T 로부터 카테고리를 뽑는 트레이트. 실제 카테고리 값은 실 객체가 생기는 Stage B~G 에서
     // 각 타입별로 특수화한다. B0 단계에서는 기본값(Object) 로 둔다.
@@ -66,4 +87,70 @@ namespace JBro
         "Ref<T> must be standard layout for DLL boundary safety");
     static_assert(std::is_trivially_copyable_v<Ref<GameObject>>,
         "Ref<T> must be trivially copyable for POD boundary crossing");
+
+    template<typename T>
+    T* Ref<T>::Get() const
+    {
+        if (Cached.IsSet())
+        {
+            void* cached = Internal::ResolveInstanceByHandle(Cached, Category);
+            if (cached != nullptr)
+            {
+                return static_cast<T*>(cached);
+            }
+        }
+
+        const Internal::ResolvedInstance resolved = Internal::ResolveInstanceById(
+            ObjectId,
+            ComponentId,
+            Category);
+        if (resolved.Pointer != nullptr)
+        {
+            Ref* mutableThis = const_cast<Ref*>(this);
+            mutableThis->Cached = resolved.Handle;
+        }
+        return static_cast<T*>(resolved.Pointer);
+    }
+
+    template<typename T>
+    T* Ref<T>::operator->() const
+    {
+        T* pointer = Get();
+        assert(pointer != nullptr);
+        return pointer;
+    }
+
+    template<typename T>
+    T& Ref<T>::operator*() const
+    {
+        T* pointer = Get();
+        assert(pointer != nullptr);
+        return *pointer;
+    }
+
+    template<typename T>
+    bool Ref<T>::IsValid() const
+    {
+        return Get() != nullptr;
+    }
+
+    template<typename T>
+    void Ref<T>::Clear()
+    {
+        ObjectId = InvalidInstanceId;
+        ComponentId = InvalidInstanceId;
+        Cached = {};
+    }
+
+    template<typename T>
+    Ref<T>::operator bool() const
+    {
+        return ObjectId != InvalidInstanceId;
+    }
+
+    template<typename T>
+    bool Ref<T>::operator==(const Ref& rhs) const
+    {
+        return ObjectId == rhs.ObjectId && ComponentId == rhs.ComponentId;
+    }
 }
