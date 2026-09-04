@@ -19,6 +19,8 @@ namespace JBro
         void UnloadDynamicLibrary(DynamicLibrary library) override;
 
     private:
-        void* mInstance = nullptr;
+        void* m_instance = nullptr;
+        std::uint16_t m_windowClassAtom = 0;
+        bool m_ownsWindowClass = false;
     };
 }

@@ -3,6 +3,7 @@
 
 int RunWorldCanvasFoundationTests();
 int RunRendererContractTests();
+int RunPlatformContractTests();
 
 int main()
 {
@@ -13,6 +14,10 @@ int main()
             return 1;
         }
         if (RunRendererContractTests() != 0)
+        {
+            return 1;
+        }
+        if (RunPlatformContractTests() != 0)
         {
             return 1;
         }

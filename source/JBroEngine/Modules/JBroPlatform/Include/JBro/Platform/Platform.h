@@ -9,6 +9,7 @@ namespace JBro
         JStringView title;
         std::uint32_t width = 1280;
         std::uint32_t height = 720;
+        bool visible = true;
     };
 
     struct WindowHandle
@@ -18,6 +19,7 @@ namespace JBro
 
     struct SurfaceHandle
     {
+        // The platform window owns the native surface lifetime.
         std::uintptr_t value = 0;
     };
 
