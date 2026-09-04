@@ -1,7 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/Asset/Asset.h>
-#include <JBro/RHI/RHI.h>
+#include <JBro/Graphics/Renderer.h>
 
 namespace JBro
 {
@@ -17,16 +17,7 @@ namespace JBro
         JStringView entryPoint;
     };
 
-    class Renderer
-    {
-    public:
-        bool Initialize(IRHIDevice* device);
-        void BeginFrame();
-        void Render();
-        void EndFrame();
-        void Shutdown();
-    };
-
+    // Temporary source-compatibility shell. W-host removes this after switching to Renderer.
     class GraphicsSystem final : public IModule
     {
     public:
