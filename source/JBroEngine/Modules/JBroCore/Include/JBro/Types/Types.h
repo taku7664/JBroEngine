@@ -12,6 +12,7 @@
 #include <JBro/Types/Hash.h>
 #include <JBro/Types/Int.h>
 #include <JBro/Types/IntegerType.h>
+#include <JBro/Types/SafePtr.h>
 #include <JBro/Types/String.h>
 #include <JBro/Types/Table.h>
 #include <JBro/Types/TypeTraits.h>

@@ -60,10 +60,10 @@ namespace JBro
     {
         const std::size_t index = m_layers.IndexOfBy(
             [layer](const OwnerPtr<Layer>& item) { return item->GetIndex() == layer; });
-        return index == m_layers.Size() ? nullptr : m_layers[index].get();
+        return index == m_layers.Size() ? nullptr : m_layers[index].Get();
     }
 
     std::size_t Canvas::GetLayerCount() const                          { return m_layers.Size(); }
-    Layer*      Canvas::GetLayerAt(std::size_t index)                  { return index < m_layers.Size() ? m_layers[index].get() : nullptr; }
+    Layer*      Canvas::GetLayerAt(std::size_t index)                  { return index < m_layers.Size() ? m_layers[index].Get() : nullptr; }
     LayerIndex  Canvas::GetDefaultLayer() const                        { return m_defaultLayer; }
 }

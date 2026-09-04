@@ -2,6 +2,8 @@
 
 #include "D3D12Device.h"
 
+#include <new>
+
 namespace JBro
 {
     bool D3D12RHIModule::Initialize(const JMemoryContext& memory)
@@ -37,13 +39,18 @@ namespace JBro
             return nullptr;
         }
 
-        OwnerPtr<Internal::D3D12Device> device = MakeOwnerPtr<Internal::D3D12Device>();
-        if (false == device->Initialize(createInfo))
+        Internal::D3D12Device* device = new (std::nothrow) Internal::D3D12Device();
+        if (device == nullptr)
         {
             return nullptr;
         }
+        if (false == device->Initialize(createInfo))
+        {
+            delete device;
+            return nullptr;
+        }
 
-        m_activeDevice = device.release();
+        m_activeDevice = device;
         return m_activeDevice;
     }
 

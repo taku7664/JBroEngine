@@ -29,5 +29,8 @@ namespace JBro
             [](const OwnerPtr<GameSystem>& a, const OwnerPtr<GameSystem>& b) { return a->GetExecutionOrder() < b->GetExecutionOrder(); });
     }
     std::size_t SystemScheduler::GetSystemCount() const { return m_systems.Size(); }
-    GameSystem* SystemScheduler::GetSystem(std::size_t index) { return index < m_systems.Size() ? m_systems[index].get() : nullptr; }
+    GameSystem* SystemScheduler::GetSystem(std::size_t index)
+    {
+        return index < m_systems.Size() ? m_systems[index].Get() : nullptr;
+    }
 }

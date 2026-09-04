@@ -24,14 +24,17 @@ namespace JBro
 
     void Framework2D::Shutdown()
     {
-        if (m_canvas != nullptr) m_systems.Shutdown(*m_canvas);
-        m_systems.RemoveAllSystems(*m_canvas);
-        m_canvas.reset();
+        if (m_canvas)
+        {
+            m_systems.Shutdown(*m_canvas);
+            m_systems.RemoveAllSystems(*m_canvas);
+        }
+        m_canvas.Reset();
         m_context     = {};
         m_initialized = false;
     }
 
-    Canvas*        Framework2D::GetCanvas()      { return m_canvas.get(); }
+    Canvas*        Framework2D::GetCanvas()      { return m_canvas.Get(); }
     RenderWorld2D* Framework2D::GetRenderWorld() { return &m_renderWorld; }
 
     void Framework2D::CreateDefaultSystems()

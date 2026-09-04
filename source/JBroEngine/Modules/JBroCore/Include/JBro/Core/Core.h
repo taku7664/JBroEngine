@@ -2,7 +2,8 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <memory>
+
+#include <JBro/Types/SafePtr.h>
 
 namespace JBro
 {
@@ -37,15 +38,6 @@ namespace JBro
     };
 
     JAllocator CreateDefaultAllocator();
-
-    template <typename T>
-    using OwnerPtr = std::unique_ptr<T>;
-
-    template <typename T, typename... Args>
-    OwnerPtr<T> MakeOwnerPtr(Args&&... args)
-    {
-        return std::make_unique<T>(std::forward<Args>(args)...);
-    }
 
     class IModule
     {
