@@ -19,6 +19,22 @@ namespace JBro::Internal
         D3D12_RESOURCE_STATES* state = nullptr;
     };
 
+    struct D3D12BufferBinding
+    {
+        ID3D12Resource* resource = nullptr;
+        D3D12_GPU_VIRTUAL_ADDRESS gpuAddress = 0;
+        std::uint64_t size = 0;
+        BufferUsage usage = BufferUsage::None;
+    };
+
+    struct D3D12PipelineBinding
+    {
+        ID3D12PipelineState* pipeline = nullptr;
+        ID3D12RootSignature* rootSignature = nullptr;
+        D3D12_PRIMITIVE_TOPOLOGY topology = D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
+        std::uint32_t pushConstantCount = 0;
+    };
+
     class D3D12Device;
 
     class D3D12CommandContext final : public IRHICommandContext
@@ -36,6 +52,20 @@ namespace JBro::Internal
         void EndRenderPass() override;
         void SetViewport(const Viewport& viewport) override;
         void SetScissor(const ScissorRect& scissor) override;
+        bool SetGraphicsPipeline(GraphicsPipelineHandle pipeline) override;
+        bool SetVertexBuffer(
+            std::uint32_t slot,
+            BufferHandle buffer,
+            std::uint32_t stride,
+            std::size_t offset) override;
+        bool SetIndexBuffer(BufferHandle buffer, IndexFormat format, std::size_t offset) override;
+        bool SetGraphicsConstants(JArrayView<std::byte> data) override;
+        bool DrawIndexedInstanced(
+            std::uint32_t indexCount,
+            std::uint32_t instanceCount,
+            std::uint32_t firstIndex,
+            std::int32_t baseVertex,
+            std::uint32_t firstInstance) override;
 
     private:
         D3D12Device* m_device = nullptr;
@@ -43,8 +73,10 @@ namespace JBro::Internal
         ID3D12GraphicsCommandList4* m_commandList4 = nullptr;
         ID3D12Resource* m_discardAtEnd[8] = {};
         std::uint32_t m_discardAtEndCount = 0;
+        std::uint32_t m_activePushConstantCount = 0;
         bool m_nativeRenderPasses = false;
         bool m_renderPassActive = false;
+        bool m_pipelineActive = false;
     };
 
     struct D3D12BackBuffer
@@ -72,8 +104,21 @@ namespace JBro::Internal
         ComPtr<ID3D12Resource> resource;
         BufferDesc desc;
         D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COMMON;
+        void* mappedData = nullptr;
+        std::uint64_t allocatedSize = 0;
         std::uint64_t retirementFence = 0;
         std::uint32_t generation = 1;
+        bool occupied = false;
+    };
+
+    struct D3D12PipelineState
+    {
+        ComPtr<ID3D12RootSignature> rootSignature;
+        ComPtr<ID3D12PipelineState> pipeline;
+        D3D12_PRIMITIVE_TOPOLOGY topology = D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
+        std::uint64_t retirementFence = 0;
+        std::uint32_t generation = 1;
+        std::uint32_t pushConstantCount = 0;
         bool occupied = false;
     };
 
@@ -101,8 +146,14 @@ namespace JBro::Internal
 
         BufferHandle CreateBuffer(const BufferDesc& desc) override;
         void DestroyBuffer(BufferHandle buffer) override;
+        bool WriteBuffer(
+            BufferHandle buffer,
+            std::size_t offset,
+            JArrayView<std::byte> data) override;
         TextureHandle CreateTexture(const TextureDesc& desc) override;
         void DestroyTexture(TextureHandle texture) override;
+        GraphicsPipelineHandle CreateGraphicsPipeline(const GraphicsPipelineDesc& desc) override;
+        void DestroyGraphicsPipeline(GraphicsPipelineHandle pipeline) override;
 
         SwapchainHandle CreateSwapchain(const SwapchainDesc& desc) override;
         void DestroySwapchain(SwapchainHandle swapchain) override;
@@ -115,6 +166,10 @@ namespace JBro::Internal
         void WaitIdle() override;
 
         bool ResolveRenderTarget(TextureHandle texture, D3D12RenderTargetBinding& binding);
+        bool ResolveBuffer(BufferHandle buffer, D3D12BufferBinding& binding);
+        bool ResolveGraphicsPipeline(
+            GraphicsPipelineHandle pipeline,
+            D3D12PipelineBinding& binding);
 
     private:
         static constexpr std::uint32_t MaxFramesInFlight = 3;
@@ -123,6 +178,7 @@ namespace JBro::Internal
         static constexpr std::uint32_t BackBufferTextureBase = 1;
         static constexpr std::uint32_t MaxBuffers = 1024;
         static constexpr std::uint32_t MaxTextures = 512;
+        static constexpr std::uint32_t MaxGraphicsPipelines = 256;
         static constexpr std::uint32_t TextureResourceBase =
             BackBufferTextureBase + MaxSwapchains * MaxBackBuffers;
         static constexpr std::uint64_t PendingRetirementFence = ~std::uint64_t{0};
@@ -151,6 +207,7 @@ namespace JBro::Internal
         D3D12SwapchainState m_swapchains[MaxSwapchains];
         D3D12BufferState m_buffers[MaxBuffers];
         D3D12TextureState m_textures[MaxTextures];
+        D3D12PipelineState m_graphicsPipelines[MaxGraphicsPipelines];
         std::uint64_t m_frameFenceValues[MaxFramesInFlight] = {};
         std::uint64_t m_nextFenceValue = 1;
         std::uint64_t m_lastSubmittedFenceValue = 0;

@@ -1,5 +1,7 @@
 #include "D3D12Device.h"
 
+#include <limits>
+
 namespace JBro::Internal
 {
     namespace
@@ -37,6 +39,11 @@ namespace JBro::Internal
                 : D3D12_RENDER_PASS_ENDING_ACCESS_TYPE_DISCARD;
             return access;
         }
+
+        bool HasBufferUsage(BufferUsage usages, BufferUsage usage)
+        {
+            return (static_cast<std::uint32_t>(usages) & static_cast<std::uint32_t>(usage)) != 0;
+        }
     }
 
     void D3D12CommandContext::Initialize(
@@ -50,13 +57,17 @@ namespace JBro::Internal
         m_commandList4 = commandList4;
         m_nativeRenderPasses = nativeRenderPasses && commandList4 != nullptr;
         m_discardAtEndCount = 0;
+        m_activePushConstantCount = 0;
         m_renderPassActive = false;
+        m_pipelineActive = false;
     }
 
     void D3D12CommandContext::Reset()
     {
         m_discardAtEndCount = 0;
+        m_activePushConstantCount = 0;
         m_renderPassActive = false;
+        m_pipelineActive = false;
     }
 
     bool D3D12CommandContext::IsRenderPassActive() const
@@ -189,6 +200,7 @@ namespace JBro::Internal
 
         m_discardAtEndCount = 0;
         m_renderPassActive = false;
+        m_pipelineActive = false;
     }
 
     void D3D12CommandContext::SetViewport(const Viewport& viewport)
@@ -221,5 +233,131 @@ namespace JBro::Internal
             scissor.right,
             scissor.bottom};
         m_commandList->RSSetScissorRects(1, &nativeScissor);
+    }
+
+    bool D3D12CommandContext::SetGraphicsPipeline(GraphicsPipelineHandle pipeline)
+    {
+        if (false == m_renderPassActive || m_device == nullptr || m_commandList == nullptr)
+        {
+            return false;
+        }
+
+        D3D12PipelineBinding binding;
+        if (false == m_device->ResolveGraphicsPipeline(pipeline, binding))
+        {
+            return false;
+        }
+
+        m_commandList->SetGraphicsRootSignature(binding.rootSignature);
+        m_commandList->SetPipelineState(binding.pipeline);
+        m_commandList->IASetPrimitiveTopology(binding.topology);
+        m_activePushConstantCount = binding.pushConstantCount;
+        m_pipelineActive = true;
+        return true;
+    }
+
+    bool D3D12CommandContext::SetVertexBuffer(
+        std::uint32_t slot,
+        BufferHandle buffer,
+        std::uint32_t stride,
+        std::size_t offset)
+    {
+        D3D12BufferBinding binding;
+        if (false == m_renderPassActive
+            || false == m_pipelineActive
+            || m_device == nullptr
+            || stride == 0
+            || false == m_device->ResolveBuffer(buffer, binding)
+            || false == HasBufferUsage(binding.usage, BufferUsage::Vertex)
+            || offset >= binding.size)
+        {
+            return false;
+        }
+
+        const std::uint64_t remainingSize = binding.size - offset;
+        const std::uint32_t viewSize = remainingSize > (std::numeric_limits<std::uint32_t>::max)()
+            ? (std::numeric_limits<std::uint32_t>::max)()
+            : static_cast<std::uint32_t>(remainingSize);
+        D3D12_VERTEX_BUFFER_VIEW view = {};
+        view.BufferLocation = binding.gpuAddress + offset;
+        view.SizeInBytes = viewSize;
+        view.StrideInBytes = stride;
+        m_commandList->IASetVertexBuffers(slot, 1, &view);
+        return true;
+    }
+
+    bool D3D12CommandContext::SetIndexBuffer(
+        BufferHandle buffer,
+        IndexFormat format,
+        std::size_t offset)
+    {
+        D3D12BufferBinding binding;
+        if (false == m_renderPassActive
+            || false == m_pipelineActive
+            || m_device == nullptr
+            || false == m_device->ResolveBuffer(buffer, binding)
+            || false == HasBufferUsage(binding.usage, BufferUsage::Index)
+            || offset >= binding.size)
+        {
+            return false;
+        }
+
+        const std::uint64_t remainingSize = binding.size - offset;
+        const std::uint32_t viewSize = remainingSize > (std::numeric_limits<std::uint32_t>::max)()
+            ? (std::numeric_limits<std::uint32_t>::max)()
+            : static_cast<std::uint32_t>(remainingSize);
+        D3D12_INDEX_BUFFER_VIEW view = {};
+        view.BufferLocation = binding.gpuAddress + offset;
+        view.SizeInBytes = viewSize;
+        view.Format = format == IndexFormat::UInt16
+            ? DXGI_FORMAT_R16_UINT
+            : DXGI_FORMAT_R32_UINT;
+        m_commandList->IASetIndexBuffer(&view);
+        return true;
+    }
+
+    bool D3D12CommandContext::SetGraphicsConstants(JArrayView<std::byte> data)
+    {
+        if (false == m_renderPassActive
+            || false == m_pipelineActive
+            || data.size != m_activePushConstantCount * sizeof(std::uint32_t)
+            || (data.size != 0 && data.data == nullptr))
+        {
+            return false;
+        }
+
+        if (data.size != 0)
+        {
+            m_commandList->SetGraphicsRoot32BitConstants(
+                0,
+                m_activePushConstantCount,
+                data.data,
+                0);
+        }
+        return true;
+    }
+
+    bool D3D12CommandContext::DrawIndexedInstanced(
+        std::uint32_t indexCount,
+        std::uint32_t instanceCount,
+        std::uint32_t firstIndex,
+        std::int32_t baseVertex,
+        std::uint32_t firstInstance)
+    {
+        if (false == m_renderPassActive
+            || false == m_pipelineActive
+            || indexCount == 0
+            || instanceCount == 0)
+        {
+            return false;
+        }
+
+        m_commandList->DrawIndexedInstanced(
+            indexCount,
+            instanceCount,
+            firstIndex,
+            baseVertex,
+            firstInstance);
+        return true;
     }
 }

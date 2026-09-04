@@ -102,8 +102,18 @@ namespace JBro
             std::uint32_t meshCount = 0;
         };
 
-        static constexpr std::uint32_t InvalidViewIndex = 0xFFFFFFFFu;
+        struct GpuSpriteInstance
+        {
+            Matrix4x4 world;
+            float tint[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+        };
 
+        static constexpr std::uint32_t InvalidViewIndex = 0xFFFFFFFFu;
+        static constexpr std::uint32_t MaxFrameSlots = 3;
+
+        bool CreateBuiltinSpriteResources();
+        void DestroyBuiltinSpriteResources();
+        bool UploadSpriteInstances();
         bool RecordViews();
         void ResetSubmissionStorage();
 
@@ -115,6 +125,11 @@ namespace JBro
         Array<ViewPacket> m_views;
         Array<SpriteSubmit> m_sprites;
         Array<MeshSubmit> m_meshes;
+        Array<GpuSpriteInstance> m_gpuSpriteInstances;
+        BufferHandle m_spriteVertexBuffer;
+        BufferHandle m_spriteIndexBuffer;
+        BufferHandle m_spriteInstanceBuffers[MaxFrameSlots];
+        GraphicsPipelineHandle m_spritePipeline;
         RendererFrameStats m_currentStats;
         RendererFrameStats m_lastStats;
         std::uint32_t m_activeView = InvalidViewIndex;

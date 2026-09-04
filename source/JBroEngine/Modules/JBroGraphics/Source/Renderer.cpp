@@ -1,10 +1,35 @@
 #include <JBro/Graphics/Renderer.h>
 
-#include <new>
+#include "BuiltinSpritePS.generated.h"
+#include "BuiltinSpriteVS.generated.h"
+
 #include <limits>
+#include <new>
 
 namespace JBro
 {
+    namespace
+    {
+        Matrix4x4 Multiply(const Matrix4x4& left, const Matrix4x4& right)
+        {
+            Matrix4x4 result;
+            for (std::uint32_t row = 0; row < 4; ++row)
+            {
+                for (std::uint32_t column = 0; column < 4; ++column)
+                {
+                    float value = 0.0f;
+                    for (std::uint32_t element = 0; element < 4; ++element)
+                    {
+                        value += left.values[row * 4 + element]
+                            * right.values[element * 4 + column];
+                    }
+                    result.values[row * 4 + column] = value;
+                }
+            }
+            return result;
+        }
+    }
+
     bool Renderer::Initialize(IRHIModule& rhi, const RendererConfig& config)
     {
         if (m_device != nullptr
@@ -17,6 +42,7 @@ namespace JBro
             || config.backBufferCount < 2
             || config.maxFramesInFlight == 0
             || config.maxFramesInFlight >= config.backBufferCount
+            || config.maxFramesInFlight > MaxFrameSlots
             || config.maxViews == 0)
         {
             return false;
@@ -27,12 +53,14 @@ namespace JBro
             m_views.Reserve(config.maxViews);
             m_sprites.Reserve(config.maxSpriteSubmissions);
             m_meshes.Reserve(config.maxMeshSubmissions);
+            m_gpuSpriteInstances.Reserve(config.maxSpriteSubmissions);
         }
         catch (const std::bad_alloc&)
         {
             m_views = {};
             m_sprites = {};
             m_meshes = {};
+            m_gpuSpriteInstances = {};
             return false;
         }
 
@@ -45,6 +73,7 @@ namespace JBro
             m_views = {};
             m_sprites = {};
             m_meshes = {};
+            m_gpuSpriteInstances = {};
             return false;
         }
 
@@ -63,6 +92,7 @@ namespace JBro
             m_views = {};
             m_sprites = {};
             m_meshes = {};
+            m_gpuSpriteInstances = {};
             return false;
         }
 
@@ -70,6 +100,11 @@ namespace JBro
         m_rhi = &rhi;
         m_device = device;
         m_swapchain = swapchain;
+        if (false == CreateBuiltinSpriteResources())
+        {
+            Shutdown();
+            return false;
+        }
         ResetSubmissionStorage();
         m_lastStats = {};
         return true;
@@ -85,6 +120,7 @@ namespace JBro
         if (m_device != nullptr && m_rhi != nullptr)
         {
             m_device->WaitIdle();
+            DestroyBuiltinSpriteResources();
             if (m_swapchain.IsValid())
             {
                 m_device->DestroySwapchain(m_swapchain);
@@ -98,6 +134,7 @@ namespace JBro
         m_views = {};
         m_sprites = {};
         m_meshes = {};
+        m_gpuSpriteInstances = {};
         m_currentStats = {};
         m_lastStats = {};
         m_activeView = InvalidViewIndex;
@@ -282,7 +319,7 @@ namespace JBro
 
     bool Renderer::RecordViews()
     {
-        if (m_frame.commands == nullptr)
+        if (m_frame.commands == nullptr || false == UploadSpriteInstances())
         {
             return false;
         }
@@ -338,10 +375,195 @@ namespace JBro
                 static_cast<std::int32_t>(bottom)};
             m_frame.commands->SetViewport(viewport);
             m_frame.commands->SetScissor(scissor);
+
+            if (view.spriteCount != 0)
+            {
+                const Matrix4x4 viewProjection = Multiply(
+                    view.camera.projection,
+                    view.camera.view);
+                const JArrayView<std::byte> constants = {
+                    reinterpret_cast<const std::byte*>(viewProjection.values),
+                    sizeof(viewProjection.values)};
+                if (false == m_frame.commands->SetGraphicsPipeline(m_spritePipeline)
+                    || false == m_frame.commands->SetVertexBuffer(
+                        0,
+                        m_spriteVertexBuffer,
+                        sizeof(float) * 2,
+                        0)
+                    || false == m_frame.commands->SetVertexBuffer(
+                        1,
+                        m_spriteInstanceBuffers[m_frame.slot],
+                        sizeof(GpuSpriteInstance),
+                        0)
+                    || false == m_frame.commands->SetIndexBuffer(
+                        m_spriteIndexBuffer,
+                        IndexFormat::UInt16,
+                        0)
+                    || false == m_frame.commands->SetGraphicsConstants(constants)
+                    || false == m_frame.commands->DrawIndexedInstanced(
+                        6,
+                        view.spriteCount,
+                        0,
+                        0,
+                        view.spriteOffset))
+                {
+                    return false;
+                }
+            }
+
             m_frame.commands->EndRenderPass();
         }
 
         return true;
+    }
+
+    bool Renderer::CreateBuiltinSpriteResources()
+    {
+        if (m_device == nullptr
+            || m_config.maxSpriteSubmissions == 0
+            || m_config.maxSpriteSubmissions
+                > (std::numeric_limits<std::uint32_t>::max)() / sizeof(GpuSpriteInstance))
+        {
+            return false;
+        }
+
+        constexpr float vertices[] = {
+            -0.5f, -0.5f,
+            -0.5f, 0.5f,
+            0.5f, 0.5f,
+            0.5f, -0.5f};
+        constexpr std::uint16_t indices[] = {0, 1, 2, 0, 2, 3};
+
+        BufferDesc vertexBufferDesc;
+        vertexBufferDesc.size = sizeof(vertices);
+        vertexBufferDesc.usage = BufferUsage::Vertex | BufferUsage::CopySource;
+        vertexBufferDesc.memory = MemoryType::Upload;
+        m_spriteVertexBuffer = m_device->CreateBuffer(vertexBufferDesc);
+        if (false == m_spriteVertexBuffer.IsValid()
+            || false == m_device->WriteBuffer(
+                m_spriteVertexBuffer,
+                0,
+                {reinterpret_cast<const std::byte*>(vertices), sizeof(vertices)}))
+        {
+            return false;
+        }
+
+        BufferDesc indexBufferDesc;
+        indexBufferDesc.size = sizeof(indices);
+        indexBufferDesc.usage = BufferUsage::Index | BufferUsage::CopySource;
+        indexBufferDesc.memory = MemoryType::Upload;
+        m_spriteIndexBuffer = m_device->CreateBuffer(indexBufferDesc);
+        if (false == m_spriteIndexBuffer.IsValid()
+            || false == m_device->WriteBuffer(
+                m_spriteIndexBuffer,
+                0,
+                {reinterpret_cast<const std::byte*>(indices), sizeof(indices)}))
+        {
+            return false;
+        }
+
+        BufferDesc instanceBufferDesc;
+        instanceBufferDesc.size = static_cast<std::size_t>(m_config.maxSpriteSubmissions)
+            * sizeof(GpuSpriteInstance);
+        instanceBufferDesc.usage = BufferUsage::Vertex | BufferUsage::CopySource;
+        instanceBufferDesc.memory = MemoryType::Upload;
+        for (std::uint32_t index = 0; index < m_config.maxFramesInFlight; ++index)
+        {
+            m_spriteInstanceBuffers[index] = m_device->CreateBuffer(instanceBufferDesc);
+            if (false == m_spriteInstanceBuffers[index].IsValid())
+            {
+                return false;
+            }
+        }
+
+        const VertexAttributeDesc vertexAttributes[] = {
+            {0, 0, VertexFormat::Float2}};
+        const VertexAttributeDesc instanceAttributes[] = {
+            {1, 0, VertexFormat::Float4},
+            {2, 16, VertexFormat::Float4},
+            {3, 32, VertexFormat::Float4},
+            {4, 48, VertexFormat::Float4},
+            {5, 64, VertexFormat::Float4}};
+        const VertexBufferLayoutDesc vertexLayouts[] = {
+            {sizeof(float) * 2, VertexStepMode::Vertex, {vertexAttributes, 1}},
+            {sizeof(GpuSpriteInstance), VertexStepMode::Instance, {instanceAttributes, 5}}};
+        const TextureFormat colorFormats[] = {m_config.backBufferFormat};
+
+        GraphicsPipelineDesc pipelineDesc;
+        pipelineDesc.vertexShader = {JBroBuiltinSpriteVS, sizeof(JBroBuiltinSpriteVS)};
+        pipelineDesc.pixelShader = {JBroBuiltinSpritePS, sizeof(JBroBuiltinSpritePS)};
+        pipelineDesc.vertexBuffers = {vertexLayouts, 2};
+        pipelineDesc.colorFormats = {colorFormats, 1};
+        pipelineDesc.blend = BlendMode::Alpha;
+        pipelineDesc.cull = CullMode::None;
+        pipelineDesc.pushConstantStages = ShaderStage::Vertex;
+        pipelineDesc.pushConstantBytes = sizeof(Matrix4x4);
+        m_spritePipeline = m_device->CreateGraphicsPipeline(pipelineDesc);
+        return m_spritePipeline.IsValid();
+    }
+
+    void Renderer::DestroyBuiltinSpriteResources()
+    {
+        if (m_device == nullptr)
+        {
+            return;
+        }
+
+        if (m_spritePipeline.IsValid())
+        {
+            m_device->DestroyGraphicsPipeline(m_spritePipeline);
+            m_spritePipeline = {};
+        }
+        for (BufferHandle& buffer : m_spriteInstanceBuffers)
+        {
+            if (buffer.IsValid())
+            {
+                m_device->DestroyBuffer(buffer);
+                buffer = {};
+            }
+        }
+        if (m_spriteIndexBuffer.IsValid())
+        {
+            m_device->DestroyBuffer(m_spriteIndexBuffer);
+            m_spriteIndexBuffer = {};
+        }
+        if (m_spriteVertexBuffer.IsValid())
+        {
+            m_device->DestroyBuffer(m_spriteVertexBuffer);
+            m_spriteVertexBuffer = {};
+        }
+    }
+
+    bool Renderer::UploadSpriteInstances()
+    {
+        m_gpuSpriteInstances.Clear();
+        for (const SpriteSubmit& sprite : m_sprites)
+        {
+            GpuSpriteInstance instance;
+            instance.world = sprite.world;
+            instance.tint[0] = sprite.tint[0];
+            instance.tint[1] = sprite.tint[1];
+            instance.tint[2] = sprite.tint[2];
+            instance.tint[3] = sprite.tint[3];
+            m_gpuSpriteInstances.Add(instance);
+        }
+
+        if (m_gpuSpriteInstances.IsEmpty())
+        {
+            return true;
+        }
+        if (m_frame.slot >= MaxFrameSlots
+            || false == m_spriteInstanceBuffers[m_frame.slot].IsValid())
+        {
+            return false;
+        }
+
+        const std::size_t byteSize = m_gpuSpriteInstances.Size() * sizeof(GpuSpriteInstance);
+        return m_device->WriteBuffer(
+            m_spriteInstanceBuffers[m_frame.slot],
+            0,
+            {reinterpret_cast<const std::byte*>(m_gpuSpriteInstances.Data()),
+                static_cast<std::uint32_t>(byteSize)});
     }
 
     void Renderer::ResetSubmissionStorage()

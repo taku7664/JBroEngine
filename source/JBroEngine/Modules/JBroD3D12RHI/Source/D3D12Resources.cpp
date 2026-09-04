@@ -1,5 +1,6 @@
 #include "D3D12Device.h"
 
+#include <cstring>
 #include <limits>
 
 namespace JBro::Internal
@@ -219,6 +220,19 @@ namespace JBro::Internal
         state.resource = resource;
         state.desc = desc;
         state.state = initialState;
+        state.allocatedSize = resourceSize;
+        state.mappedData = nullptr;
+        if (desc.memory == MemoryType::Upload)
+        {
+            const D3D12_RANGE noReadRange = {0, 0};
+            if (FAILED(resource->Map(0, &noReadRange, &state.mappedData)))
+            {
+                state.resource.Reset();
+                state.desc = {};
+                state.allocatedSize = 0;
+                return {};
+            }
+        }
         state.retirementFence = 0;
         state.occupied = true;
         return {slotIndex, state.generation};
@@ -246,6 +260,34 @@ namespace JBro::Internal
         {
             m_hasPendingRetirementFence = true;
         }
+    }
+
+    bool D3D12Device::WriteBuffer(
+        BufferHandle buffer,
+        std::size_t offset,
+        JArrayView<std::byte> data)
+    {
+        if (buffer.index >= MaxBuffers || data.size == 0 || data.data == nullptr)
+        {
+            return false;
+        }
+
+        D3D12BufferState& state = m_buffers[buffer.index];
+        if (false == state.occupied
+            || state.generation != buffer.generation
+            || state.desc.memory != MemoryType::Upload
+            || state.mappedData == nullptr
+            || offset > state.allocatedSize
+            || data.size > state.allocatedSize - offset)
+        {
+            return false;
+        }
+
+        std::memcpy(
+            static_cast<std::byte*>(state.mappedData) + offset,
+            data.data,
+            data.size);
+        return true;
     }
 
     TextureHandle D3D12Device::CreateTexture(const TextureDesc& desc)
@@ -449,6 +491,26 @@ namespace JBro::Internal
         return true;
     }
 
+    bool D3D12Device::ResolveBuffer(BufferHandle buffer, D3D12BufferBinding& binding)
+    {
+        if (buffer.index >= MaxBuffers)
+        {
+            return false;
+        }
+
+        D3D12BufferState& state = m_buffers[buffer.index];
+        if (false == state.occupied || state.generation != buffer.generation)
+        {
+            return false;
+        }
+
+        binding.resource = state.resource.Get();
+        binding.gpuAddress = state.resource->GetGPUVirtualAddress();
+        binding.size = state.allocatedSize;
+        binding.usage = state.desc.usage;
+        return true;
+    }
+
     void D3D12Device::CollectRetiredResources()
     {
         if (m_fence == nullptr)
@@ -464,9 +526,15 @@ namespace JBro::Internal
                 && state.retirementFence != PendingRetirementFence
                 && state.retirementFence <= completedFence)
             {
+                if (state.mappedData != nullptr)
+                {
+                    state.resource->Unmap(0, nullptr);
+                }
                 state.resource.Reset();
                 state.desc = {};
                 state.state = D3D12_RESOURCE_STATE_COMMON;
+                state.mappedData = nullptr;
+                state.allocatedSize = 0;
                 state.retirementFence = 0;
             }
         }
@@ -483,6 +551,21 @@ namespace JBro::Internal
                 state.renderTargetDescriptor = {};
                 state.depthStencilDescriptor = {};
                 state.state = D3D12_RESOURCE_STATE_COMMON;
+                state.retirementFence = 0;
+            }
+        }
+
+        for (D3D12PipelineState& state : m_graphicsPipelines)
+        {
+            if (false == state.occupied
+                && state.pipeline != nullptr
+                && state.retirementFence != PendingRetirementFence
+                && state.retirementFence <= completedFence)
+            {
+                state.pipeline.Reset();
+                state.rootSignature.Reset();
+                state.topology = D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
+                state.pushConstantCount = 0;
                 state.retirementFence = 0;
             }
         }
@@ -513,6 +596,15 @@ namespace JBro::Internal
                 state.retirementFence = fenceValue;
             }
         }
+        for (D3D12PipelineState& state : m_graphicsPipelines)
+        {
+            if (false == state.occupied
+                && state.pipeline != nullptr
+                && state.retirementFence == PendingRetirementFence)
+            {
+                state.retirementFence = fenceValue;
+            }
+        }
         m_hasPendingRetirementFence = false;
     }
 
@@ -520,9 +612,15 @@ namespace JBro::Internal
     {
         for (D3D12BufferState& state : m_buffers)
         {
+            if (state.resource != nullptr && state.mappedData != nullptr)
+            {
+                state.resource->Unmap(0, nullptr);
+            }
             state.resource.Reset();
             state.desc = {};
             state.state = D3D12_RESOURCE_STATE_COMMON;
+            state.mappedData = nullptr;
+            state.allocatedSize = 0;
             state.retirementFence = 0;
             state.occupied = false;
         }
@@ -533,6 +631,15 @@ namespace JBro::Internal
             state.renderTargetDescriptor = {};
             state.depthStencilDescriptor = {};
             state.state = D3D12_RESOURCE_STATE_COMMON;
+            state.retirementFence = 0;
+            state.occupied = false;
+        }
+        for (D3D12PipelineState& state : m_graphicsPipelines)
+        {
+            state.pipeline.Reset();
+            state.rootSignature.Reset();
+            state.topology = D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
+            state.pushConstantCount = 0;
             state.retirementFence = 0;
             state.occupied = false;
         }

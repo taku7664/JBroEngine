@@ -54,6 +54,11 @@ namespace
             camera.clearColor[1] = 0.25f;
             camera.clearColor[2] = 0.5f;
             Check(renderer.BeginView(camera), "D3D12 renderer must begin a view");
+            JBro::SpriteSubmit sprite;
+            sprite.tint[0] = 1.0f;
+            sprite.tint[1] = 0.5f;
+            sprite.tint[2] = 0.25f;
+            Check(renderer.SubmitSprite(sprite), "D3D12 renderer must collect one sprite instance");
             Check(renderer.EndView(), "D3D12 renderer must end a view");
             Check(renderer.EndFrame() == JBro::FrameStatus::Ready,
                 "D3D12 renderer must clear and present every frame slot cycle");
@@ -79,6 +84,8 @@ namespace
             "D3D12 renderer must begin after swapchain resize");
         JBro::CameraParams resizedCamera;
         Check(renderer.BeginView(resizedCamera), "resized D3D12 renderer must begin a view");
+        JBro::SpriteSubmit resizedSprite;
+        Check(renderer.SubmitSprite(resizedSprite), "resized D3D12 renderer must collect a sprite");
         Check(renderer.EndView(), "resized D3D12 renderer must end a view");
         Check(renderer.EndFrame() == JBro::FrameStatus::Ready,
             "resized D3D12 renderer must clear and present");

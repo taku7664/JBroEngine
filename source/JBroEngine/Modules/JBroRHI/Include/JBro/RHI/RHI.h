@@ -51,6 +51,19 @@ namespace JBro
         bool operator==(const SwapchainHandle&) const = default;
     };
 
+    struct GraphicsPipelineHandle
+    {
+        std::uint32_t index = 0;
+        std::uint32_t generation = 0;
+
+        constexpr bool IsValid() const noexcept
+        {
+            return generation != 0;
+        }
+
+        bool operator==(const GraphicsPipelineHandle&) const = default;
+    };
+
     enum class BufferUsage : std::uint32_t
     {
         None = 0,
@@ -130,6 +143,55 @@ namespace JBro
         InvalidState
     };
 
+    enum class ShaderStage : std::uint8_t
+    {
+        Vertex = 1u << 0u,
+        Pixel = 1u << 1u
+    };
+
+    constexpr ShaderStage operator|(ShaderStage left, ShaderStage right) noexcept
+    {
+        return static_cast<ShaderStage>(
+            static_cast<std::uint8_t>(left) | static_cast<std::uint8_t>(right));
+    }
+
+    enum class VertexFormat : std::uint8_t
+    {
+        Float2,
+        Float3,
+        Float4
+    };
+
+    enum class VertexStepMode : std::uint8_t
+    {
+        Vertex,
+        Instance
+    };
+
+    enum class IndexFormat : std::uint8_t
+    {
+        UInt16,
+        UInt32
+    };
+
+    enum class PrimitiveTopology : std::uint8_t
+    {
+        TriangleList
+    };
+
+    enum class BlendMode : std::uint8_t
+    {
+        Opaque,
+        Alpha
+    };
+
+    enum class CullMode : std::uint8_t
+    {
+        None,
+        Front,
+        Back
+    };
+
     struct Extent2D
     {
         std::uint32_t width = 0;
@@ -179,6 +241,40 @@ namespace JBro
         TextureUsage usage = TextureUsage::None;
     };
 
+    struct ShaderBytecode
+    {
+        const void* data = nullptr;
+        std::uint32_t size = 0;
+    };
+
+    struct VertexAttributeDesc
+    {
+        std::uint32_t shaderLocation = 0;
+        std::uint32_t offset = 0;
+        VertexFormat format = VertexFormat::Float2;
+    };
+
+    struct VertexBufferLayoutDesc
+    {
+        std::uint32_t stride = 0;
+        VertexStepMode stepMode = VertexStepMode::Vertex;
+        JArrayView<VertexAttributeDesc> attributes;
+    };
+
+    struct GraphicsPipelineDesc
+    {
+        ShaderBytecode vertexShader;
+        ShaderBytecode pixelShader;
+        JArrayView<VertexBufferLayoutDesc> vertexBuffers;
+        JArrayView<TextureFormat> colorFormats;
+        TextureFormat depthFormat = TextureFormat::Unknown;
+        PrimitiveTopology topology = PrimitiveTopology::TriangleList;
+        BlendMode blend = BlendMode::Opaque;
+        CullMode cull = CullMode::Back;
+        ShaderStage pushConstantStages = ShaderStage::Vertex;
+        std::uint32_t pushConstantBytes = 0;
+    };
+
     struct SwapchainDesc
     {
         SurfaceHandle surface;
@@ -223,6 +319,20 @@ namespace JBro
         virtual void EndRenderPass() = 0;
         virtual void SetViewport(const Viewport& viewport) = 0;
         virtual void SetScissor(const ScissorRect& scissor) = 0;
+        virtual bool SetGraphicsPipeline(GraphicsPipelineHandle pipeline) = 0;
+        virtual bool SetVertexBuffer(
+            std::uint32_t slot,
+            BufferHandle buffer,
+            std::uint32_t stride,
+            std::size_t offset) = 0;
+        virtual bool SetIndexBuffer(BufferHandle buffer, IndexFormat format, std::size_t offset) = 0;
+        virtual bool SetGraphicsConstants(JArrayView<std::byte> data) = 0;
+        virtual bool DrawIndexedInstanced(
+            std::uint32_t indexCount,
+            std::uint32_t instanceCount,
+            std::uint32_t firstIndex,
+            std::int32_t baseVertex,
+            std::uint32_t firstInstance) = 0;
     };
 
     struct FrameContext
@@ -251,8 +361,14 @@ namespace JBro
 
         virtual BufferHandle CreateBuffer(const BufferDesc& desc) = 0;
         virtual void DestroyBuffer(BufferHandle buffer) = 0;
+        virtual bool WriteBuffer(
+            BufferHandle buffer,
+            std::size_t offset,
+            JArrayView<std::byte> data) = 0;
         virtual TextureHandle CreateTexture(const TextureDesc& desc) = 0;
         virtual void DestroyTexture(TextureHandle texture) = 0;
+        virtual GraphicsPipelineHandle CreateGraphicsPipeline(const GraphicsPipelineDesc& desc) = 0;
+        virtual void DestroyGraphicsPipeline(GraphicsPipelineHandle pipeline) = 0;
 
         virtual SwapchainHandle CreateSwapchain(const SwapchainDesc& desc) = 0;
         virtual void DestroySwapchain(SwapchainHandle swapchain) = 0;

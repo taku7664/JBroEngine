@@ -36,8 +36,52 @@ namespace
         {
         }
 
+        bool SetGraphicsPipeline(JBro::GraphicsPipelineHandle) override
+        {
+            ++setPipelineCount;
+            return true;
+        }
+
+        bool SetVertexBuffer(
+            std::uint32_t,
+            JBro::BufferHandle,
+            std::uint32_t,
+            std::size_t) override
+        {
+            ++setVertexBufferCount;
+            return true;
+        }
+
+        bool SetIndexBuffer(JBro::BufferHandle, JBro::IndexFormat, std::size_t) override
+        {
+            ++setIndexBufferCount;
+            return true;
+        }
+
+        bool SetGraphicsConstants(JBro::JArrayView<std::byte>) override
+        {
+            ++setGraphicsConstantsCount;
+            return true;
+        }
+
+        bool DrawIndexedInstanced(
+            std::uint32_t,
+            std::uint32_t,
+            std::uint32_t,
+            std::int32_t,
+            std::uint32_t) override
+        {
+            ++drawIndexedInstancedCount;
+            return true;
+        }
+
         std::uint32_t beginRenderPassCount = 0;
         std::uint32_t endRenderPassCount = 0;
+        std::uint32_t setPipelineCount = 0;
+        std::uint32_t setVertexBufferCount = 0;
+        std::uint32_t setIndexBufferCount = 0;
+        std::uint32_t setGraphicsConstantsCount = 0;
+        std::uint32_t drawIndexedInstancedCount = 0;
     };
 
     class FakeDevice final : public JBro::IRHIDevice
@@ -52,6 +96,15 @@ namespace
         {
         }
 
+        bool WriteBuffer(
+            JBro::BufferHandle,
+            std::size_t,
+            JBro::JArrayView<std::byte>) override
+        {
+            ++writeBufferCount;
+            return true;
+        }
+
         JBro::TextureHandle CreateTexture(const JBro::TextureDesc&) override
         {
             return {1, 1};
@@ -59,6 +112,18 @@ namespace
 
         void DestroyTexture(JBro::TextureHandle) override
         {
+        }
+
+        JBro::GraphicsPipelineHandle CreateGraphicsPipeline(
+            const JBro::GraphicsPipelineDesc&) override
+        {
+            ++createPipelineCount;
+            return {1, 1};
+        }
+
+        void DestroyGraphicsPipeline(JBro::GraphicsPipelineHandle) override
+        {
+            ++destroyPipelineCount;
         }
 
         JBro::SwapchainHandle CreateSwapchain(const JBro::SwapchainDesc& desc) override
@@ -124,6 +189,9 @@ namespace
         std::uint32_t endFrameCount = 0;
         std::uint32_t abortFrameCount = 0;
         std::uint32_t waitIdleCount = 0;
+        std::uint32_t writeBufferCount = 0;
+        std::uint32_t createPipelineCount = 0;
+        std::uint32_t destroyPipelineCount = 0;
     };
 
     class FakeModule final : public JBro::IRHIModule
@@ -167,9 +235,11 @@ namespace
         static_assert(sizeof(JBro::BufferHandle) == 8);
         static_assert(sizeof(JBro::TextureHandle) == 8);
         static_assert(sizeof(JBro::SwapchainHandle) == 8);
+        static_assert(sizeof(JBro::GraphicsPipelineHandle) == 8);
         static_assert(std::is_trivially_copyable_v<JBro::BufferHandle>);
         static_assert(std::is_trivially_copyable_v<JBro::TextureHandle>);
         static_assert(std::is_trivially_copyable_v<JBro::SwapchainHandle>);
+        static_assert(std::is_trivially_copyable_v<JBro::GraphicsPipelineHandle>);
     }
 
     void TestRendererCollectsBeforeRecording()
@@ -200,6 +270,8 @@ namespace
         Check(renderer.SubmitSprites({sprites, 2}), "reserved sprite packet range must be accepted");
         Check(module.device.commands.beginRenderPassCount == 0,
             "sprite submission must collect packets without recording RHI commands");
+        Check(module.device.commands.drawIndexedInstancedCount == 0,
+            "sprite submission must not draw before frame compilation");
         Check(false == renderer.SubmitSprite(sprites[0]), "submission beyond fixed capacity must be rejected");
 
         Check(renderer.EndView(), "active view must end");
@@ -208,6 +280,18 @@ namespace
             "renderer must record one render pass after packet collection");
         Check(module.device.commands.endRenderPassCount == 1,
             "renderer must close every recorded render pass");
+        Check(module.device.commands.setPipelineCount == 1,
+            "one sprite batch must bind one graphics pipeline");
+        Check(module.device.commands.setVertexBufferCount == 2,
+            "one sprite batch must bind geometry and instance streams");
+        Check(module.device.commands.setIndexBufferCount == 1,
+            "one sprite batch must bind one index stream");
+        Check(module.device.commands.setGraphicsConstantsCount == 1,
+            "one sprite view must upload one view-projection constant block");
+        Check(module.device.commands.drawIndexedInstancedCount == 1,
+            "two collected sprites must collapse into one instanced draw");
+        Check(module.device.writeBufferCount == 3,
+            "renderer must use two initialization writes and one frame-bulk instance write");
 
         const JBro::RendererFrameStats stats = renderer.GetLastFrameStats();
         Check(stats.viewCount == 1, "completed frame must report one view");
@@ -223,6 +307,8 @@ namespace
         Check(module.device.waitIdleCount == 1, "shutdown must wait for outstanding GPU work");
         Check(module.device.destroySwapchainCount == 1, "shutdown must destroy the swapchain");
         Check(module.destroyDeviceCount == 1, "shutdown must destroy the device");
+        Check(module.device.destroyPipelineCount == 1,
+            "shutdown must destroy the built-in sprite pipeline");
     }
 }
 
