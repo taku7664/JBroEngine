@@ -67,6 +67,28 @@ namespace JBro::Internal
         bool occupied = false;
     };
 
+    struct D3D12BufferState
+    {
+        ComPtr<ID3D12Resource> resource;
+        BufferDesc desc;
+        D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COMMON;
+        std::uint64_t retirementFence = 0;
+        std::uint32_t generation = 1;
+        bool occupied = false;
+    };
+
+    struct D3D12TextureState
+    {
+        ComPtr<ID3D12Resource> resource;
+        TextureDesc desc;
+        D3D12_CPU_DESCRIPTOR_HANDLE renderTargetDescriptor = {};
+        D3D12_CPU_DESCRIPTOR_HANDLE depthStencilDescriptor = {};
+        D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COMMON;
+        std::uint64_t retirementFence = 0;
+        std::uint32_t generation = 1;
+        bool occupied = false;
+    };
+
     class D3D12Device final : public IRHIDevice
     {
     public:
@@ -99,12 +121,20 @@ namespace JBro::Internal
         static constexpr std::uint32_t MaxSwapchains = 8;
         static constexpr std::uint32_t MaxBackBuffers = 4;
         static constexpr std::uint32_t BackBufferTextureBase = 1;
+        static constexpr std::uint32_t MaxBuffers = 1024;
+        static constexpr std::uint32_t MaxTextures = 512;
+        static constexpr std::uint32_t TextureResourceBase =
+            BackBufferTextureBase + MaxSwapchains * MaxBackBuffers;
+        static constexpr std::uint64_t PendingRetirementFence = ~std::uint64_t{0};
 
         D3D12SwapchainState* FindSwapchain(SwapchainHandle swapchain);
         const D3D12SwapchainState* FindSwapchain(SwapchainHandle swapchain) const;
         bool BuildBackBuffers(std::uint32_t swapchainIndex, D3D12SwapchainState& state);
         void ReleaseBackBuffers(D3D12SwapchainState& state);
         bool WaitForFence(std::uint64_t fenceValue);
+        void CollectRetiredResources();
+        void AssignPendingRetirementFences(std::uint64_t fenceValue);
+        void ReleaseAllResources();
         void MarkDeviceLost();
 
         ComPtr<IDXGIFactory6> m_factory;
@@ -112,20 +142,28 @@ namespace JBro::Internal
         ComPtr<ID3D12Device> m_device;
         ComPtr<ID3D12CommandQueue> m_graphicsQueue;
         ComPtr<ID3D12Fence> m_fence;
+        ComPtr<ID3D12DescriptorHeap> m_textureRenderTargetHeap;
+        ComPtr<ID3D12DescriptorHeap> m_textureDepthStencilHeap;
         ComPtr<ID3D12CommandAllocator> m_commandAllocators[MaxFramesInFlight];
         ComPtr<ID3D12GraphicsCommandList> m_commandList;
         ComPtr<ID3D12GraphicsCommandList4> m_commandList4;
         D3D12CommandContext m_commandContext;
         D3D12SwapchainState m_swapchains[MaxSwapchains];
+        D3D12BufferState m_buffers[MaxBuffers];
+        D3D12TextureState m_textures[MaxTextures];
         std::uint64_t m_frameFenceValues[MaxFramesInFlight] = {};
         std::uint64_t m_nextFenceValue = 1;
+        std::uint64_t m_lastSubmittedFenceValue = 0;
         std::uint64_t m_frameSerial = 0;
         std::uint64_t m_activeFrameSerial = 0;
         std::uint32_t m_activeSwapchainIndex = 0;
         std::uint32_t m_activeFrameSlot = 0;
         HANDLE m_fenceEvent = nullptr;
+        std::uint32_t m_textureRenderTargetDescriptorStride = 0;
+        std::uint32_t m_textureDepthStencilDescriptorStride = 0;
         FrameStatus m_status = FrameStatus::InvalidState;
         bool m_tearingSupported = false;
         bool m_frameActive = false;
+        bool m_hasPendingRetirementFence = false;
     };
 }

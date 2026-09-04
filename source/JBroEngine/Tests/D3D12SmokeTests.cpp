@@ -90,10 +90,74 @@ namespace
         platform.PumpEvents();
         platform.Shutdown();
     }
+
+    void TestD3D12ResourceHandleLifecycle()
+    {
+        JBro::JMemoryContext memory;
+        JBro::D3D12RHIModule rhi;
+        Check(rhi.Initialize(memory), "D3D12 resource test module must initialize");
+
+        JBro::RHIDeviceCreateInfo createInfo;
+        JBro::IRHIDevice* device = rhi.CreateDevice(createInfo);
+        Check(device != nullptr, "D3D12 resource test device must initialize");
+
+        JBro::BufferDesc invalidBufferDesc;
+        Check(false == device->CreateBuffer(invalidBufferDesc).IsValid(),
+            "zero-sized D3D12 buffer must be rejected");
+
+        JBro::BufferDesc bufferDesc;
+        bufferDesc.size = 64;
+        bufferDesc.usage = JBro::BufferUsage::Vertex | JBro::BufferUsage::CopyDestination;
+        const JBro::BufferHandle firstBuffer = device->CreateBuffer(bufferDesc);
+        Check(firstBuffer.IsValid(), "D3D12 vertex buffer must be created");
+        device->DestroyBuffer(firstBuffer);
+        device->DestroyBuffer(firstBuffer);
+        const JBro::BufferHandle secondBuffer = device->CreateBuffer(bufferDesc);
+        Check(secondBuffer.IsValid(), "destroyed D3D12 buffer slot must be reusable");
+        Check(firstBuffer.index == secondBuffer.index,
+            "completed D3D12 buffer slot must return to the fixed pool");
+        Check(firstBuffer.generation != secondBuffer.generation,
+            "reused D3D12 buffer slot must reject stale generations");
+
+        JBro::BufferDesc invalidUploadDesc = bufferDesc;
+        invalidUploadDesc.memory = JBro::MemoryType::Upload;
+        Check(false == device->CreateBuffer(invalidUploadDesc).IsValid(),
+            "upload buffers must not accept copy-destination usage");
+
+        JBro::TextureDesc invalidTextureDesc;
+        Check(false == device->CreateTexture(invalidTextureDesc).IsValid(),
+            "zero-sized D3D12 texture must be rejected");
+
+        JBro::TextureDesc textureDesc;
+        textureDesc.extent = {16, 16};
+        textureDesc.format = JBro::TextureFormat::RGBA8Unorm;
+        textureDesc.usage = JBro::TextureUsage::Sampled | JBro::TextureUsage::RenderTarget;
+        const JBro::TextureHandle firstTexture = device->CreateTexture(textureDesc);
+        Check(firstTexture.IsValid(), "D3D12 render-target texture must be created");
+        device->DestroyTexture(firstTexture);
+        device->DestroyTexture(firstTexture);
+        const JBro::TextureHandle secondTexture = device->CreateTexture(textureDesc);
+        Check(secondTexture.IsValid(), "destroyed D3D12 texture slot must be reusable");
+        Check(firstTexture.index == secondTexture.index,
+            "completed D3D12 texture slot must return to the fixed pool");
+        Check(firstTexture.generation != secondTexture.generation,
+            "reused D3D12 texture slot must reject stale generations");
+
+        JBro::TextureDesc invalidDepthDesc = textureDesc;
+        invalidDepthDesc.usage = JBro::TextureUsage::DepthStencil;
+        Check(false == device->CreateTexture(invalidDepthDesc).IsValid(),
+            "depth-stencil usage must require a depth format");
+
+        device->DestroyTexture(secondTexture);
+        device->DestroyBuffer(secondBuffer);
+        rhi.DestroyDevice(device);
+        rhi.Shutdown();
+    }
 }
 
 int RunD3D12SmokeTests()
 {
+    TestD3D12ResourceHandleLifecycle();
     TestD3D12HiddenSurfaceClear();
     std::cout << "D3D12 smoke tests passed.\n";
     return 0;

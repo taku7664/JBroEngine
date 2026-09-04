@@ -153,6 +153,32 @@ namespace JBro::Internal
             return false;
         }
 
+        D3D12_DESCRIPTOR_HEAP_DESC renderTargetHeapDesc = {};
+        renderTargetHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+        renderTargetHeapDesc.NumDescriptors = MaxTextures;
+        if (FAILED(m_device->CreateDescriptorHeap(
+            &renderTargetHeapDesc,
+            IID_PPV_ARGS(&m_textureRenderTargetHeap))))
+        {
+            Shutdown();
+            return false;
+        }
+        m_textureRenderTargetDescriptorStride =
+            m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+
+        D3D12_DESCRIPTOR_HEAP_DESC depthStencilHeapDesc = {};
+        depthStencilHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+        depthStencilHeapDesc.NumDescriptors = MaxTextures;
+        if (FAILED(m_device->CreateDescriptorHeap(
+            &depthStencilHeapDesc,
+            IID_PPV_ARGS(&m_textureDepthStencilHeap))))
+        {
+            Shutdown();
+            return false;
+        }
+        m_textureDepthStencilDescriptorStride =
+            m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+
         m_fenceEvent = CreateEventW(nullptr, FALSE, FALSE, nullptr);
         if (m_fenceEvent == nullptr)
         {
@@ -212,6 +238,7 @@ namespace JBro::Internal
         }
 
         WaitIdle();
+        ReleaseAllResources();
 
         for (D3D12SwapchainState& swapchain : m_swapchains)
         {
@@ -229,6 +256,8 @@ namespace JBro::Internal
             allocator.Reset();
         }
         m_fence.Reset();
+        m_textureDepthStencilHeap.Reset();
+        m_textureRenderTargetHeap.Reset();
         m_graphicsQueue.Reset();
         m_device.Reset();
         m_adapter.Reset();
@@ -245,35 +274,17 @@ namespace JBro::Internal
             fenceValue = 0;
         }
         m_nextFenceValue = 1;
+        m_lastSubmittedFenceValue = 0;
         m_frameSerial = 0;
         m_activeFrameSerial = 0;
         m_activeSwapchainIndex = 0;
         m_activeFrameSlot = 0;
+        m_textureRenderTargetDescriptorStride = 0;
+        m_textureDepthStencilDescriptorStride = 0;
         m_status = FrameStatus::InvalidState;
         m_tearingSupported = false;
         m_frameActive = false;
-    }
-
-    BufferHandle D3D12Device::CreateBuffer(const BufferDesc& desc)
-    {
-        static_cast<void>(desc);
-        return {};
-    }
-
-    void D3D12Device::DestroyBuffer(BufferHandle buffer)
-    {
-        static_cast<void>(buffer);
-    }
-
-    TextureHandle D3D12Device::CreateTexture(const TextureDesc& desc)
-    {
-        static_cast<void>(desc);
-        return {};
-    }
-
-    void D3D12Device::DestroyTexture(TextureHandle texture)
-    {
-        static_cast<void>(texture);
+        m_hasPendingRetirementFence = false;
     }
 
     SwapchainHandle D3D12Device::CreateSwapchain(const SwapchainDesc& desc)
@@ -555,6 +566,8 @@ namespace JBro::Internal
         if (SUCCEEDED(signalResult))
         {
             m_frameFenceValues[m_activeFrameSlot] = fenceValue;
+            m_lastSubmittedFenceValue = fenceValue;
+            AssignPendingRetirementFences(fenceValue);
         }
 
         m_frameActive = false;
@@ -594,6 +607,8 @@ namespace JBro::Internal
             swapchain.backBuffers[index].state = D3D12_RESOURCE_STATE_PRESENT;
         }
 
+        AssignPendingRetirementFences(m_lastSubmittedFenceValue);
+
         m_frameActive = false;
         m_activeFrameSerial = 0;
     }
@@ -605,7 +620,10 @@ namespace JBro::Internal
 
     void D3D12Device::WaitIdle()
     {
-        if (m_graphicsQueue == nullptr || m_fence == nullptr || m_fenceEvent == nullptr)
+        if (m_frameActive
+            || m_graphicsQueue == nullptr
+            || m_fence == nullptr
+            || m_fenceEvent == nullptr)
         {
             return;
         }
@@ -616,41 +634,12 @@ namespace JBro::Internal
             MarkDeviceLost();
             return;
         }
-        WaitForFence(fenceValue);
-    }
-
-    bool D3D12Device::ResolveRenderTarget(TextureHandle texture, D3D12RenderTargetBinding& binding)
-    {
-        if (false == texture.IsValid() || texture.index < BackBufferTextureBase)
+        m_lastSubmittedFenceValue = fenceValue;
+        AssignPendingRetirementFences(fenceValue);
+        if (WaitForFence(fenceValue))
         {
-            return false;
+            CollectRetiredResources();
         }
-
-        const std::uint32_t localIndex = texture.index - BackBufferTextureBase;
-        const std::uint32_t swapchainIndex = localIndex / MaxBackBuffers;
-        const std::uint32_t backBufferIndex = localIndex % MaxBackBuffers;
-        if (swapchainIndex >= MaxSwapchains)
-        {
-            return false;
-        }
-
-        D3D12SwapchainState& swapchain = m_swapchains[swapchainIndex];
-        if (false == swapchain.occupied || backBufferIndex >= swapchain.desc.bufferCount)
-        {
-            return false;
-        }
-
-        D3D12BackBuffer& backBuffer = swapchain.backBuffers[backBufferIndex];
-        if (backBuffer.handle != texture)
-        {
-            return false;
-        }
-
-        binding.resource = backBuffer.resource.Get();
-        binding.descriptor = backBuffer.descriptor;
-        binding.format = ToNativeFormat(swapchain.desc.format);
-        binding.state = &backBuffer.state;
-        return true;
     }
 
     D3D12SwapchainState* D3D12Device::FindSwapchain(SwapchainHandle swapchain)
