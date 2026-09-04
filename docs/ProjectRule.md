@@ -22,6 +22,13 @@
 - Windows와 Web 구현은 같은 기능 수준을 유지해야 한다. (MUST)
 - 플랫폼별 그래픽스 API 의존성은 RHI 뒤에 격리해야 한다. (MUST)
 - 현재 공개 Game Framework API는 2D 제작에 집중하되, Core, Renderer, RHI 내부 구조는 향후 3D 확장을 막지 않아야 한다. (MUST)
+- Renderer의 `Submit*` API는 프레임 패킷을 수집해야 하며 호출 시점에 RHI 드로우를 실행하지 않아야 한다. (MUST)
+  Framework는 자기 차원별 프레임 타입을 Graphics에 넘기지 않고, 명시적인 View 경계 안에서 POD 패킷을
+  단건 또는 `ArrayView`로 제출한다. Renderer는 프레임 종료 시 컬링·정렬·배칭과 커맨드 기록을 수행한다.
+- 사용자 커스텀 포스트프로세스는 Shader Graph → Shader/Material → PostProcessProfile 흐름으로 제공한다. (MUST)
+  사용자용 Shader Graph와 엔진 내부 Render Graph를 분리하며, 게임 스크립트에 Renderer/RHI 또는 임의 GPU
+  콜백을 노출하지 않는다. (MUST)
+- 정상 렌더 프레임 경로는 일반 힙 할당, 문자열 생성·비교, `WaitIdle` 호출을 하지 않아야 한다. (MUST)
 - Web 환경 문제로 Windows 쪽 엔진 구조 안정화가 불필요하게 막히지 않도록 작업 순서를 조정할 수 있다. (MAY)
 
 ## 3. 모듈 경계와 링크
