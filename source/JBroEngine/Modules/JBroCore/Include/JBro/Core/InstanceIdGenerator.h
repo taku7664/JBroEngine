@@ -18,5 +18,6 @@ namespace JBro
         std::uint64_t m_cachedMs = 0;
         std::uint32_t m_session  = 0;     // 프로세스 시작 시 1회 난수
         std::uint32_t m_sequence = 0;
+        bool          m_sessionInitialized = false;
     };
 }
