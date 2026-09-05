@@ -22,6 +22,7 @@ namespace JBro
     struct SpriteRenderItem
     {
         GameObject*   owner = nullptr;
+        InstanceId    sourceId = InvalidInstanceId;
         Matrix3x2     world;
         AssetHandle   sprite;
         AssetHandle   material;
@@ -34,6 +35,7 @@ namespace JBro
     class RenderWorld2D
     {
     public:
+        bool ReserveSprites(std::size_t capacity);
         void BeginFrame();
         void SetCamera(const RenderCamera2D& camera);
         void SubmitSprite(const SpriteRenderItem& item);
@@ -42,6 +44,7 @@ namespace JBro
 
         const RenderCamera2D*   GetCamera()      const;
         std::size_t             GetSpriteCount() const;
+        std::size_t             GetSpriteCapacity() const;
         const SpriteRenderItem* GetSprites()     const;
 
     private:

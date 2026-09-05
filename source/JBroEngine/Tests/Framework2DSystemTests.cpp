@@ -2,6 +2,7 @@
 #include <JBro/Framework2D/Canvas/Canvas.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
+#include <JBro/Framework2D/Rendering/RenderWorld2D.h>
 #include <JBro/Framework2D/System/Physics2DSystem.h>
 #include <JBro/Framework2D/System/Transform2DSystem.h>
 #include <JBro/Runtime/GameObject.h>
@@ -162,6 +163,47 @@ namespace
         Check(hit.other == circleObject, "disabled collider must not participate in queries");
         Check(NearlyEqual(hit.point.x, 4.0f), "circle hit point must be on its near edge");
     }
+
+    void TestRenderWorldCollection()
+    {
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::GameObject* first = canvas.CreateObject("first sprite");
+        JBro::GameObject* second = canvas.CreateObject("second sprite");
+        Check(first != nullptr && second != nullptr, "render objects must be created");
+
+        JBro::RenderWorld2D renderWorld;
+        Check(renderWorld.ReserveSprites(4), "render-world storage must reserve before frames");
+        const std::size_t reservedCapacity = renderWorld.GetSpriteCapacity();
+        Check(reservedCapacity >= 4, "render-world capacity must satisfy the reservation");
+
+        renderWorld.BeginFrame();
+        JBro::RenderCamera2D camera;
+        camera.owner = first;
+        renderWorld.SetCamera(camera);
+
+        JBro::SpriteRenderItem later;
+        later.owner = first;
+        later.renderOrder = 5;
+        JBro::SpriteRenderItem earlier;
+        earlier.owner = second;
+        earlier.renderOrder = -2;
+        renderWorld.SubmitSprite(later);
+        renderWorld.SubmitSprite(earlier);
+        renderWorld.EndFrame();
+
+        Check(renderWorld.GetCamera() != nullptr, "render-world camera must survive collection");
+        Check(renderWorld.GetSpriteCount() == 2, "render-world must retain submitted sprites");
+        Check(
+            renderWorld.GetSprites()[0].owner == second,
+            "render-world sprites must sort by render order");
+
+        renderWorld.BeginFrame();
+        Check(renderWorld.GetCamera() == nullptr, "new render frame must clear its camera");
+        Check(renderWorld.GetSpriteCount() == 0, "new render frame must clear sprite count");
+        Check(
+            renderWorld.GetSpriteCapacity() == reservedCapacity,
+            "new render frame must reuse reserved storage");
+    }
 }
 
 int RunFramework2DSystemTests()
@@ -169,6 +211,7 @@ int RunFramework2DSystemTests()
     TestTransformHierarchyPropagation();
     TestPhysicsGravityIntegration();
     TestPhysicsQueries();
+    TestRenderWorldCollection();
     std::cout << "Framework2D system tests passed.\n";
     return 0;
 }
