@@ -1,8 +1,13 @@
 ﻿#include <JBro/Framework2D/System/Physics2DSystem.h>
 
+#include "Physics2DGeometry.h"
+
 #include <JBro/Framework2D/Canvas/Canvas.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Runtime/GameObject.h>
+
+#include <cmath>
+#include <limits>
 
 namespace JBro::System
 {
@@ -19,6 +24,125 @@ namespace JBro::System
     Vec2 Physics2DSystem::GetGravity() const
     {
         return m_gravity;
+    }
+
+    bool Physics2DSystem::Raycast(
+        Canvas& canvas,
+        Vec2 origin,
+        Vec2 direction,
+        float distance,
+        Collision2D& hit) const
+    {
+        hit = {};
+        const float directionLengthSquared =
+            direction.x * direction.x + direction.y * direction.y;
+        constexpr float DirectionEpsilonSquared = 0.000000000001f;
+        if (distance < 0.0f
+            || directionLengthSquared <= DirectionEpsilonSquared)
+        {
+            return false;
+        }
+
+        const float inverseLength = 1.0f / std::sqrt(directionLengthSquared);
+        direction.x *= inverseLength;
+        direction.y *= inverseLength;
+        float closestDistance = std::numeric_limits<float>::max();
+        canvas.ForEach<Component::Collider2D>(
+            [&canvas, origin, direction, distance, &hit, &closestDistance](
+                Component::Collider2D& collider)
+        {
+            if (false == collider.IsActiveComponent())
+            {
+                return;
+            }
+
+            Internal::ColliderGeometry geometry;
+            if (false == Internal::CalculateColliderGeometry(canvas, collider, geometry))
+            {
+                return;
+            }
+
+            float candidateDistance = 0.0f;
+            Vec2 candidateNormal;
+            bool intersects = false;
+            if (collider.shape == Component::ColliderShape2D::Box)
+            {
+                intersects = Internal::RaycastBox(
+                    origin,
+                    direction,
+                    distance,
+                    geometry,
+                    candidateDistance,
+                    candidateNormal);
+            }
+            else if (collider.shape == Component::ColliderShape2D::Circle)
+            {
+                intersects = Internal::RaycastCircle(
+                    origin,
+                    direction,
+                    distance,
+                    geometry,
+                    candidateDistance,
+                    candidateNormal);
+            }
+
+            if (false == intersects || candidateDistance >= closestDistance)
+            {
+                return;
+            }
+
+            GameObject* owner = collider.GetOwner();
+            closestDistance = candidateDistance;
+            hit.other = owner;
+            hit.bodyType = Internal::GetBodyType(canvas, owner);
+            hit.point = {
+                origin.x + direction.x * candidateDistance,
+                origin.y + direction.y * candidateDistance};
+            hit.normal = candidateNormal;
+        });
+        return hit.other != nullptr;
+    }
+
+    void Physics2DSystem::OverlapBox(
+        Canvas& canvas,
+        const Rect& area,
+        Array<GameObject*>& results) const
+    {
+        results.Clear();
+        canvas.ForEach<Component::Collider2D>(
+            [&canvas, &area, &results](Component::Collider2D& collider)
+        {
+            if (false == collider.IsActiveComponent())
+            {
+                return;
+            }
+
+            Internal::ColliderGeometry geometry;
+            if (false == Internal::CalculateColliderGeometry(canvas, collider, geometry))
+            {
+                return;
+            }
+
+            bool intersects = false;
+            if (collider.shape == Component::ColliderShape2D::Box)
+            {
+                intersects = Internal::IntersectsBox(area, geometry);
+            }
+            else if (collider.shape == Component::ColliderShape2D::Circle)
+            {
+                intersects = Internal::IntersectsCircle(area, geometry);
+            }
+            if (false == intersects)
+            {
+                return;
+            }
+
+            GameObject* owner = collider.GetOwner();
+            if (owner != nullptr && false == results.Contains(owner))
+            {
+                results.Add(owner);
+            }
+        });
     }
 
     void Physics2DSystem::OnInitialize(Canvas& canvas)
