@@ -2,6 +2,7 @@
 
 #include <JBro/Core/Core.h>
 #include <JBro/Framework2D/Math2D.h>
+#include <JBro/Runtime/Component.h>
 
 #include <cstdint>
 
@@ -15,8 +16,19 @@ namespace JBro::Component
     enum class BodyType2D      : std::uint8_t { Static, Kinematic, Dynamic };
     enum class ColliderShape2D : std::uint8_t { Box, Circle, Capsule, Polygon };
 
-    struct Rigidbody2D
+    class Rigidbody2D final : public ComponentBase
     {
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "Component::Rigidbody2D";
+        }
+
+        ComponentTypeId GetTypeId() const override
+        {
+            return MakeStableTypeId(StaticTypeName());
+        }
+
         BodyType2D bodyType = BodyType2D::Dynamic;
         Vec2       linearVelocity;
         float      angularVelocity = 0.0f;
@@ -26,8 +38,19 @@ namespace JBro::Component
         bool       fixedRotation = false;
     };
 
-    struct Collider2D
+    class Collider2D final : public ComponentBase
     {
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "Component::Collider2D";
+        }
+
+        ComponentTypeId GetTypeId() const override
+        {
+            return MakeStableTypeId(StaticTypeName());
+        }
+
         ColliderShape2D shape = ColliderShape2D::Box;
         Vec2 offset;
         Vec2 size{ 1.0f, 1.0f };

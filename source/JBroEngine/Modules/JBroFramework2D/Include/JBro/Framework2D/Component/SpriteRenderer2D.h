@@ -2,6 +2,7 @@
 
 #include <JBro/Asset/Asset.h>
 #include <JBro/Framework2D/Math2D.h>
+#include <JBro/Runtime/Component.h>
 
 #include <cstdint>
 
@@ -9,8 +10,19 @@ namespace JBro::Component
 {
     enum class SpriteFlip : std::uint8_t { None, Horizontal, Vertical, Both };
 
-    struct SpriteRenderer2D
+    class SpriteRenderer2D final : public ComponentBase
     {
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "Component::SpriteRenderer2D";
+        }
+
+        ComponentTypeId GetTypeId() const override
+        {
+            return MakeStableTypeId(StaticTypeName());
+        }
+
         AssetHandle  sprite;
         AssetHandle  material;
         Color        tint;

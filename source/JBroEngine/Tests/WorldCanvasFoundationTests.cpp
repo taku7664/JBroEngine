@@ -1,6 +1,10 @@
 ﻿#include <JBro/Core/Core.h>
 #include <JBro/Core/StableTypeId.h>
 #include <JBro/Framework2D/Canvas/Canvas.h>
+#include <JBro/Framework2D/Component/Camera2D.h>
+#include <JBro/Framework2D/Component/Physics2D.h>
+#include <JBro/Framework2D/Component/SpriteRenderer2D.h>
+#include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2D/Framework2D.h>
 #include <JBro/Runtime/Component.h>
 #include <JBro/Runtime/GameObject.h>
@@ -68,6 +72,38 @@ namespace
         static_assert(a != c, "different names must hash to different ids");
         Check(a != 0, "stable type id must not collide with the invalid sentinel");
     }
+
+    void TestFramework2DComponentsArePolymorphic()
+    {
+        static_assert(std::is_base_of_v<JBro::ComponentBase, JBro::Component::Transform2D>);
+        static_assert(std::is_base_of_v<JBro::ComponentBase, JBro::Component::WorldTransform2D>);
+        static_assert(std::is_base_of_v<JBro::ComponentBase, JBro::Component::Camera2D>);
+        static_assert(std::is_base_of_v<JBro::ComponentBase, JBro::Component::SpriteRenderer2D>);
+        static_assert(std::is_base_of_v<JBro::ComponentBase, JBro::Component::Rigidbody2D>);
+        static_assert(std::is_base_of_v<JBro::ComponentBase, JBro::Component::Collider2D>);
+
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::GameObject* object = canvas.CreateObject("multi-component");
+        Check(object != nullptr, "component test object must be created");
+
+        JBro::Component::Collider2D* first =
+            canvas.AttachComponent<JBro::Component::Collider2D>(object);
+        JBro::Component::Collider2D* second =
+            canvas.AttachComponent<JBro::Component::Collider2D>(object);
+
+        Check(first != nullptr, "first same-type component must attach");
+        Check(second != nullptr, "second same-type component must attach");
+        Check(first != second, "same-type components must have distinct addresses");
+        Check(
+            first->GetTypeId() == JBro::MakeStableTypeId(JBro::Component::Collider2D::StaticTypeName()),
+            "component type id must derive from its stable type name");
+        Check(
+            canvas.GetComponent<JBro::Component::Collider2D>(object) == first,
+            "single component lookup must return the first matching component");
+        Check(
+            object->GetComponents<JBro::Component::Collider2D>().Size() == 2,
+            "plural component lookup must retain every same-type component");
+    }
 }
 
 int RunWorldCanvasFoundationTests()
@@ -76,6 +112,7 @@ int RunWorldCanvasFoundationTests()
     TestFramework2DBootstraps();
     TestRefIsPod();
     TestStableTypeIdIsStable();
+    TestFramework2DComponentsArePolymorphic();
     std::cout << "World/canvas foundation tests passed.\n";
     return 0;
 }
