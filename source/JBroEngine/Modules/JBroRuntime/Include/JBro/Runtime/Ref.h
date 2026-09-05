@@ -54,6 +54,9 @@ namespace JBro
             InstanceId objectId,
             InstanceId componentId,
             RefCategory category);
+        bool PatchInstanceRefCache(
+            InstanceRef& reference,
+            RefCategory category);
     }
 
     // T 로부터 카테고리를 뽑는 트레이트. 실제 카테고리 값은 실 객체가 생기는 Stage B~G 에서

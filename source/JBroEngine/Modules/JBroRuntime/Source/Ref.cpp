@@ -216,4 +216,16 @@ namespace JBro::Internal
     {
         return InstanceRegistry::Get().Resolve(objectId, componentId, category);
     }
+
+    bool PatchInstanceRefCache(
+        InstanceRef& reference,
+        RefCategory category)
+    {
+        const ResolvedInstance resolved = InstanceRegistry::Get().Resolve(
+            reference.ObjectId,
+            reference.ComponentId,
+            category);
+        reference.Cached = resolved.Handle;
+        return resolved.Pointer != nullptr;
+    }
 }

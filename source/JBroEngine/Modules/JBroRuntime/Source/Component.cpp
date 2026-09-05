@@ -1,9 +1,55 @@
 ﻿#include <JBro/Runtime/Component.h>
 
+#include <JBro/Runtime/GameObject.h>
+
 namespace JBro
 {
-    GameObject* ComponentBase::GetOwner() const  { return m_owner; }
-    void        ComponentBase::SetOwner(GameObject* owner) { m_owner = owner; }
-    bool        ComponentBase::IsActiveComponent() const   { return m_enabled; }
-    void        ComponentBase::SetEnabled(bool enabled)    { m_enabled = enabled; }
+    InstanceId ComponentBase::GetInstanceId() const
+    {
+        return m_instanceId;
+    }
+
+    InstanceHandle ComponentBase::GetHandle() const
+    {
+        return m_handle;
+    }
+
+    GameObject* ComponentBase::GetOwner() const
+    {
+        return m_owner.TryGet();
+    }
+
+    bool ComponentBase::IsActiveComponent() const
+    {
+        GameObject* owner = m_owner.TryGet();
+        return m_enabled && owner != nullptr && owner->IsActiveInHierarchy();
+    }
+
+    bool ComponentBase::IsEnabled() const
+    {
+        return m_enabled;
+    }
+
+    void ComponentBase::SetEnabled(bool enabled)
+    {
+        m_enabled = enabled;
+    }
+
+    void ComponentBase::SetOwner(GameObject* owner)
+    {
+        if (owner == nullptr)
+        {
+            m_owner.Reset();
+            return;
+        }
+        m_owner = owner->SafeFromThis();
+    }
+
+    void ComponentBase::SetInstanceIdentity(
+        InstanceId instanceId,
+        InstanceHandle handle)
+    {
+        m_instanceId = instanceId;
+        m_handle = handle;
+    }
 }

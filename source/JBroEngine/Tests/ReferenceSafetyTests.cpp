@@ -1,6 +1,9 @@
 ﻿#include <JBro/Core/InstanceIdGenerator.h>
 #include <JBro/Core/ObjectPool.h>
+#include <JBro/Framework2D/Canvas/Canvas.h>
 #include <JBro/Internal/InstanceRegistry.h>
+#include <JBro/Runtime/Component.h>
+#include <JBro/Runtime/GameObjectHandle.h>
 #include <JBro/Runtime/Ref.h>
 #include <JBro/Types/SafePtr.h>
 
@@ -30,6 +33,22 @@ namespace
 
     struct RegistryTarget
     {
+        int Value = 0;
+    };
+
+    class TestComponent final : public JBro::ComponentBase
+    {
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "TestComponent";
+        }
+
+        JBro::ComponentTypeId GetTypeId() const override
+        {
+            return JBro::MakeStableTypeId(StaticTypeName());
+        }
+
         int Value = 0;
     };
 
@@ -141,6 +160,17 @@ namespace
         Check(reference.Get() == &first, "second Ref lookup must resolve the cached handle");
         Check(registry.GetPersistentLookupCount() == 1, "cache hit must not read the persistent id table");
 
+        JBro::InstanceRef loadedReference;
+        loadedReference.ObjectId = 100;
+        loadedReference.Cached = {999, 999};
+        Check(JBro::Internal::PatchInstanceRefCache(
+            loadedReference,
+            JBro::RefCategory::Object),
+            "load patchup must resolve persistent ids");
+        Check(loadedReference.Cached.Slot == firstHandle.Slot
+            && loadedReference.Cached.Gen == firstHandle.Gen,
+            "load patchup must replace stale runtime cache values");
+
         Check(registry.Unregister(firstHandle), "registry must unregister a live handle");
         RegistryTarget replacement{84};
         const JBro::InstanceHandle replacementHandle = registry.Register(
@@ -153,6 +183,98 @@ namespace
         Check(reference.Get() == nullptr, "stale Ref must not resolve a different object in a reused slot");
         registry.Clear();
     }
+
+    void TestCanvasObjectComponentAndHandleRoundTrip()
+    {
+        JBro::Internal::InstanceRegistry& registry =
+            JBro::Internal::InstanceRegistry::Get();
+        registry.Clear();
+
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::GameObject* parent = canvas.CreateObject("Parent");
+        JBro::GameObject* child = canvas.CreateObject("Child");
+        Check(parent != nullptr && child != nullptr, "Canvas must create pooled objects");
+        Check(canvas.GetObjectCount() == 2, "Canvas must report live objects");
+        Check(registry.GetLiveCount() == 2, "created objects must be registered");
+
+        const JBro::LayerIndex originalDefault = canvas.GetDefaultLayer();
+        JBro::Layer& replacementLayer = canvas.CreateLayer("Replacement");
+        Check(canvas.DestroyLayer(originalDefault), "default layer must be replaceable");
+        Check(parent->GetLayer() == &replacementLayer,
+            "objects must move before their layer is destroyed");
+
+        child->SetParent(parent);
+        TestComponent* first = canvas.AttachComponent<TestComponent>(parent);
+        TestComponent* second = canvas.AttachComponent<TestComponent>(parent);
+        Check(first != nullptr && second != nullptr, "Canvas must attach pooled components");
+        first->Value = 11;
+        second->Value = 22;
+        Check(first->GetOwner() == parent, "attached component must retain its owner");
+        Check(registry.GetLiveCount() == 4, "attached components must be registered");
+
+        JBro::Ref<TestComponent> found = parent->GetComponent<TestComponent>();
+        Check(found.Get() == first, "GetComponent must return the first matching component");
+        const JBro::Array<JBro::Ref<TestComponent>> all =
+            parent->GetComponents<TestComponent>();
+        Check(all.Size() == 2, "GetComponents must return every matching component");
+        std::size_t visited = 0;
+        int total = 0;
+        canvas.ForEach<TestComponent>([&visited, &total](TestComponent& component)
+        {
+            ++visited;
+            total += component.Value;
+        });
+        Check(visited == 2 && total == 33, "typed Canvas iteration must visit live components");
+
+        JBro::GameObjectHandle handle = parent->GetScriptHandle();
+        Check(handle.IsValid(), "handle must resolve a live object");
+        Check(handle.GetComponent<TestComponent>().Get() == first,
+            "handle component lookup must preserve first-match semantics");
+        handle.SetActive(false);
+        Check(false == parent->IsActiveSelf(), "handle must safely change active state");
+        Check(false == handle.IsActive(), "handle active query must include hierarchy state");
+        Check(false == first->IsActiveComponent(),
+            "component active gate must include owner hierarchy state");
+
+        JBro::SafePtr<JBro::GameObject> parentSafe = parent->SafeFromThis();
+        JBro::SafePtr<JBro::GameObject> childSafe = child->SafeFromThis();
+        handle.Destroy();
+        Check(false == handle.IsValid(), "destroyed object handle must become invalid");
+        Check(false == parentSafe.IsValid() && false == childSafe.IsValid(),
+            "recursive object destruction must invalidate SafePtr values");
+        Check(false == found.IsValid(), "destroyed component Ref must become invalid");
+        Check(canvas.GetObjectCount() == 0, "recursive destruction must empty the object pool");
+        Check(registry.GetLiveCount() == 0, "destruction must remove every registry entry");
+
+        handle.SetActive(true);
+        handle.Destroy();
+        Check(false == handle.IsActive(), "invalid handle access must remain safe");
+        registry.Clear();
+    }
+
+    void TestCanvasIdsAreUniqueAcrossCanvases()
+    {
+        JBro::Internal::InstanceRegistry& registry =
+            JBro::Internal::InstanceRegistry::Get();
+        registry.Clear();
+
+        {
+            JBro::Canvas firstCanvas(JBro::CreateDefaultAllocator());
+            JBro::Canvas secondCanvas(JBro::CreateDefaultAllocator());
+            JBro::GameObject* first = firstCanvas.CreateObject("FirstCanvasObject");
+            JBro::GameObject* second = secondCanvas.CreateObject("SecondCanvasObject");
+            Check(first != nullptr && second != nullptr,
+                "multiple canvases must both create registered objects");
+            Check(first->GetInstanceId() != second->GetInstanceId(),
+                "Canvas instance ids must be process-unique");
+            Check(registry.GetLiveCount() == 2,
+                "global registry must retain objects from multiple canvases");
+        }
+
+        Check(registry.GetLiveCount() == 0,
+            "Canvas teardown must unregister only its own objects");
+        registry.Clear();
+    }
 }
 
 int RunReferenceSafetyTests()
@@ -161,6 +283,8 @@ int RunReferenceSafetyTests()
     TestInstanceIdGeneratorSequenceAndOverflow();
     TestObjectPoolAddressStabilityAndLifetime();
     TestRefUsesHandleCacheBeforePersistentLookup();
+    TestCanvasObjectComponentAndHandleRoundTrip();
+    TestCanvasIdsAreUniqueAcrossCanvases();
     std::cout << "Reference safety tests passed.\n";
     return 0;
 }
