@@ -6,6 +6,7 @@ int RunRendererContractTests();
 int RunPlatformContractTests();
 int RunD3D12SmokeTests();
 int RunReferenceSafetyTests();
+int RunFramework2DSystemTests();
 
 int main()
 {
@@ -28,6 +29,10 @@ int main()
             return 1;
         }
         if (RunReferenceSafetyTests() != 0)
+        {
+            return 1;
+        }
+        if (RunFramework2DSystemTests() != 0)
         {
             return 1;
         }
