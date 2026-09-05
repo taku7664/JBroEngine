@@ -9,10 +9,10 @@
 #include <JBro/Framework2D/Rendering/RenderWorld2D.h>
 #include <JBro/Framework2D/Scripting/GameScript.h>
 #include <JBro/Framework2D/Scripting/ScriptSystem.h>
-#include <JBro/Framework2D/System/CameraSystem2D.h>
+#include <JBro/Framework2D/System/Camera2DSystem.h>
 #include <JBro/Framework2D/System/Physics2DSystem.h>
-#include <JBro/Framework2D/System/SpriteRenderSystem.h>
-#include <JBro/Framework2D/System/TransformSystem2D.h>
+#include <JBro/Framework2D/System/SpriteRender2DSystem.h>
+#include <JBro/Framework2D/System/Transform2DSystem.h>
 #include <JBro/Runtime/IFramework.h>
 #include <JBro/Runtime/SystemScheduler.h>
 
