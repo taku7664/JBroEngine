@@ -1,6 +1,8 @@
 ﻿#include <JBro/Core/Core.h>
 #include <JBro/Framework2D/Canvas/Canvas.h>
+#include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
+#include <JBro/Framework2D/System/Physics2DSystem.h>
 #include <JBro/Framework2D/System/Transform2DSystem.h>
 #include <JBro/Runtime/GameObject.h>
 
@@ -70,11 +72,45 @@ namespace
             "disabled transform must pass through the shared active gate");
         system.Shutdown(canvas);
     }
+
+    void TestPhysicsGravityIntegration()
+    {
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::GameObject* object = canvas.CreateObject("falling body");
+        Check(object != nullptr, "physics object must be created");
+
+        JBro::Component::Transform2D* transform =
+            canvas.AttachComponent<JBro::Component::Transform2D>(object);
+        JBro::Component::WorldTransform2D* world =
+            canvas.AttachComponent<JBro::Component::WorldTransform2D>(object);
+        JBro::Component::Rigidbody2D* body =
+            canvas.AttachComponent<JBro::Component::Rigidbody2D>(object);
+        Check(
+            transform != nullptr && world != nullptr && body != nullptr,
+            "physics components must attach");
+
+        JBro::System::Physics2DSystem system;
+        system.Initialize(canvas);
+        system.FixedUpdate(canvas, 0.5f);
+
+        Check(NearlyEqual(body->linearVelocity.y, -4.905f), "gravity must update velocity");
+        Check(NearlyEqual(transform->position.y, -2.4525f), "velocity must update position");
+        Check(world->dirty, "physics movement must invalidate the world transform");
+
+        body->SetEnabled(false);
+        const float disabledPosition = transform->position.y;
+        system.FixedUpdate(canvas, 0.5f);
+        Check(
+            NearlyEqual(transform->position.y, disabledPosition),
+            "disabled rigidbody must pass through the shared active gate");
+        system.Shutdown(canvas);
+    }
 }
 
 int RunFramework2DSystemTests()
 {
     TestTransformHierarchyPropagation();
+    TestPhysicsGravityIntegration();
     std::cout << "Framework2D system tests passed.\n";
     return 0;
 }

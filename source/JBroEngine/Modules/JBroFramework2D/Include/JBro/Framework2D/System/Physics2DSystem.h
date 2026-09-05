@@ -2,8 +2,7 @@
 
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Runtime/GameSystem.h>
-
-#include <vector>
+#include <JBro/Types/Array.h>
 
 namespace JBro
 {
@@ -20,7 +19,7 @@ namespace JBro::System
         Vec2 GetGravity() const;
 
         bool Raycast   (Canvas& canvas, Vec2 origin, Vec2 direction, float distance, Collision2D& hit) const;
-        void OverlapBox(Canvas& canvas, const Rect& area, std::vector<GameObject*>& results) const;
+        void OverlapBox(Canvas& canvas, const Rect& area, Array<GameObject*>& results) const;
 
     protected:
         void OnInitialize (Canvas& canvas) override;
