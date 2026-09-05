@@ -119,9 +119,10 @@
 - **핸들은 스크립트 노출 표면에만 적용한다.** (MUST)
   스크립트가 다른 오브젝트를 오래 들고 있는 자리가 실제 댕글링이 나는 곳이고,
   거기만 `GameObject` 핸들로 덮는다.
-- **스크립트에 노출하는 참조는 `Ref<T>` 하나뿐이다.** (MUST)
-  값 타입 핸들 클래스를 따로 만들지 않는다. 오브젝트 · 컴포넌트 · 스크립트 · 에셋 · 캔버스가
-  같은 타입을 쓰고, 카테고리는 `T` 로부터 컴파일타임에 결정된다.
+- **스크립트에 노출하는 참조는 두 종류뿐이다.** (MUST)
+  `GameObject`는 16B `GameObjectHandle`로 다루며, `operator->` 없이 안전 멤버만 제공한다.
+  컴포넌트 · 스크립트 · 에셋 · 캔버스는 24B `Ref<T>`를 쓰고 카테고리는 `T`에서
+  컴파일타임에 결정한다. 이 둘 외에 타입별 핸들을 추가하지 않는다.
 - **`GetComponent<T>()` 는 원시 포인터가 아니라 `Ref<T>` 를 반환한다.** (MUST)
   원시 포인터는 저장할 수 없어 매 프레임 다시 찾아야 하고, 그 조회가 선형 탐색이다.
   `Ref<T>` 로 한 번 받아두면 이후 접근이 상수 시간이 된다.
@@ -142,7 +143,7 @@
   **경로가 둘인 게 아니라 접근자 하나에 사용법이 둘이다.**
   `operator->` 는 내부적으로 `Get()` 을 부르며, Debug 빌드 assert 만 차이다.
 - 포인터를 멤버로 저장하지 않는다. (MUST)
-  저장이 필요하면 `Ref<T>` 를 멤버로 둔다 — 그것이 저장용 타입이다.
+  `GameObject`를 저장하면 `GameObjectHandle`, 그 외 대상을 저장하면 `Ref<T>`를 멤버로 둔다.
 
   > 이 규칙을 타입으로 강제하려는 시도(복사·이동을 삭제한 스코프 객체)는 채택하지 않았다.
   > C++17 의 보장된 복사 생략 때문에 prvalue 로 멤버를 초기화하는 것이 막히지 않아
@@ -170,7 +171,7 @@
   디바이스 로스트의 올바른 처리는 null 검사가 아니라 GPU 리소스 재생성이다.
   약참조는 크래시를 조용한 버그로 바꿀 뿐 안전을 주지 않는다.
 
-### 6.1 `Ref<T>` 의 형태와 무효 접근
+### 6.1 `GameObjectHandle`과 `Ref<T>`의 형태와 무효 접근
 
 - `Ref<T>` 의 저장부는 `InstanceRef` 하나다. 별도의 핸들 베이스 타입을 두지 않는다. (MUST)
 
@@ -209,28 +210,31 @@
   둘 중 하나라도 어기면 24B POD 가 깨져 DLL 경계를 넘지 못한다. 테스트로 고정한다.
 
   ```cpp
-  static_assert(sizeof(Ref<GameObject>) == sizeof(InstanceRef));
-  static_assert(std::is_standard_layout_v<Ref<GameObject>>);
-  static_assert(std::is_trivially_copyable_v<Ref<GameObject>>);
+  static_assert(sizeof(Ref<ComponentBase>) == sizeof(InstanceRef));
+  static_assert(std::is_standard_layout_v<Ref<ComponentBase>>);
+  static_assert(std::is_trivially_copyable_v<Ref<ComponentBase>>);
   ```
 
-  Canvas 가 프로세스당 하나이므로 Canvas 식별자를 넣지 않으며,
-  `WorldHandle` 이나 World 레지스트리 같은 조회 계층도 두지 않는다.
-- `Ref<GameObject>` 는 부분 특수화로 **자주 쓰는 안전 멤버**를 제공한다. (MUST)
-  `Destroy()` / `SetActive()` / `GetComponent<T>()` / `TryGetPosition()` 등이며
-  무효여도 로그만 남기고 아무 일도 하지 않는다 — `if` 가 필요 없다.
+  활성 Canvas 가 사용하는 레지스트리는 프로세스 전역이며, InstanceId도 프로세스에서 유일하다.
+  `WorldHandle`이나 World 레지스트리 같은 중간 조회 계층은 두지 않는다.
+- `GameObjectHandle`은 16B `{InstanceHandle, InstanceId}` 값이며
+  **자주 쓰는 안전 멤버**를 제공한다. (MUST)
+  `Destroy()` / `SetActive()` / `GetComponent<T>()` 등은 무효여도 로그만 남기고
+  아무 일도 하지 않는다. `operator->`는 제공하지 않는다.
 
   ```cpp
+  GameObjectHandle target;
   target.Destroy();                            // 안전 멤버. if 불필요
-  if (GameObject* o = target.Get()) o->…;      // 확인하고 쓴다
-  target->SetName("x");                        // 확인 안 함. 무효면 크래시
+  Ref<Component::Transform2D> transform = target.GetComponent<Component::Transform2D>();
+  if (auto* value = transform.Get())            // Ref<T>는 실패를 직접 확인한다
+  {
+      …
+  }
   ```
 
-  타입은 하나로 유지하면서 가장 흔한 연산만 안전 경로를 얹는 방식이다.
-  컴포넌트·스크립트에도 자주 쓰는 연산이 생기면 같은 방식으로 특수화한다.
-- **안전 멤버 안에서는 `operator->` 를 쓰지 않는다.** (MUST)
-  `->` 는 "포인터를 얻고 → 그 포인터로 부른다" 는 2단계라 중간에 중단할 자리가 없다.
-  멤버 함수 안에서는 그냥 `return` 하면 되므로 이것이 무효 접근 처리의 전제다.
+  GameObject만 안전 명령용 Handle을 쓰며, 컴포넌트·스크립트별 Handle은 만들지 않는다.
+- **`GameObjectHandle`에는 `operator->`를 추가하지 않는다.** (MUST)
+  안전 멤버 내부에서 대상 해석에 실패하면 즉시 `return`할 수 있어야 한다.
 - **안전 경로의 무효 접근은 로그를 남기고 아무 일도 하지 않는다.** (MUST)
   크래시도, 예외도, 절반 실행도 없어야 한다. 사용자가 `if` 를 쓰지 않아도 안전해야 한다.
   Release 빌드에서도 검사(슬롯 범위 + 세대 비교)를 제거하지 않는다.
@@ -267,9 +271,11 @@
 - `GameObject` 는 실체 객체다. **`Entity` 정수 ID 를 도입하지 않는다.** (MUST)
   식별은 객체 자체와 `InstanceId` 로 한다.
 - 컴포넌트는 **다형성** `Component::ComponentBase` 파생이며 타입별 풀(`TObjectPool<T>`)에 거주한다. (MUST)
-  메모리 소유는 풀, **논리 소유는 오브젝트**(`vector<SafePtr<ComponentBase>>`)다.
+  메모리 소유는 풀, **논리 소유는 오브젝트**(`Array<SafePtr<ComponentBase>>`)다.
   컴포넌트를 POD 구조체로 만들지 않는다 — 리플렉션과 직렬화가 다형성에 의존한다.
-- **Transform 과 부모·자식 계층은 `GameObject` 의 멤버다.** 컴포넌트로 만들지 않는다. (MUST)
+- 부모·자식 계층과 레이어 소속은 `GameObject`의 멤버다. (MUST)
+  Transform은 차원별 컴포넌트로 유지한다. 2D는 `Component::Transform2D`,
+  3D는 `Component::Transform3D`를 쓰며 `GameObject`는 차원을 알지 않는다. (MUST)
 - 시스템은 `ForEach<T>` 로 **타입별 컴포넌트 풀을 순회하며** 갱신한다. (MUST)
   다중 타입 `Query<A,B>` 를 도입하지 않는다.
 - **시스템은 `Ref<T>` 를 거치지 않는다.** 순회가 풀의 실체 참조(`T&`)를 그대로 준다. (MUST)
@@ -281,7 +287,7 @@
   (기존 엔진의 `ScriptIterationGuard` 가 이 목적이다).
 - 컴포넌트 타입 ID 는 `MakeStableTypeId(T::StaticTypeName())` 으로 **이름에서 유도한다.** (MUST)
   손으로 배정한 매직넘버를 쓰지 않는다. 이름 기반이라 DLL 경계와 직렬화를 넘어 안정적이다.
-- 같은 타입 컴포넌트가 한 오브젝트에 여러 개 있을 수 있다. `InstanceGuid` 로 구분한다. (MUST)
+- 같은 타입 컴포넌트가 한 오브젝트에 여러 개 있을 수 있다. `InstanceId`로 구분한다. (MUST)
 - 컴포넌트 활성 판정은 `IsActiveComponent()` **단일 게이트**를 쓴다. (MUST)
   시스템이 각자 `owner->IsActive` 를 판단하면 시스템 간 불일치가 생긴다(이미 겪은 문제다).
 - 객체 풀은 슬롯 주소가 불변이어야 한다(compaction 금지). (MUST)
