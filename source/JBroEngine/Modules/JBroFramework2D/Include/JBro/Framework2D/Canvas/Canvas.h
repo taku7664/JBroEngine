@@ -58,6 +58,11 @@ namespace JBro
         template<typename T>
         T* GetComponent(GameObject* owner);
 
+        // Replaces results in attachment order. Pointers are short-lived borrowed references.
+        // Reserve results during setup to avoid allocation on repeated queries.
+        template<typename T>
+        void GetComponents(GameObject* owner, Array<T*>& results);
+
         template<typename T, typename Fn>
         void ForEach(Fn&& function);
 
@@ -198,6 +203,27 @@ namespace JBro
             }
         }
         return nullptr;
+    }
+
+    template<typename T>
+    void Canvas::GetComponents(GameObject* owner, Array<T*>& results)
+    {
+        static_assert(std::is_base_of_v<ComponentBase, T>);
+        results.Clear();
+        if (owner == nullptr || owner->GetCanvas() != this)
+        {
+            return;
+        }
+
+        static constexpr ComponentTypeId TypeId = MakeStableTypeId(T::StaticTypeName());
+        for (const SafePtr<ComponentBase>& componentRef : owner->m_components)
+        {
+            ComponentBase* component = componentRef.TryGet();
+            if (component != nullptr && component->GetTypeId() == TypeId)
+            {
+                results.Add(static_cast<T*>(component));
+            }
+        }
     }
 
     template<typename T, typename Fn>

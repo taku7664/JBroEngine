@@ -73,6 +73,43 @@ namespace
         Check(a != 0, "stable type id must not collide with the invalid sentinel");
     }
 
+    void TestCanvasCollectsComponents()
+    {
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        auto* object = canvas.CreateObject("plural lookup");
+        auto* first = canvas.AttachComponent<JBro::Component::Collider2D>(object);
+        canvas.AttachComponent<JBro::Component::Transform2D>(object);
+        auto* second = canvas.AttachComponent<JBro::Component::Collider2D>(object);
+        object->SetActive(false);
+        second->SetEnabled(false);
+
+        JBro::Array<JBro::Component::Collider2D*> results;
+        results.Reserve(8);
+        canvas.GetComponents<JBro::Component::Collider2D>(object, results);
+        Check(results.Size() == 2 && results[0] == first && results[1] == second,
+            "plural canvas lookup must preserve attachment order regardless of activation");
+        auto* storage = results.Data();
+        canvas.GetComponents<JBro::Component::Collider2D>(object, results);
+        Check(results.Size() == 2 && results.Data() == storage && results.Capacity() == 8,
+            "plural lookup must replace results and reuse reserved storage");
+
+        Check(canvas.DetachComponent(object, first), "first collider must detach");
+        canvas.GetComponents<JBro::Component::Collider2D>(object, results);
+        Check(results.Size() == 1 && results[0] == second,
+            "plural lookup must omit detached components");
+
+        auto* empty = canvas.CreateObject("no colliders");
+        canvas.GetComponents<JBro::Component::Collider2D>(empty, results);
+        Check(results.IsEmpty(), "no matches must clear previous results");
+        results.Add(second);
+        canvas.GetComponents<JBro::Component::Collider2D>(nullptr, results);
+        Check(results.IsEmpty(), "null owner must clear results");
+        results.Add(second);
+        JBro::Canvas other(JBro::CreateDefaultAllocator());
+        other.GetComponents<JBro::Component::Collider2D>(object, results);
+        Check(results.IsEmpty(), "foreign canvas owner must not expose components");
+    }
+
     void TestFramework2DComponentsArePolymorphic()
     {
         static_assert(std::is_base_of_v<JBro::ComponentBase, JBro::Component::Transform2D>);
@@ -113,6 +150,7 @@ int RunWorldCanvasFoundationTests()
     TestRefIsPod();
     TestStableTypeIdIsStable();
     TestFramework2DComponentsArePolymorphic();
+    TestCanvasCollectsComponents();
     std::cout << "World/canvas foundation tests passed.\n";
     return 0;
 }
