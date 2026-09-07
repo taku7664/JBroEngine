@@ -11,6 +11,7 @@ namespace JBro
 {
     class Canvas;
     class GameObject;
+    class GameScriptBase;
 
     // 모든 컴포넌트의 다형성 베이스. 파생 타입은 반드시
     //   static constexpr const char* StaticTypeName() { return "..."; }
@@ -45,7 +46,7 @@ namespace JBro
     };
 
     template<typename T>
-        requires std::is_base_of_v<ComponentBase, T>
+        requires (std::is_base_of_v<ComponentBase, T> && !std::is_base_of_v<GameScriptBase, T>)
     struct RefCategoryOf<T>
     {
         static constexpr RefCategory value = RefCategory::Component;

@@ -2,6 +2,8 @@
 #include <JBro/Framework2D/Scripting/GameScript.h>
 #include <JBro/Framework2D/Canvas/Canvas.h>
 #include <JBro/Script/Macros.h>
+#include <JBro/Internal/InstanceRegistry.h>
+#include <JBro/Runtime/GameObjectHandle.h>
 
 #include <iostream>
 #include <stdexcept>
@@ -43,6 +45,9 @@ namespace
     static_assert(false == std::is_abstract_v<ScriptProbe>);
     static_assert(false == HasCollisionEnter<JBro::GameScriptBase>);
     static_assert(HasCollisionEnter<JBro::GameScript2D>);
+    static_assert(JBro::Ref<ScriptProbe>::Category == JBro::RefCategory::Script);
+    static_assert(JBro::Ref<JBro::GameScriptBase>::Category == JBro::RefCategory::Script);
+    static_assert(JBro::Ref<JBro::Component::Collider2D>::Category == JBro::RefCategory::Component);
 }
 
 int RunGameScriptTests()
@@ -53,6 +58,31 @@ int RunGameScriptTests()
     if (script == nullptr || script->GetGameObject() != object || false == script->IsActiveComponent())
     {
         throw std::runtime_error("split script base must preserve component ownership and activation");
+    }
+
+    auto& registry = JBro::Internal::InstanceRegistry::Get();
+    if (registry.Resolve(script->GetHandle(), JBro::RefCategory::Script) != script
+        || registry.Resolve(script->GetHandle(), JBro::RefCategory::Component) != nullptr)
+    {
+        throw std::runtime_error("scripts must register separately from ordinary components");
+    }
+    auto reference = object->GetComponent<ScriptProbe>();
+    auto fromHandle = object->GetScriptHandle().GetComponent<ScriptProbe>();
+    auto plural = object->GetComponents<ScriptProbe>();
+    if (reference.Get() != script || fromHandle.Get() != script
+        || plural.Size() != 1 || plural[0].Get() != script)
+    {
+        throw std::runtime_error("all component query surfaces must resolve Script-category references");
+    }
+    reference.Cached = {};
+    if (reference.Get() != script)
+    {
+        throw std::runtime_error("script reference must recover its cache by persistent identity");
+    }
+    const auto lookups = registry.GetPersistentLookupCount();
+    if (reference.Get() != script || registry.GetPersistentLookupCount() != lookups)
+    {
+        throw std::runtime_error("cached script reference must bypass persistent lookup");
     }
 
     // Direct calls verify the inherited API and linking, not ScriptSystem scheduling.
@@ -70,7 +100,7 @@ int RunGameScriptTests()
     }
 
     auto lifetime = script->SafeFromThis();
-    if (false == canvas.DestroyObject(object) || lifetime.IsValid())
+    if (false == canvas.DestroyObject(object) || lifetime.IsValid() || reference.Get() != nullptr)
     {
         throw std::runtime_error("split script component must retain safe pointer invalidation");
     }

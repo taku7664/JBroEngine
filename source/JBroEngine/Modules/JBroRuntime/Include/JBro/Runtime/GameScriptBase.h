@@ -18,4 +18,11 @@ namespace JBro
         virtual void OnFixedUpdate(float fixedDeltaTime);
         virtual void OnDestroy();
     };
+
+    template<typename T>
+        requires std::is_base_of_v<GameScriptBase, T>
+    struct RefCategoryOf<T>
+    {
+        static constexpr RefCategory value = RefCategory::Script;
+    };
 }
