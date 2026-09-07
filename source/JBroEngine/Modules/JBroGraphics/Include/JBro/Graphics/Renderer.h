@@ -70,6 +70,7 @@ namespace JBro
     {
     public:
         Renderer() = default;
+        ~Renderer();
         Renderer(const Renderer&) = delete;
         Renderer& operator=(const Renderer&) = delete;
         Renderer(Renderer&&) = delete;
@@ -86,11 +87,15 @@ namespace JBro
         bool SubmitMeshes(JArrayView<MeshSubmit> items);
         bool EndView();
         FrameStatus EndFrame();
+        void AbortFrame();
 
         bool ResizeSurface(const Extent2D& extent);
         RendererFrameStats GetLastFrameStats() const;
 
         bool IsDeviceLost() const;
+        bool IsInitialized() const;
+        Extent2D GetSurfaceExtent() const;
+        std::uint32_t GetSpriteSubmissionLimit() const;
 
     private:
         struct ViewPacket

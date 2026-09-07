@@ -30,6 +30,11 @@ namespace JBro
         }
     }
 
+    Renderer::~Renderer()
+    {
+        Shutdown();
+    }
+
     bool Renderer::Initialize(IRHIModule& rhi, const RendererConfig& config)
     {
         if (m_device != nullptr
@@ -285,6 +290,18 @@ namespace JBro
         return status;
     }
 
+    void Renderer::AbortFrame()
+    {
+        if (m_frameActive && m_device != nullptr)
+        {
+            m_device->AbortFrame(m_frame);
+            m_lastStats = m_currentStats;
+            m_frame = {};
+            m_frameActive = false;
+            ResetSubmissionStorage();
+        }
+    }
+
     bool Renderer::ResizeSurface(const Extent2D& extent)
     {
         if (m_device == nullptr
@@ -315,6 +332,21 @@ namespace JBro
     bool Renderer::IsDeviceLost() const
     {
         return m_device != nullptr && m_device->GetStatus() == FrameStatus::DeviceLost;
+    }
+
+    bool Renderer::IsInitialized() const
+    {
+        return m_device != nullptr;
+    }
+
+    Extent2D Renderer::GetSurfaceExtent() const
+    {
+        return m_config.surfaceExtent;
+    }
+
+    std::uint32_t Renderer::GetSpriteSubmissionLimit() const
+    {
+        return m_device != nullptr ? m_config.maxSpriteSubmissions : 0;
     }
 
     bool Renderer::RecordViews()

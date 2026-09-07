@@ -6,6 +6,7 @@
 #include <JBro/Framework2D/Canvas/Layer.h>
 #include <JBro/Runtime/Component.h>
 #include <JBro/Runtime/GameObject.h>
+#include <JBro/Runtime/SystemScheduler.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/Table.h>
 
@@ -27,6 +28,7 @@ namespace JBro
 
         // 호출 프레임의 시간을 한 번만 읽어 이후 InstanceId 생성을 정수 증가로 제한한다.
         void BeginFrame();
+        SystemScheduler& GetSystems();
 
         // 오브젝트
         GameObject* CreateObject(const char* name = nullptr);
@@ -104,6 +106,7 @@ namespace JBro
         LayerIndex                                      m_defaultLayer = InvalidLayerIndex;
         LayerIndex                                      m_nextLayer = 0;
         Table<ComponentTypeId, OwnerPtr<IComponentBucket>> m_componentBuckets;
+        SystemScheduler m_systems;
     };
 
     template<typename Fn>

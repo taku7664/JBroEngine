@@ -1,5 +1,6 @@
 #include <JBro/D3D12RHI/D3D12RHI.h>
 #include <JBro/Graphics/Renderer.h>
+#include <JBro/Framework2D/Framework2D.h>
 #include <JBro/Platform/WindowsPlatform.h>
 
 #include <iostream>
@@ -90,6 +91,32 @@ namespace
         Check(renderer.EndFrame() == JBro::FrameStatus::Ready,
             "resized D3D12 renderer must clear and present");
         Check(false == renderer.IsDeviceLost(), "abort and resize recovery must keep the device ready");
+
+        {
+            JBro::Framework2D framework;
+            JBro::FrameworkContext context;
+            context.renderer = &renderer;
+            Check(framework.Initialize(context), "D3D12 framework must initialize");
+            auto* canvas = framework.GetCanvas();
+            auto* cameraObject = canvas->CreateObject("camera");
+            canvas->AttachComponent<JBro::Component::Transform2D>(cameraObject);
+            canvas->AttachComponent<JBro::Component::WorldTransform2D>(cameraObject);
+            auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(cameraObject);
+            camera->primary = true;
+            auto* spriteObject = canvas->CreateObject("sprite");
+            canvas->AttachComponent<JBro::Component::Transform2D>(spriteObject);
+            canvas->AttachComponent<JBro::Component::WorldTransform2D>(spriteObject);
+            auto* sprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(spriteObject);
+            sprite->size = {5.0f, 5.0f};
+            for (int frame = 0; frame < 6; ++frame)
+            {
+                framework.Update(1.0f / 60.0f);
+                Check(renderer.BeginFrame() == JBro::FrameStatus::Ready, "D3D12 framework frame must begin");
+                Check(framework.Render(), "D3D12 framework must submit its extracted sprite");
+                Check(renderer.EndFrame() == JBro::FrameStatus::Ready, "D3D12 framework frame must present");
+                Check(renderer.GetLastFrameStats().spriteCount == 1, "D3D12 frame must contain the extracted sprite");
+            }
+        }
 
         renderer.Shutdown();
         rhi.Shutdown();

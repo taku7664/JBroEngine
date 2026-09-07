@@ -27,6 +27,7 @@ namespace JBro
 
     Canvas::~Canvas()
     {
+        m_systems.RemoveAllSystems(*this);
         while (m_objects->GetLiveCount() != 0)
         {
             GameObject* object = nullptr;
@@ -49,6 +50,11 @@ namespace JBro
     void Canvas::BeginFrame()
     {
         GetCanvasInstanceIdGenerator().BeginFrame();
+    }
+
+    SystemScheduler& Canvas::GetSystems()
+    {
+        return m_systems;
     }
 
     GameObject* Canvas::CreateObject(const char* name)

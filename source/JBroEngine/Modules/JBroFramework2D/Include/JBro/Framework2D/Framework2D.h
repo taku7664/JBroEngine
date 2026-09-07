@@ -21,8 +21,10 @@ namespace JBro
     class Framework2D final : public IFramework
     {
     public:
+        ~Framework2D() override;
         bool Initialize(const FrameworkContext& context) override;
         void Update(float deltaTime) override;
+        bool Render() override;
         void Shutdown() override;
 
         Canvas*        GetCanvas();
@@ -34,10 +36,8 @@ namespace JBro
 
         FrameworkContext m_context;
         OwnerPtr<Canvas> m_canvas;
-        SystemScheduler  m_systems;
         RenderWorld2D    m_renderWorld;
-        float            m_fixedAccumulator = 0.0f;
-        float            m_fixedDeltaTime   = 1.0f / 60.0f;
+        double           m_fixedAccumulator = 0.0;
         bool             m_initialized      = false;
     };
 
