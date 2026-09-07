@@ -209,3 +209,14 @@ struct 면 vtable 이 없어 타입 판별을 매번 밖에서 해야 한다.
 - 전체 솔루션 Debug/Release x64 Rebuild가 모두 경고 0개·오류 0개로 통과했고, 두 구성의 `JBroTests`도 `D3D12Smoke`를 포함해 모두 통과했다. [구조 다이어그램](../docs/JBroEngine.drawio.xml)의 5페이지 `2D render extraction`을 추가하고 draw.io에서 열어 확인했다.
 - 아직 `Framework2D` 기본 시스템 등록과 프레임 순서 조립, `FrameworkContext`의 `Renderer` 직접 연결은 구현되지 않았다. 기존 `GraphicsSystem` 스텁 연결이 남아 있으며, 새 Framework 경로로 화면까지 렌더링한 증거와 구 엔진 대비 성능 측정은 없다.
 - Transform 및 물리 적분·조회 기반은 기존 커밋에 반영되어 있다. 충돌 반응과 스크립트 생명주기 실행·베이스 분리는 아직 완료되지 않았다.
+
+## 2026-09-08 현재 구현 상태
+
+전날 기록 이후의 변경 사항이다. 위 기록은 당시 상태로 보존한다.
+
+- `Canvas`가 `SystemScheduler`를 소유한다. 실행 순서에 따른 초기화·갱신과 역순 종료, 초기화 전 시스템 등록, RTTI 없는 타입 토큰 조회를 구현했고 콜백 중 스케줄 변경·재진입을 막는다. [SystemSchedulerTests.cpp](../source/JBroEngine/Tests/SystemSchedulerTests.cpp)에서 순서와 수명을 검증한다.
+- `Framework2D`가 Transform·Physics·Camera·Sprite 시스템 네 개를 등록하고 프레임 수집의 Begin/End를 조립한다. 고정 시간 간격과 프레임당 최대 추적 단계를 설정받으며, 지연 시 초과 정수 단계는 버리고 소수 잔여 시간을 보존한다. 입력 유효성 검사와 종료·재초기화 상태 초기화도 구현했다. `ScriptSystem`은 아직 등록하지 않는다.
+- `FrameworkContext`는 `Renderer*`를 직접 받으며 `IFramework::Render()`가 뷰와 스프라이트를 제출한다. Renderer 프레임 시작·종료는 호스트 소유다. 내부 `RenderBridge2D`는 행벡터 affine을 열벡터 4×4 행렬로 변환하고, size·pivot·flip을 world 변환 전에 적용한다. 직교 투영은 화면 종횡비와 세로 반높이를 사용하며 64개씩 스택 버퍼에서 일괄 제출한다. `Renderer`에는 `AbortFrame`, 소멸자 정리, 초기화 상태·화면 크기·제출 한도 조회가 추가됐다.
+- Debug/Release x64 전체 Rebuild는 모두 경고 0개·오류 0개이며, 두 구성의 모든 `JBroTests`가 통과했다. [RendererContractTests.cpp](../source/JBroEngine/Tests/RendererContractTests.cpp)의 Debug CRT 힙 할당 훅은 스프라이트 70개를 사용하는 한 프레임의 Framework→가짜 RHI 경로에서 할당 0회를 확인했다. 이는 해당 테스트 조건의 결과이며 전체 실행 환경에 대한 무할당 증명은 아니다.
+- [D3D12SmokeTests.cpp](../source/JBroEngine/Tests/D3D12SmokeTests.cpp)는 숨겨진 창에서 실제 D3D12로 Framework 제출·Present를 6프레임 통과했다. 픽셀 읽기나 화면 육안 검증은 하지 않았다.
+- `PixelPerfect`의 기준 해상도·배율 계약은 빡대리께 질문한 상태로 답변을 기다리고 있으며, 현재 해당 모드는 `false`로 명시적으로 거부한다. `EngineInstance`는 아직 스텁이고 `GraphicsSystem`은 그 기존 호스트 골격에 남아 있다. 셰이더의 텍스처·머티리얼 처리, 스크립트·서비스·물리 전체 완성과 구 엔진 대비 성능 측정도 남아 있다.
