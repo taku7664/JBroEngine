@@ -23,6 +23,7 @@ namespace JBro
         m_camera = {};
         m_hasCamera = false;
         m_sprites.Clear();
+        m_droppedSpriteCount = 0;
     }
 
     void RenderWorld2D::SetCamera(const RenderCamera2D& camera)
@@ -31,13 +32,23 @@ namespace JBro
         m_hasCamera = true;
     }
 
-    void RenderWorld2D::SubmitSprite(const SpriteRenderItem& item)
+    bool RenderWorld2D::SubmitSprite(const SpriteRenderItem& item)
     {
+        if (m_sprites.Size() == m_sprites.Capacity())
+        {
+            ++m_droppedSpriteCount;
+            return false;
+        }
         m_sprites.Add(item);
+        return true;
     }
 
     void RenderWorld2D::Sort()
     {
+        if (m_sprites.Size() < 2)
+        {
+            return;
+        }
         std::sort(
             m_sprites.begin(),
             m_sprites.end(),
@@ -74,6 +85,11 @@ namespace JBro
     std::size_t RenderWorld2D::GetSpriteCapacity() const
     {
         return m_sprites.Capacity();
+    }
+
+    std::size_t RenderWorld2D::GetDroppedSpriteCount() const
+    {
+        return m_droppedSpriteCount;
     }
 
     const SpriteRenderItem* RenderWorld2D::GetSprites() const

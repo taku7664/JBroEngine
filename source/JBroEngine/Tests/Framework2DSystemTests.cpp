@@ -1,9 +1,13 @@
 ﻿#include <JBro/Core/Core.h>
 #include <JBro/Framework2D/Canvas/Canvas.h>
+#include <JBro/Framework2D/Component/Camera2D.h>
+#include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2D/Rendering/RenderWorld2D.h>
 #include <JBro/Framework2D/System/Physics2DSystem.h>
+#include <JBro/Framework2D/System/Camera2DSystem.h>
+#include <JBro/Framework2D/System/SpriteRender2DSystem.h>
 #include <JBro/Framework2D/System/Transform2DSystem.h>
 #include <JBro/Runtime/GameObject.h>
 
@@ -164,6 +168,158 @@ namespace
         Check(NearlyEqual(hit.point.x, 4.0f), "circle hit point must be on its near edge");
     }
 
+    void TestRenderExtraction()
+    {
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::GameObject* cameraObject = canvas.CreateObject("camera");
+        JBro::GameObject* spriteObject = canvas.CreateObject("sprite");
+        auto* cameraLocal = canvas.AttachComponent<JBro::Component::Transform2D>(cameraObject);
+        auto* cameraWorld = canvas.AttachComponent<JBro::Component::WorldTransform2D>(cameraObject);
+        auto* camera = canvas.AttachComponent<JBro::Component::Camera2D>(cameraObject);
+        auto* spriteLocal = canvas.AttachComponent<JBro::Component::Transform2D>(spriteObject);
+        auto* spriteWorld = canvas.AttachComponent<JBro::Component::WorldTransform2D>(spriteObject);
+        auto* sprite = canvas.AttachComponent<JBro::Component::SpriteRenderer2D>(spriteObject);
+        auto* secondSprite = canvas.AttachComponent<JBro::Component::SpriteRenderer2D>(spriteObject);
+        Check(cameraLocal && cameraWorld && camera && spriteLocal && spriteWorld && sprite && secondSprite,
+            "render components must attach");
+        cameraLocal->position = {3.0f, 4.0f};
+        cameraLocal->rotation = 0.7f;
+        cameraLocal->scale = {2.0f, 0.5f};
+        camera->primary = true;
+        camera->orthographicSize = 7.0f;
+        camera->projection = JBro::Component::CameraProjection2D::PixelPerfect;
+        camera->nearPlane = -7.0f;
+        camera->farPlane = 20.0f;
+        camera->clearColor = {0.2f, 0.3f, 0.4f, 1.0f};
+        spriteLocal->position = {8.0f, -2.0f};
+        sprite->size = {2.0f, 3.0f};
+        sprite->flip = JBro::Component::SpriteFlip::Both;
+        sprite->renderOrder = -4;
+        sprite->sprite = {3, 7};
+        sprite->material = {5, 9};
+        sprite->pivot = {0.1f, 0.8f};
+        sprite->tint = {0.5f, 0.6f, 0.7f, 0.8f};
+        secondSprite->visible = false;
+
+        JBro::RenderWorld2D world;
+        Check(world.ReserveSprites(2), "extraction storage must reserve");
+        const auto capacity = world.GetSpriteCapacity();
+        JBro::System::Transform2DSystem transforms;
+        JBro::System::Camera2DSystem cameras;
+        JBro::System::SpriteRender2DSystem sprites;
+        Check(transforms.GetExecutionOrder() < cameras.GetExecutionOrder()
+            && cameras.GetExecutionOrder() < sprites.GetExecutionOrder(), "extraction must follow transforms");
+        cameras.Update(canvas, 0.0f);
+        sprites.Update(canvas, 0.0f);
+        cameras.SetRenderWorld(&world);
+        sprites.SetRenderWorld(&world);
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            world.BeginFrame();
+            transforms.Update(canvas, 0.0f);
+            cameras.Update(canvas, 0.0f);
+            sprites.Update(canvas, 0.0f);
+            world.EndFrame();
+            const auto* extractedCamera = world.GetCamera();
+            Check(extractedCamera && extractedCamera->owner == cameraObject, "active primary camera must extract");
+            const auto identity = JBro::MultiplyMatrix3x2(cameraWorld->matrix, extractedCamera->view);
+            Check(NearlyEqual(identity.m11, 1.0f) && NearlyEqual(identity.m22, 1.0f)
+                && NearlyEqual(identity.m12, 0.0f) && NearlyEqual(identity.m21, 0.0f)
+                && NearlyEqual(identity.m31, 0.0f) && NearlyEqual(identity.m32, 0.0f),
+                "camera view must invert translation, rotation and nonuniform scale");
+            Check(NearlyEqual(extractedCamera->orthographicSize, 7.0f), "camera size must survive extraction");
+            Check(extractedCamera->projection == camera->projection
+                && NearlyEqual(extractedCamera->nearPlane, -7.0f) && NearlyEqual(extractedCamera->farPlane, 20.0f)
+                && NearlyEqual(extractedCamera->clearColor.r, 0.2f), "camera projection settings must survive extraction");
+            Check(world.GetSpriteCount() == 1, "hidden sprites must not extract");
+            const auto& item = world.GetSprites()[0];
+            Check(item.owner == spriteObject && item.sourceId == sprite->GetInstanceId(), "sprite identity must survive extraction");
+            Check(NearlyEqual(item.world.m31, 8.0f) && NearlyEqual(item.world.m32, -2.0f), "sprite must use world transform");
+            Check(NearlyEqual(item.size.x, -2.0f) && NearlyEqual(item.size.y, -3.0f), "both flips must affect signed size");
+            Check(item.renderOrder == -4 && world.GetSpriteCapacity() == capacity, "extraction must preserve order and reuse storage");
+            Check(item.sprite.index == 3 && item.sprite.generation == 7
+                && item.material.index == 5 && item.material.generation == 9
+                && NearlyEqual(item.pivot.x, 0.1f) && NearlyEqual(item.pivot.y, 0.8f)
+                && NearlyEqual(item.tint.a, 0.8f), "sprite assets and appearance must survive extraction");
+        }
+        world.BeginFrame();
+        camera->primary = false;
+        sprite->SetEnabled(false);
+        cameras.Update(canvas, 0.0f);
+        sprites.Update(canvas, 0.0f);
+        Check(world.GetCamera() == nullptr && world.GetSpriteCount() == 0, "non-primary camera and disabled sprite must skip");
+        camera->primary = true;
+        cameraLocal->scale.x = 0.0f;
+        transforms.Update(canvas, 0.0f);
+        cameras.Update(canvas, 0.0f);
+        Check(world.GetCamera() == nullptr, "singular camera must not produce an invalid view");
+        cameraLocal->scale.x = 1.0f;
+        transforms.Update(canvas, 0.0f);
+        cameraObject->SetActive(false);
+        spriteObject->SetActive(false);
+        sprite->SetEnabled(true);
+        cameras.Update(canvas, 0.0f);
+        sprites.Update(canvas, 0.0f);
+        Check(world.GetCamera() == nullptr && world.GetSpriteCount() == 0, "inactive objects must not extract");
+        cameraObject->SetActive(true);
+        spriteObject->SetActive(true);
+        cameraWorld->dirty = true;
+        spriteWorld->dirty = true;
+        cameras.Update(canvas, 0.0f);
+        sprites.Update(canvas, 0.0f);
+        Check(world.GetCamera() == nullptr && world.GetSpriteCount() == 0, "dirty world caches must not extract");
+        transforms.Update(canvas, 0.0f);
+        cameraWorld->SetEnabled(false);
+        spriteWorld->SetEnabled(false);
+        cameras.Update(canvas, 0.0f);
+        sprites.Update(canvas, 0.0f);
+        Check(world.GetCamera() == nullptr && world.GetSpriteCount() == 0, "disabled world caches must not extract");
+        cameraWorld->SetEnabled(true);
+        spriteWorld->SetEnabled(true);
+        secondSprite->visible = true;
+        sprite->flip = JBro::Component::SpriteFlip::Horizontal;
+        secondSprite->flip = JBro::Component::SpriteFlip::Vertical;
+        sprites.Update(canvas, 0.0f);
+        Check(world.GetSpriteCount() == 2, "multiple sprite components on one object must extract independently");
+        Check(NearlyEqual(world.GetSprites()[0].size.x, -2.0f) && NearlyEqual(world.GetSprites()[0].size.y, 3.0f)
+            && NearlyEqual(world.GetSprites()[1].size.x, 1.0f) && NearlyEqual(world.GetSprites()[1].size.y, -1.0f),
+            "horizontal and vertical flips must affect only their corresponding axes");
+        Check(world.GetSprites()[0].sourceId != world.GetSprites()[1].sourceId,
+            "multiple sprites must have distinct sort identities");
+        world.BeginFrame();
+        auto* laterCamera = canvas.AttachComponent<JBro::Component::Camera2D>(spriteObject);
+        laterCamera->primary = true;
+        cameras.Update(canvas, 0.0f);
+        Check(world.GetCamera()->owner == cameraObject, "first valid primary camera must win");
+        world.BeginFrame();
+        cameraLocal->scale.x = 0.0f;
+        transforms.Update(canvas, 0.0f);
+        cameras.Update(canvas, 0.0f);
+        Check(world.GetCamera() && world.GetCamera()->owner == spriteObject, "invalid primary camera must allow a valid fallback");
+    }
+
+    void TestRenderWorldCapacityLimit()
+    {
+        JBro::RenderWorld2D world;
+        world.BeginFrame();
+        Check(false == world.SubmitSprite({}), "unreserved collection must reject without allocating");
+        Check(world.GetDroppedSpriteCount() == 1, "overflow must be observable");
+        Check(world.ReserveSprites(2), "collection must reserve outside the frame");
+        world.BeginFrame();
+        const auto capacity = world.GetSpriteCapacity();
+        for (std::size_t index = 0; index < capacity; ++index)
+        {
+            Check(world.SubmitSprite({}), "reserved slots must accept submissions");
+        }
+        Check(false == world.SubmitSprite({}), "full collection must reject without growing");
+        Check(world.GetSpriteCapacity() == capacity && world.GetSpriteCount() == capacity,
+            "overflow must preserve storage and accepted submissions");
+        Check(world.GetDroppedSpriteCount() == 1, "frame must count dropped submissions");
+        world.BeginFrame();
+        Check(world.GetDroppedSpriteCount() == 0, "new frame must clear overflow statistics");
+        world.EndFrame();
+    }
+
     void TestRenderWorldCollection()
     {
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
@@ -212,6 +368,8 @@ int RunFramework2DSystemTests()
     TestPhysicsGravityIntegration();
     TestPhysicsQueries();
     TestRenderWorldCollection();
+    TestRenderExtraction();
+    TestRenderWorldCapacityLimit();
     std::cout << "Framework2D system tests passed.\n";
     return 0;
 }

@@ -11,6 +11,8 @@ namespace JBro::System
         int GetExecutionOrder() const override;
 
         void SetRenderWorld(RenderWorld2D* renderWorld);
+        // Caller begins/ends the frame; transforms must be updated before extraction.
+        // Selects the first active primary camera with an invertible world transform.
         void ExtractRenderWorld(Canvas& canvas);
 
     protected:

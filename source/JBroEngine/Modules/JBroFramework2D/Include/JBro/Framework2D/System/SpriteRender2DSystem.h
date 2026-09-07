@@ -11,6 +11,8 @@ namespace JBro::System
         int GetExecutionOrder() const override;
 
         void SetRenderWorld(RenderWorld2D* renderWorld);
+        // Appends to caller-reserved storage after transform update and BeginFrame.
+        // Overflow is reported by RenderWorld2D::GetDroppedSpriteCount().
         void ExtractRenderWorld(Canvas& canvas);
 
     protected:
