@@ -199,3 +199,13 @@ struct 면 vtable 이 없어 타입 판별을 매번 밖에서 해야 한다.
 
 - W-ref 병합 후에 이 워크트리가 rebase → 컴포넌트/시스템 몸통 마무리.
 - 자체 검증 통과 후 main 병합.
+
+## 2026-09-07 현재 구현 상태
+
+아래는 현재 코드와 이번 검증 결과를 기록한 것이며, 위의 기존 계획은 그대로 보존한다.
+
+- `Camera2DSystem`과 `SpriteRender2DSystem`의 렌더 데이터 추출을 구현했다. `ForEach`와 `IsActiveComponent()`를 사용하며, 활성 상태이고 갱신이 끝난(`dirty == false`) `WorldTransform2D`만 읽는다. 카메라는 역행렬을 만들 수 없는 특이 행렬·비유한 값을 건너뛰고 처음 유효한 primary를 선택하며, 투영 모드·크기·near/far·배경색을 보존한다. 스프라이트는 에셋 핸들·pivot·tint·순서·sourceId를 보존하고 크기의 부호로 반전을 표현한다.
+- `RenderWorld2D`는 미리 확보한 용량 안에서 수집한다. 용량 초과 시 배열을 늘리지 않고 `false`를 반환하며 누락 개수를 기록한다. 추출·활성 조건·카메라 예외·용량 제한 검증은 [Framework2DSystemTests.cpp](../source/JBroEngine/Tests/Framework2DSystemTests.cpp)에 있다.
+- 전체 솔루션 Debug/Release x64 Rebuild가 모두 경고 0개·오류 0개로 통과했고, 두 구성의 `JBroTests`도 `D3D12Smoke`를 포함해 모두 통과했다. [구조 다이어그램](../docs/JBroEngine.drawio.xml)의 5페이지 `2D render extraction`을 추가하고 draw.io에서 열어 확인했다.
+- 아직 `Framework2D` 기본 시스템 등록과 프레임 순서 조립, `FrameworkContext`의 `Renderer` 직접 연결은 구현되지 않았다. 기존 `GraphicsSystem` 스텁 연결이 남아 있으며, 새 Framework 경로로 화면까지 렌더링한 증거와 구 엔진 대비 성능 측정은 없다.
+- Transform 및 물리 적분·조회 기반은 기존 커밋에 반영되어 있다. 충돌 반응과 스크립트 생명주기 실행·베이스 분리는 아직 완료되지 않았다.
