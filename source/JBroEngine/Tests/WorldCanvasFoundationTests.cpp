@@ -93,10 +93,14 @@ namespace
         Check(results.Size() == 2 && results.Data() == storage && results.Capacity() == 8,
             "plural lookup must replace results and reuse reserved storage");
 
+        auto* third = canvas.AttachComponent<JBro::Component::Collider2D>(object);
         Check(canvas.DetachComponent(object, first), "first collider must detach");
         canvas.GetComponents<JBro::Component::Collider2D>(object, results);
-        Check(results.Size() == 1 && results[0] == second,
-            "plural lookup must omit detached components");
+        Check(results.Size() == 2 && results[0] == second && results[1] == third,
+            "plural lookup must preserve remaining attachment order after detachment");
+        Check(canvas.GetComponent<JBro::Component::Collider2D>(object) == second
+            && object->GetComponent<JBro::Component::Collider2D>().Get() == second,
+            "single lookup must keep the earliest remaining component after detachment");
 
         auto* empty = canvas.CreateObject("no colliders");
         canvas.GetComponents<JBro::Component::Collider2D>(empty, results);

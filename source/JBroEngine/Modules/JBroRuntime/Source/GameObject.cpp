@@ -183,7 +183,7 @@ namespace JBro
             return false;
         }
 
-        const std::size_t removed = m_components.RemoveAllSwap(
+        const std::size_t removed = m_components.RemoveAll(
             [component](const SafePtr<ComponentBase>& candidate)
             {
                 return candidate.TryGet() == component;
