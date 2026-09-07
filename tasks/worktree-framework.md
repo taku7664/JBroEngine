@@ -220,3 +220,10 @@ struct 면 vtable 이 없어 타입 판별을 매번 밖에서 해야 한다.
 - Debug/Release x64 전체 Rebuild는 모두 경고 0개·오류 0개이며, 두 구성의 모든 `JBroTests`가 통과했다. [RendererContractTests.cpp](../source/JBroEngine/Tests/RendererContractTests.cpp)의 Debug CRT 힙 할당 훅은 스프라이트 70개를 사용하는 한 프레임의 Framework→가짜 RHI 경로에서 할당 0회를 확인했다. 이는 해당 테스트 조건의 결과이며 전체 실행 환경에 대한 무할당 증명은 아니다.
 - [D3D12SmokeTests.cpp](../source/JBroEngine/Tests/D3D12SmokeTests.cpp)는 숨겨진 창에서 실제 D3D12로 Framework 제출·Present를 6프레임 통과했다. 픽셀 읽기나 화면 육안 검증은 하지 않았다.
 - `PixelPerfect`의 기준 해상도·배율 계약은 빡대리께 질문한 상태로 답변을 기다리고 있으며, 현재 해당 모드는 `false`로 명시적으로 거부한다. `EngineInstance`는 아직 스텁이고 `GraphicsSystem`은 그 기존 호스트 골격에 남아 있다. 셰이더의 텍스처·머티리얼 처리, 스크립트·서비스·물리 전체 완성과 구 엔진 대비 성능 측정도 남아 있다.
+
+### 2026-09-08 D5 스크립트 베이스 분리
+
+- Runtime의 `GameScriptBase`에 공통 Create·Start·Update·FixedUpdate·Destroy 훅과 `GetGameObject()`를 옮겼다. Framework2D의 `GameScript2D`에는 2D 충돌 훅만 두며, 기존 `GameScript` 이름의 별칭은 제공하지 않는다.
+- [GameScriptTests.cpp](../source/JBroEngine/Tests/GameScriptTests.cpp)를 테스트 실행기에 연결했다. 상속·추상 타입·Runtime의 충돌 훅 부재를 컴파일 시 검사하고, 직접 훅 호출의 가상 디스패치·소유자·활성 상태·파괴 시 `SafePtr` 무효화를 검사한다. 이번 D5 변경의 Debug/Release 전체 솔루션 Rebuild는 모두 경고 0개·오류 0개로 통과했고, 두 구성의 모든 `JBroTests`도 Game script base tests를 포함해 통과했다.
+- `ScriptSystem`의 실행 순서 관리와 Create·Start·Destroy 자동 호출은 아직 구현하지 않았다. `Canvas::ForEach<GameScript2D>`는 정확히 해당 타입의 풀만 순회하므로 사용자 파생 스크립트 풀까지 수집하는 연결 방식도 해결되지 않았다.
+- H8의 `JBRO_SCRIPT` 선언 매크로는 독립 컴파일 검증을 포함해 별도 커밋 `bbf465a`로 반영·푸시됐다. 플랫폼 창 닫기·크기 변경과 `PixelPerfect` 계약은 여전히 빡대리의 선택을 기다리며, 이번 분리로 새 설계를 확정하지 않았다.
