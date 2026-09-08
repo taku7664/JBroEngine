@@ -544,3 +544,18 @@ Updates: 위 창·프레임 수명의 결과 전달. EditorApplication/GameHost 
 - EditorApplication은 외부 `Tick(dt)`로 연결했다. GameHost는 아직 EngineInstance 루프에 연결되지 않았다.
   최소화·렌더링 생략 중 호스트 루프를 쉬지 않고 반복하지 않도록 약 60Hz로 제한할지는 사용자에게 질문한 상태다.
   사용자 답변이 아직 없어 대기 정책은 구현하지 않았다.
+
+## 2026-09-09 후속: Context 경계와 스크립트 프렐류드 기반
+
+Updates: H1·H3·H7의 독립 기반 구현. 서비스 저장 방식과 개별 서비스 API 완료를 뜻하지 않는다.
+
+- 기존 통합 `Context.h`를 제거하고 `EngineContext.h`, `SystemContext.h`, `ServiceContext.h`로 분리했다.
+- SystemContext와 ServiceContext의 첫 필드는 각각 ABI 버전이며 standard-layout·trivially-copyable과
+  첫 필드 오프셋 0을 컴파일 시점에 검증한다.
+- `BindSystemContext`/`BindServiceContext`는 로드 시 받은 값을 모듈 로컬 사본에 복사하고,
+  `GetSystemContext`/`GetServiceContext`로 같은 사본을 조회한다.
+- `ScriptAPI.h`는 값 타입, Ref, GameObject, GameObjectHandle, ServiceContext, `JBRO_SCRIPT`만 공개한다.
+  재귀 include 그래프 26개에서 EngineContext·SystemContext·Framework2D/3D 유입이 0개임을 확인했다.
+- `ProjectRule.md` §8의 값 서비스 MUST와 이 문서 H1의 포인터 예시가 충돌하므로 ServiceContext의
+  구체 서비스 슬롯은 사용자 결정 전까지 추가하지 않았다.
+- Debug/Release x64 전체 Rebuild는 경고 0·오류 0이며 양쪽 JBroTests 전체가 통과했다.
