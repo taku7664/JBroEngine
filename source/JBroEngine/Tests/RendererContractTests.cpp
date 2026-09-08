@@ -318,6 +318,9 @@ namespace
         {
             ++pumpCount;
         }
+        void WaitForEvents(std::uint32_t) override
+        {
+        }
         bool ShouldClose(JBro::WindowHandle) const override
         {
             return closeRequested;

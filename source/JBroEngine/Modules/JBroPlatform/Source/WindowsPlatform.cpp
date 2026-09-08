@@ -211,6 +211,21 @@ namespace JBro
         }
     }
 
+    void WindowsPlatform::WaitForEvents(std::uint32_t timeoutMilliseconds)
+    {
+        if (timeoutMilliseconds == 0)
+        {
+            return;
+        }
+
+        MsgWaitForMultipleObjectsEx(
+            0,
+            nullptr,
+            timeoutMilliseconds,
+            QS_ALLINPUT,
+            MWMO_INPUTAVAILABLE);
+    }
+
     bool WindowsPlatform::ShouldClose(WindowHandle window) const
     {
         HWND nativeWindow = reinterpret_cast<HWND>(window.value);

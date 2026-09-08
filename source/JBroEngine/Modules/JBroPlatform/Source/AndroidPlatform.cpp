@@ -29,6 +29,11 @@ namespace JBro
     {
     }
 
+    void AndroidPlatform::WaitForEvents(std::uint32_t)
+    {
+        // The Android backend is still a declared extension point.
+    }
+
     bool AndroidPlatform::ShouldClose(WindowHandle) const
     {
         return false;

@@ -29,6 +29,11 @@ namespace JBro
     {
     }
 
+    void WebPlatform::WaitForEvents(std::uint32_t)
+    {
+        // Browser hosts must yield through their external event loop.
+    }
+
     bool WebPlatform::ShouldClose(WindowHandle) const
     {
         return false;

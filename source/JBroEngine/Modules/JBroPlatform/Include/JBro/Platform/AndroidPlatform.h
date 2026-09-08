@@ -13,6 +13,7 @@ namespace JBro
         void ClosePlatformWindow(WindowHandle window) override;
         SurfaceHandle CreateSurface(WindowHandle window) override;
         void PumpEvents() override;
+        void WaitForEvents(std::uint32_t timeoutMilliseconds) override;
         bool ShouldClose(WindowHandle window) const override;
         bool GetWindowState(WindowHandle window, WindowState& state) const override;
         DynamicLibrary LoadDynamicLibrary(const char* utf8Path) override;

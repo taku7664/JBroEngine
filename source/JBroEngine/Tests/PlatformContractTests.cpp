@@ -2,6 +2,7 @@
 
 #include <Windows.h>
 
+#include <chrono>
 #include <iostream>
 #include <stdexcept>
 
@@ -52,6 +53,15 @@ namespace
         Check(platform.ShouldClose(window), "close message must request host shutdown");
         Check(IsWindow(nativeWindow) != FALSE, "close request must preserve the GPU surface until explicit teardown");
         Check(platform.CreateSurface(window).value == surface.value, "surface must survive the close request");
+
+        Check(PostMessageW(nativeWindow, WM_APP, 0, 0) != FALSE, "test event must enter the window queue");
+        const auto waitStart = std::chrono::steady_clock::now();
+        platform.WaitForEvents(1000);
+        const auto waitElapsed = std::chrono::steady_clock::now() - waitStart;
+        Check(waitElapsed < std::chrono::milliseconds(250),
+            "queued window input must wake the host without waiting for the timeout");
+        platform.PumpEvents();
+
         platform.ClosePlatformWindow(window);
         platform.PumpEvents();
         Check(platform.ShouldClose(window), "closed window must report completion");

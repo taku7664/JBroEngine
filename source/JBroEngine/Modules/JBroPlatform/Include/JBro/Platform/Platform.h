@@ -43,6 +43,8 @@ namespace JBro
         virtual void ClosePlatformWindow(WindowHandle window) = 0;
         virtual SurfaceHandle CreateSurface(WindowHandle window) = 0;
         virtual void PumpEvents() = 0;
+        // Main-thread only. Waits up to the timeout; externally paced platforms may return early.
+        virtual void WaitForEvents(std::uint32_t timeoutMilliseconds) = 0;
         // A close request does not destroy the surface. The host drains GPU work first.
         virtual bool ShouldClose(WindowHandle window) const = 0;
         // Main-thread only. False means unavailable/invalid; zero extent cannot render.
