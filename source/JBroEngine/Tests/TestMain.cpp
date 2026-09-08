@@ -11,6 +11,7 @@ int RunSystemSchedulerTests();
 int RunGameScriptTests();
 int RunEditorApplicationTests();
 int RunContextBoundaryTests();
+int RunScriptApiPreludeTests();
 
 int main()
 {
@@ -53,6 +54,10 @@ int main()
             return 1;
         }
         if (RunContextBoundaryTests() != 0)
+        {
+            return 1;
+        }
+        if (RunScriptApiPreludeTests() != 0)
         {
             return 1;
         }
