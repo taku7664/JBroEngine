@@ -9,6 +9,7 @@
 
 #include <iostream>
 #include <stdexcept>
+#include <utility>
 
 namespace
 {
@@ -139,6 +140,10 @@ namespace
 
     void TestRefUsesHandleCacheBeforePersistentLookup()
     {
+        static_assert(std::is_assignable_v<
+            decltype((std::declval<const JBro::InstanceRef&>().Cached)), JBro::InstanceHandle>,
+            "runtime cache updates must be legal on a genuinely const reference");
+        static_assert(sizeof(JBro::InstanceRef) == 24);
         JBro::Internal::InstanceRegistry& registry =
             JBro::Internal::InstanceRegistry::Get();
         registry.Clear();
@@ -159,6 +164,17 @@ namespace
         Check(registry.GetPersistentLookupCount() == 1, "first Ref lookup must read the id table once");
         Check(reference.Get() == &first, "second Ref lookup must resolve the cached handle");
         Check(registry.GetPersistentLookupCount() == 1, "cache hit must not read the persistent id table");
+
+        JBro::Ref<RegistryTarget> coldReference;
+        coldReference.ObjectId = 100;
+        const JBro::Ref<RegistryTarget> immutableReference = coldReference;
+        Check(immutableReference.Get() == &first && immutableReference.Cached.IsSet(),
+            "const Ref must populate its runtime cache without modifying persistent identity");
+        const auto constLookups = registry.GetPersistentLookupCount();
+        Check(immutableReference.Get() == &first && registry.GetPersistentLookupCount() == constLookups,
+            "const Ref cache hit must not repeat persistent lookup");
+        Check(immutableReference.ObjectId == 100 && immutableReference.ComponentId == JBro::InvalidInstanceId,
+            "const cache update must preserve serialized identity");
 
         JBro::InstanceRef loadedReference;
         loadedReference.ObjectId = 100;

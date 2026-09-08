@@ -27,7 +27,7 @@ namespace JBro
     {
         InstanceId     ObjectId    = InvalidInstanceId;
         InstanceId     ComponentId = InvalidInstanceId;
-        InstanceHandle Cached;
+        mutable InstanceHandle Cached;
     };
 
     enum class RefCategory : std::uint8_t
@@ -109,8 +109,7 @@ namespace JBro
             Category);
         if (resolved.Pointer != nullptr)
         {
-            Ref* mutableThis = const_cast<Ref*>(this);
-            mutableThis->Cached = resolved.Handle;
+            Cached = resolved.Handle;
         }
         return static_cast<T*>(resolved.Pointer);
     }
