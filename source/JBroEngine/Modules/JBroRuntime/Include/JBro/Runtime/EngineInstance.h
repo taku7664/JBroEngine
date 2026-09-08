@@ -28,9 +28,13 @@ namespace JBro
         EngineInstance(EngineInstance&&) = delete;
         EngineInstance& operator=(EngineInstance&&) = delete;
 
-        // Main-thread only. Modules and an initially stopped framework are borrowed;
-        // their objects must outlive this instance. The host owns their project session.
-        bool Initialize(const EngineConfig& config, IPlatform& platform, IRHIModule& rhi, IFramework& framework);
+        // Main-thread only. Borrowed modules must outlive this instance.
+        // Process resources are initialized once, independently of project sessions.
+        bool Initialize(const EngineConfig& config, IPlatform& platform, IRHIModule& rhi);
+        // The initially stopped framework object is borrowed until CloseProject returns.
+        bool OpenProject(IFramework& framework);
+        // Keeps the renderer/device/window alive. Calls from callbacks are deferred.
+        void CloseProject();
         // Pumps events, updates simulation, then renders. False means stopped and cleaned up.
         // Recursive Tick calls are rejected without changing the outer frame.
         bool Tick(float deltaTime);
@@ -46,8 +50,9 @@ namespace JBro
         FrameStatus GetLastFrameStatus() const;
 
     private:
-        enum class State { Stopped, Initializing, Running, Ticking, Stopping };
+        enum class State { Stopped, Initializing, OpeningProject, Running, Ticking, ClosingProject, Stopping };
         bool TickFrame(float deltaTime);
+        void ReleaseProject();
         void ReleaseResources();
 
         IPlatform* m_platform = nullptr;
@@ -55,8 +60,10 @@ namespace JBro
         WindowHandle m_mainWindow;
         OwnerPtr<AssetManager> m_assets;
         OwnerPtr<Renderer> m_renderer;
+        FrameworkContext m_frameworkContext;
         State m_state = State::Stopped;
         bool m_exitRequested = false;
+        bool m_projectCloseRequested = false;
         FrameStatus m_lastFrameStatus = FrameStatus::Ready;
     };
 }

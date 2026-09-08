@@ -354,11 +354,28 @@ namespace
             context = value;
             Check(value.renderer != nullptr && value.renderer->IsInitialized(), "GPU must precede framework init");
             Check(value.assets != nullptr, "framework must receive the existing asset service");
+            if (closeDuringInitialize)
+            {
+                engine->CloseProject();
+            }
+            if (exitDuringInitialize)
+            {
+                engine->Shutdown();
+            }
+            if (throwDuringInitialize)
+            {
+                throw std::runtime_error("expected project initialization failure");
+            }
             return initializeSucceeds;
         }
         void Update(float) override
         {
             ++updates;
+            if (closeDuringUpdate)
+            {
+                engine->CloseProject();
+                Check(shutdowns == shutdownsBeforeUpdate, "project cannot be destroyed on its own callback stack");
+            }
             if (exitDuringUpdate)
             {
                 engine->RequestExit();
@@ -371,6 +388,10 @@ namespace
         bool Render() override
         {
             ++renders;
+            if (closeDuringRender)
+            {
+                engine->CloseProject();
+            }
             return renderSucceeds;
         }
         void Shutdown() override
@@ -378,6 +399,10 @@ namespace
             Check(platform->open && context.renderer->IsInitialized(), "framework must release while window and GPU live");
             ++shutdowns;
             context = {};
+            if (exitDuringShutdown)
+            {
+                engine->Shutdown();
+            }
         }
         HostPlatform* platform = nullptr;
         JBro::EngineInstance* engine = nullptr;
@@ -389,7 +414,119 @@ namespace
         bool renderSucceeds = true;
         bool exitDuringUpdate = false;
         bool throwDuringUpdate = false;
+        bool throwDuringInitialize = false;
+        bool closeDuringInitialize = false;
+        bool exitDuringInitialize = false;
+        bool closeDuringRender = false;
+        bool exitDuringShutdown = false;
+        bool closeDuringUpdate = false;
+        int shutdownsBeforeUpdate = 0;
     };
+
+    void TestProjectSwitchPreservesProcessResources()
+    {
+        FakeModule module;
+        HostPlatform platform;
+        platform.module = &module;
+        HostFramework first;
+        HostFramework second;
+        first.platform = &platform;
+        second.platform = &platform;
+        JBro::EngineInstance engine;
+        first.engine = &engine;
+        second.engine = &engine;
+        JBro::EngineConfig config;
+        Check(engine.Initialize(config, platform, module), "process initialization must not require a project");
+        auto* processRenderer = engine.GetRenderer();
+        Check(engine.Tick(0.016f) && engine.GetLastFrameStatus() == JBro::FrameStatus::Skipped,
+            "empty host must pump events without submitting undefined backbuffer content");
+        Check(engine.GetAssetManager() == nullptr && engine.OpenProject(first), "assets must be scoped to an opened project");
+        Check(false == engine.OpenProject(second) && engine.GetFramework() == &first,
+            "opening over a live project must reject without destroying it");
+        Check(engine.Tick(0.016f), "first project must render");
+        engine.CloseProject();
+        Check(engine.IsRunning() && platform.open && engine.GetRenderer() == processRenderer,
+            "project close must preserve the host, window and renderer");
+        Check(first.shutdowns == 1 && engine.GetFramework() == nullptr && engine.GetAssetManager() == nullptr,
+            "project close must release framework session and assets");
+        Check(module.createDeviceCount == 1 && module.destroyDeviceCount == 0
+            && module.device.destroySwapchainCount == 0 && module.device.waitIdleCount == 0,
+            "project close must not drain or recreate process-owned builtin GPU resources");
+        engine.CloseProject();
+        Check(first.shutdowns == 1 && engine.Tick(0.016f), "closed project must remain idempotently empty");
+        Check(engine.OpenProject(second) && engine.Tick(0.016f), "next project must use the live process");
+        Check(second.context.renderer == processRenderer && module.createDeviceCount == 1,
+            "project switch must not create another device");
+        second.closeDuringUpdate = true;
+        second.shutdownsBeforeUpdate = second.shutdowns;
+        const auto previousRenders = second.renders;
+        Check(engine.Tick(0.016f) && second.renders == previousRenders && second.shutdowns == 1,
+            "callback close must finish after update without rendering the closing project");
+        Check(engine.IsRunning() && platform.open, "callback project close must not terminate the host");
+        second.closeDuringUpdate = false;
+        second.initializeSucceeds = false;
+        Check(false == engine.OpenProject(second), "failed project open must be reported");
+        Check(engine.IsRunning() && engine.GetFramework() == nullptr && engine.GetAssetManager() == nullptr,
+            "failed project open must roll back only project resources");
+        second.initializeSucceeds = true;
+        second.throwDuringInitialize = true;
+        bool caught = false;
+        try
+        {
+            engine.OpenProject(second);
+        }
+        catch (const std::runtime_error&)
+        {
+            caught = true;
+        }
+        Check(caught && engine.IsRunning() && platform.open && module.destroyDeviceCount == 0,
+            "project initialization exceptions must preserve reusable process resources");
+        second.throwDuringInitialize = false;
+        second.closeDuringInitialize = true;
+        Check(false == engine.OpenProject(second) && engine.IsRunning() && engine.GetFramework() == nullptr,
+            "close during initialize must cancel only the project");
+        second.closeDuringInitialize = false;
+        Check(engine.OpenProject(second), "project must reopen after an initialization exception");
+        second.closeDuringRender = true;
+        const auto beforeAbort = module.device.abortFrameCount;
+        const auto beforePresent = module.device.endFrameCount;
+        Check(engine.Tick(0.016f) && engine.GetFramework() == nullptr,
+            "close during render must release the project after the callback");
+        Check(module.device.abortFrameCount == beforeAbort + 1 && module.device.endFrameCount == beforePresent,
+            "closing project's partial frame must abort without presenting");
+        second.closeDuringRender = false;
+        Check(engine.OpenProject(second), "project must reopen after render callback close");
+        engine.RequestExit();
+        Check(false == engine.Tick(0.016f), "process exit must stop and release everything");
+        Check(module.destroyDeviceCount == 1 && platform.closeCount == 1 && module.device.waitIdleCount == 1,
+            "only process exit must drain the GPU and destroy the window");
+        Check(engine.Initialize(config, platform, module), "process must restart for shutdown-during-open test");
+        second.exitDuringInitialize = true;
+        Check(false == engine.OpenProject(second) && false == platform.open && false == engine.IsRunning(),
+            "process shutdown during project initialization must finish after callback return");
+        second.exitDuringInitialize = false;
+        Check(engine.Initialize(config, platform, module) && engine.OpenProject(second), "process must restart for teardown callback test");
+        second.exitDuringShutdown = true;
+        engine.CloseProject();
+        Check(false == platform.open && false == engine.IsRunning(),
+            "process exit requested by project shutdown must not recurse into project teardown");
+    }
+
+    // Existing process-failure tests intentionally close the process if its first project fails.
+    bool InitializeHost(JBro::EngineInstance& engine, const JBro::EngineConfig& config,
+        HostPlatform& platform, FakeModule& module, HostFramework& framework)
+    {
+        if (false == engine.Initialize(config, platform, module))
+        {
+            return false;
+        }
+        if (false == engine.OpenProject(framework))
+        {
+            engine.Shutdown();
+            return false;
+        }
+        return true;
+    }
 
     void TestEngineHostLifecycle()
     {
@@ -403,9 +540,9 @@ namespace
         JBro::EngineConfig config;
         config.window.visible = false;
         config.fixedDeltaTime = 0.02f;
-        Check(engine.Initialize(config, platform, module, framework), "host must initialize");
+        Check(InitializeHost(engine, config, platform, module, framework), "host must initialize");
         Check(framework.context.fixedDeltaTime == 0.02f, "host must forward fixed-step policy");
-        Check(false == engine.Initialize(config, platform, module, framework), "double init must reject without teardown");
+        Check(false == InitializeHost(engine, config, platform, module, framework), "double init must reject without teardown");
         for (int frame = 0; frame < 3; ++frame)
         {
 #if defined(_MSC_VER) && defined(_DEBUG)
@@ -444,23 +581,23 @@ namespace
         Check(platform.closeCount == 1 && framework.shutdowns == 1, "shutdown must be idempotent");
 
         module.device.beginStatus = JBro::FrameStatus::Ready;
-        Check(engine.Initialize(config, platform, module, framework), "host must reopen after teardown");
+        Check(InitializeHost(engine, config, platform, module, framework), "host must reopen after teardown");
         framework.renderSucceeds = false;
         Check(false == engine.Tick(0.016f), "failed submission must terminate the host");
         Check(engine.GetLastFrameStatus() == JBro::FrameStatus::InvalidState, "submission failure must survive cleanup as an error");
         Check(module.device.abortFrameCount == 1, "failed submission must abort before teardown");
         framework.renderSucceeds = true;
         framework.initializeSucceeds = false;
-        Check(false == engine.Initialize(config, platform, module, framework), "framework failure must roll back init");
+        Check(false == InitializeHost(engine, config, platform, module, framework), "framework failure must roll back init");
         Check(false == platform.open && framework.shutdowns == 3, "partial framework init must also release in order");
         framework.initializeSucceeds = true;
-        Check(engine.Initialize(config, platform, module, framework), "host must reopen after init failure");
+        Check(InitializeHost(engine, config, platform, module, framework), "host must reopen after init failure");
         framework.exitDuringUpdate = true;
         const auto beforeExitRender = framework.renders;
         Check(false == engine.Tick(0.016f) && framework.renders == beforeExitRender,
             "callback exit request must defer teardown until update returns and skip rendering");
         framework.exitDuringUpdate = false;
-        Check(engine.Initialize(config, platform, module, framework), "host must reopen after requested exit");
+        Check(InitializeHost(engine, config, platform, module, framework), "host must reopen after requested exit");
         framework.throwDuringUpdate = true;
         bool caught = false;
         try
@@ -473,14 +610,14 @@ namespace
         }
         Check(caught && false == platform.open && false == engine.IsRunning(), "callback exception must clean up before propagating");
         framework.throwDuringUpdate = false;
-        Check(engine.Initialize(config, platform, module, framework), "host must reopen for resize failure test");
+        Check(InitializeHost(engine, config, platform, module, framework), "host must reopen for resize failure test");
         module.device.resizeSucceeds = false;
         platform.state.width = 900;
         const auto beforeResize = module.device.beginFrameCount;
         Check(false == engine.Tick(0.016f) && module.device.beginFrameCount == beforeResize && false == platform.open,
             "resize failure must stop before acquiring a backbuffer");
         module.device.resizeSucceeds = true;
-        Check(engine.Initialize(config, platform, module, framework), "host must reopen for device-loss test");
+        Check(InitializeHost(engine, config, platform, module, framework), "host must reopen for device-loss test");
         module.device.deviceStatus = JBro::FrameStatus::DeviceLost;
         platform.state.minimized = true;
         const auto beforeLoss = framework.updates;
@@ -489,12 +626,12 @@ namespace
         Check(engine.GetLastFrameStatus() == JBro::FrameStatus::DeviceLost, "host must preserve device-loss reason");
         module.device.deviceStatus = JBro::FrameStatus::Ready;
         platform.state.minimized = false;
-        Check(engine.Initialize(config, platform, module, framework), "host must reopen for presentation failure test");
+        Check(InitializeHost(engine, config, platform, module, framework), "host must reopen for presentation failure test");
         module.device.endStatus = JBro::FrameStatus::SurfaceLost;
         Check(false == engine.Tick(0.016f) && false == platform.open, "presentation surface loss must shut down");
         Check(engine.GetLastFrameStatus() == JBro::FrameStatus::SurfaceLost, "host must preserve presentation failure reason");
         module.device.endStatus = JBro::FrameStatus::Ready;
-        Check(engine.Initialize(config, platform, module, framework), "host must reopen for acquire failure test");
+        Check(InitializeHost(engine, config, platform, module, framework), "host must reopen for acquire failure test");
         module.device.beginStatus = JBro::FrameStatus::InvalidState;
         const auto beforeAcquire = framework.renders;
         Check(false == engine.Tick(0.016f) && framework.renders == beforeAcquire && false == platform.open,
@@ -502,7 +639,7 @@ namespace
         module.device.beginStatus = JBro::FrameStatus::Ready;
         const auto beforeInvalidConfig = module.createDeviceCount;
         config.fixedDeltaTime = 0.0f;
-        Check(false == engine.Initialize(config, platform, module, framework)
+        Check(false == InitializeHost(engine, config, platform, module, framework)
             && module.createDeviceCount == beforeInvalidConfig, "invalid config must fail before native resource creation");
     }
 
@@ -682,6 +819,7 @@ int RunRendererContractTests()
     TestRendererCollectsBeforeRecording();
     TestFrameworkSubmitsTransformedBatches();
     TestEngineHostLifecycle();
+    TestProjectSwitchPreservesProcessResources();
     std::cout << "Renderer contract tests passed.\n";
     return 0;
 }

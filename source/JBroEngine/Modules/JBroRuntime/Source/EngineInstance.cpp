@@ -15,7 +15,7 @@ namespace JBro
     }
 
     bool EngineInstance::Initialize(const EngineConfig& config, IPlatform& platform,
-        IRHIModule& rhi, IFramework& framework)
+        IRHIModule& rhi)
     {
         if (m_state != State::Stopped || false == std::isfinite(config.fixedDeltaTime)
             || config.fixedDeltaTime <= 0.0f || config.maxFixedStepsPerFrame == 0)
@@ -25,6 +25,7 @@ namespace JBro
         m_state = State::Initializing;
         m_lastFrameStatus = FrameStatus::InvalidState;
         m_exitRequested = false;
+        m_projectCloseRequested = false;
         m_platform = &platform;
         try
         {
@@ -47,20 +48,11 @@ namespace JBro
                 ReleaseResources();
                 return false;
             }
-            m_assets = MakeOwnerPtr<AssetManager>();
-            if (false == m_assets->Initialize(config.memory))
-            {
-                ReleaseResources();
-                return false;
-            }
-            FrameworkContext context;
-            context.memory = config.memory;
-            context.assets = m_assets.Get();
-            context.renderer = m_renderer.Get();
-            context.fixedDeltaTime = config.fixedDeltaTime;
-            context.maxFixedStepsPerFrame = config.maxFixedStepsPerFrame;
-            m_framework = &framework;
-            if (false == framework.Initialize(context) || m_exitRequested)
+            m_frameworkContext.memory = config.memory;
+            m_frameworkContext.renderer = m_renderer.Get();
+            m_frameworkContext.fixedDeltaTime = config.fixedDeltaTime;
+            m_frameworkContext.maxFixedStepsPerFrame = config.maxFixedStepsPerFrame;
+            if (m_exitRequested)
             {
                 ReleaseResources();
                 return false;
@@ -79,6 +71,63 @@ namespace JBro
         m_state = State::Running;
         m_lastFrameStatus = FrameStatus::Ready;
         return true;
+    }
+
+    bool EngineInstance::OpenProject(IFramework& framework)
+    {
+        if (m_state != State::Running || m_framework != nullptr || m_exitRequested)
+        {
+            return false;
+        }
+        m_state = State::OpeningProject;
+        m_lastFrameStatus = FrameStatus::InvalidState;
+        bool initialized = false;
+        try
+        {
+            m_assets = MakeOwnerPtr<AssetManager>();
+            if (m_assets->Initialize(m_frameworkContext.memory))
+            {
+                m_frameworkContext.assets = m_assets.Get();
+                m_framework = &framework;
+                initialized = framework.Initialize(m_frameworkContext);
+            }
+        }
+        catch (const std::bad_alloc&)
+        {
+            // Project allocation failure does not invalidate process resources.
+        }
+        catch (...)
+        {
+            m_state = State::Running;
+            CloseProject();
+            throw;
+        }
+        m_state = State::Running;
+        if (false == initialized || m_projectCloseRequested || m_exitRequested)
+        {
+            CloseProject();
+            return false;
+        }
+        m_lastFrameStatus = FrameStatus::Ready;
+        return true;
+    }
+
+    void EngineInstance::CloseProject()
+    {
+        if (m_state == State::OpeningProject || m_state == State::Ticking)
+        {
+            m_projectCloseRequested = true;
+            return;
+        }
+        if (m_state != State::Running)
+        {
+            return;
+        }
+        ReleaseProject();
+        if (m_exitRequested)
+        {
+            ReleaseResources();
+        }
     }
 
     bool EngineInstance::Tick(float deltaTime)
@@ -104,7 +153,11 @@ namespace JBro
             throw;
         }
         m_state = State::Running;
-        return true;
+        if (m_projectCloseRequested)
+        {
+            CloseProject();
+        }
+        return m_state == State::Running;
     }
 
     bool EngineInstance::TickFrame(float deltaTime)
@@ -124,7 +177,10 @@ namespace JBro
             m_lastFrameStatus = FrameStatus::InvalidState;
             return false;
         }
-        m_framework->Update(deltaTime);
+        if (m_framework != nullptr && false == m_projectCloseRequested)
+        {
+            m_framework->Update(deltaTime);
+        }
         if (m_exitRequested)
         {
             return false;
@@ -135,7 +191,8 @@ namespace JBro
             m_lastFrameStatus = FrameStatus::SurfaceLost;
             return false;
         }
-        if (windowState.minimized || windowState.width == 0 || windowState.height == 0)
+        if (m_framework == nullptr || m_projectCloseRequested
+            || windowState.minimized || windowState.width == 0 || windowState.height == 0)
         {
             m_lastFrameStatus = FrameStatus::Skipped;
             return true;
@@ -164,6 +221,12 @@ namespace JBro
             m_renderer->AbortFrame();
             return false;
         }
+        if (m_projectCloseRequested)
+        {
+            m_renderer->AbortFrame();
+            m_lastFrameStatus = FrameStatus::Skipped;
+            return true;
+        }
         const auto endStatus = m_renderer->EndFrame();
         m_lastFrameStatus = endStatus;
         return endStatus == FrameStatus::Ready || endStatus == FrameStatus::Skipped;
@@ -176,7 +239,8 @@ namespace JBro
 
     void EngineInstance::Shutdown()
     {
-        if (m_state == State::Initializing || m_state == State::Ticking)
+        if (m_state == State::Initializing || m_state == State::OpeningProject
+            || m_state == State::ClosingProject || m_state == State::Ticking)
         {
             RequestExit();
             return;
@@ -187,10 +251,9 @@ namespace JBro
         }
     }
 
-    void EngineInstance::ReleaseResources()
+    void EngineInstance::ReleaseProject()
     {
-        m_state = State::Stopping;
-        m_exitRequested = true;
+        const State previousState = std::exchange(m_state, State::ClosingProject);
         if (m_renderer)
         {
             m_renderer->AbortFrame();
@@ -206,6 +269,7 @@ namespace JBro
                 // Cleanup hooks must not throw. Still release the GPU before its surface.
                 std::fputs("JBro error: framework shutdown threw during host cleanup.\n", stderr);
                 m_lastFrameStatus = FrameStatus::InvalidState;
+                m_exitRequested = true;
             }
         }
         if (m_assets)
@@ -213,6 +277,16 @@ namespace JBro
             m_assets->Shutdown();
             m_assets.Reset();
         }
+        m_frameworkContext.assets = nullptr;
+        m_projectCloseRequested = false;
+        m_state = previousState;
+    }
+
+    void EngineInstance::ReleaseResources()
+    {
+        m_state = State::Stopping;
+        m_exitRequested = true;
+        ReleaseProject();
         if (m_renderer)
         {
             m_renderer->Shutdown();
@@ -224,6 +298,7 @@ namespace JBro
         }
         m_mainWindow = {};
         m_platform = nullptr;
+        m_frameworkContext = {};
         m_state = State::Stopped;
     }
 

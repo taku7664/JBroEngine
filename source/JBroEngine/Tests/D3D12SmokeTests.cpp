@@ -33,7 +33,8 @@ namespace
         config.window.width = 96;
         config.window.height = 64;
         config.window.visible = false;
-        Check(engine.Initialize(config, platform, rhi, framework), "real host must compose window, renderer and framework");
+        Check(engine.Initialize(config, platform, rhi), "real host must compose process resources");
+        Check(engine.OpenProject(framework), "real host must open its project separately");
         const auto nativeWindow = FindWindowW(L"JBroEngineWindow", L"JBro EngineInstance hidden lifecycle test");
         Check(nativeWindow != nullptr, "real host must own its hidden native window");
         auto* canvas = framework.GetCanvas();
@@ -57,6 +58,31 @@ namespace
         Check(engine.Tick(1.0f / 60.0f), "real host must resize before presenting");
         const auto extent = engine.GetRenderer()->GetSurfaceExtent();
         Check(extent.width == 160 && extent.height == 120, "host must forward actual client pixels to D3D12");
+        auto* preservedRenderer = engine.GetRenderer();
+        const auto oldSprite = sprite->SafeFromThis();
+        engine.CloseProject();
+        Check(false == oldSprite.IsValid() && framework.GetCanvas() == nullptr,
+            "project close must invalidate its objects and destroy its canvas");
+        Check(engine.IsRunning() && engine.GetRenderer() == preservedRenderer && IsWindow(nativeWindow) != FALSE,
+            "real project close must preserve renderer and native window");
+        Check(engine.Tick(1.0f / 60.0f) && engine.GetLastFrameStatus() == JBro::FrameStatus::Skipped,
+            "projectless real host must not submit a backbuffer");
+        Check(engine.OpenProject(framework), "real host must reopen a framework without recreating process resources");
+        auto* nextCanvas = framework.GetCanvas();
+        auto* nextCamera = nextCanvas->CreateObject();
+        nextCanvas->AttachComponent<JBro::Component::Transform2D>(nextCamera);
+        nextCanvas->AttachComponent<JBro::Component::WorldTransform2D>(nextCamera);
+        nextCanvas->AttachComponent<JBro::Component::Camera2D>(nextCamera)->primary = true;
+        auto* nextSprite = nextCanvas->CreateObject();
+        nextCanvas->AttachComponent<JBro::Component::Transform2D>(nextSprite);
+        nextCanvas->AttachComponent<JBro::Component::WorldTransform2D>(nextSprite);
+        nextCanvas->AttachComponent<JBro::Component::SpriteRenderer2D>(nextSprite);
+        for (int frame = 0; frame < 6; ++frame)
+        {
+            Check(engine.Tick(1.0f / 60.0f), "reopened real project must present across in-flight slots");
+        }
+        Check(engine.GetRenderer() == preservedRenderer && engine.GetRenderer()->GetLastFrameStats().spriteCount == 1,
+            "reopened project must submit through the existing renderer");
         SendMessageW(nativeWindow, WM_CLOSE, 0, 0);
         Check(IsWindow(nativeWindow) != FALSE, "close must retain the real swapchain surface until host cleanup");
         Check(false == engine.Tick(1.0f / 60.0f), "close must terminate the real host");
