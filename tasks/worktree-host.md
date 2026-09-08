@@ -445,3 +445,64 @@ bool EngineInstance::Initialize(const EngineConfig& config, IPlatform& platform,
 
 - **모든 다른 워크트리 병합 후에만** 이 워크트리 병합.
 - 자체 검증 통과 → main 병합 → 최종.
+
+## 2026-09-08 후속: 승인된 창·프레임 수명 구현
+
+Updates: 위 H9 중 Renderer 조립과 프레임 루프. Context/서비스/DLL 전체 완료를 뜻하지 않는다.
+독자: 현재 리팩터링을 이어받는 구현자. 단일 main 브랜치에서 순차 작업한다.
+
+### 승인 및 적용 범위
+
+- 사용자가 Framework·GPU 정리 후 창 파괴, 리사이즈 전달, 최소화 중 렌더링만 생략하는 안을 승인했다.
+- `WM_CLOSE`는 닫기 요청만 기록해야 한다(MUST). 명시적 `ClosePlatformWindow` 전까지 HWND를 유지한다.
+  `WM_QUIT`도 요청으로 처리한다. OS의 강제 프로세스 종료나 외부 HWND 파괴까지 지연시키는 계약은 아니다.
+- `IPlatform::GetWindowState`는 메인 스레드에서 클라이언트 영역 크기와 최소화 여부를 조회한다.
+  Windows는 구현했고, 기존 Web/Android 창 스텁은 상태 조회도 false로 명시한다. Web 기능 동등성 완료는 아니다.
+- EngineInstance는 Renderer와 기존 AssetManager를 OwnerPtr로 소유한다. 주 창도 생성·파괴한다.
+  전달받은 Platform/RHI 모듈과 IFramework 객체 자체는 빌리지 소유하지 않는다. 호출자는 이 객체들을
+  EngineInstance보다 오래 유지해야 한다(MUST). Framework는 초기화되지 않은 상태로 전달해야 한다(MUST).
+- FrameworkContext에 필요한 값만 전달한다. EngineContext/SystemContext/ServiceContext의 조립은 아직 없다.
+- 마지막 소비자가 Renderer로 전환되어 임시 GraphicsSystem 헤더·소스는 삭제했다.
+
+### 실제 흐름과 선택 이유
+
+1. 설정 검증 → 창 생성/크기 조회 → Renderer → 기존 AssetManager → Framework 초기화.
+2. Tick: 이벤트 처리 → 종료/치명적 디바이스 손실/dt 검사 → Framework Update → 창 상태 조회.
+3. 최소화 또는 0 크기라면 GPU 프레임을 열지 않는다. 시뮬레이션은 계속 진행한다.
+4. 유효한 크기가 이전과 다를 때만 ResizeSurface한다. 이벤트마다 즉시 리사이즈하는 방식은
+   연속 크기 변경에 따른 불필요한 GPU 대기를 만들므로 사용하지 않는다.
+5. BeginFrame이 Ready일 때만 Framework Render → EndFrame. Skipped는 계속 실행한다.
+   나머지 오류나 제출 실패는 정리 후 Tick false로 전달한다. 디바이스 자동 복구는 추가하지 않았다.
+6. 종료: 열린 프레임 Abort → Framework Shutdown → AssetManager Shutdown → Renderer Shutdown
+   (WaitIdle/리소스/Swapchain/Device) → 창 파괴. Shutdown은 반복해도 안전하다.
+7. 콜백 안에서 RequestExit 또는 Shutdown을 요청하면 해당 콜백이 반환한 뒤 정리한다.
+   초기화·업데이트·렌더 중 예외는 정리 후 전파한다(초기화 bad_alloc은 false).
+   Framework 종료 훅은 예외를 던지지 않아야 한다(MUST). 위반 시 오류를 기록하고 GPU/창 정리를 이어간다.
+
+`EngineConfig.window`의 문자열 뷰는 Initialize 호출 중에만 사용하고 보관하지 않는다.
+일반 프레임에서 새 저장 공간을 만들지 않는다. 리사이즈/종료의 GPU 대기는 일반 렌더 경로와 구분한다.
+
+### 검증과 실제로 발견한 실패
+
+- TDD: WM_CLOSE 후 HWND 유지 테스트가 기존 구현에서 실패하는 것을 확인한 뒤 플랫폼을 수정했다.
+- Host 테스트를 먼저 추가해 미구현 EngineConfig/window 계약으로 컴파일 실패함을 확인한 뒤 구현했다.
+- Debug/Release x64 전체 Rebuild: 경고 0, 오류 0. 양쪽 JBroTests 전체 통과.
+  SDK는 기존 검증과 같은 WindowsTargetPlatformVersion=10.0.22621.0을 명시했다.
+- 가짜 RHI: Framework→GPU→창 정리 순서, 중복 초기화 거부, 반복 Shutdown, 실패 후 재초기화,
+  최소화/0 크기/복원, 동일 크기 Resize 생략, Skipped, 리사이즈·획득·Present 실패,
+  최소화 중 DeviceLost, 콜백 종료 요청과 Update 예외를 검증했다.
+- Debug CRT 할당 감시: 가짜 Platform/RHI를 사용한 정상 EngineInstance Tick 3회에서 할당 0.
+  실제 OS/GPU 드라이버의 모든 할당을 측정한 수치나 구 엔진 대비 벤치마크는 아니다.
+- 실제 Windows+D3D12+Framework2D: 숨김 창에서 스프라이트를 포함한 6프레임, 160×120 클라이언트 영역
+  리사이즈 후 제출, WM_CLOSE 시 HWND 유지와 다음 Tick에서 Canvas/Renderer/HWND 정리를 확인했다.
+- 새 smoke 구성에서 CreateObject 반환형을 잘못 사용한 컴파일 오류와 WorldTransform2D/주 카메라 누락에
+  따른 spriteCount=0 실패가 발생했다. 현재 Canvas 선언과 기존 렌더 테스트 구성을 대조해 테스트만 수정했다.
+- draw.io 6페이지에 초기화·프레임·역순 정리와 남은 범위를 추가했고 XML 파싱 및 연결 참조를 검사했다.
+  이번 수정본은 브라우저 제어 연결 오류로 실제 draw.io 화면 렌더 확인을 완료하지 못했다.
+
+### 남은 작업
+
+- EditorApplication/GameHost 진입점은 아직 EngineInstance 루프를 호출하지 않는다.
+- H1~H7의 Context/서비스/스크립트 DLL/프렐류드, ScriptSystem 자동 훅 호출은 별도 단계다.
+- PixelPerfect 정의는 사용자 확인이 필요하다. Shader Graph·후처리·에셋/Layer 합성은 이 변경 범위 밖이다.
+- 실제 최소화 OS 이벤트의 렌더 제출 측정, 화면 픽셀 정확성, 구 엔진 대비 성능 수치는 아직 검증하지 않았다.
