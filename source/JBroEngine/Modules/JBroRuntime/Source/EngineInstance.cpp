@@ -23,6 +23,7 @@ namespace JBro
             return false;
         }
         m_state = State::Initializing;
+        m_lastFrameStatus = FrameStatus::InvalidState;
         m_exitRequested = false;
         m_platform = &platform;
         try
@@ -76,6 +77,7 @@ namespace JBro
             throw;
         }
         m_state = State::Running;
+        m_lastFrameStatus = FrameStatus::Ready;
         return true;
     }
 
@@ -86,6 +88,7 @@ namespace JBro
             return false;
         }
         m_state = State::Ticking;
+        m_lastFrameStatus = FrameStatus::Ready;
         try
         {
             if (false == TickFrame(deltaTime))
@@ -96,6 +99,7 @@ namespace JBro
         }
         catch (...)
         {
+            m_lastFrameStatus = FrameStatus::InvalidState;
             ReleaseResources();
             throw;
         }
@@ -106,10 +110,18 @@ namespace JBro
     bool EngineInstance::TickFrame(float deltaTime)
     {
         m_platform->PumpEvents();
-        if (m_exitRequested || m_platform->ShouldClose(m_mainWindow)
-            || m_renderer->IsDeviceLost()
-            || false == std::isfinite(deltaTime) || deltaTime < 0.0f)
+        if (m_exitRequested || m_platform->ShouldClose(m_mainWindow))
         {
+            return false;
+        }
+        if (m_renderer->IsDeviceLost())
+        {
+            m_lastFrameStatus = FrameStatus::DeviceLost;
+            return false;
+        }
+        if (false == std::isfinite(deltaTime) || deltaTime < 0.0f)
+        {
+            m_lastFrameStatus = FrameStatus::InvalidState;
             return false;
         }
         m_framework->Update(deltaTime);
@@ -120,19 +132,23 @@ namespace JBro
         WindowState windowState;
         if (false == m_platform->GetWindowState(m_mainWindow, windowState))
         {
+            m_lastFrameStatus = FrameStatus::SurfaceLost;
             return false;
         }
         if (windowState.minimized || windowState.width == 0 || windowState.height == 0)
         {
+            m_lastFrameStatus = FrameStatus::Skipped;
             return true;
         }
         const auto previousExtent = m_renderer->GetSurfaceExtent();
         if ((previousExtent.width != windowState.width || previousExtent.height != windowState.height)
             && false == m_renderer->ResizeSurface({windowState.width, windowState.height}))
         {
+            m_lastFrameStatus = m_renderer->IsDeviceLost() ? FrameStatus::DeviceLost : FrameStatus::SurfaceLost;
             return false;
         }
         const auto beginStatus = m_renderer->BeginFrame();
+        m_lastFrameStatus = beginStatus;
         if (beginStatus == FrameStatus::Skipped)
         {
             return true;
@@ -141,12 +157,15 @@ namespace JBro
         {
             return false;
         }
-        if (false == m_framework->Render() || m_exitRequested)
+        const bool submitted = m_framework->Render();
+        if (false == submitted || m_exitRequested)
         {
+            m_lastFrameStatus = submitted ? FrameStatus::Ready : FrameStatus::InvalidState;
             m_renderer->AbortFrame();
             return false;
         }
         const auto endStatus = m_renderer->EndFrame();
+        m_lastFrameStatus = endStatus;
         return endStatus == FrameStatus::Ready || endStatus == FrameStatus::Skipped;
     }
 
@@ -186,6 +205,7 @@ namespace JBro
             {
                 // Cleanup hooks must not throw. Still release the GPU before its surface.
                 std::fputs("JBro error: framework shutdown threw during host cleanup.\n", stderr);
+                m_lastFrameStatus = FrameStatus::InvalidState;
             }
         }
         if (m_assets)
@@ -225,5 +245,10 @@ namespace JBro
     bool EngineInstance::IsRunning() const
     {
         return (m_state == State::Running || m_state == State::Ticking) && false == m_exitRequested;
+    }
+
+    FrameStatus EngineInstance::GetLastFrameStatus() const
+    {
+        return m_lastFrameStatus;
     }
 }

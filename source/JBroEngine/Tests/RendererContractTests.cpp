@@ -439,6 +439,7 @@ namespace
         Check(false == engine.Tick(0.016f) && framework.updates == updateCount, "close must stop before another update");
         Check(false == engine.IsRunning() && false == platform.open && framework.shutdowns == 1,
             "close must tear down the host");
+        Check(engine.GetLastFrameStatus() == JBro::FrameStatus::Ready, "requested close must remain a normal exit");
         engine.Shutdown();
         Check(platform.closeCount == 1 && framework.shutdowns == 1, "shutdown must be idempotent");
 
@@ -446,6 +447,7 @@ namespace
         Check(engine.Initialize(config, platform, module, framework), "host must reopen after teardown");
         framework.renderSucceeds = false;
         Check(false == engine.Tick(0.016f), "failed submission must terminate the host");
+        Check(engine.GetLastFrameStatus() == JBro::FrameStatus::InvalidState, "submission failure must survive cleanup as an error");
         Check(module.device.abortFrameCount == 1, "failed submission must abort before teardown");
         framework.renderSucceeds = true;
         framework.initializeSucceeds = false;
@@ -484,11 +486,13 @@ namespace
         const auto beforeLoss = framework.updates;
         Check(false == engine.Tick(0.016f) && framework.updates == beforeLoss && false == platform.open,
             "device loss is fatal even while minimized");
+        Check(engine.GetLastFrameStatus() == JBro::FrameStatus::DeviceLost, "host must preserve device-loss reason");
         module.device.deviceStatus = JBro::FrameStatus::Ready;
         platform.state.minimized = false;
         Check(engine.Initialize(config, platform, module, framework), "host must reopen for presentation failure test");
         module.device.endStatus = JBro::FrameStatus::SurfaceLost;
         Check(false == engine.Tick(0.016f) && false == platform.open, "presentation surface loss must shut down");
+        Check(engine.GetLastFrameStatus() == JBro::FrameStatus::SurfaceLost, "host must preserve presentation failure reason");
         module.device.endStatus = JBro::FrameStatus::Ready;
         Check(engine.Initialize(config, platform, module, framework), "host must reopen for acquire failure test");
         module.device.beginStatus = JBro::FrameStatus::InvalidState;

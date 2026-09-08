@@ -42,6 +42,8 @@ namespace JBro
         Renderer* GetRenderer();
         IFramework* GetFramework();
         bool IsRunning() const;
+        // Preserved after teardown; Ready/Skipped are non-fatal, other values indicate failure.
+        FrameStatus GetLastFrameStatus() const;
 
     private:
         enum class State { Stopped, Initializing, Running, Ticking, Stopping };
@@ -55,5 +57,6 @@ namespace JBro
         OwnerPtr<Renderer> m_renderer;
         State m_state = State::Stopped;
         bool m_exitRequested = false;
+        FrameStatus m_lastFrameStatus = FrameStatus::Ready;
     };
 }
