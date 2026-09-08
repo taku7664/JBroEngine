@@ -10,6 +10,7 @@ int RunFramework2DSystemTests();
 int RunSystemSchedulerTests();
 int RunGameScriptTests();
 int RunEditorApplicationTests();
+int RunContextBoundaryTests();
 
 int main()
 {
@@ -48,6 +49,10 @@ int main()
             return 1;
         }
         if (RunEditorApplicationTests() != 0)
+        {
+            return 1;
+        }
+        if (RunContextBoundaryTests() != 0)
         {
             return 1;
         }
