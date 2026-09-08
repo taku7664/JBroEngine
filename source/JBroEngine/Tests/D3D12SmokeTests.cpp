@@ -2,6 +2,9 @@
 #include <JBro/Graphics/Renderer.h>
 #include <JBro/Framework2D/Framework2D.h>
 #include <JBro/Platform/WindowsPlatform.h>
+#include <JBro/Runtime/EngineInstance.h>
+
+#include <Windows.h>
 
 #include <iostream>
 #include <stdexcept>
@@ -14,6 +17,53 @@ namespace
         {
             throw std::runtime_error(message);
         }
+    }
+
+    void TestD3D12EngineHost()
+    {
+        JBro::JMemoryContext memory;
+        JBro::WindowsPlatform platform;
+        JBro::D3D12RHIModule rhi;
+        Check(platform.Initialize(memory) && rhi.Initialize(memory), "host smoke modules must initialize");
+        JBro::Framework2D framework;
+        JBro::EngineInstance engine;
+        JBro::EngineConfig config;
+        constexpr char title[] = "JBro EngineInstance hidden lifecycle test";
+        config.window.title = {title, sizeof(title) - 1};
+        config.window.width = 96;
+        config.window.height = 64;
+        config.window.visible = false;
+        Check(engine.Initialize(config, platform, rhi, framework), "real host must compose window, renderer and framework");
+        const auto nativeWindow = FindWindowW(L"JBroEngineWindow", L"JBro EngineInstance hidden lifecycle test");
+        Check(nativeWindow != nullptr, "real host must own its hidden native window");
+        auto* canvas = framework.GetCanvas();
+        auto* camera = canvas->CreateObject();
+        canvas->AttachComponent<JBro::Component::Transform2D>(camera);
+        canvas->AttachComponent<JBro::Component::WorldTransform2D>(camera);
+        canvas->AttachComponent<JBro::Component::Camera2D>(camera)->primary = true;
+        auto* sprite = canvas->CreateObject();
+        canvas->AttachComponent<JBro::Component::Transform2D>(sprite);
+        canvas->AttachComponent<JBro::Component::WorldTransform2D>(sprite);
+        canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(sprite);
+        for (int frame = 0; frame < 6; ++frame)
+        {
+            Check(engine.Tick(1.0f / 60.0f), "real host must present across all in-flight slots");
+        }
+        Check(engine.GetRenderer()->GetLastFrameStats().spriteCount == 1, "real host must submit its framework sprite");
+        RECT bounds = {0, 0, 160, 120};
+        Check(AdjustWindowRectEx(&bounds, WS_OVERLAPPEDWINDOW, FALSE, 0) != FALSE, "host test must adjust client dimensions");
+        Check(SetWindowPos(nativeWindow, nullptr, 0, 0, bounds.right - bounds.left, bounds.bottom - bounds.top,
+            SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE) != FALSE, "real host surface must resize");
+        Check(engine.Tick(1.0f / 60.0f), "real host must resize before presenting");
+        const auto extent = engine.GetRenderer()->GetSurfaceExtent();
+        Check(extent.width == 160 && extent.height == 120, "host must forward actual client pixels to D3D12");
+        SendMessageW(nativeWindow, WM_CLOSE, 0, 0);
+        Check(IsWindow(nativeWindow) != FALSE, "close must retain the real swapchain surface until host cleanup");
+        Check(false == engine.Tick(1.0f / 60.0f), "close must terminate the real host");
+        Check(IsWindow(nativeWindow) == FALSE && framework.GetCanvas() == nullptr && engine.GetRenderer() == nullptr,
+            "real host must release canvas, renderer and native window");
+        rhi.Shutdown();
+        platform.Shutdown();
     }
 
     void TestD3D12HiddenSurfaceClear()
@@ -193,6 +243,7 @@ int RunD3D12SmokeTests()
 {
     TestD3D12ResourceHandleLifecycle();
     TestD3D12HiddenSurfaceClear();
+    TestD3D12EngineHost();
     std::cout << "D3D12 smoke tests passed.\n";
     return 0;
 }

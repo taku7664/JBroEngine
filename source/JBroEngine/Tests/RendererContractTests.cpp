@@ -1,6 +1,7 @@
 #include <JBro/Graphics/Renderer.h>
 
 #include <JBro/Framework2D/Framework2D.h>
+#include <JBro/Runtime/EngineInstance.h>
 
 #include <cmath>
 #include <cstring>
@@ -189,7 +190,7 @@ namespace
         {
             resizedExtent = extent;
             ++resizeSwapchainCount;
-            return true;
+            return resizeSucceeds;
         }
 
         JBro::BeginFrameResult BeginFrame(JBro::SwapchainHandle) override
@@ -197,7 +198,7 @@ namespace
             ++beginFrameCount;
 
             JBro::BeginFrameResult result;
-            result.status = JBro::FrameStatus::Ready;
+            result.status = beginStatus;
             result.frame.serial = beginFrameCount;
             result.frame.slot = 0;
             result.frame.backBuffer = {2, 1};
@@ -208,7 +209,7 @@ namespace
         JBro::FrameStatus EndFrame(const JBro::FrameContext&) override
         {
             ++endFrameCount;
-            return JBro::FrameStatus::Ready;
+            return endStatus;
         }
 
         void AbortFrame(const JBro::FrameContext&) override
@@ -218,7 +219,7 @@ namespace
 
         JBro::FrameStatus GetStatus() const override
         {
-            return JBro::FrameStatus::Ready;
+            return deviceStatus;
         }
 
         void WaitIdle() override
@@ -227,6 +228,10 @@ namespace
         }
 
         FakeCommandContext commands;
+        bool resizeSucceeds = true;
+        JBro::FrameStatus beginStatus = JBro::FrameStatus::Ready;
+        JBro::FrameStatus endStatus = JBro::FrameStatus::Ready;
+        JBro::FrameStatus deviceStatus = JBro::FrameStatus::Ready;
         JBro::SwapchainDesc swapchainDesc;
         JBro::Extent2D resizedExtent;
         std::uint32_t createSwapchainCount = 0;
@@ -278,6 +283,224 @@ namespace
         std::uint32_t createDeviceCount = 0;
         std::uint32_t destroyDeviceCount = 0;
     };
+
+    class HostPlatform final : public JBro::IPlatform
+    {
+    public:
+        bool Initialize(const JBro::JMemoryContext&) override
+        {
+            return true;
+        }
+        void Shutdown() override
+        {
+            Check(false, "engine must not shut down the borrowed platform module");
+        }
+        JBro::WindowHandle OpenPlatformWindow(const JBro::WindowDesc&) override
+        {
+            open = true;
+            closeRequested = false;
+            return {1};
+        }
+        void ClosePlatformWindow(JBro::WindowHandle) override
+        {
+            Check(module->destroyDeviceCount == module->createDeviceCount,
+                "device must be destroyed before its native surface");
+            Check(module->device.waitIdleCount == module->destroyDeviceCount,
+                "shutdown must drain GPU work before closing the window");
+            open = false;
+            ++closeCount;
+        }
+        JBro::SurfaceHandle CreateSurface(JBro::WindowHandle window) override
+        {
+            return {window.value};
+        }
+        void PumpEvents() override
+        {
+            ++pumpCount;
+        }
+        bool ShouldClose(JBro::WindowHandle) const override
+        {
+            return closeRequested;
+        }
+        bool GetWindowState(JBro::WindowHandle, JBro::WindowState& result) const override
+        {
+            result = state;
+            return open;
+        }
+        JBro::DynamicLibrary LoadDynamicLibrary(const char*) override
+        {
+            return {};
+        }
+        void* GetSymbol(JBro::DynamicLibrary, const char*) override
+        {
+            return nullptr;
+        }
+        void UnloadDynamicLibrary(JBro::DynamicLibrary) override
+        {
+        }
+        FakeModule* module = nullptr;
+        JBro::WindowState state{320, 180, false};
+        bool open = false;
+        bool closeRequested = false;
+        int pumpCount = 0;
+        int closeCount = 0;
+    };
+
+    class HostFramework final : public JBro::IFramework
+    {
+    public:
+        bool Initialize(const JBro::FrameworkContext& value) override
+        {
+            context = value;
+            Check(value.renderer != nullptr && value.renderer->IsInitialized(), "GPU must precede framework init");
+            Check(value.assets != nullptr, "framework must receive the existing asset service");
+            return initializeSucceeds;
+        }
+        void Update(float) override
+        {
+            ++updates;
+            if (exitDuringUpdate)
+            {
+                engine->RequestExit();
+            }
+            if (throwDuringUpdate)
+            {
+                throw std::runtime_error("expected update failure");
+            }
+        }
+        bool Render() override
+        {
+            ++renders;
+            return renderSucceeds;
+        }
+        void Shutdown() override
+        {
+            Check(platform->open && context.renderer->IsInitialized(), "framework must release while window and GPU live");
+            ++shutdowns;
+            context = {};
+        }
+        HostPlatform* platform = nullptr;
+        JBro::EngineInstance* engine = nullptr;
+        JBro::FrameworkContext context;
+        int updates = 0;
+        int renders = 0;
+        int shutdowns = 0;
+        bool initializeSucceeds = true;
+        bool renderSucceeds = true;
+        bool exitDuringUpdate = false;
+        bool throwDuringUpdate = false;
+    };
+
+    void TestEngineHostLifecycle()
+    {
+        FakeModule module;
+        HostPlatform platform;
+        platform.module = &module;
+        HostFramework framework;
+        framework.platform = &platform;
+        JBro::EngineInstance engine;
+        framework.engine = &engine;
+        JBro::EngineConfig config;
+        config.window.visible = false;
+        config.fixedDeltaTime = 0.02f;
+        Check(engine.Initialize(config, platform, module, framework), "host must initialize");
+        Check(framework.context.fixedDeltaTime == 0.02f, "host must forward fixed-step policy");
+        Check(false == engine.Initialize(config, platform, module, framework), "double init must reject without teardown");
+        for (int frame = 0; frame < 3; ++frame)
+        {
+#if defined(_MSC_VER) && defined(_DEBUG)
+            FrameAllocationProbe probe;
+#endif
+            Check(engine.Tick(0.016f), "normal host tick must continue");
+#if defined(_MSC_VER) && defined(_DEBUG)
+            Check(frameAllocations == 0, "normal host path must not allocate");
+#endif
+        }
+        Check(module.device.resizeSwapchainCount == 0 && module.device.waitIdleCount == 0,
+            "unchanged surface must neither resize nor idle the GPU");
+        platform.state = {640, 360, true};
+        Check(engine.Tick(0.016f) && framework.updates == 4 && framework.renders == 3,
+            "minimization must retain simulation and skip rendering");
+        Check(module.device.beginFrameCount == 3 && module.device.resizeSwapchainCount == 0,
+            "minimized host must not acquire or resize");
+        platform.state = {0, 0, false};
+        Check(engine.Tick(0.016f) && framework.updates == 5 && framework.renders == 3,
+            "zero drawable area must also skip only rendering");
+        platform.state = {800, 600, false};
+        Check(engine.Tick(0.016f), "restored host must render");
+        Check(module.device.resizeSwapchainCount == 1 && module.device.resizedExtent.width == 800,
+            "restoration must resize once to the latest extent");
+        Check(engine.Tick(0.016f) && module.device.resizeSwapchainCount == 1, "same extent must not resize again");
+        module.device.beginStatus = JBro::FrameStatus::Skipped;
+        const auto renderCount = framework.renders;
+        Check(engine.Tick(0.016f) && framework.renders == renderCount, "unavailable backbuffer must skip submission");
+        platform.closeRequested = true;
+        const auto updateCount = framework.updates;
+        Check(false == engine.Tick(0.016f) && framework.updates == updateCount, "close must stop before another update");
+        Check(false == engine.IsRunning() && false == platform.open && framework.shutdowns == 1,
+            "close must tear down the host");
+        engine.Shutdown();
+        Check(platform.closeCount == 1 && framework.shutdowns == 1, "shutdown must be idempotent");
+
+        module.device.beginStatus = JBro::FrameStatus::Ready;
+        Check(engine.Initialize(config, platform, module, framework), "host must reopen after teardown");
+        framework.renderSucceeds = false;
+        Check(false == engine.Tick(0.016f), "failed submission must terminate the host");
+        Check(module.device.abortFrameCount == 1, "failed submission must abort before teardown");
+        framework.renderSucceeds = true;
+        framework.initializeSucceeds = false;
+        Check(false == engine.Initialize(config, platform, module, framework), "framework failure must roll back init");
+        Check(false == platform.open && framework.shutdowns == 3, "partial framework init must also release in order");
+        framework.initializeSucceeds = true;
+        Check(engine.Initialize(config, platform, module, framework), "host must reopen after init failure");
+        framework.exitDuringUpdate = true;
+        const auto beforeExitRender = framework.renders;
+        Check(false == engine.Tick(0.016f) && framework.renders == beforeExitRender,
+            "callback exit request must defer teardown until update returns and skip rendering");
+        framework.exitDuringUpdate = false;
+        Check(engine.Initialize(config, platform, module, framework), "host must reopen after requested exit");
+        framework.throwDuringUpdate = true;
+        bool caught = false;
+        try
+        {
+            engine.Tick(0.016f);
+        }
+        catch (const std::runtime_error&)
+        {
+            caught = true;
+        }
+        Check(caught && false == platform.open && false == engine.IsRunning(), "callback exception must clean up before propagating");
+        framework.throwDuringUpdate = false;
+        Check(engine.Initialize(config, platform, module, framework), "host must reopen for resize failure test");
+        module.device.resizeSucceeds = false;
+        platform.state.width = 900;
+        const auto beforeResize = module.device.beginFrameCount;
+        Check(false == engine.Tick(0.016f) && module.device.beginFrameCount == beforeResize && false == platform.open,
+            "resize failure must stop before acquiring a backbuffer");
+        module.device.resizeSucceeds = true;
+        Check(engine.Initialize(config, platform, module, framework), "host must reopen for device-loss test");
+        module.device.deviceStatus = JBro::FrameStatus::DeviceLost;
+        platform.state.minimized = true;
+        const auto beforeLoss = framework.updates;
+        Check(false == engine.Tick(0.016f) && framework.updates == beforeLoss && false == platform.open,
+            "device loss is fatal even while minimized");
+        module.device.deviceStatus = JBro::FrameStatus::Ready;
+        platform.state.minimized = false;
+        Check(engine.Initialize(config, platform, module, framework), "host must reopen for presentation failure test");
+        module.device.endStatus = JBro::FrameStatus::SurfaceLost;
+        Check(false == engine.Tick(0.016f) && false == platform.open, "presentation surface loss must shut down");
+        module.device.endStatus = JBro::FrameStatus::Ready;
+        Check(engine.Initialize(config, platform, module, framework), "host must reopen for acquire failure test");
+        module.device.beginStatus = JBro::FrameStatus::InvalidState;
+        const auto beforeAcquire = framework.renders;
+        Check(false == engine.Tick(0.016f) && framework.renders == beforeAcquire && false == platform.open,
+            "failed acquisition must not call framework rendering");
+        module.device.beginStatus = JBro::FrameStatus::Ready;
+        const auto beforeInvalidConfig = module.createDeviceCount;
+        config.fixedDeltaTime = 0.0f;
+        Check(false == engine.Initialize(config, platform, module, framework)
+            && module.createDeviceCount == beforeInvalidConfig, "invalid config must fail before native resource creation");
+    }
 
     void TestFrameworkSubmitsTransformedBatches()
     {
@@ -454,6 +677,7 @@ int RunRendererContractTests()
     TestHandlesRemainCompactValues();
     TestRendererCollectsBeforeRecording();
     TestFrameworkSubmitsTransformedBatches();
+    TestEngineHostLifecycle();
     std::cout << "Renderer contract tests passed.\n";
     return 0;
 }
