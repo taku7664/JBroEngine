@@ -507,6 +507,24 @@ Updates: 위 H9 중 Renderer 조립과 프레임 루프. Context/서비스/DLL �
 - PixelPerfect 정의는 사용자 확인이 필요하다. Shader Graph·후처리·에셋/Layer 합성은 이 변경 범위 밖이다.
 - 실제 최소화 OS 이벤트의 렌더 제출 측정, 화면 픽셀 정확성, 구 엔진 대비 성능 수치는 아직 검증하지 않았다.
 
+## 2026-09-09 후속: 프로세스와 프로젝트 수명 분리
+
+Updates: 2026-09-08 EngineInstance 수명 구현. `docs/ProjectRule.md` §6의 Process/Project 수명표에 맞춰
+프로젝트 닫기가 GPU와 창을 파괴하던 동작을 대체한다.
+
+- `Initialize(config, platform, rhi)`는 창과 Renderer/Device/Swapchain을 한 번 만들고 프로젝트 없이도 실행한다.
+- `OpenProject(framework)`가 프로젝트별 AssetManager와 Framework/Canvas를 초기화한다.
+- `CloseProject()`는 Framework/Canvas와 AssetManager만 정리한다. Renderer/Device/Swapchain/Window는 유지한다.
+- `Shutdown()` 또는 치명적 프레임 오류만 프로젝트 정리 후 Renderer `WaitIdle`과 창 파괴까지 수행한다.
+- 프로젝트가 없는 Tick은 이벤트와 치명적 GPU 상태를 확인하되 GPU 프레임을 열지 않고 `Skipped`로 계속한다.
+- Framework 초기화·Update·Render·Shutdown 콜백에서 프로젝트 닫기/프로세스 종료를 요청하면 콜백 반환 뒤 처리한다.
+- 가짜 RHI에서 프로젝트 전환 동안 Device 생성 1회, 파괴/WaitIdle/Swapchain 파괴 0회를 확인했다.
+  실패·예외 후에도 프로세스 자원을 재사용하며, 최종 프로세스 종료에서만 각각 1회 정리된다.
+- 실제 Windows+D3D12+Framework2D에서 프로젝트 객체 무효화, 같은 Renderer 주소 유지, 프로젝트 재개 후
+  스프라이트 포함 6프레임, 마지막 WM_CLOSE에서 GPU 정리 후 HWND 파괴를 확인했다.
+- Debug/Release x64 전체 Rebuild는 경고 0·오류 0이고 JBroTests가 통과했다.
+- Editor/GameHost 연결과 최소화/Skipped 중 실행 루프 대기 빈도는 아직 구현하지 않았다.
+
 ## 2026-09-08 후속: 호스트가 마지막 프레임 결과 조회
 
 Updates: 위 창·프레임 수명의 결과 전달. EditorApplication/GameHost 연결 완료를 뜻하지 않는다.
