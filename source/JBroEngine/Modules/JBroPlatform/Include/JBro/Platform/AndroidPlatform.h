@@ -14,6 +14,7 @@ namespace JBro
         SurfaceHandle CreateSurface(WindowHandle window) override;
         void PumpEvents() override;
         bool ShouldClose(WindowHandle window) const override;
+        bool GetWindowState(WindowHandle window, WindowState& state) const override;
         DynamicLibrary LoadDynamicLibrary(const char* utf8Path) override;
         void* GetSymbol(DynamicLibrary library, const char* name) override;
         void UnloadDynamicLibrary(DynamicLibrary library) override;

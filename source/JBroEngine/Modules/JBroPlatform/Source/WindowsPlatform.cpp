@@ -14,7 +14,8 @@ namespace JBro
         {
             if (message == WM_CLOSE)
             {
-                DestroyWindow(window);
+                // This slot belongs to our window class and only stores its close flag.
+                SetWindowLongPtrW(window, GWLP_USERDATA, 1);
                 return 0;
             }
 
@@ -101,6 +102,7 @@ namespace JBro
         m_instance = instance;
         m_windowClassAtom = atom;
         m_ownsWindowClass = atom != 0;
+        m_quitRequested = false;
         return true;
     }
 
@@ -199,6 +201,11 @@ namespace JBro
         MSG message = {};
         while (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE))
         {
+            if (message.message == WM_QUIT)
+            {
+                m_quitRequested = true;
+                continue;
+            }
             TranslateMessage(&message);
             DispatchMessageW(&message);
         }
@@ -207,7 +214,23 @@ namespace JBro
     bool WindowsPlatform::ShouldClose(WindowHandle window) const
     {
         HWND nativeWindow = reinterpret_cast<HWND>(window.value);
-        return nativeWindow == nullptr || false == IsWindow(nativeWindow);
+        return m_quitRequested || nativeWindow == nullptr || false == IsWindow(nativeWindow)
+            || GetWindowLongPtrW(nativeWindow, GWLP_USERDATA) != 0;
+    }
+
+    bool WindowsPlatform::GetWindowState(WindowHandle window, WindowState& state) const
+    {
+        state = {};
+        const auto nativeWindow = reinterpret_cast<HWND>(window.value);
+        RECT client = {};
+        if (nativeWindow == nullptr || GetClientRect(nativeWindow, &client) == FALSE)
+        {
+            return false;
+        }
+        state.width = static_cast<std::uint32_t>(client.right - client.left);
+        state.height = static_cast<std::uint32_t>(client.bottom - client.top);
+        state.minimized = IsIconic(nativeWindow) != FALSE;
+        return true;
     }
 
     DynamicLibrary WindowsPlatform::LoadDynamicLibrary(const char* utf8Path)

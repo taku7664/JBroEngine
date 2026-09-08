@@ -28,6 +28,14 @@ namespace JBro
         void* opaque = nullptr;
     };
 
+    struct WindowState
+    {
+        // Client area in surface pixels, not the outer window rectangle.
+        std::uint32_t width = 0;
+        std::uint32_t height = 0;
+        bool minimized = false;
+    };
+
     class IPlatform : public IModule
     {
     public:
@@ -35,7 +43,10 @@ namespace JBro
         virtual void ClosePlatformWindow(WindowHandle window) = 0;
         virtual SurfaceHandle CreateSurface(WindowHandle window) = 0;
         virtual void PumpEvents() = 0;
+        // A close request does not destroy the surface. The host drains GPU work first.
         virtual bool ShouldClose(WindowHandle window) const = 0;
+        // Main-thread only. False means unavailable/invalid; zero extent cannot render.
+        virtual bool GetWindowState(WindowHandle window, WindowState& state) const = 0;
         virtual DynamicLibrary LoadDynamicLibrary(const char* utf8Path) = 0;
         virtual void* GetSymbol(DynamicLibrary library, const char* name) = 0;
         virtual void UnloadDynamicLibrary(DynamicLibrary library) = 0;

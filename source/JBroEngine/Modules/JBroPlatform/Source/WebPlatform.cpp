@@ -39,6 +39,12 @@ namespace JBro
         return {};
     }
 
+    bool WebPlatform::GetWindowState(WindowHandle, WindowState& state) const
+    {
+        state = {};
+        return false;
+    }
+
     void* WebPlatform::GetSymbol(DynamicLibrary, const char*)
     {
         return nullptr;

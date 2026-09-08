@@ -39,6 +39,12 @@ namespace JBro
         return {};
     }
 
+    bool AndroidPlatform::GetWindowState(WindowHandle, WindowState& state) const
+    {
+        state = {};
+        return false;
+    }
+
     void* AndroidPlatform::GetSymbol(DynamicLibrary, const char*)
     {
         return nullptr;
