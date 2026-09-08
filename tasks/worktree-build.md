@@ -130,3 +130,10 @@
 
 - 자체 검증 통과 후 main 에 병합.
 - 병합 직후 다른 워크트리들은 `git rebase main` 필수 (공통 props 가 바뀌므로).
+
+## 2026-09-08 현재 코드 기준 재검증
+
+- 단일 `main`에서 Runtime/Framework 구현이 추가된 뒤 `Debug_Game2D`, `Debug_Game3D`, `Release_Game2D`, `Release_Game3D` 구성을 다시 빌드했다. 네 구성 모두 경고 0개·오류 0개이며 생성된 `JBroGameHost.exe`가 종료 코드 0으로 끝났다. 현재 main 함수는 선택된 Framework의 생성·파괴만 수행하므로, 실제 게임 루프나 화면 출력의 성공을 뜻하지 않는다.
+- 네 구성 각각의 `Build/Intermediate/x64/<구성>/JBroGameHost/JBroGameHost.tlog/link.command.1.tlog`에서 선택된 Framework 라이브러리가 있고 반대 Framework 라이브러리가 없음을 확인했다. 기존 검증 예시의 `dumpbin /dependents`는 DLL 의존성 조회이므로 정적 라이브러리 배타성 증거로 사용하지 않았다.
+- 실제 `JBro.Script.props`를 상속한 임시 프로젝트로 양방향 포함 경계를 검증했다. 2D/3D 모두 자기 Framework 헤더 포함은 성공했고, 반대 Framework 헤더 포함은 해당 헤더를 찾지 못하는 C1083으로 실패했다. 검증용 소스와 프로젝트는 확인 후 제거했다.
+- `EngineInstance` 실행 연결, 사용자 프로젝트 템플릿, `ScriptAPI.h`와 서비스 공개 범위 검증, DLL 재로드는 이 검증으로 완료 처리하지 않는다. 플랫폼 창 종료·크기 변경 계약은 사용자 확인 대기다.
