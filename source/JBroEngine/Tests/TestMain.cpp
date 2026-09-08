@@ -9,6 +9,7 @@ int RunReferenceSafetyTests();
 int RunFramework2DSystemTests();
 int RunSystemSchedulerTests();
 int RunGameScriptTests();
+int RunEditorApplicationTests();
 
 int main()
 {
@@ -43,6 +44,10 @@ int main()
             return 1;
         }
         if (RunGameScriptTests() != 0)
+        {
+            return 1;
+        }
+        if (RunEditorApplicationTests() != 0)
         {
             return 1;
         }

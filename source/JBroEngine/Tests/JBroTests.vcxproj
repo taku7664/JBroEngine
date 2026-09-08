@@ -25,7 +25,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroRHI\Include;$(JBroModulesDir)JBroD3D12RHI\Include;$(JBroModulesDir)JBroGraphics\Include;$(JBroModulesDir)JBroPlatform\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroFramework2D\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroRHI\Include;$(JBroModulesDir)JBroD3D12RHI\Include;$(JBroModulesDir)JBroGraphics\Include;$(JBroModulesDir)JBroPlatform\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroFramework2D\Include;$(JBroModulesDir)JBroFramework3D\Include;$(JBroModulesDir)JBroEditor\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -59,6 +59,12 @@
     </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroFramework2D\JBroFramework2D.vcxproj">
       <Project>{1a000008-0000-4000-8000-000000000f2d}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroFramework3D\JBroFramework3D.vcxproj">
+      <Project>{1a000009-0000-4000-8000-000000000f3d}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroEditor\JBroEditor.vcxproj">
+      <Project>{1a00000a-0000-4000-8000-0000000ed170}</Project>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
