@@ -559,3 +559,19 @@ Updates: H1·H3·H7의 독립 기반 구현. 서비스 저장 방식과 개별 �
 - `ProjectRule.md` §8의 값 서비스·시스템 인터페이스 포인터 MUST와 이 문서 H1의 서비스 포인터·구체
   시스템 포인터 예시가 충돌하므로 두 Context의 구체 슬롯은 사용자 결정 전까지 추가하지 않았다.
 - Debug/Release x64 전체 Rebuild는 경고 0·오류 0이며 양쪽 JBroTests 전체가 통과했다.
+
+## 2026-09-09 후속: GameHost 실행 루프와 이벤트 인지형 대기
+
+Updates: 위 `EngineInstance` 수명 구현과 마지막 프레임 상태 조회. 서비스 Context의 구체 슬롯 완료를 뜻하지 않는다.
+
+- GameHost가 WindowsPlatform → D3D12RHIModule → EngineInstance → 선택된 Framework를 조립하고
+  `steady_clock`의 외부 `deltaTime`으로 Tick을 반복한다.
+- Framework는 팩토리 힙 할당 대신 GameHost 스택 수명으로 두며, EngineInstance가 먼저 정리된 뒤
+  RHI와 Platform을 역순으로 종료한다.
+- 마지막 `FrameStatus`가 `Skipped`일 때만 `IPlatform::WaitForEvents(16)`을 호출한다.
+  Windows 구현은 `MsgWaitForMultipleObjectsEx`와 `MWMO_INPUTAVAILABLE`을 사용해 큐에 이미 들어온 메시지와
+  새 OS 메시지 양쪽에서 즉시 깨어난다. 정상 `Ready` 프레임에는 대기가 없다.
+- Android는 네이티브 루퍼, Web은 브라우저 외부 이벤트 루프가 아직 미구현이므로 현재 대기 훅은 조기 반환한다.
+- 대기 계약 테스트는 큐에 넣은 창 메시지가 1초 제한을 실제로 기다리지 않고 깨우는지 확인한다.
+  Debug/Release x64 전체 Rebuild와 양쪽 JBroTests가 경고 0으로 통과했고,
+  Debug Game2D 실행 파일은 실제 엔진 창의 WM_CLOSE를 받아 종료 코드 0으로 정리됐다.
