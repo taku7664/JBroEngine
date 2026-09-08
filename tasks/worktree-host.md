@@ -506,3 +506,15 @@ Updates: 위 H9 중 Renderer 조립과 프레임 루프. Context/서비스/DLL �
 - H1~H7의 Context/서비스/스크립트 DLL/프렐류드, ScriptSystem 자동 훅 호출은 별도 단계다.
 - PixelPerfect 정의는 사용자 확인이 필요하다. Shader Graph·후처리·에셋/Layer 합성은 이 변경 범위 밖이다.
 - 실제 최소화 OS 이벤트의 렌더 제출 측정, 화면 픽셀 정확성, 구 엔진 대비 성능 수치는 아직 검증하지 않았다.
+
+## 2026-09-08 후속: 호스트가 마지막 프레임 결과 조회
+
+Updates: 위 창·프레임 수명의 결과 전달. EditorApplication/GameHost 연결 완료를 뜻하지 않는다.
+
+- `EngineInstance::GetLastFrameStatus()`로 기존 `FrameStatus`를 조회하며, 리소스 정리 후에도 마지막 값을 보존한다.
+  호스트는 정상 종료 요청(`Ready`)과 렌더링 생략(`Skipped`)을 `DeviceLost`·`SurfaceLost`·`InvalidState` 실패와 구분할 수 있다.
+- 새 상태 조회 테스트가 getter 구현 전 실패하고 구현 후 통과하는 것을 확인했다.
+  Debug/Release x64 전체 Rebuild는 각각 경고 0·오류 0이며, 양쪽 JBroTests 전체가 통과했다.
+- EditorApplication과 GameHost는 아직 EngineInstance 루프에 연결되지 않았다.
+  최소화·렌더링 생략 중 호스트 루프를 쉬지 않고 반복하지 않도록 약 60Hz로 제한할지는 사용자에게 질문한 상태다.
+  사용자 답변이 아직 없어 대기 정책은 구현하지 않았다.
