@@ -32,10 +32,10 @@ namespace
             "service context must begin with the current ABI version");
 
         JBro::SystemContext systems;
-        systems.Script = reinterpret_cast<JBro::System::ScriptSystem*>(0x1234);
+        systems.AbiVersion = JBro::SystemContextAbiVersion + 1;
         JBro::BindSystemContext(systems);
-        Check(JBro::GetSystemContext().Script == systems.Script,
-            "system context binding must copy the host slots");
+        Check(JBro::GetSystemContext().AbiVersion == systems.AbiVersion,
+            "system context binding must copy the supplied ABI stamp");
 
         JBro::ServiceContext services;
         services.AbiVersion = JBro::ServiceContextAbiVersion + 1;

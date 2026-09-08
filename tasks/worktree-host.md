@@ -550,12 +550,12 @@ Updates: 위 창·프레임 수명의 결과 전달. EditorApplication/GameHost 
 Updates: H1·H3·H7의 독립 기반 구현. 서비스 저장 방식과 개별 서비스 API 완료를 뜻하지 않는다.
 
 - 기존 통합 `Context.h`를 제거하고 `EngineContext.h`, `SystemContext.h`, `ServiceContext.h`로 분리했다.
-- SystemContext와 ServiceContext의 첫 필드는 각각 ABI 버전이며 standard-layout·trivially-copyable과
+- SystemContext와 ServiceContext는 결정 전까지 ABI 버전 필드만 가지며 standard-layout·trivially-copyable과
   첫 필드 오프셋 0을 컴파일 시점에 검증한다.
 - `BindSystemContext`/`BindServiceContext`는 로드 시 받은 값을 모듈 로컬 사본에 복사하고,
   `GetSystemContext`/`GetServiceContext`로 같은 사본을 조회한다.
 - `ScriptAPI.h`는 값 타입, Ref, GameObject, GameObjectHandle, ServiceContext, `JBRO_SCRIPT`만 공개한다.
   재귀 include 그래프 26개에서 EngineContext·SystemContext·Framework2D/3D 유입이 0개임을 확인했다.
-- `ProjectRule.md` §8의 값 서비스 MUST와 이 문서 H1의 포인터 예시가 충돌하므로 ServiceContext의
-  구체 서비스 슬롯은 사용자 결정 전까지 추가하지 않았다.
+- `ProjectRule.md` §8의 값 서비스·시스템 인터페이스 포인터 MUST와 이 문서 H1의 서비스 포인터·구체
+  시스템 포인터 예시가 충돌하므로 두 Context의 구체 슬롯은 사용자 결정 전까지 추가하지 않았다.
 - Debug/Release x64 전체 Rebuild는 경고 0·오류 0이며 양쪽 JBroTests 전체가 통과했다.
