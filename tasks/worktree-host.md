@@ -422,6 +422,14 @@ bool EngineInstance::Initialize(const EngineConfig& config, IPlatform& platform,
 2. `EditorApplication::Tick` — 프레임 시작 → 이벤트 처리 → `EngineInstance::Tick(dt)` → 프레임 끝.
 3. UI 는 스텁 (Dear ImGui 통합 등은 별도 작업).
 
+2026-09-09 구현 결과:
+
+- `Initialize`가 WindowsPlatform → D3D12RHIModule → EngineInstance를 한 번 생성한다.
+- `OpenProject`/`CloseProject`는 Framework만 교체하며 프로세스의 창·GPU 자원을 유지한다.
+- `Tick(dt)`는 외부 호출자가 제공하는 시간으로 EngineInstance를 한 번 구동하고 마지막 FrameStatus를 전달한다.
+- 자체 `Run()`과 최소화·Skipped 중 대기 빈도는 호스트 정책이므로 포함하지 않았다.
+- 현재 실제 RHI 구현은 D3D12뿐이므로 다른 GraphicsApi는 자원을 만들기 전에 거부한다.
+
 ## 검증
 
 - [ ] Debug / Release x64 빌드 통과
@@ -502,7 +510,7 @@ Updates: 위 H9 중 Renderer 조립과 프레임 루프. Context/서비스/DLL �
 
 ### 남은 작업
 
-- EditorApplication/GameHost 진입점은 아직 EngineInstance 루프를 호출하지 않는다.
+- EditorApplication은 외부 `Tick(dt)` 경로로 연결했다. GameHost 진입점은 아직 EngineInstance 루프를 호출하지 않는다.
 - H1~H7의 Context/서비스/스크립트 DLL/프렐류드, ScriptSystem 자동 훅 호출은 별도 단계다.
 - PixelPerfect 정의는 사용자 확인이 필요하다. Shader Graph·후처리·에셋/Layer 합성은 이 변경 범위 밖이다.
 - 실제 최소화 OS 이벤트의 렌더 제출 측정, 화면 픽셀 정확성, 구 엔진 대비 성능 수치는 아직 검증하지 않았다.
@@ -523,7 +531,7 @@ Updates: 2026-09-08 EngineInstance 수명 구현. `docs/ProjectRule.md` §6의 P
 - 실제 Windows+D3D12+Framework2D에서 프로젝트 객체 무효화, 같은 Renderer 주소 유지, 프로젝트 재개 후
   스프라이트 포함 6프레임, 마지막 WM_CLOSE에서 GPU 정리 후 HWND 파괴를 확인했다.
 - Debug/Release x64 전체 Rebuild는 경고 0·오류 0이고 JBroTests가 통과했다.
-- Editor/GameHost 연결과 최소화/Skipped 중 실행 루프 대기 빈도는 아직 구현하지 않았다.
+- GameHost 연결과 최소화/Skipped 중 실행 루프 대기 빈도는 아직 구현하지 않았다.
 
 ## 2026-09-08 후속: 호스트가 마지막 프레임 결과 조회
 
@@ -533,6 +541,6 @@ Updates: 위 창·프레임 수명의 결과 전달. EditorApplication/GameHost 
   호스트는 정상 종료 요청(`Ready`)과 렌더링 생략(`Skipped`)을 `DeviceLost`·`SurfaceLost`·`InvalidState` 실패와 구분할 수 있다.
 - 새 상태 조회 테스트가 getter 구현 전 실패하고 구현 후 통과하는 것을 확인했다.
   Debug/Release x64 전체 Rebuild는 각각 경고 0·오류 0이며, 양쪽 JBroTests 전체가 통과했다.
-- EditorApplication과 GameHost는 아직 EngineInstance 루프에 연결되지 않았다.
+- EditorApplication은 외부 `Tick(dt)`로 연결했다. GameHost는 아직 EngineInstance 루프에 연결되지 않았다.
   최소화·렌더링 생략 중 호스트 루프를 쉬지 않고 반복하지 않도록 약 60Hz로 제한할지는 사용자에게 질문한 상태다.
   사용자 답변이 아직 없어 대기 정책은 구현하지 않았다.
