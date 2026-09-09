@@ -432,14 +432,14 @@ bool EngineInstance::Initialize(const EngineConfig& config, IPlatform& platform,
 
 ## 검증
 
-- [ ] Debug / Release x64 빌드 통과
-- [ ] `JBroTests` 통과
-- [ ] 실제 스크립트 스텁 DLL 로 Load/Unload/Reload 왕복 성공 (한글 경로 포함)
+- [x] Debug / Release x64 빌드 통과
+- [x] `JBroTests` 통과
+- [x] 실제 스크립트 스텁 DLL 로 Load/Unload/Reload 왕복 성공 (한글 경로 포함)
 - [ ] H6 실측 통과 (재로드 후 새 로그 문자열 확인)
 - [ ] 프렐류드 자립: 사용자가 `#include <JBro/ScriptAPI.h>` 만 한 파일이 컴파일됨
 - [ ] `SystemContext` 정의는 프렐류드 include 트리에 없음 (`ScriptAPI.h` include 후 사용자 TU 에서 `System::` 이름 못 씀)
 - [ ] `EngineContext` 정의는 프렐류드 include 트리에 없음 (호스트 전용)
-- [ ] `AbiVersion` 필드 불일치 시 로드 거부
+- [x] `AbiVersion` 필드 불일치 시 로드 거부
 
 ## 다른 워크트리와의 인터페이스
 
@@ -612,3 +612,22 @@ Updates: 위 보류 사항 중 사용자가 별도 2D 서비스 접근점을 승
 - 2D 서비스 Context 단독 헤더 컴파일은 통과했고 내부 SystemContext/시스템 타입 접근 및 3D 전용 타깃의
   Framework2D 서비스 include는 음성 컴파일 검사에서 실패했다.
 - 실제 스크립트 DLL 내부 사본 바인딩·ABI 거부·핫 리로드 왕복은 ScriptDLLLoader 구현 단계에 남는다.
+
+## 2026-09-09 후속: 버전형 스크립트 DLL ABI와 로더
+
+Updates: H4의 `JBroScriptModule_Register` 단일 등록 함수 설명. 사용자가 D-37의 단일 버전형 C 진입점과
+Framework 확장 Context 블록 방식을 승인했다.
+
+- `JBroScriptModule_GetApi(hostAbiVersion, hostApiSize)` 하나가 표준 C 진입점이다. 반환되는 POD API는
+  모듈 ABI·구조체 크기, 필수 확장 Context 목록, `Load`/`Unload` 수명 훅만 가진다.
+- Runtime 로더는 공통 `SystemContext`/`ServiceContext`와 불투명 확장 블록을 전달할 뿐 Framework2D를
+  include하지 않는다. Framework2D가 안정 TypeId, ABI·크기 요구와 블록 생성·해석을 소유한다.
+  이 ABI 어댑터는 `Framework2D/Internal/ScriptModuleContext.h`에 격리해 일반 2D 서비스 공개 헤더가
+  Runtime의 내부 `SystemContext`와 DLL 로더 계약을 노출하지 않게 한다.
+- 로더는 공통 Context, 모든 확장 블록의 기본 형식과 중복 TypeId, 모듈 API, 필수 Context 버전·크기를
+  모듈 `Load` 호출 전에 검사한다. 모듈 `Load` 실패 시 `Unload` 롤백 후 DLL을 해제한다.
+- 정상 재로드 순서는 모듈 `Unload` → 운영체제 DLL 해제 → DLL 로드 → ABI 검증 → 모듈 `Load`다.
+  재로드가 실패해도 이전 모듈은 이미 사라졌으므로 세대를 증가시킨다. 프레임 경로에는 새 호출이 없다.
+- 실제 별도 DLL 테스트 타깃을 정적 Runtime·Framework2D와 링크했다. 호스트와 DLL의 Context 전역이
+  서로 다른 사본임을 확인하고, 한글 UTF-8 경로에서 Load/Unload/동일 바이너리 Reload를 왕복했다.
+- H5의 리플렉션 기반 `Ref` 필드 순회와 H6의 새 바이너리 교체 후 스크립트 로그 변화 실측은 아직 남는다.

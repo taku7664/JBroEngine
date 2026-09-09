@@ -36,6 +36,10 @@
     <ClCompile Include="*.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="ScriptModuleProbe\JBroScriptModuleProbe.vcxproj">
+      <Project>{1a00000d-0000-4000-8000-000000005c42}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroCore\JBroCore.vcxproj">
       <Project>{1a000001-0000-4000-8000-00000000c0de}</Project>
     </ProjectReference>

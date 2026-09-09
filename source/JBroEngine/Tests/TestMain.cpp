@@ -12,6 +12,7 @@ int RunGameScriptTests();
 int RunEditorApplicationTests();
 int RunContextBoundaryTests();
 int RunScriptApiPreludeTests();
+int RunScriptDLLLoaderTests();
 
 int main()
 {
@@ -58,6 +59,10 @@ int main()
             return 1;
         }
         if (RunScriptApiPreludeTests() != 0)
+        {
+            return 1;
+        }
+        if (RunScriptDLLLoaderTests() != 0)
         {
             return 1;
         }

@@ -256,6 +256,27 @@
   함수가 절반만 실행되어(죽은 적이 점수를 주는 식) 무시보다 나쁜 결과가 된다.
 - 핸들을 해석해 얻은 raw pointer 는 장기 보관하지 않는다. 검증 이후 짧은 스코프에서만 쓴다. (MUST)
 
+### 6.2 스크립트 DLL ABI와 핫 리로드 수명
+
+- 게임 스크립트 DLL은 `JBroScriptModule_GetApi`라는 단일 C 심볼만 필수 진입점으로 공개한다. (MUST)
+  호스트와 DLL 사이에 C++ 가상 객체를 생성하거나 넘기지 않는다. (MUST)
+- `ScriptModuleApi`와 모든 Context 전달 구조체는 standard-layout·trivially-copyable POD여야 한다. (MUST)
+  호스트는 모듈 코드를 활성화하기 전에 API ABI 버전, 구조체 크기, 함수 포인터와 필수 Context 요구를
+  전부 검사해야 한다. (MUST)
+- 공통 `SystemContext`와 `ServiceContext`는 고정 입력으로 전달한다. Framework별 Context는
+  `TypeId`, `AbiVersion`, `Size`, `Data`로 구성된 확장 블록으로 전달한다. (MUST)
+  각 Framework가 자기 블록의 안정 TypeId와 버전·크기 계약을 소유하며 Runtime은 그 구체 타입을
+  참조하지 않는다. (MUST)
+- Context 블록의 `Data`는 모듈 `Load` 호출이 끝날 때까지만 빌린다. DLL은 필요한 값을 자기 정적 링크
+  사본에 복사해야 하며 포인터 자체를 저장하거나 그 메모리의 소유권을 가져가면 안 된다. (MUST)
+- `Load`와 `Unload` 훅은 예외를 DLL 경계 밖으로 내보내면 안 된다. (MUST)
+  `Load`가 실패하면 호스트는 같은 모듈의 `Unload`를 롤백 훅으로 호출한 뒤 라이브러리를 해제한다. (MUST)
+  정상 언로드도 스크립트 인스턴스와 모듈 Context를 먼저 정리한 뒤 운영체제 DLL 핸들을 해제한다. (MUST)
+- 모듈 API 함수 포인터는 로드·재로드·언로드 때만 호출한다. 매 프레임 시스템·서비스 호출을 이
+  함수 테이블로 우회하지 않는다. (MUST)
+- 모듈 세대는 활성 모듈의 정체가 바뀌거나 사라질 때 증가한다. 재로드가 실패해도 이전 DLL이 이미
+  내려갔다면 세대를 증가시켜 이전 스크립트 슬롯 캐시가 다시 사용되지 않게 한다. (MUST)
+
 ## 7. 엔진 서비스
 
 - 2D 게임의 최상위 실행 단위는 `Canvas`이며, `Canvas`가 오브젝트 풀과 타입별 컴포넌트 풀,
@@ -454,6 +475,8 @@
   `SystemContext.h` 는 프렐류드가 include 하지 않는다. 서비스 `.cpp` 만 include 한다.
   `SystemContext` 도 DLL 경계를 넘으므로 POD 여야 하고, 그 안의 시스템은 인터페이스 포인터다.
   바인딩은 `ServiceContext` 와 같은 시점에 하고 핫 리로드 때 함께 재바인딩한다.
+  Framework별 DLL Context 변환기는 해당 Framework의 `Internal` 경계에 두며 일반 서비스 공개 헤더가
+  `SystemContext` 또는 DLL 로더 계약을 끌어오지 않게 한다. (MUST)
 - **하나의 타입이 두 역할을 겸하면 분리한다.** (MUST)
   예: 물리는 매 프레임 강체를 순회하는 `System::Physics2DSystem` 과
   스크립트가 부르는 `Service::Physics2DService`(Raycast, Overlap)로 나눈다.

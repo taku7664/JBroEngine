@@ -221,7 +221,7 @@ Renderer 안에 가둔다.
 - [ ] `dumpbin /dependents JBroPlatform.lib` 에 `JBroRHI` 가 없어야 (역방향 없음)
 - [ ] `JBroTests` 통과 (Platform · Renderer 스켈레톤이 인스턴스화만 되어도 통과)
 - [ ] D3 개명 후 `CreateWindow` / `DestroyWindow` grep 하면 매크로 아닌 사용처 0 건
-- [ ] `IPlatform::LoadDynamicLibrary` 로 실제 dll 로드/언로드 왕복 테스트 (한글 경로 포함)
+- [x] `IPlatform::LoadDynamicLibrary` 로 실제 dll 로드/언로드 왕복 테스트 (한글 경로 포함)
 
 ## 다른 워크트리와의 인터페이스
 
