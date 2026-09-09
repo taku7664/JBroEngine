@@ -594,3 +594,21 @@ Updates: D-24의 일부 구현. 서비스 접근 경로와 호스트 자동 연�
   모듈 분리가 별도 공개 접근 Context까지 승인한다는 가정은 채택하지 않았다.
 - D-13·D-27·D-34, Context ABI·필드, ScriptAPI, 호스트 자동 바인딩과 DLL 로더는 변경하지 않았다.
   실제 게임의 서비스 자동 연결과 DLL 재로드는 검증하지 않았다.
+
+## 2026-09-09 후속: Framework2D 서비스 Context 연결
+
+Updates: 위 보류 사항 중 사용자가 별도 2D 서비스 접근점을 승인했다. D-36으로 결정 기록을 잇는다.
+
+- `Framework2DServiceContext`는 ABI 버전과 값 `Physics2DService`를 보유하며
+  `GetFramework2DServices().Physics2D`를 2D 스크립트 접근점으로 제공한다.
+- `EngineInstance`는 Framework 초기화 성공 뒤 `BindScriptContexts`가 성공해야 프로젝트를 연다.
+  성공한 바인딩만 프로젝트 종료 때 정확히 한 번 해제하며, 해제는 Framework/Canvas 파괴보다 먼저다.
+- Framework2D는 자신의 Canvas가 소유한 `Physics2DSystem`을 프로젝트 열기 때 한 번 찾아
+  `SystemContext`의 좁은 인터페이스 포인터로 연결한다. 일반 프레임에 탐색이나 할당을 추가하지 않는다.
+- 호스트가 열지 않은 독립 Framework2D 미리보기는 바인딩하지 않는다. 직접 종료 시에도 자기 시스템이
+  현재 바인딩일 때만 해제하므로 활성 프로젝트의 연결을 지우지 않는다.
+- 바인딩 실패 롤백, 재열기, 종료 전 해제, 유지한 서비스 참조의 새 프로젝트 추종과 실제 D3D12 프로젝트
+  왕복을 테스트했다. Debug/Release x64 전체 Rebuild와 양쪽 JBroTests가 통과했다.
+- 2D 서비스 Context 단독 헤더 컴파일은 통과했고 내부 SystemContext/시스템 타입 접근 및 3D 전용 타깃의
+  Framework2D 서비스 include는 음성 컴파일 검사에서 실패했다.
+- 실제 스크립트 DLL 내부 사본 바인딩·ABI 거부·핫 리로드 왕복은 ScriptDLLLoader 구현 단계에 남는다.

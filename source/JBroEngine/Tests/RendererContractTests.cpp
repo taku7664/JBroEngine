@@ -371,6 +371,21 @@ namespace
             }
             return initializeSucceeds;
         }
+        bool BindScriptContexts() noexcept override
+        {
+            ++contextBinds;
+            contextsBound = bindContextsSucceeds;
+            shutdownsAtBind = shutdowns;
+            return bindContextsSucceeds;
+        }
+        void UnbindScriptContexts() noexcept override
+        {
+            Check(contextsBound, "script contexts must only unbind after a successful bind");
+            Check(shutdowns == shutdownsAtBind,
+                "script contexts must unbind before their framework shutdown");
+            contextsBound = false;
+            ++contextUnbinds;
+        }
         void Update(float) override
         {
             ++updates;
@@ -400,6 +415,7 @@ namespace
         void Shutdown() override
         {
             Check(platform->open && context.renderer->IsInitialized(), "framework must release while window and GPU live");
+            Check(false == contextsBound, "framework shutdown must not retain bound script contexts");
             ++shutdowns;
             context = {};
             if (exitDuringShutdown)
@@ -413,6 +429,11 @@ namespace
         int updates = 0;
         int renders = 0;
         int shutdowns = 0;
+        int contextBinds = 0;
+        int contextUnbinds = 0;
+        int shutdownsAtBind = 0;
+        bool contextsBound = false;
+        bool bindContextsSucceeds = true;
         bool initializeSucceeds = true;
         bool renderSucceeds = true;
         bool exitDuringUpdate = false;
@@ -472,6 +493,17 @@ namespace
         Check(engine.IsRunning() && engine.GetFramework() == nullptr && engine.GetAssetManager() == nullptr,
             "failed project open must roll back only project resources");
         second.initializeSucceeds = true;
+        second.bindContextsSucceeds = false;
+        const auto bindsBeforeFailure = second.contextBinds;
+        const auto unbindsBeforeFailure = second.contextUnbinds;
+        const auto shutdownsBeforeBindFailure = second.shutdowns;
+        Check(false == engine.OpenProject(second), "script context binding failure must reject the project");
+        Check(second.contextBinds == bindsBeforeFailure + 1
+            && second.contextUnbinds == unbindsBeforeFailure
+            && second.shutdowns == shutdownsBeforeBindFailure + 1
+            && false == second.contextsBound,
+            "failed script context binding must roll back without an unmatched unbind");
+        second.bindContextsSucceeds = true;
         second.throwDuringInitialize = true;
         bool caught = false;
         try

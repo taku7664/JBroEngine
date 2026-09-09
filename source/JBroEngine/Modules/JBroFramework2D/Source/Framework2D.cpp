@@ -1,6 +1,8 @@
 ﻿#include <JBro/Framework2D/Framework2D.h>
 
 #include <JBro/Graphics/Renderer.h>
+#include <JBro/Framework2D/ServiceContext.h>
+#include <JBro/Runtime/SystemContext.h>
 #include "Rendering/RenderBridge2D.h"
 
 #include <cmath>
@@ -53,6 +55,40 @@ namespace JBro
         return true;
     }
 
+    bool Framework2D::BindScriptContexts() noexcept
+    {
+        if (false == m_initialized)
+        {
+            return false;
+        }
+        auto* physics = m_canvas->GetSystems().FindSystem<System::Physics2DSystem>();
+        if (physics == nullptr)
+        {
+            return false;
+        }
+        auto systems = GetSystemContext();
+        systems.Physics2D = physics;
+        BindSystemContext(systems);
+        BindFramework2DServiceContext({});
+        return true;
+    }
+
+    void Framework2D::UnbindScriptContexts() noexcept
+    {
+        if (m_canvas.Get() == nullptr)
+        {
+            return;
+        }
+        auto systems = GetSystemContext();
+        auto* physics = m_canvas->GetSystems().FindSystem<System::Physics2DSystem>();
+        if (physics != nullptr && systems.Physics2D == physics)
+        {
+            systems.Physics2D = nullptr;
+            BindSystemContext(systems);
+            BindFramework2DServiceContext({});
+        }
+    }
+
     void Framework2D::Update(float deltaTime)
     {
         if (false == m_initialized)
@@ -81,6 +117,7 @@ namespace JBro
 
     void Framework2D::Shutdown()
     {
+        UnbindScriptContexts();
         // Canvas shuts down its systems before objects/components and render storage disappear.
         m_canvas.Reset();
         m_renderWorld = {};

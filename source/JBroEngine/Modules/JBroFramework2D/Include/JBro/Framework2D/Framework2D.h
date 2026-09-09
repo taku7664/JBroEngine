@@ -23,6 +23,8 @@ namespace JBro
     public:
         ~Framework2D() override;
         bool Initialize(const FrameworkContext& context) override;
+        bool BindScriptContexts() noexcept override;
+        void UnbindScriptContexts() noexcept override;
         void Update(float deltaTime) override;
         bool Render() override;
         void Shutdown() override;

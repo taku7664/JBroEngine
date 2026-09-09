@@ -22,6 +22,10 @@ namespace JBro
         virtual ~IFramework() = default;
 
         virtual bool Initialize(const FrameworkContext& context) = 0;
+        // Host activates only its successfully opened project, never standalone previews.
+        // Hooks must not throw; unbinding precedes destruction of borrowed systems.
+        virtual bool BindScriptContexts() noexcept = 0;
+        virtual void UnbindScriptContexts() noexcept = 0;
         virtual void Update(float deltaTime) = 0;
         // Host opens/closes the Renderer frame. Framework submits its views and packets only.
         virtual bool Render() = 0;

@@ -3,6 +3,8 @@
 #include <JBro/Framework2D/Framework2D.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Runtime/EngineInstance.h>
+#include <JBro/Framework2D/ServiceContext.h>
+#include <JBro/Runtime/SystemContext.h>
 
 #include <Windows.h>
 
@@ -46,6 +48,21 @@ namespace
         canvas->AttachComponent<JBro::Component::Transform2D>(sprite);
         canvas->AttachComponent<JBro::Component::WorldTransform2D>(sprite);
         canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(sprite);
+        canvas->AttachComponent<JBro::Component::Collider2D>(sprite);
+        const auto& physics = JBro::GetFramework2DServices().Physics2D;
+        JBro::Collision2D hit;
+        Check(physics.Raycast({-2.0f, 0.0f}, {1.0f, 0.0f}, 4.0f, hit)
+            && hit.other.GetInstanceId() == sprite->GetInstanceId(),
+            "opening a real project must bind its physics service without manual wiring");
+        {
+            JBro::Framework2D preview;
+            Check(preview.Initialize({}), "an independent preview must initialize");
+            Check(physics.Raycast({-2.0f, 0.0f}, {1.0f, 0.0f}, 4.0f, hit)
+                && hit.other.GetInstanceId() == sprite->GetInstanceId(),
+                "preview initialization must not replace the active project's binding");
+        }
+        Check(physics.Raycast({-2.0f, 0.0f}, {1.0f, 0.0f}, 4.0f, hit),
+            "preview destruction must not unbind the active project");
         for (int frame = 0; frame < 6; ++frame)
         {
             Check(engine.Tick(1.0f / 60.0f), "real host must present across all in-flight slots");
@@ -61,6 +78,10 @@ namespace
         auto* preservedRenderer = engine.GetRenderer();
         const auto oldSprite = sprite->SafeFromThis();
         engine.CloseProject();
+        Check(JBro::GetSystemContext().Physics2D == nullptr
+            && false == physics.Raycast({-2.0f, 0.0f}, {1.0f, 0.0f}, 4.0f, hit)
+            && hit.other.GetInstanceId() == JBro::InvalidInstanceId,
+            "project close must disconnect physics before its system is destroyed");
         Check(false == oldSprite.IsValid() && framework.GetCanvas() == nullptr,
             "project close must invalidate its objects and destroy its canvas");
         Check(engine.IsRunning() && engine.GetRenderer() == preservedRenderer && IsWindow(nativeWindow) != FALSE,
@@ -77,6 +98,10 @@ namespace
         nextCanvas->AttachComponent<JBro::Component::Transform2D>(nextSprite);
         nextCanvas->AttachComponent<JBro::Component::WorldTransform2D>(nextSprite);
         nextCanvas->AttachComponent<JBro::Component::SpriteRenderer2D>(nextSprite);
+        nextCanvas->AttachComponent<JBro::Component::Collider2D>(nextSprite);
+        Check(physics.Raycast({-2.0f, 0.0f}, {1.0f, 0.0f}, 4.0f, hit)
+            && hit.other.GetInstanceId() == nextSprite->GetInstanceId(),
+            "retained service access must follow a reopened project");
         for (int frame = 0; frame < 6; ++frame)
         {
             Check(engine.Tick(1.0f / 60.0f), "reopened real project must present across in-flight slots");
@@ -88,6 +113,8 @@ namespace
         Check(false == engine.Tick(1.0f / 60.0f), "close must terminate the real host");
         Check(IsWindow(nativeWindow) == FALSE && framework.GetCanvas() == nullptr && engine.GetRenderer() == nullptr,
             "real host must release canvas, renderer and native window");
+        Check(JBro::GetSystemContext().Physics2D == nullptr,
+            "process exit must leave no dangling physics binding");
         rhi.Shutdown();
         platform.Shutdown();
     }

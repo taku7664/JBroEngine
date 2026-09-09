@@ -64,6 +64,7 @@ namespace JBro
         State m_state = State::Stopped;
         bool m_exitRequested = false;
         bool m_projectCloseRequested = false;
+        bool m_scriptContextsBound = false;
         FrameStatus m_lastFrameStatus = FrameStatus::Ready;
     };
 }

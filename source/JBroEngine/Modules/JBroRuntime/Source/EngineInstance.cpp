@@ -26,6 +26,7 @@ namespace JBro
         m_lastFrameStatus = FrameStatus::InvalidState;
         m_exitRequested = false;
         m_projectCloseRequested = false;
+        m_scriptContextsBound = false;
         m_platform = &platform;
         try
         {
@@ -90,6 +91,11 @@ namespace JBro
                 m_frameworkContext.assets = m_assets.Get();
                 m_framework = &framework;
                 initialized = framework.Initialize(m_frameworkContext);
+                if (initialized && false == m_projectCloseRequested && false == m_exitRequested)
+                {
+                    m_scriptContextsBound = framework.BindScriptContexts();
+                    initialized = m_scriptContextsBound;
+                }
             }
         }
         catch (const std::bad_alloc&)
@@ -260,6 +266,10 @@ namespace JBro
         }
         if (auto* framework = std::exchange(m_framework, nullptr))
         {
+            if (std::exchange(m_scriptContextsBound, false))
+            {
+                framework->UnbindScriptContexts();
+            }
             try
             {
                 framework->Shutdown();

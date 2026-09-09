@@ -31,7 +31,7 @@
           <mxGeometry x="510" y="240" width="300" height="70" as="geometry" />
         </mxCell>
 
-        <mxCell id="m-runtime" value="&lt;b&gt;JBroRuntime&lt;/b&gt;　&lt;font color=&quot;#666666&quot;&gt;차원과 무관한 실행 계층&lt;/font&gt;&lt;br&gt;GameObject　ComponentBase　GameSystem　SystemScheduler&lt;br&gt;&lt;b&gt;Ref&amp;lt;T&amp;gt;&lt;/b&gt; / InstanceRef　·　IFramework　·　Context 3종" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="1">
+        <mxCell id="m-runtime" value="&lt;b&gt;JBroRuntime&lt;/b&gt;　&lt;font color=&quot;#666666&quot;&gt;차원과 무관한 실행 계층&lt;/font&gt;&lt;br&gt;GameObject　ComponentBase　GameSystem　SystemScheduler&lt;br&gt;&lt;b&gt;Ref&amp;lt;T&amp;gt;&lt;/b&gt; / InstanceRef　·　IFramework　·　공통 Context 3종" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="60" y="370" width="750" height="80" as="geometry" />
         </mxCell>
 
@@ -197,7 +197,7 @@
           <mxGeometry x="790" y="480" width="560" height="150" as="geometry" />
         </mxCell>
 
-        <mxCell id="ctxt" value="&lt;b&gt;컨텍스트 3단&lt;/b&gt;　조립은 전부, 전달은 좁게" style="text;html=1;align=left;verticalAlign=middle;fontSize=17;fontStyle=1;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+        <mxCell id="ctxt" value="&lt;b&gt;컨텍스트 경계&lt;/b&gt;　공통 3종 + 선택 Framework 서비스 확장" style="text;html=1;align=left;verticalAlign=middle;fontSize=17;fontStyle=1;strokeColor=none;fillColor=none;" vertex="1" parent="1">
           <mxGeometry x="40" y="655" width="600" height="26" as="geometry" />
         </mxCell>
         <mxCell id="c1" value="&lt;b&gt;EngineContext&lt;/b&gt;　호스트가 조립. 저수준 포함 전부&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;수명은 EngineInstance 하나가 OwnerPtr 로 쥔다. 컨텍스트는 소유하지 않는다&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#bac8d3;strokeColor=#23445d;fontSize=12;" vertex="1" parent="1">
@@ -206,7 +206,7 @@
         <mxCell id="c2" value="&lt;b&gt;SystemContext&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;게임 DLL 은 받지만&lt;br&gt;사용자에겐 보이지 않는다&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="40" y="780" width="350" height="70" as="geometry" />
         </mxCell>
-        <mxCell id="c3" value="&lt;b&gt;ServiceContext&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;서비스를 값으로 보유 (포인터 아님)&lt;br&gt;사용자에게 공개&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;" vertex="1" parent="1">
+        <mxCell id="c3" value="&lt;b&gt;ServiceContext&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;Runtime 공통 서비스를 값으로 보유&lt;br&gt;차원별 서비스는 Framework 확장 Context&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="410" y="780" width="350" height="70" as="geometry" />
         </mxCell>
         <mxCell id="c4" value="&lt;b&gt;시스템을 어떻게 숨기나&lt;/b&gt;&lt;br&gt;&lt;br&gt;서비스 헤더는 시스템을 &lt;b&gt;전방 선언만&lt;/b&gt; 한다.&lt;br&gt;실제 호출은 비인라인 .cpp (게임 DLL 에 컴파일) 에 둔다.&lt;br&gt;&lt;br&gt;&lt;font color=&quot;#b85450&quot;&gt;인라인으로 두면 시스템 정의가 프렐류드를 타고 사용자에게 노출된다.&lt;/font&gt;&lt;br&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;SystemContext.h 는 ScriptAPI.h 가 include 하지 않는다.&lt;br&gt;사용자 TU 에 선언 자체가 없으므로 이름을 쓸 수 없다.&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;dashed=1;fontSize=11;align=left;spacingLeft=12;" vertex="1" parent="1">
@@ -479,5 +479,43 @@
       <mxCell id="gh-e12" value="이벤트 또는 타임아웃" style="edgeStyle=orthogonalEdgeStyle;endArrow=block;html=1;dashed=1;strokeColor=#9673a6;" edge="1" parent="1" source="gh-wake" target="gh-clock"><mxGeometry relative="1" as="geometry"/></mxCell>
       <mxCell id="gh-e13" style="edgeStyle=orthogonalEdgeStyle;endArrow=block;html=1;strokeColor=#b85450;" edge="1" parent="1" source="gh-stop" target="gh-teardown"><mxGeometry relative="1" as="geometry"/></mxCell>
     </root></mxGraphModel>
+  </diagram>
+  <diagram name="8. Framework2D service binding" id="framework2d-service-binding">
+    <mxGraphModel dx="1600" dy="1180" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1660" pageHeight="1180" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="ps-title" value="8. Framework2D 서비스 접근 · 바인딩 · 해제" style="text;html=1;align=left;verticalAlign=middle;fontSize=26;fontStyle=1;strokeColor=none;fillColor=none;" vertex="1" parent="1"><mxGeometry x="40" y="18" width="1000" height="36" as="geometry" /></mxCell>
+        <mxCell id="ps-subtitle" value="공통 Runtime은 차원별 서비스 타입을 알지 않는다. 활성 프로젝트만 시스템 포인터를 연결하고, 서비스는 값 객체로 그 연결을 사용한다." style="text;html=1;align=left;verticalAlign=middle;fontSize=13;fontColor=#666666;strokeColor=none;fillColor=none;" vertex="1" parent="1"><mxGeometry x="40" y="56" width="1360" height="24" as="geometry" /></mxCell>
+
+        <mxCell id="ps-runtime-lane" value="&lt;b&gt;JBroRuntime · 호스트 수명&lt;/b&gt;" style="swimlane;html=1;horizontal=1;startSize=34;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=15;" vertex="1" parent="1"><mxGeometry x="40" y="100" width="500" height="520" as="geometry" /></mxCell>
+        <mxCell id="ps-open" value="&lt;b&gt;EngineInstance::OpenProject&lt;/b&gt;&lt;br&gt;1. Framework::Initialize&lt;br&gt;2. 성공 시 BindScriptContexts&lt;br&gt;3. Bind 실패 시 프로젝트만 롤백" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;fontSize=13;align=left;spacingLeft=12;" vertex="1" parent="ps-runtime-lane"><mxGeometry x="25" y="60" width="450" height="100" as="geometry" /></mxCell>
+        <mxCell id="ps-system-context" value="&lt;b&gt;SystemContext&lt;/b&gt;　Runtime 소유 POD&lt;br&gt;AbiVersion&lt;br&gt;IPhysics2DSystem* Physics2D&lt;br&gt;&lt;font color=&quot;#b85450&quot;&gt;스크립트 사용자 헤더에는 비공개&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=13;align=left;spacingLeft=12;" vertex="1" parent="ps-runtime-lane"><mxGeometry x="25" y="205" width="450" height="100" as="geometry" /></mxCell>
+        <mxCell id="ps-close" value="&lt;b&gt;CloseProject / 치명적 종료&lt;/b&gt;&lt;br&gt;UnbindScriptContexts → Framework::Shutdown&lt;br&gt;→ Canvas가 시스템·객체를 파괴&lt;br&gt;&lt;font color=&quot;#b85450&quot;&gt;포인터 해제가 시스템 파괴보다 먼저&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=13;align=left;spacingLeft=12;" vertex="1" parent="ps-runtime-lane"><mxGeometry x="25" y="365" width="450" height="110" as="geometry" /></mxCell>
+
+        <mxCell id="ps-framework-lane" value="&lt;b&gt;JBroFramework2D · 선택된 차원&lt;/b&gt;" style="swimlane;html=1;horizontal=1;startSize=34;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=15;" vertex="1" parent="1"><mxGeometry x="580" y="100" width="500" height="520" as="geometry" /></mxCell>
+        <mxCell id="ps-bind" value="&lt;b&gt;Framework2D::BindScriptContexts&lt;/b&gt;&lt;br&gt;Canvas의 Physics2DSystem을 1회 탐색&lt;br&gt;SystemContext.Physics2D에 인터페이스 포인터 저장&lt;br&gt;Framework2DServiceContext 값 사본 바인딩" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontSize=13;align=left;spacingLeft=12;" vertex="1" parent="ps-framework-lane"><mxGeometry x="25" y="60" width="450" height="105" as="geometry" /></mxCell>
+        <mxCell id="ps-services" value="&lt;b&gt;Framework2DServiceContext&lt;/b&gt;　Framework2D 소유 POD&lt;br&gt;AbiVersion&lt;br&gt;Physics2DService Physics2D　&lt;font color=&quot;#666666&quot;&gt;값, 포인터 아님&lt;/font&gt;&lt;br&gt;&lt;b&gt;GetFramework2DServices().Physics2D&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2f0d9;strokeColor=#82b366;fontSize=13;align=left;spacingLeft=12;" vertex="1" parent="ps-framework-lane"><mxGeometry x="25" y="205" width="450" height="105" as="geometry" /></mxCell>
+        <mxCell id="ps-system" value="&lt;b&gt;Physics2DSystem&lt;/b&gt;&lt;br&gt;Canvas가 소유 · IPhysics2DSystem 구현&lt;br&gt;Collider 풀을 직접 순회하고 안전 Handle 결과 생성&lt;br&gt;Raycast / OverlapBox" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=13;align=left;spacingLeft=12;" vertex="1" parent="ps-framework-lane"><mxGeometry x="25" y="365" width="450" height="105" as="geometry" /></mxCell>
+
+        <mxCell id="ps-script-lane" value="&lt;b&gt;2D 게임 스크립트&lt;/b&gt;" style="swimlane;html=1;horizontal=1;startSize=34;fillColor=#f8cecc;strokeColor=#b85450;fontSize=15;" vertex="1" parent="1"><mxGeometry x="1120" y="100" width="500" height="520" as="geometry" /></mxCell>
+        <mxCell id="ps-call" value="&lt;b&gt;사용자 호출&lt;/b&gt;&lt;br&gt;const auto&amp;amp; physics =&lt;br&gt;　GetFramework2DServices().Physics2D;&lt;br&gt;physics.Raycast(...);&lt;br&gt;physics.OverlapBox(...);" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b85450;fontSize=13;align=left;spacingLeft=12;" vertex="1" parent="ps-script-lane"><mxGeometry x="25" y="60" width="450" height="115" as="geometry" /></mxCell>
+        <mxCell id="ps-service" value="&lt;b&gt;Physics2DService&lt;/b&gt;　상태 없는 값 객체&lt;br&gt;비인라인 .cpp에서 현재 SystemContext를 읽고 1회 위임&lt;br&gt;미바인딩: false / 결과 Clear&lt;br&gt;시스템 정의를 사용자 헤더에 노출하지 않음" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff7f7;strokeColor=#b85450;fontSize=13;align=left;spacingLeft=12;" vertex="1" parent="ps-script-lane"><mxGeometry x="25" y="220" width="450" height="115" as="geometry" /></mxCell>
+        <mxCell id="ps-result" value="&lt;b&gt;스크립트 안전 결과&lt;/b&gt;&lt;br&gt;Collision2D.other = GameObjectHandle&lt;br&gt;OverlapBox = Array&amp;lt;GameObjectHandle&amp;gt;&lt;br&gt;대상 파괴 뒤에도 댕글링 포인터 없음" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2f0d9;strokeColor=#82b366;fontSize=13;align=left;spacingLeft=12;" vertex="1" parent="ps-script-lane"><mxGeometry x="25" y="380" width="450" height="90" as="geometry" /></mxCell>
+
+        <mxCell id="ps-preview" value="&lt;b&gt;미리보기 격리&lt;/b&gt;&lt;br&gt;Framework2D::Initialize만 호출한 독립 미리보기는 BindScriptContexts를 호출하지 않는다. 생성·파괴해도 활성 프로젝트의 물리 서비스가 계속 같은 Canvas를 가리킨다." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;fontSize=13;align=left;spacingLeft=12;" vertex="1" parent="1"><mxGeometry x="40" y="660" width="760" height="95" as="geometry" /></mxCell>
+        <mxCell id="ps-performance" value="&lt;b&gt;프레임 경로 성능&lt;/b&gt;&lt;br&gt;프로젝트 열기 때 FindSystem 1회 · 호출마다 전역 Context 포인터 읽기 + 가상 호출 1회 · 힙 할당/문자열/dynamic_cast 없음 · Overlap Array 용량은 호출자가 재사용" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;align=left;spacingLeft=12;" vertex="1" parent="1"><mxGeometry x="840" y="660" width="780" height="95" as="geometry" /></mxCell>
+        <mxCell id="ps-dll" value="&lt;b&gt;게임 DLL 경계&lt;/b&gt;&lt;br&gt;공통 ServiceContext와 Framework2DServiceContext는 각각 AbiVersion으로 검사한다. DLL 로드·핫 리로드 때 SystemContext와 함께 DLL 내부 사본을 재바인딩해야 한다. 이 페이지의 호스트 프로젝트 연결은 그 입력을 제공하며, 실제 ScriptDLLLoader 왕복은 H3~H6 후속 검증 대상이다." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=13;align=left;spacingLeft=12;" vertex="1" parent="1"><mxGeometry x="40" y="790" width="1580" height="100" as="geometry" /></mxCell>
+        <mxCell id="ps-boundary" value="&lt;b&gt;모듈 경계&lt;/b&gt;&lt;br&gt;Runtime ServiceContext: Time/Input/Audio 등 공통 값 서비스　|　Framework2DServiceContext: Physics2D 값 서비스　|　3D 전용 스크립트 타깃은 Framework2D include 경로가 없어 Physics2DService를 컴파일할 수 없다." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;fontSize=13;align=left;spacingLeft=12;" vertex="1" parent="1"><mxGeometry x="40" y="930" width="1580" height="82" as="geometry" /></mxCell>
+
+        <mxCell id="ps-e1" value="성공한 프로젝트만" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;strokeColor=#82b366;" edge="1" parent="1" source="ps-open" target="ps-bind"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="ps-e2" value="포인터 복사" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;strokeColor=#d79b00;" edge="1" parent="1" source="ps-bind" target="ps-system-context"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="ps-e3" value="값 접근" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;strokeColor=#b85450;" edge="1" parent="1" source="ps-call" target="ps-services"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="ps-e4" value="비인라인 위임" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;strokeColor=#b85450;dashed=1;" edge="1" parent="1" source="ps-service" target="ps-system-context"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="ps-e5" value="가상 호출 1회" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;strokeColor=#d79b00;" edge="1" parent="1" source="ps-system-context" target="ps-system"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="ps-e6" value="Handle 결과" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;strokeColor=#82b366;" edge="1" parent="1" source="ps-system" target="ps-result"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="ps-e7" value="먼저 해제" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;strokeColor=#b85450;" edge="1" parent="1" source="ps-close" target="ps-system-context"><mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
   </diagram>
 </mxfile>

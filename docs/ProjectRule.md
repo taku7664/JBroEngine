@@ -77,9 +77,12 @@
 - 네임스페이스 규칙은 §10.1 을 따른다. 스크립트 레이어는 프렐류드가 `using namespace JBro;` 를 한다. (MUST)
 - 호스트가 조립하는 집합을 `EngineContext`, 게임 DLL 이 받는 시스템 집합을 `SystemContext`,
   사용자에게 공개되는 서비스 집합을 `ServiceContext` 라 한다.
-  셋 다 대상의 수명을 소유하지 않는다. (MUST)
+  이 셋은 차원과 무관한 공통 Context이며, 모두 대상의 수명을 소유하지 않는다. (MUST)
   이전 이름 `EngineCore` / `ScriptCore` 와 호스트 네임스페이스 `Core::` 는 쓰지 않는다.
   모듈 이름 `JBroCore` 와 충돌하기 때문이다.
+- 차원별 서비스는 선택된 Framework가 별도 값 Context로 제공한다. (MUST)
+  2D 프로젝트는 `Framework2DServiceContext`를 사용하며, `Physics2DService`를 값으로 보유한다.
+  이 타입을 Runtime `ServiceContext`에 넣어 공통 계층이 Framework2D를 참조하게 만들지 않는다.
 - **Context에는 시스템과 서비스만 넣는다. 콘텐츠 단위 객체를 넣지 않는다.** (MUST)
   `Canvas`는 장면의 단위, `GameObject`는 액터의 단위이므로 Context에 들어갈 수 없다.
   스크립트가 오브젝트를 다뤄야 하면 `Canvas*` 가 아니라 `Service::GameObjectService` 를 쓴다.
@@ -92,7 +95,8 @@
   EngineContext           호스트가 조립. 전부
       ├─ FrameworkContext     모듈에 주는 부분집합
       ├─ SystemContext        게임 DLL 이 받지만 사용자에겐 보이지 않는다
-      └─ ServiceContext        사용자에게 공개되는 서비스 모음
+      ├─ ServiceContext        Runtime 공통 서비스 — 사용자에게 공개
+      └─ Framework2DServiceContext  선택된 2D 서비스 — 2D 프로젝트에만 공개
   ```
 
 - `ServiceContext`에는 게임플레이가 정당하게 필요로 하는 **서비스만** 넣는다. (MUST)
@@ -107,8 +111,10 @@
   `Canvas` 같은 구현 타입은 스크립트 헤더에 나타나지 않는다.
 - 서비스 헤더는 시스템을 **전방 선언만** 하고, 실제 호출은 비인라인 구현(`.cpp`)에 둔다. (MUST)
   인라인으로 두면 시스템 정의가 프렐류드를 타고 사용자에게 노출된다.
-- 스크립트 DLL 은 로드 시 `SystemContext` 와 `ServiceContext` 를 1회 바인딩한다.
-  핫 리로드 때 둘 다 다시 바인딩한다. (MUST)
+- 스크립트 DLL 은 로드 시 `SystemContext`, 공통 `ServiceContext`, 선택된 Framework의 서비스 Context를
+  1회 바인딩한다. 핫 리로드 때 모두 다시 바인딩한다. (MUST)
+- 활성 프로젝트를 연 호스트만 Framework 서비스 Context를 바인딩한다. 독립 미리보기는 현재 활성 프로젝트의
+  바인딩을 바꾸지 않으며, 프로젝트 종료 시 시스템을 파괴하기 전에 바인딩을 해제한다. (MUST)
 
 ## 6. 소유권과 객체 안전성
 
@@ -433,6 +439,7 @@
 
   ```cpp
   struct ServiceContext { Service::TimeService Time; /* … */ };
+  struct Framework2DServiceContext { Service::Physics2DService Physics2D; };
   ```
 
 - 서비스는 결국 시스템 기능을 써야 한다. 시스템 접근은 `SystemContext` 로 넘긴다. (MUST)
@@ -440,7 +447,8 @@
   ```
   EngineContext          호스트가 조립. 전부
       ├─ SystemContext       시스템 모음 — 게임 DLL 은 받지만 사용자에겐 보이지 않는다
-      └─ ServiceContext       서비스 모음 — 사용자에게 보인다
+      ├─ ServiceContext       공통 서비스 — 사용자에게 보인다
+      └─ Framework2DServiceContext  2D 서비스 — 2D 프로젝트에만 보인다
   ```
 
   `SystemContext.h` 는 프렐류드가 include 하지 않는다. 서비스 `.cpp` 만 include 한다.

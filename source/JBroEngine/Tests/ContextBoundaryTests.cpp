@@ -3,6 +3,7 @@
 #include <JBro/Runtime/SystemContext.h>
 #include <JBro/Framework2D/System/Physics2DSystem.h>
 #include <JBro/Framework2D/Service/Physics2DService.h>
+#include <JBro/Framework2D/ServiceContext.h>
 
 #include <cstddef>
 #include <iostream>
@@ -27,6 +28,18 @@ namespace
         static_assert(std::is_standard_layout_v<JBro::ServiceContext>);
         static_assert(std::is_trivially_copyable_v<JBro::ServiceContext>);
         static_assert(offsetof(JBro::ServiceContext, AbiVersion) == 0);
+        static_assert(std::is_standard_layout_v<JBro::Framework2DServiceContext>);
+        static_assert(std::is_trivially_copyable_v<JBro::Framework2DServiceContext>);
+        static_assert(offsetof(JBro::Framework2DServiceContext, AbiVersion) == 0);
+        static_assert(std::is_same_v<decltype(JBro::Framework2DServiceContext::Physics2D),
+            JBro::Service::Physics2DService>);
+
+        JBro::Framework2DServiceContext services2D;
+        services2D.AbiVersion = JBro::Framework2DServiceContextAbiVersion + 1;
+        JBro::BindFramework2DServiceContext(services2D);
+        Check(JBro::GetFramework2DServices().AbiVersion == services2D.AbiVersion,
+            "2D service context binding must copy its independent ABI stamp");
+        JBro::BindFramework2DServiceContext({});
 
         Check(JBro::GetSystemContext().AbiVersion == JBro::SystemContextAbiVersion,
             "system context must begin with the current ABI version");
