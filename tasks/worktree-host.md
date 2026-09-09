@@ -575,3 +575,22 @@ Updates: 위 `EngineInstance` 수명 구현과 마지막 프레임 상태 조회
 - 대기 계약 테스트는 큐에 넣은 창 메시지가 1초 제한을 실제로 기다리지 않고 깨우는지 확인한다.
   Debug/Release x64 전체 Rebuild와 양쪽 JBroTests가 경고 0으로 통과했고,
   Debug Game2D 실행 파일은 실제 엔진 창의 WM_CLOSE를 받아 종료 코드 0으로 정리됐다.
+
+## 2026-09-09 후속: Physics2DService 독립 본체
+
+Updates: D-24의 일부 구현. 서비스 접근 경로와 호스트 자동 연결은 아직 결정·구현하지 않았다.
+
+- `JBroFramework2D/Include/JBro/Framework2D/Service/Physics2DService.h`와 대응 `Source/Service/Physics2DService.cpp`에
+  상태를 보유하지 않는 trivially-copyable 값 서비스를 추가했다. 메인 스레드에서 호출한다.
+- 비인라인 `Raycast`·`OverlapBox`는 매번 현재 Runtime `SystemContext::Physics2D`에 위임하며,
+  바인딩이 없으면 결과를 비운다. 반복 OverlapBox 조회의 결과 저장 공간은 호출자가 미리 Reserve한다.
+- `ContextBoundaryTests.cpp`는 미바인딩→바인딩→재바인딩→해제, 인자·결과 전달, 한 번의 위임,
+  바인딩된 시스템의 miss 결과와 호출자가 확보한 저장 공간 보존을 검사한다.
+- `Physics2DServiceHeaderTests.cpp`의 공개 헤더 단독 컴파일은 통과했으며, 두 매크로를 각각 켜는
+  컴파일 실패 검사에서 SystemContext·IPhysics2DSystem 접근은 C2039로 실패해 내부 타입 비노출을 확인했다.
+- TDD의 헤더 미구현 실패 후 테스트가 통과했다. SDK 10.0.22621.0으로 Debug/Release x64 전체 Rebuild와
+  양쪽 JBroTests가 통과했다. 컴파일 경고·오류는 없으며, 테스트의 예상된 무효 핸들 진단만 출력됐다.
+- 사용자는 물리 분리 방향에는 동의했지만 통합 서비스 접근과 별도 Framework2D Context 중에서는 아직 선택하지 않았다.
+  모듈 분리가 별도 공개 접근 Context까지 승인한다는 가정은 채택하지 않았다.
+- D-13·D-27·D-34, Context ABI·필드, ScriptAPI, 호스트 자동 바인딩과 DLL 로더는 변경하지 않았다.
+  실제 게임의 서비스 자동 연결과 DLL 재로드는 검증하지 않았다.
