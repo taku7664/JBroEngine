@@ -1,6 +1,7 @@
 ﻿#include <JBro/Runtime/EngineContext.h>
 #include <JBro/Runtime/ServiceContext.h>
 #include <JBro/Runtime/SystemContext.h>
+#include <JBro/Framework2D/System/Physics2DSystem.h>
 
 #include <cstddef>
 #include <iostream>
@@ -33,9 +34,13 @@ namespace
 
         JBro::SystemContext systems;
         systems.AbiVersion = JBro::SystemContextAbiVersion + 1;
+        JBro::System::Physics2DSystem physicsMarker;
+        systems.Physics2D = &physicsMarker;
         JBro::BindSystemContext(systems);
         Check(JBro::GetSystemContext().AbiVersion == systems.AbiVersion,
             "system context binding must copy the supplied ABI stamp");
+        Check(JBro::GetSystemContext().Physics2D == &physicsMarker,
+            "system context binding must preserve the narrow physics interface pointer");
 
         JBro::ServiceContext services;
         services.AbiVersion = JBro::ServiceContextAbiVersion + 1;
@@ -47,6 +52,8 @@ namespace
         Check(engine.Platform == nullptr && engine.RHI == nullptr
             && engine.Renderer == nullptr && engine.Assets == nullptr,
             "engine context must default every borrowed process pointer to null");
+        JBro::BindSystemContext({});
+        JBro::BindServiceContext({});
     }
 }
 

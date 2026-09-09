@@ -27,13 +27,18 @@ namespace JBro::System
     }
 
     bool Physics2DSystem::Raycast(
-        Canvas& canvas,
         Vec2 origin,
         Vec2 direction,
         float distance,
         Collision2D& hit) const
     {
         hit = {};
+        if (m_canvas == nullptr)
+        {
+            return false;
+        }
+
+        Canvas& canvas = *m_canvas;
         const float directionLengthSquared =
             direction.x * direction.x + direction.y * direction.y;
         constexpr float DirectionEpsilonSquared = 0.000000000001f;
@@ -92,23 +97,32 @@ namespace JBro::System
             }
 
             GameObject* owner = collider.GetOwner();
+            if (owner == nullptr)
+            {
+                return;
+            }
             closestDistance = candidateDistance;
-            hit.other = owner;
+            hit.other = owner->GetScriptHandle();
             hit.bodyType = Internal::GetBodyType(canvas, owner);
             hit.point = {
                 origin.x + direction.x * candidateDistance,
                 origin.y + direction.y * candidateDistance};
             hit.normal = candidateNormal;
         });
-        return hit.other != nullptr;
+        return hit.other.GetInstanceId() != InvalidInstanceId;
     }
 
     void Physics2DSystem::OverlapBox(
-        Canvas& canvas,
         const Rect& area,
-        Array<GameObject*>& results) const
+        Array<GameObjectHandle>& results) const
     {
         results.Clear();
+        if (m_canvas == nullptr)
+        {
+            return;
+        }
+
+        Canvas& canvas = *m_canvas;
         canvas.ForEach<Component::Collider2D>(
             [&canvas, &area, &results](Component::Collider2D& collider)
         {
@@ -138,16 +152,26 @@ namespace JBro::System
             }
 
             GameObject* owner = collider.GetOwner();
-            if (owner != nullptr && false == results.Contains(owner))
+            if (owner == nullptr)
             {
-                results.Add(owner);
+                return;
             }
+
+            const InstanceId ownerId = owner->GetInstanceId();
+            for (const GameObjectHandle& existing : results)
+            {
+                if (existing.GetInstanceId() == ownerId)
+                {
+                    return;
+                }
+            }
+            results.Add(owner->GetScriptHandle());
         });
     }
 
     void Physics2DSystem::OnInitialize(Canvas& canvas)
     {
-        (void)canvas;
+        m_canvas = &canvas;
     }
 
     void Physics2DSystem::OnFixedUpdate(Canvas& canvas, float fixedDeltaTime)
@@ -217,5 +241,6 @@ namespace JBro::System
     void Physics2DSystem::OnShutdown(Canvas& canvas)
     {
         (void)canvas;
+        m_canvas = nullptr;
     }
 }

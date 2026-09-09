@@ -3,13 +3,9 @@
 #include <JBro/Core/Core.h>
 #include <JBro/Framework2D/Math2D.h>
 #include <JBro/Runtime/Component.h>
+#include <JBro/Runtime/GameObjectHandle.h>
 
 #include <cstdint>
-
-namespace JBro
-{
-    class GameObject;
-}
 
 namespace JBro::Component
 {
@@ -63,7 +59,7 @@ namespace JBro
 {
     struct Collision2D
     {
-        GameObject* other = nullptr;
+        GameObjectHandle other;
         Component::BodyType2D bodyType = Component::BodyType2D::Dynamic;
         Vec2 point;
         Vec2 normal;

@@ -5,6 +5,7 @@
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2D/Rendering/RenderWorld2D.h>
+#include <JBro/Framework2D/System/IPhysics2DSystem.h>
 #include <JBro/Framework2D/System/Physics2DSystem.h>
 #include <JBro/Framework2D/System/Camera2DSystem.h>
 #include <JBro/Framework2D/System/SpriteRender2DSystem.h>
@@ -14,6 +15,7 @@
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
+#include <type_traits>
 
 namespace
 {
@@ -113,6 +115,12 @@ namespace
 
     void TestPhysicsQueries()
     {
+        static_assert(std::is_same_v<
+            decltype(JBro::Collision2D::other),
+            JBro::GameObjectHandle>);
+        static_assert(std::is_standard_layout_v<JBro::Collision2D>);
+        static_assert(std::is_trivially_copyable_v<JBro::Collision2D>);
+
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
         JBro::GameObject* boxObject = canvas.CreateObject("box");
         JBro::GameObject* circleObject = canvas.CreateObject("circle");
@@ -147,25 +155,62 @@ namespace
         circleCollider->radius = 1.0f;
 
         JBro::System::Physics2DSystem system;
+        static_assert(std::is_base_of_v<
+            JBro::System::IPhysics2DSystem,
+            JBro::System::Physics2DSystem>);
+        JBro::System::IPhysics2DSystem& queries = system;
         JBro::Collision2D hit;
+        Check(false == queries.Raycast({0.0f, 0.0f}, {1.0f, 0.0f}, 10.0f, hit),
+            "uninitialized queries must not access a canvas");
+        system.Initialize(canvas);
         Check(
-            system.Raycast(canvas, {0.0f, 0.0f}, {1.0f, 0.0f}, 10.0f, hit),
+            queries.Raycast({0.0f, 0.0f}, {1.0f, 0.0f}, 10.0f, hit),
             "ray must hit the nearest collider");
-        Check(hit.other == boxObject, "ray must select the nearest object");
+        Check(hit.other.GetInstanceId() == boxObject->GetInstanceId(),
+            "ray must select the nearest object through a safe script handle");
         Check(NearlyEqual(hit.point.x, 1.0f), "box hit point must be on its near face");
         Check(NearlyEqual(hit.normal.x, -1.0f), "box hit normal must face the ray");
 
-        JBro::Array<JBro::GameObject*> overlaps;
-        system.OverlapBox(canvas, {{1.5f, -0.5f}, {5.5f, 0.5f}}, overlaps);
+        JBro::Array<JBro::GameObjectHandle> overlaps;
+        queries.OverlapBox({{1.5f, -0.5f}, {5.5f, 0.5f}}, overlaps);
         Check(overlaps.Size() == 2, "overlap box must include box and circle");
 
         boxCollider->SetEnabled(false);
         secondBoxCollider->SetEnabled(false);
         Check(
-            system.Raycast(canvas, {0.0f, 0.0f}, {1.0f, 0.0f}, 10.0f, hit),
+            queries.Raycast({0.0f, 0.0f}, {1.0f, 0.0f}, 10.0f, hit),
             "ray must continue past a disabled collider");
-        Check(hit.other == circleObject, "disabled collider must not participate in queries");
+        Check(hit.other.GetInstanceId() == circleObject->GetInstanceId(),
+            "disabled collider must not participate in queries");
         Check(NearlyEqual(hit.point.x, 4.0f), "circle hit point must be on its near edge");
+
+        const JBro::Collision2D retainedHit = hit;
+        Check(canvas.DestroyObject(circleObject), "query target must be destroyed");
+        Check(false == retainedHit.other.IsValid(), "retained collision handle must invalidate after destruction");
+        std::size_t validOverlapCount = 0;
+        for (const auto& overlap : overlaps)
+        {
+            if (overlap.IsValid())
+            {
+                ++validOverlapCount;
+            }
+        }
+        Check(validOverlapCount == 1, "only the surviving overlap target must remain valid");
+
+        system.Shutdown(canvas);
+        Check(false == queries.Raycast({0.0f, 0.0f}, {1.0f, 0.0f}, 10.0f, hit),
+            "physics queries must stop resolving the canvas after system shutdown");
+        Check(hit.other.GetInstanceId() == JBro::InvalidInstanceId,
+            "unavailable queries must clear the previous hit");
+        queries.OverlapBox({{1.5f, -0.5f}, {5.5f, 0.5f}}, overlaps);
+        Check(overlaps.Size() == 0, "shutdown overlap queries must clear previous results");
+
+        boxCollider->SetEnabled(true);
+        system.Initialize(canvas);
+        Check(queries.Raycast({0.0f, 0.0f}, {1.0f, 0.0f}, 10.0f, hit)
+            && hit.other.GetInstanceId() == boxObject->GetInstanceId(),
+            "reinitialized queries must use the newly bound canvas");
+        system.Shutdown(canvas);
     }
 
     void TestRenderExtraction()
