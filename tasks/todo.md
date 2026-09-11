@@ -215,7 +215,10 @@
 - 기초가 서면 기존 엔진을 이 구조로 마이그레이션한다.
 - Windows / D3D12 를 먼저 세운다. Vulkan / WebGPU / Android 는 모듈 규칙만 유지한 채 뒤로 미룬다.
 
-## Findings — 신규 리포 vs 기존 엔진
+## Historical Findings — 신규 리포 vs 기존 엔진
+
+> Stage B/C 직후 작성한 비교 스냅샷이다. 아래 `잔여`와 `담당` 열은 현재 상태가 아니며,
+> 구현 여부는 문서 상단의 Current Audit Snapshot과 현재 코드·테스트로 확인한다.
 
 기존 엔진 구조 (읽어서 확인한 것):
 
@@ -275,7 +278,10 @@ CGameObject : GameInstance, EnableSafeFromThis
 - 모듈 간 역방향 include 0 건, 2D 스크립트 타깃에서 Framework3D include 시 컴파일 실패.
 - 테스트가 Debug / Release x64 양쪽에서 통과한다.
 
-## Verification (전체 통합)
+## Historical Verification Snapshot — 워크트리 분할 시점
+
+> 아래 체크박스는 당시 검증 기록이며 현재 완료표가 아니다. 특히 `~` 표시는 증거가 보존되지 않은
+> 항목이다. 현재 통합 검증 상태는 상단 Current Audit Snapshot을 갱신해 기록한다.
 
 - [x] Debug x64 / Release x64 전체 빌드 (Stage A~C+Types 이식 시점)
 - [x] `JBroTests` Debug / Release 통과 (~)
@@ -287,11 +293,11 @@ CGameObject : GameInstance, EnableSafeFromThis
 - [ ] 스크립트 DLL 재로드 후 호스트 생존 및 `Ref` 복구 (W-host H6)
 - [ ] `GameObjectHandle` 무효 접근이 `if` 없이 안전 (W-ref)
 
-## 진행 상황 — 완료된 단계
+## Historical Progress — 워크트리 분할 이전
 
 ### Stage A · 빌드 단위 분리 (완료)
 
-Stage A 결과 상세는 아래 [Review](#review) 참조.
+Stage A 결과 상세는 아래 [Historical Review Snapshots](#historical-review-snapshots) 참조.
 
 ### Stage B0 · 골격 선언 (완료 · `ce2ce97`)
 
@@ -321,14 +327,17 @@ Stage A 결과 상세는 아래 [Review](#review) 참조.
 - 스켈레톤 리트로핏: `std::vector` → `Array`, `std::unordered_map` → `Table`, `std::make_unique` → `MakeOwnerPtr`
 - Debug/Release · 테스트 통과
 
-### Stage 워크트리 분기 (완료)
+### Stage 워크트리 분기 (이후 철회됨)
 
-`main` 브랜치에서 5개 워크트리 생성:
+당시 `main` 브랜치에서 5개 워크트리를 생성했다:
 - `work/build` · `work/platform` · `work/framework` · `work/ref` · `work/host`
 
 각 워크트리의 상세 작업은 [Success Criteria](#success-criteria) 위 링크된 5개 문서에.
 
-## Risks
+## Historical Risks — 워크트리 분할 시점
+
+> W-ref/W-host 병합 순서 등 아래 내용은 현재 작업 지시가 아니다. 아직 유효한 리플렉션·핫 리로드
+> 위험은 Current Audit Snapshot과 Success Criteria에서 별도로 추적한다.
 
 - **W-ref 가 가장 크다.** SafePtr 이식 + GameObject 리트로핏 + Canvas 실 구현 + Ref<T> 몸통
   + GameObjectHandle 신설. 서브 브랜치로 나눠 진행 권장.
@@ -336,8 +345,8 @@ Stage A 결과 상세는 아래 [Review](#review) 참조.
 - W-framework 는 컴포넌트 몸통 완성이 W-ref 의 Canvas 구현에 의존. rebase 필수.
 - **리플렉션이 없다.** H5 (핫 리로드 시 Ref 캐시 무효화) 와 F4 (로드 시 InstanceId 패치업) 는
   리플렉션 없이는 계약만 정할 수 있다. 실동작은 리플렉션 붙을 때.
-- **기존 엔진 마이그레이션 시 `ScriptAPI.h` 가 공개 표면 정의 역할**을 한다.
-  현재 그 파일은 정상이고 SDK 미러와 바이트 단위로 일치한다(`Dist/` 사본만 낡음).
+- **기존 엔진 마이그레이션 시 `ScriptAPI.h` 가 공개 표면 정의 역할**을 한다는 당시 계획이었다.
+  현재 SDK/Dist 미러는 존재하지 않으며 ScriptAPI의 차원별 공개 표면은 별도 확정이 필요하다.
 
 ## 보류
 
@@ -350,7 +359,7 @@ Stage A 결과 상세는 아래 [Review](#review) 참조.
 - 에디터 Play 모드 "정지 시 원상복구". Canvas 두 벌이 필요해지면 핸들 타입을 재검토해야 한다.
 - 리플렉션 시스템 (F4 · H5 실동작 전제).
 
-## Review
+## Historical Review Snapshots
 
 ### Stage A (완료)
 
@@ -392,6 +401,6 @@ Stage A 결과 상세는 아래 [Review](#review) 참조.
 - Renderer 실 구현 — W-platform 몫.
 - 스크립트 DLL 로드/재로드 — W-host 몫.
 
-### Stage 워크트리 (진행 중)
+### Stage 워크트리 (당시 진행 중 · 현재 아님)
 
-각 워크트리 문서에서 독립적으로 관리. 병합 후 이 파일의 Verification 재확인.
+당시에는 각 워크트리 문서에서 독립적으로 관리했다. 현재는 `main` 단일 워크트리만 사용한다.
