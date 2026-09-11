@@ -10,11 +10,8 @@ namespace JBro
 {
 namespace
 {
-	// ⚠ 기본 구현은 호스트가 넘겨 주는 GameModuleHostApi 의 Allocate/Free 와 **같은 원시 함수**를
-	//   써야 한다. 여기만 ::operator new 로 두면, 바인딩 전에 잡은 메모리를 바인딩 후에 해제할 때
-	//   (또는 호스트에서 잡아 DLL 에서 해제할 때) operator new 로 받은 포인터가 _aligned_free 로
-	//   넘어가 디버그 CRT 가 assert 한다. 실제로 그렇게 터졌다 —
-	//   AllocateModuleMemory/FreeModuleMemory(LiveCompileManager.cpp 등)와 반드시 짝을 맞출 것.
+	// 각 정적 링크 모듈의 기본 Array/Table 할당기. 외부 할당기를 바인딩하기 전에 만든
+	// 저장소는 같은 기본 함수로 반납되어야 한다. 현재 스크립트 ABI는 외부 할당기를 바인딩하지 않는다.
 	void* DefaultAllocate(std::size_t size, std::size_t alignment)
 	{
 		const std::size_t effectiveSize      = std::max<std::size_t>(size, 1);
@@ -42,9 +39,8 @@ namespace
 #endif
 	}
 
-	// 이 모듈이 쓰는 힙. Engine.lib 는 호스트와 게임 DLL 에 각각 정적 링크되므로 이 두 포인터도
-	// 모듈마다 **별개의 사본**이다. 호스트 사본은 기본값을 끝까지 쓰고, DLL 사본만 로드 직후
-	// BindHeapAllocator 로 호스트 것을 받아 간다. 위 주석대로 둘은 서로 교환 가능해야 한다.
+	// Core는 호스트와 게임 DLL에 각각 정적 링크되므로 이 포인터들도 모듈마다 별개의 사본이다.
+	// 현재는 모든 사본이 기본값을 쓰며, 스크립트 컨테이너 저장소를 호스트가 직접 재할당·해제하지 않는다.
 	HeapAllocateFunc g_allocate = &DefaultAllocate;
 	HeapFreeFunc     g_free     = &DefaultFree;
 	bool             g_bound    = false;

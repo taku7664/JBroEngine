@@ -82,6 +82,13 @@
    표면인 `Service::AssetService`도 예고되어 있다. 에셋 로드·캐시를 소유하는 프로젝트 수명 객체를
    `AssetSystem`으로 개명하고 값형 `AssetService`를 앞에 두는 안을 기본으로 제안한다. `AssetRegistry`가
    로드 소유까지 합칠지는 수명과 공개 API를 바꾸므로 빡대리가 확정한다.
+7. **스크립트 리플렉션의 컨테이너 메모리 경계**
+   `Allocator.h`는 호스트 할당기를 DLL에 바인딩한다고 설명하지만, 현재 `ScriptModuleLoadContext`에는 할당
+   함수가 없고 `BindHeapAllocator` 호출도 0건이다. 또한 `String`은 `HeapAllocator`를 쓰지 않으므로 할당기
+   함수만 ABI에 추가해도 스크립트 필드 전체가 안전해지지 않는다. D-37을 유지하려면 호스트는 DLL
+   메모리의 C++ 컨테이너를 직접 조작하지 않고, DLL이 제공하는 필드 복사·편집·직렬화 연산을 통하는
+   안을 기본으로 제안한다. 반대로 호스트가 직접 편집해야 한다면 `String`까지 포함한 공유 할당기 ABI를
+   새로 설계해야 하므로 빡대리가 확정한다.
 
 ## Decisions
 
