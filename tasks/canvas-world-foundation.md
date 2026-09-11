@@ -9,7 +9,7 @@
 
 2D 게임의 최상위 단위를 `Canvas`로 고정하고, `Canvas`가 `World/ECS`와 포토샵식 합성 `Layer`를 소유하는 엔진 기초를 구현한다.
 
-## Current Contract
+## Historical Contract at the Time
 
 - `Canvas`는 하나의 `World/ECS`와 순서가 있는 `Layer` 목록을 소유한다.
 - `Layer`는 표시 여부, 불투명도, 블렌드 방식, 공간, 패럴랙스와 합성 순서만 담당한다.

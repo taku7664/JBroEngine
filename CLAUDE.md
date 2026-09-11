@@ -29,17 +29,23 @@
   직렬화는 YAML 또는 바이너리 우선
 - `std::vector` / `std::unordered_map` / `std::string` 대신 JBro 값 타입을 쓰고,
   `std::make_unique` 대신 `MakeOwnerPtr`를 쓴다
+- 제어문 본문을 같은 줄에 쓰지 않는다. `if (x) return;` 같은 한 줄 제어문을 만들지 않는다
+- `SafePtr`는 메인 스레드 전용이다. 워커 태스크에 캡처하거나 워커에서 참조 카운트를 바꾸지 않는다
+- 한글 주석이 들어간 신규 헤더·소스는 UTF-8 BOM으로 저장한다
+- 방향을 바꾸는 설계 판단과 새 컴포넌트·서비스 추가는 사용자 확인 뒤 진행한다
+- 사용자 보고는 한국어, 커밋 메시지는 영어로 작성한다
 - 빌드 성공만으로 검증 완료로 보지 않는다. 경계 규칙은 어길 때 실제로 컴파일이 실패하는지
   음성 테스트로 확인한다
 
 ### 관련 문서
 
 - [docs/ProjectRule.md](./docs/ProjectRule.md) — 확정 규칙
-- [docs/Jbro_Engine_Architecture_Draft_v2.md](./docs/Jbro_Engine_Architecture_Draft_v2.md) — 아키텍처 초안 (일부 절 대체됨)
-- [docs/Jbro_CPP_Script_Object_Safety.md](./docs/Jbro_CPP_Script_Object_Safety.md) — 스크립트 객체 안전성 초안 (일부 절 대체됨)
+- [docs/Jbro_Engine_Architecture_Draft_v2.md](./docs/Jbro_Engine_Architecture_Draft_v2.md) — 폐기된 역사 초안
+- [docs/Jbro_CPP_Script_Object_Safety.md](./docs/Jbro_CPP_Script_Object_Safety.md) — 폐기된 스크립트 객체 안전성 초안
 - [tasks/todo.md](./tasks/todo.md) — 진행 중 작업 계획과 확정 결정(Decisions) 기록
 
-두 초안에는 검토를 거쳐 대체된 절이 있다. 해당 절에는 `[대체됨]` 표시가 달려 있으니
-초안 내용을 근거로 삼기 전에 표시를 먼저 확인한다.
+두 초안은 일부 절만 골라 현재 계약으로 사용할 수 있는 문서가 아니다. `[대체됨]` 표시가 없는
+본문도 폐기된 ECS·World·전 모듈 DLL·단일 `Ref<T>` 모델을 포함한다. 설계 변천을 확인할 때만 읽고,
+구현 계약은 `ProjectRule.md`와 `tasks/todo.md` Decisions에서 확인한다.
 
 <!-- 대화 중 발견된 프로젝트 규칙이 여기에 추가됩니다. -->

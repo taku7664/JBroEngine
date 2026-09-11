@@ -40,6 +40,8 @@
 - 구 엔진의 `Utillity/Math`는 아직 이식되지 않았다. 현재 `Vec2`/`Rect`/`Matrix3x2`는 Framework2D,
   `Vec3`는 Framework3D, `Matrix4x4`는 Graphics에 분산돼 있다. 공통 수학 타입의 이름과 Core 입주
   범위를 확정하기 전에는 임시 타입을 정식 계약으로 간주하지 않는다.
+- Framework3D는 현재 배타성 검증용 골격이다. `Transform3D`·`Camera3D`·`Rigidbody3D`·`Collider3D`가
+  아직 `ComponentBase`를 상속하지 않는 POD이므로 §8의 오브젝트-컴포넌트 모델을 완료한 상태가 아니다.
 - D-5에 따라 `Ref<GameObject>`는 템플릿 정적 단언으로 컴파일을 거부한다. 일반 `Ref<T>`의 24B
   레이아웃 검증은 GameObject가 아닌 표본 타입으로 유지하며 음성 컴파일 프로브를 통과한다.
 - Framework2D의 `ScriptSystem`은 아직 실행 구현이 없는 스텁이다.
@@ -59,11 +61,14 @@
    프로세스당 값 하나를 공유할지, 생성기마다 0~1023 안에서 비반복 값을 보장할지 결정해야 한다.
    프로세스 재실행 간 절대 비반복은 10비트 난수만으로 보장할 수 없어 비트 구성 또는 영속 상태 변경이
    필요하다.
-2. **공통 수학 타입의 이름과 Core 입주 범위**
+2. **공통 수학 타입의 이름과 이식 순서**
+   차원 독립 공개 타입을 JBroCore에 한 번만 정의한다는 소유권은 D-38로 이미 확정됐다. 여기서 정할
+   것은 Core로 옮길지 여부가 아니라 정식 이름·필드 계약과 한 번에 옮길 범위다.
    구 엔진의 `Utillity/Math`에는 `Vector2T`/`Vector2`, `RectT`/`Rect`, `Size`, `Matrix3x2`,
-   `Layout2D`가 있다. 신규 트리의 `Vec2`, `Vec3`, `Rect`, `Matrix3x2`, `Matrix4x4`를 전부 Core의
-   정식 수학 타입으로 통합할지, 구 엔진의 2D 타입만 먼저 이식할지 결정해야 한다. `Layout2D`는
-   차원 의미가 있으므로 Framework2D에 남기는 안이 기본 제안이다.
+   `Layout2D`가 있다. 신규 트리의 `Vec2`, `Vec3`, `Rect`, `Matrix3x2`, `Matrix4x4`를 한 번에 정식
+   타입으로 통합할지, 구 엔진의 2D 타입부터 순차 이식할지 결정해야 한다. 순차 이식을 선택해도 남은
+   차원 독립 임시 타입의 Core 통합 의무는 없어지지 않는다. `Layout2D`는 차원 의미가 있으므로
+   Framework2D에 남기는 안이 기본 제안이다.
 3. **ScriptSystem 실행 순서와 변이 경계**
    구 엔진은 레이어 → 하이라키 → 오브젝트의 컴포넌트 부착 순서로 실행 목록을 만들고, 순회 중
    스크립트 생성·파괴가 목록을 무효화하지 않도록 재빌드와 파괴를 안전 지점까지 미룬다. 신규 Canvas는
@@ -91,6 +96,12 @@
    메모리의 C++ 컨테이너를 직접 조작하지 않고, DLL이 제공하는 필드 복사·편집·직렬화 연산을 통하는
    안을 기본으로 제안한다. 반대로 호스트가 직접 편집해야 한다면 `String`까지 포함한 공유 할당기 ABI를
    새로 설계해야 하므로 빡대리가 확정한다.
+8. **ScriptAPI의 실체 타입 노출 범위**
+   `ProjectRule.md` §5는 `Canvas` 같은 구현 타입이 스크립트 헤더에 나타나지 않아야 한다고 규정하지만,
+   §6은 `Ref<Canvas>`를 스크립트 참조 종류로 열어 두고 있다. 현재 `ScriptAPI.h`는 실체
+   `GameObject.h`를 include하며 그 공개 표면에서 `Canvas* GetCanvas()`까지 보인다. 스크립트가
+   `GameObjectHandle`과 서비스만 보게 할지, 실체 타입 선언은 보되 획득 경로만 막을지 확정해야 한다.
+   이 결정 전에는 프렐류드 공개 표면을 완료로 표시하지 않는다.
 
 ## Decisions
 
@@ -328,6 +339,7 @@ CGameObject : GameInstance, EnableSafeFromThis
 - `Canvas` 가 오브젝트 풀과 타입별 컴포넌트 풀을 직접 소유한다.
 - 시스템이 `ForEach<T>` 로 컴포넌트 풀을 순회한다.
 - 네임스페이스가 §10.1 표대로 적용되고 타입 접두사가 없다(`I` / `m_` 제외).
+- 차원 독립 공개 값 타입은 JBroCore에 단 하나만 정의되며 Framework 임시 중복 정의가 없다.
 - **스크립트가 `GameObjectHandle` 로 GameObject 를, `Ref<T>` 로 나머지를 본다** (실 객체 참조 없음).
 - **`GameObjectHandle` 을 `if` 없이 호출해도 크래시가 없고 로그가 남는다.**
 - `Ref<T>` 가 24B 이고 프레임 루프에서 식별자 조회가 0 회다.
