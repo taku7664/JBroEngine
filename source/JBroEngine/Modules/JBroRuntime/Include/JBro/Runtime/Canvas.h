@@ -3,9 +3,9 @@
 #include <JBro/Core/Core.h>
 #include <JBro/Core/ObjectPool.h>
 #include <JBro/Core/StableTypeId.h>
-#include <JBro/Framework2D/Canvas/Layer.h>
 #include <JBro/Runtime/Component.h>
 #include <JBro/Runtime/GameObject.h>
+#include <JBro/Runtime/Layer.h>
 #include <JBro/Runtime/SystemScheduler.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/Table.h>
@@ -16,7 +16,7 @@
 
 namespace JBro
 {
-    // 씬의 최상위 단위. 오브젝트 풀, 타입별 컴포넌트 풀, 레이어를 직접 소유한다.
+    // 최상위 실행 단위. 오브젝트 풀, 타입별 컴포넌트 풀, 레이어를 직접 소유한다.
     class Canvas final
     {
     public:

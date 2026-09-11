@@ -205,3 +205,9 @@ W-build  W-platform    W-ref ──▶ W-framework ──▶ W-host
 ```
 
 각 워크트리의 상세 작업은 §0 상단 링크의 5개 문서 참조.
+
+## 2026-09-12 후속: W-ref Canvas 경로 폐기
+
+Updates: 위 W-ref 담당 파일 표의 `Framework2D/Canvas/Canvas.*` 경로. 워크트리 분할 자체와 함께
+현재 작업 지시로 사용하지 않는다. 공통 `Canvas`와 `Layer`의 단일 정의는 D-40에 따라 JBroRuntime에,
+2D 합성 상태 `Layer2D`는 D-41에 따라 JBroFramework2D에 둔다.

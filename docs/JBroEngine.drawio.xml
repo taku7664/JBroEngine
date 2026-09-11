@@ -24,14 +24,14 @@
           <mxGeometry x="740" y="110" width="200" height="70" as="geometry" />
         </mxCell>
 
-        <mxCell id="m-f2d" value="&lt;b&gt;JBroFramework2D&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;Canvas / Layer　·　Component:: 2D 컴포넌트&lt;br&gt;System:: 2D 시스템　·　Prefab / RenderWorld2D&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;" vertex="1" parent="1">
+        <mxCell id="m-f2d" value="&lt;b&gt;JBroFramework2D&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;Layer2D 합성 상태　·　Component:: 2D 컴포넌트&lt;br&gt;System:: 2D 시스템　·　Prefab / RenderWorld2D&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="60" y="240" width="420" height="70" as="geometry" />
         </mxCell>
-        <mxCell id="m-f3d" value="&lt;b&gt;JBroFramework3D&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;골격만. 배타성 음성 테스트 상대&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;" vertex="1" parent="1">
+        <mxCell id="m-f3d" value="&lt;b&gt;JBroFramework3D&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;Runtime Canvas 사용 · 3D 컴포넌트 다형성 완료&lt;br&gt;3D 시스템 / 렌더 추출은 후속&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="510" y="240" width="300" height="70" as="geometry" />
         </mxCell>
 
-        <mxCell id="m-runtime" value="&lt;b&gt;JBroRuntime&lt;/b&gt;　&lt;font color=&quot;#666666&quot;&gt;차원과 무관한 실행 계층&lt;/font&gt;&lt;br&gt;GameObject　ComponentBase　GameSystem　SystemScheduler&lt;br&gt;&lt;b&gt;Ref&amp;lt;T&amp;gt;&lt;/b&gt; / InstanceRef　·　IFramework　·　공통 Context 3종" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="1">
+        <mxCell id="m-runtime" value="&lt;b&gt;JBroRuntime&lt;/b&gt;　&lt;font color=&quot;#666666&quot;&gt;차원과 무관한 실행 계층&lt;/font&gt;&lt;br&gt;&lt;b&gt;Canvas / Layer&lt;/b&gt;　·　GameObject　ComponentBase　GameSystem　SystemScheduler&lt;br&gt;&lt;b&gt;Ref&amp;lt;T&amp;gt;&lt;/b&gt; / InstanceRef　·　IFramework　·　공통 Context 3종" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="60" y="370" width="750" height="80" as="geometry" />
         </mxCell>
 
@@ -115,7 +115,7 @@
         <mxCell id="pool-comp" value="&lt;b&gt;타입별 TObjectPool&amp;lt;T&amp;gt;&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;Table [ComponentTypeId → Pool]&lt;br&gt;ForEach&amp;lt;T&amp;gt;(fn) — 다중 타입 Query 없음&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2f0d9;strokeColor=#82b366;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="350" y="190" width="290" height="76" as="geometry" />
         </mxCell>
-        <mxCell id="layers" value="&lt;b&gt;Layer 목록&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;표시 · 불투명도 · 블렌드 · 합성 순서&lt;br&gt;GameObject 수명은 소유하지 않는다&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2f0d9;strokeColor=#82b366;fontSize=12;" vertex="1" parent="1">
+        <mxCell id="layers" value="&lt;b&gt;Runtime Layer 목록&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;식별자 · 이름 · 표시 여부 · 순서&lt;br&gt;차원별 합성 상태와 GameObject 수명은 소유하지 않는다&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2f0d9;strokeColor=#82b366;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="660" y="190" width="280" height="76" as="geometry" />
         </mxCell>
 
@@ -147,6 +147,9 @@
         <mxCell id="cmp" value="&lt;b&gt;ECS 와 무엇이 다른가&lt;/b&gt;&lt;br&gt;&lt;br&gt;&lt;b&gt;ECS 라면&lt;/b&gt;&lt;br&gt;· Entity = 정수 ID&lt;br&gt;· 컴포넌트는 POD, 저장소가 소유&lt;br&gt;· 데이터 조합이 중심&lt;br&gt;· Query&amp;lt;A,B&amp;gt; 로 교집합 순회&lt;br&gt;&lt;br&gt;&lt;b&gt;여기는&lt;/b&gt;&lt;br&gt;· GameObject = 실체 객체&lt;br&gt;· 컴포넌트는 다형성, 오브젝트가 논리 소유&lt;br&gt;· Transform은 차원별 컴포넌트, 계층은 오브젝트 멤버&lt;br&gt;· ForEach&amp;lt;T&amp;gt; 단일 타입 순회&lt;br&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;공통점: 타입별 청크 풀 · 시스템이 풀을 순회&lt;br&gt;→ 이 둘은 ECS 만의 것이 아니다&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;dashed=1;fontSize=11;align=left;spacingLeft=12;" vertex="1" parent="1">
           <mxGeometry x="990" y="190" width="380" height="330" as="geometry" />
         </mxCell>
+        <mxCell id="layer2d" value="&lt;b&gt;JBro::Layer2D&lt;/b&gt;　(Framework2D 소유)&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;블렌드 · 불투명도 · 공간 · 패럴랙스&lt;br&gt;별도 합성 텍스처 상태&lt;/font&gt;&lt;br&gt;&lt;br&gt;Runtime Layer와의 연결 저장 방식은 Framework2D 내부 구현이다. Runtime 공개 계약을 늘리지 않는다." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="990" y="560" width="380" height="130" as="geometry" />
+        </mxCell>
 
         <mxCell id="re1" value="owns" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#82b366;strokeWidth=2;" edge="1" parent="1" source="canvas" target="pool-obj"><mxGeometry relative="1" as="geometry" /></mxCell>
         <mxCell id="re2" value="owns" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#82b366;strokeWidth=2;" edge="1" parent="1" source="canvas" target="pool-comp"><mxGeometry relative="1" as="geometry" /></mxCell>
@@ -156,6 +159,7 @@
         <mxCell id="re6" value="SafePtr 로 참조" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;endArrow=open;endFill=0;strokeColor=#82b366;" edge="1" parent="1" source="obj" target="comp"><mxGeometry relative="1" as="geometry" /></mxCell>
         <mxCell id="re7" value="ForEach&amp;lt;T&amp;gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;endArrow=open;endFill=0;strokeColor=#d79b00;strokeWidth=2;" edge="1" parent="1" source="sys" target="pool-comp"><mxGeometry relative="1" as="geometry" /></mxCell>
         <mxCell id="re8" value="위임" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;endArrow=open;endFill=0;strokeColor=#b85450;" edge="1" parent="1" source="svc" target="sys"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="re9" value="내부 연계" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;endArrow=open;endFill=0;strokeColor=#d79b00;" edge="1" parent="1" source="layer2d" target="layers"><mxGeometry relative="1" as="geometry" /></mxCell>
       </root>
     </mxGraphModel>
   </diagram>

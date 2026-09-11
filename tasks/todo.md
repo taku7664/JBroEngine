@@ -23,7 +23,7 @@
 `source/JBroEngine` 신규 트리를 **기존 엔진(`source/repos/JBroEngine/Engine`)의
 오브젝트-컴포넌트 모델**에 맞추고, 스크립트 노출 표면만 핸들로 바꾼다.
 
-## Current Audit Snapshot — 2026-09-11
+## Current Audit Snapshot — 2026-09-12
 
 이 절은 현재 코드와 테스트를 직접 대조한 작업 기준이다. 아래의 Stage·Review 체크리스트는 당시
 스냅샷이므로 현재 상태를 증명하지 않는다.
@@ -42,8 +42,13 @@
 - 구 엔진의 `Utillity/Math`는 아직 이식되지 않았다. 현재 `Vec2`/`Rect`/`Matrix3x2`는 Framework2D,
   `Vec3`는 Framework3D, `Matrix4x4`는 Graphics에 분산돼 있다. 공통 수학 타입의 이름과 Core 입주
   범위를 확정하기 전에는 임시 타입을 정식 계약으로 간주하지 않는다.
-- Framework3D는 현재 배타성 검증용 골격이다. `Transform3D`·`Camera3D`·`Rigidbody3D`·`Collider3D`가
-  아직 `ComponentBase`를 상속하지 않는 POD이므로 §8의 오브젝트-컴포넌트 모델을 완료한 상태가 아니다.
+- Framework3D의 기존 5개 타입은 `ComponentBase` 파생 컴포넌트가 되었고 Runtime Canvas를 사용한다.
+  3D 전용 시스템과 렌더 추출은 아직 골격이므로 Framework3D 전체를 완료로 표시하지 않는다.
+- D-40에 따라 차원 독립 `Canvas`와 공통 `Layer`를 JBroRuntime으로 옮겼다. D-41에 따라 블렌드·
+  불투명도·공간·패럴랙스·별도 합성 텍스처 상태는 Framework2D의 `Layer2D`로 분리했다. Debug_Game3D
+  링크에는 JBroRuntime과 JBroFramework3D만 포함되며 JBroFramework2D는 포함되지 않는다.
+- 레이어 검색 실패를 `Array::Size()`와 비교하던 기존 오류를 `Array::InvalidIndex` 비교로 바로잡았다.
+  파괴된 레이어의 조회·이동·재파괴·오브젝트 배정이 범위 밖 접근 없이 실패하는 테스트를 추가했다.
 - D-5에 따라 `Ref<GameObject>`는 템플릿 정적 단언으로 컴파일을 거부한다. 일반 `Ref<T>`의 24B
   레이아웃 검증은 GameObject가 아닌 표본 타입으로 유지하며 음성 컴파일 프로브를 통과한다.
 - Framework2D의 `ScriptSystem`은 아직 실행 구현이 없는 스텁이다.
@@ -278,6 +283,16 @@
   섭도 파일과 네이티브 핸들 래퍼를 함께 정리한다. 로드 중 원본 파일 삭제·재배치와 섭도 복사본
   개수를 실제 DLL 테스트로 검증한다. 별도로 빌드한 V1·V2 DLL을 교체해 내보낸 revision이
   1→2로 바뀌는 것까지 실측했다. `ScriptSystem` 실행과 연결한 `OnUpdate` 로그 변화는 H6에 남는다.
+- **D-40. 차원 독립 `Canvas` 본체와 `Layer` 정체성은 JBroRuntime의 단일 정의로 둔다.**
+  Updates: D-2, D-3, D-15와 D-38의 단일 정의 원칙. Framework별 Canvas 복제본을 만들지 않는다.
+  오브젝트·컴포넌트 풀과 시스템 스케줄러는 공통 Canvas가 소유하고, Framework2D/3D는 선택된 차원의
+  컴포넌트·시스템·렌더 추출만 연결한다. Runtime `Layer`에는 차원 독립 정체성과 소속 계약만 두며,
+  블렌드·불투명도·패럴랙스·별도 합성 텍스처 같은 2D 상태는 Framework2D가 별도로 소유한다.
+- **D-41. Framework2D의 레이어 합성 상태 타입은 `Layer2D`다.**
+  Runtime `Layer`에는 식별자·이름·순서·표시 여부만 남긴다. `Layer2D`는 블렌드·불투명도·공간·
+  패럴랙스·별도 합성 텍스처 상태를 보관하며 Framework2D가 소유한다. Runtime `Layer`와의 연결 저장
+  방식은 Framework2D 내부 구현으로 두며 Runtime 공개 계약이나 직렬화 형식을 늘리지 않는다.
+  공통 Layer에 2D 상태를 남기거나 Framework별 Canvas를 복제하는 방식은 채택하지 않는다.
 
 ## Assumptions
 
@@ -339,6 +354,9 @@ CGameObject : GameInstance, EnableSafeFromThis
 
 - 신규 트리에 `Entity` 정수 ID, `CWorld`, `Query<A,B>`, POD 컴포넌트가 남아 있지 않다.
 - `Canvas` 가 오브젝트 풀과 타입별 컴포넌트 풀을 직접 소유한다.
+- `Canvas`와 공통 `Layer`는 JBroRuntime에 한 번만 정의되며 Framework별 복제본이 없다.
+- Runtime `Layer`에는 2D 합성 상태가 없고, 해당 상태는 Framework2D의 `Layer2D`가 소유한다.
+- 3D 게임 구성은 Framework2D 없이 Runtime Canvas의 오브젝트·컴포넌트·시스템 실행 경계를 사용한다.
 - 시스템이 `ForEach<T>` 로 컴포넌트 풀을 순회한다.
 - 네임스페이스가 §10.1 표대로 적용되고 타입 접두사가 없다(`I` / `m_` 제외).
 - 차원 독립 공개 값 타입은 JBroCore에 단 하나만 정의되며 Framework 임시 중복 정의가 없다.

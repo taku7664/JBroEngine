@@ -1,4 +1,4 @@
-﻿#include <JBro/Framework2D/Canvas/Canvas.h>
+﻿#include <JBro/Runtime/Canvas.h>
 
 #include <JBro/Core/InstanceIdGenerator.h>
 #include <JBro/Internal/InstanceRegistry.h>
@@ -186,7 +186,7 @@ namespace JBro
             {
                 return item->GetIndex() == layer;
             });
-        if (index == m_layers.Size())
+        if (index == decltype(m_layers)::InvalidIndex)
         {
             return false;
         }
@@ -237,7 +237,7 @@ namespace JBro
             {
                 return item->GetIndex() == layer;
             });
-        if (index == m_layers.Size() || newIndex >= m_layers.Size())
+        if (index == decltype(m_layers)::InvalidIndex || newIndex >= m_layers.Size())
         {
             return false;
         }
@@ -271,7 +271,7 @@ namespace JBro
             {
                 return item->GetIndex() == layer;
             });
-        if (index == m_layers.Size())
+        if (index == decltype(m_layers)::InvalidIndex)
         {
             return nullptr;
         }
@@ -368,7 +368,7 @@ namespace JBro
             {
                 return item->GetIndex() == layer;
             });
-        if (index == m_layers.Size())
+        if (index == decltype(m_layers)::InvalidIndex)
         {
             return {};
         }

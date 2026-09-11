@@ -7,6 +7,7 @@
 
 #include <cmath>
 #include <new>
+#include <utility>
 
 namespace JBro
 {
@@ -38,6 +39,11 @@ namespace JBro
                 return false;
             }
             m_canvas = MakeOwnerPtr<Canvas>(allocator);
+            if (false == AddLayer2D(m_canvas->GetDefaultLayer()))
+            {
+                Shutdown();
+                return false;
+            }
             CreateDefaultSystems();
             m_canvas->GetSystems().Initialize(*m_canvas);
         }
@@ -119,6 +125,7 @@ namespace JBro
     {
         UnbindScriptContexts();
         // Canvas shuts down its systems before objects/components and render storage disappear.
+        m_layer2DStates.Clear();
         m_canvas.Reset();
         m_renderWorld = {};
         m_context     = {};
@@ -134,6 +141,85 @@ namespace JBro
     RenderWorld2D* Framework2D::GetRenderWorld()
     {
         return &m_renderWorld;
+    }
+
+    Layer* Framework2D::CreateLayer(const char* name)
+    {
+        if (false == m_initialized || m_canvas.Get() == nullptr)
+        {
+            return nullptr;
+        }
+
+        try
+        {
+            Layer& layer = m_canvas->CreateLayer(name);
+            if (false == AddLayer2D(layer.GetIndex()))
+            {
+                m_canvas->DestroyLayer(layer.GetIndex());
+                return nullptr;
+            }
+            return &layer;
+        }
+        catch (const std::bad_alloc&)
+        {
+            return nullptr;
+        }
+    }
+
+    bool Framework2D::DestroyLayer(LayerIndex layer)
+    {
+        if (false == m_initialized || m_canvas.Get() == nullptr)
+        {
+            return false;
+        }
+        if (false == m_canvas->DestroyLayer(layer))
+        {
+            return false;
+        }
+        m_layer2DStates.Remove(layer);
+        return true;
+    }
+
+    bool Framework2D::MoveLayer(LayerIndex layer, std::size_t newIndex)
+    {
+        if (false == m_initialized || m_canvas.Get() == nullptr)
+        {
+            return false;
+        }
+        return m_canvas->MoveLayer(layer, newIndex);
+    }
+
+    Layer2D* Framework2D::GetLayer2D(LayerIndex layer)
+    {
+        if (m_canvas.Get() == nullptr || m_canvas->FindLayer(layer) == nullptr)
+        {
+            return nullptr;
+        }
+        OwnerPtr<Layer2D>* state = m_layer2DStates.Find(layer);
+        return state == nullptr ? nullptr : state->Get();
+    }
+
+    bool Framework2D::AddLayer2D(LayerIndex layer)
+    {
+        if (layer == InvalidLayerIndex
+            || m_canvas.Get() == nullptr
+            || m_canvas->FindLayer(layer) == nullptr)
+        {
+            return false;
+        }
+        if (m_layer2DStates.Find(layer) != nullptr)
+        {
+            return true;
+        }
+        try
+        {
+            OwnerPtr<Layer2D> state = MakeOwnerPtr<Layer2D>();
+            return m_layer2DStates.TryAdd(layer, std::move(state));
+        }
+        catch (const std::bad_alloc&)
+        {
+            return false;
+        }
     }
 
     void Framework2D::CreateDefaultSystems()

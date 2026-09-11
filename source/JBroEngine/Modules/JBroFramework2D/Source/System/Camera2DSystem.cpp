@@ -1,6 +1,6 @@
 ﻿#include <JBro/Framework2D/System/Camera2DSystem.h>
 
-#include <JBro/Framework2D/Canvas/Canvas.h>
+#include <JBro/Runtime/Canvas.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 

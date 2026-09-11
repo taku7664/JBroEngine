@@ -1,6 +1,6 @@
 ﻿#include <JBro/Framework2D/System/Transform2DSystem.h>
 
-#include <JBro/Framework2D/Canvas/Canvas.h>
+#include <JBro/Runtime/Canvas.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Runtime/GameObject.h>
 

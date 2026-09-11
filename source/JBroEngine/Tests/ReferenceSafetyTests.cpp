@@ -1,6 +1,6 @@
 ﻿#include <JBro/Core/InstanceIdGenerator.h>
 #include <JBro/Core/ObjectPool.h>
-#include <JBro/Framework2D/Canvas/Canvas.h>
+#include <JBro/Runtime/Canvas.h>
 #include <JBro/Internal/InstanceRegistry.h>
 #include <JBro/Runtime/Component.h>
 #include <JBro/Runtime/GameObjectHandle.h>

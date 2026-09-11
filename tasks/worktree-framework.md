@@ -234,3 +234,18 @@ struct 면 vtable 이 없어 타입 판별을 매번 밖에서 해야 한다.
 - 후속 변경에서 `GameScriptBase`와 파생 타입의 `RefCategoryOf`를 `Script`로 분리하고 일반 컴포넌트 분류에서 제외했다. `GameScriptTests`에 등록 카테고리 구분, GameObject의 단일·복수 참조와 GameObjectHandle 참조, ID를 통한 캐시 복구·재조회 생략, 파괴 후 참조 무효화 검증을 추가했다. 실행 순서 관리나 핫 리로드를 구현한 것은 아니다. 이 후속 변경의 Debug/Release 전체 Rebuild는 모두 경고·오류 0개이며, 두 구성의 모든 `JBroTests`도 Game script base tests를 포함해 통과했다.
 - B11의 `Canvas::GetComponents(owner, Array<T*>&)`는 별도 커밋 `fd94c8b`에 반영했다. 호출자 버퍼를 재사용하고 부착 순서와 비활성 컴포넌트를 보존하며, null·다른 Canvas 소유자·검색 결과 없음에서는 출력 내용을 비운다.
 - B11 추가 검증에서 Collider 세 개 사이에 Transform을 부착한 뒤 첫 Collider를 제거하면 `RemoveAllSwap`이 남은 순서와 단일 조회 결과를 바꾸는 결함을 재현했다. `GameObject::DetachComponent`를 순서를 보존하는 `Array::RemoveAll`로 수정하고, [CanvasFoundationTests.cpp](../source/JBroEngine/Tests/CanvasFoundationTests.cpp)에 남은 두 Collider의 순서와 Canvas·GameObject의 첫 항목 조회 검증을 추가했다. 프레임 할당이나 RTTI는 추가하지 않았다. Debug/Release 전체 Rebuild는 모두 경고·오류 0개이며 두 구성의 모든 `JBroTests`가 통과했다.
+
+## 2026-09-11 후속: Canvas 공통 소유권 복구
+
+이 문서의 W-ref 의존 설명은 Canvas를 차원 독립 실행 단위로 사용하지만, 당시 소유 파일 표는
+`Framework2D/Canvas/**`를 구현 위치로 지정했다. 이 절을 작성한 당시 코드도 그 위치를 따랐으므로
+3D 게임 구성에서 Framework2D를 제외하면 Canvas 구현과 오브젝트·컴포넌트 수명 경로가 함께 사라졌다.
+
+- `tasks/worktree-host.md`는 차원 독립 Canvas 서비스를 `JBroRuntime`에 두도록 기록했다.
+- 당시 `Layer`는 범용 정체성·순서와 2D 블렌드·불투명도·패럴랙스 상태가 한 타입에 섞여 있었다.
+- Framework3D 컴포넌트의 `ComponentBase` 전환만 먼저 하면 3D 실행 기반이 없는 상태를 가리게 된다.
+- D-40에 따라 Canvas 본체와 범용 Layer 정체성은 Runtime 단일 정의로 옮기고 프레임워크별 복제는
+  하지 않는다. D-41에 따라 2D 합성 상태는 Framework2D의 `Layer2D`로 분리한다.
+- 2026-09-12 구현에서 위 이동과 분리를 완료했다. Framework3D의 5개 타입은 `ComponentBase`를
+  상속하고 Runtime Canvas에서 생성·부착되며, Debug_Game3D 링크는 Framework2D를 포함하지 않는다.
+  3D 전용 시스템과 렌더 추출은 여전히 후속 구현 대상이다.

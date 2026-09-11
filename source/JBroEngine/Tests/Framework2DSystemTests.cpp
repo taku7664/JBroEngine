@@ -1,5 +1,5 @@
 ﻿#include <JBro/Core/Core.h>
-#include <JBro/Framework2D/Canvas/Canvas.h>
+#include <JBro/Runtime/Canvas.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Physics2D.h>

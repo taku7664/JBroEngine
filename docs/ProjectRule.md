@@ -72,6 +72,13 @@
   그 프로젝트의 스크립트 타깃 include 경로에 넣지 않는다. (MUST)
 - 차원에 종속되는 타입은 각 Framework가 소유한다. `Transform2D`와 `Transform3D`를 하나로 합치지 않는다. (MUST)
 - Framework2D와 Framework3D는 서로 직접 의존하지 않는다. (MUST)
+- 차원 독립 `Canvas` 본체와 `Layer` 정체성은 `JBroRuntime`에 한 번만 정의한다. (MUST)
+  Framework별 Canvas 복제본을 만들지 않으며, 블렌드·불투명도·공간·패럴랙스·별도 합성 텍스처처럼
+  2D 렌더 합성에만 필요한 상태는 `JBroFramework2D`가 소유한다.
+
+> **구현 근거:** `Canvas`와 공통 `Layer`는 `JBroRuntime`에 한 번만 정의하며, Framework2D는 별도
+> `Layer2D`에 2D 합성 상태를 보관한다. Framework3D는 Framework2D를 링크하지 않고 Runtime Canvas의
+> 오브젝트·컴포넌트·시스템 실행 경계를 사용한다. 3D 렌더 시스템 자체는 아직 후속 구현 대상이다.
 
 ## 5. 엔진과 게임 코드의 경계
 
@@ -291,10 +298,13 @@
 
 ## 7. 엔진 서비스
 
-- 2D 게임의 최상위 실행 단위는 `Canvas`이며, `Canvas`가 오브젝트 풀과 타입별 컴포넌트 풀,
-  합성 순서를 가진 `Layer`들을 직접 소유한다. (MUST)
+- 선택된 Framework의 최상위 실행 단위는 Runtime `Canvas`이며, `Canvas`가 오브젝트 풀과 타입별
+  컴포넌트 풀, 순서를 가진 공통 `Layer` 정체성들을 직접 소유한다. (MUST)
   `World` 같은 중간 계층을 두지 않는다. 수명 계층은 `Canvas` → `GameObject` 하나뿐이다.
-- `Layer`는 포토샵 레이어처럼 표시 여부, 불투명도, 블렌드 방식, 합성 순서를 표현하며 GameObject의 실행 수명은 소유하지 않는다. (MUST)
+- Runtime `Layer`는 식별자·이름·표시 여부와 Canvas 안의 순서를 표현하며 GameObject의 실행 수명은
+  소유하지 않는다. (MUST) 불투명도·블렌드 방식·공간·패럴랙스·별도 합성 텍스처는 2D 렌더 합성
+  상태이므로 Framework2D의 `Layer2D`가 소유한다. (MUST) Runtime `Layer`와 연결하는 저장 방식은
+  Framework2D 내부 구현이며 Runtime 공개 계약이 아니다.
 - 별도의 `Scene` 또는 `SceneManager` 실행 계층은 두지 않는다. 이 이름으로 `Canvas`와 중복되는 수명 계층을 다시 만들지 않는다. (MUST)
   금지 대상은 특정 이름이 아니라 **중복 수명 계층 자체**다. 이름만 바꾼 같은 계층도 금지한다.
 - Time, Input 같은 핵심 서비스의 수명은 엔진이 소유한다. (MUST)

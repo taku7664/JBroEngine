@@ -1,13 +1,16 @@
 ﻿#include <JBro/Core/Core.h>
 #include <JBro/Core/StableTypeId.h>
-#include <JBro/Framework2D/Canvas/Canvas.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2D/Framework2D.h>
+#include <JBro/Framework2D/Layer2D.h>
+#include <JBro/Framework3D/Framework3D.h>
+#include <JBro/Runtime/Canvas.h>
 #include <JBro/Runtime/Component.h>
 #include <JBro/Runtime/GameObject.h>
+#include <JBro/Runtime/Layer.h>
 #include <JBro/Runtime/Ref.h>
 
 #include <iostream>
@@ -15,6 +18,12 @@
 
 namespace
 {
+    template<typename T>
+    concept HasLayerOpacity = requires(T& layer)
+    {
+        layer.SetOpacity(0.5f);
+    };
+
     void Check(bool condition, const char* message)
     {
         if (false == condition)
@@ -35,12 +44,25 @@ namespace
         JBro::Layer& background = canvas.CreateLayer("Background");
         JBro::Layer& foreground = canvas.CreateLayer("Foreground");
         Check(canvas.GetLayerCount() == 3, "created layers must be counted");
-        foreground.SetOpacity(0.5f);
-        foreground.SetBlendMode(JBro::LayerBlendMode::Additive);
+        foreground.SetVisible(false);
+        Check(false == foreground.IsVisible(), "runtime layer visibility must remain dimension independent");
         Check(canvas.MoveLayer(foreground.GetIndex(), 0), "layer order must be mutable");
         Check(canvas.GetLayerAt(0)->GetIndex() == foreground.GetIndex(), "moved layer must appear at requested slot");
-        Check(canvas.DestroyLayer(background.GetIndex()), "non-default layer must be destroyable");
+        const JBro::LayerIndex backgroundIndex = background.GetIndex();
+        Check(canvas.DestroyLayer(backgroundIndex), "non-default layer must be destroyable");
         Check(canvas.GetLayerCount() == 2, "destroy must shrink the layer list");
+        Check(canvas.FindLayer(backgroundIndex) == nullptr,
+            "a destroyed layer lookup must return null without indexing outside the layer array");
+        Check(false == canvas.MoveLayer(backgroundIndex, 0),
+            "moving a missing layer must fail without indexing outside the layer array");
+        Check(false == canvas.DestroyLayer(backgroundIndex),
+            "destroying a missing layer must fail without indexing outside the layer array");
+        JBro::GameObject* object = canvas.CreateObject("layer lookup");
+        Check(object != nullptr && false == canvas.SetObjectLayer(object, backgroundIndex),
+            "assigning a missing layer must fail without indexing outside the layer array");
+
+        static_assert(false == HasLayerOpacity<JBro::Layer>,
+            "runtime Layer must not expose Framework2D composition state");
     }
 
     void TestFramework2DBootstraps()
@@ -50,9 +72,48 @@ namespace
         Check(framework.Initialize(context), "framework must initialize with a default allocator fallback");
         Check(framework.GetCanvas() != nullptr, "framework must own a canvas");
         Check(framework.GetCanvas()->GetLayerCount() == 1, "framework canvas must have the default layer");
+        JBro::Layer2D* defaultState =
+            framework.GetLayer2D(framework.GetCanvas()->GetDefaultLayer());
+        Check(defaultState != nullptr, "Framework2D must own state for its default runtime layer");
+        JBro::Layer* foreground = framework.CreateLayer("Foreground");
+        Check(foreground != nullptr, "Framework2D must create a runtime layer and its 2D state together");
+        JBro::Layer2D* foregroundState = framework.GetLayer2D(foreground->GetIndex());
+        Check(foregroundState != nullptr, "created Framework2D layer must expose its 2D state");
+        foregroundState->SetOpacity(0.5f);
+        foregroundState->SetBlendMode(JBro::Layer2D::BlendMode::Additive);
+        Check(foregroundState->GetOpacity() == 0.5f
+            && foregroundState->GetBlendMode() == JBro::Layer2D::BlendMode::Additive,
+            "Layer2D must retain Framework2D composition settings");
+        const JBro::LayerIndex foregroundIndex = foreground->GetIndex();
+        Check(framework.DestroyLayer(foregroundIndex),
+            "Framework2D must destroy runtime layer and 2D state together");
+        Check(framework.GetLayer2D(foregroundIndex) == nullptr,
+            "destroyed runtime layer must not retain accessible Framework2D state");
         framework.Update(1.0f / 60.0f);
         framework.Shutdown();
         Check(framework.GetCanvas() == nullptr, "shutdown must release the canvas");
+    }
+
+    void TestFramework3DBootstrapsRuntimeCanvas()
+    {
+        static_assert(std::is_base_of_v<JBro::ComponentBase, JBro::Component::Transform3D>);
+        static_assert(std::is_base_of_v<JBro::ComponentBase, JBro::Component::Camera3D>);
+        static_assert(std::is_base_of_v<JBro::ComponentBase, JBro::Component::MeshRenderer>);
+        static_assert(std::is_base_of_v<JBro::ComponentBase, JBro::Component::Rigidbody3D>);
+        static_assert(std::is_base_of_v<JBro::ComponentBase, JBro::Component::Collider3D>);
+
+        JBro::Framework3D framework;
+        JBro::FrameworkContext context;
+        Check(framework.Initialize(context), "Framework3D must initialize its runtime canvas");
+        JBro::Canvas* canvas = framework.GetCanvas();
+        Check(canvas != nullptr, "Framework3D must expose its runtime canvas");
+        JBro::GameObject* object = canvas->CreateObject("3D object");
+        Check(object != nullptr, "Framework3D canvas must create objects without Framework2D");
+        auto* transform = canvas->AttachComponent<JBro::Component::Transform3D>(object);
+        Check(transform != nullptr && transform->GetOwner() == object,
+            "Framework3D canvas must own polymorphic 3D components");
+        framework.Shutdown();
+        Check(framework.GetCanvas() == nullptr, "Framework3D shutdown must release its runtime canvas");
     }
 
     void TestRefIsPod()
@@ -154,6 +215,7 @@ int RunCanvasFoundationTests()
 {
     TestObjectComponentSkeletonCompiles();
     TestFramework2DBootstraps();
+    TestFramework3DBootstrapsRuntimeCanvas();
     TestRefIsPod();
     TestStableTypeIdIsStable();
     TestFramework2DComponentsArePolymorphic();

@@ -1,4 +1,4 @@
-﻿#include <JBro/Framework2D/Canvas/Canvas.h>
+﻿#include <JBro/Runtime/Canvas.h>
 #include <JBro/Runtime/SystemScheduler.h>
 #include <JBro/Framework2D/Framework2D.h>
 

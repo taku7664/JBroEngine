@@ -436,3 +436,15 @@ Updates: 위 3번의 `Array<OwnerPtr<Chunk>>` 예시는 당시 주소 안정성 
   목록 추가가 실패하면 아직 게시되지 않은 청크를 같은 allocator로 즉시 반환한다.
 - 200개 객체가 7개 청크를 할당하고 풀 파괴 시 7개를 모두 반환하는지 검사한다. 기존 주소 안정성,
   free-list 재사용, `SafePtr` 무효화 검증도 함께 통과했다.
+
+## 2026-09-12 후속: Canvas 소유 경로 정정
+
+Updates: 위 소유 파일 목록의 `Framework2D/Canvas/**` 경로. 당시 작업 분할 기록은 보존하지만 현재
+구현 위치로 사용하지 않는다.
+
+- D-40에 따라 공통 `Canvas`와 `Layer`의 선언·구현은 `JBroRuntime`으로 이동했다.
+- D-41에 따라 블렌드·불투명도·공간·패럴랙스·별도 합성 텍스처는 Framework2D의 `Layer2D`가 소유한다.
+- Framework별 Canvas 복제본은 만들지 않는다. Framework2D와 Framework3D가 같은 Runtime Canvas를
+  각자의 실행 인스턴스로 소유한다.
+- 기존 레이어 미존재 경로가 `Array::IndexOfBy()`의 실패 값 대신 배열 크기를 비교하던 오류도 함께
+  수정했다. 파괴된 레이어의 조회·이동·재파괴·오브젝트 배정은 범위 밖 접근 없이 실패한다.
