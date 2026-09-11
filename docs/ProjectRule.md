@@ -19,7 +19,8 @@
 
 ## 2. 플랫폼과 렌더링 경계
 
-- Windows와 Web 구현은 같은 기능 수준을 유지해야 한다. (MUST)
+- Windows와 Web에서 모두 지원 완료로 선언한 기능은 같은 공개 계약과 기능 수준을 유지해야 한다. (MUST)
+  현재 구현 순서는 Windows/D3D12 우선이며 Web 스텁은 지원 완료로 간주하지 않는다.
 - 플랫폼별 그래픽스 API 의존성은 RHI 뒤에 격리해야 한다. (MUST)
 - 현재 공개 Game Framework API는 2D 제작에 집중하되, Core, Renderer, RHI 내부 구조는 향후 3D 확장을 막지 않아야 한다. (MUST)
 - Renderer의 `Submit*` API는 프레임 패킷을 수집해야 하며 호출 시점에 RHI 드로우를 실행하지 않아야 한다. (MUST)
@@ -148,8 +149,9 @@
 
   **경로가 둘인 게 아니라 접근자 하나에 사용법이 둘이다.**
   `operator->` 는 내부적으로 `Get()` 을 부르며, Debug 빌드 assert 만 차이다.
-- 포인터를 멤버로 저장하지 않는다. (MUST)
+- 스크립트가 대상의 수명 밖까지 보관하는 멤버에는 raw pointer를 저장하지 않는다. (MUST)
   `GameObject`를 저장하면 `GameObjectHandle`, 그 외 대상을 저장하면 `Ref<T>`를 멤버로 둔다.
+  엔진 내부 참조는 이 규칙을 스크립트 핸들로 우회하지 않고 §6의 소유권과 `SafePtr<T>` 계약을 따른다.
 
   > 이 규칙을 타입으로 강제하려는 시도(복사·이동을 삭제한 스코프 객체)는 채택하지 않았다.
   > C++17 의 보장된 복사 생략 때문에 prvalue 로 멤버를 초기화하는 것이 막히지 않아
@@ -297,7 +299,7 @@
 
 - `GameObject` 는 실체 객체다. **`Entity` 정수 ID 를 도입하지 않는다.** (MUST)
   식별은 객체 자체와 `InstanceId` 로 한다.
-- 컴포넌트는 **다형성** `Component::ComponentBase` 파생이며 타입별 풀(`TObjectPool<T>`)에 거주한다. (MUST)
+- 컴포넌트는 **다형성** `JBro::ComponentBase` 파생이며 타입별 풀(`TObjectPool<T>`)에 거주한다. (MUST)
   메모리 소유는 풀, **논리 소유는 오브젝트**(`Array<SafePtr<ComponentBase>>`)다.
   컴포넌트를 POD 구조체로 만들지 않는다 — 리플렉션과 직렬화가 다형성에 의존한다.
 - 부모·자식 계층과 레이어 소속은 `GameObject`의 멤버다. (MUST)
@@ -351,8 +353,10 @@
   `InstanceId → { Slot, Gen }` 맵을 1회 만들고 모든 `Ref` 의 캐시를 채운다.
   그래야 프레임 루프에서 식별자 조회가 0 회가 된다.
   런타임에 생성된 대상은 첫 접근에서만 1회 해석하고 이후 캐시를 쓴다.
-- 핫 리로드 시 스크립트 인스턴스는 슬롯이 바뀐다.
-  `ScriptAllocationGeneration` 이 바뀌면 슬롯 캐시를 버리고 `InstanceId` 로 재해석한다. (MUST)
+- 핫 리로드로 스크립트 인스턴스 슬롯이 바뀐 뒤에는 이전 슬롯 캐시를 사용하지 않아야 한다. (MUST)
+  현재 코드에는 이 무효화 경로가 아직 없으며 `ScriptAllocationGeneration`이라는 구체 타입명도
+  확정하지 않았다. H5의 리플렉션·할당 수명 설계에서 메커니즘을 확정하고 구현하기 전까지는
+  핫 리로드 참조 안전성을 완료로 표시하지 않는다.
 
 ## 9. 성능
 
@@ -391,7 +395,7 @@
 | 시스템 (엔진 레이어 로우레벨) | `JBro::System` | `System::TimeSystem` |
 | 서비스 (스크립트 레이어 공개) | `JBro::Service` | `Service::TimeService` |
 | 그 외 사용자 비공개 | `JBro::Internal` | `Internal::…` |
-| 게임프레임워크 · 공통 타입 | `JBro` 직속 | `JBro::GameObject`, `JBro::Canvas`, `JBro::Vector4` |
+| 게임프레임워크 · 공통 타입 | `JBro` 직속 | `JBro::GameObject`, `JBro::Canvas`, `JBro::Color` |
 
 - **`JBro::Game` 은 두지 않는다.** (MUST)
   `using namespace JBro;` 이후 사용자 코드의 `namespace Game` 과 충돌한다.
@@ -403,6 +407,11 @@
 - **시스템과 서비스는 네임스페이스에 이미 나타나더라도 타입 이름 끝에 `System` / `Service` 를 명시한다.** (MUST)
   `using namespace JBro;` 이후 `System::Time` 과 `Service::Time` 이 생기면 읽는 쪽이 헷갈린다.
   접미사가 있으면 `TimeSystem` / `TimeService` 로 항상 구분된다.
+- **차원과 무관한 공개 값 타입은 JBroCore의 `JBro` 네임스페이스에 한 번만 정의한다.** (MUST)
+  Framework는 동일한 이름의 공개 타입을 재정의하지 않고 Core의 정식 헤더를 include한다.
+  정식 타입 이식은 소비자 마이그레이션, 임시 정의 제거, Core와 선택 Framework 공개 헤더의 결합
+  컴파일까지 끝나야 완료다. 필드명과 기본값이 다른 임시 타입은 조용히 합치지 말고 각 소비자의
+  의도를 확인해 명시적으로 보존한다.
 - 스크립트 레이어는 네임스페이스를 강제하지 않는다. 프렐류드 헤더(`ScriptAPI.h`)가
   `using namespace JBro;` 를 수행한다. (MUST)
   단 **1 뎁스 네임스페이스 사용을 적극 권장한다** — `Component::Transform2D` 처럼 쓰면
@@ -420,26 +429,24 @@
 
   | 맞음 | 틀림 |
   |---|---|
-  | `Transform2DComponent` | `TransformComponent2D` |
-  | `CTransform2DSystem` | `CTransformSystem2D` |
-  | `CCamera2DSystem` | `CCameraSystem2D` |
+  | `Component::Transform2D` | `Component::TransformComponent2D` |
+  | `System::Transform2DSystem` | `System::TransformSystem2D` |
+  | `System::Camera2DSystem` | `System::CameraSystem2D` |
 
-- 역할 접미(`Component` / `System` / `Service`)는 항상 맨 뒤에 온다. (MUST)
+- `Component` 네임스페이스의 컴포넌트 타입에는 `Component` 접미사를 반복하지 않는다. (MUST)
+- 역할 접미(`System` / `Service`)는 항상 맨 뒤에 온다. (MUST)
 - **같은 도메인의 구조체와 시스템은 앞부분이 정확히 일치해야 한다.** (MUST)
   구조체-시스템 짝이 이름으로 바로 보여야 한다.
 
   ```
-  Transform2DComponent        ↔  CTransform2DSystem
-  Camera2DComponent           ↔  CCamera2DSystem
-  SpriteRenderer2DComponent   ↔  CSpriteRenderer2DSystem
-  Rigidbody2D / Collider2D    ↔  CPhysics2DSystem
+  Component::Transform2D       ↔  System::Transform2DSystem
+  Component::Camera2D          ↔  System::Camera2DSystem
   ```
 
 - 차원 마커를 붙일 이유가 없는 타입은 **애초에 Framework 안에 있어야 하는지 검토한다.** (MUST)
   차원과 무관한 개념이면 공통 모듈에 두어야 반대 Framework 가 같은 것을 다시 만들지 않는다.
-- 스크립트에 노출되는 타입에는 차원 마커를 붙이지 않는다. (SHOULD)
-  프로젝트가 이미 2D 또는 3D 하나로 고정돼 있어 사용자에게는 중복 정보다.
-  예: 스크립트는 `Transform` 으로 쓰고 엔진 내부는 `Transform2DComponent` 다.
+- 차원별 의미와 저장 계약이 다른 타입은 스크립트 표면에서도 차원 마커를 유지한다. (MUST)
+  예: 2D 스크립트는 `Component::Transform2D`를 쓴다.
 
 ### 10.3 System 과 Service
 
@@ -454,8 +461,10 @@
 
 - 스크립트 레이어에서 시스템 같은 로우레벨 객체에 직접 접근하는 것을 엄금한다. (MUST)
 - 엔진 레이어는 시스템을 직접 써도 된다. (MAY)
-- **서비스는 프로세스에 하나만 존재하는 객체다.** 컴포넌트와의 차이가 여기 있다 —
-  컴포넌트는 기능 단위로 나뉘고 여러 개 생성할 수 있다. (MUST)
+- **서비스는 소유 스코프마다 하나의 논리 접근점을 제공한다.** 공통 서비스는 EngineInstance가,
+  차원별 서비스는 활성 프로젝트의 Framework Context가 바인딩한다. 서비스 값 객체가 여러 Context에
+  복사될 수 있으므로 물리적 C++ 객체가 프로세스에 정확히 하나라는 뜻은 아니다. (MUST)
+  컴포넌트는 기능 단위로 나뉘고 여러 개 생성할 수 있다.
 - **서비스는 포인터로 넘기지 않는다.** `ServiceContext` 에 값으로 둔다. (MUST)
 
   ```cpp

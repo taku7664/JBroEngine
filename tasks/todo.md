@@ -1,10 +1,11 @@
 # 신규 리포를 기존 엔진 구조에 맞추기 — TODO
 
-이전 단계 기록은 [canvas-world-foundation.md](./canvas-world-foundation.md) 로 옮겼다.
-확정 규칙은 [docs/ProjectRule.md](../docs/ProjectRule.md) 다. 아래 Decisions 가 그 근거다.
+폐기된 World/ECS 단계 기록은 [canvas-world-foundation.md](./canvas-world-foundation.md)에 남아 있다.
+이 문서는 현재 설계나 작업 지시가 아니다.
+현재 계약은 [docs/ProjectRule.md](../docs/ProjectRule.md), 변경 근거는 아래 Decisions다.
 
-**Stage B0 · B · C 는 완료**. 이제부터는 워크트리 5개로 병렬 진행한다.
-각 워크트리의 상세 작업 목록은 아래 문서에 있다:
+**현재 작업은 `main` 단일 브랜치·단일 워크트리에서 순차 진행한다.** 아래 문서는 과거 워크트리
+분할 당시의 담당 범위와 설계 근거를 보존한 기록이며, 현재 브랜치·병합 지시로 사용하지 않는다:
 
 - [worktree-plan.md](./worktree-plan.md) — 5개 워크트리의 분기·병합 규칙
 - [worktree-build.md](./worktree-build.md) — **W-build** · 빌드 구성과 2D/3D 배타 (Stage E)
@@ -13,13 +14,31 @@
 - [worktree-ref.md](./worktree-ref.md) — **W-ref** · SafePtr 이식 + `Ref<T>` + `GameObjectHandle` + Canvas 구현 (F·G)
 - [worktree-host.md](./worktree-host.md) — **W-host** · 컨텍스트 + 스크립트 로더 + 프렐류드 (D4·H)
 
-이 파일은 **워크트리에 걸치는 결정 · 배경 · 성공 기준 · 잔여 검증만** 담는다.
-개별 항목의 실제 작업 지시는 위 워크트리 문서에 있다.
+이 파일의 Decisions는 결정 이력이고, 체크리스트와 진행 상태는 현재 코드·테스트와 대조해야 한다.
+과거 작업 문서의 본문과 Decisions가 충돌하면 Decisions를 따르되, `ProjectRule.md`도 같은 변경에서
+동기화한다.
 
 ## Goal
 
 `source/JBroEngine` 신규 트리를 **기존 엔진(`source/repos/JBroEngine/Engine`)의
 오브젝트-컴포넌트 모델**에 맞추고, 스크립트 노출 표면만 핸들로 바꾼다.
+
+## Current Audit Snapshot — 2026-09-11
+
+이 절은 현재 코드와 테스트를 직접 대조한 작업 기준이다. 아래의 Stage·Review 체크리스트는 당시
+스냅샷이므로 현재 상태를 증명하지 않는다.
+
+- 현재 브랜치와 워크트리는 `main` 하나다.
+- Renderer의 프레임 패킷 API, Canvas·참조·풀의 기본 구현과 버전형 스크립트 DLL 진입점은 코드와
+  테스트가 존재한다.
+- Core와 Framework2D가 각각 `JBro::Color`를 정의해 두 공개 헤더의 결합 컴파일이 실패한다.
+- `Ref<GameObject>`가 헤더와 프렐류드 테스트에 남아 D-5의 GameObjectHandle 전용 계약을 위반한다.
+- Framework2D의 `ScriptSystem`은 아직 실행 구현이 없는 스텁이다.
+- InstanceId 테스트는 4096 시퀀스를 검사하지만 서로 다른 생성기 세션의 난수 비반복은 검사하지 않는다.
+- SDK/Dist 미러와 프로젝트 Templates는 현재 트리에 없다. 존재하기 전에는 관련 완료 조건을 충족한
+  것으로 표시하지 않는다.
+- draw.io XML 9페이지는 파싱과 연결 무결성을 확인했다. 설치된 draw.io 뷰어가 없어 렌더링 화면
+  검수는 아직 증명되지 않았다.
 
 ## Decisions
 
@@ -181,6 +200,12 @@
   DLL 경계로 C++ 가상 객체나 메모리 소유권을 넘기지 않는다. 구 엔진의 C++ 가상 모듈 객체는 컴파일러·
   CRT·할당자 ABI를 경계에 고정하므로 채택하지 않았고, Context별 내보내기 심볼 방식은 Framework가
   늘 때마다 Runtime 로더 수정과 부분 바인딩 실패를 만들므로 채택하지 않았다.
+- **D-38. 차원 독립 공개 값 타입은 JBroCore에 한 번만 정의한다.**
+  Framework는 같은 이름의 공개 타입을 다시 선언하지 않고 Core의 정식 타입을 include한다.
+  임시 타입이 있던 상태에서 정식 타입을 이식할 때는 소비자 마이그레이션과 임시 정의 제거를 같은
+  작업의 완료 조건으로 삼는다. `ScriptAPI.h`와 선택 Framework의 공개 헤더를 함께 컴파일하는 검증과
+  공개 타입 중복 검사를 통과하기 전에는 이식을 완료로 표시하지 않는다. `Color`가 이 규칙의 첫 교정
+  대상이며, 필드명과 기본값처럼 동명이지만 서로 다른 계약도 소비자별로 명시적으로 보존한다.
 
 ## Assumptions
 

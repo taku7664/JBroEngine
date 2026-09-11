@@ -1,5 +1,10 @@
 # Jbro Engine Architecture Draft
 
+> **역사 초안 — 현재 계약이나 구현 지시로 사용하지 않는다.** 이 문서에는 폐기된 ECS/World,
+> GraphicsSystem, 전 모듈 DLL 설계가 표시되지 않은 채 남아 있다. 부분적인 `[대체됨]` 표시는 문서
+> 전체의 현행성을 보장하지 않는다. 현재 계약은 `ProjectRule.md`, 변경 근거는 `tasks/todo.md`의
+> Decisions를 사용한다. 아래 본문은 설계 변천을 보존하기 위한 자료다.
+
 > **이 문서는 초안이다.** 확정 규칙은 [ProjectRule.md](./ProjectRule.md) 를 우선한다.
 > 아래 절 중 일부는 검토를 거쳐 대체되었으며 해당 절에 대체 표시를 달아 두었다.
 > 대체된 절: **§7, §8, §13, §18, §31 의 일부**. 대체 근거는 `tasks/todo.md` 의 Decisions 절에 있다.

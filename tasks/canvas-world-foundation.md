@@ -1,5 +1,10 @@
 # Canvas-Owned World Foundation TODO
 
+> **폐기된 역사 기록 — 현재 설계나 작업 지시로 사용하지 않는다.**
+> 이 문서의 World/ECS/Entity 모델은 `tasks/todo.md`의 D-1·D-2와
+> `docs/ProjectRule.md` §8에 의해 전부 폐기됐다. 현재 Canvas는 오브젝트 풀과 타입별 컴포넌트 풀을
+> 직접 소유하며 World/ECS 계층을 두지 않는다. 아래 본문은 당시 구현 기록을 보존하기 위한 것이다.
+
 ## Goal
 
 2D 게임의 최상위 단위를 `Canvas`로 고정하고, `Canvas`가 `World/ECS`와 포토샵식 합성 `Layer`를 소유하는 엔진 기초를 구현한다.
