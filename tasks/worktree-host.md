@@ -440,9 +440,9 @@ bool EngineInstance::Initialize(const EngineConfig& config, IPlatform& platform,
 - [x] `JBroTests` 통과
 - [x] 실제 스크립트 스텁 DLL 로 Load/Unload/Reload 왕복 성공 (한글 경로 포함)
 - [ ] H6 실측 통과 (재로드 후 새 로그 문자열 확인)
-- [ ] 프렐류드 자립: 사용자가 `#include <JBro/ScriptAPI.h>` 만 한 파일이 컴파일됨
-- [ ] `SystemContext` 정의는 프렐류드 include 트리에 없음 (`ScriptAPI.h` include 후 사용자 TU 에서 `System::` 이름 못 씀)
-- [ ] `EngineContext` 정의는 프렐류드 include 트리에 없음 (호스트 전용)
+- [x] 프렐류드 자립: 사용자가 `#include <JBro/ScriptAPI.h>` 만 한 파일이 컴파일됨
+- [x] `SystemContext` 정의는 프렐류드 include 트리에 없음
+- [x] `EngineContext` 정의는 프렐류드 include 트리에 없음 (호스트 전용)
 - [x] `AbiVersion` 필드 불일치 시 로드 거부
 
 ## 다른 워크트리와의 인터페이스
@@ -563,6 +563,16 @@ Updates: H1·H3·H7의 독립 기반 구현. 서비스 저장 방식과 개별 �
 - `ProjectRule.md` §8의 값 서비스·시스템 인터페이스 포인터 MUST와 이 문서 H1의 서비스 포인터·구체
   시스템 포인터 예시가 충돌하므로 두 Context의 구체 슬롯은 사용자 결정 전까지 추가하지 않았다.
 - Debug/Release x64 전체 Rebuild는 경고 0·오류 0이며 양쪽 JBroTests 전체가 통과했다.
+
+### 2026-09-12 프렐류드 경계 회귀 검증
+
+- `ScriptApiPreludeTests.cpp`는 첫 include로 `<JBro/ScriptAPI.h>`만 사용해 공개 핸들·Ref·서비스 Context와
+  `JBRO_SCRIPT`를 컴파일한다.
+- MSVC `__if_exists`와 완전 타입 검사를 결합해, 프렐류드가 `SystemContext` 또는 `EngineContext` 선언을
+  보더라도 그 정의까지 전이 include하면 같은 테스트 빌드가 실패하도록 고정했다.
+- `JBroTests.vcxproj`에 `/p:JBroNegativePreludeProbe=SystemContext` 또는 `EngineContext`를 지정하면
+  해당 정의를 의도적으로 주입하고 C2338 실패를 기대하는 음성 검증을 재현할 수 있다. 속성을 지정하지
+  않은 Debug/Release 빌드는 프렐류드 자립과 정상 실행을 검증한다.
 
 ## 2026-09-09 후속: GameHost 실행 루프와 이벤트 인지형 대기
 
