@@ -1,12 +1,13 @@
 ﻿#pragma once
 
+#include <JBro/Types/Array.h>
+
 #include <algorithm>
 #include <cctype>
 #include <functional>
 #include <string>
 #include <string_view>
 #include <utility>
-#include <vector>
 
 namespace JBro
 {
@@ -174,27 +175,29 @@ public:
 		return copy;
 	}
 
-	std::vector<String> Split(char delimiter, bool skipEmpty = false) const
-	{
-		std::vector<String> result;
-		std::size_t start = 0;
-		while (start <= size())
-		{
-			const std::size_t end = find(delimiter, start);
-			const std::size_t count = (npos == end) ? npos : end - start;
-			if (0 != count || false == skipEmpty)
-			{
-				result.emplace_back(substr(start, count));
-			}
-			if (npos == end)
-			{
-				break;
-			}
-			start = end + 1;
-		}
-		return result;
-	}
+	Array<String> Split(char delimiter, bool skipEmpty = false) const;
 };
+
+inline Array<String> String::Split(char delimiter, bool skipEmpty) const
+{
+	Array<String> result;
+	std::size_t start = 0;
+	while (start <= size())
+	{
+		const std::size_t end = find(delimiter, start);
+		const std::size_t count = (npos == end) ? npos : end - start;
+		if (0 != count || false == skipEmpty)
+		{
+			result.Emplace(substr(start, count));
+		}
+		if (npos == end)
+		{
+			break;
+		}
+		start = end + 1;
+	}
+	return result;
+}
 
 static_assert(sizeof(String) == sizeof(std::string));
 }

@@ -45,11 +45,33 @@ namespace
         Check(IsWhite(spritePacketDefault.tint),
             "SpriteRenderItem must preserve the former Framework2D white tint default");
     }
+
+    void TestStringSplitUsesTheCanonicalArray()
+    {
+        static_assert(std::is_same_v<
+            decltype(JBro::String{}.Split(',')), JBro::Array<JBro::String>>);
+
+        const JBro::Array<JBro::String> values =
+            JBro::String("alpha,,beta").Split(',');
+        Check(values.Size() == 3
+            && values[0] == "alpha"
+            && values[1].IsEmpty()
+            && values[2] == "beta",
+            "String::Split must retain empty fields by default");
+
+        const JBro::Array<JBro::String> compact =
+            JBro::String("alpha,,beta").Split(',', true);
+        Check(compact.Size() == 2
+            && compact[0] == "alpha"
+            && compact[1] == "beta",
+            "String::Split must omit empty fields only when requested");
+    }
 }
 
 int RunPublicHeaderCompositionTests()
 {
     TestCanonicalColorComposition();
+    TestStringSplitUsesTheCanonicalArray();
     std::cout << "Public header composition tests passed.\n";
     return 0;
 }
