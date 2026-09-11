@@ -5,6 +5,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <new>
 #include <type_traits>
@@ -16,7 +17,7 @@ namespace JBro
     //   1) 한 번 발급된 T* 는 다른 T 가 추가돼도 이동하지 않는다(주소 안정성).
     //   2) 파괴는 슬롯을 free-list 로 되돌리고 다음 Create 가 재사용한다.
     //   3) ForEachLive 는 살아 있는 원소만 순회한다(밀집 순회는 아니지만 스킵 저렴).
-    // 실제 구현은 F1~G4 단계에서 채운다. 여기서는 시그니처만 확정한다.
+    // 청크 메모리는 생성자에서 받은 JAllocator로 할당하고 같은 allocator로 반환한다.
     template <typename T, std::size_t ChunkSize = 32>
     class TObjectPool
     {
@@ -58,6 +59,71 @@ namespace JBro
             Slot slots[ChunkSize];
         };
 
+        class ChunkOwner final
+        {
+        public:
+            ChunkOwner() = default;
+
+            ChunkOwner(Chunk* chunk, JAllocator allocator)
+                : m_chunk(chunk)
+                , m_allocator(allocator)
+            {
+            }
+
+            ChunkOwner(const ChunkOwner&) = delete;
+            ChunkOwner& operator=(const ChunkOwner&) = delete;
+
+            ChunkOwner(ChunkOwner&& other) noexcept
+                : m_chunk(other.m_chunk)
+                , m_allocator(other.m_allocator)
+            {
+                other.m_chunk = nullptr;
+                other.m_allocator = {};
+            }
+
+            ChunkOwner& operator=(ChunkOwner&& other) noexcept
+            {
+                if (this == &other)
+                {
+                    return *this;
+                }
+
+                Release();
+                m_chunk = other.m_chunk;
+                m_allocator = other.m_allocator;
+                other.m_chunk = nullptr;
+                other.m_allocator = {};
+                return *this;
+            }
+
+            ~ChunkOwner()
+            {
+                Release();
+            }
+
+            Chunk* Get() const
+            {
+                return m_chunk;
+            }
+
+        private:
+            void Release()
+            {
+                if (m_chunk == nullptr)
+                {
+                    return;
+                }
+
+                std::destroy_at(m_chunk);
+                m_allocator.free(m_allocator.userData, m_chunk);
+                m_chunk = nullptr;
+                m_allocator = {};
+            }
+
+            Chunk* m_chunk = nullptr;
+            JAllocator m_allocator;
+        };
+
         static void IgnoreDelete(void*)
         {
         }
@@ -74,12 +140,12 @@ namespace JBro
 
         Slot& GetSlot(std::size_t slotIndex)
         {
-            return m_chunks[slotIndex / ChunkSize]->slots[slotIndex % ChunkSize];
+            return m_chunks[slotIndex / ChunkSize].Get()->slots[slotIndex % ChunkSize];
         }
 
         const Slot& GetSlot(std::size_t slotIndex) const
         {
-            return m_chunks[slotIndex / ChunkSize]->slots[slotIndex % ChunkSize];
+            return m_chunks[slotIndex / ChunkSize].Get()->slots[slotIndex % ChunkSize];
         }
 
         static T* GetValue(Slot& slot)
@@ -94,9 +160,10 @@ namespace JBro
 
         bool FindSlot(T* value, std::size_t& outSlotIndex);
         void DestroySlot(Slot& slot);
+        ChunkOwner AllocateChunk();
 
         JAllocator m_allocator;
-        Array<OwnerPtr<Chunk>> m_chunks;
+        Array<ChunkOwner> m_chunks;
         Array<std::uint32_t> m_freeSlots;
         std::size_t m_nextUnusedSlot = 0;
         std::size_t m_liveCount = 0;
@@ -198,15 +265,27 @@ namespace JBro
     template <typename T, std::size_t ChunkSize>
     bool TObjectPool<T, ChunkSize>::Reserve(std::size_t requestedCapacity)
     {
-        const std::size_t requiredChunks =
-            (requestedCapacity + ChunkSize - 1) / ChunkSize;
+        std::size_t requiredChunks = requestedCapacity / ChunkSize;
+        if (requestedCapacity % ChunkSize != 0)
+        {
+            ++requiredChunks;
+        }
+        if (requiredChunks > std::numeric_limits<std::size_t>::max() / ChunkSize)
+        {
+            return false;
+        }
         try
         {
             m_chunks.Reserve(requiredChunks);
             m_freeSlots.Reserve(requiredChunks * ChunkSize);
             while (m_chunks.Size() < requiredChunks)
             {
-                m_chunks.Add(MakeOwnerPtr<Chunk>());
+                ChunkOwner chunk = AllocateChunk();
+                if (chunk.Get() == nullptr)
+                {
+                    return false;
+                }
+                m_chunks.Add(std::move(chunk));
             }
         }
         catch (const std::bad_alloc&)
@@ -272,6 +351,35 @@ namespace JBro
             {
                 delete controlBlock;
             }
+        }
+    }
+
+    template <typename T, std::size_t ChunkSize>
+    typename TObjectPool<T, ChunkSize>::ChunkOwner
+    TObjectPool<T, ChunkSize>::AllocateChunk()
+    {
+        if (m_allocator.allocate == nullptr || m_allocator.free == nullptr)
+        {
+            return {};
+        }
+
+        void* memory = m_allocator.allocate(
+            m_allocator.userData,
+            sizeof(Chunk),
+            alignof(Chunk));
+        if (memory == nullptr)
+        {
+            return {};
+        }
+
+        try
+        {
+            return ChunkOwner(std::construct_at(static_cast<Chunk*>(memory)), m_allocator);
+        }
+        catch (...)
+        {
+            m_allocator.free(m_allocator.userData, memory);
+            throw;
         }
     }
 }

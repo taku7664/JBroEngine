@@ -424,3 +424,15 @@ Updates: 위 1번 SafePtr 이식의 현재 검증 근거. 이 절은 과거 워�
 - `git diff --no-index`로 두 파일을 직접 비교한 차이는 UTF-8 BOM 1개와 `namespace JBro` 여닫는 두 줄이다.
 - 템플릿 저장부, ControlBlock 카운트, 소유권 비교, 정적·동적 캐스트를 포함한 실행 로직 차이는 0건이다.
 - 구 엔진 원본은 수정하지 않았다.
+
+## 2026-09-11 후속: TObjectPool allocator 계약
+
+Updates: 위 3번의 `Array<OwnerPtr<Chunk>>` 예시는 당시 주소 안정성 설계 기록이다. 현재 구현은
+청크 메모리를 생성자에서 받은 `JAllocator`로 할당·반환하기 위해 이동 전용 청크 소유 래퍼를 사용한다.
+
+- 32슬롯 청크 자체는 전달받은 allocator가 소유한다. 청크 포인터 목록과 free-list는 JBro `Array`의
+  모듈 로컬 저장소를 사용한다.
+- 청크 소유 래퍼는 `noexcept` 이동 뒤 원본을 비워 `Array` 성장 중 이중 해제를 막는다. 청크 생성이나
+  목록 추가가 실패하면 아직 게시되지 않은 청크를 같은 allocator로 즉시 반환한다.
+- 200개 객체가 7개 청크를 할당하고 풀 파괴 시 7개를 모두 반환하는지 검사한다. 기존 주소 안정성,
+  free-list 재사용, `SafePtr` 무효화 검증도 함께 통과했다.

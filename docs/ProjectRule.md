@@ -331,6 +331,9 @@
   시스템이 각자 `owner->IsActive` 를 판단하면 시스템 간 불일치가 생긴다(이미 겪은 문제다).
 - 객체 풀은 슬롯 주소가 불변이어야 한다(compaction 금지). (MUST)
   캐시된 raw 포인터와 `SafePtr` 가 이 성질에 의존한다.
+- `TObjectPool<T>`의 청크 저장소는 생성자에서 받은 `JAllocator`로 할당하고 같은 allocator로
+  반환해야 한다. (MUST) 청크 포인터 목록과 free-list 같은 Core 컨테이너의 내부 저장소는
+  `Array`의 모듈 로컬 할당 계약을 따르되, 객체 슬롯을 담는 청크 자체는 전달받은 allocator가 소유한다.
 
 ### 8.1 참조와 식별자
 

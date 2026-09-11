@@ -8,6 +8,7 @@
 #include <JBro/Types/SafePtr.h>
 
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <utility>
 
@@ -36,6 +37,33 @@ namespace
     {
         int Value = 0;
     };
+
+    struct AllocationProbe
+    {
+        JBro::JAllocator Backing = JBro::CreateDefaultAllocator();
+        std::size_t AllocateCalls = 0;
+        std::size_t FreeCalls = 0;
+    };
+
+    void* CountPoolAllocation(
+        void* userData,
+        std::size_t size,
+        std::size_t alignment)
+    {
+        auto& probe = *static_cast<AllocationProbe*>(userData);
+        ++probe.AllocateCalls;
+        return probe.Backing.allocate(
+            probe.Backing.userData,
+            size,
+            alignment);
+    }
+
+    void CountPoolFree(void* userData, void* memory)
+    {
+        auto& probe = *static_cast<AllocationProbe*>(userData);
+        ++probe.FreeCalls;
+        probe.Backing.free(probe.Backing.userData, memory);
+    }
 
     class TestComponent final : public JBro::ComponentBase
     {
@@ -136,6 +164,46 @@ namespace
         Check(reused == first, "free-list creation must reuse the released slot");
         Check(reused->Value == 201, "reused slot must contain the new object");
         Check(false == firstSafe.IsValid(), "slot reuse must not revive an old SafePtr");
+    }
+
+    void TestObjectPoolUsesItsSuppliedAllocatorForChunks()
+    {
+        AllocationProbe allocations;
+        JBro::JAllocator allocator;
+        allocator.userData = &allocations;
+        allocator.allocate = &CountPoolAllocation;
+        allocator.free = &CountPoolFree;
+
+        {
+            JBro::TObjectPool<SafeTarget> pool(allocator);
+            for (int value = 0; value < 200; ++value)
+            {
+                Check(pool.Create(value) != nullptr,
+                    "custom-allocator pool must create every object");
+            }
+            Check(allocations.AllocateCalls == 7,
+                "200 objects must allocate seven 32-slot chunks through JAllocator");
+            Check(allocations.FreeCalls == 0,
+                "live pool chunks must not be released early");
+        }
+
+        Check(allocations.FreeCalls == allocations.AllocateCalls,
+            "pool destruction must return every chunk to its supplied allocator");
+    }
+
+    void TestObjectPoolRejectsUnrepresentableCapacity()
+    {
+        AllocationProbe allocations;
+        JBro::JAllocator allocator;
+        allocator.userData = &allocations;
+        allocator.allocate = &CountPoolAllocation;
+        allocator.free = &CountPoolFree;
+
+        JBro::TObjectPool<SafeTarget> pool(allocator);
+        Check(false == pool.Reserve(std::numeric_limits<std::size_t>::max()),
+            "pool must reject a capacity whose rounded chunk count overflows size_t");
+        Check(allocations.AllocateCalls == 0,
+            "unrepresentable capacity must fail before requesting memory");
     }
 
     void TestRefUsesHandleCacheBeforePersistentLookup()
@@ -298,6 +366,8 @@ int RunReferenceSafetyTests()
     TestSafePtrExpiresWithOwner();
     TestInstanceIdGeneratorSequenceAndOverflow();
     TestObjectPoolAddressStabilityAndLifetime();
+    TestObjectPoolUsesItsSuppliedAllocatorForChunks();
+    TestObjectPoolRejectsUnrepresentableCapacity();
     TestRefUsesHandleCacheBeforePersistentLookup();
     TestCanvasObjectComponentAndHandleRoundTrip();
     TestCanvasIdsAreUniqueAcrossCanvases();

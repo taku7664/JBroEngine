@@ -37,6 +37,8 @@
   보존하고 `skipEmpty=true`일 때만 제외하는 계약을 공개 헤더 결합 테스트로 고정한다.
 - `SafePtr.h`는 구 엔진 원본 477줄과 줄 단위로 대조했다. 이식본의 차이는 UTF-8 BOM과
   `namespace JBro` 여닫는 두 줄뿐이며 포인터·수명·캐스트 로직 차이는 0건이다.
+- `TObjectPool<T>`의 32슬롯 청크는 생성자에서 받은 `JAllocator`로 할당·반환한다. 200개 생성 시
+  7개 청크 할당, 풀 파괴 시 7개 반환, 첫 객체 주소 불변을 Debug/Release 테스트로 확인했다.
 - 구 엔진의 `Utillity/Math`는 아직 이식되지 않았다. 현재 `Vec2`/`Rect`/`Matrix3x2`는 Framework2D,
   `Vec3`는 Framework3D, `Matrix4x4`는 Graphics에 분산돼 있다. 공통 수학 타입의 이름과 Core 입주
   범위를 확정하기 전에는 임시 타입을 정식 계약으로 간주하지 않는다.
