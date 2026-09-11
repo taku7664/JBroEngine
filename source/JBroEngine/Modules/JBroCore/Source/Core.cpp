@@ -10,12 +10,18 @@ namespace JBro
     {
         void* DefaultAllocate(void*, std::size_t size, std::size_t alignment)
         {
-            if (size == 0) return nullptr;
+            if (size == 0)
+            {
+                return nullptr;
+            }
 
             alignment = std::max(alignment, alignof(void*));
             const std::size_t totalSize = size + alignment - 1 + sizeof(void*);
             void* raw = std::malloc(totalSize);
-            if (raw == nullptr) return nullptr;
+            if (raw == nullptr)
+            {
+                return nullptr;
+            }
 
             const std::uintptr_t begin   = reinterpret_cast<std::uintptr_t>(raw) + sizeof(void*);
             const std::uintptr_t aligned = (begin + alignment - 1) & ~(static_cast<std::uintptr_t>(alignment) - 1);
@@ -26,7 +32,10 @@ namespace JBro
 
         void DefaultFree(void*, void* memory)
         {
-            if (memory != nullptr) std::free(reinterpret_cast<void**>(memory)[-1]);
+            if (memory != nullptr)
+            {
+                std::free(reinterpret_cast<void**>(memory)[-1]);
+            }
         }
     }
 

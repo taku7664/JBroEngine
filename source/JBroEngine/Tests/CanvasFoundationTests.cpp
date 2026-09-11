@@ -17,7 +17,10 @@ namespace
 {
     void Check(bool condition, const char* message)
     {
-        if (false == condition) throw std::runtime_error(message);
+        if (false == condition)
+        {
+            throw std::runtime_error(message);
+        }
     }
 
     void TestObjectComponentSkeletonCompiles()
@@ -147,7 +150,7 @@ namespace
     }
 }
 
-int RunWorldCanvasFoundationTests()
+int RunCanvasFoundationTests()
 {
     TestObjectComponentSkeletonCompiles();
     TestFramework2DBootstraps();
@@ -155,6 +158,6 @@ int RunWorldCanvasFoundationTests()
     TestStableTypeIdIsStable();
     TestFramework2DComponentsArePolymorphic();
     TestCanvasCollectsComponents();
-    std::cout << "World/canvas foundation tests passed.\n";
+    std::cout << "Canvas foundation tests passed.\n";
     return 0;
 }

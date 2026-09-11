@@ -1,7 +1,7 @@
 ﻿#include <exception>
 #include <iostream>
 
-int RunWorldCanvasFoundationTests();
+int RunCanvasFoundationTests();
 int RunRendererContractTests();
 int RunPlatformContractTests();
 int RunD3D12SmokeTests();
@@ -19,7 +19,7 @@ int main()
 {
     try
     {
-        if (RunWorldCanvasFoundationTests() != 0)
+        if (RunCanvasFoundationTests() != 0)
         {
             return 1;
         }
