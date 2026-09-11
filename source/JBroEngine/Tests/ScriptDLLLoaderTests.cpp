@@ -412,6 +412,8 @@ namespace
     struct ProbeFiles
     {
         wchar_t directory[MAX_PATH]{};
+        wchar_t sourcePath[MAX_PATH]{};
+        wchar_t replacementPath[MAX_PATH]{};
         wchar_t dllPath[MAX_PATH]{};
 
         ~ProbeFiles()
@@ -427,6 +429,36 @@ namespace
         }
     };
 
+    std::uint32_t CountShadowLibraries(const ProbeFiles& files)
+    {
+        wchar_t pattern[MAX_PATH + 64]{};
+        Check(swprintf_s(
+            pattern,
+            L"%ls.jbro.*.dll",
+            files.dllPath) > 0,
+            "shadow DLL search pattern must fit");
+
+        WIN32_FIND_DATAW entry{};
+        const HANDLE search = FindFirstFileW(pattern, &entry);
+        if (search == INVALID_HANDLE_VALUE)
+        {
+            Check(GetLastError() == ERROR_FILE_NOT_FOUND,
+                "shadow DLL search must fail only when no copy exists");
+            return 0;
+        }
+
+        std::uint32_t count = 1;
+        while (FindNextFileW(search, &entry) != FALSE)
+        {
+            ++count;
+        }
+        const DWORD enumerationError = GetLastError();
+        FindClose(search);
+        Check(enumerationError == ERROR_NO_MORE_FILES,
+            "shadow DLL enumeration must finish normally");
+        return count;
+    }
+
     void PrepareRealProbe(ProbeFiles& files, JBro::String& utf8Path)
     {
         wchar_t executablePath[MAX_PATH]{};
@@ -439,10 +471,12 @@ namespace
             "test executable path must contain its directory");
         *(fileName + 1) = L'\0';
 
-        wchar_t sourcePath[MAX_PATH]{};
-        Check(wcscpy_s(sourcePath, executablePath) == 0
-            && wcscat_s(sourcePath, L"JBroScriptModuleProbe.dll") == 0,
+        Check(wcscpy_s(files.sourcePath, executablePath) == 0
+            && wcscat_s(files.sourcePath, L"JBroScriptModuleProbe.dll") == 0,
             "probe source path must fit the Windows path buffer");
+        Check(wcscpy_s(files.replacementPath, executablePath) == 0
+            && wcscat_s(files.replacementPath, L"JBroScriptModuleProbeV2.dll") == 0,
+            "replacement probe path must fit the Windows path buffer");
 
         wchar_t temporaryRoot[MAX_PATH]{};
         const DWORD rootLength = GetTempPathW(MAX_PATH, temporaryRoot);
@@ -463,7 +497,7 @@ namespace
             && wcscat_s(files.dllPath, L"\\Player.dll") == 0,
             "probe DLL path must fit the Windows path buffer");
         DeleteFileW(files.dllPath);
-        Check(CopyFileW(sourcePath, files.dllPath, TRUE) != FALSE,
+        Check(CopyFileW(files.sourcePath, files.dllPath, TRUE) != FALSE,
             "built probe DLL must copy into a Korean path");
 
         const int utf8Length = WideCharToMultiByte(
@@ -503,6 +537,8 @@ namespace
         JBro::ScriptDLLLoader loader;
         Check(loader.Load(utf8Path.c_str(), platform, &block, 1),
             "real script DLL must load from a Korean UTF-8 path");
+        Check(CountShadowLibraries(files) == 1,
+            "a loaded script module must own exactly one shadow DLL");
         using ReadBool = bool (*)() noexcept;
         using ReadU32 = std::uint32_t (*)() noexcept;
         using ReadAddress = std::uintptr_t (*)() noexcept;
@@ -516,9 +552,11 @@ namespace
             loader.GetSymbol("JBroScriptProbe_GetFramework2DAbi"));
         const auto getPhysicsSystem = reinterpret_cast<ReadAddress>(
             loader.GetSymbol("JBroScriptProbe_GetPhysicsSystem"));
+        const auto getRevision = reinterpret_cast<ReadU32>(
+            loader.GetSymbol("JBroScriptProbe_GetRevision"));
         Check(isLoaded != nullptr && getSystemAbi != nullptr
             && getServiceAbi != nullptr && getFrameworkAbi != nullptr
-            && getPhysicsSystem != nullptr,
+            && getPhysicsSystem != nullptr && getRevision != nullptr,
             "real script probe exports must remain queryable while loaded");
         Check(isLoaded()
             && getSystemAbi() == JBro::SystemContextAbiVersion
@@ -527,12 +565,27 @@ namespace
             "real script DLL must bind its module-local context copies");
         Check(getPhysicsSystem() == reinterpret_cast<std::uintptr_t>(systems.Physics2D),
             "real script DLL must receive the host's system pointer value");
+        Check(getRevision() == 1,
+            "the initial script DLL must expose revision one");
+
+        Check(DeleteFileW(files.dllPath) != FALSE,
+            "loaded script DLL must not lock the compiler output path");
+        Check(CopyFileW(files.replacementPath, files.dllPath, TRUE) != FALSE,
+            "a rebuilt script DLL must replace the source path while the old module runs");
 
         Check(loader.Reload(platform, &block, 1),
             "real script DLL must unload and reload from a Korean path");
         Check(loader.GetGeneration() == 2,
             "real DLL reload must advance its invalidation generation");
+        const auto getReloadedRevision = reinterpret_cast<ReadU32>(
+            loader.GetSymbol("JBroScriptProbe_GetRevision"));
+        Check(getReloadedRevision != nullptr && getReloadedRevision() == 2,
+            "reload must execute code from the replacement script DLL");
+        Check(CountShadowLibraries(files) == 1,
+            "reload must delete the old shadow DLL before retaining its replacement");
         loader.Unload(platform);
+        Check(CountShadowLibraries(files) == 0,
+            "unload must delete the final shadow DLL");
         Check(GetModuleHandleW(files.dllPath) == nullptr,
             "real script DLL must no longer be resident after unload");
 

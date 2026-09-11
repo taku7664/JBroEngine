@@ -9,6 +9,14 @@ namespace JBro
     namespace
     {
         constexpr wchar_t WindowClassName[] = L"JBroEngineWindow";
+        constexpr std::size_t ShadowLibrarySuffixCapacity = 64;
+        volatile LONG64 ShadowLibrarySequence = 0;
+
+        struct WindowsDynamicLibrary final
+        {
+            HMODULE Module = nullptr;
+            wchar_t* ShadowPath = nullptr;
+        };
 
         LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParam, LPARAM lParam)
         {
@@ -268,11 +276,11 @@ namespace JBro
         }
 
         HANDLE processHeap = GetProcessHeap();
-        auto* widePath = static_cast<wchar_t*>(HeapAlloc(
+        auto* sourcePath = static_cast<wchar_t*>(HeapAlloc(
             processHeap,
             0,
             static_cast<SIZE_T>(wideLength) * sizeof(wchar_t)));
-        if (widePath == nullptr)
+        if (sourcePath == nullptr)
         {
             return {};
         }
@@ -282,16 +290,86 @@ namespace JBro
             MB_ERR_INVALID_CHARS,
             utf8Path,
             -1,
-            widePath,
+            sourcePath,
             wideLength);
-        HMODULE module = nullptr;
-        if (convertedLength != 0)
+        if (convertedLength == 0)
         {
-            module = LoadLibraryW(widePath);
+            HeapFree(processHeap, 0, sourcePath);
+            return {};
         }
 
-        HeapFree(processHeap, 0, widePath);
-        return {module};
+        const std::size_t sourceLength = static_cast<std::size_t>(wideLength - 1);
+        const std::size_t shadowCapacity =
+            static_cast<std::size_t>(wideLength) + ShadowLibrarySuffixCapacity;
+        auto* shadowPath = static_cast<wchar_t*>(HeapAlloc(
+            processHeap,
+            0,
+            static_cast<SIZE_T>(shadowCapacity) * sizeof(wchar_t)));
+        if (shadowPath == nullptr)
+        {
+            HeapFree(processHeap, 0, sourcePath);
+            return {};
+        }
+
+        bool copied = false;
+        for (std::uint32_t attempt = 0; attempt < 16; ++attempt)
+        {
+            if (wcscpy_s(shadowPath, shadowCapacity, sourcePath) != 0)
+            {
+                break;
+            }
+            const unsigned long long sequence = static_cast<unsigned long long>(
+                InterlockedIncrement64(&ShadowLibrarySequence));
+            const int suffixLength = swprintf_s(
+                shadowPath + sourceLength,
+                ShadowLibrarySuffixCapacity,
+                L".jbro.%lu.%llu.dll",
+                GetCurrentProcessId(),
+                sequence);
+            if (suffixLength <= 0)
+            {
+                break;
+            }
+            if (CopyFileW(sourcePath, shadowPath, TRUE) != FALSE)
+            {
+                copied = true;
+                break;
+            }
+            const DWORD copyError = GetLastError();
+            if (copyError != ERROR_FILE_EXISTS && copyError != ERROR_ALREADY_EXISTS)
+            {
+                break;
+            }
+        }
+        HeapFree(processHeap, 0, sourcePath);
+        if (false == copied)
+        {
+            HeapFree(processHeap, 0, shadowPath);
+            return {};
+        }
+
+        const HMODULE module = LoadLibraryW(shadowPath);
+        if (module == nullptr)
+        {
+            DeleteFileW(shadowPath);
+            HeapFree(processHeap, 0, shadowPath);
+            return {};
+        }
+
+        auto* library = static_cast<WindowsDynamicLibrary*>(HeapAlloc(
+            processHeap,
+            HEAP_ZERO_MEMORY,
+            sizeof(WindowsDynamicLibrary)));
+        if (library == nullptr)
+        {
+            FreeLibrary(module);
+            DeleteFileW(shadowPath);
+            HeapFree(processHeap, 0, shadowPath);
+            return {};
+        }
+        library->Module = module;
+        library->ShadowPath = shadowPath;
+        return {library};
     }
 
     void* WindowsPlatform::GetSymbol(DynamicLibrary library, const char* name)
@@ -301,8 +379,13 @@ namespace JBro
             return nullptr;
         }
 
-        const auto module = static_cast<HMODULE>(library.opaque);
-        return reinterpret_cast<void*>(GetProcAddress(module, name));
+        const auto* nativeLibrary = static_cast<const WindowsDynamicLibrary*>(
+            library.opaque);
+        if (nativeLibrary->Module == nullptr)
+        {
+            return nullptr;
+        }
+        return reinterpret_cast<void*>(GetProcAddress(nativeLibrary->Module, name));
     }
 
     void WindowsPlatform::UnloadDynamicLibrary(DynamicLibrary library)
@@ -312,7 +395,16 @@ namespace JBro
             return;
         }
 
-        const auto module = static_cast<HMODULE>(library.opaque);
-        FreeLibrary(module);
+        auto* nativeLibrary = static_cast<WindowsDynamicLibrary*>(library.opaque);
+        if (nativeLibrary->Module != nullptr)
+        {
+            FreeLibrary(nativeLibrary->Module);
+        }
+        if (nativeLibrary->ShadowPath != nullptr)
+        {
+            DeleteFileW(nativeLibrary->ShadowPath);
+            HeapFree(GetProcessHeap(), 0, nativeLibrary->ShadowPath);
+        }
+        HeapFree(GetProcessHeap(), 0, nativeLibrary);
     }
 }

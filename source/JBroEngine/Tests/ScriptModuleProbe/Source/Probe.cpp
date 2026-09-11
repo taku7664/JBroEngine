@@ -3,6 +3,10 @@
 
 #include <cstdint>
 
+#ifndef JBRO_SCRIPT_PROBE_REVISION
+#define JBRO_SCRIPT_PROBE_REVISION 1
+#endif
+
 namespace
 {
     bool g_loaded = false;
@@ -89,4 +93,9 @@ extern "C" __declspec(dllexport) std::uint32_t JBroScriptProbe_GetFramework2DAbi
 extern "C" __declspec(dllexport) std::uintptr_t JBroScriptProbe_GetPhysicsSystem() noexcept
 {
     return reinterpret_cast<std::uintptr_t>(JBro::GetSystemContext().Physics2D);
+}
+
+extern "C" __declspec(dllexport) std::uint32_t JBroScriptProbe_GetRevision() noexcept
+{
+    return JBRO_SCRIPT_PROBE_REVISION;
 }

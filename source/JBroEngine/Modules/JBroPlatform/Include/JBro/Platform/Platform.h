@@ -49,6 +49,7 @@ namespace JBro
         virtual bool ShouldClose(WindowHandle window) const = 0;
         // Main-thread only. False means unavailable/invalid; zero extent cannot render.
         virtual bool GetWindowState(WindowHandle window, WindowState& state) const = 0;
+        // Windows loads a disposable sibling copy so the source path remains replaceable.
         virtual DynamicLibrary LoadDynamicLibrary(const char* utf8Path) = 0;
         virtual void* GetSymbol(DynamicLibrary library, const char* name) = 0;
         virtual void UnloadDynamicLibrary(DynamicLibrary library) = 0;
