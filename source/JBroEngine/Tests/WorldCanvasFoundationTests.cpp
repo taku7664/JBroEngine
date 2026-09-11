@@ -55,11 +55,11 @@ namespace
     void TestRefIsPod()
     {
         // Stage B0 의 계약. 여기서 다시 잡아두면 이후 회귀 시 즉시 눈에 띈다.
-        static_assert(sizeof(JBro::Ref<JBro::GameObject>) == sizeof(JBro::InstanceRef),
+        static_assert(sizeof(JBro::Ref<JBro::ComponentBase>) == sizeof(JBro::InstanceRef),
             "Ref<T> must not grow beyond InstanceRef");
-        static_assert(std::is_standard_layout_v<JBro::Ref<JBro::GameObject>>,
+        static_assert(std::is_standard_layout_v<JBro::Ref<JBro::ComponentBase>>,
             "Ref<T> must be standard layout");
-        static_assert(std::is_trivially_copyable_v<JBro::Ref<JBro::GameObject>>,
+        static_assert(std::is_trivially_copyable_v<JBro::Ref<JBro::ComponentBase>>,
             "Ref<T> must be trivially copyable");
     }
 

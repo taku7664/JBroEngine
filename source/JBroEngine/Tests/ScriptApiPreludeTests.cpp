@@ -4,6 +4,10 @@
 #include <stdexcept>
 #include <type_traits>
 
+#if defined(JBRO_TEST_REF_GAMEOBJECT_LEAK)
+JBro::Ref<JBro::GameObject> forbiddenGameObjectReference;
+#endif
+
 namespace
 {
     JBRO_SCRIPT(PreludeScriptProbe)
@@ -20,13 +24,13 @@ namespace
 
     void TestScriptPreludeSurface()
     {
-        static_assert(std::is_same_v<decltype(Ref<GameObject>::Category), const RefCategory>);
+        static_assert(std::is_same_v<decltype(Ref<ComponentBase>::Category), const RefCategory>);
         static_assert(std::is_class_v<PreludeScriptProbe>);
 
         GameObjectHandle handle;
-        Ref<GameObject> reference;
+        Ref<ComponentBase> componentReference;
         ServiceContext services;
-        Check(false == handle.IsValid() && false == static_cast<bool>(reference)
+        Check(false == handle.IsValid() && false == static_cast<bool>(componentReference)
             && services.AbiVersion == ServiceContextAbiVersion,
             "script prelude must expose safe runtime handles and the service context");
     }

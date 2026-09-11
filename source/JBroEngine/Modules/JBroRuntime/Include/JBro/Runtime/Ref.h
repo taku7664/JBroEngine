@@ -8,8 +8,7 @@
 
 namespace JBro
 {
-    // 실 객체(GameObject/Component/Script/Asset/Canvas)는 Stage B~G 에서 정의된다.
-    // 여기서는 Ref<T> 의 시그니처만 확정한다.
+    // GameObject는 전용 GameObjectHandle을 사용하고, Ref<T>는 그 외 영속 참조에 사용한다.
     class GameObject;
 
     struct InstanceHandle                    // 8B. 이번 실행에서의 위치
@@ -41,6 +40,10 @@ namespace JBro
 
     namespace Internal
     {
+        struct RefLayoutProbe final
+        {
+        };
+
         struct ResolvedInstance
         {
             void* Pointer = nullptr;
@@ -71,6 +74,9 @@ namespace JBro
     class Ref : public InstanceRef
     {
     public:
+        static_assert(false == std::is_same_v<std::remove_cv_t<T>, GameObject>,
+            "GameObject references must use GameObjectHandle, not Ref<GameObject>");
+
         static constexpr RefCategory Category = RefCategoryOf<T>::value;
 
         T*   Get() const;                    // 무효면 nullptr
@@ -84,11 +90,11 @@ namespace JBro
 
     // Ref<T> 는 InstanceRef 저장부에 어떤 필드도 얹지 않고 virtual 도 갖지 않는다.
     // 리플렉션·직렬화·인스펙터가 T 를 모른 채 저장부 필드에 접근할 수 있어야 하기 때문이다.
-    static_assert(sizeof(Ref<GameObject>) == sizeof(InstanceRef),
+    static_assert(sizeof(Ref<Internal::RefLayoutProbe>) == sizeof(InstanceRef),
         "Ref<T> must not add data members beyond InstanceRef");
-    static_assert(std::is_standard_layout_v<Ref<GameObject>>,
+    static_assert(std::is_standard_layout_v<Ref<Internal::RefLayoutProbe>>,
         "Ref<T> must be standard layout for DLL boundary safety");
-    static_assert(std::is_trivially_copyable_v<Ref<GameObject>>,
+    static_assert(std::is_trivially_copyable_v<Ref<Internal::RefLayoutProbe>>,
         "Ref<T> must be trivially copyable for POD boundary crossing");
 
     template<typename T>
