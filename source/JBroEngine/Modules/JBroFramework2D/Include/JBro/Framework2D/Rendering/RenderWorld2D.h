@@ -20,7 +20,7 @@ namespace JBro
         Component::CameraProjection2D projection = Component::CameraProjection2D::Orthographic;
         float       nearPlane = -100.0f;
         float       farPlane = 100.0f;
-        Color       clearColor;
+        Color       clearColor{ 1.0f, 1.0f, 1.0f, 1.0f };
     };
 
     struct SpriteRenderItem
@@ -30,7 +30,7 @@ namespace JBro
         Matrix3x2     world;
         AssetHandle   sprite;
         AssetHandle   material;
-        Color         tint;
+        Color         tint{ 1.0f, 1.0f, 1.0f, 1.0f };
         Vec2          pivot;
         Vec2          size;
         std::int32_t  renderOrder = 0;

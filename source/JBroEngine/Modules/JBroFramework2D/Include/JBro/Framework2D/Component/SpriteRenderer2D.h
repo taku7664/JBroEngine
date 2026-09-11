@@ -25,7 +25,7 @@ namespace JBro::Component
 
         AssetHandle  sprite;
         AssetHandle  material;
-        Color        tint;
+        Color        tint{ 1.0f, 1.0f, 1.0f, 1.0f };
         Vec2         pivot{ 0.5f, 0.5f };
         Vec2         size { 1.0f, 1.0f };
         SpriteFlip   flip        = SpriteFlip::None;

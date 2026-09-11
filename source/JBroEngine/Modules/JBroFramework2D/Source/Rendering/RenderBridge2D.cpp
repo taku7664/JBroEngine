@@ -50,10 +50,10 @@ namespace JBro::Internal
             }
             result.viewport.width = static_cast<float>(extent.width);
             result.viewport.height = static_cast<float>(extent.height);
-            result.clearColor[0] = source.clearColor.r;
-            result.clearColor[1] = source.clearColor.g;
-            result.clearColor[2] = source.clearColor.b;
-            result.clearColor[3] = source.clearColor.a;
+            result.clearColor[0] = source.clearColor.R;
+            result.clearColor[1] = source.clearColor.G;
+            result.clearColor[2] = source.clearColor.B;
+            result.clearColor[3] = source.clearColor.A;
             return true;
         }
 
@@ -67,10 +67,10 @@ namespace JBro::Internal
             result.world = ToColumnMatrix(MultiplyMatrix3x2(geometry, source.world));
             result.sprite = source.sprite;
             result.material = source.material;
-            result.tint[0] = source.tint.r;
-            result.tint[1] = source.tint.g;
-            result.tint[2] = source.tint.b;
-            result.tint[3] = source.tint.a;
+            result.tint[0] = source.tint.R;
+            result.tint[1] = source.tint.G;
+            result.tint[2] = source.tint.B;
+            result.tint[3] = source.tint.A;
             result.renderOrder = source.renderOrder;
             return result;
         }

@@ -275,7 +275,7 @@ namespace
             Check(NearlyEqual(extractedCamera->orthographicSize, 7.0f), "camera size must survive extraction");
             Check(extractedCamera->projection == camera->projection
                 && NearlyEqual(extractedCamera->nearPlane, -7.0f) && NearlyEqual(extractedCamera->farPlane, 20.0f)
-                && NearlyEqual(extractedCamera->clearColor.r, 0.2f), "camera projection settings must survive extraction");
+                && NearlyEqual(extractedCamera->clearColor.R, 0.2f), "camera projection settings must survive extraction");
             Check(world.GetSpriteCount() == 1, "hidden sprites must not extract");
             const auto& item = world.GetSprites()[0];
             Check(item.owner == spriteObject && item.sourceId == sprite->GetInstanceId(), "sprite identity must survive extraction");
@@ -285,7 +285,7 @@ namespace
             Check(item.sprite.index == 3 && item.sprite.generation == 7
                 && item.material.index == 5 && item.material.generation == 9
                 && NearlyEqual(item.pivot.x, 0.1f) && NearlyEqual(item.pivot.y, 0.8f)
-                && NearlyEqual(item.tint.a, 0.8f), "sprite assets and appearance must survive extraction");
+                && NearlyEqual(item.tint.A, 0.8f), "sprite assets and appearance must survive extraction");
         }
         world.BeginFrame();
         camera->primary = false;

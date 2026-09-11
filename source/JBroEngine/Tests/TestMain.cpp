@@ -12,6 +12,7 @@ int RunGameScriptTests();
 int RunEditorApplicationTests();
 int RunContextBoundaryTests();
 int RunScriptApiPreludeTests();
+int RunPublicHeaderCompositionTests();
 int RunScriptDLLLoaderTests();
 
 int main()
@@ -59,6 +60,10 @@ int main()
             return 1;
         }
         if (RunScriptApiPreludeTests() != 0)
+        {
+            return 1;
+        }
+        if (RunPublicHeaderCompositionTests() != 0)
         {
             return 1;
         }

@@ -31,7 +31,8 @@
 - 현재 브랜치와 워크트리는 `main` 하나다.
 - Renderer의 프레임 패킷 API, Canvas·참조·풀의 기본 구현과 버전형 스크립트 DLL 진입점은 코드와
   테스트가 존재한다.
-- Core와 Framework2D가 각각 `JBro::Color`를 정의해 두 공개 헤더의 결합 컴파일이 실패한다.
+- D-38에 따라 `JBro::Color`는 Core의 단일 정의를 사용한다. Framework2D의 기존 기본 흰색은
+  소비자별 명시 초기화로 보존했고, `ScriptAPI.h`와 Framework2D 공개 헤더 결합 테스트가 통과한다.
 - `Ref<GameObject>`가 헤더와 프렐류드 테스트에 남아 D-5의 GameObjectHandle 전용 계약을 위반한다.
 - Framework2D의 `ScriptSystem`은 아직 실행 구현이 없는 스텁이다.
 - InstanceId 테스트는 4096 시퀀스를 검사하지만 서로 다른 생성기 세션의 난수 비반복은 검사하지 않는다.
