@@ -414,3 +414,13 @@ protected:
   GameObjectHandle → Canvas 통합) 점진 커밋 권장.
 - 자체 검증 통과 후 main 병합.
 - 병합 후 W-framework 와 W-host 는 rebase.
+
+## 2026-09-11 후속: SafePtr 이식 로직 대조
+
+Updates: 위 1번 SafePtr 이식의 현재 검증 근거. 이 절은 과거 워크트리 완료 표시를 복원하는 것이 아니라
+현재 파일과 읽기 전용 구 엔진 원본의 대조 결과다.
+
+- 원본 `Engine/Utillity/Pointer/SafePtr.h`는 477줄, 신규 `JBro/Types/SafePtr.h`는 480줄이다.
+- `git diff --no-index`로 두 파일을 직접 비교한 차이는 UTF-8 BOM 1개와 `namespace JBro` 여닫는 두 줄이다.
+- 템플릿 저장부, ControlBlock 카운트, 소유권 비교, 정적·동적 캐스트를 포함한 실행 로직 차이는 0건이다.
+- 구 엔진 원본은 수정하지 않았다.
