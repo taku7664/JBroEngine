@@ -7,8 +7,39 @@
 #include <iostream>
 #include <stdexcept>
 
+#if defined(_MSC_VER) && defined(_DEBUG)
+#include <crtdbg.h>
+#endif
+
 namespace
 {
+#if defined(_MSC_VER) && defined(_DEBUG)
+    // 되감기가 넘친 블록을 실제로 돌려주는지 보려면 카운터가 아니라 해제를 세야 한다.
+    int crtFrees = 0;
+    int CountCrtFrees(int operation, void*, std::size_t, int, long, const unsigned char*, int)
+    {
+        if (operation == _HOOK_FREE)
+        {
+            ++crtFrees;
+        }
+        return 1;
+    }
+
+    struct CrtFreeProbe
+    {
+        _CRT_ALLOC_HOOK previous = nullptr;
+        CrtFreeProbe()
+        {
+            crtFrees = 0;
+            previous = _CrtSetAllocHook(&CountCrtFrees);
+        }
+        ~CrtFreeProbe()
+        {
+            _CrtSetAllocHook(previous);
+        }
+    };
+#endif
+
     void Check(bool condition, const char* message)
     {
         if (false == condition)
@@ -84,7 +115,16 @@ namespace
         Check(arena.GetRequestCount() == 2, "every request must be counted");
 
         // 넘친 블록도 되감기가 거둔다. 여기서 새면 프레임마다 누수가 된다.
+        // 카운터가 남는 것만으로는 증거가 안 된다 — 실제 해제가 일어나야 한다.
+#if defined(_MSC_VER) && defined(_DEBUG)
+        {
+            CrtFreeProbe probe;
+            arena.Reset();
+            Check(crtFrees > 0, "rewinding must hand the overflow block back to the heap");
+        }
+#else
         arena.Reset();
+#endif
         Check(arena.GetUsedBytes() == 0, "reset must rewind after an overflow too");
         Check(arena.GetOverflowCount() == 1, "reset must keep the overflow count for budgeting");
         arena.Shutdown();
@@ -154,16 +194,21 @@ namespace
         // 아레나에 묶인 배열을 복사해도 사본은 아레나를 물려받지 않는다.
         // 되감기가 사본까지 죽이면 안 되기 때문이다.
         JBro::Array<int, JBro::JAllocatorRef> source{JBro::JAllocatorRef(handle)};
-        source.Reserve(128);
+        for (int index = 0; index < 128; ++index)
+        {
+            source.Add(index);
+        }
+        Check(source.Size() == 128, "the copy source must hold elements, or a copy allocates nothing");
         const std::size_t beforeCopy = arena.GetUsedBytes();
         JBro::Array<int, JBro::JAllocatorRef> copy(source);
-        copy.Reserve(128);
+        Check(copy.Size() == 128 && copy[127] == 127, "the copy must carry the elements");
         Check(arena.GetUsedBytes() == beforeCopy,
             "copying an arena-backed container must not draw from that arena");
 
         // 대입도 받는 쪽 할당기를 지킨다.
         JBro::Array<int, JBro::JAllocatorRef> heapBacked;
         heapBacked = source;
+        Check(heapBacked.Size() == 128 && heapBacked[127] == 127, "assignment must carry the elements");
         Check(arena.GetUsedBytes() == beforeCopy,
             "assigning from an arena-backed container must keep the destination allocator");
     }
