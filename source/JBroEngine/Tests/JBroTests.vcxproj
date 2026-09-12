@@ -35,6 +35,8 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="*.cpp" />
+    <!-- 공개 헤더마다 하나씩. Generate.ps1 이 만든다. -->
+    <ClCompile Include="HeaderSelfContainment\*.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="ScriptModuleProbe\JBroScriptModuleProbe.vcxproj">
