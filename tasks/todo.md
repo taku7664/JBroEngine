@@ -385,8 +385,12 @@
   `TObjectPool`: ControlBlock을 구 엔진처럼 `m_freeBlocks`로 재활용하고 `Reserve`에서 미리 확보, `Destroy`는 청크 베이스
   정렬 배열 이진 탐색으로 슬롯을 찾는다. `GameObject`는 `m_activeInHierarchy`를 캐시하고 `SetActive`·`SetParent`가 전파한다.
   `Ref<T>::Get()`은 캐시 슬롯이 살아 있고 세대만 다르면 확정 사망으로 단락한다. `Table<InstanceId, …>`는 항등 해시를 쓴다.
-  `SpriteSubmit`·`GpuSpriteInstance`의 `world`는 `Matrix4x4`가 아니라 아핀 6 + 깊이 1(`float affine[6]; float depth;`)이며
-  셰이더가 `float4x4`를 조립한다. `MeshSubmit`은 `Matrix4x4`를 유지한다. `RenderWorld2D`는 `(uint64 key, uint32 index)`를 정렬하고
+  `SpriteSubmit`·`GpuSpriteInstance`의 `world`는 `Matrix4x4`가 아니라 아핀 6 + 깊이 1이다.
+  구현형은 `SpriteTransform2D { float linear[4]; float translation[2]; float depth; }`(28B)이고 인스턴스 스트라이드는 44B다.
+  셰이더는 `float4x4`를 조립하지 않고 두 내적으로 위치를 만든다. `MeshSubmit`은 `Matrix4x4`를 유지한다.
+  `SpriteSubmit::renderOrder`는 렌더러가 읽지 않아 제거했다(D-53) — 정렬은 `RenderWorld2D`가 제출 전에 끝낸다.
+  `depth`는 깊이 버퍼가 붙기 전까지 항상 0이며, 자리를 비워 둔 것은 그때 ABI를 다시 깨지 않기 위해서다.
+  `RenderWorld2D`는 `(uint64 key, uint32 index)`를 정렬하고
   아이템은 제자리에 둔다. `Ref<T>`·`GameObjectHandle`은 `SafePtr`와 같이 메인 스레드 전용이다.
 - **D-55. `ComponentBase::m_owner`는 `SafePtr<GameObject>`로 유지한다.**
   raw 포인터로 줄이면 8B와 역참조 하나를 아끼지만 §6의 명시 규칙을 바꾸는 일이다. private 멤버라 나중에 바꿔도 공개 계약이

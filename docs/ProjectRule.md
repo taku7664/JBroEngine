@@ -30,9 +30,14 @@
   사용자용 Shader Graph와 엔진 내부 Render Graph를 분리하며, 게임 스크립트에 Renderer/RHI 또는 임의 GPU
   콜백을 노출하지 않는다. (MUST)
 - 정상 렌더 프레임 경로는 일반 힙 할당, 문자열 생성·비교, `WaitIdle` 호출을 하지 않아야 한다. (MUST)
-- 2D 스프라이트 패킷(`SpriteSubmit`)과 GPU 인스턴스의 변환은 `Matrix4x4`가 아니라 **아핀 6개 + 깊이 1개**
-  (`float affine[6]; float depth;`)로 전달하고 셰이더가 `float4x4`를 조립한다. `MeshSubmit`은 `Matrix4x4`를 유지한다. (MUST)
+- 2D 스프라이트 패킷(`SpriteSubmit`)과 GPU 인스턴스의 변환은 `Matrix4x4`가 아니라 **아핀 6개 + 깊이 1개**를
+  담는 `SpriteTransform2D { float linear[4]; float translation[2]; float depth; }`(28B)로 전달한다. (MUST)
+  버텍스 셰이더는 `float4x4`를 조립하지 않고 두 내적으로 위치를 직접 만든다. `MeshSubmit`은 `Matrix4x4`를 유지한다.
   패킷 필드는 D-32 ABI이므로 이후 변경은 Decisions를 거친다. (D-54)
+- GPU 인스턴스 레이아웃과 정점 속성 오프셋은 손으로 적지 않는다. 속성 오프셋은 `offsetof`로 구조체에서 끌어오고,
+  크기·오프셋은 `static_assert`로 고정한다. (MUST)
+  `.hlsl`을 고치면 `Modules/JBroGraphics/Shaders/Compile.ps1`로 생성 헤더를 다시 만들어 함께 커밋한다.
+  빌드는 HLSL을 컴파일하지 않는다 — 커밋된 DXIL 덕분에 클론에 셰이더 컴파일러가 없어도 빌드된다. (MUST)
 - `IFramework::Render()`는 `RenderResult { Submitted, NothingToSubmit, Failed }`를 반환하며 호스트는 `Failed`만
   치명 오류로 본다. 렌더 시스템이 없는 Framework는 `NothingToSubmit`을 반환한다. (MUST) (D-49)
 - Web 환경 문제로 Windows 쪽 엔진 구조 안정화가 불필요하게 막히지 않도록 작업 순서를 조정할 수 있다. (MAY)

@@ -350,6 +350,10 @@ public:
 | 2026-09-12 | 3 | Transform 월드 캐시 접기 (D-47) | `564ef24` |
 | 2026-09-12 | 3 | `LayerId`·순서 캐시·렌더 반영 (D-46) | `adf54a9` |
 
+| 2026-09-12 | 4 | D-49 `RenderResult` 3값, F-7 닫음 | `cb33b7f` |
+| 2026-09-12 | 4 | D-54 스프라이트 인스턴스 80B → 44B, D-53 `renderOrder` 제거 | `45f72ff` |
+| 2026-09-12 | 4 | 정점 속성 오프셋을 `offsetof` 에 묶음 (m22 대응) | `4e21d97` |
+
 **단계 1 완료.** §9.4 조건을 모두 확인했다.
 **단계 2는 아래 §10 의 두 항목에서 막혀 있어 §10 의 선택지 2로 단계 3에 들어갔다.**
 
@@ -448,7 +452,18 @@ D-47 은 `Canvas::GetHierarchyVersion()` 이 바뀔 때만 `Transform2D*` 배열
 | 부모 월드를 곱하지 않음 (계층 무시) | `parent rotation must affect child world x` |
 | 스크립트 DLL 에 레지스트리 바인딩 제거 | `a loaded script DLL must resolve references through the host registry` |
 
-**13개 변이 모두 겨냥한 단언에서 잡혔다.** 엉뚱한 곳에서 터진 것은 없다.
+| `NothingToSubmit` 을 버리지 않고 `EndFrame` 까지 흘림 | `nothing to submit must report a skipped frame, not a failure` |
+| `Framework3D::Render()` 가 다시 `Failed` | `a 3D project must keep ticking even though its renderer submits nothing` |
+| 카메라 없는 월드를 `Submitted` 로 보고 | `empty reopened project must report nothing to submit, not success` |
+| 제출 실패를 `Submitted` 로 삼킴 | `collection overflow must reach the host` |
+| 아핀의 2x2 부분을 전치 | `uploaded affine must apply flip, size, pivot and rotation...` |
+| 이동 성분 x·y 교환 | 위와 같은 단언 |
+| 인스턴스 속성 3개 → 2개 (셰이더가 선언한 틴트를 빼먹음) | `D3D12 renderer must initialize` (PSO 생성 실패) |
+| `SpriteTransform2D` 에 패딩 float 추가 | **빌드 실패** (`static_assert`) |
+| 틴트 속성 오프셋 28 → 24 | **잡히지 않음** — §12.4 참조 |
+
+**22개 중 21개가 겨냥한 단언에서 잡혔다.** 엉뚱한 곳에서 터진 것은 없다.
+잡히지 않은 하나는 §12.4 에 적었고, 그 실수를 쓸 수 없게 코드를 바꿨다.
 
 **테스트가 스스로 틀렸던 두 번.** 부모·자식 지연 파괴 테스트는 "부모가 먼저 파괴되어 자식 항목이
 만료된 경로"를 덮는다고 주석에 썼지만 덮지 않았다. 큐는 LIFO 이고 순회 순서를 정하는 것은
@@ -572,3 +587,80 @@ S1-4에서 `System/IPhysics2DSystem.h`는 **옮기지 않는다.** Tier S의 `Ph
   시스템이 생기는 시점에 2D 와 같은 방식으로 나눈다.
 - **`GameObject` 의 비공개 강제.** 9.1(b) 에서 받아들인 대로 프렐류드 구성이 지키며, include 경로가
   막지는 못한다. 사용자가 `<JBro/Runtime/GameObject.h>` 를 직접 적으면 컴파일된다.
+
+## 12. 단계 4 — 렌더 패킷 ABI (2026-09-12)
+
+§4 의 단계 4다. 둘 다 ABI 라 지금 확정했다.
+
+### 12.1 `IFramework::Render()` → `RenderResult` (D-49, F-7)
+
+`bool` 은 "그릴 것이 없다"를 표현할 수 없었다. 그래서 두 구현이 반대로 거짓말했다.
+
+- `Framework3D::Render()` 는 `false` 를 돌려줬고 호스트는 **첫 프레임에 종료**했다.
+- 카메라 없는 2D 프로젝트는 `true` 를 돌려줬고 호스트는 **아무 뷰도 쓰지 않은 백버퍼를 제시**했다.
+
+`RenderResult { Submitted, NothingToSubmit, Failed }` 로 나눴다. `NothingToSubmit` 은 상태이지
+오류가 아니다 — 호스트는 그 프레임을 버리고(`AbortFrame`) `FrameStatus::Skipped` 로 계속 돈다.
+`Failed` 의 처리는 종전과 같다.
+
+**실행으로 확인.** `Debug_Game3D` 호스트를 실제로 띄웠다.
+
+| | 4초 뒤 | 창 닫기 후 |
+|---|---|---|
+| 고치기 전 (`Render()` 가 `Failed`) | 이미 스스로 종료 | `exit=4` |
+| 고친 뒤 | 생존, CPU 375ms (틱이 실제로 돌고 있다) | `exit=0` |
+
+`Debug_Game2D` 도 같다 (생존, CPU 453ms, `exit=0`).
+
+### 12.2 스프라이트 인스턴스 패킷 80B → 44B (D-54, D-53)
+
+2D 변환이 `Matrix4x4` 열여섯 개 중 여섯 개만 채우고 나머지 열 개는 고정된 z·w 행이었다.
+버텍스 셰이더는 그 고정값과 매 정점을 성실히 내적하고 있었다.
+
+`SpriteTransform2D { float linear[4]; float translation[2]; float depth; }` (28B) 로 접었다.
+
+| | 전 | 후 |
+|---|---|---|
+| `GpuSpriteInstance` | 80B | **44B** (-45%) |
+| 인스턴스 정점 속성 | 5개 (Float4 x5) | 3개 (Float4, Float3, Float4) |
+| VS 내적 | 4회 | 2회 |
+| `RenderBridge2D` | `Matrix3x2` → 패딩된 4x4 확장 | 여섯 값 직접 대입 |
+
+`SpriteSubmit::renderOrder` 도 함께 없앴다. 렌더러는 그걸 한 번도 읽지 않았고,
+레이어 합성과 정렬은 `RenderWorld2D` 가 제출 전에 끝낸다 (D-53).
+
+`depth` 는 지금 항상 0 이다. 깊이 버퍼가 없으므로 그리는 순서가 여전히 정렬 결과다.
+`depth` 를 살리는 것(깊이 버퍼 부착, 2D/3D 혼합)은 파이프라인 변경이라 별도 판단이 필요하다.
+**단 그것은 ABI 를 다시 깨지 않는다** — 자리를 지금 비워 뒀다.
+
+### 12.3 셰이더 재컴파일 경로 — 빌드에 연결돼 있지 않았다
+
+착수 전 확인한 사실이다.
+
+- `.vcxproj` 어디에도 HLSL 컴파일 단계가 없다. `BuiltinSprite{VS,PS}.generated.h` 가
+  DXIL 바이트 배열로 커밋돼 있고 `Renderer.cpp` 가 그걸 `#include` 한다.
+- 커밋된 blob 은 dxc 1.9 (private build) 산출물이었다. 이 기계에는 1.6(SDK 22621)과
+  1.8(SDK 26100)만 있다.
+- 재생성 스크립트도 없었다.
+
+**그대로 두되 재현 경로를 문서화했다.** 빌드가 셰이더를 컴파일하지 않는 것은 장점이다 —
+클론에 셰이더 컴파일러가 없어도 빌드된다. 대신 `Modules/JBroGraphics/Shaders/Compile.ps1` 을
+추가해, `JBro.Common.props` 와 같은 SDK(10.0.22621.0)로 고정해 재생성한다.
+`.hlsl` 을 고치면 이 스크립트를 손으로 돌리고 생성 헤더를 함께 커밋한다.
+
+### 12.4 남은 검증 구멍 — 정직하게
+
+**변이 m22 는 잡히지 않았다.** 틴트 정점 속성의 오프셋을 28 → 24 로 옮겨 GPU 가
+`depth` 부터 색을 읽게 만들었는데, 전 스위트가 통과했다. 이유는 두 가지다.
+
+- D3D12 는 스트라이드 안쪽이면 어떤 오프셋이든 받아준다. PSO 생성이 실패하지 않는다.
+- 스위트에 픽셀 읽기가 없다. `RHI.h` 에 `MemoryType::Readback` 은 있지만 읽는 API 가 없다.
+
+**대응: 틀린 상태를 표현할 수 없게 만들었다.** 오프셋 상수를 지우고 `offsetof` 로 묶었다.
+매직 넘버가 구조체와 따로 놀 수 있는 틈이 사라졌고, 구조체 쪽 변경은 `static_assert` 가 잡는다
+(m21 로 확인).
+
+**그래도 완전히 닫히지는 않았다.** 셰이더가 건네받은 필드를 실제로 그 자리에서 읽는지는
+GPU 읽기 경로 없이는 증명할 수 없다. 예컨대 HLSL 에서 `worldLinear.xy` 를 `.xz` 로
+바꿔도 아무 테스트도 울지 않는다. RHI 에 읽기 경로를 붙이는 것은 새 기능이라
+여기서 하지 않았다. **이것은 알려진 구멍으로 남긴다.**
