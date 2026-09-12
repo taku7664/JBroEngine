@@ -41,6 +41,13 @@
   크기·오프셋은 `static_assert`로 고정한다. (MUST)
   `.hlsl`을 고치면 `Modules/JBroGraphics/Shaders/Compile.ps1`로 생성 헤더를 다시 만들어 함께 커밋한다.
   빌드는 HLSL을 컴파일하지 않는다 — 커밋된 DXIL 덕분에 클론에 셰이더 컴파일러가 없어도 빌드된다. (MUST)
+- GPU 읽기 경로(`IRHIDevice::ReadTexture`)는 진단과 테스트 전용이다. 매 프레임 경로에서 부르지 않는다. (MUST)
+  프레임이 열려 있는 동안 호출하면 실패해야 하고, 구현하지 않은 백엔드는 `false`를 반환한다.
+- 프로젝트 파일은 `.jproject`(YAML)이며 키 이름은 기존 엔진과 같다. (MUST)
+  두 번째 형식을 만들지 않는다. 읽지 못하는 구조는 추측하지 않고 줄 번호와 함께 거절한다.
+- 스크립트 DLL은 컴포넌트 저장소를 직접 만들지 않는다. (MUST)
+  `ScriptRegistry`에 크기·정렬·제자리 생성·파괴만 등록하고 메모리는 호스트 풀이 잡는다.
+  `Canvas`는 Tier E라 스크립트 타깃이 보지 못하므로, 기존 엔진처럼 캔버스를 넘겨받을 수 없다.
 - `IFramework::Render()`는 `RenderResult { Submitted, NothingToSubmit, Failed }`를 반환하며 호스트는 `Failed`만
   치명 오류로 본다. 렌더 시스템이 없는 Framework는 `NothingToSubmit`을 반환한다. (MUST) (D-49)
 - Web 환경 문제로 Windows 쪽 엔진 구조 안정화가 불필요하게 막히지 않도록 작업 순서를 조정할 수 있다. (MAY)

@@ -383,6 +383,14 @@
   `Array<T, Allocator>`·`Table<..., Allocator>`의 정책 타입에 `[[no_unique_address]]` 멤버로 상태를 허용한다.
   기본 `HeapAllocator`는 빈 타입으로 유지(크기 증가 0), `JAllocatorRef` 정책을 추가한다.
   `frame`은 `Canvas::BeginFrame`에서 리셋되는 선형 할당기다. 도입 시점은 단계 3의 첫 항목이다 — 프레임 임시 배열을 처음 쓰기 직전.
+- **H5 리플렉션 — 생성·파괴 경로만 구현됨(2026-09-13).**
+  `ScriptRegistry`(Runtime, `Local`/`Get`/`Bind`)에 DLL이 `{name, typeId, size, alignment, Construct, Destruct}`를
+  등록하고 `Canvas::AttachScript(owner, name)`이 `ScriptPool`로 만든다. 로드 컨텍스트 ABI 4(`Scripts`).
+  기존 엔진의 `CreateScriptFunc`가 캔버스를 받던 모양은 쓸 수 없다 — D-42의 Tier 분리 때문이다.
+  **프로퍼티·인스펙터 메타데이터·직렬화는 아직 없다.** Open Decision 3은 생성 경로를 지목했고 그것은 섰다.
+- **프로젝트 파일은 `.jproject`(YAML), 기존 엔진과 같은 키를 쓴다(2026-09-13).**
+  `LoadProjectFile` / `EngineInstance::OpenProjectFile`. 읽는 범위는 기존 파일이 실제로 쓰는 부분집합이고,
+  모르는 구조는 줄 번호와 함께 거절한다. 아직 읽지 않는 키 아래 블록은 들여쓰기로 건너뛴다.
 - **D-53. 죽은 계약을 삭제하고 골격은 "미완"으로 명시한다.**
   삭제: `EngineContext`(`EngineInstance`가 그 역할), `RuntimeModule`/`Runtime.h`, `RefCategory::Canvas`·`Asset`,
   스켈레톤 스모크 3개, `TObjectPool::Slot::generation`, `GameObject::m_destroyContext`/`m_destroyCallback`.
