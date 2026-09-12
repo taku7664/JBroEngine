@@ -1,5 +1,6 @@
 ﻿#include <JBro/Framework2D/ServiceContext.h>
 #include <JBro/Framework2D/Internal/ScriptModuleContext.h>
+#include <JBro/Internal/InstanceRegistry.h>
 
 #include <cstdint>
 
@@ -40,6 +41,7 @@ namespace
     {
         JBro::BindFramework2DServiceContext({});
         JBro::BindFramework2DSystemContext({});
+        JBro::Internal::InstanceRegistry::Bind(nullptr);
         JBro::BindSystemContext({});
         JBro::BindServiceContext({});
         g_loaded = false;
@@ -98,6 +100,17 @@ extern "C" __declspec(dllexport) std::uint32_t JBroScriptProbe_GetFramework2DAbi
 extern "C" __declspec(dllexport) std::uintptr_t JBroScriptProbe_GetPhysicsSystem() noexcept
 {
     return reinterpret_cast<std::uintptr_t>(JBro::GetFramework2DSystems().Physics2D);
+}
+
+// 호스트가 넘긴 레지스트리에 실제로 붙었는지 본다. 붙지 않았다면 이 DLL 사본 주소가 나온다.
+extern "C" __declspec(dllexport) std::uintptr_t JBroScriptProbe_GetRegistry() noexcept
+{
+    return reinterpret_cast<std::uintptr_t>(&JBro::Internal::InstanceRegistry::Get());
+}
+
+extern "C" __declspec(dllexport) std::uintptr_t JBroScriptProbe_GetLocalRegistry() noexcept
+{
+    return reinterpret_cast<std::uintptr_t>(&JBro::Internal::InstanceRegistry::Local());
 }
 
 extern "C" __declspec(dllexport) std::uint32_t JBroScriptProbe_GetRevision() noexcept

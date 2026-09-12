@@ -9,10 +9,25 @@ namespace JBro::Internal
         m_entries.Add({});
     }
 
-    InstanceRegistry& InstanceRegistry::Get()
+    namespace
+    {
+        InstanceRegistry* g_boundRegistry = nullptr;
+    }
+
+    InstanceRegistry& InstanceRegistry::Local()
     {
         static InstanceRegistry registry;
         return registry;
+    }
+
+    InstanceRegistry& InstanceRegistry::Get()
+    {
+        return g_boundRegistry == nullptr ? Local() : *g_boundRegistry;
+    }
+
+    void InstanceRegistry::Bind(InstanceRegistry* registry)
+    {
+        g_boundRegistry = registry;
     }
 
     InstanceHandle InstanceRegistry::Register(

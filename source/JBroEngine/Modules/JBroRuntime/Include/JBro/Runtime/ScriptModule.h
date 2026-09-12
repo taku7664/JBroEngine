@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/Core/StableTypeId.h>
+#include <JBro/Internal/InstanceRegistry.h>
 #include <JBro/Runtime/ServiceContext.h>
 #include <JBro/Runtime/SystemContext.h>
 
@@ -13,7 +14,7 @@ namespace JBro
     using ScriptContextTypeId = std::uint64_t;
 
     inline constexpr std::uint32_t ScriptModuleAbiVersion = 1;
-    inline constexpr std::uint32_t ScriptModuleLoadContextAbiVersion = 1;
+    inline constexpr std::uint32_t ScriptModuleLoadContextAbiVersion = 2;
     inline constexpr std::uint32_t MaxScriptContextBlocks = 64;
     inline constexpr char ScriptModuleEntryPointName[] = "JBroScriptModule_GetApi";
 
@@ -38,6 +39,8 @@ namespace JBro
         std::uint32_t StructSize = sizeof(ScriptModuleLoadContext);
         const SystemContext* Systems = nullptr;
         const ServiceContext* Services = nullptr;
+        // 호스트의 인스턴스 레지스트리. DLL 은 이것을 자기 사본의 접근점에 1회 바인딩한다(D-44).
+        Internal::InstanceRegistry* Registry = nullptr;
         const ScriptContextBlock* Extensions = nullptr;
         std::uint32_t ExtensionCount = 0;
         std::uint32_t Reserved = 0;
@@ -83,7 +86,7 @@ namespace JBro
     static_assert(std::is_trivially_copyable_v<ScriptModuleApi>);
     static_assert(sizeof(ScriptContextBlock) == 24);
     static_assert(sizeof(ScriptContextRequirement) == 16);
-    static_assert(sizeof(ScriptModuleLoadContext) == 40);
+    static_assert(sizeof(ScriptModuleLoadContext) == 48);
     static_assert(sizeof(ScriptModuleApi) == 40);
     static_assert(offsetof(ScriptModuleApi, AbiVersion) == 0);
 }

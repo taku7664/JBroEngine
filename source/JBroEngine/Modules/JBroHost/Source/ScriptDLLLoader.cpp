@@ -146,6 +146,7 @@ namespace JBro
         ScriptModuleLoadContext context;
         context.Systems = &GetSystemContext();
         context.Services = &GetServiceContext();
+        context.Registry = &Internal::InstanceRegistry::Local();
         context.Extensions = extensions;
         context.ExtensionCount = extensionCount;
         if (false == ValidateScriptModuleLoadContext(context))

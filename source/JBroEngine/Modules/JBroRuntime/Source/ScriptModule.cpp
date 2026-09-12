@@ -27,6 +27,7 @@ namespace JBro
             || context.StructSize != sizeof(ScriptModuleLoadContext)
             || context.Systems == nullptr
             || context.Services == nullptr
+            || context.Registry == nullptr
             || context.Systems->AbiVersion != SystemContextAbiVersion
             || context.Services->AbiVersion != ServiceContextAbiVersion
             || context.ExtensionCount > MaxScriptContextBlocks
@@ -63,6 +64,7 @@ namespace JBro
         }
         BindSystemContext(*context.Systems);
         BindServiceContext(*context.Services);
+        Internal::InstanceRegistry::Bind(context.Registry);
         return true;
     }
 }

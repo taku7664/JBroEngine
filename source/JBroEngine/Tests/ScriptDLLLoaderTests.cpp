@@ -2,6 +2,7 @@
 #include <JBro/Framework2D/Internal/ScriptModuleContext.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Host/ScriptDLLLoader.h>
+#include <JBro/Internal/InstanceRegistry.h>
 #include <JBro/Runtime/ScriptModule.h>
 #include <JBro/Runtime/ServiceContext.h>
 #include <JBro/Runtime/SystemContext.h>
@@ -554,6 +555,10 @@ namespace
             loader.GetSymbol("JBroScriptProbe_GetFramework2DAbi"));
         const auto getPhysicsSystem = reinterpret_cast<ReadAddress>(
             loader.GetSymbol("JBroScriptProbe_GetPhysicsSystem"));
+        const auto getRegistry = reinterpret_cast<ReadAddress>(
+            loader.GetSymbol("JBroScriptProbe_GetRegistry"));
+        const auto getLocalRegistry = reinterpret_cast<ReadAddress>(
+            loader.GetSymbol("JBroScriptProbe_GetLocalRegistry"));
         const auto getRevision = reinterpret_cast<ReadU32>(
             loader.GetSymbol("JBroScriptProbe_GetRevision"));
         Check(isLoaded != nullptr && getSystemAbi != nullptr
@@ -567,6 +572,13 @@ namespace
             "real script DLL must bind its module-local context copies");
         Check(getPhysicsSystem() == reinterpret_cast<std::uintptr_t>(frameworkSystems.Physics2D),
             "real script DLL must receive the host's system pointer value");
+        Check(getRegistry != nullptr && getLocalRegistry != nullptr,
+            "the real script probe must expose both registry addresses");
+        Check(getRegistry() == reinterpret_cast<std::uintptr_t>(
+                &JBro::Internal::InstanceRegistry::Local()),
+            "a loaded script DLL must resolve references through the host registry");
+        Check(getLocalRegistry() != getRegistry(),
+            "the DLL's own statically linked registry must be a different object");
         Check(getRevision() == 1,
             "the initial script DLL must expose revision one");
 

@@ -146,9 +146,11 @@
 - 호스트와 게임 DLL 경계를 넘는 데이터는 POD 형태여야 한다. `std::string`, `std::vector` 같은 소유권을 가진 STL 타입을 경계 너머로 직접 전달하지 않는다. (MUST)
 - DLL에서 만든 객체는 원칙적으로 같은 DLL에서 파괴한다. (MUST)
 - 스크립트가 엔진 실 객체에 도달하는 경로는 서비스를 통한다. (MUST)
-  `Canvas`·`GameObject` 같은 구현 타입은 스크립트 헤더에 **선언조차 나타나지 않는다.** Tier S의
-  `ComponentBase::GetOwner()`·`GameScriptBase::GetGameObject()`는 `GameObjectHandle`을 반환한다.
-  `GameObject*`·`Canvas*`를 돌려주는 접근은 `JBroCanvas`의 내부 접근 클래스(구 엔진 `CCanvasRuntimeAccess` 패턴)에만 둔다. (D-42)
+  `Canvas` 같은 Tier E 구현 타입은 스크립트 헤더에 **선언조차 나타나지 않는다.**
+  `GameObject`는 §3의 사유로 Tier S에 있으나 프렐류드가 그 헤더를 include하지 않아 같은 결과가 된다.
+  Tier S의 `ComponentBase::GetOwner()`·`GameScriptBase::GetGameObject()`는 `GameObjectHandle`을 반환하며,
+  `GameObject*`·`Canvas*`를 돌려주는 접근은 `JBroCanvas`의 `Internal::CanvasAccess`
+  (구 엔진 `CCanvasRuntimeAccess` 패턴)에만 둔다. (D-42)
   `ScriptAPI.h`는 각 Framework 모듈의 `Include/JBro/ScriptAPI.h`에 두어 include 경로는 하나, 내용은 차원별이다. (D-18, D-42)
 - 스크립트 DLL은 로드 시 호스트의 `InstanceRegistry` 포인터를 받아 자기 정적 링크 사본의 접근점에 바인딩한다. (MUST) (D-44)
   레지스트리는 프로세스 전역이며 캔버스를 모른다. 캔버스 여러 개가 공존해도 핸들·`Ref` 해석은 모호하지 않다.
