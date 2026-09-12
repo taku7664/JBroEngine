@@ -31,6 +31,22 @@ namespace JBro
         return m_enabled && owner != nullptr && owner->IsActiveInHierarchy();
     }
 
+    void ComponentBase::OnAttached()
+    {
+    }
+
+    void ComponentBase::OnDetached()
+    {
+    }
+
+    void ComponentBase::OnEnabled()
+    {
+    }
+
+    void ComponentBase::OnDisabled()
+    {
+    }
+
     bool ComponentBase::IsEnabled() const
     {
         return m_enabled;
@@ -38,7 +54,17 @@ namespace JBro
 
     void ComponentBase::SetEnabled(bool enabled)
     {
+        if (m_enabled == enabled)
+        {
+            return;
+        }
         m_enabled = enabled;
+        if (enabled)
+        {
+            OnEnabled();
+            return;
+        }
+        OnDisabled();
     }
 
     void ComponentBase::SetOwner(GameObject* owner)

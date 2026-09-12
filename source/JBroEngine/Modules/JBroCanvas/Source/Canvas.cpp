@@ -317,6 +317,7 @@ namespace JBro
             return false;
         }
 
+        component->OnDetached();
         if (false == owner->DetachComponent(component))
         {
             return false;

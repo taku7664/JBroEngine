@@ -168,6 +168,9 @@ namespace JBro
             bucket->Pool.Destroy(component);
             return nullptr;
         }
+
+        // 소유 오브젝트와 식별자가 모두 확정된 뒤에 부른다(D-48).
+        component->OnAttached();
         return component;
     }
 

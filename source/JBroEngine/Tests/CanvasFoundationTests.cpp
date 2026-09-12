@@ -128,6 +128,73 @@ namespace
         Check(framework.GetCanvas() == nullptr, "Framework3D shutdown must release its runtime canvas");
     }
 
+    // D-48: 부착·분리·활성 전환 훅이 정확히 그 지점에서 한 번씩 불린다.
+    class LifecycleProbe final : public JBro::ComponentBase
+    {
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "Test::LifecycleProbe";
+        }
+
+        JBro::ComponentTypeId GetTypeId() const override
+        {
+            return JBro::MakeStableTypeId(StaticTypeName());
+        }
+
+        void OnAttached() override
+        {
+            ++attached;
+            ownerAtAttach = GetOwner().GetInstanceId();
+            idAtAttach = GetInstanceId();
+        }
+
+        void OnDetached() override
+        {
+            ++detached;
+            if (detachedObserver != nullptr)
+            {
+                ++(*detachedObserver);
+            }
+        }
+        void OnEnabled() override   { ++enabled; }
+        void OnDisabled() override  { ++disabled; }
+
+        int attached = 0;
+        int detached = 0;
+        int enabled = 0;
+        int disabled = 0;
+        JBro::InstanceId ownerAtAttach = JBro::InvalidInstanceId;
+        JBro::InstanceId idAtAttach = JBro::InvalidInstanceId;
+        int* detachedObserver = nullptr;
+    };
+
+    void TestComponentLifecycleHooks()
+    {
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        auto* object = canvas.CreateObject("lifecycle owner");
+        auto* probe = canvas.AttachComponent<LifecycleProbe>(object);
+        Check(probe != nullptr && probe->attached == 1 && probe->detached == 0,
+            "attaching a component must run its attach hook exactly once");
+        Check(probe->ownerAtAttach == object->GetInstanceId()
+            && probe->idAtAttach != JBro::InvalidInstanceId,
+            "the attach hook must see a settled owner and identity");
+
+        probe->SetEnabled(false);
+        probe->SetEnabled(false);
+        Check(probe->disabled == 1 && probe->enabled == 0,
+            "only an actual change of enablement may run the hook");
+        probe->SetEnabled(true);
+        Check(probe->enabled == 1, "re-enabling must run the enable hook");
+
+        int detachedSeen = 0;
+        probe->detachedObserver = &detachedSeen;
+        Check(canvas.DetachComponent(object, probe),
+            "detaching an attached component must succeed");
+        Check(detachedSeen == 1,
+            "detaching must run the detach hook before the component leaves its owner");
+    }
+
     void TestRefIsPod()
     {
         // Stage B0 의 계약. 여기서 다시 잡아두면 이후 회귀 시 즉시 눈에 띈다.
@@ -228,6 +295,7 @@ int RunCanvasFoundationTests()
     TestObjectComponentSkeletonCompiles();
     TestFramework2DBootstraps();
     TestFramework3DBootstrapsRuntimeCanvas();
+    TestComponentLifecycleHooks();
     TestRefIsPod();
     TestStableTypeIdIsStable();
     TestFramework2DComponentsArePolymorphic();
