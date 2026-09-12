@@ -636,10 +636,25 @@ namespace
             Check(collected.Size() == 1 && collected[0] == script,
                 "a script attached by name must show up in the schedule like any other");
 
+            // 슬롯은 재사용된다. 죽은 스크립트를 보던 참조가 그 자리에 들어온
+            // 새 스크립트를 가리키게 되면 안 된다 — 남의 수명을 자기 것처럼 보게 된다.
+            JBro::SafePtr<JBro::ComponentBase> stale = script->SafeFromThis();
+            Check(stale.IsValid(), "a live script must hand out a valid reference");
+
             Check(canvas.DestroyObject(object), "the scripted object must be destroyed");
             canvas.FlushPendingDestroy();
             canvas.CollectScripts(collected);
             Check(collected.IsEmpty(), "destroying the owner must take its named script with it");
+            Check(false == stale.IsValid(),
+                "a reference to a destroyed script must not stay valid");
+
+            JBro::GameObject* second = canvas.CreateObject("second scripted");
+            JBro::GameScriptBase* reborn = canvas.AttachScript(second, "Probe::RegisteredScript");
+            Check(reborn != nullptr, "the pool must serve a second script");
+            Check(false == stale.IsValid(),
+                "a stale reference must not revive on the slot the new script took");
+            Check(stale.TryGet() != reborn,
+                "a stale reference must never resolve to whatever reused its slot");
         }
         Check(getLocalRegistry() != getRegistry(),
             "the DLL's own statically linked registry must be a different object");
