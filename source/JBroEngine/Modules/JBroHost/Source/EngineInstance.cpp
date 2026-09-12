@@ -50,6 +50,18 @@ namespace JBro
                 return false;
             }
             m_frameworkContext.memory = config.memory;
+            // 호스트가 프레임을 열고 닫으므로 프레임 메모리도 호스트가 소유하고 되감는다.
+            // D-52 는 Canvas::BeginFrame 을 적었지만 Canvas 는 이 메모리를 소유하지 않는다.
+            if (m_frameworkContext.memory.frame.allocate == nullptr && config.frameMemoryBytes > 0)
+            {
+                m_frameMemory = MakeOwnerPtr<LinearAllocator>();
+                if (false == m_frameMemory->Initialize(config.frameMemoryBytes))
+                {
+                    m_frameMemory.Reset();
+                    return false;
+                }
+                m_frameworkContext.memory.frame = m_frameMemory->GetInterface();
+            }
             m_frameworkContext.renderer = m_renderer.Get();
             m_frameworkContext.fixedDeltaTime = config.fixedDeltaTime;
             m_frameworkContext.maxFixedStepsPerFrame = config.maxFixedStepsPerFrame;
@@ -183,6 +195,11 @@ namespace JBro
             m_lastFrameStatus = FrameStatus::InvalidState;
             return false;
         }
+        // 프레임의 시작에서 되감는다. 지난 프레임이 나눠 준 포인터는 여기서 전부 무효가 된다.
+        if (m_frameMemory)
+        {
+            m_frameMemory->Reset();
+        }
         if (m_framework != nullptr && false == m_projectCloseRequested)
         {
             m_framework->Update(deltaTime);
@@ -311,6 +328,8 @@ namespace JBro
         }
         m_mainWindow = {};
         m_platform = nullptr;
+        // 컨텍스트를 비우기 전에 아레나를 접는다. memory.frame 이 이것을 가리키고 있었다.
+        m_frameMemory.Reset();
         m_frameworkContext = {};
         m_state = State::Stopped;
     }
@@ -318,6 +337,11 @@ namespace JBro
     AssetSystem* EngineInstance::GetAssetSystem()
     {
         return m_assets.Get();
+    }
+
+    LinearAllocator* EngineInstance::GetFrameMemory()
+    {
+        return m_frameMemory.Get();
     }
 
     Renderer* EngineInstance::GetRenderer()

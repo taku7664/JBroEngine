@@ -30,6 +30,13 @@ public:
 
 	Array() noexcept = default;
 
+	// 할당기 정책이 상태를 가질 수 있다(D-52). 상태 없는 HeapAllocator 는
+	// JBRO_NO_UNIQUE_ADDRESS 덕분에 여기서도 크기를 0 으로 차지한다.
+	explicit Array(const Allocator& allocator) noexcept
+		: m_allocator(allocator)
+	{
+	}
+
 	explicit Array(SizeType size)
 	{
 		Resize(size);
@@ -40,6 +47,8 @@ public:
 		Append(values.begin(), values.size());
 	}
 
+	// 할당기는 따라오지 않는다. 프레임 아레나에 묶인 배열을 복사해 더 오래 살리는 것이
+	// 안전한 방향이 아니기 때문이다. 아레나 사본이 필요하면 정책을 명시해 만든다.
 	Array(const Array& other)
 	{
 		Append(other.Data(), other.Size());
@@ -49,6 +58,7 @@ public:
 		: m_data(other.m_data)
 		, m_size(other.m_size)
 		, m_capacity(other.m_capacity)
+		, m_allocator(other.m_allocator)
 	{
 		other.m_data = nullptr;
 		other.m_size = 0;
@@ -67,7 +77,10 @@ public:
 			return *this;
 		}
 
-		Array copy(other);
+		// 대입은 받는 쪽의 할당기를 지킨다. 소스의 것을 가져오면 아레나가 되감길 때
+		// 더 오래 사는 배열이 죽은 메모리를 들게 된다.
+		Array copy(m_allocator);
+		copy.Append(other.Data(), other.Size());
 		Swap(copy);
 		return *this;
 	}
@@ -83,6 +96,7 @@ public:
 		m_data = other.m_data;
 		m_size = other.m_size;
 		m_capacity = other.m_capacity;
+		m_allocator = other.m_allocator;
 		other.m_data = nullptr;
 		other.m_size = 0;
 		other.m_capacity = 0;
@@ -471,6 +485,7 @@ public:
 		swap(m_data, other.m_data);
 		swap(m_size, other.m_size);
 		swap(m_capacity, other.m_capacity);
+		swap(m_allocator, other.m_allocator);
 	}
 
 private:
@@ -504,7 +519,7 @@ private:
 			throw std::bad_array_new_length();
 		}
 
-		T* newData = static_cast<T*>(Allocator::Allocate(
+		T* newData = static_cast<T*>(m_allocator.Allocate(
 			newCapacity * sizeof(T), alignof(T), EMemoryTag::Array));
 
 		if constexpr (IsTriviallyRelocatableV<T>)
@@ -531,14 +546,14 @@ private:
 			}
 			catch (...)
 			{
-				Allocator::Deallocate(
+				m_allocator.Deallocate(
 					newData, newCapacity * sizeof(T), alignof(T), EMemoryTag::Array);
 				throw;
 			}
 			std::destroy(m_data, m_data + m_size);
 		}
 
-		Allocator::Deallocate(
+		m_allocator.Deallocate(
 			m_data, m_capacity * sizeof(T), alignof(T), EMemoryTag::Array);
 		m_data = newData;
 		m_capacity = newCapacity;
@@ -546,7 +561,7 @@ private:
 
 	void ReleaseStorage() noexcept
 	{
-		Allocator::Deallocate(
+		m_allocator.Deallocate(
 			m_data, m_capacity * sizeof(T), alignof(T), EMemoryTag::Array);
 		m_data = nullptr;
 		m_capacity = 0;
@@ -561,5 +576,6 @@ private:
 	T* m_data = nullptr;
 	SizeType m_size = 0;
 	SizeType m_capacity = 0;
+	JBRO_NO_UNIQUE_ADDRESS Allocator m_allocator{};
 };
 }

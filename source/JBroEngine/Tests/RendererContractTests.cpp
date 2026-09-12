@@ -636,6 +636,17 @@ namespace
         Check(InitializeHost(engine, config, platform, module, framework), "host must reopen after init failure");
 
         // 그릴 것이 없는 프레임은 오류가 아니다(D-49/F-7).
+        // 호스트가 프레임 아레나를 채우고 매 틱 되감는지 본다(D-52).
+        JBro::LinearAllocator* frameMemory = engine.GetFrameMemory();
+        Check(frameMemory != nullptr && frameMemory->IsInitialized(),
+            "the host must supply a frame arena when the caller leaves memory.frame empty");
+        JBro::JAllocator frameHandle = frameMemory->GetInterface();
+        Check(frameHandle.allocate(frameHandle.userData, 4096, 16) != nullptr,
+            "the frame arena must serve a request");
+        Check(frameMemory->GetUsedBytes() >= 4096, "the request must advance the arena cursor");
+        Check(engine.Tick(0.016f), "the host must tick after the arena was used");
+        Check(frameMemory->GetUsedBytes() == 0, "every frame must rewind the arena before the framework runs");
+
         framework.renderResult = JBro::RenderResult::NothingToSubmit;
         const auto beforeEmptyRenders = framework.renders;
         const auto beforeEmptyAborts = module.device.abortFrameCount;

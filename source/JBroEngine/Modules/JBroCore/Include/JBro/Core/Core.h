@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 
+#include <JBro/Types/Allocator.h>
 #include <JBro/Types/SafePtr.h>
 
 namespace JBro
@@ -21,14 +22,8 @@ namespace JBro
         std::uint32_t size = 0;
     };
 
-    // 할당자 인터페이스. 함수 포인터 세트로 두어 어느 모듈에서든 값으로 넘길 수 있다.
-    struct JAllocator
-    {
-        void* userData = nullptr;
-        void* (*allocate)(void* userData, std::size_t size, std::size_t alignment) = nullptr;
-        void  (*free)   (void* userData, void* memory) = nullptr;
-        void* (*reallocate)(void* userData, void* memory, std::size_t newSize, std::size_t alignment) = nullptr;
-    };
+    // JAllocator 는 Types/Allocator.h 에 있다. Array/Table 의 할당기 정책과
+    // 같은 헤더에 두어야 정책이 그것을 참조할 수 있다(D-52).
 
     struct JMemoryContext
     {

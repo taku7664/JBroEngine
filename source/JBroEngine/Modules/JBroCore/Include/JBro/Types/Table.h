@@ -161,6 +161,14 @@ public:
 
 	Table() noexcept = default;
 
+	// 할당기 정책이 상태를 가질 수 있다(D-52).
+	explicit Table(const Allocator& allocator) noexcept
+		: m_allocator(allocator)
+	{
+	}
+
+	// 할당기는 따라오지 않는다. 프레임 아레나에 묶인 테이블을 복사해 더 오래 살리는 것이
+	// 안전한 방향이 아니기 때문이다. 아레나 사본이 필요하면 정책을 명시해 만든다.
 	Table(const Table& other)
 	{
 		Reserve(other.Size());
@@ -178,6 +186,7 @@ public:
 		, m_capacity(other.m_capacity)
 		, m_hasher(std::move(other.m_hasher))
 		, m_equal(std::move(other.m_equal))
+		, m_allocator(other.m_allocator)
 	{
 		other.m_controls = nullptr;
 		other.m_entries = nullptr;
@@ -198,7 +207,12 @@ public:
 			return *this;
 		}
 
-		Table copy(other);
+		Table copy{m_allocator};
+		copy.Reserve(other.Size());
+		for (const Entry& entry : other)
+		{
+			copy.TryAdd(entry.KeyValue, entry.MappedValue);
+		}
 		Swap(copy);
 		return *this;
 	}
@@ -218,6 +232,7 @@ public:
 		m_capacity = other.m_capacity;
 		m_hasher = std::move(other.m_hasher);
 		m_equal = std::move(other.m_equal);
+		m_allocator = other.m_allocator;
 		other.m_controls = nullptr;
 		other.m_entries = nullptr;
 		other.m_size = 0;
@@ -485,6 +500,7 @@ public:
 		swap(m_capacity, other.m_capacity);
 		swap(m_hasher, other.m_hasher);
 		swap(m_equal, other.m_equal);
+		swap(m_allocator, other.m_allocator);
 	}
 
 private:
@@ -650,7 +666,8 @@ private:
 
 	void Rehash(SizeType newCapacity)
 	{
-		Table replacement;
+		// 정책을 넘기지 않으면 첫 재해싱에서 아레나를 잃고 기본 힙으로 되돌아간다.
+		Table replacement{m_allocator};
 		replacement.AllocateStorage(newCapacity);
 		for (SizeType index = 0; index < m_capacity; ++index)
 		{
@@ -667,16 +684,16 @@ private:
 	{
 		assert(capacity >= MinimumCapacity);
 		assert(0 == (capacity & (capacity - 1)));
-		m_controls = static_cast<std::int8_t*>(Allocator::Allocate(
+		m_controls = static_cast<std::int8_t*>(m_allocator.Allocate(
 			capacity * sizeof(std::int8_t), alignof(std::int8_t), EMemoryTag::Table));
 		try
 		{
-			m_entries = static_cast<EntryStorage*>(Allocator::Allocate(
+			m_entries = static_cast<EntryStorage*>(m_allocator.Allocate(
 				capacity * sizeof(EntryStorage), alignof(EntryStorage), EMemoryTag::Table));
 		}
 		catch (...)
 		{
-			Allocator::Deallocate(
+			m_allocator.Deallocate(
 				m_controls, capacity * sizeof(std::int8_t), alignof(std::int8_t), EMemoryTag::Table);
 			m_controls = nullptr;
 			throw;
@@ -689,9 +706,9 @@ private:
 	void Release() noexcept
 	{
 		Clear();
-		Allocator::Deallocate(
+		m_allocator.Deallocate(
 			m_controls, m_capacity * sizeof(std::int8_t), alignof(std::int8_t), EMemoryTag::Table);
-		Allocator::Deallocate(
+		m_allocator.Deallocate(
 			m_entries, m_capacity * sizeof(EntryStorage), alignof(EntryStorage), EMemoryTag::Table);
 		m_controls = nullptr;
 		m_entries = nullptr;
@@ -703,7 +720,8 @@ private:
 	SizeType m_size = 0;
 	SizeType m_deleted = 0;
 	SizeType m_capacity = 0;
-	[[no_unique_address]] Hasher m_hasher;
-	[[no_unique_address]] KeyEqual m_equal;
+	JBRO_NO_UNIQUE_ADDRESS Hasher m_hasher;
+	JBRO_NO_UNIQUE_ADDRESS KeyEqual m_equal;
+	JBRO_NO_UNIQUE_ADDRESS Allocator m_allocator{};
 };
 }

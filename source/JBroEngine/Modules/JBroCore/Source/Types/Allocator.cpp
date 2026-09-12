@@ -46,7 +46,7 @@ namespace
 	bool             g_bound    = false;
 }
 
-void* HeapAllocator::Allocate(std::size_t size, std::size_t alignment, EMemoryTag tag)
+void* HeapAllocator::Allocate(std::size_t size, std::size_t alignment, EMemoryTag tag) const
 {
 	// 태그는 경계를 넘지 못한다 — 호스트가 넘겨 주는 할당 함수가 size/alignment 만 받기 때문이다.
 	// 진단용 값이라 기능 손실은 없지만, DLL 이 잡은 몫은 태그 없이 집계된다.
@@ -59,7 +59,7 @@ void* HeapAllocator::Allocate(std::size_t size, std::size_t alignment, EMemoryTa
 	return g_allocate(size, alignment);
 }
 
-void HeapAllocator::Deallocate(void* memory, std::size_t size, std::size_t alignment, EMemoryTag tag) noexcept
+void HeapAllocator::Deallocate(void* memory, std::size_t size, std::size_t alignment, EMemoryTag tag) const noexcept
 {
 	(void)tag;
 	if (nullptr == memory)
@@ -68,6 +68,40 @@ void HeapAllocator::Deallocate(void* memory, std::size_t size, std::size_t align
 	}
 
 	g_free(memory, size, alignment);
+}
+
+void* JAllocatorRef::Allocate(std::size_t size, std::size_t alignment, EMemoryTag tag) const
+{
+	if (0 == size)
+	{
+		return nullptr;
+	}
+	// 묶이지 않은 참조는 기본 힙으로 되돌아간다. 호스트가 frame 을 채우지 않은 프레임에서도
+	// 컨테이너가 동작해야 하기 때문이다.
+	if (nullptr == m_allocator || nullptr == m_allocator->allocate)
+	{
+		return HeapAllocator{}.Allocate(size, alignment, tag);
+	}
+
+	return m_allocator->allocate(m_allocator->userData, size, alignment);
+}
+
+void JAllocatorRef::Deallocate(void* memory, std::size_t size, std::size_t alignment, EMemoryTag tag) const noexcept
+{
+	if (nullptr == memory)
+	{
+		return;
+	}
+	if (nullptr == m_allocator || nullptr == m_allocator->allocate)
+	{
+		HeapAllocator{}.Deallocate(memory, size, alignment, tag);
+		return;
+	}
+	// free 가 없는 할당기는 선형 할당기처럼 프레임 단위로 한꺼번에 되감는 쪽이다.
+	if (nullptr != m_allocator->free)
+	{
+		m_allocator->free(m_allocator->userData, memory);
+	}
 }
 
 void BindHeapAllocator(HeapAllocateFunc allocate, HeapFreeFunc free)
