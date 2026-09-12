@@ -402,3 +402,9 @@ FodyWeavers.xsd
 
 # oh-my-claudecode local state
 .omc/
+
+# daiso rule generator output; ProjectRule.md is the single source of rules
+PROJECT_RULES.daiso
+AGENTS.md
+GEMINI.md
+DEMO.md

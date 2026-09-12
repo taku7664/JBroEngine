@@ -52,8 +52,3 @@
 구현 계약은 `ProjectRule.md`와 `tasks/todo.md` Decisions에서 확인한다.
 
 <!-- 대화 중 발견된 프로젝트 규칙이 여기에 추가됩니다. -->
-
-<!-- daiso:start -->
-@PROJECT_RULES.daiso
-Rules above are YAML. Priority MUST > SHOULD > MAY.
-<!-- daiso:end -->
