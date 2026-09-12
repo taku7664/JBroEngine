@@ -57,15 +57,18 @@
   | 층 | 모듈 | 내용 |
   |---|---|---|
   | Tier S | `JBroCore` | 값 타입·컨테이너·`StableTypeId`·`InstanceIdGenerator` |
-  | Tier S | `JBroRuntime` | `ComponentBase`·`Ref<T>`·`GameObjectHandle`·`GameScriptBase`·`SystemContext`·`ServiceContext`·`ScriptModule`·`Internal/InstanceRegistry` |
+  | Tier S | `JBroRuntime` | `ComponentBase`·`GameObject`·`GameObjectHandle`·`Ref<T>`·`GameScriptBase`·`SystemContext`·`ServiceContext`·`ScriptModule`·`Internal/InstanceRegistry` |
   | Tier S | `JBroFramework2D` | 컴포넌트·서비스·`GameScript2D`·`Layer2D` 값 타입·`Internal/ScriptModuleContext`·`ScriptAPI.h` |
-  | Tier S | `JBroAssetTypes` | `AssetId`·`AssetHandle`·`AssetMetadata`·`Asset::*` |
-  | Tier E | `JBroCanvas` | `Canvas`·`GameObject`·`Layer`·`GameSystem`·`SystemScheduler`·내부 접근 클래스 |
+  | Tier S | `JBroAssetTypes` | `AssetId`·`AssetHandle`·`AssetMetadata`·`Asset::*` (헤더 전용) |
+  | Tier E | `JBroCanvas` | `Canvas`·`Layer`·`GameSystem`·`SystemScheduler`·`Internal::CanvasAccess` |
   | Tier E | `JBroFramework2DSystem` | 2D 시스템·렌더 추출·`Framework2D`(IFramework 구현) |
   | Tier E | `JBroHost` | `EngineInstance`·`IFramework`·`ScriptDLLLoader` |
   | Tier E | `JBroAsset`·`JBroGraphics`·`JBroRHI`·`JBroPlatform`·`JBroD3D12RHI`·`JBroEditor`·`JBroGameHost` | 엔진·호스트 |
 
-  > 현재 트리는 이 분리 전 상태다(`JBroRuntime`이 두 층을 겸함). 이행은 `tasks/structural-refactor-plan.md` 단계 1이다.
+  > `GameObject` 는 Tier S다. `ComponentBase`·`GameObjectHandle`·`GameScriptBase` 가 그 정의를 필요로 하고
+  > 셋 다 스크립트 DLL 이 링크하기 때문이다. 스크립트가 그 선언을 받지 않는 것은 프렐류드가
+  > `GameObject.h` 를 include 하지 않아서이며, 다른 Tier E 타입처럼 include 경로가 막아 주지는 않는다.
+  > 이 분리는 단계 1에서 완료했다. 기록은 `tasks/structural-refactor-plan.md` §8·§9다.
 - **DLL 경계는 교체하거나 다시 로드해야 하는 곳에만 만든다.** (MUST)
   현재 DLL로 두는 것은 게임 스크립트 하나뿐이며 나머지 모듈은 정적 링크한다.
   DLL 경계는 POD 전달, 소유권 규칙, 수명 순서 같은 비용을 그 API에 영구히 부과하므로

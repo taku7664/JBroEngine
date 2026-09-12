@@ -332,6 +332,16 @@ public:
 | 2026-09-12 | 0 | Windows SDK 버전 고정, §11 규칙 | `f12c658` |
 | 2026-09-12 | 0 | §12 Git 커밋 규칙, §13 C++ 코딩 규칙 | `6597769`, `4f02179` |
 | 2026-09-12 | 1 | D-53 죽은 선언 제거 (Tier 분리 선행) | `1b4a972` |
+| 2026-09-12 | 1 | D-42 표 보정, 단계 1 실행 명세 | `69866a7`, `030e79f` |
+| 2026-09-12 | S1-1 | Tier S → Tier E 간선 절단 (destroy 이음매 복원) | `322a12f` |
+| 2026-09-12 | S1-2 | `JBroCanvas` 신설 | `931a802` |
+| 2026-09-12 | S1-3 | `JBroHost` 신설, `JBroRuntime` 의존을 Core 하나로 | `3d857ce` |
+| 2026-09-12 | S1-4 | `JBroFramework2DSystem` 분리 | `d49d22f` |
+| 2026-09-12 | 1 | D-43 공통 `SystemContext` 에서 2D 시스템 제거 | `74da2e1` |
+| 2026-09-12 | S1-5 | Framework 별 `ScriptAPI.h`, 에셋 분할(D-50), `GetOwner()` 핸들화 | `e87d25c`, `246c5ab`, `d2ab81f` |
+| 2026-09-12 | S1-6 | 스크립트 타깃 경계 음성 테스트 3종 | `00c8547` |
+
+**단계 1 완료.** §9.4 조건을 모두 확인했다.
 
 ## 9. 단계 1 실행 명세
 
@@ -418,10 +428,26 @@ S1-4에서 `System/IPhysics2DSystem.h`는 **옮기지 않는다.** Tier S의 `Ph
 `JBroCanvas`의 의존은 `JBroCore`, `JBroRuntime`, `JBroAsset`이다. 소비자는
 `JBroFramework2D`(분리 후 `JBroFramework2DSystem`), `JBroFramework3D`, `JBroEditor`, `JBroGameHost`, `JBroTests`다.
 
-### 9.4 단계 1 완료 조건
+### 9.4 단계 1 완료 조건 — 전부 확인됨 (2026-09-12)
 
-- 스크립트 프로브 프로젝트가 `<JBro/Canvas/Canvas.h>`, `<JBro/Host/EngineInstance.h>`,
-  `<JBro/Framework2DSystem/...>` 를 include하면 각각 `C1083`으로 실패한다.
-- 스크립트 프로브 DLL이 `JBroCore`·`JBroRuntime`·`JBroFramework2D`·`JBroAssetTypes`만 링크하고 빌드된다.
-- Debug/Release x64 전체 빌드 경고 0, `JBroTests` 통과, `Debug_Game2D`·`Debug_Game3D` 링크 성공.
-- 모듈 간 역방향 include 0건.
+- [x] 스크립트 프로브가 `<JBro/Canvas/Canvas.h>`, `<JBro/Host/EngineInstance.h>`,
+  `<JBro/Framework2DSystem/Framework2D.h>` 를 include하면 각각 `C1083`으로 실패한다.
+  `/p:JBroTierProbe=Canvas|Host|FrameworkSystem` 으로 실행해 세 건 모두 확인했다.
+- [x] 스크립트 프로브 DLL이 `JBroCore`·`JBroRuntime`·`JBroFramework2D`만 링크하고 빌드된다.
+  `JBroAssetTypes` 는 헤더 전용 Utility 라 링크 대상이 없다.
+- [x] Debug/Release x64 전체 빌드 경고 0, `JBroTests` 통과, `Debug_Game2D`·`Debug_Game3D` 링크 성공.
+- [x] Tier S → Tier E include 0건. Tier S 는 `JBroCore`·`JBroRuntime`·`JBroFramework2D`·`JBroAssetTypes`
+  서로만 참조한다.
+
+### 9.5 단계 1에서 남긴 것
+
+완료로 표시하지 않는다. 다음 단계에서 처리한다.
+
+- **헤더 자립성 테스트.** D-53 은 스켈레톤 스모크 3개를 테스트 프로젝트로 옮기겠다고 했지만,
+  한 번역 단위는 첫 include 하나의 자립성만 증명한다. 현재는 모듈 로컬 스모크 3개가 그대로 남아 있다.
+  공개 헤더마다 번역 단위를 두는 방식으로 다시 설계해야 한다.
+- **Framework3D 의 실행 계층 분리.** 3D 는 아직 시스템이 없어 한 모듈이며, 컴포넌트 헤더만 갈라 두었다.
+  `Framework3D.h` 가 같은 모듈에 있으므로 3D 스크립트 타깃은 경로상 그것을 볼 수 있다.
+  시스템이 생기는 시점에 2D 와 같은 방식으로 나눈다.
+- **`GameObject` 의 비공개 강제.** 9.1(b) 에서 받아들인 대로 프렐류드 구성이 지키며, include 경로가
+  막지는 못한다. 사용자가 `<JBro/Runtime/GameObject.h>` 를 직접 적으면 컴파일된다.
