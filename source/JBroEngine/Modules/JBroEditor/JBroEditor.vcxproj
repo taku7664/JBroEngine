@@ -25,7 +25,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroEditor\Include;$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroRHI\Include;$(JBroModulesDir)JBroGraphics\Include;$(JBroModulesDir)JBroPlatform\Include;$(JBroModulesDir)JBroCanvas\Include;$(JBroModulesDir)JBroHost\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroFramework2DSystem\Include;$(JBroModulesDir)JBroFramework2D\Include;$(JBroModulesDir)JBroFramework3D\Include;$(JBroModulesDir)JBroD3D12RHI\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroEditor\Include;$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroRHI\Include;$(JBroModulesDir)JBroGraphics\Include;$(JBroModulesDir)JBroPlatform\Include;$(JBroModulesDir)JBroCanvas\Include;$(JBroModulesDir)JBroHost\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroFramework2DSystem\Include;$(JBroModulesDir)JBroFramework2D\Include;$(JBroModulesDir)JBroFramework3DSystem\Include;$(JBroModulesDir)JBroFramework3D\Include;$(JBroModulesDir)JBroD3D12RHI\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -81,6 +81,10 @@
     </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroFramework3D\JBroFramework3D.vcxproj">
       <Project>{1a000009-0000-4000-8000-000000000f3d}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroFramework3DSystem\JBroFramework3DSystem.vcxproj">
+      <Project>{1a000013-0000-4000-8000-0000000f3d5e}</Project>
       <LinkLibraryDependencies>false</LinkLibraryDependencies>
     </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroD3D12RHI\JBroD3D12RHI.vcxproj">

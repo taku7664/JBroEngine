@@ -23,7 +23,7 @@
       Framework3D 는 아직 시스템이 없어 한 모듈이며, 생기면 2D 와 같은 방식으로 나눈다.
     -->
     <JBroHostFrameworkIncludes Condition="'$(JBroScriptDimension)' == '2D'">$(JBroModulesDir)JBroFramework2DSystem\Include</JBroHostFrameworkIncludes>
-    <JBroHostFrameworkIncludes Condition="'$(JBroScriptDimension)' == '3D'">$(JBroModulesDir)JBroFramework3D\Include</JBroHostFrameworkIncludes>
+    <JBroHostFrameworkIncludes Condition="'$(JBroScriptDimension)' == '3D'">$(JBroModulesDir)JBroFramework3DSystem\Include</JBroHostFrameworkIncludes>
     <!-- 스크립트 타깃이 받는 전체 include 집합. JBro.Script.props 와 스크립트 프로브가 공유한다. -->
     <JBroScriptIncludes>$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroScriptFrameworkIncludes)</JBroScriptIncludes>
   </PropertyGroup>

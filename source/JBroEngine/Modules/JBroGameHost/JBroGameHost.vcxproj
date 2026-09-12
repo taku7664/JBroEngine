@@ -108,6 +108,9 @@
     <ProjectReference Include="$(JBroModulesDir)JBroFramework3D\JBroFramework3D.vcxproj">
       <Project>{1a000009-0000-4000-8000-000000000f3d}</Project>
     </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroFramework3DSystem\JBroFramework3DSystem.vcxproj">
+      <Project>{1a000013-0000-4000-8000-0000000f3d5e}</Project>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

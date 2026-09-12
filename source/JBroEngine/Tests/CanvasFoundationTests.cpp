@@ -6,7 +6,7 @@
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2DSystem/Framework2D.h>
 #include <JBro/Framework2D/Layer2D.h>
-#include <JBro/Framework3D/Framework3D.h>
+#include <JBro/Framework3DSystem/Framework3D.h>
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/Internal/CanvasAccess.h>
 #include <JBro/Runtime/Component.h>
