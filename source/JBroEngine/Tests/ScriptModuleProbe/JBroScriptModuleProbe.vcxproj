@@ -25,7 +25,14 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroFramework2D\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <!--
+        스크립트 타깃이 실제로 받는 include 집합을 그대로 쓴다. 여기에 없는 모듈의 헤더를
+        include 하면 C1083 이 나야 하며, 아래 음성 프로브가 그것을 확인한다.
+      -->
+      <AdditionalIncludeDirectories>$(JBroScriptIncludes);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions Condition="'$(JBroTierProbe)' == 'Canvas'">JBRO_TIER_PROBE_CANVAS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(JBroTierProbe)' == 'Host'">JBRO_TIER_PROBE_HOST;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(JBroTierProbe)' == 'FrameworkSystem'">JBRO_TIER_PROBE_FRAMEWORK_SYSTEM;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
