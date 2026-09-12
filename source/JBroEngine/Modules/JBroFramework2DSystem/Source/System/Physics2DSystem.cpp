@@ -2,7 +2,7 @@
 
 #include "Physics2DGeometry.h"
 
-#include <JBro/Canvas/Canvas.h>
+#include <JBro/Canvas/Internal/CanvasAccess.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Runtime/GameObject.h>
 
@@ -96,7 +96,7 @@ namespace JBro::System
                 return;
             }
 
-            GameObject* owner = collider.GetOwner();
+            GameObject* owner = Internal::CanvasAccess::GetOwner(collider);
             if (owner == nullptr)
             {
                 return;
@@ -151,7 +151,7 @@ namespace JBro::System
                 return;
             }
 
-            GameObject* owner = collider.GetOwner();
+            GameObject* owner = Internal::CanvasAccess::GetOwner(collider);
             if (owner == nullptr)
             {
                 return;
@@ -190,9 +190,9 @@ namespace JBro::System
                 return;
             }
 
-            GameObject* owner = body.GetOwner();
+            GameObject* owner = Internal::CanvasAccess::GetOwner(body);
             Component::Transform2D* transform =
-                canvas.GetComponent<Component::Transform2D>(owner);
+                canvas.FindComponentRaw<Component::Transform2D>(owner);
             if (transform == nullptr || false == transform->IsActiveComponent())
             {
                 return;
@@ -230,7 +230,7 @@ namespace JBro::System
             }
 
             Component::WorldTransform2D* world =
-                canvas.GetComponent<Component::WorldTransform2D>(owner);
+                canvas.FindComponentRaw<Component::WorldTransform2D>(owner);
             if (world != nullptr)
             {
                 world->dirty = true;

@@ -10,7 +10,7 @@ namespace JBro
     public:
         ~GameScriptBase() override = default;
 
-        GameObject* GetGameObject() const;
+        GameObjectHandle GetGameObject() const;
 
         virtual void OnCreate();
         virtual void OnStart();

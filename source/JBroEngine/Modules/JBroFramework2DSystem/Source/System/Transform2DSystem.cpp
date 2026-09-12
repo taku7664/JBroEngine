@@ -1,6 +1,6 @@
 ﻿#include <JBro/Framework2DSystem/System/Transform2DSystem.h>
 
-#include <JBro/Canvas/Canvas.h>
+#include <JBro/Canvas/Internal/CanvasAccess.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Runtime/GameObject.h>
 
@@ -45,7 +45,7 @@ namespace JBro::System
                 local.scale.y * parentScale.y};
 
             Component::WorldTransform2D* world =
-                canvas.GetComponent<Component::WorldTransform2D>(&object);
+                canvas.FindComponentRaw<Component::WorldTransform2D>(&object);
             if (world != nullptr && world->IsActiveComponent())
             {
                 StoreWorldTransform(*world, worldMatrix, worldRotation, worldScale);
@@ -60,7 +60,7 @@ namespace JBro::System
                 }
 
                 Component::Transform2D* childLocal =
-                    canvas.GetComponent<Component::Transform2D>(child);
+                    canvas.FindComponentRaw<Component::Transform2D>(child);
                 if (childLocal == nullptr || false == childLocal->IsActiveComponent())
                 {
                     continue;
@@ -91,7 +91,7 @@ namespace JBro::System
                 return;
             }
 
-            GameObject* owner = local.GetOwner();
+            GameObject* owner = Internal::CanvasAccess::GetOwner(local);
             if (owner == nullptr)
             {
                 return;
@@ -99,7 +99,7 @@ namespace JBro::System
 
             GameObject* parent = owner->GetParent();
             Component::Transform2D* parentLocal =
-                canvas.GetComponent<Component::Transform2D>(parent);
+                canvas.FindComponentRaw<Component::Transform2D>(parent);
             if (parentLocal != nullptr && parentLocal->IsActiveComponent())
             {
                 return;

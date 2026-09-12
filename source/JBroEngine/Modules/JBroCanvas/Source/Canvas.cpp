@@ -304,7 +304,7 @@ namespace JBro
             return false;
         }
 
-        GameObject* owner = component->GetOwner();
+        GameObject* owner = component->GetOwnerObject();
         if (owner == nullptr || owner->GetCanvas() != this)
         {
             return false;

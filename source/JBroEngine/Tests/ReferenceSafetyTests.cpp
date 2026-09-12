@@ -293,7 +293,8 @@ namespace
         Check(first != nullptr && second != nullptr, "Canvas must attach pooled components");
         first->Value = 11;
         second->Value = 22;
-        Check(first->GetOwner() == parent, "attached component must retain its owner");
+        Check(first->GetOwner().GetInstanceId() == parent->GetInstanceId(),
+            "attached component must retain its owner");
         Check(registry.GetLiveCount() == 4, "attached components must be registered");
 
         JBro::Ref<TestComponent> found = parent->GetComponent<TestComponent>();

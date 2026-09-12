@@ -1,6 +1,6 @@
 ﻿#include <JBro/Framework2DSystem/System/SpriteRender2DSystem.h>
 
-#include <JBro/Canvas/Canvas.h>
+#include <JBro/Canvas/Internal/CanvasAccess.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 
@@ -28,8 +28,8 @@ namespace JBro::System
             {
                 return;
             }
-            GameObject* owner = sprite.GetOwner();
-            const auto* world = canvas.GetComponent<Component::WorldTransform2D>(owner);
+            GameObject* owner = Internal::CanvasAccess::GetOwner(sprite);
+            const auto* world = canvas.FindComponentRaw<Component::WorldTransform2D>(owner);
             if (world == nullptr || false == world->IsActiveComponent() || world->dirty)
             {
                 return;

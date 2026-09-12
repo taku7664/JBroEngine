@@ -2,6 +2,7 @@
 
 #include <JBro/Core/Core.h>
 #include <JBro/Core/StableTypeId.h>
+#include <JBro/Runtime/GameObjectHandle.h>
 #include <JBro/Runtime/Ref.h>
 #include <JBro/Types/SafePtr.h>
 
@@ -13,6 +14,11 @@ namespace JBro
     class GameObject;
     class GameScriptBase;
 
+    namespace Internal
+    {
+        class CanvasAccess;
+    }
+
     // 모든 컴포넌트의 다형성 베이스. 파생 타입은 반드시
     //   static constexpr const char* StaticTypeName() { return "..."; }
     // 을 제공하고 GetTypeId() 를 그것으로 구현한다.
@@ -23,9 +29,10 @@ namespace JBro
 
         virtual ComponentTypeId GetTypeId() const = 0;
 
-        InstanceId     GetInstanceId() const;
-        InstanceHandle GetHandle() const;
-        GameObject*    GetOwner() const;
+        InstanceId       GetInstanceId() const;
+        InstanceHandle   GetHandle() const;
+        // 스크립트 표면이므로 소유 오브젝트는 핸들로 준다. 실 객체는 엔진 계층만 본다.
+        GameObjectHandle GetOwner() const;
 
         // §8.1 단일 활성 게이트. 모든 시스템이 이 함수 하나만 본다.
         bool IsActiveComponent() const;
@@ -35,7 +42,9 @@ namespace JBro
     private:
         friend class Canvas;
         friend class GameObject;
+        friend class Internal::CanvasAccess;
 
+        GameObject* GetOwnerObject() const;
         void SetOwner(GameObject* owner);
         void SetInstanceIdentity(InstanceId instanceId, InstanceHandle handle);
 

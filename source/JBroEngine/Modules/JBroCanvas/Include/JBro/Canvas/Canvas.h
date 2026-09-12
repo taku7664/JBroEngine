@@ -56,12 +56,12 @@ namespace JBro
         bool DetachComponent(GameObject* owner, T* component);
 
         template<typename T>
-        T* GetComponent(GameObject* owner);
+        T* FindComponentRaw(GameObject* owner);
 
         // Replaces results in attachment order. Pointers are short-lived borrowed references.
         // Reserve results during setup to avoid allocation on repeated queries.
         template<typename T>
-        void GetComponents(GameObject* owner, Array<T*>& results);
+        void FindComponentsRaw(GameObject* owner, Array<T*>& results);
 
         template<typename T, typename Fn>
         void ForEach(Fn&& function);
@@ -162,7 +162,7 @@ namespace JBro
             throw;
         }
 
-        if (component->GetOwner() != owner)
+        if (component->GetOwnerObject() != owner)
         {
             UnregisterComponentInstance(component);
             bucket->Pool.Destroy(component);
@@ -178,7 +178,7 @@ namespace JBro
         if (owner == nullptr
             || component == nullptr
             || owner->GetCanvas() != this
-            || component->GetOwner() != owner)
+            || component->GetOwnerObject() != owner)
         {
             return false;
         }
@@ -186,7 +186,7 @@ namespace JBro
     }
 
     template<typename T>
-    T* Canvas::GetComponent(GameObject* owner)
+    T* Canvas::FindComponentRaw(GameObject* owner)
     {
         static_assert(std::is_base_of_v<ComponentBase, T>);
         if (owner == nullptr || owner->GetCanvas() != this)
@@ -207,7 +207,7 @@ namespace JBro
     }
 
     template<typename T>
-    void Canvas::GetComponents(GameObject* owner, Array<T*>& results)
+    void Canvas::FindComponentsRaw(GameObject* owner, Array<T*>& results)
     {
         static_assert(std::is_base_of_v<ComponentBase, T>);
         results.Clear();

@@ -121,7 +121,8 @@ namespace
         JBro::GameObject* object = canvas->CreateObject("3D object");
         Check(object != nullptr, "Framework3D canvas must create objects without Framework2D");
         auto* transform = canvas->AttachComponent<JBro::Component::Transform3D>(object);
-        Check(transform != nullptr && transform->GetOwner() == object,
+        Check(transform != nullptr
+            && transform->GetOwner().GetInstanceId() == object->GetInstanceId(),
             "Framework3D canvas must own polymorphic 3D components");
         framework.Shutdown();
         Check(framework.GetCanvas() == nullptr, "Framework3D shutdown must release its runtime canvas");
@@ -160,32 +161,32 @@ namespace
 
         JBro::Array<JBro::Component::Collider2D*> results;
         results.Reserve(8);
-        canvas.GetComponents<JBro::Component::Collider2D>(object, results);
+        canvas.FindComponentsRaw<JBro::Component::Collider2D>(object, results);
         Check(results.Size() == 2 && results[0] == first && results[1] == second,
             "plural canvas lookup must preserve attachment order regardless of activation");
         auto* storage = results.Data();
-        canvas.GetComponents<JBro::Component::Collider2D>(object, results);
+        canvas.FindComponentsRaw<JBro::Component::Collider2D>(object, results);
         Check(results.Size() == 2 && results.Data() == storage && results.Capacity() == 8,
             "plural lookup must replace results and reuse reserved storage");
 
         auto* third = canvas.AttachComponent<JBro::Component::Collider2D>(object);
         Check(canvas.DetachComponent(object, first), "first collider must detach");
-        canvas.GetComponents<JBro::Component::Collider2D>(object, results);
+        canvas.FindComponentsRaw<JBro::Component::Collider2D>(object, results);
         Check(results.Size() == 2 && results[0] == second && results[1] == third,
             "plural lookup must preserve remaining attachment order after detachment");
-        Check(canvas.GetComponent<JBro::Component::Collider2D>(object) == second
+        Check(canvas.FindComponentRaw<JBro::Component::Collider2D>(object) == second
             && object->GetComponent<JBro::Component::Collider2D>().Get() == second,
             "single lookup must keep the earliest remaining component after detachment");
 
         auto* empty = canvas.CreateObject("no colliders");
-        canvas.GetComponents<JBro::Component::Collider2D>(empty, results);
+        canvas.FindComponentsRaw<JBro::Component::Collider2D>(empty, results);
         Check(results.IsEmpty(), "no matches must clear previous results");
         results.Add(second);
-        canvas.GetComponents<JBro::Component::Collider2D>(nullptr, results);
+        canvas.FindComponentsRaw<JBro::Component::Collider2D>(nullptr, results);
         Check(results.IsEmpty(), "null owner must clear results");
         results.Add(second);
         JBro::Canvas other(JBro::CreateDefaultAllocator());
-        other.GetComponents<JBro::Component::Collider2D>(object, results);
+        other.FindComponentsRaw<JBro::Component::Collider2D>(object, results);
         Check(results.IsEmpty(), "foreign canvas owner must not expose components");
     }
 
@@ -214,7 +215,7 @@ namespace
             first->GetTypeId() == JBro::MakeStableTypeId(JBro::Component::Collider2D::StaticTypeName()),
             "component type id must derive from its stable type name");
         Check(
-            canvas.GetComponent<JBro::Component::Collider2D>(object) == first,
+            canvas.FindComponentRaw<JBro::Component::Collider2D>(object) == first,
             "single component lookup must return the first matching component");
         Check(
             object->GetComponents<JBro::Component::Collider2D>().Size() == 2,

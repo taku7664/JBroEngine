@@ -55,7 +55,9 @@ int RunGameScriptTests()
     JBro::Canvas canvas(JBro::CreateDefaultAllocator());
     auto* object = canvas.CreateObject("script owner");
     auto* script = canvas.AttachComponent<ScriptProbe>(object);
-    if (script == nullptr || script->GetGameObject() != object || false == script->IsActiveComponent())
+    if (script == nullptr
+        || script->GetGameObject().GetInstanceId() != object->GetInstanceId()
+        || false == script->IsActiveComponent())
     {
         throw std::runtime_error("split script base must preserve component ownership and activation");
     }

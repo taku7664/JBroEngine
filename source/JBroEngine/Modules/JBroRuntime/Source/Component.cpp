@@ -14,7 +14,13 @@ namespace JBro
         return m_handle;
     }
 
-    GameObject* ComponentBase::GetOwner() const
+    GameObjectHandle ComponentBase::GetOwner() const
+    {
+        GameObject* owner = m_owner.TryGet();
+        return owner == nullptr ? GameObjectHandle() : owner->GetScriptHandle();
+    }
+
+    GameObject* ComponentBase::GetOwnerObject() const
     {
         return m_owner.TryGet();
     }

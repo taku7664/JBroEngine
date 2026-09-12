@@ -1,6 +1,6 @@
 ﻿#include "Physics2DGeometry.h"
 
-#include <JBro/Canvas/Canvas.h>
+#include <JBro/Canvas/Internal/CanvasAccess.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Runtime/GameObject.h>
 
@@ -21,7 +21,7 @@ namespace JBro::Internal
         bool CalculateWorldPose(Canvas& canvas, GameObject* object, WorldPose& result)
         {
             Component::Transform2D* local =
-                canvas.GetComponent<Component::Transform2D>(object);
+                canvas.FindComponentRaw<Component::Transform2D>(object);
             if (local == nullptr || false == local->IsActiveComponent())
             {
                 return false;
@@ -33,7 +33,7 @@ namespace JBro::Internal
                 local->scale);
             GameObject* parent = object->GetParent();
             Component::Transform2D* parentLocal =
-                canvas.GetComponent<Component::Transform2D>(parent);
+                canvas.FindComponentRaw<Component::Transform2D>(parent);
             if (parentLocal == nullptr || false == parentLocal->IsActiveComponent())
             {
                 result.matrix = localMatrix;
@@ -111,7 +111,7 @@ namespace JBro::Internal
         Component::Collider2D& collider,
         ColliderGeometry& result)
     {
-        GameObject* owner = collider.GetOwner();
+        GameObject* owner = Internal::CanvasAccess::GetOwner(collider);
         if (owner == nullptr)
         {
             return false;
@@ -259,7 +259,7 @@ namespace JBro::Internal
     Component::BodyType2D GetBodyType(Canvas& canvas, GameObject* object)
     {
         Component::Rigidbody2D* body =
-            canvas.GetComponent<Component::Rigidbody2D>(object);
+            canvas.FindComponentRaw<Component::Rigidbody2D>(object);
         if (body == nullptr)
         {
             return Component::BodyType2D::Static;
