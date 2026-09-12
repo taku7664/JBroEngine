@@ -8,48 +8,28 @@ namespace JBro::System
 {
     namespace
     {
-        void StoreWorldTransform(
-            Component::WorldTransform2D& world,
-            const Matrix3x2& matrix,
-            float rotation,
-            const Vec2& scale)
-        {
-            world.matrix = matrix;
-            world.position = {matrix.m31, matrix.m32};
-            world.rotation = rotation;
-            world.scale = scale;
-            world.dirty = false;
-        }
-
+        // 로컬과 월드가 한 컴포넌트에 있으므로(D-47) 노드마다 조회는 자식 Transform 하나뿐이다.
+        // 예전에는 같은 노드에서 WorldTransform2D 를 한 번 더 찾아야 했다.
         void PropagateWorldTransform(
             Canvas& canvas,
             GameObject& object,
-            Component::Transform2D& local,
+            Component::Transform2D& transform,
             const Matrix3x2& parentWorld,
             float parentRotation,
             const Vec2& parentScale)
         {
-            if (false == local.IsActiveComponent())
-            {
-                return;
-            }
-
             const Matrix3x2 localMatrix = MakeTransformMatrix2D(
-                local.position,
-                local.rotation,
-                local.scale);
-            const Matrix3x2 worldMatrix = MultiplyMatrix3x2(localMatrix, parentWorld);
-            const float worldRotation = local.rotation + parentRotation;
-            const Vec2 worldScale = {
-                local.scale.x * parentScale.x,
-                local.scale.y * parentScale.y};
+                transform.position,
+                transform.rotation,
+                transform.scale);
 
-            Component::WorldTransform2D* world =
-                canvas.FindComponentRaw<Component::WorldTransform2D>(&object);
-            if (world != nullptr && world->IsActiveComponent())
-            {
-                StoreWorldTransform(*world, worldMatrix, worldRotation, worldScale);
-            }
+            transform.world = MultiplyMatrix3x2(localMatrix, parentWorld);
+            transform.worldPosition = {transform.world.m31, transform.world.m32};
+            transform.worldRotation = transform.rotation + parentRotation;
+            transform.worldScale = {
+                transform.scale.x * parentScale.x,
+                transform.scale.y * parentScale.y};
+            transform.worldValid = true;
 
             for (const SafePtr<GameObject>& childReference : object.GetChildren())
             {
@@ -59,19 +39,19 @@ namespace JBro::System
                     continue;
                 }
 
-                Component::Transform2D* childLocal =
+                Component::Transform2D* childTransform =
                     canvas.FindComponentRaw<Component::Transform2D>(child);
-                if (childLocal == nullptr || false == childLocal->IsActiveComponent())
+                if (childTransform == nullptr || false == childTransform->IsActiveComponent())
                 {
                     continue;
                 }
                 PropagateWorldTransform(
                     canvas,
                     *child,
-                    *childLocal,
-                    worldMatrix,
-                    worldRotation,
-                    worldScale);
+                    *childTransform,
+                    transform.world,
+                    transform.worldRotation,
+                    transform.worldScale);
             }
         }
     }
@@ -81,26 +61,26 @@ namespace JBro::System
         return 100;
     }
 
+    // 활성 부모를 가진 노드는 그 부모의 순회에서 처리된다. 여기서는 루트만 골라 내려간다.
     void Transform2DSystem::OnUpdate(Canvas& canvas, float deltaTime)
     {
         (void)deltaTime;
-        canvas.ForEach<Component::Transform2D>([&canvas](Component::Transform2D& local)
+        canvas.ForEach<Component::Transform2D>([&canvas](Component::Transform2D& transform)
         {
-            if (false == local.IsActiveComponent())
+            if (false == transform.IsActiveComponent())
             {
                 return;
             }
 
-            GameObject* owner = Internal::CanvasAccess::GetOwner(local);
+            GameObject* owner = Internal::CanvasAccess::GetOwner(transform);
             if (owner == nullptr)
             {
                 return;
             }
 
-            GameObject* parent = owner->GetParent();
-            Component::Transform2D* parentLocal =
-                canvas.FindComponentRaw<Component::Transform2D>(parent);
-            if (parentLocal != nullptr && parentLocal->IsActiveComponent())
+            Component::Transform2D* parentTransform =
+                canvas.FindComponentRaw<Component::Transform2D>(owner->GetParent());
+            if (parentTransform != nullptr && parentTransform->IsActiveComponent())
             {
                 return;
             }
@@ -108,7 +88,7 @@ namespace JBro::System
             PropagateWorldTransform(
                 canvas,
                 *owner,
-                local,
+                transform,
                 {},
                 0.0f,
                 {1.0f, 1.0f});

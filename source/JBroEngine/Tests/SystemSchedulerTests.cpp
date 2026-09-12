@@ -75,11 +75,11 @@ namespace
         auto* canvas = framework.GetCanvas();
         auto* object = canvas->CreateObject("body");
         auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(object);
-        auto* world = canvas->AttachComponent<JBro::Component::WorldTransform2D>(object);
         auto* body = canvas->AttachComponent<JBro::Component::Rigidbody2D>(object);
         framework.Update(3.0f);
         Check(std::fabs(body->linearVelocity.y + 4.905f) < 0.0001f, "long frame must execute at most two physics steps");
-        Check(std::fabs(world->position.y - transform->position.y) < 0.0001f && false == world->dirty,
+        Check(std::fabs(transform->worldPosition.y - transform->position.y) < 0.0001f
+            && transform->worldValid,
             "transform propagation must follow the fixed physics steps");
         const float position = transform->position.y;
         framework.Update(0.125f);

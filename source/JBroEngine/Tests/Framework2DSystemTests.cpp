@@ -41,17 +41,9 @@ namespace
 
         JBro::Component::Transform2D* parentLocal =
             canvas.AttachComponent<JBro::Component::Transform2D>(parent);
-        JBro::Component::WorldTransform2D* parentWorld =
-            canvas.AttachComponent<JBro::Component::WorldTransform2D>(parent);
         JBro::Component::Transform2D* childLocal =
             canvas.AttachComponent<JBro::Component::Transform2D>(child);
-        JBro::Component::WorldTransform2D* childWorld =
-            canvas.AttachComponent<JBro::Component::WorldTransform2D>(child);
-        Check(
-            parentLocal != nullptr
-                && parentWorld != nullptr
-                && childLocal != nullptr
-                && childWorld != nullptr,
+        Check(parentLocal != nullptr && childLocal != nullptr,
             "transform components must attach");
 
         parentLocal->position = {2.0f, 1.0f};
@@ -63,19 +55,19 @@ namespace
         system.Initialize(canvas);
         system.Update(canvas, 1.0f / 60.0f);
 
-        Check(NearlyEqual(parentWorld->position.x, 2.0f), "parent world x must match local x");
-        Check(NearlyEqual(parentWorld->position.y, 1.0f), "parent world y must match local y");
-        Check(NearlyEqual(childWorld->position.x, 2.0f), "parent rotation must affect child world x");
-        Check(NearlyEqual(childWorld->position.y, 2.0f), "parent rotation must affect child world y");
-        Check(NearlyEqual(childWorld->rotation, parentLocal->rotation), "world rotation must be decomposed");
-        Check(false == childWorld->dirty, "updated world transform must be clean");
+        Check(NearlyEqual(parentLocal->worldPosition.x, 2.0f), "parent world x must match local x");
+        Check(NearlyEqual(parentLocal->worldPosition.y, 1.0f), "parent world y must match local y");
+        Check(NearlyEqual(childLocal->worldPosition.x, 2.0f), "parent rotation must affect child world x");
+        Check(NearlyEqual(childLocal->worldPosition.y, 2.0f), "parent rotation must affect child world y");
+        Check(NearlyEqual(childLocal->worldRotation, parentLocal->rotation), "world rotation must be decomposed");
+        Check(childLocal->worldValid, "updated world transform must be valid");
 
         childLocal->SetEnabled(false);
-        childWorld->position = {99.0f, 99.0f};
+        childLocal->worldPosition = {99.0f, 99.0f};
         system.Update(canvas, 1.0f / 60.0f);
         Check(
-            NearlyEqual(childWorld->position.x, 99.0f)
-                && NearlyEqual(childWorld->position.y, 99.0f),
+            NearlyEqual(childLocal->worldPosition.x, 99.0f)
+                && NearlyEqual(childLocal->worldPosition.y, 99.0f),
             "disabled transform must pass through the shared active gate");
         system.Shutdown(canvas);
     }
@@ -88,12 +80,10 @@ namespace
 
         JBro::Component::Transform2D* transform =
             canvas.AttachComponent<JBro::Component::Transform2D>(object);
-        JBro::Component::WorldTransform2D* world =
-            canvas.AttachComponent<JBro::Component::WorldTransform2D>(object);
         JBro::Component::Rigidbody2D* body =
             canvas.AttachComponent<JBro::Component::Rigidbody2D>(object);
         Check(
-            transform != nullptr && world != nullptr && body != nullptr,
+            transform != nullptr && body != nullptr,
             "physics components must attach");
 
         JBro::System::Physics2DSystem system;
@@ -102,7 +92,7 @@ namespace
 
         Check(NearlyEqual(body->linearVelocity.y, -4.905f), "gravity must update velocity");
         Check(NearlyEqual(transform->position.y, -2.4525f), "velocity must update position");
-        Check(world->dirty, "physics movement must invalidate the world transform");
+        Check(false == transform->worldValid, "physics movement must invalidate the world transform");
 
         body->SetEnabled(false);
         const float disabledPosition = transform->position.y;
@@ -218,14 +208,10 @@ namespace
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
         JBro::GameObject* cameraObject = canvas.CreateObject("camera");
         JBro::GameObject* spriteObject = canvas.CreateObject("sprite");
-        auto* cameraLocal = canvas.AttachComponent<JBro::Component::Transform2D>(cameraObject);
-        auto* cameraWorld = canvas.AttachComponent<JBro::Component::WorldTransform2D>(cameraObject);
-        auto* camera = canvas.AttachComponent<JBro::Component::Camera2D>(cameraObject);
-        auto* spriteLocal = canvas.AttachComponent<JBro::Component::Transform2D>(spriteObject);
-        auto* spriteWorld = canvas.AttachComponent<JBro::Component::WorldTransform2D>(spriteObject);
-        auto* sprite = canvas.AttachComponent<JBro::Component::SpriteRenderer2D>(spriteObject);
+        auto* cameraLocal = canvas.AttachComponent<JBro::Component::Transform2D>(cameraObject);        auto* camera = canvas.AttachComponent<JBro::Component::Camera2D>(cameraObject);
+        auto* spriteLocal = canvas.AttachComponent<JBro::Component::Transform2D>(spriteObject);        auto* sprite = canvas.AttachComponent<JBro::Component::SpriteRenderer2D>(spriteObject);
         auto* secondSprite = canvas.AttachComponent<JBro::Component::SpriteRenderer2D>(spriteObject);
-        Check(cameraLocal && cameraWorld && camera && spriteLocal && spriteWorld && sprite && secondSprite,
+        Check(cameraLocal && camera && spriteLocal && sprite && secondSprite,
             "render components must attach");
         cameraLocal->position = {3.0f, 4.0f};
         cameraLocal->rotation = 0.7f;
@@ -267,7 +253,7 @@ namespace
             world.EndFrame();
             const auto* extractedCamera = world.GetCamera();
             Check(extractedCamera && extractedCamera->owner == cameraObject, "active primary camera must extract");
-            const auto identity = JBro::MultiplyMatrix3x2(cameraWorld->matrix, extractedCamera->view);
+            const auto identity = JBro::MultiplyMatrix3x2(cameraLocal->world, extractedCamera->view);
             Check(NearlyEqual(identity.m11, 1.0f) && NearlyEqual(identity.m22, 1.0f)
                 && NearlyEqual(identity.m12, 0.0f) && NearlyEqual(identity.m21, 0.0f)
                 && NearlyEqual(identity.m31, 0.0f) && NearlyEqual(identity.m32, 0.0f),
@@ -308,19 +294,19 @@ namespace
         Check(world.GetCamera() == nullptr && world.GetSpriteCount() == 0, "inactive objects must not extract");
         cameraObject->SetActive(true);
         spriteObject->SetActive(true);
-        cameraWorld->dirty = true;
-        spriteWorld->dirty = true;
+        cameraLocal->worldValid = false;
+        spriteLocal->worldValid = false;
         cameras.Update(canvas, 0.0f);
         sprites.Update(canvas, 0.0f);
         Check(world.GetCamera() == nullptr && world.GetSpriteCount() == 0, "dirty world caches must not extract");
         transforms.Update(canvas, 0.0f);
-        cameraWorld->SetEnabled(false);
-        spriteWorld->SetEnabled(false);
+        cameraLocal->SetEnabled(false);
+        spriteLocal->SetEnabled(false);
         cameras.Update(canvas, 0.0f);
         sprites.Update(canvas, 0.0f);
         Check(world.GetCamera() == nullptr && world.GetSpriteCount() == 0, "disabled world caches must not extract");
-        cameraWorld->SetEnabled(true);
-        spriteWorld->SetEnabled(true);
+        cameraLocal->SetEnabled(true);
+        spriteLocal->SetEnabled(true);
         secondSprite->visible = true;
         sprite->flip = JBro::Component::SpriteFlip::Horizontal;
         secondSprite->flip = JBro::Component::SpriteFlip::Vertical;

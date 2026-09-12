@@ -41,13 +41,9 @@ namespace
         Check(nativeWindow != nullptr, "real host must own its hidden native window");
         auto* canvas = framework.GetCanvas();
         auto* camera = canvas->CreateObject();
-        canvas->AttachComponent<JBro::Component::Transform2D>(camera);
-        canvas->AttachComponent<JBro::Component::WorldTransform2D>(camera);
-        canvas->AttachComponent<JBro::Component::Camera2D>(camera)->primary = true;
+        canvas->AttachComponent<JBro::Component::Transform2D>(camera);        canvas->AttachComponent<JBro::Component::Camera2D>(camera)->primary = true;
         auto* sprite = canvas->CreateObject();
-        canvas->AttachComponent<JBro::Component::Transform2D>(sprite);
-        canvas->AttachComponent<JBro::Component::WorldTransform2D>(sprite);
-        canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(sprite);
+        canvas->AttachComponent<JBro::Component::Transform2D>(sprite);        canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(sprite);
         canvas->AttachComponent<JBro::Component::Collider2D>(sprite);
         const auto& physics = JBro::GetFramework2DServices().Physics2D;
         JBro::Collision2D hit;
@@ -91,13 +87,9 @@ namespace
         Check(engine.OpenProject(framework), "real host must reopen a framework without recreating process resources");
         auto* nextCanvas = framework.GetCanvas();
         auto* nextCamera = nextCanvas->CreateObject();
-        nextCanvas->AttachComponent<JBro::Component::Transform2D>(nextCamera);
-        nextCanvas->AttachComponent<JBro::Component::WorldTransform2D>(nextCamera);
-        nextCanvas->AttachComponent<JBro::Component::Camera2D>(nextCamera)->primary = true;
+        nextCanvas->AttachComponent<JBro::Component::Transform2D>(nextCamera);        nextCanvas->AttachComponent<JBro::Component::Camera2D>(nextCamera)->primary = true;
         auto* nextSprite = nextCanvas->CreateObject();
-        nextCanvas->AttachComponent<JBro::Component::Transform2D>(nextSprite);
-        nextCanvas->AttachComponent<JBro::Component::WorldTransform2D>(nextSprite);
-        nextCanvas->AttachComponent<JBro::Component::SpriteRenderer2D>(nextSprite);
+        nextCanvas->AttachComponent<JBro::Component::Transform2D>(nextSprite);        nextCanvas->AttachComponent<JBro::Component::SpriteRenderer2D>(nextSprite);
         nextCanvas->AttachComponent<JBro::Component::Collider2D>(nextSprite);
         Check(physics.Raycast({-2.0f, 0.0f}, {1.0f, 0.0f}, 4.0f, hit)
             && hit.other.GetInstanceId() == nextSprite->GetInstanceId(),
@@ -202,14 +194,10 @@ namespace
             Check(framework.Initialize(context), "D3D12 framework must initialize");
             auto* canvas = framework.GetCanvas();
             auto* cameraObject = canvas->CreateObject("camera");
-            canvas->AttachComponent<JBro::Component::Transform2D>(cameraObject);
-            canvas->AttachComponent<JBro::Component::WorldTransform2D>(cameraObject);
-            auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(cameraObject);
+            canvas->AttachComponent<JBro::Component::Transform2D>(cameraObject);            auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(cameraObject);
             camera->primary = true;
             auto* spriteObject = canvas->CreateObject("sprite");
-            canvas->AttachComponent<JBro::Component::Transform2D>(spriteObject);
-            canvas->AttachComponent<JBro::Component::WorldTransform2D>(spriteObject);
-            auto* sprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(spriteObject);
+            canvas->AttachComponent<JBro::Component::Transform2D>(spriteObject);            auto* sprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(spriteObject);
             sprite->size = {5.0f, 5.0f};
             for (int frame = 0; frame < 6; ++frame)
             {

@@ -339,8 +339,7 @@ namespace
     void TestFramework2DComponentsArePolymorphic()
     {
         static_assert(std::is_base_of_v<JBro::ComponentBase, JBro::Component::Transform2D>);
-        static_assert(std::is_base_of_v<JBro::ComponentBase, JBro::Component::WorldTransform2D>);
-        static_assert(std::is_base_of_v<JBro::ComponentBase, JBro::Component::Camera2D>);
+                static_assert(std::is_base_of_v<JBro::ComponentBase, JBro::Component::Camera2D>);
         static_assert(std::is_base_of_v<JBro::ComponentBase, JBro::Component::SpriteRenderer2D>);
         static_assert(std::is_base_of_v<JBro::ComponentBase, JBro::Component::Rigidbody2D>);
         static_assert(std::is_base_of_v<JBro::ComponentBase, JBro::Component::Collider2D>);

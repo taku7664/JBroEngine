@@ -29,15 +29,15 @@ namespace JBro::System
                 return;
             }
             GameObject* owner = Internal::CanvasAccess::GetOwner(sprite);
-            const auto* world = canvas.FindComponentRaw<Component::WorldTransform2D>(owner);
-            if (world == nullptr || false == world->IsActiveComponent() || world->dirty)
+            const auto* world = canvas.FindComponentRaw<Component::Transform2D>(owner);
+            if (world == nullptr || false == world->IsActiveComponent() || false == world->worldValid)
             {
                 return;
             }
             SpriteRenderItem item;
             item.owner = owner;
             item.sourceId = sprite.GetInstanceId();
-            item.world = world->matrix;
+            item.world = world->world;
             item.sprite = sprite.sprite;
             item.material = sprite.material;
             item.tint = sprite.tint;

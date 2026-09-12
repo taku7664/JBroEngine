@@ -62,13 +62,13 @@ namespace JBro::System
                 return;
             }
             GameObject* owner = Internal::CanvasAccess::GetOwner(camera);
-            const auto* world = canvas.FindComponentRaw<Component::WorldTransform2D>(owner);
-            if (world == nullptr || false == world->IsActiveComponent() || world->dirty)
+            const auto* world = canvas.FindComponentRaw<Component::Transform2D>(owner);
+            if (world == nullptr || false == world->IsActiveComponent() || false == world->worldValid)
             {
                 return;
             }
             RenderCamera2D item;
-            if (false == TryInvert(world->matrix, item.view))
+            if (false == TryInvert(world->world, item.view))
             {
                 return;
             }

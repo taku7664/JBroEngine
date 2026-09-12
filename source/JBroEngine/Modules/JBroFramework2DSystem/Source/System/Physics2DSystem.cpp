@@ -229,12 +229,9 @@ namespace JBro::System
                 transform->rotation += body.angularVelocity * fixedDeltaTime;
             }
 
-            Component::WorldTransform2D* world =
-                canvas.FindComponentRaw<Component::WorldTransform2D>(owner);
-            if (world != nullptr)
-            {
-                world->dirty = true;
-            }
+            // 로컬을 움직였으니 월드 캐시는 이번 프레임의 Transform2DSystem 이 다시 채운다.
+            // 같은 컴포넌트이므로 예전처럼 별도 조회를 하지 않는다(D-47).
+            transform->worldValid = false;
         });
     }
 

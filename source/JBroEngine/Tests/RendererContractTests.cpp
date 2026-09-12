@@ -694,16 +694,12 @@ namespace
         auto* canvas = framework.GetCanvas();
         Check(canvas->GetSystems().GetSystemCount() == 4, "canvas must own the four implemented default systems");
         auto* cameraObject = canvas->CreateObject("camera");
-        auto* cameraTransform = canvas->AttachComponent<JBro::Component::Transform2D>(cameraObject);
-        canvas->AttachComponent<JBro::Component::WorldTransform2D>(cameraObject);
-        auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(cameraObject);
+        auto* cameraTransform = canvas->AttachComponent<JBro::Component::Transform2D>(cameraObject);        auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(cameraObject);
         cameraTransform->position = {2.0f, 3.0f};
         camera->primary = true;
         camera->orthographicSize = 10.0f;
         auto* object = canvas->CreateObject("sprites");
-        auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(object);
-        canvas->AttachComponent<JBro::Component::WorldTransform2D>(object);
-        transform->position = {5.0f, 7.0f};
+        auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(object);        transform->position = {5.0f, 7.0f};
         transform->rotation = 1.57079632679f;
         for (int index = 0; index < 70; ++index)
         {
