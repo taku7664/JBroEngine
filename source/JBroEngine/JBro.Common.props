@@ -18,7 +18,12 @@
 
   <PropertyGroup Label="JBroToolset">
     <PlatformToolset>v145</PlatformToolset>
-    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <!--
+      SDK 버전을 명시적으로 고정한다. `10.0` 은 "이 머신에 깔린 최신 SDK" 라는 뜻이라
+      개발자·빌드 서버마다 다른 SDK 로 빌드되고 그 사실이 어디에도 남지 않는다.
+      올릴 때는 이 한 줄을 바꾸고 Debug/Release 전체 빌드와 테스트로 확인한다.
+    -->
+    <WindowsTargetPlatformVersion>10.0.22621.0</WindowsTargetPlatformVersion>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
 
