@@ -425,6 +425,30 @@ D-47 은 `Canvas::GetHierarchyVersion()` 이 바뀔 때만 `Transform2D*` 배열
 **지금 프레임 임시 배열을 쓰는 곳이 없다** — 쓰기 직전에 넣자는 것이 D-52 의 시점 결정이었으므로,
 그 소비자가 생길 때(렌더 정렬 키 배열, 스크립트 실행 목록) 함께 넣는 것이 맞다.
 
+### 11.5 변이 검증 기록
+
+§11 의 변경들이 실제로 지탱하는지, 테스트가 실제로 물어뜯는지를 코드를 일부러 깨뜨려 확인했다.
+**통과는 증거가 아니다** — 통과하는 테스트가 아무것도 검사하지 않을 수 있고, 이 표의 두 항목이
+처음에 정확히 그랬다.
+
+| 깨뜨린 것 | 결과 |
+|---|---|
+| `DestroySlot` 이 참조 남은 블록도 재활용 | 스위트가 **행**. 프로세스 강제 종료 |
+| `FlushPendingDestroy` 의 만료 검사 제거 | **ACCESS_VIOLATION**. 단, 테스트를 두 번 고친 뒤에야 이 경로를 밟았다 |
+| `RefreshActiveInHierarchy` 의 자식 재귀 제거 | `disabling an ancestor must reach every descendant` |
+| `SetParent` 의 캐시 갱신 제거 | `reattaching under an inactive parent must recompute it again` |
+| `MoveLayer` 의 `ReindexLayers` 제거 | `moving a layer must reindex every layer's order` |
+| `DestroyLayer` 의 `ReindexLayers` 제거 | `destroying a layer must close the gap it left in the order` |
+| `CacheTypeId` 를 no-op 으로 | `single component lookup must return the first matching component` |
+| 정렬 키에서 레이어 순서 제거 | `layer order must outrank renderOrder when sorting` |
+| 풀의 ControlBlock 재활용 비활성화 | `spawning inside the reserved capacity must not allocate at all` |
+
+**테스트가 스스로 틀렸던 두 번.** 부모·자식 지연 파괴 테스트는 "부모가 먼저 파괴되어 자식 항목이
+만료된 경로"를 덮는다고 주석에 썼지만 덮지 않았다. 큐는 LIFO 이고 순회 순서를 정하는 것은
+오브젝트 생성 순서가 아니라 **컴포넌트 부착 순서**여서, 언제나 자식이 먼저 나갔다.
+생성 순서를 뒤집어 고치려 한 첫 시도도 같은 이유로 실패했다. 부착 순서를 뒤집고 나서야
+변이가 크래시로 잡혔다.
+
 ### 11.4 태그 정수화 (D-51)
 
 `GameObject::m_tag` 가 `String` 이다. 규칙대로면 `NameId` 정수만 남기고 원문은 에디터·직렬화
