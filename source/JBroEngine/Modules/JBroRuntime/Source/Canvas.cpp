@@ -79,7 +79,7 @@ namespace JBro
         }
 
         object->SetInstanceIdentity(instanceId, handle);
-        object->BindCanvas(this);
+        object->BindCanvas(this, &Canvas::DestroyObjectFromHandle);
         object->SetTag(name);
 
         Layer* defaultLayer = FindLayer(m_defaultLayer);
@@ -149,7 +149,7 @@ namespace JBro
             return false;
         }
 
-        object->BindCanvas(nullptr);
+        object->BindCanvas(nullptr, nullptr);
         object->SetLayer({}, 0);
         object->SetInstanceIdentity(InvalidInstanceId, {});
         return m_objects->Destroy(object);
@@ -373,6 +373,15 @@ namespace JBro
             return {};
         }
         return m_layers[index].GetSafePtr();
+    }
+
+    bool Canvas::DestroyObjectFromHandle(Canvas* canvas, GameObject* object)
+    {
+        if (canvas == nullptr)
+        {
+            return false;
+        }
+        return canvas->DestroyObject(object);
     }
 
     InstanceId Canvas::GenerateCanvasInstanceId()

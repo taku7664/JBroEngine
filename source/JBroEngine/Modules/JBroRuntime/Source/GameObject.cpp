@@ -1,6 +1,5 @@
 ﻿#include <JBro/Runtime/GameObject.h>
 
-#include <JBro/Runtime/Canvas.h>
 #include <JBro/Runtime/GameObjectHandle.h>
 
 namespace JBro
@@ -145,9 +144,10 @@ namespace JBro
         m_handle = handle;
     }
 
-    void GameObject::BindCanvas(Canvas* canvas)
+    void GameObject::BindCanvas(Canvas* canvas, DestroyFunction destroyFunction)
     {
         m_canvas = canvas;
+        m_destroyFunction = destroyFunction;
     }
 
     void GameObject::SetLayer(SafePtr<Layer> layer, std::uint32_t layerIndex)
@@ -211,10 +211,10 @@ namespace JBro
 
     bool GameObject::RequestDestroy()
     {
-        if (m_canvas == nullptr)
+        if (m_canvas == nullptr || m_destroyFunction == nullptr)
         {
             return false;
         }
-        return m_canvas->DestroyObject(this);
+        return m_destroyFunction(m_canvas, this);
     }
 }

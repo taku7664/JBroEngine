@@ -102,6 +102,8 @@ namespace JBro
             RefCategory category);
         bool UnregisterComponentInstance(ComponentBase* component);
         SafePtr<Layer> FindLayerReference(LayerIndex layer);
+        // GameObject::RequestDestroy 가 건너오는 지점. GameObject 헤더는 Canvas 정의를 알지 않는다.
+        static bool DestroyObjectFromHandle(Canvas* canvas, GameObject* object);
         static InstanceId GenerateCanvasInstanceId();
 
         JAllocator                                      m_allocator;

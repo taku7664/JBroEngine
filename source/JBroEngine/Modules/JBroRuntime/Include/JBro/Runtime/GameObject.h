@@ -31,8 +31,6 @@ namespace JBro
         InstanceHandle GetHandle() const;
         GameObjectHandle GetScriptHandle() const;
 
-        Canvas* GetCanvas() const;
-
         // 계층
         GameObject*                       GetParent() const;
         void                              SetParent(GameObject* parent);
@@ -66,8 +64,14 @@ namespace JBro
         friend class Canvas;
         friend class GameObjectHandle;
 
+        // Canvas 는 오브젝트를 소유하는 실행 계층이고 이 헤더는 스크립트가 링크하는 계층이다.
+        // 정의를 끌어오면 그 경계가 무너지므로, 파괴 호출만 함수 포인터로 건너간다.
+        // 소유자 포인터는 불완전 타입이어도 되고, 그 정체는 Canvas 가 friend 로 직접 본다.
+        using DestroyFunction = bool (*)(Canvas* canvas, GameObject* object);
+
+        Canvas* GetCanvas() const;
         void SetInstanceIdentity(InstanceId instanceId, InstanceHandle handle);
-        void BindCanvas(Canvas* canvas);
+        void BindCanvas(Canvas* canvas, DestroyFunction destroyFunction);
         void SetLayer(SafePtr<Layer> layer, std::uint32_t layerIndex);
         void AttachComponent(ComponentBase* component);
         bool DetachComponent(ComponentBase* component);
@@ -77,6 +81,7 @@ namespace JBro
         InstanceId                   m_instanceId = InvalidInstanceId;
         InstanceHandle               m_handle;
         Canvas*                      m_canvas = nullptr;
+        DestroyFunction              m_destroyFunction = nullptr;
         SafePtr<GameObject>           m_parent;
         Array<SafePtr<GameObject>>    m_children;
         Array<SafePtr<ComponentBase>> m_components;
