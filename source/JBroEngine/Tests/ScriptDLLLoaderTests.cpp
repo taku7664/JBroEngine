@@ -5,6 +5,9 @@
 #include <JBro/Host/EngineInstance.h>
 #include <JBro/Host/ScriptDLLLoader.h>
 #include <JBro/Internal/InstanceRegistry.h>
+#include <JBro/Canvas/Canvas.h>
+#include <JBro/Runtime/GameObject.h>
+#include <JBro/Runtime/ScriptRegistry.h>
 #include <JBro/Types/NameTable.h>
 #include <JBro/Runtime/ScriptModule.h>
 #include <JBro/Runtime/ServiceContext.h>
@@ -596,6 +599,48 @@ namespace
         const char* fromDll = resolveName(hostName);
         Check(fromDll != nullptr && std::strcmp(fromDll, "host side name") == 0,
             "a script DLL must read back a name the host interned");
+
+        // H5 의 알맹이다. 타입은 DLL 안에만 있고 호스트는 정의를 보지 못하는데,
+        // 이름 하나로 만들어 붙일 수 있어야 한다.
+        const auto getScriptRegistry = reinterpret_cast<ReadAddress>(
+            loader.GetSymbol("JBroScriptProbe_GetScriptRegistry"));
+        const auto getRegisteredSize = reinterpret_cast<ReadU32>(
+            loader.GetSymbol("JBroScriptProbe_GetRegisteredScriptSize"));
+        Check(getScriptRegistry != nullptr && getRegisteredSize != nullptr,
+            "the probe must expose its script registry view");
+        Check(getScriptRegistry() == reinterpret_cast<std::uintptr_t>(&JBro::ScriptRegistry::Local()),
+            "a loaded script DLL must register into the host script registry");
+
+        const JBro::ScriptTypeInfo* registered =
+            JBro::ScriptRegistry::Local().Find("Probe::RegisteredScript");
+        Check(registered != nullptr, "the host must see the type the DLL registered");
+        Check(registered->size == getRegisteredSize(),
+            "the host must allocate the size the DLL reports, not a guess");
+        Check(registered->Construct != nullptr && registered->Destruct != nullptr,
+            "a registered type must carry both halves of its lifetime");
+
+        {
+            JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+            JBro::GameObject* object = canvas.CreateObject("scripted by name");
+            JBro::GameScriptBase* script = canvas.AttachScript(object, "Probe::RegisteredScript");
+            Check(script != nullptr, "the canvas must attach a script it only knows by name");
+            Check(script->GetTypeId() == registered->typeId,
+                "the attached instance must be the type that was registered");
+            Check(script->GetInstanceId() != JBro::InvalidInstanceId,
+                "a script attached by name must be registered like any other component");
+            Check(canvas.AttachScript(object, "Probe::NoSuchScript") == nullptr,
+                "an unregistered name must attach nothing");
+
+            JBro::Array<JBro::GameScriptBase*> collected;
+            canvas.CollectScripts(collected);
+            Check(collected.Size() == 1 && collected[0] == script,
+                "a script attached by name must show up in the schedule like any other");
+
+            Check(canvas.DestroyObject(object), "the scripted object must be destroyed");
+            canvas.FlushPendingDestroy();
+            canvas.CollectScripts(collected);
+            Check(collected.IsEmpty(), "destroying the owner must take its named script with it");
+        }
         Check(getLocalRegistry() != getRegistry(),
             "the DLL's own statically linked registry must be a different object");
         Check(getRevision() == 1,

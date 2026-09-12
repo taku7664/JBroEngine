@@ -352,9 +352,18 @@ namespace JBro
             return false;
         }
 
+        // 타입 풀에 없으면 이름으로 붙인 스크립트다. 둘 중 하나에는 반드시 있어야 한다 —
+        // 여기서 못 찾으면 오브젝트를 파괴할 수 없고 Canvas 해체가 멈춘다.
         OwnerPtr<IComponentBucket>* bucket =
             m_componentBuckets.Find(component->GetTypeId());
+        OwnerPtr<ScriptPool>* scriptPool = nullptr;
         if (bucket == nullptr)
+        {
+            // NameId 와 ComponentTypeId 는 같은 문자열에 같은 해시를 건 값이다
+            // (MakeNameId 가 MakeStableTypeId 다). ScriptRegistry 가 그 동일성을 확인한다.
+            scriptPool = m_scriptPools.Find(component->GetTypeId());
+        }
+        if (bucket == nullptr && scriptPool == nullptr)
         {
             return false;
         }
@@ -370,7 +379,11 @@ namespace JBro
             owner->AttachComponent(component);
             return false;
         }
-        return (*bucket)->Destroy(component);
+        if (bucket != nullptr)
+        {
+            return (*bucket)->Destroy(component);
+        }
+        return (*scriptPool)->Destroy(static_cast<GameScriptBase*>(component));
     }
 
     bool Canvas::RegisterComponentInstance(
@@ -438,6 +451,77 @@ namespace JBro
 
     // 컴포넌트를 먼저 걷는다. 오브젝트 파괴가 자기 컴포넌트를 이미 정리하므로 순서를 뒤집으면
     // 큐에 남은 컴포넌트가 죽은 대상을 가리킨다. SafePtr 이 그것을 걸러 주지만 무의미한 일을 하게 된다.
+    GameScriptBase* Canvas::AttachScript(GameObject* owner, const char* scriptName)
+    {
+        return AttachScript(owner, MakeNameId(scriptName));
+    }
+
+    GameScriptBase* Canvas::AttachScript(GameObject* owner, NameId scriptName)
+    {
+        if (owner == nullptr || owner->GetCanvas() != this || scriptName == InvalidNameId)
+        {
+            return nullptr;
+        }
+        const ScriptTypeInfo* type = ScriptRegistry::Get().Find(scriptName);
+        if (type == nullptr)
+        {
+            return nullptr;
+        }
+
+        OwnerPtr<ScriptPool>* existing = m_scriptPools.Find(scriptName);
+        if (existing == nullptr)
+        {
+            OwnerPtr<ScriptPool> pool = MakeOwnerPtr<ScriptPool>();
+            if (false == pool->Initialize(*type, m_allocator))
+            {
+                return nullptr;
+            }
+            if (false == m_scriptPools.TryAdd(scriptName, std::move(pool)))
+            {
+                return nullptr;
+            }
+            existing = m_scriptPools.Find(scriptName);
+        }
+        if (existing == nullptr || existing->Get() == nullptr)
+        {
+            return nullptr;
+        }
+
+        ScriptPool& pool = *existing->Get();
+        GameScriptBase* script = pool.Create();
+        if (script == nullptr)
+        {
+            return nullptr;
+        }
+        script->CacheTypeId();
+
+        if (false == RegisterComponentInstance(owner, script, RefCategory::Script))
+        {
+            pool.Destroy(script);
+            return nullptr;
+        }
+        try
+        {
+            owner->AttachComponent(script);
+        }
+        catch (...)
+        {
+            UnregisterComponentInstance(script);
+            pool.Destroy(script);
+            throw;
+        }
+        if (script->GetOwnerObject() != owner)
+        {
+            UnregisterComponentInstance(script);
+            pool.Destroy(script);
+            return nullptr;
+        }
+
+        // 소유 오브젝트와 식별자가 모두 확정된 뒤에 부른다(D-48).
+        script->OnAttached();
+        return script;
+    }
+
     void Canvas::CollectScripts(Array<GameScriptBase*>& results)
     {
         results.Clear();
@@ -448,6 +532,17 @@ namespace JBro
             if (IComponentBucket* bucket = entry.MappedValue.Get())
             {
                 bucket->AppendScripts(results);
+            }
+        }
+        // 이름으로 붙인 것들도 같은 목록에 들어간다. 스케줄러가 둘을 구분할 이유가 없다.
+        for (auto& entry : m_scriptPools)
+        {
+            if (ScriptPool* pool = entry.MappedValue.Get())
+            {
+                pool->ForEachLive([&results](GameScriptBase& script)
+                {
+                    results.Add(&script);
+                });
             }
         }
     }

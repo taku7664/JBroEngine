@@ -8,6 +8,7 @@
 #include <JBro/Runtime/ComponentLookupStats.h>
 #include <JBro/Runtime/GameObject.h>
 #include <JBro/Canvas/Layer.h>
+#include <JBro/Canvas/ScriptPool.h>
 #include <JBro/Canvas/SystemScheduler.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/Table.h>
@@ -73,6 +74,12 @@ namespace JBro
 
         template<typename T, typename Fn>
         void ForEach(Fn&& function);
+
+        // 이름으로 스크립트를 붙인다(H5). 타입이 DLL 안에 있어 호스트가 컴파일 시간에
+        // 알 수 없으므로, 무엇을 만들지는 ScriptRegistry 가 알려 준다.
+        // 등록되지 않은 이름이면 nullptr 이다.
+        GameScriptBase* AttachScript(GameObject* owner, NameId scriptName);
+        GameScriptBase* AttachScript(GameObject* owner, const char* scriptName);
 
         // 타입을 가리지 않고 살아 있는 스크립트를 전부 모은다(D-45).
         // 어느 풀이 스크립트인지는 AttachComponent<T> 시점에 컴파일 타임으로 정해지므로
@@ -172,6 +179,8 @@ namespace JBro
         LayerId                                      m_defaultLayer = InvalidLayerId;
         LayerId                                      m_nextLayer = 0;
         Table<ComponentTypeId, OwnerPtr<IComponentBucket>> m_componentBuckets;
+        // 이름으로 붙인 스크립트의 저장소다. 타입마다 하나씩 늦게 만든다.
+        Table<NameId, OwnerPtr<ScriptPool>>             m_scriptPools;
         Array<SafePtr<GameObject>>                      m_pendingDestroyObjects;
         Array<SafePtr<ComponentBase>>                   m_pendingDestroyComponents;
         std::size_t                                     m_iterationDepth = 0;

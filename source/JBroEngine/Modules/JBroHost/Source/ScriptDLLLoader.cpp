@@ -148,6 +148,7 @@ namespace JBro
         context.Services = &GetServiceContext();
         context.Registry = &Internal::InstanceRegistry::Local();
         context.Names = &NameTable::Local();
+        context.Scripts = &ScriptRegistry::Local();
         context.Extensions = extensions;
         context.ExtensionCount = extensionCount;
         if (false == ValidateScriptModuleLoadContext(context))
@@ -205,6 +206,8 @@ namespace JBro
         }
         const ScriptModuleApi* api = m_api;
         const DynamicLibrary library = m_library;
+        // DLL 이 등록한 타입은 그 DLL 안의 함수 포인터다. 코드가 사라지기 전에 지운다.
+        ScriptRegistry::Local().Clear();
         m_api = nullptr;
         m_library = {};
         m_platform = nullptr;
