@@ -347,7 +347,7 @@ D-42를 구현하기 위한 작업 단위다. 로직 변경은 없고 파일 이
 레지스트리가 Tier E면 DLL이 링크되지 않는다. `Canvas`는 등록·해제하는 쪽이고 Tier E → Tier S 방향이라 문제없다.
 D-42와 `ProjectRule.md` §3 표를 이에 맞게 고쳤다.
 
-**(b) `GameObject`의 소속. 미확정 — 이 결정 전에는 9.2를 시작하지 않는다.**
+**(b) `GameObject`는 Tier S다. 남은 것은 그 대가를 받아들일지 확인하는 것뿐이다.**
 
 Tier S로 남는 세 파일이 `GameObject`의 **정의**를 필요로 한다.
 
@@ -357,34 +357,50 @@ Tier S로 남는 세 파일이 `GameObject`의 **정의**를 필요로 한다.
 | `Source/GameObjectHandle.cpp` | `object->RequestDestroy()`, `SetActive()`, `IsActiveInHierarchy()`, `FindComponentReference()` |
 | `Source/GameScriptBase.cpp` | `GameObject*` 반환 |
 
-셋 다 스크립트 DLL이 링크해야 하므로 **`GameObject`는 Tier S여야 한다.** D-42 표는 Tier E로 적고 있다.
+셋 다 스크립트 DLL이 링크해야 하므로 **`GameObject`는 Tier S다.** D-42 표는 Tier E로 적고 있다.
 Tier E에 남는 것은 `Canvas`·`Layer`·`GameSystem`·`SystemScheduler`다.
 
-D-42의 목표("스크립트는 `GameObject` 선언 자체를 받지 않는다")는 소속이 아니라 **프렐류드 구성**으로 달성한다 —
-`ScriptAPI.h`가 `GameObject.h`를 include하지 않고 `GetOwner()`가 `GameObjectHandle`을 반환하면,
-경로가 있어도 선언이 사용자 TU에 들어오지 않는다. 다만 "include 경로가 강제한다"는 §10.1의 강제력은
-`GameObject`에 한해 한 단계 약해진다. 이것이 받아들일 만한지가 확인 대상이다.
+대안은 실질적으로 없다. `GameObject`를 Tier E에 두려면 `ComponentBase`·`GameObjectHandle`·`GameScriptBase`가
+모두 함수 포인터 간접 계층을 거쳐야 하는데, 그것은 오브젝트 모델 전체를 인디렉션으로 덮는 일이라
+D-1의 실체 객체 모델과 §9의 성능 계약에 함께 어긋난다.
 
-**이 결정에 딸린 문제: destroy 이음매.**
-`GameObject`가 Tier S가 되면 남는 Tier S → Tier E 간선은 하나다. `GameObject::RequestDestroy()`가
-`Canvas::DestroyObject()`를 부르는 지점이다. 선언을 Tier S 헤더에 두고 정의를 Tier E `.cpp`에 두면
-스크립트 DLL에 미해결 심볼이 남는다. 따라서 함수 포인터 이음매가 필요하다 —
-`1b4a972`에서 "죽은 간접 계층"으로 판단해 제거한 `m_destroyContext` / `m_destroyCallback`이 정확히 그것이다.
+**받아들여야 하는 대가는 강제 수단이 한 단계 약해진다는 것이다.**
+D-42의 목표("스크립트는 `GameObject` 선언 자체를 받지 않는다")는 여전히 성립한다 —
+`ScriptAPI.h`가 `GameObject.h`를 include하지 않고 `GetOwner()`가 `GameObjectHandle`을 반환하면
+선언이 사용자 TU에 들어오지 않는다. 다만 `GameObject`에 한해 그 보장은 §10.1의 "include 경로가 강제한다"가
+아니라 **프렐류드 구성**이 한다. 사용자가 `<JBro/Runtime/GameObject.h>`를 직접 적으면 컴파일된다.
+다른 Tier E 타입은 경로 자체가 없어 `C1083`으로 막힌다.
 
-그 제거는 D-53 기준으로는 옳았지만 D-42 기준으로는 이르다. 되살리되 죽은 코드가 아니라
-**Tier 경계 이음매**로 이름과 주석을 붙이는 것이 기본 제안이다. `GameObject::GetCanvas()`는
-D-42에 따라 Tier E 내부 접근 클래스로 옮긴다.
+### 9.1.1 destroy 이음매
+
+`GameObject`가 Tier S면 남는 Tier S → Tier E 간선은 하나다.
+
+```
+GameObject::RequestDestroy()  →  m_canvas->DestroyObject(this)
+```
+
+선언을 Tier S 헤더에 두고 정의를 Tier E `.cpp`에 두면 스크립트 DLL에 미해결 심볼이 남는다.
+따라서 함수 포인터 이음매가 필요하다 — `1b4a972`에서 "죽은 간접 계층"으로 판단해 제거한
+`m_destroyContext` / `m_destroyCallback`이 정확히 그것이다. D-53 기준으로는 옳은 제거였지만
+D-42 기준으로는 일렀다. 되살리되 죽은 코드가 아니라 **Tier 경계 이음매**로 이름과 주석을 붙인다.
 
 ### 9.2 커밋 분할
 
-| # | 커밋 | 내용 |
-|---|---|---|
-| S1-1 | `refactor:` | 9.1(b) 확정 결과 반영. `GameObject` 소속 확정과 destroy 이음매 복원 |
-| S1-2 | `refactor:` | `JBroCanvas` 신설. `Canvas`·`Layer`·`GameSystem`·`SystemScheduler` 이동 |
-| S1-3 | `refactor:` | `JBroHost` 신설. `EngineInstance`·`IFramework`·`ScriptDLLLoader` 이동 |
-| S1-4 | `refactor:` | `JBroFramework2DSystem` 분리. 시스템·렌더 추출·`Framework2D` 클래스 |
-| S1-5 | `refactor:` | `JBroAssetTypes` 분리. `ScriptAPI.h`를 Framework 소유로 이동, `GetOwner()` 핸들 반환 |
-| S1-6 | `test:` | Tier E include 음성 테스트, 헤더 자립성 테스트 |
+| # | 커밋 | 내용 | 파일 이동 |
+|---|---|---|---|
+| S1-1 | `refactor:` | **Tier S → Tier E 간선 절단.** `GameObject`에 destroy 이음매 복원(9.1.1), `GameObject::GetCanvas()`를 Tier E 내부 접근 클래스로 이동. 이후 `GameObject.cpp`는 `Canvas.h`를 include하지 않는다 | 없음 |
+| S1-2 | `refactor:` | `JBroCanvas` 신설. `Canvas`·`Layer`·`GameSystem`·`SystemScheduler` 이동(9.3) | 헤더 4 · 소스 4 |
+| S1-3 | `refactor:` | `JBroHost` 신설. `EngineInstance`·`IFramework`·`ScriptDLLLoader` 이동 | 헤더 3 · 소스 2 |
+| S1-4 | `refactor:` | `JBroFramework2DSystem` 분리. `System/*`·`Rendering/*`·`ScriptSystem`·`Framework2D` 클래스 이동 | 공개 헤더 7 · 소스 트리 11 |
+| S1-5 | `refactor:` | `Asset.h`를 `JBroAssetTypes`(값)와 `JBroAsset`(`AssetSystem`)로 분할, `ScriptAPI.h`를 각 Framework 소유로 이동, `GetOwner()`가 `GameObjectHandle` 반환 | — |
+| S1-6 | `test:` | Tier E include 음성 테스트 3종, 헤더 자립성 테스트(기존 스켈레톤 스모크 3개를 대체) | — |
+
+S1-1은 파일을 옮기지 않는다. 그 간선 하나가 남아 있으면 S1-2가 순수 파일 이동이 되지 못하므로 먼저 떼어낸다.
+
+S1-4에서 `System/IPhysics2DSystem.h`는 **옮기지 않는다.** Tier S의 `Physics2DService.cpp`가 이 인터페이스로
+호출하고, D-43의 `Framework2DSystemContext`가 이 포인터를 담으므로 Tier S에 남는다. 구현
+`Physics2DSystem`만 Tier E로 간다. 소스 트리 11개는 `.cpp` 9개와 내부 헤더 2개
+(`RenderBridge2D.h`, `Physics2DGeometry.h`)다.
 
 ### 9.3 S1-2 파일 이동표
 
