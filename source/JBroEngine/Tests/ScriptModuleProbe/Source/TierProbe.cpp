@@ -9,6 +9,10 @@
 //   msbuild JBroEngine.slnx /p:Configuration=Debug /p:Platform=x64 /p:JBroTierProbe=Canvas
 //   msbuild JBroEngine.slnx /p:Configuration=Debug /p:Platform=x64 /p:JBroTierProbe=Host
 //   msbuild JBroEngine.slnx /p:Configuration=Debug /p:Platform=x64 /p:JBroTierProbe=FrameworkSystem
+//   msbuild JBroEngine.slnx /p:Configuration=Debug /p:Platform=x64 /p:JBroTierProbe=GameObject
+//
+// 마지막 것만 C1083 이 아니라 #error 다. GameObject.h 는 스크립트 DLL 이 링크하는 모듈에
+// 있어 경로로는 막을 수 없고, 프렐류드를 거쳤는지로 막는다(§9.5).
 
 #include <JBro/ScriptAPI.h>
 
@@ -22,6 +26,12 @@
 
 #if defined(JBRO_TIER_PROBE_FRAMEWORK_SYSTEM)
 #include <JBro/Framework2DSystem/Framework2D.h>
+#endif
+
+#if defined(JBRO_TIER_PROBE_GAME_OBJECT)
+// 프렐류드를 거치지 않고 직접 집는 모양을 흉내낸다. 표식이 없으므로 #error 여야 한다.
+#undef JBRO_SCRIPT_PRELUDE
+#include <JBro/Runtime/GameObject.h>
 #endif
 
 #include <type_traits>

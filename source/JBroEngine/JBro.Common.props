@@ -25,6 +25,9 @@
     <JBroHostFrameworkIncludes Condition="'$(JBroScriptDimension)' == '2D'">$(JBroModulesDir)JBroFramework2DSystem\Include</JBroHostFrameworkIncludes>
     <JBroHostFrameworkIncludes Condition="'$(JBroScriptDimension)' == '3D'">$(JBroModulesDir)JBroFramework3DSystem\Include</JBroHostFrameworkIncludes>
     <!-- 스크립트 타깃이 받는 전체 include 집합. JBro.Script.props 와 스크립트 프로브가 공유한다. -->
+    <!-- 스크립트 타깃임을 헤더가 알아볼 수 있게 하는 표식이다. Tier S 헤더 중
+         프렐류드를 거쳐야만 하는 것들이 이 값을 보고 직접 include 를 거절한다. -->
+    <JBroScriptTargetDefines>JBRO_SCRIPT_TARGET</JBroScriptTargetDefines>
     <JBroScriptIncludes>$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroScriptFrameworkIncludes)</JBroScriptIncludes>
   </PropertyGroup>
 

@@ -7,6 +7,9 @@
 // 3D 는 아직 시스템과 서비스가 없어 차원별 Context 를 노출하지 않는다.
 // 생기면 2D 와 같은 자리에서 ServiceContext 를 추가한다.
 
+// 이 아래의 Tier S 헤더들이 "프렐류드를 거쳤다"를 알아보는 표식이다.
+#define JBRO_SCRIPT_PRELUDE 1
+
 #include <JBro/Types/Types.h>
 
 #include <JBro/Runtime/GameObjectHandle.h>

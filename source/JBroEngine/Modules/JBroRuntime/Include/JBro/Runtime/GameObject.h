@@ -1,5 +1,12 @@
 ﻿#pragma once
 
+// 스크립트는 이 헤더를 직접 집지 않는다. 오브젝트는 GameObjectHandle 로만 만진다(D-5).
+// include 경로로는 막을 수 없다 — 스크립트 DLL 이 JBroRuntime 을 링크하므로 경로가 열려 있다.
+// 그래서 프렐류드를 거쳤는지를 표식으로 확인한다(§9.5).
+#if defined(JBRO_SCRIPT_TARGET) && !defined(JBRO_SCRIPT_PRELUDE)
+#error "A script reaches game objects through <JBro/ScriptAPI.h> and GameObjectHandle, not <JBro/Runtime/GameObject.h>."
+#endif
+
 #include <JBro/Core/Core.h>
 #include <JBro/Core/StableTypeId.h>
 #include <JBro/Runtime/Component.h>

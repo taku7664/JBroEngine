@@ -30,9 +30,11 @@
         include 하면 C1083 이 나야 하며, 아래 음성 프로브가 그것을 확인한다.
       -->
       <AdditionalIncludeDirectories>$(JBroScriptIncludes);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>$(JBroScriptTargetDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(JBroTierProbe)' == 'Canvas'">JBRO_TIER_PROBE_CANVAS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(JBroTierProbe)' == 'Host'">JBRO_TIER_PROBE_HOST;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(JBroTierProbe)' == 'FrameworkSystem'">JBRO_TIER_PROBE_FRAMEWORK_SYSTEM;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(JBroTierProbe)' == 'GameObject'">JBRO_TIER_PROBE_GAME_OBJECT;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
