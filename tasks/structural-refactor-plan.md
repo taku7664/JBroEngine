@@ -354,6 +354,17 @@ public:
 | 2026-09-12 | 4 | D-54 스프라이트 인스턴스 80B → 44B, D-53 `renderOrder` 제거 | `45f72ff` |
 | 2026-09-12 | 4 | 정점 속성 오프셋을 `offsetof` 에 묶음 (m22 대응) | `4e21d97` |
 
+| 2026-09-12 | 5 | §3.6 dt 검증 순서 버그 | `e6e3e72` |
+| 2026-09-12 | 5 | P-5 정렬 키 분리 + 타이브레이크 테스트 | `a06ee39`, `cdf3d3b` |
+| 2026-09-12 | 5 | D-52 프레임 할당기와 할당기 정책 인스턴스화 | `7db226e`, `80bc19d` |
+| 2026-09-12 | 5 | §9.5 공개 헤더 자립성 76 TU | `74d14bb` |
+| 2026-09-12 | 5 | §3.4 타입 조회 역참조 1400 → 350 | `d62417d` |
+| 2026-09-12 | 5 | D-51 태그 정수화 + DLL 이름표 바인딩 | `87df5ab`, `5fcc0bc` |
+| 2026-09-12 | 5 | §9.5 Framework3D 실행 계층 분리 | `b86d0fa`, `58522de` |
+| 2026-09-12 | 5 | §10 (A) 호스트 ↔ 스크립트 DLL 배선 | `5756160` |
+| 2026-09-12 | 5 | §10 (B) ScriptSystem 실행 순서 (미완 표시) | `dd1e96b` |
+| 2026-09-12 | 5 | §9.5 `GameObject` 프렐류드 강제 | `e35a435` |
+
 **단계 1 완료.** §9.4 조건을 모두 확인했다.
 **단계 2는 아래 §10 의 두 항목에서 막혀 있어 §10 의 선택지 2로 단계 3에 들어갔다.**
 
@@ -462,7 +473,29 @@ D-47 은 `Canvas::GetHierarchyVersion()` 이 바뀔 때만 `Transform2D*` 배열
 | `SpriteTransform2D` 에 패딩 float 추가 | **빌드 실패** (`static_assert`) |
 | 틴트 속성 오프셋 28 → 24 | **잡히지 않음** — §12.4 참조 |
 
-**22개 중 21개가 겨냥한 단언에서 잡혔다.** 엉뚱한 곳에서 터진 것은 없다.
+| dt 검증을 BeginFrame 뒤로 되돌림 | `a non-finite delta time must not blank the collected frame` |
+| 정렬 키에서 부호 옮김 제거 | `render-world sprites must sort by render order` |
+| 정렬 키에서 레이어 비트 제거 | `layer order must outrank renderOrder when sorting` |
+| 동률 시 `sourceId` 비교 제거 | `sprites with an identical key must order by sourceId` |
+| `GetSprite` 가 순열을 건너뜀 | `collection must be sorted before submission` |
+| 재해싱이 할당기 정책을 잃음 | `the table must have drawn from the arena` |
+| 호스트가 프레임 아레나를 되감지 않음 | `every frame must rewind the arena before the framework runs` |
+| 되감기가 넘친 블록을 회수하지 않음 | `rewinding must hand the overflow block back to the heap` |
+| 대입이 원본 할당기를 가져옴 | `assigning from an arena-backed container must keep the destination allocator` |
+| 아레나 넘침 검사 제거 | `the overflow must be counted` |
+| 슬롯의 타입 id 를 0 으로 | `single component lookup must return the first matching component` |
+| 조회가 다시 후보마다 역참조 | `a type lookup must dereference the component it wants, not the ones before it` |
+| `NameTable` 이 원문을 보관하지 않음 | `the table must give the text back` |
+| `SetTag` 가 인턴하지 않음 | `an object must give back the name it was created with` |
+| DLL 에 이름표 바인딩 제거 | `a loaded script DLL must resolve names through the host name table` |
+| 공개 헤더에서 자기 include 제거 | **빌드 실패** (자립성 TU) |
+| 스크립트 정렬에서 계층 깊이 제거 | `scripts must run parents before children inside one layer` |
+| 스크립트 정렬에서 레이어 제거 | 위와 같은 단언 |
+| 시작 목록에 기록하지 않음 | `an already started script must not be started again` |
+| 시작 목록을 솎지 않음 | `a destroyed script must not keep a slot in the started list` |
+| 스크립트 풀 판정을 항상 거짓으로 | `every active script must run once per update` |
+
+**44개 중 43개가 겨냥한 단언에서 잡혔다.** 엉뚱한 곳에서 터진 것은 없다.
 잡히지 않은 하나는 §12.4 에 적었고, 그 실수를 쓸 수 없게 코드를 바꿨다.
 
 **테스트가 스스로 틀렸던 두 번.** 부모·자식 지연 파괴 테스트는 "부모가 먼저 파괴되어 자식 항목이
@@ -664,3 +697,139 @@ S1-4에서 `System/IPhysics2DSystem.h`는 **옮기지 않는다.** Tier S의 `Ph
 GPU 읽기 경로 없이는 증명할 수 없다. 예컨대 HLSL 에서 `worldLinear.xy` 를 `.xz` 로
 바꿔도 아무 테스트도 울지 않는다. RHI 에 읽기 경로를 붙이는 것은 새 기능이라
 여기서 하지 않았다. **이것은 알려진 구멍으로 남긴다.**
+
+## 13. 남은 항목 일괄 처리 (2026-09-12)
+
+§10 · §11 · §9.5 에 남아 있던 것들을 순서대로 닫았다. 닫지 못한 것은 이유와 함께 §13.10 에 남긴다.
+
+### 13.1 §3.6 dt 검증 순서 (버그)
+
+`Framework2D::Update` 가 `m_renderWorld.BeginFrame()` 을 부른 **뒤에** dt 를 검사했다.
+NaN 이나 음수 dt 한 번이면 카메라와 수집된 스프라이트를 모두 지운 채 돌아가고,
+호스트는 무시했어야 할 타임스탬프 때문에 빈 화면을 제시했다. 검사를 앞으로 옮겼다.
+
+### 13.2 P-5 정렬 키 (§3.6)
+
+`RenderWorld2D::Sort` 가 100B 넘는 `SpriteRenderItem` 을 직접 정렬했다. 65536 상한이면
+정렬 하나에 수 MB 를 옮긴다. 이제 16B `SpriteSortKey` 만 움직이고 아이템은 제자리에 있다.
+키는 `[레이어 16][부호 옮긴 renderOrder 32][예약 16]` 이라 같은 키가 아닌 한 아이템을 만지지 않는다.
+
+`GetSprites()` 는 `GetSprite(drawIndex)` 와 `GetSubmittedSprites()` 로 갈랐다.
+호출부가 "그리는 순서"와 "제출된 순서" 중 무엇을 원하는지 고르게 해서,
+테스트가 정렬이 아이템을 옮기지 않았다는 것을 직접 단언할 수 있다.
+
+**기수 정렬은 하지 않았다.** §3.6 은 O(N) 을 적었지만 그러려면 `renderOrder` 범위를
+24비트로 좁혀야 하고, 그것은 공개 계약 축소다. 지금 얻은 것은 이동량이며
+그것이 §3.6 이 지적한 실제 비용이다.
+
+### 13.3 P-11 프레임 할당기 (D-52, §11.3)
+
+`JMemoryContext::frame` 은 계약이 쓰인 이래로 **아무도 채우지 않았다.**
+선언만 있는 필드였고, 그것을 집는 프레임워크는 null 함수 포인터를 만났다.
+
+`LinearAllocator` 를 만들고 `EngineInstance` 가 소유해 `memory.frame` 에 넣는다.
+되감기는 틱 시작이다 — D-52 는 `Canvas::BeginFrame` 을 적었지만 Canvas 는 이 메모리를
+소유하지 않는다. **프레임을 여는 쪽이 프레임 메모리도 가진다.**
+
+`Array` 와 `Table` 의 할당기 정책이 정적 호출에서 멤버로 바뀌었다. 상태 있는 정책이
+가능해진 것이 핵심이고, 상태 없는 `HeapAllocator` 는 MSVC 가 실제로 존중하는 철자의
+`no_unique_address` 로 크기를 0 으로 유지한다(테스트가 두 크기를 고정한다).
+덤으로 `Table` 의 `Hasher` 와 `KeyEqual` 이 표준 철자를 쓰고 있어 각각 1바이트씩
+쓰고 있던 것도 함께 고쳤다.
+
+전파 규칙 두 가지. **재해싱은 정책을 유지한다** — 첫 판은 잃어버려서 조용히 기본 힙으로
+되돌아갔고 테스트가 잡았다. **복사는 원본의 정책을 물려받지 않고**, 대입은 받는 쪽 것을
+지킨다. 프레임 아레나에 묶인 것을 복사해 더 오래 살리면 되감긴 메모리를 들게 되기 때문이다.
+
+### 13.4 §3.4 타입 조회 — 측정하고 고쳤다
+
+규칙대로 **측정이 먼저였고, 첫 측정은 내 예상을 뒤집었다.**
+
+| 장면 | 조회 | 역참조 |
+|---|---|---|
+| 평평한 스프라이트 70개 | 71 | 71 |
+| 4컴포넌트, Transform 마지막, 200노드 계층 | 350 | **1400** |
+| 같은 계층, 고친 뒤 | 350 | **350** |
+
+첫 줄만 봤다면 고칠 것이 없었다. 오브젝트마다 `Transform2D` 가 첫 컴포넌트였기 때문이다.
+실제 비용은 **컴포넌트가 여럿일 때** 드러난다 — 후보마다 `SafePtr` 제어 블록을 따라가고
+그 블록들은 서로 다른 곳에 있다. 노드당 프레임당 7회 추격이었다.
+
+`GameObject` 가 `ComponentSlot`(참조 + 타입 id 사본)을 들도록 바꿨다. 비교가 슬롯 안에서
+끝나고 맞는 것 하나만 따라간다. 값은 컴포넌트 수명 내내 불변이라 어긋날 수 없다.
+비용은 컴포넌트당 8바이트다. 두 측정 모두 출력되고 단언으로 묶여 있다.
+
+### 13.5 P-10 태그 정수화 (D-51, §11.4)
+
+§11.4 는 "원문을 보관할 계층이 이 트리에 없다"는 이유로 미뤘다. `NameTable` 이 그 계층이다.
+id 는 텍스트에서 바로 나오므로(`MakeNameId`) 표를 거치지 않고 비교할 수 있고,
+그래서 태그 비교가 정수 비교가 된다. `GetTag` 와 `SetTag` 는 그대로 `const char*` 다.
+
+레지스트리와 같은 `Local`/`Get`/`Bind` 를 붙이고 `ScriptModuleLoadContext` 에 `Names` 를
+더했다(ABI 3, 크기 단언이 증가를 잡았다). 이것이 없으면 DLL 이 자기 표에 넣고
+호스트가 지은 이름은 하나도 되찾지 못한다.
+
+### 13.6 §10 (A) 호스트와 스크립트 DLL — 형식은 정하지 않고 배선만
+
+§10 (A) 는 "프로젝트 파일 형식이 없어 호스트가 경로를 알 수 없다"였다.
+**형식은 여전히 정해지지 않았고 여기서 정하지 않는다.** `OpenProject` 가 경로를 인자로
+받을 뿐이다 — 그 문자열을 어느 파일이 주게 되든 이 배선은 바뀌지 않는다.
+
+순서가 이 변경의 알맹이다. 모듈은 `BindScriptContexts` **뒤에** 실린다(로더가 방금 붙인
+컨텍스트를 읽는다). `UnbindScriptContexts` **앞에** 내려간다(DLL 이 그 컨텍스트를 가리킨다).
+모듈 로드에 실패한 프로젝트는 반쯤 열린 채로 남지 않고 아예 열리지 않는다.
+
+`IFramework::GetScriptContextBlocks` 가 생겼다. 프레임워크가 자기 DLL 이 요구하는
+확장 블록을 호스트에 넘기는 통로다.
+
+### 13.7 §10 (B) ScriptSystem — 돌지만 완료는 아니다
+
+헤더와 빈 오버라이드 넷, 그리고 "스케줄링은 의도적으로 생략"이라는 주석이 전부였다.
+스크립트 훅을 부르는 곳이 아무 데도 없었으므로 D-45 의 실행 순서는 참일 대상이 없었다.
+
+`Canvas::CollectScripts` 가 타입을 가리지 않고 살아 있는 스크립트를 모은다.
+어느 풀이 스크립트인지는 `AttachComponent<T>` 인스턴스화 시점에 정해지므로
+매 프레임 `dynamic_cast` 가 없다. `ScriptSystem` 이 **레이어 → 계층 깊이 → InstanceId**
+로 세우고, 같은 프레임의 `OnUpdate` 앞에 `OnCreate` 와 `OnStart` 를 한 번씩 돌린다.
+고정 스텝은 업데이트가 세운 순서를 그대로 쓴다.
+
+시작 목록은 매 재구축마다 살아 있는 스크립트로 솎는다. 첫 판은 추가만 해서
+긴 세션이면 파괴된 스크립트의 id 가 끝없이 쌓였다. 비활성일 뿐인 것은 남긴다 —
+다시 켤 때 두 번 시작해서는 안 되기 때문이다.
+
+**여전히 미완이고 그렇게 표시한다.** `Canvas::AttachComponent<T>` 로 정적으로 붙인 것만
+스케줄에 오른다. DLL 안에서 이름으로 스크립트를 만드는 경로는 리플렉션(H5) 이 필요하고,
+Open Decision 3 이 그것을 완료 조건으로 못 박았다.
+
+### 13.8 §9.5 세 항목
+
+- **헤더 자립성.** 공개 헤더마다 번역 단위 하나, 총 76개. `Generate.ps1` 이 만들고
+  생성물을 커밋한다(빌드에 코드 생성 단계를 넣지 않기 위해서다). 각 파일은 헤더를 두 번
+  넣어 재포함 방지도 함께 본다. 76개 모두 이미 통과했으므로 이것은 고침이 아니라 고정이다.
+- **Framework3D 실행 계층.** `JBroFramework3DSystem` 신설. `JBroFramework3D` 는 컴포넌트와
+  수학만 남고 Core, Runtime, AssetTypes 만 본다. 3D 스크립트 경로에서 실행 계층 헤더가
+  C1083 이 되는 것을 직접 컴파일해 확인했다(양성 대조로 컴포넌트 헤더는 여전히 컴파일된다).
+  이 분리로 `JBroFramework3D` 가 소스 없는 모듈이 되어 라이브러리가 사라졌다 —
+  `Utility` 로 바꿔 링커 입력에서 뺐다. **분리 커밋은 이 사실을 놓쳤다**: 뒤이은 확인 스윕이
+  첫 실패에서 멈추지 않아 Release 링크 실패를 지나쳤고, 다음 커밋에서 고쳤다.
+- **`GameObject` 비공개.** include 경로로는 막을 수 없다 — 스크립트 DLL 이 `JBroRuntime` 을
+  링크하므로 그 경로가 열려 있다. 대신 표식으로 막는다: 스크립트 타깃이 `JBRO_SCRIPT_TARGET`
+  을, 프렐류드가 `JBRO_SCRIPT_PRELUDE` 를 정의하고, 앞의 것만 있으면 `#error` 다.
+  Tier 프로브가 네 번째 음성 사례를 얻었다.
+
+### 13.9 §11.1 Transform 부모 먼저 배열 — 측정하고 하지 않기로 했다
+
+§13.4 이후 이 경로에 남은 것은 노드당 조회 1.75회, 역참조 1회다.
+부모 먼저 배열이 없앨 수 있는 것은 루트 판정 조회뿐이고, 그러려면 계층 변경과
+컴포넌트 부착·파괴 양쪽을 보는 무효화 계약이 필요하다.
+**얻는 것보다 조용히 틀릴 위험이 크다.** 측정값을 단언으로 묶어 두었으므로
+비율이 나빠지면 테스트가 먼저 운다. 계층이 훨씬 깊어지거나 조회가 더 늘면 그때 다시 본다.
+
+### 13.10 아직 열려 있는 것 — 전부 사용자 확인이 필요하다
+
+- **프로젝트 파일 형식.** §13.6 이 배선만 세웠다. 형식(YAML 인지 바이너리인지)과 그 안의
+  항목은 에디터, 익스포터, 에셋 파이프라인을 함께 정하는 판단이다.
+- **리플렉션(H5).** §13.7 의 나머지 절반이자 Open Decision 3 의 완료 조건이다.
+- **GPU 읽기 경로.** §12.4 의 구멍은 여전히 열려 있다. `RHI.h` 에 `MemoryType::Readback` 은
+  있지만 읽는 API 가 없어, 셰이더가 건네받은 필드를 그 자리에서 읽는지 증명할 수 없다.
+  읽기 경로를 붙이는 것은 RHI 에 새 능력을 더하는 일(동기화 모델, 포맷 변환, 호출 가능 시점)이다.

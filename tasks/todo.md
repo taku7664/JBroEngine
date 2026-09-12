@@ -369,10 +369,17 @@
   `JBroAsset`(Tier E: `AssetSystem` 로드·캐시 소유, 프로젝트 수명; `AssetRegistry` 메타데이터). 스크립트 표면은 값형 `Service::AssetService`.
   `AssetRegistry`는 로드 소유를 합치지 않는다.
 - **D-51. `String`은 `std::string` 래퍼로 영구 확정하고 경계·핫 데이터에서는 금지한다.**
+  `GameObject::m_tag` 이식 완료(2026-09-12). 원문은 `NameTable`이 보관하고 `NameId`는
+  `MakeNameId(text)`로 표 없이 구할 수 있다. `NameTable`도 `InstanceRegistry`와 같은
+  `Local`/`Get`/`Bind`를 가지며 `ScriptModuleLoadContext.Names`로 DLL에 바인딩한다(ABI 3).
   Closes: Open Decision 7(기본 제안 채택). POD Context·패킷·`Ref`·핸들·컴포넌트 공개 필드에 `String`을 두지 않는다.
   이름·태그는 인턴된 정수(`NameId = MakeStableTypeId(text)`)로 두고 문자열은 에디터·직렬화 계층이 보관한다.
   `GameObject::m_tag`가 첫 교정 대상이다. 스크립트 리플렉션 필드의 컨테이너 편집은 DLL이 제공하는 연산을 통한다.
 - **D-52. 컨테이너 할당기 정책은 인스턴스를 가질 수 있어야 하며, 프레임 임시 배열은 `JMemoryContext.frame`을 쓴다.**
+  구현됨(2026-09-12). 되감기 주체는 `Canvas::BeginFrame`이 아니라 `EngineInstance::Tick`이다 —
+  프레임을 여는 쪽이 프레임 메모리를 소유하며, Canvas는 이 메모리를 소유하지 않는다.
+  복사는 원본 정책을 물려받지 않고 대입은 받는 쪽 정책을 지킨다. 재해싱은 정책을 유지한다.
+  아레나를 넘긴 요청은 기본 힙에서 받아 오고 그 블록도 되감기가 회수한다.
   `Array<T, Allocator>`·`Table<..., Allocator>`의 정책 타입에 `[[no_unique_address]]` 멤버로 상태를 허용한다.
   기본 `HeapAllocator`는 빈 타입으로 유지(크기 증가 0), `JAllocatorRef` 정책을 추가한다.
   `frame`은 `Canvas::BeginFrame`에서 리셋되는 선형 할당기다. 도입 시점은 단계 3의 첫 항목이다 — 프레임 임시 배열을 처음 쓰기 직전.

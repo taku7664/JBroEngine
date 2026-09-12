@@ -30,6 +30,9 @@
   사용자용 Shader Graph와 엔진 내부 Render Graph를 분리하며, 게임 스크립트에 Renderer/RHI 또는 임의 GPU
   콜백을 노출하지 않는다. (MUST)
 - 정상 렌더 프레임 경로는 일반 힙 할당, 문자열 생성·비교, `WaitIdle` 호출을 하지 않아야 한다. (MUST)
+- 2D 스프라이트 정렬은 아이템이 아니라 `(키, 인덱스)` 를 옮긴다. 키는 레이어 순서가 최상위이고,
+  그 아래에 부호를 옮긴 `renderOrder` 가 온다. 같은 키일 때만 아이템의 `sourceId` 로 안정화한다. (MUST)
+  그리는 순서는 `GetSprite(drawIndex)` 로, 제출된 순서는 `GetSubmittedSprites()` 로 읽는다.
 - 2D 스프라이트 패킷(`SpriteSubmit`)과 GPU 인스턴스의 변환은 `Matrix4x4`가 아니라 **아핀 6개 + 깊이 1개**를
   담는 `SpriteTransform2D { float linear[4]; float translation[2]; float depth; }`(28B)로 전달한다. (MUST)
   버텍스 셰이더는 `float4x4`를 조립하지 않고 두 내적으로 위치를 직접 만든다. `MeshSubmit`은 `Matrix4x4`를 유지한다.
