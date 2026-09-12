@@ -285,9 +285,24 @@ namespace JBro
 
         const FrameStatus status = m_device->EndFrame(m_frame);
         m_lastStats = m_currentStats;
+        m_lastPresentedBackBuffer = m_frame.backBuffer;
         m_frame = {};
         m_frameActive = false;
         return status;
+    }
+
+    bool Renderer::ReadBackBuffer(
+        std::byte* destination,
+        std::size_t destinationSize,
+        TextureReadback& result)
+    {
+        result = {};
+        if (m_device == nullptr || m_frameActive || false == m_lastPresentedBackBuffer.IsValid())
+        {
+            return false;
+        }
+        return m_device->ReadTexture(
+            m_lastPresentedBackBuffer, destination, destinationSize, result);
     }
 
     void Renderer::AbortFrame()

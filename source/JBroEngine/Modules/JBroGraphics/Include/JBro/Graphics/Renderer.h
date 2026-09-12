@@ -110,6 +110,9 @@ namespace JBro
         bool IsInitialized() const;
         Extent2D GetSurfaceExtent() const;
         std::uint32_t GetSpriteSubmissionLimit() const;
+        // 마지막으로 제시한 백버퍼를 CPU 로 읽는다. **진단과 테스트 경로다** —
+        // GPU 를 기다리므로 프레임 안에서 부를 수 없고 매 프레임 경로도 아니다.
+        bool ReadBackBuffer(std::byte* destination, std::size_t destinationSize, TextureReadback& result);
 
     private:
         struct ViewPacket
@@ -164,6 +167,8 @@ namespace JBro
         GraphicsPipelineHandle m_spritePipeline;
         RendererFrameStats m_currentStats;
         RendererFrameStats m_lastStats;
+        // EndFrame 이 프레임 컨텍스트를 비우므로 읽기 경로를 위해 따로 기억한다.
+        TextureHandle m_lastPresentedBackBuffer;
         std::uint32_t m_activeView = InvalidViewIndex;
         bool m_frameActive = false;
     };

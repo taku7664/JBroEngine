@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <JBro/RHI/RHI.h>
 
@@ -146,6 +146,11 @@ namespace JBro::Internal
 
         BufferHandle CreateBuffer(const BufferDesc& desc) override;
         void DestroyBuffer(BufferHandle buffer) override;
+        bool ReadTexture(
+            TextureHandle texture,
+            std::byte* destination,
+            std::size_t destinationSize,
+            TextureReadback& result) override;
         bool WriteBuffer(
             BufferHandle buffer,
             std::size_t offset,
@@ -188,6 +193,12 @@ namespace JBro::Internal
         bool BuildBackBuffers(std::uint32_t swapchainIndex, D3D12SwapchainState& state);
         void ReleaseBackBuffers(D3D12SwapchainState& state);
         bool WaitForFence(std::uint64_t fenceValue);
+        // 핸들이 백버퍼든 일반 텍스처든 자원과 현재 상태를 찾아 준다. 읽기 경로 전용이다.
+        bool ResolveReadableTexture(
+            TextureHandle texture,
+            ID3D12Resource*& resource,
+            D3D12_RESOURCE_STATES*& state,
+            TextureDesc& desc);
         void CollectRetiredResources();
         void AssignPendingRetirementFences(std::uint64_t fenceValue);
         void ReleaseAllResources();

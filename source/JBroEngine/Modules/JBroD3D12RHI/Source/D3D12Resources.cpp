@@ -1,5 +1,6 @@
-#include "D3D12Device.h"
+﻿#include "D3D12Device.h"
 
+#include <algorithm>
 #include <cstring>
 #include <limits>
 
@@ -63,6 +64,24 @@ namespace JBro::Internal
             }
 
             return DXGI_FORMAT_UNKNOWN;
+        }
+
+        // 읽기 경로가 지원하는 포맷의 픽셀 크기다. 0 이면 지원하지 않는 포맷이다.
+        std::uint32_t ReadbackPixelSize(TextureFormat format)
+        {
+            switch (format)
+            {
+                case TextureFormat::RGBA8Unorm:
+                case TextureFormat::RGBA8UnormSrgb:
+                case TextureFormat::BGRA8Unorm:
+                case TextureFormat::BGRA8UnormSrgb:
+                case TextureFormat::D32Float:
+                    return 4;
+                case TextureFormat::RGBA16Float:
+                    return 8;
+                default:
+                    return 0;
+            }
         }
 
         bool IsSrgbFormat(TextureFormat format)
@@ -644,4 +663,219 @@ namespace JBro::Internal
             state.occupied = false;
         }
     }
+
+    bool D3D12Device::ResolveReadableTexture(
+        TextureHandle texture,
+        ID3D12Resource*& resource,
+        D3D12_RESOURCE_STATES*& state,
+        TextureDesc& desc)
+    {
+        resource = nullptr;
+        state = nullptr;
+        if (texture.index >= BackBufferTextureBase && texture.index < TextureResourceBase)
+        {
+            const std::uint32_t offset = texture.index - BackBufferTextureBase;
+            const std::uint32_t swapchainIndex = offset / MaxBackBuffers;
+            const std::uint32_t backBufferIndex = offset % MaxBackBuffers;
+            if (swapchainIndex >= MaxSwapchains)
+            {
+                return false;
+            }
+            D3D12SwapchainState& swapchain = m_swapchains[swapchainIndex];
+            if (false == swapchain.occupied || backBufferIndex >= swapchain.desc.bufferCount)
+            {
+                return false;
+            }
+            D3D12BackBuffer& backBuffer = swapchain.backBuffers[backBufferIndex];
+            if (false == (backBuffer.handle == texture) || backBuffer.resource == nullptr)
+            {
+                return false;
+            }
+            resource = backBuffer.resource.Get();
+            state = &backBuffer.state;
+            desc = {};
+            desc.extent = swapchain.desc.extent;
+            desc.format = swapchain.desc.format;
+            return true;
+        }
+
+        if (texture.index < TextureResourceBase)
+        {
+            return false;
+        }
+        const std::uint32_t slotIndex = texture.index - TextureResourceBase;
+        if (slotIndex >= MaxTextures)
+        {
+            return false;
+        }
+        D3D12TextureState& textureState = m_textures[slotIndex];
+        if (false == textureState.occupied
+            || textureState.generation != texture.generation
+            || textureState.resource == nullptr)
+        {
+            return false;
+        }
+        resource = textureState.resource.Get();
+        state = &textureState.state;
+        desc = textureState.desc;
+        return true;
+    }
+
+    bool D3D12Device::ReadTexture(
+        TextureHandle texture,
+        std::byte* destination,
+        std::size_t destinationSize,
+        TextureReadback& result)
+    {
+        result = {};
+        // 프레임이 열려 있는 동안은 안 된다. 기록 중인 커맨드 리스트를 가로채게 된다.
+        if (m_status != FrameStatus::Ready
+            || m_device == nullptr
+            || m_frameActive
+            || destination == nullptr
+            || destinationSize == 0)
+        {
+            return false;
+        }
+
+        ID3D12Resource* resource = nullptr;
+        D3D12_RESOURCE_STATES* resourceState = nullptr;
+        TextureDesc desc;
+        if (false == ResolveReadableTexture(texture, resource, resourceState, desc))
+        {
+            return false;
+        }
+
+        const std::uint32_t bytesPerPixel = ReadbackPixelSize(desc.format);
+        if (bytesPerPixel == 0 || desc.extent.width == 0 || desc.extent.height == 0)
+        {
+            return false;
+        }
+        const std::size_t tightRowPitch =
+            static_cast<std::size_t>(desc.extent.width) * bytesPerPixel;
+        const std::size_t requiredBytes = tightRowPitch * desc.extent.height;
+        if (destinationSize < requiredBytes)
+        {
+            return false;
+        }
+
+        const D3D12_RESOURCE_DESC resourceDesc = resource->GetDesc();
+        D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint = {};
+        UINT rowCount = 0;
+        UINT64 rowSizeInBytes = 0;
+        UINT64 totalBytes = 0;
+        m_device->GetCopyableFootprints(
+            &resourceDesc, 0, 1, 0, &footprint, &rowCount, &rowSizeInBytes, &totalBytes);
+        if (totalBytes == 0 || rowCount == 0)
+        {
+            return false;
+        }
+
+        D3D12_HEAP_PROPERTIES heapProperties = {};
+        heapProperties.Type = D3D12_HEAP_TYPE_READBACK;
+        D3D12_RESOURCE_DESC stagingDesc = {};
+        stagingDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+        stagingDesc.Width = totalBytes;
+        stagingDesc.Height = 1;
+        stagingDesc.DepthOrArraySize = 1;
+        stagingDesc.MipLevels = 1;
+        stagingDesc.Format = DXGI_FORMAT_UNKNOWN;
+        stagingDesc.SampleDesc.Count = 1;
+        stagingDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+        ComPtr<ID3D12Resource> staging;
+        if (FAILED(m_device->CreateCommittedResource(
+            &heapProperties,
+            D3D12_HEAP_FLAG_NONE,
+            &stagingDesc,
+            D3D12_RESOURCE_STATE_COPY_DEST,
+            nullptr,
+            IID_PPV_ARGS(&staging))))
+        {
+            return false;
+        }
+
+        // 진단 경로라 흐름을 통째로 비우고 쓴다. 프레임 안에서 부르는 것은 이미 막았다.
+        WaitIdle();
+        if (FAILED(m_commandAllocators[0]->Reset())
+            || FAILED(m_commandList->Reset(m_commandAllocators[0].Get(), nullptr)))
+        {
+            MarkDeviceLost();
+            return false;
+        }
+
+        const D3D12_RESOURCE_STATES entryState = *resourceState;
+        const bool needsTransition = entryState != D3D12_RESOURCE_STATE_COPY_SOURCE;
+        if (needsTransition)
+        {
+            D3D12_RESOURCE_BARRIER barrier = {};
+            barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+            barrier.Transition.pResource = resource;
+            barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+            barrier.Transition.StateBefore = entryState;
+            barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
+            m_commandList->ResourceBarrier(1, &barrier);
+        }
+
+        D3D12_TEXTURE_COPY_LOCATION source = {};
+        source.pResource = resource;
+        source.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+        source.SubresourceIndex = 0;
+        D3D12_TEXTURE_COPY_LOCATION target = {};
+        target.pResource = staging.Get();
+        target.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+        target.PlacedFootprint = footprint;
+        m_commandList->CopyTextureRegion(&target, 0, 0, 0, &source, nullptr);
+
+        if (needsTransition)
+        {
+            D3D12_RESOURCE_BARRIER barrier = {};
+            barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+            barrier.Transition.pResource = resource;
+            barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+            barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
+            barrier.Transition.StateAfter = entryState;
+            m_commandList->ResourceBarrier(1, &barrier);
+        }
+
+        if (FAILED(m_commandList->Close()))
+        {
+            MarkDeviceLost();
+            return false;
+        }
+        ID3D12CommandList* commandLists[] = {m_commandList.Get()};
+        m_graphicsQueue->ExecuteCommandLists(1, commandLists);
+        ++m_lastSubmittedFenceValue;
+        if (FAILED(m_graphicsQueue->Signal(m_fence.Get(), m_lastSubmittedFenceValue))
+            || false == WaitForFence(m_lastSubmittedFenceValue))
+        {
+            MarkDeviceLost();
+            return false;
+        }
+
+        void* mapped = nullptr;
+        const D3D12_RANGE readRange = {0, static_cast<SIZE_T>(totalBytes)};
+        if (FAILED(staging->Map(0, &readRange, &mapped)) || mapped == nullptr)
+        {
+            return false;
+        }
+        const auto* sourceBytes = static_cast<const std::byte*>(mapped);
+        const std::size_t copyPerRow =
+            (std::min)(tightRowPitch, static_cast<std::size_t>(rowSizeInBytes));
+        for (std::uint32_t row = 0; row < desc.extent.height; ++row)
+        {
+            std::memcpy(
+                destination + static_cast<std::size_t>(row) * tightRowPitch,
+                sourceBytes + static_cast<std::size_t>(row) * footprint.Footprint.RowPitch,
+                copyPerRow);
+        }
+        const D3D12_RANGE noWriteRange = {0, 0};
+        staging->Unmap(0, &noWriteRange);
+
+        result.extent = desc.extent;
+        result.format = desc.format;
+        result.rowPitch = static_cast<std::uint32_t>(tightRowPitch);
+        result.writtenBytes = static_cast<std::uint32_t>(requiredBytes);
+        return true;
+    }
+
 }

@@ -354,6 +354,16 @@ namespace JBro
         bool enableValidation = false;
     };
 
+    // 읽어 온 이미지의 모양이다. 목적지에는 행 패딩 없이 빽빽하게 쓴다 —
+    // GPU 쪽 행 정렬은 백엔드의 사정이고 부르는 쪽이 알 필요가 없다.
+    struct TextureReadback
+    {
+        Extent2D      extent;
+        TextureFormat format = TextureFormat::Unknown;
+        std::uint32_t rowPitch = 0;
+        std::uint32_t writtenBytes = 0;
+    };
+
     class IRHIDevice
     {
     public:
@@ -379,6 +389,24 @@ namespace JBro
         virtual void AbortFrame(const FrameContext& frame) = 0;
         virtual FrameStatus GetStatus() const = 0;
         virtual void WaitIdle() = 0;
+
+        // 텍스처 내용을 CPU 로 읽는다. **진단과 테스트 경로다** — GPU 가 끝날 때까지
+        // 기다리므로 매 프레임 경로에서 부르지 않는다(§9). 프레임이 열려 있으면 실패한다.
+        //
+        // 기본 구현은 false 다. 읽기 경로가 없는 백엔드도 있을 수 있고, 없는 것과
+        // 실패한 것을 호출부가 구분할 필요는 없다 — 둘 다 "읽지 못했다"이다.
+        virtual bool ReadTexture(
+            TextureHandle texture,
+            std::byte* destination,
+            std::size_t destinationSize,
+            TextureReadback& result)
+        {
+            (void)texture;
+            (void)destination;
+            (void)destinationSize;
+            (void)result;
+            return false;
+        }
     };
 
     class IRHIModule : public IModule

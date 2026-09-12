@@ -5,6 +5,7 @@ int RunCanvasFoundationTests();
 int RunCoreModelStressTests();
 int RunFrameMemoryTests();
 int RunScriptSchedulingTests();
+int RunSpritePixelTests();
 int RunRendererContractTests();
 int RunPlatformContractTests();
 int RunD3D12SmokeTests();
@@ -47,6 +48,10 @@ int main()
             return 1;
         }
         if (RunD3D12SmokeTests() != 0)
+        {
+            return 1;
+        }
+        if (RunSpritePixelTests() != 0)
         {
             return 1;
         }
