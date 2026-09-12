@@ -102,7 +102,6 @@ namespace JBro
             RefCategory category);
         bool UnregisterComponentInstance(ComponentBase* component);
         SafePtr<Layer> FindLayerReference(LayerIndex layer);
-        static bool DestroyObjectFromHandle(void* context, GameObject* object);
         static InstanceId GenerateCanvasInstanceId();
 
         JAllocator                                      m_allocator;

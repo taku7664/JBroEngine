@@ -66,10 +66,8 @@ namespace JBro
         friend class Canvas;
         friend class GameObjectHandle;
 
-        using DestroyCallback = bool (*)(void*, GameObject*);
-
         void SetInstanceIdentity(InstanceId instanceId, InstanceHandle handle);
-        void BindCanvas(Canvas* canvas, void* context, DestroyCallback destroyCallback);
+        void BindCanvas(Canvas* canvas);
         void SetLayer(SafePtr<Layer> layer, std::uint32_t layerIndex);
         void AttachComponent(ComponentBase* component);
         bool DetachComponent(ComponentBase* component);
@@ -79,8 +77,6 @@ namespace JBro
         InstanceId                   m_instanceId = InvalidInstanceId;
         InstanceHandle               m_handle;
         Canvas*                      m_canvas = nullptr;
-        void*                        m_destroyContext = nullptr;
-        DestroyCallback              m_destroyCallback = nullptr;
         SafePtr<GameObject>           m_parent;
         Array<SafePtr<GameObject>>    m_children;
         Array<SafePtr<ComponentBase>> m_components;

@@ -4,10 +4,6 @@
 #include <JBro/Runtime/SystemContext.h>
 #endif
 
-#if defined(JBRO_TEST_SCRIPT_API_ENGINE_CONTEXT_LEAK)
-#include <JBro/Runtime/EngineContext.h>
-#endif
-
 #include <iostream>
 #include <stdexcept>
 #include <type_traits>
@@ -29,12 +25,6 @@ namespace
     {
         static_assert(false == CompleteType<JBro::SystemContext>,
             "ScriptAPI.h must not expose the SystemContext definition");
-    }
-
-    __if_exists(JBro::EngineContext)
-    {
-        static_assert(false == CompleteType<JBro::EngineContext>,
-            "ScriptAPI.h must not expose the EngineContext definition");
     }
 #endif
 

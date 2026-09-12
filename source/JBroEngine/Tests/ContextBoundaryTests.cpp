@@ -1,5 +1,4 @@
-﻿#include <JBro/Runtime/EngineContext.h>
-#include <JBro/Runtime/ServiceContext.h>
+﻿#include <JBro/Runtime/ServiceContext.h>
 #include <JBro/Runtime/SystemContext.h>
 #include <JBro/Framework2D/System/Physics2DSystem.h>
 #include <JBro/Framework2D/Service/Physics2DService.h>
@@ -62,10 +61,6 @@ namespace
         Check(JBro::GetServiceContext().AbiVersion == services.AbiVersion,
             "service context binding must copy the supplied ABI stamp");
 
-        JBro::EngineContext engine;
-        Check(engine.Platform == nullptr && engine.RHI == nullptr
-            && engine.Renderer == nullptr && engine.Assets == nullptr,
-            "engine context must default every borrowed process pointer to null");
         JBro::BindSystemContext({});
         JBro::BindServiceContext({});
     }

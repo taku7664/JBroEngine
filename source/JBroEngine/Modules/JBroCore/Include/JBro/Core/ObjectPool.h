@@ -46,11 +46,11 @@ namespace JBro
         void ForEachLive(Fn&& function);
 
     private:
+        // 세대는 InstanceRegistry 가 단독으로 관리한다. 슬롯은 점유 여부만 안다.
         struct Slot
         {
             alignas(T) std::byte storage[sizeof(T)];
             SafePtrDetail::ControlBlock* controlBlock = nullptr;
-            std::uint32_t generation = 1;
             bool alive = false;
         };
 
@@ -126,16 +126,6 @@ namespace JBro
 
         static void IgnoreDelete(void*)
         {
-        }
-
-        static std::uint32_t NextGeneration(std::uint32_t generation)
-        {
-            ++generation;
-            if (generation == 0)
-            {
-                generation = 1;
-            }
-            return generation;
         }
 
         Slot& GetSlot(std::size_t slotIndex)
@@ -238,7 +228,6 @@ namespace JBro
         }
 
         DestroySlot(slot);
-        slot.generation = NextGeneration(slot.generation);
         m_freeSlots.Add(static_cast<std::uint32_t>(slotIndex));
         --m_liveCount;
         return true;

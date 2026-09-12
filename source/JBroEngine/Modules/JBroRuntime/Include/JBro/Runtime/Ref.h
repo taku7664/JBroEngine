@@ -29,13 +29,12 @@ namespace JBro
         mutable InstanceHandle Cached;
     };
 
+    // 에셋은 AssetHandle 로 다루고 Canvas 는 스크립트에 노출하지 않으므로 카테고리를 두지 않는다.
     enum class RefCategory : std::uint8_t
     {
         Object,
         Component,
         Script,
-        Asset,
-        Canvas,
     };
 
     namespace Internal
