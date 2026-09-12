@@ -144,11 +144,15 @@ namespace
             std::size_t,
             JBro::JArrayView<std::byte> data) override
         {
-            if (data.size >= 80 && data.size % 80 == 0)
+            // 44 = 아핀 6 + 깊이 1 + 틴트 4. 셔이더와 공유하는 스트라이드다.
+            if (data.size >= sizeof(JBro::SpriteTransform2D) + 16
+                && data.size % (sizeof(JBro::SpriteTransform2D) + 16) == 0)
             {
-                uploadedInstanceCount = data.size / 80;
-                std::memcpy(firstInstanceWorld.values, data.data, sizeof(firstInstanceWorld.values));
+                uploadedInstanceCount = data.size / (sizeof(JBro::SpriteTransform2D) + 16);
+                std::memcpy(&firstInstanceWorld, data.data, sizeof(firstInstanceWorld));
+                std::memcpy(firstInstanceTint, data.data + sizeof(JBro::SpriteTransform2D), sizeof(firstInstanceTint));
             }
+            lastInstanceUploadBytes = data.size;
             ++writeBufferCount;
             return true;
         }
@@ -245,7 +249,9 @@ namespace
         std::uint32_t createPipelineCount = 0;
         std::uint32_t destroyPipelineCount = 0;
         std::uint32_t uploadedInstanceCount = 0;
-        JBro::Matrix4x4 firstInstanceWorld;
+        std::size_t lastInstanceUploadBytes = 0;
+        JBro::SpriteTransform2D firstInstanceWorld;
+        float firstInstanceTint[4] = {0.0f, 0.0f, 0.0f, 0.0f};
     };
 
     class FakeModule final : public JBro::IRHIModule
@@ -745,10 +751,17 @@ namespace
         Check(module.device.uploadedInstanceCount == 70 && module.device.commands.drawIndexedInstancedCount == 1,
             "70 converted packets must become a single GPU instance upload and draw");
         const auto close = [](float a, float b) { return std::fabs(a - b) < 0.0001f; };
-        const auto& world = module.device.firstInstanceWorld.values;
-        Check(close(world[0], 0.0f) && close(world[1], -4.0f) && close(world[3], 3.0f)
-            && close(world[4], -2.0f) && close(world[5], 0.0f) && close(world[7], 6.0f),
-            "uploaded matrix must apply flip, size, pivot and rotation in column-vector convention");
+        const auto& world = module.device.firstInstanceWorld;
+        Check(close(world.linear[0], 0.0f) && close(world.linear[1], -4.0f)
+            && close(world.linear[2], -2.0f) && close(world.linear[3], 0.0f)
+            && close(world.translation[0], 3.0f) && close(world.translation[1], 6.0f),
+            "uploaded affine must apply flip, size, pivot and rotation in column-vector convention");
+        Check(close(world.depth, 0.0f), "a sprite without a depth buffer must stay on the z=0 plane");
+        Check(close(module.device.firstInstanceTint[3], 1.0f),
+            "the tint must follow the transform at its own attribute offset, not overlap it");
+        // 이 크기가 셔이더 입력 레이아웃과 같은 계약이다. 4x4 시절은 인스턴스당 80B 였다.
+        Check(module.device.lastInstanceUploadBytes == 70 * 44,
+            "70 sprites must upload 44 bytes each, not the 80 the 4x4 packet cost");
         const auto& vp = module.device.commands.viewProjection.values;
         Check(close(vp[0], 0.05f) && close(vp[5], 0.1f) && close(vp[3], -0.1f) && close(vp[7], -0.3f),
             "camera projection must use half-height, aspect ratio and inverse translation");

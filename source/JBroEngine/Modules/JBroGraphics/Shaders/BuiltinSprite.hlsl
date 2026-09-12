@@ -3,14 +3,16 @@ cbuffer ViewConstants : register(b0)
     row_major float4x4 gViewProjection;
 };
 
+// Instance layout mirrors GpuSpriteInstance in Renderer.h. Column-vector convention:
+//   x' = linear.x * x + linear.y * y + translation.x
+//   y' = linear.z * x + linear.w * y + translation.y
+// The dropped 4x4 rows survive as translation.z (depth) and an implicit w of 1.
 struct VertexInput
 {
     float2 position : ATTRIBUTE0;
-    float4 worldRow0 : ATTRIBUTE1;
-    float4 worldRow1 : ATTRIBUTE2;
-    float4 worldRow2 : ATTRIBUTE3;
-    float4 worldRow3 : ATTRIBUTE4;
-    float4 tint : ATTRIBUTE5;
+    float4 worldLinear : ATTRIBUTE1;
+    float3 worldTranslation : ATTRIBUTE2;
+    float4 tint : ATTRIBUTE3;
 };
 
 struct VertexOutput
@@ -21,12 +23,11 @@ struct VertexOutput
 
 VertexOutput VSMain(VertexInput input)
 {
-    const float4 localPosition = float4(input.position, 0.0f, 1.0f);
     const float4 worldPosition = float4(
-        dot(input.worldRow0, localPosition),
-        dot(input.worldRow1, localPosition),
-        dot(input.worldRow2, localPosition),
-        dot(input.worldRow3, localPosition));
+        dot(input.worldLinear.xy, input.position) + input.worldTranslation.x,
+        dot(input.worldLinear.zw, input.position) + input.worldTranslation.y,
+        input.worldTranslation.z,
+        1.0f);
 
     VertexOutput output;
     output.position = mul(gViewProjection, worldPosition);

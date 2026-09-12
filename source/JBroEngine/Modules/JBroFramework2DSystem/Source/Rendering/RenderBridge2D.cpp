@@ -63,15 +63,24 @@ namespace JBro::Internal
             const Matrix3x2 geometry{source.size.x, 0.0f, 0.0f, source.size.y,
                 (0.5f - source.pivot.x) * source.size.x,
                 (0.5f - source.pivot.y) * source.size.y};
+            const Matrix3x2 world = MultiplyMatrix3x2(geometry, source.world);
             SpriteSubmit result;
-            result.world = ToColumnMatrix(MultiplyMatrix3x2(geometry, source.world));
+            // Framework uses row vectors; Graphics/HLSL uses column vectors.
+            result.world.linear[0] = world.m11;
+            result.world.linear[1] = world.m21;
+            result.world.linear[2] = world.m12;
+            result.world.linear[3] = world.m22;
+            result.world.translation[0] = world.m31;
+            result.world.translation[1] = world.m32;
+            // 깊이 버퍼가 아직 없다. 그리는 순서는 RenderWorld2D 가 정렬로 끝내고,
+            // 이 값은 그 정렬을 GPU 로 옮기기 전까지 평면을 유지한다.
+            result.world.depth = 0.0f;
             result.sprite = source.sprite;
             result.material = source.material;
             result.tint[0] = source.tint.R;
             result.tint[1] = source.tint.G;
             result.tint[2] = source.tint.B;
             result.tint[3] = source.tint.A;
-            result.renderOrder = source.renderOrder;
             return result;
         }
     }

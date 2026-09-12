@@ -1,4 +1,4 @@
-#include <JBro/Graphics/Renderer.h>
+﻿#include <JBro/Graphics/Renderer.h>
 
 #include "BuiltinSpritePS.generated.h"
 #include "BuiltinSpriteVS.generated.h"
@@ -510,15 +510,14 @@ namespace JBro
 
         const VertexAttributeDesc vertexAttributes[] = {
             {0, 0, VertexFormat::Float2}};
+        // GpuSpriteInstance 의 멤버 오프셋과 짝이 맞는다. 헤더의 static_assert 가 그걸 지킨다.
         const VertexAttributeDesc instanceAttributes[] = {
             {1, 0, VertexFormat::Float4},
-            {2, 16, VertexFormat::Float4},
-            {3, 32, VertexFormat::Float4},
-            {4, 48, VertexFormat::Float4},
-            {5, 64, VertexFormat::Float4}};
+            {2, 16, VertexFormat::Float3},
+            {3, 28, VertexFormat::Float4}};
         const VertexBufferLayoutDesc vertexLayouts[] = {
             {sizeof(float) * 2, VertexStepMode::Vertex, {vertexAttributes, 1}},
-            {sizeof(GpuSpriteInstance), VertexStepMode::Instance, {instanceAttributes, 5}}};
+            {sizeof(GpuSpriteInstance), VertexStepMode::Instance, {instanceAttributes, 3}}};
         const TextureFormat colorFormats[] = {m_config.backBufferFormat};
 
         GraphicsPipelineDesc pipelineDesc;

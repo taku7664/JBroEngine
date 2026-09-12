@@ -1,8 +1,10 @@
-#pragma once
+﻿#pragma once
 
 #include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/RHI/RHI.h>
 #include <JBro/Types/Array.h>
+
+#include <cstddef>
 
 namespace JBro
 {
@@ -40,13 +42,25 @@ namespace JBro
         AssetHandle postProcessProfile;
     };
 
+    // 2D 스프라이트의 월드 변환이다. 열 벡터 규약의 2x3 아핀 여섯 값과 깊이 하나를 담는다(D-54).
+    //   x' = linear[0]*x + linear[1]*y + translation[0]
+    //   y' = linear[2]*x + linear[3]*y + translation[1]
+    // 4x4 로 넘길 때 사라지던 것은 항상 같던 z 행과 w 행뿐이다.
+    struct SpriteTransform2D
+    {
+        float linear[4] = {1.0f, 0.0f, 0.0f, 1.0f};
+        float translation[2] = {0.0f, 0.0f};
+        float depth = 0.0f;
+    };
+
+    // 정렬과 레이어 합성은 프레임워크가 제출 전에 끝낸다.
+    // 렌더러는 받은 순서대로 그린다(D-53).
     struct SpriteSubmit
     {
-        Matrix4x4 world;
+        SpriteTransform2D world;
         AssetHandle sprite;
         AssetHandle material;
         float tint[4] = {1.0f, 1.0f, 1.0f, 1.0f};
-        std::int32_t renderOrder = 0;
     };
 
     struct MeshSubmit
@@ -107,11 +121,22 @@ namespace JBro
             std::uint32_t meshCount = 0;
         };
 
+        // 이 멤버 순서가 정점 속성 오프셋이고 BuiltinSprite.hlsl 의 ABI 다.
+        // 크기나 순서를 바꾸면 셰이더도 함께 다시 만든다(Shaders/Compile.ps1).
         struct GpuSpriteInstance
         {
-            Matrix4x4 world;
+            SpriteTransform2D world;
             float tint[4] = {1.0f, 1.0f, 1.0f, 1.0f};
         };
+
+        static_assert(sizeof(SpriteTransform2D) == 28,
+            "sprite transform layout is part of the shader ABI");
+        static_assert(sizeof(GpuSpriteInstance) == 44,
+            "sprite instance stride is part of the shader ABI");
+        static_assert(offsetof(GpuSpriteInstance, world) == 0,
+            "instance attribute 1 and 2 read the transform from offset 0");
+        static_assert(offsetof(GpuSpriteInstance, tint) == 28,
+            "instance attribute 3 reads the tint from offset 28");
 
         static constexpr std::uint32_t InvalidViewIndex = 0xFFFFFFFFu;
         static constexpr std::uint32_t MaxFrameSlots = 3;
