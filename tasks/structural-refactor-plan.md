@@ -442,6 +442,13 @@ D-47 은 `Canvas::GetHierarchyVersion()` 이 바뀔 때만 `Transform2D*` 배열
 | `CacheTypeId` 를 no-op 으로 | `single component lookup must return the first matching component` |
 | 정렬 키에서 레이어 순서 제거 | `layer order must outrank renderOrder when sorting` |
 | 풀의 ControlBlock 재활용 비활성화 | `spawning inside the reserved capacity must not allocate at all` |
+| `DestroyComponent` 가 순회 중에도 즉시 파괴 | `components may not leave their owner before the safe point` |
+| `FlushPendingDestroy` 가 컴포넌트 큐를 안 비움 | `flushing must detach every queued component` |
+| `Transform2DSystem` 이 `worldValid` 를 안 세움 | `default systems must collect all sprites` |
+| 부모 월드를 곱하지 않음 (계층 무시) | `parent rotation must affect child world x` |
+| 스크립트 DLL 에 레지스트리 바인딩 제거 | `a loaded script DLL must resolve references through the host registry` |
+
+**13개 변이 모두 겨냥한 단언에서 잡혔다.** 엉뚱한 곳에서 터진 것은 없다.
 
 **테스트가 스스로 틀렸던 두 번.** 부모·자식 지연 파괴 테스트는 "부모가 먼저 파괴되어 자식 항목이
 만료된 경로"를 덮는다고 주석에 썼지만 덮지 않았다. 큐는 LIFO 이고 순회 순서를 정하는 것은
