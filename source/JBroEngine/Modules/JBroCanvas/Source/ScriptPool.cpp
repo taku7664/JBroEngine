@@ -1,5 +1,6 @@
 ﻿#include <JBro/Canvas/ScriptPool.h>
 
+#include <cassert>
 #include <new>
 
 namespace JBro
@@ -158,7 +159,13 @@ namespace JBro
         slot.script = script;
         slot.alive = true;
         // 참조가 남은 블록은 재활용하지 않는다. 남의 수명을 살아 있다고 말하게 된다.
-        if (slot.controlBlock != nullptr && slot.controlBlock->SafeCount == 0)
+        //
+        // 여기 남아 있는 블록은 참조가 0 인 것뿐이다 — Destroy 가 참조 남은 블록을
+        // 슬롯에서 떼어 놓기 때문이다. 조건으로 한 번 더 거르면 그 코드는 절대
+        // 실행되지 않아 틀렸는지도 알 수 없다. 불변식을 단언으로 둔다.
+        assert((slot.controlBlock == nullptr || slot.controlBlock->SafeCount == 0)
+            && "Destroy must detach a control block that still has references");
+        if (slot.controlBlock != nullptr)
         {
             slot.controlBlock->Ptr = script;
             slot.controlBlock->Alive = true;
