@@ -3,6 +3,7 @@
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Host/ScriptDLLLoader.h>
 #include <JBro/Internal/InstanceRegistry.h>
+#include <JBro/Types/NameTable.h>
 #include <JBro/Runtime/ScriptModule.h>
 #include <JBro/Runtime/ServiceContext.h>
 #include <JBro/Runtime/SystemContext.h>
@@ -577,6 +578,22 @@ namespace
         Check(getRegistry() == reinterpret_cast<std::uintptr_t>(
                 &JBro::Internal::InstanceRegistry::Local()),
             "a loaded script DLL must resolve references through the host registry");
+
+        // 이름표도 같은 방식으로 붙어야 한다. 붙지 않으면 DLL 이 호스트가 지은
+        // 태그의 원문을 되찾지 못하고 빈 문자열만 본다.
+        using ResolveName = const char* (*)(std::uint64_t) noexcept;
+        const auto getNameTable = reinterpret_cast<ReadAddress>(
+            loader.GetSymbol("JBroScriptProbe_GetNameTable"));
+        const auto resolveName = reinterpret_cast<ResolveName>(
+            loader.GetSymbol("JBroScriptProbe_ResolveName"));
+        Check(getNameTable != nullptr && resolveName != nullptr,
+            "the real script probe must expose its name table view");
+        Check(getNameTable() == reinterpret_cast<std::uintptr_t>(&JBro::NameTable::Local()),
+            "a loaded script DLL must resolve names through the host name table");
+        const JBro::NameId hostName = JBro::NameTable::Local().Intern("host side name");
+        const char* fromDll = resolveName(hostName);
+        Check(fromDll != nullptr && std::strcmp(fromDll, "host side name") == 0,
+            "a script DLL must read back a name the host interned");
         Check(getLocalRegistry() != getRegistry(),
             "the DLL's own statically linked registry must be a different object");
         Check(getRevision() == 1,

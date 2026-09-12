@@ -1,6 +1,7 @@
 ﻿#include <JBro/Framework2D/ServiceContext.h>
 #include <JBro/Framework2D/Internal/ScriptModuleContext.h>
 #include <JBro/Internal/InstanceRegistry.h>
+#include <JBro/Types/NameTable.h>
 
 #include <cstdint>
 
@@ -111,6 +112,19 @@ extern "C" __declspec(dllexport) std::uintptr_t JBroScriptProbe_GetRegistry() no
 extern "C" __declspec(dllexport) std::uintptr_t JBroScriptProbe_GetLocalRegistry() noexcept
 {
     return reinterpret_cast<std::uintptr_t>(&JBro::Internal::InstanceRegistry::Local());
+}
+
+// 이름표도 같은 함정이 있다. 붙지 않았다면 이 DLL 사본 주소가 나오고,
+// 호스트가 지은 태그의 원문을 이 안에서는 되찾지 못한다(D-51).
+extern "C" __declspec(dllexport) std::uintptr_t JBroScriptProbe_GetNameTable() noexcept
+{
+    return reinterpret_cast<std::uintptr_t>(&JBro::NameTable::Get());
+}
+
+// 호스트가 이미 보관한 원문을 DLL 안에서 되찾을 수 있는지 직접 본다.
+extern "C" __declspec(dllexport) const char* JBroScriptProbe_ResolveName(std::uint64_t id) noexcept
+{
+    return JBro::NameTable::Get().Resolve(id);
 }
 
 extern "C" __declspec(dllexport) std::uint32_t JBroScriptProbe_GetRevision() noexcept
