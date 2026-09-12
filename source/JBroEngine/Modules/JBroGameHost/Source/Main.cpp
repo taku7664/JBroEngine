@@ -3,7 +3,7 @@
 #include <JBro/Host/EngineInstance.h>
 
 #if defined(JBRO_GAME_DIMENSION_2D)
-#include <JBro/Framework2D/Framework2D.h>
+#include <JBro/Framework2DSystem/Framework2D.h>
 #elif defined(JBRO_GAME_DIMENSION_3D)
 #include <JBro/Framework3D/Framework3D.h>
 #else

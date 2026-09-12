@@ -12,8 +12,18 @@
 
   <PropertyGroup Label="JBroScriptTarget">
     <JBroScriptDimension Condition="'$(JBroScriptDimension)' == ''">2D</JBroScriptDimension>
+    <!--
+      스크립트 타깃이 받는 include 경로. 선택한 차원의 Tier S 모듈만 넣는다.
+      시스템·렌더 추출 같은 실행 계층을 여기에 넣으면 사용자 코드가 그것을 볼 수 있게 된다.
+    -->
     <JBroScriptFrameworkIncludes Condition="'$(JBroScriptDimension)' == '2D'">$(JBroModulesDir)JBroFramework2D\Include</JBroScriptFrameworkIncludes>
     <JBroScriptFrameworkIncludes Condition="'$(JBroScriptDimension)' == '3D'">$(JBroModulesDir)JBroFramework3D\Include</JBroScriptFrameworkIncludes>
+    <!--
+      호스트가 추가로 받는 실행 계층 경로. 게임 호스트는 선택한 차원의 Framework 를 직접 생성한다.
+      Framework3D 는 아직 시스템이 없어 한 모듈이며, 생기면 2D 와 같은 방식으로 나눈다.
+    -->
+    <JBroHostFrameworkIncludes Condition="'$(JBroScriptDimension)' == '2D'">$(JBroModulesDir)JBroFramework2DSystem\Include</JBroHostFrameworkIncludes>
+    <JBroHostFrameworkIncludes Condition="'$(JBroScriptDimension)' == '3D'">$(JBroModulesDir)JBroFramework3D\Include</JBroHostFrameworkIncludes>
   </PropertyGroup>
 
   <PropertyGroup Label="JBroToolset">

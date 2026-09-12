@@ -4,7 +4,7 @@
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
-#include <JBro/Framework2D/Framework2D.h>
+#include <JBro/Framework2DSystem/Framework2D.h>
 #include <JBro/Framework2D/Layer2D.h>
 #include <JBro/Framework3D/Framework3D.h>
 #include <JBro/Canvas/Canvas.h>

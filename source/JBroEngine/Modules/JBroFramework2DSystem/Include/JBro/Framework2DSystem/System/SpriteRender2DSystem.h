@@ -1,18 +1,18 @@
 ﻿#pragma once
 
-#include <JBro/Framework2D/Rendering/RenderWorld2D.h>
+#include <JBro/Framework2DSystem/Rendering/RenderWorld2D.h>
 #include <JBro/Canvas/GameSystem.h>
 
 namespace JBro::System
 {
-    class Camera2DSystem final : public GameSystem
+    class SpriteRender2DSystem final : public GameSystem
     {
     public:
         int GetExecutionOrder() const override;
 
         void SetRenderWorld(RenderWorld2D* renderWorld);
-        // Caller begins/ends the frame; transforms must be updated before extraction.
-        // Selects the first active primary camera with an invertible world transform.
+        // Appends to caller-reserved storage after transform update and BeginFrame.
+        // Overflow is reported by RenderWorld2D::GetDroppedSpriteCount().
         void ExtractRenderWorld(Canvas& canvas);
 
     protected:

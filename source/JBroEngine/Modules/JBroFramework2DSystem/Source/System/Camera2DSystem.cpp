@@ -1,4 +1,4 @@
-﻿#include <JBro/Framework2D/System/Camera2DSystem.h>
+﻿#include <JBro/Framework2DSystem/System/Camera2DSystem.h>
 
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Framework2D/Component/Camera2D.h>

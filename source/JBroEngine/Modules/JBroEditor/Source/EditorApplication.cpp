@@ -1,7 +1,7 @@
 ﻿#include <JBro/Editor/EditorApplication.h>
 
 #include <JBro/D3D12RHI/D3D12RHI.h>
-#include <JBro/Framework2D/Framework2D.h>
+#include <JBro/Framework2DSystem/Framework2D.h>
 #include <JBro/Framework3D/Framework3D.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Host/EngineInstance.h>

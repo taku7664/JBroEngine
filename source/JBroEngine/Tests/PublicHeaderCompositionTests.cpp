@@ -1,5 +1,5 @@
 #include <JBro/ScriptAPI.h>
-#include <JBro/Framework2D/Framework2D.h>
+#include <JBro/Framework2DSystem/Framework2D.h>
 
 #include <iostream>
 #include <stdexcept>

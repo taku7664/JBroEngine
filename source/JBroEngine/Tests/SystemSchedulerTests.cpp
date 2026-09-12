@@ -1,6 +1,6 @@
 ﻿#include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/SystemScheduler.h>
-#include <JBro/Framework2D/Framework2D.h>
+#include <JBro/Framework2DSystem/Framework2D.h>
 
 #include <cmath>
 #include <limits>
