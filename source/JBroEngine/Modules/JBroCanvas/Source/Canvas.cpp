@@ -144,7 +144,7 @@ namespace JBro
 
         while (false == object->m_components.IsEmpty())
         {
-            SafePtr<ComponentBase> componentRef = object->m_components.Last();
+            SafePtr<ComponentBase> componentRef = object->m_components.Last().reference;
             ComponentBase* component = componentRef.TryGet();
             if (component == nullptr)
             {

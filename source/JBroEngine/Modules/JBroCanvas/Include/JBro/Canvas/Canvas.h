@@ -4,6 +4,7 @@
 #include <JBro/Core/ObjectPool.h>
 #include <JBro/Core/StableTypeId.h>
 #include <JBro/Runtime/Component.h>
+#include <JBro/Runtime/ComponentLookupStats.h>
 #include <JBro/Runtime/GameObject.h>
 #include <JBro/Canvas/Layer.h>
 #include <JBro/Canvas/SystemScheduler.h>
@@ -239,10 +240,16 @@ namespace JBro
         }
 
         static constexpr ComponentTypeId TypeId = MakeStableTypeId(T::StaticTypeName());
-        for (const SafePtr<ComponentBase>& componentRef : owner->m_components)
+        ++Diagnostics::ComponentLookupCounters::Get().lookups;
+        for (const ComponentSlot& slot : owner->m_components)
         {
-            ComponentBase* component = componentRef.TryGet();
-            if (component != nullptr && component->GetCachedTypeId() == TypeId)
+            // 타입 비교는 슬롯 안에서 끝난다. 맞는 것 하나만 따라간다.
+            if (slot.typeId != TypeId)
+            {
+                continue;
+            }
+            ++Diagnostics::ComponentLookupCounters::Get().dereferences;
+            if (ComponentBase* component = slot.reference.TryGet())
             {
                 return static_cast<T*>(component);
             }
@@ -261,10 +268,15 @@ namespace JBro
         }
 
         static constexpr ComponentTypeId TypeId = MakeStableTypeId(T::StaticTypeName());
-        for (const SafePtr<ComponentBase>& componentRef : owner->m_components)
+        ++Diagnostics::ComponentLookupCounters::Get().lookups;
+        for (const ComponentSlot& slot : owner->m_components)
         {
-            ComponentBase* component = componentRef.TryGet();
-            if (component != nullptr && component->GetCachedTypeId() == TypeId)
+            if (slot.typeId != TypeId)
+            {
+                continue;
+            }
+            ++Diagnostics::ComponentLookupCounters::Get().dereferences;
+            if (ComponentBase* component = slot.reference.TryGet())
             {
                 results.Add(static_cast<T*>(component));
             }

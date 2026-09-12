@@ -17,6 +17,15 @@ namespace JBro
     class GameObjectHandle;
     class Layer;
 
+    // 오브젝트가 들고 있는 컴포넌트 하나다. 타입 id 를 참조 옆에 복사해 두어,
+    // 타입으로 찾을 때 후보마다 제어 블록을 따라가지 않게 한다(§3.4).
+    // id 는 컴포넌트 수명 내내 바뀌지 않으므로 이 사본이 어긋날 수 없다.
+    struct ComponentSlot
+    {
+        SafePtr<ComponentBase> reference;
+        ComponentTypeId        typeId = 0;
+    };
+
     // TObjectPool 이 소유하는 주소 안정 객체. Transform 은 멤버가 아니라 컴포넌트다.
     class GameObject final : public EnableSafeFromThis<GameObject>
     {
@@ -53,7 +62,7 @@ namespace JBro
         void          SetFlags(std::uint32_t flags);
 
         // 컴포넌트 풀의 주소를 SafePtr 로만 기록한다. 조회는 캐시 친화적인 선형 순회다.
-        const Array<SafePtr<ComponentBase>>& GetComponents() const;
+        const Array<ComponentSlot>& GetComponents() const;
 
         template<typename T>
         Ref<T> GetComponent() const;
@@ -86,7 +95,7 @@ namespace JBro
         DestroyFunction              m_destroyFunction = nullptr;
         SafePtr<GameObject>           m_parent;
         Array<SafePtr<GameObject>>    m_children;
-        Array<SafePtr<ComponentBase>> m_components;
+        Array<ComponentSlot> m_components;
         SafePtr<Layer>                m_layer;
         std::uint32_t                 m_layerIndex = 0;
         std::uint32_t                 m_flags = 0;
@@ -116,10 +125,14 @@ namespace JBro
         static constexpr ComponentTypeId TypeId = MakeStableTypeId(T::StaticTypeName());
 
         Array<Ref<T>> result;
-        for (const SafePtr<ComponentBase>& componentRef : m_components)
+        for (const ComponentSlot& slot : m_components)
         {
-            ComponentBase* component = componentRef.TryGet();
-            if (component != nullptr && component->GetCachedTypeId() == TypeId)
+            if (slot.typeId != TypeId)
+            {
+                continue;
+            }
+            ComponentBase* component = slot.reference.TryGet();
+            if (component != nullptr)
             {
                 Ref<T> reference;
                 reference.ObjectId = m_instanceId;

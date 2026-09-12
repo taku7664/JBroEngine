@@ -1,5 +1,6 @@
 ﻿#include <JBro/Core/Core.h>
 #include <JBro/Canvas/Canvas.h>
+#include <JBro/Runtime/ComponentLookupStats.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
@@ -400,6 +401,53 @@ namespace
         world.EndFrame();
     }
 
+    // §3.4 의 비용을 숫자로 남긴다. 계층이 깊고 Transform 이 마지막에 붙은,
+    // 타입 조회에 가장 불리한 배치다.
+    void TestDeepHierarchyLookupBudget()
+    {
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        constexpr int Depth = 8;
+        constexpr int Chains = 25;
+
+        for (int chain = 0; chain < Chains; ++chain)
+        {
+            JBro::GameObject* parent = nullptr;
+            for (int level = 0; level < Depth; ++level)
+            {
+                JBro::GameObject* object = canvas.CreateObject("node");
+                // Transform 을 마지막에 붙여 스캔이 가장 멀리 가게 만든다.
+                canvas.AttachComponent<JBro::Component::SpriteRenderer2D>(object);
+                canvas.AttachComponent<JBro::Component::Collider2D>(object);
+                canvas.AttachComponent<JBro::Component::Rigidbody2D>(object);
+                canvas.AttachComponent<JBro::Component::Transform2D>(object);
+                if (parent != nullptr)
+                {
+                    object->SetParent(parent);
+                }
+                parent = object;
+            }
+        }
+
+        JBro::System::Transform2DSystem transforms;
+        transforms.Initialize(canvas);
+        JBro::Diagnostics::ComponentLookupCounters::Reset();
+        transforms.Update(canvas, 0.0f);
+        const std::size_t lookups = JBro::Diagnostics::ComponentLookupCounters::Get().lookups;
+        const std::size_t dereferences = JBro::Diagnostics::ComponentLookupCounters::Get().dereferences;
+        std::cout << "  [measure] " << (Depth * Chains) << "-node hierarchy, transform attached last: lookups="
+            << lookups << " dereferences=" << dereferences << std::endl;
+
+        // 노드마다 조회는 둘까지다 — 루트인지 보는 부모 조회 하나, 부모의 내림에서
+        // 자식 Transform 을 찾는 하나. 루트는 부모가 없어 앞의 것이 일어나지 않는다.
+        Check(lookups <= static_cast<std::size_t>(2 * Depth * Chains),
+            "a hierarchy pass must not need more than two type lookups per node");
+        // 이 비율이 조회 비용의 실체다. 찾는 컴포넌트가 목록의 몇 번째든
+        // 제어 블록은 한 번만 따라가야 한다.
+        Check(dereferences <= lookups + static_cast<std::size_t>(Depth * Chains),
+            "a type lookup must dereference the component it wants, not the ones before it");
+        transforms.Shutdown(canvas);
+    }
+
     void TestRenderWorldCollection()
     {
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
@@ -491,6 +539,7 @@ int RunFramework2DSystemTests()
     TestLayerOrderDrivesSpriteSorting();
     TestPhysicsGravityIntegration();
     TestPhysicsQueries();
+    TestDeepHierarchyLookupBudget();
     TestRenderWorldCollection();
     TestRenderExtraction();
     TestRenderWorldCapacityLimit();

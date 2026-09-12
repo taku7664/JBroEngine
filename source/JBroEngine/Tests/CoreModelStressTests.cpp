@@ -211,14 +211,17 @@ namespace
         auto* body = canvas.AttachComponent<JBro::Component::Rigidbody2D>(object);
         Check(transform && sprite && body, "typed fixture must attach three kinds");
 
-        for (const JBro::SafePtr<JBro::ComponentBase>& reference : object->GetComponents())
+        for (const JBro::ComponentSlot& slot : object->GetComponents())
         {
-            JBro::ComponentBase* component = reference.TryGet();
+            JBro::ComponentBase* component = slot.reference.TryGet();
             Check(component != nullptr, "every attached component must be reachable");
             Check(component->GetCachedTypeId() == component->GetTypeId(),
                 "the cached type must agree with the virtual answer");
             Check(component->GetCachedTypeId() != JBro::InvalidComponentTypeId,
                 "the cache must be filled at attach time");
+            // 슬롯의 사본이 컴포넌트 자신의 답과 어긋나면 타입 조회가 조용히 빗나간다.
+            Check(slot.typeId == component->GetCachedTypeId(),
+                "the slot must carry the same type id the component reports");
         }
 
         // 같은 타입이 여럿일 때 조회가 첫 번째를 준다(D-31).

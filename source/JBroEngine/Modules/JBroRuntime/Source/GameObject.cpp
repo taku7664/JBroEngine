@@ -151,7 +151,7 @@ namespace JBro
         m_flags = flags;
     }
 
-    const Array<SafePtr<ComponentBase>>& GameObject::GetComponents() const
+    const Array<ComponentSlot>& GameObject::GetComponents() const
     {
         return m_components;
     }
@@ -188,7 +188,12 @@ namespace JBro
         {
             return;
         }
-        m_components.Add(std::move(safe));
+        // 타입 id 를 참조 옆에 둔다. 타입으로 찾을 때 후보마다 제어 블록을
+        // 따라가지 않기 위해서다 — 그 추적이 매 프레임 캐시 미스였다(§3.4).
+        ComponentSlot slot;
+        slot.typeId = component->GetCachedTypeId();
+        slot.reference = std::move(safe);
+        m_components.Add(std::move(slot));
         component->SetOwner(this);
     }
 
@@ -200,9 +205,9 @@ namespace JBro
         }
 
         const std::size_t removed = m_components.RemoveAll(
-            [component](const SafePtr<ComponentBase>& candidate)
+            [component](const ComponentSlot& candidate)
             {
-                return candidate.TryGet() == component;
+                return candidate.reference.TryGet() == component;
             });
         if (removed == 0)
         {
@@ -214,10 +219,14 @@ namespace JBro
 
     InstanceRef GameObject::FindComponentReference(ComponentTypeId typeId) const
     {
-        for (const SafePtr<ComponentBase>& componentRef : m_components)
+        for (const ComponentSlot& slot : m_components)
         {
-            ComponentBase* component = componentRef.TryGet();
-            if (component != nullptr && component->GetCachedTypeId() == typeId)
+            if (slot.typeId != typeId)
+            {
+                continue;
+            }
+            ComponentBase* component = slot.reference.TryGet();
+            if (component != nullptr)
             {
                 InstanceRef result;
                 result.ObjectId = m_instanceId;

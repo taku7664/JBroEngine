@@ -2,6 +2,7 @@
 
 #include <JBro/Framework2DSystem/Framework2D.h>
 #include <JBro/Host/EngineInstance.h>
+#include <JBro/Runtime/ComponentLookupStats.h>
 
 #include <cmath>
 #include <cstring>
@@ -749,6 +750,7 @@ namespace
 #if defined(_MSC_VER) && defined(_DEBUG)
             FrameAllocationProbe allocationProbe;
 #endif
+            JBro::Diagnostics::ComponentLookupCounters::Reset();
             framework.Update(0.0f);
             Check(framework.GetRenderWorld()->GetSpriteCount() == 70, "default systems must collect all sprites");
             Check(framework.GetRenderWorld()->GetSprite(0).renderOrder == 0, "collection must be sorted before submission");
@@ -760,6 +762,16 @@ namespace
 #if defined(_MSC_VER) && defined(_DEBUG)
         Check(frameAllocations == 0, "framework update, extraction, sorting and renderer submission must not allocate on the CRT heap");
 #endif
+        // 매 프레임 경로의 타입 조회 예산이다(§3.4). dereferences 가 lookups 보다
+        // 훨씬 크면 오브젝트마다 후보를 줄줄이 따라가고 있다는 뜻이다.
+        const std::size_t frameLookups = JBro::Diagnostics::ComponentLookupCounters::Get().lookups;
+        const std::size_t frameDereferences = JBro::Diagnostics::ComponentLookupCounters::Get().dereferences;
+        std::cout << "  [measure] 70-sprite frame: lookups=" << frameLookups
+            << " dereferences=" << frameDereferences << std::endl;
+        Check(frameLookups <= 3 * 71,
+            "a flat 70-sprite frame must not need more than a few type lookups per object");
+        Check(frameDereferences <= 2 * frameLookups,
+            "a type lookup must not walk far past the component it wants");
         Check(module.device.uploadedInstanceCount == 70 && module.device.commands.drawIndexedInstancedCount == 1,
             "70 converted packets must become a single GPU instance upload and draw");
         const auto close = [](float a, float b) { return std::fabs(a - b) < 0.0001f; };
