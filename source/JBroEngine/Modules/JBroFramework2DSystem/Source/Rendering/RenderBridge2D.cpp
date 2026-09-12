@@ -76,18 +76,19 @@ namespace JBro::Internal
         }
     }
 
-    bool SubmitRenderWorld2D(const RenderWorld2D& world, Renderer& renderer)
+    RenderResult SubmitRenderWorld2D(const RenderWorld2D& world, Renderer& renderer)
     {
         const RenderCamera2D* camera = world.GetCamera();
         if (camera == nullptr)
         {
-            return true;
+            // 카메라가 없는 것은 오류가 아니다. 그릴 대상이 없을 뿐이다.
+            return RenderResult::NothingToSubmit;
         }
         CameraParams parameters;
         if (false == BuildCamera(*camera, renderer.GetSurfaceExtent(), parameters)
             || false == renderer.BeginView(parameters))
         {
-            return false;
+            return RenderResult::Failed;
         }
         constexpr std::size_t BatchSize = 64;
         SpriteSubmit batch[BatchSize];
@@ -106,6 +107,6 @@ namespace JBro::Internal
             }
         }
         const bool closed = renderer.EndView();
-        return accepted && closed;
+        return (accepted && closed) ? RenderResult::Submitted : RenderResult::Failed;
     }
 }

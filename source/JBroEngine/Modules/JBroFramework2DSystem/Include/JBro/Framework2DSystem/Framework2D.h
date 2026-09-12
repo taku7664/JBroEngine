@@ -28,7 +28,7 @@ namespace JBro
         bool BindScriptContexts() noexcept override;
         void UnbindScriptContexts() noexcept override;
         void Update(float deltaTime) override;
-        bool Render() override;
+        RenderResult Render() override;
         void Shutdown() override;
 
         Canvas*        GetCanvas();

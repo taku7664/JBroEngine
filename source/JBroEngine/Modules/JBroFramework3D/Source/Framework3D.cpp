@@ -68,10 +68,11 @@ namespace JBro
         m_canvas->FlushPendingDestroy();
     }
 
-    bool Framework3D::Render()
+    RenderResult Framework3D::Render()
     {
         // The 3D backend is a declared extension point, not a functioning renderer yet.
-        return false;
+        // 제출할 것이 없는 것과 실패는 다르다. 호스트는 계속 돌아야 한다(D-49).
+        return RenderResult::NothingToSubmit;
     }
 
     void Framework3D::Shutdown()

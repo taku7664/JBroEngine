@@ -1,5 +1,7 @@
 ﻿#pragma once
 
+#include <JBro/Host/IFramework.h>
+
 namespace JBro
 {
     class Renderer;
@@ -7,6 +9,6 @@ namespace JBro
     namespace Internal
     {
         // Submits views inside a host-owned Renderer frame.
-        bool SubmitRenderWorld2D(const RenderWorld2D& world, Renderer& renderer);
+        RenderResult SubmitRenderWorld2D(const RenderWorld2D& world, Renderer& renderer);
     }
 }

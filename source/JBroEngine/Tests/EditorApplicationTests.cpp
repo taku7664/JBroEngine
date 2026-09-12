@@ -34,8 +34,9 @@ namespace
         Check(editor.OpenProject(project), "editor must open a 2D project");
         Check(false == editor.OpenProject(project), "editor must reject opening over a live project");
         Check(editor.Tick(1.0f / 60.0f), "editor must tick its project through EngineInstance");
-        Check(editor.GetLastFrameStatus() == JBro::FrameStatus::Ready,
-            "editor must expose the engine frame result");
+        // 카메라 없는 빈 프로젝트는 제출할 것이 없다. 실패가 아니라 버려진 프레임이다(D-49).
+        Check(editor.GetLastFrameStatus() == JBro::FrameStatus::Skipped,
+            "a 2D project without a camera must report a skipped frame, not a presented one");
         editor.CloseProject();
         Check(editor.IsInitialized() && false == editor.HasOpenProject(),
             "project close must preserve the editor process");
@@ -44,6 +45,22 @@ namespace
             "projectless editor tick must skip GPU submission");
         Check(editor.OpenProject(project) && editor.Tick(1.0f / 60.0f),
             "editor must reopen a project on its live process resources");
+        editor.CloseProject();
+
+        // 3D 백엔드는 아직 그리지 않지만, 그것이 호스트를 끝내는 이유가 되어서는 안 된다(F-7).
+        JBro::ProjectDescriptor project3D;
+        project3D.framework = JBro::FrameworkKind::Framework3D;
+        project3D.graphicsApi = JBro::GraphicsApi::D3D12;
+        Check(editor.OpenProject(project3D), "editor must open a 3D project");
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(1.0f / 60.0f),
+                "a 3D project must keep ticking even though its renderer submits nothing");
+            Check(editor.GetLastFrameStatus() == JBro::FrameStatus::Skipped,
+                "a non-submitting 3D frame must be skipped, not an invalid state");
+        }
+        Check(editor.IsInitialized() && editor.HasOpenProject(),
+            "repeated empty 3D frames must leave the editor process and project alive");
         editor.Shutdown();
         Check(false == editor.IsInitialized() && false == editor.HasOpenProject(),
             "editor shutdown must release project and process resources");

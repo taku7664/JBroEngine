@@ -1,4 +1,4 @@
-#include <JBro/Graphics/Renderer.h>
+﻿#include <JBro/Graphics/Renderer.h>
 
 #include <JBro/Framework2DSystem/Framework2D.h>
 #include <JBro/Host/EngineInstance.h>
@@ -403,14 +403,14 @@ namespace
                 throw std::runtime_error("expected update failure");
             }
         }
-        bool Render() override
+        JBro::RenderResult Render() override
         {
             ++renders;
             if (closeDuringRender)
             {
                 engine->CloseProject();
             }
-            return renderSucceeds;
+            return renderResult;
         }
         void Shutdown() override
         {
@@ -435,7 +435,7 @@ namespace
         bool contextsBound = false;
         bool bindContextsSucceeds = true;
         bool initializeSucceeds = true;
-        bool renderSucceeds = true;
+        JBro::RenderResult renderResult = JBro::RenderResult::Submitted;
         bool exitDuringUpdate = false;
         bool throwDuringUpdate = false;
         bool throwDuringInitialize = false;
@@ -617,16 +617,33 @@ namespace
 
         module.device.beginStatus = JBro::FrameStatus::Ready;
         Check(InitializeHost(engine, config, platform, module, framework), "host must reopen after teardown");
-        framework.renderSucceeds = false;
+        framework.renderResult = JBro::RenderResult::Failed;
         Check(false == engine.Tick(0.016f), "failed submission must terminate the host");
         Check(engine.GetLastFrameStatus() == JBro::FrameStatus::InvalidState, "submission failure must survive cleanup as an error");
         Check(module.device.abortFrameCount == 1, "failed submission must abort before teardown");
-        framework.renderSucceeds = true;
+        framework.renderResult = JBro::RenderResult::Submitted;
         framework.initializeSucceeds = false;
         Check(false == InitializeHost(engine, config, platform, module, framework), "framework failure must roll back init");
         Check(false == platform.open && framework.shutdowns == 3, "partial framework init must also release in order");
         framework.initializeSucceeds = true;
         Check(InitializeHost(engine, config, platform, module, framework), "host must reopen after init failure");
+
+        // 그릴 것이 없는 프레임은 오류가 아니다(D-49/F-7).
+        framework.renderResult = JBro::RenderResult::NothingToSubmit;
+        const auto beforeEmptyRenders = framework.renders;
+        const auto beforeEmptyAborts = module.device.abortFrameCount;
+        const auto beforeEmptyEnds = module.device.endFrameCount;
+        Check(engine.Tick(0.016f) && engine.IsRunning(), "a frame with nothing to submit must keep the host running");
+        Check(engine.GetLastFrameStatus() == JBro::FrameStatus::Skipped,
+            "nothing to submit must report a skipped frame, not a failure");
+        Check(framework.renders == beforeEmptyRenders + 1
+            && module.device.abortFrameCount == beforeEmptyAborts + 1
+            && module.device.endFrameCount == beforeEmptyEnds,
+            "an empty frame must reach the framework and abort without presenting");
+        Check(engine.Tick(0.016f) && engine.Tick(0.016f) && engine.IsRunning(),
+            "the host must survive repeated empty frames");
+        framework.renderResult = JBro::RenderResult::Submitted;
+
         framework.exitDuringUpdate = true;
         const auto beforeExitRender = framework.renders;
         Check(false == engine.Tick(0.016f) && framework.renders == beforeExitRender,
@@ -718,7 +735,7 @@ namespace
             Check(framework.GetRenderWorld()->GetSpriteCount() == 70, "default systems must collect all sprites");
             Check(framework.GetRenderWorld()->GetSprites()[0].renderOrder == 0, "collection must be sorted before submission");
             Check(renderer.BeginFrame() == JBro::FrameStatus::Ready, "host must open the renderer frame");
-            Check(framework.Render(), "framework must submit across the 64-item batch boundary");
+            Check(framework.Render() == JBro::RenderResult::Submitted, "framework must submit across the 64-item batch boundary");
             Check(module.device.commands.drawIndexedInstancedCount == 0, "framework must only collect before EndFrame");
             Check(renderer.EndFrame() == JBro::FrameStatus::Ready, "host must finish the renderer frame");
         }
@@ -739,7 +756,8 @@ namespace
 
         Check(renderer.ResizeSurface({100, 200}), "integration surface must resize");
         framework.Update(0.0f);
-        Check(renderer.BeginFrame() == JBro::FrameStatus::Ready && framework.Render(), "framework must render at resized extent");
+        Check(renderer.BeginFrame() == JBro::FrameStatus::Ready
+            && framework.Render() == JBro::RenderResult::Submitted, "framework must render at resized extent");
         Check(renderer.EndFrame() == JBro::FrameStatus::Ready, "resized frame must finish");
         Check(close(module.device.commands.viewProjection.values[0], 0.2f)
             && close(module.device.commands.viewport.height, 200.0f), "resize must refresh projection and viewport");
@@ -747,7 +765,7 @@ namespace
         Check(canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(object) != nullptr, "overflow sprite must attach");
         framework.Update(0.0f);
         Check(renderer.BeginFrame() == JBro::FrameStatus::Ready, "overflow frame must begin");
-        Check(false == framework.Render(), "collection overflow must reach the host");
+        Check(framework.Render() == JBro::RenderResult::Failed, "collection overflow must reach the host");
         renderer.AbortFrame();
         Check(module.device.abortFrameCount == 1 && module.device.endFrameCount == 2,
             "failed frame must abort without presenting partial content");
@@ -757,7 +775,9 @@ namespace
             "shutdown must discard both canvas and stale frame packets");
         Check(framework.Initialize(context), "framework must support project reopening");
         framework.Update(0.0f);
-        Check(renderer.BeginFrame() == JBro::FrameStatus::Ready && framework.Render(), "empty reopened project must submit no views");
+        Check(renderer.BeginFrame() == JBro::FrameStatus::Ready
+            && framework.Render() == JBro::RenderResult::NothingToSubmit,
+            "empty reopened project must report nothing to submit, not success");
         Check(renderer.EndFrame() == JBro::FrameStatus::Ready, "reopened frame must finish");
         Check(renderer.GetLastFrameStats().spriteCount == 0, "reopened project must not replay stale sprites");
     }

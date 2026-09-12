@@ -7,6 +7,17 @@ namespace JBro
     class AssetSystem;
     class Renderer;
 
+    // Render()의 세 가지 결말이다. "제출할 것이 없다"는 상태이지 실패가 아니다(D-49).
+    enum class RenderResult : std::uint8_t
+    {
+        // 뷰와 패킷을 모두 넘겼다. 호스트는 프레임을 닫고 제시한다.
+        Submitted,
+        // 그릴 것이 없다. 호스트는 프레임을 버리고 계속 돌린다.
+        NothingToSubmit,
+        // 제출 도중 실패했다. 호스트는 프레임을 버리고 오류로 올린다.
+        Failed
+    };
+
     struct FrameworkContext
     {
         JMemoryContext memory;
@@ -28,7 +39,7 @@ namespace JBro
         virtual void UnbindScriptContexts() noexcept = 0;
         virtual void Update(float deltaTime) = 0;
         // Host opens/closes the Renderer frame. Framework submits its views and packets only.
-        virtual bool Render() = 0;
+        virtual RenderResult Render() = 0;
         virtual void Shutdown() = 0;
     };
 }

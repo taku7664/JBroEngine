@@ -203,7 +203,7 @@ namespace
             {
                 framework.Update(1.0f / 60.0f);
                 Check(renderer.BeginFrame() == JBro::FrameStatus::Ready, "D3D12 framework frame must begin");
-                Check(framework.Render(), "D3D12 framework must submit its extracted sprite");
+                Check(framework.Render() == JBro::RenderResult::Submitted, "D3D12 framework must submit its extracted sprite");
                 Check(renderer.EndFrame() == JBro::FrameStatus::Ready, "D3D12 framework frame must present");
                 Check(renderer.GetLastFrameStats().spriteCount == 1, "D3D12 frame must contain the extracted sprite");
             }

@@ -106,11 +106,11 @@ namespace JBro
         m_renderWorld.EndFrame();
     }
 
-    bool Framework2D::Render()
+    RenderResult Framework2D::Render()
     {
         if (false == m_initialized || m_context.renderer == nullptr)
         {
-            return false;
+            return RenderResult::Failed;
         }
         return Internal::SubmitRenderWorld2D(m_renderWorld, *m_context.renderer);
     }

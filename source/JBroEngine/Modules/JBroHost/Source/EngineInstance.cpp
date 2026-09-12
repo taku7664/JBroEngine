@@ -220,14 +220,17 @@ namespace JBro
         {
             return false;
         }
-        const bool submitted = m_framework->Render();
-        if (false == submitted || m_exitRequested)
+        const RenderResult renderResult = m_framework->Render();
+        if (renderResult == RenderResult::Failed || m_exitRequested)
         {
-            m_lastFrameStatus = submitted ? FrameStatus::Ready : FrameStatus::InvalidState;
+            m_lastFrameStatus = renderResult == RenderResult::Failed
+                ? FrameStatus::InvalidState
+                : FrameStatus::Ready;
             m_renderer->AbortFrame();
             return false;
         }
-        if (m_projectCloseRequested)
+        // 그릴 것이 없는 프레임은 버리되, 루프는 살아있다(F-7).
+        if (renderResult == RenderResult::NothingToSubmit || m_projectCloseRequested)
         {
             m_renderer->AbortFrame();
             m_lastFrameStatus = FrameStatus::Skipped;
