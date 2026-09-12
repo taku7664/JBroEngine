@@ -1,6 +1,6 @@
 #include <JBro/D3D12RHI/D3D12RHI.h>
 #include <JBro/Platform/WindowsPlatform.h>
-#include <JBro/Runtime/EngineInstance.h>
+#include <JBro/Host/EngineInstance.h>
 
 #if defined(JBRO_GAME_DIMENSION_2D)
 #include <JBro/Framework2D/Framework2D.h>

@@ -3,7 +3,7 @@
 #include <JBro/Asset/Asset.h>
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Runtime/Component.h>
-#include <JBro/Runtime/IFramework.h>
+#include <JBro/Host/IFramework.h>
 
 namespace JBro
 {

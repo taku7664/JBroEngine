@@ -4,7 +4,7 @@
 #include <JBro/Framework2D/Framework2D.h>
 #include <JBro/Framework3D/Framework3D.h>
 #include <JBro/Platform/WindowsPlatform.h>
-#include <JBro/Runtime/EngineInstance.h>
+#include <JBro/Host/EngineInstance.h>
 
 #include <cmath>
 #include <new>

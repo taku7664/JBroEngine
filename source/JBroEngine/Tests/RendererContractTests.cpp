@@ -1,7 +1,7 @@
 #include <JBro/Graphics/Renderer.h>
 
 #include <JBro/Framework2D/Framework2D.h>
-#include <JBro/Runtime/EngineInstance.h>
+#include <JBro/Host/EngineInstance.h>
 
 #include <cmath>
 #include <cstring>

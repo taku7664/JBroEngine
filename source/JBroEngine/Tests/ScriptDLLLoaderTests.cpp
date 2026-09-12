@@ -1,7 +1,7 @@
 ﻿#include <JBro/Core/StableTypeId.h>
 #include <JBro/Framework2D/Internal/ScriptModuleContext.h>
 #include <JBro/Platform/WindowsPlatform.h>
-#include <JBro/Runtime/ScriptDLLLoader.h>
+#include <JBro/Host/ScriptDLLLoader.h>
 #include <JBro/Runtime/ScriptModule.h>
 #include <JBro/Runtime/ServiceContext.h>
 #include <JBro/Runtime/SystemContext.h>

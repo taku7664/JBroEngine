@@ -13,7 +13,7 @@
 #include <JBro/Framework2D/System/Physics2DSystem.h>
 #include <JBro/Framework2D/System/SpriteRender2DSystem.h>
 #include <JBro/Framework2D/System/Transform2DSystem.h>
-#include <JBro/Runtime/IFramework.h>
+#include <JBro/Host/IFramework.h>
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/SystemScheduler.h>
 #include <JBro/Types/Table.h>
