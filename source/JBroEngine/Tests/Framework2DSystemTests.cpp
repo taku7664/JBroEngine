@@ -455,6 +455,27 @@ namespace
                 "a packed sort key must keep signed render order ascending across zero");
         }
 
+        // 레이어도 순서도 같으면 sourceId 가 결정한다. std::sort 는 안정하지 않으므로
+        // 이 타이브레이크가 없으면 제출 순서(내림차순)가 그대로 남는다.
+        renderWorld.BeginFrame();
+        const JBro::InstanceId tiedIds[] = {40, 30, 20, 10};
+        for (JBro::InstanceId id : tiedIds)
+        {
+            JBro::SpriteRenderItem item;
+            item.owner = first;
+            item.sourceId = id;
+            item.layerOrder = 3;
+            item.renderOrder = 7;
+            Check(renderWorld.SubmitSprite(item), "tie-break probe must submit");
+        }
+        renderWorld.EndFrame();
+        Check(renderWorld.GetSpriteCount() == 4, "tie-break probe must retain every sprite");
+        for (std::size_t index = 1; index < renderWorld.GetSpriteCount(); ++index)
+        {
+            Check(renderWorld.GetSprite(index - 1).sourceId < renderWorld.GetSprite(index).sourceId,
+                "sprites with an identical key must order by sourceId");
+        }
+
         renderWorld.BeginFrame();
         Check(renderWorld.GetCamera() == nullptr, "new render frame must clear its camera");
         Check(renderWorld.GetSpriteCount() == 0, "new render frame must clear sprite count");
