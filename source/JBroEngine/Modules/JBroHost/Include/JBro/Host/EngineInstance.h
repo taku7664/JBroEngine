@@ -4,6 +4,7 @@
 #include <JBro/Host/IFramework.h>
 #include <JBro/Graphics/Renderer.h>
 #include <JBro/Platform/Platform.h>
+#include <JBro/Host/ProjectFile.h>
 #include <JBro/Host/ScriptDLLLoader.h>
 #include <JBro/RHI/RHI.h>
 #include <JBro/Types/LinearAllocator.h>
@@ -43,6 +44,14 @@ namespace JBro
         // 호스트는 그저 경로를 받는다 — 그 결정이 나도 이 배선은 그대로다.
         // 비거나 null 이면 스크립트 없이 여는 것과 같다. DLL 이 실패하면 프로젝트가 열리지 않는다.
         bool OpenProject(IFramework& framework, const char* scriptModulePath);
+        // `.jproject` 를 읽고 그것이 가리키는 스크립트 모듈까지 실어서 연다.
+        // 프로젝트 파일을 읽지 못하면 아무것도 열지 않고 error 를 채운다.
+        bool OpenProjectFile(
+            IFramework& framework,
+            const char* projectFilePath,
+            ProjectFileError& error);
+        // 마지막으로 연 프로젝트 파일의 내용이다.
+        const ProjectFile& GetProjectFile() const;
         // Keeps the renderer/device/window alive. Calls from callbacks are deferred.
         void CloseProject();
         // Pumps events, updates simulation, then renders. False means stopped and cleaned up.
@@ -78,6 +87,7 @@ namespace JBro
         OwnerPtr<LinearAllocator> m_frameMemory;
         // 프로젝트 수명이다. 컨텍스트 바인딩 뒤에 싣고, 해제 전에 내린다.
         ScriptDLLLoader m_scripts;
+        ProjectFile m_project;
         FrameworkContext m_frameworkContext;
         State m_state = State::Stopped;
         bool m_exitRequested = false;

@@ -91,6 +91,30 @@ namespace JBro
         return OpenProject(framework, nullptr);
     }
 
+    bool EngineInstance::OpenProjectFile(
+        IFramework& framework,
+        const char* projectFilePath,
+        ProjectFileError& error)
+    {
+        ProjectFile project;
+        if (false == LoadProjectFile(projectFilePath, project, error))
+        {
+            return false;
+        }
+        const String modulePath = ResolveScriptModulePath(project, projectFilePath);
+        if (false == OpenProject(framework, modulePath.c_str()))
+        {
+            return false;
+        }
+        m_project = project;
+        return true;
+    }
+
+    const ProjectFile& EngineInstance::GetProjectFile() const
+    {
+        return m_project;
+    }
+
     bool EngineInstance::OpenProject(IFramework& framework, const char* scriptModulePath)
     {
         if (m_state != State::Running || m_framework != nullptr || m_exitRequested)
@@ -348,6 +372,7 @@ namespace JBro
         m_platform = nullptr;
         // 컨텍스트를 비우기 전에 아레나를 접는다. memory.frame 이 이것을 가리키고 있었다.
         m_frameMemory.Reset();
+        m_project = {};
         m_frameworkContext = {};
         m_state = State::Stopped;
     }

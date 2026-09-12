@@ -6,6 +6,7 @@ int RunCoreModelStressTests();
 int RunFrameMemoryTests();
 int RunScriptSchedulingTests();
 int RunSpritePixelTests();
+int RunProjectFileTests();
 int RunRendererContractTests();
 int RunPlatformContractTests();
 int RunD3D12SmokeTests();
@@ -88,6 +89,10 @@ int main()
             return 1;
         }
         if (RunScriptDLLLoaderTests() != 0)
+        {
+            return 1;
+        }
+        if (RunProjectFileTests() != 0)
         {
             return 1;
         }
