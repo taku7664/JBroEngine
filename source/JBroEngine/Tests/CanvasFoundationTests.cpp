@@ -8,6 +8,7 @@
 #include <JBro/Framework2D/Layer2D.h>
 #include <JBro/Framework3D/Framework3D.h>
 #include <JBro/Canvas/Canvas.h>
+#include <JBro/Canvas/Internal/CanvasAccess.h>
 #include <JBro/Runtime/Component.h>
 #include <JBro/Runtime/GameObject.h>
 #include <JBro/Canvas/Layer.h>
@@ -195,6 +196,47 @@ namespace
             "detaching must run the detach hook before the component leaves its owner");
     }
 
+    // D-45: 순회 중 파괴 요청은 안전 지점까지 미뤄진다. live 배열이 순회 도중 흔들리면
+    // 바깥 순회가 무효화되므로, 요청은 받되 수행은 flush 에서 한다.
+    void TestDestroyDuringIterationIsDeferred()
+    {
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        auto* first = canvas.CreateObject("first");
+        auto* second = canvas.CreateObject("second");
+        auto* third = canvas.CreateObject("third");
+        Check(canvas.AttachComponent<LifecycleProbe>(first) != nullptr
+            && canvas.AttachComponent<LifecycleProbe>(second) != nullptr
+            && canvas.AttachComponent<LifecycleProbe>(third) != nullptr,
+            "deferred destroy fixture must attach one probe per object");
+        Check(canvas.GetObjectCount() == 3, "fixture must start with three objects");
+
+        std::size_t visited = 0;
+        canvas.ForEach<LifecycleProbe>([&](LifecycleProbe& probe)
+        {
+            ++visited;
+            JBro::GameObject* owner = JBro::Internal::CanvasAccess::GetOwner(probe);
+            Check(canvas.DestroyObject(owner),
+                "a destroy request made while iterating must be accepted");
+            Check(canvas.IsIterating(), "the guard must report an active iteration");
+        });
+
+        Check(visited == 3,
+            "every live component must be visited even though each asked to be destroyed");
+        Check(canvas.GetObjectCount() == 3,
+            "nothing may actually be destroyed before the safe point");
+        Check(canvas.GetPendingDestroyCount() == 3, "all three requests must be queued");
+
+        canvas.FlushPendingDestroy();
+        Check(canvas.GetObjectCount() == 0 && canvas.GetPendingDestroyCount() == 0,
+            "flushing at the safe point must perform every queued destroy");
+
+        // 순회 밖의 요청은 즉시 수행된다.
+        auto* immediate = canvas.CreateObject("immediate");
+        Check(canvas.DestroyObject(immediate) && canvas.GetObjectCount() == 0
+            && canvas.GetPendingDestroyCount() == 0,
+            "a destroy request outside iteration must not be queued");
+    }
+
     void TestRefIsPod()
     {
         // Stage B0 의 계약. 여기서 다시 잡아두면 이후 회귀 시 즉시 눈에 띈다.
@@ -296,6 +338,7 @@ int RunCanvasFoundationTests()
     TestFramework2DBootstraps();
     TestFramework3DBootstrapsRuntimeCanvas();
     TestComponentLifecycleHooks();
+    TestDestroyDuringIterationIsDeferred();
     TestRefIsPod();
     TestStableTypeIdIsStable();
     TestFramework2DComponentsArePolymorphic();

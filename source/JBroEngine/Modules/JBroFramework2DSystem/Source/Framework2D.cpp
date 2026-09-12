@@ -102,6 +102,7 @@ namespace JBro
         m_canvas->BeginFrame();
         RunFixedSteps(deltaTime);
         m_canvas->GetSystems().Update(*m_canvas, deltaTime);
+        m_canvas->FlushPendingDestroy();
         m_renderWorld.EndFrame();
     }
 
@@ -226,6 +227,8 @@ namespace JBro
         while (m_fixedAccumulator >= m_context.fixedDeltaTime && steps < m_context.maxFixedStepsPerFrame)
         {
             m_canvas->GetSystems().FixedUpdate(*m_canvas, m_context.fixedDeltaTime);
+            // 고정 스텝 묶음의 각 스텝 뒤가 첫 안전 지점이다(D-45).
+            m_canvas->FlushPendingDestroy();
             m_fixedAccumulator -= m_context.fixedDeltaTime;
             ++steps;
         }

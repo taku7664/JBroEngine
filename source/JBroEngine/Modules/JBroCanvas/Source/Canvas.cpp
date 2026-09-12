@@ -101,6 +101,23 @@ namespace JBro
             return false;
         }
 
+        // 순회 중이면 요청만 받아 두고 안전 지점에서 수행한다(D-45).
+        if (IsIterating())
+        {
+            SafePtr<GameObject> pending = object->SafeFromThis();
+            if (false == pending.IsValid())
+            {
+                return false;
+            }
+            object->m_destroying = true;
+            m_pendingDestroyObjects.Add(std::move(pending));
+            return true;
+        }
+        return DestroyObjectNow(object);
+    }
+
+    bool Canvas::DestroyObjectNow(GameObject* object)
+    {
         Internal::InstanceRegistry& registry = Internal::InstanceRegistry::Get();
         if (registry.Resolve(object->m_handle, RefCategory::Object) != object)
         {
@@ -118,7 +135,8 @@ namespace JBro
                 continue;
             }
 
-            if (false == DestroyObject(child))
+            // 이미 즉시 파괴 경로에 들어와 있다. 자식을 다시 큐로 보내면 부모가 먼저 사라진다.
+            if (false == DestroyObjectNow(child))
             {
                 child->SetParent(nullptr);
             }
@@ -134,7 +152,7 @@ namespace JBro
                 continue;
             }
 
-            if (false == DestroyComponent(component))
+            if (false == DestroyComponentNow(component))
             {
                 object->m_destroying = false;
                 return false;
@@ -310,6 +328,27 @@ namespace JBro
             return false;
         }
 
+        if (IsIterating())
+        {
+            SafePtr<ComponentBase> pending = component->SafeFromThis();
+            if (false == pending.IsValid())
+            {
+                return false;
+            }
+            m_pendingDestroyComponents.Add(std::move(pending));
+            return true;
+        }
+        return DestroyComponentNow(component);
+    }
+
+    bool Canvas::DestroyComponentNow(ComponentBase* component)
+    {
+        GameObject* owner = component->GetOwnerObject();
+        if (owner == nullptr || owner->GetCanvas() != this)
+        {
+            return false;
+        }
+
         OwnerPtr<IComponentBucket>* bucket =
             m_componentBuckets.Find(component->GetTypeId());
         if (bucket == nullptr)
@@ -374,6 +413,47 @@ namespace JBro
             return {};
         }
         return m_layers[index].GetSafePtr();
+    }
+
+    bool Canvas::IsIterating() const
+    {
+        return m_iterationDepth != 0;
+    }
+
+    std::size_t Canvas::GetPendingDestroyCount() const
+    {
+        return m_pendingDestroyComponents.Size() + m_pendingDestroyObjects.Size();
+    }
+
+    // 컴포넌트를 먼저 걷는다. 오브젝트 파괴가 자기 컴포넌트를 이미 정리하므로 순서를 뒤집으면
+    // 큐에 남은 컴포넌트가 죽은 대상을 가리킨다. SafePtr 이 그것을 걸러 주지만 무의미한 일을 하게 된다.
+    void Canvas::FlushPendingDestroy()
+    {
+        if (IsIterating())
+        {
+            return;
+        }
+
+        while (false == m_pendingDestroyComponents.IsEmpty())
+        {
+            SafePtr<ComponentBase> pending = m_pendingDestroyComponents.Last();
+            m_pendingDestroyComponents.RemoveAt(m_pendingDestroyComponents.Size() - 1);
+            if (ComponentBase* component = pending.TryGet())
+            {
+                DestroyComponentNow(component);
+            }
+        }
+
+        while (false == m_pendingDestroyObjects.IsEmpty())
+        {
+            SafePtr<GameObject> pending = m_pendingDestroyObjects.Last();
+            m_pendingDestroyObjects.RemoveAt(m_pendingDestroyObjects.Size() - 1);
+            if (GameObject* object = pending.TryGet())
+            {
+                object->m_destroying = false;
+                DestroyObjectNow(object);
+            }
+        }
     }
 
     bool Canvas::DestroyObjectFromHandle(Canvas* canvas, GameObject* object)

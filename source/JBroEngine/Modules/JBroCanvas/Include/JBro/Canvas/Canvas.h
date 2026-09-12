@@ -38,6 +38,12 @@ namespace JBro
         template<typename Fn>
         void ForEachObject(Fn&& function);
 
+        // 순회 중 요청된 파괴를 실제로 수행한다(D-45). Framework 가 FixedUpdate 묶음 뒤와
+        // Update 뒤 두 지점에서 부른다. 순회 중에 부르면 아무 일도 하지 않는다.
+        void        FlushPendingDestroy();
+        std::size_t GetPendingDestroyCount() const;
+        bool        IsIterating() const;
+
         // 레이어
         Layer&      CreateLayer(const char* name = nullptr);
         bool        DestroyLayer(LayerIndex layer);
@@ -102,6 +108,32 @@ namespace JBro
             RefCategory category);
         bool UnregisterComponentInstance(ComponentBase* component);
         SafePtr<Layer> FindLayerReference(LayerIndex layer);
+
+        // 순회 깊이를 세는 가드. live 배열이 순회 중에 흔들리면 바깥 순회가 무효화되므로,
+        // 깊이가 0 이 아닌 동안의 파괴 요청은 큐로 간다(§8, 구 엔진 ScriptIterationGuard).
+        class IterationGuard final
+        {
+        public:
+            explicit IterationGuard(Canvas& canvas)
+                : m_canvas(canvas)
+            {
+                ++m_canvas.m_iterationDepth;
+            }
+
+            ~IterationGuard()
+            {
+                --m_canvas.m_iterationDepth;
+            }
+
+            IterationGuard(const IterationGuard&)            = delete;
+            IterationGuard& operator=(const IterationGuard&) = delete;
+
+        private:
+            Canvas& m_canvas;
+        };
+
+        bool DestroyObjectNow(GameObject* object);
+        bool DestroyComponentNow(ComponentBase* component);
         // GameObject::RequestDestroy 가 건너오는 지점. GameObject 헤더는 Canvas 정의를 알지 않는다.
         static bool DestroyObjectFromHandle(Canvas* canvas, GameObject* object);
         static InstanceId GenerateCanvasInstanceId();
@@ -112,12 +144,16 @@ namespace JBro
         LayerIndex                                      m_defaultLayer = InvalidLayerIndex;
         LayerIndex                                      m_nextLayer = 0;
         Table<ComponentTypeId, OwnerPtr<IComponentBucket>> m_componentBuckets;
+        Array<SafePtr<GameObject>>                      m_pendingDestroyObjects;
+        Array<SafePtr<ComponentBase>>                   m_pendingDestroyComponents;
+        std::size_t                                     m_iterationDepth = 0;
         SystemScheduler m_systems;
     };
 
     template<typename Fn>
     void Canvas::ForEachObject(Fn&& function)
     {
+        IterationGuard guard(*this);
         m_objects->ForEachLive(std::forward<Fn>(function));
     }
 
@@ -239,6 +275,7 @@ namespace JBro
         {
             return;
         }
+        IterationGuard guard(*this);
         bucket->Pool.ForEachLive(std::forward<Fn>(function));
     }
 
