@@ -5,6 +5,7 @@
 
 #include <cmath>
 #include <cstring>
+#include <limits>
 #include <iostream>
 #include <stdexcept>
 #include <type_traits>
@@ -766,6 +767,14 @@ namespace
         Check(close(vp[0], 0.05f) && close(vp[5], 0.1f) && close(vp[3], -0.1f) && close(vp[7], -0.3f),
             "camera projection must use half-height, aspect ratio and inverse translation");
         Check(module.device.waitIdleCount == 0, "framework frame must not wait for GPU idle");
+
+        // 무효한 dt 는 프레임을 새로 열지 않는다. 지난 프레임 내용이 그대로 남아야 한다.
+        framework.Update(std::numeric_limits<float>::quiet_NaN());
+        Check(framework.GetRenderWorld()->GetSpriteCount() == 70,
+            "a non-finite delta time must not blank the collected frame");
+        framework.Update(-1.0f);
+        Check(framework.GetRenderWorld()->GetSpriteCount() == 70,
+            "a negative delta time must not blank the collected frame");
 
         Check(renderer.ResizeSurface({100, 200}), "integration surface must resize");
         framework.Update(0.0f);

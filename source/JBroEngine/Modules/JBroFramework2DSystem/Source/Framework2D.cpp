@@ -90,15 +90,15 @@ namespace JBro
 
     void Framework2D::Update(float deltaTime)
     {
-        if (false == m_initialized)
+        // dt 검증이 BeginFrame 보다 앞선다. 뒤에 두면 무효한 dt 한 번이
+        // 수집된 프레임을 비운 채로 남겨, 호스트가 빈 화면을 제시한다.
+        if (false == m_initialized
+            || false == std::isfinite(deltaTime)
+            || deltaTime < 0.0f)
         {
             return;
         }
         m_renderWorld.BeginFrame();
-        if (false == std::isfinite(deltaTime) || deltaTime < 0.0f)
-        {
-            return;
-        }
         m_canvas->BeginFrame();
         RunFixedSteps(deltaTime);
         m_canvas->GetSystems().Update(*m_canvas, deltaTime);
