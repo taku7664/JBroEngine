@@ -39,11 +39,6 @@ namespace JBro
                 return false;
             }
             m_canvas = MakeOwnerPtr<Canvas>(allocator);
-            if (false == AddLayer2D(m_canvas->GetDefaultLayer()))
-            {
-                Shutdown();
-                return false;
-            }
             CreateDefaultSystems();
             m_canvas->GetSystems().Initialize(*m_canvas);
         }
@@ -152,13 +147,7 @@ namespace JBro
 
         try
         {
-            Layer& layer = m_canvas->CreateLayer(name);
-            if (false == AddLayer2D(layer.GetIndex()))
-            {
-                m_canvas->DestroyLayer(layer.GetIndex());
-                return nullptr;
-            }
-            return &layer;
+            return &m_canvas->CreateLayer(name);
         }
         catch (const std::bad_alloc&)
         {
@@ -189,37 +178,39 @@ namespace JBro
         return m_canvas->MoveLayer(layer, newIndex);
     }
 
+    // 2D 상태는 살아 있는 런타임 레이어의 함수다. 여기서 지연 생성하고 스테일 항목을 정리하므로,
+    // Canvas 로 직접 만들거나 파괴한 레이어도 같은 불변식을 따른다. Runtime 공개 계약은 늘리지 않는다.
+    // LayerIndex 는 단조 증가라 재사용이 없고, 남은 항목이 다른 레이어의 상태로 오인되지 않는다.
     Layer2D* Framework2D::GetLayer2D(LayerIndex layer)
     {
-        if (m_canvas.Get() == nullptr || m_canvas->FindLayer(layer) == nullptr)
+        if (m_canvas.Get() == nullptr)
+        {
+            return nullptr;
+        }
+        if (m_canvas->FindLayer(layer) == nullptr)
+        {
+            m_layer2DStates.Remove(layer);
+            return nullptr;
+        }
+
+        if (OwnerPtr<Layer2D>* existing = m_layer2DStates.Find(layer))
+        {
+            return existing->Get();
+        }
+
+        try
+        {
+            if (false == m_layer2DStates.TryAdd(layer, MakeOwnerPtr<Layer2D>()))
+            {
+                return nullptr;
+            }
+        }
+        catch (const std::bad_alloc&)
         {
             return nullptr;
         }
         OwnerPtr<Layer2D>* state = m_layer2DStates.Find(layer);
         return state == nullptr ? nullptr : state->Get();
-    }
-
-    bool Framework2D::AddLayer2D(LayerIndex layer)
-    {
-        if (layer == InvalidLayerIndex
-            || m_canvas.Get() == nullptr
-            || m_canvas->FindLayer(layer) == nullptr)
-        {
-            return false;
-        }
-        if (m_layer2DStates.Find(layer) != nullptr)
-        {
-            return true;
-        }
-        try
-        {
-            OwnerPtr<Layer2D> state = MakeOwnerPtr<Layer2D>();
-            return m_layer2DStates.TryAdd(layer, std::move(state));
-        }
-        catch (const std::bad_alloc&)
-        {
-            return false;
-        }
     }
 
     void Framework2D::CreateDefaultSystems()

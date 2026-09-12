@@ -89,6 +89,17 @@ namespace
             "Framework2D must destroy runtime layer and 2D state together");
         Check(framework.GetLayer2D(foregroundIndex) == nullptr,
             "destroyed runtime layer must not retain accessible Framework2D state");
+
+        JBro::Canvas* runtimeCanvas = framework.GetCanvas();
+        JBro::Layer& directLayer = runtimeCanvas->CreateLayer("Direct runtime layer");
+        const JBro::LayerIndex directLayerIndex = directLayer.GetIndex();
+        Check(framework.GetLayer2D(directLayerIndex) != nullptr,
+            "direct runtime layer creation must also create Framework2D state");
+        Check(runtimeCanvas->DestroyLayer(directLayerIndex),
+            "direct runtime layer destruction must succeed");
+        Check(framework.GetLayer2D(directLayerIndex) == nullptr,
+            "direct runtime layer destruction must also release Framework2D state");
+
         framework.Update(1.0f / 60.0f);
         framework.Shutdown();
         Check(framework.GetCanvas() == nullptr, "shutdown must release the canvas");

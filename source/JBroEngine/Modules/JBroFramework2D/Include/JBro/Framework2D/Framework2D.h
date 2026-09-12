@@ -39,7 +39,6 @@ namespace JBro
         Layer2D*       GetLayer2D(LayerIndex layer);
 
     private:
-        bool AddLayer2D(LayerIndex layer);
         void CreateDefaultSystems();
         void RunFixedSteps(float deltaTime);
 
