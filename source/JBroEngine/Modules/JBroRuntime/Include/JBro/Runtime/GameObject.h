@@ -6,7 +6,7 @@
 #include <JBro/Runtime/Ref.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/SafePtr.h>
-#include <JBro/Types/String.h>
+#include <JBro/Types/NameTable.h>
 
 #include <cstdint>
 #include <type_traits>
@@ -56,8 +56,11 @@ namespace JBro
         void SetActive(bool active);
 
         // 태그·플래그(B10)
+        // 태그는 정수로 산다(D-51). 문자열은 NameTable 에만 있고 여기서는 되찾아 줄 뿐이다.
         const char*   GetTag() const;
         void          SetTag(const char* tag);
+        NameId        GetTagId() const;
+        void          SetTagId(NameId tag);
         std::uint32_t GetFlags() const;
         void          SetFlags(std::uint32_t flags);
 
@@ -102,7 +105,7 @@ namespace JBro
         bool                          m_destroying = false;
         bool                          m_active = true;
         bool                          m_activeInHierarchy = true;
-        String                        m_tag;
+        NameId                        m_tag = InvalidNameId;
     };
 
     template<typename T>

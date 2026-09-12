@@ -12,7 +12,9 @@
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Internal/InstanceRegistry.h>
 #include <JBro/Runtime/GameObject.h>
+#include <JBro/Types/NameTable.h>
 
+#include <cstring>
 #include <iostream>
 #include <stdexcept>
 
@@ -202,6 +204,43 @@ namespace
     }
 
     // 타입 캐시가 비어 있거나 잘못 채워지면 조회가 조용히 실패한다.
+    void TestNameTableHoldsTheTextThatTagsDropped()
+    {
+        JBro::NameTable& names = JBro::NameTable::Get();
+        const std::size_t before = names.GetCount();
+
+        const JBro::NameId first = names.Intern("player");
+        const JBro::NameId again = names.Intern("player");
+        Check(first == again, "the same text must always intern to the same id");
+        Check(first == JBro::MakeNameId("player"),
+            "an id must be derivable from the text without touching the table");
+        Check(first != JBro::InvalidNameId, "a real name must not intern to the invalid id");
+        Check(names.Intern(nullptr) == JBro::InvalidNameId, "a null name must intern to the invalid id");
+        Check(names.Intern("") == JBro::InvalidNameId, "an empty name must intern to the invalid id");
+
+        const char* resolved = names.Resolve(first);
+        Check(resolved != nullptr && std::strcmp(resolved, "player") == 0,
+            "the table must give the text back");
+        const char* unknown = names.Resolve(JBro::MakeNameId("never interned at all"));
+        Check(unknown != nullptr && unknown[0] == '\0', "an unknown id must resolve to an empty string");
+        Check(names.GetCount() == before + 1, "interning the same text twice must store it once");
+        Check(names.GetCollisionCount() == 0, "no two test names may fold onto one id");
+
+        // 태그는 이제 정수다. 문자열 API 는 표를 거쳐 그대로 동작해야 한다.
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::GameObject* object = canvas.CreateObject("enemy spawner");
+        Check(object != nullptr, "the tagged object must be created");
+        Check(std::strcmp(object->GetTag(), "enemy spawner") == 0,
+            "an object must give back the name it was created with");
+        Check(object->GetTagId() == JBro::MakeNameId("enemy spawner"),
+            "a tag must compare as an integer without visiting the table");
+
+        object->SetTag("player");
+        Check(object->GetTagId() == first, "setting a known tag must reuse its id");
+        object->SetTagId(JBro::InvalidNameId);
+        Check(object->GetTag()[0] == '\0', "clearing a tag must resolve to an empty string");
+    }
+
     void TestCachedTypeIdMatchesTheVirtualAnswer()
     {
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
@@ -285,6 +324,7 @@ int RunCoreModelStressTests()
     TestControlBlockWithLiveReferenceIsNotRecycled();
     TestDeferredDestroyWithParentAndChildQueued();
     TestDeferredComponentDestroyDuringIteration();
+    TestNameTableHoldsTheTextThatTagsDropped();
     TestCachedTypeIdMatchesTheVirtualAnswer();
     TestLayerDestroyReassignsObjectsAndReindexes();
     TestHandleDoesNotReviveOnARecycledSlot();

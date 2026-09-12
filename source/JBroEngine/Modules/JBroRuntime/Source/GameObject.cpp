@@ -133,12 +133,22 @@ namespace JBro
 
     const char* GameObject::GetTag() const
     {
-        return m_tag.c_str();
+        return NameTable::Get().Resolve(m_tag);
     }
 
     void GameObject::SetTag(const char* tag)
     {
-        m_tag = tag == nullptr ? "" : tag;
+        m_tag = NameTable::Get().Intern(tag);
+    }
+
+    NameId GameObject::GetTagId() const
+    {
+        return m_tag;
+    }
+
+    void GameObject::SetTagId(NameId tag)
+    {
+        m_tag = tag;
     }
 
     std::uint32_t GameObject::GetFlags() const
