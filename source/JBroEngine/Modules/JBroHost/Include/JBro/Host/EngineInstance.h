@@ -4,6 +4,7 @@
 #include <JBro/Host/IFramework.h>
 #include <JBro/Graphics/Renderer.h>
 #include <JBro/Platform/Platform.h>
+#include <JBro/Host/ScriptDLLLoader.h>
 #include <JBro/RHI/RHI.h>
 #include <JBro/Types/LinearAllocator.h>
 
@@ -37,6 +38,11 @@ namespace JBro
         bool Initialize(const EngineConfig& config, IPlatform& platform, IRHIModule& rhi);
         // The initially stopped framework object is borrowed until CloseProject returns.
         bool OpenProject(IFramework& framework);
+        // 같은 것을 열되 이 프로젝트의 스크립트 DLL 도 함께 싣는다.
+        // 경로가 어느 파일에서 오는지는 프로젝트 파일 형식의 문제이고 아직 정해지지 않았다.
+        // 호스트는 그저 경로를 받는다 — 그 결정이 나도 이 배선은 그대로다.
+        // 비거나 null 이면 스크립트 없이 여는 것과 같다. DLL 이 실패하면 프로젝트가 열리지 않는다.
+        bool OpenProject(IFramework& framework, const char* scriptModulePath);
         // Keeps the renderer/device/window alive. Calls from callbacks are deferred.
         void CloseProject();
         // Pumps events, updates simulation, then renders. False means stopped and cleaned up.
@@ -51,6 +57,8 @@ namespace JBro
         // 호스트가 만든 프레임 아레나다. 호출자가 memory.frame 을 직접 채웠으면 null 이다.
         LinearAllocator* GetFrameMemory();
         IFramework* GetFramework();
+        // 이 프로젝트에 실린 스크립트 DLL. 열리지 않았으면 아무것도 싣지 않은 상태다.
+        const ScriptDLLLoader& GetScriptModule() const;
         bool IsRunning() const;
         // Preserved after teardown; Ready/Skipped are non-fatal, other values indicate failure.
         FrameStatus GetLastFrameStatus() const;
@@ -68,6 +76,8 @@ namespace JBro
         OwnerPtr<Renderer> m_renderer;
         // 프레임 경계에서 되감는다. m_frameworkContext.memory.frame 이 이것을 가리킨다.
         OwnerPtr<LinearAllocator> m_frameMemory;
+        // 프로젝트 수명이다. 컨텍스트 바인딩 뒤에 싣고, 해제 전에 내린다.
+        ScriptDLLLoader m_scripts;
         FrameworkContext m_frameworkContext;
         State m_state = State::Stopped;
         bool m_exitRequested = false;

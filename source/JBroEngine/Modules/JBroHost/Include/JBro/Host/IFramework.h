@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/Core/Core.h>
+#include <JBro/Runtime/ScriptModule.h>
 
 namespace JBro
 {
@@ -37,6 +38,13 @@ namespace JBro
         // Hooks must not throw; unbinding precedes destruction of borrowed systems.
         virtual bool BindScriptContexts() noexcept = 0;
         virtual void UnbindScriptContexts() noexcept = 0;
+        // 스크립트 DLL 이 요구하는, 이 프레임워크만의 컨텍스트 블록이다(D-37).
+        // 호스트는 BindScriptContexts 뒤에 이것을 읽어 DLL 로 넘긴다. 돌려준 배열과
+        // 그것이 가리키는 데이터는 프로젝트가 닫힐 때까지 살아 있어야 한다.
+        virtual JArrayView<ScriptContextBlock> GetScriptContextBlocks() const noexcept
+        {
+            return {};
+        }
         virtual void Update(float deltaTime) = 0;
         // Host opens/closes the Renderer frame. Framework submits its views and packets only.
         virtual RenderResult Render() = 0;

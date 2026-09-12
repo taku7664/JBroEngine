@@ -1,6 +1,7 @@
 ﻿#include <JBro/Framework2DSystem/Framework2D.h>
 
 #include <JBro/Graphics/Renderer.h>
+#include <JBro/Framework2D/Internal/ScriptModuleContext.h>
 #include <JBro/Framework2D/Internal/SystemContext.h>
 #include <JBro/Framework2D/ServiceContext.h>
 #include "Rendering/RenderBridge2D.h"
@@ -67,15 +68,26 @@ namespace JBro
         {
             return false;
         }
-        Framework2DSystemContext systems;
-        systems.Physics2D = physics;
-        BindFramework2DSystemContext(systems);
-        BindFramework2DServiceContext({});
+        m_scriptSystems = {};
+        m_scriptSystems.Physics2D = physics;
+        m_scriptServices = {};
+        BindFramework2DSystemContext(m_scriptSystems);
+        BindFramework2DServiceContext(m_scriptServices);
+        // 같은 값을 블록으로도 내어 준다. 호스트가 그대로 DLL 에 건넨다.
+        m_scriptBlocks[0] = MakeFramework2DSystemContextBlock(m_scriptSystems);
+        m_scriptBlocks[1] = MakeFramework2DServiceContextBlock(m_scriptServices);
+        m_scriptBlockCount = 2;
         return true;
+    }
+
+    JArrayView<ScriptContextBlock> Framework2D::GetScriptContextBlocks() const noexcept
+    {
+        return {m_scriptBlocks, m_scriptBlockCount};
     }
 
     void Framework2D::UnbindScriptContexts() noexcept
     {
+        m_scriptBlockCount = 0;
         if (m_canvas.Get() == nullptr)
         {
             return;

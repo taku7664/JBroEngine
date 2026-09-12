@@ -88,6 +88,11 @@ namespace JBro
 
     bool EngineInstance::OpenProject(IFramework& framework)
     {
+        return OpenProject(framework, nullptr);
+    }
+
+    bool EngineInstance::OpenProject(IFramework& framework, const char* scriptModulePath)
+    {
         if (m_state != State::Running || m_framework != nullptr || m_exitRequested)
         {
             return false;
@@ -107,6 +112,14 @@ namespace JBro
                 {
                     m_scriptContextsBound = framework.BindScriptContexts();
                     initialized = m_scriptContextsBound;
+                    // 컨텍스트가 붙은 뒤에 싣는다. 로더가 그 컨텍스트를 읽어 DLL 에 넘긴다.
+                    if (initialized && scriptModulePath != nullptr && scriptModulePath[0] != 0)
+                    {
+                        const JArrayView<ScriptContextBlock> blocks =
+                            framework.GetScriptContextBlocks();
+                        initialized = m_scripts.Load(
+                            scriptModulePath, *m_platform, blocks.data, blocks.size);
+                    }
                 }
             }
         }
@@ -286,6 +299,11 @@ namespace JBro
         }
         if (auto* framework = std::exchange(m_framework, nullptr))
         {
+            // DLL 이 먼저 내려간다. 그 뒤에야 DLL 이 붙잡고 있던 컨텍스트를 풀 수 있다.
+            if (m_platform != nullptr)
+            {
+                m_scripts.Unload(*m_platform);
+            }
             if (std::exchange(m_scriptContextsBound, false))
             {
                 framework->UnbindScriptContexts();
@@ -342,6 +360,11 @@ namespace JBro
     LinearAllocator* EngineInstance::GetFrameMemory()
     {
         return m_frameMemory.Get();
+    }
+
+    const ScriptDLLLoader& EngineInstance::GetScriptModule() const
+    {
+        return m_scripts;
     }
 
     Renderer* EngineInstance::GetRenderer()

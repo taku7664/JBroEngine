@@ -1,6 +1,8 @@
 ﻿#include <JBro/Core/StableTypeId.h>
 #include <JBro/Framework2D/Internal/ScriptModuleContext.h>
 #include <JBro/Platform/WindowsPlatform.h>
+#include <JBro/D3D12RHI/D3D12RHI.h>
+#include <JBro/Host/EngineInstance.h>
 #include <JBro/Host/ScriptDLLLoader.h>
 #include <JBro/Internal/InstanceRegistry.h>
 #include <JBro/Types/NameTable.h>
@@ -624,6 +626,138 @@ namespace
         JBro::BindServiceContext({});
         platform.Shutdown();
     }
+
+    // 호스트가 프로젝트를 열면서 스크립트 DLL 까지 싣는 경로다(§10 (A)).
+    // 경로가 어느 파일에서 오는지는 여기서 정하지 않는다 — 호스트는 문자열만 받는다.
+    class ScriptedFramework final : public JBro::IFramework
+    {
+    public:
+        bool Initialize(const JBro::FrameworkContext&) override
+        {
+            return true;
+        }
+
+        bool BindScriptContexts() noexcept override
+        {
+            JBro::BindSystemContext(m_systems);
+            JBro::BindServiceContext(m_services);
+            m_frameworkSystems.Physics2D = reinterpret_cast<JBro::System::IPhysics2DSystem*>(
+                static_cast<std::uintptr_t>(0x0BADF00D));
+            m_blocks[0] = JBro::MakeFramework2DServiceContextBlock(m_frameworkServices);
+            m_blocks[1] = JBro::MakeFramework2DSystemContextBlock(m_frameworkSystems);
+            m_blockCount = 2;
+            bound = true;
+            return true;
+        }
+
+        void UnbindScriptContexts() noexcept override
+        {
+            // 호스트가 DLL 을 먼저 내렸어야 한다. 아직 실려 있다면 순서가 뒤집힌 것이다.
+            // 미리 채워 둔 값이 아니라 지금 물어봐야 의미가 있다.
+            unbindSawLoadedModule = host != nullptr && host->GetScriptModule().IsLoaded();
+            unbindCount++;
+            m_blockCount = 0;
+            bound = false;
+        }
+
+        JBro::JArrayView<JBro::ScriptContextBlock> GetScriptContextBlocks() const noexcept override
+        {
+            return {m_blocks, m_blockCount};
+        }
+
+        void Update(float) override
+        {
+        }
+
+        JBro::RenderResult Render() override
+        {
+            return JBro::RenderResult::NothingToSubmit;
+        }
+
+        void Shutdown() override
+        {
+            shutdowns++;
+        }
+
+        const JBro::EngineInstance* host = nullptr;
+        bool bound = false;
+        int shutdowns = 0;
+        int unbindCount = 0;
+        bool unbindSawLoadedModule = false;
+
+    private:
+        JBro::SystemContext               m_systems;
+        JBro::ServiceContext              m_services;
+        JBro::Framework2DServiceContext   m_frameworkServices;
+        JBro::Framework2DSystemContext    m_frameworkSystems;
+        JBro::ScriptContextBlock          m_blocks[2];
+        std::uint32_t                     m_blockCount = 0;
+    };
+
+    void TestHostOpensAProjectWithItsScriptModule()
+    {
+        ProbeFiles files;
+        JBro::String utf8Path;
+        PrepareRealProbe(files, utf8Path);
+
+        JBro::WindowsPlatform platform;
+        JBro::D3D12RHIModule rhi;
+        JBro::JMemoryContext memory;
+        Check(platform.Initialize(memory), "platform must initialize for the host script test");
+        if (false == rhi.Initialize(memory))
+        {
+            // 이 기계에 D3D12 장치가 없으면 호스트를 세울 수 없다. 조용히 건너뛰지 않고 남긴다.
+            std::cout << "  [skip] no D3D12 device; host script module wiring not exercised" << std::endl;
+            platform.Shutdown();
+            return;
+        }
+
+        JBro::EngineConfig config;
+        config.window.visible = false;
+        config.window.width = 64;
+        config.window.height = 64;
+        JBro::EngineInstance engine;
+        Check(engine.Initialize(config, platform, rhi), "host must initialize for the script test");
+        Check(false == engine.GetScriptModule().IsLoaded(),
+            "a host with no project must hold no script module");
+
+        ScriptedFramework framework;
+        framework.host = &engine;
+        Check(engine.OpenProject(framework, utf8Path.c_str()),
+            "the host must open a project together with its script module");
+        Check(framework.bound, "the host must bind contexts before loading the module");
+        Check(engine.GetScriptModule().IsLoaded(),
+            "opening a project with a module path must leave that module loaded");
+        Check(engine.GetScriptModule().GetSymbol("JBroScriptProbe_IsLoaded") != nullptr,
+            "the loaded module must be queryable through the host");
+
+        engine.CloseProject();
+        Check(framework.unbindCount == 1, "closing must unbind the contexts once");
+        Check(false == engine.GetScriptModule().IsLoaded(),
+            "closing a project must unload its script module");
+        Check(false == framework.unbindSawLoadedModule,
+            "the module must go down before the contexts it borrowed");
+        Check(framework.shutdowns == 1, "closing must shut the framework down once");
+
+        // 실패한 모듈은 프로젝트를 열지 못한다. 반쯤 열린 상태로 남아도 안 된다.
+        ScriptedFramework second;
+        Check(false == engine.OpenProject(second, "no such module.dll"),
+            "a project whose script module fails to load must not open");
+        Check(false == engine.GetScriptModule().IsLoaded(),
+            "a failed module load must leave nothing loaded");
+        Check(engine.GetFramework() == nullptr, "a failed open must not keep the framework");
+
+        // 경로가 없으면 스크립트 없이 여는 것과 같다.
+        ScriptedFramework third;
+        Check(engine.OpenProject(third), "a project without scripts must still open");
+        Check(false == engine.GetScriptModule().IsLoaded(),
+            "a project without a module path must load nothing");
+        engine.CloseProject();
+
+        engine.Shutdown();
+        rhi.Shutdown();
+        platform.Shutdown();
+    }
 }
 
 int RunScriptDLLLoaderTests()
@@ -635,6 +769,7 @@ int RunScriptDLLLoaderTests()
     TestLoadReloadAndUnloadOrder();
     TestFailedReloadInvalidatesOldModule();
     TestRealDllRoundTripFromKoreanPath();
+    TestHostOpensAProjectWithItsScriptModule();
     std::cout << "Script DLL loader tests passed.\n";
     return 0;
 }
