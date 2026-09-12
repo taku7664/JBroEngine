@@ -191,6 +191,62 @@ namespace
             "pool destruction must return every chunk to its supplied allocator");
     }
 
+    // §9 / D-54: 미리 확보한 풀에서의 스폰·파괴는 힙을 건드리지 않는다.
+    // 계약을 문장이 아니라 카운터로 고정한다. 청크와 ControlBlock 둘 다 Reserve 가 잡아 둔다.
+    void TestReservedPoolSpawnDoesNotAllocate()
+    {
+        AllocationProbe allocations;
+        JBro::JAllocator allocator;
+        allocator.userData = &allocations;
+        allocator.allocate = &CountPoolAllocation;
+        allocator.free = &CountPoolFree;
+        {
+            JBro::TObjectPool<SafeTarget> pool(allocator);
+            Check(pool.Reserve(256), "reserving the pool must succeed");
+
+            const std::size_t reserved = allocations.AllocateCalls;
+            const std::size_t reservedBlocks = pool.GetControlBlockAllocationCount();
+            Check(reserved > 0, "reserving must allocate its chunks up front");
+            Check(reservedBlocks >= 256,
+                "reserving must take its control blocks up front too");
+
+            SafeTarget* spawned[128] = {};
+            int seed = 0;
+            for (auto& slot : spawned)
+            {
+                slot = pool.Create(seed++);
+                Check(slot != nullptr, "a reserved pool must hand out objects");
+            }
+            Check(allocations.AllocateCalls == reserved
+                && pool.GetControlBlockAllocationCount() == reservedBlocks,
+                "spawning inside the reserved capacity must not allocate at all");
+
+            for (auto* value : spawned)
+            {
+                Check(pool.Destroy(value), "destroying a pooled object must succeed");
+            }
+            const std::size_t stepsBeforeRespawn = pool.GetSlotSearchStepCount();
+            Check(allocations.AllocateCalls == reserved
+                && pool.GetControlBlockAllocationCount() == reservedBlocks,
+                "destroying must not allocate either");
+            // 128회 파괴가 이분 탐색이면 청크 수의 로그에 비례한다. 선형 탐색으로 되돌아가면
+            // 살아 있는 객체 수에 비례해 늘어나므로 이 상한을 넘는다.
+            Check(stepsBeforeRespawn <= 128 * 8,
+                "destroying must locate its slot by address, not by scanning every slot");
+
+            for (auto& slot : spawned)
+            {
+                slot = pool.Create(seed++);
+                Check(slot != nullptr, "respawning must reuse the freed slots");
+            }
+            Check(allocations.AllocateCalls == reserved
+                && pool.GetControlBlockAllocationCount() == reservedBlocks,
+                "respawning must reuse the recycled control blocks, not allocate new ones");
+        }
+        Check(allocations.FreeCalls == allocations.AllocateCalls,
+            "the pool must return every chunk it took from its allocator");
+    }
+
     void TestObjectPoolRejectsUnrepresentableCapacity()
     {
         AllocationProbe allocations;
@@ -368,6 +424,7 @@ int RunReferenceSafetyTests()
     TestInstanceIdGeneratorSequenceAndOverflow();
     TestObjectPoolAddressStabilityAndLifetime();
     TestObjectPoolUsesItsSuppliedAllocatorForChunks();
+    TestReservedPoolSpawnDoesNotAllocate();
     TestObjectPoolRejectsUnrepresentableCapacity();
     TestRefUsesHandleCacheBeforePersistentLookup();
     TestCanvasObjectComponentAndHandleRoundTrip();
