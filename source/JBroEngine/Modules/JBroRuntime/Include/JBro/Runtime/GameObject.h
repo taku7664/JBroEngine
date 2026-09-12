@@ -119,7 +119,7 @@ namespace JBro
         for (const SafePtr<ComponentBase>& componentRef : m_components)
         {
             ComponentBase* component = componentRef.TryGet();
-            if (component != nullptr && component->GetTypeId() == TypeId)
+            if (component != nullptr && component->GetCachedTypeId() == TypeId)
             {
                 Ref<T> reference;
                 reference.ObjectId = m_instanceId;

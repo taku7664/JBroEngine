@@ -180,6 +180,8 @@ namespace JBro
         {
             return nullptr;
         }
+        // 타입은 이 순간 이후로 바뀌지 않는다. 조회가 원소마다 가상 호출을 하지 않도록 캐시한다.
+        component->CacheTypeId();
 
         if (false == RegisterComponentInstance(
             owner,
@@ -240,7 +242,7 @@ namespace JBro
         for (const SafePtr<ComponentBase>& componentRef : owner->m_components)
         {
             ComponentBase* component = componentRef.TryGet();
-            if (component != nullptr && component->GetTypeId() == TypeId)
+            if (component != nullptr && component->GetCachedTypeId() == TypeId)
             {
                 return static_cast<T*>(component);
             }
@@ -262,7 +264,7 @@ namespace JBro
         for (const SafePtr<ComponentBase>& componentRef : owner->m_components)
         {
             ComponentBase* component = componentRef.TryGet();
-            if (component != nullptr && component->GetTypeId() == TypeId)
+            if (component != nullptr && component->GetCachedTypeId() == TypeId)
             {
                 results.Add(static_cast<T*>(component));
             }

@@ -14,6 +14,16 @@ namespace JBro
         return m_handle;
     }
 
+    ComponentTypeId ComponentBase::GetCachedTypeId() const
+    {
+        return m_typeId;
+    }
+
+    void ComponentBase::CacheTypeId()
+    {
+        m_typeId = GetTypeId();
+    }
+
     GameObjectHandle ComponentBase::GetOwner() const
     {
         GameObject* owner = m_owner.TryGet();

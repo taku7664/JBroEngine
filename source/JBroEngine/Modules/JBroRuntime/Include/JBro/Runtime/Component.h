@@ -43,6 +43,9 @@ namespace JBro
 
         InstanceId       GetInstanceId() const;
         InstanceHandle   GetHandle() const;
+        // 부착 시점에 GetTypeId() 를 한 번 불러 캐시한 값이다. 컴포넌트 조회는 오브젝트의
+        // 컴포넌트 배열을 훑으며 타입을 비교하므로, 캐시가 없으면 원소마다 가상 호출이 돈다(§9).
+        ComponentTypeId  GetCachedTypeId() const;
         // 스크립트 표면이므로 소유 오브젝트는 핸들로 준다. 실 객체는 엔진 계층만 본다.
         GameObjectHandle GetOwner() const;
 
@@ -58,9 +61,11 @@ namespace JBro
 
         GameObject* GetOwnerObject() const;
         void SetOwner(GameObject* owner);
+        void CacheTypeId();
         void SetInstanceIdentity(InstanceId instanceId, InstanceHandle handle);
 
         SafePtr<GameObject> m_owner;
+        ComponentTypeId     m_typeId = InvalidComponentTypeId;
         InstanceId          m_instanceId = InvalidInstanceId;
         InstanceHandle      m_handle;
         bool                m_enabled = true;
