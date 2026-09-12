@@ -109,7 +109,7 @@ namespace
     {
         static_assert(std::is_base_of_v<JBro::ComponentBase, JBro::Component::Transform3D>);
         static_assert(std::is_base_of_v<JBro::ComponentBase, JBro::Component::Camera3D>);
-        static_assert(std::is_base_of_v<JBro::ComponentBase, JBro::Component::MeshRenderer>);
+        static_assert(std::is_base_of_v<JBro::ComponentBase, JBro::Component::MeshRenderer3D>);
         static_assert(std::is_base_of_v<JBro::ComponentBase, JBro::Component::Rigidbody3D>);
         static_assert(std::is_base_of_v<JBro::ComponentBase, JBro::Component::Collider3D>);
 

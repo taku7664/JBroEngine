@@ -1,12 +1,11 @@
 ﻿#pragma once
 
 #include <JBro/Asset/Asset.h>
-#include <JBro/Runtime/GameObject.h>
+#include <JBro/Core/Core.h>
+#include <JBro/Runtime/GameObjectHandle.h>
 
 namespace JBro
 {
-    class Canvas;
-
     struct PrefabAsset
     {
         AssetId     id;
@@ -15,15 +14,17 @@ namespace JBro
 
     struct PrefabSpawnParams
     {
-        GameObject* parent                 = nullptr;
-        bool        preserveSourceIdentity = false;
+        // 부모로 붙일 오브젝트. 비어 있으면 최상위로 생성한다.
+        GameObjectHandle parent;
+        bool             preserveSourceIdentity = false;
     };
 
+    // 스크립트 표면이므로 오브젝트는 핸들로만 주고받는다. 실 객체 접근은 엔진 계층의 몫이다.
     class PrefabSpawner
     {
     public:
-        GameObject* Spawn(Canvas& canvas, AssetId prefabAsset, const PrefabSpawnParams& params);
-        bool        ApplyOverrides(GameObject* instance, AssetId prefabAsset);
-        void        DestroyInstance(GameObject* instance);
+        GameObjectHandle Spawn(AssetId prefabAsset, const PrefabSpawnParams& params);
+        bool             ApplyOverrides(GameObjectHandle instance, AssetId prefabAsset);
+        void             DestroyInstance(GameObjectHandle instance);
     };
 }
