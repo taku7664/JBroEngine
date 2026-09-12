@@ -1,7 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/Framework2D/Rendering/RenderWorld2D.h>
-#include <JBro/Runtime/GameSystem.h>
+#include <JBro/Canvas/GameSystem.h>
 
 namespace JBro::System
 {

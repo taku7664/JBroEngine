@@ -12,9 +12,9 @@
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>18.0</VCProjectVersion>
-    <ProjectGuid>{1a000008-0000-4000-8000-000000000f2d}</ProjectGuid>
-    <RootNamespace>JBroFramework2D</RootNamespace>
-    <ProjectName>JBroFramework2D</ProjectName>
+    <ProjectGuid>{1a00000f-0000-4000-8000-00000000ca47}</ProjectGuid>
+    <RootNamespace>JBroCanvas</RootNamespace>
+    <ProjectName>JBroCanvas</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <Import Project="$(SolutionDir)JBro.Common.props" Condition="Exists('$(SolutionDir)JBro.Common.props')" />
@@ -25,7 +25,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroFramework2D\Include;$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroRHI\Include;$(JBroModulesDir)JBroGraphics\Include;$(JBroModulesDir)JBroPlatform\Include;$(JBroModulesDir)JBroCanvas\Include;$(JBroModulesDir)JBroRuntime\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroCanvas\Include;$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroRuntime\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -39,29 +39,10 @@
       <Project>{1a000001-0000-4000-8000-00000000c0de}</Project>
       <LinkLibraryDependencies>false</LinkLibraryDependencies>
     </ProjectReference>
-    <ProjectReference Include="$(JBroModulesDir)JBroAsset\JBroAsset.vcxproj">
-      <Project>{1a000002-0000-4000-8000-0000000a5537}</Project>
-      <LinkLibraryDependencies>false</LinkLibraryDependencies>
-    </ProjectReference>
-    <ProjectReference Include="$(JBroModulesDir)JBroRHI\JBroRHI.vcxproj">
-      <Project>{1a000003-0000-4000-8000-000000000271}</Project>
-      <LinkLibraryDependencies>false</LinkLibraryDependencies>
-    </ProjectReference>
-    <ProjectReference Include="$(JBroModulesDir)JBroGraphics\JBroGraphics.vcxproj">
-      <Project>{1a000005-0000-4000-8000-000000024a12}</Project>
-      <LinkLibraryDependencies>false</LinkLibraryDependencies>
-    </ProjectReference>
-    <ProjectReference Include="$(JBroModulesDir)JBroPlatform\JBroPlatform.vcxproj">
-      <Project>{1a000004-0000-4000-8000-00000091a7f0}</Project>
-      <LinkLibraryDependencies>false</LinkLibraryDependencies>
-    </ProjectReference>
-    <ProjectReference Include="$(JBroModulesDir)JBroCanvas\JBroCanvas.vcxproj">
-      <Project>{1a00000f-0000-4000-8000-00000000ca47}</Project>
-      <LinkLibraryDependencies>false</LinkLibraryDependencies>
-    </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroRuntime\JBroRuntime.vcxproj">
       <Project>{1a000006-0000-4000-8000-000000027417}</Project>
       <LinkLibraryDependencies>false</LinkLibraryDependencies>
-    </ProjectReference>  </ItemGroup>
+    </ProjectReference>
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

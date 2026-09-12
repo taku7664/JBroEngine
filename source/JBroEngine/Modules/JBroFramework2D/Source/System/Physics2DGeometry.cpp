@@ -1,6 +1,6 @@
 ﻿#include "Physics2DGeometry.h"
 
-#include <JBro/Runtime/Canvas.h>
+#include <JBro/Canvas/Canvas.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Runtime/GameObject.h>
 

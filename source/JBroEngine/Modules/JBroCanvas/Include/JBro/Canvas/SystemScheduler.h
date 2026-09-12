@@ -1,7 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/Core/Core.h>
-#include <JBro/Runtime/GameSystem.h>
+#include <JBro/Canvas/GameSystem.h>
 #include <JBro/Types/Array.h>
 
 #include <stdexcept>

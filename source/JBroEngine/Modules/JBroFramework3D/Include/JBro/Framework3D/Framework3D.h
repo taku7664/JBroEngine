@@ -1,7 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/Asset/Asset.h>
-#include <JBro/Runtime/Canvas.h>
+#include <JBro/Canvas/Canvas.h>
 #include <JBro/Runtime/Component.h>
 #include <JBro/Runtime/IFramework.h>
 

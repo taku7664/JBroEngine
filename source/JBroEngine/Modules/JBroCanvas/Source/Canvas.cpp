@@ -1,4 +1,4 @@
-﻿#include <JBro/Runtime/Canvas.h>
+﻿#include <JBro/Canvas/Canvas.h>
 
 #include <JBro/Core/InstanceIdGenerator.h>
 #include <JBro/Internal/InstanceRegistry.h>

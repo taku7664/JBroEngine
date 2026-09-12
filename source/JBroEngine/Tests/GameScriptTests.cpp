@@ -1,6 +1,6 @@
 ﻿#include <JBro/Runtime/GameScriptBase.h>
 #include <JBro/Framework2D/Scripting/GameScript.h>
-#include <JBro/Runtime/Canvas.h>
+#include <JBro/Canvas/Canvas.h>
 #include <JBro/Script/Macros.h>
 #include <JBro/Internal/InstanceRegistry.h>
 #include <JBro/Runtime/GameObjectHandle.h>

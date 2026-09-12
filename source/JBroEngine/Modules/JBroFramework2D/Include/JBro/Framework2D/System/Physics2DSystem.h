@@ -2,7 +2,7 @@
 
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/System/IPhysics2DSystem.h>
-#include <JBro/Runtime/GameSystem.h>
+#include <JBro/Canvas/GameSystem.h>
 #include <JBro/Types/Array.h>
 
 namespace JBro

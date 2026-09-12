@@ -1,5 +1,5 @@
-﻿#include <JBro/Runtime/Canvas.h>
-#include <JBro/Runtime/SystemScheduler.h>
+﻿#include <JBro/Canvas/Canvas.h>
+#include <JBro/Canvas/SystemScheduler.h>
 #include <JBro/Framework2D/Framework2D.h>
 
 #include <cmath>

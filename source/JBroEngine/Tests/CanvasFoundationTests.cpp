@@ -7,10 +7,10 @@
 #include <JBro/Framework2D/Framework2D.h>
 #include <JBro/Framework2D/Layer2D.h>
 #include <JBro/Framework3D/Framework3D.h>
-#include <JBro/Runtime/Canvas.h>
+#include <JBro/Canvas/Canvas.h>
 #include <JBro/Runtime/Component.h>
 #include <JBro/Runtime/GameObject.h>
-#include <JBro/Runtime/Layer.h>
+#include <JBro/Canvas/Layer.h>
 #include <JBro/Runtime/Ref.h>
 
 #include <iostream>

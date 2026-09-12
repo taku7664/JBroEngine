@@ -46,7 +46,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroRHI\Include;$(JBroModulesDir)JBroD3D12RHI\Include;$(JBroModulesDir)JBroGraphics\Include;$(JBroModulesDir)JBroPlatform\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroScriptFrameworkIncludes);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroRHI\Include;$(JBroModulesDir)JBroD3D12RHI\Include;$(JBroModulesDir)JBroGraphics\Include;$(JBroModulesDir)JBroPlatform\Include;$(JBroModulesDir)JBroCanvas\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroScriptFrameworkIncludes);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions Condition="'$(JBroScriptDimension)' == '2D'">JBRO_GAME_DIMENSION_2D;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(JBroScriptDimension)' == '3D'">JBRO_GAME_DIMENSION_3D;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(Configuration)' == 'Debug_Game2D' Or '$(Configuration)' == 'Debug_Game3D'">_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -82,6 +82,9 @@
     </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroGraphics\JBroGraphics.vcxproj">
       <Project>{1a000005-0000-4000-8000-000000024a12}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroCanvas\JBroCanvas.vcxproj">
+      <Project>{1a00000f-0000-4000-8000-00000000ca47}</Project>
     </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroRuntime\JBroRuntime.vcxproj">
       <Project>{1a000006-0000-4000-8000-000000027417}</Project>

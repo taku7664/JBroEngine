@@ -14,8 +14,8 @@
 #include <JBro/Framework2D/System/SpriteRender2DSystem.h>
 #include <JBro/Framework2D/System/Transform2DSystem.h>
 #include <JBro/Runtime/IFramework.h>
-#include <JBro/Runtime/Canvas.h>
-#include <JBro/Runtime/SystemScheduler.h>
+#include <JBro/Canvas/Canvas.h>
+#include <JBro/Canvas/SystemScheduler.h>
 #include <JBro/Types/Table.h>
 
 namespace JBro

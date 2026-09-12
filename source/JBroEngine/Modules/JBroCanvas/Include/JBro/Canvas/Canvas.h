@@ -5,8 +5,8 @@
 #include <JBro/Core/StableTypeId.h>
 #include <JBro/Runtime/Component.h>
 #include <JBro/Runtime/GameObject.h>
-#include <JBro/Runtime/Layer.h>
-#include <JBro/Runtime/SystemScheduler.h>
+#include <JBro/Canvas/Layer.h>
+#include <JBro/Canvas/SystemScheduler.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/Table.h>
 
