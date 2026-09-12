@@ -312,9 +312,10 @@
 
 - **D-42. 모듈을 스크립트가 보는 층(Tier S)과 엔진만 보는 층(Tier E)으로 물리 분리한다.**
   Updates: D-18, D-27. Closes: Open Decision 4·8.
-  Tier S = `JBroCore`, `JBroRuntime`(Component·Ref·GameObjectHandle·GameScriptBase·System/ServiceContext·ScriptModule),
-  `JBroFramework2D`(컴포넌트·서비스·`GameScript2D`·`Layer2D` 값 타입·`Internal/ScriptModuleContext`·`ScriptAPI.h`),
-  `JBroAssetTypes`. Tier E = `JBroCanvas`(Canvas·GameObject·Layer·GameSystem·SystemScheduler·`Internal/InstanceRegistry`),
+  Tier S = `JBroCore`, `JBroRuntime`(Component·Ref·GameObjectHandle·GameScriptBase·System/ServiceContext·ScriptModule·
+  `Internal/InstanceRegistry`), `JBroFramework2D`(컴포넌트·서비스·`GameScript2D`·`Layer2D` 값 타입·
+  `Internal/ScriptModuleContext`·`ScriptAPI.h`), `JBroAssetTypes`.
+  Tier E = `JBroCanvas`(Canvas·GameObject·Layer·GameSystem·SystemScheduler),
   `JBroHost`(EngineInstance·IFramework·ScriptDLLLoader), `JBroFramework2DSystem`(시스템·렌더 추출·`Framework2D` 클래스),
   Graphics·RHI·Platform·Asset. 의존은 Tier E → Tier S 방향만 허용한다.
   `ScriptAPI.h`는 각 Framework 모듈의 `Include/JBro/ScriptAPI.h`에 두어 경로는 하나, 내용은 차원별이다.
@@ -322,6 +323,9 @@
   `GameObject*`를 돌려주는 접근은 `JBroCanvas`의 내부 접근 클래스(구 엔진 `CCanvasRuntimeAccess` 패턴)에만 둔다.
   `Canvas::GetComponent<T>(owner)`(`T*` 반환)는 같은 내부 접근 클래스로 옮기고 `FindComponentRaw`로 개명한다.
   기각: 프렐류드 음성 테스트만 늘리는 안(직접 include를 막지 못함), 한 모듈에 include 루트 둘(§3 빌드 단위 원칙과 충돌).
+  `Internal/InstanceRegistry`는 Tier S다. `Ref<T>::Get()`과 `GameObjectHandle::Resolve()`가 레지스트리를 호출하고
+  이 둘은 스크립트 DLL이 링크해야 하므로(D-44), 레지스트리가 Tier E에 있으면 DLL이 링크되지 않는다.
+  `Canvas`는 레지스트리에 등록·해제하는 쪽이고 Tier E → Tier S 방향이라 문제가 없다.
 - **D-43. 차원별 시스템 인터페이스는 확장 블록으로 전달하고 공통 `SystemContext`에는 차원 무관 시스템만 둔다.**
   Updates: D-34, D-36, D-37. `SystemContext::Physics2D`를 제거한다(`SystemContextAbiVersion` 3).
   Framework2D는 `Framework2DSystemContext`(Tier S `Internal/`)를 D-37 확장 블록으로 전달하고

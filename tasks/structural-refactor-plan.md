@@ -327,4 +327,85 @@ public:
 
 | 날짜 | 단계 | 내용 | 커밋 |
 |---|---|---|---|
-| 2026-09-12 | 0 | 구조 검토, D-42~D-55 확정, `ProjectRule.md` 동기화 | — |
+| 2026-09-12 | 0 | 구조 검토, D-42~D-55 확정, `ProjectRule.md` 동기화 | `81a42e8` |
+| 2026-09-12 | 0 | `Layer2D` 지연 파생 (D-46 일부 선이행) | `ec8dd65` |
+| 2026-09-12 | 0 | Windows SDK 버전 고정, §11 규칙 | `f12c658` |
+| 2026-09-12 | 0 | §12 Git 커밋 규칙, §13 C++ 코딩 규칙 | `6597769`, `4f02179` |
+| 2026-09-12 | 1 | D-53 죽은 선언 제거 (Tier 분리 선행) | `1b4a972` |
+
+## 9. 단계 1 실행 명세
+
+D-42를 구현하기 위한 작업 단위다. 로직 변경은 없고 파일 이동·include 재작성·빌드 단위 추가가 전부다.
+각 커밋은 Debug/Release x64 리빌드와 `JBroTests` 통과, 그리고 `Debug_Game2D`·`Debug_Game3D` 링크로 닫는다.
+
+### 9.1 착수 전 확정해야 하는 것
+
+구현 착수 시점에 D-42의 모듈 표가 두 군데 틀렸음이 드러났다. 하나는 확정했고 하나는 남아 있다.
+
+**(a) `Internal/InstanceRegistry` → Tier S. 확정됨.**
+`Ref<T>::Get()`과 `GameObjectHandle::Resolve()`가 레지스트리를 호출하고 이 둘은 스크립트 DLL이 링크한다(D-44).
+레지스트리가 Tier E면 DLL이 링크되지 않는다. `Canvas`는 등록·해제하는 쪽이고 Tier E → Tier S 방향이라 문제없다.
+D-42와 `ProjectRule.md` §3 표를 이에 맞게 고쳤다.
+
+**(b) `GameObject`의 소속. 미확정 — 이 결정 전에는 9.2를 시작하지 않는다.**
+
+Tier S로 남는 세 파일이 `GameObject`의 **정의**를 필요로 한다.
+
+| Tier S 파일 | 필요한 것 |
+|---|---|
+| `Source/Component.cpp` | `owner->IsActiveInHierarchy()`, `owner->SafeFromThis()` |
+| `Source/GameObjectHandle.cpp` | `object->RequestDestroy()`, `SetActive()`, `IsActiveInHierarchy()`, `FindComponentReference()` |
+| `Source/GameScriptBase.cpp` | `GameObject*` 반환 |
+
+셋 다 스크립트 DLL이 링크해야 하므로 **`GameObject`는 Tier S여야 한다.** D-42 표는 Tier E로 적고 있다.
+Tier E에 남는 것은 `Canvas`·`Layer`·`GameSystem`·`SystemScheduler`다.
+
+D-42의 목표("스크립트는 `GameObject` 선언 자체를 받지 않는다")는 소속이 아니라 **프렐류드 구성**으로 달성한다 —
+`ScriptAPI.h`가 `GameObject.h`를 include하지 않고 `GetOwner()`가 `GameObjectHandle`을 반환하면,
+경로가 있어도 선언이 사용자 TU에 들어오지 않는다. 다만 "include 경로가 강제한다"는 §10.1의 강제력은
+`GameObject`에 한해 한 단계 약해진다. 이것이 받아들일 만한지가 확인 대상이다.
+
+**이 결정에 딸린 문제: destroy 이음매.**
+`GameObject`가 Tier S가 되면 남는 Tier S → Tier E 간선은 하나다. `GameObject::RequestDestroy()`가
+`Canvas::DestroyObject()`를 부르는 지점이다. 선언을 Tier S 헤더에 두고 정의를 Tier E `.cpp`에 두면
+스크립트 DLL에 미해결 심볼이 남는다. 따라서 함수 포인터 이음매가 필요하다 —
+`1b4a972`에서 "죽은 간접 계층"으로 판단해 제거한 `m_destroyContext` / `m_destroyCallback`이 정확히 그것이다.
+
+그 제거는 D-53 기준으로는 옳았지만 D-42 기준으로는 이르다. 되살리되 죽은 코드가 아니라
+**Tier 경계 이음매**로 이름과 주석을 붙이는 것이 기본 제안이다. `GameObject::GetCanvas()`는
+D-42에 따라 Tier E 내부 접근 클래스로 옮긴다.
+
+### 9.2 커밋 분할
+
+| # | 커밋 | 내용 |
+|---|---|---|
+| S1-1 | `refactor:` | 9.1(b) 확정 결과 반영. `GameObject` 소속 확정과 destroy 이음매 복원 |
+| S1-2 | `refactor:` | `JBroCanvas` 신설. `Canvas`·`Layer`·`GameSystem`·`SystemScheduler` 이동 |
+| S1-3 | `refactor:` | `JBroHost` 신설. `EngineInstance`·`IFramework`·`ScriptDLLLoader` 이동 |
+| S1-4 | `refactor:` | `JBroFramework2DSystem` 분리. 시스템·렌더 추출·`Framework2D` 클래스 |
+| S1-5 | `refactor:` | `JBroAssetTypes` 분리. `ScriptAPI.h`를 Framework 소유로 이동, `GetOwner()` 핸들 반환 |
+| S1-6 | `test:` | Tier E include 음성 테스트, 헤더 자립성 테스트 |
+
+### 9.3 S1-2 파일 이동표
+
+`vcxproj`가 `Include\**\*.h` · `Source\**\*.cpp` 와일드카드를 쓰므로 파일 목록 편집은 필요 없다.
+새 `vcxproj` 하나와 `.slnx` 등록, 소비자의 `ProjectReference`·`AdditionalIncludeDirectories`만 추가한다.
+
+| 이동 전 | 이동 후 | 외부 참조 |
+|---|---|---|
+| `JBroRuntime/Include/JBro/Runtime/Canvas.h` | `JBroCanvas/Include/JBro/Canvas/Canvas.h` | 12곳 |
+| `JBroRuntime/Include/JBro/Runtime/Layer.h` | `JBroCanvas/Include/JBro/Canvas/Layer.h` | 1곳 |
+| `JBroRuntime/Include/JBro/Runtime/GameSystem.h` | `JBroCanvas/Include/JBro/Canvas/GameSystem.h` | 5곳 |
+| `JBroRuntime/Include/JBro/Runtime/SystemScheduler.h` | `JBroCanvas/Include/JBro/Canvas/SystemScheduler.h` | 2곳 |
+| `JBroRuntime/Source/{Canvas,Layer,GameSystem,SystemScheduler}.cpp` | `JBroCanvas/Source/` | — |
+
+`JBroCanvas`의 의존은 `JBroCore`, `JBroRuntime`, `JBroAsset`이다. 소비자는
+`JBroFramework2D`(분리 후 `JBroFramework2DSystem`), `JBroFramework3D`, `JBroEditor`, `JBroGameHost`, `JBroTests`다.
+
+### 9.4 단계 1 완료 조건
+
+- 스크립트 프로브 프로젝트가 `<JBro/Canvas/Canvas.h>`, `<JBro/Host/EngineInstance.h>`,
+  `<JBro/Framework2DSystem/...>` 를 include하면 각각 `C1083`으로 실패한다.
+- 스크립트 프로브 DLL이 `JBroCore`·`JBroRuntime`·`JBroFramework2D`·`JBroAssetTypes`만 링크하고 빌드된다.
+- Debug/Release x64 전체 빌드 경고 0, `JBroTests` 통과, `Debug_Game2D`·`Debug_Game3D` 링크 성공.
+- 모듈 간 역방향 include 0건.

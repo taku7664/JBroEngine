@@ -57,10 +57,10 @@
   | 층 | 모듈 | 내용 |
   |---|---|---|
   | Tier S | `JBroCore` | 값 타입·컨테이너·`StableTypeId`·`InstanceIdGenerator` |
-  | Tier S | `JBroRuntime` | `ComponentBase`·`Ref<T>`·`GameObjectHandle`·`GameScriptBase`·`SystemContext`·`ServiceContext`·`ScriptModule` |
+  | Tier S | `JBroRuntime` | `ComponentBase`·`Ref<T>`·`GameObjectHandle`·`GameScriptBase`·`SystemContext`·`ServiceContext`·`ScriptModule`·`Internal/InstanceRegistry` |
   | Tier S | `JBroFramework2D` | 컴포넌트·서비스·`GameScript2D`·`Layer2D` 값 타입·`Internal/ScriptModuleContext`·`ScriptAPI.h` |
   | Tier S | `JBroAssetTypes` | `AssetId`·`AssetHandle`·`AssetMetadata`·`Asset::*` |
-  | Tier E | `JBroCanvas` | `Canvas`·`GameObject`·`Layer`·`GameSystem`·`SystemScheduler`·`Internal/InstanceRegistry`·내부 접근 클래스 |
+  | Tier E | `JBroCanvas` | `Canvas`·`GameObject`·`Layer`·`GameSystem`·`SystemScheduler`·내부 접근 클래스 |
   | Tier E | `JBroFramework2DSystem` | 2D 시스템·렌더 추출·`Framework2D`(IFramework 구현) |
   | Tier E | `JBroHost` | `EngineInstance`·`IFramework`·`ScriptDLLLoader` |
   | Tier E | `JBroAsset`·`JBroGraphics`·`JBroRHI`·`JBroPlatform`·`JBroD3D12RHI`·`JBroEditor`·`JBroGameHost` | 엔진·호스트 |
