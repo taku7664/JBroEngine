@@ -237,6 +237,43 @@ namespace
             "a destroy request outside iteration must not be queued");
     }
 
+    // D-54: 상속 활성은 캐시로 읽고, 변경 시점에만 부분 트리로 전파된다.
+    void TestActiveInHierarchyIsCachedAndPropagates()
+    {
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        auto* root = canvas.CreateObject("root");
+        auto* middle = canvas.CreateObject("middle");
+        auto* leaf = canvas.CreateObject("leaf");
+        middle->SetParent(root);
+        leaf->SetParent(middle);
+        Check(root->IsActiveInHierarchy() && middle->IsActiveInHierarchy()
+            && leaf->IsActiveInHierarchy(),
+            "a fresh chain must start active all the way down");
+
+        root->SetActive(false);
+        Check(false == root->IsActiveInHierarchy()
+            && false == middle->IsActiveInHierarchy()
+            && false == leaf->IsActiveInHierarchy(),
+            "disabling an ancestor must reach every descendant");
+        Check(middle->IsActiveSelf() && leaf->IsActiveSelf(),
+            "inherited inactivity must not overwrite a descendant's own flag");
+
+        root->SetActive(true);
+        Check(leaf->IsActiveInHierarchy(), "re-enabling an ancestor must restore descendants");
+
+        middle->SetActive(false);
+        Check(root->IsActiveInHierarchy() && false == leaf->IsActiveInHierarchy(),
+            "disabling a middle node must reach below it and not above it");
+
+        // 비활성 부모에서 떼어내면 자기 값만 남는다.
+        leaf->SetParent(nullptr);
+        Check(leaf->IsActiveInHierarchy(),
+            "detaching from an inactive parent must recompute the cache");
+        leaf->SetParent(middle);
+        Check(false == leaf->IsActiveInHierarchy(),
+            "reattaching under an inactive parent must recompute it again");
+    }
+
     void TestRefIsPod()
     {
         // Stage B0 의 계약. 여기서 다시 잡아두면 이후 회귀 시 즉시 눈에 띈다.
@@ -339,6 +376,7 @@ int RunCanvasFoundationTests()
     TestFramework3DBootstrapsRuntimeCanvas();
     TestComponentLifecycleHooks();
     TestDestroyDuringIterationIsDeferred();
+    TestActiveInHierarchyIsCachedAndPropagates();
     TestRefIsPod();
     TestStableTypeIdIsStable();
     TestFramework2DComponentsArePolymorphic();

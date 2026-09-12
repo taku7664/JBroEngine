@@ -40,7 +40,8 @@ namespace JBro
         Layer*        GetLayer() const;
         std::uint32_t GetLayerIndex() const;
 
-        // 활성 상태
+        // 활성 상태. IsActiveInHierarchy 는 캐시를 읽으므로 O(1) 이다 —
+        // 컴포넌트 활성 게이트가 매 프레임 이것을 부르기 때문이다(§9, D-54).
         bool IsActiveSelf() const;
         bool IsActiveInHierarchy() const;
         void SetActive(bool active);
@@ -77,6 +78,7 @@ namespace JBro
         bool DetachComponent(ComponentBase* component);
         InstanceRef FindComponentReference(ComponentTypeId typeId) const;
         bool RequestDestroy();
+        void RefreshActiveInHierarchy();
 
         InstanceId                   m_instanceId = InvalidInstanceId;
         InstanceHandle               m_handle;
@@ -90,6 +92,7 @@ namespace JBro
         std::uint32_t                 m_flags = 0;
         bool                          m_destroying = false;
         bool                          m_active = true;
+        bool                          m_activeInHierarchy = true;
         String                        m_tag;
     };
 

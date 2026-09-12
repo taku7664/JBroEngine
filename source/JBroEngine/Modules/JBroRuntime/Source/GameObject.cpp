@@ -61,6 +61,8 @@ namespace JBro
         if (parent == nullptr)
         {
             m_parent.Reset();
+            // 부모가 바뀌면 이 부분 트리의 상속 활성값도 바뀐다.
+            RefreshActiveInHierarchy();
             return;
         }
 
@@ -70,6 +72,7 @@ namespace JBro
         {
             parent->m_children.Add(std::move(self));
         }
+        RefreshActiveInHierarchy();
     }
 
     const Array<SafePtr<GameObject>>& GameObject::GetChildren() const
@@ -94,21 +97,38 @@ namespace JBro
 
     bool GameObject::IsActiveInHierarchy() const
     {
-        for (const GameObject* node = this;
-            node != nullptr;
-            node = node->m_parent.TryGet())
-        {
-            if (false == node->m_active)
-            {
-                return false;
-            }
-        }
-        return true;
+        return m_activeInHierarchy;
     }
 
     void GameObject::SetActive(bool active)
     {
+        if (m_active == active)
+        {
+            return;
+        }
         m_active = active;
+        RefreshActiveInHierarchy();
+    }
+
+    // 자기 값과 부모의 캐시로 결과를 정하고, 바뀐 경우에만 자식으로 내려간다.
+    // 비용은 실제로 상태가 뒤집힌 부분 트리에만 든다.
+    void GameObject::RefreshActiveInHierarchy()
+    {
+        const GameObject* parent = m_parent.TryGet();
+        const bool resolved = m_active && (parent == nullptr || parent->m_activeInHierarchy);
+        if (m_activeInHierarchy == resolved)
+        {
+            return;
+        }
+        m_activeInHierarchy = resolved;
+
+        for (const SafePtr<GameObject>& childReference : m_children)
+        {
+            if (GameObject* child = childReference.TryGet())
+            {
+                child->RefreshActiveInHierarchy();
+            }
+        }
     }
 
     const char* GameObject::GetTag() const
