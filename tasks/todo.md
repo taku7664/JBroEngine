@@ -18,6 +18,9 @@
 과거 작업 문서의 본문과 Decisions가 충돌하면 Decisions를 따르되, `ProjectRule.md`도 같은 변경에서
 동기화한다.
 
+**현재 진행 중인 작업 계획은 [structural-refactor-plan.md](./structural-refactor-plan.md)다.**
+2026-09-12 전체 구조 검토에서 확정한 방향(D-42~D-55)의 근거·성능 계약·단계 순서·완료 조건이 거기 있다.
+
 ## Goal
 
 `source/JBroEngine` 신규 트리를 **기존 엔진(`source/repos/JBroEngine/Engine`)의
@@ -63,6 +66,9 @@
 아래 항목은 구현자가 임의로 좁은 임시 구조를 선택하면 최종 방향을 바꾸므로, 빡대리가 계약을
 확정한 뒤 Decisions와 `ProjectRule.md`에 함께 반영한다.
 
+2026-09-12 구조 검토로 3·4·6·7·8은 확정되어 Decisions로 옮겼다(각 항목 끝의 `→ 확정` 참조).
+**아직 열린 것은 1·2·5다.**
+
 1. **InstanceId 세션 10비트의 범위**
    현재 문구는 프로세스 시작 시 한 번 생성하는 난수를 뜻하지만 구현은 생성기 객체마다 다시 뽑는다.
    프로세스당 값 하나를 공유할지, 생성기마다 0~1023 안에서 비반복 값을 보장할지 결정해야 한다.
@@ -82,11 +88,13 @@
    이 목록과 지연 변이 경계가 없다. 이 순서를 그대로 유지할지와 FixedUpdate/Update 뒤 flush 시점을
    확정해야 한다. H5의 DLL 리플렉션 생성·파괴 함수 없이 정적 부착 스크립트만 지원하는 구현은 완료로
    간주하지 않는다.
+   **→ 확정: D-45.** 구 엔진 계약을 그대로 이식한다.
 4. **ScriptAPI 한 줄 include의 실제 소유 위치**
    D-18은 `<JBro/ScriptAPI.h>` 하나만 허용하지만 현재 파일은 Core 경로에서 Runtime을 역참조하고
    Framework2D 공개 타입은 포함하지 않는다. 프로젝트 차원 선택이 같은 경로의 완성된 프렐류드를
    제공할지, 별도 ScriptAPI 빌드 단위를 둘지 결정해야 한다. 사용자가 Framework 헤더를 추가로
    include하게 하는 방식은 D-18을 수정하지 않는 한 채택할 수 없다.
+   **→ 확정: D-42.** 각 Framework 모듈의 `Include/JBro/ScriptAPI.h`(같은 경로)로 이동한다.
 5. **PixelPerfect 투영 계약**
    기준 해상도, pixels-per-unit, 정수 배율, 남는 영역의 letterbox/crop 정책을 정해야 한다. 현재
    `CameraProjection2D::PixelPerfect`는 존재하지만 시스템이 명시적으로 실패시키며 구현 완료가 아니다.
@@ -96,6 +104,7 @@
    표면인 `Service::AssetService`도 예고되어 있다. 에셋 로드·캐시를 소유하는 프로젝트 수명 객체를
    `AssetSystem`으로 개명하고 값형 `AssetService`를 앞에 두는 안을 기본으로 제안한다. `AssetRegistry`가
    로드 소유까지 합칠지는 수명과 공개 API를 바꾸므로 빡대리가 확정한다.
+   **→ 확정: D-50.** `AssetSystem`(로드·캐시)과 `AssetRegistry`(메타데이터)를 분리 유지, 값형 `AssetService`.
 7. **스크립트 리플렉션의 컨테이너 메모리 경계**
    `Allocator.h`는 호스트 할당기를 DLL에 바인딩한다고 설명하지만, 현재 `ScriptModuleLoadContext`에는 할당
    함수가 없고 `BindHeapAllocator` 호출도 0건이다. 또한 `String`은 `HeapAllocator`를 쓰지 않으므로 할당기
@@ -103,12 +112,14 @@
    메모리의 C++ 컨테이너를 직접 조작하지 않고, DLL이 제공하는 필드 복사·편집·직렬화 연산을 통하는
    안을 기본으로 제안한다. 반대로 호스트가 직접 편집해야 한다면 `String`까지 포함한 공유 할당기 ABI를
    새로 설계해야 하므로 빡대리가 확정한다.
+   **→ 확정: D-51.** 기본 제안 채택 — 호스트는 DLL 컨테이너를 직접 조작하지 않고 DLL이 제공하는 연산을 통한다.
 8. **ScriptAPI의 실체 타입 노출 범위**
    `ProjectRule.md` §5는 `Canvas` 같은 구현 타입이 스크립트 헤더에 나타나지 않아야 한다고 규정하지만,
    §6은 `Ref<Canvas>`를 스크립트 참조 종류로 열어 두고 있다. 현재 `ScriptAPI.h`는 실체
    `GameObject.h`를 include하며 그 공개 표면에서 `Canvas* GetCanvas()`까지 보인다. 스크립트가
    `GameObjectHandle`과 서비스만 보게 할지, 실체 타입 선언은 보되 획득 경로만 막을지 확정해야 한다.
    이 결정 전에는 프렐류드 공개 표면을 완료로 표시하지 않는다.
+   **→ 확정: D-42.** 스크립트는 `Canvas`·`GameObject` 선언 자체를 받지 않는다. 모듈 계층 분리로 강제한다.
 
 ## Decisions
 
@@ -293,6 +304,89 @@
   패럴랙스·별도 합성 텍스처 상태를 보관하며 Framework2D가 소유한다. Runtime `Layer`와의 연결 저장
   방식은 Framework2D 내부 구현으로 두며 Runtime 공개 계약이나 직렬화 형식을 늘리지 않는다.
   공통 Layer에 2D 상태를 남기거나 Framework별 Canvas를 복제하는 방식은 채택하지 않는다.
+
+### 2026-09-12 구조 검토에서 확정한 것
+
+근거·대안·검증은 [structural-refactor-plan.md](./structural-refactor-plan.md) §2·§3에 있다.
+판단 기준은 "나중에 바꾸는 비용이 큰 계약은 지금 확정한다"이다.
+
+- **D-42. 모듈을 스크립트가 보는 층(Tier S)과 엔진만 보는 층(Tier E)으로 물리 분리한다.**
+  Updates: D-18, D-27. Closes: Open Decision 4·8.
+  Tier S = `JBroCore`, `JBroRuntime`(Component·Ref·GameObjectHandle·GameScriptBase·System/ServiceContext·ScriptModule),
+  `JBroFramework2D`(컴포넌트·서비스·`GameScript2D`·`Layer2D` 값 타입·`Internal/ScriptModuleContext`·`ScriptAPI.h`),
+  `JBroAssetTypes`. Tier E = `JBroCanvas`(Canvas·GameObject·Layer·GameSystem·SystemScheduler·`Internal/InstanceRegistry`),
+  `JBroHost`(EngineInstance·IFramework·ScriptDLLLoader), `JBroFramework2DSystem`(시스템·렌더 추출·`Framework2D` 클래스),
+  Graphics·RHI·Platform·Asset. 의존은 Tier E → Tier S 방향만 허용한다.
+  `ScriptAPI.h`는 각 Framework 모듈의 `Include/JBro/ScriptAPI.h`에 두어 경로는 하나, 내용은 차원별이다.
+  Tier S의 `ComponentBase::GetOwner()`·`GameScriptBase::GetGameObject()`는 `GameObjectHandle`을 반환하며,
+  `GameObject*`를 돌려주는 접근은 `JBroCanvas`의 내부 접근 클래스(구 엔진 `CCanvasRuntimeAccess` 패턴)에만 둔다.
+  `Canvas::GetComponent<T>(owner)`(`T*` 반환)는 같은 내부 접근 클래스로 옮기고 `FindComponentRaw`로 개명한다.
+  기각: 프렐류드 음성 테스트만 늘리는 안(직접 include를 막지 못함), 한 모듈에 include 루트 둘(§3 빌드 단위 원칙과 충돌).
+- **D-43. 차원별 시스템 인터페이스는 확장 블록으로 전달하고 공통 `SystemContext`에는 차원 무관 시스템만 둔다.**
+  Updates: D-34, D-36, D-37. `SystemContext::Physics2D`를 제거한다(`SystemContextAbiVersion` 3).
+  Framework2D는 `Framework2DSystemContext`(Tier S `Internal/`)를 D-37 확장 블록으로 전달하고
+  `Physics2DService.cpp`는 `GetFramework2DSystems().Physics2D`를 읽는다.
+- **D-44. `InstanceRegistry`는 프로세스 전역·캔버스 무관이며, 스크립트 DLL에 로드 시 1회 바인딩한다.**
+  Updates: D-26. `ScriptModuleLoadContext`에 `Internal::InstanceRegistry* Registry`를 추가한다(ABI 2).
+  Runtime의 `InstanceRegistry::Get()`은 바인딩된 포인터를 반환한다. 호스트는 프로세스 시작 시 자기 인스턴스를,
+  DLL은 `Load`에서 호스트 것을 바인딩한다. 포인터 1회 바인딩이므로 §6.2의 "매 프레임 함수 테이블 우회 금지"와 충돌하지 않는다.
+  레지스트리는 캔버스를 모른다. 슬롯은 프로세스 전역이고 `InstanceId`는 프로세스 유일이므로 캔버스 두 벌(에디터 편집본+Play 사본)이
+  공존해도 해석이 모호하지 않다. D-26의 "다중 캔버스 명시 파라미터 예외"와 보류 절의 "Canvas 두 벌이면 핸들 재검토"는
+  **재검토 없이 성립**한다. `GameObjectHandle` 16B·`Ref<T>` 24B는 영구 고정이다.
+  "어느 캔버스에 생성하는가"는 해석이 아니라 서비스 문제이며, 생성 서비스는 호출 스크립트의 소유 오브젝트에서 캔버스를 얻는다.
+- **D-45. 스크립트 실행 순서와 변이 경계는 구 엔진 계약을 그대로 이식한다.**
+  Closes: Open Decision 3. 실행 목록은 레이어 합성 순서 → 오브젝트 계층(부모 먼저) → 컴포넌트 부착 순서다.
+  목록은 더티 플래그로 지연 재구축하며, 트리거는 스크립트 부착/분리·`SetParent`·레이어 생성/파괴/이동이다.
+  순회 중 생성은 즉시 수행하되 목록에는 다음 프레임 반영, 순회 중 파괴는 지연 큐에 넣고 `FixedUpdate` 묶음 뒤와 `Update` 뒤
+  두 지점에서 flush한다. 순회 깊이 가드(`ScriptIterationGuard`)는 `Canvas`가 소유하고 `Canvas::ForEach<T>`에도 적용한다.
+- **D-46. `Layer`는 식별자(`LayerId`)와 합성 순서 캐시(`m_order`)를 분리해 갖고, 렌더가 순서와 가시성을 사용한다.**
+  Updates: D-41(유지·보강). `LayerIndex`를 `LayerId`로 개명한다(단조 증가·재사용 없음·직렬화 값).
+  `Canvas`는 Create/Destroy/Move에서 `ReindexLayers()`로 `m_order`를 갱신한다(구 엔진 `CGameLayer::m_index`와 같은 역할).
+  렌더 정렬 키는 `(layerOrder, renderOrder, sourceId)`를 `std::uint64_t` 하나로 패킹하고, 비가시 레이어는 추출 단계에서 건너뛴다.
+  `Layer2D`는 지연 생성한다 — `GetLayer2D(id)`는 살아 있는 런타임 레이어에 상태가 없으면 기본값으로 만들고,
+  죽은 레이어면 스테일 엔트리를 지우고 `nullptr`을 반환한다. Runtime 공개 계약 변경 없음.
+  구 엔진 `CGameLayer`의 잔여 필드 귀속: `ScaleMode`·`AnchorToSafeArea` → `Layer2D`,
+  `SourceAssetGuid`·`KeepOnCanvasChange` → Runtime `Layer`.
+  기각: Runtime `Canvas`에 수명 콜백 추가(D-41 위반, 등록 누락 시 재발), 가변 `Canvas` 접근 차단(D-42로 이미 해소).
+- **D-47. 월드 변환 캐시는 `Component::Transform2D` 안에 둔다. `WorldTransform2D`는 폐기한다.**
+  Updates: D-3(Transform은 컴포넌트 — 유지). `Transform2D`에 `world`·`worldRotation`·`worldScale`·`worldValid`를 두고
+  시스템만 쓴다. `Transform2DSystem`은 `Canvas::GetHierarchyVersion()`이 바뀔 때만 부모 먼저 순서의 `Transform2D*` 배열을
+  재구축하고, 매 프레임은 그 배열을 한 번 선형 순회한다(조회 0회, 재귀 없음).
+  기각: 시스템이 `WorldTransform2D`를 자동 부착(사용자가 붙이지 않은 컴포넌트가 인스펙터·프리팹 diff에 나타남).
+- **D-48. `ComponentBase`의 가상 함수 집합을 확정한다.**
+  `~ComponentBase()`, `GetTypeId()`, `OnAttached()`, `OnDetached()`, `OnEnabled()`, `OnDisabled()`.
+  스크립트 DLL이 파생하는 타입의 vtable은 ABI이므로 이후 추가는 D-28 재빌드 규약 위에서만 허용한다.
+  `GameScriptBase`의 `OnCreate`는 `OnAttached` 뒤, `OnDestroy`는 `OnDetached` 앞에 온다.
+  형제 컴포넌트 캐시는 `OnAttached`에서 잡고 `InstanceHandle`과 함께 저장해 프레임 시작에 세대 비교 1회로 검증한다.
+- **D-49. `IFramework::Render()`는 `RenderResult { Submitted, NothingToSubmit, Failed }`를 반환한다.**
+  호스트는 `Failed`만 치명으로 본다. `Framework3D`는 렌더 시스템이 생길 때까지 `NothingToSubmit`을 반환한다.
+- **D-50. 에셋은 값 타입 모듈과 시스템 모듈로 나누고 `AssetManager`는 `AssetSystem`으로 바꾼다.**
+  Closes: Open Decision 6. `JBroAssetTypes`(Tier S: `AssetId`·`AssetHandle`·`AssetMetadata`·`Asset::*`)와
+  `JBroAsset`(Tier E: `AssetSystem` 로드·캐시 소유, 프로젝트 수명; `AssetRegistry` 메타데이터). 스크립트 표면은 값형 `Service::AssetService`.
+  `AssetRegistry`는 로드 소유를 합치지 않는다.
+- **D-51. `String`은 `std::string` 래퍼로 영구 확정하고 경계·핫 데이터에서는 금지한다.**
+  Closes: Open Decision 7(기본 제안 채택). POD Context·패킷·`Ref`·핸들·컴포넌트 공개 필드에 `String`을 두지 않는다.
+  이름·태그는 인턴된 정수(`NameId = MakeStableTypeId(text)`)로 두고 문자열은 에디터·직렬화 계층이 보관한다.
+  `GameObject::m_tag`가 첫 교정 대상이다. 스크립트 리플렉션 필드의 컨테이너 편집은 DLL이 제공하는 연산을 통한다.
+- **D-52. 컨테이너 할당기 정책은 인스턴스를 가질 수 있어야 하며, 프레임 임시 배열은 `JMemoryContext.frame`을 쓴다.**
+  `Array<T, Allocator>`·`Table<..., Allocator>`의 정책 타입에 `[[no_unique_address]]` 멤버로 상태를 허용한다.
+  기본 `HeapAllocator`는 빈 타입으로 유지(크기 증가 0), `JAllocatorRef` 정책을 추가한다.
+  `frame`은 `Canvas::BeginFrame`에서 리셋되는 선형 할당기다. 도입 시점은 단계 3의 첫 항목이다 — 프레임 임시 배열을 처음 쓰기 직전.
+- **D-53. 죽은 계약을 삭제하고 골격은 "미완"으로 명시한다.**
+  삭제: `EngineContext`(`EngineInstance`가 그 역할), `RuntimeModule`/`Runtime.h`, `RefCategory::Canvas`·`Asset`,
+  스켈레톤 스모크 3개, `TObjectPool::Slot::generation`, `GameObject::m_destroyContext`/`m_destroyCallback`.
+  Audit Snapshot에 명시: `PrefabSpawner`·`AssetRegistry`·`AssetSystem::Load`·`ScriptSystem`은 선언만 있는 골격.
+- **D-54. 성능 계약을 측정 가능한 형태로 고정한다.**
+  Updates: D-32(패킷 필드 보강). 정상 프레임(스폰 포함)에서 힙 할당 0회, `InstanceRegistry` 영속 조회 0회를 카운팅 할당기·카운터로 단언한다.
+  `TObjectPool`: ControlBlock을 구 엔진처럼 `m_freeBlocks`로 재활용하고 `Reserve`에서 미리 확보, `Destroy`는 청크 베이스
+  정렬 배열 이진 탐색으로 슬롯을 찾는다. `GameObject`는 `m_activeInHierarchy`를 캐시하고 `SetActive`·`SetParent`가 전파한다.
+  `Ref<T>::Get()`은 캐시 슬롯이 살아 있고 세대만 다르면 확정 사망으로 단락한다. `Table<InstanceId, …>`는 항등 해시를 쓴다.
+  `SpriteSubmit`·`GpuSpriteInstance`의 `world`는 `Matrix4x4`가 아니라 아핀 6 + 깊이 1(`float affine[6]; float depth;`)이며
+  셰이더가 `float4x4`를 조립한다. `MeshSubmit`은 `Matrix4x4`를 유지한다. `RenderWorld2D`는 `(uint64 key, uint32 index)`를 정렬하고
+  아이템은 제자리에 둔다. `Ref<T>`·`GameObjectHandle`은 `SafePtr`와 같이 메인 스레드 전용이다.
+- **D-55. `ComponentBase::m_owner`는 `SafePtr<GameObject>`로 유지한다.**
+  raw 포인터로 줄이면 8B와 역참조 하나를 아끼지만 §6의 명시 규칙을 바꾸는 일이다. private 멤버라 나중에 바꿔도 공개 계약이
+  깨지지 않으므로(D-28 재빌드 규약) 지금 열지 않는다.
 
 ## Assumptions
 

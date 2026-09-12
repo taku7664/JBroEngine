@@ -30,6 +30,11 @@
   사용자용 Shader Graph와 엔진 내부 Render Graph를 분리하며, 게임 스크립트에 Renderer/RHI 또는 임의 GPU
   콜백을 노출하지 않는다. (MUST)
 - 정상 렌더 프레임 경로는 일반 힙 할당, 문자열 생성·비교, `WaitIdle` 호출을 하지 않아야 한다. (MUST)
+- 2D 스프라이트 패킷(`SpriteSubmit`)과 GPU 인스턴스의 변환은 `Matrix4x4`가 아니라 **아핀 6개 + 깊이 1개**
+  (`float affine[6]; float depth;`)로 전달하고 셰이더가 `float4x4`를 조립한다. `MeshSubmit`은 `Matrix4x4`를 유지한다. (MUST)
+  패킷 필드는 D-32 ABI이므로 이후 변경은 Decisions를 거친다. (D-54)
+- `IFramework::Render()`는 `RenderResult { Submitted, NothingToSubmit, Failed }`를 반환하며 호스트는 `Failed`만
+  치명 오류로 본다. 렌더 시스템이 없는 Framework는 `NothingToSubmit`을 반환한다. (MUST) (D-49)
 - Web 환경 문제로 Windows 쪽 엔진 구조 안정화가 불필요하게 막히지 않도록 작업 순서를 조정할 수 있다. (MAY)
 
 ## 3. 모듈 경계와 링크
@@ -44,6 +49,23 @@
 - 모듈 간 역방향 include와 순환 의존을 만들지 않는다. (MUST)
 - 공통 모듈에는 2D/3D 차원 개념과 무관한 기능만 둔다.
   공통 계층의 공개 시그니처에 특정 Framework 타입을 노출하지 않는다. (MUST)
+  `SystemContext`도 공통 계층이다 — 차원별 시스템 인터페이스는 D-37 확장 블록(`Framework2DSystemContext`)으로 전달한다. (D-43)
+- **모듈은 스크립트가 보는 층(Tier S)과 엔진만 보는 층(Tier E)으로 나뉜다.** 한 모듈에 두 층을 섞지 않는다. (MUST) (D-42)
+  사용자 비공개는 include 경로가 강제하므로(§10.1), 스크립트 타깃은 Tier S 모듈의 Include 경로만 받는다.
+  의존은 Tier E → Tier S 방향만 허용한다. Tier S 모듈이 Tier E 헤더를 include하면 컴파일이 실패해야 한다.
+
+  | 층 | 모듈 | 내용 |
+  |---|---|---|
+  | Tier S | `JBroCore` | 값 타입·컨테이너·`StableTypeId`·`InstanceIdGenerator` |
+  | Tier S | `JBroRuntime` | `ComponentBase`·`Ref<T>`·`GameObjectHandle`·`GameScriptBase`·`SystemContext`·`ServiceContext`·`ScriptModule` |
+  | Tier S | `JBroFramework2D` | 컴포넌트·서비스·`GameScript2D`·`Layer2D` 값 타입·`Internal/ScriptModuleContext`·`ScriptAPI.h` |
+  | Tier S | `JBroAssetTypes` | `AssetId`·`AssetHandle`·`AssetMetadata`·`Asset::*` |
+  | Tier E | `JBroCanvas` | `Canvas`·`GameObject`·`Layer`·`GameSystem`·`SystemScheduler`·`Internal/InstanceRegistry`·내부 접근 클래스 |
+  | Tier E | `JBroFramework2DSystem` | 2D 시스템·렌더 추출·`Framework2D`(IFramework 구현) |
+  | Tier E | `JBroHost` | `EngineInstance`·`IFramework`·`ScriptDLLLoader` |
+  | Tier E | `JBroAsset`·`JBroGraphics`·`JBroRHI`·`JBroPlatform`·`JBroD3D12RHI`·`JBroEditor`·`JBroGameHost` | 엔진·호스트 |
+
+  > 현재 트리는 이 분리 전 상태다(`JBroRuntime`이 두 층을 겸함). 이행은 `tasks/structural-refactor-plan.md` 단계 1이다.
 - **DLL 경계는 교체하거나 다시 로드해야 하는 곳에만 만든다.** (MUST)
   현재 DLL로 두는 것은 게임 스크립트 하나뿐이며 나머지 모듈은 정적 링크한다.
   DLL 경계는 POD 전달, 소유권 규칙, 수명 순서 같은 비용을 그 API에 영구히 부과하므로
@@ -72,39 +94,44 @@
   그 프로젝트의 스크립트 타깃 include 경로에 넣지 않는다. (MUST)
 - 차원에 종속되는 타입은 각 Framework가 소유한다. `Transform2D`와 `Transform3D`를 하나로 합치지 않는다. (MUST)
 - Framework2D와 Framework3D는 서로 직접 의존하지 않는다. (MUST)
-- 차원 독립 `Canvas` 본체와 `Layer` 정체성은 `JBroRuntime`에 한 번만 정의한다. (MUST)
+- 차원 독립 `Canvas` 본체와 `Layer` 정체성은 공통 Tier E 모듈(`JBroCanvas`)에 한 번만 정의한다. (MUST)
   Framework별 Canvas 복제본을 만들지 않으며, 블렌드·불투명도·공간·패럴랙스·별도 합성 텍스처처럼
   2D 렌더 합성에만 필요한 상태는 `JBroFramework2D`가 소유한다.
 
-> **구현 근거:** `Canvas`와 공통 `Layer`는 `JBroRuntime`에 한 번만 정의하며, Framework2D는 별도
-> `Layer2D`에 2D 합성 상태를 보관한다. Framework3D는 Framework2D를 링크하지 않고 Runtime Canvas의
+> **구현 근거:** `Canvas`와 공통 `Layer`는 한 번만 정의하며, Framework2D는 별도
+> `Layer2D`에 2D 합성 상태를 보관한다. Framework3D는 Framework2D를 링크하지 않고 공통 Canvas의
 > 오브젝트·컴포넌트·시스템 실행 경계를 사용한다. 3D 렌더 시스템 자체는 아직 후속 구현 대상이다.
+> D-42 이전 트리에서는 이 정의가 `JBroRuntime`에 있다.
 
 ## 5. 엔진과 게임 코드의 경계
 
 - 네임스페이스 규칙은 §10.1 을 따른다. 스크립트 레이어는 프렐류드가 `using namespace JBro;` 를 한다. (MUST)
-- 호스트가 조립하는 집합을 `EngineContext`, 게임 DLL 이 받는 시스템 집합을 `SystemContext`,
-  사용자에게 공개되는 서비스 집합을 `ServiceContext` 라 한다.
-  이 셋은 차원과 무관한 공통 Context이며, 모두 대상의 수명을 소유하지 않는다. (MUST)
+- 게임 DLL 이 받는 시스템 집합을 `SystemContext`, 사용자에게 공개되는 서비스 집합을 `ServiceContext` 라 한다.
+  둘은 차원과 무관한 공통 Context이며, 대상의 수명을 소유하지 않는다. (MUST)
+  호스트가 프로세스 자원을 조립하는 자리는 `EngineInstance` 자체이며 별도의 `EngineContext` 타입을 두지 않는다. (D-53)
   이전 이름 `EngineCore` / `ScriptCore` 와 호스트 네임스페이스 `Core::` 는 쓰지 않는다.
   모듈 이름 `JBroCore` 와 충돌하기 때문이다.
-- 차원별 서비스는 선택된 Framework가 별도 값 Context로 제공한다. (MUST)
-  2D 프로젝트는 `Framework2DServiceContext`를 사용하며, `Physics2DService`를 값으로 보유한다.
-  이 타입을 Runtime `ServiceContext`에 넣어 공통 계층이 Framework2D를 참조하게 만들지 않는다.
+- 차원별 서비스와 시스템은 선택된 Framework가 별도 값 Context로 제공한다. (MUST)
+  2D 프로젝트는 `Framework2DServiceContext`(`Physics2DService` 값)와 `Framework2DSystemContext`(`IPhysics2DSystem*`)를
+  D-37 확장 블록으로 받는다. 이 타입들을 공통 `ServiceContext`·`SystemContext`에 넣어 공통 계층이 Framework2D를
+  참조하게 만들지 않는다. (D-36, D-43)
 - **Context에는 시스템과 서비스만 넣는다. 콘텐츠 단위 객체를 넣지 않는다.** (MUST)
   `Canvas`는 장면의 단위, `GameObject`는 액터의 단위이므로 Context에 들어갈 수 없다.
   스크립트가 오브젝트를 다뤄야 하면 `Canvas*` 가 아니라 `Service::GameObjectService` 를 쓴다.
   상태가 없는 것(Math 등)도 Context 슬롯을 차지하지 않는다. 헤더 전용으로 제공한다.
-- `EngineContext`는 저수준을 포함해 전부 담는다. 단 **모듈에 통째로 넘기지 않는다.**
+- 호스트는 프로세스 자원 전부를 알지만 **모듈에 통째로 넘기지 않는다.**
   각 모듈에는 필요한 부분집합만 전달한다. (MUST)
   통째로 넘기면 모듈별 include 경계가 런타임에 무의미해진다.
 
   ```
-  EngineContext           호스트가 조립. 전부
-      ├─ FrameworkContext     모듈에 주는 부분집합
-      ├─ SystemContext        게임 DLL 이 받지만 사용자에겐 보이지 않는다
-      ├─ ServiceContext        Runtime 공통 서비스 — 사용자에게 공개
-      └─ Framework2DServiceContext  선택된 2D 서비스 — 2D 프로젝트에만 공개
+  EngineInstance          호스트. 프로세스 자원 전부를 소유·조립
+      ├─ FrameworkContext            Framework에 주는 부분집합
+      ├─ ScriptModuleLoadContext     게임 DLL 로드 시 1회 전달 (POD)
+      │    ├─ SystemContext              공통 시스템 — DLL 은 받지만 사용자에겐 보이지 않는다
+      │    ├─ ServiceContext             공통 서비스 — 사용자에게 공개
+      │    ├─ Registry                   InstanceRegistry* — 호스트 것을 DLL 이 바인딩 (D-44)
+      │    └─ Extensions[]               Framework2DSystemContext / Framework2DServiceContext 블록
+      └─ (Tier E 내부)                Canvas·Renderer·Platform·RHI·AssetSystem
   ```
 
 - `ServiceContext`에는 게임플레이가 정당하게 필요로 하는 **서비스만** 넣는다. (MUST)
@@ -116,9 +143,12 @@
 - 호스트와 게임 DLL 경계를 넘는 데이터는 POD 형태여야 한다. `std::string`, `std::vector` 같은 소유권을 가진 STL 타입을 경계 너머로 직접 전달하지 않는다. (MUST)
 - DLL에서 만든 객체는 원칙적으로 같은 DLL에서 파괴한다. (MUST)
 - 스크립트가 엔진 실 객체에 도달하는 경로는 서비스를 통한다. (MUST)
-  `Canvas` 같은 구현 타입은 스크립트 헤더에 나타나지 않는다.
-  현재 `ScriptAPI.h`가 실체 `GameObject.h`를 통해 `Canvas` 선언과 포인터 API를 노출하는 문제는
-  `tasks/todo.md` Open Decision 8에서 추적하며, 해결 전에는 이 경계를 완료로 표시하지 않는다.
+  `Canvas`·`GameObject` 같은 구현 타입은 스크립트 헤더에 **선언조차 나타나지 않는다.** Tier S의
+  `ComponentBase::GetOwner()`·`GameScriptBase::GetGameObject()`는 `GameObjectHandle`을 반환한다.
+  `GameObject*`·`Canvas*`를 돌려주는 접근은 `JBroCanvas`의 내부 접근 클래스(구 엔진 `CCanvasRuntimeAccess` 패턴)에만 둔다. (D-42)
+  `ScriptAPI.h`는 각 Framework 모듈의 `Include/JBro/ScriptAPI.h`에 두어 include 경로는 하나, 내용은 차원별이다. (D-18, D-42)
+- 스크립트 DLL은 로드 시 호스트의 `InstanceRegistry` 포인터를 받아 자기 정적 링크 사본의 접근점에 바인딩한다. (MUST) (D-44)
+  레지스트리는 프로세스 전역이며 캔버스를 모른다. 캔버스 여러 개가 공존해도 핸들·`Ref` 해석은 모호하지 않다.
 - 서비스 헤더는 시스템을 **전방 선언만** 하고, 실제 호출은 비인라인 구현(`.cpp`)에 둔다. (MUST)
   인라인으로 두면 시스템 정의가 프렐류드를 타고 사용자에게 노출된다.
 - 스크립트 DLL 은 로드 시 `SystemContext`, 공통 `ServiceContext`, 선택된 Framework의 서비스 Context를
@@ -137,11 +167,14 @@
   거기만 `GameObject` 핸들로 덮는다.
 - **스크립트에 노출하는 참조는 두 종류뿐이다.** (MUST)
   `GameObject`는 16B `GameObjectHandle`로 다루며, `operator->` 없이 안전 멤버만 제공한다.
-  컴포넌트 · 스크립트 · 에셋 · 캔버스는 24B `Ref<T>`를 쓰고 카테고리는 `T`에서
-  컴파일타임에 결정한다. 이 둘 외에 타입별 핸들을 추가하지 않는다.
+  컴포넌트 · 스크립트는 24B `Ref<T>`를 쓰고 카테고리는 `T`에서 컴파일타임에 결정한다.
+  에셋은 `AssetHandle`, 캔버스는 스크립트에 노출하지 않으므로 `RefCategory::Asset`·`Canvas`는 두지 않는다. (D-53)
+  이 둘 외에 타입별 핸들을 추가하지 않는다. 두 크기(16B·24B)는 영구 고정이다. (D-44)
+- `GameObjectHandle`·`Ref<T>`는 `SafePtr`와 같이 **메인 스레드 전용**이다. 해석 캐시를 워커에서 갱신하지 않는다. (MUST) (D-54)
 - **`GetComponent<T>()` 는 원시 포인터가 아니라 `Ref<T>` 를 반환한다.** (MUST)
   원시 포인터는 저장할 수 없어 매 프레임 다시 찾아야 하고, 그 조회가 선형 탐색이다.
   `Ref<T>` 로 한 번 받아두면 이후 접근이 상수 시간이 된다.
+  시스템이 쓰는 `T*` 반환 조회는 `GetComponent`라는 이름을 쓰지 않고 Tier E 내부 접근 클래스의 `FindComponentRaw<T>`로 둔다. (D-42)
 - `Ref<T>` 의 접근자는 하나다. 별도의 스코프 객체 타입을 두지 않는다. (MUST)
 
   ```cpp
@@ -301,10 +334,13 @@
 - 선택된 Framework의 최상위 실행 단위는 Runtime `Canvas`이며, `Canvas`가 오브젝트 풀과 타입별
   컴포넌트 풀, 순서를 가진 공통 `Layer` 정체성들을 직접 소유한다. (MUST)
   `World` 같은 중간 계층을 두지 않는다. 수명 계층은 `Canvas` → `GameObject` 하나뿐이다.
-- Runtime `Layer`는 식별자·이름·표시 여부와 Canvas 안의 순서를 표현하며 GameObject의 실행 수명은
-  소유하지 않는다. (MUST) 불투명도·블렌드 방식·공간·패럴랙스·별도 합성 텍스처는 2D 렌더 합성
-  상태이므로 Framework2D의 `Layer2D`가 소유한다. (MUST) Runtime `Layer`와 연결하는 저장 방식은
-  Framework2D 내부 구현이며 Runtime 공개 계약이 아니다.
+- 공통 `Layer`는 식별자(`LayerId` — 단조 증가·재사용 없음·직렬화 값)·이름·표시 여부·에셋 출처(`SourceAssetGuid`)·
+  캔버스 전환 승계(`KeepOnCanvasChange`)와 **합성 순서 캐시(`GetOrder()`)**를 갖는다. GameObject의 실행 수명은
+  소유하지 않는다. (MUST) 순서 캐시는 `Canvas`가 레이어 생성·파괴·이동 시 재색인하며 그 외에는 쓰지 않는다. (D-46)
+  렌더 추출은 레이어 순서를 정렬 키의 최상위로 쓰고 비가시 레이어를 건너뛴다. (MUST)
+  불투명도·블렌드 방식·공간·패럴랙스·별도 합성 텍스처·`ScaleMode`·`AnchorToSafeArea`는 2D 렌더 합성
+  상태이므로 Framework2D의 `Layer2D`가 소유한다. (MUST) `Layer2D`는 살아 있는 공통 `Layer`에 대해 **지연 생성**되고,
+  죽은 `Layer`의 상태는 접근 시 정리된다 — 공통 `Canvas`에 수명 콜백을 추가하지 않는다. (D-41, D-46)
 - 별도의 `Scene` 또는 `SceneManager` 실행 계층은 두지 않는다. 이 이름으로 `Canvas`와 중복되는 수명 계층을 다시 만들지 않는다. (MUST)
   금지 대상은 특정 이름이 아니라 **중복 수명 계층 자체**다. 이름만 바꾼 같은 계층도 금지한다.
 - Time, Input 같은 핵심 서비스의 수명은 엔진이 소유한다. (MUST)
@@ -325,6 +361,13 @@
 - 부모·자식 계층과 레이어 소속은 `GameObject`의 멤버다. (MUST)
   Transform은 차원별 컴포넌트로 유지한다. 2D는 `Component::Transform2D`,
   3D는 `Component::Transform3D`를 쓰며 `GameObject`는 차원을 알지 않는다. (MUST)
+  **월드 변환 캐시는 Transform 컴포넌트 안에 있다.** 로컬과 월드를 별도 컴포넌트로 나누지 않으며 사용자는
+  Transform 하나만 붙인다. 월드 필드는 시스템만 쓰고 스크립트에는 읽기만 허용한다. (MUST) (D-47)
+- `ComponentBase`의 가상 함수 집합은 `~ComponentBase`·`GetTypeId`·`OnAttached`·`OnDetached`·`OnEnabled`·`OnDisabled`다. (MUST)
+  스크립트 DLL이 파생하는 타입의 vtable은 ABI이므로 추가는 Decisions와 D-28 재빌드 규약을 거친다.
+  형제 컴포넌트 캐시는 `OnAttached`에서 잡고 `InstanceHandle`과 함께 저장해 프레임 시작에 세대 비교로 검증한다. (D-48)
+- `GameObject`는 `m_activeInHierarchy`를 캐시하고 `SetActive`·`SetParent`가 하위 트리에 전파한다.
+  `IsActiveInHierarchy()`는 O(1)이다. (MUST) (D-54)
 - 시스템은 `ForEach<T>` 로 **타입별 컴포넌트 풀을 순회하며** 갱신한다. (MUST)
   다중 타입 `Query<A,B>` 를 도입하지 않는다.
 - **시스템은 `Ref<T>` 를 거치지 않는다.** 순회가 풀의 실체 참조(`T&`)를 그대로 준다. (MUST)
@@ -332,8 +375,11 @@
   `Ref<T>` 는 "이 오브젝트가 저 오브젝트를 가리킨다" 는 **관계를 저장할 때만** 쓴다.
 - **순회 중에 컴포넌트나 오브젝트를 생성·파괴하지 않는다.** (MUST)
   live 배열이 흔들려 바깥 순회가 무효화된다.
-  필요하면 지연 큐에 넣고 프레임 경계에서 flush 하거나, 재진입 가드를 둔다
-  (기존 엔진의 `ScriptIterationGuard` 가 이 목적이다).
+  `Canvas`가 순회 깊이 가드(`ScriptIterationGuard`)를 소유하고 `ForEach<T>`와 스크립트 실행 목록 순회에 적용한다.
+  순회 중 생성은 즉시 수행하되 실행 목록에는 다음 프레임 반영, 순회 중 파괴는 지연 큐에 넣고
+  `FixedUpdate` 묶음 뒤와 `Update` 뒤 두 지점에서 flush한다. (MUST) (D-45)
+- 스크립트 실행 순서는 **레이어 합성 순서 → 오브젝트 계층(부모 먼저) → 컴포넌트 부착 순서**다. (MUST)
+  목록은 더티 플래그로 지연 재구축하며 트리거는 스크립트 부착/분리·`SetParent`·레이어 생성/파괴/이동이다. (D-45)
 - 컴포넌트 타입 ID 는 `MakeStableTypeId(T::StaticTypeName())` 으로 **이름에서 유도한다.** (MUST)
   손으로 배정한 매직넘버를 쓰지 않는다. 이름 기반이라 DLL 경계와 직렬화를 넘어 안정적이다.
 - 같은 타입 컴포넌트가 한 오브젝트에 여러 개 있을 수 있다. `InstanceId`로 구분한다. (MUST)
@@ -344,6 +390,9 @@
 - `TObjectPool<T>`의 청크 저장소는 생성자에서 받은 `JAllocator`로 할당하고 같은 allocator로
   반환해야 한다. (MUST) 청크 포인터 목록과 free-list 같은 Core 컨테이너의 내부 저장소는
   `Array`의 모듈 로컬 할당 계약을 따르되, 객체 슬롯을 담는 청크 자체는 전달받은 allocator가 소유한다.
+- `TObjectPool<T>`의 `SafePtr` ControlBlock은 구 엔진처럼 재활용 목록으로 돌려 쓰고 `Reserve`에서 미리 확보한다.
+  정상 스폰 경로에서 ControlBlock `new`는 0회다. `Destroy`의 슬롯 탐색은 청크 베이스 주소 정렬 배열의
+  이진 탐색이며 전 슬롯 선형 탐색을 하지 않는다. 세대는 `InstanceRegistry`가 단독으로 관리한다. (MUST) (D-54)
 
 ### 8.1 참조와 식별자
 
@@ -385,6 +434,14 @@
 
 - 매 프레임 도는 경로에 `dynamic_cast`, 힙 할당, 문자열 생성·비교를 두지 않는다. (MUST)
   타입 분기는 정적 디스패치나 타입별 저장소로, 조회는 초기화 시점 캐시로 해결한다.
+  **스폰·파괴를 포함한 정상 프레임**이 기준이다. 오브젝트 생성이 힙을 건드리면 위반이다. (D-54)
+- 이 계약은 측정으로 고정한다. (MUST) 카운팅 할당기를 `Canvas`·`Renderer`에 주입한 정상 프레임에서 할당 0회,
+  `InstanceRegistry` 영속 조회 0회 증가, `TObjectPool::Destroy`의 비교 횟수 상한을 테스트가 단언한다. (D-54)
+- 프레임 임시 배열은 `JMemoryContext.frame`(`Canvas::BeginFrame`에서 리셋되는 선형 할당기)을 쓴다.
+  `Array`·`Table`의 할당기 정책은 인스턴스를 가질 수 있어야 하며 기본 `HeapAllocator`는 빈 타입으로 유지한다. (MUST) (D-52)
+- `Ref<T>::Get()`은 캐시 슬롯이 살아 있고 세대만 다르면 확정 사망으로 단락하며 해시 조회로 떨어지지 않는다.
+  `Table<InstanceId, …>`는 항등 해시를 쓴다. (MUST) (D-54)
+- 렌더 정렬은 `(uint64 key, uint32 index)` 배열을 정렬하고 아이템은 제자리에 둔다. 키는 `(layerOrder, renderOrder, sourceId)` 패킹이다. (MUST) (D-46, D-54)
 - 컴포넌트 저장소의 요소 주소 안정성처럼 상위 코드가 기대는 성질은 계약으로 문서화하고 테스트로 고정한다. (MUST)
 - `GameHost`는 정상 렌더 프레임(`Ready`) 뒤에 인위적인 대기를 넣지 않는다. (MUST)
 - `GameHost`는 렌더링을 생략한 프레임(`Skipped`) 뒤에 플랫폼 이벤트를 기다리되,
@@ -455,6 +512,7 @@
   | `Component::Transform2D` | `Component::TransformComponent2D` |
   | `System::Transform2DSystem` | `System::TransformSystem2D` |
   | `System::Camera2DSystem` | `System::CameraSystem2D` |
+  | `Component::MeshRenderer3D` | `Component::MeshRenderer` (차원 마커 누락) |
 
 - `Component` 네임스페이스의 컴포넌트 타입에는 `Component` 접미사를 반복하지 않는다. (MUST)
 - 역할 접미(`System` / `Service`)는 항상 맨 뒤에 온다. (MUST)
@@ -495,13 +553,14 @@
   struct Framework2DServiceContext { Service::Physics2DService Physics2D; };
   ```
 
-- 서비스는 결국 시스템 기능을 써야 한다. 시스템 접근은 `SystemContext` 로 넘긴다. (MUST)
+- 서비스는 결국 시스템 기능을 써야 한다. 시스템 접근은 `SystemContext`(공통) 또는 Framework의 시스템 Context 블록으로 넘긴다. (MUST)
 
   ```
-  EngineContext          호스트가 조립. 전부
-      ├─ SystemContext       시스템 모음 — 게임 DLL 은 받지만 사용자에겐 보이지 않는다
-      ├─ ServiceContext       공통 서비스 — 사용자에게 보인다
-      └─ Framework2DServiceContext  2D 서비스 — 2D 프로젝트에만 보인다
+  ScriptModuleLoadContext          호스트가 조립. DLL 로드 시 1회
+      ├─ SystemContext                 공통 시스템 — 게임 DLL 은 받지만 사용자에겐 보이지 않는다
+      ├─ ServiceContext                공통 서비스 — 사용자에게 보인다
+      ├─ Framework2DSystemContext      2D 시스템 인터페이스 — 확장 블록, 사용자에겐 보이지 않는다
+      └─ Framework2DServiceContext     2D 서비스 — 확장 블록, 2D 프로젝트에만 보인다
   ```
 
   `SystemContext.h` 는 프렐류드가 include 하지 않는다. 서비스 `.cpp` 만 include 한다.
@@ -515,6 +574,15 @@
 - 두 역할 어디에도 해당하지 않으면 `System` 이나 `Service` 를 장식으로 붙이지 않고
   역할을 그대로 이름에 쓴다. (MUST)
   예: `Renderer`, `SystemScheduler`, `EngineInstance`, `AssetRegistry`.
+- 에셋 로드·캐시를 소유하는 프로젝트 수명 객체는 `AssetSystem`, 메타데이터는 `AssetRegistry`, 스크립트 표면은 값형
+  `Service::AssetService`다. `AssetManager`는 쓰지 않는다. (MUST) (D-50)
+
+### 10.4 문자열과 이름
+
+- `String`은 `std::string`의 래퍼로 확정한다. 다시 구현하지 않는다. (MUST) (D-51)
+- `String`은 POD Context·패킷·`Ref`·핸들·**컴포넌트 공개 필드**에 두지 않는다. (MUST)
+  이름·태그는 인턴된 정수(`NameId = MakeStableTypeId(text)`)로 두고 원문은 에디터·직렬화 계층이 보관한다.
+- 스크립트 리플렉션 필드의 `Array`/`Table`/`String`은 호스트가 직접 재할당·해제하지 않고 DLL이 제공하는 연산을 통한다. (MUST) (D-51)
 
 - 지속적으로 저장할 데이터는 YAML 또는 바이너리 형식을 우선한다. (SHOULD)
 
@@ -528,6 +596,8 @@
 
 ## 12. 관련 문서
 
+- [tasks/structural-refactor-plan.md](../tasks/structural-refactor-plan.md) — 2026-09-12 구조 검토와 D-42~D-55의 근거·단계 계획.
+  이 문서의 규칙 중 `(D-42)`~`(D-55)`가 붙은 것은 그 계획의 단계가 끝나기 전까지 현재 코드와 다를 수 있다.
 - [Jbro Engine Architecture Draft](./Jbro_Engine_Architecture_Draft_v2.md)
 - [Jbro C++ Script Object Safety Draft](./Jbro_CPP_Script_Object_Safety.md)
 
