@@ -12,33 +12,28 @@
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>18.0</VCProjectVersion>
-    <ProjectGuid>{1a000002-0000-4000-8000-0000000a5537}</ProjectGuid>
-    <RootNamespace>JBroAsset</RootNamespace>
-    <ProjectName>JBroAsset</ProjectName>
+    <ProjectGuid>{1a000012-0000-4000-8000-0000000a5570}</ProjectGuid>
+    <RootNamespace>JBroAssetTypes</RootNamespace>
+    <ProjectName>JBroAssetTypes</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <Import Project="$(SolutionDir)JBro.Common.props" Condition="Exists('$(SolutionDir)JBro.Common.props')" />
   <Import Project="$(MSBuildThisFileDirectory)..\..\JBro.Common.props" Condition="!Exists('$(SolutionDir)JBro.Common.props')" />
   <PropertyGroup Label="Configuration">
-    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <!-- 헤더 전용 모듈. include 루트를 소유하고 의존 선언을 강제하는 것이 존재 이유이며
+         링크 산출물은 없다. -->
+    <ConfigurationType>Utility</ConfigurationType>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroModulesDir)JBroCore\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroAssetTypes\Include;$(JBroModulesDir)JBroCore\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="Include\**\*.h" />
   </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="Source\**\*.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="$(JBroModulesDir)JBroAssetTypes\JBroAssetTypes.vcxproj">
-      <Project>{1a000012-0000-4000-8000-0000000a5570}</Project>
-      <LinkLibraryDependencies>false</LinkLibraryDependencies>
-    </ProjectReference>
+<ItemGroup>
     <ProjectReference Include="$(JBroModulesDir)JBroCore\JBroCore.vcxproj">
       <Project>{1a000001-0000-4000-8000-00000000c0de}</Project>
       <LinkLibraryDependencies>false</LinkLibraryDependencies>

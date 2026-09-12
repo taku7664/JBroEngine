@@ -464,14 +464,14 @@ namespace
         auto* processRenderer = engine.GetRenderer();
         Check(engine.Tick(0.016f) && engine.GetLastFrameStatus() == JBro::FrameStatus::Skipped,
             "empty host must pump events without submitting undefined backbuffer content");
-        Check(engine.GetAssetManager() == nullptr && engine.OpenProject(first), "assets must be scoped to an opened project");
+        Check(engine.GetAssetSystem() == nullptr && engine.OpenProject(first), "assets must be scoped to an opened project");
         Check(false == engine.OpenProject(second) && engine.GetFramework() == &first,
             "opening over a live project must reject without destroying it");
         Check(engine.Tick(0.016f), "first project must render");
         engine.CloseProject();
         Check(engine.IsRunning() && platform.open && engine.GetRenderer() == processRenderer,
             "project close must preserve the host, window and renderer");
-        Check(first.shutdowns == 1 && engine.GetFramework() == nullptr && engine.GetAssetManager() == nullptr,
+        Check(first.shutdowns == 1 && engine.GetFramework() == nullptr && engine.GetAssetSystem() == nullptr,
             "project close must release framework session and assets");
         Check(module.createDeviceCount == 1 && module.destroyDeviceCount == 0
             && module.device.destroySwapchainCount == 0 && module.device.waitIdleCount == 0,
@@ -490,7 +490,7 @@ namespace
         second.closeDuringUpdate = false;
         second.initializeSucceeds = false;
         Check(false == engine.OpenProject(second), "failed project open must be reported");
-        Check(engine.IsRunning() && engine.GetFramework() == nullptr && engine.GetAssetManager() == nullptr,
+        Check(engine.IsRunning() && engine.GetFramework() == nullptr && engine.GetAssetSystem() == nullptr,
             "failed project open must roll back only project resources");
         second.initializeSucceeds = true;
         second.bindContextsSucceeds = false;

@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#include <JBro/Asset/Asset.h>
+#include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Core/Core.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Math2D.h>

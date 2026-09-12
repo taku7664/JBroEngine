@@ -15,50 +15,50 @@ namespace JBro
         return nullptr;
     }
 
-    bool AssetManager::Initialize(const JMemoryContext&)
+    bool AssetSystem::Initialize(const JMemoryContext&)
     {
         return true;
     }
 
-    void AssetManager::Shutdown()
+    void AssetSystem::Shutdown()
     {
     }
 
-    AssetHandle AssetManager::Load(AssetId)
+    AssetHandle AssetSystem::Load(AssetId)
     {
         return {};
     }
 
-    AssetHandle AssetManager::LoadTexture(AssetId id)
+    AssetHandle AssetSystem::LoadTexture(AssetId id)
     {
         return Load(id);
     }
 
-    AssetHandle AssetManager::LoadSprite(AssetId id)
+    AssetHandle AssetSystem::LoadSprite(AssetId id)
     {
         return Load(id);
     }
 
-    AssetHandle AssetManager::LoadMesh(AssetId id)
+    AssetHandle AssetSystem::LoadMesh(AssetId id)
     {
         return Load(id);
     }
 
-    AssetHandle AssetManager::LoadMaterial(AssetId id)
+    AssetHandle AssetSystem::LoadMaterial(AssetId id)
     {
         return Load(id);
     }
 
-    AssetHandle AssetManager::LoadShader(AssetId id)
+    AssetHandle AssetSystem::LoadShader(AssetId id)
     {
         return Load(id);
     }
 
-    void AssetManager::Unload(AssetHandle)
+    void AssetSystem::Unload(AssetHandle)
     {
     }
 
-    bool AssetManager::IsLoaded(AssetHandle) const
+    bool AssetSystem::IsLoaded(AssetHandle) const
     {
         return false;
     }

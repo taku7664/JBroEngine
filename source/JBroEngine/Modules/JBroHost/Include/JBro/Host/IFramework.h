@@ -4,13 +4,13 @@
 
 namespace JBro
 {
-    class AssetManager;
+    class AssetSystem;
     class Renderer;
 
     struct FrameworkContext
     {
         JMemoryContext memory;
-        AssetManager* assets = nullptr;
+        AssetSystem* assets = nullptr;
         Renderer* renderer = nullptr;
         float fixedDeltaTime = 1.0f / 60.0f;
         std::uint32_t maxFixedStepsPerFrame = 4;

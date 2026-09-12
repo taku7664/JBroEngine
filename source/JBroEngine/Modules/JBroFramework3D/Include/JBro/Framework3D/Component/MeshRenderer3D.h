@@ -1,7 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/Framework3D/Math3D.h>
-#include <JBro/Asset/Asset.h>
+#include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Runtime/Component.h>
 
 namespace JBro::Component

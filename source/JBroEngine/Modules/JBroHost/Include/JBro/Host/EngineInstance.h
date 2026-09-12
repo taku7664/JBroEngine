@@ -42,7 +42,7 @@ namespace JBro
         // Callback calls defer teardown until that callback returns.
         void Shutdown();
 
-        AssetManager* GetAssetManager();
+        AssetSystem* GetAssetSystem();
         Renderer* GetRenderer();
         IFramework* GetFramework();
         bool IsRunning() const;
@@ -58,7 +58,7 @@ namespace JBro
         IPlatform* m_platform = nullptr;
         IFramework* m_framework = nullptr;
         WindowHandle m_mainWindow;
-        OwnerPtr<AssetManager> m_assets;
+        OwnerPtr<AssetSystem> m_assets;
         OwnerPtr<Renderer> m_renderer;
         FrameworkContext m_frameworkContext;
         State m_state = State::Stopped;

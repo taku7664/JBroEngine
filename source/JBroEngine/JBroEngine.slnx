@@ -15,6 +15,12 @@
       <BuildType Solution="Debug_Game3D|x64" Project="Debug" />
       <BuildType Solution="Release_Game3D|x64" Project="Release" />
     </Project>
+    <Project Path="Modules/JBroAssetTypes/JBroAssetTypes.vcxproj">
+      <BuildType Solution="Debug_Game2D|x64" Project="Debug" />
+      <BuildType Solution="Release_Game2D|x64" Project="Release" />
+      <BuildType Solution="Debug_Game3D|x64" Project="Debug" />
+      <BuildType Solution="Release_Game3D|x64" Project="Release" />
+    </Project>
     <Project Path="Modules/JBroAsset/JBroAsset.vcxproj">
       <BuildType Solution="Debug_Game2D|x64" Project="Debug" />
       <BuildType Solution="Release_Game2D|x64" Project="Release" />

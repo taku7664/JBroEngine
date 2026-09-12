@@ -1,55 +1,11 @@
 ﻿#pragma once
 
+#include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Core/Core.h>
 
 namespace JBro
 {
-    struct AssetId
-    {
-        std::uint64_t value = 0;
-    };
-
-    struct AssetHandle
-    {
-        std::uint32_t index = 0;
-        std::uint32_t generation = 0;
-    };
-
-    struct AssetMetadata
-    {
-        AssetId id;
-        JStringView type;
-        JStringView sourcePath;
-    };
-
-    namespace Asset
-    {
-        struct TextureAsset
-        {
-            AssetId id;
-        };
-
-        struct SpriteAsset
-        {
-            AssetId id;
-        };
-
-        struct MeshAsset
-        {
-            AssetId id;
-        };
-
-        struct MaterialAsset
-        {
-            AssetId id;
-        };
-
-        struct ShaderAsset
-        {
-            AssetId id;
-        };
-    }
-
+    // 에셋 메타데이터 보관소. 로드·캐시 소유는 AssetSystem 이 따로 가진다(D-50).
     class AssetRegistry
     {
     public:
@@ -58,7 +14,8 @@ namespace JBro
         const AssetMetadata* Find(AssetId id) const;
     };
 
-    class AssetManager final : public IModule
+    // 프로젝트 수명 동안 에셋 로드와 캐시를 소유한다. 사용자 호출 표면은 값형 Service::AssetService 다.
+    class AssetSystem final : public IModule
     {
     public:
         bool Initialize(const JMemoryContext& memory) override;

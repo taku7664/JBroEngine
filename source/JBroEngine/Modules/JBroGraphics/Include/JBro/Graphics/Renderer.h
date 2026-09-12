@@ -1,6 +1,6 @@
 #pragma once
 
-#include <JBro/Asset/Asset.h>
+#include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/RHI/RHI.h>
 #include <JBro/Types/Array.h>
 

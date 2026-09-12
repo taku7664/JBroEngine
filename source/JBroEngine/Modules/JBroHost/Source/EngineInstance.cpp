@@ -85,7 +85,7 @@ namespace JBro
         bool initialized = false;
         try
         {
-            m_assets = MakeOwnerPtr<AssetManager>();
+            m_assets = MakeOwnerPtr<AssetSystem>();
             if (m_assets->Initialize(m_frameworkContext.memory))
             {
                 m_frameworkContext.assets = m_assets.Get();
@@ -312,7 +312,7 @@ namespace JBro
         m_state = State::Stopped;
     }
 
-    AssetManager* EngineInstance::GetAssetManager()
+    AssetSystem* EngineInstance::GetAssetSystem()
     {
         return m_assets.Get();
     }
