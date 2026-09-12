@@ -33,4 +33,36 @@ namespace JBro
         }
         return serviceContext;
     }
+
+    ScriptContextBlock MakeFramework2DSystemContextBlock(
+        const Framework2DSystemContext& context) noexcept
+    {
+        return {
+            Framework2DSystemContextTypeId,
+            context.AbiVersion,
+            static_cast<std::uint32_t>(sizeof(context)),
+            &context};
+    }
+
+    const Framework2DSystemContext* FindFramework2DSystemContext(
+        const ScriptModuleLoadContext& context) noexcept
+    {
+        const ScriptContextBlock* block =
+            FindScriptContextBlock(context, Framework2DSystemContextTypeId);
+        if (block == nullptr
+            || block->AbiVersion != Framework2DSystemContextAbiVersion
+            || block->Size != sizeof(Framework2DSystemContext)
+            || block->Data == nullptr)
+        {
+            return nullptr;
+        }
+
+        const auto* systemContext =
+            static_cast<const Framework2DSystemContext*>(block->Data);
+        if (systemContext->AbiVersion != Framework2DSystemContextAbiVersion)
+        {
+            return nullptr;
+        }
+        return systemContext;
+    }
 }

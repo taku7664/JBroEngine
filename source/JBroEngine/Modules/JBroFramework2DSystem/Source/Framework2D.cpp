@@ -1,8 +1,8 @@
 ﻿#include <JBro/Framework2DSystem/Framework2D.h>
 
 #include <JBro/Graphics/Renderer.h>
+#include <JBro/Framework2D/Internal/SystemContext.h>
 #include <JBro/Framework2D/ServiceContext.h>
-#include <JBro/Runtime/SystemContext.h>
 #include "Rendering/RenderBridge2D.h"
 
 #include <cmath>
@@ -67,9 +67,9 @@ namespace JBro
         {
             return false;
         }
-        auto systems = GetSystemContext();
+        Framework2DSystemContext systems;
         systems.Physics2D = physics;
-        BindSystemContext(systems);
+        BindFramework2DSystemContext(systems);
         BindFramework2DServiceContext({});
         return true;
     }
@@ -80,12 +80,10 @@ namespace JBro
         {
             return;
         }
-        auto systems = GetSystemContext();
         auto* physics = m_canvas->GetSystems().FindSystem<System::Physics2DSystem>();
-        if (physics != nullptr && systems.Physics2D == physics)
+        if (physics != nullptr && GetFramework2DSystems().Physics2D == physics)
         {
-            systems.Physics2D = nullptr;
-            BindSystemContext(systems);
+            BindFramework2DSystemContext({});
             BindFramework2DServiceContext({});
         }
     }

@@ -20,7 +20,9 @@ namespace
         }
         const JBro::Framework2DServiceContext* frameworkServices =
             JBro::FindFramework2DServiceContext(*context);
-        if (frameworkServices == nullptr)
+        const JBro::Framework2DSystemContext* frameworkSystems =
+            JBro::FindFramework2DSystemContext(*context);
+        if (frameworkServices == nullptr || frameworkSystems == nullptr)
         {
             return false;
         }
@@ -29,6 +31,7 @@ namespace
             return false;
         }
         JBro::BindFramework2DServiceContext(*frameworkServices);
+        JBro::BindFramework2DSystemContext(*frameworkSystems);
         g_loaded = true;
         return true;
     }
@@ -36,6 +39,7 @@ namespace
     void UnloadModule() noexcept
     {
         JBro::BindFramework2DServiceContext({});
+        JBro::BindFramework2DSystemContext({});
         JBro::BindSystemContext({});
         JBro::BindServiceContext({});
         g_loaded = false;
@@ -43,7 +47,8 @@ namespace
 
     constexpr JBro::ScriptContextRequirement RequiredContexts[] =
     {
-        JBro::Framework2DServiceContextRequirement
+        JBro::Framework2DServiceContextRequirement,
+        JBro::Framework2DSystemContextRequirement
     };
 
     constexpr JBro::ScriptModuleApi ModuleApi =
@@ -51,7 +56,7 @@ namespace
         JBro::ScriptModuleAbiVersion,
         sizeof(JBro::ScriptModuleApi),
         RequiredContexts,
-        1,
+        2,
         0,
         &LoadModule,
         &UnloadModule
@@ -92,7 +97,7 @@ extern "C" __declspec(dllexport) std::uint32_t JBroScriptProbe_GetFramework2DAbi
 
 extern "C" __declspec(dllexport) std::uintptr_t JBroScriptProbe_GetPhysicsSystem() noexcept
 {
-    return reinterpret_cast<std::uintptr_t>(JBro::GetSystemContext().Physics2D);
+    return reinterpret_cast<std::uintptr_t>(JBro::GetFramework2DSystems().Physics2D);
 }
 
 extern "C" __declspec(dllexport) std::uint32_t JBroScriptProbe_GetRevision() noexcept

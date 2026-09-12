@@ -4,7 +4,7 @@
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Host/EngineInstance.h>
 #include <JBro/Framework2D/ServiceContext.h>
-#include <JBro/Runtime/SystemContext.h>
+#include <JBro/Framework2D/Internal/SystemContext.h>
 
 #include <Windows.h>
 
@@ -78,7 +78,7 @@ namespace
         auto* preservedRenderer = engine.GetRenderer();
         const auto oldSprite = sprite->SafeFromThis();
         engine.CloseProject();
-        Check(JBro::GetSystemContext().Physics2D == nullptr
+        Check(JBro::GetFramework2DSystems().Physics2D == nullptr
             && false == physics.Raycast({-2.0f, 0.0f}, {1.0f, 0.0f}, 4.0f, hit)
             && hit.other.GetInstanceId() == JBro::InvalidInstanceId,
             "project close must disconnect physics before its system is destroyed");
@@ -113,7 +113,7 @@ namespace
         Check(false == engine.Tick(1.0f / 60.0f), "close must terminate the real host");
         Check(IsWindow(nativeWindow) == FALSE && framework.GetCanvas() == nullptr && engine.GetRenderer() == nullptr,
             "real host must release canvas, renderer and native window");
-        Check(JBro::GetSystemContext().Physics2D == nullptr,
+        Check(JBro::GetFramework2DSystems().Physics2D == nullptr,
             "process exit must leave no dangling physics binding");
         rhi.Shutdown();
         platform.Shutdown();

@@ -1,6 +1,7 @@
 ﻿#include <JBro/Runtime/ServiceContext.h>
 #include <JBro/Runtime/SystemContext.h>
 #include <JBro/Framework2DSystem/System/Physics2DSystem.h>
+#include <JBro/Framework2D/Internal/SystemContext.h>
 #include <JBro/Framework2D/Service/Physics2DService.h>
 #include <JBro/Framework2D/ServiceContext.h>
 
@@ -32,6 +33,11 @@ namespace
         static_assert(offsetof(JBro::Framework2DServiceContext, AbiVersion) == 0);
         static_assert(std::is_same_v<decltype(JBro::Framework2DServiceContext::Physics2D),
             JBro::Service::Physics2DService>);
+        static_assert(std::is_standard_layout_v<JBro::Framework2DSystemContext>);
+        static_assert(std::is_trivially_copyable_v<JBro::Framework2DSystemContext>);
+        static_assert(offsetof(JBro::Framework2DSystemContext, AbiVersion) == 0);
+        // 공통 SystemContext 는 차원별 시스템 슬롯을 갖지 않는다(D-43).
+        static_assert(sizeof(JBro::SystemContext) == sizeof(std::uint32_t));
 
         JBro::Framework2DServiceContext services2D;
         services2D.AbiVersion = JBro::Framework2DServiceContextAbiVersion + 1;
@@ -47,13 +53,17 @@ namespace
 
         JBro::SystemContext systems;
         systems.AbiVersion = JBro::SystemContextAbiVersion + 1;
-        JBro::System::Physics2DSystem physicsMarker;
-        systems.Physics2D = &physicsMarker;
         JBro::BindSystemContext(systems);
         Check(JBro::GetSystemContext().AbiVersion == systems.AbiVersion,
             "system context binding must copy the supplied ABI stamp");
-        Check(JBro::GetSystemContext().Physics2D == &physicsMarker,
-            "system context binding must preserve the narrow physics interface pointer");
+
+        JBro::System::Physics2DSystem physicsMarker;
+        JBro::Framework2DSystemContext systems2D;
+        systems2D.Physics2D = &physicsMarker;
+        JBro::BindFramework2DSystemContext(systems2D);
+        Check(JBro::GetFramework2DSystems().Physics2D == &physicsMarker,
+            "the 2D system context must carry the narrow physics interface pointer");
+        JBro::BindFramework2DSystemContext({});
 
         JBro::ServiceContext services;
         services.AbiVersion = JBro::ServiceContextAbiVersion + 1;
@@ -112,7 +122,7 @@ namespace
         {
             ~ResetBinding()
             {
-                JBro::BindSystemContext({});
+                JBro::BindFramework2DSystemContext({});
             }
         } resetBinding;
 
@@ -124,16 +134,16 @@ namespace
         const auto* storage = results.Data();
         const auto capacity = results.Capacity();
         results.Add({});
-        JBro::BindSystemContext({});
+        JBro::BindFramework2DSystemContext({});
         Check(false == service.Raycast({1.0f, 2.0f}, {3.0f, 4.0f}, 5.0f, hit)
             && hit.point.x == 0.0f && hit.point.y == 0.0f,
             "unbound physics service must fail safely and clear the previous hit");
         service.OverlapBox({{1.0f, 2.0f}, {3.0f, 4.0f}}, results);
         Check(results.Size() == 0, "unbound physics service must clear previous overlaps");
 
-        JBro::SystemContext systems;
+        JBro::Framework2DSystemContext systems;
         systems.Physics2D = &first;
-        JBro::BindSystemContext(systems);
+        JBro::BindFramework2DSystemContext(systems);
         Check(service.Raycast({1.0f, 2.0f}, {3.0f, 4.0f}, 5.0f, hit)
             && first.raycastCalls == 1 && hit.point.x == 6.0f && hit.point.y == 7.0f,
             "physics service must return the bound query result with one dispatch");
@@ -142,7 +152,7 @@ namespace
             "physics service must use the caller's result storage with one dispatch");
 
         systems.Physics2D = &second;
-        JBro::BindSystemContext(systems);
+        JBro::BindFramework2DSystemContext(systems);
         Check(service.Raycast({1.0f, 2.0f}, {3.0f, 4.0f}, 5.0f, hit)
             && first.raycastCalls == 1 && second.raycastCalls == 1,
             "an existing service must use the new system after rebinding");
@@ -155,7 +165,7 @@ namespace
             && second.raycastCalls == 2 && hit.point.x == 0.0f,
             "physics service must preserve a bound system's miss result");
 
-        JBro::BindSystemContext({});
+        JBro::BindFramework2DSystemContext({});
         Check(false == service.Raycast({1.0f, 2.0f}, {3.0f, 4.0f}, 5.0f, hit)
             && hit.point.x == 0.0f && second.raycastCalls == 2,
             "unbinding must prevent calls to the old system and clear the hit");

@@ -525,17 +525,19 @@ namespace
             "Windows platform must initialize for the real DLL probe");
 
         JBro::SystemContext systems;
-        systems.Physics2D = reinterpret_cast<JBro::System::IPhysics2DSystem*>(
-            static_cast<std::uintptr_t>(0x12345678));
         JBro::ServiceContext services;
         JBro::Framework2DServiceContext frameworkServices;
+        JBro::Framework2DSystemContext frameworkSystems;
+        frameworkSystems.Physics2D = reinterpret_cast<JBro::System::IPhysics2DSystem*>(
+            static_cast<std::uintptr_t>(0x12345678));
         JBro::BindSystemContext(systems);
         JBro::BindServiceContext(services);
-        const JBro::ScriptContextBlock block =
-            JBro::MakeFramework2DServiceContextBlock(frameworkServices);
+        const JBro::ScriptContextBlock blocks[] = {
+            JBro::MakeFramework2DServiceContextBlock(frameworkServices),
+            JBro::MakeFramework2DSystemContextBlock(frameworkSystems)};
 
         JBro::ScriptDLLLoader loader;
-        Check(loader.Load(utf8Path.c_str(), platform, &block, 1),
+        Check(loader.Load(utf8Path.c_str(), platform, blocks, 2),
             "real script DLL must load from a Korean UTF-8 path");
         Check(CountShadowLibraries(files) == 1,
             "a loaded script module must own exactly one shadow DLL");
@@ -563,7 +565,7 @@ namespace
             && getServiceAbi() == JBro::ServiceContextAbiVersion
             && getFrameworkAbi() == JBro::Framework2DServiceContextAbiVersion,
             "real script DLL must bind its module-local context copies");
-        Check(getPhysicsSystem() == reinterpret_cast<std::uintptr_t>(systems.Physics2D),
+        Check(getPhysicsSystem() == reinterpret_cast<std::uintptr_t>(frameworkSystems.Physics2D),
             "real script DLL must receive the host's system pointer value");
         Check(getRevision() == 1,
             "the initial script DLL must expose revision one");
@@ -573,7 +575,7 @@ namespace
         Check(CopyFileW(files.replacementPath, files.dllPath, TRUE) != FALSE,
             "a rebuilt script DLL must replace the source path while the old module runs");
 
-        Check(loader.Reload(platform, &block, 1),
+        Check(loader.Reload(platform, blocks, 2),
             "real script DLL must unload and reload from a Korean path");
         Check(loader.GetGeneration() == 2,
             "real DLL reload must advance its invalidation generation");
