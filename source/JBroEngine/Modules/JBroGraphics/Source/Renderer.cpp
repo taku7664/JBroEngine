@@ -510,11 +510,15 @@ namespace JBro
 
         const VertexAttributeDesc vertexAttributes[] = {
             {0, 0, VertexFormat::Float2}};
-        // GpuSpriteInstance 의 멤버 오프셋과 짝이 맞는다. 헤더의 static_assert 가 그걸 지킨다.
+        // 오프셋을 손으로 적지 않는다. 구조체와 정점 속성이 따로 놀 수 있는 틈을 없앨다.
+        constexpr std::size_t TransformOffset = offsetof(GpuSpriteInstance, world);
         const VertexAttributeDesc instanceAttributes[] = {
-            {1, 0, VertexFormat::Float4},
-            {2, 16, VertexFormat::Float3},
-            {3, 28, VertexFormat::Float4}};
+            {1, static_cast<std::uint32_t>(TransformOffset + offsetof(SpriteTransform2D, linear)),
+                VertexFormat::Float4},
+            {2, static_cast<std::uint32_t>(TransformOffset + offsetof(SpriteTransform2D, translation)),
+                VertexFormat::Float3},
+            {3, static_cast<std::uint32_t>(offsetof(GpuSpriteInstance, tint)),
+                VertexFormat::Float4}};
         const VertexBufferLayoutDesc vertexLayouts[] = {
             {sizeof(float) * 2, VertexStepMode::Vertex, {vertexAttributes, 1}},
             {sizeof(GpuSpriteInstance), VertexStepMode::Instance, {instanceAttributes, 3}}};

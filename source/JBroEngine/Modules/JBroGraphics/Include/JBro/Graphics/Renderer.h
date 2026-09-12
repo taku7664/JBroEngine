@@ -135,6 +135,8 @@ namespace JBro
             "sprite instance stride is part of the shader ABI");
         static_assert(offsetof(GpuSpriteInstance, world) == 0,
             "instance attribute 1 and 2 read the transform from offset 0");
+        static_assert(offsetof(SpriteTransform2D, translation) == 16,
+            "instance attribute 2 reads the translation and depth from offset 16");
         static_assert(offsetof(GpuSpriteInstance, tint) == 28,
             "instance attribute 3 reads the tint from offset 28");
 
