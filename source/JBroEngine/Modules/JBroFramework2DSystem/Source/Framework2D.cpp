@@ -228,6 +228,8 @@ namespace JBro
     {
         auto& systems = m_canvas->GetSystems();
         systems.AddSystem<System::Transform2DSystem>();
+        // 변환 뒤, 렌더 추출 전이다. 실행 순서는 GetExecutionOrder 가 정한다.
+        systems.AddSystem<System::ScriptSystem>();
         systems.AddSystem<System::Physics2DSystem>();
         systems.AddSystem<System::Camera2DSystem>().SetRenderWorld(&m_renderWorld);
         systems.AddSystem<System::SpriteRender2DSystem>().SetRenderWorld(&m_renderWorld);

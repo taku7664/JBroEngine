@@ -4,6 +4,7 @@
 #include <JBro/Core/ObjectPool.h>
 #include <JBro/Core/StableTypeId.h>
 #include <JBro/Runtime/Component.h>
+#include <JBro/Runtime/GameScriptBase.h>
 #include <JBro/Runtime/ComponentLookupStats.h>
 #include <JBro/Runtime/GameObject.h>
 #include <JBro/Canvas/Layer.h>
@@ -73,11 +74,19 @@ namespace JBro
         template<typename T, typename Fn>
         void ForEach(Fn&& function);
 
+        // 타입을 가리지 않고 살아 있는 스크립트를 전부 모은다(D-45).
+        // 어느 풀이 스크립트인지는 AttachComponent<T> 시점에 컴파일 타임으로 정해지므로
+        // 매 프레임 dynamic_cast 가 필요 없다(§9).
+        // 결과는 정렬되지 않은 채로 나온다. 실행 순서를 세우는 것은 부르는 쪽의 일이다.
+        void CollectScripts(Array<GameScriptBase*>& results);
+
     private:
         struct IComponentBucket
         {
             virtual ~IComponentBucket() = default;
             virtual bool Destroy(ComponentBase* component) = 0;
+            // 스크립트 풀만 자기 원소를 여기에 쏟는다. 나머지는 아무 일도 하지 않는다.
+            virtual void AppendScripts(Array<GameScriptBase*>& results) = 0;
         };
 
         template<typename T>
@@ -91,6 +100,21 @@ namespace JBro
             bool Destroy(ComponentBase* component) override
             {
                 return Pool.Destroy(static_cast<T*>(component));
+            }
+
+            void AppendScripts(Array<GameScriptBase*>& results) override
+            {
+                if constexpr (std::is_base_of_v<GameScriptBase, T>)
+                {
+                    Pool.ForEachLive([&results](T& script)
+                    {
+                        results.Add(static_cast<GameScriptBase*>(&script));
+                    });
+                }
+                else
+                {
+                    (void)results;
+                }
             }
 
             TObjectPool<T> Pool;

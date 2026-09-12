@@ -4,6 +4,7 @@
 int RunCanvasFoundationTests();
 int RunCoreModelStressTests();
 int RunFrameMemoryTests();
+int RunScriptSchedulingTests();
 int RunRendererContractTests();
 int RunPlatformContractTests();
 int RunD3D12SmokeTests();
@@ -30,6 +31,10 @@ int main()
             return 1;
         }
         if (RunFrameMemoryTests() != 0)
+        {
+            return 1;
+        }
+        if (RunScriptSchedulingTests() != 0)
         {
             return 1;
         }

@@ -438,6 +438,20 @@ namespace JBro
 
     // 컴포넌트를 먼저 걷는다. 오브젝트 파괴가 자기 컴포넌트를 이미 정리하므로 순서를 뒤집으면
     // 큐에 남은 컴포넌트가 죽은 대상을 가리킨다. SafePtr 이 그것을 걸러 주지만 무의미한 일을 하게 된다.
+    void Canvas::CollectScripts(Array<GameScriptBase*>& results)
+    {
+        results.Clear();
+        // 모으는 동안 파괴가 배열을 흔들면 안 된다. 가드가 그 동안의 파괴를 큐로 보낸다.
+        IterationGuard guard(*this);
+        for (auto& entry : m_componentBuckets)
+        {
+            if (IComponentBucket* bucket = entry.MappedValue.Get())
+            {
+                bucket->AppendScripts(results);
+            }
+        }
+    }
+
     void Canvas::FlushPendingDestroy()
     {
         if (IsIterating())
