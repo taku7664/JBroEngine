@@ -337,7 +337,7 @@ namespace
         Check(canvas.GetObjectCount() == 2, "Canvas must report live objects");
         Check(registry.GetLiveCount() == 2, "created objects must be registered");
 
-        const JBro::LayerIndex originalDefault = canvas.GetDefaultLayer();
+        const JBro::LayerId originalDefault = canvas.GetDefaultLayer();
         JBro::Layer& replacementLayer = canvas.CreateLayer("Replacement");
         Check(canvas.DestroyLayer(originalDefault), "default layer must be replaceable");
         Check(parent->GetLayer() == &replacementLayer,

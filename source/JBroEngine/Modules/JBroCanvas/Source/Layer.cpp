@@ -5,15 +5,15 @@
 
 namespace JBro
 {
-    Layer::Layer(LayerIndex index, const char* name)
-        : m_index(index)
+    Layer::Layer(LayerId id, const char* name)
+        : m_id(id)
     {
         SetName(name == nullptr ? "Layer" : name);
     }
 
-    LayerIndex Layer::GetIndex() const
+    LayerId Layer::GetId() const
     {
-        return m_index;
+        return m_id;
     }
 
     const char* Layer::GetName() const
@@ -28,6 +28,17 @@ namespace JBro
         std::memcpy(m_name, source, length);
         m_name[length] = '\0';
     }
+
+    LayerOrder Layer::GetOrder() const
+    {
+        return m_order;
+    }
+
+    void Layer::SetOrder(LayerOrder order)
+    {
+        m_order = order;
+    }
+
     bool Layer::IsVisible() const
     {
         return m_visible;

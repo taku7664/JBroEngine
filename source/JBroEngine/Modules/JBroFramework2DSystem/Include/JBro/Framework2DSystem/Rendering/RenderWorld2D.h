@@ -27,6 +27,8 @@ namespace JBro
     {
         GameObject*   owner = nullptr;
         InstanceId    sourceId = InvalidInstanceId;
+        // 레이어 합성 순서. 정렬 키의 최상위다(D-46).
+        std::uint16_t layerOrder = 0;
         Matrix3x2     world;
         AssetHandle   sprite;
         AssetHandle   material;

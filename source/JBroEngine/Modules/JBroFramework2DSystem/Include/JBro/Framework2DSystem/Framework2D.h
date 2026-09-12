@@ -34,9 +34,9 @@ namespace JBro
         Canvas*        GetCanvas();
         RenderWorld2D* GetRenderWorld();
         Layer*         CreateLayer(const char* name = nullptr);
-        bool           DestroyLayer(LayerIndex layer);
-        bool           MoveLayer(LayerIndex layer, std::size_t newIndex);
-        Layer2D*       GetLayer2D(LayerIndex layer);
+        bool           DestroyLayer(LayerId layer);
+        bool           MoveLayer(LayerId layer, std::size_t newIndex);
+        Layer2D*       GetLayer2D(LayerId layer);
 
     private:
         void CreateDefaultSystems();
@@ -44,7 +44,7 @@ namespace JBro
 
         FrameworkContext m_context;
         OwnerPtr<Canvas> m_canvas;
-        Table<LayerIndex, OwnerPtr<Layer2D>> m_layer2DStates;
+        Table<LayerId, OwnerPtr<Layer2D>> m_layer2DStates;
         RenderWorld2D    m_renderWorld;
         double           m_fixedAccumulator = 0.0;
         bool             m_initialized      = false;

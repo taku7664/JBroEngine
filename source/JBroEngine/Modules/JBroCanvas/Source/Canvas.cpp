@@ -87,7 +87,7 @@ namespace JBro
         {
             object->SetLayer(
                 FindLayerReference(m_defaultLayer),
-                defaultLayer->GetIndex());
+                defaultLayer->GetId());
         }
         return object;
     }
@@ -185,14 +185,15 @@ namespace JBro
             name == nullptr ? "Layer" : name);
         Layer& result = *layer;
         m_layers.Add(std::move(layer));
-        if (m_defaultLayer == InvalidLayerIndex)
+        ReindexLayers();
+        if (m_defaultLayer == InvalidLayerId)
         {
-            m_defaultLayer = result.GetIndex();
+            m_defaultLayer = result.GetId();
         }
         return result;
     }
 
-    bool Canvas::DestroyLayer(LayerIndex layer)
+    bool Canvas::DestroyLayer(LayerId layer)
     {
         if (m_layers.Size() <= 1)
         {
@@ -202,7 +203,7 @@ namespace JBro
         const std::size_t index = m_layers.IndexOfBy(
             [layer](const OwnerPtr<Layer>& item)
             {
-                return item->GetIndex() == layer;
+                return item->GetId() == layer;
             });
         if (index == decltype(m_layers)::InvalidIndex)
         {
@@ -212,7 +213,7 @@ namespace JBro
         SafePtr<Layer> replacementRef;
         for (const OwnerPtr<Layer>& candidate : m_layers)
         {
-            if (candidate->GetIndex() != layer)
+            if (candidate->GetId() != layer)
             {
                 replacementRef = candidate.GetSafePtr();
                 break;
@@ -223,7 +224,7 @@ namespace JBro
 
         if (layer == m_defaultLayer)
         {
-            m_defaultLayer = replacement->GetIndex();
+            m_defaultLayer = replacement->GetId();
         }
         else
         {
@@ -237,23 +238,24 @@ namespace JBro
 
         m_objects->ForEachLive([layer, replacement, replacementRef](GameObject& object)
         {
-            if (object.GetLayerIndex() == layer)
+            if (object.GetLayerId() == layer)
             {
                 object.SetLayer(
                     replacementRef,
-                    replacement->GetIndex());
+                    replacement->GetId());
             }
         });
         m_layers.RemoveAt(index);
+        ReindexLayers();
         return true;
     }
 
-    bool Canvas::MoveLayer(LayerIndex layer, std::size_t newIndex)
+    bool Canvas::MoveLayer(LayerId layer, std::size_t newIndex)
     {
         const std::size_t index = m_layers.IndexOfBy(
             [layer](const OwnerPtr<Layer>& item)
             {
-                return item->GetIndex() == layer;
+                return item->GetId() == layer;
             });
         if (index == decltype(m_layers)::InvalidIndex || newIndex >= m_layers.Size())
         {
@@ -263,10 +265,11 @@ namespace JBro
         OwnerPtr<Layer> owner = std::move(m_layers[index]);
         m_layers.RemoveAt(index);
         m_layers.Insert(newIndex, std::move(owner));
+        ReindexLayers();
         return true;
     }
 
-    bool Canvas::SetObjectLayer(GameObject* object, LayerIndex layer)
+    bool Canvas::SetObjectLayer(GameObject* object, LayerId layer)
     {
         if (object == nullptr || object->GetCanvas() != this)
         {
@@ -278,16 +281,16 @@ namespace JBro
         {
             return false;
         }
-        object->SetLayer(FindLayerReference(layer), target->GetIndex());
+        object->SetLayer(FindLayerReference(layer), target->GetId());
         return true;
     }
 
-    Layer* Canvas::FindLayer(LayerIndex layer)
+    Layer* Canvas::FindLayer(LayerId layer)
     {
         const std::size_t index = m_layers.IndexOfBy(
             [layer](const OwnerPtr<Layer>& item)
             {
-                return item->GetIndex() == layer;
+                return item->GetId() == layer;
             });
         if (index == decltype(m_layers)::InvalidIndex)
         {
@@ -310,7 +313,7 @@ namespace JBro
         return m_layers[index].Get();
     }
 
-    LayerIndex Canvas::GetDefaultLayer() const
+    LayerId Canvas::GetDefaultLayer() const
     {
         return m_defaultLayer;
     }
@@ -401,18 +404,26 @@ namespace JBro
         return true;
     }
 
-    SafePtr<Layer> Canvas::FindLayerReference(LayerIndex layer)
+    SafePtr<Layer> Canvas::FindLayerReference(LayerId layer)
     {
         const std::size_t index = m_layers.IndexOfBy(
             [layer](const OwnerPtr<Layer>& item)
             {
-                return item->GetIndex() == layer;
+                return item->GetId() == layer;
             });
         if (index == decltype(m_layers)::InvalidIndex)
         {
             return {};
         }
         return m_layers[index].GetSafePtr();
+    }
+
+    void Canvas::ReindexLayers()
+    {
+        for (std::size_t index = 0; index < m_layers.Size(); ++index)
+        {
+            m_layers[index]->SetOrder(static_cast<LayerOrder>(index));
+        }
     }
 
     bool Canvas::IsIterating() const

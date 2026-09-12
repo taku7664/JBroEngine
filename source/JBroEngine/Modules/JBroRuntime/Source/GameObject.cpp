@@ -85,7 +85,7 @@ namespace JBro
         return m_layer.TryGet();
     }
 
-    std::uint32_t GameObject::GetLayerIndex() const
+    std::uint32_t GameObject::GetLayerId() const
     {
         return m_layerIndex;
     }

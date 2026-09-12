@@ -39,7 +39,7 @@ namespace
 
         // 캔버스는 기본 레이어 하나를 가지고 시작한다.
         Check(canvas.GetLayerCount() == 1, "canvas must start with the default layer");
-        Check(canvas.GetDefaultLayer() != JBro::InvalidLayerIndex, "default layer must be set");
+        Check(canvas.GetDefaultLayer() != JBro::InvalidLayerId, "default layer must be set");
 
         // 새 레이어 추가·이동·제거.
         JBro::Layer& background = canvas.CreateLayer("Background");
@@ -47,9 +47,9 @@ namespace
         Check(canvas.GetLayerCount() == 3, "created layers must be counted");
         foreground.SetVisible(false);
         Check(false == foreground.IsVisible(), "runtime layer visibility must remain dimension independent");
-        Check(canvas.MoveLayer(foreground.GetIndex(), 0), "layer order must be mutable");
-        Check(canvas.GetLayerAt(0)->GetIndex() == foreground.GetIndex(), "moved layer must appear at requested slot");
-        const JBro::LayerIndex backgroundIndex = background.GetIndex();
+        Check(canvas.MoveLayer(foreground.GetId(), 0), "layer order must be mutable");
+        Check(canvas.GetLayerAt(0)->GetId() == foreground.GetId(), "moved layer must appear at requested slot");
+        const JBro::LayerId backgroundIndex = background.GetId();
         Check(canvas.DestroyLayer(backgroundIndex), "non-default layer must be destroyable");
         Check(canvas.GetLayerCount() == 2, "destroy must shrink the layer list");
         Check(canvas.FindLayer(backgroundIndex) == nullptr,
@@ -78,14 +78,14 @@ namespace
         Check(defaultState != nullptr, "Framework2D must own state for its default runtime layer");
         JBro::Layer* foreground = framework.CreateLayer("Foreground");
         Check(foreground != nullptr, "Framework2D must create a runtime layer and its 2D state together");
-        JBro::Layer2D* foregroundState = framework.GetLayer2D(foreground->GetIndex());
+        JBro::Layer2D* foregroundState = framework.GetLayer2D(foreground->GetId());
         Check(foregroundState != nullptr, "created Framework2D layer must expose its 2D state");
         foregroundState->SetOpacity(0.5f);
         foregroundState->SetBlendMode(JBro::Layer2D::BlendMode::Additive);
         Check(foregroundState->GetOpacity() == 0.5f
             && foregroundState->GetBlendMode() == JBro::Layer2D::BlendMode::Additive,
             "Layer2D must retain Framework2D composition settings");
-        const JBro::LayerIndex foregroundIndex = foreground->GetIndex();
+        const JBro::LayerId foregroundIndex = foreground->GetId();
         Check(framework.DestroyLayer(foregroundIndex),
             "Framework2D must destroy runtime layer and 2D state together");
         Check(framework.GetLayer2D(foregroundIndex) == nullptr,
@@ -93,12 +93,12 @@ namespace
 
         JBro::Canvas* runtimeCanvas = framework.GetCanvas();
         JBro::Layer& directLayer = runtimeCanvas->CreateLayer("Direct runtime layer");
-        const JBro::LayerIndex directLayerIndex = directLayer.GetIndex();
-        Check(framework.GetLayer2D(directLayerIndex) != nullptr,
+        const JBro::LayerId directLayerId = directLayer.GetId();
+        Check(framework.GetLayer2D(directLayerId) != nullptr,
             "direct runtime layer creation must also create Framework2D state");
-        Check(runtimeCanvas->DestroyLayer(directLayerIndex),
+        Check(runtimeCanvas->DestroyLayer(directLayerId),
             "direct runtime layer destruction must succeed");
-        Check(framework.GetLayer2D(directLayerIndex) == nullptr,
+        Check(framework.GetLayer2D(directLayerId) == nullptr,
             "direct runtime layer destruction must also release Framework2D state");
 
         framework.Update(1.0f / 60.0f);
@@ -274,6 +274,39 @@ namespace
             "reattaching under an inactive parent must recompute it again");
     }
 
+    // D-46: 식별자와 합성 순서는 다른 값이다. 이동은 순서만 바꾸고 식별자는 그대로 둔다.
+    void TestLayerIdIsStableWhileOrderFollowsPosition()
+    {
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::Layer& background = *canvas.GetLayerAt(0);
+        JBro::Layer& middle = canvas.CreateLayer("middle");
+        JBro::Layer& foreground = canvas.CreateLayer("foreground");
+
+        const JBro::LayerId backgroundId = background.GetId();
+        const JBro::LayerId middleId = middle.GetId();
+        const JBro::LayerId foregroundId = foreground.GetId();
+        Check(backgroundId != middleId && middleId != foregroundId,
+            "every layer must get its own identifier");
+        Check(background.GetOrder() == 0 && middle.GetOrder() == 1 && foreground.GetOrder() == 2,
+            "composite order must follow position in the canvas");
+
+        Check(canvas.MoveLayer(foregroundId, 0), "moving a layer must succeed");
+        Check(foreground.GetOrder() == 0 && background.GetOrder() == 1 && middle.GetOrder() == 2,
+            "moving a layer must reindex every layer's order");
+        Check(foreground.GetId() == foregroundId && background.GetId() == backgroundId,
+            "moving a layer must not disturb any identifier");
+
+        Check(canvas.DestroyLayer(backgroundId), "destroying a layer must succeed");
+        Check(foreground.GetOrder() == 0 && middle.GetOrder() == 1,
+            "destroying a layer must close the gap it left in the order");
+
+        // 식별자는 재사용하지 않는다. 죽은 레이어를 가리키던 값이 다른 레이어로 부활하면
+        // Framework2D 의 지연 파생 상태가 엉뚱한 레이어에 붙는다.
+        JBro::Layer& created = canvas.CreateLayer("after destroy");
+        Check(created.GetId() != backgroundId,
+            "a destroyed layer's identifier must never be handed out again");
+    }
+
     void TestRefIsPod()
     {
         // Stage B0 의 계약. 여기서 다시 잡아두면 이후 회귀 시 즉시 눈에 띈다.
@@ -376,6 +409,7 @@ int RunCanvasFoundationTests()
     TestComponentLifecycleHooks();
     TestDestroyDuringIterationIsDeferred();
     TestActiveInHierarchyIsCachedAndPropagates();
+    TestLayerIdIsStableWhileOrderFollowsPosition();
     TestRefIsPod();
     TestStableTypeIdIsStable();
     TestFramework2DComponentsArePolymorphic();

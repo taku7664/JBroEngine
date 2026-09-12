@@ -46,13 +46,13 @@ namespace JBro
 
         // 레이어
         Layer&      CreateLayer(const char* name = nullptr);
-        bool        DestroyLayer(LayerIndex layer);
-        bool        MoveLayer(LayerIndex layer, std::size_t newIndex);
-        bool        SetObjectLayer(GameObject* object, LayerIndex layer);
-        Layer*      FindLayer(LayerIndex layer);
+        bool        DestroyLayer(LayerId layer);
+        bool        MoveLayer(LayerId layer, std::size_t newIndex);
+        bool        SetObjectLayer(GameObject* object, LayerId layer);
+        Layer*      FindLayer(LayerId layer);
         std::size_t GetLayerCount() const;
         Layer*      GetLayerAt(std::size_t index);
-        LayerIndex  GetDefaultLayer() const;
+        LayerId  GetDefaultLayer() const;
 
         // 같은 타입을 여러 개 붙일 수 있다. 시스템 순회는 타입 풀을 직접 순회한다.
         template<typename T>
@@ -107,7 +107,10 @@ namespace JBro
             ComponentBase* component,
             RefCategory category);
         bool UnregisterComponentInstance(ComponentBase* component);
-        SafePtr<Layer> FindLayerReference(LayerIndex layer);
+        SafePtr<Layer> FindLayerReference(LayerId layer);
+        // m_layers 의 순서가 바뀌는 모든 지점에서 부른다. 레이어의 순서 캐시를 갱신하는
+        // 유일한 주체다(D-46).
+        void ReindexLayers();
 
         // 순회 깊이를 세는 가드. live 배열이 순회 중에 흔들리면 바깥 순회가 무효화되므로,
         // 깊이가 0 이 아닌 동안의 파괴 요청은 큐로 간다(§8, 구 엔진 ScriptIterationGuard).
@@ -141,8 +144,8 @@ namespace JBro
         JAllocator                                      m_allocator;
         OwnerPtr<TObjectPool<GameObject>>               m_objects;
         Array<OwnerPtr<Layer>>                          m_layers;
-        LayerIndex                                      m_defaultLayer = InvalidLayerIndex;
-        LayerIndex                                      m_nextLayer = 0;
+        LayerId                                      m_defaultLayer = InvalidLayerId;
+        LayerId                                      m_nextLayer = 0;
         Table<ComponentTypeId, OwnerPtr<IComponentBucket>> m_componentBuckets;
         Array<SafePtr<GameObject>>                      m_pendingDestroyObjects;
         Array<SafePtr<ComponentBase>>                   m_pendingDestroyComponents;

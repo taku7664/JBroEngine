@@ -72,6 +72,55 @@ namespace
         system.Shutdown(canvas);
     }
 
+    // D-46: 레이어 합성 순서가 정렬 키의 최상위이고, 비가시 레이어는 추출에서 빠진다.
+    // 이 두 성질이 없으면 Layer 는 렌더에 아무 영향이 없는 이름표일 뿐이다.
+    void TestLayerOrderDrivesSpriteSorting()
+    {
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::Layer& background = *canvas.GetLayerAt(0);
+        JBro::Layer& foreground = canvas.CreateLayer("foreground");
+
+        JBro::GameObject* front = canvas.CreateObject("front");
+        JBro::GameObject* back = canvas.CreateObject("back");
+        Check(canvas.SetObjectLayer(front, foreground.GetId())
+            && canvas.SetObjectLayer(back, background.GetId()),
+            "objects must take their layer");
+
+        for (JBro::GameObject* object : {front, back})
+        {
+            auto* transform = canvas.AttachComponent<JBro::Component::Transform2D>(object);
+            auto* sprite = canvas.AttachComponent<JBro::Component::SpriteRenderer2D>(object);
+            Check(transform != nullptr && sprite != nullptr, "sprite fixture must attach");
+            // 앞 레이어의 것이 renderOrder 로는 뒤로 가게 두어, 레이어가 이겨야 함을 드러낸다.
+            sprite->renderOrder = object == front ? -100 : 100;
+        }
+
+        JBro::RenderWorld2D world;
+        Check(world.ReserveSprites(8), "render world must reserve");
+        JBro::System::Transform2DSystem transforms;
+        JBro::System::SpriteRender2DSystem sprites;
+        sprites.SetRenderWorld(&world);
+
+        world.BeginFrame();
+        transforms.Initialize(canvas);
+        transforms.Update(canvas, 0.0f);
+        sprites.ExtractRenderWorld(canvas);
+        world.EndFrame();
+
+        Check(world.GetSpriteCount() == 2, "both sprites must extract");
+        Check(world.GetSprites()[0].owner == back && world.GetSprites()[1].owner == front,
+            "layer order must outrank renderOrder when sorting");
+
+        foreground.SetVisible(false);
+        world.BeginFrame();
+        transforms.Update(canvas, 0.0f);
+        sprites.ExtractRenderWorld(canvas);
+        world.EndFrame();
+        Check(world.GetSpriteCount() == 1 && world.GetSprites()[0].owner == back,
+            "an invisible layer must drop out of extraction");
+        transforms.Shutdown(canvas);
+    }
+
     void TestPhysicsGravityIntegration()
     {
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
@@ -396,6 +445,7 @@ namespace
 int RunFramework2DSystemTests()
 {
     TestTransformHierarchyPropagation();
+    TestLayerOrderDrivesSpriteSorting();
     TestPhysicsGravityIntegration();
     TestPhysicsQueries();
     TestRenderWorldCollection();

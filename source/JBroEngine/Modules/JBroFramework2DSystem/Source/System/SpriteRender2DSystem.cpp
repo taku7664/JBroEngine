@@ -29,6 +29,12 @@ namespace JBro::System
                 return;
             }
             GameObject* owner = Internal::CanvasAccess::GetOwner(sprite);
+            // 비가시 레이어는 렌더만 빠진다. 시뮬레이션은 계속 돈다(§7).
+            const Layer* layer = owner != nullptr ? owner->GetLayer() : nullptr;
+            if (layer != nullptr && false == layer->IsVisible())
+            {
+                return;
+            }
             const auto* world = canvas.FindComponentRaw<Component::Transform2D>(owner);
             if (world == nullptr || false == world->IsActiveComponent() || false == world->worldValid)
             {
@@ -37,6 +43,7 @@ namespace JBro::System
             SpriteRenderItem item;
             item.owner = owner;
             item.sourceId = sprite.GetInstanceId();
+            item.layerOrder = layer != nullptr ? layer->GetOrder() : 0;
             item.world = world->world;
             item.sprite = sprite.sprite;
             item.material = sprite.material;

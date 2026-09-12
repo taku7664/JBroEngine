@@ -154,7 +154,7 @@ namespace JBro
         }
     }
 
-    bool Framework2D::DestroyLayer(LayerIndex layer)
+    bool Framework2D::DestroyLayer(LayerId layer)
     {
         if (false == m_initialized || m_canvas.Get() == nullptr)
         {
@@ -168,7 +168,7 @@ namespace JBro
         return true;
     }
 
-    bool Framework2D::MoveLayer(LayerIndex layer, std::size_t newIndex)
+    bool Framework2D::MoveLayer(LayerId layer, std::size_t newIndex)
     {
         if (false == m_initialized || m_canvas.Get() == nullptr)
         {
@@ -179,8 +179,8 @@ namespace JBro
 
     // 2D 상태는 살아 있는 런타임 레이어의 함수다. 여기서 지연 생성하고 스테일 항목을 정리하므로,
     // Canvas 로 직접 만들거나 파괴한 레이어도 같은 불변식을 따른다. Runtime 공개 계약은 늘리지 않는다.
-    // LayerIndex 는 단조 증가라 재사용이 없고, 남은 항목이 다른 레이어의 상태로 오인되지 않는다.
-    Layer2D* Framework2D::GetLayer2D(LayerIndex layer)
+    // LayerId 는 단조 증가라 재사용이 없고, 남은 항목이 다른 레이어의 상태로 오인되지 않는다.
+    Layer2D* Framework2D::GetLayer2D(LayerId layer)
     {
         if (m_canvas.Get() == nullptr)
         {

@@ -38,7 +38,7 @@ namespace JBro
 
         // 레이어 소속. 인덱스 조회는 O(1)이다.
         Layer*        GetLayer() const;
-        std::uint32_t GetLayerIndex() const;
+        std::uint32_t GetLayerId() const;
 
         // 활성 상태. IsActiveInHierarchy 는 캐시를 읽으므로 O(1) 이다 —
         // 컴포넌트 활성 게이트가 매 프레임 이것을 부르기 때문이다(§9, D-54).

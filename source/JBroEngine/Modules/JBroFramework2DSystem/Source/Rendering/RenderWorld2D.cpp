@@ -49,11 +49,17 @@ namespace JBro
         {
             return;
         }
+        // 레이어 합성 순서가 가장 바깥이다. 같은 레이어 안에서만 renderOrder 가 의미를 갖고,
+        // 그마저 같으면 생성 시각 순인 sourceId 로 안정 정렬한다.
         std::sort(
             m_sprites.begin(),
             m_sprites.end(),
             [](const SpriteRenderItem& left, const SpriteRenderItem& right)
         {
+            if (left.layerOrder != right.layerOrder)
+            {
+                return left.layerOrder < right.layerOrder;
+            }
             if (left.renderOrder != right.renderOrder)
             {
                 return left.renderOrder < right.renderOrder;
