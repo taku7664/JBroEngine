@@ -38,6 +38,14 @@ namespace JBro
         std::int32_t  renderOrder = 0;
     };
 
+    // 정렬은 100B 넘는 아이템이 아니라 이 16B 항목을 움직인다(P-5).
+    struct SpriteSortKey
+    {
+        // [63:48] layerOrder | [47:16] 부호 없는 순서로 옮긴 renderOrder | [15:0] 예약
+        std::uint64_t key = 0;
+        std::uint32_t index = 0;
+    };
+
     class RenderWorld2D
     {
     public:
@@ -53,12 +61,19 @@ namespace JBro
         std::size_t             GetSpriteCount() const;
         std::size_t             GetSpriteCapacity() const;
         std::size_t             GetDroppedSpriteCount() const;
-        const SpriteRenderItem* GetSprites()     const;
+
+        // 그리는 순서다. Sort 가 만든 순열을 거쳐 나간다.
+        const SpriteRenderItem& GetSprite(std::size_t drawIndex) const;
+        // 제출된 순서 그대로다. 정렬 결과가 아니므로 렌더 제출에 쓰지 않는다.
+        const SpriteRenderItem* GetSubmittedSprites() const;
 
     private:
+        static std::uint64_t MakeSortKey(const SpriteRenderItem& item);
+
         RenderCamera2D          m_camera;
         bool                    m_hasCamera = false;
         Array<SpriteRenderItem> m_sprites;
+        Array<SpriteSortKey>    m_order;
         std::size_t             m_droppedSpriteCount = 0;
     };
 }

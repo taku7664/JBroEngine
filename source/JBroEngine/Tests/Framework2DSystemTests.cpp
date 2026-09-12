@@ -108,7 +108,7 @@ namespace
         world.EndFrame();
 
         Check(world.GetSpriteCount() == 2, "both sprites must extract");
-        Check(world.GetSprites()[0].owner == back && world.GetSprites()[1].owner == front,
+        Check(world.GetSprite(0).owner == back && world.GetSprite(1).owner == front,
             "layer order must outrank renderOrder when sorting");
 
         foreground.SetVisible(false);
@@ -116,7 +116,7 @@ namespace
         transforms.Update(canvas, 0.0f);
         sprites.ExtractRenderWorld(canvas);
         world.EndFrame();
-        Check(world.GetSpriteCount() == 1 && world.GetSprites()[0].owner == back,
+        Check(world.GetSpriteCount() == 1 && world.GetSprite(0).owner == back,
             "an invisible layer must drop out of extraction");
         transforms.Shutdown(canvas);
     }
@@ -312,7 +312,7 @@ namespace
                 && NearlyEqual(extractedCamera->nearPlane, -7.0f) && NearlyEqual(extractedCamera->farPlane, 20.0f)
                 && NearlyEqual(extractedCamera->clearColor.R, 0.2f), "camera projection settings must survive extraction");
             Check(world.GetSpriteCount() == 1, "hidden sprites must not extract");
-            const auto& item = world.GetSprites()[0];
+            const auto& item = world.GetSprite(0);
             Check(item.owner == spriteObject && item.sourceId == sprite->GetInstanceId(), "sprite identity must survive extraction");
             Check(NearlyEqual(item.world.m31, 8.0f) && NearlyEqual(item.world.m32, -2.0f), "sprite must use world transform");
             Check(NearlyEqual(item.size.x, -2.0f) && NearlyEqual(item.size.y, -3.0f), "both flips must affect signed size");
@@ -361,10 +361,10 @@ namespace
         secondSprite->flip = JBro::Component::SpriteFlip::Vertical;
         sprites.Update(canvas, 0.0f);
         Check(world.GetSpriteCount() == 2, "multiple sprite components on one object must extract independently");
-        Check(NearlyEqual(world.GetSprites()[0].size.x, -2.0f) && NearlyEqual(world.GetSprites()[0].size.y, 3.0f)
-            && NearlyEqual(world.GetSprites()[1].size.x, 1.0f) && NearlyEqual(world.GetSprites()[1].size.y, -1.0f),
+        Check(NearlyEqual(world.GetSprite(0).size.x, -2.0f) && NearlyEqual(world.GetSprite(0).size.y, 3.0f)
+            && NearlyEqual(world.GetSprite(1).size.x, 1.0f) && NearlyEqual(world.GetSprite(1).size.y, -1.0f),
             "horizontal and vertical flips must affect only their corresponding axes");
-        Check(world.GetSprites()[0].sourceId != world.GetSprites()[1].sourceId,
+        Check(world.GetSprite(0).sourceId != world.GetSprite(1).sourceId,
             "multiple sprites must have distinct sort identities");
         world.BeginFrame();
         auto* laterCamera = canvas.AttachComponent<JBro::Component::Camera2D>(spriteObject);
@@ -430,8 +430,30 @@ namespace
         Check(renderWorld.GetCamera() != nullptr, "render-world camera must survive collection");
         Check(renderWorld.GetSpriteCount() == 2, "render-world must retain submitted sprites");
         Check(
-            renderWorld.GetSprites()[0].owner == second,
+            renderWorld.GetSprite(0).owner == second,
             "render-world sprites must sort by render order");
+        // P-5: 정렬은 아이템을 옮기지 않는다. 바뀌는 것은 순열뿐이다.
+        Check(renderWorld.GetSubmittedSprites()[0].owner == first
+            && renderWorld.GetSubmittedSprites()[1].owner == second,
+            "sorting must leave submitted items in place and permute only the draw order");
+
+        // 부호 있는 renderOrder 가 0 을 건너도 순서가 유지되어야 한다(키 패킹 검증).
+        renderWorld.BeginFrame();
+        const std::int32_t orders[] = {2147483647, 0, -2147483647 - 1, -1};
+        for (std::int32_t order : orders)
+        {
+            JBro::SpriteRenderItem item;
+            item.owner = first;
+            item.renderOrder = order;
+            Check(renderWorld.SubmitSprite(item), "key packing probe must submit");
+        }
+        renderWorld.EndFrame();
+        Check(renderWorld.GetSpriteCount() == 4, "key packing probe must retain every sprite");
+        for (std::size_t index = 1; index < renderWorld.GetSpriteCount(); ++index)
+        {
+            Check(renderWorld.GetSprite(index - 1).renderOrder <= renderWorld.GetSprite(index).renderOrder,
+                "a packed sort key must keep signed render order ascending across zero");
+        }
 
         renderWorld.BeginFrame();
         Check(renderWorld.GetCamera() == nullptr, "new render frame must clear its camera");

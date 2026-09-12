@@ -107,7 +107,7 @@ namespace JBro::Internal
             const std::size_t count = (std::min)(BatchSize, world.GetSpriteCount() - offset);
             for (std::size_t index = 0; index < count; ++index)
             {
-                batch[index] = BuildSprite(world.GetSprites()[offset + index]);
+                batch[index] = BuildSprite(world.GetSprite(offset + index));
             }
             if (false == renderer.SubmitSprites({batch, static_cast<std::uint32_t>(count)}))
             {

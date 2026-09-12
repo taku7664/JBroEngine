@@ -740,7 +740,7 @@ namespace
 #endif
             framework.Update(0.0f);
             Check(framework.GetRenderWorld()->GetSpriteCount() == 70, "default systems must collect all sprites");
-            Check(framework.GetRenderWorld()->GetSprites()[0].renderOrder == 0, "collection must be sorted before submission");
+            Check(framework.GetRenderWorld()->GetSprite(0).renderOrder == 0, "collection must be sorted before submission");
             Check(renderer.BeginFrame() == JBro::FrameStatus::Ready, "host must open the renderer frame");
             Check(framework.Render() == JBro::RenderResult::Submitted, "framework must submit across the 64-item batch boundary");
             Check(module.device.commands.drawIndexedInstancedCount == 0, "framework must only collect before EndFrame");
