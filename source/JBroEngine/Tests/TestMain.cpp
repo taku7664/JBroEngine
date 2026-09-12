@@ -2,6 +2,7 @@
 #include <iostream>
 
 int RunCanvasFoundationTests();
+int RunCoreModelStressTests();
 int RunRendererContractTests();
 int RunPlatformContractTests();
 int RunD3D12SmokeTests();
@@ -20,6 +21,10 @@ int main()
     try
     {
         if (RunCanvasFoundationTests() != 0)
+        {
+            return 1;
+        }
+        if (RunCoreModelStressTests() != 0)
         {
             return 1;
         }

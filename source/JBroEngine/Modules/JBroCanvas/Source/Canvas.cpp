@@ -459,6 +459,7 @@ namespace JBro
         {
             SafePtr<GameObject> pending = m_pendingDestroyObjects.Last();
             m_pendingDestroyObjects.RemoveAt(m_pendingDestroyObjects.Size() - 1);
+            // 부모가 먼저 파괴되면서 이 항목이 이미 죽었을 수 있다. SafePtr 이 그것을 걸러 준다.
             if (GameObject* object = pending.TryGet())
             {
                 object->m_destroying = false;

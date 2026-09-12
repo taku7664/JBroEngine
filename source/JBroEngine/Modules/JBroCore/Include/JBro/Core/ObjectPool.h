@@ -5,6 +5,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <limits>
 #include <memory>
 #include <new>
@@ -331,7 +332,8 @@ namespace JBro
 
                 // 주소 순으로 끼워 넣는다. 할당기가 주는 주소는 순서가 보장되지 않는다.
                 std::size_t position = m_chunkBounds.Size();
-                while (position > 0 && m_chunkBounds[position - 1].base > base)
+                while (position > 0
+                    && std::less<const std::byte*>{}(base, m_chunkBounds[position - 1].base))
                 {
                     --position;
                 }
@@ -396,7 +398,9 @@ namespace JBro
         {
             ++m_slotSearchSteps;
             const std::size_t middle = low + (high - low) / 2;
-            if (m_chunkBounds[middle].base <= address)
+            // 서로 다른 할당에서 온 포인터의 < 비교는 표준상 미지정이다.
+            // std::less 계열만 전순서를 보장하므로 그것을 쓴다.
+            if (false == std::less<const std::byte*>{}(address, m_chunkBounds[middle].base))
             {
                 low = middle + 1;
                 continue;
@@ -439,7 +443,18 @@ namespace JBro
             if (controlBlock->SafeCount == 0)
             {
                 // 이 블록을 보는 SafePtr 가 없다. 힙에 돌려주지 않고 다음 Create 가 되살린다.
-                m_freeBlocks.Add(controlBlock);
+                //
+                // 이 함수는 Clear 를 통해 소멸자에서도 불린다. Array::Add 는 재할당 시
+                // 던질 수 있으므로 용량이 남아 있을 때만 담고, 아니면 그냥 돌려준다.
+                // Reserve 가 슬롯 수만큼 용량을 잡아 두므로 정상 경로에서는 항상 담긴다.
+                if (m_freeBlocks.Size() < m_freeBlocks.Capacity())
+                {
+                    m_freeBlocks.Add(controlBlock);
+                }
+                else
+                {
+                    delete controlBlock;
+                }
             }
             // 참조가 남아 있으면 블록은 풀을 떠난다. 만료 판정에 계속 쓰이다가 마지막
             // SafePtr::ReleaseRef 가 지운다. 여기서 대기열에 담으면 산 참조가 되살아난다.
