@@ -172,9 +172,14 @@ namespace
 
         // 핸들은 spriteId 에서 해석되는 값이다. 인스펙터에서 직접 고치면
         // 다음 해석에 덮이고, 그 사이에만 어긋난다 — 월드 캐시와 같은 이유다.
-        const JBro::PropertyInfo& handle = Field(sprite, "sprite");
-        Check(handle.edit != nullptr && handle.edit->editable == false,
-            "a resolved handle must not be editable");
+        for (const char* name : { "sprite", "material" })
+        {
+            const JBro::PropertyInfo& handle = Field(sprite, name);
+            Check(handle.edit != nullptr && handle.edit->editable == false,
+                "a resolved handle must not be editable");
+            Check(handle.edit->tooltip != nullptr,
+                "a resolved handle must say which field it came from");
+        }
 
         // 저장되는 쪽은 실제로 값이 실려야 한다. 8바이트 정수 하나다.
         const JBro::PropertyInfo& id = Field(sprite, "spriteId");
