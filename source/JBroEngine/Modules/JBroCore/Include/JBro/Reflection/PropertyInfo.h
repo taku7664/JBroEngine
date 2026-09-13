@@ -60,7 +60,7 @@ namespace JBro
     static_assert(sizeof(PropertyInfo)     == 48, "PropertyInfo crosses the script DLL boundary");
     static_assert(sizeof(PropertyTable)    == 16, "PropertyTable crosses the script DLL boundary");
     static_assert(sizeof(ValueCodec)       == 32, "ValueCodec crosses the script DLL boundary");
-    static_assert(sizeof(TypeDescriptor)   == 88, "TypeDescriptor crosses the script DLL boundary");
+    static_assert(sizeof(TypeDescriptor)   == 96, "TypeDescriptor crosses the script DLL boundary");
     static_assert(sizeof(ArrayOps)         == 48, "ArrayOps crosses the script DLL boundary");
     static_assert(sizeof(TableOps)         == 112, "TableOps crosses the script DLL boundary");
     static_assert(sizeof(EnumNames)        == 32, "EnumNames crosses the script DLL boundary");

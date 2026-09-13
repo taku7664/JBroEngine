@@ -7,6 +7,7 @@ int RunFrameMemoryTests();
 int RunReflectionShapeTests();
 int RunReflectionFieldTests();
 int RunPropertyRegistryTests();
+int RunReflectionCompoundTests();
 int RunScriptSchedulingTests();
 int RunSpritePixelTests();
 int RunProjectFileTests();
@@ -48,6 +49,10 @@ int main()
             return 1;
         }
         if (RunPropertyRegistryTests() != 0)
+        {
+            return 1;
+        }
+        if (RunReflectionCompoundTests() != 0)
         {
             return 1;
         }

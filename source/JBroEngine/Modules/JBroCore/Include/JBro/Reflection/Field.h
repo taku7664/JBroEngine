@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 
 namespace JBro
@@ -269,34 +270,16 @@ namespace JBro
             }
         }
 
-        template <typename T, std::size_t Index>
-        void FillField(PropertyInfo& info, PropertyEditInfo& edit)
-        {
-            constexpr FieldEntry entry = T::JBroFieldAt(FieldIndex<Index>{});
-
-            info.name         = NameTable::Get().Intern(entry.name);
-            info.type         = &entry.GetType();
-            info.Address      = entry.Address;
-            info.ConstAddress = entry.ConstAddress;
-            info.serialize    = entry.attributes.serialize;
-
-            if constexpr (entry.attributes.HasEditInfo())
-            {
-                edit.displayName = entry.attributes.displayName;
-                edit.tooltip     = entry.attributes.tooltip;
-                edit.category    = entry.attributes.category;
-                edit.hasRange    = entry.attributes.hasRange;
-                edit.rangeMin    = entry.attributes.rangeMin;
-                edit.rangeMax    = entry.attributes.rangeMax;
-                edit.editable    = entry.attributes.editable;
-                info.edit        = &edit;
-            }
-        }
+        // 컴파일 타임 항목 하나를 실행 시간 쪽지로 옮긴다. 매크로로 만든 표와
+        // 손으로 엮은 표(StaticPropertyTable)가 **같은 함수를 거친다** —
+        // 두 벌로 두면 한쪽만 고치는 날이 온다.
+        void ApplyFieldEntry(const FieldEntry& entry, PropertyInfo& info, PropertyEditInfo& edit);
 
         template <typename T, std::size_t... Indices>
         void FillFields(PropertyInfo* properties, PropertyEditInfo* edits, std::index_sequence<Indices...>)
         {
-            (FillField<T, Indices>(properties[Indices], edits[Indices]), ...);
+            (ApplyFieldEntry(T::JBroFieldAt(FieldIndex<Indices>{}),
+                properties[Indices], edits[Indices]), ...);
         }
     }
 
@@ -323,6 +306,56 @@ namespace JBro
             return built;
         }();
         return table;
+    }
+
+    // 클래스 본문을 건드리지 않고 프로퍼티 표를 엮는다.
+    //
+    // `Vec2` 처럼 **매 프레임 경로에 있는 타입**에 쓴다. 그런 헤더에 `JBRO_FIELD` 를 넣으면
+    // 그것을 include 하는 모든 번역 단위가 리플렉션 기계를 함께 물고 간다.
+    // 이름은 여기서도 멤버 포인터에서 나오므로 문자열을 손으로 적지 않는다.
+    //
+    // **필드가 늘어나는 타입에는 쓰지 않는다.** 표가 선언과 떨어져 있으므로 필드를 더하고
+    // 여기를 안 고치면 조용히 빠진다 — 매크로가 없애려던 바로 그 드리프트다.
+    template <std::size_t Count>
+    class StaticPropertyTable final
+    {
+    public:
+        explicit StaticPropertyTable(const FieldEntry (&entries)[Count])
+        {
+            for (std::size_t i = 0; i < Count; ++i)
+            {
+                Detail::ApplyFieldEntry(entries[i], m_properties[i], m_edits[i]);
+            }
+            m_table.properties = m_properties;
+            m_table.count = static_cast<std::uint32_t>(Count);
+        }
+
+        StaticPropertyTable(const StaticPropertyTable&) = delete;
+        StaticPropertyTable& operator=(const StaticPropertyTable&) = delete;
+
+        const PropertyTable& Get() const
+        {
+            return m_table;
+        }
+
+    private:
+        PropertyInfo     m_properties[Count] {};
+        PropertyEditInfo m_edits[Count] {};
+        PropertyTable    m_table;
+    };
+
+    // 구조를 가진 타입의 설명서. **코덱을 주지 않는다** — 필드로 말하는 타입이기 때문이다.
+    // 저장도 인스펙터도 필드를 타고 내려가 잎사귀에서 코덱을 만난다.
+    template <typename T>
+    TypeDescriptor MakeStructTypeDescriptor(const char* typeName, const PropertyTable& fields)
+    {
+        TypeDescriptor descriptor;
+        descriptor.typeName = NameTable::Get().Intern(typeName);
+        descriptor.size = static_cast<std::uint32_t>(sizeof(T));
+        descriptor.alignment = static_cast<std::uint32_t>(alignof(T));
+        descriptor.triviallyCopyable = std::is_trivially_copyable_v<T>;
+        descriptor.fields = &fields;
+        return descriptor;
     }
 }
 

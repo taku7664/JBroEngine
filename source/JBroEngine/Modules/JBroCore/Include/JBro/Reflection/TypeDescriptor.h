@@ -103,6 +103,8 @@ namespace JBro
         void  (*Clear)(void* table) noexcept = nullptr;
     };
 
+    struct PropertyTable;
+
     // 타입 하나의 실행 시간 명세다. 크기·정렬·복사 방식·컨테이너 조작이 전부 여기 있고,
     // PropertyInfo 는 이것을 가리키기만 한다 — **같은 사실을 두 군데 적지 않는다.**
     //
@@ -128,7 +130,17 @@ namespace JBro
         const EnumNames* enumNames = nullptr;   // enum 일 때만
         const RefTarget* refTarget = nullptr;   // Ref<T> 일 때만
 
-        // 잎사귀 값의 글자 변환. 컨테이너 타입에는 없을 수 있다.
+        // 구조를 가진 타입이 내놓는 자기 필드다. `Vec2` 면 x, y 다.
+        //
+        // 이것이 있으면 **인스펙터도 직렬화도 이 타입을 몰라도 된다** — 필드를 타고 내려가
+        // 잎사귀에서 코덱을 만난다. 없으면 소비자마다 "Vec2 는 이렇게 그린다" 를 알아야 하고,
+        // 그것이 기존 엔진에서 같은 지식이 여섯 군데 흩어진 이유다.
+        const PropertyTable* fields = nullptr;
+
+        // 잎사귀 값의 글자 변환.
+        //
+        // **fields 와 codec 은 함께 있지 않는다.** 구조를 가진 타입은 필드로 말하고,
+        // 잎사귀 값은 코덱으로 말한다. 둘 다 있으면 저장할 때 어느 쪽을 믿을지가 갈린다.
         const ValueCodec* codec = nullptr;
     };
 }
