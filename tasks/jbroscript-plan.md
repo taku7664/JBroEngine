@@ -542,7 +542,7 @@ DLL 이 제공한 `ArrayOps`/`TableOps` 함수 포인터를 거치므로, 할당
 ## 10. 순서
 
 1. **`PropertyInfo` / `TypeDescriptor` 모양 확정** ← 여기부터. ABI 다
-2. **`JBRO_FIELD` 매크로** (빌트인 + 당분간 C++ 스크립트). §4 는 실측 끝
+2. **`JBRO_FIELD` 매크로** (빌트인 + 당분간 C++ 스크립트). **완료 (2026-09-14, `7be6602`)** — §14 참조
 3. **직렬화** — `.jcanvas` 형식이 필요. `.jproject` 처럼 기존 엔진 것을 따른다
 4. **인스펙터** — 어트리뷰트를 실제로 쓰는 유일한 소비자. 에디터가 생길 때
 5. **`jbroc`** — 렉서 → 파서 → 타입체커 → C++ 이미터
@@ -808,3 +808,79 @@ struct SpriteRenderer2D
 
 ①②만 있어도 `.jscript` 를 쓸 만하다. ④가 없어도 개발이 막히지 않는다.
 ③은 순서상 늦어도 되지만 **위험 때문에 앞당긴다.**
+
+---
+
+## 14. `JBRO_FIELD` — 붙였다 (2026-09-14)
+
+§10 의 2번이다. §4 의 실측을 그대로 코드로 옮겼고, 변이 14개 중 14개가 잡힌다.
+
+### 14.1 쓰는 모양
+
+```cpp
+class Probe final : public FakeComponentBase
+{
+    JBRO_REFLECT_BODY(Probe)
+
+    JBRO_FIELD(int,   FieldRows,   Range(4, 40) | Category("Field")) = 20;
+    JBRO_FIELD(float, DropSeconds, Name("낙하 간격") | Tooltip("..."))  = 0.5f;
+    JBRO_FIELD(float, Elapsed,     NoSerialize())                    = 0.0f;
+    JBRO_FIELD(double, Plain)                                        = 1.25;
+};
+```
+
+`const PropertyTable& table = GetPropertyTable<Probe>();` 하나면 표가 나온다.
+**END 매크로가 없고, 개수를 어디에도 적지 않는다.**
+
+어트리뷰트는 `Name` / `Tooltip` / `Category` / `Range` / `ReadOnly` / `NoSerialize` 다.
+전부 `constexpr` 값이고 `|` 로 겹친다 — 오타는 컴파일 에러다.
+
+### 14.2 이름을 손으로 쓰지 않는 이유
+
+`Detail::FieldSignature<&T::Field>()` 의 `__FUNCSIG__` 에서 잘라 온다.
+MSVC 14.51 x64 실측 형식:
+
+```
+class std::basic_string_view<...> __cdecl JBro::Detail::FieldSignature<&Game::Player::Speed>(void)
+```
+
+마지막 `>(` 앞의 마지막 `::` 다음이 이름이다. private 멤버도 같은 방식으로 잡힌다
+(클래스 안에서 멤버 포인터를 만들기 때문이다).
+
+**필드 이름을 바꿨는데 등록된 이름이 옛것인 경로가 아예 없다.** 대신 컴파일러 서명 형식에
+기대므로, 테스트가 `static_assert` 로 실제 이름 두 개를 붙잡아 둔다 — 툴체인을 올려서
+형식이 바뀌면 이름이 조용히 틀리는 대신 컴파일이 멈춘다.
+
+### 14.3 `__COUNTER__` 구멍은 시끄럽게 실패한다
+
+인덱스를 `__COUNTER__` 로 매기므로, 클래스 본문에서 누가 `__COUNTER__` 를 한 번 더 쓰면
+번호에 구멍이 나고 세는 쪽이 거기서 멈춘다 — **뒤의 필드가 조용히 사라진다.**
+멈춘 자리 뒤로 여덟 칸을 더 보고, 뭔가 있으면 `static_assert` 로 멈춘다.
+
+테스트가 그 상황을 일부러 만든다(`GapProbe`). 감지기를 껐을 때 실제로 우는지 확인하려면
+감지될 구멍이 하나는 있어야 하는데, 변이 전에는 그게 없어서 **감지기를 꺼도 전 스위트가
+통과했다.** 변이가 그것을 잡았고 테스트를 붙였다.
+
+### 14.4 붙인 결정 두 가지
+
+- **편집 메타데이터는 필요할 때만 붙는다.** 어트리뷰트가 하나도 없는 필드는
+  `PropertyInfo::edit` 가 `nullptr` 이다 — 게임 빌드가 한글 툴팁 문자열을 통째로 안 들고 간다.
+- **어트리뷰트 이름은 `JBro::Attribute` 에 있다.** 매크로가 함수 본문에 `using namespace` 를
+  넣어 수식 없이 보이게 한다. `JBro` 직속에 `Name` / `Range` 를 두면 프렐류드의
+  `using namespace JBro;` 가 사용자 코드와 충돌한다.
+
+### 14.5 모르는 타입은 컴파일 에러다
+
+`TypeDescriptorOf<T>` 특수화가 없는 타입을 필드로 쓰면 멈춘다. 기존 엔진은 모르는 타입을
+만나면 로그 경고를 남기고 그 필드를 **조용히 빠뜨렸다** — 저장 파일에서 값이 사라지는데
+아무도 모르는 실패다. 지금 등록된 것은 `bool`, 고정폭 정수 8개, `float`, `double` 이다.
+`Vec2` 처럼 구조를 가진 타입은 **자기 모듈에서** 특수화한다 — Core 가 Framework 타입을
+알 필요가 없다.
+
+### 14.6 아직 아닌 것
+
+- **보관함 둘**(§8.4)은 아직 없다. 지금은 `GetPropertyTable<T>()` 로 타입을 알 때만 물어본다.
+  이름으로 찾으려면 표가 필요하다
+- **빌트인 컴포넌트 8개**에 아직 안 붙였다
+- **`ArrayOps` / `TableOps`** 는 여전히 선언만 있다. 필드가 컨테이너를 담기 시작할 때 붙인다
+
