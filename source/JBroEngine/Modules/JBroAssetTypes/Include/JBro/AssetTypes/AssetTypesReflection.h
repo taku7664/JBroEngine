@@ -1,0 +1,47 @@
+﻿#pragma once
+
+#include <JBro/AssetTypes/AssetTypes.h>
+#include <JBro/Reflection/Field.h>
+
+namespace JBro
+{
+    // 영속 식별자다. 이것이 저장 파일에 적히는 쪽이다.
+    template <>
+    struct TypeDescriptorOf<AssetId>
+    {
+        static const TypeDescriptor& Get()
+        {
+            static const FieldEntry entries[] =
+            {
+                MakeFieldEntry<&AssetId::value>(),
+            };
+            static const StaticPropertyTable<1> fields { entries };
+            static const TypeDescriptor descriptor =
+                MakeStructTypeDescriptor<AssetId>("JBro.AssetId", fields.Get());
+            return descriptor;
+        }
+    };
+
+    // ⚠ **이것은 저장되는 값이 아니다.** `AssetTypes.h` 가 스스로 "이번 실행에서의 위치"
+    // 라고 적어 둔 대로, index/generation 은 다음 실행에서 다른 것을 가리킨다.
+    //
+    // 설명서를 주는 것은 인스펙터가 "무엇이 붙어 있는지" 를 보여 줄 수 있게 하기 위해서이고,
+    // 이것을 필드로 가지는 컴포넌트는 `NoSerialize()` 를 붙인다. 그러지 않으면 저장 파일에
+    // 다음 실행에서 뜻이 없는 숫자가 들어간다.
+    template <>
+    struct TypeDescriptorOf<AssetHandle>
+    {
+        static const TypeDescriptor& Get()
+        {
+            static const FieldEntry entries[] =
+            {
+                MakeFieldEntry<&AssetHandle::index>(Attribute::ReadOnly()),
+                MakeFieldEntry<&AssetHandle::generation>(Attribute::ReadOnly()),
+            };
+            static const StaticPropertyTable<2> fields { entries };
+            static const TypeDescriptor descriptor =
+                MakeStructTypeDescriptor<AssetHandle>("JBro.AssetHandle", fields.Get());
+            return descriptor;
+        }
+    };
+}

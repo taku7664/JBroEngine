@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#include <JBro/Framework2D/Math2D.h>
+#include <JBro/Framework2D/Math2DReflection.h>
 #include <JBro/Runtime/Component.h>
 
 namespace JBro::Component
@@ -25,16 +25,22 @@ namespace JBro::Component
             return MakeStableTypeId(StaticTypeName());
         }
 
+        JBRO_REFLECT_BODY(Transform2D)
+
         // 저작 값
-        Vec2  position;
-        float rotation = 0.0f;
-        Vec2  scale{ 1.0f, 1.0f };
+        JBRO_FIELD(Vec2,  position);
+        JBRO_FIELD(float, rotation) = 0.0f;
+        JBRO_FIELD(Vec2,  scale) { 1.0f, 1.0f };
 
         // 시스템이 채우는 월드 캐시. worldValid 가 false 인 동안의 값은 읽지 않는다.
-        Matrix3x2 world;
-        Vec2      worldPosition;
-        float     worldRotation = 0.0f;
-        Vec2      worldScale{ 1.0f, 1.0f };
-        bool      worldValid = false;
+        //
+        // **저장하지 않고 고칠 수도 없다.** 저작 값에서 다시 계산되는 것이라 파일에 적으면
+        // 두 벌이 되고, 인스펙터에서 고쳐 봐야 다음 갱신에 덮인다. 인스펙터에 보이기는 하는
+        // 편이 낫다 — 계층이 왜 그 자리에 있는지 볼 수 있는 유일한 창이다.
+        JBRO_FIELD(Matrix3x2, world,         NoSerialize() | ReadOnly() | Category("World cache"));
+        JBRO_FIELD(Vec2,      worldPosition, NoSerialize() | ReadOnly() | Category("World cache"));
+        JBRO_FIELD(float,     worldRotation, NoSerialize() | ReadOnly() | Category("World cache")) = 0.0f;
+        JBRO_FIELD(Vec2,      worldScale,    NoSerialize() | ReadOnly() | Category("World cache")) { 1.0f, 1.0f };
+        JBRO_FIELD(bool,      worldValid,    NoSerialize() | ReadOnly() | Category("World cache")) = false;
     };
 }

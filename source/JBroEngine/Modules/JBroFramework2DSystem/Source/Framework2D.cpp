@@ -1,6 +1,7 @@
 ﻿#include <JBro/Framework2DSystem/Framework2D.h>
 
 #include <JBro/Graphics/Renderer.h>
+#include <JBro/Framework2D/BuiltinComponentProperties2D.h>
 #include <JBro/Framework2D/Internal/ScriptModuleContext.h>
 #include <JBro/Framework2D/Internal/SystemContext.h>
 #include <JBro/Framework2D/ServiceContext.h>
@@ -26,6 +27,9 @@ namespace JBro
             return false;
         }
         m_context = context;
+        // 빌트인 컴포넌트가 자기 프로퍼티를 이름으로 내놓을 수 있게 한다.
+        // 이름표(NameTable)를 쓰므로 캔버스보다 먼저, 프레임이 돌기 전에 해 둔다.
+        Component::RegisterBuiltinComponentProperties2D();
         JAllocator allocator = context.memory.persistent;
         if (allocator.allocate == nullptr || allocator.free == nullptr)
         {
