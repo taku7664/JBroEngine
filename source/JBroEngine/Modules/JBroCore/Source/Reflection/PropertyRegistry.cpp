@@ -74,10 +74,8 @@ namespace JBro
         {
             return false;
         }
-        if (m_tables.Find(typeName) != nullptr)
-        {
-            return false;
-        }
+        // 같은 이름이 이미 있으면 TryAdd 가 거절한다. 앞에서 Find 로 한 번 더 보면
+        // 같은 조회를 두 번 하고, 두 판정이 갈라질 수 있는 자리만 생긴다.
         return m_tables.TryAdd(typeName, table);
     }
 

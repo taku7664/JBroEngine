@@ -111,6 +111,33 @@ namespace
         Check(table->count == 0, "a type with no fields reports zero");
     }
 
+    void TestAMalformedRegistrationIsRefused()
+    {
+        JBro::PropertyRegistry local;
+
+        // 이름 없는 항목. InvalidNameId 는 0 이고 MakeNameId(nullptr) 도 0 이라,
+        // 받아 주면 Lookup(nullptr) 이 그것을 찾아낸다.
+        const JBro::PropertyTable* real = JBro::PropertyRegistry::Lookup("Component::FakeTransform");
+        Check(false == local.Register(JBro::InvalidNameId, *real),
+            "a table with no name must be refused");
+        Check(local.GetCount() == 0, "a refused registration must leave nothing behind");
+
+        // 개수와 배열이 어긋난 항목. 읽는 쪽은 count 만 믿고 도므로 그대로 터진다.
+        JBro::PropertyTable claimsThree;
+        claimsThree.properties = nullptr;
+        claimsThree.count = 3;
+        Check(false == local.Register(JBro::MakeNameId("Broken::ClaimsThree"), claimsThree),
+            "a table that claims fields it cannot hand out must be refused");
+
+        JBro::PropertyTable claimsNone;
+        claimsNone.properties = real->properties;
+        claimsNone.count = 0;
+        Check(false == local.Register(JBro::MakeNameId("Broken::ClaimsNone"), claimsNone),
+            "a table that reports zero while pointing at fields must be refused");
+
+        Check(local.GetCount() == 0, "none of the malformed tables may have landed");
+    }
+
     void TestScriptsLiveInTheOtherTable()
     {
         Check(JBro::RegisterScriptProperties<FakePlayerScript>(),
@@ -193,6 +220,7 @@ int RunPropertyRegistryTests()
     TestABuiltinTypeIsFoundByName();
     TestTheSameNameIsRefusedTwice();
     TestATypeWithNoFieldsStillRegisters();
+    TestAMalformedRegistrationIsRefused();
     TestScriptsLiveInTheOtherTable();
     TestAScriptCannotShadowAnEngineType();
     TestClearingTheScriptTableLeavesTheEngineAlone();
