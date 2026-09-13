@@ -178,6 +178,79 @@ namespace
             "a key all the way back must belong to the document");
     }
 
+    void TestAColonInsideAValueIsNotAKey()
+    {
+        // 경로와 시각은 콜론을 품는다. 콜론만 보고 자르면 값이 반토막 난다.
+        JBro::YamlDocument document;
+        Check(Parse(document,
+            "RootPath: C:/games/Test\n"
+            "Text: a: b\n"
+            "Ratio: 16:9\n"),
+            "values with colons must parse");
+
+        const std::uint32_t root = document.GetRoot();
+        Check(document.GetCount(root) == 3, "each line is one key");
+
+        JBro::String value;
+        Check(document.FindScalar(root, "RootPath", value), "the path key must be found");
+        Check(value == "C:/games/Test", "the drive letter must not be taken for a key");
+        Check(document.FindScalar(root, "Ratio", value) && value == "16:9",
+            "a colon with no space after it is part of the value");
+        Check(document.FindScalar(root, "Text", value) && value == "a: b",
+            "only the first colon that ends a key counts");
+    }
+
+    void TestANumberIsNotADash()
+    {
+        // `- item` 은 항목이고 `-2.5` 는 아니다. 대시만 보고 자르면 음수가 항목이 된다.
+        JBro::YamlDocument document;
+        JBro::YamlError error;
+        const char* bare = "Items:\n  -2.5\n";
+        Check(false == document.Parse(bare, std::strlen(bare), error),
+            "a line starting with a minus and no space is not a sequence entry");
+        Check(error.line == 2, "the refusal must name the line");
+
+        // 진짜 항목은 여전히 읽혀야 한다. 위 거절이 음수 자체를 막은 것이 아님을 본다.
+        Check(Parse(document, "Items:\n  - -2.5\n"), "a negative entry must parse");
+        const std::uint32_t items = document.Find(document.GetRoot(), "Items");
+        Check(document.GetCount(items) == 1, "there is one entry");
+        Check(std::strcmp(document.GetText(document.GetElement(items, 0)), "-2.5") == 0,
+            "the entry keeps its sign");
+    }
+
+    void TestHalfANumberIsNotANumber()
+    {
+        JBro::YamlDocument document;
+        Check(Parse(document,
+            "Good: 12\n"
+            "Trailing: 12abc\n"
+            "Spaced: 1 2\n"
+            "Words: none\n"),
+            "the document itself is fine; the values are the question");
+
+        const std::uint32_t root = document.GetRoot();
+        float number = -1.0f;
+        Check(document.FindFloat(root, "Good", number) && number == 12.0f, "a number reads");
+
+        // 앞부분만 읽고 넘어가면 `12abc` 가 12 가 된다. 저장 파일이 조용히 달라진다.
+        number = -1.0f;
+        Check(false == document.FindFloat(root, "Trailing", number),
+            "text after a number must fail rather than parse a prefix");
+        Check(number == -1.0f, "a failed read must not touch the result");
+        Check(false == document.FindFloat(root, "Spaced", number), "two numbers are not one");
+        Check(false == document.FindFloat(root, "Words", number), "a word is not a number");
+
+        std::int64_t whole = -1;
+        Check(false == document.FindInt(root, "Trailing", whole),
+            "the same must hold for whole numbers");
+        Check(whole == -1, "a failed read must not touch the result");
+
+        bool flag = true;
+        Check(false == document.FindBool(root, "Words", flag), "only true and false are bools");
+        Check(false == document.FindBool(root, "Good", flag), "a digit is not a bool");
+        Check(flag, "a failed read must not touch the result");
+    }
+
     void TestBadInputIsRefusedWithALineNumber()
     {
         JBro::YamlDocument document;
@@ -406,6 +479,9 @@ int RunYamlTests()
     TestTheTypeCanBeReadAfterTheFields();
     TestEmptyContainersAreNotGuessed();
     TestNestingGoesDeepAndComesBack();
+    TestAColonInsideAValueIsNotAKey();
+    TestANumberIsNotADash();
+    TestHalfANumberIsNotANumber();
     TestBadInputIsRefusedWithALineNumber();
     TestTheWriterProducesWhatTheReaderReads();
     TestTheWrittenShapeMatchesTheLegacyFile();
