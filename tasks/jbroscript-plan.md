@@ -942,19 +942,27 @@ class std::basic_string_view<...> __cdecl JBro::Detail::FieldSignature<&Game::Pl
 **테스트가 모든 잎사귀를 훑는다.** 빌트인 다섯의 필드를 끝까지 내려가며 잎사귀마다 코덱이
 있는지 본다. 저장할 방법이 없는 값은 직렬화기를 쓰기 전에 여기서 드러난다.
 
-### 15.4 여기서 나온 문제 하나 — 아직 안 닫혔다
+### 15.4 에셋 참조 — id 와 핸들로 나눴다 (`ff6b41f`)
 
-**`SpriteRenderer2D::sprite` 는 저장되지 않는다.** `AssetHandle` 은 `AssetTypes.h` 가 스스로
-"이번 실행에서의 위치. 저장하지 않는다" 라고 적어 둔 타입이다. 그대로 파일에 적으면 다음
-실행에서 뜻이 없는 숫자가 된다.
+`SpriteRenderer2D::sprite` 가 `AssetHandle` 하나였다. 그것은 `AssetTypes.h` 가 스스로
+"이번 실행에서의 위치. 저장하지 않는다" 라고 적어 둔 타입이라, 저장하면 다음 실행에서
+뜻이 없는 숫자가 된다. **씬이 어떤 스프라이트를 쓰는지 기억할 방법이 없었다.**
 
-**그래서 씬이 어떤 스프라이트를 쓰는지 기억하지 못한다.** 닫으려면 둘 중 하나다 —
+```cpp
+JBRO_FIELD(AssetId,     spriteId);                                // 저작·저장
+JBRO_FIELD(AssetHandle, sprite,   NoSerialize() | ReadOnly());    // 해석된 값
+```
 
-1. 컴포넌트가 영속 식별자(`AssetId`)를 들고, 핸들은 실행 중 캐시로 둔다
-2. 저장·로드할 때 핸들 ↔ 식별자를 옮겨 주는 곳을 둔다
+`Transform2D` 의 월드 캐시와 같은 형태다 — 저작 값은 저장하고, 그것에서 계산된 런타임 값은
+저장하지 않고 고칠 수도 없다. **새 개념이 늘지 않는다.**
 
-둘 다 `.jcanvas` 를 쓰기 전에 정해야 한다. 지금은 **빠뜨리는 쪽**을 골랐다 —
-쓰레기를 적는 것보다 낫고, 빠진 것은 눈에 띈다.
+기각한 안: 컴포넌트가 `AssetId` 만 들고 렌더 추출이 매번 해석하는 안. 70 스프라이트 씬에서
+조회가 71 → 141 이 된다(§3.5 성능 계약). `SpriteRenderItem` 까지 `AssetId` 로 올리는 안도
+같은 조회가 렌더러로 밀릴 뿐이다. 지금 추출은 핸들을 그대로 복사하므로
+([SpriteRender2DSystem.cpp:48]) 이 분리로 매 프레임 경로가 바뀌지 않는다.
+
+**핸들을 채우는 것은 아직 없다.** `AssetSystem::Load` 가 `return {};` 인 스텁이라
+해석 패스를 붙일 데가 없다. 그것이 생기면 씬 로드 뒤와 인스펙터 변경 시에 한 번씩 돌면 된다.
 
 ### 15.5 변이
 
@@ -965,6 +973,7 @@ class std::basic_string_view<...> __cdecl JBro::Detail::FieldSignature<&Game::Pl
 
 ### 15.6 아직 아닌 것
 
+- **`AssetId` → `AssetHandle` 해석 패스.** `AssetSystem` 이 실제로 로드하게 될 때
 - **3D 컴포넌트 넷.** `JBroFramework3D` 는 소스가 없는 `Utility` 모듈이라 등록 함수를 둘
   자리가 `JBroFramework3DSystem` 이다. 2D 와 같은 작업이고 `Vec3`·`Quaternion` 설명서가 필요하다
 - **`ArrayOps` / `TableOps`** — 여전히 선언만. 필드가 컨테이너를 담기 시작할 때
