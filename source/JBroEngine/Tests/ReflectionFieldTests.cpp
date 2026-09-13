@@ -35,6 +35,7 @@ namespace
         JBRO_FIELD(double, Plain) = 1.25;
         JBRO_FIELD(float, RangeOnly, Range(0, 1)) = 0.5f;
         JBRO_FIELD(int, Hidden, Category("Debug") | NoSerialize()) = 0;
+        JBRO_FIELD(int, Locked, Category("Debug") | ReadOnly() | Tooltip("고칠 수 없다")) = 0;
     };
 
     // 필드가 하나도 없는 타입도 표를 물어볼 수 있어야 한다.
@@ -42,6 +43,23 @@ namespace
     {
         JBRO_REFLECT_BODY(Empty)
     };
+
+    // 구멍 감지기 자체를 시험한다. 클래스 본문에서 누가 __COUNTER__ 를 한 번 더 쓰면
+    // 세는 쪽이 거기서 멈추고 **뒤의 필드가 조용히 사라진다.** 이 타입은 그 상황을 일부러 만든다.
+    // GetPropertyTable<GapProbe>() 는 컴파일되지 않아야 맞으므로 부르지 않는다.
+    class GapProbe final
+    {
+        JBRO_REFLECT_BODY(GapProbe)
+
+        JBRO_FIELD(int, First) = 0;
+        static constexpr int Intruder = __COUNTER__;
+        JBRO_FIELD(int, Second) = 0;
+    };
+
+    static_assert(JBro::Detail::CountFields<GapProbe>() == 1,
+        "a stolen counter value stops the count short - this is the failure being guarded against");
+    static_assert(JBro::Detail::HasGapAfter<GapProbe, JBro::Detail::CountFields<GapProbe>()>(),
+        "the gap detector must see the field that the count could not reach");
 
     // §4.1 이 기댄 것은 컴파일러 서명 형식이다. 툴체인을 올려서 그 형식이 바뀌면
     // 이름이 조용히 틀리는 대신 여기서 컴파일이 멈춰야 한다.
@@ -51,19 +69,19 @@ namespace
         "the member name must come out of the compiler signature unchanged");
 
     // 개수는 END 매크로 없이 스스로 센다.
-    static_assert(JBro::Detail::CountFields<Probe>() == 7, "every declared field must be counted");
+    static_assert(JBro::Detail::CountFields<Probe>() == 8, "every declared field must be counted");
     static_assert(JBro::Detail::CountFields<Empty>() == 0, "a type with no fields counts zero");
-    static_assert(false == JBro::Detail::HasGapAfter<Probe, 7>(),
+    static_assert(false == JBro::Detail::HasGapAfter<Probe, 8>(),
         "nothing may sit past the last field index");
 
     void TestTableHasEveryFieldInOrder()
     {
         const JBro::PropertyTable& table = JBro::GetPropertyTable<Probe>();
-        Check(table.count == 7, "the table must hold every declared field");
+        Check(table.count == 8, "the table must hold every declared field");
         Check(table.properties != nullptr, "a table with fields must point at them");
 
         // 선언 순서가 곧 인스펙터 순서다. 기존 엔진은 이것을 손으로 유지했다.
-        const char* const expected[] = { "FieldRows", "DropSeconds", "Elapsed", "Paused", "Plain", "RangeOnly", "Hidden" };
+        const char* const expected[] = { "FieldRows", "DropSeconds", "Elapsed", "Paused", "Plain", "RangeOnly", "Hidden", "Locked" };
         for (std::uint32_t i = 0; i < table.count; ++i)
         {
             const char* actual = JBro::NameTable::Get().Resolve(table.properties[i].name);
@@ -168,6 +186,15 @@ namespace
         Check(hidden.edit != nullptr && hidden.edit->category != nullptr
             && std::strcmp(hidden.edit->category, "Debug") == 0,
             "the category must survive being merged with NoSerialize");
+        Check(hidden.edit->editable, "NoSerialize must not make the field read only");
+
+        // ReadOnly 가 가운데 끼어도 살아남아야 한다 — 합치는 쪽이 한 방향만 보면 여기서 걸린다.
+        const JBro::PropertyInfo& locked = table.properties[7];
+        Check(locked.edit != nullptr && locked.edit->editable == false,
+            "ReadOnly must survive being merged from either side");
+        Check(locked.edit->tooltip != nullptr && locked.edit->category != nullptr,
+            "the attributes around ReadOnly must survive it");
+        Check(locked.serialize, "ReadOnly must not stop the field from being saved");
     }
 
     void TestTheTableIsBuiltOnce()
