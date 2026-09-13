@@ -198,6 +198,14 @@ namespace
             "a colon with no space after it is part of the value");
         Check(document.FindScalar(root, "Text", value) && value == "a: b",
             "only the first colon that ends a key counts");
+
+        // 키가 되려면 콜론 뒤에 공백이 오거나 줄이 끝나야 한다. 그냥 콜론이 있다고
+        // 키로 삼으면 `16:9` 같은 줄이 조용히 키 하나가 된다.
+        JBro::YamlError error;
+        const char* bare = "Version: 1\n16:9\n";
+        Check(false == document.Parse(bare, std::strlen(bare), error),
+            "a colon with no space does not make a key");
+        Check(error.line == 2, "the refusal must name the line");
     }
 
     void TestANumberIsNotADash()
