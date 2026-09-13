@@ -13,7 +13,8 @@
 - **형식은 하나(`PropertyInfo`), 생산자는 둘**(C++ 매크로 / 트랜스파일러).
 - 언어는 **대체가 아니라 추가 프론트엔드**다. C++ 스크립트 경로를 죽이지 않는다.
 
-**다음에 할 일은 언어 문법이 아니라 `PropertyInfo` 모양을 확정하는 것이다.** 그것이 두 생산자의 계약이다.
+**`PropertyInfo` 모양은 §8 에서 확정했다(2026-09-14).** 쪽지 보관함도 둘로 나누기로 했다(§8.4).
+남은 것은 `ValueCodec`·`ArrayOps`·`TableOps` 의 구체 모양이며, 대부분 기존 엔진에서 가져올 수 있다.
 
 ---
 
@@ -342,27 +343,135 @@ class SpriteRenderer2D final : public ComponentBase
 
 ---
 
-## 8. `PropertyInfo` 설계 방침 (아직 미확정)
+## 8. `PropertyInfo` — 모양 확정 (2026-09-14)
 
-**이것을 먼저 확정해야 한다.** 두 생산자의 계약이고, 나중에 바꾸면 양쪽을 다 고치게 된다.
+### 8.1 이게 뭐 하는 물건인가
 
-방침만 적어 둔다:
+에디터에서 스프라이트를 클릭하면 오른쪽 패널에 이렇게 뜬다:
 
-- **닫힌 프로퍼티 타입 enum 을 만들지 않는다.** 기존 `EReflectPropertyType` 18값에
-  `Degree`·`Radian`·`Layout2D` 가 들어 있는 건 엔진 타입이 타입 시스템 안으로 샌 것이고,
-  새 타입 하나가 코어 enum + 모든 switch 를 건드린다. `ComponentSerializer.cpp` 가 1,596줄인 이유다.
-  대신 **타입 id + 코덱**: 디스크립터가 `{typeId, size, align, trivially copyable, 텍스트/바이너리 코덱}`
-  을 들고, 직렬화는 enum 을 switch 하지 않고 디스크립터에 물어본다.
-- **오프셋이 아니라 접근자를 든다.** 기존 엔진이 같은 문제를 `offsetof` 와 `GetFieldPtr` 람다로
-  두 번 푼 자리다. 멤버 포인터를 담은 람다 하나로 통일한다.
-- **축을 하나로.** 기존 엔진이 `Kind` 를 지운 이유를 반복하지 않는다.
-- **이름은 `NameId`(D-51).** 생성 문자열은 DLL 안에 살므로 호스트는 로드 시점에 `NameTable` 에
-  인턴해야 한다. 안 하면 리로드 때 죽은 포인터를 든다.
-- 기존 엔진의 `ReflectTypeDesc` / `ReflectArrayOps` / `ReflectTableOps` 는 이미 이 방향으로
-  수렴한 결과물이다. **거기서 출발하면 된다** — 특히 Table 의 슬롯 커서 계약과
-  "키/값을 `memcpy` 로 복사할 수 없다"는 주석은 값비싸게 얻은 지식이다.
+```
+SpriteRenderer2D
+  크기      [1.0] [1.0]
+  뒤집기X   ☐
+```
 
----
+패널이 저걸 그리려면 누가 알려 줘야 한다 — "SpriteRenderer2D 에는 `size` 라는 필드가 있고,
+Vec2 이고, 메모리 어디에 있고, 화면엔 '크기' 라고 써라." 그 쪽지가 `PropertyInfo` 다.
+**필드 하나당 쪽지 하나.** 저장 파일을 쓸 때도 같은 쪽지를 본다.
+
+### 8.2 기존 엔진 쪽지의 문제 넷
+
+`ReflectPropertyInfo` 17필드를 읽고 정리한 것이며, 근거는 대부분 **그들 자신의 주석**이다.
+
+1. **주소 찾는 법이 둘인데 어느 게 진짜인지 안 적혀 있다.**
+   `Offset`(offsetof)과 `GetFieldPtr`(함수 포인터)가 나란히 있고 주석이
+   *"둘 중 하나만 사용"* 이라고만 말한다. 판별자 없는 union 이라 소비자마다 알아야 했다.
+2. **같은 사실이 두 군데 있다.** `ReflectTypeDesc` 주석이 직접 말한다 —
+   *"Type 은 ReflectPropertyInfo::Type / ScriptPropertyDesc::Type 과 같은 값·같은 의미다."*
+   `Size` 도 마찬가지다. `Kind` 축을 "이중 진실" 이라고 지웠으면서 다른 축에 그대로 남겼다.
+3. **타입 집합이 18값 enum 으로 닫혀 있다.** `StringEdit` 필드 주석이 대가를 기록한다 —
+   *"새 EReflectPropertyType 을 만들지 않는 이유: 직렬화·undo·라이브 컴파일이 전부
+   `Type == String` 으로 판정하므로 열거값을 늘리면 그 경로가 전부 갈라진다."*
+   즉 **새 타입을 못 넣어 곁가지 필드를 달았다.** `ComponentSerializer.cpp` 1,596줄의 원인이다.
+4. **타입의 성질과 필드의 성질이 섞여 있다.** `RefCategory`·`RefTypeName`·`ExpectedAssetType`·`Enum`
+   은 전부 *타입* 의 성질인데 프로퍼티에 붙어 있다. 17칸 중 5칸이 대부분 빈칸이다.
+
+덤으로 `ScriptPropertyDesc` 가 `ReflectPropertyInfo` 를 13필드쯤 복제한다(등록용/저장용 분리).
+
+### 8.3 그래서 쪽지를 두 장으로 나눈다
+
+**타입 설명서** — 타입마다 한 장, 모두가 공유한다.
+
+```cpp
+// 크기·정렬·복사 방식·컨테이너 조작이 전부 여기 있다.
+// PropertyInfo 는 가리키기만 한다 — 같은 사실을 두 군데 적지 않는다.
+struct TypeDescriptor
+{
+    NameId        typeName  = InvalidNameId;   // "float", "JBro.Vec2", "Ref<Sprite>"
+    std::uint32_t size      = 0;
+    std::uint32_t alignment = 0;
+    bool          triviallyCopyable = false;
+
+    // 구조는 ops 의 존재로 드러난다. 별도 Kind 축을 두지 않는다(§8.2 ②).
+    const ArrayOps* arrayOps = nullptr;   // != nullptr 이면 element 유효
+    const TableOps* tableOps = nullptr;   // != nullptr 이면 key/value 유효
+    const TypeDescriptor* element = nullptr;
+    const TypeDescriptor* key     = nullptr;
+    const TypeDescriptor* value   = nullptr;
+
+    // 타입에 붙는 사실. 프로퍼티가 아니라 타입의 성질이다(§8.2 ④).
+    const EnumNames* enumNames = nullptr;   // enum 일 때만
+    const RefTarget* refTarget = nullptr;   // Ref<T> 일 때만 (대상 분류 + 기대 에셋 타입)
+
+    // 값 ↔ 텍스트/바이트. 직렬화가 타입별 switch 를 갖지 않게 하는 부분(§8.2 ③).
+    const ValueCodec* codec = nullptr;
+};
+```
+
+**닫힌 enum 이 없다.** "배열인가?" 는 `arrayOps != nullptr` 이 답하고, "무슨 타입인가?" 는
+`typeName` 이 답한다. 새 타입을 더해도 코어를 건드리지 않는다.
+
+**필드 쪽지** — 필드마다 한 장.
+
+```cpp
+struct PropertyInfo
+{
+    NameId name = InvalidNameId;
+    const TypeDescriptor* type = nullptr;
+
+    // 접근 방법은 하나뿐이다(§8.2 ①).
+    // private 멤버도, 파생 클래스도, 생성 코드도 전부 같은 방식이다.
+    void*       (*Address)(void* owner) noexcept = nullptr;
+    const void* (*ConstAddress)(const void* owner) noexcept = nullptr;
+
+    bool serialize = true;                    // false = 인스펙터엔 나오되 저장 안 함
+    const PropertyEditInfo* edit = nullptr;   // 게임 빌드에선 nullptr 이어도 된다
+};
+
+// 인스펙터만 읽는다. 런타임(직렬화)은 이걸 안 본다.
+struct PropertyEditInfo
+{
+    const char* displayName = nullptr;
+    const char* tooltip     = nullptr;
+    const char* category    = nullptr;
+    bool  hasRange = false;
+    float rangeMin = 0.0f;
+    float rangeMax = 0.0f;
+    bool  editable = true;
+};
+```
+
+17필드 → **6필드 + 편집 메타 분리.** `edit` 을 `nullptr` 로 두면 게임 빌드에서 한글 툴팁이
+통째로 빠진다.
+
+### 8.4 보관함은 둘로 나눈다 (확정)
+
+빌트인 컴포넌트와 사용자 스크립트의 쪽지를 **한 표에 섞지 않는다.**
+
+기존 엔진은 `EReflectTypeKind { Component, Script }` 로 구분해 한 표에 넣었다. 그러면 인스펙터가
+한 번만 물어보면 되지만, **수명이 다른 것이 한 그릇에 있게 된다** — 스크립트 쪽지는 DLL 이
+내려갈 때 같이 죽어야 하고(`ScriptRegistry::Clear` 가 이미 그 이유로 존재한다), 빌트인 쪽지는
+엔진 수명이다. 섞여 있으면 지울 때마다 골라내야 한다.
+
+| 보관함 | 수명 | 채우는 쪽 |
+|---|---|---|
+| 빌트인 컴포넌트 표 | 엔진 | `JBRO_FIELD` 매크로 (C++) |
+| 스크립트 표 | 로드된 DLL | 트랜스파일러가 생성한 코드 |
+
+대가: 인스펙터가 두 군데를 찾아본다. 그 조회 순서와, 양쪽에 같은 이름이 있을 때의 규칙은
+붙일 때 정한다(빌트인 우선이 자연스럽다 — 스크립트가 엔진 타입명을 덮지 못하게).
+
+### 8.5 아직 안 정한 것
+
+- **`ValueCodec` 모양** — 텍스트만인가 바이너리도인가, YAML 이스케이프는 누가 하는가
+- **`ArrayOps` / `TableOps`** — 기존 엔진 것을 거의 그대로 가져오면 된다. 특히 Table 의
+  **슬롯 커서 계약**(삽입 한 번에 리해시가 나면 슬롯 번호가 전부 무효)과
+  **"키/값을 `memcpy` 로 복사할 수 없다"**(String 처럼 내용이 밖에 있는 타입)는
+  값비싸게 얻은 지식이다. 다시 깨닫지 말 것
+- **DLL 경계 크기 단언** — `ScriptModuleLoadContext` 처럼 `static_assert(sizeof(...))` 를 박는다.
+  박는 쪽으로 기운다
+- **`const char*` 수명** — 편집 메타 문자열은 DLL 안에 산다. 호스트가 `NameTable` 에 인턴하거나,
+  언로드 전에만 읽거나. 기존 엔진 `EnumTypeMeta::Names` 가 같은 모양이었다
 
 ## 9. 규율 — 언어가 엔진을 잡아먹지 않게
 
@@ -389,7 +498,7 @@ class SpriteRenderer2D final : public ComponentBase
 
 ## 11. 아직 안 정한 것
 
-- **`PropertyInfo` 구체 필드** (§8 은 방침일 뿐)
+- **`ValueCodec` / `ArrayOps` / `TableOps` 구체 모양** (§8.5). `PropertyInfo` 자체는 §8.3 에서 확정
 - **지원 타입 범위.** 트랜스파일로 가도 `Array<Ref<T>>` 가 자동으로 되는 게 아니다 —
   *선언이 파싱된다*는 것뿐이고 `ArrayOps`/`TableOps` 는 여전히 필요하다. 정규식과 무관한 별개 축이다
 - **JBroScript 문법** 자체
