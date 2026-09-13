@@ -39,14 +39,19 @@ namespace JBro::Component
 
         JBRO_REFLECT_BODY(SpriteRenderer2D)
 
-        // ⚠ **저장되지 않는다.** `AssetHandle` 은 이번 실행에서의 자리라 다음 실행에서는
-        // 다른 것을 가리킨다(`AssetTypes.h`). 그대로 적으면 저장 파일에 뜻 없는 숫자가 들어간다.
+        // 에셋 참조는 저작 값과 런타임 캐시로 나뉜다. `Transform2D` 의 월드 캐시와 같은 형태다.
         //
-        // 씬이 스프라이트를 기억하려면 이 자리가 영속 식별자(`AssetId`)를 들거나,
-        // 저장할 때 핸들을 식별자로 바꿔 주는 곳이 있어야 한다. **아직 둘 다 없다** —
-        // 지금은 빠뜨리는 쪽을 고른다. 쓰레기를 적는 것보다 낫고, 빠진 것은 눈에 띈다.
-        JBRO_FIELD(AssetHandle, sprite,   NoSerialize());
-        JBRO_FIELD(AssetHandle, material, NoSerialize());
+        // `AssetId` 가 저장되는 쪽이다. `AssetHandle` 은 이번 실행에서의 자리라
+        // 다음 실행에서는 다른 것을 가리킨다(`AssetTypes.h`) — 저장하면 뜻 없는 숫자가 된다.
+        //
+        // **핸들을 채우는 것은 아직 없다.** `AssetSystem::Load` 가 스텁이라
+        // `AssetId` → `AssetHandle` 해석 패스를 붙일 데가 없다. 그것이 생기면
+        // 씬 로드 뒤와 인스펙터 변경 시에 한 번씩 돌면 된다. 렌더 추출은 지금도 앞으로도
+        // 핸들만 읽으므로 매 프레임 경로에 조회가 늘지 않는다.
+        JBRO_FIELD(AssetId,     spriteId);
+        JBRO_FIELD(AssetHandle, sprite,     NoSerialize() | ReadOnly() | Tooltip("spriteId 에서 해석된 값"));
+        JBRO_FIELD(AssetId,     materialId);
+        JBRO_FIELD(AssetHandle, material,   NoSerialize() | ReadOnly() | Tooltip("materialId 에서 해석된 값"));
 
         JBRO_FIELD(Color, tint) { 1.0f, 1.0f, 1.0f, 1.0f };
         JBRO_FIELD(Vec2,  pivot) { 0.5f, 0.5f };

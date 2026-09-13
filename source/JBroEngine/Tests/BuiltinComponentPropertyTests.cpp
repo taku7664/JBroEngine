@@ -50,7 +50,7 @@ namespace
         // 그 자체가 목적이다 — 인스펙터에 뭐가 보일지가 조용히 바뀌지 않게 한다.
         Check(Table("Component::Transform2D").count == 8, "Transform2D declares eight fields");
         Check(Table("Component::Camera2D").count == 6, "Camera2D declares six fields");
-        Check(Table("Component::SpriteRenderer2D").count == 8, "SpriteRenderer2D declares eight fields");
+        Check(Table("Component::SpriteRenderer2D").count == 10, "SpriteRenderer2D declares ten fields");
         Check(Table("Component::Rigidbody2D").count == 7, "Rigidbody2D declares seven fields");
         Check(Table("Component::Collider2D").count == 5, "Collider2D declares five fields");
 
@@ -158,13 +158,34 @@ namespace
 
     void TestRuntimeOnlyFieldsStayOutOfTheSaveFile()
     {
-        // AssetHandle 은 이번 실행에서의 자리다. 그대로 적으면 저장 파일에
-        // 다음 실행에서 뜻 없는 숫자가 들어간다.
+        // 에셋 참조는 둘로 나뉜다. AssetId 가 저장되는 쪽이고, AssetHandle 은
+        // 이번 실행에서의 자리라 그대로 적으면 다음 실행에서 뜻 없는 숫자가 된다.
         const JBro::PropertyTable& sprite = Table("Component::SpriteRenderer2D");
+        Check(Field(sprite, "spriteId").serialize,
+            "the persistent asset id is what a scene remembers");
+        Check(Field(sprite, "materialId").serialize,
+            "the persistent asset id is what a scene remembers");
         Check(Field(sprite, "sprite").serialize == false,
             "a runtime asset handle must not be written to the save file");
         Check(Field(sprite, "material").serialize == false,
             "a runtime asset handle must not be written to the save file");
+
+        // 핸들은 spriteId 에서 해석되는 값이다. 인스펙터에서 직접 고치면
+        // 다음 해석에 덮이고, 그 사이에만 어긋난다 — 월드 캐시와 같은 이유다.
+        const JBro::PropertyInfo& handle = Field(sprite, "sprite");
+        Check(handle.edit != nullptr && handle.edit->editable == false,
+            "a resolved handle must not be editable");
+
+        // 저장되는 쪽은 실제로 값이 실려야 한다. 8바이트 정수 하나다.
+        const JBro::PropertyInfo& id = Field(sprite, "spriteId");
+        Check(id.type->fields != nullptr && id.type->fields->count == 1,
+            "an asset id carries one value");
+        JBro::Component::SpriteRenderer2D renderer;
+        const JBro::PropertyInfo& idValue = id.type->fields->properties[0];
+        Check(idValue.type->codec->FromText(idValue.Address(id.Address(&renderer)), "42", 2),
+            "an asset id must be writable through its property");
+        Check(renderer.spriteId.value == 42, "the write must reach the real member");
+
         Check(Field(sprite, "tint").serialize, "an authored value must still be saved");
 
         // 속도는 시뮬레이션이 매 프레임 다시 쓴다.
