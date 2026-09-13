@@ -24,7 +24,7 @@ namespace JBro
             };
             static const StaticPropertyTable<4> fields { entries };
             static const TypeDescriptor descriptor =
-                MakeStructTypeDescriptor<Color>("JBro.Color", fields.Get());
+                MakeVectorTypeDescriptor<Color>("JBro.Color", fields.Get());
             return descriptor;
         }
     };

@@ -119,6 +119,12 @@ namespace JBro
         // 참고용이다. 복사는 언제나 codec->Assign 을 거친다.
         bool          triviallyCopyable = false;
 
+        // 저장 파일에 필드를 **이름 없이 나열한다**. `Vec2` 는 `- 1.5` / `- 2` 로 적힌다.
+        // 좌표와 색은 씬 파일에서 압도적으로 흔해서 이름을 붙이면 파일이 세 배로 길어지고,
+        // 기존 엔진도 같은 모양으로 적는다. 대가는 **필드 선언 순서가 파일 형식이 된다**는 것이다 —
+        // 그래서 이 표시는 필드가 늘지 않는 타입에만 붙인다(`Vec2`, `Color`, `Matrix3x2` 같은 것).
+        bool          writeFieldsAsSequence = false;
+
         // 구조는 ops 의 존재로 드러난다. 별도 Kind 축을 두지 않는다.
         const ArrayOps* arrayOps = nullptr;   // != nullptr 이면 element 가 유효
         const TableOps* tableOps = nullptr;   // != nullptr 이면 key·value 가 유효

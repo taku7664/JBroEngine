@@ -24,7 +24,7 @@ namespace JBro
             };
             static const StaticPropertyTable<2> fields { entries };
             static const TypeDescriptor descriptor =
-                MakeStructTypeDescriptor<Vec2>("JBro.Vec2", fields.Get());
+                MakeVectorTypeDescriptor<Vec2>("JBro.Vec2", fields.Get());
             return descriptor;
         }
     };
@@ -64,7 +64,7 @@ namespace JBro
             };
             static const StaticPropertyTable<6> fields { entries };
             static const TypeDescriptor descriptor =
-                MakeStructTypeDescriptor<Matrix3x2>("JBro.Matrix3x2", fields.Get());
+                MakeVectorTypeDescriptor<Matrix3x2>("JBro.Matrix3x2", fields.Get());
             return descriptor;
         }
     };

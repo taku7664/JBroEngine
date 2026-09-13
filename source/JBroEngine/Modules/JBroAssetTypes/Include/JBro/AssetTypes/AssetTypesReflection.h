@@ -6,18 +6,31 @@
 namespace JBro
 {
     // 영속 식별자다. 이것이 저장 파일에 적히는 쪽이다.
+    //
+    // **필드로 쪼개지 않는다.** 안에 정수가 하나 있지만 그것은 저장 방식이지 부분이 아니다 —
+    // 쪼개면 저장 파일에 `spriteId:` 아래 `value:` 가 한 단 더 생기고, 인스펙터도 칸을
+    // 하나 더 그린다. 나눌 곳이 없는 값이므로 코덱 하나로 말한다.
     template <>
     struct TypeDescriptorOf<AssetId>
     {
+        // 감싼 정수와 레이아웃이 같아야 정수 코덱을 그대로 빌려 쓸 수 있다.
+        static_assert(sizeof(AssetId) == sizeof(std::uint64_t),
+            "an asset id must be exactly the number it wraps");
+        static_assert(offsetof(AssetId, value) == 0,
+            "an asset id must start at the number it wraps");
+
         static const TypeDescriptor& Get()
         {
-            static const FieldEntry entries[] =
+            static const TypeDescriptor descriptor = []
             {
-                MakeFieldEntry<&AssetId::value>(),
-            };
-            static const StaticPropertyTable<1> fields { entries };
-            static const TypeDescriptor descriptor =
-                MakeStructTypeDescriptor<AssetId>("JBro.AssetId", fields.Get());
+                TypeDescriptor built;
+                built.typeName = NameTable::Get().Intern("JBro.AssetId");
+                built.size = static_cast<std::uint32_t>(sizeof(AssetId));
+                built.alignment = static_cast<std::uint32_t>(alignof(AssetId));
+                built.triviallyCopyable = true;
+                built.codec = &GetScalarCodec<std::uint64_t>();
+                return built;
+            }();
             return descriptor;
         }
     };

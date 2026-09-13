@@ -357,6 +357,19 @@ namespace JBro
         descriptor.fields = &fields;
         return descriptor;
     }
+
+    // 좌표·색처럼 **같은 종류 값을 늘어놓은** 구조체의 설명자다.
+    // 저장 파일에 이름 없이 나열된다(`- 1.5` / `- 2`).
+    //
+    // **필드가 늘어나는 타입에는 쓰지 않는다.** 선언 순서가 곧 파일 형식이 되므로,
+    // 나중에 가운데에 필드를 하나 끼우면 예전 파일이 전부 어긋난다.
+    template <typename T>
+    TypeDescriptor MakeVectorTypeDescriptor(const char* typeName, const PropertyTable& fields)
+    {
+        TypeDescriptor descriptor = MakeStructTypeDescriptor<T>(typeName, fields);
+        descriptor.writeFieldsAsSequence = true;
+        return descriptor;
+    }
 }
 
 // 클래스 본문을 연다. 여기서 매긴 번호가 아래 JBRO_FIELD 들의 기준점이다.

@@ -22,7 +22,7 @@ namespace JBro
             };
             static const StaticPropertyTable<3> fields { entries };
             static const TypeDescriptor descriptor =
-                MakeStructTypeDescriptor<Vec3>("JBro.Vec3", fields.Get());
+                MakeVectorTypeDescriptor<Vec3>("JBro.Vec3", fields.Get());
             return descriptor;
         }
     };
@@ -44,7 +44,7 @@ namespace JBro
             };
             static const StaticPropertyTable<4> fields { entries };
             static const TypeDescriptor descriptor =
-                MakeStructTypeDescriptor<Quaternion>("JBro.Quaternion", fields.Get());
+                MakeVectorTypeDescriptor<Quaternion>("JBro.Quaternion", fields.Get());
             return descriptor;
         }
     };
