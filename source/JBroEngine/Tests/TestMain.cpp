@@ -5,6 +5,7 @@ int RunCanvasFoundationTests();
 int RunCoreModelStressTests();
 int RunFrameMemoryTests();
 int RunReflectionShapeTests();
+int RunReflectionFieldTests();
 int RunScriptSchedulingTests();
 int RunSpritePixelTests();
 int RunProjectFileTests();
@@ -38,6 +39,10 @@ int main()
             return 1;
         }
         if (RunReflectionShapeTests() != 0)
+        {
+            return 1;
+        }
+        if (RunReflectionFieldTests() != 0)
         {
             return 1;
         }
