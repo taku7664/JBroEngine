@@ -411,6 +411,14 @@
   raw 포인터로 줄이면 8B와 역참조 하나를 아끼지만 §6의 명시 규칙을 바꾸는 일이다. private 멤버라 나중에 바꿔도 공개 계약이
   깨지지 않으므로(D-28 재빌드 규약) 지금 열지 않는다.
 
+- **D-56. 게임 스크립트 언어를 자작하고 C++ 로 트랜스파일한다. 이름 JBroScript, 확장자 `.jscript`.**
+  **아직 아무것도 구현하지 않았다.** 방향·근거·실측은 [tasks/jbroscript-plan.md](./jbroscript-plan.md) 에 있다.
+  요지: 백엔드는 VM 이 아니라 C++ 소스이며 `ScriptDLLLoader`·`ScriptRegistry`·`ScriptPool`·Tier 분리·POD ABI 가 전부 그대로 쓰인다.
+  리플렉션은 **형식 하나(`PropertyInfo`), 생산자 둘** 로 푼다 — 빌트인 컴포넌트는 C++ 매크로, 사용자 스크립트는 트랜스파일러.
+  언어는 대체가 아니라 **추가 프론트엔드**다. C++ 스크립트 경로를 죽이지 않으므로 언어가 막혀도 엔진은 멀쩡하다.
+  **다음 할 일은 언어 문법이 아니라 `PropertyInfo` 모양 확정이다** — 그것이 두 생산자의 계약이다.
+  Open Decision 3 / H5 의 남은 절반(프로퍼티·인스펙터 메타데이터·직렬화)이 이 결정의 대상이다.
+
 ## Assumptions
 
 - 대상은 `Documents/GitHub/JBroEngine` 신규 리포다. 기존 엔진은 **읽기 전용 기준**으로만 쓴다.

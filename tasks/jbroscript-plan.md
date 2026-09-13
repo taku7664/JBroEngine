@@ -1,0 +1,406 @@
+# JBroScript — 스크립트 언어와 리플렉션 계획
+
+> 2026-09-14 토론 기록. **아직 아무것도 구현하지 않았다.** 방향과 근거, 그리고 실측 결과를 남긴다.
+> 확정 계약이 아니라 계획이므로 `docs/ProjectRule.md` 가 아니라 여기에 둔다.
+
+---
+
+## 0. 결론 먼저
+
+- 게임 스크립트 언어를 자작한다. 이름 **JBroScript**, 확장자 **`.jscript`**.
+- 백엔드는 VM 이 아니라 **C++ 트랜스파일**이다. `.jscript` → 생성 `.h/.cpp` → 기존 파이프라인.
+- 리플렉션은 이 결정으로 **사용자 스크립트 쪽이 해결된다**. 빌트인 컴포넌트는 별도 생산자가 필요하다.
+- **형식은 하나(`PropertyInfo`), 생산자는 둘**(C++ 매크로 / 트랜스파일러).
+- 언어는 **대체가 아니라 추가 프론트엔드**다. C++ 스크립트 경로를 죽이지 않는다.
+
+**다음에 할 일은 언어 문법이 아니라 `PropertyInfo` 모양을 확정하는 것이다.** 그것이 두 생산자의 계약이다.
+
+---
+
+## 1. 왜 이 얘기가 나왔나
+
+Open Decision 3 / H5 의 남은 절반이 프로퍼티 리플렉션이다. `a1e54eb` 로 **이름으로 만드는 경로**는
+섰지만(§14.3), 프로퍼티·인스펙터 메타데이터·직렬화는 없다.
+
+그 절반을 C++ 로 어떻게 만들지 논의하다가, 빡대리가 **IDE 를 Code-OSS 로 자체 제작할 계획**이며
+스크립트 언어 자체를 만드는 쪽을 고민 중이라고 밝혔다. 그러면 리플렉션 문제의 전제가 바뀐다.
+
+---
+
+## 2. 기존 엔진의 JPROP 이 실제로 무엇이 문제였나 (실측)
+
+새 방향을 정하기 전에 기존 엔진(`C:\Users\박주형\source\repos\JBroEngine`)의 리플렉션을 읽었다.
+코드 약 3,800줄 + 프로젝트 생성기 1,324줄.
+
+### 2.1 파서가 정규식이다
+
+`Engine/Editor/Project/GameScriptProjectGenerator.cpp:561`:
+
+```
+\bJPROP\s*\(((?:[^()]|\([^()]*\))*)\)\s*([A-Za-z_][A-Za-z0-9_:]*(?:\s*<[^>]*>)?)\s+([A-Za-z_][A-Za-z0-9_]*)...
+```
+
+타입 자리가 `<[^>]*>` 라 **꺾쇠 안에 꺾쇠가 못 들어간다.** 어트리뷰트는 괄호 중첩 1단계까지다.
+그리고 `header.Text` 는 원본 파일 텍스트 그대로라 **주석도 전처리기도 모른다.**
+
+같은 정규식에 실제 선언을 먹여 본 결과:
+
+| 입력 | 결과 |
+|---|---|
+| `JPROP() float Speed = 5.0f;` | ✅ |
+| `JPROP() Ref<CSpriteAsset> Icon;` | ✅ |
+| `JPROP(Range(0,100)) float Hp = 1.0f;` | ✅ |
+| `JPROP() Array<Ref<CSpriteAsset>> Items;` | ❌ **누락** |
+| `JPROP() Table<int, Array<float>> Curves;` | ❌ **누락** |
+| `JPROP() const float Gravity = 9.8f;` | ❌ **누락** |
+| `JPROP() float* Buffer = nullptr;` | ❌ **누락** |
+| `JPROP(Name(Concat("a"))) float Y;` | ❌ **누락** |
+| `// JPROP() float Dead = 1.0f;` | ⚠️ **주석인데 매치** |
+| `/* JPROP() int Removed = 3; */` | ⚠️ **주석인데 매치** |
+
+누락은 `CSystemLog::Warning` 으로만 남는다 — **경고지 에러가 아니라** 빌드는 성공하고 그 필드만
+인스펙터·저장 파일에서 사라진다. 가장 아픈 조합: 에러 메시지가 지원 타입으로 `Array<T>, Table<K,V>`
+를 나열하는데 `Array<Ref<CSpriteAsset>>` 은 파싱이 안 된다. **지원 목록과 파서가 서로 다른 말을 한다.**
+
+반대 방향도 있다. 주석 처리한 프로퍼티가 등록되고 생성기가 `offsetof(PlayerScript, Dead)` 를 뱉어
+**생성된 파일에서 컴파일 에러**가 난다. 시끄러운 건 낫지만, 내가 쓰지 않은 파일에서 나고
+고치는 방법은 "에디터로 돌아가 재생성"이다.
+
+### 2.2 같은 문제를 두 곳에서 다르게 풀었다
+
+생성기는 `offsetof(ClassName, PropName)` 을 뱉는다. 스크립트는 `CGameScript` 파생이라 가상 함수가
+있고, **non-standard-layout 에 `offsetof` 는 조건부 지원**이다. 생성된 파일에서는 클래스가
+완성돼 있어 통과한다.
+
+그런데 `REFLECT_FIELD` 는 **클래스 본문 안**이라 같은 `offsetof` 가 C2079 로 죽었고, 그래서
+`GetFieldPtr` 람다로 우회했다. 헤더 주석에 그 이유가 적혀 있다.
+
+**하나의 문제, 두 개의 해법, 두 개의 등록 경로.** 이것이 "REFLECT_FIELD 는 레거시 호환" 이 된 이유다.
+(참고: `REFLECT_FIELD` 는 **사용자 코드에 0건**이다. 엔진/SDK 헤더에만 남아 있다.)
+
+### 2.3 진실이 도구 안에 있다
+
+필드의 진실은 소스가 아니라 `GeneratedScriptRegistry.cpp` 이고, 그건 **에디터를 돌려야** 갱신된다.
+VS 에서 `JPROP` 한 줄 추가하고 빌드하면 컴파일은 되는데 그 프로퍼티는 존재하지 않는다.
+
+### 2.4 공정하게
+
+기존 설계가 허술한 게 아니다. 지정 초기화로 필드 재정렬에 안 깨지게 했고, 마커 수와 매치 수를
+비교해 누락을 감지하고, 어트리뷰트 오타까지 경고한다. `Kind` 축이 `Type` 에서 유도되는 이중
+진실이라 지운 것도 정확한 판단이었다.
+
+**문제는 그 꼼꼼함이 정규식 위에 서 있었다는 것뿐이다.**
+
+### 2.5 실사용 규모
+
+`JPROP` 선언 59건. 실제 게임 스크립트는 `TestProject/Test/Contents/Scripts/`(Tetris, Movement 등)와
+`Samples/`. 쓰는 형태는 스칼라 · `Ref<GameObject>` · `Table<String, Vector2>` 수준이라
+**위 실패는 아직 물고 있지 않다.** 다만 "스폰할 프리팹 목록"을 `Array<Ref<Prefab>>` 로 쓰는 순간 문다.
+
+---
+
+## 3. C++26 리플렉션은 답이 아니다 (실측)
+
+P2996 "Reflection for C++26" 이 2025-02 Hagenberg 에서 C++26 작업 초안에 들어갔다.
+`^^T` 리플렉션 연산자, `[: :]` 스플라이스, `std::meta::*` consteval 함수, `template for`(P1306),
+어트리뷰트(P3394).
+
+**이 툴체인 실측 (MSVC 14.51 / VS 18):**
+
+| | `/std:c++20` | `/std:c++latest` |
+|---|---|---|
+| `_MSVC_LANG` | 202002 | 202400 |
+| `__cpp_reflection` | 없음 | **없음** |
+| `__cpp_expansion_statements` | 없음 | **없음** |
+| `<meta>` | 없음 | **없음** |
+
+그리고 개념적으로도 착각하면 안 된다 — **C++26 리플렉션은 전부 `consteval` 이다.** 런타임 타입 DB 를
+주는 게 아니라 컴파일 타임에 멤버를 훑는 방법을 준다. 그 결과로 런타임 디스크립터 표를 *생성*하게 된다.
+즉 **`PropertyInfo` 설계는 C++26 이 와도 그대로다.**
+
+---
+
+## 4. C++ 로 계속 갈 경우의 등록 기법 (실측 완료, 지금 쓸 수 있음)
+
+트랜스파일로 가더라도 **빌트인 컴포넌트는 C++ 이므로 이 기법이 그대로 필요하다.**
+
+### 4.1 이름을 멤버 포인터에서 유도한다
+
+```cpp
+template <auto MemberPointer>
+constexpr std::string_view MemberName();   // __FUNCSIG__ / __PRETTY_FUNCTION__ 파싱
+```
+
+MSVC 14.51 에서 `static_assert(MemberName<&PlayerScript::Health>() == "Health")` 가
+**컴파일 타임에 통과**했다. 문자열 리터럴을 손으로 쓰지 않는다 → 이름 드리프트 경로가 사라진다.
+
+⚠ 컴파일러 서명 문자열을 파싱하는 것이라 툴체인 업그레이드에 깨질 수 있다.
+채택하면 위 `static_assert` 를 테스트에 박아 둔다.
+
+### 4.2 선언과 등록을 한 토큰에 묶는다
+
+`&Self::Name` 을 **함수 본문 안**에 두면 클래스 완성 후 해석되므로 합법이다 —
+기존 엔진이 `GetFieldPtr` 람다로 우회한 그 C2079 문제가 애초에 없고, `offsetof` 도 쓰지 않는다.
+
+가상 함수를 가진 파생 클래스로 실측:
+
+```
+polymorphic script, 3 fields (vtable present: sizeof=32)
+  [0] Speed    size=4  addr-offset=16
+  [1] Health   size=4  addr-offset=20
+  [2] Weight   size=8  addr-offset=24
+write through accessor: Speed = 42.0 (ok)
+static_assert on derived name: ok
+```
+
+### 4.3 END 매크로는 필요 없다
+
+`requires { T::JBroFieldAt(Index<N>{}) }` 로 세면 개수를 스스로 알아낸다. 실측 통과.
+
+`__COUNTER__` 구멍(클래스 본문에서 누가 `__COUNTER__` 를 한 번 더 쓰는 경우)은 조용히 잘리지 않고
+**시끄럽게 실패**하도록 센 뒤 8칸을 더 확인한다. 음성 프로브로 확인:
+
+```
+error C2338: static assertion failed:
+  'a gap in the field index means something else consumed __COUNTER__ inside the class body'
+```
+
+### 4.4 BEGIN 은 새 부담이 아니다
+
+지금도 스크립트마다 `StaticTypeName()` + `GetTypeId()` 를 손으로 쓴다. 그 두 줄이 한 줄이 된다.
+
+### 4.5 최종 모양 (실측 통과)
+
+```cpp
+class TetrisGameManager final : public GameScript2D
+{
+    JBRO_SCRIPT_BODY(TetrisGameManager, "Game::TetrisGameManager")
+
+    JBRO_FIELD(int,   FieldRows,           Range(4, 40) | Category("Field")) = 20;
+    JBRO_FIELD(float, DropIntervalSeconds, Name("낙하 간격"))                = 0.5f;
+    JBRO_FIELD(float, Elapsed,             NoSerialize())                    = 0.0f;
+
+    void OnUpdate(float deltaTime) override { ... }
+};
+```
+
+- 어트리뷰트는 `constexpr` 값이고 `operator|` 로 겹친다 → **오타는 컴파일 에러**("그런 함수 없음").
+  기존 엔진은 로그 경고였다.
+- **기본값이 매크로 밖에 있다.** 매크로가 등록을 먼저 뱉고 선언을 열어 둔 채 끝내기 때문이다.
+- 비교: 기존 `JPROP(Range(4, 40), Category("Field")) int FieldRows = 20;`
+
+---
+
+## 5. 왜 트랜스파일인가
+
+### 5.1 무엇인가
+
+**컴파일러를 만들되 백엔드가 기계어가 아니라 C++ 소스다.**
+
+```
+지금:        Player.h (C++)   →  MSVC  →  Game.dll  →  호스트
+트랜스파일:  Player.jscript  →  jbroc  →  Player.generated.h/.cpp  →  MSVC  →  Game.dll  →  호스트
+                             ↑ 새로 만드는 것          ↑ 여기부터는 손 안 댐
+```
+
+`ScriptDLLLoader`, `ScriptRegistry`, `ScriptPool`, Tier 분리, POD ABI — **이번 주에 만든 게 전부 산다.**
+그것들 입장에서는 C++ 스크립트가 하나 더 있는 것이다.
+
+### 5.2 `#line` 이 원본을 가리킨다 (실측)
+
+생성 `.cpp` 에 `#line 7 "Player.jscript"` 를 심고 일부러 타입 에러를 넣었다.
+
+```
+Player.jscript(7): error C2111: '+': 포인터 더하기에는 정수 계열 피연산자가 있어야 합니다.
+
+PDB 안의 소스 파일 목록:
+  ...\Player.jscript      ← 디버거가 이것을 띄운다
+  ...\Player.ok.cpp
+```
+
+**컴파일 에러도, 디버그 정보도 원본을 가리킨다.** 이것이 트랜스파일이 실용적인 이유다.
+
+### 5.3 안 만들어도 되는 것
+
+| | VM 만들면 | 트랜스파일하면 |
+|---|---|---|
+| GC | 직접 | 없음 — 엔진 소유 모델 |
+| 바이트코드·인터프리터 | 직접 | 없음 |
+| 최적화기 | 직접 | MSVC |
+| 디버거 | 직접 | VS 디버거 (실측) |
+| 표준 라이브러리 | 직접 | `ScriptAPI.h` 가 이미 그것 |
+| 성능 | 10~100배 느림 | **C++ 과 동일** |
+
+**만들 것은 넷:** 렉서 → 파서 → 타입체커 → C++ 이미터.
+
+### 5.4 진짜 숙제는 타입체커다
+
+타입 검사를 안 하면 틀린 코드가 그대로 C++ 로 나가고 **MSVC 에러가 사용자에게 간다.**
+`#line` 덕에 파일·줄은 맞지만 메시지는 C++ 말이다(위 C2111 처럼).
+
+**MSVC 까지 도달한 에러는 전부 "내 타입체커의 구멍"이다.** 다행히 점진적으로 채울 수 있다.
+
+### 5.5 선례
+
+Haxe(→C++/JS), Nim(→C), Vala(→C), 초기 C++ 자체(Cfront→C), Construct/GDevelop(→JS).
+그리고 **Unity IL2CPP 가 C# 을 C++ 로 트랜스파일**한다 — 아무도 Unity 에 스크립팅이 없다고 하지 않는다.
+
+### 5.6 "스크립트 언어가 아닌가?"
+
+게임 엔진에서 "스크립트"는 한 번도 "인터프리터로 도는 것"을 뜻한 적이 없다.
+**엔진 코드가 아닌, 게임 로직이 사는 층**을 뜻한다. UnrealScript(바이트코드), Blueprint(컴파일),
+Unity C#(컴파일, IL2CPP 는 C++ 경유) 전부 그렇게 부른다.
+
+구현 전략은 "스크립트냐"와 직교한다. 판단 기준은 하나 — *사용자가 게임 로직을 여기에 쓰는가*.
+
+### 5.7 대가
+
+**즉각성.** VM 은 저장하면 바로 돌지만 트랜스파일은 C++ 컴파일 + 링크가 낀다.
+핫 리로드 자체는 기존 DLL 재로드로 되고, 툴체인은 빌드 파이프라인이 감춘다.
+
+설계로 완화한다:
+- **`.jscript` 하나당 생성 `.cpp` 하나.** 한 파일에 몰면 한 줄 고칠 때마다 전체 재컴파일이다.
+- **내용이 안 바뀌었으면 파일을 덮어쓰지 않는다.** 그래야 MSVC 가 재컴파일을 건너뛴다.
+  (기존 엔진 `WriteGeneratedFile` 이 이미 이걸 한다.)
+- 생성 헤더는 얇게. 스크립트끼리 서로의 생성 헤더를 include 하면 재컴파일이 번진다.
+
+---
+
+## 6. 확장자와 이름
+
+기존 엔진이 이미 두 계열로 쓴다:
+
+| 계열 | 쓰임 | 예 |
+|---|---|---|
+| **`.j` + 이름** | 사용자·에셋 파일 | `.jproject` `.jcanvas` `.jprefab` `.jlayer` `.jmat` `.jfx` `.jmeta` |
+| **`.jb` + 이름** | 빌드 산출물 | `.jbmanifest` `.jbpack` |
+
+처음 `.jbs` 를 고려했으나 `jb` 계열은 빌드 산출물로 읽힌다. 스크립트 소스는 그 반대다.
+→ **`.jscript`** 로 확정.
+
+---
+
+## 7. 빌트인 컴포넌트는 별도 생산자가 필요하다
+
+트랜스파일은 `.jscript` 만 지나간다. **엔진의 빌트인 컴포넌트는 그 길을 안 거친다.**
+
+### 7.1 기존 엔진이 한 방법
+
+`Engine/GameFramework/Component/BuiltinComponentRegistry.cpp` — **210줄에 프로퍼티 127개**,
+전부 손으로 쓴 유창 등록 표다.
+
+```cpp
+registry.RegisterComponent<SpriteRenderer2D>({ "SpriteRenderer2D", "Sprite Renderer 2D", "Rendering", true })
+    .AddAssetProperty("SpriteGuid", offsetof(SpriteRenderer2D, m_spriteGuid), EAssetType::Sprite)
+    .AddProperty("Size", EReflectPropertyType::Vector2Float, offsetof(SpriteRenderer2D, m_size), sizeof(Vector2))
+    .AddProperty("FlipX", EReflectPropertyType::Bool, offsetof(SpriteRenderer2D, m_flipX), sizeof(bool))
+```
+
+멤버 하나당 **세 번** 적는다 — 멤버 선언, 이름 문자열, `offsetof` + `sizeof`. 그것도 다른 파일에서.
+
+없는 멤버를 적으면 컴파일이 깨지므로 조용한 누락은 없다. 대신:
+
+- **이름이 멤버와 따로 논다.** `m_spriteGuid` → `"SpriteGuid"` 로 이미 갈라져 있다
+- **타입을 두 번 적는다.** `EReflectPropertyType::Vector2Float` 와 `sizeof(Vector2)` 가 어긋날 수 있다
+- **멤버를 추가해도 아무것도 알려주지 않는다**
+- **"일부러 안 뺀 것"과 "빼먹은 것"을 구분할 수 없다.**
+  `CachedSpriteGuid`, `CachedPixelsPerUnit` 은 런타임 캐시라 등록 안 하는 게 맞는데,
+  그게 의도인지 실수인지 코드만 봐선 모른다
+
+### 7.2 그래서 빌트인은 §4 의 매크로로
+
+```cpp
+class SpriteRenderer2D final : public ComponentBase
+{
+    JBRO_COMPONENT_BODY(SpriteRenderer2D, "SpriteRenderer2D")
+
+    JBRO_FIELD(Vec2,  size,  Name("크기"))          = {1.0f, 1.0f};
+    JBRO_FIELD(bool,  flipX)                        = false;
+    JBRO_FIELD(Color, tint,  Category("Rendering")) = {1, 1, 1, 1};
+
+    // 등록 안 함 — 캐시다. 매크로가 없다는 것 자체가 의도 표시가 된다.
+    AssetGuid cachedSpriteGuid;
+};
+```
+
+손 표 대비: 이름을 안 적고, 타입을 안 적고, `offsetof` 를 안 쓰고, 선언 옆에 있고,
+**private 멤버도 자연스럽다**(매크로가 클래스 *안*에 있으므로 접근 권한 문제가 없다 —
+손 표는 바깥에서 private 을 `offsetof` 로 찔러야 했다).
+
+### 7.3 핵심 — 형식 하나, 생산자 둘
+
+| | 언어 | 생산자 | 산출물 |
+|---|---|---|---|
+| 빌트인 컴포넌트 | C++ | `JBRO_FIELD` 매크로 | `PropertyInfo[]` |
+| 사용자 스크립트 | `.jscript` | 트랜스파일러 | `PropertyInfo[]` |
+
+인스펙터·직렬화·undo 는 둘을 구분하지 못해야 한다. 그게 목표다.
+
+기존 엔진의 진짜 실수는 "빌트인과 스크립트가 경로가 다르다"가 아니라
+**스크립트 하나를 놓고 형식이 둘**이었던 것(`JPROP` 코드젠 vs `REFLECT_FIELD`)이다.
+언어가 다르면 생산자가 둘인 건 당연하고 건강하다.
+
+---
+
+## 8. `PropertyInfo` 설계 방침 (아직 미확정)
+
+**이것을 먼저 확정해야 한다.** 두 생산자의 계약이고, 나중에 바꾸면 양쪽을 다 고치게 된다.
+
+방침만 적어 둔다:
+
+- **닫힌 프로퍼티 타입 enum 을 만들지 않는다.** 기존 `EReflectPropertyType` 18값에
+  `Degree`·`Radian`·`Layout2D` 가 들어 있는 건 엔진 타입이 타입 시스템 안으로 샌 것이고,
+  새 타입 하나가 코어 enum + 모든 switch 를 건드린다. `ComponentSerializer.cpp` 가 1,596줄인 이유다.
+  대신 **타입 id + 코덱**: 디스크립터가 `{typeId, size, align, trivially copyable, 텍스트/바이너리 코덱}`
+  을 들고, 직렬화는 enum 을 switch 하지 않고 디스크립터에 물어본다.
+- **오프셋이 아니라 접근자를 든다.** 기존 엔진이 같은 문제를 `offsetof` 와 `GetFieldPtr` 람다로
+  두 번 푼 자리다. 멤버 포인터를 담은 람다 하나로 통일한다.
+- **축을 하나로.** 기존 엔진이 `Kind` 를 지운 이유를 반복하지 않는다.
+- **이름은 `NameId`(D-51).** 생성 문자열은 DLL 안에 살므로 호스트는 로드 시점에 `NameTable` 에
+  인턴해야 한다. 안 하면 리로드 때 죽은 포인터를 든다.
+- 기존 엔진의 `ReflectTypeDesc` / `ReflectArrayOps` / `ReflectTableOps` 는 이미 이 방향으로
+  수렴한 결과물이다. **거기서 출발하면 된다** — 특히 Table 의 슬롯 커서 계약과
+  "키/값을 `memcpy` 로 복사할 수 없다"는 주석은 값비싸게 얻은 지식이다.
+
+---
+
+## 9. 규율 — 언어가 엔진을 잡아먹지 않게
+
+**언어를 대체가 아니라 추가 프론트엔드로 둔다.**
+
+`.jscript` → C++ 생성 → 기존 파이프라인. **C++ 스크립트 경로는 그대로 살려 둔다.**
+그러면 언어가 막히거나 재미없어져도 엔진은 멀쩡하다. 트랜스파일 방식이 이걸 자연스럽게 준다 —
+출력이 애초에 C++ 이므로.
+
+---
+
+## 10. 순서
+
+1. **`PropertyInfo` / `TypeDescriptor` 모양 확정** ← 여기부터. ABI 다
+2. **`JBRO_FIELD` 매크로** (빌트인 + 당분간 C++ 스크립트). §4 는 실측 끝
+3. **직렬화** — `.jcanvas` 형식이 필요. `.jproject` 처럼 기존 엔진 것을 따른다
+4. **인스펙터** — 어트리뷰트를 실제로 쓰는 유일한 소비자. 에디터가 생길 때
+5. **`jbroc`** — 렉서 → 파서 → 타입체커 → C++ 이미터
+6. **LSP** — 5번의 AST 를 재사용한다. Code-OSS IDE 와 파서 하나를 공유하는 것이 자작의 이점
+
+1번만 해 두면 나머지는 언제 해도 재작업이 아니다.
+
+---
+
+## 11. 아직 안 정한 것
+
+- **`PropertyInfo` 구체 필드** (§8 은 방침일 뿐)
+- **지원 타입 범위.** 트랜스파일로 가도 `Array<Ref<T>>` 가 자동으로 되는 게 아니다 —
+  *선언이 파싱된다*는 것뿐이고 `ArrayOps`/`TableOps` 는 여전히 필요하다. 정규식과 무관한 별개 축이다
+- **JBroScript 문법** 자체
+- **타입체커 범위** — 어디까지 내가 잡고 어디부터 MSVC 에 넘길 것인가
+- **기존 59건 마이그레이션** 여부와 방식
+
+---
+
+## 12. 이 문서를 만든 근거의 출처
+
+전부 이 리포 또는 `C:\Users\박주형\source\repos\JBroEngine`(읽기 전용 기준)에서 읽거나,
+MSVC 14.51 로 직접 컴파일해 얻었다. 추측으로 적은 항목은 없다.
+실측 프로브는 세션 스크래치패드에 있었고 커밋하지 않았다 — 재현이 필요하면 §4·§5.2 의
+설명만으로 다시 만들 수 있다.
