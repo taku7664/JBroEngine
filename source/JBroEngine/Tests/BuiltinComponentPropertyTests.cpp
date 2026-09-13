@@ -1,4 +1,5 @@
 ﻿#include <JBro/Framework2D/BuiltinComponentProperties2D.h>
+#include <JBro/Framework3D/BuiltinComponentProperties3D.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
@@ -57,6 +58,71 @@ namespace
         // 두 번 불러도 된다. 부르는 쪽이 순서를 신경 쓰지 않아도 되게 한다.
         Check(JBro::Component::RegisterBuiltinComponentProperties2D(),
             "registering twice must not turn into a failure");
+    }
+
+    void TestEvery3DBuiltinComponentIsThere()
+    {
+        Check(JBro::Component::RegisterBuiltinComponentProperties3D(),
+            "every builtin 3D component must register");
+
+        // 3D 쪽은 아직 골격이다(D-53). 개수가 적은 것이 맞고, 늘어나면 여기가 먼저 운다.
+        Check(Table("Component::Transform3D").count == 3, "Transform3D declares three fields");
+        Check(Table("Component::Camera3D").count == 1, "Camera3D declares one field");
+        Check(Table("Component::MeshRenderer3D").count == 4, "MeshRenderer3D declares four fields");
+        Check(Table("Component::Rigidbody3D").count == 2, "Rigidbody3D declares two fields");
+        Check(Table("Component::Collider3D").count == 1, "Collider3D declares one field");
+
+        Check(JBro::Component::RegisterBuiltinComponentProperties3D(),
+            "registering twice must not turn into a failure");
+
+        // 2D 와 3D 는 같은 보관함에 있고 이름이 갈린다. 한쪽 등록이 다른 쪽을 밀어내지 않는다.
+        Check(JBro::PropertyRegistry::Lookup("Component::Transform2D") != nullptr,
+            "registering the 3D components must not displace the 2D ones");
+    }
+
+    void TestA3DRotationIsStoredAsFourComponents()
+    {
+        const JBro::PropertyInfo& rotation = Field(Table("Component::Transform3D"), "rotation");
+        Check(rotation.type->fields != nullptr, "a quaternion must decompose");
+        Check(rotation.type->fields->count == 4, "a quaternion has four components");
+
+        // 오일러각으로 저장하면 짐벌락과 각도 규약이 파일 형식에 들어온다.
+        const char* const components[] = { "x", "y", "z", "w" };
+        for (std::uint32_t i = 0; i < 4; ++i)
+        {
+            Check(std::strcmp(JBro::NameTable::Get().Resolve(
+                    rotation.type->fields->properties[i].name), components[i]) == 0,
+                "a rotation is saved as its components, not as angles");
+        }
+
+        JBro::Component::Transform3D transform;
+        const JBro::PropertyInfo& w = rotation.type->fields->properties[3];
+        Check(w.type->codec->FromText(w.Address(rotation.Address(&transform)), "0.25", 4),
+            "a component of the rotation must be writable");
+        Check(transform.rotation.w == 0.25f, "the write must reach the real member");
+        Check(transform.rotation.x == 0.0f, "it must reach that component only");
+    }
+
+    void Test3DFollowsTheSameSaveRulesAs2D()
+    {
+        // 에셋 참조는 여기서도 id 와 핸들로 나뉜다.
+        const JBro::PropertyTable& mesh = Table("Component::MeshRenderer3D");
+        Check(Field(mesh, "meshId").serialize, "the persistent asset id is what a scene remembers");
+        Check(Field(mesh, "materialId").serialize, "the persistent asset id is what a scene remembers");
+        for (const char* name : { "mesh", "material" })
+        {
+            const JBro::PropertyInfo& handle = Field(mesh, name);
+            Check(handle.serialize == false,
+                "a runtime asset handle must not be written to the save file");
+            Check(handle.edit != nullptr && handle.edit->editable == false,
+                "a resolved handle must not be editable");
+        }
+
+        // 시뮬레이션이 다시 쓰는 값도 2D 와 같은 규칙이다.
+        const JBro::PropertyTable& body = Table("Component::Rigidbody3D");
+        Check(Field(body, "velocity").serialize == false,
+            "a simulated value must not be restored from a file");
+        Check(Field(body, "mass").serialize, "an authored value must still be saved");
     }
 
     void TestAPropertyReachesTheRealMember()
@@ -239,6 +305,11 @@ namespace
             "Component::SpriteRenderer2D",
             "Component::Rigidbody2D",
             "Component::Collider2D",
+            "Component::Transform3D",
+            "Component::Camera3D",
+            "Component::MeshRenderer3D",
+            "Component::Rigidbody3D",
+            "Component::Collider3D",
         };
         for (const char* name : components)
         {
@@ -250,6 +321,9 @@ namespace
 int RunBuiltinComponentPropertyTests()
 {
     TestEveryBuiltinComponentIsThere();
+    TestEvery3DBuiltinComponentIsThere();
+    TestA3DRotationIsStoredAsFourComponents();
+    Test3DFollowsTheSameSaveRulesAs2D();
     TestAPropertyReachesTheRealMember();
     TestTheCachesAreNotSavedAndNotEditable();
     TestAColorComesOutAsFourChannels();

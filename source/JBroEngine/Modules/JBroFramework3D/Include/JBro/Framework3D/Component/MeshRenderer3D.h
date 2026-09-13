@@ -1,7 +1,7 @@
 ﻿#pragma once
 
-#include <JBro/Framework3D/Math3D.h>
-#include <JBro/AssetTypes/AssetTypes.h>
+#include <JBro/AssetTypes/AssetTypesReflection.h>
+#include <JBro/Framework3D/Math3DReflection.h>
 #include <JBro/Runtime/Component.h>
 
 namespace JBro::Component
@@ -19,7 +19,14 @@ namespace JBro::Component
             return MakeStableTypeId(StaticTypeName());
         }
 
-        AssetHandle mesh;
-        AssetHandle material;
+        JBRO_REFLECT_BODY(MeshRenderer3D)
+
+        // `SpriteRenderer2D` 와 같은 분리다. `AssetId` 가 저장되는 쪽이고
+        // `AssetHandle` 은 이번 실행에서의 자리라 저장하면 뜻이 없다.
+        // 핸들을 채우는 해석 패스는 `AssetSystem` 이 실제로 로드하게 될 때 붙는다.
+        JBRO_FIELD(AssetId,     meshId);
+        JBRO_FIELD(AssetHandle, mesh,       NoSerialize() | ReadOnly() | Tooltip("meshId 에서 해석된 값"));
+        JBRO_FIELD(AssetId,     materialId);
+        JBRO_FIELD(AssetHandle, material,   NoSerialize() | ReadOnly() | Tooltip("materialId 에서 해석된 값"));
     };
 }

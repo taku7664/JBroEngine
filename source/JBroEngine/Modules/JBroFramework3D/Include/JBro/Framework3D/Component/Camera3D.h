@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#include <JBro/Framework3D/Math3D.h>
+#include <JBro/Framework3D/Math3DReflection.h>
 #include <JBro/Runtime/Component.h>
 
 namespace JBro::Component
@@ -18,6 +18,9 @@ namespace JBro::Component
             return MakeStableTypeId(StaticTypeName());
         }
 
-        float verticalFieldOfView = 60.0f;
+        JBRO_REFLECT_BODY(Camera3D)
+
+        // 골격이다(D-53). 근평면·원평면·투영 방식이 아직 없다.
+        JBRO_FIELD(float, verticalFieldOfView, Range(1, 179)) = 60.0f;
     };
 }
