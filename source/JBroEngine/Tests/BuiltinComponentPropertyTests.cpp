@@ -80,6 +80,34 @@ namespace
             "registering the 3D components must not displace the 2D ones");
     }
 
+    void TestA3DPositionHasThreeAxes()
+    {
+        const JBro::PropertyInfo& position = Field(Table("Component::Transform3D"), "position");
+        Check(position.type->fields != nullptr, "Vec3 must decompose into its members");
+        Check(position.type->fields->count == 3, "Vec3 has three members");
+
+        const char* const axes[] = { "x", "y", "z" };
+        for (std::uint32_t i = 0; i < 3; ++i)
+        {
+            Check(std::strcmp(JBro::NameTable::Get().Resolve(
+                    position.type->fields->properties[i].name), axes[i]) == 0,
+                "the axes must come out in declaration order");
+        }
+
+        // 축이 서로 다른 멤버를 가리키는지 본다. 이름만 맞고 주소가 겹치면
+        // 한 축에 쓴 값이 다른 축을 덮는다.
+        JBro::Component::Transform3D transform;
+        void* address = position.Address(&transform);
+        for (std::uint32_t i = 0; i < 3; ++i)
+        {
+            const JBro::PropertyInfo& axis = position.type->fields->properties[i];
+            Check(axis.type->codec->FromText(axis.Address(address), "1", 1), "an axis must be writable");
+        }
+        Check(transform.position.x == 1.0f && transform.position.y == 1.0f
+            && transform.position.z == 1.0f,
+            "every axis must reach a member of its own");
+    }
+
     void TestA3DRotationIsStoredAsFourComponents()
     {
         const JBro::PropertyInfo& rotation = Field(Table("Component::Transform3D"), "rotation");
@@ -322,6 +350,7 @@ int RunBuiltinComponentPropertyTests()
 {
     TestEveryBuiltinComponentIsThere();
     TestEvery3DBuiltinComponentIsThere();
+    TestA3DPositionHasThreeAxes();
     TestA3DRotationIsStoredAsFourComponents();
     Test3DFollowsTheSameSaveRulesAs2D();
     TestAPropertyReachesTheRealMember();
