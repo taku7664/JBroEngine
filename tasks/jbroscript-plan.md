@@ -461,17 +461,70 @@ struct PropertyEditInfo
 대가: 인스펙터가 두 군데를 찾아본다. 그 조회 순서와, 양쪽에 같은 이름이 있을 때의 규칙은
 붙일 때 정한다(빌트인 우선이 자연스럽다 — 스크립트가 엔진 타입명을 덮지 못하게).
 
-### 8.5 아직 안 정한 것
+### 8.5 `ValueCodec` — 모양 확정 (2026-09-14)
 
-- **`ValueCodec` 모양** — 텍스트만인가 바이너리도인가, YAML 이스케이프는 누가 하는가
-- **`ArrayOps` / `TableOps`** — 기존 엔진 것을 거의 그대로 가져오면 된다. 특히 Table 의
-  **슬롯 커서 계약**(삽입 한 번에 리해시가 나면 슬롯 번호가 전부 무효)과
-  **"키/값을 `memcpy` 로 복사할 수 없다"**(String 처럼 내용이 밖에 있는 타입)는
-  값비싸게 얻은 지식이다. 다시 깨닫지 말 것
-- **DLL 경계 크기 단언** — `ScriptModuleLoadContext` 처럼 `static_assert(sizeof(...))` 를 박는다.
-  박는 쪽으로 기운다
-- **`const char*` 수명** — 편집 메타 문자열은 DLL 안에 산다. 호스트가 `NameTable` 에 인턴하거나,
-  언로드 전에만 읽거나. 기존 엔진 `EnumTypeMeta::Names` 가 같은 모양이었다
+값 하나를 **글자로 바꾸고 글자에서 되돌리는** 것만 한다.
+
+**안 하는 것이 중요하다.**
+
+- **컨테이너를 모른다.** 배열·표는 직렬화기가 `ArrayOps`/`TableOps` 로 걸어 내려가며
+  원소마다 코덱을 부른다. 코덱은 **잎사귀 값**만 본다
+- **YAML 을 모른다.** 코덱은 알맹이만 내놓고 따옴표·들여쓰기·줄바꿈은 직렬화기가 처리한다.
+  기존 엔진에서 `.jproject` 파서가 **여러 줄 스칼라(`|+`)에서 두 번 죽었다**(§14.2) —
+  YAML 을 아는 곳이 여러 군데면 그런 것이 여기저기서 터진다. 한 곳만 알게 둔다
+
+```cpp
+struct ValueCodec
+{
+    // 글자로 쓴다. 버퍼가 모자라면 false 를 주고 required 에 필요한 크기를 적는다.
+    // 경계를 넘으므로 호출자가 버퍼를 소유한다 — 문자열을 돌려주지 않는다.
+    bool (*ToText)(const void* value, char* buffer, std::size_t capacity,
+                   std::size_t& required) noexcept = nullptr;
+
+    // 글자에서 읽는다. 못 읽으면 value 를 건드리지 않고 false 다. 예외는 경계를 넘지 않는다.
+    bool (*FromText)(void* value, const char* text, std::size_t length) noexcept = nullptr;
+
+    // 같은 값인지 본다. 인스펙터의 "기본값으로 되돌리기" 와 undo 의 "진짜 바뀌었나" 가 쓴다.
+    bool (*Equals)(const void* left, const void* right) noexcept = nullptr;
+
+    // 복사한다. **memcpy 로 대신하지 않는다** — String 처럼 내용이 밖에 있는 타입은
+    // 얕은 복사가 되어 먼저 죽는 쪽이 남은 쪽을 망가뜨린다.
+    void (*Assign)(void* destination, const void* source) noexcept = nullptr;
+};
+```
+
+기존 엔진은 이 자리를 18값 enum 의 `switch` 로 처리했고, **그 switch 가 직렬화기 한 파일에만 여섯 벌**
+있었다. 타입 하나 늘리면 여섯 곳을 고쳐야 한다는 뜻이다.
+
+`Assign` 이 따로 있는 이유: 기존 엔진 undo 가 문자열 아닌 값을 `memcpy` 로 되돌렸고 그들 스스로
+위험으로 적어 뒀다. **항상 `Assign` 을 부르면** 그 함정이 없다 — 단순한 타입이면 내부에서 `memcpy`
+하면 되고, 부르는 쪽은 고민할 게 없다.
+
+### 8.6 저장 정책 — 기본값도 전부 쓴다 (확정)
+
+기본값과 같은 프로퍼티를 저장 파일에서 **빼지 않는다.**
+
+뺐다면 파일이 작고 diff 가 깔끔했을 것이다. 그러나 **나중에 기본값을 바꾸면 기존 씬들이 조용히
+같이 바뀐다.** 추적하기 가장 어려운 종류의 버그이고, 2D 씬 파일 크기는 그 대가를 치를 만큼 크지 않다.
+
+`ValueCodec::Equals` 는 그래도 남긴다 — 인스펙터의 "되돌리기" 버튼과 undo 의 변경 판정이 쓴다.
+
+### 8.7 `ArrayOps` / `TableOps` — 기존 엔진 것을 가져온다
+
+새로 설계하지 않는다. 기존 `ReflectArrayOps` / `ReflectTableOps` 가 이미 옳은 모양이고,
+그 주석에 값비싸게 얻은 두 가지가 적혀 있다. **다시 깨닫지 말 것.**
+
+1. **Table 은 슬롯 번호로 원소를 지목하면 안 된다.** open addressing 이라 슬롯이 조밀하지 않고,
+   삽입 한 번에 리해시가 나면 기존 슬롯 번호가 전부 무효가 된다. 순회는 불투명한 커서로 하고
+   수정은 **키**로 지목한다
+2. **키·값을 `memcpy` 로 복사할 수 없다.** `String` 처럼 내용이 밖에 있는 타입은 얕은 복사가 되어
+   먼저 소멸하는 쪽이 남은 쪽을 망가뜨린다
+
+덧붙여 기존 엔진이 못 닫은 것 하나가 여기서는 닫힌다. 그들 규칙은 "엔진 컨테이너를 호스트와
+게임 DLL 사이의 ABI-safe 타입으로 보지 않는다" 였고, 그래서 스크립트 필드에 owning `Array`/`Table`
+을 허용하지 못했다. **새 구조에서는 허용된다** — 스크립트의 컨테이너에 가하는 모든 연산이
+DLL 이 제공한 `ArrayOps`/`TableOps` 함수 포인터를 거치므로, 할당도 해제도 전부 DLL 안에서 일어난다.
+호스트는 저장소 레이아웃을 직접 만지지 않는다.
 
 ## 9. 규율 — 언어가 엔진을 잡아먹지 않게
 
@@ -498,7 +551,6 @@ struct PropertyEditInfo
 
 ## 11. 아직 안 정한 것
 
-- **`ValueCodec` / `ArrayOps` / `TableOps` 구체 모양** (§8.5). `PropertyInfo` 자체는 §8.3 에서 확정
 - **지원 타입 범위.** 트랜스파일로 가도 `Array<Ref<T>>` 가 자동으로 되는 게 아니다 —
   *선언이 파싱된다*는 것뿐이고 `ArrayOps`/`TableOps` 는 여전히 필요하다. 정규식과 무관한 별개 축이다
 - **JBroScript 문법** 자체
