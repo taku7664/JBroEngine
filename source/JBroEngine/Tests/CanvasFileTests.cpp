@@ -7,6 +7,7 @@
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Canvas/CanvasFile.h>
 #include <JBro/Core/Yaml.h>
+#include <JBro/Reflection/PropertyRegistry.h>
 #include <JBro/Runtime/GameObject.h>
 
 #include <cstring>
@@ -51,6 +52,127 @@ namespace
             Check(false, "what the canvas writer produced must read back");
         }
     }
+
+    // 빌트인 컴포넌트만으로는 밟지 못하는 길이 셋 있다. 여기서 일부러 만든다.
+    //
+    //   · 구조체 **안의** 필드가 저장에서 빠지는 경우
+    //   · 프로퍼티를 등록하지 않은 컴포넌트를 저장하려는 경우
+    //   · 코덱이 내놓는 글자가 스택 버퍼보다 긴 경우
+    struct PartlySaved
+    {
+        float kept = 0.0f;
+        float dropped = 0.0f;
+    };
+
+    // 128자 버퍼보다 긴 글자를 내놓는다. 문자열 필드가 생기면 실제로 밟게 될 길이다.
+    struct LongText
+    {
+        int unused = 0;
+    };
+
+    constexpr std::size_t LongTextLength = 300;
+
+}
+
+namespace JBro
+{
+    // 구조체 안의 한 필드만 저장에서 뺀다. 맵으로 적히는 구조체라 나열이 아니다.
+    template <>
+    struct TypeDescriptorOf<PartlySaved>
+    {
+        static const TypeDescriptor& Get()
+        {
+            static const FieldEntry entries[] =
+            {
+                MakeFieldEntry<&PartlySaved::kept>(),
+                MakeFieldEntry<&PartlySaved::dropped>(Attribute::NoSerialize()),
+            };
+            static const StaticPropertyTable<2> fields { entries };
+            static const TypeDescriptor descriptor =
+                MakeStructTypeDescriptor<PartlySaved>("Test::PartlySaved", fields.Get());
+            return descriptor;
+        }
+    };
+
+    // 언제나 같은 긴 글자를 내놓는다. 저장이 버퍼를 늘려 다시 묻는지 보는 용도다.
+    template <>
+    struct TypeDescriptorOf<LongText>
+    {
+        static const TypeDescriptor& Get()
+        {
+            static const ValueCodec codec = []
+            {
+                ValueCodec result;
+                result.ToText = [](
+                    const void*, char* buffer, std::size_t capacity, std::size_t& required) noexcept -> bool
+                {
+                    required = LongTextLength;
+                    if (buffer == nullptr || capacity < LongTextLength)
+                    {
+                        return false;
+                    }
+                    for (std::size_t i = 0; i < LongTextLength; ++i)
+                    {
+                        buffer[i] = 'x';
+                    }
+                    return true;
+                };
+                result.FromText = [](void*, const char*, std::size_t) noexcept { return true; };
+                result.Equals = [](const void*, const void*) noexcept { return true; };
+                result.Assign = [](void*, const void*) noexcept {};
+                return result;
+            }();
+
+            static const TypeDescriptor descriptor = []
+            {
+                TypeDescriptor built;
+                built.typeName = NameTable::Get().Intern("Test::LongText");
+                built.size = static_cast<std::uint32_t>(sizeof(LongText));
+                built.alignment = static_cast<std::uint32_t>(alignof(LongText));
+                built.triviallyCopyable = true;
+                built.codec = &codec;
+                return built;
+            }();
+            return descriptor;
+        }
+    };
+}
+
+namespace
+{
+    class Registered final : public JBro::ComponentBase
+    {
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "Component::TestRegistered";
+        }
+
+        JBro::ComponentTypeId GetTypeId() const override
+        {
+            return JBro::MakeStableTypeId(StaticTypeName());
+        }
+
+        JBRO_REFLECT_BODY(Registered)
+
+        JBRO_FIELD(PartlySaved, partly);
+        JBRO_FIELD(LongText, long_);
+    };
+
+    // 등록하지 않는다. 저장이 이것을 만나면 멈춰야 한다.
+    class Unregistered final : public JBro::ComponentBase
+    {
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "Component::TestUnregistered";
+        }
+
+        JBro::ComponentTypeId GetTypeId() const override
+        {
+            return JBro::MakeStableTypeId(StaticTypeName());
+        }
+    };
 
     std::uint32_t FindComponent(
         const JBro::YamlDocument& document,
@@ -314,6 +436,73 @@ namespace
         Check(foundHidden, "the layer that was created must be in the file");
     }
 
+    void TestAFieldInsideAStructCanOptOut()
+    {
+        JBro::RegisterBuiltinProperties<Registered>();
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::GameObject* object = canvas.CreateObject("Fixture");
+        auto* component = canvas.AttachComponent<Registered>(object);
+        component->partly.kept = 1.25f;
+        component->partly.dropped = 9.0f;
+
+        JBro::YamlDocument document;
+        Reopen(Save(canvas), document);
+        const std::uint32_t saved =
+            document.GetElement(document.Find(document.GetRoot(), "Objects"), 0);
+        const std::uint32_t written =
+            FindComponent(document, saved, "Component::TestRegistered");
+        Check(written != JBro::YamlDocument::InvalidNode, "the component must be saved");
+
+        const std::uint32_t partly = document.Find(written, "partly");
+        Check(document.GetKind(partly) == JBro::YamlKind::Map,
+            "a struct that is not a plain list comes out with named members");
+        float kept = 0.0f;
+        Check(document.FindFloat(partly, "kept", kept) && kept == 1.25f,
+            "the member that saves must be there");
+        Check(document.Find(partly, "dropped") == JBro::YamlDocument::InvalidNode,
+            "a member inside a struct must be able to stay out of the file too");
+    }
+
+    void TestAValueLongerThanTheBufferStillGetsWritten()
+    {
+        JBro::RegisterBuiltinProperties<Registered>();
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::GameObject* object = canvas.CreateObject("Fixture");
+        canvas.AttachComponent<Registered>(object);
+
+        JBro::YamlDocument document;
+        Reopen(Save(canvas), document);
+        const std::uint32_t saved =
+            document.GetElement(document.Find(document.GetRoot(), "Objects"), 0);
+        const std::uint32_t written =
+            FindComponent(document, saved, "Component::TestRegistered");
+
+        // 스택 버퍼는 128자다. 그보다 긴 값을 만나면 필요한 만큼 잡고 다시 물어야 하고,
+        // 그 길을 밟지 않으면 값이 잘린 채로 저장된다.
+        JBro::String text;
+        Check(document.FindScalar(written, "long_", text), "the long value must be written");
+        Check(text.size() == LongTextLength,
+            "a value longer than the buffer must come out whole, not cut short");
+    }
+
+    void TestAnUnregisteredComponentStopsTheSave()
+    {
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::GameObject* object = canvas.CreateObject("Fixture");
+        canvas.AttachComponent<Unregistered>(object);
+
+        // 조용히 빠뜨리면 씬이 컴포넌트 하나를 잃은 채로 저장되고 아무도 모른다.
+        JBro::String text("not touched");
+        JBro::CanvasFileError error;
+        Check(false == JBro::WriteCanvasText(canvas, text, error),
+            "a component whose properties were never registered must stop the save");
+        Check(false == error.message.empty(), "the refusal must say what went wrong");
+        Check(error.typeName == "Component::TestUnregistered",
+            "and which type it was");
+        Check(error.objectName == "Fixture", "and which object it was on");
+        Check(text == "not touched", "a refused save must not hand back half a file");
+    }
+
     void TestAnEmptyCanvasIsStillAValidFile()
     {
         JBro::Component::RegisterBuiltinComponentProperties2D();
@@ -346,6 +535,9 @@ int RunCanvasFileTests()
     TestAParentAlwaysComesBeforeItsChild();
     TestEveryComponentTypeIsSavedUnderItsName();
     TestLayersAreSaved();
+    TestAFieldInsideAStructCanOptOut();
+    TestAValueLongerThanTheBufferStillGetsWritten();
+    TestAnUnregisteredComponentStopsTheSave();
     TestAnEmptyCanvasIsStillAValidFile();
     std::cout << "Canvas file tests passed.\n";
     return 0;
