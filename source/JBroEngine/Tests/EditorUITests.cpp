@@ -34,13 +34,20 @@ namespace
     constexpr std::uint32_t WindowBandBottom = 340;
     // **잘라내기 사각형을 화면 왼쪽 밖까지 민다.** D3D12 는 음수 시저를 받지 않으므로
     // 0 으로 붙여야 하고, 그 붙이는 코드가 실제로 필요한지는 이런 도형이 있어야 드러난다.
-    constexpr std::uint32_t ClipTop = 360;
-    constexpr std::uint32_t ClipBottom = 400;
+    constexpr std::uint32_t ClipTop = 350;
+    constexpr std::uint32_t ClipBottom = 390;
     constexpr std::uint32_t ClipRight = 40;
-    // 오른쪽 아래 구석 - 두 번째 드로우 리스트가 제자리에 그려졌는지 본다.
+    // **맨 마지막 드로우 리스트에 놓는 사각형이다.** 리스트마다 더해 주는 정점·인덱스
+    // 오프셋은 앞 리스트에서 전부 0 이라, 마지막 리스트의 도형만이 그 덧셈을 붙잡는다.
+    // 전경 드로우 리스트는 창들 뒤에 제출되므로 여기가 그 자리다.
+    constexpr std::uint32_t ForeLeft = 200;
+    constexpr std::uint32_t ForeTop = 400;
+    constexpr std::uint32_t ForeSize = 40;
+    constexpr std::uint32_t ForeRounding = 12;
+    // 첫 드로우 리스트(배경)의 사각형이다.
     constexpr std::uint32_t CornerLeft = 440;
-    constexpr std::uint32_t CornerTop = 440;
-    constexpr std::uint32_t CornerSize = 60;
+    constexpr std::uint32_t CornerTop = 450;
+    constexpr std::uint32_t CornerSize = 50;
 
     struct Stage
     {
@@ -177,6 +184,20 @@ namespace
                 ImVec2(static_cast<float>(ClipRight), static_cast<float>(ClipBottom)),
                 IM_COL32(255, 255, 255, 255));
             background->PopClipRect();
+
+            // 전경 리스트는 창 다음에 나온다. 이 도형이 제자리에 있으려면 앞의 두
+            // 리스트가 쓴 정점·인덱스만큼 밀어서 읽어야 한다.
+            //
+            // **모서리를 둥글게 하는 것이 핵심이다.** 반듯한 사각형은 인덱스가
+            // (0,1,2, 0,2,3) 인데 그것은 앞 리스트의 사각형과 글자 그대로 같은 값이라,
+            // 인덱스를 엉뚱한 데서 읽어와도 결과가 똑같이 나온다. 둥근 모서리는
+            // 삼각형 부채꼴이 되어 그 패턴이 달라진다.
+            ImGui::GetForegroundDrawList()->AddRectFilled(
+                ImVec2(static_cast<float>(ForeLeft), static_cast<float>(ForeTop)),
+                ImVec2(static_cast<float>(ForeLeft + ForeSize),
+                    static_cast<float>(ForeTop + ForeSize)),
+                IM_COL32(255, 255, 255, 255),
+                static_cast<float>(ForeRounding));
             Check(ui.EndFrame(), "each UI frame must end and its textures must upload");
         }
 
@@ -268,7 +289,24 @@ namespace
             }
         }
 
-        // 구석 사각형 - 두 번째 드로우 리스트가 제자리에 갔는지.
+        // 전경 사각형 - 마지막 드로우 리스트가 제자리에 갔는지. 자리까지 본다.
+        std::size_t forePainted = 0;
+        std::uint32_t foreMinX = SurfaceSize;
+        std::uint32_t foreMaxX = 0;
+        for (std::uint32_t y = ForeTop; y < ForeTop + ForeSize; ++y)
+        {
+            for (std::uint32_t x = 0; x < SurfaceSize; ++x)
+            {
+                if (Painted(x, y))
+                {
+                    ++forePainted;
+                    foreMinX = x < foreMinX ? x : foreMinX;
+                    foreMaxX = x > foreMaxX ? x : foreMaxX;
+                }
+            }
+        }
+
+        // 구석 사각형 - 첫 드로우 리스트가 제자리에 갔는지.
         std::size_t cornerPainted = 0;
         for (std::uint32_t y = CornerTop; y < CornerTop + CornerSize; ++y)
         {
@@ -286,8 +324,9 @@ namespace
         std::cout << "  the probe window painted " << painted << " of " << windowArea
             << " pixels (" << bright << " bright) at x[" << minX << ".." << maxX
             << "] y[" << minY << ".." << maxY << "]; clipped " << clipPainted
-            << ", corner " << cornerPainted << "; " << ui.GetLastDrawCount()
-            << " draw(s)" << std::endl;
+            << ", foreground " << forePainted << " at x[" << foreMinX << ".."
+            << foreMaxX << "], corner " << cornerPainted << "; "
+            << ui.GetLastDrawCount() << " draw(s)" << std::endl;
 
         // **칠해진 자리가 우리가 지정한 자리여야 한다.** 넓이만 세면 창이 엉뚱한 곳에
         // 통째로 옮겨가도 통과한다 - 투영 상수나 뷰포트가 틀리면 정확히 그렇게 된다.
@@ -313,10 +352,20 @@ namespace
             "the part of the clipped rectangle that is on screen must be painted");
         Check(clipMaxX < ClipRight + 2, "and nothing past its clip rectangle may be");
 
-        // 두 번째 드로우 리스트. 정점·인덱스 오프셋이 리스트마다 밀리지 않으면
-        // 이 사각형이 딴 데 그려지거나 아예 사라진다.
+        // **마지막 드로우 리스트.** 정점·인덱스 오프셋을 리스트마다 밀어 주지 않으면
+        // 이 사각형이 앞 리스트의 정점을 읽어서 딴 데 그려지거나 찌그러진다.
+        // 둥근 사각형이라 네 귀퉁이가 비어 있다. 그 비어 있음이 모양의 증거다 -
+        // 인덱스를 잘못 읽으면 모서리가 반듯해지거나 도형이 흩어진다.
+        const std::size_t foreArea = static_cast<std::size_t>(ForeSize) * ForeSize;
+        Check(forePainted > foreArea - foreArea / 5 && forePainted < foreArea,
+            "the last draw list must fill the rounded rectangle it asked for");
+        Check(foreMinX == ForeLeft && foreMaxX == ForeLeft + ForeSize - 1,
+            "and it must be at the x it asked for");
+        Check(false == Painted(ForeLeft, ForeTop),
+            "and its corner must be round, so the indices must come from its own list");
+        // 첫 드로우 리스트도 마찬가지로 제자리여야 한다.
         Check(cornerPainted == static_cast<std::size_t>(CornerSize) * CornerSize,
-            "the second draw list must be painted where it asked to be");
+            "the first draw list must be painted where it asked to be");
 
         ui.Shutdown();
         Check(false == ui.IsInitialized(), "shutting down must release the UI");
