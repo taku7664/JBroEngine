@@ -578,12 +578,25 @@ namespace
         Check(false == parent->FindChildIndex(parent, index),
             "something that is not a child has no index");
 
-        // 가운데를 뺀다. **남은 둘의 차례가 그대로여야 한다.**
+        // **넷째가 있어야 밀기와 자리바꿈이 갈린다.**
+        //
+        // 셋 [a,b,c] 에서 b 를 뺄 때는 마지막을 끌어다 덮어도 [a,c] 가 되어
+        // 밀어낸 것과 결과가 같다. 넷 [a,b,c,d] 에서 b 를 빼야 갈린다 -
+        // 밀면 [a,c,d], 끌어다 덮으면 [a,d,c] 다.
+        JBro::GameObject* fourth = canvas.CreateObject("Fourth");
+        fourth->SetParent(parent);
+
         second->SetParent(nullptr);
+        Check(parent->GetChildren().Size() == 3, "one left, three remain");
         Check(parent->FindChildIndex(first, index) && index == 0,
             "the first stays first after a sibling leaves");
         Check(parent->FindChildIndex(third, index) && index == 1,
-            "and the third moves up by one, rather than being swapped in");
+            "the third moves up by one, rather than the last being swapped in");
+        Check(parent->FindChildIndex(fourth, index) && index == 2,
+            "and the last stays last");
+
+        // 뒤의 정리는 아래가 이어서 본다. 넷째는 다시 빼 둔다.
+        fourth->SetParent(nullptr);
 
         // 자리 옮기기.
         second->SetParent(parent);
@@ -636,6 +649,31 @@ namespace
 
         Check(commands.Redo(), "redo must run");
         Check(moved->GetParent() == beta, "and move it again");
+
+        // **0 번이 아닌 자리로도 옮겨져야 한다.** 늘 맨 앞에 꽂는 구현과
+        // 구분하려면 0 이 아닌 자리를 한 번은 써야 한다.
+        JBro::GameObject* one = canvas.CreateObject("One");
+        JBro::GameObject* two = canvas.CreateObject("Two");
+        one->SetParent(beta);
+        two->SetParent(beta);
+        // 지금 beta 의 자식은 [moved, one, two] 다.
+        Check(beta->FindChildIndex(moved, index) && index == 0, "moved is first");
+
+        Check(commands.Execute(JBro::MakeOwnerPtr<JBro::MoveInHierarchyCommand>(
+                canvas, ids, movedId, betaId, 2)),
+            "moving it to the third place must go through");
+        Check(beta->FindChildIndex(moved, index) && index == 2,
+            "and land at that place, not at the front");
+        Check(beta->FindChildIndex(one, index) && index == 0,
+            "with the others sliding up");
+        Check(beta->FindChildIndex(two, index) && index == 1, "both of them");
+
+        Check(commands.Undo(), "undo must run");
+        Check(beta->FindChildIndex(moved, index) && index == 0,
+            "and put it back at the front where it was");
+
+        one->SetParent(nullptr);
+        two->SetParent(nullptr);
 
         // **제자리로 옮기는 것은 편집이 아니다.**
         Check(commands.Undo(), "back to the start");
