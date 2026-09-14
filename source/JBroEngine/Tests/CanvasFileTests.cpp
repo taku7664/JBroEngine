@@ -1,6 +1,7 @@
 ﻿#include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/Layer.h>
 #include <JBro/Framework2D/BuiltinComponentProperties2D.h>
+#include <JBro/Framework2DSystem/BuiltinComponentTypes2D.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
@@ -526,6 +527,381 @@ namespace
         Check(second.GetKind(second.Find(bare, "Components")) == JBro::YamlKind::Sequence,
             "an object with no components must still carry an empty list");
     }
+
+    // -----------------------------------------------------------------------
+    // 읽기
+    // -----------------------------------------------------------------------
+
+    bool Load(JBro::Canvas& canvas, const JBro::String& text, JBro::CanvasFileError& error)
+    {
+        return JBro::ReadCanvasText(canvas, text.c_str(), text.size(), error);
+    }
+
+    void LoadOrFail(JBro::Canvas& canvas, const JBro::String& text)
+    {
+        JBro::CanvasFileError error;
+        if (false == Load(canvas, text, error))
+        {
+            std::cout << "  load failed: " << error.message.c_str()
+                << " (object " << error.objectName.c_str()
+                << ", type " << error.typeName.c_str()
+                << ", field " << error.fieldName.c_str() << ")" << std::endl;
+            std::cout << "text:" << std::endl << text.c_str();
+            Check(false, "a file this engine wrote must read back");
+        }
+    }
+
+    void TestWhatWasSavedComesBack()
+    {
+        JBro::Component::RegisterBuiltinComponentProperties2D();
+        JBro::Component::RegisterBuiltinComponentTypes2D();
+
+        JBro::String text;
+        {
+            JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+            JBro::GameObject* object = canvas.CreateObject("Player");
+            auto* transform = canvas.AttachComponent<JBro::Component::Transform2D>(object);
+            transform->position = { 1.5f, -2.25f };
+            transform->rotation = 0.75f;
+            transform->scale = { 3.0f, 0.5f };
+
+            auto* camera = canvas.AttachComponent<JBro::Component::Camera2D>(object);
+            camera->projection = JBro::Component::CameraProjection2D::PixelPerfect;
+            camera->orthographicSize = 12.5f;
+            camera->clearColor = { 0.25f, 0.5f, 0.75f, 1.0f };
+            camera->primary = true;
+
+            auto* sprite = canvas.AttachComponent<JBro::Component::SpriteRenderer2D>(object);
+            sprite->spriteId.value = 1234567890123456789ull;
+            sprite->flip = JBro::Component::SpriteFlip::Vertical;
+            sprite->renderOrder = -7;
+            sprite->visible = false;
+            sprite->tint = { 1.0f, 0.0f, 0.5f, 0.25f };
+
+            text = Save(canvas);
+        }
+
+        JBro::Canvas reopened(JBro::CreateDefaultAllocator());
+        LoadOrFail(reopened, text);
+
+        Check(reopened.GetObjectCount() == 1, "the object must come back");
+
+        JBro::GameObject* object = nullptr;
+        reopened.ForEachObject([&object](JBro::GameObject& found) { object = &found; });
+        Check(object != nullptr, "the object must be reachable");
+        Check(std::strcmp(object->GetTag(), "Player") == 0, "its name must come back");
+
+        auto* transform = reopened.FindComponentRaw<JBro::Component::Transform2D>(object);
+        Check(transform != nullptr, "the transform must be attached by name");
+        Check(transform->position.x == 1.5f && transform->position.y == -2.25f,
+            "a position must come back exactly");
+        Check(transform->rotation == 0.75f, "a scalar must come back exactly");
+        Check(transform->scale.x == 3.0f && transform->scale.y == 0.5f,
+            "every member of a packed value must land on its own member");
+
+        auto* camera = reopened.FindComponentRaw<JBro::Component::Camera2D>(object);
+        Check(camera != nullptr, "the camera must be attached by name");
+        Check(camera->projection == JBro::Component::CameraProjection2D::PixelPerfect,
+            "an enum must come back as the value its name stood for");
+        Check(camera->orthographicSize == 12.5f, "a float must come back exactly");
+        Check(camera->clearColor.R == 0.25f && camera->clearColor.G == 0.5f
+            && camera->clearColor.B == 0.75f && camera->clearColor.A == 1.0f,
+            "every channel of a color must land on its own channel");
+        Check(camera->primary, "a bool must come back");
+
+        auto* sprite = reopened.FindComponentRaw<JBro::Component::SpriteRenderer2D>(object);
+        Check(sprite != nullptr, "the sprite renderer must be attached by name");
+        Check(sprite->spriteId.value == 1234567890123456789ull,
+            "an asset id must survive whole, not rounded through a float");
+        Check(sprite->flip == JBro::Component::SpriteFlip::Vertical, "an enum must come back");
+        Check(sprite->renderOrder == -7, "a negative whole number must come back");
+        Check(false == sprite->visible, "false must come back as false");
+        Check(sprite->tint.A == 0.25f, "the last channel must not be dropped");
+
+        // 두 번 저장하면 글자가 같아야 한다. 다르면 읽기와 쓰기 중 한쪽이 값을 바꾸고 있다.
+        const JBro::String again = Save(reopened);
+        if (again != text)
+        {
+            std::cout << "first:" << std::endl << text.c_str()
+                << "second:" << std::endl << again.c_str();
+            Check(false, "saving what was loaded must produce the same file");
+        }
+    }
+
+    void TestTheTreeComesBackStanding()
+    {
+        JBro::Component::RegisterBuiltinComponentProperties2D();
+        JBro::Component::RegisterBuiltinComponentTypes2D();
+
+        JBro::String text;
+        {
+            JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+            JBro::GameObject* parent = canvas.CreateObject("Parent");
+            JBro::GameObject* child = canvas.CreateObject("Child");
+            JBro::GameObject* grandchild = canvas.CreateObject("Grandchild");
+            JBro::GameObject* loner = canvas.CreateObject("Loner");
+            child->SetParent(parent);
+            grandchild->SetParent(child);
+            loner->SetActive(false);
+            text = Save(canvas);
+        }
+
+        JBro::Canvas reopened(JBro::CreateDefaultAllocator());
+        LoadOrFail(reopened, text);
+        Check(reopened.GetObjectCount() == 4, "every object must come back");
+
+        JBro::GameObject* parent = nullptr;
+        JBro::GameObject* child = nullptr;
+        JBro::GameObject* grandchild = nullptr;
+        JBro::GameObject* loner = nullptr;
+        reopened.ForEachObject([&](JBro::GameObject& found)
+        {
+            const char* tag = found.GetTag();
+            if (std::strcmp(tag, "Parent") == 0) { parent = &found; }
+            if (std::strcmp(tag, "Child") == 0) { child = &found; }
+            if (std::strcmp(tag, "Grandchild") == 0) { grandchild = &found; }
+            if (std::strcmp(tag, "Loner") == 0) { loner = &found; }
+        });
+        Check(parent != nullptr && child != nullptr && grandchild != nullptr && loner != nullptr,
+            "every object must be findable by name");
+
+        Check(child->GetParent() == parent, "the child must hang from the parent again");
+        Check(grandchild->GetParent() == child, "and the grandchild from the child");
+        Check(parent->GetParent() == nullptr, "the root must stay a root");
+        Check(loner->GetParent() == nullptr, "an object with no parent must stay that way");
+
+        Check(false == loner->IsActiveSelf(), "an object saved inactive must come back inactive");
+        Check(parent->IsActiveSelf(), "an object saved active must come back active");
+    }
+
+    void TestAnInactiveObjectDoesNotDisableItsComponents()
+    {
+        // IsActiveComponent 는 오브젝트 활성까지 합친 값이다. 그것을 저장하면
+        // 꺼진 오브젝트를 저장했다 열 때 컴포넌트가 영구히 꺼진다.
+        JBro::Component::RegisterBuiltinComponentProperties2D();
+        JBro::Component::RegisterBuiltinComponentTypes2D();
+
+        JBro::String text;
+        {
+            JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+            JBro::GameObject* object = canvas.CreateObject("Sleeping");
+            canvas.AttachComponent<JBro::Component::Transform2D>(object);
+            object->SetActive(false);
+            text = Save(canvas);
+        }
+
+        JBro::Canvas reopened(JBro::CreateDefaultAllocator());
+        LoadOrFail(reopened, text);
+
+        JBro::GameObject* object = nullptr;
+        reopened.ForEachObject([&object](JBro::GameObject& found) { object = &found; });
+        auto* transform = reopened.FindComponentRaw<JBro::Component::Transform2D>(object);
+        Check(transform != nullptr, "the component must come back");
+        Check(transform->IsEnabled(),
+            "a component on a sleeping object must not come back switched off");
+
+        object->SetActive(true);
+        Check(transform->IsActiveComponent(),
+            "waking the object must bring its component back");
+    }
+
+    void TestAComponentSwitchedOffStaysOff()
+    {
+        JBro::Component::RegisterBuiltinComponentProperties2D();
+        JBro::Component::RegisterBuiltinComponentTypes2D();
+
+        JBro::String text;
+        {
+            JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+            JBro::GameObject* object = canvas.CreateObject("Thing");
+            auto* transform = canvas.AttachComponent<JBro::Component::Transform2D>(object);
+            transform->SetEnabled(false);
+            text = Save(canvas);
+        }
+
+        JBro::Canvas reopened(JBro::CreateDefaultAllocator());
+        LoadOrFail(reopened, text);
+        JBro::GameObject* object = nullptr;
+        reopened.ForEachObject([&object](JBro::GameObject& found) { object = &found; });
+        auto* transform = reopened.FindComponentRaw<JBro::Component::Transform2D>(object);
+        Check(false == transform->IsEnabled(),
+            "a component switched off by hand must come back off");
+    }
+
+    void TestLayersComeBackWithoutPilingUp()
+    {
+        JBro::Component::RegisterBuiltinComponentProperties2D();
+        JBro::Component::RegisterBuiltinComponentTypes2D();
+
+        JBro::String text;
+        {
+            JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+            JBro::Layer& background = canvas.CreateLayer("Background");
+            background.SetVisible(false);
+            JBro::GameObject* object = canvas.CreateObject("OnBackground");
+            canvas.SetObjectLayer(object, background.GetId());
+            text = Save(canvas);
+        }
+
+        JBro::Canvas reopened(JBro::CreateDefaultAllocator());
+        LoadOrFail(reopened, text);
+
+        // 캔버스는 기본 레이어를 하나 들고 시작한다. 읽으면서 또 만들면 쓰지 않는 레이어가
+        // 하나씩 쌓인다.
+        Check(reopened.GetLayerCount() == 2, "the layers must not pile up on top of the default one");
+
+        JBro::GameObject* object = nullptr;
+        reopened.ForEachObject([&object](JBro::GameObject& found) { object = &found; });
+        JBro::Layer* layer = object->GetLayer();
+        Check(layer != nullptr, "the object must sit on a layer");
+        Check(std::strcmp(layer->GetName(), "Background") == 0,
+            "it must sit on the layer it was saved on, not on whatever came first");
+        Check(false == layer->IsVisible(), "a hidden layer must come back hidden");
+    }
+
+    void TestReadingRefusesRatherThanGuessing()
+    {
+        JBro::Component::RegisterBuiltinComponentProperties2D();
+        JBro::Component::RegisterBuiltinComponentTypes2D();
+        JBro::CanvasFileError error;
+
+        // 파일에 있는데 코드에 없는 필드. 조용히 버리면 그 씬이 들고 있던 값이 사라진다.
+        {
+            JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+            JBro::String text(
+                "Version: 1\n"
+                "Layers:\n"
+                "  - Id: 0\n"
+                "    Name: Default\n"
+                "    Visible: true\n"
+                "Objects:\n"
+                "  - Name: A\n"
+                "    Active: true\n"
+                "    ParentIndex: -1\n"
+                "    LayerId: 0\n"
+                "    Components:\n"
+                "      - Type: Component::Transform2D\n"
+                "        IsEnabled: true\n"
+                "        gonePropertyFromAnOlderEngine: 3\n");
+            Check(false == Load(canvas, text, error),
+                "a field the engine no longer knows must stop the read");
+            Check(error.fieldName == "gonePropertyFromAnOlderEngine", "and name that field");
+        }
+
+        // 코드에 있는데 파일에 없는 필드는 실패가 아니다. 기본값으로 둔다.
+        {
+            JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+            JBro::String text(
+                "Version: 1\n"
+                "Layers:\n"
+                "  - Id: 0\n"
+                "    Name: Default\n"
+                "    Visible: true\n"
+                "Objects:\n"
+                "  - Name: A\n"
+                "    Active: true\n"
+                "    ParentIndex: -1\n"
+                "    LayerId: 0\n"
+                "    Components:\n"
+                "      - Type: Component::Transform2D\n"
+                "        IsEnabled: true\n"
+                "        rotation: 2\n");
+            LoadOrFail(canvas, text);
+            JBro::GameObject* object = nullptr;
+            canvas.ForEachObject([&object](JBro::GameObject& found) { object = &found; });
+            auto* transform = canvas.FindComponentRaw<JBro::Component::Transform2D>(object);
+            Check(transform->rotation == 2.0f, "what the file did say must be read");
+            Check(transform->scale.x == 1.0f && transform->scale.y == 1.0f,
+                "what it did not say must keep the value the code gives it");
+        }
+
+        // 이 엔진에 없는 컴포넌트.
+        {
+            JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+            JBro::String text(
+                "Version: 1\n"
+                "Layers:\n"
+                "  - Id: 0\n"
+                "    Name: Default\n"
+                "    Visible: true\n"
+                "Objects:\n"
+                "  - Name: A\n"
+                "    Active: true\n"
+                "    ParentIndex: -1\n"
+                "    LayerId: 0\n"
+                "    Components:\n"
+                "      - Type: Component::Light2D\n"
+                "        IsEnabled: true\n");
+            Check(false == Load(canvas, text, error),
+                "a component this engine does not have must stop the read");
+            Check(error.typeName == "Component::Light2D", "and name that type");
+        }
+
+        // 나열의 개수가 맞지 않는 경우. 순서가 전부이므로 어느 자리가 어느 축인지 알 수 없다.
+        {
+            JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+            JBro::String text(
+                "Version: 1\n"
+                "Layers:\n"
+                "  - Id: 0\n"
+                "    Name: Default\n"
+                "    Visible: true\n"
+                "Objects:\n"
+                "  - Name: A\n"
+                "    Active: true\n"
+                "    ParentIndex: -1\n"
+                "    LayerId: 0\n"
+                "    Components:\n"
+                "      - Type: Component::Transform2D\n"
+                "        IsEnabled: true\n"
+                "        position:\n"
+                "          - 1\n"
+                "          - 2\n"
+                "          - 3\n");
+            Check(false == Load(canvas, text, error),
+                "a list with the wrong number of entries must stop the read");
+        }
+
+        // 숫자 자리에 글자가 있는 경우. 기본값으로 대신하면 씬이 조용히 달라진다.
+        {
+            JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+            JBro::String text(
+                "Version: 1\n"
+                "Layers:\n"
+                "  - Id: 0\n"
+                "    Name: Default\n"
+                "    Visible: true\n"
+                "Objects:\n"
+                "  - Name: A\n"
+                "    Active: true\n"
+                "    ParentIndex: -1\n"
+                "    LayerId: 0\n"
+                "    Components:\n"
+                "      - Type: Component::Transform2D\n"
+                "        IsEnabled: true\n"
+                "        rotation: sideways\n");
+            Check(false == Load(canvas, text, error),
+                "a value that cannot be read must stop the read");
+            Check(error.fieldName == "rotation", "and name that field");
+        }
+
+        // 버전이 다른 파일.
+        {
+            JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+            JBro::String text("Version: 99\nObjects:\n  []\n");
+            Check(false == Load(canvas, text, error),
+                "a file from another version of the format must stop the read");
+        }
+
+        // 이미 내용이 있는 캔버스. 섞으면 무엇이 파일에서 온 것인지 알 수 없다.
+        {
+            JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+            canvas.CreateObject("Already here");
+            JBro::String text("Version: 1\nObjects:\n  []\n");
+            Check(false == Load(canvas, text, error),
+                "reading into a canvas that already holds something must be refused");
+        }
+    }
 }
 
 int RunCanvasFileTests()
@@ -539,6 +915,12 @@ int RunCanvasFileTests()
     TestAValueLongerThanTheBufferStillGetsWritten();
     TestAnUnregisteredComponentStopsTheSave();
     TestAnEmptyCanvasIsStillAValidFile();
+    TestWhatWasSavedComesBack();
+    TestTheTreeComesBackStanding();
+    TestAnInactiveObjectDoesNotDisableItsComponents();
+    TestAComponentSwitchedOffStaysOff();
+    TestLayersComeBackWithoutPilingUp();
+    TestReadingRefusesRatherThanGuessing();
     std::cout << "Canvas file tests passed.\n";
     return 0;
 }

@@ -2,6 +2,8 @@
 
 #include <JBro/Types/String.h>
 
+#include <cstddef>
+
 namespace JBro
 {
     class Canvas;
@@ -33,4 +35,16 @@ namespace JBro
     bool WriteCanvasText(Canvas& canvas, String& text, CanvasFileError& error);
     // 위와 같고, 결과를 파일로 쓴다.
     bool SaveCanvasFile(Canvas& canvas, const char* path, CanvasFileError& error);
+
+    // 텍스트를 **빈 캔버스에** 읽어 넣는다. 이미 내용이 있으면 거절한다 —
+    // 섞으면 무엇이 파일에서 온 것인지 알 수 없고, 되돌릴 방법도 없다.
+    //
+    // 이름으로 컴포넌트를 만들려면 그 타입이 `ComponentRegistry` 에 있어야 한다.
+    // 없는 타입을 만나면 조용히 빠뜨리지 않고 멈춘다.
+    //
+    // **파일에 있는데 코드에 없는 필드는 실패다.** 그 반대(코드에 있는데 파일에 없는 필드)는
+    // 기본값으로 두고 넘어간다 — 필드를 더한 것은 예전 씬을 못 읽을 이유가 아니지만,
+    // 필드를 지운 것은 그 씬이 들고 있던 값을 버린다는 뜻이라 사람이 알아야 한다.
+    bool ReadCanvasText(Canvas& canvas, const char* text, std::size_t length, CanvasFileError& error);
+    bool LoadCanvasFile(Canvas& canvas, const char* path, CanvasFileError& error);
 }

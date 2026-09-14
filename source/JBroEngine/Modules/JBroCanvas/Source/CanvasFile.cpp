@@ -1,6 +1,7 @@
 ﻿#include <JBro/Canvas/CanvasFile.h>
 
 #include <JBro/Canvas/Canvas.h>
+#include <JBro/Canvas/ComponentRegistry.h>
 #include <JBro/Canvas/Layer.h>
 #include <JBro/Core/Yaml.h>
 #include <JBro/Reflection/PropertyRegistry.h>
@@ -9,6 +10,7 @@
 #include <JBro/Types/Table.h>
 
 #include <cstdio>
+#include <cstring>
 
 namespace JBro
 {
@@ -148,7 +150,9 @@ namespace JBro
             writer.BeginMap(nullptr);
             // 타입을 먼저 적는다. 읽는 쪽이 무엇을 읽는지 알고 시작한다.
             writer.WriteString("Type", typeName);
-            writer.WriteBool("IsEnabled", component->IsActiveComponent());
+            // IsActiveComponent 는 오브젝트 활성까지 합친 값이다. 그것을 적으면
+            // 꺼진 오브젝트를 저장했다 열 때 컴포넌트가 **영구히** 꺼진다.
+            writer.WriteBool("IsEnabled", component->IsEnabled());
             for (std::uint32_t i = 0; i < table->count; ++i)
             {
                 const PropertyInfo& property = table->properties[i];
@@ -302,5 +306,338 @@ namespace JBro
             return Fail(error, "the file was not written in full");
         }
         return true;
+    }
+
+    // -----------------------------------------------------------------------
+    // 읽기
+    // -----------------------------------------------------------------------
+
+    namespace
+    {
+        bool ReadValue(
+            const YamlDocument& document,
+            std::uint32_t node,
+            const TypeDescriptor& type,
+            void* value,
+            CanvasFileError& error);
+
+        bool ReadLeaf(
+            const YamlDocument& document,
+            std::uint32_t node,
+            const TypeDescriptor& type,
+            void* value,
+            CanvasFileError& error)
+        {
+            if (document.GetKind(node) != YamlKind::Scalar)
+            {
+                return Fail(error, "a plain value was expected here");
+            }
+            const char* text = document.GetText(node);
+            if (false == type.codec->FromText(value, text, std::strlen(text)))
+            {
+                // 읽히지 않는 값을 기본값으로 대신하지 않는다. 씬이 조용히 달라진다.
+                return Fail(error, "this value could not be read back");
+            }
+            return true;
+        }
+
+        bool ReadPacked(
+            const YamlDocument& document,
+            std::uint32_t node,
+            const TypeDescriptor& type,
+            void* value,
+            CanvasFileError& error)
+        {
+            if (document.GetKind(node) != YamlKind::Sequence)
+            {
+                return Fail(error, "a list was expected here");
+            }
+            // 개수가 다르면 어느 자리가 어느 필드인지 알 수 없다. 나열은 순서가 전부다.
+            if (document.GetCount(node) != type.fields->count)
+            {
+                return Fail(error, "this list does not have one entry per member");
+            }
+            for (std::uint32_t i = 0; i < type.fields->count; ++i)
+            {
+                const PropertyInfo& field = type.fields->properties[i];
+                error.fieldName = NameTable::Get().Resolve(field.name);
+                if (field.type == nullptr || field.type->codec == nullptr)
+                {
+                    return Fail(error, "a member of a packed value cannot be read");
+                }
+                if (false == ReadLeaf(document, document.GetElement(node, i),
+                    *field.type, field.Address(value), error))
+                {
+                    return false;
+                }
+            }
+            error.fieldName.clear();
+            return true;
+        }
+
+        // 맵 하나의 키들을 프로퍼티 표에 맞춰 읽는다. skip 에 있는 키는 표에 없어도 넘어간다
+        // (컴포넌트의 Type·IsEnabled 처럼 표가 아니라 파일 형식이 정한 키다).
+        bool ReadFieldsFromMap(
+            const YamlDocument& document,
+            std::uint32_t node,
+            const PropertyTable& table,
+            void* value,
+            const char* const* skip,
+            std::size_t skipCount,
+            CanvasFileError& error)
+        {
+            if (document.GetKind(node) != YamlKind::Map)
+            {
+                return Fail(error, "a block of named values was expected here");
+            }
+            for (std::size_t i = 0; i < document.GetCount(node); ++i)
+            {
+                const char* key = document.GetKey(node, i);
+                bool skipped = false;
+                for (std::size_t s = 0; s < skipCount; ++s)
+                {
+                    if (std::strcmp(key, skip[s]) == 0)
+                    {
+                        skipped = true;
+                        break;
+                    }
+                }
+                if (skipped)
+                {
+                    continue;
+                }
+
+                const NameId name = MakeNameId(key);
+                const PropertyInfo* property = nullptr;
+                for (std::uint32_t p = 0; p < table.count; ++p)
+                {
+                    if (table.properties[p].name == name)
+                    {
+                        property = &table.properties[p];
+                        break;
+                    }
+                }
+                if (property == nullptr || false == property->serialize)
+                {
+                    // 파일에 있는데 코드에 없는 필드다. 조용히 버리면 그 씬이 들고 있던
+                    // 값이 사라지고 아무도 모른다.
+                    error.fieldName = key;
+                    return Fail(error, "this file has a field the engine no longer knows");
+                }
+                error.fieldName = key;
+                if (property->type == nullptr)
+                {
+                    return Fail(error, "this field names no type");
+                }
+                if (false == ReadValue(document, document.GetValue(node, i),
+                    *property->type, property->Address(value), error))
+                {
+                    return false;
+                }
+                error.fieldName.clear();
+            }
+            return true;
+        }
+
+        bool ReadValue(
+            const YamlDocument& document,
+            std::uint32_t node,
+            const TypeDescriptor& type,
+            void* value,
+            CanvasFileError& error)
+        {
+            if (type.fields != nullptr)
+            {
+                if (type.writeFieldsAsSequence)
+                {
+                    return ReadPacked(document, node, type, value, error);
+                }
+                return ReadFieldsFromMap(document, node, *type.fields, value, nullptr, 0, error);
+            }
+            if (type.codec == nullptr)
+            {
+                return Fail(error, "this value has neither fields nor a way to read itself");
+            }
+            return ReadLeaf(document, node, type, value, error);
+        }
+    }
+
+    bool ReadCanvasText(Canvas& canvas, const char* text, std::size_t length, CanvasFileError& error)
+    {
+        error = CanvasFileError{};
+        if (canvas.GetObjectCount() != 0)
+        {
+            return Fail(error, "a canvas must be empty before a file is read into it");
+        }
+
+        YamlDocument document;
+        YamlError parseError;
+        if (false == document.Parse(text, length, parseError))
+        {
+            error.message = parseError.message;
+            return false;
+        }
+
+        const std::uint32_t root = document.GetRoot();
+        std::int64_t version = 0;
+        if (false == document.FindInt(root, "Version", version))
+        {
+            return Fail(error, "this file does not say what version it is");
+        }
+        if (version != static_cast<std::int64_t>(CanvasFileVersion))
+        {
+            return Fail(error, "this file was written by a different version of the format");
+        }
+
+        // 레이어부터 만든다. 파일의 Id 는 그대로 쓸 수 없으므로(캔버스가 스스로 매긴다)
+        // 파일의 것과 새로 받은 것을 짝지어 둔다.
+        Table<std::uint64_t, LayerId> layerOf;
+        const std::uint32_t layers = document.Find(root, "Layers");
+        bool firstLayer = true;
+        for (std::size_t i = 0; i < document.GetCount(layers); ++i)
+        {
+            const std::uint32_t entry = document.GetElement(layers, i);
+            String name;
+            std::int64_t fileId = 0;
+            if (false == document.FindScalar(entry, "Name", name)
+                || false == document.FindInt(entry, "Id", fileId))
+            {
+                return Fail(error, "a layer in this file has no name or no id");
+            }
+            bool visible = true;
+            document.FindBool(entry, "Visible", visible);
+
+            // 캔버스는 기본 레이어를 하나 들고 시작한다. 첫 레이어는 그것을 쓴다 —
+            // 그러지 않으면 파일을 읽을 때마다 쓰지 않는 레이어가 하나씩 남는다.
+            Layer* layer = firstLayer ? canvas.FindLayer(canvas.GetDefaultLayer()) : nullptr;
+            if (layer == nullptr)
+            {
+                layer = &canvas.CreateLayer(name.c_str());
+            }
+            else
+            {
+                layer->SetName(name.c_str());
+            }
+            firstLayer = false;
+            layer->SetVisible(visible);
+            layerOf.TryAdd(static_cast<std::uint64_t>(fileId), layer->GetId());
+        }
+
+        const std::uint32_t objects = document.Find(root, "Objects");
+        Array<GameObject*> created;
+        for (std::size_t i = 0; i < document.GetCount(objects); ++i)
+        {
+            const std::uint32_t entry = document.GetElement(objects, i);
+            String name;
+            document.FindScalar(entry, "Name", name);
+            error.objectName = name;
+
+            GameObject* object = canvas.CreateObject(name.c_str());
+            if (object == nullptr)
+            {
+                return Fail(error, "an object in this file could not be created");
+            }
+            created.Add(object);
+
+            std::int64_t parentIndex = -1;
+            if (false == document.FindInt(entry, "ParentIndex", parentIndex))
+            {
+                return Fail(error, "an object in this file does not say where it hangs");
+            }
+            if (parentIndex >= 0)
+            {
+                // 부모는 언제나 자기 앞에 있다. 저장이 그 순서를 지키므로 한 번만 훑으면 된다.
+                if (static_cast<std::size_t>(parentIndex) >= created.Size() - 1)
+                {
+                    return Fail(error, "an object hangs from something that comes after it");
+                }
+                object->SetParent(created[static_cast<std::size_t>(parentIndex)]);
+            }
+
+            std::int64_t fileLayer = 0;
+            if (document.FindInt(entry, "LayerId", fileLayer))
+            {
+                const LayerId* mapped = layerOf.Find(static_cast<std::uint64_t>(fileLayer));
+                if (mapped == nullptr)
+                {
+                    return Fail(error, "an object sits on a layer this file never described");
+                }
+                canvas.SetObjectLayer(object, *mapped);
+            }
+
+            const std::uint32_t components = document.Find(entry, "Components");
+            for (std::size_t c = 0; c < document.GetCount(components); ++c)
+            {
+                const std::uint32_t saved = document.GetElement(components, c);
+                String typeName;
+                if (false == document.FindScalar(saved, "Type", typeName))
+                {
+                    return Fail(error, "a component in this file does not say what it is");
+                }
+                error.typeName = typeName;
+
+                const ComponentTypeInfo* info = ComponentRegistry::Get().Find(typeName.c_str());
+                if (info == nullptr)
+                {
+                    return Fail(error, "this engine has no component by that name");
+                }
+                ComponentBase* component = info->Attach(canvas, object);
+                if (component == nullptr)
+                {
+                    return Fail(error, "a component in this file could not be attached");
+                }
+
+                const PropertyTable* table = PropertyRegistry::Lookup(info->typeId);
+                if (table == nullptr)
+                {
+                    return Fail(error, "this component type never registered its properties");
+                }
+
+                static const char* const formatKeys[] = { "Type", "IsEnabled" };
+                if (false == ReadFieldsFromMap(document, saved, *table, component,
+                    formatKeys, sizeof(formatKeys) / sizeof(formatKeys[0]), error))
+                {
+                    return false;
+                }
+
+                bool enabled = true;
+                if (document.FindBool(saved, "IsEnabled", enabled))
+                {
+                    component->SetEnabled(enabled);
+                }
+                error.typeName.clear();
+            }
+
+            // 활성은 마지막이다. 부모가 정해진 뒤라야 상속 활성값이 맞는다.
+            bool active = true;
+            document.FindBool(entry, "Active", active);
+            object->SetActive(active);
+        }
+
+        error.objectName.clear();
+        return true;
+    }
+
+    bool LoadCanvasFile(Canvas& canvas, const char* path, CanvasFileError& error)
+    {
+        error = CanvasFileError{};
+        if (path == nullptr || path[0] == 0)
+        {
+            return Fail(error, "no path was given");
+        }
+        std::FILE* file = nullptr;
+        if (fopen_s(&file, path, "rb") != 0 || file == nullptr)
+        {
+            return Fail(error, "cannot open the file");
+        }
+        String text;
+        char buffer[4096];
+        std::size_t read = 0;
+        while ((read = std::fread(buffer, 1, sizeof(buffer), file)) > 0)
+        {
+            text.append(buffer, read);
+        }
+        std::fclose(file);
+        return ReadCanvasText(canvas, text.c_str(), text.size(), error);
     }
 }
