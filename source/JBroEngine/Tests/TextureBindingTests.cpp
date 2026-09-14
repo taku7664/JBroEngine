@@ -56,100 +56,111 @@ namespace
         return std::fabs(a - b) < 0.02f;
     }
 
-    // 텍스처 바인딩이 실제로 GPU 까지 닿는지는 픽셀을 되읽지 않고는 증명할 수 없다.
-    // 디스크립터를 엉뚱한 자리에 복사해도, 샘플러를 안 묶어도, D3D12 는 대개
-    // 아무 말도 하지 않고 색만 조용히 달라진다.
-    //
-    // 2x2 텍스처를 만들고 네 텍셀에 서로 다른 색을 넣는다. 화면을 가득 채운 사각형에
-    // 그것을 입히고 네 모서리를 읽으면, 어느 텍셀이 어디로 갔는지까지 드러난다.
-    void TestATextureReachesTheShader()
+    constexpr std::uint32_t SurfaceSize = 64;
+
+    // 좌상 빨강, 우상 초록, 좌하 파랑, 우하 하양. 넷이 모두 다르므로
+    // 뒤집히거나 밀린 것도 드러난다.
+    constexpr unsigned char ProbeTexels[] = {
+        255, 0, 0, 255,    0, 255, 0, 255,
+        0, 0, 255, 255,    255, 255, 255, 255
+    };
+
+    // 화면을 가득 채우는, 텍스처 입힌 사각형 하나를 그릴 만큼만 차린다.
+    // 세 테스트가 같은 것을 필요로 하므로 한 자리에 모은다.
+    struct Probe
     {
         JBro::WindowsPlatform platform;
         JBro::D3D12RHIModule rhi;
+        JBro::IRHIDevice* device = nullptr;
+        JBro::WindowHandle window;
+        JBro::SwapchainHandle swapchain;
+        JBro::TextureHandle texture;
+        JBro::TextureHandle renderTargetOnly;
+        JBro::SamplerHandle sampler;
+        JBro::BufferHandle vertexBuffer;
+        JBro::BufferHandle indexBuffer;
+        JBro::GraphicsPipelineHandle pipeline;
+        bool platformOpen = false;
+        bool rhiOpen = false;
+
+        // 이 기계에 D3D12 가 없으면 false 다. 그 경우 테스트는 건너뛴다.
+        bool Open(const char* title);
+        bool BeginPass(JBro::IRHICommandContext& commands, const JBro::BeginFrameResult& begun);
+        void Close();
+    };
+
+    bool Probe::Open(const char* title)
+    {
         JBro::JMemoryContext memory;
         Check(platform.Initialize(memory), "the platform must initialize");
+        platformOpen = true;
         if (false == rhi.Initialize(memory))
         {
-            std::cout << "  [skip] no D3D12 module; texture binding not verified" << std::endl;
-            platform.Shutdown();
-            return;
+            Close();
+            return false;
         }
-
-        JBro::IRHIDevice* device = rhi.CreateDevice({});
+        rhiOpen = true;
+        device = rhi.CreateDevice({});
         if (device == nullptr)
         {
-            std::cout << "  [skip] no D3D12 device; texture binding not verified" << std::endl;
-            rhi.Shutdown();
-            platform.Shutdown();
-            return;
+            Close();
+            return false;
         }
 
-        constexpr std::uint32_t Size = 64;
         JBro::WindowDesc windowDesc;
-        constexpr char title[] = "JBro texture probe";
-        windowDesc.title = {title, sizeof(title) - 1};
-        windowDesc.width = Size;
-        windowDesc.height = Size;
+        windowDesc.title = {title, static_cast<std::uint32_t>(std::strlen(title))};
+        windowDesc.width = SurfaceSize;
+        windowDesc.height = SurfaceSize;
         windowDesc.visible = false;
-        const JBro::WindowHandle window = platform.OpenPlatformWindow(windowDesc);
+        window = platform.OpenPlatformWindow(windowDesc);
         Check(window.value != 0, "the probe window must open");
 
         JBro::SwapchainDesc swapchainDesc;
         swapchainDesc.surface = platform.CreateSurface(window);
-        swapchainDesc.extent = {Size, Size};
+        swapchainDesc.extent = {SurfaceSize, SurfaceSize};
         swapchainDesc.presentMode = JBro::PresentMode::Immediate;
-        const JBro::SwapchainHandle swapchain = device->CreateSwapchain(swapchainDesc);
+        swapchain = device->CreateSwapchain(swapchainDesc);
         Check(swapchain.IsValid(), "the probe swapchain must be created");
 
-        // ---- 텍스처 -------------------------------------------------------
         JBro::TextureDesc textureDesc;
         textureDesc.extent = {2, 2};
         textureDesc.format = JBro::TextureFormat::RGBA8Unorm;
         textureDesc.usage = JBro::TextureUsage::Sampled | JBro::TextureUsage::CopyDestination;
-        const JBro::TextureHandle texture = device->CreateTexture(textureDesc);
+        texture = device->CreateTexture(textureDesc);
         Check(texture.IsValid(), "a sampled texture must be created");
-
-        // 좌상 빨강, 우상 초록, 좌하 파랑, 우하 하양. 넷이 모두 다르므로
-        // 뒤집히거나 밀린 것도 드러난다.
-        const unsigned char texels[] = {
-            255, 0, 0, 255,    0, 255, 0, 255,
-            0, 0, 255, 255,    255, 255, 255, 255
-        };
         Check(device->WriteTexture(texture, 0,
-            {reinterpret_cast<const std::byte*>(texels), sizeof(texels)}),
+            {reinterpret_cast<const std::byte*>(ProbeTexels), sizeof(ProbeTexels)}),
             "the texels must upload");
 
-        // 밉 하나짜리만 올린다는 계약이다.
-        Check(false == device->WriteTexture(texture, 1,
-            {reinterpret_cast<const std::byte*>(texels), sizeof(texels)}),
-            "a mip this engine does not upload must be refused");
-        // 크기가 맞지 않는 것도 거절한다. 모자란 것을 받으면 나머지가 쓰레기가 된다.
-        Check(false == device->WriteTexture(texture, 0,
-            {reinterpret_cast<const std::byte*>(texels), sizeof(texels) - 4}),
-            "a short upload must be refused rather than padded");
+        // 셰이더가 읽을 수 없는 텍스처다. 묶으려 드는 쪽을 거절하는지 보는 데 쓴다.
+        JBro::TextureDesc renderTargetDesc;
+        renderTargetDesc.extent = {4, 4};
+        renderTargetDesc.format = JBro::TextureFormat::RGBA8Unorm;
+        renderTargetDesc.usage = JBro::TextureUsage::RenderTarget;
+        renderTargetOnly = device->CreateTexture(renderTargetDesc);
+        Check(renderTargetOnly.IsValid(), "a render target must still be creatable");
 
         JBro::SamplerDesc samplerDesc;
         // 텍셀을 그대로 집는다. 선형으로 섞으면 모서리 값이 흐려져 무엇이 어디 있는지
         // 읽을 수 없다.
         samplerDesc.minFilter = JBro::FilterMode::Nearest;
         samplerDesc.magFilter = JBro::FilterMode::Nearest;
-        const JBro::SamplerHandle sampler = device->CreateSampler(samplerDesc);
+        sampler = device->CreateSampler(samplerDesc);
         Check(sampler.IsValid(), "a sampler must be created");
 
-        // ---- 기하 ---------------------------------------------------------
-        const Vertex vertices[] = {
+        static const Vertex vertices[] = {
             {-1.0f,  1.0f, 0.0f, 0.0f},
             { 1.0f,  1.0f, 1.0f, 0.0f},
             { 1.0f, -1.0f, 1.0f, 1.0f},
             {-1.0f, -1.0f, 0.0f, 1.0f},
         };
-        const std::uint16_t indices[] = {0, 1, 2, 0, 2, 3};
+        static const std::uint16_t indices[] = {0, 1, 2, 0, 2, 3};
 
         JBro::BufferDesc vertexDesc;
         vertexDesc.size = sizeof(vertices);
         vertexDesc.usage = JBro::BufferUsage::Vertex;
         vertexDesc.memory = JBro::MemoryType::Upload;
-        const JBro::BufferHandle vertexBuffer = device->CreateBuffer(vertexDesc);
+        vertexBuffer = device->CreateBuffer(vertexDesc);
         Check(vertexBuffer.IsValid(), "the vertex buffer must be created");
         Check(device->WriteBuffer(vertexBuffer, 0,
             {reinterpret_cast<const std::byte*>(vertices), sizeof(vertices)}),
@@ -159,21 +170,20 @@ namespace
         indexDesc.size = sizeof(indices);
         indexDesc.usage = JBro::BufferUsage::Index;
         indexDesc.memory = JBro::MemoryType::Upload;
-        const JBro::BufferHandle indexBuffer = device->CreateBuffer(indexDesc);
+        indexBuffer = device->CreateBuffer(indexDesc);
         Check(indexBuffer.IsValid(), "the index buffer must be created");
         Check(device->WriteBuffer(indexBuffer, 0,
             {reinterpret_cast<const std::byte*>(indices), sizeof(indices)}),
             "the indices must upload");
 
-        // ---- 파이프라인 ---------------------------------------------------
-        const JBro::VertexAttributeDesc attributes[] = {
+        static const JBro::VertexAttributeDesc attributes[] = {
             {0, 0, JBro::VertexFormat::Float2},
             {1, 8, JBro::VertexFormat::Float2},
         };
         JBro::VertexBufferLayoutDesc layout;
         layout.stride = sizeof(Vertex);
         layout.attributes = {attributes, 2};
-        const JBro::TextureFormat colorFormats[] = {JBro::TextureFormat::BGRA8Unorm};
+        static const JBro::TextureFormat colorFormats[] = {JBro::TextureFormat::BGRA8Unorm};
 
         JBro::GraphicsPipelineDesc pipelineDesc;
         pipelineDesc.vertexShader = {JBroTestTexturedQuadVS, sizeof(JBroTestTexturedQuadVS)};
@@ -183,66 +193,131 @@ namespace
         pipelineDesc.cull = JBro::CullMode::None;
         pipelineDesc.sampledTextureCount = 1;
         pipelineDesc.samplerCount = 1;
-        const JBro::GraphicsPipelineHandle pipeline =
-            device->CreateGraphicsPipeline(pipelineDesc);
+        pipeline = device->CreateGraphicsPipeline(pipelineDesc);
         Check(pipeline.IsValid(), "the textured pipeline must be created");
+        return true;
+    }
 
-        // 선언한 수를 넘는 파이프라인은 거절한다. 루트 시그니처는 만들고 나면 못 바꾸므로
-        // 여기서 막지 않으면 그리는 자리에서 조용히 잘린다.
-        JBro::GraphicsPipelineDesc tooMany = pipelineDesc;
-        tooMany.sampledTextureCount = 64;
-        Check(false == device->CreateGraphicsPipeline(tooMany).IsValid(),
-            "a pipeline asking for more textures than the backend binds must be refused");
-
-        // ---- 그리기 -------------------------------------------------------
-        const JBro::BeginFrameResult begun = device->BeginFrame(swapchain);
-        Check(begun.status == JBro::FrameStatus::Ready, "the probe frame must begin");
-        JBro::IRHICommandContext& commands = *begun.frame.commands;
-
-        // 프레임 안에서는 올리지 않는다. 여기서 GPU 를 기다리면 프레임이 막힌다.
-        Check(false == device->WriteTexture(texture, 0,
-            {reinterpret_cast<const std::byte*>(texels), sizeof(texels)}),
-            "uploading inside a frame must be refused");
-
+    bool Probe::BeginPass(
+        JBro::IRHICommandContext& commands,
+        const JBro::BeginFrameResult& begun)
+    {
         JBro::ColorAttachmentDesc attachment;
         attachment.texture = begun.frame.backBuffer;
         attachment.loadOperation = JBro::LoadOperation::Clear;
         attachment.clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
         JBro::RenderPassDesc pass;
         pass.colorAttachments = {&attachment, 1};
-        Check(commands.BeginRenderPass(pass), "the probe render pass must begin");
-
+        if (false == commands.BeginRenderPass(pass))
+        {
+            return false;
+        }
         JBro::Viewport viewport;
-        viewport.width = static_cast<float>(Size);
-        viewport.height = static_cast<float>(Size);
+        viewport.width = static_cast<float>(SurfaceSize);
+        viewport.height = static_cast<float>(SurfaceSize);
         commands.SetViewport(viewport);
-        commands.SetScissor({0, 0, static_cast<std::int32_t>(Size), static_cast<std::int32_t>(Size)});
+        commands.SetScissor({0, 0,
+            static_cast<std::int32_t>(SurfaceSize),
+            static_cast<std::int32_t>(SurfaceSize)});
+        return true;
+    }
 
-        Check(commands.SetGraphicsPipeline(pipeline), "the pipeline must bind");
+    void Probe::Close()
+    {
+        if (device != nullptr)
+        {
+            device->DestroySampler(sampler);
+            device->DestroyTexture(renderTargetOnly);
+            device->DestroyTexture(texture);
+            device->DestroyBuffer(indexBuffer);
+            device->DestroyBuffer(vertexBuffer);
+            device->DestroyGraphicsPipeline(pipeline);
+            device->DestroySwapchain(swapchain);
+            rhi.DestroyDevice(device);
+            device = nullptr;
+        }
+        if (window.value != 0)
+        {
+            platform.ClosePlatformWindow(window);
+            window = {};
+        }
+        if (rhiOpen)
+        {
+            rhi.Shutdown();
+            rhiOpen = false;
+        }
+        if (platformOpen)
+        {
+            platform.Shutdown();
+            platformOpen = false;
+        }
+    }
+
+    // 텍스처 바인딩이 실제로 GPU 까지 닿는지는 픽셀을 되읽지 않고는 증명할 수 없다.
+    // 디스크립터를 엉뚱한 자리에 복사해도, 샘플러를 안 묶어도, D3D12 는 대개
+    // 아무 말도 하지 않고 색만 조용히 달라진다.
+    void TestATextureReachesTheShader()
+    {
+        Probe probe;
+        if (false == probe.Open("JBro texture probe"))
+        {
+            std::cout << "  [skip] no D3D12 device; texture binding not verified" << std::endl;
+            return;
+        }
+
+        // 밉 하나짜리만 올린다는 계약이다.
+        Check(false == probe.device->WriteTexture(probe.texture, 1,
+            {reinterpret_cast<const std::byte*>(ProbeTexels), sizeof(ProbeTexels)}),
+            "a mip this engine does not upload must be refused");
+        // 크기가 맞지 않는 것도 거절한다. 모자란 것을 받으면 나머지가 쓰레기가 된다.
+        Check(false == probe.device->WriteTexture(probe.texture, 0,
+            {reinterpret_cast<const std::byte*>(ProbeTexels), sizeof(ProbeTexels) - 4}),
+            "a short upload must be refused rather than padded");
+
+        // 선언한 수를 넘는 파이프라인은 거절한다. 루트 시그니처는 만들고 나면 못 바꾸므로
+        // 여기서 막지 않으면 그리는 자리에서 조용히 잘린다.
+        JBro::GraphicsPipelineDesc tooMany;
+        tooMany.vertexShader = {JBroTestTexturedQuadVS, sizeof(JBroTestTexturedQuadVS)};
+        tooMany.pixelShader = {JBroTestTexturedQuadPS, sizeof(JBroTestTexturedQuadPS)};
+        tooMany.sampledTextureCount = 64;
+        Check(false == probe.device->CreateGraphicsPipeline(tooMany).IsValid(),
+            "a pipeline asking for more textures than the backend binds must be refused");
+
+        const JBro::BeginFrameResult begun = probe.device->BeginFrame(probe.swapchain);
+        Check(begun.status == JBro::FrameStatus::Ready, "the probe frame must begin");
+        JBro::IRHICommandContext& commands = *begun.frame.commands;
+
+        // 프레임 안에서는 올리지 않는다. 여기서 GPU 를 기다리면 프레임이 막힌다.
+        Check(false == probe.device->WriteTexture(probe.texture, 0,
+            {reinterpret_cast<const std::byte*>(ProbeTexels), sizeof(ProbeTexels)}),
+            "uploading inside a frame must be refused");
+
+        Check(probe.BeginPass(commands, begun), "the probe render pass must begin");
+        Check(commands.SetGraphicsPipeline(probe.pipeline), "the pipeline must bind");
 
         // 파이프라인이 선언하지 않은 자리는 거절한다.
-        Check(false == commands.SetTexture(1, texture),
+        Check(false == commands.SetTexture(1, probe.texture),
             "a slot the pipeline never declared must be refused");
-        Check(false == commands.SetSampler(1, sampler),
+        Check(false == commands.SetSampler(1, probe.sampler),
             "a sampler slot the pipeline never declared must be refused");
 
-        Check(commands.SetTexture(0, texture), "the texture must bind");
-        Check(commands.SetSampler(0, sampler), "the sampler must bind");
-        Check(commands.SetVertexBuffer(0, vertexBuffer, sizeof(Vertex), 0),
+        Check(commands.SetTexture(0, probe.texture), "the texture must bind");
+        Check(commands.SetSampler(0, probe.sampler), "the sampler must bind");
+        Check(commands.SetVertexBuffer(0, probe.vertexBuffer, sizeof(Vertex), 0),
             "the vertices must bind");
-        Check(commands.SetIndexBuffer(indexBuffer, JBro::IndexFormat::UInt16, 0),
+        Check(commands.SetIndexBuffer(probe.indexBuffer, JBro::IndexFormat::UInt16, 0),
             "the indices must bind");
         Check(commands.DrawIndexedInstanced(6, 1, 0, 0, 0), "the quad must draw");
 
         commands.EndRenderPass();
-        Check(device->EndFrame(begun.frame) == JBro::FrameStatus::Ready,
+        Check(probe.device->EndFrame(begun.frame) == JBro::FrameStatus::Ready,
             "the probe frame must present");
 
-        // ---- 되읽기 -------------------------------------------------------
         JBro::Array<std::byte> image;
-        image.Resize(Size * Size * 4);
+        image.Resize(SurfaceSize * SurfaceSize * 4);
         JBro::TextureReadback readback;
-        Check(device->ReadTexture(begun.frame.backBuffer, image.Data(), image.Size(), readback),
+        Check(probe.device->ReadTexture(
+                begun.frame.backBuffer, image.Data(), image.Size(), readback),
             "the back buffer must read back");
 
         // 화면을 가득 채운 사각형이므로 네 사분면이 네 텍셀이다.
@@ -260,78 +335,127 @@ namespace
         Check(Near(bottomRight.r, 1.0f) && Near(bottomRight.g, 1.0f) && Near(bottomRight.b, 1.0f),
             "the fourth texel must land in the bottom right");
 
-        device->DestroySampler(sampler);
-        device->DestroyTexture(texture);
-        device->DestroyBuffer(indexBuffer);
-        device->DestroyBuffer(vertexBuffer);
-        device->DestroyGraphicsPipeline(pipeline);
-        device->DestroySwapchain(swapchain);
-        rhi.DestroyDevice(device);
-        platform.ClosePlatformWindow(window);
-        rhi.Shutdown();
-        platform.Shutdown();
+        probe.Close();
     }
 
-    void TestBindingRefusesWhatItCannotResolve()
+    // 묶지 않은 자리로 그리면 셰이더가 남의 디스크립터를 읽는다. D3D12 는 그것을
+    // 말해 주지 않고 화면만 조용히 달라진다.
+    void TestDrawingNeedsEverySlotItDeclared()
     {
-        JBro::WindowsPlatform platform;
-        JBro::D3D12RHIModule rhi;
-        JBro::JMemoryContext memory;
-        Check(platform.Initialize(memory), "the platform must initialize");
-        if (false == rhi.Initialize(memory))
+        Probe probe;
+        if (false == probe.Open("JBro unbound probe"))
         {
-            std::cout << "  [skip] no D3D12 module; refusals not verified" << std::endl;
-            platform.Shutdown();
-            return;
-        }
-        JBro::IRHIDevice* device = rhi.CreateDevice({});
-        if (device == nullptr)
-        {
-            std::cout << "  [skip] no D3D12 device; refusals not verified" << std::endl;
-            rhi.Shutdown();
-            platform.Shutdown();
+            std::cout << "  [skip] no D3D12 device; unbound draws not verified" << std::endl;
             return;
         }
 
-        // Sampled 없이 만든 텍스처는 셰이더가 읽을 수 없다. 조용히 빈 것을 묶으면
-        // 무엇을 읽는지 알 수 없게 된다.
-        JBro::TextureDesc renderTargetOnly;
-        renderTargetOnly.extent = {4, 4};
-        renderTargetOnly.format = JBro::TextureFormat::RGBA8Unorm;
-        renderTargetOnly.usage = JBro::TextureUsage::RenderTarget;
-        const JBro::TextureHandle notSampled = device->CreateTexture(renderTargetOnly);
-        Check(notSampled.IsValid(), "a render target must still be creatable");
+        const JBro::BeginFrameResult begun = probe.device->BeginFrame(probe.swapchain);
+        Check(begun.status == JBro::FrameStatus::Ready, "the frame must begin");
+        JBro::IRHICommandContext& commands = *begun.frame.commands;
+        Check(probe.BeginPass(commands, begun), "the render pass must begin");
+        Check(commands.SetGraphicsPipeline(probe.pipeline), "the pipeline must bind");
+        Check(commands.SetVertexBuffer(0, probe.vertexBuffer, sizeof(Vertex), 0),
+            "the vertices must bind");
+        Check(commands.SetIndexBuffer(probe.indexBuffer, JBro::IndexFormat::UInt16, 0),
+            "the indices must bind");
 
-        JBro::TextureDesc sampled;
-        sampled.extent = {2, 2};
-        sampled.format = JBro::TextureFormat::RGBA8Unorm;
-        sampled.usage = JBro::TextureUsage::Sampled | JBro::TextureUsage::CopyDestination;
-        const JBro::TextureHandle texture = device->CreateTexture(sampled);
-        Check(texture.IsValid(), "a sampled texture must be creatable");
+        // 텍스처만 묶고 샘플러는 두고 그린다.
+        Check(commands.SetTexture(0, probe.texture), "the texture must bind");
+        Check(false == commands.DrawIndexedInstanced(6, 1, 0, 0, 0),
+            "a draw with a declared sampler slot left empty must be refused");
 
-        const JBro::SamplerHandle sampler = device->CreateSampler({});
-        Check(sampler.IsValid(), "a sampler must be creatable");
+        // 반대도 마찬가지다. 파이프라인을 다시 걸면 묶어 둔 것이 버려진다.
+        Check(commands.SetGraphicsPipeline(probe.pipeline), "the pipeline must bind again");
+        Check(commands.SetSampler(0, probe.sampler), "the sampler must bind");
+        Check(false == commands.DrawIndexedInstanced(6, 1, 0, 0, 0),
+            "a draw with a declared texture slot left empty must be refused");
 
-        // 파괴한 뒤의 핸들은 세대가 어긋나므로 되살아나지 않는다.
-        const JBro::SamplerHandle stale = sampler;
-        device->DestroySampler(sampler);
-        const JBro::SamplerHandle second = device->CreateSampler({});
+        // 셰이더가 읽을 수 없는 텍스처는 애초에 묶이지 않는다.
+        Check(false == commands.SetTexture(0, probe.renderTargetOnly),
+            "a texture that was not made sampled must not bind");
+
+        // 둘 다 묶으면 그려진다. 위의 거절이 그리기 자체를 막은 것이 아님을 본다.
+        Check(commands.SetTexture(0, probe.texture), "the texture must bind");
+        Check(commands.DrawIndexedInstanced(6, 1, 0, 0, 0),
+            "a draw with every declared slot bound must go through");
+
+        commands.EndRenderPass();
+        Check(probe.device->EndFrame(begun.frame) == JBro::FrameStatus::Ready,
+            "the frame must present");
+        probe.Close();
+    }
+
+    // 보이는 디스크립터 링은 프레임마다 처음으로 되돌아가야 한다. 되감지 않으면
+    // 몇 프레임 뒤부터 그리기가 조용히 실패한다 — 화면이 멈춘 것처럼 보이고
+    // 어디서 멈췄는지는 아무 데도 적히지 않는다.
+    void TestTheDescriptorRingRewindsEachFrame()
+    {
+        Probe probe;
+        if (false == probe.Open("JBro ring probe"))
+        {
+            std::cout << "  [skip] no D3D12 device; the descriptor ring not verified" << std::endl;
+            return;
+        }
+
+        // 한 프레임이 쓸 수 있는 수는 백엔드의 사정이라 여기서 알 수 없다. 두 프레임을
+        // 합쳐 한 프레임 몫보다 확실히 많이 그리는 것으로 충분하다 — 되감지 않으면
+        // 둘째 프레임 도중에 자리가 떨어진다.
+        constexpr std::uint32_t DrawsPerFrame = 400;
+        for (std::uint32_t frame = 0; frame < 2; ++frame)
+        {
+            const JBro::BeginFrameResult begun = probe.device->BeginFrame(probe.swapchain);
+            Check(begun.status == JBro::FrameStatus::Ready, "each frame must begin");
+            JBro::IRHICommandContext& commands = *begun.frame.commands;
+            Check(probe.BeginPass(commands, begun), "each render pass must begin");
+            Check(commands.SetGraphicsPipeline(probe.pipeline), "the pipeline must bind");
+            Check(commands.SetVertexBuffer(0, probe.vertexBuffer, sizeof(Vertex), 0),
+                "the vertices must bind");
+            Check(commands.SetIndexBuffer(probe.indexBuffer, JBro::IndexFormat::UInt16, 0),
+                "the indices must bind");
+
+            for (std::uint32_t draw = 0; draw < DrawsPerFrame; ++draw)
+            {
+                Check(commands.SetTexture(0, probe.texture), "the texture must bind");
+                Check(commands.SetSampler(0, probe.sampler), "the sampler must bind");
+                Check(commands.DrawIndexedInstanced(6, 1, 0, 0, 0),
+                    "every draw must find room in this frame's descriptors");
+            }
+
+            commands.EndRenderPass();
+            Check(probe.device->EndFrame(begun.frame) == JBro::FrameStatus::Ready,
+                "each frame must present");
+        }
+        probe.Close();
+    }
+
+    void TestAFreedSamplerDoesNotComeBack()
+    {
+        Probe probe;
+        if (false == probe.Open("JBro sampler probe"))
+        {
+            std::cout << "  [skip] no D3D12 device; sampler reuse not verified" << std::endl;
+            return;
+        }
+
+        const JBro::SamplerHandle first = probe.device->CreateSampler({});
+        Check(first.IsValid(), "a sampler must be creatable");
+        const JBro::SamplerHandle stale = first;
+        probe.device->DestroySampler(first);
+
+        const JBro::SamplerHandle second = probe.device->CreateSampler({});
         Check(second.IsValid(), "the freed slot must be reusable");
         Check(false == (second == stale), "a reused slot must not answer to the old handle");
-
-        device->DestroySampler(second);
-        device->DestroyTexture(texture);
-        device->DestroyTexture(notSampled);
-        rhi.DestroyDevice(device);
-        rhi.Shutdown();
-        platform.Shutdown();
+        probe.device->DestroySampler(second);
+        probe.Close();
     }
 }
 
 int RunTextureBindingTests()
 {
     TestATextureReachesTheShader();
-    TestBindingRefusesWhatItCannotResolve();
+    TestDrawingNeedsEverySlotItDeclared();
+    TestTheDescriptorRingRewindsEachFrame();
+    TestAFreedSamplerDoesNotComeBack();
     std::cout << "Texture binding tests passed.\n";
     return 0;
 }

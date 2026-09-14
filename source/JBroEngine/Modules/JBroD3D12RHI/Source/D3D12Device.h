@@ -241,7 +241,12 @@ namespace JBro::Internal
         // 프레임 슬롯마다 제 몫을 갖는다. 프레임이 겹쳐 도는 동안 앞 프레임이 쓰던
         // 디스크립터를 덮어쓰지 않게 하려면 링을 프레임별로 갈라야 한다.
         static constexpr std::uint32_t ShaderVisibleTexturesPerFrame = 1024;
-        static constexpr std::uint32_t ShaderVisibleSamplersPerFrame = 64;
+        // **D3D12 는 셰이더 가시 샘플러 힙을 2048개로 제한한다.** 프레임 수를 곱한 값이
+        // 그 안에 들어와야 하므로 프레임당 512 가 사실상의 상한이다.
+        // (텍스처 쪽 힙은 백만 단위라 그런 제약이 없다.)
+        static constexpr std::uint32_t ShaderVisibleSamplersPerFrame = 512;
+        static_assert(ShaderVisibleSamplersPerFrame * MaxFramesInFlight <= 2048,
+            "a shader visible sampler heap cannot hold more than 2048 descriptors");
         static constexpr std::uint32_t TextureResourceBase =
             BackBufferTextureBase + MaxSwapchains * MaxBackBuffers;
         static constexpr std::uint64_t PendingRetirementFence = ~std::uint64_t{0};
