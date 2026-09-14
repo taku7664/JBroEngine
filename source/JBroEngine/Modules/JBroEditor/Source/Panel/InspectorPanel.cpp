@@ -7,6 +7,7 @@
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Editor/Widget/FieldLabel.h>
 #include <JBro/Editor/Widget/FormLayout.h>
+#include <JBro/Editor/Widget/List.h>
 #include <JBro/Reflection/PropertyInfo.h>
 #include <JBro/Reflection/PropertyRegistry.h>
 #include <JBro/Runtime/Component.h>
@@ -409,6 +410,90 @@ namespace JBro
             after));
     }
 
+    void InspectorPanel::DrawArray(
+        const TypeDescriptor& type, void* address, bool editable, Context& context)
+    {
+        const ArrayOps& ops = *type.arrayOps;
+        const TypeDescriptor* element = type.element;
+        if (element == nullptr)
+        {
+            ImGui::TextDisabled("%s",
+                Loc::TextOr(LocKeys::InspectorUndrawableType, "(no way to show this type)"));
+            return;
+        }
+
+        // **길은 여기서 끊긴다.** 프로퍼티 길은 필드 번호의 나열이고, 배열의
+        // 원소 번호는 그 길에 담을 수 없다 - 담으려면 길이 "필드인가 원소인가"
+        // 를 함께 들어야 하고, 그러면 되살리기와 저장이 모두 바뀐다.
+        // 그래서 원소 편집은 아직 커맨드가 되지 않는다. 늘리고 줄이는 것만
+        // 커맨드 밖에서 즉시 반영한다(D-71 의 예외이고, 아래 TODO 가 그 자리다).
+        std::uint32_t flags = Widget::ListFlagsShowIndex;
+        if (false == editable)
+        {
+            flags |= Widget::ListFlagsReadOnly;
+        }
+
+        Widget::ListVirtual(
+            "##array",
+            static_cast<int>(ops.GetSize(address)),
+            [&](int index) -> bool {
+                void* item = ops.GetElement(address, static_cast<std::size_t>(index));
+                if (item == nullptr)
+                {
+                    return false;
+                }
+                // 원소도 한 값 한 줄이다. 라벨은 목록이 이미 번호로 그렸다.
+                ScalarRun run;
+                if (CollectScalarRun(*element, item, run))
+                {
+                    return DrawScalarRun(*element, run, nullptr);
+                }
+                if (element->codec != nullptr)
+                {
+                    String before;
+                    const bool snapped = ToText(*element, item, before);
+                    return DrawLeaf(*element, item, nullptr, before, snapped);
+                }
+                ImGui::TextDisabled("%s",
+                    Loc::TextOr(LocKeys::InspectorUndrawableType,
+                        "(no way to show this type)"));
+                return false;
+            },
+            [&]() { ops.AddDefault(address); },
+            [&](int index) { ops.RemoveAt(address, static_cast<std::size_t>(index)); },
+            [&](int fromIndex, int toIndex) {
+                // 조작 함수에는 옮기기가 없다. 빼서 끼우는 것을 값 교환으로 흉내낸다 -
+                // 원소 타입을 모르므로 코덱의 `Assign` 을 빌린다.
+                if (element->codec == nullptr || element->codec->Assign == nullptr)
+                {
+                    return;
+                }
+                const int step = fromIndex < toIndex ? 1 : -1;
+                for (int at = fromIndex; at != toIndex; at += step)
+                {
+                    void* left = ops.GetElement(address, static_cast<std::size_t>(at));
+                    void* right = ops.GetElement(address, static_cast<std::size_t>(at + step));
+                    if (left == nullptr || right == nullptr)
+                    {
+                        return;
+                    }
+                    // 자리 바꾸기. 임시 자리가 필요하지만 타입을 모르므로
+                    // 배열 끝에 하나 늘렸다 줄이는 대신, 코덱으로 세 번 옮긴다.
+                    ops.AddDefault(address);
+                    void* scratch = ops.GetElement(address, ops.GetSize(address) - 1);
+                    if (scratch == nullptr)
+                    {
+                        return;
+                    }
+                    element->codec->Assign(scratch, left);
+                    element->codec->Assign(left, right);
+                    element->codec->Assign(right, scratch);
+                    ops.RemoveAt(address, ops.GetSize(address) - 1);
+                }
+            },
+            flags);
+    }
+
     void InspectorPanel::DrawFieldsInto(
         Widget::FormLayout& layout,
         const PropertyTable& table,
@@ -497,15 +582,18 @@ namespace JBro
             }
             return;
         }
-        // 컨테이너는 아직 조작 함수가 없다(ArrayOps/TableOps 미구현). 개수만 보여 준다.
+        // 배열은 목록 위젯이 그린다. 원소 접근이 전부 조작 함수를 거치므로
+        // 인스펙터는 여기서도 무엇이 든 배열인지 모른다(ProjectRule §11.1).
         if (type.arrayOps != nullptr && type.arrayOps->GetSize != nullptr)
         {
-            ImGui::Text(Loc::TextOr(LocKeys::ListElementCount, "%d item(s)"),
-                static_cast<int>(type.arrayOps->GetSize(address)));
+            DrawArray(type, address, editable, context);
             return;
         }
         if (type.tableOps != nullptr && type.tableOps->GetSize != nullptr)
         {
+            // 표는 키를 받아야 원소를 만들 수 있고, 그 키 칸을 어떻게 그릴지가
+            // 아직 정해지지 않았다. 지금은 개수만 보여 준다 - 목록 위젯의
+            // `drawAddRow` 자리가 그것을 위해 열려 있다.
             ImGui::Text(Loc::TextOr(LocKeys::ListElementCount, "%d item(s)"),
                 static_cast<int>(type.tableOps->GetSize(address)));
             return;

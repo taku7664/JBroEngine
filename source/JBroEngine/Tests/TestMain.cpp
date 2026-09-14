@@ -13,6 +13,7 @@ int RunReflectionShapeTests();
 int RunReflectionFieldTests();
 int RunPropertyRegistryTests();
 int RunReflectionCompoundTests();
+int RunReflectionContainerTests();
 int RunBuiltinComponentPropertyTests();
 int RunScriptSchedulingTests();
 int RunSpritePixelTests();
@@ -88,6 +89,10 @@ int main()
             return 1;
         }
         if (RunReflectionCompoundTests() != 0)
+        {
+            return 1;
+        }
+        if (RunReflectionContainerTests() != 0)
         {
             return 1;
         }

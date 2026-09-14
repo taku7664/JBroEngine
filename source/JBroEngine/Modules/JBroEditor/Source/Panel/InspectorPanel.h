@@ -75,6 +75,9 @@ namespace JBro
             const TypeDescriptor& type,
             const ScalarRun& run,
             const PropertyEditInfo* edit);
+        // 배열 하나를 목록 위젯으로 그린다.
+        void DrawArray(
+            const TypeDescriptor& type, void* address, bool editable, Context& context);
         // 코덱 하나짜리 잎사귀.
         bool DrawLeaf(
             const TypeDescriptor& type,
