@@ -55,9 +55,15 @@ namespace
     class FakeCommandContext final : public JBro::IRHICommandContext
     {
     public:
-        bool BeginRenderPass(const JBro::RenderPassDesc&) override
+        bool BeginRenderPass(const JBro::RenderPassDesc& desc) override
         {
             ++beginRenderPassCount;
+            // 뷰가 어디로 갔는지는 첨부 텍스처에만 남는다. 카운터만 세면
+            // 백버퍼로 가든 게임 뷰 텍스처로 가든 같은 숫자다.
+            if (desc.colorAttachments.data != nullptr && desc.colorAttachments.size != 0)
+            {
+                lastColorAttachment = desc.colorAttachments.data[0].texture;
+            }
             return true;
         }
 
@@ -131,6 +137,7 @@ namespace
         }
 
         std::uint32_t beginRenderPassCount = 0;
+        JBro::TextureHandle lastColorAttachment;
         std::uint32_t endRenderPassCount = 0;
         std::uint32_t setPipelineCount = 0;
         std::uint32_t setVertexBufferCount = 0;
@@ -448,6 +455,14 @@ namespace
         JBro::RenderResult Render() override
         {
             ++renders;
+            // 뷰를 하나라도 열어야 렌더러가 패스를 기록한다. 그래야 "어디에 그렸는가" 가
+            // 남는다 - 아무것도 제출하지 않으면 기록할 것도 없다.
+            if (submitView && context.renderer != nullptr)
+            {
+                JBro::CameraParams camera;
+                context.renderer->BeginView(camera);
+                context.renderer->EndView();
+            }
             if (closeDuringRender)
             {
                 engine->CloseProject();
@@ -478,6 +493,7 @@ namespace
         bool bindContextsSucceeds = true;
         bool initializeSucceeds = true;
         JBro::RenderResult renderResult = JBro::RenderResult::Submitted;
+        bool submitView = false;
         bool exitDuringUpdate = false;
         bool throwDuringUpdate = false;
         bool throwDuringInitialize = false;
@@ -489,6 +505,7 @@ namespace
         int shutdownsBeforeUpdate = 0;
     };
 
+    // 오버레이가 불렸는지, 그때 백버퍼가 무엇이었는지 남긴다.
     void TestProjectSwitchPreservesProcessResources()
     {
         FakeModule module;
@@ -941,6 +958,84 @@ namespace
         Check(module.device.destroyPipelineCount == 1,
             "shutdown must destroy the built-in sprite pipeline");
     }
+    struct HostOverlayProbe
+    {
+        int calls = 0;
+        JBro::TextureHandle backBuffer;
+    };
+
+    bool RecordHostOverlay(JBro::IRHICommandContext&, JBro::TextureHandle backBuffer, void* user)
+    {
+        auto* probe = static_cast<HostOverlayProbe*>(user);
+        ++probe->calls;
+        probe->backBuffer = backBuffer;
+        return true;
+    }
+
+    // **에디터 프레임의 배선이 호스트까지 닿는가.** 게임 화면은 텍스처로 가고,
+    // 백버퍼에 낼 것이 없어도 프레임은 살아 있어야 에디터 UI 가 거기에 얹힌다(D-63).
+    void TestTheHostHandsTheEditorItsFrame()
+    {
+        FakeModule module;
+        HostPlatform platform;
+        platform.module = &module;
+        HostFramework framework;
+        framework.platform = &platform;
+        JBro::EngineInstance engine;
+        framework.engine = &engine;
+        JBro::EngineConfig config;
+        config.window.visible = false;
+        Check(InitializeHost(engine, config, platform, module, framework),
+            "the host must initialize");
+
+        JBro::Renderer* renderer = engine.GetRenderer();
+        Check(renderer != nullptr, "the host must expose its renderer");
+
+        // ① 타깃을 주지 않으면 백버퍼로 간다. 게임 실행이 그것이다.
+        framework.submitView = true;
+        Check(engine.Tick(0.016f), "the plain frame must tick");
+        Check(module.device.commands.lastColorAttachment == JBro::TextureHandle{2, 1},
+            "with no target the view must go to the back buffer");
+
+        // ② 타깃을 주면 그 텍스처로 간다. 같은 렌더 경로이고 목적지만 다르다.
+        const JBro::TextureHandle gameView = module.device.CreateTexture({});
+        JBro::FrameTarget target;
+        target.texture = gameView;
+        target.extent = {320, 240};
+        Check(engine.SetGameViewTarget(target), "the host must take a game view target");
+        Check(engine.Tick(0.016f), "the aimed frame must tick");
+        Check(module.device.commands.lastColorAttachment == gameView,
+            "the view must go to the texture the editor asked for");
+
+        // ③ 게임이 낼 것이 없는 프레임. 오버레이가 없으면 버린다.
+        framework.submitView = false;
+        framework.renderResult = JBro::RenderResult::NothingToSubmit;
+        std::uint32_t aborts = module.device.abortFrameCount;
+        std::uint32_t presents = module.device.endFrameCount;
+        Check(engine.Tick(0.016f), "an empty frame must not stop the loop");
+        Check(module.device.abortFrameCount == aborts + 1
+                && module.device.endFrameCount == presents,
+            "with nothing to show and nobody to draw, the frame is thrown away");
+
+        // ④ **오버레이를 걸면 같은 프레임이 살아남는다.** 에디터에서는 게임 화면이
+        // 텍스처로 가서 백버퍼가 비는 것이 정상이고, 그 프레임을 버리면 UI 도 사라진다.
+        HostOverlayProbe probe;
+        Check(renderer->SetFrameOverlay(&RecordHostOverlay, &probe),
+            "the overlay must attach outside a frame");
+        aborts = module.device.abortFrameCount;
+        presents = module.device.endFrameCount;
+        Check(engine.Tick(0.016f), "the frame with an overlay must tick");
+        Check(probe.calls == 1, "the overlay must be asked to draw");
+        Check(probe.backBuffer == JBro::TextureHandle{2, 1},
+            "and be handed the back buffer, not the game view texture");
+        Check(module.device.endFrameCount == presents + 1
+                && module.device.abortFrameCount == aborts,
+            "and the frame must be presented rather than thrown away");
+
+        Check(renderer->SetFrameOverlay(nullptr, nullptr), "the overlay must detach");
+        engine.Shutdown();
+    }
+
 }
 
 int RunRendererContractTests()
@@ -949,6 +1044,7 @@ int RunRendererContractTests()
     TestRendererCollectsBeforeRecording();
     TestFrameworkSubmitsTransformedBatches();
     TestEngineHostLifecycle();
+    TestTheHostHandsTheEditorItsFrame();
     TestProjectSwitchPreservesProcessResources();
     std::cout << "Renderer contract tests passed.\n";
     return 0;

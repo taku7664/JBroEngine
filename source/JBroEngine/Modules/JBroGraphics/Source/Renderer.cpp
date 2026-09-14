@@ -300,7 +300,6 @@ namespace JBro
             m_device->AbortFrame(m_frame);
             m_lastStats = m_currentStats;
             m_frame = {};
-            m_frameTarget = {};
             m_frameActive = false;
             return FrameStatus::InvalidState;
         }
