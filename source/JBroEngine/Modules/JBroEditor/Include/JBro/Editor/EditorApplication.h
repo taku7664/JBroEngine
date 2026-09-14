@@ -143,6 +143,7 @@ namespace JBro
             TextureHandle backBuffer,
             std::uint32_t frameSlot,
             void* user);
+        void DrawMenuBar();
         bool BuildEditorUi(float deltaTime);
         void ReleaseEditorUi();
         void DestroyPanels();
@@ -164,6 +165,8 @@ namespace JBro
         TextureHandle m_gameView;
         Extent2D m_gameViewExtent;
         bool m_uiEnabled = false;
+        // 메뉴에서 끝내기를 골랐다. 다음 틱에서 내려간다.
+        bool m_exitRequested = false;
         // 첫 프레임에 한 번만 기본 자리를 잡는다. 그 뒤로는 사용자가 옮긴 자리다.
         bool m_dockLayoutBuilt = false;
         // 만든 쪽이 무엇을 만들었는지 기억한다. `IFramework` 에는 캔버스로 가는 길이 없고,

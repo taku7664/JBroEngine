@@ -463,6 +463,95 @@ namespace JBro
         m_panels.Clear();
     }
 
+    void EditorApplication::DrawMenuBar()
+    {
+        if (false == ImGui::BeginMenuBar())
+        {
+            return;
+        }
+
+        if (ImGui::BeginMenu("File"))
+        {
+            // 저장은 경로를 받아야 하므로 아직 손잡이가 없다. 그래도 자리를
+            // 비워 두지 않는 이유는, 비어 있으면 붙일 자리를 잊기 때문이다.
+            ImGui::BeginDisabled();
+            ImGui::MenuItem("Save Canvas", "Ctrl+S");
+            ImGui::EndDisabled();
+            ImGui::Separator();
+            if (ImGui::MenuItem("Exit"))
+            {
+                m_exitRequested = true;
+            }
+            ImGui::EndMenu();
+        }
+
+        if (ImGui::BeginMenu("Edit"))
+        {
+            // **할 수 없는 것은 회색으로 보인다.** 눌리는데 아무 일도 안 하면
+            // 고장인지 할 게 없는 건지 알 수 없다.
+            const bool canUndo = m_commands.CanUndo();
+            if (false == canUndo)
+            {
+                ImGui::BeginDisabled();
+            }
+            if (ImGui::MenuItem("Undo", "Ctrl+Z"))
+            {
+                m_commands.Undo();
+            }
+            if (false == canUndo)
+            {
+                ImGui::EndDisabled();
+            }
+
+            const bool canRedo = m_commands.CanRedo();
+            if (false == canRedo)
+            {
+                ImGui::BeginDisabled();
+            }
+            if (ImGui::MenuItem("Redo", "Ctrl+Y"))
+            {
+                m_commands.Redo();
+            }
+            if (false == canRedo)
+            {
+                ImGui::EndDisabled();
+            }
+            ImGui::EndMenu();
+        }
+
+        if (ImGui::BeginMenu("Window"))
+        {
+            // 패널이 무엇인지 모른 채로 만든다. 레지스트리에 있는 것이 곧
+            // 이 목록이라, 패널을 더해도 여기는 그대로다.
+            for (std::size_t index = 0; index < m_panels.Size(); ++index)
+            {
+                EditorPanel* panel = m_panels[index].Get();
+                if (panel == nullptr)
+                {
+                    continue;
+                }
+                bool open = panel->IsOpen();
+                if (ImGui::MenuItem(panel->GetTitle(), nullptr, &open))
+                {
+                    panel->SetOpen(open);
+                }
+            }
+            ImGui::EndMenu();
+        }
+
+        // 저장하지 않은 편집이 있으면 오른쪽 끝에 말해 준다. 판번호로 재므로
+        // 고쳤다 되돌려 원래대로 온 상태는 여기 나오지 않는다.
+        if (m_commands.IsDirty())
+        {
+            const char* mark = "unsaved";
+            const float width = ImGui::CalcTextSize(mark).x;
+            ImGui::SameLine(ImGui::GetContentRegionMax().x - width
+                - ImGui::GetStyle().ItemSpacing.x);
+            ImGui::TextDisabled("%s", mark);
+        }
+        ImGui::EndMenuBar();
+    }
+
     bool EditorApplication::BuildEditorUi(float deltaTime)
     {
         Renderer* renderer = m_engine->GetRenderer();
@@ -526,8 +615,10 @@ namespace JBro
             ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse
                 | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove
                 | ImGuiWindowFlags_NoBringToFrontOnFocus
-                | ImGuiWindowFlags_NoNavFocus);
+                | ImGuiWindowFlags_NoNavFocus
+                | ImGuiWindowFlags_MenuBar);
         ImGui::PopStyleVar(3);
+        DrawMenuBar();
         const ImGuiID dockSpace = ImGui::GetID("EditorDockSpace");
         ImGui::DockSpace(dockSpace);
         if (false == m_dockLayoutBuilt)
@@ -647,6 +738,13 @@ namespace JBro
         // 하는데, 엔진 Tick 이 그 프레임을 연다.
         if (m_uiEnabled && false == BuildEditorUi(deltaTime))
         {
+            return false;
+        }
+        if (m_exitRequested)
+        {
+            // 메뉴에서 끝내기를 골랐다. UI 를 먼저 놓고 내려간다 -
+            // 엔진이 디바이스를 지우기 전이어야 한다.
+            ReleaseProcessResources();
             return false;
         }
         const bool running = m_engine->Tick(deltaTime);
