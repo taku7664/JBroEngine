@@ -17,6 +17,7 @@ int RunCanvasFileTests();
 int RunRendererContractTests();
 int RunPlatformContractTests();
 int RunD3D12SmokeTests();
+int RunTextureBindingTests();
 int RunReferenceSafetyTests();
 int RunFramework2DSystemTests();
 int RunSystemSchedulerTests();
@@ -76,6 +77,10 @@ int main()
             return 1;
         }
         if (RunD3D12SmokeTests() != 0)
+        {
+            return 1;
+        }
+        if (RunTextureBindingTests() != 0)
         {
             return 1;
         }

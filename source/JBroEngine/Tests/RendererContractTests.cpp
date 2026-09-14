@@ -107,6 +107,18 @@ namespace
             return true;
         }
 
+        // 이 가짜는 텍스처를 쓰지 않는다. 받아 두기만 하고 무엇도 그리지 않는다 —
+        // 스프라이트 경로는 아직 텍스처를 묶지 않으므로 세어 둘 값도 없다.
+        bool SetTexture(std::uint32_t, JBro::TextureHandle) override
+        {
+            return true;
+        }
+
+        bool SetSampler(std::uint32_t, JBro::SamplerHandle) override
+        {
+            return true;
+        }
+
         bool DrawIndexedInstanced(
             std::uint32_t,
             std::uint32_t,
@@ -165,6 +177,23 @@ namespace
         }
 
         void DestroyTexture(JBro::TextureHandle) override
+        {
+        }
+
+        bool WriteTexture(
+            JBro::TextureHandle,
+            std::uint32_t,
+            JBro::JArrayView<std::byte>) override
+        {
+            return true;
+        }
+
+        JBro::SamplerHandle CreateSampler(const JBro::SamplerDesc&) override
+        {
+            return {1, 1};
+        }
+
+        void DestroySampler(JBro::SamplerHandle) override
         {
         }
 

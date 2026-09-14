@@ -363,7 +363,10 @@ namespace JBro::Internal
         {
             resourceDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
         }
-        if (false == sampled)
+        // DENY_SHADER_RESOURCE 는 **깊이 자원에만 붙는 플래그다.** 컬러 렌더 타깃에 붙이면
+        // D3D12 가 자원 생성 자체를 거절한다. 여태 드러나지 않은 것은 색 렌더 타깃을
+        // CreateTexture 로 만든 적이 없어서다 — 화면은 스왑체인 백버퍼를 쓴다.
+        if (depthStencil && false == sampled)
         {
             resourceDesc.Flags |= D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE;
         }
@@ -392,6 +395,7 @@ namespace JBro::Internal
         state.retirementFence = 0;
         state.renderTargetDescriptor = {};
         state.depthStencilDescriptor = {};
+        state.shaderResourceDescriptor = {};
 
         if (renderTarget)
         {
@@ -417,6 +421,31 @@ namespace JBro::Internal
                 viewDesc.Texture2DArray.ArraySize = desc.depthOrLayers;
             }
             m_device->CreateDepthStencilView(resource.Get(), &viewDesc, state.depthStencilDescriptor);
+        }
+
+        if (HasTextureUsage(desc.usage, TextureUsage::Sampled))
+        {
+            const D3D12_CPU_DESCRIPTOR_HANDLE heapStart =
+                m_textureShaderResourceHeap->GetCPUDescriptorHandleForHeapStart();
+            state.shaderResourceDescriptor.ptr = heapStart.ptr
+                + static_cast<SIZE_T>(slotIndex) * m_shaderResourceDescriptorStride;
+            D3D12_SHADER_RESOURCE_VIEW_DESC viewDesc = {};
+            viewDesc.Format = ToNativeFormat(desc.format);
+            viewDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+            viewDesc.ViewDimension = desc.depthOrLayers == 1
+                ? D3D12_SRV_DIMENSION_TEXTURE2D
+                : D3D12_SRV_DIMENSION_TEXTURE2DARRAY;
+            if (desc.depthOrLayers == 1)
+            {
+                viewDesc.Texture2D.MipLevels = desc.mipLevels;
+            }
+            else
+            {
+                viewDesc.Texture2DArray.MipLevels = desc.mipLevels;
+                viewDesc.Texture2DArray.ArraySize = desc.depthOrLayers;
+            }
+            m_device->CreateShaderResourceView(
+                resource.Get(), &viewDesc, state.shaderResourceDescriptor);
         }
 
         state.occupied = true;
@@ -878,4 +907,356 @@ namespace JBro::Internal
         return true;
     }
 
+    bool D3D12Device::ResolveSampledTexture(
+        TextureHandle texture,
+        D3D12_CPU_DESCRIPTOR_HANDLE& descriptor)
+    {
+        if (m_device == nullptr || false == texture.IsValid())
+        {
+            return false;
+        }
+        if (texture.index < TextureResourceBase)
+        {
+            // 백버퍼다. 렌더 타깃이지 셰이더가 읽는 것이 아니다.
+            return false;
+        }
+        const std::uint32_t slotIndex = texture.index - TextureResourceBase;
+        if (slotIndex >= MaxTextures)
+        {
+            return false;
+        }
+        D3D12TextureState& state = m_textures[slotIndex];
+        if (false == state.occupied || state.generation != texture.generation)
+        {
+            return false;
+        }
+        if (state.shaderResourceDescriptor.ptr == 0)
+        {
+            // Sampled 로 만들지 않은 텍스처다. 조용히 빈 것을 묶으면 셰이더가
+            // 무엇을 읽는지 알 수 없게 된다.
+            return false;
+        }
+        descriptor = state.shaderResourceDescriptor;
+        return true;
+    }
+
+    bool D3D12Device::ResolveSampler(
+        SamplerHandle sampler,
+        D3D12_CPU_DESCRIPTOR_HANDLE& descriptor)
+    {
+        if (m_device == nullptr || false == sampler.IsValid() || sampler.index >= MaxSamplers)
+        {
+            return false;
+        }
+        const D3D12SamplerState& state = m_samplers[sampler.index];
+        if (false == state.occupied || state.generation != sampler.generation)
+        {
+            return false;
+        }
+        descriptor = state.descriptor;
+        return true;
+    }
+
+    bool D3D12Device::StageShaderResources(
+        const D3D12_CPU_DESCRIPTOR_HANDLE* descriptors,
+        std::uint32_t count,
+        D3D12_GPU_DESCRIPTOR_HANDLE& table)
+    {
+        if (m_device == nullptr || descriptors == nullptr || count == 0)
+        {
+            return false;
+        }
+        if (m_shaderVisibleTextureCursor + count > ShaderVisibleTexturesPerFrame)
+        {
+            // 이 프레임 몫을 다 썼다. 앞 프레임 자리를 빌려 쓰면 아직 읽고 있는 것을 덮는다.
+            return false;
+        }
+
+        const std::uint32_t base =
+            m_activeFrameSlot * ShaderVisibleTexturesPerFrame + m_shaderVisibleTextureCursor;
+        D3D12_CPU_DESCRIPTOR_HANDLE destination =
+            m_shaderVisibleTextureHeap->GetCPUDescriptorHandleForHeapStart();
+        destination.ptr += static_cast<SIZE_T>(base) * m_shaderResourceDescriptorStride;
+        for (std::uint32_t index = 0; index < count; ++index)
+        {
+            m_device->CopyDescriptorsSimple(
+                1,
+                destination,
+                descriptors[index],
+                D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+            destination.ptr += m_shaderResourceDescriptorStride;
+        }
+
+        table = m_shaderVisibleTextureHeap->GetGPUDescriptorHandleForHeapStart();
+        table.ptr += static_cast<UINT64>(base) * m_shaderResourceDescriptorStride;
+        m_shaderVisibleTextureCursor += count;
+        return true;
+    }
+
+    bool D3D12Device::StageSamplers(
+        const D3D12_CPU_DESCRIPTOR_HANDLE* descriptors,
+        std::uint32_t count,
+        D3D12_GPU_DESCRIPTOR_HANDLE& table)
+    {
+        if (m_device == nullptr || descriptors == nullptr || count == 0)
+        {
+            return false;
+        }
+        if (m_shaderVisibleSamplerCursor + count > ShaderVisibleSamplersPerFrame)
+        {
+            return false;
+        }
+
+        const std::uint32_t base =
+            m_activeFrameSlot * ShaderVisibleSamplersPerFrame + m_shaderVisibleSamplerCursor;
+        D3D12_CPU_DESCRIPTOR_HANDLE destination =
+            m_shaderVisibleSamplerHeap->GetCPUDescriptorHandleForHeapStart();
+        destination.ptr += static_cast<SIZE_T>(base) * m_samplerDescriptorStride;
+        for (std::uint32_t index = 0; index < count; ++index)
+        {
+            m_device->CopyDescriptorsSimple(
+                1,
+                destination,
+                descriptors[index],
+                D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+            destination.ptr += m_samplerDescriptorStride;
+        }
+
+        table = m_shaderVisibleSamplerHeap->GetGPUDescriptorHandleForHeapStart();
+        table.ptr += static_cast<UINT64>(base) * m_samplerDescriptorStride;
+        m_shaderVisibleSamplerCursor += count;
+        return true;
+    }
+
+    SamplerHandle D3D12Device::CreateSampler(const SamplerDesc& desc)
+    {
+        if (m_device == nullptr)
+        {
+            return {};
+        }
+        std::uint32_t slotIndex = MaxSamplers;
+        for (std::uint32_t index = 0; index < MaxSamplers; ++index)
+        {
+            if (false == m_samplers[index].occupied)
+            {
+                slotIndex = index;
+                break;
+            }
+        }
+        if (slotIndex == MaxSamplers)
+        {
+            return {};
+        }
+
+        D3D12_SAMPLER_DESC nativeDesc = {};
+        // 확대·축소 필터를 따로 받지만 D3D12 는 둘을 한 값으로 묶는다.
+        // 둘이 다르면 축소 쪽을 따른다 — 아틀라스가 뭉개지는 쪽이 더 눈에 띈다.
+        const bool linear = desc.minFilter == FilterMode::Linear
+            && desc.magFilter == FilterMode::Linear;
+        nativeDesc.Filter = linear
+            ? D3D12_FILTER_MIN_MAG_MIP_LINEAR
+            : D3D12_FILTER_MIN_MAG_MIP_POINT;
+        const auto toAddress = [](AddressMode mode)
+        {
+            return mode == AddressMode::Repeat
+                ? D3D12_TEXTURE_ADDRESS_MODE_WRAP
+                : D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+        };
+        nativeDesc.AddressU = toAddress(desc.addressU);
+        nativeDesc.AddressV = toAddress(desc.addressV);
+        nativeDesc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+        nativeDesc.MaxLOD = D3D12_FLOAT32_MAX;
+        nativeDesc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+
+        D3D12SamplerState& state = m_samplers[slotIndex];
+        state.descriptor = m_samplerStagingHeap->GetCPUDescriptorHandleForHeapStart();
+        state.descriptor.ptr += static_cast<SIZE_T>(slotIndex) * m_samplerDescriptorStride;
+        m_device->CreateSampler(&nativeDesc, state.descriptor);
+
+        state.desc = desc;
+        state.occupied = true;
+
+        SamplerHandle handle;
+        handle.index = slotIndex;
+        handle.generation = state.generation;
+        return handle;
+    }
+
+    void D3D12Device::DestroySampler(SamplerHandle sampler)
+    {
+        if (false == sampler.IsValid() || sampler.index >= MaxSamplers)
+        {
+            return;
+        }
+        D3D12SamplerState& state = m_samplers[sampler.index];
+        if (false == state.occupied || state.generation != sampler.generation)
+        {
+            return;
+        }
+        state.occupied = false;
+        state.descriptor = {};
+        ++state.generation;
+        if (state.generation == 0)
+        {
+            state.generation = 1;
+        }
+    }
+
+    bool D3D12Device::WriteTexture(
+        TextureHandle texture,
+        std::uint32_t mipLevel,
+        JArrayView<std::byte> data)
+    {
+        if (m_device == nullptr || m_status == FrameStatus::DeviceLost)
+        {
+            return false;
+        }
+        // 프레임 안에서는 거절한다. 여기서 GPU 를 기다리므로 프레임을 가로막게 된다
+        // (`ReadTexture` 와 같은 이유, 같은 계약이다).
+        if (m_frameActive)
+        {
+            return false;
+        }
+        if (data.data == nullptr || data.size == 0 || mipLevel != 0)
+        {
+            // 밉 하나짜리만 올린다. 밉 체인이 필요해지면 그때 연다.
+            return false;
+        }
+        if (texture.index < TextureResourceBase)
+        {
+            return false;
+        }
+        const std::uint32_t slotIndex = texture.index - TextureResourceBase;
+        if (slotIndex >= MaxTextures)
+        {
+            return false;
+        }
+        D3D12TextureState& state = m_textures[slotIndex];
+        if (false == state.occupied || state.generation != texture.generation)
+        {
+            return false;
+        }
+
+        const D3D12_RESOURCE_DESC resourceDesc = state.resource->GetDesc();
+        D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint = {};
+        UINT rowCount = 0;
+        UINT64 rowSizeInBytes = 0;
+        UINT64 uploadSize = 0;
+        m_device->GetCopyableFootprints(
+            &resourceDesc, 0, 1, 0, &footprint, &rowCount, &rowSizeInBytes, &uploadSize);
+        if (uploadSize == 0 || rowCount == 0)
+        {
+            return false;
+        }
+        // 부르는 쪽은 행 패딩 없이 빽빽한 것을 준다. 그것이 실제 크기와 맞아야 한다 —
+        // 모자란 것을 받아 올리면 나머지가 쓰레기로 채워진다.
+        if (data.size != static_cast<std::size_t>(rowSizeInBytes) * rowCount)
+        {
+            return false;
+        }
+
+        D3D12_HEAP_PROPERTIES uploadHeap = {};
+        uploadHeap.Type = D3D12_HEAP_TYPE_UPLOAD;
+        D3D12_RESOURCE_DESC uploadDesc = {};
+        uploadDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+        uploadDesc.Width = uploadSize;
+        uploadDesc.Height = 1;
+        uploadDesc.DepthOrArraySize = 1;
+        uploadDesc.MipLevels = 1;
+        uploadDesc.Format = DXGI_FORMAT_UNKNOWN;
+        uploadDesc.SampleDesc.Count = 1;
+        uploadDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+
+        ComPtr<ID3D12Resource> upload;
+        if (FAILED(m_device->CreateCommittedResource(
+            &uploadHeap,
+            D3D12_HEAP_FLAG_NONE,
+            &uploadDesc,
+            D3D12_RESOURCE_STATE_GENERIC_READ,
+            nullptr,
+            IID_PPV_ARGS(&upload))))
+        {
+            return false;
+        }
+
+        std::byte* mapped = nullptr;
+        D3D12_RANGE noRead = {0, 0};
+        if (FAILED(upload->Map(0, &noRead, reinterpret_cast<void**>(&mapped))))
+        {
+            return false;
+        }
+        // 행마다 GPU 가 요구하는 간격으로 옮겨 놓는다. 부르는 쪽이 그 간격을 알 필요는 없다.
+        for (UINT row = 0; row < rowCount; ++row)
+        {
+            std::memcpy(
+                mapped + footprint.Offset + static_cast<std::size_t>(row) * footprint.Footprint.RowPitch,
+                data.data + static_cast<std::size_t>(row) * rowSizeInBytes,
+                static_cast<std::size_t>(rowSizeInBytes));
+        }
+        upload->Unmap(0, nullptr);
+
+        const std::uint32_t frameSlot = static_cast<std::uint32_t>(
+            m_nextFenceValue % MaxFramesInFlight);
+        if (FAILED(m_commandAllocators[frameSlot]->Reset())
+            || FAILED(m_commandList->Reset(m_commandAllocators[frameSlot].Get(), nullptr)))
+        {
+            MarkDeviceLost();
+            return false;
+        }
+
+        if (state.state != D3D12_RESOURCE_STATE_COPY_DEST)
+        {
+            D3D12_RESOURCE_BARRIER toCopy = {};
+            toCopy.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+            toCopy.Transition.pResource = state.resource.Get();
+            toCopy.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+            toCopy.Transition.StateBefore = state.state;
+            toCopy.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
+            m_commandList->ResourceBarrier(1, &toCopy);
+            state.state = D3D12_RESOURCE_STATE_COPY_DEST;
+        }
+
+        D3D12_TEXTURE_COPY_LOCATION destination = {};
+        destination.pResource = state.resource.Get();
+        destination.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+        destination.SubresourceIndex = 0;
+        D3D12_TEXTURE_COPY_LOCATION source = {};
+        source.pResource = upload.Get();
+        source.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+        source.PlacedFootprint = footprint;
+        m_commandList->CopyTextureRegion(&destination, 0, 0, 0, &source, nullptr);
+
+        // 올린 다음에는 셰이더가 읽을 상태로 돌려 둔다. 여기서 하지 않으면
+        // 처음 그리는 쪽이 상태를 기억하고 있어야 한다.
+        D3D12_RESOURCE_BARRIER toRead = {};
+        toRead.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        toRead.Transition.pResource = state.resource.Get();
+        toRead.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+        toRead.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
+        toRead.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+        m_commandList->ResourceBarrier(1, &toRead);
+        state.state = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+
+        if (FAILED(m_commandList->Close()))
+        {
+            MarkDeviceLost();
+            return false;
+        }
+        ID3D12CommandList* const lists[] = {m_commandList.Get()};
+        m_graphicsQueue->ExecuteCommandLists(1, lists);
+
+        const std::uint64_t fenceValue = m_nextFenceValue++;
+        if (FAILED(m_graphicsQueue->Signal(m_fence.Get(), fenceValue)))
+        {
+            MarkDeviceLost();
+            return false;
+        }
+        m_lastSubmittedFenceValue = fenceValue;
+        // 업로드 버퍼가 여기서 사라지므로 GPU 가 다 쓸 때까지 기다려야 한다.
+        if (false == WaitForFence(fenceValue))
+        {
+            return false;
+        }
+        return true;
+    }
 }

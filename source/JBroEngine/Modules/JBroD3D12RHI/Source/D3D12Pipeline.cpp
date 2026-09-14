@@ -1,4 +1,4 @@
-#include "D3D12Device.h"
+﻿#include "D3D12Device.h"
 
 #include <limits>
 
@@ -191,7 +191,20 @@ namespace JBro::Internal
             return {};
         }
 
-        D3D12_ROOT_PARAMETER rootParameter = {};
+        if (desc.sampledTextureCount > MaxBoundTextures || desc.samplerCount > MaxBoundSamplers)
+        {
+            // 한 드로우가 묶을 수 있는 수를 넘었다. 루트 시그니처는 만들어지고 나면
+            // 바꿀 수 없으므로, 여기서 거절하지 않으면 그리는 자리에서 조용히 잘린다.
+            return {};
+        }
+
+        // 파라미터 자리는 상수 → 텍스처 표 → 샘플러 표 순서다. 없는 것은 자리를 차지하지 않으므로
+        // 그리는 쪽이 번호를 짐작할 수 없고, 그래서 그 번호를 파이프라인에 적어 둔다.
+        D3D12_ROOT_PARAMETER rootParameters[3] = {};
+        std::uint32_t parameterCount = 0;
+        std::uint32_t textureTableParameter = InvalidRootParameter;
+        std::uint32_t samplerTableParameter = InvalidRootParameter;
+
         D3D12_ROOT_SIGNATURE_DESC rootDesc = {};
         rootDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT
             | D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS
@@ -199,14 +212,60 @@ namespace JBro::Internal
             | D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;
         if (desc.pushConstantBytes != 0)
         {
-            rootParameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
-            rootParameter.Constants.ShaderRegister = 0;
-            rootParameter.Constants.RegisterSpace = 0;
-            rootParameter.Constants.Num32BitValues =
+            D3D12_ROOT_PARAMETER& parameter = rootParameters[parameterCount];
+            parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+            parameter.Constants.ShaderRegister = 0;
+            parameter.Constants.RegisterSpace = 0;
+            parameter.Constants.Num32BitValues =
                 desc.pushConstantBytes / sizeof(std::uint32_t);
-            rootParameter.ShaderVisibility = ToNativeVisibility(desc.pushConstantStages);
-            rootDesc.NumParameters = 1;
-            rootDesc.pParameters = &rootParameter;
+            parameter.ShaderVisibility = ToNativeVisibility(desc.pushConstantStages);
+            ++parameterCount;
+        }
+
+        D3D12_DESCRIPTOR_RANGE textureRange = {};
+        if (desc.sampledTextureCount != 0)
+        {
+            textureRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+            textureRange.NumDescriptors = desc.sampledTextureCount;
+            textureRange.BaseShaderRegister = 0;
+            textureRange.RegisterSpace = 0;
+            textureRange.OffsetInDescriptorsFromTableStart =
+                D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+            D3D12_ROOT_PARAMETER& parameter = rootParameters[parameterCount];
+            parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+            parameter.DescriptorTable.NumDescriptorRanges = 1;
+            parameter.DescriptorTable.pDescriptorRanges = &textureRange;
+            // 텍스처는 픽셀 셰이더만 읽는다. 정점 단계에 열어 두면 드라이버가
+            // 필요 없는 가시성까지 준비한다.
+            parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+            textureTableParameter = parameterCount;
+            ++parameterCount;
+        }
+
+        D3D12_DESCRIPTOR_RANGE samplerRange = {};
+        if (desc.samplerCount != 0)
+        {
+            samplerRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
+            samplerRange.NumDescriptors = desc.samplerCount;
+            samplerRange.BaseShaderRegister = 0;
+            samplerRange.RegisterSpace = 0;
+            samplerRange.OffsetInDescriptorsFromTableStart =
+                D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+            D3D12_ROOT_PARAMETER& parameter = rootParameters[parameterCount];
+            parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+            parameter.DescriptorTable.NumDescriptorRanges = 1;
+            parameter.DescriptorTable.pDescriptorRanges = &samplerRange;
+            parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+            samplerTableParameter = parameterCount;
+            ++parameterCount;
+        }
+
+        if (parameterCount != 0)
+        {
+            rootDesc.NumParameters = parameterCount;
+            rootDesc.pParameters = rootParameters;
         }
 
         ComPtr<ID3DBlob> serializedRootSignature;
@@ -292,6 +351,10 @@ namespace JBro::Internal
         state.pipeline = pipeline;
         state.topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
         state.pushConstantCount = desc.pushConstantBytes / sizeof(std::uint32_t);
+        state.sampledTextureCount = desc.sampledTextureCount;
+        state.samplerCount = desc.samplerCount;
+        state.textureTableParameter = textureTableParameter;
+        state.samplerTableParameter = samplerTableParameter;
         state.retirementFence = 0;
         state.occupied = true;
         return {slotIndex, state.generation};
@@ -340,6 +403,10 @@ namespace JBro::Internal
         binding.rootSignature = state.rootSignature.Get();
         binding.topology = state.topology;
         binding.pushConstantCount = state.pushConstantCount;
+        binding.sampledTextureCount = state.sampledTextureCount;
+        binding.samplerCount = state.samplerCount;
+        binding.textureTableParameter = state.textureTableParameter;
+        binding.samplerTableParameter = state.samplerTableParameter;
         return true;
     }
 }

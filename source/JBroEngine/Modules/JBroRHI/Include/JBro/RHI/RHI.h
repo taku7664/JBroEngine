@@ -64,6 +64,19 @@ namespace JBro
         bool operator==(const GraphicsPipelineHandle&) const = default;
     };
 
+    struct SamplerHandle
+    {
+        std::uint32_t index = 0;
+        std::uint32_t generation = 0;
+
+        constexpr bool IsValid() const noexcept
+        {
+            return generation != 0;
+        }
+
+        bool operator==(const SamplerHandle&) const = default;
+    };
+
     enum class BufferUsage : std::uint32_t
     {
         None = 0,
@@ -241,6 +254,28 @@ namespace JBro
         TextureUsage usage = TextureUsage::None;
     };
 
+    enum class FilterMode : std::uint8_t
+    {
+        // 텍셀 하나를 그대로 집는다. 픽셀 아트와 폰트 아틀라스처럼 흐려지면 안 되는 것에 쓴다.
+        Nearest,
+        Linear
+    };
+
+    enum class AddressMode : std::uint8_t
+    {
+        // 가장자리 텍셀을 늘린다. 아틀라스에서 옆 칸이 새어 들어오지 않는다.
+        ClampToEdge,
+        Repeat
+    };
+
+    struct SamplerDesc
+    {
+        FilterMode  minFilter = FilterMode::Linear;
+        FilterMode  magFilter = FilterMode::Linear;
+        AddressMode addressU  = AddressMode::ClampToEdge;
+        AddressMode addressV  = AddressMode::ClampToEdge;
+    };
+
     struct ShaderBytecode
     {
         const void* data = nullptr;
@@ -273,6 +308,13 @@ namespace JBro
         CullMode cull = CullMode::Back;
         ShaderStage pushConstantStages = ShaderStage::Vertex;
         std::uint32_t pushConstantBytes = 0;
+        // 이 파이프라인이 픽셀 셰이더에서 읽는 텍스처와 샘플러의 수다.
+        // `t0..t(N-1)`, `s0..s(N-1)` 에 순서대로 묶인다.
+        //
+        // **개수를 파이프라인이 미리 말해야 한다.** 백엔드가 이것으로 루트 시그니처를 만들고,
+        // 그것은 파이프라인과 함께 만들어져 바뀌지 않는다. 그리기 직전에 알 수 있는 값이 아니다.
+        std::uint32_t sampledTextureCount = 0;
+        std::uint32_t samplerCount = 0;
     };
 
     struct SwapchainDesc
@@ -327,6 +369,13 @@ namespace JBro
             std::size_t offset) = 0;
         virtual bool SetIndexBuffer(BufferHandle buffer, IndexFormat format, std::size_t offset) = 0;
         virtual bool SetGraphicsConstants(JArrayView<std::byte> data) = 0;
+        // 슬롯에 텍스처와 샘플러를 묶는다. 슬롯 번호는 셰이더의 `t`/`s` 레지스터 번호다.
+        // 파이프라인이 선언한 개수를 넘는 슬롯은 거절한다 — 루트 시그니처에 자리가 없다.
+        //
+        // 그리기 직전까지 기억만 하고, 실제 묶는 것은 드로우 호출에서 한 번에 한다.
+        // 한 드로우에 필요한 것이 다 모인 뒤라야 디스크립터를 연속으로 놓을 수 있다.
+        virtual bool SetTexture(std::uint32_t slot, TextureHandle texture) = 0;
+        virtual bool SetSampler(std::uint32_t slot, SamplerHandle sampler) = 0;
         virtual bool DrawIndexedInstanced(
             std::uint32_t indexCount,
             std::uint32_t instanceCount,
@@ -377,6 +426,16 @@ namespace JBro
             JArrayView<std::byte> data) = 0;
         virtual TextureHandle CreateTexture(const TextureDesc& desc) = 0;
         virtual void DestroyTexture(TextureHandle texture) = 0;
+        // 텍스처 한 면에 픽셀을 올린다. 바이트는 행 패딩 없이 빽빽한 것으로 받는다 —
+        // GPU 쪽 행 정렬은 백엔드의 사정이다(`ReadTexture` 와 같은 계약이다).
+        //
+        // **GPU 가 끝날 때까지 기다린다.** 로드 경로이고 프레임 안에서는 거절한다.
+        virtual bool WriteTexture(
+            TextureHandle texture,
+            std::uint32_t mipLevel,
+            JArrayView<std::byte> data) = 0;
+        virtual SamplerHandle CreateSampler(const SamplerDesc& desc) = 0;
+        virtual void DestroySampler(SamplerHandle sampler) = 0;
         virtual GraphicsPipelineHandle CreateGraphicsPipeline(const GraphicsPipelineDesc& desc) = 0;
         virtual void DestroyGraphicsPipeline(GraphicsPipelineHandle pipeline) = 0;
 

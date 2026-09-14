@@ -1,4 +1,4 @@
-#include "D3D12Device.h"
+﻿#include "D3D12Device.h"
 
 namespace JBro::Internal
 {
@@ -179,6 +179,61 @@ namespace JBro::Internal
         m_textureDepthStencilDescriptorStride =
             m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
 
+        // 스테이징 힙이다. 셰이더에서 보이지 않고, 자원이 사는 동안 그 자리를 지킨다.
+        // 드로우 때 여기서 아래의 보이는 힙으로 복사한다 — 보이는 힙은 크기가 제한되고
+        // 프레임마다 다시 쓰이므로, 자원의 디스크립터를 거기에 계속 둘 수 없다.
+        D3D12_DESCRIPTOR_HEAP_DESC shaderResourceHeapDesc = {};
+        shaderResourceHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+        shaderResourceHeapDesc.NumDescriptors = MaxTextures;
+        if (FAILED(m_device->CreateDescriptorHeap(
+            &shaderResourceHeapDesc,
+            IID_PPV_ARGS(&m_textureShaderResourceHeap))))
+        {
+            Shutdown();
+            return false;
+        }
+        m_shaderResourceDescriptorStride =
+            m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+        D3D12_DESCRIPTOR_HEAP_DESC samplerStagingHeapDesc = {};
+        samplerStagingHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
+        samplerStagingHeapDesc.NumDescriptors = MaxSamplers;
+        if (FAILED(m_device->CreateDescriptorHeap(
+            &samplerStagingHeapDesc,
+            IID_PPV_ARGS(&m_samplerStagingHeap))))
+        {
+            Shutdown();
+            return false;
+        }
+        m_samplerDescriptorStride =
+            m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+
+        // 보이는 힙이다. 프레임 슬롯마다 제 몫을 갖는다 — 프레임이 겹쳐 도는 동안
+        // 앞 프레임이 아직 읽고 있는 자리를 덮어쓰지 않게 하려면 갈라 두어야 한다.
+        D3D12_DESCRIPTOR_HEAP_DESC visibleTextureHeapDesc = {};
+        visibleTextureHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+        visibleTextureHeapDesc.NumDescriptors = ShaderVisibleTexturesPerFrame * MaxFramesInFlight;
+        visibleTextureHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+        if (FAILED(m_device->CreateDescriptorHeap(
+            &visibleTextureHeapDesc,
+            IID_PPV_ARGS(&m_shaderVisibleTextureHeap))))
+        {
+            Shutdown();
+            return false;
+        }
+
+        D3D12_DESCRIPTOR_HEAP_DESC visibleSamplerHeapDesc = {};
+        visibleSamplerHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
+        visibleSamplerHeapDesc.NumDescriptors = ShaderVisibleSamplersPerFrame * MaxFramesInFlight;
+        visibleSamplerHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+        if (FAILED(m_device->CreateDescriptorHeap(
+            &visibleSamplerHeapDesc,
+            IID_PPV_ARGS(&m_shaderVisibleSamplerHeap))))
+        {
+            Shutdown();
+            return false;
+        }
+
         m_fenceEvent = CreateEventW(nullptr, FALSE, FALSE, nullptr);
         if (m_fenceEvent == nullptr)
         {
@@ -256,6 +311,10 @@ namespace JBro::Internal
             allocator.Reset();
         }
         m_fence.Reset();
+        m_shaderVisibleSamplerHeap.Reset();
+        m_shaderVisibleTextureHeap.Reset();
+        m_samplerStagingHeap.Reset();
+        m_textureShaderResourceHeap.Reset();
         m_textureDepthStencilHeap.Reset();
         m_textureRenderTargetHeap.Reset();
         m_graphicsQueue.Reset();
@@ -501,6 +560,18 @@ namespace JBro::Internal
         m_activeSwapchainIndex = swapchain.index;
         m_activeFrameSlot = frameSlot;
         m_frameActive = true;
+
+        // 이 프레임 몫의 링을 처음부터 다시 쓴다. 이 슬롯의 앞 프레임은 이미 끝났다 —
+        // 그것을 보장하는 것이 위의 펜스 대기다.
+        m_shaderVisibleTextureCursor = 0;
+        m_shaderVisibleSamplerCursor = 0;
+        // 보이는 힙은 커맨드 리스트마다 한 번 걸어 두면 된다. 드로우마다 다시 걸면
+        // 드라이버가 파이프라인을 비운다.
+        ID3D12DescriptorHeap* const visibleHeaps[] = {
+            m_shaderVisibleTextureHeap.Get(),
+            m_shaderVisibleSamplerHeap.Get()
+        };
+        m_commandList->SetDescriptorHeaps(2, visibleHeaps);
 
         result.status = FrameStatus::Ready;
         result.frame.serial = m_activeFrameSerial;

@@ -1,4 +1,4 @@
-#include "D3D12Device.h"
+﻿#include "D3D12Device.h"
 
 #include <limits>
 
@@ -58,6 +58,15 @@ namespace JBro::Internal
         m_nativeRenderPasses = nativeRenderPasses && commandList4 != nullptr;
         m_discardAtEndCount = 0;
         m_activePushConstantCount = 0;
+        m_activePipeline = {};
+        for (std::uint32_t index = 0; index < MaxBoundTextures; ++index)
+        {
+            m_pendingTextures[index] = {};
+        }
+        for (std::uint32_t index = 0; index < MaxBoundSamplers; ++index)
+        {
+            m_pendingSamplers[index] = {};
+        }
         m_renderPassActive = false;
         m_pipelineActive = false;
     }
@@ -66,6 +75,15 @@ namespace JBro::Internal
     {
         m_discardAtEndCount = 0;
         m_activePushConstantCount = 0;
+        m_activePipeline = {};
+        for (std::uint32_t index = 0; index < MaxBoundTextures; ++index)
+        {
+            m_pendingTextures[index] = {};
+        }
+        for (std::uint32_t index = 0; index < MaxBoundSamplers; ++index)
+        {
+            m_pendingSamplers[index] = {};
+        }
         m_renderPassActive = false;
         m_pipelineActive = false;
     }
@@ -252,7 +270,102 @@ namespace JBro::Internal
         m_commandList->SetPipelineState(binding.pipeline);
         m_commandList->IASetPrimitiveTopology(binding.topology);
         m_activePushConstantCount = binding.pushConstantCount;
+        m_activePipeline = binding;
+        // 파이프라인이 바뀌면 묶어 둔 것도 버린다. 루트 시그니처가 달라졌으므로
+        // 앞의 테이블 번호가 더 이상 같은 자리를 뜻하지 않는다.
+        for (std::uint32_t index = 0; index < MaxBoundTextures; ++index)
+        {
+            m_pendingTextures[index] = {};
+        }
+        for (std::uint32_t index = 0; index < MaxBoundSamplers; ++index)
+        {
+            m_pendingSamplers[index] = {};
+        }
         m_pipelineActive = true;
+        return true;
+    }
+
+    bool D3D12CommandContext::SetTexture(std::uint32_t slot, TextureHandle texture)
+    {
+        if (false == m_renderPassActive || false == m_pipelineActive || m_device == nullptr)
+        {
+            return false;
+        }
+        // 파이프라인이 선언하지 않은 자리다. 루트 시그니처에 그 칸이 없으므로
+        // 받아 두어 봐야 그릴 때 아무 데도 가지 않는다.
+        if (slot >= m_activePipeline.sampledTextureCount)
+        {
+            return false;
+        }
+        D3D12_CPU_DESCRIPTOR_HANDLE descriptor = {};
+        if (false == m_device->ResolveSampledTexture(texture, descriptor))
+        {
+            return false;
+        }
+        m_pendingTextures[slot] = descriptor;
+        return true;
+    }
+
+    bool D3D12CommandContext::SetSampler(std::uint32_t slot, SamplerHandle sampler)
+    {
+        if (false == m_renderPassActive || false == m_pipelineActive || m_device == nullptr)
+        {
+            return false;
+        }
+        if (slot >= m_activePipeline.samplerCount)
+        {
+            return false;
+        }
+        D3D12_CPU_DESCRIPTOR_HANDLE descriptor = {};
+        if (false == m_device->ResolveSampler(sampler, descriptor))
+        {
+            return false;
+        }
+        m_pendingSamplers[slot] = descriptor;
+        return true;
+    }
+
+    bool D3D12CommandContext::BindPendingDescriptors()
+    {
+        if (m_activePipeline.sampledTextureCount != 0)
+        {
+            // 선언한 자리가 하나라도 비어 있으면 그리지 않는다. 빈 칸을 그냥 두면
+            // 셰이더가 남의 디스크립터를 읽고, 그것은 화면에 조용히 틀린 그림으로 나온다.
+            for (std::uint32_t index = 0; index < m_activePipeline.sampledTextureCount; ++index)
+            {
+                if (m_pendingTextures[index].ptr == 0)
+                {
+                    return false;
+                }
+            }
+            D3D12_GPU_DESCRIPTOR_HANDLE table = {};
+            if (false == m_device->StageShaderResources(
+                m_pendingTextures, m_activePipeline.sampledTextureCount, table))
+            {
+                return false;
+            }
+            m_commandList->SetGraphicsRootDescriptorTable(
+                m_activePipeline.textureTableParameter, table);
+        }
+
+        if (m_activePipeline.samplerCount != 0)
+        {
+            for (std::uint32_t index = 0; index < m_activePipeline.samplerCount; ++index)
+            {
+                if (m_pendingSamplers[index].ptr == 0)
+                {
+                    return false;
+                }
+            }
+            D3D12_GPU_DESCRIPTOR_HANDLE table = {};
+            if (false == m_device->StageSamplers(
+                m_pendingSamplers, m_activePipeline.samplerCount, table))
+            {
+                return false;
+            }
+            m_commandList->SetGraphicsRootDescriptorTable(
+                m_activePipeline.samplerTableParameter, table);
+        }
         return true;
     }
 
@@ -348,6 +461,13 @@ namespace JBro::Internal
             || false == m_pipelineActive
             || indexCount == 0
             || instanceCount == 0)
+        {
+            return false;
+        }
+
+        // 묶는 것은 여기서 한다. 슬롯이 다 모인 뒤라야 디스크립터를 연속으로 놓을 수 있고,
+        // 테이블은 연속된 자리를 가리키기 때문이다.
+        if (false == BindPendingDescriptors())
         {
             return false;
         }
