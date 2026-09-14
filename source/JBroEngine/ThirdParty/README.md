@@ -29,9 +29,25 @@ include 경로를 선언해야 하고, 선언하지 않은 모듈에서 include 
 
 ## 들어 있는 것
 
-### imgui — 1.92.7 WIP (docking), MIT
+### imgui — v1.92.9b-docking, MIT
 
-에디터 UI 용이다(D-60). `IMGUI_HAS_DOCK` 이 있는 docking 브랜치다.
+에디터 UI 용이다(D-60). `IMGUI_HAS_DOCK` 이 있는 docking 브랜치다 —
+도킹은 아직 master 에 합쳐지지 않았다(2026-09 확인).
+
+**브랜치 HEAD 가 아니라 태그를 쓴다.** docking 브랜치 HEAD 는 `1.93.0 WIP` 인데 WIP 는
+언제 무엇이 깨졌는지 알 수 없는 지점이다. 곧 백엔드를 쓰면서 "ImGui 버그인가 우리 버그인가"
+를 가려야 하는데, 움직이는 바닥 위에서는 그 판단이 배로 어렵다. 태그는 저자가 여기까지는
+괜찮다고 한 지점이다.
+
+올릴 때는 같은 방식으로 `vX.Y.Z-docking` 태그에서 받는다:
+
+```
+https://raw.githubusercontent.com/ocornut/imgui/v1.92.9b-docking/<file>
+```
+
+⚠ `IMGUI_VERSION_NUM >= 19198` 부터 `IMGUI_HAS_TEXTURES` 가 있다 — 백엔드가 텍스처를
+직접 만들고 지우는 새 방식이다. 기존 엔진의 `imgui_impl_dx11`(1.92.7)을 참고할 때
+이 부분은 다를 수 있다.
 
 코어만 가져왔다:
 
