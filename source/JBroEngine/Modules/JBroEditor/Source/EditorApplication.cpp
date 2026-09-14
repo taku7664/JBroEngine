@@ -285,6 +285,16 @@ namespace JBro
         return m_uiEnabled;
     }
 
+    bool EditorApplication::UiWantsMouse() const
+    {
+        return m_uiEnabled && m_ui.WantsMouse();
+    }
+
+    bool EditorApplication::UiWantsKeyboard() const
+    {
+        return m_uiEnabled && m_ui.WantsKeyboard();
+    }
+
     TextureHandle EditorApplication::GetGameViewTexture() const
     {
         return m_gameView;

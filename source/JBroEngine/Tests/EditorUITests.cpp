@@ -462,11 +462,35 @@ namespace
         }
         Check(false == ui.WantsMouse(), "and give it back when it leaves");
 
-        // 글자는 키와 따로 간다. 쌓인 글자가 ImGui 의 입력 큐에 들어가야 한다.
+        // **글자는 위젯까지 가야 한다.** PushInput 이 참을 돌려주는 것만으로는
+        // 글자를 그냥 버려도 알 수 없다 - 에디터의 이름 필드가 그 차이다.
+        char typedText[32] = {};
         JBro::InputEvent typed;
         typed.kind = JBro::InputEventKind::Text;
-        typed.codePoint = 0xAC00;
-        Check(ui.PushInput({&typed, 1}), "typed characters must reach the UI");
+        typed.codePoint = static_cast<std::uint32_t>('k');
+        // 프레임 순서가 까다롭다. 창은 첫 두 프레임 동안 자리를 잡느라 감춰져 있어
+        // 그때 준 포커스는 먹지 않고, 필드가 **활성화되는 그 프레임**의 글자는
+        // 버려진다(활성화하면서 내용을 고르기 때문이다). 그래서 자리를 잡히고,
+        // 포커스를 주고, 활성화된 것을 본 뒤에 글자를 넣는다.
+        for (int frame = 0; frame < 8; ++frame)
+        {
+            if (frame == 5)
+            {
+                Check(ui.PushInput({&typed, 1}), "the character must reach the UI");
+            }
+            Check(ui.BeginFrame({SurfaceSize, SurfaceSize}, 1.0f / 60.0f),
+                "the UI frame must begin");
+            ImGui::Begin("Typing", nullptr, ImGuiWindowFlags_NoSavedSettings);
+            if (frame == 2)
+            {
+                ImGui::SetKeyboardFocusHere();
+            }
+            ImGui::InputText("##field", typedText, sizeof(typedText));
+            ImGui::End();
+            Check(ui.EndFrame(), "the UI frame must end");
+        }
+        Check(typedText[0] == 'k',
+            "a typed character must land in the widget that has focus");
 
         ui.Shutdown();
         stage.Close();

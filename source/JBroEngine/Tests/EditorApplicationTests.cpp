@@ -69,6 +69,79 @@ namespace
         return painted;
     }
 
+    // **엔진은 창이 닫히면 그 프레임 안에서 스스로 정리한다 - 디바이스까지.**
+    // 에디터 UI 가 그 디바이스로 만든 것들을 뒤늦게 해제하려 들면 그 자리에서
+    // 터진다. 실제로 터졌다. 창을 닫는 것은 예외 경로가 아니라 보통 경로다.
+    void TestClosingTheWindowDoesNotTakeTheUiDownWithIt()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 320;
+        config.windowHeight = 240;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the close path not verified"
+                << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "EditorCloseProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        Check(editor.Tick(1.0f / 60.0f), "the editor must tick with its UI on");
+
+        // 에디터가 만든 창이다. 제목은 EditorApplication 이 정한다.
+        HWND window = FindWindowW(L"JBroEngineWindow", L"JBro Editor");
+        Check(window != nullptr, "the editor window must be findable");
+        Check(PostMessageW(window, WM_CLOSE, 0, 0) != 0, "the close must post");
+
+        Check(false == editor.Tick(1.0f / 60.0f),
+            "a closed window must stop the editor");
+        Check(false == editor.IsEditorUiEnabled(),
+            "and the UI must have let go of a device that is already gone");
+        Check(false == editor.GetGameViewTexture().IsValid(),
+            "including its game view texture");
+        // 두 번 놓아도 안전해야 한다.
+        editor.Shutdown();
+    }
+
+    // 플랫폼이 모은 입력이 에디터를 지나 UI 까지 가는지 본다. 모으기만 하고
+    // 넘기지 않으면 창은 멀쩡히 그려지는데 아무것도 눌리지 않는다.
+    void TestTheEditorForwardsInputToItsUi()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 320;
+        config.windowHeight = 240;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; editor input not verified"
+                << std::endl;
+            return;
+        }
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        Check(false == editor.UiWantsMouse(), "nothing has been pointed at yet");
+
+        HWND window = FindWindowW(L"JBroEngineWindow", L"JBro Editor");
+        Check(window != nullptr, "the editor window must be findable");
+
+        // 창을 가득 채운 패널 한가운데를 가리킨다. ImGui 는 지난 프레임에 무엇
+        // 위에 있었는지로 이번 프레임의 가져감을 정하므로 몇 프레임 돌린다.
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(PostMessageW(window, WM_MOUSEMOVE, 0, MAKELPARAM(160, 120)) != 0,
+                "the pointer must post");
+            Check(editor.Tick(1.0f / 60.0f), "the editor must tick");
+        }
+        Check(editor.UiWantsMouse(),
+            "a pointer over the editor panel must be taken by the UI");
+
+        editor.Shutdown();
+    }
+
     // **프로젝트가 없어도 에디터 창은 살아 있어야 한다.** 호스트는 프레임워크가
     // 없으면 그릴 것이 없다고 보고 프레임을 통째로 건너뛰는데, 그러면 프로젝트를
     // 닫아 둔 에디터가 검은 창이 된다 - 메뉴도 프로젝트 브라우저도 그때 필요하다.
@@ -516,6 +589,8 @@ int RunEditorApplicationTests()
     TestEditorProjectSessions();
     TestTheEditorPaintsItsOwnScreen();
     TestTheEditorDrawsWithNoProjectOpen();
+    TestTheEditorForwardsInputToItsUi();
+    TestClosingTheWindowDoesNotTakeTheUiDownWithIt();
     TestEditorOpensAProjectFile();
     TestEditorSavesAndOpensACanvas();
     TestCanvasWorkNeedsAnOpenProject();

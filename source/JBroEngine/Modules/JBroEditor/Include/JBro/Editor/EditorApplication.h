@@ -80,6 +80,11 @@ namespace JBro
         // 끄면 게임이 다시 백버퍼로 간다. 게임 실행과 같은 경로다.
         void DisableEditorUi();
         bool IsEditorUiEnabled() const;
+        // 이번 프레임의 입력을 UI 가 가져갔는가. **게임에 입력을 넘길지
+        // 판단하는 자리다** - 에디터의 필드에 타자를 치는 중에 게임
+        // 스크립트가 같은 키를 받으면 안 된다. UI 가 꺼져 있으면 거짓이다.
+        bool UiWantsMouse() const;
+        bool UiWantsKeyboard() const;
         // 게임 화면이 그려지는 텍스처다. UI 가 꺼져 있으면 비어 있다.
         TextureHandle GetGameViewTexture() const;
 
