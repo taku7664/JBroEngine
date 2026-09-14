@@ -31,6 +31,12 @@ Entries:
   inspector.too_deep: (너무 깊어 고칠 수 없음)
   inspector.too_long: (너무 길어 보일 수 없음)
   inspector.multiple_selected: %d개를 골랐습니다
+  stats.frame_time: 프레임 %.2f ms
+  stats.per_second: 초당 %.0f 프레임
+  stats.frame_count: 누적 프레임 %llu
+  stats.views: 뷰 %u개
+  stats.sprites: 스프라이트 %u개
+  stats.dropped: 버린 뷰 %u개, 스프라이트 %u개
   list.add_element: 원소 추가
   list.remove_element: 원소 삭제
   list.empty: 비어 있습니다

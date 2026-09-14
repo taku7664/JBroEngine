@@ -4,6 +4,8 @@
 #include <JBro/Editor/Command/ObjectCommands.h>
 #include <JBro/Editor/EditorObjectRegistry.h>
 #include <JBro/Editor/EditorPanel.h>
+#include <JBro/Editor/Localization.h>
+#include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Graphics/Renderer.h>
@@ -1500,6 +1502,83 @@ namespace
         editor.Shutdown();
     }
 
+    // **메뉴바가 읽은 로케일로 말하는가**(ProjectRule §11.2).
+    //
+    // 키와 번역이 다 있고 "키가 표에 있는가" 도 재고 있었는데, 메뉴바는 그 키를
+    // 한 번도 부르지 않고 영어를 소스에 박아 두고 있었다 - 표를 재는 테스트는
+    // 화면이 표를 쓰는지를 묻지 않는다.
+    //
+    // 글자는 되읽을 수 없지만 ImGui 는 메뉴의 Id 를 **보이는 이름으로** 센다.
+    // 메뉴바 줄을 훑어 번역된 이름의 Id 가 가리켜지는지 본다.
+    void TestTheMenuBarSpeaksTheLoadedLocale()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = WindowWidth;
+        config.windowHeight = WindowHeight;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the menu bar locale not verified"
+                << std::endl;
+            return;
+        }
+
+        // 영어로 떨어졌으면 이 검사는 박힌 영어와 가려내지 못한다. 그때는 건너뛴다고
+        // 말한다 - 조용히 통과하면 무엇도 재지 않은 것이다.
+        const char* const keys[] = {
+            JBro::LocKeys::MenuFile, JBro::LocKeys::MenuEdit, JBro::LocKeys::MenuWindow};
+        const char* const english[] = {"File", "Edit", "Window"};
+        const char* labels[3] = {};
+        for (int index = 0; index < 3; ++index)
+        {
+            labels[index] = JBro::Loc::Text(keys[index]);
+            if (std::strcmp(labels[index], english[index]) == 0
+                || std::strcmp(labels[index], keys[index]) == 0)
+            {
+                std::cout << "  [skip] the menu names are not translated here; "
+                    "the menu bar locale not verified" << std::endl;
+                editor.Shutdown();
+                return;
+            }
+        }
+
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND window = FindWindowW(L"JBroEngineWindow", L"JBro Editor");
+        Check(window != nullptr, "the editor window must be findable");
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick");
+        }
+
+        ImGuiWindow* root = ImGui::FindWindowByName("##EditorRoot");
+        Check(root != nullptr, "the editor must have its root window");
+        // `BeginMenuBar` 가 `PushID("##MenuBar")` 를 하고, 메뉴는 그 아래에서
+        // 제 이름으로 Id 를 받는다.
+        const ImGuiID bar = LabelId(root->ID, "##MenuBar");
+        bool found[3] = {};
+        const ImRect rect = root->MenuBarRect();
+        const int y = static_cast<int>(rect.GetCenter().y);
+        for (int x = static_cast<int>(rect.Min.x);
+            x < static_cast<int>(rect.Max.x) && x < 400; x += 4)
+        {
+            PostMessageW(window, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
+            Check(editor.Tick(Frame), "the editor must tick while looking");
+            for (int index = 0; index < 3; ++index)
+            {
+                if (ImGui::GetHoveredID() == LabelId(bar, labels[index]))
+                {
+                    found[index] = true;
+                }
+            }
+        }
+        Check(found[0], "the File menu must be named in the loaded locale");
+        Check(found[1], "and so must the Edit menu");
+        Check(found[2], "and the Window menu");
+
+        editor.Shutdown();
+    }
+
     // **프로젝트가 없어도 에디터 창은 살아 있어야 한다.** 호스트는 프레임워크가
     // 없으면 그릴 것이 없다고 보고 프레임을 통째로 건너뛰는데, 그러면 프로젝트를
     // 닫아 둔 에디터가 검은 창이 된다 - 메뉴도 프로젝트 브라우저도 그때 필요하다.
@@ -1947,6 +2026,7 @@ int RunEditorApplicationTests()
     TestEditorProjectSessions();
     TestTheEditorPaintsItsOwnScreen();
     TestTheEditorDrawsWithNoProjectOpen();
+    TestTheMenuBarSpeaksTheLoadedLocale();
     TestTheEditorForwardsInputToItsUi();
     TestThePanelRegistryRefusesWhatItCannotHold();
     TestAClosedPanelKeepsUpdatingButStopsDrawing();

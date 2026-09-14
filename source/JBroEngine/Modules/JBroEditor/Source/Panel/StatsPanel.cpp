@@ -51,10 +51,13 @@ namespace JBro
             ? total / static_cast<float>(m_filledSamples)
             : 0.0f;
 
-        ImGui::Text("frame %.2f ms", average * 1000.0f);
-        ImGui::Text("%.0f per second", average > 0.0f ? 1.0f / average : 0.0f);
+        ImGui::Text(Loc::TextOr(LocKeys::StatsFrameTime, "frame %.2f ms"),
+            average * 1000.0f);
+        ImGui::Text(Loc::TextOr(LocKeys::StatsPerSecond, "%.0f per second"),
+            average > 0.0f ? 1.0f / average : 0.0f);
         ImGui::Separator();
-        ImGui::Text("frames %llu", static_cast<unsigned long long>(m_frames));
+        ImGui::Text(Loc::TextOr(LocKeys::StatsFrameCount, "frames %llu"),
+            static_cast<unsigned long long>(m_frames));
 
         if (m_editor == nullptr)
         {
@@ -67,13 +70,13 @@ namespace JBro
         }
         const RendererFrameStats stats = renderer->GetLastFrameStats();
         ImGui::Separator();
-        ImGui::Text("views %u", stats.viewCount);
-        ImGui::Text("sprites %u", stats.spriteCount);
+        ImGui::Text(Loc::TextOr(LocKeys::StatsViews, "views %u"), stats.viewCount);
+        ImGui::Text(Loc::TextOr(LocKeys::StatsSprites, "sprites %u"), stats.spriteCount);
         if (stats.droppedViewCount != 0 || stats.droppedSpriteCount != 0)
         {
             // 넘치면 조용히 버려진다. 버려진 것이 있으면 그것부터 보여야 한다.
             ImGui::TextColored(ImVec4(1.0f, 0.55f, 0.2f, 1.0f),
-                "dropped %u view(s), %u sprite(s)",
+                Loc::TextOr(LocKeys::StatsDropped, "dropped %u view(s), %u sprite(s)"),
                 stats.droppedViewCount, stats.droppedSpriteCount);
         }
     }

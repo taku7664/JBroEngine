@@ -1,11 +1,14 @@
 ﻿#include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
+#include <JBro/Core/Yaml.h>
 
 #include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <iterator>
 #include <stdexcept>
+#include <string>
 
 // 화면에 나오는 글자를 키로 다루는 표다(ProjectRule §11.2).
 //
@@ -141,8 +144,105 @@ namespace
         Check(table.Find(JBro::LocKeys::InspectorAddComponent) != nullptr,
             "and so must the rest of the ones this test names");
         Check(table.Find(JBro::LocKeys::MenuUndo) != nullptr, "including the menu");
+        Check(table.Find(JBro::LocKeys::StatsDropped) != nullptr, "and the stats");
 
         table.Clear();
+    }
+
+    // printf 지정자에서 인자를 읽는 방법만 남긴다 - 길이 수식어와 변환 문자다.
+    // 폭과 정밀도(`%.2f` 대 `%.1f`)는 번역이 달리해도 안전하므로 뺀다.
+    std::string ConversionsOf(const char* text)
+    {
+        std::string conversions;
+        for (const char* at = text; *at != '\0'; ++at)
+        {
+            if (*at != '%')
+            {
+                continue;
+            }
+            ++at;
+            if (*at == '%')
+            {
+                continue;
+            }
+            while (*at != '\0' && std::strchr("diouxXeEfFgGaAcspn", *at) == nullptr)
+            {
+                if (std::strchr("hljztL", *at) != nullptr)
+                {
+                    conversions += *at;
+                }
+                ++at;
+            }
+            if (*at == '\0')
+            {
+                conversions += '?';
+                break;
+            }
+            conversions += *at;
+            conversions += ' ';
+        }
+        return conversions;
+    }
+
+    bool ReadEntries(const char* path, JBro::YamlDocument& document, std::uint32_t& entries)
+    {
+        std::ifstream file(path, std::ios::binary);
+        if (false == file.is_open())
+        {
+            return false;
+        }
+        const std::string text((std::istreambuf_iterator<char>(file)),
+            std::istreambuf_iterator<char>());
+        JBro::YamlError error;
+        Check(document.Parse(text.c_str(), text.size(), error),
+            "a shipped locale file must parse");
+        entries = document.Find(document.GetRoot(), "Entries");
+        Check(entries != 0 && document.GetKind(entries) == JBro::YamlKind::Map,
+            "and carry its entries as a map");
+        return true;
+    }
+
+    // **번역이 printf 지정자를 바꾸면 안 된다.** 인자는 코드가 넘기므로, 한 언어가
+    // `%llu` 를 `%u` 로 적으면 그 언어에서만 틀린 크기로 읽는다 - 컴파일러는 형식이
+    // 데이터에 있어 보지 못하고, 영어로 도는 테스트도 보지 못한다.
+    void TestTheShippedLocalesAgreeOnFormats()
+    {
+        JBro::YamlDocument korean;
+        JBro::YamlDocument english;
+        std::uint32_t koreanEntries = 0;
+        std::uint32_t englishEntries = 0;
+        if (false == ReadEntries("Localization/ko-KR.yaml", korean, koreanEntries)
+            || false == ReadEntries("Localization/en-US.yaml", english, englishEntries))
+        {
+            std::cout << "  [skip] no Localization directory beside the test" << std::endl;
+            return;
+        }
+
+        std::size_t formats = 0;
+        const std::size_t count = korean.GetCount(koreanEntries);
+        for (std::size_t index = 0; index < count; ++index)
+        {
+            const char* key = korean.GetKey(koreanEntries, index);
+            const std::uint32_t other = english.Find(englishEntries, key);
+            Check(other != 0, "every Korean key must have an English entry");
+            const char* koreanText = korean.GetText(korean.GetValue(koreanEntries, index));
+            const char* englishText = english.GetText(other);
+            Check(koreanText != nullptr && englishText != nullptr,
+                "and both must be text");
+            const std::string conversions = ConversionsOf(englishText);
+            if (conversions != ConversionsOf(koreanText))
+            {
+                std::cout << "  " << key << ": [" << conversions << "] vs ["
+                    << ConversionsOf(koreanText) << "]" << std::endl;
+                Check(false, "a translation must keep the printf conversions of its key");
+            }
+            if (false == conversions.empty())
+            {
+                ++formats;
+            }
+        }
+        // 형식 문자열이 하나도 없으면 이 검사는 아무것도 재지 않은 것이다.
+        Check(formats > 0, "the shipped locales must contain format strings to compare");
     }
 }
 
@@ -151,6 +251,7 @@ int RunEditorLocalizationTests()
     TestTheTableFindsAndFallsBack();
     TestAFailedLoadLeavesTheOldTableStanding();
     TestTheShippedLocalesAgree();
+    TestTheShippedLocalesAgreeOnFormats();
     std::cout << "Editor localization tests passed.\n";
     return 0;
 }

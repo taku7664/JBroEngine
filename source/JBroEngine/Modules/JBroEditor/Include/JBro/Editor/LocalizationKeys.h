@@ -48,6 +48,16 @@ namespace JBro::LocKeys
     inline constexpr const char* InspectorTooLong = "inspector.too_long";
     inline constexpr const char* InspectorMultipleSelected = "inspector.multiple_selected";
 
+    // ── 통계 ─────────────────────────────────────────────────────────────
+    // 값이 printf 형식이다. **번역도 같은 지정자를 같은 차례로 담아야 한다** -
+    // 인자는 코드가 넘기므로, 어긋나면 틀린 크기로 읽는다.
+    inline constexpr const char* StatsFrameTime = "stats.frame_time";
+    inline constexpr const char* StatsPerSecond = "stats.per_second";
+    inline constexpr const char* StatsFrameCount = "stats.frame_count";
+    inline constexpr const char* StatsViews = "stats.views";
+    inline constexpr const char* StatsSprites = "stats.sprites";
+    inline constexpr const char* StatsDropped = "stats.dropped";
+
     // ── 목록 위젯 ────────────────────────────────────────────────────────
     inline constexpr const char* ListAddElement = "list.add_element";
     inline constexpr const char* ListRemoveElement = "list.remove_element";

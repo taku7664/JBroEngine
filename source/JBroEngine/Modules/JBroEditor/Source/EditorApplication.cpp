@@ -633,22 +633,24 @@ namespace JBro
             return;
         }
 
-        if (ImGui::BeginMenu("File"))
+        // 메뉴는 보이는 이름으로 Id 를 받는다. 언어를 바꾸면 Id 가 달라지지만
+        // 메뉴는 창과 달리 도킹 자리 같은 것을 남기지 않으므로 잃는 것이 없다.
+        if (ImGui::BeginMenu(Loc::TextOr(LocKeys::MenuFile, "File")))
         {
             // 저장은 경로를 받아야 하므로 아직 손잡이가 없다. 그래도 자리를
             // 비워 두지 않는 이유는, 비어 있으면 붙일 자리를 잊기 때문이다.
             ImGui::BeginDisabled();
-            ImGui::MenuItem("Save Canvas", "Ctrl+S");
+            ImGui::MenuItem(Loc::TextOr(LocKeys::MenuSaveCanvas, "Save Canvas"), "Ctrl+S");
             ImGui::EndDisabled();
             ImGui::Separator();
-            if (ImGui::MenuItem("Exit"))
+            if (ImGui::MenuItem(Loc::TextOr(LocKeys::MenuExit, "Exit")))
             {
                 m_exitRequested = true;
             }
             ImGui::EndMenu();
         }
 
-        if (ImGui::BeginMenu("Edit"))
+        if (ImGui::BeginMenu(Loc::TextOr(LocKeys::MenuEdit, "Edit")))
         {
             // **할 수 없는 것은 회색으로 보인다.** 눌리는데 아무 일도 안 하면
             // 고장인지 할 게 없는 건지 알 수 없다.
@@ -657,7 +659,7 @@ namespace JBro
             {
                 ImGui::BeginDisabled();
             }
-            if (ImGui::MenuItem("Undo", "Ctrl+Z"))
+            if (ImGui::MenuItem(Loc::TextOr(LocKeys::MenuUndo, "Undo"), "Ctrl+Z"))
             {
                 m_commands.Undo();
             }
@@ -671,7 +673,7 @@ namespace JBro
             {
                 ImGui::BeginDisabled();
             }
-            if (ImGui::MenuItem("Redo", "Ctrl+Y"))
+            if (ImGui::MenuItem(Loc::TextOr(LocKeys::MenuRedo, "Redo"), "Ctrl+Y"))
             {
                 m_commands.Redo();
             }
@@ -682,7 +684,7 @@ namespace JBro
             ImGui::EndMenu();
         }
 
-        if (ImGui::BeginMenu("Window"))
+        if (ImGui::BeginMenu(Loc::TextOr(LocKeys::MenuWindow, "Window")))
         {
             // 패널이 무엇인지 모른 채로 만든다. 레지스트리에 있는 것이 곧
             // 이 목록이라, 패널을 더해도 여기는 그대로다.
@@ -706,7 +708,7 @@ namespace JBro
         // 고쳤다 되돌려 원래대로 온 상태는 여기 나오지 않는다.
         if (m_commands.IsDirty())
         {
-            const char* mark = "unsaved";
+            const char* mark = Loc::TextOr(LocKeys::MenuUnsaved, "unsaved");
             const float width = ImGui::CalcTextSize(mark).x;
             ImGui::SameLine(ImGui::GetContentRegionMax().x - width
                 - ImGui::GetStyle().ItemSpacing.x);

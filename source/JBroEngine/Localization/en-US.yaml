@@ -31,6 +31,12 @@ Entries:
   inspector.too_deep: (too deeply nested to edit)
   inspector.too_long: (too long to show)
   inspector.multiple_selected: %d objects selected
+  stats.frame_time: frame %.2f ms
+  stats.per_second: %.0f per second
+  stats.frame_count: frames %llu
+  stats.views: views %u
+  stats.sprites: sprites %u
+  stats.dropped: dropped %u view(s), %u sprite(s)
   list.add_element: Add element
   list.remove_element: Remove element
   list.empty: empty
