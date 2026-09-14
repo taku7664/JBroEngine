@@ -126,9 +126,11 @@ namespace JBro
     {
         // **같은 잎사귀를 이어서 고치는 중일 때만 합친다.** 다른 필드로 옮겨 갔는데
         // 합치면 그 편집이 되돌리기에서 사라진다.
+        //
+        // 레지스트리는 비교하지 않는다. 스택 하나에는 에디터 하나의 커맨드만 쌓이고,
+        // 에디터는 레지스트리를 하나만 가진다 - 비교해도 거짓이 될 길이 없다.
         const auto* other = dynamic_cast<const SetPropertyCommand*>(&newer);
         return other != nullptr
-            && other->m_registry == m_registry
             && other->m_address.Equals(m_address)
             && other->m_path.Equals(m_path);
     }
