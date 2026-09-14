@@ -8,7 +8,16 @@
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/CanvasFile.h>
 
+#include "Panel/GameViewPanel.h"
+#include "Panel/StatsPanel.h"
+
 #include <imgui.h>
+// **기본 도킹 자리를 잡으려면 내부 헤더가 필요하다.** `DockBuilder*` 는 공개
+// `imgui.h` 에 없다 - ImGui 가 아직 확정하지 않은 API 라서다. 에디터를 만드는
+// 쪽은 대개 이것을 쓰고, 우리도 첫 프레임에 한 번 부르는 데만 쓴다.
+#include <imgui_internal.h>
+
+#include <cstring>
 
 #include <cmath>
 #include <new>
@@ -276,6 +285,22 @@ namespace JBro
 
         m_gameViewExtent = gameViewExtent;
         m_uiEnabled = true;
+
+        // 기본 패널이다. 더 얹는 것은 이 위에 `AddPanel` 로 붙인다.
+        try
+        {
+            if (false == AddPanel(MakeOwnerPtr<GameViewPanel>())
+                || false == AddPanel(MakeOwnerPtr<StatsPanel>()))
+            {
+                ReleaseEditorUi();
+                return false;
+            }
+        }
+        catch (const std::bad_alloc&)
+        {
+            ReleaseEditorUi();
+            return false;
+        }
         return true;
     }
 
@@ -293,6 +318,54 @@ namespace JBro
         return m_uiEnabled;
     }
 
+    bool EditorApplication::AddPanel(OwnerPtr<EditorPanel> panel)
+    {
+        if (false == m_initialized || panel.Get() == nullptr)
+        {
+            return false;
+        }
+        const char* title = panel->GetTitle();
+        if (title == nullptr || *title == '\0' || FindPanel(title) != nullptr)
+        {
+            return false;
+        }
+        if (false == panel->OnCreate(*this))
+        {
+            return false;
+        }
+        try
+        {
+            m_panels.Add(std::move(panel));
+        }
+        catch (const std::bad_alloc&)
+        {
+            return false;
+        }
+        return true;
+    }
+
+    EditorPanel* EditorApplication::FindPanel(const char* title)
+    {
+        if (title == nullptr)
+        {
+            return nullptr;
+        }
+        for (std::size_t index = 0; index < m_panels.Size(); ++index)
+        {
+            EditorPanel* panel = m_panels[index].Get();
+            if (panel != nullptr && std::strcmp(panel->GetTitle(), title) == 0)
+            {
+                return panel;
+            }
+        }
+        return nullptr;
+    }
+
+    std::size_t EditorApplication::GetPanelCount() const
+    {
+        return m_panels.Size();
+    }
+
     bool EditorApplication::UiWantsMouse() const
     {
         return m_uiEnabled && m_ui.WantsMouse();
@@ -308,8 +381,14 @@ namespace JBro
         return m_gameView;
     }
 
+    Extent2D EditorApplication::GetGameViewExtent() const
+    {
+        return m_gameViewExtent;
+    }
+
     void EditorApplication::AbandonEditorUi()
     {
+        DestroyPanels();
         // 엔진이 렌더 실패로 스스로 정리하면서 디바이스까지 지운 뒤다. 우리가 만든
         // 텍스처도 그때 함께 사라졌으므로 지우려 들지 않는다 - 죽은 디바이스로
         // DestroyTexture 를 부르면 그 자리에서 터진다.
@@ -321,6 +400,7 @@ namespace JBro
 
     void EditorApplication::ReleaseEditorUi()
     {
+        DestroyPanels();
         // 게임을 백버퍼로 되돌리고 오버레이를 뗀다. 둘 중 하나만 하면 다음 프레임에
         // 사라진 UI 를 그리려 들거나 게임 화면이 버려진 텍스처로 간다.
         if (m_engine)
@@ -342,6 +422,20 @@ namespace JBro
         m_gameView = {};
         m_gameViewExtent = {};
         m_uiEnabled = false;
+    }
+
+    void EditorApplication::DestroyPanels()
+    {
+        // 들인 순서의 반대로 내보낸다. 나중에 붙은 것이 앞의 것에 기대고
+        // 있을 수 있다.
+        for (std::size_t index = m_panels.Size(); index > 0; --index)
+        {
+            if (EditorPanel* panel = m_panels[index - 1].Get())
+            {
+                panel->OnDestroy();
+            }
+        }
+        m_panels.Clear();
     }
 
     bool EditorApplication::BuildEditorUi(float deltaTime)
@@ -371,39 +465,81 @@ namespace JBro
             return false;
         }
 
-        // 게임 뷰 패널. **지금은 창을 통째로 채운다** - 도킹이 붙기 전까지는 패널이
-        // 이것 하나뿐이고, 자리를 ImGui 기본값에 맡기면 작은 창에서 화면 밖으로 밀린다.
+        // **창 전체를 덮는 도크 공간.** 패널들은 이 안에 붙는다 - 자리를 ImGui
+        // 기본값에 맡기면 작은 창에서 화면 밖으로 밀린다.
         ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f));
         ImGui::SetNextWindowSize(ImVec2(
             static_cast<float>(display.width), static_cast<float>(display.height)));
-        ImGui::Begin("Game", nullptr,
-            ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove
-                | ImGuiWindowFlags_NoCollapse);
-        // 텍스처 비율을 지키며 패널 안에 맞춘다(레터박스) - 늘려 붙이면 에디터 창
-        // 모양에 따라 게임이 찌그러져 보인다.
-        const ImVec2 panel = ImGui::GetContentRegionAvail();
-        if (panel.x > 0.0f && panel.y > 0.0f && m_gameView.IsValid())
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+        ImGui::Begin("##EditorRoot", nullptr,
+            ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse
+                | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove
+                | ImGuiWindowFlags_NoBringToFrontOnFocus
+                | ImGuiWindowFlags_NoNavFocus);
+        ImGui::PopStyleVar(3);
+        const ImGuiID dockSpace = ImGui::GetID("EditorDockSpace");
+        ImGui::DockSpace(dockSpace);
+        if (false == m_dockLayoutBuilt)
         {
-            const float viewAspect = static_cast<float>(m_gameViewExtent.width)
-                / static_cast<float>(m_gameViewExtent.height);
-            const float panelAspect = panel.x / panel.y;
-            ImVec2 size = panel;
-            if (viewAspect > panelAspect)
+            // 첫 프레임에 한 번만 자리를 잡는다. 그 뒤로는 사용자가 옮긴 자리다.
+            //
+            // **전부 한 노드에 붙이면 탭으로 겹친다** - 위에 있는 하나만 보이고
+            // 나머지는 가려진다. 그래서 옆에 칸을 하나 떼어 놓는다:
+            // 첫 패널이 가운데를 갖고, 나머지는 오른쪽 칸에 모인다.
+            ImGui::DockBuilderRemoveNode(dockSpace);
+            ImGui::DockBuilderAddNode(dockSpace, ImGuiDockNodeFlags_DockSpace);
+            ImGui::DockBuilderSetNodeSize(dockSpace, ImVec2(
+                static_cast<float>(display.width),
+                static_cast<float>(display.height)));
+
+            ImGuiID center = dockSpace;
+            const ImGuiID side = ImGui::DockBuilderSplitNode(
+                center, ImGuiDir_Right, 0.25f, nullptr, &center);
+            for (std::size_t index = 0; index < m_panels.Size(); ++index)
             {
-                size.y = panel.x / viewAspect;
+                if (const EditorPanel* panel = m_panels[index].Get())
+                {
+                    ImGui::DockBuilderDockWindow(
+                        panel->GetTitle(), index == 0 ? center : side);
+                }
             }
-            else
-            {
-                size.x = panel.y * viewAspect;
-            }
-            const ImVec2 cursor = ImGui::GetCursorPos();
-            ImGui::SetCursorPos(ImVec2(
-                cursor.x + (panel.x - size.x) * 0.5f,
-                cursor.y + (panel.y - size.y) * 0.5f));
-            ImGui::Image(
-                static_cast<ImTextureID>(EditorUI::ToTextureId(m_gameView)), size);
+            ImGui::DockBuilderFinish(dockSpace);
+            m_dockLayoutBuilt = true;
         }
         ImGui::End();
+
+        for (std::size_t index = 0; index < m_panels.Size(); ++index)
+        {
+            EditorPanel* panel = m_panels[index].Get();
+            if (panel == nullptr)
+            {
+                continue;
+            }
+            // **닫혀 있어도 갱신은 돈다.** 보이지 않는다고 멈춰야 하는 일과
+            // 계속 돌아야 하는 일은 다르고, 그 판단은 패널의 몫이다.
+            panel->OnUpdate(deltaTime);
+            if (false == panel->IsOpen())
+            {
+                continue;
+            }
+            bool open = true;
+            const ImGuiWindowFlags flags = panel->HasMenuBar()
+                ? ImGuiWindowFlags_MenuBar
+                : ImGuiWindowFlags_None;
+            if (ImGui::Begin(panel->GetTitle(), &open, flags))
+            {
+                if (panel->HasMenuBar() && ImGui::BeginMenuBar())
+                {
+                    panel->OnMenuBar();
+                    ImGui::EndMenuBar();
+                }
+                panel->OnDraw();
+            }
+            ImGui::End();
+            panel->SetOpen(open);
+        }
 
         // **텍스처와 버퍼는 여기서 올라간다. RHI 프레임 밖이어야 한다** -
         // 아래 엔진 Tick 이 프레임을 열고 나면 만들 수도 쓸 수도 없다.
@@ -497,6 +633,11 @@ namespace JBro
     }
 
     Renderer* EditorApplication::GetRenderer()
+    {
+        return m_engine ? m_engine->GetRenderer() : nullptr;
+    }
+
+    const Renderer* EditorApplication::GetRenderer() const
     {
         return m_engine ? m_engine->GetRenderer() : nullptr;
     }

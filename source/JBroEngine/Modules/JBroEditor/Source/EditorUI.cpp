@@ -169,6 +169,9 @@ namespace JBro
         // 자리에 창이 서지 않는 이유를 알 수 없게 된다. 저장소에 파일도 남는다.
         // 도킹 레이아웃 보존은 나중에 프로젝트 경로에 **명시적으로** 넣는다.
         io.IniFilename = nullptr;
+        // 패널을 서로 붙이고 탭으로 묶는다. 에디터는 창이 여럿이라 이것 없이는
+        // 패널마다 떠다니는 상자가 된다.
+        io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
         // 1.92 부터 백엔드가 텍스처를 직접 만들고 지운다. 이것을 켜지 않으면
         // ImGui 가 옛 방식(GetTexDataAsRGBA32)을 기대한다.
         io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures;

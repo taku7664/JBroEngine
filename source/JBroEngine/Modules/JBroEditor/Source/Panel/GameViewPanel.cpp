@@ -1,0 +1,57 @@
+﻿#include "GameViewPanel.h"
+
+#include <JBro/Editor/EditorApplication.h>
+#include <JBro/Editor/EditorUI.h>
+
+#include <imgui.h>
+
+namespace JBro
+{
+    const char* GameViewPanel::GetTitle() const
+    {
+        return "Game";
+    }
+
+    bool GameViewPanel::OnCreate(EditorApplication& editor)
+    {
+        m_editor = &editor;
+        return true;
+    }
+
+    void GameViewPanel::OnDraw()
+    {
+        if (m_editor == nullptr)
+        {
+            return;
+        }
+        const TextureHandle gameView = m_editor->GetGameViewTexture();
+        const Extent2D extent = m_editor->GetGameViewExtent();
+        const ImVec2 panel = ImGui::GetContentRegionAvail();
+        if (panel.x <= 0.0f || panel.y <= 0.0f
+            || false == gameView.IsValid()
+            || extent.width == 0 || extent.height == 0)
+        {
+            return;
+        }
+
+        // **비율을 지켜 패널 안에 맞춘다(레터박스).** 늘려 붙이면 에디터 창 모양에
+        // 따라 게임이 찌그러져 보인다.
+        const float viewAspect =
+            static_cast<float>(extent.width) / static_cast<float>(extent.height);
+        const float panelAspect = panel.x / panel.y;
+        ImVec2 size = panel;
+        if (viewAspect > panelAspect)
+        {
+            size.y = panel.x / viewAspect;
+        }
+        else
+        {
+            size.x = panel.y * viewAspect;
+        }
+        const ImVec2 cursor = ImGui::GetCursorPos();
+        ImGui::SetCursorPos(ImVec2(
+            cursor.x + (panel.x - size.x) * 0.5f,
+            cursor.y + (panel.y - size.y) * 0.5f));
+        ImGui::Image(static_cast<ImTextureID>(EditorUI::ToTextureId(gameView)), size);
+    }
+}

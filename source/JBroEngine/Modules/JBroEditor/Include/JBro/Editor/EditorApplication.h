@@ -1,7 +1,9 @@
 ﻿#pragma once
 
 #include <JBro/Canvas/CanvasFile.h>
+#include <JBro/Editor/EditorPanel.h>
 #include <JBro/Editor/EditorUI.h>
+#include <JBro/Types/Array.h>
 #include <JBro/Host/ProjectFile.h>
 #include <JBro/RHI/RHI.h>
 #include <JBro/Types/String.h>
@@ -85,8 +87,18 @@ namespace JBro
         // 스크립트가 같은 키를 받으면 안 된다. UI 가 꺼져 있으면 거짓이다.
         bool UiWantsMouse() const;
         bool UiWantsKeyboard() const;
+        // 패널을 들인다. 에디터가 소유하고, UI 를 끌 때 함께 내보낸다.
+        // 같은 제목의 패널은 받지 않는다 - ImGui 가 제목으로 창을 식별하므로
+        // 둘이 한 창을 나눠 쓰게 된다.
+        bool AddPanel(OwnerPtr<EditorPanel> panel);
+        // 제목으로 찾는다. 없으면 nullptr 이다.
+        EditorPanel* FindPanel(const char* title);
+        std::size_t GetPanelCount() const;
+
         // 게임 화면이 그려지는 텍스처다. UI 가 꺼져 있으면 비어 있다.
         TextureHandle GetGameViewTexture() const;
+        // 그 텍스처의 크기다. 게임 해상도이고 에디터 창과 무관하다.
+        Extent2D GetGameViewExtent() const;
 
         bool Tick(float deltaTime);
         void CloseProject();
@@ -102,6 +114,7 @@ namespace JBro
         // 이 세션의 렌더러다. **진단과 화면 되읽기 경로다** - 매 프레임 도는 길이
         // 아니다. 프레임을 여닫는 것은 여전히 엔진의 일이다.
         Renderer* GetRenderer();
+        const Renderer* GetRenderer() const;
 
         bool IsInitialized() const;
         bool HasOpenProject() const;
@@ -116,6 +129,7 @@ namespace JBro
             void* user);
         bool BuildEditorUi(float deltaTime);
         void ReleaseEditorUi();
+        void DestroyPanels();
         // 디바이스가 이미 사라진 뒤에 부른다.
         void AbandonEditorUi();
 
@@ -128,9 +142,12 @@ namespace JBro
         OwnerPtr<EngineInstance> m_engine;
         OwnerPtr<IFramework> m_framework;
         EditorUI m_ui;
+        Array<OwnerPtr<EditorPanel>> m_panels;
         TextureHandle m_gameView;
         Extent2D m_gameViewExtent;
         bool m_uiEnabled = false;
+        // 첫 프레임에 한 번만 기본 자리를 잡는다. 그 뒤로는 사용자가 옮긴 자리다.
+        bool m_dockLayoutBuilt = false;
         // 만든 쪽이 무엇을 만들었는지 기억한다. `IFramework` 에는 캔버스로 가는 길이 없고,
         // 그것을 뚫으려면 호스트 계층이 `Canvas` 를 보아야 한다(D-42 가 막는 방향이다).
         FrameworkKind m_frameworkKind = FrameworkKind::Framework2D;
