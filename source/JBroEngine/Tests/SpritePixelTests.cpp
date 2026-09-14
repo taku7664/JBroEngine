@@ -279,6 +279,7 @@ namespace
     {
         int calls = 0;
         std::uint32_t lastSlot = 0xFFFFFFFFu;
+        std::uint32_t firstSlot = 0xFFFFFFFFu;
         bool succeed = true;
         float mark[4] = {0.25f, 0.75f, 0.5f, 1.0f};
     };
@@ -291,6 +292,10 @@ namespace
     {
         auto* probe = static_cast<OverlayProbe*>(user);
         ++probe->calls;
+        if (probe->firstSlot == 0xFFFFFFFFu)
+        {
+            probe->firstSlot = frameSlot;
+        }
         probe->lastSlot = frameSlot;
         if (false == probe->succeed)
         {
@@ -370,6 +375,15 @@ namespace
         // 슬롯을 알려 줘야 매 프레임 덮어쓰는 자원을 갈라 쓸 수 있다.
         Check(probe.lastSlot != 0xFFFFFFFFu, "and be told which slot the frame uses");
 
+        // **한 번 더 돌려 슬롯이 바뀌는지 본다.** 늘 같은 값을 넘기면 받는 쪽은
+        // 갈라 쓸 수가 없고, 한 프레임만 보아서는 그것이 드러나지 않는다.
+        Check(renderer.BeginFrame(target) == JBro::FrameStatus::Ready,
+            "a second frame must begin");
+        Check(renderer.EndFrame() == JBro::FrameStatus::Ready, "and present");
+        Check(probe.calls == 2, "the overlay must run again");
+        Check(probe.lastSlot != probe.firstSlot,
+            "and be told a different slot, or nobody can split anything by it");
+
         JBro::Array<std::byte> image;
         image.Resize(64 * 64 * 4);
         JBro::TextureReadback readback;
@@ -387,7 +401,7 @@ namespace
             "the next frame must begin");
         Check(renderer.EndFrame() == JBro::FrameStatus::InvalidState,
             "a failing overlay must throw the frame away");
-        Check(probe.calls == 2, "and it must have been the overlay that was asked");
+        Check(probe.calls == 3, "and it must have been the overlay that was asked");
 
         Check(renderer.SetFrameOverlay(nullptr, nullptr), "the overlay must detach");
         Check(renderer.HasFrameOverlay() == false, "and say so");
