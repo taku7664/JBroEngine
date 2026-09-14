@@ -625,7 +625,12 @@ namespace JBro
         m_lastDrawCount = 0;
         if (frameSlot >= m_frameSlots)
         {
-            // RHI 가 말한 것보다 많은 슬롯이다. 그리면 남의 버퍼를 읽는다.
+            // RHI 가 말한 것보다 큰 슬롯이다. 그냥 두면 배열 밖을 읽는다.
+            //
+            // **이 줄은 뮤테이션으로 죽지 않는다.** 지우면 배열 밖을 읽는데, 거기서
+            // 나온 쓰레기 핸들은 아래 `IsValid()` 에서 걸려 어차피 거짓이 나온다.
+            // 관측되는 결과가 같다는 것이지 같은 코드라는 뜻은 아니다 - 한쪽은
+            // 정의되지 않은 동작이다.
             return false;
         }
         if (false == m_initialized || m_frameOpen)

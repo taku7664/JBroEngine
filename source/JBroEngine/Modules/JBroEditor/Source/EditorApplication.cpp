@@ -221,6 +221,9 @@ namespace JBro
 
     bool EditorApplication::EnableEditorUi(const Extent2D& gameViewExtent)
     {
+        // 크기가 0 인 것은 아래 `CreateTexture` 도 거절한다. 그래도 여기서 막는 것은
+        // 계약을 이 함수에서 읽을 수 있게 하려는 것이다 - RHI 가 마침 거절해 주는
+        // 것에 기대면, RHI 가 관대해지는 날 조용히 통과한다.
         if (false == m_initialized || m_uiEnabled
             || gameViewExtent.width == 0 || gameViewExtent.height == 0)
         {
@@ -249,6 +252,11 @@ namespace JBro
             return false;
         }
 
+        // **포맷은 렌더러에게 묻는다.** D3D12 는 파이프라인이 선언한 렌더 타깃 포맷이
+        // 실제 타깃과 달라도(BGRA 대 RGBA) 조용히 넘어간다 - 검증 레이어도, GPU 기반
+        // 검증도 한 마디 하지 않았고 그림도 똑같이 나온다. 그래서 이 줄을 상수로
+        // 바꿔도 뮤테이션이 죽지 않는다. 그래도 묻는다: 규격이 맞추라고 하고,
+        // 크기가 다른 포맷이면 그때는 실제로 깨진다.
         if (false == m_ui.Initialize(*device, renderer->GetBackBufferFormat()))
         {
             device->DestroyTexture(m_gameView);
