@@ -62,10 +62,9 @@ namespace JBro
 
     void EditorObjectRegistry::Clear()
     {
+        // **`m_nextId` 는 그대로 둔다.** 다시 1부터 세면, 지우기 전에 발급한 번호를
+        // 들고 있는 커맨드가 그 번호로 전혀 다른 오브젝트를 찾아낸다.
         m_entries.Clear();
-        // 번호는 이어서 센다. 지운 뒤에 남아 있는 커맨드가 옛 번호로 새 오브젝트를
-        // 찾는 일이 없도록 한다.
-        ;
     }
 
     std::size_t EditorObjectRegistry::GetCount() const

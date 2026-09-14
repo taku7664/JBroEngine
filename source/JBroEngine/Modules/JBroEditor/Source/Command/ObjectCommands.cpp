@@ -97,7 +97,7 @@ namespace JBro
         m_parentId = object->GetParent() != nullptr
             ? m_registry->Track(object->GetParent())
             : InvalidEditorObjectId;
-        Capture(*object, -1);
+        m_captured = Capture(*object, -1);
     }
 
     const char* DeleteObjectCommand::GetName() const
@@ -278,9 +278,13 @@ namespace JBro
 
     bool DeleteObjectCommand::Execute()
     {
-        if (m_objects.IsEmpty())
+        if (false == m_captured || m_objects.IsEmpty())
         {
             // 뜨지 못한 스냅샷이다. 되살릴 수 없는 것은 지우지 않는다.
+            //
+            // 반쪽도 거절한다. 캔버스는 나무를 통째로 지우는데 스냅샷에 자식이
+            // 빠져 있으면 되돌려도 그 자식은 안 돌아온다 - 지우기가 성공했다고
+            // 말한 뒤에 조용히 잃는 것이다.
             return false;
         }
         return DestroyTracked();

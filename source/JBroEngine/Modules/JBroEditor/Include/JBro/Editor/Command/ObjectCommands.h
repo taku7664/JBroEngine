@@ -106,6 +106,10 @@ namespace JBro
         Canvas* m_canvas = nullptr;
         EditorObjectRegistry* m_registry = nullptr;
         EditorObjectId m_parentId = InvalidEditorObjectId;
+        // **나무 전체를 떴는가.** 스냅샷이 비었는지만 보아서는 모자란다 - 뿌리는
+        // 떴는데 자식 하나에서 막히면 배열은 비어 있지 않고, 그대로 지우면 그
+        // 자식이 돌아올 곳이 없다. 성공했다고 말하면서 잃는 것이 가장 나쁘다.
+        bool m_captured = false;
         // 0번이 지운 나무의 뿌리다. 뒤로 갈수록 깊어지므로, 되살릴 때 앞에서부터
         // 만들면 부모가 늘 먼저 있다.
         Array<ObjectSnapshot> m_objects;
