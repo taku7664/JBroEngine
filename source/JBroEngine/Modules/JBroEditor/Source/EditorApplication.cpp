@@ -377,6 +377,11 @@ namespace JBro
         return m_commands;
     }
 
+    EditorObjectRegistry& EditorApplication::GetObjectIds()
+    {
+        return m_objectIds;
+    }
+
     void EditorApplication::SetSelectedObject(GameObject* object)
     {
         m_selected = object != nullptr ? object->SafeFromThis() : SafePtr<GameObject>();
@@ -418,6 +423,7 @@ namespace JBro
         m_gameViewExtent = {};
         m_selected = {};
         m_commands.Clear();
+        m_objectIds.Clear();
         m_uiEnabled = false;
     }
 
@@ -446,6 +452,7 @@ namespace JBro
         m_gameViewExtent = {};
         m_selected = {};
         m_commands.Clear();
+        m_objectIds.Clear();
         m_uiEnabled = false;
     }
 

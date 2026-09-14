@@ -1,10 +1,14 @@
 ﻿#include "HierarchyPanel.h"
 
+#include <JBro/Editor/Command/ObjectCommands.h>
+
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Runtime/GameObject.h>
 
 #include <imgui.h>
+
+#include <utility>
 
 namespace JBro
 {
@@ -31,6 +35,26 @@ namespace JBro
             ImGui::TextDisabled("no project is open");
             return;
         }
+        // 빈 자리에 우클릭하면 뿌리에 만든다. 기존 엔진도 하이어라키의 맥락
+        // 메뉴가 이 자리다.
+        if (ImGui::BeginPopupContextWindow("##HierarchyMenu",
+            ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems))
+        {
+            if (ImGui::MenuItem("Create Object"))
+            {
+                auto command = MakeOwnerPtr<CreateObjectCommand>(
+                    *canvas, m_editor->GetObjectIds(), "GameObject",
+                    InvalidEditorObjectId);
+                CreateObjectCommand* raw = command.Get();
+                if (m_editor->GetCommands().Execute(std::move(command)))
+                {
+                    m_editor->SetSelectedObject(
+                        m_editor->GetObjectIds().Resolve(raw->GetObjectId()));
+                }
+            }
+            ImGui::EndPopup();
+        }
+
         if (canvas->GetObjectCount() == 0)
         {
             ImGui::TextDisabled("the canvas is empty");
@@ -76,6 +100,37 @@ namespace JBro
         if (ImGui::IsItemClicked() && false == ImGui::IsItemToggledOpen())
         {
             m_editor->SetSelectedObject(&object);
+        }
+        if (ImGui::BeginPopupContextItem("##ObjectMenu"))
+        {
+            // 우클릭한 것을 고른 것으로 삼는다. 메뉴가 무엇에 대한 것인지
+            // 보이는 것과 어긋나면 안 된다.
+            m_editor->SetSelectedObject(&object);
+            if (ImGui::MenuItem("Create Child"))
+            {
+                auto command = MakeOwnerPtr<CreateObjectCommand>(
+                    *m_editor->GetCanvas(), m_editor->GetObjectIds(), "GameObject",
+                    m_editor->GetObjectIds().Track(&object));
+                CreateObjectCommand* raw = command.Get();
+                if (m_editor->GetCommands().Execute(std::move(command)))
+                {
+                    m_editor->SetSelectedObject(
+                        m_editor->GetObjectIds().Resolve(raw->GetObjectId()));
+                }
+            }
+            ImGui::Separator();
+            if (ImGui::MenuItem("Delete"))
+            {
+                // 고른 것을 먼저 비운다 - 지운 뒤에 인스펙터가 죽은 것을 읽지
+                // 않게. SafePtr 이 알아서 비우지만, 이 프레임 안에서는 아직 살아 있다.
+                m_editor->SetSelectedObject(nullptr);
+                m_editor->GetCommands().Execute(MakeOwnerPtr<DeleteObjectCommand>(
+                    *m_editor->GetCanvas(), m_editor->GetObjectIds(), &object));
+                ImGui::EndPopup();
+                ImGui::PopID();
+                return;
+            }
+            ImGui::EndPopup();
         }
         if (opened && children.Size() != 0)
         {

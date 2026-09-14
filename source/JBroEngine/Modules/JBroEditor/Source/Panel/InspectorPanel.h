@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#include "../Command/SetPropertyCommand.h"
+#include <JBro/Editor/Command/SetPropertyCommand.h>
 
 #include <JBro/Editor/EditorPanel.h>
 

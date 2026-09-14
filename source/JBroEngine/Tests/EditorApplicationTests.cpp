@@ -1,7 +1,10 @@
 ﻿#include <JBro/Editor/EditorApplication.h>
 
 #include <JBro/Canvas/Canvas.h>
+#include <JBro/Editor/Command/ObjectCommands.h>
+#include <JBro/Editor/EditorObjectRegistry.h>
 #include <JBro/Editor/EditorPanel.h>
+#include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Graphics/Renderer.h>
 #include <JBro/Reflection/PropertyInfo.h>
 #include <JBro/Reflection/PropertyRegistry.h>
@@ -158,6 +161,146 @@ namespace
         Check(editor.GetSelectedObject() == nullptr,
             "a selection that was destroyed must clear itself");
         Check(editor.Tick(1.0f / 60.0f), "and the editor must keep going");
+
+        editor.Shutdown();
+    }
+
+    JBro::GameObject* FindByName(JBro::Canvas& canvas, const char* name)
+    {
+        JBro::GameObject* found = nullptr;
+        canvas.ForEachObject([&](JBro::GameObject& object) {
+            if (found == nullptr && std::strcmp(object.GetTag(), name) == 0)
+            {
+                found = &object;
+            }
+        });
+        return found;
+    }
+
+    // **지운 것을 되돌리면 값까지 돌아와야 한다.** 오브젝트만 되살리고 컴포넌트의
+    // 값이 기본값으로 돌아오면, 되돌린 것이 아니라 비슷한 것을 새로 만든 것이다.
+    void TestDeletingAnObjectCanBeUndoneWithItsValues()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 320;
+        config.windowHeight = 240;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; object commands not verified"
+                << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "ObjectCommandProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        Check(canvas != nullptr, "the probe project must have a canvas");
+
+        // 부모와 자식을 만든다. 지우면 나무가 통째로 없어져야 한다.
+        JBro::GameObject* parent = canvas->CreateObject("Parent");
+        auto* parentTransform =
+            canvas->AttachComponent<JBro::Component::Transform2D>(parent);
+        parentTransform->position = {3.5f, -1.25f};
+        parentTransform->rotation = 0.75f;
+
+        JBro::GameObject* child = canvas->CreateObject("Child");
+        child->SetParent(parent);
+        auto* childSprite =
+            canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(child);
+        childSprite->tint = {0.25f, 0.5f, 0.75f, 1.0f};
+        childSprite->renderOrder = 17;
+
+        const std::size_t before = canvas->GetObjectCount();
+
+        JBro::EditorObjectRegistry& ids = editor.GetObjectIds();
+        const JBro::EditorObjectId parentId = ids.Track(parent);
+        Check(parentId != JBro::InvalidEditorObjectId, "the parent must get a number");
+
+        Check(editor.GetCommands().Execute(
+                JBro::MakeOwnerPtr<JBro::DeleteObjectCommand>(*canvas, ids, parent)),
+            "deleting must go through");
+        Check(canvas->GetObjectCount() == before - 2,
+            "the object and its child must both be gone");
+        Check(ids.Resolve(parentId) == nullptr, "and the number must resolve to nothing");
+
+        Check(editor.GetCommands().Undo(), "undo must run");
+        Check(canvas->GetObjectCount() == before, "and bring the tree back");
+
+        // **같은 번호로 돌아와야 한다.** 그러지 않으면 그 번호를 들고 있는
+        // 커맨드들이 되살아난 오브젝트를 못 찾는다.
+        JBro::GameObject* restored = ids.Resolve(parentId);
+        Check(restored != nullptr, "the old number must find the restored object");
+        Check(std::strcmp(restored->GetTag(), "Parent") == 0, "with its name");
+
+        auto* restoredTransform = restored->GetComponent<JBro::Component::Transform2D>().Get();
+        Check(restoredTransform != nullptr, "and its transform");
+        Check(restoredTransform->position.x > 3.49f && restoredTransform->position.x < 3.51f,
+            "with the position it had");
+        Check(restoredTransform->rotation > 0.74f && restoredTransform->rotation < 0.76f,
+            "and the rotation");
+
+        JBro::GameObject* restoredChild = FindByName(*canvas, "Child");
+        Check(restoredChild != nullptr, "the child must be back too");
+        Check(restoredChild->GetParent() == restored, "under the same parent");
+        auto* restoredSprite =
+            restoredChild->GetComponent<JBro::Component::SpriteRenderer2D>().Get();
+        Check(restoredSprite != nullptr, "with its sprite renderer");
+        Check(restoredSprite->renderOrder == 17, "and the values it had");
+        Check(restoredSprite->tint.G > 0.49f && restoredSprite->tint.G < 0.51f,
+            "including the ones inside a struct");
+
+        // 다시 지우고 다시 되살려도 같아야 한다.
+        Check(editor.GetCommands().Redo(), "redo must run");
+        Check(canvas->GetObjectCount() == before - 2, "and take the tree away again");
+        Check(editor.GetCommands().Undo(), "and undo once more");
+        Check(ids.Resolve(parentId) != nullptr, "the number must still find it");
+
+        editor.Shutdown();
+    }
+
+    // 만들기도 되돌릴 수 있어야 하고, 다시 하면 **같은 번호**로 돌아와야 한다.
+    void TestCreatingAnObjectCanBeUndone()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 320;
+        config.windowHeight = 240;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; create not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "CreateProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::EditorObjectRegistry& ids = editor.GetObjectIds();
+        const std::size_t before = canvas->GetObjectCount();
+
+        auto command = JBro::MakeOwnerPtr<JBro::CreateObjectCommand>(
+            *canvas, ids, "Fresh", JBro::InvalidEditorObjectId);
+        JBro::CreateObjectCommand* raw = command.Get();
+        Check(editor.GetCommands().Execute(std::move(command)), "creating must go through");
+        Check(canvas->GetObjectCount() == before + 1, "and add one object");
+        const JBro::EditorObjectId id = raw->GetObjectId();
+        Check(ids.Resolve(id) != nullptr, "which the number finds");
+
+        Check(editor.GetCommands().Undo(), "undo must run");
+        Check(canvas->GetObjectCount() == before, "and take it away");
+        Check(ids.Resolve(id) == nullptr, "leaving the number pointing at nothing");
+
+        Check(editor.GetCommands().Redo(), "redo must run");
+        Check(canvas->GetObjectCount() == before + 1, "and put it back");
+        Check(ids.Resolve(id) != nullptr, "under the same number as before");
 
         editor.Shutdown();
     }
@@ -684,6 +827,8 @@ int RunEditorApplicationTests()
     TestTheEditorDrawsWithNoProjectOpen();
     TestTheEditorForwardsInputToItsUi();
     TestTheInspectorIsToldWhatItMayEdit();
+    TestCreatingAnObjectCanBeUndone();
+    TestDeletingAnObjectCanBeUndoneWithItsValues();
     TestClosingTheWindowDoesNotTakeTheUiDownWithIt();
     TestEditorOpensAProjectFile();
     TestEditorSavesAndOpensACanvas();

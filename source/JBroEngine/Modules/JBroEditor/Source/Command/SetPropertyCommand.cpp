@@ -1,4 +1,4 @@
-﻿#include "SetPropertyCommand.h"
+﻿#include <JBro/Editor/Command/SetPropertyCommand.h>
 
 #include <JBro/Reflection/PropertyInfo.h>
 #include <JBro/Reflection/PropertyRegistry.h>
@@ -10,53 +10,6 @@ namespace JBro
     namespace
     {
         constexpr std::size_t TextCapacity = 512;
-
-        // 컴포넌트에서 길을 따라 내려가 잎사귀의 주소와 그 타입을 찾는다.
-        // 길 중간이 사라졌거나(등록 해제) 잎사귀에 코덱이 없으면 거짓이다.
-        bool Resolve(
-            ComponentBase& component,
-            ComponentTypeId typeId,
-            const SetPropertyCommand::Path& path,
-            void*& address,
-            const TypeDescriptor*& type)
-        {
-            const PropertyTable* table = PropertyRegistry::Lookup(typeId);
-            if (table == nullptr || path.depth == 0
-                || path.depth > SetPropertyCommand::MaxDepth)
-            {
-                return false;
-            }
-
-            void* owner = &component;
-            const TypeDescriptor* found = nullptr;
-            for (std::uint32_t step = 0; step < path.depth; ++step)
-            {
-                if (table == nullptr || path.indices[step] >= table->count)
-                {
-                    return false;
-                }
-                const PropertyInfo& property = table->properties[path.indices[step]];
-                if (property.type == nullptr || property.Address == nullptr)
-                {
-                    return false;
-                }
-                owner = property.Address(owner);
-                if (owner == nullptr)
-                {
-                    return false;
-                }
-                found = property.type;
-                table = found->fields;
-            }
-
-            if (found == nullptr || found->codec == nullptr)
-            {
-                return false;
-            }
-            address = owner;
-            type = found;
-            return true;
-        }
     }
 
     bool SetPropertyCommand::Path::Equals(const Path& other) const
@@ -73,6 +26,66 @@ namespace JBro
             }
         }
         return true;
+    }
+
+    bool SetPropertyCommand::ResolveLeaf(
+        ComponentBase& component,
+        ComponentTypeId typeId,
+        const Path& path,
+        void*& address,
+        const TypeDescriptor*& type)
+    {
+        const PropertyTable* table = PropertyRegistry::Lookup(typeId);
+        if (table == nullptr || path.depth == 0 || path.depth > MaxDepth)
+        {
+            return false;
+        }
+
+        void* owner = &component;
+        const TypeDescriptor* found = nullptr;
+        for (std::uint32_t step = 0; step < path.depth; ++step)
+        {
+            if (table == nullptr || path.indices[step] >= table->count)
+            {
+                return false;
+            }
+            const PropertyInfo& property = table->properties[path.indices[step]];
+            if (property.type == nullptr || property.Address == nullptr)
+            {
+                return false;
+            }
+            owner = property.Address(owner);
+            if (owner == nullptr)
+            {
+                return false;
+            }
+            found = property.type;
+            table = found->fields;
+        }
+
+        if (found == nullptr || found->codec == nullptr)
+        {
+            return false;
+        }
+        address = owner;
+        type = found;
+        return true;
+    }
+
+    bool SetPropertyCommand::ApplyValue(
+        ComponentBase& component,
+        ComponentTypeId typeId,
+        const Path& path,
+        const String& text)
+    {
+        void* address = nullptr;
+        const TypeDescriptor* type = nullptr;
+        if (false == ResolveLeaf(component, typeId, path, address, type)
+            || type->codec->FromText == nullptr)
+        {
+            return false;
+        }
+        return type->codec->FromText(address, text.c_str(), text.size());
     }
 
     SetPropertyCommand::SetPropertyCommand(
@@ -134,7 +147,7 @@ namespace JBro
     {
         void* address = nullptr;
         const TypeDescriptor* type = nullptr;
-        if (false == Resolve(component, typeId, path, address, type)
+        if (false == ResolveLeaf(component, typeId, path, address, type)
             || type->codec->ToText == nullptr)
         {
             return false;
@@ -158,13 +171,6 @@ namespace JBro
             // 컴포넌트가 사라졌다. 되돌릴 곳이 없는 것은 실패지 사고가 아니다.
             return false;
         }
-        void* address = nullptr;
-        const TypeDescriptor* type = nullptr;
-        if (false == Resolve(*component, m_typeId, m_path, address, type)
-            || type->codec->FromText == nullptr)
-        {
-            return false;
-        }
-        return type->codec->FromText(address, value.c_str(), value.size());
+        return ApplyValue(*component, m_typeId, m_path, value);
     }
 }

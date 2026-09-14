@@ -49,13 +49,28 @@ namespace JBro
         void Redo() override;
         bool TryMerge(const EditorCommand& newer) override;
 
-        // 같은 잎사귀를 가리키는 길에서 현재 값을 글자로 읽는다.
-        // 편집 전 값을 잡아 두는 데 쓴다.
+        // 길을 따라 잎사귀의 주소와 타입을 찾는다. 중간이 사라졌거나 잎사귀에
+        // 코덱이 없으면 거짓이다. **스냅샷을 뜨고 되살리는 쪽도 같은 길을 쓴다** -
+        // 두 군데가 따로 걸어 내려가면 한쪽만 고쳐지는 날이 온다.
+        static bool ResolveLeaf(
+            ComponentBase& component,
+            ComponentTypeId typeId,
+            const Path& path,
+            void*& address,
+            const TypeDescriptor*& type);
+
+        // 현재 값을 글자로 읽는다. 편집 전 값을 잡아 두는 데 쓴다.
         static bool ReadValue(
             ComponentBase& component,
             ComponentTypeId typeId,
             const Path& path,
             String& text);
+        // 글자를 써 넣는다. 되살리기가 스냅샷을 되돌릴 때도 이 길이다.
+        static bool ApplyValue(
+            ComponentBase& component,
+            ComponentTypeId typeId,
+            const Path& path,
+            const String& text);
 
     private:
         bool WriteValue(const String& value);
