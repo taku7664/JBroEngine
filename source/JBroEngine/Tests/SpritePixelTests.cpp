@@ -175,10 +175,12 @@ namespace
         JBro::IRHIDevice* device = renderer.GetDevice();
         Check(device != nullptr, "the renderer must hand out the device it made");
 
-        // **게임 뷰는 화면과 크기가 다르다.** 여기서 일부러 다르게 잡는다 - 뷰포트를
-        // 재는 기준이 백버퍼에 묶여 있으면 이 크기에서 바로 어긋난다.
-        constexpr std::uint32_t TargetWidth = 48;
-        constexpr std::uint32_t TargetHeight = 32;
+        // **게임 뷰는 창보다 크다.** 게임 해상도가 에디터 창보다 큰 것이 보통이고,
+        // 여기서 일부러 그렇게 잡는다 - 뷰포트를 재는 기준이 창에 묶여 있으면
+        // 타깃 안에 멀쩡히 들어가는 뷰포트가 "화면 밖" 으로 거절당한다.
+        constexpr std::uint32_t TargetWidth = 96;
+        constexpr std::uint32_t TargetHeight = 48;
+        static_assert(TargetWidth > 64, "the target must be wider than the window");
         JBro::TextureDesc targetDesc;
         targetDesc.extent = {TargetWidth, TargetHeight};
         targetDesc.format = JBro::TextureFormat::BGRA8Unorm;
@@ -240,6 +242,29 @@ namespace
             "the sprite must paint the same tint it paints on the back buffer");
         Check(Near(right.r, 0.0f) && Near(right.g, 0.0f) && Near(right.b, 0.0f),
             "and leave the rest of the texture at the clear colour");
+
+        // **같은 렌더러로 다음 프레임은 백버퍼에 그린다.** 타깃이 프레임에 매인 것이지
+        // 렌더러에 매인 것이 아님을 그것이 보인다 - 한 번 텍스처로 보냈다고 그 뒤로
+        // 계속 텍스처로 가면, 게임을 실행했을 때 화면이 검게 남는다.
+        JBro::CameraParams windowCamera = camera;
+        windowCamera.viewport.width = 64.0f;
+        windowCamera.viewport.height = 64.0f;
+        Check(renderer.BeginFrame() == JBro::FrameStatus::Ready,
+            "the next frame must begin with no target");
+        Check(renderer.BeginView(windowCamera), "the window view must open");
+        Check(renderer.SubmitSprite(sprite), "the probe sprite must submit again");
+        Check(renderer.EndView(), "the window view must close");
+        Check(renderer.EndFrame() == JBro::FrameStatus::Ready, "the window frame must present");
+
+        JBro::Array<std::byte> windowImage;
+        windowImage.Resize(64 * 64 * 4);
+        JBro::TextureReadback windowReadback;
+        Check(renderer.ReadBackBuffer(
+                windowImage.Data(), windowImage.Size(), windowReadback),
+            "the back buffer must read back");
+        const Pixel windowLeft = ReadPixel(windowImage, windowReadback.rowPitch, 16, 32);
+        Check(Near(windowLeft.r, 1.0f) && Near(windowLeft.g, 0.5f) && Near(windowLeft.b, 0.25f),
+            "and the sprite must be on it, not still going to the texture");
 
         device->DestroyTexture(gameView);
         renderer.Shutdown();
