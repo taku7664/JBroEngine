@@ -1,4 +1,4 @@
-# 신규 리포를 기존 엔진 구조에 맞추기 — TODO
+﻿# 신규 리포를 기존 엔진 구조에 맞추기 — TODO
 
 폐기된 World/ECS 단계 기록은 [canvas-world-foundation.md](./canvas-world-foundation.md)에 남아 있다.
 이 문서는 현재 설계나 작업 지시가 아니다.
@@ -501,6 +501,25 @@
   **업로드는 GPU 를 기다리고 프레임 안에서는 거절한다**(`ReadTexture` 와 같은 계약).
   검증은 2x2 텍스처를 화면에 그리고 픽셀을 되읽어 네 텍셀이 제 사분면에 앉는지 본다 —
   디스크립터가 엉뚱한 자리에 가도 D3D12 는 아무 말도 하지 않는다.
+
+- **D-62. 입력은 플랫폼이 이벤트로 모아 준다.** 매 프레임 읽어 가는 키 상태 배열이 아니다.
+  ImGui 를 붙이려다 **플랫폼이 입력을 아예 안 만진다는 것**이 드러나 정한 것이다 —
+  `WindowProcedure` 가 `WM_CLOSE` 하나만 보고 나머지는 `DefWindowProcW` 로 넘기고 있었다.
+  **모양**: `IPlatform::GetInputEvents()` 가 지난 `PumpEvents` 가 모은 `JArrayView<InputEvent>`
+  를 돌려준다. 다음 `PumpEvents` 가 그 목록을 비운다. `InputEvent` 는 20바이트 POD 다 —
+  게임 DLL 경계를 넘는다. 기각: 폴링식 상태(한 프레임 안에 눌렀다 뗀 키와 글자 입력 순서가
+  사라진다. 에디터의 텍스트 필드가 바로 그것을 필요로 한다), ImGui 가 `WndProc` 을 직접 훅
+  (`imgui_impl_win32` 방식. 지금은 제일 짧지만 게임 입력을 나중에 또 만들게 된다).
+  **키는 물리 키다.** `Key::A` 는 QWERTY 의 A 자리이지 그 키가 내는 글자가 아니다.
+  글자는 `InputEventKind::Text` 로 따로 온다 — 같은 키가 배열에 따라 다른 글자를 내기 때문이다.
+  **Win32 가 숨긴 것 셋을 넘어야 했다.** 좌우 Shift·Control 과 Enter·키패드 Enter 는 같은
+  가상 키이고 스캔코드와 확장 비트로만 갈린다. 글자는 `TranslateMessage` 가 만드는 `WM_CHAR`
+  로 온다. BMP 밖 글자는 UTF-16 반쪽 둘로 나눠 오므로 앞쪽을 들고 있다가 합친다.
+  플랫폼 포인터는 창 클래스의 여분 슬롯(`cbWndExtra`)에 둔다 — `GWLP_USERDATA` 는 이미
+  닫기 플래그가 쓰고 있다. 한 프레임 상한은 4096개이고 넘치면 버린다.
+  검증은 창에 실제 메시지를 `PostMessageW` 로 넣고 펌프를 돌려서 본다 —
+  `SendMessageW` 로 `WndProc` 을 직접 부르면 `PeekMessage` 와 `TranslateMessage` 를 건너뛰어
+  실제로 도는 경로가 아닌 다른 경로를 재게 된다. 뮤테이션 15/15.
 
 ## Assumptions
 
