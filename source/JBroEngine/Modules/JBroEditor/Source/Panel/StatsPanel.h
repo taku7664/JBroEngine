@@ -15,6 +15,7 @@ namespace JBro
         bool OnCreate(EditorApplication& editor) override;
         void OnUpdate(float deltaTime) override;
         void OnDraw() override;
+        EditorDock GetPreferredDock() const override { return EditorDock::Bottom; }
 
     private:
         // 프레임 시간은 한 프레임만 보면 튄다. 최근 것들을 굴려 평균을 낸다.

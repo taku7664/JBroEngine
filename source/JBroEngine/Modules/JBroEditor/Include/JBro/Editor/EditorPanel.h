@@ -6,6 +6,19 @@ namespace JBro
 {
     class EditorApplication;
 
+    // 패널이 처음 뜰 때 어디에 붙고 싶은지다. **자리를 아는 것은 패널 자신이고,
+    // 프레임워크는 패널이 무엇인지 몰라도 된다** - 에디터가 "Inspector 는 오른쪽"
+    // 같은 목록을 들고 있으면 패널을 더할 때마다 프레임워크를 고쳐야 한다.
+    //
+    // 처음 한 번만이다. 그 뒤로는 사용자가 옮긴 자리를 따른다.
+    enum class EditorDock : std::uint8_t
+    {
+        Center,
+        Left,
+        Right,
+        Bottom
+    };
+
     // 에디터 창 하나다(D-70).
     //
     // **훅이 다섯뿐인 이유는 재 봤기 때문이다.** 기존 엔진의 `IImWindow` 는 스물한 개를
@@ -48,6 +61,10 @@ namespace JBro
         virtual bool HasMenuBar() const
         {
             return false;
+        }
+        virtual EditorDock GetPreferredDock() const
+        {
+            return EditorDock::Center;
         }
 
         // 닫은 패널은 그리지 않지만 파기하지도 않는다 - 다시 열면 그대로 이어진다.

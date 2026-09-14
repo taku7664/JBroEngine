@@ -7,8 +7,11 @@
 #include <JBro/Host/EngineInstance.h>
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/CanvasFile.h>
+#include <JBro/Runtime/GameObject.h>
 
 #include "Panel/GameViewPanel.h"
+#include "Panel/HierarchyPanel.h"
+#include "Panel/InspectorPanel.h"
 #include "Panel/StatsPanel.h"
 
 #include <imgui.h>
@@ -287,9 +290,12 @@ namespace JBro
         m_uiEnabled = true;
 
         // 기본 패널이다. 더 얹는 것은 이 위에 `AddPanel` 로 붙인다.
+        // 첫 번째가 가운데를 갖는다 - 게임 화면이 거기여야 한다.
         try
         {
             if (false == AddPanel(MakeOwnerPtr<GameViewPanel>())
+                || false == AddPanel(MakeOwnerPtr<HierarchyPanel>())
+                || false == AddPanel(MakeOwnerPtr<InspectorPanel>())
                 || false == AddPanel(MakeOwnerPtr<StatsPanel>()))
             {
                 ReleaseEditorUi();
@@ -366,6 +372,16 @@ namespace JBro
         return m_panels.Size();
     }
 
+    void EditorApplication::SetSelectedObject(GameObject* object)
+    {
+        m_selected = object != nullptr ? object->SafeFromThis() : SafePtr<GameObject>();
+    }
+
+    GameObject* EditorApplication::GetSelectedObject() const
+    {
+        return m_selected.TryGet();
+    }
+
     bool EditorApplication::UiWantsMouse() const
     {
         return m_uiEnabled && m_ui.WantsMouse();
@@ -395,6 +411,7 @@ namespace JBro
         m_ui.AbandonDevice();
         m_gameView = {};
         m_gameViewExtent = {};
+        m_selected = {};
         m_uiEnabled = false;
     }
 
@@ -486,8 +503,8 @@ namespace JBro
             // 첫 프레임에 한 번만 자리를 잡는다. 그 뒤로는 사용자가 옮긴 자리다.
             //
             // **전부 한 노드에 붙이면 탭으로 겹친다** - 위에 있는 하나만 보이고
-            // 나머지는 가려진다. 그래서 옆에 칸을 하나 떼어 놓는다:
-            // 첫 패널이 가운데를 갖고, 나머지는 오른쪽 칸에 모인다.
+            // 나머지는 가려진다. 그래서 방향마다 칸을 떼어 두고, 패널이 말한
+            // 자리에 붙인다.
             ImGui::DockBuilderRemoveNode(dockSpace);
             ImGui::DockBuilderAddNode(dockSpace, ImGuiDockNodeFlags_DockSpace);
             ImGui::DockBuilderSetNodeSize(dockSpace, ImVec2(
@@ -495,14 +512,21 @@ namespace JBro
                 static_cast<float>(display.height)));
 
             ImGuiID center = dockSpace;
-            const ImGuiID side = ImGui::DockBuilderSplitNode(
-                center, ImGuiDir_Right, 0.25f, nullptr, &center);
+            ImGuiID nodes[4] = {};
+            nodes[static_cast<int>(EditorDock::Left)] = ImGui::DockBuilderSplitNode(
+                center, ImGuiDir_Left, 0.18f, nullptr, &center);
+            nodes[static_cast<int>(EditorDock::Right)] = ImGui::DockBuilderSplitNode(
+                center, ImGuiDir_Right, 0.24f, nullptr, &center);
+            nodes[static_cast<int>(EditorDock::Bottom)] = ImGui::DockBuilderSplitNode(
+                center, ImGuiDir_Down, 0.26f, nullptr, &center);
+            nodes[static_cast<int>(EditorDock::Center)] = center;
+
             for (std::size_t index = 0; index < m_panels.Size(); ++index)
             {
                 if (const EditorPanel* panel = m_panels[index].Get())
                 {
-                    ImGui::DockBuilderDockWindow(
-                        panel->GetTitle(), index == 0 ? center : side);
+                    const int slot = static_cast<int>(panel->GetPreferredDock());
+                    ImGui::DockBuilderDockWindow(panel->GetTitle(), nodes[slot]);
                 }
             }
             ImGui::DockBuilderFinish(dockSpace);

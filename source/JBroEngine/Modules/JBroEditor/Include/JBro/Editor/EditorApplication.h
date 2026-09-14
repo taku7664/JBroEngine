@@ -6,11 +6,13 @@
 #include <JBro/Types/Array.h>
 #include <JBro/Host/ProjectFile.h>
 #include <JBro/RHI/RHI.h>
+#include <JBro/Types/SafePtr.h>
 #include <JBro/Types/String.h>
 
 namespace JBro
 {
     class Canvas;
+    class GameObject;
     class Renderer;
     class EngineInstance;
     class IFramework;
@@ -82,6 +84,15 @@ namespace JBro
         // 끄면 게임이 다시 백버퍼로 간다. 게임 실행과 같은 경로다.
         void DisableEditorUi();
         bool IsEditorUiEnabled() const;
+        // 인스펙터가 무엇을 보여 줄지 정하는 값이다. 계층 패널이 고르고
+        // 인스펙터가 읽는다.
+        //
+        // **`SafePtr` 인 이유는 오브젝트가 밑에서 사라질 수 있기 때문이다** -
+        // 스크립트가 선택된 오브젝트를 지워도 인스펙터가 죽은 주소를 읽지
+        // 않는다. 고른 것이 사라지면 선택은 저절로 비워진다.
+        void SetSelectedObject(GameObject* object);
+        GameObject* GetSelectedObject() const;
+
         // 이번 프레임의 입력을 UI 가 가져갔는가. **게임에 입력을 넘길지
         // 판단하는 자리다** - 에디터의 필드에 타자를 치는 중에 게임
         // 스크립트가 같은 키를 받으면 안 된다. UI 가 꺼져 있으면 거짓이다.
@@ -143,6 +154,7 @@ namespace JBro
         OwnerPtr<IFramework> m_framework;
         EditorUI m_ui;
         Array<OwnerPtr<EditorPanel>> m_panels;
+        SafePtr<GameObject> m_selected;
         TextureHandle m_gameView;
         Extent2D m_gameViewExtent;
         bool m_uiEnabled = false;

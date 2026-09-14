@@ -97,6 +97,19 @@ int main(int argumentCount, char** arguments)
         return 3;
     }
 
+    // 하나 골라 둔다. 인스펙터는 고른 것이 있어야 보여 줄 것이 있고, 띄우자마자
+    // 빈 칸이면 붙었는지 아닌지 알 수 없다.
+    if (JBro::Canvas* canvas = editor.GetCanvas())
+    {
+        canvas->ForEachObject([&editor](JBro::GameObject& object) {
+            if (editor.GetSelectedObject() == nullptr
+                && std::strcmp(object.GetTag(), "Red") == 0)
+            {
+                editor.SetSelectedObject(&object);
+            }
+        });
+    }
+
     auto previous = std::chrono::steady_clock::now();
     long long frames = 0;
     while (true)

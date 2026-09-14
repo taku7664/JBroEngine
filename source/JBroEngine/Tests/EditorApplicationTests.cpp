@@ -1,7 +1,12 @@
 ﻿#include <JBro/Editor/EditorApplication.h>
 
 #include <JBro/Canvas/Canvas.h>
+#include <JBro/Editor/EditorPanel.h>
 #include <JBro/Graphics/Renderer.h>
+#include <JBro/Reflection/PropertyInfo.h>
+#include <JBro/Reflection/PropertyRegistry.h>
+#include <JBro/Runtime/Component.h>
+#include <JBro/Types/NameTable.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
@@ -67,6 +72,94 @@ namespace
             }
         }
         return painted;
+    }
+
+    const JBro::PropertyInfo* FindProperty(
+        const JBro::PropertyTable& table, const char* name)
+    {
+        for (std::uint32_t index = 0; index < table.count; ++index)
+        {
+            const char* found =
+                JBro::NameTable::Get().Resolve(table.properties[index].name);
+            if (found != nullptr && std::strcmp(found, name) == 0)
+            {
+                return &table.properties[index];
+            }
+        }
+        return nullptr;
+    }
+
+    // **인스펙터는 타입을 하나도 모른다.** 리플렉션이 내주는 것만 보고 그린다 -
+    // 그래서 리플렉션이 내주는 것이 맞아야 화면도 맞는다. 파생값을 고칠 수 있게
+    // 그려 놓으면 사용자가 고쳐도 다음 프레임에 덮어써져, 고장 난 것처럼 보인다.
+    void TestTheInspectorIsToldWhatItMayEdit()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 320;
+        config.windowHeight = 240;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the inspector not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "InspectorProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        // 패널이 넷 다 있어야 한다. 하나라도 안 붙으면 화면에서 빈 칸이 된다.
+        Check(editor.GetPanelCount() == 4, "the four default panels must be registered");
+        Check(editor.FindPanel("Game") != nullptr, "the game view must be one of them");
+        Check(editor.FindPanel("Hierarchy") != nullptr, "and the hierarchy");
+        Check(editor.FindPanel("Inspector") != nullptr, "and the inspector");
+        Check(editor.FindPanel("Stats") != nullptr, "and the stats");
+        Check(editor.FindPanel("Nothing") == nullptr, "and nothing else");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        Check(canvas != nullptr, "the probe project must have a canvas");
+        JBro::GameObject* object = canvas->CreateObject("Subject");
+        auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(object);
+        Check(transform != nullptr, "the subject must have a transform");
+
+        // 고른 것을 인스펙터가 받는다.
+        Check(editor.GetSelectedObject() == nullptr, "nothing is selected yet");
+        editor.SetSelectedObject(object);
+        Check(editor.GetSelectedObject() == object, "what was chosen must be what is shown");
+
+        // 리플렉션이 편집 가능 여부를 말해 주는지. 인스펙터는 이 값 하나로 칸을 잠근다.
+        const JBro::PropertyTable* table = JBro::PropertyRegistry::Lookup(
+            JBro::NameTable::Get().Intern("Component::Transform2D"));
+        Check(table != nullptr, "the transform must have registered its properties");
+
+        const JBro::PropertyInfo* position = FindProperty(*table, "position");
+        Check(position != nullptr, "position must be one of them");
+        Check(position->serialize, "position is saved");
+        Check(position->edit == nullptr || position->edit->editable,
+            "and the inspector may change it");
+
+        const JBro::PropertyInfo* world = FindProperty(*table, "world");
+        Check(world != nullptr, "the cached world matrix must be one of them");
+        Check(false == world->serialize, "it is derived, so it is not saved");
+        Check(world->edit != nullptr && false == world->edit->editable,
+            "and the inspector must not offer to change it - the next frame overwrites it");
+
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(1.0f / 60.0f), "the editor must tick with a selection");
+        }
+
+        // **고른 것이 사라지면 선택도 사라져야 한다.** 스크립트가 지운 오브젝트를
+        // 인스펙터가 계속 읽으면 죽은 주소를 읽는다.
+        Check(canvas->DestroyObject(object), "the subject must be destroyable");
+        canvas->FlushPendingDestroy();
+        Check(editor.GetSelectedObject() == nullptr,
+            "a selection that was destroyed must clear itself");
+        Check(editor.Tick(1.0f / 60.0f), "and the editor must keep going");
+
+        editor.Shutdown();
     }
 
     // **엔진은 창이 닫히면 그 프레임 안에서 스스로 정리한다 - 디바이스까지.**
@@ -590,6 +683,7 @@ int RunEditorApplicationTests()
     TestTheEditorPaintsItsOwnScreen();
     TestTheEditorDrawsWithNoProjectOpen();
     TestTheEditorForwardsInputToItsUi();
+    TestTheInspectorIsToldWhatItMayEdit();
     TestClosingTheWindowDoesNotTakeTheUiDownWithIt();
     TestEditorOpensAProjectFile();
     TestEditorSavesAndOpensACanvas();
