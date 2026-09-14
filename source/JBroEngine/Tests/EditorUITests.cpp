@@ -30,6 +30,17 @@ namespace
     constexpr std::uint32_t WindowTop = 8;
     constexpr std::uint32_t WindowWidth = 400;
     constexpr std::uint32_t WindowHeight = 320;
+    // 창 아래쪽 빈 자리 - 세 구역이 겹치지 않게 나눠 쓴다.
+    constexpr std::uint32_t WindowBandBottom = 340;
+    // **잘라내기 사각형을 화면 왼쪽 밖까지 민다.** D3D12 는 음수 시저를 받지 않으므로
+    // 0 으로 붙여야 하고, 그 붙이는 코드가 실제로 필요한지는 이런 도형이 있어야 드러난다.
+    constexpr std::uint32_t ClipTop = 360;
+    constexpr std::uint32_t ClipBottom = 400;
+    constexpr std::uint32_t ClipRight = 40;
+    // 오른쪽 아래 구석 - 두 번째 드로우 리스트가 제자리에 그려졌는지 본다.
+    constexpr std::uint32_t CornerLeft = 440;
+    constexpr std::uint32_t CornerTop = 440;
+    constexpr std::uint32_t CornerSize = 60;
 
     struct Stage
     {
@@ -116,6 +127,10 @@ namespace
             return;
         }
 
+        // 지난 실행이 남긴 것이 있으면 치우고 시작한다. 아래에서 "다시 생겼는가" 를 묻는데,
+        // 남의 찌꺼기에 걸리면 그 질문이 아니라 다른 질문에 답하는 셈이 된다.
+        std::filesystem::remove("imgui.ini");
+
         JBro::EditorUI ui;
         Check(ui.Initialize(*stage.device, JBro::TextureFormat::BGRA8Unorm),
             "the editor UI must initialize");
@@ -143,6 +158,25 @@ namespace
             ImGui::TextUnformatted("JBro editor UI probe");
             ImGui::TextUnformatted("the font atlas must have reached the GPU");
             ImGui::End();
+
+            // **드로우 리스트를 둘로 만든다.** 하나뿐이면 리스트마다 더해 주는 정점·인덱스
+            // 오프셋이 전부 0 이라, 그 덧셈을 빼먹어도 화면이 똑같이 나온다.
+            // 배경 드로우 리스트는 창들과 별도 리스트로 제출된다.
+            ImDrawList* background = ImGui::GetBackgroundDrawList();
+            background->AddRectFilled(
+                ImVec2(static_cast<float>(CornerLeft), static_cast<float>(CornerTop)),
+                ImVec2(static_cast<float>(CornerLeft + CornerSize),
+                    static_cast<float>(CornerTop + CornerSize)),
+                IM_COL32(255, 255, 255, 255));
+            background->PushClipRect(
+                ImVec2(-40.0f, static_cast<float>(ClipTop)),
+                ImVec2(static_cast<float>(ClipRight), static_cast<float>(ClipBottom)),
+                false);
+            background->AddRectFilled(
+                ImVec2(-40.0f, static_cast<float>(ClipTop)),
+                ImVec2(static_cast<float>(ClipRight), static_cast<float>(ClipBottom)),
+                IM_COL32(255, 255, 255, 255));
+            background->PopClipRect();
             Check(ui.EndFrame(), "each UI frame must end and its textures must upload");
         }
 
@@ -178,41 +212,81 @@ namespace
             "the back buffer must read back");
 
         // 지운 색은 검정이다. 검지 않은 픽셀은 UI 가 칠한 것이다.
-        // **밝은 픽셀은 따로 센다.** 창 배경은 어둡고(0.06 x 0.94), 흰 글자만 밝다.
-        // 배경만 칠해지고 밝은 픽셀이 없으면 폰트 아틀라스가 GPU 에 안 갔다는 뜻이다.
+        // 세 구역을 따로 센다. 창(위쪽 띠), 왼쪽으로 잘린 사각형, 오른쪽 아래 구석이다.
+        const auto Pixel = [&](std::uint32_t x, std::uint32_t y) {
+            const std::size_t offset = static_cast<std::size_t>(y) * readback.rowPitch
+                + static_cast<std::size_t>(x) * 4;
+            return reinterpret_cast<const unsigned char*>(image.Data() + offset);
+        };
+        const auto Painted = [&](std::uint32_t x, std::uint32_t y) {
+            const unsigned char* p = Pixel(x, y);
+            return p[0] != 0 || p[1] != 0 || p[2] != 0;
+        };
+
+        // 창 - 넓이와 자리, 그리고 글자.
+        // **밝은 픽셀은 창 띠 안에서만 센다.** 아래 흰 사각형들까지 세면 폰트 아틀라스가
+        // 안 올라가도 숫자가 채워진다.
         std::size_t painted = 0;
         std::size_t bright = 0;
         std::uint32_t minX = SurfaceSize;
         std::uint32_t maxX = 0;
         std::uint32_t minY = SurfaceSize;
         std::uint32_t maxY = 0;
-        for (std::uint32_t y = 0; y < SurfaceSize; ++y)
+        for (std::uint32_t y = 0; y < WindowBandBottom; ++y)
         {
             for (std::uint32_t x = 0; x < SurfaceSize; ++x)
             {
-                const std::size_t offset = static_cast<std::size_t>(y) * readback.rowPitch
-                    + static_cast<std::size_t>(x) * 4;
-                const auto* bytes =
-                    reinterpret_cast<const unsigned char*>(image.Data() + offset);
-                if (bytes[0] != 0 || bytes[1] != 0 || bytes[2] != 0)
+                if (false == Painted(x, y))
                 {
-                    ++painted;
-                    minX = x < minX ? x : minX;
-                    maxX = x > maxX ? x : maxX;
-                    minY = y < minY ? y : minY;
-                    maxY = y > maxY ? y : maxY;
+                    continue;
                 }
-                if (bytes[0] > 200 && bytes[1] > 200 && bytes[2] > 200)
+                ++painted;
+                minX = x < minX ? x : minX;
+                maxX = x > maxX ? x : maxX;
+                minY = y < minY ? y : minY;
+                maxY = y > maxY ? y : maxY;
+                const unsigned char* p = Pixel(x, y);
+                if (p[0] > 200 && p[1] > 200 && p[2] > 200)
                 {
                     ++bright;
                 }
             }
         }
+
+        // 왼쪽으로 잘린 사각형 - x 는 0 에서 시작해 ClipRight 에서 끝난다.
+        std::size_t clipPainted = 0;
+        std::uint32_t clipMaxX = 0;
+        for (std::uint32_t y = ClipTop; y < ClipBottom; ++y)
+        {
+            for (std::uint32_t x = 0; x < SurfaceSize; ++x)
+            {
+                if (Painted(x, y))
+                {
+                    ++clipPainted;
+                    clipMaxX = x > clipMaxX ? x : clipMaxX;
+                }
+            }
+        }
+
+        // 구석 사각형 - 두 번째 드로우 리스트가 제자리에 갔는지.
+        std::size_t cornerPainted = 0;
+        for (std::uint32_t y = CornerTop; y < CornerTop + CornerSize; ++y)
+        {
+            for (std::uint32_t x = CornerLeft; x < CornerLeft + CornerSize; ++x)
+            {
+                if (Painted(x, y))
+                {
+                    ++cornerPainted;
+                }
+            }
+        }
+
         const std::size_t windowArea =
             static_cast<std::size_t>(WindowWidth) * static_cast<std::size_t>(WindowHeight);
         std::cout << "  the probe window painted " << painted << " of " << windowArea
             << " pixels (" << bright << " bright) at x[" << minX << ".." << maxX
-            << "] y[" << minY << ".." << maxY << "] in " << ui.GetLastDrawCount()
+            << "] y[" << minY << ".." << maxY << "]; clipped " << clipPainted
+            << ", corner " << cornerPainted << "; " << ui.GetLastDrawCount()
             << " draw(s)" << std::endl;
 
         // **칠해진 자리가 우리가 지정한 자리여야 한다.** 넓이만 세면 창이 엉뚱한 곳에
@@ -232,10 +306,23 @@ namespace
         // 그리고 그 안에 글자가 있어야 한다.
         Check(bright > 100, "the text must reach the screen, so the font atlas must upload");
 
+        // 화면 밖까지 민 사각형은 보이는 부분만 남는다.
+        const std::size_t clipArea = static_cast<std::size_t>(ClipRight)
+            * static_cast<std::size_t>(ClipBottom - ClipTop);
+        Check(clipPainted > clipArea - clipArea / 20,
+            "the part of the clipped rectangle that is on screen must be painted");
+        Check(clipMaxX < ClipRight + 2, "and nothing past its clip rectangle may be");
+
+        // 두 번째 드로우 리스트. 정점·인덱스 오프셋이 리스트마다 밀리지 않으면
+        // 이 사각형이 딴 데 그려지거나 아예 사라진다.
+        Check(cornerPainted == static_cast<std::size_t>(CornerSize) * CornerSize,
+            "the second draw list must be painted where it asked to be");
+
         ui.Shutdown();
         Check(false == ui.IsInitialized(), "shutting down must release the UI");
         // ImGui 는 컨텍스트를 지울 때 ini 를 쓴다. 한 번 돌리고 나면 파일이 남고,
         // 다음 실행은 그 파일에서 창 자리를 읽는다 - 위에서 지정한 자리가 아니라.
+        // 위에서 지우고 시작했으므로, 있다면 이번 실행이 만든 것이다.
         Check(false == std::filesystem::exists("imgui.ini"),
             "running the UI must not leave a settings file in the working directory");
         stage.Close();
