@@ -7,6 +7,7 @@
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Canvas/CanvasFile.h>
+#include <JBro/Canvas/ComponentRegistry.h>
 #include <JBro/Core/Yaml.h>
 #include <JBro/Reflection/PropertyRegistry.h>
 #include <JBro/Runtime/GameObject.h>
@@ -759,6 +760,24 @@ namespace
         Check(false == layer->IsVisible(), "a hidden layer must come back hidden");
     }
 
+    void TestTwoTypesCannotShareAName()
+    {
+        JBro::Component::RegisterBuiltinComponentTypes2D();
+        const std::size_t before = JBro::ComponentRegistry::Get().GetCount();
+
+        // 조용히 덮으면 씬 파일이 가리키는 이름에 어느 타입이 붙는지 알 수 없다.
+        Check(false == JBro::RegisterComponentType<JBro::Component::Transform2D>(),
+            "registering a name that is already taken must be refused");
+        Check(JBro::ComponentRegistry::Get().GetCount() == before,
+            "a refused registration must leave the table as it was");
+
+        // 거절당한 뒤에도 원래 것이 그대로 붙어야 한다.
+        const JBro::ComponentTypeInfo* info =
+            JBro::ComponentRegistry::Get().Find("Component::Transform2D");
+        Check(info != nullptr && info->Attach != nullptr,
+            "the type that got there first must still be the one that attaches");
+    }
+
     void TestReadingRefusesRatherThanGuessing()
     {
         JBro::Component::RegisterBuiltinComponentProperties2D();
@@ -920,6 +939,7 @@ int RunCanvasFileTests()
     TestAnInactiveObjectDoesNotDisableItsComponents();
     TestAComponentSwitchedOffStaysOff();
     TestLayersComeBackWithoutPilingUp();
+    TestTwoTypesCannotShareAName();
     TestReadingRefusesRatherThanGuessing();
     std::cout << "Canvas file tests passed.\n";
     return 0;
