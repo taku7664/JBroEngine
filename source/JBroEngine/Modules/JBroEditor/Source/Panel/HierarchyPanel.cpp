@@ -1,5 +1,6 @@
 ﻿#include "HierarchyPanel.h"
 
+#include <JBro/Editor/Command/HierarchyCommands.h>
 #include <JBro/Editor/Command/ObjectCommands.h>
 
 #include <JBro/Canvas/Canvas.h>
@@ -19,6 +20,11 @@ namespace JBro
 {
     namespace
     {
+        // 끌고 다니는 꾸러미의 이름이다. 계층 안에서만 받는다.
+        constexpr const char* DragPayload = "JBRO_HIERARCHY_MOVE";
+        // 줄 사이의 받는 자리 높이. 너무 얇으면 못 맞추고, 두꺼우면 줄이 벌어진다.
+        constexpr float DropGapHeight = 4.0f;
+
         bool ContainsFold(const char* text, const String& needle)
         {
             if (needle.size() == 0)
@@ -154,6 +160,85 @@ namespace JBro
                 DrawObject(object);
             }
         });
+
+        // **빈 자리에 떨어뜨리면 뿌리로 올린다.** 계층에서 부모를 떼는 유일한
+        // 손짓이라 이 자리가 없으면 한번 자식이 된 것을 다시 꺼낼 수 없다.
+        ImGui::Dummy(ImVec2(-FLT_MIN, ImGui::GetContentRegionAvail().y));
+        DrawDropTarget(nullptr, 0);
+
+        FlushPendingMove();
+    }
+
+    void HierarchyPanel::DrawDragSource(GameObject& object)
+    {
+        if (false == ImGui::BeginDragDropSource(
+            ImGuiDragDropFlags_SourceNoHoldToOpenOthers))
+        {
+            return;
+        }
+        // 꾸러미에는 **주소가 아니라 에디터 번호**를 담는다. 번호는 지웠다
+        // 되살려도 같은 것을 가리킨다(D-72).
+        const EditorObjectId id = m_editor->GetObjectIds().Track(&object);
+        ImGui::SetDragDropPayload(DragPayload, &id, sizeof(id));
+        const char* name = object.GetTag();
+        ImGui::TextUnformatted(name != nullptr && *name != '\0'
+            ? name
+            : Loc::TextOr(LocKeys::HierarchyUnnamed, "(unnamed)"));
+        ImGui::EndDragDropSource();
+    }
+
+    void HierarchyPanel::DrawDropTarget(GameObject* parent, std::size_t siblingIndex)
+    {
+        if (false == ImGui::BeginDragDropTarget())
+        {
+            return;
+        }
+        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(DragPayload))
+        {
+            EditorObjectId id = InvalidEditorObjectId;
+            std::memcpy(&id, payload->Data, sizeof(id));
+            if (GameObject* dragged = m_editor->GetObjectIds().Resolve(id))
+            {
+                m_dragged = dragged->SafeFromThis();
+                m_dropParent = parent != nullptr
+                    ? parent->SafeFromThis() : SafePtr<GameObject>();
+                m_dropToRoot = parent == nullptr;
+                m_dropIndex = siblingIndex;
+                m_hasDrop = true;
+            }
+        }
+        ImGui::EndDragDropTarget();
+    }
+
+    void HierarchyPanel::FlushPendingMove()
+    {
+        if (false == m_hasDrop)
+        {
+            return;
+        }
+        m_hasDrop = false;
+
+        GameObject* dragged = m_dragged.TryGet();
+        m_dragged = {};
+        GameObject* parent = m_dropParent.TryGet();
+        m_dropParent = {};
+        if (dragged == nullptr)
+        {
+            return;
+        }
+        if (false == m_dropToRoot && parent == nullptr)
+        {
+            // 받기로 한 부모가 그 사이에 사라졌다. 뿌리로 올려 버리면 사용자가
+            // 뜻하지 않은 곳에 놓이므로 아무것도 하지 않는다.
+            return;
+        }
+
+        EditorObjectRegistry& ids = m_editor->GetObjectIds();
+        const EditorObjectId objectId = ids.Track(dragged);
+        const EditorObjectId parentId = parent != nullptr
+            ? ids.Track(parent) : InvalidEditorObjectId;
+        m_editor->GetCommands().Execute(MakeOwnerPtr<MoveInHierarchyCommand>(
+            *m_editor->GetCanvas(), ids, objectId, parentId, m_dropIndex));
     }
 
     void HierarchyPanel::DrawObject(GameObject& object)
@@ -191,9 +276,35 @@ namespace JBro
 
         // 트리 위젯이 줄 자리를 돌려준다. 이름은 우리가 그 자리에 그린다 -
         // 나중에 눈 표시나 배지를 같은 줄에 얹을 자리가 이것이다.
+        // **줄 앞의 틈**이다. 여기 떨어뜨리면 이 줄 **앞자리**로 간다.
+        // 부모 안에서만 뜻이 있다 - 뿌리끼리의 차례는 캔버스가 순서를 들고
+        // 있지 않아 아직 바꿀 수 없다(D-84).
+        GameObject* parent = object.GetParent();
+        if (parent != nullptr)
+        {
+            std::size_t ownIndex = 0;
+            parent->FindChildIndex(&object, ownIndex);
+            const ImVec2 gapStart = ImGui::GetCursorScreenPos();
+            ImGui::InvisibleButton("##gap", ImVec2(
+                ImGui::GetContentRegionAvail().x, DropGapHeight));
+            if (ImGui::BeginDragDropTarget())
+            {
+                ImGui::GetWindowDrawList()->AddLine(
+                    ImVec2(gapStart.x, gapStart.y + DropGapHeight * 0.5f),
+                    ImVec2(gapStart.x + ImGui::GetContentRegionAvail().x,
+                        gapStart.y + DropGapHeight * 0.5f),
+                    ImGui::GetColorU32(ImGuiCol_DragDropTarget), 2.0f);
+                ImGui::EndDragDropTarget();
+            }
+            DrawDropTarget(parent, ownIndex);
+        }
+
         Widget::TreeDrawContext row;
         const bool opened = Widget::TreeBegin("##node", flags, &row);
         Widget::TreeEnd();
+        // 줄 자체에 떨어뜨리면 **그 밑의 자식**이 된다. 맨 뒤에 붙는다.
+        DrawDragSource(object);
+        DrawDropTarget(&object, object.GetChildren().Size());
         if (row.IsVisible)
         {
             const ImVec2 cursor = ImGui::GetCursorScreenPos();

@@ -52,6 +52,15 @@ namespace JBro
         void                              SetParent(GameObject* parent);
         const Array<SafePtr<GameObject>>& GetChildren() const;
 
+        // 자식들 사이의 자리다. **사람이 보는 순서**이므로 계층 패널에서 끌어
+        // 옮길 수 있어야 하고, 부모를 바꿔도 흐트러지면 안 된다.
+        //
+        // 없는 자식이면 거짓이다. `index` 가 끝을 넘으면 맨 뒤로 간다 -
+        // 부르는 쪽이 개수를 먼저 세지 않아도 되게.
+        bool SetChildIndex(GameObject* child, std::size_t index);
+        // 몇 번째 자식인가. 자식이 아니면 거짓이다.
+        bool FindChildIndex(const GameObject* child, std::size_t& index) const;
+
         // 레이어 소속. 인덱스 조회는 O(1)이다.
         Layer*        GetLayer() const;
         std::uint32_t GetLayerId() const;

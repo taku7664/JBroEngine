@@ -2,6 +2,7 @@
 #include <JBro/Core/Core.h>
 #include <JBro/Core/StableTypeId.h>
 #include <JBro/Editor/Command/ComponentCommands.h>
+#include <JBro/Editor/Command/HierarchyCommands.h>
 #include <JBro/Editor/Command/ObjectCommands.h>
 #include <JBro/Editor/Command/SetPropertyCommand.h>
 #include <JBro/Editor/EditorCommand.h>
@@ -555,6 +556,184 @@ namespace
             "removing nothing must be refused");
     }
 
+    // ── 계층 이동 ────────────────────────────────────────────────────────
+
+    // **형제 사이의 차례는 사람이 보는 순서다.** 부모를 바꿔도 남은 형제들의
+    // 차례가 흐트러지면 안 된다 - 그래서 `SetParent` 가 순서를 지키며 뺀다.
+    void TestChildOrderSurvivesEverything()
+    {
+        RegisterOnce();
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::GameObject* parent = canvas.CreateObject("Parent");
+        JBro::GameObject* first = canvas.CreateObject("First");
+        JBro::GameObject* second = canvas.CreateObject("Second");
+        JBro::GameObject* third = canvas.CreateObject("Third");
+        first->SetParent(parent);
+        second->SetParent(parent);
+        third->SetParent(parent);
+
+        std::size_t index = 99;
+        Check(parent->FindChildIndex(second, index) && index == 1,
+            "children keep the order they were added in");
+        Check(false == parent->FindChildIndex(parent, index),
+            "something that is not a child has no index");
+
+        // 가운데를 뺀다. **남은 둘의 차례가 그대로여야 한다.**
+        second->SetParent(nullptr);
+        Check(parent->FindChildIndex(first, index) && index == 0,
+            "the first stays first after a sibling leaves");
+        Check(parent->FindChildIndex(third, index) && index == 1,
+            "and the third moves up by one, rather than being swapped in");
+
+        // 자리 옮기기.
+        second->SetParent(parent);
+        Check(parent->FindChildIndex(second, index) && index == 2,
+            "coming back puts it at the end");
+        Check(parent->SetChildIndex(second, 0), "moving it to the front must work");
+        Check(parent->FindChildIndex(second, index) && index == 0, "and land there");
+        Check(parent->FindChildIndex(first, index) && index == 1,
+            "pushing the others back");
+        Check(parent->SetChildIndex(second, 99), "an index past the end is the end");
+        Check(parent->FindChildIndex(second, index) && index == 2, "so it goes last");
+        Check(false == parent->SetChildIndex(nullptr, 0), "nothing cannot be moved");
+        Check(false == parent->SetChildIndex(third->GetChildren().IsEmpty()
+                ? parent : nullptr, 0),
+            "and neither can something that is not a child");
+    }
+
+    // 끌어 옮기기를 되돌릴 수 있어야 한다. **부모와 자리가 함께** 돌아온다.
+    void TestMovingInTheHierarchyCanBeUndone()
+    {
+        RegisterOnce();
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::EditorObjectRegistry ids;
+        JBro::EditorCommandManager commands;
+
+        JBro::GameObject* alpha = canvas.CreateObject("Alpha");
+        JBro::GameObject* beta = canvas.CreateObject("Beta");
+        JBro::GameObject* moved = canvas.CreateObject("Moved");
+        JBro::GameObject* sibling = canvas.CreateObject("Sibling");
+        moved->SetParent(alpha);
+        sibling->SetParent(alpha);
+
+        const JBro::EditorObjectId movedId = ids.Track(moved);
+        const JBro::EditorObjectId betaId = ids.Track(beta);
+
+        Check(commands.Execute(JBro::MakeOwnerPtr<JBro::MoveInHierarchyCommand>(
+                canvas, ids, movedId, betaId, 0)),
+            "moving under another object must go through");
+        Check(moved->GetParent() == beta, "and land there");
+        std::size_t index = 99;
+        Check(alpha->FindChildIndex(sibling, index) && index == 0,
+            "the sibling left behind closes the gap");
+
+        Check(commands.Undo(), "undo must run");
+        Check(moved->GetParent() == alpha, "and put it back under its old parent");
+        Check(alpha->FindChildIndex(moved, index) && index == 0,
+            "at the place it had, not at the end");
+        Check(alpha->FindChildIndex(sibling, index) && index == 1,
+            "with the sibling back behind it");
+
+        Check(commands.Redo(), "redo must run");
+        Check(moved->GetParent() == beta, "and move it again");
+
+        // **제자리로 옮기는 것은 편집이 아니다.**
+        Check(commands.Undo(), "back to the start");
+        const std::size_t before = commands.GetUndoCount();
+        Check(false == commands.Execute(JBro::MakeOwnerPtr<JBro::MoveInHierarchyCommand>(
+                canvas, ids, movedId, ids.Track(alpha), 0)),
+            "moving something to where it already is must be refused");
+        Check(commands.GetUndoCount() == before, "and must not be remembered");
+
+        // **자기 밑으로는 못 들어간다.** 들어가면 나무가 고리가 된다.
+        const JBro::EditorObjectId siblingId = ids.Track(sibling);
+        Check(false == commands.Execute(JBro::MakeOwnerPtr<JBro::MoveInHierarchyCommand>(
+                canvas, ids, ids.Track(alpha), siblingId, 0)),
+            "moving a parent under its own child must be refused");
+        Check(sibling->GetParent() == alpha, "and must change nothing");
+    }
+
+    // **끌어다 놓은 것이 화면에서 튀면 안 된다.** 부모가 바뀌면 같은 로컬 값이
+    // 다른 월드 자리를 뜻하므로, 새 부모 기준으로 로컬을 다시 구한다.
+    void TestMovingKeepsTheObjectWhereItLooks()
+    {
+        RegisterOnce();
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::EditorObjectRegistry ids;
+        JBro::EditorCommandManager commands;
+
+        JBro::GameObject* anchor = canvas.CreateObject("Anchor");
+        auto* anchorTransform =
+            canvas.AttachComponent<JBro::Component::Transform2D>(anchor);
+        JBro::GameObject* floating = canvas.CreateObject("Floating");
+        auto* floatingTransform =
+            canvas.AttachComponent<JBro::Component::Transform2D>(floating);
+
+        // 트랜스폼 시스템이 돌지 않으므로 월드 값을 손으로 세운다. 실제
+        // 에디터에서는 매 프레임 그것이 채워진다.
+        anchorTransform->position = {10.0f, 0.0f};
+        anchorTransform->worldPosition = {10.0f, 0.0f};
+        anchorTransform->worldRotation = 0.0f;
+        anchorTransform->worldScale = {2.0f, 2.0f};
+        anchorTransform->worldValid = true;
+
+        floatingTransform->position = {30.0f, 8.0f};
+        floatingTransform->worldPosition = {30.0f, 8.0f};
+        floatingTransform->worldRotation = 0.0f;
+        floatingTransform->worldScale = {1.0f, 1.0f};
+        floatingTransform->worldValid = true;
+
+        Check(commands.Execute(JBro::MakeOwnerPtr<JBro::MoveInHierarchyCommand>(
+                canvas, ids, ids.Track(floating), ids.Track(anchor), 0)),
+            "moving under the anchor must go through");
+
+        // 부모가 (10,0) 에서 두 배로 늘어나 있으므로, 월드 (30,8) 에 머무르려면
+        // 로컬은 ((30-10)/2, (8-0)/2) = (10, 4) 여야 한다.
+        Check(NearlyEqual(floatingTransform->position.x, 10.0f),
+            "the local x must be what keeps it where it was");
+        Check(NearlyEqual(floatingTransform->position.y, 4.0f), "and the local y");
+        Check(NearlyEqual(floatingTransform->scale.x, 0.5f),
+            "the scale must be divided out of the parent's");
+
+        Check(commands.Undo(), "undo must run");
+        Check(NearlyEqual(floatingTransform->position.x, 30.0f),
+            "and give the old local values back exactly");
+        Check(NearlyEqual(floatingTransform->position.y, 8.0f), "both of them");
+        Check(NearlyEqual(floatingTransform->scale.x, 1.0f), "and the scale");
+    }
+
+    // 월드 값이 아직 안 선 오브젝트는 **짐작하지 않는다.**
+    void TestMovingWithoutWorldValuesLeavesTheLocalAlone()
+    {
+        RegisterOnce();
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::EditorObjectRegistry ids;
+        JBro::EditorCommandManager commands;
+
+        JBro::GameObject* anchor = canvas.CreateObject("Anchor");
+        canvas.AttachComponent<JBro::Component::Transform2D>(anchor);
+        JBro::GameObject* fresh = canvas.CreateObject("Fresh");
+        auto* freshTransform =
+            canvas.AttachComponent<JBro::Component::Transform2D>(fresh);
+        freshTransform->position = {5.0f, 6.0f};
+        Check(false == freshTransform->worldValid,
+            "a transform that has not been through a frame has no world yet");
+
+        Check(commands.Execute(JBro::MakeOwnerPtr<JBro::MoveInHierarchyCommand>(
+                canvas, ids, ids.Track(fresh), ids.Track(anchor), 0)),
+            "moving it must still work");
+        Check(NearlyEqual(freshTransform->position.x, 5.0f),
+            "and must leave the local value it had");
+        Check(NearlyEqual(freshTransform->position.y, 6.0f), "both parts of it");
+
+        // 트랜스폼이 아예 없는 오브젝트도 옮겨져야 한다.
+        JBro::GameObject* bare = canvas.CreateObject("Bare");
+        Check(commands.Execute(JBro::MakeOwnerPtr<JBro::MoveInHierarchyCommand>(
+                canvas, ids, ids.Track(bare), ids.Track(anchor), 0)),
+            "an object with no transform must move too");
+        Check(bare->GetParent() == anchor, "and land under the anchor");
+    }
+
 }
 
 int RunEditorObjectCommandTests()
@@ -571,6 +750,10 @@ int RunEditorObjectCommandTests()
     TestRemovingAComponentBringsBackItsValues();
     TestRemovingPicksTheRightOneOfTwoOfAKind();
     TestRemovingIsRefusedWhenTheValuesCannotBeSaved();
+    TestChildOrderSurvivesEverything();
+    TestMovingInTheHierarchyCanBeUndone();
+    TestMovingKeepsTheObjectWhereItLooks();
+    TestMovingWithoutWorldValuesLeavesTheLocalAlone();
     std::cout << "Editor object command tests passed.\n";
     return 0;
 }

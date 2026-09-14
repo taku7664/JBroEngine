@@ -52,7 +52,11 @@ namespace JBro
         GameObject* oldParent = m_parent.TryGet();
         if (oldParent != nullptr)
         {
-            oldParent->m_children.RemoveAllSwap([this](const SafePtr<GameObject>& child)
+            // **순서를 지키며 뺀다.** 마지막 것을 끌어다 덮으면(RemoveAllSwap)
+            // 부모를 바꾸는 것만으로 남은 형제들의 차례가 흐트러진다 - 계층
+            // 패널에서 눈에 보이는 순서이고, 끌어 옮긴 것을 되돌려도 제자리로
+            // 돌아오지 않게 된다.
+            oldParent->m_children.RemoveAll([this](const SafePtr<GameObject>& child)
             {
                 return child.TryGet() == this;
             });
@@ -205,6 +209,51 @@ namespace JBro
         slot.reference = std::move(safe);
         m_components.Add(std::move(slot));
         component->SetOwner(this);
+    }
+
+    bool GameObject::FindChildIndex(const GameObject* child, std::size_t& index) const
+    {
+        for (std::size_t at = 0; at < m_children.Size(); ++at)
+        {
+            if (m_children[at].TryGet() == child)
+            {
+                index = at;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool GameObject::SetChildIndex(GameObject* child, std::size_t index)
+    {
+        std::size_t from = 0;
+        if (child == nullptr || false == FindChildIndex(child, from))
+        {
+            return false;
+        }
+        const std::size_t last = m_children.Size() - 1;
+        const std::size_t to = index > last ? last : index;
+        if (from == to)
+        {
+            return true;
+        }
+        SafePtr<GameObject> moved = m_children[from];
+        if (from < to)
+        {
+            for (std::size_t at = from; at < to; ++at)
+            {
+                m_children[at] = m_children[at + 1];
+            }
+        }
+        else
+        {
+            for (std::size_t at = from; at > to; --at)
+            {
+                m_children[at] = m_children[at - 1];
+            }
+        }
+        m_children[to] = moved;
+        return true;
     }
 
     bool GameObject::DetachComponent(ComponentBase* component)

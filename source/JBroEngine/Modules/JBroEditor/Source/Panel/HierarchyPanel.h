@@ -2,6 +2,7 @@
 
 #include <JBro/Editor/EditorPanel.h>
 
+#include <JBro/Types/SafePtr.h>
 #include <JBro/Types/String.h>
 
 namespace JBro
@@ -26,8 +27,21 @@ namespace JBro
         // 걸린 자식이 갈 곳을 잃는다.
         bool Matches(const GameObject& object) const;
         void DrawObject(GameObject& object);
+        // 끌고 있는 것을 받는 자리. 줄 위는 "그 밑으로", 줄 사이는 "그 자리에".
+        void DrawDropTarget(GameObject* parent, std::size_t siblingIndex);
+        void DrawDragSource(GameObject& object);
+        // 이번 프레임에 떨어진 것을 실제로 옮긴다.
+        void FlushPendingMove();
 
         EditorApplication* m_editor = nullptr;
         String m_filter;
+
+        // **프레임이 끝난 뒤에 옮긴다.** 그리는 도중에 부모를 바꾸면 지금 돌고
+        // 있는 자식 배열이 그 자리에서 달라진다 - 순회가 죽은 자리를 읽는다.
+        SafePtr<GameObject> m_dragged;
+        SafePtr<GameObject> m_dropParent;
+        std::size_t m_dropIndex = 0;
+        bool m_dropToRoot = false;
+        bool m_hasDrop = false;
     };
 }
