@@ -172,7 +172,10 @@ namespace JBro
     {
         Float2,
         Float3,
-        Float4
+        Float4,
+        // 바이트 넷을 0..1 로 읽는다. UI 와 스프라이트의 정점 색이 이 모양이다 —
+        // float4 로 부풀리면 정점마다 12바이트를 더 옮기고 변환도 한 번 더 한다.
+        UByte4Norm
     };
 
     enum class VertexStepMode : std::uint8_t

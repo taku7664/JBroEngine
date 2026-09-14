@@ -52,6 +52,8 @@ namespace JBro::Internal
                 return DXGI_FORMAT_R32G32B32_FLOAT;
             case VertexFormat::Float4:
                 return DXGI_FORMAT_R32G32B32A32_FLOAT;
+            case VertexFormat::UByte4Norm:
+                return DXGI_FORMAT_R8G8B8A8_UNORM;
             }
             return DXGI_FORMAT_UNKNOWN;
         }
@@ -66,6 +68,8 @@ namespace JBro::Internal
                 return 12;
             case VertexFormat::Float4:
                 return 16;
+            case VertexFormat::UByte4Norm:
+                return 4;
             }
             return 0;
         }
