@@ -494,6 +494,22 @@ namespace JBro
             flags);
     }
 
+    // 타고 내려가야 하는 타입인가. 한 줄에 담기는 것과 컨테이너와 enum 은 아니다.
+    bool InspectorPanel::NeedsDescent(const TypeDescriptor& type, void* address)
+    {
+        if (type.fields == nullptr)
+        {
+            return false;
+        }
+        if (type.enumNames != nullptr || type.arrayOps != nullptr
+            || type.tableOps != nullptr)
+        {
+            return false;
+        }
+        ScalarRun run;
+        return false == CollectScalarRun(type, address, run);
+    }
+
     void InspectorPanel::DrawFieldsInto(
         Widget::FormLayout& layout,
         const PropertyTable& table,
@@ -541,6 +557,38 @@ namespace JBro
             const bool editable = property.edit == nullptr || property.edit->editable;
             const char* tooltip =
                 property.edit != nullptr ? property.edit->tooltip : nullptr;
+
+            // **한 줄에 담기지 않는 구조는 같은 표 안에서 이어 그린다.**
+            //
+            // 값 칸에 표를 하나 더 열면 안쪽 칸 폭이 바깥과 따로 놀아 줄이
+            // 어긋나고, 이름이 왼쪽 칸과 트리에 두 번 나온다. 트리 마디를
+            // 줄 전체에 걸치게 두고 자식을 같은 표의 다음 줄로 내면 칸이 맞는다.
+            if (NeedsDescent(*property.type, address))
+            {
+                // 줄 전체를 쓴다. 칸을 나누고 값 칸을 비우면 ImGui 가
+                // "항목 없이 커서만 옮겼다" 고 단언한다 - 그리고 실제로
+                // 트리 마디는 두 칸에 걸쳐 있으므로 나눌 이유도 없다.
+                bool opened = false;
+                {
+                    // **잠긴 값은 타고 내려가도 잠겨 있어야 한다.** 잠금은
+                    // `DrawValue` 안에 있었는데, 중첩 구조는 그 길로 가지
+                    // 않으므로 여기서 다시 두른다 - 안 그러면 파생값의
+                    // 속살만 고칠 수 있게 된다.
+                    Widget::DisableScope locked(false == editable);
+                    layout.FullRow([&]() {
+                        opened = ImGui::TreeNodeEx(label != nullptr ? label : "?",
+                            ImGuiTreeNodeFlags_DefaultOpen
+                                | ImGuiTreeNodeFlags_SpanAllColumns);
+                    });
+                    if (opened)
+                    {
+                        DrawFieldsInto(layout, *property.type->fields, address, context);
+                        ImGui::TreePop();
+                    }
+                }
+                --context.path.depth;
+                continue;
+            }
 
             // **라벨은 왼쪽 칸이 그린다.** 위젯에 넘기면 좁은 패널에서 잘린다.
             layout.Row(
@@ -613,24 +661,6 @@ namespace JBro
                 {
                     CommitEdit(type, address, before, context);
                 }
-            }
-            return;
-        }
-
-        if (type.fields != nullptr)
-        {
-            // 한 줄에 담기지 않는 구조다. 접을 수 있게 두고 타고 내려간다.
-            if (ImGui::TreeNodeEx(label != nullptr ? label : "?",
-                ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanAvailWidth))
-            {
-                // **표를 트리보다 먼저 닫는다.** `TreeNodeEx` 가 밀어 넣은 Id 를
-                // `TreePop` 이 빼내는데, 그 뒤에 `EndTable` 이 돌면 표가 자기
-                // 것이 아닌 Id 스택 위에서 끝난다 - ImGui 가 단언으로 잡는다.
-                {
-                    Widget::FormLayout nested("##nested");
-                    DrawFieldsInto(nested, *type.fields, address, context);
-                }
-                ImGui::TreePop();
             }
             return;
         }

@@ -22,6 +22,9 @@
 #include <windows.h>
 
 #include <cstdio>
+#include <cstdlib>
+#include <fstream>
+#include <string>
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
@@ -62,6 +65,114 @@ namespace
     }
 
     // 창을 되읽어 지움색이 아닌 픽셀을 센다.
+    // **화면을 파일로 남긴다**(ProjectRule §11.4).
+    //
+    // UI 를 고치면 눈으로 봐야 한다. 그런데 사람이 창을 띄워 보는 것은 반복되지
+    // 않고, 본 것을 다음 사람에게 넘길 수도 없다 - 그래서 테스트가 찍는다.
+    // 환경변수 `JBRO_EDITOR_SHOT` 에 경로를 주면 거기에 쓴다. 평소에는 아무것도
+    // 쓰지 않는다: 확인은 검사가 하고, 그림은 볼 사람이 있을 때만 필요하다.
+    //
+    // BMP 인 이유는 **의존성이 없어서다.** 헤더 54바이트에 아래에서 위로 쌓은
+    // 픽셀이 전부라, 이미지 라이브러리를 들이지 않고 쓸 수 있다.
+    void SaveScreenshot(JBro::Renderer& renderer, std::uint32_t width,
+        std::uint32_t height, const char* suffix)
+    {
+        // `getenv` 는 MSVC 가 안전하지 않다고 막는다. 우리가 놓아 주는 쪽을 쓴다.
+        char* directory = nullptr;
+        std::size_t directoryLength = 0;
+        if (_dupenv_s(&directory, &directoryLength, "JBRO_EDITOR_SHOT") != 0
+            || directory == nullptr || *directory == '\0')
+        {
+            std::free(directory);
+            return;
+        }
+        struct DirectoryGuard
+        {
+            char* value;
+            ~DirectoryGuard() { std::free(value); }
+        } guard{directory};
+
+        JBro::Array<std::byte> image;
+        image.Resize(static_cast<std::size_t>(width) * height * 4);
+        JBro::TextureReadback readback;
+        if (false == renderer.ReadBackBuffer(image.Data(), image.Size(), readback))
+        {
+            return;
+        }
+
+        std::string path(directory);
+        path += "/editor_";
+        path += suffix;
+        path += ".bmp";
+        std::ofstream file(path, std::ios::binary);
+        if (false == file.is_open())
+        {
+            return;
+        }
+
+        const std::uint32_t rowBytes = width * 3;
+        const std::uint32_t padding = (4 - (rowBytes % 4)) % 4;
+        const std::uint32_t pixelBytes = (rowBytes + padding) * height;
+        const std::uint32_t fileBytes = 54 + pixelBytes;
+
+        auto put32 = [&](std::uint32_t value) {
+            const char bytes[4] = {
+                static_cast<char>(value & 0xFF),
+                static_cast<char>((value >> 8) & 0xFF),
+                static_cast<char>((value >> 16) & 0xFF),
+                static_cast<char>((value >> 24) & 0xFF)};
+            file.write(bytes, 4);
+        };
+        auto put16 = [&](std::uint16_t value) {
+            const char bytes[2] = {
+                static_cast<char>(value & 0xFF),
+                static_cast<char>((value >> 8) & 0xFF)};
+            file.write(bytes, 2);
+        };
+
+        file.write("BM", 2);
+        put32(fileBytes);
+        put32(0);
+        put32(54);
+        put32(40);
+        put32(width);
+        put32(height);
+        put16(1);
+        put16(24);
+        put32(0);
+        put32(pixelBytes);
+        put32(2835);
+        put32(2835);
+        put32(0);
+        put32(0);
+
+        const char zero[4] = {};
+        // BMP 는 아래에서 위로 쌓는다. 읽어 온 것은 위에서 아래이므로 거꾸로 돈다.
+        for (std::uint32_t y = height; y > 0; --y)
+        {
+            const std::byte* row = image.Data()
+                + static_cast<std::size_t>(y - 1) * readback.rowPitch;
+            for (std::uint32_t x = 0; x < width; ++x)
+            {
+                const auto* pixel = reinterpret_cast<const unsigned char*>(row + x * 4);
+                // **되읽은 것은 BGRA 다**(백버퍼가 `BGRA8Unorm` 이고, 위쪽
+                // `DiffersFromClear` 도 `pixel[0]` 을 파랑으로 읽는다). BMP 도
+                // BGR 이므로 순서를 그대로 쓴다 - 뒤집었다가 테마가 갈색으로
+                // 나왔다.
+                const char bgr[3] = {
+                    static_cast<char>(pixel[0]),
+                    static_cast<char>(pixel[1]),
+                    static_cast<char>(pixel[2])};
+                file.write(bgr, 3);
+            }
+            if (padding != 0)
+            {
+                file.write(zero, padding);
+            }
+        }
+        std::cout << "  wrote " << path << std::endl;
+    }
+
     std::size_t CountPaintedPixels(JBro::Renderer& renderer, std::uint32_t width,
         std::uint32_t height)
     {
@@ -574,6 +685,17 @@ namespace
         Check(body->mass > 900.0f,
             "a field with a Range must be a slider that reaches its top");
         Check(body->mass <= 1000.0f, "and must stop there");
+
+        // 인스펙터가 가장 많이 보이는 자리다. 여기서 한 장 남긴다.
+        editor.SetSelectedObject(object);
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle before the shot");
+        }
+        if (JBro::Renderer* renderer = editor.GetRenderer())
+        {
+            SaveScreenshot(*renderer, 1024, 768, "inspector");
+        }
 
         editor.Shutdown();
     }

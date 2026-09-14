@@ -75,6 +75,8 @@ namespace JBro
             const TypeDescriptor& type,
             const ScalarRun& run,
             const PropertyEditInfo* edit);
+        // 타고 내려가야 하는 타입인가. 한 줄에 담기는 것은 아니다.
+        static bool NeedsDescent(const TypeDescriptor& type, void* address);
         // 배열 하나를 목록 위젯으로 그린다.
         void DrawArray(
             const TypeDescriptor& type, void* address, bool editable, Context& context);
