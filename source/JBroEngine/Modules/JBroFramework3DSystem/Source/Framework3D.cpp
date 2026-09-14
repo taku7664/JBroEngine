@@ -1,5 +1,6 @@
 ﻿#include <JBro/Framework3DSystem/Framework3D.h>
 
+#include <JBro/Framework3DSystem/BuiltinComponentTypes3D.h>
 #include <JBro/Framework3D/BuiltinComponentProperties3D.h>
 #include <JBro/Graphics/Renderer.h>
 
@@ -27,6 +28,8 @@ namespace JBro
         // 빌트인 컴포넌트가 자기 프로퍼티를 이름으로 내놓을 수 있게 한다.
         // 이름표(NameTable)를 쓰므로 캔버스보다 먼저, 프레임이 돌기 전에 해 둔다.
         Component::RegisterBuiltinComponentProperties3D();
+        // 이름으로 붙이는 길도 함께 연다. 씬 파일을 읽는 쪽이 이것을 쓴다.
+        Component::RegisterBuiltinComponentTypes3D();
         JAllocator allocator = context.memory.persistent;
         if (allocator.allocate == nullptr || allocator.free == nullptr)
         {

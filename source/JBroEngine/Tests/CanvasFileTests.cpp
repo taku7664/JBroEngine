@@ -2,6 +2,12 @@
 #include <JBro/Canvas/Layer.h>
 #include <JBro/Framework2D/BuiltinComponentProperties2D.h>
 #include <JBro/Framework2DSystem/BuiltinComponentTypes2D.h>
+#include <JBro/Framework3D/BuiltinComponentProperties3D.h>
+#include <JBro/Framework3D/Component/Camera3D.h>
+#include <JBro/Framework3D/Component/MeshRenderer3D.h>
+#include <JBro/Framework3D/Component/Physics3D.h>
+#include <JBro/Framework3D/Component/Transform3D.h>
+#include <JBro/Framework3DSystem/BuiltinComponentTypes3D.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
@@ -921,6 +927,74 @@ namespace
                 "reading into a canvas that already holds something must be refused");
         }
     }
+
+    void TestA3DSceneMakesTheRoundTripToo()
+    {
+        JBro::Component::RegisterBuiltinComponentProperties3D();
+        JBro::Component::RegisterBuiltinComponentTypes3D();
+
+        JBro::String text;
+        {
+            JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+            JBro::GameObject* object = canvas.CreateObject("Prop");
+            auto* transform = canvas.AttachComponent<JBro::Component::Transform3D>(object);
+            transform->position = { 1.0f, -2.5f, 0.25f };
+            transform->rotation = { 0.1f, 0.2f, 0.3f, 0.9f };
+            transform->scale = { 2.0f, 2.0f, 2.0f };
+
+            auto* camera = canvas.AttachComponent<JBro::Component::Camera3D>(object);
+            camera->verticalFieldOfView = 75.5f;
+
+            auto* mesh = canvas.AttachComponent<JBro::Component::MeshRenderer3D>(object);
+            mesh->meshId.value = 77;
+            mesh->mesh = { 4, 4 };
+
+            auto* body = canvas.AttachComponent<JBro::Component::Rigidbody3D>(object);
+            body->velocity = { 9.0f, 9.0f, 9.0f };
+            body->mass = 3.5f;
+
+            text = Save(canvas);
+        }
+
+        JBro::Canvas reopened(JBro::CreateDefaultAllocator());
+        LoadOrFail(reopened, text);
+
+        JBro::GameObject* object = nullptr;
+        reopened.ForEachObject([&object](JBro::GameObject& found) { object = &found; });
+        Check(object != nullptr, "the object must come back");
+
+        auto* transform = reopened.FindComponentRaw<JBro::Component::Transform3D>(object);
+        Check(transform != nullptr, "a 3D component must be attachable by name too");
+        Check(transform->position.x == 1.0f && transform->position.y == -2.5f
+            && transform->position.z == 0.25f,
+            "all three axes must land on their own members");
+        Check(transform->rotation.x == 0.1f && transform->rotation.y == 0.2f
+            && transform->rotation.z == 0.3f && transform->rotation.w == 0.9f,
+            "a rotation must come back component for component");
+
+        auto* camera = reopened.FindComponentRaw<JBro::Component::Camera3D>(object);
+        Check(camera != nullptr && camera->verticalFieldOfView == 75.5f,
+            "a 3D camera must come back");
+
+        auto* mesh = reopened.FindComponentRaw<JBro::Component::MeshRenderer3D>(object);
+        Check(mesh != nullptr && mesh->meshId.value == 77,
+            "the persistent asset id must come back");
+        Check(mesh->mesh.index == 0 && mesh->mesh.generation == 0,
+            "the runtime handle must not come back from a file; it is resolved, not saved");
+
+        auto* body = reopened.FindComponentRaw<JBro::Component::Rigidbody3D>(object);
+        Check(body != nullptr && body->mass == 3.5f, "an authored value must come back");
+        Check(body->velocity.x == 0.0f && body->velocity.y == 0.0f && body->velocity.z == 0.0f,
+            "a simulated value must not be restored from a file");
+
+        const JBro::String again = Save(reopened);
+        if (again != text)
+        {
+            std::cout << "first:" << std::endl << text.c_str()
+                << "second:" << std::endl << again.c_str();
+            Check(false, "saving what was loaded must produce the same file");
+        }
+    }
 }
 
 int RunCanvasFileTests()
@@ -941,6 +1015,7 @@ int RunCanvasFileTests()
     TestLayersComeBackWithoutPilingUp();
     TestTwoTypesCannotShareAName();
     TestReadingRefusesRatherThanGuessing();
+    TestA3DSceneMakesTheRoundTripToo();
     std::cout << "Canvas file tests passed.\n";
     return 0;
 }
