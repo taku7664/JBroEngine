@@ -17,6 +17,7 @@ namespace
     {
         if (false == condition)
         {
+            std::cout << "test failure: " << message << std::endl;
             throw std::runtime_error(message);
         }
     }
@@ -195,8 +196,9 @@ namespace
         editor.CloseProject();
         Check(editor.OpenProject(project), "the editor must open a project again");
         JBro::Canvas* reopened = editor.GetCanvas();
-        Check(reopened != nullptr && reopened != canvas,
-            "a new project session must bring a new canvas");
+        Check(reopened != nullptr, "a new project session must bring a canvas");
+        // 주소가 다른지는 묻지 않는다. 앞의 것이 해제된 자리에 다시 잡힐 수 있고,
+        // 그것은 틀린 것이 아니다. 중요한 것은 내용이 비어 있다는 쪽이다.
         Check(reopened->GetObjectCount() == 0, "and that canvas must start empty");
 
         if (false == editor.LoadCanvas(canvasPath.c_str(), error))
@@ -243,6 +245,43 @@ namespace
 
         editor.Shutdown();
     }
+
+    void TestAFailedOpenSaysWhy()
+    {
+        // 파일은 멀쩡히 읽혔는데 여는 데 실패하는 경우다. 여기서 아무 말도 하지 않으면
+        // 부르는 쪽은 빈 오류를 받고 무엇이 잘못됐는지 알 길이 없다.
+        const JBro::String projectPath = TempPath("JBroEditorMissingDll.jproject");
+        Check(WriteTextFile(projectPath,
+            "Version: 1\n"
+            "ScriptOutputLibraryPath: NoSuchScriptModule.dll\n"),
+            "the test must be able to write its own project file");
+
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        JBro::EditorApplication editor;
+        Check(editor.Initialize(config), "the editor must initialize");
+
+        JBro::ProjectFileError error;
+        Check(false == editor.OpenProjectFile(
+            projectPath.c_str(), JBro::FrameworkKind::Framework2D, error),
+            "a project whose script module is missing must not open");
+        Check(false == error.message.empty(),
+            "and the refusal must say something rather than come back blank");
+        Check(false == editor.HasOpenProject(),
+            "nothing may be left half open behind a refusal");
+
+        // 실패한 뒤에도 다시 열 수 있어야 한다. 프레임워크가 남아 있으면 막힌다.
+        Check(WriteTextFile(projectPath,
+            "Version: 1\n"
+            "ScriptOutputLibraryPath: \"\"\n"),
+            "the test must be able to rewrite its project file");
+        Check(editor.OpenProjectFile(
+            projectPath.c_str(), JBro::FrameworkKind::Framework2D, error),
+            "the editor must still be usable after a refused open");
+
+        editor.Shutdown();
+        std::remove(projectPath.c_str());
+    }
 }
 
 int RunEditorApplicationTests()
@@ -251,6 +290,7 @@ int RunEditorApplicationTests()
     TestEditorOpensAProjectFile();
     TestEditorSavesAndOpensACanvas();
     TestCanvasWorkNeedsAnOpenProject();
+    TestAFailedOpenSaysWhy();
     std::cout << "Editor application tests passed.\n";
     return 0;
 }
