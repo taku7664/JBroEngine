@@ -6,6 +6,7 @@
 #include <imgui.h>
 
 #include <cstddef>
+#include <filesystem>
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
@@ -22,10 +23,13 @@ namespace
     }
 
     constexpr std::uint32_t SurfaceSize = 512;
-    // 창은 화면 거의 전부를 덮는다. 덮는 넓이를 우리가 정해야 "얼마나 칠해져야
-    // 맞는가" 를 셀 수 있다.
-    constexpr float WindowMargin = 8.0f;
-    constexpr float WindowExtent = static_cast<float>(SurfaceSize) - 2.0f * WindowMargin;
+    // **창을 일부러 비대칭으로 놓는다.** 화면 가운데에 두면 y 를 뒤집거나 translate 가
+    // 틀려도 같은 자리에 떨어져서, 넓이만 세는 검사는 통과해 버린다.
+    // 오른쪽 여백 104, 아래쪽 여백 184 - 어느 축으로 뒤집어도 자리가 달라진다.
+    constexpr std::uint32_t WindowLeft = 8;
+    constexpr std::uint32_t WindowTop = 8;
+    constexpr std::uint32_t WindowWidth = 400;
+    constexpr std::uint32_t WindowHeight = 320;
 
     struct Stage
     {
@@ -127,8 +131,10 @@ namespace
         {
             Check(ui.BeginFrame({SurfaceSize, SurfaceSize}, 1.0f / 60.0f),
                 "each UI frame must begin");
-            ImGui::SetNextWindowPos(ImVec2(WindowMargin, WindowMargin));
-            ImGui::SetNextWindowSize(ImVec2(WindowExtent, WindowExtent));
+            ImGui::SetNextWindowPos(
+                ImVec2(static_cast<float>(WindowLeft), static_cast<float>(WindowTop)));
+            ImGui::SetNextWindowSize(
+                ImVec2(static_cast<float>(WindowWidth), static_cast<float>(WindowHeight)));
             ImGui::Begin("Probe", nullptr,
                 ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove
                     | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings);
@@ -176,6 +182,10 @@ namespace
         // 배경만 칠해지고 밝은 픽셀이 없으면 폰트 아틀라스가 GPU 에 안 갔다는 뜻이다.
         std::size_t painted = 0;
         std::size_t bright = 0;
+        std::uint32_t minX = SurfaceSize;
+        std::uint32_t maxX = 0;
+        std::uint32_t minY = SurfaceSize;
+        std::uint32_t maxY = 0;
         for (std::uint32_t y = 0; y < SurfaceSize; ++y)
         {
             for (std::uint32_t x = 0; x < SurfaceSize; ++x)
@@ -187,6 +197,10 @@ namespace
                 if (bytes[0] != 0 || bytes[1] != 0 || bytes[2] != 0)
                 {
                     ++painted;
+                    minX = x < minX ? x : minX;
+                    maxX = x > maxX ? x : maxX;
+                    minY = y < minY ? y : minY;
+                    maxY = y > maxY ? y : maxY;
                 }
                 if (bytes[0] > 200 && bytes[1] > 200 && bytes[2] > 200)
                 {
@@ -195,11 +209,24 @@ namespace
             }
         }
         const std::size_t windowArea =
-            static_cast<std::size_t>(WindowExtent) * static_cast<std::size_t>(WindowExtent);
+            static_cast<std::size_t>(WindowWidth) * static_cast<std::size_t>(WindowHeight);
         std::cout << "  the probe window painted " << painted << " of " << windowArea
-            << " pixels (" << bright << " bright) in " << ui.GetLastDrawCount()
+            << " pixels (" << bright << " bright) at x[" << minX << ".." << maxX
+            << "] y[" << minY << ".." << maxY << "] in " << ui.GetLastDrawCount()
             << " draw(s)" << std::endl;
-        // 창이 요청한 넓이를 실제로 덮어야 한다. 모서리가 둥글어 몇 픽셀은 빈다.
+
+        // **칠해진 자리가 우리가 지정한 자리여야 한다.** 넓이만 세면 창이 엉뚱한 곳에
+        // 통째로 옮겨가도 통과한다 - 투영 상수나 뷰포트가 틀리면 정확히 그렇게 된다.
+        // 모서리가 둥글어 가장자리 한두 픽셀은 흐리므로 2픽셀까지 봐준다.
+        const auto Near = [](std::uint32_t got, std::uint32_t want) {
+            const std::uint32_t gap = got > want ? got - want : want - got;
+            return gap <= 2;
+        };
+        Check(Near(minX, WindowLeft) && Near(maxX, WindowLeft + WindowWidth - 1),
+            "the window must be painted at the x it was placed at");
+        Check(Near(minY, WindowTop) && Near(maxY, WindowTop + WindowHeight - 1),
+            "the window must be painted at the y it was placed at");
+        // 그 자리를 실제로 채워야 한다. 테두리만 나오면 여기서 걸린다.
         Check(painted > windowArea - windowArea / 20,
             "the probe window must cover the area it asked for");
         // 그리고 그 안에 글자가 있어야 한다.
@@ -207,6 +234,10 @@ namespace
 
         ui.Shutdown();
         Check(false == ui.IsInitialized(), "shutting down must release the UI");
+        // ImGui 는 컨텍스트를 지울 때 ini 를 쓴다. 한 번 돌리고 나면 파일이 남고,
+        // 다음 실행은 그 파일에서 창 자리를 읽는다 - 위에서 지정한 자리가 아니라.
+        Check(false == std::filesystem::exists("imgui.ini"),
+            "running the UI must not leave a settings file in the working directory");
         stage.Close();
     }
 
