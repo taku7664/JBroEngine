@@ -1,4 +1,4 @@
-<Solution>
+﻿<Solution>
   <Configurations>
     <BuildType Name="Debug" />
     <BuildType Name="Release" />
@@ -8,6 +8,14 @@
     <BuildType Name="Release_Game3D" />
     <Platform Name="x64" />
   </Configurations>
+  <Folder Name="/ThirdParty/">
+    <Project Path="ThirdParty/imgui/imgui.vcxproj">
+      <BuildType Solution="Debug_Game2D|x64" Project="Debug" />
+      <BuildType Solution="Release_Game2D|x64" Project="Release" />
+      <BuildType Solution="Debug_Game3D|x64" Project="Debug" />
+      <BuildType Solution="Release_Game3D|x64" Project="Release" />
+    </Project>
+  </Folder>
   <Folder Name="/Modules/">
     <Project Path="Modules/JBroCore/JBroCore.vcxproj">
       <BuildType Solution="Debug_Game2D|x64" Project="Debug" />

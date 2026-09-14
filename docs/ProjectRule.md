@@ -62,6 +62,11 @@
 - 모듈은 자신이 의존 선언한 모듈의 Include 경로만 받는다.
   의존하지 않는 모듈의 헤더를 include하면 컴파일이 실패해야 한다. (MUST)
 - 모듈 간 역방향 include와 순환 의존을 만들지 않는다. (MUST)
+- **외부 라이브러리는 `<JBro/...>` 규칙의 예외다.** (MUST) (D-60)
+  `ThirdParty/` 아래에 소스째로 두고 그 라이브러리가 정한 이름으로 include 한다(`<imgui.h>`).
+  래핑하지 않는다 — 래퍼는 라이브러리를 올릴 때마다 같이 고쳐야 하는 두 번째 표면이 된다.
+  **어느 모듈이 그것을 보는지는 그대로 통제된다**: 그 모듈의 vcxproj 가 include 경로를
+  선언해야 하고, 선언하지 않으면 C1083 이다. 자세한 것은 `source/JBroEngine/ThirdParty/README.md`.
 - 공통 모듈에는 2D/3D 차원 개념과 무관한 기능만 둔다.
   공통 계층의 공개 시그니처에 특정 Framework 타입을 노출하지 않는다. (MUST)
   `SystemContext`도 공통 계층이다 — 차원별 시스템 인터페이스는 D-37 확장 블록(`Framework2DSystemContext`)으로 전달한다. (D-43)
