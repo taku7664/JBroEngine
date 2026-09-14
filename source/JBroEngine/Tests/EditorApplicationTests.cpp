@@ -192,6 +192,10 @@ namespace
         // 카메라가 지운 초록이 화면에 있어야 한다. 게임 -> 텍스처 -> 패널로
         // 이어지는 길 어디가 끊겨도 이 숫자가 0 이 된다.
         std::size_t gamePixels = 0;
+        std::uint32_t gameMinX = 320;
+        std::uint32_t gameMaxX = 0;
+        std::uint32_t gameMinY = 240;
+        std::uint32_t gameMaxY = 0;
         for (std::uint32_t y = 0; y < 240; ++y)
         {
             for (std::uint32_t x = 0; x < 320; ++x)
@@ -203,6 +207,10 @@ namespace
                 if (pixel[2] < 40 && pixel[1] > 180 && pixel[0] > 60 && pixel[0] < 120)
                 {
                     ++gamePixels;
+                    gameMinX = x < gameMinX ? x : gameMinX;
+                    gameMaxX = x > gameMaxX ? x : gameMaxX;
+                    gameMinY = y < gameMinY ? y : gameMinY;
+                    gameMaxY = y > gameMaxY ? y : gameMaxY;
                 }
             }
         }
@@ -218,6 +226,18 @@ namespace
         // 상당 부분이 게임 화면이어야 한다.
         Check(gamePixels > (320 * 240) / 4,
             "the game must reach the panel through its texture");
+
+        // **모양이 지켜져야 한다.** 패널에 늘려 붙이면 픽셀 수는 오히려 늘어나서
+        // 넓이만 세는 검사는 통과한다 - 게임이 에디터 창 모양대로 찌그러진 채로.
+        const float boxWidth = static_cast<float>(gameMaxX - gameMinX + 1);
+        const float boxHeight = static_cast<float>(gameMaxY - gameMinY + 1);
+        const float shown = boxWidth / boxHeight;
+        const float wanted =
+            static_cast<float>(GameWidth) / static_cast<float>(GameHeight);
+        std::cout << "  the game view is " << boxWidth << "x" << boxHeight
+            << " (ratio " << shown << ", wanted " << wanted << ")" << std::endl;
+        Check(shown > wanted - 0.08f && shown < wanted + 0.08f,
+            "and keep its own shape rather than take the panel's");
 
         // 꺼지면 게임이 다시 백버퍼로 간다. 남은 GPU 리소스도 함께 놓는다.
         editor.DisableEditorUi();

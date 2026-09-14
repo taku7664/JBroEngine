@@ -149,61 +149,83 @@ namespace
         //
         // 프레임 순서가 계약이다. 텍스처 요청은 RHI 프레임 **밖에서** 처리되어야 한다 —
         // WriteTexture 가 GPU 를 기다리므로 프레임 안에서는 거절당한다.
+        // 한 프레임을 만드는 일이 두 자리에서 필요하다 - 창 크기를 재느라
+        // 감춰지는 첫 프레임들과, 아래에서 실제로 그리는 프레임들이다.
+        const auto BuildUiFrame = [&]() {
+        Check(ui.BeginFrame({SurfaceSize, SurfaceSize}, 1.0f / 60.0f),
+            "each UI frame must begin");
+        ImGui::SetNextWindowPos(
+            ImVec2(static_cast<float>(WindowLeft), static_cast<float>(WindowTop)));
+        ImGui::SetNextWindowSize(
+            ImVec2(static_cast<float>(WindowWidth), static_cast<float>(WindowHeight)));
+        ImGui::Begin("Probe", nullptr,
+            ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove
+                | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings);
+        // 글자는 폰트 아틀라스를 지난다. 아틀라스가 안 올라갔으면 창 배경만 칠해지고
+        // 밝은 픽셀이 하나도 없다 - 아래에서 그것을 센다.
+        ImGui::TextUnformatted("JBro editor UI probe");
+        ImGui::TextUnformatted("the font atlas must have reached the GPU");
+        ImGui::End();
+
+        // **드로우 리스트를 둘로 만든다.** 하나뿐이면 리스트마다 더해 주는 정점·인덱스
+        // 오프셋이 전부 0 이라, 그 덧셈을 빼먹어도 화면이 똑같이 나온다.
+        // 배경 드로우 리스트는 창들과 별도 리스트로 제출된다.
+        ImDrawList* background = ImGui::GetBackgroundDrawList();
+        background->AddRectFilled(
+            ImVec2(static_cast<float>(CornerLeft), static_cast<float>(CornerTop)),
+            ImVec2(static_cast<float>(CornerLeft + CornerSize),
+                static_cast<float>(CornerTop + CornerSize)),
+            IM_COL32(255, 255, 255, 255));
+        background->PushClipRect(
+            ImVec2(-40.0f, static_cast<float>(ClipTop)),
+            ImVec2(static_cast<float>(ClipRight), static_cast<float>(ClipBottom)),
+            false);
+        background->AddRectFilled(
+            ImVec2(-40.0f, static_cast<float>(ClipTop)),
+            ImVec2(static_cast<float>(ClipRight), static_cast<float>(ClipBottom)),
+            IM_COL32(255, 255, 255, 255));
+        background->PopClipRect();
+
+        // 전경 리스트는 창 다음에 나온다. 이 도형이 제자리에 있으려면 앞의 두
+        // 리스트가 쓴 정점·인덱스만큼 밀어서 읽어야 한다.
+        //
+        // **모서리를 둥글게 하는 것이 핵심이다.** 반듯한 사각형은 인덱스가
+        // (0,1,2, 0,2,3) 인데 그것은 앞 리스트의 사각형과 글자 그대로 같은 값이라,
+        // 인덱스를 엉뚱한 데서 읽어와도 결과가 똑같이 나온다. 둥근 모서리는
+        // 삼각형 부채꼴이 되어 그 패턴이 달라진다.
+        ImGui::GetForegroundDrawList()->AddRectFilled(
+            ImVec2(static_cast<float>(ForeLeft), static_cast<float>(ForeTop)),
+            ImVec2(static_cast<float>(ForeLeft + ForeSize),
+                static_cast<float>(ForeTop + ForeSize)),
+            IM_COL32(255, 255, 255, 255),
+            static_cast<float>(ForeRounding));
+        Check(ui.EndFrame(), "each UI frame must end and its textures must upload");
+        };
+
+        // **새 창은 첫 프레임에 그려지지 않는다.** ImGui 가 크기를 재고 자리를
+        // 잡는 동안 감춰 두기 때문이다. 몇 프레임 돌린 뒤에 본다.
         for (int warmUp = 0; warmUp < 3; ++warmUp)
         {
-            Check(ui.BeginFrame({SurfaceSize, SurfaceSize}, 1.0f / 60.0f),
-                "each UI frame must begin");
-            ImGui::SetNextWindowPos(
-                ImVec2(static_cast<float>(WindowLeft), static_cast<float>(WindowTop)));
-            ImGui::SetNextWindowSize(
-                ImVec2(static_cast<float>(WindowWidth), static_cast<float>(WindowHeight)));
-            ImGui::Begin("Probe", nullptr,
-                ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove
-                    | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings);
-            // 글자는 폰트 아틀라스를 지난다. 아틀라스가 안 올라갔으면 창 배경만 칠해지고
-            // 밝은 픽셀이 하나도 없다 - 아래에서 그것을 센다.
-            ImGui::TextUnformatted("JBro editor UI probe");
-            ImGui::TextUnformatted("the font atlas must have reached the GPU");
-            ImGui::End();
-
-            // **드로우 리스트를 둘로 만든다.** 하나뿐이면 리스트마다 더해 주는 정점·인덱스
-            // 오프셋이 전부 0 이라, 그 덧셈을 빼먹어도 화면이 똑같이 나온다.
-            // 배경 드로우 리스트는 창들과 별도 리스트로 제출된다.
-            ImDrawList* background = ImGui::GetBackgroundDrawList();
-            background->AddRectFilled(
-                ImVec2(static_cast<float>(CornerLeft), static_cast<float>(CornerTop)),
-                ImVec2(static_cast<float>(CornerLeft + CornerSize),
-                    static_cast<float>(CornerTop + CornerSize)),
-                IM_COL32(255, 255, 255, 255));
-            background->PushClipRect(
-                ImVec2(-40.0f, static_cast<float>(ClipTop)),
-                ImVec2(static_cast<float>(ClipRight), static_cast<float>(ClipBottom)),
-                false);
-            background->AddRectFilled(
-                ImVec2(-40.0f, static_cast<float>(ClipTop)),
-                ImVec2(static_cast<float>(ClipRight), static_cast<float>(ClipBottom)),
-                IM_COL32(255, 255, 255, 255));
-            background->PopClipRect();
-
-            // 전경 리스트는 창 다음에 나온다. 이 도형이 제자리에 있으려면 앞의 두
-            // 리스트가 쓴 정점·인덱스만큼 밀어서 읽어야 한다.
-            //
-            // **모서리를 둥글게 하는 것이 핵심이다.** 반듯한 사각형은 인덱스가
-            // (0,1,2, 0,2,3) 인데 그것은 앞 리스트의 사각형과 글자 그대로 같은 값이라,
-            // 인덱스를 엉뚱한 데서 읽어와도 결과가 똑같이 나온다. 둥근 모서리는
-            // 삼각형 부채꼴이 되어 그 패턴이 달라진다.
-            ImGui::GetForegroundDrawList()->AddRectFilled(
-                ImVec2(static_cast<float>(ForeLeft), static_cast<float>(ForeTop)),
-                ImVec2(static_cast<float>(ForeLeft + ForeSize),
-                    static_cast<float>(ForeTop + ForeSize)),
-                IM_COL32(255, 255, 255, 255),
-                static_cast<float>(ForeRounding));
-            Check(ui.EndFrame(), "each UI frame must end and its textures must upload");
+            BuildUiFrame();
         }
 
+        // **두 프레임을 돌리고 두 번째를 본다.** 첫 프레임은 슬롯 0 이라, 슬롯마다
+        // 갈라 둔 정점 버퍼를 실제로 갈라 쓰는지가 드러나지 않는다 - 0 만 쓰는
+        // 코드도 첫 프레임에서는 똑같은 그림을 낸다.
+        JBro::Array<std::byte> image;
+        image.Resize(SurfaceSize * SurfaceSize * 4);
+        JBro::TextureReadback readback;
+        std::uint32_t lastSlot = 0;
+        for (int frame = 0; frame < 2; ++frame)
+        {
+        if (frame > 0)
+        {
+            BuildUiFrame();
+        }
         const JBro::BeginFrameResult begun = stage.device->BeginFrame(stage.swapchain);
         Check(begun.status == JBro::FrameStatus::Ready, "the render frame must begin");
         JBro::IRHICommandContext& commands = *begun.frame.commands;
+        lastSlot = begun.frame.slot;
 
         JBro::ColorAttachmentDesc attachment;
         attachment.texture = begun.frame.backBuffer;
@@ -228,12 +250,14 @@ namespace
         Check(stage.device->EndFrame(begun.frame) == JBro::FrameStatus::Ready,
             "the render frame must present");
 
-        JBro::Array<std::byte> image;
-        image.Resize(SurfaceSize * SurfaceSize * 4);
-        JBro::TextureReadback readback;
         Check(stage.device->ReadTexture(
                 begun.frame.backBuffer, image.Data(), image.Size(), readback),
             "the back buffer must read back");
+        }
+
+        // 두 번째 프레임은 다른 슬롯이어야 한다. 같으면 위의 그림이 슬롯을
+        // 갈라 쓰는지에 대해 아무것도 말해 주지 않는다.
+        Check(lastSlot != 0, "the second frame must land on a different slot");
 
         // 지운 색은 검정이다. 검지 않은 픽셀은 UI 가 칠한 것이다.
         // 세 구역을 따로 센다. 창(위쪽 띠), 왼쪽으로 잘린 사각형, 오른쪽 아래 구석이다.
@@ -380,6 +404,74 @@ namespace
         stage.Close();
     }
 
+    // 플랫폼이 모은 입력이 ImGui 까지 가는지 본다. 모으기만 하고 넘기지 않으면
+    // 창은 멀쩡히 그려지는데 아무것도 눌리지 않는다 - 화면만 봐서는 모른다.
+    void TestInputReachesTheUi()
+    {
+        Stage stage;
+        if (false == stage.Open("JBro editor input probe"))
+        {
+            std::cout << "  [skip] no D3D12 device; UI input not verified" << std::endl;
+            return;
+        }
+
+        JBro::EditorUI ui;
+        Check(ui.Initialize(*stage.device, JBro::TextureFormat::BGRA8Unorm),
+            "the editor UI must initialize");
+        Check(false == ui.WantsMouse(), "nothing has been pointed at yet");
+
+        // 창 한가운데를 가리킨다. **ImGui 는 지난 프레임에 무엇 위에 있었는지로**
+        // 이번 프레임의 가져감을 정하므로, 두 프레임을 돌려야 한다.
+        JBro::InputEvent move;
+        move.kind = JBro::InputEventKind::MouseMove;
+        move.x = static_cast<float>(SurfaceSize) / 2.0f;
+        move.y = static_cast<float>(SurfaceSize) / 2.0f;
+
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            Check(ui.PushInput({&move, 1}), "the pointer must reach the UI");
+            Check(ui.BeginFrame({SurfaceSize, SurfaceSize}, 1.0f / 60.0f),
+                "the UI frame must begin");
+            ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f));
+            ImGui::SetNextWindowSize(ImVec2(
+                static_cast<float>(SurfaceSize), static_cast<float>(SurfaceSize)));
+            ImGui::Begin("Hover", nullptr, ImGuiWindowFlags_NoSavedSettings);
+            ImGui::TextUnformatted("over here");
+            ImGui::End();
+            Check(ui.EndFrame(), "the UI frame must end");
+        }
+
+        Check(ui.WantsMouse(),
+            "a pointer over a UI window must be taken by the UI, not left to the game");
+
+        // 창 밖으로 나가면 돌려준다.
+        JBro::InputEvent away = move;
+        away.x = -50.0f;
+        away.y = -50.0f;
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            Check(ui.PushInput({&away, 1}), "the pointer must reach the UI");
+            Check(ui.BeginFrame({SurfaceSize, SurfaceSize}, 1.0f / 60.0f),
+                "the UI frame must begin");
+            ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f));
+            ImGui::SetNextWindowSize(ImVec2(64.0f, 64.0f));
+            ImGui::Begin("Hover", nullptr, ImGuiWindowFlags_NoSavedSettings);
+            ImGui::TextUnformatted("over here");
+            ImGui::End();
+            Check(ui.EndFrame(), "the UI frame must end");
+        }
+        Check(false == ui.WantsMouse(), "and give it back when it leaves");
+
+        // 글자는 키와 따로 간다. 쌓인 글자가 ImGui 의 입력 큐에 들어가야 한다.
+        JBro::InputEvent typed;
+        typed.kind = JBro::InputEventKind::Text;
+        typed.codePoint = 0xAC00;
+        Check(ui.PushInput({&typed, 1}), "typed characters must reach the UI");
+
+        ui.Shutdown();
+        stage.Close();
+    }
+
     void TestTheFrameOrderIsEnforced()
     {
         Stage stage;
@@ -425,6 +517,7 @@ namespace
 int RunEditorUITests()
 {
     TestTheDemoWindowPaintsSomething();
+    TestInputReachesTheUi();
     TestTheFrameOrderIsEnforced();
     std::cout << "Editor UI tests passed.\n";
     return 0;
