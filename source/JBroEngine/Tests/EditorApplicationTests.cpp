@@ -378,12 +378,21 @@ namespace
     }
 
     // 인스펙터에 그려진 컴포넌트 슬롯 `slot` 의 필드 `field` 에 붙은 Id.
+    //
+    // 인스펙터는 줄을 **2열 표**로 그리므로(ProjectRule §11.3) Id 사슬에 표가
+    // 하나 낀다 - `BeginTable` 이 `PushOverrideID(instanceId)` 를 하고, 그 프레임의
+    // 첫 인스턴스면 `instanceId == GetID(표이름)` 이다.
+    //
+    // 창을 `"Inspector"` 로 찾는 것은 여전히 옳다. 실제 이름은
+    // `"인스펙터###Inspector"` 지만 `ImHashStr` 이 `###` 에서 해시를 다시 세므로
+    // 둘이 같은 값이다 - 번역해도 창의 정체가 그대로인 이유가 이것이다.
     ImGuiID InspectorFieldId(int slot, std::uint32_t field, const char* label)
     {
         ImGuiWindow* window = ImGui::FindWindowByName("Inspector");
         Check(window != nullptr, "the inspector must have a window");
         const ImGuiID component = PushedId(window->ID, slot);
-        return LabelId(PushedId(component, static_cast<int>(field)), label);
+        const ImGuiID table = LabelId(component, "##component");
+        return LabelId(PushedId(table, static_cast<int>(field)), label);
     }
 
     struct Spot
@@ -398,8 +407,8 @@ namespace
     {
         ImGuiWindow* window = ImGui::FindWindowByName("Inspector");
         Check(window != nullptr, "the inspector must have a window");
-        // 위젯 칸의 왼쪽 부분이다. 라벨은 오른쪽에 붙으므로 여기가 잡는 자리다.
-        const int x = static_cast<int>(window->Pos.x + window->Size.x * 0.2f);
+        // **값 칸**이다. 왼쪽 칸은 라벨이 차지하므로 그쪽을 훑으면 위젯을 못 만난다.
+        const int x = static_cast<int>(window->Pos.x + window->Size.x * 0.65f);
         const int bottom = static_cast<int>(window->Pos.y + window->Size.y);
         for (int y = static_cast<int>(window->Pos.y); y < bottom; y += 3)
         {
@@ -516,7 +525,7 @@ namespace
         const std::uint32_t rotation = FieldIndexOf(*transformTable, "rotation");
         Spot spot;
         Check(FindInspectorItem(editor, hwnd,
-                InspectorFieldId(0, rotation, "rotation"), spot),
+                InspectorFieldId(0, rotation, "##value"), spot),
             "the rotation row must be somewhere in the inspector");
         Check(false == spot.disabled, "and it must be editable");
 
@@ -559,7 +568,7 @@ namespace
         }
         const std::uint32_t mass = FieldIndexOf(*bodyTable, "mass");
         Spot massSpot;
-        Check(FindInspectorItem(editor, hwnd, InspectorFieldId(0, mass, "mass"), massSpot),
+        Check(FindInspectorItem(editor, hwnd, InspectorFieldId(0, mass, "##value"), massSpot),
             "the mass row must be in the inspector");
         DragFrom(editor, hwnd, massSpot, 1020);
         Check(body->mass > 900.0f,
@@ -614,7 +623,7 @@ namespace
 
         Spot spot;
         Check(FindInspectorItem(editor, hwnd,
-                InspectorFieldId(0, spriteId, "spriteId"), spot),
+                InspectorFieldId(0, spriteId, "##value"), spot),
             "the spriteId row must be in the inspector");
 
         // 칸을 깨우고 아무것도 고치지 않은 채 Enter 를 친다.

@@ -44,6 +44,12 @@ namespace JBro
         std::uint32_t windowHeight = 720;
         bool windowVisible = true;
         bool enableValidation = false;
+        // 화면 글자를 어디서 읽을지(ProjectRule §11.2). 못 읽어도 에디터는 뜬다 -
+        // 그때는 코드에 있는 영어 원문이 나온다. 글자 파일 하나 때문에 아무것도
+        // 못 보는 것이 더 나쁘다.
+        const char* localizationDirectory = "Localization";
+        const char* locale = "ko-KR";
+        const char* fallbackLocale = "en-US";
         JMemoryContext memory;
     };
 

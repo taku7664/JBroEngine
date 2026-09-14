@@ -1,5 +1,8 @@
 ﻿#include <JBro/Editor/EditorApplication.h>
 
+#include <JBro/Editor/Localization.h>
+#include <JBro/Editor/LocalizationKeys.h>
+
 #include <JBro/D3D12RHI/D3D12RHI.h>
 #include <JBro/Framework2DSystem/Framework2D.h>
 #include <JBro/Framework3DSystem/Framework3D.h>
@@ -42,6 +45,11 @@ namespace JBro
         {
             return false;
         }
+
+        // **글자를 먼저 읽는다.** 창 제목부터 이미 번역 대상이다.
+        // 실패해도 그냥 간다 - 코드에 있는 영어 원문으로 떨어질 뿐이다.
+        LocalizationTable::Get().Load(
+            config.localizationDirectory, config.locale, config.fallbackLocale);
 
         try
         {
@@ -322,6 +330,24 @@ namespace JBro
     bool EditorApplication::IsEditorUiEnabled() const
     {
         return m_uiEnabled;
+    }
+
+    namespace
+    {
+        // ImGui 에 넘길 창 이름이다: `보이는이름###안정된이름`.
+        //
+        // **`ImHashStr` 은 `###` 을 만나면 해시를 처음부터 다시 센다.** 그래서
+        // 앞쪽(번역된 이름)이 무엇으로 바뀌든 창의 정체는 뒤쪽 하나로 정해진다 -
+        // 언어를 바꿔도 도킹 자리와 크기가 그대로 남는 것이 이 때문이다.
+        // 기존 엔진 `CImWindow::GetImGuiLabel` 과 같은 수다.
+        String PanelWindowLabel(const EditorPanel& panel)
+        {
+            String label = panel.GetDisplayTitle() != nullptr
+                ? panel.GetDisplayTitle() : "";
+            label += "###";
+            label += panel.GetTitle() != nullptr ? panel.GetTitle() : "";
+            return label;
+        }
     }
 
     bool EditorApplication::AddPanel(OwnerPtr<EditorPanel> panel)
@@ -668,7 +694,7 @@ namespace JBro
                     continue;
                 }
                 bool open = panel->IsOpen();
-                if (ImGui::MenuItem(panel->GetTitle(), nullptr, &open))
+                if (ImGui::MenuItem(panel->GetDisplayTitle(), nullptr, &open))
                 {
                     panel->SetOpen(open);
                 }
@@ -786,7 +812,8 @@ namespace JBro
                 if (const EditorPanel* panel = m_panels[index].Get())
                 {
                     const int slot = static_cast<int>(panel->GetPreferredDock());
-                    ImGui::DockBuilderDockWindow(panel->GetTitle(), nodes[slot]);
+                    const String label = PanelWindowLabel(*panel);
+                    ImGui::DockBuilderDockWindow(label.c_str(), nodes[slot]);
                 }
             }
             ImGui::DockBuilderFinish(dockSpace);
@@ -812,7 +839,8 @@ namespace JBro
             const ImGuiWindowFlags flags = panel->HasMenuBar()
                 ? ImGuiWindowFlags_MenuBar
                 : ImGuiWindowFlags_None;
-            if (ImGui::Begin(panel->GetTitle(), &open, flags))
+            const String label = PanelWindowLabel(*panel);
+            if (ImGui::Begin(label.c_str(), &open, flags))
             {
                 if (panel->HasMenuBar() && ImGui::BeginMenuBar())
                 {

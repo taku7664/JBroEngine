@@ -1,0 +1,40 @@
+Locale: en-US
+Entries:
+  panel.game: Game
+  panel.hierarchy: Hierarchy
+  panel.inspector: Inspector
+  panel.stats: Stats
+  menu.file: File
+  menu.edit: Edit
+  menu.window: Window
+  menu.save_canvas: Save Canvas
+  menu.exit: Exit
+  menu.undo: Undo
+  menu.redo: Redo
+  menu.unsaved: unsaved
+  hierarchy.no_project: no project is open
+  hierarchy.empty: the canvas is empty
+  hierarchy.create_object: Create Object
+  hierarchy.create_child: Create Child
+  hierarchy.delete: Delete
+  hierarchy.unnamed: (unnamed)
+  hierarchy.search: Search
+  inspector.nothing_selected: nothing is selected
+  inspector.active: Active
+  inspector.enabled: Enabled
+  inspector.add_component: Add Component
+  inspector.remove_component: Remove Component
+  inspector.no_component_types: no component type has registered itself
+  inspector.unregistered_type: this type never registered its properties
+  inspector.unknown_component: (unknown component)
+  inspector.undrawable_type: (no way to show this type)
+  inspector.too_deep: (too deeply nested to edit)
+  inspector.too_long: (too long to show)
+  inspector.multiple_selected: %d objects selected
+  list.add_element: Add element
+  list.remove_element: Remove element
+  list.empty: empty
+  list.element_count: %d item(s)
+  common.search: Search
+  common.clear: Clear
+  common.none: None

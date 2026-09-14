@@ -33,10 +33,22 @@ namespace JBro
         EditorPanel(const EditorPanel&) = delete;
         EditorPanel& operator=(const EditorPanel&) = delete;
 
-        // 탭에 보이는 이름이자 ImGui 가 창을 식별하는 값이다.
+        // 패널의 **안정된 이름**이다. ImGui 가 창을 식별하는 값이고, 레지스트리가
+        // 중복을 거르는 값이며, `FindPanel` 이 찾는 값이다.
         // **살아 있는 동안 바뀌지 않아야 한다** - 바뀌면 ImGui 가 다른 창으로 보고
-        // 도킹 자리와 크기를 잃는다.
+        // 도킹 자리와 크기를 잃는다. 그러므로 **번역하지 않는다.**
         virtual const char* GetTitle() const = 0;
+
+        // 탭에 **보이는** 이름이다. 이쪽은 번역한다(ProjectRule §11.2).
+        //
+        // 둘을 나누는 이유: ImGui 는 창을 이름으로 식별하는데, 보이는 이름을 그대로
+        // 쓰면 언어를 바꾸는 순간 모든 창이 처음 보는 창이 되어 배치가 날아간다.
+        // 기존 엔진과 같은 수를 쓴다 - `보이는이름###안정된이름` 으로 넘기면
+        // ImGui 는 `###` 뒤만 해싱하므로 앞쪽은 마음대로 바뀌어도 된다.
+        virtual const char* GetDisplayTitle() const
+        {
+            return GetTitle();
+        }
 
         // 에디터가 들일 때 한 번. 거짓을 돌려주면 패널이 붙지 않는다.
         virtual bool OnCreate(EditorApplication& editor)

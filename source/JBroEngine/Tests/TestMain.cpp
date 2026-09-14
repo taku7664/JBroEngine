@@ -31,6 +31,7 @@ int RunEditorApplicationTests();
 int RunEditorUITests();
 int RunEditorCommandTests();
 int RunEditorObjectCommandTests();
+int RunEditorLocalizationTests();
 int RunInputTests();
 int RunContextBoundaryTests();
 int RunScriptApiPreludeTests();
@@ -147,6 +148,10 @@ int main()
             return 1;
         }
         if (RunEditorObjectCommandTests() != 0)
+        {
+            return 1;
+        }
+        if (RunEditorLocalizationTests() != 0)
         {
             return 1;
         }

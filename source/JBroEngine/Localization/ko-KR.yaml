@@ -1,0 +1,40 @@
+Locale: ko-KR
+Entries:
+  panel.game: 게임
+  panel.hierarchy: 계층
+  panel.inspector: 인스펙터
+  panel.stats: 통계
+  menu.file: 파일
+  menu.edit: 편집
+  menu.window: 창
+  menu.save_canvas: 캔버스 저장
+  menu.exit: 끝내기
+  menu.undo: 되돌리기
+  menu.redo: 다시하기
+  menu.unsaved: 저장 안 됨
+  hierarchy.no_project: 열린 프로젝트가 없습니다
+  hierarchy.empty: 캔버스가 비어 있습니다
+  hierarchy.create_object: 오브젝트 만들기
+  hierarchy.create_child: 자식 만들기
+  hierarchy.delete: 지우기
+  hierarchy.unnamed: (이름 없음)
+  hierarchy.search: 찾기
+  inspector.nothing_selected: 고른 것이 없습니다
+  inspector.active: 활성
+  inspector.enabled: 켜짐
+  inspector.add_component: 컴포넌트 붙이기
+  inspector.remove_component: 컴포넌트 떼기
+  inspector.no_component_types: 등록된 컴포넌트 타입이 없습니다
+  inspector.unregistered_type: 이 타입은 프로퍼티를 등록하지 않았습니다
+  inspector.unknown_component: (이름 없는 컴포넌트)
+  inspector.undrawable_type: (그릴 방법이 없는 타입)
+  inspector.too_deep: (너무 깊어 고칠 수 없음)
+  inspector.too_long: (너무 길어 보일 수 없음)
+  inspector.multiple_selected: %d개를 골랐습니다
+  list.add_element: 원소 추가
+  list.remove_element: 원소 삭제
+  list.empty: 비어 있습니다
+  list.element_count: %d개
+  common.search: 찾기
+  common.clear: 지우기
+  common.none: 없음
