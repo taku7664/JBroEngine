@@ -1135,6 +1135,85 @@ namespace
         editor.Shutdown();
     }
 
+    // **같은 타입이 둘 붙어 있으면 같은 번째끼리 고쳐야 한다.**
+    //
+    // 주된 오브젝트의 둘째 콜라이더를 고치는 중이라면 다른 오브젝트에서도
+    // 둘째여야 한다. 번째를 무시하고 언제나 첫째를 잡으면, 화면에서 만진 것과
+    // 실제로 바뀐 것이 어긋난다.
+    void TestMultiEditPicksTheSameOrdinalEverywhere()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; ordinal matching not verified"
+                << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "OrdinalProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        HWND hwnd = FindWindowW(L"JBroEngineWindow", L"JBro Editor");
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* alpha = canvas->CreateObject("Alpha");
+        JBro::GameObject* beta = canvas->CreateObject("Beta");
+
+        // 둘 다 콜라이더를 두 개씩 단다. 반지름을 전부 다르게 두어야
+        // 무엇이 바뀌었는지 가려낼 수 있다.
+        auto* alphaFirst = canvas->AttachComponent<JBro::Component::Collider2D>(alpha);
+        auto* alphaSecond = canvas->AttachComponent<JBro::Component::Collider2D>(alpha);
+        auto* betaFirst = canvas->AttachComponent<JBro::Component::Collider2D>(beta);
+        auto* betaSecond = canvas->AttachComponent<JBro::Component::Collider2D>(beta);
+        Check(alphaFirst != nullptr && alphaSecond != nullptr
+            && betaFirst != nullptr && betaSecond != nullptr,
+            "two of a kind must attach to each");
+        alphaFirst->radius = 1.0f;
+        alphaSecond->radius = 2.0f;
+        betaFirst->radius = 3.0f;
+        betaSecond->radius = 4.0f;
+
+        JBro::GameObject* chosen[] = {alpha, beta};
+        editor.SelectObjects({chosen, 2});
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        const JBro::PropertyTable* table = JBro::PropertyRegistry::Lookup(
+            JBro::NameTable::Get().Intern("Component::Collider2D"));
+        Check(table != nullptr, "the collider must have registered its properties");
+        const std::uint32_t radius = FieldIndexOf(*table, "radius");
+
+        // **둘째** 콜라이더의 반지름 칸을 찾는다. 슬롯 1 이다.
+        Spot spot;
+        Check(FindInspectorItem(editor, hwnd,
+                InspectorFieldId(1, radius, "##value"), spot),
+            "the second collider's radius row must be in the inspector");
+
+        DragFrom(editor, hwnd, spot, spot.x + 60);
+
+        const float moved = alphaSecond->radius - 2.0f;
+        Check(moved > 0.05f, "the second collider of the shown object must move");
+        Check(betaSecond->radius > 4.0f + moved - 0.01f
+                && betaSecond->radius < 4.0f + moved + 0.01f,
+            "and so must the second collider of the other object");
+        // **첫째는 건드리지 않는다.**
+        Check(alphaFirst->radius > 0.99f && alphaFirst->radius < 1.01f,
+            "the first collider here must be untouched");
+        Check(betaFirst->radius > 2.99f && betaFirst->radius < 3.01f,
+            "and the first collider there must be untouched too");
+
+        editor.Shutdown();
+    }
+
     // **인스펙터는 타입을 하나도 모른다.** 리플렉션이 내주는 것만 보고 그린다 -
     // 그래서 리플렉션이 내주는 것이 맞아야 화면도 맞는다. 파생값을 고칠 수 있게
     // 그려 놓으면 사용자가 고쳐도 다음 프레임에 덮어써져, 고장 난 것처럼 보인다.
@@ -1879,6 +1958,7 @@ int RunEditorApplicationTests()
     TestTheInspectorEditsThroughCommands();
     TestEditingWithSeveralChosenReachesThemAll();
     TestAChosenChildDoesNotGetTheEditTwice();
+    TestMultiEditPicksTheSameOrdinalEverywhere();
     TestTypingTheSameValueLeavesNothingToUndo();
     TestCreatingAnObjectCanBeUndone();
     TestDeletingAnObjectCanBeUndoneWithItsValues();

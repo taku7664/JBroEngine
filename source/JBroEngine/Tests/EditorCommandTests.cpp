@@ -402,6 +402,32 @@ namespace
             "the same size over different targets must not merge either");
     }
 
+    // **되돌리기는 역순이다.** 묶인 것들이 서로 기대고 있으면 순서가 답을
+    // 바꾼다 - 같은 값을 잇달아 고친 둘을 정순으로 되돌리면 가운데 값에서 멈춘다.
+    //
+    // 대상이 서로 다른 보통의 다중 편집에서는 순서가 드러나지 않는다. 그래서
+    // 일부러 **같은 값을 두 번 거치는** 묶음을 세운다.
+    void TestACompoundUndoesInReverse()
+    {
+        JBro::EditorCommandManager commands;
+        int value = 0;
+
+        auto compound = JBro::MakeOwnerPtr<JBro::CompoundCommand>("Twice");
+        // 0 → 1, 그리고 1 → 2. 뒤의 것이 앞의 것 위에 선다.
+        compound->Add(MakeSet(value, 0, 1, 1));
+        compound->Add(MakeSet(value, 1, 2, 2));
+
+        Check(commands.Execute(std::move(compound)), "both parts must apply");
+        Check(value == 2, "landing on the second one's value");
+
+        Check(commands.Undo(), "undo must run");
+        Check(value == 0,
+            "and reach all the way back - undoing in order would stop at 1");
+
+        Check(commands.Redo(), "redo must run forward");
+        Check(value == 2, "and land on the end again");
+    }
+
     void TestSavingIsTrackedByRevisionNotByAFlag()
     {
         JBro::EditorCommandManager commands;
@@ -467,6 +493,7 @@ int RunEditorCommandTests()
     TestACompoundIsOneUndo();
     TestAFailedPartInsideACompoundRollsBackTheRest();
     TestCompoundsMergeAsAWhole();
+    TestACompoundUndoesInReverse();
     TestSavingIsTrackedByRevisionNotByAFlag();
     TestClearingForgetsEverything();
     TestTheStackHasACeiling();
