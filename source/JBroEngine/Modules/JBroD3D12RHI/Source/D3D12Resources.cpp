@@ -1243,6 +1243,19 @@ namespace JBro::Internal
 
         const std::uint32_t frameSlot = static_cast<std::uint32_t>(
             m_nextFenceValue % MaxFramesInFlight);
+        // **이 할당자를 쓰던 프레임이 끝나기를 먼저 기다린다.** 아직 GPU 가
+        // 그 명령을 읽고 있는데 할당자를 되감으면 디바이스가 통째로 날아간다
+        // (`DXGI_ERROR_INVALID_CALL`). **검증 레이어는 한 마디도 하지 않는다** -
+        // GPU 타임라인의 사고라서 API 호출만 보아서는 틀린 곳이 없다.
+        //
+        // `BeginFrame` 은 자기 슬롯의 펜스를 기다리고 `ReadTexture` 는 흐름을
+        // 통째로 비운다. 여기만 그냥 되감고 있었다 - 글리프가 하나 늘 때마다
+        // 도는 길이라, 한가할 때는 멀쩡하고 프레임이 밀려 있을 때만 죽었다.
+        //
+        // 슬롯을 고르는 셈이 `BeginFrame` 과 달라(`m_nextFenceValue` 대
+        // `m_frameSerial`) 어느 슬롯이 걸릴지 모르므로 전부 기다린다. 어차피
+        // 아래에서 자기 복사가 끝날 때까지 막고 있는 길이다.
+        WaitIdle();
         if (FAILED(m_commandAllocators[frameSlot]->Reset())
             || FAILED(m_commandList->Reset(m_commandAllocators[frameSlot].Get(), nullptr)))
         {

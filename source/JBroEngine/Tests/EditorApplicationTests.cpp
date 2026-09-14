@@ -4,6 +4,7 @@
 #include <JBro/Editor/Command/ObjectCommands.h>
 #include <JBro/Editor/EditorObjectRegistry.h>
 #include <JBro/Editor/EditorPanel.h>
+#include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Graphics/Renderer.h>
 #include <JBro/Reflection/PropertyInfo.h>
@@ -101,9 +102,6 @@ namespace
         return nullptr;
     }
 
-    // **인스펙터는 타입을 하나도 모른다.** 리플렉션이 내주는 것만 보고 그린다 -
-    // 그래서 리플렉션이 내주는 것이 맞아야 화면도 맞는다. 파생값을 고칠 수 있게
-    // 그려 놓으면 사용자가 고쳐도 다음 프레임에 덮어써져, 고장 난 것처럼 보인다.
     // 프레임워크가 패널을 어떻게 다루는지 **세기만 하는** 패널이다. 그리지 않는다 -
     // 무엇이 그려졌는지가 아니라 어떤 훅이 언제 불렸는지를 보는 자리다.
     class CountingPanel final : public JBro::EditorPanel
@@ -127,6 +125,11 @@ namespace
         void OnDestroy() override
         {
             ++destroyCalls;
+            if (destroyOrder == 0)
+            {
+                firstDestroyed = m_title;
+            }
+            ++destroyOrder;
         }
         void OnUpdate(float deltaTime) override
         {
@@ -143,6 +146,10 @@ namespace
         // 테스트가 저 자신의 버그를 재게 된다.
         static int createCalls;
         static int destroyCalls;
+        static int destroyOrder;
+        // **먼저 떠난 쪽의 제목**이다. Shutdown 은 패널을 지우므로 그 뒤에
+        // 인스턴스를 들여다볼 수 없다 - 제목은 문자열 리터럴이라 살아남는다.
+        static const char* firstDestroyed;
 
         int updates = 0;
         int draws = 0;
@@ -155,6 +162,8 @@ namespace
 
     int CountingPanel::createCalls = 0;
     int CountingPanel::destroyCalls = 0;
+    int CountingPanel::destroyOrder = 0;
+    const char* CountingPanel::firstDestroyed = nullptr;
 
     // **레지스트리는 들일 수 없는 것을 들이지 않는다.** ImGui 는 창을 제목으로
     // 알아보므로 제목이 겹치면 둘이 한 창을 나눠 쓴다 - 둘째 패널부터 안 보인다.
@@ -209,11 +218,21 @@ namespace
         Check(editor.GetPanelCount() == builtin + 1, "and counted");
         Check(editor.FindPanel("Counting") == raw, "and found by its title");
 
+        Check(editor.AddPanel(JBro::MakeOwnerPtr<CountingPanel>("Counting Later")),
+            "a second panel must be taken too");
+
         const int leaving = CountingPanel::destroyCalls;
+        CountingPanel::destroyOrder = 0;
+        CountingPanel::firstDestroyed = nullptr;
         editor.Shutdown();
         // 내보낼 때 `OnDestroy` 를 부른다. 부르지 않으면 패널이 잡은 것이 샌다.
-        Check(CountingPanel::destroyCalls == leaving + 1,
-            "shutting down must tell the panel it is going");
+        Check(CountingPanel::destroyCalls == leaving + 2,
+            "shutting down must tell every panel it is going");
+        // **들인 순서의 반대로 내보낸다.** 나중에 붙은 것이 앞의 것에 기대고
+        // 있을 수 있어서, 기댄 쪽이 먼저 떠나야 한다.
+        Check(CountingPanel::firstDestroyed != nullptr
+                && std::strcmp(CountingPanel::firstDestroyed, "Counting Later") == 0,
+            "the panel that arrived last must be the first to leave");
     }
 
     // **닫혀 있어도 갱신은 돈다(D-70).** 안 보인다고 멈출지는 프레임워크가 아니라
@@ -337,6 +356,353 @@ namespace
         editor.Shutdown();
     }
 
+    // ── 인스펙터 위젯 ────────────────────────────────────────────────────
+    //
+    // **위젯 자리를 화면에서 짐작하지 않는다.** ImGui 는 그린 항목의 사각형을
+    // 남겨 두지 않지만, 항목마다 매기는 Id 는 이름과 `PushID` 로 정해져 있어
+    // 밖에서도 같은 방법으로 셀 수 있다. 마우스를 패널 안에서 아래로 훑으며
+    // "지금 무엇 위인가" 를 물어보면 자리가 나온다 - 글꼴이나 줄 간격이 바뀌어도
+    // 견디고, 못 찾으면 조용히 통과하는 대신 운다.
+
+    constexpr float Frame = 1.0f / 60.0f;
+
+    ImGuiID PushedId(ImGuiID seed, int value)
+    {
+        // `ImGui::PushID(int)` 와 같은 계산이다.
+        return ImHashData(&value, sizeof(value), seed);
+    }
+
+    ImGuiID LabelId(ImGuiID seed, const char* label)
+    {
+        return ImHashStr(label, 0, seed);
+    }
+
+    // 인스펙터에 그려진 컴포넌트 슬롯 `slot` 의 필드 `field` 에 붙은 Id.
+    ImGuiID InspectorFieldId(int slot, std::uint32_t field, const char* label)
+    {
+        ImGuiWindow* window = ImGui::FindWindowByName("Inspector");
+        Check(window != nullptr, "the inspector must have a window");
+        const ImGuiID component = PushedId(window->ID, slot);
+        return LabelId(PushedId(component, static_cast<int>(field)), label);
+    }
+
+    struct Spot
+    {
+        int x = 0;
+        int y = 0;
+        bool disabled = false;
+    };
+
+    bool FindInspectorItem(
+        JBro::EditorApplication& editor, HWND hwnd, ImGuiID target, Spot& spot)
+    {
+        ImGuiWindow* window = ImGui::FindWindowByName("Inspector");
+        Check(window != nullptr, "the inspector must have a window");
+        // 위젯 칸의 왼쪽 부분이다. 라벨은 오른쪽에 붙으므로 여기가 잡는 자리다.
+        const int x = static_cast<int>(window->Pos.x + window->Size.x * 0.2f);
+        const int bottom = static_cast<int>(window->Pos.y + window->Size.y);
+        for (int y = static_cast<int>(window->Pos.y); y < bottom; y += 3)
+        {
+            PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
+            Check(editor.Tick(Frame), "the editor must tick while looking");
+            if (ImGui::GetHoveredID() == target)
+            {
+                spot.x = x;
+                spot.y = y;
+                spot.disabled = ImGui::GetCurrentContext()->HoveredIdIsDisabled;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void DragFrom(
+        JBro::EditorApplication& editor, HWND hwnd, const Spot& spot, int toX)
+    {
+        PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(spot.x, spot.y));
+        Check(editor.Tick(Frame), "the editor must tick");
+        PostMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(spot.x, spot.y));
+        Check(editor.Tick(Frame), "the editor must tick");
+        constexpr int Steps = 8;
+        for (int step = 1; step <= Steps; ++step)
+        {
+            const int x = spot.x + (toX - spot.x) * step / Steps;
+            PostMessageW(hwnd, WM_MOUSEMOVE, MK_LBUTTON, MAKELPARAM(x, spot.y));
+            Check(editor.Tick(Frame), "the editor must tick mid-drag");
+        }
+        PostMessageW(hwnd, WM_LBUTTONUP, 0, MAKELPARAM(toX, spot.y));
+        Check(editor.Tick(Frame), "the editor must tick");
+    }
+
+    void ClickAt(JBro::EditorApplication& editor, HWND hwnd, const Spot& spot)
+    {
+        PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(spot.x, spot.y));
+        Check(editor.Tick(Frame), "the editor must tick");
+        PostMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(spot.x, spot.y));
+        Check(editor.Tick(Frame), "the editor must tick");
+        PostMessageW(hwnd, WM_LBUTTONUP, 0, MAKELPARAM(spot.x, spot.y));
+        Check(editor.Tick(Frame), "the editor must tick");
+    }
+
+    std::uint32_t FieldIndexOf(const JBro::PropertyTable& table, const char* name)
+    {
+        for (std::uint32_t index = 0; index < table.count; ++index)
+        {
+            const char* found =
+                JBro::NameTable::Get().Resolve(table.properties[index].name);
+            if (found != nullptr && std::strcmp(found, name) == 0)
+            {
+                return index;
+            }
+        }
+        Check(false, "the field this test names must be in the table");
+        return 0;
+    }
+
+    // **인스펙터를 손으로 만져 본다.** 리플렉션이 무엇을 내주는지는 위에서 봤고,
+    // 여기서는 인스펙터가 그것을 가지고 무엇을 하는지를 본다 - 고친 것이
+    // 커맨드로 들어가는지, 드래그 하나가 되돌리기 하나인지, 못 고치게 표시된
+    // 값이 정말로 잠기는지, `Range` 가 슬라이더가 되는지(D-71).
+    void TestTheInspectorEditsThroughCommands()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        // 인스펙터 칸이 좁으면 위젯이 라벨에 밀린다. 넉넉한 창을 쓴다.
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; inspector editing not verified"
+                << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "InspectorEditProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        HWND hwnd = FindWindowW(L"JBroEngineWindow", L"JBro Editor");
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        Check(canvas != nullptr, "the probe project must have a canvas");
+        JBro::GameObject* object = canvas->CreateObject("Subject");
+        auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(object);
+        Check(transform != nullptr, "the subject must have a transform");
+        // **물리는 다른 오브젝트에 둔다.** Transform2D 는 필드를 여덟 개 내놓고
+        // 그중 다섯이 한 단계 더 내려가서, 한 오브젝트에 둘을 붙이면 아래쪽
+        // 컴포넌트가 패널 밖으로 밀려 만질 수 없다.
+        JBro::GameObject* heavy = canvas->CreateObject("Heavy");
+        auto* body = canvas->AttachComponent<JBro::Component::Rigidbody2D>(heavy);
+        Check(body != nullptr, "the heavy object must have a body");
+        editor.SetSelectedObject(object);
+
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        const JBro::PropertyTable* transformTable = JBro::PropertyRegistry::Lookup(
+            JBro::NameTable::Get().Intern("Component::Transform2D"));
+        const JBro::PropertyTable* bodyTable = JBro::PropertyRegistry::Lookup(
+            JBro::NameTable::Get().Intern("Component::Rigidbody2D"));
+        Check(transformTable != nullptr && bodyTable != nullptr,
+            "both components must have registered their properties");
+
+        // ── 고치면 커맨드가 된다. 드래그 하나가 되돌리기 하나다. ──────────
+        transform->rotation = 0.0f;
+        const std::uint32_t rotation = FieldIndexOf(*transformTable, "rotation");
+        Spot spot;
+        Check(FindInspectorItem(editor, hwnd,
+                InspectorFieldId(0, rotation, "rotation"), spot),
+            "the rotation row must be somewhere in the inspector");
+        Check(false == spot.disabled, "and it must be editable");
+
+        const std::size_t before = editor.GetCommands().GetUndoCount();
+        DragFrom(editor, hwnd, spot, spot.x + 100);
+        Check(transform->rotation > 0.5f,
+            "dragging the rotation field must move the value");
+        Check(editor.GetCommands().GetUndoCount() == before + 1,
+            "and a whole drag must leave exactly one thing to undo");
+
+        const float dragged = transform->rotation;
+        Check(editor.GetCommands().Undo(), "undo must run");
+        Check(transform->rotation < 0.0001f && transform->rotation > -0.0001f,
+            "and put the value back where the drag started");
+        Check(editor.GetCommands().Redo() && transform->rotation > 0.5f,
+            "redo must do it again");
+        Check(dragged > 0.5f, "the dragged value stands");
+
+        // ── 못 고치게 표시된 값은 잠긴다. ────────────────────────────────
+        //
+        // `world` 는 파생값이라 `ReadOnly` 다. 잠그지 않으면 사용자가 고쳐도
+        // 다음 프레임이 덮어써, 고장 난 것처럼 보인다.
+        const std::uint32_t world = FieldIndexOf(*transformTable, "world");
+        Spot lockedSpot;
+        Check(FindInspectorItem(editor, hwnd,
+                InspectorFieldId(0, world, "world"), lockedSpot),
+            "the cached world matrix must be shown");
+        Check(lockedSpot.disabled,
+            "a value the inspector may not change must be drawn disabled");
+
+        // ── Range 가 붙은 값은 슬라이더다. ───────────────────────────────
+        //
+        // 슬라이더는 칸 안의 자리가 곧 값이고 양 끝에서 멈춘다. 자유 드래그는
+        // 픽셀당 0.01 씩 움직일 뿐이라, 같은 거리를 끌어도 근처에도 못 간다.
+        body->mass = 1.0f;
+        editor.SetSelectedObject(heavy);
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the inspector must switch over");
+        }
+        const std::uint32_t mass = FieldIndexOf(*bodyTable, "mass");
+        Spot massSpot;
+        Check(FindInspectorItem(editor, hwnd, InspectorFieldId(0, mass, "mass"), massSpot),
+            "the mass row must be in the inspector");
+        DragFrom(editor, hwnd, massSpot, 1020);
+        Check(body->mass > 900.0f,
+            "a field with a Range must be a slider that reaches its top");
+        Check(body->mass <= 1000.0f, "and must stop there");
+
+        editor.Shutdown();
+    }
+
+    // **아무것도 안 바뀌었으면 되돌릴 것도 없다.** 글자 칸에서 Enter 만 치면
+    // 위젯은 "바뀌었다" 고 답하지만 값은 그대로다 - 그것까지 쌓으면 Ctrl+Z 가
+    // 아무 일도 안 하는 헛걸음을 만든다.
+    void TestTypingTheSameValueLeavesNothingToUndo()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the text field not verified"
+                << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "InspectorTextProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        HWND hwnd = FindWindowW(L"JBroEngineWindow", L"JBro Editor");
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* object = canvas->CreateObject("Subject");
+        // `spriteId` 는 AssetId 다 - float 도 bool 도 int 도 아니라서 코덱의
+        // 글자 왕복으로 그려지는, 지금 유일한 글자 칸이다.
+        auto* sprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(object);
+        Check(sprite != nullptr, "the subject must have a sprite renderer");
+        editor.SetSelectedObject(object);
+
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        const JBro::PropertyTable* table = JBro::PropertyRegistry::Lookup(
+            JBro::NameTable::Get().Intern("Component::SpriteRenderer2D"));
+        Check(table != nullptr, "the sprite renderer must have registered its properties");
+        const std::uint32_t spriteId = FieldIndexOf(*table, "spriteId");
+
+        Spot spot;
+        Check(FindInspectorItem(editor, hwnd,
+                InspectorFieldId(0, spriteId, "spriteId"), spot),
+            "the spriteId row must be in the inspector");
+
+        // 칸을 깨우고 아무것도 고치지 않은 채 Enter 를 친다.
+        ClickAt(editor, hwnd, spot);
+        const std::size_t before = editor.GetCommands().GetUndoCount();
+        PostMessageW(hwnd, WM_KEYDOWN, VK_RETURN, 0);
+        Check(editor.Tick(Frame), "the editor must tick");
+        PostMessageW(hwnd, WM_KEYUP, VK_RETURN, 0);
+        Check(editor.Tick(Frame), "the editor must tick");
+
+        Check(editor.GetCommands().GetUndoCount() == before,
+            "committing the value that was already there must leave nothing to undo");
+        Check(false == editor.GetCommands().IsDirty()
+                || editor.GetCommands().GetUndoCount() == before,
+            "and must not make the document look edited");
+
+        editor.Shutdown();
+    }
+
+    // 프레임마다 **처음 보는 글자**를 그리는 패널이다. ImGui 1.92 는 글리프를
+    // 필요할 때 아틀라스에 굽고 백엔드에 "이 텍스처를 고쳐 올려라" 라고 말하므로,
+    // 이 패널이 도는 동안에는 프레임마다 텍스처 업로드가 일어난다.
+    class NewGlyphEveryFrame final : public JBro::EditorPanel
+    {
+    public:
+        const char* GetTitle() const override
+        {
+            return "New Glyph";
+        }
+        void OnDraw() override
+        {
+            // 한글 음절은 만 개가 넘는다. 매번 다른 것을 고르면 아틀라스가
+            // 계속 자란다 - ASCII 는 이미 구워져 있어서 이 길을 열지 못한다.
+            const int syllable = 0xAC00 + (m_frame * 37) % 11172;
+            ++m_frame;
+            char utf8[4] = {};
+            utf8[0] = static_cast<char>(0xE0 | (syllable >> 12));
+            utf8[1] = static_cast<char>(0x80 | ((syllable >> 6) & 0x3F));
+            utf8[2] = static_cast<char>(0x80 | (syllable & 0x3F));
+            ImGui::TextUnformatted(utf8);
+        }
+
+    private:
+        int m_frame = 0;
+    };
+
+    // **글꼴 아틀라스가 갱신되어도 디바이스가 살아 있어야 한다.**
+    //
+    // `WriteTexture` 는 프레임 밖에서 도는 길이라 제 명령 할당자를 되감는데,
+    // 그 할당자를 아직 GPU 가 읽고 있으면 디바이스가 통째로 날아간다
+    // (`DXGI_ERROR_INVALID_CALL`). **검증 레이어는 아무 말도 하지 않는다.**
+    //
+    // 실제로 이렇게 죽었다: 인스펙터를 훑다 처음 보는 글자가 나오는 순간.
+    // 한가할 때는 멀쩡하고 프레임이 밀려 있을 때만 죽어서, 몇 프레임 돌려 보는
+    // 테스트로는 잡히지 않는다 - 갱신을 **계속** 시켜야 나온다.
+    void TestTheDeviceSurvivesFontAtlasUpdates()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = WindowWidth;
+        config.windowHeight = WindowHeight;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; atlas updates not verified"
+                << std::endl;
+            return;
+        }
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        Check(editor.AddPanel(JBro::MakeOwnerPtr<NewGlyphEveryFrame>()),
+            "the glyph panel must be taken");
+
+        for (int frame = 0; frame < 300; ++frame)
+        {
+            if (false == editor.Tick(1.0f / 60.0f))
+            {
+                std::cout << "  the editor died on frame " << frame
+                    << " with status " << static_cast<int>(editor.GetLastFrameStatus())
+                    << std::endl;
+                Check(false, "a font atlas update must not take the device down");
+            }
+        }
+        editor.Shutdown();
+    }
+
+    // **인스펙터는 타입을 하나도 모른다.** 리플렉션이 내주는 것만 보고 그린다 -
+    // 그래서 리플렉션이 내주는 것이 맞아야 화면도 맞는다. 파생값을 고칠 수 있게
+    // 그려 놓으면 사용자가 고쳐도 다음 프레임에 덮어써져, 고장 난 것처럼 보인다.
     void TestTheInspectorIsToldWhatItMayEdit()
     {
         JBro::EditorApplication editor;
@@ -1071,7 +1437,10 @@ int RunEditorApplicationTests()
     TestThePanelRegistryRefusesWhatItCannotHold();
     TestAClosedPanelKeepsUpdatingButStopsDrawing();
     TestClickingTheCloseButtonClosesThePanel();
+    TestTheDeviceSurvivesFontAtlasUpdates();
     TestTheInspectorIsToldWhatItMayEdit();
+    TestTheInspectorEditsThroughCommands();
+    TestTypingTheSameValueLeavesNothingToUndo();
     TestCreatingAnObjectCanBeUndone();
     TestDeletingAnObjectCanBeUndoneWithItsValues();
     TestClosingTheWindowDoesNotTakeTheUiDownWithIt();
