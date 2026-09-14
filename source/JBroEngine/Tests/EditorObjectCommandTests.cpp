@@ -102,6 +102,15 @@ namespace
         return path;
     }
 
+    JBro::ComponentAddress AddressOf(JBro::EditorObjectRegistry& ids,
+        JBro::GameObject& object, const JBro::ComponentBase& component)
+    {
+        JBro::ComponentAddress address;
+        Check(JBro::MakeComponentAddress(ids, object, component, address),
+            "a component on its own object must have an address");
+        return address;
+    }
+
     bool NearlyEqual(float value, float expected)
     {
         const float delta = value - expected;
@@ -186,8 +195,9 @@ namespace
         Check(JBro::SetPropertyCommand::ReadValue(*component, typeId, path, before),
             "reading a leaf must work");
 
+        JBro::EditorObjectRegistry ids;
         JBro::SetPropertyCommand command(
-            component->SafeFromThis(), typeId, path, before, JBro::String("1.5"));
+            ids, AddressOf(ids, *object, *component), path, before, JBro::String("1.5"));
         Check(command.Execute(), "the edit must go through");
         Check(NearlyEqual(transform->rotation, 1.5f), "and must have happened");
         command.Undo();
@@ -258,9 +268,9 @@ namespace
         JBro::GameObject* second = canvas.CreateObject("Second");
         auto* firstTransform = canvas.AttachComponent<JBro::Component::Transform2D>(first);
         auto* secondTransform = canvas.AttachComponent<JBro::Component::Transform2D>(second);
-        JBro::ComponentBase* firstComponent = firstTransform;
-        JBro::ComponentBase* secondComponent = secondTransform;
-        const JBro::ComponentTypeId typeId = firstComponent->GetTypeId();
+        JBro::EditorObjectRegistry ids;
+        const JBro::ComponentAddress firstAddress = AddressOf(ids, *first, *firstTransform);
+        const JBro::ComponentAddress secondAddress = AddressOf(ids, *second, *secondTransform);
 
         const std::uint32_t rotation = FieldIndex(TransformTable(), "rotation");
         const std::uint32_t position = FieldIndex(TransformTable(), "position");
@@ -270,10 +280,10 @@ namespace
         // 같은 잎사귀: 합친다. 그리고 **처음 값은 앞쪽 것을 지킨다** - 드래그
         // 전체가 한 번에 되돌아가야 한다.
         firstTransform->rotation = 1.0f;
-        JBro::SetPropertyCommand held(firstComponent->SafeFromThis(), typeId, rotationPath,
+        JBro::SetPropertyCommand held(ids, firstAddress, rotationPath,
             JBro::String("1"), JBro::String("2"));
         Check(held.Execute(), "the first frame of the drag must apply");
-        JBro::SetPropertyCommand next(firstComponent->SafeFromThis(), typeId, rotationPath,
+        JBro::SetPropertyCommand next(ids, firstAddress, rotationPath,
             JBro::String("2"), JBro::String("3"));
         Check(next.Execute(), "and the second");
         Check(held.TryMerge(next), "the same leaf during a drag must merge");
@@ -282,18 +292,80 @@ namespace
             "undoing the merged drag must reach back to before it started");
 
         // 다른 잎사귀: 합치지 않는다.
-        JBro::SetPropertyCommand onRotation(firstComponent->SafeFromThis(), typeId,
+        JBro::SetPropertyCommand onRotation(ids, firstAddress,
             rotationPath, JBro::String("1"), JBro::String("2"));
-        JBro::SetPropertyCommand onPosition(firstComponent->SafeFromThis(), typeId,
+        JBro::SetPropertyCommand onPosition(ids, firstAddress,
             positionY, JBro::String("0"), JBro::String("5"));
         Check(false == onRotation.TryMerge(onPosition),
             "a different field must not be folded into this one");
 
         // 다른 컴포넌트: 같은 필드라도 합치지 않는다.
-        JBro::SetPropertyCommand onOther(secondComponent->SafeFromThis(), typeId,
+        JBro::SetPropertyCommand onOther(ids, secondAddress,
             rotationPath, JBro::String("1"), JBro::String("2"));
         Check(false == onRotation.TryMerge(onOther),
             "the same field on another object must not be folded in either");
+
+        // 주소는 셋이 다 맞아야 같은 곳이다. 같은 오브젝트의 같은 타입이라도
+        // 둘째 것이면, 다른 타입이면 다른 컴포넌트다.
+        JBro::ComponentAddress secondOfAKind = firstAddress;
+        secondOfAKind.ordinal = 1;
+        JBro::SetPropertyCommand onSecondOfAKind(ids, secondOfAKind,
+            rotationPath, JBro::String("1"), JBro::String("2"));
+        Check(false == onRotation.TryMerge(onSecondOfAKind),
+            "the second of a kind on the same object must not be folded in");
+        JBro::ComponentAddress otherType = firstAddress;
+        otherType.typeId = firstAddress.typeId + 1;
+        JBro::SetPropertyCommand onOtherType(ids, otherType,
+            rotationPath, JBro::String("1"), JBro::String("2"));
+        Check(false == onRotation.TryMerge(onOtherType),
+            "and neither must a component of another type");
+    }
+
+    // **지웠다 되살린 오브젝트에서도 앞선 편집이 되돌아가야 한다**(D-72).
+    //
+    // 되살리면 컴포넌트가 새로 만들어져 주소가 달라진다. 편집 커맨드가 옛
+    // 컴포넌트를 붙들고 있으면, 삭제를 되돌린 뒤 그 편집을 되돌려도 아무 일도
+    // 일어나지 않는다 - 사용자에게는 Ctrl+Z 가 고장 난 것으로 보인다.
+    void TestAnEditSurvivesItsObjectBeingDeletedAndRestored()
+    {
+        RegisterOnce();
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::EditorObjectRegistry ids;
+        JBro::EditorCommandManager commands;
+
+        JBro::GameObject* object = canvas.CreateObject("Subject");
+        auto* transform = canvas.AttachComponent<JBro::Component::Transform2D>(object);
+        Check(transform != nullptr, "the subject must have a transform");
+        transform->rotation = 0.5f;
+        const JBro::EditorObjectId id = ids.Track(object);
+        const JBro::SetPropertyCommand::Path path =
+            PathTo(FieldIndex(TransformTable(), "rotation"));
+
+        Check(commands.Execute(JBro::MakeOwnerPtr<JBro::SetPropertyCommand>(
+                ids, AddressOf(ids, *object, *transform), path,
+                JBro::String("0.5"), JBro::String("1.5"))),
+            "the edit must go through");
+        Check(commands.Execute(JBro::MakeOwnerPtr<JBro::DeleteObjectCommand>(
+                canvas, ids, object)),
+            "and so must the delete");
+        // 에디터는 프레임 끝에 비운다. 비우지 않으면 옛 컴포넌트가 아직 살아 있어
+        // 이 테스트가 재려는 것을 가린다.
+        canvas.FlushPendingDestroy();
+
+        Check(commands.Undo(), "undoing the delete must run");
+        JBro::GameObject* restored = ids.Resolve(id);
+        Check(restored != nullptr, "and bring the object back under its number");
+        auto* restoredTransform =
+            restored->GetComponent<JBro::Component::Transform2D>().Get();
+        Check(restoredTransform != nullptr, "with its transform");
+        Check(NearlyEqual(restoredTransform->rotation, 1.5f),
+            "holding the edited value");
+
+        Check(commands.Undo(), "undoing the edit must run");
+        Check(NearlyEqual(restoredTransform->rotation, 0.5f),
+            "and must reach the restored object, not the one that died");
+        Check(commands.Redo(), "redoing the edit must run");
+        Check(NearlyEqual(restoredTransform->rotation, 1.5f), "and reach it again");
     }
 
     // ── 삭제 ─────────────────────────────────────────────────────────────
@@ -781,6 +853,7 @@ int RunEditorObjectCommandTests()
     TestAPropertyGoesThereAndComesBack();
     TestABranchIsNotALeaf();
     TestMergeOnlyJoinsTheSameLeafOfTheSameComponent();
+    TestAnEditSurvivesItsObjectBeingDeletedAndRestored();
     TestDeletingIsRefusedWhenAValueCannotBeSaved();
     TestDeletingNothingIsRefused();
     TestRestoringBringsBackWhatWasSwitchedOff();

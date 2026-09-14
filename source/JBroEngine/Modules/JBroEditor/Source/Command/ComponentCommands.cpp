@@ -18,54 +18,6 @@ namespace JBro
         }
     }
 
-    ComponentBase* FindComponentAt(GameObject& object, ComponentTypeId typeId,
-        std::uint32_t ordinal)
-    {
-        std::uint32_t seen = 0;
-        const Array<ComponentSlot>& components = object.GetComponents();
-        for (std::size_t index = 0; index < components.Size(); ++index)
-        {
-            if (components[index].typeId != typeId)
-            {
-                continue;
-            }
-            ComponentBase* component = components[index].reference.TryGet();
-            if (component == nullptr)
-            {
-                // 죽은 슬롯은 세지 않는다. 세면 그 뒤의 번호가 한 칸씩 밀린다.
-                continue;
-            }
-            if (seen == ordinal)
-            {
-                return component;
-            }
-            ++seen;
-        }
-        return nullptr;
-    }
-
-    bool FindComponentOrdinal(const GameObject& object, const ComponentBase& component,
-        std::uint32_t& ordinal)
-    {
-        std::uint32_t seen = 0;
-        const Array<ComponentSlot>& components = object.GetComponents();
-        for (std::size_t index = 0; index < components.Size(); ++index)
-        {
-            ComponentBase* candidate = components[index].reference.TryGet();
-            if (candidate == nullptr || components[index].typeId != component.GetTypeId())
-            {
-                continue;
-            }
-            if (candidate == &component)
-            {
-                ordinal = seen;
-                return true;
-            }
-            ++seen;
-        }
-        return false;
-    }
-
     // -- AddComponentCommand -------------------------------------------------
 
     AddComponentCommand::AddComponentCommand(

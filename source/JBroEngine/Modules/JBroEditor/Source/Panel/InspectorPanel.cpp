@@ -390,18 +390,16 @@ namespace JBro
         return false;
     }
 
-    Array<ComponentBase*> InspectorPanel::CollectEditTargets(const Context& context) const
+    Array<InspectorPanel::EditTarget> InspectorPanel::CollectEditTargets(
+        const Context& context) const
     {
-        Array<ComponentBase*> targets;
-        if (context.component == nullptr)
-        {
-            return targets;
-        }
+        Array<EditTarget> targets;
         std::uint32_t ordinal = 0;
-        if (context.owner == nullptr
+        if (context.component == nullptr || context.owner == nullptr
             || false == FindComponentOrdinal(*context.owner, *context.component, ordinal))
         {
-            targets.Add(context.component);
+            // 주인에게서 자리를 셀 수 없으면 가리킬 방법이 없다. 포인터로 쓰는
+            // 커맨드를 만들어 두면 지웠다 되살린 뒤에 조용히 헛돈다.
             return targets;
         }
 
@@ -413,14 +411,14 @@ namespace JBro
             if (ComponentBase* found =
                 FindComponentAt(*chosen[index], context.typeId, ordinal))
             {
-                targets.Add(found);
+                targets.Add(EditTarget{chosen[index], found});
             }
         }
         if (targets.IsEmpty())
         {
             // 고른 것이 없거나(인스펙터만 열어 둔 경우) 셈이 어긋났다.
             // 눈앞의 것 하나는 반드시 고쳐져야 한다.
-            targets.Add(context.component);
+            targets.Add(EditTarget{context.owner, context.component});
         }
         return targets;
     }
@@ -483,11 +481,17 @@ namespace JBro
             }
         }
 
-        const Array<ComponentBase*> targets = CollectEditTargets(context);
+        const Array<EditTarget> targets = CollectEditTargets(context);
         auto compound = MakeOwnerPtr<CompoundCommand>("Set Property");
         for (std::size_t index = 0; index < targets.Size(); ++index)
         {
-            ComponentBase* target = targets[index];
+            ComponentBase* target = targets[index].component;
+            ComponentAddress address;
+            if (false == MakeComponentAddress(m_editor->GetObjectIds(),
+                *targets[index].owner, *target, address))
+            {
+                continue;
+            }
             String targetBefore;
             if (false == SetPropertyCommand::ReadValue(
                 *target, context.typeId, context.path, targetBefore))
@@ -531,7 +535,7 @@ namespace JBro
                 continue;
             }
             compound->Add(MakeOwnerPtr<SetPropertyCommand>(
-                target->SafeFromThis(), context.typeId, context.path,
+                m_editor->GetObjectIds(), address, context.path,
                 targetBefore, targetAfter));
         }
 

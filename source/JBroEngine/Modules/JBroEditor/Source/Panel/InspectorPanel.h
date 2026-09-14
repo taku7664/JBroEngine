@@ -107,7 +107,15 @@ namespace JBro
         // 같은 자리란 같은 타입의 같은 번째다 - 주된 것에 스프라이트가 둘이고
         // 둘째를 고치는 중이면, 다른 오브젝트에서도 둘째를 고쳐야 한다.
         // 그 컴포넌트가 없는 오브젝트는 빠진다.
-        Array<ComponentBase*> CollectEditTargets(const Context& context) const;
+        //
+        // 주인도 함께 돌려준다. 커맨드는 컴포넌트를 포인터가 아니라 주인의
+        // 번호로 가리키므로(D-72) 주인을 모르면 커맨드를 만들 수 없다.
+        struct EditTarget
+        {
+            GameObject* owner = nullptr;
+            ComponentBase* component = nullptr;
+        };
+        Array<EditTarget> CollectEditTargets(const Context& context) const;
 
         // 위젯이 값을 바꿨다. 되돌려 놓고 커맨드로 다시 적용한다.
         void CommitEdit(

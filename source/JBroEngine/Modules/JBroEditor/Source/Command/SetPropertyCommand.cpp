@@ -89,13 +89,13 @@ namespace JBro
     }
 
     SetPropertyCommand::SetPropertyCommand(
-        SafePtr<ComponentBase> component,
-        ComponentTypeId typeId,
+        EditorObjectRegistry& registry,
+        const ComponentAddress& address,
         const Path& path,
         String oldValue,
         String newValue)
-        : m_component(component)
-        , m_typeId(typeId)
+        : m_registry(&registry)
+        , m_address(address)
         , m_path(path)
         , m_oldValue(std::move(oldValue))
         , m_newValue(std::move(newValue))
@@ -128,8 +128,8 @@ namespace JBro
         // 합치면 그 편집이 되돌리기에서 사라진다.
         const auto* other = dynamic_cast<const SetPropertyCommand*>(&newer);
         return other != nullptr
-            && other->m_component.TryGet() == m_component.TryGet()
-            && other->m_typeId == m_typeId
+            && other->m_registry == m_registry
+            && other->m_address.Equals(m_address)
             && other->m_path.Equals(m_path);
     }
 
@@ -170,12 +170,12 @@ namespace JBro
 
     bool SetPropertyCommand::WriteValue(const String& value)
     {
-        ComponentBase* component = m_component.TryGet();
+        ComponentBase* component = ResolveComponent(*m_registry, m_address);
         if (component == nullptr)
         {
             // 컴포넌트가 사라졌다. 되돌릴 곳이 없는 것은 실패지 사고가 아니다.
             return false;
         }
-        return ApplyValue(*component, m_typeId, m_path, value);
+        return ApplyValue(*component, m_address.typeId, m_path, value);
     }
 }

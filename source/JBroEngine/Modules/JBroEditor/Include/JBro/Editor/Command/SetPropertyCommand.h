@@ -1,8 +1,9 @@
 ﻿#pragma once
 
+#include <JBro/Editor/Command/ComponentAddress.h>
 #include <JBro/Editor/EditorCommand.h>
+#include <JBro/Editor/EditorObjectRegistry.h>
 #include <JBro/Runtime/Component.h>
-#include <JBro/Types/SafePtr.h>
 #include <JBro/Types/String.h>
 
 namespace JBro
@@ -16,9 +17,10 @@ namespace JBro
     // 문자열)은 얕은 복사가 되면 먼저 죽는 쪽이 남은 쪽을 망가뜨리기 때문이다.
     // 여기서는 하나면 된다. `ValueCodec` 이 그 구분을 이미 흡수했다.
     //
-    // 대상은 `SafePtr` 로 잡는다. 컴포넌트가 사라지면 되돌리기가 조용히 실패한다 -
-    // 기존 엔진이 GUID 로 다시 찾는 이유는 **삭제를 되돌리면 오브젝트가 새로
-    // 만들어지기** 때문인데, 아직 삭제 커맨드가 없다. 생기면 그때 안정된 id 가 필요하다.
+    // **대상은 포인터가 아니라 주소(오브젝트 번호, 타입, 몇 번째)로 가리킨다**(D-72).
+    // 처음에는 `SafePtr` 로 잡았는데, 오브젝트를 지웠다 되살리면 컴포넌트가 새로
+    // 만들어져 그 포인터가 죽는다 - 삭제를 되돌린 뒤 앞선 편집을 되돌려도 아무 일도
+    // 일어나지 않았다. 쓸 때마다 번호로 다시 찾는다.
     class SetPropertyCommand final : public EditorCommand
     {
     public:
@@ -37,8 +39,8 @@ namespace JBro
         };
 
         SetPropertyCommand(
-            SafePtr<ComponentBase> component,
-            ComponentTypeId typeId,
+            EditorObjectRegistry& registry,
+            const ComponentAddress& address,
             const Path& path,
             String oldValue,
             String newValue);
@@ -76,8 +78,8 @@ namespace JBro
     private:
         bool WriteValue(const String& value);
 
-        SafePtr<ComponentBase> m_component;
-        ComponentTypeId m_typeId = 0;
+        EditorObjectRegistry* m_registry = nullptr;
+        ComponentAddress m_address;
         Path m_path;
         String m_oldValue;
         String m_newValue;
