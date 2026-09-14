@@ -261,6 +261,26 @@ namespace JBro
         return m_lastDrawCount;
     }
 
+    void EditorUI::AbandonDevice()
+    {
+        if (m_context != nullptr)
+        {
+            ImGui::DestroyContext(static_cast<ImGuiContext*>(m_context));
+            m_context = nullptr;
+        }
+        // GPU 리소스는 디바이스와 함께 사라졌다. 핸들만 버린다.
+        m_device = nullptr;
+        m_pipeline = {};
+        m_sampler = {};
+        m_vertices = {};
+        m_indices = {};
+        m_vertexCapacity = 0;
+        m_indexCapacity = 0;
+        m_lastDrawCount = 0;
+        m_frameOpen = false;
+        m_initialized = false;
+    }
+
     std::uint64_t EditorUI::ToTextureId(TextureHandle handle)
     {
         return (static_cast<std::uint64_t>(handle.generation) << 32) | handle.index;

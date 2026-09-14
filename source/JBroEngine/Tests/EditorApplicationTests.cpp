@@ -3,6 +3,7 @@
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Graphics/Renderer.h>
 #include <JBro/Types/Array.h>
+#include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Runtime/GameObject.h>
 
@@ -58,6 +59,21 @@ namespace
         Check(false == editor.EnableEditorUi({GameWidth, GameHeight}),
             "turning it on twice must be refused");
 
+        // **카메라를 하나 놓는다.** 그래야 게임이 텍스처에 실제로 무언가를 그리고,
+        // 그 픽셀이 패널까지 오는지 볼 수 있다. 카메라가 없으면 텍스처는 한 번도
+        // 그려지지 않은 채 패널에 붙고, 그래도 화면은 그럴듯하게 나온다.
+        JBro::Canvas* canvas = editor.GetCanvas();
+        Check(canvas != nullptr, "the probe project must have a canvas");
+        JBro::GameObject* eye = canvas->CreateObject("Eye");
+        Check(canvas->AttachComponent<JBro::Component::Transform2D>(eye) != nullptr,
+            "the camera needs a transform");
+        auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(eye);
+        Check(camera != nullptr, "the probe camera must attach");
+        camera->primary = true;
+        // 창의 어느 색과도 겹치지 않는 색이다. 이 색이 화면에 있으면 게임 화면이
+        // 텍스처를 거쳐 패널까지 온 것이다.
+        camera->clearColor = {0.0f, 0.85f, 0.35f, 1.0f};
+
         // 새 창은 ImGui 가 크기를 재는 동안 감춰진다. 몇 프레임 돌린 뒤에 본다.
         for (int frame = 0; frame < 3; ++frame)
         {
@@ -106,13 +122,35 @@ namespace
                 }
             }
         }
+        // 카메라가 지운 초록이 화면에 있어야 한다. 게임 -> 텍스처 -> 패널로
+        // 이어지는 길 어디가 끊겨도 이 숫자가 0 이 된다.
+        std::size_t gamePixels = 0;
+        for (std::uint32_t y = 0; y < 240; ++y)
+        {
+            for (std::uint32_t x = 0; x < 320; ++x)
+            {
+                const std::size_t offset = static_cast<std::size_t>(y) * readback.rowPitch
+                    + static_cast<std::size_t>(x) * 4;
+                const auto* pixel =
+                    reinterpret_cast<const unsigned char*>(image.Data() + offset);
+                if (pixel[2] < 40 && pixel[1] > 180 && pixel[0] > 60 && pixel[0] < 120)
+                {
+                    ++gamePixels;
+                }
+            }
+        }
+
         std::cout << "  the editor painted " << painted << " pixels (" << bright
-            << " bright) on its window" << std::endl;
+            << " bright, " << gamePixels << " from the game) on its window" << std::endl;
         // 창을 채우는 패널이 하나 있으므로 화면 대부분이 패널 색이다.
         Check(painted > (320 * 240) / 2,
             "the editor panel must cover the window");
         // 패널 제목이 글자로 나온다. 폰트 아틀라스가 안 올라가면 여기서 걸린다.
         Check(bright > 50, "and its text must be on screen");
+        // 게임 뷰는 4:3 이고 패널은 그보다 넓으므로 좌우가 남는다. 그래도 화면의
+        // 상당 부분이 게임 화면이어야 한다.
+        Check(gamePixels > (320 * 240) / 4,
+            "the game must reach the panel through its texture");
 
         // 꺼지면 게임이 다시 백버퍼로 간다. 남은 GPU 리소스도 함께 놓는다.
         editor.DisableEditorUi();

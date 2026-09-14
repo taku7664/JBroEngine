@@ -36,6 +36,11 @@ namespace JBro
         // 백버퍼 포맷은 파이프라인을 만들 때 필요하다.
         bool Initialize(IRHIDevice& device, TextureFormat backBufferFormat);
         void Shutdown();
+        // **디바이스가 먼저 사라졌을 때 부른다.** 아무것도 해제하지 않고 잊는다 -
+        // 디바이스가 죽으면 그 위의 리소스도 함께 죽었고, 죽은 디바이스로
+        // 해제를 부르면 그 자리에서 터진다. 호스트는 렌더가 실패하면 프레임
+        // 안에서 디바이스까지 놓아 버리므로, 이 경우가 실제로 일어난다.
+        void AbandonDevice();
         bool IsInitialized() const;
 
         // 플랫폼이 모은 입력을 넘긴다. **`BeginFrame` 앞에서 부른다** -

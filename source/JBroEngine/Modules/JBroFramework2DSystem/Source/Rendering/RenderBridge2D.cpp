@@ -94,7 +94,10 @@ namespace JBro::Internal
             return RenderResult::NothingToSubmit;
         }
         CameraParams parameters;
-        if (false == BuildCamera(*camera, renderer.GetSurfaceExtent(), parameters)
+        // **창이 아니라 이번 프레임이 그려지는 크기다.** 에디터에서 게임은
+        // 창과 다른 크기의 텍스처로 간다 - 창으로 잡으면 게임이 보는 화면이
+        // 에디터 창 모양을 따라가고, 뷰포트가 타깃 밖으로 나간다.
+        if (false == BuildCamera(*camera, renderer.GetFrameExtent(), parameters)
             || false == renderer.BeginView(parameters))
         {
             return RenderResult::Failed;

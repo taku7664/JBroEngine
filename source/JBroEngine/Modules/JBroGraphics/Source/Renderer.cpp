@@ -328,6 +328,13 @@ namespace JBro
         return m_frameOverlay != nullptr;
     }
 
+    Extent2D Renderer::GetFrameExtent() const
+    {
+        return m_frameTarget.texture.IsValid()
+            ? m_frameTarget.extent
+            : m_config.surfaceExtent;
+    }
+
     TextureFormat Renderer::GetBackBufferFormat() const
     {
         return m_config.backBufferFormat;
@@ -421,7 +428,7 @@ namespace JBro
         // 뷰가 갈 곳과 그 크기다. 타깃을 안 준 프레임은 백버퍼로 간다.
         const bool toTexture = m_frameTarget.texture.IsValid();
         const TextureHandle target = toTexture ? m_frameTarget.texture : m_frame.backBuffer;
-        const Extent2D extent = toTexture ? m_frameTarget.extent : m_config.surfaceExtent;
+        const Extent2D extent = GetFrameExtent();
 
         for (std::size_t index = 0; index < m_views.Size(); ++index)
         {

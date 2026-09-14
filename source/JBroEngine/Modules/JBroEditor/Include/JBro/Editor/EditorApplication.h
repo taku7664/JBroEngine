@@ -108,6 +108,8 @@ namespace JBro
             IRHICommandContext& commands, TextureHandle backBuffer, void* user);
         bool BuildEditorUi(float deltaTime);
         void ReleaseEditorUi();
+        // 디바이스가 이미 사라진 뒤에 부른다.
+        void AbandonEditorUi();
 
         bool CreateSelectedFramework(FrameworkKind framework);
         void DestroySelectedFramework();

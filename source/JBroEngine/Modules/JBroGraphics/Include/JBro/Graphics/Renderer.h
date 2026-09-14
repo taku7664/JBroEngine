@@ -142,7 +142,15 @@ namespace JBro
 
         bool IsDeviceLost() const;
         bool IsInitialized() const;
+        // 창(스왑체인)의 크기다. 프레임이 텍스처로 가는 동안에도 이것은 창이다.
         Extent2D GetSurfaceExtent() const;
+        // **이번 프레임이 실제로 그려지는 크기다.** 타깃을 준 프레임은 그
+        // 텍스처의 크기이고, 아니면 창 크기다.
+        //
+        // 카메라는 창이 아니라 이것으로 화면을 잡아야 한다. 창으로 잡으면
+        // 에디터에서 게임 화면이 에디터 창 모양을 따라가고, 게임 뷰가 창보다
+        // 작으면 뷰포트가 타깃 밖으로 나가 프레임이 통째로 거절된다.
+        Extent2D GetFrameExtent() const;
         // 백버퍼 포맷이다. 백버퍼에 얹혀 그리는 파이프라인은 이것과 같아야
         // 만들어진다 - 렌더 타깃 포맷은 파이프라인을 만들 때 굳는다.
         TextureFormat GetBackBufferFormat() const;

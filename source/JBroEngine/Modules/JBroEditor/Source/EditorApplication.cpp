@@ -290,6 +290,17 @@ namespace JBro
         return m_gameView;
     }
 
+    void EditorApplication::AbandonEditorUi()
+    {
+        // 엔진이 렌더 실패로 스스로 정리하면서 디바이스까지 지운 뒤다. 우리가 만든
+        // 텍스처도 그때 함께 사라졌으므로 지우려 들지 않는다 - 죽은 디바이스로
+        // DestroyTexture 를 부르면 그 자리에서 터진다.
+        m_ui.AbandonDevice();
+        m_gameView = {};
+        m_gameViewExtent = {};
+        m_uiEnabled = false;
+    }
+
     void EditorApplication::ReleaseEditorUi()
     {
         // 게임을 백버퍼로 되돌리고 오버레이를 뗀다. 둘 중 하나만 하면 다음 프레임에
@@ -433,6 +444,12 @@ namespace JBro
         }
         if (false == running)
         {
+            // **엔진은 실패하면 그 자리에서 디바이스까지 놓는다.** UI 가 들고 있던
+            // 파이프라인과 텍스처는 그때 함께 사라졌다 - 지우려 들면 터진다.
+            if (m_uiEnabled)
+            {
+                AbandonEditorUi();
+            }
             ReleaseProcessResources();
             return false;
         }
