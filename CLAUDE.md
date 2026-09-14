@@ -51,7 +51,8 @@
 - [docs/Jbro_CPP_Script_Object_Safety.md](./docs/Jbro_CPP_Script_Object_Safety.md) — 폐기된 스크립트 객체 안전성 초안
 - [tasks/todo.md](./tasks/todo.md) — 진행 중 작업 계획과 확정 결정(Decisions) 기록
 - [tasks/jbroscript-plan.md](./tasks/jbroscript-plan.md) — JBroScript(`.jscript`) 언어와 리플렉션 계획(D-56).
-  **미구현**이며, 기존 엔진 JPROP 의 실패 원인과 MSVC 실측 결과를 담고 있다
+  언어는 **미구현**이고 리플렉션(`PropertyInfo`·`JBRO_FIELD`·컨테이너 조작)은 섰다.
+  기존 엔진 JPROP 의 실패 원인과 MSVC 실측 결과를 담고 있다
 
 두 초안은 일부 절만 골라 현재 계약으로 사용할 수 있는 문서가 아니다. `[대체됨]` 표시가 없는
 본문도 폐기된 ECS·World·전 모듈 DLL·단일 `Ref<T>` 모델을 포함한다. 설계 변천을 확인할 때만 읽고,

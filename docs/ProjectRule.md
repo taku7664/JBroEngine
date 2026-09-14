@@ -822,7 +822,8 @@
 - [tasks/structural-refactor-plan.md](../tasks/structural-refactor-plan.md) — 2026-09-12 구조 검토와 D-42~D-55의 근거·단계 계획.
   이 문서의 규칙 중 `(D-42)`~`(D-55)`가 붙은 것은 그 계획의 단계가 끝나기 전까지 현재 코드와 다를 수 있다.
 - [tasks/jbroscript-plan.md](../tasks/jbroscript-plan.md) — JBroScript(`.jscript`)와 리플렉션 계획(D-56).
-  계획일 뿐 확정 계약이 아니다. 현재 코드에는 프로퍼티 리플렉션이 없다.
+  계획일 뿐 확정 계약이 아니다. 언어와 트랜스파일러는 아직 없고, 프로퍼티 리플렉션
+  (`PropertyInfo`, C++ 매크로 생산자, `ValueCodec`·`ArrayOps`·`TableOps`)은 서 있으며 인스펙터가 그 위에서 돈다.
 - [Jbro Engine Architecture Draft](./Jbro_Engine_Architecture_Draft_v2.md)
 - [Jbro C++ Script Object Safety Draft](./Jbro_CPP_Script_Object_Safety.md)
 
