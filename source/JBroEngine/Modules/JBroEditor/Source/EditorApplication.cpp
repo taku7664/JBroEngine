@@ -372,6 +372,11 @@ namespace JBro
         return m_panels.Size();
     }
 
+    EditorCommandManager& EditorApplication::GetCommands()
+    {
+        return m_commands;
+    }
+
     void EditorApplication::SetSelectedObject(GameObject* object)
     {
         m_selected = object != nullptr ? object->SafeFromThis() : SafePtr<GameObject>();
@@ -412,6 +417,7 @@ namespace JBro
         m_gameView = {};
         m_gameViewExtent = {};
         m_selected = {};
+        m_commands.Clear();
         m_uiEnabled = false;
     }
 
@@ -438,6 +444,8 @@ namespace JBro
         m_ui.Shutdown();
         m_gameView = {};
         m_gameViewExtent = {};
+        m_selected = {};
+        m_commands.Clear();
         m_uiEnabled = false;
     }
 
@@ -480,6 +488,30 @@ namespace JBro
         if (false == m_ui.BeginFrame(display, deltaTime))
         {
             return false;
+        }
+
+        // 기존 엔진과 같은 배치다: Ctrl+Z 되돌리기, Ctrl+Y 또는
+        // Ctrl+Shift+Z 다시하기. **텍스트 필드에 타자를 치는 중이면 건너뛴다** -
+        // 이름을 고치다 Ctrl+Z 를 누르면 글자를 되돌려야지 씬을 되돌리면 안 된다.
+        if (false == ImGui::GetIO().WantTextInput)
+        {
+            const bool control = ImGui::GetIO().KeyCtrl;
+            const bool shift = ImGui::GetIO().KeyShift;
+            if (control && ImGui::IsKeyPressed(ImGuiKey_Z, false))
+            {
+                if (shift)
+                {
+                    m_commands.Redo();
+                }
+                else
+                {
+                    m_commands.Undo();
+                }
+            }
+            else if (control && ImGui::IsKeyPressed(ImGuiKey_Y, false))
+            {
+                m_commands.Redo();
+            }
         }
 
         // **창 전체를 덮는 도크 공간.** 패널들은 이 안에 붙는다 - 자리를 ImGui

@@ -24,6 +24,22 @@ namespace JBro
             const char* name = NameTable::Get().Resolve(id);
             return name != nullptr && std::strcmp(name, text) == 0;
         }
+
+        bool ToText(const TypeDescriptor& type, const void* address, String& text)
+        {
+            if (type.codec == nullptr || type.codec->ToText == nullptr)
+            {
+                return false;
+            }
+            char buffer[TextCapacity] = {};
+            std::size_t required = 0;
+            if (false == type.codec->ToText(address, buffer, sizeof(buffer), required))
+            {
+                return false;
+            }
+            text = buffer;
+            return true;
+        }
     }
 
     const char* InspectorPanel::GetTitle() const
@@ -92,14 +108,18 @@ namespace JBro
                 }
                 else
                 {
-                    DrawFields(*table, component);
+                    Context context;
+                    context.component = component;
+                    context.typeId = slot.typeId;
+                    DrawFields(*table, component, context);
                 }
             }
             ImGui::PopID();
         }
     }
 
-    void InspectorPanel::DrawFields(const PropertyTable& table, void* owner)
+    void InspectorPanel::DrawFields(
+        const PropertyTable& table, void* owner, Context& context)
     {
         for (std::uint32_t index = 0; index < table.count; ++index)
         {
@@ -117,17 +137,57 @@ namespace JBro
                     && property.edit->displayName != nullptr
                 ? property.edit->displayName
                 : NameTable::Get().Resolve(property.name);
+
+            // 길에 한 칸 더 내려간다. 그려 놓고 되돌려야 형제 필드가 제 길을 갖는다.
+            if (context.path.depth >= SetPropertyCommand::MaxDepth)
+            {
+                // 너무 깊다. 보여는 주되 고치지는 못하게 둔다 - 잘못된 길로 쓰는
+                // 것보다 낫다.
+                ImGui::TextDisabled("%s (too deeply nested to edit)",
+                    label != nullptr ? label : "?");
+                continue;
+            }
+            context.path.indices[context.path.depth] = index;
+            ++context.path.depth;
+
             ImGui::PushID(static_cast<int>(index));
-            DrawValue(label != nullptr ? label : "?", *property.type, address, property.edit);
+            DrawValue(label != nullptr ? label : "?", *property.type, address,
+                property.edit, context);
             ImGui::PopID();
+
+            --context.path.depth;
         }
+    }
+
+    void InspectorPanel::CommitEdit(
+        const TypeDescriptor& type, void* address, const String& before, Context& context)
+    {
+        String after;
+        if (false == ToText(type, address, after) || after == before)
+        {
+            return;
+        }
+        // **바뀐 값을 도로 되돌려 놓는다.** 커맨드의 `Execute` 가 다시 적용하므로
+        // 쓰는 길이 하나로 남는다 - 위젯이 한 번, 커맨드가 한 번 쓰면 되돌리기가
+        // 무엇을 되돌리는지가 둘로 갈린다.
+        if (type.codec != nullptr && type.codec->FromText != nullptr)
+        {
+            type.codec->FromText(address, before.c_str(), before.size());
+        }
+        m_editor->GetCommands().Execute(MakeOwnerPtr<SetPropertyCommand>(
+            context.component->SafeFromThis(),
+            context.typeId,
+            context.path,
+            before,
+            after));
     }
 
     void InspectorPanel::DrawValue(
         const char* label,
         const TypeDescriptor& type,
         void* address,
-        const PropertyEditInfo* edit)
+        const PropertyEditInfo* edit,
+        Context& context)
     {
         const bool editable = edit == nullptr || edit->editable;
         if (false == editable)
@@ -139,11 +199,14 @@ namespace JBro
         if (type.enumNames != nullptr && type.enumNames->ToIndex != nullptr)
         {
             const EnumNames& names = *type.enumNames;
+            String before;
+            ToText(type, address, before);
             int current = names.ToIndex(address);
             if (ImGui::Combo(label, &current, names.names, static_cast<int>(names.count))
                 && names.FromIndex != nullptr)
             {
                 names.FromIndex(address, current);
+                CommitEdit(type, address, before, context);
             }
         }
         // 컨테이너는 아직 조작 함수가 없다(ArrayOps/TableOps 미구현). 개수만 보여 준다.
@@ -160,7 +223,7 @@ namespace JBro
         {
             if (ImGui::TreeNodeEx(label, ImGuiTreeNodeFlags_DefaultOpen))
             {
-                DrawFields(*type.fields, address);
+                DrawFields(*type.fields, address, context);
                 ImGui::TreePop();
             }
         }
@@ -171,47 +234,51 @@ namespace JBro
             // 타입 이름으로 가르는 것이 마음에 걸리지만, 여기 하나뿐이고 빠진 타입은
             // 글자 칸으로 **degrade 할 뿐 깨지지 않는다**. 기존 엔진의 18값 enum 과
             // 다른 점이 그것이다 - 거기서는 빠진 값이 곧 그리지 못하는 필드였다.
+            String before;
+            const bool snapped = ToText(type, address, before);
             const bool hasRange = edit != nullptr && edit->hasRange;
+            bool changed = false;
+
             if (SameName(type.typeName, "float"))
             {
                 float* value = static_cast<float*>(address);
-                if (hasRange)
-                {
-                    ImGui::SliderFloat(label, value, edit->rangeMin, edit->rangeMax);
-                }
-                else
-                {
-                    ImGui::DragFloat(label, value, 0.01f);
-                }
+                changed = hasRange
+                    ? ImGui::SliderFloat(label, value, edit->rangeMin, edit->rangeMax)
+                    : ImGui::DragFloat(label, value, 0.01f);
             }
             else if (SameName(type.typeName, "bool"))
             {
-                ImGui::Checkbox(label, static_cast<bool*>(address));
+                changed = ImGui::Checkbox(label, static_cast<bool*>(address));
             }
             else if (SameName(type.typeName, "int32"))
             {
-                ImGui::DragInt(label, static_cast<int*>(address));
+                changed = ImGui::DragInt(label, static_cast<int*>(address));
+            }
+            else if (false == snapped)
+            {
+                ImGui::LabelText(label, "(too long to show)");
+            }
+            else if (type.codec->FromText == nullptr)
+            {
+                ImGui::LabelText(label, "%s", before.c_str());
             }
             else
             {
                 char text[TextCapacity] = {};
-                std::size_t required = 0;
-                const bool read = type.codec->ToText != nullptr
-                    && type.codec->ToText(address, text, sizeof(text), required);
-                if (false == read)
-                {
-                    ImGui::LabelText(label, "(%zu bytes, too long to show)", required);
-                }
-                else if (type.codec->FromText == nullptr)
-                {
-                    ImGui::LabelText(label, "%s", text);
-                }
-                else if (ImGui::InputText(label, text, sizeof(text),
+                const std::size_t copied =
+                    before.size() < sizeof(text) - 1 ? before.size() : sizeof(text) - 1;
+                std::memcpy(text, before.c_str(), copied);
+                if (ImGui::InputText(label, text, sizeof(text),
                     ImGuiInputTextFlags_EnterReturnsTrue))
                 {
                     // 읽지 못하는 글자는 값을 건드리지 않는다. 코덱이 그렇게 약속한다.
-                    type.codec->FromText(address, text, std::strlen(text));
+                    changed = type.codec->FromText(address, text, std::strlen(text));
                 }
+            }
+
+            if (changed && snapped && editable)
+            {
+                CommitEdit(type, address, before, context);
             }
         }
         else

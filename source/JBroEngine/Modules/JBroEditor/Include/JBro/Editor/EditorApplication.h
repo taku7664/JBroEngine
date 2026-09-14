@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/Canvas/CanvasFile.h>
+#include <JBro/Editor/EditorCommand.h>
 #include <JBro/Editor/EditorPanel.h>
 #include <JBro/Editor/EditorUI.h>
 #include <JBro/Types/Array.h>
@@ -84,6 +85,10 @@ namespace JBro
         // 끄면 게임이 다시 백버퍼로 간다. 게임 실행과 같은 경로다.
         void DisableEditorUi();
         bool IsEditorUiEnabled() const;
+        // 되돌리기 스택이다. 편집하는 패널은 값을 직접 쓰지 않고 여기에
+        // 커맨드를 넣는다 - 그래야 Ctrl+Z 가 그 편집을 안다.
+        EditorCommandManager& GetCommands();
+
         // 인스펙터가 무엇을 보여 줄지 정하는 값이다. 계층 패널이 고르고
         // 인스펙터가 읽는다.
         //
@@ -155,6 +160,7 @@ namespace JBro
         EditorUI m_ui;
         Array<OwnerPtr<EditorPanel>> m_panels;
         SafePtr<GameObject> m_selected;
+        EditorCommandManager m_commands;
         TextureHandle m_gameView;
         Extent2D m_gameViewExtent;
         bool m_uiEnabled = false;
