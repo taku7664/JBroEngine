@@ -1,5 +1,7 @@
 ﻿#include <JBro/Canvas/ComponentRegistry.h>
 
+#include <cstring>
+
 namespace JBro
 {
     ComponentRegistry& ComponentRegistry::Get()
@@ -34,6 +36,40 @@ namespace JBro
     const ComponentTypeInfo* ComponentRegistry::Find(const char* name) const
     {
         return Find(MakeNameId(name));
+    }
+
+    Array<const ComponentTypeInfo*> ComponentRegistry::CollectTypes() const
+    {
+        Array<const ComponentTypeInfo*> types;
+        for (const auto& entry : m_types)
+        {
+            const ComponentTypeInfo* info = &entry.MappedValue;
+            const char* name = NameTable::Get().Resolve(info->name);
+            if (name == nullptr)
+            {
+                continue;
+            }
+            // 이름 자리에 끼워 넣는다. 타입은 수십 개라 이 자리에 정렬을
+            // 들여올 이유가 없고, 등록은 시작할 때 한 번뿐이다.
+            std::size_t at = types.Size();
+            while (at > 0)
+            {
+                const char* previous = NameTable::Get().Resolve(types[at - 1]->name);
+                if (previous == nullptr || std::strcmp(previous, name) <= 0)
+                {
+                    break;
+                }
+                --at;
+            }
+            types.Add(info);
+            for (std::size_t index = types.Size() - 1; index > at; --index)
+            {
+                const ComponentTypeInfo* moved = types[index - 1];
+                types[index - 1] = types[index];
+                types[index] = moved;
+            }
+        }
+        return types;
     }
 
     std::size_t ComponentRegistry::GetCount() const

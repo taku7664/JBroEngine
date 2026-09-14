@@ -105,52 +105,6 @@ namespace JBro
         return "Delete Object";
     }
 
-    void DeleteObjectCommand::CaptureValues(
-        const PropertyTable& table,
-        void* owner,
-        ComponentBase& component,
-        ComponentTypeId typeId,
-        SetPropertyCommand::Path& path,
-        Array<Value>& out)
-    {
-        for (std::uint32_t index = 0; index < table.count; ++index)
-        {
-            const PropertyInfo& property = table.properties[index];
-            if (property.type == nullptr || property.Address == nullptr
-                || false == property.serialize)
-            {
-                // 저장하지 않는 값은 되살릴 필요도 없다. 다음 프레임이 다시 만든다.
-                continue;
-            }
-            if (path.depth >= SetPropertyCommand::MaxDepth)
-            {
-                continue;
-            }
-            void* address = property.Address(owner);
-            if (address == nullptr)
-            {
-                continue;
-            }
-
-            path.indices[path.depth] = index;
-            ++path.depth;
-            if (property.type->fields != nullptr)
-            {
-                CaptureValues(*property.type->fields, address, component, typeId, path, out);
-            }
-            else if (property.type->codec != nullptr)
-            {
-                Value value;
-                value.path = path;
-                if (SetPropertyCommand::ReadValue(component, typeId, path, value.text))
-                {
-                    out.Add(std::move(value));
-                }
-            }
-            --path.depth;
-        }
-    }
-
     bool DeleteObjectCommand::Capture(GameObject& object, std::int64_t parentIndex)
     {
         ObjectSnapshot snapshot;
@@ -168,19 +122,13 @@ namespace JBro
             {
                 continue;
             }
-            const PropertyTable* table = PropertyRegistry::Lookup(components[index].typeId);
-            if (table == nullptr)
+            ComponentSnapshot captured;
+            if (false == CaptureComponent(*component, captured))
             {
                 // 프로퍼티를 등록하지 않은 타입이다. 되살려 봐야 값이 비어 있으므로
                 // 지우는 것을 거절한다 - 조용히 잃는 것보다 낫다.
                 return false;
             }
-            ComponentSnapshot captured;
-            captured.typeId = components[index].typeId;
-            captured.enabled = component->IsEnabled();
-            SetPropertyCommand::Path path;
-            CaptureValues(*table, component, *component, captured.typeId, path,
-                captured.values);
             snapshot.components.Add(std::move(captured));
         }
 
@@ -243,15 +191,9 @@ namespace JBro
                     return false;
                 }
                 ComponentBase* component = info->Attach(*m_canvas, object);
-                if (component == nullptr)
+                if (component == nullptr || false == ApplyComponent(*component, captured))
                 {
                     return false;
-                }
-                component->SetEnabled(captured.enabled);
-                for (std::size_t v = 0; v < captured.values.Size(); ++v)
-                {
-                    SetPropertyCommand::ApplyValue(*component, captured.typeId,
-                        captured.values[v].path, captured.values[v].text);
                 }
             }
         }

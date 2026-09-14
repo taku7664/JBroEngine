@@ -44,6 +44,9 @@ namespace JBro
             void* address,
             const PropertyEditInfo* edit,
             Context& context);
+        // 컴포넌트를 붙이고 떼는 손잡이. 둘 다 커맨드로 간다(D-71).
+        void DrawAddComponent(GameObject& object);
+        void RemoveComponent(GameObject& object, ComponentBase& component);
         void DrawFields(const PropertyTable& table, void* owner, Context& context);
         // 위젯이 값을 바꿨다. 되돌려 놓고 커맨드로 다시 적용한다.
         void CommitEdit(

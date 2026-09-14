@@ -1,5 +1,7 @@
 ﻿#include "InspectorPanel.h"
 
+#include <JBro/Canvas/ComponentRegistry.h>
+#include <JBro/Editor/Command/ComponentCommands.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Reflection/PropertyInfo.h>
 #include <JBro/Reflection/PropertyRegistry.h>
@@ -91,6 +93,21 @@ namespace JBro
             const bool opened = ImGui::CollapsingHeader(
                 typeName != nullptr ? typeName : "(unknown component)",
                 ImGuiTreeNodeFlags_DefaultOpen);
+            // **머리에 우클릭하면 뗄 수 있다.** 기존 엔진도 여기가 그 자리다.
+            // 접힌 채로도 눌러야 하므로 머리를 그린 직후에 둔다.
+            if (ImGui::BeginPopupContextItem("##ComponentMenu"))
+            {
+                if (ImGui::MenuItem("Remove Component"))
+                {
+                    RemoveComponent(*object, *component);
+                    ImGui::EndPopup();
+                    ImGui::PopID();
+                    // 뗀 뒤에는 이 프레임의 슬롯 배열이 더 이상 맞지 않는다.
+                    // 계속 돌면 죽은 슬롯을 읽는다 - 다음 프레임에 다시 그린다.
+                    return;
+                }
+                ImGui::EndPopup();
+            }
             if (opened)
             {
                 bool enabled = component->IsEnabled();
@@ -116,6 +133,59 @@ namespace JBro
             }
             ImGui::PopID();
         }
+
+        ImGui::Spacing();
+        DrawAddComponent(*object);
+    }
+
+    // 붙일 수 있는 것은 레지스트리에 있는 것이다. 인스펙터는 여기서도 타입을
+    // 하나도 모른다 - 표가 늘면 목록이 는다.
+    void InspectorPanel::DrawAddComponent(GameObject& object)
+    {
+        if (ImGui::Button("Add Component", ImVec2(-1.0f, 0.0f)))
+        {
+            ImGui::OpenPopup("##AddComponent");
+        }
+        if (false == ImGui::BeginPopup("##AddComponent"))
+        {
+            return;
+        }
+        const Array<const ComponentTypeInfo*> types =
+            ComponentRegistry::Get().CollectTypes();
+        if (types.IsEmpty())
+        {
+            ImGui::TextDisabled("no component type has registered itself");
+        }
+        for (std::size_t index = 0; index < types.Size(); ++index)
+        {
+            const char* name = NameTable::Get().Resolve(types[index]->name);
+            if (name == nullptr)
+            {
+                continue;
+            }
+            if (false == ImGui::MenuItem(name))
+            {
+                continue;
+            }
+            const EditorObjectId objectId = m_editor->GetObjectIds().Track(&object);
+            m_editor->GetCommands().Execute(MakeOwnerPtr<AddComponentCommand>(
+                *m_editor->GetCanvas(), m_editor->GetObjectIds(), objectId,
+                types[index]->name));
+            break;
+        }
+        ImGui::EndPopup();
+    }
+
+    void InspectorPanel::RemoveComponent(GameObject& object, ComponentBase& component)
+    {
+        Canvas* canvas = m_editor->GetCanvas();
+        if (canvas == nullptr)
+        {
+            return;
+        }
+        const EditorObjectId objectId = m_editor->GetObjectIds().Track(&object);
+        m_editor->GetCommands().Execute(MakeOwnerPtr<RemoveComponentCommand>(
+            *canvas, m_editor->GetObjectIds(), objectId, &component));
     }
 
     void InspectorPanel::DrawFields(

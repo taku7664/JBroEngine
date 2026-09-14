@@ -1,10 +1,13 @@
 ﻿#include <JBro/Canvas/Canvas.h>
 #include <JBro/Core/Core.h>
+#include <JBro/Core/StableTypeId.h>
+#include <JBro/Editor/Command/ComponentCommands.h>
 #include <JBro/Editor/Command/ObjectCommands.h>
 #include <JBro/Editor/Command/SetPropertyCommand.h>
 #include <JBro/Editor/EditorCommand.h>
 #include <JBro/Editor/EditorObjectRegistry.h>
 #include <JBro/Framework2D/BuiltinComponentProperties2D.h>
+#include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2DSystem/BuiltinComponentTypes2D.h>
@@ -379,6 +382,179 @@ namespace
         Check(restoredTransform != nullptr, "and its transform");
         Check(NearlyEqual(restoredTransform->rotation, 0.25f), "with the value it had");
     }
+
+    // ── 컴포넌트 붙이기·떼기 ─────────────────────────────────────────────
+
+    JBro::NameId TypeNameOf(const char* name)
+    {
+        return JBro::NameTable::Get().Intern(name);
+    }
+
+    std::size_t CountComponents(const JBro::GameObject& object, JBro::ComponentTypeId typeId)
+    {
+        std::size_t found = 0;
+        const JBro::Array<JBro::ComponentSlot>& components = object.GetComponents();
+        for (std::size_t index = 0; index < components.Size(); ++index)
+        {
+            if (components[index].typeId == typeId
+                && components[index].reference.TryGet() != nullptr)
+            {
+                ++found;
+            }
+        }
+        return found;
+    }
+
+    // 붙인 것은 되돌리면 떨어지고 다시하면 돌아온다. **뗄 때 풀도 돌려받아야
+    // 한다** - 슬롯만 빼면 컴포넌트 자리가 계속 늘어난다.
+    void TestAddingAComponentCanBeUndone()
+    {
+        RegisterOnce();
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::EditorObjectRegistry ids;
+        JBro::EditorCommandManager commands;
+
+        JBro::GameObject* object = canvas.CreateObject("Subject");
+        const JBro::EditorObjectId id = ids.Track(object);
+        const JBro::ComponentTypeId spriteType =
+            JBro::MakeStableTypeId(JBro::Component::SpriteRenderer2D::StaticTypeName());
+
+        Check(CountComponents(*object, spriteType) == 0, "it starts with none");
+
+        auto command = JBro::MakeOwnerPtr<JBro::AddComponentCommand>(
+            canvas, ids, id, TypeNameOf(JBro::Component::SpriteRenderer2D::StaticTypeName()));
+        JBro::AddComponentCommand* raw = command.Get();
+        Check(commands.Execute(std::move(command)), "adding must go through");
+        Check(CountComponents(*object, spriteType) == 1, "and put one on");
+        Check(raw->GetComponent() != nullptr, "and hand it back");
+        Check(object->GetComponent<JBro::Component::SpriteRenderer2D>().Get() != nullptr,
+            "and the object must find it by type");
+
+        Check(commands.Undo(), "undo must run");
+        Check(CountComponents(*object, spriteType) == 0, "and take it off");
+        Check(object->GetComponent<JBro::Component::SpriteRenderer2D>().Get() == nullptr,
+            "the object must not find it any more");
+
+        Check(commands.Redo(), "redo must run");
+        Check(CountComponents(*object, spriteType) == 1, "and put it back");
+
+        // 모르는 타입은 붙이지 않는다. 실패한 편집이 스택에 남으면 다음 Ctrl+Z 가
+        // 일어나지도 않은 일을 되돌린다.
+        Check(false == commands.Execute(JBro::MakeOwnerPtr<JBro::AddComponentCommand>(
+                canvas, ids, id, TypeNameOf("Component::NobodyRegisteredThis"))),
+            "a type the registry never heard of must be refused");
+        Check(commands.GetUndoCount() == 1, "and must not be remembered");
+    }
+
+    // 뗀 것을 되돌리면 **값까지** 돌아와야 한다. 껍데기만 다시 붙이면 되돌린 것이
+    // 아니라 비슷한 것을 새로 만든 것이다.
+    void TestRemovingAComponentBringsBackItsValues()
+    {
+        RegisterOnce();
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::EditorObjectRegistry ids;
+        JBro::EditorCommandManager commands;
+
+        JBro::GameObject* object = canvas.CreateObject("Subject");
+        const JBro::EditorObjectId id = ids.Track(object);
+        auto* sprite = canvas.AttachComponent<JBro::Component::SpriteRenderer2D>(object);
+        Check(sprite != nullptr, "the subject must have a sprite renderer");
+        sprite->renderOrder = 23;
+        sprite->tint = {0.25f, 0.5f, 0.75f, 1.0f};
+        sprite->SetEnabled(false);
+
+        const JBro::ComponentTypeId spriteType = sprite->GetTypeId();
+        Check(commands.Execute(JBro::MakeOwnerPtr<JBro::RemoveComponentCommand>(
+                canvas, ids, id, sprite)),
+            "removing must go through");
+        Check(CountComponents(*object, spriteType) == 0, "and take it off");
+
+        Check(commands.Undo(), "undo must run");
+        auto* restored = object->GetComponent<JBro::Component::SpriteRenderer2D>().Get();
+        Check(restored != nullptr, "and put one back");
+        Check(restored->renderOrder == 23, "with the value it had");
+        Check(restored->tint.G > 0.49f && restored->tint.G < 0.51f,
+            "including the ones inside a struct");
+        Check(false == restored->IsEnabled(),
+            "and a component that was switched off must come back switched off");
+
+        // 다시 떼고 다시 되살려도 같아야 한다. **되살린 것은 맨 끝에 붙으므로
+        // 자리가 달라지는데**, 다시하기가 그 자리를 따라가야 한다.
+        Check(commands.Redo(), "redo must run");
+        Check(CountComponents(*object, spriteType) == 0, "and take it off again");
+        Check(commands.Undo(), "and undo once more");
+        Check(object->GetComponent<JBro::Component::SpriteRenderer2D>().Get() != nullptr,
+            "bringing it back a second time");
+    }
+
+    // 같은 타입이 둘 붙어 있을 때 **가리킨 그것**이 떨어져야 한다.
+    void TestRemovingPicksTheRightOneOfTwoOfAKind()
+    {
+        RegisterOnce();
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::EditorObjectRegistry ids;
+        JBro::EditorCommandManager commands;
+
+        JBro::GameObject* object = canvas.CreateObject("Subject");
+        const JBro::EditorObjectId id = ids.Track(object);
+        auto* first = canvas.AttachComponent<JBro::Component::Collider2D>(object);
+        auto* second = canvas.AttachComponent<JBro::Component::Collider2D>(object);
+        Check(first != nullptr && second != nullptr, "two of a kind must attach");
+        first->radius = 1.5f;
+        second->radius = 4.5f;
+
+        std::uint32_t ordinal = 99;
+        Check(JBro::FindComponentOrdinal(*object, *second, ordinal),
+            "the second one must be findable");
+        Check(ordinal == 1, "and must be the second of its kind");
+        Check(JBro::FindComponentAt(*object, second->GetTypeId(), 1) == second,
+            "and that number must find it again");
+        Check(JBro::FindComponentAt(*object, second->GetTypeId(), 0) == first,
+            "while the first keeps its own");
+        Check(JBro::FindComponentAt(*object, second->GetTypeId(), 2) == nullptr,
+            "and there is no third");
+
+        const JBro::ComponentTypeId type = second->GetTypeId();
+        Check(commands.Execute(JBro::MakeOwnerPtr<JBro::RemoveComponentCommand>(
+                canvas, ids, id, second)),
+            "removing the second must go through");
+        Check(CountComponents(*object, type) == 1, "leaving one");
+        auto* survivor = JBro::FindComponentAt(*object, type, 0);
+        Check(survivor == first, "and it must be the one we did not point at");
+        Check(static_cast<JBro::Component::Collider2D*>(survivor)->radius > 1.4f
+                && static_cast<JBro::Component::Collider2D*>(survivor)->radius < 1.6f,
+            "with its own value untouched");
+
+        Check(commands.Undo(), "undo must run");
+        Check(CountComponents(*object, type) == 2, "and bring the other one back");
+    }
+
+    // **되살릴 수 없는 것은 떼지 않는다**(D-76 과 같은 규칙).
+    void TestRemovingIsRefusedWhenTheValuesCannotBeSaved()
+    {
+        RegisterOnce();
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::EditorObjectRegistry ids;
+        JBro::EditorCommandManager commands;
+
+        JBro::GameObject* object = canvas.CreateObject("Subject");
+        const JBro::EditorObjectId id = ids.Track(object);
+        auto* probe = canvas.AttachComponent<UnreflectedProbe>(object);
+        Check(probe != nullptr, "the probe must attach");
+
+        Check(false == commands.Execute(JBro::MakeOwnerPtr<JBro::RemoveComponentCommand>(
+                canvas, ids, id, probe)),
+            "a component whose values cannot be saved must not be removed");
+        Check(CountComponents(*object, probe->GetTypeId()) == 1,
+            "and must still be there");
+        Check(false == commands.CanUndo(), "and nothing must be on the stack");
+
+        // 가리킨 것이 없을 때도 거절한다.
+        Check(false == commands.Execute(JBro::MakeOwnerPtr<JBro::RemoveComponentCommand>(
+                canvas, ids, id, nullptr)),
+            "removing nothing must be refused");
+    }
+
 }
 
 int RunEditorObjectCommandTests()
@@ -391,6 +567,10 @@ int RunEditorObjectCommandTests()
     TestDeletingIsRefusedWhenAValueCannotBeSaved();
     TestDeletingNothingIsRefused();
     TestRestoringBringsBackWhatWasSwitchedOff();
+    TestAddingAComponentCanBeUndone();
+    TestRemovingAComponentBringsBackItsValues();
+    TestRemovingPicksTheRightOneOfTwoOfAKind();
+    TestRemovingIsRefusedWhenTheValuesCannotBeSaved();
     std::cout << "Editor object command tests passed.\n";
     return 0;
 }

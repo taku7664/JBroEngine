@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <JBro/Editor/Command/ComponentSnapshot.h>
 #include <JBro/Editor/Command/SetPropertyCommand.h>
 
 #include <JBro/Editor/EditorCommand.h>
@@ -63,20 +64,6 @@ namespace JBro
         void Redo() override;
 
     private:
-        // 잎사귀 하나의 값이다. 길과 글자만 있으면 어디에든 다시 써 넣을 수 있다.
-        struct Value
-        {
-            SetPropertyCommand::Path path;
-            String text;
-        };
-
-        struct ComponentSnapshot
-        {
-            ComponentTypeId typeId = 0;
-            bool enabled = true;
-            Array<Value> values;
-        };
-
         // 나무를 **평평하게** 편다. 자식이 자기 안에 자식 배열을 들면 타입이
         // 자기 자신을 품게 되어 크기를 잴 수 없다 - 캔버스 파일도 같은 이유로
         // 오브젝트를 한 줄로 늘어놓고 부모를 인덱스로 가리킨다.
@@ -90,15 +77,6 @@ namespace JBro
             Array<ComponentSnapshot> components;
         };
 
-        // 표를 타고 내려가며 잎사귀마다 글자를 떠 둔다. 어디가 잎사귀인지는
-        // 코덱의 존재가 답한다 - 구조를 가진 타입은 필드로 말한다.
-        static void CaptureValues(
-            const PropertyTable& table,
-            void* owner,
-            ComponentBase& component,
-            ComponentTypeId typeId,
-            SetPropertyCommand::Path& path,
-            Array<Value>& out);
         bool Capture(GameObject& object, std::int64_t parentIndex);
         bool Restore();
         bool DestroyTracked();

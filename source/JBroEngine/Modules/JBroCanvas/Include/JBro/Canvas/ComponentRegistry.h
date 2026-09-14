@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/Canvas/Canvas.h>
+#include <JBro/Types/Array.h>
 #include <JBro/Types/NameTable.h>
 #include <JBro/Types/Table.h>
 
@@ -25,6 +26,10 @@ namespace JBro
         ComponentTypeId typeId = InvalidComponentTypeId;
         // 오브젝트에 하나 붙이고 그것을 돌려준다. 실패하면 nullptr 이다.
         ComponentBase* (*Attach)(Canvas& canvas, GameObject* owner) = nullptr;
+        // 붙인 것을 뗀다. **붙이는 함수와 짝으로 여기 둔다** - 풀이 메모리를
+        // 돌려받으려면 정적 타입이 필요하고, 그것을 아는 자리가 여기뿐이다.
+        // `GameObject::DetachComponent` 만 부르면 슬롯만 빠지고 풀 자리는 남는다.
+        bool (*Detach)(Canvas& canvas, GameObject* owner, ComponentBase* component) = nullptr;
     };
 
     class ComponentRegistry final
@@ -42,6 +47,14 @@ namespace JBro
         const ComponentTypeInfo* Find(NameId name) const;
         const ComponentTypeInfo* Find(const char* name) const;
         std::size_t GetCount() const;
+
+        // 등록된 타입 전부를 **이름 순으로** 늘어놓는다. 인스펙터의 "붙이기"
+        // 목록이 이것으로 선다 - 표에 있는 것이 곧 붙일 수 있는 것이라,
+        // 타입을 더해도 목록을 고칠 일이 없다.
+        //
+        // 이름 순인 이유는 표가 해시 순이기 때문이다. 그대로 내보내면 목록이
+        // 실행할 때마다 다른 차례로 나와 눈이 자리를 못 외운다.
+        Array<const ComponentTypeInfo*> CollectTypes() const;
 
     private:
         Table<NameId, ComponentTypeInfo> m_types;
@@ -61,6 +74,17 @@ namespace JBro
         info.Attach = [](Canvas& canvas, GameObject* owner) -> ComponentBase*
         {
             return canvas.AttachComponent<T>(owner);
+        };
+        info.Detach = [](Canvas& canvas, GameObject* owner, ComponentBase* component) -> bool
+        {
+            // **타입이 맞는지 여기서 본다.** 아래 내림 변환은 맞을 때만 옳고,
+            // 부르는 쪽이 표를 잘못 찾아왔는지 여기 말고는 알 자리가 없다.
+            if (component == nullptr
+                || component->GetTypeId() != MakeStableTypeId(T::StaticTypeName()))
+            {
+                return false;
+            }
+            return canvas.DetachComponent<T>(owner, static_cast<T*>(component));
         };
         return ComponentRegistry::Get().Register(info);
     }
