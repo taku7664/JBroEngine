@@ -24,6 +24,11 @@
 
 namespace
 {
+    // 에디터 창 크기다. **패널 넷이 들어갈 만큼은 되어야 한다** - 너무 좁으면
+    // 가운데가 거의 남지 않아, 게임 화면이 제대로 와도 화면의 몇 퍼센트가 안 된다.
+    constexpr std::uint32_t WindowWidth = 640;
+    constexpr std::uint32_t WindowHeight = 480;
+
     void Check(bool condition, const char* message)
     {
         if (false == condition)
@@ -100,8 +105,8 @@ namespace
         JBro::EditorApplication editor;
         JBro::EditorApplicationConfig config;
         config.windowVisible = false;
-        config.windowWidth = 320;
-        config.windowHeight = 240;
+        config.windowWidth = WindowWidth;
+        config.windowHeight = WindowHeight;
         if (false == editor.Initialize(config))
         {
             std::cout << "  [skip] no D3D12 device; the inspector not verified" << std::endl;
@@ -184,8 +189,8 @@ namespace
         JBro::EditorApplication editor;
         JBro::EditorApplicationConfig config;
         config.windowVisible = false;
-        config.windowWidth = 320;
-        config.windowHeight = 240;
+        config.windowWidth = WindowWidth;
+        config.windowHeight = WindowHeight;
         if (false == editor.Initialize(config))
         {
             std::cout << "  [skip] no D3D12 device; object commands not verified"
@@ -269,8 +274,8 @@ namespace
         JBro::EditorApplication editor;
         JBro::EditorApplicationConfig config;
         config.windowVisible = false;
-        config.windowWidth = 320;
-        config.windowHeight = 240;
+        config.windowWidth = WindowWidth;
+        config.windowHeight = WindowHeight;
         if (false == editor.Initialize(config))
         {
             std::cout << "  [skip] no D3D12 device; create not verified" << std::endl;
@@ -313,8 +318,8 @@ namespace
         JBro::EditorApplication editor;
         JBro::EditorApplicationConfig config;
         config.windowVisible = false;
-        config.windowWidth = 320;
-        config.windowHeight = 240;
+        config.windowWidth = WindowWidth;
+        config.windowHeight = WindowHeight;
         if (false == editor.Initialize(config))
         {
             std::cout << "  [skip] no D3D12 device; the close path not verified"
@@ -350,8 +355,8 @@ namespace
         JBro::EditorApplication editor;
         JBro::EditorApplicationConfig config;
         config.windowVisible = false;
-        config.windowWidth = 320;
-        config.windowHeight = 240;
+        config.windowWidth = WindowWidth;
+        config.windowHeight = WindowHeight;
         if (false == editor.Initialize(config))
         {
             std::cout << "  [skip] no D3D12 device; editor input not verified"
@@ -368,7 +373,7 @@ namespace
         // 위에 있었는지로 이번 프레임의 가져감을 정하므로 몇 프레임 돌린다.
         for (int frame = 0; frame < 4; ++frame)
         {
-            Check(PostMessageW(window, WM_MOUSEMOVE, 0, MAKELPARAM(160, 120)) != 0,
+            Check(PostMessageW(window, WM_MOUSEMOVE, 0, MAKELPARAM(WindowWidth / 2, WindowHeight / 2)) != 0,
                 "the pointer must post");
             Check(editor.Tick(1.0f / 60.0f), "the editor must tick");
         }
@@ -386,8 +391,8 @@ namespace
         JBro::EditorApplication editor;
         JBro::EditorApplicationConfig config;
         config.windowVisible = false;
-        config.windowWidth = 320;
-        config.windowHeight = 240;
+        config.windowWidth = WindowWidth;
+        config.windowHeight = WindowHeight;
         if (false == editor.Initialize(config))
         {
             std::cout << "  [skip] no D3D12 device; the empty editor not verified"
@@ -405,9 +410,9 @@ namespace
 
         JBro::Renderer* renderer = editor.GetRenderer();
         Check(renderer != nullptr, "the editor must expose its renderer");
-        const std::size_t painted = CountPaintedPixels(*renderer, 320, 240);
+        const std::size_t painted = CountPaintedPixels(*renderer, WindowWidth, WindowHeight);
         std::cout << "  the empty editor painted " << painted << " pixels" << std::endl;
-        Check(painted > (320 * 240) / 2,
+        Check(painted > (WindowWidth * WindowHeight) / 2,
             "the panel must be on the window even with no project open");
 
         editor.Shutdown();
@@ -421,8 +426,8 @@ namespace
         JBro::EditorApplication editor;
         JBro::EditorApplicationConfig config;
         config.windowVisible = false;
-        config.windowWidth = 320;
-        config.windowHeight = 240;
+        config.windowWidth = WindowWidth;
+        config.windowHeight = WindowHeight;
         if (false == editor.Initialize(config))
         {
             std::cout << "  [skip] no D3D12 device; the editor screen not verified"
@@ -438,7 +443,7 @@ namespace
         Check(false == editor.IsEditorUiEnabled(), "the UI starts off");
         Check(false == editor.EnableEditorUi({0, 0}), "a game view with no size is refused");
 
-        // 게임 뷰는 창과 다른 크기다. 4:3 을 320x240 패널에 넣으면 위아래가 남는다.
+        // 게임 뷰는 창과 다른 크기다. 비율이 다르면 패널 안에서 레터박스가 된다.
         constexpr std::uint32_t GameWidth = 64;
         constexpr std::uint32_t GameHeight = 48;
         Check(editor.EnableEditorUi({GameWidth, GameHeight}), "the editor UI must turn on");
@@ -471,16 +476,16 @@ namespace
         JBro::Renderer* renderer = editor.GetRenderer();
         Check(renderer != nullptr, "the editor must expose its renderer");
         JBro::Array<std::byte> image;
-        image.Resize(320 * 240 * 4);
+        image.Resize(WindowWidth * WindowHeight * 4);
         JBro::TextureReadback readback;
         Check(renderer->ReadBackBuffer(image.Data(), image.Size(), readback),
             "the editor window must read back");
 
         std::size_t painted = 0;
         std::size_t bright = 0;
-        for (std::uint32_t y = 0; y < 240; ++y)
+        for (std::uint32_t y = 0; y < WindowHeight; ++y)
         {
-            for (std::uint32_t x = 0; x < 320; ++x)
+            for (std::uint32_t x = 0; x < WindowWidth; ++x)
             {
                 const std::size_t offset = static_cast<std::size_t>(y) * readback.rowPitch
                     + static_cast<std::size_t>(x) * 4;
@@ -501,13 +506,13 @@ namespace
         // 카메라가 지운 초록이 화면에 있어야 한다. 게임 -> 텍스처 -> 패널로
         // 이어지는 길 어디가 끊겨도 이 숫자가 0 이 된다.
         std::size_t gamePixels = 0;
-        std::uint32_t gameMinX = 320;
+        std::uint32_t gameMinX = WindowWidth;
         std::uint32_t gameMaxX = 0;
-        std::uint32_t gameMinY = 240;
+        std::uint32_t gameMinY = WindowHeight;
         std::uint32_t gameMaxY = 0;
-        for (std::uint32_t y = 0; y < 240; ++y)
+        for (std::uint32_t y = 0; y < WindowHeight; ++y)
         {
-            for (std::uint32_t x = 0; x < 320; ++x)
+            for (std::uint32_t x = 0; x < WindowWidth; ++x)
             {
                 const std::size_t offset = static_cast<std::size_t>(y) * readback.rowPitch
                     + static_cast<std::size_t>(x) * 4;
@@ -527,13 +532,13 @@ namespace
         std::cout << "  the editor painted " << painted << " pixels (" << bright
             << " bright, " << gamePixels << " from the game) on its window" << std::endl;
         // 창을 채우는 패널이 하나 있으므로 화면 대부분이 패널 색이다.
-        Check(painted > (320 * 240) / 2,
+        Check(painted > (WindowWidth * WindowHeight) / 2,
             "the editor panel must cover the window");
         // 패널 제목이 글자로 나온다. 폰트 아틀라스가 안 올라가면 여기서 걸린다.
         Check(bright > 50, "and its text must be on screen");
         // 게임 뷰는 4:3 이고 패널은 그보다 넓으므로 좌우가 남는다. 그래도 화면의
         // 상당 부분이 게임 화면이어야 한다.
-        Check(gamePixels > (320 * 240) / 4,
+        Check(gamePixels > (WindowWidth * WindowHeight) / 4,
             "the game must reach the panel through its texture");
 
         // **모양이 지켜져야 한다.** 패널에 늘려 붙이면 픽셀 수는 오히려 늘어나서

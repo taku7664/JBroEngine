@@ -67,6 +67,15 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <!--
+        소스도 실행 문자열도 UTF-8 이다.
+        없으면 MSVC 가 좁은 문자열 리터럴을 시스템 코드 페이지(한국어 윈도우에서는
+        949)로 인코딩한다. 우리 코드가 글자를 넘기는 곳은 전부 UTF-8 을 기대한다 -
+        ImGui 도, .jcanvas 도, NameTable 도. 그래서 한글이 섞인 리터럴이 화면에서
+        깨지고, 컴파일러는 경고만 하고 지나간다.
+        기존 엔진도 같은 이유로 /utf-8 을 켰다.
+      -->
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <!--
         WIN32_LEAN_AND_MEAN 은 예전 framework.h 가 담당했다.
         pch 를 걷어내면서 모든 모듈에 공통으로 적용되도록 여기로 옮겼다.
       -->

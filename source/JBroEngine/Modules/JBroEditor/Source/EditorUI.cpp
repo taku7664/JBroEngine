@@ -1,5 +1,7 @@
 ﻿#include <JBro/Editor/EditorUI.h>
 
+#include <JBro/Editor/EditorTheme.h>
+
 #include <imgui.h>
 
 #include "EditorUIPS.generated.h"
@@ -172,6 +174,11 @@ namespace JBro
         // 패널을 서로 붙이고 탭으로 묶는다. 에디터는 창이 여럿이라 이것 없이는
         // 패널마다 떠다니는 상자가 된다.
         io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+
+        // 생김새는 기존 엔진에서 그대로 가져온다(D-73). **색과 글꼴을 여기서
+        // 정하는 이유는 컨텍스트마다 한 벌이기 때문이다** - 패널이 저마다
+        // 색을 밀어 넣기 시작하면 어디서 온 색인지 알 수 없게 된다.
+        EditorTheme::Apply();
         // 1.92 부터 백엔드가 텍스처를 직접 만들고 지운다. 이것을 켜지 않으면
         // ImGui 가 옛 방식(GetTexDataAsRGBA32)을 기대한다.
         io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures;

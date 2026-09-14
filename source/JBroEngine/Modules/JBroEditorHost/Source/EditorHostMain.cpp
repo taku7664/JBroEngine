@@ -36,9 +36,11 @@ namespace
             float green;
             float blue;
         };
+        // 이름에 한글을 섞는다. 글꼴이 안 잡혔으면 여기가 네모로 나온다 -
+        // 띄워 놓고 눈으로 바로 알 수 있는 자리다.
         static const Block blocks[] = {
-            {"Red", -4.0f, 0.0f, 0.90f, 0.25f, 0.25f},
-            {"Green", -1.5f, 1.5f, 0.25f, 0.85f, 0.35f},
+            {"빨강 Red", -4.0f, 0.0f, 0.90f, 0.25f, 0.25f},
+            {"초록 Green", -1.5f, 1.5f, 0.25f, 0.85f, 0.35f},
             {"Blue", 1.5f, -1.5f, 0.30f, 0.45f, 0.95f},
             {"Amber", 4.0f, 0.0f, 0.95f, 0.75f, 0.20f},
         };
@@ -103,7 +105,7 @@ int main(int argumentCount, char** arguments)
     {
         canvas->ForEachObject([&editor](JBro::GameObject& object) {
             if (editor.GetSelectedObject() == nullptr
-                && std::strcmp(object.GetTag(), "Red") == 0)
+                && std::strncmp(object.GetTag(), "빨강", 6) == 0)
             {
                 editor.SetSelectedObject(&object);
             }
