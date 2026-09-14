@@ -139,11 +139,121 @@ namespace
         platform.PumpEvents();
         platform.Shutdown();
     }
+    // **같은 렌더러가 같은 그림을 텍스처로도 내놓아야 한다.** 에디터의 게임 뷰는
+    // 그 차이 하나로 성립한다 - 렌더 경로가 갈리면 에디터에서 보는 것과 실행했을 때
+    // 보는 것이 달라지고, 그 어긋남은 한참 뒤에야 드러난다(D-63).
+    void TestTheSameSpriteGoesToATextureInstead()
+    {
+        JBro::WindowsPlatform platform;
+        JBro::D3D12RHIModule rhi;
+        JBro::JMemoryContext memory;
+        Check(platform.Initialize(memory), "platform must initialize for the target test");
+        if (false == rhi.Initialize(memory))
+        {
+            std::cout << "  [skip] no D3D12 device; the frame target not verified" << std::endl;
+            platform.Shutdown();
+            return;
+        }
+
+        JBro::WindowDesc windowDesc;
+        constexpr char title[] = "JBro target probe";
+        windowDesc.title = {title, sizeof(title) - 1};
+        windowDesc.width = 64;
+        windowDesc.height = 64;
+        windowDesc.visible = false;
+        const JBro::WindowHandle window = platform.OpenPlatformWindow(windowDesc);
+        Check(window.value != 0, "the probe window must open");
+
+        JBro::Renderer renderer;
+        JBro::RendererConfig config;
+        config.surface = platform.CreateSurface(window);
+        config.surfaceExtent = {64, 64};
+        config.maxSpriteSubmissions = 4;
+        config.presentMode = JBro::PresentMode::Immediate;
+        Check(renderer.Initialize(rhi, config), "the target renderer must initialize");
+
+        JBro::IRHIDevice* device = renderer.GetDevice();
+        Check(device != nullptr, "the renderer must hand out the device it made");
+
+        // **게임 뷰는 화면과 크기가 다르다.** 여기서 일부러 다르게 잡는다 - 뷰포트를
+        // 재는 기준이 백버퍼에 묶여 있으면 이 크기에서 바로 어긋난다.
+        constexpr std::uint32_t TargetWidth = 48;
+        constexpr std::uint32_t TargetHeight = 32;
+        JBro::TextureDesc targetDesc;
+        targetDesc.extent = {TargetWidth, TargetHeight};
+        targetDesc.format = JBro::TextureFormat::BGRA8Unorm;
+        targetDesc.usage = JBro::TextureUsage::RenderTarget | JBro::TextureUsage::Sampled;
+        const JBro::TextureHandle gameView = device->CreateTexture(targetDesc);
+        Check(gameView.IsValid(), "the game view texture must be created");
+
+        JBro::CameraParams camera;
+        camera.projection = {{1.0f, 0.0f, 0.0f, 0.0f,
+            0.0f, 1.0f, 0.0f, 0.0f,
+            0.0f, 0.0f, 1.0f, 0.0f,
+            0.0f, 0.0f, 0.0f, 1.0f}};
+        camera.clearColor[0] = 0.0f;
+        camera.clearColor[1] = 0.0f;
+        camera.clearColor[2] = 0.0f;
+        camera.clearColor[3] = 1.0f;
+        camera.viewport.width = static_cast<float>(TargetWidth);
+        camera.viewport.height = static_cast<float>(TargetHeight);
+
+        // 위의 테스트와 같은 스프라이트다. 왼쪽 절반을 덮는다.
+        JBro::SpriteSubmit sprite;
+        sprite.world.linear[0] = 1.0f;
+        sprite.world.linear[3] = 2.0f;
+        sprite.world.translation[0] = -0.5f;
+        sprite.tint[0] = 1.0f;
+        sprite.tint[1] = 0.5f;
+        sprite.tint[2] = 0.25f;
+        sprite.tint[3] = 1.0f;
+
+        // 크기 없이 텍스처만 주는 것은 거절한다.
+        JBro::FrameTarget sizeless;
+        sizeless.texture = gameView;
+        Check(renderer.BeginFrame(sizeless) == JBro::FrameStatus::InvalidState,
+            "a target without a size must be refused");
+
+        JBro::FrameTarget target;
+        target.texture = gameView;
+        target.extent = {TargetWidth, TargetHeight};
+        Check(renderer.BeginFrame(target) == JBro::FrameStatus::Ready,
+            "the frame aimed at a texture must begin");
+        Check(renderer.BeginView(camera), "the view must open");
+        Check(renderer.SubmitSprite(sprite), "the probe sprite must submit");
+        Check(renderer.EndView(), "the view must close");
+        Check(renderer.EndFrame() == JBro::FrameStatus::Ready, "the frame must finish");
+
+        JBro::Array<std::byte> image;
+        image.Resize(TargetWidth * TargetHeight * 4);
+        JBro::TextureReadback readback;
+        Check(device->ReadTexture(gameView, image.Data(), image.Size(), readback),
+            "the game view texture must read back");
+        Check(readback.extent.width == TargetWidth && readback.extent.height == TargetHeight,
+            "and describe the texture, not the window");
+
+        // 백버퍼에 그렸을 때와 같은 그림이어야 한다.
+        const Pixel left = ReadPixel(image, readback.rowPitch, TargetWidth / 4, TargetHeight / 2);
+        const Pixel right =
+            ReadPixel(image, readback.rowPitch, TargetWidth * 3 / 4, TargetHeight / 2);
+        Check(Near(left.r, 1.0f) && Near(left.g, 0.5f) && Near(left.b, 0.25f),
+            "the sprite must paint the same tint it paints on the back buffer");
+        Check(Near(right.r, 0.0f) && Near(right.g, 0.0f) && Near(right.b, 0.0f),
+            "and leave the rest of the texture at the clear colour");
+
+        device->DestroyTexture(gameView);
+        renderer.Shutdown();
+        rhi.Shutdown();
+        platform.ClosePlatformWindow(window);
+        platform.PumpEvents();
+        platform.Shutdown();
+    }
 }
 
 int RunSpritePixelTests()
 {
     TestSpritePacketReachesTheShaderFields();
+    TestTheSameSpriteGoesToATextureInstead();
     std::cout << "Sprite pixel tests passed.\n";
     return 0;
 }

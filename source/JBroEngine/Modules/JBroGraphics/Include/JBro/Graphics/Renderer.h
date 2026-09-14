@@ -33,6 +33,20 @@ namespace JBro
         bool validation = false;
     };
 
+    // 이번 프레임의 뷰를 어디에 그릴지다. 비워 두면 스왑체인 백버퍼다.
+    //
+    // **렌더러의 모드가 아니라 인자다.** 에디터는 게임 화면을 자기 패널 안에 붙여야 하므로
+    // 같은 렌더러를 텍스처로 한 번 부르고, 게임 실행은 백버퍼로 부른다. 그 차이가 전부이고
+    // 두 개의 렌더 경로가 되어서는 안 된다.
+    struct FrameTarget
+    {
+        // 비어 있으면 백버퍼다.
+        TextureHandle texture;
+        // 텍스처를 줄 때는 그 크기도 줘야 한다. 뷰포트가 타깃 안에 있는지 재는 기준이
+        // 그것이고, 백버퍼일 때와 달리 렌더러가 알 길이 없다.
+        Extent2D extent;
+    };
+
     struct CameraParams
     {
         Matrix4x4 view;
@@ -93,7 +107,8 @@ namespace JBro
         bool Initialize(IRHIModule& rhi, const RendererConfig& config);
         void Shutdown();
 
-        FrameStatus BeginFrame();
+        // 타깃을 비우면 백버퍼에 그린다.
+        FrameStatus BeginFrame(const FrameTarget& target = {});
         bool BeginView(const CameraParams& camera);
         bool SubmitSprite(const SpriteSubmit& item);
         bool SubmitSprites(JArrayView<SpriteSubmit> items);
@@ -105,6 +120,11 @@ namespace JBro
 
         bool ResizeSurface(const Extent2D& extent);
         RendererFrameStats GetLastFrameStats() const;
+
+        // 렌더러가 만든 디바이스다. **리소스를 만들고 지우는 데만 쓴다** -
+        // 에디터가 게임 뷰 텍스처와 자기 UI 파이프라인을 만들려면 이것이 필요하다.
+        // 프레임을 여닫는 것은 여전히 렌더러의 일이다.
+        IRHIDevice* GetDevice() const;
 
         bool IsDeviceLost() const;
         bool IsInitialized() const;
@@ -157,6 +177,7 @@ namespace JBro
         IRHIDevice* m_device = nullptr;
         SwapchainHandle m_swapchain;
         FrameContext m_frame;
+        FrameTarget m_frameTarget;
         Array<ViewPacket> m_views;
         Array<SpriteSubmit> m_sprites;
         Array<MeshSubmit> m_meshes;

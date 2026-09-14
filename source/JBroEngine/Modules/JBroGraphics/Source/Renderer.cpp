@@ -136,6 +136,7 @@ namespace JBro
         m_config = {};
         m_swapchain = {};
         m_frame = {};
+        m_frameTarget = {};
         m_views = {};
         m_sprites = {};
         m_meshes = {};
@@ -148,9 +149,15 @@ namespace JBro
         m_rhi = nullptr;
     }
 
-    FrameStatus Renderer::BeginFrame()
+    FrameStatus Renderer::BeginFrame(const FrameTarget& target)
     {
         if (m_device == nullptr || false == m_swapchain.IsValid() || m_frameActive)
+        {
+            return FrameStatus::InvalidState;
+        }
+        // 텍스처를 주면서 크기를 안 주면 뷰포트를 잴 기준이 없다. 백버퍼 크기로
+        // 대신 재면 타깃 밖으로 나가는 뷰포트를 통과시키게 된다.
+        if (target.texture.IsValid() && (target.extent.width == 0 || target.extent.height == 0))
         {
             return FrameStatus::InvalidState;
         }
@@ -168,6 +175,7 @@ namespace JBro
         }
 
         m_frame = result.frame;
+        m_frameTarget = target;
         m_frameActive = true;
         ResetSubmissionStorage();
         return FrameStatus::Ready;
@@ -279,6 +287,7 @@ namespace JBro
             m_device->AbortFrame(m_frame);
             m_lastStats = m_currentStats;
             m_frame = {};
+            m_frameTarget = {};
             m_frameActive = false;
             return FrameStatus::InvalidState;
         }
@@ -287,8 +296,14 @@ namespace JBro
         m_lastStats = m_currentStats;
         m_lastPresentedBackBuffer = m_frame.backBuffer;
         m_frame = {};
+        m_frameTarget = {};
         m_frameActive = false;
         return status;
+    }
+
+    IRHIDevice* Renderer::GetDevice() const
+    {
+        return m_device;
     }
 
     bool Renderer::ReadBackBuffer(
@@ -312,6 +327,7 @@ namespace JBro
             m_device->AbortFrame(m_frame);
             m_lastStats = m_currentStats;
             m_frame = {};
+            m_frameTarget = {};
             m_frameActive = false;
             ResetSubmissionStorage();
         }
@@ -371,6 +387,11 @@ namespace JBro
             return false;
         }
 
+        // 뷰가 갈 곳과 그 크기다. 타깃을 안 준 프레임은 백버퍼로 간다.
+        const bool toTexture = m_frameTarget.texture.IsValid();
+        const TextureHandle target = toTexture ? m_frameTarget.texture : m_frame.backBuffer;
+        const Extent2D extent = toTexture ? m_frameTarget.extent : m_config.surfaceExtent;
+
         for (std::size_t index = 0; index < m_views.Size(); ++index)
         {
             const ViewPacket& view = m_views[index];
@@ -379,16 +400,16 @@ namespace JBro
             {
                 viewport.x = 0.0f;
                 viewport.y = 0.0f;
-                viewport.width = static_cast<float>(m_config.surfaceExtent.width);
-                viewport.height = static_cast<float>(m_config.surfaceExtent.height);
+                viewport.width = static_cast<float>(extent.width);
+                viewport.height = static_cast<float>(extent.height);
             }
 
             const float right = viewport.x + viewport.width;
             const float bottom = viewport.y + viewport.height;
             if (viewport.x < 0.0f
                 || viewport.y < 0.0f
-                || right > static_cast<float>(m_config.surfaceExtent.width)
-                || bottom > static_cast<float>(m_config.surfaceExtent.height)
+                || right > static_cast<float>(extent.width)
+                || bottom > static_cast<float>(extent.height)
                 || viewport.minDepth < 0.0f
                 || viewport.maxDepth > 1.0f
                 || viewport.minDepth > viewport.maxDepth)
@@ -397,7 +418,7 @@ namespace JBro
             }
 
             ColorAttachmentDesc colorAttachment;
-            colorAttachment.texture = m_frame.backBuffer;
+            colorAttachment.texture = target;
             colorAttachment.loadOperation = index == 0
                 ? LoadOperation::Clear
                 : LoadOperation::Load;
