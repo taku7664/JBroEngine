@@ -50,6 +50,17 @@ namespace JBro
             return GetTitle();
         }
 
+        // 제목줄에 닫기 단추를 둘 것인가(ProjectRule §11.3).
+        //
+        // **창마다 고른다.** 기존 엔진도 `IMWINDOW_FLAG_NO_CLOSE_BUTTON` 으로
+        // 창이 정하고, 기본은 단추가 있는 쪽이다 - 도크 뿌리창만 그것을 끈다.
+        // 닫을 수 없어야 하는 패널이 있고, 모두에 일률적으로 다는 것은 그
+        // 구분을 지우는 것이다.
+        virtual bool HasCloseButton() const
+        {
+            return true;
+        }
+
         // 에디터가 들일 때 한 번. 거짓을 돌려주면 패널이 붙지 않는다.
         virtual bool OnCreate(EditorApplication& editor)
         {

@@ -840,7 +840,10 @@ namespace JBro
                 ? ImGuiWindowFlags_MenuBar
                 : ImGuiWindowFlags_None;
             const String label = PanelWindowLabel(*panel);
-            if (ImGui::Begin(label.c_str(), &open, flags))
+            // 닫기 단추를 원하지 않는 패널에는 불리언을 넘기지 않는다. ImGui 는
+            // 그것으로 단추를 그릴지 정한다.
+            bool* closable = panel->HasCloseButton() ? &open : nullptr;
+            if (ImGui::Begin(label.c_str(), closable, flags))
             {
                 if (panel->HasMenuBar() && ImGui::BeginMenuBar())
                 {
