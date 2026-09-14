@@ -792,6 +792,35 @@ EditorApplication::Tick
     위젯이 "바뀌었다" 고 답할 수 없다. 저 조건의 `editable` 은 겹으로 두른 것이다
     (`insp:readonly-is-editable` 이 잡히므로 `BeginDisabled` 자체는 재고 있다).
 
+- **D-78. 에디터 UI 계층(공용 위젯·로컬라이징·레이아웃)을 이식하지 않은 것은 누락이다.**
+  화면을 띄워 놓고 사용자가 짚었다. 기능은 도는데 **기존 엔진이 깎아 놓은 UI 계층을
+  통째로 건너뛰고** ImGui 원시 호출로 패널을 그리고 있었다. 규칙은 `ProjectRule.md` §11
+  로 옮겼고, 여기에는 무엇이 있었는지와 실측을 적는다.
+  **① 공용 위젯**: `Application/Editor/ImItem/` 에 20여 종 4,700줄이 있다.
+  `ImListVirtual` 은 저장소를 모르는 목록이다 - 원소 접근을 콜백으로 받아 타입이 지워진
+  리플렉션 `Array` 도 같은 UI 로 그리고, 추가·삭제·드래그 재정렬·읽기 전용이 그 안에 있다.
+  **우리 `ArrayOps`/`TableOps` 가 비어 있는 것과 같은 자리다** - 목록 UI 를 새로 짤 이유가
+  없었다. `ImTreeBegin` 은 행 사각형과 내용 사각형을 나눠 주어 행에 썸네일·배지를 얹게 한다.
+  그 밖에 `ImAssetField`·`ImSearchBox`·`ImSectionHeader`·`ImStatusBadge`·`ImSplitter`·
+  `ImValidationMessage`·`ImEnumCombo`·`ImDragScalar` 등이 있다.
+  **② 로컬라이징**: `Loc::Text(key)` / `Loc::TextOr(key, fallback)`, 키는
+  `EditorLocalizationKeys.h` 에 669줄. 기본 `ko-KR`, 폴백 `en-US`. 우리는 영어 리터럴을
+  소스에 박아 두었다.
+  **③ 레이아웃**: `ImGui::Utillity::FormLayout` 이 2열 표를 만들고 왼쪽 라벨, 오른쪽
+  `SetNextItemWidth(-FLT_MIN)` 위젯을 둔다. **기존 인스펙터의 모든 위젯은 라벨을 `""` 로
+  넘긴다** - 라벨은 표의 왼쪽 칸이 그린다. 우리는 위젯에 라벨을 넘겨 ImGui 가 오른쪽에
+  붙이게 두었고, 좁은 패널에서 `orthographicSi…` 로 잘렸다.
+  **한 값 한 줄**도 여기서 갈렸다. 기존은 잎사귀를 **타입으로 분기**해
+  `Vec2`→`DragFloat2`, `Rect`→`DragFloat4`, `Color`→`ColorEdit4` 로 **한 줄**에 그린다.
+  우리는 필드가 있으면 무조건 타고 내려가 색 하나가 네 줄을 먹었다. 우리 리플렉션에도
+  이미 표시가 있다 - `TypeDescriptor::writeFieldsAsSequence`(`MakeVectorTypeDescriptor`)
+  가 "같은 종류 값을 늘어놓은 구조체" 를 뜻한다.
+  **닫기 단추는 확인해 보니 기억과 달랐다.** 기존 `CImWindow::HandleBegin` 은
+  `IMWINDOW_FLAG_NO_CLOSE_BUTTON` 이 없으면 `&isVisible` 을 `ImGui::Begin` 에 넘긴다 -
+  즉 **기본값은 X 가 있는 쪽**이고, 그 플래그를 세우는 곳은 `MainDockWindow` 하나뿐이다.
+  그러니 기존에서도 도구 창에는 X 가 있었을 것이다. 다만 **창마다 고를 수 있어야 한다는
+  것**은 맞고, 우리는 모든 패널에 일률적으로 달고 있었다. 사용자 확인이 필요한 자리다.
+
 ## Assumptions
 
 - 대상은 `Documents/GitHub/JBroEngine` 신규 리포다. 기존 엔진은 **읽기 전용 기준**으로만 쓴다.
