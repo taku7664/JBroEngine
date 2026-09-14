@@ -15,12 +15,16 @@
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Runtime/GameObject.h>
 
+#include <imgui.h>
+#include <imgui_internal.h>
+
 #include <windows.h>
 
 #include <cstdio>
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
+#include <utility>
 
 namespace
 {
@@ -100,6 +104,239 @@ namespace
     // **인스펙터는 타입을 하나도 모른다.** 리플렉션이 내주는 것만 보고 그린다 -
     // 그래서 리플렉션이 내주는 것이 맞아야 화면도 맞는다. 파생값을 고칠 수 있게
     // 그려 놓으면 사용자가 고쳐도 다음 프레임에 덮어써져, 고장 난 것처럼 보인다.
+    // 프레임워크가 패널을 어떻게 다루는지 **세기만 하는** 패널이다. 그리지 않는다 -
+    // 무엇이 그려졌는지가 아니라 어떤 훅이 언제 불렸는지를 보는 자리다.
+    class CountingPanel final : public JBro::EditorPanel
+    {
+    public:
+        explicit CountingPanel(const char* title, bool createSucceeds = true)
+            : m_title(title)
+            , m_createSucceeds(createSucceeds)
+        {
+        }
+
+        const char* GetTitle() const override
+        {
+            return m_title;
+        }
+        bool OnCreate(JBro::EditorApplication&) override
+        {
+            ++createCalls;
+            return m_createSucceeds;
+        }
+        void OnDestroy() override
+        {
+            ++destroyCalls;
+        }
+        void OnUpdate(float deltaTime) override
+        {
+            ++updates;
+            lastDelta = deltaTime;
+        }
+        void OnDraw() override
+        {
+            ++draws;
+        }
+
+        // **거절당한 패널은 AddPanel 안에서 죽는다**(OwnerPtr 를 값으로 받는다).
+        // 그래서 부름 횟수는 인스턴스가 아니라 여기 센다 - 죽은 것을 들여다보면
+        // 테스트가 저 자신의 버그를 재게 된다.
+        static int createCalls;
+        static int destroyCalls;
+
+        int updates = 0;
+        int draws = 0;
+        float lastDelta = 0.0f;
+
+    private:
+        const char* m_title = nullptr;
+        bool m_createSucceeds = true;
+    };
+
+    int CountingPanel::createCalls = 0;
+    int CountingPanel::destroyCalls = 0;
+
+    // **레지스트리는 들일 수 없는 것을 들이지 않는다.** ImGui 는 창을 제목으로
+    // 알아보므로 제목이 겹치면 둘이 한 창을 나눠 쓴다 - 둘째 패널부터 안 보인다.
+    // 그리고 `OnCreate` 가 실패한 패널을 목록에 남기면, 준비되지 않은 것이 매
+    // 프레임 그려진다(D-70).
+    void TestThePanelRegistryRefusesWhatItCannotHold()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = WindowWidth;
+        config.windowHeight = WindowHeight;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the panel registry not verified"
+                << std::endl;
+            return;
+        }
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        const std::size_t builtin = editor.GetPanelCount();
+        Check(builtin == 4, "the editor brings four panels of its own");
+        Check(editor.FindPanel("Inspector") != nullptr, "and they are findable by title");
+        Check(editor.FindPanel("Nothing Like This") == nullptr,
+            "and a title nobody has finds nothing");
+
+        // 제목이 겹치면 거절한다.
+        Check(false == editor.AddPanel(JBro::MakeOwnerPtr<CountingPanel>("Inspector")),
+            "a title another panel already uses must be refused");
+        Check(editor.GetPanelCount() == builtin, "and must not be added anyway");
+
+        // 빈 제목도, 없는 패널도 거절한다.
+        Check(false == editor.AddPanel(JBro::MakeOwnerPtr<CountingPanel>("")),
+            "a panel with no title has no window to live in");
+        Check(false == editor.AddPanel({}), "and nothing at all is not a panel");
+        Check(editor.GetPanelCount() == builtin, "neither may land in the list");
+
+        // **`OnCreate` 가 실패하면 들이지 않는다.**
+        const int asked = CountingPanel::createCalls;
+        Check(false == editor.AddPanel(
+                JBro::MakeOwnerPtr<CountingPanel>("Never Ready", false)),
+            "a panel that cannot start must be refused");
+        Check(CountingPanel::createCalls == asked + 1, "it was asked");
+        Check(editor.GetPanelCount() == builtin, "and the answer was believed");
+        Check(editor.FindPanel("Never Ready") == nullptr,
+            "so it must not be findable either");
+
+        // 제대로 된 것은 들어간다.
+        auto good = JBro::MakeOwnerPtr<CountingPanel>("Counting");
+        CountingPanel* raw = good.Get();
+        Check(editor.AddPanel(std::move(good)), "a well-formed panel must be taken");
+        Check(editor.GetPanelCount() == builtin + 1, "and counted");
+        Check(editor.FindPanel("Counting") == raw, "and found by its title");
+
+        const int leaving = CountingPanel::destroyCalls;
+        editor.Shutdown();
+        // 내보낼 때 `OnDestroy` 를 부른다. 부르지 않으면 패널이 잡은 것이 샌다.
+        Check(CountingPanel::destroyCalls == leaving + 1,
+            "shutting down must tell the panel it is going");
+    }
+
+    // **닫혀 있어도 갱신은 돈다(D-70).** 안 보인다고 멈출지는 프레임워크가 아니라
+    // 패널이 정할 일이다 - 열어 볼 때만 세는 통계 패널은 열어 보는 행위가 측정을
+    // 바꾼다.
+    void TestAClosedPanelKeepsUpdatingButStopsDrawing()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = WindowWidth;
+        config.windowHeight = WindowHeight;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; panel lifecycle not verified"
+                << std::endl;
+            return;
+        }
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        auto owned = JBro::MakeOwnerPtr<CountingPanel>("Counting");
+        CountingPanel* panel = owned.Get();
+        Check(editor.AddPanel(std::move(owned)), "the counting panel must be taken");
+        Check(panel->IsOpen(), "a new panel starts open");
+
+        constexpr float Delta = 1.0f / 60.0f;
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Delta), "the editor must tick");
+        }
+        Check(panel->updates == 3, "an open panel updates once a frame");
+        Check(panel->draws == 3, "and draws once a frame");
+        Check(panel->lastDelta > 0.0f, "and is told how long the frame was");
+
+        const int drawsWhenClosed = panel->draws;
+        panel->SetOpen(false);
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Delta), "the editor must keep ticking");
+        }
+        Check(panel->draws == drawsWhenClosed, "a closed panel must not be drawn");
+        Check(panel->updates == 6, "but must keep being updated");
+
+        panel->SetOpen(true);
+        Check(editor.Tick(Delta), "the editor must tick");
+        Check(panel->draws == drawsWhenClosed + 1, "opening it again must draw it");
+
+        editor.Shutdown();
+    }
+
+    // **제목줄의 X 가 패널을 닫아야 한다.** ImGui 는 닫힘을 `Begin` 에 넘긴 불리언에
+    // 적어 줄 뿐이고, 그것을 패널에 도로 적어 주지 않으면 눌러도 아무 일이 없다.
+    void TestClickingTheCloseButtonClosesThePanel()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = WindowWidth;
+        config.windowHeight = WindowHeight;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the close button not verified"
+                << std::endl;
+            return;
+        }
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        HWND window = FindWindowW(L"JBroEngineWindow", L"JBro Editor");
+        Check(window != nullptr, "the editor window must be findable");
+
+        constexpr float Delta = 1.0f / 60.0f;
+        // 먼저 기본 배치를 잡게 둔다. 그 뒤에 붙는 패널은 도크에 들어가지 않고
+        // 떠 있으므로 제 제목줄과 X 를 갖는다.
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Delta), "the editor must tick");
+        }
+
+        auto owned = JBro::MakeOwnerPtr<CountingPanel>("Closable");
+        CountingPanel* panel = owned.Get();
+        Check(editor.AddPanel(std::move(owned)), "the panel must be taken");
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Delta), "the editor must tick");
+        }
+        Check(panel->IsOpen(), "it is open before anyone touches it");
+
+        ImGuiWindow* floating = ImGui::FindWindowByName("Closable");
+        Check(floating != nullptr, "ImGui must have made a window for it");
+        Check(false == floating->Collapsed, "and it must not be collapsed");
+
+        // 닫기 단추는 제목줄 오른쪽 끝이다. `ImGui::Begin` 이 그 자리를
+        // 이렇게 잡는다 - 여기서 빗나가면 ImGui 가 단추를 옮긴 것이고,
+        // 그때는 조용히 지나가는 것보다 이 테스트가 우는 편이 낫다.
+        const ImGuiStyle& style = ImGui::GetStyle();
+        const ImRect titleBar = floating->TitleBarRect();
+        const float buttonSize = ImGui::GetFontSize();
+        const int x = static_cast<int>(
+            titleBar.Max.x - style.FramePadding.x - buttonSize * 0.5f);
+        const int y = static_cast<int>(titleBar.GetCenter().y);
+
+        // 가리키고, 누르고, 뗀다. ImGui 는 지난 프레임에 무엇 위에 있었는지로
+        // 이번 프레임의 눌림을 정하므로 각각 한 프레임씩 준다.
+        Check(PostMessageW(window, WM_MOUSEMOVE, 0, MAKELPARAM(x, y)) != 0,
+            "the pointer must post");
+        Check(editor.Tick(Delta), "the editor must tick");
+        Check(PostMessageW(window, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(x, y)) != 0,
+            "the press must post");
+        Check(editor.Tick(Delta), "the editor must tick");
+        Check(PostMessageW(window, WM_LBUTTONUP, 0, MAKELPARAM(x, y)) != 0,
+            "the release must post");
+        Check(editor.Tick(Delta), "the editor must tick");
+
+        Check(false == panel->IsOpen(),
+            "clicking the title bar X must close the panel");
+
+        const int drawsWhenClosed = panel->draws;
+        Check(editor.Tick(Delta), "the editor must tick");
+        Check(panel->draws == drawsWhenClosed, "and it must stay closed");
+
+        editor.Shutdown();
+    }
+
     void TestTheInspectorIsToldWhatItMayEdit()
     {
         JBro::EditorApplication editor;
@@ -831,6 +1068,9 @@ int RunEditorApplicationTests()
     TestTheEditorPaintsItsOwnScreen();
     TestTheEditorDrawsWithNoProjectOpen();
     TestTheEditorForwardsInputToItsUi();
+    TestThePanelRegistryRefusesWhatItCannotHold();
+    TestAClosedPanelKeepsUpdatingButStopsDrawing();
+    TestClickingTheCloseButtonClosesThePanel();
     TestTheInspectorIsToldWhatItMayEdit();
     TestCreatingAnObjectCanBeUndone();
     TestDeletingAnObjectCanBeUndoneWithItsValues();
