@@ -386,6 +386,46 @@ namespace
     }
 
 
+    // **검증 손잡이 자체가 도는지 본다.** 이것이 없으면 "조용했으니 맞다" 는 말이
+    // 실은 "아무것도 안 세는 숫자가 0 이었다" 일 수 있다. 아래 테스트들이 전부
+    // 그 숫자에 기대므로, 먼저 그 숫자가 진짜로 센다는 것을 보여야 한다.
+    void TestTheDebugLayerActuallySpeaks()
+    {
+        Probe probe;
+        if (false == probe.Open("JBro validation probe"))
+        {
+            std::cout << "  [skip] no D3D12 device; the debug layer not verified" << std::endl;
+            return;
+        }
+
+        const JBro::BeginFrameResult begun = probe.device->BeginFrame(probe.swapchain);
+        Check(begun.status == JBro::FrameStatus::Ready, "the probe frame must begin");
+        JBro::IRHICommandContext& commands = *begun.frame.commands;
+        Check(probe.BeginPass(commands, begun), "the probe render pass must begin");
+
+        // 인덱스가 여섯 개뿐인 버퍼에서 열두 개를 그린다. 우리 쪽은 이것을 막지 않고
+        // D3D12 도 화면을 망가뜨리지 않는다 - 검증 레이어만이 말해 준다.
+        Check(commands.SetGraphicsPipeline(probe.pipeline), "the pipeline must bind");
+        Check(commands.SetTexture(0, probe.texture), "the texture must bind");
+        Check(commands.SetSampler(0, probe.sampler), "the sampler must bind");
+        Check(commands.SetVertexBuffer(0, probe.vertexBuffer, sizeof(Vertex), 0),
+            "the vertices must bind");
+        Check(commands.SetIndexBuffer(probe.indexBuffer, JBro::IndexFormat::UInt16, 0),
+            "the indices must bind");
+        Check(commands.DrawIndexedInstanced(12, 1, 0, 0, 0),
+            "the over-long draw must go through, because nothing on our side checks it");
+
+        const std::uint32_t reported = probe.device->GetValidationErrorCount();
+        std::cout << "  the debug layer caught " << reported
+            << " problem(s) in a deliberately wrong draw" << std::endl;
+        Check(reported > 0,
+            "the validation handle must actually report, or the quiet checks mean nothing");
+
+        commands.EndRenderPass();
+        probe.device->AbortFrame(begun.frame);
+        probe.Close();
+    }
+
     // **그린 것을 같은 프레임에 읽는다.** 에디터가 게임 화면을 텍스처에 그려 놓고
     // 그것을 ImGui 패널 안에 붙이려면 이 길이 있어야 한다(D-63).
     //
@@ -401,66 +441,72 @@ namespace
             return;
         }
 
-        const JBro::BeginFrameResult begun = probe.device->BeginFrame(probe.swapchain);
-        Check(begun.status == JBro::FrameStatus::Ready, "the probe frame must begin");
-        JBro::IRHICommandContext& commands = *begun.frame.commands;
+        // **두 프레임을 돈다.** 한 프레임만 돌면 추적하는 상태가 실제와 어긋나도
+        // 드러나지 않는다 - 어긋난 값을 읽는 것은 다음 프레임의 첫 패스이기 때문이다.
+        JBro::BeginFrameResult begun = {};
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            begun = probe.device->BeginFrame(probe.swapchain);
+            Check(begun.status == JBro::FrameStatus::Ready, "the probe frame must begin");
+            JBro::IRHICommandContext& commands = *begun.frame.commands;
 
-        // 첫 패스 - 네 텍셀을 오프스크린 텍스처에 크게 그린다.
-        JBro::ColorAttachmentDesc offscreenAttachment;
-        offscreenAttachment.texture = probe.offscreen;
-        offscreenAttachment.loadOperation = JBro::LoadOperation::Clear;
-        offscreenAttachment.clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
-        JBro::RenderPassDesc offscreenPass;
-        offscreenPass.colorAttachments = {&offscreenAttachment, 1};
-        Check(commands.BeginRenderPass(offscreenPass),
-            "a pass onto a plain texture must begin");
+            // 첫 패스 - 네 텍셀을 오프스크린 텍스처에 크게 그린다.
+            JBro::ColorAttachmentDesc offscreenAttachment;
+            offscreenAttachment.texture = probe.offscreen;
+            offscreenAttachment.loadOperation = JBro::LoadOperation::Clear;
+            offscreenAttachment.clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+            JBro::RenderPassDesc offscreenPass;
+            offscreenPass.colorAttachments = {&offscreenAttachment, 1};
+            Check(commands.BeginRenderPass(offscreenPass),
+                "a pass onto a plain texture must begin");
 
-        JBro::Viewport viewport;
-        viewport.width = static_cast<float>(SurfaceSize);
-        viewport.height = static_cast<float>(SurfaceSize);
-        commands.SetViewport(viewport);
-        commands.SetScissor({0, 0,
-            static_cast<std::int32_t>(SurfaceSize),
-            static_cast<std::int32_t>(SurfaceSize)});
+            JBro::Viewport viewport;
+            viewport.width = static_cast<float>(SurfaceSize);
+            viewport.height = static_cast<float>(SurfaceSize);
+            commands.SetViewport(viewport);
+            commands.SetScissor({0, 0,
+                static_cast<std::int32_t>(SurfaceSize),
+                static_cast<std::int32_t>(SurfaceSize)});
 
-        Check(commands.SetGraphicsPipeline(probe.pipeline), "the pipeline must bind");
-        Check(commands.SetTexture(0, probe.texture), "the source texture must bind");
-        Check(commands.SetSampler(0, probe.sampler), "the sampler must bind");
-        Check(commands.SetVertexBuffer(0, probe.vertexBuffer, sizeof(Vertex), 0),
-            "the vertices must bind");
-        Check(commands.SetIndexBuffer(probe.indexBuffer, JBro::IndexFormat::UInt16, 0),
-            "the indices must bind");
-        Check(commands.DrawIndexedInstanced(6, 1, 0, 0, 0),
-            "the quad must draw into the texture");
-        commands.EndRenderPass();
+            Check(commands.SetGraphicsPipeline(probe.pipeline), "the pipeline must bind");
+            Check(commands.SetTexture(0, probe.texture), "the source texture must bind");
+            Check(commands.SetSampler(0, probe.sampler), "the sampler must bind");
+            Check(commands.SetVertexBuffer(0, probe.vertexBuffer, sizeof(Vertex), 0),
+                "the vertices must bind");
+            Check(commands.SetIndexBuffer(probe.indexBuffer, JBro::IndexFormat::UInt16, 0),
+                "the indices must bind");
+            Check(commands.DrawIndexedInstanced(6, 1, 0, 0, 0),
+                "the quad must draw into the texture");
+            commands.EndRenderPass();
 
-        // 두 번째 패스 - 방금 그린 그 텍스처를 읽어 백버퍼에 그린다.
-        // 지우는 색은 텍셀 중 어느 것도 아니다. 아무것도 안 그려졌으면 그 색이 남는다.
-        JBro::ColorAttachmentDesc backAttachment;
-        backAttachment.texture = begun.frame.backBuffer;
-        backAttachment.loadOperation = JBro::LoadOperation::Clear;
-        backAttachment.clearColor = {0.5f, 0.25f, 0.5f, 1.0f};
-        JBro::RenderPassDesc backPass;
-        backPass.colorAttachments = {&backAttachment, 1};
-        Check(commands.BeginRenderPass(backPass), "the back buffer pass must begin");
-        commands.SetViewport(viewport);
-        commands.SetScissor({0, 0,
-            static_cast<std::int32_t>(SurfaceSize),
-            static_cast<std::int32_t>(SurfaceSize)});
+            // 두 번째 패스 - 방금 그린 그 텍스처를 읽어 백버퍼에 그린다.
+            // 지우는 색은 텍셀 중 어느 것도 아니다. 아무것도 안 그려졌으면 그 색이 남는다.
+            JBro::ColorAttachmentDesc backAttachment;
+            backAttachment.texture = begun.frame.backBuffer;
+            backAttachment.loadOperation = JBro::LoadOperation::Clear;
+            backAttachment.clearColor = {0.5f, 0.25f, 0.5f, 1.0f};
+            JBro::RenderPassDesc backPass;
+            backPass.colorAttachments = {&backAttachment, 1};
+            Check(commands.BeginRenderPass(backPass), "the back buffer pass must begin");
+            commands.SetViewport(viewport);
+            commands.SetScissor({0, 0,
+                static_cast<std::int32_t>(SurfaceSize),
+                static_cast<std::int32_t>(SurfaceSize)});
 
-        Check(commands.SetGraphicsPipeline(probe.pipeline), "the pipeline must bind again");
-        Check(commands.SetTexture(0, probe.offscreen),
-            "the texture just drawn into must bind as a source");
-        Check(commands.SetSampler(0, probe.sampler), "the sampler must bind again");
-        Check(commands.SetVertexBuffer(0, probe.vertexBuffer, sizeof(Vertex), 0),
-            "the vertices must bind again");
-        Check(commands.SetIndexBuffer(probe.indexBuffer, JBro::IndexFormat::UInt16, 0),
-            "the indices must bind again");
-        Check(commands.DrawIndexedInstanced(6, 1, 0, 0, 0), "the quad must draw again");
-        commands.EndRenderPass();
+            Check(commands.SetGraphicsPipeline(probe.pipeline), "the pipeline must bind again");
+            Check(commands.SetTexture(0, probe.offscreen),
+                "the texture just drawn into must bind as a source");
+            Check(commands.SetSampler(0, probe.sampler), "the sampler must bind again");
+            Check(commands.SetVertexBuffer(0, probe.vertexBuffer, sizeof(Vertex), 0),
+                "the vertices must bind again");
+            Check(commands.SetIndexBuffer(probe.indexBuffer, JBro::IndexFormat::UInt16, 0),
+                "the indices must bind again");
+            Check(commands.DrawIndexedInstanced(6, 1, 0, 0, 0), "the quad must draw again");
+            commands.EndRenderPass();
 
-        Check(probe.device->EndFrame(begun.frame) == JBro::FrameStatus::Ready,
-            "the probe frame must present");
+            Check(probe.device->EndFrame(begun.frame) == JBro::FrameStatus::Ready,
+                "the probe frame must present");
+        }
 
         JBro::Array<std::byte> image;
         image.Resize(SurfaceSize * SurfaceSize * 4);
@@ -605,6 +651,7 @@ namespace
 
 int RunTextureBindingTests()
 {
+    TestTheDebugLayerActuallySpeaks();
     TestATextureReachesTheShader();
     TestATextureCanBeDrawnIntoAndThenRead();
     TestDrawingNeedsEverySlotItDeclared();

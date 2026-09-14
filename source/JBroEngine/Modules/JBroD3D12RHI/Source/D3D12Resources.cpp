@@ -1,5 +1,7 @@
 ﻿#include "D3D12Device.h"
 
+#include <cstdio>
+
 #include <algorithm>
 #include <cstring>
 #include <limits>
@@ -287,8 +289,36 @@ namespace JBro::Internal
         {
             return 0;
         }
-        return static_cast<std::uint32_t>(
+
+        // 메시지 하나를 받아 둘 자리다. 설명이 이보다 긴 메시지는 건너뛴다 -
+        // 세는 일이 메모리를 잡는 일이 되면 안 된다.
+        alignas(D3D12_MESSAGE) unsigned char messageStorage[2048] = {};
+        const auto count = static_cast<std::uint32_t>(
             m_infoQueue->GetNumStoredMessagesAllowedByRetrievalFilter());
+
+        // **세기만 하면 쓸모가 없다.** "검증 레이어가 1건 말했다" 만 보고는 무엇이
+        // 잘못됐는지 알 수 없고, 알아내려면 다시 재현해서 디버거를 붙여야 한다.
+        // 그래서 세면서 함께 찍는다. 검증을 켰을 때만 도는 길이다.
+        for (std::uint32_t index = 0; index < count; ++index)
+        {
+            SIZE_T bytes = 0;
+            if (FAILED(m_infoQueue->GetMessage(index, nullptr, &bytes))
+                || bytes == 0
+                || bytes > sizeof(messageStorage))
+            {
+                continue;
+            }
+            auto* message = reinterpret_cast<D3D12_MESSAGE*>(messageStorage);
+            if (FAILED(m_infoQueue->GetMessage(index, message, &bytes)))
+            {
+                continue;
+            }
+            std::printf("    [d3d12] severity %d, id %d: %s\n",
+                static_cast<int>(message->Severity),
+                static_cast<int>(message->ID),
+                message->pDescription);
+        }
+        return count;
     }
 
     bool D3D12Device::WriteBuffer(

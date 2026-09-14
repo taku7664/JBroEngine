@@ -139,15 +139,25 @@ namespace JBro::Internal
 
         if (createInfo.enableValidation && SUCCEEDED(m_device.As(&m_infoQueue)))
         {
-            // 오류와 손상만 쌓는다. 경고와 정보까지 세면 큐가 금세 차서 넘치고,
-            // 그때 넘친 것이 오류인지 잡소리인지 알 수 없게 된다.
+            // **거르는 자리는 꺼내는 쪽이다.** 쌓는 쪽에 걸면 아예 저장되지 않아
+            // 나중에 무엇이 있었는지 볼 수 없다. 정보 메시지는 평소에도 나오므로
+            // 세는 것은 오류와 손상뿐이다.
             D3D12_MESSAGE_SEVERITY severities[] = {
                 D3D12_MESSAGE_SEVERITY_CORRUPTION,
-                D3D12_MESSAGE_SEVERITY_ERROR};
+                D3D12_MESSAGE_SEVERITY_ERROR,
+                D3D12_MESSAGE_SEVERITY_WARNING};
+            // **성능 권고 하나는 뺀다.** "렌더 타깃을 만들 때 최적 클리어 값을 안
+            // 주었다" 는 말인데, 우리는 패스마다 지우는 색이 달라서 만들 때 정할 수가
+            // 없다. 값을 주면 이번에는 "지우는 색이 그 값과 다르다" 는 말이 나온다.
+            // 고칠 수 없는 잡소리 하나가 매 실행 섞이면 나머지 경고를 보지 않게 된다.
+            D3D12_MESSAGE_ID ignored[] = {
+                D3D12_MESSAGE_ID_CLEARRENDERTARGETVIEW_MISMATCHINGCLEARVALUE};
             D3D12_INFO_QUEUE_FILTER filter = {};
             filter.AllowList.NumSeverities = _countof(severities);
             filter.AllowList.pSeverityList = severities;
-            m_infoQueue->PushStorageFilter(&filter);
+            filter.DenyList.NumIDs = _countof(ignored);
+            filter.DenyList.pIDList = ignored;
+            m_infoQueue->PushRetrievalFilter(&filter);
         }
 
         D3D12_COMMAND_QUEUE_DESC queueDesc = {};

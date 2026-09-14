@@ -6,6 +6,22 @@
 
 namespace JBro
 {
+    bool EnableD3D12ValidationForProcess()
+    {
+        Microsoft::WRL::ComPtr<ID3D12Debug> debugController;
+        if (FAILED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))))
+        {
+            return false;
+        }
+        debugController->EnableDebugLayer();
+        Microsoft::WRL::ComPtr<ID3D12Debug1> gpuValidation;
+        if (SUCCEEDED(debugController.As(&gpuValidation)))
+        {
+            gpuValidation->SetEnableGPUBasedValidation(TRUE);
+        }
+        return true;
+    }
+
     bool D3D12RHIModule::Initialize(const JMemoryContext& memory)
     {
         static_cast<void>(memory);

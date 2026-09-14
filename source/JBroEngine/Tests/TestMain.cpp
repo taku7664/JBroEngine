@@ -1,4 +1,6 @@
-﻿#include <exception>
+﻿#include <JBro/D3D12RHI/D3D12RHI.h>
+
+#include <exception>
 #include <iostream>
 
 int RunCanvasFoundationTests();
@@ -32,6 +34,15 @@ int RunScriptDLLLoaderTests();
 
 int main()
 {
+    // **첫 D3D12 디바이스가 생기기 전에 켜야 한다.** 디버그 레이어는 프로세스 단위라
+    // 디바이스가 하나라도 만들어진 뒤에 켜면 조용히 무시된다 - 그러면 검증을 켠 줄 알고
+    // "아무 말도 없으니 맞다" 고 믿게 된다. 그래서 다른 무엇보다 먼저 여기서 켠다.
+    if (false == JBro::EnableD3D12ValidationForProcess())
+    {
+        std::cout << "note: no D3D12 debug layer here; "
+            << "graphics tests cannot check for validation errors" << std::endl;
+    }
+
     try
     {
         if (RunCanvasFoundationTests() != 0)
