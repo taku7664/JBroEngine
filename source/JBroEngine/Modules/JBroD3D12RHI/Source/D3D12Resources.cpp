@@ -536,6 +536,7 @@ namespace JBro::Internal
         binding.descriptor = state.renderTargetDescriptor;
         binding.format = ToNativeFormat(state.desc.format);
         binding.state = &state.state;
+        binding.sampled = state.shaderResourceDescriptor.ptr != 0;
         return true;
     }
 

@@ -95,7 +95,6 @@ namespace JBro::Internal
 
     bool D3D12CommandContext::BeginRenderPass(const RenderPassDesc& desc)
     {
-        constexpr std::uint32_t MaxColorAttachments = 8;
 
         if (m_device == nullptr
             || m_commandList == nullptr
@@ -140,6 +139,17 @@ namespace JBro::Internal
         if (barrierCount != 0)
         {
             m_commandList->ResourceBarrier(barrierCount, barriers);
+        }
+
+        // 샘플링도 되는 렌더 타깃은 패스가 끝나면 셰이더 읽기 상태로 되돌려야 한다.
+        // 에디터가 게임 화면을 텍스처에 그려 놓고 같은 프레임에 그것을 읽는 길이 이것이다.
+        m_sampledAtEndCount = 0;
+        for (std::uint32_t index = 0; index < desc.colorAttachments.size; ++index)
+        {
+            if (bindings[index].sampled)
+            {
+                m_sampledAtEnd[m_sampledAtEndCount++] = bindings[index];
+            }
         }
 
         if (m_nativeRenderPasses)
@@ -214,6 +224,35 @@ namespace JBro::Internal
             {
                 m_commandList->DiscardResource(m_discardAtEnd[index], nullptr);
             }
+        }
+
+        // **되돌리는 자리가 여기다.** 네이티브 렌더 패스 안에서는 배리어가 불법이므로
+        // `SetTexture` 가 그때그때 바꿀 수 없고, 패스를 닫은 뒤에야 할 수 있다.
+        if (m_sampledAtEndCount != 0)
+        {
+            D3D12_RESOURCE_BARRIER barriers[MaxColorAttachments] = {};
+            std::uint32_t barrierCount = 0;
+            for (std::uint32_t index = 0; index < m_sampledAtEndCount; ++index)
+            {
+                D3D12RenderTargetBinding& binding = m_sampledAtEnd[index];
+                if (*binding.state == D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
+                {
+                    continue;
+                }
+                D3D12_RESOURCE_BARRIER& barrier = barriers[barrierCount++];
+                barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+                barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+                barrier.Transition.pResource = binding.resource;
+                barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+                barrier.Transition.StateBefore = *binding.state;
+                barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+                *binding.state = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+            }
+            if (barrierCount != 0)
+            {
+                m_commandList->ResourceBarrier(barrierCount, barriers);
+            }
+            m_sampledAtEndCount = 0;
         }
 
         m_discardAtEndCount = 0;

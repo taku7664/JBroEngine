@@ -76,6 +76,7 @@ namespace
         JBro::SwapchainHandle swapchain;
         JBro::TextureHandle texture;
         JBro::TextureHandle renderTargetOnly;
+        JBro::TextureHandle offscreen;
         JBro::SamplerHandle sampler;
         JBro::BufferHandle vertexBuffer;
         JBro::BufferHandle indexBuffer;
@@ -164,6 +165,17 @@ namespace
         renderTargetOnly = device->CreateTexture(renderTargetDesc);
         Check(renderTargetOnly.IsValid(), "a render target must still be creatable");
 
+        // 그려 놓고 같은 프레임에 읽는 텍스처다. 에디터의 게임 뷰가 이 모양이다.
+        // **포맷이 파이프라인의 것과 같아야 한다** - 루트 시그니처와 마찬가지로
+        // 렌더 타깃 포맷도 파이프라인을 만들 때 굳는다.
+        JBro::TextureDesc offscreenDesc;
+        offscreenDesc.extent = {SurfaceSize, SurfaceSize};
+        offscreenDesc.format = JBro::TextureFormat::BGRA8Unorm;
+        offscreenDesc.usage =
+            JBro::TextureUsage::RenderTarget | JBro::TextureUsage::Sampled;
+        offscreen = device->CreateTexture(offscreenDesc);
+        Check(offscreen.IsValid(), "a texture that is both drawn into and read must exist");
+
         JBro::SamplerDesc samplerDesc;
         // 텍셀을 그대로 집는다. 선형으로 섞으면 모서리 값이 흐려져 무엇이 어디 있는지
         // 읽을 수 없다.
@@ -234,6 +246,7 @@ namespace
         if (device != nullptr)
         {
             device->DestroySampler(sampler);
+            device->DestroyTexture(offscreen);
             device->DestroyTexture(renderTargetOnly);
             device->DestroyTexture(texture);
             device->DestroyBuffer(indexBuffer);
@@ -346,6 +359,108 @@ namespace
             "the third texel must land in the bottom left");
         Check(Near(bottomRight.r, 1.0f) && Near(bottomRight.g, 1.0f) && Near(bottomRight.b, 1.0f),
             "the fourth texel must land in the bottom right");
+
+        probe.Close();
+    }
+
+
+    // **그린 것을 같은 프레임에 읽는다.** 에디터가 게임 화면을 텍스처에 그려 놓고
+    // 그것을 ImGui 패널 안에 붙이려면 이 길이 있어야 한다(D-63).
+    //
+    // 렌더 타깃으로 쓴 텍스처는 `RENDER_TARGET` 상태로 남아 있고, 그 상태로 샘플링하면
+    // D3D12 는 대개 아무 말도 하지 않고 쓰레기를 읽는다. 되돌리는 배리어는 **패스를
+    // 닫은 뒤에** 나가야 한다 - 네이티브 렌더 패스 안의 배리어는 불법이기 때문이다.
+    void TestATextureCanBeDrawnIntoAndThenRead()
+    {
+        Probe probe;
+        if (false == probe.Open("JBro offscreen probe"))
+        {
+            std::cout << "  [skip] no D3D12 device; render to texture not verified" << std::endl;
+            return;
+        }
+
+        const JBro::BeginFrameResult begun = probe.device->BeginFrame(probe.swapchain);
+        Check(begun.status == JBro::FrameStatus::Ready, "the probe frame must begin");
+        JBro::IRHICommandContext& commands = *begun.frame.commands;
+
+        // 첫 패스 - 네 텍셀을 오프스크린 텍스처에 크게 그린다.
+        JBro::ColorAttachmentDesc offscreenAttachment;
+        offscreenAttachment.texture = probe.offscreen;
+        offscreenAttachment.loadOperation = JBro::LoadOperation::Clear;
+        offscreenAttachment.clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+        JBro::RenderPassDesc offscreenPass;
+        offscreenPass.colorAttachments = {&offscreenAttachment, 1};
+        Check(commands.BeginRenderPass(offscreenPass),
+            "a pass onto a plain texture must begin");
+
+        JBro::Viewport viewport;
+        viewport.width = static_cast<float>(SurfaceSize);
+        viewport.height = static_cast<float>(SurfaceSize);
+        commands.SetViewport(viewport);
+        commands.SetScissor({0, 0,
+            static_cast<std::int32_t>(SurfaceSize),
+            static_cast<std::int32_t>(SurfaceSize)});
+
+        Check(commands.SetGraphicsPipeline(probe.pipeline), "the pipeline must bind");
+        Check(commands.SetTexture(0, probe.texture), "the source texture must bind");
+        Check(commands.SetSampler(0, probe.sampler), "the sampler must bind");
+        Check(commands.SetVertexBuffer(0, probe.vertexBuffer, sizeof(Vertex), 0),
+            "the vertices must bind");
+        Check(commands.SetIndexBuffer(probe.indexBuffer, JBro::IndexFormat::UInt16, 0),
+            "the indices must bind");
+        Check(commands.DrawIndexedInstanced(6, 1, 0, 0, 0),
+            "the quad must draw into the texture");
+        commands.EndRenderPass();
+
+        // 두 번째 패스 - 방금 그린 그 텍스처를 읽어 백버퍼에 그린다.
+        // 지우는 색은 텍셀 중 어느 것도 아니다. 아무것도 안 그려졌으면 그 색이 남는다.
+        JBro::ColorAttachmentDesc backAttachment;
+        backAttachment.texture = begun.frame.backBuffer;
+        backAttachment.loadOperation = JBro::LoadOperation::Clear;
+        backAttachment.clearColor = {0.5f, 0.25f, 0.5f, 1.0f};
+        JBro::RenderPassDesc backPass;
+        backPass.colorAttachments = {&backAttachment, 1};
+        Check(commands.BeginRenderPass(backPass), "the back buffer pass must begin");
+        commands.SetViewport(viewport);
+        commands.SetScissor({0, 0,
+            static_cast<std::int32_t>(SurfaceSize),
+            static_cast<std::int32_t>(SurfaceSize)});
+
+        Check(commands.SetGraphicsPipeline(probe.pipeline), "the pipeline must bind again");
+        Check(commands.SetTexture(0, probe.offscreen),
+            "the texture just drawn into must bind as a source");
+        Check(commands.SetSampler(0, probe.sampler), "the sampler must bind again");
+        Check(commands.SetVertexBuffer(0, probe.vertexBuffer, sizeof(Vertex), 0),
+            "the vertices must bind again");
+        Check(commands.SetIndexBuffer(probe.indexBuffer, JBro::IndexFormat::UInt16, 0),
+            "the indices must bind again");
+        Check(commands.DrawIndexedInstanced(6, 1, 0, 0, 0), "the quad must draw again");
+        commands.EndRenderPass();
+
+        Check(probe.device->EndFrame(begun.frame) == JBro::FrameStatus::Ready,
+            "the probe frame must present");
+
+        JBro::Array<std::byte> image;
+        image.Resize(SurfaceSize * SurfaceSize * 4);
+        JBro::TextureReadback readback;
+        Check(probe.device->ReadTexture(
+                begun.frame.backBuffer, image.Data(), image.Size(), readback),
+            "the back buffer must read back");
+
+        // 두 번 지나왔어도 네 텍셀은 제 사분면에 그대로 있어야 한다.
+        const Pixel topLeft     = ReadPixel(image, readback.rowPitch, 16, 16);
+        const Pixel topRight    = ReadPixel(image, readback.rowPitch, 48, 16);
+        const Pixel bottomLeft  = ReadPixel(image, readback.rowPitch, 16, 48);
+        const Pixel bottomRight = ReadPixel(image, readback.rowPitch, 48, 48);
+
+        Check(Near(topLeft.r, 1.0f) && Near(topLeft.g, 0.0f) && Near(topLeft.b, 0.0f),
+            "the first texel must survive the round trip through the render target");
+        Check(Near(topRight.r, 0.0f) && Near(topRight.g, 1.0f) && Near(topRight.b, 0.0f),
+            "and so must the second");
+        Check(Near(bottomLeft.r, 0.0f) && Near(bottomLeft.g, 0.0f) && Near(bottomLeft.b, 1.0f),
+            "and the third");
+        Check(Near(bottomRight.r, 1.0f) && Near(bottomRight.g, 1.0f) && Near(bottomRight.b, 1.0f),
+            "and the fourth");
 
         probe.Close();
     }
@@ -465,6 +580,7 @@ namespace
 int RunTextureBindingTests()
 {
     TestATextureReachesTheShader();
+    TestATextureCanBeDrawnIntoAndThenRead();
     TestDrawingNeedsEverySlotItDeclared();
     TestTheDescriptorRingRewindsEachFrame();
     TestAFreedSamplerDoesNotComeBack();

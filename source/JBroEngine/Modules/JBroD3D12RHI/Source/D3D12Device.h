@@ -16,12 +16,18 @@ namespace JBro::Internal
     inline constexpr std::uint32_t MaxBoundTextures = 8;
     inline constexpr std::uint32_t MaxBoundSamplers = 4;
 
+    // 한 패스에 붙일 수 있는 색 첨부의 수다. 배리어 배열이 이 크기로 잡히므로
+    // 컨텍스트와 패스 시작 코드가 같은 값을 봐야 한다.
+    constexpr std::uint32_t MaxColorAttachments = 8;
+
     struct D3D12RenderTargetBinding
     {
         ID3D12Resource* resource = nullptr;
         D3D12_CPU_DESCRIPTOR_HANDLE descriptor = {};
         DXGI_FORMAT format = DXGI_FORMAT_UNKNOWN;
         D3D12_RESOURCE_STATES* state = nullptr;
+        // Sampled 로도 만든 텍스처다. 패스가 끝나면 셰이더가 읽을 수 있는 상태로 되돌린다.
+        bool sampled = false;
     };
 
     struct D3D12BufferBinding
@@ -88,8 +94,12 @@ namespace JBro::Internal
         // 가리키므로, 슬롯이 다 모이기 전에는 어디에 놓을지 정할 수 없다.
         bool BindPendingDescriptors();
 
-        ID3D12Resource* m_discardAtEnd[8] = {};
+        ID3D12Resource* m_discardAtEnd[MaxColorAttachments] = {};
         std::uint32_t m_discardAtEndCount = 0;
+        // 패스가 끝날 때 셰이더 읽기 상태로 되돌릴 렌더 타깃이다.
+        // **패스 안에서는 되돌릴 수 없다** - 네이티브 렌더 패스 안의 배리어는 불법이다.
+        D3D12RenderTargetBinding m_sampledAtEnd[MaxColorAttachments] = {};
+        std::uint32_t m_sampledAtEndCount = 0;
         std::uint32_t m_activePushConstantCount = 0;
         D3D12PipelineBinding m_activePipeline;
         D3D12_CPU_DESCRIPTOR_HANDLE m_pendingTextures[MaxBoundTextures] = {};
