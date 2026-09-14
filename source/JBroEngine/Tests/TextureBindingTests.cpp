@@ -89,6 +89,30 @@ namespace
         void Close();
     };
 
+    // 개수만 바꿔서 쓸 수 있도록 한 자리에서 만든다. 그러지 않으면 "너무 많다" 를
+    // 시험한다면서 실은 다른 이유로 실패하는 서술자를 넘기게 된다.
+    JBro::GraphicsPipelineDesc MakeTexturedPipelineDesc()
+    {
+        static const JBro::VertexAttributeDesc attributes[] = {
+            {0, 0, JBro::VertexFormat::Float2},
+            {1, 8, JBro::VertexFormat::Float2},
+        };
+        static const JBro::VertexBufferLayoutDesc layout = {
+            sizeof(Vertex), JBro::VertexStepMode::Vertex, {attributes, 2}
+        };
+        static const JBro::TextureFormat colorFormats[] = {JBro::TextureFormat::BGRA8Unorm};
+
+        JBro::GraphicsPipelineDesc desc;
+        desc.vertexShader = {JBroTestTexturedQuadVS, sizeof(JBroTestTexturedQuadVS)};
+        desc.pixelShader = {JBroTestTexturedQuadPS, sizeof(JBroTestTexturedQuadPS)};
+        desc.vertexBuffers = {&layout, 1};
+        desc.colorFormats = {colorFormats, 1};
+        desc.cull = JBro::CullMode::None;
+        desc.sampledTextureCount = 1;
+        desc.samplerCount = 1;
+        return desc;
+    }
+
     bool Probe::Open(const char* title)
     {
         JBro::JMemoryContext memory;
@@ -176,24 +200,7 @@ namespace
             {reinterpret_cast<const std::byte*>(indices), sizeof(indices)}),
             "the indices must upload");
 
-        static const JBro::VertexAttributeDesc attributes[] = {
-            {0, 0, JBro::VertexFormat::Float2},
-            {1, 8, JBro::VertexFormat::Float2},
-        };
-        JBro::VertexBufferLayoutDesc layout;
-        layout.stride = sizeof(Vertex);
-        layout.attributes = {attributes, 2};
-        static const JBro::TextureFormat colorFormats[] = {JBro::TextureFormat::BGRA8Unorm};
-
-        JBro::GraphicsPipelineDesc pipelineDesc;
-        pipelineDesc.vertexShader = {JBroTestTexturedQuadVS, sizeof(JBroTestTexturedQuadVS)};
-        pipelineDesc.pixelShader = {JBroTestTexturedQuadPS, sizeof(JBroTestTexturedQuadPS)};
-        pipelineDesc.vertexBuffers = {&layout, 1};
-        pipelineDesc.colorFormats = {colorFormats, 1};
-        pipelineDesc.cull = JBro::CullMode::None;
-        pipelineDesc.sampledTextureCount = 1;
-        pipelineDesc.samplerCount = 1;
-        pipeline = device->CreateGraphicsPipeline(pipelineDesc);
+        pipeline = device->CreateGraphicsPipeline(MakeTexturedPipelineDesc());
         Check(pipeline.IsValid(), "the textured pipeline must be created");
         return true;
     }
@@ -276,12 +283,17 @@ namespace
 
         // 선언한 수를 넘는 파이프라인은 거절한다. 루트 시그니처는 만들고 나면 못 바꾸므로
         // 여기서 막지 않으면 그리는 자리에서 조용히 잘린다.
-        JBro::GraphicsPipelineDesc tooMany;
-        tooMany.vertexShader = {JBroTestTexturedQuadVS, sizeof(JBroTestTexturedQuadVS)};
-        tooMany.pixelShader = {JBroTestTexturedQuadPS, sizeof(JBroTestTexturedQuadPS)};
+        JBro::GraphicsPipelineDesc tooMany = MakeTexturedPipelineDesc();
         tooMany.sampledTextureCount = 64;
+        // 같은 서술자에서 개수만 되돌리면 만들어져야 한다. 위의 거절이 개수 때문이지
+        // 다른 무엇 때문이 아님을 그것이 말해 준다.
+        JBro::GraphicsPipelineDesc justEnough = MakeTexturedPipelineDesc();
         Check(false == probe.device->CreateGraphicsPipeline(tooMany).IsValid(),
             "a pipeline asking for more textures than the backend binds must be refused");
+        const JBro::GraphicsPipelineHandle spare =
+            probe.device->CreateGraphicsPipeline(justEnough);
+        Check(spare.IsValid(), "the same descriptor with a workable count must be created");
+        probe.device->DestroyGraphicsPipeline(spare);
 
         const JBro::BeginFrameResult begun = probe.device->BeginFrame(probe.swapchain);
         Check(begun.status == JBro::FrameStatus::Ready, "the probe frame must begin");
