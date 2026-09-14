@@ -194,10 +194,45 @@ namespace
         Check(false == project.scriptOutputLibraryPath.empty(),
             "a real legacy project must name its script library");
     }
+
+    void TestAnEmptyStringIsAValueNotABlock()
+    {
+        // `Key: ""` 는 "비었다는 값" 이고 `Key:` 는 "아래에 블록이 온다" 다.
+        // 따옴표를 먼저 벗기면 둘이 같아져서, 명시적으로 비운 키가 통째로 무시되고
+        // 뒤따르는 줄까지 그 블록의 내용으로 건너뛰어진다.
+        JBro::ProjectFile project;
+        JBro::ProjectFileError error;
+        const char* text =
+            "Version: 1\n"
+            "ScriptOutputLibraryPath: \"\"\n"
+            "LastOpenedCanvasPath: Scenes/Opening.jcanvas\n";
+        if (false == JBro::ParseProjectFile(text, std::strlen(text), project, error))
+        {
+            std::cout << "  parse failed at line " << error.line
+                << ": " << error.message.c_str() << std::endl;
+            Check(false, "a project with an explicitly empty value must parse");
+        }
+        Check(project.scriptOutputLibraryPath.empty(),
+            "an empty string must replace the default, not be skipped");
+        Check(project.lastOpenedCanvasPath == "Scenes/Opening.jcanvas",
+            "the key after it must not be swallowed as part of a block");
+
+        // 값이 없는 키는 여전히 블록의 시작이다.
+        JBro::ProjectFile withBlock;
+        const char* blockText =
+            "Version: 1\n"
+            "Build:\n"
+            "  ProductName: Game\n";
+        Check(JBro::ParseProjectFile(blockText, std::strlen(blockText), withBlock, error),
+            "a key with no value must still open a block");
+        Check(withBlock.build.productName == "Game", "and its contents must be read");
+    }
+
 }
 
 int RunProjectFileTests()
 {
+    TestAnEmptyStringIsAValueNotABlock();
     TestReadsTheLegacyProjectShape();
     TestReadsARealLegacyProjectFileIfPresent();
     TestRefusesWhatItDoesNotUnderstand();

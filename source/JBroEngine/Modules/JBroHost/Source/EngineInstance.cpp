@@ -104,6 +104,12 @@ namespace JBro
         const String modulePath = ResolveScriptModulePath(project, projectFilePath);
         if (false == OpenProject(framework, modulePath.c_str()))
         {
+            // 파일은 읽혔는데 여는 데 실패한 것이다. 여기서 아무 말도 하지 않으면
+            // 부르는 쪽은 빈 오류를 받고 무엇이 잘못됐는지 알 길이 없다.
+            error.line = 0;
+            error.message = modulePath.empty()
+                ? "the project file was read but the project could not be opened"
+                : "the project file was read but its script module could not be loaded";
             return false;
         }
         m_project = project;

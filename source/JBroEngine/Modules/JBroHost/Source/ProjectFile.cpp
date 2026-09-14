@@ -252,6 +252,10 @@ namespace JBro
             }
             const String key = Trim(content, colon);
             String value = Trim(colon + 1, contentEnd);
+            // 값이 있는지는 **따옴표를 벗기기 전에** 본다. `Key: ""` 는 빈 문자열이라는
+            // 값이고 `Key:` 는 아래에 블록이 온다는 뜻인데, 먼저 벗기면 둘이 같아진다.
+            // 그러면 명시적으로 비운 키가 통째로 무시되고, 뒤따르는 줄까지 건너뛴다.
+            const bool hasValue = false == value.empty();
             if (false == Unquote(value))
             {
                 return Fail(error, lineNumber, "unterminated quoted string");
@@ -274,7 +278,7 @@ namespace JBro
             }
 
             // 값이 비어 있으면 아래에 블록이 온다.
-            if (value.empty())
+            if (false == hasValue)
             {
                 currentSequence = nullptr;
                 if (indent == 0 && key == "Build")
