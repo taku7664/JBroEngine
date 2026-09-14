@@ -19,7 +19,7 @@ namespace JBro
     //     ... ImGui::Begin/End ...    // 사용자 UI
     //     ui.EndFrame()               // ImGui::Render + 텍스처 요청 처리
     //     device->BeginFrame(...)     // RHI 프레임 시작
-    //     ui.Draw(commands)           // 드로우 리스트 제출
+    //     ui.Draw(commands, slot)     // 드로우 리스트 제출
     //     device->EndFrame(...)
     //
     // **텍스처 처리가 `EndFrame` 에 있는 것이 핵심이다.** ImGui 는 폰트 아틀라스를
@@ -59,7 +59,12 @@ namespace JBro
         // ImGui 를 마무리하고 텍스처 요청을 처리한다. **RHI 프레임 밖에서 부른다.**
         bool EndFrame();
         // 마지막 EndFrame 이 만든 드로우 리스트를 제출한다. 렌더 패스 안에서 부른다.
-        bool Draw(IRHICommandContext& commands);
+        //
+        // **`frameSlot` 이 정점을 어느 버퍼에 쓸지를 정한다.** 버퍼가 하나뿐이면
+        // 지난 프레임이 아직 읽는 중에 이번 프레임이 덮어쓴다 - `WriteBuffer` 는
+        // 매핑된 메모리에 그냥 memcpy 라 기다려 주지 않는다. 그 슬롯의 지난
+        // 프레임이 끝났다는 것은 RHI 가 보장한다.
+        bool Draw(IRHICommandContext& commands, std::uint32_t frameSlot);
 
         // 텍스처 핸들을 ImGui 가 쓰는 값으로 접는다. **에디터가 게임 뷰를
         // `ImGui::Image` 로 붙이려면 이것이 필요하다** - 그 값이 다시 이 백엔드로
@@ -78,17 +83,26 @@ namespace JBro
             std::uint32_t height = 0;
         };
 
-        bool EnsureBuffers(std::size_t vertexBytes, std::size_t indexBytes);
+        // 슬롯 수의 상한이다. 실제로 쓰는 수는 RHI 가 알려 준다.
+        static constexpr std::uint32_t MaxFrameSlots = 4;
+
+        bool EnsureBuffers(std::uint32_t slot, std::size_t vertexBytes,
+            std::size_t indexBytes);
+        // 모든 슬롯에 이번 프레임의 데이터가 들어갈 자리를 잡는다.
+        // **버퍼를 만드는 일은 프레임 밖에서만 된다** - 어느 슬롯이 쓰일지
+        // 알기 전이므로 전부 잡아 둔다.
+        bool ReserveBuffers();
         bool ProcessTextureRequests();
-        bool UploadDrawData();
+        bool UploadDrawData(std::uint32_t slot);
 
         IRHIDevice* m_device = nullptr;
         GraphicsPipelineHandle m_pipeline;
         SamplerHandle m_sampler;
-        BufferHandle m_vertices;
-        BufferHandle m_indices;
-        std::size_t m_vertexCapacity = 0;
-        std::size_t m_indexCapacity = 0;
+        BufferHandle m_vertices[MaxFrameSlots];
+        BufferHandle m_indices[MaxFrameSlots];
+        std::size_t m_vertexCapacity[MaxFrameSlots] = {};
+        std::size_t m_indexCapacity[MaxFrameSlots] = {};
+        std::uint32_t m_frameSlots = 1;
         std::size_t m_lastDrawCount = 0;
         // ImGui 컨텍스트는 이 객체가 소유한다. 여러 개를 만들 일이 없으므로 숨긴다.
         void* m_context = nullptr;

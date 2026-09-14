@@ -283,6 +283,11 @@ namespace JBro::Internal
         }
     }
 
+    std::uint32_t D3D12Device::GetFramesInFlight() const
+    {
+        return MaxFramesInFlight;
+    }
+
     std::uint32_t D3D12Device::GetValidationErrorCount() const
     {
         if (m_infoQueue == nullptr)

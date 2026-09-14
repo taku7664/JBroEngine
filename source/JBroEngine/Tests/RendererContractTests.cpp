@@ -964,7 +964,11 @@ namespace
         JBro::TextureHandle backBuffer;
     };
 
-    bool RecordHostOverlay(JBro::IRHICommandContext&, JBro::TextureHandle backBuffer, void* user)
+    bool RecordHostOverlay(
+        JBro::IRHICommandContext&,
+        JBro::TextureHandle backBuffer,
+        std::uint32_t,
+        void* user)
     {
         auto* probe = static_cast<HostOverlayProbe*>(user);
         ++probe->calls;

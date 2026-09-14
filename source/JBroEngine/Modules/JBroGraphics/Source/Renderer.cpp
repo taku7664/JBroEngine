@@ -295,7 +295,7 @@ namespace JBro
         // 게임을 그린 뒤, 프레임을 닫기 전. 에디터 UI 가 여기서 백버퍼에 얹힌다.
         if (m_frameOverlay != nullptr
             && false == m_frameOverlay(
-                *m_frame.commands, m_frame.backBuffer, m_frameOverlayUser))
+                *m_frame.commands, m_frame.backBuffer, m_frame.slot, m_frameOverlayUser))
         {
             m_device->AbortFrame(m_frame);
             m_lastStats = m_currentStats;

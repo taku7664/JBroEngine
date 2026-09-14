@@ -278,15 +278,20 @@ namespace
     struct OverlayProbe
     {
         int calls = 0;
+        std::uint32_t lastSlot = 0xFFFFFFFFu;
         bool succeed = true;
         float mark[4] = {0.25f, 0.75f, 0.5f, 1.0f};
     };
 
     bool DrawOverlayProbe(
-        JBro::IRHICommandContext& commands, JBro::TextureHandle backBuffer, void* user)
+        JBro::IRHICommandContext& commands,
+        JBro::TextureHandle backBuffer,
+        std::uint32_t frameSlot,
+        void* user)
     {
         auto* probe = static_cast<OverlayProbe*>(user);
         ++probe->calls;
+        probe->lastSlot = frameSlot;
         if (false == probe->succeed)
         {
             return false;
@@ -362,6 +367,8 @@ namespace
         // 게임은 아무것도 제출하지 않는다. 그래도 오버레이는 불려야 한다.
         Check(renderer.EndFrame() == JBro::FrameStatus::Ready, "the frame must present");
         Check(probe.calls == 1, "the overlay must run once");
+        // 슬롯을 알려 줘야 매 프레임 덮어쓰는 자원을 갈라 쓸 수 있다.
+        Check(probe.lastSlot != 0xFFFFFFFFu, "and be told which slot the frame uses");
 
         JBro::Array<std::byte> image;
         image.Resize(64 * 64 * 4);

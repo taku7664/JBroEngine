@@ -257,7 +257,13 @@ namespace JBro
             m_lastFrameStatus = FrameStatus::SurfaceLost;
             return false;
         }
-        if (m_framework == nullptr || m_projectCloseRequested
+        // **프로젝트가 없어도 에디터는 그릴 것이 있다.** 오버레이가 걸려 있으면
+        // 프레임을 그대로 연다 - 그러지 않으면 프로젝트를 닫아 둔 에디터가
+        // 검은 창이 된다. 최소화와 프로젝트 정리 중은 여전히 건너뛴다:
+        // 그릴 표면이 없거나, 지금 내려가는 중이다.
+        const bool nothingToDraw =
+            m_framework == nullptr && false == m_renderer->HasFrameOverlay();
+        if (nothingToDraw || m_projectCloseRequested
             || windowState.minimized || windowState.width == 0 || windowState.height == 0)
         {
             m_lastFrameStatus = FrameStatus::Skipped;
@@ -280,7 +286,10 @@ namespace JBro
         {
             return false;
         }
-        const RenderResult renderResult = m_framework->Render();
+        // 프로젝트가 없으면 게임이 제출할 것도 없다. 그 프레임은 오버레이가 산다.
+        const RenderResult renderResult = m_framework != nullptr
+            ? m_framework->Render()
+            : RenderResult::NothingToSubmit;
         if (renderResult == RenderResult::Failed || m_exitRequested)
         {
             m_lastFrameStatus = renderResult == RenderResult::Failed

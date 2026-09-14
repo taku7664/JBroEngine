@@ -25,6 +25,85 @@ namespace
         }
     }
 
+    // 에디터 오버레이가 백버퍼를 지우는 색이다(0.09, 0.09, 0.11). 패널이 덮은
+    // 자리는 이 색이 아니다. **밝기로 재면 안 된다** - ImGui 의 창 배경은
+    // 오버레이가 지운 색보다 오히려 어둡다.
+    constexpr int ClearRed = 23;
+    constexpr int ClearGreen = 23;
+    constexpr int ClearBlue = 28;
+
+    bool DiffersFromClear(const unsigned char* pixel)
+    {
+        const auto apart = [](unsigned char got, int want) {
+            const int gap = static_cast<int>(got) - want;
+            return gap > 4 || gap < -4;
+        };
+        return apart(pixel[0], ClearBlue)
+            || apart(pixel[1], ClearGreen)
+            || apart(pixel[2], ClearRed);
+    }
+
+    // 창을 되읽어 지움색이 아닌 픽셀을 센다.
+    std::size_t CountPaintedPixels(JBro::Renderer& renderer, std::uint32_t width,
+        std::uint32_t height)
+    {
+        JBro::Array<std::byte> image;
+        image.Resize(static_cast<std::size_t>(width) * height * 4);
+        JBro::TextureReadback readback;
+        Check(renderer.ReadBackBuffer(image.Data(), image.Size(), readback),
+            "the editor window must read back");
+        std::size_t painted = 0;
+        for (std::uint32_t y = 0; y < height; ++y)
+        {
+            for (std::uint32_t x = 0; x < width; ++x)
+            {
+                const std::size_t offset = static_cast<std::size_t>(y) * readback.rowPitch
+                    + static_cast<std::size_t>(x) * 4;
+                if (DiffersFromClear(
+                        reinterpret_cast<const unsigned char*>(image.Data() + offset)))
+                {
+                    ++painted;
+                }
+            }
+        }
+        return painted;
+    }
+
+    // **프로젝트가 없어도 에디터 창은 살아 있어야 한다.** 호스트는 프레임워크가
+    // 없으면 그릴 것이 없다고 보고 프레임을 통째로 건너뛰는데, 그러면 프로젝트를
+    // 닫아 둔 에디터가 검은 창이 된다 - 메뉴도 프로젝트 브라우저도 그때 필요하다.
+    void TestTheEditorDrawsWithNoProjectOpen()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 320;
+        config.windowHeight = 240;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the empty editor not verified"
+                << std::endl;
+            return;
+        }
+        Check(false == editor.HasOpenProject(), "this editor has no project");
+        Check(editor.EnableEditorUi({64, 48}),
+            "the UI must start before any project is opened");
+
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(1.0f / 60.0f), "the empty editor must keep ticking");
+        }
+
+        JBro::Renderer* renderer = editor.GetRenderer();
+        Check(renderer != nullptr, "the editor must expose its renderer");
+        const std::size_t painted = CountPaintedPixels(*renderer, 320, 240);
+        std::cout << "  the empty editor painted " << painted << " pixels" << std::endl;
+        Check(painted > (320 * 240) / 2,
+            "the panel must be on the window even with no project open");
+
+        editor.Shutdown();
+    }
+
     // **에디터 화면이 실제로 나오는가.** 게임은 텍스처로 가고 백버퍼에는 UI 만 남는다 -
     // 그 프레임은 "게임이 낼 것이 없는" 프레임이기도 해서, 배선이 하나라도 어긋나면
     // 화면이 통째로 검게 남는다. 픽셀을 되읽지 않으면 알 수 없다(D-63).
@@ -88,16 +167,6 @@ namespace
         Check(renderer->ReadBackBuffer(image.Data(), image.Size(), readback),
             "the editor window must read back");
 
-        // 오버레이가 백버퍼를 지우는 색이다(0.09, 0.09, 0.11). 패널이 덮은 자리는
-        // 이 색이 아니다.
-        constexpr int ClearRed = 23;
-        constexpr int ClearGreen = 23;
-        constexpr int ClearBlue = 28;
-        const auto Differs = [](unsigned char got, int want) {
-            const int gap = static_cast<int>(got) - want;
-            return gap > 4 || gap < -4;
-        };
-
         std::size_t painted = 0;
         std::size_t bright = 0;
         for (std::uint32_t y = 0; y < 240; ++y)
@@ -110,9 +179,7 @@ namespace
                     reinterpret_cast<const unsigned char*>(image.Data() + offset);
                 // **지움색과 다른지를 본다.** 밝기로 재면 안 된다 - ImGui 의 창
                 // 배경은 오버레이가 지운 색보다 오히려 어둡다.
-                if (Differs(pixel[0], ClearBlue)
-                    || Differs(pixel[1], ClearGreen)
-                    || Differs(pixel[2], ClearRed))
+                if (DiffersFromClear(pixel))
                 {
                     ++painted;
                 }
@@ -428,6 +495,7 @@ int RunEditorApplicationTests()
 {
     TestEditorProjectSessions();
     TestTheEditorPaintsItsOwnScreen();
+    TestTheEditorDrawsWithNoProjectOpen();
     TestEditorOpensAProjectFile();
     TestEditorSavesAndOpensACanvas();
     TestCanvasWorkNeedsAnOpenProject();

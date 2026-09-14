@@ -105,7 +105,10 @@ namespace JBro
     private:
         // 렌더러가 뷰를 다 기록한 뒤, 프레임을 닫기 전에 불린다.
         static bool DrawEditorOverlay(
-            IRHICommandContext& commands, TextureHandle backBuffer, void* user);
+            IRHICommandContext& commands,
+            TextureHandle backBuffer,
+            std::uint32_t frameSlot,
+            void* user);
         bool BuildEditorUi(float deltaTime);
         void ReleaseEditorUi();
         // 디바이스가 이미 사라진 뒤에 부른다.

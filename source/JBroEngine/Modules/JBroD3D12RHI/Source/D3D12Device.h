@@ -198,6 +198,7 @@ namespace JBro::Internal
             std::size_t destinationSize,
             TextureReadback& result) override;
         std::uint32_t GetValidationErrorCount() const override;
+        std::uint32_t GetFramesInFlight() const override;
         bool WriteBuffer(
             BufferHandle buffer,
             std::size_t offset,

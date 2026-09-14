@@ -393,7 +393,10 @@ namespace JBro
     }
 
     bool EditorApplication::DrawEditorOverlay(
-        IRHICommandContext& commands, TextureHandle backBuffer, void* user)
+        IRHICommandContext& commands,
+        TextureHandle backBuffer,
+        std::uint32_t frameSlot,
+        void* user)
     {
         auto* self = static_cast<EditorApplication*>(user);
         Renderer* renderer = self->m_engine->GetRenderer();
@@ -419,7 +422,7 @@ namespace JBro
         viewport.height = static_cast<float>(display.height);
         commands.SetViewport(viewport);
 
-        const bool drawn = self->m_ui.Draw(commands);
+        const bool drawn = self->m_ui.Draw(commands, frameSlot);
         commands.EndRenderPass();
         return drawn;
     }

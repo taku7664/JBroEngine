@@ -140,6 +140,17 @@ namespace JBro
             return false;
         }
         m_device = &device;
+        // **슬롯 수는 RHI 에게 묻는다.** 짐작해서 하나로 두면 지난 프레임이
+        // 아직 읽는 정점 버퍼를 이번 프레임이 덮어쓴다.
+        m_frameSlots = device.GetFramesInFlight();
+        if (m_frameSlots == 0)
+        {
+            m_frameSlots = 1;
+        }
+        if (m_frameSlots > MaxFrameSlots)
+        {
+            m_frameSlots = MaxFrameSlots;
+        }
 
         IMGUI_CHECKVERSION();
         ImGuiContext* context = ImGui::CreateContext();
@@ -236,15 +247,22 @@ namespace JBro
         {
             m_device->DestroyGraphicsPipeline(m_pipeline);
             m_device->DestroySampler(m_sampler);
-            m_device->DestroyBuffer(m_vertices);
-            m_device->DestroyBuffer(m_indices);
+            for (std::uint32_t slot = 0; slot < MaxFrameSlots; ++slot)
+            {
+                m_device->DestroyBuffer(m_vertices[slot]);
+                m_device->DestroyBuffer(m_indices[slot]);
+            }
         }
         m_pipeline = {};
         m_sampler = {};
-        m_vertices = {};
-        m_indices = {};
-        m_vertexCapacity = 0;
-        m_indexCapacity = 0;
+        for (std::uint32_t slot = 0; slot < MaxFrameSlots; ++slot)
+        {
+            m_vertices[slot] = {};
+            m_indices[slot] = {};
+            m_vertexCapacity[slot] = 0;
+            m_indexCapacity[slot] = 0;
+        }
+        m_frameSlots = 1;
         m_lastDrawCount = 0;
         m_device = nullptr;
         m_frameOpen = false;
@@ -272,10 +290,14 @@ namespace JBro
         m_device = nullptr;
         m_pipeline = {};
         m_sampler = {};
-        m_vertices = {};
-        m_indices = {};
-        m_vertexCapacity = 0;
-        m_indexCapacity = 0;
+        for (std::uint32_t slot = 0; slot < MaxFrameSlots; ++slot)
+        {
+            m_vertices[slot] = {};
+            m_indices[slot] = {};
+            m_vertexCapacity[slot] = 0;
+            m_indexCapacity[slot] = 0;
+        }
+        m_frameSlots = 1;
         m_lastDrawCount = 0;
         m_frameOpen = false;
         m_initialized = false;
@@ -406,12 +428,13 @@ namespace JBro
         {
             return false;
         }
-        // 정점·인덱스 버퍼도 여기서 잡는다. `CreateBuffer` 는 `CreateTexture` 와 같은 이유로
-        // 프레임 안에서 거절하므로, 그리는 자리에서는 이미 잡혀 있어야 한다.
-        return UploadDrawData();
+        // 정점·인덱스 버퍼의 **자리만** 여기서 잡는다. `CreateBuffer` 는
+        // `CreateTexture` 와 같은 이유로 프레임 안에서 거절하므로, 그리는
+        // 자리에서는 이미 잡혀 있어야 한다. 채우는 것은 슬롯을 아는 `Draw` 다.
+        return ReserveBuffers();
     }
 
-    bool EditorUI::UploadDrawData()
+    bool EditorUI::UploadDrawData(std::uint32_t slot)
     {
         const ImDrawData* drawData = ImGui::GetDrawData();
         if (drawData == nullptr || drawData->TotalVtxCount == 0)
@@ -420,11 +443,13 @@ namespace JBro
             return true;
         }
 
+        // 자리는 EndFrame 이 이미 잡아 두었다. 여기서는 채우기만 한다 -
+        // 프레임 안이라 버퍼를 새로 만들 수 없다.
         const std::size_t vertexBytes =
             static_cast<std::size_t>(drawData->TotalVtxCount) * sizeof(ImDrawVert);
         const std::size_t indexBytes =
             static_cast<std::size_t>(drawData->TotalIdxCount) * sizeof(ImDrawIdx);
-        if (false == EnsureBuffers(vertexBytes, indexBytes))
+        if (vertexBytes > m_vertexCapacity[slot] || indexBytes > m_indexCapacity[slot])
         {
             return false;
         }
@@ -440,10 +465,10 @@ namespace JBro
                 static_cast<std::size_t>(list->VtxBuffer.Size) * sizeof(ImDrawVert);
             const std::size_t listIndexBytes =
                 static_cast<std::size_t>(list->IdxBuffer.Size) * sizeof(ImDrawIdx);
-            if (false == m_device->WriteBuffer(m_vertices, vertexOffset,
+            if (false == m_device->WriteBuffer(m_vertices[slot], vertexOffset,
                     {reinterpret_cast<const std::byte*>(list->VtxBuffer.Data),
                         static_cast<std::uint32_t>(listVertexBytes)})
-                || false == m_device->WriteBuffer(m_indices, indexOffset,
+                || false == m_device->WriteBuffer(m_indices[slot], indexOffset,
                     {reinterpret_cast<const std::byte*>(list->IdxBuffer.Data),
                         static_cast<std::uint32_t>(listIndexBytes)}))
             {
@@ -533,48 +558,76 @@ namespace JBro
         return true;
     }
 
-    bool EditorUI::EnsureBuffers(std::size_t vertexBytes, std::size_t indexBytes)
+    bool EditorUI::EnsureBuffers(
+        std::uint32_t slot, std::size_t vertexBytes, std::size_t indexBytes)
     {
         // 프레임마다 다시 만들지 않는다. 늘어날 때만 새로 잡는다 —
         // UI 정점 수는 프레임마다 출렁이므로 딱 맞게 잡으면 매번 다시 만들게 된다.
-        if (vertexBytes > m_vertexCapacity)
+        if (vertexBytes > m_vertexCapacity[slot])
         {
-            m_device->DestroyBuffer(m_vertices);
+            m_device->DestroyBuffer(m_vertices[slot]);
             const std::size_t capacity = vertexBytes + vertexBytes / 2;
             BufferDesc desc;
             desc.size = capacity;
             desc.usage = BufferUsage::Vertex;
             desc.memory = MemoryType::Upload;
-            m_vertices = m_device->CreateBuffer(desc);
-            if (false == m_vertices.IsValid())
+            m_vertices[slot] = m_device->CreateBuffer(desc);
+            if (false == m_vertices[slot].IsValid())
             {
-                m_vertexCapacity = 0;
+                m_vertexCapacity[slot] = 0;
                 return false;
             }
-            m_vertexCapacity = capacity;
+            m_vertexCapacity[slot] = capacity;
         }
-        if (indexBytes > m_indexCapacity)
+        if (indexBytes > m_indexCapacity[slot])
         {
-            m_device->DestroyBuffer(m_indices);
+            m_device->DestroyBuffer(m_indices[slot]);
             const std::size_t capacity = indexBytes + indexBytes / 2;
             BufferDesc desc;
             desc.size = capacity;
             desc.usage = BufferUsage::Index;
             desc.memory = MemoryType::Upload;
-            m_indices = m_device->CreateBuffer(desc);
-            if (false == m_indices.IsValid())
+            m_indices[slot] = m_device->CreateBuffer(desc);
+            if (false == m_indices[slot].IsValid())
             {
-                m_indexCapacity = 0;
+                m_indexCapacity[slot] = 0;
                 return false;
             }
-            m_indexCapacity = capacity;
+            m_indexCapacity[slot] = capacity;
         }
         return true;
     }
 
-    bool EditorUI::Draw(IRHICommandContext& commands)
+    bool EditorUI::ReserveBuffers()
+    {
+        const ImDrawData* drawData = ImGui::GetDrawData();
+        if (drawData == nullptr || drawData->TotalVtxCount == 0)
+        {
+            // 그릴 것이 없다. 실패가 아니다.
+            return true;
+        }
+        const std::size_t vertexBytes =
+            static_cast<std::size_t>(drawData->TotalVtxCount) * sizeof(ImDrawVert);
+        const std::size_t indexBytes =
+            static_cast<std::size_t>(drawData->TotalIdxCount) * sizeof(ImDrawIdx);
+        for (std::uint32_t slot = 0; slot < m_frameSlots; ++slot)
+        {
+            if (false == EnsureBuffers(slot, vertexBytes, indexBytes))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    bool EditorUI::Draw(IRHICommandContext& commands, std::uint32_t frameSlot)
     {
         m_lastDrawCount = 0;
+        if (frameSlot >= m_frameSlots)
+        {
+            // RHI 가 말한 것보다 많은 슬롯이다. 그리면 남의 버퍼를 읽는다.
+            return false;
+        }
         if (false == m_initialized || m_frameOpen)
         {
             // 프레임이 아직 열려 있다. EndFrame 을 부르지 않았다는 뜻이고,
@@ -593,8 +646,15 @@ namespace JBro
             return true;
         }
 
-        // 버퍼는 EndFrame 이 이미 채워 두었다.
-        if (false == m_vertices.IsValid() || false == m_indices.IsValid())
+        // **이 슬롯의 버퍼에 지금 채운다.** 이 슬롯을 쓰는 지난 프레임은 이미
+        // 끝났다고 RHI 가 보장하므로, 여기서 덮어써도 읽는 중인 것을 건드리지
+        // 않는다. 커맨드 리스트는 아직 제출되지 않았으니 순서도 맞다.
+        if (false == UploadDrawData(frameSlot))
+        {
+            return false;
+        }
+        if (false == m_vertices[frameSlot].IsValid()
+            || false == m_indices[frameSlot].IsValid())
         {
             return false;
         }
@@ -603,8 +663,10 @@ namespace JBro
         {
             return false;
         }
-        if (false == commands.SetVertexBuffer(0, m_vertices, sizeof(ImDrawVert), 0)
-            || false == commands.SetIndexBuffer(m_indices, IndexFormat::UInt16, 0))
+        if (false == commands.SetVertexBuffer(
+                0, m_vertices[frameSlot], sizeof(ImDrawVert), 0)
+            || false == commands.SetIndexBuffer(
+                m_indices[frameSlot], IndexFormat::UInt16, 0))
         {
             return false;
         }

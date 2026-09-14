@@ -470,6 +470,18 @@ namespace JBro
             return false;
         }
 
+        // 동시에 떠 있을 수 있는 프레임 수다.
+        //
+        // **CPU 가 매 프레임 덮어쓰는 자원은 이만큼 나눠 가져야 한다.** 하나로
+        // 두면 지난 프레임이 아직 읽는 중에 다음 프레임이 덮어쓴다 -
+        // `WriteBuffer` 는 매핑된 메모리에 그냥 memcpy 이고 기다려 주지 않는다.
+        // 나누는 자리는 프레임 슬롯이다(`FrameContext::slot`). 그 슬롯의 지난
+        // 프레임이 끝났다는 것은 `BeginFrame` 이 이미 보장한다.
+        virtual std::uint32_t GetFramesInFlight() const
+        {
+            return 1;
+        }
+
         // 그래픽 API 의 검증 레이어가 남긴 오류·손상 메시지의 수다.
         //
         // **이것은 테스트가 붙잡는 손잡이다.** D3D12 는 잘못된 리소스 상태나 잘못된

@@ -53,8 +53,14 @@ namespace JBro
     // **렌더러가 프레임과 커맨드 컨텍스트를 쥔 채로 불러들인다.** 그것들을 밖으로
     // 꺼내 주면 프레임을 누가 여닫는지가 둘로 갈린다. false 를 돌려주면 프레임을
     // 버린다 - UI 가 반쯤 그려진 화면을 내보내지 않는다.
-    using FrameOverlay =
-        bool (*)(IRHICommandContext& commands, TextureHandle backBuffer, void* user);
+    // `frameSlot` 은 이 프레임이 쓰는 슬롯이다. 매 프레임 덮어쓰는 자원을
+    // 가진 쪽은 이것으로 갈라 써야 한다 - 그 슬롯의 지난 프레임이 끝났다는 것은
+    // 이미 보장되어 있고, 하나로 두면 아직 읽는 중인 것을 덮어쓴다.
+    using FrameOverlay = bool (*)(
+        IRHICommandContext& commands,
+        TextureHandle backBuffer,
+        std::uint32_t frameSlot,
+        void* user);
 
     struct CameraParams
     {

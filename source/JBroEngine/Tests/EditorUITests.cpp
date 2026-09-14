@@ -218,7 +218,10 @@ namespace
         viewport.height = static_cast<float>(SurfaceSize);
         commands.SetViewport(viewport);
 
-        Check(ui.Draw(commands), "the draw lists must go through");
+        // 슬롯을 함께 준다. 이 프레임이 쓰는 슬롯의 버퍼에 정점이 들어간다.
+        Check(false == ui.Draw(commands, 99),
+            "a slot the RHI never offers must be refused");
+        Check(ui.Draw(commands, begun.frame.slot), "the draw lists must go through");
         Check(ui.GetLastDrawCount() > 0, "the demo window must produce draws");
 
         commands.EndRenderPass();
@@ -402,7 +405,7 @@ namespace
         // 아직 열려 있는 동안의 드로우 리스트는 지난 프레임 것이다.
         const JBro::BeginFrameResult begun = stage.device->BeginFrame(stage.swapchain);
         Check(begun.status == JBro::FrameStatus::Ready, "the render frame must begin");
-        Check(false == ui.Draw(*begun.frame.commands),
+        Check(false == ui.Draw(*begun.frame.commands, begun.frame.slot),
             "drawing before the UI frame is closed must be refused");
         stage.device->AbortFrame(begun.frame);
 
