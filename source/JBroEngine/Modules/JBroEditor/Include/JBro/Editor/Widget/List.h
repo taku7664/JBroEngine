@@ -266,6 +266,13 @@ namespace JBro::Widget
                 }
             }
         }
+        // **마지막에 빈 항목 하나를 둔다.**
+        //
+        // 행마다 끝에서 커서를 손으로 옮기는데(`SetCursorPos(bodyEnd)`), 그 뒤에
+        // 아무것도 그리지 않으면 ImGui 가 "항목 없이 경계만 늘렸다" 고 단언한다.
+        // 보통은 끌어놓기 자리나 추가 줄이 뒤에 오지만, **읽기 전용이면서 재정렬도
+        // 막힌 목록**에는 둘 다 없다 - 그때만 터진다.
+        ImGui::Dummy(ImVec2(0.0f, 0.0f));
         ImGui::EndChild();
         ImGui::PopID();
         compact.Pop();
