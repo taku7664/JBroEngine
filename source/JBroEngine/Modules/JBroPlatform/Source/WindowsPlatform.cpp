@@ -1,6 +1,7 @@
 ﻿#include <JBro/Platform/WindowsPlatform.h>
 
 #include <Windows.h>
+#include <windowsx.h>
 
 #include <limits>
 
@@ -9,6 +10,9 @@ namespace JBro
     namespace
     {
         constexpr wchar_t WindowClassName[] = L"JBroEngineWindow";
+        // 창 클래스의 여분 바이트에 플랫폼 포인터를 둔다. GWLP_USERDATA 는 이미
+        // 닫기 플래그가 쓰고 있다.
+        constexpr int PlatformSlot = 0;
         constexpr std::size_t ShadowLibrarySuffixCapacity = 64;
         volatile LONG64 ShadowLibrarySequence = 0;
 
@@ -18,6 +22,123 @@ namespace JBro
             wchar_t* ShadowPath = nullptr;
         };
 
+
+        // 가상 키 코드를 물리 키로 옮긴다. **좌우가 갈리는 키는 스캔코드로 가른다** -
+        // VK_SHIFT 는 어느 쪽인지 알려주지 않고, 에디터 단축키는 그것을 구분해야 한다.
+        Key TranslateKey(WPARAM wParam, LPARAM lParam)
+        {
+            const UINT scanCode = static_cast<UINT>((lParam >> 16) & 0xFF);
+            const bool extended = (lParam & (1 << 24)) != 0;
+
+            switch (wParam)
+            {
+            case VK_TAB: return Key::Tab;
+            case VK_LEFT: return Key::Left;
+            case VK_RIGHT: return Key::Right;
+            case VK_UP: return Key::Up;
+            case VK_DOWN: return Key::Down;
+            case VK_PRIOR: return Key::PageUp;
+            case VK_NEXT: return Key::PageDown;
+            case VK_HOME: return Key::Home;
+            case VK_END: return Key::End;
+            case VK_INSERT: return Key::Insert;
+            case VK_DELETE: return Key::Delete;
+            case VK_BACK: return Key::Backspace;
+            case VK_SPACE: return Key::Space;
+            case VK_RETURN: return extended ? Key::KeypadEnter : Key::Enter;
+            case VK_ESCAPE: return Key::Escape;
+            case VK_APPS: return Key::Menu;
+            case VK_CAPITAL: return Key::CapsLock;
+            case VK_SCROLL: return Key::ScrollLock;
+            case VK_NUMLOCK: return Key::NumLock;
+            case VK_SNAPSHOT: return Key::PrintScreen;
+            case VK_PAUSE: return Key::Pause;
+            case VK_OEM_7: return Key::Apostrophe;
+            case VK_OEM_COMMA: return Key::Comma;
+            case VK_OEM_MINUS: return Key::Minus;
+            case VK_OEM_PERIOD: return Key::Period;
+            case VK_OEM_2: return Key::Slash;
+            case VK_OEM_1: return Key::Semicolon;
+            case VK_OEM_PLUS: return Key::Equal;
+            case VK_OEM_4: return Key::LeftBracket;
+            case VK_OEM_5: return Key::Backslash;
+            case VK_OEM_6: return Key::RightBracket;
+            case VK_OEM_3: return Key::GraveAccent;
+            case VK_DECIMAL: return Key::KeypadDecimal;
+            case VK_DIVIDE: return Key::KeypadDivide;
+            case VK_MULTIPLY: return Key::KeypadMultiply;
+            case VK_SUBTRACT: return Key::KeypadSubtract;
+            case VK_ADD: return Key::KeypadAdd;
+
+            case VK_SHIFT:
+            {
+                // 스캔코드를 좌우가 갈린 가상 키로 되돌린다.
+                const UINT resolved = MapVirtualKeyW(scanCode, MAPVK_VSC_TO_VK_EX);
+                return resolved == VK_RSHIFT ? Key::RightShift : Key::LeftShift;
+            }
+            case VK_CONTROL:
+                return extended ? Key::RightControl : Key::LeftControl;
+            case VK_MENU:
+                return extended ? Key::RightAlt : Key::LeftAlt;
+            case VK_LSHIFT: return Key::LeftShift;
+            case VK_RSHIFT: return Key::RightShift;
+            case VK_LCONTROL: return Key::LeftControl;
+            case VK_RCONTROL: return Key::RightControl;
+            case VK_LMENU: return Key::LeftAlt;
+            case VK_RMENU: return Key::RightAlt;
+            case VK_LWIN: return Key::LeftSuper;
+            case VK_RWIN: return Key::RightSuper;
+            default:
+                break;
+            }
+
+            if (wParam >= '0' && wParam <= '9')
+            {
+                return static_cast<Key>(static_cast<std::uint16_t>(Key::Digit0)
+                    + static_cast<std::uint16_t>(wParam - '0'));
+            }
+            if (wParam >= 'A' && wParam <= 'Z')
+            {
+                return static_cast<Key>(static_cast<std::uint16_t>(Key::A)
+                    + static_cast<std::uint16_t>(wParam - 'A'));
+            }
+            if (wParam >= VK_F1 && wParam <= VK_F12)
+            {
+                return static_cast<Key>(static_cast<std::uint16_t>(Key::F1)
+                    + static_cast<std::uint16_t>(wParam - VK_F1));
+            }
+            if (wParam >= VK_NUMPAD0 && wParam <= VK_NUMPAD9)
+            {
+                return static_cast<Key>(static_cast<std::uint16_t>(Key::Keypad0)
+                    + static_cast<std::uint16_t>(wParam - VK_NUMPAD0));
+            }
+            return Key::Unknown;
+        }
+
+        // **누른 순간의 조합키를 그때 읽는다.** 이벤트를 나중에 꺼내 볼 때 다시 물으면
+        // 그 사이에 사용자가 손을 뗐을 수 있다.
+        KeyModifiers CurrentModifiers()
+        {
+            KeyModifiers modifiers = KeyModifierNone;
+            if (GetKeyState(VK_SHIFT) < 0)
+            {
+                modifiers |= KeyModifierShift;
+            }
+            if (GetKeyState(VK_CONTROL) < 0)
+            {
+                modifiers |= KeyModifierControl;
+            }
+            if (GetKeyState(VK_MENU) < 0)
+            {
+                modifiers |= KeyModifierAlt;
+            }
+            if (GetKeyState(VK_LWIN) < 0 || GetKeyState(VK_RWIN) < 0)
+            {
+                modifiers |= KeyModifierSuper;
+            }
+            return modifiers;
+        }
+
         LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParam, LPARAM lParam)
         {
             if (message == WM_CLOSE)
@@ -25,6 +146,148 @@ namespace JBro
                 // This slot belongs to our window class and only stores its close flag.
                 SetWindowLongPtrW(window, GWLP_USERDATA, 1);
                 return 0;
+            }
+
+            // 창 클래스의 여분 슬롯에 플랫폼을 적어 두었다. 창을 만든 직후에 넣으므로
+            // 그 전에 오는 메시지(WM_CREATE 등)에는 없다 - 입력은 전부 그 뒤에 온다.
+            auto* platform = reinterpret_cast<WindowsPlatform*>(
+                GetWindowLongPtrW(window, PlatformSlot));
+            if (platform == nullptr)
+            {
+                return DefWindowProcW(window, message, wParam, lParam);
+            }
+
+            InputEvent event;
+            event.modifiers = CurrentModifiers();
+            switch (message)
+            {
+            case WM_KEYDOWN:
+            case WM_SYSKEYDOWN:
+                event.kind = InputEventKind::KeyDown;
+                event.key = TranslateKey(wParam, lParam);
+                // 자동 반복은 30번 비트가 알려준다.
+                event.repeat = (lParam & (1 << 30)) != 0;
+                platform->RecordInputEvent(event);
+                break;
+
+            case WM_KEYUP:
+            case WM_SYSKEYUP:
+                event.kind = InputEventKind::KeyUp;
+                event.key = TranslateKey(wParam, lParam);
+                platform->RecordInputEvent(event);
+                break;
+
+            case WM_CHAR:
+            case WM_SYSCHAR:
+            {
+                // UTF-16 이므로 서러게이트 쌍이 두 번에 나눠 온다. 앞쪽을 들고 있다가
+                // 뒤쪽이 오면 합친다. 합치지 않으면 BMP 밖 글자가 깨진다.
+                const auto unit = static_cast<std::uint16_t>(wParam);
+                if (unit >= 0xD800 && unit <= 0xDBFF)
+                {
+                    platform->SetPendingHighSurrogate(unit);
+                    break;
+                }
+                event.kind = InputEventKind::Text;
+                const std::uint16_t high = platform->TakePendingHighSurrogate();
+                if (high != 0 && unit >= 0xDC00 && unit <= 0xDFFF)
+                {
+                    event.codePoint = 0x10000u
+                        + ((static_cast<std::uint32_t>(high) - 0xD800u) << 10)
+                        + (static_cast<std::uint32_t>(unit) - 0xDC00u);
+                }
+                else
+                {
+                    event.codePoint = unit;
+                }
+                // 제어 문자는 글자가 아니다. Backspace 와 Enter 는 키 이벤트로 이미 갔다.
+                if (event.codePoint >= 0x20 && event.codePoint != 0x7F)
+                {
+                    platform->RecordInputEvent(event);
+                }
+                break;
+            }
+
+            case WM_MOUSEMOVE:
+                event.kind = InputEventKind::MouseMove;
+                event.x = static_cast<float>(GET_X_LPARAM(lParam));
+                event.y = static_cast<float>(GET_Y_LPARAM(lParam));
+                platform->RecordInputEvent(event);
+                break;
+
+            case WM_LBUTTONDOWN:
+            case WM_LBUTTONDBLCLK:
+            case WM_RBUTTONDOWN:
+            case WM_RBUTTONDBLCLK:
+            case WM_MBUTTONDOWN:
+            case WM_MBUTTONDBLCLK:
+            case WM_XBUTTONDOWN:
+            case WM_XBUTTONDBLCLK:
+            case WM_LBUTTONUP:
+            case WM_RBUTTONUP:
+            case WM_MBUTTONUP:
+            case WM_XBUTTONUP:
+            {
+                const bool down = message == WM_LBUTTONDOWN || message == WM_LBUTTONDBLCLK
+                    || message == WM_RBUTTONDOWN || message == WM_RBUTTONDBLCLK
+                    || message == WM_MBUTTONDOWN || message == WM_MBUTTONDBLCLK
+                    || message == WM_XBUTTONDOWN || message == WM_XBUTTONDBLCLK;
+                event.kind = down
+                    ? InputEventKind::MouseButtonDown
+                    : InputEventKind::MouseButtonUp;
+                if (message == WM_LBUTTONDOWN || message == WM_LBUTTONDBLCLK
+                    || message == WM_LBUTTONUP)
+                {
+                    event.button = MouseButton::Left;
+                }
+                else if (message == WM_RBUTTONDOWN || message == WM_RBUTTONDBLCLK
+                    || message == WM_RBUTTONUP)
+                {
+                    event.button = MouseButton::Right;
+                }
+                else if (message == WM_MBUTTONDOWN || message == WM_MBUTTONDBLCLK
+                    || message == WM_MBUTTONUP)
+                {
+                    event.button = MouseButton::Middle;
+                }
+                else
+                {
+                    event.button = GET_XBUTTON_WPARAM(wParam) == XBUTTON1
+                        ? MouseButton::Extra1
+                        : MouseButton::Extra2;
+                }
+                event.x = static_cast<float>(GET_X_LPARAM(lParam));
+                event.y = static_cast<float>(GET_Y_LPARAM(lParam));
+                platform->RecordInputEvent(event);
+                break;
+            }
+
+            case WM_MOUSEWHEEL:
+                event.kind = InputEventKind::MouseWheel;
+                event.y = static_cast<float>(GET_WHEEL_DELTA_WPARAM(wParam))
+                    / static_cast<float>(WHEEL_DELTA);
+                platform->RecordInputEvent(event);
+                break;
+
+            case WM_MOUSEHWHEEL:
+                event.kind = InputEventKind::MouseWheel;
+                event.x = static_cast<float>(GET_WHEEL_DELTA_WPARAM(wParam))
+                    / static_cast<float>(WHEEL_DELTA);
+                platform->RecordInputEvent(event);
+                break;
+
+            case WM_SETFOCUS:
+                event.kind = InputEventKind::FocusGained;
+                platform->RecordInputEvent(event);
+                break;
+
+            case WM_KILLFOCUS:
+                event.kind = InputEventKind::FocusLost;
+                platform->RecordInputEvent(event);
+                break;
+
+            default:
+                break;
             }
 
             return DefWindowProcW(window, message, wParam, lParam);
@@ -100,6 +363,7 @@ namespace JBro
         windowClass.hInstance = instance;
         windowClass.hCursor = LoadCursorW(nullptr, IDC_ARROW);
         windowClass.lpszClassName = WindowClassName;
+        windowClass.cbWndExtra = sizeof(void*);
 
         const ATOM atom = RegisterClassExW(&windowClass);
         if (atom == 0 && GetLastError() != ERROR_CLASS_ALREADY_EXISTS)
@@ -175,6 +439,8 @@ namespace JBro
             return {};
         }
 
+        SetWindowLongPtrW(window, PlatformSlot, reinterpret_cast<LONG_PTR>(this));
+
         if (desc.visible)
         {
             ShowWindow(window, SW_SHOW);
@@ -206,6 +472,9 @@ namespace JBro
 
     void WindowsPlatform::PumpEvents()
     {
+        // 지난 프레임 것을 버리고 다시 모은다. 꺼내 가지 않은 입력은 사라진다 -
+        // 한 프레임을 통째로 건너뛴 쪽이 옛 입력을 뒤늦게 받는 것보다 낫다.
+        m_inputEvents.Resize(0);
         MSG message = {};
         while (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE))
         {
@@ -217,6 +486,33 @@ namespace JBro
             TranslateMessage(&message);
             DispatchMessageW(&message);
         }
+    }
+
+    JArrayView<InputEvent> WindowsPlatform::GetInputEvents() const
+    {
+        return {m_inputEvents.Data(), static_cast<std::uint32_t>(m_inputEvents.Size())};
+    }
+
+    void WindowsPlatform::RecordInputEvent(const InputEvent& event)
+    {
+        // 한 프레임에 이만큼 쌓일 일은 없다. 넘치면 버린다 - 무한히 자라는 것보다 낫다.
+        if (m_inputEvents.Size() >= MaxInputEventsPerFrame)
+        {
+            return;
+        }
+        m_inputEvents.Add(event);
+    }
+
+    std::uint16_t WindowsPlatform::TakePendingHighSurrogate()
+    {
+        const std::uint16_t pending = m_pendingHighSurrogate;
+        m_pendingHighSurrogate = 0;
+        return pending;
+    }
+
+    void WindowsPlatform::SetPendingHighSurrogate(std::uint16_t unit)
+    {
+        m_pendingHighSurrogate = unit;
     }
 
     void WindowsPlatform::WaitForEvents(std::uint32_t timeoutMilliseconds)

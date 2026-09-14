@@ -24,6 +24,7 @@ int RunSystemSchedulerTests();
 int RunGameScriptTests();
 int RunEditorApplicationTests();
 int RunEditorUITests();
+int RunInputTests();
 int RunContextBoundaryTests();
 int RunScriptApiPreludeTests();
 int RunPublicHeaderCompositionTests();
@@ -110,6 +111,10 @@ int main()
             return 1;
         }
         if (RunEditorUITests() != 0)
+        {
+            return 1;
+        }
+        if (RunInputTests() != 0)
         {
             return 1;
         }

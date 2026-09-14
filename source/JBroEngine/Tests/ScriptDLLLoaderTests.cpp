@@ -149,6 +149,11 @@ namespace
         {
         }
 
+        JBro::JArrayView<JBro::InputEvent> GetInputEvents() const override
+        {
+            return {};
+        }
+
         void WaitForEvents(std::uint32_t) override
         {
         }

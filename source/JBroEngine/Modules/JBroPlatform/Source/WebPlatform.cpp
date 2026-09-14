@@ -29,6 +29,12 @@ namespace JBro
     {
     }
 
+    JArrayView<InputEvent> WebPlatform::GetInputEvents() const
+    {
+        // 이 플랫폼은 아직 입력을 모으지 않는다.
+        return {};
+    }
+
     void WebPlatform::WaitForEvents(std::uint32_t)
     {
         // Browser hosts must yield through their external event loop.

@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/Platform/Platform.h>
+#include <JBro/Types/Array.h>
 
 namespace JBro
 {
@@ -13,6 +14,7 @@ namespace JBro
         void ClosePlatformWindow(WindowHandle window) override;
         SurfaceHandle CreateSurface(WindowHandle window) override;
         void PumpEvents() override;
+        JArrayView<InputEvent> GetInputEvents() const override;
         void WaitForEvents(std::uint32_t timeoutMilliseconds) override;
         bool ShouldClose(WindowHandle window) const override;
         bool GetWindowState(WindowHandle window, WindowState& state) const override;
@@ -20,7 +22,18 @@ namespace JBro
         void* GetSymbol(DynamicLibrary library, const char* name) override;
         void UnloadDynamicLibrary(DynamicLibrary library) override;
 
+        // WndProc 이 부른다. 공개 API 가 아니다.
+        void RecordInputEvent(const InputEvent& event);
+        // UTF-16 서러게이트 쌍의 앞쪽을 들고 있는 자리다.
+        std::uint16_t TakePendingHighSurrogate();
+        void SetPendingHighSurrogate(std::uint16_t unit);
+
     private:
+        // 한 프레임에 받아 둘 입력의 상한이다.
+        static constexpr std::uint32_t MaxInputEventsPerFrame = 4096;
+
+        Array<InputEvent> m_inputEvents;
+        std::uint16_t m_pendingHighSurrogate = 0;
         void* m_instance = nullptr;
         std::uint16_t m_windowClassAtom = 0;
         bool m_ownsWindowClass = false;

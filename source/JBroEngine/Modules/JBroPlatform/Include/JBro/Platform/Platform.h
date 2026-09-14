@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/Core/Core.h>
+#include <JBro/Platform/Input.h>
 
 namespace JBro
 {
@@ -43,6 +44,9 @@ namespace JBro
         virtual void ClosePlatformWindow(WindowHandle window) = 0;
         virtual SurfaceHandle CreateSurface(WindowHandle window) = 0;
         virtual void PumpEvents() = 0;
+        // Input gathered by the last PumpEvents. The next PumpEvents clears it,
+        // so the view is only valid until then. Main-thread only.
+        virtual JArrayView<InputEvent> GetInputEvents() const = 0;
         // Main-thread only. Waits up to the timeout; externally paced platforms may return early.
         virtual void WaitForEvents(std::uint32_t timeoutMilliseconds) = 0;
         // A close request does not destroy the surface. The host drains GPU work first.

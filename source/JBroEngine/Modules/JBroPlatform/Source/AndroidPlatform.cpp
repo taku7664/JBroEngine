@@ -29,6 +29,12 @@ namespace JBro
     {
     }
 
+    JArrayView<InputEvent> AndroidPlatform::GetInputEvents() const
+    {
+        // 이 플랫폼은 아직 입력을 모으지 않는다.
+        return {};
+    }
+
     void AndroidPlatform::WaitForEvents(std::uint32_t)
     {
         // The Android backend is still a declared extension point.
