@@ -47,6 +47,15 @@ namespace JBro
         Extent2D extent;
     };
 
+    // 뷰를 모두 기록한 뒤, 프레임을 닫기 전에 불린다. 에디터 UI 가 백버퍼에
+    // 그리는 자리다.
+    //
+    // **렌더러가 프레임과 커맨드 컨텍스트를 쥔 채로 불러들인다.** 그것들을 밖으로
+    // 꺼내 주면 프레임을 누가 여닫는지가 둘로 갈린다. false 를 돌려주면 프레임을
+    // 버린다 - UI 가 반쯤 그려진 화면을 내보내지 않는다.
+    using FrameOverlay =
+        bool (*)(IRHICommandContext& commands, TextureHandle backBuffer, void* user);
+
     struct CameraParams
     {
         Matrix4x4 view;
@@ -121,6 +130,11 @@ namespace JBro
         bool ResizeSurface(const Extent2D& extent);
         RendererFrameStats GetLastFrameStats() const;
 
+        // 프레임을 닫기 전에 부를 것을 건다. **프레임 밖에서만 바꾼다** -
+        // 프레임 중간에 바뀌면 이미 기록한 것과 어긋난다. nullptr 이면 뗀다.
+        bool SetFrameOverlay(FrameOverlay overlay, void* user);
+        bool HasFrameOverlay() const;
+
         // 렌더러가 만든 디바이스다. **리소스를 만들고 지우는 데만 쓴다** -
         // 에디터가 게임 뷰 텍스처와 자기 UI 파이프라인을 만들려면 이것이 필요하다.
         // 프레임을 여닫는 것은 여전히 렌더러의 일이다.
@@ -178,6 +192,8 @@ namespace JBro
         SwapchainHandle m_swapchain;
         FrameContext m_frame;
         FrameTarget m_frameTarget;
+        FrameOverlay m_frameOverlay = nullptr;
+        void* m_frameOverlayUser = nullptr;
         Array<ViewPacket> m_views;
         Array<SpriteSubmit> m_sprites;
         Array<MeshSubmit> m_meshes;

@@ -56,6 +56,11 @@ namespace JBro
         void CloseProject();
         // Pumps events, updates simulation, then renders. False means stopped and cleaned up.
         // Recursive Tick calls are rejected without changing the outer frame.
+        // 게임 화면을 어디에 그릴지다. 비워 두면 백버퍼 - 게임 실행이 그것이다.
+        // 에디터는 자기 패널에 붙일 텍스처를 여기에 준다(D-63).
+        // 프레임 밖에서만 바꾼다.
+        bool SetGameViewTarget(const FrameTarget& target);
+
         bool Tick(float deltaTime);
         void RequestExit();
         // Callback calls defer teardown until that callback returns.
@@ -89,6 +94,7 @@ namespace JBro
         ScriptDLLLoader m_scripts;
         ProjectFile m_project;
         FrameworkContext m_frameworkContext;
+        FrameTarget m_gameViewTarget;
         State m_state = State::Stopped;
         bool m_exitRequested = false;
         bool m_projectCloseRequested = false;

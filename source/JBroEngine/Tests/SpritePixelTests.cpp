@@ -273,12 +273,132 @@ namespace
         platform.PumpEvents();
         platform.Shutdown();
     }
+    // 오버레이가 백버퍼에 남긴 표시다. 콜백이 실제로 불렸는지, 그때 프레임이 아직
+    // 열려 있었는지는 픽셀로만 확인할 수 있다.
+    struct OverlayProbe
+    {
+        int calls = 0;
+        bool succeed = true;
+        float mark[4] = {0.25f, 0.75f, 0.5f, 1.0f};
+    };
+
+    bool DrawOverlayProbe(
+        JBro::IRHICommandContext& commands, JBro::TextureHandle backBuffer, void* user)
+    {
+        auto* probe = static_cast<OverlayProbe*>(user);
+        ++probe->calls;
+        if (false == probe->succeed)
+        {
+            return false;
+        }
+        JBro::ColorAttachmentDesc attachment;
+        attachment.texture = backBuffer;
+        attachment.loadOperation = JBro::LoadOperation::Clear;
+        attachment.clearColor = {probe->mark[0], probe->mark[1], probe->mark[2], probe->mark[3]};
+        JBro::RenderPassDesc pass;
+        pass.colorAttachments = {&attachment, 1};
+        if (false == commands.BeginRenderPass(pass))
+        {
+            return false;
+        }
+        commands.EndRenderPass();
+        return true;
+    }
+
+    // **에디터 프레임의 모양이다.** 게임은 텍스처로 가고 백버퍼에는 낼 것이 없다.
+    // 그 프레임을 "그릴 게 없다" 고 버리면 에디터 UI 까지 같이 사라진다 - 화면이
+    // 통째로 멈춘 것처럼 보이고, 원인은 게임 쪽이 아니라 여기다(D-63).
+    void TestTheOverlayGetsTheFrameAfterTheGame()
+    {
+        JBro::WindowsPlatform platform;
+        JBro::D3D12RHIModule rhi;
+        JBro::JMemoryContext memory;
+        Check(platform.Initialize(memory), "platform must initialize for the overlay test");
+        if (false == rhi.Initialize(memory))
+        {
+            std::cout << "  [skip] no D3D12 device; the frame overlay not verified" << std::endl;
+            platform.Shutdown();
+            return;
+        }
+
+        JBro::WindowDesc windowDesc;
+        constexpr char title[] = "JBro overlay probe";
+        windowDesc.title = {title, sizeof(title) - 1};
+        windowDesc.width = 64;
+        windowDesc.height = 64;
+        windowDesc.visible = false;
+        const JBro::WindowHandle window = platform.OpenPlatformWindow(windowDesc);
+        Check(window.value != 0, "the probe window must open");
+
+        JBro::Renderer renderer;
+        JBro::RendererConfig config;
+        config.surface = platform.CreateSurface(window);
+        config.surfaceExtent = {64, 64};
+        config.maxSpriteSubmissions = 4;
+        config.presentMode = JBro::PresentMode::Immediate;
+        Check(renderer.Initialize(rhi, config), "the overlay renderer must initialize");
+        JBro::IRHIDevice* device = renderer.GetDevice();
+        Check(device != nullptr, "the device must be reachable");
+
+        JBro::TextureDesc targetDesc;
+        targetDesc.extent = {32, 32};
+        targetDesc.format = JBro::TextureFormat::BGRA8Unorm;
+        targetDesc.usage = JBro::TextureUsage::RenderTarget | JBro::TextureUsage::Sampled;
+        const JBro::TextureHandle gameView = device->CreateTexture(targetDesc);
+        Check(gameView.IsValid(), "the game view texture must be created");
+
+        OverlayProbe probe;
+        Check(renderer.HasFrameOverlay() == false, "there is no overlay to begin with");
+        Check(renderer.SetFrameOverlay(&DrawOverlayProbe, &probe), "the overlay must attach");
+        Check(renderer.HasFrameOverlay(), "and say so");
+
+        JBro::FrameTarget target;
+        target.texture = gameView;
+        target.extent = {32, 32};
+        Check(renderer.BeginFrame(target) == JBro::FrameStatus::Ready, "the frame must begin");
+        // 프레임이 열린 동안에는 오버레이를 바꿀 수 없다.
+        Check(false == renderer.SetFrameOverlay(nullptr, nullptr),
+            "changing the overlay mid frame must be refused");
+        // 게임은 아무것도 제출하지 않는다. 그래도 오버레이는 불려야 한다.
+        Check(renderer.EndFrame() == JBro::FrameStatus::Ready, "the frame must present");
+        Check(probe.calls == 1, "the overlay must run once");
+
+        JBro::Array<std::byte> image;
+        image.Resize(64 * 64 * 4);
+        JBro::TextureReadback readback;
+        Check(renderer.ReadBackBuffer(image.Data(), image.Size(), readback),
+            "the back buffer must read back");
+        const Pixel painted = ReadPixel(image, readback.rowPitch, 32, 32);
+        Check(Near(painted.r, probe.mark[0])
+                && Near(painted.g, probe.mark[1])
+                && Near(painted.b, probe.mark[2]),
+            "the overlay must have reached the back buffer of the frame the game skipped");
+
+        // 오버레이가 실패하면 프레임을 버린다. 반쯤 그려진 UI 를 내보내지 않는다.
+        probe.succeed = false;
+        Check(renderer.BeginFrame(target) == JBro::FrameStatus::Ready,
+            "the next frame must begin");
+        Check(renderer.EndFrame() == JBro::FrameStatus::InvalidState,
+            "a failing overlay must throw the frame away");
+        Check(probe.calls == 2, "and it must have been the overlay that was asked");
+
+        Check(renderer.SetFrameOverlay(nullptr, nullptr), "the overlay must detach");
+        Check(renderer.HasFrameOverlay() == false, "and say so");
+
+        device->DestroyTexture(gameView);
+        renderer.Shutdown();
+        rhi.Shutdown();
+        platform.ClosePlatformWindow(window);
+        platform.PumpEvents();
+        platform.Shutdown();
+    }
 }
 
 int RunSpritePixelTests()
 {
     TestSpritePacketReachesTheShaderFields();
     TestTheSameSpriteGoesToATextureInstead();
+    TestTheOverlayGetsTheFrameAfterTheGame();
     std::cout << "Sprite pixel tests passed.\n";
     return 0;
 }

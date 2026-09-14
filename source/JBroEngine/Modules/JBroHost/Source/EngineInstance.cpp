@@ -270,7 +270,7 @@ namespace JBro
             m_lastFrameStatus = m_renderer->IsDeviceLost() ? FrameStatus::DeviceLost : FrameStatus::SurfaceLost;
             return false;
         }
-        const auto beginStatus = m_renderer->BeginFrame();
+        const auto beginStatus = m_renderer->BeginFrame(m_gameViewTarget);
         m_lastFrameStatus = beginStatus;
         if (beginStatus == FrameStatus::Skipped)
         {
@@ -290,7 +290,13 @@ namespace JBro
             return false;
         }
         // 그릴 것이 없는 프레임은 버리되, 루프는 살아있다(F-7).
-        if (renderResult == RenderResult::NothingToSubmit || m_projectCloseRequested)
+        //
+        // **오버레이가 걸려 있으면 버리지 않는다.** 에디터에서는 게임 화면이
+        // 텍스처로 가서 백버퍼에 낼 것이 없는 것이 정상이고, 그 프레임을 버리면
+        // 에디터 UI 까지 같이 사라진다 - 화면이 통째로 멈춘 것처럼 보인다.
+        const bool nothingToShow = renderResult == RenderResult::NothingToSubmit
+            && false == m_renderer->HasFrameOverlay();
+        if (nothingToShow || m_projectCloseRequested)
         {
             m_renderer->AbortFrame();
             m_lastFrameStatus = FrameStatus::Skipped;
@@ -299,6 +305,16 @@ namespace JBro
         const auto endStatus = m_renderer->EndFrame();
         m_lastFrameStatus = endStatus;
         return endStatus == FrameStatus::Ready || endStatus == FrameStatus::Skipped;
+    }
+
+    bool EngineInstance::SetGameViewTarget(const FrameTarget& target)
+    {
+        if (m_state == State::Ticking)
+        {
+            return false;
+        }
+        m_gameViewTarget = target;
+        return true;
     }
 
     void EngineInstance::RequestExit()

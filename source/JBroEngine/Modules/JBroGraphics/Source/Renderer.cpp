@@ -175,6 +175,7 @@ namespace JBro
         }
 
         m_frame = result.frame;
+        // 프레임마다 여기서 통째로 덮어쓴다. 그래서 프레임을 닫을 때 따로 비울 것이 없다.
         m_frameTarget = target;
         m_frameActive = true;
         ResetSubmissionStorage();
@@ -287,6 +288,18 @@ namespace JBro
             m_device->AbortFrame(m_frame);
             m_lastStats = m_currentStats;
             m_frame = {};
+            m_frameActive = false;
+            return FrameStatus::InvalidState;
+        }
+
+        // 게임을 그린 뒤, 프레임을 닫기 전. 에디터 UI 가 여기서 백버퍼에 얹힌다.
+        if (m_frameOverlay != nullptr
+            && false == m_frameOverlay(
+                *m_frame.commands, m_frame.backBuffer, m_frameOverlayUser))
+        {
+            m_device->AbortFrame(m_frame);
+            m_lastStats = m_currentStats;
+            m_frame = {};
             m_frameTarget = {};
             m_frameActive = false;
             return FrameStatus::InvalidState;
@@ -296,9 +309,24 @@ namespace JBro
         m_lastStats = m_currentStats;
         m_lastPresentedBackBuffer = m_frame.backBuffer;
         m_frame = {};
-        m_frameTarget = {};
         m_frameActive = false;
         return status;
+    }
+
+    bool Renderer::SetFrameOverlay(FrameOverlay overlay, void* user)
+    {
+        if (m_frameActive)
+        {
+            return false;
+        }
+        m_frameOverlay = overlay;
+        m_frameOverlayUser = user;
+        return true;
+    }
+
+    bool Renderer::HasFrameOverlay() const
+    {
+        return m_frameOverlay != nullptr;
     }
 
     IRHIDevice* Renderer::GetDevice() const
@@ -327,7 +355,6 @@ namespace JBro
             m_device->AbortFrame(m_frame);
             m_lastStats = m_currentStats;
             m_frame = {};
-            m_frameTarget = {};
             m_frameActive = false;
             ResetSubmissionStorage();
         }
