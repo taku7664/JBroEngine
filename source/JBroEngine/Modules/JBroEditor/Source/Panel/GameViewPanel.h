@@ -11,6 +11,7 @@ namespace JBro
     {
     public:
         const char* GetTitle() const override;
+        const char* GetDisplayTitle() const override;
         bool OnCreate(EditorApplication& editor) override;
         void OnDraw() override;
 

@@ -115,7 +115,11 @@
         operator MyVec4() const { return MyVec4(x,y,z,w); }
 */
 //---- ...Or use Dear ImGui's own very basic math operators.
-//#define IMGUI_DEFINE_MATH_OPERATORS
+// JBro: the editor widget layer does vector maths on ImVec2 (row rects,
+// content rects). ImGui gates these operators behind this switch and says
+// imconfig.h is where to turn them on -- defining it per translation unit
+// breaks the moment a header pulls imgui.h in first.
+#define IMGUI_DEFINE_MATH_OPERATORS
 
 //---- Use 32-bit vertex indices (default is 16-bit) is one way to allow large meshes with more than 64K vertices.
 // Your renderer backend will need to support it (most example renderer backends support both 16/32-bit indices).

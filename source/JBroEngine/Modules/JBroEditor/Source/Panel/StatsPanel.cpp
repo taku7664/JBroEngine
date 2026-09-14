@@ -3,13 +3,22 @@
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Graphics/Renderer.h>
 
+#include <JBro/Editor/Localization.h>
+#include <JBro/Editor/LocalizationKeys.h>
+
 #include <imgui.h>
 
 namespace JBro
 {
     const char* StatsPanel::GetTitle() const
     {
+        // 안정된 이름이다. 번역하지 않는다 - 창의 정체가 여기 달려 있다.
         return "Stats";
+    }
+
+    const char* StatsPanel::GetDisplayTitle() const
+    {
+        return Loc::TextOr(LocKeys::PanelStats, "Stats");
     }
 
     bool StatsPanel::OnCreate(EditorApplication& editor)

@@ -3,13 +3,22 @@
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/EditorUI.h>
 
+#include <JBro/Editor/Localization.h>
+#include <JBro/Editor/LocalizationKeys.h>
+
 #include <imgui.h>
 
 namespace JBro
 {
     const char* GameViewPanel::GetTitle() const
     {
+        // 안정된 이름이다. 번역하지 않는다 - 창의 정체가 여기 달려 있다.
         return "Game";
+    }
+
+    const char* GameViewPanel::GetDisplayTitle() const
+    {
+        return Loc::TextOr(LocKeys::PanelGame, "Game");
     }
 
     bool GameViewPanel::OnCreate(EditorApplication& editor)
