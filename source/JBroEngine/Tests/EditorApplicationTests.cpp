@@ -1,6 +1,8 @@
 ﻿#include <JBro/Editor/EditorApplication.h>
 
 #include <JBro/Canvas/Canvas.h>
+#include <JBro/Graphics/Renderer.h>
+#include <JBro/Types/Array.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Runtime/GameObject.h>
 
@@ -20,6 +22,106 @@ namespace
             std::cout << "test failure: " << message << std::endl;
             throw std::runtime_error(message);
         }
+    }
+
+    // **에디터 화면이 실제로 나오는가.** 게임은 텍스처로 가고 백버퍼에는 UI 만 남는다 -
+    // 그 프레임은 "게임이 낼 것이 없는" 프레임이기도 해서, 배선이 하나라도 어긋나면
+    // 화면이 통째로 검게 남는다. 픽셀을 되읽지 않으면 알 수 없다(D-63).
+    void TestTheEditorPaintsItsOwnScreen()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 320;
+        config.windowHeight = 240;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the editor screen not verified"
+                << std::endl;
+            return;
+        }
+
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "EditorScreenProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+
+        Check(false == editor.IsEditorUiEnabled(), "the UI starts off");
+        Check(false == editor.EnableEditorUi({0, 0}), "a game view with no size is refused");
+
+        // 게임 뷰는 창과 다른 크기다. 4:3 을 320x240 패널에 넣으면 위아래가 남는다.
+        constexpr std::uint32_t GameWidth = 64;
+        constexpr std::uint32_t GameHeight = 48;
+        Check(editor.EnableEditorUi({GameWidth, GameHeight}), "the editor UI must turn on");
+        Check(editor.IsEditorUiEnabled(), "and say so");
+        Check(editor.GetGameViewTexture().IsValid(), "with a game view to draw into");
+        Check(false == editor.EnableEditorUi({GameWidth, GameHeight}),
+            "turning it on twice must be refused");
+
+        // 새 창은 ImGui 가 크기를 재는 동안 감춰진다. 몇 프레임 돌린 뒤에 본다.
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(1.0f / 60.0f), "the editor must keep ticking with its UI on");
+        }
+
+        JBro::Renderer* renderer = editor.GetRenderer();
+        Check(renderer != nullptr, "the editor must expose its renderer");
+        JBro::Array<std::byte> image;
+        image.Resize(320 * 240 * 4);
+        JBro::TextureReadback readback;
+        Check(renderer->ReadBackBuffer(image.Data(), image.Size(), readback),
+            "the editor window must read back");
+
+        // 오버레이가 백버퍼를 지우는 색이다(0.09, 0.09, 0.11). 패널이 덮은 자리는
+        // 이 색이 아니다.
+        constexpr int ClearRed = 23;
+        constexpr int ClearGreen = 23;
+        constexpr int ClearBlue = 28;
+        const auto Differs = [](unsigned char got, int want) {
+            const int gap = static_cast<int>(got) - want;
+            return gap > 4 || gap < -4;
+        };
+
+        std::size_t painted = 0;
+        std::size_t bright = 0;
+        for (std::uint32_t y = 0; y < 240; ++y)
+        {
+            for (std::uint32_t x = 0; x < 320; ++x)
+            {
+                const std::size_t offset = static_cast<std::size_t>(y) * readback.rowPitch
+                    + static_cast<std::size_t>(x) * 4;
+                const auto* pixel =
+                    reinterpret_cast<const unsigned char*>(image.Data() + offset);
+                // **지움색과 다른지를 본다.** 밝기로 재면 안 된다 - ImGui 의 창
+                // 배경은 오버레이가 지운 색보다 오히려 어둡다.
+                if (Differs(pixel[0], ClearBlue)
+                    || Differs(pixel[1], ClearGreen)
+                    || Differs(pixel[2], ClearRed))
+                {
+                    ++painted;
+                }
+                if (pixel[0] > 200 && pixel[1] > 200 && pixel[2] > 200)
+                {
+                    ++bright;
+                }
+            }
+        }
+        std::cout << "  the editor painted " << painted << " pixels (" << bright
+            << " bright) on its window" << std::endl;
+        // 창을 채우는 패널이 하나 있으므로 화면 대부분이 패널 색이다.
+        Check(painted > (320 * 240) / 2,
+            "the editor panel must cover the window");
+        // 패널 제목이 글자로 나온다. 폰트 아틀라스가 안 올라가면 여기서 걸린다.
+        Check(bright > 50, "and its text must be on screen");
+
+        // 꺼지면 게임이 다시 백버퍼로 간다. 남은 GPU 리소스도 함께 놓는다.
+        editor.DisableEditorUi();
+        Check(false == editor.IsEditorUiEnabled(), "the UI must turn off");
+        Check(false == editor.GetGameViewTexture().IsValid(),
+            "and give its game view texture back");
+        Check(editor.Tick(1.0f / 60.0f), "the editor must keep ticking without its UI");
+
+        editor.Shutdown();
     }
 
     void TestEditorProjectSessions()
@@ -287,6 +389,7 @@ namespace
 int RunEditorApplicationTests()
 {
     TestEditorProjectSessions();
+    TestTheEditorPaintsItsOwnScreen();
     TestEditorOpensAProjectFile();
     TestEditorSavesAndOpensACanvas();
     TestCanvasWorkNeedsAnOpenProject();

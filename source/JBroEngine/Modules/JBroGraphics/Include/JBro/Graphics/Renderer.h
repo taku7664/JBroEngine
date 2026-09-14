@@ -143,6 +143,9 @@ namespace JBro
         bool IsDeviceLost() const;
         bool IsInitialized() const;
         Extent2D GetSurfaceExtent() const;
+        // 백버퍼 포맷이다. 백버퍼에 얹혀 그리는 파이프라인은 이것과 같아야
+        // 만들어진다 - 렌더 타깃 포맷은 파이프라인을 만들 때 굳는다.
+        TextureFormat GetBackBufferFormat() const;
         std::uint32_t GetSpriteSubmissionLimit() const;
         // 마지막으로 제시한 백버퍼를 CPU 로 읽는다. **진단과 테스트 경로다** —
         // GPU 를 기다리므로 프레임 안에서 부를 수 없고 매 프레임 경로도 아니다.

@@ -328,6 +328,11 @@ namespace JBro
         return m_frameOverlay != nullptr;
     }
 
+    TextureFormat Renderer::GetBackBufferFormat() const
+    {
+        return m_config.backBufferFormat;
+    }
+
     IRHIDevice* Renderer::GetDevice() const
     {
         return m_device;

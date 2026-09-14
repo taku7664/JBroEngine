@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <JBro/Platform/Input.h>
 #include <JBro/RHI/RHI.h>
 
 namespace JBro
@@ -37,12 +38,29 @@ namespace JBro
         void Shutdown();
         bool IsInitialized() const;
 
+        // 플랫폼이 모은 입력을 넘긴다. **`BeginFrame` 앞에서 부른다** -
+        // ImGui 는 `NewFrame` 에서 이번 프레임의 입력 상태를 굳히므로, 그 뒤에
+        // 넣은 것은 한 프레임 늦게 반영된다.
+        bool PushInput(JArrayView<InputEvent> events);
+
+        // 이번 프레임의 입력을 ImGui 가 가져갔는가. **게임에 입력을 넘길지
+        // 판단하는 자리다** - 에디터의 텍스트 필드에 타자를 치는 중에
+        // 게임 스크립트가 같은 키를 받으면 안 된다.
+        bool WantsMouse() const;
+        bool WantsKeyboard() const;
+
         // 화면 크기와 경과 시간을 준다. 창이 없는 테스트에서도 부를 수 있다.
         bool BeginFrame(const Extent2D& displaySize, float deltaTime);
         // ImGui 를 마무리하고 텍스처 요청을 처리한다. **RHI 프레임 밖에서 부른다.**
         bool EndFrame();
         // 마지막 EndFrame 이 만든 드로우 리스트를 제출한다. 렌더 패스 안에서 부른다.
         bool Draw(IRHICommandContext& commands);
+
+        // 텍스처 핸들을 ImGui 가 쓰는 값으로 접는다. **에디터가 게임 뷰를
+        // `ImGui::Image` 로 붙이려면 이것이 필요하다** - 그 값이 다시 이 백엔드로
+        // 돌아와 핸들로 펴지므로, 접는 방법을 한 군데서 정해야 한다.
+        // `ImTextureID` 를 헤더에 노출하지 않으려고 부호 없는 64비트로 돌려준다.
+        static std::uint64_t ToTextureId(TextureHandle handle);
 
         // 마지막으로 제출한 드로우 수다. 테스트가 붙잡는 손잡이다.
         std::size_t GetLastDrawCount() const;

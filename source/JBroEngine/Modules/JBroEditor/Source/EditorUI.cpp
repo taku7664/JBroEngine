@@ -16,9 +16,7 @@ namespace JBro
         // 하나로 접어 넣는다 — ImTextureID 는 정수 하나다.
         ImTextureID ToTextureId(TextureHandle handle)
         {
-            const std::uint64_t packed =
-                (static_cast<std::uint64_t>(handle.generation) << 32) | handle.index;
-            return static_cast<ImTextureID>(packed);
+            return static_cast<ImTextureID>(EditorUI::ToTextureId(handle));
         }
 
         TextureHandle FromTextureId(ImTextureID id)
@@ -28,6 +26,97 @@ namespace JBro
             handle.index = static_cast<std::uint32_t>(packed & 0xffffffffull);
             handle.generation = static_cast<std::uint32_t>(packed >> 32);
             return handle;
+        }
+
+        // `Key` 를 ImGui 의 것으로 옮긴다. 값이 줄줄이 이어지는 구간은 더해서 넘기고,
+        // 나머지만 적는다 - 110개를 한 줄씩 적으면 한 줄 틀린 것을 아무도 못 찾는다.
+        ImGuiKey ToImGuiKey(Key key)
+        {
+            const auto value = static_cast<std::uint16_t>(key);
+            const auto offsetFrom = [value](Key first) {
+                return static_cast<int>(value) - static_cast<int>(first);
+            };
+
+            if (key >= Key::Digit0 && key <= Key::Digit9)
+            {
+                return static_cast<ImGuiKey>(ImGuiKey_0 + offsetFrom(Key::Digit0));
+            }
+            if (key >= Key::A && key <= Key::Z)
+            {
+                return static_cast<ImGuiKey>(ImGuiKey_A + offsetFrom(Key::A));
+            }
+            if (key >= Key::F1 && key <= Key::F12)
+            {
+                return static_cast<ImGuiKey>(ImGuiKey_F1 + offsetFrom(Key::F1));
+            }
+            if (key >= Key::Keypad0 && key <= Key::Keypad9)
+            {
+                return static_cast<ImGuiKey>(ImGuiKey_Keypad0 + offsetFrom(Key::Keypad0));
+            }
+
+            switch (key)
+            {
+            case Key::Tab: return ImGuiKey_Tab;
+            case Key::Left: return ImGuiKey_LeftArrow;
+            case Key::Right: return ImGuiKey_RightArrow;
+            case Key::Up: return ImGuiKey_UpArrow;
+            case Key::Down: return ImGuiKey_DownArrow;
+            case Key::PageUp: return ImGuiKey_PageUp;
+            case Key::PageDown: return ImGuiKey_PageDown;
+            case Key::Home: return ImGuiKey_Home;
+            case Key::End: return ImGuiKey_End;
+            case Key::Insert: return ImGuiKey_Insert;
+            case Key::Delete: return ImGuiKey_Delete;
+            case Key::Backspace: return ImGuiKey_Backspace;
+            case Key::Space: return ImGuiKey_Space;
+            case Key::Enter: return ImGuiKey_Enter;
+            case Key::Escape: return ImGuiKey_Escape;
+            case Key::LeftControl: return ImGuiKey_LeftCtrl;
+            case Key::LeftShift: return ImGuiKey_LeftShift;
+            case Key::LeftAlt: return ImGuiKey_LeftAlt;
+            case Key::LeftSuper: return ImGuiKey_LeftSuper;
+            case Key::RightControl: return ImGuiKey_RightCtrl;
+            case Key::RightShift: return ImGuiKey_RightShift;
+            case Key::RightAlt: return ImGuiKey_RightAlt;
+            case Key::RightSuper: return ImGuiKey_RightSuper;
+            case Key::Menu: return ImGuiKey_Menu;
+            case Key::Apostrophe: return ImGuiKey_Apostrophe;
+            case Key::Comma: return ImGuiKey_Comma;
+            case Key::Minus: return ImGuiKey_Minus;
+            case Key::Period: return ImGuiKey_Period;
+            case Key::Slash: return ImGuiKey_Slash;
+            case Key::Semicolon: return ImGuiKey_Semicolon;
+            case Key::Equal: return ImGuiKey_Equal;
+            case Key::LeftBracket: return ImGuiKey_LeftBracket;
+            case Key::Backslash: return ImGuiKey_Backslash;
+            case Key::RightBracket: return ImGuiKey_RightBracket;
+            case Key::GraveAccent: return ImGuiKey_GraveAccent;
+            case Key::CapsLock: return ImGuiKey_CapsLock;
+            case Key::ScrollLock: return ImGuiKey_ScrollLock;
+            case Key::NumLock: return ImGuiKey_NumLock;
+            case Key::PrintScreen: return ImGuiKey_PrintScreen;
+            case Key::Pause: return ImGuiKey_Pause;
+            case Key::KeypadDecimal: return ImGuiKey_KeypadDecimal;
+            case Key::KeypadDivide: return ImGuiKey_KeypadDivide;
+            case Key::KeypadMultiply: return ImGuiKey_KeypadMultiply;
+            case Key::KeypadSubtract: return ImGuiKey_KeypadSubtract;
+            case Key::KeypadAdd: return ImGuiKey_KeypadAdd;
+            case Key::KeypadEnter: return ImGuiKey_KeypadEnter;
+            default: return ImGuiKey_None;
+            }
+        }
+
+        int ToImGuiMouseButton(MouseButton button)
+        {
+            switch (button)
+            {
+            case MouseButton::Left: return 0;
+            case MouseButton::Right: return 1;
+            case MouseButton::Middle: return 2;
+            case MouseButton::Extra1: return 3;
+            case MouseButton::Extra2: return 4;
+            default: return -1;
+            }
         }
 
         struct alignas(4) UIPushConstants
@@ -170,6 +259,97 @@ namespace JBro
     std::size_t EditorUI::GetLastDrawCount() const
     {
         return m_lastDrawCount;
+    }
+
+    std::uint64_t EditorUI::ToTextureId(TextureHandle handle)
+    {
+        return (static_cast<std::uint64_t>(handle.generation) << 32) | handle.index;
+    }
+
+    bool EditorUI::PushInput(JArrayView<InputEvent> events)
+    {
+        if (false == m_initialized)
+        {
+            return false;
+        }
+        ImGui::SetCurrentContext(static_cast<ImGuiContext*>(m_context));
+        ImGuiIO& io = ImGui::GetIO();
+
+        for (std::uint32_t index = 0; index < events.size; ++index)
+        {
+            const InputEvent& event = events.data[index];
+            switch (event.kind)
+            {
+            case InputEventKind::KeyDown:
+            case InputEventKind::KeyUp:
+            {
+                const bool down = event.kind == InputEventKind::KeyDown;
+                // **조합키는 키 자체와 따로 알려 줘야 한다.** ImGui 는 Ctrl+C 를
+                // 판단할 때 이 상태를 보지, 좌우 Ctrl 키의 눌림을 보지 않는다.
+                io.AddKeyEvent(ImGuiMod_Ctrl, (event.modifiers & KeyModifierControl) != 0);
+                io.AddKeyEvent(ImGuiMod_Shift, (event.modifiers & KeyModifierShift) != 0);
+                io.AddKeyEvent(ImGuiMod_Alt, (event.modifiers & KeyModifierAlt) != 0);
+                io.AddKeyEvent(ImGuiMod_Super, (event.modifiers & KeyModifierSuper) != 0);
+                const ImGuiKey key = ToImGuiKey(event.key);
+                if (key != ImGuiKey_None)
+                {
+                    io.AddKeyEvent(key, down);
+                }
+                break;
+            }
+
+            case InputEventKind::Text:
+                io.AddInputCharacter(event.codePoint);
+                break;
+
+            case InputEventKind::MouseMove:
+                io.AddMousePosEvent(event.x, event.y);
+                break;
+
+            case InputEventKind::MouseButtonDown:
+            case InputEventKind::MouseButtonUp:
+            {
+                const int button = ToImGuiMouseButton(event.button);
+                if (button >= 0)
+                {
+                    io.AddMouseButtonEvent(
+                        button, event.kind == InputEventKind::MouseButtonDown);
+                }
+                break;
+            }
+
+            case InputEventKind::MouseWheel:
+                io.AddMouseWheelEvent(event.x, event.y);
+                break;
+
+            case InputEventKind::FocusGained:
+            case InputEventKind::FocusLost:
+                // 창을 떠날 때 눌려 있던 키가 눌린 채로 남지 않게 한다.
+                io.AddFocusEvent(event.kind == InputEventKind::FocusGained);
+                break;
+            }
+        }
+        return true;
+    }
+
+    bool EditorUI::WantsMouse() const
+    {
+        if (false == m_initialized)
+        {
+            return false;
+        }
+        ImGui::SetCurrentContext(static_cast<ImGuiContext*>(m_context));
+        return ImGui::GetIO().WantCaptureMouse;
+    }
+
+    bool EditorUI::WantsKeyboard() const
+    {
+        if (false == m_initialized)
+        {
+            return false;
+        }
+        ImGui::SetCurrentContext(static_cast<ImGuiContext*>(m_context));
+        return ImGui::GetIO().WantCaptureKeyboard;
     }
 
     bool EditorUI::BeginFrame(const Extent2D& displaySize, float deltaTime)
