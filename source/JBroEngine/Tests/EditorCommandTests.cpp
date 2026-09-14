@@ -1,9 +1,11 @@
-﻿#include <JBro/Editor/EditorCommand.h>
+﻿#include <JBro/Editor/Command/CompoundCommand.h>
+#include <JBro/Editor/EditorCommand.h>
 
 #include <imgui.h>
 
 #include <iostream>
 #include <stdexcept>
+#include <utility>
 
 namespace
 {
@@ -52,6 +54,11 @@ namespace
         {
             *m_target = m_newValue;
             ++redos;
+        }
+        bool CanMerge(const JBro::EditorCommand& newer) const override
+        {
+            const auto* other = dynamic_cast<const SetNumberCommand*>(&newer);
+            return other != nullptr && other->m_tag == m_tag;
         }
         bool TryMerge(const JBro::EditorCommand& newer) override
         {
@@ -272,6 +279,129 @@ namespace
         Check(commands.Undo() && value == 0, "and it undoes to before it");
     }
 
+    // **묶은 것은 하나처럼 움직인다.** 사용자가 한 일이 하나였으므로
+    // Ctrl+Z 도 한 번이어야 한다.
+    void TestACompoundIsOneUndo()
+    {
+        JBro::EditorCommandManager commands;
+        int first = 0;
+        int second = 0;
+        int third = 0;
+
+        auto compound = JBro::MakeOwnerPtr<JBro::CompoundCommand>("Set Three");
+        Check(compound->Add(MakeSet(first, 0, 1, 1)), "the first must go in");
+        Check(compound->Add(MakeSet(second, 0, 2, 2)), "and the second");
+        Check(compound->Add(MakeSet(third, 0, 3, 3)), "and the third");
+        Check(compound->GetCount() == 3, "all three are in there");
+        Check(false == compound->Add({}), "but nothing at all is not a command");
+
+        Check(commands.Execute(std::move(compound)), "running it must go through");
+        Check(first == 1 && second == 2 && third == 3, "and change all three");
+        Check(commands.GetUndoCount() == 1, "leaving one thing to undo");
+
+        Check(commands.Undo(), "undo must run");
+        Check(first == 0 && second == 0 && third == 0, "and put all three back");
+        Check(commands.Redo(), "redo must run");
+        Check(first == 1 && second == 2 && third == 3, "and do all three again");
+    }
+
+    // **전부 되거나 하나도 안 된다.** 반쯤 적용된 편집이 스택에 오르지 않은
+    // 채로 남는 것이 가장 나쁘다 - 다음 Ctrl+Z 가 그것을 모른다.
+    void TestAFailedPartInsideACompoundRollsBackTheRest()
+    {
+        JBro::EditorCommandManager commands;
+        int first = 0;
+        int second = 0;
+
+        auto failing = JBro::MakeOwnerPtr<SetNumberCommand>(second, 0, 2, 2);
+        failing->FailNextExecute();
+
+        auto compound = JBro::MakeOwnerPtr<JBro::CompoundCommand>("Set Two");
+        compound->Add(MakeSet(first, 0, 1, 1));
+        compound->Add(std::move(failing));
+
+        Check(false == commands.Execute(std::move(compound)),
+            "a compound with a failing part must fail");
+        Check(first == 0,
+            "and must put back the parts that had already gone through");
+        Check(second == 0, "the failing one changed nothing to begin with");
+        Check(false == commands.CanUndo(), "and nothing may be on the stack");
+
+        // 빈 것도 거절한다. 올려 두면 Ctrl+Z 가 헛걸음한다.
+        Check(false == commands.Execute(
+                JBro::MakeOwnerPtr<JBro::CompoundCommand>("Nothing")),
+            "an empty compound must be refused");
+    }
+
+    // 드래그는 묶은 것끼리도 합쳐져야 한다. 대상이 셋이면 프레임마다 셋씩
+    // 쌓이는데, 그것을 합치지 않으면 되돌리기가 프레임 수만큼 남는다.
+    void TestCompoundsMergeAsAWhole()
+    {
+        MouseStage stage;
+        JBro::EditorCommandManager commands;
+        int first = 0;
+        int second = 0;
+
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            auto compound = JBro::MakeOwnerPtr<JBro::CompoundCommand>("Drag Two");
+            compound->Add(MakeSet(first, frame, frame + 1, 1));
+            compound->Add(MakeSet(second, frame * 2, (frame + 1) * 2, 2));
+            stage.Frame(true);
+            Check(commands.Execute(std::move(compound)), "each frame must apply");
+            stage.EndFrame();
+        }
+        Check(commands.GetUndoCount() == 1,
+            "a drag over several targets must still leave one entry");
+        Check(first == 3 && second == 6, "and both must be where the drag ended");
+        Check(commands.Undo(), "undo must run");
+        Check(first == 0 && second == 0,
+            "and take both back to before the drag started");
+
+        // **짝이 안 맞으면 합치지 않는다.** 대상 수가 달라졌다면 다른 편집이다.
+        commands.Clear();
+        first = 0;
+        second = 0;
+        stage.Frame(true);
+        {
+            auto two = JBro::MakeOwnerPtr<JBro::CompoundCommand>("Drag Two");
+            two->Add(MakeSet(first, 0, 1, 1));
+            two->Add(MakeSet(second, 0, 2, 2));
+            commands.Execute(std::move(two));
+        }
+        stage.EndFrame();
+        stage.Frame(true);
+        {
+            auto one = JBro::MakeOwnerPtr<JBro::CompoundCommand>("Drag One");
+            one->Add(MakeSet(first, 1, 5, 1));
+            commands.Execute(std::move(one));
+        }
+        stage.EndFrame();
+        Check(commands.GetUndoCount() == 2,
+            "a compound of a different size must stand on its own");
+
+        // 대상은 같은 수인데 **다른 대상**이어도 합치지 않는다.
+        commands.Clear();
+        first = 0;
+        second = 0;
+        stage.Frame(true);
+        {
+            auto left = JBro::MakeOwnerPtr<JBro::CompoundCommand>("Drag");
+            left->Add(MakeSet(first, 0, 1, 1));
+            commands.Execute(std::move(left));
+        }
+        stage.EndFrame();
+        stage.Frame(true);
+        {
+            auto right = JBro::MakeOwnerPtr<JBro::CompoundCommand>("Drag");
+            right->Add(MakeSet(second, 0, 1, 99));
+            commands.Execute(std::move(right));
+        }
+        stage.EndFrame();
+        Check(commands.GetUndoCount() == 2,
+            "the same size over different targets must not merge either");
+    }
+
     void TestSavingIsTrackedByRevisionNotByAFlag()
     {
         JBro::EditorCommandManager commands;
@@ -334,6 +464,9 @@ int RunEditorCommandTests()
     TestAFailedEditIsNotRemembered();
     TestEditsDoNotMergeWithoutAMouse();
     TestOneDragIsOneUndo();
+    TestACompoundIsOneUndo();
+    TestAFailedPartInsideACompoundRollsBackTheRest();
+    TestCompoundsMergeAsAWhole();
     TestSavingIsTrackedByRevisionNotByAFlag();
     TestClearingForgetsEverything();
     TestTheStackHasACeiling();

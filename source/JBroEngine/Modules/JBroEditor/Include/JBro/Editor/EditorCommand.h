@@ -30,6 +30,17 @@ namespace JBro
         //
         // `newer` 는 **이미 `Execute` 되어 값이 적용된 뒤**에 들어온다.
         // 기본은 합치지 않음이다.
+        // 합쳐질 수 있는가. **바꾸지 않고 묻기만 한다.**
+        //
+        // `TryMerge` 만 있으면 여럿을 묶은 커맨드가 곤란해진다 - 앞의 것 몇 개를
+        // 합친 뒤에 하나가 거절하면 이미 절반만 합쳐진 상태이고, 되돌릴 방법이
+        // 없다. 먼저 전부 물어보고 나서 전부 합친다.
+        virtual bool CanMerge(const EditorCommand& newer) const
+        {
+            (void)newer;
+            return false;
+        }
+
         virtual bool TryMerge(const EditorCommand& newer)
         {
             (void)newer;

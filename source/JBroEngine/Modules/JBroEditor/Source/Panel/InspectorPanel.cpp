@@ -2,6 +2,7 @@
 
 #include <JBro/Canvas/ComponentRegistry.h>
 #include <JBro/Editor/Command/ComponentCommands.h>
+#include <JBro/Editor/Command/CompoundCommand.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
@@ -17,6 +18,7 @@
 #include <imgui.h>
 
 #include <cstring>
+#include <utility>
 
 namespace JBro
 {
@@ -189,6 +191,7 @@ namespace JBro
                 else
                 {
                     Context context;
+                    context.owner = object;
                     context.component = component;
                     context.typeId = slot.typeId;
                     DrawFieldsInto(layout, *table, component, context);
@@ -387,6 +390,41 @@ namespace JBro
         return false;
     }
 
+    Array<ComponentBase*> InspectorPanel::CollectEditTargets(const Context& context) const
+    {
+        Array<ComponentBase*> targets;
+        if (context.component == nullptr)
+        {
+            return targets;
+        }
+        std::uint32_t ordinal = 0;
+        if (context.owner == nullptr
+            || false == FindComponentOrdinal(*context.owner, *context.component, ordinal))
+        {
+            targets.Add(context.component);
+            return targets;
+        }
+
+        // **조상이 함께 골라졌으면 뺀다.** 부모를 옮기면 자식은 따라 움직이므로
+        // 둘 다 대상으로 삼으면 자식에게 두 번 적용된다(기존 `GetSelectedTopLevel`).
+        const Array<GameObject*> chosen = m_editor->GetTopLevelSelectedObjects();
+        for (std::size_t index = 0; index < chosen.Size(); ++index)
+        {
+            if (ComponentBase* found =
+                FindComponentAt(*chosen[index], context.typeId, ordinal))
+            {
+                targets.Add(found);
+            }
+        }
+        if (targets.IsEmpty())
+        {
+            // 고른 것이 없거나(인스펙터만 열어 둔 경우) 셈이 어긋났다.
+            // 눈앞의 것 하나는 반드시 고쳐져야 한다.
+            targets.Add(context.component);
+        }
+        return targets;
+    }
+
     void InspectorPanel::CommitEdit(
         const TypeDescriptor& type, void* address, const String& before, Context& context)
     {
@@ -395,6 +433,34 @@ namespace JBro
         {
             return;
         }
+
+        // **숫자는 델타로, 나머지는 그대로 옮긴다.**
+        //
+        // 위치가 저마다 다른 오브젝트 셋을 골라 놓고 x 를 끌었을 때, 셋이 한
+        // 자리로 모이면 그것은 옮긴 것이 아니라 뭉갠 것이다 - 기존 엔진이
+        // 트랜스폼 편집을 델타로 다루는 이유다. 반대로 켜짐 여부나 enum 에는
+        // 델타라는 것이 없으므로 고른 값을 그대로 준다.
+        ScalarRun editedRun;
+        const bool numeric = CollectScalarRun(type, address, editedRun)
+            || SameName(type.typeName, "float");
+        float delta[ScalarRun::MaxCount] = {};
+        std::uint32_t deltaCount = 0;
+        if (numeric)
+        {
+            // 지금 주소에는 위젯이 쓴 값이 들어 있고, `before` 가 그 전 값이다.
+            ScalarRun afterRun;
+            if (false == CollectScalarRun(type, address, afterRun))
+            {
+                afterRun.values[0] = static_cast<float*>(address);
+                afterRun.count = 1;
+            }
+            for (std::uint32_t at = 0; at < afterRun.count; ++at)
+            {
+                delta[at] = *afterRun.values[at];
+            }
+            deltaCount = afterRun.count;
+        }
+
         // **바뀐 값을 도로 되돌려 놓는다.** 커맨드의 `Execute` 가 다시 적용하므로
         // 쓰는 길이 하나로 남는다 - 위젯이 한 번, 커맨드가 한 번 쓰면 되돌리기가
         // 무엇을 되돌리는지가 둘로 갈린다.
@@ -402,12 +468,74 @@ namespace JBro
         {
             type.codec->FromText(address, before.c_str(), before.size());
         }
-        m_editor->GetCommands().Execute(MakeOwnerPtr<SetPropertyCommand>(
-            context.component->SafeFromThis(),
-            context.typeId,
-            context.path,
-            before,
-            after));
+        if (numeric)
+        {
+            // 되돌린 뒤에 빼야 진짜 델타다.
+            ScalarRun beforeRun;
+            if (false == CollectScalarRun(type, address, beforeRun))
+            {
+                beforeRun.values[0] = static_cast<float*>(address);
+                beforeRun.count = 1;
+            }
+            for (std::uint32_t at = 0; at < deltaCount && at < beforeRun.count; ++at)
+            {
+                delta[at] -= *beforeRun.values[at];
+            }
+        }
+
+        const Array<ComponentBase*> targets = CollectEditTargets(context);
+        auto compound = MakeOwnerPtr<CompoundCommand>("Set Property");
+        for (std::size_t index = 0; index < targets.Size(); ++index)
+        {
+            ComponentBase* target = targets[index];
+            String targetBefore;
+            if (false == SetPropertyCommand::ReadValue(
+                *target, context.typeId, context.path, targetBefore))
+            {
+                continue;
+            }
+
+            String targetAfter = after;
+            if (numeric && target != context.component)
+            {
+                // 그 대상의 값에 같은 델타를 얹고, 그 결과를 글자로 뜬다.
+                // **뜬 뒤에는 도로 돌려놓는다** - 쓰는 것은 커맨드의 몫이다.
+                void* targetAddress = nullptr;
+                const TypeDescriptor* targetType = nullptr;
+                if (false == SetPropertyCommand::ResolveLeaf(*target, context.typeId,
+                    context.path, targetAddress, targetType))
+                {
+                    continue;
+                }
+                ScalarRun run;
+                if (false == CollectScalarRun(*targetType, targetAddress, run))
+                {
+                    run.values[0] = static_cast<float*>(targetAddress);
+                    run.count = 1;
+                }
+                for (std::uint32_t at = 0; at < run.count && at < deltaCount; ++at)
+                {
+                    *run.values[at] += delta[at];
+                }
+                const bool read = SetPropertyCommand::ReadValue(
+                    *target, context.typeId, context.path, targetAfter);
+                SetPropertyCommand::ApplyValue(
+                    *target, context.typeId, context.path, targetBefore);
+                if (false == read)
+                {
+                    continue;
+                }
+            }
+            if (targetAfter == targetBefore)
+            {
+                continue;
+            }
+            compound->Add(MakeOwnerPtr<SetPropertyCommand>(
+                target->SafeFromThis(), context.typeId, context.path,
+                targetBefore, targetAfter));
+        }
+
+        m_editor->GetCommands().Execute(std::move(compound));
     }
 
     void InspectorPanel::DrawArray(

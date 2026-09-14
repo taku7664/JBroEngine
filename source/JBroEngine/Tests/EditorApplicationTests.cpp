@@ -977,6 +977,164 @@ namespace
         editor.Shutdown();
     }
 
+    // **여럿을 골라 놓고 하나를 고치면 전부에 미치고, 되돌리기는 하나다.**
+    //
+    // 그리고 숫자는 **델타로** 간다. 위치가 저마다 다른 셋을 골라 x 를 끌었을 때
+    // 셋이 한 자리로 모이면 그것은 옮긴 것이 아니라 뭉갠 것이다 - 기존 엔진이
+    // 트랜스폼 편집을 델타로 다루는 이유다(D-83).
+    void TestEditingWithSeveralChosenReachesThemAll()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; multi edit not verified"
+                << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "MultiEditProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        HWND hwnd = FindWindowW(L"JBroEngineWindow", L"JBro Editor");
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* alpha = canvas->CreateObject("Alpha");
+        JBro::GameObject* beta = canvas->CreateObject("Beta");
+        JBro::GameObject* gamma = canvas->CreateObject("Gamma");
+        auto* alphaTransform =
+            canvas->AttachComponent<JBro::Component::Transform2D>(alpha);
+        auto* betaTransform =
+            canvas->AttachComponent<JBro::Component::Transform2D>(beta);
+        auto* gammaTransform =
+            canvas->AttachComponent<JBro::Component::Transform2D>(gamma);
+        Check(alphaTransform != nullptr && betaTransform != nullptr
+            && gammaTransform != nullptr, "all three must have transforms");
+
+        // **셋의 회전이 저마다 다르다.** 같으면 델타와 절대값을 구분할 수 없다.
+        alphaTransform->rotation = 0.0f;
+        betaTransform->rotation = 10.0f;
+        gammaTransform->rotation = 20.0f;
+
+        JBro::GameObject* chosen[] = {alpha, beta, gamma};
+        editor.SelectObjects({chosen, 3});
+        Check(editor.GetSelectionCount() == 3, "three must be chosen");
+        Check(editor.GetSelectedObject() == alpha, "and the first leads");
+
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        const JBro::PropertyTable* table = JBro::PropertyRegistry::Lookup(
+            JBro::NameTable::Get().Intern("Component::Transform2D"));
+        Check(table != nullptr, "the transform must have registered its properties");
+        const std::uint32_t rotation = FieldIndexOf(*table, "rotation");
+
+        Spot spot;
+        Check(FindInspectorItem(editor, hwnd,
+                InspectorFieldId(0, rotation, "##value"), spot),
+            "the rotation row must be in the inspector");
+
+        const std::size_t before = editor.GetCommands().GetUndoCount();
+        DragFrom(editor, hwnd, spot, spot.x + 100);
+
+        const float moved = alphaTransform->rotation;
+        Check(moved > 0.5f, "the one the inspector shows must move");
+        Check(editor.GetCommands().GetUndoCount() == before + 1,
+            "and the whole drag over three objects must leave one thing to undo");
+
+        // **같은 델타가 셋 모두에.** 각자의 시작값에서 같은 만큼 움직인다.
+        Check(betaTransform->rotation > 10.0f + moved - 0.01f
+                && betaTransform->rotation < 10.0f + moved + 0.01f,
+            "the second must move by the same amount from where it was");
+        Check(gammaTransform->rotation > 20.0f + moved - 0.01f
+                && gammaTransform->rotation < 20.0f + moved + 0.01f,
+            "and so must the third");
+        Check(betaTransform->rotation > 10.0f,
+            "they must not be flattened onto the value of the first");
+
+        Check(editor.GetCommands().Undo(), "one undo must run");
+        Check(alphaTransform->rotation < 0.01f && alphaTransform->rotation > -0.01f,
+            "and put the first back");
+        Check(betaTransform->rotation > 9.99f && betaTransform->rotation < 10.01f,
+            "the second back to its own value");
+        Check(gammaTransform->rotation > 19.99f && gammaTransform->rotation < 20.01f,
+            "and the third to its own");
+
+        Check(editor.GetCommands().Redo(), "redo must run");
+        Check(betaTransform->rotation > 10.0f + moved - 0.01f,
+            "and move them all again");
+
+        editor.Shutdown();
+    }
+
+    // **조상이 함께 골라졌으면 자식은 빠진다.** 부모를 옮기면 자식은 따라
+    // 움직이므로 둘 다 대상으로 삼으면 자식에게 두 번 적용된다.
+    void TestAChosenChildDoesNotGetTheEditTwice()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; top level edit not verified"
+                << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "TopLevelEditProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        HWND hwnd = FindWindowW(L"JBroEngineWindow", L"JBro Editor");
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* parent = canvas->CreateObject("Parent");
+        JBro::GameObject* child = canvas->CreateObject("Child");
+        child->SetParent(parent);
+        auto* parentTransform =
+            canvas->AttachComponent<JBro::Component::Transform2D>(parent);
+        auto* childTransform =
+            canvas->AttachComponent<JBro::Component::Transform2D>(child);
+        parentTransform->rotation = 0.0f;
+        childTransform->rotation = 100.0f;
+
+        JBro::GameObject* chosen[] = {parent, child};
+        editor.SelectObjects({chosen, 2});
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        const JBro::PropertyTable* table = JBro::PropertyRegistry::Lookup(
+            JBro::NameTable::Get().Intern("Component::Transform2D"));
+        const std::uint32_t rotation = FieldIndexOf(*table, "rotation");
+        Spot spot;
+        Check(FindInspectorItem(editor, hwnd,
+                InspectorFieldId(0, rotation, "##value"), spot),
+            "the rotation row must be in the inspector");
+
+        DragFrom(editor, hwnd, spot, spot.x + 100);
+
+        Check(parentTransform->rotation > 0.5f, "the parent must move");
+        // 자식의 **자기 회전**은 그대로여야 한다. 월드에서는 부모를 따라 돈다.
+        Check(childTransform->rotation > 99.99f && childTransform->rotation < 100.01f,
+            "the child must not be turned a second time on its own account");
+
+        editor.Shutdown();
+    }
+
     // **인스펙터는 타입을 하나도 모른다.** 리플렉션이 내주는 것만 보고 그린다 -
     // 그래서 리플렉션이 내주는 것이 맞아야 화면도 맞는다. 파생값을 고칠 수 있게
     // 그려 놓으면 사용자가 고쳐도 다음 프레임에 덮어써져, 고장 난 것처럼 보인다.
@@ -1719,6 +1877,8 @@ int RunEditorApplicationTests()
     TestAChosenChildUnderAChosenParentIsNotItsOwnTarget();
     TestTheInspectorIsToldWhatItMayEdit();
     TestTheInspectorEditsThroughCommands();
+    TestEditingWithSeveralChosenReachesThemAll();
+    TestAChosenChildDoesNotGetTheEditTwice();
     TestTypingTheSameValueLeavesNothingToUndo();
     TestCreatingAnObjectCanBeUndone();
     TestDeletingAnObjectCanBeUndoneWithItsValues();

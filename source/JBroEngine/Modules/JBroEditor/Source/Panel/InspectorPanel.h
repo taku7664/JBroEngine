@@ -41,6 +41,10 @@ namespace JBro
         // 커맨드를 만들 때 둘 다 필요하다.
         struct Context
         {
+            // 컴포넌트의 주인이다. `ComponentBase` 가 주인을 내주는 길은
+            // 핸들뿐이고 원시 포인터 쪽은 private 이라, 그리는 쪽이 이미
+            // 알고 있는 것을 여기 담아 온다.
+            GameObject* owner = nullptr;
             ComponentBase* component = nullptr;
             ComponentTypeId typeId = 0;
             SetPropertyCommand::Path path;
@@ -98,6 +102,13 @@ namespace JBro
             const PropertyTable& table,
             void* owner,
             Context& context);
+        // 고른 것 전부에서 **같은 자리의 컴포넌트**를 모은다.
+        //
+        // 같은 자리란 같은 타입의 같은 번째다 - 주된 것에 스프라이트가 둘이고
+        // 둘째를 고치는 중이면, 다른 오브젝트에서도 둘째를 고쳐야 한다.
+        // 그 컴포넌트가 없는 오브젝트는 빠진다.
+        Array<ComponentBase*> CollectEditTargets(const Context& context) const;
+
         // 위젯이 값을 바꿨다. 되돌려 놓고 커맨드로 다시 적용한다.
         void CommitEdit(
             const TypeDescriptor& type,

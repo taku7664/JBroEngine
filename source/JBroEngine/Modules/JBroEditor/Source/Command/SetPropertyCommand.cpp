@@ -122,20 +122,25 @@ namespace JBro
         WriteValue(m_newValue);
     }
 
-    bool SetPropertyCommand::TryMerge(const EditorCommand& newer)
+    bool SetPropertyCommand::CanMerge(const EditorCommand& newer) const
     {
         // **같은 잎사귀를 이어서 고치는 중일 때만 합친다.** 다른 필드로 옮겨 갔는데
         // 합치면 그 편집이 되돌리기에서 사라진다.
         const auto* other = dynamic_cast<const SetPropertyCommand*>(&newer);
-        if (other == nullptr
-            || other->m_component.TryGet() != m_component.TryGet()
-            || other->m_typeId != m_typeId
-            || false == other->m_path.Equals(m_path))
+        return other != nullptr
+            && other->m_component.TryGet() == m_component.TryGet()
+            && other->m_typeId == m_typeId
+            && other->m_path.Equals(m_path);
+    }
+
+    bool SetPropertyCommand::TryMerge(const EditorCommand& newer)
+    {
+        if (false == CanMerge(newer))
         {
             return false;
         }
         // 처음 값은 이쪽 것을 지킨다 - 드래그 전체를 한 번에 되돌려야 한다.
-        m_newValue = other->m_newValue;
+        m_newValue = static_cast<const SetPropertyCommand&>(newer).m_newValue;
         return true;
     }
 

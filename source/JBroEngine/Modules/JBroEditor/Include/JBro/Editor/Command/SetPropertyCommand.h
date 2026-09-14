@@ -47,6 +47,7 @@ namespace JBro
         bool Execute() override;
         void Undo() override;
         void Redo() override;
+        bool CanMerge(const EditorCommand& newer) const override;
         bool TryMerge(const EditorCommand& newer) override;
 
         // 길을 따라 잎사귀의 주소와 타입을 찾는다. 중간이 사라졌거나 잎사귀에
