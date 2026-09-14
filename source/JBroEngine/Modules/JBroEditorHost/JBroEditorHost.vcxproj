@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>18.0</VCProjectVersion>
+    <ProjectGuid>{1a000014-0000-4000-8000-0000000ed1f0}</ProjectGuid>
+    <RootNamespace>JBroEditorHost</RootNamespace>
+    <ProjectName>JBroEditorHost</ProjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <Import Project="$(SolutionDir)JBro.Common.props" Condition="Exists('$(SolutionDir)JBro.Common.props')" />
+  <Import Project="$(MSBuildThisFileDirectory)..\..\JBro.Common.props" Condition="!Exists('$(SolutionDir)JBro.Common.props')" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroRHI\Include;$(JBroModulesDir)JBroD3D12RHI\Include;$(JBroModulesDir)JBroGraphics\Include;$(JBroModulesDir)JBroPlatform\Include;$(JBroModulesDir)JBroCanvas\Include;$(JBroModulesDir)JBroHost\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroFramework2DSystem\Include;$(JBroModulesDir)JBroFramework2D\Include;$(JBroModulesDir)JBroFramework3DSystem\Include;$(JBroModulesDir)JBroFramework3D\Include;$(JBroModulesDir)JBroEditor\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <AdditionalDependencies>d3d12.lib;dxgi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="Source\**\*.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(JBroModulesDir)JBroCore\JBroCore.vcxproj">
+      <Project>{1a000001-0000-4000-8000-00000000c0de}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroAssetTypes\JBroAssetTypes.vcxproj">
+      <Project>{1a000012-0000-4000-8000-0000000a5570}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroAsset\JBroAsset.vcxproj">
+      <Project>{1a000002-0000-4000-8000-0000000a5537}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroRHI\JBroRHI.vcxproj">
+      <Project>{1a000003-0000-4000-8000-000000000271}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroD3D12RHI\JBroD3D12RHI.vcxproj">
+      <Project>{1a000007-0000-4000-8000-0000000d3d12}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroPlatform\JBroPlatform.vcxproj">
+      <Project>{1a000004-0000-4000-8000-00000091a7f0}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroGraphics\JBroGraphics.vcxproj">
+      <Project>{1a000005-0000-4000-8000-000000024a12}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroCanvas\JBroCanvas.vcxproj">
+      <Project>{1a00000f-0000-4000-8000-00000000ca47}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroHost\JBroHost.vcxproj">
+      <Project>{1a000010-0000-4000-8000-000000000805}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroRuntime\JBroRuntime.vcxproj">
+      <Project>{1a000006-0000-4000-8000-000000027417}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroFramework2DSystem\JBroFramework2DSystem.vcxproj">
+      <Project>{1a000011-0000-4000-8000-0000000f2d5e}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroFramework2D\JBroFramework2D.vcxproj">
+      <Project>{1a000008-0000-4000-8000-000000000f2d}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroFramework3D\JBroFramework3D.vcxproj">
+      <Project>{1a000009-0000-4000-8000-000000000f3d}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroFramework3DSystem\JBroFramework3DSystem.vcxproj">
+      <Project>{1a000013-0000-4000-8000-0000000f3d5e}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroEditor\JBroEditor.vcxproj">
+      <Project>{1a00000a-0000-4000-8000-0000000ed170}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroThirdPartyDir)imgui\imgui.vcxproj">
+      <Project>{1b000001-0000-4000-8000-000000114d61}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>
