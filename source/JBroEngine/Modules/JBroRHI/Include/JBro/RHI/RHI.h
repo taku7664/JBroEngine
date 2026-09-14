@@ -469,6 +469,19 @@ namespace JBro
             (void)result;
             return false;
         }
+
+        // 그래픽 API 의 검증 레이어가 남긴 오류·손상 메시지의 수다.
+        //
+        // **이것은 테스트가 붙잡는 손잡이다.** D3D12 는 잘못된 리소스 상태나 잘못된
+        // 시저 같은 것을 대개 조용히 지나간다 - 그 기계의 드라이버가 알아서 주워 담고,
+        // 그림이 맞게 나오니 테스트도 통과한다. 그러고는 다른 기계에서 깨진다.
+        // 픽셀만 보아서는 그 차이를 볼 수 없고, 검증 레이어만이 말해 준다.
+        //
+        // 검증을 켜지 않았거나 백엔드가 그런 것을 갖고 있지 않으면 0 이다.
+        virtual std::uint32_t GetValidationErrorCount() const
+        {
+            return 0;
+        }
     };
 
     class IRHIModule : public IModule

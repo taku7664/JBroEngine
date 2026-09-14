@@ -4,6 +4,7 @@
 
 #include <Windows.h>
 #include <d3d12.h>
+#include <d3d12sdklayers.h>
 #include <dxgi1_6.h>
 #include <wrl/client.h>
 
@@ -196,6 +197,7 @@ namespace JBro::Internal
             std::byte* destination,
             std::size_t destinationSize,
             TextureReadback& result) override;
+        std::uint32_t GetValidationErrorCount() const override;
         bool WriteBuffer(
             BufferHandle buffer,
             std::size_t offset,
@@ -280,6 +282,8 @@ namespace JBro::Internal
         ComPtr<IDXGIFactory6> m_factory;
         ComPtr<IDXGIAdapter1> m_adapter;
         ComPtr<ID3D12Device> m_device;
+        // 검증을 켰을 때만 있다. 오류와 손상만 남기도록 걸러 둔다.
+        ComPtr<ID3D12InfoQueue> m_infoQueue;
         ComPtr<ID3D12CommandQueue> m_graphicsQueue;
         ComPtr<ID3D12Fence> m_fence;
         ComPtr<ID3D12DescriptorHeap> m_textureRenderTargetHeap;

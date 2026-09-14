@@ -137,6 +137,19 @@ namespace JBro::Internal
             return false;
         }
 
+        if (createInfo.enableValidation && SUCCEEDED(m_device.As(&m_infoQueue)))
+        {
+            // 오류와 손상만 쌓는다. 경고와 정보까지 세면 큐가 금세 차서 넘치고,
+            // 그때 넘친 것이 오류인지 잡소리인지 알 수 없게 된다.
+            D3D12_MESSAGE_SEVERITY severities[] = {
+                D3D12_MESSAGE_SEVERITY_CORRUPTION,
+                D3D12_MESSAGE_SEVERITY_ERROR};
+            D3D12_INFO_QUEUE_FILTER filter = {};
+            filter.AllowList.NumSeverities = _countof(severities);
+            filter.AllowList.pSeverityList = severities;
+            m_infoQueue->PushStorageFilter(&filter);
+        }
+
         D3D12_COMMAND_QUEUE_DESC queueDesc = {};
         queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
         queueDesc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_NORMAL;

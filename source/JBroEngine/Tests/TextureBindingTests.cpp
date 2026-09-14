@@ -86,6 +86,8 @@ namespace
 
         // 이 기계에 D3D12 가 없으면 false 다. 그 경우 테스트는 건너뛴다.
         bool Open(const char* title);
+        // 여기까지 오는 동안 검증 레이어가 한 마디도 하지 않아야 한다.
+        void CheckValidationStayedQuiet(const char* what) const;
         bool BeginPass(JBro::IRHICommandContext& commands, const JBro::BeginFrameResult& begun);
         void Close();
     };
@@ -125,7 +127,11 @@ namespace
             return false;
         }
         rhiOpen = true;
-        device = rhi.CreateDevice({});
+        // **검증 레이어를 켠다.** D3D12 는 잘못된 리소스 상태를 이 기계에서는 조용히
+        // 지나가고 그림도 맞게 나온다. 픽셀만 보는 테스트는 그것을 못 잡는다.
+        JBro::RHIDeviceCreateInfo createInfo;
+        createInfo.enableValidation = true;
+        device = rhi.CreateDevice(createInfo);
         if (device == nullptr)
         {
             Close();
@@ -239,6 +245,21 @@ namespace
             static_cast<std::int32_t>(SurfaceSize),
             static_cast<std::int32_t>(SurfaceSize)});
         return true;
+    }
+
+    void Probe::CheckValidationStayedQuiet(const char* what) const
+    {
+        if (device == nullptr)
+        {
+            return;
+        }
+        const std::uint32_t errors = device->GetValidationErrorCount();
+        if (errors != 0)
+        {
+            std::cout << "  the debug layer reported " << errors << " error(s) during "
+                << what << std::endl;
+        }
+        Check(errors == 0, "the debug layer must stay quiet");
     }
 
     void Probe::Close()
@@ -360,6 +381,7 @@ namespace
         Check(Near(bottomRight.r, 1.0f) && Near(bottomRight.g, 1.0f) && Near(bottomRight.b, 1.0f),
             "the fourth texel must land in the bottom right");
 
+        probe.CheckValidationStayedQuiet("this probe");
         probe.Close();
     }
 
@@ -462,6 +484,7 @@ namespace
         Check(Near(bottomRight.r, 1.0f) && Near(bottomRight.g, 1.0f) && Near(bottomRight.b, 1.0f),
             "and the fourth");
 
+        probe.CheckValidationStayedQuiet("this probe");
         probe.Close();
     }
 
@@ -509,6 +532,7 @@ namespace
         commands.EndRenderPass();
         Check(probe.device->EndFrame(begun.frame) == JBro::FrameStatus::Ready,
             "the frame must present");
+        probe.CheckValidationStayedQuiet("this probe");
         probe.Close();
     }
 
@@ -552,6 +576,7 @@ namespace
             Check(probe.device->EndFrame(begun.frame) == JBro::FrameStatus::Ready,
                 "each frame must present");
         }
+        probe.CheckValidationStayedQuiet("this probe");
         probe.Close();
     }
 
@@ -573,6 +598,7 @@ namespace
         Check(second.IsValid(), "the freed slot must be reusable");
         Check(false == (second == stale), "a reused slot must not answer to the old handle");
         probe.device->DestroySampler(second);
+        probe.CheckValidationStayedQuiet("this probe");
         probe.Close();
     }
 }

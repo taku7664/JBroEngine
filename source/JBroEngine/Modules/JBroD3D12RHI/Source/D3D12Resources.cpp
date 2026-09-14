@@ -281,6 +281,16 @@ namespace JBro::Internal
         }
     }
 
+    std::uint32_t D3D12Device::GetValidationErrorCount() const
+    {
+        if (m_infoQueue == nullptr)
+        {
+            return 0;
+        }
+        return static_cast<std::uint32_t>(
+            m_infoQueue->GetNumStoredMessagesAllowedByRetrievalFilter());
+    }
+
     bool D3D12Device::WriteBuffer(
         BufferHandle buffer,
         std::size_t offset,
