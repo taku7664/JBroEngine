@@ -700,6 +700,152 @@ namespace
         editor.Shutdown();
     }
 
+    // **여럿 고르기**(기존 엔진 `Editor::SelectEntities` 계열과 같은 모양).
+    // 목록과 주된 하나를 따로 든다 - 인스펙터는 주된 것을 보여 주고 편집은
+    // 목록 전체에 미치므로, 목록에서 하나 뺐다고 인스펙터가 딴 것을 보여 주면
+    // 손이 미끄러진 것처럼 보인다.
+    void TestSelectingSeveralObjects()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = WindowWidth;
+        config.windowHeight = WindowHeight;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; selection not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "SelectionProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* first = canvas->CreateObject("First");
+        JBro::GameObject* second = canvas->CreateObject("Second");
+        JBro::GameObject* third = canvas->CreateObject("Third");
+
+        Check(editor.GetSelectionCount() == 0, "nothing is chosen yet");
+        Check(editor.GetSelectedObject() == nullptr, "so there is no main one");
+        Check(false == editor.IsSelected(first), "and nothing answers to being chosen");
+        Check(false == editor.IsSelected(nullptr), "nothing at all is not chosen");
+
+        // 맨 클릭은 통째로 바꾼다.
+        editor.SetSelectedObject(first);
+        Check(editor.GetSelectionCount() == 1, "one click chooses one");
+        Check(editor.IsSelected(first), "that one");
+        Check(editor.GetSelectedObject() == first, "and it is the main one");
+
+        // Ctrl 클릭은 붙인다. 주된 것은 그대로다.
+        editor.AddToSelection(second);
+        editor.AddToSelection(third);
+        Check(editor.GetSelectionCount() == 3, "adding puts them alongside");
+        Check(editor.GetSelectedObject() == first,
+            "and must not move the main one out from under the inspector");
+        editor.AddToSelection(second);
+        Check(editor.GetSelectionCount() == 3, "adding the same one twice changes nothing");
+
+        // 뺄 때 목록의 순서를 지킨다.
+        editor.RemoveFromSelection(second);
+        Check(editor.GetSelectionCount() == 2, "removing takes one away");
+        Check(false == editor.IsSelected(second), "that one");
+        Check(editor.IsSelected(first) && editor.IsSelected(third), "and leaves the rest");
+
+        // 주된 것을 빼면 남은 것의 머리가 그 자리를 받는다.
+        editor.RemoveFromSelection(first);
+        Check(editor.GetSelectedObject() == third,
+            "removing the main one must hand the job to what is left");
+
+        JBro::GameObject* objects[] = {second, third, first};
+        editor.SelectObjects({objects, 3});
+        Check(editor.GetSelectionCount() == 3, "choosing a list chooses all of it");
+        Check(editor.GetSelectedObject() == second, "and the head of the list leads");
+
+        editor.ClearSelection();
+        Check(editor.GetSelectionCount() == 0, "clearing empties it");
+        Check(editor.GetSelectedObject() == nullptr, "main one included");
+
+        // **사라진 것은 목록에 있어도 없는 것이다.**
+        editor.SelectObjects({objects, 3});
+        Check(canvas->DestroyObject(second), "the main one must be destroyable");
+        canvas->FlushPendingDestroy();
+        Check(editor.GetSelectionCount() == 2, "a destroyed object stops counting");
+        Check(editor.GetSelectedObject() == nullptr,
+            "and if it was the main one, there is no main one");
+        const JBro::Array<JBro::GameObject*> living = editor.GetSelectedObjects();
+        Check(living.Size() == 2, "only the living come back");
+        for (std::size_t index = 0; index < living.Size(); ++index)
+        {
+            Check(living[index] != nullptr, "and none of them is nothing");
+        }
+
+        editor.Shutdown();
+    }
+
+    // **조상이 함께 골라졌으면 뺀다.** 부모를 옮기면 자식은 따라 움직이므로,
+    // 둘 다 대상으로 삼으면 자식에게 두 번 적용된다(기존 `GetSelectedTopLevel`).
+    void TestAChosenChildUnderAChosenParentIsNotItsOwnTarget()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = WindowWidth;
+        config.windowHeight = WindowHeight;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; top level not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "TopLevelProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* root = canvas->CreateObject("Root");
+        JBro::GameObject* child = canvas->CreateObject("Child");
+        JBro::GameObject* grandchild = canvas->CreateObject("Grandchild");
+        JBro::GameObject* stranger = canvas->CreateObject("Stranger");
+        child->SetParent(root);
+        grandchild->SetParent(child);
+
+        // 자식만 골랐으면 자식이 최상위다.
+        editor.SetSelectedObject(child);
+        JBro::Array<JBro::GameObject*> tops = editor.GetTopLevelSelectedObjects();
+        Check(tops.Size() == 1 && tops[0] == child,
+            "a child on its own is the top of its own selection");
+
+        // 부모까지 고르면 자식은 빠진다.
+        editor.AddToSelection(root);
+        tops = editor.GetTopLevelSelectedObjects();
+        Check(tops.Size() == 1 && tops[0] == root,
+            "with the parent chosen too, only the parent is a target");
+
+        // 손자까지 골라도 마찬가지다 - 한 단계가 아니라 조상 전체를 본다.
+        editor.AddToSelection(grandchild);
+        tops = editor.GetTopLevelSelectedObjects();
+        Check(tops.Size() == 1 && tops[0] == root,
+            "a grandchild is covered by its grandparent, not just its parent");
+
+        // 남남은 따로 선다.
+        editor.AddToSelection(stranger);
+        tops = editor.GetTopLevelSelectedObjects();
+        Check(tops.Size() == 2, "an unrelated object stands on its own");
+        const bool hasRoot = tops[0] == root || tops[1] == root;
+        const bool hasStranger = tops[0] == stranger || tops[1] == stranger;
+        Check(hasRoot && hasStranger, "and both of those are the targets");
+
+        // 부모를 선택에서 빼면 자식이 다시 최상위가 된다.
+        editor.RemoveFromSelection(root);
+        tops = editor.GetTopLevelSelectedObjects();
+        Check(tops.Size() == 2, "dropping the parent puts the child back in charge");
+        const bool hasChild = tops[0] == child || tops[1] == child;
+        Check(hasChild, "the child is a target again");
+
+        editor.Shutdown();
+    }
+
     // **인스펙터는 타입을 하나도 모른다.** 리플렉션이 내주는 것만 보고 그린다 -
     // 그래서 리플렉션이 내주는 것이 맞아야 화면도 맞는다. 파생값을 고칠 수 있게
     // 그려 놓으면 사용자가 고쳐도 다음 프레임에 덮어써져, 고장 난 것처럼 보인다.
@@ -1438,6 +1584,8 @@ int RunEditorApplicationTests()
     TestAClosedPanelKeepsUpdatingButStopsDrawing();
     TestClickingTheCloseButtonClosesThePanel();
     TestTheDeviceSurvivesFontAtlasUpdates();
+    TestSelectingSeveralObjects();
+    TestAChosenChildUnderAChosenParentIsNotItsOwnTarget();
     TestTheInspectorIsToldWhatItMayEdit();
     TestTheInspectorEditsThroughCommands();
     TestTypingTheSameValueLeavesNothingToUndo();

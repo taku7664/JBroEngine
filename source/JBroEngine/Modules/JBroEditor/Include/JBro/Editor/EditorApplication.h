@@ -102,6 +102,26 @@ namespace JBro
         void SetSelectedObject(GameObject* object);
         GameObject* GetSelectedObject() const;
 
+        // ── 여럿 고르기 ──────────────────────────────────────────────────
+        //
+        // 기존 엔진과 같은 모양이다: 고른 것들의 목록과, 그중 **주된 하나**.
+        // 인스펙터는 주된 것을 보여 주고, 편집은 목록 전체에 미친다.
+        //
+        // `SetSelectedObject` 는 목록을 그것 하나로 바꾼다 - 맨 클릭이다.
+        void SelectObjects(JArrayView<GameObject*> objects);
+        // Ctrl·Shift 클릭이다. 이미 있으면 아무 일도 하지 않는다.
+        void AddToSelection(GameObject* object);
+        void RemoveFromSelection(const GameObject* object);
+        bool IsSelected(const GameObject* object) const;
+        void ClearSelection();
+        // 살아 있는 것만 센다. 죽은 것은 목록에 남아 있어도 없는 것이다.
+        std::size_t GetSelectionCount() const;
+        Array<GameObject*> GetSelectedObjects() const;
+        // **조상이 함께 골라졌으면 뺀다.** 부모를 옮기면 자식은 따라 움직이므로,
+        // 둘 다 대상으로 삼으면 자식에게 두 번 적용된다. 트랜스폼 편집과 삭제가
+        // 이 목록을 쓴다(기존 엔진 `GetSelectedTopLevel` 과 같은 이유다).
+        Array<GameObject*> GetTopLevelSelectedObjects() const;
+
         // 이번 프레임의 입력을 UI 가 가져갔는가. **게임에 입력을 넘길지
         // 판단하는 자리다** - 에디터의 필드에 타자를 치는 중에 게임
         // 스크립트가 같은 키를 받으면 안 된다. UI 가 꺼져 있으면 거짓이다.
@@ -164,6 +184,10 @@ namespace JBro
         OwnerPtr<IFramework> m_framework;
         EditorUI m_ui;
         Array<OwnerPtr<EditorPanel>> m_panels;
+        // 고른 것들. 0번이 주된 것은 아니다 - 주된 것은 따로 든다(기존 엔진과
+        // 같다). Ctrl 로 빼다 보면 목록의 머리가 바뀌는데, 그때마다 인스펙터가
+        // 다른 것을 보여 주면 손이 미끄러진 것처럼 보인다.
+        Array<SafePtr<GameObject>> m_selection;
         SafePtr<GameObject> m_selected;
         EditorCommandManager m_commands;
         EditorObjectRegistry m_objectIds;

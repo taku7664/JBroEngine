@@ -88,7 +88,9 @@ namespace JBro
         {
             flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
         }
-        if (m_editor->GetSelectedObject() == &object)
+        // **고른 것 전부에 표시한다.** 주된 것 하나만 칠하면 여럿 골라 놓고
+        // 무엇이 골라졌는지 화면에서 알 수 없다.
+        if (m_editor->IsSelected(&object))
         {
             flags |= ImGuiTreeNodeFlags_Selected;
         }
@@ -99,13 +101,36 @@ namespace JBro
         const bool opened = ImGui::TreeNodeEx("##node", flags, "%s", name);
         if (ImGui::IsItemClicked() && false == ImGui::IsItemToggledOpen())
         {
-            m_editor->SetSelectedObject(&object);
+            // 기존 엔진과 같은 손놀림이다: Ctrl·Shift 는 하나씩 붙였다 뗐다,
+            // 맨 클릭은 통째로 바꾼다.
+            const ImGuiIO& io = ImGui::GetIO();
+            if (io.KeyCtrl || io.KeyShift)
+            {
+                if (m_editor->IsSelected(&object))
+                {
+                    m_editor->RemoveFromSelection(&object);
+                }
+                else
+                {
+                    m_editor->AddToSelection(&object);
+                }
+            }
+            else
+            {
+                m_editor->SetSelectedObject(&object);
+            }
         }
         if (ImGui::BeginPopupContextItem("##ObjectMenu"))
         {
             // 우클릭한 것을 고른 것으로 삼는다. 메뉴가 무엇에 대한 것인지
             // 보이는 것과 어긋나면 안 된다.
-            m_editor->SetSelectedObject(&object);
+            //
+            // **이미 골라져 있으면 선택을 흩뜨리지 않는다** - 여럿 골라 놓고
+            // 그중 하나에 우클릭하는 것은 "이것들에 대해" 라는 뜻이다.
+            if (false == m_editor->IsSelected(&object))
+            {
+                m_editor->SetSelectedObject(&object);
+            }
             if (ImGui::MenuItem("Create Child"))
             {
                 auto command = MakeOwnerPtr<CreateObjectCommand>(

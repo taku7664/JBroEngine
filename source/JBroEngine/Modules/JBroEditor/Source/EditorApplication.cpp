@@ -384,12 +384,142 @@ namespace JBro
 
     void EditorApplication::SetSelectedObject(GameObject* object)
     {
+        m_selection.Clear();
+        if (object != nullptr)
+        {
+            m_selection.Add(object->SafeFromThis());
+        }
         m_selected = object != nullptr ? object->SafeFromThis() : SafePtr<GameObject>();
     }
 
     GameObject* EditorApplication::GetSelectedObject() const
     {
         return m_selected.TryGet();
+    }
+
+    void EditorApplication::SelectObjects(JArrayView<GameObject*> objects)
+    {
+        m_selection.Clear();
+        for (std::size_t index = 0; index < objects.size; ++index)
+        {
+            if (objects.data[index] != nullptr)
+            {
+                m_selection.Add(objects.data[index]->SafeFromThis());
+            }
+        }
+        // 주된 것은 목록의 머리다. 기존 엔진이 그렇게 하고, 한 번에 여럿을
+        // 고르는 쪽(사각 선택, 붙여넣기)이 순서를 정해 넘긴다.
+        m_selected = m_selection.IsEmpty() ? SafePtr<GameObject>() : m_selection[0];
+    }
+
+    void EditorApplication::AddToSelection(GameObject* object)
+    {
+        if (object == nullptr || IsSelected(object))
+        {
+            return;
+        }
+        m_selection.Add(object->SafeFromThis());
+        if (m_selected.TryGet() == nullptr)
+        {
+            // 주된 것이 없거나 죽었다. 방금 더한 것이 그 자리를 받는다.
+            m_selected = object->SafeFromThis();
+        }
+    }
+
+    void EditorApplication::RemoveFromSelection(const GameObject* object)
+    {
+        if (object == nullptr)
+        {
+            return;
+        }
+        for (std::size_t index = 0; index < m_selection.Size(); ++index)
+        {
+            if (m_selection[index].TryGet() != object)
+            {
+                continue;
+            }
+            // 순서를 지키며 한 칸씩 당긴다. 목록의 머리가 주된 것을 정하므로
+            // 마지막 것을 끌어다 덮으면 남은 선택의 주인이 바뀐다.
+            for (std::size_t later = index + 1; later < m_selection.Size(); ++later)
+            {
+                m_selection[later - 1] = m_selection[later];
+            }
+            m_selection.Resize(m_selection.Size() - 1);
+            break;
+        }
+        if (m_selected.TryGet() == object)
+        {
+            m_selected = m_selection.IsEmpty() ? SafePtr<GameObject>() : m_selection[0];
+        }
+    }
+
+    bool EditorApplication::IsSelected(const GameObject* object) const
+    {
+        if (object == nullptr)
+        {
+            return false;
+        }
+        for (std::size_t index = 0; index < m_selection.Size(); ++index)
+        {
+            if (m_selection[index].TryGet() == object)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void EditorApplication::ClearSelection()
+    {
+        m_selection.Clear();
+        m_selected = {};
+    }
+
+    std::size_t EditorApplication::GetSelectionCount() const
+    {
+        std::size_t living = 0;
+        for (std::size_t index = 0; index < m_selection.Size(); ++index)
+        {
+            if (m_selection[index].TryGet() != nullptr)
+            {
+                ++living;
+            }
+        }
+        return living;
+    }
+
+    Array<GameObject*> EditorApplication::GetSelectedObjects() const
+    {
+        Array<GameObject*> living;
+        for (std::size_t index = 0; index < m_selection.Size(); ++index)
+        {
+            if (GameObject* object = m_selection[index].TryGet())
+            {
+                living.Add(object);
+            }
+        }
+        return living;
+    }
+
+    Array<GameObject*> EditorApplication::GetTopLevelSelectedObjects() const
+    {
+        const Array<GameObject*> living = GetSelectedObjects();
+        Array<GameObject*> roots;
+        for (std::size_t index = 0; index < living.Size(); ++index)
+        {
+            bool ancestorSelected = false;
+            for (const GameObject* walk = living[index]->GetParent();
+                walk != nullptr && false == ancestorSelected;
+                walk = walk->GetParent())
+            {
+                ancestorSelected = IsSelected(walk);
+            }
+            if (false == ancestorSelected)
+            {
+                roots.Add(living[index]);
+            }
+        }
+        return roots;
     }
 
     bool EditorApplication::UiWantsMouse() const
@@ -421,7 +551,7 @@ namespace JBro
         m_ui.AbandonDevice();
         m_gameView = {};
         m_gameViewExtent = {};
-        m_selected = {};
+        ClearSelection();
         m_commands.Clear();
         m_objectIds.Clear();
         m_uiEnabled = false;
@@ -450,7 +580,7 @@ namespace JBro
         m_ui.Shutdown();
         m_gameView = {};
         m_gameViewExtent = {};
-        m_selected = {};
+        ClearSelection();
         m_commands.Clear();
         m_objectIds.Clear();
         m_uiEnabled = false;
