@@ -7,7 +7,7 @@
 #include <JBro/Types/NameTable.h>
 #include <JBro/Types/Table.h>
 
-#include <new>
+#include <memory>
 #include <utility>
 
 namespace JBro
@@ -150,41 +150,52 @@ namespace JBro
                 }
                 return static_cast<TableType*>(table)->Find(*static_cast<const Key*>(key));
             };
-            made.CreateKey = []() noexcept -> void* {
-                // **타입이 지워진 쪽은 키를 스택에 만들 수 없다.** 글자에서 키를
-                // 되살리는 역직렬화가 이 길을 쓴다. 할당이 일어나므로 프레임
-                // 루프에서 쓰지 않는다.
-                //
-                // 처음에는 이것이 `CreateValue` 자리에 들어가 있었다 - 값을 만들라고
-                // 부르면 키 크기의 객체가 나왔고, 테스트도 그 이름으로 키를 만들고
-                // 있어서 드러나지 않았다. 표를 읽는 걸음(D-86)이 `CreateKey` 를 부르다 찾았다.
-                //
-                // `new` 를 직접 쓰는 이유: 소유를 `void*` 로 넘겨야 하는데 `OwnerPtr` 는
-                // 소유를 놓는 길이 없다. 짝인 `DestroyKey` 가 같은 타입으로 지운다.
+            // **부르는 쪽이 준 자리에 만들고 지운다**(D-88). `Array`·`Table` 이 할당기에서 받은
+            // 메모리에 원소를 만드는 것과 같은 수다 - 소유를 넘기지 않으므로 소유 도구가 필요 없다.
+            //
+            // 처음에는 키를 만드는 함수가 값 자리에 들어가 있었다 - 값을 만들라고 부르면 키
+            // 크기의 객체가 나왔고, 테스트도 그 이름으로 키를 만들어 드러나지 않았다(D-86).
+            made.ConstructKey = [](void* storage) noexcept -> bool {
+                if (storage == nullptr)
+                {
+                    return false;
+                }
                 try
                 {
-                    return new Key{};
+                    std::construct_at(static_cast<Key*>(storage));
+                    return true;
                 }
                 catch (...)
                 {
-                    return nullptr;
+                    return false;
                 }
             };
-            made.DestroyKey = [](void* key) noexcept {
-                delete static_cast<Key*>(key);
+            made.DestructKey = [](void* key) noexcept {
+                if (key != nullptr)
+                {
+                    std::destroy_at(static_cast<Key*>(key));
+                }
             };
-            made.CreateValue = []() noexcept -> void* {
+            made.ConstructValue = [](void* storage) noexcept -> bool {
+                if (storage == nullptr)
+                {
+                    return false;
+                }
                 try
                 {
-                    return new Value{};
+                    std::construct_at(static_cast<Value*>(storage));
+                    return true;
                 }
                 catch (...)
                 {
-                    return nullptr;
+                    return false;
                 }
             };
-            made.DestroyValue = [](void* value) noexcept {
-                delete static_cast<Value*>(value);
+            made.DestructValue = [](void* value) noexcept {
+                if (value != nullptr)
+                {
+                    std::destroy_at(static_cast<Value*>(value));
+                }
             };
             made.Clear = [](void* table) noexcept {
                 static_cast<TableType*>(table)->Clear();

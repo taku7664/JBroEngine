@@ -3,6 +3,7 @@
 #include <JBro/Core/Yaml.h>
 #include <JBro/Reflection/PropertyInfo.h>
 #include <JBro/Reflection/TypeDescriptor.h>
+#include <JBro/Types/Allocator.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/NameTable.h>
 
@@ -73,22 +74,39 @@ namespace JBro
             return true;
         }
 
-        // 표의 키 하나를 타입을 모른 채 만들고, 어떻게 끝나든 돌려준다.
+        // 표의 키 하나를 타입을 모른 채 만들고, 어떻게 끝나든 지우고 자리를 돌려준다.
+        //
+        // 자리는 키 설명자의 크기·정렬로 할당기에서 받고, 조작 함수는 그 자리에 만들고
+        // 지우기만 한다(D-88) - `Array` 가 원소를 만드는 방식과 같다.
         struct ScopedKey
         {
             const TableOps& ops;
+            const TypeDescriptor& keyType;
+            HeapAllocator allocator;
+            void* storage = nullptr;
             void* key = nullptr;
 
-            explicit ScopedKey(const TableOps& tableOps)
+            ScopedKey(const TableOps& tableOps, const TypeDescriptor& type)
                 : ops(tableOps)
-                , key(tableOps.CreateKey != nullptr ? tableOps.CreateKey() : nullptr)
+                , keyType(type)
             {
+                storage = allocator.Allocate(keyType.size, keyType.alignment,
+                    EMemoryTag::Reflection);
+                if (storage != nullptr && ops.ConstructKey(storage))
+                {
+                    key = storage;
+                }
             }
             ~ScopedKey()
             {
-                if (key != nullptr && ops.DestroyKey != nullptr)
+                if (key != nullptr)
                 {
-                    ops.DestroyKey(key);
+                    ops.DestructKey(key);
+                }
+                if (storage != nullptr)
+                {
+                    allocator.Deallocate(storage, keyType.size, keyType.alignment,
+                        EMemoryTag::Reflection);
                 }
             }
             ScopedKey(const ScopedKey&) = delete;
@@ -241,7 +259,7 @@ namespace JBro
             const TableOps& ops = *type.tableOps;
             if (type.key == nullptr || type.value == nullptr || type.key->codec == nullptr
                 || type.key->codec->FromText == nullptr || ops.Clear == nullptr
-                || ops.CreateKey == nullptr || ops.DestroyKey == nullptr
+                || ops.ConstructKey == nullptr || ops.DestructKey == nullptr
                 || ops.ContainsKey == nullptr || ops.InsertDefault == nullptr
                 || ops.FindValue == nullptr)
             {
@@ -265,7 +283,7 @@ namespace JBro
                     return Fail(error, "a table entry must hold exactly a Key and a Value");
                 }
 
-                ScopedKey key(ops);
+                ScopedKey key(ops, *type.key);
                 if (key.key == nullptr
                     || false == type.key->codec->FromText(key.key, keyText.c_str(), keyText.size()))
                 {

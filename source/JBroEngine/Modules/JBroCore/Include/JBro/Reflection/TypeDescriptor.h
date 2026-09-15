@@ -92,13 +92,19 @@ namespace JBro
         // 슬롯 커서는 삽입 한 번에 무효가 되므로, 방금 넣은 자리를 다시 잡으려면 이쪽을 쓴다.
         void* (*FindValue)(void* table, const void* key) noexcept = nullptr;
 
-        // 기본 생성한 키·값 하나를 만들고 없앤다. 위 함수들이 객체 주소를 받는데 호출부는
-        // 타입이 소거돼 있어 스택에 만들 수 없다 — 역직렬화가 글자에서 키를 복원할 때 쓴다.
-        // **할당이 일어난다.** 직렬화·에디터 전용이고 프레임 루프에서 쓰지 않는다.
-        void* (*CreateKey)() noexcept = nullptr;
-        void  (*DestroyKey)(void* key) noexcept = nullptr;
-        void* (*CreateValue)() noexcept = nullptr;
-        void  (*DestroyValue)(void* value) noexcept = nullptr;
+        // 기본 생성한 키·값 하나를 **부르는 쪽이 준비한 자리에** 만들고 없앤다. 위 함수들이
+        // 객체 주소를 받는데 호출부는 타입이 소거돼 있어 스스로 만들 수 없다 — 역직렬화가
+        // 글자에서 키를 복원할 때 쓴다.
+        //
+        // 자리는 부르는 쪽이 설명자의 `size`·`alignment` 로 할당기에서 받는다. `Array`·`Table`
+        // 이 원소를 만드는 방식과 같다. 처음에는 조작 함수가 `new` 로 만들어 `void*` 로 소유를
+        // 넘겼는데, 그러면 소유를 날 포인터로 들고 다니게 되고(§14) 이 바닥 계층이 소유 도구를
+        // 끌어와야 할 이유도 없다. 만들고 지우는 코드는 여전히 이 표를 등록한 모듈 안에 있다.
+        // 만들기가 실패하면(키 타입의 생성자가 던지면) 거짓이고 자리에는 아무것도 없다.
+        bool (*ConstructKey)(void* storage) noexcept = nullptr;
+        void (*DestructKey)(void* key) noexcept = nullptr;
+        bool (*ConstructValue)(void* storage) noexcept = nullptr;
+        void (*DestructValue)(void* value) noexcept = nullptr;
 
         void  (*Clear)(void* table) noexcept = nullptr;
     };

@@ -122,15 +122,23 @@ namespace
             "so walking it ends immediately");
 
         // **키는 타입이 지워진 쪽에서 만들 수 없다.** 그래서 만들어 주는 길이 있다.
-        void* key = ops.CreateKey();
-        Check(key != nullptr, "the table must be able to make a key");
-        // **값을 만드는 길은 값을 만들어야 한다.** 한때 둘이 뒤바뀌어 `CreateValue` 가
+        // 자리는 부르는 쪽이 설명자의 크기와 정렬로 할당기에서 받는다 - `Array`·`Table` 이
+        // 원소를 만드는 방식과 같고, 조작 함수는 그 자리에 만들고 지우기만 한다.
+        const JBro::HeapAllocator allocator;
+        void* key = allocator.Allocate(type.key->size, type.key->alignment,
+            JBro::EMemoryTag::Reflection);
+        Check(ops.ConstructKey(key), "the table must be able to make a key in place");
+        Check(static_cast<JBro::String*>(key)->empty(), "a default one, right where it was asked");
+        // **값을 만드는 길은 값을 만들어야 한다.** 한때 둘이 뒤바뀌어 값을 만드는 함수가
         // 키를 만들었고, 이 테스트가 그 이름으로 키를 만들고 있어서 아무도 몰랐다.
-        void* made = ops.CreateValue();
-        Check(made != nullptr, "the table must be able to make a value too");
+        void* made = allocator.Allocate(type.value->size, type.value->alignment,
+            JBro::EMemoryTag::Reflection);
+        *static_cast<std::int32_t*>(made) = -1;
+        Check(ops.ConstructValue(made), "the table must be able to make a value too");
         Check(*static_cast<std::int32_t*>(made) == 0, "a default one");
-        *static_cast<std::int32_t*>(made) = 11;
-        ops.DestroyValue(made);
+        ops.DestructValue(made);
+        allocator.Deallocate(made, type.value->size, type.value->alignment,
+            JBro::EMemoryTag::Reflection);
         *static_cast<JBro::String*>(key) = "alpha";
         Check(ops.InsertDefault(erased, key), "inserting under that key must work");
         Check(false == ops.InsertDefault(erased, key),
@@ -167,7 +175,9 @@ namespace
         Check(false == ops.ContainsKey(erased, key), "and that key must be gone");
         Check(false == ops.RemoveKey(erased, key), "removing it twice must be refused");
 
-        ops.DestroyKey(key);
+        ops.DestructKey(key);
+        allocator.Deallocate(key, type.key->size, type.key->alignment,
+            JBro::EMemoryTag::Reflection);
         ops.Clear(erased);
         Check(ops.GetSize(erased) == 0, "clearing empties it");
         Check(ops.ContainsKey(erased, nullptr) == false, "nothing is not a key");
