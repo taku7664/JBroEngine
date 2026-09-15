@@ -104,6 +104,8 @@ namespace JBro
         // 컴포넌트를 붙이고 떼는 손잡이. 둘 다 커맨드로 간다(D-71).
         void DrawAddComponent(GameObject& object);
         void RemoveComponent(GameObject& object, ComponentBase& component);
+        // 슬롯 `from` 의 컴포넌트를 `to` 자리로. 커맨드로 간다.
+        void MoveComponent(GameObject& object, std::size_t from, std::size_t to);
         // 표의 필드를 **이미 열려 있는 줄 배치 안에** 그린다. 배치를 밖에서
         // 받는 이유는 중첩 구조가 자기 배치를 따로 열어야 하기 때문이다 -
         // 한 표 안에서 다시 표를 열면 칸 폭이 바깥과 따로 논다.

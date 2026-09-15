@@ -196,4 +196,58 @@ namespace JBro
     {
         Detach();
     }
+
+    // -- MoveComponentCommand ------------------------------------------------
+
+    MoveComponentCommand::MoveComponentCommand(
+        EditorObjectRegistry& registry,
+        EditorObjectId objectId,
+        std::size_t fromSlot,
+        std::size_t toSlot)
+        : m_registry(&registry)
+        , m_objectId(objectId)
+        , m_from(fromSlot)
+        , m_to(toSlot)
+    {
+    }
+
+    const char* MoveComponentCommand::GetName() const
+    {
+        return "Move Component";
+    }
+
+    bool MoveComponentCommand::Move(std::size_t from, std::size_t to)
+    {
+        GameObject* object = m_registry->Resolve(m_objectId);
+        if (object == nullptr || from == to)
+        {
+            return false;
+        }
+        const Array<ComponentSlot>& slots = object->GetComponents();
+        if (from >= slots.Size() || to >= slots.Size())
+        {
+            return false;
+        }
+        ComponentBase* component = slots[from].reference.TryGet();
+        if (component == nullptr)
+        {
+            return false;
+        }
+        return object->SetComponentIndex(component, to);
+    }
+
+    bool MoveComponentCommand::Execute()
+    {
+        return Move(m_from, m_to);
+    }
+
+    void MoveComponentCommand::Undo()
+    {
+        Move(m_to, m_from);
+    }
+
+    void MoveComponentCommand::Redo()
+    {
+        Move(m_from, m_to);
+    }
 }

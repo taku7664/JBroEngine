@@ -76,4 +76,33 @@ namespace JBro
         // 값을 다 떴는가. 못 떴으면 떼지 않는다.
         bool m_captured = false;
     };
+
+    // 컴포넌트 슬롯 하나를 다른 자리로 옮긴다(기존 엔진 `CReorderComponentCommand`). 되돌리면
+    // 도로 옮긴다. **스크립트 실행 순서가 이 자리를 따른다**(D-45, A3) - 순서를 바꾸는 손짓이
+    // 되돌릴 수 없으면 실행 순서를 되돌릴 수 없다.
+    //
+    // 슬롯 번호로 가리킨다. 되돌리기는 차례대로만 오므로 그때의 오브젝트는 이 커맨드를 실행한
+    // 직후와 같고, `to` 자리에 있는 것이 옮긴 그것이다. 같은 자리나 끝을 넘는 번호는 거절한다.
+    class MoveComponentCommand final : public EditorCommand
+    {
+    public:
+        MoveComponentCommand(
+            EditorObjectRegistry& registry,
+            EditorObjectId objectId,
+            std::size_t fromSlot,
+            std::size_t toSlot);
+
+        const char* GetName() const override;
+        bool Execute() override;
+        void Undo() override;
+        void Redo() override;
+
+    private:
+        bool Move(std::size_t from, std::size_t to);
+
+        EditorObjectRegistry* m_registry = nullptr;
+        EditorObjectId m_objectId = InvalidEditorObjectId;
+        std::size_t m_from = 0;
+        std::size_t m_to = 0;
+    };
 }

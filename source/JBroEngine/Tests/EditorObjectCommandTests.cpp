@@ -872,6 +872,124 @@ namespace
         Check(false == object->SetComponentIndex(nullptr, 0), "nor can nothing");
     }
 
+    // **슬롯을 옮기는 것도 커맨드다.** 순서가 스크립트 실행 순서라 되돌릴 수 있어야 한다.
+    void TestMovingAComponentSlotCanBeUndone()
+    {
+        RegisterOnce();
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::EditorObjectRegistry ids;
+        JBro::EditorCommandManager commands;
+        JBro::GameObject* object = canvas.CreateObject("Subject");
+        const JBro::EditorObjectId id = ids.Track(object);
+        JBro::ComponentBase* slots[3] = {
+            canvas.AttachComponent<JBro::Component::Transform2D>(object),
+            canvas.AttachComponent<JBro::Component::SpriteRenderer2D>(object),
+            canvas.AttachComponent<JBro::Component::Collider2D>(object),
+        };
+        auto expect = [&](const int order[3], const char* message) {
+            for (std::size_t at = 0; at < 3; ++at)
+            {
+                std::size_t found = 99;
+                Check(object->FindComponentIndex(slots[order[at]], found) && found == at, message);
+            }
+        };
+
+        Check(commands.Execute(JBro::MakeOwnerPtr<JBro::MoveComponentCommand>(ids, id, 2, 0)),
+            "moving the last slot to the front must go through");
+        const int moved[3] = {2, 0, 1};
+        expect(moved, "and put it first, sliding the others back");
+        Check(commands.Undo(), "undo must run");
+        const int start[3] = {0, 1, 2};
+        expect(start, "and restore the attach order");
+        Check(commands.Redo(), "redo must run");
+        expect(moved, "and move it again");
+        Check(commands.Undo(), "and undo once more");
+        expect(start, "back to the start");
+
+        Check(false == commands.Execute(JBro::MakeOwnerPtr<JBro::MoveComponentCommand>(ids, id, 1, 1)),
+            "moving a slot onto itself is refused");
+        Check(false == commands.Execute(JBro::MakeOwnerPtr<JBro::MoveComponentCommand>(ids, id, 0, 3)),
+            "and so is a slot past the end");
+        Check(false == commands.Execute(JBro::MakeOwnerPtr<JBro::MoveComponentCommand>(ids, 12345, 0, 1)),
+            "and an object number nobody handed out");
+        expect(start, "leaving the order alone");
+    }
+
+    // **붙여넣기는 떠 둔 나무를 새 번호로 만들고, 다시 하기는 그 번호를 지킨다.** 지우기의
+    // 되돌리기와 같은 스냅샷이다 - 다른 점은 새 번호를 받는다는 것뿐이다.
+    void TestPastingBuildsTheTreeAgainUnderNewNumbers()
+    {
+        RegisterOnce();
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::EditorObjectRegistry ids;
+        JBro::EditorCommandManager commands;
+
+        JBro::GameObject* parent = canvas.CreateObject("Parent");
+        JBro::GameObject* child = canvas.CreateObject("Child");
+        child->SetParent(parent);
+        auto* transform = canvas.AttachComponent<JBro::Component::Transform2D>(parent);
+        transform->position = {3.0f, 4.0f};
+        auto* sprite = canvas.AttachComponent<JBro::Component::SpriteRenderer2D>(child);
+        sprite->renderOrder = 9;
+        const JBro::EditorObjectId sourceId = ids.Track(parent);
+
+        JBro::ObjectTreeSnapshot tree;
+        Check(tree.Capture(ids, *parent), "the tree must be captured");
+        Check(tree.objects.Size() == 2 && tree.objects[1].parentIndex == 0,
+            "flattened with the child pointing at its parent");
+        JBro::Array<JBro::ObjectTreeSnapshot> clipboard;
+        clipboard.Add(tree);
+
+        const std::size_t before = canvas.GetObjectCount();
+        auto command = JBro::MakeOwnerPtr<JBro::PasteObjectsCommand>(
+            canvas, ids, clipboard, JBro::InvalidEditorObjectId);
+        JBro::PasteObjectsCommand* raw = command.Get();
+        Check(commands.Execute(std::move(command)), "pasting must go through");
+        Check(canvas.GetObjectCount() == before + 2, "and add the whole tree");
+        const JBro::Array<JBro::EditorObjectId> pasted = raw->GetPastedRootIds();
+        Check(pasted.Size() == 1 && pasted[0] != JBro::InvalidEditorObjectId && pasted[0] != sourceId,
+            "under a number of its own, not the source's");
+        JBro::GameObject* copy = ids.Resolve(pasted[0]);
+        Check(copy != nullptr && copy != parent && std::strcmp(copy->GetTag(), "Parent") == 0,
+            "the pasted root must be a new object with the same name");
+        Check(copy->GetParent() == nullptr, "at the canvas root when no parent was given");
+        auto* copiedTransform = canvas.FindComponentRaw<JBro::Component::Transform2D>(copy);
+        Check(copiedTransform != nullptr && copiedTransform != transform
+                && copiedTransform->position.x == 3.0f,
+            "with its own component carrying the copied values");
+        Check(copy->GetChildren().Size() == 1, "and its child");
+        JBro::GameObject* copiedChild = copy->GetChildren()[0].TryGet();
+        auto* copiedSprite = canvas.FindComponentRaw<JBro::Component::SpriteRenderer2D>(copiedChild);
+        Check(copiedSprite != nullptr && copiedSprite->renderOrder == 9,
+            "whose component also carries its values");
+        Check(transform->position.x == 3.0f && parent->GetChildren().Size() == 1,
+            "leaving the source alone");
+
+        Check(commands.Undo(), "undo must run");
+        Check(canvas.GetObjectCount() == before, "and take the pasted tree away");
+        Check(ids.Resolve(pasted[0]) == nullptr, "so its number finds nothing");
+        Check(commands.Redo(), "redo must run");
+        Check(canvas.GetObjectCount() == before + 2, "and bring the tree back");
+        Check(ids.Resolve(pasted[0]) != nullptr, "under the same number as the first time");
+
+        // 부모를 주면 그 아래에 붙는다. 부모가 지워졌으면 거절한다.
+        const JBro::EditorObjectId childId = ids.Track(child);
+        Check(commands.Execute(JBro::MakeOwnerPtr<JBro::PasteObjectsCommand>(
+                canvas, ids, clipboard, childId)),
+            "pasting under a parent must go through");
+        Check(child->GetChildren().Size() == 1, "and hang the tree under it");
+        Check(commands.Undo(), "undo must run");
+        canvas.DestroyObject(child);
+        canvas.FlushPendingDestroy();
+        Check(false == commands.Execute(JBro::MakeOwnerPtr<JBro::PasteObjectsCommand>(
+                canvas, ids, clipboard, childId)),
+            "pasting under a parent that is gone is refused");
+        JBro::Array<JBro::ObjectTreeSnapshot> empty;
+        Check(false == commands.Execute(JBro::MakeOwnerPtr<JBro::PasteObjectsCommand>(
+                canvas, ids, empty, JBro::InvalidEditorObjectId)),
+            "and so is pasting nothing");
+    }
+
     // **떼었다 되돌린 뒤에도 앞선 편집은 그 컴포넌트로 가야 한다.**
     //
     // 컴포넌트는 (오브젝트 번호, 타입, 같은 타입 중 몇 번째)로 가리킨다. 되돌리기가
@@ -1929,6 +2047,8 @@ int RunEditorObjectCommandTests()
     TestRemovingAComponentBringsBackItsValues();
     TestRemovingPicksTheRightOneOfTwoOfAKind();
     TestComponentSlotsCanBeRearranged();
+    TestMovingAComponentSlotCanBeUndone();
+    TestPastingBuildsTheTreeAgainUnderNewNumbers();
     TestAnEditBeforeARemovalStillFindsItsComponent();
     TestRemovingIsRefusedWhenTheValuesCannotBeSaved();
     TestDeletingBringsBackContainers();

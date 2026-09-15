@@ -154,6 +154,43 @@ namespace JBro
             // 접힌 채로도 눌러야 하므로 머리를 그린 직후에 둔다.
             if (ImGui::BeginPopupContextItem("##ComponentMenu"))
             {
+                // **자리 옮기기.** 슬롯 순서가 스크립트 실행 순서다(D-45). 양 끝에서는 그쪽
+                // 항목을 잠근다.
+                std::size_t moveTo = index;
+                if (index == 0)
+                {
+                    ImGui::BeginDisabled();
+                }
+                if (ImGui::MenuItem(Loc::TextOr(LocKeys::InspectorMoveComponentUp, "Move Up")))
+                {
+                    moveTo = index - 1;
+                }
+                if (index == 0)
+                {
+                    ImGui::EndDisabled();
+                }
+                const bool last = index + 1 >= components.Size();
+                if (last)
+                {
+                    ImGui::BeginDisabled();
+                }
+                if (ImGui::MenuItem(Loc::TextOr(LocKeys::InspectorMoveComponentDown, "Move Down")))
+                {
+                    moveTo = index + 1;
+                }
+                if (last)
+                {
+                    ImGui::EndDisabled();
+                }
+                if (moveTo != index)
+                {
+                    MoveComponent(*object, index, moveTo);
+                    ImGui::EndPopup();
+                    ImGui::PopID();
+                    // 옮긴 뒤에는 이 프레임의 슬롯 배열이 더 이상 맞지 않는다. 다음 프레임에 다시 그린다.
+                    return;
+                }
+                ImGui::Separator();
                 if (ImGui::MenuItem(Loc::TextOr(LocKeys::InspectorRemoveComponent,
                         "Remove Component")))
                 {
@@ -245,6 +282,13 @@ namespace JBro
             break;
         }
         ImGui::EndPopup();
+    }
+
+    void InspectorPanel::MoveComponent(GameObject& object, std::size_t from, std::size_t to)
+    {
+        const EditorObjectId objectId = m_editor->GetObjectIds().Track(&object);
+        m_editor->GetCommands().Execute(MakeOwnerPtr<MoveComponentCommand>(
+            m_editor->GetObjectIds(), objectId, from, to));
     }
 
     void InspectorPanel::RemoveComponent(GameObject& object, ComponentBase& component)
