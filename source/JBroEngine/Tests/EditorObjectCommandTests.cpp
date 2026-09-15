@@ -663,12 +663,19 @@ namespace
 
         JBro::GameObject* object = canvas.CreateObject("Subject");
         const JBro::EditorObjectId id = ids.Track(object);
+        // 앞에 다른 타입을 하나 둔다. 떼는 것이 0번 슬롯이면 "원래 자리" 와
+        // "언제나 맨 앞" 을 가려내지 못한다.
+        Check(canvas.AttachComponent<JBro::Component::Transform2D>(object) != nullptr,
+            "the subject must have a transform in front");
         auto* first = canvas.AttachComponent<JBro::Component::Collider2D>(object);
         auto* second = canvas.AttachComponent<JBro::Component::Collider2D>(object);
         Check(first != nullptr && second != nullptr, "two of a kind must attach");
         first->radius = 1.5f;
         second->radius = 4.5f;
         const JBro::ComponentTypeId type = first->GetTypeId();
+        std::size_t firstSlot = 0;
+        Check(object->FindComponentIndex(first, firstSlot) && firstSlot == 1,
+            "the first collider sits behind the transform");
 
         const JBro::PropertyTable* table = JBro::PropertyRegistry::Lookup(
             JBro::Component::Collider2D::StaticTypeName());
@@ -686,6 +693,13 @@ namespace
 
         Check(commands.Undo(), "undoing the removal must run");
         Check(CountComponents(*object, type) == 2, "and bring it back");
+        auto* restored = static_cast<JBro::Component::Collider2D*>(
+            JBro::FindComponentAt(*object, type, 0));
+        Check(restored != nullptr && NearlyEqual(restored->radius, 2.0f),
+            "as the first of its kind again, holding the edited value");
+        std::size_t restoredSlot = 0;
+        Check(object->FindComponentIndex(restored, restoredSlot) && restoredSlot == firstSlot,
+            "in the very slot it was taken from");
         Check(commands.Undo(), "undoing the edit must run");
 
         // 값으로 가려낸다. 되살린 것은 주소가 새것이라 포인터로는 알아볼 수 없다.
