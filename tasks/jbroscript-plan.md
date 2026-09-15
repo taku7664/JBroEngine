@@ -1431,7 +1431,7 @@ enum DropState
 
 문장 끝이 줄바꿈이라는 규칙(§12.2)을 그대로 따른다. 값은 선언 순서대로 매기지만 저장은 이름으로 한다(§15.2).
 
-### 20.4 `fn` 의 반환 타입 — `->` 뒤에
+### 20.4 `fn` 의 반환 타입 — `->` 뒤에 (**2026-09-15 확정**, §21.4 Q2)
 
 ```
 fn DropSpeed(float dt) -> float
@@ -1611,6 +1611,24 @@ MUST — 원시 포인터를 필드에 저장하지 않는다 — 와 부딪힌�
 **Q2. 함수 선언 모양.** 예시의 `void OnTick() callback` 은 `fn` 없이 반환 타입이 앞에 온다.
 §12.1(`fn OnUpdate(float dt)`)과 §20.4(`fn Speed() -> float`)와 다르다. **`fn` 을 버리고 이 모양으로 확정하는가?**
 파서에는 문제가 없다 — `타입 이름` 뒤에 `(` 가 오면 함수, `=`·줄끝이면 필드다.
+**→ 원래 방식으로 확정(2026-09-15).** `fn 이름(매개변수) -> 반환타입 접미사` 이고, 반환이 없으면 `->` 를 생략한다(§20.4).
+§21.2 예시의 `void OnTick() callback` 은 `fn OnUpdate(float dt) callback` 으로 읽는다(Q5 에서 엔진 훅 이름도 맞춘다).
+
+```
+interface IDamageable
+{
+    fn TakeDamage(int amount)
+    fn IsDead() -> bool
+}
+
+script Enemy : IDamageable
+{
+    fn OnStart() callback
+    public fn IsDead() -> bool override
+    fn HpRatio() -> float
+    fn Self() -> ref Enemy
+}
+```
 
 **Q3. 필드 타입 생략.** 예시가 `public MyInt1 = 1` 이다. §12.2 는 "타입은 이름 앞, `var` 없음" 이다.
 **타입 추론인가, 예시에서 줄여 쓴 것인가?** 추론이면 `Speed = 1` 이 `int` 가 되어 인스펙터에서 소수를 넣을 수 없는
