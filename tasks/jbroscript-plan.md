@@ -1264,6 +1264,10 @@ MSVC 에 넘긴다고 적어 두었다).
 | 지금 | IDE 는 편집만. 디버깅은 Visual Studio |
 | 나중 | `clang-cl` + DWARF + `lldb-dap` 을 §18.2 와 같은 방법으로 잰다 |
 
+**2026-09-15 추가**: 이 길의 첫 장애물을 찾았다. `JBRO_FIELD` 의 이름 추출(§14.2)이 MSVC 서명 형식에만
+맞춰져 있어서 **clang-cl 23.1.1 로는 컴파일이 멈춘다.** 이 경로를 재기 전에 `DeriveFieldName` 을
+고쳐야 한다. 실측은 [ide-plan.md](./ide-plan.md) §4.1.
+
 Unity 도 C# 디버깅을 자기 에디터가 하지 않고 Rider/VS 로 넘긴다. 편집기와 디버거가 갈리는
 것은 정상이며, 이 갈림은 IDE 를 만드는 일의 위험을 낮춘다.
 

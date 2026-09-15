@@ -1019,9 +1019,10 @@ EditorApplication::Tick
   편집기 리포는 엔진과 분리하고(`JBroScriptEditor`, CLI `jbro-script-editor`), 언어 지식은
   엔진 리포의 `jbroc --lsp` 에 둔다. 그래서 문법 강조 외의 모든 기능이 `jbroc` 을 기다린다.
   기각: 전체 브랜치 포크(매달 병합 충돌), 포크 없이 VSCodium + 확장팩(제품 정체가 없다),
-  clangd 로 C++ 편집 지원(범위 밖). 미검증 위험이 하나 있다: `Field.h` 의 `__FUNCSIG__` 파싱이 clang
-  형식에서 실패할 수 있고, 그러면 jbroscript-plan §18.7 의 `clang-cl -gdwarf` 디버깅 경로가 막힌다.
-  첫 스파이크에서 잰다.
+  clangd 로 C++ 편집 지원(범위 밖).
+  **스파이크에서 확인한 결함 하나(2026-09-15)**: `Field.h` 의 `__FUNCSIG__` 파싱이 clang 형식을 읽지 못해
+  clang-cl 23.1.1 로는 `JBRO_FIELD` 를 쓰는 파일이 컴파일되지 않는다(MSVC 대조군은 통과).
+  jbroscript-plan §18.7 의 `clang-cl -gdwarf` 디버깅 경로를 쓰기 전에 고쳐야 한다. 실측은 ide-plan §4.1.
 
 ## Assumptions
 

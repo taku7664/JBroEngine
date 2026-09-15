@@ -57,13 +57,13 @@
 
 | 항목 | 값 | 계획에 주는 영향 |
 |---|---|---|
-| Node | 24.14.1 | upstream `main` 의 `.nvmrc` 는 24.18.0 이다. 포크 빌드 전에 맞춘다 |
-| npm / yarn | 11.11.0 / 1.22.22 | Code-OSS 는 npm 을 쓴다 |
+| Node | 시스템 24.14.1 | Code-OSS 1.137.0 의 `.nvmrc` 는 24.18.0 이고, `preinstall` 이 부버전까지 검사한다. 스파이크는 휴대용 24.18.0 을 F: 에 두고 쓴다 |
+| npm / yarn | 11.11.0 / 1.22.22 | Code-OSS 는 npm 을 쓰고, npm 13 이상과 yarn 은 `preinstall` 이 거절한다 |
 | Python | 3.14.6 | node-gyp 가 쓴다 |
-| Visual Studio | 18 Community 하나 | node-gyp 가 VS 18 을 인식하는지는 **확인하지 않았다**(§4.2) |
-| clang-cl | PATH 에 없고 VS 18 의 LLVM 구성 요소도 설치되지 않았다 | §4.1 을 재려면 LLVM 설치가 먼저다 |
+| Visual Studio | 2026 Community(18.9), MSVC 14.51 | node-gyp 12.3.0 은 인식한다. **Spectre 완화 라이브러리가 없다**(§4.2) |
+| clang-cl | 시스템에 없다 | 스파이크는 LLVM 23.1.1 의 `clang-cl` 만 F: 에 풀어 썼다 |
 | C: 여유 공간 | **10.4 GB** | Code-OSS 소스·`node_modules`·빌드 산출물을 담기에 부족하다고 판단한다(추정) |
-| F: 여유 공간 | 80.5 GB | 포크 리포와 npm·Electron 캐시를 F: 에 둔다(§2) |
+| F: 여유 공간 | 80.5 GB | 포크 리포와 npm·Electron 캐시를 F: 에 둔다(§2). node-gyp 캐시는 옮기지 않는다(§4.2) |
 
 엔진 쪽 사실:
 
@@ -75,32 +75,67 @@
 
 ## 4. 먼저 재야 할 위험
 
-### 4.1 clang 으로 컴파일하면 `JBRO_FIELD` 가 멈출 수 있다 (미검증, 확신 약 60%)
+### 4.1 clang 으로 컴파일하면 `JBRO_FIELD` 가 멈춘다 (2026-09-15 실측으로 확인)
 
 `JBroCore/Include/JBro/Reflection/Field.h` 는 필드 이름을 `__FUNCSIG__` 에서 잘라 온다.
-자르는 규칙은 MSVC 형식(`...FieldSignature<&Game::Player::Speed>(void)`)에 맞춰져 있고,
-이름을 못 찾으면 **헤더 안의 `static_assert` 가 컴파일을 멈춘다**(`Field.h:70`).
+자르는 규칙은 MSVC 형식에 맞춰져 있고, 이름을 못 찾으면 **헤더 안의 `static_assert` 가
+컴파일을 멈춘다**(`Field.h:70`).
 
-clang 은 MSVC 호환 모드에서도 템플릿 인자를 서명 끝의 `[MemberPointer = ...]` 형태로 적는 것으로
-알고 있다. 그 형식이면 `rfind(">(")` 가 실패한다.
+**실측**(MSVC 19.51.36257 대 clang-cl 23.1.1, 둘 다 `/std:c++20 /utf-8`, 같은 include 경로):
+
+같은 멤버 포인터 `&Game::Player::Speed` 에 대해 `FieldSignature` 가 돌려주는 문자열:
+
+```
+MSVC  : class std::basic_string_view<char,struct std::char_traits<char> > __cdecl JBro::Detail::FieldSignature<&Game::Player::Speed>(void)
+clang : std::string_view __cdecl JBro::Detail::FieldSignature(void) [MemberPointer = &Game::Player::Speed]
+```
+
+`DeriveFieldName` 의 결과는 MSVC 가 `Speed`, clang 이 **빈 문자열**이다. clang 은 템플릿 인자를
+`<...>` 가 아니라 끝의 `[MemberPointer = ...]` 로 적으므로 `rfind(">(")` 가 찾지 못한다.
+
+실제 테스트 파일 `Tests/ReflectionFieldTests.cpp` 를 `/c` 로 컴파일한 결과:
+
+| 컴파일러 | 결과 |
+|---|---|
+| MSVC(대조군) | 성공 |
+| clang-cl | **실패, 에러 12개.** `Field.h:70` 의 "the toolchain format changed" 10개와, 테스트의 이름 고정 `static_assert` 2개 |
+
+대조군이 통과하므로 원인은 include 경로나 플래그가 아니라 서명 형식이다. 프로브는 세션 스크래치패드에
+있었고 커밋하지 않았다. 위 두 줄의 문자열과 이 절의 설명만으로 다시 만들 수 있다.
 
 편집기를 `.jscript` 전용으로 정했으므로 **편집 쪽에는 영향이 없다.** 남는 영향은 디버깅이다.
 jbroscript-plan §18.7 의 `clang-cl -gdwarf` 경로는 스크립트 DLL 을 clang 으로 컴파일하는데,
 생성된 C++ 도 리플렉션 등록에 같은 기계를 쓰면 **실제 컴파일이 멈춘다.** 편집기에서 `.jscript` 를
 디버깅하는 유일한 후보 경로가 여기서 막힐 수 있다.
 
-jbroscript-plan §13.4 가 디버깅 위험을 "위험 때문에 앞당긴다" 고 적었으므로 P0 에서 잰다.
-
-**재는 방법**: LLVM 을 설치하고 `JBRO_FIELD` 를 쓰는 번역 단위 하나를 `clang-cl /std:c++20` 로
-컴파일한다. 서명 문자열을 출력하는 프로브를 함께 둔다.
-**깨지면**: `DeriveFieldName` 에 clang 형식 분기를 더하고, 이름을 고정하는 테스트를 두 컴파일러에서
-모두 돌린다. 방향을 바꾸는 판단은 아니지만 Core 공개 헤더를 고치는 일이다.
+**고치는 방향**(아직 고치지 않았다): `DeriveFieldName` 이 두 형식을 모두 읽게 한다. 문자열이 `]` 로
+끝나면 마지막 `]` 앞의 마지막 `::` 다음이 이름이다. 그리고 이름 고정 테스트를 두 컴파일러에서 모두
+돌린다. 지금 테스트는 MSVC 로만 돌아서 이 구멍을 볼 수 없었다.
+Core 공개 헤더를 고치는 일이고 방향을 바꾸는 판단은 아니다. **P5(디버깅)를 시작하기 전에는 반드시
+고쳐야 하며**, 그 전에 고칠지는 엔진 쪽 작업 순서에 달렸다.
 
 ### 4.2 Code-OSS 빌드 환경
 
-Windows 빌드는 Node(`.nvmrc` 버전), Python, C++ 빌드 도구와 Spectre 완화 라이브러리를 요구한다.
-node-gyp 가 VS 18 을 찾지 못하면 네이티브 모듈 빌드에서 멈춘다. 그때는 VS 2022 Build Tools 를
-나란히 설치하는 것이 가장 짧은 우회로다. **확인하지 않았으므로 P0 에서 잰다.**
+**실측**(2026-09-15, Code-OSS 1.137.0 태그 얕은 클론, 휴대용 Node 24.18.0, npm 11.16.0):
+
+- **클론**: 77초, 작업 트리 832 MB.
+- **node-gyp 는 VS 2026 을 인식한다.** 의존성 빌드는 npm 에 딸린 node-gyp 12.3.0 이 하고,
+  `find VS using VS2026 (18.9.12128.139)` 로 찾았다.
+- **Spectre 완화 라이브러리가 필요하다.** `npm ci` 가 170초 뒤 `@vscode/deviceid` 빌드에서
+  `MSB8040`(스펙터 완화된 라이브러리가 필요합니다)으로 멈췄다. 이 기계의 MSVC 14.51 에는
+  `lib\spectre\x64` 가 없다. **VS 설치 관리자의 개별 구성 요소에서 추가해야 한다.**
+  실패한 `npm ci` 는 `node_modules` 를 지워서, 전체 디스크 사용량은 설치가 성공한 뒤에 잰다.
+
+**소스로 확인한 것**(실행은 Spectre 설치 뒤):
+
+- **`preinstall` 의 VS 검사가 VS 2026 경로를 모른다.** `build/npm/preinstall.ts` 는
+  `Microsoft Visual Studio\2022` 와 `\2019` 만 찾는다. VS 2026 은 `\18` 에 설치되므로 검사에서
+  떨어질 것이다. 같은 파일이 `vs2022_install` 환경 변수로 경로를 넘기는 길을 열어 두었으므로
+  `vs2022_install=C:\Program Files\Microsoft Visual Studio\18\Community` 로 우회한다.
+  (이번 실행에서는 의존성 빌드가 먼저 실패해 이 검사까지 가지 않았다.)
+- **node-gyp 캐시는 `%LOCALAPPDATA%` 에 둔다.** `preinstall.ts` 가 Electron 헤더 위에 덮어쓸 헤더를
+  `%LOCALAPPDATA%\node-gyp\Cache` 라는 **고정 경로**에서 찾는다. 캐시를 F: 로 옮기면 그 덮어쓰기가
+  에러 없이 건너뛰어진다. C: 사용량은 62 MB 다.
 
 ---
 
@@ -186,9 +221,16 @@ YAML 색칠(`.jproject`·`.jcanvas`)도 Code-OSS 가 기본으로 들고 있다.
 
 - **원문은 영어로 쓰고, 기본 표시는 한국어로 한다.** VS Code 확장은 기본 파일(`package.nls.json`)이
   곧 폴백이므로 영어를 거기에 둔다. D-80 에서 `TextOr` 가 영어를 들고 있는 것과 같은 모양이다.
-- **처음 실행할 때 한국어로 연다.** Code-OSS 는 사용자 데이터 폴더의 `argv.json` 에 적힌 `locale` 로
-  화면 언어를 정하는 것으로 알고 있다. 그 기본값을 `ko` 로 두는 길이 `product.json` 으로 되는지,
-  코어 패치가 필요한지는 확인하지 않았다(P0).
+- **처음 실행할 때 한국어로 연다. 이것은 코어 패치가 필요하다**(1.137.0 소스로 확인, 실행은 아직).
+  `src/main.ts` 가 화면 언어를 고르는 순서는 ① `--locale` 인자 ② 사용자 데이터 폴더 `argv.json` 의
+  `locale` ③ OS 언어 ④ 영어다. `argv.json` 이 없을 때 새로 만드는 기본 내용은 `product.json` 이 아니라
+  `createDefaultArgvConfigSync` 안에 **코드로 적혀 있다**(`main.ts:422`). 그러므로 OS 언어와 무관하게
+  한국어로 열려면 그 기본 내용에 `"locale": "ko"` 를 넣는 패치가 필요하다. 화면에 새 글자를 만들지 않는
+  패치라 아래 원칙과 부딪히지 않는다. 한국어 Windows 라면 패치 없이도 ③ 에서 한국어가 된다.
+- **내장 언어 팩이 첫 실행부터 먹는지는 모른다.** 번역 파일 위치는 사용자 데이터 폴더의
+  `languagepacks.json` 이 알려 주는데, 이 파일은 공유 프로세스가 뜬 뒤 설치된 확장을 훑어서 쓴다
+  (`localizationsUpdater.ts`). 화면 언어는 그보다 먼저 정해지므로 **첫 실행만 영어로 뜰 수 있다.**
+  실행해서 확인한다(P0). 그렇다면 빌드가 `languagepacks.json` 을 미리 만들어 두거나 코어 패치가 하나 더 필요하다.
 - **코어 패치는 새 글자를 만들지 않는 것을 원칙으로 한다.** 언어 팩은 upstream 의 글자만 번역하므로,
   패치가 더한 글자는 어느 팩에도 없어 영어로 나온다. 피할 수 없으면 한국어 팩을 JBro 쪽에서 고쳐 싣는데,
   그러면 유지할 대상이 하나 더 는다. UI 를 **지우는** 패치는 이 문제가 없다.
@@ -211,18 +253,18 @@ YAML 색칠(`.jproject`·`.jcanvas`)도 Code-OSS 가 기본으로 들고 있다.
 
 ### P0. 스파이크 — 재고 나서 정한다
 
-- upstream Code-OSS 를 **수정 없이** F: 에서 빌드하고 개발 실행(`scripts\code.bat`)으로 띄운다.
-  디스크 사용량과 걸린 시간을 적는다.
-- node-gyp 와 VS 18 의 조합을 확인한다(§4.2).
-- LLVM 을 설치하고 §4.1 을 잰다.
-- `$msCompile` 문제 매처가 코어에 들어 있는지 확인한다. 생성 C++ 의 MSVC 에러는 `#line` 덕분에
-  `.jscript` 줄을 가리키므로(jbroscript-plan §5.2), 이 매처가 있으면 `jbroc` 진단이 서기 전에도
-  빌드 에러를 문제 패널에서 받을 수 있다.
-- 한국어 언어 팩을 내장 확장으로 넣은 개발 빌드가 **OS 언어와 무관하게** 한국어로 뜨게 하는 방법을
-  찾는다(§5.5). `product.json` 으로 되는지, 코어 패치가 필요한지를 적는다.
-  `--locale=en` 으로 띄우면 영어로 돌아오는지도 본다.
+작업 위치는 `F:\Project\JBroSpike` 다(Code-OSS 클론·휴대용 Node·LLVM·npm/Electron 캐시).
 
-**완료 조건**: 다섯 결과가 이 문서의 §3·§4·§5.5 에 실측으로 기록되어 있다.
+| 항목 | 상태 (2026-09-15) |
+|---|---|
+| upstream Code-OSS 를 **수정 없이** 빌드하고 `scripts\code.bat` 로 띄운다. 디스크 사용량과 시간을 적는다 | **막힘.** 클론은 끝났고 `npm ci` 가 Spectre 완화 라이브러리가 없어 멈췄다(§4.2) |
+| node-gyp 와 VS 2026 의 조합 | **실측 완료.** 인식한다. `preinstall` 검사는 `vs2022_install` 로 우회해야 한다(소스로 확인) |
+| §4.1 `__FUNCSIG__` | **실측 완료. 깨진다** |
+| `$msCompile` 문제 매처가 코어에 있는가 | **소스로 확인했다. 있다**(`src/vs/workbench/contrib/tasks/common/problemMatcher.ts:1945`). 생성 C++ 의 MSVC 에러는 `#line` 덕분에 `.jscript` 줄을 가리키므로(jbroscript-plan §5.2), `jbroc` 진단이 서기 전에도 빌드 에러를 문제 패널에서 받을 수 있다 |
+| OS 언어와 무관하게 한국어로 뜨는 방법 | **소스로 확인했다. 코어 패치 한 줄이 필요하다**(§5.5). 내장 언어 팩이 첫 실행부터 먹는지와 `--locale=en` 복귀는 빌드가 서야 잰다 |
+
+**완료 조건**: 다섯 결과가 이 문서의 §3·§4·§5.5 에 실측으로 기록되어 있다. 소스로만 확인한 것은
+실측이 아니므로 빌드가 선 뒤 실행으로 한 번 더 본다.
 
 ### P1. 문법 강조 확장 (`jbro-languages`)
 
