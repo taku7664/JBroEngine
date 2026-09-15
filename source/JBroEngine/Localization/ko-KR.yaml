@@ -12,6 +12,9 @@ Entries:
   menu.undo: 실행 취소
   menu.redo: 다시 실행
   menu.unsaved: 저장되지 않음
+  dialog.save_canvas_title: 캔버스 저장
+  dialog.canvas_filter: JBro 캔버스 파일
+  popup.save_failed: 캔버스를 저장할 수 없습니다
   hierarchy.no_project: 열린 프로젝트가 없습니다
   hierarchy.empty: 캔버스에 오브젝트가 없습니다
   hierarchy.create_object: 오브젝트 추가
@@ -42,3 +45,4 @@ Entries:
   list.element_count: %d개
   common.search: 검색
   common.clear: 지우기
+  common.ok: 확인

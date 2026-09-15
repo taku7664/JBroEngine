@@ -12,6 +12,9 @@ Entries:
   menu.undo: Undo
   menu.redo: Redo
   menu.unsaved: unsaved
+  dialog.save_canvas_title: Save Canvas
+  dialog.canvas_filter: JBro canvas file
+  popup.save_failed: The canvas could not be saved
   hierarchy.no_project: no project is open
   hierarchy.empty: the canvas is empty
   hierarchy.create_object: Create Object
@@ -42,3 +45,4 @@ Entries:
   list.element_count: %d item(s)
   common.search: Search
   common.clear: Clear
+  common.ok: OK

@@ -1713,6 +1713,129 @@ namespace
         editor.Shutdown();
     }
 
+    // 아래 프로젝트 파일 테스트 절에 있다. 여기서 먼저 쓴다.
+    JBro::String TempPath(const char* name);
+
+    // 저장 대화상자 대신이다. 몇 번 불렸는지 세고, 정해 둔 경로를 준다(빈 경로면 취소).
+    struct DialogProbe
+    {
+        JBro::String path;
+        int calls = 0;
+        bool save = false;
+        JBro::String defaultFileName;
+
+        static bool Answer(const JBro::FileDialogDesc& desc, JBro::String& outPath, void* user)
+        {
+            DialogProbe& probe = *static_cast<DialogProbe*>(user);
+            ++probe.calls;
+            probe.save = desc.save;
+            probe.defaultFileName = desc.defaultFileName != nullptr ? desc.defaultFileName : "";
+            if (probe.path.empty())
+            {
+                return false;
+            }
+            outPath = probe.path;
+            return true;
+        }
+    };
+
+    // **저장은 경로를 한 번만 묻고, 그 뒤로는 같은 파일에 쓴다.** 실패는 팝업으로 알리고
+    // 취소는 아무것도 남기지 않는다. 대화상자 자체는 사람 없이 닫히지 않으므로 대신하는
+    // 함수로 잰다 - 네이티브 대화상자가 뜨는지는 사람이 확인한다(§11.4).
+    void TestSavingAsksForAPathOnceAndReportsFailure()
+    {
+        DialogProbe dialog;
+        dialog.path = TempPath("JBroEditorMenuSave.jcanvas");
+        std::remove(dialog.path.c_str());
+
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = WindowWidth;
+        config.windowHeight = WindowHeight;
+        config.fileDialog = &DialogProbe::Answer;
+        config.fileDialogUser = &dialog;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; menu save not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "MenuSaveProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* object = canvas->CreateObject("Saved");
+        auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(object);
+        transform->position = {1.0f, 2.0f};
+        Check(editor.GetCanvasPath().empty(), "a fresh project knows no canvas path");
+
+        // 첫 저장은 경로를 묻는다.
+        editor.RequestSaveCanvas();
+        Check(editor.Tick(Frame), "the editor must tick through the save");
+        Check(dialog.calls == 1 && dialog.save, "the first save must ask for a path with a save dialog");
+        Check(dialog.defaultFileName == "Canvas.jcanvas", "and suggest a canvas file name");
+        Check(editor.GetCanvasPath() == dialog.path, "and remember the path it was given");
+        Check(std::ifstream(dialog.path.c_str()).good(), "and write the file");
+        Check(false == editor.GetCommands().IsDirty(), "and count the canvas as saved");
+
+        // 둘째 저장은 묻지 않고 같은 파일에 쓴다.
+        transform->position = {7.0f, 8.0f};
+        editor.RequestSaveCanvas();
+        Check(editor.Tick(Frame), "the editor must tick through the second save");
+        Check(dialog.calls == 1, "a canvas with a known path must not ask again");
+        {
+            JBro::EditorApplication reader;
+            JBro::EditorApplicationConfig readerConfig;
+            readerConfig.windowVisible = false;
+            Check(reader.Initialize(readerConfig), "the reader must initialize");
+            Check(reader.OpenProject(project), "the reader must open a project");
+            JBro::CanvasFileError error;
+            Check(reader.LoadCanvas(dialog.path.c_str(), error), "the reader must load the saved file");
+            JBro::GameObject* loaded = nullptr;
+            reader.GetCanvas()->ForEachObject([&loaded](JBro::GameObject& found) { loaded = &found; });
+            auto* loadedTransform =
+                reader.GetCanvas()->FindComponentRaw<JBro::Component::Transform2D>(loaded);
+            Check(loadedTransform != nullptr && loadedTransform->position.x == 7.0f,
+                "and the second save must have written the newer values");
+            Check(reader.GetCanvasPath() == dialog.path, "loading a canvas remembers its path too");
+            reader.Shutdown();
+        }
+
+        // 닫으면 경로를 잊는다. 새 프로젝트는 다시 묻는다 - 취소하면 아무 일도 없다.
+        editor.CloseProject();
+        Check(editor.GetCanvasPath().empty(), "closing the project must forget the canvas path");
+        Check(editor.OpenProject(project), "the probe project must open again");
+        dialog.path.clear();
+        editor.RequestSaveCanvas();
+        Check(editor.Tick(Frame), "the editor must tick through the cancelled save");
+        Check(dialog.calls == 2, "a new project must ask again");
+        Check(editor.GetCanvasPath().empty() && false == editor.IsPopupOpenById("save_failed"),
+            "and a cancelled dialog must leave no path and no complaint");
+
+        // 쓸 수 없는 경로면 팝업으로 알린다. 다시 실패해도 같은 팝업 하나다.
+        dialog.path = "Q:/no/such/folder/Canvas.jcanvas";
+        editor.RequestSaveCanvas();
+        Check(editor.Tick(Frame), "the editor must tick through the failing save");
+        Check(editor.IsPopupOpenById("save_failed"), "a failed save must open the message popup");
+        editor.RequestSaveCanvas();
+        Check(editor.Tick(Frame), "the editor must tick through the second failing save");
+        Check(FindPopupWindow() != nullptr, "and the popup must be on screen");
+        int popups = 0;
+        for (ImGuiWindow* window : ImGui::GetCurrentContext()->Windows)
+        {
+            if (std::strstr(window->Name, "###popup_") != nullptr && window->Active)
+            {
+                ++popups;
+            }
+        }
+        Check(popups == 1, "with the same id, only one popup for the repeated failure");
+
+        editor.Shutdown();
+        std::remove(TempPath("JBroEditorMenuSave.jcanvas").c_str());
+    }
+
     // **게임 뷰는 패널이 보이는 프레임에만 그린다**(D-63). 닫힌 패널 뒤에서 매 프레임 게임을
     // 텍스처에 그릴 이유가 없다. 다시 열면 그 프레임부터 이어진다 - 텍스처는 파기하지 않는다.
     void TestTheGameViewIsRenderedOnlyWhileItsPanelShows()
@@ -3388,6 +3511,7 @@ int RunEditorApplicationTests()
     TestAVectorFieldEditsThroughACommand();
     TestTheGameViewIsRenderedOnlyWhileItsPanelShows();
     TestPopupsOpenOneAtATimeAndCloseByHandle();
+    TestSavingAsksForAPathOnceAndReportsFailure();
     TestAStructElementOpensAndEditsEveryChosenList();
     TestDraggingAStructElementReordersEveryChosenList();
     TestFlagCountAndToneElementsEditByMouseOnEveryChosenList();

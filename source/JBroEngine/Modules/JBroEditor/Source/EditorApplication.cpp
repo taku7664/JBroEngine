@@ -1,4 +1,5 @@
 ﻿#include <JBro/Editor/EditorApplication.h>
+#include <JBro/Editor/MessagePopup.h>
 
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
@@ -54,6 +55,8 @@ namespace JBro
 
         try
         {
+            m_fileDialog = config.fileDialog;
+            m_fileDialogUser = config.fileDialogUser;
             m_platform = MakeOwnerPtr<WindowsPlatform>();
             if (false == m_platform->Initialize(config.memory))
             {
@@ -225,7 +228,12 @@ namespace JBro
             error.message = "no project is open";
             return false;
         }
-        return LoadCanvasFile(*canvas, path, error);
+        if (false == LoadCanvasFile(*canvas, path, error))
+        {
+            return false;
+        }
+        m_canvasPath = path;
+        return true;
     }
 
     bool EditorApplication::SaveCanvas(const char* path, CanvasFileError& error)
@@ -237,7 +245,67 @@ namespace JBro
             error.message = "no project is open";
             return false;
         }
-        return SaveCanvasFile(*canvas, path, error);
+        if (false == SaveCanvasFile(*canvas, path, error))
+        {
+            return false;
+        }
+        m_canvasPath = path;
+        m_commands.MarkSaved();
+        return true;
+    }
+
+    void EditorApplication::RequestSaveCanvas()
+    {
+        m_saveRequested = true;
+    }
+
+    void EditorApplication::PerformSaveRequest()
+    {
+        if (false == m_saveRequested)
+        {
+            return;
+        }
+        m_saveRequested = false;
+        if (GetCanvas() == nullptr)
+        {
+            return;
+        }
+        String path = m_canvasPath;
+        if (path.empty())
+        {
+            // 경로를 모른다. 대화상자로 받는다 - **막히는 호출이라 프레임 밖이어야 한다.**
+            FileDialogDesc desc;
+            desc.title = Loc::TextOr(LocKeys::DialogSaveCanvasTitle, "Save Canvas");
+            desc.filterName = Loc::TextOr(LocKeys::DialogCanvasFilter, "JBro canvas file");
+            desc.filterPattern = "*.jcanvas";
+            desc.defaultFileName = "Canvas.jcanvas";
+            String directory = m_projectFilePath;
+            const std::size_t slash = directory.find_last_of("/\\");
+            if (slash != String::npos)
+            {
+                directory.resize(slash);
+            }
+            desc.initialDirectory = directory.empty() ? nullptr : directory.c_str();
+            desc.save = true;
+            const bool chosen = m_fileDialog != nullptr
+                ? m_fileDialog(desc, path, m_fileDialogUser)
+                : m_platform->ShowFileDialog(m_engine->GetMainWindow(), desc, path);
+            if (false == chosen || path.empty())
+            {
+                return;
+            }
+        }
+        CanvasFileError error;
+        if (false == SaveCanvas(path.c_str(), error))
+        {
+            // 실패는 로그가 아니라 사용자에게 간다. 같은 Id 라 연달아 실패해도 하나만 뜬다.
+            String message = path;
+            message.append("\n", 1);
+            message.append(error.message.c_str(), error.message.size());
+            OpenPopup(MakeOwnerPtr<MessagePopup>(
+                Loc::TextOr(LocKeys::PopupSaveFailed, "The canvas could not be saved"),
+                message.c_str(), "save_failed"));
+        }
     }
 
     bool EditorApplication::EnableEditorUi(const Extent2D& gameViewExtent)
@@ -645,11 +713,21 @@ namespace JBro
         // 메뉴는 창과 달리 도킹 자리 같은 것을 남기지 않으므로 잃는 것이 없다.
         if (ImGui::BeginMenu(Loc::TextOr(LocKeys::MenuFile, "File")))
         {
-            // 저장은 경로를 받아야 하므로 아직 손잡이가 없다. 그래도 자리를
-            // 비워 두지 않는 이유는, 비어 있으면 붙일 자리를 잊기 때문이다.
-            ImGui::BeginDisabled();
-            ImGui::MenuItem(Loc::TextOr(LocKeys::MenuSaveCanvas, "Save Canvas"), "Ctrl+S");
-            ImGui::EndDisabled();
+            // 프로젝트가 없으면 저장할 캔버스도 없다. 경로는 처리 시점에 정한다 -
+            // 아는 경로가 없으면 대화상자다.
+            const bool canSave = GetCanvas() != nullptr;
+            if (false == canSave)
+            {
+                ImGui::BeginDisabled();
+            }
+            if (ImGui::MenuItem(Loc::TextOr(LocKeys::MenuSaveCanvas, "Save Canvas"), "Ctrl+S"))
+            {
+                RequestSaveCanvas();
+            }
+            if (false == canSave)
+            {
+                ImGui::EndDisabled();
+            }
             ImGui::Separator();
             if (ImGui::MenuItem(Loc::TextOr(LocKeys::MenuExit, "Exit")))
             {
@@ -868,6 +946,13 @@ namespace JBro
 
         DrawPopups();
 
+        // Ctrl+S. 메뉴 항목의 표시와 같은 손짓이다. 글자 칸이 입력을 먹고 있어도 저장은 된다.
+        if (GetCanvas() != nullptr
+            && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_S, ImGuiInputFlags_RouteGlobal))
+        {
+            RequestSaveCanvas();
+        }
+
         // **텍스처와 버퍼는 여기서 올라간다. RHI 프레임 밖이어야 한다** -
         // 아래 엔진 Tick 이 프레임을 열고 나면 만들 수도 쓸 수도 없다.
         return m_ui.EndFrame();
@@ -924,11 +1009,9 @@ namespace JBro
                     popup.OnEnter(*this);
                 }
                 popup.OnDraw(*this);
-                // `OnDraw` 안에서 `Close` 를 불렀으면 ImGui 쪽도 닫아야 다음 것이 뜬다.
-                if (false == popup.m_open)
-                {
-                    ImGui::CloseCurrentPopup();
-                }
+                // `OnDraw` 안에서 `Close` 를 불렀어도 ImGui 쪽을 따로 닫지 않는다. 다음 프레임에
+                // `BeginPopupModal` 이 불리지 않으면 ImGui 가 스스로 닫는다 - 닫는 줄을 두었을
+                // 때와 결과가 같아 뮤테이션에서 살아남았고, 잴 수 없는 줄은 지운다(§12).
                 ImGui::EndPopup();
             }
             popup.m_shown = true;
@@ -1079,6 +1162,9 @@ namespace JBro
             m_engine->SetGameViewTarget(target);
         }
         m_gameViewRequested = false;
+        // 저장은 UI 프레임이 닫힌 뒤, 엔진 프레임이 열리기 전이다. 대화상자가 막혀 있는 동안
+        // 어느 프레임도 열려 있지 않다.
+        PerformSaveRequest();
         if (m_exitRequested)
         {
             // 메뉴에서 끝내기를 골랐다. UI 를 먼저 놓고 내려간다 -
@@ -1112,6 +1198,9 @@ namespace JBro
         {
             return;
         }
+        // 캔버스 경로는 프로젝트의 것이다. 다음 프로젝트의 저장이 옛 파일에 가면 안 된다.
+        m_canvasPath.clear();
+        m_saveRequested = false;
         m_engine->CloseProject();
         m_lastFrameStatus = m_engine->GetLastFrameStatus();
         if (m_engine->GetFramework() == nullptr)

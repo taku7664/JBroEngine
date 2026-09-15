@@ -8,6 +8,7 @@
 #include <JBro/Editor/EditorUI.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Host/ProjectFile.h>
+#include <JBro/Platform/Platform.h>
 #include <JBro/RHI/RHI.h>
 #include <JBro/Types/SafePtr.h>
 #include <JBro/Types/String.h>
@@ -51,6 +52,10 @@ namespace JBro
         const char* localizationDirectory = "Localization";
         const char* locale = "ko-KR";
         const char* fallbackLocale = "en-US";
+        // 파일 대화상자를 대신하는 함수. 널이면 플랫폼의 대화상자를 연다. 테스트가 대화상자
+        // 없이 저장 경로를 주는 자리다 - 네이티브 대화상자는 사람 없이 닫히지 않는다.
+        bool (*fileDialog)(const FileDialogDesc& desc, String& outPath, void* user) = nullptr;
+        void* fileDialogUser = nullptr;
         JMemoryContext memory;
     };
 
@@ -168,6 +173,14 @@ namespace JBro
         // 읽기는 **빈 캔버스에만** 들어간다 — 이미 내용이 있으면 거절한다.
         bool LoadCanvas(const char* path, CanvasFileError& error);
         bool SaveCanvas(const char* path, CanvasFileError& error);
+        // 저장 메뉴와 Ctrl+S 가 부른다. 이 프레임의 UI 가 끝난 뒤 처리한다 - 아는 경로가 있으면
+        // 거기에, 없으면 대화상자로 경로를 받아 저장하고, 실패하면 팝업으로 알린다.
+        void RequestSaveCanvas();
+        // 마지막으로 열거나 저장한 캔버스 경로. 없으면 빈 글자다.
+        const String& GetCanvasPath() const
+        {
+            return m_canvasPath;
+        }
 
         // 이 세션의 렌더러다. **진단과 화면 되읽기 경로다** - 매 프레임 도는 길이
         // 아니다. 프레임을 여닫는 것은 여전히 엔진의 일이다.
@@ -189,6 +202,8 @@ namespace JBro
         bool BuildEditorUi(float deltaTime);
         // 큐의 맨 앞 팝업 하나를 그린다. 닫힌 것은 먼저 빼고, 닫히면 그 자리에서 뺀다.
         void DrawPopups();
+        // `RequestSaveCanvas` 를 프레임 밖에서 처리한다.
+        void PerformSaveRequest();
         void ReleaseEditorUi();
         void DestroyPanels();
         // 디바이스가 이미 사라진 뒤에 부른다.
@@ -207,6 +222,10 @@ namespace JBro
         // 앞이 뜨는 것이고 뒤는 기다린다. 닫힌 것은 그리기 전에 뺀다.
         Array<OwnerPtr<EditorPopup>> m_popups;
         PopupHandle m_nextPopupHandle = 1;
+        String m_canvasPath;
+        bool m_saveRequested = false;
+        bool (*m_fileDialog)(const FileDialogDesc& desc, String& outPath, void* user) = nullptr;
+        void* m_fileDialogUser = nullptr;
         // 고른 것들. 0번이 주된 것은 아니다 - 주된 것은 따로 든다(기존 엔진과
         // 같다). Ctrl 로 빼다 보면 목록의 머리가 바뀌는데, 그때마다 인스펙터가
         // 다른 것을 보여 주면 손이 미끄러진 것처럼 보인다.

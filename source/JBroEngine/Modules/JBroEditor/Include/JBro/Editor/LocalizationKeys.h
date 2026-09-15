@@ -25,6 +25,11 @@ namespace JBro::LocKeys
     inline constexpr const char* MenuRedo = "menu.redo";
     inline constexpr const char* MenuUnsaved = "menu.unsaved";
 
+    // ── 대화상자·팝업 ────────────────────────────────────────────────────
+    inline constexpr const char* DialogSaveCanvasTitle = "dialog.save_canvas_title";
+    inline constexpr const char* DialogCanvasFilter = "dialog.canvas_filter";
+    inline constexpr const char* PopupSaveFailed = "popup.save_failed";
+
     // ── 계층 ─────────────────────────────────────────────────────────────
     inline constexpr const char* HierarchyNoProject = "hierarchy.no_project";
     inline constexpr const char* HierarchyEmpty = "hierarchy.empty";
@@ -66,4 +71,5 @@ namespace JBro::LocKeys
     // ── 공용 ─────────────────────────────────────────────────────────────
     inline constexpr const char* CommonSearch = "common.search";
     inline constexpr const char* CommonClear = "common.clear";
+    inline constexpr const char* CommonOk = "common.ok";
 }
