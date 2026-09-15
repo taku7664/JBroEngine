@@ -285,6 +285,25 @@ namespace
         Counts read;
         JBro::ReflectedYamlError error;
         Check(false == ReadAs(text, type, &read, error), "a key named twice must be refused");
+        // **이유가 맞아야 한다.** 이 검사가 없어도 뒤이은 넣기가 거절해서 실패는 난다 -
+        // 그러면 사람은 "표가 원소를 거절했다" 는 말만 보고 파일에서 무엇을 찾을지 모른다.
+        Check(std::strstr(error.message.c_str(), "twice") != nullptr,
+            "and say that the key came twice, not merely that something was refused");
+    }
+
+    // 항목은 `Key` 와 `Value` 둘뿐이다. 모르는 키를 조용히 넘기면 그 값이 사라진다.
+    void TestATableEntryWithAnExtraKeyIsRefused()
+    {
+        const JBro::TypeDescriptor& type = JBro::TypeDescriptorOf<Counts>::Get();
+        const JBro::String text(
+            "Value:\n"
+            "  - Key: gold\n"
+            "    Value: 12\n"
+            "    Note: kept for the shop\n");
+        Counts read;
+        JBro::ReflectedYamlError error;
+        Check(false == ReadAs(text, type, &read, error),
+            "an entry carrying something besides Key and Value must be refused");
         Check(false == error.message.empty(), "and say why");
     }
 
@@ -313,6 +332,7 @@ int RunReflectedYamlTests()
     TestATableIsWrittenInKeyOrder();
     TestATableOfArraysGoesThereAndBack();
     TestATableNamingAKeyTwiceIsRefused();
+    TestATableEntryWithAnExtraKeyIsRefused();
     TestAnUnreadableElementFailsTheRead();
     std::cout << "Reflected YAML tests passed.\n";
     return 0;
