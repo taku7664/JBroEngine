@@ -1770,6 +1770,11 @@ namespace
         auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(object);
         transform->position = {1.0f, 2.0f};
         Check(editor.GetCanvasPath().empty(), "a fresh project knows no canvas path");
+        // 커맨드 하나를 쌓아 "저장되지 않음" 상태를 만든다. 저장이 그것을 지워야 한다.
+        Check(editor.GetCommands().Execute(JBro::MakeOwnerPtr<JBro::CreateObjectCommand>(
+                  *canvas, editor.GetObjectIds(), "Extra", JBro::InvalidEditorObjectId)),
+            "the probe edit must run");
+        Check(editor.GetCommands().IsDirty(), "and leave the canvas unsaved");
 
         // 첫 저장은 경로를 묻는다.
         editor.RequestSaveCanvas();
@@ -1794,7 +1799,13 @@ namespace
             JBro::CanvasFileError error;
             Check(reader.LoadCanvas(dialog.path.c_str(), error), "the reader must load the saved file");
             JBro::GameObject* loaded = nullptr;
-            reader.GetCanvas()->ForEachObject([&loaded](JBro::GameObject& found) { loaded = &found; });
+            reader.GetCanvas()->ForEachObject([&loaded](JBro::GameObject& found) {
+                if (std::strcmp(found.GetTag(), "Saved") == 0)
+                {
+                    loaded = &found;
+                }
+            });
+            Check(loaded != nullptr, "the saved object must be in the file");
             auto* loadedTransform =
                 reader.GetCanvas()->FindComponentRaw<JBro::Component::Transform2D>(loaded);
             Check(loadedTransform != nullptr && loadedTransform->position.x == 7.0f,
