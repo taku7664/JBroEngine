@@ -52,8 +52,9 @@ namespace JBro
         bool CanMerge(const EditorCommand& newer) const override;
         bool TryMerge(const EditorCommand& newer) override;
 
-        // 길을 따라 잎사귀의 주소와 타입을 찾는다. 중간이 사라졌거나 잎사귀에
-        // 코덱이 없으면 거짓이다. **스냅샷을 뜨고 되살리는 쪽도 같은 길을 쓴다** -
+        // 길을 따라 잎사귀의 주소와 타입을 찾는다. 잎사귀는 코덱을 가진 값이거나
+        // **컨테이너**이고(D-86), 컨테이너의 글자는 전체를 담은 YAML 이다.
+        // 중간이 사라졌거나 잎사귀가 아니면 거짓이다. **스냅샷을 뜨고 되살리는 쪽도 같은 길을 쓴다** -
         // 두 군데가 따로 걸어 내려가면 한쪽만 고쳐지는 날이 온다.
         static bool ResolveLeaf(
             ComponentBase& component,
@@ -69,6 +70,7 @@ namespace JBro
             const Path& path,
             String& text);
         // 글자를 써 넣는다. 되살리기가 스냅샷을 되돌릴 때도 이 길이다.
+        // 컨테이너는 전부 되거나 하나도 안 된다 - 못 읽으면 쓰기 전 상태로 돌려놓는다.
         static bool ApplyValue(
             ComponentBase& component,
             ComponentTypeId typeId,

@@ -1,7 +1,9 @@
 ﻿#include <JBro/Editor/Command/SetPropertyCommand.h>
 
+#include <JBro/Core/Yaml.h>
 #include <JBro/Reflection/PropertyInfo.h>
 #include <JBro/Reflection/PropertyRegistry.h>
+#include <JBro/Reflection/ReflectedYaml.h>
 
 #include <utility>
 
@@ -9,7 +11,43 @@ namespace JBro
 {
     namespace
     {
-        constexpr std::size_t TextCapacity = 512;
+        // 컨테이너의 글자는 이 키 하나를 가진 YAML 문서다. 캔버스 파일과 같은 걸음으로
+        // 쓰고 읽으므로(D-86) 파일에 적히는 모양 그대로다.
+        constexpr const char* ContainerKey = "Value";
+
+        bool IsContainer(const TypeDescriptor& type)
+        {
+            return type.arrayOps != nullptr || type.tableOps != nullptr;
+        }
+
+        bool WriteContainer(const TypeDescriptor& type, const void* address, String& text)
+        {
+            YamlWriter writer;
+            ReflectedYamlError error;
+            if (false == WriteReflectedValue(writer, ContainerKey, type, address, error))
+            {
+                return false;
+            }
+            text = writer.GetText();
+            return true;
+        }
+
+        bool ReadContainer(const TypeDescriptor& type, void* address, const String& text)
+        {
+            YamlDocument document;
+            YamlError parseError;
+            if (false == document.Parse(text.c_str(), text.size(), parseError))
+            {
+                return false;
+            }
+            const std::uint32_t node = document.Find(document.GetRoot(), ContainerKey);
+            if (node == YamlDocument::InvalidNode)
+            {
+                return false;
+            }
+            ReflectedYamlError error;
+            return ReadReflectedValue(document, node, type, address, error);
+        }
     }
 
     bool SetPropertyCommand::Path::Equals(const Path& other) const
@@ -63,7 +101,9 @@ namespace JBro
             table = found->fields;
         }
 
-        if (found == nullptr || found->codec == nullptr)
+        // 잎사귀는 코덱을 가진 값이거나 **컨테이너**다. 길은 처음 만나는 컨테이너에서
+        // 멈추고, 그 아래는 컨테이너 전체의 글자가 담는다(D-86).
+        if (found == nullptr || (found->codec == nullptr && false == IsContainer(*found)))
         {
             return false;
         }
@@ -80,12 +120,30 @@ namespace JBro
     {
         void* address = nullptr;
         const TypeDescriptor* type = nullptr;
-        if (false == ResolveLeaf(component, typeId, path, address, type)
-            || type->codec->FromText == nullptr)
+        if (false == ResolveLeaf(component, typeId, path, address, type))
         {
             return false;
         }
-        return type->codec->FromText(address, text.c_str(), text.size());
+        if (type->codec != nullptr)
+        {
+            // 코덱은 못 읽으면 값을 건드리지 않기로 약속한다.
+            return type->codec->FromText != nullptr
+                && type->codec->FromText(address, text.c_str(), text.size());
+        }
+
+        // **컨테이너는 전부 되거나 하나도 안 된다.** 읽기는 비우고 원소를 하나씩 채우므로,
+        // 뒤쪽 원소에서 막히면 반쯤 채워진 채로 남는다. 먼저 떠 두었다가 도로 쓴다.
+        String previous;
+        if (false == WriteContainer(*type, address, previous))
+        {
+            return false;
+        }
+        if (ReadContainer(*type, address, text))
+        {
+            return true;
+        }
+        ReadContainer(*type, address, previous);
+        return false;
     }
 
     SetPropertyCommand::SetPropertyCommand(
@@ -154,20 +212,17 @@ namespace JBro
     {
         void* address = nullptr;
         const TypeDescriptor* type = nullptr;
-        if (false == ResolveLeaf(component, typeId, path, address, type)
-            || type->codec->ToText == nullptr)
+        if (false == ResolveLeaf(component, typeId, path, address, type))
         {
             return false;
         }
-        char buffer[TextCapacity] = {};
-        std::size_t required = 0;
-        if (false == type->codec->ToText(address, buffer, sizeof(buffer), required))
+        if (type->codec != nullptr)
         {
-            // 버퍼보다 긴 값이다. 반쪽을 되돌리기 값으로 쓰면 되돌렸을 때 잘린다.
-            return false;
+            // 크기를 정해 두지 않는다. 처음에는 512바이트 버퍼로 읽었는데, 그보다 긴
+            // 값은 읽기가 실패했고 스냅샷은 그 값을 조용히 뺐다.
+            return ReflectedValueToText(*type->codec, address, text);
         }
-        text = buffer;
-        return true;
+        return WriteContainer(*type, address, text);
     }
 
     bool SetPropertyCommand::WriteValue(const String& value)

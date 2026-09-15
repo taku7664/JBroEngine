@@ -17,10 +17,60 @@
 #include <JBro/Runtime/Component.h>
 #include <JBro/Runtime/GameObject.h>
 #include <JBro/Types/NameTable.h>
+#include <JBro/Canvas/ComponentRegistry.h>
+#include <JBro/Editor/Command/ComponentSnapshot.h>
+#include <JBro/Reflection/ContainerTypeDescriptors.h>
+#include <JBro/Reflection/CoreTypeDescriptors.h>
+#include <JBro/Reflection/Field.h>
 
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
+
+// 글자로 쓰기를 거부하는 값이다. 스냅샷이 이런 값을 만나면 **캡처가 실패해야** 한다 -
+// 처음에는 그 값만 조용히 빼고 성공이라 말했다(D-76 과 같은 구멍).
+namespace
+{
+    struct Stubborn
+    {
+        int unused = 0;
+    };
+}
+
+namespace JBro
+{
+    template <>
+    struct TypeDescriptorOf<Stubborn>
+    {
+        static const TypeDescriptor& Get()
+        {
+            static const ValueCodec codec = []
+            {
+                ValueCodec result;
+                result.ToText = [](const void*, char*, std::size_t, std::size_t& required) noexcept
+                {
+                    required = 0;
+                    return false;
+                };
+                result.FromText = [](void*, const char*, std::size_t) noexcept { return true; };
+                result.Equals = [](const void*, const void*) noexcept { return true; };
+                result.Assign = [](void*, const void*) noexcept {};
+                return result;
+            }();
+            static const TypeDescriptor descriptor = []
+            {
+                TypeDescriptor built;
+                built.typeName = NameTable::Get().Intern("Test::Stubborn");
+                built.size = static_cast<std::uint32_t>(sizeof(Stubborn));
+                built.alignment = static_cast<std::uint32_t>(alignof(Stubborn));
+                built.triviallyCopyable = true;
+                built.codec = &codec;
+                return built;
+            }();
+            return descriptor;
+        }
+    };
+}
 
 // 에디터 커맨드의 **속**을 본다. `EditorCommandTests` 는 스택의 계약만 보고,
 // `EditorApplicationTests` 는 디바이스가 있어야 도는 큰 길을 본다 - 그 둘 사이에
@@ -749,6 +799,201 @@ namespace
             "removing nothing must be refused");
     }
 
+    // ── 컨테이너 ─────────────────────────────────────────────────────────
+
+    using StockColors = JBro::Array<JBro::Color>;
+    using StockCounts = JBro::Table<JBro::String, std::int32_t>;
+    using StockSamples = JBro::Array<float>;
+
+    // 컨테이너를 든 컴포넌트다. 빌트인 컴포넌트에는 아직 컨테이너 필드가 없다(D-86).
+    class Stocked final : public JBro::ComponentBase
+    {
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "Test::Stocked";
+        }
+
+        JBro::ComponentTypeId GetTypeId() const override
+        {
+            return JBro::MakeStableTypeId(StaticTypeName());
+        }
+
+        JBRO_REFLECT_BODY(Stocked)
+
+        JBRO_FIELD(StockColors, colors);
+        JBRO_FIELD(StockCounts, counts);
+        JBRO_FIELD(StockSamples, samples);
+    };
+
+    class Obstinate final : public JBro::ComponentBase
+    {
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "Test::Obstinate";
+        }
+
+        JBro::ComponentTypeId GetTypeId() const override
+        {
+            return JBro::MakeStableTypeId(StaticTypeName());
+        }
+
+        JBRO_REFLECT_BODY(Obstinate)
+
+        JBRO_FIELD(float, speed) = 1.0f;
+        JBRO_FIELD(Stubborn, stubborn);
+    };
+
+    // 원소 200개는 글자로 뜨면 512바이트를 한참 넘는다. 스냅샷은 잎사귀를 그 크기의
+    // 고정 버퍼로 읽었다 - 컨테이너를 넣는 순간 잘리거나 빠진다.
+    constexpr std::size_t SampleCount = 200;
+
+    Stocked* MakeStocked(JBro::Canvas& canvas, JBro::GameObject* object)
+    {
+        JBro::RegisterBuiltinProperties<Stocked>();
+        JBro::RegisterComponentType<Stocked>();
+        auto* stocked = canvas.AttachComponent<Stocked>(object);
+        Check(stocked != nullptr, "the stocked component must attach");
+        stocked->colors.Add(JBro::Color{1.0f, 0.5f, 0.25f, 1.0f});
+        stocked->colors.Add(JBro::Color{0.0f, 0.0f, 1.0f, 0.5f});
+        stocked->counts.TryAdd(JBro::String("gold"), 12);
+        stocked->counts.TryAdd(JBro::String("arrows"), 30);
+        for (std::size_t index = 0; index < SampleCount; ++index)
+        {
+            stocked->samples.Add(static_cast<float>(index) + 0.125f);
+        }
+        return stocked;
+    }
+
+    void CheckStocked(const Stocked* stocked, const char* what)
+    {
+        Check(stocked != nullptr, what);
+        Check(stocked->colors.Size() == 2 && NearlyEqual(stocked->colors[1].A, 0.5f),
+            "the colors must come back whole");
+        const std::int32_t* arrows = stocked->counts.Find(JBro::String("arrows"));
+        Check(stocked->counts.Size() == 2 && arrows != nullptr && *arrows == 30,
+            "the table must come back with each value under its key");
+        Check(stocked->samples.Size() == SampleCount
+                && NearlyEqual(stocked->samples[SampleCount - 1], 199.125f),
+            "and a list longer than any fixed buffer must come back to its last element");
+    }
+
+    // **지웠다 되살리면 컨테이너도 돌아온다.** 처음에는 스냅샷이 컨테이너를 조용히
+    // 건너뛰어, 되살린 컴포넌트의 배열과 표가 비어 있었고 삭제는 성공했다고 말했다.
+    void TestDeletingBringsBackContainers()
+    {
+        RegisterOnce();
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::EditorObjectRegistry ids;
+        JBro::EditorCommandManager commands;
+
+        JBro::GameObject* object = canvas.CreateObject("Holder");
+        const JBro::EditorObjectId id = ids.Track(object);
+        MakeStocked(canvas, object);
+
+        Check(commands.Execute(JBro::MakeOwnerPtr<JBro::DeleteObjectCommand>(
+                canvas, ids, object)),
+            "deleting the holder must go through");
+        canvas.FlushPendingDestroy();
+        Check(commands.Undo(), "and undoing it must run");
+
+        JBro::GameObject* restored = ids.Resolve(id);
+        Check(restored != nullptr, "the holder must come back");
+        CheckStocked(restored->GetComponent<Stocked>().Get(), "with its stocked component");
+    }
+
+    void TestRemovingBringsBackContainers()
+    {
+        RegisterOnce();
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::EditorObjectRegistry ids;
+        JBro::EditorCommandManager commands;
+
+        JBro::GameObject* object = canvas.CreateObject("Holder");
+        const JBro::EditorObjectId id = ids.Track(object);
+        Stocked* stocked = MakeStocked(canvas, object);
+
+        Check(commands.Execute(JBro::MakeOwnerPtr<JBro::RemoveComponentCommand>(
+                canvas, ids, id, stocked)),
+            "removing the stocked component must go through");
+        canvas.FlushPendingDestroy();
+        Check(object->GetComponent<Stocked>().Get() == nullptr, "and take it off");
+        Check(commands.Undo(), "undoing it must run");
+        CheckStocked(object->GetComponent<Stocked>().Get(), "and put it back");
+    }
+
+    // 컨테이너 하나가 프로퍼티 커맨드의 잎사귀다. **전체의 전과 후**를 든다.
+    void TestAContainerIsOneEditableValue()
+    {
+        RegisterOnce();
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::EditorObjectRegistry ids;
+        JBro::EditorCommandManager commands;
+
+        JBro::GameObject* object = canvas.CreateObject("Holder");
+        Stocked* stocked = MakeStocked(canvas, object);
+        const JBro::PropertyTable* table =
+            JBro::PropertyRegistry::Lookup(Stocked::StaticTypeName());
+        Check(table != nullptr, "the stocked component must have its table");
+        const JBro::SetPropertyCommand::Path colors = PathTo(FieldIndex(*table, "colors"));
+        const JBro::ComponentTypeId typeId = stocked->GetTypeId();
+
+        JBro::String before;
+        Check(JBro::SetPropertyCommand::ReadValue(*stocked, typeId, colors, before),
+            "a container must read as one value");
+
+        stocked->colors.Add(JBro::Color{0.25f, 0.25f, 0.25f, 1.0f});
+        JBro::String after;
+        Check(JBro::SetPropertyCommand::ReadValue(*stocked, typeId, colors, after),
+            "and read again after it grew");
+        Check(after != before, "the two readings must differ");
+        Check(JBro::SetPropertyCommand::ApplyValue(*stocked, typeId, colors, before),
+            "writing the old reading back must work");
+        Check(stocked->colors.Size() == 2, "and shrink it back");
+
+        Check(commands.Execute(JBro::MakeOwnerPtr<JBro::SetPropertyCommand>(
+                ids, AddressOf(ids, *object, *stocked), colors, before, after)),
+            "an edit of the whole container must go through");
+        Check(stocked->colors.Size() == 3, "and leave three colors");
+        Check(commands.Undo(), "undo must run");
+        Check(stocked->colors.Size() == 2, "and bring back two");
+
+        // **읽히지 않는 글자는 배열을 반쯤 바꾸지 않는다.** 앞 원소를 읽고 뒤에서
+        // 실패하면 배열이 줄어든 채로 남는다 - 되돌리기가 그 상태를 되돌릴 방법이 없다.
+        JBro::String broken("Value:");
+        broken += "\n  -\n    - 1\n    - 1\n    - 1\n    - 1\n  - not a color\n";
+        Check(false == JBro::SetPropertyCommand::ApplyValue(*stocked, typeId, colors, broken),
+            "a reading that does not parse into the container must be refused");
+        Check(stocked->colors.Size() == 2 && NearlyEqual(stocked->colors[1].A, 0.5f),
+            "and leave the container as it was");
+    }
+
+    // **떠 둘 수 없는 값이 있으면 지우지 않는다.** 그 값만 빼고 성공이라 말하면
+    // 되살린 컴포넌트에서 그 값이 기본값으로 바뀌고 아무도 모른다.
+    void TestDeletingIsRefusedWhenAValueRefusesToBeWritten()
+    {
+        RegisterOnce();
+        JBro::RegisterBuiltinProperties<Obstinate>();
+        JBro::RegisterComponentType<Obstinate>();
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::EditorObjectRegistry ids;
+
+        JBro::GameObject* object = canvas.CreateObject("Holder");
+        const JBro::EditorObjectId id = ids.Track(object);
+        auto* obstinate = canvas.AttachComponent<Obstinate>(object);
+        Check(obstinate != nullptr, "the obstinate component must attach");
+
+        JBro::ComponentSnapshot snapshot;
+        Check(false == JBro::CaptureComponent(*obstinate, snapshot),
+            "a component with a value that will not be written must not count as captured");
+
+        JBro::DeleteObjectCommand command(canvas, ids, object);
+        Check(false == command.Execute(), "so deleting its object must be refused");
+        canvas.FlushPendingDestroy();
+        Check(ids.Resolve(id) == object, "and the object must still be there");
+    }
+
     // ── 계층 이동 ────────────────────────────────────────────────────────
 
     // **형제 사이의 차례는 사람이 보는 순서다.** 부모를 바꿔도 남은 형제들의
@@ -984,6 +1229,10 @@ int RunEditorObjectCommandTests()
     TestComponentSlotsCanBeRearranged();
     TestAnEditBeforeARemovalStillFindsItsComponent();
     TestRemovingIsRefusedWhenTheValuesCannotBeSaved();
+    TestDeletingBringsBackContainers();
+    TestRemovingBringsBackContainers();
+    TestAContainerIsOneEditableValue();
+    TestDeletingIsRefusedWhenAValueRefusesToBeWritten();
     TestChildOrderSurvivesEverything();
     TestMovingInTheHierarchyCanBeUndone();
     TestMovingKeepsTheObjectWhereItLooks();

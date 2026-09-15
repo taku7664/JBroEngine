@@ -9,9 +9,12 @@ namespace JBro
 {
     namespace
     {
-        // 표를 타고 내려가며 잎사귀마다 글자를 떠 둔다. 어디가 잎사귀인지는
-        // 코덱의 존재가 답한다 - 구조를 가진 타입은 필드로 말한다.
-        void CaptureValues(
+        // 표를 타고 내려가며 잎사귀마다 글자를 떠 둔다. 구조를 가진 타입은 필드로
+        // 내려가고, 코덱을 가진 값과 컨테이너가 잎사귀다(D-86).
+        //
+        // **하나라도 못 뜨면 거짓이다.** 처음에는 컨테이너를 건너뛰고 읽기에 실패한 값을
+        // 빼고도 성공이라 말했다 - 되살린 컴포넌트에서 그 값만 기본값이 되고 아무도 모른다.
+        bool CaptureValues(
             const PropertyTable& table,
             void* owner,
             ComponentBase& component,
@@ -40,22 +43,29 @@ namespace JBro
 
                 path.indices[path.depth] = index;
                 ++path.depth;
+                bool captured = true;
                 if (property.type->fields != nullptr)
                 {
-                    CaptureValues(*property.type->fields, address, component, typeId,
-                        path, out);
+                    captured = CaptureValues(*property.type->fields, address, component,
+                        typeId, path, out);
                 }
-                else if (property.type->codec != nullptr)
+                else
                 {
                     ComponentValue value;
                     value.path = path;
-                    if (SetPropertyCommand::ReadValue(component, typeId, path, value.text))
+                    captured = SetPropertyCommand::ReadValue(component, typeId, path, value.text);
+                    if (captured)
                     {
                         out.Add(std::move(value));
                     }
                 }
                 --path.depth;
+                if (false == captured)
+                {
+                    return false;
+                }
             }
+            return true;
         }
     }
 
@@ -71,8 +81,7 @@ namespace JBro
         out.enabled = component.IsEnabled();
         out.values.Clear();
         SetPropertyCommand::Path path;
-        CaptureValues(*table, &component, component, typeId, path, out.values);
-        return true;
+        return CaptureValues(*table, &component, component, typeId, path, out.values);
     }
 
     bool ApplyComponent(ComponentBase& component, const ComponentSnapshot& snapshot)
