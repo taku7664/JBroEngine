@@ -4,7 +4,7 @@ Windows / D3D12 위에서 도는 2D 우선 게임 엔진이다. 기존 엔진(`J
 오브젝트-컴포넌트 모델, 스크립트 DLL 핫 리로드, 리플렉션 기반 인스펙터와 직렬화, ImGui 에디터까지가 지금 서 있다.
 게임 로직은 C++ 스크립트로 쓰고, 자작 언어 JBroScript(`.jscript`)는 문법과 컴파일러 규칙만 정리된 상태다.
 
-자세한 내용은 [위키](docs/wiki/Home.md)에 있다. 이 문서는 어디에 무엇이 있는지만 말한다.
+자세한 내용은 [위키](https://github.com/taku7664/JBroEngine/wiki)에 있다. 이 문서는 어디에 무엇이 있는지만 말한다.
 
 ## 지금 되는 것
 
@@ -33,7 +33,6 @@ source/JBroEngine/
   Localization/      에디터 문구(ko-KR, en-US)
 docs/
   ProjectRule.md     지켜야 하는 규칙. 코드와 문서가 다르면 이쪽이 맞다
-  wiki/              구조·모델·API·언어를 설명하는 문서 묶음
 tasks/
   todo.md            진행 현황과 결정 기록(Decisions). "왜 이렇게 했나"는 여기 있다
   jbroscript-*.md    JBroScript 언어 계획·문법·컴파일러 규칙
@@ -58,7 +57,7 @@ msbuild source/JBroEngine/Modules/JBroEditorHost/JBroEditorHost.vcxproj -p:Confi
 
 ## 읽는 순서
 
-1. [위키 홈](docs/wiki/Home.md)에서 전체 그림을 본다
+1. [위키](https://github.com/taku7664/JBroEngine/wiki)에서 전체 그림을 본다
 2. 코드를 만지기 전에 [ProjectRule.md](docs/ProjectRule.md)를 읽는다
 3. 어떤 결정이 왜 났는지 궁금하면 [tasks/todo.md](tasks/todo.md)의 Decisions 절을 찾는다
 

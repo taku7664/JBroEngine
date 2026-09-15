@@ -868,7 +868,7 @@
 
 ## 15. 관련 문서
 
-- [docs/wiki/Home.md](./wiki/Home.md) — 이 규칙과 Decisions 를 읽기 전에 그림을 잡는 설명서(2026-09-15). 모듈 구조, 오브젝트 모델,
+- [GitHub Wiki](https://github.com/taku7664/JBroEngine/wiki) — 이 규칙과 Decisions 를 읽기 전에 그림을 잡는 설명서(2026-09-15). 모듈 구조, 오브젝트 모델,
   참조와 식별자, 스크립트 경계와 API 명세, 리플렉션, 렌더링·플랫폼, 에디터, JBroScript 문법과 `jbroc` 규칙, 결정의 근거를 담는다.
   계약의 원문은 이 문서와 Decisions 이며, 계약이 바뀌면 위키의 해당 페이지도 같은 작업에서 고친다. (SHOULD)
 - [tasks/structural-refactor-plan.md](../tasks/structural-refactor-plan.md) — 2026-09-12 구조 검토와 D-42~D-55의 근거·단계 계획.
