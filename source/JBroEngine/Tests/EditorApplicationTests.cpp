@@ -1824,6 +1824,11 @@ namespace
         Check(dialog.calls == 2, "a new project must ask again");
         Check(editor.GetCanvasPath().empty() && false == editor.IsPopupOpenById("save_failed"),
             "and a cancelled dialog must leave no path and no complaint");
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must keep ticking after the cancel");
+        }
+        Check(dialog.calls == 2, "one request asks once - later frames must not ask again");
 
         // 쓸 수 없는 경로면 팝업으로 알린다. 다시 실패해도 같은 팝업 하나다.
         dialog.path = "Q:/no/such/folder/Canvas.jcanvas";
@@ -1845,6 +1850,171 @@ namespace
 
         editor.Shutdown();
         std::remove(TempPath("JBroEditorMenuSave.jcanvas").c_str());
+    }
+
+    void RightClickAt(JBro::EditorApplication& editor, HWND hwnd, const Spot& spot)
+    {
+        PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(spot.x, spot.y));
+        Check(editor.Tick(Frame), "the editor must tick");
+        PostMessageW(hwnd, WM_RBUTTONDOWN, MK_RBUTTON, MAKELPARAM(spot.x, spot.y));
+        Check(editor.Tick(Frame), "the editor must tick");
+        PostMessageW(hwnd, WM_RBUTTONUP, 0, MAKELPARAM(spot.x, spot.y));
+        Check(editor.Tick(Frame), "the editor must tick");
+    }
+
+    // 지금 떠 있는 우클릭 메뉴(모달이 아닌 팝업) 창이다.
+    ImGuiWindow* FindContextMenuWindow()
+    {
+        for (ImGuiWindow* window : ImGui::GetCurrentContext()->Windows)
+        {
+            if (std::strncmp(window->Name, "##Popup_", 8) == 0 && window->Active
+                && (window->Flags & ImGuiWindowFlags_Modal) == 0)
+            {
+                return window;
+            }
+        }
+        return nullptr;
+    }
+
+    // **컴포넌트 머리의 우클릭 메뉴로 자리를 옮기고, 그것은 되돌릴 수 있다.** 슬롯 순서가
+    // 스크립트 실행 순서다(D-45). 양 끝에서는 그쪽 항목이 잠긴다.
+    void TestMovingAComponentFromItsHeaderMenuCanBeUndone()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; component moving not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "MoveComponentProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* alpha = canvas->CreateObject("Alpha");
+        auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(alpha);
+        auto* sprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(alpha);
+        Check(transform != nullptr && sprite != nullptr, "both components must attach");
+        JBro::GameObject* chosen[] = {alpha};
+        editor.SelectObjects({chosen, 1});
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
+        Check(inspector != nullptr, "the inspector must have a window");
+        // 첫 슬롯의 머리. 슬롯 번호를 쌓고 타입 이름의 접기 머리를 그린다.
+        Spot header;
+        Check(FindInspectorItem(editor, hwnd, LabelId(PushedId(inspector->ID, 0), "Transform2D"), header),
+            "the first component header must be in the inspector");
+        RightClickAt(editor, hwnd, header);
+        ImGuiWindow* menu = FindContextMenuWindow();
+        Check(menu != nullptr, "right-clicking the header must open its menu");
+
+        // 맨 위 슬롯에서 "위로 이동" 은 잠겨 있다.
+        const char* upLabel = JBro::Loc::TextOr(JBro::LocKeys::InspectorMoveComponentUp, "Move Up");
+        const char* downLabel = JBro::Loc::TextOr(JBro::LocKeys::InspectorMoveComponentDown, "Move Down");
+        Spot item;
+        Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, upLabel), item),
+            "the menu must offer to move the component up");
+        Check(ImGui::GetCurrentContext()->HoveredIdIsDisabled,
+            "but the first slot cannot move up, so that item is locked");
+        Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, downLabel), item),
+            "and offer to move it down");
+        const std::size_t undo = editor.GetCommands().GetUndoCount();
+        ClickAt(editor, hwnd, item);
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the inspector must redraw after the move");
+        }
+        std::size_t slot = 99;
+        Check(alpha->FindComponentIndex(sprite, slot) && slot == 0,
+            "moving the transform down must put the sprite first");
+        Check(alpha->FindComponentIndex(transform, slot) && slot == 1, "and the transform second");
+        Check(editor.GetCommands().GetUndoCount() == undo + 1, "as one undo");
+        Check(editor.GetCommands().Undo(), "undo must run");
+        Check(alpha->FindComponentIndex(transform, slot) && slot == 0,
+            "and put the transform back first");
+        Check(FindContextMenuWindow() == nullptr, "and the menu must be gone");
+
+        editor.Shutdown();
+    }
+
+    // **복사는 고른 것 중 맨 위 것들을 뜨고, 붙여넣기는 주된 선택의 형제로 붙여 그것을 고른다.**
+    void TestCopyAndPasteMakeASiblingAndSelectIt()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = WindowWidth;
+        config.windowHeight = WindowHeight;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; copy and paste not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "PasteProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* holder = canvas->CreateObject("Holder");
+        JBro::GameObject* alpha = canvas->CreateObject("Alpha");
+        alpha->SetParent(holder);
+        JBro::GameObject* leaf = canvas->CreateObject("Leaf");
+        leaf->SetParent(alpha);
+        auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(alpha);
+        transform->rotation = 0.5f;
+
+        Check(false == editor.HasClipboard(), "the clipboard starts empty");
+        Check(false == editor.CopySelection(), "copying with nothing chosen does nothing");
+        Check(false == editor.PasteClipboard(), "and pasting an empty clipboard does nothing");
+
+        // 부모와 자식을 함께 골라도 맨 위 것 하나만 뜬다 - 자식은 그 안에 있다.
+        JBro::GameObject* chosen[] = {alpha, leaf};
+        editor.SelectObjects({chosen, 2});
+        Check(editor.CopySelection(), "copying the chosen tree must go through");
+        Check(editor.HasClipboard(), "and fill the clipboard");
+
+        const std::size_t before = canvas->GetObjectCount();
+        const std::size_t undo = editor.GetCommands().GetUndoCount();
+        Check(editor.PasteClipboard(), "pasting must go through");
+        Check(canvas->GetObjectCount() == before + 2, "and add the tree once, not the child twice");
+        Check(editor.GetCommands().GetUndoCount() == undo + 1, "as one undo");
+        JBro::GameObject* pasted = editor.GetSelectedObject();
+        Check(pasted != nullptr && pasted != alpha && std::strcmp(pasted->GetTag(), "Alpha") == 0,
+            "and choose the pasted root instead of the source");
+        Check(editor.GetSelectionCount() == 1, "and nothing else");
+        Check(pasted->GetParent() == holder, "placed beside the source, under the same parent");
+        Check(pasted->GetChildren().Size() == 1, "with its child");
+        auto* pastedTransform = canvas->FindComponentRaw<JBro::Component::Transform2D>(pasted);
+        Check(pastedTransform != nullptr && pastedTransform->rotation == 0.5f,
+            "and its component values");
+        Check(editor.GetCommands().Undo(), "undo must run");
+        Check(canvas->GetObjectCount() == before, "and take the pasted tree away");
+
+        // 고른 것이 없으면 뿌리에 붙는다.
+        editor.ClearSelection();
+        Check(editor.PasteClipboard(), "pasting with nothing chosen must go through");
+        pasted = editor.GetSelectedObject();
+        Check(pasted != nullptr && pasted->GetParent() == nullptr, "and land at the canvas root");
+        Check(editor.GetCommands().Undo(), "undo must run");
+
+        // 프로젝트를 닫으면 클립보드도 비운다.
+        editor.CloseProject();
+        Check(false == editor.HasClipboard(), "closing the project must empty the clipboard");
+
+        editor.Shutdown();
     }
 
     // **게임 뷰는 패널이 보이는 프레임에만 그린다**(D-63). 닫힌 패널 뒤에서 매 프레임 게임을
@@ -3523,6 +3693,8 @@ int RunEditorApplicationTests()
     TestTheGameViewIsRenderedOnlyWhileItsPanelShows();
     TestPopupsOpenOneAtATimeAndCloseByHandle();
     TestSavingAsksForAPathOnceAndReportsFailure();
+    TestMovingAComponentFromItsHeaderMenuCanBeUndone();
+    TestCopyAndPasteMakeASiblingAndSelectIt();
     TestAStructElementOpensAndEditsEveryChosenList();
     TestDraggingAStructElementReordersEveryChosenList();
     TestFlagCountAndToneElementsEditByMouseOnEveryChosenList();

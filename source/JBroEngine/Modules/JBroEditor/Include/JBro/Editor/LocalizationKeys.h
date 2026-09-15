@@ -36,6 +36,8 @@ namespace JBro::LocKeys
     inline constexpr const char* HierarchyCreateObject = "hierarchy.create_object";
     inline constexpr const char* HierarchyCreateChild = "hierarchy.create_child";
     inline constexpr const char* HierarchyDelete = "hierarchy.delete";
+    inline constexpr const char* HierarchyCopy = "hierarchy.copy";
+    inline constexpr const char* HierarchyPaste = "hierarchy.paste";
     inline constexpr const char* HierarchyUnnamed = "hierarchy.unnamed";
     inline constexpr const char* HierarchySearch = "hierarchy.search";
 
@@ -44,6 +46,8 @@ namespace JBro::LocKeys
     inline constexpr const char* InspectorActive = "inspector.active";
     inline constexpr const char* InspectorEnabled = "inspector.enabled";
     inline constexpr const char* InspectorAddComponent = "inspector.add_component";
+    inline constexpr const char* InspectorMoveComponentUp = "inspector.move_up";
+    inline constexpr const char* InspectorMoveComponentDown = "inspector.move_down";
     inline constexpr const char* InspectorRemoveComponent = "inspector.remove_component";
     inline constexpr const char* InspectorNoComponentTypes = "inspector.no_component_types";
     inline constexpr const char* InspectorUnregisteredType = "inspector.unregistered_type";

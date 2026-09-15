@@ -20,12 +20,16 @@ Entries:
   hierarchy.create_object: Create Object
   hierarchy.create_child: Create Child
   hierarchy.delete: Delete
+  hierarchy.copy: Copy
+  hierarchy.paste: Paste
   hierarchy.unnamed: (unnamed)
   hierarchy.search: Search
   inspector.nothing_selected: nothing is selected
   inspector.active: Active
   inspector.enabled: Enabled
   inspector.add_component: Add Component
+  inspector.move_up: Move Up
+  inspector.move_down: Move Down
   inspector.remove_component: Remove Component
   inspector.no_component_types: no component type has registered itself
   inspector.unregistered_type: this type never registered its properties
