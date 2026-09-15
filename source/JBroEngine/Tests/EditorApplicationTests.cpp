@@ -48,6 +48,13 @@ namespace
         // 원소 안의 배열이다. 이번에는 개수만 보여 주고 목록으로 그리지 않는다(D-89).
         JBro::Array<float> taps;
     };
+
+    // 구조체 필드 안에 든 구조체 원소 목록이다. 인스펙터는 이 필드를 트리 마디로 타고 내려가므로
+    // 마디가 열린 자리에서 표를 끊으면 표가 제 Id 대신 마디의 Id 를 뺀다 - 그 자리에서는 끊지 않는다.
+    struct Relay
+    {
+        JBro::Array<Signal> relayed;
+    };
 }
 
 namespace JBro
@@ -67,6 +74,22 @@ namespace JBro
             static const StaticPropertyTable<4> fields { entries };
             static const TypeDescriptor descriptor =
                 MakeStructTypeDescriptor<Signal>("Test::Signal", fields.Get());
+            return descriptor;
+        }
+    };
+
+    template <>
+    struct TypeDescriptorOf<Relay>
+    {
+        static const TypeDescriptor& Get()
+        {
+            static const FieldEntry entries[] =
+            {
+                MakeFieldEntry<&Relay::relayed>(),
+            };
+            static const StaticPropertyTable<1> fields { entries };
+            static const TypeDescriptor descriptor =
+                MakeStructTypeDescriptor<Relay>("Test::Relay", fields.Get());
             return descriptor;
         }
     };
@@ -858,6 +881,7 @@ namespace
         JBRO_FIELD(float, leadingLonger) = 0.0f;
         JBRO_FIELD(Signals, signals);
         JBRO_FIELD(float, trailing) = 0.0f;
+        JBRO_FIELD(Relay, relay);
     };
 
     // 한 줄에서 `target` 이 가리켜지는 가장 왼쪽 x 다. 못 찾으면 -1.
@@ -965,6 +989,7 @@ namespace
             "the opened element must show its strength field");
         // **값이 읽힐 만큼 넓어야 한다.** 목록을 값 칸 안에 두었을 때는 펼친 원소의 필드 표가 또
         // 라벨 칸을 가져, 값이 몇 픽셀만 남았다(`100` 이 `1` 로 보였다).
+        int strengthRight = -1;
         {
             ImGuiWindow* list = FindListBody();
             int hovered = 0;
@@ -976,6 +1001,7 @@ namespace
                 if (ImGui::GetHoveredID() == fieldId("strength"))
                 {
                     hovered += 2;
+                    strengthRight = x;
                 }
             }
             // 목록 폭의 4분의 1 이다. 값 칸 안에 두었을 때는 1024 창에서 목록 폭의 7% 쯤이었다.
@@ -1055,6 +1081,9 @@ namespace
         Check(FindListItemNearRightEdge(editor, hwnd, LabelId(row, "x"), 12, spot),
             "an opened element must keep its remove mark inside the list");
         Check(spot.x == closedMark.x, "and both marks must stand in the same column");
+        // 필드 표는 행의 내용 폭만 쓴다. 남은 폭을 다 쓰면 값 칸이 삭제 표시 밑까지 뻗는다.
+        Check(strengthRight >= 0 && strengthRight < closedMark.x,
+            "a field value inside an element must stop before the remove marks");
 
         if (JBro::Renderer* renderer = editor.GetRenderer())
         {
