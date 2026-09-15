@@ -35,6 +35,43 @@
 #include <stdexcept>
 #include <utility>
 
+// 필드의 종류가 섞인 목록 원소다. 한 줄 숫자 묶음으로 읽히지 않으므로 접기 마디 안에 필드마다
+// 한 줄씩 그린다(D-89). 저장하지 않는 필드가 하나 있다 - 목록은 전체의 글자로 되돌리므로 그
+// 필드는 원소 안에서 고칠 수 없어야 한다.
+namespace
+{
+    struct Signal
+    {
+        float strength = 0.0f;
+        bool on = false;
+        float echo = 0.0f;
+        // 원소 안의 배열이다. 이번에는 개수만 보여 주고 목록으로 그리지 않는다(D-89).
+        JBro::Array<float> taps;
+    };
+}
+
+namespace JBro
+{
+    template <>
+    struct TypeDescriptorOf<Signal>
+    {
+        static const TypeDescriptor& Get()
+        {
+            static const FieldEntry entries[] =
+            {
+                MakeFieldEntry<&Signal::strength>(),
+                MakeFieldEntry<&Signal::on>(),
+                MakeFieldEntry<&Signal::echo>(Attribute::NoSerialize()),
+                MakeFieldEntry<&Signal::taps>(),
+            };
+            static const StaticPropertyTable<4> fields { entries };
+            static const TypeDescriptor descriptor =
+                MakeStructTypeDescriptor<Signal>("Test::Signal", fields.Get());
+            return descriptor;
+        }
+    };
+}
+
 namespace
 {
     // 에디터 창 크기다. **패널 넷이 들어갈 만큼은 되어야 한다** - 너무 좁으면
@@ -798,6 +835,233 @@ namespace
 
         JBRO_FIELD(Points, points);
     };
+
+    using Signals = JBro::Array<Signal>;
+
+    class Signalled final : public JBro::ComponentBase
+    {
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "Test::Signalled";
+        }
+
+        JBro::ComponentTypeId GetTypeId() const override
+        {
+            return JBro::MakeStableTypeId(StaticTypeName());
+        }
+
+        JBRO_REFLECT_BODY(Signalled)
+
+        // 목록 앞뒤의 필드다. 목록이 표를 끊으므로 앞 조각과 뒤 조각의 라벨 칸이 맞아야 한다 -
+        // 앞 라벨을 뒤 라벨보다 길게 두어, 뒤 조각이 제 라벨에 맞추면 값 칸이 어긋나게 한다.
+        JBRO_FIELD(float, leadingLonger) = 0.0f;
+        JBRO_FIELD(Signals, signals);
+        JBRO_FIELD(float, trailing) = 0.0f;
+    };
+
+    // 한 줄에서 `target` 이 가리켜지는 가장 왼쪽 x 다. 못 찾으면 -1.
+    int LeftEdgeOf(JBro::EditorApplication& editor, HWND hwnd, ImGuiID target, int y)
+    {
+        ImGuiWindow* window = ImGui::FindWindowByName("Inspector");
+        Check(window != nullptr, "the inspector must have a window");
+        for (int x = static_cast<int>(window->Pos.x);
+             x < static_cast<int>(window->Pos.x + window->Size.x); ++x)
+        {
+            PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
+            Check(editor.Tick(Frame), "the editor must tick while measuring");
+            if (ImGui::GetHoveredID() == target)
+            {
+                return x;
+            }
+        }
+        return -1;
+    }
+
+    // 목록 몸통을 여러 x 에서 훑는다. 접기 마디의 이름표나 칸 둘로 나뉜 줄은 한 x 로는 빗나간다.
+    bool FindListItemAnywhere(
+        JBro::EditorApplication& editor, HWND hwnd, ImGuiID target, Spot& spot)
+    {
+        for (float fraction = 0.10f; fraction < 0.95f; fraction += 0.05f)
+        {
+            ImGuiWindow* body = FindListBody();
+            Check(body != nullptr, "the list must have its body");
+            if (FindListItem(editor, hwnd, target,
+                    static_cast<int>(body->Pos.x + body->Size.x * fraction), spot))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // **필드를 가진 구조체 원소는 접기 마디로 그리고, 펼치면 필드마다 고친다**(D-89).
+    //
+    // 처음에는 "(no way to show this type)" 한 줄이었다. 필드 편집은 원소 번호와 필드 길을 든
+    // 목록 편집이므로 고른 목록 전부에 같은 델타가 한 되돌리기로 간다. 저장하지 않는 필드는
+    // 목록 전체의 글자에 담기지 않아 되돌릴 수 없으므로 잠겨 있어야 한다.
+    void TestAStructElementOpensAndEditsEveryChosenList()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; struct element lists not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "StructListProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindWindowW(L"JBroEngineWindow", L"JBro Editor");
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        JBro::RegisterBuiltinProperties<Signalled>();
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* alpha = canvas->CreateObject("Alpha");
+        JBro::GameObject* beta = canvas->CreateObject("Beta");
+        auto* a = canvas->AttachComponent<Signalled>(alpha);
+        auto* b = canvas->AttachComponent<Signalled>(beta);
+        Check(a != nullptr && b != nullptr, "both must hold a list of signals");
+        a->signals.Add(Signal{1.0f, false, 5.0f});
+        a->signals.Add(Signal{100.0f, false, 5.0f});
+        b->signals.Add(Signal{10.0f, false, 5.0f});
+        b->signals.Add(Signal{50.0f, false, 5.0f});
+        b->signals.Add(Signal{0.0f, true, 5.0f});
+        JBro::GameObject* chosen[] = {alpha, beta};
+        editor.SelectObjects({chosen, 2});
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        // 둘째 원소의 마디를 연다. 이름표는 타입 이름에서 접두어를 뗀 것이다.
+        ImGuiWindow* body = FindListBody();
+        Check(body != nullptr, "the inspector must draw the list");
+        const ImGuiID row = PushedId(body->ID, 1);
+        const ImGuiID node = LabelId(row, "Signal");
+        Spot spot;
+        Check(FindListItemAnywhere(editor, hwnd, node, spot),
+            "the second element must be drawn as a node that can be opened");
+        ClickAt(editor, hwnd, spot);
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the list must grow to show the fields");
+        }
+
+        const JBro::PropertyTable& fields = *JBro::TypeDescriptorOf<Signal>::Get().fields;
+        const ImGuiID table = LabelId(node, "##element");
+        const auto fieldId = [&](const char* field) {
+            return LabelId(PushedId(table, static_cast<int>(FieldIndexOf(fields, field))),
+                "##value");
+        };
+
+        // 실수 필드를 끈다. 두 목록의 둘째 원소가 같은 만큼 움직여야 한다.
+        Check(FindListItemAnywhere(editor, hwnd, fieldId("strength"), spot),
+            "the opened element must show its strength field");
+        // **값이 읽힐 만큼 넓어야 한다.** 목록을 값 칸 안에 두었을 때는 펼친 원소의 필드 표가 또
+        // 라벨 칸을 가져, 값이 몇 픽셀만 남았다(`100` 이 `1` 로 보였다).
+        {
+            ImGuiWindow* list = FindListBody();
+            int hovered = 0;
+            for (int x = static_cast<int>(list->Pos.x);
+                 x < static_cast<int>(list->Pos.x + list->Size.x); x += 2)
+            {
+                PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, spot.y));
+                Check(editor.Tick(Frame), "the editor must tick while measuring");
+                if (ImGui::GetHoveredID() == fieldId("strength"))
+                {
+                    hovered += 2;
+                }
+            }
+            // 목록 폭의 4분의 1 이다. 값 칸 안에 두었을 때는 1024 창에서 목록 폭의 7% 쯤이었다.
+            Check(static_cast<float>(hovered) >= list->Size.x * 0.25f,
+                "the value of a field inside an element must be wide enough to read");
+        }
+        std::size_t undo = editor.GetCommands().GetUndoCount();
+        DragFrom(editor, hwnd, spot, spot.x + 60);
+        const float moved = a->signals[1].strength - 100.0f;
+        Check(moved > 0.05f, "dragging a field inside an element must move it");
+        Check(moved < 5.0f, "by the distance dragged, not by the value it reached");
+        Check(b->signals[1].strength > 50.0f + moved - 0.01f
+                && b->signals[1].strength < 50.0f + moved + 0.01f,
+            "and move the same element of the other chosen list by the same amount");
+        Check(a->signals[0].strength == 1.0f && b->signals[2].strength == 0.0f,
+            "leaving the other elements alone");
+        Check(editor.GetCommands().GetUndoCount() == undo + 1, "one drag must be one undo");
+        Check(editor.GetCommands().Undo(), "undo must run");
+        Check(a->signals[1].strength == 100.0f && b->signals[1].strength == 50.0f,
+            "and put both back");
+        undo = editor.GetCommands().GetUndoCount();
+
+        // 켜짐 칸은 델타가 없다. 누른 값이 두 목록에 그대로 간다.
+        Check(FindListItemAnywhere(editor, hwnd, fieldId("on"), spot),
+            "the opened element must show its flag");
+        ClickAt(editor, hwnd, spot);
+        Check(a->signals[1].on && b->signals[1].on, "ticking the flag must reach both lists");
+        Check(false == a->signals[0].on && b->signals[2].on, "leaving the other elements' flags");
+        Check(editor.GetCommands().GetUndoCount() == undo + 1, "as one undo");
+        Check(editor.GetCommands().Undo(), "undo must run");
+        Check(false == a->signals[1].on && false == b->signals[1].on, "and untick both");
+
+        // 저장하지 않는 필드는 잠겨 있다.
+        Check(FindListItemAnywhere(editor, hwnd, fieldId("echo"), spot),
+            "a field that is not saved must still be shown");
+        Check(ImGui::GetCurrentContext()->HoveredIdIsDisabled,
+            "but locked, since undoing the list could not bring it back");
+
+        // 원소 안의 배열은 목록으로 그리지 않는다. 목록 안의 목록은 목록 편집이 재귀해야 한다.
+        for (ImGuiWindow* window : ImGui::GetCurrentContext()->Windows)
+        {
+            Check(false == (window->ParentWindow == FindListBody()
+                    && std::strstr(window->Name, "##list_body") != nullptr),
+                "a list inside an element must not be drawn as a list of its own");
+        }
+
+        // **표를 끊어도 앞뒤 조각의 값 칸이 맞아야 한다.** 다시 연 표는 같은 프레임의 둘째
+        // 인스턴스라 Id 사슬이 다르다 - `BeginTable` 이 "##Instances" 를 쌓고 인스턴스 번호를 쌓는다.
+        {
+            const JBro::PropertyTable* signalledTable =
+                JBro::PropertyRegistry::Lookup(Signalled::StaticTypeName());
+            Check(signalledTable != nullptr, "the signalled component must have its table");
+            const ImGuiID leading = InspectorFieldId(
+                0, FieldIndexOf(*signalledTable, "leadingLonger"), "##value");
+            ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
+            const ImGuiID firstPart = LabelId(PushedId(inspector->ID, 0), "##component");
+            const ImGuiID secondPart = PushedId(LabelId(firstPart, "##Instances"), 1);
+            const ImGuiID trailing = LabelId(PushedId(secondPart,
+                static_cast<int>(FieldIndexOf(*signalledTable, "trailing"))), "##value");
+            Spot before;
+            Spot after;
+            Check(FindInspectorItem(editor, hwnd, leading, before),
+                "the field before the list must be in the first part of the table");
+            Check(FindInspectorItem(editor, hwnd, trailing, after),
+                "the field after the list must be in the part opened again");
+            Check(LeftEdgeOf(editor, hwnd, leading, before.y)
+                    == LeftEdgeOf(editor, hwnd, trailing, after.y),
+                "and both values must start in the same column");
+        }
+
+        // **삭제 표시는 줄마다 같은 자리다.** 접힌 줄에서는 이름표에 붙고 펼친 줄에서는 필드 표에
+        // 밀려 행 밖으로 반쯤 나갔다.
+        Spot closedMark;
+        Check(FindListItemNearRightEdge(editor, hwnd, LabelId(PushedId(body->ID, 0), "x"), 12,
+                closedMark),
+            "a closed element must have its remove mark at the end of the row");
+        Check(FindListItemNearRightEdge(editor, hwnd, LabelId(row, "x"), 12, spot),
+            "an opened element must keep its remove mark inside the list");
+        Check(spot.x == closedMark.x, "and both marks must stand in the same column");
+
+        if (JBro::Renderer* renderer = editor.GetRenderer())
+        {
+            SaveScreenshot(*renderer, 1024, 768, "struct_list");
+        }
+        editor.Shutdown();
+    }
 
     // **필드로 말하는 값(`Vec2`)도 커맨드로 고친다**(D-89). 한 줄 숫자 묶음은 코덱이 없어
     // 전 글자를 뜨지 못했고, 뜨지 못하면 커밋을 건너뛰었다 - 위젯이 쓴 값이 그대로 남아
@@ -2411,6 +2675,7 @@ int RunEditorApplicationTests()
     TestListEditsReachEveryChosenObjectAsOneUndo();
     TestAPairElementDragsAsADeltaOnEveryChosenList();
     TestAVectorFieldEditsThroughACommand();
+    TestAStructElementOpensAndEditsEveryChosenList();
     TestTypingTheSameValueLeavesNothingToUndo();
     TestCreatingAnObjectCanBeUndone();
     TestDeletingAnObjectCanBeUndoneWithItsValues();

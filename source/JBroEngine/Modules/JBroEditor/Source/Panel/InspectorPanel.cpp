@@ -384,6 +384,12 @@ namespace JBro
     void InspectorPanel::CommitEdit(
         const TypeDescriptor& type, void* address, const String& before, Context& context)
     {
+        if (context.element != nullptr)
+        {
+            // 목록 원소 안의 잎사귀다. 커맨드는 목록 위젯이 다 그린 뒤에 만든다(D-89).
+            RecordElementEdit(type, address, before, context);
+            return;
+        }
         // **글자는 커맨드가 쓰는 길로 뜬다.** 처음에는 코덱으로 떠서, 코덱이 없는 숫자 묶음
         // (`Vec2`·`Color`)은 여기서 돌아갔다 - 위젯이 쓴 값이 커맨드 없이 남았다(D-89).
         String after;
@@ -535,64 +541,15 @@ namespace JBro
                 {
                     return false;
                 }
-                ListEdit edit;
-                edit.kind = ListEdit::Kind::SetElement;
-                edit.index = static_cast<std::uint32_t>(index);
-
-                // 원소도 한 값 한 줄이다. 라벨은 목록이 이미 번호로 그렸다.
-                ScalarRun run;
-                if (CollectScalarRun(*element, item, run))
-                {
-                    float before[ScalarRun::MaxCount] = {};
-                    for (std::uint32_t at = 0; at < run.count; ++at)
-                    {
-                        before[at] = *run.values[at];
-                    }
-                    if (false == DrawScalarRun(*element, run, nullptr))
-                    {
-                        return false;
-                    }
-                    edit.deltaCount = run.count;
-                    for (std::uint32_t at = 0; at < run.count; ++at)
-                    {
-                        edit.delta[at] = *run.values[at] - before[at];
-                        *run.values[at] = before[at];
-                    }
-                    edits.Add(std::move(edit));
-                    return true;
-                }
-                if (element->codec == nullptr)
-                {
-                    ImGui::TextDisabled("%s",
-                        Loc::TextOr(LocKeys::InspectorUndrawableType,
-                            "(no way to show this type)"));
-                    return false;
-                }
-
-                String before;
-                const bool snapped = ToText(*element, item, before);
-                if (false == DrawLeaf(*element, item, nullptr, before, snapped) || false == snapped)
-                {
-                    return false;
-                }
-                // 실수 하나는 델타로, 나머지(bool·int·enum·글자)는 고른 값을 그대로 옮긴다.
-                // 델타는 **되돌린 뒤에** 잰다 - 되돌리기 전에 재면 위젯이 쓴 값이 델타가 된다.
-                ScalarRun single;
-                const bool numeric = CollectNumbers(*element, item, single);
-                const float after = numeric ? *single.values[0] : 0.0f;
-                if (false == numeric && false == ToText(*element, item, edit.text))
-                {
-                    element->codec->FromText(item, before.c_str(), before.size());
-                    return false;
-                }
-                element->codec->FromText(item, before.c_str(), before.size());
-                if (numeric)
-                {
-                    edit.deltaCount = 1;
-                    edit.delta[0] = after - *single.values[0];
-                }
-                edits.Add(std::move(edit));
-                return true;
+                // 원소 안의 편집은 컴포넌트 길 대신 이 원소를 들고 적힌다(D-89).
+                ElementScope scope;
+                scope.edits = &edits;
+                scope.index = static_cast<std::uint32_t>(index);
+                Context elementContext = context;
+                elementContext.element = &scope;
+                const std::size_t recorded = edits.Size();
+                DrawElement(*element, item, elementContext);
+                return edits.Size() != recorded;
             },
             [&]() {
                 ListEdit edit;
@@ -633,8 +590,94 @@ namespace JBro
             m_editor->GetObjectIds(), addresses, context.path, edits));
     }
 
+    void InspectorPanel::DrawElement(const TypeDescriptor& type, void* address, Context& context)
+    {
+        if (false == NeedsDescent(type))
+        {
+            // **원소도 필드와 같은 잎사귀 규칙이다.** 한 줄 숫자 묶음, enum 콤보, 범위, 글자 칸을
+            // 여기서 따로 그리지 않는다. 라벨은 목록이 이미 번호로 그렸다.
+            DrawValue("##element", type, address, nullptr, context);
+            return;
+        }
+
+        // **필드를 가진 구조체는 접기 마디이고, 기본은 접힘이다**(D-89). 원소가 많아도 목록이
+        // 짧게 남는다. 펼침 상태는 행 번호에 붙으므로, 원소를 옮기면 펼침은 자리에 남는다.
+        const char* name = DisplayTypeName(NameTable::Get().Resolve(type.typeName));
+        // 행의 내용 폭이다. 표는 이만큼만 쓴다 - 남은 폭을 다 쓰면 행 끝의 삭제 표시가 밀려난다.
+        const float width = ImGui::CalcItemWidth();
+        // 계층 패널의 트리 위젯(`Widget::Tree`)은 쓰지 않는다. 그 위젯은 고름·올려놓음 배경을
+        // 줄 왼쪽 끝부터 칠해, 목록 행에서는 손잡이와 번호를 덮었다. 중첩 구조체 필드와 같은 마디다.
+        if (false == ImGui::TreeNodeEx(name != nullptr ? name : "?", ImGuiTreeNodeFlags_None))
+        {
+            return;
+        }
+        {
+            // **마디가 연 들여쓰기를 필드 표에서는 돌려받는다.** 행 안은 손잡이·번호·삭제 표시를
+            // 빼고 남은 자리라, 들여쓰기만큼 값 칸이 더 줄면 좁은 패널에서 값을 읽을 수 없다.
+            // Id 는 마디 아래에 그대로 둔다 - 원소마다 필드 표가 따로 서야 한다.
+            ImGui::Unindent();
+            {
+                Widget::FormLayout layout(
+                    "##element", 4.0f, ImVec2(2.0f, 1.0f), 0.0f, width);
+                DrawFieldsInto(layout, *type.fields, address, context);
+            }
+            ImGui::Indent();
+        }
+        ImGui::TreePop();
+    }
+
+    ListEdit InspectorPanel::MakeElementEdit(const ElementScope& scope)
+    {
+        ListEdit edit;
+        edit.kind = ListEdit::Kind::SetElement;
+        edit.index = scope.index;
+        for (std::uint32_t step = 0; step < scope.fieldDepth; ++step)
+        {
+            edit.fieldPath[step] = scope.fieldPath[step];
+        }
+        edit.fieldDepth = scope.fieldDepth;
+        return edit;
+    }
+
+    void InspectorPanel::RecordElementRun(
+        const ScalarRun& run, const float before[ScalarRun::MaxCount], Context& context)
+    {
+        // 위젯이 쓴 값은 그 자리에서 도로 되돌리고 "이 원소의 이 필드에 얼마를 더했다" 로 적는다.
+        ListEdit edit = MakeElementEdit(*context.element);
+        edit.deltaCount = run.count;
+        for (std::uint32_t at = 0; at < run.count; ++at)
+        {
+            edit.delta[at] = *run.values[at] - before[at];
+            *run.values[at] = before[at];
+        }
+        context.element->edits->Add(std::move(edit));
+    }
+
+    void InspectorPanel::RecordElementEdit(
+        const TypeDescriptor& type, void* address, const String& before, Context& context)
+    {
+        // 실수 하나는 델타로, 나머지(bool·int·enum·글자)는 고른 값을 그대로 옮긴다(D-83).
+        // 델타는 **되돌린 뒤에** 잰다 - 되돌리기 전에 재면 위젯이 쓴 값이 델타가 된다.
+        ListEdit edit = MakeElementEdit(*context.element);
+        ScalarRun single;
+        const bool numeric = CollectNumbers(type, address, single);
+        const float after = numeric ? *single.values[0] : 0.0f;
+        const bool captured = numeric || ToText(type, address, edit.text);
+        type.codec->FromText(address, before.c_str(), before.size());
+        if (false == captured)
+        {
+            return;
+        }
+        if (numeric)
+        {
+            edit.deltaCount = 1;
+            edit.delta[0] = after - *single.values[0];
+        }
+        context.element->edits->Add(std::move(edit));
+    }
+
     // 타고 내려가야 하는 타입인가. 한 줄에 담기는 것과 컨테이너와 enum 은 아니다.
-    bool InspectorPanel::NeedsDescent(const TypeDescriptor& type, void* address)
+    bool InspectorPanel::NeedsDescent(const TypeDescriptor& type)
     {
         if (type.fields == nullptr)
         {
@@ -645,8 +688,7 @@ namespace JBro
         {
             return false;
         }
-        ScalarRun run;
-        return false == CollectScalarRun(type, address, run);
+        return false == IsScalarRunType(type);
     }
 
     void InspectorPanel::DrawFieldsInto(
@@ -673,7 +715,12 @@ namespace JBro
                 : NameTable::Get().Resolve(property.name);
 
             // 길에 한 칸 더 내려간다. 그려 놓고 되돌려야 형제 필드가 제 길을 갖는다.
-            if (context.path.depth >= SetPropertyCommand::MaxDepth)
+            // 목록 원소 안이면 컴포넌트 길이 아니라 원소 안의 필드 길이다(D-89).
+            const bool inElement = context.element != nullptr;
+            const bool tooDeep = inElement
+                ? context.element->fieldDepth >= ListEdit::MaxFieldDepth
+                : context.path.depth >= SetPropertyCommand::MaxDepth;
+            if (tooDeep)
             {
                 // 너무 깊다. 보여는 주되 고치지는 못하게 둔다 - 잘못된 길로 쓰는
                 // 것보다 낫다.
@@ -689,20 +736,66 @@ namespace JBro
                     });
                 continue;
             }
-            context.path.indices[context.path.depth] = index;
-            ++context.path.depth;
+            if (inElement)
+            {
+                context.element->fieldPath[context.element->fieldDepth] = index;
+                ++context.element->fieldDepth;
+            }
+            else
+            {
+                context.path.indices[context.path.depth] = index;
+                ++context.path.depth;
+            }
+            const auto leave = [&]() {
+                if (inElement)
+                {
+                    --context.element->fieldDepth;
+                }
+                else
+                {
+                    --context.path.depth;
+                }
+            };
 
-            Widget::IdScope id(static_cast<int>(index));
-            const bool editable = property.edit == nullptr || property.edit->editable;
+            // **원소 안의 저장하지 않는 필드는 잠근다**(D-89). 목록은 전체의 글자로 되돌리는데 그
+            // 글자에 이 필드가 없다 - 고쳐도 편집이 빠지고, 목록을 되돌릴 때마다 기본값이 된다.
+            const bool editable = (property.edit == nullptr || property.edit->editable)
+                && (false == inElement || property.serialize);
             const char* tooltip =
                 property.edit != nullptr ? property.edit->tooltip : nullptr;
+
+            // **필드를 가진 구조체 원소의 목록은 표를 끊고 줄 전체를 쓴다**(D-89). 값 칸 안에 두면
+            // 펼친 원소의 필드 표가 또 라벨 칸을 가져, 좁은 패널에서 값이 몇 픽셀만 남았다
+            // (`100` 이 `1` 로 보였다). 라벨은 목록 한 줄 위에 선다.
+            //
+            // 끊기는 이 필드의 Id 를 쌓기 전에 한다 - 쌓은 채로 표를 닫으면 표가 제 Id 대신 그것을
+            // 뺀다. 트리 마디가 열린 자리도 같은 이유로 끊지 못해 값 칸에 둔다.
+            if (false == inElement && context.openTrees == 0
+                && property.type->arrayOps != nullptr && property.type->element != nullptr
+                && NeedsDescent(*property.type->element))
+            {
+                layout.Break([&]() {
+                    Widget::IdScope id(static_cast<int>(index));
+                    Widget::FieldLabel(label != nullptr ? label : "?")
+                        .Disabled(false == editable)
+                        .Tooltip(tooltip)
+                        .Draw();
+                    Widget::DisableScope locked(false == editable);
+                    DrawValue(label != nullptr ? label : "?", *property.type, address,
+                        property.edit, context);
+                });
+                leave();
+                continue;
+            }
+
+            Widget::IdScope id(static_cast<int>(index));
 
             // **한 줄에 담기지 않는 구조는 같은 표 안에서 이어 그린다.**
             //
             // 값 칸에 표를 하나 더 열면 안쪽 칸 폭이 바깥과 따로 놀아 줄이
             // 어긋나고, 이름이 왼쪽 칸과 트리에 두 번 나온다. 트리 마디를
             // 줄 전체에 걸치게 두고 자식을 같은 표의 다음 줄로 내면 칸이 맞는다.
-            if (NeedsDescent(*property.type, address))
+            if (NeedsDescent(*property.type))
             {
                 // 줄 전체를 쓴다. 칸을 나누고 값 칸을 비우면 ImGui 가
                 // "항목 없이 커서만 옮겼다" 고 단언한다 - 그리고 실제로
@@ -721,11 +814,13 @@ namespace JBro
                     });
                     if (opened)
                     {
+                        ++context.openTrees;
                         DrawFieldsInto(layout, *property.type->fields, address, context);
+                        --context.openTrees;
                         ImGui::TreePop();
                     }
                 }
-                --context.path.depth;
+                leave();
                 continue;
             }
 
@@ -735,11 +830,14 @@ namespace JBro
                     .Disabled(false == editable)
                     .Tooltip(tooltip),
                 [&]() {
+                    // 값의 잠금은 `DrawValue` 가 편집 정보로 두르지만, 원소 안의 저장하지 않는
+                    // 필드는 편집 정보에 없는 잠금이라 여기서 두른다.
+                    Widget::DisableScope locked(false == editable);
                     DrawValue(label != nullptr ? label : "?", *property.type, address,
                         property.edit, context);
                 });
 
-            --context.path.depth;
+            leave();
         }
     }
 
@@ -769,6 +867,17 @@ namespace JBro
             }
             return;
         }
+        // **원소 안의 배열·표는 개수만 보여 준다**(D-89). 목록 안의 목록을 고치려면 목록 편집이
+        // 재귀해야 하고, 그것은 따로 설계할 일이다.
+        if (context.element != nullptr && (type.arrayOps != nullptr || type.tableOps != nullptr))
+        {
+            const std::size_t count = type.arrayOps != nullptr
+                ? (type.arrayOps->GetSize != nullptr ? type.arrayOps->GetSize(address) : 0)
+                : (type.tableOps->GetSize != nullptr ? type.tableOps->GetSize(address) : 0);
+            ImGui::TextDisabled(Loc::TextOr(LocKeys::ListElementCount, "%d item(s)"),
+                static_cast<int>(count));
+            return;
+        }
         // 배열은 목록 위젯이 그린다. 원소 접근이 전부 조작 함수를 거치므로
         // 인스펙터는 여기서도 무엇이 든 배열인지 모른다(ProjectRule §11.1).
         if (type.arrayOps != nullptr && type.arrayOps->GetSize != nullptr)
@@ -792,6 +901,20 @@ namespace JBro
         ScalarRun run;
         if (CollectScalarRun(type, address, run))
         {
+            if (context.element != nullptr)
+            {
+                // 원소 안에서는 글자를 뜨지 않는다. 칸마다 전 값을 들고 델타로 적는다.
+                float before[ScalarRun::MaxCount] = {};
+                for (std::uint32_t at = 0; at < run.count; ++at)
+                {
+                    before[at] = *run.values[at];
+                }
+                if (DrawScalarRun(type, run, edit) && editable)
+                {
+                    RecordElementRun(run, before, context);
+                }
+                return;
+            }
             // 숫자 묶음에는 코덱이 없다. 커맨드가 쓰는 글자(전체의 YAML)로 뜬다(D-89).
             String before;
             const bool snapped = SetPropertyCommand::ReadValue(

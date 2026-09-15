@@ -16,6 +16,7 @@ namespace JBro
             return name != nullptr && std::strcmp(name, "float") == 0;
         }
 
+        // `address` 가 비어 있으면 타입만 본다. 셈은 같고 주소만 모으지 않는다.
         bool CollectInto(const TypeDescriptor& type, void* address, ScalarRun& run)
         {
             if (type.fields == nullptr)
@@ -29,10 +30,14 @@ namespace JBro
                 {
                     return false;
                 }
-                void* field = property.Address(address);
-                if (field == nullptr)
+                void* field = nullptr;
+                if (address != nullptr)
                 {
-                    return false;
+                    field = property.Address(address);
+                    if (field == nullptr)
+                    {
+                        return false;
+                    }
                 }
                 if (property.type->fields != nullptr)
                 {
@@ -66,6 +71,12 @@ namespace JBro
     {
         run = ScalarRun{};
         return CollectInto(type, address, run) && run.count >= 2;
+    }
+
+    bool IsScalarRunType(const TypeDescriptor& type)
+    {
+        ScalarRun run;
+        return CollectInto(type, nullptr, run) && run.count >= 2;
     }
 
     bool CollectNumbers(const TypeDescriptor& type, void* address, ScalarRun& run)

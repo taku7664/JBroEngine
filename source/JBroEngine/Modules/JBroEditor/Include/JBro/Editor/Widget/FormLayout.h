@@ -17,11 +17,14 @@ namespace JBro::Widget
     class FormLayout
     {
     public:
+        // `width` 가 0 이면 남은 폭을 다 쓴다. 목록 행 안처럼 오른쪽에 다른 것이 붙는 자리는
+        // 그 자리의 폭을 준다 - 다 쓰면 옆의 것(행 끝의 삭제 표시)이 밀려난다(D-89).
         explicit FormLayout(
             const char* id,
             float spacing = 4.0f,
             ImVec2 padding = ImVec2(2.0f, 1.0f),
-            float labelWidth = 0.0f);
+            float labelWidth = 0.0f,
+            float width = 0.0f);
         ~FormLayout();
 
         FormLayout(const FormLayout&) = delete;
@@ -57,8 +60,8 @@ namespace JBro::Widget
             field();
         }
 
-        // 칸을 나누지 않고 줄 전체를 쓴다. 여러 줄짜리 글자 칸이나 목록처럼
-        // 라벨 옆에 두면 너무 좁아지는 것들이 쓴다.
+        // 칸을 나누지 않는 줄이다. **첫 칸 안에 그린다** - 트리 마디처럼 스스로 줄 전체에
+        // 걸치는 항목(`SpanAllColumns`)만 줄 전체를 쓴다. 넓은 것을 넣으면 첫 칸 폭에 갇힌다.
         template <typename TField>
         void FullRow(TField&& field)
         {
@@ -71,12 +74,39 @@ namespace JBro::Widget
             field();
         }
 
+        // **표를 끊고 줄 전체를 쓴다**(D-89). ImGui 표에는 칸 합치기가 없어서, 칸 하나보다 넓어야
+        // 하는 것(필드를 가진 구조체 원소의 목록)은 표를 닫고 그린 뒤 같은 이름으로 다시 연다.
+        //
+        // **같은 이름이어야 한다.** 한 프레임에 같은 이름으로 연 표들은 ImGui 가 한 표의
+        // 인스턴스로 보고 칸 폭을 함께 쓴다 - 끊긴 조각들의 라벨 칸이 그래서 맞는다. 다시 연 표는
+        // 둘째 인스턴스라 그 뒤 항목의 Id 사슬이 달라진다("##Instances" 와 인스턴스 번호가 낀다).
+        //
+        // 트리 마디가 열린 채로(표 안에서 Id 를 더 쌓은 채로) 끊으면 표를 닫을 때 남의 Id 를
+        // 뺀다 - 부르는 쪽이 그런 자리에서는 끊지 않는다.
+        template <typename TField>
+        void Break(TField&& field)
+        {
+            if (false == m_open)
+            {
+                return;
+            }
+            Close();
+            field();
+            Open();
+        }
+
         bool IsOpen() const;
 
     private:
+        void Open();
+        void Close();
+
+        const char* m_id = nullptr;
         bool m_open = false;
         float m_spacing = 0.0f;
+        ImVec2 m_padding;
         float m_labelWidth = 0.0f;
+        float m_width = 0.0f;
         StyleScope m_style;
     };
 }

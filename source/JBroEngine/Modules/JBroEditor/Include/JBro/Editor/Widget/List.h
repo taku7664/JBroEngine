@@ -190,6 +190,7 @@ namespace JBro::Widget
                 ImGui::SetCursorPosX(startX + indexWidth);
             }
 
+            const float contentStartX = ImGui::GetCursorPosX();
             ImGui::BeginGroup();
             ImGui::PushItemWidth(contentWidth);
             if (readOnly)
@@ -206,7 +207,10 @@ namespace JBro::Widget
 
             if (false == readOnly)
             {
-                ImGui::SameLine();
+                // **삭제 표시는 줄마다 같은 자리, 내용 폭의 끝이다**(D-89). 그냥 옆에 붙이면 내용이
+                // 폭보다 좁은 줄(접힌 구조체 원소의 이름표)에서는 이름표에 붙고, 펼친 줄에서는
+                // 끝으로 가 줄마다 들쭉날쭉했다. 폭을 다 쓰는 줄은 전과 같은 자리다.
+                ImGui::SameLine(contentStartX + contentWidth + style.ItemSpacing.x);
                 if (TextButton(RowRemoveGlyph, ImVec2(0.0f, 0.0f), ImVec2(0.0f, -1.0f)))
                 {
                     removeIndex = index;

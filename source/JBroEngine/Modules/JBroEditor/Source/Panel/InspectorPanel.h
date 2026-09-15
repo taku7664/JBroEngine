@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <JBro/Editor/Command/ListEdit.h>
 #include <JBro/Editor/Command/SetPropertyCommand.h>
 #include <JBro/Editor/ScalarRun.h>
 
@@ -38,10 +39,26 @@ namespace JBro
         EditorDock GetPreferredDock() const override { return EditorDock::Right; }
 
     private:
+        // 목록 원소 안을 그리는 중이다(D-89). 그 안의 편집은 컴포넌트의 길이 아니라 원소 번호와
+        // 원소 안의 필드 길을 든 목록 편집으로 적힌다 - 목록은 컴포넌트 길의 잎사귀이고(D-86),
+        // 다 그린 뒤 목록 위젯이 적힌 편집을 고른 대상마다 다시 적용한다.
+        struct ElementScope
+        {
+            Array<ListEdit>* edits = nullptr;
+            std::uint32_t index = 0;
+            std::uint32_t fieldPath[ListEdit::MaxFieldDepth] = {};
+            std::uint32_t fieldDepth = 0;
+        };
+
         // 지금 그리는 컴포넌트와, 거기서 여기까지 내려온 길이다. 잎사귀에서
         // 커맨드를 만들 때 둘 다 필요하다.
         struct Context
         {
+            // 목록 원소 안이면 그 원소다. 비어 있으면 컴포넌트의 필드를 그리는 중이다.
+            ElementScope* element = nullptr;
+            // 줄 배치 안에서 열려 있는 트리 마디 수다. 마디가 열린 자리에서는 표를 끊지 못한다 -
+            // 표를 닫으면서 마디가 쌓은 Id 를 뺀다.
+            std::uint32_t openTrees = 0;
             // 컴포넌트의 주인이다. `ComponentBase` 가 주인을 내주는 길은
             // 핸들뿐이고 원시 포인터 쪽은 private 이라, 그리는 쪽이 이미
             // 알고 있는 것을 여기 담아 온다.
@@ -63,11 +80,20 @@ namespace JBro
             const TypeDescriptor& type,
             const ScalarRun& run,
             const PropertyEditInfo* edit);
-        // 타고 내려가야 하는 타입인가. 한 줄에 담기는 것은 아니다.
-        static bool NeedsDescent(const TypeDescriptor& type, void* address);
+        // 타고 내려가야 하는 타입인가. 한 줄에 담기는 것은 아니다. 타입만 보고 정한다.
+        static bool NeedsDescent(const TypeDescriptor& type);
         // 배열 하나를 목록 위젯으로 그린다.
         void DrawArray(
             const TypeDescriptor& type, void* address, bool editable, Context& context);
+        // 목록 원소 하나. 한 줄에 담기면 필드와 같은 잎사귀 규칙으로 한 줄에 그리고,
+        // 필드를 가진 구조체면 접기 마디 안에 필드마다 한 줄씩 그린다(D-89).
+        void DrawElement(const TypeDescriptor& type, void* address, Context& context);
+        // 원소 안의 잎사귀를 위젯이 바꿨다. 도로 되돌리고 목록 편집으로 적는다.
+        static void RecordElementEdit(
+            const TypeDescriptor& type, void* address, const String& before, Context& context);
+        static void RecordElementRun(
+            const ScalarRun& run, const float before[ScalarRun::MaxCount], Context& context);
+        static ListEdit MakeElementEdit(const ElementScope& scope);
         // 코덱 하나짜리 잎사귀.
         bool DrawLeaf(
             const TypeDescriptor& type,
