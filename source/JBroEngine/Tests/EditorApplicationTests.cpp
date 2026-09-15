@@ -32,6 +32,7 @@
 #include <fstream>
 #include <string>
 #include <cstring>
+#include <cwchar>
 #include <iostream>
 #include <stdexcept>
 #include <utility>
@@ -123,6 +124,41 @@ namespace
             std::cout << "test failure: " << message << std::endl;
             throw std::runtime_error(message);
         }
+    }
+
+    // **자기 프로세스의 에디터 창만 찾는다.** `FindWindowW` 는 이름만 보므로, 같은 기계에서
+    // 다른 테스트 프로세스가 같은 창을 띄우고 있으면 그쪽 창에 마우스를 보내게 된다 - 세션
+    // 둘이 나란히 테스트를 돌리던 날 마우스 테스트가 무작위로 실패한 원인이었다.
+    HWND FindOwnEditorWindow()
+    {
+        struct Search
+        {
+            HWND found = nullptr;
+            DWORD process = GetCurrentProcessId();
+        } search;
+        EnumWindows(
+            [](HWND hwnd, LPARAM param) -> BOOL {
+                Search& search = *reinterpret_cast<Search*>(param);
+                DWORD owner = 0;
+                GetWindowThreadProcessId(hwnd, &owner);
+                if (owner != search.process)
+                {
+                    return TRUE;
+                }
+                wchar_t className[64] = {};
+                wchar_t title[64] = {};
+                GetClassNameW(hwnd, className, 64);
+                GetWindowTextW(hwnd, title, 64);
+                if (std::wcscmp(className, L"JBroEngineWindow") == 0
+                    && std::wcscmp(title, L"JBro Editor") == 0)
+                {
+                    search.found = hwnd;
+                    return FALSE;
+                }
+                return TRUE;
+            },
+            reinterpret_cast<LPARAM>(&search));
+        return search.found;
     }
 
     // 에디터 오버레이가 백버퍼를 지우는 색이다(0.09, 0.09, 0.11). 패널이 덮은
@@ -490,7 +526,7 @@ namespace
         }
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
-        HWND window = FindWindowW(L"JBroEngineWindow", L"JBro Editor");
+        HWND window = FindOwnEditorWindow();
         Check(window != nullptr, "the editor window must be findable");
 
         constexpr float Delta = 1.0f / 60.0f;
@@ -555,6 +591,7 @@ namespace
     // 견디고, 못 찾으면 조용히 통과하는 대신 운다.
 
     constexpr float Frame = 1.0f / 60.0f;
+
 
     ImGuiID PushedId(ImGuiID seed, int value)
     {
@@ -851,7 +888,7 @@ namespace
         project.name = {name, sizeof(name) - 1};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
-        HWND hwnd = FindWindowW(L"JBroEngineWindow", L"JBro Editor");
+        HWND hwnd = FindOwnEditorWindow();
         Check(hwnd != nullptr, "the editor window must be findable");
 
         JBro::RegisterBuiltinProperties<Weighted>();
@@ -1039,7 +1076,7 @@ namespace
         project.name = {name, sizeof(name) - 1};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
-        HWND hwnd = FindWindowW(L"JBroEngineWindow", L"JBro Editor");
+        HWND hwnd = FindOwnEditorWindow();
         Check(hwnd != nullptr, "the editor window must be findable");
 
         JBro::RegisterBuiltinProperties<Signalled>();
@@ -1212,7 +1249,7 @@ namespace
         project.name = {name, sizeof(name) - 1};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
-        HWND hwnd = FindWindowW(L"JBroEngineWindow", L"JBro Editor");
+        HWND hwnd = FindOwnEditorWindow();
         Check(hwnd != nullptr, "the editor window must be findable");
 
         JBro::RegisterBuiltinProperties<Signalled>();
@@ -1343,7 +1380,7 @@ namespace
         project.name = {name, sizeof(name) - 1};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
-        HWND hwnd = FindWindowW(L"JBroEngineWindow", L"JBro Editor");
+        HWND hwnd = FindOwnEditorWindow();
         Check(hwnd != nullptr, "the editor window must be findable");
 
         JBro::RegisterBuiltinProperties<Toggled>();
@@ -1475,7 +1512,7 @@ namespace
         project.name = {name, sizeof(name) - 1};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
-        HWND hwnd = FindWindowW(L"JBroEngineWindow", L"JBro Editor");
+        HWND hwnd = FindOwnEditorWindow();
         Check(hwnd != nullptr, "the editor window must be findable");
 
         JBro::Canvas* canvas = editor.GetCanvas();
@@ -1553,7 +1590,7 @@ namespace
         project.name = {name, sizeof(name) - 1};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
-        HWND hwnd = FindWindowW(L"JBroEngineWindow", L"JBro Editor");
+        HWND hwnd = FindOwnEditorWindow();
         Check(hwnd != nullptr, "the editor window must be findable");
 
         JBro::RegisterBuiltinProperties<Pointed>();
@@ -1630,7 +1667,7 @@ namespace
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
-        HWND hwnd = FindWindowW(L"JBroEngineWindow", L"JBro Editor");
+        HWND hwnd = FindOwnEditorWindow();
         Check(hwnd != nullptr, "the editor window must be findable");
 
         JBro::Canvas* canvas = editor.GetCanvas();
@@ -1749,7 +1786,7 @@ namespace
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
-        HWND hwnd = FindWindowW(L"JBroEngineWindow", L"JBro Editor");
+        HWND hwnd = FindOwnEditorWindow();
         Check(hwnd != nullptr, "the editor window must be findable");
 
         JBro::Canvas* canvas = editor.GetCanvas();
@@ -2028,7 +2065,7 @@ namespace
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
-        HWND hwnd = FindWindowW(L"JBroEngineWindow", L"JBro Editor");
+        HWND hwnd = FindOwnEditorWindow();
         Check(hwnd != nullptr, "the editor window must be findable");
 
         JBro::Canvas* canvas = editor.GetCanvas();
@@ -2123,7 +2160,7 @@ namespace
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
-        HWND hwnd = FindWindowW(L"JBroEngineWindow", L"JBro Editor");
+        HWND hwnd = FindOwnEditorWindow();
         Check(hwnd != nullptr, "the editor window must be findable");
 
         JBro::Canvas* canvas = editor.GetCanvas();
@@ -2186,7 +2223,7 @@ namespace
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
-        HWND hwnd = FindWindowW(L"JBroEngineWindow", L"JBro Editor");
+        HWND hwnd = FindOwnEditorWindow();
         Check(hwnd != nullptr, "the editor window must be findable");
 
         JBro::Canvas* canvas = editor.GetCanvas();
@@ -2478,7 +2515,7 @@ namespace
         Check(editor.Tick(1.0f / 60.0f), "the editor must tick with its UI on");
 
         // 에디터가 만든 창이다. 제목은 EditorApplication 이 정한다.
-        HWND window = FindWindowW(L"JBroEngineWindow", L"JBro Editor");
+        HWND window = FindOwnEditorWindow();
         Check(window != nullptr, "the editor window must be findable");
         Check(PostMessageW(window, WM_CLOSE, 0, 0) != 0, "the close must post");
 
@@ -2510,7 +2547,7 @@ namespace
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         Check(false == editor.UiWantsMouse(), "nothing has been pointed at yet");
 
-        HWND window = FindWindowW(L"JBroEngineWindow", L"JBro Editor");
+        HWND window = FindOwnEditorWindow();
         Check(window != nullptr, "the editor window must be findable");
 
         // 창을 가득 채운 패널 한가운데를 가리킨다. ImGui 는 지난 프레임에 무엇
@@ -2569,7 +2606,7 @@ namespace
         }
 
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
-        HWND window = FindWindowW(L"JBroEngineWindow", L"JBro Editor");
+        HWND window = FindOwnEditorWindow();
         Check(window != nullptr, "the editor window must be findable");
         for (int frame = 0; frame < 3; ++frame)
         {
