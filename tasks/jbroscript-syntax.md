@@ -31,7 +31,7 @@
 | 블록 | 중괄호 |
 | 문장 끝 | 줄바꿈. 세미콜론이 없다 |
 | 주석 | `//` |
-| 다른 파일의 타입 | `import` 없이 프로젝트 전체의 타입이 보인다 |
+| 다른 파일의 타입 | `import` 없이 프로젝트 전체의 타입이 보인다. C++ 로 바뀔 때는 컴파일러가 **실제로 쓰는 타입만** `#include` 한다 |
 | `script` 의 부모 | 적지 않아도 엔진의 스크립트 베이스(2D 프로젝트면 `GameScript2D`)를 상속한다 |
 
 ## 3. 선언 종류 넷 [확정]
@@ -46,24 +46,24 @@
 ```
 script Player
 {
-    int score = 0                    // private
+    Int score = 0                    // private
 }
 
 class Inventory
 {
-    public int Gold = 0              // public
-    int capacity = 20                // private
+    public Int Gold = 0              // public
+    Int capacity = 20                // private
 }
 
 struct DropEntry
 {
-    int Weight = 1                   // public + 프로퍼티
-    private int rollCount = 0        // private + 프로퍼티
+    Int Weight = 1                   // public + 프로퍼티
+    private Int rollCount = 0        // private + 프로퍼티
 }
 
 interface IDamageable
 {
-    fn TakeDamage(int amount)        // public, 순수 가상
+    fn TakeDamage(Int amount)        // public, 순수 가상
 }
 ```
 
@@ -79,12 +79,12 @@ interface IDamageable
 - 초깃값은 `=` 뒤에 쓴다. 쓰지 않으면 타입의 기본값이다.
 
 ```
-public int MaxHp = 10
-float speed = 2.5
-Array<int> lines
+public Int MaxHp = 10
+Float speed = 2.5
+Array<Int> lines
 ```
 
-타입을 초깃값에서 추론하지 않는 이유: `Speed = 1` 이 `int` 가 되어 인스펙터에서 `1.5` 를 넣을 수 없게 된다.
+타입을 초깃값에서 추론하지 않는 이유: `Speed = 1` 이 `Int` 가 되어 인스펙터에서 `1.5` 를 넣을 수 없게 된다.
 
 ### 4.3 프로퍼티(인스펙터 노출·저장) [확정]
 
@@ -102,12 +102,12 @@ Array<int> lines
 
 ```
 [range(4, 40), category("Field")]
-int FieldRows = 20
+Int FieldRows = 20
 
 [name("낙하 간격")]
-float DropInterval = 0.5
+Float DropInterval = 0.5
 
-[prop] bool ShowDebug = false
+[prop] Bool ShowDebug = false
 ```
 
 ### 4.4 `static` · `const` [확정]
@@ -116,10 +116,10 @@ float DropInterval = 0.5
 - `const` 는 **값·필드·매개변수**에만 붙는다. C++ 의 const 멤버 함수 같은 것은 없다.
 
 ```
-static int aliveCount = 0
-const float Gravity = 9.8
+static Int aliveCount = 0
+const Float Gravity = 9.8
 
-static fn Clamp01(float value) -> float
+static fn Clamp01(Float value) -> Float
 {
     ...
 }
@@ -137,8 +137,8 @@ fn 이름(매개변수) -> 반환타입 접미사
 
 ```
 fn OnStart() callback                // 반환 없음
-fn HpRatio() -> float                // float 반환
-fn MakeHit(int damage) -> HitInfo    // struct 반환
+fn HpRatio() -> Float                // Float 반환
+fn MakeHit(Int damage) -> HitInfo    // struct 반환
 fn FindNearest() -> ref Enemy        // ref 반환
 ```
 
@@ -153,12 +153,12 @@ fn FindNearest() -> ref Enemy        // ref 반환
 ```
 class Weapon
 {
-    fn Damage() -> int require
+    fn Damage() -> Int require
 }
 
 class Sword : Weapon
 {
-    fn Damage() -> int override
+    fn Damage() -> Int override
     {
         return 10
     }
@@ -174,9 +174,9 @@ class Sword : Weapon
 ```
 class Inventory
 {
-    public int Gold = 0
+    public Int Gold = 0
 
-    fn Inventory(int startGold)
+    fn Inventory(Int startGold)
     {
         Gold = startGold
     }
@@ -195,12 +195,12 @@ Inventory bag = Inventory(100)
 ```
 interface IDamageable
 {
-    fn TakeDamage(int amount)
+    fn TakeDamage(Int amount)
 }
 
 interface IHealable
 {
-    fn Heal(int amount)
+    fn Heal(Int amount)
 }
 
 interface ICombatant : IDamageable, IHealable
@@ -209,12 +209,12 @@ interface ICombatant : IDamageable, IHealable
 
 script Knight : ICombatant
 {
-    fn TakeDamage(int amount) override
+    fn TakeDamage(Int amount) override
     {
         ...
     }
 
-    fn Heal(int amount) override
+    fn Heal(Int amount) override
     {
         ...
     }
@@ -226,20 +226,33 @@ script Priest : Mage, Healer
 }
 ```
 
-## 7. 타입 [확정]
+## 7. 타입
+
+### 7.1 엔진이 제공한 타입만 쓴다 [확정]
+
+스크립트의 **모든 타입은 엔진이 제공한 타입**이다. `Int`·`Float`·`String` 도 C++ 기본 타입이 아니라 엔진의 클래스다.
+`int`·`float`·`bool`·`double`·`int32` 같은 이름은 **없다.**
 
 | 분류 | v1 에 있는 것 |
 |---|---|
-| 스칼라 | `bool`, `int`(32비트), `float`(32비트), `String` |
-| 엔진 값 타입 | `Vec2`, `Rect`, `Color` |
+| 수 | **`Int`(64비트)**, **`Float`** |
+| 논리 | `Bool` |
+| 글자 | `String` |
+| 엔진 값 타입 | **`Vector2`**, `Rect`, `Color` |
 | 엔진 enum | 엔진이 이름을 알려 주는 것 |
 | 사용자 타입 | `script`, `class`, `struct`, `interface`, `enum` |
 | 참조 | `ref T`(§8) |
-| 컨테이너 | `Array<T>`, `Table<K, V>`(K 는 `int`·`String`) |
+| 컨테이너 | `Array<T>`, `Table<K, V>`(K 는 `Int`·`String`) |
 
-- `int64`·`double` 같은 폭 지정 타입은 v1 에 없다.
-- 컨테이너에 `ref` 를 담는 표기는 `Array<ref Enemy>` 다.
+엔진 코드와 맞춰야 하는 것 둘이 있다(§12 의 2·3번).
+
+- 새 엔진 코드의 2D 벡터 이름은 지금 **`Vec2`** 다(`Math2D.h:9`, D-57).
+- 엔진에는 `Int32`·`UInt`·`UInt32` 도 있지만 스크립트에는 `Int`·`Float` 만 둔다. `Float` 은 엔진에서 32비트 `float` 을 감싼다(`Float.h:12`).
+
+### 7.2 enum 과 컨테이너 [확정]
+
 - **스크립트 enum** 은 멤버를 한 줄에 하나씩 쓴다. 저장 파일에는 숫자가 아니라 이름으로 남는다.
+- 컨테이너에 `ref` 를 담는 표기는 `Array<ref Enemy>` 다.
 
 ```
 enum EnemyState
@@ -251,7 +264,7 @@ enum EnemyState
 
 EnemyState state = EnemyState.Idle
 Array<ref Enemy> allies
-Table<String, int> scores
+Table<String, Int> scores
 ```
 
 ## 8. `ref`
@@ -262,6 +275,7 @@ Table<String, int> scores
 - `ref` 는 **단순히 포인터**다. **매개변수·멤버 변수·지역 변수** 어디에나 쓸 수 있다.
 - **null 이 될 수 있는 것은 `ref` 뿐이다.**
 - `ref` 는 **누군가가 소유하고 있는 것**을 가리킨다. 여럿이 함께 쓰는 `class` 인스턴스도 누군가가 소유하고, 나머지는 `ref` 로 가리킨다.
+- **`ref` 매개변수에 넘길 때는 호출하는 쪽에도 `ref` 를 쓴다.**
 
 ```
 ref Transform2D target               // 멤버
@@ -271,6 +285,9 @@ fn Apply(ref HitInfo hit)            // 매개변수
 {
     ref Enemy nearest = FindNearest()    // 지역
 }
+
+Collision2D hit
+Bool found = GetFramework2DServices().Physics2D.Raycast(from, down, 10.0, ref hit)   // 호출하는 쪽에도 ref
 ```
 
 ### 8.2 대상이 사라지면 [열림]
@@ -283,50 +300,58 @@ fn Apply(ref HitInfo hit)            // 매개변수
 | `script`, 엔진 컴포넌트, 게임 오브젝트 | 된다 |
 | 소유자가 따로 있는 `class` 인스턴스 | 된다 |
 | 다른 객체 안에 **값으로** 들어 있는 `class` | **지금 엔진으로는 안 된다** |
-| 값(`int`, `float`, `struct`), 컨테이너 원소 | **안 된다** |
+| 값(`Int`, `Float`, `struct`), 컨테이너 원소 | **안 된다** |
 
 매개변수·지역 변수의 `ref` 는 한 콜백 안에서만 살고 엔진이 파괴를 콜백 뒤로 미루므로 대상이 먼저 사라지지 않는다.
 단 **컨테이너 원소를 가리키는 `ref` 는 같은 함수 안에서도 끊길 수 있다**(원소를 더해 컨테이너가 커지면).
-문제가 되는 것은 표의 아래 두 줄을 **멤버 변수**로 들고 있는 경우다. 결정할 것은 §12 의 1번이고,
-C++ 쪽 사정은 [jbroc-rules.md](./jbroc-rules.md) §4 에 있다.
+문제가 되는 것은 표의 아래 두 줄을 **멤버 변수**로 들고 있는 경우다(§12 의 1번). C++ 쪽 사정은 [jbroc-rules.md](./jbroc-rules.md) §4.
 
 ## 9. null 검사
 
-### 9.1 문법 [확정: `is null`]
+### 9.1 문법 [확정]
 
 ```
-if target is null
+if (target is null)
 {
     return
 }
 ```
 
-**[제안]** 반대는 `is not null` 이다. 조건의 괄호는 식을 묶는 괄호일 뿐이라 `if (target is null)` 도 된다.
+- **`if let` 은 없다.**
+- **[제안]** 반대는 `is not null` 이다.
 
-### 9.2 자동 null 검사 `autochecknullable` [확정: 방향] · 세부 [제안]
+### 9.2 자동 null 검사 `autochecknullable` [확정]
 
-**[확정]** 컴파일러가 `ref` 를 쓰는 곳에 null 검사를 자동으로 넣는다.
-켜져 있으면 `target.Func()` 는 **`target` 이 null 일 때 그 문장을 건너뛴다.**
-끄면 직접 `is null` 로 검사하거나, 자신 있으면 그냥 쓴다. null 이 될 수 있는 것은 `ref` 뿐이므로 `ref` 에만 해당한다.
+- 컴파일러가 **`ref` 를 쓰는 문장**에 null 검사를 자동으로 넣는다. null 이 될 수 있는 것은 `ref` 뿐이므로 `ref` 에만 해당한다.
+- 켜져 있으면 그 문장은 **`ref` 가 null 일 때 걸러지고 에러 로그가 남는다.**
+- **값이 필요한 자리도 같다.** `Float hp = target.GetHp()` 에서 `target` 이 null 이면 대입이 걸러지고 에러 로그가 남는다.
+- **한 문장에 `ref` 가 둘 이상이면 모두를 한 조건으로 검사한다**(`ref1` 과 `ref2` 가 둘 다 null 이 아닐 때만 실행).
+- 끄면 직접 `is null` 로 검사하거나, 자신 있으면 그냥 쓴다.
 
-**[제안]** 선언마다 어트리뷰트로 끄고, 기본은 켜짐이다. 건너뛸 때는 그 자리마다 한 번 로그가 남는다.
+**[제안]** 선언마다 어트리뷰트로 끄고, 기본은 켜짐이다.
 
 ```
 ref Transform2D target
+ref Enemy enemy
 
 [autochecknullable(false)]
 ref Transform2D home
 
-fn OnUpdate(float dt) callback
+fn OnUpdate(Float dt) callback
 {
-    target.position.x += 1.0         // target 이 null 이면 이 문장을 건너뛴다
+    target.position.x += 1.0                     // target 이 null 이면 걸러지고 에러 로그
+    Float hp = enemy.GetHp()                     // enemy 가 null 이면 대입이 걸러지고 에러 로그
+    target.position.y = enemy.GetHeight()        // target 과 enemy 를 함께 검사
 
-    if home is not null              // 꺼져 있으므로 직접 검사한다
+    if (home is not null)                        // 자동 검사를 껐으므로 직접 검사한다
     {
         home.position.y = 0.0
     }
 }
 ```
+
+걸러진 뒤의 동작 중 정해야 할 것이 남았다(§12 의 4번). 위 예시에서 `enemy` 가 null 이면 `hp` 는 기본값(0)으로 남고
+다음 줄부터 그 값으로 계속 돈다.
 
 ## 10. 식
 
@@ -344,10 +369,10 @@ fn OnUpdate(float dt) callback
 | 8 | `or` |
 
 - v1 에 **없는 것**: 비트 연산, `++`/`--`, 삼항 `?:`, 쉼표 연산자, **식으로서의 대입**.
-- 대입(`=`, `+=`, `-=`, `*=`, `/=`)은 **문장**이다. `if a = b` 같은 실수를 쓸 수 없다.
+- 대입(`=`, `+=`, `-=`, `*=`, `/=`)은 **문장**이다. `if (a = b)` 같은 실수를 쓸 수 없다.
 
 ```
-if hp <= 0 and not isDead
+if (hp <= 0 and not isDead)
 {
     isDead = true
 }
@@ -355,36 +380,43 @@ if hp <= 0 and not isDead
 
 ### 10.2 리터럴 [확정]
 
-`20` 은 `int`, `0.5` 는 `float`, `"..."` 는 `String`, `true`/`false` 는 `bool`, 그리고 `null`.
+`20` 은 `Int`, `0.5` 는 `Float`, `"..."` 는 `String`, `true`/`false` 는 `Bool`, 그리고 `null`.
 
-### 10.3 형변환 [확정]
+### 10.3 형변환 [확정] · `Int` → `Float` [열림]
 
-- `int` → `float` 만 저절로 바뀐다.
-- 좁히는 변환(`float` → `int`)은 에러다. 명시 변환은 함수 모양이다: `int(x)`, `float(x)`.
-- `int / int` 는 `int` 다.
+- 좁히는 변환(`Float` → `Int`)은 에러다. 명시 변환은 타입 이름을 함수처럼 쓴다: `Int(x)`, `Float(x)`.
+- `Int / Int` 는 `Int` 다.
+- **[열림]** `Int` → `Float` 을 저절로 바꾸는가(§12 의 5번). `Int` 가 64비트라 32비트 `Float` 로 바꾸면 큰 값의 정밀도가 사라진다.
 
 ```
-float ratio = float(hp) / float(maxHp)
-int cells = int(width / cellSize)
+Float ratio = Float(hp) / Float(maxHp)
+Int cells = Int(width / cellSize)
 ```
 
 ### 10.4 오류 처리 [제안]
 
-예외도 `Result` 도 없다. 실패는 `ref` 의 null, `bool` 반환, 게임 오브젝트 안전 멤버의 로그로 드러난다.
+예외도 `Result` 도 없다. 실패는 `ref` 의 null(자동 검사의 에러 로그), `Bool` 반환, 게임 오브젝트 안전 멤버의 로그로 드러난다.
 
-## 11. 제어문 [제안]
+## 11. 제어문
+
+### 11.1 정한 것 [확정]
+
+- **`if`, `else if`, `for`, `while`, `switch` 는 조건을 괄호로 감싼다.** `else` 는 괄호 없이 그대로 쓴다.
+- **`do`–`while`, `goto`, 이름 붙인 `break` 는 넣지 않는다.**
+
+### 11.2 나머지 [제안]
 
 - **본문은 언제나 중괄호**다. 한 줄 본문은 없다.
-- 조건에 괄호는 필요 없다. 써도 된다.
 - `switch` 는 **떨어짐(fallthrough)이 없다.** `case` 마다 자기 블록이 있고 `break` 가 필요 없다.
 - enum 에 대한 `switch` 는 **모든 값을 다루거나 `default` 가 있어야** 한다.
+- 컨테이너를 순회하는 도중에 원소를 더하거나 빼면 에러다.
 
 ```
-if hp <= 0
+if (hp <= 0)
 {
     Die()
 }
-else if hp < 10
+else if (hp < 10)
 {
     Flee()
 }
@@ -393,36 +425,36 @@ else
     Fight()
 }
 
-while timer > 0.0
+while (timer > 0.0)
 {
     timer -= dt
 }
 
-for i in 0..count                    // 0 이상 count 미만
+for (i in 0..count)                  // 0 이상 count 미만
 {
     total += i
 }
 
-for enemy in enemies                 // 원소를 복사해서 받는다
+for (enemy in enemies)               // 원소를 복사해서 받는다
 {
-    if enemy is null
+    if (enemy is null)
     {
         continue
     }
     enemy.Alert()
 }
 
-for ref entry in drops               // 원소를 제자리에서 고친다
+for (ref entry in drops)             // 원소를 제자리에서 고친다
 {
     entry.Weight += 1
 }
 
-for key, value in scores             // Table 순회
+for (key, value in scores)           // Table 순회
 {
     total += value
 }
 
-switch state
+switch (state)
 {
     case EnemyState.Idle
     {
@@ -435,16 +467,20 @@ switch state
 }
 ```
 
-v1 에 **없는 것**: `do`–`while`, `goto`, 이름 붙인 `break`, 컨테이너를 순회하는 도중에 원소를 더하거나 빼기.
-
 ## 12. 열린 것
 
 1. **스스로 null 이 될 수 없는 대상을 멤버 `ref` 로 들고 있는 경우**(§8.2 표의 아래 두 줄). 허용하는가, 금지하는가, 경고하는가.
    허용하면 댕글링을 자동 null 검사로 막을 수 없다.
-2. **자동 null 검사와 값이 필요한 자리.** `float hp = target.GetHp()` 에서 `target` 이 null 이면 `hp` 에 넣을 값이 없다.
-   건너뛸 문장이 아니라 값이 필요한 식이기 때문이다.
-3. **`if let` 을 남기는가.** 이전 문법(jbroscript-plan §12.5)의 `if let box = FieldBox { ... }` 는 `is null` 과 자동 null 검사로 역할이 겹친다.
-4. **`ref` 매개변수에 넘길 때 호출하는 쪽에도 `ref` 를 쓰는가.** `Raycast(from, dir, 10.0, ref hit)` 처럼.
+2. **`Vector2` 와 엔진의 `Vec2`.** 스크립트는 엔진 타입만 쓰는데, 새 엔진 코드는 `Vec2` 다(84곳, D-57).
+   엔진 타입 이름을 `Vector2` 로 바꾸는가. 바꾸면 D-57 과 엔진 코드를 함께 고친다.
+3. **엔진의 `Int32`·`UInt` 등을 스크립트에서 완전히 막는가.** 엔진 API 가 그 타입을 돌려주는 곳(예: 컨테이너 크기)에서 스크립트가 받을 타입이 필요하다.
+4. **자동 검사로 걸러진 뒤의 동작.**
+   - 선언(`Float hp = enemy.GetHp()`): 변수는 기본값으로 남는가.
+   - `return enemy.GetHp()`: 함수가 무엇을 돌려주는가.
+   - 조건(`if (enemy.IsDead()) { A } else { B }`): `A` 와 `B` 를 둘 다 건너뛰는가.
+   - 반복 조건(`while (enemy.IsAlive())`): 반복을 끝내는가.
+5. **`Int` → `Float` 암묵 변환**(§10.3). 제안은 **명시 변환만 허용**이다. 정밀도 손실을 사용자가 보게 되고,
+   C++ 로 바뀐 코드가 `/W4` 경고(64비트 정수 → `float`)를 내지 않는다.
 
 ## 13. 전체 예시
 
@@ -462,29 +498,29 @@ enum EnemyState
 
 interface IDamageable
 {
-    fn TakeDamage(int amount)
-    fn IsDead() -> bool
+    fn TakeDamage(Int amount)
+    fn IsDead() -> Bool
 }
 
 struct DropEntry
 {
-    int Weight = 1
-    int ItemId = 0
+    Int Weight = 1
+    Int ItemId = 0
 }
 
 class LootTable
 {
     Array<DropEntry> entries
 
-    fn LootTable(int capacity)                       // [제안] 생성자 모양
+    fn LootTable(Int capacity)                       // [제안] 생성자 모양
     {
         ...
     }
 
-    public fn TotalWeight() -> int
+    public fn TotalWeight() -> Int
     {
-        int total = 0
-        for ref entry in entries                     // [제안] 제어문
+        Int total = 0
+        for (ref entry in entries)
         {
             total += entry.Weight
         }
@@ -495,10 +531,10 @@ class LootTable
 script Enemy : IDamageable
 {
     [range(1, 100), category("Stats")]
-    int MaxHp = 10
+    Int MaxHp = 10
 
     [prop]
-    float MoveSpeed = 2.0
+    Float MoveSpeed = 2.0
 
     [category("Links")]
     ref Transform2D target
@@ -506,34 +542,36 @@ script Enemy : IDamageable
     [autochecknullable(false)]
     ref Transform2D home
 
-    int hp = 0
+    Int hp = 0
     EnemyState state = EnemyState.Idle
     Array<ref Enemy> allies
     LootTable loot = LootTable(8)                    // class 를 값으로 소유한다
+    Vector2 down                                     // [열림] §12 의 2번: 엔진은 지금 Vec2
 
-    static int aliveCount = 0
-    const float ChaseRange = 6.0
+    static Int aliveCount = 0
+    const Float ChaseRange = 6.0
 
     fn OnStart() callback
     {
         hp = MaxHp
+        down.y = -1.0
         aliveCount += 1
     }
 
-    fn OnUpdate(float dt) callback
+    fn OnUpdate(Float dt) callback
     {
-        switch state                                 // [제안] 제어문
+        switch (state)
         {
             case EnemyState.Idle
             {
-                if target is not null                // [제안] is not null
+                if (target is not null)              // [제안] is not null
                 {
                     state = EnemyState.Chasing
                 }
             }
             case EnemyState.Chasing
             {
-                target.position.x += MoveSpeed * dt  // 자동 null 검사: target 이 null 이면 건너뛴다
+                target.position.x += MoveSpeed * dt  // 자동 null 검사: target 이 null 이면 걸러지고 에러 로그
             }
             case EnemyState.Dead
             {
@@ -541,43 +579,50 @@ script Enemy : IDamageable
             }
         }
 
-        if home is null
+        if (home is null)
         {
             return
         }
         home.position.y = 0.0                        // 자동 검사를 껐고, 위에서 직접 검사했다
     }
 
-    fn TakeDamage(int amount) override
+    fn TakeDamage(Int amount) override
     {
         hp -= amount
-        if hp <= 0 and state != EnemyState.Dead
+        if (hp <= 0 and state != EnemyState.Dead)
         {
             state = EnemyState.Dead
             aliveCount -= 1
         }
     }
 
-    fn IsDead() -> bool override
+    fn IsDead() -> Bool override
     {
         return state == EnemyState.Dead
     }
 
-    fn HpRatio() -> float
+    fn HpRatio() -> Float
     {
-        return float(hp) / float(MaxHp)
+        return Float(hp) / Float(MaxHp)
     }
 
-    fn CountLivingAllies() -> int
+    fn IsGrounded() -> Bool
     {
-        int count = 0
-        for ally in allies                           // [제안] 제어문
+        Collision2D hit
+        return GetFramework2DServices().Physics2D.Raycast(target.position, down, 1.0, ref hit)
+        // [열림] §12 의 4번: target 이 null 이면 이 return 은 무엇을 돌려주는가
+    }
+
+    fn CountLivingAllies() -> Int
+    {
+        Int count = 0
+        for (ally in allies)
         {
-            if ally is null
+            if (ally is null)
             {
                 continue
             }
-            if not ally.IsDead()                     // [열림] §12 의 2번: 값이 필요한 자리
+            if (not ally.IsDead())
             {
                 count += 1
             }
@@ -585,10 +630,10 @@ script Enemy : IDamageable
         return count
     }
 
-    static fn SumWeights(ref const Array<DropEntry> table) -> int
+    static fn SumWeights(ref const Array<DropEntry> table) -> Int
     {
-        int total = 0
-        for i in 0..table.Size()
+        Int total = 0
+        for (i in 0..table.Size())
         {
             total += table[i].Weight
         }

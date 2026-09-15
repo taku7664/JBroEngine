@@ -670,6 +670,9 @@ JPROP(Range(4, 40), Category("Field")) int FieldRows = 20;    // 전
 
 ### 12.5 `if let` — 이것 하나는 꼭 넣는다
 
+> **Obsoleted(2026-09-15): `if let` 은 문법에서 뺐다.** null 검사는 `is null` 과 `ref` 의 자동 null 검사로 한다
+> ([jbroscript-syntax.md](./jbroscript-syntax.md) §9). 아래는 기록으로 남긴다.
+
 ```
 if let box = FieldBox
 {
@@ -1344,6 +1347,9 @@ Unity 도 C# 디버깅을 자기 에디터가 하지 않고 Rider/VS 로 넘긴�
 엔진 설치에 Node 가 딸린다), **Rust·C#**(툴체인·런타임이 하나 더 는다).
 
 ### 20.2 지원 타입 범위 (v1)
+
+> **Updated(2026-09-15)**: 스크립트는 **엔진이 제공한 타입만** 쓴다. `int`/`float`/`bool` 대신 `Int`(64비트)/`Float`/`Bool`,
+> `Vec2` 대신 `Vector2` 다. 현재 타입 표는 [jbroscript-syntax.md](./jbroscript-syntax.md) §7 에 있다.
 
 **제안**: 리플렉션이 이미 설명할 수 있는 타입만 받는다. 설명자가 없는 타입은 필드로 저장도 인스펙터도
 안 되므로, 언어가 먼저 받아 봐야 쓸 수 없다.
