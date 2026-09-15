@@ -87,6 +87,17 @@ namespace JBro
         // 결과는 정렬되지 않은 채로 나온다. 실행 순서를 세우는 것은 부르는 쪽의 일이다.
         void CollectScripts(Array<GameScriptBase*>& results);
 
+        // 스크립트 실행 목록이 언제 헌 것이 되는지를 알리는 표다(D-45).
+        //
+        // 목록은 **더티 플래그로 지연 재구축한다**. 값이 바뀌었을 때만 다시 세우면 되고,
+        // 그 판단을 `System::ScriptSystem` 이 이 값을 기억했다가 비교해서 한다.
+        // 불리언 대신 세는 값인 이유는, 목록을 들고 있는 쪽이 여럿이어도 각자 자기가 본
+        // 마지막 값과 견주면 되기 때문이다.
+        //
+        // 오르는 자리는 D-45 가 이름을 댄 것들이다 - 스크립트 부착·분리, `SetParent`,
+        // 컴포넌트 자리 이동, 레이어 생성·파괴·이동, 오브젝트의 레이어 변경, 오브젝트 파괴.
+        std::uint64_t GetScriptOrderRevision() const;
+
         // 순회 깊이를 세는 가드. live 배열이 순회 중에 흔들리면 바깥 순회가 무효화되므로,
         // 깊이가 0 이 아닌 동안의 파괴 요청은 큐로 간다(§8, 구 엔진 ScriptIterationGuard).
         //
@@ -124,6 +135,8 @@ namespace JBro
             virtual bool Destroy(ComponentBase* component) = 0;
             // 스크립트 풀만 자기 원소를 여기에 쏟는다. 나머지는 아무 일도 하지 않는다.
             virtual void AppendScripts(Array<GameScriptBase*>& results) = 0;
+            // 파괴할 때 실행 목록을 헌 것으로 표시할지 가른다. 타입은 컴파일 타임에 안다.
+            virtual bool HoldsScripts() const = 0;
         };
 
         template<typename T>
@@ -154,6 +167,11 @@ namespace JBro
                 }
             }
 
+            bool HoldsScripts() const override
+            {
+                return std::is_base_of_v<GameScriptBase, T>;
+            }
+
             TObjectPool<T> Pool;
         };
 
@@ -173,6 +191,10 @@ namespace JBro
         // m_layers 의 순서가 바뀌는 모든 지점에서 부른다. 레이어의 순서 캐시를 갱신하는
         // 유일한 주체다(D-46).
         void ReindexLayers();
+        // 스크립트 실행 목록을 헌 것으로 표시한다. GameObject 는 Tier S 라 Canvas 를
+        // 알 수 없으므로 파괴와 같은 방식으로 함수 포인터를 타고 건너온다.
+        void MarkScriptOrderDirty();
+        static void MarkScriptOrderDirtyFromObject(Canvas* canvas);
 
         bool DestroyObjectNow(GameObject* object);
         bool DestroyComponentNow(ComponentBase* component);
@@ -191,6 +213,8 @@ namespace JBro
         Array<SafePtr<GameObject>>                      m_pendingDestroyObjects;
         Array<SafePtr<ComponentBase>>                   m_pendingDestroyComponents;
         std::size_t                                     m_iterationDepth = 0;
+        // 0 은 "아직 아무것도 본 적 없음" 을 뜻하는 쪽이 쓰므로 1 에서 시작한다.
+        std::uint64_t                                   m_scriptOrderRevision = 1;
         SystemScheduler m_systems;
     };
 
@@ -232,6 +256,14 @@ namespace JBro
         if (component == nullptr)
         {
             return nullptr;
+        }
+
+        // **스크립트일 때만 올린다.** 매 프레임 스폰이 컴포넌트를 붙이는데, 그때마다
+        // 목록을 헌 것으로 만들면 더티 플래그를 둔 뜻이 없어진다. 스크립트인지는
+        // 타입에서 컴파일 타임에 갈린다(§9).
+        if constexpr (std::is_base_of_v<GameScriptBase, T>)
+        {
+            MarkScriptOrderDirty();
         }
         // 타입은 이 순간 이후로 바뀌지 않는다. 조회가 원소마다 가상 호출을 하지 않도록 캐시한다.
         component->CacheTypeId();

@@ -1,6 +1,7 @@
 ﻿#include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/Layer.h>
 #include <JBro/Framework2D/Scripting/GameScript.h>
+#include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2DSystem/Scripting/ScriptSystem.h>
 #include <JBro/Runtime/GameObject.h>
 #include <JBro/Types/Array.h>
@@ -334,6 +335,141 @@ namespace
         victimObject = nullptr;
         scripts.Shutdown(canvas);
     }
+
+    // ── 깊이 우선 순회 (A3) ──────────────────────────────────────────────
+    //
+    // 구 엔진은 루트마다 서브트리를 통째로 내려간다. 깊이로 평면 정렬하면 "부모 먼저" 는
+    // 지켜지지만 **형제 서브트리가 섞인다** - 한 덩어리로 돌 줄 알았던 오브젝트 묶음
+    // 사이로 남의 자식이 끼어든다.
+    void TestSiblingSubtreesDoNotInterleave()
+    {
+        ResetLogs();
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::System::ScriptSystem scripts;
+        scripts.Initialize(canvas);
+
+        // 만드는 차례가 A, A의 자식, B, B의 자식이다.
+        JBro::GameObject* rootA = canvas.CreateObject("A");
+        JBro::GameObject* childA = canvas.CreateObject("A1");
+        JBro::GameObject* rootB = canvas.CreateObject("B");
+        JBro::GameObject* childB = canvas.CreateObject("B1");
+        childA->SetParent(rootA);
+        childB->SetParent(rootB);
+
+        canvas.AttachComponent<ProbeScript>(rootA)->mark = 1;
+        canvas.AttachComponent<ProbeScript>(childA)->mark = 2;
+        canvas.AttachComponent<ProbeScript>(rootB)->mark = 3;
+        canvas.AttachComponent<ProbeScript>(childB)->mark = 4;
+
+        scripts.Update(canvas, 0.016f);
+
+        Check(callLog.Size() == 4, "every script must run once");
+        // 깊이로 정렬하면 1, 3, 2, 4 가 된다. 서브트리를 내려가면 1, 2, 3, 4 다.
+        Check(callLog[0] == 1 && callLog[1] == 2 && callLog[2] == 3 && callLog[3] == 4,
+            "a root subtree must run to the end before the next root starts");
+
+        scripts.Shutdown(canvas);
+    }
+
+    // 한 오브젝트 안의 차례는 **컴포넌트 배열 자리**다. `InstanceId` 로 정렬하면
+    // 에디터가 컴포넌트를 떼었다 되돌렸을 때(D-85 가 원래 자리로 보낸다) 배열에서
+    // 첫째인 것이 실행은 꼴찌가 된다.
+    void TestScriptsInOneObjectFollowTheComponentSlotOrder()
+    {
+        ResetLogs();
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::System::ScriptSystem scripts;
+        scripts.Initialize(canvas);
+
+        JBro::GameObject* object = canvas.CreateObject("two scripts");
+        auto* first = canvas.AttachComponent<ProbeScript>(object);
+        auto* second = canvas.AttachComponent<ProbeScript>(object);
+        first->mark = 1;
+        second->mark = 2;
+
+        scripts.Update(canvas, 0.016f);
+        Check(callLog.Size() == 2 && callLog[0] == 1 && callLog[1] == 2,
+            "attachment order must be the order they run in");
+
+        // 나중에 붙인 것을 맨 앞자리로 보낸다. 되돌리기가 하는 일과 같다.
+        Check(object->SetComponentIndex(second, 0), "the component must move to the first slot");
+        callLog.Clear();
+        scripts.Update(canvas, 0.016f);
+        Check(callLog.Size() == 2 && callLog[0] == 2 && callLog[1] == 1,
+            "moving a component to another slot must move its turn with it");
+
+        scripts.Shutdown(canvas);
+    }
+
+    // ── 지연 재구축 (A1) ─────────────────────────────────────────────────
+    //
+    // 목록은 바뀐 것이 있을 때만 다시 세운다. 매 프레임 다시 세우면 수집·정렬이 전부
+    // 프레임 비용이 된다.
+    void TestTheOrderIsRebuiltOnlyWhenSomethingChangedIt()
+    {
+        ResetLogs();
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::System::ScriptSystem scripts;
+        scripts.Initialize(canvas);
+
+        JBro::GameObject* parent = canvas.CreateObject("parent");
+        JBro::GameObject* child = canvas.CreateObject("child");
+        canvas.AttachComponent<ProbeScript>(parent)->mark = 1;
+        canvas.AttachComponent<ProbeScript>(child)->mark = 2;
+
+        scripts.Update(canvas, 0.016f);
+        const std::size_t afterFirst = scripts.GetRebuildCount();
+        Check(afterFirst >= 1, "the first update must build the order");
+
+        // 아무것도 건드리지 않은 프레임 셋.
+        scripts.Update(canvas, 0.016f);
+        scripts.Update(canvas, 0.016f);
+        scripts.Update(canvas, 0.016f);
+        Check(scripts.GetRebuildCount() == afterFirst,
+            "an untouched frame must not rebuild the execution order");
+
+        // 스크립트를 껐다 켜는 것은 순서를 바꾸지 않는다 - 목록에 남고 도는 것만 고른다.
+        JBro::Ref<ProbeScript> childScript = child->GetComponent<ProbeScript>();
+        Check(childScript.Get() != nullptr, "the child script must be reachable");
+        childScript->SetEnabled(false);
+        callLog.Clear();
+        scripts.Update(canvas, 0.016f);
+        Check(callLog.Size() == 1 && callLog[0] == 1, "a disabled script must not run");
+        Check(scripts.GetRebuildCount() == afterFirst,
+            "enabling and disabling must not rebuild the order");
+        childScript->SetEnabled(true);
+
+        // D-45 가 이름을 댄 트리거들. 하나씩 세어 본다.
+        const std::size_t beforeParent = scripts.GetRebuildCount();
+        child->SetParent(parent);
+        scripts.Update(canvas, 0.016f);
+        Check(scripts.GetRebuildCount() == beforeParent + 1,
+            "SetParent must mark the order stale");
+
+        const std::size_t beforeLayer = scripts.GetRebuildCount();
+        JBro::Layer& extra = canvas.CreateLayer("extra");
+        Check(canvas.SetObjectLayer(parent, extra.GetId()), "the object must change layers");
+        scripts.Update(canvas, 0.016f);
+        Check(scripts.GetRebuildCount() > beforeLayer,
+            "creating a layer and moving an object into it must mark the order stale");
+
+        const std::size_t beforeAttach = scripts.GetRebuildCount();
+        JBro::GameObject* late = canvas.CreateObject("late");
+        canvas.AttachComponent<ProbeScript>(late)->mark = 3;
+        scripts.Update(canvas, 0.016f);
+        Check(scripts.GetRebuildCount() == beforeAttach + 1,
+            "attaching a script must mark the order stale");
+
+        // 스크립트가 아닌 컴포넌트를 붙이는 것은 순서와 상관이 없다. 매 프레임 스폰이
+        // 목록을 헌 것으로 만들면 더티 플래그를 둔 뜻이 없어진다.
+        const std::size_t beforePlain = scripts.GetRebuildCount();
+        canvas.AttachComponent<JBro::Component::Transform2D>(late);
+        scripts.Update(canvas, 0.016f);
+        Check(scripts.GetRebuildCount() == beforePlain,
+            "attaching a component that is not a script must not rebuild the order");
+
+        scripts.Shutdown(canvas);
+    }
 }
 
 int RunScriptSchedulingTests()
@@ -343,6 +479,9 @@ int RunScriptSchedulingTests()
     TestFixedStepsReuseTheOrderAndSkipUnstartedScripts();
     TestDisabledAndDestroyedScriptsLeaveTheSchedule();
     TestDestroyingAnObjectFromAScriptHookIsDeferred();
+    TestSiblingSubtreesDoNotInterleave();
+    TestScriptsInOneObjectFollowTheComponentSlotOrder();
+    TestTheOrderIsRebuiltOnlyWhenSomethingChangedIt();
     std::cout << "Script scheduling tests passed.\n";
     return 0;
 }

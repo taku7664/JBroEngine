@@ -119,19 +119,32 @@ EditorApplication::Tick
 
 ### A. 계약과 코드가 어긋난 것
 
-- **A1. 스크립트 실행 목록을 매 프레임 다시 세운다.** (확신 높음)
+- **A1. 스크립트 실행 목록을 매 프레임 다시 세웠다.** **고쳤다(2026-09-15, A3 와 함께).**
   `ProjectRule.md` §8 과 D-45 는 "목록은 더티 플래그로 지연 재구축하며 트리거는 스크립트
-  부착/분리·`SetParent`·레이어 생성/파괴/이동" 이라고 못박았다. 실제 구현
-  (`Modules/JBroFramework2DSystem/Source/Scripting/ScriptSystem.cpp`)은 `OnUpdate` 머리에서
-  조건 없이 `Rebuild(canvas)` 를 부른다. 그 안에서 매 프레임 도는 것은 다음과 같다.
-  - `Canvas::CollectScripts` — 컴포넌트 버킷과 스크립트 풀 전부 순회
-  - `m_started.RemoveAll` — 시작 목록 하나마다 수집 목록 전체를 훑는다(O(S×N))
-  - `m_started.Contains` — 항목마다 또 선형 탐색(O(N×S))
-  - `MeasureDepth` — 항목마다 부모 사슬을 거슬러 오른다
-  - `std::sort` — 전체 재정렬
-  구 엔진은 `CGameCanvas::EnsureScriptExecutionOrder()` 가 `m_scriptExecutionOrderDirty`
-  를 보고 필요할 때만 `RebuildScriptExecutionOrder()` 를 부른다(`Canvas.cpp:891`).
-  Canvas 에는 더티 플래그 자체가 없다.
+  부착/분리·`SetParent`·레이어 생성/파괴/이동" 인데, `ScriptSystem::OnUpdate` 가 조건 없이
+  `Rebuild` 를 불렀다. 그 안에서 매 프레임 돌던 것은 전체 수집, `std::sort`, 항목마다의 부모
+  사슬 거슬러 오르기, 그리고 **선형 탐색이 겹친 이중 순회 두 벌**이었다.
+
+  **고친 방법.** `Canvas` 가 `GetScriptOrderRevision()` 을 들고, D-45 가 이름을 댄 자리에서
+  그 값을 올린다 - 스크립트 부착(`AttachComponent<T>` 는 **T 가 스크립트일 때만**, `AttachScript`),
+  스크립트 분리와 파괴, `SetParent`, `SetComponentIndex`, `SetChildIndex`, `SetObjectLayer`,
+  그리고 레이어 생성·파괴·이동이 전부 거치는 `ReindexLayers`. `GameObject` 는 Tier S 라
+  `Canvas` 를 알 수 없으므로 파괴와 같은 방식의 함수 포인터로 건너간다.
+  `ScriptSystem` 은 마지막으로 본 값과 다를 때만 다시 세운다.
+
+  **스크립트를 껐다 켜는 것은 트리거가 아니다.** 활성 판정을 목록 만들 때가 아니라 훅을
+  부를 때 하도록 옮겼다 - 그러지 않으면 `SetEnabled` 가 트리거 목록에 들어와 D-45 가 댄
+  이름들보다 넓어진다.
+
+  **스크립트가 하나도 없으면 트리를 걷지 않는다.** 그러지 않으면 스크립트를 쓰지 않는
+  캔버스도 오브젝트 수만큼 배열을 채우고, 그 첫 채움이 정상 프레임의 힙 할당이 된다(§9).
+  실제로 `RendererContractTests` 의 할당 계약이 그것을 잡았다. 순회도 재귀가 아니라 멤버
+  배열 스택으로 돌아 재구축이 힙을 건드리지 않는다.
+
+  재는 것은 `ScriptSystem::GetRebuildCount()` 이고,
+  `ScriptSchedulingTests::TestTheOrderIsRebuiltOnlyWhenSomethingChangedIt` 이 아무것도 건드리지
+  않은 프레임에서 그 값이 그대로인지, 트리거마다 오르는지, 스크립트가 아닌 컴포넌트를
+  붙였을 때는 오르지 않는지를 확인한다.
 
 - **A2. 스크립트 훅을 부르는 구간에 순회 가드가 없었다.** **재현하고 고쳤다(2026-09-15).**
   `ProjectRule.md` §8 은 "`Canvas` 가 순회 깊이 가드를 소유하고 `ForEach<T>` 와 **스크립트
@@ -159,12 +172,33 @@ EditorApplication::Tick
   를 이미 D-45 가 말한 자리에서 부르고 있었다. **빠진 것은 가드 하나뿐이었다.**
   Debug·Release 양쪽 전체 테스트 통과.
 
-- **A3. 실행 순서 정렬 기준이 구 엔진과 다르다.** (확신 높음) `[열림]`
-  구 엔진은 루트를 `(레이어 인덱스, creationOrder)` 로 정렬한 뒤 루트마다
-  `AppendObjectScriptsInHierarchyOrder` 로 서브트리를 깊이 우선 순회한다 — 한 루트의
-  자손이 전부 돈 다음에 다음 루트가 돈다. 새 구현은 `(layerOrder, depth, instanceId)`
-  평면 정렬이라 **서로 다른 서브트리가 깊이별로 섞인다**. D-45 는 "구 엔진 계약을 그대로
-  이식한다" 이므로 둘 중 하나를 고쳐야 한다.
+- **A3. 실행 순서 정렬 기준이 구 엔진과 달랐다.** **구 엔진 그대로 되돌렸다(2026-09-15, 빡대리 결정).**
+  갈리는 자리가 둘이었고 둘 다 실제로 닿는 길이었다.
+
+  **(가) 형제 서브트리가 섞였다.** 구 엔진은 루트를 (레이어, 생성 순서)로 줄 세운 뒤 루트마다
+  서브트리를 깊이 우선으로 내려간다(`AppendObjectScriptsInHierarchyOrder`). 새 코드는
+  `(layerOrder, depth, instanceId)` 평면 정렬이라 A(자식 A1)와 B(자식 B1)가 A, **B**, **A1**, B1
+  순으로 돌았다.
+
+  **(나) 한 오브젝트 안의 차례가 갈렸다.** 구 엔진은 컴포넌트 배열 자리를 따르고
+  `ProjectRule.md` §8 문구도 "컴포넌트 **부착 순서**" 인데 새 코드는 `InstanceId` 로 정렬했다.
+  평소에는 같지만 **에디터에서 컴포넌트를 떼었다 되돌리면 갈린다** - D-85 가 원래 자리로
+  보내는데(`ComponentCommands.cpp`) `Attach` 가 새로 만든 것이라 `InstanceId` 는 가장 크다.
+  배열에서 첫째인 것이 실행은 꼴찌가 됐다.
+
+  **고친 방법.** 깊이 우선 순회로 되돌렸다. 루트는 (레이어 합성 순서, `InstanceId`) 로 줄
+  세우고 - `InstanceId` 가 생성 시각을 담으므로 그것이 구 엔진의 `GetCreationOrder` 다(D-9) -
+  루트마다 서브트리를 통째로 내려간다. 오브젝트 안에서는 컴포넌트 배열 자리를 그대로 따른다.
+
+  **자식은 정렬하지 않고 배열 자리를 따른다 - 구 엔진과 한 군데 다르다.** 구 엔진은 자식을
+  `GetCreationOrder` 로 정렬했는데, 그 엔진에는 형제 자리를 바꾸는 길이 없어 배열 자리가 곧
+  생성 순서였다. 이 엔진에는 `GameObject::SetChildIndex` 가 있고 계층에서 끌어 옮기면 그것이
+  움직인다(D-84). 정렬해 버리면 사용자가 옮긴 자리를 실행 순서가 무시한다. 아무도 옮기지
+  않았으면 배열 자리가 생성 순서이므로 구 엔진과 같은 결과다.
+
+  재는 것은 `ScriptSchedulingTests` 의 `TestSiblingSubtreesDoNotInterleave` 와
+  `TestScriptsInOneObjectFollowTheComponentSlotOrder` 다. 뒤의 것은 고치기 전 코드에서
+  `[0]=1 [1]=2` 로 실패하는 것을 확인하고 넣었다.
 
 - **A4. 부모의 `Transform2D` 를 끄면 자식 서브트리가 원점으로 튄다.** (확신 중상, 화면 미확인)
   `Transform2DSystem::OnUpdate` 의 루트 판정은 "부모 transform 이 없거나 **비활성**이면
@@ -202,6 +236,29 @@ EditorApplication::Tick
   머리말 쪽이다.
 
 - **A9. 쓰이지 않는 로케일 키 둘.** `list.empty`, `common.none` 은 어느 코드도 부르지 않는다.
+
+- **A10. 에디터 테스트 스위트가 불안정하다.** (실측, 2026-09-15) `[열림]`
+  같은 실행 파일을 여덟 번 돌렸더니 세 번 실패했고, **실패한 자리가 매번 달랐다.**
+
+  ```
+  test failure: the second element must be drawn as a node that can be opened
+  test failure: the File menu must be named in the loaded locale
+  test failure: the second row must have a handle to drag
+  ```
+
+  깨끗한 워크트리에서 `5538a01` 을 그대로 빌드해 잰 것이라 **어느 작업 변경과도 무관하다.**
+  실패가 한 자리에 머물지 않고 옮겨 다니는 것은 테스트끼리 전역 상태(ImGui 컨텍스트·IO)를
+  나눠 쓰고 앞의 것이 남긴 것을 뒤의 것이 밟는다는 뜻이다. 마우스 이벤트를 흘려 재는
+  테스트가 들어오면서 드러난 것으로 보인다.
+
+  **빈도는 기계가 한가한 정도를 탄다.** 위의 여덟 번은 옆에서 빌드가 돌던 중이었고, 아무것도
+  돌지 않을 때 Debug·Release 를 다섯 번씩 돌린 회차는 열 번 모두 통과했다. 그래서 "몇 번에
+  한 번" 이라고 못 박지 않는다 - **재현되지 않는 회차가 있다는 것 자체가 문제다.**
+
+  **이것은 다른 모든 검증을 무의미하게 만든다.** `ProjectRule.md` §13 은 커밋 전에 테스트
+  통과를 확인하라고 하는데, 통과 여부가 주사위가 되면 그 확인이 아무것도 보장하지 않는다.
+  실제로 이 조사에서 "인스펙터 x 필드", "File 메뉴" 실패를 제 변경 탓으로 알고 두 번
+  쫓았다. 무엇을 먼저 할지는 확인이 필요하다.
 
 ### B. 어긋남은 아니지만 구 엔진보다 못한 것
 

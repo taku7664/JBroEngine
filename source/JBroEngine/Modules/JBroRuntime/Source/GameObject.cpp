@@ -38,6 +38,8 @@ namespace JBro
         {
             return;
         }
+        // 계층이 바뀌면 깊이 우선 순회의 결과가 달라진다(D-45).
+        MarkScriptOrderDirty();
 
         for (GameObject* ancestor = parent;
             ancestor != nullptr;
@@ -178,10 +180,23 @@ namespace JBro
         m_handle = handle;
     }
 
-    void GameObject::BindCanvas(Canvas* canvas, DestroyFunction destroyFunction)
+    void GameObject::BindCanvas(
+        Canvas* canvas,
+        DestroyFunction destroyFunction,
+        ScriptOrderDirtyFunction scriptOrderDirtyFunction)
     {
         m_canvas = canvas;
         m_destroyFunction = destroyFunction;
+        m_scriptOrderDirtyFunction = scriptOrderDirtyFunction;
+    }
+
+    void GameObject::MarkScriptOrderDirty()
+    {
+        if (m_canvas == nullptr || m_scriptOrderDirtyFunction == nullptr)
+        {
+            return;
+        }
+        m_scriptOrderDirtyFunction(m_canvas);
     }
 
     void GameObject::SetLayer(SafePtr<Layer> layer, std::uint32_t layerIndex)
@@ -237,6 +252,8 @@ namespace JBro
         {
             return true;
         }
+        // 형제 자리도 실행 차례다 - 깊이 우선 순회가 자식 배열을 그대로 내려간다(D-45).
+        MarkScriptOrderDirty();
         SafePtr<GameObject> moved = m_children[from];
         if (from < to)
         {
@@ -286,6 +303,8 @@ namespace JBro
         {
             return true;
         }
+        // 오브젝트 안의 실행 차례가 이 자리다(D-45).
+        MarkScriptOrderDirty();
         // 밀어서 끼운다. 마지막 것과 바꾸면 사이에 있던 것들의 차례가 흐트러진다(D-84).
         ComponentSlot moved = m_components[from];
         if (from < to)

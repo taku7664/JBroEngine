@@ -88,7 +88,8 @@ namespace JBro
         // "같은 타입 중 몇 번째" 로 가리키고, 자리가 바뀌면 그 번째가 다른 것을 가리킨다.
         //
         // 없는 컴포넌트면 거짓이다. `index` 가 끝을 넘으면 맨 뒤로 간다.
-        // 스크립트 실행 순서는 이 자리가 아니라 `InstanceId` 로 정렬하므로 바뀌지 않는다.
+        // **스크립트 실행 순서가 이 자리를 따른다**(D-45, A3). 그래서 자리를 옮기면
+        // Canvas 의 실행 목록을 헌 것으로 표시한다.
         bool SetComponentIndex(const ComponentBase* component, std::size_t index);
         // 몇 번째 슬롯인가(타입을 가리지 않는다). 붙어 있지 않으면 거짓이다.
         bool FindComponentIndex(const ComponentBase* component, std::size_t& index) const;
@@ -107,10 +108,17 @@ namespace JBro
         // 정의를 끌어오면 그 경계가 무너지므로, 파괴 호출만 함수 포인터로 건너간다.
         // 소유자 포인터는 불완전 타입이어도 되고, 그 정체는 Canvas 가 friend 로 직접 본다.
         using DestroyFunction = bool (*)(Canvas* canvas, GameObject* object);
+        // 같은 이유로 건너가는 두 번째 통지다. 부모가 바뀌거나 컴포넌트 자리가 바뀌면
+        // 스크립트 실행 순서가 달라지므로(D-45) Canvas 의 목록을 헌 것으로 표시해야 한다.
+        using ScriptOrderDirtyFunction = void (*)(Canvas* canvas);
 
         Canvas* GetCanvas() const;
         void SetInstanceIdentity(InstanceId instanceId, InstanceHandle handle);
-        void BindCanvas(Canvas* canvas, DestroyFunction destroyFunction);
+        void BindCanvas(
+            Canvas* canvas,
+            DestroyFunction destroyFunction,
+            ScriptOrderDirtyFunction scriptOrderDirtyFunction);
+        void MarkScriptOrderDirty();
         void SetLayer(SafePtr<Layer> layer, std::uint32_t layerIndex);
         void AttachComponent(ComponentBase* component);
         bool DetachComponent(ComponentBase* component);
@@ -122,6 +130,7 @@ namespace JBro
         InstanceHandle               m_handle;
         Canvas*                      m_canvas = nullptr;
         DestroyFunction              m_destroyFunction = nullptr;
+        ScriptOrderDirtyFunction     m_scriptOrderDirtyFunction = nullptr;
         SafePtr<GameObject>           m_parent;
         Array<SafePtr<GameObject>>    m_children;
         Array<ComponentSlot> m_components;

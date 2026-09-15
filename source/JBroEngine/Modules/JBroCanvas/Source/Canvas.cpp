@@ -79,7 +79,10 @@ namespace JBro
         }
 
         object->SetInstanceIdentity(instanceId, handle);
-        object->BindCanvas(this, &Canvas::DestroyObjectFromHandle);
+        object->BindCanvas(
+            this,
+            &Canvas::DestroyObjectFromHandle,
+            &Canvas::MarkScriptOrderDirtyFromObject);
         object->SetTag(name);
 
         Layer* defaultLayer = FindLayer(m_defaultLayer);
@@ -167,7 +170,7 @@ namespace JBro
             return false;
         }
 
-        object->BindCanvas(nullptr, nullptr);
+        object->BindCanvas(nullptr, nullptr, nullptr);
         object->SetLayer({}, 0);
         object->SetInstanceIdentity(InvalidInstanceId, {});
         return m_objects->Destroy(object);
@@ -282,6 +285,8 @@ namespace JBro
             return false;
         }
         object->SetLayer(FindLayerReference(layer), target->GetId());
+        // 오브젝트가 다른 레이어로 가면 실행 차례의 가장 바깥 키가 바뀐다(D-45).
+        MarkScriptOrderDirty();
         return true;
     }
 
@@ -381,8 +386,14 @@ namespace JBro
         }
         if (bucket != nullptr)
         {
+            if ((*bucket)->HoldsScripts())
+            {
+                MarkScriptOrderDirty();
+            }
             return (*bucket)->Destroy(component);
         }
+        // 이름으로 붙인 것은 전부 스크립트다.
+        MarkScriptOrderDirty();
         return (*scriptPool)->Destroy(static_cast<GameScriptBase*>(component));
     }
 
@@ -437,6 +448,28 @@ namespace JBro
         {
             m_layers[index]->SetOrder(static_cast<LayerOrder>(index));
         }
+        // 레이어 생성·파괴·이동이 전부 여기를 거친다(D-46). 합성 순서가 실행 순서의
+        // 가장 바깥 키이므로 한곳에서 올린다(D-45).
+        MarkScriptOrderDirty();
+    }
+
+    std::uint64_t Canvas::GetScriptOrderRevision() const
+    {
+        return m_scriptOrderRevision;
+    }
+
+    void Canvas::MarkScriptOrderDirty()
+    {
+        ++m_scriptOrderRevision;
+    }
+
+    void Canvas::MarkScriptOrderDirtyFromObject(Canvas* canvas)
+    {
+        if (canvas == nullptr)
+        {
+            return;
+        }
+        canvas->MarkScriptOrderDirty();
     }
 
     bool Canvas::IsIterating() const
@@ -510,6 +543,7 @@ namespace JBro
             pool.Destroy(script);
             throw;
         }
+        MarkScriptOrderDirty();
         if (script->GetOwnerObject() != owner)
         {
             UnregisterComponentInstance(script);
