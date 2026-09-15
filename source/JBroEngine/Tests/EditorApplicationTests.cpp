@@ -12,6 +12,7 @@
 #include <JBro/Reflection/PropertyInfo.h>
 #include <JBro/Reflection/PropertyRegistry.h>
 #include <JBro/Reflection/ContainerTypeDescriptors.h>
+#include <JBro/Framework2D/Math2DReflection.h>
 #include <JBro/Reflection/Field.h>
 #include <JBro/Runtime/Component.h>
 #include <JBro/Types/NameTable.h>
@@ -702,7 +703,7 @@ namespace
         auto* a = canvas->AttachComponent<Weighted>(alpha);
         auto* b = canvas->AttachComponent<Weighted>(beta);
         Check(a != nullptr && b != nullptr, "both must hold a list");
-        for (float value : {1.0f, 2.0f, 3.0f})
+        for (float value : {1.0f, 100.0f, 3.0f})
         {
             a->weights.Add(value);
         }
@@ -727,14 +728,17 @@ namespace
         Check(FindListItem(editor, hwnd, LabelId(PushedId(body->ID, 1), "##value"), middle, spot),
             "the second element must be on the list");
         DragFrom(editor, hwnd, spot, spot.x + 80);
-        const float moved = a->weights[1] - 2.0f;
+        const float moved = a->weights[1] - 100.0f;
         Check(moved > 0.05f, "dragging an element must move it");
+        // **끈 만큼 움직여야 한다.** 도달한 값 자체를 델타로 삼아도 둘이 같은 만큼
+        // 움직이는 것은 맞으므로, 크기까지 봐야 가려진다.
+        Check(moved < 5.0f, "by the distance dragged, not by the value it reached");
         Check(b->weights[1] > 20.0f + moved - 0.01f && b->weights[1] < 20.0f + moved + 0.01f,
             "and move the other chosen list's element by the same amount");
         Check(a->weights[0] == 1.0f && b->weights[0] == 10.0f, "leaving the others alone");
         Check(editor.GetCommands().GetUndoCount() == undo + 1, "one drag must be one undo");
         Check(editor.GetCommands().Undo(), "undo must run");
-        Check(a->weights[1] == 2.0f && b->weights[1] == 20.0f, "and put both back");
+        Check(a->weights[1] == 100.0f && b->weights[1] == 20.0f, "and put both back");
         undo = editor.GetCommands().GetUndoCount();
 
         // 하나 더한다.
@@ -756,7 +760,7 @@ namespace
                 spot),
             "the first row must offer to be removed");
         ClickAt(editor, hwnd, spot);
-        Check(a->weights.Size() == 2 && a->weights[0] == 2.0f,
+        Check(a->weights.Size() == 2 && a->weights[0] == 100.0f,
             "removing must take the first element off the list on screen");
         Check(b->weights.Size() == 3 && b->weights[0] == 20.0f,
             "and off the other chosen list");
@@ -770,6 +774,99 @@ namespace
         {
             SaveScreenshot(*renderer, 1024, 768, "list");
         }
+        editor.Shutdown();
+    }
+
+    using Points = JBro::Array<JBro::Vec2>;
+
+    // 원소가 실수 묶음인 목록이다. 한 줄에 칸 둘로 그려지는 원소는 목록 편집에서
+    // 따로 가는 길(실수 묶음을 모아 델타로 적는 길)이라 따로 잰다.
+    class Pointed final : public JBro::ComponentBase
+    {
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "Test::Pointed";
+        }
+
+        JBro::ComponentTypeId GetTypeId() const override
+        {
+            return JBro::MakeStableTypeId(StaticTypeName());
+        }
+
+        JBRO_REFLECT_BODY(Pointed)
+
+        JBRO_FIELD(Points, points);
+    };
+
+    // 실수 묶음 원소의 한 칸을 끌면 고른 목록마다 그 칸만 같은 양으로 움직인다.
+    void TestAPairElementDragsAsADeltaOnEveryChosenList()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; pair element drags not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "PairListProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindWindowW(L"JBroEngineWindow", L"JBro Editor");
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        JBro::RegisterBuiltinProperties<Pointed>();
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* alpha = canvas->CreateObject("Alpha");
+        JBro::GameObject* beta = canvas->CreateObject("Beta");
+        auto* a = canvas->AttachComponent<Pointed>(alpha);
+        auto* b = canvas->AttachComponent<Pointed>(beta);
+        Check(a != nullptr && b != nullptr, "both must hold a list of points");
+        a->points.Add(JBro::Vec2{1.0f, 1.0f});
+        a->points.Add(JBro::Vec2{100.0f, 100.0f});
+        b->points.Add(JBro::Vec2{10.0f, 10.0f});
+        b->points.Add(JBro::Vec2{50.0f, 50.0f});
+        b->points.Add(JBro::Vec2{0.0f, 0.0f});
+        JBro::GameObject* chosen[] = {alpha, beta};
+        editor.SelectObjects({chosen, 2});
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        ImGuiWindow* body = FindListBody();
+        Check(body != nullptr, "the inspector must draw the list");
+        // `DragScalarN` 은 이름을 쌓고 칸마다 번호를 쌓는다. 첫 칸이 x 다.
+        const ImGuiID firstField =
+            PushedId(LabelId(PushedId(body->ID, 1), "##value"), 0);
+        Spot spot;
+        bool found = false;
+        for (float fraction = 0.25f; fraction < 0.75f && false == found; fraction += 0.05f)
+        {
+            found = FindListItem(editor, hwnd, firstField,
+                static_cast<int>(body->Pos.x + body->Size.x * fraction), spot);
+        }
+        Check(found, "the x field of the second point must be on the list");
+        const std::size_t undo = editor.GetCommands().GetUndoCount();
+        DragFrom(editor, hwnd, spot, spot.x + 60);
+
+        const float moved = a->points[1].x - 100.0f;
+        Check(moved > 0.05f, "dragging the field must move it");
+        // **끈 만큼 움직여야 한다.** 도달한 값 자체를 델타로 삼으면 둘 다 같은 만큼
+        // 움직이긴 하지만 백 넘게 튄다.
+        Check(moved < 5.0f, "by the distance dragged, not by the value it reached");
+        Check(b->points[1].x > 50.0f + moved - 0.01f && b->points[1].x < 50.0f + moved + 0.01f,
+            "and move the other chosen list's point by the same amount");
+        Check(a->points[1].y == 100.0f && b->points[1].y == 50.0f, "leaving y alone");
+        Check(editor.GetCommands().GetUndoCount() == undo + 1, "one drag must be one undo");
+        Check(editor.GetCommands().Undo(), "undo must run");
+        Check(a->points[1].x == 100.0f && b->points[1].x == 50.0f, "and put both back");
+
         editor.Shutdown();
     }
 
@@ -2232,6 +2329,7 @@ int RunEditorApplicationTests()
     TestAChosenChildDoesNotGetTheEditTwice();
     TestMultiEditPicksTheSameOrdinalEverywhere();
     TestListEditsReachEveryChosenObjectAsOneUndo();
+    TestAPairElementDragsAsADeltaOnEveryChosenList();
     TestTypingTheSameValueLeavesNothingToUndo();
     TestCreatingAnObjectCanBeUndone();
     TestDeletingAnObjectCanBeUndoneWithItsValues();
