@@ -273,9 +273,10 @@ script Priest : Mage, Healer
 | 참조 | `ref T`(§8) |
 | 컨테이너 | `Array<T>`, `Table<K, V>`(K 는 `Int`·`String`) |
 
-엔진 코드와 맞춰야 하는 것 둘이 있다(§12 의 2·3번).
+엔진 코드와 맞춰야 하는 것:
 
-- 새 엔진 코드의 2D 벡터 이름은 지금 **`Vec2`** 다(`Math2D.h:9`, D-57).
+- **엔진의 2D 벡터 타입 이름을 `Vec2` 에서 `Vector2` 로 바꾼다(2026-09-15 확정).** 아직 바꾸지 않았다.
+  새 엔진 코드는 지금 `Vec2`(`Math2D.h:9`, 84곳)이고 D-57 도 `Vec2` 로 적혀 있어서, 바꿀 때 D-57 을 함께 고친다.
 - 엔진에는 `Int32`·`UInt`·`UInt32` 도 있지만 스크립트에는 `Int`·`Float` 만 둔다. `Float` 은 엔진에서 32비트 `float` 을 감싼다(`Float.h:12`).
 
 ### 7.2 enum 과 컨테이너 [확정]
@@ -512,8 +513,7 @@ switch (state)
 
 1. **스스로 null 이 될 수 없는 대상을 멤버 `ref` 로 들고 있는 경우**(§8.2 표의 아래 두 줄). 허용하는가, 금지하는가, 경고하는가.
    허용하면 댕글링을 자동 null 검사로 막을 수 없다.
-2. **`Vector2` 와 엔진의 `Vec2`.** 스크립트는 엔진 타입만 쓰는데, 새 엔진 코드는 `Vec2` 다(84곳, D-57).
-   엔진 타입 이름을 `Vector2` 로 바꾸는가. 바꾸면 D-57 과 엔진 코드를 함께 고친다.
+2. ~~`Vector2` 와 엔진의 `Vec2`~~ **엔진 타입 이름을 `Vector2` 로 바꾼다(2026-09-15 확정).** 이름 변경 작업은 남았다(§7.1).
 3. ~~엔진의 `Int32`·`UInt` 반환을 어떻게 받는가~~ **손실 없는 넓힘은 API 경계에서 저절로, 손실 가능한 변환은 명시(2026-09-15, §10.3).**
    컨테이너 크기를 API 투영이 `Int` 로 돌려주는 것만 [제안]으로 남았다.
 4. **자동 검사로 걸러진 뒤의 동작.**
@@ -587,7 +587,7 @@ script Enemy : IDamageable
     EnemyState state = EnemyState.Idle
     Array<ref Enemy> allies
     LootTable loot = LootTable(8)                    // class 를 값으로 소유한다
-    Vector2 down                                     // [열림] §12 의 2번: 엔진은 지금 Vec2
+    Vector2 down
 
     static Int aliveCount = 0
     const Float ChaseRange = 6.0
