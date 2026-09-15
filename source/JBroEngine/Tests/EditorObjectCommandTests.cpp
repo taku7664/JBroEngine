@@ -35,6 +35,14 @@ namespace
     {
         int unused = 0;
     };
+
+    // 그 값을 **구조체 안에** 품는다. 캡처는 필드를 타고 내려가므로, 안쪽에서 난
+    // 실패를 바깥이 버리면 뿌리에서만 막는 검사를 빠져나간다.
+    struct Burrow
+    {
+        float depth = 0.0f;
+        Stubborn stubborn;
+    };
 }
 
 namespace JBro
@@ -67,6 +75,23 @@ namespace JBro
                 built.codec = &codec;
                 return built;
             }();
+            return descriptor;
+        }
+    };
+
+    template <>
+    struct TypeDescriptorOf<Burrow>
+    {
+        static const TypeDescriptor& Get()
+        {
+            static const FieldEntry entries[] =
+            {
+                MakeFieldEntry<&Burrow::depth>(),
+                MakeFieldEntry<&Burrow::stubborn>(),
+            };
+            static const StaticPropertyTable<2> fields { entries };
+            static const TypeDescriptor descriptor =
+                MakeStructTypeDescriptor<Burrow>("Test::Burrow", fields.Get());
             return descriptor;
         }
     };
@@ -826,6 +851,24 @@ namespace
         JBRO_FIELD(StockSamples, samples);
     };
 
+    class Burrowed final : public JBro::ComponentBase
+    {
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "Test::Burrowed";
+        }
+
+        JBro::ComponentTypeId GetTypeId() const override
+        {
+            return JBro::MakeStableTypeId(StaticTypeName());
+        }
+
+        JBRO_REFLECT_BODY(Burrowed)
+
+        JBRO_FIELD(Burrow, burrow);
+    };
+
     class Obstinate final : public JBro::ComponentBase
     {
     public:
@@ -992,6 +1035,14 @@ namespace
         Check(false == command.Execute(), "so deleting its object must be refused");
         canvas.FlushPendingDestroy();
         Check(ids.Resolve(id) == object, "and the object must still be there");
+
+        // 같은 값이 구조체 안에 숨어 있어도 같다.
+        JBro::RegisterBuiltinProperties<Burrowed>();
+        auto* burrowed = canvas.AttachComponent<Burrowed>(canvas.CreateObject("Deeper"));
+        Check(burrowed != nullptr, "the burrowed component must attach");
+        JBro::ComponentSnapshot deeper;
+        Check(false == JBro::CaptureComponent(*burrowed, deeper),
+            "a value that will not be written must fail the capture from inside a struct too");
     }
 
     // ── 계층 이동 ────────────────────────────────────────────────────────
