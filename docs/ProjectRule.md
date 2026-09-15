@@ -804,6 +804,11 @@
 - `new`와 `delete`를 직접 쓰지 않고 `OwnerPtr`, `SafePtr`, JBro 컨테이너를 쓴다. (MUST)
   고유 소유는 `MakeOwnerPtr`, 비소유 참조는 `SafePtr`다. `std::unique_ptr`·`std::shared_ptr`와
   `std::vector`·`std::unordered_map`·`std::string`은 §6·§8의 소유권·수명 계약을 만족하지 않으므로 쓰지 않는다.
+- 위 규칙은 **객체의 소유권**에 대한 것이다. 컨테이너·리플렉션처럼 **타입을 모르는 저장소**는
+  소유 도구를 끌어오지 않고, 할당기에서 받은 자리에 `std::construct_at`/`std::destroy_at` 으로
+  만들고 지운다. (MUST) (D-88)
+  `Array`·`Table` 이 원소를 다루는 방식과 같다. `OwnerPtr` 는 객체마다 제어 블록을 따로 두고
+  메인 스레드 전용이라 이 계층에는 과하고, POD 가 아니어서 스크립트 DLL 과 나누는 함수 표에 담을 수도 없다.
 - 소유권이 어디에 있는지 주석 없이도 타입으로 드러나게 한다. (SHOULD)
 
 ### 헤더 파일을 수정할 때
