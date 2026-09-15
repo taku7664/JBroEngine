@@ -12,6 +12,7 @@
 #include <JBro/Reflection/PropertyInfo.h>
 #include <JBro/Reflection/PropertyRegistry.h>
 #include <JBro/Reflection/ContainerTypeDescriptors.h>
+#include <JBro/Reflection/EnumDescriptor.h>
 #include <JBro/Framework2D/Math2DReflection.h>
 #include <JBro/Reflection/Field.h>
 #include <JBro/Runtime/Component.h>
@@ -55,10 +56,23 @@ namespace
     {
         JBro::Array<Signal> relayed;
     };
+
+    // enum 원소 목록용이다. 값이 연속이 아니어서 콤보의 칸 번호를 값으로 쓰면 틀린다.
+    enum class Tone : std::uint8_t
+    {
+        Low  = 2,
+        Mid  = 5,
+        High = 9
+    };
 }
 
 namespace JBro
 {
+    JBRO_DEFINE_ENUM_TYPE(Tone, "Test::Tone",
+        { Tone::Low,  "Low" },
+        { Tone::Mid,  "Mid" },
+        { Tone::High, "High" });
+
     template <>
     struct TypeDescriptorOf<Signal>
     {
@@ -684,6 +698,90 @@ namespace
         return nullptr;
     }
 
+    // 인스펙터 안의 `n` 번째 목록 몸통이다. 컴포넌트 하나가 목록을 여럿 들면 몸통도 여럿이고,
+    // 화면 위에서 아래로 센다 - 창 목록의 차례는 만들어진 차례라 믿지 않는다.
+    ImGuiWindow* FindListBodyAt(int n)
+    {
+        ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
+        Check(inspector != nullptr, "the inspector must have a window");
+        ImGuiWindow* bodies[8] = {};
+        int count = 0;
+        for (ImGuiWindow* window : ImGui::GetCurrentContext()->Windows)
+        {
+            if (window->ParentWindow == inspector
+                && std::strstr(window->Name, "##list_body") != nullptr && count < 8)
+            {
+                int at = count++;
+                while (at > 0 && bodies[at - 1]->Pos.y > window->Pos.y)
+                {
+                    bodies[at] = bodies[at - 1];
+                    --at;
+                }
+                bodies[at] = window;
+            }
+        }
+        return n < count ? bodies[n] : nullptr;
+    }
+
+    // `window` 를 `x` 에서 위아래로 훑어 `target` 이 가리켜지는 자리를 찾는다.
+    bool FindItemInWindow(JBro::EditorApplication& editor, HWND hwnd, ImGuiWindow* window,
+        ImGuiID target, int x, Spot& spot)
+    {
+        Check(window != nullptr, "the window this test looks in must exist");
+        const int bottom = static_cast<int>(window->Pos.y + window->Size.y);
+        for (int y = static_cast<int>(window->Pos.y); y < bottom; y += 2)
+        {
+            PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
+            Check(editor.Tick(Frame), "the editor must tick while looking");
+            if (ImGui::GetHoveredID() == target)
+            {
+                spot.x = x;
+                spot.y = y;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // `window` 를 여러 x 에서 훑는다. 한 칸짜리 위젯(켜기 칸)은 한 x 로는 빗나간다.
+    bool FindItemAnywhereInWindow(JBro::EditorApplication& editor, HWND hwnd,
+        ImGuiWindow* window, ImGuiID target, Spot& spot)
+    {
+        Check(window != nullptr, "the window this test looks in must exist");
+        for (float fraction = 0.05f; fraction < 0.95f; fraction += 0.05f)
+        {
+            if (FindItemInWindow(editor, hwnd, window, target,
+                    static_cast<int>(window->Pos.x + window->Size.x * fraction), spot))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // 손잡이에서 떨어뜨릴 자리까지 끈다. 가로로만 끄는 `DragFrom` 과 달리 두 축을 다 간다.
+    // 끌어 놓기는 **놓는 순간 마우스가 목표 위에 있어야** 받으므로, 마지막 움직임 뒤에 한 번
+    // 더 돌려 ImGui 가 목표를 본 뒤에 놓는다.
+    void DragTo(JBro::EditorApplication& editor, HWND hwnd, const Spot& from, const Spot& to)
+    {
+        PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(from.x, from.y));
+        Check(editor.Tick(Frame), "the editor must tick");
+        PostMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(from.x, from.y));
+        Check(editor.Tick(Frame), "the editor must tick");
+        constexpr int Steps = 12;
+        for (int step = 1; step <= Steps; ++step)
+        {
+            const int x = from.x + (to.x - from.x) * step / Steps;
+            const int y = from.y + (to.y - from.y) * step / Steps;
+            PostMessageW(hwnd, WM_MOUSEMOVE, MK_LBUTTON, MAKELPARAM(x, y));
+            Check(editor.Tick(Frame), "the editor must tick mid-drag");
+        }
+        Check(editor.Tick(Frame), "the editor must see the drop target before the release");
+        PostMessageW(hwnd, WM_LBUTTONUP, 0, MAKELPARAM(to.x, to.y));
+        Check(editor.Tick(Frame), "the editor must tick");
+        Check(editor.Tick(Frame), "the editor must tick once more to run the drop");
+    }
+
     // 목록 몸통을 `x` 에서 위아래로 훑어 `target` 이 가리켜지는 자리를 찾는다.
     bool FindListItem(
         JBro::EditorApplication& editor, HWND hwnd, ImGuiID target, int x, Spot& spot)
@@ -1088,6 +1186,252 @@ namespace
         if (JBro::Renderer* renderer = editor.GetRenderer())
         {
             SaveScreenshot(*renderer, 1024, 768, "struct_list");
+        }
+        editor.Shutdown();
+    }
+
+    // **구조체 원소를 손잡이로 끌어 놓으면 고른 목록 전부에서 같은 자리로 간다**(D-89 ⑤).
+    //
+    // 옮기기는 지금까지 조작 함수(`ArrayOps::Move`)로만 재었다. 화면에서는 행의 손잡이를
+    // 잡아 행 사이의 얇은 자리에 놓는 것이고, 그 길(끌기 시작 → 놓는 자리 → 슬롯 번호 보정 →
+    // 목록 편집 → 커맨드)은 마우스로만 잴 수 있다.
+    void TestDraggingAStructElementReordersEveryChosenList()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; element reordering not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "ReorderProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindWindowW(L"JBroEngineWindow", L"JBro Editor");
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        JBro::RegisterBuiltinProperties<Signalled>();
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* alpha = canvas->CreateObject("Alpha");
+        JBro::GameObject* beta = canvas->CreateObject("Beta");
+        auto* a = canvas->AttachComponent<Signalled>(alpha);
+        auto* b = canvas->AttachComponent<Signalled>(beta);
+        Check(a != nullptr && b != nullptr, "both must hold a list of signals");
+        a->signals.Add(Signal{1.0f, false, 5.0f});
+        a->signals.Add(Signal{100.0f, true, 5.0f});
+        b->signals.Add(Signal{10.0f, false, 5.0f});
+        b->signals.Add(Signal{50.0f, true, 5.0f});
+        b->signals.Add(Signal{0.0f, false, 5.0f});
+        JBro::GameObject* chosen[] = {alpha, beta};
+        editor.SelectObjects({chosen, 2});
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        ImGuiWindow* body = FindListBody();
+        Check(body != nullptr, "the inspector must draw the list");
+        // 둘째 행의 손잡이다. 행 배경(`##row_body`)이 끌기의 출발점이고, 손잡이 글자는 그 위에
+        // 얹혀 있다 - 왼쪽 끝을 훑으면 배경이 가리켜진다.
+        Spot handle;
+        Check(FindListItem(editor, hwnd, LabelId(PushedId(body->ID, 1), "##row_body"),
+                static_cast<int>(body->Pos.x) + 6, handle),
+            "the second row must have a handle to drag");
+        // 첫 행 위의 떨어뜨릴 자리. 슬롯 번호는 "이 원소 앞" 이다.
+        Spot slot;
+        Check(FindListItem(editor, hwnd, LabelId(PushedId(body->ID, 0), "##slot"),
+                static_cast<int>(body->Pos.x + body->Size.x * 0.5f), slot),
+            "there must be a drop slot above the first row");
+
+        const std::size_t undo = editor.GetCommands().GetUndoCount();
+        DragTo(editor, hwnd, handle, slot);
+        Check(a->signals[0].strength == 100.0f && a->signals[1].strength == 1.0f,
+            "dropping the second element above the first must swap them on screen");
+        Check(a->signals[0].on && false == a->signals[1].on,
+            "carrying every field of the element along");
+        Check(b->signals[0].strength == 50.0f && b->signals[1].strength == 10.0f
+                && b->signals[2].strength == 0.0f,
+            "and move the same element of the other chosen list, leaving its third alone");
+        Check(editor.GetCommands().GetUndoCount() == undo + 1, "one drop must be one undo");
+        Check(editor.GetCommands().Undo(), "undo must run");
+        Check(a->signals[0].strength == 1.0f && a->signals[1].strength == 100.0f
+                && b->signals[0].strength == 10.0f && b->signals[1].strength == 50.0f,
+            "and put both lists back in order");
+
+        // 놓는 자리가 출발 행의 바로 아래면 옮길 것이 없다. 되돌리기가 하나 늘면 빈 커맨드다.
+        Check(FindListItem(editor, hwnd, LabelId(PushedId(body->ID, 2), "##slot"),
+                static_cast<int>(body->Pos.x + body->Size.x * 0.5f), slot),
+            "there must be a drop slot below the second row");
+        const std::size_t before = editor.GetCommands().GetUndoCount();
+        DragTo(editor, hwnd, handle, slot);
+        Check(a->signals[0].strength == 1.0f && a->signals[1].strength == 100.0f,
+            "dropping an element right below itself must change nothing");
+        Check(editor.GetCommands().GetUndoCount() == before, "and leave nothing to undo");
+
+        editor.Shutdown();
+    }
+
+    using Flags = JBro::Array<bool>;
+    using Counts = JBro::Array<int>;
+    using Tones = JBro::Array<Tone>;
+
+    // 원소가 실수가 아닌 목록 셋이다. 켜기 칸·정수 끌기·enum 콤보는 각각 다른 위젯이고,
+    // 델타 대신 고른 값이 그대로 가는 길(D-83)이라 실수 목록으로는 재어지지 않는다.
+    class Toggled final : public JBro::ComponentBase
+    {
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "Test::Toggled";
+        }
+
+        JBro::ComponentTypeId GetTypeId() const override
+        {
+            return JBro::MakeStableTypeId(StaticTypeName());
+        }
+
+        JBRO_REFLECT_BODY(Toggled)
+
+        JBRO_FIELD(Flags, flags);
+        JBRO_FIELD(Counts, counts);
+        JBRO_FIELD(Tones, tones);
+    };
+
+    // **bool·int·enum 원소도 마우스로 고치면 고른 목록 전부에 한 되돌리기로 간다**(D-89 ⑤).
+    //
+    // 셋은 델타가 없는 값이다 - 주된 목록에서 고른 값이 다른 목록의 같은 자리에 그대로 간다.
+    // enum 은 콤보의 칸 번호가 아니라 이름이 글자로 가야 한다. 값이 연속이 아니면 번호는 틀린다.
+    void TestFlagCountAndToneElementsEditByMouseOnEveryChosenList()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; flag, count and tone lists not verified"
+                      << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "ToggledListProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindWindowW(L"JBroEngineWindow", L"JBro Editor");
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        JBro::RegisterBuiltinProperties<Toggled>();
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* alpha = canvas->CreateObject("Alpha");
+        JBro::GameObject* beta = canvas->CreateObject("Beta");
+        auto* a = canvas->AttachComponent<Toggled>(alpha);
+        auto* b = canvas->AttachComponent<Toggled>(beta);
+        Check(a != nullptr && b != nullptr, "both must hold the three lists");
+        for (bool flag : {false, false})
+        {
+            a->flags.Add(flag);
+        }
+        for (bool flag : {true, false, false})
+        {
+            b->flags.Add(flag);
+        }
+        for (int count : {3, 7})
+        {
+            a->counts.Add(count);
+        }
+        for (int count : {30, 70, 0})
+        {
+            b->counts.Add(count);
+        }
+        for (Tone tone : {Tone::Low, Tone::Low})
+        {
+            a->tones.Add(tone);
+        }
+        for (Tone tone : {Tone::High, Tone::Mid, Tone::Low})
+        {
+            b->tones.Add(tone);
+        }
+        JBro::GameObject* chosen[] = {alpha, beta};
+        editor.SelectObjects({chosen, 2});
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        // 목록 셋은 필드 차례대로 위에서 아래다.
+        ImGuiWindow* flagBody = FindListBodyAt(0);
+        ImGuiWindow* countBody = FindListBodyAt(1);
+        ImGuiWindow* toneBody = FindListBodyAt(2);
+        Check(flagBody != nullptr && countBody != nullptr && toneBody != nullptr,
+            "the inspector must draw all three lists");
+
+        // 켜기 칸을 누른다.
+        Spot spot;
+        std::size_t undo = editor.GetCommands().GetUndoCount();
+        Check(FindItemAnywhereInWindow(editor, hwnd, flagBody,
+                LabelId(PushedId(flagBody->ID, 1), "##value"), spot),
+            "the second flag must be on the first list");
+        ClickAt(editor, hwnd, spot);
+        Check(a->flags[1] && b->flags[1], "ticking a flag must reach both chosen lists");
+        Check(false == a->flags[0] && b->flags[0] && false == b->flags[2],
+            "leaving the other flags alone");
+        Check(editor.GetCommands().GetUndoCount() == undo + 1, "as one undo");
+        Check(editor.GetCommands().Undo(), "undo must run");
+        Check(false == a->flags[1] && false == b->flags[1], "and untick both");
+        undo = editor.GetCommands().GetUndoCount();
+
+        // 정수를 끈다. 델타가 없는 값이라 도달한 값이 두 목록에 같이 간다.
+        Check(FindItemAnywhereInWindow(editor, hwnd, countBody,
+                LabelId(PushedId(countBody->ID, 1), "##value"), spot),
+            "the second count must be on the second list");
+        DragFrom(editor, hwnd, spot, spot.x + 80);
+        Check(a->counts[1] != 7, "dragging a count must change it");
+        Check(b->counts[1] == a->counts[1],
+            "and the other chosen list's count must take the same value");
+        Check(a->counts[0] == 3 && b->counts[0] == 30 && b->counts[2] == 0,
+            "leaving the other counts alone");
+        Check(editor.GetCommands().GetUndoCount() == undo + 1, "one drag must be one undo");
+        Check(editor.GetCommands().Undo(), "undo must run");
+        Check(a->counts[1] == 7 && b->counts[1] == 70, "and put both counts back");
+        undo = editor.GetCommands().GetUndoCount();
+
+        // 콤보를 열어 셋째 이름을 고른다. 콤보의 팝업은 이름이 정해진 창이다.
+        Check(FindItemAnywhereInWindow(editor, hwnd, toneBody,
+                LabelId(PushedId(toneBody->ID, 1), "##value"), spot),
+            "the second tone must be on the third list");
+        ClickAt(editor, hwnd, spot);
+        ImGuiWindow* popup = ImGui::FindWindowByName("##Combo_00");
+        Check(popup != nullptr && popup->Active, "clicking the tone must open its combo");
+        // 콤보는 칸 번호를 쌓고 이름의 선택 줄을 그린다. "High" 는 셋째 칸이다.
+        Spot item;
+        Check(FindItemAnywhereInWindow(editor, hwnd, popup,
+                LabelId(PushedId(popup->ID, 2), "High"), item),
+            "the combo must list the tone by its name");
+        ClickAt(editor, hwnd, item);
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick so the combo can close");
+        }
+        popup = ImGui::FindWindowByName("##Combo_00");
+        Check(popup == nullptr || false == popup->Active, "choosing a tone must close the combo");
+        Check(a->tones[1] == Tone::High && b->tones[1] == Tone::High,
+            "choosing a tone must reach both chosen lists by its name, not its slot");
+        Check(a->tones[0] == Tone::Low && b->tones[0] == Tone::High && b->tones[2] == Tone::Low,
+            "leaving the other tones alone");
+        Check(editor.GetCommands().GetUndoCount() == undo + 1, "as one undo");
+        Check(editor.GetCommands().Undo(), "undo must run");
+        Check(a->tones[1] == Tone::Low && b->tones[1] == Tone::Mid, "and put both tones back");
+
+        if (JBro::Renderer* renderer = editor.GetRenderer())
+        {
+            SaveScreenshot(*renderer, 1024, 768, "toggled_list");
         }
         editor.Shutdown();
     }
@@ -2705,6 +3049,8 @@ int RunEditorApplicationTests()
     TestAPairElementDragsAsADeltaOnEveryChosenList();
     TestAVectorFieldEditsThroughACommand();
     TestAStructElementOpensAndEditsEveryChosenList();
+    TestDraggingAStructElementReordersEveryChosenList();
+    TestFlagCountAndToneElementsEditByMouseOnEveryChosenList();
     TestTypingTheSameValueLeavesNothingToUndo();
     TestCreatingAnObjectCanBeUndone();
     TestDeletingAnObjectCanBeUndoneWithItsValues();
