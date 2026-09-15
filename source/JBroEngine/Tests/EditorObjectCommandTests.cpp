@@ -19,11 +19,13 @@
 #include <JBro/Types/NameTable.h>
 #include <JBro/Canvas/ComponentRegistry.h>
 #include <JBro/Editor/Command/ComponentSnapshot.h>
+#include <JBro/Editor/Command/ListEdit.h>
 #include <JBro/Reflection/ContainerTypeDescriptors.h>
 #include <JBro/Reflection/CoreTypeDescriptors.h>
 #include <JBro/Reflection/Field.h>
 
 #include <cstring>
+#include <initializer_list>
 #include <iostream>
 #include <stdexcept>
 
@@ -1045,6 +1047,195 @@ namespace
             "a value that will not be written must fail the capture from inside a struct too");
     }
 
+    // ── 목록 편집 ────────────────────────────────────────────────────────
+
+    JBro::ListEdit SetElement(std::uint32_t index, float delta)
+    {
+        JBro::ListEdit edit;
+        edit.kind = JBro::ListEdit::Kind::SetElement;
+        edit.index = index;
+        edit.deltaCount = 1;
+        edit.delta[0] = delta;
+        return edit;
+    }
+
+    JBro::ListEdit MoveElement(std::uint32_t from, std::uint32_t to)
+    {
+        JBro::ListEdit edit;
+        edit.kind = JBro::ListEdit::Kind::Move;
+        edit.index = from;
+        edit.to = to;
+        return edit;
+    }
+
+    bool FloatsAre(const JBro::Array<float>& values, std::initializer_list<float> expected)
+    {
+        if (values.Size() != expected.size())
+        {
+            return false;
+        }
+        std::size_t at = 0;
+        for (float value : expected)
+        {
+            if (false == NearlyEqual(values[at], value))
+            {
+                return false;
+            }
+            ++at;
+        }
+        return true;
+    }
+
+    // 편집 하나가 타입을 모르는 배열에 제대로 닿는다. **넷으로 잰다** - 셋이면 밀어서
+    // 끼운 것과 끝의 것을 끌어다 덮은 것이 같은 결과가 된다(D-84).
+    void TestAListEditLandsOnOneArray()
+    {
+        const JBro::TypeDescriptor& type = JBro::TypeDescriptorOf<StockSamples>::Get();
+        StockSamples values;
+        // **용량을 원소 수에 딱 맞춘다.** 옮기기는 임시 자리로 배열을 한 칸 늘리는데,
+        // 늘기 전에 받아 둔 원소 주소는 저장소가 옮겨 가면 죽는다 - 처음 구현이 그랬다.
+        values.Reserve(4);
+        values.Add(1.0f);
+        values.Add(2.0f);
+        values.Add(3.0f);
+        values.Add(4.0f);
+        Check(values.Capacity() == 4, "the test needs a full array so that growing moves it");
+
+        Check(JBro::ApplyListEdit(type, &values, SetElement(1, 0.5f)),
+            "a numeric element edit must land");
+        Check(FloatsAre(values, {1.0f, 2.5f, 3.0f, 4.0f}), "adding its delta to that element only");
+
+        Check(JBro::ApplyListEdit(type, &values, MoveElement(0, 2)), "moving back must land");
+        Check(FloatsAre(values, {2.5f, 3.0f, 1.0f, 4.0f}),
+            "sliding the ones between forward and leaving the last alone");
+        Check(JBro::ApplyListEdit(type, &values, MoveElement(3, 1)), "moving forward must land");
+        Check(FloatsAre(values, {2.5f, 4.0f, 3.0f, 1.0f}), "pushing the ones between back");
+
+        JBro::ListEdit remove;
+        remove.kind = JBro::ListEdit::Kind::Remove;
+        remove.index = 1;
+        Check(JBro::ApplyListEdit(type, &values, remove), "removing must land");
+        Check(FloatsAre(values, {2.5f, 3.0f, 1.0f}), "keeping the order of what is left");
+
+        JBro::ListEdit add;
+        add.kind = JBro::ListEdit::Kind::Add;
+        Check(JBro::ApplyListEdit(type, &values, add), "adding must land");
+        Check(FloatsAre(values, {2.5f, 3.0f, 1.0f, 0.0f}), "with a default element at the end");
+
+        // 맞지 않는 편집은 거짓이다. 부르는 쪽이 그 대상을 빼야 한다.
+        Check(false == JBro::ApplyListEdit(type, &values, SetElement(9, 1.0f)),
+            "an element that is not there cannot be edited");
+        JBro::ListEdit removeMissing = remove;
+        removeMissing.index = 9;
+        Check(false == JBro::ApplyListEdit(type, &values, removeMissing),
+            "nor removed");
+        Check(false == JBro::ApplyListEdit(type, &values, MoveElement(0, 9)),
+            "nor moved past the end");
+        Check(FloatsAre(values, {2.5f, 3.0f, 1.0f, 0.0f}), "and a refused edit changes nothing");
+    }
+
+    // 숫자가 아닌 원소는 글자를 그대로 쓰고, 숫자 묶음은 개수가 맞아야 한다.
+    void TestAListEditRespectsWhatTheElementIs()
+    {
+        using Flags = JBro::Array<bool>;
+        const JBro::TypeDescriptor& flagType = JBro::TypeDescriptorOf<Flags>::Get();
+        Flags flags;
+        flags.Add(false);
+        flags.Add(false);
+        JBro::ListEdit set;
+        set.kind = JBro::ListEdit::Kind::SetElement;
+        set.index = 1;
+        set.text = "true";
+        Check(JBro::ApplyListEdit(flagType, &flags, set), "a flag must be set from its text");
+        Check(false == flags[0] && flags[1], "on that element only");
+
+        const JBro::TypeDescriptor& colorType = JBro::TypeDescriptorOf<StockColors>::Get();
+        StockColors colors;
+        colors.Add(JBro::Color{0.5f, 0.5f, 0.5f, 1.0f});
+        JBro::ListEdit tint;
+        tint.kind = JBro::ListEdit::Kind::SetElement;
+        tint.index = 0;
+        tint.deltaCount = 4;
+        tint.delta[0] = 0.25f;
+        tint.delta[3] = -0.5f;
+        Check(JBro::ApplyListEdit(colorType, &colors, tint), "a color takes four deltas");
+        Check(NearlyEqual(colors[0].R, 0.75f) && NearlyEqual(colors[0].G, 0.5f)
+                && NearlyEqual(colors[0].A, 0.5f),
+            "each on its own member");
+        Check(false == JBro::ApplyListEdit(colorType, &colors, SetElement(0, 1.0f)),
+            "and one delta does not fit a color");
+    }
+
+    // **고른 대상마다 다시 적용하고, 한 되돌리기로 묶는다.** 원소가 모자란 대상은 빠진다.
+    void TestAListEditReachesEveryChosenTarget()
+    {
+        RegisterOnce();
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::EditorObjectRegistry ids;
+        JBro::EditorCommandManager commands;
+
+        JBro::GameObject* first = canvas.CreateObject("First");
+        JBro::GameObject* second = canvas.CreateObject("Second");
+        Stocked* long_ = MakeStocked(canvas, first);
+        Stocked* short_ = MakeStocked(canvas, second);
+        short_->colors.RemoveAt(1);
+        short_->samples.Clear();
+        short_->samples.Add(10.0f);
+
+        const JBro::PropertyTable* table =
+            JBro::PropertyRegistry::Lookup(Stocked::StaticTypeName());
+        Check(table != nullptr, "the stocked component must have its table");
+        const JBro::SetPropertyCommand::Path samples = PathTo(FieldIndex(*table, "samples"));
+
+        JBro::Array<JBro::ComponentAddress> targets;
+        targets.Add(AddressOf(ids, *first, *long_));
+        targets.Add(AddressOf(ids, *second, *short_));
+
+        // 둘째 원소에 델타 - 짧은 쪽에는 둘째가 없다.
+        JBro::Array<JBro::ListEdit> nudge;
+        nudge.Add(SetElement(1, 2.0f));
+        auto nudged = JBro::MakeListEditCommand(ids, targets, samples, nudge);
+        Check(nudged->GetCount() == 1, "a target without that element must be left out");
+        Check(NearlyEqual(long_->samples[1], 1.125f),
+            "and building the command must leave the values as they were");
+        Check(commands.Execute(std::move(nudged)), "the nudge must go through");
+        Check(NearlyEqual(long_->samples[1], 3.125f), "adding the delta to the long list");
+        Check(short_->samples.Size() == 1 && NearlyEqual(short_->samples[0], 10.0f),
+            "and leaving the short one alone");
+
+        // 첫 원소를 지우고 하나 더한다 - 둘 다에 닿고, 한 되돌리기다.
+        JBro::Array<JBro::ListEdit> reshape;
+        JBro::ListEdit remove;
+        remove.kind = JBro::ListEdit::Kind::Remove;
+        remove.index = 0;
+        reshape.Add(remove);
+        JBro::ListEdit add;
+        add.kind = JBro::ListEdit::Kind::Add;
+        reshape.Add(add);
+        auto reshaped = JBro::MakeListEditCommand(ids, targets, samples, reshape);
+        Check(reshaped->GetCount() == 2, "edits every target can take must reach both");
+        const std::size_t undoBefore = commands.GetUndoCount();
+        Check(commands.Execute(std::move(reshaped)), "the reshape must go through");
+        Check(commands.GetUndoCount() == undoBefore + 1, "as one undo");
+        Check(long_->samples.Size() == SampleCount && NearlyEqual(long_->samples[0], 3.125f)
+                && NearlyEqual(long_->samples[SampleCount - 1], 0.0f),
+            "the long list lost its first and gained a default last");
+        Check(short_->samples.Size() == 1 && NearlyEqual(short_->samples[0], 0.0f),
+            "the short list too");
+
+        Check(commands.Undo(), "undo must run");
+        Check(NearlyEqual(long_->samples[0], 0.125f) && NearlyEqual(long_->samples[1], 3.125f),
+            "and bring the long list back");
+        Check(short_->samples.Size() == 1 && NearlyEqual(short_->samples[0], 10.0f),
+            "and the short one");
+
+        // 아무것도 바뀌지 않는 편집은 올리지 않는다.
+        JBro::Array<JBro::ListEdit> nothing;
+        nothing.Add(SetElement(0, 0.0f));
+        Check(JBro::MakeListEditCommand(ids, targets, samples, nothing)->GetCount() == 0,
+            "an edit that changes nothing must leave nothing to undo");
+    }
+
     // ── 계층 이동 ────────────────────────────────────────────────────────
 
     // **형제 사이의 차례는 사람이 보는 순서다.** 부모를 바꿔도 남은 형제들의
@@ -1284,6 +1475,9 @@ int RunEditorObjectCommandTests()
     TestRemovingBringsBackContainers();
     TestAContainerIsOneEditableValue();
     TestDeletingIsRefusedWhenAValueRefusesToBeWritten();
+    TestAListEditLandsOnOneArray();
+    TestAListEditRespectsWhatTheElementIs();
+    TestAListEditReachesEveryChosenTarget();
     TestChildOrderSurvivesEverything();
     TestMovingInTheHierarchyCanBeUndone();
     TestMovingKeepsTheObjectWhereItLooks();
