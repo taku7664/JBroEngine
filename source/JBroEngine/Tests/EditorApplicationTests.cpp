@@ -11,6 +11,8 @@
 #include <JBro/Graphics/Renderer.h>
 #include <JBro/Reflection/PropertyInfo.h>
 #include <JBro/Reflection/PropertyRegistry.h>
+#include <JBro/Reflection/ContainerTypeDescriptors.h>
+#include <JBro/Reflection/Field.h>
 #include <JBro/Runtime/Component.h>
 #include <JBro/Types/NameTable.h>
 #include <JBro/Types/Array.h>
@@ -579,6 +581,196 @@ namespace
         }
         Check(false, "the field this test names must be in the table");
         return 0;
+    }
+
+    // ── 목록 편집 ────────────────────────────────────────────────────────
+
+    using Weights = JBro::Array<float>;
+
+    // 배열을 든 컴포넌트다. 빌트인에는 아직 배열 필드가 없다(D-86).
+    class Weighted final : public JBro::ComponentBase
+    {
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "Test::Weighted";
+        }
+
+        JBro::ComponentTypeId GetTypeId() const override
+        {
+            return JBro::MakeStableTypeId(StaticTypeName());
+        }
+
+        JBRO_REFLECT_BODY(Weighted)
+
+        JBRO_FIELD(Weights, weights);
+    };
+
+    // 인스펙터 안의 목록 몸통이다. 목록 위젯이 `BeginChild("##list_body")` 로
+    // 따로 창을 열므로, 그 안의 항목은 이 창의 Id 에서 센다.
+    ImGuiWindow* FindListBody()
+    {
+        ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
+        Check(inspector != nullptr, "the inspector must have a window");
+        for (ImGuiWindow* window : ImGui::GetCurrentContext()->Windows)
+        {
+            if (window->ParentWindow == inspector
+                && std::strstr(window->Name, "##list_body") != nullptr)
+            {
+                return window;
+            }
+        }
+        return nullptr;
+    }
+
+    // 목록 몸통을 `x` 에서 위아래로 훑어 `target` 이 가리켜지는 자리를 찾는다.
+    bool FindListItem(
+        JBro::EditorApplication& editor, HWND hwnd, ImGuiID target, int x, Spot& spot)
+    {
+        ImGuiWindow* body = FindListBody();
+        Check(body != nullptr, "the list must have its body");
+        const int bottom = static_cast<int>(body->Pos.y + body->Size.y);
+        for (int y = static_cast<int>(body->Pos.y); y < bottom; y += 2)
+        {
+            PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
+            Check(editor.Tick(Frame), "the editor must tick while looking");
+            if (ImGui::GetHoveredID() == target)
+            {
+                spot.x = x;
+                spot.y = y;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // 좁은 항목(행 끝의 삭제 표시)은 한 줄로 훑으면 빗나간다. 몸통의 오른쪽 끝 띠를
+    // 위쪽 몇 줄만 격자로 훑는다.
+    bool FindListItemNearRightEdge(
+        JBro::EditorApplication& editor, HWND hwnd, ImGuiID target, int rows, Spot& spot)
+    {
+        ImGuiWindow* body = FindListBody();
+        Check(body != nullptr, "the list must have its body");
+        const int right = static_cast<int>(body->Pos.x + body->Size.x);
+        const int top = static_cast<int>(body->Pos.y);
+        const int bottom = top + static_cast<int>(ImGui::GetFrameHeight()) * rows + 8;
+        for (int y = top; y < bottom; y += 2)
+        {
+            for (int x = right - 40; x < right; x += 3)
+            {
+                PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
+                Check(editor.Tick(Frame), "the editor must tick while looking");
+                if (ImGui::GetHoveredID() == target)
+                {
+                    spot.x = x;
+                    spot.y = y;
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    // **목록을 만지면 고른 것 전부에 미치고, 한 손짓이 한 되돌리기다**(D-86).
+    //
+    // 처음에는 원소 값·추가·삭제가 전부 배열에 곧장 써서 되돌릴 수 없었고,
+    // 여럿을 골라도 주된 것만 바뀌었다.
+    void TestListEditsReachEveryChosenObjectAsOneUndo()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; list edits not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "ListEditProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindWindowW(L"JBroEngineWindow", L"JBro Editor");
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        JBro::RegisterBuiltinProperties<Weighted>();
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* alpha = canvas->CreateObject("Alpha");
+        JBro::GameObject* beta = canvas->CreateObject("Beta");
+        auto* a = canvas->AttachComponent<Weighted>(alpha);
+        auto* b = canvas->AttachComponent<Weighted>(beta);
+        Check(a != nullptr && b != nullptr, "both must hold a list");
+        for (float value : {1.0f, 2.0f, 3.0f})
+        {
+            a->weights.Add(value);
+        }
+        for (float value : {10.0f, 20.0f, 30.0f, 40.0f})
+        {
+            b->weights.Add(value);
+        }
+        JBro::GameObject* chosen[] = {alpha, beta};
+        editor.SelectObjects({chosen, 2});
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        ImGuiWindow* body = FindListBody();
+        Check(body != nullptr, "the inspector must draw the list");
+        const int middle = static_cast<int>(body->Pos.x + body->Size.x * 0.5f);
+        std::size_t undo = editor.GetCommands().GetUndoCount();
+
+        // 둘째 원소를 끈다. 둘 다 같은 만큼 움직여야 한다 - 모이면 뭉갠 것이다.
+        Spot spot;
+        Check(FindListItem(editor, hwnd, LabelId(PushedId(body->ID, 1), "##value"), middle, spot),
+            "the second element must be on the list");
+        DragFrom(editor, hwnd, spot, spot.x + 80);
+        const float moved = a->weights[1] - 2.0f;
+        Check(moved > 0.05f, "dragging an element must move it");
+        Check(b->weights[1] > 20.0f + moved - 0.01f && b->weights[1] < 20.0f + moved + 0.01f,
+            "and move the other chosen list's element by the same amount");
+        Check(a->weights[0] == 1.0f && b->weights[0] == 10.0f, "leaving the others alone");
+        Check(editor.GetCommands().GetUndoCount() == undo + 1, "one drag must be one undo");
+        Check(editor.GetCommands().Undo(), "undo must run");
+        Check(a->weights[1] == 2.0f && b->weights[1] == 20.0f, "and put both back");
+        undo = editor.GetCommands().GetUndoCount();
+
+        // 하나 더한다.
+        const char* addLabel = JBro::Loc::TextOr(JBro::LocKeys::ListAddElement, "Add element");
+        Check(FindListItem(editor, hwnd, LabelId(body->ID, addLabel), middle, spot),
+            "the list must offer to add an element");
+        ClickAt(editor, hwnd, spot);
+        Check(a->weights.Size() == 4 && b->weights.Size() == 5,
+            "adding must reach both chosen lists");
+        Check(editor.GetCommands().GetUndoCount() == undo + 1, "as one undo");
+        Check(editor.GetCommands().Undo(), "undo must run");
+        Check(a->weights.Size() == 3 && b->weights.Size() == 4, "and take both back");
+        undo = editor.GetCommands().GetUndoCount();
+
+        // 첫 원소를 지운다. 삭제 표시는 행의 오른쪽 끝이다.
+        // `TextButton` 은 이름을 `PushID` 로 쌓고 빈 이름의 단추를 그린다. 빈 이름의
+        // 해시는 시드를 그대로 돌려주므로 Id 는 행 아래의 "x" 다.
+        Check(FindListItemNearRightEdge(editor, hwnd, LabelId(PushedId(body->ID, 0), "x"), 1,
+                spot),
+            "the first row must offer to be removed");
+        ClickAt(editor, hwnd, spot);
+        Check(a->weights.Size() == 2 && a->weights[0] == 2.0f,
+            "removing must take the first element off the list on screen");
+        Check(b->weights.Size() == 3 && b->weights[0] == 20.0f,
+            "and off the other chosen list");
+        Check(editor.GetCommands().GetUndoCount() == undo + 1, "as one undo");
+        Check(editor.GetCommands().Undo(), "undo must run");
+        Check(a->weights.Size() == 3 && a->weights[0] == 1.0f
+                && b->weights.Size() == 4 && b->weights[0] == 10.0f,
+            "and bring both back in order");
+
+        if (JBro::Renderer* renderer = editor.GetRenderer())
+        {
+            SaveScreenshot(*renderer, 1024, 768, "list");
+        }
+        editor.Shutdown();
     }
 
     // **인스펙터를 손으로 만져 본다.** 리플렉션이 무엇을 내주는지는 위에서 봤고,
@@ -2039,6 +2231,7 @@ int RunEditorApplicationTests()
     TestEditingWithSeveralChosenReachesThemAll();
     TestAChosenChildDoesNotGetTheEditTwice();
     TestMultiEditPicksTheSameOrdinalEverywhere();
+    TestListEditsReachEveryChosenObjectAsOneUndo();
     TestTypingTheSameValueLeavesNothingToUndo();
     TestCreatingAnObjectCanBeUndone();
     TestDeletingAnObjectCanBeUndoneWithItsValues();

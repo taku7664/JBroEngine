@@ -3,6 +3,7 @@
 #include <JBro/Canvas/ComponentRegistry.h>
 #include <JBro/Editor/Command/ComponentCommands.h>
 #include <JBro/Editor/Command/CompoundCommand.h>
+#include <JBro/Editor/Command/ListEdit.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/ScalarRun.h>
@@ -511,11 +512,13 @@ namespace JBro
             return;
         }
 
-        // **길은 여기서 끊긴다.** 프로퍼티 길은 필드 번호의 나열이고, 배열의
-        // 원소 번호는 그 길에 담을 수 없다 - 담으려면 길이 "필드인가 원소인가"
-        // 를 함께 들어야 하고, 그러면 되살리기와 저장이 모두 바뀐다.
-        // 그래서 원소 편집은 아직 커맨드가 되지 않는다. 늘리고 줄이는 것만
-        // 커맨드 밖에서 즉시 반영한다(D-71 의 예외이고, 아래 TODO 가 그 자리다).
+        // **목록은 배열에 쓰지 않고 편집을 적어 둔다**(D-86).
+        //
+        // 위젯이 원소에 쓴 값은 그 자리에서 도로 되돌리고 "몇 번째에 얼마를 더했다" 로
+        // 적는다. 추가·삭제·옮기기는 아예 쓰지 않고 적기만 한다. 다 그린 뒤 고른 대상마다
+        // 그 편집을 다시 적용해 커맨드로 묶는다 - 쓰는 길이 하나로 남는다(D-71).
+        // 처음에는 전부 배열에 곧장 써서 되돌릴 수 없었고, 여럿 골라도 주된 것만 바뀌었다.
+        Array<ListEdit> edits;
         std::uint32_t flags = Widget::ListFlagsShowIndex;
         if (false == editable)
         {
@@ -531,56 +534,102 @@ namespace JBro
                 {
                     return false;
                 }
+                ListEdit edit;
+                edit.kind = ListEdit::Kind::SetElement;
+                edit.index = static_cast<std::uint32_t>(index);
+
                 // 원소도 한 값 한 줄이다. 라벨은 목록이 이미 번호로 그렸다.
                 ScalarRun run;
                 if (CollectScalarRun(*element, item, run))
                 {
-                    return DrawScalarRun(*element, run, nullptr);
+                    float before[ScalarRun::MaxCount] = {};
+                    for (std::uint32_t at = 0; at < run.count; ++at)
+                    {
+                        before[at] = *run.values[at];
+                    }
+                    if (false == DrawScalarRun(*element, run, nullptr))
+                    {
+                        return false;
+                    }
+                    edit.deltaCount = run.count;
+                    for (std::uint32_t at = 0; at < run.count; ++at)
+                    {
+                        edit.delta[at] = *run.values[at] - before[at];
+                        *run.values[at] = before[at];
+                    }
+                    edits.Add(std::move(edit));
+                    return true;
                 }
-                if (element->codec != nullptr)
+                if (element->codec == nullptr)
                 {
-                    String before;
-                    const bool snapped = ToText(*element, item, before);
-                    return DrawLeaf(*element, item, nullptr, before, snapped);
+                    ImGui::TextDisabled("%s",
+                        Loc::TextOr(LocKeys::InspectorUndrawableType,
+                            "(no way to show this type)"));
+                    return false;
                 }
-                ImGui::TextDisabled("%s",
-                    Loc::TextOr(LocKeys::InspectorUndrawableType,
-                        "(no way to show this type)"));
-                return false;
+
+                String before;
+                const bool snapped = ToText(*element, item, before);
+                if (false == DrawLeaf(*element, item, nullptr, before, snapped) || false == snapped)
+                {
+                    return false;
+                }
+                // 실수 하나는 델타로, 나머지(bool·int·enum·글자)는 고른 값을 그대로 옮긴다.
+                // 델타는 **되돌린 뒤에** 잰다 - 되돌리기 전에 재면 위젯이 쓴 값이 델타가 된다.
+                ScalarRun single;
+                const bool numeric = CollectNumbers(*element, item, single);
+                const float after = numeric ? *single.values[0] : 0.0f;
+                if (false == numeric && false == ToText(*element, item, edit.text))
+                {
+                    element->codec->FromText(item, before.c_str(), before.size());
+                    return false;
+                }
+                element->codec->FromText(item, before.c_str(), before.size());
+                if (numeric)
+                {
+                    edit.deltaCount = 1;
+                    edit.delta[0] = after - *single.values[0];
+                }
+                edits.Add(std::move(edit));
+                return true;
             },
-            [&]() { ops.AddDefault(address); },
-            [&](int index) { ops.RemoveAt(address, static_cast<std::size_t>(index)); },
+            [&]() {
+                ListEdit edit;
+                edit.kind = ListEdit::Kind::Add;
+                edits.Add(std::move(edit));
+            },
+            [&](int index) {
+                ListEdit edit;
+                edit.kind = ListEdit::Kind::Remove;
+                edit.index = static_cast<std::uint32_t>(index);
+                edits.Add(std::move(edit));
+            },
             [&](int fromIndex, int toIndex) {
-                // 조작 함수에는 옮기기가 없다. 빼서 끼우는 것을 값 교환으로 흉내낸다 -
-                // 원소 타입을 모르므로 코덱의 `Assign` 을 빌린다.
-                if (element->codec == nullptr || element->codec->Assign == nullptr)
-                {
-                    return;
-                }
-                const int step = fromIndex < toIndex ? 1 : -1;
-                for (int at = fromIndex; at != toIndex; at += step)
-                {
-                    void* left = ops.GetElement(address, static_cast<std::size_t>(at));
-                    void* right = ops.GetElement(address, static_cast<std::size_t>(at + step));
-                    if (left == nullptr || right == nullptr)
-                    {
-                        return;
-                    }
-                    // 자리 바꾸기. 임시 자리가 필요하지만 타입을 모르므로
-                    // 배열 끝에 하나 늘렸다 줄이는 대신, 코덱으로 세 번 옮긴다.
-                    ops.AddDefault(address);
-                    void* scratch = ops.GetElement(address, ops.GetSize(address) - 1);
-                    if (scratch == nullptr)
-                    {
-                        return;
-                    }
-                    element->codec->Assign(scratch, left);
-                    element->codec->Assign(left, right);
-                    element->codec->Assign(right, scratch);
-                    ops.RemoveAt(address, ops.GetSize(address) - 1);
-                }
+                ListEdit edit;
+                edit.kind = ListEdit::Kind::Move;
+                edit.index = static_cast<std::uint32_t>(fromIndex);
+                edit.to = static_cast<std::uint32_t>(toIndex);
+                edits.Add(std::move(edit));
             },
             flags);
+
+        if (edits.IsEmpty())
+        {
+            return;
+        }
+        const Array<EditTarget> targets = CollectEditTargets(context);
+        Array<ComponentAddress> addresses;
+        for (std::size_t index = 0; index < targets.Size(); ++index)
+        {
+            ComponentAddress target;
+            if (MakeComponentAddress(m_editor->GetObjectIds(), *targets[index].owner,
+                *targets[index].component, target))
+            {
+                addresses.Add(target);
+            }
+        }
+        m_editor->GetCommands().Execute(MakeListEditCommand(
+            m_editor->GetObjectIds(), addresses, context.path, edits));
     }
 
     // 타고 내려가야 하는 타입인가. 한 줄에 담기는 것과 컨테이너와 enum 은 아니다.
