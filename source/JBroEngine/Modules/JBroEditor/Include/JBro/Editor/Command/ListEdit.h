@@ -42,7 +42,7 @@ namespace JBro
     };
 
     // 배열 하나에 편집을 적용한다. **그 배열에 맞지 않는 편집이면 거짓이다** -
-    // 원소가 모자라거나, 델타 개수가 원소의 숫자 수와 다르거나, 옮길 방법이 없는 원소다.
+    // 원소가 모자라거나, 델타 개수가 원소의 숫자 수와 다르거나, 글자를 받지 못하는 원소다.
     // 거짓일 때 배열이 반쯤 바뀌어 있을 수 있으니 부르는 쪽이 되돌린다.
     bool ApplyListEdit(const TypeDescriptor& arrayType, void* array, const ListEdit& edit);
 

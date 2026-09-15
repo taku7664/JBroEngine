@@ -61,7 +61,8 @@ namespace JBro
     static_assert(sizeof(PropertyTable)    == 16, "PropertyTable crosses the script DLL boundary");
     static_assert(sizeof(ValueCodec)       == 32, "ValueCodec crosses the script DLL boundary");
     static_assert(sizeof(TypeDescriptor)   == 96, "TypeDescriptor crosses the script DLL boundary");
-    static_assert(sizeof(ArrayOps)         == 48, "ArrayOps crosses the script DLL boundary");
+    // 48 에서 56 으로: 옮기기(`Move`)를 더했다(D-89).
+    static_assert(sizeof(ArrayOps)         == 56, "ArrayOps crosses the script DLL boundary");
     static_assert(sizeof(TableOps)         == 112, "TableOps crosses the script DLL boundary");
     static_assert(sizeof(EnumNames)        == 32, "EnumNames crosses the script DLL boundary");
     static_assert(sizeof(RefTarget)        == 16, "RefTarget crosses the script DLL boundary");

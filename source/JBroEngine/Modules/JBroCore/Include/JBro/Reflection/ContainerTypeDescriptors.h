@@ -7,6 +7,7 @@
 #include <JBro/Types/NameTable.h>
 #include <JBro/Types/Table.h>
 
+#include <algorithm>
 #include <memory>
 #include <utility>
 
@@ -65,6 +66,33 @@ namespace JBro
                 }
                 self->Resize(self->Size() - 1);
                 return true;
+            };
+            made.Move = [](void* array, std::size_t from, std::size_t to) noexcept -> bool {
+                Array<T>* self = static_cast<Array<T>*>(array);
+                if (from >= self->Size() || to >= self->Size())
+                {
+                    return false;
+                }
+                // **자리를 늘리지 않고 제자리에서 돌린다.** 끝에 임시 자리를 만들면 저장소가
+                // 옮겨 가 앞서 받은 원소 주소가 죽을 수 있다 - 부르는 쪽에서 밀던 때 그랬다.
+                T* const first = self->Data();
+                try
+                {
+                    if (from < to)
+                    {
+                        std::rotate(first + from, first + from + 1, first + to + 1);
+                    }
+                    else
+                    {
+                        // 제자리(`from == to`)면 아무것도 돌지 않는다.
+                        std::rotate(first + to, first + from, first + from + 1);
+                    }
+                    return true;
+                }
+                catch (...)
+                {
+                    return false;
+                }
             };
             made.Clear = [](void* array) noexcept {
                 static_cast<Array<T>*>(array)->Clear();

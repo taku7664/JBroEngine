@@ -66,6 +66,14 @@ namespace JBro
         const void* (*GetConstElement)(const void* array, std::size_t index) noexcept = nullptr;
         bool        (*AddDefault)(void* array) noexcept = nullptr;
         bool        (*RemoveAt)(void* array, std::size_t index) noexcept = nullptr;
+        // `from` 의 원소를 빼서 `to` 에 끼운다. `to` 는 **뺀 뒤의 번호**다 - 끝나면 그 원소가
+        // `to` 에 있다. 사이의 원소는 순서를 지키며 한 칸씩 밀린다. 둘 중 하나라도 끝을 넘으면
+        // 거짓이고 배열은 그대로다.
+        //
+        // 원소 타입을 아는 쪽이 옮긴다. 처음에는 부르는 쪽이 원소 코덱의 `Assign` 을 빌려
+        // 밀었는데, 필드로 말하는 타입(`Vec2`·`Color`·사용자 구조체)에는 코덱이 없어 옮기지
+        // 못했다(D-89). 옮기다 원소의 이동이 던지면 거짓이고, 그때 배열은 반쯤 밀려 있을 수 있다.
+        bool        (*Move)(void* array, std::size_t from, std::size_t to) noexcept = nullptr;
         void        (*Clear)(void* array) noexcept = nullptr;
     };
 

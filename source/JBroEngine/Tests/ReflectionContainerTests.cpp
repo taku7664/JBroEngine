@@ -106,6 +106,59 @@ namespace
         Check(ops.GetSize(erased) == 0, "clearing empties it");
     }
 
+    bool NamesAre(const JBro::Array<JBro::String>& names, const char* const expected[4])
+    {
+        if (names.Size() != 4)
+        {
+            return false;
+        }
+        for (std::size_t index = 0; index < 4; ++index)
+        {
+            if (std::strcmp(names[index].c_str(), expected[index]) != 0)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // **옮기기는 원소 타입을 아는 쪽이 한다**(D-89). 글자처럼 내용이 밖에 있는 원소로 잰다 -
+    // 얕게 옮기면 두 자리가 같은 버퍼를 들고, 순서만 보는 숫자 배열로는 드러나지 않는다.
+    void TestAnArrayMovesElementsWithoutKnowingItsType()
+    {
+        using Names = JBro::Array<JBro::String>;
+        const JBro::ArrayOps& ops = *JBro::TypeDescriptorOf<Names>::Get().arrayOps;
+        Check(ops.Move != nullptr, "an array type must carry a way to move its elements");
+
+        Names names;
+        names.Add(JBro::String("alpha, long enough to live outside the string itself"));
+        names.Add(JBro::String("beta"));
+        names.Add(JBro::String("gamma"));
+        names.Add(JBro::String("delta"));
+        const char* const start[4] = {
+            "alpha, long enough to live outside the string itself", "beta", "gamma", "delta" };
+
+        Check(ops.Move(&names, 0, 2), "moving back must work");
+        const char* const back[4] = {
+            "beta", "gamma", "alpha, long enough to live outside the string itself", "delta" };
+        Check(NamesAre(names, back), "and leave the moved one at the target, the ones between slid forward");
+
+        Check(ops.Move(&names, 3, 0), "moving forward must work");
+        const char* const forward[4] = {
+            "delta", "beta", "gamma", "alpha, long enough to live outside the string itself" };
+        Check(NamesAre(names, forward), "and push the ones between back");
+
+        Check(ops.Move(&names, 1, 1), "moving onto itself is not a failure");
+        Check(NamesAre(names, forward), "and changes nothing");
+
+        Check(false == ops.Move(&names, 0, 4), "moving past the end must be refused");
+        Check(false == ops.Move(&names, 4, 0), "and so must moving from past it");
+        Check(NamesAre(names, forward), "leaving the array as it was");
+
+        Check(ops.Move(&names, 3, 0) && ops.Move(&names, 1, 3), "a chain of moves must work");
+        Check(NamesAre(names, start), "and can bring the order back");
+    }
+
     void TestATableCanBeWalkedWithoutKnowingItsType()
     {
         JBro::Table<JBro::String, std::int32_t> counts;
@@ -213,6 +266,7 @@ namespace
 int RunReflectionContainerTests()
 {
     TestAnArrayCanBeWorkedWithoutKnowingItsType();
+    TestAnArrayMovesElementsWithoutKnowingItsType();
     TestATableCanBeWalkedWithoutKnowingItsType();
     TestAComponentCanDeclareContainerFields();
     std::cout << "Reflection container tests passed.\n";

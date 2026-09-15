@@ -1248,8 +1248,9 @@ namespace
     {
         const JBro::TypeDescriptor& type = JBro::TypeDescriptorOf<StockSamples>::Get();
         StockSamples values;
-        // **용량을 원소 수에 딱 맞춘다.** 옮기기는 임시 자리로 배열을 한 칸 늘리는데,
-        // 늘기 전에 받아 둔 원소 주소는 저장소가 옮겨 가면 죽는다 - 처음 구현이 그랬다.
+        // **용량을 원소 수에 딱 맞춘다.** 옮기기가 임시 자리로 배열을 한 칸 늘리던 때, 늘기
+        // 전에 받아 둔 원소 주소는 저장소가 옮겨 가면 죽었다 - 처음 구현이 그랬다. 지금은
+        // 제자리에서 돌리지만(D-89), 옮기기가 다시 자리를 늘리면 여기서 드러난다.
         values.Reserve(4);
         values.Add(1.0f);
         values.Add(2.0f);
@@ -1288,6 +1289,39 @@ namespace
         Check(false == JBro::ApplyListEdit(type, &values, MoveElement(0, 9)),
             "nor moved past the end");
         Check(FloatsAre(values, {2.5f, 3.0f, 1.0f, 0.0f}), "and a refused edit changes nothing");
+    }
+
+    // **코덱이 없는 원소도 옮긴다.** 옮기기는 원소 코덱의 `Assign` 을 빌렸는데, 필드로 말하는
+    // 타입에는 코덱이 없다 - `Color` 목록을 끌어 놓으면 대상이 전부 빠지고 아무 일도 없었다.
+    void TestAListEditMovesElementsThatHaveNoCodec()
+    {
+        const JBro::TypeDescriptor& colorType = JBro::TypeDescriptorOf<StockColors>::Get();
+        Check(colorType.element != nullptr && colorType.element->codec == nullptr,
+            "the test needs an element that speaks through fields");
+        StockColors colors;
+        colors.Add(JBro::Color{0.1f, 0.0f, 0.0f, 1.0f});
+        colors.Add(JBro::Color{0.2f, 0.0f, 0.0f, 1.0f});
+        colors.Add(JBro::Color{0.3f, 0.0f, 0.0f, 1.0f});
+        Check(JBro::ApplyListEdit(colorType, &colors, MoveElement(0, 2)),
+            "a color must move like any element");
+        Check(NearlyEqual(colors[0].R, 0.2f) && NearlyEqual(colors[1].R, 0.3f)
+                && NearlyEqual(colors[2].R, 0.1f),
+            "sliding the ones between forward");
+
+        // 필드의 종류가 섞인 구조체다. 한 줄 숫자 묶음으로도 읽히지 않는다.
+        using Burrows = JBro::Array<Burrow>;
+        const JBro::TypeDescriptor& burrowType = JBro::TypeDescriptorOf<Burrows>::Get();
+        Burrows burrows;
+        burrows.Add(Burrow{1.0f, Stubborn{10}});
+        burrows.Add(Burrow{2.0f, Stubborn{20}});
+        burrows.Add(Burrow{3.0f, Stubborn{30}});
+        Check(JBro::ApplyListEdit(burrowType, &burrows, MoveElement(2, 0)),
+            "a struct with mixed fields must move too");
+        Check(NearlyEqual(burrows[0].depth, 3.0f) && burrows[0].stubborn.unused == 30
+                && NearlyEqual(burrows[1].depth, 1.0f) && burrows[2].stubborn.unused == 20,
+            "carrying every field with it");
+        Check(false == JBro::ApplyListEdit(burrowType, &burrows, MoveElement(3, 0)),
+            "and a move from past the end is still refused");
     }
 
     // 숫자가 아닌 원소는 글자를 그대로 쓰고, 숫자 묶음은 개수가 맞아야 한다.
@@ -1647,6 +1681,7 @@ int RunEditorObjectCommandTests()
     TestDeletingIsRefusedWhenAValueRefusesToBeWritten();
     TestRemovingIsRefusedWhenAValueIsTooDeepToAddress();
     TestAListEditLandsOnOneArray();
+    TestAListEditMovesElementsThatHaveNoCodec();
     TestAListEditRespectsWhatTheElementIs();
     TestAListEditReachesEveryChosenTarget();
     TestChildOrderSurvivesEverything();
