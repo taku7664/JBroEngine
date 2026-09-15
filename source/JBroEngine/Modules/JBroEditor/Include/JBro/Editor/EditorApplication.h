@@ -53,6 +53,8 @@ namespace JBro
         const char* localizationDirectory = "Localization";
         const char* locale = "ko-KR";
         const char* fallbackLocale = "en-US";
+        // 아이콘 글꼴(D-96). 로컬라이징 표와 같이 실행 폴더 기준이다. 없으면 아이콘은 네모다.
+        const char* iconFontPath = "ThirdParty/FontAwesome/FontAwesome7-Free-Solid-900.otf";
         // 파일 대화상자를 대신하는 함수. 널이면 플랫폼의 대화상자를 연다. 테스트가 대화상자
         // 없이 저장 경로를 주는 자리다 - 네이티브 대화상자는 사람 없이 닫히지 않는다.
         bool (*fileDialog)(const FileDialogDesc& desc, String& outPath, void* user) = nullptr;

@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <JBro/Editor/EditorIcons.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Editor/Widget/Button.h>
@@ -172,10 +173,10 @@ namespace JBro::Widget
             ImGuiChildFlags_Borders | ImGuiChildFlags_AutoResizeY;
         ImGui::BeginChild("##list_body", ImVec2(0.0f, 0.0f), childFlags);
 
-        // 왼쪽 손잡이와 오른쪽 삭제 표시. **아이콘 글꼴이 아직 없어 글자로 쓴다** -
-        // 기존 엔진은 FontAwesome 글리프였다. 폭을 고정해 두는 것은 같다.
-        constexpr const char* RowHandleGlyph = "=";
-        constexpr const char* RowRemoveGlyph = "x";
+        // 왼쪽 손잡이와 오른쪽 삭제 표시. 기존 엔진과 같은 FontAwesome 글리프다(D-96).
+        // 글꼴이 없는 기계에서는 네모로 나온다. 폭은 고정이다.
+        constexpr const char* RowHandleGlyph = Icons::GripLines;
+        constexpr const char* RowRemoveGlyph = Icons::Xmark;
         constexpr float RowHandleWidth = 14.0f;
         constexpr float RowRemoveWidth = 22.0f;
         constexpr float SlotHeight = 3.0f;

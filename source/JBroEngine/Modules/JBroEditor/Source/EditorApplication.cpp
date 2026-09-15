@@ -1,5 +1,6 @@
 ﻿#include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/Command/ObjectCommands.h>
+#include <JBro/Editor/EditorTheme.h>
 #include <JBro/Editor/MessagePopup.h>
 
 #include <JBro/Editor/Localization.h>
@@ -58,6 +59,7 @@ namespace JBro
         {
             m_fileDialog = config.fileDialog;
             m_fileDialogUser = config.fileDialogUser;
+            EditorTheme::SetIconFontPath(config.iconFontPath);
             m_platform = MakeOwnerPtr<WindowsPlatform>();
             if (false == m_platform->Initialize(config.memory))
             {

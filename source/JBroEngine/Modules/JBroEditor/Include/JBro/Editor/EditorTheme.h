@@ -18,6 +18,11 @@ namespace JBro
         // 기본 글꼴에는 한글이 없다. 이 코드베이스의 주석도 화면에 나올 이름도
         // 한글이라, 글꼴이 없으면 네모가 늘어선다.
         bool ApplyFont();
+        // 아이콘 글꼴 파일의 경로(UTF-8). `ApplyFont` 가 본문 글꼴에 합친다. 널이면 합치지
+        // 않는다. `Apply` 보다 먼저 부른다.
+        void SetIconFontPath(const char* path);
+        // 아이콘 글꼴이 합쳐졌는가. 없는 기계에서는 거짓이고 아이콘은 네모다.
+        bool HasIconFont();
 
         // 셋 다.
         void Apply();

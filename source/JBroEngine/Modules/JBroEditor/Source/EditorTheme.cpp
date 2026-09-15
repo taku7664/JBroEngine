@@ -1,4 +1,5 @@
 ﻿#include <JBro/Editor/EditorTheme.h>
+#include <JBro/Editor/EditorIcons.h>
 
 #include <imgui.h>
 
@@ -101,6 +102,56 @@ namespace JBro::EditorTheme
         style.WindowMinSize = ImVec2(60.0f, 30.0f);
     }
 
+    namespace
+    {
+        const char* g_iconFontPath = nullptr;
+        bool g_hasIconFont = false;
+    }
+
+    void SetIconFontPath(const char* path)
+    {
+        g_iconFontPath = path;
+    }
+
+    bool HasIconFont()
+    {
+        return g_hasIconFont;
+    }
+
+    // 아이콘 글꼴을 본문 글꼴에 합친다(D-96). `MergeMode` 라 같은 `ImFont` 안에서 U+F000..F8FF
+    // 만 이 파일에서 온다. 파일이 없으면 합치지 않고 아이콘 자리에 네모가 나온다 - 그래도
+    // 에디터는 뜬다. 기존 엔진 `ImEditor` 의 같은 자리를 옮겼다.
+    void MergeIconFont()
+    {
+        g_hasIconFont = false;
+        if (g_iconFontPath == nullptr || *g_iconFontPath == '\0')
+        {
+            return;
+        }
+        // **파일이 있는지 먼저 본다.** ImGui 는 없는 파일을 열려 하면 단언으로 죽는다 -
+        // 아이콘 글꼴 하나 때문에 에디터가 뜨지 않으면 안 된다.
+        FILE* probe = nullptr;
+        if (fopen_s(&probe, g_iconFontPath, "rb") != 0 || probe == nullptr)
+        {
+            std::printf("note: icon font not found at %s; icons render as boxes\n", g_iconFontPath);
+            return;
+        }
+        std::fclose(probe);
+        ImGuiIO& io = ImGui::GetIO();
+        ImFontConfig config;
+        config.MergeMode = true;
+        config.PixelSnapH = true;
+        // 아이콘은 글자보다 조금 작게 그려야 줄 높이를 밀지 않는다.
+        config.GlyphMinAdvanceX = 13.0f;
+        static const ImWchar ranges[] = {Icons::RangeBegin, Icons::RangeEnd, 0};
+        if (io.Fonts->AddFontFromFileTTF(g_iconFontPath, 13.0f, &config, ranges) != nullptr)
+        {
+            g_hasIconFont = true;
+            return;
+        }
+        std::printf("note: icon font at %s could not be read; icons render as boxes\n", g_iconFontPath);
+    }
+
     bool ApplyFont()
     {
         ImGuiIO& io = ImGui::GetIO();
@@ -118,6 +169,7 @@ namespace JBro::EditorTheme
         if (io.Fonts->AddFontFromFileTTF(
                 "C:\\Windows\\Fonts\\malgun.ttf", 15.0f, &config) != nullptr)
         {
+            MergeIconFont();
             return true;
         }
 
@@ -125,6 +177,8 @@ namespace JBro::EditorTheme
         // 에디터는 뜬다. 여기서 멈추면 글꼴 하나 때문에 아무것도 못 본다.
         std::printf("note: malgun.ttf not found; the editor falls back to the "
             "built-in font and Korean text will not render\n");
+        io.Fonts->AddFontDefault();
+        MergeIconFont();
         return false;
     }
 
