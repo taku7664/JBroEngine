@@ -33,7 +33,10 @@ namespace JBro
                 }
                 if (path.depth >= SetPropertyCommand::MaxDepth)
                 {
-                    continue;
+                    // 길이 이 값을 담지 못한다. 처음에는 건너뛰었다 - 떼기는 성공하고
+                    // 되돌린 컴포넌트에서 이 값만 기본값이 됐다. 저장 파일은 깊이 제한 없이
+                    // 쓰므로 파일에는 있는 값이다.
+                    return false;
                 }
                 void* address = property.Address(owner);
                 if (address == nullptr)

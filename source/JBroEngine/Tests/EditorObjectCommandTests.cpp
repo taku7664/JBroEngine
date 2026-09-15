@@ -45,6 +45,41 @@ namespace
         float depth = 0.0f;
         Stubborn stubborn;
     };
+
+    // 길은 네 칸까지만 담는다(`SetPropertyCommand::MaxDepth`). 한 겹씩 싸서 넷째 칸과
+    // 다섯째 칸에 잎사귀를 둔다.
+    struct Den
+    {
+        float warmth = 0.0f;
+    };
+
+    struct Warren
+    {
+        Den den;
+    };
+
+    struct Tunnel
+    {
+        Warren warren;
+    };
+
+    struct Shaft
+    {
+        Tunnel tunnel;
+    };
+
+    template <auto Member, typename Owner>
+    const JBro::TypeDescriptor& SingleFieldStruct(const char* typeName)
+    {
+        static const JBro::FieldEntry entries[] =
+        {
+            JBro::MakeFieldEntry<Member>(),
+        };
+        static const JBro::StaticPropertyTable<1> fields { entries };
+        static const JBro::TypeDescriptor descriptor =
+            JBro::MakeStructTypeDescriptor<Owner>(typeName, fields.Get());
+        return descriptor;
+    }
 }
 
 namespace JBro
@@ -95,6 +130,42 @@ namespace JBro
             static const TypeDescriptor descriptor =
                 MakeStructTypeDescriptor<Burrow>("Test::Burrow", fields.Get());
             return descriptor;
+        }
+    };
+
+    template <>
+    struct TypeDescriptorOf<Den>
+    {
+        static const TypeDescriptor& Get()
+        {
+            return SingleFieldStruct<&Den::warmth, Den>("Test::Den");
+        }
+    };
+
+    template <>
+    struct TypeDescriptorOf<Warren>
+    {
+        static const TypeDescriptor& Get()
+        {
+            return SingleFieldStruct<&Warren::den, Warren>("Test::Warren");
+        }
+    };
+
+    template <>
+    struct TypeDescriptorOf<Tunnel>
+    {
+        static const TypeDescriptor& Get()
+        {
+            return SingleFieldStruct<&Tunnel::warren, Tunnel>("Test::Tunnel");
+        }
+    };
+
+    template <>
+    struct TypeDescriptorOf<Shaft>
+    {
+        static const TypeDescriptor& Get()
+        {
+            return SingleFieldStruct<&Shaft::tunnel, Shaft>("Test::Shaft");
         }
     };
 }
@@ -890,6 +961,44 @@ namespace
         JBRO_FIELD(Stubborn, stubborn);
     };
 
+    // 잎사귀가 넷째 칸에 있다. 길이 담을 수 있는 가장 깊은 자리다.
+    class Tunneled final : public JBro::ComponentBase
+    {
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "Test::Tunneled";
+        }
+
+        JBro::ComponentTypeId GetTypeId() const override
+        {
+            return JBro::MakeStableTypeId(StaticTypeName());
+        }
+
+        JBRO_REFLECT_BODY(Tunneled)
+
+        JBRO_FIELD(Tunnel, tunnel);
+    };
+
+    // 잎사귀가 다섯째 칸에 있다. 길이 담지 못한다.
+    class Shafted final : public JBro::ComponentBase
+    {
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "Test::Shafted";
+        }
+
+        JBro::ComponentTypeId GetTypeId() const override
+        {
+            return JBro::MakeStableTypeId(StaticTypeName());
+        }
+
+        JBRO_REFLECT_BODY(Shafted)
+
+        JBRO_FIELD(Shaft, shaft);
+    };
+
     // 원소 200개는 글자로 뜨면 512바이트를 한참 넘는다. 스냅샷은 잎사귀를 그 크기의
     // 고정 버퍼로 읽었다 - 컨테이너를 넣는 순간 잘리거나 빠진다.
     constexpr std::size_t SampleCount = 200;
@@ -1045,6 +1154,53 @@ namespace
         JBro::ComponentSnapshot deeper;
         Check(false == JBro::CaptureComponent(*burrowed, deeper),
             "a value that will not be written must fail the capture from inside a struct too");
+    }
+
+    // **길이 담지 못하는 깊이의 값이 있으면 떼지 않는다.** 처음에는 스냅샷이 다섯째 칸을
+    // 조용히 건너뛰었다 - 떼기는 성공했고, 되돌린 컴포넌트에서 그 값만 기본값이었다.
+    // 저장 파일은 깊이 제한 없이 쓰므로, 파일에는 남는 값이 되돌리기에서만 사라진다.
+    void TestRemovingIsRefusedWhenAValueIsTooDeepToAddress()
+    {
+        RegisterOnce();
+        JBro::RegisterBuiltinProperties<Tunneled>();
+        JBro::RegisterComponentType<Tunneled>();
+        JBro::RegisterBuiltinProperties<Shafted>();
+        JBro::RegisterComponentType<Shafted>();
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::EditorObjectRegistry ids;
+        JBro::EditorCommandManager commands;
+
+        JBro::GameObject* object = canvas.CreateObject("Holder");
+        const JBro::EditorObjectId id = ids.Track(object);
+
+        // 넷째 칸은 길이 담는다. 떼었다 되돌리면 값이 돌아와야 한다 - 경계를 한 칸
+        // 당겨서 막으면 여기서 드러난다.
+        auto* tunneled = canvas.AttachComponent<Tunneled>(object);
+        Check(tunneled != nullptr, "the tunneled component must attach");
+        tunneled->tunnel.warren.den.warmth = 7.5f;
+        Check(commands.Execute(JBro::MakeOwnerPtr<JBro::RemoveComponentCommand>(
+                canvas, ids, id, tunneled)),
+            "a value four steps down must not stop the removal");
+        canvas.FlushPendingDestroy();
+        Check(commands.Undo(), "undoing the removal must run");
+        const Tunneled* back = object->GetComponent<Tunneled>().Get();
+        Check(back != nullptr && NearlyEqual(back->tunnel.warren.den.warmth, 7.5f),
+            "and bring back the value four steps down");
+
+        // 다섯째 칸은 길이 담지 못한다. 떠 둘 수 없으니 떼지도 않는다.
+        auto* shafted = canvas.AttachComponent<Shafted>(object);
+        Check(shafted != nullptr, "the shafted component must attach");
+        shafted->shaft.tunnel.warren.den.warmth = 7.5f;
+        JBro::ComponentSnapshot snapshot;
+        Check(false == JBro::CaptureComponent(*shafted, snapshot),
+            "a value five steps down must not count as captured");
+        Check(false == commands.Execute(JBro::MakeOwnerPtr<JBro::RemoveComponentCommand>(
+                canvas, ids, id, shafted)),
+            "so the component holding it must not be removed");
+        canvas.FlushPendingDestroy();
+        Check(object->GetComponent<Shafted>().Get() == shafted
+                && NearlyEqual(shafted->shaft.tunnel.warren.den.warmth, 7.5f),
+            "and must still be there with its value");
     }
 
     // ── 목록 편집 ────────────────────────────────────────────────────────
@@ -1489,6 +1645,7 @@ int RunEditorObjectCommandTests()
     TestRemovingBringsBackContainers();
     TestAContainerIsOneEditableValue();
     TestDeletingIsRefusedWhenAValueRefusesToBeWritten();
+    TestRemovingIsRefusedWhenAValueIsTooDeepToAddress();
     TestAListEditLandsOnOneArray();
     TestAListEditRespectsWhatTheElementIs();
     TestAListEditReachesEveryChosenTarget();
