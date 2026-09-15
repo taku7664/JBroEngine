@@ -132,16 +132,31 @@ EditorApplication::Tick
   를 보고 필요할 때만 `RebuildScriptExecutionOrder()` 를 부른다(`Canvas.cpp:891`).
   Canvas 에는 더티 플래그 자체가 없다.
 
-- **A2. 스크립트 훅을 부르는 구간에 순회 가드가 없다.** (확신 높음, 실행 재현은 안 했다)
-  구 엔진은 훅 디스패치 루프를 `ScriptIterationGuard iterationGuard(*this);` 로 감싸고
-  "훅(유저 스크립트)이 스폰·Ref 해석으로 캐시를 재빌드하지 못하게 순회 잠금" 이라고
-  이유까지 적어 두었다(`Canvas.cpp:1510`). 새 트리에서 `IterationGuard` 가 서는 곳은
-  `Canvas::CollectScripts` 안뿐이고, 그 함수가 끝나면 풀린다. 그 뒤의
-  `OnCreate`·`OnStart`·`OnUpdate` 루프는 가드 없이 돈다.
-  `Canvas::DestroyObject` 는 순회 중이 아니면 즉시 파괴하므로(`Canvas.cpp:105`),
-  스크립트가 `OnUpdate` 안에서 자기나 형제를 지우면 `m_ordered` 에 담긴 raw
-  `GameScriptBase*` 가 해제된 메모리를 가리킨다. `ScriptSchedulingTests` 는 파괴를
-  **루프 바깥에서만** 하므로 이 자리를 재지 않는다.
+- **A2. 스크립트 훅을 부르는 구간에 순회 가드가 없었다.** **재현하고 고쳤다(2026-09-15).**
+  `ProjectRule.md` §8 은 "`Canvas` 가 순회 깊이 가드를 소유하고 `ForEach<T>` 와 **스크립트
+  실행 목록 순회**에 적용한다" 이다. 가드가 서던 자리를 전부 세어 보니 `ForEachObject`·
+  `ForEach<T>`·`CollectScripts` 셋이었고, 조항이 지목한 **스크립트 실행 목록 순회만 빠져
+  있었다.** 빠뜨린 정도가 아니라 채울 수 없는 상태였다 - `IterationGuard` 가 `Canvas` 의
+  private 이라 다른 모듈의 `ScriptSystem` 은 그것을 들 수조차 없었다.
+
+  **재현.** `ScriptSchedulingTests::TestDestroyingAnObjectFromAScriptHookIsDeferred` 다.
+  크래시로 재지 않았다 - 풀 슬롯 메모리는 파괴 뒤에도 남아 있어서 죽은 객체 위의 가상
+  호출이 그냥 통과하고, 그러면 "안 터졌으니 괜찮다" 는 반대 결론이 난다. 대신 파수병 값을
+  두고 파괴자가 지나간 뒤에 훅이 불렸는지를 직접 보았다. 고치기 전 결과는 다음과 같다.
+
+  ```
+  test failure: a script must never receive OnUpdate after its own destructor ran
+  ```
+
+  즉 **크래시가 아니라 조용히 도는 쪽**이었다. 기존 테스트는 파괴를 루프 바깥에서만 해서
+  이 자리를 재지 않았다.
+
+  **고친 방법.** `Canvas::IterationGuard` 를 공개로 옮기고(Canvas 는 Tier E 라 스크립트
+  타깃 include 경로에 없어 사용자에게는 여전히 안 보인다) `ScriptSystem` 의 훅 디스패치
+  루프 셋(`OnUpdate`·`OnFixedUpdate`·`OnShutdown`)을 그것으로 감쌌다. 흐름 정리 지점은
+  손대지 않았다 - `Framework2D` 가 고정 스텝마다와 시스템 갱신 뒤에 `FlushPendingDestroy`
+  를 이미 D-45 가 말한 자리에서 부르고 있었다. **빠진 것은 가드 하나뿐이었다.**
+  Debug·Release 양쪽 전체 테스트 통과.
 
 - **A3. 실행 순서 정렬 기준이 구 엔진과 다르다.** (확신 높음) `[열림]`
   구 엔진은 루트를 `(레이어 인덱스, creationOrder)` 로 정렬한 뒤 루트마다

@@ -224,6 +224,116 @@ namespace
 
         scripts.Shutdown(canvas);
     }
+
+    // ── 순회 중 파괴 (A2 재현) ────────────────────────────────────────────
+    //
+    // `ProjectRule.md` §8 은 "`Canvas` 가 순회 깊이 가드를 소유하고 `ForEach<T>` 와
+    // **스크립트 실행 목록 순회**에 적용한다" 이고, 순회 중 파괴는 지연 큐로 가야 한다(D-45).
+    //
+    // 크래시에 기대어 재지 않는다. 풀의 슬롯 메모리는 파괴 뒤에도 남아 있어서 죽은 객체
+    // 위에서 가상 함수를 불러도 그냥 도는 수가 있고, 그러면 "안 터졌으니 괜찮다" 는
+    // 잘못된 결론이 난다. 그래서 파수병 값을 두고 **파괴된 뒤에 불렸는지를 직접 본다**.
+    JBro::Canvas*    activeCanvas = nullptr;
+    JBro::GameObject* victimObject = nullptr;
+    bool victimRanWhileAlive = false;
+    bool victimRanAfterDestruction = false;
+
+    class VictimScript final : public JBro::GameScript2D
+    {
+    public:
+        static constexpr int AliveMark = 0x5A5A1234;
+        static constexpr const char* StaticTypeName()
+        {
+            return "Tests::VictimScript";
+        }
+
+        JBro::ComponentTypeId GetTypeId() const override
+        {
+            return JBro::MakeStableTypeId(StaticTypeName());
+        }
+
+        ~VictimScript() override
+        {
+            // 파괴자가 지나갔다는 표식이다. 슬롯은 재사용 전까지 이 값을 들고 있다.
+            m_liveMark = 0;
+        }
+
+        void OnUpdate(float deltaTime) override
+        {
+            (void)deltaTime;
+            if (m_liveMark == AliveMark)
+            {
+                victimRanWhileAlive = true;
+                return;
+            }
+            victimRanAfterDestruction = true;
+        }
+
+    private:
+        int m_liveMark = AliveMark;
+    };
+
+    class KillerScript final : public JBro::GameScript2D
+    {
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "Tests::KillerScript";
+        }
+
+        JBro::ComponentTypeId GetTypeId() const override
+        {
+            return JBro::MakeStableTypeId(StaticTypeName());
+        }
+
+        void OnUpdate(float deltaTime) override
+        {
+            (void)deltaTime;
+            if (activeCanvas == nullptr || victimObject == nullptr)
+            {
+                return;
+            }
+            // 사용자 스크립트가 흔히 하는 일이다 - 훅 안에서 다른 오브젝트를 지운다.
+            activeCanvas->DestroyObject(victimObject);
+            victimObject = nullptr;
+        }
+    };
+
+    void TestDestroyingAnObjectFromAScriptHookIsDeferred()
+    {
+        ResetLogs();
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::System::ScriptSystem scripts;
+        scripts.Initialize(canvas);
+
+        activeCanvas = &canvas;
+        victimRanWhileAlive = false;
+        victimRanAfterDestruction = false;
+
+        // 먼저 만든 것이 먼저 돈다(같은 레이어·같은 깊이면 InstanceId 순서다).
+        JBro::GameObject* killer = canvas.CreateObject("killer");
+        JBro::GameObject* victim = canvas.CreateObject("victim");
+        victimObject = victim;
+        canvas.AttachComponent<KillerScript>(killer);
+        canvas.AttachComponent<VictimScript>(victim);
+
+        scripts.Update(canvas, 0.016f);
+
+        Check(false == victimRanAfterDestruction,
+            "a script must never receive OnUpdate after its own destructor ran");
+        Check(victimRanWhileAlive,
+            "a destroy requested inside a script hook must be deferred to a safe point");
+
+        canvas.FlushPendingDestroy();
+        victimRanWhileAlive = false;
+        scripts.Update(canvas, 0.016f);
+        Check(false == victimRanWhileAlive && false == victimRanAfterDestruction,
+            "the deferred destroy must take effect before the next frame");
+
+        activeCanvas = nullptr;
+        victimObject = nullptr;
+        scripts.Shutdown(canvas);
+    }
 }
 
 int RunScriptSchedulingTests()
@@ -232,6 +342,7 @@ int RunScriptSchedulingTests()
     TestStartHappensOnceAndBeforeTheSameFrameUpdate();
     TestFixedStepsReuseTheOrderAndSkipUnstartedScripts();
     TestDisabledAndDestroyedScriptsLeaveTheSchedule();
+    TestDestroyingAnObjectFromAScriptHookIsDeferred();
     std::cout << "Script scheduling tests passed.\n";
     return 0;
 }

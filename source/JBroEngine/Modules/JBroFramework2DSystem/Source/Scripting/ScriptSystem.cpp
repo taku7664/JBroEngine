@@ -112,6 +112,13 @@ namespace JBro::System
         Rebuild(canvas);
         m_lastUpdateCount = 0;
 
+        // **훅을 부르는 동안 순회를 잠근다**(ProjectRule §8, D-45). 스크립트가 훅 안에서
+        // 오브젝트를 지우면 그 파괴는 큐로 가고, `Framework2D::Update` 가 시스템 갱신을
+        // 마친 뒤 안전 지점에서 흘린다. 잠그지 않으면 `Canvas::DestroyObject` 가 그 자리에서
+        // 파괴하고, `m_ordered` 에 남은 포인터가 파괴자가 지나간 객체를 가리킨다 -
+        // 풀 슬롯이 남아 있어 크래시 없이 조용히 돈다.
+        Canvas::IterationGuard guard(canvas);
+
         // 아직 시작하지 않은 것부터 OnCreate·OnStart 를 받는다. 같은 프레임 안에서
         // 그 뒤에 OnUpdate 가 온다 — 시작 훅이 한 프레임 늦게 보이면 안 된다.
         for (ScriptEntry& entry : m_ordered)
@@ -137,7 +144,7 @@ namespace JBro::System
     {
         // 고정 스텝은 이미 세워 둔 순서를 그대로 쓴다. 여기서 목록을 다시 세우면
         // 한 프레임 안의 스텝마다 순서가 흔들린다.
-        (void)canvas;
+        Canvas::IterationGuard guard(canvas);
         for (const ScriptEntry& entry : m_ordered)
         {
             if (entry.started)
@@ -151,13 +158,19 @@ namespace JBro::System
     {
         // 살아 있는 동안 시작된 것만 OnDestroy 를 받는다. 이미 파괴된 것은 목록에 없다.
         Rebuild(canvas);
-        for (const ScriptEntry& entry : m_ordered)
         {
-            if (entry.started)
+            Canvas::IterationGuard guard(canvas);
+            for (const ScriptEntry& entry : m_ordered)
             {
-                entry.script->OnDestroy();
+                if (entry.started)
+                {
+                    entry.script->OnDestroy();
+                }
             }
         }
+        // 가드가 풀린 뒤 한 번 흘린다. `OnDestroy` 안에서 무언가를 더 지웠다면 그 요청이
+        // 큐에 남아 있고, 여기서 비우지 않으면 아무도 비우지 않는다.
+        canvas.FlushPendingDestroy();
         m_collected.Clear();
         m_ordered.Clear();
         m_started.Clear();

@@ -87,6 +87,36 @@ namespace JBro
         // 결과는 정렬되지 않은 채로 나온다. 실행 순서를 세우는 것은 부르는 쪽의 일이다.
         void CollectScripts(Array<GameScriptBase*>& results);
 
+        // 순회 깊이를 세는 가드. live 배열이 순회 중에 흔들리면 바깥 순회가 무효화되므로,
+        // 깊이가 0 이 아닌 동안의 파괴 요청은 큐로 간다(§8, 구 엔진 ScriptIterationGuard).
+        //
+        // **공개인 이유**: §8 은 이 가드를 `ForEach<T>` 뿐 아니라 **스크립트 실행 목록
+        // 순회**에도 적용하라고 한다. 그 순회는 `System::ScriptSystem` 에 있어 Canvas 밖이다.
+        // private 으로 두었을 때 그 자리가 맨몸으로 돌았고, 스크립트가 훅 안에서 오브젝트를
+        // 지우면 파괴자가 지나간 객체 위에서 다음 훅이 불렸다. Canvas 는 Tier E 라
+        // 스크립트 타깃의 include 경로에 없으므로 사용자에게는 이 이름이 보이지 않는다.
+        class IterationGuard final
+        {
+        public:
+            explicit IterationGuard(Canvas& canvas)
+                : m_canvas(canvas)
+            {
+                ++m_canvas.m_iterationDepth;
+            }
+
+            ~IterationGuard()
+            {
+                --m_canvas.m_iterationDepth;
+            }
+
+            IterationGuard(const IterationGuard&)            = delete;
+            IterationGuard& operator=(const IterationGuard&) = delete;
+
+        private:
+            Canvas& m_canvas;
+        };
+
+
     private:
         struct IComponentBucket
         {
@@ -143,29 +173,6 @@ namespace JBro
         // m_layers 의 순서가 바뀌는 모든 지점에서 부른다. 레이어의 순서 캐시를 갱신하는
         // 유일한 주체다(D-46).
         void ReindexLayers();
-
-        // 순회 깊이를 세는 가드. live 배열이 순회 중에 흔들리면 바깥 순회가 무효화되므로,
-        // 깊이가 0 이 아닌 동안의 파괴 요청은 큐로 간다(§8, 구 엔진 ScriptIterationGuard).
-        class IterationGuard final
-        {
-        public:
-            explicit IterationGuard(Canvas& canvas)
-                : m_canvas(canvas)
-            {
-                ++m_canvas.m_iterationDepth;
-            }
-
-            ~IterationGuard()
-            {
-                --m_canvas.m_iterationDepth;
-            }
-
-            IterationGuard(const IterationGuard&)            = delete;
-            IterationGuard& operator=(const IterationGuard&) = delete;
-
-        private:
-            Canvas& m_canvas;
-        };
 
         bool DestroyObjectNow(GameObject* object);
         bool DestroyComponentNow(ComponentBase* component);
