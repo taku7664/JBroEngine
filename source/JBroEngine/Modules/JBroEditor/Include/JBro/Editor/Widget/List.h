@@ -7,6 +7,9 @@
 
 #include <JBro/Types/Array.h>
 
+// 행 상태를 옮기는 데 창의 상태 저장소와 Id 해시가 필요하다.
+#include <imgui_internal.h>
+
 #include <cstdio>
 #include <type_traits>
 #include <utility>
@@ -30,6 +33,86 @@ namespace JBro::Widget
     struct NoAddRow
     {
     };
+
+    // **행에 붙은 상태는 원소를 따라간다**(D-89). 접기 마디의 펼침과 행 높이는 ImGui 창 상태
+    // 저장소에 행 번호 아래의 Id 로 쌓인다. 원소를 옮기거나 지우면 번호가 밀리므로 상태도
+    // 같이 옮겨야 한다 - 처음에는 펼친 원소를 끌어 옮기면 펼침이 옛 자리에 남았다.
+    //
+    // 목록 몸통 안(콜백이 불리는 자리)에서 부른다. `label` 은 행 번호 아래에서 그 상태를 만든
+    // 항목의 이름이다. 목록 위젯은 제 행 높이를 스스로 옮기고, 행 안에 마디를 그린 쪽은
+    // 제 마디 이름으로 이것을 부른다.
+    namespace Detail
+    {
+        template <typename TGet, typename TSet>
+        void CarryRowState(const char* label, int from, int to, TGet&& get, TSet&& set)
+        {
+            ImGuiWindow* window = ImGui::GetCurrentWindow();
+            const auto keyOf = [&](int row) {
+                return ImHashStr(label, 0, ImHashData(&row, sizeof(row), window->ID));
+            };
+            if (from == to)
+            {
+                return;
+            }
+            const auto moved = get(keyOf(from));
+            const int step = from < to ? 1 : -1;
+            for (int at = from; at != to; at += step)
+            {
+                set(keyOf(at), get(keyOf(at + step)));
+            }
+            set(keyOf(to), moved);
+        }
+
+        template <typename TGet, typename TSet, typename TValue>
+        void DropRowState(
+            const char* label, int index, int count, TValue cleared, TGet&& get, TSet&& set)
+        {
+            ImGuiWindow* window = ImGui::GetCurrentWindow();
+            const auto keyOf = [&](int row) {
+                return ImHashStr(label, 0, ImHashData(&row, sizeof(row), window->ID));
+            };
+            for (int at = index; at + 1 < count; ++at)
+            {
+                set(keyOf(at), get(keyOf(at + 1)));
+            }
+            if (index < count)
+            {
+                set(keyOf(count - 1), cleared);
+            }
+        }
+    }
+
+    inline void CarryRowInt(const char* label, int from, int to)
+    {
+        ImGuiStorage* storage = ImGui::GetStateStorage();
+        Detail::CarryRowState(label, from, to,
+            [&](ImGuiID key) { return storage->GetInt(key, 0); },
+            [&](ImGuiID key, int value) { storage->SetInt(key, value); });
+    }
+
+    inline void DropRowInt(const char* label, int index, int count)
+    {
+        ImGuiStorage* storage = ImGui::GetStateStorage();
+        Detail::DropRowState(label, index, count, 0,
+            [&](ImGuiID key) { return storage->GetInt(key, 0); },
+            [&](ImGuiID key, int value) { storage->SetInt(key, value); });
+    }
+
+    inline void CarryRowFloat(const char* label, int from, int to, float fallback)
+    {
+        ImGuiStorage* storage = ImGui::GetStateStorage();
+        Detail::CarryRowState(label, from, to,
+            [&](ImGuiID key) { return storage->GetFloat(key, fallback); },
+            [&](ImGuiID key, float value) { storage->SetFloat(key, value); });
+    }
+
+    inline void DropRowFloat(const char* label, int index, int count, float fallback)
+    {
+        ImGuiStorage* storage = ImGui::GetStateStorage();
+        Detail::DropRowState(label, index, count, fallback,
+            [&](ImGuiID key) { return storage->GetFloat(key, fallback); },
+            [&](ImGuiID key, float value) { storage->SetFloat(key, value); });
+    }
 
     // **저장소를 모르는 목록이다**(ProjectRule §11.1).
     //
@@ -252,6 +335,9 @@ namespace JBro::Widget
 
         if (removeIndex >= 0)
         {
+            // 행 높이는 지운 원소 뒤의 행들이 한 칸 올라오므로 함께 올린다. 마디의 펼침은
+            // 그린 쪽이 `DropRowInt` 로 올린다.
+            DropRowFloat("##row_height", removeIndex, count, ImGui::GetFrameHeight());
             removeElement(removeIndex);
             changed = true;
         }
@@ -266,6 +352,7 @@ namespace JBro::Widget
             {
                 --target;
             }
+            CarryRowFloat("##row_height", moveFrom, target, ImGui::GetFrameHeight());
             moveElement(moveFrom, target);
             changed = true;
         }

@@ -526,6 +526,12 @@ namespace JBro
         // 그 편집을 다시 적용해 커맨드로 묶는다 - 쓰는 길이 하나로 남는다(D-71).
         // 처음에는 전부 배열에 곧장 써서 되돌릴 수 없었고, 여럿 골라도 주된 것만 바뀌었다.
         Array<ListEdit> edits;
+        // 필드를 가진 원소는 접기 마디로 그려지고(D-89), 마디의 펼침은 행 번호에 붙어 있다.
+        // 원소를 옮기거나 지우면 펼침도 따라가야 한다 - 마디 이름이 그 상태의 열쇠다.
+        const char* nodeName = NeedsDescent(*element)
+            ? DisplayTypeName(NameTable::Get().Resolve(element->typeName))
+            : nullptr;
+        const int count = static_cast<int>(ops.GetSize(address));
         std::uint32_t flags = Widget::ListFlagsShowIndex;
         if (false == editable)
         {
@@ -534,7 +540,7 @@ namespace JBro
 
         Widget::ListVirtual(
             "##array",
-            static_cast<int>(ops.GetSize(address)),
+            count,
             [&](int index) -> bool {
                 void* item = ops.GetElement(address, static_cast<std::size_t>(index));
                 if (item == nullptr)
@@ -557,12 +563,20 @@ namespace JBro
                 edits.Add(std::move(edit));
             },
             [&](int index) {
+                if (nodeName != nullptr)
+                {
+                    Widget::DropRowInt(nodeName, index, count);
+                }
                 ListEdit edit;
                 edit.kind = ListEdit::Kind::Remove;
                 edit.index = static_cast<std::uint32_t>(index);
                 edits.Add(std::move(edit));
             },
             [&](int fromIndex, int toIndex) {
+                if (nodeName != nullptr)
+                {
+                    Widget::CarryRowInt(nodeName, fromIndex, toIndex);
+                }
                 ListEdit edit;
                 edit.kind = ListEdit::Kind::Move;
                 edit.index = static_cast<std::uint32_t>(fromIndex);
