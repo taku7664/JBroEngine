@@ -60,7 +60,7 @@
 | Node | 시스템 24.14.1 | Code-OSS 1.137.0 의 `.nvmrc` 는 24.18.0 이고, `preinstall` 이 부버전까지 검사한다. 스파이크는 휴대용 24.18.0 을 F: 에 두고 쓴다 |
 | npm / yarn | 11.11.0 / 1.22.22 | Code-OSS 는 npm 을 쓰고, npm 13 이상과 yarn 은 `preinstall` 이 거절한다 |
 | Python | 3.14.6 | node-gyp 가 쓴다 |
-| Visual Studio | 2026 Community(18.9), MSVC 14.51 | node-gyp 12.3.0 은 인식한다. **Spectre 완화 라이브러리가 없다**(§4.2) |
+| Visual Studio | 2026 Community(18.9), MSVC 14.51 | node-gyp 12.3.0 은 인식한다. Spectre 완화 라이브러리는 스파이크 중에 추가했다. SDK 10.0.26100.0 은 헤더가 빠져 있다(§4.2) |
 | clang-cl | 시스템에 없다 | 스파이크는 LLVM 23.1.1 의 `clang-cl` 만 F: 에 풀어 썼다 |
 | C: 여유 공간 | **10.4 GB** | Code-OSS 소스·`node_modules`·빌드 산출물을 담기에 부족하다고 판단한다(추정) |
 | F: 여유 공간 | 80.5 GB | 포크 리포와 npm·Electron 캐시를 F: 에 둔다(§2). node-gyp 캐시는 옮기지 않는다(§4.2) |
@@ -122,20 +122,29 @@ Core 공개 헤더를 고치는 일이고 방향을 바꾸는 판단은 아니�
 - **node-gyp 는 VS 2026 을 인식한다.** 의존성 빌드는 npm 에 딸린 node-gyp 12.3.0 이 하고,
   `find VS using VS2026 (18.9.12128.139)` 로 찾았다.
 - **Spectre 완화 라이브러리가 필요하다.** `npm ci` 가 170초 뒤 `@vscode/deviceid` 빌드에서
-  `MSB8040`(스펙터 완화된 라이브러리가 필요합니다)으로 멈췄다. 이 기계의 MSVC 14.51 에는
-  `lib\spectre\x64` 가 없다. **VS 설치 관리자의 개별 구성 요소에서 추가해야 한다.**
-  실패한 `npm ci` 는 `node_modules` 를 지워서, 전체 디스크 사용량은 설치가 성공한 뒤에 잰다.
-
-**소스로 확인한 것**(실행은 Spectre 설치 뒤):
-
-- **`preinstall` 의 VS 검사가 VS 2026 경로를 모른다.** `build/npm/preinstall.ts` 는
-  `Microsoft Visual Studio\2022` 와 `\2019` 만 찾는다. VS 2026 은 `\18` 에 설치되므로 검사에서
-  떨어질 것이다. 같은 파일이 `vs2022_install` 환경 변수로 경로를 넘기는 길을 열어 두었으므로
-  `vs2022_install=C:\Program Files\Microsoft Visual Studio\18\Community` 로 우회한다.
-  (이번 실행에서는 의존성 빌드가 먼저 실패해 이 검사까지 가지 않았다.)
-- **node-gyp 캐시는 `%LOCALAPPDATA%` 에 둔다.** `preinstall.ts` 가 Electron 헤더 위에 덮어쓸 헤더를
+  `MSB8040`(스펙터 완화된 라이브러리가 필요합니다)으로 멈췄다. VS 설치 관리자의 개별 구성 요소에서
+  **"x64/x86용 C++ Spectre 완화 라이브러리(최신 MSVC)"**
+  (`Microsoft.VisualStudio.Component.VC.Runtimes.x86.x64.Spectre`)를 추가해야 한다.
+  이름이 비슷한 ATL·MFC ARM64 용 Spectre 구성 요소를 먼저 잘못 설치했고, 그것으로는 해결되지 않았다.
+  설치 뒤 `MSVC\14.51.36231\lib\spectre\x64` 가 생겼는지로 확인한다.
+- **Windows SDK 10.0.26100.0 이 헤더가 빠진 채 설치되어 있다.** Spectre 를 넣은 뒤 `npm ci` 가
+  `@vscode/native-watchdog` 에서 `C1083: 'specstrings_strict.h'` 로 멈췄다. 26100 의 `shared` 헤더는
+  253개이고 22621 은 266개이며, 그 파일은 22621 에만 있다. node-gyp 는 VS 에 등록된 SDK 중 **가장 새 것**을
+  고르므로 26100 을 쓴다. 엔진은 `WindowsTargetPlatformVersion` 을 22621 로 고정해서 이 문제를 겪지 않았다.
+  **우회**: `vcvars64.bat 10.0.22621.0` 으로 만든 개발자 환경에서 `npm ci` 를 돌린다. node-gyp 는
+  `VCINSTALLDIR`·`VSCMD_VER` 가 있으면 그 환경의 `WindowsSDKVersion` 을 쓴다(`find-visualstudio.js`).
+  근본 해결은 SDK 26100 을 복구하거나 지우는 것이며, 이 기계의 설치 상태 문제라 다른 기계에서는 겪지 않을 수 있다.
+- **`preinstall` 의 VS 검사가 VS 2026 경로를 모른다(실행으로 확인).** `build/npm/preinstall.ts` 는
+  `Microsoft Visual Studio\2022` 와 `\2019` 만 찾고, 우회 없이 돌리면 "Invalid C/C++ Compiler Toolchain" 으로
+  멈춘다. `vs2022_install=C:\Program Files\Microsoft Visual Studio\18\Community` 로 넘긴다.
+- **세 우회를 모두 넣은 `npm ci` 가 성공했다: 850초.** `vscode` 폴더 7.1 GB, npm·Electron 캐시 1.0 GB,
+  스파이크 전체 9.0 GB(휴대용 Node·LLVM 포함). C: 에는 node-gyp 캐시 180 MB 가 생겼다.
+- **node-gyp 캐시는 `%LOCALAPPDATA%` 에 둔다(소스로 확인).** `preinstall.ts` 가 Electron 헤더 위에 덮어쓸 헤더를
   `%LOCALAPPDATA%\node-gyp\Cache` 라는 **고정 경로**에서 찾는다. 캐시를 F: 로 옮기면 그 덮어쓰기가
-  에러 없이 건너뛰어진다. C: 사용량은 62 MB 다.
+  에러 없이 건너뛰어진다.
+
+**포크 빌드 스크립트가 알아야 하는 것**: 위 우회 중 Spectre 와 `vs2022_install` 은 VS 2026 을 쓰는
+모든 기계에 필요하다. SDK 지정은 기계에 따라 다르지만, 엔진과 같은 22621 로 고정해 두면 해가 없다.
 
 ---
 
@@ -221,16 +230,30 @@ YAML 색칠(`.jproject`·`.jcanvas`)도 Code-OSS 가 기본으로 들고 있다.
 
 - **원문은 영어로 쓰고, 기본 표시는 한국어로 한다.** VS Code 확장은 기본 파일(`package.nls.json`)이
   곧 폴백이므로 영어를 거기에 둔다. D-80 에서 `TextOr` 가 영어를 들고 있는 것과 같은 모양이다.
-- **처음 실행할 때 한국어로 연다. 이것은 코어 패치가 필요하다**(1.137.0 소스로 확인, 실행은 아직).
-  `src/main.ts` 가 화면 언어를 고르는 순서는 ① `--locale` 인자 ② 사용자 데이터 폴더 `argv.json` 의
-  `locale` ③ OS 언어 ④ 영어다. `argv.json` 이 없을 때 새로 만드는 기본 내용은 `product.json` 이 아니라
-  `createDefaultArgvConfigSync` 안에 **코드로 적혀 있다**(`main.ts:422`). 그러므로 OS 언어와 무관하게
-  한국어로 열려면 그 기본 내용에 `"locale": "ko"` 를 넣는 패치가 필요하다. 화면에 새 글자를 만들지 않는
-  패치라 아래 원칙과 부딪히지 않는다. 한국어 Windows 라면 패치 없이도 ③ 에서 한국어가 된다.
-- **내장 언어 팩이 첫 실행부터 먹는지는 모른다.** 번역 파일 위치는 사용자 데이터 폴더의
-  `languagepacks.json` 이 알려 주는데, 이 파일은 공유 프로세스가 뜬 뒤 설치된 확장을 훑어서 쓴다
-  (`localizationsUpdater.ts`). 화면 언어는 그보다 먼저 정해지므로 **첫 실행만 영어로 뜰 수 있다.**
-  실행해서 확인한다(P0). 그렇다면 빌드가 `languagepacks.json` 을 미리 만들어 두거나 코어 패치가 하나 더 필요하다.
+- **처음 실행할 때 한국어로 연다. 이것은 코어 패치가 필요하다**(1.137.0 소스로 확인).
+  `src/main.ts` 가 화면 언어를 고르는 순서는 ① `--locale` 인자 ② `argv.json` 의 `locale`
+  ③ OS 언어 ④ 영어다. `argv.json` 은 **사용자 데이터 폴더가 아니라 홈 폴더**의
+  `~/<dataFolderName>/argv.json` 에 있다(개발 실행이면 `-dev` 가 붙는다). `--user-data-dir` 를 바꿔도
+  같은 파일을 쓰는 것을 실행으로 확인했다. 이 파일이 없을 때 새로 만드는 기본 내용은 `product.json` 이
+  아니라 `createDefaultArgvConfigSync` 안에 **코드로 적혀 있다**(`main.ts:422`). 그러므로 OS 언어와
+  무관하게 한국어로 열려면 그 기본 내용에 `"locale": "ko"` 를 넣는 패치가 필요하다. 화면에 새 글자를
+  만들지 않는 패치라 아래 원칙과 부딪히지 않는다. 한국어 Windows 라면 패치 없이도 ③ 에서 한국어가 된다.
+  씬 에디터와 언어 설정을 공유할 때(위) JBro 확장이 고쳐 쓸 대상도 이 파일이며, 바꾼 뒤에는 재시작이 필요하다.
+- **내장 언어 팩은 첫 실행에 먹지 않을 가능성이 높다**(소스 + 실행 일부, 확신 약 80%).
+  - **실행으로 확인한 것**: 언어 팩을 `extensions/` 에 내장 확장처럼 넣고 새 사용자 데이터 폴더로 띄우면,
+    확장은 보이고(`vscode.extensions.getExtension` 이 찾는다) 사용자 데이터 폴더의 `languagepacks.json` 은
+    **실행 도중에** `ko` 로 채워진다. 즉 내장 확장도 언어 팩으로 등록되지만, 그 파일은 실행 전에는 없다.
+  - **소스로 확인한 것**: 화면 언어를 정하는 `resolveNLSConfiguration`(`src/vs/base/node/nls.ts`)은 창을
+    열기 전에 `languagepacks.json` 을 읽고, 없으면 영어로 간다. 파일을 채우는 쪽은 그 뒤에 뜨는 공유
+    프로세스다(`localizationsUpdater.ts`). 그러므로 **설치 직후 첫 실행은 영어, 두 번째부터 한국어**가 된다.
+  - **실행으로 끝까지 재지 못한 이유**: 같은 함수가 `VSCODE_DEV` 가 켜져 있거나 `product.commit` 이 없으면
+    언어 팩을 **무조건 무시한다**(`nls.ts:45-52`). 개발 실행은 둘 다 해당해서, 두 번째 실행도 영어였다.
+    실제 확인은 릴리스 빌드(포크 빌드 단계)에서 한다.
+  - **대비책**: 설치 프로그램이나 첫 실행 전 단계가 `languagepacks.json` 을 미리 만들어 두거나, 없을 때
+    내장 확장을 훑는 코어 패치를 하나 더 둔다. 앞의 것이 코어를 건드리지 않는다.
+- **Open VSX 의 한국어 팩은 upstream 보다 늦다.** 2026-09-15 기준 최신이 1.131.0(2026-07-28)이고
+  Code-OSS 는 1.137.0 이다. 원본 리포 `microsoft/vscode-loc` 의 `main` 도 1.131.0 이다. 여섯 판 사이에 생긴
+  글자는 영어로 나온다. 라이선스는 MIT(`LICENSE.md`)로 확인했다. VSIX 는 636 KB, 번역 묶음 94개다.
 - **코어 패치는 새 글자를 만들지 않는 것을 원칙으로 한다.** 언어 팩은 upstream 의 글자만 번역하므로,
   패치가 더한 글자는 어느 팩에도 없어 영어로 나온다. 피할 수 없으면 한국어 팩을 JBro 쪽에서 고쳐 싣는데,
   그러면 유지할 대상이 하나 더 는다. UI 를 **지우는** 패치는 이 문제가 없다.
@@ -257,14 +280,14 @@ YAML 색칠(`.jproject`·`.jcanvas`)도 Code-OSS 가 기본으로 들고 있다.
 
 | 항목 | 상태 (2026-09-15) |
 |---|---|
-| upstream Code-OSS 를 **수정 없이** 빌드하고 `scripts\code.bat` 로 띄운다. 디스크 사용량과 시간을 적는다 | **막힘.** 클론은 끝났고 `npm ci` 가 Spectre 완화 라이브러리가 없어 멈췄다(§4.2) |
-| node-gyp 와 VS 2026 의 조합 | **실측 완료.** 인식한다. `preinstall` 검사는 `vs2022_install` 로 우회해야 한다(소스로 확인) |
+| upstream Code-OSS 를 **수정 없이** 빌드하고 `scripts\code.bat` 로 띄운다. 디스크 사용량과 시간을 적는다 | **실측 완료.** 우회 셋(§4.2)을 넣고 `npm ci` 850초, 컴파일(`preLaunch`) 367초에 TypeScript 에러 0개. 창이 `Code - OSS Dev` 로 뜨고 렌더러 에러가 없다. 디스크 9.0 GB |
+| node-gyp 와 VS 2026 의 조합 | **실측 완료.** 인식한다. `preinstall` 검사는 `vs2022_install` 없이 실패하는 것을 실행으로 확인했다. SDK 26100 결함은 이 기계의 문제다 |
 | §4.1 `__FUNCSIG__` | **실측 완료. 깨진다** |
 | `$msCompile` 문제 매처가 코어에 있는가 | **소스로 확인했다. 있다**(`src/vs/workbench/contrib/tasks/common/problemMatcher.ts:1945`). 생성 C++ 의 MSVC 에러는 `#line` 덕분에 `.jscript` 줄을 가리키므로(jbroscript-plan §5.2), `jbroc` 진단이 서기 전에도 빌드 에러를 문제 패널에서 받을 수 있다 |
-| OS 언어와 무관하게 한국어로 뜨는 방법 | **소스로 확인했다. 코어 패치 한 줄이 필요하다**(§5.5). 내장 언어 팩이 첫 실행부터 먹는지와 `--locale=en` 복귀는 빌드가 서야 잰다 |
+| OS 언어와 무관하게 한국어로 뜨는 방법 | **소스로 확인했다. 코어 패치 한 줄이 필요하다**(§5.5). 내장 언어 팩은 첫 실행에 먹지 않을 가능성이 높다. **개발 실행은 언어 팩을 무조건 무시해서 끝까지 잴 수 없었고, 포크 빌드 단계로 넘긴다** |
 
-**완료 조건**: 다섯 결과가 이 문서의 §3·§4·§5.5 에 실측으로 기록되어 있다. 소스로만 확인한 것은
-실측이 아니므로 빌드가 선 뒤 실행으로 한 번 더 본다.
+**완료 조건**: 다섯 결과가 이 문서의 §3·§4·§5.5 에 기록되어 있다. **넷은 실측, 하나(언어 팩의 실제 적용)는
+개발 실행의 한계로 포크 빌드 단계에 넘겼다(2026-09-15).** P0 는 이것으로 닫는다.
 
 ### P1. 문법 강조 확장 (`jbro-languages`)
 
@@ -324,8 +347,12 @@ jbroscript-plan §18.7 을 따른다. 그때까지는 Visual Studio 로 한다.
 - 편집기 리포(`JBroScriptEditor`)를 F: 에 만들고 §5.2 의 세 층을 적용한다.
 - 빌드 스크립트: upstream 태그를 받아 패치를 차례대로 적용하고, `extensions/jbro-*` 를 소스 트리에 복사한 뒤 빌드한다.
 - `product.json` 에서 확장 갤러리를 비운다(§5.3).
-- 한국어 언어 팩을 내장 확장으로 싣고, 처음 실행 때 한국어로 열리게 한다(§5.5). 언어 팩의 라이선스는
-  MIT 로 알고 있으나 재배포 전에 확인한다.
+- 한국어 언어 팩을 내장 확장으로 싣고, 처음 실행 때 한국어로 열리게 한다(§5.5). 언어 팩 라이선스는
+  MIT 로 확인했다. **릴리스 빌드에서 설치 직후 첫 실행이 한국어인지, `--locale=en` 으로 영어로 돌아오는지를
+  이 단계에서 잰다.** 개발 실행으로는 잴 수 없었다.
+- 홈 폴더에 생기는 폴더도 공존 검사에 넣는다. 개발 실행 한 번에 `~/.vscode-oss-dev`(`argv.json`)와
+  `~/.vscode-oss-shared`(공유 저장소)가 `--user-data-dir` 와 무관하게 생겼다. 이름이 `dataFolderName`
+  에서 나오므로 `.jbro-script-editor` 로 바꾸면 VS Code 와 겹치지 않는지 설치본에서 확인한다.
 - 설치본(user setup)을 만든다.
 
 **완료 조건**: VS Code 가 설치된 기계에 나란히 설치해도 설정 폴더·레지스트리·파일 연결·단일 인스턴스
