@@ -1032,7 +1032,8 @@ EditorApplication::Tick
   D-88 에서 풀었다.
 
 - **D-87. 스크립트 편집기는 Code-OSS 포크 "JBro Script Editor" 이고 `.jscript` 만 다룬다.**
-  **아직 아무것도 만들지 않았다.** 계획·근거·단계는 [tasks/ide-plan.md](./ide-plan.md) 에 있다.
+  계획·근거·단계는 [tasks/ide-plan.md](./ide-plan.md) 에 있다. **2026-09-15 에 P0 스파이크를 닫았고 P1(문법 강조
+  확장)이 편집기 리포 `F:\Project\JBroScriptEditor` 에 섰다.** 포크 빌드는 아직 없다.
   D-60 의 "코드 에디터는 Code-OSS" 를 구체화한다. C++(빌트인 컴포넌트와 C++ 스크립트 경로)은
   Visual Studio 에서 편집하므로 C++ 언어 서비스는 넣지 않는다. C++ 스크립트 경로는 D-56 대로 남는다.
   **JBro 기능은 전부 내장 확장으로 만든다.** 코어 패치는 하되 제품 모양(기본 UI·배치·메뉴)에만
