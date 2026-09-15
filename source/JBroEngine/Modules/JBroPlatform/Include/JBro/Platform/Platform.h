@@ -2,6 +2,7 @@
 
 #include <JBro/Core/Core.h>
 #include <JBro/Platform/Input.h>
+#include <JBro/Types/String.h>
 
 namespace JBro
 {
@@ -37,6 +38,19 @@ namespace JBro
         bool minimized = false;
     };
 
+    // 파일 대화상자 하나. 글자는 전부 UTF-8 이고 널이면 비운 것으로 본다.
+    struct FileDialogDesc
+    {
+        const char* title = nullptr;
+        // 한 종류만 받는다 - "JBro 캔버스" + "*.jcanvas". 필터 이름이 널이면 종류를 걸지 않는다.
+        const char* filterName = nullptr;
+        const char* filterPattern = nullptr;
+        const char* defaultFileName = nullptr;
+        const char* initialDirectory = nullptr;
+        // 참이면 저장 대화상자(덮어쓰기 확인), 거짓이면 열기 대화상자(있는 파일만).
+        bool save = false;
+    };
+
     class IPlatform : public IModule
     {
     public:
@@ -57,5 +71,15 @@ namespace JBro
         virtual DynamicLibrary LoadDynamicLibrary(const char* utf8Path) = 0;
         virtual void* GetSymbol(DynamicLibrary library, const char* name) = 0;
         virtual void UnloadDynamicLibrary(DynamicLibrary library) = 0;
+        // **막힌다.** 사용자가 고르거나 취소할 때까지 돌아오지 않는다. 프레임 밖에서 부른다.
+        // 고르면 참이고 `outPath` 에 UTF-8 경로가 온다. 취소하거나 이 플랫폼에 대화상자가
+        // 없으면 거짓이다 - 기본은 없다. 에디터 저장 메뉴가 부른다.
+        virtual bool ShowFileDialog(WindowHandle owner, const FileDialogDesc& desc, String& outPath)
+        {
+            (void)owner;
+            (void)desc;
+            (void)outPath;
+            return false;
+        }
     };
 }

@@ -2,6 +2,8 @@
 
 #include <Windows.h>
 #include <windowsx.h>
+#include <objbase.h>
+#include <shobjidl.h>
 
 #include <limits>
 
@@ -702,5 +704,130 @@ namespace JBro
             HeapFree(GetProcessHeap(), 0, nativeLibrary->ShadowPath);
         }
         HeapFree(GetProcessHeap(), 0, nativeLibrary);
+    }
+
+    namespace
+    {
+        // UTF-8 을 고정 크기 UTF-16 버퍼로. 넘치면 거짓 - 대화상자 글자와 경로에는 넉넉하다.
+        bool ToWide(const char* utf8, wchar_t* out, int capacity)
+        {
+            if (utf8 == nullptr || *utf8 == '\0')
+            {
+                out[0] = L'\0';
+                return true;
+            }
+            const int written = MultiByteToWideChar(CP_UTF8, 0, utf8, -1, out, capacity);
+            return written > 0;
+        }
+
+        // 기존 엔진 `ShowFileDialogEx` 를 옮겼다. COM 은 부르는 자리에서 켜고 끈다 -
+        // 플랫폼 초기화에 묶어 두면 대화상자를 한 번도 안 여는 게임 실행까지 COM 을 든다.
+        struct ComScope
+        {
+            HRESULT result = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+
+            ~ComScope()
+            {
+                // 이미 다른 모드로 켜져 있었으면(RPC_E_CHANGED_MODE) 우리가 끄지 않는다.
+                if (SUCCEEDED(result))
+                {
+                    CoUninitialize();
+                }
+            }
+
+            bool Usable() const
+            {
+                return SUCCEEDED(result) || result == RPC_E_CHANGED_MODE;
+            }
+        };
+    }
+
+    bool WindowsPlatform::ShowFileDialog(
+        WindowHandle owner, const FileDialogDesc& desc, String& outPath)
+    {
+        outPath.clear();
+        ComScope com;
+        if (false == com.Usable())
+        {
+            return false;
+        }
+        IFileDialog* dialog = nullptr;
+        const HRESULT created = CoCreateInstance(
+            desc.save ? CLSID_FileSaveDialog : CLSID_FileOpenDialog,
+            nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dialog));
+        if (FAILED(created) || dialog == nullptr)
+        {
+            return false;
+        }
+
+        DWORD options = 0;
+        if (SUCCEEDED(dialog->GetOptions(&options)))
+        {
+            options |= FOS_FORCEFILESYSTEM | FOS_NOCHANGEDIR | FOS_PATHMUSTEXIST;
+            options |= desc.save ? FOS_OVERWRITEPROMPT : FOS_FILEMUSTEXIST;
+            dialog->SetOptions(options);
+        }
+
+        wchar_t wide[1024] = {};
+        if (desc.title != nullptr && ToWide(desc.title, wide, 1024) && wide[0] != L'\0')
+        {
+            dialog->SetTitle(wide);
+        }
+        if (desc.initialDirectory != nullptr && ToWide(desc.initialDirectory, wide, 1024)
+            && wide[0] != L'\0')
+        {
+            IShellItem* folder = nullptr;
+            if (SUCCEEDED(SHCreateItemFromParsingName(wide, nullptr, IID_PPV_ARGS(&folder)))
+                && folder != nullptr)
+            {
+                dialog->SetFolder(folder);
+                folder->Release();
+            }
+        }
+        if (desc.defaultFileName != nullptr && ToWide(desc.defaultFileName, wide, 1024)
+            && wide[0] != L'\0')
+        {
+            dialog->SetFileName(wide);
+        }
+        wchar_t filterName[256] = {};
+        wchar_t filterPattern[256] = {};
+        if (desc.filterName != nullptr && desc.filterPattern != nullptr
+            && ToWide(desc.filterName, filterName, 256) && ToWide(desc.filterPattern, filterPattern, 256)
+            && filterName[0] != L'\0' && filterPattern[0] != L'\0')
+        {
+            const COMDLG_FILTERSPEC spec = {filterName, filterPattern};
+            dialog->SetFileTypes(1, &spec);
+            dialog->SetFileTypeIndex(1);
+            // 확장자를 안 치면 필터의 것을 붙인다. "*.jcanvas" 에서 "jcanvas" 를 뗀다.
+            const wchar_t* dot = wcschr(filterPattern, L'.');
+            if (dot != nullptr && dot[1] != L'\0' && wcschr(dot + 1, L'*') == nullptr)
+            {
+                dialog->SetDefaultExtension(dot + 1);
+            }
+        }
+
+        bool chosen = false;
+        if (SUCCEEDED(dialog->Show(reinterpret_cast<HWND>(owner.value))))
+        {
+            IShellItem* item = nullptr;
+            if (SUCCEEDED(dialog->GetResult(&item)) && item != nullptr)
+            {
+                PWSTR path = nullptr;
+                if (SUCCEEDED(item->GetDisplayName(SIGDN_FILESYSPATH, &path)) && path != nullptr)
+                {
+                    const int needed = WideCharToMultiByte(CP_UTF8, 0, path, -1, nullptr, 0, nullptr, nullptr);
+                    if (needed > 1)
+                    {
+                        outPath.resize(static_cast<std::size_t>(needed - 1));
+                        WideCharToMultiByte(CP_UTF8, 0, path, -1, outPath.data(), needed, nullptr, nullptr);
+                        chosen = true;
+                    }
+                    CoTaskMemFree(path);
+                }
+                item->Release();
+            }
+        }
+        dialog->Release();
+        return chosen;
     }
 }

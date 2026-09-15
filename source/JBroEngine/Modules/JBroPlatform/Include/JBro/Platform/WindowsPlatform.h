@@ -21,6 +21,7 @@ namespace JBro
         DynamicLibrary LoadDynamicLibrary(const char* utf8Path) override;
         void* GetSymbol(DynamicLibrary library, const char* name) override;
         void UnloadDynamicLibrary(DynamicLibrary library) override;
+        bool ShowFileDialog(WindowHandle owner, const FileDialogDesc& desc, String& outPath) override;
 
         // WndProc 이 부른다. 공개 API 가 아니다.
         void RecordInputEvent(const InputEvent& event);

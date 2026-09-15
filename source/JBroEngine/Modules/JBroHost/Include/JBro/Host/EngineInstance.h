@@ -68,6 +68,11 @@ namespace JBro
 
         AssetSystem* GetAssetSystem();
         Renderer* GetRenderer();
+        // 대화상자의 주인 창으로 쓴다. 창이 없으면 값이 0 이다.
+        WindowHandle GetMainWindow() const
+        {
+            return m_mainWindow;
+        }
         // 호스트가 만든 프레임 아레나다. 호출자가 memory.frame 을 직접 채웠으면 null 이다.
         LinearAllocator* GetFrameMemory();
         IFramework* GetFramework();
