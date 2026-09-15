@@ -238,6 +238,10 @@ namespace
         Check(top[2] >= bottom[1], "the row after a tall one must start below all of it");
         Check(gapAfterTall == gapAfterShort,
             "and leave the same gap as after a one-line row, no more and no less");
+        // **한 줄짜리 행은 전과 같은 자리에 와야 한다.** 틈은 행 간격 1 과 끌어 놓을 자리 3 이다
+        // (`List.h`). 행이 자라게 고치기 전후의 에디터 스크린샷이 한 바이트도 다르지 않을 때 잰
+        // 값이다 - 모든 행에 같은 만큼 틈이 늘면 위의 비교로는 드러나지 않는다.
+        Check(gapAfterShort == 4.0f, "and a one-line row must keep the gap it always had");
     }
 
     // `Array<T>` 덮개는 목록에 저장소를 이어 준다. 여기서는 **옮기기 셈**이
