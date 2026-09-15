@@ -109,6 +109,98 @@ EditorApplication::Tick
 - 표는 인스펙터에서 개수만 보인다. 키 칸을 어떻게 받을지가 정해지지 않았다.
 - 못 옮긴 위젯: 에셋 필드, 오디오 셋, 경로 필드, 레이어 머리(D-79 에 이유).
 
+## Divergence Findings — 기존 엔진 대비 대조 (2026-09-15)
+
+기존 엔진(`C:\Users\박주형\source\repos\JBroEngine`)을 읽기 전용 기준으로 놓고 현재 트리를
+항목별로 대조한 결과다. **아래는 조사 기록이고 아직 고친 것이 없다.** 방향을 바꾸는 항목에는
+`[열림]` 을 붙였다. 이미 `Editor Snapshot` 에 적힌 누락(FontAwesome, 에셋 필드, 팝업 등)은
+여기 다시 적지 않는다.
+
+### A. 계약과 코드가 어긋난 것
+
+- **A1. 스크립트 실행 목록을 매 프레임 다시 세운다.** (확신 높음)
+  `ProjectRule.md` §8 과 D-45 는 "목록은 더티 플래그로 지연 재구축하며 트리거는 스크립트
+  부착/분리·`SetParent`·레이어 생성/파괴/이동" 이라고 못박았다. 실제 구현
+  (`Modules/JBroFramework2DSystem/Source/Scripting/ScriptSystem.cpp`)은 `OnUpdate` 머리에서
+  조건 없이 `Rebuild(canvas)` 를 부른다. 그 안에서 매 프레임 도는 것은 다음과 같다.
+  - `Canvas::CollectScripts` — 컴포넌트 버킷과 스크립트 풀 전부 순회
+  - `m_started.RemoveAll` — 시작 목록 하나마다 수집 목록 전체를 훑는다(O(S×N))
+  - `m_started.Contains` — 항목마다 또 선형 탐색(O(N×S))
+  - `MeasureDepth` — 항목마다 부모 사슬을 거슬러 오른다
+  - `std::sort` — 전체 재정렬
+  구 엔진은 `CGameCanvas::EnsureScriptExecutionOrder()` 가 `m_scriptExecutionOrderDirty`
+  를 보고 필요할 때만 `RebuildScriptExecutionOrder()` 를 부른다(`Canvas.cpp:891`).
+  Canvas 에는 더티 플래그 자체가 없다.
+
+- **A2. 스크립트 훅을 부르는 구간에 순회 가드가 없다.** (확신 높음, 실행 재현은 안 했다)
+  구 엔진은 훅 디스패치 루프를 `ScriptIterationGuard iterationGuard(*this);` 로 감싸고
+  "훅(유저 스크립트)이 스폰·Ref 해석으로 캐시를 재빌드하지 못하게 순회 잠금" 이라고
+  이유까지 적어 두었다(`Canvas.cpp:1510`). 새 트리에서 `IterationGuard` 가 서는 곳은
+  `Canvas::CollectScripts` 안뿐이고, 그 함수가 끝나면 풀린다. 그 뒤의
+  `OnCreate`·`OnStart`·`OnUpdate` 루프는 가드 없이 돈다.
+  `Canvas::DestroyObject` 는 순회 중이 아니면 즉시 파괴하므로(`Canvas.cpp:105`),
+  스크립트가 `OnUpdate` 안에서 자기나 형제를 지우면 `m_ordered` 에 담긴 raw
+  `GameScriptBase*` 가 해제된 메모리를 가리킨다. `ScriptSchedulingTests` 는 파괴를
+  **루프 바깥에서만** 하므로 이 자리를 재지 않는다.
+
+- **A3. 실행 순서 정렬 기준이 구 엔진과 다르다.** (확신 높음) `[열림]`
+  구 엔진은 루트를 `(레이어 인덱스, creationOrder)` 로 정렬한 뒤 루트마다
+  `AppendObjectScriptsInHierarchyOrder` 로 서브트리를 깊이 우선 순회한다 — 한 루트의
+  자손이 전부 돈 다음에 다음 루트가 돈다. 새 구현은 `(layerOrder, depth, instanceId)`
+  평면 정렬이라 **서로 다른 서브트리가 깊이별로 섞인다**. D-45 는 "구 엔진 계약을 그대로
+  이식한다" 이므로 둘 중 하나를 고쳐야 한다.
+
+- **A4. 부모의 `Transform2D` 를 끄면 자식 서브트리가 원점으로 튄다.** (확신 중상, 화면 미확인)
+  `Transform2DSystem::OnUpdate` 의 루트 판정은 "부모 transform 이 없거나 **비활성**이면
+  내가 루트" 다. 루트로 판정되면 단위행렬에서 전파하므로, 부모의 Transform 컴포넌트만
+  끈 경우 자식이 부모 월드를 잃는다. 구 엔진 `CTransformSystem` 은 부모 유무만 보고
+  활성 여부는 보지 않는다.
+
+- **A5. `Category` 어트리뷰트가 저장만 되고 아무도 읽지 않는다.** (확신 높음)
+  `Reflection/Field.h` 의 `Attribute::Category`, `FieldAttributes::category`,
+  `PropertyInfo::category` 가 다 있고 `HasEditInfo()` 도 그것을 센다. 그런데
+  `InspectorPanel.cpp` 는 `category` 를 한 번도 읽지 않는다 — 붙여도 화면이 그대로다.
+  구 엔진은 `EditorReflectionLabels::GetCategoryLabel` 로 `editor.category.*` 키를 찾아
+  인스펙터를 묶어 그렸고 카테고리가 일곱 개 있었다. `Field.h` 주석이 "기존 엔진은 알 수
+  없는 어트리뷰트를 로그 경고로 넘겨서 오타 난 `Range` 하나가 조용히 사라졌다" 고
+  비판한 바로 그 모양이다.
+
+- **A6. `Layer2D` 의 상태를 렌더가 읽지 않는다.** (확신 높음)
+  `Layer2D` 는 블렌드·공간·불투명도·패럴랙스·별도 텍스처 다섯 값을 들고 있지만,
+  `Framework2D.cpp` 의 생성·조회 말고는 어느 렌더 경로도 그것을 읽지 않는다. 구 엔진은
+  레이어 블렌드가 실제로 돌고 테스트 프로젝트에 `LayerBlendTest.jcanvas` 가 있다.
+  덧붙여 `ProjectRule.md` §7 은 `ScaleMode`·`AnchorToSafeArea` 도 `Layer2D` 소유라고
+  적었는데 타입에는 그 둘이 아예 없다 — 문서가 코드보다 앞서 있다.
+
+- **A7. `common.clear: 지우기` 가 D-91 금지 목록에 있는 말이다.** (확신 높음)
+  `ProjectRule.md` §11.2 는 `붙이기`·`떼기`·`지우기`·`만들기`·`끝내기` 를 쓰지 말라고
+  못박았다. `Localization/ko-KR.yaml` 의 `common.clear` 값이 `지우기` 이고, 쓰이는
+  자리는 검색 칸의 지움 단추 툴팁(`Widget/Fields.cpp:91`)이다. 구 엔진 값은 `비우기`
+  이므로 §11.2 의 "기존 엔진 한국어 표를 따른다" 와도 어긋난다. `[열림]` — 이 자리에
+  둘 말을 정해야 한다.
+
+- **A8. `ProjectFile.h` 머리말이 코드보다 엄격하다.** (확신 높음, 영향 작음)
+  머리말은 "모르는 것을 만나면 추측하지 않고 줄 번호와 함께 실패한다" 고 적었는데,
+  실제 파서는 모르는 블록과 모르는 키를 **조용히 건너뛴다**(`ProjectFile.cpp` 의
+  `skipDeeperThan`). 실제 `.jproject` 를 열려면 건너뛰는 편이 맞으므로 고칠 것은
+  머리말 쪽이다.
+
+- **A9. 쓰이지 않는 로케일 키 둘.** `list.empty`, `common.none` 은 어느 코드도 부르지 않는다.
+
+### B. 어긋남은 아니지만 구 엔진보다 못한 것
+
+- **B1. 루트를 고르는 데 매 프레임 선형 탐색이 붙는다.**
+  `Transform2DSystem::OnUpdate` 는 transform 마다
+  `Canvas::FindComponentRaw<Transform2D>(parent)` 를 부른다 — 부모의 컴포넌트 배열을
+  훑는 선형 탐색이다. 구 엔진은 `object.GetParent().IsValid()` 한 줄이었다.
+  `ProjectRule.md` §9 의 "조회는 초기화 시점 캐시로 해결한다" 와 반대 방향이다.
+
+- **B2. 컴포넌트 이름·카테고리의 한국어 표시가 통째로 사라진다.** `[열림]`
+  구 엔진은 컴포넌트 17종의 한국어 이름과 카테고리 7종을 `ko-KR.yaml` 에 갖고 있었다.
+  D-91 이 컴포넌트 이름을 타입 이름으로 고정한 것은 결정이지만, **카테고리까지 같이
+  없어진 것은 그 결정이 다룬 범위가 아니다**(A5 와 짝이다). 카테고리 묶음을 되살릴지
+  확인이 필요하다.
+
 ## Audit Snapshot — 2026-09-12
 
 **그 시점의 기록이다.** 2026-09-12 에 코드와 테스트를 직접 대조해 적었고, 그 뒤의 에디터
