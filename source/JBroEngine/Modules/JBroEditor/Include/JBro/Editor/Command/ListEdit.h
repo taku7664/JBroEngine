@@ -39,10 +39,19 @@ namespace JBro
         std::uint32_t deltaCount = 0;
         float delta[ScalarRun::MaxCount] = {};
         String text;
+
+        // SetElement 가 **원소 안에서** 내려갈 필드 번호다(D-89). 비어 있으면 원소 자체가
+        // 잎사귀다. 필드를 가진 구조체 원소는 한 줄로 그리지 못하므로 필드마다 따로 고치고,
+        // 그 필드를 여기 적는다. 컴포넌트 안의 길(`SetPropertyCommand::Path`)은 목록에서
+        // 멈추므로 이 길은 그것과 따로 센다.
+        static constexpr std::uint32_t MaxFieldDepth = 4;
+        std::uint32_t fieldPath[MaxFieldDepth] = {};
+        std::uint32_t fieldDepth = 0;
     };
 
     // 배열 하나에 편집을 적용한다. **그 배열에 맞지 않는 편집이면 거짓이다** -
-    // 원소가 모자라거나, 델타 개수가 원소의 숫자 수와 다르거나, 글자를 받지 못하는 원소다.
+    // 원소가 모자라거나, 필드 길이 원소에 맞지 않거나, 델타 개수가 잎사귀의 숫자 수와 다르거나,
+    // 글자를 받지 못하는 잎사귀(안쪽 배열·표, 필드를 더 가진 구조체)다.
     // 거짓일 때 배열이 반쯤 바뀌어 있을 수 있으니 부르는 쪽이 되돌린다.
     bool ApplyListEdit(const TypeDescriptor& arrayType, void* array, const ListEdit& edit);
 

@@ -1,5 +1,6 @@
 ﻿#include <JBro/Editor/Command/ListEdit.h>
 
+#include <JBro/Reflection/PropertyInfo.h>
 #include <JBro/Reflection/TypeDescriptor.h>
 
 #include <utility>
@@ -8,16 +9,63 @@ namespace JBro
 {
     namespace
     {
-        bool SetElement(const TypeDescriptor& element, void* address, const ListEdit& edit)
+        // 원소에서 편집이 가리키는 필드까지 내려간다(D-89). 길이 비어 있으면 원소 자체다.
+        // 필드가 아닌 것을 지나가려 하거나, 없는 필드를 가리키면 거짓이다.
+        bool ResolveField(
+            const TypeDescriptor& element,
+            void* address,
+            const ListEdit& edit,
+            const TypeDescriptor*& leafType,
+            void*& leaf)
         {
+            if (edit.fieldDepth > ListEdit::MaxFieldDepth)
+            {
+                return false;
+            }
+            const TypeDescriptor* type = &element;
+            void* at = address;
+            for (std::uint32_t step = 0; step < edit.fieldDepth; ++step)
+            {
+                if (type->fields == nullptr || edit.fieldPath[step] >= type->fields->count)
+                {
+                    return false;
+                }
+                const PropertyInfo& property = type->fields->properties[edit.fieldPath[step]];
+                if (property.type == nullptr || property.Address == nullptr)
+                {
+                    return false;
+                }
+                at = property.Address(at);
+                if (at == nullptr)
+                {
+                    return false;
+                }
+                type = property.type;
+            }
+            leafType = type;
+            leaf = at;
+            return true;
+        }
+
+        bool SetElement(const TypeDescriptor& elementType, void* element, const ListEdit& edit)
+        {
+            const TypeDescriptor* leafType = nullptr;
+            void* address = nullptr;
+            if (false == ResolveField(elementType, element, edit, leafType, address))
+            {
+                return false;
+            }
+            const TypeDescriptor& leaf = *leafType;
+            // 잎사귀는 코덱을 가진 값이거나 한 줄 숫자 묶음이다. 안쪽 배열·표와 필드를 더 가진
+            // 구조체는 여기서 고치지 않는다 - 둘 다 코덱이 없어 아래에서 막힌다.
             if (edit.deltaCount == 0)
             {
                 // 델타가 없는 값이다. 주된 대상에서 고른 값을 그대로 준다(D-83).
-                return element.codec != nullptr && element.codec->FromText != nullptr
-                    && element.codec->FromText(address, edit.text.c_str(), edit.text.size());
+                return leaf.codec != nullptr && leaf.codec->FromText != nullptr
+                    && leaf.codec->FromText(address, edit.text.c_str(), edit.text.size());
             }
             ScalarRun run;
-            if (false == CollectNumbers(element, address, run) || run.count != edit.deltaCount)
+            if (false == CollectNumbers(leaf, address, run) || run.count != edit.deltaCount)
             {
                 return false;
             }

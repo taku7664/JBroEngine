@@ -68,6 +68,17 @@ namespace
         Tunnel tunnel;
     };
 
+    // 필드의 종류가 섞인 원소다. 한 줄 숫자 묶음으로 읽히지 않으므로 필드마다 따로 고친다.
+    // 안에 구조체(`Den`)와 배열이 하나씩 있다.
+    struct Beacon
+    {
+        float range = 0.0f;
+        bool lit = false;
+        JBro::Color tint{};
+        Den den;
+        JBro::Array<float> pulses;
+    };
+
     template <auto Member, typename Owner>
     const JBro::TypeDescriptor& SingleFieldStruct(const char* typeName)
     {
@@ -166,6 +177,26 @@ namespace JBro
         static const TypeDescriptor& Get()
         {
             return SingleFieldStruct<&Shaft::tunnel, Shaft>("Test::Shaft");
+        }
+    };
+
+    template <>
+    struct TypeDescriptorOf<Beacon>
+    {
+        static const TypeDescriptor& Get()
+        {
+            static const FieldEntry entries[] =
+            {
+                MakeFieldEntry<&Beacon::range>(),
+                MakeFieldEntry<&Beacon::lit>(),
+                MakeFieldEntry<&Beacon::tint>(),
+                MakeFieldEntry<&Beacon::den>(),
+                MakeFieldEntry<&Beacon::pulses>(),
+            };
+            static const StaticPropertyTable<5> fields { entries };
+            static const TypeDescriptor descriptor =
+                MakeStructTypeDescriptor<Beacon>("Test::Beacon", fields.Get());
+            return descriptor;
         }
     };
 }
@@ -999,6 +1030,25 @@ namespace
         JBRO_FIELD(Shaft, shaft);
     };
 
+    // 필드를 가진 구조체 원소의 목록을 든다(D-89).
+    class Lighthouse final : public JBro::ComponentBase
+    {
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "Test::Lighthouse";
+        }
+
+        JBro::ComponentTypeId GetTypeId() const override
+        {
+            return JBro::MakeStableTypeId(StaticTypeName());
+        }
+
+        JBRO_REFLECT_BODY(Lighthouse)
+
+        JBRO_FIELD(JBro::Array<Beacon>, beacons);
+    };
+
     // 원소 200개는 글자로 뜨면 512바이트를 한참 넘는다. 스냅샷은 잎사귀를 그 크기의
     // 고정 버퍼로 읽었다 - 컨테이너를 넣는 순간 잘리거나 빠진다.
     constexpr std::size_t SampleCount = 200;
@@ -1322,6 +1372,167 @@ namespace
             "carrying every field with it");
         Check(false == JBro::ApplyListEdit(burrowType, &burrows, MoveElement(3, 0)),
             "and a move from past the end is still refused");
+    }
+
+    JBro::ListEdit FieldEdit(std::uint32_t index, std::initializer_list<std::uint32_t> fields)
+    {
+        Check(fields.size() <= JBro::ListEdit::MaxFieldDepth, "the test must name a path that fits");
+        JBro::ListEdit edit;
+        edit.kind = JBro::ListEdit::Kind::SetElement;
+        edit.index = index;
+        for (std::uint32_t field : fields)
+        {
+            edit.fieldPath[edit.fieldDepth] = field;
+            ++edit.fieldDepth;
+        }
+        return edit;
+    }
+
+    JBro::ListEdit FieldDelta(
+        std::uint32_t index, std::initializer_list<std::uint32_t> fields, float delta)
+    {
+        JBro::ListEdit edit = FieldEdit(index, fields);
+        edit.deltaCount = 1;
+        edit.delta[0] = delta;
+        return edit;
+    }
+
+    // **원소 안의 필드 하나에 닿는다**(D-89). 필드의 종류가 섞인 원소는 한 줄에 그리지 못하므로
+    // 필드마다 고치고, 편집은 그 필드까지 내려가는 길을 든다. 숫자는 델타, 나머지는 글자다.
+    void TestAListEditReachesAFieldInsideAnElement()
+    {
+        using Beacons = JBro::Array<Beacon>;
+        const JBro::TypeDescriptor& type = JBro::TypeDescriptorOf<Beacons>::Get();
+        const JBro::PropertyTable& fields = *JBro::TypeDescriptorOf<Beacon>::Get().fields;
+        const std::uint32_t range = FieldIndex(fields, "range");
+        const std::uint32_t lit = FieldIndex(fields, "lit");
+        const std::uint32_t tint = FieldIndex(fields, "tint");
+        const std::uint32_t den = FieldIndex(fields, "den");
+        const std::uint32_t pulses = FieldIndex(fields, "pulses");
+        const std::uint32_t warmth =
+            FieldIndex(*JBro::TypeDescriptorOf<Den>::Get().fields, "warmth");
+
+        Beacons beacons;
+        beacons.Add(Beacon{});
+        beacons.Add(Beacon{});
+        beacons[1].range = 2.0f;
+
+        Check(JBro::ApplyListEdit(type, &beacons, FieldDelta(1, {range}, 0.5f)),
+            "a float field inside an element must take a delta");
+        Check(NearlyEqual(beacons[1].range, 2.5f) && NearlyEqual(beacons[0].range, 0.0f),
+            "on that element only");
+
+        JBro::ListEdit light = FieldEdit(0, {lit});
+        light.text = "true";
+        Check(JBro::ApplyListEdit(type, &beacons, light), "a flag inside an element must take its text");
+        Check(beacons[0].lit && false == beacons[1].lit, "on that element only");
+
+        JBro::ListEdit tinted = FieldEdit(1, {tint});
+        tinted.deltaCount = 4;
+        tinted.delta[1] = 0.25f;
+        Check(JBro::ApplyListEdit(type, &beacons, tinted),
+            "a color inside an element must take four deltas");
+        Check(NearlyEqual(beacons[1].tint.G, 0.25f) && NearlyEqual(beacons[1].tint.R, 0.0f),
+            "each on its own member");
+
+        Check(JBro::ApplyListEdit(type, &beacons, FieldDelta(1, {den, warmth}, 3.0f)),
+            "a field two steps down must be reached");
+        Check(NearlyEqual(beacons[1].den.warmth, 3.0f) && NearlyEqual(beacons[0].den.warmth, 0.0f),
+            "on that element only");
+
+        // 맞지 않는 길은 거짓이다. 부르는 쪽이 그 대상을 뺀다.
+        Check(false == JBro::ApplyListEdit(type, &beacons, FieldDelta(1, {den}, 1.0f)),
+            "a struct inside an element is a branch, not a leaf");
+        JBro::ListEdit inner = FieldDelta(1, {pulses}, 1.0f);
+        Check(false == JBro::ApplyListEdit(type, &beacons, inner),
+            "a list inside an element is not edited from here");
+        inner.deltaCount = 0;
+        inner.text = "- 1";
+        Check(false == JBro::ApplyListEdit(type, &beacons, inner), "not even from its text");
+        Check(false == JBro::ApplyListEdit(type, &beacons, FieldDelta(1, {9}, 1.0f)),
+            "a field that is not there cannot be reached");
+        Check(false == JBro::ApplyListEdit(type, &beacons, FieldDelta(1, {range, 0}, 1.0f)),
+            "nor can a path go on past a leaf");
+        JBro::ListEdit tooDeep = FieldDelta(1, {range}, 1.0f);
+        tooDeep.fieldDepth = JBro::ListEdit::MaxFieldDepth + 1;
+        Check(false == JBro::ApplyListEdit(type, &beacons, tooDeep),
+            "a path longer than an edit can hold must be refused");
+        Check(false == JBro::ApplyListEdit(type, &beacons, FieldDelta(2, {range}, 1.0f)),
+            "and a field of an element that is not there cannot be reached either");
+
+        Check(NearlyEqual(beacons[1].range, 2.5f) && NearlyEqual(beacons[1].den.warmth, 3.0f)
+                && beacons[1].pulses.IsEmpty() && beacons.Size() == 2,
+            "refused edits change nothing");
+    }
+
+    // 원소 안의 필드 편집도 **고른 대상마다 다시 적용하고 한 되돌리기로 묶는다.** 되돌리기 값은
+    // 목록 전체의 글자라서, 고치지 않은 필드(색·안쪽 구조체·안쪽 배열)도 그 글자를 타고 온전히
+    // 돌아와야 한다.
+    void TestAFieldInsideAnElementReachesEveryChosenTarget()
+    {
+        RegisterOnce();
+        JBro::RegisterBuiltinProperties<Lighthouse>();
+        JBro::RegisterComponentType<Lighthouse>();
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::EditorObjectRegistry ids;
+        JBro::EditorCommandManager commands;
+
+        JBro::GameObject* first = canvas.CreateObject("Near");
+        JBro::GameObject* second = canvas.CreateObject("Far");
+        auto* near_ = canvas.AttachComponent<Lighthouse>(first);
+        auto* far_ = canvas.AttachComponent<Lighthouse>(second);
+        Check(near_ != nullptr && far_ != nullptr, "both lighthouses must attach");
+
+        near_->beacons.Add(Beacon{});
+        near_->beacons[0].range = 1.0f;
+        near_->beacons[0].tint = JBro::Color{0.5f, 0.25f, 0.125f, 1.0f};
+        near_->beacons[0].den.warmth = 4.0f;
+        near_->beacons[0].pulses.Add(1.0f);
+        near_->beacons[0].pulses.Add(2.0f);
+        far_->beacons.Add(Beacon{});
+        far_->beacons[0].range = 10.0f;
+        far_->beacons[0].lit = true;
+        far_->beacons[0].pulses.Add(7.0f);
+
+        const JBro::PropertyTable* table =
+            JBro::PropertyRegistry::Lookup(Lighthouse::StaticTypeName());
+        Check(table != nullptr, "the lighthouse must have its table");
+        const JBro::SetPropertyCommand::Path beacons = PathTo(FieldIndex(*table, "beacons"));
+        const JBro::PropertyTable& fields = *JBro::TypeDescriptorOf<Beacon>::Get().fields;
+
+        JBro::Array<JBro::ComponentAddress> targets;
+        targets.Add(AddressOf(ids, *first, *near_));
+        targets.Add(AddressOf(ids, *second, *far_));
+
+        JBro::Array<JBro::ListEdit> edits;
+        edits.Add(FieldDelta(0, {FieldIndex(fields, "range")}, 0.5f));
+        JBro::ListEdit light = FieldEdit(0, {FieldIndex(fields, "lit")});
+        light.text = "true";
+        edits.Add(light);
+
+        auto command = JBro::MakeListEditCommand(ids, targets, beacons, edits);
+        Check(command->GetCount() == 2, "an edit inside an element must reach both targets");
+        Check(NearlyEqual(near_->beacons[0].range, 1.0f) && false == near_->beacons[0].lit,
+            "and building the command must leave the values as they were");
+        Check(commands.Execute(std::move(command)), "the edit must go through");
+
+        const Beacon& nearBeacon = near_->beacons[0];
+        const Beacon& farBeacon = far_->beacons[0];
+        Check(NearlyEqual(nearBeacon.range, 1.5f) && nearBeacon.lit,
+            "the near beacon moves by the delta and lights up");
+        Check(NearlyEqual(farBeacon.range, 10.5f) && farBeacon.lit,
+            "the far one moves by the same delta from its own range");
+        Check(NearlyEqual(nearBeacon.tint.G, 0.25f) && NearlyEqual(nearBeacon.den.warmth, 4.0f)
+                && nearBeacon.pulses.Size() == 2 && NearlyEqual(nearBeacon.pulses[1], 2.0f),
+            "and every field that was not edited survives the trip through the text");
+
+        Check(commands.Undo(), "undo must run");
+        Check(NearlyEqual(near_->beacons[0].range, 1.0f) && false == near_->beacons[0].lit
+                && near_->beacons[0].pulses.Size() == 2,
+            "and bring the near beacon back");
+        Check(NearlyEqual(far_->beacons[0].range, 10.0f) && far_->beacons[0].lit
+                && far_->beacons[0].pulses.Size() == 1,
+            "and the far one");
     }
 
     // 숫자가 아닌 원소는 글자를 그대로 쓰고, 숫자 묶음은 개수가 맞아야 한다.
@@ -1682,6 +1893,8 @@ int RunEditorObjectCommandTests()
     TestRemovingIsRefusedWhenAValueIsTooDeepToAddress();
     TestAListEditLandsOnOneArray();
     TestAListEditMovesElementsThatHaveNoCodec();
+    TestAListEditReachesAFieldInsideAnElement();
+    TestAFieldInsideAnElementReachesEveryChosenTarget();
     TestAListEditRespectsWhatTheElementIs();
     TestAListEditReachesEveryChosenTarget();
     TestChildOrderSurvivesEverything();
