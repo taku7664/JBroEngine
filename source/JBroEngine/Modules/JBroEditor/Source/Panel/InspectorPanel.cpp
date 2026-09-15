@@ -5,6 +5,7 @@
 #include <JBro/Editor/Command/CompoundCommand.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/Localization.h>
+#include <JBro/Editor/ScalarRun.h>
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Editor/Widget/FieldLabel.h>
 #include <JBro/Editor/Widget/FormLayout.h>
@@ -255,50 +256,6 @@ namespace JBro
         const EditorObjectId objectId = m_editor->GetObjectIds().Track(&object);
         m_editor->GetCommands().Execute(MakeOwnerPtr<RemoveComponentCommand>(
             *canvas, m_editor->GetObjectIds(), objectId, &component));
-    }
-
-    bool InspectorPanel::CollectScalarRun(
-        const TypeDescriptor& type, void* address, ScalarRun& run)
-    {
-        if (type.fields == nullptr)
-        {
-            return false;
-        }
-        for (std::uint32_t index = 0; index < type.fields->count; ++index)
-        {
-            const PropertyInfo& property = type.fields->properties[index];
-            if (property.type == nullptr || property.Address == nullptr)
-            {
-                return false;
-            }
-            void* field = property.Address(address);
-            if (field == nullptr)
-            {
-                return false;
-            }
-            if (property.type->fields != nullptr)
-            {
-                // 한 단계 더 내려간다. `Rect` 는 `Vec2` 두 개이고, 기존 엔진은
-                // 그것도 한 줄에 그렸다.
-                if (false == CollectScalarRun(*property.type, field, run))
-                {
-                    return false;
-                }
-                continue;
-            }
-            if (false == SameName(property.type->typeName, "float"))
-            {
-                return false;
-            }
-            if (run.count >= ScalarRun::MaxCount)
-            {
-                // 다섯 개부터는 한 줄에 넣어 봐야 읽을 수 없다. 타고 내려간다.
-                return false;
-            }
-            run.values[run.count] = static_cast<float*>(field);
-            ++run.count;
-        }
-        return run.count >= 2;
     }
 
     bool InspectorPanel::DrawScalarRun(

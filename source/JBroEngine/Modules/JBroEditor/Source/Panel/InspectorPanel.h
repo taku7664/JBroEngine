@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/Editor/Command/SetPropertyCommand.h>
+#include <JBro/Editor/ScalarRun.h>
 
 #include <JBro/Editor/EditorPanel.h>
 
@@ -49,23 +50,6 @@ namespace JBro
             ComponentTypeId typeId = 0;
             SetPropertyCommand::Path path;
         };
-
-        // 한 줄에 담기는 실수 묶음이다. `Vec2`·`Rect`·`Color` 처럼 **잎사귀가 전부
-        // 실수인 작은 구조체**를 한 줄로 그리기 위해 주소를 모아 둔다.
-        //
-        // 주소를 모으는 이유는 **메모리 배치를 가정하지 않기 위해서다.** 실수 네 개가
-        // 붙어 있으리라 믿고 포인터 하나를 `DragFloat4` 에 넘기면, 언젠가 필드 사이에
-        // 패딩이 낀 타입에서 엉뚱한 자리를 쓴다.
-        struct ScalarRun
-        {
-            static constexpr std::uint32_t MaxCount = 4;
-            float* values[MaxCount] = {};
-            std::uint32_t count = 0;
-        };
-
-        // 타입의 잎사귀가 전부 실수이고 넷 이하면 모아서 참을 돌려준다.
-        static bool CollectScalarRun(
-            const TypeDescriptor& type, void* address, ScalarRun& run);
 
         // 값 하나를 그린다. 구조를 가진 타입이면 필드를 타고 내려간다.
         void DrawValue(
