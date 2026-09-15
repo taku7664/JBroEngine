@@ -4,6 +4,7 @@
 #include <JBro/Editor/Command/ObjectCommands.h>
 #include <JBro/Editor/EditorObjectRegistry.h>
 #include <JBro/Editor/EditorPanel.h>
+#include <JBro/Editor/EditorPopup.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
@@ -1545,6 +1546,170 @@ namespace
         {
             SaveScreenshot(*renderer, 1024, 768, "toggled_list");
         }
+        editor.Shutdown();
+    }
+
+    // 팝업 테스트용. 훅이 몇 번 불렸는지 **밖의** 계수기에 센다 - 팝업은 큐에서 빠지는 순간
+    // 파괴되므로 자기 멤버로 세면 닫힌 뒤에는 읽을 수 없다.
+    struct PopupCounts
+    {
+        int enters = 0;
+        int draws = 0;
+        int exits = 0;
+        bool closeOnDraw = false;
+    };
+
+    class ProbePopup final : public JBro::EditorPopup
+    {
+    public:
+        ProbePopup(const char* id, PopupCounts& counts, bool closable = true)
+            : m_id(id)
+            , m_counts(&counts)
+            , m_closable(closable)
+        {
+        }
+
+        const char* GetTitle() const override
+        {
+            return "Probe";
+        }
+
+        const char* GetId() const override
+        {
+            return m_id;
+        }
+
+        bool HasCloseButton() const override
+        {
+            return m_closable;
+        }
+
+        void OnEnter(JBro::EditorApplication&) override
+        {
+            ++m_counts->enters;
+        }
+
+        void OnDraw(JBro::EditorApplication&) override
+        {
+            ++m_counts->draws;
+            ImGui::TextUnformatted("probe");
+            if (m_counts->closeOnDraw)
+            {
+                Close();
+            }
+        }
+
+        void OnExit(JBro::EditorApplication&) override
+        {
+            ++m_counts->exits;
+        }
+
+    private:
+        const char* m_id = nullptr;
+        PopupCounts* m_counts = nullptr;
+        bool m_closable = true;
+    };
+
+    ImGuiWindow* FindPopupWindow()
+    {
+        for (ImGuiWindow* window : ImGui::GetCurrentContext()->Windows)
+        {
+            if (std::strstr(window->Name, "###popup_") != nullptr && window->Active)
+            {
+                return window;
+            }
+        }
+        return nullptr;
+    }
+
+    // **모달 팝업은 한 번에 하나만 뜨고, 핸들로 닫고, 같은 Id 는 겹쳐 뜨지 않는다**(기존 엔진
+    // `ImPopupDesc`). ImGui 모달은 스택이라 둘을 한 프레임에 열면 뒤의 것이 조용히 사라진다 -
+    // 그래서 큐다.
+    void TestPopupsOpenOneAtATimeAndCloseByHandle()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = WindowWidth;
+        config.windowHeight = WindowHeight;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; popups not verified" << std::endl;
+            return;
+        }
+        PopupCounts early;
+        PopupCounts first;
+        PopupCounts second;
+        PopupCounts third;
+        Check(editor.OpenPopup(JBro::MakeOwnerPtr<ProbePopup>("early", early)) == JBro::InvalidPopupHandle,
+            "a popup cannot open before the UI is on");
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "PopupProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        const JBro::PopupHandle firstHandle =
+            editor.OpenPopup(JBro::MakeOwnerPtr<ProbePopup>("first", first, false));
+        const JBro::PopupHandle secondHandle =
+            editor.OpenPopup(JBro::MakeOwnerPtr<ProbePopup>("second", second));
+        Check(firstHandle != JBro::InvalidPopupHandle && secondHandle != JBro::InvalidPopupHandle
+                && firstHandle != secondHandle,
+            "each popup must get its own handle");
+        PopupCounts copy;
+        Check(editor.OpenPopup(JBro::MakeOwnerPtr<ProbePopup>("second", copy)) == secondHandle,
+            "opening the same id again must hand back the waiting one instead of a copy");
+        Check(editor.IsPopupOpen(firstHandle) && editor.IsPopupOpen(secondHandle)
+                && editor.IsPopupOpenById("first") && false == editor.IsPopupOpenById("third"),
+            "both must count as open while one waits");
+
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick with a popup up");
+        }
+        Check(first.enters == 1 && first.draws >= 2, "the first popup must be entered once and drawn");
+        Check(second.enters == 0 && second.draws == 0, "while the second waits its turn");
+        ImGuiWindow* window = FindPopupWindow();
+        Check(window != nullptr, "the popup must have a window");
+        Check((window->Flags & ImGuiWindowFlags_Modal) != 0, "and it must be modal");
+        Check(false == window->HasCloseButton, "a popup without a close button must not draw one");
+
+        // 핸들로 닫는다. 다음 프레임에 나가는 훅이 오고 둘째가 뜬다.
+        editor.ClosePopup(firstHandle);
+        Check(editor.Tick(Frame), "the editor must tick after the close request");
+        Check(first.exits == 1, "closing must call the exit hook once");
+        Check(false == editor.IsPopupOpen(firstHandle), "and the handle must be dead");
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick so the second can show");
+        }
+        Check(second.enters == 1, "the second popup must show once the first is gone");
+        window = FindPopupWindow();
+        Check(window != nullptr && window->HasCloseButton, "and it must offer its close button");
+
+        // 팝업이 스스로 닫는다.
+        second.closeOnDraw = true;
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick while the popup closes itself");
+        }
+        Check(second.exits == 1 && false == editor.IsPopupOpen(secondHandle),
+            "a popup closing itself must leave the same way");
+        Check(FindPopupWindow() == nullptr, "and no popup window may remain");
+
+        // 뜨기 전에 닫힌 것은 아무 훅도 받지 않는다.
+        const JBro::PopupHandle thirdHandle =
+            editor.OpenPopup(JBro::MakeOwnerPtr<ProbePopup>("third", third));
+        editor.ClosePopup(thirdHandle);
+        Check(editor.Tick(Frame), "the editor must tick");
+        Check(third.enters == 0 && third.exits == 0 && false == editor.IsPopupOpen(thirdHandle),
+            "a popup closed before it showed gets no hooks");
+        Check(early.enters == 0 && copy.enters == 0, "and the refused ones never ran");
+
         editor.Shutdown();
     }
 
@@ -3222,6 +3387,7 @@ int RunEditorApplicationTests()
     TestAPairElementDragsAsADeltaOnEveryChosenList();
     TestAVectorFieldEditsThroughACommand();
     TestTheGameViewIsRenderedOnlyWhileItsPanelShows();
+    TestPopupsOpenOneAtATimeAndCloseByHandle();
     TestAStructElementOpensAndEditsEveryChosenList();
     TestDraggingAStructElementReordersEveryChosenList();
     TestFlagCountAndToneElementsEditByMouseOnEveryChosenList();

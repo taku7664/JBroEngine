@@ -23,6 +23,7 @@
 // 쪽은 대개 이것을 쓰고, 우리도 첫 프레임에 한 번 부르는 데만 쓴다.
 #include <imgui_internal.h>
 
+#include <cstdio>
 #include <cstring>
 
 #include <cmath>
@@ -591,6 +592,8 @@ namespace JBro
     void EditorApplication::ReleaseEditorUi()
     {
         DestroyPanels();
+        // 팝업은 UI 와 함께 사라진다. 뜨지 않은 채 기다리던 것은 훅을 받지 않는다.
+        m_popups.Clear();
         // 게임을 백버퍼로 되돌리고 오버레이를 뗀다. 둘 중 하나만 하면 다음 프레임에
         // 사라진 UI 를 그리려 들거나 게임 화면이 버려진 텍스처로 간다.
         if (m_engine)
@@ -863,9 +866,158 @@ namespace JBro
             panel->SetOpen(open);
         }
 
+        DrawPopups();
+
         // **텍스처와 버퍼는 여기서 올라간다. RHI 프레임 밖이어야 한다** -
         // 아래 엔진 Tick 이 프레임을 열고 나면 만들 수도 쓸 수도 없다.
         return m_ui.EndFrame();
+    }
+
+    void EditorApplication::DrawPopups()
+    {
+        // 1) 밖에서 `ClosePopup` 으로 닫힌 것은 그리기 전에 뺀다 - 뜨지 않은 채 닫힌 것은
+        //    `OnEnter` 도 `OnExit` 도 받지 않는다.
+        for (std::size_t index = 0; index < m_popups.Size();)
+        {
+            EditorPopup* popup = m_popups[index].Get();
+            if (popup == nullptr || (false == popup->IsAlive() && false == popup->m_shown))
+            {
+                m_popups.RemoveAt(index);
+                continue;
+            }
+            ++index;
+        }
+        if (m_popups.IsEmpty())
+        {
+            return;
+        }
+
+        // 2) 맨 앞만 그린다. ImGui 의 모달은 스택이라 한 프레임에 하나만 정상적으로 열린다.
+        EditorPopup& popup = *m_popups[0];
+        // `###` 뒤만 해싱되므로 제목은 바뀌어도 같은 창이다(D-80 과 같은 수).
+        char label[192] = {};
+        std::snprintf(label, sizeof(label), "%s###popup_%llu",
+            popup.GetTitle() != nullptr ? popup.GetTitle() : "",
+            static_cast<unsigned long long>(popup.GetHandle()));
+        if (popup.IsAlive())
+        {
+            if (false == popup.m_shown)
+            {
+                ImGui::OpenPopup(label);
+            }
+            const float width = popup.GetInitialWidth();
+            const float height = popup.GetInitialHeight();
+            const bool autoSize = width <= 0.0f || height <= 0.0f;
+            if (false == autoSize && false == popup.m_shown)
+            {
+                ImGui::SetNextWindowSize(ImVec2(width, height));
+            }
+            // p_open 이 nullptr 이면 ImGui 가 제목줄의 X 를 그리지 않는다.
+            bool* open = popup.HasCloseButton() ? &popup.m_open : nullptr;
+            const ImGuiWindowFlags flags = autoSize
+                ? ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings
+                : ImGuiWindowFlags_NoSavedSettings;
+            if (ImGui::BeginPopupModal(label, open, flags))
+            {
+                if (false == popup.m_shown)
+                {
+                    popup.OnEnter(*this);
+                }
+                popup.OnDraw(*this);
+                // `OnDraw` 안에서 `Close` 를 불렀으면 ImGui 쪽도 닫아야 다음 것이 뜬다.
+                if (false == popup.m_open)
+                {
+                    ImGui::CloseCurrentPopup();
+                }
+                ImGui::EndPopup();
+            }
+            popup.m_shown = true;
+        }
+        // 3) 닫혔으면 나가는 훅을 부르고 뺀다. 다음 프레임에 다음 것이 뜬다.
+        if (false == popup.IsAlive())
+        {
+            popup.OnExit(*this);
+            m_popups.RemoveAt(0);
+        }
+    }
+
+    PopupHandle EditorApplication::OpenPopup(OwnerPtr<EditorPopup> popup)
+    {
+        if (popup.Get() == nullptr || false == m_uiEnabled)
+        {
+            return InvalidPopupHandle;
+        }
+        const char* id = popup->GetId();
+        if (id != nullptr && *id != '\0')
+        {
+            for (std::size_t index = 0; index < m_popups.Size(); ++index)
+            {
+                const EditorPopup* waiting = m_popups[index].Get();
+                const char* waitingId = waiting != nullptr ? waiting->GetId() : nullptr;
+                if (waiting != nullptr && waiting->IsAlive() && waitingId != nullptr
+                    && std::strcmp(waitingId, id) == 0)
+                {
+                    return waiting->GetHandle();
+                }
+            }
+        }
+        const PopupHandle handle = m_nextPopupHandle++;
+        popup->m_handle = handle;
+        m_popups.Add(std::move(popup));
+        return handle;
+    }
+
+    void EditorApplication::ClosePopup(PopupHandle handle)
+    {
+        if (handle == InvalidPopupHandle)
+        {
+            return;
+        }
+        for (std::size_t index = 0; index < m_popups.Size(); ++index)
+        {
+            EditorPopup* popup = m_popups[index].Get();
+            if (popup != nullptr && popup->GetHandle() == handle)
+            {
+                popup->Close();
+                return;
+            }
+        }
+    }
+
+    bool EditorApplication::IsPopupOpen(PopupHandle handle) const
+    {
+        if (handle == InvalidPopupHandle)
+        {
+            return false;
+        }
+        for (std::size_t index = 0; index < m_popups.Size(); ++index)
+        {
+            const EditorPopup* popup = m_popups[index].Get();
+            if (popup != nullptr && popup->GetHandle() == handle)
+            {
+                return popup->IsAlive();
+            }
+        }
+        return false;
+    }
+
+    bool EditorApplication::IsPopupOpenById(const char* id) const
+    {
+        if (id == nullptr || *id == '\0')
+        {
+            return false;
+        }
+        for (std::size_t index = 0; index < m_popups.Size(); ++index)
+        {
+            const EditorPopup* popup = m_popups[index].Get();
+            const char* candidate = popup != nullptr ? popup->GetId() : nullptr;
+            if (popup != nullptr && popup->IsAlive() && candidate != nullptr
+                && std::strcmp(candidate, id) == 0)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     bool EditorApplication::DrawEditorOverlay(

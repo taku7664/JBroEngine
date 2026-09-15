@@ -4,6 +4,7 @@
 #include <JBro/Editor/EditorCommand.h>
 #include <JBro/Editor/EditorObjectRegistry.h>
 #include <JBro/Editor/EditorPanel.h>
+#include <JBro/Editor/EditorPopup.h>
 #include <JBro/Editor/EditorUI.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Host/ProjectFile.h>
@@ -137,6 +138,15 @@ namespace JBro
         // 같은 제목의 패널은 받지 않는다 - ImGui 가 제목으로 창을 식별하므로
         // 둘이 한 창을 나눠 쓰게 된다.
         bool AddPanel(OwnerPtr<EditorPanel> panel);
+
+        // 모달 팝업 큐다(기존 엔진 `ImPopupDesc`). 한 번에 하나만 뜨고, 앞 것이 닫히면 다음
+        // 프레임에 다음 것이 뜬다. 같은 Id 가 살아 있으면 그 핸들을 돌려주고 새로 만들지 않는다.
+        // 널이거나 UI 가 꺼져 있으면 `InvalidPopupHandle` 이다.
+        PopupHandle OpenPopup(OwnerPtr<EditorPopup> popup);
+        // 닫기 요청. 뜨지 않고 기다리던 것도 닫힌다. 모르는 핸들은 무시한다.
+        void ClosePopup(PopupHandle handle);
+        bool IsPopupOpen(PopupHandle handle) const;
+        bool IsPopupOpenById(const char* id) const;
         // 제목으로 찾는다. 없으면 nullptr 이다.
         EditorPanel* FindPanel(const char* title);
         std::size_t GetPanelCount() const;
@@ -177,6 +187,8 @@ namespace JBro
             void* user);
         void DrawMenuBar();
         bool BuildEditorUi(float deltaTime);
+        // 큐의 맨 앞 팝업 하나를 그린다. 닫힌 것은 먼저 빼고, 닫히면 그 자리에서 뺀다.
+        void DrawPopups();
         void ReleaseEditorUi();
         void DestroyPanels();
         // 디바이스가 이미 사라진 뒤에 부른다.
@@ -192,6 +204,9 @@ namespace JBro
         OwnerPtr<IFramework> m_framework;
         EditorUI m_ui;
         Array<OwnerPtr<EditorPanel>> m_panels;
+        // 앞이 뜨는 것이고 뒤는 기다린다. 닫힌 것은 그리기 전에 뺀다.
+        Array<OwnerPtr<EditorPopup>> m_popups;
+        PopupHandle m_nextPopupHandle = 1;
         // 고른 것들. 0번이 주된 것은 아니다 - 주된 것은 따로 든다(기존 엔진과
         // 같다). Ctrl 로 빼다 보면 목록의 머리가 바뀌는데, 그때마다 인스펙터가
         // 다른 것을 보여 주면 손이 미끄러진 것처럼 보인다.
