@@ -184,9 +184,12 @@ namespace JBro
         // **다시 붙은 자리는 맨 끝이므로 원래 자리로 보낸다.** 기존 엔진은 맨 끝에
         // 두었는데 거기서는 커맨드가 GUID 로 가리켜서 괜찮았다. 여기서는 "같은 타입 중
         // 몇 번째" 로 가리키므로, 자리가 바뀌면 앞서 쌓인 편집이 형제에게 쏟아진다
-        // (실제로 그렇게 났다). 셈은 옮긴 뒤에 다시 한다 - 짐작한 값을 적지 않는다.
+        // (실제로 그렇게 났다).
+        //
+        // "몇 번째" 는 다시 세지 않는다. 되돌리기는 차례대로만 오므로 지금 오브젝트는
+        // 커맨드를 만들 때에서 이 컴포넌트만 빠진 상태이고, 같은 슬롯에 끼우면 앞에
+        // 선 같은 타입의 수도 같다 - 다시 세어도 처음 센 값이 나온다.
         object->SetComponentIndex(component, m_slotIndex);
-        FindComponentOrdinal(*object, *component, m_address.ordinal);
     }
 
     void RemoveComponentCommand::Redo()
