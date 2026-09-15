@@ -11,6 +11,10 @@
 #include <JBro/Editor/Widget/FieldLabel.h>
 #include <JBro/Editor/Widget/FormLayout.h>
 #include <JBro/Editor/Widget/List.h>
+#include <JBro/Editor/Widget/TextField.h>
+#include <JBro/Editor/Widget/Scalar.h>
+#include <JBro/Editor/Widget/Fields.h>
+#include <JBro/Editor/Widget/EnumCombo.h>
 #include <JBro/Reflection/PropertyInfo.h>
 #include <JBro/Reflection/PropertyRegistry.h>
 #include <JBro/Runtime/Component.h>
@@ -210,7 +214,7 @@ namespace JBro
                     Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorEnabled, "Enabled")),
                     [&]() {
                         bool enabled = component->IsEnabled();
-                        if (ImGui::Checkbox("##enabled", &enabled))
+                        if (Widget::Checkbox("##enabled", enabled))
                         {
                             component->SetEnabled(enabled);
                         }
@@ -316,18 +320,13 @@ namespace JBro
         // 색은 숫자 네 개가 아니라 색이다. 견본과 고르개가 붙는다.
         if (run.count == 4 && SameName(type.typeName, "JBro.Color"))
         {
-            changed = ImGui::ColorEdit4("##value", scratch,
-                ImGuiColorEditFlags_AlphaBar | ImGuiColorEditFlags_AlphaPreviewHalf);
-        }
-        else if (edit != nullptr && edit->hasRange)
-        {
-            changed = ImGui::SliderScalarN("##value", ImGuiDataType_Float, scratch,
-                static_cast<int>(run.count), &edit->rangeMin, &edit->rangeMax);
+            changed = Widget::ColorField("##value", scratch);
         }
         else
         {
-            changed = ImGui::DragScalarN("##value", ImGuiDataType_Float, scratch,
-                static_cast<int>(run.count), 0.01f);
+            const bool hasRange = edit != nullptr && edit->hasRange;
+            changed = Widget::ScalarRunField("##value", scratch, static_cast<int>(run.count),
+                0.01f, hasRange, hasRange ? edit->rangeMin : 0.0f, hasRange ? edit->rangeMax : 0.0f);
         }
         if (false == changed)
         {
@@ -348,25 +347,27 @@ namespace JBro
         const String& before,
         bool snapped)
     {
+        // **잎사귀는 공용 위젯으로 그린다**(§11.1). 처음에는 여기가 ImGui 원시 호출 뭉치였다.
+        // 끌기는 단추 없이 칸 하나라 `##value` 가 곧 그 칸의 Id 다.
         const bool hasRange = edit != nullptr && edit->hasRange;
         if (SameName(type.typeName, "float"))
         {
-            float* value = static_cast<float*>(address);
+            float& value = *static_cast<float*>(address);
             return hasRange
-                ? ImGui::SliderFloat("##value", value, edit->rangeMin, edit->rangeMax)
-                : ImGui::DragFloat("##value", value, 0.01f);
+                ? Widget::SliderFloat("##value", value, edit->rangeMin, edit->rangeMax)
+                : Widget::DragFloat("##value").Speed(0.01f).StepButtons(false)(value);
         }
         if (SameName(type.typeName, "bool"))
         {
-            return ImGui::Checkbox("##value", static_cast<bool*>(address));
+            return Widget::Checkbox("##value", *static_cast<bool*>(address));
         }
         if (SameName(type.typeName, "int32"))
         {
-            int* value = static_cast<int*>(address);
+            int& value = *static_cast<int*>(address);
             return hasRange
-                ? ImGui::SliderInt("##value", value,
+                ? Widget::SliderInt("##value", value,
                     static_cast<int>(edit->rangeMin), static_cast<int>(edit->rangeMax))
-                : ImGui::DragInt("##value", value);
+                : Widget::DragInt("##value").StepButtons(false)(value);
         }
         if (false == snapped)
         {
@@ -379,15 +380,11 @@ namespace JBro
             ImGui::TextUnformatted(before.c_str());
             return false;
         }
-        char text[TextCapacity] = {};
-        const std::size_t copied =
-            before.size() < sizeof(text) - 1 ? before.size() : sizeof(text) - 1;
-        std::memcpy(text, before.c_str(), copied);
-        if (ImGui::InputText("##value", text, sizeof(text),
-            ImGuiInputTextFlags_EnterReturnsTrue))
+        String text = before;
+        if (Widget::TextField("##value", text).CommitOnEnter().MaxLength(TextCapacity - 1)())
         {
             // 읽지 못하는 글자는 값을 건드리지 않는다. 코덱이 그렇게 약속한다.
-            return type.codec->FromText(address, text, std::strlen(text));
+            return type.codec->FromText(address, text.c_str(), text.size());
         }
         return false;
     }
@@ -915,12 +912,8 @@ namespace JBro
             const EnumNames& names = *type.enumNames;
             String before;
             ToText(type, address, before);
-            int current = names.ToIndex(address);
-            if (ImGui::Combo("##value", &current, names.names,
-                    static_cast<int>(names.count))
-                && names.FromIndex != nullptr)
+            if (Widget::EnumCombo("##value", names, address))
             {
-                names.FromIndex(address, current);
                 CommitEdit(type, address, before, context);
             }
             return;

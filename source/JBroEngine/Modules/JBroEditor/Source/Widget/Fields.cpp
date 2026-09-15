@@ -220,6 +220,29 @@ namespace JBro::Widget
         return Draw();
     }
 
+    bool Checkbox(const char* id, bool& value)
+    {
+        return ImGui::Checkbox(id != nullptr ? id : "##check", &value);
+    }
+
+    bool ColorField(const char* id, float rgba[4])
+    {
+        return ImGui::ColorEdit4(id != nullptr ? id : "##color", rgba,
+            ImGuiColorEditFlags_AlphaBar | ImGuiColorEditFlags_AlphaPreviewHalf);
+    }
+
+    bool ScalarRunField(const char* id, float* values, int count, float speed,
+        bool hasRange, float rangeMin, float rangeMax)
+    {
+        const char* label = id != nullptr ? id : "##run";
+        if (hasRange)
+        {
+            return ImGui::SliderScalarN(label, ImGuiDataType_Float, values, count,
+                &rangeMin, &rangeMax);
+        }
+        return ImGui::DragScalarN(label, ImGuiDataType_Float, values, count, speed);
+    }
+
     bool Splitter(
         const char* id, bool vertical, float thickness, float* size,
         float minSize, float maxSize)

@@ -57,8 +57,7 @@ namespace JBro::Widget
 
     // 글자 하나짜리 버튼이다. 고른 상태면 머리 색을 입는다.
     //
-    // **아이콘 글꼴이 아직 없다.** 기존 엔진은 FontAwesome 글리프를 넘겼고,
-    // 여기서는 글자를 넘긴다 - 글꼴이 생기면 넘기는 값만 바뀐다.
+    // 아이콘 하나짜리 단추다. `JBro::Icons` 의 글리프를 넘긴다(D-96).
     class IconButton
     {
     public:
@@ -80,6 +79,17 @@ namespace JBro::Widget
         bool m_selected = false;
         bool m_disabled = false;
     };
+
+    // 켜기 칸. 인스펙터의 bool 잎사귀와 컴포넌트 `사용` 칸이 이것이다(§11.1).
+    bool Checkbox(const char* id, bool& value);
+
+    // 색 하나. 견본과 고르개가 붙는다 - 숫자 네 개가 아니라 색이다(§11.3).
+    bool ColorField(const char* id, float rgba[4]);
+
+    // 한 줄에 칸 여럿의 실수 묶음(`Vec2`·`Rect`). 칸마다 번호를 쌓으므로 첫 칸의 Id 는
+    // `PushID(0)` 아래다. 범위를 주면 슬라이더, 아니면 끌기다.
+    bool ScalarRunField(const char* id, float* values, int count, float speed,
+        bool hasRange, float rangeMin, float rangeMax);
 
     // 두 칸 사이를 끌어 나누는 손잡이다. `size` 를 직접 고쳐 준다.
     //

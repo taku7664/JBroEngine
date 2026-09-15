@@ -14,6 +14,9 @@ namespace JBro::Widget
     // 범위가 **열린** 값(개수·픽셀 크기·거리)에만 쓴다. 0~1 로 정규화된 값은
     // 슬라이더다 - 그쪽은 범위 자체가 작업 영역이라 지금 어디인지가 보여야 한다.
     // `Range` 는 말도 안 되는 값을 막는 울타리이지 작업 영역이 아니다.
+    // **단추가 없으면 Id 를 쌓지 않는다.** 칸 하나뿐이면 `id` 가 곧 그 칸의 Id 다 - 인스펙터
+    // 테스트가 필드의 Id 를 `##value` 로 셀 수 있어야 하고, 단추가 있을 때만 `id` 아래에
+    // `##drag`·`-`·`+` 가 쌓인다.
     class DragInt
     {
     public:
@@ -65,6 +68,12 @@ namespace JBro::Widget
         float m_width = 0.0f;
         bool m_stepButtons = true;
     };
+
+    // 범위가 **닫힌** 값의 슬라이더다. `Range` 어트리뷰트가 붙은 필드가 이것으로 그려진다 -
+    // 범위 자체가 작업 영역이라 지금 어디인지가 보여야 한다.
+    bool SliderFloat(const char* id, float& value, float minValue, float maxValue,
+        float width = 0.0f);
+    bool SliderInt(const char* id, int& value, int minValue, int maxValue, float width = 0.0f);
 
     // 무게에 물든 버튼이다. 지우기처럼 되돌릴 수 없는 것에 `Error` 를 준다 -
     // 색이 같으면 "저장" 과 "지우기" 가 같은 무게로 보인다.

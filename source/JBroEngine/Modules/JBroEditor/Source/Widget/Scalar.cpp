@@ -10,6 +10,17 @@ namespace JBro::Widget
 {
     namespace
     {
+        // **범위가 없으면 붙잡지 않는다.** `ImGuiSliderFlags_AlwaysClamp` 는 `ClampZeroRange` 를
+        // 품고 있어 min == max == 0 인 끌기를 0 에 묶는다 - 범위 없는 실수 필드가 끌어도 움직이지
+        // 않았다(인스펙터 회전 테스트가 잡았다). 범위가 있을 때만 붙잡는다.
+        ImGuiSliderFlags ClampFlags(bool bounded)
+        {
+            return bounded ? ImGuiSliderFlags_AlwaysClamp : ImGuiSliderFlags_None;
+        }
+    }
+
+    namespace
+    {
         // -/+ 를 붙일 자리를 떼어 내고 드래그 칸에 남는 폭을 돌려준다.
         float SplitWidthForStepButtons(
             float requested, bool stepButtons, float& outButtonSize, float& outSpacing)
@@ -78,6 +89,15 @@ namespace JBro::Widget
 
     bool DragInt::Draw(int& value) const
     {
+        if (false == m_stepButtons)
+        {
+            if (m_width > 0.0f)
+            {
+                ImGui::SetNextItemWidth(m_width);
+            }
+            return ImGui::DragInt(m_id, &value, m_speed, m_min, m_max, m_format,
+                ClampFlags(m_min < m_max));
+        }
         ImGui::PushID(m_id);
         float buttonSize = 0.0f;
         float spacing = 0.0f;
@@ -86,7 +106,7 @@ namespace JBro::Widget
 
         ImGui::SetNextItemWidth(dragWidth);
         bool changed = ImGui::DragInt("##drag", &value, m_speed, m_min, m_max,
-            m_format, ImGuiSliderFlags_AlwaysClamp);
+            m_format, ClampFlags(m_min < m_max));
 
         if (m_stepButtons)
         {
@@ -161,6 +181,16 @@ namespace JBro::Widget
 
     bool DragFloat::Draw(float& value) const
     {
+        if (false == m_stepButtons)
+        {
+            // 칸 하나뿐이다. `id` 가 곧 그 칸이다.
+            if (m_width > 0.0f)
+            {
+                ImGui::SetNextItemWidth(m_width);
+            }
+            return ImGui::DragFloat(m_id, &value, m_speed, m_min, m_max, m_format,
+                ClampFlags(m_min < m_max));
+        }
         ImGui::PushID(m_id);
         float buttonSize = 0.0f;
         float spacing = 0.0f;
@@ -169,7 +199,7 @@ namespace JBro::Widget
 
         ImGui::SetNextItemWidth(dragWidth);
         bool changed = ImGui::DragFloat("##drag", &value, m_speed, m_min, m_max,
-            m_format, ImGuiSliderFlags_AlwaysClamp);
+            m_format, ClampFlags(m_min < m_max));
 
         if (m_stepButtons)
         {
@@ -314,5 +344,23 @@ namespace JBro::Widget
         drawList->AddLine(bottom, right, packed, 2.5f);
 
         ImGui::Dummy(ImVec2(radius * 2.0f, radius * 2.0f) + padding);
+    }
+
+    bool SliderFloat(const char* id, float& value, float minValue, float maxValue, float width)
+    {
+        if (width > 0.0f)
+        {
+            ImGui::SetNextItemWidth(width);
+        }
+        return ImGui::SliderFloat(id != nullptr ? id : "##slider", &value, minValue, maxValue);
+    }
+
+    bool SliderInt(const char* id, int& value, int minValue, int maxValue, float width)
+    {
+        if (width > 0.0f)
+        {
+            ImGui::SetNextItemWidth(width);
+        }
+        return ImGui::SliderInt(id != nullptr ? id : "##slider", &value, minValue, maxValue);
     }
 }
