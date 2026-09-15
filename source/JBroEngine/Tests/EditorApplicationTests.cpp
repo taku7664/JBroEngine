@@ -1284,11 +1284,47 @@ namespace
         Check(FindListItem(editor, hwnd, LabelId(PushedId(body->ID, 0), "##slot"),
                 static_cast<int>(body->Pos.x + body->Size.x * 0.5f), slot),
             "there must be a drop slot above the first row");
+        // 둘째 원소의 마디를 펼쳐 둔다. **펼침은 원소를 따라가야 한다** - 행 번호에 붙어 있으면
+        // 옮긴 뒤 옛 자리의 원소가 펼쳐져 보인다.
+        Spot node;
+        Check(FindListItemAnywhere(editor, hwnd, LabelId(PushedId(body->ID, 1), "Signal"), node),
+            "the second element must be drawn as a node");
+        ClickAt(editor, hwnd, node);
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the list must grow to show the fields");
+        }
+        ImGuiStorage* rowStates = body->DC.StateStorage;
+        Check(rowStates->GetInt(LabelId(PushedId(body->ID, 1), "Signal"), 0) == 1
+                && rowStates->GetInt(LabelId(PushedId(body->ID, 0), "Signal"), 0) == 0,
+            "the second node must be open and the first closed before the drag");
+        // 펼친 행은 손잡이 자리도 커졌다. 다시 찾는다.
+        Check(FindListItem(editor, hwnd, LabelId(PushedId(body->ID, 1), "##row_body"),
+                static_cast<int>(body->Pos.x) + 6, handle),
+            "the opened second row must still have a handle to drag");
 
         const std::size_t undo = editor.GetCommands().GetUndoCount();
         DragTo(editor, hwnd, handle, slot);
         Check(a->signals[0].strength == 100.0f && a->signals[1].strength == 1.0f,
             "dropping the second element above the first must swap them on screen");
+        Check(rowStates->GetInt(LabelId(PushedId(body->ID, 0), "Signal"), 0) == 1
+                && rowStates->GetInt(LabelId(PushedId(body->ID, 1), "Signal"), 0) == 0,
+            "and the opened node must travel with its element to the first row");
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the moved row must settle");
+        }
+        Check(FindListItemAnywhere(editor, hwnd,
+                LabelId(PushedId(LabelId(LabelId(PushedId(body->ID, 0), "Signal"), "##element"),
+                    static_cast<int>(FieldIndexOf(
+                        *JBro::TypeDescriptorOf<Signal>::Get().fields, "strength"))),
+                    "##value"),
+                node),
+            "so the first row now shows the fields of the element that moved there");
+        // 되돌린 뒤 이어지는 검사에서 손잡이 자리가 바뀌지 않게 마디를 다시 접는다.
+        Check(FindListItemAnywhere(editor, hwnd, LabelId(PushedId(body->ID, 0), "Signal"), node),
+            "the first row must show its node");
+        ClickAt(editor, hwnd, node);
         Check(a->signals[0].on && false == a->signals[1].on,
             "carrying every field of the element along");
         Check(b->signals[0].strength == 50.0f && b->signals[1].strength == 10.0f
@@ -1328,6 +1364,26 @@ namespace
         Check(editor.GetCommands().Undo(), "undo must run");
         Check(a->signals[0].strength == 1.0f && b->signals[0].strength == 10.0f,
             "and put both lists back");
+
+        // 지울 때도 펼침이 따라온다. 둘째를 펼치고 첫째를 지우면 새 첫째가 펼쳐져 있어야 한다.
+        Check(FindListItemAnywhere(editor, hwnd, LabelId(PushedId(body->ID, 1), "Signal"), node),
+            "the second element must show its node");
+        ClickAt(editor, hwnd, node);
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the list must grow to show the fields");
+        }
+        Check(rowStates->GetInt(LabelId(PushedId(body->ID, 1), "Signal"), 0) == 1,
+            "the second node must be open before the removal");
+        Check(FindListItemNearRightEdge(editor, hwnd, LabelId(PushedId(body->ID, 0), "x"), 1, node),
+            "the first row must offer to be removed");
+        ClickAt(editor, hwnd, node);
+        Check(a->signals.Size() == 1 && a->signals[0].strength == 100.0f,
+            "removing the first element must leave the second");
+        Check(rowStates->GetInt(LabelId(PushedId(body->ID, 0), "Signal"), 0) == 1
+                && rowStates->GetInt(LabelId(PushedId(body->ID, 1), "Signal"), 0) == 0,
+            "and its open node must move up with it");
+        Check(editor.GetCommands().Undo(), "undo must run");
 
         editor.Shutdown();
     }
@@ -1489,6 +1545,67 @@ namespace
         {
             SaveScreenshot(*renderer, 1024, 768, "toggled_list");
         }
+        editor.Shutdown();
+    }
+
+    // **게임 뷰는 패널이 보이는 프레임에만 그린다**(D-63). 닫힌 패널 뒤에서 매 프레임 게임을
+    // 텍스처에 그릴 이유가 없다. 다시 열면 그 프레임부터 이어진다 - 텍스처는 파기하지 않는다.
+    void TestTheGameViewIsRenderedOnlyWhileItsPanelShows()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = WindowWidth;
+        config.windowHeight = WindowHeight;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; game view opt-in not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "GameViewOptInProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* eye = canvas->CreateObject("Eye");
+        Check(canvas->AttachComponent<JBro::Component::Transform2D>(eye) != nullptr,
+            "the camera needs a transform");
+        auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(eye);
+        Check(camera != nullptr, "the probe camera must attach");
+        camera->primary = true;
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+        JBro::Renderer* renderer = editor.GetRenderer();
+        Check(renderer != nullptr, "the editor must expose its renderer");
+        JBro::RendererFrameStats stats = renderer->GetLastFrameStats();
+        Check(stats.viewCount == 1 && stats.skippedViewCount == 0,
+            "with the game view panel showing, the camera's view must be recorded");
+
+        JBro::EditorPanel* panel = editor.FindPanel("Game");
+        Check(panel != nullptr, "the game view panel must be registered");
+        panel->SetOpen(false);
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick with the panel closed");
+        }
+        stats = renderer->GetLastFrameStats();
+        Check(stats.skippedViewCount == 1,
+            "with the panel closed the view must be submitted but not recorded");
+        Check(editor.GetGameViewTexture().IsValid(),
+            "and the texture must be kept so the picture can continue later");
+
+        panel->SetOpen(true);
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick with the panel open again");
+        }
+        stats = renderer->GetLastFrameStats();
+        Check(stats.viewCount == 1 && stats.skippedViewCount == 0,
+            "and reopening the panel must record the view again");
+
         editor.Shutdown();
     }
 
@@ -3104,6 +3221,7 @@ int RunEditorApplicationTests()
     TestListEditsReachEveryChosenObjectAsOneUndo();
     TestAPairElementDragsAsADeltaOnEveryChosenList();
     TestAVectorFieldEditsThroughACommand();
+    TestTheGameViewIsRenderedOnlyWhileItsPanelShows();
     TestAStructElementOpensAndEditsEveryChosenList();
     TestDraggingAStructElementReordersEveryChosenList();
     TestFlagCountAndToneElementsEditByMouseOnEveryChosenList();
