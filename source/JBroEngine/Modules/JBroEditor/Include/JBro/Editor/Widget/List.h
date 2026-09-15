@@ -145,10 +145,19 @@ namespace JBro::Widget
                 avail.x - RowHandleWidth - RowRemoveWidth - indexWidth - 8.0f;
             const ImVec2 bodyStart = ImGui::GetCursorPos();
 
+            // **배경과 끌기 자리는 행이 그린 만큼 덮는다**(D-89). 행 높이는 그려 봐야 알므로
+            // 지난 프레임에 잰 높이를 창의 상태 저장소에 두고 쓴다 - 접기 마디를 펼친 프레임
+            // 한 번은 첫 줄만 덮이고, 다음 프레임부터 맞는다. 처음에는 늘 한 줄 높이라 펼친
+            // 구조체 원소의 둘째 줄부터는 손잡이 자리를 눌러도 끌리지 않았다.
+            ImGuiStorage* rowHeights = ImGui::GetStateStorage();
+            const ImGuiID rowHeightKey = ImGui::GetID("##row_height");
+            const float rowHeight = rowHeights->GetFloat(rowHeightKey, frameHeight);
+            const float rowTop = ImGui::GetCursorScreenPos().y;
+
             // **손잡이만 잡아야 끌린다.** 행 전체를 끌리게 두면 안의 글자 칸을
             // 고치려고 누른 것이 끌기로 바뀐다.
             ImGui::Selectable("##row_body", false, ImGuiSelectableFlags_AllowOverlap,
-                ImVec2(avail.x, frameHeight));
+                ImVec2(avail.x, rowHeight));
             if (reorderable)
             {
                 StyleScope dragStyle;
@@ -204,6 +213,7 @@ namespace JBro::Widget
             }
             ImGui::PopItemWidth();
             ImGui::EndGroup();
+            float rowBottom = ImGui::GetItemRectMax().y;
 
             if (false == readOnly)
             {
@@ -216,12 +226,22 @@ namespace JBro::Widget
                     removeIndex = index;
                 }
                 HoveredTooltip(Loc::TextOr(LocKeys::ListRemoveElement, "Remove element"));
+                if (ImGui::GetItemRectMax().y > rowBottom)
+                {
+                    rowBottom = ImGui::GetItemRectMax().y;
+                }
             }
+            // 이 행이 실제로 쓴 높이다. 다음 프레임의 배경과 끌기 자리가 이만큼 된다.
+            // 내용의 끝으로 재고 배경 자리로 재지 않는다 - 배경으로 재면 한 번 늘어난
+            // 높이가 마디를 접은 뒤에도 줄지 않는다.
+            const float drawnHeight = rowBottom - rowTop;
+            rowHeights->SetFloat(rowHeightKey,
+                drawnHeight > frameHeight ? drawnHeight : frameHeight);
             ImGui::PopID();
             // **커서는 내용이 끝난 자리에 둔다.** 행 높이는 그린 것이 정한다(D-89). 처음에는
             // 한 줄 높이의 배경 자리 끝으로 되돌려, 여러 줄을 그리는 행(필드를 가진 구조체
             // 원소) 위에 다음 행이 겹쳤다. 한 줄짜리 행은 손잡이 줄이 이미 한 줄 높이를
-            // 차지하므로 전과 같은 자리에 온다. 배경과 끌기 자리는 여전히 첫 줄만 덮는다.
+            // 차지하므로 전과 같은 자리에 온다.
         }
 
         if (reorderable)

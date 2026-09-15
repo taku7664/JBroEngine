@@ -290,6 +290,77 @@ namespace
         stage.End();
     }
 
+    // **행의 배경과 끌기 자리는 행이 그린 만큼 덮는다**(D-89). 처음에는 한 줄 높이라 펼친
+    // 구조체 원소의 둘째 줄부터는 손잡이 자리를 눌러도 아무것도 잡히지 않았다. 높이는 지난
+    // 프레임에 잰 것이므로 프레임 둘을 돌린 뒤에 재고, 마디를 접은 뒤에는 다시 줄어야 한다.
+    void TestARowsBackgroundCoversEverythingItDraws()
+    {
+        Stage stage;
+        bool tall = true;
+        float top[3] = {};
+        float bottom[3] = {};
+        const auto frame = [&]() {
+            stage.Begin();
+            JBro::Widget::ListVirtual("##cover", 3,
+                [&](int index) -> bool {
+                    top[index] = ImGui::GetCursorScreenPos().y;
+                    ImGui::Button("first");
+                    if (index == 1 && tall)
+                    {
+                        ImGui::Button("second");
+                        ImGui::Button("third");
+                    }
+                    bottom[index] = ImGui::GetItemRectMax().y;
+                    return false;
+                },
+                []() {},
+                [](int) {},
+                [](int, int) {});
+            stage.End();
+        };
+        for (int at = 0; at < 3; ++at)
+        {
+            frame();
+        }
+        ImGuiWindow* body = nullptr;
+        for (ImGuiWindow* window : ImGui::GetCurrentContext()->Windows)
+        {
+            if (std::strstr(window->Name, "##list_body") != nullptr)
+            {
+                body = window;
+            }
+        }
+        Check(body != nullptr, "the list must open its body");
+        int rowValue = 1;
+        const ImGuiID rowBody = ImHashStr("##row_body", 0,
+            ImHashData(&rowValue, sizeof(rowValue), body->ID));
+        const auto hoveredAt = [&](float y) {
+            ImGui::GetIO().AddMousePosEvent(body->Pos.x + 5.0f, y);
+            frame();
+            return ImGui::GetHoveredID();
+        };
+        Check(hoveredAt(top[1] + 2.0f) == rowBody, "the first line of a row must be its handle");
+        Check(hoveredAt(bottom[1] - 2.0f) == rowBody,
+            "and so must the last line of a row that draws several");
+        // 배경이 넘치는 것은 뒤 항목이 가려 마우스로는 보이지 않는다. 배경 높이를 정하는
+        // 저장값을 직접 본다 - 내용 높이와 같아야 하고, 접으면 한 줄로 돌아와야 한다.
+        const ImGuiID heightKey = ImHashStr("##row_height", 0,
+            ImHashData(&rowValue, sizeof(rowValue), body->ID));
+        const float tallHeight = bottom[1] - top[1];
+        Check(body->DC.StateStorage->GetFloat(heightKey, 0.0f) == tallHeight,
+            "the remembered row height must be exactly what the row drew");
+
+        // 접으면 다시 한 줄이다. 목록은 줄 간격을 좁힌 제 스타일로 그리므로, 한 줄 높이는
+        // 바깥의 `GetFrameHeight()` 가 아니라 한 줄이 된 행이 실제로 그린 높이로 잰다.
+        tall = false;
+        frame();
+        frame();
+        Check(bottom[1] - top[1] < tallHeight, "the test needs the row to have shrunk");
+        Check(body->DC.StateStorage->GetFloat(heightKey, 0.0f) == bottom[1] - top[1],
+            "a row that shrank back to one line must not keep its old height");
+        Check(hoveredAt(top[1] + 2.0f) == rowBody, "and its first line is still its handle");
+    }
+
     // **놓는 자리는 "이 원소 앞" 이고, 옮길 것이 없는 손짓은 바뀐 것이 없다**(D-89 ⑤).
     //
     // 인스펙터 테스트는 커맨드가 생기는지로 재므로, 아무것도 옮기지 않은 손짓에 위젯이
@@ -480,6 +551,7 @@ int RunEditorWidgetTests()
     TestTheListAsksItsCallbacksForEverything();
     TestAListRowIsAsTallAsWhatItDraws();
     TestTheArrayWrapperMovesElementsCorrectly();
+    TestARowsBackgroundCoversEverythingItDraws();
     TestDroppingARowMovesItOnceAndDroppingBelowItselfChangesNothing();
     TestTheTreeHandsBackItsRowAndContent();
     TestTheTextFieldLeavesUntouchedValuesAlone();
