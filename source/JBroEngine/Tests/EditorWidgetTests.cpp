@@ -290,6 +290,114 @@ namespace
         stage.End();
     }
 
+    // **놓는 자리는 "이 원소 앞" 이고, 옮길 것이 없는 손짓은 바뀐 것이 없다**(D-89 ⑤).
+    //
+    // 인스펙터 테스트는 커맨드가 생기는지로 재므로, 아무것도 옮기지 않은 손짓에 위젯이
+    // "바뀌었다" 고 답하는 것은 거기서 보이지 않는다 - 커맨드가 값을 비교해 걸러 준다. 그 답은
+    // 이 위젯의 계약이라 여기서 마우스를 흘려 직접 잰다. 렌더러 없이 ImGui 입력 이벤트로 끈다.
+    void TestDroppingARowMovesItOnceAndDroppingBelowItselfChangesNothing()
+    {
+        Stage stage;
+        int movedFrom = -1;
+        int movedTo = -1;
+        bool changedInAnyFrame = false;
+        const auto frame = [&]() {
+            stage.Begin();
+            const bool changed = JBro::Widget::ListVirtual("##drag", 3,
+                [&](int) -> bool { ImGui::TextUnformatted("row"); return false; },
+                [&]() {},
+                [&](int) {},
+                [&](int from, int to) { movedFrom = from; movedTo = to; });
+            changedInAnyFrame = changedInAnyFrame || changed;
+            stage.End();
+        };
+        const auto moveMouse = [&](float x, float y) {
+            ImGui::GetIO().AddMousePosEvent(x, y);
+            frame();
+        };
+        const auto press = [&](bool down) {
+            ImGui::GetIO().AddMouseButtonEvent(0, down);
+            frame();
+        };
+        frame();
+        frame();
+
+        ImGuiWindow* body = nullptr;
+        for (ImGuiWindow* window : ImGui::GetCurrentContext()->Windows)
+        {
+            if (std::strstr(window->Name, "##list_body") != nullptr)
+            {
+                body = window;
+            }
+        }
+        Check(body != nullptr, "the list must open its body");
+        const auto pushedId = [](ImGuiID seed, int value) {
+            return ImHashData(&value, sizeof(value), seed);
+        };
+        const auto labelId = [](ImGuiID seed, const char* label) {
+            return ImHashStr(label, 0, seed);
+        };
+        // `x` 에서 위아래로 훑어 `target` 이 가리켜지는 y 를 찾는다.
+        const auto findY = [&](ImGuiID target, float x, float& y) {
+            for (float at = body->Pos.y; at < body->Pos.y + body->Size.y; at += 1.0f)
+            {
+                moveMouse(x, at);
+                if (ImGui::GetHoveredID() == target)
+                {
+                    y = at;
+                    return true;
+                }
+            }
+            return false;
+        };
+        const auto dragTo = [&](float fromX, float fromY, float toX, float toY) {
+            moveMouse(fromX, fromY);
+            press(true);
+            constexpr int Steps = 10;
+            for (int step = 1; step <= Steps; ++step)
+            {
+                moveMouse(fromX + (toX - fromX) * step / Steps,
+                    fromY + (toY - fromY) * step / Steps);
+            }
+            frame();
+            press(false);
+            frame();
+        };
+        const float handleX = body->Pos.x + 5.0f;
+        const float middleX = body->Pos.x + body->Size.x * 0.5f;
+        float rowY = 0.0f;
+        float slotY = 0.0f;
+
+        // 둘째 행을 첫 행 위에 놓는다.
+        Check(findY(labelId(pushedId(body->ID, 1), "##row_body"), handleX, rowY),
+            "the second row must have a handle");
+        Check(findY(labelId(pushedId(body->ID, 0), "##slot"), middleX, slotY),
+            "there must be a slot above the first row");
+        dragTo(handleX, rowY, middleX, slotY);
+        Check(movedFrom == 1 && movedTo == 0, "dropping above the first row must move to 0");
+        Check(changedInAnyFrame, "and the list must say something changed");
+
+        // 둘째 행을 제 바로 아래 자리에 놓는다. 옮길 것이 없다.
+        movedFrom = -1;
+        movedTo = -1;
+        changedInAnyFrame = false;
+        Check(findY(labelId(pushedId(body->ID, 2), "##slot"), middleX, slotY),
+            "there must be a slot below the second row");
+        dragTo(handleX, rowY, middleX, slotY);
+        Check(movedFrom == -1 && movedTo == -1,
+            "dropping a row right below itself must not ask to move it");
+        Check(false == changedInAnyFrame, "and the list must not say anything changed");
+
+        // 첫 행을 맨 끝 자리에 놓는다. 원본을 먼저 빼므로 목표는 한 칸 당겨진 2 다.
+        Check(findY(labelId(pushedId(body->ID, 0), "##row_body"), handleX, rowY),
+            "the first row must have a handle");
+        Check(findY(labelId(pushedId(body->ID, 3), "##slot"), middleX, slotY),
+            "there must be a slot after the last row");
+        dragTo(handleX, rowY, middleX, slotY);
+        Check(movedFrom == 0 && movedTo == 2,
+            "dropping at the end must hand over the corrected element index");
+    }
+
     // 트리는 **줄 사각형과 내용 사각형을 나눠 준다.** 그것이 없으면 이 위젯을
     // 옮길 이유가 없다.
     void TestTheTreeHandsBackItsRowAndContent()
@@ -372,6 +480,7 @@ int RunEditorWidgetTests()
     TestTheListAsksItsCallbacksForEverything();
     TestAListRowIsAsTallAsWhatItDraws();
     TestTheArrayWrapperMovesElementsCorrectly();
+    TestDroppingARowMovesItOnceAndDroppingBelowItselfChangesNothing();
     TestTheTreeHandsBackItsRowAndContent();
     TestTheTextFieldLeavesUntouchedValuesAlone();
     TestSeverityColoursDiffer();
