@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/Editor/Command/ComponentSnapshot.h>
+#include <JBro/Editor/Command/ObjectTreeSnapshot.h>
 #include <JBro/Editor/Command/SetPropertyCommand.h>
 
 #include <JBro/Editor/EditorCommand.h>
@@ -64,23 +65,6 @@ namespace JBro
         void Redo() override;
 
     private:
-        // 나무를 **평평하게** 편다. 자식이 자기 안에 자식 배열을 들면 타입이
-        // 자기 자신을 품게 되어 크기를 잴 수 없다 - 캔버스 파일도 같은 이유로
-        // 오브젝트를 한 줄로 늘어놓고 부모를 인덱스로 가리킨다.
-        struct ObjectSnapshot
-        {
-            EditorObjectId id = InvalidEditorObjectId;
-            String name;
-            bool active = true;
-            // 이 배열 안에서의 부모 위치다. -1 이면 지운 나무의 뿌리다.
-            std::int64_t parentIndex = -1;
-            Array<ComponentSnapshot> components;
-        };
-
-        bool Capture(GameObject& object, std::int64_t parentIndex);
-        bool Restore();
-        bool DestroyTracked();
-
         Canvas* m_canvas = nullptr;
         EditorObjectRegistry* m_registry = nullptr;
         EditorObjectId m_parentId = InvalidEditorObjectId;
@@ -88,8 +72,44 @@ namespace JBro
         // 떴는데 자식 하나에서 막히면 배열은 비어 있지 않고, 그대로 지우면 그
         // 자식이 돌아올 곳이 없다. 성공했다고 말하면서 잃는 것이 가장 나쁘다.
         bool m_captured = false;
-        // 0번이 지운 나무의 뿌리다. 뒤로 갈수록 깊어지므로, 되살릴 때 앞에서부터
-        // 만들면 부모가 늘 먼저 있다.
-        Array<ObjectSnapshot> m_objects;
+        // 나무를 평평하게 편 스냅샷이다(`ObjectTreeSnapshot`). 복사·붙여넣기와 같은 것을 쓴다.
+        ObjectTreeSnapshot m_tree;
+    };
+
+    // 떠 둔 나무들을 새 오브젝트로 붙여 넣는다(기존 엔진 `CPasteObjectsCommand`). 되돌리면
+    // 붙인 것을 지우고, 다시 하면 **같은 번호로** 되살린다 - 붙여 넣은 것을 골라 고친 커맨드가
+    // 그 뒤에 쌓여 있다.
+    //
+    // 클립보드는 글자가 아니라 스냅샷이다. 기존 엔진은 YAML 글자를 시스템 클립보드에 두어
+    // 프로세스 사이에서도 붙일 수 있었지만, 지금 캔버스 파일 쓰기는 캔버스 전체 단위라
+    // 부분 나무의 글자 왕복이 없다. 에디터 안에서만 붙는다 - 프로세스를 넘는 것은 그 왕복이
+    // 생길 때 한다.
+    class PasteObjectsCommand final : public EditorCommand
+    {
+    public:
+        PasteObjectsCommand(
+            Canvas& canvas,
+            EditorObjectRegistry& registry,
+            const Array<ObjectTreeSnapshot>& trees,
+            EditorObjectId parentId);
+
+        const char* GetName() const override;
+        bool Execute() override;
+        void Undo() override;
+        void Redo() override;
+
+        // 붙여 넣은 뿌리들의 번호다. 부른 쪽이 선택을 옮기는 데 쓴다.
+        Array<EditorObjectId> GetPastedRootIds() const;
+
+    private:
+        bool Paste();
+        void DestroyPasted();
+
+        Canvas* m_canvas = nullptr;
+        EditorObjectRegistry* m_registry = nullptr;
+        EditorObjectId m_parentId = InvalidEditorObjectId;
+        Array<ObjectTreeSnapshot> m_trees;
+        // 한 번 붙였는가. 첫 실행은 새 번호를 받고, 그 뒤는 그 번호에 다시 건다.
+        bool m_pasted = false;
     };
 }

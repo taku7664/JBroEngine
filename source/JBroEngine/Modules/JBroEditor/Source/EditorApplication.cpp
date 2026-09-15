@@ -1,4 +1,5 @@
 ﻿#include <JBro/Editor/EditorApplication.h>
+#include <JBro/Editor/Command/ObjectCommands.h>
 #include <JBro/Editor/MessagePopup.h>
 
 #include <JBro/Editor/Localization.h>
@@ -257,6 +258,63 @@ namespace JBro
     void EditorApplication::RequestSaveCanvas()
     {
         m_saveRequested = true;
+    }
+
+    bool EditorApplication::CopySelection()
+    {
+        const Array<GameObject*> roots = GetTopLevelSelectedObjects();
+        if (roots.IsEmpty())
+        {
+            return false;
+        }
+        Array<ObjectTreeSnapshot> copied;
+        for (std::size_t index = 0; index < roots.Size(); ++index)
+        {
+            ObjectTreeSnapshot tree;
+            if (roots[index] == nullptr || false == tree.Capture(m_objectIds, *roots[index]))
+            {
+                // 하나라도 뜨지 못하면 클립보드를 건드리지 않는다. 반쪽을 붙이게 두지 않는다.
+                return false;
+            }
+            copied.Add(std::move(tree));
+        }
+        m_clipboard = std::move(copied);
+        return true;
+    }
+
+    bool EditorApplication::PasteClipboard()
+    {
+        Canvas* canvas = GetCanvas();
+        if (canvas == nullptr || m_clipboard.IsEmpty())
+        {
+            return false;
+        }
+        // 주된 선택의 형제로 붙인다. 고른 것이 없거나 뿌리면 캔버스 뿌리다.
+        EditorObjectId parentId = InvalidEditorObjectId;
+        if (GameObject* selected = GetSelectedObject())
+        {
+            if (GameObject* parent = selected->GetParent())
+            {
+                parentId = m_objectIds.Track(parent);
+            }
+        }
+        auto command = MakeOwnerPtr<PasteObjectsCommand>(*canvas, m_objectIds, m_clipboard, parentId);
+        PasteObjectsCommand* raw = command.Get();
+        if (false == m_commands.Execute(std::move(command)))
+        {
+            return false;
+        }
+        const Array<EditorObjectId> pasted = raw->GetPastedRootIds();
+        Array<GameObject*> objects;
+        for (std::size_t index = 0; index < pasted.Size(); ++index)
+        {
+            if (GameObject* object = m_objectIds.Resolve(pasted[index]))
+            {
+                objects.Add(object);
+            }
+        }
+        SelectObjects({objects.Data(), static_cast<std::uint32_t>(objects.Size())});
+        return true;
     }
 
     void EditorApplication::PerformSaveRequest()
@@ -952,6 +1010,18 @@ namespace JBro
         {
             RequestSaveCanvas();
         }
+        // Ctrl+C / Ctrl+V. 글자 칸이 입력을 먹고 있을 때는 그 칸의 복사·붙여넣기다.
+        if (GetCanvas() != nullptr && false == ImGui::GetIO().WantTextInput)
+        {
+            if (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_C, ImGuiInputFlags_RouteGlobal))
+            {
+                CopySelection();
+            }
+            if (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_V, ImGuiInputFlags_RouteGlobal))
+            {
+                PasteClipboard();
+            }
+        }
 
         // **텍스처와 버퍼는 여기서 올라간다. RHI 프레임 밖이어야 한다** -
         // 아래 엔진 Tick 이 프레임을 열고 나면 만들 수도 쓸 수도 없다.
@@ -1201,6 +1271,8 @@ namespace JBro
         // 캔버스 경로는 프로젝트의 것이다. 다음 프로젝트의 저장이 옛 파일에 가면 안 된다.
         m_canvasPath.clear();
         m_saveRequested = false;
+        // 클립보드의 번호는 이 프로젝트의 것이다. 다음 프로젝트에서 그 번호를 믿지 않도록 비운다.
+        m_clipboard.Clear();
         m_engine->CloseProject();
         m_lastFrameStatus = m_engine->GetLastFrameStatus();
         if (m_engine->GetFramework() == nullptr)

@@ -97,7 +97,7 @@ namespace JBro
         m_parentId = object->GetParent() != nullptr
             ? m_registry->Track(object->GetParent())
             : InvalidEditorObjectId;
-        m_captured = Capture(*object, -1);
+        m_captured = m_tree.Capture(registry, *object);
     }
 
     const char* DeleteObjectCommand::GetName() const
@@ -105,122 +105,9 @@ namespace JBro
         return "Delete Object";
     }
 
-    bool DeleteObjectCommand::Capture(GameObject& object, std::int64_t parentIndex)
-    {
-        ObjectSnapshot snapshot;
-        snapshot.id = m_registry->Track(&object);
-        const char* name = object.GetTag();
-        snapshot.name = name != nullptr ? name : "";
-        snapshot.active = object.IsActiveSelf();
-        snapshot.parentIndex = parentIndex;
-
-        const Array<ComponentSlot>& components = object.GetComponents();
-        for (std::size_t index = 0; index < components.Size(); ++index)
-        {
-            ComponentBase* component = components[index].reference.TryGet();
-            if (component == nullptr)
-            {
-                continue;
-            }
-            ComponentSnapshot captured;
-            if (false == CaptureComponent(*component, captured))
-            {
-                // 프로퍼티를 등록하지 않은 타입이다. 되살려 봐야 값이 비어 있으므로
-                // 지우는 것을 거절한다 - 조용히 잃는 것보다 낫다.
-                return false;
-            }
-            snapshot.components.Add(std::move(captured));
-        }
-
-        const std::int64_t self = static_cast<std::int64_t>(m_objects.Size());
-        m_objects.Add(std::move(snapshot));
-
-        const Array<SafePtr<GameObject>>& children = object.GetChildren();
-        for (std::size_t index = 0; index < children.Size(); ++index)
-        {
-            if (GameObject* child = children[index].TryGet())
-            {
-                if (false == Capture(*child, self))
-                {
-                    return false;
-                }
-            }
-        }
-        return true;
-    }
-
-    bool DeleteObjectCommand::Restore()
-    {
-        GameObject* outerParent = m_parentId != InvalidEditorObjectId
-            ? m_registry->Resolve(m_parentId)
-            : nullptr;
-
-        // 만든 것을 순서대로 들고 있는다. 부모는 늘 먼저 나오므로 앞에서부터
-        // 만들면 붙일 자리가 이미 있다.
-        Array<GameObject*> created;
-        for (std::size_t index = 0; index < m_objects.Size(); ++index)
-        {
-            const ObjectSnapshot& snapshot = m_objects[index];
-            GameObject* object = m_canvas->CreateObject(snapshot.name.c_str());
-            if (object == nullptr)
-            {
-                return false;
-            }
-            GameObject* parent = snapshot.parentIndex < 0
-                ? outerParent
-                : created[static_cast<std::size_t>(snapshot.parentIndex)];
-            if (parent != nullptr)
-            {
-                object->SetParent(parent);
-            }
-            object->SetActive(snapshot.active);
-            // **옛 번호에 다시 건다.** 이 오브젝트를 가리키던 커맨드들이 계속
-            // 찾아야 한다.
-            m_registry->Rebind(snapshot.id, object);
-            created.Add(object);
-
-            for (std::size_t c = 0; c < snapshot.components.Size(); ++c)
-            {
-                const ComponentSnapshot& captured = snapshot.components[c];
-                const char* typeName = NameTable::Get().Resolve(captured.typeId);
-                const ComponentTypeInfo* info = typeName != nullptr
-                    ? ComponentRegistry::Get().Find(typeName)
-                    : nullptr;
-                if (info == nullptr || info->Attach == nullptr)
-                {
-                    return false;
-                }
-                ComponentBase* component = info->Attach(*m_canvas, object);
-                if (component == nullptr || false == ApplyComponent(*component, captured))
-                {
-                    return false;
-                }
-            }
-        }
-        return true;
-    }
-
-    bool DeleteObjectCommand::DestroyTracked()
-    {
-        if (m_objects.IsEmpty())
-        {
-            return false;
-        }
-        GameObject* object = m_registry->Resolve(m_objects[0].id);
-        if (object == nullptr)
-        {
-            return false;
-        }
-        // 자식은 캔버스가 함께 지운다. 스냅샷에는 그 자식들도 들어 있으므로
-        // 되살릴 때 나무가 통째로 돌아온다.
-        const bool destroyed = m_canvas->DestroyObject(object);
-        m_canvas->FlushPendingDestroy();
-        return destroyed;
-    }
-
     bool DeleteObjectCommand::Execute()
     {
-        if (false == m_captured || m_objects.IsEmpty())
+        if (false == m_captured || m_tree.objects.IsEmpty())
         {
             // 뜨지 못한 스냅샷이다. 되살릴 수 없는 것은 지우지 않는다.
             //
@@ -229,16 +116,106 @@ namespace JBro
             // 말한 뒤에 조용히 잃는 것이다.
             return false;
         }
-        return DestroyTracked();
+        return m_tree.DestroyRoot(*m_canvas, *m_registry);
     }
 
     void DeleteObjectCommand::Undo()
     {
-        Restore();
+        GameObject* outerParent = m_parentId != InvalidEditorObjectId
+            ? m_registry->Resolve(m_parentId)
+            : nullptr;
+        m_tree.Restore(*m_canvas, *m_registry, outerParent, true);
     }
 
     void DeleteObjectCommand::Redo()
     {
-        DestroyTracked();
+        m_tree.DestroyRoot(*m_canvas, *m_registry);
+    }
+
+    // ── PasteObjectsCommand ──────────────────────────────────────────────────
+
+    PasteObjectsCommand::PasteObjectsCommand(
+        Canvas& canvas,
+        EditorObjectRegistry& registry,
+        const Array<ObjectTreeSnapshot>& trees,
+        EditorObjectId parentId)
+        : m_canvas(&canvas)
+        , m_registry(&registry)
+        , m_parentId(parentId)
+    {
+        for (std::size_t index = 0; index < trees.Size(); ++index)
+        {
+            m_trees.Add(trees[index]);
+        }
+    }
+
+    const char* PasteObjectsCommand::GetName() const
+    {
+        return "Paste Objects";
+    }
+
+    bool PasteObjectsCommand::Paste()
+    {
+        if (m_trees.IsEmpty())
+        {
+            return false;
+        }
+        // 부모가 지워졌으면 뿌리에 붙이지 않고 거절한다. 사용자가 고른 자리가 아니다.
+        GameObject* parent = nullptr;
+        if (m_parentId != InvalidEditorObjectId)
+        {
+            parent = m_registry->Resolve(m_parentId);
+            if (parent == nullptr)
+            {
+                return false;
+            }
+        }
+        for (std::size_t index = 0; index < m_trees.Size(); ++index)
+        {
+            if (false == m_trees[index].Restore(*m_canvas, *m_registry, parent, m_pasted))
+            {
+                // 반쯤 붙은 것은 도로 지운다. 반쪽을 성공이라 두지 않는다.
+                for (std::size_t back = 0; back <= index; ++back)
+                {
+                    m_trees[back].DestroyRoot(*m_canvas, *m_registry);
+                }
+                return false;
+            }
+        }
+        m_pasted = true;
+        return true;
+    }
+
+    void PasteObjectsCommand::DestroyPasted()
+    {
+        for (std::size_t index = 0; index < m_trees.Size(); ++index)
+        {
+            m_trees[index].DestroyRoot(*m_canvas, *m_registry);
+        }
+    }
+
+    bool PasteObjectsCommand::Execute()
+    {
+        return Paste();
+    }
+
+    void PasteObjectsCommand::Undo()
+    {
+        DestroyPasted();
+    }
+
+    void PasteObjectsCommand::Redo()
+    {
+        Paste();
+    }
+
+    Array<EditorObjectId> PasteObjectsCommand::GetPastedRootIds() const
+    {
+        Array<EditorObjectId> ids;
+        for (std::size_t index = 0; index < m_trees.Size(); ++index)
+        {
+            ids.Add(m_trees[index].GetRootId());
+        }
+        return ids;
     }
 }

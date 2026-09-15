@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/Canvas/CanvasFile.h>
+#include <JBro/Editor/Command/ObjectTreeSnapshot.h>
 #include <JBro/Editor/EditorCommand.h>
 #include <JBro/Editor/EditorObjectRegistry.h>
 #include <JBro/Editor/EditorPanel.h>
@@ -173,6 +174,15 @@ namespace JBro
         // 읽기는 **빈 캔버스에만** 들어간다 — 이미 내용이 있으면 거절한다.
         bool LoadCanvas(const char* path, CanvasFileError& error);
         bool SaveCanvas(const char* path, CanvasFileError& error);
+        // **복사·붙여넣기.** 고른 것 중 맨 위 것들의 나무를 떠 둔다(뜨지 못하면 거짓이고
+        // 클립보드는 그대로다). 붙여넣기는 커맨드 하나로 가고, 붙인 뿌리들을 고른다 -
+        // 주된 선택의 형제로 붙이고, 고른 것이 없으면 캔버스 뿌리에 붙인다.
+        bool CopySelection();
+        bool PasteClipboard();
+        bool HasClipboard() const
+        {
+            return false == m_clipboard.IsEmpty();
+        }
         // 저장 메뉴와 Ctrl+S 가 부른다. 이 프레임의 UI 가 끝난 뒤 처리한다 - 아는 경로가 있으면
         // 거기에, 없으면 대화상자로 경로를 받아 저장하고, 실패하면 팝업으로 알린다.
         void RequestSaveCanvas();
@@ -224,6 +234,7 @@ namespace JBro
         PopupHandle m_nextPopupHandle = 1;
         String m_canvasPath;
         bool m_saveRequested = false;
+        Array<ObjectTreeSnapshot> m_clipboard;
         bool (*m_fileDialog)(const FileDialogDesc& desc, String& outPath, void* user) = nullptr;
         void* m_fileDialogUser = nullptr;
         // 고른 것들. 0번이 주된 것은 아니다 - 주된 것은 따로 든다(기존 엔진과

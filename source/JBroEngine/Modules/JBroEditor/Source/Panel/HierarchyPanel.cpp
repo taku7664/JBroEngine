@@ -142,6 +142,21 @@ namespace JBro
                         m_editor->GetObjectIds().Resolve(raw->GetObjectId()));
                 }
             }
+            // 빈 자리의 붙여넣기는 뿌리에 붙는다.
+            const bool hasClipboard = m_editor->HasClipboard();
+            if (false == hasClipboard)
+            {
+                ImGui::BeginDisabled();
+            }
+            if (ImGui::MenuItem(Loc::TextOr(LocKeys::HierarchyPaste, "Paste"), "Ctrl+V"))
+            {
+                m_editor->ClearSelection();
+                m_editor->PasteClipboard();
+            }
+            if (false == hasClipboard)
+            {
+                ImGui::EndDisabled();
+            }
             ImGui::EndPopup();
         }
 
@@ -365,6 +380,27 @@ namespace JBro
                     m_editor->SetSelectedObject(
                         m_editor->GetObjectIds().Resolve(raw->GetObjectId()));
                 }
+            }
+            ImGui::Separator();
+            if (ImGui::MenuItem(Loc::TextOr(LocKeys::HierarchyCopy, "Copy"), "Ctrl+C"))
+            {
+                m_editor->CopySelection();
+            }
+            const bool hasClipboard = m_editor->HasClipboard();
+            if (false == hasClipboard)
+            {
+                ImGui::BeginDisabled();
+            }
+            if (ImGui::MenuItem(Loc::TextOr(LocKeys::HierarchyPaste, "Paste"), "Ctrl+V"))
+            {
+                m_editor->PasteClipboard();
+                ImGui::EndPopup();
+                ImGui::PopID();
+                return;
+            }
+            if (false == hasClipboard)
+            {
+                ImGui::EndDisabled();
             }
             ImGui::Separator();
             if (ImGui::MenuItem(Loc::TextOr(LocKeys::HierarchyDelete, "Delete")))
