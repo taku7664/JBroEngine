@@ -841,6 +841,8 @@
   (`PropertyInfo`, C++ 매크로 생산자, `ValueCodec`·`ArrayOps`·`TableOps`)은 서 있으며 인스펙터가 그 위에서 돈다.
 - [tasks/ide-plan.md](../tasks/ide-plan.md) — 스크립트 편집기 JBro Script Editor(Code-OSS 포크) 계획(D-87).
   계획일 뿐 확정 계약이 아니다. 문법 강조 확장만 편집기 리포(`F:\Project\JBroScriptEditor`)에 섰고 포크는 아직 없다.
+- [tasks/jbroscript-syntax.md](../tasks/jbroscript-syntax.md) · [tasks/jbroc-rules.md](../tasks/jbroc-rules.md) — JBroScript 문법과
+  컴파일러 규칙 정리본. 계획이며 확정 계약이 아니다. `jbroc-rules.md` §4 의 멤버 `ref` 변환은 이 문서 §6 과 부딪히는 열린 항목이다.
 - [Jbro Engine Architecture Draft](./Jbro_Engine_Architecture_Draft_v2.md)
 - [Jbro C++ Script Object Safety Draft](./Jbro_CPP_Script_Object_Safety.md)
 
