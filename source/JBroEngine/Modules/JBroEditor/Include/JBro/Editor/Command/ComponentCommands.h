@@ -69,6 +69,10 @@ namespace JBro
         ComponentAddress m_address;
         NameId m_typeName = InvalidNameId;
         ComponentSnapshot m_snapshot;
+        // 오브젝트의 컴포넌트 슬롯 중 몇 번째였는가(타입을 가리지 않는다).
+        // 되돌릴 때 그 자리로 보낸다 - 맨 뒤에 두면 같은 타입끼리 차례가 바뀌어
+        // 앞서 쌓인 커맨드의 "몇 번째" 가 다른 컴포넌트를 가리킨다.
+        std::size_t m_slotIndex = 0;
         // 값을 다 떴는가. 못 떴으면 떼지 않는다.
         bool m_captured = false;
     };

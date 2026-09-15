@@ -551,8 +551,8 @@ namespace
         Check(false == restored->IsEnabled(),
             "and a component that was switched off must come back switched off");
 
-        // 다시 떼고 다시 되살려도 같아야 한다. **되살린 것은 맨 끝에 붙으므로
-        // 자리가 달라지는데**, 다시하기가 그 자리를 따라가야 한다.
+        // 다시 떼고 다시 되살려도 같아야 한다. 되살린 것은 맨 끝에 붙었다가
+        // 원래 자리로 옮겨지므로, 다시하기가 옮긴 뒤의 자리를 따라가야 한다.
         Check(commands.Redo(), "redo must run");
         Check(CountComponents(*object, spriteType) == 0, "and take it off again");
         Check(commands.Undo(), "and undo once more");
@@ -600,6 +600,113 @@ namespace
 
         Check(commands.Undo(), "undo must run");
         Check(CountComponents(*object, type) == 2, "and bring the other one back");
+    }
+
+    // 컴포넌트 슬롯의 자리를 옮긴다. **넷으로 잰다** - 셋이면 가운데를 빼서 밀어낸
+    // 것과 마지막 것을 끌어다 덮은 것이 같은 결과라 둘을 가려내지 못한다(D-84).
+    void TestComponentSlotsCanBeRearranged()
+    {
+        RegisterOnce();
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::GameObject* object = canvas.CreateObject("Subject");
+        JBro::ComponentBase* slots[4] = {};
+        for (int index = 0; index < 4; ++index)
+        {
+            slots[index] = canvas.AttachComponent<JBro::Component::Collider2D>(object);
+            Check(slots[index] != nullptr, "four colliders must attach");
+        }
+        auto expect = [&](const int order[4], const char* message) {
+            for (std::size_t at = 0; at < 4; ++at)
+            {
+                std::size_t found = 99;
+                Check(object->FindComponentIndex(slots[order[at]], found) && found == at,
+                    message);
+            }
+        };
+
+        const int start[4] = {0, 1, 2, 3};
+        expect(start, "they sit in the order they were attached");
+
+        Check(object->SetComponentIndex(slots[0], 2), "moving the first back must work");
+        const int movedBack[4] = {1, 2, 0, 3};
+        expect(movedBack, "and slide the ones between forward, leaving the last alone");
+
+        Check(object->SetComponentIndex(slots[3], 1), "moving the last forward must work");
+        const int movedForward[4] = {1, 3, 2, 0};
+        expect(movedForward, "and push the ones between back");
+
+        Check(object->SetComponentIndex(slots[1], 99), "an index past the end is the end");
+        const int toEnd[4] = {3, 2, 0, 1};
+        expect(toEnd, "so it lands last");
+
+        JBro::GameObject* stranger = canvas.CreateObject("Stranger");
+        auto* foreign = canvas.AttachComponent<JBro::Component::Collider2D>(stranger);
+        std::size_t index = 0;
+        Check(false == object->FindComponentIndex(foreign, index),
+            "a component on another object is not in this one");
+        Check(false == object->SetComponentIndex(foreign, 0),
+            "and cannot be moved within it");
+        Check(false == object->SetComponentIndex(nullptr, 0), "nor can nothing");
+    }
+
+    // **떼었다 되돌린 뒤에도 앞선 편집은 그 컴포넌트로 가야 한다.**
+    //
+    // 컴포넌트는 (오브젝트 번호, 타입, 같은 타입 중 몇 번째)로 가리킨다. 되돌리기가
+    // 원래 자리가 아니라 맨 끝에 다시 붙이면 같은 타입 둘의 차례가 뒤바뀌고,
+    // 그 전에 쌓인 편집의 "몇 번째" 가 다른 컴포넌트를 가리키게 된다.
+    void TestAnEditBeforeARemovalStillFindsItsComponent()
+    {
+        RegisterOnce();
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::EditorObjectRegistry ids;
+        JBro::EditorCommandManager commands;
+
+        JBro::GameObject* object = canvas.CreateObject("Subject");
+        const JBro::EditorObjectId id = ids.Track(object);
+        auto* first = canvas.AttachComponent<JBro::Component::Collider2D>(object);
+        auto* second = canvas.AttachComponent<JBro::Component::Collider2D>(object);
+        Check(first != nullptr && second != nullptr, "two of a kind must attach");
+        first->radius = 1.5f;
+        second->radius = 4.5f;
+        const JBro::ComponentTypeId type = first->GetTypeId();
+
+        const JBro::PropertyTable* table = JBro::PropertyRegistry::Lookup(
+            JBro::Component::Collider2D::StaticTypeName());
+        Check(table != nullptr, "Collider2D must have registered its properties");
+        const JBro::SetPropertyCommand::Path radius = PathTo(FieldIndex(*table, "radius"));
+
+        Check(commands.Execute(JBro::MakeOwnerPtr<JBro::SetPropertyCommand>(
+                ids, AddressOf(ids, *object, *first), radius,
+                JBro::String("1.5"), JBro::String("2"))),
+            "editing the first must go through");
+        Check(commands.Execute(JBro::MakeOwnerPtr<JBro::RemoveComponentCommand>(
+                canvas, ids, id, first)),
+            "and so must removing it");
+        canvas.FlushPendingDestroy();
+
+        Check(commands.Undo(), "undoing the removal must run");
+        Check(CountComponents(*object, type) == 2, "and bring it back");
+        Check(commands.Undo(), "undoing the edit must run");
+
+        // 값으로 가려낸다. 되살린 것은 주소가 새것이라 포인터로는 알아볼 수 없다.
+        std::size_t untouched = 0;
+        std::size_t reverted = 0;
+        for (std::uint32_t ordinal = 0; ordinal < 2; ++ordinal)
+        {
+            auto* collider = static_cast<JBro::Component::Collider2D*>(
+                JBro::FindComponentAt(*object, type, ordinal));
+            Check(collider != nullptr, "both must still be there");
+            if (NearlyEqual(collider->radius, 4.5f))
+            {
+                ++untouched;
+            }
+            if (NearlyEqual(collider->radius, 1.5f))
+            {
+                ++reverted;
+            }
+        }
+        Check(untouched == 1, "the one that was never edited must keep its value");
+        Check(reverted == 1, "and the edited one must be back to where it started");
     }
 
     // **되살릴 수 없는 것은 떼지 않는다**(D-76 과 같은 규칙).
@@ -860,6 +967,8 @@ int RunEditorObjectCommandTests()
     TestAddingAComponentCanBeUndone();
     TestRemovingAComponentBringsBackItsValues();
     TestRemovingPicksTheRightOneOfTwoOfAKind();
+    TestComponentSlotsCanBeRearranged();
+    TestAnEditBeforeARemovalStillFindsItsComponent();
     TestRemovingIsRefusedWhenTheValuesCannotBeSaved();
     TestChildOrderSurvivesEverything();
     TestMovingInTheHierarchyCanBeUndone();

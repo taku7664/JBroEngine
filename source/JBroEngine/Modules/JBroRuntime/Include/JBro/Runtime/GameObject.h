@@ -83,6 +83,16 @@ namespace JBro
         // 컴포넌트 풀의 주소를 SafePtr 로만 기록한다. 조회는 캐시 친화적인 선형 순회다.
         const Array<ComponentSlot>& GetComponents() const;
 
+        // 컴포넌트들 사이의 자리다. 붙이면 늘 맨 뒤로 가므로, **떼었다 되돌린 것을
+        // 원래 자리로 보내는 길**이 따로 있어야 한다 - 에디터는 컴포넌트를
+        // "같은 타입 중 몇 번째" 로 가리키고, 자리가 바뀌면 그 번째가 다른 것을 가리킨다.
+        //
+        // 없는 컴포넌트면 거짓이다. `index` 가 끝을 넘으면 맨 뒤로 간다.
+        // 스크립트 실행 순서는 이 자리가 아니라 `InstanceId` 로 정렬하므로 바뀌지 않는다.
+        bool SetComponentIndex(const ComponentBase* component, std::size_t index);
+        // 몇 번째 슬롯인가(타입을 가리지 않는다). 붙어 있지 않으면 거짓이다.
+        bool FindComponentIndex(const ComponentBase* component, std::size_t& index) const;
+
         template<typename T>
         Ref<T> GetComponent() const;
 

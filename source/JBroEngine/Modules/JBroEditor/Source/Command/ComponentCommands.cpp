@@ -126,7 +126,8 @@ namespace JBro
         {
             m_typeName = NameTable::Get().Intern(typeName);
         }
-        if (false == FindComponentOrdinal(*object, *component, m_address.ordinal))
+        if (false == FindComponentOrdinal(*object, *component, m_address.ordinal)
+            || false == object->FindComponentIndex(component, m_slotIndex))
         {
             return;
         }
@@ -180,9 +181,11 @@ namespace JBro
             return;
         }
         ApplyComponent(*component, m_snapshot);
-        // **다시 붙은 자리는 맨 끝이다.** 원래 가운데 있었다면 자리가 달라진다 -
-        // 기존 엔진도 그렇다(되살리기는 붙이기이지 끼워 넣기가 아니다). 다시하기가
-        // 엉뚱한 것을 떼지 않도록 지금 자리를 다시 적어 둔다.
+        // **다시 붙은 자리는 맨 끝이므로 원래 자리로 보낸다.** 기존 엔진은 맨 끝에
+        // 두었는데 거기서는 커맨드가 GUID 로 가리켜서 괜찮았다. 여기서는 "같은 타입 중
+        // 몇 번째" 로 가리키므로, 자리가 바뀌면 앞서 쌓인 편집이 형제에게 쏟아진다
+        // (실제로 그렇게 났다). 셈은 옮긴 뒤에 다시 한다 - 짐작한 값을 적지 않는다.
+        object->SetComponentIndex(component, m_slotIndex);
         FindComponentOrdinal(*object, *component, m_address.ordinal);
     }
 

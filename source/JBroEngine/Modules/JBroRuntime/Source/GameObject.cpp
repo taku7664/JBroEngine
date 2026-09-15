@@ -256,6 +256,56 @@ namespace JBro
         return true;
     }
 
+    bool GameObject::FindComponentIndex(const ComponentBase* component, std::size_t& index) const
+    {
+        if (component == nullptr)
+        {
+            return false;
+        }
+        for (std::size_t at = 0; at < m_components.Size(); ++at)
+        {
+            if (m_components[at].reference.TryGet() == component)
+            {
+                index = at;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool GameObject::SetComponentIndex(const ComponentBase* component, std::size_t index)
+    {
+        std::size_t from = 0;
+        if (false == FindComponentIndex(component, from))
+        {
+            return false;
+        }
+        const std::size_t last = m_components.Size() - 1;
+        const std::size_t to = index > last ? last : index;
+        if (from == to)
+        {
+            return true;
+        }
+        // 밀어서 끼운다. 마지막 것과 바꾸면 사이에 있던 것들의 차례가 흐트러진다(D-84).
+        ComponentSlot moved = m_components[from];
+        if (from < to)
+        {
+            for (std::size_t at = from; at < to; ++at)
+            {
+                m_components[at] = m_components[at + 1];
+            }
+        }
+        else
+        {
+            for (std::size_t at = from; at > to; --at)
+            {
+                m_components[at] = m_components[at - 1];
+            }
+        }
+        m_components[to] = moved;
+        return true;
+    }
+
     bool GameObject::DetachComponent(ComponentBase* component)
     {
         if (component == nullptr)
