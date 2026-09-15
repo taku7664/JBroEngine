@@ -711,13 +711,24 @@ namespace JBro
 
     void YamlWriter::BeginSequence(const char* key)
     {
-        // 시퀀스 안의 시퀀스는 쓰지 않는다. 지금 그런 필드가 없고(`ArrayOps` 가 아직 없다),
-        // 쓰지 않는 형태를 미리 지원하면 맞는지 확인할 방법이 없다.
         if (key == nullptr)
         {
-            return;
+            // **시퀀스 항목 자리에 시퀀스를 연다.** 대시만 있는 줄을 적고 원소는 한 칸
+            // 더 깊이 적는다 - 기존 엔진 `.jcanvas` 가 `Array<Vector2>` 를 이렇게 적고,
+            // 파서는 대시만 있는 줄 아래를 그 항목의 내용으로 읽는다.
+            // 처음에는 아무것도 적지 않고 돌아왔는데, 그러면 뒤따르는 `EndSequence` 가
+            // 부모 블록을 대신 닫아 문서가 어긋났다.
+            if (m_blocks.Size() > 0)
+            {
+                m_blocks[m_blocks.Size() - 1].wrote = true;
+            }
+            WriteIndent();
+            m_text.append("-\n", 2);
         }
-        WriteKeyLine(key, nullptr);
+        else
+        {
+            WriteKeyLine(key, nullptr);
+        }
         Block block;
         block.isSequence = true;
         m_blocks.Add(block);

@@ -129,6 +129,8 @@ namespace JBro
         // key 가 nullptr 이면 시퀀스 항목 자리에 여는 것이다(`- ` 다음에 온다).
         void BeginMap(const char* key);
         void EndMap();
+        // key 가 nullptr 이면 시퀀스 항목 자리에 시퀀스를 여는 것이다. 대시만 있는 줄 아래에
+        // 원소를 한 칸 더 깊이 적는다(기존 엔진 `.jcanvas` 의 `Array<Vector2>` 모양).
         void BeginSequence(const char* key);
         void EndSequence();
 

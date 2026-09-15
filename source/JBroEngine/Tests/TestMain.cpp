@@ -19,6 +19,7 @@ int RunScriptSchedulingTests();
 int RunSpritePixelTests();
 int RunProjectFileTests();
 int RunYamlTests();
+int RunReflectedYamlTests();
 int RunCanvasFileTests();
 int RunRendererContractTests();
 int RunPlatformContractTests();
@@ -190,6 +191,10 @@ int main()
             return 1;
         }
         if (RunYamlTests() != 0)
+        {
+            return 1;
+        }
+        if (RunReflectedYamlTests() != 0)
         {
             return 1;
         }

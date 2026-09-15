@@ -16,6 +16,8 @@
 #include <JBro/Canvas/ComponentRegistry.h>
 #include <JBro/Core/Yaml.h>
 #include <JBro/Reflection/PropertyRegistry.h>
+#include <JBro/Reflection/ContainerTypeDescriptors.h>
+#include <JBro/Reflection/CoreTypeDescriptors.h>
 #include <JBro/Runtime/GameObject.h>
 
 #include <cstring>
@@ -180,6 +182,30 @@ namespace
         {
             return JBro::MakeStableTypeId(StaticTypeName());
         }
+    };
+
+    using ListedCounts = JBro::Table<JBro::String, std::int32_t>;
+    using ListedColors = JBro::Array<JBro::Color>;
+
+    // 컨테이너를 든 컴포넌트다. 빌트인 컴포넌트에는 아직 컨테이너 필드가 없어서
+    // 여기서 만든다 - 캔버스 파일이 배열과 표를 저장했다 여는지 본다(D-86).
+    class Listed final : public JBro::ComponentBase
+    {
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "Component::TestListed";
+        }
+
+        JBro::ComponentTypeId GetTypeId() const override
+        {
+            return JBro::MakeStableTypeId(StaticTypeName());
+        }
+
+        JBRO_REFLECT_BODY(Listed)
+
+        JBRO_FIELD(ListedColors, colors);
+        JBRO_FIELD(ListedCounts, counts);
     };
 
     std::uint32_t FindComponent(
@@ -556,6 +582,42 @@ namespace
             std::cout << "text:" << std::endl << text.c_str();
             Check(false, "a file this engine wrote must read back");
         }
+    }
+
+    // **컨테이너가 저장했다 열어도 그대로다.** 처음에는 컨테이너를 만나면 저장이
+    // 멈췄다 - 필드도 코덱도 없는 값이라 적을 방법이 없다고 보았다.
+    void TestContainersMakeTheRoundTrip()
+    {
+        JBro::RegisterBuiltinProperties<Listed>();
+        JBro::RegisterComponentType<Listed>();
+
+        JBro::String text;
+        {
+            JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+            JBro::GameObject* object = canvas.CreateObject("Holder");
+            auto* listed = canvas.AttachComponent<Listed>(object);
+            Check(listed != nullptr, "the listed component must attach");
+            listed->colors.Add(JBro::Color{1.0f, 0.5f, 0.25f, 1.0f});
+            listed->colors.Add(JBro::Color{0.0f, 0.0f, 1.0f, 0.5f});
+            listed->counts.TryAdd(JBro::String("gold"), 12);
+            listed->counts.TryAdd(JBro::String("arrows"), 30);
+            text = Save(canvas);
+        }
+
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        LoadOrFail(canvas, text);
+        JBro::GameObject* object = nullptr;
+        canvas.ForEachObject([&object](JBro::GameObject& found) { object = &found; });
+        Check(object != nullptr, "the holder must come back");
+        auto* listed = object->GetComponent<Listed>().Get();
+        Check(listed != nullptr, "with its listed component");
+        Check(listed->colors.Size() == 2, "both colors must come back");
+        Check(listed->colors[1].B > 0.99f && listed->colors[1].A > 0.49f
+                && listed->colors[1].A < 0.51f,
+            "with their members in place");
+        Check(listed->counts.Size() == 2, "both counts must come back");
+        const std::int32_t* arrows = listed->counts.Find(JBro::String("arrows"));
+        Check(arrows != nullptr && *arrows == 30, "each under its own key");
     }
 
     void TestWhatWasSavedComesBack()
@@ -1008,6 +1070,7 @@ int RunCanvasFileTests()
     TestAValueLongerThanTheBufferStillGetsWritten();
     TestAnUnregisteredComponentStopsTheSave();
     TestAnEmptyCanvasIsStillAValidFile();
+    TestContainersMakeTheRoundTrip();
     TestWhatWasSavedComesBack();
     TestTheTreeComesBackStanding();
     TestAnInactiveObjectDoesNotDisableItsComponents();
