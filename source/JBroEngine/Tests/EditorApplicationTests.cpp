@@ -1273,6 +1273,25 @@ namespace
             "dropping an element right below itself must change nothing");
         Check(editor.GetCommands().GetUndoCount() == before, "and leave nothing to undo");
 
+        // 첫 행을 맨 아래 자리에 놓는다. 원본을 먼저 빼므로 **뒤로 갈 때는 목표가 한 칸
+        // 당겨진다** - 위로 끄는 것만 재면 그 보정이 빠져도 드러나지 않는다.
+        Check(FindListItem(editor, hwnd, LabelId(PushedId(body->ID, 0), "##row_body"),
+                static_cast<int>(body->Pos.x) + 6, handle),
+            "the first row must have a handle to drag");
+        Check(FindListItem(editor, hwnd, LabelId(PushedId(body->ID, 2), "##slot"),
+                static_cast<int>(body->Pos.x + body->Size.x * 0.5f), slot),
+            "there must be a drop slot at the end of the list");
+        DragTo(editor, hwnd, handle, slot);
+        Check(a->signals[0].strength == 100.0f && a->signals[1].strength == 1.0f,
+            "dropping the first element at the end must put it last");
+        Check(b->signals[0].strength == 50.0f && b->signals[1].strength == 10.0f
+                && b->signals[2].strength == 0.0f,
+            "and move the other list's first element to the same place, not past it");
+        Check(editor.GetCommands().GetUndoCount() == before + 1, "as one undo");
+        Check(editor.GetCommands().Undo(), "undo must run");
+        Check(a->signals[0].strength == 1.0f && b->signals[0].strength == 10.0f,
+            "and put both lists back");
+
         editor.Shutdown();
     }
 
