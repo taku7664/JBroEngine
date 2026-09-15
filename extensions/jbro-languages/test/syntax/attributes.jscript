@@ -1,0 +1,25 @@
+// SYNTAX TEST "source.jscript" "an attribute opens a declaration line"
+script Probe : GameScript2D
+{
+    [range(4, 40), category("Field")]
+//  ^ punctuation.definition.attribute.begin.jscript
+//   ^^^^^ entity.other.attribute-name.jscript
+//         ^ constant.numeric.jscript
+//                 ^^^^^^^^ entity.other.attribute-name.jscript
+//                           ^^^^^ string.quoted.double.jscript
+//                                  ^ punctuation.definition.attribute.end.jscript
+    int FieldRows = 20
+//  ^^^ storage.type.primitive.jscript - meta.attribute.jscript
+//      ^^^^^^^^^ variable.other.definition.jscript
+
+    [name("낙하 간격")]
+//   ^^^^ entity.other.attribute-name.jscript
+//         ^^^^^ string.quoted.double.jscript
+    float DropInterval = 0.5
+
+    [prop] bool ShowDebug = false
+//  ^^^^^^ meta.attribute.jscript
+//         ^^^^ storage.type.primitive.jscript - meta.attribute.jscript
+//              ^^^^^^^^^ variable.other.definition.jscript
+//                          ^^^^^ constant.language.boolean.jscript
+}

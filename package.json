@@ -1,0 +1,13 @@
+{
+	"name": "jbro-script-editor",
+	"private": true,
+	"scripts": {
+		"test": "node scripts/check-nls.mjs && node scripts/run-grammar-tests.mjs",
+		"test:nls": "node scripts/check-nls.mjs",
+		"test:grammar": "node scripts/run-grammar-tests.mjs",
+		"update-snapshots": "node scripts/run-grammar-tests.mjs --update"
+	},
+	"devDependencies": {
+		"vscode-tmgrammar-test": "0.1.3"
+	}
+}

@@ -1,0 +1,215 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "JBroScript",
+	"scopeName": "source.jscript",
+	"fileTypes": [
+		"jscript"
+	],
+	"patterns": [
+		{ "include": "#comment" },
+		{ "include": "#attribute" },
+		{ "include": "#script-declaration" },
+		{ "include": "#function-declaration" },
+		{ "include": "#typed-declaration" },
+		{ "include": "#keyword" },
+		{ "include": "#literal" },
+		{ "include": "#operator" },
+		{ "include": "#punctuation" }
+	],
+	"repository": {
+		"comment": {
+			"name": "comment.line.double-slash.jscript",
+			"begin": "//",
+			"beginCaptures": {
+				"0": { "name": "punctuation.definition.comment.jscript" }
+			},
+			"end": "$"
+		},
+		"attribute": {
+			"comment": "Attributes only appear where a declaration starts, so a '[' is an attribute only when it opens the line (jbroscript-plan 12.6). Indexing and array literals never start a statement.",
+			"name": "meta.attribute.jscript",
+			"begin": "^\\s*(\\[)",
+			"beginCaptures": {
+				"1": { "name": "punctuation.definition.attribute.begin.jscript" }
+			},
+			"end": "\\]",
+			"endCaptures": {
+				"0": { "name": "punctuation.definition.attribute.end.jscript" }
+			},
+			"patterns": [
+				{ "include": "#attribute-arguments" },
+				{
+					"name": "entity.other.attribute-name.jscript",
+					"match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b"
+				},
+				{
+					"name": "punctuation.separator.attribute.jscript",
+					"match": ","
+				}
+			]
+		},
+		"attribute-arguments": {
+			"name": "meta.attribute.arguments.jscript",
+			"begin": "\\(",
+			"beginCaptures": {
+				"0": { "name": "punctuation.definition.arguments.begin.jscript" }
+			},
+			"end": "\\)",
+			"endCaptures": {
+				"0": { "name": "punctuation.definition.arguments.end.jscript" }
+			},
+			"patterns": [
+				{ "include": "#literal" },
+				{
+					"name": "punctuation.separator.arguments.jscript",
+					"match": ","
+				}
+			]
+		},
+		"script-declaration": {
+			"match": "\\b(script)\\s+([A-Za-z_][A-Za-z0-9_]*)(?:\\s*(:)\\s*([A-Za-z_][A-Za-z0-9_]*))?",
+			"captures": {
+				"1": { "name": "storage.type.script.jscript" },
+				"2": { "name": "entity.name.type.class.jscript" },
+				"3": { "name": "punctuation.separator.inheritance.jscript" },
+				"4": { "name": "entity.other.inherited-class.jscript" }
+			}
+		},
+		"function-declaration": {
+			"match": "\\b(fn)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+			"captures": {
+				"1": { "name": "storage.type.function.jscript" },
+				"2": { "name": "entity.name.function.jscript" }
+			}
+		},
+		"typed-declaration": {
+			"comment": "The type comes before the name and there is no 'var' (jbroscript-plan 12.2). A declaration is a type, whitespace, a name, then '=', ')', ',', a comment or the end of the line. Keywords are never types.",
+			"match": "(?<![A-Za-z0-9_.])(?!(?:script|fn|if|let|return|true|false)\\b)([A-Za-z_][A-Za-z0-9_]*(?:<[^=\\n]*?>)?)\\s+(?!(?:script|fn|if|let|return|true|false)\\b)([A-Za-z_][A-Za-z0-9_]*)(?=\\s*(?:=|\\)|,|//|$))",
+			"captures": {
+				"1": { "patterns": [ { "include": "#type" } ] },
+				"2": { "name": "variable.other.definition.jscript" }
+			}
+		},
+		"type": {
+			"patterns": [
+				{
+					"name": "storage.type.primitive.jscript",
+					"match": "\\b(?:int|float|bool)\\b"
+				},
+				{
+					"name": "entity.name.type.jscript",
+					"match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b"
+				},
+				{
+					"name": "punctuation.definition.typeparameters.begin.jscript",
+					"match": "<"
+				},
+				{
+					"name": "punctuation.definition.typeparameters.end.jscript",
+					"match": ">"
+				},
+				{
+					"name": "punctuation.separator.typeparameters.jscript",
+					"match": ","
+				}
+			]
+		},
+		"keyword": {
+			"patterns": [
+				{
+					"name": "keyword.control.jscript",
+					"match": "\\b(?:if|return)\\b"
+				},
+				{
+					"name": "keyword.other.let.jscript",
+					"match": "\\blet\\b"
+				}
+			]
+		},
+		"literal": {
+			"patterns": [
+				{
+					"name": "constant.language.boolean.jscript",
+					"match": "\\b(?:true|false)\\b"
+				},
+				{
+					"name": "constant.numeric.jscript",
+					"match": "\\b[0-9]+(?:\\.[0-9]+)?\\b"
+				},
+				{
+					"name": "string.quoted.double.jscript",
+					"begin": "\"",
+					"beginCaptures": {
+						"0": { "name": "punctuation.definition.string.begin.jscript" }
+					},
+					"end": "\"",
+					"endCaptures": {
+						"0": { "name": "punctuation.definition.string.end.jscript" }
+					},
+					"patterns": [
+						{
+							"name": "constant.character.escape.jscript",
+							"match": "\\\\."
+						}
+					]
+				}
+			]
+		},
+		"operator": {
+			"patterns": [
+				{
+					"name": "keyword.operator.assignment.compound.jscript",
+					"match": "\\+=|-=|\\*=|/="
+				},
+				{
+					"name": "keyword.operator.comparison.jscript",
+					"match": "==|!=|<=|>=|<|>"
+				},
+				{
+					"name": "keyword.operator.assignment.jscript",
+					"match": "="
+				},
+				{
+					"name": "keyword.operator.arithmetic.jscript",
+					"match": "\\+|-|\\*|/"
+				}
+			]
+		},
+		"punctuation": {
+			"patterns": [
+				{
+					"name": "punctuation.accessor.jscript",
+					"match": "\\."
+				},
+				{
+					"name": "punctuation.separator.comma.jscript",
+					"match": ","
+				},
+				{
+					"name": "punctuation.section.block.begin.jscript",
+					"match": "\\{"
+				},
+				{
+					"name": "punctuation.section.block.end.jscript",
+					"match": "\\}"
+				},
+				{
+					"name": "punctuation.section.parens.begin.jscript",
+					"match": "\\("
+				},
+				{
+					"name": "punctuation.section.parens.end.jscript",
+					"match": "\\)"
+				},
+				{
+					"name": "punctuation.section.brackets.begin.jscript",
+					"match": "\\["
+				},
+				{
+					"name": "punctuation.section.brackets.end.jscript",
+					"match": "\\]"
+				}
+			]
+		}
+	}
+}

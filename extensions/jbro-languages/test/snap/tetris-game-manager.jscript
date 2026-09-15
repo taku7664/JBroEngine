@@ -1,0 +1,32 @@
+script TetrisGameManager : GameScript2D
+{
+    [range(4, 40), category("Field")]
+    int FieldRows = 20
+
+    [name("낙하 간격")]
+    float DropInterval = 0.5
+
+    [category("Canvas")]
+    Ref<Transform2D> FieldBox
+
+    [prop]
+    bool ShowDebug = false
+
+    float      elapsed = 0.0        // 대괄호가 없으면 노출되지 않는다
+    Array<int> lines
+
+    fn OnUpdate(float dt)
+    {
+        elapsed += dt
+        if elapsed < DropInterval
+        {
+            return
+        }
+        elapsed = 0.0
+
+        if let box = FieldBox
+        {
+            box.position.y -= 1.0
+        }
+    }
+}

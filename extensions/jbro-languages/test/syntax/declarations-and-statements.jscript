@@ -1,0 +1,41 @@
+// SYNTAX TEST "source.jscript" "types come before names and keywords are never types"
+script TetrisGameManager : GameScript2D
+// <------ storage.type.script.jscript
+//     ^^^^^^^^^^^^^^^^^ entity.name.type.class.jscript
+//                       ^ punctuation.separator.inheritance.jscript
+//                         ^^^^^^^^^^^^ entity.other.inherited-class.jscript
+{
+    Ref<Transform2D> FieldBox
+//  ^^^ entity.name.type.jscript
+//     ^ punctuation.definition.typeparameters.begin.jscript
+//      ^^^^^^^^^^^ entity.name.type.jscript
+//                   ^^^^^^^^ variable.other.definition.jscript
+    Table<String, Array<float>> Curves
+//                      ^^^^^ storage.type.primitive.jscript
+//                              ^^^^^^ variable.other.definition.jscript
+    float      elapsed = 0.0        // not exposed
+//  ^^^^^ storage.type.primitive.jscript
+//             ^^^^^^^ variable.other.definition.jscript
+//                                  ^^^^^^^^^^^^^^ comment.line.double-slash.jscript
+
+    fn OnUpdate(float dt)
+//  ^^ storage.type.function.jscript
+//     ^^^^^^^^ entity.name.function.jscript
+//              ^^^^^ storage.type.primitive.jscript
+//                    ^^ variable.other.definition.jscript
+    {
+        if let box = FieldBox
+//      ^^ keyword.control.jscript
+//         ^^^ keyword.other.let.jscript
+//             ^^^ source.jscript - variable.other.definition.jscript
+        {
+            box.position.y -= 1.0
+//             ^ punctuation.accessor.jscript
+//                         ^^ keyword.operator.assignment.compound.jscript
+//                            ^^^ constant.numeric.jscript
+        }
+        return speed
+//      ^^^^^^ keyword.control.jscript
+//             ^^^^^ source.jscript - variable.other.definition.jscript entity.name.type.jscript
+    }
+}
