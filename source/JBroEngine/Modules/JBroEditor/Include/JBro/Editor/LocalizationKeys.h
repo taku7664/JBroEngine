@@ -61,11 +61,9 @@ namespace JBro::LocKeys
     // ── 목록 위젯 ────────────────────────────────────────────────────────
     inline constexpr const char* ListAddElement = "list.add_element";
     inline constexpr const char* ListRemoveElement = "list.remove_element";
-    inline constexpr const char* ListEmpty = "list.empty";
     inline constexpr const char* ListElementCount = "list.element_count";
 
     // ── 공용 ─────────────────────────────────────────────────────────────
     inline constexpr const char* CommonSearch = "common.search";
     inline constexpr const char* CommonClear = "common.clear";
-    inline constexpr const char* CommonNone = "common.none";
 }

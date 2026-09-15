@@ -39,8 +39,6 @@ Entries:
   stats.dropped: dropped %u view(s), %u sprite(s)
   list.add_element: Add element
   list.remove_element: Remove element
-  list.empty: empty
   list.element_count: %d item(s)
   common.search: Search
   common.clear: Clear
-  common.none: None

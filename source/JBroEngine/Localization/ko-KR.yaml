@@ -39,8 +39,6 @@ Entries:
   stats.dropped: 그리지 못한 뷰 %u개, 스프라이트 %u개
   list.add_element: 항목 추가
   list.remove_element: 항목 삭제
-  list.empty: 항목 없음
   list.element_count: %d개
   common.search: 검색
   common.clear: 지우기
-  common.none: 없음
