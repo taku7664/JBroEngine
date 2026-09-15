@@ -1,4 +1,4 @@
-# 신규 리포를 기존 엔진 구조에 맞추기 — TODO
+﻿# 신규 리포를 기존 엔진 구조에 맞추기 — TODO
 
 폐기된 World/ECS 단계 기록은 [canvas-world-foundation.md](./canvas-world-foundation.md)에 남아 있다.
 이 문서는 현재 설계나 작업 지시가 아니다.
@@ -201,11 +201,39 @@ EditorApplication::Tick
   `TestScriptsInOneObjectFollowTheComponentSlotOrder` 다. 뒤의 것은 고치기 전 코드에서
   `[0]=1 [1]=2` 로 실패하는 것을 확인하고 넣었다.
 
-- **A4. 부모의 `Transform2D` 를 끄면 자식 서브트리가 원점으로 튄다.** (확신 중상, 화면 미확인)
-  `Transform2DSystem::OnUpdate` 의 루트 판정은 "부모 transform 이 없거나 **비활성**이면
-  내가 루트" 다. 루트로 판정되면 단위행렬에서 전파하므로, 부모의 Transform 컴포넌트만
-  끈 경우 자식이 부모 월드를 잃는다. 구 엔진 `CTransformSystem` 은 부모 유무만 보고
-  활성 여부는 보지 않는다.
+- **A4. 부모의 `Transform2D` 를 끄면 자식 서브트리가 원점으로 튀었다.** **고쳤다(2026-09-15, 빡대리 결정).**
+  `Transform2DSystem` 의 루트 판정이 "부모 Transform 이 없거나 **비활성이면** 내가 루트" 였고
+  루트는 단위행렬에서 전파했다. 그래서 부모 오브젝트는 켜 둔 채 부모의 `Transform2D` 만
+  끄면 자식 서브트리가 부모 월드를 잃고 원점 기준으로 옮겨 갔다. 구 엔진은 Transform 이
+  `GameObject` 의 멤버라 끌 수 있는 물건이 아니었고 부모 유무만 봤다.
+
+  **A4b — 갱신이 멈춘 Transform 이 `worldValid = true` 를 그대로 들고 있었다.** 시스템은
+  비활성 Transform 을 건너뛸 뿐 캐시를 무효로 만들지 않았다. 그런데 계층 끌어 옮기기는
+  `HierarchyCommands` 에서 "한 프레임도 돌지 않았거나 **꺼져 있는 오브젝트다**" 라고 적어 두고
+  `worldValid` 로 그것을 가르려 한다. 그 기대가 지켜지지 않아, 꺼 둔 사이에 부모가 움직였으면
+  철 지난 월드로 자리를 보존했다. 코드에 적힌 의도가 분명해 방향을 묻지 않고 함께 고쳤다.
+
+  **고친 방법(선택: 서브트리를 통째로 건너뛴다).** 루트는 "부모가 없거나 **부모에 Transform2D 가
+  아예 없을 때**" 다. 부모에 Transform 이 있는데 꺼져 있으면 이 노드는 루트가 아니고 어느
+  루트에서도 닿지 않으므로 갱신되지 않는다. 갱신 전에 모든 Transform 의 `worldValid` 를 한 번
+  내리고, 전파가 닿은 것만 다시 참이 된다. 그리기와 카메라가 `worldValid` 를 보므로 서브트리는
+  화면에서 사라질 뿐 **아무것도 엉뚱한 자리에 나타나지 않는다.** `SetActive(false)` 가 서브트리를
+  같이 누르는 것과 같은 모양이고, §8 의 "활성 판정은 `IsActiveComponent()` 단일 게이트" 와도 맞는다.
+
+  **부모에 Transform 이 아예 없는 것은 꺼진 것과 다르게 둔다.** 물려받을 자리가 없으므로 그
+  아래는 자기 로컬이 곧 월드다. 이쪽 동작은 바뀌지 않았다.
+
+  재는 것은 `Framework2DSystemTests` 의
+  `TestDisablingAParentTransformSkipsTheSubtreeInsteadOfMovingIt` 과
+  `TestAParentWithNoTransformLeavesTheChildAtItsOwnLocal` 이고, 기존
+  `TestTransformHierarchyPropagation` 에 캐시 무효 단언을 덧붙였다. 셋 다 고치기 전 코드에서
+  하나씩 터지는 것을 확인하고 넣었다.
+
+  ```
+  test failure: a transform that stopped being updated must not stay marked valid
+  test failure: a subtree under a disabled transform must not be marked valid
+  test failure: the subtree must not be moved to the origin
+  ```
 
 - **A5. `Category` 어트리뷰트가 저장만 되고 아무도 읽지 않는다.** (확신 높음)
   `Reflection/Field.h` 의 `Attribute::Category`, `FieldAttributes::category`,

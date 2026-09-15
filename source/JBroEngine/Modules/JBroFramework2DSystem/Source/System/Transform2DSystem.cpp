@@ -61,10 +61,22 @@ namespace JBro::System
         return 100;
     }
 
-    // 활성 부모를 가진 노드는 그 부모의 순회에서 처리된다. 여기서는 루트만 골라 내려간다.
+    // 부모를 가진 노드는 그 부모의 순회에서 처리된다. 여기서는 루트만 골라 내려간다.
     void Transform2DSystem::OnUpdate(Canvas& canvas, float deltaTime)
     {
         (void)deltaTime;
+
+        // **먼저 전부 무효로 내린다.** 갱신되는 것은 아래에서 다시 참이 되고, 갱신되지
+        // 않는 것(꺼진 것, 꺼진 부모 아래에 있는 것)은 무효로 남는다.
+        //
+        // 내리지 않으면 갱신이 멈춘 캐시가 "쓸 수 있다" 고 표시된 채로 남는다. 계층 끌어
+        // 옮기기가 그 값으로 자리를 보존하므로(`HierarchyCommands`, "꺼져 있는 오브젝트다"
+        // 라고 적어 둔 그 분기), 꺼 둔 사이에 부모가 움직였으면 철 지난 월드로 자리를 잡는다.
+        canvas.ForEach<Component::Transform2D>([](Component::Transform2D& transform)
+        {
+            transform.worldValid = false;
+        });
+
         canvas.ForEach<Component::Transform2D>([&canvas](Component::Transform2D& transform)
         {
             if (false == transform.IsActiveComponent())
@@ -78,9 +90,15 @@ namespace JBro::System
                 return;
             }
 
-            Component::Transform2D* parentTransform =
-                canvas.FindComponentRaw<Component::Transform2D>(owner->GetParent());
-            if (parentTransform != nullptr && parentTransform->IsActiveComponent())
+            // **부모에 Transform 이 있으면 루트가 아니다.** 그 Transform 이 꺼져 있어도
+            // 마찬가지다(A4) - 그러면 이 노드는 아무 루트에서도 닿지 않아 무효로 남고,
+            // 그리기와 카메라가 서브트리를 통째로 건너뛴다.
+            //
+            // 예전에는 꺼진 부모를 루트 없음으로 보아 **단위행렬에서** 전파했다. 부모
+            // 오브젝트는 켜 둔 채 Transform 만 꺼면 자식 서브트리가 조용히 원점으로 튀었다.
+            // 부모에 Transform 이 아예 없는 경우는 다르다 - 물려받을 자리가 없으므로
+            // 그 아래는 자기 로컬이 곧 월드다.
+            if (canvas.FindComponentRaw<Component::Transform2D>(owner->GetParent()) != nullptr)
             {
                 return;
             }

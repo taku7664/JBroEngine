@@ -70,6 +70,84 @@ namespace
             NearlyEqual(childLocal->worldPosition.x, 99.0f)
                 && NearlyEqual(childLocal->worldPosition.y, 99.0f),
             "disabled transform must pass through the shared active gate");
+        Check(false == childLocal->worldValid,
+            "a transform that stopped being updated must not stay marked valid");
+        system.Shutdown(canvas);
+    }
+
+    // ── 꺼진 부모 아래의 서브트리 (A4) ───────────────────────────────────
+    //
+    // 부모 오브젝트는 켜 둔 채 부모의 `Transform2D` 만 끄면, 예전에는 자식이 "루트" 로
+    // 뽑혀 **단위행렬에서** 전파됐다. 자식 서브트리가 조용히 원점으로 튀었다는 뜻이다.
+    // 이제는 서브트리를 통째로 건너뛰고 캐시를 무효로 둔다 - 그리기와 카메라가
+    // `worldValid` 를 보므로 아무것도 엉뚱한 자리에 나타나지 않는다.
+    void TestDisablingAParentTransformSkipsTheSubtreeInsteadOfMovingIt()
+    {
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::GameObject* parent = canvas.CreateObject("parent");
+        JBro::GameObject* child = canvas.CreateObject("child");
+        JBro::GameObject* grandChild = canvas.CreateObject("grandchild");
+        child->SetParent(parent);
+        grandChild->SetParent(child);
+
+        auto* parentLocal = canvas.AttachComponent<JBro::Component::Transform2D>(parent);
+        auto* childLocal = canvas.AttachComponent<JBro::Component::Transform2D>(child);
+        auto* grandLocal = canvas.AttachComponent<JBro::Component::Transform2D>(grandChild);
+        parentLocal->position = {10.0f, 0.0f};
+        childLocal->position = {1.0f, 0.0f};
+        grandLocal->position = {1.0f, 0.0f};
+
+        JBro::System::Transform2DSystem system;
+        system.Initialize(canvas);
+        system.Update(canvas, 1.0f / 60.0f);
+        Check(NearlyEqual(childLocal->worldPosition.x, 11.0f), "the child must start under its parent");
+        Check(NearlyEqual(grandLocal->worldPosition.x, 12.0f), "the grandchild must start under the chain");
+
+        // 부모 오브젝트는 켜 둔 채 그 Transform 만 끈다.
+        parentLocal->SetEnabled(false);
+        system.Update(canvas, 1.0f / 60.0f);
+
+        Check(parent->IsActiveInHierarchy() && child->IsActiveInHierarchy(),
+            "only the component was disabled, the objects stay active");
+        Check(false == childLocal->worldValid && false == grandLocal->worldValid,
+            "a subtree under a disabled transform must not be marked valid");
+        Check(NearlyEqual(childLocal->worldPosition.x, 11.0f)
+                && NearlyEqual(grandLocal->worldPosition.x, 12.0f),
+            "the subtree must not be moved to the origin");
+
+        // 다시 켜면 그대로 돌아온다.
+        parentLocal->SetEnabled(true);
+        system.Update(canvas, 1.0f / 60.0f);
+        Check(childLocal->worldValid && grandLocal->worldValid,
+            "re-enabling the parent transform must bring the subtree back");
+        Check(NearlyEqual(childLocal->worldPosition.x, 11.0f)
+                && NearlyEqual(grandLocal->worldPosition.x, 12.0f),
+            "the subtree must return to where it was");
+
+        system.Shutdown(canvas);
+    }
+
+    // 부모에 `Transform2D` 가 **아예 없는** 것은 꺼진 것과 다르다. 물려받을 자리가 없으므로
+    // 그 아래는 자기 로컬이 곧 월드다. 이쪽 동작은 바뀌지 않았다.
+    void TestAParentWithNoTransformLeavesTheChildAtItsOwnLocal()
+    {
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::GameObject* parent = canvas.CreateObject("no transform");
+        JBro::GameObject* child = canvas.CreateObject("child");
+        child->SetParent(parent);
+
+        auto* childLocal = canvas.AttachComponent<JBro::Component::Transform2D>(child);
+        childLocal->position = {3.0f, 4.0f};
+
+        JBro::System::Transform2DSystem system;
+        system.Initialize(canvas);
+        system.Update(canvas, 1.0f / 60.0f);
+
+        Check(childLocal->worldValid, "a child under a transformless parent must still be updated");
+        Check(NearlyEqual(childLocal->worldPosition.x, 3.0f)
+                && NearlyEqual(childLocal->worldPosition.y, 4.0f),
+            "with nothing to inherit, the local value is the world value");
+
         system.Shutdown(canvas);
     }
 
@@ -536,6 +614,8 @@ namespace
 int RunFramework2DSystemTests()
 {
     TestTransformHierarchyPropagation();
+    TestDisablingAParentTransformSkipsTheSubtreeInsteadOfMovingIt();
+    TestAParentWithNoTransformLeavesTheChildAtItsOwnLocal();
     TestLayerOrderDrivesSpriteSorting();
     TestPhysicsGravityIntegration();
     TestPhysicsQueries();
