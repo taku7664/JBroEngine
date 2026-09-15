@@ -384,8 +384,12 @@ namespace JBro
     void InspectorPanel::CommitEdit(
         const TypeDescriptor& type, void* address, const String& before, Context& context)
     {
+        // **글자는 커맨드가 쓰는 길로 뜬다.** 처음에는 코덱으로 떠서, 코덱이 없는 숫자 묶음
+        // (`Vec2`·`Color`)은 여기서 돌아갔다 - 위젯이 쓴 값이 커맨드 없이 남았다(D-89).
         String after;
-        if (false == ToText(type, address, after) || after == before)
+        if (false == SetPropertyCommand::ReadValue(
+                *context.component, context.typeId, context.path, after)
+            || after == before)
         {
             return;
         }
@@ -420,10 +424,7 @@ namespace JBro
         // **바뀐 값을 도로 되돌려 놓는다.** 커맨드의 `Execute` 가 다시 적용하므로
         // 쓰는 길이 하나로 남는다 - 위젯이 한 번, 커맨드가 한 번 쓰면 되돌리기가
         // 무엇을 되돌리는지가 둘로 갈린다.
-        if (type.codec != nullptr && type.codec->FromText != nullptr)
-        {
-            type.codec->FromText(address, before.c_str(), before.size());
-        }
+        SetPropertyCommand::ApplyValue(*context.component, context.typeId, context.path, before);
         if (numeric)
         {
             // 되돌린 뒤에 빼야 진짜 델타다.
@@ -791,8 +792,10 @@ namespace JBro
         ScalarRun run;
         if (CollectScalarRun(type, address, run))
         {
+            // 숫자 묶음에는 코덱이 없다. 커맨드가 쓰는 글자(전체의 YAML)로 뜬다(D-89).
             String before;
-            const bool snapped = ToText(type, address, before);
+            const bool snapped = SetPropertyCommand::ReadValue(
+                *context.component, context.typeId, context.path, before);
             if (DrawScalarRun(type, run, edit) && editable)
             {
                 if (snapped)

@@ -1,6 +1,7 @@
 ﻿#include <JBro/Editor/Command/SetPropertyCommand.h>
 
 #include <JBro/Core/Yaml.h>
+#include <JBro/Editor/ScalarRun.h>
 #include <JBro/Reflection/PropertyInfo.h>
 #include <JBro/Reflection/PropertyRegistry.h>
 #include <JBro/Reflection/ReflectedYaml.h>
@@ -11,20 +12,27 @@ namespace JBro
 {
     namespace
     {
-        // 컨테이너의 글자는 이 키 하나를 가진 YAML 문서다. 캔버스 파일과 같은 걸음으로
-        // 쓰고 읽으므로(D-86) 파일에 적히는 모양 그대로다.
-        constexpr const char* ContainerKey = "Value";
+        // 통째로 쓰는 값(컨테이너·숫자 묶음)의 글자는 이 키 하나를 가진 YAML 문서다. 캔버스
+        // 파일과 같은 걸음으로 쓰고 읽으므로(D-86) 파일에 적히는 모양 그대로다.
+        constexpr const char* WholeKey = "Value";
 
         bool IsContainer(const TypeDescriptor& type)
         {
             return type.arrayOps != nullptr || type.tableOps != nullptr;
         }
 
-        bool WriteContainer(const TypeDescriptor& type, const void* address, String& text)
+        // 코덱이 없어도 한 값인 것이다. 인스펙터가 한 줄에 그리는 숫자 묶음이 그렇다(D-89).
+        bool IsWholeValue(const TypeDescriptor& type, void* address)
+        {
+            ScalarRun run;
+            return IsContainer(type) || CollectScalarRun(type, address, run);
+        }
+
+        bool WriteWhole(const TypeDescriptor& type, const void* address, String& text)
         {
             YamlWriter writer;
             ReflectedYamlError error;
-            if (false == WriteReflectedValue(writer, ContainerKey, type, address, error))
+            if (false == WriteReflectedValue(writer, WholeKey, type, address, error))
             {
                 return false;
             }
@@ -32,7 +40,7 @@ namespace JBro
             return true;
         }
 
-        bool ReadContainer(const TypeDescriptor& type, void* address, const String& text)
+        bool ReadWhole(const TypeDescriptor& type, void* address, const String& text)
         {
             YamlDocument document;
             YamlError parseError;
@@ -40,7 +48,7 @@ namespace JBro
             {
                 return false;
             }
-            const std::uint32_t node = document.Find(document.GetRoot(), ContainerKey);
+            const std::uint32_t node = document.Find(document.GetRoot(), WholeKey);
             if (node == YamlDocument::InvalidNode)
             {
                 return false;
@@ -101,9 +109,10 @@ namespace JBro
             table = found->fields;
         }
 
-        // 잎사귀는 코덱을 가진 값이거나 **컨테이너**다. 길은 처음 만나는 컨테이너에서
-        // 멈추고, 그 아래는 컨테이너 전체의 글자가 담는다(D-86).
-        if (found == nullptr || (found->codec == nullptr && false == IsContainer(*found)))
+        // 잎사귀는 코덱을 가진 값, **컨테이너**, **한 줄 숫자 묶음**이다. 길은 처음 만나는
+        // 컨테이너에서 멈추고, 그 아래는 컨테이너 전체의 글자가 담는다(D-86). 숫자 묶음은 그
+        // 칸(`position` 의 `x`)으로도 내려갈 수 있다 - 스냅샷이 칸마다 뜨는 길이다.
+        if (found == nullptr || (found->codec == nullptr && false == IsWholeValue(*found, owner)))
         {
             return false;
         }
@@ -131,18 +140,19 @@ namespace JBro
                 && type->codec->FromText(address, text.c_str(), text.size());
         }
 
-        // **컨테이너는 전부 되거나 하나도 안 된다.** 읽기는 비우고 원소를 하나씩 채우므로,
-        // 뒤쪽 원소에서 막히면 반쯤 채워진 채로 남는다. 먼저 떠 두었다가 도로 쓴다.
+        // **통째로 쓰는 값은 전부 되거나 하나도 안 된다.** 컨테이너 읽기는 비우고 원소를
+        // 하나씩 채우고 숫자 묶음은 칸을 차례로 채우므로, 뒤에서 막히면 반쯤 채워진 채로
+        // 남는다. 먼저 떠 두었다가 도로 쓴다.
         String previous;
-        if (false == WriteContainer(*type, address, previous))
+        if (false == WriteWhole(*type, address, previous))
         {
             return false;
         }
-        if (ReadContainer(*type, address, text))
+        if (ReadWhole(*type, address, text))
         {
             return true;
         }
-        ReadContainer(*type, address, previous);
+        ReadWhole(*type, address, previous);
         return false;
     }
 
@@ -222,7 +232,7 @@ namespace JBro
             // 값은 읽기가 실패했고 스냅샷은 그 값을 조용히 뺐다.
             return ReflectedValueToText(*type->codec, address, text);
         }
-        return WriteContainer(*type, address, text);
+        return WriteWhole(*type, address, text);
     }
 
     bool SetPropertyCommand::WriteValue(const String& value)

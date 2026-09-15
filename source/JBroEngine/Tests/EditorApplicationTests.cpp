@@ -799,6 +799,86 @@ namespace
         JBRO_FIELD(Points, points);
     };
 
+    // **필드로 말하는 값(`Vec2`)도 커맨드로 고친다**(D-89). 한 줄 숫자 묶음은 코덱이 없어
+    // 전 글자를 뜨지 못했고, 뜨지 못하면 커밋을 건너뛰었다 - 위젯이 쓴 값이 그대로 남아
+    // 되돌릴 수 없었고 여럿 골라도 주된 것만 움직였다. 회전(실수)만 재서 드러나지 않았다.
+    void TestAVectorFieldEditsThroughACommand()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; vector field edits not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "VectorFieldProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindWindowW(L"JBroEngineWindow", L"JBro Editor");
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* alpha = canvas->CreateObject("Alpha");
+        JBro::GameObject* beta = canvas->CreateObject("Beta");
+        auto* a = canvas->AttachComponent<JBro::Component::Transform2D>(alpha);
+        auto* b = canvas->AttachComponent<JBro::Component::Transform2D>(beta);
+        Check(a != nullptr && b != nullptr, "both must have transforms");
+        a->position = JBro::Vec2{0.0f, 0.0f};
+        b->position = JBro::Vec2{50.0f, 7.0f};
+        JBro::GameObject* chosen[] = {alpha, beta};
+        editor.SelectObjects({chosen, 2});
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        const JBro::PropertyTable* table = JBro::PropertyRegistry::Lookup(
+            JBro::NameTable::Get().Intern("Component::Transform2D"));
+        Check(table != nullptr, "the transform must have registered its properties");
+        // `DragScalarN` 은 이름을 쌓고 칸마다 번호를 쌓는다. 첫 칸이 x 다.
+        const ImGuiID xField = PushedId(
+            InspectorFieldId(0, FieldIndexOf(*table, "position"), "##value"), 0);
+        ImGuiWindow* window = ImGui::FindWindowByName("Inspector");
+        Check(window != nullptr, "the inspector must have a window");
+        Spot spot;
+        bool found = false;
+        for (float fraction = 0.40f; fraction < 0.95f && false == found; fraction += 0.05f)
+        {
+            const int x = static_cast<int>(window->Pos.x + window->Size.x * fraction);
+            const int bottom = static_cast<int>(window->Pos.y + window->Size.y);
+            for (int y = static_cast<int>(window->Pos.y); y < bottom && false == found; y += 3)
+            {
+                PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
+                Check(editor.Tick(Frame), "the editor must tick while looking");
+                if (ImGui::GetHoveredID() == xField)
+                {
+                    spot.x = x;
+                    spot.y = y;
+                    found = true;
+                }
+            }
+        }
+        Check(found, "the x field of the position must be in the inspector");
+
+        const std::size_t undo = editor.GetCommands().GetUndoCount();
+        DragFrom(editor, hwnd, spot, spot.x + 60);
+        const float moved = a->position.x;
+        Check(moved > 0.05f, "dragging the x field must move the position");
+        Check(editor.GetCommands().GetUndoCount() == undo + 1, "and leave one thing to undo");
+        Check(b->position.x > 50.0f + moved - 0.01f && b->position.x < 50.0f + moved + 0.01f,
+            "moving the other chosen position by the same amount");
+        Check(a->position.y == 0.0f && b->position.y == 7.0f, "leaving y alone");
+        Check(editor.GetCommands().Undo(), "undo must run");
+        Check(a->position.x == 0.0f && b->position.x == 50.0f, "and put both back");
+
+        editor.Shutdown();
+    }
+
     // 실수 묶음 원소의 한 칸을 끌면 고른 목록마다 그 칸만 같은 양으로 움직인다.
     void TestAPairElementDragsAsADeltaOnEveryChosenList()
     {
@@ -2330,6 +2410,7 @@ int RunEditorApplicationTests()
     TestMultiEditPicksTheSameOrdinalEverywhere();
     TestListEditsReachEveryChosenObjectAsOneUndo();
     TestAPairElementDragsAsADeltaOnEveryChosenList();
+    TestAVectorFieldEditsThroughACommand();
     TestTypingTheSameValueLeavesNothingToUndo();
     TestCreatingAnObjectCanBeUndone();
     TestDeletingAnObjectCanBeUndoneWithItsValues();

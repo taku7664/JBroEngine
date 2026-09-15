@@ -52,8 +52,10 @@ namespace JBro
         bool CanMerge(const EditorCommand& newer) const override;
         bool TryMerge(const EditorCommand& newer) override;
 
-        // 길을 따라 잎사귀의 주소와 타입을 찾는다. 잎사귀는 코덱을 가진 값이거나
-        // **컨테이너**이고(D-86), 컨테이너의 글자는 전체를 담은 YAML 이다.
+        // 길을 따라 잎사귀의 주소와 타입을 찾는다. 잎사귀는 코덱을 가진 값, **컨테이너**(D-86),
+        // **한 줄 숫자 묶음**(`Vec2`·`Color`·`Rect`, D-89) 셋이고, 뒤의 둘의 글자는 전체를 담은
+        // YAML 이다. 숫자 묶음은 인스펙터가 한 줄에 한 값으로 그리므로 커맨드도 한 값으로 든다 -
+        // 처음에는 가지로 보고 거절해, 인스펙터가 커밋하지 못하고 위젯이 쓴 값이 그대로 남았다.
         // 중간이 사라졌거나 잎사귀가 아니면 거짓이다. **스냅샷을 뜨고 되살리는 쪽도 같은 길을 쓴다** -
         // 두 군데가 따로 걸어 내려가면 한쪽만 고쳐지는 날이 온다.
         static bool ResolveLeaf(
@@ -70,7 +72,7 @@ namespace JBro
             const Path& path,
             String& text);
         // 글자를 써 넣는다. 되살리기가 스냅샷을 되돌릴 때도 이 길이다.
-        // 컨테이너는 전부 되거나 하나도 안 된다 - 못 읽으면 쓰기 전 상태로 돌려놓는다.
+        // 글자로 통째 쓰는 값은 전부 되거나 하나도 안 된다 - 못 읽으면 쓰기 전 상태로 돌려놓는다.
         static bool ApplyValue(
             ComponentBase& component,
             ComponentTypeId typeId,

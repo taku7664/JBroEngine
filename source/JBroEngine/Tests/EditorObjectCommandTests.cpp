@@ -399,8 +399,9 @@ namespace
         Check(NearlyEqual(transform->position.x, 0.0f), "and must leave x alone");
     }
 
-    // **가지는 잎사귀가 아니다.** `position` 은 필드를 가진 타입이라 코덱이 없다 -
-    // 여기에 글자를 쓰려 들면 쓸 방법이 없는데도 있다고 답하게 된다.
+    // **가지는 잎사귀가 아니다.** `world` 는 필드를 가진 타입이고 한 줄에 담기지 않아
+    // 필드를 타고 내려가 그린다 - 여기에 글자를 쓰려 들면 쓸 방법이 없는데도 있다고 답하게 된다.
+    // (`position` 은 처음에 이 자리의 예였다. 한 줄 숫자 묶음은 이제 잎사귀다 - D-89.)
     void TestABranchIsNotALeaf()
     {
         RegisterOnce();
@@ -410,8 +411,8 @@ namespace
         JBro::ComponentBase* component = transform;
         const JBro::ComponentTypeId typeId = component->GetTypeId();
 
-        const std::uint32_t position = FieldIndex(TransformTable(), "position");
-        const JBro::SetPropertyCommand::Path branch = PathTo(position);
+        const std::uint32_t world = FieldIndex(TransformTable(), "world");
+        const JBro::SetPropertyCommand::Path branch = PathTo(world);
 
         void* address = nullptr;
         const JBro::TypeDescriptor* type = nullptr;
@@ -435,6 +436,49 @@ namespace
         Check(false == JBro::SetPropertyCommand::ResolveLeaf(
                 *component, typeId, empty, address, type),
             "a path of no steps points at nothing");
+    }
+
+    // **한 줄 숫자 묶음은 한 값이다**(D-89). 인스펙터가 `position` 을 한 줄에 그리므로 커맨드도
+    // 한 값으로 든다. 처음에는 가지로 거절해, 인스펙터가 커밋하지 못하고 위젯이 쓴 값이
+    // 커맨드 없이 남았다 - 되돌릴 수 없었고 여럿 골라도 주된 것만 움직였다.
+    void TestAOneLineRunIsOneValue()
+    {
+        RegisterOnce();
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::GameObject* object = canvas.CreateObject("Probe");
+        auto* transform = canvas.AttachComponent<JBro::Component::Transform2D>(object);
+        JBro::ComponentBase* component = transform;
+        const JBro::ComponentTypeId typeId = component->GetTypeId();
+        transform->position = JBro::Vec2{1.5f, -2.0f};
+
+        const JBro::SetPropertyCommand::Path position =
+            PathTo(FieldIndex(TransformTable(), "position"));
+        void* address = nullptr;
+        const JBro::TypeDescriptor* type = nullptr;
+        Check(JBro::SetPropertyCommand::ResolveLeaf(*component, typeId, position, address, type),
+            "a run drawn on one line must be a leaf");
+        Check(address == &transform->position, "at the address of the whole run");
+
+        JBro::String before;
+        Check(JBro::SetPropertyCommand::ReadValue(*component, typeId, position, before),
+            "its value must read as text");
+        transform->position = JBro::Vec2{9.0f, 9.0f};
+        Check(JBro::SetPropertyCommand::ApplyValue(*component, typeId, position, before),
+            "and that text must write back");
+        Check(NearlyEqual(transform->position.x, 1.5f) && NearlyEqual(transform->position.y, -2.0f),
+            "bringing back both members");
+
+        // 칸으로도 내려갈 수 있다. 스냅샷이 칸마다 뜨는 길이다.
+        Check(JBro::SetPropertyCommand::ResolveLeaf(*component, typeId, PathTo(
+                FieldIndex(TransformTable(), "position"), 1), address, type)
+                && address == &transform->position.y,
+            "and a member of the run is still a leaf of its own");
+
+        // **반만 읽히는 글자는 반만 쓰지 않는다.** 첫 칸을 읽고 둘째에서 막히면 x 만 바뀐다.
+        JBro::String broken("Value:\n  - 7\n  - not a number\n");
+        Check(false == JBro::SetPropertyCommand::ApplyValue(*component, typeId, position, broken),
+            "a text that does not parse into the run must be refused");
+        Check(NearlyEqual(transform->position.x, 1.5f), "and leave the run as it was");
     }
 
     // **드래그 병합은 같은 컴포넌트의 같은 잎사귀일 때만이다.** 아니면 그 사이
@@ -1875,6 +1919,7 @@ int RunEditorObjectCommandTests()
     TestPathsOfDifferentDepthAreDifferentPaths();
     TestAPropertyGoesThereAndComesBack();
     TestABranchIsNotALeaf();
+    TestAOneLineRunIsOneValue();
     TestMergeOnlyJoinsTheSameLeafOfTheSameComponent();
     TestAnEditSurvivesItsObjectBeingDeletedAndRestored();
     TestDeletingIsRefusedWhenAValueCannotBeSaved();
