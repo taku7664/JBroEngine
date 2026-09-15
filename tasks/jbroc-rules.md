@@ -233,6 +233,59 @@ Int delete = 0                      Int jbro_gen_delete = 0;
 버린 안: C++ 헤더를 파싱(기존 엔진이 정규식으로 `JPROP` 을 읽다 실패한 길), 별도 문서 파일만 두기(C++ 와 어긋나도 잡을 수 없다),
 엔진 함수 호출은 검사하지 않고 MSVC 에 맡기기(§3.1 목표를 어긴다).
 
+### 7.1 함수 시그니처를 스크립트 표기로 자동 변환할 수 있는가 (2026-09-15 프로브)
+
+**된다. 매개변수 타입과 반환형은 컴파일러가 뽑고, 스크립트 표기로 바꾸는 것은 기계적이다.**
+선언 표를 정하는 결정(위 표의 [대기])은 그대로이고, 여기 적는 것은 그 표를 만드는 방법을 잰 결과다.
+
+**잰 방법**: 실제 엔진 공개 헤더(`<JBro/ScriptAPI.h>`)를 include 하고, 멤버 함수 포인터의 타입(`decltype(&C::F)`)을
+템플릿으로 풀어 매개변수·반환 타입을 꺼낸 뒤 C++ 타입 → 스크립트 이름 표로 바꿨다. MSVC 19.51, `/std:c++20 /W4`.
+`decltype` 만 쓰므로 엔진 함수를 부르지 않고, 엔진 라이브러리를 링크하지 않아도 된다. **경고 0개로 컴파일되고 돌았다.**
+프로브는 세션 스크래치패드에 있었고 커밋하지 않았다(이 절의 설명으로 다시 만들 수 있다).
+
+| 엔진 C++ | 자동 변환 결과 |
+|---|---|
+| `bool Physics2DService::Raycast(Vec2, Vec2, float, Collision2D&) const` | `fn Raycast(Vector2, Vector2, Float, ref Collision2D) -> Bool` |
+| `void Physics2DService::OverlapBox(const Rect&, Array<GameObjectHandle>&) const` | `fn OverlapBox(Rect, ref Array<ref GameObject>)` |
+| `void GameObjectHandle::Destroy()` | `fn Destroy()` |
+| `void GameObjectHandle::SetActive(bool)` | `fn SetActive(Bool)` |
+| `bool GameObjectHandle::IsActive() const` | `fn IsActive() -> Bool` |
+| `Float Float::Clamp(float, float) const` | `fn Clamp(Float, Float) -> Float` |
+| `SizeType Array::Size() const noexcept` | `fn Size() -> Int` |
+
+쓴 변환 규칙:
+
+| C++ | 스크립트 |
+|---|---|
+| `bool` / `float`, `JBro::Float` | `Bool` / `Float` |
+| `int32`, `int64`, `std::size_t` | `Int`(손실 없는 넓힘. 크기는 투영이 정한다, syntax §10.3) |
+| `Vec2` | `Vector2`(엔진 이름을 바꾸기로 했다. 바뀌면 이 줄은 필요 없다) |
+| `const T&` 매개변수 | `T` |
+| `T&` 매개변수(const 아님) | `ref T` |
+| `Ref<T>` / `GameObjectHandle` | `ref T` / `ref GameObject` |
+| `void` 반환 | `->` 없음 |
+
+**자동으로 안 되는 것**(프로브에서 실제로 걸린 것):
+
+1. **매개변수 이름.** C++ 함수 타입에는 `origin`·`direction` 같은 이름이 없다. 편집기 호버에 이름을 보이려면 사람이 적는다.
+2. **같은 이름의 오버로드.** `Float::Clamp` 는 멤버와 static 이 같은 이름이라 `decltype(&Float::Clamp)` 가
+   컴파일 에러(C3556)였다. 타입을 적어 하나를 골라야 했다. 스크립트에 오버로드를 둘지는 아직 정하지 않았다.
+3. **기본 인자.** 함수 타입에 담기지 않아 사라진다.
+4. **`noexcept`·`const` 조합.** 함수 타입의 일부라 변환 규칙에 조합마다 한 번씩 적어야 한다(한 번 적으면 끝이다).
+5. **이름이 없는 타입은 바로 드러난다.** 컴포넌트 이름을 표에 넣지 않았더니 `GetComponent<Transform2D>` 가
+   `ref <unmapped>` 로 나왔다. 실제 구현에서는 이것을 **컴파일 에러로** 만들면, 스크립트 이름이 없는 엔진 타입을 API 에 내놓는 순간 빌드가 멈춘다.
+
+**그래서 선언 표를 만든다면 이런 모양이 된다**([제안], 결정은 [대기]):
+
+```cpp
+JBRO_SCRIPT_API(Service::Physics2DService, Raycast, "origin", "direction", "distance", "hit");
+```
+
+- 타입은 컴파일러가 뽑는다. 사람은 **매개변수 이름만** 적는다. 이름 개수가 매개변수 개수와 다르면 컴파일 에러다.
+- `jbroc` 은 이 표로 타입을 검사하고, `jbroc --lsp` 는 호버에
+  `fn Raycast(Vector2 origin, Vector2 direction, Float distance, ref Collision2D hit) -> Bool` 을 보인다. **편집기 확장 쪽 일은 없다.**
+- 오버로드는 표에 적을 때 타입으로 하나를 고른다.
+
 ## 8. 테스트 [확정]
 
 - **`.jscript` 표본 모음**을 두고, 생성 C++ 를 `/W4` 로 컴파일해 경고·에러가 0 인지 본다.
