@@ -200,6 +200,46 @@ namespace
         stage.End();
     }
 
+    // **행은 그린 것만큼 높다**(D-89). 필드를 가진 구조체 원소는 한 행에 여러 줄을 그린다.
+    // 처음에는 행 높이가 한 줄로 고정되어, 다음 행이 앞 행의 둘째 줄 위에 겹쳐 그려졌다.
+    void TestAListRowIsAsTallAsWhatItDraws()
+    {
+        Stage stage;
+        stage.Settle();
+
+        float top[3] = {};
+        float bottom[3] = {};
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            stage.Begin();
+            JBro::Widget::ListVirtual("##rows", 3,
+                [&](int index) -> bool {
+                    top[index] = ImGui::GetCursorScreenPos().y;
+                    ImGui::Button("first");
+                    if (index == 1)
+                    {
+                        // 가운데 행만 세 줄이다.
+                        ImGui::Button("second");
+                        ImGui::Button("third");
+                    }
+                    bottom[index] = ImGui::GetItemRectMax().y;
+                    return false;
+                },
+                []() {},
+                [](int) {},
+                [](int, int) {});
+            stage.End();
+        }
+
+        const float gapAfterShort = top[1] - bottom[0];
+        const float gapAfterTall = top[2] - bottom[1];
+        Check(bottom[1] - top[1] > 2.0f * (bottom[0] - top[0]),
+            "the test needs a middle row several lines tall");
+        Check(top[2] >= bottom[1], "the row after a tall one must start below all of it");
+        Check(gapAfterTall == gapAfterShort,
+            "and leave the same gap as after a one-line row, no more and no less");
+    }
+
     // `Array<T>` 덮개는 목록에 저장소를 이어 준다. 여기서는 **옮기기 셈**이
     // 맞는지를 본다 - 슬롯 번호와 원소 번호가 다르다는 것이 이 위젯의 함정이다.
     void TestTheArrayWrapperMovesElementsCorrectly()
@@ -326,6 +366,7 @@ int RunEditorWidgetTests()
     TestScopesUnwindThemselves();
     TestTheFormLayoutOpensAndClosesCleanly();
     TestTheListAsksItsCallbacksForEverything();
+    TestAListRowIsAsTallAsWhatItDraws();
     TestTheArrayWrapperMovesElementsCorrectly();
     TestTheTreeHandsBackItsRowAndContent();
     TestTheTextFieldLeavesUntouchedValuesAlone();

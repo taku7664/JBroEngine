@@ -171,7 +171,6 @@ namespace JBro::Widget
                     ImGui::EndDragDropSource();
                 }
             }
-            const ImVec2 bodyEnd = ImGui::GetCursorPos();
             ImGui::SetCursorPos(bodyStart);
             ImGui::AlignTextToFramePadding();
             ImGui::TextUnformatted(RowHandleGlyph);
@@ -215,7 +214,10 @@ namespace JBro::Widget
                 HoveredTooltip(Loc::TextOr(LocKeys::ListRemoveElement, "Remove element"));
             }
             ImGui::PopID();
-            ImGui::SetCursorPos(bodyEnd);
+            // **커서는 내용이 끝난 자리에 둔다.** 행 높이는 그린 것이 정한다(D-89). 처음에는
+            // 한 줄 높이의 배경 자리 끝으로 되돌려, 여러 줄을 그리는 행(필드를 가진 구조체
+            // 원소) 위에 다음 행이 겹쳤다. 한 줄짜리 행은 손잡이 줄이 이미 한 줄 높이를
+            // 차지하므로 전과 같은 자리에 온다. 배경과 끌기 자리는 여전히 첫 줄만 덮는다.
         }
 
         if (reorderable)
