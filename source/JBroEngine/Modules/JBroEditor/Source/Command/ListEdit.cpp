@@ -93,7 +93,8 @@ namespace JBro
         case ListEdit::Kind::Add:
             return ops.AddDefault(array);
         case ListEdit::Kind::Remove:
-            return edit.index < size && ops.RemoveAt(array, edit.index);
+            // 범위는 조작 함수가 본다 - 끝을 넘는 번호는 `RemoveAt` 이 거절한다.
+            return ops.RemoveAt(array, edit.index);
         case ListEdit::Kind::Move:
             if (edit.index >= size || edit.to >= size)
             {

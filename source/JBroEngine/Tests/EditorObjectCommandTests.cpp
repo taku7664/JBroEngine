@@ -1229,6 +1229,20 @@ namespace
         Check(short_->samples.Size() == 1 && NearlyEqual(short_->samples[0], 10.0f),
             "and the short one");
 
+        // **앞 편집은 되고 뒤 편집이 막히는 대상은 통째로 빠진다.** 짧은 쪽은 하나를
+        // 더해도 여섯째 원소가 없다. 반쯤 적용된 결과를 커맨드로 올리면 사용자가 한
+        // 적 없는 편집(원소 하나만 늘어난 목록)이 남는다.
+        JBro::Array<JBro::ListEdit> growThenNudge;
+        growThenNudge.Add(add);
+        growThenNudge.Add(SetElement(5, 1.0f));
+        auto partly = JBro::MakeListEditCommand(ids, targets, samples, growThenNudge);
+        Check(partly->GetCount() == 1, "a target that takes only the first edit must be left out");
+        Check(short_->samples.Size() == 1, "and be left as it was while the command is built");
+        Check(commands.Execute(std::move(partly)), "the rest must still go through");
+        Check(short_->samples.Size() == 1 && NearlyEqual(short_->samples[0], 10.0f),
+            "without growing the short list by the half it could take");
+        Check(commands.Undo(), "and undo cleanly");
+
         // 아무것도 바뀌지 않는 편집은 올리지 않는다.
         JBro::Array<JBro::ListEdit> nothing;
         nothing.Add(SetElement(0, 0.0f));
