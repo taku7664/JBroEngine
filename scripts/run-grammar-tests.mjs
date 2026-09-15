@@ -56,7 +56,8 @@ for (const file of syntaxFiles) {
 	}
 	const result = await unit.runGrammarTestCase(registry, testCase);
 	for (const failure of result) {
-		const where = `${name}:${failure.srcLine + 1}:${failure.start + 1}-${failure.end}`;
+		// failure.line is the file line of the source line under test; srcLine counts only source lines.
+		const where = `${name}:${failure.line + 1}:${failure.start + 1}-${failure.end}`;
 		if (failure.missing.length > 0) {
 			failures.push(`${where} missing [${failure.missing.join(' ')}], actual [${failure.actual.join(' ')}]`);
 		}
