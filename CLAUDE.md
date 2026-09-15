@@ -51,6 +51,9 @@
 
 ### 관련 문서
 
+- [README.md](./README.md) — 저장소 구성과 빌드 방법. 처음 온 사람이 먼저 보는 문서
+- [docs/wiki/Home.md](./docs/wiki/Home.md) — 구조·오브젝트 모델·참조·스크립트 경계와 API·리플렉션·에디터·JBroScript 를 설명하는 위키.
+  규칙의 원문이 아니라 설명서다. `ProjectRule.md`·Decisions 와 어긋나면 원문이 맞고, 계약이 바뀌면 위키도 같이 고친다
 - [docs/ProjectRule.md](./docs/ProjectRule.md) — 확정 규칙
 - [docs/Jbro_Engine_Architecture_Draft_v2.md](./docs/Jbro_Engine_Architecture_Draft_v2.md) — 폐기된 역사 초안
 - [docs/Jbro_CPP_Script_Object_Safety.md](./docs/Jbro_CPP_Script_Object_Safety.md) — 폐기된 스크립트 객체 안전성 초안
