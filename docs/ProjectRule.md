@@ -827,6 +827,8 @@
 - [tasks/jbroscript-plan.md](../tasks/jbroscript-plan.md) — JBroScript(`.jscript`)와 리플렉션 계획(D-56).
   계획일 뿐 확정 계약이 아니다. 언어와 트랜스파일러는 아직 없고, 프로퍼티 리플렉션
   (`PropertyInfo`, C++ 매크로 생산자, `ValueCodec`·`ArrayOps`·`TableOps`)은 서 있으며 인스펙터가 그 위에서 돈다.
+- [tasks/ide-plan.md](../tasks/ide-plan.md) — 스크립트 편집기 JBro Script Editor(Code-OSS 포크) 계획(D-87).
+  계획일 뿐 확정 계약이 아니며 아직 아무것도 만들지 않았다.
 - [Jbro Engine Architecture Draft](./Jbro_Engine_Architecture_Draft_v2.md)
 - [Jbro C++ Script Object Safety Draft](./Jbro_CPP_Script_Object_Safety.md)
 
