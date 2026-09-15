@@ -563,6 +563,11 @@ namespace JBro
         return m_gameView;
     }
 
+    void EditorApplication::RequestGameView()
+    {
+        m_gameViewRequested = true;
+    }
+
     Extent2D EditorApplication::GetGameViewExtent() const
     {
         return m_gameViewExtent;
@@ -910,6 +915,18 @@ namespace JBro
         {
             return false;
         }
+        // **게임 뷰 렌더는 매 프레임 opt-in 이다**(D-63). UI 를 먼저 만들었으므로 이 프레임에
+        // 게임 뷰 패널이 그려졌는지 이미 안다. 패널이 닫히거나 다른 탭에 가려진 프레임에는
+        // 뷰를 기록하지 않고, 텍스처는 파기하지 않아 다시 보일 때 마지막 그림에서 이어진다.
+        if (m_uiEnabled && m_gameView.IsValid())
+        {
+            FrameTarget target;
+            target.texture = m_gameView;
+            target.extent = m_gameViewExtent;
+            target.recordViews = m_gameViewRequested;
+            m_engine->SetGameViewTarget(target);
+        }
+        m_gameViewRequested = false;
         if (m_exitRequested)
         {
             // 메뉴에서 끝내기를 골랐다. UI 를 먼저 놓고 내려간다 -

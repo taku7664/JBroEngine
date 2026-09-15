@@ -45,6 +45,10 @@ namespace JBro
         // 텍스처를 줄 때는 그 크기도 줘야 한다. 뷰포트가 타깃 안에 있는지 재는 기준이
         // 그것이고, 백버퍼일 때와 달리 렌더러가 알 길이 없다.
         Extent2D extent;
+        // 거짓이면 이 프레임의 뷰를 기록하지 않는다. 게임 뷰 렌더는 **매 프레임 opt-in**
+        // 이다(D-63) - 에디터의 게임 뷰 패널이 그려지지 않는 프레임에는 텍스처를 건드리지
+        // 않고, 다시 보일 때 마지막 그림에서 이어진다. 제출된 뷰는 `skippedViewCount` 로 센다.
+        bool recordViews = true;
     };
 
     // 뷰를 모두 기록한 뒤, 프레임을 닫기 전에 불린다. 에디터 UI 가 백버퍼에
@@ -105,6 +109,8 @@ namespace JBro
         std::uint32_t spriteCount = 0;
         std::uint32_t meshCount = 0;
         std::uint32_t droppedViewCount = 0;
+        // 타깃이 뷰 기록을 끈 프레임에 제출된 뷰다. 버린 것이 아니라 그리지 않기로 한 것이다.
+        std::uint32_t skippedViewCount = 0;
         std::uint32_t droppedSpriteCount = 0;
         std::uint32_t droppedMeshCount = 0;
     };

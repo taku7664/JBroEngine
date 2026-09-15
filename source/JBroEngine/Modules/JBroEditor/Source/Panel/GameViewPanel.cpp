@@ -62,5 +62,8 @@ namespace JBro
             cursor.x + (panel.x - size.x) * 0.5f,
             cursor.y + (panel.y - size.y) * 0.5f));
         ImGui::Image(static_cast<ImTextureID>(EditorUI::ToTextureId(gameView)), size);
+        // 이 프레임에 게임 화면을 붙였다. 붙이지 않은 프레임(닫힘·다른 탭에 가림)에는
+        // 게임을 그리지 않는다(D-63).
+        m_editor->RequestGameView();
     }
 }

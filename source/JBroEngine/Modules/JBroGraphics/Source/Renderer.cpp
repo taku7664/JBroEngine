@@ -420,7 +420,18 @@ namespace JBro
 
     bool Renderer::RecordViews()
     {
-        if (m_frame.commands == nullptr || false == UploadSpriteInstances())
+        if (m_frame.commands == nullptr)
+        {
+            return false;
+        }
+        // **타깃이 뷰를 원하지 않는 프레임이다**(D-63). 제출은 받았지만 기록하지 않는다 -
+        // 게임 뷰 패널이 보이지 않을 때 텍스처를 그대로 두는 길이다.
+        if (false == m_frameTarget.recordViews)
+        {
+            m_currentStats.skippedViewCount += static_cast<std::uint32_t>(m_views.Size());
+            return true;
+        }
+        if (false == UploadSpriteInstances())
         {
             return false;
         }

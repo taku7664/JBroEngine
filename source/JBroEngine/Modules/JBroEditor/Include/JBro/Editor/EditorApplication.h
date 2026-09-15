@@ -143,6 +143,8 @@ namespace JBro
 
         // 게임 화면이 그려지는 텍스처다. UI 가 꺼져 있으면 비어 있다.
         TextureHandle GetGameViewTexture() const;
+        // 게임 뷰 패널이 이 프레임에 게임 화면을 붙였다. 그 프레임에만 게임 뷰를 렌더한다(D-63).
+        void RequestGameView();
         // 그 텍스처의 크기다. 게임 해상도이고 에디터 창과 무관하다.
         Extent2D GetGameViewExtent() const;
 
@@ -199,6 +201,7 @@ namespace JBro
         EditorObjectRegistry m_objectIds;
         TextureHandle m_gameView;
         Extent2D m_gameViewExtent;
+        bool m_gameViewRequested = false;
         bool m_uiEnabled = false;
         // 메뉴에서 끝내기를 골랐다. 다음 틱에서 내려간다.
         bool m_exitRequested = false;

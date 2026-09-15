@@ -1036,6 +1036,29 @@ namespace
                 && module.device.abortFrameCount == aborts,
             "and the frame must be presented rather than thrown away");
 
+        // ⑤ **뷰 기록을 끈 타깃이다.** 게임 뷰 패널이 보이지 않는 프레임이 이것이다(D-63).
+        // 제출은 받되 렌더 패스를 열지 않고, 텍스처는 그대로 둔다.
+        framework.submitView = true;
+        framework.renderResult = JBro::RenderResult::Submitted;
+        target.recordViews = false;
+        Check(engine.SetGameViewTarget(target), "the host must take a target that skips views");
+        const std::uint32_t passes = module.device.commands.beginRenderPassCount;
+        presents = module.device.endFrameCount;
+        Check(engine.Tick(0.016f), "the frame that skips its views must tick");
+        Check(module.device.commands.beginRenderPassCount == passes,
+            "a target that does not want views must open no render pass for them");
+        Check(renderer->GetLastFrameStats().skippedViewCount == 1
+                && renderer->GetLastFrameStats().viewCount == 1,
+            "and the submitted view must be counted as skipped, not dropped");
+        Check(module.device.endFrameCount == presents + 1,
+            "while the frame itself is still presented for the overlay");
+        target.recordViews = true;
+        Check(engine.SetGameViewTarget(target), "the host must take the target back");
+        Check(engine.Tick(0.016f), "the next frame must tick");
+        Check(module.device.commands.beginRenderPassCount > passes
+                && module.device.commands.lastColorAttachment == gameView,
+            "and record its views to the texture again");
+
         Check(renderer->SetFrameOverlay(nullptr, nullptr), "the overlay must detach");
         engine.Shutdown();
     }
