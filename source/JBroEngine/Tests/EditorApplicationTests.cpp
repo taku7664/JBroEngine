@@ -3,7 +3,9 @@
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Editor/Command/ObjectCommands.h>
 #include <JBro/Editor/EditorObjectRegistry.h>
+#include <JBro/Editor/EditorIcons.h>
 #include <JBro/Editor/EditorPanel.h>
+#include <JBro/Editor/EditorTheme.h>
 #include <JBro/Editor/EditorPopup.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
@@ -951,8 +953,8 @@ namespace
 
         // 첫 원소를 지운다. 삭제 표시는 행의 오른쪽 끝이다.
         // `TextButton` 은 이름을 `PushID` 로 쌓고 빈 이름의 단추를 그린다. 빈 이름의
-        // 해시는 시드를 그대로 돌려주므로 Id 는 행 아래의 "x" 다.
-        Check(FindListItemNearRightEdge(editor, hwnd, LabelId(PushedId(body->ID, 0), "x"), 1,
+        // 해시는 시드를 그대로 돌려주므로 Id 는 행 아래의 삭제 글리프(D-96)다.
+        Check(FindListItemNearRightEdge(editor, hwnd, LabelId(PushedId(body->ID, 0), JBro::Icons::Xmark), 1,
                 spot),
             "the first row must offer to be removed");
         ClickAt(editor, hwnd, spot);
@@ -965,6 +967,12 @@ namespace
         Check(a->weights.Size() == 3 && a->weights[0] == 1.0f
                 && b->weights.Size() == 4 && b->weights[0] == 10.0f,
             "and bring both back in order");
+
+        // **손잡이와 삭제 표시는 아이콘 글꼴의 글리프다**(D-96). 글꼴이 합쳐졌고 그 글리프가
+        // 글꼴 안에 있어야 한다 - 없으면 네모가 그려지는데, 화면을 보지 않으면 모른다.
+        Check(JBro::EditorTheme::HasIconFont(), "the icon font must be merged into the UI font");
+        Check(ImGui::GetFont()->IsGlyphInFont(0xF7A4) && ImGui::GetFont()->IsGlyphInFont(0xF00D),
+            "and hold the grip and the x mark the list draws");
 
         if (JBro::Renderer* renderer = editor.GetRenderer())
         {
@@ -1211,10 +1219,10 @@ namespace
         // **삭제 표시는 줄마다 같은 자리다.** 접힌 줄에서는 이름표에 붙고 펼친 줄에서는 필드 표에
         // 밀려 행 밖으로 반쯤 나갔다.
         Spot closedMark;
-        Check(FindListItemNearRightEdge(editor, hwnd, LabelId(PushedId(body->ID, 0), "x"), 12,
+        Check(FindListItemNearRightEdge(editor, hwnd, LabelId(PushedId(body->ID, 0), JBro::Icons::Xmark), 12,
                 closedMark),
             "a closed element must have its remove mark at the end of the row");
-        Check(FindListItemNearRightEdge(editor, hwnd, LabelId(row, "x"), 12, spot),
+        Check(FindListItemNearRightEdge(editor, hwnd, LabelId(row, JBro::Icons::Xmark), 12, spot),
             "an opened element must keep its remove mark inside the list");
         Check(spot.x == closedMark.x, "and both marks must stand in the same column");
         // 필드 표는 행의 내용 폭만 쓴다. 남은 폭을 다 쓰면 값 칸이 삭제 표시 밑까지 뻗는다.
@@ -1376,7 +1384,7 @@ namespace
         }
         Check(rowStates->GetInt(LabelId(PushedId(body->ID, 1), "Signal"), 0) == 1,
             "the second node must be open before the removal");
-        Check(FindListItemNearRightEdge(editor, hwnd, LabelId(PushedId(body->ID, 0), "x"), 1, node),
+        Check(FindListItemNearRightEdge(editor, hwnd, LabelId(PushedId(body->ID, 0), JBro::Icons::Xmark), 1, node),
             "the first row must offer to be removed");
         ClickAt(editor, hwnd, node);
         Check(a->signals.Size() == 1 && a->signals[0].strength == 100.0f,
@@ -1949,6 +1957,21 @@ namespace
         editor.Shutdown();
     }
 
+    // 프로퍼티를 등록하지 않은 컴포넌트다. 스냅샷으로 뜰 수 없다.
+    class Opaque final : public JBro::ComponentBase
+    {
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "Test::Opaque";
+        }
+
+        JBro::ComponentTypeId GetTypeId() const override
+        {
+            return JBro::MakeStableTypeId(StaticTypeName());
+        }
+    };
+
     // **복사는 고른 것 중 맨 위 것들을 뜨고, 붙여넣기는 주된 선택의 형제로 붙여 그것을 고른다.**
     void TestCopyAndPasteMakeASiblingAndSelectIt()
     {
@@ -2002,6 +2025,20 @@ namespace
             "and its component values");
         Check(editor.GetCommands().Undo(), "undo must run");
         Check(canvas->GetObjectCount() == before, "and take the pasted tree away");
+
+        // 뜨지 못하는 것이 하나라도 섞여 있으면 클립보드를 건드리지 않는다.
+        JBro::GameObject* sealed = canvas->CreateObject("Sealed");
+        Check(canvas->AttachComponent<Opaque>(sealed) != nullptr, "the opaque component must attach");
+        JBro::GameObject* mixed[] = {alpha, sealed};
+        editor.SelectObjects({mixed, 2});
+        Check(false == editor.CopySelection(), "copying a tree that cannot be captured is refused");
+        editor.ClearSelection();
+        Check(editor.PasteClipboard(), "and the earlier clipboard must still paste");
+        pasted = editor.GetSelectedObject();
+        Check(pasted != nullptr && std::strcmp(pasted->GetTag(), "Alpha") == 0
+                && canvas->GetObjectCount() == before + 3,
+            "the earlier tree, untouched by the refused copy");
+        Check(editor.GetCommands().Undo(), "undo must run");
 
         // 고른 것이 없으면 뿌리에 붙는다.
         editor.ClearSelection();
