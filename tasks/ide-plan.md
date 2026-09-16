@@ -14,7 +14,8 @@
 - **이 편집기는 `.jscript` 전용이다.** C++(엔진 빌트인 컴포넌트와 C++ 스크립트 경로)은
   Visual Studio 에서 편집한다. 따라서 C++ 언어 서비스(clangd·`compile_commands.json`)는 만들지 않는다.
 - **JBro 기능은 전부 내장 확장으로 만들고, 코어 패치는 기능이 아니라 제품 모양에만 쓴다.**
-  코어 패치는 하기로 했지만 항목은 아직 정하지 않았다(§5.2, §7 Q1).
+  **패치는 넷이다(2026-09-16 확정, §5.2 의 패치 목록).** 0001 첫 실행 한국어, 0002 채팅·AI 제거,
+  0003 `.vsix` 설치 차단, 0004 메뉴 구조. 0004 의 세부 항목만 남았다.
 - **확장 마켓플레이스는 연결하지 않는다.** 편집기에 필요한 확장은 편집기가 직접 싣는다(§5.3).
 - **화면은 기본 한국어이고, 다국어를 전제로 만든다.** 원문은 영어, 한국어는 번역 파일이다.
   본체·JBro 확장·`jbroc` 진단의 세 출처가 모두 번역을 거친다(§5.5).
@@ -47,8 +48,8 @@
 | 제품 이름 | JBro Script Editor |
 | 편집기 범위 | `.jscript` 전용. C++ 편집 지원은 넣지 않는다 |
 | C++ 스크립트 경로 | jbroscript-plan §9 대로 남는다. 편집기의 대상이 아닐 뿐이며 D-56 은 바뀌지 않는다 |
-| 코어 패치 | 한다. 무엇을 바꿀지는 미정이다(§7 Q1) |
-| 확장 마켓플레이스 | 연결하지 않는다. `product.json` 한 곳이라 나중에 열 수 있다(§5.3) |
+| 코어 패치 | 한다. **무엇을 바꿀지는 2026-09-16 에 정했다**(§5.2 의 패치 목록) |
+| 확장 마켓플레이스 | 연결하지 않는다. **Code-OSS 가 `extensionsGallery` 키를 갖고 있지 않아 비울 것이 없다**(2026-09-16, §5.3) |
 | 식별자 | CLI 명령어 `jbro-script-editor`, 설정 폴더 `.jbro-script-editor`, 리포 `JBroScriptEditor`, 로컬 위치는 F: |
 | 화면 언어 | 기본 한국어, 폴백 영어. 로컬라이징을 전제로 하며 한국어를 소스에 쓰지 않는다(§5.5) |
 | 언어 설정 공유 | 씬 에디터와 공유한다. 공유 파일은 씬 에디터의 사용자 설정 파일이 생길 때 정한다(§5.5) |
@@ -203,8 +204,9 @@ VSCodium 이 같은 일을 하는 방식이며, 코드 로직을 바꾸지 않�
 | 번호 | 이름 | 바꾸는 것 | 이유 |
 |---|---|---|---|
 | 0001 | `default-locale-ko` | `src/main.ts:422` 의 `defaultArgvConfigContent` 에 `"locale": "ko"` 를 넣는다 | OS 언어와 무관하게 첫 실행을 한국어로 연다(§5.5). 기본 `argv.json` 내용이 `product.json` 이 아니라 코드에 문자열로 박혀 있어 설정으로 닿을 수 없다 |
-| 0002 | `remove-chat-ai` | `src/vs/workbench/workbench.common.main.ts` 의 230~234·237~241·394·400·434·474·480 줄과 `workbench.desktop.main.ts` 의 189·190·193·202 줄에서 부수효과 import 를 뺀다 | 채팅·AI 기능을 화면에서 없앤다. 마켓플레이스가 없어 Copilot 확장을 설치할 길이 없으므로, 두면 로그인만 권하는 죽은 UI 가 남는다 |
+| 0002 | `remove-chat-ai` | `src/vs/workbench/workbench.common.main.ts` 의 230~234·237~241·394·400·434·480 줄과 `workbench.desktop.main.ts` 의 189·190·193·202 줄에서 부수효과 import 를 뺀다 | 채팅·AI 기능을 화면에서 없앤다. 마켓플레이스가 없어 Copilot 확장을 설치할 길이 없으므로, 두면 로그인만 권하는 죽은 UI 가 남는다 |
 | 0003 | `block-vsix-install` | `contrib/extensions/browser/extensions.contribution.ts:935`·`964` 의 명령 등록, `extensionsActions.ts:228` 의 메뉴 항목, `extensionsViewlet.ts:695~701` 의 끌어놓기 처리, `platform/environment/node/argv.ts:130` 의 `--install-extension` 을 뺀다 | 남의 확장이 들어오는 마지막 통로를 막아 편집기 구성을 배포한 그대로 고정한다(§5.3) |
+| 0004 | `menu-structure` | **미정.** 메뉴 항목의 구성을 JBro 에 맞게 고친다 | 씬 에디터에서 넘어온 사람이 쓰는 편집기라 VS Code 의 메뉴를 그대로 둘 이유가 없다(2026-09-16 결정). **기본 레이아웃(편집기·사이드바·패널의 배치)은 VS Code 와 비슷하게 유지한다.** 세부 항목은 포크를 띄워 실제 화면을 보고 정한다 |
 
 **0002 를 "설정으로 끄면 된다" 로 대신할 수 없는 것을 소스로 확인했다(2026-09-16).**
 
@@ -223,10 +225,20 @@ VSCodium 이 같은 일을 하는 방식이며, 코드 로직을 바꾸지 않�
 `editor/contrib/inlineCompletions` 처럼 채팅이 아닌 기능도 있다. 부수효과 import 를 빼면 컴파일은 통과해도
 그 자리들이 런타임에 서비스를 못 찾을 수 있다. **0002 의 검증은 창을 띄워 렌더러 에러가 없는 것까지 본다.**
 
-**0002 에서 어디까지가 "AI" 인지는 아직 정하지 않았다.** 위 줄 번호는 `chat`·`inlineChat`·`agentsVoice`·`mcp`·
-`welcomeOnboarding`·`welcomeAgentSessions`·`remoteCodingAgents`·`editTelemetry`·`inlineCompletions` 를 모두 포함한다.
-이 중 `inlineCompletions` 는 AI 전용이 아니라 인라인 제안의 일반 틀이라서, 나중에 `jbroc` 의 LSP 가 쓸 수 있다.
-**뺄지 남길지는 포크 빌드를 시작하기 전에 정한다.**
+**0002 가 덮는 것**은 `chat`·`inlineChat`·`agentsVoice`·`mcp`·`welcomeOnboarding`·`welcomeAgentSessions`·
+`remoteCodingAgents`·`editTelemetry` 다. 마지막 것은 편집의 얼마만큼이 AI 에서 왔는지를 재는 기능이라
+(`contrib/editTelemetry/browser/aiContributionFeature.ts`) 여기 들어간다.
+
+**`inlineCompletions` 는 건드리지 않는다(2026-09-16 결정, 소스로 확인).**
+
+- `workbench/contrib/inlineCompletions` 에 든 것은 상태 표시줄 항목 하나와 설정 스키마 등록 하나뿐이다
+  (`inlineCompletionLanguageStatusBarContribution.ts`·`inlineCompletions.contribution.ts`). 인라인 제안을 굴리는
+  엔진은 `editor/contrib/inlineCompletions` 이고 편집기 코어에 항상 실리므로 이 목록의 대상이 아니다.
+- 확장이 제안을 내놓는 통로는 평범한 확장 API 인 `registerInlineCompletionItemProvider` 다
+  (`api/common/extHost.api.impl.ts:754`). **로그인과 무관하다.** 로그인이 필요했던 것은 제안을 만들던
+  Copilot 공급자 쪽이고, 그 확장은 마켓이 없어 설치할 길이 없다.
+- 그러므로 지워도 얻는 것이 상태 표시줄 항목 하나뿐이고, 나중에 `jbroc` 의 LSP 가 제안을 줄 때
+  그 표시가 있는 편이 낫다. `workbench.common.main.ts` 의 269·474 줄은 **남긴다.**
 
 **0003 의 위험**: `--install-extension` 은 `code/node/cliProcessMain.ts` 와
 `electron-utility/sharedProcess/contrib/defaultExtensionsInitializer.ts` 도 쓴다. 내장 확장을 싣는 경로에
@@ -427,7 +439,7 @@ jbroscript-plan §18.7 을 따른다. 그때까지는 Visual Studio 로 한다.
 - 빌드 스크립트: upstream 태그를 받아 패치를 차례대로 적용하고, `extensions/jbro-*` 를 소스 트리에 복사한 뒤 빌드한다.
   **upstream 은 `1.137.0` 을 `upstream/` 에 얕은 클론으로 받아 두었고(2026-09-16, 432 MB), `.gitignore` 에 넣어
   리포에 커밋하지 않는다.** 빌드 작업 폴더이지 관리 대상이 아니다.
-- 패치 0001~0003 을 적용한다(§5.2 의 패치 목록).
+- 패치 0001~0004 를 적용한다(§5.2 의 패치 목록).
 - 확장 갤러리는 손댈 것이 없다(§5.3).
 - 한국어 언어 팩을 내장 확장으로 싣고, 처음 실행 때 한국어로 열리게 한다(§5.5). 언어 팩 라이선스는
   MIT 로 확인했다. **릴리스 빌드에서 설치 직후 첫 실행이 한국어인지, `--locale=en` 으로 영어로 돌아오는지를
@@ -446,19 +458,18 @@ jbroscript-plan §18.7 을 따른다. 그때까지는 Visual Studio 로 한다.
 
 ## 7. 답이 필요한 질문
 
-1. ~~코어 패치로 무엇을 바꿀 것인가.~~ **정했다(2026-09-16). 패치 셋이다(§5.2 의 패치 목록).**
-   0001 첫 실행 한국어, 0002 채팅·AI 제거, 0003 `.vsix` 설치 차단.
-   남은 세부 질문 둘은 포크 빌드를 시작하기 전에 정한다.
-   - 0002 에서 `inlineCompletions` 를 뺄 것인가 남길 것인가. AI 전용이 아니라 인라인 제안의 일반 틀이고,
-     나중에 `jbroc` 의 LSP 가 쓸 수 있다(§5.2).
-   - 계정 메뉴(활동 표시줄 아래의 깃허브·마이크로소프트 로그인)를 기본에서 감출 것인가.
-     사용자가 우클릭으로 감출 수 있으므로(`browser/parts/globalCompositeBar.ts:843`) 패치의 목적은 기본값을 바꾸는 것이다.
-     채팅을 없애면 남는 쓰임은 Git·GitHub 확장의 저장소 접근뿐이다.
-   - 메뉴 구조를 재편할 것인가. 빡대리가 생각 중이다(2026-09-16).
+1. ~~코어 패치로 무엇을 바꿀 것인가.~~ **정했다(2026-09-16). 패치 넷이다(§5.2 의 패치 목록).**
+   0001 첫 실행 한국어, 0002 채팅·AI 제거, 0003 `.vsix` 설치 차단, 0004 메뉴 구조.
+   **0004 의 세부 항목만 미정이고**, 포크를 띄워 실제 화면을 보고 정한다. 기본 레이아웃은 유지한다.
 
-   **시작 화면(환영 탭)은 코어 패치 목록에서 뺐다.** 뜨지 않게만 하면 되고, 그것은 확장이
-   `workbench.startupEditor` 의 기본값을 `none` 으로 기여하면 된다(`platform/extensions/common/extensions.ts:217`).
-   그 자리에 JBro 만의 시작 화면을 넣기로 하면 그때 다시 패치 후보가 된다.
+   같은 날 목록에서 뺀 것 셋:
+
+   - **시작 화면(환영 탭).** 뜨지 않게만 하면 되고, 그것은 확장이 `workbench.startupEditor` 의 기본값을
+     `none` 으로 기여하면 된다(`platform/extensions/common/extensions.ts:217`). 그 자리에 JBro 만의
+     시작 화면을 넣기로 하면 그때 다시 패치 후보가 된다.
+   - **계정 메뉴.** 깃 로그인을 연결하기로 했으므로 그대로 둔다. 채팅을 없애도 Git·GitHub 확장이
+     저장소에 접근하려면 이 메뉴가 로그인 창구다.
+   - **`inlineCompletions`.** 로그인과 무관한 일반 틀이고 지워서 얻는 것이 없다(§5.2).
 2. ~~씬 에디터와 화면 언어 설정을 공유할 것인가.~~ **공유한다(2026-09-15, §5.5).** 공유 파일의 위치와
    모양은 씬 에디터에 사용자 설정 파일이 생길 때 정한다.
 
@@ -478,7 +489,7 @@ jbroscript-plan §18.7 을 따른다. 그때까지는 Visual Studio 로 한다.
 | P3 씬 에디터 연결 | 시작 전 | 작음 | 엔진에 스크립트 DLL 파일 감시가 없다 |
 | P4 자동완성·정의로 이동 | 시작 전 | 중간 | `jbroc` AST, 엔진 함수 선언 표 |
 | P5 디버깅 | 시작 전 | 중간 | `Field.h` 의 clang 서명 대응(§4.1), clang-cl + DWARF + `lldb-dap` 실측 |
-| 포크 빌드(브랜딩·설치본) | 시작 전. **upstream 소스는 받아 두었다** | 중간 | 첫 실행이 영어로 뜨는 문제(§5.5). 코어 패치 목록은 정해졌고(§5.2) 세부 둘만 남았다(§7) |
+| 포크 빌드(브랜딩·설치본) | 시작 전. **upstream 소스는 받아 두었다** | 중간 | 첫 실행이 영어로 뜨는 문제(§5.5). 코어 패치 목록은 정해졌고(§5.2) 0004 의 세부만 남았다(§7) |
 
 편집기 쪽 일은 작다. **오래 걸리는 것은 컴파일러 `jbroc` 이다.** 에러 표시와 자동완성이 `jbroc` 의 파서와 타입 정보를
 그대로 쓰므로(§6 P2·P4), `jbroc` 이 서는 속도가 곧 편집기의 속도다.
