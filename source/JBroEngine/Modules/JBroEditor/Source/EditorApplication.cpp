@@ -138,10 +138,7 @@ namespace JBro
         return true;
     }
 
-    bool EditorApplication::OpenProjectFile(
-        const char* projectFilePath,
-        FrameworkKind framework,
-        ProjectFileError& error)
+    bool EditorApplication::OpenProjectFile(const char* projectFilePath, ProjectFileError& error)
     {
         error = ProjectFileError{};
         if (false == m_initialized || m_framework)
@@ -149,6 +146,14 @@ namespace JBro
             error.message = "the editor is not ready for another project";
             return false;
         }
+        // 어느 프레임워크를 만들지 파일이 정하므로(D-99) 먼저 읽는다. 엔진이 뒤에서 한 번
+        // 더 읽지만 프로젝트를 여는 순간에 한 번 더 읽는 것뿐이고, 프레임마다 도는 길이 아니다.
+        ProjectFile probe;
+        if (false == LoadProjectFile(projectFilePath, probe, error))
+        {
+            return false;
+        }
+        const FrameworkKind framework = probe.framework;
         if (false == CreateSelectedFramework(framework))
         {
             error.message = "the framework for this project could not be created";

@@ -23,11 +23,8 @@ namespace JBro
     class IFramework;
     class IPlatform;
 
-    enum class FrameworkKind : std::uint8_t
-    {
-        Framework2D,
-        Framework3D
-    };
+    // `FrameworkKind` 는 `JBro/Host/ProjectFile.h` 에 있다(D-99). 프로젝트 파일이 그 값을
+    // 적는 자리이므로 형식과 같이 둔다.
 
     struct ProjectDescriptor
     {
@@ -77,13 +74,10 @@ namespace JBro
 
         // `.jproject` 파일을 읽어 연다. 그 파일이 가리키는 스크립트 DLL 까지 실린다.
         //
-        // **차원은 인자로 받는다.** `.jproject` 에는 2D 인지 3D 인지 적는 자리가 없다 —
-        // 기존 엔진이 2D 전용이라 그 키가 아예 없고, 없는 키를 여기서 지어내면
-        // 그 쪽 프로젝트를 열 때 무엇을 적어야 할지 모르게 된다.
-        bool OpenProjectFile(
-            const char* projectFilePath,
-            FrameworkKind framework,
-            ProjectFileError& error);
+        // **차원은 파일이 정한다**(D-99). `.jproject` 의 `Framework` 키가 2D 인지 3D 인지
+        // 말하고, 그 키가 없는 파일은 애초에 읽히지 않는다. 부르는 쪽이 따로 고르지 않는다 -
+        // 고르게 두면 런처와 파일이 어긋난 채로 3D 프로젝트가 2D 로 열릴 수 있다.
+        bool OpenProjectFile(const char* projectFilePath, ProjectFileError& error);
 
         // 마지막으로 연 `.jproject` 의 내용이다. 파일로 열지 않았으면 기본값이다.
         const ProjectFile& GetProjectFile() const;

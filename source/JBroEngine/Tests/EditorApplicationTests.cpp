@@ -3533,6 +3533,8 @@ namespace
         const JBro::String projectPath = TempPath("JBroEditorTest.jproject");
         Check(WriteTextFile(projectPath,
             "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 2D\n"
             "RootPath: .\n"
             "ResolutionWidth: 1280\n"
             "ResolutionHeight: 720\n"
@@ -3551,7 +3553,7 @@ namespace
 
         JBro::ProjectFileError error;
         if (false == editor.OpenProjectFile(
-            projectPath.c_str(), JBro::FrameworkKind::Framework2D, error))
+            projectPath.c_str(), error))
         {
             std::cout << "  open failed at line " << error.line
                 << ": " << error.message.c_str() << std::endl;
@@ -3583,6 +3585,36 @@ namespace
         // 옛 폴더를 기준으로 풀린다.
         Check(editor.ResolveProjectPath("Scenes/Opening.jcanvas") == "Scenes/Opening.jcanvas",
             "with no project open there is nothing to resolve against");
+
+        editor.Shutdown();
+        std::remove(projectPath.c_str());
+    }
+
+    void TestTheProjectFileDecidesTheFramework()
+    {
+        // 차원은 파일이 정한다(D-99). 부르는 쪽이 고르지 않으므로, 3D 라고 적힌 파일은
+        // 3D 프레임워크로 열려야 한다. **어긋나면 조용히 틀리는 자리다** -
+        // `GetCanvas` 가 만든 쪽을 믿고 static_cast 로 내려가기 때문이다.
+        const JBro::String projectPath = TempPath("JBroEditor3D.jproject");
+        Check(WriteTextFile(projectPath,
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 3D\n"
+            "ScriptOutputLibraryPath: \"\"\n"),
+            "the test must be able to write its own project file");
+
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        JBro::EditorApplication editor;
+        Check(editor.Initialize(config), "the editor must initialize");
+
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.c_str(), error),
+            "a 3D project must open without anyone naming the framework");
+        Check(editor.GetProjectFile().framework == JBro::FrameworkKind::Framework3D,
+            "and must come back as the 3D project it said it was");
+        Check(editor.GetCanvas() != nullptr,
+            "the canvas must come from the framework the file asked for");
 
         editor.Shutdown();
         std::remove(projectPath.c_str());
@@ -3676,6 +3708,8 @@ namespace
         const JBro::String projectPath = TempPath("JBroEditorMissingDll.jproject");
         Check(WriteTextFile(projectPath,
             "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 2D\n"
             "ScriptOutputLibraryPath: NoSuchScriptModule.dll\n"),
             "the test must be able to write its own project file");
 
@@ -3686,7 +3720,7 @@ namespace
 
         JBro::ProjectFileError error;
         Check(editor.OpenProjectFile(
-            projectPath.c_str(), JBro::FrameworkKind::Framework2D, error),
+            projectPath.c_str(), error),
             "a project whose script module is missing must still open");
         Check(editor.HasOpenProject(), "and must really be open");
         Check(false == editor.IsScriptModuleLoaded(),
@@ -3701,10 +3735,12 @@ namespace
         // 스크립트를 가리키지 않는 프로젝트는 싣지 못한 것이 없으므로 사유도 없다.
         Check(WriteTextFile(projectPath,
             "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 2D\n"
             "ScriptOutputLibraryPath: \"\"\n"),
             "the test must be able to rewrite its project file");
         Check(editor.OpenProjectFile(
-            projectPath.c_str(), JBro::FrameworkKind::Framework2D, error),
+            projectPath.c_str(), error),
             "a project with no script module at all must open");
         Check(false == editor.IsScriptModuleLoaded(), "with nothing loaded");
         Check(editor.GetScriptModuleError().empty(),
@@ -3749,6 +3785,7 @@ int RunEditorApplicationTests()
     TestDeletingAnObjectCanBeUndoneWithItsValues();
     TestClosingTheWindowDoesNotTakeTheUiDownWithIt();
     TestEditorOpensAProjectFile();
+    TestTheProjectFileDecidesTheFramework();
     TestEditorSavesAndOpensACanvas();
     TestCanvasWorkNeedsAnOpenProject();
     TestAProjectOpensWithoutItsScriptModule();

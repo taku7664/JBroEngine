@@ -21,8 +21,14 @@ namespace
         return JBro::ParseProjectFile(text, std::strlen(text), result, error);
     }
 
-    // 기존 엔진이 실제로 쓰는 파일의 모양이다. 키 이름과 중첩까지 그대로다 —
-    // 그 쪽 프로젝트를 열 수 있어야 확장자를 같이 쓰는 의미가 있다.
+    // 이 엔진이 요구하는 두 키다(D-99). 이것이 없는 파일은 거절된다.
+    const char* const RequiredKeys =
+        "EngineVersion: 0.1.0\n"
+        "Framework: 2D\n";
+
+    // 기존 엔진이 실제로 쓰던 파일의 모양이다. 키 이름과 중첩까지 그대로다 —
+    // 확장자를 같이 쓰는 이상 그 모양을 계속 읽는다. **다만 이대로는 열리지 않는다**(D-99).
+    // 위의 두 키가 없기 때문이고, 그것을 재는 음성 테스트가 아래에 있다.
     const char* const LegacyProject =
         "Version: 1\n"
         "RootPath: .\n"
@@ -64,8 +70,10 @@ namespace
     {
         JBro::ProjectFile project;
         JBro::ProjectFileError error;
+        JBro::String text(RequiredKeys);
+        text.append(LegacyProject);
         // 인자 평가 순서는 정해져 있지 않다. 먼저 돌리고 나서 물어본다.
-        const bool parsed = Parse(LegacyProject, project, error);
+        const bool parsed = Parse(text.c_str(), project, error);
         if (false == parsed)
         {
             std::cout << "  project parse failed at line " << error.line
@@ -74,6 +82,9 @@ namespace
         Check(parsed, "the legacy project shape must parse");
 
         Check(project.version == 1, "the version must come through");
+        Check(project.engineVersion == "0.1.0", "the engine version must come through");
+        Check(project.framework == JBro::FrameworkKind::Framework2D,
+            "and the framework it runs on");
         Check(project.resolutionWidth == 600 && project.resolutionHeight == 800,
             "the resolution must come through");
         Check(project.pixelsPerUnit == 100.0f, "pixels per unit must come through");
@@ -131,6 +142,36 @@ namespace
             "a zero version must be refused");
     }
 
+    void TestRequiresTheEngineVersionAndTheFramework()
+    {
+        JBro::ProjectFile project;
+        JBro::ProjectFileError error;
+
+        // 기존 엔진이 쓰던 파일이 이 모양이다. 더 이상 열리지 않는다(D-99) -
+        // 어느 엔진으로 어느 차원을 여는지 모른 채 열면 런처가 고를 수가 없고,
+        // 3D 프로젝트가 조용히 2D 로 열린다.
+        Check(false == Parse(LegacyProject, project, error),
+            "a project without the engine version and the framework must be refused");
+
+        Check(false == Parse("Version: 1\nFramework: 2D\n", project, error),
+            "the engine version alone may not be left out");
+        Check(false == Parse("Version: 1\nEngineVersion: 0.1.0\n", project, error),
+            "and neither may the framework");
+        Check(false == Parse("Version: 1\nEngineVersion: \"\"\nFramework: 2D\n", project, error),
+            "an empty engine version is the same as not saying which engine");
+        Check(false == Parse("Version: 1\nEngineVersion: 0.1.0\nFramework: 4D\n", project, error),
+            "the framework must be 2D or 3D and nothing else");
+        Check(error.line == 3, "and the refusal must name the line that said it");
+
+        Check(Parse("Version: 1\nEngineVersion: 0.1.0\nFramework: 3D\n", project, error),
+            "a 3D project must parse");
+        Check(project.framework == JBro::FrameworkKind::Framework3D,
+            "and must come back as 3D rather than the default");
+        Check(Parse("Version: 1\nEngineVersion: 0.1.0\nFramework: 2d\n", project, error),
+            "the framework is written by hand, so case must not decide it");
+        Check(project.framework == JBro::FrameworkKind::Framework2D, "lowercase 2d is 2D");
+    }
+
     void TestScriptModulePathResolution()
     {
         JBro::ProjectFile project;
@@ -154,7 +195,8 @@ namespace
     {
         JBro::ProjectFile project;
         JBro::ProjectFileError error;
-        Check(Parse("Version: 2\n", project, error), "a project with only a version must parse");
+        Check(Parse("Version: 2\nEngineVersion: 0.1.0\nFramework: 2D\n", project, error),
+            "a project with only the keys it must have should parse");
         Check(project.version == 2, "the version must come through");
         Check(project.resolutionWidth == 1920 && project.resolutionHeight == 1080,
             "keys the file omits must keep their defaults");
@@ -163,8 +205,10 @@ namespace
     }
 
     // 손으로 옮겨 적은 모양이 아니라 기존 엔진이 실제로 저장한 파일을 읽는다.
-    // 없으면 건너뛰되 조용히 지나가지 않는다 — 이 기계에만 있는 파일이다.
-    void TestReadsARealLegacyProjectFileIfPresent()
+    // **이제는 거절되는 것이 맞다**(D-99) - 그 파일에는 `EngineVersion` 도 `Framework` 도
+    // 없다. 옮겨 올 프로젝트가 없어서 내린 결정이고, 실제 파일로 그 사실을 확인한다.
+    // 파일이 없으면 건너뛰되 조용히 지나가지 않는다 — 이 기계에만 있는 파일이다.
+    void TestRefusesARealLegacyProjectFileIfPresent()
     {
         // 경로를 리터럴로 박지 않는다. 이 기계의 사용자 폴더 이름에 한글이 들어 있다.
         char* profile = nullptr;
@@ -179,20 +223,19 @@ namespace
         path.append("/source/repos/JBroEngine/TestProject/Test/Test.jproject");
         JBro::ProjectFile project;
         JBro::ProjectFileError error;
-        if (false == JBro::LoadProjectFile(path.c_str(), project, error))
+        if (JBro::LoadProjectFile(path.c_str(), project, error))
         {
-            if (error.line == 0 && error.message == "cannot open the project file")
-            {
-                std::cout << "  [skip] no legacy project on this machine" << std::endl;
-                return;
-            }
-            std::cout << "  legacy project failed at line " << error.line
-                << ": " << error.message.c_str() << std::endl;
-            Check(false, "a real legacy project file must parse");
+            Check(false, "a real legacy project file must be refused now that two keys are required");
         }
-        Check(project.version >= 1, "a real legacy project must carry a version");
-        Check(false == project.scriptOutputLibraryPath.empty(),
-            "a real legacy project must name its script library");
+        if (error.message == "cannot open the project file")
+        {
+            std::cout << "  [skip] no legacy project on this machine" << std::endl;
+            return;
+        }
+        // 거절은 맞되 **이유가 맞아야 한다.** 형식이 틀려서 거절된 것이라면 그 파일을
+        // 읽는 길이 어딘가에서 깨진 것이고, 그것은 이 결정과 아무 상관이 없다.
+        Check(error.message.find("EngineVersion") != JBro::String::npos,
+            "and must be refused for the key it does not have, not for something else");
     }
 
     void TestAnEmptyStringIsAValueNotABlock()
@@ -204,6 +247,8 @@ namespace
         JBro::ProjectFileError error;
         const char* text =
             "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 2D\n"
             "ScriptOutputLibraryPath: \"\"\n"
             "LastOpenedCanvasPath: Scenes/Opening.jcanvas\n";
         if (false == JBro::ParseProjectFile(text, std::strlen(text), project, error))
@@ -221,6 +266,8 @@ namespace
         JBro::ProjectFile withBlock;
         const char* blockText =
             "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 2D\n"
             "Build:\n"
             "  ProductName: Game\n";
         Check(JBro::ParseProjectFile(blockText, std::strlen(blockText), withBlock, error),
@@ -234,8 +281,9 @@ int RunProjectFileTests()
 {
     TestAnEmptyStringIsAValueNotABlock();
     TestReadsTheLegacyProjectShape();
-    TestReadsARealLegacyProjectFileIfPresent();
+    TestRefusesARealLegacyProjectFileIfPresent();
     TestRefusesWhatItDoesNotUnderstand();
+    TestRequiresTheEngineVersionAndTheFramework();
     TestScriptModulePathResolution();
     TestDefaultsSurviveAnEmptyProject();
     std::cout << "Project file tests passed.\n";

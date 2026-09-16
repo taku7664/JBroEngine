@@ -34,7 +34,6 @@ namespace
         // 로컬라이징 표와 아이콘 글꼴을 찾을 기준 폴더다. 널이면 현재 작업 폴더가 기준이고,
         // 그것이 기존 동작이다. 런처는 작업 폴더를 옮기는 대신 이 값을 넘긴다.
         const char* contentRoot = nullptr;
-        JBro::FrameworkKind framework = JBro::FrameworkKind::Framework2D;
         // 0 이면 창을 닫을 때까지 돈다. 양수면 그만큼만 돌고 끝난다 - 사람 없이 돌리는 확인용이다.
         long long frameLimit = 0;
         bool showHelp = false;
@@ -46,7 +45,6 @@ namespace
             "usage: JBroEditorHost [options] [<project.jproject>]\n"
             "\n"
             "  --project <path>      open this .jproject file\n"
-            "  --framework 2d|3d     which framework the project runs on (default: 2d)\n"
             "  --content-root <path> where Localization/ and ThirdParty/ live "
             "(default: the working directory)\n"
             "  --frames <count>      run this many frames and exit "
@@ -55,21 +53,6 @@ namespace
             "\n"
             "exit codes: 0 ok, 1 initialize failed, 2 project failed, 3 editor UI failed, "
             "64 bad arguments\n");
-    }
-
-    bool ParseFrameworkKind(const char* text, JBro::FrameworkKind& result)
-    {
-        if (std::strcmp(text, "2d") == 0 || std::strcmp(text, "2D") == 0)
-        {
-            result = JBro::FrameworkKind::Framework2D;
-            return true;
-        }
-        if (std::strcmp(text, "3d") == 0 || std::strcmp(text, "3D") == 0)
-        {
-            result = JBro::FrameworkKind::Framework3D;
-            return true;
-        }
-        return false;
     }
 
     bool ParseFrameLimit(const char* text, long long& result)
@@ -129,21 +112,6 @@ namespace
                 if (false
                     == TakeValue(argumentCount, arguments, index, argument, options.contentRoot, error))
                 {
-                    return false;
-                }
-                continue;
-            }
-            if (std::strcmp(argument, "--framework") == 0)
-            {
-                const char* value = nullptr;
-                if (false == TakeValue(argumentCount, arguments, index, argument, value, error))
-                {
-                    return false;
-                }
-                if (false == ParseFrameworkKind(value, options.framework))
-                {
-                    error = "the framework must be 2d or 3d, not: ";
-                    error.append(value);
                     return false;
                 }
                 continue;
@@ -294,7 +262,7 @@ int main(int argumentCount, char** arguments)
     if (options.projectFilePath != nullptr)
     {
         JBro::ProjectFileError error;
-        if (false == editor.OpenProjectFile(options.projectFilePath, options.framework, error))
+        if (false == editor.OpenProjectFile(options.projectFilePath, error))
         {
             // 줄 번호가 0 이면 파일 자체를 열지 못한 것이다(ProjectFile.h).
             // 런처가 그대로 사람에게 보여 줄 수 있도록 경로와 같이 낸다.
@@ -306,7 +274,14 @@ int main(int argumentCount, char** arguments)
             editor.Shutdown();
             return ExitProjectFailed;
         }
-        std::printf("the editor opened %s\n", options.projectFilePath);
+        // 어느 엔진 버전으로 어느 차원인지는 파일이 정한다(D-99). 런처가 띄운 엔진이
+        // 프로젝트가 적어 둔 버전과 다를 수 있으므로, 실제로 연 쪽이 그 값을 낸다.
+        const JBro::ProjectFile& opened = editor.GetProjectFile();
+        std::printf(
+            "the editor opened %s (engine %s, %s)\n",
+            options.projectFilePath,
+            opened.engineVersion.c_str(),
+            opened.framework == JBro::FrameworkKind::Framework3D ? "3D" : "2D");
         // 스크립트가 안 실려도 프로젝트는 열린다(D-98). 조용히 넘어가면 사람은 스크립트가
         // 도는 줄 알고, 런처도 그 사실을 전할 길이 없다.
         if (false == editor.IsScriptModuleLoaded()

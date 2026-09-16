@@ -123,6 +123,22 @@ namespace JBro
             return true;
         }
 
+        // `Framework` 가 받는 값이다. 사람이 손으로 적는 자리라 대소문자는 가리지 않는다.
+        bool ParseFrameworkKind(const String& value, FrameworkKind& result)
+        {
+            if (value == "2D" || value == "2d")
+            {
+                result = FrameworkKind::Framework2D;
+                return true;
+            }
+            if (value == "3D" || value == "3d")
+            {
+                result = FrameworkKind::Framework3D;
+                return true;
+            }
+            return false;
+        }
+
         bool Fail(ProjectFileError& error, std::size_t line, const char* message)
         {
             error.line = static_cast<std::uint32_t>(line);
@@ -147,6 +163,10 @@ namespace JBro
         // 지금 아는 중첩 맵은 Build 하나다. 모르는 키 아래의 블록은 통째로 건너뛴다 —
         // 실제 프로젝트 파일에는 이 엔진이 아직 쓰지 않는 맵의 시퀀스(AudioBuses,
         // InputActions)가 들어 있고, 읽지 않을 것을 파싱하려다 틀리느니 지나가는 편이 낫다.
+        // 두 키는 있어야 한다(D-99). 값이 비어 있는 것도 없는 것으로 본다 -
+        // 런처가 빈 엔진 버전으로는 어느 설치를 띄울지 고를 수 없다.
+        bool           sawEngineVersion = false;
+        bool           sawFramework = false;
         String         currentMap;
         Array<String>* currentSequence = nullptr;
         constexpr std::size_t NotSkipping = static_cast<std::size_t>(-1);
@@ -315,6 +335,16 @@ namespace JBro
                 // Build 의 나머지 키는 아직 쓰지 않는다. 값을 두고 지나간다.
             }
             else if (key == "Version") { recognized = ParseUInt(value, parsed.version); }
+            else if (key == "EngineVersion")
+            {
+                parsed.engineVersion = value;
+                sawEngineVersion = false == value.empty();
+            }
+            else if (key == "Framework")
+            {
+                recognized = ParseFrameworkKind(value, parsed.framework);
+                sawFramework = recognized;
+            }
             else if (key == "RootPath") { parsed.rootPath = value; }
             else if (key == "ResolutionWidth") { recognized = ParseUInt(value, parsed.resolutionWidth); }
             else if (key == "ResolutionHeight") { recognized = ParseUInt(value, parsed.resolutionHeight); }
@@ -339,6 +369,14 @@ namespace JBro
         if (parsed.version == 0)
         {
             return Fail(error, 0, "project version must not be zero");
+        }
+        if (false == sawEngineVersion)
+        {
+            return Fail(error, 0, "the project must say which engine version it opens with (EngineVersion)");
+        }
+        if (false == sawFramework)
+        {
+            return Fail(error, 0, "the project must say which framework it runs on (Framework: 2D or 3D)");
         }
         result = parsed;
         return true;

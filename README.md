@@ -59,6 +59,8 @@ msbuild source/JBroEngine/Modules/JBroEditorHost/JBroEditorHost.vcxproj -p:Confi
 ## 에디터 실행
 
 인자 없이 실행하면 확인용 씬이 뜬다. 프로젝트를 주면 그 `.jproject` 를 연다.
+프로젝트 파일에는 `EngineVersion` 과 `Framework`(`2D` 또는 `3D`)가 있어야 하고, 없으면 열기를 거절한다.
+2D 인지 3D 인지는 이 파일이 정하므로 실행할 때 따로 고르지 않는다.
 `--content-root` 는 로컬라이징 표와 아이콘 글꼴이 있는 폴더이고, 주지 않으면 현재 작업 폴더가 기준이다.
 전체 규약은 `--help` 와 [tasks/todo.md](tasks/todo.md) 의 D-97 에 있다.
 
