@@ -3,6 +3,7 @@
 
 #include <imgui.h>
 
+#include <cstddef>
 #include <cstdio>
 
 namespace JBro::EditorTheme
@@ -128,15 +129,44 @@ namespace JBro::EditorTheme
         {
             return;
         }
-        // **파일이 있는지 먼저 본다.** ImGui 는 없는 파일을 열려 하면 단언으로 죽는다 -
-        // 아이콘 글꼴 하나 때문에 에디터가 뜨지 않으면 안 된다.
-        FILE* probe = nullptr;
-        if (fopen_s(&probe, g_iconFontPath, "rb") != 0 || probe == nullptr)
+        // **파일은 우리가 직접 읽어서 넘긴다.** ImGui 에 경로를 주면 그 쪽이 경로를 UTF-8 로
+        // 보고 넓은 문자로 바꾸는데, 실행 인자로 들어온 경로는 이 기계의 ANSI 코드페이지다
+        // (D-97). 설치 폴더에 한글이 섞이면 ImGui 가 파일을 못 열고 단언으로 죽는다 -
+        // 아이콘 글꼴 하나 때문에 에디터가 뜨지 않으면 안 된다. C 런타임으로 열면 인자와
+        // 같은 인코딩이라 그 자리에서 맞는다.
+        FILE* file = nullptr;
+        if (fopen_s(&file, g_iconFontPath, "rb") != 0 || file == nullptr)
         {
             std::printf("note: icon font not found at %s; icons render as boxes\n", g_iconFontPath);
             return;
         }
-        std::fclose(probe);
+        std::fseek(file, 0, SEEK_END);
+        const long fileSize = std::ftell(file);
+        std::fseek(file, 0, SEEK_SET);
+        if (fileSize <= 0)
+        {
+            std::fclose(file);
+            std::printf("note: icon font at %s is empty; icons render as boxes\n", g_iconFontPath);
+            return;
+        }
+        // 아틀라스가 이 메모리를 물려받아 `IM_FREE` 로 놓는다. 그래서 ImGui 의 할당기로 잡는다.
+        void* fontData = ImGui::MemAlloc(static_cast<std::size_t>(fileSize));
+        if (fontData == nullptr)
+        {
+            std::fclose(file);
+            std::printf("note: icon font at %s could not be read; icons render as boxes\n", g_iconFontPath);
+            return;
+        }
+        const std::size_t readSize =
+            std::fread(fontData, 1, static_cast<std::size_t>(fileSize), file);
+        std::fclose(file);
+        if (readSize != static_cast<std::size_t>(fileSize))
+        {
+            ImGui::MemFree(fontData);
+            std::printf("note: icon font at %s could not be read; icons render as boxes\n", g_iconFontPath);
+            return;
+        }
+
         ImGuiIO& io = ImGui::GetIO();
         ImFontConfig config;
         config.MergeMode = true;
@@ -144,7 +174,8 @@ namespace JBro::EditorTheme
         // 아이콘은 글자보다 조금 작게 그려야 줄 높이를 밀지 않는다.
         config.GlyphMinAdvanceX = 13.0f;
         static const ImWchar ranges[] = {Icons::RangeBegin, Icons::RangeEnd, 0};
-        if (io.Fonts->AddFontFromFileTTF(g_iconFontPath, 13.0f, &config, ranges) != nullptr)
+        if (io.Fonts->AddFontFromMemoryTTF(fontData, static_cast<int>(fileSize), 13.0f, &config, ranges)
+            != nullptr)
         {
             g_hasIconFont = true;
             return;

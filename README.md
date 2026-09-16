@@ -56,6 +56,16 @@ msbuild source/JBroEngine/Modules/JBroEditorHost/JBroEditorHost.vcxproj -p:Confi
 테스트는 빌드된 `JBroTests.exe` 를 실행하면 된다. 그래픽 테스트가 포함돼 있어 D3D12 디버그 레이어를 켠 채 돈다.
 셰이더는 컴파일된 DXIL 이 헤더로 커밋돼 있어서 별도 셰이더 컴파일러가 없어도 빌드된다.
 
+## 에디터 실행
+
+인자 없이 실행하면 확인용 씬이 뜬다. 프로젝트를 주면 그 `.jproject` 를 연다.
+`--content-root` 는 로컬라이징 표와 아이콘 글꼴이 있는 폴더이고, 주지 않으면 현재 작업 폴더가 기준이다.
+전체 규약은 `--help` 와 [tasks/todo.md](tasks/todo.md) 의 D-97 에 있다.
+
+```bash
+source/JBroEngine/Build/x64/Debug/JBroEditorHost.exe --project 내게임.jproject --content-root source/JBroEngine
+```
+
 ## 읽는 순서
 
 1. [위키](https://github.com/taku7664/JBroEngine/wiki)에서 전체 그림을 본다.
