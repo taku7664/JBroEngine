@@ -21,6 +21,7 @@
     <Compile Include="..\JBroLauncher\Model\ProjectFileReader.cs" Link="Model\ProjectFileReader.cs" />
     <Compile Include="..\JBroLauncher\Model\LauncherCatalog.cs" Link="Model\LauncherCatalog.cs" />
     <Compile Include="..\JBroLauncher\Model\EditorProcess.cs" Link="Model\EditorProcess.cs" />
+    <Compile Include="..\JBroLauncher\Model\EngineVersionReader.cs" Link="Model\EngineVersionReader.cs" />
   </ItemGroup>
 
 </Project>

@@ -31,9 +31,14 @@
       <SubSystem>Console</SubSystem>
       <AdditionalDependencies>d3d12.lib;dxgi.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
+    <!-- 버전은 `JBro.Common.props` 한 곳에서 온다(D-101). 리소스에 손으로 적지 않는다. -->
+    <ResourceCompile>
+      <PreprocessorDefinitions>JBRO_VERSION_MAJOR=$(JBroVersionMajor);JBRO_VERSION_MINOR=$(JBroVersionMinor);JBRO_VERSION_PATCH=$(JBroVersionPatch);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ResourceCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Source\**\*.cpp" />
+    <ResourceCompile Include="Source\EditorHost.rc" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="$(JBroModulesDir)JBroCore\JBroCore.vcxproj">

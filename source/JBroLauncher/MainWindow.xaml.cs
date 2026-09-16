@@ -223,7 +223,11 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        string version = ReadEngineVersion(editorPath, folder.Path);
+        if (false == EngineVersionReader.TryRead(editorPath, out string version))
+        {
+            Say("이 엔진은 자기 버전을 말하지 않습니다. 버전 리소스가 없는 빌드입니다.", InfoBarSeverity.Error);
+            return;
+        }
         if (_catalog.Engines.Any(entry => string.Equals(entry.InstallDirectory, folder.Path, StringComparison.OrdinalIgnoreCase)))
         {
             Say("이미 등록된 폴더입니다.", InfoBarSeverity.Informational);
@@ -232,27 +236,6 @@ public sealed partial class MainWindow : Window
         _catalog.Engines.Add(new EngineEntry { Version = version, InstallDirectory = folder.Path });
         SaveAndRefresh();
         Say($"엔진 {version} 을(를) 등록했습니다.", InfoBarSeverity.Success);
-    }
-
-    /// <summary>
-    /// 엔진 설치가 자기 버전을 말하는 방법이 아직 없다. 실행 파일의 제품 버전을 먼저 보고,
-    /// 비어 있으면 폴더 이름을 쓴다. **임시 규칙이다** - launcher-plan §4 Q5 에 남겼다.
-    /// </summary>
-    private static string ReadEngineVersion(string editorPath, string installDirectory)
-    {
-        try
-        {
-            string? product = FileVersionInfo.GetVersionInfo(editorPath).ProductVersion;
-            if (false == string.IsNullOrWhiteSpace(product))
-            {
-                return product;
-            }
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-        {
-            // 읽지 못하면 폴더 이름으로 간다.
-        }
-        return new DirectoryInfo(installDirectory).Name;
     }
 
     private void OnRemoveEngine(object sender, RoutedEventArgs args)

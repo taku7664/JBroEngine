@@ -1,0 +1,50 @@
+#include <winver.h>
+
+// 엔진 버전이다. 숫자는 `JBro.Common.props` 가 정의로 넘긴다(D-101) - 여기에 적지 않는다.
+// 정의가 안 왔으면 0.0.0 이 된다. 그러면 런처가 이 설치를 어느 프로젝트와도 맞추지 못하는데,
+// 그것이 맞다. 버전을 모르는 채 열어 주는 것보다 낫다.
+#ifndef JBRO_VERSION_MAJOR
+#define JBRO_VERSION_MAJOR 0
+#endif
+#ifndef JBRO_VERSION_MINOR
+#define JBRO_VERSION_MINOR 0
+#endif
+#ifndef JBRO_VERSION_PATCH
+#define JBRO_VERSION_PATCH 0
+#endif
+
+#define JBRO_STRINGIFY_(x) #x
+#define JBRO_STRINGIFY(x) JBRO_STRINGIFY_(x)
+#define JBRO_VERSION_STRING \
+    JBRO_STRINGIFY(JBRO_VERSION_MAJOR) "." \
+    JBRO_STRINGIFY(JBRO_VERSION_MINOR) "." \
+    JBRO_STRINGIFY(JBRO_VERSION_PATCH)
+
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION    JBRO_VERSION_MAJOR, JBRO_VERSION_MINOR, JBRO_VERSION_PATCH, 0
+PRODUCTVERSION JBRO_VERSION_MAJOR, JBRO_VERSION_MINOR, JBRO_VERSION_PATCH, 0
+FILEFLAGSMASK  VS_FFI_FILEFLAGSMASK
+FILEFLAGS      0
+FILEOS         VOS_NT_WINDOWS32
+FILETYPE       VFT_APP
+FILESUBTYPE    VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        // 영어(미국) · 유니코드. 런처는 문자열 값만 읽으므로 언어는 하나면 된다.
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "CompanyName",      "JBro"
+            VALUE "FileDescription",  "JBro Engine Editor"
+            VALUE "FileVersion",      JBRO_VERSION_STRING
+            VALUE "InternalName",     "JBroEditorHost"
+            VALUE "OriginalFilename", "JBroEditorHost.exe"
+            VALUE "ProductName",      "JBro Engine"
+            VALUE "ProductVersion",   JBRO_VERSION_STRING
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END

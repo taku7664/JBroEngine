@@ -168,6 +168,46 @@ internal static class Program
         Check(result.Process is null, "and must not leave a process behind");
     }
 
+    private static void EngineVersionComesFromTheExecutable()
+    {
+        // 버전 리소스가 없는 실행 파일은 버전을 말하지 않는 것이다. 폴더 이름으로 짐작하면
+        // 엉뚱한 엔진으로 프로젝트를 열게 된다(D-101).
+        string notAnEngine = Path.Combine(Environment.SystemDirectory, "cmd.exe");
+        if (File.Exists(notAnEngine))
+        {
+            Check(EngineVersionReader.TryRead(notAnEngine, out string other) && other.Length > 0,
+                "an executable that does carry a version must be read");
+        }
+
+        string missing = Path.Combine(Path.GetTempPath(), "JBroNoSuchEditor.exe");
+        Check(false == EngineVersionReader.TryRead(missing, out _),
+            "an executable that is not there says nothing");
+
+        // 리포에서 빌드한 에디터가 있으면 그것으로 잰다. 없으면 건너뛰되 조용히 지나가지 않는다.
+        // **단계 수를 세지 않고 올라가며 찾는다** - 출력 폴더의 깊이는 대상 프레임워크와
+        // 런타임 식별자에 따라 달라진다.
+        string editor = string.Empty;
+        for (DirectoryInfo? here = new(AppContext.BaseDirectory); here is not null; here = here.Parent)
+        {
+            string candidate = Path.Combine(
+                here.FullName, "JBroEngine", "Build", "x64", "Debug", "JBroEditorHost.exe");
+            if (File.Exists(candidate))
+            {
+                editor = candidate;
+                break;
+            }
+        }
+        if (editor.Length == 0)
+        {
+            Console.WriteLine("  [skip] no editor build here; the engine version was not read from one");
+            return;
+        }
+        Check(EngineVersionReader.TryRead(editor, out string version),
+            "the editor build must say which engine it is");
+        Check(version.Split('.').Length >= 2, $"and must say it as a version, not as `{version}`");
+        Console.WriteLine($"  the editor build here says it is engine {version}");
+    }
+
     private static int Main()
     {
         ReadsWhatTheLauncherShows();
@@ -176,6 +216,7 @@ internal static class Program
         ProductNameOutsideBuildIsNotTheProductName();
         ExitCodesSayWhatHappened();
         StartRefusesBeforeItSpawnsAnything();
+        EngineVersionComesFromTheExecutable();
 
         if (_failures > 0)
         {

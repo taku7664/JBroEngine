@@ -33,6 +33,18 @@
     <JBroScriptIncludes>$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroScriptFrameworkIncludes)</JBroScriptIncludes>
   </PropertyGroup>
 
+  <PropertyGroup Label="JBroVersion">
+    <!--
+      엔진 버전이다. **여기가 원본이고 다른 곳에 옮겨 적지 않는다**(D-101).
+      실행 파일의 버전 리소스가 이 값을 받고, 런처는 그 리소스를 읽어 프로젝트의
+      `EngineVersion` 과 맞춘다. 올릴 때는 이 세 줄만 바꾼다.
+    -->
+    <JBroVersionMajor>0</JBroVersionMajor>
+    <JBroVersionMinor>1</JBroVersionMinor>
+    <JBroVersionPatch>0</JBroVersionPatch>
+    <JBroVersion>$(JBroVersionMajor).$(JBroVersionMinor).$(JBroVersionPatch)</JBroVersion>
+  </PropertyGroup>
+
   <PropertyGroup Label="JBroToolset">
     <PlatformToolset>v145</PlatformToolset>
     <!--
