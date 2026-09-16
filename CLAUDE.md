@@ -56,6 +56,8 @@
   **잘 바뀌지 않는 것만 적는다** — 진행 현황과 남은 일은 `tasks/todo.md` 가 갖고, 위키에 옮겨 적지 않는다.
   미구현인 JBroScript 는 위키에 두지 않는다. 규칙의 원문이 아니므로 `ProjectRule.md`·Decisions 와 어긋나면 원문이 맞고, 계약이 바뀌면 위키도 같이 고친다
 - [docs/ProjectRule.md](./docs/ProjectRule.md) — 확정 규칙
+- [docs/JBroEngine.drawio.xml](./docs/JBroEngine.drawio.xml) — 구조 다이어그램 6장(계층 개관·모듈 의존·런타임과 프레임 루프·
+  스크립트 경계·렌더링 경로·에디터). 규칙의 원문이 아니므로 `ProjectRule.md`·Decisions 와 어긋나면 원문이 맞고, 계약이 바뀌면 도면도 같이 고친다
 - [docs/Jbro_Engine_Architecture_Draft_v2.md](./docs/Jbro_Engine_Architecture_Draft_v2.md) — 폐기된 역사 초안
 - [docs/Jbro_CPP_Script_Object_Safety.md](./docs/Jbro_CPP_Script_Object_Safety.md) — 폐기된 스크립트 객체 안전성 초안
 - [tasks/todo.md](./tasks/todo.md) — 진행 중 작업 계획과 확정 결정(Decisions) 기록

@@ -33,6 +33,7 @@ source/JBroEngine/
   Localization/      에디터 문구(ko-KR, en-US)
 docs/
   ProjectRule.md     지켜야 하는 규칙. 코드와 문서가 다르면 이쪽이 맞다
+  JBroEngine.drawio.xml  구조 다이어그램 6장. draw.io 에서 연다
 tasks/
   todo.md            진행 현황과 결정 기록(Decisions). "왜 이렇게 했나"는 여기 있다
   jbroscript-*.md    JBroScript 언어 계획·문법·컴파일러 규칙
@@ -57,7 +58,8 @@ msbuild source/JBroEngine/Modules/JBroEditorHost/JBroEditorHost.vcxproj -p:Confi
 
 ## 읽는 순서
 
-1. [위키](https://github.com/taku7664/JBroEngine/wiki)에서 전체 그림을 본다
+1. [위키](https://github.com/taku7664/JBroEngine/wiki)에서 전체 그림을 본다.
+   구조를 한눈에 보려면 [구조 다이어그램](docs/JBroEngine.drawio.xml)을 draw.io 에서 연다
 2. 코드를 만지기 전에 [ProjectRule.md](docs/ProjectRule.md)를 읽는다
 3. 어떤 결정이 왜 났는지 궁금하면 [tasks/todo.md](tasks/todo.md)의 Decisions 절을 찾는다
 
