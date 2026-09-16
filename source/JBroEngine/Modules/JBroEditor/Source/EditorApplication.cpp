@@ -175,6 +175,16 @@ namespace JBro
         return true;
     }
 
+    bool EditorApplication::IsScriptModuleLoaded() const
+    {
+        return m_engine->IsScriptModuleLoaded();
+    }
+
+    const String& EditorApplication::GetScriptModuleError() const
+    {
+        return m_engine->GetScriptModuleError();
+    }
+
     const ProjectFile& EditorApplication::GetProjectFile() const
     {
         return m_engine->GetProjectFile();

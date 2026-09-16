@@ -804,13 +804,22 @@ namespace
             "the module must go down before the contexts it borrowed");
         Check(framework.shutdowns == 1, "closing must shut the framework down once");
 
-        // 실패한 모듈은 프로젝트를 열지 못한다. 반쯤 열린 상태로 남아도 안 된다.
+        // 실패한 모듈은 프로젝트를 막지 않는다(D-98). 아직 한 번도 빌드하지 않은 프로젝트가
+        // 그 모양이고, 여기서 막으면 그것을 빌드할 에디터가 열리지 않는다.
+        // 대신 못 실었다는 사실이 남아야 한다.
         ScriptedFramework second;
-        Check(false == engine.OpenProject(second, "no such module.dll"),
-            "a project whose script module fails to load must not open");
+        Check(engine.OpenProject(second, "no such module.dll"),
+            "a project whose script module fails to load must still open");
         Check(false == engine.GetScriptModule().IsLoaded(),
             "a failed module load must leave nothing loaded");
-        Check(engine.GetFramework() == nullptr, "a failed open must not keep the framework");
+        Check(false == engine.IsScriptModuleLoaded(),
+            "and the host must not claim it loaded one");
+        Check(engine.GetScriptModuleError().find("no such module.dll") != JBro::String::npos,
+            "naming the module it failed on");
+        Check(engine.GetFramework() == &second, "the framework stays with the open project");
+        engine.CloseProject();
+        Check(engine.GetScriptModuleError().empty(),
+            "closing the project must clear that complaint");
 
         // 경로가 없으면 스크립트 없이 여는 것과 같다.
         ScriptedFramework third;

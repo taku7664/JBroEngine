@@ -87,6 +87,13 @@ namespace JBro
 
         // 마지막으로 연 `.jproject` 의 내용이다. 파일로 열지 않았으면 기본값이다.
         const ProjectFile& GetProjectFile() const;
+        // 이 프로젝트의 스크립트 DLL 이 실렸는지다. **열렸다고 실린 것은 아니다**(D-98) —
+        // 아직 한 번도 빌드하지 않은 프로젝트도 열리므로, 스크립트가 있어야 하는 일은
+        // 이것을 먼저 본다.
+        bool IsScriptModuleLoaded() const;
+        // 스크립트 DLL 을 싣지 못한 사유다. 실었거나 프로젝트가 스크립트를 가리키지
+        // 않으면 비어 있다.
+        const String& GetScriptModuleError() const;
         // 프로젝트 파일이 있는 폴더를 기준으로 상대경로를 푼다.
         // `.jproject` 의 `LastOpenedCanvasPath` 처럼 그 파일 안의 경로가 전부 상대다.
         String ResolveProjectPath(const char* relativePath) const;

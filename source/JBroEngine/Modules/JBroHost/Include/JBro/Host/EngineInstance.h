@@ -42,7 +42,10 @@ namespace JBro
         // 같은 것을 열되 이 프로젝트의 스크립트 DLL 도 함께 싣는다.
         // 경로가 어느 파일에서 오는지는 프로젝트 파일 형식의 문제이고 아직 정해지지 않았다.
         // 호스트는 그저 경로를 받는다 — 그 결정이 나도 이 배선은 그대로다.
-        // 비거나 null 이면 스크립트 없이 여는 것과 같다. DLL 이 실패하면 프로젝트가 열리지 않는다.
+        // 비거나 null 이면 스크립트 없이 여는 것과 같다.
+        // **DLL 을 싣지 못해도 프로젝트는 열린다**(D-98). 아직 한 번도 빌드하지 않은
+        // 프로젝트를 열 수 있어야 하기 때문이다. 못 실었다는 사실은
+        // `IsScriptModuleLoaded` 와 `GetScriptModuleError` 로 남는다.
         bool OpenProject(IFramework& framework, const char* scriptModulePath);
         // `.jproject` 를 읽고 그것이 가리키는 스크립트 모듈까지 실어서 연다.
         // 프로젝트 파일을 읽지 못하면 아무것도 열지 않고 error 를 채운다.
@@ -78,6 +81,11 @@ namespace JBro
         IFramework* GetFramework();
         // 이 프로젝트에 실린 스크립트 DLL. 열리지 않았으면 아무것도 싣지 않은 상태다.
         const ScriptDLLLoader& GetScriptModule() const;
+        // 스크립트 DLL 이 실렸는지다. **프로젝트가 열려도 false 일 수 있다**(D-98).
+        // 프로젝트 파일이 스크립트를 가리키지 않으면 열려도 false 다.
+        bool IsScriptModuleLoaded() const;
+        // 스크립트 DLL 을 싣지 못한 사유다. 실었거나 애초에 가리키지 않았으면 비어 있다.
+        const String& GetScriptModuleError() const;
         bool IsRunning() const;
         // Preserved after teardown; Ready/Skipped are non-fatal, other values indicate failure.
         FrameStatus GetLastFrameStatus() const;
@@ -104,6 +112,8 @@ namespace JBro
         bool m_exitRequested = false;
         bool m_projectCloseRequested = false;
         bool m_scriptContextsBound = false;
+        bool m_scriptModuleLoaded = false;
+        String m_scriptModuleError;
         FrameStatus m_lastFrameStatus = FrameStatus::Ready;
     };
 }

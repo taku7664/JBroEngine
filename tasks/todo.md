@@ -1605,6 +1605,24 @@ EditorApplication::Tick
   **막힌 것(`[열림]`).** 스크립트 DLL 이 없는 프로젝트는 열리지 않는다
   (`EngineInstance::OpenProjectFile` 이 DLL 로드 실패를 프로젝트 열기 실패로 본다).
   런처의 "새 프로젝트 만들기" 가 이것에 막히므로 정책을 정해야 한다(launcher-plan §4 Q1).
+  **→ D-98 이 정했다.**
+- **D-98. 스크립트 DLL 을 싣지 못해도 프로젝트는 열린다.** (2026-09-16) (`Updates` D-97)
+  **왜.** 아직 한 번도 빌드하지 않은 프로젝트에는 스크립트 DLL 이 없다. 그것을 빌드하는 곳이
+  에디터인데 그 에디터가 열리지 않으면 새 프로젝트를 시작할 길이 없다. 런처의 "새 프로젝트
+  만들기" 도 여기에 막혀 있었다.
+  **무엇을 바꿨나.** `EngineInstance::OpenProject(framework, scriptModulePath)` 가 DLL 로드
+  실패를 프로젝트 열기 실패로 보지 않는다. 대신 못 실었다는 사실이 남는다 -
+  `IsScriptModuleLoaded()` 와 `GetScriptModuleError()` 이고, `EditorApplication` 이 그대로
+  내보낸다. **조용히 열지는 않는다** - 호스트가 `note:` 와 `warning:` 두 줄을 내므로
+  런처가 그대로 사용자에게 보여 줄 수 있다. 프로젝트를 닫으면 사유도 지워진다.
+  스크립트를 애초에 가리키지 않는 프로젝트는 예전과 같이 열리고 사유도 비어 있다.
+  **확인한 것.** 스크립트 DLL 이 없는 `.jproject` 를 30 프레임 띄우고 종료 코드 0 과 경고
+  두 줄을 봤다. 테스트 두 개를 새 계약으로 고쳤다 - `TestAFailedOpenSaysWhy` 는
+  `TestAProjectOpensWithoutItsScriptModule` 이 되어 열림·안 실림·사유·모듈 이름을 재고,
+  `ScriptDLLLoaderTests` 의 호스트 배선 테스트는 실패한 모듈 뒤에도 프레임워크가 남아
+  있는지와 닫으면 사유가 지워지는지를 잰다. Debug / Release 빌드와 테스트 전체 통과.
+  **남은 일.** 에디터 화면에 이 경고를 띄우는 것은 아직 없다. 지금은 표준 출력뿐이다.
+  로컬라이징 키가 필요하므로(§11.2) 런처 작업(L1)과 같이 한다.
 
 ## Assumptions
 

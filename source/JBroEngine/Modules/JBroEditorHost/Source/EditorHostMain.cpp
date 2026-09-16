@@ -307,6 +307,13 @@ int main(int argumentCount, char** arguments)
             return ExitProjectFailed;
         }
         std::printf("the editor opened %s\n", options.projectFilePath);
+        // 스크립트가 안 실려도 프로젝트는 열린다(D-98). 조용히 넘어가면 사람은 스크립트가
+        // 도는 줄 알고, 런처도 그 사실을 전할 길이 없다.
+        if (false == editor.IsScriptModuleLoaded()
+            && false == editor.GetScriptModuleError().empty())
+        {
+            std::printf("warning: %s\n", editor.GetScriptModuleError().c_str());
+        }
     }
     else
     {

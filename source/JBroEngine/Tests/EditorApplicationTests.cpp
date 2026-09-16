@@ -3668,10 +3668,11 @@ namespace
         editor.Shutdown();
     }
 
-    void TestAFailedOpenSaysWhy()
+    void TestAProjectOpensWithoutItsScriptModule()
     {
-        // 파일은 멀쩡히 읽혔는데 여는 데 실패하는 경우다. 여기서 아무 말도 하지 않으면
-        // 부르는 쪽은 빈 오류를 받고 무엇이 잘못됐는지 알 길이 없다.
+        // 스크립트 DLL 이 없는 프로젝트다(D-98). 아직 한 번도 빌드하지 않은 프로젝트가
+        // 이 모양이고, 여기서 막으면 그것을 빌드할 에디터를 열 길이 없어진다.
+        // 다만 **못 실었다는 사실은 남아야 한다** - 조용히 열면 스크립트가 도는 줄 안다.
         const JBro::String projectPath = TempPath("JBroEditorMissingDll.jproject");
         Check(WriteTextFile(projectPath,
             "Version: 1\n"
@@ -3684,22 +3685,30 @@ namespace
         Check(editor.Initialize(config), "the editor must initialize");
 
         JBro::ProjectFileError error;
-        Check(false == editor.OpenProjectFile(
+        Check(editor.OpenProjectFile(
             projectPath.c_str(), JBro::FrameworkKind::Framework2D, error),
-            "a project whose script module is missing must not open");
-        Check(false == error.message.empty(),
-            "and the refusal must say something rather than come back blank");
-        Check(false == editor.HasOpenProject(),
-            "nothing may be left half open behind a refusal");
+            "a project whose script module is missing must still open");
+        Check(editor.HasOpenProject(), "and must really be open");
+        Check(false == editor.IsScriptModuleLoaded(),
+            "but it must not claim the script module is loaded");
+        Check(false == editor.GetScriptModuleError().empty(),
+            "and must say what it could not load rather than stay silent");
+        Check(editor.GetScriptModuleError().find("NoSuchScriptModule.dll") != JBro::String::npos,
+            "naming the module it failed on");
 
-        // 실패한 뒤에도 다시 열 수 있어야 한다. 프레임워크가 남아 있으면 막힌다.
+        editor.CloseProject();
+
+        // 스크립트를 가리키지 않는 프로젝트는 싣지 못한 것이 없으므로 사유도 없다.
         Check(WriteTextFile(projectPath,
             "Version: 1\n"
             "ScriptOutputLibraryPath: \"\"\n"),
             "the test must be able to rewrite its project file");
         Check(editor.OpenProjectFile(
             projectPath.c_str(), JBro::FrameworkKind::Framework2D, error),
-            "the editor must still be usable after a refused open");
+            "a project with no script module at all must open");
+        Check(false == editor.IsScriptModuleLoaded(), "with nothing loaded");
+        Check(editor.GetScriptModuleError().empty(),
+            "and with no complaint, because it never asked for one");
 
         editor.Shutdown();
         std::remove(projectPath.c_str());
@@ -3742,7 +3751,7 @@ int RunEditorApplicationTests()
     TestEditorOpensAProjectFile();
     TestEditorSavesAndOpensACanvas();
     TestCanvasWorkNeedsAnOpenProject();
-    TestAFailedOpenSaysWhy();
+    TestAProjectOpensWithoutItsScriptModule();
     std::cout << "Editor application tests passed.\n";
     return 0;
 }

@@ -106,10 +106,9 @@ namespace JBro
         {
             // 파일은 읽혔는데 여는 데 실패한 것이다. 여기서 아무 말도 하지 않으면
             // 부르는 쪽은 빈 오류를 받고 무엇이 잘못됐는지 알 길이 없다.
+            // 스크립트 DLL 은 여기에 없다 - 그것을 못 실은 것은 실패가 아니다(D-98).
             error.line = 0;
-            error.message = modulePath.empty()
-                ? "the project file was read but the project could not be opened"
-                : "the project file was read but its script module could not be loaded";
+            error.message = "the project file was read but the project could not be opened";
             return false;
         }
         m_project = project;
@@ -129,6 +128,8 @@ namespace JBro
         }
         m_state = State::OpeningProject;
         m_lastFrameStatus = FrameStatus::InvalidState;
+        m_scriptModuleLoaded = false;
+        m_scriptModuleError.clear();
         bool initialized = false;
         try
         {
@@ -147,8 +148,17 @@ namespace JBro
                     {
                         const JArrayView<ScriptContextBlock> blocks =
                             framework.GetScriptContextBlocks();
-                        initialized = m_scripts.Load(
+                        // **못 실어도 프로젝트는 연다**(D-98). 여기서 막으면 아직 한 번도
+                        // 빌드하지 않은 프로젝트를 열 길이 없어진다 - 스크립트를 쓰려면
+                        // 에디터에서 빌드해야 하는데 그 에디터가 열리지 않는다.
+                        m_scriptModuleLoaded = m_scripts.Load(
                             scriptModulePath, *m_platform, blocks.data, blocks.size);
+                        if (false == m_scriptModuleLoaded)
+                        {
+                            m_scriptModuleError = "the script module could not be loaded: ";
+                            m_scriptModuleError.append(scriptModulePath);
+                            std::printf("note: %s\n", m_scriptModuleError.c_str());
+                        }
                     }
                 }
             }
@@ -382,6 +392,8 @@ namespace JBro
         }
         m_frameworkContext.assets = nullptr;
         m_projectCloseRequested = false;
+        m_scriptModuleLoaded = false;
+        m_scriptModuleError.clear();
         m_state = previousState;
     }
 
@@ -421,6 +433,16 @@ namespace JBro
     const ScriptDLLLoader& EngineInstance::GetScriptModule() const
     {
         return m_scripts;
+    }
+
+    bool EngineInstance::IsScriptModuleLoaded() const
+    {
+        return m_scriptModuleLoaded;
+    }
+
+    const String& EngineInstance::GetScriptModuleError() const
+    {
+        return m_scriptModuleError;
     }
 
     Renderer* EngineInstance::GetRenderer()
