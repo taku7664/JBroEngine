@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    JBro Launcher (D-97). 프로젝트 목록을 관리하고 고른 프로젝트로 `JBroEditorHost.exe` 를 띄운다.
+    비패키지로 배포하고 Windows App SDK 를 자체 포함한다 - 사용자가 런타임을 따로 깔지 않는다.
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <RootNamespace>JBro.Launcher</RootNamespace>
+    <AssemblyName>JBroLauncher</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Platforms>x64</Platforms>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <UseWinUI>true</UseWinUI>
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <SelfContained>true</SelfContained>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <EnableMsixTooling>false</EnableMsixTooling>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      버전을 고정한다. 엔진 쪽 툴셋과 같은 이유다(ProjectRule §12) - "최신"으로 두면
+      기계마다 다른 것으로 빌드되고 그 사실이 어디에도 남지 않는다.
+    -->
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260804001" />
+  </ItemGroup>
+
+</Project>

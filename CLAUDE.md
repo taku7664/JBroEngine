@@ -66,9 +66,10 @@
   기존 엔진 JPROP 의 실패 원인과 MSVC 실측 결과를 담고 있다
 - [tasks/jbroscript-syntax.md](./tasks/jbroscript-syntax.md) — JBroScript 사용자 문법 정리본. 확정·제안·열림을 항목마다 표시했다
 - [tasks/jbroc-rules.md](./tasks/jbroc-rules.md) — 컴파일러 `jbroc` 규칙 정리본(타입체커·이미터·`ref` 변환·빌드·테스트). 미구현
-- [tasks/launcher-plan.md](./tasks/launcher-plan.md) — 런처 JBro Launcher(C# / WinUI 3) 계획(D-97).
-  에디터 실행 인자 규약과 종료 코드는 섰고, 런처 앱 자체는 **아직 없다**.
-  런처와 에디터는 프로세스 경계로만 만나고, 같은 리포에 둔다
+- [tasks/launcher-plan.md](./tasks/launcher-plan.md) — 런처 JBro Launcher(C# / WinUI 3) 계획(D-97·D-100).
+  에디터 실행 인자 규약(D-97)과 앱 뼈대(`source/JBroLauncher`)가 섰다.
+  런처와 에디터는 프로세스 경계로만 만나고, 같은 리포에 둔다.
+  **엔진 설치가 자기 버전을 말하는 방법이 없어서 프로젝트를 여는 것이 막혀 있다**(§4 Q5)
 - [tasks/ide-plan.md](./tasks/ide-plan.md) — 스크립트 편집기 JBro Script Editor(Code-OSS 포크) 계획(D-87).
   문법 강조 확장만 섰고(편집기 리포 `F:\Project\JBroScriptEditor`) 포크는 **아직 없다**.
   `.jscript` 전용이고 기능은 내장 확장으로, 언어 지식은 `jbroc --lsp` 에 둔다

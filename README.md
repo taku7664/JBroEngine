@@ -31,6 +31,8 @@ source/JBroEngine/
   Tests/             단일 테스트 실행 파일(JBroTests). 경계 위반이 컴파일 실패하는지 보는 음성 테스트 포함
   ThirdParty/        외부 라이브러리를 소스째로 둔다(지금은 ImGui)
   Localization/      에디터 문구(ko-KR, en-US)
+source/JBroLauncher/       런처(C# / WinUI 3). 프로젝트 목록을 관리하고 에디터를 띄운다
+source/JBroLauncher.Tests/ 런처의 순수 로직을 재는 실행 파일
 docs/
   ProjectRule.md     지켜야 하는 규칙. 코드와 문서가 다르면 이쪽이 맞다
   JBroEngine.drawio.xml  구조 다이어그램 6장. draw.io 에서 연다
@@ -51,6 +53,16 @@ msbuild source/JBroEngine/Tests/JBroTests.vcxproj -p:Configuration=Debug -p:Plat
 
 ```bash
 msbuild source/JBroEngine/Modules/JBroEditorHost/JBroEditorHost.vcxproj -p:Configuration=Debug -p:Platform=x64
+```
+
+런처는 .NET 10 SDK 로 따로 빌드한다. WinUI 3(Windows App SDK)을 쓰고 비패키지로 배포한다.
+
+```bash
+dotnet build source/JBroLauncher/JBroLauncher.csproj -c Debug
+```
+
+```bash
+dotnet run --project source/JBroLauncher.Tests/JBroLauncherTests.csproj
 ```
 
 테스트는 빌드된 `JBroTests.exe` 를 실행하면 된다. 그래픽 테스트가 포함돼 있어 D3D12 디버그 레이어를 켠 채 돈다.

@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    런처의 순수 로직을 재는 실행 파일 하나다. 엔진의 JBroTests 와 같은 모양이고, 프레임워크를
+    끌어오지 않는다. **WinUI 를 참조하지 않으려고 소스를 링크한다** - Model 아래는 화면과
+    무관한 코드라 그대로 컴파일된다. 화면을 참조하면 테스트가 창을 띄워야 한다.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RootNamespace>JBro.Launcher.Tests</RootNamespace>
+    <AssemblyName>JBroLauncherTests</AssemblyName>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\JBroLauncher\Model\ProjectFileInfo.cs" Link="Model\ProjectFileInfo.cs" />
+    <Compile Include="..\JBroLauncher\Model\ProjectFileReader.cs" Link="Model\ProjectFileReader.cs" />
+    <Compile Include="..\JBroLauncher\Model\LauncherCatalog.cs" Link="Model\LauncherCatalog.cs" />
+    <Compile Include="..\JBroLauncher\Model\EditorProcess.cs" Link="Model\EditorProcess.cs" />
+  </ItemGroup>
+
+</Project>

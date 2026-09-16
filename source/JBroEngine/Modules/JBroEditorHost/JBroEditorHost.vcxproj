@@ -86,4 +86,19 @@
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <!--
+    에디터가 읽는 파일을 실행 파일 옆에 둔다(D-99 이후의 배포 레이아웃). 로컬라이징 표와
+    아이콘 글꼴은 실행 폴더 기준이라, 이것이 없으면 리포의 source\JBroEngine 을 작업 폴더로
+    두고 실행해야만 글자와 아이콘이 나온다. 런처는 엔진 설치 폴더 하나만 알면 되어야 한다.
+  -->
+  <ItemGroup>
+    <JBroLocalizationFiles Include="$(JBroRoot)Localization\*.yaml" />
+    <JBroIconFontFiles Include="$(JBroThirdPartyDir)FontAwesome\*.otf" />
+  </ItemGroup>
+  <Target Name="JBroCopyEditorContent" AfterTargets="Build"
+          Inputs="@(JBroLocalizationFiles);@(JBroIconFontFiles)"
+          Outputs="@(JBroLocalizationFiles->'$(OutDir)Localization\%(Filename)%(Extension)');@(JBroIconFontFiles->'$(OutDir)ThirdParty\FontAwesome\%(Filename)%(Extension)')">
+    <Copy SourceFiles="@(JBroLocalizationFiles)" DestinationFolder="$(OutDir)Localization" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(JBroIconFontFiles)" DestinationFolder="$(OutDir)ThirdParty\FontAwesome" SkipUnchangedFiles="true" />
+  </Target>
 </Project>
