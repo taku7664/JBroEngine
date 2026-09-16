@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using JBro.Launcher.Model;
 
 namespace JBro.Launcher.Tests;
@@ -184,19 +186,7 @@ internal static class Program
             "an executable that is not there says nothing");
 
         // 리포에서 빌드한 에디터가 있으면 그것으로 잰다. 없으면 건너뛰되 조용히 지나가지 않는다.
-        // **단계 수를 세지 않고 올라가며 찾는다** - 출력 폴더의 깊이는 대상 프레임워크와
-        // 런타임 식별자에 따라 달라진다.
-        string editor = string.Empty;
-        for (DirectoryInfo? here = new(AppContext.BaseDirectory); here is not null; here = here.Parent)
-        {
-            string candidate = Path.Combine(
-                here.FullName, "JBroEngine", "Build", "x64", "Debug", "JBroEditorHost.exe");
-            if (File.Exists(candidate))
-            {
-                editor = candidate;
-                break;
-            }
-        }
+        string editor = FindEditorBuild();
         if (editor.Length == 0)
         {
             Console.WriteLine("  [skip] no editor build here; the engine version was not read from one");
@@ -208,6 +198,68 @@ internal static class Program
         Console.WriteLine($"  the editor build here says it is engine {version}");
     }
 
+    /// <summary>리포에서 빌드한 에디터를 찾는다. 없으면 빈 문자열이다.</summary>
+    private static string FindEditorBuild()
+    {
+        for (DirectoryInfo? here = new(AppContext.BaseDirectory); here is not null; here = here.Parent)
+        {
+            string candidate = Path.Combine(
+                here.FullName, "JBroEngine", "Build", "x64", "Debug", "JBroEditorHost.exe");
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+        return string.Empty;
+    }
+
+    private static void FindsTheEnginesInsideTheInstall()
+    {
+        string editor = FindEditorBuild();
+        if (editor.Length == 0)
+        {
+            Console.WriteLine("  [skip] no editor build here; engine discovery not exercised");
+            return;
+        }
+
+        // 설치본 모양을 세운다(D-102): Editor\v0.1.0\JBroEditorHost.exe.
+        string root = Path.Combine(Path.GetTempPath(), "JBroDiscoveryTest");
+        string editorRoot = Path.Combine(root, "Editor");
+        string installed = Path.Combine(editorRoot, "v0.1.0");
+        string empty = Path.Combine(editorRoot, "v9.9.9-비어있음");
+        Directory.CreateDirectory(installed);
+        Directory.CreateDirectory(empty);
+        try
+        {
+            File.Copy(editor, Path.Combine(installed, "JBroEditorHost.exe"), overwrite: true);
+
+            List<EngineEntry> found = EngineDiscovery.Discover(editorRoot);
+            Check(found.Count == 1, $"exactly the one real install must be found, not {found.Count}");
+            if (found.Count == 0)
+            {
+                return;
+            }
+            Check(found[0].IsDiscovered, "and must be marked as found rather than registered by hand");
+            // **폴더 이름이 아니라 실행 파일이 버전을 말한다**(D-101). 폴더를 v0.1.0 이라고
+            // 지어 뒀지만, 그 이름을 그대로 쓰는 구현이라면 여기서 구분되지 않는다 -
+            // 그래서 실행 파일이 말하는 값과 같은지를 본다.
+            Check(EngineVersionReader.TryRead(editor, out string real) && found[0].Version == real,
+                "the version must come from the executable, not from the folder name");
+            Check(found[0].InstallDirectory == installed, "and must point at the folder it was found in");
+
+            // 실행 파일이 없는 폴더는 엔진이 아니다. 목록에 올리면 열 때 가서야 알게 된다.
+            Check(false == found.Any(entry => entry.InstallDirectory == empty),
+                "a folder without the editor executable is not an engine");
+
+            Check(EngineDiscovery.Discover(Path.Combine(root, "없는폴더")).Count == 0,
+                "a root that is not there finds nothing rather than throwing");
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     private static int Main()
     {
         ReadsWhatTheLauncherShows();
@@ -217,6 +269,7 @@ internal static class Program
         ExitCodesSayWhatHappened();
         StartRefusesBeforeItSpawnsAnything();
         EngineVersionComesFromTheExecutable();
+        FindsTheEnginesInsideTheInstall();
 
         if (_failures > 0)
         {

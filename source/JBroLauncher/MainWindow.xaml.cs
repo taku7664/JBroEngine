@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
@@ -28,6 +29,9 @@ public sealed class EngineRow
     public required string Version { get; init; }
 
     public required string Directory { get; init; }
+
+    /// <summary>어디서 온 줄인지다. 직접 등록한 것만 목록에서 뺄 수 있다.</summary>
+    public required string Source { get; init; }
 }
 
 public sealed partial class MainWindow : Window
@@ -35,6 +39,9 @@ public sealed partial class MainWindow : Window
     private readonly LauncherCatalog _catalog = LauncherCatalog.Load();
     private readonly ObservableCollection<ProjectRow> _projectRows = [];
     private readonly ObservableCollection<EngineRow> _engineRows = [];
+
+    /// <summary>지금 화면에 보이는 엔진들이다. 자동으로 찾은 것과 직접 등록한 것이 섞여 있다.</summary>
+    private List<EngineEntry> _engines = [];
 
     public MainWindow()
     {
@@ -78,10 +85,18 @@ public sealed partial class MainWindow : Window
             }
         }
 
+        // 엔진은 목록을 그릴 때마다 다시 훑는다(D-103). 폴더를 지우거나 새로 넣은 것이
+        // 런처를 다시 켜지 않아도 보여야 한다.
+        _engines = _catalog.ResolveEngines();
         _engineRows.Clear();
-        foreach (EngineEntry engine in _catalog.Engines)
+        foreach (EngineEntry engine in _engines)
         {
-            _engineRows.Add(new EngineRow { Version = engine.Version, Directory = engine.InstallDirectory });
+            _engineRows.Add(new EngineRow
+            {
+                Version = engine.Version,
+                Directory = engine.InstallDirectory,
+                Source = engine.IsDiscovered ? "자동 인식" : "직접 등록",
+            });
         }
     }
 
@@ -155,11 +170,11 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        EngineEntry? engine = _catalog.Engines.FirstOrDefault(
+        EngineEntry? engine = _engines.FirstOrDefault(
             candidate => string.Equals(candidate.Version, info.EngineVersion, StringComparison.OrdinalIgnoreCase));
         if (engine is null)
         {
-            Say($"이 프로젝트가 쓰는 엔진 {info.EngineVersion} 이(가) 등록돼 있지 않습니다. 엔진 탭에서 폴더를 등록하세요.",
+            Say($"이 프로젝트가 쓰는 엔진 {info.EngineVersion} 이(가) 없습니다. 엔진 탭에서 설치본을 확인하세요.",
                 InfoBarSeverity.Warning);
             return;
         }
@@ -205,6 +220,18 @@ public sealed partial class MainWindow : Window
             Say($"{name}: {EditorProcess.DescribeExitCode(exitCode)}", InfoBarSeverity.Error));
     }
 
+    private void OnRefreshEngines(object sender, RoutedEventArgs args)
+    {
+        RefreshRows();
+        int discovered = _engines.Count(engine => engine.IsDiscovered);
+        if (discovered == 0)
+        {
+            Say($"설치본 폴더에서 엔진을 찾지 못했습니다: {EngineDiscovery.EditorRootPath}", InfoBarSeverity.Informational);
+            return;
+        }
+        Say($"설치본에서 엔진 {discovered}개를 찾았습니다.", InfoBarSeverity.Success);
+    }
+
     private async void OnAddEngine(object sender, RoutedEventArgs args)
     {
         var picker = new FolderPicker();
@@ -228,9 +255,9 @@ public sealed partial class MainWindow : Window
             Say("이 엔진은 자기 버전을 말하지 않습니다. 버전 리소스가 없는 빌드입니다.", InfoBarSeverity.Error);
             return;
         }
-        if (_catalog.Engines.Any(entry => string.Equals(entry.InstallDirectory, folder.Path, StringComparison.OrdinalIgnoreCase)))
+        if (_engines.Any(entry => string.Equals(entry.InstallDirectory, folder.Path, StringComparison.OrdinalIgnoreCase)))
         {
-            Say("이미 등록된 폴더입니다.", InfoBarSeverity.Informational);
+            Say("이미 목록에 있는 폴더입니다.", InfoBarSeverity.Informational);
             return;
         }
         _catalog.Engines.Add(new EngineEntry { Version = version, InstallDirectory = folder.Path });
@@ -243,6 +270,13 @@ public sealed partial class MainWindow : Window
         if (EngineList.SelectedItem is not EngineRow row)
         {
             Say("목록에서 엔진을 먼저 고르세요.", InfoBarSeverity.Informational);
+            return;
+        }
+        if (row.Source == "자동 인식")
+        {
+            // 찾은 것을 목록에서만 빼면 다음에 그릴 때 다시 나타난다. 지우려면 폴더를
+            // 지워야 하고, 그것은 런처가 할 일이 아니다.
+            Say("설치본 안에 있는 엔진입니다. 목록에서 뺄 수 없습니다.", InfoBarSeverity.Informational);
             return;
         }
         // 등록만 지운다. 설치 폴더는 건드리지 않는다.

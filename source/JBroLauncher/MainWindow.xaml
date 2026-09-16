@@ -42,18 +42,23 @@
             <PivotItem Header="엔진">
                 <Grid RowDefinitions="Auto,*" RowSpacing="12">
                     <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8">
-                        <Button Content="엔진 폴더 등록" Click="OnAddEngine" />
+                        <Button Content="다시 찾기" Click="OnRefreshEngines" />
+                        <Button Content="다른 폴더 등록" Click="OnAddEngine" />
                         <Button Content="목록에서 제거" Click="OnRemoveEngine" />
                     </StackPanel>
 
                     <ListView x:Name="EngineList" Grid.Row="1" SelectionMode="Single">
                         <ListView.ItemTemplate>
                             <DataTemplate x:DataType="local:EngineRow">
-                                <StackPanel Padding="4,8">
-                                    <TextBlock Text="{x:Bind Version}" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                                    <TextBlock Text="{x:Bind Directory}" Style="{StaticResource CaptionTextBlockStyle}"
+                                <Grid ColumnDefinitions="*,Auto" Padding="4,8">
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="{x:Bind Version}" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                        <TextBlock Text="{x:Bind Directory}" Style="{StaticResource CaptionTextBlockStyle}"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="1" Text="{x:Bind Source}" VerticalAlignment="Center"
                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                </StackPanel>
+                                </Grid>
                             </DataTemplate>
                         </ListView.ItemTemplate>
                     </ListView>

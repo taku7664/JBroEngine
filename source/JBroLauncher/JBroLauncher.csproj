@@ -19,7 +19,12 @@
     <SelfContained>true</SelfContained>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
-    <EnableMsixTooling>false</EnableMsixTooling>
+    <!--
+      비패키지로 배포하지만 이 스위치는 켜 둔다. 끄면 `dotnet publish` 산출물에서 앱의
+      리소스 색인(`JBroLauncher.pri`)과 컴파일된 XAML 이 빠지고, 그 실행 파일은 창을 띄우기도
+      전에 죽는다. 빌드 폴더에서는 그 파일들이 옆에 있어서 멀쩡해 보인다 - 배포본에서만 죽는다.
+    -->
+    <EnableMsixTooling>true</EnableMsixTooling>
   </PropertyGroup>
 
   <ItemGroup>
