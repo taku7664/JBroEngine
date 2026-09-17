@@ -24,6 +24,22 @@ namespace JBro::ScriptCompiler
         InvalidNumber,             // {0} 숫자처럼 보이는 글
         IntegerTooLarge,           // {0} 정수
 
+        // 파서
+        ExpectedDeclaration,
+        ExpectedMember,
+        ExpectedName,
+        ExpectedType,
+        ExpectedExpression,
+        ExpectedStatement,
+        ExpectedToken,             // {0} 기호
+        ExpectedEndOfStatement,
+        ExpectedBlock,
+        MissingConditionParentheses, // {0} 키워드
+        ExpectedIn,
+        ExpectedNullAfterIs,
+        ExpectedCaseOrDefault,
+        MissingFieldType,          // {0} 필드 이름
+
         Count,
     };
 

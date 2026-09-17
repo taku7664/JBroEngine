@@ -41,6 +41,7 @@ int RunScriptApiPreludeTests();
 int RunPublicHeaderCompositionTests();
 int RunScriptDLLLoaderTests();
 int RunScriptCompilerLexerTests();
+int RunScriptCompilerParserTests();
 
 int main()
 {
@@ -70,6 +71,10 @@ int main()
         // 컴파일러 테스트는 그래픽도 파일 시스템도 거의 쓰지 않아 몇 초 안에 끝난다. 앞에 두어
         // 틀렸을 때 뒤의 긴 테스트를 기다리지 않게 한다(뮤테이션 한 개가 몇 분에서 몇 초로 준다).
         if (RunScriptCompilerLexerTests() != 0)
+        {
+            return 1;
+        }
+        if (RunScriptCompilerParserTests() != 0)
         {
             return 1;
         }
