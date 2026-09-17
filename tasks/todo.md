@@ -1759,6 +1759,22 @@ EditorApplication::Tick
   것을 잰다. **화면을 눌러 본 확인은 아직 없다** - 시작 메뉴에 없는 앱이라 화면 조작 권한을
   받지 못했다.
 
+- **D-104. `jbroc` 은 라이브러리와 실행 파일로 나누고, 괄호 안의 줄바꿈은 문장을 끝내지 않는다.** (2026-09-17)
+  (`Updates` jbroc-rules §2·§3.3, jbroscript-syntax §2)
+  렉서·파서를 시작하기 전에 빡대리에게 넷을 물어 정했다.
+  **모듈.** `JBroScriptCompiler`(정적 라이브러리, Tier E, `<JBro/ScriptCompiler/...>`)에 렉서·파서와 이후의
+  타입체커·이미터를 두고, `JBroc`(실행 파일)은 명령줄만 맡는다. 에디터(`JBroEditor` + `JBroEditorHost`)와 같은
+  모양이고, `JBroTests` 가 라이브러리를 직접 테스트할 수 있다. 실행 파일 하나에 모두 넣으면 테스트가 그 코드에
+  닿으려고 소스를 따로 끌어와야 한다.
+  **줄바꿈.** 문장 끝은 줄바꿈이지만 **`( )` 와 `[ ]` 안의 줄바꿈은 문장을 끝내지 않는다.** 긴 호출
+  (`Raycast(from,⏎ down, 1.0, ref hit)`)을 나눠 쓸 수 있게 하기 위해서다. `{ }` 는 블록이라 해당하지 않는다.
+  Python·Kotlin 과 같은 규칙이다. 버린 안은 "줄바꿈은 예외 없이 문장 끝" 이다(단순하지만 긴 호출을 나눌 수 없다).
+  **진단 번역.** `jbroc` 전용 파일 `Localization/jbroc/<로케일>.yaml` 을 두고 JBroCore 의 `Yaml.h` 로 `jbroc` 이
+  직접 읽는다. 파일 모양과 로케일 이름(`ko-KR`·`en-US`)은 에디터의 것과 같다. 에디터의 `LocalizationTable` 은
+  `JBroEditor` 모듈 안에 있어 `jbroc` 이 기댈 수 없고, 그것을 공용 모듈로 내리는 리팩터링은 지금 할 이유가 없다.
+  **[제안] 문법.** 문법 문서의 [제안] 항목(예약어 목록, `switch`/`case`, 생성자 모양, `is not null`, `for` 의 세 모양)은
+  **제안대로 파싱한다.** 문법 강조도 이미 제안대로 칠하고 있어 둘이 같아진다. 제안이 바뀌면 파서를 고친다.
+
 ## Assumptions
 
 - 대상은 `Documents/GitHub/JBroEngine` 신규 리포다. 기존 엔진은 **읽기 전용 기준**으로만 쓴다.
