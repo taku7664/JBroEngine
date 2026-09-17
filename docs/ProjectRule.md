@@ -48,6 +48,13 @@
   크기·오프셋은 `static_assert`로 고정한다. (MUST)
   `.hlsl`을 고치면 `Modules/JBroGraphics/Shaders/Compile.ps1`로 생성 헤더를 다시 만들어 함께 커밋한다.
   빌드는 HLSL을 컴파일하지 않는다 — 커밋된 DXIL 덕분에 클론에 셰이더 컴파일러가 없어도 빌드된다. (MUST)
+  같은 HLSL 을 세 바이트코드로 굽는다: dxc 의 DXIL(D3D12), fxc 의 SM 5.0 DXBC(D3D11, D-107), Vulkan SDK dxc 의
+  SPIR-V(Vulkan, D-108). 렌더러와 에디터 UI 가 `GraphicsApi` 로 고른다. `.hlsl` 은 ASCII 로 쓰고(fxc 가 BOM 을
+  거절한다), 푸시 상수 b0 은 `JBRO_SPIRV` 매크로 뒤에 두 표기를 둔다. 텍스처는 SPIR-V 에서 binding 8+, 샘플러는
+  16+ 다. (MUST)
+- 앞면은 **화면에서 시계 방향**이다. 세 백엔드가 그렇게 맞춰져 있다(D3D `FrontCounterClockwise = FALSE`, Vulkan 은
+  높이 음수 뷰포트 + `CLOCKWISE`). 메시는 바깥에서 볼 때 시계 방향으로 감는다. 좌표는 오른손, 카메라는 -Z, 깊이 0..1,
+  NDC +y 는 위다(D-106·D-108). (MUST)
 - GPU 읽기 경로(`IRHIDevice::ReadTexture`)는 진단과 테스트 전용이다. 매 프레임 경로에서 부르지 않는다. (MUST)
   프레임이 열려 있는 동안 호출하면 실패해야 하고, 구현하지 않은 백엔드는 `false`를 반환한다.
 - 프로젝트 파일은 `.jproject`(YAML)이며 키 이름은 기존 엔진과 같다. (MUST)
@@ -103,6 +110,8 @@
   DLL 경계는 POD 전달, 소유권 규칙, 수명 순서 같은 비용을 그 API에 영구히 부과하므로
   "나중에 필요할지도 모른다"는 이유로 미리 만들지 않는다.
 - RHI는 정적 링크로 시작한다. 두 번째 Windows 백엔드가 실제로 생기면 DLL로 승격한다. (SHOULD)
+  > 백엔드는 이제 셋이다(D3D12·D3D11·Vulkan, D-107·D-108). 승격은 방향 판단이라 사용자 확인 뒤 한다 -
+  > `tasks/framework3d-plan.md` §3 `[열림]`.
 - 게임 스크립트 핫 리로드를 지원한다. 스크립트 DLL 경계 설계는 이 요구를 전제로 한다. (MUST)
 
 > 참고: 아키텍처 초안 §13은 전 모듈 DLL화의 근거로 프로세스 간 코드 페이지 공유를 든다.

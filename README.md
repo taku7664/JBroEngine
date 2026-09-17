@@ -73,7 +73,10 @@ dotnet run --project source/JBroLauncher.Tests/JBroLauncherTests.csproj
 ```
 
 테스트는 빌드된 `JBroTests.exe` 를 실행하면 된다. 그래픽 테스트가 포함돼 있어 D3D12 디버그 레이어를 켠 채 돈다.
-셰이더는 컴파일된 DXIL 이 헤더로 커밋돼 있어서 별도 셰이더 컴파일러가 없어도 빌드된다.
+셰이더는 컴파일된 바이트코드(DXIL·SM 5.0 DXBC·SPIR-V)가 헤더로 커밋돼 있어서 별도 셰이더 컴파일러가 없어도 빌드된다.
+`.hlsl` 을 고쳐 헤더를 다시 만들 때만 Windows SDK 의 dxc·fxc 와 Vulkan SDK(`VULKAN_SDK` 환경 변수)의 dxc 가 필요하다.
+Vulkan 백엔드는 `vulkan-1.dll` 을 실행 시간에 열고 API 헤더는 `ThirdParty/Vulkan-Headers` 에서 읽으므로 빌드에 Vulkan SDK 가
+필요하지 않다. 그래픽 테스트는 D3D12·D3D11·Vulkan 세 백엔드에서 돌고, 없는 백엔드는 건너뛴다.
 
 ## 에디터 실행
 
