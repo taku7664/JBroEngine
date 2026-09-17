@@ -4,6 +4,9 @@ Entries:
   panel.hierarchy: 계층 구조
   panel.inspector: 인스펙터
   panel.stats: 통계
+  gizmo.translate: 이동
+  gizmo.rotate: 회전
+  gizmo.scale: 크기
   menu.file: 파일
   menu.edit: 편집
   menu.window: 창

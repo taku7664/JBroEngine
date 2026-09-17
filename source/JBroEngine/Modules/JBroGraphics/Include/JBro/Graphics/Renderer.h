@@ -159,6 +159,9 @@ namespace JBro
 
         bool ResizeSurface(const Extent2D& extent);
         RendererFrameStats GetLastFrameStats() const;
+        // 마지막으로 기록된 프레임의 첫 뷰 카메라다. 에디터의 기즈모가 화면과 월드를 잇는 데 쓴다(D-109) -
+        // UI 는 엔진 프레임보다 먼저 만들어지므로 한 프레임 전의 카메라다. 뷰를 기록한 프레임이 아직 없으면 거짓이다.
+        bool GetLastViewCamera(CameraParams& camera) const;
 
         // 프레임을 닫기 전에 부를 것을 건다. **프레임 밖에서만 바꾼다** -
         // 프레임 중간에 바뀌면 이미 기록한 것과 어긋난다. nullptr 이면 뗀다.
@@ -286,6 +289,8 @@ namespace JBro
         DepthTarget m_depthTargets[2];
         RendererFrameStats m_currentStats;
         RendererFrameStats m_lastStats;
+        CameraParams m_lastViewCamera;
+        bool m_hasLastViewCamera = false;
         // EndFrame 이 프레임 컨텍스트를 비우므로 읽기 경로를 위해 따로 기억한다.
         TextureHandle m_lastPresentedBackBuffer;
         std::uint32_t m_activeView = InvalidViewIndex;

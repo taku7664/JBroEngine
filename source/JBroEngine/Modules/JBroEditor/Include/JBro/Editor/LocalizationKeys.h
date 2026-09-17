@@ -15,6 +15,11 @@ namespace JBro::LocKeys
     inline constexpr const char* PanelInspector = "panel.inspector";
     inline constexpr const char* PanelStats = "panel.stats";
 
+    // ── 게임 뷰의 기즈모 (D-109) ─────────────────────────────────────────
+    inline constexpr const char* GizmoTranslate = "gizmo.translate";
+    inline constexpr const char* GizmoRotate = "gizmo.rotate";
+    inline constexpr const char* GizmoScale = "gizmo.scale";
+
     // ── 메뉴 ─────────────────────────────────────────────────────────────
     inline constexpr const char* MenuFile = "menu.file";
     inline constexpr const char* MenuEdit = "menu.edit";

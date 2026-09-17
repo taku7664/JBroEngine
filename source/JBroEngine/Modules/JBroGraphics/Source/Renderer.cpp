@@ -535,6 +535,11 @@ namespace JBro
 
         const FrameStatus status = m_device->EndFrame(m_frame);
         m_lastStats = m_currentStats;
+        if (m_views.Size() != 0)
+        {
+            m_lastViewCamera = m_views[0].camera;
+            m_hasLastViewCamera = true;
+        }
         m_lastPresentedBackBuffer = m_frame.backBuffer;
         m_frame = {};
         m_frameActive = false;
@@ -625,6 +630,16 @@ namespace JBro
     RendererFrameStats Renderer::GetLastFrameStats() const
     {
         return m_lastStats;
+    }
+
+    bool Renderer::GetLastViewCamera(CameraParams& camera) const
+    {
+        if (false == m_hasLastViewCamera)
+        {
+            return false;
+        }
+        camera = m_lastViewCamera;
+        return true;
     }
 
     bool Renderer::IsDeviceLost() const

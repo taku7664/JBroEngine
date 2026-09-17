@@ -4,6 +4,9 @@ Entries:
   panel.hierarchy: Hierarchy
   panel.inspector: Inspector
   panel.stats: Stats
+  gizmo.translate: Move
+  gizmo.rotate: Rotate
+  gizmo.scale: Scale
   menu.file: File
   menu.edit: Edit
   menu.window: Window

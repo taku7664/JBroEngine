@@ -3754,6 +3754,83 @@ namespace
         editor.Shutdown();
         std::remove(projectPath.c_str());
     }
+    // **기즈모를 끌면 고른 오브젝트가 움직이고, 되돌리기 한 번이 그것을 되돌린다**(D-109). 손잡이는
+    // ImGui 의 hovered Id 로 보이므로 화면을 훑어 찾는다 - 어디에 그려졌는지 미리 알 필요가 없다.
+    void TestDraggingTheGizmoMovesTheSelectionUnderOneUndo()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = WindowWidth;
+        config.windowHeight = WindowHeight;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the gizmo not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "GizmoProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({320, 240}), "the editor UI must turn on");
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* eye = canvas->CreateObject("Eye");
+        Check(canvas->AttachComponent<JBro::Component::Transform2D>(eye) != nullptr, "the camera needs a transform");
+        auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(eye);
+        Check(camera != nullptr, "the probe camera must attach");
+        camera->primary = true;
+        JBro::GameObject* box = canvas->CreateObject("Box");
+        auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(box);
+        Check(transform != nullptr, "the box needs a transform for the gizmo to hold");
+        editor.SetSelectedObject(box);
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must exist");
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle before the gizmo appears");
+        }
+        ImGuiWindow* game = ImGui::FindWindowByName("Game");
+        Check(game != nullptr, "the game view window must exist");
+
+        Spot spot;
+        Check(FindItemAnywhereInWindow(editor, hwnd, game, LabelId(game->ID, "##gizmo_x"), spot),
+            "the x handle of the translate gizmo must be on screen");
+        const std::size_t undo = editor.GetCommands().GetUndoCount();
+        DragFrom(editor, hwnd, spot, spot.x + 40);
+        Check(transform->position.x > 0.05f && std::fabs(transform->position.y) < 1.0e-4f,
+            "dragging the x handle to the right moves the box along +x and nowhere else");
+        Check(editor.GetCommands().GetUndoCount() == undo + 1, "one drag must be one undo step");
+        Check(editor.GetCommands().Undo() && std::fabs(transform->position.x) < 1.0e-4f,
+            "undoing the drag must put the box back");
+
+        // E 는 회전이다. 고리가 나오고, 그것을 끌면 돈다.
+        PostMessageW(hwnd, WM_KEYDOWN, 'E', 0);
+        Check(editor.Tick(Frame), "the editor must tick with E down");
+        PostMessageW(hwnd, WM_KEYUP, 'E', 0);
+        Check(editor.Tick(Frame), "the editor must tick with E up");
+        Check(FindItemAnywhereInWindow(editor, hwnd, game, LabelId(game->ID, "##gizmo_z"), spot),
+            "E must switch to rotation and put the z ring on screen");
+        Spot to = spot;
+        to.x += 40;
+        to.y += 40;
+        DragTo(editor, hwnd, spot, to);
+        Check(std::fabs(transform->rotation) > 1.0f, "dragging the ring must turn the box");
+        Check(std::fabs(transform->position.x) < 1.0e-4f, "and must not move it");
+        Check(editor.GetCommands().GetUndoCount() == undo + 1, "the rotation is one undo step too");
+
+        // R 은 크기다. x 상자를 바깥으로 끌면 x 만 커진다.
+        PostMessageW(hwnd, WM_KEYDOWN, 'R', 0);
+        Check(editor.Tick(Frame), "the editor must tick with R down");
+        PostMessageW(hwnd, WM_KEYUP, 'R', 0);
+        Check(editor.Tick(Frame), "the editor must tick with R up");
+        Check(editor.GetCommands().Undo(), "undo the rotation so the x handle points right again");
+        Check(FindItemAnywhereInWindow(editor, hwnd, game, LabelId(game->ID, "##gizmo_x"), spot),
+            "R must switch to scale and keep an x handle on screen");
+        DragFrom(editor, hwnd, spot, spot.x + 30);
+        Check(transform->scale.x > 1.05f && std::fabs(transform->scale.y - 1.0f) < 1.0e-4f,
+            "dragging the x box outwards scales x only");
+        editor.Shutdown();
+    }
 }
 
 int RunEditorApplicationTests()
@@ -3780,6 +3857,7 @@ int RunEditorApplicationTests()
     TestAPairElementDragsAsADeltaOnEveryChosenList();
     TestAVectorFieldEditsThroughACommand();
     TestTheGameViewIsRenderedOnlyWhileItsPanelShows();
+    TestDraggingTheGizmoMovesTheSelectionUnderOneUndo();
     TestPopupsOpenOneAtATimeAndCloseByHandle();
     TestSavingAsksForAPathOnceAndReportsFailure();
     TestMovingAComponentFromItsHeaderMenuCanBeUndone();
