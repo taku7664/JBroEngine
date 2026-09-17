@@ -31,6 +31,31 @@ namespace JBro::Internal
             return access;
         }
 
+        // 깊이 첨부의 시작 접근. 색과 다른 점은 클리어 값이 깊이·스텐실이라는 것뿐이다.
+        D3D12_RENDER_PASS_BEGINNING_ACCESS BuildDepthBeginningAccess(
+            LoadOperation operation,
+            float clearDepth,
+            std::uint8_t clearStencil)
+        {
+            D3D12_RENDER_PASS_BEGINNING_ACCESS access = {};
+            switch (operation)
+            {
+            case LoadOperation::Load:
+                access.Type = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_PRESERVE;
+                break;
+            case LoadOperation::Clear:
+                access.Type = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_CLEAR;
+                access.Clear.ClearValue.Format = DXGI_FORMAT_D32_FLOAT;
+                access.Clear.ClearValue.DepthStencil.Depth = clearDepth;
+                access.Clear.ClearValue.DepthStencil.Stencil = clearStencil;
+                break;
+            case LoadOperation::Discard:
+                access.Type = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_DISCARD;
+                break;
+            }
+            return access;
+        }
+
         D3D12_RENDER_PASS_ENDING_ACCESS BuildEndingAccess(StoreOperation operation)
         {
             D3D12_RENDER_PASS_ENDING_ACCESS access = {};
@@ -101,14 +126,14 @@ namespace JBro::Internal
             || m_renderPassActive
             || desc.colorAttachments.data == nullptr
             || desc.colorAttachments.size == 0
-            || desc.colorAttachments.size > MaxColorAttachments
-            || desc.depthStencilAttachment != nullptr)
+            || desc.colorAttachments.size > MaxColorAttachments)
         {
             return false;
         }
 
         D3D12RenderTargetBinding bindings[MaxColorAttachments] = {};
-        D3D12_RESOURCE_BARRIER barriers[MaxColorAttachments] = {};
+        // 색 첨부들 + 깊이 하나. 깊이는 마지막 칸이다.
+        D3D12_RESOURCE_BARRIER barriers[MaxColorAttachments + 1] = {};
         D3D12_CPU_DESCRIPTOR_HANDLE descriptors[MaxColorAttachments] = {};
         std::uint32_t barrierCount = 0;
 
@@ -119,6 +144,29 @@ namespace JBro::Internal
                 return false;
             }
             descriptors[index] = bindings[index].descriptor;
+        }
+
+        // 깊이 첨부(framework3d-plan §2.4). 3D 메시가 있는 뷰만 단다 - 스프라이트만 있는 프레임은
+        // 전과 같은 길을 간다.
+        const DepthStencilAttachmentDesc* depthDesc = desc.depthStencilAttachment;
+        D3D12DepthStencilBinding depth;
+        if (depthDesc != nullptr)
+        {
+            if (false == m_device->ResolveDepthStencil(depthDesc->texture, depth))
+            {
+                return false;
+            }
+            if (*depth.state != D3D12_RESOURCE_STATE_DEPTH_WRITE)
+            {
+                D3D12_RESOURCE_BARRIER& barrier = barriers[barrierCount++];
+                barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+                barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+                barrier.Transition.pResource = depth.resource;
+                barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+                barrier.Transition.StateBefore = *depth.state;
+                barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+                *depth.state = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+            }
         }
 
         for (std::uint32_t index = 0; index < desc.colorAttachments.size; ++index)
@@ -165,10 +213,22 @@ namespace JBro::Internal
                     desc.colorAttachments.data[index].storeOperation);
             }
 
+            D3D12_RENDER_PASS_DEPTH_STENCIL_DESC depthStencil = {};
+            if (depthDesc != nullptr)
+            {
+                depthStencil.cpuDescriptor = depth.descriptor;
+                depthStencil.DepthBeginningAccess = BuildDepthBeginningAccess(
+                    depthDesc->depthLoadOperation, depthDesc->clearDepth, depthDesc->clearStencil);
+                // D32Float 에는 스텐실이 없다. 없는 면은 접근하지 않는다고 말한다.
+                depthStencil.StencilBeginningAccess.Type =
+                    D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_NO_ACCESS;
+                depthStencil.DepthEndingAccess = BuildEndingAccess(depthDesc->depthStoreOperation);
+                depthStencil.StencilEndingAccess.Type = D3D12_RENDER_PASS_ENDING_ACCESS_TYPE_NO_ACCESS;
+            }
             m_commandList4->BeginRenderPass(
                 desc.colorAttachments.size,
                 renderTargets,
-                nullptr,
+                depthDesc != nullptr ? &depthStencil : nullptr,
                 D3D12_RENDER_PASS_FLAG_NONE);
         }
         else
@@ -177,7 +237,12 @@ namespace JBro::Internal
                 desc.colorAttachments.size,
                 descriptors,
                 FALSE,
-                nullptr);
+                depthDesc != nullptr ? &depth.descriptor : nullptr);
+            if (depthDesc != nullptr && depthDesc->depthLoadOperation == LoadOperation::Clear)
+            {
+                m_commandList->ClearDepthStencilView(depth.descriptor, D3D12_CLEAR_FLAG_DEPTH,
+                    depthDesc->clearDepth, depthDesc->clearStencil, 0, nullptr);
+            }
 
             for (std::uint32_t index = 0; index < desc.colorAttachments.size; ++index)
             {

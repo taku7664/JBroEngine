@@ -585,6 +585,31 @@ namespace JBro::Internal
         return true;
     }
 
+    bool D3D12Device::ResolveDepthStencil(TextureHandle texture, D3D12DepthStencilBinding& binding)
+    {
+        if (false == texture.IsValid() || texture.index < TextureResourceBase)
+        {
+            return false;
+        }
+        const std::uint32_t slotIndex = texture.index - TextureResourceBase;
+        if (slotIndex >= MaxTextures)
+        {
+            return false;
+        }
+        D3D12TextureState& state = m_textures[slotIndex];
+        if (false == state.occupied
+            || state.generation != texture.generation
+            || false == HasTextureUsage(state.desc.usage, TextureUsage::DepthStencil)
+            || state.depthStencilDescriptor.ptr == 0)
+        {
+            return false;
+        }
+        binding.resource = state.resource.Get();
+        binding.descriptor = state.depthStencilDescriptor;
+        binding.state = &state.state;
+        return true;
+    }
+
     bool D3D12Device::ResolveBuffer(BufferHandle buffer, D3D12BufferBinding& binding)
     {
         if (buffer.index >= MaxBuffers)

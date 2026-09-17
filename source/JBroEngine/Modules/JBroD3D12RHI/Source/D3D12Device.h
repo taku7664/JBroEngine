@@ -31,6 +31,14 @@ namespace JBro::Internal
         bool sampled = false;
     };
 
+    // 깊이 첨부 하나. 렌더 타깃과 달리 샘플링으로 되돌릴 일이 없다 - 깊이 텍스처는 그리기 전용이다.
+    struct D3D12DepthStencilBinding
+    {
+        ID3D12Resource* resource = nullptr;
+        D3D12_CPU_DESCRIPTOR_HANDLE descriptor = {};
+        D3D12_RESOURCE_STATES* state = nullptr;
+    };
+
     struct D3D12BufferBinding
     {
         ID3D12Resource* resource = nullptr;
@@ -225,6 +233,8 @@ namespace JBro::Internal
         void WaitIdle() override;
 
         bool ResolveRenderTarget(TextureHandle texture, D3D12RenderTargetBinding& binding);
+        // `DepthStencil` 로 만든 텍스처만 받는다. 백버퍼는 깊이가 될 수 없다.
+        bool ResolveDepthStencil(TextureHandle texture, D3D12DepthStencilBinding& binding);
         bool ResolveBuffer(BufferHandle buffer, D3D12BufferBinding& binding);
         bool ResolveGraphicsPipeline(
             GraphicsPipelineHandle pipeline,
