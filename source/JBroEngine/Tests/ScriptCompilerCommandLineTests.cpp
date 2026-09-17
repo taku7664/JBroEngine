@@ -87,7 +87,8 @@ namespace
     };
 
     // 표준 출력과 표준 에러를 파일로 돌려 받는다. 파일은 콘솔이 아니므로 JBroc 은 UTF-8 바이트로 쓴다.
-    RunResult Run(const std::filesystem::path& executable, const std::wstring& arguments, const std::filesystem::path& scratch)
+    RunResult Run(const std::filesystem::path& executable, const std::wstring& arguments, const std::filesystem::path& scratch,
+        const std::filesystem::path& workingDirectory = std::filesystem::path())
     {
         static int counter = 0;
         ++counter;
@@ -108,7 +109,7 @@ namespace
         PROCESS_INFORMATION process{};
         std::wstring commandLine = L"\"" + executable.native() + L"\" " + arguments;
         const BOOL started = CreateProcessW(nullptr, commandLine.data(), nullptr, nullptr, TRUE, CREATE_NO_WINDOW,
-            nullptr, nullptr, &startup, &process);
+            nullptr, workingDirectory.empty() ? nullptr : workingDirectory.c_str(), &startup, &process);
         CloseHandle(out);
         CloseHandle(err);
         Check(0 != started, "JBroc starts");
@@ -293,6 +294,18 @@ namespace
             const RunResult result = Run(executable, L"--locale en-US " + Quote(bad), scratch);
             Check(1 == result.ExitCode && result.Out == ExpectedLine(bad, "en-US"), "--locale en-US gives the English message");
             Check(result.Out != koreanOut, "the English line differs from the Korean one");
+        }
+        {
+            // $msCompile 은 절대 경로만 받는다. 상대 경로를 주면 작업 폴더 기준의 절대 경로로, `..` 을 푼 모양으로 내야 한다.
+            std::filesystem::create_directories(scratch / L"sub");
+            const RunResult result = Run(executable, L"sub\\..\\bad.jscript", scratch, scratch);
+            const std::string path = ToUtf8((scratch / L"bad.jscript").lexically_normal().native());
+            if (0 != result.Out.rfind(path + "(5,12)", 0))
+            {
+                Print(result);
+            }
+            Check(1 == result.ExitCode && 0 == result.Out.rfind(path + "(5,12)", 0),
+                "a relative path comes out absolute and normalized");
         }
         {
             const RunResult result = Run(executable, Quote(korean), scratch);
