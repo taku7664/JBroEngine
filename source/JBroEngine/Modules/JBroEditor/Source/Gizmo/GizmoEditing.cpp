@@ -295,10 +295,8 @@ namespace JBro
                 target.before, after));
         }
         m_targets.Clear();
-        if (compound->GetCount() != 0)
-        {
-            editor.GetCommands().Execute(std::move(compound));
-        }
+        // 빈 묶음은 `CompoundCommand::Execute` 가 거절해 더미에 오르지 않는다 - 움직이지 않은 클릭은 되돌리기가 아니다.
+        editor.GetCommands().Execute(std::move(compound));
     }
 
     void GizmoEditing::Cancel(EditorApplication& editor)
