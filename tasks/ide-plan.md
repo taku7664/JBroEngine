@@ -2,6 +2,7 @@
 
 > 2026-09-15 작성, 2026-09-16 갱신. **P0 스파이크를 닫았고 P1 문법 강조 확장이 섰다(옛 문법 기준).**
 > 편집기 리포는 `F:\Project\JBroScriptEditor` 다. **upstream 소스를 `upstream/` 에 받아 두었고 코어 패치 목록을 정했다(§5.2).**
+> **2026-09-17 에 그 upstream 을 패치 없이 스크립트로 빌드해 창을 띄웠다(§4.2).**
 > **진행 현황·남은 일·막힌 곳은 §8 에 있다.** §7 에 남은 세부 질문은 포크 빌드 전에 정한다.
 > 근거는 [jbroscript-plan.md](./jbroscript-plan.md) §9·§10·§13·§18.7 과 [todo.md](./todo.md) D-56·D-60 이다.
 > 확정 계약이 아니라 계획이므로 `docs/ProjectRule.md` 가 아니라 여기에 둔다.
@@ -65,8 +66,8 @@
 | Python | 3.14.6 | node-gyp 가 쓴다 |
 | Visual Studio | 2026 Community(18.9), MSVC 14.51 | node-gyp 12.3.0 은 인식한다. Spectre 완화 라이브러리는 스파이크 중에 추가했다. SDK 10.0.26100.0 은 헤더가 빠져 있다(§4.2) |
 | clang-cl | 시스템에 없다 | 스파이크는 LLVM 23.1.1 의 `clang-cl` 만 F: 에 풀어 썼다 |
-| C: 여유 공간 | **10.4 GB** | Code-OSS 소스·`node_modules`·빌드 산출물을 담기에 부족하다고 판단한다(추정) |
-| F: 여유 공간 | 80.5 GB | 포크 리포와 npm·Electron 캐시를 F: 에 둔다(§2). node-gyp 캐시는 옮기지 않는다(§4.2) |
+| C: 여유 공간 | **10.4 GB**, 2026-09-17 에는 **1.5 GB** | Code-OSS 소스·`node_modules`·빌드 산출물을 담기에 부족하다. 빌드는 C: 에 쓰지 않게 한다(§4.2) |
+| F: 여유 공간 | 80.5 GB | 포크 리포와 npm·Electron·node-gyp 캐시를 F: 에 둔다(§2). node-gyp 캐시는 `LOCALAPPDATA` 를 통째로 옮겨서 함께 옮긴다(§4.2) |
 
 엔진 쪽 사실:
 
@@ -149,12 +150,34 @@ Core 공개 헤더를 고치는 일이고 방향을 바꾸는 판단은 아니�
   멈춘다. `vs2022_install=C:\Program Files\Microsoft Visual Studio\18\Community` 로 넘긴다.
 - **세 우회를 모두 넣은 `npm ci` 가 성공했다: 850초.** `vscode` 폴더 7.1 GB, npm·Electron 캐시 1.0 GB,
   스파이크 전체 9.0 GB(휴대용 Node·LLVM 포함). C: 에는 node-gyp 캐시 180 MB 가 생겼다.
-- **node-gyp 캐시는 `%LOCALAPPDATA%` 에 둔다(소스로 확인).** `preinstall.ts` 가 Electron 헤더 위에 덮어쓸 헤더를
-  `%LOCALAPPDATA%\node-gyp\Cache` 라는 **고정 경로**에서 찾는다. 캐시를 F: 로 옮기면 그 덮어쓰기가
-  에러 없이 건너뛰어진다.
+- ~~**node-gyp 캐시는 `%LOCALAPPDATA%` 에 둔다(소스로 확인).**~~ **`LOCALAPPDATA` 를 통째로 옮기면 F: 에 둘 수 있다
+  (2026-09-17 실측).** `preinstall.ts:173` 은 고정 경로가 아니라 `process.env.LOCALAPPDATA` 를 읽고, node-gyp 도
+  `env-paths` 로 같은 변수를 읽어 캐시 위치를 정한다. 스파이크 때 덮어쓰기가 건너뛰어진 것은 **한쪽만** 옮겼기
+  때문이다. 빌드 프로세스에서 이 변수를 F: 로 바꾸면 두 쪽이 같은 자리를 보고, 로그의
+  `Overlaying custom header F:\...\localappdata\node-gyp\Cache\42.10.0\include\node\v8-source-location.h` 로 확인했다.
+
+**다시 잰 결과(2026-09-17, 같은 1.137.0, 휴대용 Node 24.18.0, npm 11.16.0).** 우회를 스크립트로 옮겼다
+(편집기 리포 `scripts/upstream-env.cmd`, 커밋 `3c4113f`). 각 줄의 이유는 스크립트 머리 주석에도 있다.
+
+| 단계 | 스파이크(2026-09-15) | 이번 |
+|---|---|---|
+| `npm ci` | 850초 | **1226초**, 오류 0 |
+| 컴파일(`preLaunch`) | 367초 | **421초**, TypeScript 에러 0. 내장 확장 셋을 GitHub 에서 받는다 |
+| 창 | `Code - OSS Dev` | `Welcome - Code - OSS Dev [Administrator]`, 에러 수준 로그 없음 |
+| C: 사용 | node-gyp 캐시 180 MB | **없다.** 여유 공간이 줄지 않았다 |
+
+- **C: 여유 공간이 1.5 GB 로 줄어 있었다**(스파이크 때 10.4 GB). 그래서 `LOCALAPPDATA`·`TEMP`·`TMP`·
+  `npm_config_cache` 를 모두 편집기 리포의 `.toolchain` 아래로 돌렸고, 두 단계 내내 C: 여유 공간을 15초마다 쟀다.
+- 예외는 홈 폴더의 `.vscode-oss-dev\argv.json` 과 `.vscode-oss-shared` 다. 위치가 `--user-data-dir` 를 따르지 않는다(§5.5).
+- `npm ci` 가 스파이크보다 느린 이유는 재지 않았다. 캐시가 비어 있던 것은 두 번 모두 같다.
+- **`[Administrator]`**: 이 셸이 관리자 권한이라 편집기도 관리자로 떴다. 실사용과 다른 조건이다.
+- 로그의 `Unknown channel: agentHostClientByokLm`·`agentHostClientProxy` 는 AI 에이전트 호스트가 없는 채널을 찾는
+  메시지다. **패치 0002 뒤에 사라지는지 보는 기준으로 쓴다.** `Extension host is unresponsive` 는 개발 실행이 확장
+  호스트에 디버거를 붙이는 동안 나고 곧 `responsive` 로 돌아온다.
 
 **포크 빌드 스크립트가 알아야 하는 것**: 위 우회 중 Spectre 와 `vs2022_install` 은 VS 2026 을 쓰는
 모든 기계에 필요하다. SDK 지정은 기계에 따라 다르지만, 엔진과 같은 22621 로 고정해 두면 해가 없다.
+`LOCALAPPDATA` 이동은 C: 가 좁은 기계를 위한 것이지만, 빌드가 홈 프로필을 건드리지 않게 되므로 늘 켜 둔다.
 
 ---
 
@@ -489,7 +512,7 @@ jbroscript-plan §18.7 을 따른다. 그때까지는 Visual Studio 로 한다.
 | P3 씬 에디터 연결 | 시작 전 | 작음 | 엔진에 스크립트 DLL 파일 감시가 없다 |
 | P4 자동완성·정의로 이동 | 시작 전 | 중간 | `jbroc` AST, 엔진 함수 선언 표 |
 | P5 디버깅 | 시작 전 | 중간 | `Field.h` 의 clang 서명 대응(§4.1), clang-cl + DWARF + `lldb-dap` 실측 |
-| 포크 빌드(브랜딩·설치본) | 시작 전. **upstream 소스는 받아 두었다** | 중간 | 첫 실행이 영어로 뜨는 문제(§5.5). 코어 패치 목록은 정해졌고(§5.2) 0004 의 세부만 남았다(§7) |
+| 포크 빌드(브랜딩·설치본) | 시작 전. **upstream 을 패치 없이 빌드해 띄웠다**(2026-09-17, §4.2) | 중간 | 첫 실행이 영어로 뜨는 문제(§5.5). 코어 패치 목록은 정해졌고(§5.2) 0004 의 세부만 남았다(§7) |
 
 편집기 쪽 일은 작다. **오래 걸리는 것은 컴파일러 `jbroc` 이다.** 에러 표시와 자동완성이 `jbroc` 의 파서와 타입 정보를
 그대로 쓰므로(§6 P2·P4), `jbroc` 이 서는 속도가 곧 편집기의 속도다.
