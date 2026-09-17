@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>18.0</VCProjectVersion>
+    <ProjectGuid>{1a000016-0000-4000-8000-00000000b20c}</ProjectGuid>
+    <RootNamespace>JBroc</RootNamespace>
+    <ProjectName>JBroc</ProjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <Import Project="$(SolutionDir)JBro.Common.props" Condition="Exists('$(SolutionDir)JBro.Common.props')" />
+  <Import Project="$(MSBuildThisFileDirectory)..\..\JBro.Common.props" Condition="!Exists('$(SolutionDir)JBro.Common.props')" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <!--
+    JBroScript 컴파일러의 명령줄이다(D-105). 컴파일러 본체는 JBroScriptCompiler 에 있고 여기는 인자와 출력만 맡는다.
+  -->
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroScriptCompiler\Include;$(JBroModulesDir)JBroCore\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="Source\**\*.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(JBroModulesDir)JBroCore\JBroCore.vcxproj">
+      <Project>{1a000001-0000-4000-8000-00000000c0de}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroScriptCompiler\JBroScriptCompiler.vcxproj">
+      <Project>{1a000015-0000-4000-8000-000000005cc0}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <!--
+    진단 메시지 번역 표를 실행 파일 옆에 둔다. JBroc 은 자기 폴더의 Localization\jbroc 에서 읽는다.
+    에디터가 Localization\*.yaml 을 옮기는 것과 같은 방식이고, 둘이 같은 출력 폴더를 써도 겹치지 않는다.
+  -->
+  <ItemGroup>
+    <JBrocLocalizationFiles Include="$(JBroRoot)Localization\jbroc\*.yaml" />
+  </ItemGroup>
+  <Target Name="JBrocCopyLocalization" AfterTargets="Build"
+          Inputs="@(JBrocLocalizationFiles)"
+          Outputs="@(JBrocLocalizationFiles->'$(OutDir)Localization\jbroc\%(Filename)%(Extension)')">
+    <Copy SourceFiles="@(JBrocLocalizationFiles)" DestinationFolder="$(OutDir)Localization\jbroc" SkipUnchangedFiles="true" />
+  </Target>
+</Project>

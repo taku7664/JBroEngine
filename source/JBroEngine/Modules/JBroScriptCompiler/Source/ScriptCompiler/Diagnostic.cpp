@@ -87,4 +87,33 @@ namespace JBro::ScriptCompiler
         }
         return "jbroc.unknown";
     }
+
+    std::uint16_t GetDiagnosticNumber(DiagnosticCode code) noexcept
+    {
+        switch (code)
+        {
+        case DiagnosticCode::UnexpectedCharacter: return 1001;
+        case DiagnosticCode::UseWordOperator: return 1002;
+        case DiagnosticCode::UnterminatedString: return 1003;
+        case DiagnosticCode::InvalidEscape: return 1004;
+        case DiagnosticCode::InvalidNumber: return 1005;
+        case DiagnosticCode::IntegerTooLarge: return 1006;
+        case DiagnosticCode::ExpectedDeclaration: return 2001;
+        case DiagnosticCode::ExpectedMember: return 2002;
+        case DiagnosticCode::ExpectedName: return 2003;
+        case DiagnosticCode::ExpectedType: return 2004;
+        case DiagnosticCode::ExpectedExpression: return 2005;
+        case DiagnosticCode::ExpectedStatement: return 2006;
+        case DiagnosticCode::ExpectedToken: return 2007;
+        case DiagnosticCode::ExpectedEndOfStatement: return 2008;
+        case DiagnosticCode::ExpectedBlock: return 2009;
+        case DiagnosticCode::MissingConditionParentheses: return 2010;
+        case DiagnosticCode::ExpectedIn: return 2011;
+        case DiagnosticCode::ExpectedNullAfterIs: return 2012;
+        case DiagnosticCode::ExpectedCaseOrDefault: return 2013;
+        case DiagnosticCode::MissingFieldType: return 2014;
+        case DiagnosticCode::Count: break;
+        }
+        return 0;
+    }
 }

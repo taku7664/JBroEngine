@@ -42,6 +42,7 @@ int RunPublicHeaderCompositionTests();
 int RunScriptDLLLoaderTests();
 int RunScriptCompilerLexerTests();
 int RunScriptCompilerParserTests();
+int RunScriptCompilerCommandLineTests();
 
 int main()
 {
@@ -75,6 +76,10 @@ int main()
             return 1;
         }
         if (RunScriptCompilerParserTests() != 0)
+        {
+            return 1;
+        }
+        if (RunScriptCompilerCommandLineTests() != 0)
         {
             return 1;
         }

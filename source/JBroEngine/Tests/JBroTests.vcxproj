@@ -89,6 +89,10 @@
     <ProjectReference Include="$(JBroModulesDir)JBroFramework3DSystem\JBroFramework3DSystem.vcxproj">
       <Project>{1a000013-0000-4000-8000-0000000f3d5e}</Project>
     </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroc\JBroc.vcxproj">
+      <Project>{1a000016-0000-4000-8000-00000000b20c}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroScriptCompiler\JBroScriptCompiler.vcxproj">
       <Project>{1a000015-0000-4000-8000-000000005cc0}</Project>
     </ProjectReference>

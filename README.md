@@ -18,7 +18,7 @@ Windows / D3D12 위에서 도는 2D 우선 게임 엔진이다. 기존 엔진(`J
 
 ## 아직 없는 것
 
-- JBroScript 언어와 컴파일러 `jbroc` (렉서와 파서만 있다. 타입체커·이미터·명령줄 실행 파일은 아직 없다)
+- JBroScript 언어와 컴파일러 `jbroc` (렉서·파서와 명령줄 `JBroc` 만 있다. 타입체커·이미터는 아직 없다)
 - 에셋 로드(`AssetSystem::Load` 는 스텁이다). 스프라이트는 아직 텍스처를 받지 못한다
 - 3D 렌더 시스템, 물리 시뮬레이션 본체, 오디오
 - Web 빌드(스텁만 있다)
@@ -53,6 +53,13 @@ msbuild source/JBroEngine/Tests/JBroTests.vcxproj -p:Configuration=Debug -p:Plat
 
 ```bash
 msbuild source/JBroEngine/Modules/JBroEditorHost/JBroEditorHost.vcxproj -p:Configuration=Debug -p:Platform=x64
+```
+
+JBroScript 컴파일러 `JBroc` 은 따로 빌드할 수도 있다(`JBroTests` 를 빌드하면 같이 빌드된다).
+`JBroc [--locale ko-KR|en-US] [--dump-tree] <파일.jscript>...` 로 쓰고, 에러를 `경로(줄,열): error JBC2010: 메시지` 로 낸다.
+
+```bash
+msbuild source/JBroEngine/Modules/JBroc/JBroc.vcxproj -p:Configuration=Debug -p:Platform=x64
 ```
 
 런처는 .NET 10 SDK 로 따로 빌드한다. WinUI 3(Windows App SDK)을 쓰고 비패키지로 배포한다.

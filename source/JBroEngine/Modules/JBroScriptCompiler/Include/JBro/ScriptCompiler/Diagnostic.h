@@ -77,4 +77,10 @@ namespace JBro::ScriptCompiler
 
     // 로케일 파일의 키다. 예: `jbroc.lex.unterminated_string`.
     const char* GetDiagnosticKey(DiagnosticCode code) noexcept;
+
+    // 사용자에게 보이는 번호다. `JBroc` 은 `JBC1003` 처럼 낸다(D-105).
+    //
+    // **한 번 정한 번호는 바꾸지 않는다.** 사용자가 번호로 검색하고 문서가 번호를 가리키게 된다. 그래서 열거형의 순서에서
+    // 뽑지 않고 코드마다 적는다. 렉서는 1000 번대, 파서는 2000 번대이고 새 코드는 그 단계의 다음 번호를 받는다.
+    std::uint16_t GetDiagnosticNumber(DiagnosticCode code) noexcept;
 }

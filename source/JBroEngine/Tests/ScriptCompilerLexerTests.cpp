@@ -337,13 +337,20 @@ namespace
             Check(nullptr != ko && nullptr != en, "every diagnostic key is in both tables");
             Check(0 != std::strcmp(ko, en), "the Korean and English messages differ");
         }
-        Check(korean.GetCount() == count && english.GetCount() == count,
-            "the tables have no keys that no diagnostic uses");
+        // 표에 진단 키 말고 무엇이 더 있어도 되는지는 명령줄 테스트가 본다(ScriptCompilerCommandLineTests.cpp).
     }
 
+    std::string Utf8(const std::filesystem::path& path)
+    {
+        const std::u8string text = path.u8string();
+        return std::string(text.begin(), text.end());
+    }
+
+    // 경로에 한글을 넣는다. 번역 표 경로는 UTF-8 로 넘기는데, 시스템 코드 페이지로 읽는 실수는 한글 경로에서만 드러난다.
+    // JBroc 이 설치 폴더 경로를 넘기다 이것에 걸려 죽은 적이 있다.
     std::filesystem::path MakeProbeDirectory()
     {
-        const std::filesystem::path directory = std::filesystem::temp_directory_path() / "JBroScriptCompilerMessagesProbe";
+        const std::filesystem::path directory = std::filesystem::temp_directory_path() / L"JBro컴파일러메시지Probe";
         std::filesystem::remove_all(directory);
         std::filesystem::create_directories(directory);
         return directory;
@@ -369,7 +376,7 @@ namespace
             "  jbroc.lex.invalid_number: \"Not a number: {0}\"\n");
 
         DiagnosticMessages messages;
-        Check(messages.Load(directory.string().c_str(), "ko-KR", "en-US"), "the probe tables load");
+        Check(messages.Load(Utf8(directory).c_str(), "ko-KR", "en-US"), "the probe tables load");
 
         Diagnostic both;
         both.Code = DiagnosticCode::UseWordOperator;
@@ -393,8 +400,8 @@ namespace
         Check(messages.Format(oneArgument) == "&& 대신 {1}", "a missing argument leaves its place visible");
 
         DiagnosticMessages untouched;
-        Check(untouched.Load(directory.string().c_str(), "ko-KR", nullptr), "load once");
-        Check(false == untouched.Load(directory.string().c_str(), "fr-FR", nullptr), "an absent locale fails");
+        Check(untouched.Load(Utf8(directory).c_str(), "ko-KR", nullptr), "load once");
+        Check(false == untouched.Load(Utf8(directory).c_str(), "fr-FR", nullptr), "an absent locale fails");
         Check(untouched.GetLocale() == "ko-KR" && untouched.GetCount() == 1,
             "a failed load keeps the table that was already there");
 

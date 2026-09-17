@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <string>
 #include <utility>
 
 namespace JBro::ScriptCompiler
@@ -18,8 +19,10 @@ namespace JBro::ScriptCompiler
             {
                 return false;
             }
-            std::filesystem::path path(directory);
-            path /= String(locale).Append(".yaml").Std();
+            // **경로는 UTF-8 이다.** `path(const char*)` 는 시스템 코드 페이지(한국어 Windows 는 949)로 읽어서,
+            // 한글이 든 UTF-8 경로를 넘기면 변환 예외가 난다. char8_t 로 넘겨 UTF-8 로 읽게 한다.
+            const std::string file8 = String(directory).Append("/").Append(locale).Append(".yaml").Std();
+            const std::filesystem::path path(std::u8string_view(reinterpret_cast<const char8_t*>(file8.data()), file8.size()));
             std::ifstream file(path, std::ios::binary);
             if (false == file.is_open())
             {
@@ -93,7 +96,12 @@ namespace JBro::ScriptCompiler
 
     String DiagnosticMessages::Format(const Diagnostic& diagnostic) const
     {
-        const char* key = GetDiagnosticKey(diagnostic.Code);
+        return FormatKey(GetDiagnosticKey(diagnostic.Code),
+            ArrayView<const String>(diagnostic.Arguments.Data(), diagnostic.Arguments.Size()));
+    }
+
+    String DiagnosticMessages::FormatKey(const char* key, ArrayView<const String> arguments) const
+    {
         const char* found = Find(key);
         const std::string_view pattern = nullptr != found ? std::string_view(found) : std::string_view(key);
 
@@ -111,9 +119,9 @@ namespace JBro::ScriptCompiler
                 continue;
             }
             const std::size_t argument = static_cast<std::size_t>(pattern[index + 1] - '0');
-            if (argument < diagnostic.Arguments.Size())
+            if (argument < arguments.Size())
             {
-                result.Append(diagnostic.Arguments[argument].View());
+                result.Append(arguments[argument].View());
             }
             else
             {
@@ -123,5 +131,20 @@ namespace JBro::ScriptCompiler
             index += 2;
         }
         return result;
+    }
+
+    String FormatDiagnosticLine(std::string_view path, const Diagnostic& diagnostic, const DiagnosticMessages& messages)
+    {
+        String line;
+        line.Append(path);
+        line.Append("(");
+        line.Append(std::to_string(diagnostic.Range.Begin.Line));
+        line.Append(",");
+        line.Append(std::to_string(diagnostic.Range.Begin.Column));
+        line.Append("): error JBC");
+        line.Append(std::to_string(GetDiagnosticNumber(diagnostic.Code)));
+        line.Append(": ");
+        line.Append(messages.Format(diagnostic).View());
+        return line;
     }
 }
