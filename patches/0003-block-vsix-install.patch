@@ -1,0 +1,111 @@
+diff --git a/src/vs/platform/extensionManagement/node/extensionManagementService.ts b/src/vs/platform/extensionManagement/node/extensionManagementService.ts
+index 6eefd716..20c0c080 100644
+--- a/src/vs/platform/extensionManagement/node/extensionManagementService.ts
++++ b/src/vs/platform/extensionManagement/node/extensionManagementService.ts
+@@ -69,6 +69,12 @@ type ExtractExtensionResult = { readonly local: ILocalExtension; readonly verifi
+ 
+ const DELETED_FOLDER_POSTFIX = '.vsctmp';
+ 
++// JBro patch 0003-block-vsix-install: the product ships every extension it runs, so extensions
++// cannot be added from a VSIX file or an unpacked folder. Every such path (command palette,
++// explorer, drag and drop, the workbench.extensions.installExtension API command and the CLI)
++// ends in install() or installFromLocation() below, so they are refused here.
++const sideloadingDisabled: boolean = true;
++
+ export class ExtensionManagementService extends AbstractExtensionManagementService implements INativeServerExtensionManagementService {
+ 
+ 	private readonly extensionsScanner: ExtensionsScanner;
+@@ -144,6 +150,9 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
+ 
+ 	async install(vsix: URI, options: InstallOptions = {}): Promise<ILocalExtension> {
+ 		this.logService.trace('ExtensionManagementService#install', vsix.toString());
++		if (sideloadingDisabled) {
++			throw new Error(`Installing extensions from a VSIX is disabled in this product: ${vsix.toString()}`);
++		}
+ 
+ 		const { location, cleanup } = await this.downloadVsix(vsix);
+ 
+@@ -175,6 +184,9 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
+ 
+ 	async installFromLocation(location: URI, profileLocation: URI): Promise<ILocalExtension> {
+ 		this.logService.trace('ExtensionManagementService#installFromLocation', location.toString());
++		if (sideloadingDisabled) {
++			throw new Error(`Installing extensions from a location is disabled in this product: ${location.toString()}`);
++		}
+ 		const local = await this.extensionsScanner.scanUserExtensionAtLocation(location);
+ 		if (!local || !local.manifest.name || !local.manifest.version) {
+ 			throw new Error(`Cannot find a valid extension from the location ${location.toString()}`);
+diff --git a/src/vs/workbench/contrib/extensions/browser/extensions.contribution.ts b/src/vs/workbench/contrib/extensions/browser/extensions.contribution.ts
+index b06c588b..0e5c4f62 100644
+--- a/src/vs/workbench/contrib/extensions/browser/extensions.contribution.ts
++++ b/src/vs/workbench/contrib/extensions/browser/extensions.contribution.ts
+@@ -47,7 +47,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
+ import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+ import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
+ import { Extensions as ConfigurationMigrationExtensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
+-import { IsSessionsWindowContext, ResourceContextKey, WorkbenchStateContext } from '../../../common/contextkeys.js';
++import { IsSessionsWindowContext, WorkbenchStateContext } from '../../../common/contextkeys.js';
+ import { IWorkbenchContribution, IWorkbenchContributionsRegistry, registerWorkbenchContribution2, Extensions as WorkbenchExtensions, WorkbenchPhase } from '../../../common/contributions.js';
+ import { EditorExtensions } from '../../../common/editor.js';
+ import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation } from '../../../common/views.js';
+@@ -934,15 +934,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
+ 			id: SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID,
+ 			title: localize2('InstallFromVSIX', 'Install from VSIX...'),
+ 			category: ExtensionsLocalizedLabel,
+-			menu: [{
+-				id: MenuId.CommandPalette,
+-				when: ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER)
+-			}, {
+-				id: MenuId.ViewContainerTitle,
+-				when: ContextKeyExpr.and(ContextKeyExpr.equals('viewContainer', VIEWLET_ID), ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER)),
+-				group: '3_install',
+-				order: 1
+-			}],
++			// JBro patch 0003-block-vsix-install: no menu entries, installing from a VSIX is refused.
+ 			run: async (accessor: ServicesAccessor) => {
+ 				const fileDialogService = accessor.get(IFileDialogService);
+ 				const commandService = accessor.get(ICommandService);
+@@ -962,11 +954,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
+ 		this.registerExtensionAction({
+ 			id: INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID,
+ 			title: localize('installVSIX', "Install Extension VSIX"),
+-			menu: [{
+-				id: MenuId.ExplorerContext,
+-				group: 'extensions',
+-				when: ContextKeyExpr.and(ResourceContextKey.Extension.isEqualTo('.vsix'), ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER)),
+-			}],
++			// JBro patch 0003-block-vsix-install: no menu entries, installing from a VSIX is refused.
+ 			run: async (accessor: ServicesAccessor, resources: URI[] | URI) => {
+ 				const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+ 				const hostService = accessor.get(IHostService);
+@@ -1022,10 +1010,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
+ 			id: 'workbench.extensions.action.installExtensionFromLocation',
+ 			title: localize2('installExtensionFromLocation', 'Install Extension from Location...'),
+ 			category: Categories.Developer,
+-			menu: [{
+-				id: MenuId.CommandPalette,
+-				when: ContextKeyExpr.or(CONTEXT_HAS_WEB_SERVER, CONTEXT_HAS_LOCAL_SERVER)
+-			}],
++			// JBro patch 0003-block-vsix-install: no menu entries, installing from a location is refused.
+ 			run: async (accessor: ServicesAccessor) => {
+ 				const extensionManagementService = accessor.get(IWorkbenchExtensionManagementService);
+ 				if (isWeb) {
+diff --git a/src/vs/workbench/contrib/extensions/browser/extensionsViewlet.ts b/src/vs/workbench/contrib/extensions/browser/extensionsViewlet.ts
+index 7ddb915a..da0cee93 100644
+--- a/src/vs/workbench/contrib/extensions/browser/extensionsViewlet.ts
++++ b/src/vs/workbench/contrib/extensions/browser/extensionsViewlet.ts
+@@ -1013,12 +1013,8 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer<IExtensionsVi
+ 		this.notificationService.error(err);
+ 	}
+ 
+-	private isSupportedDragElement(e: DragEvent): boolean {
+-		if (e.dataTransfer) {
+-			const typesLowerCase = e.dataTransfer.types.map(t => t.toLocaleLowerCase());
+-			return typesLowerCase.indexOf('files') !== -1;
+-		}
+-
++	private isSupportedDragElement(_e: DragEvent): boolean {
++		// JBro patch 0003-block-vsix-install: dropping a VSIX onto this view no longer installs it.
+ 		return false;
+ 	}
+ }

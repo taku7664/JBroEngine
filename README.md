@@ -41,7 +41,10 @@ npm test
 | `scripts/upstream-env.cmd` | 빌드 환경. 아래 스크립트가 `call` 로 부른다 |
 | `scripts/upstream-npm-ci.cmd` | 의존성 설치 |
 | `scripts/upstream-prelaunch.cmd` | Electron 받기, 컴파일, 내장 확장 받기 |
+| `scripts/upstream-compile.cmd` | 패치로 소스를 바꾼 뒤 다시 컴파일한다. `preLaunch` 는 `upstream\out` 이 있으면 컴파일하지 않는다 |
 | `scripts/upstream-launch.cmd` | 다시 빌드하지 않고 띄운다 |
+| `patches/NNNN-이름.patch` | 코어 패치. 파일 하나에 바꾸는 것 하나 |
+| `scripts/apply-patches.mjs` | 깨끗한 `upstream/` 에 패치를 이름 순서대로 적용한다. `--check` 는 적용되는지만 본다 |
 
 처음 한 번:
 
@@ -57,6 +60,24 @@ scripts\upstream-npm-ci.cmd
 scripts\upstream-prelaunch.cmd
 scripts\upstream-launch.cmd
 ```
+
+### 코어 패치
+
+```bat
+git -C upstream checkout -- .
+node scripts\apply-patches.mjs
+scripts\upstream-compile.cmd
+```
+
+패치 하나를 고칠 때는 `upstream/` 에서 직접 고친 뒤 그 패치가 건드리는 파일만 골라 다시 뽑는다
+(`git -C upstream diff -- <파일들> > patches\NNNN-이름.patch`). 패치끼리 같은 파일을 건드리지 않게 둔다.
+뽑은 뒤에는 되돌리고 `apply-patches.mjs` 로 다시 적용해서, 손으로 고친 결과와 같은지 `git -C upstream diff` 로 비교한다.
+
+| 패치 | 상태 |
+|---|---|
+| `0001-default-locale-ko` | 적용. 새로 만들어지는 `argv.json` 에 `"locale": "ko"` 가 들어가는 것을 확인했다 |
+| `0002-remove-chat-ai` | **아직 없다.** 기여 import 를 빼는 방식은 태스크·디버그가 채팅 서비스에 기대고 있어 쓸 수 없었다 |
+| `0003-block-vsix-install` | 적용. CLI 의 VSIX 설치가 거절되고, 시작할 때 새 에러가 없는 것을 확인했다 |
 
 **C: 에 쓰지 않는다.** `upstream-env.cmd` 가 `LOCALAPPDATA`·`TEMP`·`npm_config_cache` 를 `.toolchain` 아래로 돌린다.
 예외는 홈 폴더의 `.vscode-oss-dev\argv.json` 과 `.vscode-oss-shared` 두 가지로, 위치가 `--user-data-dir` 를 따르지 않는다.
