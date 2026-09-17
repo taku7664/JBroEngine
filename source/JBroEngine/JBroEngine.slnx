@@ -139,6 +139,16 @@
       <Build Solution="Debug_Game3D|x64" Project="false" />
       <Build Solution="Release_Game3D|x64" Project="false" />
     </Project>
+    <Project Path="Modules/JBroScriptCompiler/JBroScriptCompiler.vcxproj">
+      <BuildType Solution="Debug_Game2D|x64" Project="Debug" />
+      <BuildType Solution="Release_Game2D|x64" Project="Release" />
+      <BuildType Solution="Debug_Game3D|x64" Project="Debug" />
+      <BuildType Solution="Release_Game3D|x64" Project="Release" />
+      <Build Solution="Debug_Game2D|x64" Project="false" />
+      <Build Solution="Release_Game2D|x64" Project="false" />
+      <Build Solution="Debug_Game3D|x64" Project="false" />
+      <Build Solution="Release_Game3D|x64" Project="false" />
+    </Project>
   </Folder>
   <Folder Name="/Tests/">
     <Project Path="Tests/ScriptModuleProbe/JBroScriptModuleProbe.vcxproj">

@@ -18,7 +18,7 @@ Windows / D3D12 위에서 도는 2D 우선 게임 엔진이다. 기존 엔진(`J
 
 ## 아직 없는 것
 
-- JBroScript 언어와 컴파일러 `jbroc` (문법·규칙 문서만 있다)
+- JBroScript 언어와 컴파일러 `jbroc` (렉서만 있다. 파서·타입체커·이미터는 아직 없다)
 - 에셋 로드(`AssetSystem::Load` 는 스텁이다). 스프라이트는 아직 텍스처를 받지 못한다
 - 3D 렌더 시스템, 물리 시뮬레이션 본체, 오디오
 - Web 빌드(스텁만 있다)
@@ -30,7 +30,7 @@ source/JBroEngine/
   Modules/           모듈마다 vcxproj 하나. 공개 헤더는 Include/JBro/<이름>/ 아래
   Tests/             단일 테스트 실행 파일(JBroTests). 경계 위반이 컴파일 실패하는지 보는 음성 테스트 포함
   ThirdParty/        외부 라이브러리를 소스째로 둔다(지금은 ImGui)
-  Localization/      에디터 문구(ko-KR, en-US)
+  Localization/      에디터 문구(ko-KR, en-US). jbroc/ 아래는 컴파일러 진단 메시지
 source/JBroLauncher/       런처(C# / WinUI 3). 프로젝트 목록을 관리하고 에디터를 띄운다
 source/JBroLauncher.Tests/ 런처의 순수 로직을 재는 실행 파일
 docs/

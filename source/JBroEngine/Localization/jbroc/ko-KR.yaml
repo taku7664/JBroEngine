@@ -1,0 +1,8 @@
+Locale: ko-KR
+Entries:
+  jbroc.lex.unexpected_character: "여기에 쓸 수 없는 글자입니다: {0}"
+  jbroc.lex.use_word_operator: "{0} 대신 {1} 을(를) 쓰세요."
+  jbroc.lex.unterminated_string: "문자열이 닫히지 않았습니다. 줄이 바뀌기 전에 따옴표로 닫으세요."
+  jbroc.lex.invalid_escape: "지원하지 않는 이스케이프입니다: {0}. \" \\ \n \t 만 쓸 수 있습니다."
+  jbroc.lex.invalid_number: "올바른 숫자가 아닙니다: {0}"
+  jbroc.lex.integer_too_large: "정수가 너무 큽니다: {0}. Int 는 64비트입니다."

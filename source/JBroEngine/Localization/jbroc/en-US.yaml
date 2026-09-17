@@ -1,0 +1,8 @@
+Locale: en-US
+Entries:
+  jbroc.lex.unexpected_character: "This character cannot be used here: {0}"
+  jbroc.lex.use_word_operator: "Use {1} instead of {0}."
+  jbroc.lex.unterminated_string: "The string is not closed. Close it with a quote before the line ends."
+  jbroc.lex.invalid_escape: "Unsupported escape sequence: {0}. Only \" \\ \n \t are allowed."
+  jbroc.lex.invalid_number: "This is not a valid number: {0}"
+  jbroc.lex.integer_too_large: "The integer is too large: {0}. Int is 64-bit."
