@@ -76,8 +76,8 @@ scripts\upstream-compile.cmd
 | 패치 | 상태 |
 |---|---|
 | `0001-default-locale-ko` | 적용. 새로 만들어지는 `argv.json` 에 `"locale": "ko"` 가 들어가는 것을 확인했다 |
-| `0002-remove-chat-ai` | **시험 중, 방식 확인 대기.** `chat.disableAIFeatures` 기본값을 `true` 로 바꾼다. 에이전트 호스트가 뜨지 않고 새 에러가 없는 것을 확인했다. 사용자가 설정에서 다시 켤 수 있다. 기여 import 를 빼는 첫 방식은 태스크·디버그가 채팅 서비스에 기대고 있어 쓸 수 없었다 |
-| `0003-block-vsix-install` | 적용. CLI 의 VSIX 설치가 거절되고, 시작할 때 새 에러가 없는 것을 확인했다 |
+| `0002-remove-chat-ai` | 적용. `chat.disableAIFeatures` 기본값을 `true` 로 바꾼다. 에이전트 호스트가 뜨지 않고 새 에러가 없으며, 화면에 채팅·Copilot 안내가 뜨지 않는다. **없애지 않고 기본으로 끈다** - 사용자가 설정에서 다시 켤 수 있다. 기여 import 를 빼는 첫 방식은 태스크·디버그가 채팅 서비스에 기대고 있어 쓸 수 없었다 |
+| `0003-block-vsix-install` | 적용. CLI 의 VSIX 설치가 거절되고, 명령 팔레트에 VSIX 설치 항목이 없으며, 시작할 때 새 에러가 없다 |
 
 **C: 에 쓰지 않는다.** `upstream-env.cmd` 가 `LOCALAPPDATA`·`TEMP`·`npm_config_cache` 를 `.toolchain` 아래로 돌린다.
 예외는 홈 폴더의 `.vscode-oss-dev\argv.json` 과 `.vscode-oss-shared` 두 가지로, 위치가 `--user-data-dir` 를 따르지 않는다.
