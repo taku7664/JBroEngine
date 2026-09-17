@@ -27,6 +27,8 @@ int RunD3D12SmokeTests();
 int RunTextureBindingTests();
 int RunReferenceSafetyTests();
 int RunFramework2DSystemTests();
+int RunFramework3DSystemTests();
+int RunMeshPixelTests();
 int RunSystemSchedulerTests();
 int RunGameScriptTests();
 int RunEditorApplicationTests();
@@ -148,6 +150,14 @@ int main()
             return 1;
         }
         if (RunFramework2DSystemTests() != 0)
+        {
+            return 1;
+        }
+        if (RunFramework3DSystemTests() != 0)
+        {
+            return 1;
+        }
+        if (RunMeshPixelTests() != 0)
         {
             return 1;
         }

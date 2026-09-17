@@ -955,8 +955,8 @@ namespace
         Check(module.device.waitIdleCount == 1, "shutdown must wait for outstanding GPU work");
         Check(module.device.destroySwapchainCount == 1, "shutdown must destroy the swapchain");
         Check(module.destroyDeviceCount == 1, "shutdown must destroy the device");
-        Check(module.device.destroyPipelineCount == 1,
-            "shutdown must destroy the built-in sprite pipeline");
+        Check(module.device.destroyPipelineCount == 2,
+            "shutdown must destroy the built-in sprite and mesh pipelines");
     }
     struct HostOverlayProbe
     {
@@ -978,6 +978,42 @@ namespace
 
     // **에디터 프레임의 배선이 호스트까지 닿는가.** 게임 화면은 텍스처로 가고,
     // 백버퍼에 낼 것이 없어도 프레임은 살아 있어야 에디터 UI 가 거기에 얹힌다(D-63).
+    // **메시 등록은 입력을 검사하고 프레임 밖에서만 된다**(D-106). 정점 밖을 가리키는 색인은 GPU 가
+    // 쓰레기를 읽는 길이라 여기서 막는다.
+    void TestMeshRegistrationValidatesItsInput()
+    {
+        FakeModule module;
+        JBro::Renderer renderer;
+        JBro::RendererConfig config;
+        config.surface.value = 1;
+        config.maxMeshSubmissions = 4;
+        Check(renderer.Initialize(module, config), "the renderer must initialize");
+        const JBro::MeshVertex vertices[3] = {};
+        const std::uint32_t indices[3] = {0, 1, 2};
+        const std::uint32_t outOfRange[3] = {0, 1, 3};
+        const std::uint32_t notTriangles[4] = {0, 1, 2, 0};
+        const JBro::AssetHandle mesh = renderer.RegisterMesh({vertices, 3}, {indices, 3});
+        Check(mesh.generation != 0, "a sane mesh must register");
+        Check(renderer.GetMeshCount() == 1, "and be counted");
+        Check(renderer.RegisterMesh({vertices, 3}, {outOfRange, 3}).generation == 0,
+            "an index past the vertices is refused");
+        Check(renderer.RegisterMesh({vertices, 3}, {notTriangles, 4}).generation == 0,
+            "an index count that is not triangles is refused");
+        Check(renderer.RegisterMesh({vertices, 0}, {indices, 3}).generation == 0, "and so is an empty mesh");
+        Check(renderer.BeginFrame() == JBro::FrameStatus::Ready, "a frame must begin");
+        Check(renderer.RegisterMesh({vertices, 3}, {indices, 3}).generation == 0,
+            "nothing registers inside a frame");
+        renderer.AbortFrame();
+        renderer.UnregisterMesh(mesh);
+        Check(renderer.GetMeshCount() == 0, "unregistering takes it off the count");
+        const JBro::AssetHandle again = renderer.RegisterMesh({vertices, 3}, {indices, 3});
+        Check(again.index == mesh.index && again.generation == mesh.generation + 1,
+            "the slot is reused under a new generation so the old handle is dead");
+        renderer.UnregisterMesh(mesh);
+        Check(renderer.GetMeshCount() == 1, "and the old handle no longer unregisters anything");
+        renderer.Shutdown();
+    }
+
     void TestTheHostHandsTheEditorItsFrame()
     {
         FakeModule module;
@@ -1072,6 +1108,7 @@ int RunRendererContractTests()
     TestFrameworkSubmitsTransformedBatches();
     TestEngineHostLifecycle();
     TestTheHostHandsTheEditorItsFrame();
+    TestMeshRegistrationValidatesItsInput();
     TestProjectSwitchPreservesProcessResources();
     std::cout << "Renderer contract tests passed.\n";
     return 0;

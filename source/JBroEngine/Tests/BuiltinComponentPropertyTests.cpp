@@ -65,10 +65,10 @@ namespace
         Check(JBro::Component::RegisterBuiltinComponentProperties3D(),
             "every builtin 3D component must register");
 
-        // 3D 쪽은 아직 골격이다(D-53). 개수가 적은 것이 맞고, 늘어나면 여기가 먼저 운다.
-        Check(Table("Component::Transform3D").count == 3, "Transform3D declares three fields");
-        Check(Table("Component::Camera3D").count == 1, "Camera3D declares one field");
-        Check(Table("Component::MeshRenderer3D").count == 4, "MeshRenderer3D declares four fields");
+        // 3D 도 2D 와 같은 모양이 됐다(framework3d-plan §2.1). 저작 값 셋 + 월드 캐시 넷.
+        Check(Table("Component::Transform3D").count == 7, "Transform3D declares seven fields");
+        Check(Table("Component::Camera3D").count == 7, "Camera3D declares seven fields");
+        Check(Table("Component::MeshRenderer3D").count == 6, "MeshRenderer3D declares six fields");
         Check(Table("Component::Rigidbody3D").count == 2, "Rigidbody3D declares two fields");
         Check(Table("Component::Collider3D").count == 1, "Collider3D declares one field");
 
