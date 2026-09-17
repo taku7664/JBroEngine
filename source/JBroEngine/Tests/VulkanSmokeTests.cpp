@@ -41,6 +41,21 @@ namespace
             return;
         }
         Check(rhi.GetApi() == JBro::GraphicsApi::Vulkan, "the module must say which API it speaks");
+        // 건너뛸 이유는 "이 기계에 1.3 디바이스가 없다" 하나뿐이다. 디바이스가 서는데 렌더러가 안 서면 그것은
+        // 실패다 - 셰이더나 스왑체인이 잘못된 것이라 건너뛰면 감춰진다.
+        {
+            JBro::RHIDeviceCreateInfo probeInfo;
+            probeInfo.enableValidation = true;
+            JBro::IRHIDevice* probe = rhi.CreateDevice(probeInfo);
+            if (probe == nullptr)
+            {
+                std::cout << "  [skip] no Vulkan 1.3 device here" << std::endl;
+                rhi.Shutdown();
+                platform.Shutdown();
+                return;
+            }
+            rhi.DestroyDevice(probe);
+        }
         JBro::WindowDesc windowDesc;
         constexpr char title[] = "JBro Vulkan probe";
         windowDesc.title = {title, sizeof(title) - 1};
@@ -57,14 +72,7 @@ namespace
         config.surfaceExtent = {64, 48};
         config.presentMode = JBro::PresentMode::Immediate;
         config.validation = true;
-        if (false == renderer.Initialize(rhi, config))
-        {
-            std::cout << "  [skip] no Vulkan 1.3 device here" << std::endl;
-            rhi.Shutdown();
-            platform.ClosePlatformWindow(window);
-            platform.Shutdown();
-            return;
-        }
+        Check(renderer.Initialize(rhi, config), "the renderer must stand on a machine that has a Vulkan device");
         JBro::IRHIDevice* device = renderer.GetDevice();
         Check(device != nullptr && device->GetFramesInFlight() == 2,
             "Vulkan keeps as many frames in flight as the renderer asked for (two by default)");
