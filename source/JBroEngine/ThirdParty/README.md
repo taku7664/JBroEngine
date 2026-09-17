@@ -66,3 +66,8 @@ imgui_demo.cpp
 `imgui_demo.cpp` 는 남겨 두었다. 백엔드를 붙일 때 **데모 창 하나가 전체 경로를 증명한다.**
 
 `imgui_stdlib`(std::string 헬퍼)와 `imgui_impl_win32` 는 필요해질 때 가져온다.
+
+### Vulkan-Headers — SDK 1.4.350.0, Apache-2.0
+
+`JBroVulkanRHI` 의 API 헤더다(D-108). `vulkan-1.dll` 은 실행 시간에 열므로 SDK 의 가져오기 라이브러리는
+필요 없고, 헤더만 여기서 읽는다 - 그래서 클론이 Vulkan SDK 없이 빌드된다. 자세한 것은 폴더의 README 에.
