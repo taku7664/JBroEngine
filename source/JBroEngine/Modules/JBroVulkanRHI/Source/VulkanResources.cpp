@@ -482,6 +482,7 @@ namespace JBro::Internal
             view.view = state.views[state.currentImage];
             view.layout = &state.layouts[state.currentImage];
             view.aspect = VK_IMAGE_ASPECT_COLOR_BIT;
+            view.extent = {state.desc.extent.width, state.desc.extent.height};
             return true;
         }
         const std::uint32_t slot = texture.index - TextureResourceBase;
@@ -504,35 +505,8 @@ namespace JBro::Internal
         view.view = state.view;
         view.layout = &state.layout;
         view.aspect = depth ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+        view.extent = {state.desc.extent.width, state.desc.extent.height};
         view.sampled = HasTextureUsage(state.desc.usage, TextureUsage::Sampled);
-        return true;
-    }
-
-    bool VulkanDevice::ResolveAttachmentExtent(TextureHandle texture, VkExtent2D& extent)
-    {
-        extent = {};
-        if (false == texture.IsValid() || texture.index < BackBufferTextureBase)
-        {
-            return false;
-        }
-        if (texture.index < TextureResourceBase)
-        {
-            const std::uint32_t index = texture.index - BackBufferTextureBase;
-            if (index >= MaxSwapchains || false == m_swapchains[index].occupied
-                || m_swapchains[index].backBufferGeneration != texture.generation)
-            {
-                return false;
-            }
-            extent = {m_swapchains[index].desc.extent.width, m_swapchains[index].desc.extent.height};
-            return true;
-        }
-        const std::uint32_t slot = texture.index - TextureResourceBase;
-        if (slot >= MaxTextures || false == m_textures[slot].occupied
-            || m_textures[slot].generation != texture.generation)
-        {
-            return false;
-        }
-        extent = {m_textures[slot].desc.extent.width, m_textures[slot].desc.extent.height};
         return true;
     }
 

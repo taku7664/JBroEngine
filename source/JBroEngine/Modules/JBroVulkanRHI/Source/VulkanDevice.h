@@ -217,10 +217,10 @@ namespace JBro::Internal
             VkImageView view = VK_NULL_HANDLE;
             VkImageLayout* layout = nullptr;
             VkImageAspectFlags aspect = VK_IMAGE_ASPECT_COLOR_BIT;
+            VkExtent2D extent = {};
             bool sampled = false;
         };
         bool ResolveAttachment(TextureHandle texture, AttachmentView& view);
-        bool ResolveAttachmentExtent(TextureHandle texture, VkExtent2D& extent);
         bool ResolveSampledTexture(TextureHandle texture, VkImageView& view);
         bool ResolveBuffer(BufferHandle buffer, VkBuffer& native, BufferDesc& desc);
         bool ResolveSampler(SamplerHandle sampler, VkSampler& native);

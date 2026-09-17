@@ -400,6 +400,12 @@ namespace JBro::Internal
 
     void VulkanDevice::Shutdown()
     {
+        if (m_device != VK_NULL_HANDLE && (vk.vkDeviceWaitIdle == nullptr || vk.vkDestroyDevice == nullptr))
+        {
+            // 함수표가 다 실리지 않았다(`LoadVulkanDeviceFunctions` 실패). 지울 함수가 없으니 디바이스는 두고
+            // 인스턴스만 내린다 - 초기화 실패 경로라 프로세스는 곧 Vulkan 없이 간다.
+            m_device = VK_NULL_HANDLE;
+        }
         if (m_device != VK_NULL_HANDLE)
         {
             vk.vkDeviceWaitIdle(m_device);
@@ -494,12 +500,17 @@ namespace JBro::Internal
         }
         if (m_retiredCount == MaxRetired)
         {
-            // 넘치면 한 번 기다리고 비운다. 드문 일이라 여기서 GPU 를 기다리는 것을 받아들인다.
+            // 넘치면 한 번 기다리고 비운다. 드문 일이라 여기서 GPU 를 기다리는 것을 받아들인다. 기록 중인 프레임이
+            // 은퇴시킨 것은 그 명령 버퍼가 아직 가리키므로 남긴다 - 그래도 자리가 없으면 이 객체는 새는 쪽을 택한다.
             if (m_device != VK_NULL_HANDLE)
             {
                 vk.vkDeviceWaitIdle(m_device);
             }
-            FlushRetired(~std::uint64_t{0});
+            FlushRetired(m_frameActive ? m_frameSerial - 1 : ~std::uint64_t{0});
+            if (m_retiredCount == MaxRetired)
+            {
+                return;
+            }
         }
         m_retired[m_retiredCount++] = {kind, handle, m_frameSerial};
     }
@@ -904,8 +915,19 @@ namespace JBro::Internal
             state.backBufferGeneration = backBufferGeneration;
             return {};
         }
-        // 슬롯 수는 스왑체인의 요청을 따른다. 프레임 슬롯은 디바이스 것이라 첫 스왑체인이 정한다.
-        m_slotCount = desc.maxFramesInFlight > MaxFramesInFlight ? MaxFramesInFlight : desc.maxFramesInFlight;
+        // 슬롯 수는 스왑체인의 요청을 따른다. 프레임 슬롯은 디바이스 것이라 스왑체인이 하나도 없을 때만 바꾼다 -
+        // 부르는 쪽은 `GetFramesInFlight()` 로 슬롯 배열을 잡으므로 살아 있는 동안 바뀌면 안 된다. 바뀌면 지금
+        // 슬롯 번호도 그 안으로 접는다.
+        bool anotherLives = false;
+        for (std::uint32_t at = 0; at < MaxSwapchains; ++at)
+        {
+            anotherLives = anotherLives || (at != index && m_swapchains[at].occupied);
+        }
+        if (false == anotherLives)
+        {
+            m_slotCount = desc.maxFramesInFlight > MaxFramesInFlight ? MaxFramesInFlight : desc.maxFramesInFlight;
+            m_slot %= m_slotCount;
+        }
         state.occupied = true;
         return SwapchainHandle{index, state.generation};
     }
@@ -950,10 +972,17 @@ namespace JBro::Internal
         state->swapchain = VK_NULL_HANDLE;
         if (false == BuildSwapchain(*state, old))
         {
-            if (state->swapchain == VK_NULL_HANDLE && old != VK_NULL_HANDLE)
+            // 반쯤 선 스왑체인은 두지 않는다. 옛 것(만들기가 실패해 아직 살아 있으면)이든 새 것(뒷단계에서
+            // 실패했으면)이든 지우고 비워 둔다 - 다음 `BeginFrame` 이 SurfaceLost 를 돌려 주고 호스트가 다시 시도한다.
+            if (state->swapchain == VK_NULL_HANDLE)
             {
-                // 새 것을 만들지 못했다. 옛 것은 이미 retired 이거나 여전히 유효하다 - 유효하면 남겨 둔다.
                 state->swapchain = old;
+            }
+            ReleaseSwapchainImages(*state);
+            if (state->swapchain != VK_NULL_HANDLE)
+            {
+                vk.vkDestroySwapchainKHR(m_device, state->swapchain, nullptr);
+                state->swapchain = VK_NULL_HANDLE;
             }
             return false;
         }
@@ -972,9 +1001,15 @@ namespace JBro::Internal
             return result;
         }
         VulkanSwapchainState* state = FindSwapchain(swapchain);
-        if (state == nullptr || state->swapchain == VK_NULL_HANDLE)
+        if (state == nullptr)
         {
             result.status = FrameStatus::InvalidState;
+            return result;
+        }
+        if (state->swapchain == VK_NULL_HANDLE)
+        {
+            // 크기 바꾸기가 실패해 비어 있다. 표면을 다시 세워야 한다.
+            result.status = FrameStatus::SurfaceLost;
             return result;
         }
         VulkanFrameSlot& slot = m_slots[m_slot];
@@ -990,6 +1025,21 @@ namespace JBro::Internal
             m_completedSerial = slot.serial;
         }
         FlushRetired(m_completedSerial);
+        // 획득보다 먼저 비운다. 획득 뒤에 실패하면 신호가 걸린 세마포어를 기다릴 곳이 없어지므로, 실패할 수 있는 것은
+        // 앞에 두고 획득 뒤에는 펜스 리셋만 남긴다(펜스는 획득 전에 리셋하면 실패 시 다음 프레임이 영원히 기다린다).
+        if (vk.vkResetDescriptorPool(m_device, slot.descriptorPool, 0) != VK_SUCCESS
+            || vk.vkResetCommandBuffer(slot.commands, 0) != VK_SUCCESS)
+        {
+            result.status = FrameStatus::InvalidState;
+            return result;
+        }
+        VkCommandBufferBeginInfo begin = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+        begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        if (vk.vkBeginCommandBuffer(slot.commands, &begin) != VK_SUCCESS)
+        {
+            result.status = FrameStatus::InvalidState;
+            return result;
+        }
         std::uint32_t imageIndex = 0;
         const VkResult acquired = vk.vkAcquireNextImageKHR(m_device, state->swapchain, ~std::uint64_t{0},
             slot.imageAvailable, VK_NULL_HANDLE, &imageIndex);
@@ -1009,18 +1059,10 @@ namespace JBro::Internal
             result.status = FrameStatus::InvalidState;
             return result;
         }
-        if (vk.vkResetFences(m_device, 1, &slot.fence) != VK_SUCCESS
-            || vk.vkResetDescriptorPool(m_device, slot.descriptorPool, 0) != VK_SUCCESS
-            || vk.vkResetCommandBuffer(slot.commands, 0) != VK_SUCCESS)
+        if (vk.vkResetFences(m_device, 1, &slot.fence) != VK_SUCCESS)
         {
-            result.status = FrameStatus::InvalidState;
-            return result;
-        }
-        VkCommandBufferBeginInfo begin = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
-        begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-        if (vk.vkBeginCommandBuffer(slot.commands, &begin) != VK_SUCCESS)
-        {
-            result.status = FrameStatus::InvalidState;
+            MarkDeviceLost();
+            result.status = FrameStatus::DeviceLost;
             return result;
         }
         state->currentImage = imageIndex;
@@ -1048,7 +1090,7 @@ namespace JBro::Internal
             return FrameStatus::InvalidState;
         }
         const std::uint32_t image = state.currentImage;
-        if (present)
+        if (present && state.presentedCopy != VK_NULL_HANDLE)
         {
             // 제시하면 이 이미지는 우리 것이 아니다. 되읽기용 사본을 먼저 뜬다 - 한 프레임에 복사 하나다.
             TransitionImage(slot.commands, state.images[image], VK_IMAGE_ASPECT_COLOR_BIT, state.layouts[image],
@@ -1072,7 +1114,10 @@ namespace JBro::Internal
         state.layouts[image] = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
         if (vk.vkEndCommandBuffer(slot.commands) != VK_SUCCESS)
         {
-            return FrameStatus::InvalidState;
+            // 제출하지 못하면 이 슬롯의 펜스는 영원히 안 오고 얻어 온 이미지도 돌아가지 않는다. 계속 갈 길이 없다 -
+            // 디바이스를 잃은 것으로 친다.
+            MarkDeviceLost();
+            return FrameStatus::DeviceLost;
         }
         VkSemaphoreSubmitInfo wait = {VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO};
         wait.semaphore = slot.imageAvailable;
@@ -1099,7 +1144,8 @@ namespace JBro::Internal
         }
         if (submitted != VK_SUCCESS)
         {
-            return FrameStatus::InvalidState;
+            MarkDeviceLost();
+            return FrameStatus::DeviceLost;
         }
         VkPresentInfoKHR presentInfo = {VK_STRUCTURE_TYPE_PRESENT_INFO_KHR};
         presentInfo.waitSemaphoreCount = 1;
@@ -1162,8 +1208,9 @@ namespace JBro::Internal
             return;
         }
         vk.vkDeviceWaitIdle(m_device);
-        m_completedSerial = m_frameSerial;
-        FlushRetired(m_frameActive ? m_frameSerial - 1 : m_frameSerial);
+        // 기록 중인 프레임은 아직 제출되지 않았다. 그 프레임이 은퇴시킨 것은 그 명령 버퍼가 여전히 가리키므로 남긴다.
+        m_completedSerial = m_frameActive ? m_frameSerial - 1 : m_frameSerial;
+        FlushRetired(m_completedSerial);
     }
 
     std::uint32_t VulkanDevice::GetFramesInFlight() const
@@ -1263,7 +1310,8 @@ namespace JBro::Internal
         if (ok)
         {
             // 아직 아무 레이아웃도 아니면(그린 적 없는 텍스처) 내용도 없다. 그래도 읽기는 성립한다 - 값이 무엇이든.
-            const VkImageLayout before = *layout == VK_IMAGE_LAYOUT_UNDEFINED ? VK_IMAGE_LAYOUT_GENERAL : *layout;
+            // 되돌려 놓을 레이아웃. 아직 아무것도 아니던(UNDEFINED) 텍스처는 GENERAL 로 올려 둔다 - UNDEFINED 로는 돌아갈 수 없다.
+            const VkImageLayout restoreTo = *layout == VK_IMAGE_LAYOUT_UNDEFINED ? VK_IMAGE_LAYOUT_GENERAL : *layout;
             TransitionImage(m_oneShotCommands, image, VK_IMAGE_ASPECT_COLOR_BIT, *layout,
                 VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
             VkBufferImageCopy region = {};
@@ -1273,8 +1321,8 @@ namespace JBro::Internal
             vk.vkCmdCopyImageToBuffer(m_oneShotCommands, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, staging, 1,
                 &region);
             TransitionImage(m_oneShotCommands, image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                before);
-            *layout = before;
+                restoreTo);
+            *layout = restoreTo;
             ok = EndOneShot();
         }
         if (ok)

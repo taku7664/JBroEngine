@@ -88,7 +88,8 @@ namespace JBro::Internal
 
         // 배리어는 패스 밖에서만 넣을 수 있다. 첨부를 전부 여기서 돌려 놓는다.
         VkRenderingAttachmentInfo colorInfos[MaxColorAttachments] = {};
-        VkExtent2D extent = {};
+        // 렌더 영역은 첨부 크기다. 첫 색 첨부의 크기를 쓴다 - 첨부들은 같은 크기여야 한다.
+        const VkExtent2D extent = colors[0].extent;
         m_sampledAtEndCount = 0;
         for (std::uint32_t index = 0; index < desc.colorAttachments.size; ++index)
         {
@@ -128,11 +129,6 @@ namespace JBro::Internal
             depthInfo.storeOp = ToNativeStore(desc.depthStencilAttachment->depthStoreOperation);
             depthInfo.clearValue.depthStencil = {desc.depthStencilAttachment->clearDepth,
                 desc.depthStencilAttachment->clearStencil};
-        }
-        // 렌더 영역은 첨부 크기다. 첫 색 첨부의 크기를 쓴다 - 첨부들은 같은 크기여야 한다.
-        if (false == m_device->ResolveAttachmentExtent(desc.colorAttachments.data[0].texture, extent))
-        {
-            return false;
         }
         VkRenderingInfo rendering = {VK_STRUCTURE_TYPE_RENDERING_INFO};
         rendering.renderArea.extent = extent;

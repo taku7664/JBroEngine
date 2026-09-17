@@ -9,7 +9,7 @@ namespace JBro::Internal
     namespace
     {
         constexpr std::uint32_t MaxVertexAttributes = 16;
-        // 스펙이 보장하는 푸시 상수 최소치다. 계약은 256 까지 말하지만 여기서는 그 안에서만 받는다.
+        // 스펙이 보장하는 푸시 상수 최소치다. 계약(RHI.h)은 상한을 말하지 않는다 - D3D12 는 256 까지 받고 여기는 128 이다.
         constexpr std::uint32_t MaxPushConstantBytes = 128;
 
         VkFormat ToNativeVertexFormat(VertexFormat format)
