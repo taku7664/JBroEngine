@@ -2,7 +2,7 @@
 
 > 2026-09-15 작성, 2026-09-16 갱신. **P0 스파이크를 닫았고 P1 문법 강조 확장이 섰다(옛 문법 기준).**
 > 편집기 리포는 `F:\Project\JBroScriptEditor` 다. **upstream 소스를 `upstream/` 에 받아 두었고 코어 패치 목록을 정했다(§5.2).**
-> **2026-09-17 에 그 upstream 을 패치 없이 스크립트로 빌드해 창을 띄웠다(§4.2).**
+> **2026-09-17 에 그 upstream 을 스크립트로 빌드해 창을 띄웠고, 패치 0001·0003 을 적용했다. 0002 는 첫 방식이 실패해 후보 방식을 재는 중이다(§5.2).**
 > **진행 현황·남은 일·막힌 곳은 §8 에 있다.** §7 에 남은 세부 질문은 포크 빌드 전에 정한다.
 > 근거는 [jbroscript-plan.md](./jbroscript-plan.md) §9·§10·§13·§18.7 과 [todo.md](./todo.md) D-56·D-60 이다.
 > 확정 계약이 아니라 계획이므로 `docs/ProjectRule.md` 가 아니라 여기에 둔다.
@@ -75,12 +75,14 @@
   같은 길로 빌드되므로, 편집기의 "빌드" 는 `jbroc` → MSBuild 를 부르는 일이 된다.
 - 호스트에 파일 감시가 없다. 편집기에서 빌드한 뒤 씬 에디터가 새 DLL 을 알아채는 길이 아직 없다.
 
-**Code-OSS 는 바깥과 통신하지 않는다(2026-09-16, `product.json` 으로 확인).**
-`updateUrl`·`extensionsGallery`·`telemetryOptInStatusUrl`·`experimentsUrl`·`surveys` 가 모두 없다.
-자동 업데이트·텔레메트리·마켓플레이스·실험·설문이 보낼 주소를 갖고 있지 않다.
-채팅도 로그인하지 않으면 요청을 내지 않는다. `chatEntitlementService.ts:1063` 의 `resolve()` 는
-계정이 없으면 상태를 `Unknown` 으로 두고 끝내고, 네트워크 요청은 `if (defaultAccount)` 안쪽에만 있다.
-**편집기는 오프라인에서 온전히 동작한다.**
+**`product.json` 에는 바깥으로 보낼 주소가 없다(2026-09-16 확인).** `updateUrl`·`extensionsGallery`·
+`telemetryOptInStatusUrl`·`experimentsUrl`·`surveys` 가 모두 없어서 자동 업데이트·텔레메트리·마켓플레이스·실험·설문은
+보낼 곳이 없다. 채팅의 자격 확인도 로그인하지 않으면 요청을 내지 않는다(`chatEntitlementService.ts:1063`).
+
+~~**편집기는 오프라인에서 온전히 동작한다.**~~ **이 결론은 근거가 부족했다(2026-09-17).** `product.json` 과 채팅 자격 확인만
+봤다. 패치 없는 개발 실행에서는 에이전트 호스트가 로그인 없이 Copilot 클라이언트를 띄웠다(§5.2 의 "0002").
+그 프로세스가 통신했는지는 재지 않았다. `window1/network.log` 와 `network-shared.log` 는 비어 있었지만 에이전트 호스트는
+따로 로그를 남기므로 이것이 증거가 되지 못한다. 0002 후보를 적용하면 에이전트 호스트가 뜨지 않는다.
 
 ---
 
@@ -219,53 +221,106 @@ VSCodium 이 같은 일을 하는 방식이며, 코드 로직을 바꾸지 않�
   그 이유를 보고 "다시 맞출지, 버릴지" 를 정하게 된다.
 - **upstream 을 올릴 때 패치 전체가 깨끗하게 적용되는지를 첫 검증으로 둔다.**
 
-#### 패치 목록 (2026-09-16 확정)
+#### 패치 목록 (2026-09-16 확정, 2026-09-17 구현)
 
 줄 번호는 upstream `1.137.0`(커밋 `645f29c`)을 `F:\Project\JBroScriptEditor\upstream` 에 받아
-직접 읽고 확인한 것이다. upstream 을 올리면 다시 확인한다.
+직접 읽고 확인한 것이다. upstream 을 올리면 다시 확인한다. 패치 파일은 편집기 리포 `patches/` 에 있고
+`scripts/apply-patches.mjs` 가 깨끗한 upstream 에 이름 순서대로 적용한다(편집기 리포 README).
 
-| 번호 | 이름 | 바꾸는 것 | 이유 |
-|---|---|---|---|
-| 0001 | `default-locale-ko` | `src/main.ts:422` 의 `defaultArgvConfigContent` 에 `"locale": "ko"` 를 넣는다 | OS 언어와 무관하게 첫 실행을 한국어로 연다(§5.5). 기본 `argv.json` 내용이 `product.json` 이 아니라 코드에 문자열로 박혀 있어 설정으로 닿을 수 없다 |
-| 0002 | `remove-chat-ai` | `src/vs/workbench/workbench.common.main.ts` 의 230~234·237~241·394·400·434·480 줄과 `workbench.desktop.main.ts` 의 189·190·193·202 줄에서 부수효과 import 를 뺀다 | 채팅·AI 기능을 화면에서 없앤다. 마켓플레이스가 없어 Copilot 확장을 설치할 길이 없으므로, 두면 로그인만 권하는 죽은 UI 가 남는다 |
-| 0003 | `block-vsix-install` | `contrib/extensions/browser/extensions.contribution.ts:935`·`964` 의 명령 등록, `extensionsActions.ts:228` 의 메뉴 항목, `extensionsViewlet.ts:695~701` 의 끌어놓기 처리, `platform/environment/node/argv.ts:130` 의 `--install-extension` 을 뺀다 | 남의 확장이 들어오는 마지막 통로를 막아 편집기 구성을 배포한 그대로 고정한다(§5.3) |
-| 0004 | `menu-structure` | **미정.** 메뉴 항목의 구성을 JBro 에 맞게 고친다 | 씬 에디터에서 넘어온 사람이 쓰는 편집기라 VS Code 의 메뉴를 그대로 둘 이유가 없다(2026-09-16 결정). **기본 레이아웃(편집기·사이드바·패널의 배치)은 VS Code 와 비슷하게 유지한다.** 세부 항목은 포크를 띄워 실제 화면을 보고 정한다 |
+| 번호 | 이름 | 상태 | 바꾸는 것 | 이유 |
+|---|---|---|---|---|
+| 0001 | `default-locale-ko` | **적용** | `src/main.ts:422` 의 `defaultArgvConfigContent` 에 `"locale": "ko"` 를 넣는다 | OS 언어와 무관하게 첫 실행을 한국어로 연다(§5.5). 기본 `argv.json` 내용이 `product.json` 이 아니라 코드에 문자열로 박혀 있어 설정으로 닿을 수 없다 |
+| 0002 | `remove-chat-ai` | **후보, 방식 확인 대기** | `contrib/chat/browser/chat.shared.contribution.ts:2379` 의 `chat.disableAIFeatures` 기본값을 `true` 로 바꾼다 | 채팅·AI 기능과 그것이 띄우는 에이전트 호스트를 끈다. 아래 "0002" 참고 |
+| 0003 | `block-vsix-install` | **적용** | `platform/extensionManagement/node/extensionManagementService.ts` 의 `install()`·`installFromLocation()` 이 거절하고, 화면 입구(팔레트·확장 뷰 메뉴·탐색기 우클릭·끌어놓기)를 지운다 | 남의 확장이 들어오는 통로를 막아 편집기 구성을 배포한 그대로 고정한다(§5.3). 아래 "0003" 참고 |
+| 0004 | `menu-structure` | 미정 | 메뉴 항목의 구성을 JBro 에 맞게 고친다 | 씬 에디터에서 넘어온 사람이 쓰는 편집기라 VS Code 의 메뉴를 그대로 둘 이유가 없다(2026-09-16 결정). **기본 레이아웃(편집기·사이드바·패널의 배치)은 VS Code 와 비슷하게 유지한다.** 세부 항목은 포크를 띄워 실제 화면을 보고 정한다 |
 
-**0002 를 "설정으로 끄면 된다" 로 대신할 수 없는 것을 소스로 확인했다(2026-09-16).**
+패치끼리 같은 파일을 건드리지 않는다. 패치 파일만으로 만든 트리가 손으로 고친 트리와 바이트 단위로 같은 것을
+확인했다(2026-09-17, 세 패치). 개발 컴파일은 esbuild 로 변환하고 tsgo 로 따로 타입 검사를 한다
+(`build/lib/compilation.ts:131`). 로그의 `Finished compile-src ... src\tsconfig.json with 0 errors` 가 그 결과다.
+**`preLaunch` 는 `out` 이 있으면 컴파일하지 않으므로**(`build/lib/preLaunch.ts:61`) 패치 뒤에는
+편집기 리포의 `scripts/upstream-compile.cmd` 로 다시 컴파일한다.
 
-- `chat.disableAIFeatures` 설정은 있지만(`platform/chat/common/chatSettings.ts:6`), 하는 일은 Copilot **확장을
-  비활성화하는 것**이 중심이다(`chatSetupContributions.ts:799`). 마켓이 없어 그 확장이 설치되지 않으므로 끌 대상이 없다.
-- `product.json` 으로 기본 설정값을 바꾸는 길은 없다. `IProductConfiguration` 에 `configurationDefaults` 가 없고,
-  기본값 덮어쓰기는 확장의 기여이거나 웹 호스트의 `options.configurationDefaults` 뿐이다
-  (`services/configuration/browser/configuration.ts:48`).
-- `product.json` 에서 `defaultChatAgent` 만 지우는 것으로도 안 된다. `chatEntitlementService.ts:459` 가
-  `if (!productService.defaultChatAgent) { return; }` 로 빠져나가는데 이 갈래는 `Setup.hidden` 을 켜지 않고,
-  그 컨텍스트 키의 기본값은 `false` 다(`chatEntitlementService.ts:41`). 채팅 UI 의 표시 조건 다수가
-  `ChatContextKeys.Setup.hidden.negate()` 이므로 **설정 논리만 죽고 UI 는 남는다.**
+##### 0001
 
-**0002 의 위험: 빌드해서 띄워 봐야 안다.** `defaultChatAgent` 를 참조하는 파일이 51개이고 그중에
-`contrib/scm/browser/scmInput.ts`·`contrib/extensions/browser/extensionsWorkbenchService.ts`·
-`editor/contrib/inlineCompletions` 처럼 채팅이 아닌 기능도 있다. 부수효과 import 를 빼면 컴파일은 통과해도
-그 자리들이 런타임에 서비스를 못 찾을 수 있다. **0002 의 검증은 창을 띄워 렌더러 에러가 없는 것까지 본다.**
+새 `argv.json` 에 `"locale": "ko"` 가 들어가는 것을 봤다(2026-09-17, 기존 `argv.json` 을 옆으로 치우고 띄움).
+화면이 실제로 한국어가 되는지는 언어 팩을 실은 릴리스 빌드에서 잰다(§5.5).
 
-**0002 가 덮는 것**은 `chat`·`inlineChat`·`agentsVoice`·`mcp`·`welcomeOnboarding`·`welcomeAgentSessions`·
-`remoteCodingAgents`·`editTelemetry` 다. 마지막 것은 편집의 얼마만큼이 AI 에서 왔는지를 재는 기능이라
-(`contrib/editTelemetry/browser/aiContributionFeature.ts`) 여기 들어간다.
+##### 0002
 
-**`inlineCompletions` 는 건드리지 않는다(2026-09-16 결정, 소스로 확인).**
+**전제가 틀렸다(2026-09-17 실측).** 2026-09-16 에 "마켓이 없어 Copilot 확장을 설치할 길이 없으므로 채팅은 로그인만
+권하는 죽은 UI 다" 라고 적었다. 사실은 다르다.
+
+- **Copilot Chat 은 소스 트리의 내장 확장이다.** `extensions/copilot` 이 `GitHub.copilot-chat` 0.65.0 이고 `dist` 까지
+  컴파일되어 있다. 릴리스 빌드용 제외 목록(`build/lib/extensions.ts:319`)에 들어 있지만, 같은 파일에 로컬 빌드가
+  따로 묶어 넣는 경로(`packageCopilotExtensionStream`)가 있다. 개발 실행은 `extensions/` 를 그대로 훑어 싣는다.
+- **에이전트 호스트가 로그인 없이 Copilot 클라이언트를 띄웠다.** 패치 없는 개발 실행의 `agenthost.log` 에
+  `Registering agent provider: copilotcli` 와 `Starting CopilotClient...` 가 있고, 실행 파일은
+  `node_modules/@github/copilot-win32-x64` 다. 이 프로세스는 창이 연결을 요청할 때 늦게 뜬다(`code/electron-main/app.ts:747`).
+- 그래서 앞의 "`chat.disableAIFeatures` 는 끌 대상이 없다" 도 틀렸다. 이 설정은 내장 Copilot 확장을 끄고
+  (`chatSetupContributions.ts:799`), **에이전트 호스트를 켤지도 이 설정이 정한다**
+  (`platform/agentHost/browser/agentHostEnablementService.ts`: `enabled = 런타임 있음 && !chat.disableAIFeatures`).
+
+**첫 방식(기여 import 삭제)은 쓸 수 없다(2026-09-17 실측).** `workbench.common.main.ts` 와 `workbench.desktop.main.ts` 에서
+채팅·인라인 채팅·에이전트 음성·MCP·채팅 세션·에이전트 환영·온보딩·원격 코딩 에이전트·편집 원격 측정의 import 를 빼고
+띄웠다. 컴파일은 통과했지만 렌더러 로그에 기여 생성 실패가 20개 넘게 찍혔다.
+
+- `taskService depends on chatAgentService` 로 **태스크가 만들어지지 않는다.** P2 의 `jbroc` → MSBuild 빌드를 태스크로 돌릴 계획이라 쓸 수 없다
+- 같은 이유로 `DebugToolBar`·`NotebookBreakpoints`, `pluginInstallService` 로 `ExtensionsContributions`, `onboardingService` 로 시작 화면 실행기가 실패했다
+- **에이전트 호스트도 그대로 떴다.** 데스크톱 서비스(`agentHostService`·`agentHostEnablementService`)가 워크벤치 기여와 따로 등록되기 때문이다
+
+**후보 방식: `chat.disableAIFeatures` 기본값을 `true` 로(2026-09-17 실측).** 한 줄이다. 띄워서 잰 결과:
+
+- `agenthost.log` 가 생기지 않았고 `Unknown channel: agentHostClient...` 메시지가 사라졌다
+- 어떤 로그에도 Copilot 언급이 없다. 활성화된 확장은 git·github·github-authentication·emmet·merge-conflict·debug-auto-launch 뿐이다
+- 렌더러·공유 프로세스·메인 로그에 에러가 없다. 첫 방식에서 깨진 태스크·디버그가 멀쩡하다는 뜻이다
+- **화면에서 채팅 UI 가 사라졌는지는 아직 보지 않았다.** 로그로는 알 수 없다
+
+**후보인 이유.** 이 방식은 **없애는 것이 아니라 기본으로 끄는 것**이다. 코드는 남고, 사용자가 설정에서 켜면
+돌아온다. 2026-09-16 의 결정("없앤다")과 같은 뜻으로 볼지 빡대리 확인이 필요하다. 설정을 사용자가 못 바꾸게
+하려면 추가 패치가 필요하다(정책으로 고정하는 방법은 아직 보지 않았다).
+
+**포크 빌드에서 따로 할 일**: 릴리스 빌드가 내장 Copilot 확장을 묶어 넣는지 보고, 넣는다면 빼는 것을 0002 에 더할지 정한다.
+`product.json` 으로 기본 설정값을 바꾸는 길은 여전히 없다(`IProductConfiguration` 에 `configurationDefaults` 가 없고,
+`services/configuration/browser/configuration.ts:48` 의 덮어쓰기는 웹 호스트 전용이다).
+
+##### 0003
+
+**입구가 문서에 적은 넷보다 많았다(2026-09-17 소스로 확인).** 명령 팔레트, 확장 뷰의 `...` 메뉴, 탐색기에서 `.vsix`
+우클릭, 확장 뷰에 끌어놓기, 확장이 부를 수 있는 API 명령 `workbench.extensions.installExtension`(URI 를 받는다), CLI 의
+`--install-extension`, Windows 의 기본 확장 초기화(`defaultExtensionsInitializer.ts`, 제품 폴더의 `.vsix` 를 서비스로 직접
+설치한다), 그리고 **명령 팔레트의 "Developer: Install Extension from Location..."**(압축을 푼 폴더를 설치한다)이다.
+
+**이것이 모두 node 설치 서비스의 `install()` 과 `installFromLocation()` 두 곳에서 만난다.** 입구마다 막으면 upstream 이
+입구를 더할 때 뚫리므로 그 두 곳에서 거절한다. 폴더 설치는 파일 형식만 다를 뿐 같은 통로라 포함했다(결정할 때의
+"`.vsix`" 보다 넓다). 거기만 막으면 누르면 에러만 나는 메뉴가 남으므로 화면 입구의 `menu` 를 지우고 끌어놓기를 받지
+않게 했다. 명령 자체는 남는다.
+
+- **새 에러 문구는 번역 키가 아니라 평문 `Error` 다.** 바로 옆 `installFromLocation` 이 이미 평문 에러를 쓰는 층이고,
+  화면 입구를 지웠으므로 이 문구는 CLI·API 로만 보인다. §5.5 의 "새 글자를 만들지 않는다" 와 부딪히지 않는다.
+- 2026-09-16 에 위험으로 적은 "`defaultExtensionsInitializer` 가 `--install-extension` 을 쓴다" 는 틀렸다. CLI 옵션이 아니라
+  서비스를 직접 부르고, 이제 거절된다. 이 포크는 그 폴더에 `.vsix` 를 두지 않으므로 영향이 없다.
+- CLI 옵션(`platform/environment/node/argv.ts:130`)은 건드리지 않았다. 옵션이 남아도 설치 서비스가 거절한다.
+
+**확인한 것(2026-09-17).**
+
+- 형식을 갖춘 최소 `.vsix` 를 CLI `--install-extension` 으로 넣으면 `Installing extensions from a VSIX is disabled in this product`
+  로 실패하고, 호출 스택이 `ExtensionManagementService.install` 을 가리키며, 확장 폴더에 아무것도 생기지 않는다.
+- **형식이 틀린 가짜 `.vsix` 로는 이것을 잴 수 없다.** CLI 가 설치 서비스를 부르기 전에 매니페스트를 읽어 zip 에러로 먼저 떨어진다.
+  처음 시험이 그랬다.
+- `--install-builtin-extension` 은 데스크톱 CLI 가 CLI 처리 대상으로 보지 않아(`code/node/cli.ts:36` 목록에 없음) 출력 없이
+  종료 코드 0 으로 끝나고 설치되지 않는다.
+- 창을 띄웠을 때 렌더러·공유 프로세스·메인 로그에 새 에러가 없다.
+- **화면 입구가 사라진 것은 컴파일로만 확인했고 화면으로는 보지 않았다.** `installFromLocation` 의 거절은 부를 입구가 남아 있지 않아 실행으로 재지 않았다.
+
+##### `inlineCompletions` 는 건드리지 않는다(2026-09-16 결정, 소스로 확인)
 
 - `workbench/contrib/inlineCompletions` 에 든 것은 상태 표시줄 항목 하나와 설정 스키마 등록 하나뿐이다
   (`inlineCompletionLanguageStatusBarContribution.ts`·`inlineCompletions.contribution.ts`). 인라인 제안을 굴리는
-  엔진은 `editor/contrib/inlineCompletions` 이고 편집기 코어에 항상 실리므로 이 목록의 대상이 아니다.
+  엔진은 `editor/contrib/inlineCompletions` 이고 편집기 코어에 항상 실린다.
 - 확장이 제안을 내놓는 통로는 평범한 확장 API 인 `registerInlineCompletionItemProvider` 다
-  (`api/common/extHost.api.impl.ts:754`). **로그인과 무관하다.** 로그인이 필요했던 것은 제안을 만들던
-  Copilot 공급자 쪽이고, 그 확장은 마켓이 없어 설치할 길이 없다.
-- 그러므로 지워도 얻는 것이 상태 표시줄 항목 하나뿐이고, 나중에 `jbroc` 의 LSP 가 제안을 줄 때
-  그 표시가 있는 편이 낫다. `workbench.common.main.ts` 의 269·474 줄은 **남긴다.**
-
-**0003 의 위험**: `--install-extension` 은 `code/node/cliProcessMain.ts` 와
-`electron-utility/sharedProcess/contrib/defaultExtensionsInitializer.ts` 도 쓴다. 내장 확장을 싣는 경로에
-영향이 없는지 확인한 뒤 뺀다. `--list-extensions` 는 포크 빌드의 검증에 쓰므로 남긴다(§6).
+  (`api/common/extHost.api.impl.ts:754`). **로그인과 무관하다.** 로그인이 필요한 것은 제안을 만드는 Copilot 쪽이다.
+  ~~그 확장은 마켓이 없어 설치할 길이 없다.~~ 내장 확장으로 들어 있다(위 "0002").
+- 그러므로 지워도 얻는 것이 상태 표시줄 항목 하나뿐이고, 나중에 `jbroc` 의 LSP 가 제안을 줄 때 그 표시가 있는 편이 낫다.
 
 ### 5.3 확장 마켓플레이스를 연결하지 않는다
 
@@ -512,7 +567,7 @@ jbroscript-plan §18.7 을 따른다. 그때까지는 Visual Studio 로 한다.
 | P3 씬 에디터 연결 | 시작 전 | 작음 | 엔진에 스크립트 DLL 파일 감시가 없다 |
 | P4 자동완성·정의로 이동 | 시작 전 | 중간 | `jbroc` AST, 엔진 함수 선언 표 |
 | P5 디버깅 | 시작 전 | 중간 | `Field.h` 의 clang 서명 대응(§4.1), clang-cl + DWARF + `lldb-dap` 실측 |
-| 포크 빌드(브랜딩·설치본) | 시작 전. **upstream 을 패치 없이 빌드해 띄웠다**(2026-09-17, §4.2) | 중간 | 첫 실행이 영어로 뜨는 문제(§5.5). 코어 패치 목록은 정해졌고(§5.2) 0004 의 세부만 남았다(§7) |
+| 포크 빌드(브랜딩·설치본) | 시작 전. **upstream 을 빌드해 띄웠고 패치 0001·0003 을 적용했다. 0002 는 후보다**(2026-09-17, §4.2·§5.2) | 중간 | 0002 의 방식 확인(끄기인가 없애기인가), 0004 의 세부(§7), 첫 실행이 영어로 뜨는 문제(§5.5) |
 
 편집기 쪽 일은 작다. **오래 걸리는 것은 컴파일러 `jbroc` 이다.** 에러 표시와 자동완성이 `jbroc` 의 파서와 타입 정보를
 그대로 쓰므로(§6 P2·P4), `jbroc` 이 서는 속도가 곧 편집기의 속도다.

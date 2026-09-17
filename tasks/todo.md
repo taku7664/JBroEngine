@@ -1698,18 +1698,34 @@ EditorApplication::Tick
   나중에 `jbroc` 의 LSP 가 제안을 줄 때 그 표시가 쓸모 있다.
   확장 마켓플레이스는 Code-OSS 가 이미 `extensionsGallery` 키를 갖고
   있지 않아서 **비울 것이 없다** - D-87 의 "`product.json` 한 곳" 이라는 서술은 이 점에서 틀렸다.
-  **채팅·AI 제거는 설정으로 대신할 수 없다.** `chat.disableAIFeatures` 는 Copilot 확장을 끄는
-  것이 중심인데 마켓이 없어 그 확장이 설치되지 않는다. `product.json` 은 기본 설정값을 바꾸지
-  못한다(`IProductConfiguration` 에 `configurationDefaults` 가 없다). `defaultChatAgent` 만 지우면
-  설정 논리는 죽지만 `chatSetupHidden` 기본값이 `false` 라 **UI 는 남는다.** 그대로 두면
-  로그인만 권하고 눌러도 되는 것이 없는 화면이 된다 - 그래서 지운다.
-  **오프라인으로 동작하는 것을 확인했다.** `product.json` 에 `updateUrl`·`telemetryOptInStatusUrl`·
-  `experimentsUrl`·`surveys` 가 없고, 채팅도 로그인하지 않으면 네트워크 요청을 내지 않는다.
+  ~~**채팅·AI 제거는 설정으로 대신할 수 없다.** `chat.disableAIFeatures` 는 Copilot 확장을 끄는
+  것이 중심인데 마켓이 없어 그 확장이 설치되지 않는다.~~ **틀렸다(2026-09-17, 아래).**
+  `product.json` 은 기본 설정값을 바꾸지 못한다(`IProductConfiguration` 에 `configurationDefaults` 가 없다).
+  `defaultChatAgent` 만 지우면 설정 논리는 죽지만 `chatSetupHidden` 기본값이 `false` 라 **UI 는 남는다.**
+  ~~그대로 두면 로그인만 권하고 눌러도 되는 것이 없는 화면이 된다 - 그래서 지운다.~~
+  ~~**오프라인으로 동작하는 것을 확인했다.**~~ `product.json` 에 `updateUrl`·`telemetryOptInStatusUrl`·
+  `experimentsUrl`·`surveys` 가 없고, 채팅의 자격 확인은 로그인하지 않으면 네트워크 요청을 내지 않는다.
+  **그러나 "오프라인으로 동작한다" 는 결론은 근거가 부족했다**(2026-09-17, 아래).
   **메뉴 구조(0004)는 재편하되 기본 레이아웃은 VS Code 와 비슷하게 유지한다.** 세부 항목은
   포크를 띄워 실제 화면을 보고 정한다 - 지금 목록으로 적어도 화면을 모르고 적는 것이 된다.
-  **아직 만들지 않았다.** 패치 파일도 빌드 스크립트도 없고 빌드해 보지도 않았다. 0002 는
-  채팅이 아닌 기능(`scmInput`·`extensionsWorkbenchService`·`inlineCompletions`)이 채팅 서비스를
-  참조해서, 창을 띄워 렌더러 에러가 없는 것까지 봐야 검증이 끝난다.
+  **2026-09-17: 0001·0003 을 만들었고 0002 는 전제가 틀려 방식을 바꿨다.** 패치 파일과 적용 스크립트는
+  편집기 리포 `patches/`·`scripts/apply-patches.mjs` 에 있고, 항목마다 무엇을 쟀는지는 ide-plan §5.2 에 있다.
+  - **틀린 전제.** Copilot Chat(`GitHub.copilot-chat` 0.65.0)은 소스 트리의 **내장 확장**(`extensions/copilot`)이고,
+    패치 없는 개발 실행에서 에이전트 호스트가 **로그인 없이 Copilot 클라이언트를 띄웠다.** "마켓이 없어 설치되지
+    않는다" 와 "죽은 UI" 는 둘 다 틀렸다. 채팅·AI 를 없애기로 한 판단은 이것으로 약해지지 않는다 - 오히려 시작만 해도
+    프로세스가 뜨므로 근거가 강해졌다. "오프라인으로 동작한다" 는 `product.json` 만 보고 내린 결론이었고, 에이전트
+    호스트의 통신은 재지 않았다.
+  - **0002 의 첫 방식(기여 import 삭제)은 버렸다.** 창은 떴지만 태스크 서비스·디버그 도구 모음·확장 기여·시작 화면
+    실행기가 채팅 서비스에 기대고 있어 20개 넘는 기여가 만들어지지 않았고, 에이전트 호스트도 그대로 떴다. 태스크가
+    죽으면 `jbroc` → MSBuild 빌드를 태스크로 돌릴 수 없다.
+  - **0002 후보: `chat.disableAIFeatures` 기본값을 `true` 로.** 에이전트 호스트를 켤지를 이 설정이 정하고, 내장
+    Copilot 확장도 이 설정으로 꺼진다. 띄워서 에이전트 호스트가 뜨지 않고, 어떤 로그에도 Copilot 이 없고, 에러가
+    없는 것을 봤다. **다만 이것은 "없애기" 가 아니라 "기본으로 끄기" 라서 사용자가 설정에서 다시 켤 수 있다.**
+    이 결정의 "없앤다" 와 같은 뜻으로 볼지 빡대리 확인을 기다린다. 화면에서 UI 가 사라졌는지도 아직 보지 않았다.
+  - **0003 은 결정할 때보다 넓다.** 입구가 여덟이었고(API 명령 `workbench.extensions.installExtension`, Windows 기본
+    확장 초기화, "Developer: Install Extension from Location..." 을 새로 찾았다) 모두 node 설치 서비스의 `install()`·
+    `installFromLocation()` 에서 만나므로 거기서 거절한다. 폴더 설치도 같은 통로라 포함했다. 형식을 갖춘 `.vsix` 를
+    CLI 로 넣어 거절되는 것을 봤고, 형식이 틀린 파일로는 CLI 가 먼저 zip 에러를 내서 잴 수 없었다.
 
 - **D-103. 설치본은 `Launcher/` 와 `Editor/<버전 폴더>/` 이고, 런처가 알아서 찾는다.** (2026-09-16)
   (`Updates` D-100)
