@@ -4,7 +4,7 @@ JBroEngine 의 스크립트 편집기다. Code-OSS 를 얇게 포크하고, JBro
 계획과 결정은 엔진 리포의 `tasks/ide-plan.md` 와 `tasks/todo.md` D-87 에 있다.
 
 **아직 포크는 없다.** 확장을 먼저 만들고 일반 VS Code 에서 개발·테스트한다.
-포크 빌드는 배포할 것이 생길 때 한다.
+upstream Code-OSS 는 패치 없이 빌드해서 띄울 수 있게 해 두었다(아래 "upstream Code-OSS 빌드").
 
 ## 구조
 
@@ -28,6 +28,38 @@ npm test
   `.snap` 이 없으면 실패한다 — 기록하지 않은 스냅숏이 조용히 통과하지 않게 하기 위해서다.
 - 도구의 `vscode-tmgrammar-test`·`vscode-tmgrammar-snap` 명령을 직접 쓰지 않는 이유는
   `scripts/run-grammar-tests.mjs` 머리 주석에 있다(Windows 의 Node 24 에서 종료 코드가 통과와 실패를 가르지 못한다).
+
+## upstream Code-OSS 빌드
+
+포크 빌드를 준비하는 단계다. 코어 패치는 아직 적용하지 않고 upstream 을 그대로 빌드해서 띄운다.
+패치 목록과 각 우회의 이유는 엔진 리포 `tasks/ide-plan.md` §4.2 와 §5.2 에 있다.
+
+| 경로 | 내용 |
+|---|---|
+| `upstream/` | Code-OSS 릴리스 태그의 얕은 클론. 커밋하지 않는다 |
+| `.toolchain/` | 휴대용 Node, node-gyp·Electron·npm 캐시, 임시 폴더, 개발 실행의 사용자 데이터. 커밋하지 않는다 |
+| `scripts/upstream-env.cmd` | 빌드 환경. 아래 스크립트가 `call` 로 부른다 |
+| `scripts/upstream-npm-ci.cmd` | 의존성 설치 |
+| `scripts/upstream-prelaunch.cmd` | Electron 받기, 컴파일, 내장 확장 받기 |
+| `scripts/upstream-launch.cmd` | 다시 빌드하지 않고 띄운다 |
+
+처음 한 번:
+
+```bat
+git clone --depth 1 --branch 1.137.0 https://github.com/microsoft/vscode.git upstream
+```
+
+`upstream\.nvmrc` 와 같은 판의 Node 를 `.toolchain\node` 에 푼다(nodejs.org 의 `win-x64` zip, `SHASUMS256.txt` 로 해시를 대조한다).
+Visual Studio 에는 C++ 작업과 **"x64/x86용 C++ Spectre 완화 라이브러리(최신 MSVC)"** 개별 구성 요소가 있어야 한다.
+
+```bat
+scripts\upstream-npm-ci.cmd
+scripts\upstream-prelaunch.cmd
+scripts\upstream-launch.cmd
+```
+
+**C: 에 쓰지 않는다.** `upstream-env.cmd` 가 `LOCALAPPDATA`·`TEMP`·`npm_config_cache` 를 `.toolchain` 아래로 돌린다.
+예외는 홈 폴더의 `.vscode-oss-dev\argv.json` 과 `.vscode-oss-shared` 두 가지로, 위치가 `--user-data-dir` 를 따르지 않는다.
 
 ## 화면 글자
 
