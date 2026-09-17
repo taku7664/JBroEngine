@@ -35,7 +35,7 @@ namespace JBro
             return;
         }
         // 기즈모 모드 단추 줄. 게임 그림 위에 놓는다.
-        Widget::GizmoModeBar("##gizmo_mode", m_gizmoMode,
+        Widget::GizmoModeBar(m_gizmoMode,
             Loc::TextOr(LocKeys::GizmoTranslate, "Move"),
             Loc::TextOr(LocKeys::GizmoRotate, "Rotate"),
             Loc::TextOr(LocKeys::GizmoScale, "Scale"), true);

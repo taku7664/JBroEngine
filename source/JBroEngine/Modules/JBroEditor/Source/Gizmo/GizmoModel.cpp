@@ -51,6 +51,10 @@ namespace JBro
 
         float WrapAngle(float radians)
         {
+            if (false == std::isfinite(radians))
+            {
+                return 0.0f;
+            }
             while (radians > Pi)
             {
                 radians -= 2.0f * Pi;
@@ -115,7 +119,7 @@ namespace JBro
             const Vec3 a = GizmoModel::AxisDirection(subject, axis);
             const Vec3 u = Perpendicular(a);
             const Vec3 v = Cross(a, u);
-            // 고리의 월드 반지름은 화면에서 `RingRadiusPixels` 가 되게 잡는다. 두 수직 방향의 평균으로 잰다.
+            // 고리의 월드 반지름은 화면에서 `RingRadiusPixels` 가 되게 잡는다. 두 수직 방향 중 더 길게 보이는 쪽으로 잰다.
             float pixelsU = 0.0f;
             float pixelsV = 0.0f;
             if (false == PixelsPerUnit(camera, subject.position, u, pixelsU)

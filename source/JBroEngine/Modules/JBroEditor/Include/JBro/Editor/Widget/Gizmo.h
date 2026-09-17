@@ -32,6 +32,6 @@ namespace JBro::Widget
 
     // 이동·회전·크기 셋 중 하나를 고르는 단추 줄이다. 라벨은 부르는 쪽이 로컬라이징해 준다.
     // `hotkeys` 가 참이면 이 창에 포커스가 있을 때 W·E·R 로도 바뀐다. 바뀌었으면 참이다.
-    bool GizmoModeBar(const char* id, GizmoMode& mode, const char* translateLabel, const char* rotateLabel,
-        const char* scaleLabel, bool hotkeys);
+    bool GizmoModeBar(GizmoMode& mode, const char* translateLabel, const char* rotateLabel, const char* scaleLabel,
+        bool hotkeys);
 }

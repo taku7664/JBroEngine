@@ -182,11 +182,10 @@ namespace JBro::Widget
         return output;
     }
 
-    bool GizmoModeBar(const char* id, GizmoMode& mode, const char* translateLabel, const char* rotateLabel,
-        const char* scaleLabel, bool hotkeys)
+    bool GizmoModeBar(GizmoMode& mode, const char* translateLabel, const char* rotateLabel, const char* scaleLabel,
+        bool hotkeys)
     {
         const GizmoMode before = mode;
-        static_cast<void>(id);
         const char* labels[3] = {translateLabel, rotateLabel, scaleLabel};
         // 라벨 뒤에 붙는 안정된 꼬리다. Id 는 `라벨##꼬리` 에서 나오므로 번역이 바뀌어도 꼬리로 찾을 수 있다.
         const char* suffixes[3] = {"##gizmo_translate", "##gizmo_rotate", "##gizmo_scale"};
@@ -210,8 +209,10 @@ namespace JBro::Widget
                 mode = modes[index];
             }
         }
-        // 포커스가 있거나 마우스가 이 창 위에 있으면 받는다. 글자 입력 중에는 받지 않는다.
-        if (hotkeys && false == ImGui::GetIO().WantTextInput
+        // 포커스가 있거나 마우스가 이 창 위에 있으면 받는다. 글자 입력 중이거나 조합키(Ctrl+S 같은 단축키)가 눌려 있으면
+        // 받지 않는다.
+        const ImGuiIO& io = ImGui::GetIO();
+        if (hotkeys && false == io.WantTextInput && false == io.KeyCtrl && false == io.KeyAlt && false == io.KeySuper
             && (ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows)
                 || ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows)))
         {
