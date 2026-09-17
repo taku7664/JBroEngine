@@ -254,14 +254,13 @@ namespace JBro::ScriptCompiler
                     || TokenKind::KeywordEnum == kind;
             }
 
-            // 줄을 여는 선언 키워드까지 건너뛴다.
+            // 다음 선언 키워드까지 건너뛴다. 선언 키워드는 예약어라 줄 가운데에 있어도 선언의 시작이다.
             void SyncToDeclaration()
             {
                 while (false == At(TokenKind::EndOfFile))
                 {
                     Advance();
-                    const bool lineStart = TokenKind::Newline == m_tokens[m_position - 1].Kind;
-                    if (lineStart && IsDeclarationKeyword(Current().Kind))
+                    if (IsDeclarationKeyword(Current().Kind))
                     {
                         break;
                     }

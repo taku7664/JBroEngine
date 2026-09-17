@@ -128,6 +128,7 @@ namespace
             "    Array<ref Enemy> allies\n"
             "    Table<String, Array<Float>> curves\n"
             "    protected static const Float Gravity = 9.8\n"
+            "    private Int secret\n"
             "}\n",
             "CompilationUnit\n"
             "  ScriptDeclaration Enemy\n"
@@ -160,7 +161,9 @@ namespace
             "          TypeName Float\n"
             "    FieldDeclaration Gravity {Protected|Static}\n"
             "      TypeName Float {Const}\n"
-            "      FloatLiteral 9.8\n",
+            "      FloatLiteral 9.8\n"
+            "    FieldDeclaration secret {Private}\n"
+            "      TypeName Int\n",
             "a script with parents, attributes, modifiers, ref and nested generic fields");
 
         CheckTree(
@@ -300,8 +303,18 @@ namespace
             "an engine type the parser has never heard of still starts a declaration");
 
         // `a < b` 로 시작하는 문장은 타입으로 읽어 보다가 실패하면 식이다. 읽어 본 흔적이 트리에 남으면 안 된다.
-        ParseResult result(InFunction("        ok = a < b\n        c = GetComponent<Transform2D>()\n"));
-        Check(result.Diagnostics.GetCount() == 0, "a comparison and a generic call parse");
+        // `a < b` 로 시작하는 문장은 선언으로 읽어 보다 실패한다. 읽어 보는 동안의 에러가 새면 안 된다.
+        // `a < b > c` 는 `>` 뒤에 `(` 가 없으므로 제네릭 호출이 아니라 비교의 연쇄다.
+        ParseResult result(InFunction(
+            "        ok = a < b\n"
+            "        c = GetComponent<Transform2D>()\n"
+            "        a < b\n"
+            "        ok = a < b > c\n"));
+        if (result.Diagnostics.GetCount() != 0)
+        {
+            PrintDiagnostics(result);
+        }
+        Check(result.Diagnostics.GetCount() == 0, "comparisons and a generic call parse, and guessing leaks no errors");
         const std::string dump = DumpSyntaxTree(result.Tree).Std();
         Check(dump == std::string(FunctionPrefix)
             + "      Block\n"
@@ -314,10 +327,28 @@ namespace
               "          NameExpression c\n"
               "          CallExpression\n"
               "            GenericNameExpression GetComponent\n"
-              "              TypeName Transform2D\n",
-            "a < b is a comparison and GetComponent<Transform2D>() is a generic call");
+              "              TypeName Transform2D\n"
+              "        ExpressionStatement\n"
+              "          BinaryExpression <\n"
+              "            NameExpression a\n"
+              "            NameExpression b\n"
+              "        AssignmentStatement =\n"
+              "          NameExpression ok\n"
+              "          BinaryExpression >\n"
+              "            BinaryExpression <\n"
+              "              NameExpression a\n"
+              "              NameExpression b\n"
+              "            NameExpression c\n",
+            "a < b is a comparison, GetComponent<Transform2D>() is a generic call and a < b > c is a chain");
         Check(result.Tree.GetNodeCount() == CountLines(dump),
             "nodes built while guessing are thrown away, so every node is reachable from the root");
+        std::size_t childSlots = 0;
+        for (NodeIndex node = 0; node < result.Tree.GetNodeCount(); ++node)
+        {
+            childSlots += result.Tree.Get(node).ChildCount;
+        }
+        Check(result.Tree.GetChildIndexCount() == childSlots,
+            "child indices built while guessing are thrown away too, so none are left unowned");
     }
 
     void TestOperatorPrecedence()
@@ -326,6 +357,7 @@ namespace
             "        x = a + b * c - d\n"
             "        ok = hp <= 0 and not isDead or target is not null\n"
             "        y = -a.b\n"
+            "        v = -a * b\n"
             "        z = not ally.IsDead()\n"
             "        r = Float(hp) / Float(MaxHp)\n"
             "        w = (a + b) % c\n"
@@ -356,6 +388,12 @@ namespace
             "          UnaryExpression -\n"
             "            MemberAccessExpression b\n"
             "              NameExpression a\n"
+            "        AssignmentStatement =\n"
+            "          NameExpression v\n"
+            "          BinaryExpression *\n"
+            "            UnaryExpression -\n"
+            "              NameExpression a\n"
+            "            NameExpression b\n"
             "        AssignmentStatement =\n"
             "          NameExpression z\n"
             "          UnaryExpression not\n"
@@ -531,7 +569,22 @@ namespace
 
     void TestRangesCoverTheirSource()
     {
-        ParseResult result("script P\n{\n    [prop]\n    Int Speed = 3\n}\n");
+        ParseResult result(
+            "script P\n"
+            "{\n"
+            "    [prop]\n"
+            "    Int Speed = 3\n"
+            "    fn Ping() -> Int require\n"
+            "\n"
+            "    fn F()\n"
+            "    {\n"
+            "        if (x)\n"
+            "        {\n"
+            "        }\n"
+            "\n"
+            "        Go()\n"
+            "    }\n"
+            "}\n");
         Check(result.Diagnostics.GetCount() == 0, "the range probe parses");
         const NodeIndex script = result.Tree.GetChild(result.Tree.GetRoot(), 0);
         const NodeIndex field = result.Tree.GetChild(script, 1);
@@ -541,6 +594,18 @@ namespace
             "a field range starts at its attribute, so an error on the whole field covers it");
         Check(node.Range.End.Line == 4 && node.Range.End.Column == 18,
             "a field range ends after its initializer, not on the next line");
+
+        // 본문이 없는 함수와 else 가 없는 if 는 뒤의 빈 줄을 들여다본다. 들여다본 줄이 범위에 들어가면 안 된다.
+        const SyntaxNode& bodiless = result.Tree.Get(result.Tree.GetChild(script, 2));
+        Check(SyntaxKind::FunctionDeclaration == bodiless.Kind && bodiless.Text == "Ping", "the third child is Ping");
+        Check(bodiless.Range.End.Line == 5 && bodiless.Range.End.Column == 29,
+            "a function without a body ends at its suffix, not at the next declaration");
+        const NodeIndex function = result.Tree.GetChild(script, 3);
+        const NodeIndex body = result.Tree.GetChild(function, 3);
+        const SyntaxNode& ifStatement = result.Tree.Get(result.Tree.GetChild(body, 0));
+        Check(SyntaxKind::IfStatement == ifStatement.Kind, "the first statement is the if");
+        Check(ifStatement.Range.End.Line == 11 && ifStatement.Range.End.Column == 10,
+            "an if without else ends at its closing brace, not at the next statement");
     }
 
     void TestErrors()
@@ -571,6 +636,8 @@ namespace
             DiagnosticCode::ExpectedStatement, 5, 9, "else without if");
         CheckOneError(InFunction("        switch (s)\n        {\n            x = 1\n        }\n"),
             DiagnosticCode::ExpectedCaseOrDefault, 7, 13, "a statement directly inside switch");
+        CheckOneError("enum E\n{\n    Idle Dead\n}\n",
+            DiagnosticCode::ExpectedEndOfStatement, 3, 10, "enum members are one per line (jbroscript-syntax 7.2)");
         CheckOneError("script P\n{\n    + 1\n}\n",
             DiagnosticCode::ExpectedMember, 3, 5, "garbage in a type body");
         CheckOneError("script P\n{\n    Int x\n",
