@@ -116,8 +116,12 @@ namespace
             "newlines before the first token are not statement ends");
         CheckKinds("a // trailing comment\nb", "Identifier Newline Identifier EndOfFile",
             "a comment does not swallow the newline after it");
-        CheckKinds("a\r\nb", "Identifier Newline Identifier EndOfFile",
-            "CRLF is one newline");
+        {
+            // 토큰 열만 보면 \r 을 "모르는 글자" 로 거르고 넘어가도 같은 열이 나온다. 에러 수를 함께 본다.
+            LexResult result("a\r\nb");
+            Check(KindsOf(result.Tokens) == "Identifier Newline Identifier EndOfFile", "CRLF is one newline");
+            Check(result.Diagnostics.GetCount() == 0, "a carriage return before a newline is not an error");
+        }
         CheckKinds("Raycast(from,\n    down,\n    1.0)",
             "Identifier LeftParen Identifier Comma Identifier Comma FloatLiteral RightParen EndOfFile",
             "newlines inside parentheses do not end the statement");
@@ -259,6 +263,7 @@ namespace
     void TestLocations()
     {
         LexResult result("script Enemy\n\tInt hp = 10\r\n  hp += 1");
+        Check(result.Diagnostics.GetCount() == 0, "tabs and CRLF are whitespace, not errors");
         const Array<Token>& tokens = result.Tokens;
         // script Enemy \n Int hp = 10 \n hp += 1 EOF
         Check(tokens[0].Range.Begin.Line == 1 && tokens[0].Range.Begin.Column == 1, "first token starts at 1:1");

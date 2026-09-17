@@ -103,6 +103,4 @@ namespace JBro::ScriptCompiler
 
     // 예약어면 그 종류를, 아니면 `Identifier` 를 돌려준다.
     TokenKind FindKeyword(std::string_view text) noexcept;
-
-    bool IsKeyword(TokenKind kind) noexcept;
 }

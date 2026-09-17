@@ -56,11 +56,6 @@ namespace JBro::ScriptCompiler
         return TokenKind::Identifier;
     }
 
-    bool IsKeyword(TokenKind kind) noexcept
-    {
-        return kind >= TokenKind::KeywordScript && kind <= TokenKind::KeywordFalse;
-    }
-
     const char* GetTokenKindName(TokenKind kind) noexcept
     {
         switch (kind)
