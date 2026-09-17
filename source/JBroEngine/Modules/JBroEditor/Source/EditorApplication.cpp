@@ -6,6 +6,7 @@
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
 
+#include <JBro/D3D11RHI/D3D11RHI.h>
 #include <JBro/D3D12RHI/D3D12RHI.h>
 #include <JBro/Framework2DSystem/Framework2D.h>
 #include <JBro/Framework3DSystem/Framework3D.h>
@@ -45,7 +46,8 @@ namespace JBro
     {
         if (m_initialized || config.windowWidth == 0 || config.windowHeight == 0
             || false == std::isfinite(config.fixedDeltaTime) || config.fixedDeltaTime <= 0.0f
-            || config.maxFixedStepsPerFrame == 0 || config.graphicsApi != GraphicsApi::D3D12)
+            || config.maxFixedStepsPerFrame == 0
+            || (config.graphicsApi != GraphicsApi::D3D12 && config.graphicsApi != GraphicsApi::D3D11))
         {
             return false;
         }
@@ -67,7 +69,15 @@ namespace JBro
                 return false;
             }
 
-            m_rhiModule = MakeOwnerPtr<D3D12RHIModule>();
+            // 두 Windows 백엔드 중 하나다(D-107). Vulkan 은 모듈이 생기면 여기 한 줄이 늘어난다.
+            if (config.graphicsApi == GraphicsApi::D3D11)
+            {
+                m_rhiModule = MakeOwnerPtr<D3D11RHIModule>();
+            }
+            else
+            {
+                m_rhiModule = MakeOwnerPtr<D3D12RHIModule>();
+            }
             if (false == m_rhiModule->Initialize(config.memory))
             {
                 ReleaseProcessResources();
@@ -421,7 +431,7 @@ namespace JBro
         // 검증도 한 마디 하지 않았고 그림도 똑같이 나온다. 그래서 이 줄을 상수로
         // 바꿔도 뮤테이션이 죽지 않는다. 그래도 묻는다: 규격이 맞추라고 하고,
         // 크기가 다른 포맷이면 그때는 실제로 깨진다.
-        if (false == m_ui.Initialize(*device, renderer->GetBackBufferFormat()))
+        if (false == m_ui.Initialize(*device, renderer->GetBackBufferFormat(), m_graphicsApi))
         {
             device->DestroyTexture(m_gameView);
             m_gameView = {};
