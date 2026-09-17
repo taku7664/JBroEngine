@@ -132,7 +132,9 @@
 
 > **구현 근거:** `Canvas`와 공통 `Layer`는 한 번만 정의하며, Framework2D는 별도
 > `Layer2D`에 2D 합성 상태를 보관한다. Framework3D는 Framework2D를 링크하지 않고 공통 Canvas의
-> 오브젝트·컴포넌트·시스템 실행 경계를 사용한다. 3D 렌더 시스템 자체는 아직 후속 구현 대상이다.
+> 오브젝트·컴포넌트·시스템 실행 경계를 사용한다. 3D 는 `Transform3DSystem`·`Camera3DSystem`·
+> `MeshRender3DSystem` 과 `RenderWorld3D`·`RenderBridge3D` 로 2D 와 같은 뼈대를 갖고, 렌더러의 메시
+> 파이프라인과 깊이 버퍼로 그린다(D-106, `tasks/framework3d-plan.md`). 물리·스크립트 시스템은 3D 에 아직 없다.
 > D-42 이전 트리에서는 이 정의가 `JBroRuntime`에 있다.
 
 ## 5. 엔진과 게임 코드의 경계

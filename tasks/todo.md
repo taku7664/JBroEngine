@@ -1795,6 +1795,38 @@ EditorApplication::Tick
   **뮤테이션(2026-09-18).** 변이 16개 중 15개를 테스트가 잡았다. 남은 하나(`lexically_normal` 을 뺌)는 MSVC 의 `absolute` 가
   `GetFullPathNameW` 로 이미 경로를 정리해서 생긴 동치라, 테스트를 지어내지 않고 그 호출을 지웠다(jbroc-rules §11.3).
 
+- **D-106. 3D 는 2D 와 같은 뼈대로 세우고, 월드 캐시는 분해된 값이며, 깊이는 메시가 있는 뷰에만 단다.** (2026-09-18)
+  사용자 지시("3D 프레임워크 검토 및 2D 와 맞물리게 병렬 구현")로 시작했고 계획과 상태는
+  `tasks/framework3d-plan.md` 에 있다. 이 결정은 1단계에서 정한 것이다.
+  - **컴포넌트**: `Transform3D` 에 월드 캐시(`worldPosition`·`worldRotation`·`worldScale`·`worldValid`,
+    `NoSerialize | ReadOnly | Category("World cache")`). **행렬이 아니라 분해된 값이다** - `Matrix4x4` 는
+    `JBroGraphics` 소유(§10.1)라 컴포넌트 라이브러리가 들 수 없고, 스크립트 프렐류드에 렌더러 타입이 새면
+    안 된다(§5). 대가는 비균등 스케일 아래 회전의 전단이 자식에게 안 가는 것(Unity 와 같다). `Camera3D` 는
+    2D 와 같은 이름(`projection`·`orthographicSize`·`nearPlane`·`farPlane`·`clearColor`·`primary`) +
+    `verticalFieldOfView`. `MeshRenderer3D` 에 `tint`·`visible`.
+  - **수학**: `Math3D.h` 는 hot-path inline 만(벡터·사원수). 행렬 함수는 `Framework3DSystem/Math3DMatrix.h`.
+    규약은 렌더러와 같다 - 열 벡터, `values[row*4+col]`, 오른손, 카메라는 -Z, 깊이 0..1. 사원수 곱은
+    해밀턴이고 `Rotate(Multiply(a, b), v) == Rotate(a, Rotate(b, v))`. 오일러는 Z→X→Y(Unity 순서).
+  - **시스템**: `Transform3DSystem`(100)·`Camera3DSystem`(300)·`MeshRender3DSystem`(400), `RenderWorld3D`,
+    `RenderBridge3D`. 2D 와 실행 순서 번호까지 같다. 부모 트랜스폼이 꺼져 있으면 자식은 뿌리가 되지 않는다
+    (A4 의 함정을 처음부터 피했다).
+  - **메시 자원**: `Renderer::RegisterMesh(vertices, indices) -> AssetHandle`, `UnregisterMesh`.
+    핸들 모양이 `AssetHandle` 인 것은 `MeshSubmit` 이 그 타입이기 때문이고 발급자가 렌더러라는 것은
+    `MeshLibrary`(Framework3DSystem, `AssetId → AssetHandle`)만 안다. 빌트인 정육면체가 `builtin/cube`
+    (`MakeStableTypeId` 해시) 로 팔린다. `[가정]` `AssetSystem` 이 실제로 로드하게 되면 그쪽으로 옮긴다.
+    `MeshRender3DSystem` 이 빈 핸들을 `meshId` 로 매 프레임 해석해 컴포넌트에 써 둔다.
+  - **렌더러**: 메시 파이프라인(인스턴스 = 월드 4x4 행 넷 + tint, 푸시 상수 = 뷰·투영, 램버트 하나 + 앰비언트,
+    깊이 `LESS_EQUAL` 쓰기, 뒷면 컬링, CCW 가 앞면). 셰이더 `BuiltinMesh.hlsl` 을 `Compile.ps1` 에 더했다.
+    **깊이 텍스처는 `BeginFrame` 이 타깃 크기로 미리 확보한다**(백버퍼용·프레임 타깃용 둘) - 디바이스가
+    프레임 안에서 자원을 만들지 않기 때문이다. **깊이 첨부는 메시가 있는 뷰에만 단다** - 스프라이트만
+    있는 2D 프레임은 전과 같은 패스다. `[가정]` 한 뷰에 스프라이트와 메시가 함께 오면 깊이가 붙은 패스에
+    깊이 없는 스프라이트 PSO 가 그려진다. 2D·3D 프로젝트가 배타적이라 그 뷰는 지금 없다.
+  - **D3D12**: `BeginRenderPass` 가 깊이 첨부를 받는다(`ResolveDepthStencil`, `DEPTH_WRITE` 전이, 네이티브
+    렌더 패스의 깊이 설명자, 비네이티브 경로의 `ClearDepthStencilView`). D32Float 라 스텐실은 `NO_ACCESS`.
+  - **검증**: framework3d-plan §2.6. 뮤테이션 MUT3D_RESULT.
+  - **없는 것**: 물리 3D 시스템, 재질 해석, 3D 스크립트 서비스, 씬 파일의 3D 저장 확인. 뒤의 것은 2D 와 같은
+    `ReflectedYaml` 길이라 될 것이지만 재지 않았다 - `[열림]`.
+
 ## Assumptions
 
 - 대상은 `Documents/GitHub/JBroEngine` 신규 리포다. 기존 엔진은 **읽기 전용 기준**으로만 쓴다.

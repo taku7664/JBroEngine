@@ -71,6 +71,8 @@
   에디터 실행 인자 규약(D-97)과 앱 뼈대(`source/JBroLauncher`)가 섰다.
   런처와 에디터는 프로세스 경계로만 만나고, 같은 리포에 둔다.
   엔진 버전은 `JBro.Common.props` 한 곳에 있고 실행 파일의 버전 리소스가 말한다(D-101)
+- [tasks/framework3d-plan.md](./tasks/framework3d-plan.md) — 3D 프레임워크·D3D11/Vulkan 백엔드·기즈모 계획(D-106).
+  1단계(3D 시스템과 메시 렌더 경로)가 섰고 백엔드 둘과 기즈모는 단계표에 상태가 있다
 - [tasks/ide-plan.md](./tasks/ide-plan.md) — 스크립트 편집기 JBro Script Editor(Code-OSS 포크) 계획(D-87).
   편집기 리포는 `F:\Project\JBroScriptEditor`(원격 없음)다. 새 문법의 강조 확장과 코어 패치 0001~0003 이 섰고
   upstream 을 패치해 개발 실행으로 띄울 수 있다. 설치본(포크 빌드)은 **아직 없다**(D-102).
