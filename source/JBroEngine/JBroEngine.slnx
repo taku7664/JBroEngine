@@ -77,6 +77,12 @@
       <BuildType Solution="Debug_Game3D|x64" Project="Debug" />
       <BuildType Solution="Release_Game3D|x64" Project="Release" />
     </Project>
+    <Project Path="Modules/JBroD3D11RHI/JBroD3D11RHI.vcxproj">
+      <BuildType Solution="Debug_Game2D|x64" Project="Debug" />
+      <BuildType Solution="Release_Game2D|x64" Project="Release" />
+      <BuildType Solution="Debug_Game3D|x64" Project="Debug" />
+      <BuildType Solution="Release_Game3D|x64" Project="Release" />
+    </Project>
     <Project Path="Modules/JBroFramework2D/JBroFramework2D.vcxproj">
       <BuildType Solution="Debug_Game2D|x64" Project="Debug" />
       <BuildType Solution="Release_Game2D|x64" Project="Release" />

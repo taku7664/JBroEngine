@@ -9,7 +9,9 @@ namespace JBro
     {
         D3D12,
         Vulkan,
-        WebGPU
+        WebGPU,
+        // 두 번째 Windows 백엔드다(D-107). 값을 끝에 두어 저장된 숫자가 밀리지 않게 한다.
+        D3D11
     };
 
     struct BufferHandle
