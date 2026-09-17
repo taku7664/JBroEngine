@@ -113,9 +113,25 @@ namespace
         sprite.tint[2] = 0.25f;
         sprite.tint[3] = 1.0f;
 
+        // 오른쪽 아래 사분면을 덮는 반투명 흰 스프라이트. 알파 블렌드가 켜져 있으면 검은 바탕과
+        // 반씩 섞여 회색이고, 꺼져 있으면 흰색이다 - 뮤테이션이 이 차이를 잡지 못해 더했다(D-108).
+        JBro::SpriteSubmit translucent;
+        translucent.world.linear[0] = 1.0f;
+        translucent.world.linear[1] = 0.0f;
+        translucent.world.linear[2] = 0.0f;
+        translucent.world.linear[3] = 1.0f;
+        translucent.world.translation[0] = 0.5f;
+        translucent.world.translation[1] = -0.5f;
+        translucent.world.depth = 0.0f;
+        translucent.tint[0] = 1.0f;
+        translucent.tint[1] = 1.0f;
+        translucent.tint[2] = 1.0f;
+        translucent.tint[3] = 0.5f;
+
         Check(renderer.BeginFrame() == JBro::FrameStatus::Ready, "the pixel frame must begin");
         Check(renderer.BeginView(camera), "the pixel view must open");
         Check(renderer.SubmitSprite(sprite), "the probe sprite must submit");
+        Check(renderer.SubmitSprite(translucent), "the translucent sprite must submit");
         Check(renderer.EndView(), "the pixel view must close");
         Check(renderer.EndFrame() == JBro::FrameStatus::Ready, "the pixel frame must present");
 
@@ -129,13 +145,16 @@ namespace
         Check(readback.rowPitch == 64 * 4 && readback.writtenBytes == 64 * 64 * 4,
             "the readback must be packed tightly");
 
-        // 왼쪽 절반은 스프라이트의 틴트, 오른쪽 절반은 지운 색이어야 한다.
+        // 왼쪽 절반은 스프라이트의 틴트, 오른쪽 위는 지운 색, 오른쪽 아래는 반투명이 섞인 회색이어야 한다.
         const Pixel left = ReadPixel(image, readback.rowPitch, 16, 32);
-        const Pixel right = ReadPixel(image, readback.rowPitch, 48, 32);
+        const Pixel right = ReadPixel(image, readback.rowPitch, 48, 16);
+        const Pixel blended = ReadPixel(image, readback.rowPitch, 48, 48);
         Check(Near(left.r, 1.0f) && Near(left.g, 0.5f) && Near(left.b, 0.25f),
             "the sprite must paint the tint the packet carried, channel for channel");
         Check(Near(right.r, 0.0f) && Near(right.g, 0.0f) && Near(right.b, 0.0f),
-            "the half the sprite does not cover must stay the clear colour");
+            "the quarter no sprite covers must stay the clear colour");
+        Check(std::abs(blended.r - 0.5f) <= 0.02f && std::abs(blended.g - 0.5f) <= 0.02f && std::abs(blended.b - 0.5f) <= 0.02f,
+            "a half-transparent white sprite over black must come out mid grey - alpha blending is on");
 
         renderer.Shutdown();
         rhi.Shutdown();
