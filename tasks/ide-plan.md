@@ -463,14 +463,29 @@ node-gyp 캐시의 42.10.0·24.18.1·22.22.1)도 함께 지웠다. 포크 빌드
 - **YAML 연결은 에디터 안에서 확인하지 않았다.** `package.json` 의 선언만 있고, VS Code 에 확장을 올려 `.jcanvas`
   가 YAML 로 열리는지는 보지 않았다. 확인하려면 확장 개발 호스트로 창을 띄워야 한다.
 
-**문법이 바뀌어서 갱신이 필요하다(2026-09-15).** 이 확장은 jbroscript-plan §12 의 1차 문법(`int`·`float`, `if let`,
-괄호 없는 조건)만 안다. 그 뒤 [jbroscript-syntax.md](./jbroscript-syntax.md) 에서 정한 것을 더하고 옛 것을 빼야 한다.
+~~**문법이 바뀌어서 갱신이 필요하다(2026-09-15).**~~ **새 문법으로 갱신했다(2026-09-17, 편집기 리포 `607dc3c`).**
+[jbroscript-syntax.md](./jbroscript-syntax.md) 를 따르고, 그 문서의 [제안] 항목(예약어 목록·`is not null`·`switch`/`case`·생성자 모양)도 칠한다.
 
-- 더할 것: `class`·`struct`·`interface`·`enum`, `public`·`protected`·`private`·`static`·`const`, `ref`,
-  `callback`·`override`·`require`(함수 끝에서만), `->`, `and`·`or`·`not`, `is null`·`is not null`,
-  `else`·`for`·`in`·`while`·`switch`·`case`·`default`·`break`·`continue`, 엔진 타입 이름(`Int`·`Float`·`Bool`·`String`·`Vector2` …)
-- 뺄 것: `if let`, 기본 타입으로 칠하던 `int`·`float`·`bool`
-- 테스트의 예제와 스냅숏(`test/snap/tetris-game-manager.jscript`)도 새 문법으로 다시 쓴다
+- 더한 것: `class`·`struct`·`interface`·`enum`(상속 목록, 줄마다 하나인 enum 멤버), `public`·`protected`·`private`·`static`·`const`, `ref`,
+  `callback`·`override`·`require`(함수 선언 줄 끝에서만), `->`, `and`·`or`·`not`, `is null`·`is not null`,
+  `else`·`for`·`in`(`for` 괄호 안에서만)·`while`·`switch`·`case`·`default`·`break`·`continue`, `..`, `%`,
+  엔진 타입(`Int`·`Float`·`Bool`·`String` 은 `support.type.primitive`, `Vector2`·`Rect`·`Color`·`Array`·`Table` 은 `support.type.builtin`)
+- 뺀 것: `if let`, 기본 타입으로 칠하던 `int`·`float`·`bool`
+- **함수 선언 줄은 한 규칙이 통째로 맡는다.** 일반 선언 규칙에 맡기면 `fn Damage() -> Int override` 의 `Int override` 가
+  `override` 라는 필드 선언으로 칠해진다. 접미사가 함수 끝에서만 키워드라는 문서의 규칙을 이렇게 지킨다.
+- **§2.1 의 예약어는 타입이나 이름 자리에 오지 못한다.** 그래서 `return total`·`is not null` 이 선언으로 칠해지지 않는다.
+- 스냅숏은 옛 테트리스 예제를 버리고 **jbroscript-syntax §13 전체 예시를 그대로 옮긴 `test/snap/enemy.jscript`** 로 바꿨다.
+  문서의 예시가 바뀌면 다시 옮긴다.
+
+**검증.** 단언 157개(6개 파일)와 §13 스냅숏. 기록한 스냅숏에서 까다로운 줄(함수 접미사, `for (i in 0..table.Size())`,
+`is not null`, `ref hit`, `Array<ref Enemy>`, enum 멤버)을 골라 검토했다. **문법 파일을 열네 가지로 일부러 망가뜨려 모두
+테스트가 잡는 것을 확인했다.** 처음에는 둘을 놓쳤다.
+
+- `in` 을 어디서나 키워드로 만든 변이: 테스트한 `Int in = 3` 은 선언 규칙이 먼저 가져가서 드러나지 않았다. 식 안의 `in`(`count = in + 1`)을 더했다.
+- `is` 를 예약어에서 뺀 변이: 완성된 문장에서는 뒤따르는 `not`·`null` 이 대신 막는다. **편집기는 치는 도중의 줄도 칠하므로**
+  `target is` 까지만 친 줄을 더했고, 이것이 선언으로 칠해지지 않는 것을 잰다.
+
+YAML 연결을 편집기 안에서 확인하지 않은 것은 그대로다.
 
 ### P2. `.jscript` 진단 (jbroscript-plan §13.2 ②)
 
@@ -561,7 +576,7 @@ jbroscript-plan §18.7 을 따른다. 그때까지는 Visual Studio 로 한다.
 | 단계 | 상태 | 크기 | 막힌 곳 |
 |---|---|---|---|
 | P0 스파이크 | **완료** | — | — |
-| P1 문법 강조 | **완료(옛 문법)**, 갱신 필요 | 작음 | 없음. 바로 할 수 있다 |
+| P1 문법 강조 | **완료**(2026-09-17 새 문법으로 갱신) | — | — |
 | `jbroc` 렉서·파서 | 시작 전 | 중간 | 없음. 문법이 거의 확정됐다([jbroscript-syntax.md](./jbroscript-syntax.md)) |
 | `jbroc` 타입체커·이미터 | 시작 전 | **큼** | §8.3 의 결정 1·2·3 |
 | P2 에러 표시 | 시작 전 | 작음 | `jbroc` 타입체커 |
@@ -590,7 +605,7 @@ jbroscript-plan §18.7 을 따른다. 그때까지는 Visual Studio 로 한다.
 
 ### 8.4 권하는 순서
 
-1. **P1 문법 강조 갱신.** 작고, 바로 눈으로 확인할 수 있다
+1. ~~**P1 문법 강조 갱신.**~~ 2026-09-17 에 했다
 2. **`jbroc` 렉서·파서.** 문법이 거의 확정돼 다시 만들 일이 적다
 3. 그사이 §8.3 의 결정을 정리한다
 4. 타입체커 → P2 → P3 으로 "쓸 만한 편집기" 에 닿는다
