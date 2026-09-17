@@ -8,11 +8,23 @@
 //
 // Comments in shader files stay ASCII: this file feeds dxc (DXIL), fxc (DXBC for D3D11) and
 // dxc -spirv, and fxc rejects both a UTF-8 BOM and bytes it cannot map to the ANSI code page.
+// The push-constant block has two spellings; see BuiltinSprite.hlsl in JBroGraphics.
+#if defined(JBRO_SPIRV)
+struct PushConstantsBlock
+{
+    float2 scale;
+    float2 translate;
+};
+[[vk::push_constant]] ConstantBuffer<PushConstantsBlock> gPush;
+#define gScale gPush.scale
+#define gTranslate gPush.translate
+#else
 cbuffer PushConstants : register(b0)
 {
     float2 gScale;
     float2 gTranslate;
 };
+#endif
 
 Texture2D    gTexture : register(t0);
 SamplerState gSampler : register(s0);

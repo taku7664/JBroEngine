@@ -1,7 +1,19 @@
+// b0 is the RHI's push-constant block. dxc -spirv wants a [[vk::push_constant]] ConstantBuffer<T>,
+// fxc (SM 5.0) knows neither the attribute nor ConstantBuffer<T>, so the two spellings live behind
+// JBRO_SPIRV. The field name gViewProjection is the same on both sides.
+#if defined(JBRO_SPIRV)
+struct ViewConstantsBlock
+{
+    row_major float4x4 viewProjection;
+};
+[[vk::push_constant]] ConstantBuffer<ViewConstantsBlock> gPush;
+#define gViewProjection gPush.viewProjection
+#else
 cbuffer ViewConstants : register(b0)
 {
     row_major float4x4 gViewProjection;
 };
+#endif
 
 // Instance layout mirrors GpuSpriteInstance in Renderer.h. Column-vector convention:
 //   x' = linear.x * x + linear.y * y + translation.x

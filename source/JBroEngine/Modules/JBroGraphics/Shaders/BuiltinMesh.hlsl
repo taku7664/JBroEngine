@@ -1,7 +1,17 @@
+// See BuiltinSprite.hlsl for why the push-constant block has two spellings.
+#if defined(JBRO_SPIRV)
+struct ViewConstantsBlock
+{
+    row_major float4x4 viewProjection;
+};
+[[vk::push_constant]] ConstantBuffer<ViewConstantsBlock> gPush;
+#define gViewProjection gPush.viewProjection
+#else
 cbuffer ViewConstants : register(b0)
 {
     row_major float4x4 gViewProjection;
 };
+#endif
 
 // Instance layout mirrors GpuMeshInstance in Renderer.h: a row-major 4x4 world matrix in four
 // float4 rows followed by the tint. Column-vector convention like the sprite shader.

@@ -24,6 +24,15 @@ if (-not (Test-Path $fxc))
     throw "fxc.exe for Windows SDK $sdk not found at $fxc"
 }
 
+# Vulkan reads SPIR-V. The Windows SDK dxc is built without SPIR-V codegen, so the Vulkan SDK's
+# dxc does this one (D-108). JBRO_SPIRV selects the [[vk::push_constant]] spelling of b0, and the
+# register shifts keep t# and s# clear of the push block: textures at binding 8+, samplers at 16+.
+$vkdxc = "${env:VULKAN_SDK}\Bin\dxc.exe"
+if (-not (Test-Path $vkdxc))
+{
+    throw "dxc.exe of the Vulkan SDK not found at $vkdxc (is VULKAN_SDK set?)"
+}
+
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $out = Join-Path (Split-Path -Parent $here) 'Source'
 
@@ -35,6 +44,11 @@ $targets = @(
 $sm5Targets = @(
     @{ File = 'EditorUI.hlsl'; Entry = 'VSMain'; Profile = 'vs_5_0'; Name = 'JBroEditorUIVS_SM5'; Header = 'EditorUIVS_SM5.generated.h' },
     @{ File = 'EditorUI.hlsl'; Entry = 'PSMain'; Profile = 'ps_5_0'; Name = 'JBroEditorUIPS_SM5'; Header = 'EditorUIPS_SM5.generated.h' }
+)
+
+$spirvTargets = @(
+    @{ File = 'EditorUI.hlsl'; Entry = 'VSMain'; Profile = 'vs_6_0'; Name = 'JBroEditorUIVS_SPV'; Header = 'EditorUIVS_SPV.generated.h' },
+    @{ File = 'EditorUI.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroEditorUIPS_SPV'; Header = 'EditorUIPS_SPV.generated.h' }
 )
 
 foreach ($t in $targets)
@@ -59,4 +73,16 @@ foreach ($t in $sm5Targets)
         throw "fxc failed for $($t.Entry) in $($t.File)"
     }
     "$($t.Header) <- $($t.File) ($($t.Profile) $($t.Entry))"
+}
+
+foreach ($t in $spirvTargets)
+{
+    $source = Join-Path $here $t.File
+    $header = Join-Path $out $t.Header
+    & $vkdxc -spirv -T $t.Profile -E $t.Entry -D JBRO_SPIRV=1 -fvk-t-shift 8 0 -fvk-s-shift 16 0 -Vn $t.Name -Fh $header $source
+    if ($LASTEXITCODE -ne 0)
+    {
+        throw "dxc -spirv failed for $($t.Entry) in $($t.File)"
+    }
+    "$($t.Header) <- $($t.File) (spirv $($t.Profile) $($t.Entry))"
 }
