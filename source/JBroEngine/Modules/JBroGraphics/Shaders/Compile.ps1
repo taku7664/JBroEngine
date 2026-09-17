@@ -21,7 +21,9 @@ $out = Join-Path (Split-Path -Parent $here) 'Source'
 
 $targets = @(
     @{ File = 'BuiltinSprite.hlsl'; Entry = 'VSMain'; Profile = 'vs_6_0'; Name = 'JBroBuiltinSpriteVS'; Header = 'BuiltinSpriteVS.generated.h' },
-    @{ File = 'BuiltinSprite.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinSpritePS'; Header = 'BuiltinSpritePS.generated.h' }
+    @{ File = 'BuiltinSprite.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinSpritePS'; Header = 'BuiltinSpritePS.generated.h' },
+    @{ File = 'BuiltinMesh.hlsl'; Entry = 'VSMain'; Profile = 'vs_6_0'; Name = 'JBroBuiltinMeshVS'; Header = 'BuiltinMeshVS.generated.h' },
+    @{ File = 'BuiltinMesh.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinMeshPS'; Header = 'BuiltinMeshPS.generated.h' }
 )
 
 foreach ($t in $targets)

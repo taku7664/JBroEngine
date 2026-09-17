@@ -1,5 +1,7 @@
 ﻿#include <JBro/Graphics/Renderer.h>
 
+#include "BuiltinMeshPS.generated.h"
+#include "BuiltinMeshVS.generated.h"
 #include "BuiltinSpritePS.generated.h"
 #include "BuiltinSpriteVS.generated.h"
 
@@ -59,6 +61,7 @@ namespace JBro
             m_sprites.Reserve(config.maxSpriteSubmissions);
             m_meshes.Reserve(config.maxMeshSubmissions);
             m_gpuSpriteInstances.Reserve(config.maxSpriteSubmissions);
+            m_gpuMeshInstances.Reserve(config.maxMeshSubmissions);
         }
         catch (const std::bad_alloc&)
         {
@@ -105,7 +108,7 @@ namespace JBro
         m_rhi = &rhi;
         m_device = device;
         m_swapchain = swapchain;
-        if (false == CreateBuiltinSpriteResources())
+        if (false == CreateBuiltinSpriteResources() || false == CreateBuiltinMeshResources())
         {
             Shutdown();
             return false;
@@ -125,6 +128,9 @@ namespace JBro
         if (m_device != nullptr && m_rhi != nullptr)
         {
             m_device->WaitIdle();
+            DestroyMeshResources();
+            DestroyDepthTargets();
+            DestroyBuiltinMeshResources();
             DestroyBuiltinSpriteResources();
             if (m_swapchain.IsValid())
             {
@@ -141,12 +147,191 @@ namespace JBro
         m_sprites = {};
         m_meshes = {};
         m_gpuSpriteInstances = {};
+        m_gpuMeshInstances = {};
+        m_meshResources = {};
         m_currentStats = {};
         m_lastStats = {};
         m_activeView = InvalidViewIndex;
         m_frameActive = false;
         m_device = nullptr;
         m_rhi = nullptr;
+    }
+
+    AssetHandle Renderer::RegisterMesh(JArrayView<MeshVertex> vertices, JArrayView<std::uint32_t> indices)
+    {
+        if (m_device == nullptr || m_frameActive
+            || vertices.data == nullptr || vertices.size == 0
+            || indices.data == nullptr || indices.size == 0 || indices.size % 3 != 0)
+        {
+            return {};
+        }
+        // 색인이 정점 밖을 가리키면 GPU 가 쓰레기를 읽는다. 여기서 거절한다.
+        for (std::uint32_t index = 0; index < indices.size; ++index)
+        {
+            if (indices.data[index] >= vertices.size)
+            {
+                return {};
+            }
+        }
+
+        BufferDesc vertexDesc;
+        vertexDesc.size = static_cast<std::size_t>(vertices.size) * sizeof(MeshVertex);
+        vertexDesc.usage = BufferUsage::Vertex | BufferUsage::CopySource;
+        vertexDesc.memory = MemoryType::Upload;
+        BufferDesc indexDesc;
+        indexDesc.size = static_cast<std::size_t>(indices.size) * sizeof(std::uint32_t);
+        indexDesc.usage = BufferUsage::Index | BufferUsage::CopySource;
+        indexDesc.memory = MemoryType::Upload;
+
+        MeshResource resource;
+        resource.vertexBuffer = m_device->CreateBuffer(vertexDesc);
+        resource.indexBuffer = m_device->CreateBuffer(indexDesc);
+        const bool written = resource.vertexBuffer.IsValid() && resource.indexBuffer.IsValid()
+            && m_device->WriteBuffer(resource.vertexBuffer, 0,
+                {reinterpret_cast<const std::byte*>(vertices.data),
+                    static_cast<std::uint32_t>(vertexDesc.size)})
+            && m_device->WriteBuffer(resource.indexBuffer, 0,
+                {reinterpret_cast<const std::byte*>(indices.data),
+                    static_cast<std::uint32_t>(indexDesc.size)});
+        if (false == written)
+        {
+            if (resource.vertexBuffer.IsValid())
+            {
+                m_device->DestroyBuffer(resource.vertexBuffer);
+            }
+            if (resource.indexBuffer.IsValid())
+            {
+                m_device->DestroyBuffer(resource.indexBuffer);
+            }
+            return {};
+        }
+        resource.indexCount = indices.size;
+        resource.occupied = true;
+
+        // 빈 자리를 다시 쓴다. generation 은 그 자리가 살아온 횟수라 옛 핸들을 가른다.
+        for (std::size_t slot = 0; slot < m_meshResources.Size(); ++slot)
+        {
+            if (false == m_meshResources[slot].occupied)
+            {
+                resource.generation = m_meshResources[slot].generation + 1;
+                m_meshResources[slot] = resource;
+                return AssetHandle{static_cast<std::uint32_t>(slot), resource.generation};
+            }
+        }
+        m_meshResources.Add(resource);
+        return AssetHandle{static_cast<std::uint32_t>(m_meshResources.Size() - 1), resource.generation};
+    }
+
+    void Renderer::UnregisterMesh(AssetHandle mesh)
+    {
+        if (m_device == nullptr || m_frameActive || mesh.index >= m_meshResources.Size())
+        {
+            return;
+        }
+        MeshResource& resource = m_meshResources[mesh.index];
+        if (false == resource.occupied || resource.generation != mesh.generation)
+        {
+            return;
+        }
+        // 지난 프레임이 아직 이 버퍼를 읽고 있을 수 있다. 디바이스가 은퇴 펜스로 미뤄 놓는다.
+        m_device->DestroyBuffer(resource.vertexBuffer);
+        m_device->DestroyBuffer(resource.indexBuffer);
+        resource.vertexBuffer = {};
+        resource.indexBuffer = {};
+        resource.indexCount = 0;
+        resource.occupied = false;
+    }
+
+    std::uint32_t Renderer::GetMeshCount() const
+    {
+        std::uint32_t count = 0;
+        for (std::size_t slot = 0; slot < m_meshResources.Size(); ++slot)
+        {
+            if (m_meshResources[slot].occupied)
+            {
+                ++count;
+            }
+        }
+        return count;
+    }
+
+    const Renderer::MeshResource* Renderer::FindMesh(AssetHandle mesh) const
+    {
+        if (mesh.index >= m_meshResources.Size())
+        {
+            return nullptr;
+        }
+        const MeshResource& resource = m_meshResources[mesh.index];
+        if (false == resource.occupied || resource.generation != mesh.generation)
+        {
+            return nullptr;
+        }
+        return &resource;
+    }
+
+    void Renderer::DestroyMeshResources()
+    {
+        if (m_device == nullptr)
+        {
+            return;
+        }
+        for (std::size_t slot = 0; slot < m_meshResources.Size(); ++slot)
+        {
+            MeshResource& resource = m_meshResources[slot];
+            if (resource.occupied)
+            {
+                m_device->DestroyBuffer(resource.vertexBuffer);
+                m_device->DestroyBuffer(resource.indexBuffer);
+                resource = {};
+            }
+        }
+        m_meshResources.Clear();
+    }
+
+    bool Renderer::AcquireDepthTarget(const Extent2D& extent, bool forTexture, TextureHandle& depth)
+    {
+        DepthTarget& target = m_depthTargets[forTexture ? 1 : 0];
+        if (target.texture.IsValid()
+            && target.extent.width == extent.width && target.extent.height == extent.height)
+        {
+            depth = target.texture;
+            return true;
+        }
+        if (target.texture.IsValid())
+        {
+            // 크기가 바뀌었다. 디바이스가 은퇴 펜스로 지난 프레임이 다 그린 뒤에 놓으므로 여기서
+            // 기다리지 않는다 - 보통 프레임은 GPU 를 기다리지 않는다는 계약이 있다(렌더러 계약 테스트).
+            m_device->DestroyTexture(target.texture);
+            target = {};
+        }
+        TextureDesc desc;
+        desc.extent = extent;
+        desc.format = TextureFormat::D32Float;
+        desc.usage = TextureUsage::DepthStencil;
+        target.texture = m_device->CreateTexture(desc);
+        if (false == target.texture.IsValid())
+        {
+            return false;
+        }
+        target.extent = extent;
+        depth = target.texture;
+        return true;
+    }
+
+    void Renderer::DestroyDepthTargets()
+    {
+        if (m_device == nullptr)
+        {
+            return;
+        }
+        for (DepthTarget& target : m_depthTargets)
+        {
+            if (target.texture.IsValid())
+            {
+                m_device->DestroyTexture(target.texture);
+            }
+            target = {};
+        }
     }
 
     FrameStatus Renderer::BeginFrame(const FrameTarget& target)
@@ -162,6 +347,15 @@ namespace JBro
             return FrameStatus::InvalidState;
         }
 
+        // **깊이 텍스처는 프레임을 열기 전에 이 크기로 확보한다.** 디바이스는 프레임 안에서 자원을
+        // 만들지 않으므로, 메시가 있는지 알게 되는 `RecordViews` 에서는 늦다. 크기가 같으면 지난
+        // 것을 그대로 쓴다 - 2D 프레임이 내는 값은 크기가 바뀔 때의 텍스처 하나뿐이다.
+        TextureHandle depth;
+        const Extent2D depthExtent = target.texture.IsValid() ? target.extent : m_config.surfaceExtent;
+        if (false == AcquireDepthTarget(depthExtent, target.texture.IsValid(), depth))
+        {
+            return FrameStatus::InvalidState;
+        }
         const BeginFrameResult result = m_device->BeginFrame(m_swapchain);
         if (result.status != FrameStatus::Ready)
         {
@@ -431,7 +625,7 @@ namespace JBro
             m_currentStats.skippedViewCount += static_cast<std::uint32_t>(m_views.Size());
             return true;
         }
-        if (false == UploadSpriteInstances())
+        if (false == UploadSpriteInstances() || false == UploadMeshInstances())
         {
             return false;
         }
@@ -480,6 +674,21 @@ namespace JBro
 
             RenderPassDesc pass;
             pass.colorAttachments = {&colorAttachment, 1};
+            // **메시가 있는 뷰만 깊이를 단다**(framework3d-plan §2.4). 스프라이트만 있는 2D 프레임은
+            // 전과 같은 패스다. 뷰마다 지운다 - 카메라가 다르면 깊이도 다른 것이다.
+            DepthStencilAttachmentDesc depthAttachment;
+            if (view.meshCount != 0)
+            {
+                if (false == AcquireDepthTarget(extent, toTexture, depthAttachment.texture))
+                {
+                    return false;
+                }
+                depthAttachment.depthLoadOperation = LoadOperation::Clear;
+                depthAttachment.depthStoreOperation = StoreOperation::Discard;
+                depthAttachment.stencilLoadOperation = LoadOperation::Discard;
+                depthAttachment.stencilStoreOperation = StoreOperation::Discard;
+                pass.depthStencilAttachment = &depthAttachment;
+            }
             if (false == m_frame.commands->BeginRenderPass(pass))
             {
                 return false;
@@ -525,6 +734,45 @@ namespace JBro
                         view.spriteOffset))
                 {
                     return false;
+                }
+            }
+
+            if (view.meshCount != 0)
+            {
+                const Matrix4x4 viewProjection = Multiply(
+                    view.camera.projection,
+                    view.camera.view);
+                const JArrayView<std::byte> constants = {
+                    reinterpret_cast<const std::byte*>(viewProjection.values),
+                    sizeof(viewProjection.values)};
+                if (false == m_frame.commands->SetGraphicsPipeline(m_meshPipeline)
+                    || false == m_frame.commands->SetVertexBuffer(
+                        1, m_meshInstanceBuffers[m_frame.slot], sizeof(GpuMeshInstance), 0)
+                    || false == m_frame.commands->SetGraphicsConstants(constants))
+                {
+                    return false;
+                }
+                // 메시마다 한 드로우다. 같은 메시를 묶는 것은 정렬이 생길 때 한다.
+                for (std::uint32_t at = 0; at < view.meshCount; ++at)
+                {
+                    const std::uint32_t instance = view.meshOffset + at;
+                    const MeshResource* mesh = FindMesh(m_meshes[instance].mesh);
+                    if (mesh == nullptr)
+                    {
+                        // 등록되지 않은 메시다. 프레임을 버리지 않고 그 항목만 건너뛴다 - 핸들이
+                        // 아직 해석되지 않은 첫 프레임이 그렇다.
+                        ++m_currentStats.droppedMeshCount;
+                        continue;
+                    }
+                    if (false == m_frame.commands->SetVertexBuffer(
+                            0, mesh->vertexBuffer, sizeof(MeshVertex), 0)
+                        || false == m_frame.commands->SetIndexBuffer(
+                            mesh->indexBuffer, IndexFormat::UInt32, 0)
+                        || false == m_frame.commands->DrawIndexedInstanced(
+                            mesh->indexCount, 1, 0, 0, instance))
+                    {
+                        return false;
+                    }
                 }
             }
 
@@ -620,6 +868,106 @@ namespace JBro
         pipelineDesc.pushConstantBytes = sizeof(Matrix4x4);
         m_spritePipeline = m_device->CreateGraphicsPipeline(pipelineDesc);
         return m_spritePipeline.IsValid();
+    }
+
+    bool Renderer::CreateBuiltinMeshResources()
+    {
+        if (m_device == nullptr
+            || m_config.maxMeshSubmissions == 0
+            || m_config.maxMeshSubmissions
+                > (std::numeric_limits<std::uint32_t>::max)() / sizeof(GpuMeshInstance))
+        {
+            return false;
+        }
+        BufferDesc instanceBufferDesc;
+        instanceBufferDesc.size = static_cast<std::size_t>(m_config.maxMeshSubmissions) * sizeof(GpuMeshInstance);
+        instanceBufferDesc.usage = BufferUsage::Vertex | BufferUsage::CopySource;
+        instanceBufferDesc.memory = MemoryType::Upload;
+        for (std::uint32_t slot = 0; slot < m_config.maxFramesInFlight && slot < MaxFrameSlots; ++slot)
+        {
+            m_meshInstanceBuffers[slot] = m_device->CreateBuffer(instanceBufferDesc);
+            if (false == m_meshInstanceBuffers[slot].IsValid())
+            {
+                return false;
+            }
+        }
+
+        const VertexAttributeDesc vertexAttributes[] = {
+            {0, static_cast<std::uint32_t>(offsetof(MeshVertex, position)), VertexFormat::Float3},
+            {1, static_cast<std::uint32_t>(offsetof(MeshVertex, normal)), VertexFormat::Float3}};
+        // 월드 행렬은 행 넷으로 쪼개 넘긴다. 정점 포맷에 4x4 가 없다.
+        const VertexAttributeDesc instanceAttributes[] = {
+            {2, static_cast<std::uint32_t>(offsetof(GpuMeshInstance, world)) + 0, VertexFormat::Float4},
+            {3, static_cast<std::uint32_t>(offsetof(GpuMeshInstance, world)) + 16, VertexFormat::Float4},
+            {4, static_cast<std::uint32_t>(offsetof(GpuMeshInstance, world)) + 32, VertexFormat::Float4},
+            {5, static_cast<std::uint32_t>(offsetof(GpuMeshInstance, world)) + 48, VertexFormat::Float4},
+            {6, static_cast<std::uint32_t>(offsetof(GpuMeshInstance, tint)), VertexFormat::Float4}};
+        const VertexBufferLayoutDesc vertexLayouts[] = {
+            {sizeof(MeshVertex), VertexStepMode::Vertex, {vertexAttributes, 2}},
+            {sizeof(GpuMeshInstance), VertexStepMode::Instance, {instanceAttributes, 5}}};
+        const TextureFormat colorFormats[] = {m_config.backBufferFormat};
+        GraphicsPipelineDesc pipelineDesc;
+        pipelineDesc.vertexShader = {JBroBuiltinMeshVS, sizeof(JBroBuiltinMeshVS)};
+        pipelineDesc.pixelShader = {JBroBuiltinMeshPS, sizeof(JBroBuiltinMeshPS)};
+        pipelineDesc.vertexBuffers = {vertexLayouts, 2};
+        pipelineDesc.colorFormats = {colorFormats, 1};
+        pipelineDesc.depthFormat = TextureFormat::D32Float;
+        pipelineDesc.blend = BlendMode::Opaque;
+        pipelineDesc.cull = CullMode::Back;
+        pipelineDesc.pushConstantStages = ShaderStage::Vertex;
+        pipelineDesc.pushConstantBytes = sizeof(Matrix4x4);
+        m_meshPipeline = m_device->CreateGraphicsPipeline(pipelineDesc);
+        return m_meshPipeline.IsValid();
+    }
+
+    void Renderer::DestroyBuiltinMeshResources()
+    {
+        if (m_device == nullptr)
+        {
+            return;
+        }
+        if (m_meshPipeline.IsValid())
+        {
+            m_device->DestroyGraphicsPipeline(m_meshPipeline);
+            m_meshPipeline = {};
+        }
+        for (BufferHandle& buffer : m_meshInstanceBuffers)
+        {
+            if (buffer.IsValid())
+            {
+                m_device->DestroyBuffer(buffer);
+                buffer = {};
+            }
+        }
+    }
+
+    bool Renderer::UploadMeshInstances()
+    {
+        m_gpuMeshInstances.Clear();
+        for (const MeshSubmit& mesh : m_meshes)
+        {
+            GpuMeshInstance instance;
+            instance.world = mesh.world;
+            instance.tint[0] = mesh.tint[0];
+            instance.tint[1] = mesh.tint[1];
+            instance.tint[2] = mesh.tint[2];
+            instance.tint[3] = mesh.tint[3];
+            m_gpuMeshInstances.Add(instance);
+        }
+        if (m_gpuMeshInstances.IsEmpty())
+        {
+            return true;
+        }
+        if (m_frame.slot >= MaxFrameSlots || false == m_meshInstanceBuffers[m_frame.slot].IsValid())
+        {
+            return false;
+        }
+        const std::size_t byteSize = m_gpuMeshInstances.Size() * sizeof(GpuMeshInstance);
+        return m_device->WriteBuffer(
+            m_meshInstanceBuffers[m_frame.slot],
+            0,
+            {reinterpret_cast<const std::byte*>(m_gpuMeshInstances.Data()),
+                static_cast<std::uint32_t>(byteSize)});
     }
 
     void Renderer::DestroyBuiltinSpriteResources()

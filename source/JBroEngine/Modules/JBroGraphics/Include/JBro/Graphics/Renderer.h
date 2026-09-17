@@ -101,6 +101,15 @@ namespace JBro
         Matrix4x4 world;
         AssetHandle mesh;
         AssetHandle material;
+        float tint[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+    };
+
+    // 렌더러가 GPU 에 올리는 메시 정점이다. 위치와 법선만 있다 - 재질이 생기면 UV 가 붙는다
+    // (framework3d-plan §2.4). 셰이더 ABI 라 크기와 자리를 아래에서 단언한다.
+    struct MeshVertex
+    {
+        float position[3] = {0.0f, 0.0f, 0.0f};
+        float normal[3] = {0.0f, 0.0f, 1.0f};
     };
 
     struct RendererFrameStats
@@ -135,6 +144,15 @@ namespace JBro
         bool SubmitSprites(JArrayView<SpriteSubmit> items);
         bool SubmitMesh(const MeshSubmit& item);
         bool SubmitMeshes(JArrayView<MeshSubmit> items);
+
+        // 메시 지오메트리를 GPU 에 올리고 `MeshSubmit::mesh` 에 넣을 핸들을 준다. 프레임 밖에서만
+        // 부른다. 빈 배열·너무 큰 배열·프레임 안이면 빈 핸들이다.
+        // **핸들 모양이 `AssetHandle` 인 것은 `MeshSubmit` 이 그 타입이기 때문이다.** 발급자가 렌더러라는
+        // 것은 `MeshLibrary`(Framework3DSystem)만 안다 - `AssetSystem` 이 실제로 로드하게 되면 그쪽이
+        // 발급한다(`[가정]`, framework3d-plan §2.3).
+        AssetHandle RegisterMesh(JArrayView<MeshVertex> vertices, JArrayView<std::uint32_t> indices);
+        void UnregisterMesh(AssetHandle mesh);
+        std::uint32_t GetMeshCount() const;
         bool EndView();
         FrameStatus EndFrame();
         void AbortFrame();
@@ -200,12 +218,48 @@ namespace JBro
         static_assert(offsetof(GpuSpriteInstance, tint) == 28,
             "instance attribute 3 reads the tint from offset 28");
 
+        // 메시 인스턴스 하나. 월드 4x4(행 넷)와 tint. `BuiltinMesh.hlsl` 의 ATTRIBUTE2..6 이 이것을 읽는다.
+        struct GpuMeshInstance
+        {
+            Matrix4x4 world;
+            float tint[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+        };
+        static_assert(sizeof(MeshVertex) == 24, "mesh vertex stride is part of the shader ABI");
+        static_assert(offsetof(MeshVertex, normal) == 12, "attribute 1 reads the normal from offset 12");
+        static_assert(sizeof(GpuMeshInstance) == 80, "mesh instance stride is part of the shader ABI");
+        static_assert(offsetof(GpuMeshInstance, tint) == 64, "attribute 6 reads the tint from offset 64");
+
+        // 올라간 메시 하나. 핸들의 index 가 이 배열의 자리고 generation 이 재사용을 가른다.
+        struct MeshResource
+        {
+            BufferHandle vertexBuffer;
+            BufferHandle indexBuffer;
+            std::uint32_t indexCount = 0;
+            std::uint32_t generation = 1;
+            bool occupied = false;
+        };
+
+        // 깊이 텍스처 하나. 타깃 크기마다 하나씩 두고 크기가 바뀌면 다시 만든다.
+        struct DepthTarget
+        {
+            TextureHandle texture;
+            Extent2D extent;
+        };
+
         static constexpr std::uint32_t InvalidViewIndex = 0xFFFFFFFFu;
         static constexpr std::uint32_t MaxFrameSlots = 3;
 
         bool CreateBuiltinSpriteResources();
         void DestroyBuiltinSpriteResources();
         bool UploadSpriteInstances();
+        bool CreateBuiltinMeshResources();
+        void DestroyBuiltinMeshResources();
+        bool UploadMeshInstances();
+        void DestroyMeshResources();
+        // `extent` 크기의 깊이 텍스처를 준다. 백버퍼용과 프레임 타깃용을 따로 든다.
+        bool AcquireDepthTarget(const Extent2D& extent, bool forTexture, TextureHandle& depth);
+        void DestroyDepthTargets();
+        const MeshResource* FindMesh(AssetHandle mesh) const;
         bool RecordViews();
         void ResetSubmissionStorage();
 
@@ -225,6 +279,11 @@ namespace JBro
         BufferHandle m_spriteIndexBuffer;
         BufferHandle m_spriteInstanceBuffers[MaxFrameSlots];
         GraphicsPipelineHandle m_spritePipeline;
+        Array<MeshResource> m_meshResources;
+        Array<GpuMeshInstance> m_gpuMeshInstances;
+        BufferHandle m_meshInstanceBuffers[MaxFrameSlots];
+        GraphicsPipelineHandle m_meshPipeline;
+        DepthTarget m_depthTargets[2];
         RendererFrameStats m_currentStats;
         RendererFrameStats m_lastStats;
         // EndFrame 이 프레임 컨텍스트를 비우므로 읽기 경로를 위해 따로 기억한다.
