@@ -3803,7 +3803,10 @@ namespace
         Check(editor.GetCommands().Undo() && std::fabs(transform->position.x) < 1.0e-4f,
             "undoing the drag must put the box back");
 
-        // E 는 회전이다. 고리가 나오고, 그것을 끌면 돈다.
+        // E 는 회전이다. 고리가 나오고, 그것을 끌면 돈다. 마우스는 게임 뷰 밖으로 빼 둔다 - 손잡이를 잡았을 때
+        // 창이 포커스를 받았어야 핫키가 먹는다.
+        PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(2, 2));
+        Check(editor.Tick(Frame), "the editor must tick with the mouse away");
         PostMessageW(hwnd, WM_KEYDOWN, 'E', 0);
         Check(editor.Tick(Frame), "the editor must tick with E down");
         PostMessageW(hwnd, WM_KEYUP, 'E', 0);
@@ -3829,6 +3832,37 @@ namespace
         DragFrom(editor, hwnd, spot, spot.x + 30);
         Check(transform->scale.x > 1.05f && std::fabs(transform->scale.y - 1.0f) < 1.0e-4f,
             "dragging the x box outwards scales x only");
+
+        // **부모가 돌아 있으면 델타는 부모 좌표계로 돌아온다.** 90도 돈 부모 아래의 자식은 자기 x 축이 화면 위를
+        // 가리킨다. 그 손잡이를 위로 끌면 월드로는 +y 지만 로컬 position 은 +x 만 늘어야 한다.
+        PostMessageW(hwnd, WM_KEYDOWN, 'W', 0);
+        Check(editor.Tick(Frame), "the editor must tick with W down");
+        PostMessageW(hwnd, WM_KEYUP, 'W', 0);
+        Check(editor.Tick(Frame), "the editor must tick with W up");
+        JBro::GameObject* parent = canvas->CreateObject("Turned");
+        auto* parentTransform = canvas->AttachComponent<JBro::Component::Transform2D>(parent);
+        Check(parentTransform != nullptr, "the parent needs a transform");
+        parentTransform->rotation = 90.0f;
+        JBro::GameObject* child = canvas->CreateObject("Child");
+        auto* childTransform = canvas->AttachComponent<JBro::Component::Transform2D>(child);
+        Check(childTransform != nullptr, "the child needs a transform");
+        child->SetParent(parent);
+        editor.SetSelectedObject(child);
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle on the child");
+        }
+        Check(FindItemAnywhereInWindow(editor, hwnd, game, LabelId(game->ID, "##gizmo_x"), spot),
+            "the child's x handle must be on screen");
+        // 잡기만 하고 놓으면 바뀐 것이 없다. 빈 커맨드를 되돌리기 더미에 넣으면 안 된다.
+        const std::size_t untouched = editor.GetCommands().GetUndoCount();
+        ClickAt(editor, hwnd, spot);
+        Check(editor.GetCommands().GetUndoCount() == untouched, "a click that moves nothing is not an undo step");
+        to = spot;
+        to.y -= 40;
+        DragTo(editor, hwnd, spot, to);
+        Check(childTransform->position.x > 0.05f && std::fabs(childTransform->position.y) < 1.0e-3f,
+            "a world +y drag on a child of a 90-degree parent must land in the child's local +x");
         editor.Shutdown();
     }
 }
