@@ -1,5 +1,6 @@
 ﻿#include <JBro/D3D11RHI/D3D11RHI.h>
 #include <JBro/D3D12RHI/D3D12RHI.h>
+#include <JBro/VulkanRHI/VulkanRHI.h>
 #include <JBro/Framework3D/Component/Camera3D.h>
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
@@ -261,7 +262,9 @@ int RunMeshPixelTests()
     TestACubeIsDrawnWhereTheCameraLooks<JBro::D3D12RHIModule>();
     TestANearerCubeHidesAFartherOne<JBro::D3D12RHIModule>();
     TestACubeIsDrawnWhereTheCameraLooks<JBro::D3D11RHIModule>();
+    TestACubeIsDrawnWhereTheCameraLooks<JBro::VulkanRHIModule>();
     TestANearerCubeHidesAFartherOne<JBro::D3D11RHIModule>();
+    TestANearerCubeHidesAFartherOne<JBro::VulkanRHIModule>();
     std::cout << "Mesh pixel tests passed.\n";
     return 0;
 }

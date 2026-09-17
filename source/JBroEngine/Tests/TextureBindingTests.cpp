@@ -1,9 +1,17 @@
-﻿#include <JBro/D3D12RHI/D3D12RHI.h>
+﻿#include <JBro/D3D11RHI/D3D11RHI.h>
+#include <JBro/D3D12RHI/D3D12RHI.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Types/Array.h>
+#include <JBro/VulkanRHI/VulkanRHI.h>
 
 #include "TexturedQuadPS.generated.h"
 #include "TexturedQuadVS.generated.h"
+
+namespace Spv
+{
+#include "TexturedQuadPS_SPV.generated.h"
+#include "TexturedQuadVS_SPV.generated.h"
+}
 
 #include <cmath>
 #include <cstddef>
@@ -67,10 +75,13 @@ namespace
 
     // 화면을 가득 채우는, 텍스처 입힌 사각형 하나를 그릴 만큼만 차린다.
     // 세 테스트가 같은 것을 필요로 하므로 한 자리에 모은다.
+    // 세 백엔드가 같은 계약을 채우므로 같은 탐침을 돈다(D-107·D-108). D3D11 은 DXBC 가 없어 빠진다 -
+    // 이 셰이더의 SM 5.0 헤더는 굽지 않았다(`Compile.ps1`). `[가정]`
+    template <typename TModule>
     struct Probe
     {
         JBro::WindowsPlatform platform;
-        JBro::D3D12RHIModule rhi;
+        TModule rhi;
         JBro::IRHIDevice* device = nullptr;
         JBro::WindowHandle window;
         JBro::SwapchainHandle swapchain;
@@ -94,7 +105,7 @@ namespace
 
     // 개수만 바꿔서 쓸 수 있도록 한 자리에서 만든다. 그러지 않으면 "너무 많다" 를
     // 시험한다면서 실은 다른 이유로 실패하는 서술자를 넘기게 된다.
-    JBro::GraphicsPipelineDesc MakeTexturedPipelineDesc()
+    JBro::GraphicsPipelineDesc MakeTexturedPipelineDesc(JBro::GraphicsApi api)
     {
         static const JBro::VertexAttributeDesc attributes[] = {
             {0, 0, JBro::VertexFormat::Float2},
@@ -106,8 +117,16 @@ namespace
         static const JBro::TextureFormat colorFormats[] = {JBro::TextureFormat::BGRA8Unorm};
 
         JBro::GraphicsPipelineDesc desc;
-        desc.vertexShader = {JBroTestTexturedQuadVS, sizeof(JBroTestTexturedQuadVS)};
-        desc.pixelShader = {JBroTestTexturedQuadPS, sizeof(JBroTestTexturedQuadPS)};
+        if (api == JBro::GraphicsApi::Vulkan)
+        {
+            desc.vertexShader = {Spv::JBroTestTexturedQuadVS_SPV, sizeof(Spv::JBroTestTexturedQuadVS_SPV)};
+            desc.pixelShader = {Spv::JBroTestTexturedQuadPS_SPV, sizeof(Spv::JBroTestTexturedQuadPS_SPV)};
+        }
+        else
+        {
+            desc.vertexShader = {JBroTestTexturedQuadVS, sizeof(JBroTestTexturedQuadVS)};
+            desc.pixelShader = {JBroTestTexturedQuadPS, sizeof(JBroTestTexturedQuadPS)};
+        }
         desc.vertexBuffers = {&layout, 1};
         desc.colorFormats = {colorFormats, 1};
         desc.cull = JBro::CullMode::None;
@@ -116,7 +135,8 @@ namespace
         return desc;
     }
 
-    bool Probe::Open(const char* title)
+    template <typename TModule>
+    bool Probe<TModule>::Open(const char* title)
     {
         JBro::JMemoryContext memory;
         Check(platform.Initialize(memory), "the platform must initialize");
@@ -218,12 +238,13 @@ namespace
             {reinterpret_cast<const std::byte*>(indices), sizeof(indices)}),
             "the indices must upload");
 
-        pipeline = device->CreateGraphicsPipeline(MakeTexturedPipelineDesc());
+        pipeline = device->CreateGraphicsPipeline(MakeTexturedPipelineDesc(rhi.GetApi()));
         Check(pipeline.IsValid(), "the textured pipeline must be created");
         return true;
     }
 
-    bool Probe::BeginPass(
+    template <typename TModule>
+    bool Probe<TModule>::BeginPass(
         JBro::IRHICommandContext& commands,
         const JBro::BeginFrameResult& begun)
     {
@@ -247,7 +268,8 @@ namespace
         return true;
     }
 
-    void Probe::CheckValidationStayedQuiet(const char* what) const
+    template <typename TModule>
+    void Probe<TModule>::CheckValidationStayedQuiet(const char* what) const
     {
         if (device == nullptr)
         {
@@ -262,7 +284,8 @@ namespace
         Check(errors == 0, "the debug layer must stay quiet");
     }
 
-    void Probe::Close()
+    template <typename TModule>
+    void Probe<TModule>::Close()
     {
         if (device != nullptr)
         {
@@ -297,12 +320,13 @@ namespace
     // 텍스처 바인딩이 실제로 GPU 까지 닿는지는 픽셀을 되읽지 않고는 증명할 수 없다.
     // 디스크립터를 엉뚱한 자리에 복사해도, 샘플러를 안 묶어도, D3D12 는 대개
     // 아무 말도 하지 않고 색만 조용히 달라진다.
+    template <typename TModule>
     void TestATextureReachesTheShader()
     {
-        Probe probe;
+        Probe<TModule> probe;
         if (false == probe.Open("JBro texture probe"))
         {
-            std::cout << "  [skip] no D3D12 device; texture binding not verified" << std::endl;
+            std::cout << "  [skip] no device for this API; texture binding not verified" << std::endl;
             return;
         }
 
@@ -317,11 +341,11 @@ namespace
 
         // 선언한 수를 넘는 파이프라인은 거절한다. 루트 시그니처는 만들고 나면 못 바꾸므로
         // 여기서 막지 않으면 그리는 자리에서 조용히 잘린다.
-        JBro::GraphicsPipelineDesc tooMany = MakeTexturedPipelineDesc();
+        JBro::GraphicsPipelineDesc tooMany = MakeTexturedPipelineDesc(probe.rhi.GetApi());
         tooMany.sampledTextureCount = 64;
         // 같은 서술자에서 개수만 되돌리면 만들어져야 한다. 위의 거절이 개수 때문이지
         // 다른 무엇 때문이 아님을 그것이 말해 준다.
-        JBro::GraphicsPipelineDesc justEnough = MakeTexturedPipelineDesc();
+        JBro::GraphicsPipelineDesc justEnough = MakeTexturedPipelineDesc(probe.rhi.GetApi());
         Check(false == probe.device->CreateGraphicsPipeline(tooMany).IsValid(),
             "a pipeline asking for more textures than the backend binds must be refused");
         const JBro::GraphicsPipelineHandle spare =
@@ -389,12 +413,13 @@ namespace
     // **검증 손잡이 자체가 도는지 본다.** 이것이 없으면 "조용했으니 맞다" 는 말이
     // 실은 "아무것도 안 세는 숫자가 0 이었다" 일 수 있다. 아래 테스트들이 전부
     // 그 숫자에 기대므로, 먼저 그 숫자가 진짜로 센다는 것을 보여야 한다.
+    template <typename TModule>
     void TestTheDebugLayerActuallySpeaks()
     {
-        Probe probe;
+        Probe<TModule> probe;
         if (false == probe.Open("JBro validation probe"))
         {
-            std::cout << "  [skip] no D3D12 device; the debug layer not verified" << std::endl;
+            std::cout << "  [skip] no device for this API; the debug layer not verified" << std::endl;
             return;
         }
 
@@ -404,7 +429,12 @@ namespace
         Check(probe.BeginPass(commands, begun), "the probe render pass must begin");
 
         // 인덱스가 여섯 개뿐인 버퍼에서 열두 개를 그린다. 우리 쪽은 이것을 막지 않고
-        // D3D12 도 화면을 망가뜨리지 않는다 - 검증 레이어만이 말해 준다.
+        // D3D12 도 화면을 망가뜨리지 않는다 - 검증 레이어만이 말해 준다. Vulkan 의 레이어는 GPU 를 보지
+        // 않아 그것을 못 잡는다 - 대신 너비 0 뷰포트(VUID-VkViewport-width-01770)를 건다.
+        if (probe.rhi.GetApi() == JBro::GraphicsApi::Vulkan)
+        {
+            commands.SetViewport({0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f});
+        }
         Check(commands.SetGraphicsPipeline(probe.pipeline), "the pipeline must bind");
         Check(commands.SetTexture(0, probe.texture), "the texture must bind");
         Check(commands.SetSampler(0, probe.sampler), "the sampler must bind");
@@ -432,12 +462,13 @@ namespace
     // 렌더 타깃으로 쓴 텍스처는 `RENDER_TARGET` 상태로 남아 있고, 그 상태로 샘플링하면
     // D3D12 는 대개 아무 말도 하지 않고 쓰레기를 읽는다. 되돌리는 배리어는 **패스를
     // 닫은 뒤에** 나가야 한다 - 네이티브 렌더 패스 안의 배리어는 불법이기 때문이다.
+    template <typename TModule>
     void TestATextureCanBeDrawnIntoAndThenRead()
     {
-        Probe probe;
+        Probe<TModule> probe;
         if (false == probe.Open("JBro offscreen probe"))
         {
-            std::cout << "  [skip] no D3D12 device; render to texture not verified" << std::endl;
+            std::cout << "  [skip] no device for this API; render to texture not verified" << std::endl;
             return;
         }
 
@@ -536,12 +567,13 @@ namespace
 
     // 묶지 않은 자리로 그리면 셰이더가 남의 디스크립터를 읽는다. D3D12 는 그것을
     // 말해 주지 않고 화면만 조용히 달라진다.
+    template <typename TModule>
     void TestDrawingNeedsEverySlotItDeclared()
     {
-        Probe probe;
+        Probe<TModule> probe;
         if (false == probe.Open("JBro unbound probe"))
         {
-            std::cout << "  [skip] no D3D12 device; unbound draws not verified" << std::endl;
+            std::cout << "  [skip] no device for this API; unbound draws not verified" << std::endl;
             return;
         }
 
@@ -585,12 +617,13 @@ namespace
     // 보이는 디스크립터 링은 프레임마다 처음으로 되돌아가야 한다. 되감지 않으면
     // 몇 프레임 뒤부터 그리기가 조용히 실패한다 — 화면이 멈춘 것처럼 보이고
     // 어디서 멈췄는지는 아무 데도 적히지 않는다.
+    template <typename TModule>
     void TestTheDescriptorRingRewindsEachFrame()
     {
-        Probe probe;
+        Probe<TModule> probe;
         if (false == probe.Open("JBro ring probe"))
         {
-            std::cout << "  [skip] no D3D12 device; the descriptor ring not verified" << std::endl;
+            std::cout << "  [skip] no device for this API; the descriptor ring not verified" << std::endl;
             return;
         }
 
@@ -626,12 +659,13 @@ namespace
         probe.Close();
     }
 
+    template <typename TModule>
     void TestAFreedSamplerDoesNotComeBack()
     {
-        Probe probe;
+        Probe<TModule> probe;
         if (false == probe.Open("JBro sampler probe"))
         {
-            std::cout << "  [skip] no D3D12 device; sampler reuse not verified" << std::endl;
+            std::cout << "  [skip] no device for this API; sampler reuse not verified" << std::endl;
             return;
         }
 
@@ -649,14 +683,24 @@ namespace
     }
 }
 
+namespace
+{
+    template <typename TModule>
+    void RunTextureBindingTestsOn()
+    {
+        TestTheDebugLayerActuallySpeaks<TModule>();
+        TestATextureReachesTheShader<TModule>();
+        TestATextureCanBeDrawnIntoAndThenRead<TModule>();
+        TestDrawingNeedsEverySlotItDeclared<TModule>();
+        TestTheDescriptorRingRewindsEachFrame<TModule>();
+        TestAFreedSamplerDoesNotComeBack<TModule>();
+    }
+}
+
 int RunTextureBindingTests()
 {
-    TestTheDebugLayerActuallySpeaks();
-    TestATextureReachesTheShader();
-    TestATextureCanBeDrawnIntoAndThenRead();
-    TestDrawingNeedsEverySlotItDeclared();
-    TestTheDescriptorRingRewindsEachFrame();
-    TestAFreedSamplerDoesNotComeBack();
+    RunTextureBindingTestsOn<JBro::D3D12RHIModule>();
+    RunTextureBindingTestsOn<JBro::VulkanRHIModule>();
     std::cout << "Texture binding tests passed.\n";
     return 0;
 }

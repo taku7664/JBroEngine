@@ -1,5 +1,6 @@
 ﻿#include <JBro/D3D11RHI/D3D11RHI.h>
 #include <JBro/D3D12RHI/D3D12RHI.h>
+#include <JBro/VulkanRHI/VulkanRHI.h>
 #include <JBro/Graphics/Renderer.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Types/Array.h>
@@ -426,10 +427,13 @@ int RunSpritePixelTests()
 {
     TestSpritePacketReachesTheShaderFields<JBro::D3D12RHIModule>();
     TestSpritePacketReachesTheShaderFields<JBro::D3D11RHIModule>();
+    TestSpritePacketReachesTheShaderFields<JBro::VulkanRHIModule>();
     TestTheSameSpriteGoesToATextureInstead<JBro::D3D12RHIModule>();
     TestTheSameSpriteGoesToATextureInstead<JBro::D3D11RHIModule>();
+    TestTheSameSpriteGoesToATextureInstead<JBro::VulkanRHIModule>();
     TestTheOverlayGetsTheFrameAfterTheGame<JBro::D3D12RHIModule>();
     TestTheOverlayGetsTheFrameAfterTheGame<JBro::D3D11RHIModule>();
+    TestTheOverlayGetsTheFrameAfterTheGame<JBro::VulkanRHIModule>();
     std::cout << "Sprite pixel tests passed.\n";
     return 0;
 }

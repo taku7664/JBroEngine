@@ -3302,16 +3302,19 @@ namespace
     // **에디터 화면이 실제로 나오는가.** 게임은 텍스처로 가고 백버퍼에는 UI 만 남는다 -
     // 그 프레임은 "게임이 낼 것이 없는" 프레임이기도 해서, 배선이 하나라도 어긋나면
     // 화면이 통째로 검게 남는다. 픽셀을 되읽지 않으면 알 수 없다(D-63).
-    void TestTheEditorPaintsItsOwnScreen()
+    // 세 백엔드에서 돈다(D-107·D-108). 에디터 UI 의 폰트 아틀라스·게임 뷰 텍스처·시저가 백엔드마다
+    // 다른 길을 타므로, 화면이 나오는지는 백엔드마다 봐야 한다.
+    void TestTheEditorPaintsItsOwnScreen(JBro::GraphicsApi api)
     {
         JBro::EditorApplication editor;
         JBro::EditorApplicationConfig config;
+        config.graphicsApi = api;
         config.windowVisible = false;
         config.windowWidth = WindowWidth;
         config.windowHeight = WindowHeight;
         if (false == editor.Initialize(config))
         {
-            std::cout << "  [skip] no D3D12 device; the editor screen not verified"
+            std::cout << "  [skip] no device for this API; the editor screen not verified"
                 << std::endl;
             return;
         }
@@ -3319,6 +3322,7 @@ namespace
         JBro::ProjectDescriptor project;
         constexpr char name[] = "EditorScreenProbe";
         project.name = {name, sizeof(name) - 1};
+        project.graphicsApi = api;
         Check(editor.OpenProject(project), "the probe project must open");
 
         Check(false == editor.IsEditorUiEnabled(), "the UI starts off");
@@ -3452,7 +3456,8 @@ namespace
         config.windowWidth = 96;
         config.windowHeight = 64;
         JBro::EditorApplicationConfig unsupportedConfig = config;
-        unsupportedConfig.graphicsApi = JBro::GraphicsApi::Vulkan;
+        // Vulkan 은 이제 백엔드다(D-108). 없는 것은 WebGPU 다.
+        unsupportedConfig.graphicsApi = JBro::GraphicsApi::WebGPU;
         Check(false == editor.Initialize(unsupportedConfig),
             "editor must reject an unavailable graphics backend without changing state");
         Check(editor.Initialize(config), "editor process must initialize without a project");
@@ -3754,7 +3759,9 @@ namespace
 int RunEditorApplicationTests()
 {
     TestEditorProjectSessions();
-    TestTheEditorPaintsItsOwnScreen();
+    TestTheEditorPaintsItsOwnScreen(JBro::GraphicsApi::D3D12);
+    TestTheEditorPaintsItsOwnScreen(JBro::GraphicsApi::D3D11);
+    TestTheEditorPaintsItsOwnScreen(JBro::GraphicsApi::Vulkan);
     TestTheEditorDrawsWithNoProjectOpen();
     TestTheMenuBarSpeaksTheLoadedLocale();
     TestTheEditorForwardsInputToItsUi();
