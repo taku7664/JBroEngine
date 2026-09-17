@@ -262,13 +262,15 @@ int Run(int argc, wchar_t** argv)
     int exitCode = ExitSuccess;
     for (const std::filesystem::path& file : commandLine.Files)
     {
+        // MSVC 의 absolute 는 GetFullPathNameW 라 `.`·`..`·`/`·겹친 구분자까지 정리해 준다. lexically_normal 을 더해도
+        // 바뀌는 것이 없어서(뮤테이션으로 확인) 부르지 않는다.
         std::error_code error;
         std::filesystem::path absolute = std::filesystem::absolute(file, error);
         if (error)
         {
             absolute = file;
         }
-        const String path = ToUtf8(absolute.lexically_normal().native());
+        const String path = ToUtf8(absolute.native());
 
         String text;
         if (false == ReadWholeFile(absolute, text))
