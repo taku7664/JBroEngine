@@ -187,6 +187,10 @@ namespace
         Check(Near(center.g / center.r, 0.5f, 0.05f) && Near(center.b / center.r, 0.25f, 0.05f),
             "and carry the tint's proportions through the lighting");
         Check(center.r < 0.999f, "lit by one directional light, the front face is not full brightness");
+        // 앞면의 법선 (0,0,1) 과 고정 광원 (0.4,0.8,0.45) 의 내적은 0.449 이고 조명은 0.25 + 0.75 x 0.449 = 0.587 이다.
+        // 앞면이 컬링돼 뒷면 안쪽이 보이면 내적이 음수라 앰비언트 0.25 만 남는다 - 앞면 판정이 뒤집힌 것을 여기서 잡는다.
+        Check(Near(center.r, 0.587f, 0.03f),
+            "the face towards the camera must carry the light's Lambert term, not just the ambient of a back face");
         const Pixel corner = ReadPixel(image, readback.rowPitch, 2, 2);
         Check(Near(corner.r, 0.0f) && Near(corner.g, 0.0f) && Near(corner.b, 0.0f),
             "the corner must stay at the camera's clear colour");
