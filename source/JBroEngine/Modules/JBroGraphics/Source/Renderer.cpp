@@ -16,6 +16,15 @@ namespace JBro::Sm5
 #include "BuiltinSpriteVS_SM5.generated.h"
 }
 
+// Vulkan 은 SPIR-V 를 읽는다(D-108). Vulkan SDK 의 dxc 가 같은 HLSL 을 `-spirv` 로 구운 것이다.
+namespace JBro::Spv
+{
+#include "BuiltinMeshPS_SPV.generated.h"
+#include "BuiltinMeshVS_SPV.generated.h"
+#include "BuiltinSpritePS_SPV.generated.h"
+#include "BuiltinSpriteVS_SPV.generated.h"
+}
+
 #include <limits>
 #include <new>
 
@@ -23,13 +32,17 @@ namespace JBro
 {
     namespace
     {
-        // API 마다 읽는 바이트코드가 다르다. D3D12 는 DXIL, D3D11 은 DXBC 다. Vulkan(SPIR-V)은 3단계에서.
+        // API 마다 읽는 바이트코드가 다르다. D3D12 는 DXIL, D3D11 은 DXBC, Vulkan 은 SPIR-V 다.
         ShaderBytecode PickShader(GraphicsApi api, const unsigned char* dxil, std::size_t dxilSize,
-            const unsigned char* dxbc, std::size_t dxbcSize)
+            const unsigned char* dxbc, std::size_t dxbcSize, const unsigned char* spirv, std::size_t spirvSize)
         {
             if (api == GraphicsApi::D3D11)
             {
                 return {dxbc, static_cast<std::uint32_t>(dxbcSize)};
+            }
+            if (api == GraphicsApi::Vulkan)
+            {
+                return {spirv, static_cast<std::uint32_t>(spirvSize)};
             }
             return {dxil, static_cast<std::uint32_t>(dxilSize)};
         }
@@ -881,9 +894,11 @@ namespace JBro
 
         GraphicsPipelineDesc pipelineDesc;
         pipelineDesc.vertexShader = PickShader(m_config.api, JBroBuiltinSpriteVS, sizeof(JBroBuiltinSpriteVS),
-            Sm5::JBroBuiltinSpriteVS_SM5, sizeof(Sm5::JBroBuiltinSpriteVS_SM5));
+            Sm5::JBroBuiltinSpriteVS_SM5, sizeof(Sm5::JBroBuiltinSpriteVS_SM5),
+            Spv::JBroBuiltinSpriteVS_SPV, sizeof(Spv::JBroBuiltinSpriteVS_SPV));
         pipelineDesc.pixelShader = PickShader(m_config.api, JBroBuiltinSpritePS, sizeof(JBroBuiltinSpritePS),
-            Sm5::JBroBuiltinSpritePS_SM5, sizeof(Sm5::JBroBuiltinSpritePS_SM5));
+            Sm5::JBroBuiltinSpritePS_SM5, sizeof(Sm5::JBroBuiltinSpritePS_SM5),
+            Spv::JBroBuiltinSpritePS_SPV, sizeof(Spv::JBroBuiltinSpritePS_SPV));
         pipelineDesc.vertexBuffers = {vertexLayouts, 2};
         pipelineDesc.colorFormats = {colorFormats, 1};
         pipelineDesc.blend = BlendMode::Alpha;
@@ -932,9 +947,11 @@ namespace JBro
         const TextureFormat colorFormats[] = {m_config.backBufferFormat};
         GraphicsPipelineDesc pipelineDesc;
         pipelineDesc.vertexShader = PickShader(m_config.api, JBroBuiltinMeshVS, sizeof(JBroBuiltinMeshVS),
-            Sm5::JBroBuiltinMeshVS_SM5, sizeof(Sm5::JBroBuiltinMeshVS_SM5));
+            Sm5::JBroBuiltinMeshVS_SM5, sizeof(Sm5::JBroBuiltinMeshVS_SM5),
+            Spv::JBroBuiltinMeshVS_SPV, sizeof(Spv::JBroBuiltinMeshVS_SPV));
         pipelineDesc.pixelShader = PickShader(m_config.api, JBroBuiltinMeshPS, sizeof(JBroBuiltinMeshPS),
-            Sm5::JBroBuiltinMeshPS_SM5, sizeof(Sm5::JBroBuiltinMeshPS_SM5));
+            Sm5::JBroBuiltinMeshPS_SM5, sizeof(Sm5::JBroBuiltinMeshPS_SM5),
+            Spv::JBroBuiltinMeshPS_SPV, sizeof(Spv::JBroBuiltinMeshPS_SPV));
         pipelineDesc.vertexBuffers = {vertexLayouts, 2};
         pipelineDesc.colorFormats = {colorFormats, 1};
         pipelineDesc.depthFormat = TextureFormat::D32Float;

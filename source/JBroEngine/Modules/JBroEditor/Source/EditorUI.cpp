@@ -14,6 +14,12 @@ namespace JBro::Sm5
 #include "EditorUIVS_SM5.generated.h"
 }
 
+namespace JBro::Spv
+{
+#include "EditorUIPS_SPV.generated.h"
+#include "EditorUIVS_SPV.generated.h"
+}
+
 #include <cstddef>
 #include <cstring>
 
@@ -218,11 +224,16 @@ namespace JBro
         const TextureFormat colorFormats[] = {backBufferFormat};
 
         GraphicsPipelineDesc pipelineDesc;
-        // D3D11 은 DXBC 를 읽는다(D-107). 나머지는 DXIL 이다.
+        // D3D11 은 DXBC 를(D-107), Vulkan 은 SPIR-V 를(D-108) 읽는다. 나머지는 DXIL 이다.
         if (api == GraphicsApi::D3D11)
         {
             pipelineDesc.vertexShader = {Sm5::JBroEditorUIVS_SM5, sizeof(Sm5::JBroEditorUIVS_SM5)};
             pipelineDesc.pixelShader = {Sm5::JBroEditorUIPS_SM5, sizeof(Sm5::JBroEditorUIPS_SM5)};
+        }
+        else if (api == GraphicsApi::Vulkan)
+        {
+            pipelineDesc.vertexShader = {Spv::JBroEditorUIVS_SPV, sizeof(Spv::JBroEditorUIVS_SPV)};
+            pipelineDesc.pixelShader = {Spv::JBroEditorUIPS_SPV, sizeof(Spv::JBroEditorUIPS_SPV)};
         }
         else
         {

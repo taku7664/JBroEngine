@@ -1,5 +1,6 @@
 ﻿#include <JBro/D3D11RHI/D3D11RHI.h>
 #include <JBro/D3D12RHI/D3D12RHI.h>
+#include <JBro/VulkanRHI/VulkanRHI.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Host/EngineInstance.h>
 
@@ -30,12 +31,13 @@ namespace
             return 1;
         }
 
-        // 백엔드는 설정이 고른다(D-107). 기본은 D3D12 다.
+        // 백엔드는 설정이 고른다(D-107·D-108). 기본은 D3D12 다.
         JBro::D3D12RHIModule d3d12;
         JBro::D3D11RHIModule d3d11;
-        JBro::IRHIModule& rhi = config.graphicsApi == JBro::GraphicsApi::D3D11
-            ? static_cast<JBro::IRHIModule&>(d3d11)
-            : static_cast<JBro::IRHIModule&>(d3d12);
+        JBro::VulkanRHIModule vulkan;
+        JBro::IRHIModule& rhi = config.graphicsApi == JBro::GraphicsApi::D3D11 ? static_cast<JBro::IRHIModule&>(d3d11)
+            : config.graphicsApi == JBro::GraphicsApi::Vulkan                  ? static_cast<JBro::IRHIModule&>(vulkan)
+                                                                                : static_cast<JBro::IRHIModule&>(d3d12);
         if (false == rhi.Initialize(config.memory))
         {
             platform.Shutdown();

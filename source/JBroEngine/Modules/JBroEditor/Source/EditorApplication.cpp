@@ -8,6 +8,7 @@
 
 #include <JBro/D3D11RHI/D3D11RHI.h>
 #include <JBro/D3D12RHI/D3D12RHI.h>
+#include <JBro/VulkanRHI/VulkanRHI.h>
 #include <JBro/Framework2DSystem/Framework2D.h>
 #include <JBro/Framework3DSystem/Framework3D.h>
 #include <JBro/Platform/WindowsPlatform.h>
@@ -47,7 +48,8 @@ namespace JBro
         if (m_initialized || config.windowWidth == 0 || config.windowHeight == 0
             || false == std::isfinite(config.fixedDeltaTime) || config.fixedDeltaTime <= 0.0f
             || config.maxFixedStepsPerFrame == 0
-            || (config.graphicsApi != GraphicsApi::D3D12 && config.graphicsApi != GraphicsApi::D3D11))
+            || (config.graphicsApi != GraphicsApi::D3D12 && config.graphicsApi != GraphicsApi::D3D11
+                && config.graphicsApi != GraphicsApi::Vulkan))
         {
             return false;
         }
@@ -69,10 +71,14 @@ namespace JBro
                 return false;
             }
 
-            // 두 Windows 백엔드 중 하나다(D-107). Vulkan 은 모듈이 생기면 여기 한 줄이 늘어난다.
+            // 세 백엔드 중 하나다(D-107·D-108). 기본은 D3D12 다.
             if (config.graphicsApi == GraphicsApi::D3D11)
             {
                 m_rhiModule = MakeOwnerPtr<D3D11RHIModule>();
+            }
+            else if (config.graphicsApi == GraphicsApi::Vulkan)
+            {
+                m_rhiModule = MakeOwnerPtr<VulkanRHIModule>();
             }
             else
             {
