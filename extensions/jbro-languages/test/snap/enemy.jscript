@@ -1,0 +1,153 @@
+// Enemy.jscript
+
+enum EnemyState
+{
+    Idle
+    Chasing
+    Dead
+}
+
+interface IDamageable
+{
+    fn TakeDamage(Int amount)
+    fn IsDead() -> Bool
+}
+
+struct DropEntry
+{
+    Int Weight = 1
+    Int ItemId = 0
+}
+
+class LootTable
+{
+    Array<DropEntry> entries
+
+    fn LootTable(Int capacity)                       // [제안] 생성자 모양
+    {
+        ...
+    }
+
+    public fn TotalWeight() -> Int
+    {
+        Int total = 0
+        for (ref entry in entries)
+        {
+            total += entry.Weight
+        }
+        return total
+    }
+}
+
+script Enemy : IDamageable
+{
+    [range(1, 100), category("Stats")]
+    Int MaxHp = 10
+
+    [prop]
+    Float MoveSpeed = 2.0
+
+    [category("Links")]
+    ref Transform2D target
+
+    [autochecknullable(false)]
+    ref Transform2D home
+
+    Int hp = 0
+    EnemyState state = EnemyState.Idle
+    Array<ref Enemy> allies
+    LootTable loot = LootTable(8)                    // class 를 값으로 소유한다
+    Vector2 down
+
+    static Int aliveCount = 0
+    const Float ChaseRange = 6.0
+
+    fn OnStart() callback
+    {
+        hp = MaxHp
+        down.y = -1.0
+        aliveCount += 1
+    }
+
+    fn OnUpdate(Float dt) callback
+    {
+        switch (state)
+        {
+            case EnemyState.Idle
+            {
+                if (target is not null)              // [제안] is not null
+                {
+                    state = EnemyState.Chasing
+                }
+            }
+            case EnemyState.Chasing
+            {
+                target.position.x += MoveSpeed * dt  // 자동 null 검사: target 이 null 이면 걸러지고 에러 로그
+            }
+            case EnemyState.Dead
+            {
+                return
+            }
+        }
+
+        if (home is null)
+        {
+            return
+        }
+        home.position.y = 0.0                        // 자동 검사를 껐고, 위에서 직접 검사했다
+    }
+
+    fn TakeDamage(Int amount) override
+    {
+        hp -= amount
+        if (hp <= 0 and state != EnemyState.Dead)
+        {
+            state = EnemyState.Dead
+            aliveCount -= 1
+        }
+    }
+
+    fn IsDead() -> Bool override
+    {
+        return state == EnemyState.Dead
+    }
+
+    fn HpRatio() -> Float
+    {
+        return Float(hp) / Float(MaxHp)
+    }
+
+    fn IsGrounded() -> Bool
+    {
+        Collision2D hit
+        return GetFramework2DServices().Physics2D.Raycast(target.position, down, 1.0, ref hit)
+        // [열림] §12 의 4번: target 이 null 이면 이 return 은 무엇을 돌려주는가
+    }
+
+    fn CountLivingAllies() -> Int
+    {
+        Int count = 0
+        for (ally in allies)
+        {
+            if (ally is null)
+            {
+                continue
+            }
+            if (not ally.IsDead())
+            {
+                count += 1
+            }
+        }
+        return count
+    }
+
+    static fn SumWeights(ref const Array<DropEntry> table) -> Int
+    {
+        Int total = 0
+        for (i in 0..table.Size())
+        {
+            total += table[i].Weight
+        }
+        return total
+    }
+}

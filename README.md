@@ -89,5 +89,15 @@ scripts\upstream-compile.cmd
 
 ## 문법이 덮는 범위
 
-엔진 리포 `tasks/jbroscript-plan.md` §12 의 1차 확정 문법만 덮는다. 표현식 문법(연산자 우선순위, 형변환 표기),
-`fn` 의 반환 타입, 오류 처리는 아직 정해지지 않아서 문법 파일에도 없다. 연산자는 흔한 산술·비교·대입만 칠한다.
+엔진 리포 `tasks/jbroscript-syntax.md` 를 따른다(2026-09-17 기준). 그 문서의 [제안] 항목(예약어 목록, `is not null`,
+`switch`/`case`, 생성자 모양)도 칠한다. 바뀌면 문법 파일을 고치면 된다.
+
+- **예약어**는 문서 §2.1 목록이다. 타입이나 이름 자리에 오지 못하므로 `return total`·`is not null` 이 선언으로 칠해지지 않는다.
+- **`callback`·`override`·`require` 는 함수 선언 줄의 끝에서만, `in` 은 `for` 괄호 안에서만** 키워드다. 그 밖에서는 이름으로 칠한다.
+  그래서 함수 선언 줄은 한 규칙이 통째로 맡는다. 일반 규칙에 맡기면 `Int override` 가 `override` 라는 필드 선언이 된다.
+- 엔진 타입 `Int`·`Float`·`Bool`·`String` 은 `support.type.primitive`, `Vector2`·`Rect`·`Color`·`Array`·`Table` 은 `support.type.builtin` 이다.
+  옛 문법의 `int`·`float`·`bool` 과 `if let` 은 없다.
+- 미완성 줄도 칠해진다. `target is` 까지만 친 줄이 선언으로 칠해지지 않는 것을 테스트한다.
+
+`test/snap/enemy.jscript` 는 `tasks/jbroscript-syntax.md` §13 전체 예시를 그대로 옮긴 것이다. 문서의 예시가 바뀌면 다시 옮기고
+스냅숏을 새로 기록한다.

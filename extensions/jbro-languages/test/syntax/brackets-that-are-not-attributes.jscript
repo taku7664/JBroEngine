@@ -1,12 +1,12 @@
 // SYNTAX TEST "source.jscript" "a bracket that does not open the line is not an attribute"
-fn OnUpdate(float dt)
+script Probe
 {
-    lines[0] = 5
-//       ^ punctuation.section.brackets.begin.jscript - meta.attribute.jscript
-//        ^ constant.numeric.jscript - meta.attribute.jscript
-    Array<int> a = [1, 2, 3]
-//  ^^^^^ entity.name.type.jscript
-//        ^^^ storage.type.primitive.jscript
-//             ^ variable.other.definition.jscript
-//                 ^ punctuation.section.brackets.begin.jscript - meta.attribute.jscript
+    fn OnUpdate(Float dt) callback
+    {
+        lines[0] = 5
+//           ^ punctuation.section.brackets.begin.jscript - meta.attribute.jscript
+//            ^ constant.numeric.jscript - meta.attribute.jscript
+        total += table[i].Weight
+//                    ^ punctuation.section.brackets.begin.jscript - meta.attribute.jscript
+    }
 }
