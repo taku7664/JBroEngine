@@ -1,14 +1,21 @@
-#pragma once
+﻿#pragma once
 
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Framework3D/Component/Camera3D.h>
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3D/Component/Physics3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
+#include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
+#include <JBro/Framework3DSystem/Rendering/RenderWorld3D.h>
+#include <JBro/Framework3DSystem/System/Camera3DSystem.h>
+#include <JBro/Framework3DSystem/System/MeshRender3DSystem.h>
+#include <JBro/Framework3DSystem/System/Transform3DSystem.h>
 #include <JBro/Host/IFramework.h>
 
 namespace JBro
 {
+    // 3D 프레임워크다. 2D 와 같은 뼈대(캔버스·시스템·렌더 월드·브리지)이고, 스크립트 시스템과
+    // 물리는 아직 없다(framework3d-plan §3).
     class Framework3D final : public IFramework
     {
     public:
@@ -21,12 +28,17 @@ namespace JBro
         void Shutdown() override;
 
         Canvas* GetCanvas();
+        RenderWorld3D* GetRenderWorld();
+        MeshLibrary& GetMeshLibrary();
 
     private:
+        void CreateDefaultSystems();
         void RunFixedSteps(float deltaTime);
 
         FrameworkContext m_context;
         OwnerPtr<Canvas> m_canvas;
+        RenderWorld3D m_renderWorld;
+        MeshLibrary m_meshes;
         double m_fixedAccumulator = 0.0;
         bool m_initialized = false;
     };

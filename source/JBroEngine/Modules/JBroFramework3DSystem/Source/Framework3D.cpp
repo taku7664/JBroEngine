@@ -1,5 +1,7 @@
 ﻿#include <JBro/Framework3DSystem/Framework3D.h>
 
+#include "Rendering/RenderBridge3D.h"
+
 #include <JBro/Framework3DSystem/BuiltinComponentTypes3D.h>
 #include <JBro/Framework3D/BuiltinComponentProperties3D.h>
 #include <JBro/Graphics/Renderer.h>
@@ -36,17 +38,26 @@ namespace JBro
             allocator = CreateDefaultAllocator();
         }
 
+        m_context = context;
         try
         {
+            // 렌더러가 없으면(시스템 테스트) 용량 하나는 두어 제출이 곧장 버려지지 않게 한다.
+            const std::size_t capacity = context.renderer != nullptr ? 16384 : 64;
+            if (false == m_renderWorld.ReserveMeshes(capacity) || false == m_meshes.Initialize(context.renderer))
+            {
+                Shutdown();
+                return false;
+            }
             m_canvas = MakeOwnerPtr<Canvas>(allocator);
+            CreateDefaultSystems();
             m_canvas->GetSystems().Initialize(*m_canvas);
         }
         catch (const std::bad_alloc&)
         {
+            Shutdown();
             return false;
         }
 
-        m_context = context;
         m_initialized = true;
         return true;
     }
@@ -70,21 +81,27 @@ namespace JBro
         }
 
         m_canvas->BeginFrame();
+        m_renderWorld.BeginFrame();
         RunFixedSteps(deltaTime);
         m_canvas->GetSystems().Update(*m_canvas, deltaTime);
         m_canvas->FlushPendingDestroy();
+        m_renderWorld.EndFrame();
     }
 
     RenderResult Framework3D::Render()
     {
-        // The 3D backend is a declared extension point, not a functioning renderer yet.
-        // 제출할 것이 없는 것과 실패는 다르다. 호스트는 계속 돌아야 한다(D-49).
-        return RenderResult::NothingToSubmit;
+        if (false == m_initialized || m_context.renderer == nullptr)
+        {
+            return RenderResult::Failed;
+        }
+        return Internal::SubmitRenderWorld3D(m_renderWorld, *m_context.renderer);
     }
 
     void Framework3D::Shutdown()
     {
         m_canvas.Reset();
+        m_meshes.Shutdown();
+        m_renderWorld = {};
         m_context = {};
         m_fixedAccumulator = 0.0;
         m_initialized = false;
@@ -93,6 +110,26 @@ namespace JBro
     Canvas* Framework3D::GetCanvas()
     {
         return m_canvas.Get();
+    }
+
+    RenderWorld3D* Framework3D::GetRenderWorld()
+    {
+        return &m_renderWorld;
+    }
+
+    MeshLibrary& Framework3D::GetMeshLibrary()
+    {
+        return m_meshes;
+    }
+
+    void Framework3D::CreateDefaultSystems()
+    {
+        auto& systems = m_canvas->GetSystems();
+        systems.AddSystem<System::Transform3DSystem>();
+        systems.AddSystem<System::Camera3DSystem>().SetRenderWorld(&m_renderWorld);
+        auto& meshes = systems.AddSystem<System::MeshRender3DSystem>();
+        meshes.SetRenderWorld(&m_renderWorld);
+        meshes.SetMeshLibrary(&m_meshes);
     }
 
     void Framework3D::RunFixedSteps(float deltaTime)
