@@ -1,4 +1,5 @@
-﻿#include <JBro/D3D12RHI/D3D12RHI.h>
+﻿#include <JBro/D3D11RHI/D3D11RHI.h>
+#include <JBro/D3D12RHI/D3D12RHI.h>
 #include <JBro/Graphics/Renderer.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Types/Array.h>
@@ -50,15 +51,16 @@ namespace
     // §12.4 가 열어 둔 구멍을 닫는다. 인스턴스 패킷의 필드를 셰이더가 그 자리에서
     // 읽는지는 픽셀을 되읽지 않고는 증명할 수 없다. 오프셋 하나만 어긋나도
     // D3D12 는 아무 말도 하지 않고 색이 조용히 달라진다.
+    template <typename TModule>
     void TestSpritePacketReachesTheShaderFields()
     {
         JBro::WindowsPlatform platform;
-        JBro::D3D12RHIModule rhi;
+        TModule rhi;
         JBro::JMemoryContext memory;
         Check(platform.Initialize(memory), "platform must initialize for the pixel test");
         if (false == rhi.Initialize(memory))
         {
-            std::cout << "  [skip] no D3D12 device; sprite pixels not verified" << std::endl;
+            std::cout << "  [skip] no device for this API; sprite pixels not verified" << std::endl;
             platform.Shutdown();
             return;
         }
@@ -74,6 +76,7 @@ namespace
 
         JBro::Renderer renderer;
         JBro::RendererConfig config;
+        config.api = rhi.GetApi();
         config.surface = platform.CreateSurface(window);
         config.surfaceExtent = {64, 64};
         config.maxSpriteSubmissions = 4;
@@ -142,15 +145,16 @@ namespace
     // **같은 렌더러가 같은 그림을 텍스처로도 내놓아야 한다.** 에디터의 게임 뷰는
     // 그 차이 하나로 성립한다 - 렌더 경로가 갈리면 에디터에서 보는 것과 실행했을 때
     // 보는 것이 달라지고, 그 어긋남은 한참 뒤에야 드러난다(D-63).
+    template <typename TModule>
     void TestTheSameSpriteGoesToATextureInstead()
     {
         JBro::WindowsPlatform platform;
-        JBro::D3D12RHIModule rhi;
+        TModule rhi;
         JBro::JMemoryContext memory;
         Check(platform.Initialize(memory), "platform must initialize for the target test");
         if (false == rhi.Initialize(memory))
         {
-            std::cout << "  [skip] no D3D12 device; the frame target not verified" << std::endl;
+            std::cout << "  [skip] no device for this API; the frame target not verified" << std::endl;
             platform.Shutdown();
             return;
         }
@@ -166,6 +170,7 @@ namespace
 
         JBro::Renderer renderer;
         JBro::RendererConfig config;
+        config.api = rhi.GetApi();
         config.surface = platform.CreateSurface(window);
         config.surfaceExtent = {64, 64};
         config.maxSpriteSubmissions = 4;
@@ -318,15 +323,16 @@ namespace
     // **에디터 프레임의 모양이다.** 게임은 텍스처로 가고 백버퍼에는 낼 것이 없다.
     // 그 프레임을 "그릴 게 없다" 고 버리면 에디터 UI 까지 같이 사라진다 - 화면이
     // 통째로 멈춘 것처럼 보이고, 원인은 게임 쪽이 아니라 여기다(D-63).
+    template <typename TModule>
     void TestTheOverlayGetsTheFrameAfterTheGame()
     {
         JBro::WindowsPlatform platform;
-        JBro::D3D12RHIModule rhi;
+        TModule rhi;
         JBro::JMemoryContext memory;
         Check(platform.Initialize(memory), "platform must initialize for the overlay test");
         if (false == rhi.Initialize(memory))
         {
-            std::cout << "  [skip] no D3D12 device; the frame overlay not verified" << std::endl;
+            std::cout << "  [skip] no device for this API; the frame overlay not verified" << std::endl;
             platform.Shutdown();
             return;
         }
@@ -342,6 +348,7 @@ namespace
 
         JBro::Renderer renderer;
         JBro::RendererConfig config;
+        config.api = rhi.GetApi();
         config.surface = platform.CreateSurface(window);
         config.surfaceExtent = {64, 64};
         config.maxSpriteSubmissions = 4;
@@ -381,7 +388,7 @@ namespace
             "a second frame must begin");
         Check(renderer.EndFrame() == JBro::FrameStatus::Ready, "and present");
         Check(probe.calls == 2, "the overlay must run again");
-        Check(probe.lastSlot != probe.firstSlot,
+        Check(device->GetFramesInFlight() == 1 || probe.lastSlot != probe.firstSlot,
             "and be told a different slot, or nobody can split anything by it");
 
         JBro::Array<std::byte> image;
@@ -417,9 +424,12 @@ namespace
 
 int RunSpritePixelTests()
 {
-    TestSpritePacketReachesTheShaderFields();
-    TestTheSameSpriteGoesToATextureInstead();
-    TestTheOverlayGetsTheFrameAfterTheGame();
+    TestSpritePacketReachesTheShaderFields<JBro::D3D12RHIModule>();
+    TestSpritePacketReachesTheShaderFields<JBro::D3D11RHIModule>();
+    TestTheSameSpriteGoesToATextureInstead<JBro::D3D12RHIModule>();
+    TestTheSameSpriteGoesToATextureInstead<JBro::D3D11RHIModule>();
+    TestTheOverlayGetsTheFrameAfterTheGame<JBro::D3D12RHIModule>();
+    TestTheOverlayGetsTheFrameAfterTheGame<JBro::D3D11RHIModule>();
     std::cout << "Sprite pixel tests passed.\n";
     return 0;
 }

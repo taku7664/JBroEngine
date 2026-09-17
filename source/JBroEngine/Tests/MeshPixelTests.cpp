@@ -1,4 +1,5 @@
-﻿#include <JBro/D3D12RHI/D3D12RHI.h>
+﻿#include <JBro/D3D11RHI/D3D11RHI.h>
+#include <JBro/D3D12RHI/D3D12RHI.h>
 #include <JBro/Framework3D/Component/Camera3D.h>
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
@@ -57,10 +58,11 @@ namespace
     constexpr std::uint32_t TargetWidth = 96;
     constexpr std::uint32_t TargetHeight = 64;
 
+    template <typename TModule>
     struct Stage
     {
         JBro::WindowsPlatform platform;
-        JBro::D3D12RHIModule rhi;
+        TModule rhi;
         JBro::JMemoryContext memory;
         JBro::WindowHandle window;
         JBro::Renderer renderer;
@@ -84,6 +86,7 @@ namespace
             window = platform.OpenPlatformWindow(windowDesc);
             Check(window.value != 0, "the probe window must open");
             JBro::RendererConfig config;
+            config.api = rhi.GetApi();
             config.surface = platform.CreateSurface(window);
             config.surfaceExtent = {64, 64};
             config.maxSpriteSubmissions = 4;
@@ -146,12 +149,13 @@ namespace
 
     // **정육면체가 화면에 있고, 배경은 클리어 색이다.** 가운데 픽셀이 tint 의 비율(1 : 0.5 : 0.25)을
     // 지키면 셰이더가 tint 를 읽었고 조명이 셋을 같은 만큼 깎은 것이다. 모서리는 카메라 클리어 색이다.
+    template <typename TModule>
     void TestACubeIsDrawnWhereTheCameraLooks()
     {
-        Stage stage;
+        Stage<TModule> stage;
         if (false == stage.Open())
         {
-            std::cout << "  [skip] no D3D12 device; mesh pixels not verified" << std::endl;
+            std::cout << "  [skip] no device for this API; mesh pixels not verified" << std::endl;
             return;
         }
         JBro::Framework3D framework;
@@ -195,12 +199,13 @@ namespace
 
     // **깊이 버퍼가 순서를 대신한다.** 가까운 붉은 상자를 먼저, 먼 초록 상자를 나중에 제출해도 가운데는
     // 붉어야 한다 - 깊이 없이는 나중에 그린 초록이 덮는다.
+    template <typename TModule>
     void TestANearerCubeHidesAFartherOne()
     {
-        Stage stage;
+        Stage<TModule> stage;
         if (false == stage.Open())
         {
-            std::cout << "  [skip] no D3D12 device; depth not verified" << std::endl;
+            std::cout << "  [skip] no device for this API; depth not verified" << std::endl;
             return;
         }
         JBro::Framework3D framework;
@@ -253,8 +258,10 @@ namespace
 
 int RunMeshPixelTests()
 {
-    TestACubeIsDrawnWhereTheCameraLooks();
-    TestANearerCubeHidesAFartherOne();
+    TestACubeIsDrawnWhereTheCameraLooks<JBro::D3D12RHIModule>();
+    TestANearerCubeHidesAFartherOne<JBro::D3D12RHIModule>();
+    TestACubeIsDrawnWhereTheCameraLooks<JBro::D3D11RHIModule>();
+    TestANearerCubeHidesAFartherOne<JBro::D3D11RHIModule>();
     std::cout << "Mesh pixel tests passed.\n";
     return 0;
 }
