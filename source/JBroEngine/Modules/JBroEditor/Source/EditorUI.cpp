@@ -7,6 +7,13 @@
 #include "EditorUIPS.generated.h"
 #include "EditorUIVS.generated.h"
 
+namespace JBro::Sm5
+{
+    using BYTE = unsigned char;
+#include "EditorUIPS_SM5.generated.h"
+#include "EditorUIVS_SM5.generated.h"
+}
+
 #include <cstddef>
 #include <cstring>
 
@@ -135,7 +142,7 @@ namespace JBro
         Shutdown();
     }
 
-    bool EditorUI::Initialize(IRHIDevice& device, TextureFormat backBufferFormat)
+    bool EditorUI::Initialize(IRHIDevice& device, TextureFormat backBufferFormat, GraphicsApi api)
     {
         if (m_initialized)
         {
@@ -211,8 +218,17 @@ namespace JBro
         const TextureFormat colorFormats[] = {backBufferFormat};
 
         GraphicsPipelineDesc pipelineDesc;
-        pipelineDesc.vertexShader = {JBroEditorUIVS, sizeof(JBroEditorUIVS)};
-        pipelineDesc.pixelShader = {JBroEditorUIPS, sizeof(JBroEditorUIPS)};
+        // D3D11 은 DXBC 를 읽는다(D-107). 나머지는 DXIL 이다.
+        if (api == GraphicsApi::D3D11)
+        {
+            pipelineDesc.vertexShader = {Sm5::JBroEditorUIVS_SM5, sizeof(Sm5::JBroEditorUIVS_SM5)};
+            pipelineDesc.pixelShader = {Sm5::JBroEditorUIPS_SM5, sizeof(Sm5::JBroEditorUIPS_SM5)};
+        }
+        else
+        {
+            pipelineDesc.vertexShader = {JBroEditorUIVS, sizeof(JBroEditorUIVS)};
+            pipelineDesc.pixelShader = {JBroEditorUIPS, sizeof(JBroEditorUIPS)};
+        }
         pipelineDesc.vertexBuffers = {&layout, 1};
         pipelineDesc.colorFormats = {colorFormats, 1};
         pipelineDesc.blend = BlendMode::Alpha;

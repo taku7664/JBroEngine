@@ -16,12 +16,25 @@ if (-not (Test-Path $dxc))
     throw "dxc.exe for Windows SDK $sdk not found at $dxc"
 }
 
+# D3D11 은 DXIL 을 읽지 못한다. 같은 HLSL 을 fxc 로 SM 5.0 DXBC 로도 굽는다(D-107).
+# fxc 는 UTF-8 BOM 을 'Illegal character' 로 거절한다. .hlsl 은 BOM 없이 저장한다 - 한글 주석 파일의 BOM 규칙(§14)의 예외다.
+$fxc = "${env:ProgramFiles(x86)}\Windows Kits\10\bin\$sdk\x64\fxc.exe"
+if (-not (Test-Path $fxc))
+{
+    throw "fxc.exe for Windows SDK $sdk not found at $fxc"
+}
+
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $out = Join-Path (Split-Path -Parent $here) 'Source'
 
 $targets = @(
     @{ File = 'EditorUI.hlsl'; Entry = 'VSMain'; Profile = 'vs_6_0'; Name = 'JBroEditorUIVS'; Header = 'EditorUIVS.generated.h' },
     @{ File = 'EditorUI.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroEditorUIPS'; Header = 'EditorUIPS.generated.h' }
+)
+
+$sm5Targets = @(
+    @{ File = 'EditorUI.hlsl'; Entry = 'VSMain'; Profile = 'vs_5_0'; Name = 'JBroEditorUIVS_SM5'; Header = 'EditorUIVS_SM5.generated.h' },
+    @{ File = 'EditorUI.hlsl'; Entry = 'PSMain'; Profile = 'ps_5_0'; Name = 'JBroEditorUIPS_SM5'; Header = 'EditorUIPS_SM5.generated.h' }
 )
 
 foreach ($t in $targets)
@@ -32,6 +45,18 @@ foreach ($t in $targets)
     if ($LASTEXITCODE -ne 0)
     {
         throw "dxc failed for $($t.Entry) in $($t.File)"
+    }
+    "$($t.Header) <- $($t.File) ($($t.Profile) $($t.Entry))"
+}
+
+foreach ($t in $sm5Targets)
+{
+    $source = Join-Path $here $t.File
+    $header = Join-Path $out $t.Header
+    & $fxc /nologo /T $t.Profile /E $t.Entry /Vn $t.Name /Fh $header $source
+    if ($LASTEXITCODE -ne 0)
+    {
+        throw "fxc failed for $($t.Entry) in $($t.File)"
     }
     "$($t.Header) <- $($t.File) ($($t.Profile) $($t.Entry))"
 }

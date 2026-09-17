@@ -33,8 +33,9 @@ namespace JBro
         EditorUI(const EditorUI&) = delete;
         EditorUI& operator=(const EditorUI&) = delete;
 
-        // 백버퍼 포맷은 파이프라인을 만들 때 필요하다.
-        bool Initialize(IRHIDevice& device, TextureFormat backBufferFormat);
+        // 백버퍼 포맷은 파이프라인을 만들 때 필요하고, API 는 어느 바이트코드(DXIL·DXBC)를 줄지 가른다.
+        bool Initialize(IRHIDevice& device, TextureFormat backBufferFormat,
+            GraphicsApi api = GraphicsApi::D3D12);
         void Shutdown();
         // **디바이스가 먼저 사라졌을 때 부른다.** 아무것도 해제하지 않고 잊는다 -
         // 디바이스가 죽으면 그 위의 리소스도 함께 죽었고, 죽은 디바이스로

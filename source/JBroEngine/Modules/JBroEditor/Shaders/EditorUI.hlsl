@@ -1,10 +1,13 @@
-﻿// ImGui 의 드로우 리스트를 그리는 셰이더다.
+// Draws ImGui draw lists.
 //
-// 정점 레이아웃은 `ImDrawVert` 를 그대로 따른다 — 위치 2, UV 2, 색 4바이트.
-// 색을 float4 로 부풀리지 않는 이유는 정점 수가 UI 에서 쉽게 수만 개가 되기 때문이다.
+// The vertex layout follows ImDrawVert as is: position 2, uv 2, colour 4 bytes.
+// The colour is not widened to float4 because UI vertex counts easily reach tens of thousands.
 //
-// 투영은 푸시 상수로 받는다. UI 는 화면 좌표로 그려지고 그 행렬은 프레임마다
-// 창 크기에서 나오므로, 상수 버퍼를 따로 둘 값이 아니다.
+// The projection comes in as push constants. UI is drawn in screen space and that matrix
+// falls out of the window size every frame, so it is not worth a constant buffer of its own.
+//
+// Comments in shader files stay ASCII: this file feeds dxc (DXIL), fxc (DXBC for D3D11) and
+// dxc -spirv, and fxc rejects both a UTF-8 BOM and bytes it cannot map to the ANSI code page.
 cbuffer PushConstants : register(b0)
 {
     float2 gScale;
