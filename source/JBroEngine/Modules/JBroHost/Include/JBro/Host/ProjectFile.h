@@ -98,4 +98,6 @@ namespace JBro
     // 프로젝트 루트와 합쳐 실제로 로드할 스크립트 DLL 경로를 만든다.
     // 절대경로면 그대로 두고, 상대경로면 프로젝트 파일이 있는 폴더 기준으로 붙인다.
     String ResolveScriptModulePath(const ProjectFile& project, const char* projectFilePath);
+    // 프로젝트 파일이 있는 폴더 기준의 상대경로를 푼다. 절대경로면 그대로다. 에셋 폴더(`AssetDirectory`)가 이것을 쓴다.
+    String ResolveProjectRelativePath(const char* relative, const char* projectFilePath);
 }

@@ -25,7 +25,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroPlatform\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroPlatform\Include;$(JBroThirdPartyDir)stb;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>

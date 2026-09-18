@@ -67,6 +67,13 @@ imgui_demo.cpp
 
 `imgui_stdlib`(std::string 헬퍼)와 `imgui_impl_win32` 는 필요해질 때 가져온다.
 
+### stb — stb_image.h v2.30, 퍼블릭 도메인 / MIT
+
+`JBroAsset` 의 이미지 디코더다(D-111). `ImageDecoder.cpp` 한 곳에서만 구현을 켜고(`STB_IMAGE_IMPLEMENTATION`),
+PNG·JPEG·BMP·TGA 만 남긴다(`STBI_ONLY_*`). 파일은 열지 않는다(`STBI_NO_STDIO`) - 바이트는 플랫폼이 읽어 온다(D-112).
+에디터의 임포트 경로에서만 돈다. 기존 엔진(`Engine/ThirdParty/stb`)에서 같은 판을 가져왔다. 헤더 하나라 빌드 단위는
+따로 없다(Vulkan-Headers 와 같다).
+
 ### Vulkan-Headers — SDK 1.4.350.0, Apache-2.0
 
 `JBroVulkanRHI` 의 API 헤더다(D-108). `vulkan-1.dll` 은 실행 시간에 열므로 SDK 의 가져오기 라이브러리는

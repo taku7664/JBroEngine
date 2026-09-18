@@ -20,6 +20,9 @@ namespace JBro
         // 비어 있으면 호스트가 이 크기로 선형 할당기를 만들어 채운다. 0 이면 만들지 않는다.
         std::size_t frameMemoryBytes = 1u << 20;
         bool enableValidation = false;
+        // 참이면 프로젝트를 열 때 메타가 없는 에셋 파일에 `.jmeta` 를 만든다. **에디터만 참이다**(D-111) -
+        // 게임 실행은 프로젝트 폴더에 파일을 쓰지 않는다.
+        bool createMissingAssetMeta = false;
         WindowDesc window;
         JMemoryContext memory;
     };
@@ -70,6 +73,9 @@ namespace JBro
         void Shutdown();
 
         AssetSystem* GetAssetSystem();
+        // 프로젝트 파일로 열었을 때 그 에셋 폴더를 스캔한 결과다. 파일 없이 열면 비어 있다.
+        const AssetRegistry& GetAssetRegistry() const;
+        const AssetScanReport& GetAssetScanReport() const;
         Renderer* GetRenderer();
         // 대화상자의 주인 창으로 쓴다. 창이 없으면 값이 0 이다.
         WindowHandle GetMainWindow() const
@@ -100,6 +106,8 @@ namespace JBro
         IFramework* m_framework = nullptr;
         WindowHandle m_mainWindow;
         OwnerPtr<AssetSystem> m_assets;
+        AssetRegistry m_assetRegistry;
+        AssetScanReport m_assetScanReport;
         OwnerPtr<Renderer> m_renderer;
         // 프레임 경계에서 되감는다. m_frameworkContext.memory.frame 이 이것을 가리킨다.
         OwnerPtr<LinearAllocator> m_frameMemory;
@@ -110,6 +118,7 @@ namespace JBro
         FrameTarget m_gameViewTarget;
         State m_state = State::Stopped;
         bool m_exitRequested = false;
+        bool m_createMissingAssetMeta = false;
         bool m_projectCloseRequested = false;
         bool m_scriptContextsBound = false;
         bool m_scriptModuleLoaded = false;

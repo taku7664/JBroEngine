@@ -414,7 +414,12 @@ namespace JBro
 
     String ResolveScriptModulePath(const ProjectFile& project, const char* projectFilePath)
     {
-        const String& relative = project.scriptOutputLibraryPath;
+        return ResolveProjectRelativePath(project.scriptOutputLibraryPath.c_str(), projectFilePath);
+    }
+
+    String ResolveProjectRelativePath(const char* relativePath, const char* projectFilePath)
+    {
+        const String relative(relativePath != nullptr ? relativePath : "");
         if (relative.empty())
         {
             return String();

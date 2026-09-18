@@ -64,6 +64,7 @@ namespace JBro
             }
             m_frameworkContext.renderer = m_renderer.Get();
             m_frameworkContext.fixedDeltaTime = config.fixedDeltaTime;
+            m_createMissingAssetMeta = config.createMissingAssetMeta;
             m_frameworkContext.maxFixedStepsPerFrame = config.maxFixedStepsPerFrame;
             if (m_exitRequested)
             {
@@ -112,7 +113,31 @@ namespace JBro
             return false;
         }
         m_project = project;
+
+        // 에셋 폴더를 한 번 스캔하고 에셋 시스템을 잇는다(D-111). **폴더가 없어도 프로젝트는 열린다** - 에셋이 하나도
+        // 없는 새 프로젝트가 그것이다. 스캔 결과는 `GetAssetScanReport` 로 남는다.
+        const String assetRoot = ResolveProjectRelativePath(project.assetDirectory.c_str(), projectFilePath);
+        AssetScanOptions scanOptions;
+        scanOptions.ignorePatterns.data = project.assetIgnorePatterns.Data();
+        scanOptions.ignorePatterns.size = static_cast<std::uint32_t>(project.assetIgnorePatterns.Size());
+        scanOptions.createMissingMeta = m_createMissingAssetMeta;
+        if (false == m_assetRegistry.Scan(*m_platform, assetRoot.c_str(), scanOptions, m_assetScanReport))
+        {
+            m_assetRegistry.Clear();
+            m_assetScanReport = {};
+        }
+        m_assets->Bind(*m_platform, m_assetRegistry, assetRoot.c_str());
         return true;
+    }
+
+    const AssetRegistry& EngineInstance::GetAssetRegistry() const
+    {
+        return m_assetRegistry;
+    }
+
+    const AssetScanReport& EngineInstance::GetAssetScanReport() const
+    {
+        return m_assetScanReport;
     }
 
     const ProjectFile& EngineInstance::GetProjectFile() const
