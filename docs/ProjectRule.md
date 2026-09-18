@@ -29,6 +29,10 @@
 - Windows와 Web에서 모두 지원 완료로 선언한 기능은 같은 공개 계약과 기능 수준을 유지해야 한다. (MUST)
   현재 구현 순서는 Windows/D3D12 우선이며 Web 스텁은 지원 완료로 간주하지 않는다.
 - 플랫폼별 그래픽스 API 의존성은 RHI 뒤에 격리해야 한다. (MUST)
+- 파일 시스템은 `IPlatform` 이 관리한다. 엔진 모듈은 `fopen`·`std::filesystem` 으로 파일을 직접 열지 않고
+  `ReadWholeFile`·`WriteWholeFile`·`FileExists`·`DirectoryExists`·`EnumerateDirectory` 를 거친다. 경로는 UTF-8 이다.
+  Tier S 모듈(JBroCore)은 플랫폼을 볼 수 없으므로 경로를 받는 API 를 두지 않고 글자를 받아 `Parse` 한다. (MUST) (D-112)
+  `Yaml.cpp`·`CanvasFile.cpp`·`ProjectFile.cpp`·`EditorTheme.cpp`·`Localization.cpp` 는 아직 옮기지 않았다.
 - 현재 공개 Game Framework API는 2D 제작에 집중하되, Core, Renderer, RHI 내부 구조는 향후 3D 확장을 막지 않아야 한다. (MUST)
 - Renderer의 `Submit*` API는 프레임 패킷을 수집해야 하며 호출 시점에 RHI 드로우를 실행하지 않아야 한다. (MUST)
   Framework는 자기 차원별 프레임 타입을 Graphics에 넘기지 않고, 명시적인 View 경계 안에서 POD 패킷을

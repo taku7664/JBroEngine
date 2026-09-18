@@ -1894,7 +1894,17 @@ EditorApplication::Tick
   조회 없음)는 asset-plan §2. `[열림]` 이미지 디코더 `stb_image` 도입, `SpriteSubmit` 의 UV 사각형(D-32 ABI).
   **1 단계(레지스트리·메타·스캔·`.jproject` 키)가 섰다**(`ffdddb3`·`ade7e2a`, asset-plan §3-1). 메타 파일은 경로를
   적지 않고(옮겨도 아이디가 산다), 게임 실행은 메타를 만들지 않는다(`createMissingMeta` 는 에디터만 참).
-  이미지 디코더는 `stb_image` 로 확정했다(2026-09-18, 임포트 경로만). `[열림]` 파일 IO 의 플랫폼 경계(asset-plan §4-7).
+  이미지 디코더는 `stb_image` 로 확정했다(2026-09-18, 임포트 경로만). `SpriteSubmit`·GPU 인스턴스의 UV 사각형도
+  확정했다(2026-09-18) - 3 단계에서 D-32 ABI 를 고칠 때 Decision 으로 적는다.
+- **D-112. 파일 시스템은 플랫폼이 관리한다.** (2026-09-18) 사용자 결정: 플랫폼마다 읽는 길이 다르다(Windows 는 파일,
+  Android 는 APK 에셋, Web 은 가상 파일 시스템). `IPlatform` 에 `ReadWholeFile`·`WriteWholeFile`·`FileExists`·
+  `DirectoryExists`·`EnumerateDirectory`(방문자, 폴더에 거짓을 돌려주면 내려가지 않음)가 있고 경로는 UTF-8 이다. 기본
+  구현은 "파일 시스템이 없다"(거짓) - 테스트의 가짜 플랫폼과 아직 붙이지 않은 Web·Android 가 그것이다. Windows 는
+  `filesystem::path` 의 UTF-8 생성자를 거쳐 와이드로 연다(`fopen_s` 는 ANSI 라 한글 폴더에서 조용히 실패한다).
+  **엔진 모듈은 파일을 직접 열지 않고 이것을 거친다** - `AssetRegistry`·`AssetMetaFile` 이 첫 사용자다(JBroAsset →
+  JBroPlatform 의존이 생겼다). `[진행 예정]` 아직 직접 여는 곳: `Yaml.cpp`(`YamlDocument::Load`·`YamlWriter::Save`,
+  Tier S 라 플랫폼을 볼 수 없으므로 경로 API 를 없애고 부르는 쪽이 플랫폼으로 읽어 `Parse` 한다), `CanvasFile.cpp`,
+  `ProjectFile.cpp`, `EditorTheme.cpp`, `Localization.cpp`. 테스트 `Tests/PlatformFileTests.cpp`.
 
 ## Assumptions
 
