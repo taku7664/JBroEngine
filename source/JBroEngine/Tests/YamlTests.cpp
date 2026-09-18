@@ -1,7 +1,9 @@
 ﻿#include <JBro/Core/Yaml.h>
+#include <JBro/Platform/WindowsPlatform.h>
 
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <iostream>
 #include <stdexcept>
 
@@ -402,17 +404,30 @@ namespace
     }
 
     // 손으로 옮겨 적은 표본은 진짜 파일이 아니다. `.jproject` 때 그 차이가 버그 둘을 잡았다.
+    // 이 기계의 사용자 폴더 이름에 한글이 들어 있다. 환경 변수는 와이드로 받아 UTF-8 로 바꾼다 - 플랫폼의 경로는
+    // UTF-8 이고(D-112), 좁은 `USERPROFILE` 은 ANSI 라 그대로 넘기면 없는 파일이 된다.
+    bool UserProfileUtf8(JBro::String& out)
+    {
+        wchar_t* profile = nullptr;
+        std::size_t length = 0;
+        if (_wdupenv_s(&profile, &length, L"USERPROFILE") != 0 || profile == nullptr)
+        {
+            return false;
+        }
+        const std::u8string text = std::filesystem::path(profile).generic_u8string();
+        std::free(profile);
+        out = JBro::String(reinterpret_cast<const char*>(text.data()), text.size());
+        return true;
+    }
+
     void TestARealLegacyCanvasParses()
     {
-        char* profile = nullptr;
-        std::size_t profileLength = 0;
-        if (_dupenv_s(&profile, &profileLength, "USERPROFILE") != 0 || profile == nullptr)
+        JBro::String root;
+        if (false == UserProfileUtf8(root))
         {
             std::cout << "  [skip] no USERPROFILE; legacy canvas not read" << std::endl;
             return;
         }
-        JBro::String root(profile);
-        std::free(profile);
         root.append("/source/repos/JBroEngine/TestProject/Test/Contents/Assets/");
 
         const char* const scenes[] =
@@ -424,19 +439,24 @@ namespace
             "TransitionTest/CanvasA.jcanvas",
         };
 
+        // 파일은 플랫폼이 읽는다(D-112). `YamlDocument` 에는 경로 API 가 없다.
+        JBro::WindowsPlatform platform;
+        JBro::JMemoryContext memory;
+        Check(platform.Initialize(memory), "the platform must initialize");
         std::size_t read = 0;
         for (const char* scene : scenes)
         {
             JBro::String path(root);
             path.append(scene);
+            JBro::Array<std::byte> bytes;
+            if (false == platform.ReadWholeFile(path.c_str(), bytes))
+            {
+                continue;
+            }
             JBro::YamlDocument document;
             JBro::YamlError error;
-            if (false == document.Load(path.c_str(), error))
+            if (false == document.Parse(reinterpret_cast<const char*>(bytes.Data()), bytes.Size(), error))
             {
-                if (error.line == 0 && error.message == "cannot open the file")
-                {
-                    continue;
-                }
                 std::cout << "  " << scene << " failed at line " << error.line
                     << ": " << error.message.c_str() << std::endl;
                 Check(false, "a real legacy canvas must parse");

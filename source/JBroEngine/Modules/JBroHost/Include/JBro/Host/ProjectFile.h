@@ -7,6 +7,11 @@
 
 namespace JBro
 {
+    class IPlatform;
+}
+
+namespace JBro
+{
     // 프로젝트 파일이다. 기존 엔진과 같은 `.jproject` 확장자와 같은 키 이름을 쓴다 —
     // 이름을 새로 지을 이유가 없기 때문이다. **다만 기존 엔진이 쓴 파일을 그대로 여는 것은
     // 더 이상 목표가 아니다**(D-99). 이 엔진은 `EngineVersion` 과 `Framework` 를 요구하고
@@ -87,7 +92,7 @@ namespace JBro
     };
 
     // 파일에서 읽는다. 실패하면 result 는 손대지 않고 error 를 채운다.
-    bool LoadProjectFile(const char* path, ProjectFile& result, ProjectFileError& error);
+    bool LoadProjectFile(IPlatform& platform, const char* utf8Path, ProjectFile& result, ProjectFileError& error);
     // 이미 읽어 둔 내용에서 읽는다. 테스트와 에디터의 미리보기가 쓴다.
     bool ParseProjectFile(
         const char* text,

@@ -376,29 +376,6 @@ namespace JBro
         return true;
     }
 
-    bool YamlDocument::Load(const char* path, YamlError& error)
-    {
-        Clear();
-        if (path == nullptr || path[0] == '\0')
-        {
-            return Fail(error, 0, "no path was given");
-        }
-        std::FILE* file = nullptr;
-        if (fopen_s(&file, path, "rb") != 0 || file == nullptr)
-        {
-            return Fail(error, 0, "cannot open the file");
-        }
-        String text;
-        char buffer[4096];
-        std::size_t read = 0;
-        while ((read = std::fread(buffer, 1, sizeof(buffer), file)) > 0)
-        {
-            text.append(buffer, read);
-        }
-        std::fclose(file);
-        return Parse(text.c_str(), text.size(), error);
-    }
-
     std::uint32_t YamlDocument::GetRoot() const
     {
         return m_root;
@@ -773,20 +750,4 @@ namespace JBro
         return m_text;
     }
 
-    bool YamlWriter::Save(const char* path) const
-    {
-        if (path == nullptr || path[0] == '\0')
-        {
-            return false;
-        }
-        std::FILE* file = nullptr;
-        if (fopen_s(&file, path, "wb") != 0 || file == nullptr)
-        {
-            return false;
-        }
-        const std::size_t written = m_text.empty()
-            ? 0 : std::fwrite(m_text.c_str(), 1, m_text.size(), file);
-        std::fclose(file);
-        return written == m_text.size();
-    }
 }

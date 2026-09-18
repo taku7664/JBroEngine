@@ -1,5 +1,7 @@
 ﻿#include <JBro/Host/ProjectFile.h>
 
+#include <JBro/Platform/Platform.h>
+
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -388,28 +390,20 @@ namespace JBro
         return true;
     }
 
-    bool LoadProjectFile(const char* path, ProjectFile& result, ProjectFileError& error)
+    bool LoadProjectFile(IPlatform& platform, const char* utf8Path, ProjectFile& result, ProjectFileError& error)
     {
         error = {};
-        if (path == nullptr || path[0] == '\0')
+        if (utf8Path == nullptr || utf8Path[0] == '\0')
         {
             return Fail(error, 0, "no project path");
         }
-
-        std::FILE* file = nullptr;
-        if (fopen_s(&file, path, "rb") != 0 || file == nullptr)
+        // 파일은 플랫폼이 연다(D-112). `fopen` 은 UTF-8 경로를 ANSI 로 읽어 한글 폴더에서 조용히 실패했다.
+        Array<std::byte> text;
+        if (false == platform.ReadWholeFile(utf8Path, text))
         {
             return Fail(error, 0, "cannot open the project file");
         }
-        String text;
-        char buffer[4096];
-        std::size_t read = 0;
-        while ((read = std::fread(buffer, 1, sizeof(buffer), file)) > 0)
-        {
-            text.append(buffer, read);
-        }
-        std::fclose(file);
-        return ParseProjectFile(text.c_str(), text.size(), result, error);
+        return ParseProjectFile(reinterpret_cast<const char*>(text.Data()), text.Size(), result, error);
     }
 
     String ResolveScriptModulePath(const ProjectFile& project, const char* projectFilePath)

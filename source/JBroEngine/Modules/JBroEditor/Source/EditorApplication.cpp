@@ -56,11 +56,6 @@ namespace JBro
             return false;
         }
 
-        // **글자를 먼저 읽는다.** 창 제목부터 이미 번역 대상이다.
-        // 실패해도 그냥 간다 - 코드에 있는 영어 원문으로 떨어질 뿐이다.
-        LocalizationTable::Get().Load(
-            config.localizationDirectory, config.locale, config.fallbackLocale);
-
         try
         {
             m_fileDialog = config.fileDialog;
@@ -72,6 +67,11 @@ namespace JBro
                 ReleaseProcessResources();
                 return false;
             }
+
+            // **글자를 먼저 읽는다.** 창 제목부터 이미 번역 대상이다. 파일은 플랫폼이 열므로(D-112) 플랫폼 뒤다.
+            // 실패해도 그냥 간다 - 코드에 있는 영어 원문으로 떨어질 뿐이다.
+            LocalizationTable::Get().Load(
+                *m_platform, config.localizationDirectory, config.locale, config.fallbackLocale);
 
             // 세 백엔드 중 하나다(D-107·D-108). 기본은 D3D12 다.
             if (config.graphicsApi == GraphicsApi::D3D11)
@@ -169,7 +169,7 @@ namespace JBro
         // 어느 프레임워크를 만들지 파일이 정하므로(D-99) 먼저 읽는다. 엔진이 뒤에서 한 번
         // 더 읽지만 프로젝트를 여는 순간에 한 번 더 읽는 것뿐이고, 프레임마다 도는 길이 아니다.
         ProjectFile probe;
-        if (false == LoadProjectFile(projectFilePath, probe, error))
+        if (false == LoadProjectFile(*m_platform, projectFilePath, probe, error))
         {
             return false;
         }
@@ -266,7 +266,19 @@ namespace JBro
             error.message = "no project is open";
             return false;
         }
-        if (false == LoadCanvasFile(*canvas, path, error))
+        // 파일은 플랫폼이 연다(D-112). 캔버스 모듈은 글자만 안다.
+        Array<std::byte> text;
+        if (path == nullptr || path[0] == '\0')
+        {
+            error.message = "no path was given";
+            return false;
+        }
+        if (false == m_platform->ReadWholeFile(path, text))
+        {
+            error.message = "cannot open the file";
+            return false;
+        }
+        if (false == ReadCanvasText(*canvas, reinterpret_cast<const char*>(text.Data()), text.Size(), error))
         {
             return false;
         }
@@ -311,8 +323,22 @@ namespace JBro
             error.message = "no project is open";
             return false;
         }
-        if (false == SaveCanvasFile(*canvas, path, error))
+        String text;
+        if (false == WriteCanvasText(*canvas, text, error))
         {
+            return false;
+        }
+        if (path == nullptr || path[0] == '\0')
+        {
+            error.message = "no path was given";
+            return false;
+        }
+        JArrayView<std::byte> bytes;
+        bytes.data = reinterpret_cast<const std::byte*>(text.data());
+        bytes.size = static_cast<std::uint32_t>(text.size());
+        if (false == m_platform->WriteWholeFile(path, bytes))
+        {
+            error.message = "cannot open the file for writing";
             return false;
         }
         m_canvasPath = path;

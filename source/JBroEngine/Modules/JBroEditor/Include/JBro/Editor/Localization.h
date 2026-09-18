@@ -6,6 +6,8 @@
 
 namespace JBro
 {
+    class IPlatform;
+
     // 화면에 나오는 글자를 키로 다룬다(ProjectRule §11.2).
     //
     // **글자를 소스에 박으면 옮길 수가 없다.** 기존 엔진은 키 669개를 한곳에 모아
@@ -23,7 +25,8 @@ namespace JBro
         //
         // **폴백도 같이 읽는다.** 현재 로케일에 없는 키가 폴백에는 있을 수 있고,
         // 그때 키를 그대로 내보내는 것보다 다른 언어로라도 보여 주는 편이 낫다.
-        bool Load(const char* directory, const char* locale, const char* fallback);
+        // 파일은 플랫폼이 연다(D-112).
+        bool Load(IPlatform& platform, const char* directory, const char* locale, const char* fallback);
         void Clear();
 
         // 키를 찾는다. 현재 로케일 → 폴백 → nullptr 순이다.
@@ -36,7 +39,7 @@ namespace JBro
         std::uint64_t GetRevision() const;
 
     private:
-        bool LoadFile(const char* directory, const char* locale,
+        bool LoadFile(IPlatform& platform, const char* directory, const char* locale,
             Table<String, String>& out) const;
 
         Table<String, String> m_entries;

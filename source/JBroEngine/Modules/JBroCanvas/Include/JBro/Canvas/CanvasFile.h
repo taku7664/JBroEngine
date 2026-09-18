@@ -32,9 +32,9 @@ namespace JBro
     };
 
     // 캔버스를 텍스트로 적는다. 실패하면 text 는 손대지 않고 error 를 채운다.
+    // **파일은 여기서 열지 않는다**(D-112). 부르는 쪽(에디터·호스트)이 `IPlatform` 으로 읽고 쓴다 - 이 모듈은 플랫폼을
+    // 보지 않는다.
     bool WriteCanvasText(Canvas& canvas, String& text, CanvasFileError& error);
-    // 위와 같고, 결과를 파일로 쓴다.
-    bool SaveCanvasFile(Canvas& canvas, const char* path, CanvasFileError& error);
 
     // 텍스트를 **빈 캔버스에** 읽어 넣는다. 이미 내용이 있으면 거절한다 —
     // 섞으면 무엇이 파일에서 온 것인지 알 수 없고, 되돌릴 방법도 없다.
@@ -46,5 +46,4 @@ namespace JBro
     // 기본값으로 두고 넘어간다 — 필드를 더한 것은 예전 씬을 못 읽을 이유가 아니지만,
     // 필드를 지운 것은 그 씬이 들고 있던 값을 버린다는 뜻이라 사람이 알아야 한다.
     bool ReadCanvasText(Canvas& canvas, const char* text, std::size_t length, CanvasFileError& error);
-    bool LoadCanvasFile(Canvas& canvas, const char* path, CanvasFileError& error);
 }

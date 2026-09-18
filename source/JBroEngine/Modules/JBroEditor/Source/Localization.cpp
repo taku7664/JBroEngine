@@ -1,11 +1,10 @@
 ﻿#include <JBro/Editor/Localization.h>
 
 #include <JBro/Core/Yaml.h>
+#include <JBro/Platform/Platform.h>
 
 #include <cstdio>
-#include <filesystem>
-#include <fstream>
-#include <sstream>
+#include <string>
 
 namespace JBro
 {
@@ -15,23 +14,26 @@ namespace JBro
         return table;
     }
 
-    bool LocalizationTable::LoadFile(const char* directory, const char* locale,
+    bool LocalizationTable::LoadFile(IPlatform& platform, const char* directory, const char* locale,
         Table<String, String>& out) const
     {
         if (directory == nullptr || locale == nullptr)
         {
             return false;
         }
-        std::filesystem::path path(directory);
-        path /= (std::string(locale) + ".yaml");
-        std::ifstream file(path, std::ios::binary);
-        if (false == file.is_open())
+        String path(directory);
+        if (false == path.empty() && path.back() != '/' && path.back() != '\\')
+        {
+            path.push_back('/');
+        }
+        path.append(locale);
+        path.append(".yaml");
+        Array<std::byte> bytes;
+        if (false == platform.ReadWholeFile(path.c_str(), bytes))
         {
             return false;
         }
-        std::ostringstream buffer;
-        buffer << file.rdbuf();
-        const std::string text = buffer.str();
+        const std::string text(reinterpret_cast<const char*>(bytes.Data()), bytes.Size());
 
         YamlDocument document;
         YamlError error;
@@ -59,12 +61,12 @@ namespace JBro
         return true;
     }
 
-    bool LocalizationTable::Load(const char* directory, const char* locale,
+    bool LocalizationTable::Load(IPlatform& platform, const char* directory, const char* locale,
         const char* fallback)
     {
         Table<String, String> entries;
         Table<String, String> fallbackEntries;
-        const bool loaded = LoadFile(directory, locale, entries);
+        const bool loaded = LoadFile(platform, directory, locale, entries);
         const bool needsFallback = fallback != nullptr && locale != nullptr
             && std::string(fallback) != std::string(locale);
         // **폴백이 없을 때 `true` 로 두면 안 된다.** 기존 엔진이 그렇게 되어 있는데,
@@ -72,7 +74,7 @@ namespace JBro
         // **빈 표를 성공이라며 깔아 버린다.** 그러면 이미 그려지던 화면이 통째로
         // 키로 바뀌고, 부르는 쪽은 참을 받았으니 아무 말도 하지 않는다.
         const bool loadedFallback = needsFallback
-            ? LoadFile(directory, fallback, fallbackEntries)
+            ? LoadFile(platform, directory, fallback, fallbackEntries)
             : false;
         if (false == loaded && false == loadedFallback)
         {

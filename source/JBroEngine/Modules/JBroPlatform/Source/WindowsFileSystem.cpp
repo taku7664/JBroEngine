@@ -13,14 +13,23 @@ namespace JBro
     {
         namespace fs = std::filesystem;
 
+        // UTF-8 이 아닌 바이트(ANSI 로 온 경로)는 변환이 던진다. 그것은 "없는 파일" 이지 예외가 아니다 - 빈 경로로
+        // 돌려 모든 함수가 거짓을 돌려주게 한다.
         fs::path ToPath(const char* utf8)
         {
             if (utf8 == nullptr)
             {
                 return {};
             }
-            const std::string_view view(utf8);
-            return fs::path(std::u8string_view(reinterpret_cast<const char8_t*>(view.data()), view.size()));
+            try
+            {
+                const std::string_view view(utf8);
+                return fs::path(std::u8string_view(reinterpret_cast<const char8_t*>(view.data()), view.size()));
+            }
+            catch (...)
+            {
+                return {};
+            }
         }
 
         String ToUtf8(const fs::path& path)

@@ -98,7 +98,13 @@ namespace JBro
         ProjectFileError& error)
     {
         ProjectFile project;
-        if (false == LoadProjectFile(projectFilePath, project, error))
+        if (m_platform == nullptr)
+        {
+            error.line = 0;
+            error.message = "the engine is not initialized";
+            return false;
+        }
+        if (false == LoadProjectFile(*m_platform, projectFilePath, project, error))
         {
             return false;
         }

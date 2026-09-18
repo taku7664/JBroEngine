@@ -190,32 +190,6 @@ namespace JBro
         return true;
     }
 
-    bool SaveCanvasFile(Canvas& canvas, const char* path, CanvasFileError& error)
-    {
-        String text;
-        if (false == WriteCanvasText(canvas, text, error))
-        {
-            return false;
-        }
-        std::FILE* file = nullptr;
-        if (path == nullptr || path[0] == '\0')
-        {
-            return Fail(error, "no path was given");
-        }
-        if (fopen_s(&file, path, "wb") != 0 || file == nullptr)
-        {
-            return Fail(error, "cannot open the file for writing");
-        }
-        const std::size_t written = text.empty()
-            ? 0 : std::fwrite(text.c_str(), 1, text.size(), file);
-        std::fclose(file);
-        if (written != text.size())
-        {
-            return Fail(error, "the file was not written in full");
-        }
-        return true;
-    }
-
     // -----------------------------------------------------------------------
     // 읽기
     // -----------------------------------------------------------------------
@@ -377,26 +351,4 @@ namespace JBro
         return true;
     }
 
-    bool LoadCanvasFile(Canvas& canvas, const char* path, CanvasFileError& error)
-    {
-        error = CanvasFileError{};
-        if (path == nullptr || path[0] == 0)
-        {
-            return Fail(error, "no path was given");
-        }
-        std::FILE* file = nullptr;
-        if (fopen_s(&file, path, "rb") != 0 || file == nullptr)
-        {
-            return Fail(error, "cannot open the file");
-        }
-        String text;
-        char buffer[4096];
-        std::size_t read = 0;
-        while ((read = std::fread(buffer, 1, sizeof(buffer), file)) > 0)
-        {
-            text.append(buffer, read);
-        }
-        std::fclose(file);
-        return ReadCanvasText(canvas, text.c_str(), text.size(), error);
-    }
 }

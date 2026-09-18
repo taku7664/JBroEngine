@@ -1,6 +1,7 @@
 ﻿#include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Core/Yaml.h>
+#include <JBro/Platform/WindowsPlatform.h>
 
 #include <cstring>
 #include <filesystem>
@@ -17,6 +18,19 @@
 
 namespace
 {
+    // 파일은 플랫폼이 읽는다(D-112). 테스트마다 하나를 만들지 않고 한 번 초기화해 나눠 쓴다.
+    JBro::WindowsPlatform& Platform()
+    {
+        static JBro::WindowsPlatform platform;
+        static bool initialized = false;
+        if (false == initialized)
+        {
+            JBro::JMemoryContext memory;
+            initialized = platform.Initialize(memory);
+        }
+        return platform;
+    }
+
     void Check(bool condition, const char* message)
     {
         if (false == condition)
@@ -56,7 +70,7 @@ namespace
             "  probe.english_only: english only\n");
 
         JBro::LocalizationTable& table = JBro::LocalizationTable::Get();
-        Check(table.Load(directory.string().c_str(), "ko-KR", "en-US"),
+        Check(table.Load(Platform(), directory.string().c_str(), "ko-KR", "en-US"),
             "both locale files must load");
         Check(table.GetLocale() == JBro::String("ko-KR"), "and the locale must be set");
         Check(table.GetCount() == 2, "with the entries the file had");
@@ -100,12 +114,12 @@ namespace
             "  probe.kept: 남아 있어야 한다\n");
 
         JBro::LocalizationTable& table = JBro::LocalizationTable::Get();
-        Check(table.Load(directory.string().c_str(), "ko-KR", "ko-KR"),
+        Check(table.Load(Platform(), directory.string().c_str(), "ko-KR", "ko-KR"),
             "the locale must load");
         Check(std::strcmp(JBro::Loc::Text("probe.kept"), "남아 있어야 한다") == 0,
             "and be readable");
 
-        Check(false == table.Load(directory.string().c_str(), "nobody", "nobody"),
+        Check(false == table.Load(Platform(), directory.string().c_str(), "nobody", "nobody"),
             "a locale with no file must report failure");
         Check(std::strcmp(JBro::Loc::Text("probe.kept"), "남아 있어야 한다") == 0,
             "and must leave what was already loaded alone");
@@ -123,7 +137,7 @@ namespace
     void TestTheShippedLocalesAgree()
     {
         JBro::LocalizationTable& table = JBro::LocalizationTable::Get();
-        if (false == table.Load("Localization", "ko-KR", "en-US"))
+        if (false == table.Load(Platform(), "Localization", "ko-KR", "en-US"))
         {
             std::cout << "  [skip] no Localization directory beside the test"
                 << std::endl;
@@ -132,7 +146,7 @@ namespace
         const std::size_t korean = table.GetCount();
         Check(korean > 0, "the shipped Korean locale must have entries");
 
-        Check(table.Load("Localization", "en-US", "ko-KR"),
+        Check(table.Load(Platform(), "Localization", "en-US", "ko-KR"),
             "and the English one must load too");
         Check(table.GetCount() == korean,
             "both shipped locales must carry the same number of keys");

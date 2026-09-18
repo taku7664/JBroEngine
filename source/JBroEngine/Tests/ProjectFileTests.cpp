@@ -1,7 +1,9 @@
 ﻿#include <JBro/Host/ProjectFile.h>
+#include <JBro/Platform/WindowsPlatform.h>
 
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <iostream>
 #include <stdexcept>
 
@@ -219,22 +221,38 @@ namespace
     // **이제는 거절되는 것이 맞다**(D-99) - 그 파일에는 `EngineVersion` 도 `Framework` 도
     // 없다. 옮겨 올 프로젝트가 없어서 내린 결정이고, 실제 파일로 그 사실을 확인한다.
     // 파일이 없으면 건너뛰되 조용히 지나가지 않는다 — 이 기계에만 있는 파일이다.
+    // 이 기계의 사용자 폴더 이름에 한글이 들어 있다. 환경 변수는 와이드로 받아 UTF-8 로 바꾼다 - 플랫폼의 경로는
+    // UTF-8 이고(D-112), 좁은 `USERPROFILE` 은 ANSI 라 그대로 넘기면 없는 파일이 된다.
+    bool UserProfileUtf8(JBro::String& out)
+    {
+        wchar_t* profile = nullptr;
+        std::size_t length = 0;
+        if (_wdupenv_s(&profile, &length, L"USERPROFILE") != 0 || profile == nullptr)
+        {
+            return false;
+        }
+        const std::u8string text = std::filesystem::path(profile).generic_u8string();
+        std::free(profile);
+        out = JBro::String(reinterpret_cast<const char*>(text.data()), text.size());
+        return true;
+    }
+
     void TestRefusesARealLegacyProjectFileIfPresent()
     {
-        // 경로를 리터럴로 박지 않는다. 이 기계의 사용자 폴더 이름에 한글이 들어 있다.
-        char* profile = nullptr;
-        std::size_t profileLength = 0;
-        if (_dupenv_s(&profile, &profileLength, "USERPROFILE") != 0 || profile == nullptr)
+        // 경로를 리터럴로 박지 않는다.
+        JBro::String path;
+        if (false == UserProfileUtf8(path))
         {
             std::cout << "  [skip] no USERPROFILE; legacy project not read" << std::endl;
             return;
         }
-        JBro::String path(profile);
-        std::free(profile);
         path.append("/source/repos/JBroEngine/TestProject/Test/Test.jproject");
+        JBro::WindowsPlatform platform;
+        JBro::JMemoryContext memory;
+        Check(platform.Initialize(memory), "the platform must initialize");
         JBro::ProjectFile project;
         JBro::ProjectFileError error;
-        if (JBro::LoadProjectFile(path.c_str(), project, error))
+        if (JBro::LoadProjectFile(platform, path.c_str(), project, error))
         {
             Check(false, "a real legacy project file must be refused now that two keys are required");
         }

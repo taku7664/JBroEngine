@@ -54,8 +54,9 @@ namespace JBro
         YamlDocument& operator=(const YamlDocument&) = delete;
 
         // 실패하면 문서는 비워지고 error 가 채워진다. 반쯤 읽힌 문서를 남기지 않는다.
+        // **경로를 받는 API 는 없다**(D-112). JBroCore 는 플랫폼을 볼 수 없으므로 파일은 부르는 쪽이 `IPlatform` 으로
+        // 읽어 글자를 넘긴다.
         bool Parse(const char* text, std::size_t length, YamlError& error);
-        bool Load(const char* path, YamlError& error);
         void Clear();
 
         // 빈 문서면 InvalidNode 다.
@@ -134,8 +135,8 @@ namespace JBro
         void BeginSequence(const char* key);
         void EndSequence();
 
+        // 쓰는 것도 부르는 쪽이 `IPlatform::WriteWholeFile` 로 한다(D-112).
         const String& GetText() const;
-        bool Save(const char* path) const;
 
     private:
         void WriteIndent();
