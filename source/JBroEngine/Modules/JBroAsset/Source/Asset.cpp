@@ -2,19 +2,6 @@
 
 namespace JBro
 {
-    void AssetRegistry::Register(const AssetMetadata&)
-    {
-    }
-
-    void AssetRegistry::Unregister(AssetId)
-    {
-    }
-
-    const AssetMetadata* AssetRegistry::Find(AssetId) const
-    {
-        return nullptr;
-    }
-
     bool AssetSystem::Initialize(const JMemoryContext&)
     {
         return true;

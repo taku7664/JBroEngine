@@ -309,6 +309,11 @@ namespace JBro
                 {
                     currentSequence = &parsed.build.buildCanvases;
                 }
+                else if (indent == 0 && key == "AssetIgnorePatterns")
+                {
+                    parsed.assetIgnorePatterns.Clear();
+                    currentSequence = &parsed.assetIgnorePatterns;
+                }
                 else
                 {
                     // 이 엔진이 읽지 않는 블록이다. 더 깊은 줄을 전부 건너뛴다.
@@ -353,6 +358,7 @@ namespace JBro
             else if (key == "ScriptSourceDirectory") { parsed.scriptSourceDirectory = value; }
             else if (key == "ScriptOutputLibraryPath") { parsed.scriptOutputLibraryPath = value; }
             else if (key == "LastOpenedCanvasPath") { parsed.lastOpenedCanvasPath = value; }
+            else if (key == "AssetDirectory") { parsed.assetDirectory = value; }
             // 최상위의 나머지 키도 아직 쓰지 않는다.
 
             if (false == recognized)

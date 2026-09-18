@@ -42,6 +42,10 @@ namespace
         "DebugModeEnabled: false\n"
         "EditorLocale: ko-KR\n"
         "ScriptSourceDirectory: Contents\n"
+        "AssetDirectory: Contents/Art\n"
+        "AssetIgnorePatterns:\n"
+        "  - *.tmp\n"
+        "  - \"~$*\"\n"
         "ScriptBuildCommand: \"\"\n"
         "ScriptOutputLibraryPath: x64/Debug/GameScript.dll\n"
         "ScriptAutoRebuildEnabled: true\n"
@@ -90,6 +94,11 @@ namespace
         Check(project.pixelsPerUnit == 100.0f, "pixels per unit must come through");
         Check(project.debugModeEnabled == false, "a false flag must stay false");
         Check(project.scriptSourceDirectory == "Contents", "the script source directory must come through");
+        Check(project.assetDirectory == "Contents/Art", "the asset directory must come through");
+        Check(project.assetIgnorePatterns.Size() == 2
+            && project.assetIgnorePatterns[0] == "*.tmp"
+            && project.assetIgnorePatterns[1] == "~$*",
+            "the ignore patterns must come through as a top-level sequence");
         Check(project.scriptOutputLibraryPath == "x64/Debug/GameScript.dll",
             "the editor script library path must come through");
         Check(project.lastOpenedCanvasPath == "NewScene.jcanvas",
@@ -202,6 +211,8 @@ namespace
             "keys the file omits must keep their defaults");
         Check(project.build.scriptOutputLibraryPath == "GameScript.dll",
             "nested defaults must survive too");
+        Check(project.assetDirectory == "Contents/Assets" && project.assetIgnorePatterns.IsEmpty(),
+            "the asset directory defaults to Contents/Assets with nothing ignored (D-111)");
     }
 
     // 손으로 옮겨 적은 모양이 아니라 기존 엔진이 실제로 저장한 파일을 읽는다.

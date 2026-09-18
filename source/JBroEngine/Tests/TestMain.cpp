@@ -21,6 +21,7 @@ int RunSpritePixelTests();
 int RunProjectFileTests();
 int RunYamlTests();
 int RunUuidTests();
+int RunAssetRegistryTests();
 int RunReflectedYamlTests();
 int RunCanvasFileTests();
 int RunRendererContractTests();
@@ -248,6 +249,10 @@ int main()
             return 1;
         }
         if (RunUuidTests() != 0)
+        {
+            return 1;
+        }
+        if (RunAssetRegistryTests() != 0)
         {
             return 1;
         }

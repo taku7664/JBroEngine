@@ -71,6 +71,11 @@ namespace JBro
         String        scriptSourceDirectory = "Contents";
         String        scriptOutputLibraryPath = "x64/Debug/GameScript.dll";
         String        lastOpenedCanvasPath;
+        // 에셋 폴더다(`AssetDirectory`). 프로젝트 루트 기준 상대경로이고 레지스트리가 이 아래를 스캔한다(D-111).
+        // 기존 엔진에는 이 키가 없었다 - 코드 기본값 `Assets` 였다.
+        String        assetDirectory = "Contents/Assets";
+        // 스캔과 파일 감시가 건너뛸 이름 패턴이다(`AssetIgnorePatterns`, `*`·`?`). 숨김 폴더는 패턴과 무관하게 건너뛴다.
+        Array<String> assetIgnorePatterns;
         ProjectBuildSettings build;
     };
 
