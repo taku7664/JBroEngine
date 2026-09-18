@@ -77,11 +77,15 @@
 
 ### 2.1 식별자
 
-- `AssetId { uint64 }` 그대로. **임포트 때 64 비트 난수**를 만들어 `.jmeta` 에 적는다. 128 비트 텍스트를 버리는
-  대신, 레지스트리가 중복을 검사해 충돌하면 다시 뽑는다(같은 프로젝트 안에서만 유일하면 된다).
+- **`AssetId { uint64 high; uint64 low; }` - UUID(v4) 를 이진 그대로 든다**(사용자 결정 2026-09-18). 임포트 때
+  128 비트 난수를 만들고, 텍스트(32 자리 16 진수)는 `.jmeta` 와 `.jcanvas` 에 적을 때만 만든다. 메모리와 표의
+  키는 항상 정수 둘이다. 기존 엔진은 `File::Guid` 가 `fs::path` 를 상속한 **문자열**이었고 뒤에 `Guid128 { Hi, Lo }` 를
+  덧붙여 정수화했다 - 처음부터 정수 둘로 가면 그 두 벌이 생기지 않는다. 128 비트라 충돌 검사는 두지 않는다.
+  현재 `AssetId { uint64 value }` 를 바꾸는 것이므로 `SpriteRenderer2D`·`MeshRenderer3D` 의 필드와 리플렉션·YAML
+  직렬화가 함께 바뀐다.
 - 빌트인은 이름 해시로 결정적 아이디를 만든다. `MeshLibrary::BuiltinCubeId` 가 이미 그렇게 하고 있어 그 규칙을
-  `AssetId MakeBuiltinAssetId(JStringView name)` 로 한 곳에 둔다. 상위 비트 하나를 빌트인 표지로 예약해
-  난수와 겹치지 않게 한다. `[가정]`
+  `AssetId MakeBuiltinAssetId(JStringView name)` 로 한 곳에 둔다. `high` 의 UUID 버전·변형 비트 자리를 난수가
+  쓰지 않는 값으로 두어 임포트 아이디와 겹치지 않게 한다. `[가정]`
 - `AssetHandle { index, generation }` 은 이번 실행의 자리다. 저장하지 않는다(현재 규약 유지).
 
 ### 2.2 레지스트리 (`AssetRegistry`, Tier E)
