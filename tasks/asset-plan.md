@@ -189,9 +189,19 @@ CTextureAsset 의 역할도 통합"). 새 엔진은 `Asset::TextureAsset` 과 `A
 
 각 단계는 테스트가 먼저다. 빌드 성공은 검증이 아니다.
 
-1. **레지스트리와 메타**: `AssetType` 열거·확장자 표·`.jmeta` 읽기 쓰기·콘텐츠 폴더 스캔·`.jproject` 키.
-   테스트: 임시 폴더에 파일을 놓고 스캔 → 숨김 폴더가 걸러지는지, 메타 없는 파일에 메타가 생기는지, 두 번 스캔해도
-   아이디가 같은지, 옮긴 파일의 아이디가 보존되는지, 무시 패턴이 먹는지.
+1. **`[완료]` 레지스트리와 메타** (2026-09-18, `ffdddb3`·`ade7e2a`): `Uuid`(§2.1), `AssetType` 열거와
+   `AssetTypeRules`(이름·확장자 표·메타 경로), `AssetMetaFile`(읽기·쓰기, 이미지는 `Sprite.Id` 필수), `AssetRegistry`
+   (`Scan`·`Register`·`Unregister`·`Rename`·`Find`·`FindByPath`·`GetMetadata`, 배열 + 아이디 표 + 경로 표),
+   `.jproject` 의 `AssetDirectory`·`AssetIgnorePatterns`. `AssetSystem` 은 아직 스텁이다(2 단계).
+   테스트 `Tests/AssetRegistryTests.cpp`: 한글 이름의 임시 폴더에 파일을 놓고 스캔 → 숨김 폴더는 들어가지 않고 메타도
+   생기지 않음, 메타 없는 파일에 메타 생성(이미지는 아이디 둘), 모르는 타입·무시 패턴·고아 메타·읽히지 않는 메타·중복
+   아이디(Texture 쪽과 Sprite 쪽 각각)가 세어지고 등록되지 않음, 두 번째 스캔에서 아이디 보존, 메타와 함께 옮긴 파일의
+   아이디 보존, 메타를 만들지 않는 스캔은 세기만 함, 끝을 당겨 채우는 지우기 뒤 두 표가 맞음, 이름 바꾸기가 Sprite 도
+   따라옴, Texture 를 빼면 Sprite 도 빠짐, 글롭 패턴 다섯 경우. 뮤테이션 6/6 죽음(숨김 폴더 진입, 지우기 뒤 표 어긋남, 반쪽 등록 이미지, 확장자 대소문자, 무시 파일 타입 판정, 이름 바꾸기의 Sprite 누락; 32 분·9 분 실행).
+   **실측**: `fopen_s` 는 UTF-8 경로를 ANSI 로 읽어 한글 폴더에서 조용히 실패했다 - 메타 파일은 `filesystem::path` 를
+   거쳐 연다. `JStringView`·`JArrayView` 는 ABI 용 POD 라 Tier E 안에서는 `std::string_view` 를 쓴다.
+   **남긴 것**: `SaveAssetMetaFile` 은 네 키만 적으므로 `ImportOptions` 가 있는 메타를 덮어쓰면 옵션이 사라진다 -
+   쓰는 쪽은 새 메타에만 쓴다. 옵션을 보존하는 다시 쓰기는 2 단계(임포트 옵션)에서 리플렉션 쓰기와 함께 온다.
 2. **시스템과 텍스처 로드**: 타입별 풀·핸들·`stb_image` 디코드·`Load/Release/Find`·캔버스 로드 집합·해석 패스.
    테스트: 2x2 PNG 를 로드해 픽셀 네 개가 맞는지, 핸들 세대가 재사용을 거르는지, 캔버스 집합의 차이 처리,
    `ReloadInPlace` 뒤 핸들이 같고 `pixelGeneration` 이 오르는지. 뮤테이션으로 죽는지 본다.

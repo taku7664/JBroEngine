@@ -70,7 +70,10 @@
 - 128 비트 식별자는 JBroCore 의 `Uuid { uint64 high; uint64 low; }` 하나다. `AssetId` 는 `using AssetId = Uuid` 이고
   별개 타입을 만들지 않는다. 난수 아이디는 `Uuid::Generate`(버전 4), 이름에서 만드는 결정적 아이디(빌트인)는
   `Uuid::FromName`(버전 8)이다. 메모리와 표의 키는 항상 정수 둘이고, 텍스트(32 자리 16 진수)는 파일에 적을 때만
-  만든다(`GetUuidCodec`). 이미지 파일 하나는 Texture 와 Sprite 두 에셋이다. 에셋은 CPU 자료만 갖고
+  만든다(`GetUuidCodec`).
+- 에셋의 아이디와 타입은 짝 파일 옆의 `.jmeta`(`hero.png.jmeta`)가 든다. **메타에 경로를 적지 않는다** - 경로는 스캔이
+  파일의 자리에서 채우므로 옮겨도 아이디가 산다. 메타가 없는 파일에 메타를 만드는 것은 에디터만 한다. 스캔은 `.` 으로
+  시작하는 폴더와 `AssetIgnorePatterns` 를 들어가지 않는다. (MUST) (D-111) 이미지 파일 하나는 Texture 와 Sprite 두 에셋이다. 에셋은 CPU 자료만 갖고
   GPU 자원은 프레임워크 시스템의 라이브러리가 든다. 프레임 경로에 에셋 조회를 두지 않는다. (MUST) (D-111)
 - 스크립트 DLL은 컴포넌트 저장소를 직접 만들지 않는다. (MUST)
   `ScriptRegistry`에 크기·정렬·제자리 생성·파괴만 등록하고 메모리는 호스트 풀이 잡는다.

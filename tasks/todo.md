@@ -1892,6 +1892,8 @@ EditorApplication::Tick
   에셋을 만드는 길이 하나 더 생기는 것이라 재질과 렌더러가 바뀌지 않는다. 그 외 설계(타입별 풀과 index+generation
   핸들, 에셋은 CPU 자료만이고 GPU 는 `SpriteLibrary`·`MeshLibrary` 가 드는 것, 캔버스 단위 참조 수, 프레임 경로에
   조회 없음)는 asset-plan §2. `[열림]` 이미지 디코더 `stb_image` 도입, `SpriteSubmit` 의 UV 사각형(D-32 ABI).
+  **1 단계(레지스트리·메타·스캔·`.jproject` 키)가 섰다**(`ffdddb3`·`ade7e2a`, asset-plan §3-1). 메타 파일은 경로를
+  적지 않고(옮겨도 아이디가 산다), 게임 실행은 메타를 만들지 않는다(`createMissingMeta` 는 에디터만 참).
 
 ## Assumptions
 
