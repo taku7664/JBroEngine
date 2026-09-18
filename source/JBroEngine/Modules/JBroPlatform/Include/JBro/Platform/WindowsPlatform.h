@@ -22,6 +22,11 @@ namespace JBro
         void* GetSymbol(DynamicLibrary library, const char* name) override;
         void UnloadDynamicLibrary(DynamicLibrary library) override;
         bool ShowFileDialog(WindowHandle owner, const FileDialogDesc& desc, String& outPath) override;
+        bool ReadWholeFile(const char* utf8Path, Array<std::byte>& contents) override;
+        bool WriteWholeFile(const char* utf8Path, JArrayView<std::byte> contents) override;
+        bool FileExists(const char* utf8Path) const override;
+        bool DirectoryExists(const char* utf8Path) const override;
+        bool EnumerateDirectory(const char* utf8Root, DirectoryVisitor visitor, void* user) override;
 
         // WndProc 이 부른다. 공개 API 가 아니다.
         void RecordInputEvent(const InputEvent& event);

@@ -64,4 +64,29 @@ namespace JBro
     void WebPlatform::UnloadDynamicLibrary(DynamicLibrary)
     {
     }
+
+    bool WebPlatform::ReadWholeFile(const char*, Array<std::byte>&)
+    {
+        return false;
+    }
+
+    bool WebPlatform::WriteWholeFile(const char*, JArrayView<std::byte>)
+    {
+        return false;
+    }
+
+    bool WebPlatform::FileExists(const char*) const
+    {
+        return false;
+    }
+
+    bool WebPlatform::DirectoryExists(const char*) const
+    {
+        return false;
+    }
+
+    bool WebPlatform::EnumerateDirectory(const char*, DirectoryVisitor, void*)
+    {
+        return false;
+    }
 }

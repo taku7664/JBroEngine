@@ -22,6 +22,7 @@ int RunProjectFileTests();
 int RunYamlTests();
 int RunUuidTests();
 int RunAssetRegistryTests();
+int RunPlatformFileTests();
 int RunReflectedYamlTests();
 int RunCanvasFileTests();
 int RunRendererContractTests();
@@ -249,6 +250,10 @@ int main()
             return 1;
         }
         if (RunUuidTests() != 0)
+        {
+            return 1;
+        }
+        if (RunPlatformFileTests() != 0)
         {
             return 1;
         }

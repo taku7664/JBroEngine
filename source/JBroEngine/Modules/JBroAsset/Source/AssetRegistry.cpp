@@ -2,29 +2,14 @@
 
 #include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetTypeRules.h>
+#include <JBro/Platform/Platform.h>
 
-#include <filesystem>
 #include <string_view>
-#include <system_error>
 
 namespace JBro
 {
     namespace
     {
-        namespace fs = std::filesystem;
-
-        // 경로는 UTF-8 로 오간다. `fs::path(const char*)` 는 Windows 에서 ANSI 로 읽으므로 그 길을 쓰지 않는다.
-        fs::path ToPath(std::string_view utf8)
-        {
-            return fs::path(std::u8string_view(reinterpret_cast<const char8_t*>(utf8.data()), utf8.size()));
-        }
-
-        String ToUtf8(const fs::path& path)
-        {
-            const std::u8string text = path.generic_u8string();
-            return String(reinterpret_cast<const char*>(text.data()), text.size());
-        }
-
         char Lower(char c) noexcept
         {
             return (c >= 'A' && c <= 'Z') ? static_cast<char>(c - 'A' + 'a') : c;
@@ -72,10 +57,33 @@ namespace JBro
             return slash == std::string_view::npos ? relativePath : relativePath.substr(slash + 1);
         }
 
-        bool IsHiddenDirectoryName(const fs::path& name)
+        // 열거가 모은 파일 목록이다. 숨김 폴더는 방문자가 내려가지 않는다.
+        struct ScanListing
         {
-            const std::u8string text = name.u8string();
-            return false == text.empty() && text[0] == u8'.';
+            Array<String> files;
+        };
+
+        bool CollectEntry(const char* relativeUtf8Path, bool isDirectory, void* user)
+        {
+            ScanListing& listing = *static_cast<ScanListing*>(user);
+            if (isDirectory)
+            {
+                const std::string_view name = FileNameOf(relativeUtf8Path);
+                return name.empty() || name[0] != '.';
+            }
+            listing.files.Add(String(relativeUtf8Path));
+            return true;
+        }
+
+        String JoinPath(const char* root, std::string_view relative)
+        {
+            String result(root);
+            if (false == result.empty() && result.back() != '/' && result.back() != '\\')
+            {
+                result.push_back('/');
+            }
+            result.append(relative);
+            return result;
         }
     }
 
@@ -97,52 +105,35 @@ namespace JBro
         return false;
     }
 
-    bool AssetRegistry::Scan(const char* assetRoot, const AssetScanOptions& options, AssetScanReport& report)
+    bool AssetRegistry::Scan(IPlatform& platform, const char* assetRoot, const AssetScanOptions& options, AssetScanReport& report)
     {
         Clear();
         report = {};
-        if (assetRoot == nullptr)
-        {
-            return false;
-        }
-        const fs::path root = ToPath(assetRoot);
-        std::error_code errorCode;
-        if (false == fs::is_directory(root, errorCode))
+        if (assetRoot == nullptr || false == platform.DirectoryExists(assetRoot))
         {
             return false;
         }
 
-        // 숨김 폴더는 들어가지 않는다. `recursive_directory_iterator` 는 폴더에 닿았을 때 `disable_recursion_pending`
-        // 으로 그 아래를 건너뛸 수 있다.
-        fs::recursive_directory_iterator iterator(root, fs::directory_options::skip_permission_denied, errorCode);
-        const fs::recursive_directory_iterator end;
-        for (; iterator != end; iterator.increment(errorCode))
+        // 먼저 전부 모은다. 그래야 고아 메타 판정이 파일 시스템을 다시 묻지 않고 목록만 본다.
+        ScanListing listing;
+        if (false == platform.EnumerateDirectory(assetRoot, &CollectEntry, &listing))
         {
-            if (errorCode)
-            {
-                break;
-            }
-            const fs::directory_entry& entry = *iterator;
-            if (entry.is_directory(errorCode))
-            {
-                if (IsHiddenDirectoryName(entry.path().filename()))
-                {
-                    iterator.disable_recursion_pending();
-                }
-                continue;
-            }
-            if (false == entry.is_regular_file(errorCode))
-            {
-                continue;
-            }
+            return false;
+        }
+        Table<String, bool> present;
+        for (std::size_t index = 0; index < listing.files.Size(); ++index)
+        {
+            present.TryAdd(listing.files[index], true);
+        }
 
-            const String relativePath = ToUtf8(fs::relative(entry.path(), root, errorCode));
+        for (std::size_t index = 0; index < listing.files.Size(); ++index)
+        {
+            const String& relativePath = listing.files[index];
             if (AssetTypeRules::IsMetaPath(relativePath))
             {
                 // 짝 파일이 있는 메타는 그 파일을 만날 때 읽는다. 없으면 고아다.
                 const std::size_t cut = relativePath.size() - std::char_traits<char>::length(AssetTypeRules::GetMetaExtension());
-                const fs::path partner = root / ToPath(std::string_view(relativePath).substr(0, cut));
-                if (false == fs::is_regular_file(partner, errorCode))
+                if (false == present.Contains(String(std::string_view(relativePath).substr(0, cut))))
                 {
                     ++report.orphanMeta;
                 }
@@ -155,12 +146,13 @@ namespace JBro
             }
 
             const AssetType detected = AssetTypeRules::DetectTypeFromPath(relativePath);
-            const fs::path metaPath = root / ToPath(AssetTypeRules::MakeMetaPath(relativePath));
+            const String metaRelative = AssetTypeRules::MakeMetaPath(relativePath);
+            const String metaPath = JoinPath(assetRoot, metaRelative);
             AssetMetaFile meta;
-            if (fs::is_regular_file(metaPath, errorCode))
+            if (present.Contains(metaRelative))
             {
                 AssetMetaError metaError;
-                if (false == LoadAssetMetaFile(ToUtf8(metaPath).c_str(), meta, metaError))
+                if (false == LoadAssetMetaFile(platform, metaPath.c_str(), meta, metaError))
                 {
                     ++report.invalidMeta;
                     continue;
@@ -184,7 +176,7 @@ namespace JBro
                 {
                     meta.spriteId = Uuid::Generate();
                 }
-                if (false == SaveAssetMetaFile(ToUtf8(metaPath).c_str(), meta))
+                if (false == SaveAssetMetaFile(platform, metaPath.c_str(), meta))
                 {
                     ++report.invalidMeta;
                     continue;

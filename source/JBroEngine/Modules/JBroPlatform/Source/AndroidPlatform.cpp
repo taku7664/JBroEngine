@@ -64,4 +64,29 @@ namespace JBro
     void AndroidPlatform::UnloadDynamicLibrary(DynamicLibrary)
     {
     }
+
+    bool AndroidPlatform::ReadWholeFile(const char*, Array<std::byte>&)
+    {
+        return false;
+    }
+
+    bool AndroidPlatform::WriteWholeFile(const char*, JArrayView<std::byte>)
+    {
+        return false;
+    }
+
+    bool AndroidPlatform::FileExists(const char*) const
+    {
+        return false;
+    }
+
+    bool AndroidPlatform::DirectoryExists(const char*) const
+    {
+        return false;
+    }
+
+    bool AndroidPlatform::EnumerateDirectory(const char*, DirectoryVisitor, void*)
+    {
+        return false;
+    }
 }

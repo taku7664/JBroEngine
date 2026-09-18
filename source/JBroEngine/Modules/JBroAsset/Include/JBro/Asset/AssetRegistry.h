@@ -10,6 +10,8 @@
 
 namespace JBro
 {
+    class IPlatform;
+
     // 레지스트리가 아는 에셋 하나다.
     struct AssetRecord
     {
@@ -56,8 +58,8 @@ namespace JBro
     class AssetRegistry final
     {
     public:
-        // `assetRoot` 아래를 스캔해 등록한다. 이전 내용은 비운다. 폴더가 없으면 false 다.
-        bool Scan(const char* assetRoot, const AssetScanOptions& options, AssetScanReport& report);
+        // `assetRoot` 아래를 스캔해 등록한다. 이전 내용은 비운다. 폴더가 없으면 false 다. 파일은 플랫폼이 연다(D-112).
+        bool Scan(IPlatform& platform, const char* assetRoot, const AssetScanOptions& options, AssetScanReport& report);
 
         // 스캔 없이 하나를 넣는다. 같은 아이디나 같은 (경로, 타입)이 있으면 false 다.
         bool Register(const AssetRecord& record);

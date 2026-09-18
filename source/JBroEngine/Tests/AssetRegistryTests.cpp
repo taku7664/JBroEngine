@@ -1,6 +1,7 @@
 ﻿#include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Asset/AssetTypeRules.h>
+#include <JBro/Platform/WindowsPlatform.h>
 
 #include <cstring>
 #include <string_view>
@@ -119,9 +120,12 @@ namespace
         options.ignorePatterns = JBro::JArrayView<JBro::String>{patterns, 1};
         options.createMissingMeta = true;
 
+        JBro::WindowsPlatform platform;
+        JBro::JMemoryContext memory;
+        Check(platform.Initialize(memory), "the platform must initialize");
         JBro::AssetRegistry registry;
         JBro::AssetScanReport report;
-        Check(registry.Scan(Utf8(root).c_str(), options, report), "the folder scans");
+        Check(registry.Scan(platform, Utf8(root).c_str(), options, report), "the folder scans");
         Check(report.registered == 3, "a texture, its sprite and a canvas are registered");
         Check(report.metaCreated == 2, "two files got a meta");
         Check(report.unknownType == 1, "the text file has no type");
@@ -163,7 +167,7 @@ namespace
         const JBro::AssetId heroId = hero->id;
         JBro::AssetScanOptions readOnly;
         readOnly.ignorePatterns = options.ignorePatterns;
-        Check(registry.Scan(Utf8(root).c_str(), readOnly, report), "a second scan runs");
+        Check(registry.Scan(platform, Utf8(root).c_str(), readOnly, report), "a second scan runs");
         Check(report.metaCreated == 0 && report.registered == 3, "nothing new is created");
         Check(registry.Find(heroId) != nullptr && registry.Find(spriteId) != nullptr, "ids are stable across scans");
         Check(report.missingMeta == 0, "every typed file already had its meta");
@@ -172,14 +176,14 @@ namespace
         fs::create_directories(root / "Art");
         fs::rename(root / "hero.png", root / "Art" / "knight.png");
         fs::rename(root / "hero.png.jmeta", root / "Art" / "knight.png.jmeta");
-        Check(registry.Scan(Utf8(root).c_str(), readOnly, report), "a scan after a move runs");
+        Check(registry.Scan(platform, Utf8(root).c_str(), readOnly, report), "a scan after a move runs");
         const JBro::AssetRecord* knight = registry.FindByPath("Art/knight.png");
         Check(knight != nullptr && knight->id == heroId, "the moved file keeps its id");
         Check(registry.Find(spriteId)->relativePath == "Art/knight.png", "and so does its sprite");
 
         // 메타를 만들지 않는 스캔은 메타 없는 파일을 세기만 한다.
         WriteFile(root / "new.png", "png");
-        Check(registry.Scan(Utf8(root).c_str(), readOnly, report), "a read-only scan runs");
+        Check(registry.Scan(platform, Utf8(root).c_str(), readOnly, report), "a read-only scan runs");
         Check(report.missingMeta == 1 && registry.FindByPath("new.png") == nullptr,
             "a file without a meta is counted, not registered, when metas are not created");
         Check(false == fs::exists(root / "new.png.jmeta"), "and no file is written");
@@ -187,21 +191,22 @@ namespace
         // 같은 아이디를 든 두 메타 - 뒤에 온 것은 거절이다.
         JBro::AssetMetaFile copy;
         JBro::AssetMetaError error;
-        Check(JBro::LoadAssetMetaFile(Utf8(root / "Art" / "knight.png.jmeta").c_str(), copy, error), "the meta loads");
+        Check(JBro::LoadAssetMetaFile(platform, Utf8(root / "Art" / "knight.png.jmeta").c_str(), copy, error), "the meta loads");
         WriteFile(root / "new.png", "png");
-        Check(JBro::SaveAssetMetaFile(Utf8(root / "new.png.jmeta").c_str(), copy), "a copied meta saves");
-        Check(registry.Scan(Utf8(root).c_str(), readOnly, report), "a scan with a duplicate runs");
+        Check(JBro::SaveAssetMetaFile(platform, Utf8(root / "new.png.jmeta").c_str(), copy), "a copied meta saves");
+        Check(registry.Scan(platform, Utf8(root).c_str(), readOnly, report), "a scan with a duplicate runs");
         Check(report.duplicateId == 1 && registry.GetCount() == 3, "the duplicate is refused and counted");
 
         // Sprite 아이디만 남의 것인 이미지 - Texture 가 먼저 서고 Sprite 가 막히면 Texture 도 물려야 한다.
         copy.id = JBro::Uuid::FromName("fresh texture");
-        Check(JBro::SaveAssetMetaFile(Utf8(root / "new.png.jmeta").c_str(), copy), "a meta with a fresh texture id saves");
-        Check(registry.Scan(Utf8(root).c_str(), readOnly, report), "a scan with a duplicate sprite id runs");
+        Check(JBro::SaveAssetMetaFile(platform, Utf8(root / "new.png.jmeta").c_str(), copy), "a meta with a fresh texture id saves");
+        Check(registry.Scan(platform, Utf8(root).c_str(), readOnly, report), "a scan with a duplicate sprite id runs");
         Check(report.duplicateId == 1 && registry.GetCount() == 3 && registry.FindByPath("new.png") == nullptr,
             "an image whose sprite id is taken is not registered by half");
         Check(registry.Find(copy.id) == nullptr, "its texture record is rolled back");
 
-        Check(false == registry.Scan(Utf8(root / "nowhere").c_str(), readOnly, report), "a missing folder is false");
+        Check(false == registry.Scan(platform, Utf8(root / "nowhere").c_str(), readOnly, report), "a missing folder is false");
+        platform.Shutdown();
         fs::remove_all(root);
     }
 

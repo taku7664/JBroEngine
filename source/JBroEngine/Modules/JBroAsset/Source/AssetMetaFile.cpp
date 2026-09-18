@@ -2,10 +2,7 @@
 
 #include <JBro/Asset/AssetTypeRules.h>
 #include <JBro/Core/Yaml.h>
-
-#include <filesystem>
-#include <fstream>
-#include <sstream>
+#include <JBro/Platform/Platform.h>
 
 namespace JBro
 {
@@ -91,25 +88,15 @@ namespace JBro
         return Interpret(document, result, error);
     }
 
-    // 경로는 UTF-8 로 온다. `fopen` 류는 Windows 에서 ANSI 로 읽으므로 `filesystem::path` 를 거쳐 연다 -
-    // 한글 폴더 이름이 있는 프로젝트가 여기서 조용히 실패했다.
-    bool LoadAssetMetaFile(const char* path, AssetMetaFile& result, AssetMetaError& error)
+    // 파일은 플랫폼이 연다(D-112). 엔진 모듈은 파일을 직접 열지 않는다.
+    bool LoadAssetMetaFile(IPlatform& platform, const char* utf8Path, AssetMetaFile& result, AssetMetaError& error)
     {
-        if (path == nullptr)
+        Array<std::byte> contents;
+        if (false == platform.ReadWholeFile(utf8Path, contents))
         {
-            return Fail(error, 0, "no path");
+            return Fail(error, 0, "the meta file could not be read");
         }
-        const std::filesystem::path native(std::u8string_view(
-            reinterpret_cast<const char8_t*>(path), std::char_traits<char>::length(path)));
-        std::ifstream file(native, std::ios::binary);
-        if (false == file.is_open())
-        {
-            return Fail(error, 0, "the meta file could not be opened");
-        }
-        std::ostringstream buffer;
-        buffer << file.rdbuf();
-        const std::string text = buffer.str();
-        return ParseAssetMetaFile(text.data(), text.size(), result, error);
+        return ParseAssetMetaFile(reinterpret_cast<const char*>(contents.Data()), contents.Size(), result, error);
     }
 
     String FormatAssetMetaFile(const AssetMetaFile& meta)
@@ -130,21 +117,12 @@ namespace JBro
         return writer.GetText();
     }
 
-    bool SaveAssetMetaFile(const char* path, const AssetMetaFile& meta)
+    bool SaveAssetMetaFile(IPlatform& platform, const char* utf8Path, const AssetMetaFile& meta)
     {
-        if (path == nullptr)
-        {
-            return false;
-        }
         const String text = FormatAssetMetaFile(meta);
-        const std::filesystem::path native(std::u8string_view(
-            reinterpret_cast<const char8_t*>(path), std::char_traits<char>::length(path)));
-        std::ofstream file(native, std::ios::binary | std::ios::trunc);
-        if (false == file.is_open())
-        {
-            return false;
-        }
-        file.write(text.data(), static_cast<std::streamsize>(text.size()));
-        return file.good();
+        JArrayView<std::byte> view;
+        view.data = reinterpret_cast<const std::byte*>(text.data());
+        view.size = static_cast<std::uint32_t>(text.size());
+        return platform.WriteWholeFile(utf8Path, view);
     }
 }

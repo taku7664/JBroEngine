@@ -5,6 +5,8 @@
 
 namespace JBro
 {
+    class IPlatform;
+
     // `.jmeta` 의 내용이다. 짝 파일 옆에 놓이고(`hero.png.jmeta`) 아이디와 타입을 든다.
     //
     // **경로는 적지 않는다.** 경로는 스캔 때 파일이 있는 자리에서 나온다 - 그래야 파일을 옮겨도 아이디가 산다
@@ -37,10 +39,10 @@ namespace JBro
 
     // 읽는다. 실패하면 `result` 는 손대지 않고 `error` 를 채운다. `Id` 가 없거나 읽히지 않는 것,
     // `Type` 이 모르는 이름인 것, 이미지 타입인데 `Sprite.Id` 가 없는 것이 실패다.
-    bool LoadAssetMetaFile(const char* path, AssetMetaFile& result, AssetMetaError& error);
+    bool LoadAssetMetaFile(IPlatform& platform, const char* utf8Path, AssetMetaFile& result, AssetMetaError& error);
     bool ParseAssetMetaFile(const char* text, std::size_t length, AssetMetaFile& result, AssetMetaError& error);
 
     // 쓴다. 파일을 만들지 못하면 false 다.
-    bool SaveAssetMetaFile(const char* path, const AssetMetaFile& meta);
+    bool SaveAssetMetaFile(IPlatform& platform, const char* utf8Path, const AssetMetaFile& meta);
     String FormatAssetMetaFile(const AssetMetaFile& meta);
 }
