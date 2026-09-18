@@ -60,6 +60,25 @@ namespace JBro::Internal
         ID3D11ShaderResourceView* noResources[MaxBoundTextures] = {};
         m_context->PSSetShaderResources(0, MaxBoundTextures, noResources);
         m_context->OMSetRenderTargets(desc.colorAttachments.size, views, depthView);
+        // 래스터라이저가 시저를 켜 두므로 기본 시저가 있어야 한다 - 없으면 D3D11 의 초기 시저는 빈 사각형이라
+        // 뷰포트만 준 호출자는 아무것도 그리지 못한다. 첫 첨부 전체로 둔다.
+        {
+            ComPtr<ID3D11Resource> resource;
+            views[0]->GetResource(&resource);
+            ComPtr<ID3D11Texture2D> texture;
+            if (resource != nullptr && SUCCEEDED(resource.As(&texture)))
+            {
+                D3D11_TEXTURE2D_DESC textureDesc = {};
+                texture->GetDesc(&textureDesc);
+                const D3D11_RECT full = {0, 0, static_cast<LONG>(textureDesc.Width), static_cast<LONG>(textureDesc.Height)};
+                m_context->RSSetScissorRects(1, &full);
+                D3D11_VIEWPORT viewport = {};
+                viewport.Width = static_cast<float>(textureDesc.Width);
+                viewport.Height = static_cast<float>(textureDesc.Height);
+                viewport.MaxDepth = 1.0f;
+                m_context->RSSetViewports(1, &viewport);
+            }
+        }
         for (std::uint32_t index = 0; index < desc.colorAttachments.size; ++index)
         {
             const ColorAttachmentDesc& attachment = desc.colorAttachments.data[index];
@@ -140,7 +159,7 @@ namespace JBro::Internal
         m_activePipeline = pipeline;
         m_activePushConstantBytes = state->pushConstantBytes;
         m_activePushConstantStages = state->pushConstantStages;
-        m_activeConstantBuffer = state->constantBuffer.Get();
+        m_activeConstantBuffer = state->constantBuffer;
         m_pipelineActive = true;
         return true;
     }
@@ -198,17 +217,22 @@ namespace JBro::Internal
         {
             return false;
         }
-        // 상수 버퍼는 16 바이트 단위라 짧은 자료를 채운 사본으로 통째로 쓴다.
-        unsigned char padded[256] = {};
-        std::memcpy(padded, data.data, data.size);
-        m_context->UpdateSubresource(m_activeConstantBuffer, 0, nullptr, padded, 0, 0);
+        // 동적 버퍼를 통째로 갈아 쓴다(DISCARD). 16 단위 꼬리는 셰이더가 읽지 않으므로 채우지 않는다.
+        ID3D11Buffer* constantBuffer = m_activeConstantBuffer.Get();
+        D3D11_MAPPED_SUBRESOURCE mapped = {};
+        if (FAILED(m_context->Map(constantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)) || mapped.pData == nullptr)
+        {
+            return false;
+        }
+        std::memcpy(mapped.pData, data.data, data.size);
+        m_context->Unmap(constantBuffer, 0);
         if (HasStage(m_activePushConstantStages, ShaderStage::Vertex))
         {
-            m_context->VSSetConstantBuffers(0, 1, &m_activeConstantBuffer);
+            m_context->VSSetConstantBuffers(0, 1, &constantBuffer);
         }
         if (HasStage(m_activePushConstantStages, ShaderStage::Pixel))
         {
-            m_context->PSSetConstantBuffers(0, 1, &m_activeConstantBuffer);
+            m_context->PSSetConstantBuffers(0, 1, &constantBuffer);
         }
         return true;
     }

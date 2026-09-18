@@ -32,11 +32,24 @@ namespace JBro::Internal
             m_context.Reset();
             return false;
         }
-        if (FAILED(CreateDXGIFactory1(IID_PPV_ARGS(&m_factory))))
+        // 디바이스가 선 어댑터의 팩토리를 쓴다. 다른 팩토리로 스왑체인을 만들면 GPU 가 둘인 기계에서 어긋난다.
+        ComPtr<IDXGIDevice> dxgiDevice;
+        ComPtr<IDXGIAdapter> adapter;
+        if (FAILED(m_device.As(&dxgiDevice)) || FAILED(dxgiDevice->GetAdapter(&adapter))
+            || FAILED(adapter->GetParent(IID_PPV_ARGS(&m_factory))))
         {
             m_device.Reset();
             m_context.Reset();
             return false;
+        }
+        // 테어링(sync interval 0 에 진짜로 vblank 를 기다리지 않기)은 팩토리가 지원할 때만.
+        ComPtr<IDXGIFactory5> factory5;
+        BOOL allowTearing = FALSE;
+        if (SUCCEEDED(m_factory.As(&factory5))
+            && SUCCEEDED(factory5->CheckFeatureSupport(DXGI_FEATURE_PRESENT_ALLOW_TEARING, &allowTearing,
+                sizeof(allowTearing))))
+        {
+            m_tearingSupported = allowTearing == TRUE;
         }
         if ((flags & D3D11_CREATE_DEVICE_DEBUG) != 0)
         {
@@ -161,6 +174,10 @@ namespace JBro::Internal
         native.Scaling = DXGI_SCALING_STRETCH;
         native.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
         native.AlphaMode = DXGI_ALPHA_MODE_IGNORE;
+        if (m_tearingSupported)
+        {
+            native.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
+        }
         D3D11SwapchainState& state = m_swapchains[index];
         const HWND window = reinterpret_cast<HWND>(static_cast<std::uintptr_t>(desc.surface.value));
         if (FAILED(m_factory->CreateSwapChainForHwnd(m_device.Get(), window, &native, nullptr, nullptr,
@@ -169,6 +186,8 @@ namespace JBro::Internal
             state.swapchain.Reset();
             return {};
         }
+        // Alt+Enter 로 DXGI 가 혼자 전체 화면으로 가지 않게 한다. 창 크기는 플랫폼이 다룬다.
+        m_factory->MakeWindowAssociation(window, DXGI_MWA_NO_ALT_ENTER);
         state.desc = desc;
         if (false == BuildBackBuffer(state))
         {
@@ -204,17 +223,24 @@ namespace JBro::Internal
         {
             return false;
         }
-        // DXGI 는 백버퍼를 잡고 있는 참조가 없어야 크기를 바꾼다.
+        // DXGI 는 백버퍼를 잡고 있는 참조가 없어야 크기를 바꾼다. 컨텍스트가 미뤄 둔 참조까지 `Flush` 로 놓는다.
         m_context->ClearState();
+        m_context->Flush();
         state->backBuffer.Reset();
         state->backBufferView.Reset();
-        if (FAILED(state->swapchain->ResizeBuffers(0, extent.width, extent.height, DXGI_FORMAT_UNKNOWN, 0)))
+        state->presentedCopy.Reset();
+        const UINT flags = m_tearingSupported ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0;
+        if (FAILED(state->swapchain->ResizeBuffers(0, extent.width, extent.height, DXGI_FORMAT_UNKNOWN, flags))
+            || false == BuildBackBuffer(*state))
         {
+            // 백버퍼가 없는 스왑체인이다. 다음 `BeginFrame` 이 SurfaceLost 를 돌려 주고 호스트가 다시 시도한다.
+            m_status = FrameStatus::SurfaceLost;
             return false;
         }
         ++state->backBufferGeneration;
         state->desc.extent = extent;
-        return BuildBackBuffer(*state);
+        m_status = FrameStatus::Ready;
+        return true;
     }
 
     BeginFrameResult D3D11Device::BeginFrame(SwapchainHandle swapchain)
@@ -263,13 +289,21 @@ namespace JBro::Internal
         {
             m_context->CopyResource(state.presentedCopy.Get(), state.backBuffer.Get());
         }
-        const HRESULT result = state.swapchain->Present(state.desc.presentMode == PresentMode::VSync ? 1 : 0, 0);
+        const bool vsync = state.desc.presentMode == PresentMode::VSync;
+        const UINT presentFlags = (false == vsync && m_tearingSupported) ? DXGI_PRESENT_ALLOW_TEARING : 0;
+        const HRESULT result = state.swapchain->Present(vsync ? 1 : 0, presentFlags);
         if (result == DXGI_ERROR_DEVICE_REMOVED || result == DXGI_ERROR_DEVICE_RESET)
         {
             MarkDeviceLost();
             return FrameStatus::DeviceLost;
         }
-        return FAILED(result) ? FrameStatus::SurfaceLost : FrameStatus::Ready;
+        if (FAILED(result))
+        {
+            // D3D12 와 같다: 표면을 다시 세울 때까지 프레임을 열지 않는다.
+            m_status = FrameStatus::SurfaceLost;
+            return FrameStatus::SurfaceLost;
+        }
+        return FrameStatus::Ready;
     }
 
     void D3D11Device::AbortFrame(const FrameContext& frame)
@@ -322,14 +356,19 @@ namespace JBro::Internal
             {
                 continue;
             }
-            // 메시지 머리만 읽으면 되지만 API 가 통째로 달라 한다. 짧은 스택 버퍼로 대부분을 덮는다.
+            // 메시지 머리만 읽으면 되지만 API 가 통째로 달라 한다. 긴 것(INFO 는 1KB 를 넘기도 한다)은 힙으로 읽는다 -
+            // 길다고 오류로 세면 조용한 테스트가 거짓으로 진다.
             alignas(D3D11_MESSAGE) unsigned char storage[1024];
+            Array<std::byte> longStorage;
+            unsigned char* bytes = storage;
             if (length > sizeof(storage))
             {
-                ++errors;
-                continue;
+                longStorage.Resize(length + alignof(D3D11_MESSAGE));
+                const std::uintptr_t raw = reinterpret_cast<std::uintptr_t>(longStorage.Data());
+                const std::uintptr_t aligned = (raw + alignof(D3D11_MESSAGE) - 1) & ~(alignof(D3D11_MESSAGE) - 1);
+                bytes = reinterpret_cast<unsigned char*>(aligned);
             }
-            auto* message = reinterpret_cast<D3D11_MESSAGE*>(storage);
+            auto* message = reinterpret_cast<D3D11_MESSAGE*>(bytes);
             if (SUCCEEDED(m_infoQueue->GetMessage(index, message, &length))
                 && (message->Severity == D3D11_MESSAGE_SEVERITY_ERROR
                     || message->Severity == D3D11_MESSAGE_SEVERITY_CORRUPTION))

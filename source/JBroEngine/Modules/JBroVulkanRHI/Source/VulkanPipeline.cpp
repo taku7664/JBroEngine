@@ -293,8 +293,8 @@ namespace JBro::Internal
         multisample.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
         VkPipelineDepthStencilStateCreateInfo depth = {VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO};
-        depth.depthTestEnable = desc.depthFormat != TextureFormat::Unknown ? VK_TRUE : VK_FALSE;
-        depth.depthWriteEnable = depth.depthTestEnable;
+        depth.depthTestEnable = desc.depthFormat != TextureFormat::Unknown && desc.depthTest ? VK_TRUE : VK_FALSE;
+        depth.depthWriteEnable = desc.depthFormat != TextureFormat::Unknown && desc.depthWrite ? VK_TRUE : VK_FALSE;
         depth.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
         depth.maxDepthBounds = 1.0f;
 

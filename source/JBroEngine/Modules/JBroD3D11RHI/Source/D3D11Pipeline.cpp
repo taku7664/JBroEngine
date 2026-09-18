@@ -134,8 +134,10 @@ namespace JBro::Internal
         rasterizer.ScissorEnable = TRUE;
 
         D3D11_DEPTH_STENCIL_DESC depth = {};
-        depth.DepthEnable = desc.depthFormat != TextureFormat::Unknown;
-        depth.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+        depth.DepthEnable = desc.depthFormat != TextureFormat::Unknown && desc.depthTest;
+        depth.DepthWriteMask = desc.depthFormat != TextureFormat::Unknown && desc.depthWrite
+            ? D3D11_DEPTH_WRITE_MASK_ALL
+            : D3D11_DEPTH_WRITE_MASK_ZERO;
         depth.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
         depth.StencilEnable = FALSE;
 
@@ -150,7 +152,10 @@ namespace JBro::Internal
         {
             D3D11_BUFFER_DESC constants = {};
             constants.ByteWidth = (desc.pushConstantBytes + 15) & ~15u;
-            constants.Usage = D3D11_USAGE_DEFAULT;
+            // 드로우마다 바뀌는 자료다. DYNAMIC + Map(DISCARD) 이 이 용도의 빠른 길이고, DEFAULT 에
+            // `UpdateSubresource` 는 드라이버가 사본을 뜨는 느린 길이다.
+            constants.Usage = D3D11_USAGE_DYNAMIC;
+            constants.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
             constants.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
             if (FAILED(m_device->CreateBuffer(&constants, nullptr, &pipeline.constantBuffer)))
             {

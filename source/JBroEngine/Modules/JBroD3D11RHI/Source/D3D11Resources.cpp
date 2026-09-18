@@ -150,18 +150,26 @@ namespace JBro::Internal
         }
         if (HasBufferUsage(desc.usage, BufferUsage::Constant))
         {
-            // 상수 버퍼는 통째로만 쓴다. 짧은 자료는 16 단위로 채운 사본으로 간다.
-            if (offset != 0)
+            // 상수 버퍼는 **통째로만** 쓴다(D3D11 은 상수 버퍼의 일부만 갱신할 수 없다). 일부만 주면 나머지가
+            // 0 이 되어 D3D12 와 다르게 행동하므로 거절한다. 16 단위 꼬리만 채운 사본으로 간다.
+            if (offset != 0 || data.size != desc.size)
             {
                 return false;
             }
-            unsigned char padded[D3D11_REQ_CONSTANT_BUFFER_ELEMENT_COUNT * 16] = {};
-            if (RoundUpTo16(desc.size) > sizeof(padded))
+            const UINT padded = RoundUpTo16(desc.size);
+            if (padded > D3D11_REQ_CONSTANT_BUFFER_ELEMENT_COUNT * 16)
             {
                 return false;
             }
-            std::memcpy(padded, data.data, data.size);
-            m_context->UpdateSubresource(native, 0, nullptr, padded, 0, 0);
+            if (padded == data.size)
+            {
+                m_context->UpdateSubresource(native, 0, nullptr, data.data, 0, 0);
+                return true;
+            }
+            unsigned char copy[D3D11_REQ_CONSTANT_BUFFER_ELEMENT_COUNT * 16];
+            std::memcpy(copy, data.data, data.size);
+            std::memset(copy + data.size, 0, padded - data.size);
+            m_context->UpdateSubresource(native, 0, nullptr, copy, 0, 0);
             return true;
         }
         D3D11_BOX box = {};
@@ -296,7 +304,7 @@ namespace JBro::Internal
 
     bool D3D11Device::WriteTexture(TextureHandle texture, std::uint32_t mipLevel, JArrayView<std::byte> data)
     {
-        if (m_context == nullptr || false == texture.IsValid() || texture.index < TextureResourceBase
+        if (m_context == nullptr || m_frameActive || false == texture.IsValid() || texture.index < TextureResourceBase
             || data.data == nullptr || data.size == 0)
         {
             return false;

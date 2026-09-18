@@ -967,8 +967,8 @@ namespace
         Check(module.device.waitIdleCount == 1, "shutdown must wait for outstanding GPU work");
         Check(module.device.destroySwapchainCount == 1, "shutdown must destroy the swapchain");
         Check(module.destroyDeviceCount == 1, "shutdown must destroy the device");
-        Check(module.device.destroyPipelineCount == 2,
-            "shutdown must destroy the built-in sprite and mesh pipelines");
+        Check(module.device.destroyPipelineCount == 3,
+            "shutdown must destroy the built-in sprite, sprite-over-depth and mesh pipelines");
     }
     struct HostOverlayProbe
     {

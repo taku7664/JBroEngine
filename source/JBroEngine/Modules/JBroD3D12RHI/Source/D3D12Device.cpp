@@ -583,6 +583,10 @@ namespace JBro::Internal
         m_activeSwapchainIndex = swapchain.index;
         m_activeFrameSlot = frameSlot;
         m_frameActive = true;
+        for (D3D12TextureState& texture : m_textures)
+        {
+            texture.stateAtFrameStart = texture.state;
+        }
 
         // 이 프레임 몫의 링을 처음부터 다시 쓴다. 이 슬롯의 앞 프레임은 이미 끝났다 —
         // 그것을 보장하는 것이 위의 펜스 대기다.
@@ -699,6 +703,15 @@ namespace JBro::Internal
         for (std::uint32_t index = 0; index < swapchain.desc.bufferCount; ++index)
         {
             swapchain.backBuffers[index].state = D3D12_RESOURCE_STATE_PRESENT;
+        }
+        // 이 프레임이 기록한 배리어는 실행되지 않는다. 텍스처의 추적 상태를 프레임 시작 때로 되돌린다 -
+        // 아니면 다음 프레임이 이미 그 상태라 여겨 배리어를 건너뛴다.
+        for (D3D12TextureState& texture : m_textures)
+        {
+            if (texture.occupied)
+            {
+                texture.state = texture.stateAtFrameStart;
+            }
         }
 
         AssignPendingRetirementFences(m_lastSubmittedFenceValue);

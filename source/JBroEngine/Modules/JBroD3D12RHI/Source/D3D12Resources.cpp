@@ -475,7 +475,8 @@ namespace JBro::Internal
             state.shaderResourceDescriptor.ptr = heapStart.ptr
                 + static_cast<SIZE_T>(slotIndex) * m_shaderResourceDescriptorStride;
             D3D12_SHADER_RESOURCE_VIEW_DESC viewDesc = {};
-            viewDesc.Format = ToNativeFormat(desc.format);
+            // 깊이 포맷은 SRV 로 못 쓴다 - 같은 비트의 색 포맷으로 본다.
+            viewDesc.Format = desc.format == TextureFormat::D32Float ? DXGI_FORMAT_R32_FLOAT : ToNativeFormat(desc.format);
             viewDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
             viewDesc.ViewDimension = desc.depthOrLayers == 1
                 ? D3D12_SRV_DIMENSION_TEXTURE2D
@@ -944,9 +945,11 @@ namespace JBro::Internal
         }
         ID3D12CommandList* commandLists[] = {m_commandList.Get()};
         m_graphicsQueue->ExecuteCommandLists(1, commandLists);
-        ++m_lastSubmittedFenceValue;
-        if (FAILED(m_graphicsQueue->Signal(m_fence.Get(), m_lastSubmittedFenceValue))
-            || false == WaitForFence(m_lastSubmittedFenceValue))
+        // 프레임과 같은 계수기에서 값을 받는다. 따로 세면 다음 프레임이 같은 값을 신호해, 아직 도는 프레임의
+        // 펜스가 이미 끝난 것으로 읽히고 그 할당자를 되감게 된다.
+        const std::uint64_t fenceValue = m_nextFenceValue++;
+        m_lastSubmittedFenceValue = fenceValue;
+        if (FAILED(m_graphicsQueue->Signal(m_fence.Get(), fenceValue)) || false == WaitForFence(fenceValue))
         {
             MarkDeviceLost();
             return false;

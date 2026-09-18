@@ -25,6 +25,7 @@ namespace JBro::Spv
 #include "BuiltinSpriteVS_SPV.generated.h"
 }
 
+#include <cmath>
 #include <limits>
 #include <new>
 
@@ -98,6 +99,11 @@ namespace JBro
             m_gpuSpriteInstances.Reserve(config.maxSpriteSubmissions);
             m_gpuMeshInstances.Reserve(config.maxMeshSubmissions);
             m_meshRuns.Reserve(config.maxMeshSubmissions);
+            m_gpuSpriteInstances.Resize(config.maxSpriteSubmissions);
+            m_gpuMeshInstances.Resize(config.maxMeshSubmissions);
+            // 메시 슬롯 수만큼 필요하다. 등록할 때 함께 자라므로 프레임 안에서는 할당하지 않는다.
+            m_meshHistogram.Reserve(64);
+            m_meshResources.Reserve(64);
         }
         catch (const std::bad_alloc&)
         {
@@ -184,9 +190,18 @@ namespace JBro
         m_meshes = {};
         m_gpuSpriteInstances = {};
         m_gpuMeshInstances = {};
+        m_gpuSpriteCount = 0;
+        m_gpuMeshCount = 0;
+        m_meshRuns = {};
+        m_meshHistogram = {};
         m_meshResources = {};
         m_currentStats = {};
         m_lastStats = {};
+        m_lastPresentedBackBuffer = {};
+        m_lastViewCamera = {};
+        m_hasLastViewCamera = false;
+        m_frameOverlay = nullptr;
+        m_frameOverlayUser = nullptr;
         m_activeView = InvalidViewIndex;
         m_frameActive = false;
         m_device = nullptr;
@@ -255,6 +270,10 @@ namespace JBro
             }
         }
         m_meshResources.Add(resource);
+        if (m_meshHistogram.Size() < m_meshResources.Size())
+        {
+            m_meshHistogram.Resize(m_meshResources.Size());
+        }
         return AssetHandle{static_cast<std::uint32_t>(m_meshResources.Size() - 1), resource.generation};
     }
 
@@ -513,7 +532,17 @@ namespace JBro
             return FrameStatus::InvalidState;
         }
 
-        if (false == RecordViews())
+        bool recorded = false;
+        try
+        {
+            recorded = RecordViews();
+        }
+        catch (const std::bad_alloc&)
+        {
+            // 배열이 자라다 실패했다. 프레임을 연 채로 예외를 내보내면 다음 프레임부터 영원히 InvalidState 다.
+            recorded = false;
+        }
+        if (false == recorded)
         {
             m_device->AbortFrame(m_frame);
             m_lastStats = m_currentStats;
@@ -536,8 +565,9 @@ namespace JBro
 
         const FrameStatus status = m_device->EndFrame(m_frame);
         m_lastStats = m_currentStats;
-        if (m_views.Size() != 0)
+        if (m_views.Size() != 0 && m_frameTarget.recordViews)
         {
+            // 그리지 않은 프레임의 카메라는 화면에 없다. 기즈모는 보이는 그림의 카메라를 써야 한다.
             m_lastViewCamera = m_views[0].camera;
             m_hasLastViewCamera = true;
         }
@@ -624,6 +654,8 @@ namespace JBro
             return false;
         }
 
+        // 옛 백버퍼는 이제 없다. 되읽기는 다음 프레임이 제시한 것을 본다.
+        m_lastPresentedBackBuffer = {};
         m_config.surfaceExtent = extent;
         return true;
     }
@@ -745,11 +777,12 @@ namespace JBro
                 return false;
             }
 
+            // 소수 자리의 뷰포트를 정수 시저로 옮긴다. 안쪽으로 자르면 마지막 열이 잘린다 - 바깥으로 넉넉히 잡는다.
             const ScissorRect scissor = {
-                static_cast<std::int32_t>(viewport.x),
-                static_cast<std::int32_t>(viewport.y),
-                static_cast<std::int32_t>(right),
-                static_cast<std::int32_t>(bottom)};
+                static_cast<std::int32_t>(std::floor(viewport.x)),
+                static_cast<std::int32_t>(std::floor(viewport.y)),
+                static_cast<std::int32_t>(std::ceil(right)),
+                static_cast<std::int32_t>(std::ceil(bottom))};
             m_frame.commands->SetViewport(viewport);
             m_frame.commands->SetScissor(scissor);
 
@@ -761,7 +794,9 @@ namespace JBro
                 const JArrayView<std::byte> constants = {
                     reinterpret_cast<const std::byte*>(viewProjection.values),
                     sizeof(viewProjection.values)};
-                if (false == m_frame.commands->SetGraphicsPipeline(m_spritePipeline)
+                const GraphicsPipelineHandle spritePipeline =
+                    view.runCount != 0 ? m_spriteOverDepthPipeline : m_spritePipeline;
+                if (false == m_frame.commands->SetGraphicsPipeline(spritePipeline)
                     || false == m_frame.commands->SetVertexBuffer(
                         0,
                         m_spriteVertexBuffer,
@@ -810,7 +845,9 @@ namespace JBro
                     const MeshResource* mesh = FindMesh(run.mesh);
                     if (mesh == nullptr)
                     {
-                        return false;
+                        // 업로드와 기록 사이에 사라질 길은 없지만, 있다면 업로드와 같은 정책이다: 그 묶음만 건너뛴다.
+                        m_currentStats.droppedMeshCount += run.instanceCount;
+                        continue;
                     }
                     if (false == m_frame.commands->SetVertexBuffer(
                             0, mesh->vertexBuffer, sizeof(MeshVertex), 0)
@@ -919,7 +956,12 @@ namespace JBro
         pipelineDesc.pushConstantStages = ShaderStage::Vertex;
         pipelineDesc.pushConstantBytes = sizeof(Matrix4x4);
         m_spritePipeline = m_device->CreateGraphicsPipeline(pipelineDesc);
-        return m_spritePipeline.IsValid();
+        // 깊이가 달린 패스용 쌍둥이. 포맷은 맞추고 깊이는 끈다 - 스프라이트는 제출 순서로 겹친다.
+        pipelineDesc.depthFormat = TextureFormat::D32Float;
+        pipelineDesc.depthTest = false;
+        pipelineDesc.depthWrite = false;
+        m_spriteOverDepthPipeline = m_device->CreateGraphicsPipeline(pipelineDesc);
+        return m_spritePipeline.IsValid() && m_spriteOverDepthPipeline.IsValid();
     }
 
     bool Renderer::CreateBuiltinMeshResources()
@@ -1002,15 +1044,16 @@ namespace JBro
         // **뷰 안에서 같은 메시를 모은다**(D-110). 메시 슬롯 번호로 세고(계수 정렬) 그 자리에 흩뿌리므로
         // 제출 순서와 무관하게 O(n) 이고, 같은 메시 안에서는 제출 순서가 지켜진다. 메시 종류마다 드로우
         // 하나가 나간다 - 정육면체 16000 개는 드로우 하나다. 등록되지 않은 핸들은 여기서 걸러 센다.
-        m_gpuMeshInstances.Clear();
         m_meshRuns.Clear();
         if (m_meshes.IsEmpty())
         {
             return true;
         }
         const std::size_t slotCount = m_meshResources.Size();
-        m_meshHistogram.Resize(slotCount);
-        m_gpuMeshInstances.Resize(m_meshes.Size());
+        if (m_meshHistogram.Size() < slotCount || m_gpuMeshInstances.Size() < m_meshes.Size())
+        {
+            return false;
+        }
         std::uint32_t written = 0;
         for (std::size_t viewIndex = 0; viewIndex < m_views.Size(); ++viewIndex)
         {
@@ -1071,7 +1114,7 @@ namespace JBro
             }
             written = cursor;
         }
-        m_gpuMeshInstances.Resize(written);
+        m_gpuMeshCount = written;
         if (written == 0)
         {
             return true;
@@ -1080,7 +1123,7 @@ namespace JBro
         {
             return false;
         }
-        const std::size_t byteSize = m_gpuMeshInstances.Size() * sizeof(GpuMeshInstance);
+        const std::size_t byteSize = m_gpuMeshCount * sizeof(GpuMeshInstance);
         return m_device->WriteBuffer(
             m_meshInstanceBuffers[m_frame.slot],
             0,
@@ -1099,6 +1142,11 @@ namespace JBro
         {
             m_device->DestroyGraphicsPipeline(m_spritePipeline);
             m_spritePipeline = {};
+        }
+        if (m_spriteOverDepthPipeline.IsValid())
+        {
+            m_device->DestroyGraphicsPipeline(m_spriteOverDepthPipeline);
+            m_spriteOverDepthPipeline = {};
         }
         for (BufferHandle& buffer : m_spriteInstanceBuffers)
         {
@@ -1125,7 +1173,11 @@ namespace JBro
         // 한 번에 크기를 잡고 자리에 바로 쓴다. 항목마다 `Add` 를 부르면 60000 개에서 0.3ms 가 그 호출에
         // 들어갔다(D-110 실측) - 인스턴스 자료 자체를 옮기는 memcpy 의 세 배다.
         const std::size_t count = m_sprites.Size();
-        m_gpuSpriteInstances.Resize(count);
+        if (m_gpuSpriteInstances.Size() < count)
+        {
+            return false;
+        }
+        m_gpuSpriteCount = count;
         if (count == 0)
         {
             return true;
@@ -1146,7 +1198,7 @@ namespace JBro
             return false;
         }
 
-        const std::size_t byteSize = m_gpuSpriteInstances.Size() * sizeof(GpuSpriteInstance);
+        const std::size_t byteSize = m_gpuSpriteCount * sizeof(GpuSpriteInstance);
         return m_device->WriteBuffer(
             m_spriteInstanceBuffers[m_frame.slot],
             0,

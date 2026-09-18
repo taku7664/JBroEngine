@@ -330,8 +330,10 @@ namespace JBro::Internal
         pipelineDesc.RasterizerState.AntialiasedLineEnable = FALSE;
         pipelineDesc.RasterizerState.ForcedSampleCount = 0;
         pipelineDesc.RasterizerState.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
-        pipelineDesc.DepthStencilState.DepthEnable = desc.depthFormat != TextureFormat::Unknown;
-        pipelineDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+        pipelineDesc.DepthStencilState.DepthEnable = desc.depthFormat != TextureFormat::Unknown && desc.depthTest;
+        pipelineDesc.DepthStencilState.DepthWriteMask = desc.depthFormat != TextureFormat::Unknown && desc.depthWrite
+            ? D3D12_DEPTH_WRITE_MASK_ALL
+            : D3D12_DEPTH_WRITE_MASK_ZERO;
         pipelineDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
         pipelineDesc.DepthStencilState.StencilEnable = FALSE;
         pipelineDesc.InputLayout = {inputElements, inputElementCount};

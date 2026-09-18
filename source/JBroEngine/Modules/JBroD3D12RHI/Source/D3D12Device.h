@@ -201,6 +201,9 @@ namespace JBro::Internal
     {
         ComPtr<ID3D12Resource> resource;
         TextureDesc desc;
+        // 프레임이 시작할 때의 상태다. 프레임을 버리면(`AbortFrame`) 기록만 되고 실행되지 않은 배리어가
+        // 추적 상태를 어긋나게 하므로 여기로 되돌린다.
+        D3D12_RESOURCE_STATES stateAtFrameStart = D3D12_RESOURCE_STATE_COMMON;
         D3D12_CPU_DESCRIPTOR_HANDLE renderTargetDescriptor = {};
         D3D12_CPU_DESCRIPTOR_HANDLE depthStencilDescriptor = {};
         // Sampled 로 만든 텍스처만 갖는다. 없으면 ptr 이 0 이다.

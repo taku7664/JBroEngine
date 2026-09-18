@@ -1,4 +1,4 @@
-#include <JBro/D3D12RHI/D3D12RHI.h>
+﻿#include <JBro/D3D12RHI/D3D12RHI.h>
 #include <JBro/Graphics/Renderer.h>
 #include <JBro/Framework2DSystem/Framework2D.h>
 #include <JBro/Platform/WindowsPlatform.h>
@@ -280,8 +280,86 @@ namespace
     }
 }
 
+namespace
+{
+    // **버린 프레임은 상태를 앞질러 두지 않는다.** 프레임 안에서 텍스처를 렌더 타깃으로 전이하는 배리어를 기록만
+    // 하고 버리면 GPU 의 실제 상태는 그대로다. 추적 상태가 함께 되돌아가지 않으면 다음 프레임이 배리어를 건너뛰고,
+    // 디버그 레이어가 실행 시점에 상태 불일치를 잡는다.
+    void TestD3D12AnAbortedFrameRollsTrackedStatesBack()
+    {
+        JBro::WindowsPlatform platform;
+        JBro::D3D12RHIModule rhi;
+        JBro::JMemoryContext memory;
+        Check(platform.Initialize(memory), "the platform must initialize");
+        Check(rhi.Initialize(memory), "the D3D12 module must initialize");
+        JBro::RHIDeviceCreateInfo createInfo;
+        createInfo.enableValidation = true;
+        JBro::IRHIDevice* device = rhi.CreateDevice(createInfo);
+        if (device == nullptr)
+        {
+            std::cout << "  [skip] no D3D12 device; abort rollback not verified" << std::endl;
+            rhi.Shutdown();
+            platform.Shutdown();
+            return;
+        }
+        JBro::WindowDesc windowDesc;
+        constexpr char title[] = "JBro abort probe";
+        windowDesc.title = {title, sizeof(title) - 1};
+        windowDesc.width = 64;
+        windowDesc.height = 64;
+        windowDesc.visible = false;
+        const JBro::WindowHandle window = platform.OpenPlatformWindow(windowDesc);
+        JBro::SwapchainDesc swapchainDesc;
+        swapchainDesc.surface = platform.CreateSurface(window);
+        swapchainDesc.extent = {64, 64};
+        swapchainDesc.presentMode = JBro::PresentMode::Immediate;
+        const JBro::SwapchainHandle swapchain = device->CreateSwapchain(swapchainDesc);
+        Check(swapchain.IsValid(), "the probe swapchain must be created");
+        JBro::TextureDesc textureDesc;
+        textureDesc.extent = {32, 32};
+        textureDesc.format = JBro::TextureFormat::BGRA8Unorm;
+        textureDesc.usage = JBro::TextureUsage::RenderTarget | JBro::TextureUsage::Sampled;
+        const JBro::TextureHandle texture = device->CreateTexture(textureDesc);
+        Check(texture.IsValid(), "the probe texture must be created");
+
+        for (int round = 0; round < 2; ++round)
+        {
+            const JBro::BeginFrameResult begun = device->BeginFrame(swapchain);
+            Check(begun.status == JBro::FrameStatus::Ready, "each frame must begin");
+            JBro::ColorAttachmentDesc attachment;
+            attachment.texture = texture;
+            attachment.loadOperation = JBro::LoadOperation::Clear;
+            JBro::RenderPassDesc pass;
+            pass.colorAttachments = {&attachment, 1};
+            Check(begun.frame.commands->BeginRenderPass(pass), "the pass on the texture must begin");
+            begun.frame.commands->EndRenderPass();
+            if (round == 0)
+            {
+                // 첫 프레임은 버린다. 기록된 전이(COMMON -> RENDER_TARGET -> 읽기)는 실행되지 않는다.
+                device->AbortFrame(begun.frame);
+            }
+            else
+            {
+                Check(device->EndFrame(begun.frame) == JBro::FrameStatus::Ready, "the second frame must present");
+            }
+        }
+        device->WaitIdle();
+        Check(device->GetValidationErrorCount() == 0,
+            "the frame after an abort must transition from the state the GPU really has");
+
+        device->DestroyTexture(texture);
+        device->DestroySwapchain(swapchain);
+        rhi.DestroyDevice(device);
+        rhi.Shutdown();
+        platform.ClosePlatformWindow(window);
+        platform.PumpEvents();
+        platform.Shutdown();
+    }
+}
+
 int RunD3D12SmokeTests()
 {
+    TestD3D12AnAbortedFrameRollsTrackedStatesBack();
     TestD3D12ResourceHandleLifecycle();
     TestD3D12HiddenSurfaceClear();
     TestD3D12EngineHost();

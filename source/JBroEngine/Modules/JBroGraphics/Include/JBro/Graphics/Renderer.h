@@ -289,11 +289,18 @@ namespace JBro
         Array<ViewPacket> m_views;
         Array<SpriteSubmit> m_sprites;
         Array<MeshSubmit> m_meshes;
+        // 인스턴스 배열은 초기화 때 상한 크기로 한 번 잡고 프레임마다 앞에서부터 채운다 - `Resize` 는 매 프레임
+        // 값 초기화(memset)를 하고, 그 비용이 자료를 옮기는 것보다 컸다(D-110 리뷰).
         Array<GpuSpriteInstance> m_gpuSpriteInstances;
+        std::size_t m_gpuSpriteCount = 0;
+        std::size_t m_gpuMeshCount = 0;
         BufferHandle m_spriteVertexBuffer;
         BufferHandle m_spriteIndexBuffer;
         BufferHandle m_spriteInstanceBuffers[MaxFrameSlots];
         GraphicsPipelineHandle m_spritePipeline;
+        // 깊이가 달린 패스(메시가 있는 뷰) 위에 스프라이트를 얹을 때 쓰는 쌍둥이다. 포맷만 같고 깊이는 보지도
+        // 쓰지도 않는다 - 파이프라인의 깊이 포맷은 패스의 첨부와 같아야 하기 때문에 둘이 필요하다.
+        GraphicsPipelineHandle m_spriteOverDepthPipeline;
         Array<MeshResource> m_meshResources;
         Array<GpuMeshInstance> m_gpuMeshInstances;
         Array<MeshRun> m_meshRuns;

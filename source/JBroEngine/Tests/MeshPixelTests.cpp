@@ -5,6 +5,7 @@
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
 #include <JBro/Framework3DSystem/Framework3D.h>
+#include <JBro/Framework3DSystem/Math3DMatrix.h>
 #include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
 #include <JBro/Graphics/Renderer.h>
 #include <JBro/Platform/WindowsPlatform.h>
@@ -261,6 +262,75 @@ namespace
     }
 }
 
+namespace
+{
+    // **스프라이트가 메시 위에 얹힌다.** 메시가 있는 뷰는 깊이가 달린 패스라, 스프라이트 파이프라인도 그 깊이
+    // 포맷을 알아야 한다(깊이는 보지도 쓰지도 않고). 포맷이 다른 파이프라인을 깊이 패스에 걸면 검증 레이어가
+    // 말하고 드라이버에 따라 그림이 깨진다 - 세 백엔드에서 픽셀과 검증 오류 수를 함께 본다.
+    template <typename TModule>
+    void TestSpritesLayOverMeshesInTheSameView()
+    {
+        Stage<TModule> stage;
+        if (false == stage.Open())
+        {
+            std::cout << "  [skip] no device for this API; sprites over meshes not verified" << std::endl;
+            return;
+        }
+        JBro::MeshLibrary library;
+        Check(library.Initialize(&stage.renderer), "the mesh library must upload its cube");
+        JBro::CameraParams camera;
+        camera.view = JBro::MakeViewMatrix({0.0f, 0.0f, 3.0f}, {});
+        Check(JBro::MakePerspectiveMatrix(60.0f * 3.14159265f / 180.0f, 1.0f, 0.1f, 100.0f, camera.projection),
+            "the perspective matrix must build");
+        camera.viewport.width = static_cast<float>(TargetWidth);
+        camera.viewport.height = static_cast<float>(TargetHeight);
+        camera.clearColor[0] = 0.0f;
+        camera.clearColor[1] = 0.0f;
+        camera.clearColor[2] = 0.0f;
+        camera.clearColor[3] = 1.0f;
+
+        JBro::MeshSubmit cube;
+        cube.mesh = library.Resolve(JBro::MeshLibrary::BuiltinCubeId());
+        cube.tint[0] = 1.0f;
+        cube.tint[1] = 0.0f;
+        cube.tint[2] = 0.0f;
+        // z=0 평면에서 카메라(z=3, 세로 시야 60도)가 보는 반높이는 1.73 이다. 왼쪽 위 구석에 파란 스프라이트를 놓는다.
+        JBro::SpriteSubmit sprite;
+        sprite.world.linear[0] = 0.8f;
+        sprite.world.linear[3] = 0.8f;
+        sprite.world.translation[0] = -1.2f;
+        sprite.world.translation[1] = 1.2f;
+        sprite.tint[0] = 0.0f;
+        sprite.tint[1] = 0.0f;
+        sprite.tint[2] = 1.0f;
+
+        JBro::FrameTarget frameTarget;
+        frameTarget.texture = stage.target;
+        frameTarget.extent = {TargetWidth, TargetHeight};
+        Check(stage.renderer.BeginFrame(frameTarget) == JBro::FrameStatus::Ready, "the frame must begin");
+        Check(stage.renderer.BeginView(camera), "the view must open");
+        Check(stage.renderer.SubmitMesh(cube), "the cube must submit");
+        Check(stage.renderer.SubmitSprite(sprite), "the sprite must submit into the same view");
+        Check(stage.renderer.EndView(), "the view must close");
+        Check(stage.renderer.EndFrame() == JBro::FrameStatus::Ready, "the frame with both must record and present");
+
+        JBro::Array<std::byte> image;
+        image.Resize(TargetWidth * TargetHeight * 4);
+        JBro::TextureReadback readback;
+        Check(stage.renderer.GetDevice()->ReadTexture(stage.target, image.Data(), image.Size(), readback),
+            "the target must read back");
+        const Pixel center = ReadPixel(image, readback.rowPitch, TargetWidth / 2, TargetHeight / 2);
+        Check(center.r > 0.2f && center.b < 0.05f, "the cube must still fill the middle");
+        const Pixel corner = ReadPixel(image, readback.rowPitch, 8, 8);
+        Check(corner.b > 0.9f && corner.r < 0.05f, "the sprite must paint the corner over the depth pass");
+        Check(stage.renderer.GetDevice()->GetValidationErrorCount() == 0,
+            "and the debug layer must accept the sprite pipeline inside the depth pass");
+
+        library.Shutdown();
+        stage.Close();
+    }
+}
+
 int RunMeshPixelTests()
 {
     TestACubeIsDrawnWhereTheCameraLooks<JBro::D3D12RHIModule>();
@@ -269,6 +339,9 @@ int RunMeshPixelTests()
     TestACubeIsDrawnWhereTheCameraLooks<JBro::VulkanRHIModule>();
     TestANearerCubeHidesAFartherOne<JBro::D3D11RHIModule>();
     TestANearerCubeHidesAFartherOne<JBro::VulkanRHIModule>();
+    TestSpritesLayOverMeshesInTheSameView<JBro::D3D12RHIModule>();
+    TestSpritesLayOverMeshesInTheSameView<JBro::D3D11RHIModule>();
+    TestSpritesLayOverMeshesInTheSameView<JBro::VulkanRHIModule>();
     std::cout << "Mesh pixel tests passed.\n";
     return 0;
 }

@@ -2,8 +2,10 @@
 
 #include <JBro/RHI/RHI.h>
 
+#include <JBro/Types/Array.h>
+
 #include <d3d11_1.h>
-#include <dxgi1_3.h>
+#include <dxgi1_5.h>
 #include <wrl/client.h>
 
 #include <cstdint>
@@ -59,7 +61,8 @@ namespace JBro::Internal
         GraphicsPipelineHandle m_activePipeline;
         std::uint32_t m_activePushConstantBytes = 0;
         ShaderStage m_activePushConstantStages = ShaderStage::Vertex;
-        ID3D11Buffer* m_activeConstantBuffer = nullptr;
+        // 참조를 든다. 파이프라인이 패스 중간에 지워져도 상수 버퍼는 살아 있다.
+        ComPtr<ID3D11Buffer> m_activeConstantBuffer;
         bool m_renderPassActive = false;
         bool m_pipelineActive = false;
     };
@@ -198,6 +201,7 @@ namespace JBro::Internal
         std::uint32_t m_activeSwapchainIndex = 0;
         FrameStatus m_status = FrameStatus::InvalidState;
         bool m_frameActive = false;
+        bool m_tearingSupported = false;
     };
 
     // 두 소스 파일이 함께 쓰는 변환.

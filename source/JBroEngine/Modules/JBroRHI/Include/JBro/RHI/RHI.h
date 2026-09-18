@@ -308,6 +308,11 @@ namespace JBro
         JArrayView<VertexBufferLayoutDesc> vertexBuffers;
         JArrayView<TextureFormat> colorFormats;
         TextureFormat depthFormat = TextureFormat::Unknown;
+        // 깊이 첨부가 있는 패스에 들어가는 파이프라인은 `depthFormat` 이 그 첨부와 같아야 한다 - 세 API 모두
+        // 포맷을 파이프라인에 굽는다. 시험·쓰기는 그것과 별개다: 깊이가 달린 패스 위에 그리되 깊이를 보지도
+        // 쓰지도 않는 것(2D 스프라이트가 3D 위에 얹힐 때)이 이 둘을 끈다. 포맷이 없으면 둘은 뜻이 없다.
+        bool depthTest = true;
+        bool depthWrite = true;
         PrimitiveTopology topology = PrimitiveTopology::TriangleList;
         BlendMode blend = BlendMode::Opaque;
         CullMode cull = CullMode::Back;
