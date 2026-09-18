@@ -277,23 +277,23 @@ namespace
 
         // 저장되는 쪽은 실제로 값이 실려야 한다.
         //
-        // **쪼개지지 않는다.** 안에 정수가 하나 있지만 그것은 저장 방식이지 부분이 아니다 —
-        // 필드로 두면 저장 파일에 `spriteId:` 아래 `value:` 가 한 단 더 생긴다.
+        // **쪼개지지 않는다.** 안에 정수가 둘 있지만 그것은 저장 방식이지 부분이 아니다 —
+        // 필드로 두면 저장 파일에 `spriteId:` 아래 `high:`·`low:` 가 한 단 더 생긴다.
         const JBro::PropertyInfo& id = Field(sprite, "spriteId");
         Check(id.type->fields == nullptr, "an asset id has no parts to show");
         Check(id.type->codec != nullptr, "an asset id speaks for itself");
 
         JBro::Component::SpriteRenderer2D renderer;
-        Check(id.type->codec->FromText(id.Address(&renderer), "42", 2),
+        Check(id.type->codec->FromText(id.Address(&renderer), "0000000000000000000000000000002a", 32),
             "an asset id must be writable through its property");
-        Check(renderer.spriteId.value == 42, "the write must reach the real member");
+        Check(renderer.spriteId.high == 0 && renderer.spriteId.low == 42, "the write must reach the real member");
 
-        char buffer[32] = {};
+        char buffer[33] = {};
         std::size_t required = 0;
         Check(id.type->codec->ToText(id.ConstAddress(&renderer), buffer, sizeof(buffer), required),
             "an asset id must be writable to a file");
-        Check(required == 2 && std::memcmp(buffer, "42", 2) == 0,
-            "an asset id must go out as the number it is");
+        Check(required == 32 && std::memcmp(buffer, "0000000000000000000000000000002a", 32) == 0,
+            "an asset id must go out as the 32 hex digits it is");
 
         Check(Field(sprite, "tint").serialize, "an authored value must still be saved");
 

@@ -318,7 +318,7 @@ namespace
         transform->worldPosition = { 9.0f, 9.0f };
 
         auto* sprite = canvas.AttachComponent<JBro::Component::SpriteRenderer2D>(object);
-        sprite->spriteId.value = 42;
+        sprite->spriteId = JBro::Uuid::FromName("sprite/42");
         sprite->sprite = { 3, 7 };
 
         auto* body = canvas.AttachComponent<JBro::Component::Rigidbody2D>(object);
@@ -341,9 +341,11 @@ namespace
 
         // 에셋은 영속 식별자만 나간다. 핸들은 이번 실행에서의 자리다.
         const std::uint32_t renderer = FindComponent(document, saved, "Component::SpriteRenderer2D");
-        std::int64_t id = 0;
-        Check(document.FindInt(renderer, "spriteId", id) && id == 42,
-            "the persistent id is what a scene remembers");
+        JBro::String idText;
+        char expected[JBro::Uuid::TextCapacity];
+        Check(JBro::Uuid::FromName("sprite/42").ToText(expected, sizeof(expected)), "the id has a text form");
+        Check(document.FindScalar(renderer, "spriteId", idText) && idText == expected,
+            "the persistent id is what a scene remembers, as 32 hex digits");
         Check(document.Find(renderer, "sprite") == JBro::YamlDocument::InvalidNode,
             "the runtime handle must not be written");
 
@@ -641,7 +643,7 @@ namespace
             camera->primary = true;
 
             auto* sprite = canvas.AttachComponent<JBro::Component::SpriteRenderer2D>(object);
-            sprite->spriteId.value = 1234567890123456789ull;
+            sprite->spriteId = JBro::Uuid{1234567890123456789ull, 0xFEDCBA9876543210ull};
             sprite->flip = JBro::Component::SpriteFlip::Vertical;
             sprite->renderOrder = -7;
             sprite->visible = false;
@@ -680,8 +682,8 @@ namespace
 
         auto* sprite = reopened.FindComponentRaw<JBro::Component::SpriteRenderer2D>(object);
         Check(sprite != nullptr, "the sprite renderer must be attached by name");
-        Check(sprite->spriteId.value == 1234567890123456789ull,
-            "an asset id must survive whole, not rounded through a float");
+        Check(sprite->spriteId == JBro::Uuid{1234567890123456789ull, 0xFEDCBA9876543210ull},
+            "an asset id must survive whole, both words, not rounded through a float");
         Check(sprite->flip == JBro::Component::SpriteFlip::Vertical, "an enum must come back");
         Check(sprite->renderOrder == -7, "a negative whole number must come back");
         Check(false == sprite->visible, "false must come back as false");
@@ -1008,7 +1010,7 @@ namespace
             camera->verticalFieldOfView = 75.5f;
 
             auto* mesh = canvas.AttachComponent<JBro::Component::MeshRenderer3D>(object);
-            mesh->meshId.value = 77;
+            mesh->meshId = JBro::Uuid::FromName("mesh/77");
             mesh->mesh = { 4, 4 };
 
             auto* body = canvas.AttachComponent<JBro::Component::Rigidbody3D>(object);
@@ -1039,7 +1041,7 @@ namespace
             "a 3D camera must come back");
 
         auto* mesh = reopened.FindComponentRaw<JBro::Component::MeshRenderer3D>(object);
-        Check(mesh != nullptr && mesh->meshId.value == 77,
+        Check(mesh != nullptr && mesh->meshId == JBro::Uuid::FromName("mesh/77"),
             "the persistent asset id must come back");
         Check(mesh->mesh.index == 0 && mesh->mesh.generation == 0,
             "the runtime handle must not come back from a file; it is resolved, not saved");

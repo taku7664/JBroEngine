@@ -84,6 +84,10 @@ namespace JBro
     // true/false 로 적혀야 사람이 읽을 수 있다.
     const ValueCodec& GetBoolCodec();
 
+    // Uuid 도 따로다. 정수 둘이지만 저장 파일에는 32 자리 16 진수 하나로 적힌다 - 두 칸으로 쪼개면
+    // 파일에도 인스펙터에도 뜻 없는 절반이 둘 생긴다.
+    const ValueCodec& GetUuidCodec();
+
     // 산술 타입의 TypeDescriptor 를 만든다. 이름은 부르는 쪽이 준다 —
     // `float` 인지 `JBro.Degree` 인지는 타입만으로 알 수 없기 때문이다.
     template<typename T>

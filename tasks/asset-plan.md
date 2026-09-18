@@ -78,15 +78,14 @@
 
 ### 2.1 식별자
 
-- **`AssetId { uint64 high; uint64 low; }` - UUID(v4) 를 이진 그대로 든다**(사용자 결정 2026-09-18). 임포트 때
-  128 비트 난수를 만들고, 텍스트(32 자리 16 진수)는 `.jmeta` 와 `.jcanvas` 에 적을 때만 만든다. 메모리와 표의
-  키는 항상 정수 둘이다. 기존 엔진은 `File::Guid` 가 `fs::path` 를 상속한 **문자열**이었고 뒤에 `Guid128 { Hi, Lo }` 를
-  덧붙여 정수화했다 - 처음부터 정수 둘로 가면 그 두 벌이 생기지 않는다. 128 비트라 충돌 검사는 두지 않는다.
-  현재 `AssetId { uint64 value }` 를 바꾸는 것이므로 `SpriteRenderer2D`·`MeshRenderer3D` 의 필드와 리플렉션·YAML
-  직렬화가 함께 바뀐다.
-- 빌트인은 이름 해시로 결정적 아이디를 만든다. `MeshLibrary::BuiltinCubeId` 가 이미 그렇게 하고 있어 그 규칙을
-  `AssetId MakeBuiltinAssetId(JStringView name)` 로 한 곳에 둔다. `high` 의 UUID 버전·변형 비트 자리를 난수가
-  쓰지 않는 값으로 두어 임포트 아이디와 겹치지 않게 한다. `[가정]`
+- **`[완료]` `Uuid { uint64 high; uint64 low; }` 가 JBroCore 에 있고 `using AssetId = Uuid` 다**(사용자 결정
+  2026-09-18, D-111). 별개 타입을 만들지 않는다 - 아이디 역할에 더 가질 것이 없다. 임포트 때 `Uuid::Generate`(버전 4
+  난수), 빌트인은 `Uuid::FromName`(버전 8, FNV-1a 두 시드)이라 두 가족이 겹치지 않는다. 텍스트(32 자리 16 진수,
+  하이픈 표기도 읽음)는 `.jmeta` 와 `.jcanvas` 에 적을 때만 만들고(`GetUuidCodec`, `TypeDescriptorOf<Uuid>` 는
+  `CoreTypeDescriptors.h`), 메모리와 표의 키는 항상 정수 둘이다(`Hash<Uuid>`). 기존 엔진은 `File::Guid` 가 `fs::path` 를
+  상속한 **문자열**이었고 뒤에 `Guid128 { Hi, Lo }` 를 덧붙여 정수화했다 - 처음부터 정수 둘로 가면 그 두 벌이
+  생기지 않는다. 128 비트라 충돌 검사는 두지 않는다. `MeshLibrary::BuiltinCubeId` 는 `FromName("builtin/cube")` 다.
+  테스트: `Tests/UuidTests.cpp`(난수 4096 개 무충돌·버전 비트, 이름 결정성, 글자 왕복과 거절 여섯 가지, 코덱).
 - `AssetHandle { index, generation }` 은 이번 실행의 자리다. 저장하지 않는다(현재 규약 유지).
 
 ### 2.2 레지스트리 (`AssetRegistry`, Tier E)

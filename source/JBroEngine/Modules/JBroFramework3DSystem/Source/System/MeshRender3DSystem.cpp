@@ -49,7 +49,7 @@ namespace JBro::System
                 return;
             }
             // 해석 패스. 저장되는 것은 아이디고 핸들은 이번 실행의 자리다 - 비어 있으면 표에서 채운다.
-            if (renderer.mesh.generation == 0 && renderer.meshId.value != 0 && m_library != nullptr)
+            if (renderer.mesh.generation == 0 && false == renderer.meshId.IsNull() && m_library != nullptr)
             {
                 renderer.mesh = m_library->Resolve(renderer.meshId);
             }

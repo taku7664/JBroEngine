@@ -67,8 +67,10 @@
 - 프로젝트 파일은 `.jproject`(YAML)이며 키 이름은 기존 엔진과 같다. (MUST)
   두 번째 형식을 만들지 않는다. 읽지 못하는 구조는 추측하지 않고 줄 번호와 함께 거절한다.
   기존 엔진에 없던 키는 `AssetDirectory`(기본값 `Contents/Assets`)와 `AssetIgnorePatterns` 다. (D-111)
-- `AssetId` 는 UUID 를 이진으로 든 `{ uint64 high; uint64 low; }` 다. 메모리와 표의 키는 항상 정수 둘이고,
-  텍스트는 파일에 적을 때만 만든다. 이미지 파일 하나는 Texture 와 Sprite 두 에셋이다. 에셋은 CPU 자료만 갖고
+- 128 비트 식별자는 JBroCore 의 `Uuid { uint64 high; uint64 low; }` 하나다. `AssetId` 는 `using AssetId = Uuid` 이고
+  별개 타입을 만들지 않는다. 난수 아이디는 `Uuid::Generate`(버전 4), 이름에서 만드는 결정적 아이디(빌트인)는
+  `Uuid::FromName`(버전 8)이다. 메모리와 표의 키는 항상 정수 둘이고, 텍스트(32 자리 16 진수)는 파일에 적을 때만
+  만든다(`GetUuidCodec`). 이미지 파일 하나는 Texture 와 Sprite 두 에셋이다. 에셋은 CPU 자료만 갖고
   GPU 자원은 프레임워크 시스템의 라이브러리가 든다. 프레임 경로에 에셋 조회를 두지 않는다. (MUST) (D-111)
 - 스크립트 DLL은 컴포넌트 저장소를 직접 만들지 않는다. (MUST)
   `ScriptRegistry`에 크기·정렬·제자리 생성·파괴만 등록하고 메모리는 호스트 풀이 잡는다.

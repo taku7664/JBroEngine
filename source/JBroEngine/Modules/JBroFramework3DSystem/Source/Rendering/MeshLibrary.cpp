@@ -43,7 +43,7 @@ namespace JBro
 
     AssetId MeshLibrary::BuiltinCubeId()
     {
-        return AssetId{MakeStableTypeId("builtin/cube")};
+        return Uuid::FromName("builtin/cube");
     }
 
     bool MeshLibrary::Initialize(Renderer* renderer)
@@ -80,7 +80,7 @@ namespace JBro
     {
         for (std::size_t index = 0; index < m_entries.Size(); ++index)
         {
-            if (m_entries[index].id.value == id.value)
+            if (m_entries[index].id == id)
             {
                 return m_entries[index].handle;
             }
@@ -92,7 +92,7 @@ namespace JBro
     {
         for (std::size_t index = 0; index < m_entries.Size(); ++index)
         {
-            if (m_entries[index].id.value == id.value)
+            if (m_entries[index].id == id)
             {
                 m_entries[index].handle = handle;
                 return;

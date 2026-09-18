@@ -228,7 +228,7 @@ namespace
         const JBro::AssetHandle cube{7, 3};
         library.Register(JBro::MeshLibrary::BuiltinCubeId(), cube);
         Check(library.Resolve(JBro::MeshLibrary::BuiltinCubeId()).index == 7, "a registered id resolves");
-        Check(library.Resolve(JBro::AssetId{12345}).generation == 0, "an unknown id does not");
+        Check(library.Resolve(JBro::Uuid::FromName("builtin/nothing")).generation == 0, "an unknown id does not");
 
         JBro::GameObject* shown = canvas.CreateObject("shown");
         JBro::GameObject* hidden = canvas.CreateObject("hidden");

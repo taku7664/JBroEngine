@@ -1880,8 +1880,10 @@ EditorApplication::Tick
   `depthTest`·`depthWrite` 가 생겼다.
 - **D-111. 에셋 시스템은 `tasks/asset-plan.md` 의 설계로 세운다 - 이진 UUID, 타입별 풀, GPU 는 프레임워크가 든다.**
   (2026-09-18) 기존 엔진의 에셋 시스템과 그쪽 후속 문서를 읽고 다시 설계했다(asset-plan §1). 사용자가 확정한 것:
-  (1) `AssetId` 는 UUID 를 이진 그대로 든 `{ uint64 high; uint64 low; }` 다. 텍스트는 파일에 적을 때만 만든다 -
-  기존 엔진은 문자열 GUID 위에 `Guid128` 을 덧붙여 두 벌이 됐다. (2) 이미지 파일 하나는 **Texture 와 Sprite 두 에셋**으로
+  (1) 128 비트 식별자는 JBroCore 의 `Uuid { uint64 high; uint64 low; }` 하나이고 `AssetId` 는 그 별칭이다
+  (`using`, 별개 타입 없음 - 아이디 역할에 더 가질 것이 없다). `Generate` 는 버전 4 난수, `FromName` 은 버전 8 이름
+  해시라 둘이 겹치지 않는다. 텍스트는 파일에 적을 때만 만든다 - 기존 엔진은 문자열 GUID 위에 `Guid128` 을 덧붙여
+  두 벌이 됐다. 캔버스 파일의 `spriteId:` 는 이제 32 자리 16 진수다(이전 파일은 없다). (2) 이미지 파일 하나는 **Texture 와 Sprite 두 에셋**으로
   등록된다. Sprite 는 임포트 때 자동으로 생겨 사용자는 파일 하나만 본다. 3D 재질은 Texture 를 참조한다.
   (3) 에셋 폴더는 `Contents/Assets` 이고 `.jproject` 의 `AssetDirectory` 키(기본값 `Contents/Assets`)가 정한다.
   `AssetIgnorePatterns` 는 스캔과 파일 감시 둘 다에 적용한다 - 기존 엔진은 감시에만 적용해 숨김 폴더의 파일이

@@ -20,6 +20,7 @@ int RunScriptSchedulingTests();
 int RunSpritePixelTests();
 int RunProjectFileTests();
 int RunYamlTests();
+int RunUuidTests();
 int RunReflectedYamlTests();
 int RunCanvasFileTests();
 int RunRendererContractTests();
@@ -243,6 +244,10 @@ int main()
             return 1;
         }
         if (RunYamlTests() != 0)
+        {
+            return 1;
+        }
+        if (RunUuidTests() != 0)
         {
             return 1;
         }
