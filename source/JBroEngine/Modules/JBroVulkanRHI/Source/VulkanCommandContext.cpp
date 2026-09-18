@@ -47,6 +47,8 @@ namespace JBro::Internal
         m_commands = VK_NULL_HANDLE;
         m_descriptorPool = VK_NULL_HANDLE;
         m_activePipeline = nullptr;
+        m_cachedSetCount = 0;
+        m_cachedSetCursor = 0;
         m_sampledAtEndCount = 0;
         for (VkImageView& view : m_pendingTextures)
         {
@@ -341,15 +343,23 @@ namespace JBro::Internal
                 return false;
             }
         }
+        VkDescriptorSet set = VK_NULL_HANDLE;
+        if (FindCachedSet(set))
+        {
+            vk.vkCmdBindDescriptorSets(m_commands, VK_PIPELINE_BIND_POINT_GRAPHICS, m_activePipeline->layout, 0, 1,
+                &set, 0, nullptr);
+            m_descriptorsDirty = false;
+            return true;
+        }
         VkDescriptorSetAllocateInfo allocate = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
         allocate.descriptorPool = m_descriptorPool;
         allocate.descriptorSetCount = 1;
         allocate.pSetLayouts = &m_activePipeline->setLayout;
-        VkDescriptorSet set = VK_NULL_HANDLE;
         if (vk.vkAllocateDescriptorSets(m_device->GetNativeDevice(), &allocate, &set) != VK_SUCCESS)
         {
             return false;
         }
+        RememberSet(set);
         VkDescriptorImageInfo images[MaxBoundTextures + MaxBoundSamplers] = {};
         VkWriteDescriptorSet writes[MaxBoundTextures + MaxBoundSamplers] = {};
         std::uint32_t writeCount = 0;
@@ -383,6 +393,51 @@ namespace JBro::Internal
             0, nullptr);
         m_descriptorsDirty = false;
         return true;
+    }
+
+    bool VulkanCommandContext::FindCachedSet(VkDescriptorSet& set) const
+    {
+        for (std::uint32_t index = 0; index < m_cachedSetCount; ++index)
+        {
+            const CachedSet& candidate = m_cachedSets[index];
+            if (candidate.layout != m_activePipeline->setLayout)
+            {
+                continue;
+            }
+            bool same = true;
+            for (std::uint32_t slot = 0; slot < m_activePipeline->sampledTextureCount && same; ++slot)
+            {
+                same = candidate.views[slot] == m_pendingTextures[slot];
+            }
+            for (std::uint32_t slot = 0; slot < m_activePipeline->samplerCount && same; ++slot)
+            {
+                same = candidate.samplers[slot] == m_pendingSamplers[slot];
+            }
+            if (same)
+            {
+                set = candidate.set;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void VulkanCommandContext::RememberSet(VkDescriptorSet set)
+    {
+        // 꽉 차면 가장 오래된 자리부터 돌려 쓴다. set 자체는 풀이 프레임 끝에 통째로 비운다.
+        CachedSet& entry = m_cachedSets[m_cachedSetCursor];
+        m_cachedSetCursor = (m_cachedSetCursor + 1) % CachedSets;
+        m_cachedSetCount = m_cachedSetCount < CachedSets ? m_cachedSetCount + 1 : CachedSets;
+        entry.layout = m_activePipeline->setLayout;
+        entry.set = set;
+        for (std::uint32_t slot = 0; slot < MaxBoundTextures; ++slot)
+        {
+            entry.views[slot] = slot < m_activePipeline->sampledTextureCount ? m_pendingTextures[slot] : VK_NULL_HANDLE;
+        }
+        for (std::uint32_t slot = 0; slot < MaxBoundSamplers; ++slot)
+        {
+            entry.samplers[slot] = slot < m_activePipeline->samplerCount ? m_pendingSamplers[slot] : VK_NULL_HANDLE;
+        }
     }
 
     bool VulkanCommandContext::DrawIndexedInstanced(

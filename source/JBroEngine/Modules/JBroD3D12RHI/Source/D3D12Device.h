@@ -110,6 +110,29 @@ namespace JBro::Internal
         D3D12RenderTargetBinding m_sampledAtEnd[MaxColorAttachments] = {};
         std::uint32_t m_sampledAtEndCount = 0;
         std::uint32_t m_activePushConstantCount = 0;
+        // 이 프레임에 스테이징한 테이블이다. 같은 디스크립터 묶음이 다시 오면 복사하지 않고 그 테이블을 다시
+        // 건다(D-110). ImGui 는 드로우마다 같은 폰트 아틀라스를 묶으므로 이것이 없으면 드로우마다 복사 하나와
+        // 프레임 몫 하나를 쓴다 - 드로우 512 개에서 샘플러 몫이 바닥나 나머지가 조용히 빠졌다.
+        static constexpr std::uint32_t CachedTables = 16;
+        struct StagedTable
+        {
+            D3D12_CPU_DESCRIPTOR_HANDLE keys[MaxBoundTextures] = {};
+            std::uint32_t count = 0;
+            D3D12_GPU_DESCRIPTOR_HANDLE table = {};
+        };
+        StagedTable m_textureTables[CachedTables] = {};
+        StagedTable m_samplerTables[CachedTables] = {};
+        std::uint32_t m_textureTableCount = 0;
+        std::uint32_t m_samplerTableCount = 0;
+        std::uint32_t m_textureTableCursor = 0;
+        std::uint32_t m_samplerTableCursor = 0;
+        // 지금 루트에 걸린 테이블. 같으면 다시 걸지 않는다. 파이프라인이 바뀌면 비운다.
+        D3D12_GPU_DESCRIPTOR_HANDLE m_boundTextureTable = {};
+        D3D12_GPU_DESCRIPTOR_HANDLE m_boundSamplerTable = {};
+        bool FindStagedTable(const StagedTable* tables, std::uint32_t tableCount,
+            const D3D12_CPU_DESCRIPTOR_HANDLE* keys, std::uint32_t count, D3D12_GPU_DESCRIPTOR_HANDLE& table) const;
+        void RememberStagedTable(StagedTable* tables, std::uint32_t& tableCount, std::uint32_t& cursor,
+            const D3D12_CPU_DESCRIPTOR_HANDLE* keys, std::uint32_t count, D3D12_GPU_DESCRIPTOR_HANDLE table);
         D3D12PipelineBinding m_activePipeline;
         D3D12_CPU_DESCRIPTOR_HANDLE m_pendingTextures[MaxBoundTextures] = {};
         D3D12_CPU_DESCRIPTOR_HANDLE m_pendingSamplers[MaxBoundSamplers] = {};
@@ -263,7 +286,9 @@ namespace JBro::Internal
         static constexpr std::uint32_t MaxSamplers = 64;
         // 프레임 슬롯마다 제 몫을 갖는다. 프레임이 겹쳐 도는 동안 앞 프레임이 쓰던
         // 디스크립터를 덮어쓰지 않게 하려면 링을 프레임별로 갈라야 한다.
-        static constexpr std::uint32_t ShaderVisibleTexturesPerFrame = 1024;
+        // 프레임 하나가 스테이징할 수 있는 텍스처 디스크립터 수다. 드로우가 같은 텍스처를 다시 묶으면
+        // 컨텍스트가 이미 스테이징한 테이블을 재사용하므로(D-110) 이 수는 **서로 다른 묶음**의 수다.
+        static constexpr std::uint32_t ShaderVisibleTexturesPerFrame = 4096;
         // **D3D12 는 셰이더 가시 샘플러 힙을 2048개로 제한한다.** 프레임 수를 곱한 값이
         // 그 안에 들어와야 하므로 프레임당 512 가 사실상의 상한이다.
         // (텍스처 쪽 힙은 백만 단위라 그런 제약이 없다.)

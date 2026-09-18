@@ -101,6 +101,13 @@ namespace JBro::Internal
         m_discardAtEndCount = 0;
         m_activePushConstantCount = 0;
         m_activePipeline = {};
+        // 스테이징 자리는 프레임 슬롯의 것이다. 프레임이 바뀌면 지난 테이블은 남의 것이다.
+        m_textureTableCount = 0;
+        m_samplerTableCount = 0;
+        m_textureTableCursor = 0;
+        m_samplerTableCursor = 0;
+        m_boundTextureTable = {};
+        m_boundSamplerTable = {};
         for (std::uint32_t index = 0; index < MaxBoundTextures; ++index)
         {
             m_pendingTextures[index] = {};
@@ -376,7 +383,9 @@ namespace JBro::Internal
         m_activePushConstantCount = binding.pushConstantCount;
         m_activePipeline = binding;
         // 파이프라인이 바뀌면 묶어 둔 것도 버린다. 루트 시그니처가 달라졌으므로
-        // 앞의 테이블 번호가 더 이상 같은 자리를 뜻하지 않는다.
+        // 앞의 테이블 번호가 더 이상 같은 자리를 뜻하지 않는다. 걸려 있던 테이블도 새 루트에는 없는 것이다.
+        m_boundTextureTable = {};
+        m_boundSamplerTable = {};
         for (std::uint32_t index = 0; index < MaxBoundTextures; ++index)
         {
             m_pendingTextures[index] = {};
@@ -429,6 +438,46 @@ namespace JBro::Internal
         return true;
     }
 
+    bool D3D12CommandContext::FindStagedTable(const StagedTable* tables, std::uint32_t tableCount,
+        const D3D12_CPU_DESCRIPTOR_HANDLE* keys, std::uint32_t count, D3D12_GPU_DESCRIPTOR_HANDLE& table) const
+    {
+        for (std::uint32_t index = 0; index < tableCount; ++index)
+        {
+            const StagedTable& candidate = tables[index];
+            if (candidate.count != count)
+            {
+                continue;
+            }
+            bool same = true;
+            for (std::uint32_t slot = 0; slot < count && same; ++slot)
+            {
+                same = candidate.keys[slot].ptr == keys[slot].ptr;
+            }
+            if (same)
+            {
+                table = candidate.table;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void D3D12CommandContext::RememberStagedTable(StagedTable* tables, std::uint32_t& tableCount,
+        std::uint32_t& cursor, const D3D12_CPU_DESCRIPTOR_HANDLE* keys, std::uint32_t count,
+        D3D12_GPU_DESCRIPTOR_HANDLE table)
+    {
+        // 꽉 차면 가장 오래된 자리부터 돌려 쓴다.
+        StagedTable& entry = tables[cursor];
+        cursor = (cursor + 1) % CachedTables;
+        tableCount = tableCount < CachedTables ? tableCount + 1 : CachedTables;
+        entry.count = count;
+        entry.table = table;
+        for (std::uint32_t slot = 0; slot < MaxBoundTextures; ++slot)
+        {
+            entry.keys[slot] = slot < count ? keys[slot] : D3D12_CPU_DESCRIPTOR_HANDLE{};
+        }
+    }
+
     bool D3D12CommandContext::BindPendingDescriptors()
     {
         if (m_activePipeline.sampledTextureCount != 0)
@@ -443,13 +492,23 @@ namespace JBro::Internal
                 }
             }
             D3D12_GPU_DESCRIPTOR_HANDLE table = {};
-            if (false == m_device->StageShaderResources(
-                m_pendingTextures, m_activePipeline.sampledTextureCount, table))
+            if (false == FindStagedTable(m_textureTables, m_textureTableCount, m_pendingTextures,
+                    m_activePipeline.sampledTextureCount, table))
             {
-                return false;
+                if (false == m_device->StageShaderResources(
+                    m_pendingTextures, m_activePipeline.sampledTextureCount, table))
+                {
+                    return false;
+                }
+                RememberStagedTable(m_textureTables, m_textureTableCount, m_textureTableCursor, m_pendingTextures,
+                    m_activePipeline.sampledTextureCount, table);
             }
-            m_commandList->SetGraphicsRootDescriptorTable(
-                m_activePipeline.textureTableParameter, table);
+            if (table.ptr != m_boundTextureTable.ptr)
+            {
+                m_commandList->SetGraphicsRootDescriptorTable(
+                    m_activePipeline.textureTableParameter, table);
+                m_boundTextureTable = table;
+            }
         }
 
         if (m_activePipeline.samplerCount != 0)
@@ -462,13 +521,23 @@ namespace JBro::Internal
                 }
             }
             D3D12_GPU_DESCRIPTOR_HANDLE table = {};
-            if (false == m_device->StageSamplers(
-                m_pendingSamplers, m_activePipeline.samplerCount, table))
+            if (false == FindStagedTable(m_samplerTables, m_samplerTableCount, m_pendingSamplers,
+                    m_activePipeline.samplerCount, table))
             {
-                return false;
+                if (false == m_device->StageSamplers(
+                    m_pendingSamplers, m_activePipeline.samplerCount, table))
+                {
+                    return false;
+                }
+                RememberStagedTable(m_samplerTables, m_samplerTableCount, m_samplerTableCursor, m_pendingSamplers,
+                    m_activePipeline.samplerCount, table);
             }
-            m_commandList->SetGraphicsRootDescriptorTable(
-                m_activePipeline.samplerTableParameter, table);
+            if (table.ptr != m_boundSamplerTable.ptr)
+            {
+                m_commandList->SetGraphicsRootDescriptorTable(
+                    m_activePipeline.samplerTableParameter, table);
+                m_boundSamplerTable = table;
+            }
         }
         return true;
     }

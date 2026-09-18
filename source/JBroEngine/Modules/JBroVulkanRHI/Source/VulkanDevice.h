@@ -71,6 +71,21 @@ namespace JBro::Internal
         std::uint32_t m_sampledAtEndCount = 0;
         VkImageView m_pendingTextures[MaxBoundTextures] = {};
         VkSampler m_pendingSamplers[MaxBoundSamplers] = {};
+        // 이 프레임에 쓴 set 들이다. 같은 묶음(레이아웃·텍스처·샘플러)이 다시 오면 할당하지 않고 그 set 을 다시
+        // 건다(D-110). 프레임마다 풀이 비워지므로 함께 비운다.
+        static constexpr std::uint32_t CachedSets = 16;
+        struct CachedSet
+        {
+            VkDescriptorSetLayout layout = VK_NULL_HANDLE;
+            VkImageView views[MaxBoundTextures] = {};
+            VkSampler samplers[MaxBoundSamplers] = {};
+            VkDescriptorSet set = VK_NULL_HANDLE;
+        };
+        CachedSet m_cachedSets[CachedSets] = {};
+        std::uint32_t m_cachedSetCount = 0;
+        std::uint32_t m_cachedSetCursor = 0;
+        bool FindCachedSet(VkDescriptorSet& set) const;
+        void RememberSet(VkDescriptorSet set);
         bool m_descriptorsDirty = false;
         bool m_renderPassActive = false;
         bool m_pipelineActive = false;

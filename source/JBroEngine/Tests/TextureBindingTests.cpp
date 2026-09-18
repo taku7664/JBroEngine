@@ -659,6 +659,74 @@ namespace
         probe.Close();
     }
 
+    // **드로우마다 바꾼 텍스처는 저마다 묶인다.** 백엔드가 이 프레임에 스테이징한 테이블·set 을 다시 쓰므로(D-110)
+    // 그 재사용이 텍스처를 열쇠로 하는지 본다 - 열쇠를 안 보면 두 번째 드로우가 첫 텍스처를 그린다.
+    template <typename TModule>
+    void TestSwitchingTexturesBetweenDrawsBindsEachOne()
+    {
+        Probe<TModule> probe;
+        if (false == probe.Open("JBro switch probe"))
+        {
+            std::cout << "  [skip] no device for this API; texture switching not verified" << std::endl;
+            return;
+        }
+        // 온통 파란 두 번째 텍스처.
+        JBro::TextureDesc blueDesc;
+        blueDesc.extent = {2, 2};
+        blueDesc.format = JBro::TextureFormat::RGBA8Unorm;
+        blueDesc.usage = JBro::TextureUsage::Sampled | JBro::TextureUsage::CopyDestination;
+        const JBro::TextureHandle blue = probe.device->CreateTexture(blueDesc);
+        constexpr unsigned char BlueTexels[] = {0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255, 255};
+        Check(blue.IsValid() && probe.device->WriteTexture(blue, 0,
+            {reinterpret_cast<const std::byte*>(BlueTexels), sizeof(BlueTexels)}), "the blue texture must upload");
+
+        for (int order = 0; order < 2; ++order)
+        {
+            // 0: 네 색 다음 파랑 - 파랑이 남는다. 1: 파랑 다음 네 색 - 네 색이 남는다.
+            const JBro::TextureHandle first = order == 0 ? probe.texture : blue;
+            const JBro::TextureHandle second = order == 0 ? blue : probe.texture;
+            const JBro::BeginFrameResult begun = probe.device->BeginFrame(probe.swapchain);
+            Check(begun.status == JBro::FrameStatus::Ready, "the frame must begin");
+            JBro::IRHICommandContext& commands = *begun.frame.commands;
+            Check(probe.BeginPass(commands, begun), "the render pass must begin");
+            Check(commands.SetGraphicsPipeline(probe.pipeline), "the pipeline must bind");
+            Check(commands.SetVertexBuffer(0, probe.vertexBuffer, sizeof(Vertex), 0), "the vertices must bind");
+            Check(commands.SetIndexBuffer(probe.indexBuffer, JBro::IndexFormat::UInt16, 0), "the indices must bind");
+            Check(commands.SetSampler(0, probe.sampler), "the sampler must bind");
+            for (int repeat = 0; repeat < 3; ++repeat)
+            {
+                // 같은 것을 세 번 - 재사용 길을 밟게 한다.
+                Check(commands.SetTexture(0, first) && commands.DrawIndexedInstanced(6, 1, 0, 0, 0),
+                    "the first texture must draw");
+                Check(commands.SetTexture(0, second) && commands.DrawIndexedInstanced(6, 1, 0, 0, 0),
+                    "the second texture must draw over it");
+            }
+            commands.EndRenderPass();
+            Check(probe.device->EndFrame(begun.frame) == JBro::FrameStatus::Ready, "the frame must present");
+
+            JBro::Array<std::byte> image;
+            image.Resize(SurfaceSize * SurfaceSize * 4);
+            JBro::TextureReadback readback;
+            Check(probe.device->ReadTexture(begun.frame.backBuffer, image.Data(), image.Size(), readback),
+                "the back buffer must read back");
+            const Pixel topLeft = ReadPixel(image, readback.rowPitch, 16, 16);
+            const Pixel bottomRight = ReadPixel(image, readback.rowPitch, 48, 48);
+            if (order == 0)
+            {
+                Check(Near(topLeft.r, 0.0f) && Near(topLeft.b, 1.0f) && Near(bottomRight.r, 0.0f) && Near(bottomRight.b, 1.0f),
+                    "the last draw used the blue texture, so blue must be what is left");
+            }
+            else
+            {
+                Check(Near(topLeft.r, 1.0f) && Near(topLeft.b, 0.0f) && Near(bottomRight.r, 1.0f) && Near(bottomRight.g, 1.0f),
+                    "the last draw used the four-colour texture, so its texels must be what is left");
+            }
+        }
+        probe.CheckValidationStayedQuiet("this probe");
+        probe.device->DestroyTexture(blue);
+        probe.Close();
+    }
+
     template <typename TModule>
     void TestAFreedSamplerDoesNotComeBack()
     {
@@ -693,6 +761,7 @@ namespace
         TestATextureCanBeDrawnIntoAndThenRead<TModule>();
         TestDrawingNeedsEverySlotItDeclared<TModule>();
         TestTheDescriptorRingRewindsEachFrame<TModule>();
+        TestSwitchingTexturesBetweenDrawsBindsEachOne<TModule>();
         TestAFreedSamplerDoesNotComeBack<TModule>();
     }
 }
