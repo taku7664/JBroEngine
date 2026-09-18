@@ -1905,9 +1905,15 @@ EditorApplication::Tick
   구현은 "파일 시스템이 없다"(거짓) - 테스트의 가짜 플랫폼과 아직 붙이지 않은 Web·Android 가 그것이다. Windows 는
   `filesystem::path` 의 UTF-8 생성자를 거쳐 와이드로 연다(`fopen_s` 는 ANSI 라 한글 폴더에서 조용히 실패한다).
   **엔진 모듈은 파일을 직접 열지 않고 이것을 거친다** - `AssetRegistry`·`AssetMetaFile` 이 첫 사용자다(JBroAsset →
-  JBroPlatform 의존이 생겼다). `[진행 예정]` 아직 직접 여는 곳: `Yaml.cpp`(`YamlDocument::Load`·`YamlWriter::Save`,
-  Tier S 라 플랫폼을 볼 수 없으므로 경로 API 를 없애고 부르는 쪽이 플랫폼으로 읽어 `Parse` 한다), `CanvasFile.cpp`,
-  `ProjectFile.cpp`, `EditorTheme.cpp`, `Localization.cpp`. 테스트 `Tests/PlatformFileTests.cpp`.
+  JBroPlatform 의존이 생겼다). **이전 완료**(2026-09-18): `YamlDocument::Load`·`YamlWriter::Save` 를 없앴다(Tier S 는
+  플랫폼을 볼 수 없어 부르는 쪽이 읽어 `Parse` 한다), `LoadCanvasFile`·`SaveCanvasFile` 을 없애고 에디터가 플랫폼으로
+  읽고 써서 `ReadCanvasText`·`WriteCanvasText` 에 넘긴다(Canvas 모듈은 플랫폼을 보지 않는다), `LoadProjectFile` 과
+  `LocalizationTable::Load` 는 `IPlatform&` 을 받는다(에디터는 플랫폼을 만든 뒤에 로케일을 읽는다). **남긴 예외 둘**:
+  `EditorTheme.cpp` 의 아이콘 글꼴은 런처 인자가 ANSI 라(D-97) C 런타임으로 연다 - 인자 인코딩이 UTF-8 로 정리되면
+  옮긴다. `JBroScriptCompiler` 의 진단 메시지 파일은 컴파일러 도구(`jbroc`)의 것이라 엔진 모듈 규칙 밖으로 본다.
+  **실측**: 플랫폼의 경로는 UTF-8 이므로 `USERPROFILE` 같은 ANSI 환경 변수는 와이드로 받아 UTF-8 로 바꿔 넘긴다.
+  UTF-8 이 아닌 바이트는 변환이 던지는데 Windows 플랫폼은 그것을 잡아 빈 경로(= 거짓)로 만든다.
+  테스트 `Tests/PlatformFileTests.cpp`.
 
 ## Assumptions
 

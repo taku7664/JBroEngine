@@ -237,5 +237,5 @@ CTextureAsset 의 역할도 통합"). 새 엔진은 `Asset::TextureAsset` 과 `A
 7. ~~파일 IO 의 플랫폼 경계~~ **확정: 파일 시스템 전체를 플랫폼이 관리한다**(D-112, 2026-09-18). 사용자는 스캔까지
    플랫폼 뒤에 두기를 택했다(플랫폼마다 읽는 길이 천차만별). `IPlatform` 에 읽기·쓰기·존재 확인·열거가 생겼고
    `AssetRegistry::Scan(IPlatform&, ...)`·`Load/SaveAssetMetaFile(IPlatform&, ...)` 이 그것만 쓴다 - JBroAsset 에
-   `std::filesystem` 이 남지 않았다. Web·Android 는 거짓을 돌려주는 자리만 있다. 남은 직접 열기 다섯 곳은 D-112 의
-   `[진행 예정]`.
+   `std::filesystem` 이 남지 않았다. Web·Android 는 거짓을 돌려주는 자리만 있다. 남았던 직접 열기 다섯 곳도 옮겼다
+   (D-112 본문, 예외 둘).
