@@ -200,6 +200,18 @@ namespace JBro
             std::uint32_t spriteCount = 0;
             std::uint32_t meshOffset = 0;
             std::uint32_t meshCount = 0;
+            // 이 뷰의 메시 드로우 묶음(`m_meshRuns`)이 시작하는 자리와 개수. 업로드가 채운다.
+            std::uint32_t runOffset = 0;
+            std::uint32_t runCount = 0;
+        };
+
+        // 같은 메시를 그리는 인스턴스들의 연속 구간이다(D-110). 업로드가 뷰 안에서 메시별로 모아 놓으므로
+        // 드로우 하나가 구간 하나다 - 메시마다 드로우를 내던 것에서 메시 **종류**마다 드로우를 내는 것으로.
+        struct MeshRun
+        {
+            AssetHandle mesh;
+            std::uint32_t firstInstance = 0;
+            std::uint32_t instanceCount = 0;
         };
 
         // 이 멤버 순서가 정점 속성 오프셋이고 BuiltinSprite.hlsl 의 ABI 다.
@@ -284,6 +296,9 @@ namespace JBro
         GraphicsPipelineHandle m_spritePipeline;
         Array<MeshResource> m_meshResources;
         Array<GpuMeshInstance> m_gpuMeshInstances;
+        Array<MeshRun> m_meshRuns;
+        // 뷰마다 메시 슬롯별 개수를 세는 작업 배열. 크기는 등록된 메시 슬롯 수다.
+        Array<std::uint32_t> m_meshHistogram;
         BufferHandle m_meshInstanceBuffers[MaxFrameSlots];
         GraphicsPipelineHandle m_meshPipeline;
         DepthTarget m_depthTargets[2];

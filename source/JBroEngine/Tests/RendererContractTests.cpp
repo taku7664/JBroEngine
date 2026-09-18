@@ -127,14 +127,26 @@ namespace
 
         bool DrawIndexedInstanced(
             std::uint32_t,
-            std::uint32_t,
+            std::uint32_t instanceCount,
             std::uint32_t,
             std::int32_t,
-            std::uint32_t) override
+            std::uint32_t firstInstance) override
         {
+            if (drawIndexedInstancedCount < MaxRecordedDraws)
+            {
+                draws[drawIndexedInstancedCount] = {instanceCount, firstInstance};
+            }
             ++drawIndexedInstancedCount;
             return true;
         }
+
+        struct Draw
+        {
+            std::uint32_t instanceCount = 0;
+            std::uint32_t firstInstance = 0;
+        };
+        static constexpr std::uint32_t MaxRecordedDraws = 8;
+        Draw draws[MaxRecordedDraws] = {};
 
         std::uint32_t beginRenderPassCount = 0;
         JBro::TextureHandle lastColorAttachment;
@@ -1014,6 +1026,51 @@ namespace
         renderer.Shutdown();
     }
 
+    // **같은 메시는 드로우 하나다**(D-110). 제출 순서가 섞여도 업로드가 메시별로 모으고, 같은 메시 안에서는
+    // 제출 순서가 지켜진다. 등록되지 않은 핸들은 세어 버리고 드로우에도 인스턴스에도 끼지 않는다.
+    void TestMeshesSharingAHandleDrawAsOneInstancedCall()
+    {
+        FakeModule module;
+        JBro::Renderer renderer;
+        JBro::RendererConfig config;
+        config.surface.value = 1;
+        config.maxMeshSubmissions = 8;
+        Check(renderer.Initialize(module, config), "the renderer must initialize");
+        const JBro::MeshVertex vertices[3] = {};
+        const std::uint32_t indices[3] = {0, 1, 2};
+        const JBro::AssetHandle first = renderer.RegisterMesh({vertices, 3}, {indices, 3});
+        const JBro::AssetHandle second = renderer.RegisterMesh({vertices, 3}, {indices, 3});
+        Check(first.generation != 0 && second.generation != 0 && first.index != second.index,
+            "two meshes must register into different slots");
+        JBro::AssetHandle stale = first;
+        stale.generation += 1;
+
+        FakeCommandContext& commands = module.device.commands;
+        const std::uint32_t drawsBefore = commands.drawIndexedInstancedCount;
+        Check(renderer.BeginFrame() == JBro::FrameStatus::Ready, "a frame must begin");
+        JBro::CameraParams camera;
+        Check(renderer.BeginView(camera), "a view must open");
+        // 제출 순서: 1, 2, 1, 낡은 것, 1, 2. 종류는 둘, 낡은 것 하나.
+        const JBro::AssetHandle order[6] = {first, second, first, stale, first, second};
+        for (const JBro::AssetHandle& handle : order)
+        {
+            JBro::MeshSubmit submit;
+            submit.mesh = handle;
+            Check(renderer.SubmitMesh(submit), "every submit is accepted - the stale one is only dropped at upload");
+        }
+        Check(renderer.EndView(), "the view must close");
+        Check(renderer.EndFrame() == JBro::FrameStatus::Ready, "the frame must end");
+        const JBro::RendererFrameStats stats = renderer.GetLastFrameStats();
+        Check(stats.meshCount == 6 && stats.droppedMeshCount == 1, "six were submitted and the stale one was dropped");
+        Check(commands.drawIndexedInstancedCount == drawsBefore + 2,
+            "two mesh kinds must be two draws, not five");
+        Check(commands.draws[drawsBefore].instanceCount == 3 && commands.draws[drawsBefore].firstInstance == 0,
+            "the first mesh's three instances come first as one draw");
+        Check(commands.draws[drawsBefore + 1].instanceCount == 2 && commands.draws[drawsBefore + 1].firstInstance == 3,
+            "and the second mesh's two follow it");
+        renderer.Shutdown();
+    }
+
     void TestTheHostHandsTheEditorItsFrame()
     {
         FakeModule module;
@@ -1109,6 +1166,7 @@ int RunRendererContractTests()
     TestEngineHostLifecycle();
     TestTheHostHandsTheEditorItsFrame();
     TestMeshRegistrationValidatesItsInput();
+    TestMeshesSharingAHandleDrawAsOneInstancedCall();
     TestProjectSwitchPreservesProcessResources();
     std::cout << "Renderer contract tests passed.\n";
     return 0;

@@ -97,6 +97,7 @@ namespace JBro
             m_meshes.Reserve(config.maxMeshSubmissions);
             m_gpuSpriteInstances.Reserve(config.maxSpriteSubmissions);
             m_gpuMeshInstances.Reserve(config.maxMeshSubmissions);
+            m_meshRuns.Reserve(config.maxMeshSubmissions);
         }
         catch (const std::bad_alloc&)
         {
@@ -727,7 +728,7 @@ namespace JBro
             // **메시가 있는 뷰만 깊이를 단다**(framework3d-plan §2.4). 스프라이트만 있는 2D 프레임은
             // 전과 같은 패스다. 뷰마다 지운다 - 카메라가 다르면 깊이도 다른 것이다.
             DepthStencilAttachmentDesc depthAttachment;
-            if (view.meshCount != 0)
+            if (view.runCount != 0)
             {
                 if (false == AcquireDepthTarget(extent, toTexture, depthAttachment.texture))
                 {
@@ -787,7 +788,7 @@ namespace JBro
                 }
             }
 
-            if (view.meshCount != 0)
+            if (view.runCount != 0)
             {
                 const Matrix4x4 viewProjection = Multiply(
                     view.camera.projection,
@@ -802,24 +803,21 @@ namespace JBro
                 {
                     return false;
                 }
-                // 메시마다 한 드로우다. 같은 메시를 묶는 것은 정렬이 생길 때 한다.
-                for (std::uint32_t at = 0; at < view.meshCount; ++at)
+                // 메시 종류마다 한 드로우다(D-110). 업로드가 같은 메시를 이어 놓았다.
+                for (std::uint32_t at = 0; at < view.runCount; ++at)
                 {
-                    const std::uint32_t instance = view.meshOffset + at;
-                    const MeshResource* mesh = FindMesh(m_meshes[instance].mesh);
+                    const MeshRun& run = m_meshRuns[view.runOffset + at];
+                    const MeshResource* mesh = FindMesh(run.mesh);
                     if (mesh == nullptr)
                     {
-                        // 등록되지 않은 메시다. 프레임을 버리지 않고 그 항목만 건너뛴다 - 핸들이
-                        // 아직 해석되지 않은 첫 프레임이 그렇다.
-                        ++m_currentStats.droppedMeshCount;
-                        continue;
+                        return false;
                     }
                     if (false == m_frame.commands->SetVertexBuffer(
                             0, mesh->vertexBuffer, sizeof(MeshVertex), 0)
                         || false == m_frame.commands->SetIndexBuffer(
                             mesh->indexBuffer, IndexFormat::UInt32, 0)
                         || false == m_frame.commands->DrawIndexedInstanced(
-                            mesh->indexCount, 1, 0, 0, instance))
+                            mesh->indexCount, run.instanceCount, 0, 0, run.firstInstance))
                     {
                         return false;
                     }
@@ -1001,18 +999,80 @@ namespace JBro
 
     bool Renderer::UploadMeshInstances()
     {
+        // **뷰 안에서 같은 메시를 모은다**(D-110). 메시 슬롯 번호로 세고(계수 정렬) 그 자리에 흩뿌리므로
+        // 제출 순서와 무관하게 O(n) 이고, 같은 메시 안에서는 제출 순서가 지켜진다. 메시 종류마다 드로우
+        // 하나가 나간다 - 정육면체 16000 개는 드로우 하나다. 등록되지 않은 핸들은 여기서 걸러 센다.
         m_gpuMeshInstances.Clear();
-        for (const MeshSubmit& mesh : m_meshes)
+        m_meshRuns.Clear();
+        if (m_meshes.IsEmpty())
         {
-            GpuMeshInstance instance;
-            instance.world = mesh.world;
-            instance.tint[0] = mesh.tint[0];
-            instance.tint[1] = mesh.tint[1];
-            instance.tint[2] = mesh.tint[2];
-            instance.tint[3] = mesh.tint[3];
-            m_gpuMeshInstances.Add(instance);
+            return true;
         }
-        if (m_gpuMeshInstances.IsEmpty())
+        const std::size_t slotCount = m_meshResources.Size();
+        m_meshHistogram.Resize(slotCount);
+        m_gpuMeshInstances.Resize(m_meshes.Size());
+        std::uint32_t written = 0;
+        for (std::size_t viewIndex = 0; viewIndex < m_views.Size(); ++viewIndex)
+        {
+            ViewPacket& view = m_views[viewIndex];
+            view.runOffset = static_cast<std::uint32_t>(m_meshRuns.Size());
+            view.runCount = 0;
+            if (view.meshCount == 0)
+            {
+                continue;
+            }
+            for (std::size_t slot = 0; slot < slotCount; ++slot)
+            {
+                m_meshHistogram[slot] = 0;
+            }
+            const std::uint32_t end = view.meshOffset + view.meshCount;
+            for (std::uint32_t at = view.meshOffset; at < end; ++at)
+            {
+                const AssetHandle handle = m_meshes[at].mesh;
+                if (FindMesh(handle) == nullptr)
+                {
+                    // 등록되지 않은 메시다. 프레임을 버리지 않고 그 항목만 건너뛴다 - 핸들이 아직 해석되지
+                    // 않은 첫 프레임이 그렇다.
+                    ++m_currentStats.droppedMeshCount;
+                    continue;
+                }
+                ++m_meshHistogram[handle.index];
+            }
+            // 개수를 시작 자리로 바꾸고, 종류마다 드로우 구간을 하나 낸다.
+            std::uint32_t cursor = written;
+            for (std::size_t slot = 0; slot < slotCount; ++slot)
+            {
+                const std::uint32_t count = m_meshHistogram[slot];
+                m_meshHistogram[slot] = cursor;
+                if (count != 0)
+                {
+                    MeshRun run;
+                    run.mesh = AssetHandle{static_cast<std::uint32_t>(slot), m_meshResources[slot].generation};
+                    run.firstInstance = cursor;
+                    run.instanceCount = count;
+                    m_meshRuns.Add(run);
+                    ++view.runCount;
+                    cursor += count;
+                }
+            }
+            for (std::uint32_t at = view.meshOffset; at < end; ++at)
+            {
+                const MeshSubmit& mesh = m_meshes[at];
+                if (FindMesh(mesh.mesh) == nullptr)
+                {
+                    continue;
+                }
+                GpuMeshInstance& instance = m_gpuMeshInstances[m_meshHistogram[mesh.mesh.index]++];
+                instance.world = mesh.world;
+                instance.tint[0] = mesh.tint[0];
+                instance.tint[1] = mesh.tint[1];
+                instance.tint[2] = mesh.tint[2];
+                instance.tint[3] = mesh.tint[3];
+            }
+            written = cursor;
+        }
+        m_gpuMeshInstances.Resize(written);
+        if (written == 0)
         {
             return true;
         }
@@ -1062,21 +1122,23 @@ namespace JBro
 
     bool Renderer::UploadSpriteInstances()
     {
-        m_gpuSpriteInstances.Clear();
-        for (const SpriteSubmit& sprite : m_sprites)
-        {
-            GpuSpriteInstance instance;
-            instance.world = sprite.world;
-            instance.tint[0] = sprite.tint[0];
-            instance.tint[1] = sprite.tint[1];
-            instance.tint[2] = sprite.tint[2];
-            instance.tint[3] = sprite.tint[3];
-            m_gpuSpriteInstances.Add(instance);
-        }
-
-        if (m_gpuSpriteInstances.IsEmpty())
+        // 한 번에 크기를 잡고 자리에 바로 쓴다. 항목마다 `Add` 를 부르면 60000 개에서 0.3ms 가 그 호출에
+        // 들어갔다(D-110 실측) - 인스턴스 자료 자체를 옮기는 memcpy 의 세 배다.
+        const std::size_t count = m_sprites.Size();
+        m_gpuSpriteInstances.Resize(count);
+        if (count == 0)
         {
             return true;
+        }
+        const SpriteSubmit* source = m_sprites.Data();
+        GpuSpriteInstance* destination = m_gpuSpriteInstances.Data();
+        for (std::size_t index = 0; index < count; ++index)
+        {
+            destination[index].world = source[index].world;
+            destination[index].tint[0] = source[index].tint[0];
+            destination[index].tint[1] = source[index].tint[1];
+            destination[index].tint[2] = source[index].tint[2];
+            destination[index].tint[3] = source[index].tint[3];
         }
         if (m_frame.slot >= MaxFrameSlots
             || false == m_spriteInstanceBuffers[m_frame.slot].IsValid())
@@ -1097,6 +1159,7 @@ namespace JBro
         m_views.Clear();
         m_sprites.Clear();
         m_meshes.Clear();
+        m_meshRuns.Clear();
         m_currentStats = {};
         m_activeView = InvalidViewIndex;
     }
