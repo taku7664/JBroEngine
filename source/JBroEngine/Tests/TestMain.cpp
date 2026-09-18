@@ -4,6 +4,7 @@
 #include <stdlib.h>
 
 #include <exception>
+#include <cstdlib>
 #include <iostream>
 
 int RunCanvasFoundationTests();
@@ -48,6 +49,7 @@ int RunScriptDLLLoaderTests();
 int RunScriptCompilerLexerTests();
 int RunScriptCompilerParserTests();
 int RunScriptCompilerCommandLineTests();
+int RunRendererBenchmark();
 
 int main()
 {
@@ -66,6 +68,14 @@ int main()
     // **첫 D3D12 디바이스가 생기기 전에 켜야 한다.** 디버그 레이어는 프로세스 단위라
     // 디바이스가 하나라도 만들어진 뒤에 켜면 조용히 무시된다 - 그러면 검증을 켠 줄 알고
     // "아무 말도 없으니 맞다" 고 믿게 된다. 그래서 다른 무엇보다 먼저 여기서 켠다.
+    // `JBRO_BENCH` 가 있으면 테스트 대신 렌더러 벤치마크만 돈다(D-110). 검증 레이어는 켜지 않는다 - 시간을 재는 자리다.
+    char* bench = nullptr;
+    std::size_t benchLength = 0;
+    if (_dupenv_s(&bench, &benchLength, "JBRO_BENCH") == 0 && bench != nullptr)
+    {
+        free(bench);
+        return RunRendererBenchmark();
+    }
     if (false == JBro::EnableD3D12ValidationForProcess())
     {
         std::cout << "note: no D3D12 debug layer here; "
