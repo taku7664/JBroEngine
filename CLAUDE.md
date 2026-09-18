@@ -73,6 +73,8 @@
   엔진 버전은 `JBro.Common.props` 한 곳에 있고 실행 파일의 버전 리소스가 말한다(D-101)
 - [tasks/framework3d-plan.md](./tasks/framework3d-plan.md) — 3D 프레임워크·D3D11/Vulkan 백엔드·트랜스폼 기즈모(D-106~D-109).
   네 단계가 모두 섰다. 실측·가정·열린 것이 §2.6~§2.9·§3 에 있다
+- [tasks/asset-plan.md](./tasks/asset-plan.md) — 에셋 시스템 재설계 계획. **전체가 `[제안]`** 이고 사용자 확인 전이다.
+  지금 부족한 것(§0), 기존 엔진 에셋 시스템의 분석과 그쪽이 겪은 문제(§1), 새 설계(§2), 단계(§3), 결정 항목(§4)
 - [tasks/ide-plan.md](./tasks/ide-plan.md) — 스크립트 편집기 JBro Script Editor(Code-OSS 포크) 계획(D-87).
   편집기 리포는 `F:\Project\JBroScriptEditor`(원격 없음)다. 새 문법의 강조 확장과 코어 패치 0001~0003 이 섰고
   upstream 을 패치해 개발 실행으로 띄울 수 있다. 설치본(포크 빌드)은 **아직 없다**(D-102).
