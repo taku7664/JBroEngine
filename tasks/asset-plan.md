@@ -204,9 +204,22 @@ CTextureAsset 의 역할도 통합"). 새 엔진은 `Asset::TextureAsset` 과 `A
    를 쓴다. 스캔은 먼저 목록을 모으고 고아 판정은 그 목록만 본다(파일 시스템을 다시 묻지 않는다).
    **남긴 것**: `SaveAssetMetaFile` 은 네 키만 적으므로 `ImportOptions` 가 있는 메타를 덮어쓰면 옵션이 사라진다 -
    쓰는 쪽은 새 메타에만 쓴다. 옵션을 보존하는 다시 쓰기는 2 단계(임포트 옵션)에서 리플렉션 쓰기와 함께 온다.
-2. **시스템과 텍스처 로드**: 타입별 풀·핸들·`stb_image` 디코드·`Load/Release/Find`·캔버스 로드 집합·해석 패스.
-   테스트: 2x2 PNG 를 로드해 픽셀 네 개가 맞는지, 핸들 세대가 재사용을 거르는지, 캔버스 집합의 차이 처리,
-   `ReloadInPlace` 뒤 핸들이 같고 `pixelGeneration` 이 오르는지. 뮤테이션으로 죽는지 본다.
+2. **`[완료]` 시스템과 텍스처 로드** (2026-09-18, `931998d`): `AssetSystem` 이 Texture·Sprite 풀을 들고 핸들의
+   `index` 상위 4 비트가 타입이다(`GetHandleType`). `Load`(참조 수, 같은 핸들)·`Release`·`Find`·`IsLoaded`·
+   `GetTexture`·`GetSprite`·`ReloadInPlace`(핸들 보존, 텍스처는 `pixelGeneration` 증가)·`CollectUnused`(스프라이트가
+   먼저 내려가고 그것이 놓은 텍스처가 따라 내려감). 디코더는 `stb_image`(PNG·JPEG·BMP·TGA, 파일 IO 없음), 파일은
+   플랫폼이 읽는다(D-112). 스프라이트는 `.jmeta` 의 `Sprite.ImportOptions` 를 리플렉션으로 읽고(`SpriteImportOptions`,
+   `SpriteSliceType`, `SpriteFrame` 은 AssetTypes 의 값 타입) `BuildSpriteFrames` 로 프레임을 만들며 자기 텍스처를
+   참조 수로 잡는다. **해석 패스** `BindComponentAssets(표, 컴포넌트, acquired)`: `xxxId`(Uuid) 필드마다 로드해 짝
+   `xxx`(AssetHandle) 필드를 채우고 빈 아이디는 핸들을 비운다. 배선: `EngineInstance::OpenProjectFile` 이 `AssetDirectory`
+   를 스캔해(`EngineConfig::createMissingAssetMeta`, 에디터만 참) 시스템을 잇고, `EditorApplication::LoadCanvas` 가
+   캔버스의 모든 컴포넌트에 해석 패스를 돌린 뒤 `CollectUnused` 하며, 앞 캔버스와 프로젝트 닫기에서 잡은 핸들을 놓는다.
+   `LoadTexture/LoadSprite/...` 다섯 함수는 없앴다. Mesh·Material·Shader·Canvas 는 `Load` 가 빈 핸들이다(3 단계 이후).
+   테스트 `Tests/AssetSystemTests.cpp`: 2x2 PNG 디코드(네 픽셀·쓰레기 거절), 프레임 표(None·CellCount 2x4·CellSize 여백
+   간격 15 칸·거절 넷), 로드·참조 수·`Find`·수집 순서·세대 재사용·0 아래로 내려가지 않음, in-place 재로드(옵션이 있는 메타,
+   읽히지 않는 옵션은 거절하고 옛 자료 유지), 해석 패스(채움·빈 아이디 비움·모르는 아이디·`ReleaseAll`). 뮤테이션 6/6 죽음(수집이 스프라이트의 텍스처를 안 놓음, 재로드가 참조 수를 안 올림, 비운 슬롯의 세대 유지, 해석 패스가 필드 이름 무시, 셀 폭을 행 수로 나눔, 재로드가 픽셀 세대를 되돌림; 37 분).
+   **남긴 것**: 게임 호스트(`JBroGameHost`)는 아직 캔버스 파일을 읽지 않아 해석 패스 배선이 에디터에만 있다. 스크립트가
+   런타임에 `AssetId` 필드를 바꾸는 경우의 프레임 끝 해석(§2.6)은 3 단계의 `SpriteLibrary` 와 함께 온다.
 3. **텍스처 있는 스프라이트**: `Renderer::RegisterTexture`, 셰이더에 샘플링과 UV, `SpriteLibrary`, `SpriteImportOptions` 의
    프레임 빌드. 픽셀 테스트: 세 백엔드에서 2x2 텍스처 스프라이트의 네 사분면 색, 시트의 두 번째 칸만 그리기,
    반투명 스프라이트가 스프라이트 위에 얹히기. 벤치마크: 60000 스프라이트가 텍스처를 달고도 D-110 숫자 안인지.

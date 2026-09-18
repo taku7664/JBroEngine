@@ -75,6 +75,9 @@
   별개 타입을 만들지 않는다. 난수 아이디는 `Uuid::Generate`(버전 4), 이름에서 만드는 결정적 아이디(빌트인)는
   `Uuid::FromName`(버전 8)이다. 메모리와 표의 키는 항상 정수 둘이고, 텍스트(32 자리 16 진수)는 파일에 적을 때만
   만든다(`GetUuidCodec`).
+- `AssetSystem` 은 타입별 풀과 index+generation 핸들이다(`IAsset` 가상 기반 없음). 로드는 동기·메인 스레드이고
+  프레임 경로에서 부르지 않는다 - 해석 패스(`BindComponentAssets`: `xxxId` → `xxx`)가 캔버스 로드 뒤와 편집 뒤에만 돈다.
+  참조 수 0 은 곧 언로드가 아니고 `CollectUnused` 가 내린다. in-place 재로드는 핸들을 보존한다. (MUST) (D-111)
 - 에셋의 아이디와 타입은 짝 파일 옆의 `.jmeta`(`hero.png.jmeta`)가 든다. **메타에 경로를 적지 않는다** - 경로는 스캔이
   파일의 자리에서 채우므로 옮겨도 아이디가 산다. 메타가 없는 파일에 메타를 만드는 것은 에디터만 한다. 스캔은 `.` 으로
   시작하는 폴더와 `AssetIgnorePatterns` 를 들어가지 않는다. (MUST) (D-111) 이미지 파일 하나는 Texture 와 Sprite 두 에셋이다. 에셋은 CPU 자료만 갖고

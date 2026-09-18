@@ -1896,6 +1896,9 @@ EditorApplication::Tick
   적지 않고(옮겨도 아이디가 산다), 게임 실행은 메타를 만들지 않는다(`createMissingMeta` 는 에디터만 참).
   이미지 디코더는 `stb_image` 로 확정했다(2026-09-18, 임포트 경로만). `SpriteSubmit`·GPU 인스턴스의 UV 사각형도
   확정했다(2026-09-18) - 3 단계에서 D-32 ABI 를 고칠 때 Decision 으로 적는다.
+  **2 단계(타입별 풀·텍스처와 스프라이트 로드·해석 패스·호스트와 에디터 배선)가 섰다**(`931998d`, asset-plan §3-2).
+  `AssetSystem` 의 `LoadTexture/LoadSprite/LoadMesh/LoadMaterial/LoadShader` 는 없다 - 타입은 레지스트리가 알고 결과
+  핸들의 상위 4 비트가 타입을 말한다.
 - **D-112. 파일 시스템은 플랫폼이 관리한다.** (2026-09-18) 사용자 결정: 플랫폼마다 읽는 길이 다르다(Windows 는 파일,
   Android 는 APK 에셋, Web 은 가상 파일 시스템). `IPlatform` 에 `ReadWholeFile`·`WriteWholeFile`·`FileExists`·
   `DirectoryExists`·`EnumerateDirectory`(방문자, 폴더에 거짓을 돌려주면 내려가지 않음)가 있고 경로는 UTF-8 이다. 기본

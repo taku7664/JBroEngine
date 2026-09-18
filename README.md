@@ -29,7 +29,7 @@ Windows / D3D12 위에서 도는 2D 우선 게임 엔진이다. 기존 엔진(`J
 source/JBroEngine/
   Modules/           모듈마다 vcxproj 하나. 공개 헤더는 Include/JBro/<이름>/ 아래
   Tests/             단일 테스트 실행 파일(JBroTests). 경계 위반이 컴파일 실패하는지 보는 음성 테스트 포함
-  ThirdParty/        외부 라이브러리를 소스째로 둔다(지금은 ImGui)
+  ThirdParty/        외부 라이브러리를 소스째로 둔다(ImGui, Vulkan-Headers, stb_image)
   Localization/      에디터 문구(ko-KR, en-US). jbroc/ 아래는 컴파일러 진단 메시지
 source/JBroLauncher/       런처(C# / WinUI 3). 프로젝트 목록을 관리하고 에디터를 띄운다
 source/JBroLauncher.Tests/ 런처의 순수 로직을 재는 실행 파일
