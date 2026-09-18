@@ -33,7 +33,7 @@ import io, os, subprocess, sys
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ROOT = os.path.join(REPO, "source", "JBroEngine")
 MSBUILD = r"C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe"
-TEST_TIMEOUT_SECONDS = 180
+TEST_TIMEOUT_SECONDS = 900
 NL = chr(10)
 
 
