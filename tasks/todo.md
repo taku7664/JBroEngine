@@ -1878,6 +1878,18 @@ EditorApplication::Tick
   이어진 그래픽스 리뷰(§2.11)에서 스프라이트가 깊이 패스 위에 있을 때의 파이프라인 포맷 위반, D3D12 되읽기의 펜스
   값 충돌과 `AbortFrame` 상태 어긋남, D3D11 의 느린 상수 버퍼 길과 일부 쓰기의 0 채움 등을 고쳤다. RHI 파이프라인에
   `depthTest`·`depthWrite` 가 생겼다.
+- **D-111. 에셋 시스템은 `tasks/asset-plan.md` 의 설계로 세운다 - 이진 UUID, 타입별 풀, GPU 는 프레임워크가 든다.**
+  (2026-09-18) 기존 엔진의 에셋 시스템과 그쪽 후속 문서를 읽고 다시 설계했다(asset-plan §1). 사용자가 확정한 것:
+  (1) `AssetId` 는 UUID 를 이진 그대로 든 `{ uint64 high; uint64 low; }` 다. 텍스트는 파일에 적을 때만 만든다 -
+  기존 엔진은 문자열 GUID 위에 `Guid128` 을 덧붙여 두 벌이 됐다. (2) 이미지 파일 하나는 **Texture 와 Sprite 두 에셋**으로
+  등록된다. Sprite 는 임포트 때 자동으로 생겨 사용자는 파일 하나만 본다. 3D 재질은 Texture 를 참조한다.
+  (3) 에셋 폴더는 `Contents/Assets` 이고 `.jproject` 의 `AssetDirectory` 키(기본값 `Contents/Assets`)가 정한다.
+  `AssetIgnorePatterns` 는 스캔과 파일 감시 둘 다에 적용한다 - 기존 엔진은 감시에만 적용해 숨김 폴더의 파일이
+  에셋으로 등록됐다. (4) 재질은 D-33 의 Shader Graph 방향을 유지한다. 자료 모델은 `{ Shader 에셋, 파라미터 블록,
+  텍스처 슬롯 }` 이고 첫 구현은 빌트인 셰이더만 Shader 에셋으로 등록한다 - 사용자 셰이더 임포트는 나중에 Shader
+  에셋을 만드는 길이 하나 더 생기는 것이라 재질과 렌더러가 바뀌지 않는다. 그 외 설계(타입별 풀과 index+generation
+  핸들, 에셋은 CPU 자료만이고 GPU 는 `SpriteLibrary`·`MeshLibrary` 가 드는 것, 캔버스 단위 참조 수, 프레임 경로에
+  조회 없음)는 asset-plan §2. `[열림]` 이미지 디코더 `stb_image` 도입, `SpriteSubmit` 의 UV 사각형(D-32 ABI).
 
 ## Assumptions
 

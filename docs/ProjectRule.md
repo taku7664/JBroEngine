@@ -36,6 +36,7 @@
 - 사용자 커스텀 포스트프로세스는 Shader Graph → Shader/Material → PostProcessProfile 흐름으로 제공한다. (MUST)
   사용자용 Shader Graph와 엔진 내부 Render Graph를 분리하며, 게임 스크립트에 Renderer/RHI 또는 임의 GPU
   콜백을 노출하지 않는다. (MUST)
+  재질의 자료 모델은 `{ Shader 에셋, 파라미터 블록, 텍스처 슬롯 }` 이고 빌트인 셰이더도 Shader 에셋이다. (D-111)
 - 정상 렌더 프레임 경로는 일반 힙 할당, 문자열 생성·비교, `WaitIdle` 호출을 하지 않아야 한다. (MUST)
 - 2D 스프라이트 정렬은 아이템이 아니라 `(키, 인덱스)` 를 옮긴다. 키는 레이어 순서가 최상위이고,
   그 아래에 부호를 옮긴 `renderOrder` 가 온다. 같은 키일 때만 아이템의 `sourceId` 로 안정화한다. (MUST)
@@ -65,6 +66,10 @@
   프레임이 열려 있는 동안 호출하면 실패해야 하고, 구현하지 않은 백엔드는 `false`를 반환한다.
 - 프로젝트 파일은 `.jproject`(YAML)이며 키 이름은 기존 엔진과 같다. (MUST)
   두 번째 형식을 만들지 않는다. 읽지 못하는 구조는 추측하지 않고 줄 번호와 함께 거절한다.
+  기존 엔진에 없던 키는 `AssetDirectory`(기본값 `Contents/Assets`)와 `AssetIgnorePatterns` 다. (D-111)
+- `AssetId` 는 UUID 를 이진으로 든 `{ uint64 high; uint64 low; }` 다. 메모리와 표의 키는 항상 정수 둘이고,
+  텍스트는 파일에 적을 때만 만든다. 이미지 파일 하나는 Texture 와 Sprite 두 에셋이다. 에셋은 CPU 자료만 갖고
+  GPU 자원은 프레임워크 시스템의 라이브러리가 든다. 프레임 경로에 에셋 조회를 두지 않는다. (MUST) (D-111)
 - 스크립트 DLL은 컴포넌트 저장소를 직접 만들지 않는다. (MUST)
   `ScriptRegistry`에 크기·정렬·제자리 생성·파괴만 등록하고 메모리는 호스트 풀이 잡는다.
   `Canvas`는 Tier E라 스크립트 타깃이 보지 못하므로, 기존 엔진처럼 캔버스를 넘겨받을 수 없다.

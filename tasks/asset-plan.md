@@ -2,7 +2,8 @@
 
 > 계약은 `docs/ProjectRule.md`, 결정은 `tasks/todo.md` Decisions 다. 이 문서는 그 둘을 향해 가는 순서와
 > 상태를 적는다. 상태는 항목마다 `[완료]` `[진행]` `[제안]` `[가정]` `[열림]` 으로 붙인다.
-> `[제안]` 은 **사용자 확인 전**이다. 이 문서 전체가 아직 제안이며, 확인된 것부터 Decisions 로 옮긴다.
+> `[제안]` 은 **사용자 확인 전**이다. 2026-09-18 에 §2.1·§2.3·§2.2 의 키·§4-5 가 확인돼 D-111 이 됐다.
+> 남은 `[열림]` 은 §4 의 1(`stb_image`)과 2(UV 사각형)다.
 
 ## 0. 지금 부족한 것 (2026-09-18 실측)
 
@@ -90,11 +91,11 @@
 
 ### 2.2 레지스트리 (`AssetRegistry`, Tier E)
 
-- 프로젝트를 열 때 `.jproject` 의 `rootPath` 아래 **콘텐츠 폴더**를 한 번 스캔한다. 콘텐츠 폴더는 `.jproject` 에
-  `AssetDirectory` 키(기본값 `Contents`, 스크립트 폴더와 같다)로 둔다. 기존 엔진 키 이름과 맞추는 규칙이 있으나
-  기존 엔진은 이 키가 없었다(`AssetRoot` 는 코드 기본값 `Assets`). `[가정]` 새 키 이름은 사용자 확인.
+- 프로젝트를 열 때 `.jproject` 의 `rootPath` 아래 **에셋 폴더**를 한 번 스캔한다. 에셋 폴더는 `.jproject` 의
+  `AssetDirectory` 키가 정하고 기본값은 `Contents/Assets` 다(사용자 결정, D-111). 기존 엔진은 이 키가 없었다
+  (`AssetRoot` 는 코드 기본값 `Assets`).
 - 스캔 규칙: `.` 으로 시작하는 폴더는 들어가지 않는다. `.jmeta` 는 짝 파일의 메타로만 읽는다. 무시 패턴은
-  `.jproject` 의 `AssetIgnorePatterns`(기존 엔진 `AssetWatchIgnorePatterns` 를 이어받되 스캔에도 적용). `[가정]`
+  `.jproject` 의 `AssetIgnorePatterns`(기존 엔진 `AssetWatchIgnorePatterns` 를 이어받되 스캔에도 적용). (D-111)
 - 짝 `.jmeta` 가 없는 파일은 확장자로 타입을 추정해 **에디터가** 메타를 만든다. 게임 실행은 메타 없는 파일을 등록하지
   않는다(에디터가 아닌 곳에서 파일을 새로 쓰지 않는다).
 - 레코드: `AssetRecord { AssetId id; AssetType type; String relativePath; String importOptionsYaml; uint32 version; }`.
@@ -114,7 +115,7 @@
 CTextureAsset 의 역할도 통합"). 새 엔진은 `Asset::TextureAsset` 과 `Asset::SpriteAsset` 이 이미 따로 있고, 3D 재질이
 같은 텍스처를 쓰게 되므로 나눈다. **이미지 파일 하나가 임포트되면 Texture 하나와 Sprite 하나가 함께 등록된다**
 (Sprite 의 메타가 슬라이싱·피벗·PPU 를 갖고 Texture 를 가리킨다). 이미지 파일마다 `.jmeta` 는 하나고, 그 안에
-두 아이디가 있다. `[제안]`
+두 아이디가 있다. (D-111)
 
 ### 2.4 시스템 (`AssetSystem`, Tier E)
 
@@ -204,8 +205,8 @@ CTextureAsset 의 역할도 통합"). 새 엔진은 `Asset::TextureAsset` 과 `A
 
 1. **`stb_image` 를 서드파티로 들인다** (§2.4). 대안은 WIC(Windows 전용) 또는 PNG 디코더 자작.
 2. **`SpriteSubmit`·GPU 인스턴스에 UV 사각형 추가** (§2.10, D-32 ABI).
-3. **이미지 하나 = Texture + Sprite 두 에셋** (§2.3). 대안은 기존 엔진처럼 Sprite 하나.
-4. **`.jproject` 새 키** `AssetDirectory`·`AssetIgnorePatterns` 이름 (§2.2).
-5. **재질의 방향**: 기존 백로그 권고(빌트인 프리셋 + 파라미터) vs D-33(Shader Graph). 이 계획의 범위 밖이지만
-   §2.5 의 `SpriteLibrary` 가 재질 핸들을 어디에 두는지에 영향을 준다.
+3. ~~이미지 하나 = Texture + Sprite 두 에셋~~ **확정**(D-111).
+4. ~~`.jproject` 새 키~~ **확정**: `AssetDirectory` 기본값 `Contents/Assets`, `AssetIgnorePatterns`(D-111).
+5. ~~재질의 방향~~ **확정**: D-33 의 Shader Graph 방향. 자료 모델은 `{ Shader 에셋, 파라미터 블록, 텍스처 슬롯 }`,
+   첫 구현은 빌트인 셰이더를 Shader 에셋으로 등록(D-111).
 6. 미리 읽기 워커, `.jpak` 패키지, 렌더 패스 그래프는 이 계획에 넣지 않는다.
