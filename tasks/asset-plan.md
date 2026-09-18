@@ -3,7 +3,7 @@
 > 계약은 `docs/ProjectRule.md`, 결정은 `tasks/todo.md` Decisions 다. 이 문서는 그 둘을 향해 가는 순서와
 > 상태를 적는다. 상태는 항목마다 `[완료]` `[진행]` `[제안]` `[가정]` `[열림]` 으로 붙인다.
 > `[제안]` 은 **사용자 확인 전**이다. 2026-09-18 에 §2.1·§2.3·§2.2 의 키·§4-5 가 확인돼 D-111 이 됐다.
-> 남은 `[열림]` 은 §4 의 1(`stb_image`)과 2(UV 사각형)다.
+> 2026-09-18 늦게 `stb_image` 도 확정됐다. 남은 `[열림]` 은 §4 의 2(UV 사각형)와 7(파일 IO 의 플랫폼 경계)다.
 
 ## 0. 지금 부족한 것 (2026-09-18 실측)
 
@@ -212,10 +212,17 @@ CTextureAsset 의 역할도 통합"). 새 엔진은 `Asset::TextureAsset` 과 `A
 
 ## 4. 사용자 결정이 필요한 것 `[열림]`
 
-1. **`stb_image` 를 서드파티로 들인다** (§2.4). 대안은 WIC(Windows 전용) 또는 PNG 디코더 자작.
+1. ~~`stb_image` 를 서드파티로 들인다~~ **확정**(2026-09-18, D-111). 임포트 경로에서만 쓴다.
 2. **`SpriteSubmit`·GPU 인스턴스에 UV 사각형 추가** (§2.10, D-32 ABI).
 3. ~~이미지 하나 = Texture + Sprite 두 에셋~~ **확정**(D-111).
 4. ~~`.jproject` 새 키~~ **확정**: `AssetDirectory` 기본값 `Contents/Assets`, `AssetIgnorePatterns`(D-111).
 5. ~~재질의 방향~~ **확정**: D-33 의 Shader Graph 방향. 자료 모델은 `{ Shader 에셋, 파라미터 블록, 텍스처 슬롯 }`,
    첫 구현은 빌트인 셰이더를 Shader 에셋으로 등록(D-111).
 6. 미리 읽기 워커, `.jpak` 패키지, 렌더 패스 그래프는 이 계획에 넣지 않는다.
+7. **파일 IO 의 플랫폼 경계.** 지금 엔진 모듈은 파일을 `fopen_s`(Yaml·CanvasFile·ProjectFile, MSVC 전용이고 ANSI 경로)와
+   `std::filesystem`(AssetRegistry·AssetMetaFile·Localization)으로 직접 연다. `IPlatform` 에는 파일 API 가 없다.
+   `std::filesystem` 자체는 표준이라 Windows·Linux·macOS·Android NDK·Emscripten 에서 컴파일되지만, Android 의 APK
+   에셋과 Web 의 가상 파일 시스템은 폴더 스캔이 뜻이 없다. 제안: **폴더 스캔과 메타 생성은 에디터(데스크톱) 시점의
+   일**이라 `std::filesystem` 을 유지하고, **게임 실행이 읽는 길**(2 단계의 픽셀 로드, 뒤의 `.jpak`)은 `IPlatform` 에
+   `ReadWholeFile(utf8 경로)` 하나를 두고 그것만 쓴다. 기존 `fopen_s` 셋도 그 길로 옮긴다. 새 플랫폼 서비스라
+   사용자 확인이 필요하다.

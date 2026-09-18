@@ -1894,6 +1894,7 @@ EditorApplication::Tick
   조회 없음)는 asset-plan §2. `[열림]` 이미지 디코더 `stb_image` 도입, `SpriteSubmit` 의 UV 사각형(D-32 ABI).
   **1 단계(레지스트리·메타·스캔·`.jproject` 키)가 섰다**(`ffdddb3`·`ade7e2a`, asset-plan §3-1). 메타 파일은 경로를
   적지 않고(옮겨도 아이디가 산다), 게임 실행은 메타를 만들지 않는다(`createMissingMeta` 는 에디터만 참).
+  이미지 디코더는 `stb_image` 로 확정했다(2026-09-18, 임포트 경로만). `[열림]` 파일 IO 의 플랫폼 경계(asset-plan §4-7).
 
 ## Assumptions
 
