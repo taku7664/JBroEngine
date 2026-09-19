@@ -50,7 +50,8 @@
   담는 `SpriteTransform2D { float linear[4]; float translation[2]; float depth; }`(28B)로 전달한다. (MUST)
   버텍스 셰이더는 `float4x4`를 조립하지 않고 두 내적으로 위치를 직접 만든다. `MeshSubmit`은 `Matrix4x4`를 유지한다.
   패킷 필드는 D-32 ABI이므로 이후 변경은 Decisions를 거친다. (D-54)
-- 스프라이트 패킷은 렌더러가 발급한 텍스처 핸들과 UV 사각형(uMin, vMin, uScale, vScale)을 든다. GPU 인스턴스는 60B 다.
+- 스프라이트 패킷은 렌더러가 발급한 텍스처 핸들과 UV 사각형(uMin, vMin, uScale, vScale)을 든다. GPU 인스턴스는 40B 다
+  (변환 28B + 틴트 `UByte4Norm` 4B + UV `UShort4Norm` 8B, D-114).
   렌더러는 제출 순서를 바꾸지 않고 텍스처·샘플러가 같은 이웃만 드로우 하나로 묶는다. GPU 텍스처는 에셋이 아니라
   프레임워크의 `SpriteLibrary` 가 들고, 렌더러 프레임 밖(렌더 추출)에서만 올린다. (MUST) (D-113)
 - GPU 인스턴스 레이아웃과 정점 속성 오프셋은 손으로 적지 않는다. 속성 오프셋은 `offsetof`로 구조체에서 끌어오고,
