@@ -1346,61 +1346,70 @@ namespace JBro
         }
         const SpriteSubmit* source = m_sprites.Data();
         GpuSpriteInstance* destination = m_gpuSpriteInstances.Data();
-        for (std::size_t index = 0; index < count; ++index)
-        {
-            destination[index].world = source[index].world;
-            destination[index].tint[0] = source[index].tint[0];
-            destination[index].tint[1] = source[index].tint[1];
-            destination[index].tint[2] = source[index].tint[2];
-            destination[index].tint[3] = source[index].tint[3];
-            destination[index].uvRect[0] = source[index].uvRect[0];
-            destination[index].uvRect[1] = source[index].uvRect[1];
-            destination[index].uvRect[2] = source[index].uvRect[2];
-            destination[index].uvRect[3] = source[index].uvRect[3];
-        }
 
-        // 텍스처·샘플러가 같은 이웃을 묶어 드로우 하나로 낸다(D-113). 순서는 바꾸지 않는다 - 정렬은 프레임워크가 끝냈다.
-        // 빈 핸들은 흰색이고, 죽은 핸들도 흰색으로 그리되 센다.
+        // **한 번만 지나간다.** 인스턴스를 옮기는 같은 걸음에서 텍스처·샘플러가 같은 이웃을 묶어 드로우 하나로 낸다(D-113).
+        // 60000 개를 두 번 지나가면 패킷 배열(개당 80B, 4.8MB)을 한 번 더 흘리는 값이 0.3ms 였다. 순서는 바꾸지 않는다 -
+        // 정렬은 프레임워크의 일이다. 빈 핸들은 흰색이고, 죽은 핸들도 흰색으로 그리되 센다.
+        // 묶음 비교는 텍스처·샘플러 핸들을 64 비트 둘로 접어 한다.
         m_spriteRuns.Clear();
+        const std::uint64_t whiteKey = (static_cast<std::uint64_t>(m_whiteTexture.index) << 32) | m_whiteTexture.generation;
+        const std::uint64_t nearestKey =
+            (static_cast<std::uint64_t>(m_nearestSampler.index) << 32) | m_nearestSampler.generation;
+        const std::uint64_t linearKey =
+            (static_cast<std::uint64_t>(m_linearSampler.index) << 32) | m_linearSampler.generation;
         for (std::size_t viewIndex = 0; viewIndex < m_views.Size(); ++viewIndex)
         {
             ViewPacket& view = m_views[viewIndex];
             view.spriteRunOffset = static_cast<std::uint32_t>(m_spriteRuns.Size());
             view.spriteRunCount = 0;
-            const std::uint32_t end = view.spriteOffset + view.spriteCount;
-            for (std::uint32_t index = view.spriteOffset; index < end; ++index)
+            std::uint64_t lastTextureKey = 0;
+            std::uint64_t lastSamplerKey = 0;
+            SpriteRun* last = nullptr;
+            const std::uint32_t viewEnd = view.spriteOffset + view.spriteCount;
+            for (std::uint32_t index = view.spriteOffset; index < viewEnd; ++index)
             {
+                const SpriteSubmit& item = source[index];
+                GpuSpriteInstance& instance = destination[index];
+                instance.world = item.world;
+                instance.tint[0] = item.tint[0];
+                instance.tint[1] = item.tint[1];
+                instance.tint[2] = item.tint[2];
+                instance.tint[3] = item.tint[3];
+                instance.uvRect[0] = item.uvRect[0];
+                instance.uvRect[1] = item.uvRect[1];
+                instance.uvRect[2] = item.uvRect[2];
+                instance.uvRect[3] = item.uvRect[3];
+
                 TextureHandle texture = m_whiteTexture;
-                if (source[index].texture.generation != 0)
+                std::uint64_t textureKey = whiteKey;
+                if (item.texture.generation != 0)
                 {
-                    const TextureResource* resource = FindTexture(source[index].texture);
+                    const TextureResource* resource = FindTexture(item.texture);
                     if (resource != nullptr)
                     {
                         texture = resource->texture;
+                        textureKey = (static_cast<std::uint64_t>(texture.index) << 32) | texture.generation;
                     }
                     else
                     {
                         ++m_currentStats.staleTextureSpriteCount;
                     }
                 }
-                const SamplerHandle sampler =
-                    source[index].filter == SpriteFilter::Linear ? m_linearSampler : m_nearestSampler;
-                if (view.spriteRunCount != 0)
+                const bool linear = item.filter == SpriteFilter::Linear;
+                const std::uint64_t samplerKey = linear ? linearKey : nearestKey;
+                if (last != nullptr && lastTextureKey == textureKey && lastSamplerKey == samplerKey)
                 {
-                    SpriteRun& last = m_spriteRuns.Last();
-                    if (last.texture.index == texture.index && last.texture.generation == texture.generation
-                        && last.sampler.index == sampler.index && last.sampler.generation == sampler.generation)
-                    {
-                        ++last.instanceCount;
-                        continue;
-                    }
+                    ++last->instanceCount;
+                    continue;
                 }
                 SpriteRun run;
                 run.texture = texture;
-                run.sampler = sampler;
+                run.sampler = linear ? m_linearSampler : m_nearestSampler;
                 run.firstInstance = index;
                 run.instanceCount = 1;
-                m_spriteRuns.Add(run);
+                last = &m_spriteRuns.Add(run);
+                lastTextureKey = textureKey;
+                lastSamplerKey = samplerKey;
                 ++view.spriteRunCount;
             }
         }
