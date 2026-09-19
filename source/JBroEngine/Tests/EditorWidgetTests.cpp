@@ -619,6 +619,23 @@ namespace
         type("zzz");
         pressEnter();
         Check(current == 0 && changedFrames == 2, "Enter with no visible item changes nothing");
+        Check(FindComboPopup() != nullptr, "and the popup stays open for another try");
+        // 팝업 밖을 누르면 닫힌다.
+        ImGui::GetIO().AddMousePosEvent(triggerMin.x + 5.0f, triggerMax.y + 200.0f);
+        frame();
+        ImGui::GetIO().AddMouseButtonEvent(0, true);
+        frame();
+        ImGui::GetIO().AddMouseButtonEvent(0, false);
+        frame();
+        frame();
+        Check(FindComboPopup() == nullptr, "clicking outside closes the popup");
+
+        // 이미 고른 항목을 다시 골라도 바뀐 것이 없다. 인스펙터가 이 답으로 커맨드를 내므로
+        // 여기서 거짓이어야 되돌리기 목록에 빈 걸음이 쌓이지 않는다.
+        open();
+        type("trans");
+        pressEnter();
+        Check(current == 0 && changedFrames == 2, "picking the current item again is not a change");
     }
 
     // 빈 목록은 열려도 아무것도 고르지 않고 무너지지 않는다.
