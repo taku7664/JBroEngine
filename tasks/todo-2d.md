@@ -18,7 +18,7 @@
   인스펙터에 그 에셋의 임포트 옵션(`SpriteImportOptions`: 슬라이싱·피벗·PPU)이 뜬다. 옵션 편집은 커맨드이고(되살릴 옵션
   YAML 을 먼저 뜬다) 적용은 `AssetSystem::ReloadInPlace` 라 핸들이 산다. 메타 다시 쓰기는 리플렉션 쓰기로 옵션을 보존해야
   한다 - 지금의 `SaveAssetMetaFile` 은 네 키만 적는다(asset-plan §3-1 남긴 것). 새 패널이라 위젯 계층(`Tree`·`List`)만 쓴다.
-- `[논의]` **파일 감시**. 기존 엔진은 `IFileWatcher::Poll()` 이 폴더를 걸어 `last_write_time` 을 비교하는 **mtime 폴링**이었고
+- `[진행 예정]` **파일 감시** (D-117 로 결정: 아래 (b)·권고대로). 기존 엔진은 `IFileWatcher::Poll()` 이 폴더를 걸어 `last_write_time` 을 비교하는 **mtime 폴링**이었고
   (`WindowsFileWatcher.cpp`), 비동기 IO 스레드가 아니었다. 갈림길:
   - (a) 폴링: 구현이 작고 스레드가 없다. 에셋 수에 비례해 매 주기 폴더를 걷는다(수천 개면 수십 ms). `.jmeta` 자기 반향은
     확장자로 걸러야 한다.
@@ -29,9 +29,30 @@
   권고: (b) 를 `IPlatform::WatchDirectory` 로, 이벤트는 메인 스레드가 프레임 밖에서 꺼내 처리, 원본 변경은 자동 재로드,
   `.jmeta` 변경은 무시, 이동은 경로만, 삭제는 참조 수 0 까지 유지. 게임 실행에는 감시가 없다.
 
+### 4 단계 순서 (계획, 2026-09-20)
+
+각 걸음은 테스트가 먼저고 걸음마다 커밋한다. 위젯은 §11.1 대로 패널이 ImGui 를 직접 부르지 않는다.
+
+1. **`Widget::FilterCombo`** - 항목 뷰(`JArrayView<const char*>` 또는 이름 표), 현재 번호, 검색 칸, 빈 글, 최대 표시 수.
+   `EnumCombo` 를 이 몸 위에 얹고, 인스펙터의 "컴포넌트 추가" 팝업을 이것으로 바꾼다. 테스트: 에디터 UI 테스트로 열고
+   검색해 고르기, 빈 목록, 키보드 이동.
+2. **`Widget::AssetField`** - 타입 필터·비우기·없는 에셋 표시. 인스펙터가 `AssetId` 필드(`TypeDescriptorOf<Uuid>` 이고 이름이
+   `Id` 로 끝나는 것)를 만나면 글자 칸 대신 이것을 그린다. 항목은 레지스트리의 같은 타입 레코드(상대경로로 표시). 고르면
+   `SetPropertyCommand` 하나, 실행 뒤 프레임워크의 `BindCanvasAssets`. 테스트: 필드가 드롭다운으로 그려지는지, 고르면
+   커맨드 하나와 해석된 핸들, 되돌리기.
+3. **스프라이트 크기와 피벗** - `SpriteRenderer2D::sizeMode`(`FromSprite` 기본), 추출 단계에서 `SpriteLibrary::Resolve` 가
+   프레임 픽셀·피벗·PPU 를 주고 시스템이 크기를 만든다. `.jproject` 의 `PixelsPerUnit` 제거(`ProjectFile.pixelsPerUnit`,
+   파서, 테스트 둘). 테스트: 2x2 텍스처 PPU 2 → 1x1 유닛, 시트 칸의 크기, `Custom` 은 저작 값.
+4. **샘플러** - `.jproject` `TextureFilter`, `TextureImportOptions { filter }`(메타의 `ImportOptions` 블록, 리플렉션),
+   `SpriteLibrary` 가 `SpriteSubmit::filter` 로 넘김. 픽셀 테스트: Linear 로 2x2 를 키우면 가운데가 섞인다.
+5. **에셋 브라우저 패널** - 폴더 `Tree` + 파일 `List`(레지스트리 기준), 선택 → 인스펙터에 임포트 옵션. 옵션 편집은
+   커맨드(되살릴 옵션을 먼저 뜬다) → 메타를 리플렉션으로 다시 쓰고(`ImportOptions` 보존) `ReloadInPlace`. 로컬라이징 키.
+6. **파일 감시** - `IPlatform::WatchDirectory`/`TakeFileEvents`(Windows 구현, Web·Android 는 거짓), 에디터가 프레임 밖에서
+   꺼내 처리. 테스트: 임시 폴더에 쓰고 이벤트가 오는지, `.jmeta` 는 무시, 이동·삭제.
+
 ## 스프라이트
 
-- `[논의]` **스프라이트 크기 정책.** 지금 `SpriteRenderer2D` 는 `size`(유닛)·`pivot` 을 저작 값으로 들고 텍스처 크기와
+- `[진행 예정]` **스프라이트 크기 정책** (D-117 로 결정: `.jproject` 의 `PixelsPerUnit` 을 없애고 에셋 PPU, 아래 (C) 의 `FromSprite` 부터). 지금 `SpriteRenderer2D` 는 `size`(유닛)·`pivot` 을 저작 값으로 들고 텍스처 크기와
   무관하다. 다른 엔진:
   - Unity: 텍스처 임포터의 Pixels Per Unit 이 크기를 정한다(`픽셀 / PPU` 유닛). `SpriteRenderer` 에는 크기 필드가 없고
     스케일은 Transform 이 한다. Draw Mode 가 Sliced·Tiled 일 때만 `size` 가 생긴다.
@@ -47,7 +68,7 @@
   - (C) `sizeMode { FromSprite, Custom }`: 기본은 (A), Sliced·Tiled 같은 뒤의 드로우 모드에서만 Custom.
   권고: (C) 로 가되 이번에는 `FromSprite` 만 구현한다(= A 의 동작, 필드는 남긴다). `pivot` 은 프레임의 피벗을 기본으로
   쓰고 컴포넌트 값은 덮어쓰기 옵션으로 둔다.
-- `[논의]` **샘플러(필터) 선택이 사는 자리.** 렌더러 패킷 `SpriteSubmit::filter`(D-113)는 그 스프라이트를 Nearest(텍셀
+- `[진행 예정]` **샘플러(필터) 선택이 사는 자리** (D-117 로 결정: 권고대로). 렌더러 패킷 `SpriteSubmit::filter`(D-113)는 그 스프라이트를 Nearest(텍셀
   그대로, 픽셀 아트)로 샘플링할지 Linear(부드럽게)로 할지다. 지금은 프레임워크가 언제나 Nearest 를 보내고 컴포넌트나
   에셋에는 고를 자리가 없다. Unity 는 텍스처 임포터의 Filter Mode(기본 Bilinear, 픽셀 아트는 Point)다.
   권고: `.jproject` 에 프로젝트 기본(`TextureFilter: Nearest|Linear`, 2D 픽셀 아트 프로젝트는 Nearest)을 두고 텍스처의

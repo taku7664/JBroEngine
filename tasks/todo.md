@@ -1997,6 +1997,16 @@ EditorApplication::Tick
   임포트 옵션). (3) 파일 감시는 `[논의]` - 기존 엔진은 mtime 폴링이었고, 비동기 감시(`ReadDirectoryChangesW`) 를
   `IPlatform` 뒤에 두는 안을 todo-2d 에 적었다. 스프라이트 크기 정책과 샘플러 선택의 자리도 `[논의]` 로 todo-2d 에 있다.
   이번에는 작업하지 않고 문서만 정리했다.
+- **D-117. 파일 감시는 OS 감시를 플랫폼 뒤에, 스프라이트 크기는 에셋의 PPU 로, 샘플러는 프로젝트 기본 + 텍스처 옵션.** (2026-09-20)
+  사용자 결정 셋(todo-2d 의 `[논의]` 종결). (1) **파일 감시**: `IPlatform::WatchDirectory` 가 OS 감시(Windows 는
+  `ReadDirectoryChangesW`)를 워커에서 돌리고, 이벤트는 경로 문자열만 든 POD 로 메인 스레드 큐에 넘긴다. 메인 스레드가 프레임
+  밖에서 꺼내 원본 변경은 `ReloadInPlace`, `.jmeta` 변경은 무시, 이동은 경로만, 삭제는 참조 수 0 까지 유지. 게임 실행에는
+  감시가 없다. 폴링(기존 엔진)은 쓰지 않는다. (2) **스프라이트 크기**: `.jproject` 의 `PixelsPerUnit` 을 없애고 PPU 는 에셋
+  단위(`SpriteImportOptions.pixelsPerUnit`, 기본 100)다. 크기 = 프레임 픽셀 / 에셋 PPU. `SpriteRenderer2D` 에 `sizeMode
+  { FromSprite, Custom }` 을 두되 이번엔 `FromSprite` 만 구현하고 `size` 는 `Custom` 용으로 남긴다. 피벗은 프레임의 값이
+  기본이고 컴포넌트의 `pivot` 은 덮어쓰기다. 프로젝트 키는 지금 파싱만 되고 아무 데서도 읽지 않으므로 없애도 옛 파일은
+  열린다(모르는 키는 건너뛴다). (3) **샘플러**: `.jproject` 에 `TextureFilter: Nearest|Linear`(기본 Nearest) 를 두고 텍스처의
+  임포트 옵션이 덮어쓴다. 컴포넌트에는 두지 않는다. (4) 미리 읽기 워커는 공용 todo 의 `[열림]` 그대로다.
 
 ## Assumptions
 
