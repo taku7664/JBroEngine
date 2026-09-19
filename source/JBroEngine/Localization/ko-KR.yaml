@@ -53,4 +53,6 @@ Entries:
   common.search: 검색
   common.clear: 지우기
   common.no_matches: 일치하는 항목이 없습니다
+  asset.none: (없음)
+  asset.missing: (없는 에셋)
   common.ok: 확인

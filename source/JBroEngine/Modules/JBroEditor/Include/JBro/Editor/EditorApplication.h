@@ -23,6 +23,7 @@ namespace JBro
     class EngineInstance;
     class IFramework;
     class IPlatform;
+    class AssetRegistry;
 
     // `FrameworkKind` 는 `JBro/Host/ProjectFile.h` 에 있다(D-99). 프로젝트 파일이 그 값을
     // 적는 자리이므로 형식과 같이 둔다.
@@ -82,6 +83,9 @@ namespace JBro
 
         // 마지막으로 연 `.jproject` 의 내용이다. 파일로 열지 않았으면 기본값이다.
         const ProjectFile& GetProjectFile() const;
+        // 열린 프로젝트의 에셋 레지스트리다. 인스펙터의 에셋 칸이 같은 타입의 목록을 여기서
+        // 얻는다(D-116). 프로젝트가 없으면 빈 레지스트리다.
+        const AssetRegistry& GetAssetRegistry() const;
         // 이 프로젝트의 스크립트 DLL 이 실렸는지다. **열렸다고 실린 것은 아니다**(D-98) —
         // 아직 한 번도 빌드하지 않은 프로젝트도 열리므로, 스크립트가 있어야 하는 일은
         // 이것을 먼저 본다.
@@ -247,6 +251,10 @@ namespace JBro
         Array<SafePtr<GameObject>> m_selection;
         SafePtr<GameObject> m_selected;
         EditorCommandManager m_commands;
+        // 마지막으로 에셋 해석을 돌린 커맨드 판번호다. 판이 바뀌면(실행·되돌리기·다시 실행)
+        // 프레임워크의 `BindCanvasAssets` 를 다시 부른다(D-115) - `xxxId` 를 바꾼 커맨드만
+        // 골라내지 않는다. 되돌리기와 붙여넣기도 아이디를 바꾼다.
+        std::uint64_t m_boundRevision = 0;
         EditorObjectRegistry m_objectIds;
         TextureHandle m_gameView;
         Extent2D m_gameViewExtent;

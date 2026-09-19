@@ -13,6 +13,7 @@
 #include <JBro/Framework3DSystem/Framework3D.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Host/EngineInstance.h>
+#include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/CanvasFile.h>
 #include <JBro/Runtime/GameObject.h>
@@ -196,6 +197,12 @@ namespace JBro
         m_frameworkKind = framework;
         m_projectFilePath = projectFilePath != nullptr ? projectFilePath : "";
         return true;
+    }
+
+    const AssetRegistry& EditorApplication::GetAssetRegistry() const
+    {
+        static const AssetRegistry empty;
+        return m_engine.Get() != nullptr ? m_engine->GetAssetRegistry() : empty;
     }
 
     bool EditorApplication::IsScriptModuleLoaded() const
@@ -1295,6 +1302,13 @@ namespace JBro
             m_engine->SetGameViewTarget(target);
         }
         m_gameViewRequested = false;
+        // 커맨드가 돌았으면 에셋 해석을 다시 한다(D-115·D-116). UI 가 닫힌 뒤라 이 프레임의
+        // 편집이 전부 들어 있고, 엔진 프레임 전이라 다음 그림부터 새 핸들이 보인다.
+        if (m_framework.Get() != nullptr && m_commands.GetRevision() != m_boundRevision)
+        {
+            m_boundRevision = m_commands.GetRevision();
+            m_framework->BindCanvasAssets();
+        }
         // 저장은 UI 프레임이 닫힌 뒤, 엔진 프레임이 열리기 전이다. 대화상자가 막혀 있는 동안
         // 어느 프레임도 열려 있지 않다.
         PerformSaveRequest();

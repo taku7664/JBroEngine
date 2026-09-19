@@ -81,5 +81,9 @@ namespace JBro::LocKeys
     inline constexpr const char* CommonSearch = "common.search";
     inline constexpr const char* CommonClear = "common.clear";
     inline constexpr const char* CommonNoMatches = "common.no_matches";
+
+    // ── 에셋 칸 ──────────────────────────────────────────────────────────
+    inline constexpr const char* AssetNone = "asset.none";
+    inline constexpr const char* AssetMissing = "asset.missing";
     inline constexpr const char* CommonOk = "common.ok";
 }

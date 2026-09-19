@@ -16,6 +16,9 @@
 #include <JBro/Editor/Widget/Fields.h>
 #include <JBro/Editor/Widget/EnumCombo.h>
 #include <JBro/Editor/Widget/FilterCombo.h>
+#include <JBro/Editor/Widget/AssetField.h>
+#include <JBro/Asset/AssetRegistry.h>
+#include <JBro/Asset/AssetTypeRules.h>
 #include <JBro/Reflection/PropertyInfo.h>
 #include <JBro/Reflection/PropertyRegistry.h>
 #include <JBro/Runtime/Component.h>
@@ -44,6 +47,34 @@ namespace JBro
         // 화면에 나오는 이름은 타입 이름 그대로가 아니다(ProjectRule §11.3).
         // `Component::Transform2D` 의 접두어는 코드가 쓰는 것이지 사람이 읽는 것이
         // 아니다.
+        // 에셋 참조 필드는 `Id` 로 끝나는 `JBro.Uuid` 다 - 해석 패스와 같은 규칙이다(D-115).
+        bool IsAssetIdName(const char* name)
+        {
+            if (name == nullptr)
+            {
+                return false;
+            }
+            const std::size_t length = std::strlen(name);
+            return length > 2 && name[length - 2] == 'I' && name[length - 1] == 'd';
+        }
+
+        // `spriteId` → `Sprite`. 앞부분이 에셋 타입 이름이면 그 타입만 보이고, 아니면 전부다.
+        AssetType AssetTypeOfIdName(const char* name)
+        {
+            char buffer[32] = {};
+            const std::size_t length = std::strlen(name) - 2;
+            if (length == 0 || length >= sizeof(buffer))
+            {
+                return AssetType::Unknown;
+            }
+            std::memcpy(buffer, name, length);
+            if (buffer[0] >= 'a' && buffer[0] <= 'z')
+            {
+                buffer[0] = static_cast<char>(buffer[0] - 'a' + 'A');
+            }
+            return AssetTypeRules::ParseTypeName(std::string_view(buffer, length));
+        }
+
         const char* DisplayTypeName(const char* typeName)
         {
             if (typeName == nullptr)
@@ -331,6 +362,38 @@ namespace JBro
             *run.values[index] = scratch[index];
         }
         return true;
+    }
+
+    void InspectorPanel::DrawAssetField(
+        const char* fieldName, const TypeDescriptor& type, void* address, Context& context)
+    {
+        // 목록은 프레임마다 레지스트리에서 모은다. 에디터의 그리기 경로라 매 프레임 규칙(§4)의
+        // 대상이 아니고, 레지스트리는 편집 시점에만 바뀌므로 붙들어 둘 값이 없다.
+        const AssetType wanted = AssetTypeOfIdName(fieldName);
+        const AssetRegistry& registry = m_editor->GetAssetRegistry();
+        Array<const char*> names;
+        Array<AssetId> ids;
+        for (std::size_t index = 0; index < registry.GetCount(); ++index)
+        {
+            const AssetRecord& record = registry.GetRecord(index);
+            if (wanted != AssetType::Unknown && record.type != wanted)
+            {
+                continue;
+            }
+            names.Add(record.relativePath.c_str());
+            ids.Add(record.id);
+        }
+        String before;
+        const bool snapped = ToText(type, address, before);
+        const bool changed = Widget::AssetField("##value",
+            ArrayView<const char* const>(names.Data(), names.Size()),
+            ArrayView<const AssetId>(ids.Data(), ids.Size()),
+            *static_cast<AssetId*>(address))
+            .Draw();
+        if (changed && snapped)
+        {
+            CommitEdit(type, address, before, context);
+        }
     }
 
     bool InspectorPanel::DrawLeaf(
@@ -970,6 +1033,15 @@ namespace JBro
                     CommitEdit(type, address, before, context);
                 }
             }
+            return;
+        }
+
+        // **`AssetId` 는 드롭다운이다**(D-116). 원소 안의 아이디는 아직 글자 칸이다 - 목록 원소
+        // 편집은 값을 글자로 모아 커맨드를 만드는 길이라(D-89) 이 칸이 그 길을 타려면 따로 봐야 한다.
+        if (context.element == nullptr && SameName(type.typeName, "JBro.Uuid")
+            && IsAssetIdName(label))
+        {
+            DrawAssetField(label, type, address, context);
             return;
         }
 

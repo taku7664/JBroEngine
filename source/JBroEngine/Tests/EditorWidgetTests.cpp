@@ -1,4 +1,5 @@
-﻿#include <JBro/Editor/Widget/Button.h>
+﻿#include <JBro/Editor/Widget/AssetField.h>
+#include <JBro/Editor/Widget/Button.h>
 #include <JBro/Editor/Widget/Common.h>
 #include <JBro/Editor/Widget/EnumCombo.h>
 #include <JBro/Editor/Widget/Fields.h>
@@ -705,6 +706,8 @@ namespace
         frame();
         ImGuiWindow* popup = FindComboPopup();
         Check(popup != nullptr, "clicking the trigger must open the popup");
+        // 이름 셋은 한 화면에 들어간다. 검색 칸이 없으므로 포커스를 받은 글자 칸도 없다.
+        Check(ImGui::GetActiveID() == 0, "a short enum shows no search box to focus");
 
         // 둘째 항목("Linear")의 Id 는 팝업 창 → PushID(1) → 이름이다.
         int itemIndex = 1;
@@ -732,6 +735,86 @@ namespace
         Check(value == 1, "clicking Linear must write 1 through FromIndex");
         Check(changedFrames == 1, "and report the change once");
         Check(FindComboPopup() == nullptr, "and close the popup");
+    }
+
+    // **에셋 칸은 이름으로 고르고 아이디를 쓴다**(D-116). 이름을 쳐 Enter 로 고르면 짝 아이디가
+    // 들어가고, 비우기 항목을 고르면 빈 아이디다. 목록에 없는 아이디는 바뀌지 않은 채 남는다.
+    void TestTheAssetFieldWritesTheIdOfTheChosenName()
+    {
+        Stage stage;
+        const char* const names[] = { "art/hero.png", "art/tiles.png" };
+        const JBro::AssetId ids[] = { JBro::Uuid::FromName("hero"), JBro::Uuid::FromName("tiles") };
+        JBro::AssetId value;
+        int changedFrames = 0;
+        ImVec2 triggerMin;
+        ImVec2 triggerMax;
+        bool triggerKnown = false;
+        const auto frame = [&]() {
+            stage.Begin();
+            if (JBro::Widget::AssetField("##asset", names, ids, value)
+                .NoneText("(none)").MissingText("(missing)").Width(220.0f).Draw())
+            {
+                ++changedFrames;
+            }
+            if (false == triggerKnown)
+            {
+                triggerMin = ImGui::GetItemRectMin();
+                triggerMax = ImGui::GetItemRectMax();
+                triggerKnown = true;
+            }
+            stage.End();
+        };
+        const auto open = [&]() {
+            ImGuiIO& io = ImGui::GetIO();
+            io.AddMousePosEvent((triggerMin.x + triggerMax.x) * 0.5f,
+                (triggerMin.y + triggerMax.y) * 0.5f);
+            frame();
+            io.AddMouseButtonEvent(0, true);
+            frame();
+            io.AddMouseButtonEvent(0, false);
+            frame();
+            frame();
+            frame();
+            Check(FindComboPopup() != nullptr, "clicking the asset field must open its popup");
+        };
+        const auto type = [&](const char* text) {
+            for (const char* at = text; *at != '\0'; ++at)
+            {
+                ImGui::GetIO().AddInputCharacter(static_cast<unsigned int>(*at));
+                frame();
+            }
+        };
+        const auto pressEnter = [&]() {
+            ImGui::GetIO().AddKeyEvent(ImGuiKey_Enter, true);
+            frame();
+            ImGui::GetIO().AddKeyEvent(ImGuiKey_Enter, false);
+            frame();
+            frame();
+        };
+
+        stage.Settle();
+        frame();
+        frame();
+        Check(value.IsNull() && changedFrames == 0, "untouched, the id stays empty");
+
+        open();
+        type("tiles");
+        pressEnter();
+        Check(value == ids[1], "typing the name and Enter must write that asset's id");
+        Check(changedFrames == 1, "and report one change");
+
+        // 비우기 항목은 맨 위다. 빈 검색에 Enter 면 그것이 골라진다.
+        open();
+        pressEnter();
+        Check(value.IsNull(), "the clear row is first, so Enter on an empty filter empties the id");
+        Check(changedFrames == 2, "that is the second change");
+
+        // 목록에 없는 아이디는 그대로 둔다 - 사용자가 고르기 전에는 위젯이 값을 고치지 않는다.
+        value = JBro::Uuid::FromName("gone");
+        frame();
+        frame();
+        Check(value == JBro::Uuid::FromName("gone") && changedFrames == 2,
+            "an id that is not in the list is shown as missing, not overwritten");
     }
 
     // 무게마다 색이 달라야 한다. 같으면 경고와 오류를 눈으로 가릴 수 없다.
@@ -773,6 +856,7 @@ int RunEditorWidgetTests()
     TestTheFilterComboPicksByTypingAndEnter();
     TestAnEmptyFilterComboDrawsAndChangesNothing();
     TestTheEnumComboChangesTheValueWhenAnItemIsClicked();
+    TestTheAssetFieldWritesTheIdOfTheChosenName();
     TestSeverityColoursDiffer();
     std::cout << "Editor widget tests passed.\n";
     return 0;

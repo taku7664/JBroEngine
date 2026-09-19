@@ -1,5 +1,6 @@
 ﻿#include <JBro/Editor/EditorApplication.h>
 
+#include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Editor/Command/ObjectCommands.h>
 #include <JBro/Editor/EditorObjectRegistry.h>
@@ -32,6 +33,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <filesystem>
 #include <fstream>
 #include <string>
 #include <cstring>
@@ -2387,9 +2389,9 @@ namespace
         editor.Shutdown();
     }
 
-    // **아무것도 안 바뀌었으면 되돌릴 것도 없다.** 글자 칸에서 Enter 만 치면
-    // 위젯은 "바뀌었다" 고 답하지만 값은 그대로다 - 그것까지 쌓으면 Ctrl+Z 가
-    // 아무 일도 안 하는 헛걸음을 만든다.
+    // **아무것도 안 바뀌었으면 되돌릴 것도 없다.** 에셋 칸을 열고 Enter 만 치면 비우기
+    // 항목이 다시 골라지는데 값은 이미 비어 있다 - 그것까지 쌓으면 Ctrl+Z 가 아무 일도
+    // 안 하는 헛걸음을 만든다. (D-116 전에는 글자 칸이었고 같은 계약이었다.)
     void TestTypingTheSameValueLeavesNothingToUndo()
     {
         JBro::EditorApplication editor;
@@ -2414,8 +2416,8 @@ namespace
 
         JBro::Canvas* canvas = editor.GetCanvas();
         JBro::GameObject* object = canvas->CreateObject("Subject");
-        // `spriteId` 는 AssetId 다 - float 도 bool 도 int 도 아니라서 코덱의
-        // 글자 왕복으로 그려지는, 지금 유일한 글자 칸이다.
+        // `spriteId` 는 AssetId 라 에셋 드롭다운으로 그려진다(D-116). 프로젝트에 파일이 없으니
+        // 목록은 비우기 항목뿐이다.
         auto* sprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(object);
         Check(sprite != nullptr, "the subject must have a sprite renderer");
         editor.SetSelectedObject(object);
@@ -2435,8 +2437,9 @@ namespace
                 InspectorFieldId(0, spriteId, "##value"), spot),
             "the spriteId row must be in the inspector");
 
-        // 칸을 깨우고 아무것도 고치지 않은 채 Enter 를 친다.
+        // 드롭다운을 열고 아무것도 고치지 않은 채 Enter 를 친다.
         ClickAt(editor, hwnd, spot);
+        Check(editor.Tick(Frame), "the popup must appear");
         const std::size_t before = editor.GetCommands().GetUndoCount();
         PostMessageW(hwnd, WM_KEYDOWN, VK_RETURN, 0);
         Check(editor.Tick(Frame), "the editor must tick");
@@ -2450,6 +2453,127 @@ namespace
             "and must not make the document look edited");
 
         editor.Shutdown();
+    }
+
+
+    // 아래(프로젝트 파일 테스트 옆)에 있다.
+    bool WriteTextFile(const JBro::String& path, const char* text);
+
+    // 2x2 RGBA PNG. AssetSystemTests 와 같은 바이트다 - 레지스트리가 스프라이트로 등록하고
+    // 에셋 시스템이 실제로 디코드해야 핸들이 선다.
+    constexpr unsigned char TinyPng[] =
+    {
+        0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+        0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x02, 0x08, 0x06, 0x00, 0x00, 0x00, 0x72, 0xb6, 0x0d,
+        0x24, 0x00, 0x00, 0x00, 0x13, 0x49, 0x44, 0x41, 0x54, 0x78, 0xda, 0x63, 0xf8, 0xcf, 0xc0, 0xf0,
+        0x1f, 0x0c, 0x81, 0x34, 0x08, 0x34, 0x00, 0x00, 0x49, 0x49, 0x09, 0x78, 0x9c, 0x51, 0x17, 0x92,
+        0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82
+    };
+
+    // **에셋 칸은 레지스트리의 이름을 보이고, 고르면 커맨드 하나와 해석된 핸들이다**(D-116).
+    // 프로젝트 폴더에 그림 하나를 두고 열어, 인스펙터의 `spriteId` 드롭다운에서 이름을 쳐 고른다.
+    // 되돌리면 아이디와 핸들이 함께 비어야 한다 - 해석은 커맨드 판번호를 따라 다시 돈다(D-115).
+    void TestTheAssetFieldPicksARegisteredSprite()
+    {
+        namespace fs = std::filesystem;
+        const fs::path root(TempPath("JBroAssetFieldProbe").c_str());
+        std::error_code ignored;
+        fs::remove_all(root, ignored);
+        fs::create_directories(root / "Assets", ignored);
+        {
+            std::ofstream png(root / "Assets" / "hero.png", std::ios::binary);
+            png.write(reinterpret_cast<const char*>(TinyPng), sizeof(TinyPng));
+        }
+        const JBro::String projectPath = TempPath("JBroAssetFieldProbe\\AssetField.jproject");
+        Check(WriteTextFile(projectPath,
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 2D\n"
+            "RootPath: .\n"
+            "ResolutionWidth: 640\n"
+            "ResolutionHeight: 480\n"
+            "AssetDirectory: Assets\n"
+            "ScriptOutputLibraryPath: \"\"\n"
+            "Build:\n"
+            "  ProductName: AssetFieldProbe\n"
+            "  StartupCanvas: Scenes/Opening.jcanvas\n"),
+            "the test must be able to write its own project file");
+
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the asset field not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.c_str(), error), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        // 스캔이 hero.png 를 Texture 와 Sprite 둘로 등록했어야 한다. 칸에는 Sprite 만 보인다.
+        const JBro::AssetRegistry& registry = editor.GetAssetRegistry();
+        JBro::AssetId spriteAsset;
+        for (std::size_t index = 0; index < registry.GetCount(); ++index)
+        {
+            const JBro::AssetRecord& record = registry.GetRecord(index);
+            if (record.type == JBro::AssetType::Sprite && record.relativePath == "hero.png")
+            {
+                spriteAsset = record.id;
+            }
+        }
+        Check(false == spriteAsset.IsNull(), "the scan must have registered hero.png as a sprite");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* object = canvas->CreateObject("Hero");
+        auto* sprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(object);
+        Check(sprite != nullptr, "the hero must have a sprite renderer");
+        editor.SetSelectedObject(object);
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        const JBro::PropertyTable* table = JBro::PropertyRegistry::Lookup(
+            JBro::NameTable::Get().Intern("Component::SpriteRenderer2D"));
+        Check(table != nullptr, "the sprite renderer must have registered its properties");
+        Spot spot;
+        Check(FindInspectorItem(editor, hwnd,
+                InspectorFieldId(0, FieldIndexOf(*table, "spriteId"), "##value"), spot),
+            "the spriteId row must be in the inspector");
+
+        const std::size_t undoBefore = editor.GetCommands().GetUndoCount();
+        ClickAt(editor, hwnd, spot);
+        Check(editor.Tick(Frame), "the popup must appear");
+        Check(editor.Tick(Frame), "and its search box must take focus");
+        for (const char* at = "hero"; *at != '\0'; ++at)
+        {
+            PostMessageW(hwnd, WM_CHAR, static_cast<WPARAM>(*at), 0);
+            Check(editor.Tick(Frame), "the editor must tick while typing");
+        }
+        PostMessageW(hwnd, WM_KEYDOWN, VK_RETURN, 0);
+        Check(editor.Tick(Frame), "the editor must tick");
+        PostMessageW(hwnd, WM_KEYUP, VK_RETURN, 0);
+        Check(editor.Tick(Frame), "the editor must tick");
+        Check(editor.Tick(Frame), "and once more so the rebind after the command has run");
+
+        Check(sprite->spriteId == spriteAsset, "typing the name and Enter must write the sprite's id");
+        Check(editor.GetCommands().GetUndoCount() == undoBefore + 1, "through exactly one command");
+        Check(sprite->sprite.index != 0 || sprite->sprite.generation != 0,
+            "and the handle must be resolved again after the command");
+
+        Check(editor.GetCommands().Undo(), "undo must run");
+        Check(editor.Tick(Frame), "the editor must tick after undo");
+        Check(sprite->spriteId.IsNull(), "undo must empty the id");
+        Check(sprite->sprite.index == 0 && sprite->sprite.generation == 0,
+            "and the handle must be released with it");
+
+        editor.Shutdown();
+        fs::remove_all(root, ignored);
     }
 
     // 프레임마다 **처음 보는 글자**를 그리는 패널이다. ImGui 1.92 는 글리프를
@@ -3900,6 +4024,7 @@ int RunEditorApplicationTests()
     TestDraggingAStructElementReordersEveryChosenList();
     TestFlagCountAndToneElementsEditByMouseOnEveryChosenList();
     TestTypingTheSameValueLeavesNothingToUndo();
+    TestTheAssetFieldPicksARegisteredSprite();
     TestCreatingAnObjectCanBeUndone();
     TestDeletingAnObjectCanBeUndoneWithItsValues();
     TestClosingTheWindowDoesNotTakeTheUiDownWithIt();

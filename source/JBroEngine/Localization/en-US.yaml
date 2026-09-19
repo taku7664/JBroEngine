@@ -53,4 +53,6 @@ Entries:
   common.search: Search
   common.clear: Clear
   common.no_matches: No matches
+  asset.none: (None)
+  asset.missing: (Missing asset)
   common.ok: OK

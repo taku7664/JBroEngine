@@ -94,6 +94,12 @@ namespace JBro
         static void RecordElementRun(
             const ScalarRun& run, const float before[ScalarRun::MaxCount], Context& context);
         static ListEdit MakeElementEdit(const ElementScope& scope);
+        // `AssetId` 필드. 레지스트리의 같은 타입 에셋을 고르는 드롭다운이다(D-116).
+        void DrawAssetField(
+            const char* fieldName,
+            const TypeDescriptor& type,
+            void* address,
+            Context& context);
         // 코덱 하나짜리 잎사귀.
         bool DrawLeaf(
             const TypeDescriptor& type,
