@@ -51,7 +51,7 @@ namespace
         // 그 자체가 목적이다 — 인스펙터에 뭐가 보일지가 조용히 바뀌지 않게 한다.
         Check(Table("Component::Transform2D").count == 8, "Transform2D declares eight fields");
         Check(Table("Component::Camera2D").count == 6, "Camera2D declares six fields");
-        Check(Table("Component::SpriteRenderer2D").count == 11, "SpriteRenderer2D declares eleven fields");
+        Check(Table("Component::SpriteRenderer2D").count == 12, "SpriteRenderer2D declares twelve fields");
         Check(Table("Component::Rigidbody2D").count == 7, "Rigidbody2D declares seven fields");
         Check(Table("Component::Collider2D").count == 5, "Collider2D declares five fields");
 

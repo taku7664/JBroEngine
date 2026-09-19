@@ -67,8 +67,8 @@ namespace JBro
         // 프레임 안의 피벗(0..1)
         float pivotX = 0.5f;
         float pivotY = 0.5f;
-        // 0 이면 프로젝트의 기본 PPU 를 쓴다.
-        float pixelsPerUnit = 0.0f;
+        // 한 유닛에 드는 픽셀 수다(D-117). 프로젝트 기본값은 없다 - 에셋이 전부 말한다. 0 이하로 적힌 옛 메타는 100 으로 본다.
+        float pixelsPerUnit = 100.0f;
     };
 
     // 시트의 한 칸이다. 픽셀 좌표는 왼쪽 위가 원점이다.

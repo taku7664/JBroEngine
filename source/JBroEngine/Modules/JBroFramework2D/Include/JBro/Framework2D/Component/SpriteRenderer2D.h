@@ -11,6 +11,10 @@
 namespace JBro::Component
 {
     enum class SpriteFlip : std::uint8_t { None, Horizontal, Vertical, Both };
+
+    // 크기와 피벗을 어디서 가져오는가(D-117). `FromSprite` 는 풀린 칸의 픽셀 / 에셋 PPU 와 칸의 피벗이고,
+    // `Custom` 은 컴포넌트의 `size`·`pivot` 이다. 스프라이트가 풀리지 않으면(없거나 로드 실패) 둘 다 저작 값이다.
+    enum class SpriteSizeMode : std::uint8_t { FromSprite, Custom };
 }
 
 namespace JBro
@@ -20,6 +24,9 @@ namespace JBro
         { Component::SpriteFlip::Horizontal, "Horizontal" },
         { Component::SpriteFlip::Vertical,   "Vertical" },
         { Component::SpriteFlip::Both,       "Both" });
+    JBRO_DEFINE_ENUM_TYPE(Component::SpriteSizeMode, "Component::SpriteSizeMode",
+        { Component::SpriteSizeMode::FromSprite, "FromSprite" },
+        { Component::SpriteSizeMode::Custom,     "Custom" });
 }
 
 namespace JBro::Component
@@ -54,6 +61,8 @@ namespace JBro::Component
         JBRO_FIELD(AssetHandle, material,   NoSerialize() | ReadOnly() | Tooltip("materialId 에서 해석된 값"));
 
         JBRO_FIELD(Color, tint) { 1.0f, 1.0f, 1.0f, 1.0f };
+        // `Custom` 일 때만 `pivot`·`size` 가 쓰인다(D-117). 기본은 에셋이 정한다.
+        JBRO_FIELD(SpriteSizeMode, sizeMode) = SpriteSizeMode::FromSprite;
         JBRO_FIELD(Vec2,  pivot) { 0.5f, 0.5f };
         JBRO_FIELD(Vec2,  size)  { 1.0f, 1.0f };
         JBRO_FIELD(SpriteFlip,   flip)        = SpriteFlip::None;

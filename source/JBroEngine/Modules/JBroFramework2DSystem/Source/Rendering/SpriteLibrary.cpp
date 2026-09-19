@@ -92,7 +92,8 @@ namespace JBro
         return true;
     }
 
-    bool SpriteLibrary::Resolve(AssetHandle spriteAsset, std::uint32_t frameIndex, AssetHandle& rendererTexture, float uvRect[4])
+    bool SpriteLibrary::Resolve(AssetHandle spriteAsset, std::uint32_t frameIndex, AssetHandle& rendererTexture, float uvRect[4],
+        SpriteFrameView* frameView)
     {
         if (m_assets == nullptr || m_renderer == nullptr || uvRect == nullptr)
         {
@@ -122,6 +123,15 @@ namespace JBro
         uvRect[1] = static_cast<float>(frame.y) / height;
         uvRect[2] = static_cast<float>(frame.width) / width;
         uvRect[3] = static_cast<float>(frame.height) / height;
+        if (frameView != nullptr)
+        {
+            const float pixelsPerUnit = sprite->options.pixelsPerUnit > 0.0f
+                ? sprite->options.pixelsPerUnit : DefaultPixelsPerUnit;
+            frameView->widthUnits = static_cast<float>(frame.width) / pixelsPerUnit;
+            frameView->heightUnits = static_cast<float>(frame.height) / pixelsPerUnit;
+            frameView->pivotX = frame.pivotX;
+            frameView->pivotY = frame.pivotY;
+        }
         return true;
     }
 

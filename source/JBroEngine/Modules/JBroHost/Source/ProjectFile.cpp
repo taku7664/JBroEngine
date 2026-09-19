@@ -355,7 +355,6 @@ namespace JBro
             else if (key == "RootPath") { parsed.rootPath = value; }
             else if (key == "ResolutionWidth") { recognized = ParseUInt(value, parsed.resolutionWidth); }
             else if (key == "ResolutionHeight") { recognized = ParseUInt(value, parsed.resolutionHeight); }
-            else if (key == "PixelsPerUnit") { recognized = ParseFloat(value, parsed.pixelsPerUnit); }
             else if (key == "DebugModeEnabled") { recognized = ParseBool(value, parsed.debugModeEnabled); }
             else if (key == "ScriptSourceDirectory") { parsed.scriptSourceDirectory = value; }
             else if (key == "ScriptOutputLibraryPath") { parsed.scriptOutputLibraryPath = value; }

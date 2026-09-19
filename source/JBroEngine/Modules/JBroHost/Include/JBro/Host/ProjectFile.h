@@ -70,7 +70,6 @@ namespace JBro
         String        rootPath = ".";
         std::uint32_t resolutionWidth = 1920;
         std::uint32_t resolutionHeight = 1080;
-        float         pixelsPerUnit = 100.0f;
         bool          debugModeEnabled = false;
         // 에디터가 스크립트를 빌드해 내놓는 자리다. 프로젝트 루트 기준 상대경로다.
         String        scriptSourceDirectory = "Contents";

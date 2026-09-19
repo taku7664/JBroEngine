@@ -3667,7 +3667,6 @@ namespace
             "RootPath: .\n"
             "ResolutionWidth: 1280\n"
             "ResolutionHeight: 720\n"
-            "PixelsPerUnit: 100\n"
             "ScriptOutputLibraryPath: \"\"\n"
             "LastOpenedCanvasPath: Scenes/Opening.jcanvas\n"
             "Build:\n"

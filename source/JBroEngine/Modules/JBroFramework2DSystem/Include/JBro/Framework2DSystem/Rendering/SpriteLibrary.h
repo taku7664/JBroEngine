@@ -16,6 +16,18 @@ namespace JBro
     // **프레임 경로에 조회가 없다.** 표는 에셋 핸들의 슬롯 번호로 곧장 찍는 배열이고 세대로 검증한다. 텍스처는 처음
     // 만날 때 한 번 올리고, 에셋이 in-place 재로드되면(`pixelGeneration`) 같은 핸들에 다시 올린다.
     // **렌더러 프레임 밖에서만 부른다** - `RegisterTexture` 가 프레임 안에서는 거절하므로 Update 단계(렌더 추출)가 그 자리다.
+    // 풀린 칸의 크기(유닛)와 피벗이다. 크기 = 칸 픽셀 / 에셋 PPU 다(D-117).
+    struct SpriteFrameView
+    {
+        float widthUnits = 0.0f;
+        float heightUnits = 0.0f;
+        float pivotX = 0.5f;
+        float pivotY = 0.5f;
+    };
+
+    // 0 이하로 적힌 PPU 는 이 값으로 본다.
+    inline constexpr float DefaultPixelsPerUnit = 100.0f;
+
     class SpriteLibrary final
     {
     public:
@@ -24,7 +36,9 @@ namespace JBro
 
         // 스프라이트 에셋의 `frameIndex` 번째 칸을 렌더러 텍스처와 UV 사각형으로 푼다. 칸 번호가 넘치면 마지막 칸이다.
         // 스프라이트가 로드돼 있지 않거나 텍스처를 올리지 못하면 거짓이고 출력은 손대지 않는다.
-        bool Resolve(AssetHandle spriteAsset, std::uint32_t frameIndex, AssetHandle& rendererTexture, float uvRect[4]);
+        // `frameView` 를 주면 그 칸의 유닛 크기와 피벗도 준다(D-117).
+        bool Resolve(AssetHandle spriteAsset, std::uint32_t frameIndex, AssetHandle& rendererTexture, float uvRect[4],
+            SpriteFrameView* frameView = nullptr);
 
         std::uint32_t GetUploadedTextureCount() const;
 

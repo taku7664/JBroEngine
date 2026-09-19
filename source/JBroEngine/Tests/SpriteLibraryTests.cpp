@@ -1,6 +1,14 @@
 ﻿#include <JBro/Asset/Asset.h>
 #include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetRegistry.h>
+#include <JBro/Canvas/Canvas.h>
+#include <JBro/Core/Core.h>
+#include <JBro/Framework2D/Component/SpriteRenderer2D.h>
+#include <JBro/Framework2D/Component/Transform2D.h>
+#include <JBro/Framework2DSystem/Rendering/RenderWorld2D.h>
+#include <JBro/Framework2DSystem/System/SpriteRender2DSystem.h>
+#include <JBro/Framework2DSystem/System/Transform2DSystem.h>
+#include <JBro/Runtime/GameObject.h>
 #include <JBro/D3D12RHI/D3D12RHI.h>
 #include <JBro/Framework2DSystem/Rendering/SpriteLibrary.h>
 #include <JBro/Graphics/Renderer.h>
@@ -116,6 +124,11 @@ namespace
 
         const JBro::AssetHandle handleA = assets.Load(spriteA);
         Check(library.Resolve(handleA, 0, texture, uv), "a loaded sprite resolves");
+        // 크기는 칸 픽셀 / 에셋 PPU 다(D-117). 새 메타의 PPU 는 100 이라 2x2 는 0.02 유닛이다.
+        JBro::SpriteFrameView view;
+        Check(library.Resolve(handleA, 0, texture, uv, &view)
+                && view.widthUnits == 0.02f && view.heightUnits == 0.02f && view.pivotX == 0.5f && view.pivotY == 0.5f,
+            "a 2x2 image at the default 100 pixels per unit is 0.02 units wide with the centre pivot");
         Check(texture.generation != 0 && renderer.GetTextureCount() == 1 && library.GetUploadedTextureCount() == 1,
             "its texture went up once");
         Check(uv[0] == 0.0f && uv[1] == 0.0f && uv[2] == 1.0f && uv[3] == 1.0f, "an unsliced sprite is the whole texture");
@@ -135,7 +148,7 @@ namespace
         const JBro::String metaPath = Utf8(root / "a.png.jmeta");
         Check(JBro::LoadAssetMetaFile(platform, metaPath.c_str(), meta, error), "the meta loads");
         JBro::String text = JBro::FormatAssetMetaFile(meta);
-        text.append("  ImportOptions:\n    sliceType: CellCount\n    rowCount: 2\n    columnCount: 2\n");
+        text.append("  ImportOptions:\n    sliceType: CellCount\n    rowCount: 2\n    columnCount: 2\n    pixelsPerUnit: 2\n    pivotX: 0\n");
         JBro::JArrayView<std::byte> bytes;
         bytes.data = reinterpret_cast<const std::byte*>(text.data());
         bytes.size = static_cast<std::uint32_t>(text.size());
@@ -144,6 +157,50 @@ namespace
         Check(library.Resolve(handleA, 3, again, uv) && SameHandle(again, texture), "the same texture serves the sheet");
         Check(uv[0] == 0.5f && uv[1] == 0.5f && uv[2] == 0.5f && uv[3] == 0.5f, "frame three is the bottom-right cell");
         Check(library.Resolve(handleA, 1, again, uv) && uv[0] == 0.5f && uv[1] == 0.0f, "frame one is the top-right cell");
+        Check(library.Resolve(handleA, 1, again, uv, &view) && view.widthUnits == 0.5f && view.heightUnits == 0.5f
+                && view.pivotX == 0.0f && view.pivotY == 0.5f,
+            "a 1x1 cell at 2 pixels per unit is half a unit, with the sheet's pivot");
+
+        // **시스템은 그 크기를 쓴다.** 캔버스의 스프라이트가 `FromSprite`(기본)면 저작 `size` 가 아니라 칸 크기와 칸 피벗이
+        // 렌더 월드에 들어가고, `Custom` 이면 저작 값이다(D-117).
+        {
+            JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+            JBro::GameObject* object = canvas.CreateObject("hero");
+            auto* transform = canvas.AttachComponent<JBro::Component::Transform2D>(object);
+            auto* sprite = canvas.AttachComponent<JBro::Component::SpriteRenderer2D>(object);
+            Check(transform != nullptr && sprite != nullptr, "the probe object must have its components");
+            sprite->sprite = handleA;
+            sprite->frameIndex = 1;
+            sprite->size = {7.0f, 9.0f};
+            sprite->pivot = {0.25f, 0.75f};
+            JBro::RenderWorld2D world;
+            Check(world.ReserveSprites(2), "the render world must reserve");
+            JBro::System::Transform2DSystem transforms;
+            JBro::System::SpriteRender2DSystem sprites;
+            sprites.SetRenderWorld(&world);
+            sprites.SetSpriteLibrary(&library);
+            const auto extract = [&]() {
+                world.BeginFrame();
+                transforms.Update(canvas, 0.0f);
+                sprites.Update(canvas, 0.0f);
+                world.EndFrame();
+                Check(world.GetSpriteCount() == 1, "one sprite must be extracted");
+                return world.GetSprite(0);
+            };
+            const JBro::SpriteRenderItem fromSprite = extract();
+            Check(fromSprite.size.x == 0.5f && fromSprite.size.y == 0.5f
+                    && fromSprite.pivot.x == 0.0f && fromSprite.pivot.y == 0.5f,
+                "FromSprite takes the cell's size in units and the cell's pivot");
+            sprite->sizeMode = JBro::Component::SpriteSizeMode::Custom;
+            const JBro::SpriteRenderItem custom = extract();
+            Check(custom.size.x == 7.0f && custom.size.y == 9.0f && custom.pivot.x == 0.25f && custom.pivot.y == 0.75f,
+                "Custom takes the authored size and pivot");
+            sprite->sizeMode = JBro::Component::SpriteSizeMode::FromSprite;
+            sprite->sprite = {};
+            const JBro::SpriteRenderItem unresolved = extract();
+            Check(unresolved.size.x == 7.0f && unresolved.pivot.x == 0.25f,
+                "an unresolved sprite falls back to the authored values even in FromSprite");
+        }
 
         // 텍스처의 in-place 재로드는 같은 렌더러 핸들에 다시 올린다.
         Check(assets.ReloadInPlace(textureA), "the texture reloads in place");

@@ -93,7 +93,7 @@ namespace
             "and the framework it runs on");
         Check(project.resolutionWidth == 600 && project.resolutionHeight == 800,
             "the resolution must come through");
-        Check(project.pixelsPerUnit == 100.0f, "pixels per unit must come through");
+        // `PixelsPerUnit` 은 D-117 로 프로젝트에서 빠졌다. 옛 파일에 남은 키는 모르는 키로 건너뛴다.
         Check(project.debugModeEnabled == false, "a false flag must stay false");
         Check(project.scriptSourceDirectory == "Contents", "the script source directory must come through");
         Check(project.assetDirectory == "Contents/Art", "the asset directory must come through");

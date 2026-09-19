@@ -395,6 +395,10 @@ namespace
             Check(item.owner == spriteObject && item.sourceId == sprite->GetInstanceId(), "sprite identity must survive extraction");
             Check(NearlyEqual(item.world.m31, 8.0f) && NearlyEqual(item.world.m32, -2.0f), "sprite must use world transform");
             Check(NearlyEqual(item.size.x, -2.0f) && NearlyEqual(item.size.y, -3.0f), "both flips must affect signed size");
+            // 라이브러리가 없어 스프라이트가 풀리지 않았다. `FromSprite`(기본)여도 저작 값이다(D-117).
+            Check(sprite->sizeMode == JBro::Component::SpriteSizeMode::FromSprite
+                && NearlyEqual(item.pivot.x, 0.1f) && NearlyEqual(item.pivot.y, 0.8f),
+                "an unresolved sprite keeps its authored size and pivot");
             Check(item.renderOrder == -4 && world.GetSpriteCapacity() == capacity, "extraction must preserve order and reuse storage");
             // 라이브러리가 없으면 스프라이트 에셋은 풀리지 않는다 - 텍스처는 비고(흰색) UV 는 전체다(D-113).
             Check(item.texture.generation == 0
