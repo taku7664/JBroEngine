@@ -1,5 +1,6 @@
 ﻿#include <JBro/Editor/EditorApplication.h>
 
+#include <JBro/Asset/Asset.h>
 #include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/AssetTypes/AssetTypesReflection.h>
@@ -2631,6 +2632,21 @@ namespace
 
         const JBro::AssetRecord* hero = editor.GetAssetRegistry().FindByPath("art/hero.png");
         Check(hero != nullptr && hero->type == JBro::AssetType::Texture, "the scan must have registered art/hero.png");
+        // 짝 스프라이트를 로드해 둔다. 메타를 고치면 로드된 것이 그 자리에서 다시 읽혀야 한다(asset-plan §2.7).
+        JBro::AssetId heroSprite;
+        for (std::size_t index = 0; index < editor.GetAssetRegistry().GetCount(); ++index)
+        {
+            const JBro::AssetRecord& record = editor.GetAssetRegistry().GetRecord(index);
+            if (record.type == JBro::AssetType::Sprite && record.owner == hero->id)
+            {
+                heroSprite = record.id;
+            }
+        }
+        JBro::AssetSystem* assetSystem = editor.GetAssetSystem();
+        Check(assetSystem != nullptr && false == heroSprite.IsNull(), "the image has a sprite record and an asset system");
+        const JBro::AssetHandle loadedSprite = assetSystem->Load(heroSprite);
+        Check(loadedSprite.generation != 0 && assetSystem->GetSprite(loadedSprite)->options.pixelsPerUnit == 100.0f,
+            "the sprite loads with the default pixels per unit");
         Check(editor.FindPanel("Assets") != nullptr, "the asset browser is a default panel");
 
         // 에셋 패널은 통계 패널과 같은 아래쪽 독의 탭이다. 앞에 있지 않으면 탭을 눌러 꺼낸다.
@@ -2717,12 +2733,18 @@ namespace
         Check(editor.GetSelectedAssetMeta() != nullptr && editor.GetSelectedAssetMeta()->hasSpriteOptions
                 && editor.GetSelectedAssetMeta()->spriteOptions.pixelsPerUnit == rewritten.spriteOptions.pixelsPerUnit,
             "the inspector's copy follows the disk");
+        Check(assetSystem->GetSprite(loadedSprite) != nullptr
+                && assetSystem->GetSprite(loadedSprite)->options.pixelsPerUnit == rewritten.spriteOptions.pixelsPerUnit,
+            "and the loaded sprite was reloaded in place with the new options");
 
         Check(editor.GetCommands().Undo(), "undo must run");
         Check(editor.Tick(Frame), "the editor must tick after undo");
         Check(readMeta() == metaBefore, "undo puts the original meta text back");
         Check(editor.GetSelectedAssetMeta() != nullptr && false == editor.GetSelectedAssetMeta()->hasSpriteOptions,
             "and the inspector's copy follows");
+        Check(assetSystem->GetSprite(loadedSprite)->options.pixelsPerUnit == 100.0f,
+            "and so does the loaded sprite");
+        assetSystem->Release(loadedSprite);
 
         // 오브젝트를 고르면 에셋 선택은 빈다.
         JBro::Canvas* canvas = editor.GetCanvas();
