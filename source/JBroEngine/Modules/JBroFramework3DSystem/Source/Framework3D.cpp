@@ -4,10 +4,13 @@
 
 #include <JBro/Framework3DSystem/BuiltinComponentTypes3D.h>
 #include <JBro/Framework3D/BuiltinComponentProperties3D.h>
+#include <JBro/Asset/Asset.h>
+#include <JBro/Canvas/CanvasReflection.h>
 #include <JBro/Graphics/Renderer.h>
 
 #include <cmath>
 #include <new>
+#include <utility>
 
 namespace JBro
 {
@@ -97,8 +100,35 @@ namespace JBro
         return Internal::SubmitRenderWorld3D(m_renderWorld, *m_context.renderer);
     }
 
+    namespace
+    {
+        void BindComponentAssetsVisitor(const PropertyTable& table, ComponentBase& component, void* user)
+        {
+            auto* binding = static_cast<std::pair<AssetSystem*, Array<AssetHandle>*>*>(user);
+            binding->first->BindComponentAssets(table, &component, *binding->second);
+        }
+    }
+
+    void Framework3D::BindCanvasAssets()
+    {
+        if (m_context.assets == nullptr || m_canvas.Get() == nullptr)
+        {
+            return;
+        }
+        m_context.assets->ReleaseAll(m_canvasAssets);
+        std::pair<AssetSystem*, Array<AssetHandle>*> binding(m_context.assets, &m_canvasAssets);
+        ForEachReflectedComponent(*m_canvas, &BindComponentAssetsVisitor, &binding);
+        m_context.assets->CollectUnused();
+    }
+
     void Framework3D::Shutdown()
     {
+        // 캔버스가 잡던 에셋을 놓는다. 에셋 시스템은 호스트가 프레임워크 뒤에 내리므로 아직 살아 있다.
+        if (m_context.assets != nullptr)
+        {
+            m_context.assets->ReleaseAll(m_canvasAssets);
+        }
+        m_canvasAssets.Clear();
         m_canvas.Reset();
         m_meshes.Shutdown();
         m_renderWorld = {};

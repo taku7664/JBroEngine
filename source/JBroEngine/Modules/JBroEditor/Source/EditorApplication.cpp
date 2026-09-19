@@ -13,10 +13,8 @@
 #include <JBro/Framework3DSystem/Framework3D.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Host/EngineInstance.h>
-#include <JBro/Asset/Asset.h>
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/CanvasFile.h>
-#include <JBro/Reflection/PropertyRegistry.h>
 #include <JBro/Runtime/GameObject.h>
 
 #include "Panel/GameViewPanel.h"
@@ -283,35 +281,9 @@ namespace JBro
             return false;
         }
         m_canvasPath = path;
-        BindCanvasAssets();
+        // 해석 패스는 프레임워크의 것이다(D-115). 게임 호스트도 같은 것을 부른다.
+        m_framework->BindCanvasAssets();
         return true;
-    }
-
-    void EditorApplication::BindCanvasAssets()
-    {
-        // 해석 패스다(asset-plan §2.6). 저장되는 것은 아이디고 핸들은 이번 실행의 자리라, 캔버스를 읽은 뒤 한 번 돌아
-        // 컴포넌트의 `xxxId` 마다 로드해 `xxx` 를 채운다. 앞 캔버스가 잡던 것은 놓는다.
-        AssetSystem* assets = m_engine ? m_engine->GetAssetSystem() : nullptr;
-        Canvas* canvas = GetCanvas();
-        if (assets == nullptr || canvas == nullptr)
-        {
-            return;
-        }
-        assets->ReleaseAll(m_canvasAssets);
-        canvas->ForEachObject([assets, this](GameObject& object)
-        {
-            for (const ComponentSlot& slot : object.GetComponents())
-            {
-                ComponentBase* component = slot.reference.TryGet();
-                const PropertyTable* table = PropertyRegistry::Lookup(slot.typeId);
-                if (component == nullptr || table == nullptr)
-                {
-                    continue;
-                }
-                assets->BindComponentAssets(*table, component, m_canvasAssets);
-            }
-        });
-        assets->CollectUnused();
     }
 
     bool EditorApplication::SaveCanvas(const char* path, CanvasFileError& error)
@@ -1364,12 +1336,6 @@ namespace JBro
         m_saveRequested = false;
         // 클립보드의 번호는 이 프로젝트의 것이다. 다음 프로젝트에서 그 번호를 믿지 않도록 비운다.
         m_clipboard.Clear();
-        // 캔버스가 잡던 에셋도 이 프로젝트의 것이다. 시스템은 곧 내려가지만 목록은 여기서 비운다.
-        if (AssetSystem* assets = m_engine->GetAssetSystem())
-        {
-            assets->ReleaseAll(m_canvasAssets);
-        }
-        m_canvasAssets.Clear();
         m_engine->CloseProject();
         m_lastFrameStatus = m_engine->GetLastFrameStatus();
         if (m_engine->GetFramework() == nullptr)

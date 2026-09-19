@@ -226,8 +226,6 @@ namespace JBro
         bool CreateSelectedFramework(FrameworkKind framework);
         void DestroySelectedFramework();
         void ReleaseProcessResources();
-        // 캔버스를 읽은 뒤 컴포넌트의 에셋 아이디를 핸들로 푼다(asset-plan §2.6).
-        void BindCanvasAssets();
 
         OwnerPtr<IPlatform> m_platform;
         OwnerPtr<IRHIModule> m_rhiModule;
@@ -263,8 +261,7 @@ namespace JBro
         FrameworkKind m_frameworkKind = FrameworkKind::Framework2D;
         // 상대경로를 풀 기준이다. 파일로 열었을 때만 채워진다.
         String m_projectFilePath;
-        // 열린 캔버스가 잡은 에셋 핸들이다. 다음 캔버스를 읽을 때와 프로젝트를 닫을 때 놓는다.
-        Array<AssetHandle> m_canvasAssets;
+
         GraphicsApi m_graphicsApi = GraphicsApi::D3D12;
         FrameStatus m_lastFrameStatus = FrameStatus::InvalidState;
         bool m_initialized = false;

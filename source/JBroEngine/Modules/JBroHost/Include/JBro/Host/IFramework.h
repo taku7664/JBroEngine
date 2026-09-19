@@ -49,5 +49,11 @@ namespace JBro
         // Host opens/closes the Renderer frame. Framework submits its views and packets only.
         virtual RenderResult Render() = 0;
         virtual void Shutdown() = 0;
+        // 캔버스의 컴포넌트가 든 에셋 아이디(`xxxId`)를 이번 실행의 핸들(`xxx`)로 푼다(asset-plan §2.6, D-115). 캔버스를
+        // 읽은 뒤와 편집 뒤에 호스트·에디터가 부른다. 앞서 잡은 것은 놓고, 참조 수가 0 이 된 에셋은 내린다.
+        // 캔버스나 에셋 시스템이 없는 프레임워크(테스트의 가짜)는 아무것도 하지 않는다.
+        virtual void BindCanvasAssets()
+        {
+        }
     };
 }

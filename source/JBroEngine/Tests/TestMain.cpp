@@ -24,6 +24,7 @@ int RunUuidTests();
 int RunAssetRegistryTests();
 int RunAssetSystemTests();
 int RunSpriteLibraryTests();
+int RunGameHostArgumentTests();
 int RunPlatformFileTests();
 int RunReflectedYamlTests();
 int RunCanvasFileTests();
@@ -268,6 +269,10 @@ int main()
             return 1;
         }
         if (RunSpriteLibraryTests() != 0)
+        {
+            return 1;
+        }
+        if (RunGameHostArgumentTests() != 0)
         {
             return 1;
         }

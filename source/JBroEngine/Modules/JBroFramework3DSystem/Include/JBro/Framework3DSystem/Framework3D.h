@@ -26,6 +26,7 @@ namespace JBro
         void Update(float deltaTime) override;
         RenderResult Render() override;
         void Shutdown() override;
+        void BindCanvasAssets() override;
 
         Canvas* GetCanvas();
         RenderWorld3D* GetRenderWorld();
@@ -37,6 +38,8 @@ namespace JBro
 
         FrameworkContext m_context;
         OwnerPtr<Canvas> m_canvas;
+        // 열린 캔버스가 잡은 에셋 핸들이다. 다음 해석과 종료 때 놓는다(D-115).
+        Array<AssetHandle> m_canvasAssets;
         RenderWorld3D m_renderWorld;
         MeshLibrary m_meshes;
         double m_fixedAccumulator = 0.0;

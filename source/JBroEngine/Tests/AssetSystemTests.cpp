@@ -3,8 +3,11 @@
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Asset/ImageDecoder.h>
 #include <JBro/Asset/SpriteFrames.h>
+#include <JBro/Canvas/Canvas.h>
 #include <JBro/Framework2D/BuiltinComponentProperties2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
+#include <JBro/Framework2DSystem/Framework2D.h>
+#include <JBro/Host/IFramework.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Reflection/PropertyRegistry.h>
 
@@ -326,8 +329,53 @@ namespace
     }
 }
 
+namespace
+{
+    // **프레임워크가 캔버스의 에셋을 푼다(D-115).** 에디터와 게임 호스트가 같은 것을 부른다. 다시 풀면 앞 것을 놓고,
+    // 종료하면 전부 놓아 수집할 수 있다.
+    void TestTheFrameworkBindsItsCanvasAssets()
+    {
+        Fixture fixture;
+        fixture.Open();
+        JBro::Framework2D framework;
+        JBro::FrameworkContext context;
+        context.memory = fixture.memory;
+        context.assets = &fixture.assets;
+        Check(framework.Initialize(context), "a framework without a renderer initializes");
+        JBro::Canvas* canvas = framework.GetCanvas();
+        JBro::GameObject* object = canvas->CreateObject("hero");
+        auto* sprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(object);
+        sprite->spriteId = fixture.spriteId;
+        JBro::GameObject* other = canvas->CreateObject("ghost");
+        auto* missing = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(other);
+        missing->spriteId = JBro::Uuid::FromName("nobody");
+        missing->sprite = JBro::AssetHandle{3, 3};
+
+        framework.BindCanvasAssets();
+        Check(sprite->sprite.generation != 0 && fixture.assets.GetSprite(sprite->sprite) != nullptr, "the sprite is resolved");
+        Check(fixture.assets.GetReferenceCount(sprite->sprite) == 1, "and held once");
+        Check(missing->sprite.generation == 0, "an id nobody knows clears the stale handle");
+        Check(fixture.assets.GetLoadedCount() == 2, "the sprite and its texture are loaded");
+
+        const JBro::AssetHandle first = sprite->sprite;
+        framework.BindCanvasAssets();
+        Check(sprite->sprite.generation == first.generation && fixture.assets.GetReferenceCount(first) == 1,
+            "binding again releases the previous hold, so the count stays one");
+
+        JBro::IFramework& abstract = framework;
+        abstract.BindCanvasAssets();
+        Check(fixture.assets.GetReferenceCount(first) == 1, "the same through the host's interface");
+
+        framework.Shutdown();
+        Check(fixture.assets.GetReferenceCount(first) == 0, "shutting down releases the hold");
+        Check(fixture.assets.CollectUnused() == 2, "so the sprite and its texture can be collected");
+        fixture.Close();
+    }
+}
+
 int RunAssetSystemTests()
 {
+    TestTheFrameworkBindsItsCanvasAssets();
     TestTheDecoderReadsPngAndRefusesGarbage();
     TestSpriteFramesFollowTheImportOptions();
     TestLoadReleaseAndCollect();
