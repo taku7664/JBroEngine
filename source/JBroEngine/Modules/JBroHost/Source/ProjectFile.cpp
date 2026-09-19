@@ -78,6 +78,21 @@ namespace JBro
             return true;
         }
 
+        bool ParseTextureFilter(const String& value, TextureFilter& result)
+        {
+            if (value == "Nearest")
+            {
+                result = TextureFilter::Nearest;
+                return true;
+            }
+            if (value == "Linear")
+            {
+                result = TextureFilter::Linear;
+                return true;
+            }
+            return false;
+        }
+
         bool ParseBool(const String& value, bool& result)
         {
             if (value == "true")
@@ -355,6 +370,7 @@ namespace JBro
             else if (key == "RootPath") { parsed.rootPath = value; }
             else if (key == "ResolutionWidth") { recognized = ParseUInt(value, parsed.resolutionWidth); }
             else if (key == "ResolutionHeight") { recognized = ParseUInt(value, parsed.resolutionHeight); }
+            else if (key == "TextureFilter") { recognized = ParseTextureFilter(value, parsed.textureFilter); }
             else if (key == "DebugModeEnabled") { recognized = ParseBool(value, parsed.debugModeEnabled); }
             else if (key == "ScriptSourceDirectory") { parsed.scriptSourceDirectory = value; }
             else if (key == "ScriptOutputLibraryPath") { parsed.scriptOutputLibraryPath = value; }

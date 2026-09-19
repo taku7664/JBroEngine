@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/String.h>
 
@@ -70,6 +71,9 @@ namespace JBro
         String        rootPath = ".";
         std::uint32_t resolutionWidth = 1920;
         std::uint32_t resolutionHeight = 1080;
+        // 텍스처 샘플링의 프로젝트 기본(`TextureFilter: Nearest|Linear`, D-117). 텍스처의 임포트 옵션이 덮어쓴다.
+        // 2D 픽셀 아트가 기본 대상이라 `Nearest` 다. `Default` 는 파일에 적을 수 없다.
+        TextureFilter textureFilter = TextureFilter::Nearest;
         bool          debugModeEnabled = false;
         // 에디터가 스크립트를 빌드해 내놓는 자리다. 프로젝트 루트 기준 상대경로다.
         String        scriptSourceDirectory = "Contents";

@@ -38,6 +38,7 @@ namespace
         "ResolutionHeight: 800\n"
         "CanvasViewCamX: 2.0111556\n"
         "PixelsPerUnit: 100\n"
+        "TextureFilter: Linear\n"
         "DefaultFontFamilyGuid: \"\"\n"
         "FallbackFontFamilies:\n"
         "  []\n"
@@ -94,6 +95,15 @@ namespace
         Check(project.resolutionWidth == 600 && project.resolutionHeight == 800,
             "the resolution must come through");
         // `PixelsPerUnit` 은 D-117 로 프로젝트에서 빠졌다. 옛 파일에 남은 키는 모르는 키로 건너뛴다.
+        Check(project.textureFilter == JBro::TextureFilter::Linear, "the texture filter must come through");
+        // 프로젝트 기본에 `Default` 나 모르는 이름은 없다.
+        JBro::ProjectFile refused;
+        JBro::String bad(RequiredKeys);
+        bad.append("TextureFilter: Default\n");
+        Check(false == Parse(bad.c_str(), refused, error), "Default is not a project texture filter");
+        JBro::String none(RequiredKeys);
+        Check(Parse(none.c_str(), refused, error) && refused.textureFilter == JBro::TextureFilter::Nearest,
+            "a project that says nothing samples nearest");
         Check(project.debugModeEnabled == false, "a false flag must stay false");
         Check(project.scriptSourceDirectory == "Contents", "the script source directory must come through");
         Check(project.assetDirectory == "Contents/Art", "the asset directory must come through");

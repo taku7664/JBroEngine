@@ -3,7 +3,9 @@
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Core/Core.h>
+#include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
+#include <JBro/Framework2DSystem/Framework2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2DSystem/Rendering/RenderWorld2D.h>
 #include <JBro/Framework2DSystem/System/SpriteRender2DSystem.h>
@@ -94,20 +96,23 @@ namespace
         fs::remove_all(root);
         WriteBytes(root / "a.png", TinyPng, sizeof(TinyPng));
         WriteBytes(root / "b.png", TinyPng, sizeof(TinyPng));
+        WriteBytes(root / "c.png", TinyPng, sizeof(TinyPng));
         JBro::AssetRegistry registry;
         JBro::AssetScanOptions options;
         options.createMissingMeta = true;
         JBro::AssetScanReport report;
-        Check(registry.Scan(platform, Utf8(root).c_str(), options, report) && report.registered == 4, "two images scan");
+        Check(registry.Scan(platform, Utf8(root).c_str(), options, report) && report.registered == 6, "three images scan");
         JBro::AssetId spriteA;
         JBro::AssetId spriteB;
+        JBro::AssetId spriteC;
         const JBro::AssetId textureA = registry.FindByPath("a.png")->id;
+        const JBro::AssetId textureC = registry.FindByPath("c.png")->id;
         for (std::size_t index = 0; index < registry.GetCount(); ++index)
         {
             const JBro::AssetRecord& record = registry.GetRecord(index);
             if (record.type == JBro::AssetType::Sprite)
             {
-                (record.owner == textureA ? spriteA : spriteB) = record.id;
+                (record.owner == textureA ? spriteA : record.owner == textureC ? spriteC : spriteB) = record.id;
             }
         }
         JBro::AssetSystem assets;
@@ -141,6 +146,23 @@ namespace
         Check(library.Resolve(handleB, 0, textureB, uv) && false == SameHandle(textureB, texture)
                 && renderer.GetTextureCount() == 2,
             "a second image is a second texture");
+        // 칸이 정사각형이 아니어도 너비와 높이가 따로 간다: 2x2 를 두 줄 한 칸으로 자르면 2x1 픽셀, PPU 2 로 1 x 0.5 유닛.
+        {
+            const JBro::String metaB = Utf8(root / "b.png.jmeta");
+            JBro::AssetMetaFile metaFileB;
+            JBro::AssetMetaError rowError;
+            Check(JBro::LoadAssetMetaFile(platform, metaB.c_str(), metaFileB, rowError), "b's meta loads");
+            JBro::String rows = JBro::FormatAssetMetaFile(metaFileB);
+            rows.append("  ImportOptions:\n    sliceType: CellCount\n    rowCount: 2\n    columnCount: 1\n    pixelsPerUnit: 2\n");
+            JBro::JArrayView<std::byte> rowBytes;
+            rowBytes.data = reinterpret_cast<const std::byte*>(rows.data());
+            rowBytes.size = static_cast<std::uint32_t>(rows.size());
+            Check(platform.WriteWholeFile(metaB.c_str(), rowBytes), "b's meta with two rows saves");
+            Check(assets.ReloadInPlace(spriteB), "b reloads in place");
+            JBro::SpriteFrameView wide;
+            Check(library.Resolve(handleB, 1, textureB, uv, &wide) && wide.widthUnits == 1.0f && wide.heightUnits == 0.5f,
+                "a 2x1 cell at 2 pixels per unit is one unit wide and half a unit tall");
+        }
 
         // 시트 옵션을 적어 넣고 in-place 재로드하면 칸이 풀린다. 텍스처는 그대로다.
         JBro::AssetMetaFile meta;
@@ -200,6 +222,8 @@ namespace
             const JBro::SpriteRenderItem unresolved = extract();
             Check(unresolved.size.x == 7.0f && unresolved.pivot.x == 0.25f,
                 "an unresolved sprite falls back to the authored values even in FromSprite");
+            Check(fromSprite.filter == JBro::TextureFilter::Nearest && unresolved.filter == JBro::TextureFilter::Nearest,
+                "a texture that says nothing samples nearest, and so does an unresolved sprite");
         }
 
         // 텍스처의 in-place 재로드는 같은 렌더러 핸들에 다시 올린다.
@@ -215,6 +239,73 @@ namespace
         JBro::AssetHandle fresh;
         Check(library.Resolve(reloaded, 0, fresh, uv) && false == SameHandle(fresh, texture) && renderer.GetTextureCount() == 2,
             "the slot's old upload is replaced, not leaked");
+
+        // **메타의 샘플러가 화면까지 간다**(D-117). 프레임워크 전체를 세워 c.png(PPU 100 → 0.02 유닛이라 메타로 PPU 2 를
+        // 준다)를 1x1 유닛으로 그린다. 카메라 반높이 1 → 64 픽셀이 2 유닛, 스프라이트는 (16..48) 픽셀이고 텍셀 경계가
+        // x = 32 다. Nearest 는 경계 오른쪽이 순수한 초록이고, Linear 는 빨강과 섞인다.
+        {
+            const JBro::String metaC = Utf8(root / "c.png.jmeta");
+            JBro::AssetMetaFile metaFile;
+            Check(JBro::LoadAssetMetaFile(platform, metaC.c_str(), metaFile, error), "c's meta loads");
+            JBro::String sheet = JBro::FormatAssetMetaFile(metaFile);
+            sheet.append("  ImportOptions:\n    pixelsPerUnit: 2\n");
+            bytes.data = reinterpret_cast<const std::byte*>(sheet.data());
+            bytes.size = static_cast<std::uint32_t>(sheet.size());
+            Check(platform.WriteWholeFile(metaC.c_str(), bytes), "c's meta with a PPU saves");
+
+            JBro::Framework2D framework;
+            JBro::FrameworkContext context;
+            context.memory = memory;
+            context.assets = &assets;
+            context.renderer = &renderer;
+            Check(framework.Initialize(context), "the framework initializes with assets and a renderer");
+            JBro::Canvas* canvas = framework.GetCanvas();
+            JBro::GameObject* cameraObject = canvas->CreateObject("camera");
+            canvas->AttachComponent<JBro::Component::Transform2D>(cameraObject);
+            auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(cameraObject);
+            camera->primary = true;
+            camera->orthographicSize = 1.0f;
+            camera->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+            JBro::GameObject* heroObject = canvas->CreateObject("hero");
+            canvas->AttachComponent<JBro::Component::Transform2D>(heroObject);
+            auto* hero = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(heroObject);
+            hero->spriteId = spriteC;
+            framework.BindCanvasAssets();
+            Check(hero->sprite.generation != 0, "the hero's sprite resolves");
+
+            JBro::Array<std::byte> image;
+            image.Resize(64 * 64 * 4);
+            JBro::TextureReadback readback;
+            const auto paint = [&](std::uint32_t x, std::uint32_t y, float& r, float& g, float& b) {
+                framework.Update(1.0f / 60.0f);
+                Check(renderer.BeginFrame() == JBro::FrameStatus::Ready, "the framework frame must begin");
+                Check(framework.Render() == JBro::RenderResult::Submitted, "the framework must submit the hero");
+                Check(renderer.EndFrame() == JBro::FrameStatus::Ready, "the framework frame must present");
+                Check(renderer.ReadBackBuffer(image.Data(), image.Size(), readback), "the framework frame reads back");
+                const auto* px = reinterpret_cast<const unsigned char*>(
+                    image.Data() + static_cast<std::size_t>(y) * readback.rowPitch + static_cast<std::size_t>(x) * 4);
+                b = px[0] / 255.0f;
+                g = px[1] / 255.0f;
+                r = px[2] / 255.0f;
+            };
+            float r = 0.0f;
+            float g = 0.0f;
+            float b = 0.0f;
+            paint(32, 24, r, g, b);
+            Check(r < 0.05f && g > 0.95f, "with the project's Nearest the seam pixel is pure green");
+            paint(8, 8, r, g, b);
+            Check(r < 0.05f && g < 0.05f && b < 0.05f, "and outside the one-unit sprite is the clear colour");
+
+            JBro::String smooth = JBro::FormatAssetMetaFile(metaFile);
+            smooth.append("  ImportOptions:\n    pixelsPerUnit: 2\nTexture:\n  ImportOptions:\n    filter: Linear\n");
+            bytes.data = reinterpret_cast<const std::byte*>(smooth.data());
+            bytes.size = static_cast<std::uint32_t>(smooth.size());
+            Check(platform.WriteWholeFile(metaC.c_str(), bytes), "c's meta with Linear saves");
+            Check(assets.ReloadInPlace(textureC), "c's texture reloads in place");
+            paint(32, 24, r, g, b);
+            Check(r > 0.3f && r < 0.7f && g > 0.3f && g < 0.7f, "with the texture's Linear the seam pixel blends red and green");
+            framework.Shutdown();
+        }
 
         library.Shutdown();
         Check(renderer.GetTextureCount() == 0, "shutting the library down returns every texture");

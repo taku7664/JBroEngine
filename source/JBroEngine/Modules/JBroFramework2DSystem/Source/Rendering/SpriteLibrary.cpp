@@ -131,6 +131,7 @@ namespace JBro
             frameView->heightUnits = static_cast<float>(frame.height) / pixelsPerUnit;
             frameView->pivotX = frame.pivotX;
             frameView->pivotY = frame.pivotY;
+            frameView->filter = texture->filter;
         }
         return true;
     }

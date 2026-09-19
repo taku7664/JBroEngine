@@ -567,6 +567,22 @@ namespace
         Check(renderer.ReadBackBuffer(image.Data(), image.Size(), readback), "the second frame reads back");
         const Pixel magenta = ReadPixel(image, readback.rowPitch, 32, 32);
         Check(Near(magenta.r, 1.0f) && Near(magenta.g, 0.0f) && Near(magenta.b, 1.0f), "and drawn as white times the tint");
+
+        // 세 번째 프레임: 같은 텍스처를 Linear 로. 텍셀 경계(x = 16)에서 빨강과 초록이 섞인다 - Nearest 는 순색이었다.
+        const JBro::AssetHandle again = renderer.RegisterTexture({2, 2}, {texels, 16});
+        Check(again.generation != 0, "the texture registers again");
+        JBro::SpriteSubmit smooth = textured;
+        smooth.texture = again;
+        smooth.filter = JBro::SpriteFilter::Linear;
+        Check(renderer.BeginFrame() == JBro::FrameStatus::Ready, "the third frame must begin");
+        Check(renderer.BeginView(camera) && renderer.SubmitSprite(smooth) && renderer.EndView(), "the smooth sprite submits");
+        Check(renderer.EndFrame() == JBro::FrameStatus::Ready, "the third frame must present");
+        Check(renderer.ReadBackBuffer(image.Data(), image.Size(), readback), "the third frame reads back");
+        const Pixel seam = ReadPixel(image, readback.rowPitch, 16, 16);
+        Check(seam.r > 0.3f && seam.r < 0.7f && seam.g > 0.3f && seam.g < 0.7f && seam.b < 0.1f,
+            "Linear blends red and green at the texel seam");
+        const Pixel inside = ReadPixel(image, readback.rowPitch, 8, 16);
+        Check(inside.r > 0.9f && inside.g < 0.1f, "and stays red away from it");
         Check(renderer.GetDevice()->GetValidationErrorCount() == 0, "the debug layer accepted every frame");
 
         renderer.Shutdown();

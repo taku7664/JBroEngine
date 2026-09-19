@@ -173,43 +173,80 @@ namespace JBro
         data.width = image.width;
         data.height = image.height;
         data.pixels = std::move(image.pixels);
+        if (false == ReadTextureOptions(record, data.options))
+        {
+            return false;
+        }
+        // 프로젝트 기본은 여기서 한 번 적용한다(D-117). 그리는 쪽이 매번 프로젝트를 묻지 않게.
+        data.filter = data.options.filter == TextureFilter::Default ? m_defaultTextureFilter : data.options.filter;
         return true;
+    }
+
+    namespace
+    {
+        // 메타의 `<section>.ImportOptions` 블록을 리플렉션 표로 읽는다. 블록이 없으면 `options` 를 두고 참이다.
+        // 있으면 전부 읽혀야 한다 - 읽히지 않는 값(모르는 키, 틀린 enum 이름)은 실패다.
+        bool ReadImportOptionsBlock(IPlatform& platform, const String& metaPath, const char* section,
+            const TypeDescriptor& descriptor, void* options)
+        {
+            Array<std::byte> text;
+            if (false == platform.ReadWholeFile(metaPath.c_str(), text))
+            {
+                return false;
+            }
+            YamlDocument document;
+            YamlError yamlError;
+            if (false == document.Parse(reinterpret_cast<const char*>(text.Data()), text.Size(), yamlError))
+            {
+                return false;
+            }
+            const std::uint32_t owner = document.Find(document.GetRoot(), section);
+            if (owner == YamlDocument::InvalidNode)
+            {
+                return true;
+            }
+            const std::uint32_t block = document.Find(owner, "ImportOptions");
+            if (block == YamlDocument::InvalidNode)
+            {
+                return true;
+            }
+            ReflectedYamlError error;
+            return ReadReflectedValue(document, block, descriptor, options, error);
+        }
     }
 
     bool AssetSystem::ReadSpriteOptions(const AssetRecord& record, SpriteImportOptions& options)
     {
-        // 메타에 `Sprite.ImportOptions` 가 없으면 기본값이다. 있으면 전부 읽혀야 한다 - 읽히지 않는 값은 실패다.
-        Array<std::byte> text;
-        if (false == m_platform->ReadWholeFile(MetaPathOf(record).c_str(), text))
-        {
-            return false;
-        }
-        YamlDocument document;
-        YamlError yamlError;
-        if (false == document.Parse(reinterpret_cast<const char*>(text.Data()), text.Size(), yamlError))
-        {
-            return false;
-        }
-        const std::uint32_t sprite = document.Find(document.GetRoot(), "Sprite");
-        if (sprite == YamlDocument::InvalidNode)
-        {
-            options = SpriteImportOptions{};
-            return true;
-        }
-        const std::uint32_t block = document.Find(sprite, "ImportOptions");
-        if (block == YamlDocument::InvalidNode)
-        {
-            options = SpriteImportOptions{};
-            return true;
-        }
         SpriteImportOptions read;
-        ReflectedYamlError error;
-        if (false == ReadReflectedValue(document, block, TypeDescriptorOf<SpriteImportOptions>::Get(), &read, error))
+        if (false == ReadImportOptionsBlock(*m_platform, MetaPathOf(record), "Sprite",
+                TypeDescriptorOf<SpriteImportOptions>::Get(), &read))
         {
             return false;
         }
         options = read;
         return true;
+    }
+
+    bool AssetSystem::ReadTextureOptions(const AssetRecord& record, TextureImportOptions& options)
+    {
+        TextureImportOptions read;
+        if (false == ReadImportOptionsBlock(*m_platform, MetaPathOf(record), "Texture",
+                TypeDescriptorOf<TextureImportOptions>::Get(), &read))
+        {
+            return false;
+        }
+        options = read;
+        return true;
+    }
+
+    void AssetSystem::SetDefaultTextureFilter(TextureFilter filter)
+    {
+        m_defaultTextureFilter = filter == TextureFilter::Default ? TextureFilter::Nearest : filter;
+    }
+
+    TextureFilter AssetSystem::GetDefaultTextureFilter() const
+    {
+        return m_defaultTextureFilter;
     }
 
     bool AssetSystem::BuildSprite(const AssetRecord& record, SpriteData& data)

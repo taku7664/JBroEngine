@@ -34,6 +34,8 @@ namespace JBro
         // 텍스처가 비어 있으면 흰색이라 틴트만 보인다.
         AssetHandle   texture;
         float         uvRect[4] = { 0.0f, 0.0f, 1.0f, 1.0f };
+        // 텍스처의 샘플러다(D-117). 텍스처가 없으면 뜻이 없다.
+        TextureFilter filter = TextureFilter::Nearest;
         AssetHandle   material;
         Color         tint{ 1.0f, 1.0f, 1.0f, 1.0f };
         Vec2          pivot;

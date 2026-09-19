@@ -23,6 +23,8 @@ namespace JBro
         float heightUnits = 0.0f;
         float pivotX = 0.5f;
         float pivotY = 0.5f;
+        // 텍스처의 유효 샘플러다(프로젝트 기본이 이미 적용된 값, D-117). `Default` 는 오지 않는다.
+        TextureFilter filter = TextureFilter::Nearest;
     };
 
     // 0 이하로 적힌 PPU 는 이 값으로 본다.

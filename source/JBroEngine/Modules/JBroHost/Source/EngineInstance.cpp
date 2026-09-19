@@ -132,6 +132,8 @@ namespace JBro
             m_assetRegistry.Clear();
             m_assetScanReport = {};
         }
+        // 프로젝트 기본 샘플러는 로드 때 적용되므로 잇기 전에 정한다(D-117).
+        m_assets->SetDefaultTextureFilter(project.textureFilter);
         m_assets->Bind(*m_platform, m_assetRegistry, assetRoot.c_str());
         return true;
     }

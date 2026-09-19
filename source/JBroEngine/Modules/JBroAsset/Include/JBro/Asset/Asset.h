@@ -23,6 +23,10 @@ namespace JBro
         std::uint32_t height = 0;
         Array<std::byte> pixels;
         std::uint32_t pixelGeneration = 1;
+        // 메타에 적힌 그대로다.
+        TextureImportOptions options;
+        // 프로젝트 기본을 적용한 값이다(D-117). `Default` 는 여기 오지 않는다 - 그리는 쪽은 이것만 본다.
+        TextureFilter filter = TextureFilter::Nearest;
     };
 
     // 로드된 스프라이트다. 자기 텍스처를 참조 수로 잡고 있다.
@@ -49,6 +53,11 @@ namespace JBro
         void Bind(IPlatform& platform, const AssetRegistry& registry, const char* assetRoot);
         void Unbind();
         bool IsBound() const;
+
+        // 프로젝트의 `TextureFilter` 다(D-117). 임포트 옵션이 `Default` 인 텍스처가 이것을 받는다. 로드·재로드 때
+        // 적용되므로 프로젝트를 열 때(`Bind` 전에) 정한다. `Default` 를 주면 `Nearest` 로 본다.
+        void SetDefaultTextureFilter(TextureFilter filter);
+        TextureFilter GetDefaultTextureFilter() const;
 
         // 로드돼 있으면 참조 수만 올리고 같은 핸들을 준다. 레지스트리에 없거나 이 판이 아직 싣지 못하는 타입
         // (Mesh·Material·Shader·Canvas·...)이거나 읽기·디코드가 실패하면 빈 핸들이다.
@@ -109,11 +118,13 @@ namespace JBro
 
         bool ReadTexture(const AssetRecord& record, TextureData& data);
         bool ReadSpriteOptions(const AssetRecord& record, SpriteImportOptions& options);
+        bool ReadTextureOptions(const AssetRecord& record, TextureImportOptions& options);
         bool BuildSprite(const AssetRecord& record, SpriteData& data);
         String MetaPathOf(const AssetRecord& record) const;
         String SourcePathOf(const AssetRecord& record) const;
 
         IPlatform* m_platform = nullptr;
+        TextureFilter m_defaultTextureFilter = TextureFilter::Nearest;
         const AssetRegistry* m_registry = nullptr;
         String m_assetRoot;
         Pool<TextureData> m_textures;

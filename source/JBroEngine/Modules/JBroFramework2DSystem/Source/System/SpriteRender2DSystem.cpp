@@ -63,6 +63,7 @@ namespace JBro::System
                 item.uvRect[2] = 1.0f;
                 item.uvRect[3] = 1.0f;
             }
+            item.filter = resolved ? frame.filter : TextureFilter::Nearest;
             item.material = sprite.material;
             item.tint = sprite.tint;
             // 크기와 피벗은 에셋이 정한다(D-117). 풀리지 않은 스프라이트와 `Custom` 만 저작 값이다.

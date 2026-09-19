@@ -71,6 +71,21 @@ namespace JBro
         float pixelsPerUnit = 100.0f;
     };
 
+    // 텍스처를 어떻게 샘플링하는가(D-117). `Nearest` 는 텍셀 그대로(픽셀 아트), `Linear` 는 이웃과 섞는다.
+    // `Default` 는 프로젝트의 `TextureFilter` 를 따른다 - 텍스처의 임포트 옵션에서만 뜻이 있다.
+    enum class TextureFilter : std::uint8_t
+    {
+        Default,
+        Nearest,
+        Linear
+    };
+
+    // 텍스처 임포트 옵션이다. `.jmeta` 의 `Texture.ImportOptions` 로 저장된다(D-117).
+    struct TextureImportOptions
+    {
+        TextureFilter filter = TextureFilter::Default;
+    };
+
     // 시트의 한 칸이다. 픽셀 좌표는 왼쪽 위가 원점이다.
     struct SpriteFrame
     {

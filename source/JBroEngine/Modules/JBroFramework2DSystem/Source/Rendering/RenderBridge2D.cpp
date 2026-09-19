@@ -80,6 +80,8 @@ namespace JBro::Internal
             result.uvRect[1] = source.uvRect[1];
             result.uvRect[2] = source.uvRect[2];
             result.uvRect[3] = source.uvRect[3];
+            // 에셋의 `TextureFilter` 가 렌더러의 `SpriteFilter` 로 간다(D-117). `Default` 는 라이브러리가 이미 풀었다.
+            result.filter = source.filter == TextureFilter::Linear ? SpriteFilter::Linear : SpriteFilter::Nearest;
             result.material = source.material;
             result.tint[0] = source.tint.R;
             result.tint[1] = source.tint.G;

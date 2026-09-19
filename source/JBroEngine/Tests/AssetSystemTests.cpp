@@ -276,6 +276,39 @@ namespace
         Check(assets.ReloadInPlace(fixture.textureId), "the texture reloads in place");
         Check(assets.GetTexture(texture) != nullptr && assets.GetTexture(texture)->pixelGeneration == 2,
             "the same handle, one generation later");
+
+        // **텍스처의 샘플러**(D-117). 메타의 `Texture.ImportOptions.filter` 가 프로젝트 기본을 덮어쓰고, `Default`
+        // 는 프로젝트 기본을 받는다. 프로젝트 기본은 로드·재로드 때 적용된다.
+        Check(assets.GetTexture(texture)->filter == JBro::TextureFilter::Nearest
+                && assets.GetTexture(texture)->options.filter == JBro::TextureFilter::Default,
+            "a meta with no texture block is Default, which is the project's Nearest");
+        JBro::String textureText = JBro::FormatAssetMetaFile(meta);
+        textureText.append("Texture:\n  ImportOptions:\n    filter: Linear\n");
+        view.data = reinterpret_cast<const std::byte*>(textureText.data());
+        view.size = static_cast<std::uint32_t>(textureText.size());
+        Check(fixture.platform.WriteWholeFile(metaPath.c_str(), view), "the meta with a texture filter saves");
+        Check(assets.ReloadInPlace(fixture.textureId) && assets.GetTexture(texture)->filter == JBro::TextureFilter::Linear,
+            "the texture's own filter wins");
+        assets.SetDefaultTextureFilter(JBro::TextureFilter::Linear);
+        textureText = JBro::FormatAssetMetaFile(meta);
+        textureText.append("Texture:\n  ImportOptions:\n    filter: Default\n");
+        view.data = reinterpret_cast<const std::byte*>(textureText.data());
+        view.size = static_cast<std::uint32_t>(textureText.size());
+        Check(fixture.platform.WriteWholeFile(metaPath.c_str(), view), "the meta with Default saves");
+        Check(assets.ReloadInPlace(fixture.textureId) && assets.GetTexture(texture)->filter == JBro::TextureFilter::Linear
+                && assets.GetTexture(texture)->options.filter == JBro::TextureFilter::Default,
+            "Default takes the project's filter, which is now Linear");
+        assets.SetDefaultTextureFilter(JBro::TextureFilter::Default);
+        Check(assets.GetDefaultTextureFilter() == JBro::TextureFilter::Nearest, "a project default of Default is Nearest");
+        Check(assets.ReloadInPlace(fixture.textureId) && assets.GetTexture(texture)->filter == JBro::TextureFilter::Nearest,
+            "and the reload follows it");
+        textureText = JBro::FormatAssetMetaFile(meta);
+        textureText.append("Texture:\n  ImportOptions:\n    filter: Blurry\n");
+        view.data = reinterpret_cast<const std::byte*>(textureText.data());
+        view.size = static_cast<std::uint32_t>(textureText.size());
+        Check(fixture.platform.WriteWholeFile(metaPath.c_str(), view), "the meta with a bad filter saves");
+        Check(false == assets.ReloadInPlace(fixture.textureId), "a filter name nobody knows is refused");
+        Check(assets.GetTexture(texture)->filter == JBro::TextureFilter::Nearest, "leaving the previous data");
         Check(false == assets.ReloadInPlace(fixture.canvasId), "an asset that is not loaded is false");
 
         // 옵션이 읽히지 않으면 실패고 옛 자료가 남는다.
