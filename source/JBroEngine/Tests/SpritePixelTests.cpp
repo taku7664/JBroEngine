@@ -518,8 +518,9 @@ namespace
         plain.world.linear[3] = 1.0f;
         plain.world.translation[0] = 0.5f;
         plain.world.translation[1] = -0.5f;
-        plain.tint[0] = 0.0f;
-        plain.tint[1] = 0.0f;
+        // 틴트는 0..1 로 잘린다(D-114). 1.5 는 1 로, -1 은 0 으로 - 자르지 않으면 바이트로 접힐 때 1.5 가 0.498 이 된다.
+        plain.tint[0] = 1.5f;
+        plain.tint[1] = -1.0f;
         plain.tint[2] = 1.0f;
 
         Check(renderer.BeginFrame() == JBro::FrameStatus::Ready, "the frame must begin");
@@ -546,8 +547,8 @@ namespace
         Check(Near(cellTop.g, 1.0f) && Near(cellTop.r, 0.0f) && Near(cellMid.g, 1.0f) && Near(cellMid.b, 0.0f),
             "the uv rectangle shows only the green cell across the whole sprite");
         const Pixel plainPixel = ReadPixel(image, readback.rowPitch, 48, 48);
-        Check(Near(plainPixel.b, 1.0f) && Near(plainPixel.r, 0.0f) && Near(plainPixel.g, 0.0f),
-            "an untextured sprite after a textured one paints its tint - the runs switched back to white");
+        Check(Near(plainPixel.b, 1.0f) && Near(plainPixel.r, 1.0f) && Near(plainPixel.g, 0.0f),
+            "an untextured sprite after a textured one paints its tint, clamped to 0..1 - the runs switched back to white");
 
         // 두 번째 프레임: 핸들을 내린 뒤 그 핸들로 그린다. 흰색 x 틴트로 나오고 센다.
         renderer.UnregisterTexture(texture);
