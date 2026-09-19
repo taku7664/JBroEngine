@@ -1,5 +1,6 @@
 ﻿#include <JBro/Asset/Asset.h>
 
+#include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetTypeRules.h>
 #include <JBro/Asset/ImageDecoder.h>
 #include <JBro/Asset/SpriteFrames.h>
@@ -150,6 +151,16 @@ namespace JBro
         return path;
     }
 
+    const String& AssetSystem::GetAssetRoot() const
+    {
+        return m_assetRoot;
+    }
+
+    String AssetSystem::GetMetaPath(const AssetRecord& record) const
+    {
+        return MetaPathOf(record);
+    }
+
     String AssetSystem::MetaPathOf(const AssetRecord& record) const
     {
         return AssetTypeRules::MakeMetaPath(SourcePathOf(record));
@@ -182,60 +193,28 @@ namespace JBro
         return true;
     }
 
-    namespace
-    {
-        // 메타의 `<section>.ImportOptions` 블록을 리플렉션 표로 읽는다. 블록이 없으면 `options` 를 두고 참이다.
-        // 있으면 전부 읽혀야 한다 - 읽히지 않는 값(모르는 키, 틀린 enum 이름)은 실패다.
-        bool ReadImportOptionsBlock(IPlatform& platform, const String& metaPath, const char* section,
-            const TypeDescriptor& descriptor, void* options)
-        {
-            Array<std::byte> text;
-            if (false == platform.ReadWholeFile(metaPath.c_str(), text))
-            {
-                return false;
-            }
-            YamlDocument document;
-            YamlError yamlError;
-            if (false == document.Parse(reinterpret_cast<const char*>(text.Data()), text.Size(), yamlError))
-            {
-                return false;
-            }
-            const std::uint32_t owner = document.Find(document.GetRoot(), section);
-            if (owner == YamlDocument::InvalidNode)
-            {
-                return true;
-            }
-            const std::uint32_t block = document.Find(owner, "ImportOptions");
-            if (block == YamlDocument::InvalidNode)
-            {
-                return true;
-            }
-            ReflectedYamlError error;
-            return ReadReflectedValue(document, block, descriptor, options, error);
-        }
-    }
-
+    // 옵션은 메타 파서 하나가 읽는다(D-120). 블록이 없으면 기본값이고, 있는데 읽히지 않으면 실패다 - 파서가 그 규칙이다.
     bool AssetSystem::ReadSpriteOptions(const AssetRecord& record, SpriteImportOptions& options)
     {
-        SpriteImportOptions read;
-        if (false == ReadImportOptionsBlock(*m_platform, MetaPathOf(record), "Sprite",
-                TypeDescriptorOf<SpriteImportOptions>::Get(), &read))
+        AssetMetaFile meta;
+        AssetMetaError error;
+        if (false == LoadAssetMetaFile(*m_platform, MetaPathOf(record).c_str(), meta, error))
         {
             return false;
         }
-        options = read;
+        options = meta.hasSpriteOptions ? meta.spriteOptions : SpriteImportOptions{};
         return true;
     }
 
     bool AssetSystem::ReadTextureOptions(const AssetRecord& record, TextureImportOptions& options)
     {
-        TextureImportOptions read;
-        if (false == ReadImportOptionsBlock(*m_platform, MetaPathOf(record), "Texture",
-                TypeDescriptorOf<TextureImportOptions>::Get(), &read))
+        AssetMetaFile meta;
+        AssetMetaError error;
+        if (false == LoadAssetMetaFile(*m_platform, MetaPathOf(record).c_str(), meta, error))
         {
             return false;
         }
-        options = read;
+        options = meta.hasTextureOptions ? meta.textureOptions : TextureImportOptions{};
         return true;
     }
 

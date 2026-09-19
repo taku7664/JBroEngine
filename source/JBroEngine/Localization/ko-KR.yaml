@@ -3,6 +3,7 @@ Entries:
   panel.game: 게임 뷰
   panel.hierarchy: 계층 구조
   panel.inspector: 인스펙터
+  panel.assets: 에셋
   panel.stats: 통계
   gizmo.translate: 이동
   gizmo.rotate: 회전
@@ -55,4 +56,7 @@ Entries:
   common.no_matches: 일치하는 항목이 없습니다
   asset.none: (없음)
   asset.missing: (없는 에셋)
+  assets.empty: 에셋 폴더에 파일이 없습니다
+  inspector.texture_import_options: 텍스처 임포트 옵션
+  inspector.sprite_import_options: 스프라이트 임포트 옵션
   common.ok: 확인

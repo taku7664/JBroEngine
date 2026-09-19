@@ -8,6 +8,9 @@
 
 #include <Windows.h>
 
+#include <filesystem>
+#include <fstream>
+
 #include <iostream>
 #include <stdexcept>
 
@@ -84,6 +87,25 @@ namespace
             "real project close must preserve renderer and native window");
         Check(engine.Tick(1.0f / 60.0f) && engine.GetLastFrameStatus() == JBro::FrameStatus::Skipped,
             "projectless real host must not submit a backbuffer");
+        // 프로젝트 파일의 `TextureFilter` 는 에셋 시스템의 기본 샘플러가 된다(D-117). 에셋 폴더가 없어도 프로젝트는 열린다.
+        {
+            const std::filesystem::path projectPath =
+                std::filesystem::temp_directory_path() / L"JBroSmokeFilter.jproject";
+            {
+                std::ofstream file(projectPath, std::ios::binary);
+                file << "Version: 1\nEngineVersion: 0.1.0\nFramework: 2D\nRootPath: .\nTextureFilter: Linear\n"
+                        "ScriptOutputLibraryPath: \"\"\nBuild:\n  ProductName: Smoke\n";
+            }
+            JBro::ProjectFileError projectError;
+            Check(engine.OpenProjectFile(framework, projectPath.string().c_str(), projectError),
+                "the host must open a project file that names a texture filter");
+            Check(engine.GetAssetSystem() != nullptr
+                    && engine.GetAssetSystem()->GetDefaultTextureFilter() == JBro::TextureFilter::Linear,
+                "the project's texture filter must reach the asset system before anything loads");
+            engine.CloseProject();
+            std::error_code ignored;
+            std::filesystem::remove(projectPath, ignored);
+        }
         Check(engine.OpenProject(framework), "real host must reopen a framework without recreating process resources");
         auto* nextCanvas = framework.GetCanvas();
         auto* nextCamera = nextCanvas->CreateObject();

@@ -1,7 +1,9 @@
 ﻿#include <JBro/Asset/AssetMetaFile.h>
 
 #include <JBro/Asset/AssetTypeRules.h>
+#include <JBro/AssetTypes/AssetTypesReflection.h>
 #include <JBro/Core/Yaml.h>
+#include <JBro/Reflection/ReflectedYaml.h>
 #include <JBro/Platform/Platform.h>
 
 namespace JBro
@@ -23,6 +25,40 @@ namespace JBro
                 return false;
             }
             return Uuid::Parse(text.c_str(), text.size(), result);
+        }
+
+        // `owner` 맵의 `ImportOptions` 를 표로 읽는다. 맵이나 블록이 없으면 `present` 가 거짓이고 참이다.
+        bool ReadOptions(const YamlDocument& document, std::uint32_t owner, const TypeDescriptor& descriptor,
+            void* options, bool& present, AssetMetaError& error)
+        {
+            present = false;
+            if (owner == YamlDocument::InvalidNode || document.GetKind(owner) != YamlKind::Map)
+            {
+                return true;
+            }
+            const std::uint32_t block = document.Find(owner, "ImportOptions");
+            if (block == YamlDocument::InvalidNode)
+            {
+                return true;
+            }
+            ReflectedYamlError reflected;
+            if (false == ReadReflectedValue(document, block, descriptor, options, reflected))
+            {
+                String message = "ImportOptions could not be read";
+                if (false == reflected.fieldName.empty())
+                {
+                    message.append(" at ");
+                    message.append(reflected.fieldName);
+                }
+                if (false == reflected.message.empty())
+                {
+                    message.append(": ");
+                    message.append(reflected.message);
+                }
+                return Fail(error, 1, message.c_str());
+            }
+            present = true;
+            return true;
         }
 
         bool Interpret(const YamlDocument& document, AssetMetaFile& result, AssetMetaError& error)
@@ -72,6 +108,19 @@ namespace JBro
                 }
             }
 
+            // 임포트 옵션 블록. 있으면 전부 읽혀야 한다.
+            const std::uint32_t texture = document.Find(root, "Texture");
+            if (false == ReadOptions(document, texture, TypeDescriptorOf<TextureImportOptions>::Get(),
+                    &parsed.textureOptions, parsed.hasTextureOptions, error))
+            {
+                return false;
+            }
+            if (false == ReadOptions(document, sprite, TypeDescriptorOf<SpriteImportOptions>::Get(),
+                    &parsed.spriteOptions, parsed.hasSpriteOptions, error))
+            {
+                return false;
+            }
+
             result = parsed;
             return true;
         }
@@ -107,11 +156,24 @@ namespace JBro
         meta.id.ToText(idText, sizeof(idText));
         writer.WriteString("Id", idText);
         writer.WriteString("Type", AssetTypeRules::GetTypeName(meta.type));
+        ReflectedYamlError ignored;
+        if (meta.hasTextureOptions)
+        {
+            writer.BeginMap("Texture");
+            WriteReflectedValue(writer, "ImportOptions", TypeDescriptorOf<TextureImportOptions>::Get(),
+                &meta.textureOptions, ignored);
+            writer.EndMap();
+        }
         if (AssetTypeRules::IsImageType(meta.type))
         {
             writer.BeginMap("Sprite");
             meta.spriteId.ToText(idText, sizeof(idText));
             writer.WriteString("Id", idText);
+            if (meta.hasSpriteOptions)
+            {
+                WriteReflectedValue(writer, "ImportOptions", TypeDescriptorOf<SpriteImportOptions>::Get(),
+                    &meta.spriteOptions, ignored);
+            }
             writer.EndMap();
         }
         return writer.GetText();

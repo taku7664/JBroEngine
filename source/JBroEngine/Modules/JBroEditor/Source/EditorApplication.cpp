@@ -13,11 +13,15 @@
 #include <JBro/Framework3DSystem/Framework3D.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Host/EngineInstance.h>
+#include <JBro/Asset/Asset.h>
+#include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetRegistry.h>
+#include <JBro/Editor/Command/SetAssetMetaCommand.h>
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/CanvasFile.h>
 #include <JBro/Runtime/GameObject.h>
 
+#include "Panel/AssetBrowserPanel.h"
 #include "Panel/GameViewPanel.h"
 #include "Panel/HierarchyPanel.h"
 #include "Panel/InspectorPanel.h"
@@ -203,6 +207,69 @@ namespace JBro
     {
         static const AssetRegistry empty;
         return m_engine.Get() != nullptr ? m_engine->GetAssetRegistry() : empty;
+    }
+
+    AssetSystem* EditorApplication::GetAssetSystem()
+    {
+        return m_engine.Get() != nullptr ? m_engine->GetAssetSystem() : nullptr;
+    }
+
+    void EditorApplication::SetSelectedAsset(AssetId id)
+    {
+        if (false == id.IsNull())
+        {
+            m_selection.Clear();
+            m_selected = {};
+        }
+        m_selectedAsset = id;
+        ReloadSelectedAssetMeta();
+    }
+
+    AssetId EditorApplication::GetSelectedAsset() const
+    {
+        return m_selectedAsset;
+    }
+
+    const AssetMetaFile* EditorApplication::GetSelectedAssetMeta() const
+    {
+        return m_selectedAssetMetaLoaded ? m_selectedAssetMeta.Get() : nullptr;
+    }
+
+    bool EditorApplication::DescribeSelectedAssetMeta(AssetMetaTarget& target) const
+    {
+        if (m_selectedAsset.IsNull() || m_engine.Get() == nullptr || m_platform.Get() == nullptr)
+        {
+            return false;
+        }
+        const AssetRecord* record = m_engine->GetAssetRegistry().Find(m_selectedAsset);
+        AssetSystem* assets = m_engine->GetAssetSystem();
+        if (record == nullptr || assets == nullptr)
+        {
+            return false;
+        }
+        target.platform = m_platform.Get();
+        target.assets = assets;
+        target.metaPath = assets->GetMetaPath(*record);
+        target.id = record->id;
+        target.spriteId = m_selectedAssetMetaLoaded ? m_selectedAssetMeta->spriteId : AssetId{};
+        return true;
+    }
+
+    void EditorApplication::ReloadSelectedAssetMeta()
+    {
+        m_selectedAssetMetaLoaded = false;
+        AssetMetaTarget target;
+        if (false == DescribeSelectedAssetMeta(target))
+        {
+            return;
+        }
+        if (m_selectedAssetMeta.Get() == nullptr)
+        {
+            m_selectedAssetMeta = MakeOwnerPtr<AssetMetaFile>();
+        }
+        AssetMetaError error;
+        m_selectedAssetMetaLoaded =
+            LoadAssetMetaFile(*target.platform, target.metaPath.c_str(), *m_selectedAssetMeta, error);
     }
 
     bool EditorApplication::IsScriptModuleLoaded() const
@@ -501,6 +568,7 @@ namespace JBro
             if (false == AddPanel(MakeOwnerPtr<GameViewPanel>())
                 || false == AddPanel(MakeOwnerPtr<HierarchyPanel>())
                 || false == AddPanel(MakeOwnerPtr<InspectorPanel>())
+                || false == AddPanel(MakeOwnerPtr<AssetBrowserPanel>())
                 || false == AddPanel(MakeOwnerPtr<StatsPanel>()))
             {
                 ReleaseEditorUi();
@@ -611,6 +679,9 @@ namespace JBro
         if (object != nullptr)
         {
             m_selection.Add(object->SafeFromThis());
+            // 오브젝트를 고르면 에셋 선택은 빈다 - 인스펙터는 하나만 보인다(D-120).
+            m_selectedAsset = {};
+            m_selectedAssetMetaLoaded = false;
         }
         m_selected = object != nullptr ? object->SafeFromThis() : SafePtr<GameObject>();
     }
@@ -623,6 +694,11 @@ namespace JBro
     void EditorApplication::SelectObjects(JArrayView<GameObject*> objects)
     {
         m_selection.Clear();
+        if (objects.size > 0)
+        {
+            m_selectedAsset = {};
+            m_selectedAssetMetaLoaded = false;
+        }
         for (std::size_t index = 0; index < objects.size; ++index)
         {
             if (objects.data[index] != nullptr)
@@ -1308,6 +1384,8 @@ namespace JBro
         {
             m_boundRevision = m_commands.GetRevision();
             m_framework->BindCanvasAssets();
+            // 메타를 고친 커맨드(와 그 되돌리기)가 돌았을 수 있다. 인스펙터가 디스크와 같은 것을 보이도록.
+            ReloadSelectedAssetMeta();
         }
         // 저장은 UI 프레임이 닫힌 뒤, 엔진 프레임이 열리기 전이다. 대화상자가 막혀 있는 동안
         // 어느 프레임도 열려 있지 않다.

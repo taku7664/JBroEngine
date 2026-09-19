@@ -89,6 +89,32 @@ namespace
 
         JBro::AssetMetaFile untouched;
         const char* noSprite = "Version: 1\nId: 0123456789abcdeffedcba9876543210\nType: Texture\n";
+        // **옵션 블록은 왕복한다**(D-120). 있는 블록만 적히고, 읽으면 같은 값이며, 틀린 값은 파일 전체의 실패다.
+        JBro::AssetMetaFile withOptions = meta;
+        withOptions.hasTextureOptions = true;
+        withOptions.textureOptions.filter = JBro::TextureFilter::Linear;
+        withOptions.hasSpriteOptions = true;
+        withOptions.spriteOptions.sliceType = JBro::SpriteSliceType::CellCount;
+        withOptions.spriteOptions.rowCount = 3;
+        withOptions.spriteOptions.pixelsPerUnit = 16.0f;
+        const JBro::String optionsText = JBro::FormatAssetMetaFile(withOptions);
+        Check(optionsText.find("Texture:") != JBro::String::npos && optionsText.find("filter: Linear") != JBro::String::npos
+                && optionsText.find("rowCount: 3") != JBro::String::npos,
+            "both option blocks are written when present");
+        JBro::AssetMetaFile roundTrip;
+        Check(JBro::ParseAssetMetaFile(optionsText.c_str(), optionsText.size(), roundTrip, error)
+                && roundTrip.hasTextureOptions && roundTrip.textureOptions.filter == JBro::TextureFilter::Linear
+                && roundTrip.hasSpriteOptions && roundTrip.spriteOptions.rowCount == 3
+                && roundTrip.spriteOptions.pixelsPerUnit == 16.0f && roundTrip.spriteId == meta.spriteId,
+            "and read back as the same values");
+        Check(false == read.hasTextureOptions && false == read.hasSpriteOptions,
+            "a meta without blocks reports none");
+        JBro::String badOptions = text;
+        badOptions.append("Texture:\n  ImportOptions:\n    filter: Blurry\n");
+        Check(false == JBro::ParseAssetMetaFile(badOptions.c_str(), badOptions.size(), untouched, error)
+                && error.message.find("ImportOptions") != JBro::String::npos,
+            "an option value nobody knows fails the whole file and says where");
+
         Check(false == JBro::ParseAssetMetaFile(noSprite, std::strlen(noSprite), untouched, error),
             "an image without a sprite block is refused");
         const char* badId = "Version: 1\nId: 42\nType: Canvas\n";

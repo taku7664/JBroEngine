@@ -3,6 +3,7 @@ Entries:
   panel.game: Game
   panel.hierarchy: Hierarchy
   panel.inspector: Inspector
+  panel.assets: Assets
   panel.stats: Stats
   gizmo.translate: Move
   gizmo.rotate: Rotate
@@ -55,4 +56,7 @@ Entries:
   common.no_matches: No matches
   asset.none: (None)
   asset.missing: (Missing asset)
+  assets.empty: the asset folder has no files
+  inspector.texture_import_options: Texture Import Options
+  inspector.sprite_import_options: Sprite Import Options
   common.ok: OK

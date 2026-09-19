@@ -24,6 +24,9 @@ namespace JBro
     class IFramework;
     class IPlatform;
     class AssetRegistry;
+    class AssetSystem;
+    struct AssetMetaFile;
+    struct AssetMetaTarget;
 
     // `FrameworkKind` 는 `JBro/Host/ProjectFile.h` 에 있다(D-99). 프로젝트 파일이 그 값을
     // 적는 자리이므로 형식과 같이 둔다.
@@ -86,6 +89,18 @@ namespace JBro
         // 열린 프로젝트의 에셋 레지스트리다. 인스펙터의 에셋 칸이 같은 타입의 목록을 여기서
         // 얻는다(D-116). 프로젝트가 없으면 빈 레지스트리다.
         const AssetRegistry& GetAssetRegistry() const;
+        // 열린 프로젝트의 에셋 시스템이다. 프로젝트가 없으면 nullptr 다.
+        AssetSystem* GetAssetSystem();
+
+        // **에셋 선택**(D-120). 에셋 브라우저가 고르고 인스펙터가 임포트 옵션을 보여 준다. 오브젝트 선택과 배타다 -
+        // 에셋을 고르면 오브젝트 선택이 비고, 오브젝트를 고르면 에셋 선택이 빈다. 인스펙터는 하나만 보인다.
+        void SetSelectedAsset(AssetId id);
+        AssetId GetSelectedAsset() const;
+        // 고른 에셋의 메타(디스크에 있는 그대로)다. 고른 것이 없거나 메타를 읽지 못했으면 nullptr 다. 커맨드가 돌면
+        // (판번호) 다시 읽으므로 편집·되돌리기 뒤에도 디스크와 같다.
+        const AssetMetaFile* GetSelectedAssetMeta() const;
+        // 고른 에셋의 메타를 고쳐 쓰는 커맨드가 가리킬 대상이다. 고른 것이 없으면 거짓이다.
+        bool DescribeSelectedAssetMeta(AssetMetaTarget& target) const;
         // 이 프로젝트의 스크립트 DLL 이 실렸는지다. **열렸다고 실린 것은 아니다**(D-98) —
         // 아직 한 번도 빌드하지 않은 프로젝트도 열리므로, 스크립트가 있어야 하는 일은
         // 이것을 먼저 본다.
@@ -255,6 +270,10 @@ namespace JBro
         // 프레임워크의 `BindCanvasAssets` 를 다시 부른다(D-115) - `xxxId` 를 바꾼 커맨드만
         // 골라내지 않는다. 되돌리기와 붙여넣기도 아이디를 바꾼다.
         std::uint64_t m_boundRevision = 0;
+        AssetId m_selectedAsset;
+        OwnerPtr<AssetMetaFile> m_selectedAssetMeta;
+        bool m_selectedAssetMetaLoaded = false;
+        void ReloadSelectedAssetMeta();
         EditorObjectRegistry m_objectIds;
         TextureHandle m_gameView;
         Extent2D m_gameViewExtent;

@@ -18,9 +18,18 @@ namespace JBro
     //   Sprite:
     //     Id: ...
     //
-    // 임포트 옵션(`ImportOptions:` 블록)은 이 구조체가 들지 않는다. 타입별 로더가 같은 파일을 리플렉션으로 읽는다
-    // (asset-plan §2.7). 모르는 키는 읽을 때 건너뛰지만, **쓰기는 이 넷만 적으므로** 옵션이 있는 메타를 이것으로
-    // 덮어쓰면 옵션이 사라진다 - 쓰는 쪽은 새로 만드는 메타에만 쓴다.
+    // 임포트 옵션은 `Texture.ImportOptions`·`Sprite.ImportOptions` 블록이고 리플렉션 표(`AssetTypesReflection.h`)로
+    // 읽고 쓴다(D-120). 블록이 없으면 `has*Options` 가 거짓이고 옵션은 기본값이다. **있으면 전부 읽혀야 한다** - 모르는
+    // 키나 틀린 enum 이름은 파일 전체의 실패다(조용히 버리면 그 값이 사라지고 아무도 모른다). 쓰기는 `has*Options` 인
+    // 블록만 적으므로, 읽어서 고쳐 다시 쓰면 옵션이 보존된다 - 에디터의 옵션 편집이 이 왕복이다.
+    //
+    //   Texture:
+    //     ImportOptions:
+    //       filter: Linear
+    //   Sprite:
+    //     Id: ...
+    //     ImportOptions:
+    //       sliceType: CellCount
     struct AssetMetaFile
     {
         std::uint32_t version = 1;
@@ -28,6 +37,10 @@ namespace JBro
         AssetType type = AssetType::Unknown;
         // `Texture` 일 때만 뜻이 있다. 비어 있으면 Sprite 블록이 없었다는 뜻이다.
         AssetId spriteId;
+        bool hasTextureOptions = false;
+        TextureImportOptions textureOptions;
+        bool hasSpriteOptions = false;
+        SpriteImportOptions spriteOptions;
     };
 
     struct AssetMetaError

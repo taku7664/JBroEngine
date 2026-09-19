@@ -19,6 +19,8 @@
 #include <JBro/Editor/Widget/AssetField.h>
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Asset/AssetTypeRules.h>
+#include <JBro/AssetTypes/AssetTypesReflection.h>
+#include <JBro/Editor/Command/SetAssetMetaCommand.h>
 #include <JBro/Reflection/PropertyInfo.h>
 #include <JBro/Reflection/PropertyRegistry.h>
 #include <JBro/Runtime/Component.h>
@@ -132,6 +134,12 @@ namespace JBro
         GameObject* object = m_editor->GetSelectedObject();
         if (object == nullptr)
         {
+            // 오브젝트 대신 에셋이 골라져 있으면 그 임포트 옵션이다(D-120).
+            if (const AssetMetaFile* meta = m_editor->GetSelectedAssetMeta())
+            {
+                DrawAsset(*meta);
+                return;
+            }
             ImGui::TextDisabled("%s",
                 Loc::TextOr(LocKeys::InspectorNothingSelected, "nothing is selected"));
             return;
@@ -478,9 +486,83 @@ namespace JBro
         return targets;
     }
 
+    void InspectorPanel::DrawAsset(const AssetMetaFile& meta)
+    {
+        const AssetRecord* record = m_editor->GetAssetRegistry().Find(meta.id);
+        ImGui::TextUnformatted(record != nullptr ? record->relativePath.c_str() : "?");
+
+        // 편집본은 프레임마다 원본에서 새로 뜬다. 위젯이 고친 값은 커맨드가 파일에 쓰고, 다음 프레임의 원본이 그것을
+        // 다시 읽어 온다 - 쓰는 길이 하나다(D-89 와 같은 이유).
+        AssetMetaFile scratch = meta;
+        AssetEditScope scope;
+        scope.scratch = &scratch;
+        Context context;
+        context.asset = &scope;
+
+        const bool image = AssetTypeRules::IsImageType(meta.type);
+        int slot = 0;
+        const auto drawBlock = [&](const char* title, const TypeDescriptor& type, void* options, bool spriteBlock) {
+            // 컴포넌트와 같은 모양이다: 슬롯 번호 → 접는 머리 → 줄 배치 `##import`.
+            ImGui::PushID(slot++);
+            scope.spriteBlock = spriteBlock;
+            if (ImGui::CollapsingHeader(title, ImGuiTreeNodeFlags_DefaultOpen) && type.fields != nullptr)
+            {
+                Widget::FormLayout layout("##import");
+                DrawFieldsInto(layout, *type.fields, options, context);
+            }
+            ImGui::PopID();
+        };
+        if (meta.type == AssetType::Texture)
+        {
+            drawBlock(Loc::TextOr(LocKeys::InspectorTextureImportOptions, "Texture Import Options"),
+                TypeDescriptorOf<TextureImportOptions>::Get(), &scratch.textureOptions, false);
+        }
+        if (image)
+        {
+            drawBlock(Loc::TextOr(LocKeys::InspectorSpriteImportOptions, "Sprite Import Options"),
+                TypeDescriptorOf<SpriteImportOptions>::Get(), &scratch.spriteOptions, true);
+        }
+    }
+
+    void InspectorPanel::CommitAssetEdit(Context& context)
+    {
+        const AssetMetaFile* original = m_editor->GetSelectedAssetMeta();
+        AssetMetaTarget target;
+        if (original == nullptr || context.asset == nullptr || context.asset->scratch == nullptr
+            || false == m_editor->DescribeSelectedAssetMeta(target))
+        {
+            return;
+        }
+        // 고친 블록은 이제 파일에 있어야 한다.
+        AssetMetaFile& scratch = *context.asset->scratch;
+        if (context.asset->spriteBlock)
+        {
+            scratch.hasSpriteOptions = true;
+        }
+        else
+        {
+            scratch.hasTextureOptions = true;
+        }
+        const String before = FormatAssetMetaFile(*original);
+        const String after = FormatAssetMetaFile(scratch);
+        if (before == after)
+        {
+            return;
+        }
+        m_editor->GetCommands().Execute(MakeOwnerPtr<SetAssetMetaCommand>(target, before, after));
+    }
+
     void InspectorPanel::CommitEdit(
         const TypeDescriptor& type, void* address, const String& before, Context& context)
     {
+        if (context.asset != nullptr)
+        {
+            (void)type;
+            (void)address;
+            (void)before;
+            CommitAssetEdit(context);
+            return;
+        }
         if (context.element != nullptr)
         {
             // 목록 원소 안의 잎사귀다. 커맨드는 목록 위젯이 다 그린 뒤에 만든다(D-89).
@@ -1022,10 +1104,12 @@ namespace JBro
                 }
                 return;
             }
-            // 숫자 묶음에는 코덱이 없다. 커맨드가 쓰는 글자(전체의 YAML)로 뜬다(D-89).
+            // 숫자 묶음에는 코덱이 없다. 커맨드가 쓰는 글자(전체의 YAML)로 뜬다(D-89). 에셋 옵션에는 컴포넌트가
+            // 없다 - 그 편집은 메타 전체를 뜨므로 여기 글자는 쓰이지 않는다.
             String before;
-            const bool snapped = SetPropertyCommand::ReadValue(
-                *context.component, context.typeId, context.path, before);
+            const bool snapped = context.component != nullptr
+                ? SetPropertyCommand::ReadValue(*context.component, context.typeId, context.path, before)
+                : context.asset != nullptr;
             if (DrawScalarRun(type, run, edit) && editable)
             {
                 if (snapped)

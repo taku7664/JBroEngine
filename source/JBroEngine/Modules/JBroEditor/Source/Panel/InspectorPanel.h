@@ -6,6 +6,8 @@
 
 #include <JBro/Editor/EditorPanel.h>
 
+#include <JBro/Asset/AssetMetaFile.h>
+
 namespace JBro
 {
     class ComponentBase;
@@ -52,8 +54,19 @@ namespace JBro
 
         // 지금 그리는 컴포넌트와, 거기서 여기까지 내려온 길이다. 잎사귀에서
         // 커맨드를 만들 때 둘 다 필요하다.
+        // 에셋의 임포트 옵션을 그리는 중이면 이것이 있다(D-120). 잎사귀 편집은 컴포넌트 커맨드가 아니라
+        // 메타 전체의 글자를 뜬 `SetAssetMetaCommand` 로 간다.
+        struct AssetEditScope
+        {
+            // 이번 프레임의 편집본. 원본은 `EditorApplication::GetSelectedAssetMeta` 다.
+            AssetMetaFile* scratch = nullptr;
+            // 편집 중인 블록. 고치면 그 블록의 `has*Options` 가 참이 된다.
+            bool spriteBlock = false;
+        };
+
         struct Context
         {
+            AssetEditScope* asset = nullptr;
             // 목록 원소 안이면 그 원소다. 비어 있으면 컴포넌트의 필드를 그리는 중이다.
             ElementScope* element = nullptr;
             // 줄 배치 안에서 열려 있는 트리 마디 수다. 마디가 열린 자리에서는 표를 끊지 못한다 -
@@ -94,6 +107,9 @@ namespace JBro
         static void RecordElementRun(
             const ScalarRun& run, const float before[ScalarRun::MaxCount], Context& context);
         static ListEdit MakeElementEdit(const ElementScope& scope);
+        // 고른 에셋의 임포트 옵션(D-120). 오브젝트가 골라져 있지 않을 때만 온다.
+        void DrawAsset(const AssetMetaFile& meta);
+        void CommitAssetEdit(Context& context);
         // `AssetId` 필드. 레지스트리의 같은 타입 에셋을 고르는 드롭다운이다(D-116).
         void DrawAssetField(
             const char* fieldName,

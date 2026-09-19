@@ -1,6 +1,8 @@
 ﻿#include <JBro/Editor/EditorApplication.h>
 
+#include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetRegistry.h>
+#include <JBro/AssetTypes/AssetTypesReflection.h>
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Editor/Command/ObjectCommands.h>
 #include <JBro/Editor/EditorObjectRegistry.h>
@@ -35,6 +37,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <string>
 #include <cstring>
 #include <cwchar>
@@ -416,7 +419,7 @@ namespace
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
         const std::size_t builtin = editor.GetPanelCount();
-        Check(builtin == 4, "the editor brings four panels of its own");
+        Check(builtin == 5, "the editor brings five panels of its own");
         Check(editor.FindPanel("Inspector") != nullptr, "and they are findable by title");
         Check(editor.FindPanel("Nothing Like This") == nullptr,
             "and a title nobody has finds nothing");
@@ -2576,6 +2579,162 @@ namespace
         fs::remove_all(root, ignored);
     }
 
+
+    // **에셋 브라우저에서 고르면 인스펙터가 임포트 옵션을 보이고, 고치면 메타가 커맨드로 다시 쓰인다**(D-120).
+    // 폴더 안의 그림 줄을 눌러 고르고, 인스펙터의 `pixelsPerUnit` 을 끌어 메타 파일에 옵션 블록이 생기는지, 스프라이트
+    // 아이디가 보존되는지, 되돌리면 파일이 원래대로 오는지 잰다. 오브젝트를 고르면 에셋 선택은 빈다.
+    void TestTheAssetBrowserSelectsAnAssetAndTheInspectorRewritesItsMeta()
+    {
+        namespace fs = std::filesystem;
+        const fs::path root(TempPath("JBroAssetBrowserProbe").c_str());
+        std::error_code ignored;
+        fs::remove_all(root, ignored);
+        fs::create_directories(root / "Assets" / "art", ignored);
+        {
+            std::ofstream png(root / "Assets" / "art" / "hero.png", std::ios::binary);
+            png.write(reinterpret_cast<const char*>(TinyPng), sizeof(TinyPng));
+        }
+        const JBro::String projectPath = TempPath("JBroAssetBrowserProbe\\Browser.jproject");
+        Check(WriteTextFile(projectPath,
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 2D\n"
+            "RootPath: .\n"
+            "ResolutionWidth: 640\n"
+            "ResolutionHeight: 480\n"
+            "AssetDirectory: Assets\n"
+            "ScriptOutputLibraryPath: \"\"\n"
+            "Build:\n"
+            "  ProductName: BrowserProbe\n"
+            "  StartupCanvas: Scenes/Opening.jcanvas\n"),
+            "the test must be able to write its own project file");
+
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the asset browser not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.c_str(), error), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        const JBro::AssetRecord* hero = editor.GetAssetRegistry().FindByPath("art/hero.png");
+        Check(hero != nullptr && hero->type == JBro::AssetType::Texture, "the scan must have registered art/hero.png");
+        Check(editor.FindPanel("Assets") != nullptr, "the asset browser is a default panel");
+
+        // 에셋 패널은 통계 패널과 같은 아래쪽 독의 탭이다. 앞에 있지 않으면 탭을 눌러 꺼낸다.
+        ImGuiWindow* assets = ImGui::FindWindowByName("Assets");
+        Check(assets != nullptr, "the asset browser must have a window");
+        if (false == assets->DockTabIsVisible && assets->DockNode != nullptr && assets->DockNode->TabBar != nullptr)
+        {
+            ImGuiTabBar* tabBar = assets->DockNode->TabBar;
+            ImGuiTabItem* tab = ImGui::TabBarFindTabByID(tabBar, assets->TabId);
+            Check(tab != nullptr, "the asset browser must have a tab in its dock");
+            Spot tabSpot;
+            tabSpot.x = static_cast<int>(tabBar->BarRect.Min.x + tab->Offset + tab->Width * 0.5f);
+            tabSpot.y = static_cast<int>((tabBar->BarRect.Min.y + tabBar->BarRect.Max.y) * 0.5f);
+            ClickAt(editor, hwnd, tabSpot);
+            for (int frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must settle on the tab");
+            }
+            assets = ImGui::FindWindowByName("Assets");
+        }
+        Check(assets != nullptr && assets->DockTabIsVisible, "the asset browser tab must be in front");
+        // 줄의 Id: 창 → PushID("art") → 열린 폴더 마디 "##folder" → PushID("art/hero.png") → "##file".
+        const ImGuiID folder = LabelId(LabelId(assets->ID, "art"), "##folder");
+        const ImGuiID heroRow = LabelId(LabelId(folder, "art/hero.png"), "##file");
+        Spot spot;
+        bool found = false;
+        {
+            const int x = static_cast<int>(assets->Pos.x + 48.0f);
+            const int bottom = static_cast<int>(assets->Pos.y + assets->Size.y);
+            for (int y = static_cast<int>(assets->Pos.y); y < bottom && false == found; y += 3)
+            {
+                PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
+                Check(editor.Tick(Frame), "the editor must tick while looking");
+                if (ImGui::GetHoveredID() == heroRow)
+                {
+                    spot.x = x;
+                    spot.y = y;
+                    found = true;
+                }
+            }
+        }
+        Check(found, "hero.png must be a row under the art folder");
+        ClickAt(editor, hwnd, spot);
+        Check(editor.GetSelectedAsset() == hero->id, "clicking the row selects the texture record");
+        Check(editor.GetSelectedObject() == nullptr, "and no object");
+        Check(editor.GetSelectedAssetMeta() != nullptr && false == editor.GetSelectedAssetMeta()->hasSpriteOptions,
+            "the meta is read and has no sprite options yet");
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle on the asset");
+        }
+
+        // 인스펙터의 둘째 블록(Sprite)의 `pixelsPerUnit`. 컴포넌트와 같은 Id 사슬이되 표 이름이 "##import" 다.
+        const JBro::TypeDescriptor& spriteOptions = JBro::TypeDescriptorOf<JBro::SpriteImportOptions>::Get();
+        Check(spriteOptions.fields != nullptr, "sprite import options have a property table");
+        const std::uint32_t ppu = FieldIndexOf(*spriteOptions.fields, "pixelsPerUnit");
+        ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
+        Check(inspector != nullptr, "the inspector must have a window");
+        const ImGuiID ppuField = LabelId(
+            PushedId(LabelId(PushedId(inspector->ID, 1), "##import"), static_cast<int>(ppu)), "##value");
+        Check(FindInspectorItem(editor, hwnd, ppuField, spot), "the pixels-per-unit row must be in the inspector");
+
+        const fs::path metaPath = root / "Assets" / "art" / "hero.png.jmeta";
+        const auto readMeta = [&]() {
+            std::ifstream in(metaPath, std::ios::binary);
+            return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+        };
+        const std::string metaBefore = readMeta();
+        Check(metaBefore.find("ImportOptions") == std::string::npos, "the fresh meta has no options block");
+
+        const std::size_t undo = editor.GetCommands().GetUndoCount();
+        DragFrom(editor, hwnd, spot, spot.x + 60);
+        Check(editor.Tick(Frame), "the editor must tick after the drag");
+        Check(editor.GetCommands().GetUndoCount() == undo + 1, "one drag is one command");
+        const std::string metaAfter = readMeta();
+        Check(metaAfter.find("ImportOptions") != std::string::npos && metaAfter.find("pixelsPerUnit:") != std::string::npos,
+            "the meta on disk now carries the sprite options block");
+        Check(metaAfter.find("pixelsPerUnit: 100\n") == std::string::npos, "with a value the drag moved");
+        JBro::AssetMetaFile rewritten;
+        JBro::AssetMetaError metaError;
+        Check(JBro::ParseAssetMetaFile(metaAfter.c_str(), metaAfter.size(), rewritten, metaError)
+                && rewritten.id == hero->id && false == rewritten.spriteId.IsNull() && rewritten.hasSpriteOptions,
+            "the rewritten meta keeps its ids and reads back");
+        Check(editor.GetSelectedAssetMeta() != nullptr && editor.GetSelectedAssetMeta()->hasSpriteOptions
+                && editor.GetSelectedAssetMeta()->spriteOptions.pixelsPerUnit == rewritten.spriteOptions.pixelsPerUnit,
+            "the inspector's copy follows the disk");
+
+        Check(editor.GetCommands().Undo(), "undo must run");
+        Check(editor.Tick(Frame), "the editor must tick after undo");
+        Check(readMeta() == metaBefore, "undo puts the original meta text back");
+        Check(editor.GetSelectedAssetMeta() != nullptr && false == editor.GetSelectedAssetMeta()->hasSpriteOptions,
+            "and the inspector's copy follows");
+
+        // 오브젝트를 고르면 에셋 선택은 빈다.
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* object = canvas->CreateObject("Subject");
+        editor.SetSelectedObject(object);
+        Check(editor.GetSelectedAsset().IsNull() && editor.GetSelectedAssetMeta() == nullptr,
+            "selecting an object clears the asset selection");
+
+        editor.Shutdown();
+        fs::remove_all(root, ignored);
+    }
+
     // 프레임마다 **처음 보는 글자**를 그리는 패널이다. ImGui 1.92 는 글리프를
     // 필요할 때 아틀라스에 굽고 백엔드에 "이 텍스처를 고쳐 올려라" 라고 말하므로,
     // 이 패널이 도는 동안에는 프레임마다 텍스처 업로드가 일어난다.
@@ -3047,7 +3206,7 @@ namespace
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
         // 패널이 넷 다 있어야 한다. 하나라도 안 붙으면 화면에서 빈 칸이 된다.
-        Check(editor.GetPanelCount() == 4, "the four default panels must be registered");
+        Check(editor.GetPanelCount() == 5, "the five default panels must be registered");
         Check(editor.FindPanel("Game") != nullptr, "the game view must be one of them");
         Check(editor.FindPanel("Hierarchy") != nullptr, "and the hierarchy");
         Check(editor.FindPanel("Inspector") != nullptr, "and the inspector");
@@ -4024,6 +4183,7 @@ int RunEditorApplicationTests()
     TestFlagCountAndToneElementsEditByMouseOnEveryChosenList();
     TestTypingTheSameValueLeavesNothingToUndo();
     TestTheAssetFieldPicksARegisteredSprite();
+    TestTheAssetBrowserSelectsAnAssetAndTheInspectorRewritesItsMeta();
     TestCreatingAnObjectCanBeUndone();
     TestDeletingAnObjectCanBeUndoneWithItsValues();
     TestClosingTheWindowDoesNotTakeTheUiDownWithIt();
