@@ -33,6 +33,9 @@
 - 플랫폼별 그래픽스 API 의존성은 RHI 뒤에 격리해야 한다. (MUST)
 - 파일 시스템은 `IPlatform` 이 관리한다. 엔진 모듈은 `fopen`·`std::filesystem` 으로 파일을 직접 열지 않고
   `ReadWholeFile`·`WriteWholeFile`·`FileExists`·`DirectoryExists`·`EnumerateDirectory` 를 거친다. 경로는 UTF-8 이다.
+  폴더 감시도 같은 자리다: `WatchDirectory`·`StopWatching`·`TakeFileEvents` 이고 이벤트는 경로 글자만 든 POD 다.
+  워커는 할당도 `SafePtr` 도 만지지 않으며, 꺼내 적용하는 것은 메인 스레드가 프레임 밖에서 한다. 게임 실행에는 감시가
+  없다. (MUST) (D-121)
   Tier S 모듈(JBroCore)은 플랫폼을 볼 수 없으므로 경로를 받는 API 를 두지 않고 글자를 받아 `Parse` 한다. (MUST) (D-112)
   예외는 둘이다: `EditorTheme.cpp` 의 아이콘 글꼴(런처 인자가 ANSI, D-97)과 컴파일러 도구 `JBroScriptCompiler` 의
   진단 메시지 파일. 그 외에 `fopen`·`std::filesystem` 을 엔진 모듈에 새로 두지 않는다.
@@ -711,6 +714,8 @@
 - 인스펙터는 `JBro.Uuid` 이고 이름이 `Id` 로 끝나는 필드를 에셋 칸으로 그린다(해석 패스와 같은 규칙, D-115). 이름 앞부분이
   에셋 타입 이름이면 그 타입만 보인다. 편집 뒤 해석은 커맨드 판번호가 움직였을 때 `BindCanvasAssets` 를 다시 부르는
   것으로 한다 - 커맨드 종류로 고르지 않는다. (MUST) (D-118)
+- 에셋 선택과 오브젝트 선택은 배타이고 인스펙터는 하나만 보인다. 에셋의 임포트 옵션 편집은 `SetAssetMetaCommand` 로만
+  하며 되살릴 값은 메타 글자 전체다. 메타 쓰기(`SaveAssetMetaFile`)는 읽은 옵션 블록을 그대로 보존한다. (MUST) (D-120)
 - 나무를 그리는 자리는 **행 사각형과 내용 사각형을 나눠 주는 트리 위젯**을 쓴다. (MUST)
   기존 `ImTreeBegin`/`ImTreeEx` 가 행 전체의 사각형과 그 안의 내용 영역을 따로 돌려주어,
   썸네일·배지·버튼을 행에 얹을 수 있다. `ImGui::TreeNodeEx` 를 직접 부르면 그 자리가 없다.

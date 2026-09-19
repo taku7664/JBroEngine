@@ -2027,6 +2027,22 @@ EditorApplication::Tick
   (기본 `Default`) 가 쓴다. **프로젝트 기본은 `AssetSystem` 이 로드·재로드 때 한 번 적용한다**(`SetDefaultTextureFilter`,
   `TextureData::filter`) - 그리는 쪽(라이브러리·시스템·브리지)이 프로젝트를 묻지 않고 `Default` 를 보지 않는다. 엔진은
   프로젝트 파일을 읽은 뒤 `Bind` 전에 넘긴다. 컴포넌트에는 두지 않는다. 뮤테이션: 크기 6 개 중 5 잡힘(높이가 너비를 쓰는 변이가 살아 2x1 칸 검사를 ④ 에 더해 잡았다). 샘플러 10/10 잡힘(프로젝트 기본 미적용, 메타 필터 무시, 틀린 옵션 허용, Default 기본 유지, 프로젝트 키 무시, 라이브러리·시스템·브리지가 필터를 버림, 엔진이 기본을 안 넘김 - 마지막 것은 처음 살아 엔진 호스트 검사를 더해 잡았다).
+- **D-120. 메타는 임포트 옵션 블록을 왕복하고, 에셋 편집은 메타 글자 전체를 되살릴 값으로 든다.** (2026-09-20, `e6d3e96`)
+  D-116 의 구현(에셋 브라우저·옵션 편집). `AssetMetaFile` 이 `Texture.ImportOptions`·`Sprite.ImportOptions` 를 리플렉션
+  표로 읽고 쓴다 - 있는 블록만 적고, 있으면 전부 읽혀야 한다(모르는 키·틀린 enum 이름은 파일 전체의 실패). 에셋 시스템의
+  옵션 읽기도 이 파서 하나다. 에디터의 옵션 편집은 `SetAssetMetaCommand` 로 가고 **되살릴 값은 메타 파일의 글자 전체**다 -
+  옵션 블록만 뜨면 나머지 키를 잃을 길이 생긴다. 실행은 새 글자를 쓰고 로드된 텍스처·스프라이트를 `ReloadInPlace` 하므로
+  핸들이 살아 캔버스가 그 자리에서 새 칸을 본다. 에셋 선택은 오브젝트 선택과 배타이고 인스펙터는 하나만 보인다. 브라우저는
+  디스크가 아니라 레지스트리를 보이며, 이미지는 한 줄(Texture 레코드)이다. 인스펙터의 에셋 블록은 컴포넌트와 같은 Id 사슬
+  (`슬롯 → ##import → 필드 → ##value`)이라 테스트가 같은 길로 찾는다.
+- **D-121. 에셋 폴더 감시는 `IPlatform` 뒤의 OS 감시이고, 적용은 엔진이 프레임 밖에서 한다.** (2026-09-20, `0bea257`)
+  D-117 (1) 의 구현. `WatchDirectory`/`StopWatching`/`TakeFileEvents` 와 POD `FileEvent`(경로 글자만, 고정 1024 바이트).
+  Windows 는 `ReadDirectoryChangesW` + 워커 스레드 + 고정 고리 버퍼(256, 뮤텍스)다 - 워커는 할당도 `SafePtr` 도 만지지
+  않는다. **첫 요청은 워커를 띄우기 전에 건다**(안 그러면 감시 직후의 변경을 놓친다 - 처음 테스트가 그렇게 실패했다).
+  넘침(OS 가 버림, 고리가 참, 경로가 김)은 쌓인 것을 다 꺼낸 뒤 `Overflow` 하나로 알린다. `EngineInstance::PollAssetChanges`
+  가 적용한다(원본 → 재로드, 이름 → `Rename`, 삭제 → `Unregister`, 생성·모르는 삭제·넘침 → 다시 스캔, `.jmeta` 무시).
+  `EngineConfig::watchAssetDirectory` 는 에디터만 참이라 게임 실행에는 감시가 없다. 에디터는 `Tick` 첫머리에서 꺼내고
+  다시 스캔했으면 `BindCanvasAssets` 를 돌린다. Web·Android 는 기본(거짓)이다.
 
 ## Assumptions
 
