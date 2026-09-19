@@ -52,4 +52,5 @@ Entries:
   list.element_count: %d item(s)
   common.search: Search
   common.clear: Clear
+  common.no_matches: No matches
   common.ok: OK

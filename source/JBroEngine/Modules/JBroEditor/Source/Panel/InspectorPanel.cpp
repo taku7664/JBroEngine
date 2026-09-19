@@ -15,6 +15,7 @@
 #include <JBro/Editor/Widget/Scalar.h>
 #include <JBro/Editor/Widget/Fields.h>
 #include <JBro/Editor/Widget/EnumCombo.h>
+#include <JBro/Editor/Widget/FilterCombo.h>
 #include <JBro/Reflection/PropertyInfo.h>
 #include <JBro/Reflection/PropertyRegistry.h>
 #include <JBro/Runtime/Component.h>
@@ -251,41 +252,33 @@ namespace JBro
     // 하나도 모른다 - 표가 늘면 목록이 는다.
     void InspectorPanel::DrawAddComponent(GameObject& object)
     {
-        if (ImGui::Button(Loc::TextOr(LocKeys::InspectorAddComponent, "Add Component"),
-            ImVec2(-FLT_MIN, 0.0f)))
-        {
-            ImGui::OpenPopup("##AddComponent");
-        }
-        if (false == ImGui::BeginPopup("##AddComponent"))
-        {
-            return;
-        }
+        // 검색 드롭다운 하나다(D-116). 현재 번호를 늘 -1 로 주므로 트리거에는 "컴포넌트
+        // 추가" 가 보이고, 고르면 그 자리에서 커맨드 하나가 나간다.
         const Array<const ComponentTypeInfo*> types =
             ComponentRegistry::Get().CollectTypes();
-        if (types.IsEmpty())
-        {
-            ImGui::TextDisabled("%s",
-                Loc::TextOr(LocKeys::InspectorNoComponentTypes,
-                    "no component type has registered itself"));
-        }
+        Array<const char*> names;
+        names.Reserve(types.Size());
         for (std::size_t index = 0; index < types.Size(); ++index)
         {
             const char* name = NameTable::Get().Resolve(types[index]->name);
-            if (name == nullptr)
-            {
-                continue;
-            }
-            if (false == ImGui::MenuItem(DisplayTypeName(name)))
-            {
-                continue;
-            }
-            const EditorObjectId objectId = m_editor->GetObjectIds().Track(&object);
-            m_editor->GetCommands().Execute(MakeOwnerPtr<AddComponentCommand>(
-                *m_editor->GetCanvas(), m_editor->GetObjectIds(), objectId,
-                types[index]->name));
-            break;
+            names.Add(name != nullptr ? DisplayTypeName(name) : nullptr);
         }
-        ImGui::EndPopup();
+        int chosen = -1;
+        const bool picked = Widget::FilterCombo("##AddComponent",
+            ArrayView<const char* const>(names.Data(), names.Size()), chosen)
+            .EmptyText(Loc::TextOr(LocKeys::InspectorAddComponent, "Add Component"))
+            .NoItemsText(Loc::TextOr(LocKeys::InspectorNoComponentTypes,
+                "no component type has registered itself"))
+            .Width(-FLT_MIN)
+            .Draw();
+        if (false == picked || chosen < 0 || static_cast<std::size_t>(chosen) >= types.Size())
+        {
+            return;
+        }
+        const EditorObjectId objectId = m_editor->GetObjectIds().Track(&object);
+        m_editor->GetCommands().Execute(MakeOwnerPtr<AddComponentCommand>(
+            *m_editor->GetCanvas(), m_editor->GetObjectIds(), objectId,
+            types[static_cast<std::size_t>(chosen)]->name));
     }
 
     void InspectorPanel::MoveComponent(GameObject& object, std::size_t from, std::size_t to)

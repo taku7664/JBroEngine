@@ -80,5 +80,6 @@ namespace JBro::LocKeys
     // ── 공용 ─────────────────────────────────────────────────────────────
     inline constexpr const char* CommonSearch = "common.search";
     inline constexpr const char* CommonClear = "common.clear";
+    inline constexpr const char* CommonNoMatches = "common.no_matches";
     inline constexpr const char* CommonOk = "common.ok";
 }

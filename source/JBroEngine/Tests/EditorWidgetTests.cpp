@@ -1,6 +1,8 @@
 ﻿#include <JBro/Editor/Widget/Button.h>
 #include <JBro/Editor/Widget/Common.h>
+#include <JBro/Editor/Widget/EnumCombo.h>
 #include <JBro/Editor/Widget/Fields.h>
+#include <JBro/Editor/Widget/FilterCombo.h>
 #include <JBro/Editor/Widget/FieldLabel.h>
 #include <JBro/Editor/Widget/FormLayout.h>
 #include <JBro/Editor/Widget/List.h>
@@ -519,6 +521,202 @@ namespace
         stage.End();
     }
 
+    // 드롭다운 팝업 창을 찾는다. ImGui 는 콤보 팝업을 "##Combo_NN" 으로 연다.
+    ImGuiWindow* FindComboPopup()
+    {
+        for (ImGuiWindow* window : ImGui::GetCurrentContext()->Windows)
+        {
+            if (std::strstr(window->Name, "##Combo_") != nullptr && window->WasActive)
+            {
+                return window;
+            }
+        }
+        return nullptr;
+    }
+
+    // **검색 드롭다운은 글자 몇 자와 Enter 로 고른다**(D-116). 마우스로 열고, 글자를 넣고,
+    // Enter 를 눌러 보이는 첫 항목이 골라지는지 잰다. 다시 열면 검색이 비어 있어야 한다 -
+    // 남아 있으면 Enter 가 지난번 항목을 다시 고른다.
+    void TestTheFilterComboPicksByTypingAndEnter()
+    {
+        Stage stage;
+        const char* const items[] = { "Transform2D", "SpriteRenderer2D", "Rigidbody2D" };
+        int current = -1;
+        int changedFrames = 0;
+        ImVec2 triggerMin;
+        ImVec2 triggerMax;
+        bool triggerKnown = false;
+        const auto frame = [&]() {
+            stage.Begin();
+            const bool changed = JBro::Widget::FilterCombo("##probe", items, current)
+                .EmptyText("(none)")
+                .Width(200.0f)
+                .Draw();
+            if (false == triggerKnown)
+            {
+                triggerMin = ImGui::GetItemRectMin();
+                triggerMax = ImGui::GetItemRectMax();
+                triggerKnown = true;
+            }
+            if (changed)
+            {
+                ++changedFrames;
+            }
+            stage.End();
+        };
+        const auto open = [&]() {
+            ImGuiIO& io = ImGui::GetIO();
+            io.AddMousePosEvent((triggerMin.x + triggerMax.x) * 0.5f,
+                (triggerMin.y + triggerMax.y) * 0.5f);
+            frame();
+            io.AddMouseButtonEvent(0, true);
+            frame();
+            io.AddMouseButtonEvent(0, false);
+            frame();
+            // 팝업은 눌린 다음 프레임에 나타나고, 검색 칸은 그 프레임에 활성화된다.
+            // 활성화되는 프레임의 글자는 버려지므로 한 프레임 더 돈다.
+            frame();
+            frame();
+            Check(FindComboPopup() != nullptr, "clicking the trigger must open the popup");
+        };
+        const auto type = [&](const char* text) {
+            for (const char* at = text; *at != '\0'; ++at)
+            {
+                ImGui::GetIO().AddInputCharacter(static_cast<unsigned int>(*at));
+                frame();
+            }
+        };
+        const auto pressEnter = [&]() {
+            ImGui::GetIO().AddKeyEvent(ImGuiKey_Enter, true);
+            frame();
+            ImGui::GetIO().AddKeyEvent(ImGuiKey_Enter, false);
+            frame();
+            // 창의 WasActive 는 다음 NewFrame 에서야 갱신된다. 닫힘을 보려면 한 프레임 더.
+            frame();
+        };
+
+        stage.Settle();
+        frame();
+        frame();
+        Check(current == -1 && changedFrames == 0, "nothing chosen before anyone touches it");
+        Check(triggerMax.x - triggerMin.x > 100.0f, "the trigger must have the width it was given");
+
+        open();
+        type("rig");
+        pressEnter();
+        Check(current == 2, "typing 'rig' and Enter must pick Rigidbody2D");
+        Check(changedFrames == 1, "and report the change exactly once");
+        Check(FindComboPopup() == nullptr, "Enter must close the popup");
+
+        // 다시 열면 검색이 비어 있다. 첫 항목이 골라진다.
+        open();
+        pressEnter();
+        Check(current == 0, "a reopened combo starts with an empty filter, so Enter picks the first item");
+        Check(changedFrames == 2, "that is the second change");
+
+        // 아무것에도 맞지 않는 글자 뒤의 Enter 는 아무것도 고르지 않는다.
+        open();
+        type("zzz");
+        pressEnter();
+        Check(current == 0 && changedFrames == 2, "Enter with no visible item changes nothing");
+    }
+
+    // 빈 목록은 열려도 아무것도 고르지 않고 무너지지 않는다.
+    void TestAnEmptyFilterComboDrawsAndChangesNothing()
+    {
+        Stage stage;
+        int current = -1;
+        const JBro::ArrayView<const char* const> none;
+        stage.Begin();
+        const bool changed = JBro::Widget::FilterCombo("##empty", none, current)
+            .EmptyText("(none)").Draw();
+        stage.End();
+        Check(false == changed && current == -1, "an empty list changes nothing");
+
+        Check(JBro::Widget::MatchesFilter("SpriteRenderer2D", ""), "an empty filter matches all");
+        Check(JBro::Widget::MatchesFilter("SpriteRenderer2D", "render"), "case does not matter");
+        Check(false == JBro::Widget::MatchesFilter("SpriteRenderer2D", "mesh"), "a miss is a miss");
+        Check(false == JBro::Widget::MatchesFilter(nullptr, "a"), "no text matches nothing");
+    }
+
+    // `EnumCombo` 는 같은 몸이다. 이름이 몇 개뿐이면 검색 칸이 없으므로 마우스로 항목을
+    // 눌러 값이 바뀌는지 잰다. 이름표의 `FromIndex` 가 실제로 불려야 한다.
+    void TestTheEnumComboChangesTheValueWhenAnItemIsClicked()
+    {
+        Stage stage;
+        static const char* const names[] = { "Nearest", "Linear", "Cubic" };
+        JBro::EnumNames table;
+        table.names = names;
+        table.count = 3;
+        table.ToIndex = [](const void* value) noexcept -> std::int32_t {
+            return *static_cast<const std::int32_t*>(value);
+        };
+        table.FromIndex = [](void* value, std::int32_t index) noexcept {
+            *static_cast<std::int32_t*>(value) = index;
+        };
+        std::int32_t value = 0;
+        int changedFrames = 0;
+        ImVec2 triggerMin;
+        ImVec2 triggerMax;
+        bool triggerKnown = false;
+        const auto frame = [&]() {
+            stage.Begin();
+            if (JBro::Widget::EnumCombo("##enum", table, &value, 150.0f))
+            {
+                ++changedFrames;
+            }
+            if (false == triggerKnown)
+            {
+                triggerMin = ImGui::GetItemRectMin();
+                triggerMax = ImGui::GetItemRectMax();
+                triggerKnown = true;
+            }
+            stage.End();
+        };
+        ImGuiIO& io = ImGui::GetIO();
+        stage.Settle();
+        frame();
+        frame();
+        Check(value == 0 && changedFrames == 0, "untouched, the value stays");
+
+        io.AddMousePosEvent((triggerMin.x + triggerMax.x) * 0.5f, (triggerMin.y + triggerMax.y) * 0.5f);
+        frame();
+        io.AddMouseButtonEvent(0, true);
+        frame();
+        io.AddMouseButtonEvent(0, false);
+        frame();
+        frame();
+        ImGuiWindow* popup = FindComboPopup();
+        Check(popup != nullptr, "clicking the trigger must open the popup");
+
+        // 둘째 항목("Linear")의 Id 는 팝업 창 → PushID(1) → 이름이다.
+        int itemIndex = 1;
+        const ImGuiID linear = ImHashStr(names[1], 0,
+            ImHashData(&itemIndex, sizeof(itemIndex), popup->ID));
+        bool found = false;
+        for (float at = popup->Pos.y; at < popup->Pos.y + popup->Size.y; at += 1.0f)
+        {
+            io.AddMousePosEvent(popup->Pos.x + 10.0f, at);
+            frame();
+            if (ImGui::GetHoveredID() == linear)
+            {
+                found = true;
+                break;
+            }
+        }
+        Check(found, "the second item must be somewhere in the popup");
+        io.AddMouseButtonEvent(0, true);
+        frame();
+        io.AddMouseButtonEvent(0, false);
+        frame();
+        frame();
+        // 창의 WasActive 는 다음 NewFrame 에서야 갱신된다. 닫힘을 보려면 한 프레임 더.
+        frame();
+        Check(value == 1, "clicking Linear must write 1 through FromIndex");
+        Check(changedFrames == 1, "and report the change once");
+        Check(FindComboPopup() == nullptr, "and close the popup");
+    }
+
     // 무게마다 색이 달라야 한다. 같으면 경고와 오류를 눈으로 가릴 수 없다.
     void TestSeverityColoursDiffer()
     {
@@ -555,6 +753,9 @@ int RunEditorWidgetTests()
     TestDroppingARowMovesItOnceAndDroppingBelowItselfChangesNothing();
     TestTheTreeHandsBackItsRowAndContent();
     TestTheTextFieldLeavesUntouchedValuesAlone();
+    TestTheFilterComboPicksByTypingAndEnter();
+    TestAnEmptyFilterComboDrawsAndChangesNothing();
+    TestTheEnumComboChangesTheValueWhenAnItemIsClicked();
     TestSeverityColoursDiffer();
     std::cout << "Editor widget tests passed.\n";
     return 0;
