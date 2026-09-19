@@ -177,13 +177,18 @@ namespace
             std::size_t,
             JBro::JArrayView<std::byte> data) override
         {
-            // 60 = 아핀 6 + 깊이 1 + 틴트 4 + UV 사각형 4. 셰이더와 공유하는 스트라이드다(D-113).
-            constexpr std::size_t Stride = sizeof(JBro::SpriteTransform2D) + 16 + 16;
+            // 40 = 아핀 6 + 깊이 1 + 틴트 바이트 4 + UV 16 비트 4. 셰이더와 공유하는 스트라이드다(D-114).
+            constexpr std::size_t Stride = sizeof(JBro::SpriteTransform2D) + 4 + 8;
             if (data.size >= Stride && data.size % Stride == 0)
             {
                 uploadedInstanceCount = data.size / Stride;
                 std::memcpy(&firstInstanceWorld, data.data, sizeof(firstInstanceWorld));
-                std::memcpy(firstInstanceTint, data.data + sizeof(JBro::SpriteTransform2D), sizeof(firstInstanceTint));
+                unsigned char tintBytes[4] = {};
+                std::memcpy(tintBytes, data.data + sizeof(JBro::SpriteTransform2D), sizeof(tintBytes));
+                for (int channel = 0; channel < 4; ++channel)
+                {
+                    firstInstanceTint[channel] = tintBytes[channel] / 255.0f;
+                }
             }
             lastInstanceUploadBytes = data.size;
             ++writeBufferCount;
@@ -846,10 +851,10 @@ namespace
         Check(close(world.depth, 0.0f), "a sprite without a depth buffer must stay on the z=0 plane");
         Check(close(module.device.firstInstanceTint[3], 1.0f),
             "the tint must follow the transform at its own attribute offset, not overlap it");
-        // 이 크기가 셰이더 입력 레이아웃과 같은 계약이다. 4x4 시절은 인스턴스당 80B 였고, UV 사각형(D-113)이 16B 를
-        // 더해 60B 다 - 여전히 4x4 보다 작다.
-        Check(module.device.lastInstanceUploadBytes == 70 * 60,
-            "70 sprites must upload 60 bytes each, not the 80 the 4x4 packet cost");
+        // 이 크기가 셰이더 입력 레이아웃과 같은 계약이다. 4x4 시절은 인스턴스당 80B, 텍스처 없던 시절 44B, UV 사각형을
+        // float 로 더한 순간 60B 였고, 틴트 바이트·UV 16 비트(D-114)로 40B 다.
+        Check(module.device.lastInstanceUploadBytes == 70 * 40,
+            "70 sprites must upload 40 bytes each");
         const auto& vp = module.device.commands.viewProjection.values;
         Check(close(vp[0], 0.05f) && close(vp[5], 0.1f) && close(vp[3], -0.1f) && close(vp[7], -0.3f),
             "camera projection must use half-height, aspect ratio and inverse translation");

@@ -34,6 +34,18 @@ namespace JBro
     namespace
     {
         // API 마다 읽는 바이트코드가 다르다. D3D12 는 DXIL, D3D11 은 DXBC, Vulkan 은 SPIR-V 다.
+        std::uint8_t ToUnorm8(float value) noexcept
+        {
+            const float clamped = value < 0.0f ? 0.0f : (value > 1.0f ? 1.0f : value);
+            return static_cast<std::uint8_t>(clamped * 255.0f + 0.5f);
+        }
+
+        std::uint16_t ToUnorm16(float value) noexcept
+        {
+            const float clamped = value < 0.0f ? 0.0f : (value > 1.0f ? 1.0f : value);
+            return static_cast<std::uint16_t>(clamped * 65535.0f + 0.5f);
+        }
+
         ShaderBytecode PickShader(GraphicsApi api, const unsigned char* dxil, std::size_t dxilSize,
             const unsigned char* dxbc, std::size_t dxbcSize, const unsigned char* spirv, std::size_t spirvSize)
         {
@@ -1054,9 +1066,9 @@ namespace JBro
             {2, static_cast<std::uint32_t>(TransformOffset + offsetof(SpriteTransform2D, translation)),
                 VertexFormat::Float3},
             {3, static_cast<std::uint32_t>(offsetof(GpuSpriteInstance, tint)),
-                VertexFormat::Float4},
+                VertexFormat::UByte4Norm},
             {4, static_cast<std::uint32_t>(offsetof(GpuSpriteInstance, uvRect)),
-                VertexFormat::Float4}};
+                VertexFormat::UShort4Norm}};
         const VertexBufferLayoutDesc vertexLayouts[] = {
             {sizeof(float) * 2, VertexStepMode::Vertex, {vertexAttributes, 1}},
             {sizeof(GpuSpriteInstance), VertexStepMode::Instance, {instanceAttributes, 4}}};
@@ -1371,14 +1383,15 @@ namespace JBro
                 const SpriteSubmit& item = source[index];
                 GpuSpriteInstance& instance = destination[index];
                 instance.world = item.world;
-                instance.tint[0] = item.tint[0];
-                instance.tint[1] = item.tint[1];
-                instance.tint[2] = item.tint[2];
-                instance.tint[3] = item.tint[3];
-                instance.uvRect[0] = item.uvRect[0];
-                instance.uvRect[1] = item.uvRect[1];
-                instance.uvRect[2] = item.uvRect[2];
-                instance.uvRect[3] = item.uvRect[3];
+                // 0..1 로 잘라 정규화 정수로 접는다(D-114). 반올림해야 0.5 가 128 로 가서 되읽기가 0.502 다.
+                instance.tint[0] = ToUnorm8(item.tint[0]);
+                instance.tint[1] = ToUnorm8(item.tint[1]);
+                instance.tint[2] = ToUnorm8(item.tint[2]);
+                instance.tint[3] = ToUnorm8(item.tint[3]);
+                instance.uvRect[0] = ToUnorm16(item.uvRect[0]);
+                instance.uvRect[1] = ToUnorm16(item.uvRect[1]);
+                instance.uvRect[2] = ToUnorm16(item.uvRect[2]);
+                instance.uvRect[3] = ToUnorm16(item.uvRect[3]);
 
                 TextureHandle texture = m_whiteTexture;
                 std::uint64_t textureKey = whiteKey;

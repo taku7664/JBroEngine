@@ -24,6 +24,8 @@ namespace JBro::Internal
                 return VK_FORMAT_R32G32B32A32_SFLOAT;
             case VertexFormat::UByte4Norm:
                 return VK_FORMAT_R8G8B8A8_UNORM;
+            case VertexFormat::UShort4Norm:
+                return VK_FORMAT_R16G16B16A16_UNORM;
             }
             return VK_FORMAT_UNDEFINED;
         }
@@ -40,6 +42,8 @@ namespace JBro::Internal
                 return 16;
             case VertexFormat::UByte4Norm:
                 return 4;
+            case VertexFormat::UShort4Norm:
+                return 8;
             }
             return 0;
         }

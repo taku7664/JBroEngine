@@ -250,20 +250,23 @@ namespace JBro
 
         // 이 멤버 순서가 정점 속성 오프셋이고 BuiltinSprite.hlsl 의 ABI 다.
         // 크기나 순서를 바꾸면 셰이더도 함께 다시 만든다(Shaders/Compile.ps1).
+        // **40 바이트다**(D-114). 틴트는 바이트 넷(`UByte4Norm`), UV 사각형은 16 비트 정규화 넷(`UShort4Norm`)이라
+        // 셰이더는 둘 다 0..1 의 float4 로 받는다 - HLSL 은 바뀌지 않는다. 60000 개에서 인스턴스 업로드가 3.6MB 에서
+        // 2.4MB 로 준다. 틴트는 0..1 로 잘리고 UV 도 0..1 로 잘린다(감싸기 없음).
         struct GpuSpriteInstance
         {
             SpriteTransform2D world;
-            float tint[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+            std::uint8_t tint[4] = {255, 255, 255, 255};
             // ATTRIBUTE4. 셰이더는 uv = uv * zw + xy 다(D-113).
-            float uvRect[4] = {0.0f, 0.0f, 1.0f, 1.0f};
+            std::uint16_t uvRect[4] = {0, 0, 65535, 65535};
         };
 
         static_assert(sizeof(SpriteTransform2D) == 28,
             "sprite transform layout is part of the shader ABI");
-        static_assert(sizeof(GpuSpriteInstance) == 60,
+        static_assert(sizeof(GpuSpriteInstance) == 40,
             "sprite instance stride is part of the shader ABI");
-        static_assert(offsetof(GpuSpriteInstance, uvRect) == 44,
-            "instance attribute 4 reads the uv rectangle from offset 44");
+        static_assert(offsetof(GpuSpriteInstance, uvRect) == 32,
+            "instance attribute 4 reads the uv rectangle from offset 32");
         static_assert(offsetof(GpuSpriteInstance, world) == 0,
             "instance attribute 1 and 2 read the transform from offset 0");
         static_assert(offsetof(SpriteTransform2D, translation) == 16,
