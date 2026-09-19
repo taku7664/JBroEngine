@@ -75,7 +75,11 @@ namespace JBro::Internal
             // 깊이 버퍼가 아직 없다. 그리는 순서는 RenderWorld2D 가 정렬로 끝내고,
             // 이 값은 그 정렬을 GPU 로 옮기기 전까지 평면을 유지한다.
             result.world.depth = 0.0f;
-            result.sprite = source.sprite;
+            result.texture = source.texture;
+            result.uvRect[0] = source.uvRect[0];
+            result.uvRect[1] = source.uvRect[1];
+            result.uvRect[2] = source.uvRect[2];
+            result.uvRect[3] = source.uvRect[3];
             result.material = source.material;
             result.tint[0] = source.tint.R;
             result.tint[1] = source.tint.G;

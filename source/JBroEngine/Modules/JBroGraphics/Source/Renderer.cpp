@@ -99,6 +99,9 @@ namespace JBro
             m_gpuSpriteInstances.Reserve(config.maxSpriteSubmissions);
             m_gpuMeshInstances.Reserve(config.maxMeshSubmissions);
             m_meshRuns.Reserve(config.maxMeshSubmissions);
+            // 묶음은 많아도 스프라이트 수를 넘지 않는다. 프레임 안에서 자라지 않게 여기서 잡는다.
+            m_spriteRuns.Reserve(config.maxSpriteSubmissions);
+            m_textureResources.Reserve(64);
             m_gpuSpriteInstances.Resize(config.maxSpriteSubmissions);
             m_gpuMeshInstances.Resize(config.maxMeshSubmissions);
             // 메시 슬롯 수만큼 필요하다. 등록할 때 함께 자라므로 프레임 안에서는 할당하지 않는다.
@@ -171,6 +174,7 @@ namespace JBro
         {
             m_device->WaitIdle();
             DestroyMeshResources();
+            DestroyTextureResources();
             DestroyDepthTargets();
             DestroyBuiltinMeshResources();
             DestroyBuiltinSpriteResources();
@@ -322,6 +326,111 @@ namespace JBro
             return nullptr;
         }
         return &resource;
+    }
+
+    AssetHandle Renderer::RegisterTexture(const Extent2D& extent, JArrayView<std::byte> rgba8)
+    {
+        const std::size_t expected = static_cast<std::size_t>(extent.width) * extent.height * 4u;
+        if (m_device == nullptr || m_frameActive || extent.width == 0 || extent.height == 0
+            || rgba8.data == nullptr || rgba8.size != expected)
+        {
+            return {};
+        }
+        TextureDesc desc;
+        desc.extent = extent;
+        desc.format = TextureFormat::RGBA8Unorm;
+        desc.usage = TextureUsage::Sampled | TextureUsage::CopyDestination;
+        TextureResource resource;
+        resource.texture = m_device->CreateTexture(desc);
+        if (false == resource.texture.IsValid())
+        {
+            return {};
+        }
+        if (false == m_device->WriteTexture(resource.texture, 0, rgba8))
+        {
+            m_device->DestroyTexture(resource.texture);
+            return {};
+        }
+        resource.extent = extent;
+        resource.occupied = true;
+        for (std::size_t slot = 0; slot < m_textureResources.Size(); ++slot)
+        {
+            if (false == m_textureResources[slot].occupied)
+            {
+                resource.generation = m_textureResources[slot].generation + 1;
+                m_textureResources[slot] = resource;
+                return AssetHandle{static_cast<std::uint32_t>(slot), resource.generation};
+            }
+        }
+        m_textureResources.Add(resource);
+        return AssetHandle{static_cast<std::uint32_t>(m_textureResources.Size() - 1), resource.generation};
+    }
+
+    bool Renderer::UpdateTexture(AssetHandle texture, JArrayView<std::byte> rgba8)
+    {
+        const TextureResource* resource = FindTexture(texture);
+        if (resource == nullptr || m_frameActive || rgba8.data == nullptr
+            || rgba8.size != static_cast<std::size_t>(resource->extent.width) * resource->extent.height * 4u)
+        {
+            return false;
+        }
+        return m_device->WriteTexture(resource->texture, 0, rgba8);
+    }
+
+    void Renderer::UnregisterTexture(AssetHandle texture)
+    {
+        if (m_device == nullptr || m_frameActive || texture.index >= m_textureResources.Size())
+        {
+            return;
+        }
+        TextureResource& resource = m_textureResources[texture.index];
+        if (false == resource.occupied || resource.generation != texture.generation)
+        {
+            return;
+        }
+        // 지난 프레임이 아직 읽을 수 있다. 백엔드의 지연 파기가 그것을 든다(RHI 계약).
+        m_device->DestroyTexture(resource.texture);
+        resource.texture = {};
+        resource.extent = {};
+        resource.occupied = false;
+    }
+
+    std::uint32_t Renderer::GetTextureCount() const
+    {
+        std::uint32_t count = 0;
+        for (std::size_t slot = 0; slot < m_textureResources.Size(); ++slot)
+        {
+            count += m_textureResources[slot].occupied ? 1u : 0u;
+        }
+        return count;
+    }
+
+    const Renderer::TextureResource* Renderer::FindTexture(AssetHandle texture) const
+    {
+        if (texture.generation == 0 || texture.index >= m_textureResources.Size())
+        {
+            return nullptr;
+        }
+        const TextureResource& resource = m_textureResources[texture.index];
+        return resource.occupied && resource.generation == texture.generation ? &resource : nullptr;
+    }
+
+    void Renderer::DestroyTextureResources()
+    {
+        if (m_device == nullptr)
+        {
+            return;
+        }
+        for (std::size_t slot = 0; slot < m_textureResources.Size(); ++slot)
+        {
+            TextureResource& resource = m_textureResources[slot];
+            if (resource.occupied)
+            {
+                m_device->DestroyTexture(resource.texture);
+                resource = {};
+            }
+        }
+        m_textureResources.Clear();
     }
 
     void Renderer::DestroyMeshResources()
@@ -811,15 +920,24 @@ namespace JBro
                         m_spriteIndexBuffer,
                         IndexFormat::UInt16,
                         0)
-                    || false == m_frame.commands->SetGraphicsConstants(constants)
-                    || false == m_frame.commands->DrawIndexedInstanced(
-                        6,
-                        view.spriteCount,
-                        0,
-                        0,
-                        view.spriteOffset))
+                    || false == m_frame.commands->SetGraphicsConstants(constants))
                 {
                     return false;
+                }
+                for (std::uint32_t runIndex = 0; runIndex < view.spriteRunCount; ++runIndex)
+                {
+                    const SpriteRun& run = m_spriteRuns[view.spriteRunOffset + runIndex];
+                    if (false == m_frame.commands->SetTexture(0, run.texture)
+                        || false == m_frame.commands->SetSampler(0, run.sampler)
+                        || false == m_frame.commands->DrawIndexedInstanced(
+                            6,
+                            run.instanceCount,
+                            0,
+                            0,
+                            run.firstInstance))
+                    {
+                        return false;
+                    }
                 }
             }
 
@@ -936,11 +1054,38 @@ namespace JBro
             {2, static_cast<std::uint32_t>(TransformOffset + offsetof(SpriteTransform2D, translation)),
                 VertexFormat::Float3},
             {3, static_cast<std::uint32_t>(offsetof(GpuSpriteInstance, tint)),
+                VertexFormat::Float4},
+            {4, static_cast<std::uint32_t>(offsetof(GpuSpriteInstance, uvRect)),
                 VertexFormat::Float4}};
         const VertexBufferLayoutDesc vertexLayouts[] = {
             {sizeof(float) * 2, VertexStepMode::Vertex, {vertexAttributes, 1}},
-            {sizeof(GpuSpriteInstance), VertexStepMode::Instance, {instanceAttributes, 3}}};
+            {sizeof(GpuSpriteInstance), VertexStepMode::Instance, {instanceAttributes, 4}}};
         const TextureFormat colorFormats[] = {m_config.backBufferFormat};
+
+        // 텍스처가 없는 스프라이트의 자리다. 흰색 하나를 샘플링하면 틴트가 그대로 나온다 - 파이프라인이 텍스처
+        // 하나를 선언했으므로 빈 채로는 그릴 수 없다(D-61).
+        {
+            TextureDesc whiteDesc;
+            whiteDesc.extent = {1, 1};
+            whiteDesc.format = TextureFormat::RGBA8Unorm;
+            whiteDesc.usage = TextureUsage::Sampled | TextureUsage::CopyDestination;
+            m_whiteTexture = m_device->CreateTexture(whiteDesc);
+            const std::byte white[4] = {std::byte{255}, std::byte{255}, std::byte{255}, std::byte{255}};
+            if (false == m_whiteTexture.IsValid() || false == m_device->WriteTexture(m_whiteTexture, 0, {white, 4}))
+            {
+                return false;
+            }
+            SamplerDesc nearest;
+            nearest.minFilter = FilterMode::Nearest;
+            nearest.magFilter = FilterMode::Nearest;
+            m_nearestSampler = m_device->CreateSampler(nearest);
+            SamplerDesc linear;
+            m_linearSampler = m_device->CreateSampler(linear);
+            if (false == m_nearestSampler.IsValid() || false == m_linearSampler.IsValid())
+            {
+                return false;
+            }
+        }
 
         GraphicsPipelineDesc pipelineDesc;
         pipelineDesc.vertexShader = PickShader(m_config.api, JBroBuiltinSpriteVS, sizeof(JBroBuiltinSpriteVS),
@@ -955,6 +1100,8 @@ namespace JBro
         pipelineDesc.cull = CullMode::None;
         pipelineDesc.pushConstantStages = ShaderStage::Vertex;
         pipelineDesc.pushConstantBytes = sizeof(Matrix4x4);
+        pipelineDesc.sampledTextureCount = 1;
+        pipelineDesc.samplerCount = 1;
         m_spritePipeline = m_device->CreateGraphicsPipeline(pipelineDesc);
         // 깊이가 달린 패스용 쌍둥이. 포맷은 맞추고 깊이는 끈다 - 스프라이트는 제출 순서로 겹친다.
         pipelineDesc.depthFormat = TextureFormat::D32Float;
@@ -1148,6 +1295,21 @@ namespace JBro
             m_device->DestroyGraphicsPipeline(m_spriteOverDepthPipeline);
             m_spriteOverDepthPipeline = {};
         }
+        if (m_whiteTexture.IsValid())
+        {
+            m_device->DestroyTexture(m_whiteTexture);
+            m_whiteTexture = {};
+        }
+        if (m_nearestSampler.IsValid())
+        {
+            m_device->DestroySampler(m_nearestSampler);
+            m_nearestSampler = {};
+        }
+        if (m_linearSampler.IsValid())
+        {
+            m_device->DestroySampler(m_linearSampler);
+            m_linearSampler = {};
+        }
         for (BufferHandle& buffer : m_spriteInstanceBuffers)
         {
             if (buffer.IsValid())
@@ -1191,6 +1353,56 @@ namespace JBro
             destination[index].tint[1] = source[index].tint[1];
             destination[index].tint[2] = source[index].tint[2];
             destination[index].tint[3] = source[index].tint[3];
+            destination[index].uvRect[0] = source[index].uvRect[0];
+            destination[index].uvRect[1] = source[index].uvRect[1];
+            destination[index].uvRect[2] = source[index].uvRect[2];
+            destination[index].uvRect[3] = source[index].uvRect[3];
+        }
+
+        // 텍스처·샘플러가 같은 이웃을 묶어 드로우 하나로 낸다(D-113). 순서는 바꾸지 않는다 - 정렬은 프레임워크가 끝냈다.
+        // 빈 핸들은 흰색이고, 죽은 핸들도 흰색으로 그리되 센다.
+        m_spriteRuns.Clear();
+        for (std::size_t viewIndex = 0; viewIndex < m_views.Size(); ++viewIndex)
+        {
+            ViewPacket& view = m_views[viewIndex];
+            view.spriteRunOffset = static_cast<std::uint32_t>(m_spriteRuns.Size());
+            view.spriteRunCount = 0;
+            const std::uint32_t end = view.spriteOffset + view.spriteCount;
+            for (std::uint32_t index = view.spriteOffset; index < end; ++index)
+            {
+                TextureHandle texture = m_whiteTexture;
+                if (source[index].texture.generation != 0)
+                {
+                    const TextureResource* resource = FindTexture(source[index].texture);
+                    if (resource != nullptr)
+                    {
+                        texture = resource->texture;
+                    }
+                    else
+                    {
+                        ++m_currentStats.staleTextureSpriteCount;
+                    }
+                }
+                const SamplerHandle sampler =
+                    source[index].filter == SpriteFilter::Linear ? m_linearSampler : m_nearestSampler;
+                if (view.spriteRunCount != 0)
+                {
+                    SpriteRun& last = m_spriteRuns.Last();
+                    if (last.texture.index == texture.index && last.texture.generation == texture.generation
+                        && last.sampler.index == sampler.index && last.sampler.generation == sampler.generation)
+                    {
+                        ++last.instanceCount;
+                        continue;
+                    }
+                }
+                SpriteRun run;
+                run.texture = texture;
+                run.sampler = sampler;
+                run.firstInstance = index;
+                run.instanceCount = 1;
+                m_spriteRuns.Add(run);
+                ++view.spriteRunCount;
+            }
         }
         if (m_frame.slot >= MaxFrameSlots
             || false == m_spriteInstanceBuffers[m_frame.slot].IsValid())
@@ -1212,6 +1424,7 @@ namespace JBro
         m_sprites.Clear();
         m_meshes.Clear();
         m_meshRuns.Clear();
+        m_spriteRuns.Clear();
         m_currentStats = {};
         m_activeView = InvalidViewIndex;
     }

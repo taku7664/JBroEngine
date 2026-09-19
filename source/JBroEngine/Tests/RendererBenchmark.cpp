@@ -298,6 +298,41 @@ namespace
             }));
         }
 
+        // 1b. 같은 60000 개에 텍스처 둘을 100 개마다 번갈아 - 묶음 600 개. 텍스처 바인딩과 묶기의 값이다(D-113).
+        {
+            const std::byte texels[16] = {
+                std::byte{255}, std::byte{0}, std::byte{0}, std::byte{255}, std::byte{0}, std::byte{255}, std::byte{0}, std::byte{255},
+                std::byte{0}, std::byte{0}, std::byte{255}, std::byte{255}, std::byte{255}, std::byte{255}, std::byte{255}, std::byte{255}};
+            const JBro::AssetHandle textures[2] = {
+                renderer.RegisterTexture({2, 2}, {texels, 16}), renderer.RegisterTexture({2, 2}, {texels, 16})};
+            JBro::Array<JBro::SpriteSubmit> sprites;
+            BuildSprites(sprites, 60000);
+            for (std::uint32_t index = 0; index < sprites.Size(); ++index)
+            {
+                sprites[index].texture = textures[(index / 100) % 2];
+            }
+            const JBro::CameraParams camera = OrthoCamera();
+            Print(name, "sprites 60000 textured, 600 runs", bench.Measure([&]() {
+                if (false == renderer.BeginView(camera))
+                {
+                    return false;
+                }
+                constexpr std::uint32_t Batch = 64;
+                for (std::uint32_t offset = 0; offset < sprites.Size(); offset += Batch)
+                {
+                    const std::uint32_t count = static_cast<std::uint32_t>(
+                        (std::min)(static_cast<std::size_t>(Batch), sprites.Size() - offset));
+                    if (false == renderer.SubmitSprites({sprites.Data() + offset, count}))
+                    {
+                        return false;
+                    }
+                }
+                return renderer.EndView();
+            }));
+            renderer.UnregisterTexture(textures[0]);
+            renderer.UnregisterTexture(textures[1]);
+        }
+
         // 2·3. 정육면체 4096 개 - 메시 하나 / 메시 넷을 번갈아.
         {
             JBro::MeshLibrary library;

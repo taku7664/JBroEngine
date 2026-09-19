@@ -442,8 +442,145 @@ namespace
     }
 }
 
+namespace
+{
+    // **텍스처가 화면에 나온다(D-113).** 2x2 텍스처의 네 텍셀이 스프라이트의 네 사분면에 앉는지, UV 사각형이 시트의 한 칸만
+    // 고르는지, 같은 뷰 안에서 텍스처 있는 스프라이트와 없는 스프라이트가 묶음을 갈라 제 색으로 나오는지, 죽은 핸들이 흰색으로
+    // 그려지며 세어지는지를 세 백엔드에서 픽셀로 본다.
+    template <typename TModule>
+    void TestATexturedSpriteShowsItsTexelsAndCells()
+    {
+        JBro::WindowsPlatform platform;
+        TModule rhi;
+        JBro::JMemoryContext memory;
+        Check(platform.Initialize(memory), "platform must initialize for the texture pixel test");
+        if (false == rhi.Initialize(memory))
+        {
+            std::cout << "  [skip] no device for this API; textured sprites not verified" << std::endl;
+            platform.Shutdown();
+            return;
+        }
+        JBro::WindowDesc windowDesc;
+        constexpr char title[] = "JBro texture probe";
+        windowDesc.title = {title, sizeof(title) - 1};
+        windowDesc.width = 64;
+        windowDesc.height = 64;
+        windowDesc.visible = false;
+        const JBro::WindowHandle window = platform.OpenPlatformWindow(windowDesc);
+        Check(window.value != 0, "the probe window must open");
+        JBro::Renderer renderer;
+        JBro::RendererConfig config;
+        config.api = rhi.GetApi();
+        config.surface = platform.CreateSurface(window);
+        config.surfaceExtent = {64, 64};
+        config.maxSpriteSubmissions = 8;
+        config.presentMode = JBro::PresentMode::Immediate;
+        config.validation = true;
+        Check(renderer.Initialize(rhi, config), "the texture renderer must initialize");
+
+        // 왼쪽 위 빨강, 오른쪽 위 초록, 왼쪽 아래 파랑, 오른쪽 아래 흰색(불투명).
+        const std::byte texels[16] = {
+            std::byte{255}, std::byte{0}, std::byte{0}, std::byte{255},
+            std::byte{0}, std::byte{255}, std::byte{0}, std::byte{255},
+            std::byte{0}, std::byte{0}, std::byte{255}, std::byte{255},
+            std::byte{255}, std::byte{255}, std::byte{255}, std::byte{255}};
+        const JBro::AssetHandle texture = renderer.RegisterTexture({2, 2}, {texels, 16});
+        Check(texture.generation != 0, "a 2x2 texture registers");
+        Check(renderer.RegisterTexture({2, 2}, {texels, 15}).generation == 0, "the wrong byte count is refused");
+        Check(renderer.RegisterTexture({0, 2}, {texels, 0}).generation == 0, "an empty extent is refused");
+        Check(renderer.GetTextureCount() == 1, "one texture lives");
+
+        JBro::CameraParams camera;
+        camera.projection = {{1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f}};
+        camera.clearColor[0] = 0.0f;
+        camera.clearColor[1] = 0.0f;
+        camera.clearColor[2] = 0.0f;
+        camera.clearColor[3] = 1.0f;
+        camera.viewport.width = 64.0f;
+        camera.viewport.height = 64.0f;
+
+        // A: 왼쪽 절반, 텍스처 전체. 네 텍셀이 왼쪽 절반의 네 사분면이 된다.
+        JBro::SpriteSubmit textured;
+        textured.world.linear[0] = 1.0f;
+        textured.world.linear[3] = 2.0f;
+        textured.world.translation[0] = -0.5f;
+        textured.texture = texture;
+        // B: 오른쪽 절반, 초록 칸만(uMin 0.5, vMin 0, 절반씩).
+        JBro::SpriteSubmit cell = textured;
+        cell.world.translation[0] = 0.5f;
+        cell.uvRect[0] = 0.5f;
+        cell.uvRect[1] = 0.0f;
+        cell.uvRect[2] = 0.5f;
+        cell.uvRect[3] = 0.5f;
+        // C: 오른쪽 아래 사분면, 텍스처 없음(흰색 x 파란 틴트). B 와 다른 텍스처라 묶음이 갈린다.
+        JBro::SpriteSubmit plain;
+        plain.world.linear[0] = 1.0f;
+        plain.world.linear[3] = 1.0f;
+        plain.world.translation[0] = 0.5f;
+        plain.world.translation[1] = -0.5f;
+        plain.tint[0] = 0.0f;
+        plain.tint[1] = 0.0f;
+        plain.tint[2] = 1.0f;
+
+        Check(renderer.BeginFrame() == JBro::FrameStatus::Ready, "the frame must begin");
+        Check(renderer.BeginView(camera), "the view must open");
+        Check(renderer.SubmitSprite(textured) && renderer.SubmitSprite(cell) && renderer.SubmitSprite(plain),
+            "three sprites submit");
+        Check(renderer.EndView() && renderer.EndFrame() == JBro::FrameStatus::Ready, "the frame must present");
+        Check(renderer.GetLastFrameStats().staleTextureSpriteCount == 0, "every handle was live");
+
+        JBro::Array<std::byte> image;
+        image.Resize(64 * 64 * 4);
+        JBro::TextureReadback readback;
+        Check(renderer.ReadBackBuffer(image.Data(), image.Size(), readback), "the back buffer reads back");
+        const Pixel topLeft = ReadPixel(image, readback.rowPitch, 8, 16);
+        const Pixel topRight = ReadPixel(image, readback.rowPitch, 24, 16);
+        const Pixel bottomLeft = ReadPixel(image, readback.rowPitch, 8, 48);
+        const Pixel bottomRight = ReadPixel(image, readback.rowPitch, 24, 48);
+        Check(Near(topLeft.r, 1.0f) && Near(topLeft.g, 0.0f) && Near(topLeft.b, 0.0f), "texel (0,0) sits top-left");
+        Check(Near(topRight.r, 0.0f) && Near(topRight.g, 1.0f) && Near(topRight.b, 0.0f), "texel (1,0) sits top-right");
+        Check(Near(bottomLeft.r, 0.0f) && Near(bottomLeft.g, 0.0f) && Near(bottomLeft.b, 1.0f), "texel (0,1) sits bottom-left");
+        Check(Near(bottomRight.r, 1.0f) && Near(bottomRight.g, 1.0f) && Near(bottomRight.b, 1.0f), "texel (1,1) sits bottom-right");
+        const Pixel cellTop = ReadPixel(image, readback.rowPitch, 40, 8);
+        const Pixel cellMid = ReadPixel(image, readback.rowPitch, 56, 24);
+        Check(Near(cellTop.g, 1.0f) && Near(cellTop.r, 0.0f) && Near(cellMid.g, 1.0f) && Near(cellMid.b, 0.0f),
+            "the uv rectangle shows only the green cell across the whole sprite");
+        const Pixel plainPixel = ReadPixel(image, readback.rowPitch, 48, 48);
+        Check(Near(plainPixel.b, 1.0f) && Near(plainPixel.r, 0.0f) && Near(plainPixel.g, 0.0f),
+            "an untextured sprite after a textured one paints its tint - the runs switched back to white");
+
+        // 두 번째 프레임: 핸들을 내린 뒤 그 핸들로 그린다. 흰색 x 틴트로 나오고 센다.
+        renderer.UnregisterTexture(texture);
+        Check(renderer.GetTextureCount() == 0, "no texture remains");
+        JBro::SpriteSubmit stale;
+        stale.world.linear[0] = 2.0f;
+        stale.world.linear[3] = 2.0f;
+        stale.texture = texture;
+        stale.tint[0] = 1.0f;
+        stale.tint[1] = 0.0f;
+        stale.tint[2] = 1.0f;
+        Check(renderer.BeginFrame() == JBro::FrameStatus::Ready, "the second frame must begin");
+        Check(renderer.BeginView(camera) && renderer.SubmitSprite(stale) && renderer.EndView(), "the stale sprite submits");
+        Check(renderer.EndFrame() == JBro::FrameStatus::Ready, "the second frame must present");
+        Check(renderer.GetLastFrameStats().staleTextureSpriteCount == 1, "the stale handle is counted");
+        Check(renderer.ReadBackBuffer(image.Data(), image.Size(), readback), "the second frame reads back");
+        const Pixel magenta = ReadPixel(image, readback.rowPitch, 32, 32);
+        Check(Near(magenta.r, 1.0f) && Near(magenta.g, 0.0f) && Near(magenta.b, 1.0f), "and drawn as white times the tint");
+        Check(renderer.GetDevice()->GetValidationErrorCount() == 0, "the debug layer accepted every frame");
+
+        renderer.Shutdown();
+        rhi.Shutdown();
+        platform.ClosePlatformWindow(window);
+        platform.PumpEvents();
+        platform.Shutdown();
+    }
+}
+
 int RunSpritePixelTests()
 {
+    TestATexturedSpriteShowsItsTexelsAndCells<JBro::D3D12RHIModule>();
+    TestATexturedSpriteShowsItsTexelsAndCells<JBro::D3D11RHIModule>();
+    TestATexturedSpriteShowsItsTexelsAndCells<JBro::VulkanRHIModule>();
     TestSpritePacketReachesTheShaderFields<JBro::D3D12RHIModule>();
     TestSpritePacketReachesTheShaderFields<JBro::D3D11RHIModule>();
     TestSpritePacketReachesTheShaderFields<JBro::VulkanRHIModule>();

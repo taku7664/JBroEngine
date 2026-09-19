@@ -18,6 +18,7 @@
 #include <JBro/Host/IFramework.h>
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/SystemScheduler.h>
+#include <JBro/Framework2DSystem/Rendering/SpriteLibrary.h>
 #include <JBro/Types/Table.h>
 
 namespace JBro
@@ -36,6 +37,7 @@ namespace JBro
 
         Canvas*        GetCanvas();
         RenderWorld2D* GetRenderWorld();
+        SpriteLibrary* GetSpriteLibrary();
         Layer*         CreateLayer(const char* name = nullptr);
         bool           DestroyLayer(LayerId layer);
         bool           MoveLayer(LayerId layer, std::size_t newIndex);
@@ -49,6 +51,8 @@ namespace JBro
         OwnerPtr<Canvas> m_canvas;
         Table<LayerId, OwnerPtr<Layer2D>> m_layer2DStates;
         RenderWorld2D    m_renderWorld;
+        // 스프라이트 에셋 → 렌더러 텍스처(D-113). 렌더러보다 먼저 내려가야 텍스처를 돌려줄 수 있다.
+        SpriteLibrary    m_spriteLibrary;
         // 스크립트 DLL 에 넘길 블록과 그 실체다. 블록이 이것들을 가리키므로
         // 프레임워크보다 먼저 죽으면 안 된다.
         Framework2DSystemContext  m_scriptSystems;

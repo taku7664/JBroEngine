@@ -86,14 +86,25 @@ namespace JBro
         float depth = 0.0f;
     };
 
+    enum class SpriteFilter : std::uint8_t
+    {
+        // 텍셀 하나를 그대로 집는다. 픽셀 아트의 기본이다.
+        Nearest,
+        Linear
+    };
+
     // 정렬과 레이어 합성은 프레임워크가 제출 전에 끝낸다.
-    // 렌더러는 받은 순서대로 그린다(D-53).
+    // 렌더러는 받은 순서대로 그린다(D-53). 텍스처가 같은 연속 구간이 드로우 하나다(D-113).
     struct SpriteSubmit
     {
         SpriteTransform2D world;
-        AssetHandle sprite;
+        // 렌더러가 `RegisterTexture` 로 발급한 텍스처다. 비어 있으면 1x1 흰색이라 틴트만 보인다.
+        AssetHandle texture;
         AssetHandle material;
         float tint[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+        // 텍스처의 어느 부분인가: uMin, vMin, uScale, vScale. 기본은 전체다. 시트의 한 칸이 이것으로 온다(D-113).
+        float uvRect[4] = {0.0f, 0.0f, 1.0f, 1.0f};
+        SpriteFilter filter = SpriteFilter::Nearest;
     };
 
     struct MeshSubmit
@@ -122,6 +133,8 @@ namespace JBro
         std::uint32_t skippedViewCount = 0;
         std::uint32_t droppedSpriteCount = 0;
         std::uint32_t droppedMeshCount = 0;
+        // 유효하지 않은(빈 것이 아니라 죽은) 텍스처 핸들을 든 스프라이트다. 흰색으로 그리고 센다.
+        std::uint32_t staleTextureSpriteCount = 0;
     };
 
     class Renderer final
@@ -153,6 +166,14 @@ namespace JBro
         AssetHandle RegisterMesh(JArrayView<MeshVertex> vertices, JArrayView<std::uint32_t> indices);
         void UnregisterMesh(AssetHandle mesh);
         std::uint32_t GetMeshCount() const;
+        // RGBA8 픽셀(왼쪽 위 원점, 행마다 `width * 4` 바이트)을 GPU 에 올리고 `SpriteSubmit::texture` 에 넣을 핸들을
+        // 준다. 프레임 밖에서만 부른다. 크기가 0 이거나 바이트 수가 맞지 않거나 프레임 안이면 빈 핸들이다(D-113).
+        // 발급자가 렌더러라는 것은 `SpriteLibrary`(Framework2DSystem)만 안다 - `MeshLibrary` 와 같다.
+        AssetHandle RegisterTexture(const Extent2D& extent, JArrayView<std::byte> rgba8);
+        // 같은 크기의 새 픽셀로 갈아 끼운다(에셋의 in-place 재로드). 크기가 다르면 거짓이다 - 새로 등록한다.
+        bool UpdateTexture(AssetHandle texture, JArrayView<std::byte> rgba8);
+        void UnregisterTexture(AssetHandle texture);
+        std::uint32_t GetTextureCount() const;
         bool EndView();
         FrameStatus EndFrame();
         void AbortFrame();
@@ -203,6 +224,19 @@ namespace JBro
             // 이 뷰의 메시 드로우 묶음(`m_meshRuns`)이 시작하는 자리와 개수. 업로드가 채운다.
             std::uint32_t runOffset = 0;
             std::uint32_t runCount = 0;
+            // 이 뷰의 스프라이트 드로우 묶음(`m_spriteRuns`). 텍스처·샘플러가 같은 연속 구간 하나가 묶음 하나다.
+            std::uint32_t spriteRunOffset = 0;
+            std::uint32_t spriteRunCount = 0;
+        };
+
+        // 같은 텍스처와 샘플러로 그리는 스프라이트의 연속 구간이다(D-113). 순서는 제출 순서 그대로다 - 정렬은
+        // 프레임워크의 일이고, 여기서는 이웃이 같으면 묶는 것만 한다.
+        struct SpriteRun
+        {
+            TextureHandle texture;
+            SamplerHandle sampler;
+            std::uint32_t firstInstance = 0;
+            std::uint32_t instanceCount = 0;
         };
 
         // 같은 메시를 그리는 인스턴스들의 연속 구간이다(D-110). 업로드가 뷰 안에서 메시별로 모아 놓으므로
@@ -220,12 +254,16 @@ namespace JBro
         {
             SpriteTransform2D world;
             float tint[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+            // ATTRIBUTE4. 셰이더는 uv = uv * zw + xy 다(D-113).
+            float uvRect[4] = {0.0f, 0.0f, 1.0f, 1.0f};
         };
 
         static_assert(sizeof(SpriteTransform2D) == 28,
             "sprite transform layout is part of the shader ABI");
-        static_assert(sizeof(GpuSpriteInstance) == 44,
+        static_assert(sizeof(GpuSpriteInstance) == 60,
             "sprite instance stride is part of the shader ABI");
+        static_assert(offsetof(GpuSpriteInstance, uvRect) == 44,
+            "instance attribute 4 reads the uv rectangle from offset 44");
         static_assert(offsetof(GpuSpriteInstance, world) == 0,
             "instance attribute 1 and 2 read the transform from offset 0");
         static_assert(offsetof(SpriteTransform2D, translation) == 16,
@@ -254,6 +292,15 @@ namespace JBro
             bool occupied = false;
         };
 
+        // 올라간 텍스처 하나. 핸들의 index 가 이 배열의 자리고 generation 이 재사용을 가른다(`MeshResource` 와 같다).
+        struct TextureResource
+        {
+            TextureHandle texture;
+            Extent2D extent;
+            std::uint32_t generation = 1;
+            bool occupied = false;
+        };
+
         // 깊이 텍스처 하나. 타깃 크기마다 하나씩 두고 크기가 바뀌면 다시 만든다.
         struct DepthTarget
         {
@@ -275,6 +322,8 @@ namespace JBro
         bool AcquireDepthTarget(const Extent2D& extent, bool forTexture, TextureHandle& depth);
         void DestroyDepthTargets();
         const MeshResource* FindMesh(AssetHandle mesh) const;
+        const TextureResource* FindTexture(AssetHandle texture) const;
+        void DestroyTextureResources();
         bool RecordViews();
         void ResetSubmissionStorage();
 
@@ -301,6 +350,12 @@ namespace JBro
         // 깊이가 달린 패스(메시가 있는 뷰) 위에 스프라이트를 얹을 때 쓰는 쌍둥이다. 포맷만 같고 깊이는 보지도
         // 쓰지도 않는다 - 파이프라인의 깊이 포맷은 패스의 첨부와 같아야 하기 때문에 둘이 필요하다.
         GraphicsPipelineHandle m_spriteOverDepthPipeline;
+        // 텍스처가 없는 스프라이트가 샘플링하는 1x1 흰색이다. 틴트가 그대로 나온다.
+        TextureHandle m_whiteTexture;
+        SamplerHandle m_nearestSampler;
+        SamplerHandle m_linearSampler;
+        Array<TextureResource> m_textureResources;
+        Array<SpriteRun> m_spriteRuns;
         Array<MeshResource> m_meshResources;
         Array<GpuMeshInstance> m_gpuMeshInstances;
         Array<MeshRun> m_meshRuns;

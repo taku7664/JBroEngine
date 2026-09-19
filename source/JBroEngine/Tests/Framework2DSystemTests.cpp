@@ -396,7 +396,9 @@ namespace
             Check(NearlyEqual(item.world.m31, 8.0f) && NearlyEqual(item.world.m32, -2.0f), "sprite must use world transform");
             Check(NearlyEqual(item.size.x, -2.0f) && NearlyEqual(item.size.y, -3.0f), "both flips must affect signed size");
             Check(item.renderOrder == -4 && world.GetSpriteCapacity() == capacity, "extraction must preserve order and reuse storage");
-            Check(item.sprite.index == 3 && item.sprite.generation == 7
+            // 라이브러리가 없으면 스프라이트 에셋은 풀리지 않는다 - 텍스처는 비고(흰색) UV 는 전체다(D-113).
+            Check(item.texture.generation == 0
+                && item.uvRect[0] == 0.0f && item.uvRect[1] == 0.0f && item.uvRect[2] == 1.0f && item.uvRect[3] == 1.0f
                 && item.material.index == 5 && item.material.generation == 9
                 && NearlyEqual(item.pivot.x, 0.1f) && NearlyEqual(item.pivot.y, 0.8f)
                 && NearlyEqual(item.tint.A, 0.8f), "sprite assets and appearance must survive extraction");

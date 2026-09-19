@@ -23,6 +23,7 @@ int RunYamlTests();
 int RunUuidTests();
 int RunAssetRegistryTests();
 int RunAssetSystemTests();
+int RunSpriteLibraryTests();
 int RunPlatformFileTests();
 int RunReflectedYamlTests();
 int RunCanvasFileTests();
@@ -263,6 +264,10 @@ int main()
             return 1;
         }
         if (RunAssetSystemTests() != 0)
+        {
+            return 1;
+        }
+        if (RunSpriteLibraryTests() != 0)
         {
             return 1;
         }

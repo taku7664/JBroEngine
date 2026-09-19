@@ -177,11 +177,11 @@ namespace
             std::size_t,
             JBro::JArrayView<std::byte> data) override
         {
-            // 44 = 아핀 6 + 깊이 1 + 틴트 4. 셔이더와 공유하는 스트라이드다.
-            if (data.size >= sizeof(JBro::SpriteTransform2D) + 16
-                && data.size % (sizeof(JBro::SpriteTransform2D) + 16) == 0)
+            // 60 = 아핀 6 + 깊이 1 + 틴트 4 + UV 사각형 4. 셰이더와 공유하는 스트라이드다(D-113).
+            constexpr std::size_t Stride = sizeof(JBro::SpriteTransform2D) + 16 + 16;
+            if (data.size >= Stride && data.size % Stride == 0)
             {
-                uploadedInstanceCount = data.size / (sizeof(JBro::SpriteTransform2D) + 16);
+                uploadedInstanceCount = data.size / Stride;
                 std::memcpy(&firstInstanceWorld, data.data, sizeof(firstInstanceWorld));
                 std::memcpy(firstInstanceTint, data.data + sizeof(JBro::SpriteTransform2D), sizeof(firstInstanceTint));
             }
@@ -846,9 +846,10 @@ namespace
         Check(close(world.depth, 0.0f), "a sprite without a depth buffer must stay on the z=0 plane");
         Check(close(module.device.firstInstanceTint[3], 1.0f),
             "the tint must follow the transform at its own attribute offset, not overlap it");
-        // 이 크기가 셔이더 입력 레이아웃과 같은 계약이다. 4x4 시절은 인스턴스당 80B 였다.
-        Check(module.device.lastInstanceUploadBytes == 70 * 44,
-            "70 sprites must upload 44 bytes each, not the 80 the 4x4 packet cost");
+        // 이 크기가 셰이더 입력 레이아웃과 같은 계약이다. 4x4 시절은 인스턴스당 80B 였고, UV 사각형(D-113)이 16B 를
+        // 더해 60B 다 - 여전히 4x4 보다 작다.
+        Check(module.device.lastInstanceUploadBytes == 70 * 60,
+            "70 sprites must upload 60 bytes each, not the 80 the 4x4 packet cost");
         const auto& vp = module.device.commands.viewProjection.values;
         Check(close(vp[0], 0.05f) && close(vp[5], 0.1f) && close(vp[3], -0.1f) && close(vp[7], -0.3f),
             "camera projection must use half-height, aspect ratio and inverse translation");

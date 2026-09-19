@@ -47,6 +47,7 @@ namespace JBro
                 return false;
             }
             m_canvas = MakeOwnerPtr<Canvas>(allocator);
+            m_spriteLibrary.Initialize(context.assets, context.renderer);
             CreateDefaultSystems();
             m_canvas->GetSystems().Initialize(*m_canvas);
         }
@@ -140,6 +141,7 @@ namespace JBro
         // Canvas shuts down its systems before objects/components and render storage disappear.
         m_layer2DStates.Clear();
         m_canvas.Reset();
+        m_spriteLibrary.Shutdown();
         m_renderWorld = {};
         m_context     = {};
         m_fixedAccumulator = 0.0;
@@ -154,6 +156,11 @@ namespace JBro
     RenderWorld2D* Framework2D::GetRenderWorld()
     {
         return &m_renderWorld;
+    }
+
+    SpriteLibrary* Framework2D::GetSpriteLibrary()
+    {
+        return &m_spriteLibrary;
     }
 
     Layer* Framework2D::CreateLayer(const char* name)
@@ -239,7 +246,9 @@ namespace JBro
         systems.AddSystem<System::ScriptSystem>();
         systems.AddSystem<System::Physics2DSystem>();
         systems.AddSystem<System::Camera2DSystem>().SetRenderWorld(&m_renderWorld);
-        systems.AddSystem<System::SpriteRender2DSystem>().SetRenderWorld(&m_renderWorld);
+        System::SpriteRender2DSystem& sprites = systems.AddSystem<System::SpriteRender2DSystem>();
+        sprites.SetRenderWorld(&m_renderWorld);
+        sprites.SetSpriteLibrary(&m_spriteLibrary);
     }
     void Framework2D::RunFixedSteps(float deltaTime)
     {

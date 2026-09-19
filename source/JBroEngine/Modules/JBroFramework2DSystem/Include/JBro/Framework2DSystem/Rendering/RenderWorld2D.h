@@ -30,7 +30,10 @@ namespace JBro
         // 레이어 합성 순서. 정렬 키의 최상위다(D-46).
         std::uint16_t layerOrder = 0;
         Matrix3x2     world;
-        AssetHandle   sprite;
+        // 렌더러가 발급한 텍스처와 그 안의 칸이다(D-113). 추출 단계에서 `SpriteLibrary` 가 스프라이트 에셋에서 풀어 넣는다.
+        // 텍스처가 비어 있으면 흰색이라 틴트만 보인다.
+        AssetHandle   texture;
+        float         uvRect[4] = { 0.0f, 0.0f, 1.0f, 1.0f };
         AssetHandle   material;
         Color         tint{ 1.0f, 1.0f, 1.0f, 1.0f };
         Vec2          pivot;
