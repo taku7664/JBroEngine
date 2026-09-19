@@ -47,11 +47,21 @@
    커맨드 하나와 해석된 핸들, 되돌리면 둘 다 빔). 원소 안의 `AssetId` 는 아직 글자 칸이다(목록 원소 편집 경로, D-89).
    뮤테이션: FilterCombo 6/6 잡힘(첫 판에 짧은 enum 에 검색 칸을 늘 그리는 변이가 살아 활성 입력 칸 없음 검사를 더해 잡았다), AssetField 8/8 잡힘(비우기 항목이 첫 아이디를 씀, 번호 밀림 무시, 없는 아이디 덮어쓰기, 타입 필터 제거, 커맨드 없음, 커맨드 뒤 재해석 없음, Enter 가 아무것도 안 고름).
 
-3. **스프라이트 크기와 피벗** - `SpriteRenderer2D::sizeMode`(`FromSprite` 기본), 추출 단계에서 `SpriteLibrary::Resolve` 가
-   프레임 픽셀·피벗·PPU 를 주고 시스템이 크기를 만든다. `.jproject` 의 `PixelsPerUnit` 제거(`ProjectFile.pixelsPerUnit`,
-   파서, 테스트 둘). 테스트: 2x2 텍스처 PPU 2 → 1x1 유닛, 시트 칸의 크기, `Custom` 은 저작 값.
-4. **샘플러** - `.jproject` `TextureFilter`, `TextureImportOptions { filter }`(메타의 `ImportOptions` 블록, 리플렉션),
-   `SpriteLibrary` 가 `SpriteSubmit::filter` 로 넘김. 픽셀 테스트: Linear 로 2x2 를 키우면 가운데가 섞인다.
+3. `[완료]` **스프라이트 크기와 피벗** (`805ef60`, D-119) - `SpriteRenderer2D::sizeMode { FromSprite, Custom }`(기본 `FromSprite`).
+   `SpriteLibrary::Resolve` 가 `SpriteFrameView`(칸 픽셀 / 에셋 PPU 의 유닛 크기, 칸의 피벗)를 함께 주고 시스템이
+   `FromSprite` 면 그것을, `Custom` 이거나 스프라이트가 풀리지 않았으면 저작 `size`·`pivot` 을 쓴다. `SpriteImportOptions.
+   pixelsPerUnit` 기본 100(0 이하로 적힌 옛 메타도 100). `.jproject` 의 `PixelsPerUnit` 은 필드·파서에서 뺐고 남은 키는 모르는
+   키로 건너뛴다. 테스트: 라이브러리(2x2 PPU 100 → 0.02, 시트 칸 PPU 2 → 0.5 와 시트 피벗, 2x1 칸 → 1 x 0.5), 캔버스를 시스템에
+   돌려 `FromSprite`·`Custom`·미해석 세 경우, 필드 수 12. 뮤테이션: 6 개 중 5 잡힘(높이가 너비를 쓰는 변이가 살아 2x1 칸 검사를 ④ 에 더해 잡았다).
+4. `[완료]` **샘플러** (`0e71bd8`, D-119) - `TextureFilter { Default, Nearest, Linear }` 와 `TextureImportOptions { filter }`
+   (메타 `Texture.ImportOptions`, 리플렉션)가 AssetTypes 에, `.jproject` 에 `TextureFilter: Nearest|Linear`(없으면 Nearest,
+   `Default` 는 거절). 에셋 시스템이 `SetDefaultTextureFilter` 로 프로젝트 기본을 받아 로드·재로드 때 텍스처의 유효 필터를
+   정하므로(`TextureData::filter`, `Default` 는 오지 않는다) 라이브러리·렌더 아이템·브리지는 값을 나를 뿐이고 브리지가
+   `SpriteFilter` 로 옮긴다. 테스트: 프로젝트 파일 읽기·거절, 에셋 시스템(텍스처 옵션이 이김, `Default` 는 프로젝트 기본,
+   모르는 이름 거절), 렌더러 픽셀(Linear 는 텍셀 경계에서 섞임), 프레임워크 전체를 세운 픽셀(진짜 PNG, 프로젝트 Nearest 면
+   경계가 순수 초록, 메타를 Linear 로 바꿔 재로드하면 섞임), 엔진 호스트가 프로젝트 파일의 필터를 에셋 시스템에 넘김.
+   뮤테이션: 10/10 잡힘(프로젝트 기본 미적용, 메타 필터 무시, 틀린 옵션 허용, Default 기본 유지, 프로젝트 키 무시, 라이브러리·시스템·브리지가 필터를 버림, 엔진이 기본을 안 넘김 - 마지막 것은 처음 살아 엔진 호스트 검사를 더해 잡았다).
+
 5. **에셋 브라우저 패널** - 폴더 `Tree` + 파일 `List`(레지스트리 기준), 선택 → 인스펙터에 임포트 옵션. 옵션 편집은
    커맨드(되살릴 옵션을 먼저 뜬다) → 메타를 리플렉션으로 다시 쓰고(`ImportOptions` 보존) `ReloadInPlace`. 로컬라이징 키.
 6. **파일 감시** - `IPlatform::WatchDirectory`/`TakeFileEvents`(Windows 구현, Web·Android 는 거짓), 에디터가 프레임 밖에서
@@ -59,7 +69,7 @@
 
 ## 스프라이트
 
-- `[진행 예정]` **스프라이트 크기 정책** (D-117 로 결정: `.jproject` 의 `PixelsPerUnit` 을 없애고 에셋 PPU, 아래 (C) 의 `FromSprite` 부터). 지금 `SpriteRenderer2D` 는 `size`(유닛)·`pivot` 을 저작 값으로 들고 텍스처 크기와
+- `[완료]` **스프라이트 크기 정책** (D-117 로 결정, D-119 로 섰다 - 위 4 단계 순서의 3). 지금 `SpriteRenderer2D` 는 `size`(유닛)·`pivot` 을 저작 값으로 들고 텍스처 크기와
   무관하다. 다른 엔진:
   - Unity: 텍스처 임포터의 Pixels Per Unit 이 크기를 정한다(`픽셀 / PPU` 유닛). `SpriteRenderer` 에는 크기 필드가 없고
     스케일은 Transform 이 한다. Draw Mode 가 Sliced·Tiled 일 때만 `size` 가 생긴다.
@@ -75,7 +85,7 @@
   - (C) `sizeMode { FromSprite, Custom }`: 기본은 (A), Sliced·Tiled 같은 뒤의 드로우 모드에서만 Custom.
   권고: (C) 로 가되 이번에는 `FromSprite` 만 구현한다(= A 의 동작, 필드는 남긴다). `pivot` 은 프레임의 피벗을 기본으로
   쓰고 컴포넌트 값은 덮어쓰기 옵션으로 둔다.
-- `[진행 예정]` **샘플러(필터) 선택이 사는 자리** (D-117 로 결정: 권고대로). 렌더러 패킷 `SpriteSubmit::filter`(D-113)는 그 스프라이트를 Nearest(텍셀
+- `[완료]` **샘플러(필터) 선택이 사는 자리** (D-117 로 결정, D-119 로 섰다 - 위 4 단계 순서의 4). 렌더러 패킷 `SpriteSubmit::filter`(D-113)는 그 스프라이트를 Nearest(텍셀
   그대로, 픽셀 아트)로 샘플링할지 Linear(부드럽게)로 할지다. 지금은 프레임워크가 언제나 Nearest 를 보내고 컴포넌트나
   에셋에는 고를 자리가 없다. Unity 는 텍스처 임포터의 Filter Mode(기본 Bilinear, 픽셀 아트는 Point)다.
   권고: `.jproject` 에 프로젝트 기본(`TextureFilter: Nearest|Linear`, 2D 픽셀 아트 프로젝트는 Nearest)을 두고 텍스처의

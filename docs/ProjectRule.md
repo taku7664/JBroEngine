@@ -56,6 +56,11 @@
   (변환 28B + 틴트 `UByte4Norm` 4B + UV `UShort4Norm` 8B, D-114).
   렌더러는 제출 순서를 바꾸지 않고 텍스처·샘플러가 같은 이웃만 드로우 하나로 묶는다. GPU 텍스처는 에셋이 아니라
   프레임워크의 `SpriteLibrary` 가 들고, 렌더러 프레임 밖(렌더 추출)에서만 올린다. (MUST) (D-113)
+- 스프라이트의 화면 크기와 피벗은 에셋이 정한다: 칸 픽셀 / 에셋 `pixelsPerUnit`, 칸의 피벗. `SpriteRenderer2D::sizeMode`
+  가 `Custom` 이거나 스프라이트가 풀리지 않았을 때만 컴포넌트의 `size`·`pivot` 이다. (MUST) (D-119)
+- 텍스처의 샘플러는 메타의 `Texture.ImportOptions.filter` 이고 `Default` 면 프로젝트의 `TextureFilter` 다. 그 적용은
+  `AssetSystem` 이 로드 때 한 번 하며(`TextureData::filter`), 렌더 추출·브리지는 그 값을 나를 뿐 프로젝트를 묻지 않는다.
+  컴포넌트에 샘플러 필드를 두지 않는다. (MUST) (D-119)
 - GPU 인스턴스 레이아웃과 정점 속성 오프셋은 손으로 적지 않는다. 속성 오프셋은 `offsetof`로 구조체에서 끌어오고,
   크기·오프셋은 `static_assert`로 고정한다. (MUST)
   `.hlsl`을 고치면 `Modules/JBroGraphics/Shaders/Compile.ps1`로 생성 헤더를 다시 만들어 함께 커밋한다.
@@ -77,7 +82,8 @@
   프레임이 열려 있는 동안 호출하면 실패해야 하고, 구현하지 않은 백엔드는 `false`를 반환한다.
 - 프로젝트 파일은 `.jproject`(YAML)이며 키 이름은 기존 엔진과 같다. (MUST)
   두 번째 형식을 만들지 않는다. 읽지 못하는 구조는 추측하지 않고 줄 번호와 함께 거절한다.
-  기존 엔진에 없던 키는 `AssetDirectory`(기본값 `Contents/Assets`)와 `AssetIgnorePatterns` 다. (D-111)
+  기존 엔진에 없던 키는 `AssetDirectory`(기본값 `Contents/Assets`)와 `AssetIgnorePatterns`, `TextureFilter`
+  (Nearest|Linear, 기본 Nearest) 다. `PixelsPerUnit` 은 프로젝트에 없다 - PPU 는 스프라이트 에셋의 것이다. (D-111·D-119)
 - 128 비트 식별자는 JBroCore 의 `Uuid { uint64 high; uint64 low; }` 하나다. `AssetId` 는 `using AssetId = Uuid` 이고
   별개 타입을 만들지 않는다. 난수 아이디는 `Uuid::Generate`(버전 4), 이름에서 만드는 결정적 아이디(빌트인)는
   `Uuid::FromName`(버전 8)이다. 메모리와 표의 키는 항상 정수 둘이고, 텍스트(32 자리 16 진수)는 파일에 적을 때만

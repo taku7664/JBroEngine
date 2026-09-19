@@ -2017,6 +2017,16 @@ EditorApplication::Tick
   걷고 풀을 조회하는 것이라 에디터에서는 문제가 아니고, 게임 실행에는 커맨드가 없다. 원소 안의 `AssetId`(목록 원소 편집 경로)는
   아직 글자 칸이다. 뮤테이션: FilterCombo 6/6 잡힘(처음엔 짧은 enum 에 검색 칸을 늘 그리는 변이가 살아 "활성 입력 칸 없음"
   검사를 더했다), AssetField 8/8 잡힘.
+- **D-119. 스프라이트의 크기·피벗은 에셋이 정하고, 샘플러는 프로젝트 기본을 에셋 시스템이 로드 때 적용한다.** (2026-09-20, `805ef60`·`0e71bd8`)
+  D-117 의 구현. (1) `SpriteRenderer2D::sizeMode { FromSprite, Custom }`, 기본 `FromSprite`: 크기 = 칸 픽셀 / 에셋 PPU,
+  피벗 = 칸의 피벗. `Custom` 과 풀리지 않은 스프라이트만 저작 `size`·`pivot` 이다 - 텍스처 없는 스프라이트(기존 캔버스·
+  테스트)가 그대로 그려지도록. 피벗 덮어쓰기는 따로 두지 않고 `Custom` 이 크기와 피벗을 함께 맡는다(D-117 의 "컴포넌트
+  피벗은 덮어쓰기" 를 이 스위치로 읽었다). `SpriteImportOptions.pixelsPerUnit` 기본 100, 0 이하는 100. `.jproject` 의
+  `PixelsPerUnit` 은 없앴고 옛 파일의 키는 모르는 키로 건너뛴다. (2) `TextureFilter { Default, Nearest, Linear }` 는
+  AssetTypes 에 있고 `.jproject` 의 `TextureFilter`(Nearest|Linear, 기본 Nearest)와 메타의 `Texture.ImportOptions.filter`
+  (기본 `Default`) 가 쓴다. **프로젝트 기본은 `AssetSystem` 이 로드·재로드 때 한 번 적용한다**(`SetDefaultTextureFilter`,
+  `TextureData::filter`) - 그리는 쪽(라이브러리·시스템·브리지)이 프로젝트를 묻지 않고 `Default` 를 보지 않는다. 엔진은
+  프로젝트 파일을 읽은 뒤 `Bind` 전에 넘긴다. 컴포넌트에는 두지 않는다. 뮤테이션: 크기 6 개 중 5 잡힘(높이가 너비를 쓰는 변이가 살아 2x1 칸 검사를 ④ 에 더해 잡았다). 샘플러 10/10 잡힘(프로젝트 기본 미적용, 메타 필터 무시, 틀린 옵션 허용, Default 기본 유지, 프로젝트 키 무시, 라이브러리·시스템·브리지가 필터를 버림, 엔진이 기본을 안 넘김 - 마지막 것은 처음 살아 엔진 호스트 검사를 더해 잡았다).
 
 ## Assumptions
 
