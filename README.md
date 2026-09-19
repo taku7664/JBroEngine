@@ -91,6 +91,16 @@ Vulkan 백엔드는 `vulkan-1.dll` 을 실행 시간에 열고 API 헤더는 `Th
 source/JBroEngine/Build/x64/Debug/JBroEditorHost.exe --project 내게임.jproject --content-root source/JBroEngine
 ```
 
+## 게임 실행
+
+게임 호스트는 `Debug_Game2D`·`Debug_Game3D`(와 Release) 구성으로 빌드된다. 인자 없이 실행하면 빈 프로젝트로 뜨고,
+`--project` 를 주면 그 `.jproject` 를 열어 `Build.StartupCanvas`(또는 `--canvas`)를 읽고 에셋을 푼다. 캔버스를 못 읽으면
+표준 출력에 알리고 빈 캔버스로 뜬다. 모르는 인자는 종료 코드 5 다.
+
+```bash
+source/JBroEngine/Build/x64/Debug_Game2D/JBroGameHost.exe --project 내게임.jproject --canvas Scenes/시작.jcanvas
+```
+
 ## 읽는 순서
 
 1. [위키](https://github.com/taku7664/JBroEngine/wiki)에서 전체 그림을 본다.

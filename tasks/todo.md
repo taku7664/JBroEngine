@@ -1947,6 +1947,19 @@ EditorApplication::Tick
   뮤테이션: 6/6 죽음(세 백엔드의 `UShort4Norm` 을 바이트 형식으로, UV 를 255 로 접음, 알파 항상 불투명, 틴트 자르기 제거 - 마지막 것은 처음에 살아남아 1.5·-1 틴트를 되읽는 픽셀 검사를 더한 뒤 죽였다). 뮤테이션 러너의 첫 회차는 A/B 스크립트가 워크트리 체크아웃 뒤 `tasks/*.md` 를 LF 로 얹지 않아 33 초 만에 가짜 '전부 죽음' 이 나왔고, 얹은 뒤 다시 돌렸다(전체 스위트는 조용한 기계에서 91 초).
   `[열림]` 틴트가 1 을 넘는 HDR 틴트는 이 형식으로 표현할 수 없다 - 필요해지면 패킷의 `filter` 옆에 가산 모드 같은 것으로
   따로 정한다.
+- **D-115. 캔버스의 에셋 해석은 프레임워크가 하고, 게임 호스트는 프로젝트 파일과 시작 캔버스를 받는다.** (2026-09-20, `be2a6c6`)
+  `IFramework::BindCanvasAssets()`(기본 no-op) 가 캔버스의 모든 컴포넌트를 `ForEachReflectedComponent`(JBroCanvas, 캔버스
+  파일과 같은 걸음)로 돌며 `AssetSystem::BindComponentAssets` 로 `xxxId` → `xxx` 를 채운다. 잡은 핸들은 프레임워크가
+  들고 다음 해석과 종료 때 놓는다 - 에디터가 따로 들던 목록은 없앴다. 호스트 계층이 `Canvas` 를 보지 않아야 하므로(D-42)
+  이 자리가 프레임워크다. 게임 호스트의 인자는 `--project <경로>`·`--canvas <경로>` 둘이고(에디터 D-97 과 같은 모양),
+  `wmain` 으로 받아 UTF-8 로 바꾼다. 프로젝트 없이 실행하면 빈 프로젝트로 뜬다(지금까지의 동작). 프로젝트가 있으면
+  `OpenProjectFile` → 시작 캔버스(`--canvas` 가 이기고 없으면 `Build.StartupCanvas`, 상대경로는 프로젝트 폴더 기준)를
+  플랫폼으로 읽어 `ReadCanvasText` → `BindCanvasAssets`. 캔버스를 못 읽으면 표준 출력에 알리고 빈 캔버스로 뜬다. 모르는
+  인자·값 없는 인자는 종료 코드 5 다. 두 게임 구성(`Debug_Game2D`·`Debug_Game3D`) 모두 빌드했고 인자 오류와 없는 프로젝트의
+  종료 코드(5·3)를 실행으로 확인했다. 테스트 `Tests/GameHostArgumentTests.cpp`, `AssetSystemTests` 의 프레임워크 해석 검사.
+  뮤테이션: 5/5 죽음(다시 풀 때 앞 것을 안 놓음, 종료 때 안 놓음, 표 없는 컴포넌트를 걸음, 모르는 인자 무시, 프로젝트의 시작 캔버스가 --canvas 를 이김; 10 분). 셋째는 처음 살아남아 표를 등록하지 않은 컴포넌트를 캔버스에 붙인 검사를 더한 뒤 죽였다.
+  `[열림]` `MeshRenderer3D::meshId` 는 빌트인 정육면체(`FromName`)라 레지스트리에 없어 해석 패스가 핸들을 비우고,
+  `MeshRender3DSystem` 이 매 Update 에 `MeshLibrary` 로 다시 푼다 - 메시 에셋이 레지스트리에 들어오면 정리한다.
 
 ## Assumptions
 

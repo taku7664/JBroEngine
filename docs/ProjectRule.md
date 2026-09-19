@@ -531,6 +531,8 @@
   `Table<InstanceId, …>`는 항등 해시를 쓴다. (MUST) (D-54)
 - 렌더 정렬은 `(uint64 key, uint32 index)` 배열을 정렬하고 아이템은 제자리에 둔다. 키는 `(layerOrder, renderOrder, sourceId)` 패킹이다. (MUST) (D-46, D-54)
 - 컴포넌트 저장소의 요소 주소 안정성처럼 상위 코드가 기대는 성질은 계약으로 문서화하고 테스트로 고정한다. (MUST)
+- 캔버스의 에셋 해석(`xxxId` → `xxx`)은 `IFramework::BindCanvasAssets` 가 한다. 호스트·에디터는 캔버스를 읽은 뒤 그것을
+  부르고 캔버스를 직접 걷지 않는다. 게임 호스트의 인자는 `--project`·`--canvas` 이고 모르는 인자는 오류다. (MUST) (D-115)
 - `GameHost`는 정상 렌더 프레임(`Ready`) 뒤에 인위적인 대기를 넣지 않는다. (MUST)
 - `GameHost`는 렌더링을 생략한 프레임(`Skipped`) 뒤에 플랫폼 이벤트를 기다리되,
   OS 메시지가 들어오면 즉시 깨고 메시지가 없으면 최대 약 16ms 뒤에 다음 Tick을 수행한다. (MUST)

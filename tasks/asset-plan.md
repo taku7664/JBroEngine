@@ -218,8 +218,9 @@ CTextureAsset 의 역할도 통합"). 새 엔진은 `Asset::TextureAsset` 과 `A
    테스트 `Tests/AssetSystemTests.cpp`: 2x2 PNG 디코드(네 픽셀·쓰레기 거절), 프레임 표(None·CellCount 2x4·CellSize 여백
    간격 15 칸·거절 넷), 로드·참조 수·`Find`·수집 순서·세대 재사용·0 아래로 내려가지 않음, in-place 재로드(옵션이 있는 메타,
    읽히지 않는 옵션은 거절하고 옛 자료 유지), 해석 패스(채움·빈 아이디 비움·모르는 아이디·`ReleaseAll`). 뮤테이션 6/6 죽음(수집이 스프라이트의 텍스처를 안 놓음, 재로드가 참조 수를 안 올림, 비운 슬롯의 세대 유지, 해석 패스가 필드 이름 무시, 셀 폭을 행 수로 나눔, 재로드가 픽셀 세대를 되돌림; 37 분).
-   **남긴 것**: 게임 호스트(`JBroGameHost`)는 아직 캔버스 파일을 읽지 않아 해석 패스 배선이 에디터에만 있다. 스크립트가
-   런타임에 `AssetId` 필드를 바꾸는 경우의 프레임 끝 해석(§2.6)은 3 단계의 `SpriteLibrary` 와 함께 온다.
+   **남긴 것**: ~~게임 호스트는 아직 캔버스 파일을 읽지 않는다~~ → D-115 에서 `--project`·`--canvas` 와 시작 캔버스 로드,
+   프레임워크의 `BindCanvasAssets` 로 닫았다. 스크립트가 런타임에 `AssetId` 필드를 바꾸는 경우의 프레임 끝 해석(§2.6)은
+   아직 없다 - 지금은 캔버스를 읽은 뒤와 (에디터의) 편집 뒤에만 푼다.
 3. **`[완료]` 텍스처 있는 스프라이트** (2026-09-19, `3432ed0`, D-113): `Renderer::RegisterTexture/UpdateTexture/
    UnregisterTexture`, 1x1 흰색 기본 텍스처와 Nearest·Linear 샘플러, `SpriteSubmit { texture, uvRect, filter }`, GPU 인스턴스
    60B, 셰이더 `t0`/`s0` 샘플링, 텍스처·샘플러가 같은 이웃을 묶는 `SpriteRun`, `SpriteLibrary`(Framework2DSystem, 슬롯
