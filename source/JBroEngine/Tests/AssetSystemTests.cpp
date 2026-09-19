@@ -331,6 +331,21 @@ namespace
 
 namespace
 {
+    // 프로퍼티 표를 등록하지 않은 컴포넌트다. 해석 패스는 이것을 건너뛰어야 한다 - 표 없이 걸으면 null 을 읽는다.
+    class Unlisted final : public JBro::ComponentBase
+    {
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "Component::TestUnlistedForAssets";
+        }
+
+        JBro::ComponentTypeId GetTypeId() const override
+        {
+            return JBro::MakeStableTypeId(StaticTypeName());
+        }
+    };
+
     // **프레임워크가 캔버스의 에셋을 푼다(D-115).** 에디터와 게임 호스트가 같은 것을 부른다. 다시 풀면 앞 것을 놓고,
     // 종료하면 전부 놓아 수집할 수 있다.
     void TestTheFrameworkBindsItsCanvasAssets()
@@ -350,6 +365,7 @@ namespace
         auto* missing = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(other);
         missing->spriteId = JBro::Uuid::FromName("nobody");
         missing->sprite = JBro::AssetHandle{3, 3};
+        Check(canvas->AttachComponent<Unlisted>(object) != nullptr, "a component without a property table attaches");
 
         framework.BindCanvasAssets();
         Check(sprite->sprite.generation != 0 && fixture.assets.GetSprite(sprite->sprite) != nullptr, "the sprite is resolved");
