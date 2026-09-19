@@ -23,6 +23,9 @@ namespace JBro
         // 참이면 프로젝트를 열 때 메타가 없는 에셋 파일에 `.jmeta` 를 만든다. **에디터만 참이다**(D-111) -
         // 게임 실행은 프로젝트 폴더에 파일을 쓰지 않는다.
         bool createMissingAssetMeta = false;
+        // 참이면 프로젝트를 열 때 에셋 폴더를 감시하고 `PollAssetChanges` 가 그 변경을 적용한다. **에디터만 참이다**
+        // (D-117) - 게임 실행에는 감시가 없다.
+        bool watchAssetDirectory = false;
         WindowDesc window;
         JMemoryContext memory;
     };
@@ -73,6 +76,17 @@ namespace JBro
         void Shutdown();
 
         AssetSystem* GetAssetSystem();
+        // 감시가 쌓아 둔 에셋 폴더 변경을 적용한다(D-121). 원본이 바뀌면 로드된 것을 in-place 재로드하고, 이름이 바뀌면
+        // 레지스트리의 경로만 바꾸고, 지워지면 레코드를 뺀다(로드된 자료는 참조 수 0 까지 산다). 새 파일과 넘침은
+        // 다시 스캔한다. `.jmeta` 의 변경은 무시한다. **프레임 밖에서 부른다.** 돌려주는 값은 아래 요약이다.
+        struct AssetChangeSummary
+        {
+            std::uint32_t reloaded = 0;
+            std::uint32_t renamed = 0;
+            std::uint32_t removed = 0;
+            bool rescanned = false;
+        };
+        AssetChangeSummary PollAssetChanges();
         // 프로젝트 파일로 열었을 때 그 에셋 폴더를 스캔한 결과다. 파일 없이 열면 비어 있다.
         const AssetRegistry& GetAssetRegistry() const;
         const AssetScanReport& GetAssetScanReport() const;
@@ -119,6 +133,9 @@ namespace JBro
         State m_state = State::Stopped;
         bool m_exitRequested = false;
         bool m_createMissingAssetMeta = false;
+        bool m_watchAssetDirectory = false;
+        String m_assetRoot;
+        bool ScanAssets();
         bool m_projectCloseRequested = false;
         bool m_scriptContextsBound = false;
         bool m_scriptModuleLoaded = false;

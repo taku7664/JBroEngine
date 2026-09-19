@@ -2,9 +2,12 @@
 
 #include <JBro/Platform/Platform.h>
 #include <JBro/Types/Array.h>
+#include <JBro/Types/SafePtr.h>
 
 namespace JBro
 {
+    struct FileWatcher;
+
     class WindowsPlatform final : public IPlatform
     {
     public:
@@ -27,6 +30,9 @@ namespace JBro
         bool FileExists(const char* utf8Path) const override;
         bool DirectoryExists(const char* utf8Path) const override;
         bool EnumerateDirectory(const char* utf8Root, DirectoryVisitor visitor, void* user) override;
+        bool WatchDirectory(const char* utf8Root) override;
+        void StopWatching() override;
+        std::uint32_t TakeFileEvents(FileEvent* events, std::uint32_t capacity) override;
 
         // WndProc 이 부른다. 공개 API 가 아니다.
         void RecordInputEvent(const InputEvent& event);
@@ -39,6 +45,8 @@ namespace JBro
         static constexpr std::uint32_t MaxInputEventsPerFrame = 4096;
 
         Array<InputEvent> m_inputEvents;
+        // `WindowsFileWatcher.cpp` 의 것이다. 감시하지 않으면 비어 있다.
+        OwnerPtr<FileWatcher> m_fileWatcher;
         std::uint16_t m_pendingHighSurrogate = 0;
         void* m_instance = nullptr;
         std::uint16_t m_windowClassAtom = 0;

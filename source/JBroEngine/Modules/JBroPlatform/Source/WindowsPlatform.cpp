@@ -382,6 +382,7 @@ namespace JBro
 
     void WindowsPlatform::Shutdown()
     {
+        StopWatching();
         if (m_ownsWindowClass && m_instance != nullptr)
         {
             UnregisterClassW(WindowClassName, static_cast<HINSTANCE>(m_instance));

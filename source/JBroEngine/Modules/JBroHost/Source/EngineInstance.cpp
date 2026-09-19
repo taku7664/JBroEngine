@@ -1,6 +1,9 @@
 ﻿#include <JBro/Host/EngineInstance.h>
 
+#include <JBro/Asset/AssetTypeRules.h>
+
 #include <cmath>
+#include <string_view>
 #include <cstdio>
 #include <new>
 #include <utility>
@@ -65,6 +68,7 @@ namespace JBro
             m_frameworkContext.renderer = m_renderer.Get();
             m_frameworkContext.fixedDeltaTime = config.fixedDeltaTime;
             m_createMissingAssetMeta = config.createMissingAssetMeta;
+            m_watchAssetDirectory = config.watchAssetDirectory;
             m_frameworkContext.maxFixedStepsPerFrame = config.maxFixedStepsPerFrame;
             if (m_exitRequested)
             {
@@ -122,20 +126,139 @@ namespace JBro
 
         // 에셋 폴더를 한 번 스캔하고 에셋 시스템을 잇는다(D-111). **폴더가 없어도 프로젝트는 열린다** - 에셋이 하나도
         // 없는 새 프로젝트가 그것이다. 스캔 결과는 `GetAssetScanReport` 로 남는다.
-        const String assetRoot = ResolveProjectRelativePath(project.assetDirectory.c_str(), projectFilePath);
+        m_assetRoot = ResolveProjectRelativePath(project.assetDirectory.c_str(), projectFilePath);
+        ScanAssets();
+        // 프로젝트 기본 샘플러는 로드 때 적용되므로 잇기 전에 정한다(D-117).
+        m_assets->SetDefaultTextureFilter(project.textureFilter);
+        m_assets->Bind(*m_platform, m_assetRegistry, m_assetRoot.c_str());
+        if (m_watchAssetDirectory)
+        {
+            // 감시가 서지 않아도(폴더 없음) 프로젝트는 열린다. 그때는 변경이 오지 않을 뿐이다.
+            m_platform->WatchDirectory(m_assetRoot.c_str());
+        }
+        return true;
+    }
+
+    bool EngineInstance::ScanAssets()
+    {
         AssetScanOptions scanOptions;
-        scanOptions.ignorePatterns.data = project.assetIgnorePatterns.Data();
-        scanOptions.ignorePatterns.size = static_cast<std::uint32_t>(project.assetIgnorePatterns.Size());
+        scanOptions.ignorePatterns.data = m_project.assetIgnorePatterns.Data();
+        scanOptions.ignorePatterns.size = static_cast<std::uint32_t>(m_project.assetIgnorePatterns.Size());
         scanOptions.createMissingMeta = m_createMissingAssetMeta;
-        if (false == m_assetRegistry.Scan(*m_platform, assetRoot.c_str(), scanOptions, m_assetScanReport))
+        if (false == m_assetRegistry.Scan(*m_platform, m_assetRoot.c_str(), scanOptions, m_assetScanReport))
         {
             m_assetRegistry.Clear();
             m_assetScanReport = {};
+            return false;
         }
-        // 프로젝트 기본 샘플러는 로드 때 적용되므로 잇기 전에 정한다(D-117).
-        m_assets->SetDefaultTextureFilter(project.textureFilter);
-        m_assets->Bind(*m_platform, m_assetRegistry, assetRoot.c_str());
         return true;
+    }
+
+    EngineInstance::AssetChangeSummary EngineInstance::PollAssetChanges()
+    {
+        AssetChangeSummary summary;
+        if (m_platform == nullptr || m_assets.Get() == nullptr || false == m_assets->IsBound())
+        {
+            return summary;
+        }
+        // 한 레코드 경로의 아이디들(이미지는 Texture 와 Sprite 둘)이다.
+        const auto recordsAt = [&](std::string_view path, AssetId (&ids)[2]) -> std::uint32_t {
+            const AssetRecord* primary = m_assetRegistry.FindByPath(path);
+            if (primary == nullptr)
+            {
+                return 0;
+            }
+            ids[0] = primary->id;
+            std::uint32_t count = 1;
+            for (std::size_t index = 0; index < m_assetRegistry.GetCount() && count < 2; ++index)
+            {
+                const AssetRecord& record = m_assetRegistry.GetRecord(index);
+                if (record.owner == primary->id && record.id != primary->id)
+                {
+                    ids[count++] = record.id;
+                }
+            }
+            return count;
+        };
+        bool rescan = false;
+        FileEvent events[64];
+        for (;;)
+        {
+            const std::uint32_t taken = m_platform->TakeFileEvents(events, 64);
+            if (taken == 0)
+            {
+                break;
+            }
+            for (std::uint32_t at = 0; at < taken; ++at)
+            {
+                const FileEvent& event = events[at];
+                if (event.kind == FileEventKind::Overflow)
+                {
+                    rescan = true;
+                    continue;
+                }
+                // 메타의 변경은 우리가 쓴 것이거나 사용자가 손으로 고친 것이다. 전자는 이미 적용됐고, 후자는 다음
+                // 로드가 본다 - 자기 반향으로 재로드를 돌리지 않는다(D-117).
+                if (AssetTypeRules::IsMetaPath(event.path)
+                    || (event.kind == FileEventKind::Renamed && AssetTypeRules::IsMetaPath(event.oldPath)))
+                {
+                    continue;
+                }
+                AssetId ids[2];
+                switch (event.kind)
+                {
+                case FileEventKind::Created:
+                    rescan = true;
+                    break;
+                case FileEventKind::Modified:
+                {
+                    const std::uint32_t count = recordsAt(event.path, ids);
+                    for (std::uint32_t index = 0; index < count; ++index)
+                    {
+                        if (m_assets->ReloadInPlace(ids[index]))
+                        {
+                            ++summary.reloaded;
+                        }
+                    }
+                    break;
+                }
+                case FileEventKind::Removed:
+                {
+                    const std::uint32_t count = recordsAt(event.path, ids);
+                    if (count == 0)
+                    {
+                        // 폴더였거나 모르는 파일이다. 폴더면 그 아래가 통째로 갔다.
+                        rescan = true;
+                        break;
+                    }
+                    for (std::uint32_t index = 0; index < count; ++index)
+                    {
+                        m_assetRegistry.Unregister(ids[index]);
+                    }
+                    ++summary.removed;
+                    break;
+                }
+                case FileEventKind::Renamed:
+                    if (m_assetRegistry.Rename(event.oldPath, event.path))
+                    {
+                        ++summary.renamed;
+                    }
+                    else
+                    {
+                        rescan = true;
+                    }
+                    break;
+                default:
+                    break;
+                }
+            }
+        }
+        if (rescan)
+        {
+            ScanAssets();
+            summary.rescanned = true;
+        }
+        return summary;
     }
 
     const AssetRegistry& EngineInstance::GetAssetRegistry() const
@@ -391,6 +514,10 @@ namespace JBro
     void EngineInstance::ReleaseProject()
     {
         const State previousState = std::exchange(m_state, State::ClosingProject);
+        if (m_platform != nullptr)
+        {
+            m_platform->StopWatching();
+        }
         if (m_renderer)
         {
             m_renderer->AbortFrame();

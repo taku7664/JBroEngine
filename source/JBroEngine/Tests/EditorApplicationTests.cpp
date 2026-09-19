@@ -2753,6 +2753,24 @@ namespace
         Check(editor.GetSelectedAsset().IsNull() && editor.GetSelectedAssetMeta() == nullptr,
             "selecting an object clears the asset selection");
 
+        // 프로젝트가 열린 채로 폴더에 그림이 하나 더 생기면 에디터가 감시로 알아 레지스트리에 넣는다(D-121).
+        {
+            std::ofstream png(root / "Assets" / "art" / "villain.png", std::ios::binary);
+            png.write(reinterpret_cast<const char*>(TinyPng), sizeof(TinyPng));
+        }
+        bool registered = false;
+        for (int attempt = 0; attempt < 300 && false == registered; ++attempt)
+        {
+            Check(editor.Tick(Frame), "the editor must tick while the watcher catches up");
+            registered = editor.GetAssetRegistry().FindByPath("art/villain.png") != nullptr;
+            if (false == registered)
+            {
+                Sleep(10);
+            }
+        }
+        Check(registered, "a file added while the project is open is registered without reopening");
+        Check(editor.GetAssetRegistry().Find(hero->id) != nullptr, "and the rescan keeps hero's id");
+
         editor.Shutdown();
         fs::remove_all(root, ignored);
     }

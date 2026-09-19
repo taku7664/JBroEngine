@@ -11,6 +11,9 @@
 #include <filesystem>
 #include <fstream>
 
+#include <JBro/Asset/Asset.h>
+#include <JBro/Asset/AssetRegistry.h>
+
 #include <iostream>
 #include <stdexcept>
 
@@ -23,6 +26,16 @@ namespace
             throw std::runtime_error(message);
         }
     }
+
+    // 2x2 RGBA PNG. AssetSystemTests 와 같은 바이트다.
+    constexpr unsigned char TinyPng[] =
+    {
+        0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+        0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x02, 0x08, 0x06, 0x00, 0x00, 0x00, 0x72, 0xb6, 0x0d,
+        0x24, 0x00, 0x00, 0x00, 0x13, 0x49, 0x44, 0x41, 0x54, 0x78, 0xda, 0x63, 0xf8, 0xcf, 0xc0, 0xf0,
+        0x1f, 0x0c, 0x81, 0x34, 0x08, 0x34, 0x00, 0x00, 0x49, 0x49, 0x09, 0x78, 0x9c, 0x51, 0x17, 0x92,
+        0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82
+    };
 
     void TestD3D12EngineHost()
     {
@@ -38,6 +51,9 @@ namespace
         config.window.width = 96;
         config.window.height = 64;
         config.window.visible = false;
+        // 에디터가 켜는 둘이다. 메타 없는 그림이 등록되고, 폴더 변경이 감시로 온다.
+        config.createMissingAssetMeta = true;
+        config.watchAssetDirectory = true;
         Check(engine.Initialize(config, platform, rhi), "real host must compose process resources");
         Check(engine.OpenProject(framework), "real host must open its project separately");
         const auto nativeWindow = FindWindowW(L"JBroEngineWindow", L"JBro EngineInstance hidden lifecycle test");
@@ -87,24 +103,70 @@ namespace
             "real project close must preserve renderer and native window");
         Check(engine.Tick(1.0f / 60.0f) && engine.GetLastFrameStatus() == JBro::FrameStatus::Skipped,
             "projectless real host must not submit a backbuffer");
-        // 프로젝트 파일의 `TextureFilter` 는 에셋 시스템의 기본 샘플러가 된다(D-117). 에셋 폴더가 없어도 프로젝트는 열린다.
+        // 프로젝트 파일의 `TextureFilter` 는 에셋 시스템의 기본 샘플러가 된다(D-117). 에셋 폴더의 변경은 감시가 보고
+        // `PollAssetChanges` 가 적용한다(D-121): 원본을 고치면 로드된 것이 in-place 재로드되고, 새 파일은 다시 스캔되며,
+        // 지우면 레코드가 빠지되 로드된 자료는 남는다.
         {
-            const std::filesystem::path projectPath =
-                std::filesystem::temp_directory_path() / L"JBroSmokeFilter.jproject";
+            namespace fs = std::filesystem;
+            const fs::path root = fs::temp_directory_path() / L"JBroSmokeAssets";
+            std::error_code ignored;
+            fs::remove_all(root, ignored);
+            fs::create_directories(root / "Assets", ignored);
+            const auto writePng = [&](const char* name) {
+                std::ofstream png(root / "Assets" / name, std::ios::binary);
+                png.write(reinterpret_cast<const char*>(TinyPng), sizeof(TinyPng));
+            };
+            writePng("hero.png");
+            const fs::path projectPath = root / "Smoke.jproject";
             {
                 std::ofstream file(projectPath, std::ios::binary);
                 file << "Version: 1\nEngineVersion: 0.1.0\nFramework: 2D\nRootPath: .\nTextureFilter: Linear\n"
-                        "ScriptOutputLibraryPath: \"\"\nBuild:\n  ProductName: Smoke\n";
+                        "AssetDirectory: Assets\nScriptOutputLibraryPath: \"\"\nBuild:\n  ProductName: Smoke\n";
             }
             JBro::ProjectFileError projectError;
             Check(engine.OpenProjectFile(framework, projectPath.string().c_str(), projectError),
                 "the host must open a project file that names a texture filter");
-            Check(engine.GetAssetSystem() != nullptr
-                    && engine.GetAssetSystem()->GetDefaultTextureFilter() == JBro::TextureFilter::Linear,
+            JBro::AssetSystem* assets = engine.GetAssetSystem();
+            Check(assets != nullptr && assets->GetDefaultTextureFilter() == JBro::TextureFilter::Linear,
                 "the project's texture filter must reach the asset system before anything loads");
+
+            const JBro::AssetRecord* hero = engine.GetAssetRegistry().FindByPath("hero.png");
+            Check(hero != nullptr, "the scan registered hero.png");
+            const JBro::AssetId heroId = hero->id;
+            const JBro::AssetHandle texture = assets->Load(heroId);
+            Check(texture.generation != 0 && assets->GetTexture(texture)->pixelGeneration == 1, "the texture loads");
+
+            // 원본을 다시 쓰면 재로드된다. OS 알림은 비동기라 잠깐 기다린다.
+            const auto pollUntil = [&](auto&& condition) {
+                for (int attempt = 0; attempt < 300; ++attempt)
+                {
+                    engine.PollAssetChanges();
+                    if (condition())
+                    {
+                        return true;
+                    }
+                    Sleep(10);
+                }
+                return false;
+            };
+            writePng("hero.png");
+            Check(pollUntil([&]() { return assets->GetTexture(texture)->pixelGeneration >= 2; }),
+                "rewriting the source reloads the loaded texture in place");
+            Check(assets->Find(heroId).generation == texture.generation, "under the same handle");
+
+            writePng("extra.png");
+            Check(pollUntil([&]() { return engine.GetAssetRegistry().FindByPath("extra.png") != nullptr; }),
+                "a new file is registered by a rescan");
+            Check(engine.GetAssetRegistry().Find(heroId) != nullptr, "and the rescan keeps hero's id");
+
+            fs::remove(root / "Assets" / "hero.png", ignored);
+            Check(pollUntil([&]() { return engine.GetAssetRegistry().FindByPath("hero.png") == nullptr; }),
+                "deleting the source drops its records");
+            Check(assets->GetTexture(texture) != nullptr, "but the loaded data stays until nobody holds it");
+            assets->Release(texture);
+
             engine.CloseProject();
-            std::error_code ignored;
-            std::filesystem::remove(projectPath, ignored);
+            fs::remove_all(root, ignored);
         }
         Check(engine.OpenProject(framework), "real host must reopen a framework without recreating process resources");
         auto* nextCanvas = framework.GetCanvas();

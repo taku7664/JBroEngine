@@ -58,6 +58,26 @@ namespace JBro
     // 폴더에 대해 거짓을 돌려주면 그 아래로 내려가지 않는다. 파일에 대한 반환값은 뜻이 없다.
     using DirectoryVisitor = bool (*)(const char* relativeUtf8Path, bool isDirectory, void* user);
 
+    // 감시 중인 폴더에서 일어난 일이다(D-117·D-121). `Overflow` 는 OS 나 버퍼가 알림을 버렸다는 뜻이라 받는 쪽이 전부
+    // 다시 봐야 한다. 경로는 감시 폴더 기준 상대경로(UTF-8, `/`)이고, `Renamed` 만 `oldPath` 가 있다.
+    enum class FileEventKind : std::uint8_t
+    {
+        Created,
+        Modified,
+        Removed,
+        Renamed,
+        Overflow
+    };
+
+    // 워커에서 메인 스레드로 값으로 건너가는 POD 다. 할당도 참조도 들지 않는다 - `SafePtr` 는 메인 스레드 전용이다.
+    struct FileEvent
+    {
+        static constexpr std::size_t MaxPathBytes = 1024;
+        FileEventKind kind = FileEventKind::Overflow;
+        char path[MaxPathBytes] = {};
+        char oldPath[MaxPathBytes] = {};
+    };
+
     class IPlatform : public IModule
     {
     public:
@@ -114,6 +134,22 @@ namespace JBro
             (void)visitor;
             (void)user;
             return false;
+        }
+
+        // 폴더 하나를 재귀로 감시한다(D-117·D-121). OS 감시를 워커가 돌리고 이벤트를 쌓는다. 다시 부르면 전 감시를
+        // 닫는다. 폴더가 없거나 감시가 없는 플랫폼이면 거짓이다 - 기본은 없다.
+        virtual bool WatchDirectory(const char* utf8Root)
+        {
+            (void)utf8Root;
+            return false;
+        }
+        virtual void StopWatching() {}
+        // 쌓인 이벤트를 꺼낸다. **메인 스레드가 프레임 밖에서 부른다.** 채운 개수를 돌려주고, 남은 것은 다음에 이어진다.
+        virtual std::uint32_t TakeFileEvents(FileEvent* events, std::uint32_t capacity)
+        {
+            (void)events;
+            (void)capacity;
+            return 0;
         }
 
         // **막힌다.** 사용자가 고르거나 취소할 때까지 돌아오지 않는다. 프레임 밖에서 부른다.

@@ -102,6 +102,7 @@ namespace JBro
             engineConfig.enableValidation = config.enableValidation;
             // 에디터는 메타가 없는 에셋 파일에 메타를 만든다(D-111). 게임 실행은 만들지 않는다.
             engineConfig.createMissingAssetMeta = true;
+            engineConfig.watchAssetDirectory = true;
             engineConfig.window.title = {"JBro Editor", 11};
             engineConfig.window.width = config.windowWidth;
             engineConfig.window.height = config.windowHeight;
@@ -1359,6 +1360,19 @@ namespace JBro
         if (false == m_initialized || m_engine.Get() == nullptr)
         {
             return false;
+        }
+        // 에셋 폴더의 변경은 프레임 밖, UI 보다 먼저 적용한다(D-121). 재로드는 핸들을 지키므로 화면은 다음 그림부터
+        // 새 자료를 보고, 다시 스캔했으면 못 풀렸던 아이디가 풀릴 수 있어 해석을 다시 돌린다.
+        {
+            const EngineInstance::AssetChangeSummary changes = m_engine->PollAssetChanges();
+            if (changes.rescanned && m_framework.Get() != nullptr)
+            {
+                m_framework->BindCanvasAssets();
+            }
+            if (changes.rescanned || changes.reloaded != 0 || changes.renamed != 0 || changes.removed != 0)
+            {
+                ReloadSelectedAssetMeta();
+            }
         }
         // UI 를 먼저 만든다. 텍스처와 정점 버퍼가 RHI 프레임 **밖에서** 올라가야
         // 하는데, 엔진 Tick 이 그 프레임을 연다.
