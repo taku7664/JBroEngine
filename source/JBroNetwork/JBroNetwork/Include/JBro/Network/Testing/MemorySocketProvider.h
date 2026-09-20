@@ -2,6 +2,7 @@
 
 #include <JBro/Network/Internal/ByteRing.h>
 #include <JBro/Network/Socket.h>
+#include <JBro/Network/Testing/LossyDatagramSocket.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/SafePtr.h>
 
@@ -46,6 +47,10 @@ namespace JBro::Network::Testing
 
         // 거짓이면 `CreateDatagramSocket` 이 null 이다 - UDP 가 없는 플랫폼(웹)을 흉내 낸다.
         void SetDatagramAvailable(bool available);
+        // 이 뒤로 만드는 데이터그램 소켓을 유실 데코레이터로 감싼다. 만든 순서대로 `GetLossySocketAt` 으로 본다.
+        void SetLossy(const LossyConfig& config);
+        void ClearLossy();
+        LossyDatagramSocket* GetLossySocketAt(std::uint32_t index) const;
 
         // ── 소켓이 쓰는 내부 API ──
         bool RegisterListener(std::uint16_t port);
@@ -81,6 +86,10 @@ namespace JBro::Network::Testing
         std::uint32_t m_pipeBytes;
         std::uint32_t m_datagramQueueLength;
         bool m_datagramAvailable = true;
+        bool m_lossy = false;
+        LossyConfig m_lossyConfig;
+        // 소켓은 트랜스포트가 소유한다. 여기 것은 통계를 보기 위한 비소유 포인터이고 소켓이 죽으면 쓰지 않는다.
+        Array<LossyDatagramSocket*> m_lossySockets;
         Array<OwnerPtr<Pipe>> m_pipes;
         Array<Listener> m_listeners;
         Array<DatagramBinding> m_datagramBindings;

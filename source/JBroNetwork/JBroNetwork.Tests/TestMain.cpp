@@ -7,6 +7,7 @@ int RunWebSocketProtocolTests();
 int RunMemorySocketTests();
 int RunTransportTests();
 int RunSessionTests();
+int RunReliableUdpTests();
 int RunWinsockLoopbackTests();
 
 int main()
@@ -34,6 +35,10 @@ int main()
         return 1;
     }
     if (RunSessionTests() != 0)
+    {
+        return 1;
+    }
+    if (RunReliableUdpTests() != 0)
     {
         return 1;
     }

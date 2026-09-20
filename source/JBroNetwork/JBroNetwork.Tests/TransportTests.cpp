@@ -13,13 +13,23 @@ using namespace JBro::Network::Testing;
 namespace
 {
     // 양쪽을 몇 번 돌려 파이프를 비운다. 인메모리 파이프는 한 번의 Update 로 한 홉만 나아간다.
-    void Pump(Transport& a, Transport& b, int rounds = 8)
+    // 시계도 조금씩 돌린다 - 신뢰 UDP 의 지연 ack 와 RTO 는 시간이 흘러야 움직인다.
+    void Pump(Transport& a, Transport& b, ManualClock& clock, int rounds = 8)
     {
         for (int round = 0; round < rounds; ++round)
         {
             a.Update();
             b.Update();
+            clock.Advance(5.0);
         }
+    }
+
+    // UDP 를 끈 구성. WS 경로 자체를 보는 테스트가 쓴다.
+    TransportConfig WebSocketOnly()
+    {
+        TransportConfig config;
+        config.udpEnabled = false;
+        return config;
     }
 
     struct EventLog
@@ -74,7 +84,7 @@ namespace
         Check(client.GetConnectionState(ServerConnectionId) == ConnectionState::Connecting,
             "the connection is pending until the server accepts");
 
-        Pump(server, client);
+        Pump(server, client, clock);
 
         EventLog serverEvents;
         EventLog clientEvents;
@@ -89,21 +99,21 @@ namespace
 
         const char hello[] = "hello";
         Check(client.Send(ServerConnectionId, 7, hello, sizeof(hello), NetChannel::Unreliable), "the client sends");
-        Pump(server, client);
+        Pump(server, client, clock);
 
         MessageView views[4];
         const std::uint32_t received = server.TakeMessages(views, 4);
         Check(received == 1, "the server takes exactly one message");
         Check(views[0].connection == ServerConnectionId + 1, "from connection 2");
         Check(views[0].messageId == 7, "with the message id it was sent with");
-        Check(views[0].channel == NetChannel::ReliableOrdered,
-            "it arrived on the reliable channel - WS carries every channel until UDP exists");
+        Check(views[0].channel == NetChannel::Unreliable,
+            "it arrived on the unreliable channel - the in-memory network has UDP, so the datagram path carried it");
         Check(views[0].size == sizeof(hello), "and the size");
         Check(0 == std::memcmp(views[0].data, hello, sizeof(hello)), "and the bytes");
 
         const std::uint32_t reply = 0xCAFEF00D;
         Check(server.Broadcast(9, &reply, sizeof(reply)), "the server broadcasts");
-        Pump(server, client);
+        Pump(server, client, clock);
         const std::uint32_t clientReceived = client.TakeMessages(views, 4);
         Check(clientReceived == 1, "the client takes the broadcast");
         Check(views[0].connection == ServerConnectionId, "from the server");
@@ -122,11 +132,11 @@ namespace
     {
         MemorySocketProvider provider(1024);
         ManualClock clock;
-        Transport server(provider, clock);
-        Transport client(provider, clock);
+        Transport server(provider, clock, WebSocketOnly());
+        Transport client(provider, clock, WebSocketOnly());
         Check(server.Listen(1), "listen");
         Check(client.Connect("memory", 1), "connect");
-        Pump(server, client);
+        Pump(server, client, clock);
 
         std::uint8_t payload[20000];
         for (std::uint32_t index = 0; index < sizeof(payload); ++index)
@@ -139,7 +149,7 @@ namespace
         std::uint32_t got = 0;
         for (int round = 0; round < 200 && 0 == got; ++round)
         {
-            Pump(server, client, 1);
+            Pump(server, client, clock, 1);
             got = server.TakeMessages(&view, 1);
         }
         Check(got == 1, "the whole message eventually arrives");
@@ -156,7 +166,7 @@ namespace
         Transport client(provider, clock);
         Check(server.Listen(2), "listen");
         Check(client.Connect("memory", 2), "connect");
-        Pump(server, client);
+        Pump(server, client, clock);
         EventLog drop;
         drop.Drain(server);
         drop.Drain(client);
@@ -164,7 +174,7 @@ namespace
         const ConnectionId clientOnServer = server.GetConnectionAt(0);
         server.CloseConnection(clientOnServer);
         Check(server.GetConnectionCount() == 1, "the connection is still there until Update");
-        Pump(server, client);
+        Pump(server, client, clock);
 
         EventLog serverEvents;
         EventLog clientEvents;
@@ -235,7 +245,7 @@ namespace
         Transport client(provider, clock);
         Check(server.Listen(5), "listen");
         Check(client.Connect("memory", 5), "connect");
-        Pump(server, client);
+        Pump(server, client, clock);
 
         const char first[] = "first";
         const char second[] = "second!";
@@ -243,7 +253,7 @@ namespace
         Check(client.Send(ServerConnectionId, 1, first, sizeof(first)), "send 1");
         Check(client.Send(ServerConnectionId, 2, second, sizeof(second)), "send 2");
         Check(client.Send(ServerConnectionId, 3, third, sizeof(third)), "send 3");
-        Pump(server, client);
+        Pump(server, client, clock);
 
         MessageView view;
         Check(server.TakeMessages(&view, 1) == 1, "take the first");
@@ -265,19 +275,19 @@ namespace
     {
         MemorySocketProvider provider;
         ManualClock clock;
-        TransportConfig tight;
+        TransportConfig tight = WebSocketOnly();
         tight.inboundMessages = 2;
         Transport server(provider, clock, tight);
-        Transport client(provider, clock);
+        Transport client(provider, clock, WebSocketOnly());
         Check(server.Listen(6), "listen");
         Check(client.Connect("memory", 6), "connect");
-        Pump(server, client);
+        Pump(server, client, clock);
 
         for (std::uint16_t id = 1; id <= 6; ++id)
         {
             Check(client.Send(ServerConnectionId, id, &id, sizeof(id)), "send");
         }
-        Pump(server, client, 8);
+        Pump(server, client, clock, 8);
 
         std::uint16_t expected = 1;
         MessageView views[2];
@@ -299,19 +309,19 @@ namespace
     {
         MemorySocketProvider provider;
         ManualClock clock;
-        TransportConfig config;
+        TransportConfig config = WebSocketOnly();
         config.maxMessageBytes = 16;
         Transport server(provider, clock, config);
-        Transport client(provider, clock);
+        Transport client(provider, clock, WebSocketOnly());
         Check(server.Listen(8), "listen");
         Check(client.Connect("memory", 8), "connect");
-        Pump(server, client);
+        Pump(server, client, clock);
         EventLog drop;
         drop.Drain(server);
 
         std::uint8_t big[64] = {};
         Check(client.Send(ServerConnectionId, 1, big, sizeof(big)), "the client, with its own larger limit, sends 64 bytes");
-        Pump(server, client);
+        Pump(server, client, clock);
         EventLog events;
         events.Drain(server);
         const NetworkEvent* disconnected = events.Find(NetworkEventKind::Disconnected);

@@ -12,12 +12,13 @@ using namespace JBro::Network::Testing;
 
 namespace
 {
-    void Pump(Transport& a, Transport& b, int rounds = 8)
+    void Pump(Transport& a, Transport& b, ManualClock& clock, int rounds = 8)
     {
         for (int round = 0; round < rounds; ++round)
         {
             a.Update();
             b.Update();
+            clock.Advance(5.0);
         }
     }
 
@@ -54,7 +55,7 @@ namespace
         Check(0 == Drain(server, events, 8) && 0 == Drain(client, events, 8), "no event before the handshakes");
         Check(server.GetConnectionCount() == 1, "though the server already holds the socket");
         Check(server.GetConnectionState(server.GetConnectionAt(0)) == ConnectionState::Connecting, "as Connecting");
-        Pump(server, client);
+        Pump(server, client, clock);
         const std::uint32_t serverCount = Drain(server, events, 8);
         Check(serverCount == 1 && events[0].kind == NetworkEventKind::Connected, "then the server sees Connected");
         const std::uint32_t clientCount = Drain(client, events, 8);
@@ -73,7 +74,7 @@ namespace
         Transport client(provider, clock, newer);
         Check(server.Listen(11), "listen");
         Check(client.Connect("memory", 11), "connect");
-        Pump(server, client, 12);
+        Pump(server, client, clock, 12);
         NetworkEvent events[8];
         const std::uint32_t clientCount = Drain(client, events, 8);
         const NetworkEvent* rejected = Find(events, clientCount, NetworkEventKind::Disconnected);
@@ -93,7 +94,7 @@ namespace
         Transport client(provider, clock);
         Check(server.Listen(12), "listen");
         Check(client.Connect("memory", 12), "connect");
-        Pump(server, client);
+        Pump(server, client, clock);
         const ConnectionId clientOnServer = server.GetConnectionAt(0);
         Check(server.GetRoundTripMilliseconds(clientOnServer) < 0.0, "no measurement yet");
 
@@ -118,7 +119,7 @@ namespace
         Transport client(provider, clock);
         Check(server.Listen(13), "listen");
         Check(client.Connect("memory", 13), "connect");
-        Pump(server, client);
+        Pump(server, client, clock);
         NetworkEvent events[8];
         Drain(server, events, 8);
         Drain(client, events, 8);
@@ -156,11 +157,13 @@ namespace
     {
         MemorySocketProvider provider;
         ManualClock clock;
-        Transport server(provider, clock);
-        Transport client(provider, clock);
+        TransportConfig webSocketOnly;
+        webSocketOnly.udpEnabled = false;
+        Transport server(provider, clock, webSocketOnly);
+        Transport client(provider, clock, webSocketOnly);
         Check(server.Listen(15), "listen");
         Check(client.Connect("memory", 15), "connect");
-        Pump(server, client);
+        Pump(server, client, clock);
 
         client.SetFragmentBytesForTests(5);
         std::uint8_t payload[103];
@@ -170,7 +173,7 @@ namespace
         }
         Check(client.Send(ServerConnectionId, 77, payload, sizeof(payload)), "send in 5 byte fragments");
         Check(client.Send(ServerConnectionId, 78, payload, 3), "and a small one that still splits the header");
-        Pump(server, client);
+        Pump(server, client, clock);
         MessageView views[4];
         const std::uint32_t got = server.TakeMessages(views, 4);
         Check(got == 2, "both arrive as whole messages");
@@ -189,7 +192,7 @@ namespace
         Transport client(provider, clock);
         Check(server.Listen(16), "listen");
         Check(client.Connect("memory", 16), "connect");
-        Pump(server, client);
+        Pump(server, client, clock);
         NetworkEvent events[8];
         Drain(server, events, 8);
         Drain(client, events, 8);
@@ -198,7 +201,7 @@ namespace
         const std::uint32_t clientCount = Drain(client, events, 8);
         Check(clientCount == 1 && events[0].kind == NetworkEventKind::Disconnected && events[0].reason == DisconnectReason::Normal,
             "the client reports its own close");
-        Pump(server, client);
+        Pump(server, client, clock);
         const std::uint32_t serverCount = Drain(server, events, 8);
         const NetworkEvent* gone = Find(events, serverCount, NetworkEventKind::Disconnected);
         Check(nullptr != gone && gone->reason == DisconnectReason::Normal, "the server sees a normal disconnect");

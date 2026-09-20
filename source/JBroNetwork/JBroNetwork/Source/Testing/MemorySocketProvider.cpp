@@ -27,7 +27,34 @@ namespace JBro::Network::Testing
         {
             return nullptr;
         }
-        return MakeOwnerPtr<MemoryDatagramSocket>(*this);
+        OwnerPtr<IDatagramSocket> socket = MakeOwnerPtr<MemoryDatagramSocket>(*this);
+        if (false == m_lossy)
+        {
+            return socket;
+        }
+        OwnerPtr<LossyDatagramSocket> lossy = MakeOwnerPtr<LossyDatagramSocket>(std::move(socket), m_lossyConfig);
+        m_lossySockets.Add(lossy.Get());
+        return lossy;
+    }
+
+    void MemorySocketProvider::SetLossy(const LossyConfig& config)
+    {
+        m_lossy = true;
+        m_lossyConfig = config;
+    }
+
+    void MemorySocketProvider::ClearLossy()
+    {
+        m_lossy = false;
+    }
+
+    LossyDatagramSocket* MemorySocketProvider::GetLossySocketAt(std::uint32_t index) const
+    {
+        if (index >= m_lossySockets.Size())
+        {
+            return nullptr;
+        }
+        return m_lossySockets[index];
     }
 
     OwnerPtr<IPeerConnection> MemorySocketProvider::CreatePeerConnection(const PeerConnectionDesc& desc)

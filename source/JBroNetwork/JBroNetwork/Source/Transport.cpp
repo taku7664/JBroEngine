@@ -11,6 +11,8 @@ namespace JBro::Network
         constexpr std::uint32_t MessageHeaderBytes = 2;
         // 핸드셰이크 HTTP 블록의 상한. 이보다 길면 위반으로 본다.
         constexpr std::uint32_t MaxHandshakeBytes = 4096;
+        // 백로그 레코드 헤더: [uint16 msgId][uint32 size].
+        constexpr std::uint32_t BacklogHeaderBytes = 6;
 
         // 세션 시스템 메시지(0xFF00~). 유저는 등록할 수 없다.
         constexpr MessageId SystemHello = 0xFF01;
@@ -18,6 +20,8 @@ namespace JBro::Network
         constexpr MessageId SystemBye = 0xFF03;
         constexpr MessageId SystemPing = 0xFF04;
         constexpr MessageId SystemPong = 0xFF05;
+        // 서버 → 클라이언트. 이 연결의 UDP 토큰.
+        constexpr MessageId SystemUdpToken = 0xFF06;
 
         struct HelloPayload
         {
@@ -34,6 +38,11 @@ namespace JBro::Network
             double sendMilliseconds = 0.0;
         };
 
+        struct UdpTokenPayload
+        {
+            std::uint64_t token = 0;
+        };
+
         MessageId ReadMessageId(const std::uint8_t* bytes)
         {
             return static_cast<MessageId>(bytes[0] | (bytes[1] << 8));
@@ -42,6 +51,11 @@ namespace JBro::Network
         bool IsKnownChannel(NetChannel channel)
         {
             return static_cast<std::uint8_t>(channel) < NetChannelCount;
+        }
+
+        bool IsReliableChannel(NetChannel channel)
+        {
+            return channel == NetChannel::ReliableOrdered || channel == NetChannel::ReliableUnordered;
         }
 
         // `ws://` 접두를 벗긴다. `wss://` 는 아직 받지 않는다(TLS 는 §3-7).
@@ -60,6 +74,34 @@ namespace JBro::Network
         }
     }
 
+    // ── 보조 객체 ───────────────────────────────────────────────────────────────────────────────
+
+    Transport::PeerEmitter::PeerEmitter(Transport& transport, const Endpoint& to, std::uint64_t token)
+        : m_transport(transport)
+        , m_to(to)
+        , m_token(token)
+    {
+    }
+
+    void Transport::PeerEmitter::Emit(UdpProto::DatagramHeader& header, const std::uint8_t* payload, std::uint32_t size)
+    {
+        header.token = m_token;
+        m_transport.SendPacket(m_to, header, payload, size);
+    }
+
+    Transport::InboundReceiver::InboundReceiver(Transport& transport, Connection& connection)
+        : m_transport(transport)
+        , m_connection(connection)
+    {
+    }
+
+    void Transport::InboundReceiver::Deliver(NetChannel channel, MessageId messageId, const std::uint8_t* payload, std::uint32_t size)
+    {
+        m_transport.StoreUdpMessage(m_connection, channel, messageId, payload, size);
+    }
+
+    // ── 수명 ────────────────────────────────────────────────────────────────────────────────────
+
     Transport::Transport(ISocketProvider& provider, IClock& clock, const TransportConfig& config)
         : m_provider(provider)
         , m_clock(clock)
@@ -69,11 +111,14 @@ namespace JBro::Network
         const std::uint32_t frameBytes = m_config.maxMessageBytes + MessageHeaderBytes + WebSocket::MaxFrameHeaderBytes;
         m_config.sendBufferBytes = Max(m_config.sendBufferBytes, frameBytes);
         m_config.receiveBufferBytes = Max(m_config.receiveBufferBytes, frameBytes);
+        m_config.reliable.maxMessageBytes = m_config.maxMessageBytes;
         m_connections.Reserve(m_config.maxConnections);
         m_inbound.Resize(m_config.inboundBytes);
         m_records.Resize(m_config.inboundMessages);
         m_events.Resize(m_config.eventCapacity);
         m_scratch.Resize(Max(MaxHandshakeBytes, 4096));
+        m_datagramScratch.Resize(2048);
+        m_messageScratch.Resize(m_config.maxMessageBytes);
     }
 
     Transport::~Transport()
@@ -100,6 +145,7 @@ namespace JBro::Network
         }
         m_listener = std::move(listener);
         m_role = NetworkRole::Server;
+        OpenServerUdp(port);
         return true;
     }
 
@@ -149,7 +195,13 @@ namespace JBro::Network
             m_listener->Close();
             m_listener = nullptr;
         }
+        if (nullptr != m_udpSocket.Get())
+        {
+            m_udpSocket->Close();
+            m_udpSocket = nullptr;
+        }
         m_role = NetworkRole::None;
+        m_udpUnavailable = false;
         m_nextClientId = ServerConnectionId + 1;
     }
 
@@ -207,6 +259,36 @@ namespace JBro::Network
         return connection->roundTripMilliseconds;
     }
 
+    double Transport::GetUdpLossRate(ConnectionId id) const
+    {
+        const Connection* connection = FindConnection(id);
+        if (nullptr == connection || nullptr == m_udpSocket.Get())
+        {
+            return -1.0;
+        }
+        return connection->udp.stats.LossRate();
+    }
+
+    bool Transport::GetReliableDiagnostics(ConnectionId id, ReliableDiagnostics& out) const
+    {
+        const Connection* connection = FindConnection(id);
+        if (nullptr == connection)
+        {
+            return false;
+        }
+        const UdpPeer& udp = connection->udp;
+        out.udpReady = udp.IsReady() && nullptr != m_udpSocket.Get();
+        out.route = udp.route;
+        out.unacked = udp.reliable.UnackedCount();
+        out.queued = udp.reliable.QueuedCount();
+        out.congestionWindow = udp.reliable.CongestionWindow();
+        out.piggybackAcks = udp.reliable.PiggybackAcks();
+        out.standaloneAcks = udp.reliable.StandaloneAcks();
+        out.rtoMilliseconds = udp.reliable.CurrentRtoMilliseconds();
+        out.smoothedRttMilliseconds = udp.reliable.SmoothedRttMilliseconds();
+        return true;
+    }
+
     const TransportConfig& Transport::GetConfig() const
     {
         return m_config;
@@ -234,13 +316,30 @@ namespace JBro::Network
         {
             return false;
         }
-        // 2 단계에서는 전 채널이 WS 다. 3 단계가 비신뢰·무순서 채널을 UDP 로 돌린다.
-        if (false == QueueMessage(*connection, messageId, data, size))
+        // 채널 라우팅. UDP 가 준비되지 않았거나 못 보내면 신뢰 WS 로 폴백한다 - 게임은 언제나 동작하고 품질만 변한다.
+        const bool udpReady = nullptr != m_udpSocket.Get() && connection->udp.IsReady();
+        if (channel == NetChannel::ReliableOrdered)
         {
-            return false;
+            return SendUserOrdered(*connection, messageId, data, size);
         }
-        FlushSend(*connection);
-        return true;
+        if (udpReady)
+        {
+            if (channel == NetChannel::ReliableUnordered)
+            {
+                if (SendUdpReliable(*connection, channel, messageId, data, size))
+                {
+                    return true;
+                }
+            }
+            else if (size <= UdpProto::MaxPayloadBytes)
+            {
+                if (SendUdpDatagram(*connection, channel, messageId, data, size))
+                {
+                    return true;
+                }
+            }
+        }
+        return SendOverWebSocket(*connection, messageId, data, size);
     }
 
     bool Transport::Broadcast(MessageId messageId, const void* data, std::uint32_t size, NetChannel channel)
@@ -258,6 +357,16 @@ namespace JBro::Network
             }
         }
         return any;
+    }
+
+    bool Transport::SendOverWebSocket(Connection& connection, MessageId messageId, const void* data, std::uint32_t size)
+    {
+        if (false == QueueMessage(connection, messageId, data, size))
+        {
+            return false;
+        }
+        FlushSend(connection);
+        return true;
     }
 
     bool Transport::QueueMessage(Connection& connection, MessageId messageId, const void* data, std::uint32_t size)
@@ -278,24 +387,21 @@ namespace JBro::Network
         {
             return false;
         }
-        std::uint8_t staging[MessageHeaderBytes];
-        std::memcpy(staging, header, MessageHeaderBytes);
         std::uint32_t position = 0;
         bool first = true;
         while (position < total)
         {
             const std::uint32_t frameSize = (total - position < chunk) ? (total - position) : chunk;
             const bool fin = position + frameSize >= total;
-            // 이 조각이 헤더 바이트와 데이터 바이트 어디에 걸치는지 나눈다.
             std::uint32_t headerPart = 0;
             if (position < MessageHeaderBytes)
             {
                 headerPart = (MessageHeaderBytes - position < frameSize) ? (MessageHeaderBytes - position) : frameSize;
             }
-            const std::uint32_t dataStart = position + headerPart - MessageHeaderBytes;
             const std::uint32_t dataPart = frameSize - headerPart;
+            const std::uint32_t dataStart = (dataPart > 0) ? (position + headerPart - MessageHeaderBytes) : 0;
             QueueFrame(connection, first ? WebSocket::Opcode::Binary : WebSocket::Opcode::Continuation, fin,
-                staging + position, headerPart, bytes + (headerPart == frameSize ? 0 : dataStart), dataPart);
+                header + position, headerPart, bytes + dataStart, dataPart);
             position += frameSize;
             first = false;
         }
@@ -370,6 +476,16 @@ namespace JBro::Network
         return x;
     }
 
+    std::uint64_t Transport::NextToken()
+    {
+        std::uint64_t x = m_tokenState;
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        m_tokenState = x;
+        return 0 != x ? x : 0x9E3779B97F4A7C15ull;
+    }
+
     // ── 갱신 ────────────────────────────────────────────────────────────────────────────────────
 
     void Transport::Update()
@@ -383,6 +499,9 @@ namespace JBro::Network
         {
             PollConnection(connection);
         }
+        PollUdp();
+        TickUdpPeers();
+        CommitOrderedRoutes();
         UpdateSessions();
         RemoveClosedConnections();
     }
@@ -670,7 +789,7 @@ namespace JBro::Network
                 HandleSystemMessage(connection, messageId, m_scratch.Data(), copy);
                 return true;
             }
-            std::uint8_t* destination = ReserveInbound(connection, messageId, bodySize);
+            std::uint8_t* destination = ReserveInbound(connection, messageId, NetChannel::ReliableOrdered, bodySize);
             if (nullptr == destination)
             {
                 return false;
@@ -732,7 +851,7 @@ namespace JBro::Network
             HandleSystemMessage(connection, messageId, body, bodySize);
             return true;
         }
-        std::uint8_t* destination = ReserveInbound(connection, messageId, bodySize);
+        std::uint8_t* destination = ReserveInbound(connection, messageId, NetChannel::ReliableOrdered, bodySize);
         if (nullptr == destination)
         {
             return false;
@@ -813,6 +932,17 @@ namespace JBro::Network
             }
             return;
         }
+        case SystemUdpToken:
+        {
+            // 클라이언트만. 서버가 준 토큰으로 UDP 를 켠다. UDP 가 없는 플랫폼이면 비신뢰는 WS 에 남는다.
+            if (false == connection.serverSide && sizeof(UdpTokenPayload) == size && m_config.udpEnabled)
+            {
+                UdpTokenPayload token;
+                std::memcpy(&token, payload, sizeof(token));
+                AttachClientUdp(connection, token.token);
+            }
+            return;
+        }
         default:
         {
             // 모르는 시스템 메시지는 무시한다 - 앞으로의 호환을 위해서다.
@@ -831,6 +961,22 @@ namespace JBro::Network
         const double now = m_clock.NowMilliseconds();
         connection.lastReceiveMilliseconds = now;
         connection.lastPingMilliseconds = now;
+        connection.udp.readyMilliseconds = now;
+        // 서버: 이 연결의 UDP 토큰을 발급해 신뢰 채널로 전한다. 클라이언트가 그것으로 UDP 를 켠다.
+        if (connection.serverSide && nullptr != m_udpSocket.Get())
+        {
+            std::uint64_t token = NextToken();
+            while (nullptr != FindConnectionByToken(token))
+            {
+                token = NextToken();
+            }
+            connection.udp.token = token;
+            connection.udp.tokenSet = true;
+            AttachUdpPeer(connection);
+            UdpTokenPayload payload;
+            payload.token = token;
+            SendSystem(connection, SystemUdpToken, payload);
+        }
         PushEvent(NetworkEventKind::Connected, connection.id, DisconnectReason::Normal);
     }
 
@@ -855,6 +1001,18 @@ namespace JBro::Network
                 PingPayload ping;
                 ping.sendMilliseconds = now;
                 SendSystem(connection, SystemPing, ping);
+                // 클라이언트는 punch 도 함께 보내 NAT 를 유지하고 서버의 엔드포인트를 최신으로 둔다.
+                if (false == connection.serverSide)
+                {
+                    SendPunch(connection);
+                }
+            }
+            // 서버가 아직 답하지 않았으면 짧은 간격으로 다시 두드린다. 유실된 첫 punch 를 keepalive 까지 기다리지 않기 위해서다.
+            if (false == connection.serverSide && connection.phase == Phase::Ready && connection.udp.IsReady()
+                && false == connection.udp.punchConfirmed
+                && now - connection.udp.lastPunchMilliseconds >= m_config.punchRetryMilliseconds)
+            {
+                SendPunch(connection);
             }
         }
     }
@@ -918,7 +1076,7 @@ namespace JBro::Network
         }
     }
 
-    std::uint8_t* Transport::ReserveInbound(const Connection& connection, MessageId messageId, std::uint32_t size)
+    std::uint8_t* Transport::ReserveInbound(const Connection& connection, MessageId messageId, NetChannel channel, std::uint32_t size)
     {
         if (m_recordCount >= m_records.Size())
         {
@@ -933,11 +1091,48 @@ namespace JBro::Network
         record.offset = m_inboundSize;
         record.size = size;
         record.messageId = messageId;
-        record.channel = NetChannel::ReliableOrdered;
+        record.channel = channel;
         std::uint8_t* destination = m_inbound.Data() + m_inboundSize;
         m_inboundSize += size;
         ++m_recordCount;
         return destination;
+    }
+
+    void Transport::StoreUdpMessage(Connection& connection, NetChannel channel, MessageId messageId, const std::uint8_t* payload,
+        std::uint32_t size)
+    {
+        std::uint8_t* destination = ReserveInbound(connection, messageId, channel, size);
+        if (nullptr == destination)
+        {
+            // 데이터그램을 읽기 전에 여유를 확인하므로 여기 오는 일은 예산이 너무 작을 때뿐이다. 버리고 알린다.
+            m_overflowPending = true;
+            return;
+        }
+        if (size > 0)
+        {
+            std::memcpy(destination, payload, size);
+        }
+    }
+
+    bool Transport::InboundHasHeadroom() const
+    {
+        // 신뢰 엔진의 순서 방출은 한 번에 여러 메시지를 올릴 수 있다. 창 하나 분량의 여유를 둔다.
+        const std::uint32_t recordsNeeded = ReliableEndpoint::AckWindow + m_config.reliable.reassemblySlots;
+        const std::uint32_t bytesNeeded = m_config.maxMessageBytes * 2 + ReliableEndpoint::AckWindow * UdpProto::MaxPayloadBytes;
+        return m_records.Size() - m_recordCount >= recordsNeeded && m_inbound.Size() - m_inboundSize >= bytesNeeded;
+    }
+
+    bool Transport::UdpPossible() const
+    {
+        if (false == m_config.udpEnabled || m_udpUnavailable)
+        {
+            return false;
+        }
+        if (m_role == NetworkRole::Server)
+        {
+            return nullptr != m_udpSocket.Get();
+        }
+        return true;
     }
 
     void Transport::RemoveClosedConnections()
@@ -966,6 +1161,348 @@ namespace JBro::Network
         if (m_role == NetworkRole::Client && m_connections.IsEmpty())
         {
             m_role = NetworkRole::None;
+            if (nullptr != m_udpSocket.Get())
+            {
+                m_udpSocket->Close();
+                m_udpSocket = nullptr;
+            }
+        }
+    }
+
+    // ── UDP ─────────────────────────────────────────────────────────────────────────────────────
+
+    void Transport::OpenServerUdp(std::uint16_t port)
+    {
+        if (false == m_config.udpEnabled)
+        {
+            return;
+        }
+        OwnerPtr<IDatagramSocket> socket = m_provider.CreateDatagramSocket();
+        if (nullptr == socket.Get())
+        {
+            return;
+        }
+        // WS 와 같은 번호다. 포트 이름 공간이 다르니 겹치지 않고, 방화벽에는 둘 다 열어야 한다. 못 잡으면 UDP 없이 간다.
+        if (false == socket->Open() || false == socket->Bind(port))
+        {
+            return;
+        }
+        m_udpSocket = std::move(socket);
+    }
+
+    void Transport::AttachClientUdp(Connection& connection, std::uint64_t token)
+    {
+        if (nullptr == m_udpSocket.Get())
+        {
+            OwnerPtr<IDatagramSocket> socket = m_provider.CreateDatagramSocket();
+            if (nullptr == socket.Get() || false == socket->Open())
+            {
+                m_udpUnavailable = true;
+                return;
+            }
+            Endpoint server;
+            if (false == socket->Resolve(connection.host, connection.port, server))
+            {
+                m_udpUnavailable = true;
+                return;
+            }
+            m_udpSocket = std::move(socket);
+            connection.udp.endpoint = server;
+        }
+        connection.udp.token = token;
+        connection.udp.tokenSet = true;
+        AttachUdpPeer(connection);
+        // 서버가 우리 엔드포인트를 배우도록 바로 노크한다.
+        SendPunch(connection);
+    }
+
+    void Transport::AttachUdpPeer(Connection& connection)
+    {
+        // 신뢰 엔진의 예산은 UDP 가 이 연결에 붙는 지금 한 번 잡는다.
+        if (false == connection.udp.reliable.IsReady())
+        {
+            connection.udp.reliable.Reset(m_config.reliable);
+            connection.udp.backlog.Reset(m_config.orderedBacklogBytes);
+            connection.udp.lastReceivedSeq.Reserve(64);
+        }
+    }
+
+    bool Transport::SendPacket(const Endpoint& to, UdpProto::DatagramHeader& header, const std::uint8_t* payload, std::uint32_t size)
+    {
+        if (nullptr == m_udpSocket.Get() || false == to.IsValid())
+        {
+            return false;
+        }
+        const std::uint32_t written = UdpProto::Encode(header, payload, size, m_datagramScratch.Data());
+        return SocketIo::Ok == m_udpSocket->SendTo(to, m_datagramScratch.Data(), written);
+    }
+
+    bool Transport::SendUdpDatagram(Connection& connection, NetChannel channel, MessageId messageId, const void* data, std::uint32_t size)
+    {
+        if (false == connection.udp.IsReady() || size > UdpProto::MaxPayloadBytes)
+        {
+            return false;
+        }
+        UdpProto::DatagramHeader header;
+        header.token = connection.udp.token;
+        header.flags = UdpProto::FlagNone;
+        header.channel = channel;
+        header.seq = connection.udp.sendSeq++;
+        header.msgId = messageId;
+        return SendPacket(connection.udp.endpoint, header, static_cast<const std::uint8_t*>(data), size);
+    }
+
+    bool Transport::SendUdpReliable(Connection& connection, NetChannel channel, MessageId messageId, const void* data, std::uint32_t size)
+    {
+        if (false == connection.udp.IsReady() || false == connection.udp.reliable.IsReady())
+        {
+            return false;
+        }
+        PeerEmitter emitter(*this, connection.udp.endpoint, connection.udp.token);
+        return connection.udp.reliable.SendReliable(channel, messageId, data, size, m_clock.NowMilliseconds(), emitter);
+    }
+
+    void Transport::SendPunch(Connection& connection)
+    {
+        // punch = 메시지 ID 0, 페이로드 없음. 엔드포인트 학습과 NAT 유지용이고 위로 올라가지 않는다.
+        if (nullptr == m_udpSocket.Get() || false == connection.udp.IsReady())
+        {
+            return;
+        }
+        UdpProto::DatagramHeader header;
+        header.token = connection.udp.token;
+        header.flags = UdpProto::FlagNone;
+        header.channel = NetChannel::Unreliable;
+        header.seq = connection.udp.sendSeq++;
+        header.msgId = RawMessageId;
+        connection.udp.lastPunchMilliseconds = m_clock.NowMilliseconds();
+        SendPacket(connection.udp.endpoint, header, nullptr, 0);
+    }
+
+    // 사용자 `ReliableOrdered`. 전송로가 확정되기 전에는 백로그에 쌓고, 확정 뒤에는 그 전송로로만 보낸다.
+    bool Transport::SendUserOrdered(Connection& connection, MessageId messageId, const void* data, std::uint32_t size)
+    {
+        // UDP 가 올 수 없는 트랜스포트(웹·비활성·서버에 소켓 없음)는 기다릴 것이 없다. 바로 WS 다.
+        if (false == UdpPossible())
+        {
+            return SendOverWebSocket(connection, messageId, data, size);
+        }
+        switch (connection.udp.route)
+        {
+        case OrderedRoute::Udp:
+        {
+            if (connection.udp.backlogCount == 0 && SendUdpReliable(connection, NetChannel::ReliableOrdered, messageId, data, size))
+            {
+                return true;
+            }
+            // 신뢰 큐가 찼다. 순서를 지키려면 뒤에 줄 서야 한다.
+            return PushBacklog(connection, messageId, data, size);
+        }
+        case OrderedRoute::WebSocket:
+        {
+            return SendOverWebSocket(connection, messageId, data, size);
+        }
+        case OrderedRoute::Undecided:
+        default:
+        {
+            return PushBacklog(connection, messageId, data, size);
+        }
+        }
+    }
+
+    bool Transport::PushBacklog(Connection& connection, MessageId messageId, const void* data, std::uint32_t size)
+    {
+        if (connection.udp.backlog.Capacity() == 0)
+        {
+            connection.udp.backlog.Reset(m_config.orderedBacklogBytes);
+        }
+        if (connection.udp.backlog.Free() < BacklogHeaderBytes + size)
+        {
+            return false;
+        }
+        std::uint8_t header[BacklogHeaderBytes];
+        UdpProto::WriteU16(header, messageId);
+        UdpProto::WriteU32(header + 2, size);
+        connection.udp.backlog.Write(header, BacklogHeaderBytes);
+        if (size > 0)
+        {
+            connection.udp.backlog.Write(data, size);
+        }
+        ++connection.udp.backlogCount;
+        return true;
+    }
+
+    void Transport::FlushBacklog(Connection& connection)
+    {
+        while (connection.udp.backlogCount > 0)
+        {
+            std::uint8_t header[BacklogHeaderBytes];
+            connection.udp.backlog.Peek(header, BacklogHeaderBytes);
+            const MessageId messageId = UdpProto::ReadU16(header);
+            const std::uint32_t size = UdpProto::ReadU32(header + 2);
+            connection.udp.backlog.PeekAt(BacklogHeaderBytes, m_messageScratch.Data(), size);
+            bool sent = false;
+            if (connection.udp.route == OrderedRoute::Udp)
+            {
+                sent = SendUdpReliable(connection, NetChannel::ReliableOrdered, messageId, m_messageScratch.Data(), size);
+            }
+            else
+            {
+                sent = SendOverWebSocket(connection, messageId, m_messageScratch.Data(), size);
+            }
+            if (false == sent)
+            {
+                return;
+            }
+            connection.udp.backlog.Discard(BacklogHeaderBytes + size);
+            --connection.udp.backlogCount;
+        }
+    }
+
+    void Transport::CommitOrderedRoutes()
+    {
+        const double now = m_clock.NowMilliseconds();
+        for (Connection& connection : m_connections)
+        {
+            if (connection.phase != Phase::Ready || connection.wantsClose)
+            {
+                continue;
+            }
+            UdpPeer& udp = connection.udp;
+            if (udp.route == OrderedRoute::Undecided)
+            {
+                const bool udpReady = nullptr != m_udpSocket.Get() && udp.IsReady();
+                if (udpReady)
+                {
+                    udp.route = OrderedRoute::Udp;
+                }
+                else if (false == UdpPossible())
+                {
+                    udp.route = OrderedRoute::WebSocket;
+                }
+                else if (now - udp.readyMilliseconds > m_config.orderedRouteWaitMilliseconds)
+                {
+                    udp.route = OrderedRoute::WebSocket;
+                }
+            }
+            if (udp.route != OrderedRoute::Undecided)
+            {
+                FlushBacklog(connection);
+            }
+        }
+    }
+
+    void Transport::PollUdp()
+    {
+        if (nullptr == m_udpSocket.Get())
+        {
+            return;
+        }
+        while (InboundHasHeadroom())
+        {
+            std::size_t received = 0;
+            Endpoint from;
+            const SocketIo io = m_udpSocket->ReceiveFrom(
+                m_datagramScratch.Data(), m_datagramScratch.Size(), received, from);
+            if (io != SocketIo::Ok)
+            {
+                break;
+            }
+            UdpProto::DatagramHeader header;
+            const std::uint8_t* payload = nullptr;
+            std::uint32_t payloadSize = 0;
+            if (false == UdpProto::Decode(m_datagramScratch.Data(), static_cast<std::uint32_t>(received), header, payload, payloadSize))
+            {
+                continue;
+            }
+            Connection* connection = nullptr;
+            if (m_role == NetworkRole::Server)
+            {
+                connection = FindConnectionByToken(header.token);
+                if (nullptr == connection || connection->wantsClose || connection->phase != Phase::Ready)
+                {
+                    // 모르는 토큰은 무시한다(스푸핑 방어).
+                    continue;
+                }
+                // 엔드포인트를 배우고 갱신한다(NAT 리바인딩 대응).
+                connection->udp.endpoint = from;
+            }
+            else
+            {
+                connection = FindConnection(ServerConnectionId);
+                if (nullptr == connection || false == connection->udp.tokenSet || header.token != connection->udp.token)
+                {
+                    continue;
+                }
+                // 서버에서 무엇이든 왔다 - 우리 punch 가 닿았다. 더 두드리지 않는다.
+                connection->udp.punchConfirmed = true;
+            }
+            HandleDatagram(*connection, header, payload, payloadSize);
+        }
+    }
+
+    void Transport::HandleDatagram(Connection& connection, const UdpProto::DatagramHeader& header, const std::uint8_t* payload,
+        std::uint32_t size)
+    {
+        UdpPeer& udp = connection.udp;
+        const double now = m_clock.NowMilliseconds();
+        // ack 필드는 신뢰 데이터에도 순수 ack 에도 실린다. 먼저 처리한다.
+        if (0 != (header.flags & UdpProto::FlagAck))
+        {
+            udp.reliable.OnAck(header.ackBase, header.ackBits, now);
+        }
+        if (0 != (header.flags & UdpProto::FlagReliable))
+        {
+            InboundReceiver receiver(*this, connection);
+            udp.reliable.OnReliableReceived(header, payload, size, now, receiver);
+            return;
+        }
+        if (0 != (header.flags & UdpProto::FlagAck))
+        {
+            return;
+        }
+        // 비신뢰 경로. punch 도 표본이다.
+        udp.stats.Accumulate(header.seq);
+        if (header.msgId == RawMessageId && 0 == size)
+        {
+            // punch. 서버는 되받아 두드려 클라이언트가 확인하게 한다 - 첫 punch 가 유실되면 다음 keepalive 까지 1 초를 잃는다.
+            if (connection.serverSide)
+            {
+                SendPunch(connection);
+            }
+            return;
+        }
+        if (header.msgId >= FirstSystemMessageId)
+        {
+            return;
+        }
+        if (header.channel == NetChannel::UnreliableSequenced)
+        {
+            std::uint32_t* last = udp.lastReceivedSeq.Find(header.msgId);
+            if (nullptr != last && header.seq <= *last)
+            {
+                return;
+            }
+            udp.lastReceivedSeq.InsertOrAssign(header.msgId, header.seq);
+        }
+        StoreUdpMessage(connection, header.channel, header.msgId, payload, size);
+    }
+
+    void Transport::TickUdpPeers()
+    {
+        if (nullptr == m_udpSocket.Get())
+        {
+            return;
+        }
+        const double now = m_clock.NowMilliseconds();
+        for (Connection& connection : m_connections)
+        {
+            if (connection.wantsClose || false == connection.udp.IsReady() || false == connection.udp.reliable.IsReady())
+            {
+                continue;
+            }
+            PeerEmitter emitter(*this, connection.udp.endpoint, connection.udp.token);
+            connection.udp.reliable.Tick(now, emitter);
         }
     }
 
@@ -1026,6 +1563,18 @@ namespace JBro::Network
         for (const Connection& connection : m_connections)
         {
             if (connection.id == id)
+            {
+                return &connection;
+            }
+        }
+        return nullptr;
+    }
+
+    Transport::Connection* Transport::FindConnectionByToken(std::uint64_t token)
+    {
+        for (Connection& connection : m_connections)
+        {
+            if (connection.udp.tokenSet && connection.udp.token == token)
             {
                 return &connection;
             }
