@@ -134,6 +134,8 @@ namespace JBro::Network
         std::uint32_t TakeMessages(MessageView* messages, std::uint32_t capacity);
 
         const TransportConfig& GetConfig() const;
+        // 복제가 스냅숏 간격을 재는 데 쓴다. 트랜스포트가 소유하지 않는 시계다.
+        IClock& GetClock() const;
         // 지금 잡고 있는 공용 버퍼의 바이트. 역할이 없으면 0 이다(연결마다 따로 잡는 것은 세지 않는다).
         std::uint32_t GetReservedBytes() const;
 
@@ -219,6 +221,7 @@ namespace JBro::Network
         Connection* FindConnection(ConnectionId id);
         const Connection* FindConnection(ConnectionId id) const;
         Connection* FindConnectionByToken(std::uint64_t token);
+        bool SendTo(Connection& target, MessageId messageId, const void* data, std::uint32_t size, NetChannel channel);
         Connection& AddConnection(ConnectionId id, OwnerPtr<IStreamSocket> stream, bool serverSide);
         Connection& AddPeerConnection(ConnectionId id, OwnerPtr<IPeerConnection> peer, bool serverSide);
         void PollPeer(Connection& connection);

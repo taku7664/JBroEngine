@@ -1,6 +1,8 @@
 ﻿#include <JBro/NetworkSystem/NetworkHost.h>
 
 #include <JBro/Canvas/Canvas.h>
+
+#include <exception>
 #include <JBro/Runtime/GameObject.h>
 #include <JBro/Runtime/Ref.h>
 
@@ -177,6 +179,13 @@ namespace JBro
                 {
                     m_gameMessages.Add(view);
                 }
+                else
+                {
+                    // 자리가 없다. 트랜스포트가 자기 큐에 하듯 버린 사실을 이벤트로 알린다 - 조용히 잃지 않는다.
+                    // 지금 예산에서는 여기에 닿지 않는다(이 큐의 용량이 트랜스포트의 레코드 수와 같고, 한 `Update` 가
+                    // 올릴 수 있는 메시지가 그 수를 넘지 못한다). 두 예산이 갈라지는 날을 위한 자리다.
+                    m_overflowPending = true;
+                }
             }
         }
     }
@@ -190,12 +199,12 @@ namespace JBro
         }
     }
 
-    void NetworkHost::ApplyClient(float alpha)
+    void NetworkHost::ApplyClient()
     {
         EnsureSession();
         if (m_transport.GetRole() == Network::NetworkRole::Client && nullptr != m_client.Get())
         {
-            m_client->Apply(alpha);
+            m_client->Apply();
         }
     }
 
@@ -221,24 +230,43 @@ namespace JBro
 
     // ── INetworkSystem ──────────────────────────────────────────────────────────────────────────
 
+    // 켜는 두 자리는 예산을 잡는 자리이기도 하다(D-125). 컨테이너가 던지면 그것이 **스크립트 DLL 이 부른
+    // 서비스 호출을 타고 경계를 넘는다** - 경계를 넘는 것은 POD 뿐이라는 규칙에 어긋나므로 여기서 멈춘다.
+    // 게임에는 "켜지 못했다" 로 보이고, 반쯤 선 상태는 남기지 않는다.
     bool NetworkHost::StartServer(std::uint16_t port)
     {
-        if (false == m_transport.Listen(port))
+        try
         {
+            if (false == m_transport.Listen(port))
+            {
+                return false;
+            }
+            EnsureSession();
+            return true;
+        }
+        catch (const std::exception&)
+        {
+            Disconnect();
             return false;
         }
-        EnsureSession();
-        return true;
     }
 
     bool NetworkHost::Connect(const char* host, std::uint16_t port)
     {
-        if (false == m_transport.Connect(host, port))
+        try
         {
+            if (false == m_transport.Connect(host, port))
+            {
+                return false;
+            }
+            EnsureSession();
+            return true;
+        }
+        catch (const std::exception&)
+        {
+            Disconnect();
             return false;
         }
-        EnsureSession();
-        return true;
     }
 
     void NetworkHost::Disconnect()
@@ -302,7 +330,15 @@ namespace JBro
 
     std::uint32_t NetworkHost::TakeEvents(Network::NetworkEvent* events, std::uint32_t capacity)
     {
-        return m_transport.TakeEvents(events, capacity);
+        std::uint32_t taken = m_transport.TakeEvents(events, capacity);
+        if (m_overflowPending && taken < capacity)
+        {
+            Network::NetworkEvent& event = events[taken++];
+            event.kind = Network::NetworkEventKind::Overflow;
+            event.connection = Network::InvalidConnectionId;
+            m_overflowPending = false;
+        }
+        return taken;
     }
 
     std::uint32_t NetworkHost::TakeMessages(Network::MessageView* messages, std::uint32_t capacity)

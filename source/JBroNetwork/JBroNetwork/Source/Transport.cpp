@@ -48,11 +48,6 @@ namespace JBro::Network
             return static_cast<MessageId>(bytes[0] | (bytes[1] << 8));
         }
 
-        bool IsKnownChannel(NetChannel channel)
-        {
-            return static_cast<std::uint8_t>(channel) < NetChannelCount;
-        }
-
         bool IsReliableChannel(NetChannel channel)
         {
             return channel == NetChannel::ReliableOrdered || channel == NetChannel::ReliableUnordered;
@@ -416,6 +411,11 @@ namespace JBro::Network
         return m_config;
     }
 
+    IClock& Transport::GetClock() const
+    {
+        return m_clock;
+    }
+
     void Transport::SetFragmentBytesForTests(std::uint32_t bytes)
     {
         m_fragmentBytesForTests = bytes;
@@ -438,6 +438,13 @@ namespace JBro::Network
         {
             return false;
         }
+        return SendTo(*connection, messageId, data, size, channel);
+    }
+
+    // 찾기와 검사가 끝난 연결로 보낸다. `Broadcast` 가 연결마다 다시 찾지 않게 하려고 나눠 두었다.
+    bool Transport::SendTo(Connection& target, MessageId messageId, const void* data, std::uint32_t size, NetChannel channel)
+    {
+        Connection* connection = &target;
         // 피어형은 데이터 채널이 채널 규율을 지킨다. 전송로 선택도 폴백도 없다.
         if (connection->kind == ConnectionKind::Peer)
         {
@@ -475,10 +482,22 @@ namespace JBro::Network
         {
             return false;
         }
+        if (size > m_config.maxMessageBytes || false == IsKnownChannel(channel) || messageId >= FirstSystemMessageId)
+        {
+            return false;
+        }
+        if (size > 0 && nullptr == data)
+        {
+            return false;
+        }
         bool any = false;
         for (Connection& connection : m_connections)
         {
-            if (Send(connection.id, messageId, data, size, channel))
+            if (connection.phase != Phase::Ready || connection.wantsClose)
+            {
+                continue;
+            }
+            if (SendTo(connection, messageId, data, size, channel))
             {
                 any = true;
             }
@@ -930,6 +949,13 @@ namespace JBro::Network
                 return;
             }
             const std::uint32_t payloadLength = static_cast<std::uint32_t>(header.payloadLength);
+            const bool control = 0 != (static_cast<std::uint8_t>(header.opcode) & 0x08u);
+            if (control && (false == header.fin || payloadLength > WebSocket::MaxControlPayloadBytes))
+            {
+                // RFC6455 §5.5: 제어 프레임은 쪼갤 수 없고 125 바이트를 넘지 못한다.
+                RequestClose(connection, DisconnectReason::Error);
+                return;
+            }
             switch (header.opcode)
             {
             case WebSocket::Opcode::Close:
@@ -1013,14 +1039,19 @@ namespace JBro::Network
             const std::uint32_t bodySize = payloadLength - MessageHeaderBytes;
             if (messageId >= FirstSystemMessageId)
             {
-                const std::uint32_t copy = bodySize < m_scratch.Size() ? bodySize : static_cast<std::uint32_t>(m_scratch.Size());
-                connection.receive.PeekAt(header.headerLength + MessageHeaderBytes, m_scratch.Data(), copy);
+                if (bodySize > m_scratch.Size())
+                {
+                    // 시스템 메시지는 전부 작다. 스크래치를 넘는 것은 우리 쪽이 보낸 것이 아니다 - 잘라서 해석하지 않는다.
+                    RequestClose(connection, DisconnectReason::Error);
+                    return false;
+                }
+                connection.receive.PeekAt(header.headerLength + MessageHeaderBytes, m_scratch.Data(), bodySize);
                 if (header.masked)
                 {
-                    WebSocket::ApplyMask(m_scratch.Data(), copy, header.mask, MessageHeaderBytes);
+                    WebSocket::ApplyMask(m_scratch.Data(), bodySize, header.mask, MessageHeaderBytes);
                 }
                 connection.receive.Discard(total);
-                HandleSystemMessage(connection, messageId, m_scratch.Data(), copy);
+                HandleSystemMessage(connection, messageId, m_scratch.Data(), bodySize);
                 return true;
             }
             std::uint8_t* destination = ReserveInbound(connection, messageId, NetChannel::ReliableOrdered, bodySize);
@@ -1462,7 +1493,6 @@ namespace JBro::Network
         {
             connection.udp.reliable.Reset(m_config.reliable);
             connection.udp.backlog.Reset(m_config.orderedBacklogBytes);
-            connection.udp.lastReceivedSeq.Reserve(64);
         }
     }
 
@@ -1717,12 +1747,23 @@ namespace JBro::Network
         }
         if (header.channel == NetChannel::UnreliableSequenced)
         {
-            std::uint32_t* last = udp.lastReceivedSeq.Find(header.msgId);
-            if (nullptr != last && header.seq <= *last)
+            UdpPeer::SequencedSlot& slot = udp.sequenced[header.msgId % UdpPeer::SequencedSlotCount];
+            if (slot.used && slot.messageId == header.msgId)
             {
-                return;
+                if (SeqDistance(header.seq, slot.seq) <= 0)
+                {
+                    // 역전이거나 중복이다.
+                    return;
+                }
+                slot.seq = header.seq;
             }
-            udp.lastReceivedSeq.InsertOrAssign(header.msgId, header.seq);
+            else
+            {
+                // 빈 슬롯이거나 다른 ID 가 쓰던 슬롯이다. 나중 것이 자리를 가진다.
+                slot.used = true;
+                slot.messageId = header.msgId;
+                slot.seq = header.seq;
+            }
         }
         StoreUdpMessage(connection, header.channel, header.msgId, payload, size);
     }

@@ -63,6 +63,12 @@ namespace JBro::Network
     };
     inline constexpr std::uint32_t NetChannelCount = 4;
 
+    // 와이어에서 온 채널 바이트는 상대가 쓴 값이다. 게임까지 올리기 전에 여기를 지난다.
+    inline bool IsKnownChannel(NetChannel channel)
+    {
+        return static_cast<std::uint8_t>(channel) < NetChannelCount;
+    }
+
     // 연결이 어떻게 맺어졌는가. 성립한 뒤에는 상위가 둘을 구분하지 않는다(network-plan §2.4).
     enum class ConnectionKind : std::uint8_t
     {

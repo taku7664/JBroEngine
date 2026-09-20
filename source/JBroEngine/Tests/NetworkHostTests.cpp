@@ -248,7 +248,7 @@ namespace
         Check(host.GetRole() == JBro::Network::NetworkRole::None && false == host.IsConnected(), "and nothing is connected");
         host.Update();
         host.StepServer();
-        host.ApplyClient(1.0f);
+        host.ApplyClient();
         JBro::Network::NetworkEvent event;
         Check(0 == host.TakeEvents(&event, 1), "no events");
         host.UnbindCanvas();

@@ -386,6 +386,96 @@ namespace
     }
 
     // **처리량 실측(network-plan §2.6 열림 항목).** 2000 오브젝트 × 8 바이트, 매 스텝 10% 변경. 숫자를 찍고 느슨한 상한만 건다.
+    // **기준이 같은 클라이언트끼리는 델타를 한 번만 인코드한다.** 전에는 클라이언트마다 전체 스냅숏을 다시 훑어
+    // 비용이 클라이언트 수에 비례했다. 셋을 붙여 인코드 횟수가 클라이언트 수가 아니라 서로 다른 기준의 수임을 본다.
+    void TestOneEncodePerBaseline()
+    {
+        World world;
+        world.Connect(world.client);
+        world.Populate(12);
+
+        Client second(world.provider, world.clock, world.prefab, StateBytes, world.config);
+        Check(second.transport.Connect("memory", 5000), "the second client connects");
+        world.Connect(second);
+        Client third(world.provider, world.clock, world.prefab, StateBytes, world.config);
+        Check(third.transport.Connect("memory", 5000), "the third client connects");
+        world.Connect(third);
+
+        // 셋이 모두 붙고 같은 틱을 ack 할 때까지 돌린다.
+        for (int round = 0; round < 40; ++round)
+        {
+            world.Mutate(4, 0.5f);
+            world.replication.Step(world.tick++);
+            world.PumpServer();
+            world.client.Pump();
+            second.Pump();
+            third.Pump();
+            world.clock.Advance(5.0);
+        }
+        Check(world.replication.GetDiagnostics().clients == 3, "the server holds three clients");
+        Check(world.replication.GetDiagnostics().lastDeltaEncodes == 1,
+            "and encoded once for the three of them - they share one baseline");
+        Check(world.Converged(world.client) && world.Converged(second) && world.Converged(third),
+            "and all three still match the server");
+    }
+
+    // **보간은 스냅숏 간격으로 스스로 계수를 정하고, 새 것이 없으면 일하지 않는다.**
+    // 전에는 호출자가 alpha 를 언제나 1 로 주어 보간이 꺼져 있었고, 바뀐 것이 없어도 매 프레임 전체를 다시 입혔다.
+    void TestInterpolationUsesSnapshotSpacingAndIdlesQuietly()
+    {
+        World world;
+        world.Connect(world.client);
+        world.Populate(4);
+
+        // 간격을 재려면 스냅숏이 둘 이상 와야 한다. 시계는 라운드마다 5 ms 씩 간다.
+        for (int round = 0; round < 12; ++round)
+        {
+            world.Mutate(4, 1.0f);
+            world.Round();
+        }
+        const FakeReplicationHost::Spawned* spawned = world.client.host.FindByNetworkId(world.replication.FindNetworkId(1));
+        Check(nullptr != spawned, "the first object exists on the client");
+
+        // 시계를 세운 채로 스냅숏 하나를 더 받는다. 받은 직후이므로 다음 것이 올 시간이 아직 하나도 지나지 않았다.
+        const ReplicationTick before = world.client.replication.GetDiagnostics().latestTick;
+        world.Mutate(4, 1.0f);
+        world.replication.Step(world.tick++);
+        for (int round = 0; round < 12; ++round)
+        {
+            world.PumpServer();
+            world.client.Pump();
+            if (world.client.replication.GetDiagnostics().latestTick != before)
+            {
+                break;
+            }
+        }
+        Check(world.client.replication.GetDiagnostics().latestTick != before, "a fresh snapshot arrived with the clock held");
+        world.client.replication.Apply();
+        const FakeReplicatedPool::Record* record = world.client.pool.Find(spawned->local);
+        Check(nullptr != record, "and has a record");
+        Check(record->lastHadFrom, "the pool gets the previous snapshot as `from`");
+        Check(record->lastAlpha < 1.0f, "and an alpha short of one - it is interpolating");
+
+        // 간격만큼 시간이 지나면 최신 스냅숏에 도착한다.
+        world.clock.Advance(1000.0);
+        world.client.replication.Apply();
+        Check(record->lastAlpha == 1.0f, "once the interval has passed the latest snapshot is what shows");
+
+        // 새 스냅숏도 없고 간격도 모르는 자리에서는 아무 일도 하지 않는다.
+        World quiet;
+        quiet.Connect(quiet.client);
+        quiet.Populate(4);
+        quiet.Round();
+        const FakeReplicationHost::Spawned* quietSpawned = quiet.client.host.FindByNetworkId(quiet.replication.FindNetworkId(1));
+        Check(nullptr != quietSpawned, "the quiet world replicated too");
+        const FakeReplicatedPool::Record* quietRecord = quiet.client.pool.Find(quietSpawned->local);
+        Check(nullptr != quietRecord, "and has a record");
+        const std::uint32_t applies = quietRecord->applyCount;
+        quiet.client.replication.Apply();
+        quiet.client.replication.Apply();
+        Check(quietRecord->applyCount == applies, "with one snapshot and a still clock, Apply does nothing");
+    }
+
     void TestThroughputMeasurement()
     {
         ReplicationConfig big;
@@ -437,6 +527,8 @@ int RunReplicationTests()
         TestLateJoinerCatchesUp();
         TestExcludedObjectsStayLocal();
         TestApplyPassesInterpolationInputs();
+        TestOneEncodePerBaseline();
+        TestInterpolationUsesSnapshotSpacingAndIdlesQuietly();
         TestThroughputMeasurement();
     }
     catch (const std::exception& error)

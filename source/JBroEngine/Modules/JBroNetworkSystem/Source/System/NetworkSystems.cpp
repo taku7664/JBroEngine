@@ -19,7 +19,7 @@ namespace JBro::System
     {
         (void)canvas;
         (void)fixedDeltaTime;
-        m_host.ApplyClient(1.0f);
+        m_host.ApplyClient();
     }
 
     NetworkSendSystem::NetworkSendSystem(NetworkHost& host)

@@ -51,7 +51,8 @@ namespace JBro
         void Update();
         // 고정 스텝 안. 각각 서버·클라이언트일 때만 일한다.
         void StepServer();
-        void ApplyClient(float alpha);
+        // 보간 계수는 복제가 스냅숏 간격으로 스스로 정한다.
+        void ApplyClient();
 
         Network::Transport& GetTransport();
         const NetworkSystemContext& GetSystemContext() const;
@@ -109,6 +110,8 @@ namespace JBro
         // 이번 프레임의 게임 메시지. 뷰는 트랜스포트의 수신 저장소를 가리키고 다음 `Update` 까지 산다.
         Array<Network::MessageView> m_gameMessages;
         std::uint32_t m_gameMessagesTaken = 0;
+        // 이번 프레임에 자리가 없어 버린 게임 메시지가 있었다. 다음 `TakeEvents` 가 `Overflow` 로 알린다.
+        bool m_overflowPending = false;
         NetworkSystemContext m_systemContext;
         NetworkServiceContext m_serviceContext;
     };

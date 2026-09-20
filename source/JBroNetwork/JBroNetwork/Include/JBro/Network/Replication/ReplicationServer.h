@@ -24,6 +24,8 @@ namespace JBro::Network
         std::uint32_t fullSnapshotsSent = 0;
         // 델타가 상한을 넘어 보내지 못한 틱 수.
         std::uint32_t oversizedTicks = 0;
+        // 이번 스텝에 실제로 인코드한 횟수. 클라이언트 수가 아니라 **서로 다른 기준의 수**다.
+        std::uint32_t lastDeltaEncodes = 0;
     };
 
     // 서버 쪽 복제(network-plan §2.6). 고정 스텝마다 등록된 풀을 스냅숏으로 찍고, 새 오브젝트는 스폰을, 사라진 오브젝트는 소멸을
@@ -63,6 +65,8 @@ namespace JBro::Network
             ReplicationTick ackedTick = NoBaselineTick;
             ReplicationTick lastSentTick = 0;
             bool hasSent = false;
+            // 이번 스텝에서 이미 보냈는가. 같은 기준을 ack 한 클라이언트끼리 인코드를 나눠 쓰기 위한 표시다.
+            bool sentThisStep = false;
         };
 
         class PoolVisitor final : public IReplicatedPoolVisitor

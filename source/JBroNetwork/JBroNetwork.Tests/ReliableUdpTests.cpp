@@ -1,5 +1,6 @@
 ﻿#include "TestCheck.h"
 
+#include <JBro/Network/Internal/ReliableEndpoint.h>
 #include <JBro/Network/Internal/UdpDatagram.h>
 #include <JBro/Network/Testing/ManualClock.h>
 #include <JBro/Network/Testing/MemorySocketProvider.h>
@@ -84,6 +85,124 @@ namespace
     };
 
     // **데이터그램 헤더는 플래그 조합마다 왕복하고 잘린 버퍼를 거절한다.**
+    // 상대가 보낸 바이트를 믿지 않는 자리들. 여기 있는 것은 정상 상대라면 만들지 않는 데이터그램이다.
+    struct CollectingReceiver final : public IReliableReceiver
+    {
+        std::uint32_t count = 0;
+        std::uint32_t lastSize = 0;
+        std::uint8_t last[UdpProto::MaxPayloadBytes * 4] = {};
+
+        void Deliver(NetChannel channel, MessageId messageId, const std::uint8_t* payload, std::uint32_t size) override
+        {
+            (void)channel;
+            (void)messageId;
+            ++count;
+            lastSize = size;
+            if (size <= sizeof(last))
+            {
+                std::memcpy(last, payload, size);
+            }
+        }
+    };
+
+    UdpProto::DatagramHeader FragmentHeader(std::uint32_t seq, std::uint32_t msgSeq, std::uint16_t index, std::uint16_t count)
+    {
+        UdpProto::DatagramHeader header;
+        header.flags = UdpProto::FlagReliable | UdpProto::FlagFragment;
+        header.channel = NetChannel::ReliableOrdered;
+        header.seq = seq;
+        header.msgSeq = msgSeq;
+        header.fragIndex = index;
+        header.fragCount = count;
+        header.msgId = 21;
+        return header;
+    }
+
+    // **모르는 채널 바이트는 데이터그램째로 버린다.** 막지 않으면 범위 밖 enum 이 `MessageView::channel` 로 게임까지 간다.
+    void TestUnknownChannelIsRejected()
+    {
+        std::uint8_t buffer[64];
+        UdpProto::DatagramHeader header;
+        header.channel = NetChannel::Unreliable;
+        header.seq = 1;
+        header.msgId = 7;
+        const std::uint8_t body[] = { 1, 2, 3 };
+        const std::uint32_t written = UdpProto::Encode(header, body, sizeof(body), buffer);
+        Check(written > 0, "a well formed datagram encodes");
+
+        UdpProto::DatagramHeader parsed;
+        const std::uint8_t* payload = nullptr;
+        std::uint32_t payloadSize = 0;
+        Check(UdpProto::Decode(buffer, written, parsed, payload, payloadSize), "and decodes");
+
+        // 채널 바이트는 토큰 8 바이트와 플래그 1 바이트 뒤다.
+        buffer[9] = static_cast<std::uint8_t>(NetChannelCount);
+        Check(false == UdpProto::Decode(buffer, written, parsed, payload, payloadSize), "an unknown channel is refused");
+        buffer[9] = 0xFF;
+        Check(false == UdpProto::Decode(buffer, written, parsed, payload, payloadSize), "and so is any other stray value");
+    }
+
+    // **마지막이 아닌 조각이 꽉 차 있지 않으면 받지 않는다.** 받아들이면 조립 버퍼 가운데가 비고, 슬롯을 다시 쓸 때
+    // `have` 만 지우므로 그 자리에 앞 메시지의 바이트가 남은 채 위로 올라간다.
+    void TestShortMiddleFragmentIsRefused()
+    {
+        ReliableConfig config;
+        ReliableEndpoint endpoint;
+        endpoint.Reset(config);
+        CollectingReceiver receiver;
+
+        // 먼저 온전한 두 조각 메시지 하나를 보내 슬롯에 0xAB 를 채운다.
+        std::uint8_t full[UdpProto::MaxPayloadBytes];
+        std::memset(full, 0xAB, sizeof(full));
+        endpoint.OnReliableReceived(FragmentHeader(0, 1, 0, 2), full, sizeof(full), 0.0, receiver);
+        endpoint.OnReliableReceived(FragmentHeader(1, 1, 1, 2), full, 16, 0.0, receiver);
+        Check(receiver.count == 1, "the whole message arrives");
+        Check(receiver.lastSize == UdpProto::MaxPayloadBytes + 16, "with the size its fragments say");
+
+        // 이제 짧은 중간 조각으로 같은 짓을 시도한다.
+        std::uint8_t shortPayload[16];
+        std::memset(shortPayload, 0x11, sizeof(shortPayload));
+        endpoint.OnReliableReceived(FragmentHeader(2, 2, 0, 2), shortPayload, sizeof(shortPayload), 0.0, receiver);
+        endpoint.OnReliableReceived(FragmentHeader(3, 2, 1, 2), shortPayload, sizeof(shortPayload), 0.0, receiver);
+        Check(receiver.count == 1, "nothing is delivered - the short middle fragment was refused");
+    }
+
+    // **순번은 32 비트를 한 바퀴 돌아도 이어진다.** 부호 있는 거리로 비교하지 않으면 랩 뒤의 모든 것이 중복으로 보여 멈춘다.
+    void TestSequenceNumbersSurviveWraparound()
+    {
+        ReliableConfig config;
+        ReliableEndpoint endpoint;
+        endpoint.Reset(config);
+        // 랩 직전으로 순번 공간을 옮긴다.
+        const std::uint32_t start = 0xFFFFFFFEu;
+        endpoint.SetSequenceOriginForTests(start);
+        CollectingReceiver receiver;
+
+        UdpProto::DatagramHeader header;
+        header.flags = UdpProto::FlagReliable;
+        header.channel = NetChannel::ReliableOrdered;
+        header.msgId = 9;
+        const std::uint8_t body[] = { 0x5A };
+        header.seq = start;
+        endpoint.OnReliableReceived(header, body, sizeof(body), 0.0, receiver);
+        Check(receiver.count == 1, "the first one arrives");
+
+        // 랩을 건너는 순번이 **역전되어** 온다. 부호 없는 비교로는 0 이 0xFFFFFFFF 보다 작아 보여 지난 것으로 버려진다.
+        header.seq = start + 2;
+        endpoint.OnReliableReceived(header, body, sizeof(body), 0.0, receiver);
+        Check(receiver.count == 1, "the one after the wrap waits for the gap before it");
+        header.seq = start + 1;
+        endpoint.OnReliableReceived(header, body, sizeof(body), 0.0, receiver);
+        Check(receiver.count == 3, "and when the gap fills, both come up in order");
+
+        for (std::uint32_t step = 3; step < 6; ++step)
+        {
+            header.seq = start + step;
+            endpoint.OnReliableReceived(header, body, sizeof(body), 0.0, receiver);
+        }
+        Check(receiver.count == 6, "the sequence keeps running past the wrap");
+    }
+
     void TestDatagramCodec()
     {
         UdpProto::DatagramHeader header;
@@ -519,6 +638,9 @@ int RunReliableUdpTests()
     try
     {
         TestDatagramCodec();
+        TestUnknownChannelIsRejected();
+        TestShortMiddleFragmentIsRefused();
+        TestSequenceNumbersSurviveWraparound();
         TestUdpBecomesTheRoute();
         TestOrderedSurvivesLossDeterministically();
         TestUnorderedIsExactlyOnce();

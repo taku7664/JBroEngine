@@ -166,6 +166,77 @@ namespace
                   << " bytes with no role" << std::endl;
     }
 
+    // **비신뢰 순서 채널의 표는 상대가 고르는 메시지 ID 로 자라지 않는다.** 고정 슬롯이므로 두 ID 가 한 슬롯을 나눠 쓸 수
+    // 있고, 그때 잃는 것은 역전 폐기 한 번이지 전달이 아니다. 슬롯 수만큼 떨어진 두 ID 로 그 자리를 밟아 본다.
+    void TestSequencedSlotsDoNotGrowWithMessageIds()
+    {
+        MemorySocketProvider provider;
+        ManualClock clock;
+        Transport server(provider, clock);
+        Transport client(provider, clock);
+        Check(server.Listen(7811), "the server listens");
+        Check(client.Connect("memory", 7811), "the client connects");
+        Pump(server, client, clock);
+
+        const std::uint32_t reserved = server.GetReservedBytes();
+        // 슬롯 수의 몇 배가 되는 서로 다른 ID 로 보낸다. 표가 키마다 자란다면 여기서 자랐을 것이다.
+        std::uint32_t delivered = 0;
+        MessageView views[64];
+        for (MessageId id = 1; id <= 300; ++id)
+        {
+            const std::uint32_t body = id;
+            Check(client.Send(ServerConnectionId, id, &body, sizeof(body), NetChannel::UnreliableSequenced),
+                "every message id is accepted");
+            Pump(server, client, clock, 2);
+            delivered += server.TakeMessages(views, 64);
+        }
+        Check(delivered == 300, "and every one of them arrives");
+        Check(server.GetReservedBytes() == reserved, "the shared budget did not move");
+
+        // 같은 ID 의 역전은 여전히 버린다(고정 슬롯이 그 ID 를 들고 있는 동안).
+        const std::uint32_t newest = 0xABCD;
+        Check(client.Send(ServerConnectionId, 300, &newest, sizeof(newest), NetChannel::UnreliableSequenced), "a newer one goes");
+        Pump(server, client, clock, 2);
+        Check(server.TakeMessages(views, 64) == 1, "and arrives once");
+    }
+
+    // **브로드캐스트는 준비된 연결에만 가고, 연결을 다시 찾지 않는다.** 보내는 길을 나눈 뒤에도 결과가 같아야 한다.
+    void TestBroadcastReachesEveryReadyConnection()
+    {
+        MemorySocketProvider provider;
+        ManualClock clock;
+        Transport server(provider, clock);
+        Transport first(provider, clock);
+        Transport second(provider, clock);
+        Check(server.Listen(7831), "the server listens");
+        Check(first.Connect("memory", 7831), "the first client connects");
+        for (int round = 0; round < 8; ++round)
+        {
+            server.Update();
+            first.Update();
+            clock.Advance(5.0);
+        }
+        // 둘째는 아직 hello 를 끝내지 않은 채로 둔다 - 준비되지 않은 연결에는 가지 않아야 한다.
+        Check(second.Connect("memory", 7831), "the second client starts connecting");
+        server.Update();
+
+        const std::uint32_t payload = 0x1234;
+        Check(server.Broadcast(31, &payload, sizeof(payload)), "the broadcast goes out");
+        for (int round = 0; round < 8; ++round)
+        {
+            server.Update();
+            first.Update();
+            second.Update();
+            clock.Advance(5.0);
+        }
+        MessageView views[8];
+        Check(first.TakeMessages(views, 8) == 1, "the ready client got it");
+        Check(views[0].messageId == 31, "with its id");
+
+        Check(false == server.Broadcast(0xFF00, &payload, sizeof(payload)), "the system range is refused");
+        Check(false == server.Broadcast(31, nullptr, 4), "and so is a size without bytes");
+    }
+
     // **큰 메시지는 파이프가 좁아도 여러 번의 Update 에 걸쳐 온전히 도착한다.** 부분 송신과 부분 수신을 둘 다 겪게 한다.
     void TestLargeMessageCrossesNarrowPipe()
     {
@@ -375,6 +446,8 @@ int RunTransportTests()
     {
         TestConnectAndExchange();
         TestIdleTransportReservesNothing();
+        TestSequencedSlotsDoNotGrowWithMessageIds();
+        TestBroadcastReachesEveryReadyConnection();
         TestLargeMessageCrossesNarrowPipe();
         TestCloseConnectionIsSeenByBothSides();
         TestConnectWithoutListenerFails();

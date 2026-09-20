@@ -21,6 +21,17 @@ namespace JBro::Network
         std::uint32_t reassemblySlots = 4;
     };
 
+    // 32 비트 순번은 돌아온다. 뺄셈을 부호 있는 수로 보면 창 안에서는 언제나 맞는 비교가 된다(RFC1982 와 같은 생각).
+    inline std::int32_t SeqDistance(std::uint32_t later, std::uint32_t earlier)
+    {
+        return static_cast<std::int32_t>(later - earlier);
+    }
+
+    inline bool SeqLess(std::uint32_t left, std::uint32_t right)
+    {
+        return SeqDistance(left, right) < 0;
+    }
+
     // 신뢰 데이터그램을 실제로 내보내는 곳. `header.token` 은 여기서 채운다.
     class IDatagramEmitter
     {
@@ -56,6 +67,8 @@ namespace JBro::Network
         void Reset(const ReliableConfig& config);
         // 상태만 비운다. 예산은 그대로다.
         void Clear();
+        // 테스트 전용. 순번 공간의 시작점을 옮겨 랩어라운드 근처를 밟아 본다 - 4 억 개를 보낼 수는 없다.
+        void SetSequenceOriginForTests(std::uint32_t origin);
         bool IsReady() const;
 
         // 큐에 넣고 창 여유만큼 바로 내보낸다. 큐가 차거나 너무 크면 거짓이고 아무것도 넣지 않는다.

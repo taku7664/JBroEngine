@@ -168,26 +168,50 @@ namespace JBro::Network
     void ReplicationServer::SendDeltas(const Snapshot& current)
     {
         m_diagnostics.lastDeltaBytes = 0;
+        m_diagnostics.lastDeltaEncodes = 0;
         for (ClientState& client : m_clients)
         {
-            const Snapshot* baseline = m_history.Find(client.ackedTick);
-            if (nullptr == baseline)
+            client.sentThisStep = false;
+        }
+        // 델타는 기준(클라이언트가 ack 한 틱)에만 달렸다. 대부분의 클라이언트는 같은 틱을 ack 하므로, 기준마다 한 번만
+        // 인코드하고 같은 기준을 가진 클라이언트끼리 그 바이트를 나눠 쓴다. 전에는 클라이언트마다 전체 스냅숏을 다시
+        // 훑어 비용이 O(클라이언트 × 엔트리)였다.
+        for (std::size_t index = 0; index < m_clients.Size(); ++index)
+        {
+            if (m_clients[index].sentThisStep)
             {
-                ++m_diagnostics.fullSnapshotsSent;
+                continue;
             }
+            const ReplicationTick baselineTick = m_clients[index].ackedTick;
+            const Snapshot* baseline = m_history.Find(baselineTick);
             const std::uint32_t written = DeltaCodec::Encode(baseline, current, m_deltaBuffer.Data(),
                 static_cast<std::uint32_t>(m_deltaBuffer.Size()), m_removalScratch.Data(),
                 static_cast<std::uint32_t>(m_removalScratch.Size()));
-            if (0 == written)
+            ++m_diagnostics.lastDeltaEncodes;
+            for (std::size_t at = index; at < m_clients.Size(); ++at)
             {
-                ++m_diagnostics.oversizedTicks;
-                continue;
-            }
-            if (m_transport.Send(client.connection, ReplicationDeltaMessage, m_deltaBuffer.Data(), written, NetChannel::UnreliableSequenced))
-            {
-                client.lastSentTick = current.Tick();
-                client.hasSent = true;
-                m_diagnostics.lastDeltaBytes += written;
+                ClientState& client = m_clients[at];
+                if (client.sentThisStep || client.ackedTick != baselineTick)
+                {
+                    continue;
+                }
+                client.sentThisStep = true;
+                if (nullptr == baseline)
+                {
+                    ++m_diagnostics.fullSnapshotsSent;
+                }
+                if (0 == written)
+                {
+                    ++m_diagnostics.oversizedTicks;
+                    continue;
+                }
+                if (m_transport.Send(client.connection, ReplicationDeltaMessage, m_deltaBuffer.Data(), written,
+                        NetChannel::UnreliableSequenced))
+                {
+                    client.lastSentTick = current.Tick();
+                    client.hasSent = true;
+                    m_diagnostics.lastDeltaBytes += written;
+                }
             }
         }
     }

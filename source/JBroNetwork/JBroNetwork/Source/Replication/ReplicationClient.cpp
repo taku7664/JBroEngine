@@ -147,6 +147,16 @@ namespace JBro::Network
         }
         m_previousTick = m_hasLatest ? m_latestTick : NoBaselineTick;
         m_latestTick = header.tick;
+        // 스냅숏 간격을 잰다. 서버 틱이 고르지 않을 수 있으므로 이동 평균이고, 첫 표본은 그대로 쓴다.
+        const double now = m_transport.GetClock().NowMilliseconds();
+        if (m_hasLatest && now > m_lastSnapshotMilliseconds)
+        {
+            const double sample = now - m_lastSnapshotMilliseconds;
+            m_snapshotIntervalMilliseconds = m_snapshotIntervalMilliseconds > 0.0
+                ? m_snapshotIntervalMilliseconds * 0.75 + sample * 0.25
+                : sample;
+        }
+        m_lastSnapshotMilliseconds = now;
         m_hasLatest = true;
         m_dirty = true;
         ++m_diagnostics.appliedDeltas;
@@ -173,12 +183,39 @@ namespace JBro::Network
         m_transport.Send(ServerConnectionId, ReplicationAckMessage, message, AckMessageBytes, NetChannel::UnreliableSequenced);
     }
 
+    void ReplicationClient::Apply()
+    {
+        if (false == m_hasLatest)
+        {
+            return;
+        }
+        // 간격을 모르면 보간하지 않는다. 그때는 새 스냅숏이 있을 때만 일한다.
+        const bool interpolating = m_snapshotIntervalMilliseconds > 0.0;
+        if (false == m_dirty && false == interpolating)
+        {
+            return;
+        }
+        float alpha = 1.0f;
+        if (interpolating)
+        {
+            const double elapsed = m_transport.GetClock().NowMilliseconds() - m_lastSnapshotMilliseconds;
+            const double ratio = elapsed / m_snapshotIntervalMilliseconds;
+            alpha = static_cast<float>(ratio < 0.0 ? 0.0 : (ratio > 1.0 ? 1.0 : ratio));
+        }
+        ApplySnapshots(alpha);
+    }
+
     void ReplicationClient::Apply(float alpha)
     {
         if (false == m_hasLatest)
         {
             return;
         }
+        ApplySnapshots(alpha);
+    }
+
+    void ReplicationClient::ApplySnapshots(float alpha)
+    {
         const Snapshot* latest = m_history.Find(m_latestTick);
         if (nullptr == latest)
         {

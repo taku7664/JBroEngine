@@ -196,6 +196,11 @@ namespace JBro::Network::UdpProto
         }
         outHeader.msgId = ReadU16(buffer + offset);
         offset += 2;
+        if (false == IsKnownChannel(outHeader.channel))
+        {
+            // 모르는 채널은 데이터그램 전체를 버린다. 여기서 막지 않으면 범위 밖 enum 이 게임까지 간다.
+            return false;
+        }
         outPayload = buffer + offset;
         outPayloadSize = size - offset;
         return true;

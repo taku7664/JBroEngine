@@ -67,8 +67,20 @@ namespace JBro::Network
         Endpoint endpoint;
         // 비신뢰 순번 공간(손실 지표·Sequenced).
         std::uint32_t sendSeq = 0;
-        // 메시지 ID 별 최근 순번(UnreliableSequenced 의 역전 폐기).
-        Table<MessageId, std::uint32_t> lastReceivedSeq;
+        // 메시지 ID 별 최근 순번(UnreliableSequenced 의 역전 폐기). 메시지 ID 는 **상대가 고르는 값**이므로
+        // 키마다 자라는 표를 두지 않는다 - 매번 다른 ID 로 보내면 연결 하나가 6 만 항목까지 자라고 수신 경로에서
+        // 할당이 일어난다. 대신 ID 로 고른 고정 슬롯을 쓰고, 두 ID 가 같은 슬롯에 오면 나중 것이 자리를 가진다.
+        // 그때 잃는 것은 역전 폐기 한 번이지 정확성이 아니다 - 비신뢰 채널은 원래 순서를 약속하지 않는다.
+        static constexpr std::uint32_t SequencedSlotCount = 64;
+
+        struct SequencedSlot
+        {
+            MessageId messageId = 0;
+            std::uint32_t seq = 0;
+            bool used = false;
+        };
+
+        SequencedSlot sequenced[SequencedSlotCount];
         UdpReceiveStats stats;
         // 신뢰 순번 공간(재전송·ack·dedup).
         ReliableEndpoint reliable;

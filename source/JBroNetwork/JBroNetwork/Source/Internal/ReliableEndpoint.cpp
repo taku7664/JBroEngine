@@ -56,6 +56,12 @@ namespace JBro::Network
         Clear();
     }
 
+    void ReliableEndpoint::SetSequenceOriginForTests(std::uint32_t origin)
+    {
+        m_nextSeq = origin;
+        m_recvNext = origin;
+    }
+
     void ReliableEndpoint::Clear()
     {
         m_sendQueue.Clear();
@@ -291,13 +297,14 @@ namespace JBro::Network
             return;
         }
         const std::uint32_t seq = header.seq;
-        // 창 밖 순번은 보내는 쪽 규칙 위반이다. ack 도 하지 않는다.
-        if (seq >= m_recvNext && seq - m_recvNext >= AckWindow)
+        // 창 밖 순번은 보내는 쪽 규칙 위반이다. ack 도 하지 않는다. 비교는 순번이 한 바퀴 돌아도 맞는 부호 있는 거리다.
+        const std::int32_t distance = SeqDistance(seq, m_recvNext);
+        if (distance >= static_cast<std::int32_t>(AckWindow))
         {
             return;
         }
         // dedup. 이미 받은 것은 전달하지 않지만 상대에게 받았다고는 알린다(재전송 억제).
-        const bool duplicate = seq < m_recvNext || (seq > m_recvNext && 0 != (m_aheadBits & (1u << (seq - m_recvNext - 1))));
+        const bool duplicate = distance < 0 || (distance > 0 && 0 != (m_aheadBits & (1u << (distance - 1))));
         if (duplicate)
         {
             if (false == m_ackPending)
@@ -316,6 +323,17 @@ namespace JBro::Network
         {
             if (0 == header.fragCount || header.fragIndex >= header.fragCount
                 || header.fragCount > m_reassembly[0].have.Size())
+            {
+                return;
+            }
+            // 마지막이 아닌 조각은 꽉 차 있어야 한다. 짧은 중간 조각을 받아들이면 조립 버퍼 가운데가 비고,
+            // 슬롯을 다시 쓸 때 `have` 만 지우므로 그 자리에 앞 메시지의 바이트가 남은 채 위로 올라간다.
+            const bool lastFragment = header.fragIndex + 1 == header.fragCount;
+            if (false == lastFragment && size != UdpProto::MaxPayloadBytes)
+            {
+                return;
+            }
+            if (lastFragment && 0 == size)
             {
                 return;
             }
@@ -341,7 +359,7 @@ namespace JBro::Network
         }
         m_ackPending = true;
         m_ackRepeatsLeft = AckRepeats;
-        if (seq == m_recvNext)
+        if (0 == distance)
         {
             ++m_recvNext;
             // 비트 i 가 recvNext+1+i 였으니 이제 비트 0 이 새 recvNext 다. 연속분을 흡수한다.
@@ -354,7 +372,7 @@ namespace JBro::Network
         }
         else
         {
-            m_aheadBits |= 1u << (seq - m_recvNext - 1);
+            m_aheadBits |= 1u << (distance - 1);
         }
 
         if (isFragment)
@@ -386,7 +404,7 @@ namespace JBro::Network
                     reassembly->totalSize = offset + size;
                 }
             }
-            if (seq > reassembly->lastSeq)
+            if (SeqLess(reassembly->lastSeq, seq))
             {
                 reassembly->lastSeq = seq;
             }
@@ -438,7 +456,7 @@ namespace JBro::Network
             OrderedEntry* next = nullptr;
             for (OrderedEntry& entry : m_ordered)
             {
-                if (entry.used && entry.seq < m_recvNext && (nullptr == next || entry.seq < next->seq))
+                if (entry.used && SeqLess(entry.seq, m_recvNext) && (nullptr == next || SeqLess(entry.seq, next->seq)))
                 {
                     next = &entry;
                 }
