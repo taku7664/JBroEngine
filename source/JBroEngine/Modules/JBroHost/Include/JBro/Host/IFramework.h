@@ -39,6 +39,19 @@ namespace JBro
         // 두 화면의 배율을 같은 수로 견줄 수 있다.
         float orthographicSize = 5.0f;
         float clearColor[4] = {0.13f, 0.14f, 0.17f, 1.0f};
+
+        // ── 3D 만 쓰는 값 ────────────────────────────────────────────
+        //
+        // 3D 의 편집 카메라는 **바라보는 점 둘레를 도는** 카메라다(궤도 카메라). 2D 처럼
+        // 평면을 밀고 당기는 것으로는 뒤를 볼 수 없다. 2D 는 이 값들을 읽지 않는다.
+        float centerZ = 0.0f;
+        // 바라보는 점에서 떨어진 거리. 휠이 이것을 바꾼다.
+        float distance = 12.0f;
+        // 그 점 둘레의 각(도). 가로 회전과 세로 회전이다.
+        float yawDegrees = 40.0f;
+        float pitchDegrees = -25.0f;
+        // 세로 화각(도). 직교가 아니라 원근이다 - 3D 는 깊이가 보여야 한다.
+        float verticalFieldOfView = 60.0f;
     };
 
     struct FrameworkContext

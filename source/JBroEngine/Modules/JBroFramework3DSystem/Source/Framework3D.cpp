@@ -100,6 +100,15 @@ namespace JBro
         return Internal::SubmitRenderWorld3D(m_renderWorld, *m_context.renderer);
     }
 
+    RenderResult Framework3D::RenderEditorView(const EditorViewDesc& view)
+    {
+        if (false == m_initialized || m_context.renderer == nullptr)
+        {
+            return RenderResult::Failed;
+        }
+        return Internal::SubmitEditorView3D(m_renderWorld, *m_context.renderer, view);
+    }
+
     namespace
     {
         void BindComponentAssetsVisitor(const PropertyTable& table, ComponentBase& component, void* user)

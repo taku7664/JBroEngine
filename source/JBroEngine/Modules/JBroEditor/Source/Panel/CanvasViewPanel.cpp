@@ -2,6 +2,7 @@
 
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Editor/EditorActions.h>
+#include <JBro/Host/ProjectFile.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/EditorUI.h>
 #include <JBro/Editor/Localization.h>
@@ -33,6 +34,13 @@ namespace JBro
         constexpr float EmptyObjectHalfSize = 0.25f;
         // 격자의 칸이 화면에서 이보다 촘촘해지면 한 단계 굵은 칸으로 넘어간다.
         constexpr float MinGridPixels = 8.0f;
+        // 3D 궤도 카메라의 한계. 세로 각은 수직을 넘지 않는다 - 넘으면 화면이 뒤집힌다.
+        constexpr float MinPitchDegrees = -89.0f;
+        constexpr float MaxPitchDegrees = 89.0f;
+        constexpr float MinDistance = 0.1f;
+        constexpr float MaxDistance = 5000.0f;
+        // 끈 픽셀 하나가 도는 각(도).
+        constexpr float OrbitDegreesPerPixel = 0.4f;
 
         // 이 배율에서 쓸 격자 간격(월드 단위). 1·2·5·10·20·50 … 으로 올라간다.
         float ChooseGridStep(float worldPerPixel)
@@ -73,6 +81,11 @@ namespace JBro
     const char* CanvasViewPanel::GetDisplayTitle() const
     {
         return Loc::TextOr(LocKeys::PanelCanvasView, "Canvas");
+    }
+
+    bool CanvasViewPanel::Is3D() const
+    {
+        return m_editor != nullptr && m_editor->GetFrameworkKind() == FrameworkKind::Framework3D;
     }
 
     bool CanvasViewPanel::OnCreate(EditorApplication& editor)
@@ -141,7 +154,15 @@ namespace JBro
         const Extent2D wanted{
             static_cast<std::uint32_t>(available.x),
             static_cast<std::uint32_t>(available.y)};
-        m_editor->RequestCanvasView(wanted, m_centerX, m_centerY, m_orthographicSize);
+        if (Is3D())
+        {
+            m_editor->RequestCanvasView3D(wanted, m_centerX, m_centerY, m_centerZ,
+                m_distance, m_yawDegrees, m_pitchDegrees);
+        }
+        else
+        {
+            m_editor->RequestCanvasView(wanted, m_centerX, m_centerY, m_orthographicSize);
+        }
 
         const ImVec2 origin = ImGui::GetCursorScreenPos();
         ViewRect rect;
@@ -187,16 +208,26 @@ namespace JBro
         draw->PushClipRect(
             ImVec2(rect.left, rect.top),
             ImVec2(rect.left + rect.width, rect.top + rect.height), true);
-        if (m_showGrid)
+        // **격자와 선택 테두리는 평면 좌표에 기댄다.** 3D 에서는 화면 좌표와 월드가
+        // 나눗셈 하나로 이어지지 않아 그대로 쓰면 엉뚱한 자리에 그린다.
+        // 3D 의 격자·윤곽은 기즈모와 같은 투영을 거쳐야 하고, 그것은 아직 없다(계획서 §4).
+        if (false == Is3D())
         {
-            DrawGrid(rect);
+            if (m_showGrid)
+            {
+                DrawGrid(rect);
+            }
+            DrawSelectionOutlines(rect);
         }
-        DrawSelectionOutlines(rect);
         draw->PopClipRect();
 
         HandleCameraInput(rect, hovered);
         DrawGizmo(rect);
-        HandlePicking(rect, hovered);
+        if (false == Is3D())
+        {
+            HandleBoxSelect(rect, hovered);
+            HandlePicking(rect, hovered);
+        }
         DrawContextMenu();
     }
 
@@ -239,14 +270,25 @@ namespace JBro
                 {
                     m_panMoved = true;
                 }
-                const float halfHeight = m_orthographicSize;
-                const float halfWidth = rect.height > 0.0f
-                    ? halfHeight * rect.width / rect.height
-                    : halfHeight;
-                if (rect.width > 0.0f && rect.height > 0.0f)
+                if (Is3D())
                 {
-                    m_centerX -= delta.x / (rect.width * 0.5f) * halfWidth;
-                    m_centerY += delta.y / (rect.height * 0.5f) * halfHeight;
+                    // **3D 는 돈다.** 평면을 밀고 당기는 것으로는 뒤를 볼 수 없다.
+                    m_yawDegrees -= delta.x * OrbitDegreesPerPixel;
+                    m_pitchDegrees = std::clamp(
+                        m_pitchDegrees - delta.y * OrbitDegreesPerPixel,
+                        MinPitchDegrees, MaxPitchDegrees);
+                }
+                else
+                {
+                    const float halfHeight = m_orthographicSize;
+                    const float halfWidth = rect.height > 0.0f
+                        ? halfHeight * rect.width / rect.height
+                        : halfHeight;
+                    if (rect.width > 0.0f && rect.height > 0.0f)
+                    {
+                        m_centerX -= delta.x / (rect.width * 0.5f) * halfWidth;
+                        m_centerY += delta.y / (rect.height * 0.5f) * halfHeight;
+                    }
                 }
             }
             else
@@ -264,6 +306,13 @@ namespace JBro
 
         if (false == hovered || io.MouseWheel == 0.0f)
         {
+            return;
+        }
+        if (Is3D())
+        {
+            // 3D 의 줌은 **가까이 가는 것**이다. 바라보는 점은 그대로 두고 거리만 준다.
+            m_distance = std::clamp(
+                m_distance * std::pow(ZoomStep, -io.MouseWheel), MinDistance, MaxDistance);
             return;
         }
         // **마우스 아래의 월드 점을 붙잡고 줌한다.** 가운데를 기준으로 줌하면 보던 것이
@@ -476,7 +525,7 @@ namespace JBro
         // 손잡이 위에서 놓은 것은 고르기가 아니다. 끌지 않고 눌렀다 뗀 것도 마찬가지다 -
         // 기즈모를 건드릴 때마다 선택이 바뀌면 여럿 골라 놓고 옮길 수 없다.
         if (false == hovered || m_gizmoState.dragging || m_editing.IsActive()
-            || m_gizmoState.hovered != GizmoAxis::None)
+            || m_boxSelecting || m_gizmoState.hovered != GizmoAxis::None)
         {
             return;
         }
@@ -510,6 +559,103 @@ namespace JBro
         else
         {
             m_editor->SetSelectedObject(picked);
+        }
+    }
+
+    void CanvasViewPanel::HandleBoxSelect(const ViewRect& rect, bool hovered)
+    {
+        // 기즈모를 잡고 있으면 상자를 시작하지 않는다. 손잡이를 끄는 것이 곧 상자가 되면
+        // 옮길 때마다 선택이 통째로 바뀐다.
+        if (m_gizmoState.dragging || m_editing.IsActive() || m_panning)
+        {
+            m_boxSelecting = false;
+            return;
+        }
+
+        const ImGuiIO& io = ImGui::GetIO();
+        if (false == m_boxSelecting)
+        {
+            // **임계값을 넘어야 시작한다.** 넘기 전에 시작하면 그냥 클릭한 것도 빈 상자가
+            // 되어, 무언가를 고르려던 손짓이 선택을 푸는 손짓이 된다.
+            const bool startable = hovered
+                && m_gizmoState.hovered == GizmoAxis::None
+                && ImGui::IsMouseDown(ImGuiMouseButton_Left)
+                && Widget::MouseWasDragged(ImGuiMouseButton_Left);
+            if (false == startable)
+            {
+                return;
+            }
+            const ImVec2 delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left, 0.0f);
+            m_boxStart = ImVec2(io.MousePos.x - delta.x, io.MousePos.y - delta.y);
+            // 누르기 시작한 자리에 무언가 있었으면 그것을 끌려던 것이다 - 상자가 아니다.
+            if (PickAt(rect, m_boxStart.x, m_boxStart.y) != nullptr)
+            {
+                return;
+            }
+            m_boxSelecting = true;
+        }
+
+        const ImVec2 current = io.MousePos;
+        const float left = (std::min)(m_boxStart.x, current.x);
+        const float right = (std::max)(m_boxStart.x, current.x);
+        const float top = (std::min)(m_boxStart.y, current.y);
+        const float bottom = (std::max)(m_boxStart.y, current.y);
+
+        ImDrawList* draw = ImGui::GetWindowDrawList();
+        draw->AddRectFilled(ImVec2(left, top), ImVec2(right, bottom),
+            IM_COL32(120, 180, 255, 40));
+        draw->AddRect(ImVec2(left, top), ImVec2(right, bottom),
+            IM_COL32(120, 180, 255, 200));
+
+        if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
+        {
+            return;
+        }
+        m_boxSelecting = false;
+
+        // ── 놓았다. 상자에 **닿은** 것을 모은다. ─────────────────────────
+        //
+        // 완전히 들어온 것만 고르는 쪽도 있지만, 큰 배경을 걸치기만 해도 잡히는 쪽이
+        // 2D 편집에서는 손에 붙는다. 기존 엔진도 겹침 기준이다.
+        Canvas* canvas = m_editor->GetCanvas();
+        if (canvas == nullptr)
+        {
+            return;
+        }
+        float worldLeft = 0.0f;
+        float worldTop = 0.0f;
+        float worldRight = 0.0f;
+        float worldBottom = 0.0f;
+        ScreenToWorld(rect, left, bottom, worldLeft, worldBottom);
+        ScreenToWorld(rect, right, top, worldRight, worldTop);
+
+        Array<GameObject*> hit;
+        canvas->ForEachObject([&](GameObject& object)
+        {
+            float minX = 0.0f;
+            float minY = 0.0f;
+            float maxX = 0.0f;
+            float maxY = 0.0f;
+            if (false == GetWorldBounds(object, minX, minY, maxX, maxY))
+            {
+                return;
+            }
+            if (maxX < worldLeft || minX > worldRight
+                || maxY < worldBottom || minY > worldTop)
+            {
+                return;
+            }
+            hit.Add(&object);
+        });
+
+        // Ctrl·Shift 는 더한다. 맨 끌기는 통째로 바꾼다 - 계층·클릭과 같은 손놀림이다.
+        if (false == io.KeyCtrl && false == io.KeyShift)
+        {
+            m_editor->ClearSelection();
+        }
+        for (std::size_t index = 0; index < hit.Size(); ++index)
+        {
+            m_editor->AddToSelection(hit[index]);
         }
     }
 
@@ -626,6 +772,19 @@ namespace JBro
 
         // 편집 카메라의 뷰·투영이다. 엔진이 캔버스 뷰를 그릴 때 쓰는 것과 같은 식이라야
         // 손잡이가 그림과 같은 자리에 온다.
+        if (Is3D())
+        {
+            // **3D 의 손잡이는 아직 없다.** 궤도 카메라의 뷰·투영을 여기서 한 번 더
+            // 만들면 엔진이 만드는 것과 둘로 갈린다 - 같은 값을 두 곳에서 세우면
+            // 한쪽만 고쳐졌을 때 손잡이가 그림과 다른 자리에 선다.
+            // 렌더러가 이번 프레임에 쓴 편집 카메라를 내주는 길이 먼저 있어야 한다(계획서 §4).
+            if (m_gizmoState.dragging || m_editing.IsActive())
+            {
+                m_editing.Cancel(*m_editor);
+                m_gizmoState.dragging = false;
+            }
+            return;
+        }
         const float halfHeight = m_orthographicSize;
         const float halfWidth = rect.height > 0.0f
             ? halfHeight * rect.width / rect.height

@@ -16,5 +16,9 @@ namespace JBro
         bool BuildCamera3D(const RenderCamera3D& source, const Extent2D& extent, CameraParams& result);
         // 렌더 월드를 뷰 하나로 렌더러에 넘긴다. 2D 의 `SubmitRenderWorld2D` 와 같은 계약이다.
         RenderResult SubmitRenderWorld3D(const RenderWorld3D& world, Renderer& renderer);
+        // 같은 그릴 것을 **궤도 편집 카메라로** 에디터의 텍스처에 한 번 더 낸다(D-130).
+        // 게임 카메라가 없어도 그린다 - 캔버스 뷰는 카메라가 없는 캔버스도 보여야 한다.
+        RenderResult SubmitEditorView3D(
+            const RenderWorld3D& world, Renderer& renderer, const EditorViewDesc& view);
     }
 }

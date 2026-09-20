@@ -29,6 +29,10 @@ namespace JBro
         void OnDraw() override;
         EditorDock GetPreferredDock() const override { return EditorDock::Center; }
 
+        // 이 프로젝트가 3D 인가. **편집 화면의 조작이 여기서 갈린다** - 평면을 밀고 당기는
+        // 것으로는 3D 의 뒤를 볼 수 없어, 3D 는 바라보는 점 둘레를 도는 궤도 카메라다.
+        bool Is3D() const;
+
         // 화면 한가운데가 보는 월드 좌표와 배율이다. 세션에 저장할 값이라 밖에서도 읽고 쓴다.
         void SetCamera(float centerX, float centerY, float orthographicSize);
         float GetCameraX() const { return m_centerX; }
@@ -53,6 +57,9 @@ namespace JBro
         void DrawGizmo(const ViewRect& rect);
         // 빈 곳을 누르면 그 자리의 오브젝트를 고른다. 아무것도 없으면 선택을 비운다.
         void HandlePicking(const ViewRect& rect, bool hovered);
+        // 빈 곳에서 끌면 상자가 따라오고, 놓으면 그 안에 **닿은** 것을 모두 고른다
+        // (기존 엔진 `CCanvasViewTool` 의 드래그 박스 선택). 상자를 그리는 것도 여기다.
+        void HandleBoxSelect(const ViewRect& rect, bool hovered);
         void DrawContextMenu();
         // 고른 것들이 다 보이도록 카메라를 맞춘다. 고른 것이 없으면 캔버스 전체다.
         void FrameSelection();
@@ -74,6 +81,11 @@ namespace JBro
         float m_centerY = 0.0f;
         // 화면 세로 절반이 담는 월드 길이다. 게임 카메라의 `orthographicSize` 와 같은 뜻이다.
         float m_orthographicSize = 5.0f;
+        // 3D 의 궤도 카메라(D-136). 바라보는 점의 높이와, 그 점에서의 거리와 각이다.
+        float m_centerZ = 0.0f;
+        float m_distance = 12.0f;
+        float m_yawDegrees = 40.0f;
+        float m_pitchDegrees = -25.0f;
 
         GizmoMode m_gizmoMode = GizmoMode::Translate;
         Widget::GizmoState m_gizmoState;
@@ -83,5 +95,9 @@ namespace JBro
         // 화면을 옮기려던 것이지 메뉴를 부르려던 것이 아니다.
         bool m_panning = false;
         bool m_panMoved = false;
+        // 상자 선택 중인가와 그 시작 자리(화면 좌표). 끌기가 임계값을 넘어야 시작한다 -
+        // 넘기 전에 시작하면 그냥 클릭한 것도 빈 상자가 되어 선택이 풀린다.
+        bool m_boxSelecting = false;
+        ImVec2 m_boxStart{0.0f, 0.0f};
     };
 }

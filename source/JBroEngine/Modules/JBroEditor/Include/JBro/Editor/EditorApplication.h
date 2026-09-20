@@ -86,6 +86,8 @@ namespace JBro
         // 고르게 두면 런처와 파일이 어긋난 채로 3D 프로젝트가 2D 로 열릴 수 있다.
         bool OpenProjectFile(const char* projectFilePath, ProjectFileError& error);
 
+        // 이 프로젝트가 2D 인가 3D 인가(D-99). 편집 화면이 평면인지 궤도인지가 여기서 갈린다.
+        FrameworkKind GetFrameworkKind() const { return m_frameworkKind; }
         // 마지막으로 연 `.jproject` 의 내용이다. 파일로 열지 않았으면 기본값이다.
         const ProjectFile& GetProjectFile() const;
         // 열린 프로젝트의 에셋 레지스트리다. 인스펙터의 에셋 칸이 같은 타입의 목록을 여기서
@@ -224,6 +226,12 @@ namespace JBro
 
         bool RequestCanvasView(
             const Extent2D& extent, float centerX, float centerY, float orthographicSize);
+        // 3D 의 편집 화면이다(D-136). 바라보는 점과 그 둘레를 도는 거리·각을 준다 -
+        // 평면을 밀고 당기는 것으로는 3D 의 뒤를 볼 수 없다.
+        bool RequestCanvasView3D(
+            const Extent2D& extent,
+            float centerX, float centerY, float centerZ,
+            float distance, float yawDegrees, float pitchDegrees);
         TextureHandle GetCanvasViewTexture() const;
         // 실제로 잡혀 있는 텍스처의 크기다. 요청한 크기를 **올림**한 값이라 패널을
         // 조금 끌 때마다 텍스처를 다시 만들지 않는다.

@@ -1155,6 +1155,30 @@ namespace JBro
         return true;
     }
 
+    bool EditorApplication::RequestCanvasView3D(
+        const Extent2D& extent,
+        float centerX, float centerY, float centerZ,
+        float distance, float yawDegrees, float pitchDegrees)
+    {
+        // 2D 의 것과 같은 길이다. 배율 대신 거리를 재고, 각이 둘 더 온다.
+        if (false == RequestCanvasView(extent, centerX, centerY, 1.0f))
+        {
+            return false;
+        }
+        if (false == std::isfinite(centerZ) || false == std::isfinite(distance)
+            || distance <= 0.0f
+            || false == std::isfinite(yawDegrees) || false == std::isfinite(pitchDegrees))
+        {
+            m_canvasViewRequested = false;
+            return false;
+        }
+        m_canvasViewRequest.centerZ = centerZ;
+        m_canvasViewRequest.distance = distance;
+        m_canvasViewRequest.yawDegrees = yawDegrees;
+        m_canvasViewRequest.pitchDegrees = pitchDegrees;
+        return true;
+    }
+
     TextureHandle EditorApplication::GetCanvasViewTexture() const
     {
         return m_canvasView;

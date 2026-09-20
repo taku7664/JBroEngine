@@ -25,6 +25,7 @@ namespace JBro
         void UnbindScriptContexts() noexcept override;
         void Update(float deltaTime) override;
         RenderResult Render() override;
+        RenderResult RenderEditorView(const EditorViewDesc& view) override;
         void Shutdown() override;
         void BindCanvasAssets() override;
 

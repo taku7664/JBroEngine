@@ -4281,6 +4281,120 @@ namespace
         editor.Shutdown();
     }
 
+    // **빈 곳을 끌면 상자가 되고, 그 안에 닿은 것이 모두 골라진다**(기존 엔진의 드래그 박스
+    // 선택). 클릭 한 번과 갈라야 한다 - 끌지 않고 누른 것은 빈 상자가 아니라 클릭이다.
+    void TestBoxSelectInTheCanvasViewPicksWhatItTouches()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; box select not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "BoxSelectProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        // 가까이 둘, 멀리 하나. 상자가 앞의 둘만 잡아야 한다.
+        JBro::GameObject* left = canvas->CreateObject("Left");
+        JBro::GameObject* right = canvas->CreateObject("Right");
+        JBro::GameObject* far_ = canvas->CreateObject("Far");
+        auto* leftTransform = canvas->AttachComponent<JBro::Component::Transform2D>(left);
+        auto* rightTransform = canvas->AttachComponent<JBro::Component::Transform2D>(right);
+        auto* farTransform = canvas->AttachComponent<JBro::Component::Transform2D>(far_);
+        Check(leftTransform != nullptr && rightTransform != nullptr && farTransform != nullptr,
+            "all three need transforms");
+        leftTransform->position = JBro::Vec2{-1.0f, 0.0f};
+        rightTransform->position = JBro::Vec2{1.0f, 0.0f};
+        farTransform->position = JBro::Vec2{0.0f, 4.0f};
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
+        Check(view != nullptr, "the canvas view must have a window");
+        // 화면 한가운데가 월드 원점이다. 기본 배율에서 x -1..1 은 가운데 근처이고
+        // y 4 는 위쪽이라 상자 밖이다.
+        const float centerX = view->Pos.x + view->Size.x * 0.5f;
+        const float centerY = view->Pos.y + view->Size.y * 0.5f;
+
+        Spot from;
+        from.x = static_cast<int>(centerX - 120.0f);
+        from.y = static_cast<int>(centerY - 40.0f);
+        Spot to;
+        to.x = static_cast<int>(centerX + 120.0f);
+        to.y = static_cast<int>(centerY + 40.0f);
+        DragTo(editor, hwnd, from, to);
+
+        Check(editor.GetSelectionCount() == 2, "the box must pick the two it touched");
+        Check(editor.IsSelected(left) && editor.IsSelected(right), "those two");
+        Check(false == editor.IsSelected(far_), "and not the one outside it");
+
+        // **끌지 않고 누른 것은 상자가 아니다.** 빈 곳을 한 번 누르면 선택이 풀린다.
+        Spot empty;
+        empty.x = static_cast<int>(centerX);
+        empty.y = static_cast<int>(centerY - 150.0f);
+        ClickAt(editor, hwnd, empty);
+        Check(editor.GetSelectionCount() == 0,
+            "a plain click on empty space clears the selection instead of boxing nothing");
+
+        editor.Shutdown();
+    }
+
+    // **3D 프로젝트에서도 편집 화면이 그려진다**(D-136). 게임 카메라가 하나도 없어도
+    // 그려야 한다 - 캔버스 뷰는 만드는 사람이 보는 화면이고, 카메라를 놓기 전에도 필요하다.
+    void TestTheCanvasViewDrawsInA3DProject()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 640;
+        config.windowHeight = 480;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the 3D canvas view not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "CanvasView3DProbe";
+        project.name = {name, sizeof(name) - 1};
+        project.framework = JBro::FrameworkKind::Framework3D;
+        Check(editor.OpenProject(project), "the 3D probe project must open");
+        Check(editor.GetFrameworkKind() == JBro::FrameworkKind::Framework3D,
+            "and the editor must know which dimension it is in");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        // 게임 뷰는 닫아 둔다. 그래야 남는 뷰가 편집 화면의 것 하나뿐이다.
+        if (JBro::EditorPanel* gameView = editor.FindPanel("Game"))
+        {
+            gameView->SetOpen(false);
+        }
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        Check(editor.GetCanvasViewTexture().IsValid(),
+            "the canvas view must have a texture to draw into");
+        JBro::Renderer* renderer = editor.GetRenderer();
+        Check(renderer != nullptr, "the editor must expose its renderer");
+        const JBro::RendererFrameStats stats = renderer->GetLastFrameStats();
+        Check(stats.viewCount >= 1,
+            "and a view must be recorded for it even with no camera in the canvas");
+
+        editor.Shutdown();
+    }
+
     // 계층의 줄 하나가 차지한 Id.
     //
     // 줄마다 `PushID(&object)` 를 쌓고 트리 마디가 `"##node"` 로 선다. **펼친 마디는
@@ -4474,6 +4588,8 @@ int RunEditorApplicationTests()
     TestTheAssetFieldPicksARegisteredSprite();
     TestTheAssetBrowserSelectsAnAssetAndTheInspectorRewritesItsMeta();
     TestPlayingAndStoppingRestoresTheCanvas();
+    TestBoxSelectInTheCanvasViewPicksWhatItTouches();
+    TestTheCanvasViewDrawsInA3DProject();
     TestDraggingInTheHierarchyReordersAndUnparents();
     TestCreatingAnObjectCanBeUndone();
     TestDeletingAnObjectCanBeUndoneWithItsValues();
