@@ -251,6 +251,8 @@ namespace JBro
         // 저장 메뉴와 Ctrl+S 가 부른다. 이 프레임의 UI 가 끝난 뒤 처리한다 - 아는 경로가 있으면
         // 거기에, 없으면 대화상자로 경로를 받아 저장하고, 실패하면 팝업으로 알린다.
         void RequestSaveCanvas();
+        // 프로젝트를 골라 연다. 대화상자는 프레임 밖에서 뜬다 - 지금 연 프로젝트는 닫힌다.
+        void RequestOpenProject();
         // 마지막으로 열거나 저장한 캔버스 경로. 없으면 빈 글자다.
         const String& GetCanvasPath() const
         {
@@ -273,7 +275,14 @@ namespace JBro
             TextureHandle backBuffer,
             std::uint32_t frameSlot,
             void* user);
-        void DrawMenuBar();
+        // **메뉴는 두 겹이다**(D-134). 기존 엔진과 같다: 프로젝트에 대한 것은 도크 뿌리의
+        // 메뉴이고, 지금 연 캔버스에 대한 것은 메인 도크의 메뉴다.
+        void DrawRootMenuBar();
+        void DrawMainMenuBar();
+        // 창 전체를 덮는 도크 뿌리. 메인 도크 하나만 여기에 붙는다.
+        void DrawRootDock(const Extent2D& display);
+        // 도구 창들이 붙는 안쪽 도크. 자기 메뉴 막대를 가진다.
+        void DrawMainDock(float deltaTime);
         // 메뉴 항목 하나를 단축키 표의 값으로 그린다: 이름·조합키 글자·할 수 있는지.
         bool DrawShortcutItem(EditorShortcut id, const char* label);
         bool BuildEditorUi(float deltaTime);
@@ -281,6 +290,8 @@ namespace JBro
         void DrawPopups();
         // `RequestSaveCanvas` 를 프레임 밖에서 처리한다.
         void PerformSaveRequest();
+        // 프로젝트 열기도 저장과 같다: **막히는 대화상자라 프레임 밖에서** 한다(D-93).
+        void PerformOpenProjectRequest();
         void ReleaseEditorUi();
         void DestroyPanels();
         // 디바이스가 이미 사라진 뒤에 부른다.
@@ -301,6 +312,7 @@ namespace JBro
         PopupHandle m_nextPopupHandle = 1;
         String m_canvasPath;
         bool m_saveRequested = false;
+        bool m_openProjectRequested = false;
         Array<ObjectTreeSnapshot> m_clipboard;
         bool (*m_fileDialog)(const FileDialogDesc& desc, String& outPath, void* user) = nullptr;
         void* m_fileDialogUser = nullptr;
@@ -341,6 +353,8 @@ namespace JBro
         bool m_exitRequested = false;
         // 첫 프레임에 한 번만 기본 자리를 잡는다. 그 뒤로는 사용자가 옮긴 자리다.
         bool m_dockLayoutBuilt = false;
+        // 도크 뿌리의 배치는 한 번만 잡는다. 메인 도크가 거기 붙는 것이 전부다.
+        bool m_rootLayoutBuilt = false;
         // 만든 쪽이 무엇을 만들었는지 기억한다. `IFramework` 에는 캔버스로 가는 길이 없고,
         // 그것을 뚫으려면 호스트 계층이 `Canvas` 를 보아야 한다(D-42 가 막는 방향이다).
         FrameworkKind m_frameworkKind = FrameworkKind::Framework2D;

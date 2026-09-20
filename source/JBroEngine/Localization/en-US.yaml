@@ -85,3 +85,8 @@ Entries:
   log.info: Info
   log.warning: Warning
   log.error: Error
+  menu.open_project: Open Project
+  menu.window_editor: Editor
+  popup.open_project_failed: The project could not be opened
+  dialog.open_project_title: Open Project
+  dialog.project_filter: JBro project file

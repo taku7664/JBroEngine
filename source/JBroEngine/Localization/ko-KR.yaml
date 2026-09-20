@@ -85,3 +85,8 @@ Entries:
   log.info: 정보
   log.warning: 경고
   log.error: 오류
+  menu.open_project: 프로젝트 열기
+  menu.window_editor: 에디터
+  popup.open_project_failed: 프로젝트를 열지 못했습니다
+  dialog.open_project_title: 프로젝트 열기
+  dialog.project_filter: JBro 프로젝트 파일

@@ -3576,24 +3576,34 @@ namespace
             Check(editor.Tick(Frame), "the editor must tick");
         }
 
+        // **메뉴는 두 겹이다**(D-134). 프로젝트에 대한 `파일` 은 도크 뿌리에, 지금 연
+        // 캔버스에 대한 `편집`·`창` 은 메인 도크에 있다 - 기존 엔진과 같은 나눔이다.
+        // 그래서 두 막대를 다 훑는다.
         ImGuiWindow* root = ImGui::FindWindowByName("##EditorRoot");
         Check(root != nullptr, "the editor must have its root window");
-        // `BeginMenuBar` 가 `PushID("##MenuBar")` 를 하고, 메뉴는 그 아래에서
-        // 제 이름으로 Id 를 받는다.
-        const ImGuiID bar = LabelId(root->ID, "##MenuBar");
+        ImGuiWindow* main = ImGui::FindWindowByName("MainDock");
+        Check(main != nullptr, "and its main dock");
+
         bool found[3] = {};
-        const ImRect rect = root->MenuBarRect();
-        const int y = static_cast<int>(rect.GetCenter().y);
-        for (int x = static_cast<int>(rect.Min.x);
-            x < static_cast<int>(rect.Max.x) && x < 400; x += 4)
+        ImGuiWindow* const bars[2] = {root, main};
+        for (ImGuiWindow* barWindow : bars)
         {
-            PostMessageW(window, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
-            Check(editor.Tick(Frame), "the editor must tick while looking");
-            for (int index = 0; index < 3; ++index)
+            // `BeginMenuBar` 가 `PushID("##MenuBar")` 를 하고, 메뉴는 그 아래에서
+            // 제 이름으로 Id 를 받는다.
+            const ImGuiID bar = LabelId(barWindow->ID, "##MenuBar");
+            const ImRect rect = barWindow->MenuBarRect();
+            const int y = static_cast<int>(rect.GetCenter().y);
+            for (int x = static_cast<int>(rect.Min.x);
+                x < static_cast<int>(rect.Max.x) && x < 400; x += 4)
             {
-                if (ImGui::GetHoveredID() == LabelId(bar, labels[index]))
+                PostMessageW(window, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
+                Check(editor.Tick(Frame), "the editor must tick while looking");
+                for (int index = 0; index < 3; ++index)
                 {
-                    found[index] = true;
+                    if (ImGui::GetHoveredID() == LabelId(bar, labels[index]))
+                    {
+                        found[index] = true;
+                    }
                 }
             }
         }

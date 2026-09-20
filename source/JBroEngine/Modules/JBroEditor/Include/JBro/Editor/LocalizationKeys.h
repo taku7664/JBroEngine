@@ -44,6 +44,8 @@ namespace JBro::LocKeys
     inline constexpr const char* MenuSimulationPlay = "menu.simulation_play";
     inline constexpr const char* MenuSimulationStop = "menu.simulation_stop";
     inline constexpr const char* MenuSimulationPause = "menu.simulation_pause";
+    inline constexpr const char* MenuOpenProject = "menu.open_project";
+    inline constexpr const char* MenuWindowEditor = "menu.window_editor";
     inline constexpr const char* MenuSaveCanvas = "menu.save_canvas";
     inline constexpr const char* MenuExit = "menu.exit";
     inline constexpr const char* MenuUndo = "menu.undo";
@@ -54,6 +56,9 @@ namespace JBro::LocKeys
     inline constexpr const char* DialogSaveCanvasTitle = "dialog.save_canvas_title";
     inline constexpr const char* DialogCanvasFilter = "dialog.canvas_filter";
     inline constexpr const char* PopupSaveFailed = "popup.save_failed";
+    inline constexpr const char* PopupOpenProjectFailed = "popup.open_project_failed";
+    inline constexpr const char* DialogOpenProjectTitle = "dialog.open_project_title";
+    inline constexpr const char* DialogProjectFilter = "dialog.project_filter";
 
     // ── 계층 ─────────────────────────────────────────────────────────────
     inline constexpr const char* HierarchyNoProject = "hierarchy.no_project";

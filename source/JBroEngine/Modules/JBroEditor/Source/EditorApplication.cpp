@@ -53,6 +53,27 @@ namespace JBro
         // 공개 헤더에 없을 뿐 저장되는 노드 상태의 일부라 ImGui 가 계속 들고 있는 값이다.
         constexpr ImGuiDockNodeFlags EditorDockNodeFlags =
             ImGuiDockNodeFlags_NoWindowMenuButton | ImGuiDockNodeFlags_NoCloseButton;
+
+        // **도크가 두 겹이므로 칸도 둘로 나눈다**(D-134). 기존 엔진의
+        // `m_imWndClass.ClassId` + `DockingAllowUnclassed = false` 와 같은 수다.
+        //
+        // 나누지 않으면 도구 창을 끌다가 **바깥 뿌리에 붙일 수 있다** - 그러면 그 창만
+        // 메인 도크 밖으로 빠져나가 메뉴 막대와 나란히 서고, 다시 넣을 방법이 화면에 없다.
+        const ImGuiWindowClass& RootDockClass()
+        {
+            static ImGuiWindowClass value = []
+            {
+                ImGuiWindowClass made;
+                made.ClassId = ImHashStr("JBroRootDock");
+                made.DockingAllowUnclassed = false;
+                return made;
+            }();
+            return value;
+        }
+
+        // 메인 도크 창의 ImGui 이름이다. `###` 뒤가 식별자라 보이는 이름이 바뀌어도
+        // 도킹 자리를 잃지 않는다(패널과 같은 규칙, D-80).
+        constexpr const char* MainDockLabel = "MainDock";
     }
 
     EditorApplication::EditorApplication() = default;
@@ -472,6 +493,61 @@ namespace JBro
         }
         SelectObjects({objects.Data(), static_cast<std::uint32_t>(objects.Size())});
         return true;
+    }
+
+    void EditorApplication::RequestOpenProject()
+    {
+        m_openProjectRequested = true;
+    }
+
+    void EditorApplication::PerformOpenProjectRequest()
+    {
+        if (false == m_openProjectRequested)
+        {
+            return;
+        }
+        m_openProjectRequested = false;
+
+        // **막히는 호출이라 프레임 밖이어야 한다**(D-93). 대화상자가 떠 있는 동안
+        // 어느 프레임도 열려 있지 않다.
+        FileDialogDesc desc;
+        desc.title = Loc::TextOr(LocKeys::DialogOpenProjectTitle, "Open Project");
+        desc.filterName = Loc::TextOr(LocKeys::DialogProjectFilter, "JBro project file");
+        desc.filterPattern = "*.jproject";
+        desc.save = false;
+        String path;
+        const bool chosen = m_fileDialog != nullptr
+            ? m_fileDialog(desc, path, m_fileDialogUser)
+            : m_platform->ShowFileDialog(m_engine->GetMainWindow(), desc, path);
+        if (false == chosen || path.empty())
+        {
+            return;
+        }
+
+        // **지금 연 것을 먼저 닫는다.** 고른 것·번호·되돌리기는 이 프로젝트의 것이라
+        // 다음 프로젝트에서 그 번호를 믿으면 엉뚱한 오브젝트를 가리킨다.
+        ClearSelection();
+        SetSelectedObject(nullptr);
+        SetSelectedAsset(AssetId{});
+        m_commands.Clear();
+        m_objectIds.Clear();
+        StopSimulation();
+        CloseProject();
+
+        ProjectFileError error;
+        if (false == OpenProjectFile(path.c_str(), error))
+        {
+            String message = path;
+            message.append("\n", 1);
+            message.append(error.message.c_str(), error.message.size());
+            OpenPopup(MakeOwnerPtr<MessagePopup>(
+                Loc::TextOr(LocKeys::PopupOpenProjectFailed, "The project could not be opened"),
+                message.c_str(), "open_project_failed"));
+            return;
+        }
+        // 새 프로젝트도 멈춘 채로 시작한다(D-131).
+        m_engine->SetSimulationEnabled(false);
+        Log::Write(LogLevel::Info, "project", "opened %s", path.c_str());
     }
 
     void EditorApplication::PerformSaveRequest()
@@ -1176,17 +1252,23 @@ namespace JBro
         return chosen;
     }
 
-    void EditorApplication::DrawMenuBar()
+    void EditorApplication::DrawRootMenuBar()
     {
         if (false == ImGui::BeginMenuBar())
         {
             return;
         }
 
+        // **프로젝트에 대한 것이 여기 있다**(D-134). 기존 엔진의 도크 뿌리와 같은 자리다.
         // 메뉴는 보이는 이름으로 Id 를 받는다. 언어를 바꾸면 Id 가 달라지지만
         // 메뉴는 창과 달리 도킹 자리 같은 것을 남기지 않으므로 잃는 것이 없다.
         if (ImGui::BeginMenu(Loc::TextOr(LocKeys::MenuFile, "File")))
         {
+            if (ImGui::MenuItem(Loc::TextOr(LocKeys::MenuOpenProject, "Open Project")))
+            {
+                RequestOpenProject();
+            }
+            ImGui::Separator();
             DrawShortcutItem(EditorShortcut::SaveCanvas,
                 Loc::TextOr(LocKeys::MenuSaveCanvas, "Save Canvas"));
             ImGui::Separator();
@@ -1194,6 +1276,39 @@ namespace JBro
             {
                 m_exitRequested = true;
             }
+            ImGui::EndMenu();
+        }
+
+        // 저장하지 않은 편집이 있으면 오른쪽 끝에 말해 준다. 판번호로 재므로
+        // 고쳤다 되돌려 원래대로 온 상태는 여기 나오지 않는다.
+        if (m_commands.IsDirty())
+        {
+            const char* mark = Loc::TextOr(LocKeys::MenuUnsaved, "unsaved");
+            const float width = ImGui::CalcTextSize(mark).x;
+            ImGui::SameLine(ImGui::GetContentRegionMax().x - width
+                - ImGui::GetStyle().ItemSpacing.x);
+            ImGui::TextDisabled("%s", mark);
+        }
+        ImGui::EndMenuBar();
+    }
+
+    void EditorApplication::DrawMainMenuBar()
+    {
+        if (false == ImGui::BeginMenuBar())
+        {
+            return;
+        }
+
+        // **지금 연 캔버스에 대한 것이 여기 있다**(D-134). 기존 엔진의 메인 도크와 같은
+        // 차례다: 시뮬레이션, 편집, 창.
+        if (ImGui::BeginMenu(Loc::TextOr(LocKeys::MenuSimulation, "Simulation")))
+        {
+            const bool playing = IsSimulationPlaying();
+            DrawShortcutItem(EditorShortcut::TogglePlay, playing
+                ? Loc::TextOr(LocKeys::MenuSimulationStop, "Stop")
+                : Loc::TextOr(LocKeys::MenuSimulationPlay, "Play"));
+            DrawShortcutItem(EditorShortcut::TogglePause,
+                Loc::TextOr(LocKeys::MenuSimulationPause, "Pause"));
             ImGui::EndMenu();
         }
 
@@ -1211,50 +1326,176 @@ namespace JBro
             ImGui::EndMenu();
         }
 
-        // **시뮬레이션 메뉴**(D-131). 기존 엔진의 메인 도크가 같은 자리에 같은 두 항목을
-        // 두었고 단축키도 같다(F5 재생, F6 일시정지).
-        if (ImGui::BeginMenu(Loc::TextOr(LocKeys::MenuSimulation, "Simulation")))
-        {
-            const bool playing = IsSimulationPlaying();
-            DrawShortcutItem(EditorShortcut::TogglePlay, playing
-                ? Loc::TextOr(LocKeys::MenuSimulationStop, "Stop")
-                : Loc::TextOr(LocKeys::MenuSimulationPlay, "Play"));
-            DrawShortcutItem(EditorShortcut::TogglePause,
-                Loc::TextOr(LocKeys::MenuSimulationPause, "Pause"));
-            ImGui::EndMenu();
-        }
-
         if (ImGui::BeginMenu(Loc::TextOr(LocKeys::MenuWindow, "Window")))
         {
-            // 패널이 무엇인지 모른 채로 만든다. 레지스트리에 있는 것이 곧
-            // 이 목록이라, 패널을 더해도 여기는 그대로다.
-            for (std::size_t index = 0; index < m_panels.Size(); ++index)
+            // 기존 엔진처럼 한 겹 더 들어간다 - 도구 창 말고도 열 것이 늘어날 자리다.
+            if (ImGui::BeginMenu(Loc::TextOr(LocKeys::MenuWindowEditor, "Editor")))
             {
-                EditorPanel* panel = m_panels[index].Get();
-                if (panel == nullptr)
+                // 패널이 무엇인지 모른 채로 만든다. 레지스트리에 있는 것이 곧
+                // 이 목록이라, 패널을 더해도 여기는 그대로다.
+                for (std::size_t index = 0; index < m_panels.Size(); ++index)
                 {
-                    continue;
+                    EditorPanel* panel = m_panels[index].Get();
+                    if (panel == nullptr)
+                    {
+                        continue;
+                    }
+                    bool open = panel->IsOpen();
+                    if (ImGui::MenuItem(panel->GetDisplayTitle(), nullptr, &open))
+                    {
+                        panel->SetOpen(open);
+                    }
                 }
-                bool open = panel->IsOpen();
-                if (ImGui::MenuItem(panel->GetDisplayTitle(), nullptr, &open))
-                {
-                    panel->SetOpen(open);
-                }
+                ImGui::EndMenu();
             }
             ImGui::EndMenu();
         }
-
-        // 저장하지 않은 편집이 있으면 오른쪽 끝에 말해 준다. 판번호로 재므로
-        // 고쳤다 되돌려 원래대로 온 상태는 여기 나오지 않는다.
-        if (m_commands.IsDirty())
-        {
-            const char* mark = Loc::TextOr(LocKeys::MenuUnsaved, "unsaved");
-            const float width = ImGui::CalcTextSize(mark).x;
-            ImGui::SameLine(ImGui::GetContentRegionMax().x - width
-                - ImGui::GetStyle().ItemSpacing.x);
-            ImGui::TextDisabled("%s", mark);
-        }
         ImGui::EndMenuBar();
+    }
+
+    void EditorApplication::DrawRootDock(const Extent2D& display)
+    {
+        // **창 전체를 덮는 도크 뿌리다**(D-134). 기존 엔진의 `CRootDockWindow` 자리이고,
+        // 여기에는 **메인 도크 하나만** 붙는다 - 도구 창은 그 안쪽에 붙는다.
+        ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f));
+        ImGui::SetNextWindowSize(ImVec2(
+            static_cast<float>(display.width), static_cast<float>(display.height)));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+        ImGui::Begin("##EditorRoot", nullptr,
+            ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse
+                | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove
+                | ImGuiWindowFlags_NoBringToFrontOnFocus
+                | ImGuiWindowFlags_NoNavFocus
+                | ImGuiWindowFlags_NoDocking
+                | ImGuiWindowFlags_MenuBar);
+        ImGui::PopStyleVar(3);
+        DrawRootMenuBar();
+
+        const ImGuiID rootDock = ImGui::GetID("EditorRootDockSpace");
+        if (false == m_rootLayoutBuilt)
+        {
+            // 배치를 먼저 잡는다(안쪽 도크와 같은 이유다).
+            ImGui::DockBuilderRemoveNode(rootDock);
+            ImGui::DockBuilderAddNode(rootDock,
+                ImGuiDockNodeFlags_DockSpace | EditorDockNodeFlags
+                    | ImGuiDockNodeFlags_AutoHideTabBar);
+            ImGui::DockBuilderSetNodeSize(rootDock, ImVec2(
+                static_cast<float>(display.width),
+                static_cast<float>(display.height)));
+            ImGui::DockBuilderDockWindow(MainDockLabel, rootDock);
+            ImGui::DockBuilderFinish(rootDock);
+            m_rootLayoutBuilt = true;
+        }
+        // **노드의 닫기·창 메뉴 단추를 끈다**(ProjectRule §11.3). 탭마다 있는 X 와
+        // 별개로 ImGui 는 도크 노드 오른쪽 끝에 **그 노드의 창을 통째로 닫는 X** 를
+        // 그린다. 그것까지 달아 두면 탭 하나를 닫으려다 그 칸의 창을 전부 닫는다 -
+        // 기존 엔진은 `CImDockWindow` 의 기본값으로 둘 다 꺼 두었다.
+        //
+        // `AutoHideTabBar` 는 여기 하나뿐인 메인 도크에 탭 줄을 만들지 않으려는 것이다 -
+        // 늘 하나인 탭은 이름만 보여 주고 한 줄을 먹는다.
+        ImGui::DockSpace(rootDock, ImVec2(0.0f, 0.0f),
+            EditorDockNodeFlags | ImGuiDockNodeFlags_AutoHideTabBar, &RootDockClass());
+        ImGui::End();
+    }
+
+    void EditorApplication::DrawMainDock(float deltaTime)
+    {
+        // **도구 창이 붙는 안쪽 도크다**(D-134). 기존 엔진의 `CMainDockWindow` 자리이고,
+        // 자기 메뉴 막대(시뮬레이션·편집·창)를 가진다.
+        //
+        // 닫기 단추를 주지 않는다 - 닫으면 에디터에 남는 것이 없다. 기존도
+        // `IMWINDOW_FLAG_NO_CLOSE_BUTTON` 을 여기에 세웠다.
+        ImGui::SetNextWindowClass(&RootDockClass());
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+        const bool open = ImGui::Begin(MainDockLabel, nullptr,
+            ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove
+                | ImGuiWindowFlags_NoTitleBar
+                | ImGuiWindowFlags_MenuBar);
+        ImGui::PopStyleVar();
+        if (open)
+        {
+            DrawMainMenuBar();
+
+            const ImGuiID mainDock = ImGui::GetID("EditorDockSpace");
+            if (false == m_dockLayoutBuilt)
+            {
+                // **배치는 도크 공간을 내기 전에 잡는다.** 내고 나서 잡으면 이번 프레임의
+                // 노드는 이미 빈 채로 굳어, 패널들이 그 프레임에 떠 있는 창으로 서고
+                // 다음 프레임부터는 그 자리를 자기 자리로 기억한다.
+                //
+                // **전부 한 노드에 붙이면 탭으로 겹친다** - 위에 있는 하나만 보이고
+                // 나머지는 가려진다. 그래서 방향마다 칸을 떼어 두고, 패널이 말한
+                // 자리에 붙인다.
+                const ImVec2 size = ImGui::GetContentRegionAvail();
+                ImGui::DockBuilderRemoveNode(mainDock);
+                ImGui::DockBuilderAddNode(mainDock,
+                    ImGuiDockNodeFlags_DockSpace | EditorDockNodeFlags);
+                ImGui::DockBuilderSetNodeSize(mainDock, ImVec2(
+                    size.x > 1.0f ? size.x : 1280.0f,
+                    size.y > 1.0f ? size.y : 720.0f));
+
+                ImGuiID center = mainDock;
+                ImGuiID nodes[4] = {};
+                nodes[static_cast<int>(EditorDock::Left)] = ImGui::DockBuilderSplitNode(
+                    center, ImGuiDir_Left, 0.18f, nullptr, &center);
+                nodes[static_cast<int>(EditorDock::Right)] = ImGui::DockBuilderSplitNode(
+                    center, ImGuiDir_Right, 0.24f, nullptr, &center);
+                nodes[static_cast<int>(EditorDock::Bottom)] = ImGui::DockBuilderSplitNode(
+                    center, ImGuiDir_Down, 0.26f, nullptr, &center);
+                nodes[static_cast<int>(EditorDock::Center)] = center;
+
+                for (std::size_t index = 0; index < m_panels.Size(); ++index)
+                {
+                    if (const EditorPanel* panel = m_panels[index].Get())
+                    {
+                        const int slot = static_cast<int>(panel->GetPreferredDock());
+                        const String label = PanelWindowLabel(*panel);
+                        ImGui::DockBuilderDockWindow(label.c_str(), nodes[slot]);
+                    }
+                }
+                ImGui::DockBuilderFinish(mainDock);
+                m_dockLayoutBuilt = true;
+            }
+            ImGui::DockSpace(mainDock, ImVec2(0.0f, 0.0f), EditorDockNodeFlags);
+        }
+        ImGui::End();
+
+        for (std::size_t index = 0; index < m_panels.Size(); ++index)
+        {
+            EditorPanel* panel = m_panels[index].Get();
+            if (panel == nullptr)
+            {
+                continue;
+            }
+            // **닫혀 있어도 갱신은 돈다.** 보이지 않는다고 멈춰야 하는 일과
+            // 계속 돌아야 하는 일은 다르고, 그 판단은 패널의 몫이다.
+            panel->OnUpdate(deltaTime);
+            if (false == panel->IsOpen())
+            {
+                continue;
+            }
+            bool panelOpen = true;
+            const ImGuiWindowFlags flags = panel->HasMenuBar()
+                ? ImGuiWindowFlags_MenuBar
+                : ImGuiWindowFlags_None;
+            const String label = PanelWindowLabel(*panel);
+            // 닫기 단추를 원하지 않는 패널에는 불리언을 넘기지 않는다. ImGui 는
+            // 그것으로 단추를 그릴지 정한다.
+            bool* closable = panel->HasCloseButton() ? &panelOpen : nullptr;
+            if (ImGui::Begin(label.c_str(), closable, flags))
+            {
+                if (panel->HasMenuBar() && ImGui::BeginMenuBar())
+                {
+                    panel->OnMenuBar();
+                    ImGui::EndMenuBar();
+                }
+                panel->OnDraw();
+            }
+            ImGui::End();
+            panel->SetOpen(panelOpen);
+        }
     }
 
     bool EditorApplication::BuildEditorUi(float deltaTime)
@@ -1288,100 +1529,8 @@ namespace JBro
         // 할 수 있는지 재는 자리가 갈리지 않게, 셋 다 `EditorShortcuts` 가 안다.
         EditorShortcuts::ProcessInput(*this);
 
-        // **창 전체를 덮는 도크 공간.** 패널들은 이 안에 붙는다 - 자리를 ImGui
-        // 기본값에 맡기면 작은 창에서 화면 밖으로 밀린다.
-        ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f));
-        ImGui::SetNextWindowSize(ImVec2(
-            static_cast<float>(display.width), static_cast<float>(display.height)));
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-        ImGui::Begin("##EditorRoot", nullptr,
-            ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse
-                | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove
-                | ImGuiWindowFlags_NoBringToFrontOnFocus
-                | ImGuiWindowFlags_NoNavFocus
-                | ImGuiWindowFlags_MenuBar);
-        ImGui::PopStyleVar(3);
-        DrawMenuBar();
-        const ImGuiID dockSpace = ImGui::GetID("EditorDockSpace");
-        // **노드의 닫기·창 메뉴 단추를 끈다**(ProjectRule §11.3). 탭마다 있는 X 와
-        // 별개로 ImGui 는 도크 노드 오른쪽 끝에 **그 노드의 창을 통째로 닫는 X** 를
-        // 그린다. 그것까지 달아 두면 탭 하나를 닫으려다 그 칸의 창을 전부 닫는다 -
-        // 기존 엔진은 `CImDockWindow` 의 기본값으로 둘 다 꺼 두었다.
-        ImGui::DockSpace(dockSpace, ImVec2(0.0f, 0.0f), EditorDockNodeFlags);
-        if (false == m_dockLayoutBuilt)
-        {
-            // 첫 프레임에 한 번만 자리를 잡는다. 그 뒤로는 사용자가 옮긴 자리다.
-            //
-            // **전부 한 노드에 붙이면 탭으로 겹친다** - 위에 있는 하나만 보이고
-            // 나머지는 가려진다. 그래서 방향마다 칸을 떼어 두고, 패널이 말한
-            // 자리에 붙인다.
-            ImGui::DockBuilderRemoveNode(dockSpace);
-            ImGui::DockBuilderAddNode(dockSpace,
-                ImGuiDockNodeFlags_DockSpace | EditorDockNodeFlags);
-            ImGui::DockBuilderSetNodeSize(dockSpace, ImVec2(
-                static_cast<float>(display.width),
-                static_cast<float>(display.height)));
-
-            ImGuiID center = dockSpace;
-            ImGuiID nodes[4] = {};
-            nodes[static_cast<int>(EditorDock::Left)] = ImGui::DockBuilderSplitNode(
-                center, ImGuiDir_Left, 0.18f, nullptr, &center);
-            nodes[static_cast<int>(EditorDock::Right)] = ImGui::DockBuilderSplitNode(
-                center, ImGuiDir_Right, 0.24f, nullptr, &center);
-            nodes[static_cast<int>(EditorDock::Bottom)] = ImGui::DockBuilderSplitNode(
-                center, ImGuiDir_Down, 0.26f, nullptr, &center);
-            nodes[static_cast<int>(EditorDock::Center)] = center;
-
-            for (std::size_t index = 0; index < m_panels.Size(); ++index)
-            {
-                if (const EditorPanel* panel = m_panels[index].Get())
-                {
-                    const int slot = static_cast<int>(panel->GetPreferredDock());
-                    const String label = PanelWindowLabel(*panel);
-                    ImGui::DockBuilderDockWindow(label.c_str(), nodes[slot]);
-                }
-            }
-            ImGui::DockBuilderFinish(dockSpace);
-            m_dockLayoutBuilt = true;
-        }
-        ImGui::End();
-
-        for (std::size_t index = 0; index < m_panels.Size(); ++index)
-        {
-            EditorPanel* panel = m_panels[index].Get();
-            if (panel == nullptr)
-            {
-                continue;
-            }
-            // **닫혀 있어도 갱신은 돈다.** 보이지 않는다고 멈춰야 하는 일과
-            // 계속 돌아야 하는 일은 다르고, 그 판단은 패널의 몫이다.
-            panel->OnUpdate(deltaTime);
-            if (false == panel->IsOpen())
-            {
-                continue;
-            }
-            bool open = true;
-            const ImGuiWindowFlags flags = panel->HasMenuBar()
-                ? ImGuiWindowFlags_MenuBar
-                : ImGuiWindowFlags_None;
-            const String label = PanelWindowLabel(*panel);
-            // 닫기 단추를 원하지 않는 패널에는 불리언을 넘기지 않는다. ImGui 는
-            // 그것으로 단추를 그릴지 정한다.
-            bool* closable = panel->HasCloseButton() ? &open : nullptr;
-            if (ImGui::Begin(label.c_str(), closable, flags))
-            {
-                if (panel->HasMenuBar() && ImGui::BeginMenuBar())
-                {
-                    panel->OnMenuBar();
-                    ImGui::EndMenuBar();
-                }
-                panel->OnDraw();
-            }
-            ImGui::End();
-            panel->SetOpen(open);
-        }
+        DrawRootDock(display);
+        DrawMainDock(deltaTime);
 
         DrawPopups();
 
@@ -1630,6 +1779,7 @@ namespace JBro
         // 저장은 UI 프레임이 닫힌 뒤, 엔진 프레임이 열리기 전이다. 대화상자가 막혀 있는 동안
         // 어느 프레임도 열려 있지 않다.
         PerformSaveRequest();
+        PerformOpenProjectRequest();
         if (m_exitRequested)
         {
             // 메뉴에서 끝내기를 골랐다. UI 를 먼저 놓고 내려간다 -
