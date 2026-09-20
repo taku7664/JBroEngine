@@ -181,6 +181,95 @@ namespace JBro
         return m_objects->GetLiveCount();
     }
 
+    void Canvas::GetRootObjects(Array<GameObject*>& result)
+    {
+        // **죽었거나 더 이상 뿌리가 아닌 것을 먼저 뺀다.** 순서를 지키며 빼야 한다 -
+        // 마지막 것으로 덮으면 부모를 하나 바꾼 것만으로 남은 뿌리들의 차례가 흐트러진다.
+        m_rootOrder.RemoveAll([](const SafePtr<GameObject>& reference)
+        {
+            const GameObject* object = reference.TryGet();
+            return object == nullptr || object->GetParent() != nullptr;
+        });
+
+        m_rootSeen.Clear();
+        for (std::size_t index = 0; index < m_rootOrder.Size(); ++index)
+        {
+            if (const GameObject* object = m_rootOrder[index].TryGet())
+            {
+                m_rootSeen.TryAdd(object, std::uint8_t{1});
+            }
+        }
+
+        // 새로 뿌리가 된 것은 뒤에 붙는다. 풀 순회 순서는 **여기서만** 쓰인다 -
+        // 한 번 붙고 나면 그 뒤로는 이 목록이 순서다.
+        ForEachObject([this](GameObject& object)
+        {
+            if (object.GetParent() != nullptr || m_rootSeen.Contains(&object))
+            {
+                return;
+            }
+            SafePtr<GameObject> reference = object.SafeFromThis();
+            if (reference.IsValid())
+            {
+                m_rootSeen.TryAdd(&object, std::uint8_t{1});
+                m_rootOrder.Add(std::move(reference));
+            }
+        });
+
+        result.Clear();
+        for (std::size_t index = 0; index < m_rootOrder.Size(); ++index)
+        {
+            if (GameObject* object = m_rootOrder[index].TryGet())
+            {
+                result.Add(object);
+            }
+        }
+    }
+
+    bool Canvas::FindRootIndex(const GameObject* object, std::size_t& index)
+    {
+        if (object == nullptr || object->GetParent() != nullptr)
+        {
+            return false;
+        }
+        Array<GameObject*> roots;
+        GetRootObjects(roots);
+        for (std::size_t at = 0; at < roots.Size(); ++at)
+        {
+            if (roots[at] == object)
+            {
+                index = at;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool Canvas::SetRootIndex(GameObject* object, std::size_t index)
+    {
+        std::size_t current = 0;
+        if (false == FindRootIndex(object, current))
+        {
+            return false;
+        }
+        // `GetRootObjects` 가 방금 목록을 맞췄으므로 `m_rootOrder` 에서 죽은 자리를
+        // 다시 걸러 낼 필요가 없다. 살아 있는 뿌리만 남아 있다.
+        const std::size_t count = m_rootOrder.Size();
+        if (count == 0)
+        {
+            return false;
+        }
+        const std::size_t target = index < count ? index : count - 1;
+        if (target == current)
+        {
+            return true;
+        }
+        SafePtr<GameObject> moved = m_rootOrder[current];
+        m_rootOrder.RemoveAt(current);
+        m_rootOrder.Insert(target, std::move(moved));
+        return true;
+    }
+
     Layer& Canvas::CreateLayer(const char* name)
     {
         OwnerPtr<Layer> layer = MakeOwnerPtr<Layer>(

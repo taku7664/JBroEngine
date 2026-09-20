@@ -26,6 +26,7 @@ Entries:
   hierarchy.delete: Delete
   hierarchy.copy: Copy
   hierarchy.paste: Paste
+  hierarchy.unparent: Unparent
   hierarchy.unnamed: (unnamed)
   hierarchy.search: Search
   inspector.nothing_selected: nothing is selected

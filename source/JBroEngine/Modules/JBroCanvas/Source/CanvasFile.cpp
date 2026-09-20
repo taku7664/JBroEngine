@@ -101,14 +101,10 @@ namespace JBro
         error = CanvasFileError{};
 
         // 뿌리부터 자식 순서로 늘어놓는다. 풀 순서는 부모·자식 관계를 모른다.
+        // **뿌리의 차례는 캔버스가 들고 있는 보이는 순서다**(D-128) - 풀 순서로 적으면
+        // 계층에서 끌어 옮긴 순서가 저장에서 사라진다.
         Array<GameObject*> roots;
-        canvas.ForEachObject([&roots](GameObject& object)
-        {
-            if (object.GetParent() == nullptr)
-            {
-                roots.Add(&object);
-            }
-        });
+        canvas.GetRootObjects(roots);
 
         Array<GameObject*> ordered;
         for (std::size_t i = 0; i < roots.Size(); ++i)

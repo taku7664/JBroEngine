@@ -2029,6 +2029,113 @@ namespace
         Check(bare->GetParent() == anchor, "and land under the anchor");
     }
 
+    // 뿌리에도 **보이는 차례**가 있어야 한다(D-128). 풀 순회 순서를 그대로 쓰면
+    // 부모를 붙였다 떼는 것만으로 계층의 줄이 뛴다.
+    void TestRootsKeepAnOrderOfTheirOwn()
+    {
+        RegisterOnce();
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+
+        JBro::GameObject* first = canvas.CreateObject("First");
+        JBro::GameObject* second = canvas.CreateObject("Second");
+        JBro::GameObject* third = canvas.CreateObject("Third");
+
+        JBro::Array<JBro::GameObject*> roots;
+        canvas.GetRootObjects(roots);
+        Check(roots.Size() == 3, "all three are roots");
+        Check(roots[0] == first && roots[1] == second && roots[2] == third,
+            "and they come in the order they were made");
+
+        Check(canvas.SetRootIndex(third, 0), "the third one can move to the front");
+        canvas.GetRootObjects(roots);
+        Check(roots[0] == third && roots[1] == first && roots[2] == second,
+            "and the others slide back one place");
+
+        std::size_t index = 99;
+        Check(canvas.FindRootIndex(first, index) && index == 1,
+            "and the list can say where each one is");
+
+        // **부모가 생기면 뿌리에서 빠지고, 떼면 맨 뒤로 돌아온다.** 그 사이에
+        // 남은 뿌리들의 차례는 흐트러지지 않아야 한다.
+        first->SetParent(second);
+        canvas.GetRootObjects(roots);
+        Check(roots.Size() == 2, "the child is no longer a root");
+        Check(roots[0] == third && roots[1] == second, "and the rest keep their order");
+
+        first->SetParent(nullptr);
+        canvas.GetRootObjects(roots);
+        Check(roots.Size() == 3, "and it is a root again");
+        Check(roots[2] == first, "coming back at the end, not where it used to be");
+        Check(roots[0] == third && roots[1] == second, "with the others untouched");
+
+        // 뿌리가 아닌 것은 자리가 없다.
+        first->SetParent(second);
+        Check(false == canvas.FindRootIndex(first, index),
+            "a child has no place among the roots");
+        Check(false == canvas.SetRootIndex(first, 0), "and cannot be moved there");
+    }
+
+    // 뿌리끼리 순서를 바꾸는 것과 부모를 떼는 것이 둘 다 커맨드로 되고 되돌려져야 한다.
+    // 사용자가 화면에서 짚은 자리다.
+    void TestMovingAmongRootsAndOutOfAParentCanBeUndone()
+    {
+        RegisterOnce();
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::EditorObjectRegistry ids;
+        JBro::EditorCommandManager commands;
+
+        JBro::GameObject* first = canvas.CreateObject("First");
+        JBro::GameObject* second = canvas.CreateObject("Second");
+        JBro::GameObject* third = canvas.CreateObject("Third");
+
+        JBro::Array<JBro::GameObject*> roots;
+        canvas.GetRootObjects(roots);
+        Check(roots[0] == first && roots[1] == second && roots[2] == third,
+            "they start in the order they were made");
+
+        Check(commands.Execute(JBro::MakeOwnerPtr<JBro::MoveInHierarchyCommand>(
+                canvas, ids, ids.Track(third), JBro::InvalidEditorObjectId, 0)),
+            "a root can be moved among the roots");
+        canvas.GetRootObjects(roots);
+        Check(roots[0] == third && roots[1] == first && roots[2] == second,
+            "and it lands at the front");
+
+        Check(commands.Undo(), "undo must run");
+        canvas.GetRootObjects(roots);
+        Check(roots[0] == first && roots[1] == second && roots[2] == third,
+            "and put the order back");
+
+        // **부모를 떼는 것**. 뿌리로 올라간 자리까지 정해지고, 되돌리면 부모와
+        // 그 안의 자리가 함께 돌아온다.
+        JBro::GameObject* child = canvas.CreateObject("Child");
+        JBro::GameObject* laterSibling = canvas.CreateObject("LaterSibling");
+        child->SetParent(first);
+        laterSibling->SetParent(first);
+        const JBro::EditorObjectId childId = ids.Track(child);
+
+        Check(commands.Execute(JBro::MakeOwnerPtr<JBro::MoveInHierarchyCommand>(
+                canvas, ids, childId, JBro::InvalidEditorObjectId, 1)),
+            "a child can be taken out to the roots");
+        Check(child->GetParent() == nullptr, "and it has no parent any more");
+        canvas.GetRootObjects(roots);
+        Check(roots[1] == child, "landing at the place it was dropped, not at the end");
+
+        std::size_t index = 99;
+        Check(first->FindChildIndex(laterSibling, index) && index == 0,
+            "the sibling left behind closes the gap");
+
+        Check(commands.Undo(), "undo must run");
+        Check(child->GetParent() == first, "and put it back under its parent");
+        Check(first->FindChildIndex(child, index) && index == 0,
+            "at the place it had");
+        canvas.GetRootObjects(roots);
+        Check(roots.Size() == 3, "and it is not a root any more");
+
+        Check(commands.Redo(), "redo must run");
+        Check(child->GetParent() == nullptr, "and take it out again");
+        canvas.GetRootObjects(roots);
+        Check(roots[1] == child, "to the same place");
+    }
 }
 
 int RunEditorObjectCommandTests()
@@ -2066,6 +2173,8 @@ int RunEditorObjectCommandTests()
     TestMovingInTheHierarchyCanBeUndone();
     TestMovingKeepsTheObjectWhereItLooks();
     TestMovingWithoutWorldValuesLeavesTheLocalAlone();
+    TestRootsKeepAnOrderOfTheirOwn();
+    TestMovingAmongRootsAndOutOfAParentCanBeUndone();
     std::cout << "Editor object command tests passed.\n";
     return 0;
 }

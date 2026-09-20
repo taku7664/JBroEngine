@@ -41,6 +41,15 @@
 
 namespace JBro
 {
+    namespace
+    {
+        // 도크 노드가 스스로 그리는 단추를 끈다(ProjectRule §11.3). 왼쪽 위의 창 메뉴와
+        // 오른쪽 위의 닫기 단추 둘 다이고, 둘 다 `imgui_internal.h` 의 플래그다 -
+        // 공개 헤더에 없을 뿐 저장되는 노드 상태의 일부라 ImGui 가 계속 들고 있는 값이다.
+        constexpr ImGuiDockNodeFlags EditorDockNodeFlags =
+            ImGuiDockNodeFlags_NoWindowMenuButton | ImGuiDockNodeFlags_NoCloseButton;
+    }
+
     EditorApplication::EditorApplication() = default;
 
     EditorApplication::~EditorApplication()
@@ -1083,7 +1092,11 @@ namespace JBro
         ImGui::PopStyleVar(3);
         DrawMenuBar();
         const ImGuiID dockSpace = ImGui::GetID("EditorDockSpace");
-        ImGui::DockSpace(dockSpace);
+        // **노드의 닫기·창 메뉴 단추를 끈다**(ProjectRule §11.3). 탭마다 있는 X 와
+        // 별개로 ImGui 는 도크 노드 오른쪽 끝에 **그 노드의 창을 통째로 닫는 X** 를
+        // 그린다. 그것까지 달아 두면 탭 하나를 닫으려다 그 칸의 창을 전부 닫는다 -
+        // 기존 엔진은 `CImDockWindow` 의 기본값으로 둘 다 꺼 두었다.
+        ImGui::DockSpace(dockSpace, ImVec2(0.0f, 0.0f), EditorDockNodeFlags);
         if (false == m_dockLayoutBuilt)
         {
             // 첫 프레임에 한 번만 자리를 잡는다. 그 뒤로는 사용자가 옮긴 자리다.
@@ -1092,7 +1105,8 @@ namespace JBro
             // 나머지는 가려진다. 그래서 방향마다 칸을 떼어 두고, 패널이 말한
             // 자리에 붙인다.
             ImGui::DockBuilderRemoveNode(dockSpace);
-            ImGui::DockBuilderAddNode(dockSpace, ImGuiDockNodeFlags_DockSpace);
+            ImGui::DockBuilderAddNode(dockSpace,
+                ImGuiDockNodeFlags_DockSpace | EditorDockNodeFlags);
             ImGui::DockBuilderSetNodeSize(dockSpace, ImVec2(
                 static_cast<float>(display.width),
                 static_cast<float>(display.height)));

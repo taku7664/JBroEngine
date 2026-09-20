@@ -4189,6 +4189,158 @@ namespace
             "a world +y drag on a child of a 90-degree parent must land in the child's local +x");
         editor.Shutdown();
     }
+
+    // 계층의 줄 하나가 차지한 Id.
+    //
+    // 줄마다 `PushID(&object)` 를 쌓고 트리 마디가 `"##node"` 로 선다. **펼친 마디는
+    // 자기 Id 를 다시 쌓으므로**(`TreePushOverrideID`) 자식의 시드는 창이 아니라
+    // 부모 줄의 Id 다 - 조상부터 내려오며 같은 순서로 쌓아야 같은 값이 나온다.
+    ImGuiID HierarchyRowId(const JBro::GameObject* object)
+    {
+        ImGuiWindow* window = ImGui::FindWindowByName("Hierarchy");
+        Check(window != nullptr, "the hierarchy must have a window");
+        const JBro::GameObject* chain[16] = {};
+        std::size_t depth = 0;
+        for (const JBro::GameObject* walk = object;
+            walk != nullptr && depth < 16; walk = walk->GetParent())
+        {
+            chain[depth++] = walk;
+        }
+        ImGuiID seed = window->ID;
+        for (std::size_t step = depth; step > 0; --step)
+        {
+            const JBro::GameObject* at = chain[step - 1];
+            // `ImGui::PushID(const void*)` 와 같은 계산이다.
+            seed = LabelId(ImHashData(&at, sizeof(at), seed), "##node");
+        }
+        return seed;
+    }
+
+    // 계층 창을 위아래로 훑어 그 줄이 가리켜지는 자리를 찾는다.
+    bool FindHierarchyRow(
+        JBro::EditorApplication& editor, HWND hwnd, const JBro::GameObject* object, Spot& spot)
+    {
+        ImGuiWindow* window = ImGui::FindWindowByName("Hierarchy");
+        Check(window != nullptr, "the hierarchy must have a window");
+        const ImGuiID target = HierarchyRowId(object);
+        const int x = static_cast<int>(window->Pos.x + window->Size.x * 0.5f);
+        const int bottom = static_cast<int>(window->Pos.y + window->Size.y);
+        for (int y = static_cast<int>(window->Pos.y); y < bottom; y += 2)
+        {
+            PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
+            Check(editor.Tick(Frame), "the editor must tick while looking");
+            if (ImGui::GetHoveredID() == target)
+            {
+                spot.x = x;
+                spot.y = y;
+                spot.disabled = false;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // 사용자가 화면에서 짚은 자리다: **계층에서 순서를 바꾸고 부모를 떼는 것**.
+    // 명령 쪽 계약은 `EditorObjectCommandTests` 가 재고, 여기서는 마우스로 끌어
+    // 놓는 손짓이 실제로 그 명령에 닿는지를 본다.
+    void TestDraggingInTheHierarchyReordersAndUnparents()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; hierarchy drags not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "HierarchyDragProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* alpha = canvas->CreateObject("Alpha");
+        JBro::GameObject* beta = canvas->CreateObject("Beta");
+        JBro::GameObject* gamma = canvas->CreateObject("Gamma");
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        JBro::Array<JBro::GameObject*> roots;
+        canvas->GetRootObjects(roots);
+        Check(roots.Size() == 3 && roots[0] == alpha && roots[1] == beta && roots[2] == gamma,
+            "the three roots start in the order they were made");
+
+        Spot from;
+        Spot to;
+        Spot next;
+        Check(FindHierarchyRow(editor, hwnd, gamma, from), "Gamma must have a row");
+        Check(FindHierarchyRow(editor, hwnd, alpha, to), "Alpha must have a row");
+        Check(FindHierarchyRow(editor, hwnd, beta, next), "Beta must have a row");
+        // **줄 높이는 이웃한 두 줄의 간격으로 잰다.** 글꼴과 여백에 따라 달라지는
+        // 값이라 상수로 두면 글꼴이 바뀌는 날 조용히 다른 띠를 겨냥하게 된다.
+        const int pitch = next.y - to.y;
+        Check(pitch > 4, "two rows must be more than a few pixels apart");
+
+        // ── 형제로 끼우기: Alpha 줄의 **위쪽 띠**에 놓으면 그 앞에 간다. ───────
+        Spot band = to;
+        band.y = to.y + 1;
+        const std::size_t undo = editor.GetCommands().GetUndoCount();
+        DragTo(editor, hwnd, from, band);
+        canvas->GetRootObjects(roots);
+        Check(roots.Size() == 3, "nothing is lost by a drag");
+        Check(roots[0] == gamma,
+            "dropping on the upper band of a row must put the dragged one before it");
+        Check(roots[1] == alpha && roots[2] == beta, "with the others sliding back");
+        Check(editor.GetCommands().GetUndoCount() == undo + 1,
+            "one drag must leave exactly one thing to undo");
+
+        Check(editor.GetCommands().Undo(), "undo must run");
+        canvas->GetRootObjects(roots);
+        Check(roots[0] == alpha && roots[1] == beta && roots[2] == gamma,
+            "and put the order back");
+
+        // ── 자식으로 넣기: 줄 **가운데**에 놓으면 그 밑으로 들어간다. ──────────
+        Check(FindHierarchyRow(editor, hwnd, gamma, from), "Gamma must still have a row");
+        Check(FindHierarchyRow(editor, hwnd, alpha, to), "Alpha must still have a row");
+        Spot middle = to;
+        middle.y = to.y + pitch / 2;
+        DragTo(editor, hwnd, from, middle);
+        Check(gamma->GetParent() == alpha,
+            "dropping on the middle of a row must make it a child");
+        canvas->GetRootObjects(roots);
+        Check(roots.Size() == 2, "and take it out of the roots");
+
+        // ── 부모 해제: 남은 빈자리에 놓으면 뿌리로 올라간다. ───────────────────
+        //
+        // 이 자리가 죽어 있었다. `ImGui::Dummy` 에 음수 폭을 넘겨 사각형이 뒤집혀
+        // 있었고, 그래서 부모를 뗄 방법이 끌어 놓기로는 없었다.
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle after the reparent");
+        }
+        Check(FindHierarchyRow(editor, hwnd, gamma, from), "the child must have a row");
+        ImGuiWindow* hierarchy = ImGui::FindWindowByName("Hierarchy");
+        Check(hierarchy != nullptr, "the hierarchy must have a window");
+        Spot blank;
+        blank.x = static_cast<int>(hierarchy->Pos.x + hierarchy->Size.x * 0.5f);
+        blank.y = static_cast<int>(hierarchy->Pos.y + hierarchy->Size.y - 20.0f);
+        DragTo(editor, hwnd, from, blank);
+        Check(gamma->GetParent() == nullptr,
+            "dropping on the empty space below the tree must take the parent off");
+        canvas->GetRootObjects(roots);
+        Check(roots.Size() == 3, "and put it back among the roots");
+        Check(roots[2] == gamma, "at the end, where it was dropped");
+
+        (void)beta;
+        editor.Shutdown();
+    }
 }
 
 int RunEditorApplicationTests()
@@ -4226,6 +4378,7 @@ int RunEditorApplicationTests()
     TestTypingTheSameValueLeavesNothingToUndo();
     TestTheAssetFieldPicksARegisteredSprite();
     TestTheAssetBrowserSelectsAnAssetAndTheInspectorRewritesItsMeta();
+    TestDraggingInTheHierarchyReordersAndUnparents();
     TestCreatingAnObjectCanBeUndone();
     TestDeletingAnObjectCanBeUndoneWithItsValues();
     TestClosingTheWindowDoesNotTakeTheUiDownWithIt();

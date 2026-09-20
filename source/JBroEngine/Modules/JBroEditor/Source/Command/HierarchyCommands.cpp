@@ -78,6 +78,12 @@ namespace JBro
         {
             parent->FindChildIndex(object, placement.siblingIndex);
         }
+        else
+        {
+            // 뿌리의 차례는 캔버스가 들고 있다(D-128). 뜨지 않으면 되돌리기가
+            // 오브젝트를 뿌리 맨 뒤로 보내 버린다.
+            m_canvas->FindRootIndex(object, placement.siblingIndex);
+        }
         if (Component::Transform2D* transform = FindTransform(*m_canvas, *object))
         {
             placement.hasTransform = true;
@@ -169,6 +175,12 @@ namespace JBro
         {
             // **부모를 정한 뒤에 자리를 정한다.** `SetParent` 는 맨 뒤에 붙인다.
             parent->SetChildIndex(object, placement.siblingIndex);
+        }
+        else
+        {
+            // 뿌리로 올라간 것도 자리가 있다(D-128). `GetRootObjects` 는 새 뿌리를
+            // 맨 뒤에 붙이므로, 정해 준 자리로 다시 옮긴다.
+            m_canvas->SetRootIndex(object, placement.siblingIndex);
         }
         if (placement.hasTransform)
         {

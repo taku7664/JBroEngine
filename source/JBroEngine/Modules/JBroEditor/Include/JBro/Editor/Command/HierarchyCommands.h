@@ -25,7 +25,9 @@ namespace JBro
     {
     public:
         // `newParentId` 가 `InvalidEditorObjectId` 면 뿌리로 올린다.
-        // `siblingIndex` 는 새 부모의 자식들 사이에서의 자리다. 끝을 넘으면 맨 뒤.
+        // `siblingIndex` 는 새 부모의 자식들 사이에서의 자리이고, 뿌리로 올릴 때는
+        // 캔버스가 든 뿌리 순서에서의 자리다(D-128). 끝을 넘으면 맨 뒤.
+        // **옮긴 뒤의 자리**다 - 끌어 온 것이 목록에서 빠진 상태를 기준으로 센다.
         MoveInHierarchyCommand(
             Canvas& canvas,
             EditorObjectRegistry& registry,

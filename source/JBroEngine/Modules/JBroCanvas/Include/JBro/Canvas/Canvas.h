@@ -41,6 +41,21 @@ namespace JBro
         template<typename Fn>
         void ForEachObject(Fn&& function);
 
+        // 부모가 없는 오브젝트를 **보이는 순서**로 돌려준다(D-128).
+        //
+        // 자식은 부모가 `m_children` 으로 차례를 들고 있는데 뿌리만 들 자리가 없었다.
+        // 풀 순회 순서는 슬롯 재사용에 따라 달라지므로 그대로 보여 주면 오브젝트를
+        // 지웠다 되살릴 때마다 줄이 뛰고, 계층에서 뿌리끼리 순서를 바꿀 수도 없다.
+        //
+        // **물어볼 때 풀과 맞춘다.** 부모가 바뀌는 것은 `GameObject` 안에서 일어나고
+        // Canvas 는 그 자리를 보지 못한다 - 여기서 죽었거나 더 이상 뿌리가 아닌 것을
+        // 빼고, 새로 뿌리가 된 것을 뒤에 붙인다. 한 번 자리를 잡은 것은 그대로 둔다.
+        void        GetRootObjects(Array<GameObject*>& result);
+        // 뿌리들 사이에서 몇 번째인가. 뿌리가 아니면 거짓이다.
+        bool        FindRootIndex(const GameObject* object, std::size_t& index);
+        // 뿌리들 사이의 자리를 옮긴다. 끝을 넘으면 맨 뒤로 간다. 뿌리가 아니면 거짓이다.
+        bool        SetRootIndex(GameObject* object, std::size_t index);
+
         // 순회 중 요청된 파괴를 실제로 수행한다(D-45). Framework 가 FixedUpdate 묶음 뒤와
         // Update 뒤 두 지점에서 부른다. 순회 중에 부르면 아무 일도 하지 않는다.
         void        FlushPendingDestroy();
@@ -210,6 +225,10 @@ namespace JBro
         Table<ComponentTypeId, OwnerPtr<IComponentBucket>> m_componentBuckets;
         // 이름으로 붙인 스크립트의 저장소다. 타입마다 하나씩 늦게 만든다.
         Table<NameId, OwnerPtr<ScriptPool>>             m_scriptPools;
+        // 뿌리의 보이는 순서(D-128). `GetRootObjects` 만 이것을 맞추고 읽는다.
+        Array<SafePtr<GameObject>>                      m_rootOrder;
+        // 맞출 때 "이미 목록에 있는가" 를 재는 자리다. 매번 만들지 않으려고 멤버로 둔다.
+        Table<const GameObject*, std::uint8_t>          m_rootSeen;
         Array<SafePtr<GameObject>>                      m_pendingDestroyObjects;
         Array<SafePtr<ComponentBase>>                   m_pendingDestroyComponents;
         std::size_t                                     m_iterationDepth = 0;

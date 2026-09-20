@@ -701,6 +701,23 @@
 기존 엔진의 에디터는 그 차이를 좁히려고 깎은 것이며, 새 엔진은 그 결과를 이어받는다 —
 비슷하게 새로 만들지 않는다.
 
+### 11.0 기존 엔진은 `C:\Users\박주형\source\repos\JBroEngine` 에 있다
+
+- **기존 엔진 소스의 경로는 `C:\Users\박주형\source\repos\JBroEngine` 다.** (MUST) (D-127)
+  이 문서와 `tasks/*.md` 가 "기존 엔진" 이라고 부르는 것은 전부 그 트리이며,
+  `Application/Editor/...` 같은 상대 경로는 그 밑에서 읽는다. 에디터를 손대기 전에
+  **먼저 그 트리에서 같은 화면을 찾아 읽는다.** 찾지 못했다고 없다고 판단하지 않는다 —
+  경로를 몰라 못 읽은 것과 거기에 없는 것은 다르다.
+  화면과 직접 맞닿는 자리는 이렇다.
+  - `Application/Editor/RootDockWindow.*` — 루트 도크 창(메뉴 막대와 도크 뿌리)
+  - `Application/Editor/Main/` — `MainDockWindow`, `CanvasView`, `GameView`, `Inspector`,
+    `AssetBrowser`, `Importer`, `Layers`, `Log`, `Guizmo`, `Debug`,
+    `BuildSettingsWindow`, `ProjectSettingsWindow`, `ShortcutReference`
+  - `Application/Editor/ImItem/` — 공용 위젯 계층
+  - `Application/Editor/Command/` — 에디터 커맨드
+  - `Application/Editor/Shortcut/`·`Theme/`·`Icons/`·`Localization/`
+  - `Application/Localization/ko-KR.yaml` — 한국어 표
+
 ### 11.1 공용 위젯을 먼저 찾는다
 
 - 인스펙터·계층·목록에 **ImGui 원시 호출을 직접 쓰지 않는다.** 공용 위젯 계층을 거친다. (MUST)

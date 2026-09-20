@@ -26,6 +26,7 @@ Entries:
   hierarchy.delete: 삭제
   hierarchy.copy: 복사
   hierarchy.paste: 붙여넣기
+  hierarchy.unparent: 부모 해제
   hierarchy.unnamed: (이름 없음)
   hierarchy.search: 검색
   inspector.nothing_selected: 선택한 오브젝트가 없습니다
