@@ -95,3 +95,12 @@ Entries:
   hierarchy.layer_name: Name
   hierarchy.layer_empty: this layer is empty
   hierarchy.layer_visible: show or hide this layer
+  panel.project_settings: Project Settings
+  project_settings.no_file: this project has no file to edit
+  project_settings.general: General
+  project_settings.paths: Paths
+  project_settings.build: Build
+  project_settings.save: Save
+  project_settings.revert: Revert
+  project_settings.saved: saved
+  project_settings.linear_filter: linear sampling; off is nearest, which is the pixel-art default

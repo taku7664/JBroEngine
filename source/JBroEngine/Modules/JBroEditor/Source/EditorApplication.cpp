@@ -29,6 +29,7 @@
 #include "Panel/HierarchyPanel.h"
 #include "Panel/InspectorPanel.h"
 #include "Panel/LogPanel.h"
+#include "Panel/ProjectSettingsPanel.h"
 #include "Panel/ShortcutPanel.h"
 #include "Panel/StatsPanel.h"
 
@@ -236,6 +237,31 @@ namespace JBro
         }
         m_frameworkKind = framework;
         m_projectFilePath = projectFilePath != nullptr ? projectFilePath : "";
+        return true;
+    }
+
+    bool EditorApplication::SaveProjectSettings(const ProjectFile& settings, ProjectFileError& error)
+    {
+        error = ProjectFileError{};
+        if (m_projectFilePath.empty())
+        {
+            error.message = "this project has no file to write";
+            return false;
+        }
+        if (false == SaveProjectFile(*m_platform, m_projectFilePath.c_str(), settings, error))
+        {
+            return false;
+        }
+        // 파일이 정본이다. 방금 쓴 것을 **도로 읽어** 엔진이 든 값과 맞춘다 -
+        // 쓰기가 일부만 반영했다면 그것도 여기서 드러난다.
+        ProjectFile reloaded;
+        ProjectFileError reloadError;
+        if (false == LoadProjectFile(*m_platform, m_projectFilePath.c_str(), reloaded, reloadError))
+        {
+            error = reloadError;
+            return false;
+        }
+        m_engine->SetProjectFile(reloaded);
         return true;
     }
 
@@ -675,6 +701,7 @@ namespace JBro
                 || false == AddPanel(MakeOwnerPtr<AssetBrowserPanel>())
                 || false == AddPanel(MakeOwnerPtr<StatsPanel>())
                 || false == AddPanel(MakeOwnerPtr<LogPanel>())
+                || false == AddPanel(MakeOwnerPtr<ProjectSettingsPanel>())
                 || false == AddPanel(MakeOwnerPtr<ShortcutPanel>()))
             {
                 ReleaseEditorUi();

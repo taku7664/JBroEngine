@@ -685,6 +685,16 @@ namespace JBro
         return true;
     }
 
+    void EngineInstance::SetProjectFile(const ProjectFile& project)
+    {
+        m_project = project;
+        // 이것만 지금 적용된다. 로드할 때 쓰는 값이므로 다음 로드부터 새 값이다.
+        if (m_assets.Get() != nullptr)
+        {
+            m_assets->SetDefaultTextureFilter(project.textureFilter);
+        }
+    }
+
     void EngineInstance::SetSimulationEnabled(bool enabled)
     {
         m_simulationEnabled = enabled;

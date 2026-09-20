@@ -95,3 +95,12 @@ Entries:
   hierarchy.layer_name: 이름
   hierarchy.layer_empty: 이 레이어에 오브젝트가 없습니다
   hierarchy.layer_visible: 이 레이어를 보이거나 감춥니다
+  panel.project_settings: 프로젝트 설정
+  project_settings.no_file: 이 프로젝트에는 고칠 파일이 없습니다
+  project_settings.general: 일반
+  project_settings.paths: 경로
+  project_settings.build: 빌드
+  project_settings.save: 저장
+  project_settings.revert: 되돌리기
+  project_settings.saved: 저장했습니다
+  project_settings.linear_filter: 선형 샘플링을 씁니다. 끄면 니어리스트이고, 픽셀 아트의 기본입니다

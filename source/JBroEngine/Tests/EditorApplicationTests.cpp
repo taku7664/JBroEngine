@@ -423,7 +423,8 @@ namespace
         // **이름으로 센다.** 숫자만 재면 패널을 더할 때마다 이 줄을 고치게 되고,
         // 정작 무엇이 빠졌는지는 말해 주지 않는다.
         const char* const expected[] = {
-            "CanvasView", "Game", "Hierarchy", "Inspector", "Assets", "Stats", "Log", "Shortcuts"};
+            "CanvasView", "Game", "Hierarchy", "Inspector", "Assets", "Stats", "Log",
+            "ProjectSettings", "Shortcuts"};
         for (const char* title : expected)
         {
             Check(editor.FindPanel(title) != nullptr, title);
@@ -3263,7 +3264,7 @@ namespace
 
         // 기본 패널이 다 있어야 한다. 하나라도 안 붙으면 화면에서 빈 칸이 된다.
         // 어느 것이 있어야 하는지는 `TestThePanelRegistryRefusesWhatItCannotHold` 가 이름으로 잰다.
-        Check(editor.GetPanelCount() == 8, "the default panels must be registered");
+        Check(editor.GetPanelCount() == 9, "the default panels must be registered");
         Check(editor.FindPanel("Game") != nullptr, "the game view must be one of them");
         Check(editor.FindPanel("Hierarchy") != nullptr, "and the hierarchy");
         Check(editor.FindPanel("Inspector") != nullptr, "and the inspector");
@@ -4395,6 +4396,71 @@ namespace
         editor.Shutdown();
     }
 
+    // **설정 창이 고친 값은 파일에 남고, 모르는 키는 그대로 남는다**(D-137).
+    void TestProjectSettingsAreWrittenBackToTheFile()
+    {
+        const JBro::String projectPath = TempPath("JBroSettingsTest.jproject");
+        Check(WriteTextFile(projectPath,
+            "# 이 주석은 살아남아야 한다\n"
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 2D\n"
+            "ResolutionWidth: 1280\n"
+            "ResolutionHeight: 720\n"
+            "SomeFutureKey: keep me\n"
+            "ScriptOutputLibraryPath: \"\"\n"
+            "Build:\n"
+            "  ProductName: SettingsTest\n"),
+            "the test must be able to write its own project file");
+
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        JBro::EditorApplication editor;
+        Check(editor.Initialize(config), "the editor must initialize");
+
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.c_str(), error),
+            "the editor must open the project");
+        Check(editor.GetProjectFilePath() == projectPath,
+            "and must know which file it came from");
+
+        JBro::ProjectFile edited = editor.GetProjectFile();
+        edited.resolutionWidth = 640;
+        edited.resolutionHeight = 480;
+        edited.build.productName = "Renamed";
+        edited.assetDirectory = "Art";
+        Check(editor.SaveProjectSettings(edited, error), "saving the settings must go through");
+
+        // 에디터가 든 값도 파일의 것으로 맞춰져야 한다.
+        Check(editor.GetProjectFile().resolutionWidth == 640,
+            "the editor must hold what the file now says");
+        Check(editor.GetProjectFile().assetDirectory == "Art", "all of it");
+
+        // 파일을 직접 읽어 본다. 모르는 키와 주석이 살아 있어야 한다.
+        JBro::String text;
+        {
+            std::FILE* file = nullptr;
+            Check(fopen_s(&file, projectPath.c_str(), "rb") == 0 && file != nullptr,
+                "the project file must be readable again");
+            char buffer[4096] = {};
+            const std::size_t read = std::fread(buffer, 1, sizeof(buffer) - 1, file);
+            std::fclose(file);
+            text.assign(buffer, read);
+        }
+        Check(text.find("SomeFutureKey: keep me") != JBro::String::npos,
+            "a key the engine does not know must survive the write");
+        Check(text.find("# 이 주석은 살아남아야 한다") != JBro::String::npos,
+            "and so must a comment");
+        Check(text.find("ResolutionWidth: 640") != JBro::String::npos,
+            "with the value that changed");
+        Check(text.find("ProductName: Renamed") != JBro::String::npos, "inside the block too");
+        Check(text.find("AssetDirectory: Art") != JBro::String::npos,
+            "and a key that was not in the file is added");
+
+        editor.Shutdown();
+        std::remove(projectPath.c_str());
+    }
+
     // 계층의 줄 하나가 차지한 Id.
     //
     // 줄마다 `PushID(&object)` 를 쌓고 트리 마디가 `"##node"` 로 선다. **펼친 마디는
@@ -4590,6 +4656,7 @@ int RunEditorApplicationTests()
     TestPlayingAndStoppingRestoresTheCanvas();
     TestBoxSelectInTheCanvasViewPicksWhatItTouches();
     TestTheCanvasViewDrawsInA3DProject();
+    TestProjectSettingsAreWrittenBackToTheFile();
     TestDraggingInTheHierarchyReordersAndUnparents();
     TestCreatingAnObjectCanBeUndone();
     TestDeletingAnObjectCanBeUndoneWithItsValues();

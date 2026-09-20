@@ -314,6 +314,65 @@ namespace
         Check(withBlock.build.productName == "Game", "and its contents must be read");
     }
 
+
+    // **고쳐 쓰기는 원문을 타고 간다**(D-137). 우리가 모르는 키도, 주석도, 시퀀스도
+    // 그 자리에 남아야 한다 - 통째로 다시 쓰면 남의 설정이 조용히 사라진다.
+    void TestRewritingKeepsWhatItDoesNotKnow()
+    {
+        const char* text =
+            "# 이 줄은 주석이다\n"
+            "EngineVersion: 1.0.0\n"
+            "Framework: 2D\n"
+            "ResolutionWidth: 1920\n"
+            "ResolutionHeight: 1080\n"
+            "SomeFutureKey: keep me\n"
+            "AssetIgnorePatterns:\n"
+            "  - *.psd\n"
+            "Build:\n"
+            "  ProductName: Game\n"
+            "  UnknownBuildKey: keep me too\n";
+
+        JBro::ProjectFile project;
+        JBro::ProjectFileError error;
+        Check(JBro::ParseProjectFile(text, std::strlen(text), project, error),
+            "the probe project must parse");
+        Check(project.resolutionWidth == 1920, "and read what it knows");
+
+        project.resolutionWidth = 1280;
+        project.resolutionHeight = 720;
+        project.build.productName = "Renamed";
+        // 원문에 없던 키다. 뒤에 더해져야 한다.
+        project.assetDirectory = "Art/Assets";
+
+        JBro::String written;
+        Check(JBro::WriteProjectFileText(project, text, std::strlen(text), written, error),
+            "rewriting must go through");
+
+        Check(written.find("# 이 줄은 주석이다") != JBro::String::npos, "comments stay");
+        Check(written.find("SomeFutureKey: keep me") != JBro::String::npos,
+            "a key we do not know stays, with its value");
+        Check(written.find("UnknownBuildKey: keep me too") != JBro::String::npos,
+            "and so does one inside a block");
+        Check(written.find("  - *.psd") != JBro::String::npos, "sequences are left alone");
+        Check(written.find("ResolutionWidth: 1280") != JBro::String::npos,
+            "the value we changed is the one that changed");
+        Check(written.find("1920") == JBro::String::npos, "and the old one is gone");
+        Check(written.find("ProductName: Renamed") != JBro::String::npos,
+            "inside the block too");
+        Check(written.find("AssetDirectory: Art/Assets") != JBro::String::npos,
+            "a key the file did not have is added");
+
+        // 다시 읽으면 같은 값이 나와야 한다. 쓴 글자가 읽히지 않으면 그 프로젝트는 열리지 않는다.
+        JBro::ProjectFile again;
+        Check(JBro::ParseProjectFile(written.c_str(), written.size(), again, error),
+            "what was written must read back");
+        Check(again.resolutionWidth == 1280 && again.resolutionHeight == 720,
+            "with the values that were set");
+        Check(again.build.productName == "Renamed", "and the block's too");
+        Check(again.assetDirectory == "Art/Assets", "and the added one");
+        Check(again.engineVersion == "1.0.0" && again.framework == JBro::FrameworkKind::Framework2D,
+            "and what was not touched is untouched");
+    }
 }
 
 int RunProjectFileTests()
@@ -325,6 +384,7 @@ int RunProjectFileTests()
     TestRequiresTheEngineVersionAndTheFramework();
     TestScriptModulePathResolution();
     TestDefaultsSurviveAnEmptyProject();
+    TestRewritingKeepsWhatItDoesNotKnow();
     std::cout << "Project file tests passed.\n";
     return 0;
 }

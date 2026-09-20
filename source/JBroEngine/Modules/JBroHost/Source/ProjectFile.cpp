@@ -428,6 +428,334 @@ namespace JBro
         return ParseProjectFile(reinterpret_cast<const char*>(text.Data()), text.Size(), result, error);
     }
 
+    namespace
+    {
+        // 최상위 키 하나의 지금 값을 글자로. 아는 키가 아니면 거짓이다.
+        bool TopLevelValue(const ProjectFile& project, const String& key, String& value)
+        {
+            char number[32] = {};
+            if (key == "Version")
+            {
+                std::snprintf(number, sizeof(number), "%u", project.version);
+                value = number;
+            }
+            else if (key == "EngineVersion") { value = project.engineVersion; }
+            else if (key == "Framework")
+            {
+                // 파일에 적히는 값은 `2D` / `3D` 다. 열거 이름이 아니다 -
+                // 읽는 쪽(`ParseFrameworkKind`)이 그렇게 읽는다.
+                value = project.framework == FrameworkKind::Framework3D ? "3D" : "2D";
+            }
+            else if (key == "RootPath") { value = project.rootPath; }
+            else if (key == "ResolutionWidth")
+            {
+                std::snprintf(number, sizeof(number), "%u", project.resolutionWidth);
+                value = number;
+            }
+            else if (key == "ResolutionHeight")
+            {
+                std::snprintf(number, sizeof(number), "%u", project.resolutionHeight);
+                value = number;
+            }
+            else if (key == "TextureFilter")
+            {
+                value = project.textureFilter == TextureFilter::Linear ? "Linear" : "Nearest";
+            }
+            else if (key == "DebugModeEnabled")
+            {
+                value = project.debugModeEnabled ? "true" : "false";
+            }
+            else if (key == "ScriptSourceDirectory") { value = project.scriptSourceDirectory; }
+            else if (key == "ScriptOutputLibraryPath") { value = project.scriptOutputLibraryPath; }
+            else if (key == "LastOpenedCanvasPath") { value = project.lastOpenedCanvasPath; }
+            else if (key == "AssetDirectory") { value = project.assetDirectory; }
+            else
+            {
+                return false;
+            }
+            return true;
+        }
+
+        bool BuildValue(const ProjectFile& project, const String& key, String& value)
+        {
+            if (key == "ProductName") { value = project.build.productName; }
+            else if (key == "EnableWindows") { value = project.build.enableWindows ? "true" : "false"; }
+            else if (key == "EnableWeb") { value = project.build.enableWeb ? "true" : "false"; }
+            else if (key == "EnableAndroid") { value = project.build.enableAndroid ? "true" : "false"; }
+            else if (key == "EnableIOS") { value = project.build.enableIOS ? "true" : "false"; }
+            else if (key == "OutputDirectory") { value = project.build.outputDirectory; }
+            else if (key == "StartupCanvas") { value = project.build.startupCanvas; }
+            else if (key == "ScriptOutputLibraryPath") { value = project.build.scriptOutputLibraryPath; }
+            else
+            {
+                return false;
+            }
+            return true;
+        }
+
+        // 아는 최상위 키의 차례다. 없던 키를 더할 때 이 차례로 붙는다.
+        const char* const TopLevelKeys[] = {
+            "Version", "EngineVersion", "Framework", "RootPath",
+            "ResolutionWidth", "ResolutionHeight", "TextureFilter", "DebugModeEnabled",
+            "ScriptSourceDirectory", "ScriptOutputLibraryPath", "LastOpenedCanvasPath",
+            "AssetDirectory"};
+        const char* const BuildKeys[] = {
+            "ProductName", "EnableWindows", "EnableWeb", "EnableAndroid", "EnableIOS",
+            "OutputDirectory", "StartupCanvas", "ScriptOutputLibraryPath"};
+
+        // `  Key: value` 에서 들여쓰기·키·값을 가른다. 값이 비어 있으면(블록·시퀀스의 머리)
+        // `hasValue` 가 거짓이다.
+        bool SplitLine(const String& line, std::size_t& indent, String& key, bool& hasValue)
+        {
+            indent = 0;
+            while (indent < line.size() && line[indent] == ' ')
+            {
+                ++indent;
+            }
+            const std::size_t colon = line.find(':', indent);
+            if (colon == String::npos)
+            {
+                return false;
+            }
+            key.assign(line.c_str() + indent, colon - indent);
+            if (key.empty())
+            {
+                return false;
+            }
+            std::size_t at = colon + 1;
+            while (at < line.size() && (line[at] == ' ' || line[at] == '\r'))
+            {
+                ++at;
+            }
+            hasValue = at < line.size();
+            return true;
+        }
+
+        void AppendLine(String& out, const String& line)
+        {
+            out.append(line.c_str(), line.size());
+            out.append("\n", 1);
+        }
+
+        void AppendPair(String& out, const char* indent, const String& key, const String& value)
+        {
+            String line(indent);
+            line.append(key.c_str(), key.size());
+            line.append(": ", 2);
+            line.append(value.c_str(), value.size());
+            AppendLine(out, line);
+        }
+    }
+
+    bool WriteProjectFileText(
+        const ProjectFile& project,
+        const char* originalText,
+        std::size_t originalLength,
+        String& result,
+        ProjectFileError& error)
+    {
+        error = ProjectFileError{};
+        result.clear();
+        if (originalText == nullptr)
+        {
+            return Fail(error, 0, "there is no project text to rewrite");
+        }
+
+        // 원문의 줄을 타고 가며 **아는 키의 값만** 바꾼다. 나머지 줄은 그대로 옮긴다 -
+        // 주석도, 우리가 모르는 키도, 시퀀스도 그 자리에 남는다.
+        Array<bool> wroteTopLevel;
+        wroteTopLevel.Resize(sizeof(TopLevelKeys) / sizeof(TopLevelKeys[0]));
+        Array<bool> wroteBuild;
+        wroteBuild.Resize(sizeof(BuildKeys) / sizeof(BuildKeys[0]));
+        for (std::size_t index = 0; index < wroteTopLevel.Size(); ++index)
+        {
+            wroteTopLevel[index] = false;
+        }
+        for (std::size_t index = 0; index < wroteBuild.Size(); ++index)
+        {
+            wroteBuild[index] = false;
+        }
+
+        bool inBuild = false;
+        bool sawBuild = false;
+        // `Build:` 블록이 끝나는 자리. 없던 키를 그 끝에 더한다.
+        std::size_t buildEnd = String::npos;
+
+        std::size_t at = 0;
+        while (at <= originalLength)
+        {
+            std::size_t stop = at;
+            while (stop < originalLength && originalText[stop] != '\n')
+            {
+                ++stop;
+            }
+            String line(originalText + at, stop - at);
+            while (false == line.empty() && line.back() == '\r')
+            {
+                line.pop_back();
+            }
+
+            std::size_t indent = 0;
+            String key;
+            bool hasValue = false;
+            const bool pair = false == IsBlankOrComment(line)
+                && SplitLine(line, indent, key, hasValue);
+
+            if (pair && indent == 0)
+            {
+                inBuild = key == "Build";
+                if (inBuild)
+                {
+                    sawBuild = true;
+                }
+            }
+
+            String value;
+            bool replaced = false;
+            if (pair && hasValue)
+            {
+                if (indent == 0 && TopLevelValue(project, key, value))
+                {
+                    AppendPair(result, "", key, value);
+                    replaced = true;
+                    for (std::size_t index = 0; index < wroteTopLevel.Size(); ++index)
+                    {
+                        if (key == TopLevelKeys[index])
+                        {
+                            wroteTopLevel[index] = true;
+                        }
+                    }
+                }
+                else if (indent == 2 && inBuild && BuildValue(project, key, value))
+                {
+                    AppendPair(result, "  ", key, value);
+                    replaced = true;
+                    for (std::size_t index = 0; index < wroteBuild.Size(); ++index)
+                    {
+                        if (key == BuildKeys[index])
+                        {
+                            wroteBuild[index] = true;
+                        }
+                    }
+                }
+            }
+            if (false == replaced)
+            {
+                AppendLine(result, line);
+            }
+            if (inBuild)
+            {
+                buildEnd = result.size();
+            }
+
+            if (stop >= originalLength)
+            {
+                break;
+            }
+            at = stop + 1;
+        }
+
+        // `Build:` 아래에 없던 키를 그 블록 끝에 끼운다. 블록이 아예 없으면 뒤에서 만든다.
+        if (sawBuild && buildEnd != String::npos)
+        {
+            String added;
+            for (std::size_t index = 0; index < wroteBuild.Size(); ++index)
+            {
+                if (wroteBuild[index])
+                {
+                    continue;
+                }
+                String value;
+                const String key(BuildKeys[index]);
+                if (BuildValue(project, key, value))
+                {
+                    AppendPair(added, "  ", key, value);
+                }
+            }
+            if (false == added.empty())
+            {
+                result.insert(buildEnd, added);
+            }
+        }
+
+        // 없던 최상위 키를 맨 뒤에 더한다.
+        for (std::size_t index = 0; index < wroteTopLevel.Size(); ++index)
+        {
+            if (wroteTopLevel[index])
+            {
+                continue;
+            }
+            String value;
+            const String key(TopLevelKeys[index]);
+            if (TopLevelValue(project, key, value))
+            {
+                AppendPair(result, "", key, value);
+            }
+        }
+        if (false == sawBuild)
+        {
+            AppendLine(result, String("Build:"));
+            for (std::size_t index = 0; index < wroteBuild.Size(); ++index)
+            {
+                String value;
+                const String key(BuildKeys[index]);
+                if (BuildValue(project, key, value))
+                {
+                    AppendPair(result, "  ", key, value);
+                }
+            }
+        }
+
+        // **쓴 것을 도로 읽어 본다.** 읽히지 않는 글자를 파일에 남기면 그 프로젝트는
+        // 다음에 열리지 않는다 - 값 안의 따옴표나 콜론 하나가 그렇게 만든다.
+        ProjectFile roundTrip;
+        ProjectFileError check;
+        if (false == ParseProjectFile(result.c_str(), result.size(), roundTrip, check))
+        {
+            result.clear();
+            return Fail(error, check.line,
+                "the project file this would write cannot be read back");
+        }
+        return true;
+    }
+
+    bool SaveProjectFile(IPlatform& platform, const char* utf8Path, const ProjectFile& project,
+        ProjectFileError& error)
+    {
+        error = ProjectFileError{};
+        if (utf8Path == nullptr || utf8Path[0] == '\0')
+        {
+            return Fail(error, 0, "no path was given");
+        }
+        Array<std::byte> original;
+        if (false == platform.ReadWholeFile(utf8Path, original))
+        {
+            return Fail(error, 0, "cannot open the project file");
+        }
+        String text;
+        if (false == WriteProjectFileText(project,
+                reinterpret_cast<const char*>(original.Data()), original.Size(), text, error))
+        {
+            return false;
+        }
+
+        // **바꿔치기다**(D-124). 쓰다 만 파일로 프로젝트를 잃지 않는다.
+        String temporary(utf8Path);
+        temporary.append(".tmp", 4);
+        const JArrayView<std::byte> bytes{
+            reinterpret_cast<const std::byte*>(text.c_str()),
+            static_cast<std::uint32_t>(text.size())};
+        if (false == platform.WriteWholeFile(temporary.c_str(), bytes))
+        {
+            return Fail(error, 0, "the project file could not be written");
+        }
+        if (false == platform.MoveFileTo(temporary.c_str(), utf8Path))
+        {
+            return Fail(error, 0, "the project file could not be replaced");
+        }
+        return true;
+    }
+
     String ResolveScriptModulePath(const ProjectFile& project, const char* projectFilePath)
     {
         return ResolveProjectRelativePath(project.scriptOutputLibraryPath.c_str(), projectFilePath);

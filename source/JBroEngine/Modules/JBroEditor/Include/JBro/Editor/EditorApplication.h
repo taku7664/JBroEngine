@@ -90,6 +90,11 @@ namespace JBro
         FrameworkKind GetFrameworkKind() const { return m_frameworkKind; }
         // 마지막으로 연 `.jproject` 의 내용이다. 파일로 열지 않았으면 기본값이다.
         const ProjectFile& GetProjectFile() const;
+        // 그 파일의 경로다. 파일로 열지 않았으면 비어 있다.
+        const String& GetProjectFilePath() const { return m_projectFilePath; }
+        // 프로젝트 설정을 파일에 쓴다(D-137). **원문을 타고 가며 아는 키만 고친다** -
+        // 주석도 모르는 키도 그 자리에 남는다. 성공하면 에디터가 든 값도 그것으로 바뀐다.
+        bool SaveProjectSettings(const ProjectFile& settings, ProjectFileError& error);
         // 열린 프로젝트의 에셋 레지스트리다. 인스펙터의 에셋 칸이 같은 타입의 목록을 여기서
         // 얻는다(D-116). 프로젝트가 없으면 빈 레지스트리다.
         const AssetRegistry& GetAssetRegistry() const;

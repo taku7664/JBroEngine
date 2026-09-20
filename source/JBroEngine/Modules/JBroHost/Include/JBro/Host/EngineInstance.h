@@ -75,6 +75,12 @@ namespace JBro
             ProjectFileError& error);
         // 마지막으로 연 프로젝트 파일의 내용이다.
         const ProjectFile& GetProjectFile() const;
+        // 그 내용을 파일에서 다시 읽은 것으로 맞춘다(D-137). 설정 창이 파일을 고친 뒤 부른다.
+        //
+        // **지금 적용되는 것은 에셋의 기본 샘플러뿐이다.** 해상도·에셋 폴더·스크립트 경로는
+        // 프로젝트를 열 때 한 번 읽어 쓰는 값이라, 다시 열어야 반영된다. 그것을 여기서
+        // 몰래 다시 적용하면 열려 있는 캔버스와 파일이 반쯤 다른 프로젝트가 된다.
+        void SetProjectFile(const ProjectFile& project);
         // Keeps the renderer/device/window alive. Calls from callbacks are deferred.
         void CloseProject();
         // Pumps events, updates simulation, then renders. False means stopped and cleaned up.

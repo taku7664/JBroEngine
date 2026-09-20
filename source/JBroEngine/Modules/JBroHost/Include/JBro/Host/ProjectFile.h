@@ -103,6 +103,28 @@ namespace JBro
         ProjectFile& result,
         ProjectFileError& error);
 
+    // **읽은 글자를 고쳐 쓴다**(D-137). 새로 지어내지 않고 원문의 줄을 타고 가며 아는 키의
+    // 값만 바꾼다 - 주석도, 우리가 모르는 키도, 시퀀스도 그 자리에 그대로 남는다.
+    //
+    // 통째로 다시 쓰면 **모르는 키가 사라진다**. 파서는 모르는 키를 조용히 건너뛰도록
+    // 되어 있으므로(위 설명), 읽고 다시 쓰는 것만으로 남의 설정이 없어진다.
+    // 에셋 메타에서 같은 자리를 이미 한 번 겪었다(D-123·D-124).
+    //
+    // 아는 키가 원문에 없으면 **맨 뒤에 더한다**. `Build:` 아래의 키는 그 블록 끝에 더하고,
+    // 블록 자체가 없으면 블록째 더한다. 시퀀스 키(`AssetIgnorePatterns`·`BuildCanvases`)는
+    // 손대지 않는다 - 값이 여러 줄이라 한 줄 바꿔치기로는 다룰 수 없다.
+    bool WriteProjectFileText(
+        const ProjectFile& project,
+        const char* originalText,
+        std::size_t originalLength,
+        String& result,
+        ProjectFileError& error);
+
+    // 위의 글자를 파일에 쓴다. **바꿔치기다**(D-124) - `<파일>.tmp` 에 먼저 쓰고 옮긴다.
+    // 쓰다 만 파일로 프로젝트를 잃지 않는다.
+    bool SaveProjectFile(IPlatform& platform, const char* utf8Path, const ProjectFile& project,
+        ProjectFileError& error);
+
     // 프로젝트 루트와 합쳐 실제로 로드할 스크립트 DLL 경로를 만든다.
     // 절대경로면 그대로 두고, 상대경로면 프로젝트 파일이 있는 폴더 기준으로 붙인다.
     String ResolveScriptModulePath(const ProjectFile& project, const char* projectFilePath);
