@@ -1,4 +1,4 @@
-# 네트워크 계획 (기존 엔진 재검토 뒤 재설계)
+﻿# 네트워크 계획 (기존 엔진 재검토 뒤 재설계)
 
 > 계약은 `docs/ProjectRule.md`, 결정은 `tasks/todo.md` Decisions 다. 이 문서는 그 둘을 향해 가는 순서와
 > 상태를 적는다. 상태는 항목마다 `[완료]` `[진행]` `[제안]` `[가정]` `[열림]` 으로 붙인다.
@@ -291,9 +291,27 @@ namespace JBro::Network
    `[열림]` 스크립트 DLL 이 네트워크 블록을 바인딩하는 일은 각 DLL 의 Load 가 `FindNetwork*Context` → `BindNetwork*Context` 로 한다
    (프로브 DLL 은 아직 하지 않는다 - 네트워크를 쓰지 않으므로). 프리팹으로 스폰하는 길(`SpawnDesc::prefab`)은 비어 있고 지금은
    빈 오브젝트에 어댑터가 컴포넌트를 붙인다.
-6. `[진행 예정]` **WebRTC.** `IPeerConnection` 계약, Web 의 emscripten 접착, 네이티브 호스트 안의 시그널링 서버, 피어형 연결의
-   채널 매핑. 완료: 브라우저 둘이 시그널링을 거쳐 이어지고 채널 넷이 각자 규약대로 전달한다(웹 빌드가 서야 하므로 순서는 뒤다).
-7. `[열림]` wss(SChannel), POSIX 소켓(기존도 미검증), 네이티브 WebRTC 피어, 예측·되감기, DTLS, TURN 운영, 워커 I/O.
+6. `[완료 - 브라우저 접착만 미검증]` **WebRTC.** (2026-09-20) **검증한 것**(인메모리 피어 더블 위): `Transport` 의 피어형 연결 -
+   `HostPeers()`(소켓을 듣지 않는 서버)·`AcceptPeer()`·`ConnectPeer()`·`TakePeerSignal`/`PushPeerSignal`. 피어는 `Phase::PeerConnecting`
+   에서 데이터 채널이 열리면 소켓 쪽의 "WS 열림" 자리로 들어가 같은 hello·ping·타임아웃을 탄다. 메시지 모양도 같다
+   ([uint16 ID][페이로드]). 채널은 데이터 채널이 지키므로 UDP·신뢰 엔진·전송로 확정을 모두 건너뛴다. `Peer/Signaling`:
+   `SignalingServer`(방 코드 → 첫 사람이 호스트, 참가자마다 peerId, 시그널 중계, 떠남 알림)와 `SignalingClient`(역할을 받아 피어
+   트랜스포트를 호스트/클라이언트로 세우고 시그널을 양쪽으로 옮김). 메시지 대역 0xFD00~ 은 시그널링이 쓰고 `NetworkService` 가 거절한다.
+   `Testing::MemoryPeerConnection`: 시그널 "O<n>"/"A<n>", 채널 넷의 레코드 고리, 비신뢰 채널만 유실 주입. 테스트 +4: 손으로 시그널을
+   옮겨 채널 넷이 각자 채널로 도착, 순서 보장 300 개, keepalive RTT, 닫기 관측 / 30% 유실에서 신뢰 200 전부·비신뢰 일부 / 시그널링 서버를
+   거쳐 호스트·참가자가 방에서 만나 피어로 이어지고 게임 데이터는 시그널링을 지나지 않으며 참가자가 떠나면 방·매핑·연결이 정리됨 /
+   WebRTC 없는 플랫폼.
+   **작성만 하고 검증하지 못한 것**: `Web/WebSocketProvider`(Emscripten 전용, `#if defined(__EMSCRIPTEN__)`). `WebStreamSocket` 은
+   브라우저 WebSocket 을 **바이트 흐름으로 흉내** 낸다 - 트랜스포트가 쓴 HTTP 업그레이드 요청을 삼켜 알맞은 101 을 만들어 돌려주고, 쓴
+   RFC6455 프레임을 풀어 페이로드만 `ws.send` 하고, 받은 메시지를 서버 프레임으로 감싸 돌려준다. 그래서 트랜스포트는 플랫폼을 가리지
+   않고 한 길만 간다. `WebPeerConnection` 은 `RTCPeerConnection` + 협상된 데이터 채널 넷(ordered / unordered / unordered+maxRetransmits 0 ×2),
+   시그널은 JSON 글자, 받은 것은 JS 큐에 쌓고 C++ 이 폴링으로 꺼낸다. `WebPlatform::CreateSocketProvider` 가 Emscripten 에서 이것을
+   돌려준다. **이 저장소에는 Emscripten 도구가 없어 컴파일조차 확인하지 못했다.** 웹 빌드가 서는 날 여기서부터 본다: 첫 번째로 볼 것은
+   `WebStreamSocket::Drain` 의 8 KB 스크래치 상한(트랜스포트 최대 메시지 64 KB 보다 작다)과 EM_JS 문자열 인코딩이다.
+7. `[열림]` wss(SChannel), POSIX 소켓(기존도 미검증), 네이티브 WebRTC 피어(libdatachannel 같은 스택 - 지금 네이티브 provider 는
+   `CreatePeerConnection` 에 null), 예측·되감기·소유 위임(`HasAuthority` 는 서버만 참), DTLS, TURN 운영, 워커 I/O, 프리팹 스폰
+   (`SpawnDesc::prefab` 은 비어 있고 어댑터가 빈 오브젝트에 컴포넌트를 붙인다), 스크립트 DLL 의 네트워크 블록 바인딩 예시,
+   시그널링 서버를 게임 호스트 실행 파일의 옵션으로 켜는 일, 웹 빌드로 §3-6 의 브라우저 접착 검증.
 
 ## 4. 규칙과 부딪히는 지점
 
@@ -311,6 +329,8 @@ namespace JBro::Network
 
 ## 5. 열린 것과 가정 모음
 
-- `[제안]` §2.2 위치 `source/JBroNetwork/`. §2.7 시그널링 서버를 네이티브 호스트 기능으로.
-- `[열림]` §2.6 풀 비교 비용과 dirty 비트. §2.7 네이티브 WebRTC 피어·TURN. §3-7 전부.
+- `[확정 2026-09-20]` §2.2 위치 `source/JBroNetwork/`. §2.7 시그널링 서버는 라이브러리(`Peer/Signaling`)로 섰고, 게임 호스트 실행 파일의
+  옵션으로 켜는 일은 §3-7 에 남았다.
+- `[닫힘]` §2.6 풀 비교 비용 - 실측 결과 dirty 비트 없이 예산 안(§3-4).
+- `[열림]` §2.7 네이티브 WebRTC 피어·TURN. §3-6 브라우저 접착 검증. §3-7 전부.
 - 기존 엔진의 알려진 한계를 그대로 물려받는다: UDP 미암호, wss Windows 전용, POSIX 미검증, TLS 재협상 미지원.

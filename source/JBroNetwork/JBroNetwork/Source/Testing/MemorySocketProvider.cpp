@@ -1,5 +1,7 @@
 ﻿#include <JBro/Network/Testing/MemorySocketProvider.h>
 
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <utility>
 
@@ -59,8 +61,63 @@ namespace JBro::Network::Testing
 
     OwnerPtr<IPeerConnection> MemorySocketProvider::CreatePeerConnection(const PeerConnectionDesc& desc)
     {
-        (void)desc;
-        return nullptr;
+        if (false == m_peerAvailable)
+        {
+            return nullptr;
+        }
+        const std::uint32_t index = static_cast<std::uint32_t>(m_peers.Size());
+        OwnerPtr<MemoryPeerConnection> peer = MakeOwnerPtr<MemoryPeerConnection>(*this, index, desc.initiator);
+        m_peers.Add(peer.Get());
+        return peer;
+    }
+
+    void MemorySocketProvider::SetPeerAvailable(bool available)
+    {
+        m_peerAvailable = available;
+    }
+
+    MemorySocketProvider::PeerLink* MemorySocketProvider::LinkPeers(std::uint32_t initiatorIndex, MemoryPeerConnection* acceptor)
+    {
+        if (initiatorIndex >= m_peers.Size() || nullptr == m_peers[initiatorIndex] || nullptr == acceptor)
+        {
+            return nullptr;
+        }
+        OwnerPtr<PeerLink> owner = MakeOwnerPtr<PeerLink>();
+        for (std::uint32_t channel = 0; channel < NetChannelCount; ++channel)
+        {
+            owner->toAcceptor[channel].Reset(m_pipeBytes);
+            owner->toInitiator[channel].Reset(m_pipeBytes);
+        }
+        PeerLink* link = owner.Get();
+        m_peerLinks.Add(std::move(owner));
+        m_peers[initiatorIndex]->AttachLink(link);
+        acceptor->AttachLink(link);
+        return link;
+    }
+
+    void MemorySocketProvider::UnregisterPeer(MemoryPeerConnection* peer)
+    {
+        for (MemoryPeerConnection*& slot : m_peers)
+        {
+            if (slot == peer)
+            {
+                slot = nullptr;
+            }
+        }
+    }
+
+    bool MemorySocketProvider::ShouldDropUnreliable(PeerLink& link)
+    {
+        if (false == m_lossy || m_lossyConfig.lossRate <= 0.0)
+        {
+            return false;
+        }
+        std::uint32_t x = link.rng;
+        x ^= x << 13;
+        x ^= x >> 17;
+        x ^= x << 5;
+        link.rng = x;
+        return static_cast<double>(x >> 8) * (1.0 / 16777216.0) < m_lossyConfig.lossRate;
     }
 
     void MemorySocketProvider::SetDatagramAvailable(bool available)
@@ -519,5 +576,211 @@ namespace JBro::Network::Testing
         std::memcpy(datagram.data, data, size);
         ++m_count;
         return true;
+    }
+}
+
+namespace JBro::Network::Testing
+{
+    // ── 피어 연결 ───────────────────────────────────────────────────────────────────────────────
+
+    MemoryPeerConnection::MemoryPeerConnection(MemorySocketProvider& provider, std::uint32_t index, bool initiator)
+        : m_provider(provider)
+        , m_index(index)
+        , m_initiator(initiator)
+    {
+    }
+
+    MemoryPeerConnection::~MemoryPeerConnection()
+    {
+        Close();
+        m_provider.UnregisterPeer(this);
+    }
+
+    void MemoryPeerConnection::AttachLink(MemorySocketProvider::PeerLink* link)
+    {
+        m_link = link;
+    }
+
+    std::uint32_t MemoryPeerConnection::Index() const
+    {
+        return m_index;
+    }
+
+    bool MemoryPeerConnection::PeerOpen() const
+    {
+        if (nullptr == m_link)
+        {
+            return false;
+        }
+        return m_initiator ? m_link->acceptorOpen : m_link->initiatorOpen;
+    }
+
+    ByteRing& MemoryPeerConnection::Outgoing(NetChannel channel) const
+    {
+        const std::uint32_t index = static_cast<std::uint32_t>(channel);
+        return m_initiator ? m_link->toAcceptor[index] : m_link->toInitiator[index];
+    }
+
+    ByteRing& MemoryPeerConnection::Incoming(NetChannel channel) const
+    {
+        const std::uint32_t index = static_cast<std::uint32_t>(channel);
+        return m_initiator ? m_link->toInitiator[index] : m_link->toAcceptor[index];
+    }
+
+    ConnectionState MemoryPeerConnection::GetState() const
+    {
+        if (m_closed)
+        {
+            return ConnectionState::Disconnected;
+        }
+        if (nullptr == m_link)
+        {
+            return ConnectionState::Connecting;
+        }
+        if (false == PeerOpen())
+        {
+            return ConnectionState::Disconnected;
+        }
+        return m_link->linked ? ConnectionState::Connected : ConnectionState::Connecting;
+    }
+
+    std::uint32_t MemoryPeerConnection::TakeSignal(void* buffer, std::uint32_t capacity)
+    {
+        if (m_closed)
+        {
+            return 0;
+        }
+        char text[16];
+        int length = 0;
+        if (m_initiator && m_stage == Stage::Idle)
+        {
+            length = std::snprintf(text, sizeof(text), "O%u", m_index);
+            m_stage = Stage::WaitingAnswer;
+        }
+        else if (false == m_initiator && m_stage == Stage::AnswerReady)
+        {
+            length = std::snprintf(text, sizeof(text), "A%u", m_index);
+            m_stage = Stage::Done;
+        }
+        if (length <= 0 || static_cast<std::uint32_t>(length) > capacity)
+        {
+            return 0;
+        }
+        std::memcpy(buffer, text, static_cast<std::size_t>(length));
+        return static_cast<std::uint32_t>(length);
+    }
+
+    bool MemoryPeerConnection::PushSignal(const void* data, std::uint32_t size)
+    {
+        if (m_closed || size < 2 || size > 15)
+        {
+            return false;
+        }
+        char text[16] = {};
+        std::memcpy(text, data, size);
+        const std::uint32_t other = static_cast<std::uint32_t>(std::strtoul(text + 1, nullptr, 10));
+        if (false == m_initiator && text[0] == 'O' && m_stage == Stage::Idle)
+        {
+            if (nullptr == m_provider.LinkPeers(other, this))
+            {
+                return false;
+            }
+            m_stage = Stage::AnswerReady;
+            return true;
+        }
+        if (m_initiator && text[0] == 'A' && m_stage == Stage::WaitingAnswer && nullptr != m_link)
+        {
+            m_link->linked = true;
+            m_stage = Stage::Done;
+            return true;
+        }
+        return false;
+    }
+
+    SocketIo MemoryPeerConnection::Send(NetChannel channel, const void* data, std::size_t size)
+    {
+        if (GetState() != ConnectionState::Connected || static_cast<std::uint32_t>(channel) >= NetChannelCount)
+        {
+            return SocketIo::WouldBlock;
+        }
+        const bool unreliable = channel == NetChannel::Unreliable || channel == NetChannel::UnreliableSequenced;
+        if (unreliable && m_provider.ShouldDropUnreliable(*m_link))
+        {
+            // 비신뢰 채널은 유실을 복구하지 않는다. 보낸 쪽은 모른다.
+            return SocketIo::Ok;
+        }
+        ByteRing& ring = Outgoing(channel);
+        const std::uint32_t recordSize = static_cast<std::uint32_t>(size);
+        if (ring.Free() < 4 + recordSize)
+        {
+            return SocketIo::WouldBlock;
+        }
+        std::uint8_t header[4];
+        header[0] = static_cast<std::uint8_t>(recordSize & 0xFF);
+        header[1] = static_cast<std::uint8_t>((recordSize >> 8) & 0xFF);
+        header[2] = static_cast<std::uint8_t>((recordSize >> 16) & 0xFF);
+        header[3] = static_cast<std::uint8_t>((recordSize >> 24) & 0xFF);
+        ring.Write(header, 4);
+        if (recordSize > 0)
+        {
+            ring.Write(data, recordSize);
+        }
+        return SocketIo::Ok;
+    }
+
+    SocketIo MemoryPeerConnection::Receive(NetChannel& outChannel, void* buffer, std::size_t capacity, std::size_t& outReceived)
+    {
+        outReceived = 0;
+        if (m_closed || nullptr == m_link)
+        {
+            return SocketIo::Error;
+        }
+        for (std::uint32_t index = 0; index < NetChannelCount; ++index)
+        {
+            const NetChannel channel = static_cast<NetChannel>(index);
+            ByteRing& ring = Incoming(channel);
+            if (ring.Size() < 4)
+            {
+                continue;
+            }
+            std::uint8_t header[4];
+            ring.Peek(header, 4);
+            const std::uint32_t recordSize = static_cast<std::uint32_t>(header[0]) | (static_cast<std::uint32_t>(header[1]) << 8)
+                | (static_cast<std::uint32_t>(header[2]) << 16) | (static_cast<std::uint32_t>(header[3]) << 24);
+            if (recordSize > capacity)
+            {
+                return SocketIo::Error;
+            }
+            ring.Discard(4);
+            ring.Read(buffer, recordSize);
+            outReceived = recordSize;
+            outChannel = channel;
+            return SocketIo::Ok;
+        }
+        if (false == PeerOpen())
+        {
+            return SocketIo::Closed;
+        }
+        return SocketIo::WouldBlock;
+    }
+
+    void MemoryPeerConnection::Close()
+    {
+        if (m_closed)
+        {
+            return;
+        }
+        m_closed = true;
+        if (nullptr != m_link)
+        {
+            if (m_initiator)
+            {
+                m_link->initiatorOpen = false;
+            }
+            else
+            {
+                m_link->acceptorOpen = false;
+            }
+        }
     }
 }

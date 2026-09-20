@@ -75,7 +75,9 @@ namespace
         provider.SetDatagramAvailable(false);
         Check(nullptr == provider.CreateDatagramSocket().Get(), "no datagram socket");
         Check(nullptr != provider.CreateStreamSocket().Get(), "but streams remain");
-        Check(nullptr == provider.CreatePeerConnection(PeerConnectionDesc{}).Get(), "and no peer connection yet");
+        Check(nullptr != provider.CreatePeerConnection(PeerConnectionDesc{}).Get(), "and peers are there by default");
+        provider.SetPeerAvailable(false);
+        Check(nullptr == provider.CreatePeerConnection(PeerConnectionDesc{}).Get(), "until the platform is said to lack WebRTC");
     }
 }
 

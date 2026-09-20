@@ -9,6 +9,7 @@ int RunTransportTests();
 int RunSessionTests();
 int RunReliableUdpTests();
 int RunReplicationTests();
+int RunPeerTests();
 int RunWinsockLoopbackTests();
 
 int main()
@@ -44,6 +45,10 @@ int main()
         return 1;
     }
     if (RunReplicationTests() != 0)
+    {
+        return 1;
+    }
+    if (RunPeerTests() != 0)
     {
         return 1;
     }

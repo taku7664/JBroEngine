@@ -2063,7 +2063,9 @@ EditorApplication::Tick
   잇고, 유실은 기존 `CLossyUdpSocket` 데코레이터를 옮겨 주입한다. **2026-09-20 에 1~5 단계가 섰다**(계획서 §3): 트랜스포트·WS·
   Reliable UDP·복제·부착. 부착에서 엔진에 생긴 것은 `IPlatform::CreateSocketProvider`, 모듈 `JBroNetworkSystem`(`NetworkHost`·
   `CanvasPoolAdapter`·수신/송신 시스템), `Transform2DReplication`, `FrameworkContext::network`·`EngineConfig::networkEnabled`·
-  `EngineInstance` 의 네트워크 소유와 블록 병합, 프렐류드 한 줄, 빌드 파일이다. 스크립트 경계는 D-37 확장 블록이고 `JBroRuntime::ServiceContext` 에는 넣지 않는다(D-43 과 같은 이유).
+  `EngineInstance` 의 네트워크 소유와 블록 병합, 프렐류드 한 줄, 빌드 파일이다. 6 단계(WebRTC)는 피어형 연결·시그널링 서버/클라이언트를
+  인메모리 피어로 검증했고, 브라우저 접착(`Web/WebSocketProvider`, Emscripten 전용)은 작성만 했다 - 이 저장소에 웹 도구가 없어
+  컴파일도 확인하지 못했다(계획서 §3-6·§3-7). 스크립트 경계는 D-37 확장 블록이고 `JBroRuntime::ServiceContext` 에는 넣지 않는다(D-43 과 같은 이유).
 - **D-123. 에셋 4 단계 전수 검수(2026-09-20, `2de9f0a`): 감시는 소멸자가 정리하고 죽음을 알리며, 변경 적용은 조용해진 뒤에 하고, 메타는 적히지 않는 값을 쓰지 않는다.**
   세 갈래로 나눠 검수했다(감시·엔진 적용 / 에디터 위젯·패널 / 에셋·스프라이트 파이프라인). 고친 것: (1) `FileWatcher` 는
   소멸자가 멈춤 → 합류 → 핸들 닫기를 한다 - `Shutdown` 없이 파괴되면 joinable 스레드로 `std::terminate` 였다. 워커의

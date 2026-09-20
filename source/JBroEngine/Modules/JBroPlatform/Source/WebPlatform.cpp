@@ -1,5 +1,10 @@
 ﻿#include <JBro/Platform/WebPlatform.h>
 
+#include <JBro/Network/Socket.h>
+#if defined(__EMSCRIPTEN__)
+#include <JBro/Network/Web/WebSocketProvider.h>
+#endif
+
 namespace JBro
 {
     bool WebPlatform::Initialize(const JMemoryContext&)
@@ -88,5 +93,15 @@ namespace JBro
     bool WebPlatform::EnumerateDirectory(const char*, DirectoryVisitor, void*)
     {
         return false;
+    }
+
+    OwnerPtr<Network::ISocketProvider> WebPlatform::CreateSocketProvider()
+    {
+#if defined(__EMSCRIPTEN__)
+        return MakeOwnerPtr<Network::Web::WebSocketProvider>();
+#else
+        // 이 저장소의 Windows 빌드에서 이 플랫폼은 미리보기다. 소켓도 없다.
+        return nullptr;
+#endif
     }
 }

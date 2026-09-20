@@ -118,7 +118,7 @@ namespace JBro::Network
         m_events.Resize(m_config.eventCapacity);
         m_scratch.Resize(Max(MaxHandshakeBytes, 4096));
         m_datagramScratch.Resize(2048);
-        m_messageScratch.Resize(m_config.maxMessageBytes);
+        m_messageScratch.Resize(m_config.maxMessageBytes + MessageHeaderBytes);
     }
 
     Transport::~Transport()
@@ -188,8 +188,13 @@ namespace JBro::Network
             {
                 connection.stream->Close();
             }
+            if (nullptr != connection.peer.Get())
+            {
+                connection.peer->Close();
+            }
         }
         m_connections.Clear();
+        m_peerHosting = false;
         if (nullptr != m_listener.Get())
         {
             m_listener->Close();
@@ -215,6 +220,81 @@ namespace JBro::Network
         RequestClose(*connection, DisconnectReason::Normal);
     }
 
+    // ── 피어형 연결 ──────────────────────────────────────────────────────────────────────────────
+
+    bool Transport::HostPeers()
+    {
+        if (m_role != NetworkRole::None)
+        {
+            return false;
+        }
+        m_role = NetworkRole::Server;
+        m_peerHosting = true;
+        return true;
+    }
+
+    ConnectionId Transport::AcceptPeer()
+    {
+        if (m_role != NetworkRole::Server || false == m_peerHosting || m_connections.Size() >= m_config.maxConnections)
+        {
+            return InvalidConnectionId;
+        }
+        PeerConnectionDesc desc;
+        desc.initiator = false;
+        OwnerPtr<IPeerConnection> peer = m_provider.CreatePeerConnection(desc);
+        if (nullptr == peer.Get())
+        {
+            return InvalidConnectionId;
+        }
+        const ConnectionId id = m_nextClientId++;
+        AddPeerConnection(id, std::move(peer), true);
+        return id;
+    }
+
+    bool Transport::ConnectPeer()
+    {
+        if (m_role != NetworkRole::None)
+        {
+            return false;
+        }
+        PeerConnectionDesc desc;
+        desc.initiator = true;
+        OwnerPtr<IPeerConnection> peer = m_provider.CreatePeerConnection(desc);
+        if (nullptr == peer.Get())
+        {
+            return false;
+        }
+        m_role = NetworkRole::Client;
+        AddPeerConnection(ServerConnectionId, std::move(peer), false);
+        return true;
+    }
+
+    std::uint32_t Transport::TakePeerSignal(ConnectionId id, void* buffer, std::uint32_t capacity)
+    {
+        Connection* connection = FindConnection(id);
+        if (nullptr == connection || nullptr == connection->peer.Get())
+        {
+            return 0;
+        }
+        return connection->peer->TakeSignal(buffer, capacity);
+    }
+
+    bool Transport::PushPeerSignal(ConnectionId id, const void* data, std::uint32_t size)
+    {
+        Connection* connection = FindConnection(id);
+        if (nullptr == connection || nullptr == connection->peer.Get())
+        {
+            return false;
+        }
+        return connection->peer->PushSignal(data, size);
+    }
+
+    ConnectionKind Transport::GetConnectionKind(ConnectionId id) const
+    {
+        const Connection* connection = FindConnection(id);
+        return nullptr != connection ? connection->kind : ConnectionKind::Socket;
+    }
+
     NetworkRole Transport::GetRole() const
     {
         return m_role;
@@ -222,7 +302,7 @@ namespace JBro::Network
 
     bool Transport::IsListening() const
     {
-        return nullptr != m_listener.Get();
+        return nullptr != m_listener.Get() || m_peerHosting;
     }
 
     ConnectionState Transport::GetConnectionState(ConnectionId id) const
@@ -315,6 +395,11 @@ namespace JBro::Network
         if (nullptr == connection || connection->phase != Phase::Ready || connection->wantsClose)
         {
             return false;
+        }
+        // 피어형은 데이터 채널이 채널 규율을 지킨다. 전송로 선택도 폴백도 없다.
+        if (connection->kind == ConnectionKind::Peer)
+        {
+            return SendOverPeer(*connection, messageId, data, size, channel);
         }
         // 채널 라우팅. UDP 가 준비되지 않았거나 못 보내면 신뢰 WS 로 폴백한다 - 게임은 언제나 동작하고 품질만 변한다.
         const bool udpReady = nullptr != m_udpSocket.Get() && connection->udp.IsReady();
@@ -459,11 +544,38 @@ namespace JBro::Network
     template <typename T>
     void Transport::SendSystem(Connection& connection, MessageId messageId, const T& payload)
     {
-        // 세션 제어는 항상 신뢰 WS 다. 자리가 없으면 다음 ping 때 다시 시도되는 성질의 것들이라 실패를 삼킨다.
-        if (QueueMessage(connection, messageId, &payload, sizeof(T)))
+        SendControl(connection, messageId, &payload, static_cast<std::uint32_t>(sizeof(T)));
+    }
+
+    void Transport::SendControl(Connection& connection, MessageId messageId, const void* data, std::uint32_t size)
+    {
+        // 세션 제어는 항상 신뢰·순서 채널이다. 자리가 없으면 다음 ping 때 다시 시도되는 성질의 것들이라 실패를 삼킨다.
+        if (connection.kind == ConnectionKind::Peer)
+        {
+            SendOverPeer(connection, messageId, data, size, NetChannel::ReliableOrdered);
+            return;
+        }
+        if (QueueMessage(connection, messageId, data, size))
         {
             FlushSend(connection);
         }
+    }
+
+    bool Transport::SendOverPeer(Connection& connection, MessageId messageId, const void* data, std::uint32_t size, NetChannel channel)
+    {
+        if (nullptr == connection.peer.Get() || connection.phase == Phase::PeerConnecting || connection.wantsClose)
+        {
+            return false;
+        }
+        // 데이터 채널 메시지는 WS 메시지와 같은 모양이다: [uint16 LE 메시지 ID][페이로드].
+        std::uint8_t* frame = m_messageScratch.Data();
+        frame[0] = static_cast<std::uint8_t>(messageId & 0xFF);
+        frame[1] = static_cast<std::uint8_t>((messageId >> 8) & 0xFF);
+        if (size > 0)
+        {
+            std::memcpy(frame + MessageHeaderBytes, data, size);
+        }
+        return SocketIo::Ok == connection.peer->Send(channel, frame, MessageHeaderBytes + size);
     }
 
     std::uint32_t Transport::NextMaskKey()
@@ -556,7 +668,16 @@ namespace JBro::Network
 
     void Transport::PollConnection(Connection& connection)
     {
-        if (connection.wantsClose || nullptr == connection.stream.Get())
+        if (connection.wantsClose)
+        {
+            return;
+        }
+        if (connection.kind == ConnectionKind::Peer)
+        {
+            PollPeer(connection);
+            return;
+        }
+        if (nullptr == connection.stream.Get())
         {
             return;
         }
@@ -593,6 +714,77 @@ namespace JBro::Network
             PumpFrames(connection);
         }
         FlushSend(connection);
+    }
+
+    void Transport::PollPeer(Connection& connection)
+    {
+        if (nullptr == connection.peer.Get())
+        {
+            RequestClose(connection, DisconnectReason::Error);
+            return;
+        }
+        const ConnectionState state = connection.peer->GetState();
+        if (state == ConnectionState::Disconnected)
+        {
+            RequestClose(connection, connection.phase == Phase::Ready ? DisconnectReason::Normal : DisconnectReason::Error);
+            return;
+        }
+        if (connection.phase == Phase::PeerConnecting)
+        {
+            if (state != ConnectionState::Connected)
+            {
+                return;
+            }
+            // 채널이 열렸다. 소켓 쪽의 WS 가 열린 것과 같은 자리다 - 클라이언트가 hello 를 먼저 보낸다.
+            connection.phase = Phase::SessionHandshaking;
+            connection.lastReceiveMilliseconds = m_clock.NowMilliseconds();
+            if (false == connection.serverSide)
+            {
+                HelloPayload hello;
+                hello.protocolVersion = m_config.protocolVersion;
+                SendSystem(connection, SystemHello, hello);
+            }
+        }
+        // 받은 메시지를 채널째로 올린다. 저장소에 여유가 없으면 읽기를 멈춘다 - SCTP 버퍼가 그만큼 들고 있는다.
+        while (false == connection.wantsClose && InboundHasHeadroom())
+        {
+            NetChannel channel = NetChannel::ReliableOrdered;
+            std::size_t received = 0;
+            const SocketIo io = connection.peer->Receive(channel, m_messageScratch.Data(), m_messageScratch.Size(), received);
+            if (io == SocketIo::WouldBlock)
+            {
+                break;
+            }
+            if (io != SocketIo::Ok)
+            {
+                RequestClose(connection, io == SocketIo::Closed ? DisconnectReason::Normal : DisconnectReason::Error);
+                return;
+            }
+            connection.lastReceiveMilliseconds = m_clock.NowMilliseconds();
+            if (received < MessageHeaderBytes || false == IsKnownChannel(channel))
+            {
+                RequestClose(connection, DisconnectReason::Error);
+                return;
+            }
+            const MessageId messageId = ReadMessageId(m_messageScratch.Data());
+            const std::uint8_t* body = m_messageScratch.Data() + MessageHeaderBytes;
+            const std::uint32_t bodySize = static_cast<std::uint32_t>(received) - MessageHeaderBytes;
+            if (messageId >= FirstSystemMessageId)
+            {
+                HandleSystemMessage(connection, messageId, body, bodySize);
+                continue;
+            }
+            std::uint8_t* destination = ReserveInbound(connection, messageId, channel, bodySize);
+            if (nullptr == destination)
+            {
+                m_overflowPending = true;
+                continue;
+            }
+            if (bodySize > 0)
+            {
+                std::memcpy(destination, body, bodySize);
+            }
+        }
     }
 
     void Transport::BeginWebSocketHandshake(Connection& connection)
@@ -935,7 +1127,8 @@ namespace JBro::Network
         case SystemUdpToken:
         {
             // 클라이언트만. 서버가 준 토큰으로 UDP 를 켠다. UDP 가 없는 플랫폼이면 비신뢰는 WS 에 남는다.
-            if (false == connection.serverSide && sizeof(UdpTokenPayload) == size && m_config.udpEnabled)
+            if (false == connection.serverSide && connection.kind == ConnectionKind::Socket && sizeof(UdpTokenPayload) == size
+                && m_config.udpEnabled)
             {
                 UdpTokenPayload token;
                 std::memcpy(&token, payload, sizeof(token));
@@ -963,7 +1156,7 @@ namespace JBro::Network
         connection.lastPingMilliseconds = now;
         connection.udp.readyMilliseconds = now;
         // 서버: 이 연결의 UDP 토큰을 발급해 신뢰 채널로 전한다. 클라이언트가 그것으로 UDP 를 켠다.
-        if (connection.serverSide && nullptr != m_udpSocket.Get())
+        if (connection.serverSide && connection.kind == ConnectionKind::Socket && nullptr != m_udpSocket.Get())
         {
             std::uint64_t token = NextToken();
             while (nullptr != FindConnectionByToken(token))
@@ -1155,6 +1348,10 @@ namespace JBro::Network
             if (nullptr != connection.stream.Get())
             {
                 connection.stream->Close();
+            }
+            if (nullptr != connection.peer.Get())
+            {
+                connection.peer->Close();
             }
             m_connections.RemoveAt(index);
         }
@@ -1364,7 +1561,7 @@ namespace JBro::Network
         const double now = m_clock.NowMilliseconds();
         for (Connection& connection : m_connections)
         {
-            if (connection.phase != Phase::Ready || connection.wantsClose)
+            if (connection.phase != Phase::Ready || connection.wantsClose || connection.kind == ConnectionKind::Peer)
             {
                 continue;
             }
@@ -1592,6 +1789,20 @@ namespace JBro::Network
         connection.send.Reset(m_config.sendBufferBytes);
         connection.receive.Reset(m_config.receiveBufferBytes);
         connection.fragment.Resize(m_config.maxMessageBytes + MessageHeaderBytes);
+        const double now = m_clock.NowMilliseconds();
+        connection.lastReceiveMilliseconds = now;
+        connection.lastPingMilliseconds = now;
+        return connection;
+    }
+
+    Transport::Connection& Transport::AddPeerConnection(ConnectionId id, OwnerPtr<IPeerConnection> peer, bool serverSide)
+    {
+        Connection& connection = m_connections.Emplace();
+        connection.id = id;
+        connection.peer = std::move(peer);
+        connection.kind = ConnectionKind::Peer;
+        connection.serverSide = serverSide;
+        connection.phase = Phase::PeerConnecting;
         const double now = m_clock.NowMilliseconds();
         connection.lastReceiveMilliseconds = now;
         connection.lastPingMilliseconds = now;

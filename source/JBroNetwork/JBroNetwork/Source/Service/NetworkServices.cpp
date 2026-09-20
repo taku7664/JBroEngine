@@ -1,4 +1,5 @@
 ﻿#include <JBro/Network/Internal/SystemContext.h>
+#include <JBro/Network/Peer/Signaling.h>
 #include <JBro/Network/Service/NetworkService.h>
 #include <JBro/Network/Service/NetworkSessionService.h>
 
@@ -83,7 +84,8 @@ namespace JBro::Service
         Network::NetChannel channel) const
     {
         System::INetworkSystem* network = Network();
-        if (nullptr == network || Network::IsReplicationMessage(messageId) || messageId >= Network::FirstSystemMessageId)
+        if (nullptr == network || Network::IsSignalingMessage(messageId) || Network::IsReplicationMessage(messageId)
+            || messageId >= Network::FirstSystemMessageId)
         {
             return false;
         }
@@ -93,7 +95,8 @@ namespace JBro::Service
     bool NetworkService::Broadcast(Network::MessageId messageId, const void* data, std::uint32_t size, Network::NetChannel channel) const
     {
         System::INetworkSystem* network = Network();
-        if (nullptr == network || Network::IsReplicationMessage(messageId) || messageId >= Network::FirstSystemMessageId)
+        if (nullptr == network || Network::IsSignalingMessage(messageId) || Network::IsReplicationMessage(messageId)
+            || messageId >= Network::FirstSystemMessageId)
         {
             return false;
         }

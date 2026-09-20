@@ -82,6 +82,19 @@ namespace JBro::Network
         // 연결 하나를 닫는다. 실제 정리는 이번 `Update` 끝에서 한다 - 순회 중에 지우지 않는다.
         void CloseConnection(ConnectionId connection);
 
+        // ── 피어형 연결(WebRTC, network-plan §2.7) ──
+        // 소켓을 듣는 대신 피어를 받는 서버가 된다. 웹 호스트가 이것이다. 이미 역할이 있으면 거짓이다.
+        bool HostPeers();
+        // 호스트: 상대의 제안을 기다리는 피어 하나를 만든다. 시그널은 `TakePeerSignal` / `PushPeerSignal` 로 호출측이 중계한다.
+        // 플랫폼에 WebRTC 가 없으면 `InvalidConnectionId`.
+        ConnectionId AcceptPeer();
+        // 클라이언트: 제안을 만드는 피어 하나로 호스트에 붙는다(`ServerConnectionId`).
+        bool ConnectPeer();
+        // 상대에게 전할 시그널 바이트. 없으면 0. 시그널이 어떻게 건너가는지는 트랜스포트가 모른다 - 시그널링 서버의 일이다.
+        std::uint32_t TakePeerSignal(ConnectionId connection, void* buffer, std::uint32_t capacity);
+        bool PushPeerSignal(ConnectionId connection, const void* data, std::uint32_t size);
+        ConnectionKind GetConnectionKind(ConnectionId connection) const;
+
         NetworkRole GetRole() const;
         bool IsListening() const;
         // hello 가 끝나기 전까지는 `Connecting` 이다.
@@ -128,6 +141,8 @@ namespace JBro::Network
         {
             // 클라이언트의 논블로킹 접속 진행 중.
             TcpConnecting,
+            // 피어형. 시그널이 오가고 데이터 채널이 열리기를 기다린다.
+            PeerConnecting,
             // WS 오프닝 핸드셰이크 교환 중.
             WebSocketHandshaking,
             // WS 는 열렸고 hello 를 기다린다. 게임에는 아직 알리지 않았다.
@@ -142,6 +157,9 @@ namespace JBro::Network
 
             ConnectionId id = InvalidConnectionId;
             OwnerPtr<IStreamSocket> stream;
+            // 피어형이면 이것이 있고 `stream` 은 비어 있다. 채널은 데이터 채널이 스스로 지키므로 UDP 도 신뢰 엔진도 쓰지 않는다.
+            OwnerPtr<IPeerConnection> peer;
+            ConnectionKind kind = ConnectionKind::Socket;
             Phase phase = Phase::TcpConnecting;
             bool serverSide = false;
             bool wantsClose = false;
@@ -198,6 +216,11 @@ namespace JBro::Network
         const Connection* FindConnection(ConnectionId id) const;
         Connection* FindConnectionByToken(std::uint64_t token);
         Connection& AddConnection(ConnectionId id, OwnerPtr<IStreamSocket> stream, bool serverSide);
+        Connection& AddPeerConnection(ConnectionId id, OwnerPtr<IPeerConnection> peer, bool serverSide);
+        void PollPeer(Connection& connection);
+        bool SendOverPeer(Connection& connection, MessageId messageId, const void* data, std::uint32_t size, NetChannel channel);
+        // 시스템 메시지를 연결 종류에 맞는 길로 보낸다.
+        void SendControl(Connection& connection, MessageId messageId, const void* data, std::uint32_t size);
         void RequestClose(Connection& connection, DisconnectReason reason);
         void PushEvent(NetworkEventKind kind, ConnectionId connection, DisconnectReason reason);
 
@@ -256,6 +279,8 @@ namespace JBro::Network
         TransportConfig m_config;
 
         NetworkRole m_role = NetworkRole::None;
+        // 소켓을 듣지 않고 피어를 받는 서버다.
+        bool m_peerHosting = false;
         OwnerPtr<IStreamSocket> m_listener;
         OwnerPtr<IDatagramSocket> m_udpSocket;
         // 클라이언트가 UDP 를 켜 보았으나 이 플랫폼에 없었다. 그 뒤로는 기다리지 않고 WS 다.

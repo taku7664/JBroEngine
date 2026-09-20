@@ -13,6 +13,7 @@ namespace JBro::Network::Testing
 {
     class MemoryStreamSocket;
     class MemoryDatagramSocket;
+    class MemoryPeerConnection;
 
     // 한 프로세스 안의 가짜 네트워크다. 스트림은 파이프 한 쌍, 데이터그램은 포트 표다. 소켓은 이 provider 보다
     // 오래 살면 안 된다 - 테스트가 provider 를 먼저 만들고 마지막에 없앤다.
@@ -38,12 +39,26 @@ namespace JBro::Network::Testing
             std::uint8_t data[MaxDatagramBytes] = {};
         };
 
+        // 피어 한 쌍의 데이터 채널 넷, 양방향. 레코드는 [uint32 size][bytes] 다 - 데이터 채널은 메시지 경계를 지킨다.
+        struct PeerLink
+        {
+            ByteRing toAcceptor[NetChannelCount];
+            ByteRing toInitiator[NetChannelCount];
+            bool initiatorOpen = true;
+            bool acceptorOpen = true;
+            // 응답 시그널이 제안자에게 닿은 뒤에야 양쪽이 Connected 다 - 실제 흐름과 같은 순서다.
+            bool linked = false;
+            std::uint32_t rng = 0x9E3779B9u;
+        };
+
         explicit MemorySocketProvider(std::uint32_t pipeBytes = 256 * 1024, std::uint32_t datagramQueueLength = 256);
         ~MemorySocketProvider() override;
 
         OwnerPtr<IStreamSocket> CreateStreamSocket() override;
         OwnerPtr<IDatagramSocket> CreateDatagramSocket() override;
+        // 인메모리 WebRTC 흉내. 시그널은 "O<번호>"(제안) 와 "A<번호>"(응답) 글자다. 거짓으로 두면 null 이다 - 스택이 없는 플랫폼.
         OwnerPtr<IPeerConnection> CreatePeerConnection(const PeerConnectionDesc& desc) override;
+        void SetPeerAvailable(bool available);
 
         // 거짓이면 `CreateDatagramSocket` 이 null 이다 - UDP 가 없는 플랫폼(웹)을 흉내 낸다.
         void SetDatagramAvailable(bool available);
@@ -62,6 +77,11 @@ namespace JBro::Network::Testing
         bool BindDatagram(std::uint16_t& port, MemoryDatagramSocket* socket);
         void UnbindDatagram(std::uint16_t port);
         bool DeliverDatagram(const Endpoint& to, const Endpoint& from, const void* data, std::size_t size);
+
+        // ── 피어가 쓰는 내부 API ──
+        PeerLink* LinkPeers(std::uint32_t initiatorIndex, MemoryPeerConnection* acceptor);
+        void UnregisterPeer(MemoryPeerConnection* peer);
+        bool ShouldDropUnreliable(PeerLink& link);
 
         static Endpoint MakeEndpoint(std::uint16_t port);
         static std::uint16_t PortOf(const Endpoint& endpoint);
@@ -94,6 +114,10 @@ namespace JBro::Network::Testing
         Array<Listener> m_listeners;
         Array<DatagramBinding> m_datagramBindings;
         std::uint16_t m_nextEphemeralPort = 49152;
+        bool m_peerAvailable = true;
+        Array<OwnerPtr<PeerLink>> m_peerLinks;
+        // 번호 → 피어. 죽은 피어는 null 이다.
+        Array<MemoryPeerConnection*> m_peers;
     };
 
     class MemoryStreamSocket final : public IStreamSocket
@@ -149,5 +173,46 @@ namespace JBro::Network::Testing
         bool m_open = false;
         bool m_bound = false;
         std::uint16_t m_port = 0;
+    };
+}
+
+namespace JBro::Network::Testing
+{
+    // 인메모리 피어 연결. 제안자가 "O<번호>" 를 내고, 수락자가 그것을 받아 링크를 만들고 "A<번호>" 를 내고, 제안자가 그것을 받으면 양쪽이 열린다.
+    class MemoryPeerConnection final : public IPeerConnection
+    {
+    public:
+        MemoryPeerConnection(MemorySocketProvider& provider, std::uint32_t index, bool initiator);
+        ~MemoryPeerConnection() override;
+
+        ConnectionState GetState() const override;
+        std::uint32_t TakeSignal(void* buffer, std::uint32_t capacity) override;
+        bool PushSignal(const void* data, std::uint32_t size) override;
+        SocketIo Send(NetChannel channel, const void* data, std::size_t size) override;
+        SocketIo Receive(NetChannel& outChannel, void* buffer, std::size_t capacity, std::size_t& outReceived) override;
+        void Close() override;
+
+        void AttachLink(MemorySocketProvider::PeerLink* link);
+        std::uint32_t Index() const;
+
+    private:
+        enum class Stage : std::uint8_t
+        {
+            Idle,
+            WaitingAnswer,
+            AnswerReady,
+            Done
+        };
+
+        bool PeerOpen() const;
+        ByteRing& Outgoing(NetChannel channel) const;
+        ByteRing& Incoming(NetChannel channel) const;
+
+        MemorySocketProvider& m_provider;
+        std::uint32_t m_index;
+        bool m_initiator;
+        MemorySocketProvider::PeerLink* m_link = nullptr;
+        Stage m_stage = Stage::Idle;
+        bool m_closed = false;
     };
 }
