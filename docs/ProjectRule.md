@@ -35,7 +35,8 @@
   `ReadWholeFile`·`WriteWholeFile`·`FileExists`·`DirectoryExists`·`EnumerateDirectory` 를 거친다. 경로는 UTF-8 이다.
   폴더 감시도 같은 자리다: `WatchDirectory`·`StopWatching`·`TakeFileEvents` 이고 이벤트는 경로 글자만 든 POD 다.
   워커는 할당도 `SafePtr` 도 만지지 않으며, 꺼내 적용하는 것은 메인 스레드가 프레임 밖에서 한다. 게임 실행에는 감시가
-  없다. (MUST) (D-121)
+  없다. 감시의 정리는 감시 객체의 소멸자 한 곳이고, 워커의 죽음은 `Overflow` 한 번과 `IsWatching` 거짓으로 드러난다.
+  적용은 이벤트 뒤 조용한 프레임이 지난 다음에 하고, 다시 스캔은 실패해도 전 레지스트리를 남긴다. (MUST) (D-121·D-123)
   Tier S 모듈(JBroCore)은 플랫폼을 볼 수 없으므로 경로를 받는 API 를 두지 않고 글자를 받아 `Parse` 한다. (MUST) (D-112)
   예외는 둘이다: `EditorTheme.cpp` 의 아이콘 글꼴(런처 인자가 ANSI, D-97)과 컴파일러 도구 `JBroScriptCompiler` 의
   진단 메시지 파일. 그 외에 `fopen`·`std::filesystem` 을 엔진 모듈에 새로 두지 않는다.
@@ -715,7 +716,8 @@
   에셋 타입 이름이면 그 타입만 보인다. 편집 뒤 해석은 커맨드 판번호가 움직였을 때 `BindCanvasAssets` 를 다시 부르는
   것으로 한다 - 커맨드 종류로 고르지 않는다. (MUST) (D-118)
 - 에셋 선택과 오브젝트 선택은 배타이고 인스펙터는 하나만 보인다. 에셋의 임포트 옵션 편집은 `SetAssetMetaCommand` 로만
-  하며 되살릴 값은 메타 글자 전체다. 메타 쓰기(`SaveAssetMetaFile`)는 읽은 옵션 블록을 그대로 보존한다. (MUST) (D-120)
+  하며 되살릴 값은 메타 글자 전체다. 메타 쓰기(`SaveAssetMetaFile`)는 읽은 옵션 블록을 그대로 보존하고, 적히지 않는
+  값이 있으면 파일을 쓰지 않는다 - 빈 블록을 적으면 다음 읽기가 기본값으로 대신해 옵션이 조용히 사라진다. (MUST) (D-120·D-123)
 - 나무를 그리는 자리는 **행 사각형과 내용 사각형을 나눠 주는 트리 위젯**을 쓴다. (MUST)
   기존 `ImTreeBegin`/`ImTreeEx` 가 행 전체의 사각형과 그 안의 내용 영역을 따로 돌려주어,
   썸네일·배지·버튼을 행에 얹을 수 있다. `ImGui::TreeNodeEx` 를 직접 부르면 그 자리가 없다.
