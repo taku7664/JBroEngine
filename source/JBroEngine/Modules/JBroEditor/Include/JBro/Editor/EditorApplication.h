@@ -9,6 +9,7 @@
 #include <JBro/Editor/EditorPopup.h>
 #include <JBro/Editor/EditorUI.h>
 #include <JBro/Types/Array.h>
+#include <JBro/Host/IFramework.h>
 #include <JBro/Host/ProjectFile.h>
 #include <JBro/Platform/Platform.h>
 #include <JBro/RHI/RHI.h>
@@ -189,6 +190,44 @@ namespace JBro
         // 그 텍스처의 크기다. 게임 해상도이고 에디터 창과 무관하다.
         Extent2D GetGameViewExtent() const;
 
+        // ── 캔버스 뷰(편집 화면) ─────────────────────────────────────────
+        //
+        // 기존 엔진에서 유니티의 씬 뷰 노릇을 하던 화면이다(D-130). 게임 뷰는 게임의
+        // 카메라가 보는 것이고 이쪽은 **편집 카메라**가 보는 것이다. 둘은 역할이
+        // 다르므로 같은 프레임에 함께 있어야 한다.
+        //
+        // **크기는 패널 크기다.** 게임 화면과 반대다 - 게임은 해상도가 정해진 화면이라
+        // 패널에 맞춰 늘리지만, 편집 화면은 패널이 곧 화면이라 패널 크기로 그려야
+        // 넓혔을 때 흐려지지 않는다.
+        //
+        // 매 프레임 다시 건다. 걸지 않은 프레임에는 그리지 않고 텍스처는 그대로 둔다
+        // (게임 뷰와 같은 규칙이다, D-63).
+        // ── 시뮬레이션 (D-131) ───────────────────────────────────────────
+        //
+        // 기존 엔진과 같은 뜻이다: **재생을 누르기 전의 캔버스로 돌아온다.** 게임을 돌리면
+        // 스크립트가 값을 바꾸고 오브젝트를 만들고 지우는데, 그것이 편집 중인 캔버스에
+        // 그대로 남으면 저장했을 때 게임이 만든 상태가 파일이 된다.
+        //
+        // **되살릴 값을 먼저 뜨지 못하면 재생하지 않는다**(§11.5). 캔버스를 글자로 뜨지
+        // 못하면 거짓을 돌려주고 아무 일도 하지 않는다 - 돌려놓을 수 없는 재생은
+        // 편집 내용을 잃는 일이다.
+        bool StartSimulation();
+        // 멈추고 재생 전의 캔버스로 되돌린다. 돌지 않고 있으면 아무 일도 하지 않는다.
+        void StopSimulation();
+        bool IsSimulationPlaying() const;
+        // 메뉴와 단축키가 함께 쓰는 한 손짓이다. 돌고 있으면 세우고, 아니면 시작한다.
+        void ToggleSimulation();
+        // 재생 중에만 뜻이 있다. 멈춰 세우면 그린 것은 그대로 두고 게임만 세운다.
+        void SetSimulationPaused(bool paused);
+        bool IsSimulationPaused() const;
+
+        bool RequestCanvasView(
+            const Extent2D& extent, float centerX, float centerY, float orthographicSize);
+        TextureHandle GetCanvasViewTexture() const;
+        // 실제로 잡혀 있는 텍스처의 크기다. 요청한 크기를 **올림**한 값이라 패널을
+        // 조금 끌 때마다 텍스처를 다시 만들지 않는다.
+        Extent2D GetCanvasViewExtent() const;
+
         bool Tick(float deltaTime);
         void CloseProject();
         void Shutdown();
@@ -280,6 +319,20 @@ namespace JBro
         TextureHandle m_gameView;
         Extent2D m_gameViewExtent;
         bool m_gameViewRequested = false;
+        // 캔버스 뷰가 그려지는 텍스처와 이번 프레임의 요청(D-130).
+        TextureHandle m_canvasView;
+        Extent2D m_canvasViewExtent;
+        EditorViewDesc m_canvasViewRequest;
+        bool m_canvasViewRequested = false;
+        // 이번 프레임에 요청된 크기의 텍스처를 마련한다. 이미 그 크기면 아무 일도 하지 않는다.
+        bool EnsureCanvasViewTexture(const Extent2D& extent);
+        void ReleaseCanvasViewTexture();
+        // 재생을 누르기 전의 캔버스 글자다(D-131). 비어 있으면 돌지 않고 있다는 뜻이다.
+        String m_simulationSnapshot;
+        bool m_simulationPlaying = false;
+        bool m_simulationPaused = false;
+        // 캔버스를 비운다. 되돌리기 위해 다시 읽어 넣기 전에 부른다.
+        void ClearCanvasObjects();
         bool m_uiEnabled = false;
         // 메뉴에서 끝내기를 골랐다. 다음 틱에서 내려간다.
         bool m_exitRequested = false;

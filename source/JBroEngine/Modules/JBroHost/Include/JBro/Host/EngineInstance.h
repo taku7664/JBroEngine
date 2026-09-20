@@ -84,6 +84,19 @@ namespace JBro
         // 프레임 밖에서만 바꾼다.
         bool SetGameViewTarget(const FrameTarget& target);
 
+        // **이번 프레임에 편집 화면을 한 번 더 그린다**(D-130). 캔버스 뷰 패널이 매 프레임
+        // 다시 건다 - 그 패널이 그려지지 않는 프레임에는 걸리지 않고, 그리지도 않는다
+        // (게임 뷰와 같은 규칙이다, D-63). 프레임 밖에서만 부른다.
+        bool RequestEditorView(const EditorViewDesc& view);
+
+        // **게임을 돌릴 것인가**(D-131). 게임 실행은 늘 참이다. 에디터는 재생을 누르기
+        // 전까지 거짓으로 두어 스크립트와 물리가 돌지 않게 한다 - 편집하는 동안 게임이
+        // 돌면 방금 놓은 값이 다음 프레임에 덮어써진다.
+        //
+        // 거짓이어도 **그리기는 그대로 돈다.** 캔버스 뷰도 게임 뷰도 멈춘 장면을 보여야 한다.
+        void SetSimulationEnabled(bool enabled);
+        bool IsSimulationEnabled() const;
+
         bool Tick(float deltaTime);
         void RequestExit();
         // Callback calls defer teardown until that callback returns.
@@ -161,6 +174,12 @@ namespace JBro
         ProjectFile m_project;
         FrameworkContext m_frameworkContext;
         FrameTarget m_gameViewTarget;
+        // 이번 프레임의 편집 화면 요청(D-130). 프레임을 그리고 나면 비운다 - 매 프레임
+        // 다시 걸어야 그려진다.
+        EditorViewDesc m_editorView;
+        bool m_hasEditorView = false;
+        // 게임을 돌릴 것인가(D-131). 게임 호스트는 손대지 않으므로 기본이 참이다.
+        bool m_simulationEnabled = true;
         State m_state = State::Stopped;
         bool m_exitRequested = false;
         bool m_createMissingAssetMeta = false;

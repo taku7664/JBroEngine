@@ -36,7 +36,9 @@ namespace JBro
         void UnbindScriptContexts() noexcept override;
         void Update(float deltaTime) override;
         JArrayView<ScriptContextBlock> GetScriptContextBlocks() const noexcept override;
+        void SetSimulationEnabled(bool enabled) override;
         RenderResult Render() override;
+        RenderResult RenderEditorView(const EditorViewDesc& view) override;
         void Shutdown() override;
         void BindCanvasAssets() override;
 
@@ -51,6 +53,8 @@ namespace JBro
     private:
         void CreateDefaultSystems();
         void RunFixedSteps(float deltaTime);
+        // 지금 정해져 있는 값을 시스템들에 먹인다. 시스템이 선 뒤와 값이 바뀔 때 부른다.
+        void ApplySimulationEnabled();
 
         FrameworkContext m_context;
         OwnerPtr<Canvas> m_canvas;
@@ -70,6 +74,8 @@ namespace JBro
         std::uint32_t             m_scriptBlockCount = 0;
         double           m_fixedAccumulator = 0.0;
         bool             m_initialized      = false;
+        // 게임을 돌릴 것인가(D-131). 게임 실행은 손대지 않으므로 기본이 참이다.
+        bool             m_simulationEnabled = true;
     };
 
     IFramework* CreateFramework2D();

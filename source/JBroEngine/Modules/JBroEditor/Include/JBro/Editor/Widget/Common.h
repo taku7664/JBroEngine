@@ -30,6 +30,18 @@ namespace JBro::Widget
     // 빈 글자면 아무것도 하지 않는다. 부르는 쪽이 분기하지 않아도 되게.
     void HoveredTooltip(const char* text, ImGuiHoveredFlags flags = ImGuiHoveredFlags_None);
 
+    // 이번에 누른 것이 **끌기였는가**. 놓는 프레임에도 참이다.
+    //
+    // 누를 때가 아니라 뗄 때 고르는 자리(계층·캔버스 뷰)가 이것을 묻는다 - 끌어다
+    // 놓은 것을 "제자리를 클릭했다" 로 세면, 끌고 나서 손을 뗄 때마다 선택이 바뀐다.
+    // ImGui 의 임계값을 그대로 쓴다.
+    bool MouseWasDragged(ImGuiMouseButton button);
+
+    // 도구 줄에서 단추 무리를 가르는 **세로 줄**이다. 앞뒤 간격까지 함께 둔다 -
+    // 부르는 쪽마다 `SameLine` 의 간격을 따로 정하면 도구 줄마다 폭이 달라진다.
+    // (`ImGui::Separator` 는 가로줄이고, 세로줄은 공개 헤더에 없다.)
+    void ToolBarSeparator();
+
     // 밀어 넣은 만큼 세어 두었다가 알아서 빼낸다. 중간에 돌아 나가는 길이 생겨도
     // 스타일 스택이 어긋나지 않는다 - ImGui 는 그 어긋남을 다음 프레임에야 말한다.
     class StyleScope

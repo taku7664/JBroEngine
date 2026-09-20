@@ -91,6 +91,64 @@ namespace JBro::Internal
         }
     }
 
+    namespace
+    {
+        // 모아 둔 스프라이트를 이미 열린 뷰에 밀어 넣는다. 게임 뷰와 캔버스 뷰가
+        // 같은 목록을 쓰므로 이 부분만 따로 뗀다.
+        bool PushSprites(const RenderWorld2D& world, Renderer& renderer)
+        {
+            constexpr std::size_t BatchSize = 64;
+            SpriteSubmit batch[BatchSize];
+            bool accepted = world.GetDroppedSpriteCount() == 0;
+            for (std::size_t offset = 0; offset < world.GetSpriteCount(); offset += BatchSize)
+            {
+                const std::size_t count = (std::min)(BatchSize, world.GetSpriteCount() - offset);
+                for (std::size_t index = 0; index < count; ++index)
+                {
+                    batch[index] = BuildSprite(world.GetSprite(offset + index));
+                }
+                if (false == renderer.SubmitSprites({batch, static_cast<std::uint32_t>(count)}))
+                {
+                    accepted = false;
+                    break;
+                }
+            }
+            return accepted;
+        }
+    }
+
+    RenderResult SubmitEditorView2D(
+        const RenderWorld2D& world, Renderer& renderer, const EditorViewDesc& view)
+    {
+        if (false == view.target.IsValid() || view.extent.width == 0 || view.extent.height == 0)
+        {
+            return RenderResult::NothingToSubmit;
+        }
+        // **게임 카메라를 빌리지 않는다.** 캔버스 뷰는 카메라가 하나도 없는 캔버스도
+        // 보여 주어야 하고, 배율과 위치는 편집하는 사람이 정한다.
+        RenderCamera2D editor;
+        editor.orthographicSize = view.orthographicSize;
+        // 회전 없는 카메라의 뷰 행렬은 화면 한가운데를 원점으로 옮기는 것이다.
+        editor.view = Matrix3x2{1.0f, 0.0f, 0.0f, 1.0f, -view.centerX, -view.centerY};
+        editor.clearColor = Color{
+            view.clearColor[0], view.clearColor[1], view.clearColor[2], view.clearColor[3]};
+
+        CameraParams parameters;
+        if (false == BuildCamera(editor, view.extent, parameters))
+        {
+            return RenderResult::Failed;
+        }
+        parameters.target = view.target;
+        parameters.targetExtent = view.extent;
+        if (false == renderer.BeginView(parameters))
+        {
+            return RenderResult::Failed;
+        }
+        const bool accepted = PushSprites(world, renderer);
+        const bool closed = renderer.EndView();
+        return (accepted && closed) ? RenderResult::Submitted : RenderResult::Failed;
+    }
+
     RenderResult SubmitRenderWorld2D(const RenderWorld2D& world, Renderer& renderer)
     {
         const RenderCamera2D* camera = world.GetCamera();
@@ -108,22 +166,7 @@ namespace JBro::Internal
         {
             return RenderResult::Failed;
         }
-        constexpr std::size_t BatchSize = 64;
-        SpriteSubmit batch[BatchSize];
-        bool accepted = world.GetDroppedSpriteCount() == 0;
-        for (std::size_t offset = 0; offset < world.GetSpriteCount(); offset += BatchSize)
-        {
-            const std::size_t count = (std::min)(BatchSize, world.GetSpriteCount() - offset);
-            for (std::size_t index = 0; index < count; ++index)
-            {
-                batch[index] = BuildSprite(world.GetSprite(offset + index));
-            }
-            if (false == renderer.SubmitSprites({batch, static_cast<std::uint32_t>(count)}))
-            {
-                accepted = false;
-                break;
-            }
-        }
+        const bool accepted = PushSprites(world, renderer);
         const bool closed = renderer.EndView();
         return (accepted && closed) ? RenderResult::Submitted : RenderResult::Failed;
     }

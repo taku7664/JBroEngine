@@ -22,6 +22,7 @@
 #include <JBro/Runtime/GameObject.h>
 
 #include "Panel/AssetBrowserPanel.h"
+#include "Panel/CanvasViewPanel.h"
 #include "Panel/GameViewPanel.h"
 #include "Panel/HierarchyPanel.h"
 #include "Panel/InspectorPanel.h"
@@ -576,11 +577,19 @@ namespace JBro
         m_gameViewExtent = gameViewExtent;
         m_uiEnabled = true;
 
+        // **에디터는 멈춘 상태로 뜬다**(D-131). 재생을 누르기 전까지 스크립트와 물리는
+        // 돌지 않는다 - 편집하는 동안 게임이 돌면 방금 놓은 값이 다음 프레임에 덮어써진다.
+        m_engine->SetSimulationEnabled(false);
+        m_simulationPlaying = false;
+        m_simulationPaused = false;
+
         // 기본 패널이다. 더 얹는 것은 이 위에 `AddPanel` 로 붙인다.
-        // 첫 번째가 가운데를 갖는다 - 게임 화면이 거기여야 한다.
+        // **첫 번째가 가운데를 갖는다 - 편집 화면이 거기여야 한다.** 게임 뷰도 같은 칸에
+        // 탭으로 들어가지만, 처음 보이는 것은 만드는 화면이다(D-130).
         try
         {
-            if (false == AddPanel(MakeOwnerPtr<GameViewPanel>())
+            if (false == AddPanel(MakeOwnerPtr<CanvasViewPanel>())
+                || false == AddPanel(MakeOwnerPtr<GameViewPanel>())
                 || false == AddPanel(MakeOwnerPtr<HierarchyPanel>())
                 || false == AddPanel(MakeOwnerPtr<InspectorPanel>())
                 || false == AddPanel(MakeOwnerPtr<AssetBrowserPanel>())
@@ -863,6 +872,217 @@ namespace JBro
         return m_gameViewExtent;
     }
 
+    void EditorApplication::ClearCanvasObjects()
+    {
+        Canvas* canvas = GetCanvas();
+        if (canvas == nullptr)
+        {
+            return;
+        }
+        // **뿌리만 지운다.** 자식은 부모와 함께 사라지므로, 전부를 큐에 넣으면 이미
+        // 사라진 것을 한 번 더 지우려 든다.
+        Array<GameObject*> roots;
+        canvas->GetRootObjects(roots);
+        for (std::size_t index = 0; index < roots.Size(); ++index)
+        {
+            if (GameObject* object = roots[index])
+            {
+                canvas->DestroyObject(object);
+            }
+        }
+        canvas->FlushPendingDestroy();
+    }
+
+    bool EditorApplication::StartSimulation()
+    {
+        if (m_simulationPlaying || m_engine.Get() == nullptr)
+        {
+            return false;
+        }
+        Canvas* canvas = GetCanvas();
+        if (canvas == nullptr)
+        {
+            return false;
+        }
+        // **되살릴 값을 먼저 뜬다**(§11.5). 뜨지 못하면 재생하지 않는다 - 돌려놓을 수
+        // 없는 재생은 편집 내용을 잃는 일이다.
+        String snapshot;
+        CanvasFileError error;
+        if (false == WriteCanvasText(*canvas, snapshot, error))
+        {
+            return false;
+        }
+        m_simulationSnapshot = std::move(snapshot);
+        m_simulationPlaying = true;
+        m_simulationPaused = false;
+        m_engine->SetSimulationEnabled(true);
+        return true;
+    }
+
+    void EditorApplication::StopSimulation()
+    {
+        if (false == m_simulationPlaying)
+        {
+            return;
+        }
+        m_simulationPlaying = false;
+        m_simulationPaused = false;
+        if (m_engine.Get() != nullptr)
+        {
+            m_engine->SetSimulationEnabled(false);
+        }
+        Canvas* canvas = GetCanvas();
+        if (canvas == nullptr)
+        {
+            m_simulationSnapshot.clear();
+            return;
+        }
+        // **고른 것과 번호를 먼저 놓는다.** 아래에서 오브젝트가 통째로 새로 만들어지므로,
+        // 지금 들고 있는 주소와 번호는 전부 다른 것을 가리키게 된다.
+        ClearSelection();
+        SetSelectedObject(nullptr);
+        ClearCanvasObjects();
+        CanvasFileError error;
+        if (m_simulationSnapshot.size() != 0)
+        {
+            ReadCanvasText(*canvas, m_simulationSnapshot.c_str(), m_simulationSnapshot.size(), error);
+        }
+        m_simulationSnapshot.clear();
+        m_objectIds.Clear();
+        // 재생 중에 쌓인 편집은 되돌릴 대상이 사라졌다. 스택을 비우지 않으면 Ctrl+Z 가
+        // 이제 없는 오브젝트를 가리킨다.
+        m_commands.Clear();
+        if (m_framework.Get() != nullptr)
+        {
+            m_framework->BindCanvasAssets();
+        }
+    }
+
+    bool EditorApplication::IsSimulationPlaying() const
+    {
+        return m_simulationPlaying;
+    }
+
+    void EditorApplication::ToggleSimulation()
+    {
+        if (m_simulationPlaying)
+        {
+            StopSimulation();
+        }
+        else
+        {
+            StartSimulation();
+        }
+    }
+
+    void EditorApplication::SetSimulationPaused(bool paused)
+    {
+        if (false == m_simulationPlaying)
+        {
+            return;
+        }
+        m_simulationPaused = paused;
+        if (m_engine.Get() != nullptr)
+        {
+            m_engine->SetSimulationEnabled(false == paused);
+        }
+    }
+
+    bool EditorApplication::IsSimulationPaused() const
+    {
+        return m_simulationPaused;
+    }
+
+    bool EditorApplication::EnsureCanvasViewTexture(const Extent2D& extent)
+    {
+        if (m_canvasView.IsValid()
+            && m_canvasViewExtent.width == extent.width
+            && m_canvasViewExtent.height == extent.height)
+        {
+            return true;
+        }
+        Renderer* renderer = m_engine ? m_engine->GetRenderer() : nullptr;
+        IRHIDevice* device = renderer != nullptr ? renderer->GetDevice() : nullptr;
+        if (device == nullptr)
+        {
+            return false;
+        }
+        TextureDesc desc;
+        desc.extent = extent;
+        desc.format = renderer->GetBackBufferFormat();
+        desc.usage = TextureUsage::RenderTarget | TextureUsage::Sampled;
+        const TextureHandle created = device->CreateTexture(desc);
+        if (false == created.IsValid())
+        {
+            return false;
+        }
+        // **새것을 만든 뒤에 옛것을 놓는다.** 만들지 못했는데 먼저 놓으면 그 프레임에
+        // 붙일 그림이 없어 캔버스 뷰가 깜빡인다. RHI 는 GPU 가 다 쓴 뒤에 실제로 지운다.
+        if (m_canvasView.IsValid())
+        {
+            device->DestroyTexture(m_canvasView);
+        }
+        m_canvasView = created;
+        m_canvasViewExtent = extent;
+        return true;
+    }
+
+    void EditorApplication::ReleaseCanvasViewTexture()
+    {
+        if (m_canvasView.IsValid() && m_engine)
+        {
+            if (Renderer* renderer = m_engine->GetRenderer())
+            {
+                if (IRHIDevice* device = renderer->GetDevice())
+                {
+                    device->DestroyTexture(m_canvasView);
+                }
+            }
+        }
+        m_canvasView = {};
+        m_canvasViewExtent = {};
+        m_canvasViewRequested = false;
+    }
+
+    bool EditorApplication::RequestCanvasView(
+        const Extent2D& extent, float centerX, float centerY, float orthographicSize)
+    {
+        if (false == m_uiEnabled || extent.width == 0 || extent.height == 0
+            || false == std::isfinite(centerX) || false == std::isfinite(centerY)
+            || false == std::isfinite(orthographicSize) || orthographicSize <= 0.0f)
+        {
+            return false;
+        }
+        // **요청한 크기를 올려 맞춘다.** 패널을 조금씩 끄는 동안 픽셀마다 텍스처를
+        // 다시 만들면 그 프레임마다 GPU 자원을 버리게 된다. 64 의 배수면 몇 번만 만든다.
+        constexpr std::uint32_t Step = 64;
+        Extent2D rounded;
+        rounded.width = ((extent.width + Step - 1) / Step) * Step;
+        rounded.height = ((extent.height + Step - 1) / Step) * Step;
+        if (false == EnsureCanvasViewTexture(rounded))
+        {
+            return false;
+        }
+        m_canvasViewRequest = {};
+        m_canvasViewRequest.target = m_canvasView;
+        m_canvasViewRequest.extent = m_canvasViewExtent;
+        m_canvasViewRequest.centerX = centerX;
+        m_canvasViewRequest.centerY = centerY;
+        m_canvasViewRequest.orthographicSize = orthographicSize;
+        m_canvasViewRequested = true;
+        return true;
+    }
+
+    TextureHandle EditorApplication::GetCanvasViewTexture() const
+    {
+        return m_canvasView;
+    }
+
+    Extent2D EditorApplication::GetCanvasViewExtent() const
+    {
+        return m_canvasViewExtent;
+    }
+
     void EditorApplication::AbandonEditorUi()
     {
         DestroyPanels();
@@ -872,6 +1092,10 @@ namespace JBro
         m_ui.AbandonDevice();
         m_gameView = {};
         m_gameViewExtent = {};
+        // 캔버스 뷰 텍스처도 디바이스와 함께 사라졌다. 지우려 들지 않고 잊는다.
+        m_canvasView = {};
+        m_canvasViewExtent = {};
+        m_canvasViewRequested = false;
         ClearSelection();
         m_commands.Clear();
         m_objectIds.Clear();
@@ -900,6 +1124,7 @@ namespace JBro
                 }
             }
         }
+        ReleaseCanvasViewTexture();
         m_ui.Shutdown();
         m_gameView = {};
         m_gameViewExtent = {};
@@ -991,6 +1216,44 @@ namespace JBro
             ImGui::EndMenu();
         }
 
+        // **시뮬레이션 메뉴**(D-131). 기존 엔진의 메인 도크가 같은 자리에 같은 두 항목을
+        // 두었고 단축키도 같다(F5 재생, F6 일시정지).
+        if (ImGui::BeginMenu(Loc::TextOr(LocKeys::MenuSimulation, "Simulation")))
+        {
+            const bool canPlay = GetCanvas() != nullptr;
+            if (false == canPlay)
+            {
+                ImGui::BeginDisabled();
+            }
+            const bool playing = IsSimulationPlaying();
+            if (ImGui::MenuItem(playing
+                    ? Loc::TextOr(LocKeys::MenuSimulationStop, "Stop")
+                    : Loc::TextOr(LocKeys::MenuSimulationPlay, "Play"), "F5"))
+            {
+                ToggleSimulation();
+            }
+            if (false == canPlay)
+            {
+                ImGui::EndDisabled();
+            }
+
+            if (false == playing)
+            {
+                ImGui::BeginDisabled();
+            }
+            bool paused = IsSimulationPaused();
+            if (ImGui::MenuItem(Loc::TextOr(LocKeys::MenuSimulationPause, "Pause"), "F6",
+                    &paused))
+            {
+                SetSimulationPaused(paused);
+            }
+            if (false == playing)
+            {
+                ImGui::EndDisabled();
+            }
+            ImGui::EndMenu();
+        }
+
         if (ImGui::BeginMenu(Loc::TextOr(LocKeys::MenuWindow, "Window")))
         {
             // 패널이 무엇인지 모른 채로 만든다. 레지스트리에 있는 것이 곧
@@ -1072,6 +1335,15 @@ namespace JBro
             else if (control && ImGui::IsKeyPressed(ImGuiKey_Y, false))
             {
                 m_commands.Redo();
+            }
+            // 기존 엔진과 같은 키다: F5 재생·정지, F6 일시정지(D-131).
+            if (GetCanvas() != nullptr && ImGui::IsKeyPressed(ImGuiKey_F5, false))
+            {
+                ToggleSimulation();
+            }
+            if (ImGui::IsKeyPressed(ImGuiKey_F6, false))
+            {
+                SetSimulationPaused(false == IsSimulationPaused());
             }
         }
 
@@ -1417,6 +1689,12 @@ namespace JBro
             m_engine->SetGameViewTarget(target);
         }
         m_gameViewRequested = false;
+        // 캔버스 뷰도 같은 규칙이다(D-130). 이 프레임에 패널이 붙였으면 한 번 더 그린다.
+        if (m_uiEnabled && m_canvasViewRequested)
+        {
+            m_engine->RequestEditorView(m_canvasViewRequest);
+        }
+        m_canvasViewRequested = false;
         // 커맨드가 돌았으면 에셋 해석을 다시 한다(D-115·D-116). UI 가 닫힌 뒤라 이 프레임의
         // 편집이 전부 들어 있고, 엔진 프레임 전이라 다음 그림부터 새 핸들이 보인다.
         if (m_framework.Get() != nullptr && m_commands.GetRevision() != m_boundRevision)

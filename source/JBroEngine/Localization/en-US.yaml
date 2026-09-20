@@ -1,6 +1,7 @@
 Locale: en-US
 Entries:
   panel.game: Game
+  panel.canvas_view: Canvas
   panel.hierarchy: Hierarchy
   panel.inspector: Inspector
   panel.assets: Assets
@@ -11,6 +12,10 @@ Entries:
   menu.file: File
   menu.edit: Edit
   menu.window: Window
+  menu.simulation: Simulation
+  menu.simulation_play: Play
+  menu.simulation_stop: Stop
+  menu.simulation_pause: Pause
   menu.save_canvas: Save Canvas
   menu.exit: Exit
   menu.undo: Undo
@@ -19,6 +24,14 @@ Entries:
   dialog.save_canvas_title: Save Canvas
   dialog.canvas_filter: JBro canvas file
   popup.save_failed: The canvas could not be saved
+  canvas_view.grid: Grid
+  canvas_view.frame: Frame
+  canvas_view.grid_tooltip: show or hide the grid
+  canvas_view.frame_tooltip: fit the view to the selection
+  game_view.playing: Playing
+  game_view.stopped: Stopped
+  game_view.no_canvas: no canvas is open
+  game_view.no_camera: there is no camera
   hierarchy.no_project: no project is open
   hierarchy.empty: the canvas is empty
   hierarchy.create_object: Create Object

@@ -686,11 +686,22 @@ namespace JBro
 
         const FrameStatus status = m_device->EndFrame(m_frame);
         m_lastStats = m_currentStats;
-        if (m_views.Size() != 0 && m_frameTarget.recordViews)
+        if (m_frameTarget.recordViews)
         {
             // 그리지 않은 프레임의 카메라는 화면에 없다. 기즈모는 보이는 그림의 카메라를 써야 한다.
-            m_lastViewCamera = m_views[0].camera;
-            m_hasLastViewCamera = true;
+            //
+            // **자기 타깃을 든 뷰는 건너뛴다**(D-130). 그쪽은 에디터가 스스로 카메라를
+            // 정해 그린 화면이라, 부르는 쪽이 찾는 "게임이 보는 카메라" 가 아니다.
+            for (std::size_t index = 0; index < m_views.Size(); ++index)
+            {
+                if (m_views[index].camera.target.IsValid())
+                {
+                    continue;
+                }
+                m_lastViewCamera = m_views[index].camera;
+                m_hasLastViewCamera = true;
+                break;
+            }
         }
         m_lastPresentedBackBuffer = m_frame.backBuffer;
         m_frame = {};
@@ -824,7 +835,20 @@ namespace JBro
         }
         // **타깃이 뷰를 원하지 않는 프레임이다**(D-63). 제출은 받았지만 기록하지 않는다 -
         // 게임 뷰 패널이 보이지 않을 때 텍스처를 그대로 두는 길이다.
-        if (false == m_frameTarget.recordViews)
+        //
+        // **자기 타깃을 든 뷰는 여기 해당하지 않는다**(D-130). 이 값은 **프레임 타깃**에
+        // 대한 것이고, 편집 화면은 자기 텍스처에 그린다 - 게임 뷰를 닫아 두었다고
+        // 편집 화면까지 멈추면 안 된다.
+        bool anyRecorded = false;
+        for (std::size_t index = 0; index < m_views.Size(); ++index)
+        {
+            if (m_frameTarget.recordViews || m_views[index].camera.target.IsValid())
+            {
+                anyRecorded = true;
+                break;
+            }
+        }
+        if (false == anyRecorded)
         {
             m_currentStats.skippedViewCount += static_cast<std::uint32_t>(m_views.Size());
             return true;
@@ -835,13 +859,49 @@ namespace JBro
         }
 
         // 뷰가 갈 곳과 그 크기다. 타깃을 안 준 프레임은 백버퍼로 간다.
-        const bool toTexture = m_frameTarget.texture.IsValid();
-        const TextureHandle target = toTexture ? m_frameTarget.texture : m_frame.backBuffer;
-        const Extent2D extent = GetFrameExtent();
+        const bool frameToTexture = m_frameTarget.texture.IsValid();
+        const TextureHandle frameTexture =
+            frameToTexture ? m_frameTarget.texture : m_frame.backBuffer;
+        const Extent2D frameExtent = GetFrameExtent();
+
+        // **지우는 것은 타깃마다 처음 한 번이다**(D-130). 뷰 번호로 정하면 둘째 타깃의
+        // 첫 뷰가 덧그리기가 되어 지난 프레임이 비쳐 남는다.
+        m_clearedTargetCount = 0;
 
         for (std::size_t index = 0; index < m_views.Size(); ++index)
         {
             const ViewPacket& view = m_views[index];
+            const bool ownTarget = view.camera.target.IsValid();
+            // 프레임 타깃으로 가는 뷰만 이 프레임의 opt-in 을 따른다(D-63·D-130).
+            if (false == ownTarget && false == m_frameTarget.recordViews)
+            {
+                ++m_currentStats.skippedViewCount;
+                continue;
+            }
+            if (ownTarget
+                && (view.camera.targetExtent.width == 0 || view.camera.targetExtent.height == 0))
+            {
+                // 크기를 모르면 뷰포트가 타깃 안에 있는지 잴 수 없다. 짐작하지 않는다.
+                return false;
+            }
+            const TextureHandle target = ownTarget ? view.camera.target : frameTexture;
+            const bool toTexture = ownTarget || frameToTexture;
+            const Extent2D extent = ownTarget ? view.camera.targetExtent : frameExtent;
+
+            bool alreadyCleared = false;
+            for (std::size_t at = 0; at < m_clearedTargetCount; ++at)
+            {
+                if (m_clearedTargets[at] == target)
+                {
+                    alreadyCleared = true;
+                    break;
+                }
+            }
+            if (false == alreadyCleared && m_clearedTargetCount < MaxClearedTargets)
+            {
+                m_clearedTargets[m_clearedTargetCount++] = target;
+            }
+
             Viewport viewport = view.camera.viewport;
             if (viewport.width <= 0.0f || viewport.height <= 0.0f)
             {
@@ -866,9 +926,9 @@ namespace JBro
 
             ColorAttachmentDesc colorAttachment;
             colorAttachment.texture = target;
-            colorAttachment.loadOperation = index == 0
-                ? LoadOperation::Clear
-                : LoadOperation::Load;
+            colorAttachment.loadOperation = alreadyCleared
+                ? LoadOperation::Load
+                : LoadOperation::Clear;
             colorAttachment.storeOperation = StoreOperation::Store;
             colorAttachment.clearColor = {
                 view.camera.clearColor[0],

@@ -11,6 +11,7 @@ namespace JBro::LocKeys
 {
     // ── 패널 제목 ────────────────────────────────────────────────────────
     inline constexpr const char* PanelGame = "panel.game";
+    inline constexpr const char* PanelCanvasView = "panel.canvas_view";
     inline constexpr const char* PanelHierarchy = "panel.hierarchy";
     inline constexpr const char* PanelInspector = "panel.inspector";
     inline constexpr const char* PanelStats = "panel.stats";
@@ -21,10 +22,26 @@ namespace JBro::LocKeys
     inline constexpr const char* GizmoRotate = "gizmo.rotate";
     inline constexpr const char* GizmoScale = "gizmo.scale";
 
+    // ── 캔버스 뷰 (D-130) ────────────────────────────────────────────────
+    inline constexpr const char* CanvasViewGrid = "canvas_view.grid";
+    inline constexpr const char* CanvasViewFrame = "canvas_view.frame";
+    inline constexpr const char* CanvasViewGridTooltip = "canvas_view.grid_tooltip";
+    inline constexpr const char* CanvasViewFrameTooltip = "canvas_view.frame_tooltip";
+
+    // ── 게임 뷰의 상태 표시 (D-131) ──────────────────────────────────────
+    inline constexpr const char* GameViewPlaying = "game_view.playing";
+    inline constexpr const char* GameViewStopped = "game_view.stopped";
+    inline constexpr const char* GameViewNoCanvas = "game_view.no_canvas";
+    inline constexpr const char* GameViewNoCamera = "game_view.no_camera";
+
     // ── 메뉴 ─────────────────────────────────────────────────────────────
     inline constexpr const char* MenuFile = "menu.file";
     inline constexpr const char* MenuEdit = "menu.edit";
     inline constexpr const char* MenuWindow = "menu.window";
+    inline constexpr const char* MenuSimulation = "menu.simulation";
+    inline constexpr const char* MenuSimulationPlay = "menu.simulation_play";
+    inline constexpr const char* MenuSimulationStop = "menu.simulation_stop";
+    inline constexpr const char* MenuSimulationPause = "menu.simulation_pause";
     inline constexpr const char* MenuSaveCanvas = "menu.save_canvas";
     inline constexpr const char* MenuExit = "menu.exit";
     inline constexpr const char* MenuUndo = "menu.undo";

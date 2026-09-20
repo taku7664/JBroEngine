@@ -73,6 +73,15 @@ namespace JBro
         float clearColor[4] = {0.0f, 0.0f, 0.0f, 1.0f};
         Viewport viewport;
         AssetHandle postProcessProfile;
+        // **이 뷰만 다른 곳에 그린다**(D-130). 비어 있으면 프레임의 타깃이다.
+        //
+        // 에디터가 같은 장면을 두 번 그리는 자리다 - 게임 뷰는 게임의 카메라가 보는 것이고,
+        // 캔버스 뷰는 편집 카메라가 보는 것이라 한 프레임에 둘 다 있어야 한다. 프레임 타깃
+        // 하나로는 둘 중 하나만 살아남는다.
+        TextureHandle target;
+        // 그 텍스처의 크기다. 뷰포트가 타깃 안에 있는지 재는 기준이고, 프레임 타깃과 달리
+        // 렌더러가 알 길이 없다. `target` 을 줬는데 이것이 0 이면 그 뷰는 거절된다.
+        Extent2D targetExtent;
     };
 
     // 2D 스프라이트의 월드 변환이다. 열 벡터 규약의 2x3 아핀 여섯 값과 깊이 하나를 담는다(D-54).
@@ -362,6 +371,16 @@ namespace JBro
         Array<MeshResource> m_meshResources;
         Array<GpuMeshInstance> m_gpuMeshInstances;
         Array<MeshRun> m_meshRuns;
+        // 이번 프레임에 이미 지운 타깃들(D-130). 뷰마다 타깃이 다를 수 있으므로
+        // "첫 뷰" 가 아니라 "그 타깃의 첫 뷰" 에서 지운다.
+        //
+        // **고정 길이다.** 이 경로는 매 프레임 돌고 힙 할당이 금지되어 있다
+        // (`RendererContractTests` 가 잰다). 한 프레임의 타깃은 백버퍼·게임 화면·
+        // 편집 화면 정도라 여덟이면 넉넉하고, 넘치면 그 뒤의 타깃은 처음 만난 것으로
+        // 쳐서 지운다 - 지우지 않는 쪽으로 넘기면 지난 프레임이 비쳐 남는다.
+        static constexpr std::size_t MaxClearedTargets = 8;
+        TextureHandle m_clearedTargets[MaxClearedTargets];
+        std::size_t m_clearedTargetCount = 0;
         // 뷰마다 메시 슬롯별 개수를 세는 작업 배열. 크기는 등록된 메시 슬롯 수다.
         Array<std::uint32_t> m_meshHistogram;
         BufferHandle m_meshInstanceBuffers[MaxFrameSlots];

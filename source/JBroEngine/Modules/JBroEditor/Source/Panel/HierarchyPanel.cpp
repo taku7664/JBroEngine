@@ -7,6 +7,7 @@
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
+#include <JBro/Editor/Widget/Common.h>
 #include <JBro/Editor/Widget/Fields.h>
 #include <JBro/Editor/Widget/Tree.h>
 #include <JBro/Runtime/GameObject.h>
@@ -578,7 +579,7 @@ namespace JBro
         // 이유로 릴리스 기준이다.
         if (rowHovered && false == rowToggled
             && ImGui::IsMouseReleased(ImGuiMouseButton_Left)
-            && false == ImGui::IsMouseDragPastThreshold(ImGuiMouseButton_Left))
+            && false == Widget::MouseWasDragged(ImGuiMouseButton_Left))
         {
             const ImGuiIO& io = ImGui::GetIO();
             if (io.KeyCtrl || io.KeyShift)

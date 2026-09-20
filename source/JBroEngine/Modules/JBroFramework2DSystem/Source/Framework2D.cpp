@@ -143,10 +143,50 @@ namespace JBro
         }
         m_renderWorld.BeginFrame();
         m_canvas->BeginFrame();
-        RunFixedSteps(deltaTime);
-        m_canvas->GetSystems().Update(*m_canvas, deltaTime);
+        // **멈춰 있으면 시간이 흐르지 않는다**(D-131). 고정 스텝을 돌리지 않고 dt 를 0 으로
+        // 넘긴다 - 스크립트·물리는 `SetSimulationEnabled` 가 이미 세워 두었고, 남은 것은
+        // 트랜스폼과 추출이라 시간이 필요 없다. 그래도 **돌리기는 한다**: 편집 중에도
+        // 화면은 나와야 하고, 그림은 추출한 것에서 나온다.
+        if (m_simulationEnabled)
+        {
+            RunFixedSteps(deltaTime);
+        }
+        m_canvas->GetSystems().Update(*m_canvas, m_simulationEnabled ? deltaTime : 0.0f);
         m_canvas->FlushPendingDestroy();
         m_renderWorld.EndFrame();
+    }
+
+    void Framework2D::SetSimulationEnabled(bool enabled)
+    {
+        m_simulationEnabled = enabled;
+        ApplySimulationEnabled();
+    }
+
+    void Framework2D::ApplySimulationEnabled()
+    {
+        if (m_canvas.Get() == nullptr)
+        {
+            return;
+        }
+        // **게임을 움직이는 것만 세운다.** 트랜스폼·카메라·스프라이트 추출은 그대로 돈다 -
+        // 그것까지 세우면 편집 화면이 빈 화면이 된다.
+        SystemScheduler& systems = m_canvas->GetSystems();
+        if (System::ScriptSystem* scripts = systems.FindSystem<System::ScriptSystem>())
+        {
+            scripts->SetEnabled(m_simulationEnabled);
+        }
+        if (System::Physics2DSystem* physics = systems.FindSystem<System::Physics2DSystem>())
+        {
+            physics->SetEnabled(m_simulationEnabled);
+        }
+        if (System::NetworkReceiveSystem* receive = systems.FindSystem<System::NetworkReceiveSystem>())
+        {
+            receive->SetEnabled(m_simulationEnabled);
+        }
+        if (System::NetworkSendSystem* send = systems.FindSystem<System::NetworkSendSystem>())
+        {
+            send->SetEnabled(m_simulationEnabled);
+        }
     }
 
     RenderResult Framework2D::Render()
@@ -156,6 +196,15 @@ namespace JBro
             return RenderResult::Failed;
         }
         return Internal::SubmitRenderWorld2D(m_renderWorld, *m_context.renderer);
+    }
+
+    RenderResult Framework2D::RenderEditorView(const EditorViewDesc& view)
+    {
+        if (false == m_initialized || m_context.renderer == nullptr)
+        {
+            return RenderResult::Failed;
+        }
+        return Internal::SubmitEditorView2D(m_renderWorld, *m_context.renderer, view);
     }
 
     namespace
@@ -311,6 +360,9 @@ namespace JBro
             systems.AddSystem<System::NetworkReceiveSystem>(*m_context.network);
             systems.AddSystem<System::NetworkSendSystem>(*m_context.network);
         }
+        // 시스템이 막 섰다. 지금 정해져 있는 값을 그대로 적용한다 - 프로젝트를 열기 전에
+        // 꺼 두었으면 첫 프레임부터 꺼져 있어야 한다.
+        ApplySimulationEnabled();
     }
     void Framework2D::RunFixedSteps(float deltaTime)
     {

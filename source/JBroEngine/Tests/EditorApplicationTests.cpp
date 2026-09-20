@@ -420,8 +420,10 @@ namespace
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
         const std::size_t builtin = editor.GetPanelCount();
-        Check(builtin == 5, "the editor brings five panels of its own");
+        // 캔버스 뷰·게임 뷰·계층·인스펙터·에셋·통계다(D-130 에서 캔버스 뷰가 늘었다).
+        Check(builtin == 6, "the editor brings six panels of its own");
         Check(editor.FindPanel("Inspector") != nullptr, "and they are findable by title");
+        Check(editor.FindPanel("CanvasView") != nullptr, "the editing view is one of them");
         Check(editor.FindPanel("Nothing Like This") == nullptr,
             "and a title nobody has finds nothing");
 
@@ -2086,6 +2088,12 @@ namespace
         auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(eye);
         Check(camera != nullptr, "the probe camera must attach");
         camera->primary = true;
+        // 이 테스트가 재는 것은 **게임 뷰**의 opt-in 이다. 편집 화면은 자기 텍스처에
+        // 따로 그려 뷰를 하나 더 내므로(D-130), 세는 것이 섞이지 않게 닫아 둔다.
+        if (JBro::EditorPanel* canvasView = editor.FindPanel("CanvasView"))
+        {
+            canvasView->SetOpen(false);
+        }
         for (int frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
@@ -3247,8 +3255,8 @@ namespace
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
-        // 패널이 넷 다 있어야 한다. 하나라도 안 붙으면 화면에서 빈 칸이 된다.
-        Check(editor.GetPanelCount() == 5, "the five default panels must be registered");
+        // 기본 패널이 다 있어야 한다. 하나라도 안 붙으면 화면에서 빈 칸이 된다.
+        Check(editor.GetPanelCount() == 6, "the six default panels must be registered");
         Check(editor.FindPanel("Game") != nullptr, "the game view must be one of them");
         Check(editor.FindPanel("Hierarchy") != nullptr, "and the hierarchy");
         Check(editor.FindPanel("Inspector") != nullptr, "and the inspector");
@@ -3676,6 +3684,14 @@ namespace
         // 창의 어느 색과도 겹치지 않는 색이다. 이 색이 화면에 있으면 게임 화면이
         // 텍스처를 거쳐 패널까지 온 것이다.
         camera->clearColor = {0.0f, 0.85f, 0.35f, 1.0f};
+
+        // **가운데 칸은 캔버스 뷰와 게임 뷰가 탭으로 나눠 쓴다**(D-130). 처음 보이는 것은
+        // 편집 화면이므로, 게임 화면이 텍스처를 거쳐 패널까지 오는지 보려면 이쪽을 닫아
+        // 게임 뷰를 앞으로 내놓는다.
+        if (JBro::EditorPanel* canvasView = editor.FindPanel("CanvasView"))
+        {
+            canvasView->SetOpen(false);
+        }
 
         // 새 창은 ImGui 가 크기를 재는 동안 감춰진다. 몇 프레임 돌린 뒤에 본다.
         for (int frame = 0; frame < 3; ++frame)
@@ -4113,8 +4129,10 @@ namespace
         {
             Check(editor.Tick(Frame), "the editor must settle before the gizmo appears");
         }
-        ImGuiWindow* game = ImGui::FindWindowByName("Game");
-        Check(game != nullptr, "the game view window must exist");
+        // **기즈모는 캔버스 뷰에 있다**(D-130·D-131). 게임 뷰는 시뮬레이션 화면이라
+        // 손잡이도 피킹도 없다 - 기존 엔진의 `CGameViewTool` 과 같다.
+        ImGuiWindow* game = ImGui::FindWindowByName("CanvasView");
+        Check(game != nullptr, "the canvas view window must exist");
 
         Spot spot;
         Check(FindItemAnywhereInWindow(editor, hwnd, game, LabelId(game->ID, "##gizmo_x"), spot),
@@ -4127,7 +4145,7 @@ namespace
         Check(editor.GetCommands().Undo() && std::fabs(transform->position.x) < 1.0e-4f,
             "undoing the drag must put the box back");
 
-        // E 는 회전이다. 고리가 나오고, 그것을 끌면 돈다. 마우스는 게임 뷰 밖으로 빼 둔다 - 손잡이를 잡았을 때
+        // E 는 회전이다. 고리가 나오고, 그것을 끌면 돈다. 마우스는 편집 화면 밖으로 빼 둔다 - 손잡이를 잡았을 때
         // 창이 포커스를 받았어야 핫키가 먹는다.
         PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(2, 2));
         Check(editor.Tick(Frame), "the editor must tick with the mouse away");
@@ -4187,6 +4205,62 @@ namespace
         DragTo(editor, hwnd, spot, to);
         Check(childTransform->position.x > 0.05f && std::fabs(childTransform->position.y) < 1.0e-3f,
             "a world +y drag on a child of a 90-degree parent must land in the child's local +x");
+        editor.Shutdown();
+    }
+
+    // **재생을 누르기 전의 캔버스로 돌아온다**(D-131). 게임이 만든 것과 고친 값이
+    // 편집 중인 캔버스에 남으면, 저장했을 때 게임이 만든 상태가 파일이 된다.
+    void TestPlayingAndStoppingRestoresTheCanvas()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 640;
+        config.windowHeight = 480;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; simulation not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "SimulationProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        Check(false == editor.IsSimulationPlaying(), "the editor opens stopped");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* kept = canvas->CreateObject("Kept");
+        auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(kept);
+        Check(transform != nullptr, "the object needs a transform");
+        transform->position = JBro::Vec2{3.0f, 4.0f};
+        Check(editor.Tick(Frame), "the editor must tick before play");
+
+        Check(editor.StartSimulation(), "play must start");
+        Check(editor.IsSimulationPlaying(), "and say so");
+
+        // 게임이 하는 일을 흉내 낸다: 오브젝트를 하나 만들고 값을 고친다.
+        JBro::GameObject* spawned = canvas->CreateObject("Spawned");
+        Check(spawned != nullptr, "the running game may spawn");
+        transform->position = JBro::Vec2{-9.0f, -9.0f};
+        Check(editor.Tick(Frame), "the editor must tick while playing");
+
+        editor.StopSimulation();
+        Check(false == editor.IsSimulationPlaying(), "stop must stop");
+        Check(canvas->GetObjectCount() == 1, "what the game made must be gone");
+
+        JBro::Array<JBro::GameObject*> roots;
+        canvas->GetRootObjects(roots);
+        Check(roots.Size() == 1, "and one root must be back");
+        Check(std::strcmp(roots[0]->GetTag(), "Kept") == 0, "the one that was there before play");
+        auto* restored = canvas->FindComponentRaw<JBro::Component::Transform2D>(roots[0]);
+        Check(restored != nullptr, "with its component");
+        Check(std::fabs(restored->position.x - 3.0f) < 1.0e-4f
+                && std::fabs(restored->position.y - 4.0f) < 1.0e-4f,
+            "and the value it had before play, not the one the game wrote");
+        Check(editor.GetSelectedObject() == nullptr,
+            "the selection is cleared, because the objects it pointed at are gone");
+
         editor.Shutdown();
     }
 
@@ -4378,6 +4452,7 @@ int RunEditorApplicationTests()
     TestTypingTheSameValueLeavesNothingToUndo();
     TestTheAssetFieldPicksARegisteredSprite();
     TestTheAssetBrowserSelectsAnAssetAndTheInspectorRewritesItsMeta();
+    TestPlayingAndStoppingRestoresTheCanvas();
     TestDraggingInTheHierarchyReordersAndUnparents();
     TestCreatingAnObjectCanBeUndone();
     TestDeletingAnObjectCanBeUndoneWithItsValues();

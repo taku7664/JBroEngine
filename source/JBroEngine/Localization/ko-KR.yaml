@@ -1,6 +1,7 @@
 Locale: ko-KR
 Entries:
   panel.game: 게임 뷰
+  panel.canvas_view: 캔버스 뷰
   panel.hierarchy: 계층 구조
   panel.inspector: 인스펙터
   panel.assets: 에셋
@@ -11,6 +12,10 @@ Entries:
   menu.file: 파일
   menu.edit: 편집
   menu.window: 창
+  menu.simulation: 시뮬레이션
+  menu.simulation_play: 실행
+  menu.simulation_stop: 정지
+  menu.simulation_pause: 일시정지
   menu.save_canvas: 캔버스 저장
   menu.exit: 종료
   menu.undo: 실행 취소
@@ -19,6 +24,14 @@ Entries:
   dialog.save_canvas_title: 캔버스 저장
   dialog.canvas_filter: JBro 캔버스 파일
   popup.save_failed: 캔버스를 저장할 수 없습니다
+  canvas_view.grid: 격자
+  canvas_view.frame: 맞춤
+  canvas_view.grid_tooltip: 격자를 보이거나 감춥니다
+  canvas_view.frame_tooltip: 선택한 오브젝트가 보이도록 화면을 맞춥니다
+  game_view.playing: 실행 중
+  game_view.stopped: 정지됨
+  game_view.no_canvas: 열린 캔버스가 없습니다
+  game_view.no_camera: 카메라가 없습니다
   hierarchy.no_project: 열린 프로젝트가 없습니다
   hierarchy.empty: 캔버스에 오브젝트가 없습니다
   hierarchy.create_object: 오브젝트 추가

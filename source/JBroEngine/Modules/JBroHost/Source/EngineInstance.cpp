@@ -425,6 +425,12 @@ namespace JBro
                 m_frameworkContext.assets = m_assets.Get();
                 m_framework = &framework;
                 initialized = framework.Initialize(m_frameworkContext);
+                // 지금 정해져 있는 값을 새 프레임워크에도 먹인다(D-131). 에디터가 멈춘 채로
+                // 다음 프로젝트를 열면 그 프로젝트도 멈춘 채로 떠야 한다.
+                if (initialized)
+                {
+                    framework.SetSimulationEnabled(m_simulationEnabled);
+                }
                 if (initialized && false == m_projectCloseRequested && false == m_exitRequested)
                 {
                     m_scriptContextsBound = framework.BindScriptContexts();
@@ -554,6 +560,9 @@ namespace JBro
         {
             m_frameMemory->Reset();
         }
+        // **멈춰 있어도 갱신은 돈다**(D-131). 세우는 것은 스크립트·물리이고, 트랜스폼과
+        // 렌더 추출은 그대로 돌아야 한다 - 그리는 것은 추출한 목록에서 나오므로 그것까지
+        // 세우면 편집 화면이 빈 화면이 된다. 무엇을 세울지는 프레임워크가 안다.
         if (m_framework != nullptr && false == m_projectCloseRequested)
         {
             m_framework->Update(deltaTime);
@@ -598,9 +607,31 @@ namespace JBro
             return false;
         }
         // 프로젝트가 없으면 게임이 제출할 것도 없다. 그 프레임은 오버레이가 산다.
-        const RenderResult renderResult = m_framework != nullptr
+        RenderResult renderResult = m_framework != nullptr
             ? m_framework->Render()
             : RenderResult::NothingToSubmit;
+        // **편집 화면은 게임 화면 바로 뒤다**(D-130). 프레임워크가 이번 프레임에 모아 둔
+        // 그릴 것을 그대로 쓰므로, `Render` 와 같은 프레임 안에서만 뜻이 있다.
+        // 요청은 한 프레임짜리라 여기서 비운다.
+        if (m_hasEditorView)
+        {
+            const EditorViewDesc requested = m_editorView;
+            m_hasEditorView = false;
+            m_editorView = {};
+            if (m_framework != nullptr && renderResult != RenderResult::Failed)
+            {
+                const RenderResult editorResult = m_framework->RenderEditorView(requested);
+                if (editorResult == RenderResult::Failed)
+                {
+                    renderResult = RenderResult::Failed;
+                }
+                else if (editorResult == RenderResult::Submitted)
+                {
+                    // 게임 카메라가 없어도 이 프레임에는 낼 것이 있다.
+                    renderResult = RenderResult::Submitted;
+                }
+            }
+        }
         if (renderResult == RenderResult::Failed || m_exitRequested)
         {
             m_lastFrameStatus = renderResult == RenderResult::Failed
@@ -635,6 +666,35 @@ namespace JBro
         }
         m_gameViewTarget = target;
         return true;
+    }
+
+    bool EngineInstance::RequestEditorView(const EditorViewDesc& view)
+    {
+        if (m_state == State::Ticking)
+        {
+            return false;
+        }
+        if (false == view.target.IsValid() || view.extent.width == 0 || view.extent.height == 0)
+        {
+            return false;
+        }
+        m_editorView = view;
+        m_hasEditorView = true;
+        return true;
+    }
+
+    void EngineInstance::SetSimulationEnabled(bool enabled)
+    {
+        m_simulationEnabled = enabled;
+        if (m_framework != nullptr)
+        {
+            m_framework->SetSimulationEnabled(enabled);
+        }
+    }
+
+    bool EngineInstance::IsSimulationEnabled() const
+    {
+        return m_simulationEnabled;
     }
 
     void EngineInstance::RequestExit()

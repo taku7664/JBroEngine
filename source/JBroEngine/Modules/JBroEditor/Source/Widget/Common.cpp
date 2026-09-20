@@ -1,5 +1,8 @@
 ﻿#include <JBro/Editor/Widget/Common.h>
 
+// 세로 구분선은 공개 헤더에 없다. 그리는 규칙은 ImGui 의 것을 그대로 쓴다.
+#include <imgui_internal.h>
+
 #include <algorithm>
 
 namespace JBro::Widget
@@ -7,6 +10,8 @@ namespace JBro::Widget
     namespace
     {
         constexpr ImVec4 InvalidBorderColor(0.95f, 0.35f, 0.30f, 1.0f);
+        // 도구 줄 구분선의 앞뒤 간격. 단추 사이 기본 간격보다 넓어야 무리가 갈린 것으로 읽힌다.
+        constexpr float ToolBarSeparatorSpacing = 12.0f;
     }
 
     bool IsEmptyText(const char* text)
@@ -70,6 +75,22 @@ namespace JBro::Widget
         {
             ImGui::SetTooltip("%s", text);
         }
+    }
+
+    bool MouseWasDragged(ImGuiMouseButton button)
+    {
+        // `GetMouseDragDelta` 는 누른 자리에서의 거리이고 **놓는 프레임까지 살아 있다**.
+        // `IsMouseDragging` 은 누르고 있는 동안만 참이라 뗄 때 묻는 자리에는 맞지 않는다.
+        const ImVec2 delta = ImGui::GetMouseDragDelta(button, 0.0f);
+        const float threshold = ImGui::GetIO().MouseDragThreshold;
+        return (delta.x * delta.x + delta.y * delta.y) > (threshold * threshold);
+    }
+
+    void ToolBarSeparator()
+    {
+        ImGui::SameLine(0.0f, ToolBarSeparatorSpacing);
+        ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+        ImGui::SameLine(0.0f, ToolBarSeparatorSpacing);
     }
 
     void StyleScope::Pop()

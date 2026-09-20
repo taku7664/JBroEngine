@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/Core/Core.h>
+#include <JBro/RHI/RHI.h>
 #include <JBro/Runtime/ScriptModule.h>
 
 namespace JBro
@@ -18,6 +19,26 @@ namespace JBro
         NothingToSubmit,
         // 제출 도중 실패했다. 호스트는 프레임을 버리고 오류로 올린다.
         Failed
+    };
+
+    // **캔버스 뷰**가 쓰는 뷰다(D-130). 게임의 카메라가 아니라 **편집 카메라**로 같은 장면을
+    // 한 번 더, 에디터가 잡아 둔 텍스처에 그린다.
+    //
+    // 기존 엔진에서 유니티의 씬 뷰 노릇을 하던 것이 캔버스 뷰이고, 게임 뷰는 시뮬레이션이
+    // 보는 화면이었다. 둘은 **같은 프레임에 함께 보여야** 하므로 뷰마다 타깃이 따로 있어야 한다.
+    struct EditorViewDesc
+    {
+        // 그릴 곳. 비어 있으면 아무것도 하지 않는다.
+        TextureHandle target;
+        // 그 텍스처의 크기. 0 이면 아무것도 하지 않는다.
+        Extent2D extent;
+        // 화면 한가운데가 보는 월드 좌표.
+        float centerX = 0.0f;
+        float centerY = 0.0f;
+        // 화면 **세로 절반**이 담는 월드 길이다. 게임 카메라의 `orthographicSize` 와 같은 뜻이라
+        // 두 화면의 배율을 같은 수로 견줄 수 있다.
+        float orthographicSize = 5.0f;
+        float clearColor[4] = {0.13f, 0.14f, 0.17f, 1.0f};
     };
 
     struct FrameworkContext
@@ -50,8 +71,23 @@ namespace JBro
             return {};
         }
         virtual void Update(float deltaTime) = 0;
+        // **게임을 돌릴 것인가**(D-131). 거짓이면 스크립트·물리·네트워크는 서고,
+        // 트랜스폼과 추출은 그대로 돈다 - 편집 중에도 화면은 나와야 하기 때문이다.
+        // 게임 실행은 늘 참이고 에디터만 이것을 끈다. 프로젝트를 열 때 한 번 더 적용된다.
+        virtual void SetSimulationEnabled(bool enabled)
+        {
+            (void)enabled;
+        }
         // Host opens/closes the Renderer frame. Framework submits its views and packets only.
         virtual RenderResult Render() = 0;
+        // 같은 프레임에 **편집 카메라로 한 번 더** 제출한다(D-130). `Render` 바로 뒤에서만
+        // 부른다 - 그 프레임에 모아 둔 그릴 것을 그대로 다시 쓰기 때문이다.
+        // 캔버스가 없거나 차원이 이 뷰를 모르면 `NothingToSubmit` 이다.
+        virtual RenderResult RenderEditorView(const EditorViewDesc& view)
+        {
+            (void)view;
+            return RenderResult::NothingToSubmit;
+        }
         virtual void Shutdown() = 0;
         // 캔버스의 컴포넌트가 든 에셋 아이디(`xxxId`)를 이번 실행의 핸들(`xxx`)로 푼다(asset-plan §2.6, D-115). 캔버스를
         // 읽은 뒤와 편집 뒤에 호스트·에디터가 부른다. 앞서 잡은 것은 놓고, 참조 수가 0 이 된 에셋은 내린다.
