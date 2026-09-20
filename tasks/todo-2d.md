@@ -106,13 +106,6 @@
   에셋에는 고를 자리가 없다. Unity 는 텍스처 임포터의 Filter Mode(기본 Bilinear, 픽셀 아트는 Point)다.
   권고: `.jproject` 에 프로젝트 기본(`TextureFilter: Nearest|Linear`, 2D 픽셀 아트 프로젝트는 Nearest)을 두고 텍스처의
   임포트 옵션이 그것을 덮어쓴다. 컴포넌트에는 두지 않는다.
-- `[열림]` 검수(D-123)에서 남긴 것: 이미지 로드마다 메타를 세 번 파싱한다(레지스트리 스캔·스프라이트 옵션·텍스처 옵션) -
-  `AssetRecord` 가 파싱한 메타를 들면 한 번이 되고 감시 이벤트가 로드 중간에 끼는 창도 닫힌다. 메타 오류의 줄 번호가
-  늘 1 이다(`YamlDocument` 가 노드 줄을 내주면 고칠 수 있다). 메타 저장이 원자적이지 않다(임시 파일에 쓰고 바꿔치기할
-  플랫폼 API 가 없다 - 메타를 잃으면 아이디를 잃는다). `PollAssetChanges` 의 `recordsAt` 은 "이미지 하나에 Sprite 하나"
-  를 가정하고 레지스트리를 O(N) 걷는다 - 시트가 Sprite 여럿을 낳으면 레지스트리에 "주인 → 자식" 조회가 필요하다.
-  `SpriteSizeMode::Custom` 은 크기와 피벗을 함께 맡아 "에셋 크기 + 저작 피벗" 은 없다 - 필요하면 `pivotMode` 를 둔다.
-  워커가 죽으면 `IsWatchingAssets` 만 거짓이 되고 에디터 화면에는 아직 알림이 없다.
 - `[열림]` 스크립트가 런타임에 `AssetId` 필드를 바꾸는 경우의 프레임 끝 해석(asset-plan §2.6). 지금은 캔버스를 읽은 뒤와
   에디터의 편집 뒤에만 `BindCanvasAssets` 가 돈다.
 - `[열림]` 기존 엔진의 2D 라이팅·소프트 섀도(`RenderWeave` 의 occluder·light·composite·tonemap 패스)·텍스트

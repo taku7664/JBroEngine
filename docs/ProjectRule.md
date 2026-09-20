@@ -33,6 +33,7 @@
 - 플랫폼별 그래픽스 API 의존성은 RHI 뒤에 격리해야 한다. (MUST)
 - 파일 시스템은 `IPlatform` 이 관리한다. 엔진 모듈은 `fopen`·`std::filesystem` 으로 파일을 직접 열지 않고
   `ReadWholeFile`·`WriteWholeFile`·`FileExists`·`DirectoryExists`·`EnumerateDirectory` 를 거친다. 경로는 UTF-8 이다.
+  파일 옮기기(`MoveFileTo`, 덮어쓰기)도 여기 있다 - 잃으면 안 되는 파일(메타)은 임시 파일에 쓰고 이것으로 바꿔치기한다.
   폴더 감시도 같은 자리다: `WatchDirectory`·`StopWatching`·`TakeFileEvents` 이고 이벤트는 경로 글자만 든 POD 다.
   워커는 할당도 `SafePtr` 도 만지지 않으며, 꺼내 적용하는 것은 메인 스레드가 프레임 밖에서 한다. 게임 실행에는 감시가
   없다. 감시의 정리는 감시 객체의 소멸자 한 곳이고, 워커의 죽음은 `Overflow` 한 번과 `IsWatching` 거짓으로 드러난다.
@@ -60,8 +61,9 @@
   (변환 28B + 틴트 `UByte4Norm` 4B + UV `UShort4Norm` 8B, D-114).
   렌더러는 제출 순서를 바꾸지 않고 텍스처·샘플러가 같은 이웃만 드로우 하나로 묶는다. GPU 텍스처는 에셋이 아니라
   프레임워크의 `SpriteLibrary` 가 들고, 렌더러 프레임 밖(렌더 추출)에서만 올린다. (MUST) (D-113)
-- 스프라이트의 화면 크기와 피벗은 에셋이 정한다: 칸 픽셀 / 에셋 `pixelsPerUnit`, 칸의 피벗. `SpriteRenderer2D::sizeMode`
-  가 `Custom` 이거나 스프라이트가 풀리지 않았을 때만 컴포넌트의 `size`·`pivot` 이다. (MUST) (D-119)
+- 스프라이트의 화면 크기와 피벗은 에셋이 정한다: 칸 픽셀 / 에셋 `pixelsPerUnit`, 칸의 피벗. `SpriteRenderer2D` 의
+  `sizeMode`·`pivotMode` 가 각각 `Custom` 이거나 스프라이트가 풀리지 않았을 때만 컴포넌트의 `size`·`pivot` 이다.
+  (MUST) (D-119·D-124)
 - 텍스처의 샘플러는 메타의 `Texture.ImportOptions.filter` 이고 `Default` 면 프로젝트의 `TextureFilter` 다. 그 적용은
   `AssetSystem` 이 로드 때 한 번 하며(`TextureData::filter`), 렌더 추출·브리지는 그 값을 나를 뿐 프로젝트를 묻지 않는다.
   컴포넌트에 샘플러 필드를 두지 않는다. (MUST) (D-119)
