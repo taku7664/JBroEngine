@@ -1,0 +1,12 @@
+﻿<Solution>
+  <Configurations>
+    <BuildType Name="Debug" />
+    <BuildType Name="Release" />
+    <Platform Name="x64" />
+  </Configurations>
+  <Folder Name="/Engine/">
+    <Project Path="../JBroEngine/Modules/JBroCore/JBroCore.vcxproj" />
+  </Folder>
+  <Project Path="JBroNetwork/JBroNetwork.vcxproj" />
+  <Project Path="JBroNetwork.Tests/JBroNetwork.Tests.vcxproj" />
+</Solution>

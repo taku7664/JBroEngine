@@ -215,9 +215,13 @@ namespace JBro::Network
 
 각 단계의 완료 조건은 테스트다. 빌드 성공만으로 끝났다고 보지 않는다.
 
-1. `[진행 예정]` **프로젝트 뼈대와 경계.** `source/JBroNetwork/` 에 lib + Tests. `Types`·`ISocketProvider`·인메모리 provider.
-   완료: `git diff --stat -- source/JBroEngine` 이 비어 있다(엔진 트리 불변). 인메모리 provider 위에서 두 트랜스포트 인스턴스가
-   한 프로세스에서 이어진다(호스트 둘 검증의 기초).
+1. `[완료]` **프로젝트 뼈대와 경계.** (2026-09-20) `source/JBroNetwork/` 에 `JBroNetwork`(정적 lib) + `JBroNetwork.Tests`,
+   자기 `.slnx`, 출력은 `source/JBroNetwork/Build/`. `Types.h`·`Socket.h`(`IStreamSocket`·`IDatagramSocket`·`IPeerConnection`·
+   `ISocketProvider`·`IClock`)·`Internal/ByteRing.h`·`Transport`(길이 접두 프레이밍, 연결 표, 꺼내 가기 큐, 역압, 지연 teardown)·
+   `Testing/MemorySocketProvider`(파이프 스트림 + 포트 표 데이터그램, 접속은 Accept 까지 `Connecting`)·`Testing/ManualClock`.
+   테스트 11 개: 서버·클라이언트 왕복, 좁은 파이프 위 20000 바이트, 닫기 양쪽 관측, 받는 이 없는 접속, 이벤트 넘침 → `Overflow`,
+   꺼내지 않은 메시지의 생존(압축), 저장소 역압 무손실, 한계 초과 프레임 → `Error` 끊김, 데이터그램 왕복·무음 폐기·불가 플랫폼.
+   `git diff --stat -- source/JBroEngine` 은 비어 있다.
 2. `[진행 예정]` **WS 기준선.** RFC6455 코덕(핸드셰이크·프레임·마스킹·ping/pong/close) 이식, 세션(hello·버전·keepalive·RTT),
    프레이밍, 꺼내 가기 큐, 지연 teardown. Winsock 을 직접 감싼 테스트 provider.
    완료: 루프백에서 호스트 둘이 이어져 버전 불일치를 거부하고, 타입드 메시지가 왕복하고, 큐 넘침이 `Overflow` 로 보인다.
