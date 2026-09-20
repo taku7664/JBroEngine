@@ -27,7 +27,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroFramework3D\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroAssetTypes\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroFramework3D\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroNetworkDir)Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -48,6 +48,10 @@
     <ProjectReference Include="$(JBroModulesDir)JBroRuntime\JBroRuntime.vcxproj">
       <Project>{1a000006-0000-4000-8000-000000027417}</Project>
       <LinkLibraryDependencies>false</LinkLibraryDependencies>
-    </ProjectReference>  </ItemGroup>
+    </ProjectReference>    <ProjectReference Include="$(JBroNetworkDir)JBroNetwork.vcxproj">
+      <Project>{1a000020-0000-4000-8000-0000000ae700}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

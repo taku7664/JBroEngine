@@ -11,6 +11,15 @@
 
 namespace JBro
 {
+    class NetworkHost;
+
+    namespace Network
+    {
+        // 네트워크 프로젝트의 것들. 이 헤더를 쓰는 에디터가 네트워크 헤더를 보지 않게 이름만 안다. 정의는 EngineInstance.cpp 가 본다.
+        class ISocketProvider;
+        class SteadyClock;
+    }
+
     struct EngineConfig
     {
         GraphicsApi graphicsApi = GraphicsApi::D3D12;
@@ -26,6 +35,8 @@ namespace JBro
         // 참이면 프로젝트를 열 때 에셋 폴더를 감시하고 `PollAssetChanges` 가 그 변경을 적용한다. **에디터만 참이다**
         // (D-117) - 게임 실행에는 감시가 없다.
         bool watchAssetDirectory = false;
+        // 거짓이면 네트워크를 세우지 않는다. 프레임워크는 복제 시스템을 세우지 않고 스크립트의 네트워크 서비스는 조용히 실패한다.
+        bool networkEnabled = true;
         WindowDesc window;
         JMemoryContext memory;
     };
@@ -102,6 +113,8 @@ namespace JBro
         const AssetRegistry& GetAssetRegistry() const;
         const AssetScanReport& GetAssetScanReport() const;
         Renderer* GetRenderer();
+        // 호스트가 소유하는 네트워크(D-122). 끈 호스트는 null 이다. 캔버스보다 오래 산다.
+        NetworkHost* GetNetwork();
         // 대화상자의 주인 창으로 쓴다. 창이 없으면 값이 0 이다.
         WindowHandle GetMainWindow() const
         {
@@ -134,6 +147,10 @@ namespace JBro
         AssetRegistry m_assetRegistry;
         AssetScanReport m_assetScanReport;
         OwnerPtr<Renderer> m_renderer;
+        // 플랫폼이 준 소켓과 그 위의 네트워크. 프레임워크 컨텍스트가 이것을 가리킨다.
+        OwnerPtr<Network::ISocketProvider> m_socketProvider;
+        OwnerPtr<Network::SteadyClock> m_networkClock;
+        OwnerPtr<NetworkHost> m_network;
         // 프레임 경계에서 되감는다. m_frameworkContext.memory.frame 이 이것을 가리킨다.
         OwnerPtr<LinearAllocator> m_frameMemory;
         // 프로젝트 수명이다. 컨텍스트 바인딩 뒤에 싣고, 해제 전에 내린다.

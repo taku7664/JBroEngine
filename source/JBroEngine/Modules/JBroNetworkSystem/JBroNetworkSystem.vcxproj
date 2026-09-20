@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <!--
-    네트워크는 별도 프로젝트다(D-122). 엔진의 공용 props 와 JBroCore 를 참조하지만 엔진 트리의 파일은 바꾸지 않는다.
-    출력은 이 폴더의 Build 아래로 간다 - 엔진의 Build 폴더에 섞이지 않게 하기 위해서다.
+    네트워크와 엔진을 잇는 어댑터다(D-122, network-plan §2.1). 트랜스포트·복제 핵심은 별도 프로젝트 `source/JBroNetwork` 에 있고,
+    여기에는 캔버스 풀을 복제 풀로 감싸는 어댑터, 수신·송신 GameSystem, 호스트가 소유하는 `NetworkHost` 만 있다.
+    의존은 엔진 → 네트워크 한 방향이다. 네트워크 프로젝트는 이 모듈을 모른다.
   -->
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -16,24 +17,20 @@
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>18.0</VCProjectVersion>
-    <ProjectGuid>{1a000020-0000-4000-8000-0000000ae700}</ProjectGuid>
-    <RootNamespace>JBroNetwork</RootNamespace>
-    <ProjectName>JBroNetwork</ProjectName>
+    <ProjectGuid>{1a000017-0000-4000-8000-0000000ae75c}</ProjectGuid>
+    <RootNamespace>JBroNetworkSystem</RootNamespace>
+    <ProjectName>JBroNetworkSystem</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
-  <Import Project="$(MSBuildThisFileDirectory)..\..\JBroEngine\JBro.Common.props" />
-  <PropertyGroup Label="JBroNetworkPaths">
-    <JBroNetworkRoot>$(MSBuildThisFileDirectory)..\</JBroNetworkRoot>
-    <OutDir>$(JBroNetworkRoot)Build\$(Platform)\$(Configuration)\</OutDir>
-    <IntDir>$(JBroNetworkRoot)Build\Intermediate\$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
-  </PropertyGroup>
+  <Import Project="$(SolutionDir)JBro.Common.props" Condition="Exists('$(SolutionDir)JBro.Common.props')" />
+  <Import Project="$(MSBuildThisFileDirectory)..\..\JBro.Common.props" Condition="!Exists('$(SolutionDir)JBro.Common.props')" />
   <PropertyGroup Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory)Include;$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroRuntime\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroNetworkSystem\Include;$(JBroNetworkDir)Include;$(JBroModulesDir)JBroCanvas\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroCore\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -46,9 +43,14 @@
     <ProjectReference Include="$(JBroModulesDir)JBroCore\JBroCore.vcxproj">
       <Project>{1a000001-0000-4000-8000-00000000c0de}</Project>
     </ProjectReference>
-    <!-- 컨텍스트 블록(D-37)의 타입을 쓰기 위해서다. 네트워크가 무엇에 의존하는지는 제약이 아니다(D-122). -->
     <ProjectReference Include="$(JBroModulesDir)JBroRuntime\JBroRuntime.vcxproj">
       <Project>{1a000006-0000-4000-8000-000000027417}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroCanvas\JBroCanvas.vcxproj">
+      <Project>{1a00000f-0000-4000-8000-00000000ca47}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroNetworkDir)JBroNetwork.vcxproj">
+      <Project>{1a000020-0000-4000-8000-0000000ae700}</Project>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

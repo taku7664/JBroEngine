@@ -36,6 +36,7 @@ int RunVulkanSmokeTests();
 int RunTextureBindingTests();
 int RunReferenceSafetyTests();
 int RunFramework2DSystemTests();
+int RunNetworkHostTests();
 int RunFramework3DSystemTests();
 int RunMeshPixelTests();
 int RunSystemSchedulerTests();
@@ -177,6 +178,10 @@ int main()
             return 1;
         }
         if (RunFramework2DSystemTests() != 0)
+        {
+            return 1;
+        }
+        if (RunNetworkHostTests() != 0)
         {
             return 1;
         }

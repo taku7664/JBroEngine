@@ -80,9 +80,10 @@
   4 단계(에디터: 검색 드롭다운·에셋 필드·에셋 크기와 샘플러·에셋 브라우저와 옵션 편집·파일 감시, D-118~D-121)까지 섰다.
   기존 엔진 에셋 시스템의 분석과 그쪽이 겪은 문제는 §1,
   설계는 §2, 남긴 것은 §3 각 단계 끝과 §4
-- [tasks/network-plan.md](./tasks/network-plan.md) — 네트워크 계획(D-122). **엔진에는 아직 네트워크 모듈도 서비스도 없다.**
-  `source/JBroNetwork/` 별도 프로젝트로 먼저 세우고, **부착 단계 전까지 `source/JBroEngine/` 은 네트워크 작업으로 바뀌지 않는다**(협업 중). 기존 엔진의 WS + Reliable UDP
-  하이브리드 분석이 §1, 설계(소켓 주입·꺼내 가기 큐·풀 스냅숏 델타 복제·WebRTC 웹 호스트)가 §2, 단계와 완료 조건이 §3 에 있다
+- [tasks/network-plan.md](./tasks/network-plan.md) — 네트워크 계획(D-122). 트랜스포트·WS·Reliable UDP·복제 핵심은 별도 프로젝트
+  `source/JBroNetwork/`(자기 `.slnx`, 엔진의 Core·Runtime 만 참조)에 있고, 엔진 쪽 어댑터는 `Modules/JBroNetworkSystem`(`NetworkHost`·
+  `CanvasPoolAdapter`·수신/송신 시스템)이다. 소켓은 `IPlatform::CreateSocketProvider` 로만 온다. 기존 엔진의 WS + Reliable UDP
+  하이브리드 분석이 §1, 설계(소켓 주입·꺼내 가기 큐·풀 스냅숏 델타 복제·WebRTC 웹 호스트)가 §2, 단계와 완료 조건·실측이 §3 에 있다
 - [tasks/ide-plan.md](./tasks/ide-plan.md) — 스크립트 편집기 JBro Script Editor(Code-OSS 포크) 계획(D-87).
   편집기 리포는 `F:\Project\JBroScriptEditor`(원격 없음)다. 새 문법의 강조 확장과 코어 패치 0001~0003 이 섰고
   upstream 을 패치해 개발 실행으로 띄울 수 있다. 설치본(포크 빌드)은 **아직 없다**(D-102).

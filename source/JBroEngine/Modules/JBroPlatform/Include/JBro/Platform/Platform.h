@@ -9,6 +9,13 @@
 
 namespace JBro
 {
+    namespace Network
+    {
+        // 소켓 provider 는 네트워크 프로젝트의 것이다(`<JBro/Network/Socket.h>`). 여기서는 이름만 안다 -
+        // 플랫폼 헤더를 쓰는 모든 모듈이 네트워크 헤더를 보게 하지 않기 위해서다. 구현하는 플랫폼만 그 헤더를 include 한다.
+        class ISocketProvider;
+    }
+
     struct WindowDesc
     {
         JStringView title;
@@ -176,6 +183,15 @@ namespace JBro
             (void)desc;
             (void)outPath;
             return false;
+        }
+
+        // ── 소켓 (D-122) ────────────────────────────────────────────────────────────────────────
+        // **네트워크는 소켓을 직접 열지 않고 이것을 거친다.** 파일 시스템과 같은 규약이다 - 기본은 "이 플랫폼에는 없다"(null) 이고,
+        // 소켓이 있는 플랫폼만 덮어쓴다. Windows 는 Winsock, Web 은 브라우저 WebSocket·RTCPeerConnection 이다. 돌려준 provider 의
+        // 수명은 호스트가 든다.
+        virtual OwnerPtr<Network::ISocketProvider> CreateSocketProvider()
+        {
+            return nullptr;
         }
     };
 }

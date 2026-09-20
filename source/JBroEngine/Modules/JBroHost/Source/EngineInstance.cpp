@@ -1,5 +1,9 @@
 ﻿#include <JBro/Host/EngineInstance.h>
 
+#include <JBro/Network/Internal/ScriptModuleContext.h>
+#include <JBro/Network/SteadyClock.h>
+#include <JBro/NetworkSystem/NetworkHost.h>
+
 #include <JBro/Asset/AssetTypeRules.h>
 
 #include <cmath>
@@ -66,6 +70,16 @@ namespace JBro
                 }
                 m_frameworkContext.memory.frame = m_frameMemory->GetInterface();
             }
+            // 네트워크(D-122). 소켓은 플랫폼이 내어 주고, 없는 플랫폼이면 null 인 채로 선다 - 그때 모든 연결 시도는 거짓이다.
+            if (config.networkEnabled)
+            {
+                m_socketProvider = platform.CreateSocketProvider();
+                m_networkClock = MakeOwnerPtr<Network::SteadyClock>();
+                m_network = MakeOwnerPtr<NetworkHost>(m_socketProvider.Get(), *m_networkClock);
+                BindNetworkSystemContext(m_network->GetSystemContext());
+                BindNetworkServiceContext(m_network->GetServiceContext());
+            }
+            m_frameworkContext.network = m_network.Get();
             m_frameworkContext.renderer = m_renderer.Get();
             m_frameworkContext.fixedDeltaTime = config.fixedDeltaTime;
             m_createMissingAssetMeta = config.createMissingAssetMeta;
@@ -418,13 +432,23 @@ namespace JBro
                     // 컨텍스트가 붙은 뒤에 싣는다. 로더가 그 컨텍스트를 읽어 DLL 에 넘긴다.
                     if (initialized && scriptModulePath != nullptr && scriptModulePath[0] != 0)
                     {
-                        const JArrayView<ScriptContextBlock> blocks =
+                        const JArrayView<ScriptContextBlock> frameworkBlocks =
                             framework.GetScriptContextBlocks();
+                        // 프레임워크의 블록 뒤에 호스트의 네트워크 블록을 잇는다(D-122). 네트워크는 호스트 것이고
+                        // 두 차원이 같은 것을 쓰므로 프레임워크가 아니라 여기서 낸다.
+                        Array<ScriptContextBlock> blocks;
+                        blocks.Reserve(frameworkBlocks.size + 2);
+                        blocks.Append(frameworkBlocks.data, frameworkBlocks.size);
+                        if (m_network)
+                        {
+                            blocks.Add(MakeNetworkSystemContextBlock(m_network->GetSystemContext()));
+                            blocks.Add(MakeNetworkServiceContextBlock(m_network->GetServiceContext()));
+                        }
                         // **못 실어도 프로젝트는 연다**(D-98). 여기서 막으면 아직 한 번도
                         // 빌드하지 않은 프로젝트를 열 길이 없어진다 - 스크립트를 쓰려면
                         // 에디터에서 빌드해야 하는데 그 에디터가 열리지 않는다.
                         m_scriptModuleLoaded = m_scripts.Load(
-                            scriptModulePath, *m_platform, blocks.data, blocks.size);
+                            scriptModulePath, *m_platform, blocks.Data(), static_cast<std::uint32_t>(blocks.Size()));
                         if (false == m_scriptModuleLoaded)
                         {
                             m_scriptModuleError = "the script module could not be loaded: ";
@@ -509,6 +533,11 @@ namespace JBro
         if (m_exitRequested || m_platform->ShouldClose(m_mainWindow))
         {
             return false;
+        }
+        // 소켓은 프레임 밖에서 돌린다. 이 뒤의 고정 스텝이 받은 것을 입히고 보낼 것을 만든다.
+        if (m_network)
+        {
+            m_network->Update();
         }
         if (m_renderer->IsDeviceLost())
         {
@@ -678,6 +707,15 @@ namespace JBro
         m_state = State::Stopping;
         m_exitRequested = true;
         ReleaseProject();
+        // 네트워크는 프로젝트 뒤, 플랫폼 앞에 내린다 - 소켓은 플랫폼의 것이다.
+        if (m_network)
+        {
+            BindNetworkSystemContext({});
+            BindNetworkServiceContext({});
+            m_network.Reset();
+        }
+        m_socketProvider.Reset();
+        m_networkClock.Reset();
         if (m_renderer)
         {
             m_renderer->Shutdown();
@@ -724,6 +762,11 @@ namespace JBro
     Renderer* EngineInstance::GetRenderer()
     {
         return m_renderer.Get();
+    }
+
+    NetworkHost* EngineInstance::GetNetwork()
+    {
+        return m_network.Get();
     }
 
     IFramework* EngineInstance::GetFramework()

@@ -29,7 +29,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(JBroNetworkRoot)JBroNetwork\Include;$(JBroModulesDir)JBroCore\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(JBroNetworkRoot)JBroNetwork\Include;$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroRuntime\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -44,6 +44,9 @@
     </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroCore\JBroCore.vcxproj">
       <Project>{1a000001-0000-4000-8000-00000000c0de}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroRuntime\JBroRuntime.vcxproj">
+      <Project>{1a000006-0000-4000-8000-000000027417}</Project>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

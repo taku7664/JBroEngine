@@ -23,6 +23,10 @@
 
 namespace JBro
 {
+    // 네트워크가 있을 때 캔버스 풀을 복제 풀로 감싼 것들. 정의는 Framework2D.cpp 에만 있다 - 이 헤더를 쓰는 에디터가
+    // 네트워크 헤더를 보지 않게 하기 위해서다(D-122).
+    struct Framework2DNetworkBinding;
+
     class Framework2D final : public IFramework
     {
     public:
@@ -56,6 +60,8 @@ namespace JBro
         RenderWorld2D    m_renderWorld;
         // 스프라이트 에셋 → 렌더러 텍스처(D-113). 렌더러보다 먼저 내려가야 텍스처를 돌려줄 수 있다.
         SpriteLibrary    m_spriteLibrary;
+        // 복제 풀 어댑터들(D-122). 네트워크가 있을 때만 있고, 캔버스와 함께 죽는다.
+        OwnerPtr<Framework2DNetworkBinding> m_networkBinding;
         // 스크립트 DLL 에 넘길 블록과 그 실체다. 블록이 이것들을 가리키므로
         // 프레임워크보다 먼저 죽으면 안 된다.
         Framework2DSystemContext  m_scriptSystems;

@@ -25,7 +25,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroHost\Include;$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroRHI\Include;$(JBroModulesDir)JBroGraphics\Include;$(JBroModulesDir)JBroPlatform\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroHost\Include;$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroRHI\Include;$(JBroModulesDir)JBroGraphics\Include;$(JBroModulesDir)JBroPlatform\Include;$(JBroNetworkDir)Include;$(JBroModulesDir)JBroNetworkSystem\Include;$(JBroModulesDir)JBroCanvas\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -61,6 +61,18 @@
     </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroPlatform\JBroPlatform.vcxproj">
       <Project>{1a000004-0000-4000-8000-00000091a7f0}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroNetworkDir)JBroNetwork.vcxproj">
+      <Project>{1a000020-0000-4000-8000-0000000ae700}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroNetworkSystem\JBroNetworkSystem.vcxproj">
+      <Project>{1a000017-0000-4000-8000-0000000ae75c}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroCanvas\JBroCanvas.vcxproj">
+      <Project>{1a00000f-0000-4000-8000-00000000ca47}</Project>
       <LinkLibraryDependencies>false</LinkLibraryDependencies>
     </ProjectReference>
   </ItemGroup>

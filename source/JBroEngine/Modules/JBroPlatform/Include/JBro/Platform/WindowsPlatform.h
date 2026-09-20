@@ -35,6 +35,8 @@ namespace JBro
         void StopWatching() override;
         bool IsWatching() const override;
         std::uint32_t TakeFileEvents(FileEvent* events, std::uint32_t capacity) override;
+        // `WindowsSockets.cpp` 의 것이다.
+        OwnerPtr<Network::ISocketProvider> CreateSocketProvider() override;
 
         // WndProc 이 부른다. 공개 API 가 아니다.
         void RecordInputEvent(const InputEvent& event);

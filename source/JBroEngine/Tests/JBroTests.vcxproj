@@ -25,7 +25,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroRHI\Include;$(JBroModulesDir)JBroD3D12RHI\Include;$(JBroModulesDir)JBroD3D11RHI\Include;$(JBroModulesDir)JBroVulkanRHI\Include;$(JBroThirdPartyDir)imgui;$(JBroModulesDir)JBroGraphics\Include;$(JBroModulesDir)JBroPlatform\Include;$(JBroModulesDir)JBroCanvas\Include;$(JBroModulesDir)JBroHost\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroFramework2DSystem\Include;$(JBroModulesDir)JBroFramework2D\Include;$(JBroModulesDir)JBroFramework3DSystem\Include;$(JBroModulesDir)JBroFramework3D\Include;$(JBroModulesDir)JBroEditor\Include;$(JBroModulesDir)JBroScriptCompiler\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroRHI\Include;$(JBroModulesDir)JBroD3D12RHI\Include;$(JBroModulesDir)JBroD3D11RHI\Include;$(JBroModulesDir)JBroVulkanRHI\Include;$(JBroThirdPartyDir)imgui;$(JBroModulesDir)JBroGraphics\Include;$(JBroModulesDir)JBroPlatform\Include;$(JBroModulesDir)JBroCanvas\Include;$(JBroModulesDir)JBroHost\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroFramework2DSystem\Include;$(JBroModulesDir)JBroFramework2D\Include;$(JBroModulesDir)JBroFramework3DSystem\Include;$(JBroModulesDir)JBroFramework3D\Include;$(JBroModulesDir)JBroEditor\Include;$(JBroModulesDir)JBroScriptCompiler\Include;$(JBroNetworkDir)Include;$(JBroModulesDir)JBroNetworkSystem\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions Condition="'$(JBroNegativePreludeProbe)' == 'SystemContext'">JBRO_TEST_SCRIPT_API_SYSTEM_CONTEXT_LEAK;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
@@ -104,6 +104,12 @@
     </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroEditor\JBroEditor.vcxproj">
       <Project>{1a00000a-0000-4000-8000-0000000ed170}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroNetworkDir)JBroNetwork.vcxproj">
+      <Project>{1a000020-0000-4000-8000-0000000ae700}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroNetworkSystem\JBroNetworkSystem.vcxproj">
+      <Project>{1a000017-0000-4000-8000-0000000ae75c}</Project>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

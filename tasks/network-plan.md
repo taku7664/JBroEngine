@@ -266,10 +266,31 @@ namespace JBro::Network
    (3) 백오프 상한을 ×64 에서 **×8** 로. 죽은 링크는 세션 타임아웃이 끊으므로 긴 백오프가 필요 없다.
    `[열림]` 델타 한 틱이 `maxDeltaBytes`(60 KB)를 넘으면 그 틱은 보내지 않고 센다(`oversizedTicks`). 전체 스냅숏이 그보다 크면
    영원히 못 보낸다 - 그때는 전체를 여러 메시지로 나누는 일이 필요하다. 지금 예산에서는 약 4600 개 항목까지다.
-5. `[진행 예정]` **부착.** `IPlatform` 소켓 가상 함수(Windows 구현), `JBroNetworkSystem`(펌프·수신/송신 `GameSystem`·컨텍스트
-   블록·값 서비스), `EngineInstance` 블록 병합, 프렐류드 한 줄, 실제 `Canvas` 풀 위의 복제.
-   완료: 테스트 프로젝트에서 호스트 둘을 띄워 한쪽이 서버, 한쪽이 클라이언트로 이어지고 `Transform2D` 풀이 동기화된다.
-   이 단계 전까지의 커밋에는 `source/JBroEngine/` 변경이 하나도 없어야 하고, 이 단계의 엔진 변경은 §2.2 에 적은 네 가지에 그친다.
+5. `[완료]` **부착.** (2026-09-20) 이 단계 전의 네 커밋에는 `source/JBroEngine/` 변경이 없다(`git log --stat` 로 확인).
+   **네트워크 프로젝트 쪽**(엔진 트리 아님): `System/INetworkSystem.h`(값 서비스가 보는 창), `Internal/SystemContext.h`·
+   `ServiceContext.h`(D-37 블록의 내용), `Internal/ScriptModuleContext.h`(`Make*Block`·`Find*Context`, TypeId 는
+   `MakeStableTypeId("JBro.Network.SystemContext")`/`ServiceContext`), `Service/NetworkSessionService`·`Service/NetworkService`
+   (상태 없는 값 타입, 시스템이 없으면 거짓·0·-1 - `Physics2DService` 규약). 그래서 JBroNetwork 가 JBroRuntime 도 참조한다.
+   **엔진 쪽에 생긴 것**: (1) `IPlatform::CreateSocketProvider()`(기본 null, Windows 는 `WindowsSockets.cpp` 에서
+   `Native::WinsockSocketProvider`). `Platform.h` 는 `Network::ISocketProvider` 를 **전방 선언**만 한다 - 플랫폼 헤더를 쓰는 모든
+   모듈이 네트워크 헤더를 보지 않게. (2) 새 모듈 `JBroNetworkSystem`: `NetworkHost`(호스트 소유, `INetworkSystem` + `IReplicationHost`,
+   트랜스포트 펌프·복제 메시지 가르기·게임 메시지 큐, 캔버스 묶기/풀기 때 복제 서버·클라이언트가 새로 섬), `CanvasPoolAdapter<Component, Wire,
+   Traits>`(캔버스 풀 → 복제 풀, 타입을 아는 것은 Traits 만), `NetworkReceiveSystem`(순서 50)·`NetworkSendSystem`(순서 500).
+   (3) `Framework2DSystem/Network/Transform2DReplication.h`: `Transform2DWire`(저작 값 셋, 20 B)와 보간 Traits. `Framework2D` 는
+   네트워크가 있으면 캔버스를 묶고 풀을 등록하고 시스템 둘을 세운다 - 헤더는 `Framework2DNetworkBinding` 을 불투명 소유로만 들어
+   에디터가 네트워크 헤더를 보지 않는다. (4) `FrameworkContext::network`(전방 선언 포인터), `EngineConfig::networkEnabled`,
+   `EngineInstance`: 플랫폼의 provider 와 `SteadyClock` 위에 `NetworkHost` 를 세우고(불투명 소유), 호스트 쪽 컨텍스트를 바인딩하고,
+   프레임워크 블록 뒤에 네트워크 블록 둘을 이어 DLL 로더에 넘기고, `PumpEvents` 뒤 프레임 밖에서 `NetworkHost::Update`,
+   `GetNetwork()`. (5) 두 프렐류드에 `<JBro/Network/ServiceContext.h>` 한 줄. (6) 빌드: `JBro.Common.props` 에 `JBroNetworkDir` 과
+   스크립트 include, vcxproj 아홉 개의 include·참조(Platform·Host·Framework2D·3D·2DSystem 은 링크 없이, Tests·EditorHost·GameHost 는 링크),
+   `.slnx` 에 두 프로젝트, 헤더 자립성 번역 단위 재생성(+3).
+   **검증**: `Tests/NetworkHostTests.cpp` - 한 프로세스에서 호스트 둘(인메모리 소켓, 손 시계)이 이어져 서버 캔버스의 `Transform2D` 20 개가
+   클라이언트 캔버스에 같은 오브젝트 수·같은 값으로 서고, 값 변경이 따라오고, 소멸이 전파되고, 게임 메시지는 복제와 섞이지 않으며
+   복제 대역으로의 송신은 거절된다. 소켓 없는 플랫폼은 전부 조용히 거짓이다. `JBroTests` 전체(`source/JBroEngine` 에서 실행) 통과,
+   `JBroEditorHost` 링크 통과, 네트워크 테스트 전체 통과.
+   `[열림]` 스크립트 DLL 이 네트워크 블록을 바인딩하는 일은 각 DLL 의 Load 가 `FindNetwork*Context` → `BindNetwork*Context` 로 한다
+   (프로브 DLL 은 아직 하지 않는다 - 네트워크를 쓰지 않으므로). 프리팹으로 스폰하는 길(`SpawnDesc::prefab`)은 비어 있고 지금은
+   빈 오브젝트에 어댑터가 컴포넌트를 붙인다.
 6. `[진행 예정]` **WebRTC.** `IPeerConnection` 계약, Web 의 emscripten 접착, 네이티브 호스트 안의 시그널링 서버, 피어형 연결의
    채널 매핑. 완료: 브라우저 둘이 시그널링을 거쳐 이어지고 채널 넷이 각자 규약대로 전달한다(웹 빌드가 서야 하므로 순서는 뒤다).
 7. `[열림]` wss(SChannel), POSIX 소켓(기존도 미검증), 네이티브 WebRTC 피어, 예측·되감기, DTLS, TURN 운영, 워커 I/O.

@@ -8,6 +8,9 @@
 #include <JBro/Framework2D/Internal/ScriptModuleContext.h>
 #include <JBro/Framework2D/Internal/SystemContext.h>
 #include <JBro/Framework2D/ServiceContext.h>
+#include <JBro/Framework2DSystem/Network/Transform2DReplication.h>
+#include <JBro/NetworkSystem/NetworkHost.h>
+#include <JBro/NetworkSystem/System/NetworkSystems.h>
 #include "Rendering/RenderBridge2D.h"
 
 #include <cmath>
@@ -16,6 +19,17 @@
 
 namespace JBro
 {
+    // 2D 가 복제하는 풀은 `Transform2D` 하나다. 더 생기면 여기에 늘고, 등록 순서가 와이어의 타입 번호다.
+    struct Framework2DNetworkBinding
+    {
+        explicit Framework2DNetworkBinding(Canvas& canvas)
+            : transforms(canvas)
+        {
+        }
+
+        Transform2DReplicatedPool transforms;
+    };
+
     Framework2D::~Framework2D()
     {
         Shutdown();
@@ -49,6 +63,13 @@ namespace JBro
                 return false;
             }
             m_canvas = MakeOwnerPtr<Canvas>(allocator);
+            // 네트워크가 있으면 캔버스를 묶고 복제 풀을 등록한다(D-122). 수신·송신 시스템은 CreateDefaultSystems 가 세운다.
+            if (m_context.network != nullptr)
+            {
+                m_context.network->BindCanvas(m_canvas.Get());
+                m_networkBinding = MakeOwnerPtr<Framework2DNetworkBinding>(*m_canvas);
+                m_context.network->RegisterPool(m_networkBinding->transforms);
+            }
             m_spriteLibrary.Initialize(context.assets, context.renderer);
             CreateDefaultSystems();
             m_canvas->GetSystems().Initialize(*m_canvas);
@@ -167,6 +188,12 @@ namespace JBro
         }
         m_canvasAssets.Clear();
         UnbindScriptContexts();
+        // 네트워크가 캔버스를 잊는다. 트랜스포트는 남는다 - 연결은 캔버스보다 오래 산다.
+        if (m_context.network != nullptr)
+        {
+            m_context.network->UnbindCanvas();
+        }
+        m_networkBinding.Reset();
         // Canvas shuts down its systems before objects/components and render storage disappear.
         m_layer2DStates.Clear();
         m_canvas.Reset();
@@ -278,6 +305,12 @@ namespace JBro
         System::SpriteRender2DSystem& sprites = systems.AddSystem<System::SpriteRender2DSystem>();
         sprites.SetRenderWorld(&m_renderWorld);
         sprites.SetSpriteLibrary(&m_spriteLibrary);
+        // 수신은 가장 앞(50), 송신은 가장 뒤(500)다. 한 시스템이면 물리보다 앞이면서 뒤일 수 없다(network-plan §2.6).
+        if (m_context.network != nullptr)
+        {
+            systems.AddSystem<System::NetworkReceiveSystem>(*m_context.network);
+            systems.AddSystem<System::NetworkSendSystem>(*m_context.network);
+        }
     }
     void Framework2D::RunFixedSteps(float deltaTime)
     {

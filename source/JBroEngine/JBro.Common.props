@@ -10,6 +10,8 @@
     <JBroBuildDir>$(JBroRoot)Build\</JBroBuildDir>
     <!-- 외부 라이브러리는 소스째로 여기 있다. ThirdParty/README.md 참조. -->
     <JBroThirdPartyDir>$(JBroRoot)ThirdParty\</JBroThirdPartyDir>
+    <!-- 네트워크는 별도 프로젝트다(D-122). 엔진이 그것을 참조하고, 그것은 엔진의 Core·Runtime 만 참조한다. -->
+    <JBroNetworkDir>$(JBroRoot)..\JBroNetwork\JBroNetwork\</JBroNetworkDir>
   </PropertyGroup>
 
   <PropertyGroup Label="JBroScriptTarget">
@@ -30,7 +32,7 @@
     <!-- 스크립트 타깃임을 헤더가 알아볼 수 있게 하는 표식이다. Tier S 헤더 중
          프렐류드를 거쳐야만 하는 것들이 이 값을 보고 직접 include 를 거절한다. -->
     <JBroScriptTargetDefines>JBRO_SCRIPT_TARGET</JBroScriptTargetDefines>
-    <JBroScriptIncludes>$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroScriptFrameworkIncludes)</JBroScriptIncludes>
+    <JBroScriptIncludes>$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroNetworkDir)Include;$(JBroScriptFrameworkIncludes)</JBroScriptIncludes>
   </PropertyGroup>
 
   <PropertyGroup Label="JBroVersion">
