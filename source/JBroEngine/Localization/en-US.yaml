@@ -5,6 +5,8 @@ Entries:
   panel.hierarchy: Hierarchy
   panel.inspector: Inspector
   panel.assets: Assets
+  panel.shortcuts: Shortcuts
+  panel.log: Log
   panel.stats: Stats
   gizmo.translate: Move
   gizmo.rotate: Rotate
@@ -75,3 +77,11 @@ Entries:
   inspector.texture_import_options: Texture Import Options
   inspector.sprite_import_options: Sprite Import Options
   common.ok: OK
+  log.clear: Clear
+  log.auto_scroll: Follow
+  log.empty: nothing has been logged
+  log.trace: Trace
+  log.debug: Debug
+  log.info: Info
+  log.warning: Warning
+  log.error: Error

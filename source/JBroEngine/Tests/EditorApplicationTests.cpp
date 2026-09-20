@@ -420,10 +420,16 @@ namespace
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
         const std::size_t builtin = editor.GetPanelCount();
-        // 캔버스 뷰·게임 뷰·계층·인스펙터·에셋·통계다(D-130 에서 캔버스 뷰가 늘었다).
-        Check(builtin == 6, "the editor brings six panels of its own");
-        Check(editor.FindPanel("Inspector") != nullptr, "and they are findable by title");
-        Check(editor.FindPanel("CanvasView") != nullptr, "the editing view is one of them");
+        // **이름으로 센다.** 숫자만 재면 패널을 더할 때마다 이 줄을 고치게 되고,
+        // 정작 무엇이 빠졌는지는 말해 주지 않는다.
+        const char* const expected[] = {
+            "CanvasView", "Game", "Hierarchy", "Inspector", "Assets", "Stats", "Log", "Shortcuts"};
+        for (const char* title : expected)
+        {
+            Check(editor.FindPanel(title) != nullptr, title);
+        }
+        Check(builtin == sizeof(expected) / sizeof(expected[0]),
+            "and the editor brings exactly those");
         Check(editor.FindPanel("Nothing Like This") == nullptr,
             "and a title nobody has finds nothing");
 
@@ -3256,7 +3262,8 @@ namespace
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
         // 기본 패널이 다 있어야 한다. 하나라도 안 붙으면 화면에서 빈 칸이 된다.
-        Check(editor.GetPanelCount() == 6, "the six default panels must be registered");
+        // 어느 것이 있어야 하는지는 `TestThePanelRegistryRefusesWhatItCannotHold` 가 이름으로 잰다.
+        Check(editor.GetPanelCount() == 8, "the default panels must be registered");
         Check(editor.FindPanel("Game") != nullptr, "the game view must be one of them");
         Check(editor.FindPanel("Hierarchy") != nullptr, "and the hierarchy");
         Check(editor.FindPanel("Inspector") != nullptr, "and the inspector");

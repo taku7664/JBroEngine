@@ -1,7 +1,7 @@
 ﻿#include "HierarchyPanel.h"
 
 #include <JBro/Editor/Command/HierarchyCommands.h>
-#include <JBro/Editor/Command/ObjectCommands.h>
+#include <JBro/Editor/EditorActions.h>
 
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Editor/EditorApplication.h>
@@ -154,35 +154,14 @@ namespace JBro
         if (ImGui::BeginPopupContextWindow("##HierarchyMenu",
             ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems))
         {
-            if (ImGui::MenuItem(Loc::TextOr(LocKeys::HierarchyCreateObject,
-                "Create Object")))
-            {
-                auto command = MakeOwnerPtr<CreateObjectCommand>(
-                    *canvas, m_editor->GetObjectIds(), "GameObject",
-                    InvalidEditorObjectId);
-                CreateObjectCommand* raw = command.Get();
-                if (m_editor->GetCommands().Execute(std::move(command)))
-                {
-                    m_editor->SetSelectedObject(
-                        m_editor->GetObjectIds().Resolve(raw->GetObjectId()));
-                }
-            }
-            // 빈 자리의 붙여넣기는 뿌리에 붙는다.
-            const bool hasClipboard = m_editor->HasClipboard();
-            if (false == hasClipboard)
-            {
-                ImGui::BeginDisabled();
-            }
-            if (ImGui::MenuItem(Loc::TextOr(LocKeys::HierarchyPaste, "Paste"), "Ctrl+V"))
-            {
-                m_editor->ClearSelection();
-                m_editor->PasteClipboard();
-            }
-            if (false == hasClipboard)
-            {
-                ImGui::EndDisabled();
-            }
+            // 빈자리의 메뉴는 캔버스 뷰의 것과 **같은 한 벌**이다(D-132).
+            const bool changed = EditorActions::DrawBackgroundMenu(*m_editor);
             ImGui::EndPopup();
+            if (changed)
+            {
+                // 계층이 그 자리에서 달라졌다. 이 프레임에 더 그리지 않는다.
+                return;
+            }
         }
 
         if (canvas->GetObjectCount() == 0)
@@ -436,69 +415,37 @@ namespace JBro
         {
             m_editor->SetSelectedObject(&object);
         }
-        if (ImGui::MenuItem(Loc::TextOr(LocKeys::HierarchyCreateChild, "Create Child")))
+        // 항목은 공용 한 벌이다(D-132). 캔버스 뷰와 메뉴 막대가 같은 것을 쓴다.
+        bool alive = true;
+        if (EditorActions::DrawCreateChildItem(*m_editor, object))
         {
-            auto command = MakeOwnerPtr<CreateObjectCommand>(
-                *m_editor->GetCanvas(), m_editor->GetObjectIds(), "GameObject",
-                m_editor->GetObjectIds().Track(&object));
-            CreateObjectCommand* raw = command.Get();
-            if (m_editor->GetCommands().Execute(std::move(command)))
+            alive = false;
+        }
+        if (alive && EditorActions::DrawUnparentItem(*m_editor, object))
+        {
+            // 부모가 바뀌면 지금 도는 자식 배열이 그 자리에서 달라진다.
+            alive = false;
+        }
+        if (alive)
+        {
+            ImGui::Separator();
+            EditorActions::DrawCopyItem(*m_editor);
+            if (EditorActions::DrawPasteItem(*m_editor))
             {
-                m_editor->SetSelectedObject(
-                    m_editor->GetObjectIds().Resolve(raw->GetObjectId()));
+                alive = false;
             }
         }
-        // **부모 해제는 메뉴에도 있어야 한다.** 끌어 놓기로만 되면 계층이 길 때
-        // 놓을 빈자리를 찾아 스크롤해야 한다. 기존 엔진도 이 자리에 두었다.
-        if (object.GetParent() != nullptr)
+        if (alive)
         {
-            if (ImGui::MenuItem(Loc::TextOr(LocKeys::HierarchyUnparent, "Unparent")))
+            ImGui::Separator();
+            if (EditorActions::DrawDeleteItem(*m_editor, object))
             {
-                Canvas* canvas = m_editor->GetCanvas();
-                EditorObjectRegistry& ids = m_editor->GetObjectIds();
-                Array<GameObject*> roots;
-                canvas->GetRootObjects(roots);
-                m_editor->GetCommands().Execute(MakeOwnerPtr<MoveInHierarchyCommand>(
-                    *canvas, ids, ids.Track(&object), InvalidEditorObjectId, roots.Size()));
+                // **여기서 `object` 는 이미 없을 수 있다.**
+                alive = false;
             }
-        }
-        ImGui::Separator();
-        if (ImGui::MenuItem(Loc::TextOr(LocKeys::HierarchyCopy, "Copy"), "Ctrl+C"))
-        {
-            m_editor->CopySelection();
-        }
-        const bool hasClipboard = m_editor->HasClipboard();
-        if (false == hasClipboard)
-        {
-            ImGui::BeginDisabled();
-        }
-        if (ImGui::MenuItem(Loc::TextOr(LocKeys::HierarchyPaste, "Paste"), "Ctrl+V"))
-        {
-            m_editor->PasteClipboard();
-            ImGui::EndPopup();
-            // 붙여넣기는 계층을 바꾼다. 이 줄을 더 그리면 방금 달라진 자식 배열을
-            // 그 자리에서 읽게 된다.
-            return false;
-        }
-        if (false == hasClipboard)
-        {
-            ImGui::EndDisabled();
-        }
-        ImGui::Separator();
-        if (ImGui::MenuItem(Loc::TextOr(LocKeys::HierarchyDelete, "Delete")))
-        {
-            // 고른 것을 먼저 비운다 - 지운 뒤에 인스펙터가 죽은 것을 읽지
-            // 않게. SafePtr 이 알아서 비우지만, 이 프레임 안에서는 아직 살아 있다.
-            m_editor->SetSelectedObject(nullptr);
-            m_editor->GetCommands().Execute(MakeOwnerPtr<DeleteObjectCommand>(
-                *m_editor->GetCanvas(), m_editor->GetObjectIds(), &object));
-            ImGui::EndPopup();
-            // **여기서 `object` 는 이미 없을 수 있다.** 이름을 그리거나 자식을 도는
-            // 것은 죽은 자리를 읽는 일이다.
-            return false;
         }
         ImGui::EndPopup();
-        return true;
+        return alive;
     }
 
     void HierarchyPanel::DrawObject(

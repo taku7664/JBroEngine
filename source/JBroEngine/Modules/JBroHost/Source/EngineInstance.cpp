@@ -1,4 +1,5 @@
-﻿#include <JBro/Host/EngineInstance.h>
+﻿#include <JBro/Core/Log.h>
+#include <JBro/Host/EngineInstance.h>
 
 #include <JBro/Network/Internal/ScriptModuleContext.h>
 #include <JBro/Network/SteadyClock.h>
@@ -153,7 +154,8 @@ namespace JBro
         if (m_watchAssetDirectory && false == m_platform->WatchDirectory(m_assetRoot.c_str()))
         {
             // 감시가 서지 않아도(폴더 없음) 프로젝트는 열린다. 그때는 변경이 오지 않을 뿐이다 - `IsWatchingAssets` 가 말한다.
-            std::printf("note: the asset folder is not watched: %s\\n", m_assetRoot.c_str());
+            Log::Write(LogLevel::Info, "asset", "the asset folder is not watched: %s",
+                m_assetRoot.c_str());
         }
         return true;
     }
@@ -459,7 +461,7 @@ namespace JBro
                         {
                             m_scriptModuleError = "the script module could not be loaded: ";
                             m_scriptModuleError.append(scriptModulePath);
-                            std::printf("note: %s\n", m_scriptModuleError.c_str());
+                            Log::Write(LogLevel::Info, "script", "%s", m_scriptModuleError.c_str());
                         }
                     }
                 }

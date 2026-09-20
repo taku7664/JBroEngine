@@ -1,7 +1,7 @@
 ﻿#include "CanvasViewPanel.h"
 
 #include <JBro/Canvas/Canvas.h>
-#include <JBro/Editor/Command/ObjectCommands.h>
+#include <JBro/Editor/EditorActions.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/EditorUI.h>
 #include <JBro/Editor/Localization.h>
@@ -524,8 +524,7 @@ namespace JBro
             }
             return;
         }
-        Canvas* canvas = m_editor->GetCanvas();
-        if (canvas == nullptr)
+        if (m_editor->GetCanvas() == nullptr)
         {
             return;
         }
@@ -533,30 +532,8 @@ namespace JBro
         {
             return;
         }
-        if (ImGui::MenuItem(Loc::TextOr(LocKeys::HierarchyCreateObject, "Create Object")))
-        {
-            auto command = MakeOwnerPtr<CreateObjectCommand>(
-                *canvas, m_editor->GetObjectIds(), "GameObject", InvalidEditorObjectId);
-            CreateObjectCommand* raw = command.Get();
-            if (m_editor->GetCommands().Execute(std::move(command)))
-            {
-                m_editor->SetSelectedObject(
-                    m_editor->GetObjectIds().Resolve(raw->GetObjectId()));
-            }
-        }
-        const bool hasClipboard = m_editor->HasClipboard();
-        if (false == hasClipboard)
-        {
-            ImGui::BeginDisabled();
-        }
-        if (ImGui::MenuItem(Loc::TextOr(LocKeys::HierarchyPaste, "Paste"), "Ctrl+V"))
-        {
-            m_editor->PasteClipboard();
-        }
-        if (false == hasClipboard)
-        {
-            ImGui::EndDisabled();
-        }
+        // 계층의 빈자리와 **같은 한 벌**이다(D-132). 두 화면의 메뉴가 갈라지지 않는다.
+        EditorActions::DrawBackgroundMenu(*m_editor);
         ImGui::EndPopup();
     }
 

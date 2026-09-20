@@ -1,4 +1,5 @@
-﻿#include <JBro/D3D11RHI/D3D11RHI.h>
+﻿#include <JBro/Core/Log.h>
+#include <JBro/D3D11RHI/D3D11RHI.h>
 #include <JBro/D3D12RHI/D3D12RHI.h>
 #include <JBro/VulkanRHI/VulkanRHI.h>
 #include <JBro/Platform/WindowsPlatform.h>
@@ -54,7 +55,8 @@ namespace
         JBro::Array<std::byte> text;
         if (false == platform.ReadWholeFile(path.c_str(), text))
         {
-            std::printf("note: the startup canvas could not be read: %s\n", path.c_str());
+            JBro::Log::Write(JBro::LogLevel::Info, "canvas",
+                "the startup canvas could not be read: %s", path.c_str());
             return;
         }
         JBro::Canvas* canvas = framework.GetCanvas();
@@ -62,7 +64,9 @@ namespace
         if (canvas == nullptr
             || false == JBro::ReadCanvasText(*canvas, reinterpret_cast<const char*>(text.Data()), text.Size(), error))
         {
-            std::printf("note: the startup canvas could not be loaded: %s (%s)\n", path.c_str(), error.message.c_str());
+            JBro::Log::Write(JBro::LogLevel::Info, "canvas",
+                "the startup canvas could not be loaded: %s (%s)",
+                path.c_str(), error.message.c_str());
             return;
         }
         framework.BindCanvasAssets();

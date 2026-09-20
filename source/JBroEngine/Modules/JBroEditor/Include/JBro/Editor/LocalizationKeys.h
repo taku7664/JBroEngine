@@ -15,6 +15,8 @@ namespace JBro::LocKeys
     inline constexpr const char* PanelHierarchy = "panel.hierarchy";
     inline constexpr const char* PanelInspector = "panel.inspector";
     inline constexpr const char* PanelStats = "panel.stats";
+    inline constexpr const char* PanelShortcuts = "panel.shortcuts";
+    inline constexpr const char* PanelLog = "panel.log";
     inline constexpr const char* PanelAssets = "panel.assets";
 
     // ── 게임 뷰의 기즈모 (D-109) ─────────────────────────────────────────
@@ -109,4 +111,14 @@ namespace JBro::LocKeys
     inline constexpr const char* InspectorTextureImportOptions = "inspector.texture_import_options";
     inline constexpr const char* InspectorSpriteImportOptions = "inspector.sprite_import_options";
     inline constexpr const char* CommonOk = "common.ok";
+
+    // ── 로그 (D-133) ─────────────────────────────────────────────────────
+    inline constexpr const char* LogClear = "log.clear";
+    inline constexpr const char* LogAutoScroll = "log.auto_scroll";
+    inline constexpr const char* LogEmpty = "log.empty";
+    inline constexpr const char* LogTrace = "log.trace";
+    inline constexpr const char* LogDebug = "log.debug";
+    inline constexpr const char* LogInfo = "log.info";
+    inline constexpr const char* LogWarning = "log.warning";
+    inline constexpr const char* LogError = "log.error";
 }

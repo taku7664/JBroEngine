@@ -1,4 +1,5 @@
-﻿#include <JBro/Asset/Asset.h>
+﻿#include <JBro/Core/Log.h>
+#include <JBro/Asset/Asset.h>
 
 #include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetTypeRules.h>
@@ -210,7 +211,8 @@ namespace JBro
         AssetMetaError error;
         if (false == LoadAssetMetaFile(*m_platform, MetaPathOf(record).c_str(), meta, error))
         {
-            std::printf("warning: %s: %s (line %zu)\n", MetaPathOf(record).c_str(), error.message.c_str(), error.line);
+            Log::Write(LogLevel::Warning, "asset", "%s: %s (line %zu)",
+                MetaPathOf(record).c_str(), error.message.c_str(), error.line);
             return false;
         }
         m_metaCache.TryAdd(key, meta);

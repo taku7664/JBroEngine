@@ -1,4 +1,5 @@
-﻿#include <JBro/Canvas/Canvas.h>
+﻿#include <JBro/Core/Log.h>
+#include <JBro/Canvas/Canvas.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
@@ -287,7 +288,8 @@ int main(int argumentCount, char** arguments)
         if (false == editor.IsScriptModuleLoaded()
             && false == editor.GetScriptModuleError().empty())
         {
-            std::printf("warning: %s\n", editor.GetScriptModuleError().c_str());
+            JBro::Log::Write(JBro::LogLevel::Warning, "script", "%s",
+                editor.GetScriptModuleError().c_str());
         }
     }
     else

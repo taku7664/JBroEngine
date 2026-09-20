@@ -1,5 +1,7 @@
-﻿#include <JBro/Editor/EditorApplication.h>
+﻿#include <JBro/Core/Log.h>
+#include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/Command/ObjectCommands.h>
+#include <JBro/Editor/EditorShortcuts.h>
 #include <JBro/Editor/EditorTheme.h>
 #include <JBro/Editor/MessagePopup.h>
 
@@ -26,6 +28,8 @@
 #include "Panel/GameViewPanel.h"
 #include "Panel/HierarchyPanel.h"
 #include "Panel/InspectorPanel.h"
+#include "Panel/LogPanel.h"
+#include "Panel/ShortcutPanel.h"
 #include "Panel/StatsPanel.h"
 
 #include <imgui.h>
@@ -593,7 +597,9 @@ namespace JBro
                 || false == AddPanel(MakeOwnerPtr<HierarchyPanel>())
                 || false == AddPanel(MakeOwnerPtr<InspectorPanel>())
                 || false == AddPanel(MakeOwnerPtr<AssetBrowserPanel>())
-                || false == AddPanel(MakeOwnerPtr<StatsPanel>()))
+                || false == AddPanel(MakeOwnerPtr<StatsPanel>())
+                || false == AddPanel(MakeOwnerPtr<LogPanel>())
+                || false == AddPanel(MakeOwnerPtr<ShortcutPanel>()))
             {
                 ReleaseEditorUi();
                 return false;
@@ -1148,6 +1154,28 @@ namespace JBro
         m_panels.Clear();
     }
 
+    bool EditorApplication::DrawShortcutItem(EditorShortcut id, const char* label)
+    {
+        // **글자도 할 수 있는지도 단축키 표에서 온다**(D-132). 메뉴에 박아 두면
+        // 키를 바꿨을 때 화면만 옛 글자로 남는다.
+        const bool enabled = EditorShortcuts::CanExecute(*this, id);
+        const EditorShortcutText keys = EditorShortcuts::Describe(id);
+        if (false == enabled)
+        {
+            ImGui::BeginDisabled();
+        }
+        const bool chosen = ImGui::MenuItem(label, keys.value);
+        if (false == enabled)
+        {
+            ImGui::EndDisabled();
+        }
+        if (chosen)
+        {
+            EditorShortcuts::Execute(*this, id);
+        }
+        return chosen;
+    }
+
     void EditorApplication::DrawMenuBar()
     {
         if (false == ImGui::BeginMenuBar())
@@ -1159,21 +1187,8 @@ namespace JBro
         // 메뉴는 창과 달리 도킹 자리 같은 것을 남기지 않으므로 잃는 것이 없다.
         if (ImGui::BeginMenu(Loc::TextOr(LocKeys::MenuFile, "File")))
         {
-            // 프로젝트가 없으면 저장할 캔버스도 없다. 경로는 처리 시점에 정한다 -
-            // 아는 경로가 없으면 대화상자다.
-            const bool canSave = GetCanvas() != nullptr;
-            if (false == canSave)
-            {
-                ImGui::BeginDisabled();
-            }
-            if (ImGui::MenuItem(Loc::TextOr(LocKeys::MenuSaveCanvas, "Save Canvas"), "Ctrl+S"))
-            {
-                RequestSaveCanvas();
-            }
-            if (false == canSave)
-            {
-                ImGui::EndDisabled();
-            }
+            DrawShortcutItem(EditorShortcut::SaveCanvas,
+                Loc::TextOr(LocKeys::MenuSaveCanvas, "Save Canvas"));
             ImGui::Separator();
             if (ImGui::MenuItem(Loc::TextOr(LocKeys::MenuExit, "Exit")))
             {
@@ -1185,34 +1200,14 @@ namespace JBro
         if (ImGui::BeginMenu(Loc::TextOr(LocKeys::MenuEdit, "Edit")))
         {
             // **할 수 없는 것은 회색으로 보인다.** 눌리는데 아무 일도 안 하면
-            // 고장인지 할 게 없는 건지 알 수 없다.
-            const bool canUndo = m_commands.CanUndo();
-            if (false == canUndo)
-            {
-                ImGui::BeginDisabled();
-            }
-            if (ImGui::MenuItem(Loc::TextOr(LocKeys::MenuUndo, "Undo"), "Ctrl+Z"))
-            {
-                m_commands.Undo();
-            }
-            if (false == canUndo)
-            {
-                ImGui::EndDisabled();
-            }
-
-            const bool canRedo = m_commands.CanRedo();
-            if (false == canRedo)
-            {
-                ImGui::BeginDisabled();
-            }
-            if (ImGui::MenuItem(Loc::TextOr(LocKeys::MenuRedo, "Redo"), "Ctrl+Y"))
-            {
-                m_commands.Redo();
-            }
-            if (false == canRedo)
-            {
-                ImGui::EndDisabled();
-            }
+            // 고장인지 할 게 없는 건지 알 수 없다. 그 판단은 단축키 표가 한다.
+            DrawShortcutItem(EditorShortcut::Undo, Loc::TextOr(LocKeys::MenuUndo, "Undo"));
+            DrawShortcutItem(EditorShortcut::Redo, Loc::TextOr(LocKeys::MenuRedo, "Redo"));
+            ImGui::Separator();
+            DrawShortcutItem(EditorShortcut::Copy, Loc::TextOr(LocKeys::HierarchyCopy, "Copy"));
+            DrawShortcutItem(EditorShortcut::Paste, Loc::TextOr(LocKeys::HierarchyPaste, "Paste"));
+            DrawShortcutItem(EditorShortcut::DeleteSelection,
+                Loc::TextOr(LocKeys::HierarchyDelete, "Delete"));
             ImGui::EndMenu();
         }
 
@@ -1220,37 +1215,12 @@ namespace JBro
         // 두었고 단축키도 같다(F5 재생, F6 일시정지).
         if (ImGui::BeginMenu(Loc::TextOr(LocKeys::MenuSimulation, "Simulation")))
         {
-            const bool canPlay = GetCanvas() != nullptr;
-            if (false == canPlay)
-            {
-                ImGui::BeginDisabled();
-            }
             const bool playing = IsSimulationPlaying();
-            if (ImGui::MenuItem(playing
-                    ? Loc::TextOr(LocKeys::MenuSimulationStop, "Stop")
-                    : Loc::TextOr(LocKeys::MenuSimulationPlay, "Play"), "F5"))
-            {
-                ToggleSimulation();
-            }
-            if (false == canPlay)
-            {
-                ImGui::EndDisabled();
-            }
-
-            if (false == playing)
-            {
-                ImGui::BeginDisabled();
-            }
-            bool paused = IsSimulationPaused();
-            if (ImGui::MenuItem(Loc::TextOr(LocKeys::MenuSimulationPause, "Pause"), "F6",
-                    &paused))
-            {
-                SetSimulationPaused(paused);
-            }
-            if (false == playing)
-            {
-                ImGui::EndDisabled();
-            }
+            DrawShortcutItem(EditorShortcut::TogglePlay, playing
+                ? Loc::TextOr(LocKeys::MenuSimulationStop, "Stop")
+                : Loc::TextOr(LocKeys::MenuSimulationPlay, "Play"));
+            DrawShortcutItem(EditorShortcut::TogglePause,
+                Loc::TextOr(LocKeys::MenuSimulationPause, "Pause"));
             ImGui::EndMenu();
         }
 
@@ -1314,38 +1284,9 @@ namespace JBro
             return false;
         }
 
-        // 기존 엔진과 같은 배치다: Ctrl+Z 되돌리기, Ctrl+Y 또는
-        // Ctrl+Shift+Z 다시하기. **텍스트 필드에 타자를 치는 중이면 건너뛴다** -
-        // 이름을 고치다 Ctrl+Z 를 누르면 글자를 되돌려야지 씬을 되돌리면 안 된다.
-        if (false == ImGui::GetIO().WantTextInput)
-        {
-            const bool control = ImGui::GetIO().KeyCtrl;
-            const bool shift = ImGui::GetIO().KeyShift;
-            if (control && ImGui::IsKeyPressed(ImGuiKey_Z, false))
-            {
-                if (shift)
-                {
-                    m_commands.Redo();
-                }
-                else
-                {
-                    m_commands.Undo();
-                }
-            }
-            else if (control && ImGui::IsKeyPressed(ImGuiKey_Y, false))
-            {
-                m_commands.Redo();
-            }
-            // 기존 엔진과 같은 키다: F5 재생·정지, F6 일시정지(D-131).
-            if (GetCanvas() != nullptr && ImGui::IsKeyPressed(ImGuiKey_F5, false))
-            {
-                ToggleSimulation();
-            }
-            if (ImGui::IsKeyPressed(ImGuiKey_F6, false))
-            {
-                SetSimulationPaused(false == IsSimulationPaused());
-            }
-        }
+        // **단축키는 한 표에서 온다**(D-132). 누르는 자리와 메뉴에 보이는 글자와
+        // 할 수 있는지 재는 자리가 갈리지 않게, 셋 다 `EditorShortcuts` 가 안다.
+        EditorShortcuts::ProcessInput(*this);
 
         // **창 전체를 덮는 도크 공간.** 패널들은 이 안에 붙는다 - 자리를 ImGui
         // 기본값에 맡기면 작은 창에서 화면 밖으로 밀린다.
@@ -1443,25 +1384,6 @@ namespace JBro
         }
 
         DrawPopups();
-
-        // Ctrl+S. 메뉴 항목의 표시와 같은 손짓이다. 글자 칸이 입력을 먹고 있어도 저장은 된다.
-        if (GetCanvas() != nullptr
-            && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_S, ImGuiInputFlags_RouteGlobal))
-        {
-            RequestSaveCanvas();
-        }
-        // Ctrl+C / Ctrl+V. 글자 칸이 입력을 먹고 있을 때는 그 칸의 복사·붙여넣기다.
-        if (GetCanvas() != nullptr && false == ImGui::GetIO().WantTextInput)
-        {
-            if (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_C, ImGuiInputFlags_RouteGlobal))
-            {
-                CopySelection();
-            }
-            if (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_V, ImGuiInputFlags_RouteGlobal))
-            {
-                PasteClipboard();
-            }
-        }
 
         // **텍스처와 버퍼는 여기서 올라간다. RHI 프레임 밖이어야 한다** -
         // 아래 엔진 Tick 이 프레임을 열고 나면 만들 수도 쓸 수도 없다.
@@ -1668,7 +1590,8 @@ namespace JBro
             }
             if (changes.rescanFailed)
             {
-                std::printf("warning: the asset folder could not be rescanned; the registry keeps its previous contents\n");
+                Log::Write(LogLevel::Warning, "asset",
+                    "the asset folder could not be rescanned; the registry keeps its previous contents");
             }
         }
         // UI 를 먼저 만든다. 텍스처와 정점 버퍼가 RHI 프레임 **밖에서** 올라가야

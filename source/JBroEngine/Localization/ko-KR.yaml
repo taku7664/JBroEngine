@@ -5,6 +5,8 @@ Entries:
   panel.hierarchy: 계층 구조
   panel.inspector: 인스펙터
   panel.assets: 에셋
+  panel.shortcuts: 단축키
+  panel.log: 로그
   panel.stats: 통계
   gizmo.translate: 이동
   gizmo.rotate: 회전
@@ -75,3 +77,11 @@ Entries:
   inspector.texture_import_options: 텍스처 임포트 옵션
   inspector.sprite_import_options: 스프라이트 임포트 옵션
   common.ok: 확인
+  log.clear: 지우기
+  log.auto_scroll: 자동 스크롤
+  log.empty: 기록된 내용이 없습니다
+  log.trace: 추적
+  log.debug: 디버그
+  log.info: 정보
+  log.warning: 경고
+  log.error: 오류
