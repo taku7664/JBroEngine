@@ -2050,16 +2050,17 @@ EditorApplication::Tick
   동기화는 컴포넌트 풀 스냅숏 델타까지 엔진이 맡는다.** (2026-09-20, [network-plan.md](./network-plan.md))
   지금 엔진에는 네트워크 모듈도 서비스도 없다. 기존 엔진(`Engine/Core/Network`)은 전 플랫폼 WebSocket 기준선 위에 네이티브
   UDP 를 덧대고 그 위에 Reliable UDP(ACK·재전송·RTO·재정렬·프래그먼트·AIMD·피기백)를 끝까지 만들었으나, 오브젝트 복제는 없었고
-  웹 호스트도 없었다(§1). 정한 것: (1) `source/JBroNetwork/` 별도 VS 프로젝트. 의존은 엔진 → 네트워크 한 방향이고, 네트워크가
-  Canvas·Runtime·Host·Platform 을 아는 일은 부착 단계의 `JBroNetworkSystem` 어댑터로 한정한다. 소켓과 시계는 주입받는다.
+  웹 호스트도 없었다(§1). 정한 것: (1) `source/JBroNetwork/` 별도 VS 프로젝트. 엔진은 협업 중이므로 **부착 단계 전까지
+  `source/JBroEngine/` 아래 파일은 바뀌지 않는다.** 네트워크가 무엇을 참조하는지는 제약이 아니다(엔진 모듈 참조는 엔진 파일을
+  바꾸지 않는다). 부착 단계에 엔진에 생기는 것은 `IPlatform` 소켓·`JBroNetworkSystem`·`EngineInstance` 블록 병합·프렐류드 한 줄이다.
+  소켓과 시계는 주입받는다.
   (2) 메인 스레드 폴링으로 시작하되 트랜스포트 밖 경계는 전부 POD 큐 꺼내 가기(`TakeEvents`/`TakeMessages`)다 - 콜백을 두지
   않는다. 워커로 옮겨도 서비스 API 가 바뀌지 않게 하기 위해서다. (3) STL 컨테이너 대신 `Array`/`Table`/`String`, 매 틱 경로는
   고정 원형 배열. (4) 동기화는 별도 동기화 컴포넌트 없이 **컴포넌트 타입 단위로 풀을 등록해 스냅숏 델타**를 보낸다. 식별자는
   컴포넌트가 아니라 시스템의 `InstanceId ↔ NetworkObjectId` 표다. 스폰·소멸은 신뢰 채널, 상태는 `UnreliableSequenced`.
   (5) WebRTC DataChannel 을 범위에 넣어 웹끼리 P2P 호스트를 허용한다. 기존 규약 "웹은 서버 불가" 는 "웹은 WebSocket 을 받을 수
   없다" 로 고친다. 시그널링 서버가 필요하고, 네이티브 ↔ 웹 P2P 는 열어 둔다. (6) 검증은 테스트 프로젝트 안에서 호스트 둘을 루프백으로
-  잇고, 유실은 기존 `CLossyUdpSocket` 데코레이터를 옮겨 주입한다. `[가정]` 별도 프로젝트는 `JBroCore` 하나만 의존한다
-  (전용 컨테이너가 거기 있다). 스크립트 경계는 D-37 확장 블록이고 `JBroRuntime::ServiceContext` 에는 넣지 않는다(D-43 과 같은 이유).
+  잇고, 유실은 기존 `CLossyUdpSocket` 데코레이터를 옮겨 주입한다. 스크립트 경계는 D-37 확장 블록이고 `JBroRuntime::ServiceContext` 에는 넣지 않는다(D-43 과 같은 이유).
 
 ## Assumptions
 

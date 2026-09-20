@@ -3,13 +3,13 @@
 > 계약은 `docs/ProjectRule.md`, 결정은 `tasks/todo.md` Decisions 다. 이 문서는 그 둘을 향해 가는 순서와
 > 상태를 적는다. 상태는 항목마다 `[완료]` `[진행]` `[제안]` `[가정]` `[열림]` 으로 붙인다.
 > `[제안]` 은 **사용자 확인 전**이다. 2026-09-20 에 §0 의 방향(별도 프로젝트·폴링 유지·전용 컨테이너·복제 (A)·WebRTC 포함·
-> 호스트 둘 검증)이 확인돼 D-122 가 됐다. §2.2 의 의존 허용 범위는 `[가정]` 이다.
+> 호스트 둘 검증)이 확인돼 D-122 가 됐다. 같은 날 §2.2 의 뜻이 정정됐다 - 제약은 네트워크의 의존이 아니라 **엔진 트리의 불변**이다.
 
 ## 0. 확정된 방향 (2026-09-20, D-122)
 
-1. **별도 VS 프로젝트로 판다.** 초반에는 엔진에 의존하지 않고 따로 개발하고, 꼭 붙여야 하는 순간부터만 엔진 쪽에서 의존을 건다.
-   의존 방향은 언제나 엔진 → 네트워크다. 네트워크가 Canvas·Runtime·Host 를 알게 되는 일은 부착 단계에서만, 그것도 어댑터
-   한 겹으로 한정한다(§2.2).
+1. **별도 VS 프로젝트로 판다.** 엔진은 협업 중이므로, 꼭 붙여야 하는 순간(§3 의 5 단계) 전까지 **`source/JBroEngine/` 아래의
+   파일은 네트워크 작업 때문에 바뀌지 않는다.** 네트워크가 무엇에 의존하는지는 제약이 아니다 - `JBroCore` 의 컨테이너든
+   `JBroCanvas` 의 풀이든 필요하면 참조한다. 참조는 엔진 파일을 바꾸지 않는다(§2.2).
 2. **와이어는 기존 엔진의 하이브리드를 계승한다.** 전 플랫폼 WebSocket(RFC6455) 기준선 위에 네이티브 전용 UDP 를 덧대고,
    그 UDP 위에 기존 엔진이 끝까지 만든 Reliable UDP 엔진을 얹는다(§1.2·§2.5).
 3. **메인 스레드 폴링으로 시작한다.** 기존 엔진과 같다. 다만 트랜스포트 밖으로 나가는 경계는 전부 "POD 큐에서 꺼내 가기"
@@ -82,25 +82,27 @@ ISocket / IUdpSocket 논블로킹 소켓. Windows 검증됨, POSIX 는 "미검�
 ```
 [JBroPlatform]        IPlatform 에 소켓 원시 연산. TCP 논블로킹 / UDP 데이터그램 / 주소 해석 /
                       (Web) 브라우저 WebSocket·RTCPeerConnection 브릿지. 기본은 전부 "없음"(거짓)
-       ↑ (부착 단계에만)
+       ↑ (IPlatform 에 소켓이 생기는 것은 부착 단계다)
 [JBroNetwork]         별도 프로젝트. 아래 전부를 담고, 소켓은 §2.3 의 ISocketProvider 로 주입받는다
                         Transport   WS 코덱(RFC6455) · 세션(hello·버전·keepalive·RTT) · UdpChannel · ReliableEndpoint ·
                                     채널 라우팅 · 연결 표 · 메시지 프레이밍 · 꺼내 가기 큐
                         Replication 풀 스냅숏 델타 · 기준 스냅숏 ACK · 네트워크 오브젝트 식별자 표 · 보간 입력
                         Types       연결 ID · 역할 · 채널 · 끊김 사유 · 프로토콜 버전 · 와이어 POD
-       ↑ (부착 단계에만, 구현 → API 방향)
+       ↑ (부착 단계에 생긴다. 엔진 트리가 처음으로 바뀌는 지점)
 [JBroNetworkSystem]   엔진 어댑터. GameSystem 둘(수신 적용·송신), 호스트가 소유하는 트랜스포트 펌프,
                       NetworkSystemContext(Internal) / NetworkServiceContext 블록, 값 서비스 둘
 ```
 
-### 2.2 별도 프로젝트와 의존 허용 범위
+### 2.2 별도 프로젝트와 엔진 트리의 불변
 
 - `[제안]` 위치는 `source/JBroNetwork/` 다(`source/JBroEngine`·`source/JBroLauncher` 와 형제). 자기 `.slnx` 와
   `JBroNetwork.vcxproj`(정적 라이브러리) + `JBroNetwork.Tests.vcxproj` 를 갖는다. 공개 헤더는 `<JBro/Network/...>` 다.
-- `[가정]` **`JBroCore` 하나만 의존한다.** 전용 컨테이너(`Array`·`Table`·`String`)와 `OwnerPtr`·`MakeOwnerPtr` 가 거기 있고,
-  `JBroCore` 는 수명 계층이 없는 값 타입 모듈이라 "엔진에 의존하지 않는다" 는 뜻을 깨지 않는다고 본다. `JBroCanvas`·`JBroRuntime`·
-  `JBroHost`·`JBroPlatform` 은 부착 단계(§3 의 5 단계) 전까지 include 하면 컴파일이 실패해야 한다(음성 테스트).
-  **이 가정이 틀리면**(정말 아무것도 의존하지 않기를 원하면) 컨테이너를 네트워크 안에 따로 두어야 하고, 부착 때 변환 비용이 생긴다.
+- **제약은 한 방향이다: 부착 단계 전까지 `source/JBroEngine/` 아래 파일은 바뀌지 않는다.** 엔진은 협업 중이고, 네트워크 작업이
+  그쪽 diff 에 섞이면 안 된다. 네트워크가 엔진 모듈을 `ProjectReference` 로 참조하는 것은 엔진 파일을 바꾸지 않으므로 허용이다.
+  `JBroCore` 의 컨테이너는 당연히 쓰고, 복제(§2.6)가 `JBroCanvas` 의 풀 타입을 직접 보는 편이 가짜 풀보다 정확하면 그렇게 한다.
+  `JBroEngine.slnx` 에 네트워크 프로젝트를 넣는 것도 부착 단계다 - 그때까지는 자기 `.slnx` 로만 연다.
+- 부착 단계에 엔진에 생기는 것은 `IPlatform` 소켓 가상 함수, `JBroNetworkSystem` 모듈, `EngineInstance` 의 블록 병합, 프렐류드
+  한 줄이다(§2.8·§3-5). 그 밖의 엔진 변경이 필요해지면 계획서에 먼저 적고 확인을 받는다.
 - 소켓은 네트워크가 직접 열지 않는다. `ISocketProvider`(§2.3)를 생성자에서 받는다. 독립 개발 단계에서는 테스트가 Winsock 을
   직접 감싼 provider 와 인메모리 provider 를 넘기고, 부착 단계에서 `IPlatform` 을 감싼 provider 가 들어온다.
 - 시계도 주입한다(기존 `CReliableEndpoint` 와 같다). 테스트가 시간을 손으로 돌려 RTO 만료를 결정적으로 재현한다.
@@ -214,7 +216,7 @@ namespace JBro::Network
 각 단계의 완료 조건은 테스트다. 빌드 성공만으로 끝났다고 보지 않는다.
 
 1. `[진행 예정]` **프로젝트 뼈대와 경계.** `source/JBroNetwork/` 에 lib + Tests. `Types`·`ISocketProvider`·인메모리 provider.
-   완료: `JBroCanvas` 헤더를 include 한 음성 테스트 파일이 컴파일에 실패한다. 인메모리 provider 위에서 두 트랜스포트 인스턴스가
+   완료: `git diff --stat -- source/JBroEngine` 이 비어 있다(엔진 트리 불변). 인메모리 provider 위에서 두 트랜스포트 인스턴스가
    한 프로세스에서 이어진다(호스트 둘 검증의 기초).
 2. `[진행 예정]` **WS 기준선.** RFC6455 코덕(핸드셰이크·프레임·마스킹·ping/pong/close) 이식, 세션(hello·버전·keepalive·RTT),
    프레이밍, 꺼내 가기 큐, 지연 teardown. Winsock 을 직접 감싼 테스트 provider.
@@ -229,7 +231,7 @@ namespace JBro::Network
 5. `[진행 예정]` **부착.** `IPlatform` 소켓 가상 함수(Windows 구현), `JBroNetworkSystem`(펌프·수신/송신 `GameSystem`·컨텍스트
    블록·값 서비스), `EngineInstance` 블록 병합, 프렐류드 한 줄, 실제 `Canvas` 풀 위의 복제.
    완료: 테스트 프로젝트에서 호스트 둘을 띄워 한쪽이 서버, 한쪽이 클라이언트로 이어지고 `Transform2D` 풀이 동기화된다.
-   `JBroNetwork` 가 `JBroCanvas` 를 include 하면 여전히 실패한다(방향 유지).
+   이 단계 전까지의 커밋에는 `source/JBroEngine/` 변경이 하나도 없어야 하고, 이 단계의 엔진 변경은 §2.2 에 적은 네 가지에 그친다.
 6. `[진행 예정]` **WebRTC.** `IPeerConnection` 계약, Web 의 emscripten 접착, 네이티브 호스트 안의 시그널링 서버, 피어형 연결의
    채널 매핑. 완료: 브라우저 둘이 시그널링을 거쳐 이어지고 채널 넷이 각자 규약대로 전달한다(웹 빌드가 서야 하므로 순서는 뒤다).
 7. `[열림]` wss(SChannel), POSIX 소켓(기존도 미검증), 네이티브 WebRTC 피어, 예측·되감기, DTLS, TURN 운영, 워커 I/O.
@@ -250,7 +252,6 @@ namespace JBro::Network
 
 ## 5. 열린 것과 가정 모음
 
-- `[가정]` §2.2 `JBroCore` 단독 의존.
 - `[제안]` §2.2 위치 `source/JBroNetwork/`. §2.7 시그널링 서버를 네이티브 호스트 기능으로.
 - `[열림]` §2.6 풀 비교 비용과 dirty 비트. §2.7 네이티브 WebRTC 피어·TURN. §3-7 전부.
 - 기존 엔진의 알려진 한계를 그대로 물려받는다: UDP 미암호, wss Windows 전용, POSIX 미검증, TLS 재협상 미지원.
