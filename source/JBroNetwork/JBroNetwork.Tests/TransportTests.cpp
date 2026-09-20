@@ -127,6 +127,45 @@ namespace
         Check(server.TakeMessages(views, 4) == 0, "nothing else is queued");
     }
 
+    // **역할을 잡기 전에는 아무것도 잡지 않고, 닫으면 돌려준다.** 네트워크를 쓰지 않는 에디터와 단일 플레이가
+    // 이 예산(기본값에서 1 MB 남짓)을 지지 않아야 한다. 닫은 뒤에 남는 것은 이벤트 큐뿐이다 - 방금 넣은
+    // `Disconnected` 를 게임이 아직 꺼내 가지 않았기 때문이다.
+    void TestIdleTransportReservesNothing()
+    {
+        MemorySocketProvider provider;
+        ManualClock clock;
+        Transport idle(provider, clock);
+        Check(idle.GetReservedBytes() == 0, "a transport with no role holds no buffers");
+        idle.Update();
+        Check(idle.GetReservedBytes() == 0, "and pumping it changes nothing");
+
+        Transport server(provider, clock);
+        Transport client(provider, clock);
+        Check(server.Listen(7801), "the server listens");
+        Check(server.GetReservedBytes() > 1024u * 1024u, "which is when the budget is taken");
+        Check(client.Connect("memory", 7801), "the client connects");
+        Check(client.GetReservedBytes() > 1024u * 1024u, "and the client takes it too");
+
+        Pump(server, client, clock);
+        const char hello[] = "hello";
+        Check(client.Send(ServerConnectionId, 11, hello, sizeof(hello)), "a message goes over");
+        Pump(server, client, clock);
+        MessageView views[4];
+        Check(server.TakeMessages(views, 4) == 1, "and arrives - the lazy buffers are the same buffers");
+
+        const std::uint32_t reserved = server.GetReservedBytes();
+        server.Close();
+        Check(server.GetReservedBytes() < reserved / 16u, "closing gives the budget back");
+        EventLog events;
+        events.Drain(server);
+        Check(events.CountKind(NetworkEventKind::Disconnected) == 1, "and the farewell event survives it");
+
+        Check(server.Listen(7802), "the transport listens again");
+        Check(server.GetReservedBytes() >= reserved, "and takes the budget once more");
+        std::cout << "  transport budget: " << reserved << " bytes while connected, " << idle.GetReservedBytes()
+                  << " bytes with no role" << std::endl;
+    }
+
     // **큰 메시지는 파이프가 좁아도 여러 번의 Update 에 걸쳐 온전히 도착한다.** 부분 송신과 부분 수신을 둘 다 겪게 한다.
     void TestLargeMessageCrossesNarrowPipe()
     {
@@ -335,6 +374,7 @@ int RunTransportTests()
     try
     {
         TestConnectAndExchange();
+        TestIdleTransportReservesNothing();
         TestLargeMessageCrossesNarrowPipe();
         TestCloseConnectionIsSeenByBothSides();
         TestConnectWithoutListenerFails();

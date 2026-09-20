@@ -112,6 +112,15 @@ namespace JBro::Network
         m_config.sendBufferBytes = Max(m_config.sendBufferBytes, frameBytes);
         m_config.receiveBufferBytes = Max(m_config.receiveBufferBytes, frameBytes);
         m_config.reliable.maxMessageBytes = m_config.maxMessageBytes;
+        // 버퍼는 여기서 잡지 않는다. 역할을 잡을 때 `EnsureBuffers` 가 한 번 잡는다.
+    }
+
+    void Transport::EnsureBuffers()
+    {
+        if (false == m_inbound.IsEmpty())
+        {
+            return;
+        }
         m_connections.Reserve(m_config.maxConnections);
         m_inbound.Resize(m_config.inboundBytes);
         m_records.Resize(m_config.inboundMessages);
@@ -119,6 +128,33 @@ namespace JBro::Network
         m_scratch.Resize(Max(MaxHandshakeBytes, 4096));
         m_datagramScratch.Resize(2048);
         m_messageScratch.Resize(m_config.maxMessageBytes + MessageHeaderBytes);
+    }
+
+    void Transport::ReleaseBuffers()
+    {
+        // 이벤트 큐는 두고 간다 - 방금 `Close` 가 넣은 `Disconnected` 가 그 안에 있고, 게임은 다음 프레임에 꺼내 간다.
+        m_inbound.Reset();
+        m_inbound.Shrink();
+        m_inboundSize = 0;
+        m_records.Reset();
+        m_records.Shrink();
+        m_recordCount = 0;
+        m_recordsTaken = 0;
+        m_scratch.Reset();
+        m_scratch.Shrink();
+        m_datagramScratch.Reset();
+        m_datagramScratch.Shrink();
+        m_messageScratch.Reset();
+        m_messageScratch.Shrink();
+        m_connections.Shrink();
+    }
+
+    std::uint32_t Transport::GetReservedBytes() const
+    {
+        return static_cast<std::uint32_t>(
+            m_inbound.Capacity() + m_records.Capacity() * sizeof(InboundRecord) + m_events.Capacity() * sizeof(NetworkEvent)
+            + m_scratch.Capacity() + m_datagramScratch.Capacity() + m_messageScratch.Capacity()
+            + m_connections.Capacity() * sizeof(Connection));
     }
 
     Transport::~Transport()
@@ -143,6 +179,7 @@ namespace JBro::Network
         {
             return false;
         }
+        EnsureBuffers();
         m_listener = std::move(listener);
         m_role = NetworkRole::Server;
         OpenServerUdp(port);
@@ -169,6 +206,7 @@ namespace JBro::Network
         {
             return false;
         }
+        EnsureBuffers();
         m_role = NetworkRole::Client;
         Connection& connection = AddConnection(ServerConnectionId, std::move(stream), false);
         std::memcpy(connection.host, bareHost, std::strlen(bareHost) + 1);
@@ -208,6 +246,8 @@ namespace JBro::Network
         m_role = NetworkRole::None;
         m_udpUnavailable = false;
         m_nextClientId = ServerConnectionId + 1;
+        // 꺼낸 적 없는 메시지 뷰는 여기서 무효가 된다 - `Update` 가 무효로 만드는 것과 같은 규약이다.
+        ReleaseBuffers();
     }
 
     void Transport::CloseConnection(ConnectionId id)
@@ -228,6 +268,7 @@ namespace JBro::Network
         {
             return false;
         }
+        EnsureBuffers();
         m_role = NetworkRole::Server;
         m_peerHosting = true;
         return true;
@@ -264,6 +305,7 @@ namespace JBro::Network
         {
             return false;
         }
+        EnsureBuffers();
         m_role = NetworkRole::Client;
         AddPeerConnection(ServerConnectionId, std::move(peer), false);
         return true;

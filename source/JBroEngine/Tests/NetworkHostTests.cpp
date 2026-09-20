@@ -198,6 +198,45 @@ namespace
     }
 
     // **소켓이 없는 플랫폼에서는 모든 시도가 거짓이고 아무것도 깨지지 않는다.** 웹이 아닌 것, 테스트의 가짜 플랫폼이 그것이다.
+    // **게임이 켜기 전까지 네트워크는 아무것도 잡지 않는다.** 엔진은 호스트를 늘 세우지만(스크립트가 서비스로
+    // 켜고 끌 수 있어야 하므로), 트랜스포트 버퍼도 복제 이력도 역할을 잡은 뒤에 선다. 에디터와 단일 플레이가
+    // 쓰지 않는 수십 MB 를 지지 않게 하는 것이 이 테스트가 지키는 것이다.
+    void TestNothingIsBuiltUntilTheGameAsks()
+    {
+        JBro::Network::Testing::MemorySocketProvider provider;
+        JBro::Network::Testing::ManualClock clock;
+        Side side(provider, clock);
+
+        Check(false == side.host.IsReplicating(), "binding a canvas does not build replication");
+        Check(side.host.GetTransport().GetReservedBytes() == 0, "and the transport holds no buffers");
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            side.Frame();
+        }
+        Check(false == side.host.IsReplicating(), "frames alone do not build it either");
+        Check(side.host.GetTransport().GetReservedBytes() == 0, "and still hold nothing");
+
+        Check(side.host.StartServer(7901), "the game turns the network on");
+        Check(side.host.IsReplicating(), "now replication stands");
+        Check(side.host.GetTransport().GetReservedBytes() > 0, "and the transport took its budget");
+
+        JBro::GameObject* object = side.canvas.CreateObject();
+        side.canvas.AttachComponent<JBro::Component::Transform2D>(object);
+        side.Frame();
+        Check(JBro::Network::InvalidNetworkObjectId != side.host.FindNetworkId(object->GetInstanceId()),
+            "the pool registered before the connection is still the pool the server replicates");
+
+        side.host.Disconnect();
+        Check(false == side.host.IsReplicating(), "turning it off tears replication down");
+        Check(side.host.GetRole() == JBro::Network::NetworkRole::None, "and drops the role");
+        side.Frame();
+        Check(false == side.host.IsReplicating(), "and it stays down");
+
+        Check(side.host.StartServer(7902), "the game can turn it on again");
+        Check(side.host.IsReplicating(), "and replication stands again");
+        side.host.Disconnect();
+    }
+
     void TestNoSocketsFailsQuietly()
     {
         JBro::Network::Testing::ManualClock clock;
@@ -221,6 +260,7 @@ int RunNetworkHostTests()
     try
     {
         TestTwoHostsReplicateTransforms();
+        TestNothingIsBuiltUntilTheGameAsks();
         TestNoSocketsFailsQuietly();
     }
     catch (const std::exception& error)

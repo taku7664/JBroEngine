@@ -20,6 +20,10 @@ namespace JBro
     // 호스트가 소유하는 네트워크다(network-plan §2.4·§2.8). 트랜스포트는 캔버스보다 오래 산다 - 로비에서 전장으로 캔버스를
     // 갈아 끼워도 연결은 남는다. 캔버스는 프레임워크가 `BindCanvas` 로 묶고 `UnbindCanvas` 로 푼다. 그때마다 복제가 새로 선다.
     //
+    // **연결하기 전까지 아무것도 잡지 않는다.** 엔진은 이 객체를 늘 세우지만(스크립트가 서비스로 켤 수 있어야 하므로),
+    // 트랜스포트 버퍼와 복제는 게임이 `StartServer` / `Connect` 로 역할을 잡은 뒤에 선다. `Disconnect` 는 그것을 되돌린다.
+    // 역할에 따라 서버 쪽과 클라이언트 쪽 가운데 하나만 선다 - 한 프로세스가 둘 다일 수는 없다.
+    //
     // 프레임 밖에서 `Update` 가 소켓을 돌리고, 복제 메시지는 안에서 처리하고, 게임 메시지는 모아 둔다. 고정 스텝 안에서는
     // `NetworkReceiveSystem`(가장 앞) 이 `ApplyClient` 를, `NetworkSendSystem`(가장 뒤) 이 `StepServer` 를 부른다.
     // 스크립트에는 `INetworkSystem` 으로만 보인다 - 컨텍스트 블록에 이 포인터가 실린다.
@@ -34,11 +38,14 @@ namespace JBro
         NetworkHost(const NetworkHost&) = delete;
         NetworkHost& operator=(const NetworkHost&) = delete;
 
-        // 오브젝트를 만들고 없애고 되찾는 자리. 복제 서버·클라이언트가 여기서 새로 선다. 풀은 이 뒤에 다시 등록한다.
+        // 오브젝트를 만들고 없애고 되찾는 자리. 캔버스를 기억만 하고 복제는 아직 세우지 않는다.
         void BindCanvas(Canvas* canvas);
         void UnbindCanvas();
-        // 서버·클라이언트가 같은 순서로 등록해야 한다. 프레임워크가 캔버스를 묶은 직후 한다.
+        // 등록 순서가 곧 타입 번호다. 서버와 클라이언트가 같은 순서로 등록해야 하므로 호스트가 순서를 들고 있다가
+        // 복제가 설 때 그대로 넘긴다. 프레임워크가 캔버스를 묶은 직후 부른다. 자리가 없으면 0xFF.
         std::uint8_t RegisterPool(Network::IReplicatedPool& pool);
+        // 복제가 서 있는가. 역할이 없으면 거짓이다 - 테스트와 진단이 본다.
+        bool IsReplicating() const;
 
         // 프레임 밖. 소켓을 돌리고 메시지를 가른다.
         void Update();
@@ -85,11 +92,17 @@ namespace JBro
             OwnerPtr<Network::IPeerConnection> CreatePeerConnection(const Network::PeerConnectionDesc& desc) override;
         };
 
+        // 역할이 생기면 복제를 세우고 게임 메시지 자리를 잡는다. 역할이 없어지면 둘 다 돌려준다.
+        void EnsureSession();
+        void StopSession();
+
         NullSocketProvider m_nullProvider;
         Network::ISocketProvider* m_provider = nullptr;
         Network::Transport m_transport;
         Network::ReplicationConfig m_replicationConfig;
         Canvas* m_canvas = nullptr;
+        // 등록된 순서 그대로다. 복제는 이 순서로 선다.
+        Array<Network::IReplicatedPool*> m_pools;
         OwnerPtr<Network::ReplicationServer> m_server;
         OwnerPtr<Network::ReplicationClient> m_client;
         Network::ReplicationTick m_tick = 1;

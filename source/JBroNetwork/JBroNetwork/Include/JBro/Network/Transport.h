@@ -15,7 +15,9 @@
 
 namespace JBro::Network
 {
-    // 트랜스포트 하나의 고정 예산이다. 전부 `Transport` 생성 때(UDP 쪽은 연결에 UDP 가 붙을 때) 한 번 잡고 그 뒤로는 할당하지 않는다.
+    // 트랜스포트 하나의 고정 예산이다. **역할을 잡을 때**(`Listen`·`Connect`·`HostPeers`·`ConnectPeer`) 한 번 잡고,
+    // 그 뒤로는 할당하지 않으며, `Close` 가 돌려준다(UDP 쪽은 연결에 UDP 가 붙을 때). 역할이 없는 트랜스포트는
+    // 아무것도 잡지 않는다 - 네트워크를 쓰지 않는 에디터와 단일 플레이가 이 예산을 지지 않게 하기 위해서다.
     struct TransportConfig
     {
         std::uint32_t maxConnections = 32;
@@ -132,6 +134,8 @@ namespace JBro::Network
         std::uint32_t TakeMessages(MessageView* messages, std::uint32_t capacity);
 
         const TransportConfig& GetConfig() const;
+        // 지금 잡고 있는 공용 버퍼의 바이트. 역할이 없으면 0 이다(연결마다 따로 잡는 것은 세지 않는다).
+        std::uint32_t GetReservedBytes() const;
 
         // 테스트 전용. 0 보다 크면 WS 데이터 프레임을 이 크기의 조각으로 나눠 보낸다 - 조립 경로를 밟기 위해서다.
         void SetFragmentBytesForTests(std::uint32_t bytes);
@@ -224,6 +228,10 @@ namespace JBro::Network
         void RequestClose(Connection& connection, DisconnectReason reason);
         void PushEvent(NetworkEventKind kind, ConnectionId connection, DisconnectReason reason);
 
+        // 역할을 잡을 때 공용 버퍼를 한 번 잡고, `Close` 에서 돌려준다. 이벤트 큐만은 `Close` 가 남긴
+        // `Disconnected` 를 게임이 아직 꺼내 가지 않았으므로 소멸자까지 산다.
+        void EnsureBuffers();
+        void ReleaseBuffers();
         void CompactInbound();
         void AcceptPending();
         void PollConnection(Connection& connection);

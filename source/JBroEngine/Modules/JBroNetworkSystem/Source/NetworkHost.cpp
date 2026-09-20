@@ -41,7 +41,7 @@ namespace JBro
         , m_transport(nullptr != provider ? *provider : static_cast<Network::ISocketProvider&>(m_nullProvider), clock, transport)
         , m_replicationConfig(replication)
     {
-        m_gameMessages.Reserve(m_transport.GetConfig().inboundMessages);
+        // 버퍼는 여기서 잡지 않는다. 역할이 생길 때 `EnsureSession` 이 잡는다.
         m_systemContext.Network = this;
     }
 
@@ -55,32 +55,103 @@ namespace JBro
 
     void NetworkHost::BindCanvas(Canvas* canvas)
     {
+        StopSession();
+        m_pools.Reset();
         m_canvas = canvas;
-        m_server = MakeOwnerPtr<Network::ReplicationServer>(m_transport, *this, m_replicationConfig);
-        m_client = MakeOwnerPtr<Network::ReplicationClient>(m_transport, *this, m_replicationConfig);
-        m_tick = 1;
     }
 
     void NetworkHost::UnbindCanvas()
     {
-        m_server = nullptr;
-        m_client = nullptr;
+        StopSession();
+        m_pools.Reset();
+        m_pools.Shrink();
         m_canvas = nullptr;
     }
 
     std::uint8_t NetworkHost::RegisterPool(Network::IReplicatedPool& pool)
     {
-        if (nullptr == m_server.Get() || nullptr == m_client.Get())
+        if (nullptr == m_canvas || m_pools.Size() >= m_replicationConfig.maxTypes || m_pools.Size() >= 0xFF)
         {
             return 0xFF;
         }
-        m_server->RegisterPool(pool);
-        return m_client->RegisterPool(pool);
+        const std::uint8_t type = static_cast<std::uint8_t>(m_pools.Size());
+        m_pools.Add(&pool);
+        // 이미 연결된 뒤에 늘어난 풀이면 선 것에도 같은 순서로 얹는다.
+        if (nullptr != m_server.Get())
+        {
+            m_server->RegisterPool(pool);
+        }
+        if (nullptr != m_client.Get())
+        {
+            m_client->RegisterPool(pool);
+        }
+        return type;
+    }
+
+    bool NetworkHost::IsReplicating() const
+    {
+        return nullptr != m_server.Get() || nullptr != m_client.Get();
+    }
+
+    void NetworkHost::EnsureSession()
+    {
+        const Network::NetworkRole role = m_transport.GetRole();
+        if (Network::NetworkRole::None == role)
+        {
+            StopSession();
+            return;
+        }
+        if (m_gameMessages.Capacity() == 0)
+        {
+            m_gameMessages.Reserve(m_transport.GetConfig().inboundMessages);
+        }
+        if (nullptr == m_canvas || IsReplicating())
+        {
+            return;
+        }
+        // 역할이 쓰는 쪽만 세운다. 스냅숏 이력이 이 프로젝트에서 가장 큰 덩어리다.
+        if (Network::NetworkRole::Server == role)
+        {
+            m_server = MakeOwnerPtr<Network::ReplicationServer>(m_transport, *this, m_replicationConfig);
+        }
+        else
+        {
+            m_client = MakeOwnerPtr<Network::ReplicationClient>(m_transport, *this, m_replicationConfig);
+        }
+        for (Network::IReplicatedPool* pool : m_pools)
+        {
+            if (nullptr != m_server.Get())
+            {
+                m_server->RegisterPool(*pool);
+            }
+            if (nullptr != m_client.Get())
+            {
+                m_client->RegisterPool(*pool);
+            }
+        }
+        m_tick = 1;
+    }
+
+    void NetworkHost::StopSession()
+    {
+        m_server = nullptr;
+        m_client = nullptr;
+        m_tick = 1;
+        // 뷰는 트랜스포트의 저장소를 가리킨다. 그 저장소가 사라지므로 여기도 비운다.
+        m_gameMessages.Reset();
+        m_gameMessages.Shrink();
+        m_gameMessagesTaken = 0;
     }
 
     void NetworkHost::Update()
     {
         m_transport.Update();
+        EnsureSession();
+        if (false == IsReplicating() && m_gameMessages.Capacity() == 0)
+        {
+            // 역할이 없다. 소켓도 버퍼도 없으므로 더 할 일이 없다.
+            return;
+        }
         m_gameMessages.Clear();
         m_gameMessagesTaken = 0;
         Network::MessageView views[64];
@@ -112,6 +183,7 @@ namespace JBro
 
     void NetworkHost::StepServer()
     {
+        EnsureSession();
         if (m_transport.GetRole() == Network::NetworkRole::Server && nullptr != m_server.Get())
         {
             m_server->Step(m_tick++);
@@ -120,6 +192,7 @@ namespace JBro
 
     void NetworkHost::ApplyClient(float alpha)
     {
+        EnsureSession();
         if (m_transport.GetRole() == Network::NetworkRole::Client && nullptr != m_client.Get())
         {
             m_client->Apply(alpha);
@@ -150,17 +223,28 @@ namespace JBro
 
     bool NetworkHost::StartServer(std::uint16_t port)
     {
-        return m_transport.Listen(port);
+        if (false == m_transport.Listen(port))
+        {
+            return false;
+        }
+        EnsureSession();
+        return true;
     }
 
     bool NetworkHost::Connect(const char* host, std::uint16_t port)
     {
-        return m_transport.Connect(host, port);
+        if (false == m_transport.Connect(host, port))
+        {
+            return false;
+        }
+        EnsureSession();
+        return true;
     }
 
     void NetworkHost::Disconnect()
     {
         m_transport.Close();
+        StopSession();
     }
 
     Network::NetworkRole NetworkHost::GetRole() const

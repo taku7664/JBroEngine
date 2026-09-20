@@ -36,6 +36,9 @@ namespace JBro
         // (D-117) - 게임 실행에는 감시가 없다.
         bool watchAssetDirectory = false;
         // 거짓이면 네트워크를 세우지 않는다. 프레임워크는 복제 시스템을 세우지 않고 스크립트의 네트워크 서비스는 조용히 실패한다.
+        // 참이라도 **자원은 잡지 않는다**(D-125). 게임이 `NetworkSessionService::StartServer` / `Connect` 로 켜야
+        // 트랜스포트 버퍼와 복제가 서고, `Disconnect` 가 그것을 돌려준다. 그래서 기본값이 참이다 - 스크립트가 켤 대상은
+        // 늘 있어야 하기 때문이다.
         bool networkEnabled = true;
         WindowDesc window;
         JMemoryContext memory;
