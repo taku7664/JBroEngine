@@ -1,13 +1,18 @@
 ﻿#include "HierarchyPanel.h"
 
 #include <JBro/Editor/Command/HierarchyCommands.h>
+#include <JBro/Editor/Command/CompoundCommand.h>
+#include <JBro/Editor/Command/LayerCommands.h>
 #include <JBro/Editor/EditorActions.h>
 
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
+#include <JBro/Editor/EditorIcons.h>
+#include <JBro/Editor/Widget/Button.h>
 #include <JBro/Editor/Widget/Common.h>
+#include <JBro/Editor/Widget/TextField.h>
 #include <JBro/Editor/Widget/Fields.h>
 #include <JBro/Editor/Widget/Tree.h>
 #include <JBro/Runtime/GameObject.h>
@@ -24,6 +29,9 @@ namespace JBro
     {
         // 끌고 다니는 꾸러미의 이름이다. 계층 안에서만 받는다.
         constexpr const char* DragPayload = "JBRO_HIERARCHY_MOVE";
+        // 레이어를 끌 때의 꾸러미. 오브젝트의 것과 섞이면 레이어 위에 오브젝트를
+        // 놓은 것이 레이어 순서 바꾸기가 된다.
+        constexpr const char* LayerDragPayload = "JBRO_HIERARCHY_LAYER";
         // 행에서 "앞에" / "뒤에" 로 치는 위아래 띠의 몫이다. 기존 엔진과 같은 값이다 -
         // 가운데 절반은 "자식으로" 가 된다.
         constexpr float DropEdgeRatio = 0.25f;
@@ -139,10 +147,11 @@ namespace JBro
             return;
         }
 
-        // 이번 프레임에 계층의 꾸러미를 끌고 있는가. 다른 위젯의 끌기(목록 재정렬 등)도
+        // 이번 프레임에 무엇을 끌고 있는가. 다른 위젯의 끌기(목록 재정렬 등)도
         // 꾸러미를 내므로 **타입까지 봐야** 한다.
         const ImGuiPayload* active = ImGui::GetDragDropPayload();
         m_dragActive = active != nullptr && active->IsDataType(DragPayload);
+        m_layerDragActive = active != nullptr && active->IsDataType(LayerDragPayload);
 
         Widget::SearchBox("##filter", m_filter)
             .Hint(Loc::TextOr(LocKeys::HierarchySearch, "Search"))
@@ -155,7 +164,14 @@ namespace JBro
             ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems))
         {
             // 빈자리의 메뉴는 캔버스 뷰의 것과 **같은 한 벌**이다(D-132).
-            const bool changed = EditorActions::DrawBackgroundMenu(*m_editor);
+            bool changed = EditorActions::DrawBackgroundMenu(*m_editor);
+            ImGui::Separator();
+            if (ImGui::MenuItem(Loc::TextOr(LocKeys::HierarchyAddLayer, "Add Layer")))
+            {
+                m_editor->GetCommands().Execute(
+                    MakeOwnerPtr<CreateLayerCommand>(*canvas, "Layer"));
+                changed = true;
+            }
             ImGui::EndPopup();
             if (changed)
             {
@@ -164,26 +180,20 @@ namespace JBro
             }
         }
 
-        if (canvas->GetObjectCount() == 0)
-        {
-            ImGui::TextDisabled("%s",
-                Loc::TextOr(LocKeys::HierarchyEmpty, "the canvas is empty"));
-            return;
-        }
-
-        // **뿌리부터 내려간다.** 평평하게 늘어놓으면 부모-자식이 안 보이고,
-        // 그것이 계층 패널의 존재 이유다. 뿌리의 차례는 캔버스가 든다(D-128).
+        // **레이어부터 내려간다**(D-135). 위가 앞이다 - 캔버스가 든 차례는 0 이 맨 뒤이므로
+        // 역순으로 그린다(포토샵과 같은 쪽이다).
         canvas->GetRootObjects(m_roots);
-        for (std::size_t index = 0; index < m_roots.Size(); ++index)
+        const std::size_t layerCount = canvas->GetLayerCount();
+        for (std::size_t step = layerCount; step > 0; --step)
         {
-            if (GameObject* root = m_roots[index])
+            if (Layer* layer = canvas->GetLayerAt(step - 1))
             {
-                DrawObject(*root, nullptr, index);
+                DrawLayer(*layer, step - 1);
             }
         }
 
-        // **남은 빈자리에 떨어뜨리면 뿌리 맨 뒤로 올린다.** 계층에서 부모를 떼는
-        // 손짓이고, 우클릭 메뉴의 `부모 해제` 와 같은 일을 한다.
+        // **남은 빈자리에 떨어뜨리면 부모를 뗀다.** 레이어는 그대로 두고 뿌리로만 올린다 -
+        // 어느 레이어로 보낼지는 레이어 줄에 떨어뜨려 고른다.
         //
         // `ImGui::Dummy` 는 넘긴 크기를 **그대로** 쓴다 - `-FLT_MIN` 을 폭으로 넘기면
         // 사각형이 뒤집혀 받는 자리가 아예 생기지 않는다. 실제로 그랬고, 그래서
@@ -216,6 +226,216 @@ namespace JBro
         }
 
         FlushPendingMove();
+    }
+
+    void HierarchyPanel::DrawLayer(Layer& layer, std::size_t index)
+    {
+        Canvas* canvas = m_editor->GetCanvas();
+        const LayerId layerId = layer.GetId();
+        ImGui::PushID(static_cast<int>(layerId));
+
+        ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow
+            | ImGuiTreeNodeFlags_SpanAvailWidth
+            | ImGuiTreeNodeFlags_DefaultOpen;
+        Widget::TreeDrawContext row;
+        const bool opened = Widget::TreeBegin("##layer", flags, &row);
+        Widget::TreeEnd();
+
+        // 레이어 줄을 끌면 합성 차례가 바뀐다.
+        if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceNoHoldToOpenOthers))
+        {
+            ImGui::SetDragDropPayload(LayerDragPayload, &layerId, sizeof(layerId));
+            ImGui::TextUnformatted(layer.GetName());
+            ImGui::EndDragDropSource();
+        }
+        const bool alive = DrawLayerContextMenu(layer);
+        DrawLayerDropTarget(layer, index, row.RowRect);
+
+        if (alive && row.IsVisible)
+        {
+            const ImVec2 cursor = ImGui::GetCursorScreenPos();
+            ImGui::SetCursorScreenPos(row.ContentRect.Min);
+            // 숨긴 레이어는 흐리게. 화면에 안 나오는 이유가 줄에서 보여야 한다.
+            if (layer.IsVisible())
+            {
+                ImGui::TextUnformatted(layer.GetName());
+            }
+            else
+            {
+                ImGui::TextDisabled("%s", layer.GetName());
+            }
+
+            // **눈 표시는 줄의 오른쪽 끝이다.** 기존 엔진도 같은 자리에 두었다.
+            const float height = row.RowRect.Max.y - row.RowRect.Min.y;
+            ImGui::SetCursorScreenPos(ImVec2(row.RowRect.Max.x - height, row.RowRect.Min.y));
+            const bool visible = layer.IsVisible();
+            if (Widget::TextButton(visible ? Icons::Eye : Icons::EyeSlash,
+                    ImVec2(height, height)))
+            {
+                m_editor->GetCommands().Execute(
+                    MakeOwnerPtr<SetLayerVisibleCommand>(*canvas, layerId, false == visible));
+            }
+            Widget::HoveredTooltip(Loc::TextOr(LocKeys::HierarchyLayerVisible, "show this layer"));
+            ImGui::SetCursorScreenPos(cursor);
+        }
+
+        if (opened && alive)
+        {
+            // 이 레이어에 속한 뿌리만 그린다. **자리 번호는 캔버스의 뿌리 차례 그대로**다 -
+            // 레이어 안에서 센 번호를 넘기면 옮기기가 다른 오브젝트 자리로 간다.
+            bool any = false;
+            for (std::size_t at = 0; at < m_roots.Size(); ++at)
+            {
+                GameObject* root = m_roots[at];
+                if (root == nullptr || root->GetLayerId() != layerId)
+                {
+                    continue;
+                }
+                any = true;
+                DrawObject(*root, nullptr, at);
+            }
+            if (false == any)
+            {
+                ImGui::TextDisabled("%s",
+                    Loc::TextOr(LocKeys::HierarchyLayerEmpty, "this layer is empty"));
+            }
+        }
+        if (opened)
+        {
+            // **`TreeBegin` 이 연 마디는 열렸으면 늘 닫는다.** 레이어가 그 사이에
+            // 지워졌어도 ImGui 의 짝은 맞춰야 한다 - 안 맞으면 그 뒤가 한 칸씩 들여써진다.
+            ImGui::TreePop();
+        }
+        ImGui::PopID();
+    }
+
+    void HierarchyPanel::DrawLayerDropTarget(
+        Layer& layer, std::size_t index, const ImRect& rowRect)
+    {
+        if ((false == m_dragActive && false == m_layerDragActive)
+            || rowRect.Max.x <= rowRect.Min.x || rowRect.Max.y <= rowRect.Min.y)
+        {
+            return;
+        }
+        const ImVec2 cursor = ImGui::GetCursorScreenPos();
+        ImGui::SetCursorScreenPos(rowRect.Min);
+        ImGui::InvisibleButton("##LayerDrop", rowRect.GetSize());
+        ImGui::SetCursorScreenPos(cursor);
+
+        if (false == ImGui::BeginDragDropTarget())
+        {
+            return;
+        }
+        ImDrawList* draw = ImGui::GetWindowDrawList();
+        const ImU32 color = ImGui::GetColorU32(ImGuiCol_DragDropTarget);
+
+        if (m_layerDragActive)
+        {
+            // 레이어끼리는 위 절반이 **앞(위)**, 아래 절반이 뒤다. 화면의 위가 앞이므로
+            // 캔버스의 번호로는 위쪽이 더 큰 번호다.
+            const float height = (std::max)(1.0f, rowRect.Max.y - rowRect.Min.y);
+            const float local = std::clamp(
+                (ImGui::GetIO().MousePos.y - rowRect.Min.y) / height, 0.0f, 1.0f);
+            const bool above = local < 0.5f;
+            const float y = above ? rowRect.Min.y : rowRect.Max.y;
+            draw->AddLine(ImVec2(rowRect.Min.x, y), ImVec2(rowRect.Max.x, y), color, 2.0f);
+            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(LayerDragPayload))
+            {
+                LayerId moved = InvalidLayerId;
+                std::memcpy(&moved, payload->Data, sizeof(moved));
+                if (moved != layer.GetId())
+                {
+                    m_layerMoveId = moved;
+                    m_layerMoveTo = above ? index + 1 : index;
+                    m_hasLayerMove = true;
+                }
+            }
+        }
+        else
+        {
+            draw->AddRect(rowRect.Min, rowRect.Max, color);
+            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(DragPayload))
+            {
+                EditorObjectId id = InvalidEditorObjectId;
+                std::memcpy(&id, payload->Data, sizeof(id));
+                if (GameObject* dragged = m_editor->GetObjectIds().Resolve(id))
+                {
+                    // 레이어에 놓는 것은 **뿌리로 올리고 그 레이어로 보내는** 것이다.
+                    // 자식인 채로 레이어만 바꾸면 부모와 다른 칸에 놓여 화면에서 사라진 것처럼 된다.
+                    RecordDrop(*dragged, nullptr, m_roots.Size());
+                    m_layerDropObject = dragged->SafeFromThis();
+                    m_layerDropTarget = layer.GetId();
+                }
+            }
+        }
+        ImGui::EndDragDropTarget();
+    }
+
+    bool HierarchyPanel::DrawLayerContextMenu(Layer& layer)
+    {
+        Canvas* canvas = m_editor->GetCanvas();
+        if (false == ImGui::BeginPopupContextItem("##LayerMenu"))
+        {
+            return true;
+        }
+        const LayerId layerId = layer.GetId();
+        bool alive = true;
+
+        // 이름 고치기는 팝업 안의 글자 칸이다. 줄 위에서 바로 고치게 하면 그 줄의
+        // 클릭·끌기와 뒤섞인다.
+        if (m_renaming != layerId)
+        {
+            m_renaming = layerId;
+            m_renameText = layer.GetName();
+        }
+        ImGui::TextUnformatted(Loc::TextOr(LocKeys::HierarchyLayerName, "Name"));
+        Widget::TextField("##layerName", m_renameText).Width(180.0f).Draw();
+        if (m_renameText != layer.GetName())
+        {
+            m_editor->GetCommands().Execute(
+                MakeOwnerPtr<RenameLayerCommand>(*canvas, layerId, m_renameText.c_str()));
+        }
+
+        ImGui::Separator();
+        if (ImGui::MenuItem(Loc::TextOr(LocKeys::HierarchyCreateObject, "Create Object")))
+        {
+            if (GameObject* made = EditorActions::CreateObject(*m_editor, nullptr))
+            {
+                // 만든 것은 우클릭한 레이어에 놓는다. 기본 레이어로 가면 방금 연 칸에
+                // 나타나지 않아 만들어지지 않은 것처럼 보인다.
+                m_editor->GetCommands().Execute(MakeOwnerPtr<SetObjectLayerCommand>(
+                    *canvas, m_editor->GetObjectIds(),
+                    m_editor->GetObjectIds().Track(made), layerId));
+            }
+            alive = false;
+        }
+        ImGui::Separator();
+        {
+            // **마지막 하나는 지우지 못한다.** 캔버스가 레이어 없이 설 수 없다.
+            const bool canDelete = canvas->GetLayerCount() > 1;
+            if (false == canDelete)
+            {
+                ImGui::BeginDisabled();
+            }
+            if (ImGui::MenuItem(Loc::TextOr(LocKeys::HierarchyDeleteLayer, "Delete Layer")))
+            {
+                m_editor->ClearSelection();
+                m_editor->SetSelectedObject(nullptr);
+                m_editor->GetCommands().Execute(MakeOwnerPtr<DeleteLayerCommand>(
+                    *canvas, m_editor->GetObjectIds(), layerId));
+                alive = false;
+            }
+            if (false == canDelete)
+            {
+                ImGui::EndDisabled();
+            }
+        }
+        ImGui::EndPopup();
+        if (false == alive)
+        {
+            m_renaming = InvalidLayerId;
+        }
+        return alive;
     }
 
     void HierarchyPanel::DrawDragSource(GameObject& object)
@@ -323,6 +543,15 @@ namespace JBro
 
     void HierarchyPanel::FlushPendingMove()
     {
+        Canvas* pendingCanvas = m_editor->GetCanvas();
+        // 레이어끼리의 자리 바꾸기. 그리는 도중에 하면 지금 도는 목록이 그 자리에서 달라진다.
+        if (m_hasLayerMove && pendingCanvas != nullptr)
+        {
+            m_hasLayerMove = false;
+            m_editor->GetCommands().Execute(
+                MakeOwnerPtr<MoveLayerCommand>(*pendingCanvas, m_layerMoveId, m_layerMoveTo));
+            m_layerMoveId = InvalidLayerId;
+        }
         if (false == m_hasDrop)
         {
             return;
@@ -371,6 +600,29 @@ namespace JBro
         const EditorObjectId objectId = ids.Track(dragged);
         const EditorObjectId parentId = parent != nullptr
             ? ids.Track(parent) : InvalidEditorObjectId;
+        // 레이어로 떨어뜨린 것이면 옮기기와 레이어 바꾸기가 **한 손짓**이다.
+        // 되돌리기 한 번이 둘 다 되돌려야 한다.
+        GameObject* layerTargetObject = m_layerDropObject.TryGet();
+        const LayerId layerTarget = layerTargetObject == dragged
+            ? m_layerDropTarget : InvalidLayerId;
+        m_layerDropObject = {};
+        m_layerDropTarget = InvalidLayerId;
+
+        if (layerTarget != InvalidLayerId)
+        {
+            auto moved = MakeOwnerPtr<CompoundCommand>("Move To Layer");
+            moved->Add(MakeOwnerPtr<MoveInHierarchyCommand>(
+                *canvas, ids, objectId, parentId, target));
+            moved->Add(MakeOwnerPtr<SetObjectLayerCommand>(
+                *canvas, ids, objectId, layerTarget));
+            if (m_editor->GetCommands().Execute(std::move(moved)))
+            {
+                m_editor->SetSelectedObject(dragged);
+                m_reveal = dragged->SafeFromThis();
+            }
+            return;
+        }
+
         if (m_editor->GetCommands().Execute(MakeOwnerPtr<MoveInHierarchyCommand>(
                 *canvas, ids, objectId, parentId, target)))
         {

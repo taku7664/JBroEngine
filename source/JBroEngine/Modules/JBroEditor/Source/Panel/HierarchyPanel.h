@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <JBro/Canvas/Layer.h>
 #include <JBro/Editor/EditorPanel.h>
 
 #include <JBro/Types/Array.h>
@@ -13,14 +14,18 @@ namespace JBro
 {
     class GameObject;
 
-    // 캔버스에 있는 오브젝트를 부모-자식 그대로 보여 주고, 고르면 인스펙터가 받는다.
+    // 캔버스에 있는 것을 **레이어 아래에 오브젝트**로 보여 주고, 고르면 인스펙터가 받는다.
     //
     // 줄은 공용 트리 위젯이 그린다(ProjectRule §11.1). `ImGui::TreeNodeEx` 로는
-    // 줄의 남은 자리를 알 수 없어 이름 옆에 무엇도 얹을 수 없다.
+    // 줄의 남은 자리를 알 수 없어 이름 옆에 눈 표시를 얹을 수 없다.
     //
     // **끌어 놓기는 기존 엔진 `CLayerTool` 과 같은 세 구역이다**(D-128) - 행 위쪽은
     // 그 줄 앞에, 가운데는 그 줄의 자식으로, 아래쪽은 그 줄 뒤에. 줄 사이에 얇은 틈을
     // 따로 두면 맞추기 어렵고, 자식으로 넣을 자리와 형제로 넣을 자리가 화면에서 구분되지 않는다.
+    //
+    // **레이어도 여기 있다**(D-135). 엔진에는 레이어가 있고 `.jcanvas` 도 레이어를 적는데
+    // 에디터에는 레이어를 다루는 길이 하나도 없었다. 기존 엔진이 계층 창에 두었으므로 같은 자리다.
+    // 위가 앞이다 - 포토샵과 같은 쪽이고, 캔버스가 든 차례(0 = 맨 뒤)의 역순으로 그린다.
     class HierarchyPanel final : public EditorPanel
     {
     public:
@@ -42,6 +47,8 @@ namespace JBro
         // 찾는 글자에 걸리는가. 자식이 걸리면 부모도 남는다 - 그러지 않으면
         // 걸린 자식이 갈 곳을 잃는다.
         bool Matches(const GameObject& object) const;
+        // 레이어 한 줄과 그 아래의 뿌리 오브젝트들.
+        void DrawLayer(Layer& layer, std::size_t index);
         // `parent` 가 널이면 뿌리이고 `indexInParent` 는 뿌리 순서에서의 자리다.
         void DrawObject(GameObject& object, GameObject* parent, std::size_t indexInParent);
         void DrawDragSource(GameObject& object);
@@ -50,6 +57,8 @@ namespace JBro
         void DrawRowDropTarget(
             GameObject& object, GameObject* parent, std::size_t indexInParent,
             const ImRect& rowRect);
+        // 레이어 줄이 받는 자리. 오브젝트를 놓으면 그 레이어로, 레이어를 놓으면 자리를 바꾼다.
+        void DrawLayerDropTarget(Layer& layer, std::size_t index, const ImRect& rowRect);
         // 옮길 것을 적어 둔다. 실제 이동은 프레임 끝에서 한다.
         void RecordDrop(GameObject& dragged, GameObject* parent, std::size_t insertAt);
         // 이번 프레임에 떨어진 것을 실제로 옮긴다.
@@ -59,11 +68,14 @@ namespace JBro
         // 줄의 우클릭 메뉴. **거짓이면 이 오브젝트가 더 이상 없을 수 있다** -
         // 삭제와 붙여넣기가 계층을 그 자리에서 바꾸므로, 부르는 쪽은 그 줄을 더 그리지 않는다.
         bool DrawObjectContextMenu(GameObject& object);
+        // 레이어 줄의 우클릭 메뉴. 거짓이면 그 레이어가 더 이상 없다.
+        bool DrawLayerContextMenu(Layer& layer);
 
         EditorApplication* m_editor = nullptr;
         String m_filter;
         // 이번 프레임에 계층의 꾸러미를 끌고 있는가. 매 줄에서 다시 묻지 않는다.
         bool m_dragActive = false;
+        bool m_layerDragActive = false;
         // 뿌리 목록. 매 프레임 캔버스에서 받는다(D-128).
         Array<GameObject*> m_roots;
 
@@ -76,10 +88,19 @@ namespace JBro
         std::size_t m_dropInsertAt = 0;
         bool m_dropToRoot = false;
         bool m_hasDrop = false;
+        // 레이어로 떨어뜨린 것과, 레이어끼리 자리를 바꾼 것. 같은 이유로 프레임 끝에 한다.
+        SafePtr<GameObject> m_layerDropObject;
+        LayerId m_layerDropTarget = InvalidLayerId;
+        LayerId m_layerMoveId = InvalidLayerId;
+        std::size_t m_layerMoveTo = 0;
+        bool m_hasLayerMove = false;
 
         // **옮긴 것은 보여 준다**(기존 엔진의 계층 표시 요청). 접힌 부모 안으로
         // 끌어다 놓으면 그대로는 화면에서 사라져, 옮겨진 것인지 사라진 것인지
         // 알 수 없다. 다음 프레임에 조상들을 펼치고 그 줄로 스크롤한 뒤 비운다.
         SafePtr<GameObject> m_reveal;
+        // 이름을 고치는 중인 레이어와 그 글자. 무효값이면 고치는 중이 아니다.
+        LayerId m_renaming = InvalidLayerId;
+        String m_renameText;
     };
 }

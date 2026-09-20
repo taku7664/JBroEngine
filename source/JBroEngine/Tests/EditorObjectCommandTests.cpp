@@ -3,6 +3,7 @@
 #include <JBro/Core/StableTypeId.h>
 #include <JBro/Editor/Command/ComponentCommands.h>
 #include <JBro/Editor/Command/HierarchyCommands.h>
+#include <JBro/Editor/Command/LayerCommands.h>
 #include <JBro/Editor/Command/ObjectCommands.h>
 #include <JBro/Editor/Command/SetPropertyCommand.h>
 #include <JBro/Editor/EditorCommand.h>
@@ -2136,6 +2137,92 @@ namespace
         canvas.GetRootObjects(roots);
         Check(roots[1] == child, "to the same place");
     }
+
+    // 레이어는 엔진에 있고 `.jcanvas` 도 적는데 에디터에서 다룰 길이 없었다(D-135).
+    // 만들기·이름·보임·자리·오브젝트 옮기기가 모두 되돌려져야 한다.
+    void TestLayersCanBeEditedAndUndone()
+    {
+        RegisterOnce();
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::EditorObjectRegistry ids;
+        JBro::EditorCommandManager commands;
+
+        const std::size_t before = canvas.GetLayerCount();
+        Check(before >= 1, "a canvas always has at least one layer");
+
+        auto create = JBro::MakeOwnerPtr<JBro::CreateLayerCommand>(canvas, "Foreground");
+        JBro::CreateLayerCommand* raw = create.Get();
+        Check(commands.Execute(std::move(create)), "a layer can be made");
+        const JBro::LayerId made = raw->GetLayerId();
+        Check(canvas.GetLayerCount() == before + 1, "and the canvas has one more");
+        Check(canvas.GetLayerAt(canvas.GetLayerCount() - 1)->GetId() == made,
+            "a new layer stands in front, where what you put on it is not hidden");
+
+        // ── 이름 ─────────────────────────────────────────────────────────
+        Check(commands.Execute(JBro::MakeOwnerPtr<JBro::RenameLayerCommand>(
+                canvas, made, "Sky")), "a layer can be renamed");
+        Check(std::strcmp(canvas.FindLayer(made)->GetName(), "Sky") == 0, "and takes the name");
+        Check(commands.Undo(), "undo must run");
+        Check(std::strcmp(canvas.FindLayer(made)->GetName(), "Foreground") == 0,
+            "and put the old name back");
+        Check(commands.Redo(), "redo must run");
+
+        // ── 보임 ─────────────────────────────────────────────────────────
+        Check(canvas.FindLayer(made)->IsVisible(), "a new layer is visible");
+        Check(commands.Execute(JBro::MakeOwnerPtr<JBro::SetLayerVisibleCommand>(
+                canvas, made, false)), "a layer can be hidden");
+        Check(false == canvas.FindLayer(made)->IsVisible(), "and is hidden");
+        Check(commands.Undo() && canvas.FindLayer(made)->IsVisible(),
+            "undo must show it again");
+        Check(false == commands.Execute(JBro::MakeOwnerPtr<JBro::SetLayerVisibleCommand>(
+                canvas, made, true)),
+            "setting it to what it already is is not an edit");
+
+        // ── 오브젝트를 옮긴다. 자식도 함께 간다. ─────────────────────────
+        JBro::GameObject* parent = canvas.CreateObject("Parent");
+        JBro::GameObject* child = canvas.CreateObject("Child");
+        child->SetParent(parent);
+        const JBro::LayerId original = parent->GetLayerId();
+        Check(child->GetLayerId() == original, "both start on the default layer");
+
+        Check(commands.Execute(JBro::MakeOwnerPtr<JBro::SetObjectLayerCommand>(
+                canvas, ids, ids.Track(parent), made)),
+            "an object can be moved to another layer");
+        Check(parent->GetLayerId() == made, "and lands there");
+        Check(child->GetLayerId() == made,
+            "with its children, or a parent and its child sit in different bins");
+        Check(commands.Undo(), "undo must run");
+        Check(parent->GetLayerId() == original && child->GetLayerId() == original,
+            "and both go back");
+        Check(commands.Redo() && parent->GetLayerId() == made, "redo must do it again");
+
+        // ── 지우기: 그 위의 오브젝트와 함께 되살아난다. ──────────────────
+        Check(commands.Execute(JBro::MakeOwnerPtr<JBro::DeleteLayerCommand>(
+                canvas, ids, made)), "a layer can be deleted");
+        Check(canvas.GetLayerCount() == before, "and the canvas has one fewer");
+        Check(parent->GetLayerId() != made, "what was on it moved off");
+
+        Check(commands.Undo(), "undo must run");
+        Check(canvas.GetLayerCount() == before + 1, "and the layer is back");
+        JBro::Layer* restored = canvas.GetLayerAt(canvas.GetLayerCount() - 1);
+        Check(restored != nullptr, "in the place it had");
+        Check(std::strcmp(restored->GetName(), "Sky") == 0, "with the name it had");
+        Check(parent->GetLayerId() == restored->GetId(),
+            "and what was on it is on it again");
+        Check(child->GetLayerId() == restored->GetId(), "children too");
+
+        // **마지막 하나는 지우지 못한다.** 캔버스가 레이어 없이 설 수 없다.
+        while (canvas.GetLayerCount() > 1)
+        {
+            JBro::Layer* last = canvas.GetLayerAt(canvas.GetLayerCount() - 1);
+            Check(canvas.DestroyLayer(last->GetId()), "spare layers can go");
+        }
+        JBro::Layer* only = canvas.GetLayerAt(0);
+        Check(false == commands.Execute(JBro::MakeOwnerPtr<JBro::DeleteLayerCommand>(
+                canvas, ids, only->GetId())),
+            "the last layer must be refused");
+        Check(canvas.GetLayerCount() == 1, "and must still be there");
+    }
 }
 
 int RunEditorObjectCommandTests()
@@ -2175,6 +2262,7 @@ int RunEditorObjectCommandTests()
     TestMovingWithoutWorldValuesLeavesTheLocalAlone();
     TestRootsKeepAnOrderOfTheirOwn();
     TestMovingAmongRootsAndOutOfAParentCanBeUndone();
+    TestLayersCanBeEditedAndUndone();
     std::cout << "Editor object command tests passed.\n";
     return 0;
 }

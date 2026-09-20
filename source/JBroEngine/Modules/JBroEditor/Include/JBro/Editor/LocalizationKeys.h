@@ -71,6 +71,11 @@ namespace JBro::LocKeys
     inline constexpr const char* HierarchyUnparent = "hierarchy.unparent";
     inline constexpr const char* HierarchyUnnamed = "hierarchy.unnamed";
     inline constexpr const char* HierarchySearch = "hierarchy.search";
+    inline constexpr const char* HierarchyAddLayer = "hierarchy.add_layer";
+    inline constexpr const char* HierarchyDeleteLayer = "hierarchy.delete_layer";
+    inline constexpr const char* HierarchyLayerName = "hierarchy.layer_name";
+    inline constexpr const char* HierarchyLayerEmpty = "hierarchy.layer_empty";
+    inline constexpr const char* HierarchyLayerVisible = "hierarchy.layer_visible";
 
     // ── 인스펙터 ─────────────────────────────────────────────────────────
     inline constexpr const char* InspectorNothingSelected = "inspector.nothing_selected";

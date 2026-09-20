@@ -4286,6 +4286,8 @@ namespace
     // 줄마다 `PushID(&object)` 를 쌓고 트리 마디가 `"##node"` 로 선다. **펼친 마디는
     // 자기 Id 를 다시 쌓으므로**(`TreePushOverrideID`) 자식의 시드는 창이 아니라
     // 부모 줄의 Id 다 - 조상부터 내려오며 같은 순서로 쌓아야 같은 값이 나온다.
+    //
+    // 맨 위에는 **레이어**가 있다(D-135). 뿌리 오브젝트도 그 레이어 마디 아래에 선다.
     ImGuiID HierarchyRowId(const JBro::GameObject* object)
     {
         ImGuiWindow* window = ImGui::FindWindowByName("Hierarchy");
@@ -4297,7 +4299,9 @@ namespace
         {
             chain[depth++] = walk;
         }
-        ImGuiID seed = window->ID;
+        // `ImGui::PushID(int)` 와 같은 계산이다. 레이어 줄은 아이디를 정수로 쌓는다.
+        const int layerId = static_cast<int>(object->GetLayerId());
+        ImGuiID seed = LabelId(PushedId(window->ID, layerId), "##layer");
         for (std::size_t step = depth; step > 0; --step)
         {
             const JBro::GameObject* at = chain[step - 1];

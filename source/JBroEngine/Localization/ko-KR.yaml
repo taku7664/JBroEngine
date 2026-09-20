@@ -90,3 +90,8 @@ Entries:
   popup.open_project_failed: 프로젝트를 열지 못했습니다
   dialog.open_project_title: 프로젝트 열기
   dialog.project_filter: JBro 프로젝트 파일
+  hierarchy.add_layer: 레이어 추가
+  hierarchy.delete_layer: 레이어 삭제
+  hierarchy.layer_name: 이름
+  hierarchy.layer_empty: 이 레이어에 오브젝트가 없습니다
+  hierarchy.layer_visible: 이 레이어를 보이거나 감춥니다

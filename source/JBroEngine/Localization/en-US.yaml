@@ -90,3 +90,8 @@ Entries:
   popup.open_project_failed: The project could not be opened
   dialog.open_project_title: Open Project
   dialog.project_filter: JBro project file
+  hierarchy.add_layer: Add Layer
+  hierarchy.delete_layer: Delete Layer
+  hierarchy.layer_name: Name
+  hierarchy.layer_empty: this layer is empty
+  hierarchy.layer_visible: show or hide this layer
