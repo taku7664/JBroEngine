@@ -222,9 +222,15 @@ namespace JBro::Network
    테스트 11 개: 서버·클라이언트 왕복, 좁은 파이프 위 20000 바이트, 닫기 양쪽 관측, 받는 이 없는 접속, 이벤트 넘침 → `Overflow`,
    꺼내지 않은 메시지의 생존(압축), 저장소 역압 무손실, 한계 초과 프레임 → `Error` 끊김, 데이터그램 왕복·무음 폐기·불가 플랫폼.
    `git diff --stat -- source/JBroEngine` 은 비어 있다.
-2. `[진행 예정]` **WS 기준선.** RFC6455 코덕(핸드셰이크·프레임·마스킹·ping/pong/close) 이식, 세션(hello·버전·keepalive·RTT),
-   프레이밍, 꺼내 가기 큐, 지연 teardown. Winsock 을 직접 감싼 테스트 provider.
-   완료: 루프백에서 호스트 둘이 이어져 버전 불일치를 거부하고, 타입드 메시지가 왕복하고, 큐 넘침이 `Overflow` 로 보인다.
+2. `[완료]` **WS 기준선.** (2026-09-20) `Internal/WebSocketProtocol`(SHA-1·Base64·핸드셰이크·프레임 헤더·마스크, 고정 버퍼),
+   `Transport` 를 WS 위로 옮김 - 단계 `TcpConnecting → WebSocketHandshaking → SessionHandshaking → Ready`, 메시지는
+   `[uint16 LE 메시지 ID][페이로드]`, 채널은 와이어에 없음(WS 로 온 것은 전부 `ReliableOrdered`), 클라이언트 → 서버 마스크,
+   조각 조립 버퍼(연결마다 최대 메시지 크기), Close·Ping·Pong 처리. 세션: hello·버전 검증(불일치는 Bye 를 보내고 **닫지 않음**,
+   기존 엔진의 RST 교훈)·keepalive ping/pong·RTT·무응답 타임아웃. `Connected` 는 hello 뒤에만, 서버가 받아들였다가 hello 전에
+   떨어진 소켓은 이벤트 없음. `Native/WinsockSocketProvider`(스트림·데이터그램, WSAStartup 은 인스턴스 짝), `SteadyClock`.
+   테스트 +14: 코덱(RFC 3174·4648·6455 예제, hashlib 로 구한 패딩 경계 5 개, 헤더 세 길이 형식×마스크, 구간 마스크 연속성),
+   세션(hello 전 무이벤트, 버전 불일치, 15ms RTT, 5s 타임아웃, 스캐너 무음 폐기, 5 바이트 조각 조립, Close 프레임),
+   실제 Winsock 루프백(연결·왕복·40000 바이트·닫기, 거부된 접속 → `Error`).
 3. `[진행 예정]` **UDP 채널 + Reliable UDP.** 토큰 부트스트랩, 데이터그램 v2, `ReliableEndpoint`(고정 원형 배열), 전송로 확정,
    폴백, 손실률. `LossyDatagramSocket` 데코레이터 이식.
    완료: 유실 30%·중복·재정렬 시드에서 Ordered 는 순서대로 정확히 한 번, Unordered 는 정확히 한 번, 프래그먼트가 재조립되고,

@@ -13,7 +13,7 @@ using namespace JBro::Network::Testing;
 namespace
 {
     // 양쪽을 몇 번 돌려 파이프를 비운다. 인메모리 파이프는 한 번의 Update 로 한 홉만 나아간다.
-    void Pump(Transport& a, Transport& b, int rounds = 4)
+    void Pump(Transport& a, Transport& b, int rounds = 8)
     {
         for (int round = 0; round < rounds; ++round)
         {
@@ -96,7 +96,8 @@ namespace
         Check(received == 1, "the server takes exactly one message");
         Check(views[0].connection == ServerConnectionId + 1, "from connection 2");
         Check(views[0].messageId == 7, "with the message id it was sent with");
-        Check(views[0].channel == NetChannel::Unreliable, "and the channel");
+        Check(views[0].channel == NetChannel::ReliableOrdered,
+            "it arrived on the reliable channel - WS carries every channel until UDP exists");
         Check(views[0].size == sizeof(hello), "and the size");
         Check(0 == std::memcmp(views[0].data, hello, sizeof(hello)), "and the bytes");
 
@@ -206,7 +207,7 @@ namespace
         {
             Check(client.Connect("memory", 3), "connect");
         }
-        for (int round = 0; round < 4; ++round)
+        for (int round = 0; round < 8; ++round)
         {
             server.Update();
             for (Transport& client : clients)

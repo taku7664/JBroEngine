@@ -3,8 +3,11 @@
 
 #include <iostream>
 
+int RunWebSocketProtocolTests();
 int RunMemorySocketTests();
 int RunTransportTests();
+int RunSessionTests();
+int RunWinsockLoopbackTests();
 
 int main()
 {
@@ -17,11 +20,24 @@ int main()
     }
     _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
 
+    // 순수 코덕과 인메모리 테스트를 앞에 둔다. 실제 소켓 테스트는 시간이 걸리므로 뒤다.
+    if (RunWebSocketProtocolTests() != 0)
+    {
+        return 1;
+    }
     if (RunMemorySocketTests() != 0)
     {
         return 1;
     }
     if (RunTransportTests() != 0)
+    {
+        return 1;
+    }
+    if (RunSessionTests() != 0)
+    {
+        return 1;
+    }
+    if (RunWinsockLoopbackTests() != 0)
     {
         return 1;
     }
