@@ -58,6 +58,7 @@ namespace JBro
         m_textures = {};
         m_sprites = {};
         m_loaded.Clear();
+        m_metaCache.Clear();
         m_platform = nullptr;
         m_registry = nullptr;
         m_assetRoot.clear();
@@ -129,6 +130,8 @@ namespace JBro
     {
         Slot<TData>& slot = pool.slots[slotIndex];
         m_loaded.Remove(slot.id);
+        // 내려간 것의 메타는 잊는다. 다음 로드는 디스크를 본다 - 손으로 고친 `.jmeta` 는 감시가 무시하므로 여기가 그 길이다.
+        ForgetMeta(slot.id);
         slot.data = TData{};
         slot.id = {};
         slot.referenceCount = 0;
@@ -196,14 +199,42 @@ namespace JBro
         return true;
     }
 
-    // 옵션은 메타 파서 하나가 읽는다(D-120). 블록이 없으면 기본값이고, 있는데 읽히지 않으면 실패다 - 파서가 그 규칙이다.
-    bool AssetSystem::ReadSpriteOptions(const AssetRecord& record, SpriteImportOptions& options)
+    bool AssetSystem::ReadMeta(const AssetRecord& record, AssetMetaFile& meta)
     {
-        AssetMetaFile meta;
+        const AssetId key = record.owner.IsNull() ? record.id : record.owner;
+        if (const AssetMetaFile* cached = m_metaCache.Find(key))
+        {
+            meta = *cached;
+            return true;
+        }
         AssetMetaError error;
         if (false == LoadAssetMetaFile(*m_platform, MetaPathOf(record).c_str(), meta, error))
         {
             std::printf("warning: %s: %s (line %zu)\n", MetaPathOf(record).c_str(), error.message.c_str(), error.line);
+            return false;
+        }
+        m_metaCache.TryAdd(key, meta);
+        return true;
+    }
+
+    void AssetSystem::ForgetMeta(AssetId id)
+    {
+        m_metaCache.Remove(id);
+        if (const AssetRecord* record = m_registry != nullptr ? m_registry->Find(id) : nullptr)
+        {
+            if (false == record->owner.IsNull())
+            {
+                m_metaCache.Remove(record->owner);
+            }
+        }
+    }
+
+    // 옵션은 메타 파서 하나가 읽는다(D-120). 블록이 없으면 기본값이고, 있는데 읽히지 않으면 실패다 - 파서가 그 규칙이다.
+    bool AssetSystem::ReadSpriteOptions(const AssetRecord& record, SpriteImportOptions& options)
+    {
+        AssetMetaFile meta;
+        if (false == ReadMeta(record, meta))
+        {
             return false;
         }
         options = meta.hasSpriteOptions ? meta.spriteOptions : SpriteImportOptions{};
@@ -218,10 +249,8 @@ namespace JBro
     bool AssetSystem::ReadTextureOptions(const AssetRecord& record, TextureImportOptions& options)
     {
         AssetMetaFile meta;
-        AssetMetaError error;
-        if (false == LoadAssetMetaFile(*m_platform, MetaPathOf(record).c_str(), meta, error))
+        if (false == ReadMeta(record, meta))
         {
-            std::printf("warning: %s: %s (line %zu)\n", MetaPathOf(record).c_str(), error.message.c_str(), error.line);
             return false;
         }
         options = meta.hasTextureOptions ? meta.textureOptions : TextureImportOptions{};
@@ -400,6 +429,8 @@ namespace JBro
         {
             return false;
         }
+        // 로드돼 있든 아니든 캐시한 메타는 버린다. 디스크가 바뀌었다는 뜻으로 불리는 함수다.
+        ForgetMeta(id);
         const AssetHandle* loaded = m_loaded.Find(id);
         const AssetRecord* record = m_registry->Find(id);
         if (loaded == nullptr || record == nullptr)

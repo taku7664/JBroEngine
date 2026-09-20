@@ -69,6 +69,8 @@ namespace JBro
         void Clear();
 
         const AssetRecord* Find(AssetId id) const;
+        // `owner` 를 주인으로 둔 레코드들(이미지의 Sprite)의 아이디를 더한다. 색인이라 걷지 않는다.
+        void CollectOwned(AssetId owner, Array<AssetId>& out) const;
         // 경로로 찾는다. 이미지면 Texture 레코드다.
         const AssetRecord* FindByPath(std::string_view relativePath) const;
         // `Find` 와 같되 값 타입 요약으로 준다. 없으면 false 다.
@@ -91,5 +93,7 @@ namespace JBro
         Array<AssetRecord> m_records;
         Table<AssetId, std::uint32_t> m_byId;
         Table<String, std::uint32_t> m_byPath;
+        // 주인 → 그 주인을 가리키는 레코드의 아이디들. 시트가 Sprite 여럿을 낳아도 같은 모양이다.
+        Table<AssetId, Array<AssetId>> m_byOwner;
     };
 }

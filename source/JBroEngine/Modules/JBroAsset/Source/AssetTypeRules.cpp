@@ -164,6 +164,22 @@ namespace JBro
             return EqualsIgnoringCase(ExtensionOf(path), MetaExtension);
         }
 
+        String MakeMetaScratchPath(std::string_view metaPath)
+        {
+            String result(metaPath);
+            result.append(".tmp");
+            return result;
+        }
+
+        bool IsMetaScratchPath(std::string_view path) noexcept
+        {
+            if (false == EqualsIgnoringCase(ExtensionOf(path), ".tmp"))
+            {
+                return false;
+            }
+            return IsMetaPath(path.substr(0, path.size() - 4));
+        }
+
         String MakeMetaPath(std::string_view path)
         {
             String result(path);

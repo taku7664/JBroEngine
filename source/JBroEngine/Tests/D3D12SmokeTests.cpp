@@ -170,6 +170,26 @@ namespace
             Check(fs::exists(root / "Assets" / "renamed.png.jmeta", ignored), "and its meta moved with it");
             Check(engine.GetAssetRegistry().FindByPath("extra.png") == nullptr, "and the old path is gone");
 
+            // 폴더를 읽지 못하는 다시 스캔은 거짓이고 레지스트리를 두어야 한다. 감시 핸들이 폴더를 붙들고 있어 지우지는
+            // 못하지만 이름은 바꿀 수 있다 - 못 바꾸는 파일 시스템이면 이 검사는 건너뛴다.
+            {
+                const std::size_t before = engine.GetAssetRegistry().GetCount();
+                std::error_code moveError;
+                fs::rename(root / "Assets", root / "Assets_away", moveError);
+                if (false == static_cast<bool>(moveError))
+                {
+                    Check(false == engine.RescanAssets() && engine.GetAssetRegistry().GetCount() == before,
+                        "a rescan of a folder that cannot be read keeps the registry as it was");
+                    fs::rename(root / "Assets_away", root / "Assets", moveError);
+                    Check(false == static_cast<bool>(moveError), "the folder comes back");
+                    Check(engine.RescanAssets() && engine.GetAssetRegistry().GetCount() == before, "and the rescan works again");
+                    engine.PollAssetChanges();
+                }
+                else
+                {
+                    std::cout << "  [skip] the watched folder could not be renamed; the failed-rescan path not verified" << std::endl;
+                }
+            }
             fs::remove(root / "Assets" / "hero.png", ignored);
             Check(pollUntil([&]() { return engine.GetAssetRegistry().FindByPath("hero.png") == nullptr; }),
                 "deleting the source drops its records");

@@ -87,6 +87,7 @@ namespace JBro::LocKeys
     inline constexpr const char* AssetNone = "asset.none";
     inline constexpr const char* AssetMissing = "asset.missing";
     inline constexpr const char* AssetsEmpty = "assets.empty";
+    inline constexpr const char* AssetsNotWatching = "assets.not_watching";
     inline constexpr const char* InspectorTextureImportOptions = "inspector.texture_import_options";
     inline constexpr const char* InspectorSpriteImportOptions = "inspector.sprite_import_options";
     inline constexpr const char* CommonOk = "common.ok";

@@ -57,6 +57,7 @@ Entries:
   asset.none: (없음)
   asset.missing: (없는 에셋)
   assets.empty: 에셋 폴더에 파일이 없습니다
+  assets.not_watching: 에셋 폴더 감시가 꺼져 있어 밖에서 바꾼 파일이 반영되지 않습니다
   inspector.texture_import_options: 텍스처 임포트 옵션
   inspector.sprite_import_options: 스프라이트 임포트 옵션
   common.ok: 확인

@@ -215,6 +215,11 @@ namespace JBro
         return m_engine.Get() != nullptr ? m_engine->GetAssetSystem() : nullptr;
     }
 
+    bool EditorApplication::IsWatchingAssets() const
+    {
+        return m_engine.Get() != nullptr && m_engine->IsWatchingAssets();
+    }
+
     void EditorApplication::SetSelectedAsset(AssetId id)
     {
         if (false == id.IsNull())

@@ -55,7 +55,7 @@ namespace JBro
                     message.append(": ");
                     message.append(reflected.message);
                 }
-                return Fail(error, 1, message.c_str());
+                return Fail(error, document.GetLine(block), message.c_str());
             }
             present = true;
             return true;
@@ -74,17 +74,17 @@ namespace JBro
             if (document.Find(root, "Version") != YamlDocument::InvalidNode
                 && false == document.FindInt(root, "Version", version))
             {
-                return Fail(error, 1, "Version must be a whole number");
+                return Fail(error, document.GetLine(document.Find(root, "Version")), "Version must be a whole number");
             }
             if (version != 1)
             {
-                return Fail(error, 1, "this meta file version is not one this engine reads");
+                return Fail(error, document.GetLine(document.Find(root, "Version")), "this meta file version is not one this engine reads");
             }
             parsed.version = static_cast<std::uint32_t>(version);
 
             if (false == ReadId(document, root, "Id", parsed.id) || parsed.id.IsNull())
             {
-                return Fail(error, 1, "Id must be 32 hex digits and not null");
+                return Fail(error, document.GetLine(document.Find(root, "Id")), "Id must be 32 hex digits and not null");
             }
 
             String typeName;
@@ -95,7 +95,7 @@ namespace JBro
             parsed.type = AssetTypeRules::ParseTypeName(typeName);
             if (parsed.type == AssetType::Unknown)
             {
-                return Fail(error, 1, "Type is not a name this engine knows");
+                return Fail(error, document.GetLine(document.Find(root, "Type")), "Type is not a name this engine knows");
             }
 
             const std::uint32_t sprite = document.Find(root, "Sprite");
@@ -104,11 +104,11 @@ namespace JBro
                 if (sprite == YamlDocument::InvalidNode || document.GetKind(sprite) != YamlKind::Map
                     || false == ReadId(document, sprite, "Id", parsed.spriteId) || parsed.spriteId.IsNull())
                 {
-                    return Fail(error, 1, "an image needs a Sprite block with its own Id");
+                    return Fail(error, sprite != YamlDocument::InvalidNode ? document.GetLine(sprite) : document.GetLine(root), "an image needs a Sprite block with its own Id");
                 }
                 if (parsed.spriteId == parsed.id)
                 {
-                    return Fail(error, 1, "the sprite id must differ from the texture id");
+                    return Fail(error, document.GetLine(sprite), "the sprite id must differ from the texture id");
                 }
             }
 
@@ -215,6 +215,17 @@ namespace JBro
         JArrayView<std::byte> view;
         view.data = reinterpret_cast<const std::byte*>(text.data());
         view.size = static_cast<std::uint32_t>(text.size());
+        // 임시 파일에 다 쓴 뒤 바꿔치기한다. 메타를 쓰다 말면 아이디를 잃고, 그것은 다시 들여와도 돌아오지 않는다.
+        // 옮기기가 없는 플랫폼은 그대로 덮어쓴다.
+        const String scratch = AssetTypeRules::MakeMetaScratchPath(utf8Path);
+        if (false == platform.WriteWholeFile(scratch.c_str(), view))
+        {
+            return false;
+        }
+        if (platform.MoveFileTo(scratch.c_str(), utf8Path))
+        {
+            return true;
+        }
         return platform.WriteWholeFile(utf8Path, view);
     }
 }

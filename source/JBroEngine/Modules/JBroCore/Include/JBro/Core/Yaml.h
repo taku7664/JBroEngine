@@ -62,6 +62,8 @@ namespace JBro
         // 빈 문서면 InvalidNode 다.
         std::uint32_t GetRoot() const;
         YamlKind      GetKind(std::uint32_t node) const;
+        // 그 노드가 시작한 줄(1 부터)이다. 오류를 파일의 자리로 말할 수 있게. 모르는 노드면 0 이다.
+        std::size_t   GetLine(std::uint32_t node) const;
 
         // 스칼라의 원문이다. 따옴표는 이미 벗겨져 있다. 스칼라가 아니면 빈 문자열.
         const char* GetText(std::uint32_t node) const;
@@ -93,12 +95,13 @@ namespace JBro
         struct Node
         {
             YamlKind                  kind = YamlKind::Scalar;
+            std::size_t               line = 0;
             String                    text;
             Array<String>             keys;      // Map 일 때만
             Array<std::uint32_t>      children;  // Sequence 의 항목 또는 Map 의 값
         };
 
-        std::uint32_t AddNode(YamlKind kind);
+        std::uint32_t AddNode(YamlKind kind, std::size_t line);
         bool          IsValid(std::uint32_t node) const;
 
         Array<Node>   m_nodes;

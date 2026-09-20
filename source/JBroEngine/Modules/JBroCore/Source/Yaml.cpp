@@ -108,10 +108,11 @@ namespace JBro
         }
     }
 
-    std::uint32_t YamlDocument::AddNode(YamlKind kind)
+    std::uint32_t YamlDocument::AddNode(YamlKind kind, std::size_t line)
     {
         Node node;
         node.kind = kind;
+        node.line = line;
         m_nodes.Add(std::move(node));
         return static_cast<std::uint32_t>(m_nodes.Size() - 1);
     }
@@ -191,7 +192,7 @@ namespace JBro
             if (open.Size() == 0)
             {
                 // 첫 내용 줄이 문서의 뿌리를 정한다.
-                const std::uint32_t root = AddNode(isItem ? YamlKind::Sequence : YamlKind::Map);
+                const std::uint32_t root = AddNode(isItem ? YamlKind::Sequence : YamlKind::Map, lineNumber);
                 m_root = root;
                 Open first;
                 first.indent = line.indent;
@@ -235,7 +236,7 @@ namespace JBro
                 if (itemBegin == line.end)
                 {
                     // 대시만 있다. 아래 줄들이 이 항목의 내용이다.
-                    const std::uint32_t child = AddNode(YamlKind::Map);
+                    const std::uint32_t child = AddNode(YamlKind::Map, lineNumber);
                     m_nodes[blockNode].children.Add(child);
                     Open inner;
                     // 내용은 이 대시보다 깊은 어느 깊이에도 올 수 있다. 다음 줄이 정한다.
@@ -255,7 +256,7 @@ namespace JBro
                 if (SplitKey(itemBegin, line.end, key, value, hasValue))
                 {
                     // `- Key: value` — 맵을 담은 항목이고 첫 키가 여기 있다.
-                    const std::uint32_t child = AddNode(YamlKind::Map);
+                    const std::uint32_t child = AddNode(YamlKind::Map, lineNumber);
                     m_nodes[blockNode].children.Add(child);
                     Open inner;
                     inner.indent = line.indent + static_cast<std::size_t>(itemBegin - line.begin);
@@ -268,14 +269,14 @@ namespace JBro
                     }
                     if (hasValue)
                     {
-                        const std::uint32_t scalar = AddNode(YamlKind::Scalar);
+                        const std::uint32_t scalar = AddNode(YamlKind::Scalar, lineNumber);
                         m_nodes[scalar].text = std::move(value);
                         m_nodes[child].keys.Add(std::move(key));
                         m_nodes[child].children.Add(scalar);
                     }
                     else
                     {
-                        const std::uint32_t nested = AddNode(YamlKind::Map);
+                        const std::uint32_t nested = AddNode(YamlKind::Map, lineNumber);
                         m_nodes[child].keys.Add(std::move(key));
                         m_nodes[child].children.Add(nested);
                         Open deeper;
@@ -296,7 +297,7 @@ namespace JBro
                 {
                     return Fail(error, lineNumber, "a quoted value is not closed");
                 }
-                const std::uint32_t scalar = AddNode(YamlKind::Scalar);
+                const std::uint32_t scalar = AddNode(YamlKind::Scalar, lineNumber);
                 m_nodes[scalar].text = std::move(item);
                 m_nodes[blockNode].children.Add(scalar);
                 if (lineEnd >= length)
@@ -337,15 +338,15 @@ namespace JBro
                 std::uint32_t child = InvalidNode;
                 if (value == "[]")
                 {
-                    child = AddNode(YamlKind::Sequence);
+                    child = AddNode(YamlKind::Sequence, lineNumber);
                 }
                 else if (value == "{}")
                 {
-                    child = AddNode(YamlKind::Map);
+                    child = AddNode(YamlKind::Map, lineNumber);
                 }
                 else
                 {
-                    child = AddNode(YamlKind::Scalar);
+                    child = AddNode(YamlKind::Scalar, lineNumber);
                     m_nodes[child].text = std::move(value);
                 }
                 m_nodes[owner].keys.Add(std::move(key));
@@ -354,7 +355,7 @@ namespace JBro
             else
             {
                 // 값이 없다. 아래 줄들이 이 키의 내용이고, 맵인지 시퀀스인지는 그때 정해진다.
-                const std::uint32_t child = AddNode(YamlKind::Map);
+                const std::uint32_t child = AddNode(YamlKind::Map, lineNumber);
                 m_nodes[owner].keys.Add(std::move(key));
                 m_nodes[owner].children.Add(child);
                 Open inner;
@@ -379,6 +380,11 @@ namespace JBro
     std::uint32_t YamlDocument::GetRoot() const
     {
         return m_root;
+    }
+
+    std::size_t YamlDocument::GetLine(std::uint32_t node) const
+    {
+        return IsValid(node) ? m_nodes[node].line : 0;
     }
 
     YamlKind YamlDocument::GetKind(std::uint32_t node) const

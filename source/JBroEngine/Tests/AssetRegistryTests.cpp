@@ -126,6 +126,8 @@ namespace
         Check(false == JBro::ParseAssetMetaFile(badOptions.c_str(), badOptions.size(), untouched, error)
                 && error.message.find("ImportOptions") != JBro::String::npos,
             "an option value nobody knows fails the whole file and says where");
+        // 오류의 줄은 그 블록이 시작한 줄이다. 본문 세 줄(Version·Id·Type) 과 Sprite 블록 두 줄 뒤에 Texture 블록이 온다.
+        Check(error.line == 7, "and names the line of the block that failed");
 
         Check(false == JBro::ParseAssetMetaFile(noSprite, std::strlen(noSprite), untouched, error),
             "an image without a sprite block is refused");
@@ -176,6 +178,15 @@ namespace
         Check(false == fs::exists(root / ".hidden" / "secret.png.jmeta"), "nothing inside a hidden folder is touched");
         Check(false == fs::exists(root / "notes.txt.jmeta"), "an unknown type gets no meta");
 
+        // 주인 색인: 이미지의 Sprite 는 Texture 를 주인으로 둔다. 저장은 임시 파일을 남기지 않는다.
+        {
+            const JBro::AssetRecord* heroTexture = registry.FindByPath("hero.png");
+            JBro::Array<JBro::AssetId> owned;
+            registry.CollectOwned(heroTexture->id, owned);
+            Check(owned.Size() == 1 && registry.Find(owned[0]) != nullptr && registry.Find(owned[0])->owner == heroTexture->id,
+                "the owner index hands back the image's sprite");
+            Check(false == fs::exists(root / "hero.png.jmeta.tmp"), "the meta save leaves no scratch file behind");
+        }
         // 판번호는 바뀔 때마다 오르고, 아무것도 안 하면 그대로다(에디터 목록이 이것으로 다시 모을지 정한다).
         const std::uint64_t scanned = registry.GetRevision();
         Check(scanned != 0 && registry.GetRevision() == scanned, "a scan moves the revision and reading does not");

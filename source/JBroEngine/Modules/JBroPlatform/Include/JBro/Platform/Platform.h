@@ -117,6 +117,14 @@ namespace JBro
             (void)contents;
             return false;
         }
+        // 파일을 옮긴다. 목적지가 있으면 덮어쓴다. 같은 볼륨이면 이름만 바뀌므로 원자적이다 - 임시 파일에 쓰고
+        // 이것으로 바꿔치기하면 쓰다 만 파일이 남지 않는다. 감시가 없는 플랫폼처럼 기본은 없다.
+        virtual bool MoveFileTo(const char* fromUtf8Path, const char* toUtf8Path)
+        {
+            (void)fromUtf8Path;
+            (void)toUtf8Path;
+            return false;
+        }
         virtual bool FileExists(const char* utf8Path) const
         {
             (void)utf8Path;

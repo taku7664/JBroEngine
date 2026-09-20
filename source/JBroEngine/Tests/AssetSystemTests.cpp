@@ -334,6 +334,28 @@ namespace
         view.size = static_cast<std::uint32_t>(text.size());
         Check(fixture.platform.WriteWholeFile(metaPath.c_str(), view), "the meta with the unknown key is put back");
 
+        // 메타는 이미지마다 한 번 파싱돼 캐시된다. 내려간 뒤의 로드는 디스크를 다시 본다 - 손으로 고친 메타가 반영되게.
+        {
+            JBro::String rows = JBro::FormatAssetMetaFile(meta);
+            rows.append("  ImportOptions:\n    sliceType: CellCount\n    rowCount: 2\n    columnCount: 1\n");
+            view.data = reinterpret_cast<const std::byte*>(rows.data());
+            view.size = static_cast<std::uint32_t>(rows.size());
+            const std::size_t framesBefore = assets.GetSprite(sprite)->frames.Size();
+            Check(fixture.platform.WriteWholeFile(metaPath.c_str(), view), "a meta edited by hand saves");
+            Check(assets.GetSprite(sprite)->frames.Size() == framesBefore, "the loaded sprite does not see it yet");
+            assets.Release(sprite);
+            assets.Release(sprite);
+            Check(assets.CollectUnused() >= 1, "the sprite goes when nobody holds it");
+            const JBro::AssetHandle again = assets.Load(fixture.spriteId);
+            Check(again.generation != 0 && assets.GetSprite(again)->frames.Size() == 2,
+                "a fresh load after unloading reads the meta from disk again");
+            assets.Release(again);
+            assets.CollectUnused();
+            view.data = reinterpret_cast<const std::byte*>(text.data());
+            view.size = static_cast<std::uint32_t>(text.size());
+            Check(fixture.platform.WriteWholeFile(metaPath.c_str(), view), "the meta with the unknown key is put back again");
+        }
+
         // 새 로드는 그 옵션으로 시작한다 - 다시 열면 거절돼야 하므로 먼저 전부 내린다.
         assets.Release(sprite);
         assets.Release(sprite);

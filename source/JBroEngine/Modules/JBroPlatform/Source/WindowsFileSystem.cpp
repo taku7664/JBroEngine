@@ -1,5 +1,7 @@
 ﻿#include <JBro/Platform/WindowsPlatform.h>
 
+#include <windows.h>
+
 #include <filesystem>
 #include <fstream>
 #include <string_view>
@@ -109,6 +111,17 @@ namespace JBro
             file.write(reinterpret_cast<const char*>(contents.data), static_cast<std::streamsize>(contents.size));
         }
         return file.good();
+    }
+
+    bool WindowsPlatform::MoveFileTo(const char* fromUtf8Path, const char* toUtf8Path)
+    {
+        const fs::path from = ToPath(fromUtf8Path);
+        const fs::path to = ToPath(toUtf8Path);
+        if (from.empty() || to.empty())
+        {
+            return false;
+        }
+        return MoveFileExW(from.c_str(), to.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != FALSE;
     }
 
     bool WindowsPlatform::FileExists(const char* utf8Path) const

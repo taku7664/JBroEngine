@@ -66,17 +66,11 @@ namespace JBro::System
             item.filter = resolved ? frame.filter : TextureFilter::Nearest;
             item.material = sprite.material;
             item.tint = sprite.tint;
-            // 크기와 피벗은 에셋이 정한다(D-117). 풀리지 않은 스프라이트와 `Custom` 만 저작 값이다.
-            if (resolved && sprite.sizeMode == Component::SpriteSizeMode::FromSprite)
-            {
-                item.pivot = { frame.pivotX, frame.pivotY };
-                item.size = { frame.widthUnits, frame.heightUnits };
-            }
-            else
-            {
-                item.pivot = sprite.pivot;
-                item.size = sprite.size;
-            }
+            // 크기와 피벗은 에셋이 정한다(D-117). 풀리지 않은 스프라이트와 `Custom` 만 저작 값이다. 둘은 따로 고른다.
+            item.size = (resolved && sprite.sizeMode == Component::SpriteSizeMode::FromSprite)
+                ? Vec2{ frame.widthUnits, frame.heightUnits } : sprite.size;
+            item.pivot = (resolved && sprite.pivotMode == Component::SpritePivotMode::FromSprite)
+                ? Vec2{ frame.pivotX, frame.pivotY } : sprite.pivot;
             item.renderOrder = sprite.renderOrder;
             if (sprite.flip == Component::SpriteFlip::Horizontal || sprite.flip == Component::SpriteFlip::Both)
             {

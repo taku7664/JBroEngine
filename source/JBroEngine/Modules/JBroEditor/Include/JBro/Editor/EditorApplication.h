@@ -91,6 +91,8 @@ namespace JBro
         const AssetRegistry& GetAssetRegistry() const;
         // 열린 프로젝트의 에셋 시스템이다. 프로젝트가 없으면 nullptr 다.
         AssetSystem* GetAssetSystem();
+        // 열린 프로젝트의 에셋 폴더가 감시되고 있는가. 거짓이면 밖에서 바꾼 파일이 반영되지 않는다.
+        bool IsWatchingAssets() const;
 
         // **에셋 선택**(D-120). 에셋 브라우저가 고르고 인스펙터가 임포트 옵션을 보여 준다. 오브젝트 선택과 배타다 -
         // 에셋을 고르면 오브젝트 선택이 비고, 오브젝트를 고르면 에셋 선택이 빈다. 인스펙터는 하나만 보인다.

@@ -173,6 +173,15 @@ namespace JBro
         return true;
     }
 
+    bool EngineInstance::RescanAssets()
+    {
+        if (m_platform == nullptr || m_assets.Get() == nullptr || false == m_assets->IsBound())
+        {
+            return false;
+        }
+        return ScanAssets(false);
+    }
+
     bool EngineInstance::IsWatchingAssets() const
     {
         return m_platform != nullptr && m_platform->IsWatching();
@@ -203,10 +212,11 @@ namespace JBro
         // 메타의 변경은 우리가 쓴 것이거나 사용자가 손으로 고친 것이다. 전자는 이미 적용됐고, 후자는 다음 로드가
         // 본다 - 자기 반향으로 재로드를 돌리지 않는다(D-117). 이름 바꾸기는 **양쪽이 다 메타일 때만** 건너뛴다 -
         // 한쪽만 메타면 에셋 파일이 생기거나 없어진 것이라 다시 본다.
-        const bool pathIsMeta = AssetTypeRules::IsMetaPath(event.path);
+        const bool pathIsMeta = AssetTypeRules::IsMetaPath(event.path) || AssetTypeRules::IsMetaScratchPath(event.path);
         if (event.kind == FileEventKind::Renamed)
         {
-            const bool oldIsMeta = AssetTypeRules::IsMetaPath(event.oldPath);
+            const bool oldIsMeta = AssetTypeRules::IsMetaPath(event.oldPath)
+                || AssetTypeRules::IsMetaScratchPath(event.oldPath);
             if (pathIsMeta && oldIsMeta)
             {
                 return;
@@ -221,26 +231,18 @@ namespace JBro
         {
             return;
         }
-        // 한 레코드 경로의 아이디들(이미지는 Texture 와 Sprite 둘). 레지스트리의 "이미지 하나에 Sprite 하나" 와 같은 가정이다.
-        const auto recordsAt = [&](std::string_view path, AssetId (&ids)[2]) -> std::uint32_t {
+        // 한 레코드 경로의 아이디들: 경로의 주인과 그것을 가리키는 것들(이미지의 Sprite). 색인이라 걷지 않는다.
+        const auto recordsAt = [&](std::string_view path, Array<AssetId>& ids) {
+            ids.Clear();
             const AssetRecord* primary = m_assetRegistry.FindByPath(path);
             if (primary == nullptr)
             {
-                return 0;
+                return;
             }
-            ids[0] = primary->id;
-            std::uint32_t count = 1;
-            for (std::size_t index = 0; index < m_assetRegistry.GetCount() && count < 2; ++index)
-            {
-                const AssetRecord& record = m_assetRegistry.GetRecord(index);
-                if (record.owner == primary->id && record.id != primary->id)
-                {
-                    ids[count++] = record.id;
-                }
-            }
-            return count;
+            ids.Add(primary->id);
+            m_assetRegistry.CollectOwned(primary->id, ids);
         };
-        AssetId ids[2];
+        Array<AssetId> ids;
         switch (event.kind)
         {
         case FileEventKind::Created:
@@ -248,8 +250,8 @@ namespace JBro
             break;
         case FileEventKind::Modified:
         {
-            const std::uint32_t count = recordsAt(event.path, ids);
-            for (std::uint32_t index = 0; index < count; ++index)
+            recordsAt(event.path, ids);
+            for (std::size_t index = 0; index < ids.Size(); ++index)
             {
                 QueueReload(ids[index]);
             }
@@ -257,37 +259,32 @@ namespace JBro
         }
         case FileEventKind::Removed:
         {
-            const std::uint32_t count = recordsAt(event.path, ids);
-            if (count == 0)
+            recordsAt(event.path, ids);
+            if (ids.IsEmpty())
             {
                 // 폴더였거나 모르는 파일이다. 폴더면 그 아래가 통째로 갔다.
                 m_assetRescanPending = true;
                 break;
             }
-            for (std::uint32_t index = 0; index < count; ++index)
-            {
-                m_assetRegistry.Unregister(ids[index]);
-            }
+            // 주인을 빼면 가리키던 것도 같이 빠진다.
+            m_assetRegistry.Unregister(ids[0]);
             ++summary.removed;
             break;
         }
         case FileEventKind::Renamed:
         {
             // **메타를 같이 옮긴다.** 파일만 옮기면 다음 스캔이 메타 없는 파일에 새 아이디를 만들어 캔버스의 참조가 끊긴다.
-            // 플랫폼에 옮기기가 없어 새 자리에 같은 글자를 쓴다 - 옛 메타는 고아로 남고 스캔이 세지 않는다.
             const AssetRecord* record = m_assetRegistry.FindByPath(event.oldPath);
             if (record == nullptr)
             {
                 m_assetRescanPending = true;
                 break;
             }
-            Array<std::byte> metaText;
             String newSource = m_assets->GetAssetRoot();
             newSource.push_back('/');
             newSource.append(event.path);
-            const bool carried = m_platform->ReadWholeFile(m_assets->GetMetaPath(*record).c_str(), metaText)
-                && m_platform->WriteWholeFile(AssetTypeRules::MakeMetaPath(newSource).c_str(),
-                    JArrayView<std::byte>{metaText.Data(), static_cast<std::uint32_t>(metaText.Size())});
+            const bool carried = m_platform->MoveFileTo(m_assets->GetMetaPath(*record).c_str(),
+                AssetTypeRules::MakeMetaPath(newSource).c_str());
             if (carried && m_assetRegistry.Rename(event.oldPath, event.path))
             {
                 ++summary.renamed;

@@ -94,6 +94,8 @@ namespace JBro
         // 잘린 파일이었을 수 있어 실패한 재로드는 이만큼 다시 해 본다.
         static constexpr std::uint32_t AssetReloadAttempts = 5;
         AssetChangeSummary PollAssetChanges();
+        // 에셋 폴더를 지금 다시 스캔한다. 폴더를 읽지 못하면 거짓이고 레지스트리는 전 것 그대로다.
+        bool RescanAssets();
         // 프로젝트를 열 때 감시가 섰고 아직 살아 있는가. 거짓이면 폴더 변경이 오지 않는다 - 에디터가 알릴 수 있게 둔다.
         bool IsWatchingAssets() const;
         // 프로젝트 파일로 열었을 때 그 에셋 폴더를 스캔한 결과다. 파일 없이 열면 비어 있다.

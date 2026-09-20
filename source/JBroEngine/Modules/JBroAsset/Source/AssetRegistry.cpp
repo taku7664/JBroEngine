@@ -250,6 +250,19 @@ namespace JBro
         {
             m_byPath.TryAdd(record.relativePath, index);
         }
+        else
+        {
+            if (Array<AssetId>* owned = m_byOwner.Find(record.owner))
+            {
+                owned->Add(record.id);
+            }
+            else
+            {
+                Array<AssetId> first;
+                first.Add(record.id);
+                m_byOwner.TryAdd(record.owner, std::move(first));
+            }
+        }
         Touch();
         return true;
     }
@@ -268,6 +281,22 @@ namespace JBro
         {
             m_byPath.Remove(removed.relativePath);
         }
+        else if (Array<AssetId>* owned = m_byOwner.Find(removed.owner))
+        {
+            for (std::size_t at = 0; at < owned->Size(); ++at)
+            {
+                if ((*owned)[at] == id)
+                {
+                    (*owned)[at] = (*owned)[owned->Size() - 1];
+                    owned->Resize(owned->Size() - 1);
+                    break;
+                }
+            }
+            if (owned->IsEmpty())
+            {
+                m_byOwner.Remove(removed.owner);
+            }
+        }
         const std::uint32_t last = static_cast<std::uint32_t>(m_records.Size() - 1);
         if (index != last)
         {
@@ -280,17 +309,12 @@ namespace JBro
             }
         }
         m_records.Resize(last);
-        // 이미지의 Texture 가 빠지면 그 Sprite 도 같이 빠진다.
-        if (removed.type == AssetType::Texture)
+        // 주인이 빠지면 그것을 가리키던 것(이미지의 Sprite)도 같이 빠진다. 색인을 복사해 두고 돈다 - 빼는 동안 색인이 바뀐다.
+        Array<AssetId> owned;
+        CollectOwned(removed.id, owned);
+        for (std::size_t at = 0; at < owned.Size(); ++at)
         {
-            for (std::size_t scan = 0; scan < m_records.Size(); ++scan)
-            {
-                if (m_records[scan].owner == removed.id)
-                {
-                    Unregister(m_records[scan].id);
-                    break;
-                }
-            }
+            Unregister(owned[at]);
         }
         Touch();
         return true;
@@ -330,7 +354,19 @@ namespace JBro
         m_records.Clear();
         m_byId.Clear();
         m_byPath.Clear();
+        m_byOwner.Clear();
         Touch();
+    }
+
+    void AssetRegistry::CollectOwned(AssetId owner, Array<AssetId>& out) const
+    {
+        if (const Array<AssetId>* owned = m_byOwner.Find(owner))
+        {
+            for (std::size_t at = 0; at < owned->Size(); ++at)
+            {
+                out.Add((*owned)[at]);
+            }
+        }
     }
 
     const AssetRecord* AssetRegistry::Find(AssetId id) const

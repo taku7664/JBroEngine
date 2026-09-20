@@ -214,10 +214,16 @@ namespace
                     && fromSprite.pivot.x == 0.0f && fromSprite.pivot.y == 0.5f,
                 "FromSprite takes the cell's size in units and the cell's pivot");
             sprite->sizeMode = JBro::Component::SpriteSizeMode::Custom;
+            sprite->pivotMode = JBro::Component::SpritePivotMode::Custom;
             const JBro::SpriteRenderItem custom = extract();
             Check(custom.size.x == 7.0f && custom.size.y == 9.0f && custom.pivot.x == 0.25f && custom.pivot.y == 0.75f,
                 "Custom takes the authored size and pivot");
+            // 크기는 에셋, 피벗은 저작 값 - D-117 이 말한 "피벗 덮어쓰기" 다.
             sprite->sizeMode = JBro::Component::SpriteSizeMode::FromSprite;
+            const JBro::SpriteRenderItem mixed = extract();
+            Check(mixed.size.x == 0.5f && mixed.size.y == 0.5f && mixed.pivot.x == 0.25f && mixed.pivot.y == 0.75f,
+                "the asset's size with an authored pivot is reachable");
+            sprite->pivotMode = JBro::Component::SpritePivotMode::FromSprite;
             sprite->sprite = {};
             const JBro::SpriteRenderItem unresolved = extract();
             Check(unresolved.size.x == 7.0f && unresolved.pivot.x == 0.25f,

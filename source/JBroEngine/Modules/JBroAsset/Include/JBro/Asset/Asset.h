@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/Asset/AssetRegistry.h>
+#include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Core/Core.h>
 #include <JBro/Reflection/PropertyInfo.h>
@@ -125,6 +126,12 @@ namespace JBro
         bool ReadTexture(const AssetRecord& record, TextureData& data);
         bool ReadSpriteOptions(const AssetRecord& record, SpriteImportOptions& options);
         bool ReadTextureOptions(const AssetRecord& record, TextureImportOptions& options);
+        // 메타를 한 번만 파싱한다. 이미지의 Texture 와 Sprite 는 같은 파일이라 주인(Texture) 아이디로 캐시한다.
+        // `ReloadInPlace` 가 그 자리를 비워 다음 읽기가 디스크를 본다 - 로드되지 않은 에셋의 옵션을 고쳐도 다음 로드가
+        // 새 옵션으로 시작한다.
+        bool ReadMeta(const AssetRecord& record, AssetMetaFile& meta);
+        void ForgetMeta(AssetId id);
+        Table<AssetId, AssetMetaFile> m_metaCache;
         bool BuildSprite(const AssetRecord& record, SpriteData& data);
         String MetaPathOf(const AssetRecord& record) const;
         String SourcePathOf(const AssetRecord& record) const;

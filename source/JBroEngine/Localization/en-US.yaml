@@ -57,6 +57,7 @@ Entries:
   asset.none: (None)
   asset.missing: (Missing asset)
   assets.empty: the asset folder has no files
+  assets.not_watching: the asset folder is not being watched, so files changed outside will not show up
   inspector.texture_import_options: Texture Import Options
   inspector.sprite_import_options: Sprite Import Options
   common.ok: OK

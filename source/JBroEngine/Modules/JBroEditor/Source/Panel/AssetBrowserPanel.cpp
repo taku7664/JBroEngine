@@ -190,6 +190,13 @@ namespace JBro
         Widget::SearchBox("##filter", m_filter)
             .Hint(Loc::TextOr(LocKeys::CommonSearch, "Search"))
             .Draw();
+        if (false == m_editor->IsWatchingAssets())
+        {
+            // 감시가 서지 않았거나 워커가 죽었다. 사용자가 "왜 반영이 안 되지" 로 겪지 않게 말한다.
+            Widget::StatusBadge(Loc::TextOr(LocKeys::AssetsNotWatching, "the asset folder is not being watched"))
+                .Level(Widget::Severity::Warning)
+                .Draw();
+        }
         ImGui::Spacing();
 
         Collect();
