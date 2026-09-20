@@ -8,6 +8,7 @@ int RunMemorySocketTests();
 int RunTransportTests();
 int RunSessionTests();
 int RunReliableUdpTests();
+int RunReplicationTests();
 int RunWinsockLoopbackTests();
 
 int main()
@@ -39,6 +40,10 @@ int main()
         return 1;
     }
     if (RunReliableUdpTests() != 0)
+    {
+        return 1;
+    }
+    if (RunReplicationTests() != 0)
     {
         return 1;
     }

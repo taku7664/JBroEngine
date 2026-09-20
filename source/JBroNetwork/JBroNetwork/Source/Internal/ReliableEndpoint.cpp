@@ -14,10 +14,15 @@ namespace JBro::Network
         constexpr std::uint32_t MaxCwnd = 256;
         // 편승 못한 ack 를 따로 내보내기까지 기다리는 창. 최소 RTO 보다 짧아 재전송 전에 도착한다.
         constexpr double AckDelayMilliseconds = 25.0;
+        // 새로 받은 뒤 standalone ack 를 되풀이하는 횟수. 30% 유실에서 ack 셋이 다 사라질 확률은 3% 다.
+        constexpr std::uint32_t AckRepeats = 2;
+        // 재전송 백오프 상한(2^3 = 8 배). 기존 엔진의 64 배는 죽은 링크에는 알맞지만 유실이 이어지는 링크에서는 복구를 수십 초로
+        // 늘였다 - 죽은 링크는 세션 타임아웃이 끊는다.
+        constexpr std::uint32_t MaxBackoffShift = 3;
 
         double BackoffFactor(std::uint32_t sends)
         {
-            const std::uint32_t shift = sends > 0 ? (sends - 1 < 6 ? sends - 1 : 6) : 0;
+            const std::uint32_t shift = sends > 0 ? (sends - 1 < MaxBackoffShift ? sends - 1 : MaxBackoffShift) : 0;
             return static_cast<double>(1u << shift);
         }
 
@@ -71,6 +76,7 @@ namespace JBro::Network
         m_aheadBits = 0;
         m_ackPending = false;
         m_ackPendingSinceMilliseconds = 0.0;
+        m_ackRepeatsLeft = 0;
         m_piggybackAcks = 0;
         m_standaloneAcks = 0;
         for (Reassembly& slot : m_reassembly)
@@ -195,6 +201,7 @@ namespace JBro::Network
             outbound.channel = unit.channel;
             outbound.lastSentMilliseconds = nowMilliseconds;
             outbound.sends = 1;
+            outbound.fastRetransmit = false;
             outbound.fragment = unit.fragment;
             outbound.msgSeq = unit.msgSeq;
             outbound.fragIndex = unit.fragIndex;
@@ -327,12 +334,13 @@ namespace JBro::Network
             return;
         }
 
-        // 받아들인다. ack 예약과 워터마크 갱신.
+        // 받아들인다. ack 예약과 워터마크 갱신. 새 데이터의 ack 는 몇 번 되풀이한다.
         if (false == m_ackPending)
         {
             m_ackPendingSinceMilliseconds = nowMilliseconds;
         }
         m_ackPending = true;
+        m_ackRepeatsLeft = AckRepeats;
         if (seq == m_recvNext)
         {
             ++m_recvNext;
@@ -516,6 +524,28 @@ namespace JBro::Network
         {
             m_cwnd = (m_cwnd + 1 < MaxCwnd) ? m_cwnd + 1 : MaxCwnd;
         }
+        // 빠른 재전송: 이 ack 가 확인한 가장 큰 순번보다 앞선 것이 아직 남아 있으면 그것은 잃었을 가능성이 크다(TCP 의 중복 ack 판정).
+        // RTO 를 기다리지 않고 다음 틱에 다시 보낸다. 한 번만 - 그 뒤는 RTO 가 맡는다.
+        std::uint32_t highestCovered = ackBase;
+        bool anyCovered = ackBase > 0;
+        for (std::uint32_t bit = 0; bit < AckWindow; ++bit)
+        {
+            if (0 != (ackBits & (1u << bit)))
+            {
+                highestCovered = ackBase + 1 + bit;
+                anyCovered = true;
+            }
+        }
+        if (anyCovered)
+        {
+            for (Outbound& slot : m_unacked)
+            {
+                if (slot.used && slot.seq < highestCovered && 1 == slot.sends)
+                {
+                    slot.fastRetransmit = true;
+                }
+            }
+        }
     }
 
     void ReliableEndpoint::UpdateRtt(double sampleMilliseconds)
@@ -559,10 +589,11 @@ namespace JBro::Network
                 continue;
             }
             const double timeout = m_rto * BackoffFactor(slot.sends);
-            if (nowMilliseconds - slot.lastSentMilliseconds < timeout)
+            if (false == slot.fastRetransmit && nowMilliseconds - slot.lastSentMilliseconds < timeout)
             {
                 continue;
             }
+            slot.fastRetransmit = false;
             UdpProto::DatagramHeader header = MakeReliableHeader(slot.seq, slot.messageId, slot.channel);
             if (slot.fragment)
             {
@@ -590,10 +621,14 @@ namespace JBro::Network
             emitter.Emit(header, nullptr, 0);
             m_ackPending = false;
             ++m_standaloneAcks;
-            // 빈 곳이 남아 있으면 ack 를 되풀이한다. 이 ack 가 유실되면 보내는 쪽은 RTO 까지 그 빈 곳을 모른다 -
+            // 빈 곳이 남아 있거나 되풀이가 남았으면 ack 를 다시 예약한다. 이 ack 가 유실되면 보내는 쪽은 RTO 까지 모른다 -
             // TCP 의 중복 ack 가 하는 일을 여기서는 이 되풀이가 한다.
-            if (0 != m_aheadBits)
+            if (0 != m_aheadBits || m_ackRepeatsLeft > 0)
             {
+                if (m_ackRepeatsLeft > 0)
+                {
+                    --m_ackRepeatsLeft;
+                }
                 m_ackPending = true;
                 m_ackPendingSinceMilliseconds = nowMilliseconds;
             }

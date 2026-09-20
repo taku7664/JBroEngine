@@ -100,6 +100,8 @@ namespace JBro::Network
             double lastSentMilliseconds = 0.0;
             // 총 송신 횟수. 1 이면 재전송된 적이 없어 RTT 표본으로 쓸 수 있다(Karn).
             std::uint32_t sends = 0;
+            // 선택 ack 가 이보다 뒤 순번을 확인했다 - 이것은 잃었을 가능성이 크다. 다음 틱에 RTO 를 기다리지 않고 다시 보낸다.
+            bool fastRetransmit = false;
             bool fragment = false;
             std::uint32_t msgSeq = 0;
             std::uint16_t fragIndex = 0;
@@ -175,6 +177,8 @@ namespace JBro::Network
         std::uint32_t m_aheadBits = 0;
         bool m_ackPending = false;
         double m_ackPendingSinceMilliseconds = 0.0;
+        // 새로 받은 뒤 standalone ack 를 이만큼 더 되풀이한다. ack 하나가 유실돼도 보내는 쪽이 RTO 까지 모르는 일을 줄인다.
+        std::uint32_t m_ackRepeatsLeft = 0;
         std::uint32_t m_piggybackAcks = 0;
         std::uint32_t m_standaloneAcks = 0;
 
