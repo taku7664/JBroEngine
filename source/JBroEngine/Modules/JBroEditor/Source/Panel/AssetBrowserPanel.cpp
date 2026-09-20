@@ -50,9 +50,16 @@ namespace JBro
 
     void AssetBrowserPanel::Collect()
     {
+        const AssetRegistry& registry = m_editor->GetAssetRegistry();
+        // 레지스트리는 편집 시점에만 바뀐다. 판번호가 같으면 지난 프레임의 목록이 그대로 맞다 - 레코드 포인터도.
+        if (m_collected && m_collectedRevision == registry.GetRevision())
+        {
+            return;
+        }
+        m_collected = true;
+        m_collectedRevision = registry.GetRevision();
         m_entries.Clear();
         m_folders.Clear();
-        const AssetRegistry& registry = m_editor->GetAssetRegistry();
         for (std::size_t index = 0; index < registry.GetCount(); ++index)
         {
             const AssetRecord& record = registry.GetRecord(index);

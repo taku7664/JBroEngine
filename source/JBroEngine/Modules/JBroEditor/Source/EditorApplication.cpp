@@ -773,6 +773,8 @@ namespace JBro
     {
         m_selection.Clear();
         m_selected = {};
+        m_selectedAsset = {};
+        m_selectedAssetMetaLoaded = false;
     }
 
     std::size_t EditorApplication::GetSelectionCount() const
@@ -1372,6 +1374,10 @@ namespace JBro
             if (changes.rescanned || changes.reloaded != 0 || changes.renamed != 0 || changes.removed != 0)
             {
                 ReloadSelectedAssetMeta();
+            }
+            if (changes.rescanFailed)
+            {
+                std::printf("warning: the asset folder could not be rescanned; the registry keeps its previous contents\n");
             }
         }
         // UI 를 먼저 만든다. 텍스처와 정점 버퍼가 RHI 프레임 **밖에서** 올라가야

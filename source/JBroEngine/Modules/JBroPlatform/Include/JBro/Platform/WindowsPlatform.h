@@ -32,6 +32,7 @@ namespace JBro
         bool EnumerateDirectory(const char* utf8Root, DirectoryVisitor visitor, void* user) override;
         bool WatchDirectory(const char* utf8Root) override;
         void StopWatching() override;
+        bool IsWatching() const override;
         std::uint32_t TakeFileEvents(FileEvent* events, std::uint32_t capacity) override;
 
         // WndProc 이 부른다. 공개 API 가 아니다.

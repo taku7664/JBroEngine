@@ -317,8 +317,22 @@ namespace
         view.size = static_cast<std::uint32_t>(text.size());
         Check(fixture.platform.WriteWholeFile(metaPath.c_str(), view), "a meta with an unknown option key saves");
         Check(false == assets.ReloadInPlace(fixture.spriteId), "and is refused on reload");
+
         Check(assets.GetSprite(sprite)->frames.Size() == 4, "leaving the previous frames in place");
         Check(assets.Load(fixture.spriteId).generation == sprite.generation, "and the sprite is still the same one");
+
+        // 0 이하의 PPU 는 읽히긴 하되 기본값으로 바로잡힌다(D-119) - 프레임 경로가 0 으로 나누지 않게.
+        JBro::String badPpu = JBro::FormatAssetMetaFile(meta);
+        badPpu.append("  ImportOptions:\n    pixelsPerUnit: -5\n");
+        view.data = reinterpret_cast<const std::byte*>(badPpu.data());
+        view.size = static_cast<std::uint32_t>(badPpu.size());
+        Check(fixture.platform.WriteWholeFile(metaPath.c_str(), view), "a meta with a negative PPU saves");
+        Check(assets.ReloadInPlace(fixture.spriteId)
+                && assets.GetSprite(sprite)->options.pixelsPerUnit == JBro::DefaultPixelsPerUnit,
+            "a non-positive pixels per unit is repaired to the default on load");
+        view.data = reinterpret_cast<const std::byte*>(text.data());
+        view.size = static_cast<std::uint32_t>(text.size());
+        Check(fixture.platform.WriteWholeFile(metaPath.c_str(), view), "the meta with the unknown key is put back");
 
         // 새 로드는 그 옵션으로 시작한다 - 다시 열면 거절돼야 하므로 먼저 전부 내린다.
         assets.Release(sprite);

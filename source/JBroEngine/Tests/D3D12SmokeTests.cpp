@@ -158,6 +158,17 @@ namespace
             Check(pollUntil([&]() { return engine.GetAssetRegistry().FindByPath("extra.png") != nullptr; }),
                 "a new file is registered by a rescan");
             Check(engine.GetAssetRegistry().Find(heroId) != nullptr, "and the rescan keeps hero's id");
+            Check(engine.IsWatchingAssets(), "the watcher is alive");
+
+            // 이름을 바꾸면 메타가 따라가 아이디가 산다(D-121). 옛 메타는 고아로 남되 등록되지 않는다.
+            const JBro::AssetId extraId = engine.GetAssetRegistry().FindByPath("extra.png")->id;
+            fs::rename(root / "Assets" / "extra.png", root / "Assets" / "renamed.png", ignored);
+            Check(pollUntil([&]() {
+                    const JBro::AssetRecord* renamed = engine.GetAssetRegistry().FindByPath("renamed.png");
+                    return renamed != nullptr && renamed->id == extraId;
+                }), "a renamed file keeps its id");
+            Check(fs::exists(root / "Assets" / "renamed.png.jmeta", ignored), "and its meta moved with it");
+            Check(engine.GetAssetRegistry().FindByPath("extra.png") == nullptr, "and the old path is gone");
 
             fs::remove(root / "Assets" / "hero.png", ignored);
             Check(pollUntil([&]() { return engine.GetAssetRegistry().FindByPath("hero.png") == nullptr; }),

@@ -2632,6 +2632,8 @@ namespace
 
         const JBro::AssetRecord* hero = editor.GetAssetRegistry().FindByPath("art/hero.png");
         Check(hero != nullptr && hero->type == JBro::AssetType::Texture, "the scan must have registered art/hero.png");
+        // 레코드 포인터는 다시 스캔되면 죽는다. 뒤에서 쓸 것은 아이디로 든다.
+        const JBro::AssetId heroTextureId = hero->id;
         // 짝 스프라이트를 로드해 둔다. 메타를 고치면 로드된 것이 그 자리에서 다시 읽혀야 한다(asset-plan §2.7).
         JBro::AssetId heroSprite;
         for (std::size_t index = 0; index < editor.GetAssetRegistry().GetCount(); ++index)
@@ -2769,7 +2771,7 @@ namespace
             }
         }
         Check(registered, "a file added while the project is open is registered without reopening");
-        Check(editor.GetAssetRegistry().Find(hero->id) != nullptr, "and the rescan keeps hero's id");
+        Check(editor.GetAssetRegistry().Find(heroTextureId) != nullptr, "and the rescan keeps hero's id");
 
         editor.Shutdown();
         fs::remove_all(root, ignored);

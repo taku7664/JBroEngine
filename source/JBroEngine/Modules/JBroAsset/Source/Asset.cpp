@@ -10,6 +10,8 @@
 #include <JBro/Reflection/ReflectedYaml.h>
 #include <JBro/Types/NameTable.h>
 
+#include <cmath>
+#include <cstdio>
 #include <cstring>
 #include <string_view>
 #include <utility>
@@ -168,6 +170,11 @@ namespace JBro
 
     bool AssetSystem::ReadTexture(const AssetRecord& record, TextureData& data)
     {
+        // 메타를 먼저 본다. 읽히지 않는 메타면 디코드는 헛일이다.
+        if (false == ReadTextureOptions(record, data.options))
+        {
+            return false;
+        }
         Array<std::byte> encoded;
         if (false == m_platform->ReadWholeFile(SourcePathOf(record).c_str(), encoded))
         {
@@ -184,10 +191,6 @@ namespace JBro
         data.width = image.width;
         data.height = image.height;
         data.pixels = std::move(image.pixels);
-        if (false == ReadTextureOptions(record, data.options))
-        {
-            return false;
-        }
         // 프로젝트 기본은 여기서 한 번 적용한다(D-117). 그리는 쪽이 매번 프로젝트를 묻지 않게.
         data.filter = data.options.filter == TextureFilter::Default ? m_defaultTextureFilter : data.options.filter;
         return true;
@@ -200,9 +203,15 @@ namespace JBro
         AssetMetaError error;
         if (false == LoadAssetMetaFile(*m_platform, MetaPathOf(record).c_str(), meta, error))
         {
+            std::printf("warning: %s: %s (line %zu)\n", MetaPathOf(record).c_str(), error.message.c_str(), error.line);
             return false;
         }
         options = meta.hasSpriteOptions ? meta.spriteOptions : SpriteImportOptions{};
+        // 0 이하·비유한 PPU 는 여기서 바로잡는다(D-119). 프레임 경로가 나누기 전에 값을 검사하지 않게.
+        if (false == std::isfinite(options.pixelsPerUnit) || options.pixelsPerUnit <= 0.0f)
+        {
+            options.pixelsPerUnit = DefaultPixelsPerUnit;
+        }
         return true;
     }
 
@@ -212,6 +221,7 @@ namespace JBro
         AssetMetaError error;
         if (false == LoadAssetMetaFile(*m_platform, MetaPathOf(record).c_str(), meta, error))
         {
+            std::printf("warning: %s: %s (line %zu)\n", MetaPathOf(record).c_str(), error.message.c_str(), error.line);
             return false;
         }
         options = meta.hasTextureOptions ? meta.textureOptions : TextureImportOptions{};
@@ -263,15 +273,24 @@ namespace JBro
             switch (GetHandleType(handle))
             {
             case AssetType::Texture:
-                ++FindSlot(m_textures, handle, AssetType::Texture)->referenceCount;
+                if (Slot<TextureData>* slot = FindSlot(m_textures, handle, AssetType::Texture))
+                {
+                    ++slot->referenceCount;
+                    return handle;
+                }
                 break;
             case AssetType::Sprite:
-                ++FindSlot(m_sprites, handle, AssetType::Sprite)->referenceCount;
+                if (Slot<SpriteData>* slot = FindSlot(m_sprites, handle, AssetType::Sprite))
+                {
+                    ++slot->referenceCount;
+                    return handle;
+                }
                 break;
             default:
-                return {};
+                break;
             }
-            return handle;
+            // 표에는 있는데 자리가 없다 - 어긋난 상태다. 빈 핸들로 두지 않고 새로 싣는다.
+            m_loaded.Remove(id);
         }
 
         const AssetRecord* record = m_registry->Find(id);
@@ -299,7 +318,13 @@ namespace JBro
             {
                 return {};
             }
+            const AssetHandle texture = data.texture;
             handle = Occupy(m_sprites, AssetType::Sprite, id, std::move(data));
+            if (handle.generation == 0)
+            {
+                // 풀이 찼다. 스프라이트가 잡은 텍스처를 놓아야 텍스처가 샌 채로 남지 않는다.
+                Release(texture);
+            }
             break;
         }
         default:
@@ -414,6 +439,26 @@ namespace JBro
             return true;
         }
         return false;
+    }
+
+    std::uint32_t AssetSystem::ReloadAllInPlace()
+    {
+        // 먼저 아이디를 모은다. 재로드는 표를 바꾸지 않지만, 도는 동안 표를 만지지 않는 쪽이 안전하다.
+        Array<AssetId> ids;
+        ids.Reserve(m_loaded.Size());
+        for (auto it = m_loaded.begin(); it != m_loaded.end(); ++it)
+        {
+            ids.Add(it->KeyValue);
+        }
+        std::uint32_t reloaded = 0;
+        for (std::size_t index = 0; index < ids.Size(); ++index)
+        {
+            if (ReloadInPlace(ids[index]))
+            {
+                ++reloaded;
+            }
+        }
+        return reloaded;
     }
 
     std::uint32_t AssetSystem::CollectUnused()

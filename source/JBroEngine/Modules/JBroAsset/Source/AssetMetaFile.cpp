@@ -76,6 +76,10 @@ namespace JBro
             {
                 return Fail(error, 1, "Version must be a whole number");
             }
+            if (version != 1)
+            {
+                return Fail(error, 1, "this meta file version is not one this engine reads");
+            }
             parsed.version = static_cast<std::uint32_t>(version);
 
             if (false == ReadId(document, root, "Id", parsed.id) || parsed.id.IsNull())
@@ -148,40 +152,66 @@ namespace JBro
         return ParseAssetMetaFile(reinterpret_cast<const char*>(contents.Data()), contents.Size(), result, error);
     }
 
-    String FormatAssetMetaFile(const AssetMetaFile& meta)
+    bool FormatAssetMetaFile(const AssetMetaFile& meta, String& text)
     {
+        const bool image = AssetTypeRules::IsImageType(meta.type);
+        if (meta.id.IsNull() || meta.type == AssetType::Unknown || (image && meta.spriteId.IsNull()))
+        {
+            // 읽는 쪽이 거절할 것을 적지 않는다.
+            return false;
+        }
         char idText[Uuid::TextCapacity];
         YamlWriter writer;
         writer.WriteInt("Version", static_cast<std::int64_t>(meta.version));
         meta.id.ToText(idText, sizeof(idText));
         writer.WriteString("Id", idText);
         writer.WriteString("Type", AssetTypeRules::GetTypeName(meta.type));
-        ReflectedYamlError ignored;
+        ReflectedYamlError error;
         if (meta.hasTextureOptions)
         {
             writer.BeginMap("Texture");
-            WriteReflectedValue(writer, "ImportOptions", TypeDescriptorOf<TextureImportOptions>::Get(),
-                &meta.textureOptions, ignored);
+            if (false == WriteReflectedValue(writer, "ImportOptions", TypeDescriptorOf<TextureImportOptions>::Get(),
+                    &meta.textureOptions, error))
+            {
+                return false;
+            }
             writer.EndMap();
         }
-        if (AssetTypeRules::IsImageType(meta.type))
+        if (image)
         {
             writer.BeginMap("Sprite");
             meta.spriteId.ToText(idText, sizeof(idText));
             writer.WriteString("Id", idText);
-            if (meta.hasSpriteOptions)
+            // 이미지가 아닌 타입의 스프라이트 옵션은 뜻이 없어 적지 않는다.
+            if (meta.hasSpriteOptions
+                && false == WriteReflectedValue(writer, "ImportOptions", TypeDescriptorOf<SpriteImportOptions>::Get(),
+                    &meta.spriteOptions, error))
             {
-                WriteReflectedValue(writer, "ImportOptions", TypeDescriptorOf<SpriteImportOptions>::Get(),
-                    &meta.spriteOptions, ignored);
+                return false;
             }
             writer.EndMap();
         }
-        return writer.GetText();
+        text = writer.GetText();
+        return true;
+    }
+
+    String FormatAssetMetaFile(const AssetMetaFile& meta)
+    {
+        String text;
+        if (false == FormatAssetMetaFile(meta, text))
+        {
+            return String();
+        }
+        return text;
     }
 
     bool SaveAssetMetaFile(IPlatform& platform, const char* utf8Path, const AssetMetaFile& meta)
     {
-        const String text = FormatAssetMetaFile(meta);
+        String text;
+        if (false == FormatAssetMetaFile(meta, text))
+        {
+            return false;
+        }
         JArrayView<std::byte> view;
         view.data = reinterpret_cast<const std::byte*>(text.data());
         view.size = static_cast<std::uint32_t>(text.size());

@@ -72,7 +72,8 @@ namespace JBro
     // 워커에서 메인 스레드로 값으로 건너가는 POD 다. 할당도 참조도 들지 않는다 - `SafePtr` 는 메인 스레드 전용이다.
     struct FileEvent
     {
-        static constexpr std::size_t MaxPathBytes = 1024;
+        // 감시 폴더 기준 상대경로라 이만큼이면 된다. 넘치는 경로는 넘침(`Overflow`)으로 알린다.
+        static constexpr std::size_t MaxPathBytes = 512;
         FileEventKind kind = FileEventKind::Overflow;
         char path[MaxPathBytes] = {};
         char oldPath[MaxPathBytes] = {};
@@ -144,6 +145,12 @@ namespace JBro
             return false;
         }
         virtual void StopWatching() {}
+        // 감시가 걸려 있고 워커가 살아 있는가. 워커가 죽으면 `Overflow` 하나 뒤로 아무것도 오지 않으므로 받는 쪽은
+        // 이것으로 다시 걸지 말지 정한다.
+        virtual bool IsWatching() const
+        {
+            return false;
+        }
         // 쌓인 이벤트를 꺼낸다. **메인 스레드가 프레임 밖에서 부른다.** 채운 개수를 돌려주고, 남은 것은 다음에 이어진다.
         virtual std::uint32_t TakeFileEvents(FileEvent* events, std::uint32_t capacity)
         {

@@ -41,6 +41,9 @@ namespace JBro
         EditorApplication* m_editor = nullptr;
         String m_filter;
         Array<Entry> m_entries;
+        // 마지막으로 모은 레지스트리 판번호다. 같으면 다시 모으지 않는다.
+        std::uint64_t m_collectedRevision = 0;
+        bool m_collected = false;
         // 모든 폴더(조상 포함)의 상대경로. 정렬돼 있고 겹치지 않는다.
         Array<String> m_folders;
     };

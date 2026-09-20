@@ -109,6 +109,18 @@ namespace
             "and read back as the same values");
         Check(false == read.hasTextureOptions && false == read.hasSpriteOptions,
             "a meta without blocks reports none");
+        // 쓰기는 읽는 쪽이 거절할 것을 적지 않는다: 이미지인데 스프라이트 아이디가 비면 글자가 없다.
+        JBro::AssetMetaFile noSpriteId = meta;
+        noSpriteId.spriteId = {};
+        JBro::String refusedText;
+        Check(false == JBro::FormatAssetMetaFile(noSpriteId, refusedText) && refusedText.empty()
+                && JBro::FormatAssetMetaFile(noSpriteId).empty(),
+            "an image meta without a sprite id is not written");
+        // 이 엔진이 읽는 판은 1 뿐이다. 새 판을 옛 규칙으로 읽지 않는다.
+        const char* futureVersion = "Version: 2\nId: 0123456789abcdeffedcba9876543210\nType: Canvas\n";
+        Check(false == JBro::ParseAssetMetaFile(futureVersion, std::strlen(futureVersion), untouched, error)
+                && error.message.find("version") != JBro::String::npos,
+            "a meta from a newer format version is refused and says so");
         JBro::String badOptions = text;
         badOptions.append("Texture:\n  ImportOptions:\n    filter: Blurry\n");
         Check(false == JBro::ParseAssetMetaFile(badOptions.c_str(), badOptions.size(), untouched, error)
@@ -164,6 +176,9 @@ namespace
         Check(false == fs::exists(root / ".hidden" / "secret.png.jmeta"), "nothing inside a hidden folder is touched");
         Check(false == fs::exists(root / "notes.txt.jmeta"), "an unknown type gets no meta");
 
+        // 판번호는 바뀔 때마다 오르고, 아무것도 안 하면 그대로다(에디터 목록이 이것으로 다시 모을지 정한다).
+        const std::uint64_t scanned = registry.GetRevision();
+        Check(scanned != 0 && registry.GetRevision() == scanned, "a scan moves the revision and reading does not");
         const JBro::AssetRecord* hero = registry.FindByPath("hero.png");
         Check(hero != nullptr && hero->type == JBro::AssetType::Texture, "an image is found by path as its texture");
         Check(hero->id.GetVersion() == 4, "a generated id is a random one");

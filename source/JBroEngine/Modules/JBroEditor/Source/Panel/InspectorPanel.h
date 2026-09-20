@@ -107,6 +107,19 @@ namespace JBro
         static void RecordElementRun(
             const ScalarRun& run, const float before[ScalarRun::MaxCount], Context& context);
         static ListEdit MakeElementEdit(const ElementScope& scope);
+        // 에셋 칸의 항목(같은 타입의 이름과 아이디)이다. 레지스트리 판번호가 같으면 다시 모으지 않는다.
+        struct AssetChoices
+        {
+            AssetType type = AssetType::Unknown;
+            std::uint64_t revision = 0;
+            bool built = false;
+            Array<String> names;
+            Array<const char*> namePointers;
+            Array<AssetId> ids;
+        };
+        const AssetChoices& ChoicesFor(AssetType type);
+        Array<AssetChoices> m_assetChoices;
+
         // 고른 에셋의 임포트 옵션(D-120). 오브젝트가 골라져 있지 않을 때만 온다.
         void DrawAsset(const AssetMetaFile& meta);
         void CommitAssetEdit(Context& context);

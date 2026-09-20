@@ -85,8 +85,17 @@ namespace JBro
             std::uint32_t renamed = 0;
             std::uint32_t removed = 0;
             bool rescanned = false;
+            // 다시 스캔하려 했는데 폴더를 읽지 못했다. 레지스트리는 전 것을 그대로 둔다.
+            bool rescanFailed = false;
         };
+        // 이벤트가 온 뒤 이만큼 조용한 프레임이 지나야 재로드·다시 스캔을 돌린다. 저장 프로그램은 한 번의 저장에 알림을
+        // 여러 번 보내고 쓰기가 끝나기 전에도 보내므로, 알림마다 읽으면 잘린 파일을 읽는다. 대량 복사도 하나로 묶인다.
+        static constexpr std::uint32_t AssetQuietFramesBeforeApply = 3;
+        // 잘린 파일이었을 수 있어 실패한 재로드는 이만큼 다시 해 본다.
+        static constexpr std::uint32_t AssetReloadAttempts = 5;
         AssetChangeSummary PollAssetChanges();
+        // 프로젝트를 열 때 감시가 섰고 아직 살아 있는가. 거짓이면 폴더 변경이 오지 않는다 - 에디터가 알릴 수 있게 둔다.
+        bool IsWatchingAssets() const;
         // 프로젝트 파일로 열었을 때 그 에셋 폴더를 스캔한 결과다. 파일 없이 열면 비어 있다.
         const AssetRegistry& GetAssetRegistry() const;
         const AssetScanReport& GetAssetScanReport() const;
@@ -135,11 +144,28 @@ namespace JBro
         bool m_createMissingAssetMeta = false;
         bool m_watchAssetDirectory = false;
         String m_assetRoot;
-        bool ScanAssets();
+        // 감시가 쌓아 둔 것을 프레임마다 여기로 꺼낸다. 스택에 두면 프레임마다 그만큼을 비우게 된다.
+        FileEvent m_fileEvents[16];
+        struct PendingReload
+        {
+            AssetId id;
+            std::uint32_t attempts = 0;
+        };
+        Array<PendingReload> m_pendingReloads;
+        bool m_assetRescanPending = false;
+        bool m_assetOverflowPending = false;
+        std::uint32_t m_assetQuietFrames = 0;
         bool m_projectCloseRequested = false;
         bool m_scriptContextsBound = false;
         bool m_scriptModuleLoaded = false;
         String m_scriptModuleError;
         FrameStatus m_lastFrameStatus = FrameStatus::Ready;
+
+        // 처음 열 때는 비운 채로 시작하고(`initial`), 다시 스캔할 때는 읽지 못하면 전 것을 둔다.
+        bool ScanAssets(bool initial);
+        void QueueReload(AssetId id);
+        // 감시 이벤트 하나를 적용하거나 미룬다. 재로드·다시 스캔은 조용해진 뒤 `ApplyPendingAssetChanges` 가 한다.
+        void HandleAssetEvent(const FileEvent& event, AssetChangeSummary& summary);
+        void ApplyPendingAssetChanges(AssetChangeSummary& summary);
     };
 }

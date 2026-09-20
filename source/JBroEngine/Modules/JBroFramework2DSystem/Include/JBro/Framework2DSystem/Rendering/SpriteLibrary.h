@@ -27,9 +27,6 @@ namespace JBro
         TextureFilter filter = TextureFilter::Nearest;
     };
 
-    // 0 이하로 적힌 PPU 는 이 값으로 본다.
-    inline constexpr float DefaultPixelsPerUnit = 100.0f;
-
     class SpriteLibrary final
     {
     public:
@@ -51,6 +48,9 @@ namespace JBro
             AssetHandle asset;
             AssetHandle rendererTexture;
             std::uint32_t pixelGeneration = 0;
+            // 올리기가 실패한 픽셀 세대다. 같은 세대는 다시 시도하지 않는다 - 안 그러면 실패한 텍스처를 스프라이트마다
+            // 프레임마다 다시 올리려 든다. 재로드로 세대가 오르면 한 번 더 해 본다.
+            std::uint32_t failedGeneration = 0;
         };
 
         bool EnsureTexture(AssetHandle textureAsset, AssetHandle& rendererTexture);

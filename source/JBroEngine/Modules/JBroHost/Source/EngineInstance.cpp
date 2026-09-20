@@ -3,6 +3,7 @@
 #include <JBro/Asset/AssetTypeRules.h>
 
 #include <cmath>
+#include <iterator>
 #include <string_view>
 #include <cstdio>
 #include <new>
@@ -127,41 +128,100 @@ namespace JBro
         // 에셋 폴더를 한 번 스캔하고 에셋 시스템을 잇는다(D-111). **폴더가 없어도 프로젝트는 열린다** - 에셋이 하나도
         // 없는 새 프로젝트가 그것이다. 스캔 결과는 `GetAssetScanReport` 로 남는다.
         m_assetRoot = ResolveProjectRelativePath(project.assetDirectory.c_str(), projectFilePath);
-        ScanAssets();
+        ScanAssets(true);
+        m_pendingReloads.Clear();
+        m_assetRescanPending = false;
+        m_assetOverflowPending = false;
+        m_assetQuietFrames = 0;
         // 프로젝트 기본 샘플러는 로드 때 적용되므로 잇기 전에 정한다(D-117).
         m_assets->SetDefaultTextureFilter(project.textureFilter);
         m_assets->Bind(*m_platform, m_assetRegistry, m_assetRoot.c_str());
-        if (m_watchAssetDirectory)
+        if (m_watchAssetDirectory && false == m_platform->WatchDirectory(m_assetRoot.c_str()))
         {
-            // 감시가 서지 않아도(폴더 없음) 프로젝트는 열린다. 그때는 변경이 오지 않을 뿐이다.
-            m_platform->WatchDirectory(m_assetRoot.c_str());
+            // 감시가 서지 않아도(폴더 없음) 프로젝트는 열린다. 그때는 변경이 오지 않을 뿐이다 - `IsWatchingAssets` 가 말한다.
+            std::printf("note: the asset folder is not watched: %s\\n", m_assetRoot.c_str());
         }
         return true;
     }
 
-    bool EngineInstance::ScanAssets()
+    bool EngineInstance::ScanAssets(bool initial)
     {
         AssetScanOptions scanOptions;
         scanOptions.ignorePatterns.data = m_project.assetIgnorePatterns.Data();
         scanOptions.ignorePatterns.size = static_cast<std::uint32_t>(m_project.assetIgnorePatterns.Size());
         scanOptions.createMissingMeta = m_createMissingAssetMeta;
-        if (false == m_assetRegistry.Scan(*m_platform, m_assetRoot.c_str(), scanOptions, m_assetScanReport))
+        if (initial)
         {
-            m_assetRegistry.Clear();
-            m_assetScanReport = {};
+            if (false == m_assetRegistry.Scan(*m_platform, m_assetRoot.c_str(), scanOptions, m_assetScanReport))
+            {
+                m_assetRegistry.Clear();
+                m_assetScanReport = {};
+                return false;
+            }
+            return true;
+        }
+        // 다시 스캔은 새 표에 하고 성공했을 때만 바꿔 끼운다. 폴더가 잠깐 잠기거나 옮겨진 한 프레임의 실패로 모든 에셋
+        // 참조가 풀리면 안 된다. 에셋 시스템은 이 객체의 주소를 들고 있으므로 옮겨 넣어야지 다른 객체를 가리키게 하면 안 된다.
+        AssetRegistry fresh;
+        AssetScanReport report;
+        if (false == fresh.Scan(*m_platform, m_assetRoot.c_str(), scanOptions, report))
+        {
             return false;
         }
+        m_assetRegistry = std::move(fresh);
+        m_assetScanReport = report;
         return true;
     }
 
-    EngineInstance::AssetChangeSummary EngineInstance::PollAssetChanges()
+    bool EngineInstance::IsWatchingAssets() const
     {
-        AssetChangeSummary summary;
-        if (m_platform == nullptr || m_assets.Get() == nullptr || false == m_assets->IsBound())
+        return m_platform != nullptr && m_platform->IsWatching();
+    }
+
+    void EngineInstance::QueueReload(AssetId id)
+    {
+        for (std::size_t index = 0; index < m_pendingReloads.Size(); ++index)
         {
-            return summary;
+            if (m_pendingReloads[index].id == id)
+            {
+                return;
+            }
         }
-        // 한 레코드 경로의 아이디들(이미지는 Texture 와 Sprite 둘)이다.
+        PendingReload pending;
+        pending.id = id;
+        m_pendingReloads.Add(pending);
+    }
+
+    void EngineInstance::HandleAssetEvent(const FileEvent& event, AssetChangeSummary& summary)
+    {
+        if (event.kind == FileEventKind::Overflow)
+        {
+            m_assetRescanPending = true;
+            m_assetOverflowPending = true;
+            return;
+        }
+        // 메타의 변경은 우리가 쓴 것이거나 사용자가 손으로 고친 것이다. 전자는 이미 적용됐고, 후자는 다음 로드가
+        // 본다 - 자기 반향으로 재로드를 돌리지 않는다(D-117). 이름 바꾸기는 **양쪽이 다 메타일 때만** 건너뛴다 -
+        // 한쪽만 메타면 에셋 파일이 생기거나 없어진 것이라 다시 본다.
+        const bool pathIsMeta = AssetTypeRules::IsMetaPath(event.path);
+        if (event.kind == FileEventKind::Renamed)
+        {
+            const bool oldIsMeta = AssetTypeRules::IsMetaPath(event.oldPath);
+            if (pathIsMeta && oldIsMeta)
+            {
+                return;
+            }
+            if (pathIsMeta != oldIsMeta)
+            {
+                m_assetRescanPending = true;
+                return;
+            }
+        }
+        else if (pathIsMeta)
+        {
+            return;
+        }
+        // 한 레코드 경로의 아이디들(이미지는 Texture 와 Sprite 둘). 레지스트리의 "이미지 하나에 Sprite 하나" 와 같은 가정이다.
         const auto recordsAt = [&](std::string_view path, AssetId (&ids)[2]) -> std::uint32_t {
             const AssetRecord* primary = m_assetRegistry.FindByPath(path);
             if (primary == nullptr)
@@ -180,83 +240,142 @@ namespace JBro
             }
             return count;
         };
-        bool rescan = false;
-        FileEvent events[64];
+        AssetId ids[2];
+        switch (event.kind)
+        {
+        case FileEventKind::Created:
+            m_assetRescanPending = true;
+            break;
+        case FileEventKind::Modified:
+        {
+            const std::uint32_t count = recordsAt(event.path, ids);
+            for (std::uint32_t index = 0; index < count; ++index)
+            {
+                QueueReload(ids[index]);
+            }
+            break;
+        }
+        case FileEventKind::Removed:
+        {
+            const std::uint32_t count = recordsAt(event.path, ids);
+            if (count == 0)
+            {
+                // 폴더였거나 모르는 파일이다. 폴더면 그 아래가 통째로 갔다.
+                m_assetRescanPending = true;
+                break;
+            }
+            for (std::uint32_t index = 0; index < count; ++index)
+            {
+                m_assetRegistry.Unregister(ids[index]);
+            }
+            ++summary.removed;
+            break;
+        }
+        case FileEventKind::Renamed:
+        {
+            // **메타를 같이 옮긴다.** 파일만 옮기면 다음 스캔이 메타 없는 파일에 새 아이디를 만들어 캔버스의 참조가 끊긴다.
+            // 플랫폼에 옮기기가 없어 새 자리에 같은 글자를 쓴다 - 옛 메타는 고아로 남고 스캔이 세지 않는다.
+            const AssetRecord* record = m_assetRegistry.FindByPath(event.oldPath);
+            if (record == nullptr)
+            {
+                m_assetRescanPending = true;
+                break;
+            }
+            Array<std::byte> metaText;
+            String newSource = m_assets->GetAssetRoot();
+            newSource.push_back('/');
+            newSource.append(event.path);
+            const bool carried = m_platform->ReadWholeFile(m_assets->GetMetaPath(*record).c_str(), metaText)
+                && m_platform->WriteWholeFile(AssetTypeRules::MakeMetaPath(newSource).c_str(),
+                    JArrayView<std::byte>{metaText.Data(), static_cast<std::uint32_t>(metaText.Size())});
+            if (carried && m_assetRegistry.Rename(event.oldPath, event.path))
+            {
+                ++summary.renamed;
+            }
+            else
+            {
+                m_assetRescanPending = true;
+            }
+            break;
+        }
+        default:
+            break;
+        }
+    }
+
+    void EngineInstance::ApplyPendingAssetChanges(AssetChangeSummary& summary)
+    {
+        if (m_assetRescanPending)
+        {
+            if (ScanAssets(false))
+            {
+                summary.rescanned = true;
+            }
+            else
+            {
+                summary.rescanFailed = true;
+            }
+            m_assetRescanPending = false;
+        }
+        if (m_assetOverflowPending)
+        {
+            // 무엇이 바뀌었는지 모른다. 로드된 것을 전부 다시 읽는다.
+            summary.reloaded += m_assets->ReloadAllInPlace();
+            m_assetOverflowPending = false;
+            m_pendingReloads.Clear();
+            return;
+        }
+        std::size_t kept = 0;
+        for (std::size_t index = 0; index < m_pendingReloads.Size(); ++index)
+        {
+            PendingReload pending = m_pendingReloads[index];
+            const bool loaded = m_assets->IsLoaded(m_assets->Find(pending.id));
+            if (false == loaded)
+            {
+                continue;
+            }
+            if (m_assets->ReloadInPlace(pending.id))
+            {
+                ++summary.reloaded;
+                continue;
+            }
+            // 아직 쓰는 중이었을 수 있다. 다음 조용한 때 다시 해 본다.
+            if (++pending.attempts < AssetReloadAttempts)
+            {
+                m_pendingReloads[kept++] = pending;
+            }
+        }
+        m_pendingReloads.Resize(kept);
+    }
+
+    EngineInstance::AssetChangeSummary EngineInstance::PollAssetChanges()
+    {
+        AssetChangeSummary summary;
+        if (m_platform == nullptr || m_assets.Get() == nullptr || false == m_assets->IsBound())
+        {
+            return summary;
+        }
+        bool any = false;
         for (;;)
         {
-            const std::uint32_t taken = m_platform->TakeFileEvents(events, 64);
+            const std::uint32_t taken = m_platform->TakeFileEvents(
+                m_fileEvents, static_cast<std::uint32_t>(std::size(m_fileEvents)));
             if (taken == 0)
             {
                 break;
             }
+            any = true;
             for (std::uint32_t at = 0; at < taken; ++at)
             {
-                const FileEvent& event = events[at];
-                if (event.kind == FileEventKind::Overflow)
-                {
-                    rescan = true;
-                    continue;
-                }
-                // 메타의 변경은 우리가 쓴 것이거나 사용자가 손으로 고친 것이다. 전자는 이미 적용됐고, 후자는 다음
-                // 로드가 본다 - 자기 반향으로 재로드를 돌리지 않는다(D-117).
-                if (AssetTypeRules::IsMetaPath(event.path)
-                    || (event.kind == FileEventKind::Renamed && AssetTypeRules::IsMetaPath(event.oldPath)))
-                {
-                    continue;
-                }
-                AssetId ids[2];
-                switch (event.kind)
-                {
-                case FileEventKind::Created:
-                    rescan = true;
-                    break;
-                case FileEventKind::Modified:
-                {
-                    const std::uint32_t count = recordsAt(event.path, ids);
-                    for (std::uint32_t index = 0; index < count; ++index)
-                    {
-                        if (m_assets->ReloadInPlace(ids[index]))
-                        {
-                            ++summary.reloaded;
-                        }
-                    }
-                    break;
-                }
-                case FileEventKind::Removed:
-                {
-                    const std::uint32_t count = recordsAt(event.path, ids);
-                    if (count == 0)
-                    {
-                        // 폴더였거나 모르는 파일이다. 폴더면 그 아래가 통째로 갔다.
-                        rescan = true;
-                        break;
-                    }
-                    for (std::uint32_t index = 0; index < count; ++index)
-                    {
-                        m_assetRegistry.Unregister(ids[index]);
-                    }
-                    ++summary.removed;
-                    break;
-                }
-                case FileEventKind::Renamed:
-                    if (m_assetRegistry.Rename(event.oldPath, event.path))
-                    {
-                        ++summary.renamed;
-                    }
-                    else
-                    {
-                        rescan = true;
-                    }
-                    break;
-                default:
-                    break;
-                }
+                HandleAssetEvent(m_fileEvents[at], summary);
             }
         }
-        if (rescan)
+        // 조용해진 뒤에 적용한다 - 저장이 끝나기 전의 알림과 대량 복사의 한 파일마다를 하나로 묶는다.
+        m_assetQuietFrames = any ? 0 : m_assetQuietFrames + 1;
+        const bool pending = m_assetRescanPending || m_assetOverflowPending || false == m_pendingReloads.IsEmpty();
+        if (pending && m_assetQuietFrames >= AssetQuietFramesBeforeApply)
         {
-            ScanAssets();
-            summary.rescanned = true;
+            ApplyPendingAssetChanges(summary);
         }
         return summary;
     }

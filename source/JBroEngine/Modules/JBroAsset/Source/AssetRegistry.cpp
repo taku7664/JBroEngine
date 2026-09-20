@@ -215,6 +215,18 @@ namespace JBro
         return true;
     }
 
+    std::uint64_t AssetRegistry::GetRevision() const
+    {
+        return m_revision;
+    }
+
+    void AssetRegistry::Touch()
+    {
+        // 메인 스레드 전용이다(레지스트리는 편집 시점에만 바뀐다).
+        static std::uint64_t s_next = 0;
+        m_revision = ++s_next;
+    }
+
     bool AssetRegistry::Register(const AssetRecord& record)
     {
         if (record.id.IsNull() || record.type == AssetType::Unknown || record.relativePath.empty())
@@ -238,6 +250,7 @@ namespace JBro
         {
             m_byPath.TryAdd(record.relativePath, index);
         }
+        Touch();
         return true;
     }
 
@@ -279,6 +292,7 @@ namespace JBro
                 }
             }
         }
+        Touch();
         return true;
     }
 
@@ -307,6 +321,7 @@ namespace JBro
                 m_records[scan].relativePath = newKey;
             }
         }
+        Touch();
         return true;
     }
 
@@ -315,6 +330,7 @@ namespace JBro
         m_records.Clear();
         m_byId.Clear();
         m_byPath.Clear();
+        Touch();
     }
 
     const AssetRecord* AssetRegistry::Find(AssetId id) const

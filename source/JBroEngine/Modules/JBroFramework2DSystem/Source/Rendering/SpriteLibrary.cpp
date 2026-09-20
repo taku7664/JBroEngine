@@ -54,6 +54,10 @@ namespace JBro
         const Extent2D extent{texture->width, texture->height};
 
         const bool sameAsset = entry.asset.generation == textureAsset.generation && entry.asset.index == textureAsset.index;
+        if (sameAsset && entry.rendererTexture.generation == 0 && entry.failedGeneration == texture->pixelGeneration)
+        {
+            return false;
+        }
         if (sameAsset && entry.rendererTexture.generation != 0)
         {
             if (entry.pixelGeneration != texture->pixelGeneration)
@@ -65,6 +69,7 @@ namespace JBro
                     entry.rendererTexture = m_renderer->RegisterTexture(extent, pixels);
                     if (entry.rendererTexture.generation == 0)
                     {
+                        entry.failedGeneration = texture->pixelGeneration;
                         return false;
                     }
                 }
@@ -83,7 +88,8 @@ namespace JBro
         entry.rendererTexture = m_renderer->RegisterTexture(extent, pixels);
         if (entry.rendererTexture.generation == 0)
         {
-            entry.asset = {};
+            entry.asset = textureAsset;
+            entry.failedGeneration = texture->pixelGeneration;
             return false;
         }
         entry.asset = textureAsset;
@@ -125,6 +131,7 @@ namespace JBro
         uvRect[3] = static_cast<float>(frame.height) / height;
         if (frameView != nullptr)
         {
+            // 로드가 이미 바로잡은 값이다. 그래도 0 나누기는 여기서 한 번 더 막는다.
             const float pixelsPerUnit = sprite->options.pixelsPerUnit > 0.0f
                 ? sprite->options.pixelsPerUnit : DefaultPixelsPerUnit;
             frameView->widthUnits = static_cast<float>(frame.width) / pixelsPerUnit;

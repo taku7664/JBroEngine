@@ -3,6 +3,8 @@
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
 
+#include <imgui_internal.h>
+
 #include <algorithm>
 #include <cctype>
 #include <cfloat>
@@ -115,16 +117,28 @@ namespace JBro::Widget
         {
             ImGui::SetNextItemWidth(m_width);
         }
-        // 트리거가 좁아도 팝업은 가장 긴 이름과 검색 칸이 잘리지 않는 폭을 갖는다.
-        // 트리거보다 좁아지지는 않는다.
-        float popupWidth = ImGui::CalcTextSize(preview).x;
-        for (const char* item : m_items)
+        // 트리거가 좁아도 팝업은 가장 긴 이름과 검색 칸이 잘리지 않는 폭을 갖는다. 트리거보다 좁아지지는 않는다.
+        // **가장 긴 이름은 항목 수가 바뀔 때만 잰다.** 팝업이 닫혀 있는 프레임에도 이 함수는 불리는데, 에셋 수천
+        // 개를 칸마다 프레임마다 재면 그것이 인스펙터의 비용이 된다. 창의 상태 저장소에 둔다.
+        const char* id = m_id != nullptr ? m_id : "##filter_combo";
+        ImGuiStorage* storage = ImGui::GetStateStorage();
+        const ImGuiID comboId = ImGui::GetID(id);
+        const ImGuiID widestKey = ImHashStr("##widest", 0, comboId);
+        const ImGuiID countKey = ImHashStr("##count", 0, comboId);
+        if (storage->GetInt(countKey, -1) != itemCount)
         {
-            if (item != nullptr)
+            float widest = 0.0f;
+            for (const char* item : m_items)
             {
-                popupWidth = std::max(popupWidth, ImGui::CalcTextSize(item).x);
+                if (item != nullptr)
+                {
+                    widest = std::max(widest, ImGui::CalcTextSize(item).x);
+                }
             }
+            storage->SetFloat(widestKey, widest);
+            storage->SetInt(countKey, itemCount);
         }
+        float popupWidth = std::max(ImGui::CalcTextSize(preview).x, storage->GetFloat(widestKey, 0.0f));
         popupWidth = std::max(
             popupWidth + style.FramePadding.x * 4.0f + style.ScrollbarSize,
             ImGui::CalcItemWidth());
@@ -135,7 +149,7 @@ namespace JBro::Widget
         ImGui::SetNextWindowSizeConstraints(
             ImVec2(popupWidth, 0.0f), ImVec2(FLT_MAX, popupMaxHeight));
 
-        if (false == ImGui::BeginCombo(m_id != nullptr ? m_id : "##filter_combo", preview))
+        if (false == ImGui::BeginCombo(id, preview))
         {
             return false;
         }

@@ -76,12 +76,18 @@ namespace JBro
 
         std::size_t GetCount() const;
         const AssetRecord& GetRecord(std::size_t index) const;
+        // 내용이 바뀔 때마다 오르는 번호다. 프로세스 안의 모든 레지스트리가 한 줄로 세므로 표를 통째로 바꿔 끼워도
+        // 같은 번호가 다시 나오지 않는다. 에디터가 목록을 다시 모을지 이것으로 정한다 - 프레임마다 전부 걷지 않게.
+        std::uint64_t GetRevision() const;
 
         // 파일 이름·상대경로에 대한 무시 패턴 판정이다. 스캔과 파일 감시가 같은 것을 쓴다.
         static bool MatchesIgnorePattern(std::string_view relativePath, JArrayView<String> patterns);
 
     private:
         // 레코드는 배열에 살고 두 표가 자리를 가리킨다. 지울 때는 끝을 당겨 채우고 그 자리의 표를 고친다.
+        void Touch();
+
+        std::uint64_t m_revision = 0;
         Array<AssetRecord> m_records;
         Table<AssetId, std::uint32_t> m_byId;
         Table<String, std::uint32_t> m_byPath;

@@ -2,6 +2,7 @@
 
 #include <windows.h>
 
+#include <cstdio>
 #include <cstring>
 #include <mutex>
 #include <thread>
@@ -10,6 +11,9 @@
 // POD(`FileEvent`)로 고정 크기 고리 버퍼에 쌓는다. 워커는 할당도 `SafePtr` 도 만지지 않는다 - 메인 스레드가
 // `TakeFileEvents` 로 프레임 밖에서 꺼낸다. 기존 엔진의 mtime 폴링(`WindowsFileWatcher.cpp`)은 에셋 수에 비례해
 // 매 주기 폴더를 걸었고, 이것은 변경 수에 비례한다.
+//
+// **정리는 소멸자 한 곳이다.** 멈춤 신호 → 합류 → 핸들 셋 닫기. `Shutdown` 을 거치지 않는 파괴 경로(예외, 테스트의
+// 이른 반환)에서도 joinable 한 스레드가 남아 `std::terminate` 로 가지 않는다.
 namespace JBro
 {
     struct FileWatcher
@@ -27,12 +31,40 @@ namespace JBro
         std::uint32_t head = 0;
         std::uint32_t count = 0;
         bool overflowed = false;
-        // RENAMED_OLD_NAME 은 NEW_NAME 과 짝이다. 앞것을 들고 있다가 뒷것이 오면 하나로 낸다.
+        // 워커가 비정상으로 끝났다. 한 번 `Overflow` 로 알리고 그 뒤로는 아무것도 오지 않는다 - 받는 쪽이 다시 스캔하고
+        // 감시를 다시 걸 수 있게. 정상 멈춤은 이것을 세우지 않는다.
+        bool dead = false;
+        // RENAMED_OLD_NAME 은 NEW_NAME 과 짝이다. 앞것을 들고 있다가 뒷것이 오면 하나로 낸다. 넘침으로 뒷것을 잃었을 수
+        // 있으면 버린다 - 안 그러면 무관한 다음 이름 바꾸기와 짝지어진다.
         char pendingOldName[FileEvent::MaxPathBytes] = {};
         bool hasPendingOldName = false;
 
         alignas(DWORD) unsigned char buffer[BufferBytes] = {};
         OVERLAPPED overlapped = {};
+
+        ~FileWatcher()
+        {
+            if (stopEvent != nullptr)
+            {
+                SetEvent(stopEvent);
+            }
+            if (thread.joinable())
+            {
+                thread.join();
+            }
+            if (directory != INVALID_HANDLE_VALUE)
+            {
+                CloseHandle(directory);
+            }
+            if (stopEvent != nullptr)
+            {
+                CloseHandle(stopEvent);
+            }
+            if (readyEvent != nullptr)
+            {
+                CloseHandle(readyEvent);
+            }
+        }
 
         // 다음 알림을 건다. **첫 요청은 `WatchDirectory` 가 워커를 띄우기 전에 건다** - 워커가 늦게 걸면 그 사이의
         // 변경을 놓친다(처음에는 감시 직후 만든 파일이 오지 않았다).
@@ -47,12 +79,30 @@ namespace JBro
                 &unused, &overlapped, nullptr) != FALSE;
         }
 
+        void MarkOverflow()
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            overflowed = true;
+            hasPendingOldName = false;
+        }
+
+        void Die(const char* why)
+        {
+            std::printf("warning: the asset folder watcher stopped (%s, error %lu); changes will not be seen until the "
+                        "project is reopened\n", why, GetLastError());
+            std::lock_guard<std::mutex> lock(mutex);
+            overflowed = true;
+            hasPendingOldName = false;
+            dead = true;
+        }
+
         void Push(const FileEvent& event)
         {
             std::lock_guard<std::mutex> lock(mutex);
             if (count == Capacity)
             {
                 overflowed = true;
+                hasPendingOldName = false;
                 return;
             }
             ring[(head + count) % Capacity] = event;
@@ -90,8 +140,7 @@ namespace JBro
             const std::size_t length = info.FileNameLength / sizeof(wchar_t);
             if (false == ToUtf8(info.FileName, length, event.path, sizeof(event.path)))
             {
-                std::lock_guard<std::mutex> lock(mutex);
-                overflowed = true;
+                MarkOverflow();
                 return;
             }
             switch (info.Action)
@@ -123,50 +172,69 @@ namespace JBro
             Push(event);
         }
 
+        // 완료된 버퍼를 읽는다. 항목 경계는 커널을 믿되 버퍼 밖을 가리키면 거기서 멈춘다.
+        void Drain(DWORD bytes)
+        {
+            DWORD offset = 0;
+            for (;;)
+            {
+                if (offset + sizeof(FILE_NOTIFY_INFORMATION) > bytes)
+                {
+                    MarkOverflow();
+                    return;
+                }
+                const auto& info = *reinterpret_cast<const FILE_NOTIFY_INFORMATION*>(buffer + offset);
+                if (offset + offsetof(FILE_NOTIFY_INFORMATION, FileName) + info.FileNameLength > bytes)
+                {
+                    MarkOverflow();
+                    return;
+                }
+                Handle(info);
+                if (info.NextEntryOffset == 0)
+                {
+                    return;
+                }
+                offset += info.NextEntryOffset;
+            }
+        }
+
         void Run()
         {
             const HANDLE waits[2] = { stopEvent, readyEvent };
             for (;;)
             {
                 const DWORD woken = WaitForMultipleObjects(2, waits, FALSE, INFINITE);
-                if (woken != WAIT_OBJECT_0 + 1)
+                if (woken == WAIT_OBJECT_0)
                 {
+                    // 정상 멈춤. 걸어 둔 요청을 거두고 나간다.
                     CancelIoEx(directory, &overlapped);
                     DWORD ignored = 0;
                     GetOverlappedResult(directory, &overlapped, &ignored, TRUE);
                     return;
                 }
+                if (woken != WAIT_OBJECT_0 + 1)
+                {
+                    Die("wait failed");
+                    return;
+                }
                 DWORD bytes = 0;
                 if (false == GetOverlappedResult(directory, &overlapped, &bytes, FALSE))
                 {
-                    std::lock_guard<std::mutex> lock(mutex);
-                    overflowed = true;
+                    Die("the directory read failed");
                     return;
                 }
                 if (bytes == 0)
                 {
                     // 버퍼가 넘쳐 OS 가 알림을 버렸다. 전부 다시 볼 수밖에 없다.
-                    std::lock_guard<std::mutex> lock(mutex);
-                    overflowed = true;
+                    MarkOverflow();
                 }
                 else
                 {
-                    DWORD offset = 0;
-                    for (;;)
-                    {
-                        const auto& info = *reinterpret_cast<const FILE_NOTIFY_INFORMATION*>(buffer + offset);
-                        Handle(info);
-                        if (info.NextEntryOffset == 0)
-                        {
-                            break;
-                        }
-                        offset += info.NextEntryOffset;
-                    }
+                    Drain(bytes);
                 }
                 if (false == Issue())
                 {
-                    std::lock_guard<std::mutex> lock(mutex);
-                    overflowed = true;
+                    Die("the directory read could not be re-issued");
                     return;
                 }
             }
@@ -196,41 +264,27 @@ namespace JBro
 
     bool WindowsPlatform::WatchDirectory(const char* utf8Root)
     {
+        // 새 감시가 서지 못하면 전 감시도 없다 - "다시 부르면 전 것을 닫는다" 는 계약이고, 실패 뒤에 옛 폴더를 계속
+        // 보는 것은 부르는 쪽이 바란 것이 아니다.
         StopWatching();
         const std::wstring wide = ToWide(utf8Root);
         if (wide.empty())
         {
             return false;
         }
-        const HANDLE directory = CreateFileW(wide.c_str(), FILE_LIST_DIRECTORY,
+        OwnerPtr<FileWatcher> watcher = MakeOwnerPtr<FileWatcher>();
+        watcher->directory = CreateFileW(wide.c_str(), FILE_LIST_DIRECTORY,
             FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING,
             FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED, nullptr);
-        if (directory == INVALID_HANDLE_VALUE)
+        if (watcher->directory == INVALID_HANDLE_VALUE)
         {
             return false;
         }
-        OwnerPtr<FileWatcher> watcher = MakeOwnerPtr<FileWatcher>();
-        watcher->directory = directory;
         watcher->stopEvent = CreateEventW(nullptr, TRUE, FALSE, nullptr);
         watcher->readyEvent = CreateEventW(nullptr, FALSE, FALSE, nullptr);
-        if (watcher->stopEvent == nullptr || watcher->readyEvent == nullptr)
+        if (watcher->stopEvent == nullptr || watcher->readyEvent == nullptr || false == watcher->Issue())
         {
-            if (watcher->stopEvent != nullptr)
-            {
-                CloseHandle(watcher->stopEvent);
-            }
-            if (watcher->readyEvent != nullptr)
-            {
-                CloseHandle(watcher->readyEvent);
-            }
-            CloseHandle(directory);
-            return false;
-        }
-        if (false == watcher->Issue())
-        {
-            CloseHandle(watcher->stopEvent);
-            CloseHandle(watcher->readyEvent);
-            CloseHandle(directory);
+            // 소멸자가 만든 것만큼 닫는다.
             return false;
         }
         FileWatcher* raw = watcher.Get();
@@ -241,20 +295,18 @@ namespace JBro
 
     void WindowsPlatform::StopWatching()
     {
-        FileWatcher* watcher = m_fileWatcher.Get();
+        m_fileWatcher = {};
+    }
+
+    bool WindowsPlatform::IsWatching() const
+    {
+        const FileWatcher* watcher = m_fileWatcher.Get();
         if (watcher == nullptr)
         {
-            return;
+            return false;
         }
-        SetEvent(watcher->stopEvent);
-        if (watcher->thread.joinable())
-        {
-            watcher->thread.join();
-        }
-        CloseHandle(watcher->directory);
-        CloseHandle(watcher->stopEvent);
-        CloseHandle(watcher->readyEvent);
-        m_fileWatcher = {};
+        std::lock_guard<std::mutex> lock(const_cast<std::mutex&>(watcher->mutex));
+        return false == watcher->dead;
     }
 
     std::uint32_t WindowsPlatform::TakeFileEvents(FileEvent* events, std::uint32_t capacity)

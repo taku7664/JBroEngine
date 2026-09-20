@@ -78,6 +78,8 @@ namespace JBro
 
         // 디스크의 최신 상태로 자료만 바꾼다. 핸들과 세대는 그대로다(asset-plan §2.7). 로드돼 있지 않으면 false.
         bool ReloadInPlace(AssetId id);
+        // 로드된 것 전부를 in-place 재로드한다. 감시가 넘쳐 무엇이 바뀌었는지 모를 때 쓴다. 성공한 개수다.
+        std::uint32_t ReloadAllInPlace();
         // 참조 수 0 인 것을 내린다. 내린 개수다. 스프라이트가 먼저 내려가고 그것이 놓은 텍스처가 따라 내려간다.
         std::uint32_t CollectUnused();
         std::uint32_t GetLoadedCount() const;

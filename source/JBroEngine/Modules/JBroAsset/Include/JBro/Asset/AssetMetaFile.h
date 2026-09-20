@@ -55,7 +55,10 @@ namespace JBro
     bool LoadAssetMetaFile(IPlatform& platform, const char* utf8Path, AssetMetaFile& result, AssetMetaError& error);
     bool ParseAssetMetaFile(const char* text, std::size_t length, AssetMetaFile& result, AssetMetaError& error);
 
-    // 쓴다. 파일을 만들지 못하면 false 다.
+    // 쓴다. 글자를 만들지 못하거나(옵션 값이 적히지 않음, 이미지인데 스프라이트 아이디가 빔) 파일을 만들지 못하면 false 다.
+    // **적히지 않는 값은 파일을 쓰지 않는다** - 빈 블록을 적으면 다음 읽기가 기본값으로 대신해 옵션이 조용히 사라진다.
     bool SaveAssetMetaFile(IPlatform& platform, const char* utf8Path, const AssetMetaFile& meta);
+    bool FormatAssetMetaFile(const AssetMetaFile& meta, String& text);
+    // 위의 것을 감싼다. 실패하면 빈 글자다 - 테스트와 같이 실패가 곧 검사인 자리용이고, 파일에 쓰는 쪽은 bool 판을 쓴다.
     String FormatAssetMetaFile(const AssetMetaFile& meta);
 }

@@ -372,30 +372,61 @@ namespace JBro
         return true;
     }
 
-    void InspectorPanel::DrawAssetField(
-        const char* fieldName, const TypeDescriptor& type, void* address, Context& context)
+    const InspectorPanel::AssetChoices& InspectorPanel::ChoicesFor(AssetType type)
     {
-        // 목록은 프레임마다 레지스트리에서 모은다. 에디터의 그리기 경로라 매 프레임 규칙(§4)의
-        // 대상이 아니고, 레지스트리는 편집 시점에만 바뀌므로 붙들어 둘 값이 없다.
-        const AssetType wanted = AssetTypeOfIdName(fieldName);
         const AssetRegistry& registry = m_editor->GetAssetRegistry();
-        Array<const char*> names;
-        Array<AssetId> ids;
+        AssetChoices* choices = nullptr;
+        for (std::size_t index = 0; index < m_assetChoices.Size(); ++index)
+        {
+            if (m_assetChoices[index].type == type)
+            {
+                choices = &m_assetChoices[index];
+            }
+        }
+        if (choices == nullptr)
+        {
+            AssetChoices fresh;
+            fresh.type = type;
+            m_assetChoices.Add(fresh);
+            choices = &m_assetChoices[m_assetChoices.Size() - 1];
+        }
+        if (choices->built && choices->revision == registry.GetRevision())
+        {
+            return *choices;
+        }
+        // 레지스트리가 바뀌었을 때만 다시 모은다. 이름은 여기 복사해 두므로 레코드가 옮겨져도 포인터가 살아 있다.
+        choices->built = true;
+        choices->revision = registry.GetRevision();
+        choices->names.Clear();
+        choices->ids.Clear();
         for (std::size_t index = 0; index < registry.GetCount(); ++index)
         {
             const AssetRecord& record = registry.GetRecord(index);
-            if (wanted != AssetType::Unknown && record.type != wanted)
+            if (type != AssetType::Unknown && record.type != type)
             {
                 continue;
             }
-            names.Add(record.relativePath.c_str());
-            ids.Add(record.id);
+            choices->names.Add(record.relativePath);
+            choices->ids.Add(record.id);
         }
+        choices->namePointers.Clear();
+        choices->namePointers.Reserve(choices->names.Size());
+        for (std::size_t index = 0; index < choices->names.Size(); ++index)
+        {
+            choices->namePointers.Add(choices->names[index].c_str());
+        }
+        return *choices;
+    }
+
+    void InspectorPanel::DrawAssetField(
+        const char* fieldName, const TypeDescriptor& type, void* address, Context& context)
+    {
+        const AssetChoices& choices = ChoicesFor(AssetTypeOfIdName(fieldName));
         String before;
         const bool snapped = ToText(type, address, before);
         const bool changed = Widget::AssetField("##value",
-            ArrayView<const char* const>(names.Data(), names.Size()),
-            ArrayView<const AssetId>(ids.Data(), ids.Size()),
+            ArrayView<const char* const>(choices.namePointers.Data(), choices.namePointers.Size()),
+            ArrayView<const AssetId>(choices.ids.Data(), choices.ids.Size()),
             *static_cast<AssetId*>(address))
             .Draw();
         if (changed && snapped)

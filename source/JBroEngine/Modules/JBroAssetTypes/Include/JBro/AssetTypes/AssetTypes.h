@@ -49,6 +49,9 @@ namespace JBro
         CellCount
     };
 
+    // 스프라이트 PPU 의 기본이자, 0 이하·비유한으로 적힌 값을 대신하는 값이다(D-117·D-119). 한 곳에만 있다.
+    inline constexpr float DefaultPixelsPerUnit = 100.0f;
+
     // `.jmeta` 의 `Sprite.ImportOptions` 블록이다. 리플렉션으로 읽고 쓴다.
     struct SpriteImportOptions
     {
@@ -67,8 +70,9 @@ namespace JBro
         // 프레임 안의 피벗(0..1)
         float pivotX = 0.5f;
         float pivotY = 0.5f;
-        // 한 유닛에 드는 픽셀 수다(D-117). 프로젝트 기본값은 없다 - 에셋이 전부 말한다. 0 이하로 적힌 옛 메타는 100 으로 본다.
-        float pixelsPerUnit = 100.0f;
+        // 한 유닛에 드는 픽셀 수다(D-117). 프로젝트 기본값은 없다 - 에셋이 전부 말한다. 0 이하나 비유한으로 적힌 값은
+        // 로드 때 `DefaultPixelsPerUnit` 으로 바로잡는다.
+        float pixelsPerUnit = DefaultPixelsPerUnit;
     };
 
     // 텍스처를 어떻게 샘플링하는가(D-117). `Nearest` 는 텍셀 그대로(픽셀 아트), `Linear` 는 이웃과 섞는다.
