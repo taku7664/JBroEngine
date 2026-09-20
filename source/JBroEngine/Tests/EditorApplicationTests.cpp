@@ -1,6 +1,7 @@
 ﻿#include <JBro/Editor/EditorApplication.h>
 
 #include <JBro/Asset/Asset.h>
+#include <JBro/Core/Profiler.h>
 #include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/AssetTypes/AssetTypesReflection.h>
@@ -424,7 +425,7 @@ namespace
         // 정작 무엇이 빠졌는지는 말해 주지 않는다.
         const char* const expected[] = {
             "CanvasView", "Game", "Hierarchy", "Inspector", "Assets", "Stats", "Log",
-            "ProjectSettings", "Shortcuts"};
+            "ProjectSettings", "Profiler", "Shortcuts"};
         for (const char* title : expected)
         {
             Check(editor.FindPanel(title) != nullptr, title);
@@ -2405,6 +2406,28 @@ namespace
             SaveScreenshot(*renderer, 1024, 768, "inspector");
         }
 
+        // 프로파일러는 닫혀 있는 창이다(재는 것 자체가 프레임에 얹힌다). 한 번 열어
+        // **그리는 길이 도는지** 보고 그림도 한 장 남긴다 - 닫힌 창은 아무도 보지 않는다.
+        if (JBro::EditorPanel* profiler = editor.FindPanel("Profiler"))
+        {
+            profiler->SetOpen(true);
+            for (int frame = 0; frame < 6; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must tick with the profiler open");
+            }
+            Check(JBro::Profiler::IsEnabled(),
+                "an open profiler window must turn measuring on");
+            Check(JBro::Profiler::GetCount() != 0, "and there must be sections to show");
+            if (JBro::Renderer* renderer = editor.GetRenderer())
+            {
+                SaveScreenshot(*renderer, 1024, 768, "profiler");
+            }
+            profiler->SetOpen(false);
+            Check(editor.Tick(Frame), "the editor must tick once more");
+            Check(false == JBro::Profiler::IsEnabled(),
+                "closing it must turn measuring back off");
+        }
+
         editor.Shutdown();
     }
 
@@ -3264,7 +3287,7 @@ namespace
 
         // 기본 패널이 다 있어야 한다. 하나라도 안 붙으면 화면에서 빈 칸이 된다.
         // 어느 것이 있어야 하는지는 `TestThePanelRegistryRefusesWhatItCannotHold` 가 이름으로 잰다.
-        Check(editor.GetPanelCount() == 9, "the default panels must be registered");
+        Check(editor.GetPanelCount() == 10, "the default panels must be registered");
         Check(editor.FindPanel("Game") != nullptr, "the game view must be one of them");
         Check(editor.FindPanel("Hierarchy") != nullptr, "and the hierarchy");
         Check(editor.FindPanel("Inspector") != nullptr, "and the inspector");

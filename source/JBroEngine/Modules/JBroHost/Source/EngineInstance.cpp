@@ -1,4 +1,5 @@
 ﻿#include <JBro/Core/Log.h>
+#include <JBro/Core/Profiler.h>
 #include <JBro/Host/EngineInstance.h>
 
 #include <JBro/Network/Internal/ScriptModuleContext.h>
@@ -528,6 +529,8 @@ namespace JBro
             throw;
         }
         m_state = State::Running;
+        // 프레임의 끝이다. 여기서 이번 프레임의 구간을 읽을 수 있는 자리로 옮긴다.
+        Profiler::EndFrame();
         if (m_projectCloseRequested)
         {
             CloseProject();
@@ -537,7 +540,13 @@ namespace JBro
 
     bool EngineInstance::TickFrame(float deltaTime)
     {
-        m_platform->PumpEvents();
+        // 프레임의 구간을 나눠 잰다(D-138). 꺼져 있으면 이 줄들은 값이 없는 호출이다.
+        Profiler::BeginFrame();
+        const ProfileScope frameScope("Frame");
+        {
+            const ProfileScope scope("Platform");
+            m_platform->PumpEvents();
+        }
         if (m_exitRequested || m_platform->ShouldClose(m_mainWindow))
         {
             return false;
@@ -545,6 +554,7 @@ namespace JBro
         // 소켓은 프레임 밖에서 돌린다. 이 뒤의 고정 스텝이 받은 것을 입히고 보낼 것을 만든다.
         if (m_network)
         {
+            const ProfileScope scope("Network");
             m_network->Update();
         }
         if (m_renderer->IsDeviceLost())
@@ -567,6 +577,7 @@ namespace JBro
         // 세우면 편집 화면이 빈 화면이 된다. 무엇을 세울지는 프레임워크가 안다.
         if (m_framework != nullptr && false == m_projectCloseRequested)
         {
+            const ProfileScope scope("Update");
             m_framework->Update(deltaTime);
         }
         if (m_exitRequested)
@@ -609,9 +620,12 @@ namespace JBro
             return false;
         }
         // 프로젝트가 없으면 게임이 제출할 것도 없다. 그 프레임은 오버레이가 산다.
-        RenderResult renderResult = m_framework != nullptr
-            ? m_framework->Render()
-            : RenderResult::NothingToSubmit;
+        RenderResult renderResult = RenderResult::NothingToSubmit;
+        if (m_framework != nullptr)
+        {
+            const ProfileScope scope("Submit");
+            renderResult = m_framework->Render();
+        }
         // **편집 화면은 게임 화면 바로 뒤다**(D-130). 프레임워크가 이번 프레임에 모아 둔
         // 그릴 것을 그대로 쓰므로, `Render` 와 같은 프레임 안에서만 뜻이 있다.
         // 요청은 한 프레임짜리라 여기서 비운다.
@@ -655,7 +669,12 @@ namespace JBro
             m_lastFrameStatus = FrameStatus::Skipped;
             return true;
         }
-        const auto endStatus = m_renderer->EndFrame();
+        FrameStatus endStatus = FrameStatus::Skipped;
+        {
+            // 여기에 그리기와 제시가 다 들어 있다. UI 오버레이도 이 안에서 불린다.
+            const ProfileScope scope("Render");
+            endStatus = m_renderer->EndFrame();
+        }
         m_lastFrameStatus = endStatus;
         return endStatus == FrameStatus::Ready || endStatus == FrameStatus::Skipped;
     }

@@ -11,6 +11,7 @@ int RunCanvasFoundationTests();
 int RunCoreModelStressTests();
 int RunFrameMemoryTests();
 int RunLogTests();
+int RunProfilerTests();
 int RunReflectionShapeTests();
 int RunReflectionFieldTests();
 int RunPropertyRegistryTests();
@@ -119,6 +120,10 @@ int main()
             return 1;
         }
         if (RunLogTests() != 0)
+        {
+            return 1;
+        }
+        if (RunProfilerTests() != 0)
         {
             return 1;
         }

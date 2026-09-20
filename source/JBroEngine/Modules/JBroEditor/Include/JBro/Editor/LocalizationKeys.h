@@ -18,6 +18,7 @@ namespace JBro::LocKeys
     inline constexpr const char* PanelShortcuts = "panel.shortcuts";
     inline constexpr const char* PanelLog = "panel.log";
     inline constexpr const char* PanelProjectSettings = "panel.project_settings";
+    inline constexpr const char* PanelProfiler = "panel.profiler";
     inline constexpr const char* PanelAssets = "panel.assets";
 
     // ── 게임 뷰의 기즈모 (D-109) ─────────────────────────────────────────
@@ -122,6 +123,15 @@ namespace JBro::LocKeys
     inline constexpr const char* InspectorTextureImportOptions = "inspector.texture_import_options";
     inline constexpr const char* InspectorSpriteImportOptions = "inspector.sprite_import_options";
     inline constexpr const char* CommonOk = "common.ok";
+
+    // ── 프로파일러 (D-138) ───────────────────────────────────────────────
+    inline constexpr const char* ProfilerHint = "profiler.hint";
+    inline constexpr const char* ProfilerEmpty = "profiler.empty";
+    inline constexpr const char* ProfilerSection = "profiler.section";
+    inline constexpr const char* ProfilerTime = "profiler.time";
+    inline constexpr const char* ProfilerCalls = "profiler.calls";
+    inline constexpr const char* ProfilerShare = "profiler.share";
+    inline constexpr const char* ProfilerFrame = "profiler.frame";
 
     // ── 프로젝트 설정 (D-137) ────────────────────────────────────────────
     inline constexpr const char* ProjectSettingsNoFile = "project_settings.no_file";

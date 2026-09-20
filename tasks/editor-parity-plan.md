@@ -46,7 +46,7 @@
 | `CAssetBrowserTool`(2,652줄) | `AssetBrowserPanel`(210줄) | 차이가 크다. 사용자가 우선순위에서 뺐다 |
 | `CLogTool`(117줄) | 없음 | **없음** |
 | `CShortcutReferenceTool`(69줄) | 없음 | **없음** |
-| `CCpuProfilerWindow`(425줄)·`CGpuProfilerWindow`(334줄) | `StatsPanel`(83줄) | 모자람 |
+| `CCpuProfilerWindow`(425줄)·`CGpuProfilerWindow`(334줄) | `StatsPanel` + `ProfilerPanel`(D-138) | CPU 는 섰다. GPU 타임스탬프는 RHI 에 없다 |
 | `CProjectSettingsWindow`(826줄)·`CBuildSettingsWindow`(1,156줄) | `ProjectSettingsPanel` 이 섰다(D-137). 빌드 설정은 빌드 시스템이 없어 보류 | 반쯤 |
 | 임포터 4종(`SpriteImporter`·`AudioImporter`·`SpriteViewer`·`SpriteImportOptionsEditor`) | 인스펙터의 임포트 옵션만 | **없음** |
 | `EffectEditorWindow`·`AssetInspectorPreview`·`EditorAudioPreview` | 없음 | 오디오·이펙트가 없어 보류 |
@@ -121,6 +121,8 @@
   타고 가며 아는 키만 바꾸므로 주석도 모르는 키도 남는다.
 - `[진행 예정]` **11-2. 빌드 설정 창·임포터 창.** 빌드 시스템과 오디오가 엔진에 없다.
   그것이 서면 함께 선다.
+- `[완료]` **11-3. CPU 프로파일러**(D-138). 엔진에 계측이 없어 `JBro/Core/Profiler.h` 부터 세웠다.
+  `[열림]` **GPU 프로파일러**는 RHI 에 타임스탬프 질의가 없다. 그것이 서면 같은 창에 붙는다.
 - `[진행 예정]` **12. 에셋 브라우저를 기존 수준으로.**
 
 ## 4. 아직 재지 않은 것

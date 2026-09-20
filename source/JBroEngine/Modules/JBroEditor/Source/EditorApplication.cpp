@@ -29,6 +29,7 @@
 #include "Panel/HierarchyPanel.h"
 #include "Panel/InspectorPanel.h"
 #include "Panel/LogPanel.h"
+#include "Panel/ProfilerPanel.h"
 #include "Panel/ProjectSettingsPanel.h"
 #include "Panel/ShortcutPanel.h"
 #include "Panel/StatsPanel.h"
@@ -702,6 +703,7 @@ namespace JBro
                 || false == AddPanel(MakeOwnerPtr<StatsPanel>())
                 || false == AddPanel(MakeOwnerPtr<LogPanel>())
                 || false == AddPanel(MakeOwnerPtr<ProjectSettingsPanel>())
+                || false == AddPanel(MakeOwnerPtr<ProfilerPanel>())
                 || false == AddPanel(MakeOwnerPtr<ShortcutPanel>()))
             {
                 ReleaseEditorUi();

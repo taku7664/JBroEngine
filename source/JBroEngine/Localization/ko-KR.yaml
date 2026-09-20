@@ -104,3 +104,11 @@ Entries:
   project_settings.revert: 되돌리기
   project_settings.saved: 저장했습니다
   project_settings.linear_filter: 선형 샘플링을 씁니다. 끄면 니어리스트이고, 픽셀 아트의 기본입니다
+  panel.profiler: 프로파일러
+  profiler.hint: 이 창이 열려 있는 동안 잽니다
+  profiler.empty: 아직 잰 것이 없습니다
+  profiler.section: 구간
+  profiler.time: ms
+  profiler.calls: 횟수
+  profiler.share: 비중
+  profiler.frame: 프레임

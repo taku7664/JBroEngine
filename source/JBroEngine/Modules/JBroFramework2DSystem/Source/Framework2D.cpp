@@ -1,6 +1,7 @@
 ﻿#include <JBro/Framework2DSystem/Framework2D.h>
 
 #include <JBro/Asset/Asset.h>
+#include <JBro/Core/Profiler.h>
 #include <JBro/Canvas/CanvasReflection.h>
 #include <JBro/Graphics/Renderer.h>
 #include <JBro/Framework2DSystem/BuiltinComponentTypes2D.h>
@@ -149,9 +150,13 @@ namespace JBro
         // 화면은 나와야 하고, 그림은 추출한 것에서 나온다.
         if (m_simulationEnabled)
         {
+            const ProfileScope scope("FixedSteps");
             RunFixedSteps(deltaTime);
         }
-        m_canvas->GetSystems().Update(*m_canvas, m_simulationEnabled ? deltaTime : 0.0f);
+        {
+            const ProfileScope scope("Systems");
+            m_canvas->GetSystems().Update(*m_canvas, m_simulationEnabled ? deltaTime : 0.0f);
+        }
         m_canvas->FlushPendingDestroy();
         m_renderWorld.EndFrame();
     }

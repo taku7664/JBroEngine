@@ -104,3 +104,11 @@ Entries:
   project_settings.revert: Revert
   project_settings.saved: saved
   project_settings.linear_filter: linear sampling; off is nearest, which is the pixel-art default
+  panel.profiler: Profiler
+  profiler.hint: measured while this window is open
+  profiler.empty: nothing has been measured yet
+  profiler.section: Section
+  profiler.time: ms
+  profiler.calls: calls
+  profiler.share: share
+  profiler.frame: frame
