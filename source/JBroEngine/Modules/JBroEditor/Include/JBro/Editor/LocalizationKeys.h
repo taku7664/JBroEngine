@@ -163,6 +163,8 @@ namespace JBro::LocKeys
     inline constexpr const char* ProjectSettingsNoFile = "project_settings.no_file";
     inline constexpr const char* ProjectSettingsGeneral = "project_settings.general";
     inline constexpr const char* ProjectSettingsPaths = "project_settings.paths";
+    inline constexpr const char* ProjectSettingsLanguage = "project_settings.language";
+    inline constexpr const char* ProjectSettingsNoLanguages = "project_settings.no_languages";
     inline constexpr const char* ProjectSettingsBuild = "project_settings.build";
     inline constexpr const char* ProjectSettingsSave = "project_settings.save";
     inline constexpr const char* ProjectSettingsRevert = "project_settings.revert";

@@ -25,6 +25,7 @@
 
 #include "Panel/AssetBrowserPanel.h"
 #include "Panel/CanvasViewPanel.h"
+
 #include "Panel/GameViewPanel.h"
 #include "Panel/HierarchyPanel.h"
 #include "Panel/InspectorPanel.h"
@@ -40,6 +41,7 @@
 // 쪽은 대개 이것을 쓰고, 우리도 첫 프레임에 한 번 부르는 데만 쓴다.
 #include <imgui_internal.h>
 
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
 
@@ -110,8 +112,14 @@ namespace JBro
 
             // **글자를 먼저 읽는다.** 창 제목부터 이미 번역 대상이다. 파일은 플랫폼이 열므로(D-112) 플랫폼 뒤다.
             // 실패해도 그냥 간다 - 코드에 있는 영어 원문으로 떨어질 뿐이다.
+            m_localizationDirectory = config.localizationDirectory != nullptr
+                ? config.localizationDirectory
+                : "";
+            m_locale = config.locale != nullptr ? config.locale : "";
+            m_fallbackLocale = config.fallbackLocale != nullptr ? config.fallbackLocale : "";
             LocalizationTable::Get().Load(
-                *m_platform, config.localizationDirectory, config.locale, config.fallbackLocale);
+                *m_platform, m_localizationDirectory.c_str(), m_locale.c_str(),
+                m_fallbackLocale.c_str());
 
             // 세 백엔드 중 하나다(D-107·D-108). 기본은 D3D12 다.
             if (config.graphicsApi == GraphicsApi::D3D11)
@@ -199,6 +207,40 @@ namespace JBro
         return true;
     }
 
+    namespace
+    {
+        // 에셋 폴더 기준 상대경로를 실제 경로로. 둘 다 비면 빈 글자다.
+        String JoinPath(const String& root, const char* relative)
+        {
+            String result = root;
+            if (relative == nullptr || relative[0] == '\0')
+            {
+                return result;
+            }
+            if (false == result.empty() && result.back() != '/' && result.back() != '\\')
+            {
+                result.append("/", 1);
+            }
+            result.append(relative, std::strlen(relative));
+            return result;
+        }
+
+        // `art/enemy.png` 의 폴더는 `art` 다. 슬래시가 없으면 빈 글자(뿌리)다.
+        String FolderOf(const char* relative)
+        {
+            const String path(relative != nullptr ? relative : "");
+            const std::size_t slash = path.find_last_of("/\\");
+            return slash == String::npos ? String() : String(path.substr(0, slash).c_str());
+        }
+
+        String LeafOfPath(const char* relative)
+        {
+            const String path(relative != nullptr ? relative : "");
+            const std::size_t slash = path.find_last_of("/\\");
+            return slash == String::npos ? path : String(path.substr(slash + 1).c_str());
+        }
+    }
+
     bool EditorApplication::OpenProjectFile(const char* projectFilePath, ProjectFileError& error)
     {
         error = ProjectFileError{};
@@ -238,41 +280,166 @@ namespace JBro
         }
         m_frameworkKind = framework;
         m_projectFilePath = projectFilePath != nullptr ? projectFilePath : "";
+
+        // ── 세션을 되살린다(D-146) ──────────────────────────────────────────
+        const ProjectFile& file = GetProjectFile();
+        if (false == file.editorLocale.empty() && file.editorLocale != m_locale)
+        {
+            // 실패해도 그냥 간다. 지금 언어로 계속 쓸 수 있고, 열리지 않는 것보다 낫다.
+            SetEditorLocale(file.editorLocale.c_str());
+        }
+        m_sessionCameraX = file.canvasViewCameraX;
+        m_sessionCameraY = file.canvasViewCameraY;
+        m_sessionCameraSize = file.canvasViewCameraSize;
+        if (false == file.lastOpenedCanvasPath.empty() && false == GetAssetRoot().empty())
+        {
+            // **보던 캔버스를 연다.** 없거나 깨졌으면 로그만 남기고 빈 캔버스로 간다 -
+            // 지워진 파일 하나 때문에 프로젝트가 열리지 않으면 고칠 방법도 없다.
+            const String canvasPath = JoinPath(GetAssetRoot(), file.lastOpenedCanvasPath.c_str());
+            CanvasFileError canvasError;
+            if (LoadCanvas(canvasPath.c_str(), canvasError))
+            {
+                Log::Write(LogLevel::Info, "editor", "opened the canvas from last time: %s",
+                    file.lastOpenedCanvasPath.c_str());
+            }
+            else
+            {
+                Log::Write(LogLevel::Warning, "editor",
+                    "the canvas from last time could not be opened: %s", canvasError.message.c_str());
+            }
+        }
         return true;
     }
 
-    namespace
+    void EditorApplication::GetSessionCamera(float& centerX, float& centerY, float& size) const
     {
-        // 에셋 폴더 기준 상대경로를 실제 경로로. 둘 다 비면 빈 글자다.
-        String JoinPath(const String& root, const char* relative)
+        centerX = m_sessionCameraX;
+        centerY = m_sessionCameraY;
+        size = m_sessionCameraSize;
+    }
+
+    void EditorApplication::GetCanvasViewCamera(float& centerX, float& centerY, float& size)
+    {
+        centerX = 0.0f;
+        centerY = 0.0f;
+        size = 0.0f;
+        if (CanvasViewPanel* view = static_cast<CanvasViewPanel*>(FindPanel("CanvasView")))
         {
-            String result = root;
-            if (relative == nullptr || relative[0] == '\0')
+            centerX = view->GetCameraX();
+            centerY = view->GetCameraY();
+            size = view->GetCameraSize();
+        }
+    }
+
+    bool EditorApplication::SetEditorLocale(const char* locale)
+    {
+        if (locale == nullptr || locale[0] == '\0' || m_platform.Get() == nullptr)
+        {
+            return false;
+        }
+        if (false == LocalizationTable::Get().Load(*m_platform, m_localizationDirectory.c_str(),
+                locale, m_fallbackLocale.c_str()))
+        {
+            // **읽지 못했으면 지금 언어를 지킨다.** 표가 반쯤 바뀐 채로 두면 화면의 절반이
+            // 키로 나온다. `Load` 가 실패해도 이전 표는 그대로다.
+            Log::Write(LogLevel::Warning, "editor", "the language could not be read: %s", locale);
+            return false;
+        }
+        m_locale = locale;
+        Log::Write(LogLevel::Info, "editor", "the editor language is now %s", locale);
+        return true;
+    }
+
+    Array<String> EditorApplication::GetAvailableLocales() const
+    {
+        Array<String> locales;
+        if (m_platform.Get() == nullptr || m_localizationDirectory.empty())
+        {
+            return locales;
+        }
+        // 폴더의 `<로케일>.yaml` 이 곧 목록이다. 따로 적어 두면 파일을 더해도 목록에 없다.
+        m_platform->EnumerateDirectory(m_localizationDirectory.c_str(),
+            [](const char* relativePath, bool isDirectory, void* user) -> bool
             {
-                return result;
-            }
-            if (false == result.empty() && result.back() != '/' && result.back() != '\\')
+                if (isDirectory || relativePath == nullptr)
+                {
+                    return true;
+                }
+                const String path(relativePath);
+                if (path.size() < 6 || path.find('/') != String::npos)
+                {
+                    return true;
+                }
+                const String suffix(path.substr(path.size() - 5).c_str());
+                if (suffix != ".yaml")
+                {
+                    return true;
+                }
+                static_cast<Array<String>*>(user)->Add(String(path.substr(0, path.size() - 5).c_str()));
+                return true;
+            },
+            &locales);
+        // 차례가 있어야 목록이 프레임마다 흔들리지 않는다.
+        std::sort(locales.begin(), locales.end(),
+            [](const String& left, const String& right) { return left < right; });
+        return locales;
+    }
+
+    bool EditorApplication::SaveEditorSession()
+    {
+        if (m_projectFilePath.empty())
+        {
+            // 적을 파일이 없는 것은 실패가 아니다(파일 없이 연 프로젝트).
+            return true;
+        }
+        ProjectFile settings = GetProjectFile();
+        settings.editorLocale = m_locale;
+
+        // 보던 캔버스는 **에셋 폴더 기준 상대경로**로 적는다. 절대경로를 적으면 프로젝트를
+        // 옮기거나 다른 기계에서 열 때 가리키는 곳이 없다.
+        const String& assetRoot = GetAssetRoot();
+        if (false == m_canvasPath.empty() && false == assetRoot.empty()
+            && m_canvasPath.size() > assetRoot.size()
+            && m_canvasPath.compare(0, assetRoot.size(), assetRoot) == 0)
+        {
+            std::size_t start = assetRoot.size();
+            while (start < m_canvasPath.size()
+                && (m_canvasPath[start] == '/' || m_canvasPath[start] == '\\'))
             {
-                result.append("/", 1);
+                ++start;
             }
-            result.append(relative, std::strlen(relative));
-            return result;
+            // **슬래시로 적는다.** 파일은 다른 기계에서도 읽히고, 역슬래시는 거기서
+            // 경로의 구분자가 아니라 글자다.
+            String relative(m_canvasPath.substr(start).c_str());
+            for (std::size_t index = 0; index < relative.size(); ++index)
+            {
+                if (relative[index] == '\\')
+                {
+                    relative[index] = '/';
+                }
+            }
+            settings.lastOpenedCanvasPath = relative;
         }
 
-        // `art/enemy.png` 의 폴더는 `art` 다. 슬래시가 없으면 빈 글자(뿌리)다.
-        String FolderOf(const char* relative)
+        float cameraX = 0.0f;
+        float cameraY = 0.0f;
+        float cameraSize = 0.0f;
+        GetCanvasViewCamera(cameraX, cameraY, cameraSize);
+        if (cameraSize > 0.0f)
         {
-            const String path(relative != nullptr ? relative : "");
-            const std::size_t slash = path.find_last_of("/\\");
-            return slash == String::npos ? String() : String(path.substr(0, slash).c_str());
+            settings.canvasViewCameraX = cameraX;
+            settings.canvasViewCameraY = cameraY;
+            settings.canvasViewCameraSize = cameraSize;
         }
 
-        String LeafOfPath(const char* relative)
+        ProjectFileError error;
+        if (false == SaveProjectSettings(settings, error))
         {
-            const String path(relative != nullptr ? relative : "");
-            const std::size_t slash = path.find_last_of("/\\");
-            return slash == String::npos ? path : String(path.substr(slash + 1).c_str());
+            Log::Write(LogLevel::Warning, "editor",
+                "the editor session could not be written: %s", error.message.c_str());
+            return false;
         }
+        return true;
     }
 
     const String& EditorApplication::GetAssetRoot() const
@@ -2075,6 +2242,8 @@ namespace JBro
         {
             return;
         }
+        // **닫기 전에 적는다.** 닫고 나면 무엇을 보고 있었는지 아는 것이 아무도 없다.
+        SaveEditorSession();
         // 캔버스 경로는 프로젝트의 것이다. 다음 프로젝트의 저장이 옛 파일에 가면 안 된다.
         m_canvasPath.clear();
         m_saveRequested = false;

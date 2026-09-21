@@ -95,6 +95,26 @@ namespace JBro
         // 프로젝트 설정을 파일에 쓴다(D-137). **원문을 타고 가며 아는 키만 고친다** -
         // 주석도 모르는 키도 그 자리에 남는다. 성공하면 에디터가 든 값도 그것으로 바뀐다.
         bool SaveProjectSettings(const ProjectFile& settings, ProjectFileError& error);
+
+        // ── 에디터 세션(D-146) ──────────────────────────────────────────────
+        //
+        // **다시 열었을 때 이어서 일할 수 있어야 한다.** 기존 엔진도 보던 캔버스와 보던 자리,
+        // 에디터 언어를 프로젝트에 적었다. 값이 사는 곳은 `.jproject` 다.
+
+        // 지금의 세션 값을 프로젝트 파일에 쓴다. 프로젝트를 파일로 열지 않았으면 아무 일도
+        // 하지 않고 참이다 - 적을 파일이 없는 것은 실패가 아니다.
+        bool SaveEditorSession();
+        // 파일에 적힌 캔버스 뷰 카메라다. `size` 가 0 이면 적힌 적이 없다.
+        void GetSessionCamera(float& centerX, float& centerY, float& size) const;
+        // 지금 캔버스 뷰가 보고 있는 자리다. 패널이 없으면 `size` 가 0 이다.
+        void GetCanvasViewCamera(float& centerX, float& centerY, float& size);
+
+        // 에디터 언어를 바꾼다. 글자 표를 다시 읽고, 성공하면 다음 프레임부터 그 언어다.
+        // 파일이 없으면 거짓이고 지금 언어는 그대로다.
+        bool SetEditorLocale(const char* locale);
+        const String& GetEditorLocale() const { return m_locale; }
+        // 글자 표 폴더에 있는 언어들이다(`<로케일>.yaml`). 정렬돼 있다.
+        Array<String> GetAvailableLocales() const;
         // 열린 프로젝트의 에셋 레지스트리다. 인스펙터의 에셋 칸이 같은 타입의 목록을 여기서
         // 얻는다(D-116). 프로젝트가 없으면 빈 레지스트리다.
         const AssetRegistry& GetAssetRegistry() const;
@@ -394,6 +414,16 @@ namespace JBro
         FrameworkKind m_frameworkKind = FrameworkKind::Framework2D;
         // 상대경로를 풀 기준이다. 파일로 열었을 때만 채워진다.
         String m_projectFilePath;
+        // 글자 표가 사는 곳과 지금 언어·폴백이다(D-146). 언어를 바꾸려면 다시 읽어야 하고,
+        // 다시 읽으려면 처음에 어디서 읽었는지를 들고 있어야 한다.
+        String m_localizationDirectory;
+        String m_locale;
+        String m_fallbackLocale;
+        // 프로젝트를 열 때 파일에서 읽은 캔버스 뷰 카메라다. 패널이 만들어질 때 가져간다 -
+        // 프로젝트를 여는 시점에는 패널이 아직 없을 수 있다.
+        float m_sessionCameraX = 0.0f;
+        float m_sessionCameraY = 0.0f;
+        float m_sessionCameraSize = 0.0f;
 
         GraphicsApi m_graphicsApi = GraphicsApi::D3D12;
         FrameStatus m_lastFrameStatus = FrameStatus::InvalidState;

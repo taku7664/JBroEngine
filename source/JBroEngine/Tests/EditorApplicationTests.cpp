@@ -4834,6 +4834,124 @@ namespace
     // 그려 주지 않으면 충돌 칸이 그림과 어긋난 것을 부딪혀 봐야만 안다.
     // **통계 창이 캔버스의 쓰임새를 보인다**(D-145). 기존 엔진의 CPU 프로파일러가 내던
     // 숫자들(오브젝트·풀·선택·되돌리기)이 우리에게는 없었다.
+    // **다시 열면 보던 자리에서 이어 본다**(D-146). 보던 캔버스와 편집 카메라, 에디터 언어가
+    // 프로젝트 파일에 남는다. 기존 엔진도 이 셋을 프로젝트에 적었다.
+    void TestTheEditorSessionSurvivesReopening()
+    {
+        namespace fs = std::filesystem;
+        const fs::path root(TempPath("JBroSessionProbe").c_str());
+        std::error_code ignored;
+        fs::remove_all(root, ignored);
+        fs::create_directories(root / "Assets" / "scenes", ignored);
+        const JBro::String projectPath = TempPath("JBroSessionProbe\\Session.jproject");
+        Check(WriteTextFile(projectPath,
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 2D\n"
+            "RootPath: .\n"
+            "AssetDirectory: Assets\n"),
+            "the test must be able to write its own project file");
+
+        float savedX = 0.0f;
+        float savedY = 0.0f;
+        float savedSize = 0.0f;
+        {
+            JBro::EditorApplication editor;
+            JBro::EditorApplicationConfig config;
+            config.windowVisible = false;
+            config.windowWidth = 800;
+            config.windowHeight = 600;
+            if (false == editor.Initialize(config))
+            {
+                std::cout << "  [skip] no D3D12 device; the session not verified" << std::endl;
+                return;
+            }
+            JBro::ProjectFileError error;
+            Check(editor.OpenProjectFile(projectPath.c_str(), error), "the probe project must open");
+            Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+            for (int frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must settle");
+            }
+
+            JBro::Canvas* canvas = editor.GetCanvas();
+            JBro::GameObject* object = canvas->CreateObject("Remembered");
+            Check(canvas->AttachComponent<JBro::Component::Transform2D>(object) != nullptr,
+                "the probe object needs a transform");
+            const JBro::String canvasPath =
+                TempPath("JBroSessionProbe\\Assets\\scenes\\Work.jcanvas");
+            JBro::CanvasFileError canvasError;
+            Check(editor.SaveCanvas(canvasPath.c_str(), canvasError), "the canvas must save");
+
+            // 캔버스 뷰에서 휠을 돌려 보는 자리를 바꾼다. 기본값 그대로면 되살아난 것인지
+            // 처음부터 그랬던 것인지 갈라지지 않는다.
+            HWND hwnd = FindOwnEditorWindow();
+            Check(hwnd != nullptr, "the editor window must be findable");
+            ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
+            Check(view != nullptr, "the canvas view must have a window");
+            const int x = static_cast<int>(view->Pos.x + view->Size.x * 0.5f);
+            const int y = static_cast<int>(view->Pos.y + view->Size.y * 0.5f);
+            PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
+            Check(editor.Tick(Frame), "the editor must tick");
+            PostMessageW(hwnd, WM_MOUSEWHEEL, MAKEWPARAM(0, WHEEL_DELTA), MAKELPARAM(x, y));
+            for (int frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must settle after the wheel");
+            }
+            editor.GetCanvasViewCamera(savedX, savedY, savedSize);
+            Check(savedSize > 0.0f, "the canvas view must report a camera");
+
+            // 닫으면 적힌다.
+            editor.CloseProject();
+            editor.Shutdown();
+        }
+
+        // 파일에 실제로 적혔는가. 화면을 거치지 않고 파일로 확인한다.
+        {
+            std::ifstream in(std::filesystem::path(projectPath.c_str()), std::ios::binary);
+            const std::string text((std::istreambuf_iterator<char>(in)),
+                std::istreambuf_iterator<char>());
+            Check(text.find("LastOpenedCanvasPath: scenes/Work.jcanvas") != std::string::npos,
+                "the project file names the canvas that was open, relative to the asset folder");
+            Check(text.find("CanvasViewCameraSize:") != std::string::npos,
+                "and the camera it was seen from");
+        }
+
+        {
+            JBro::EditorApplication editor;
+            JBro::EditorApplicationConfig config;
+            config.windowVisible = false;
+            config.windowWidth = 800;
+            config.windowHeight = 600;
+            if (false == editor.Initialize(config))
+            {
+                std::cout << "  [skip] no D3D12 device on the second open" << std::endl;
+                return;
+            }
+            JBro::ProjectFileError error;
+            Check(editor.OpenProjectFile(projectPath.c_str(), error), "the project must open again");
+            Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+            for (int frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must settle");
+            }
+
+            // **보던 캔버스가 열려 있다.**
+            JBro::Canvas* canvas = editor.GetCanvas();
+            Check(canvas != nullptr && canvas->GetObjectCount() == 1,
+                "the canvas from last time is open, with what was in it");
+            float x = 0.0f;
+            float y = 0.0f;
+            float size = 0.0f;
+            editor.GetCanvasViewCamera(x, y, size);
+            Check(std::fabs(size - savedSize) < 0.001f,
+                "and the canvas view starts where it was left");
+
+            editor.Shutdown();
+        }
+        fs::remove_all(root, ignored);
+    }
+
     void TestTheStatsPanelShowsWhatTheCanvasHolds()
     {
         JBro::EditorApplication editor;
@@ -5316,6 +5434,7 @@ int RunEditorApplicationTests()
     TestBoxSelectInTheCanvasViewPicksWhatItTouches();
     TestTheCanvasViewDrawsInA3DProject();
     TestProjectSettingsAreWrittenBackToTheFile();
+    TestTheEditorSessionSurvivesReopening();
     TestTheStatsPanelShowsWhatTheCanvasHolds();
     TestTheCanvasViewDrawsColliderShapes();
     TestTheInspectorRenamesAndTogglesThroughCommands();

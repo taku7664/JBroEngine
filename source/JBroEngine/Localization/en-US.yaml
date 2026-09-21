@@ -110,6 +110,8 @@ Entries:
   project_settings.no_file: this project has no file to edit
   project_settings.general: General
   project_settings.paths: Paths
+  project_settings.language: Language
+  project_settings.no_languages: no language files were found
   project_settings.build: Build
   project_settings.save: Save
   project_settings.revert: Revert

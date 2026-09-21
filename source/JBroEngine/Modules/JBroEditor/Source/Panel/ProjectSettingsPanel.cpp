@@ -132,6 +132,43 @@ namespace JBro
                 [&] { Widget::Checkbox("##debug", m_draft.debugModeEnabled); });
         }
 
+        // **에디터 언어**(D-146). 기존 엔진도 설정 창에서 골랐고, 고른 값은 프로젝트에 남는다.
+        // 저장 단추를 기다리지 않고 **고르는 즉시 바뀐다** - 글자가 바뀌는 것을 눈으로 보고
+        // 고르는 일이라, 저장한 뒤에야 바뀌면 무엇을 고른 것인지 알 수 없다.
+        {
+            const Array<String> locales = m_editor->GetAvailableLocales();
+            Widget::FormLayout layout("##localization");
+            layout.Row(
+                Widget::FieldLabel(Loc::TextOr(LocKeys::ProjectSettingsLanguage, "Language")),
+                [&]() {
+                    if (locales.IsEmpty())
+                    {
+                        ImGui::TextDisabled("%s", Loc::TextOr(LocKeys::ProjectSettingsNoLanguages,
+                            "no language files were found"));
+                        return;
+                    }
+                    if (false == ImGui::BeginCombo("##language", m_editor->GetEditorLocale().c_str()))
+                    {
+                        return;
+                    }
+                    for (std::size_t index = 0; index < locales.Size(); ++index)
+                    {
+                        const bool chosen = locales[index] == m_editor->GetEditorLocale();
+                        if (ImGui::Selectable(locales[index].c_str(), chosen)
+                            && false == chosen)
+                        {
+                            m_editor->SetEditorLocale(locales[index].c_str());
+                            m_draft.editorLocale = m_editor->GetEditorLocale();
+                        }
+                        if (chosen)
+                        {
+                            ImGui::SetItemDefaultFocus();
+                        }
+                    }
+                    ImGui::EndCombo();
+                });
+        }
+
         Widget::SectionHeader(
             Loc::TextOr(LocKeys::ProjectSettingsPaths, "Paths")).SpacingBefore().Draw();
         {

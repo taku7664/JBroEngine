@@ -79,6 +79,16 @@ namespace JBro
         String        scriptSourceDirectory = "Contents";
         String        scriptOutputLibraryPath = "x64/Debug/GameScript.dll";
         String        lastOpenedCanvasPath;
+        // **에디터가 다시 열릴 때의 자리다**(D-146). 기존 엔진도 이 값들을 프로젝트에 적었다 -
+        // 프로젝트를 다시 열었을 때 보던 캔버스와 보던 자리가 그대로여야 이어서 일할 수 있다.
+        // 에디터 언어도 여기 있다: 사람마다 다른 값이지만, 프로젝트를 옮겨 다니며 쓰는 것이
+        // 한 사람이라 프로젝트에 두어도 어긋나지 않고, 둘 곳을 따로 만들면 그 파일의 자리를
+        // 또 정해야 한다.
+        String        editorLocale;
+        float         canvasViewCameraX = 0.0f;
+        float         canvasViewCameraY = 0.0f;
+        // 0 이면 적힌 적이 없다는 뜻이다. 화면 세로 절반이 담는 월드 길이라 0 일 수 없다.
+        float         canvasViewCameraSize = 0.0f;
         // 에셋 폴더다(`AssetDirectory`). 프로젝트 루트 기준 상대경로이고 레지스트리가 이 아래를 스캔한다(D-111).
         // 기존 엔진에는 이 키가 없었다 - 코드 기본값 `Assets` 였다.
         String        assetDirectory = "Contents/Assets";

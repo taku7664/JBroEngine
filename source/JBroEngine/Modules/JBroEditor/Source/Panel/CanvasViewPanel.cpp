@@ -95,6 +95,17 @@ namespace JBro
     bool CanvasViewPanel::OnCreate(EditorApplication& editor)
     {
         m_editor = &editor;
+        // **보던 자리에서 이어 본다**(D-146). 프로젝트 파일에 적힌 값이 있으면 그것으로 시작한다.
+        float centerX = 0.0f;
+        float centerY = 0.0f;
+        float size = 0.0f;
+        editor.GetSessionCamera(centerX, centerY, size);
+        if (size > 0.0f)
+        {
+            // `size` 가 0 이면 적힌 적이 없다는 뜻이다 - 화면 세로 절반이 담는 월드 길이라
+            // 0 일 수 없고, 0 을 그대로 쓰면 아무것도 보이지 않는 배율이 된다.
+            SetCamera(centerX, centerY, size);
+        }
         return true;
     }
 

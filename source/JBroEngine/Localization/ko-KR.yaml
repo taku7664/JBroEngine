@@ -110,6 +110,8 @@ Entries:
   project_settings.no_file: 이 프로젝트에는 고칠 파일이 없습니다
   project_settings.general: 일반
   project_settings.paths: 경로
+  project_settings.language: 언어
+  project_settings.no_languages: 언어 파일을 찾지 못했습니다
   project_settings.build: 빌드
   project_settings.save: 저장
   project_settings.revert: 되돌리기

@@ -382,6 +382,28 @@ namespace JBro
             else if (key == "ScriptSourceDirectory") { parsed.scriptSourceDirectory = value; }
             else if (key == "ScriptOutputLibraryPath") { parsed.scriptOutputLibraryPath = value; }
             else if (key == "LastOpenedCanvasPath") { parsed.lastOpenedCanvasPath = value; }
+            else if (key == "EditorLocale") { parsed.editorLocale = value; }
+            else if (key == "CanvasViewCameraX")
+            {
+                if (false == ParseFloat(value, parsed.canvasViewCameraX))
+                {
+                    return Fail(error, lineNumber, "CanvasViewCameraX must be a number");
+                }
+            }
+            else if (key == "CanvasViewCameraY")
+            {
+                if (false == ParseFloat(value, parsed.canvasViewCameraY))
+                {
+                    return Fail(error, lineNumber, "CanvasViewCameraY must be a number");
+                }
+            }
+            else if (key == "CanvasViewCameraSize")
+            {
+                if (false == ParseFloat(value, parsed.canvasViewCameraSize))
+                {
+                    return Fail(error, lineNumber, "CanvasViewCameraSize must be a number");
+                }
+            }
             else if (key == "AssetDirectory") { parsed.assetDirectory = value; }
             // 최상위의 나머지 키도 아직 쓰지 않는다.
 
@@ -430,6 +452,15 @@ namespace JBro
 
     namespace
     {
+        // 소수를 글자로. **짧게 적되 값은 지킨다** - `%g` 는 자리를 아끼고, 9 자리면
+        // float 가 왕복해도 같은 값으로 돌아온다.
+        String FormatFloat(float value)
+        {
+            char buffer[32] = {};
+            std::snprintf(buffer, sizeof(buffer), "%.9g", static_cast<double>(value));
+            return String(buffer);
+        }
+
         // 최상위 키 하나의 지금 값을 글자로. 아는 키가 아니면 거짓이다.
         bool TopLevelValue(const ProjectFile& project, const String& key, String& value)
         {
@@ -468,6 +499,13 @@ namespace JBro
             else if (key == "ScriptSourceDirectory") { value = project.scriptSourceDirectory; }
             else if (key == "ScriptOutputLibraryPath") { value = project.scriptOutputLibraryPath; }
             else if (key == "LastOpenedCanvasPath") { value = project.lastOpenedCanvasPath; }
+            else if (key == "EditorLocale") { value = project.editorLocale; }
+            else if (key == "CanvasViewCameraX") { value = FormatFloat(project.canvasViewCameraX); }
+            else if (key == "CanvasViewCameraY") { value = FormatFloat(project.canvasViewCameraY); }
+            else if (key == "CanvasViewCameraSize")
+            {
+                value = FormatFloat(project.canvasViewCameraSize);
+            }
             else if (key == "AssetDirectory") { value = project.assetDirectory; }
             else
             {
@@ -498,7 +536,8 @@ namespace JBro
             "Version", "EngineVersion", "Framework", "RootPath",
             "ResolutionWidth", "ResolutionHeight", "TextureFilter", "DebugModeEnabled",
             "ScriptSourceDirectory", "ScriptOutputLibraryPath", "LastOpenedCanvasPath",
-            "AssetDirectory"};
+            "AssetDirectory", "EditorLocale",
+            "CanvasViewCameraX", "CanvasViewCameraY", "CanvasViewCameraSize"};
         const char* const BuildKeys[] = {
             "ProductName", "EnableWindows", "EnableWeb", "EnableAndroid", "EnableIOS",
             "OutputDirectory", "StartupCanvas", "ScriptOutputLibraryPath"};
