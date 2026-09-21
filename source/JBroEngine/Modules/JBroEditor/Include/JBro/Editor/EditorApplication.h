@@ -20,6 +20,7 @@
 namespace JBro
 {
     class Canvas;
+    class EditorThumbnails;
     class GameObject;
     class Renderer;
     class EngineInstance;
@@ -111,6 +112,11 @@ namespace JBro
         // 창 배치가 사는 파일이다(`<프로젝트파일>.layout.ini`). 프로젝트를 파일로 열지
         // 않았으면 빈 글자다. ImGui 의 형식을 그대로 쓰므로 우리가 파싱할 일은 없다.
         String GetLayoutFilePath() const;
+
+        // 에셋의 작은 그림이다(D-147). 텍스처가 아닌 에셋이나 아직 만들지 못한 것은 빈 핸들이다 -
+        // 만드는 일은 프레임마다 몇 개로 막혀 있어, 목록을 처음 열면 몇 프레임에 걸쳐 채워진다.
+        // 스프라이트 아이디를 주면 그 짝 텍스처의 그림을 준다.
+        TextureHandle GetAssetThumbnail(AssetId asset);
         // 적힌 배치가 있으면 읽고 기본 배치를 건너뛴다. UI 가 켜진 뒤에만 뜻이 있다.
         void RestoreEditorLayout();
 
@@ -432,6 +438,8 @@ namespace JBro
         // 적힌 배치를 읽었는가. 읽었으면 기본 배치를 만들지 않는다 - 둘이 같은 프레임에
         // 겹치면 사람이 옮겨 둔 자리가 매번 지워진다.
         bool m_layoutRestored = false;
+        // 에셋의 작은 그림들. 프로젝트를 닫을 때 비운다 - 다음 프로젝트의 아이디는 다른 파일이다.
+        OwnerPtr<EditorThumbnails> m_thumbnails;
 
         GraphicsApi m_graphicsApi = GraphicsApi::D3D12;
         FrameStatus m_lastFrameStatus = FrameStatus::InvalidState;

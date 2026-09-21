@@ -6,6 +6,7 @@
 #include <JBro/Editor/Command/CompoundCommand.h>
 #include <JBro/Editor/Command/ListEdit.h>
 #include <JBro/Editor/EditorApplication.h>
+#include <JBro/Editor/EditorUI.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/ScalarRun.h>
 #include <JBro/Editor/LocalizationKeys.h>
@@ -35,6 +36,13 @@
 
 namespace JBro
 {
+    namespace
+    {
+        // 인스펙터의 미리보기가 차지하는 최대 변(픽셀)이다. 칸이 더 넓어도 이보다 크게
+        // 그리지 않는다 - 그림이 창을 다 먹으면 정작 고칠 값들이 스크롤 밖으로 나간다.
+        constexpr float PreviewMaxSide = 160.0f;
+    }
+
     namespace
     {
         // 잎사귀 값을 글자로 주고받는 버퍼다. 코덱이 더 큰 것을 요구하면 그 값은
@@ -567,6 +575,19 @@ namespace JBro
     {
         const AssetRecord* record = m_editor->GetAssetRegistry().Find(meta.id);
         ImGui::TextUnformatted(record != nullptr ? record->relativePath.c_str() : "?");
+
+        // **그림을 보여 준다**(D-147, 기존 `AssetInspectorPreview` 자리). 임포트 옵션을
+        // 고치는 자리에 그림이 없으면 무엇을 고치고 있는지 이름으로만 알아야 한다.
+        const TextureHandle preview = m_editor->GetAssetThumbnail(meta.id);
+        if (preview.IsValid())
+        {
+            // 칸 너비에 맞추되 원본 비율을 지킨다. 늘여 붙이면 픽셀 아트가 기울어 보인다.
+            const float width = ImGui::GetContentRegionAvail().x;
+            const float side = width < PreviewMaxSide ? width : PreviewMaxSide;
+            ImGui::Image(static_cast<ImTextureID>(EditorUI::ToTextureId(preview)),
+                ImVec2(side, side));
+            ImGui::Spacing();
+        }
 
         // 편집본은 프레임마다 원본에서 새로 뜬다. 위젯이 고친 값은 커맨드가 파일에 쓰고, 다음 프레임의 원본이 그것을
         // 다시 읽어 온다 - 쓰는 길이 하나다(D-89 와 같은 이유).

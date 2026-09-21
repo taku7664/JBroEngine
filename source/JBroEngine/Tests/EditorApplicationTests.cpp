@@ -2855,6 +2855,62 @@ namespace
         {
             SaveScreenshot(*shotRenderer, 1024, 768, "assets");
         }
+
+        // **그림이 있는 보기**(D-147). 아이콘 단추를 누르면 칸마다 작은 그림이 선다.
+        {
+            const char* iconLabel = JBro::Loc::TextOr(JBro::LocKeys::AssetsIconView, "Icons");
+            Spot iconButton;
+            Check(FindItemAnywhereInWindow(editor, hwnd, assets,
+                    LabelId(assets->ID, iconLabel), iconButton),
+                "the view button must be on the asset browser tool bar");
+            JBro::Renderer* shotRenderer = editor.GetRenderer();
+            Check(shotRenderer != nullptr, "the editor must expose its renderer");
+            JBro::Array<std::byte> asList;
+            JBro::Array<std::byte> asIcons;
+            JBro::TextureReadback readback;
+            ReadBackBufferInto(*shotRenderer, 1024, 768, asList, readback);
+            ClickAt(editor, hwnd, iconButton);
+            for (int frame = 0; frame < 4; ++frame)
+            {
+                // 그림은 프레임마다 몇 개씩만 올라간다. 몇 프레임 돌려 채운다.
+                Check(editor.Tick(Frame), "the editor must settle on the icon view");
+            }
+            // 그림이 실제로 만들어졌는가. 화면을 읽기 전에 이것부터 묻는다 -
+            // 화면만 보면 단추가 눌린 것과 그림이 선 것을 가르지 못한다.
+            Check(editor.GetAssetThumbnail(heroTextureId).IsValid(),
+                "the texture must have a thumbnail the editor can draw");
+            ReadBackBufferInto(*shotRenderer, 1024, 768, asIcons, readback);
+            const std::size_t changed =
+                CountDifferingPixels(asList, asIcons, readback, 1024, 768);
+            std::cout << "  the icon view changed " << changed << " pixels" << std::endl;
+            Check(changed > 500, "and the icon view must look different from the list");
+            SaveScreenshot(*shotRenderer, 1024, 768, "assets_icons");
+            // 목록으로 되돌린다. 아래의 검사들은 줄을 짚는다.
+            ClickAt(editor, hwnd, iconButton);
+            for (int frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must settle back on the list");
+            }
+            assets = ImGui::FindWindowByName("Assets");
+            ImGuiWindow* contents = FindChildWindow(assets, "##contents");
+            Check(contents != nullptr, "the contents pane must still exist");
+            const ImGuiID heroRow = LabelId(LabelId(contents->ID, "art/hero.png"), "##file");
+            bool againFound = false;
+            const int x = static_cast<int>(contents->Pos.x + 40.0f);
+            const int bottom = static_cast<int>(contents->Pos.y + contents->Size.y);
+            for (int y = static_cast<int>(contents->Pos.y); y < bottom && false == againFound; y += 3)
+            {
+                PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
+                Check(editor.Tick(Frame), "the editor must tick while looking again");
+                if (ImGui::GetHoveredID() == heroRow)
+                {
+                    spot.x = x;
+                    spot.y = y;
+                    againFound = true;
+                }
+            }
+            Check(againFound, "hero.png must be a row again");
+        }
         ClickAt(editor, hwnd, spot);
         Check(editor.GetSelectedAsset() == hero->id, "clicking the row selects the texture record");
         Check(editor.GetSelectedObject() == nullptr, "and no object");
@@ -2863,6 +2919,13 @@ namespace
         for (int frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle on the asset");
+        }
+        // 고른 에셋의 인스펙터에는 **그림이 먼저 선다**(D-147).
+        Check(editor.GetAssetThumbnail(hero->id).IsValid(),
+            "the inspector has a picture of what it is editing");
+        if (JBro::Renderer* shotRenderer = editor.GetRenderer())
+        {
+            SaveScreenshot(*shotRenderer, 1024, 768, "asset_inspector");
         }
 
         // 인스펙터의 둘째 블록(Sprite)의 `pixelsPerUnit`. 컴포넌트와 같은 Id 사슬이되 표 이름이 "##import" 다.

@@ -140,3 +140,6 @@ Entries:
   assets.reveal: Show in Explorer
   common.cancel: Cancel
   assets.rescan: Rescan
+  assets.icon_view: Icons
+  assets.list_view: List
+  assets.view_tooltip: switch between the list and the icons

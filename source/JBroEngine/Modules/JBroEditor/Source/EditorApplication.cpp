@@ -23,6 +23,8 @@
 #include <JBro/Canvas/CanvasFile.h>
 #include <JBro/Runtime/GameObject.h>
 
+#include "EditorThumbnails.h"
+
 #include "Panel/AssetBrowserPanel.h"
 #include "Panel/CanvasViewPanel.h"
 
@@ -330,6 +332,29 @@ namespace JBro
             centerY = view->GetCameraY();
             size = view->GetCameraSize();
         }
+    }
+
+    TextureHandle EditorApplication::GetAssetThumbnail(AssetId asset)
+    {
+        if (m_thumbnails.Get() == nullptr || asset.IsNull())
+        {
+            return TextureHandle{};
+        }
+        // 스프라이트를 물으면 그 짝 텍스처의 그림을 준다. 그림을 가진 것은 텍스처 쪽이고,
+        // 목록에서 사람이 가리키는 것은 대개 스프라이트다.
+        const AssetRegistry& registry = GetAssetRegistry();
+        if (const AssetRecord* record = registry.Find(asset))
+        {
+            if (record->type == AssetType::Sprite && false == record->owner.IsNull())
+            {
+                return m_thumbnails->Get(record->owner);
+            }
+            if (record->type != AssetType::Texture)
+            {
+                return TextureHandle{};
+            }
+        }
+        return m_thumbnails->Get(asset);
     }
 
     String EditorApplication::GetLayoutFilePath() const
@@ -1103,6 +1128,13 @@ namespace JBro
 
         m_gameViewExtent = gameViewExtent;
         m_uiEnabled = true;
+        // 그림을 만들려면 장치와 에셋이 있어야 한다. 프로젝트가 아직 없으면 에셋도 없고,
+        // 그때는 물어도 빈 핸들이 나올 뿐이라 여기서 한 번 잇는다.
+        if (AssetSystem* assets = GetAssetSystem())
+        {
+            m_thumbnails = MakeOwnerPtr<EditorThumbnails>();
+            m_thumbnails->Initialize(*device, *assets);
+        }
         // 프로젝트가 먼저 열렸으면 그때는 읽을 ImGui 가 없었다. 여기서 한 번 더 본다.
         RestoreEditorLayout();
 
@@ -1662,6 +1694,12 @@ namespace JBro
     void EditorApplication::ReleaseEditorUi()
     {
         DestroyPanels();
+        // **그림을 먼저 내린다.** 장치가 사라진 뒤에 내리면 이미 없는 텍스처를 파괴하려 든다.
+        if (m_thumbnails.Get() != nullptr)
+        {
+            m_thumbnails->Shutdown();
+            m_thumbnails.Reset();
+        }
         // 팝업은 UI 와 함께 사라진다. 뜨지 않은 채 기다리던 것은 훅을 받지 않는다.
         m_popups.Clear();
         // 게임을 백버퍼로 되돌리고 오버레이를 뗀다. 둘 중 하나만 하면 다음 프레임에
@@ -2218,6 +2256,11 @@ namespace JBro
                     "the asset folder could not be rescanned; the registry keeps its previous contents");
             }
         }
+        // 그림 만드는 몫을 이 프레임 몫으로 되돌린다. UI 가 그리면서 부른다.
+        if (m_thumbnails.Get() != nullptr)
+        {
+            m_thumbnails->BeginFrame();
+        }
         // UI 를 먼저 만든다. 텍스처와 정점 버퍼가 RHI 프레임 **밖에서** 올라가야
         // 하는데, 엔진 Tick 이 그 프레임을 연다.
         if (m_uiEnabled && false == BuildEditorUi(deltaTime))
@@ -2290,6 +2333,11 @@ namespace JBro
         }
         // **닫기 전에 적는다.** 닫고 나면 무엇을 보고 있었는지 아는 것이 아무도 없다.
         SaveEditorSession();
+        // 그림은 이 프로젝트의 것이다. 다음 프로젝트의 같은 아이디는 다른 파일이다.
+        if (m_thumbnails.Get() != nullptr)
+        {
+            m_thumbnails->Clear();
+        }
         // 캔버스 경로는 프로젝트의 것이다. 다음 프로젝트의 저장이 옛 파일에 가면 안 된다.
         m_canvasPath.clear();
         m_saveRequested = false;

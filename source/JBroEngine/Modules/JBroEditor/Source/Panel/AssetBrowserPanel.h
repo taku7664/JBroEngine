@@ -50,6 +50,11 @@ namespace JBro
         void DrawContents();
         bool FolderHasMatch(const String& folder) const;
         void DrawFile(const Entry& entry);
+        // 아이콘 보기의 칸 하나다(D-147). 그림과 이름이 세로로 선다.
+        void DrawFileTile(const Entry& entry);
+        // 줄에 붙는 손놀림(고르기·끌기·메뉴)은 두 보기가 같이 쓴다 - 보기를 바꿨다고
+        // 고르는 법이 달라지면 같은 창이 둘로 나뉜다.
+        void HandleEntryInput(const Entry& entry);
         // 고른 것들. 상대경로로 기억한다 - 레코드 포인터는 다시 훑으면 다른 것을 가리킨다.
         bool IsSelected(const String& path) const;
         void SelectOnly(const String& path);
@@ -84,6 +89,11 @@ namespace JBro
         String m_openFolder;
         // 왼쪽 칸의 폭. 사람이 끌어 옮길 수 있다.
         float m_treeWidth = 200.0f;
+        // 아이콘으로 볼 것인가. 기존 엔진도 두 보기를 오갔다 - 그림을 고르는 일에는
+        // 이름보다 그림이 빠르고, 이름을 훑는 일에는 목록이 빠르다.
+        bool m_iconView = false;
+        // 아이콘 한 칸의 변 길이(픽셀)다.
+        float m_iconSize = 72.0f;
 
         // 고른 파일들의 상대경로다. 폴더는 여기 들어오지 않는다.
         Array<String> m_selection;

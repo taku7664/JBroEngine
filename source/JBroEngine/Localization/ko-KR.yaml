@@ -140,3 +140,6 @@ Entries:
   assets.reveal: 탐색기에서 보기
   common.cancel: 취소
   assets.rescan: 새로 고침
+  assets.icon_view: 아이콘
+  assets.list_view: 목록
+  assets.view_tooltip: 목록과 아이콘 보기를 오갑니다

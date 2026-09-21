@@ -145,6 +145,9 @@ namespace JBro::LocKeys
     inline constexpr const char* AssetsMoveFailed = "assets.move_failed";
     inline constexpr const char* AssetsReveal = "assets.reveal";
     inline constexpr const char* AssetsRescan = "assets.rescan";
+    inline constexpr const char* AssetsIconView = "assets.icon_view";
+    inline constexpr const char* AssetsListView = "assets.list_view";
+    inline constexpr const char* AssetsViewTooltip = "assets.view_tooltip";
     inline constexpr const char* CommonCancel = "common.cancel";
     inline constexpr const char* InspectorTextureImportOptions = "inspector.texture_import_options";
     inline constexpr const char* InspectorSpriteImportOptions = "inspector.sprite_import_options";

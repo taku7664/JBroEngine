@@ -12,6 +12,7 @@
 #include <JBro/Editor/Widget/FilterCombo.h>
 #include <JBro/Editor/Widget/TextField.h>
 #include <JBro/Editor/Widget/Tree.h>
+#include <JBro/Editor/EditorUI.h>
 
 #include <imgui.h>
 
@@ -287,21 +288,8 @@ namespace JBro
         m_anchor.clear();
     }
 
-    void AssetBrowserPanel::DrawFile(const Entry& entry)
+    void AssetBrowserPanel::HandleEntryInput(const Entry& entry)
     {
-        ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen
-            | ImGuiTreeNodeFlags_SpanAvailWidth;
-        if (IsSelected(entry.record->relativePath)
-            || m_editor->GetSelectedAsset() == entry.record->id)
-        {
-            flags |= ImGuiTreeNodeFlags_Selected;
-        }
-        // 줄의 정체는 상대경로다 - 같은 이름의 파일이 다른 폴더에 있어도 갈린다.
-        ImGui::PushID(entry.record->relativePath.c_str());
-        Widget::TreeDrawContext row;
-        Widget::TreeBegin("##file", flags, &row);
-        Widget::TreeEnd();
-        // **줄 전체가 누름을 받는다.** 이름을 그린 뒤에 물으면 마지막 항목이 글자라 글자 밖의 줄은 눌러도 반응이 없다.
         const bool clicked = ImGui::IsItemClicked();
         // 오른쪽 누름은 **고른 것을 뒤엎지 않는다.** 여럿을 골라 놓고 그중 하나에 대고
         // 메뉴를 열었을 때 선택이 하나로 줄면, 여럿에 하려던 일이 하나에만 간다.
@@ -358,6 +346,89 @@ namespace JBro
         }
         DrawEntryMenu(entry.record->relativePath, false);
 
+        if (false == clicked)
+        {
+            return;
+        }
+        const ImGuiIO& io = ImGui::GetIO();
+        if (io.KeyShift && false == m_anchor.empty())
+        {
+            SelectRange(entry.record->relativePath);
+        }
+        else if (io.KeyCtrl)
+        {
+            ToggleSelected(entry.record->relativePath);
+            m_anchor = entry.record->relativePath;
+        }
+        else
+        {
+            SelectOnly(entry.record->relativePath);
+            m_anchor = entry.record->relativePath;
+        }
+        // **인스펙터는 마지막에 누른 것 하나를 본다.** 여럿의 임포트 옵션을 한 화면에
+        // 겹쳐 보이면 어느 값이 어느 파일의 것인지 알 수 없다.
+        m_editor->SetSelectedAsset(entry.record->id);
+    }
+
+    void AssetBrowserPanel::DrawFileTile(const Entry& entry)
+    {
+        ImGui::PushID(entry.record->relativePath.c_str());
+        const float side = m_iconSize;
+        // 이름 한 줄의 자리를 밑에 둔다. 이름이 없으면 무엇을 고르는지 그림만으로 가려야 한다.
+        const float labelHeight = ImGui::GetTextLineHeight();
+        const ImVec2 cell(side, side + labelHeight + 6.0f);
+        const ImVec2 origin = ImGui::GetCursorScreenPos();
+
+        ImGui::SetNextItemAllowOverlap();
+        ImGui::InvisibleButton("##tile", cell, ImGuiButtonFlags_MouseButtonLeft
+            | ImGuiButtonFlags_MouseButtonRight);
+        HandleEntryInput(entry);
+
+        ImDrawList* draw = ImGui::GetWindowDrawList();
+        const ImVec2 imageMin(origin.x + 4.0f, origin.y + 2.0f);
+        const ImVec2 imageMax(origin.x + side - 4.0f, origin.y + side - 4.0f);
+        if (IsSelected(entry.record->relativePath))
+        {
+            draw->AddRectFilled(origin, ImVec2(origin.x + cell.x, origin.y + cell.y),
+                ImGui::GetColorU32(ImGuiCol_Header), 3.0f);
+        }
+        const TextureHandle thumbnail = m_editor->GetAssetThumbnail(entry.record->id);
+        if (thumbnail.IsValid())
+        {
+            draw->AddImage(static_cast<ImTextureID>(EditorUI::ToTextureId(thumbnail)),
+                imageMin, imageMax);
+        }
+        else
+        {
+            // **그림이 없는 것도 자리를 지킨다.** 빈 칸이 접히면 목록이 프레임마다 움직인다.
+            draw->AddRect(imageMin, imageMax, ImGui::GetColorU32(ImGuiCol_Border), 3.0f);
+        }
+        // 이름은 칸 안에서 잘린다. 줄바꿈으로 흘리면 칸마다 높이가 달라져 줄이 어긋난다.
+        draw->PushClipRect(ImVec2(origin.x, origin.y + side - 2.0f),
+            ImVec2(origin.x + cell.x, origin.y + cell.y), true);
+        draw->AddText(ImVec2(origin.x + 4.0f, origin.y + side - 2.0f),
+            ImGui::GetColorU32(ImGuiCol_Text), entry.name);
+        draw->PopClipRect();
+        ImGui::PopID();
+    }
+
+    void AssetBrowserPanel::DrawFile(const Entry& entry)
+    {
+        ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen
+            | ImGuiTreeNodeFlags_SpanAvailWidth;
+        if (IsSelected(entry.record->relativePath)
+            || m_editor->GetSelectedAsset() == entry.record->id)
+        {
+            flags |= ImGuiTreeNodeFlags_Selected;
+        }
+        // 줄의 정체는 상대경로다 - 같은 이름의 파일이 다른 폴더에 있어도 갈린다.
+        ImGui::PushID(entry.record->relativePath.c_str());
+        Widget::TreeDrawContext row;
+        Widget::TreeBegin("##file", flags, &row);
+        Widget::TreeEnd();
+        // **줄 전체가 누름을 받는다.** 이름을 그린 뒤에 물으면 마지막 항목이 글자라 글자 밖의 줄은 눌러도 반응이 없다.
+        HandleEntryInput(entry);
+
         if (row.IsVisible)
         {
             const ImVec2 cursor = ImGui::GetCursorScreenPos();
@@ -366,27 +437,6 @@ namespace JBro
             ImGui::SameLine();
             ImGui::TextDisabled("%s", AssetTypeRules::GetTypeName(entry.record->type));
             ImGui::SetCursorScreenPos(cursor);
-        }
-        if (clicked)
-        {
-            const ImGuiIO& io = ImGui::GetIO();
-            if (io.KeyShift && false == m_anchor.empty())
-            {
-                SelectRange(entry.record->relativePath);
-            }
-            else if (io.KeyCtrl)
-            {
-                ToggleSelected(entry.record->relativePath);
-                m_anchor = entry.record->relativePath;
-            }
-            else
-            {
-                SelectOnly(entry.record->relativePath);
-                m_anchor = entry.record->relativePath;
-            }
-            // **인스펙터는 마지막에 누른 것 하나를 본다.** 여럿의 임포트 옵션을 한 화면에
-            // 겹쳐 보이면 어느 값이 어느 파일의 것인지 알 수 없다.
-            m_editor->SetSelectedAsset(entry.record->id);
         }
         ImGui::PopID();
     }
@@ -503,6 +553,7 @@ namespace JBro
         }
 
         bool any = false;
+        std::size_t drawnTiles = 0;
         // 이번 프레임에 그린 차례를 새로 모은다. 범위 선택이 이 차례를 쓴다.
         m_visible.Clear();
         for (std::size_t index = 0; index < m_entries.Size(); ++index)
@@ -518,7 +569,21 @@ namespace JBro
             }
             any = true;
             m_visible.Add(entry.record->relativePath);
-            DrawFile(entry);
+            if (m_iconView)
+            {
+                // 칸은 오른쪽으로 흐르다 자리가 모자라면 다음 줄로 간다.
+                const float remaining = ImGui::GetContentRegionAvail().x;
+                if (drawnTiles > 0 && remaining >= m_iconSize)
+                {
+                    ImGui::SameLine(0.0f, 4.0f);
+                }
+                DrawFileTile(entry);
+                ++drawnTiles;
+            }
+            else
+            {
+                DrawFile(entry);
+            }
         }
         if (false == any)
         {
@@ -721,6 +786,15 @@ namespace JBro
             .Hint(Loc::TextOr(LocKeys::CommonSearch, "Search"))
             .Width(200.0f)
             .Draw();
+        ImGui::SameLine(0.0f, 8.0f);
+        if (ImGui::Button(m_iconView
+                ? Loc::TextOr(LocKeys::AssetsListView, "List")
+                : Loc::TextOr(LocKeys::AssetsIconView, "Icons")))
+        {
+            m_iconView = false == m_iconView;
+        }
+        Widget::HoveredTooltip(Loc::TextOr(LocKeys::AssetsViewTooltip,
+            "switch between the list and the icons"));
         ImGui::SameLine(0.0f, 12.0f);
         DrawBreadcrumb();
         if (false == m_editor->IsWatchingAssets())
