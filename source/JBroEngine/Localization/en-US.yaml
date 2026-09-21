@@ -121,6 +121,7 @@ Entries:
   assets.delete: Delete
   assets.delete_ask: delete this asset?
   assets.delete_folder_ask: delete this folder and everything in it?
+  assets.delete_many_ask: delete these %d assets?
   assets.delete_failed: that could not be deleted
   assets.move_failed: that could not be moved
   assets.reveal: Show in Explorer

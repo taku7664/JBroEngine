@@ -754,6 +754,41 @@ namespace
         Check(editor.Tick(Frame), "the editor must tick");
     }
 
+    // 이름의 일부로 활성 창을 찾는다. 컨텍스트 메뉴의 창 이름에는 부모와 Id 가 섞여 붙어
+    // 있어 이름을 통째로 짚을 수 없다.
+    ImGuiWindow* FindActiveWindowContaining(const char* fragment)
+    {
+        for (ImGuiWindow* window : ImGui::GetCurrentContext()->Windows)
+        {
+            if (window->Active && std::strstr(window->Name, fragment) != nullptr)
+            {
+                return window;
+            }
+        }
+        return nullptr;
+    }
+
+    // 조합키를 누른 채 클릭한다.
+    //
+    // 키를 창에 부쳐 보낼 수는 없다 - 플랫폼이 조합키를 `GetKeyState` 로 읽는데, 부친
+    // 메시지는 그 상태를 바꾸지 않는다. 그래서 ImGui 에 바로 알린다. 마우스 메시지는
+    // 조합키를 건드리지 않으므로, 프레임마다 한 번씩 다시 알려 누른 채로 둔다.
+    void ClickAtWith(JBro::EditorApplication& editor, HWND hwnd, const Spot& spot, ImGuiKey modifier)
+    {
+        const auto hold = [&]() {
+            ImGui::GetIO().AddKeyEvent(modifier, true);
+            Check(editor.Tick(Frame), "the editor must tick with the modifier held");
+        };
+        PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(spot.x, spot.y));
+        hold();
+        PostMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(spot.x, spot.y));
+        hold();
+        PostMessageW(hwnd, WM_LBUTTONUP, 0, MAKELPARAM(spot.x, spot.y));
+        hold();
+        ImGui::GetIO().AddKeyEvent(modifier, false);
+        Check(editor.Tick(Frame), "the editor must tick after letting the modifier go");
+    }
+
     std::uint32_t FieldIndexOf(const JBro::PropertyTable& table, const char* name)
     {
         for (std::uint32_t index = 0; index < table.count; ++index)
@@ -4624,6 +4659,175 @@ namespace
 
     // **에셋 파일을 다루면 `.jmeta` 가 함께 움직인다**(D-139). 짝을 잃으면 그 에셋의
     // 아이디가 사라지고, 그것을 가리키던 컴포넌트의 참조가 전부 풀린다.
+    // **에셋 브라우저에서 파일 여러 개를 고른다**(D-141). Shift 는 닻에서 누른 줄까지를
+    // 고르고, 고른 것들은 한 번에 지워진다. `.jmeta` 는 그때도 함께 간다.
+    void TestTheAssetBrowserSelectsManyFilesAtOnce()
+    {
+        namespace fs = std::filesystem;
+        const fs::path root(TempPath("JBroAssetMultiProbe").c_str());
+        std::error_code ignored;
+        fs::remove_all(root, ignored);
+        fs::create_directories(root / "Assets" / "art", ignored);
+        const char* names[] = {"a.png", "b.png", "c.png", "d.png"};
+        for (const char* name : names)
+        {
+            std::ofstream png(root / "Assets" / "art" / name, std::ios::binary);
+            png.write(reinterpret_cast<const char*>(TinyPng), sizeof(TinyPng));
+        }
+        const JBro::String projectPath = TempPath("JBroAssetMultiProbe\\Multi.jproject");
+        Check(WriteTextFile(projectPath,
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 2D\n"
+            "RootPath: .\n"
+            "ResolutionWidth: 640\n"
+            "ResolutionHeight: 480\n"
+            "AssetDirectory: Assets\n"
+            "ScriptOutputLibraryPath: \"\"\n"),
+            "the test must be able to write its own project file");
+
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; multi-select not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.c_str(), error), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        ImGuiWindow* assets = ImGui::FindWindowByName("Assets");
+        Check(assets != nullptr, "the asset browser must have a window");
+        if (false == assets->DockTabIsVisible && assets->DockNode != nullptr
+            && assets->DockNode->TabBar != nullptr)
+        {
+            ImGuiTabBar* tabBar = assets->DockNode->TabBar;
+            ImGuiTabItem* tab = ImGui::TabBarFindTabByID(tabBar, assets->TabId);
+            Check(tab != nullptr, "the asset browser must have a tab in its dock");
+            Spot tabSpot;
+            tabSpot.x = static_cast<int>(tabBar->BarRect.Min.x + tab->Offset + tab->Width * 0.5f);
+            tabSpot.y = static_cast<int>((tabBar->BarRect.Min.y + tabBar->BarRect.Max.y) * 0.5f);
+            ClickAt(editor, hwnd, tabSpot);
+            for (int frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must settle on the tab");
+            }
+            assets = ImGui::FindWindowByName("Assets");
+        }
+        Check(assets != nullptr && assets->DockTabIsVisible, "the asset browser tab must be in front");
+
+        // 왼쪽 나무에서 `art` 를 연다.
+        const auto findRow = [&](ImGuiWindow* pane, ImGuiID rowId, Spot& out) {
+            const int x = static_cast<int>(pane->Pos.x + 40.0f);
+            const int bottom = static_cast<int>(pane->Pos.y + pane->Size.y);
+            for (int y = static_cast<int>(pane->Pos.y); y < bottom; y += 3)
+            {
+                PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
+                Check(editor.Tick(Frame), "the editor must tick while looking for a row");
+                if (ImGui::GetHoveredID() == rowId)
+                {
+                    out.x = x;
+                    out.y = y;
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        {
+            ImGuiWindow* tree = FindChildWindow(assets, "##tree");
+            Check(tree != nullptr, "the folder tree pane must exist");
+            Spot folder;
+            Check(findRow(tree, LabelId(LabelId(tree->ID, "art"), "##folder"), folder),
+                "the art folder must be a row in the tree");
+            ClickAt(editor, hwnd, folder);
+            for (int frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must settle on the folder");
+            }
+        }
+
+        assets = ImGui::FindWindowByName("Assets");
+        ImGuiWindow* contents = FindChildWindow(assets, "##contents");
+        Check(contents != nullptr, "the contents pane must exist");
+        Spot first;
+        Spot third;
+        Check(findRow(contents, LabelId(LabelId(contents->ID, "art/a.png"), "##file"), first),
+            "a.png must be a row in the art folder");
+        Check(findRow(contents, LabelId(LabelId(contents->ID, "art/c.png"), "##file"), third),
+            "c.png must be a row in the art folder");
+
+        // **닻에서 누른 줄까지.** a 를 누르고 c 를 Shift 로 누르면 a·b·c 가 고른 것이다.
+        ClickAt(editor, hwnd, first);
+        ClickAtWith(editor, hwnd, third, ImGuiMod_Shift);
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle on the range");
+        }
+
+        // 지우기는 메뉴를 거친다. 줄에 대고 오른쪽을 누르면 고른 것이 그대로 남는다.
+        PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(third.x, third.y));
+        Check(editor.Tick(Frame), "the editor must tick before the menu");
+        PostMessageW(hwnd, WM_RBUTTONDOWN, MK_RBUTTON, MAKELPARAM(third.x, third.y));
+        Check(editor.Tick(Frame), "the editor must tick on the right press");
+        PostMessageW(hwnd, WM_RBUTTONUP, 0, MAKELPARAM(third.x, third.y));
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle with the menu open");
+        }
+        // 컨텍스트 메뉴의 창 이름은 ImGui 가 짓는다("##Popup_xxxxxxxx"). 우리가 준 이름은
+        // Id 로만 남으므로 이름 조각으로는 그쪽을 짚는다.
+        ImGuiWindow* menu = FindActiveWindowContaining("##Popup_");
+        Check(menu != nullptr, "the entry menu must be open");
+        Spot deleteItem;
+        const char* deleteLabel = JBro::Loc::TextOr(JBro::LocKeys::AssetsDelete, "Delete");
+        Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, deleteLabel), deleteItem),
+            "the menu must have a delete item");
+        ClickAt(editor, hwnd, deleteItem);
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle with the question open");
+        }
+
+        ImGuiWindow* ask = ImGui::FindWindowByName("##DeleteAsset");
+        Check(ask != nullptr, "the delete question must be on screen");
+        Spot confirm;
+        Check(FindItemAnywhereInWindow(editor, hwnd, ask, LabelId(ask->ID, deleteLabel), confirm),
+            "the question must have a delete button");
+        ClickAt(editor, hwnd, confirm);
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle after the delete");
+        }
+
+        // **셋이 갔고 넷째는 남았다.** `.jmeta` 도 함께 갔다 - 남으면 다음 스캔이 주인 없는
+        // 아이디를 다시 들여온다.
+        Check(false == fs::exists(root / "Assets" / "art" / "a.png", ignored), "a.png is gone");
+        Check(false == fs::exists(root / "Assets" / "art" / "b.png", ignored), "b.png is gone");
+        Check(false == fs::exists(root / "Assets" / "art" / "c.png", ignored), "c.png is gone");
+        Check(false == fs::exists(root / "Assets" / "art" / "a.png.jmeta", ignored),
+            "and its meta went with it");
+        Check(fs::exists(root / "Assets" / "art" / "d.png", ignored),
+            "the one that was not selected stays");
+        Check(editor.GetAssetRegistry().FindByPath("art/a.png") == nullptr,
+            "the registry no longer knows the deleted file");
+        Check(editor.GetAssetRegistry().FindByPath("art/d.png") != nullptr,
+            "and still knows the one that stayed");
+
+        editor.Shutdown();
+        fs::remove_all(root, ignored);
+    }
+
     void TestAssetFileOperationsCarryTheMeta()
     {
         // 이 파일의 다른 검사들과 같은 별칭이다. 그쪽은 제 함수 안에서 들여온다.
@@ -4899,6 +5103,7 @@ int RunEditorApplicationTests()
     TestBoxSelectInTheCanvasViewPicksWhatItTouches();
     TestTheCanvasViewDrawsInA3DProject();
     TestProjectSettingsAreWrittenBackToTheFile();
+    TestTheAssetBrowserSelectsManyFilesAtOnce();
     TestAssetFileOperationsCarryTheMeta();
     TestDraggingInTheHierarchyReordersAndUnparents();
     TestCreatingAnObjectCanBeUndone();

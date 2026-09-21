@@ -27,6 +27,9 @@ namespace JBro
         // 상대경로가 이보다 길면 꾸러미에 담지 않는다. 담을 수 없는 것을 끌게 두면
         // 놓는 순간 엉뚱한 파일이 움직인다.
         constexpr std::size_t MaxDragPath = 260;
+        // 여럿을 담은 꾸러미의 한도다. 넘으면 여럿을 담지 않고 끄는 것 하나만 담는다 -
+        // 잘린 묶음을 놓으면 고른 것 중 일부만 움직이고, 어디까지 갔는지 화면에 없다.
+        constexpr std::size_t MaxDragBundle = 8192;
 
         // "art/enemies" 의 부모는 "art", "art" 의 부모는 "" 다.
         String ParentOf(const String& folder)
@@ -154,24 +157,142 @@ namespace JBro
         }
         if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(AssetDragPayload))
         {
-            const String moved(static_cast<const char*>(payload->Data));
-            // **자기 안으로는 못 들어간다.** 폴더를 자기 아래로 옮기면 그 가지가 통째로 사라진다.
-            if (false == IsInside(folder, moved))
+            // 꾸러미에는 여럿이 줄로 갈려 들어 있다. 하나든 여럿이든 같은 길로 푼다.
+            const String bundle(static_cast<const char*>(payload->Data));
+            std::size_t start = 0;
+            bool failed = false;
+            while (start <= bundle.size())
             {
-                if (false == m_editor->MoveAsset(moved.c_str(), folder.c_str()))
+                const std::size_t breakAt = bundle.View().find('\n', start);
+                const std::size_t until =
+                    breakAt == std::string_view::npos ? bundle.size() : breakAt;
+                const String moved = bundle.Substr(start, until - start);
+                // **자기 안으로는 못 들어간다.** 폴더를 자기 아래로 옮기면 그 가지가 통째로 사라진다.
+                if (false == moved.empty() && false == IsInside(folder, moved))
                 {
-                    m_message = Loc::TextOr(LocKeys::AssetsMoveFailed, "that could not be moved");
+                    if (false == m_editor->MoveAsset(moved.c_str(), folder.c_str()))
+                    {
+                        failed = true;
+                    }
                 }
+                if (breakAt == std::string_view::npos)
+                {
+                    break;
+                }
+                start = breakAt + 1;
             }
+            if (failed)
+            {
+                m_message = Loc::TextOr(LocKeys::AssetsMoveFailed, "that could not be moved");
+            }
+            m_selection.Clear();
+            m_anchor.clear();
         }
         ImGui::EndDragDropTarget();
+    }
+
+    bool AssetBrowserPanel::IsSelected(const String& path) const
+    {
+        for (std::size_t index = 0; index < m_selection.Size(); ++index)
+        {
+            if (m_selection[index] == path)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void AssetBrowserPanel::SelectOnly(const String& path)
+    {
+        m_selection.Clear();
+        m_selection.Add(path);
+    }
+
+    void AssetBrowserPanel::ToggleSelected(const String& path)
+    {
+        for (std::size_t index = 0; index < m_selection.Size(); ++index)
+        {
+            if (m_selection[index] == path)
+            {
+                m_selection.RemoveAt(index);
+                return;
+            }
+        }
+        m_selection.Add(path);
+    }
+
+    void AssetBrowserPanel::SelectRange(const String& to)
+    {
+        // **보이는 차례를 쓴다.** 레지스트리의 차례가 아니라 지금 그려진 줄의 차례라야
+        // 사람이 고른 것과 고른 결과가 같다 - 걸러 낸 줄이 사이에 끼면 둘이 갈린다.
+        std::size_t from = m_visible.Size();
+        std::size_t until = m_visible.Size();
+        for (std::size_t index = 0; index < m_visible.Size(); ++index)
+        {
+            if (m_visible[index] == m_anchor)
+            {
+                from = index;
+            }
+            if (m_visible[index] == to)
+            {
+                until = index;
+            }
+        }
+        if (from >= m_visible.Size() || until >= m_visible.Size())
+        {
+            // 닻이 이 화면에 없다(폴더를 옮겼거나 걸러졌다). 누른 것 하나만 고른다.
+            SelectOnly(to);
+            return;
+        }
+        if (from > until)
+        {
+            const std::size_t swap = from;
+            from = until;
+            until = swap;
+        }
+        m_selection.Clear();
+        for (std::size_t index = from; index <= until; ++index)
+        {
+            m_selection.Add(m_visible[index]);
+        }
+    }
+
+    void AssetBrowserPanel::DeleteSelection()
+    {
+        // **지우는 도중에 목록이 바뀐다.** 지울 때마다 레지스트리를 다시 훑으므로,
+        // 고른 것을 먼저 베껴 두고 그 사본으로 돈다.
+        Array<String> targets;
+        for (std::size_t index = 0; index < m_selection.Size(); ++index)
+        {
+            targets.Add(m_selection[index]);
+        }
+        if (targets.IsEmpty() && false == m_pending.empty())
+        {
+            targets.Add(m_pending);
+        }
+        bool failed = false;
+        for (std::size_t index = 0; index < targets.Size(); ++index)
+        {
+            if (false == m_editor->DeleteAsset(targets[index].c_str()))
+            {
+                failed = true;
+            }
+        }
+        if (failed)
+        {
+            m_message = Loc::TextOr(LocKeys::AssetsDeleteFailed, "that could not be deleted");
+        }
+        m_selection.Clear();
+        m_anchor.clear();
     }
 
     void AssetBrowserPanel::DrawFile(const Entry& entry)
     {
         ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen
             | ImGuiTreeNodeFlags_SpanAvailWidth;
-        if (m_editor->GetSelectedAsset() == entry.record->id)
+        if (IsSelected(entry.record->relativePath)
+            || m_editor->GetSelectedAsset() == entry.record->id)
         {
             flags |= ImGuiTreeNodeFlags_Selected;
         }
@@ -182,15 +303,57 @@ namespace JBro
         Widget::TreeEnd();
         // **줄 전체가 누름을 받는다.** 이름을 그린 뒤에 물으면 마지막 항목이 글자라 글자 밖의 줄은 눌러도 반응이 없다.
         const bool clicked = ImGui::IsItemClicked();
+        // 오른쪽 누름은 **고른 것을 뒤엎지 않는다.** 여럿을 골라 놓고 그중 하나에 대고
+        // 메뉴를 열었을 때 선택이 하나로 줄면, 여럿에 하려던 일이 하나에만 간다.
+        if (ImGui::IsItemClicked(ImGuiMouseButton_Right)
+            && false == IsSelected(entry.record->relativePath))
+        {
+            SelectOnly(entry.record->relativePath);
+            m_anchor = entry.record->relativePath;
+        }
 
         // 파일을 끌어 폴더에 놓을 수 있다. 꾸러미에는 상대경로를 담는다 -
         // 레코드 포인터는 다시 스캔하면 다른 것을 가리킨다.
         if (entry.record->relativePath.size() < MaxDragPath
             && ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceNoHoldToOpenOthers))
         {
-            ImGui::SetDragDropPayload(AssetDragPayload, entry.record->relativePath.c_str(),
-                entry.record->relativePath.size() + 1);
-            ImGui::TextUnformatted(entry.name);
+            // 끄는 것이 고른 것 안에 있으면 **고른 것이 다 간다**. 밖에 있으면 그것 하나다 -
+            // 고르지 않은 줄을 끌었는데 엉뚱한 파일이 따라가면 안 된다.
+            String bundle;
+            std::size_t count = 0;
+            if (IsSelected(entry.record->relativePath))
+            {
+                for (std::size_t index = 0; index < m_selection.Size(); ++index)
+                {
+                    if (bundle.size() + m_selection[index].size() + 1 >= MaxDragBundle)
+                    {
+                        // 담을 수 없는 것을 끌게 두면 놓는 순간 일부만 움직인다.
+                        bundle.clear();
+                        count = 0;
+                        break;
+                    }
+                    if (count > 0)
+                    {
+                        bundle += "\n";
+                    }
+                    bundle += m_selection[index];
+                    ++count;
+                }
+            }
+            if (count == 0)
+            {
+                bundle = entry.record->relativePath;
+                count = 1;
+            }
+            ImGui::SetDragDropPayload(AssetDragPayload, bundle.c_str(), bundle.size() + 1);
+            if (count > 1)
+            {
+                ImGui::Text("%s +%d", entry.name, static_cast<int>(count - 1));
+            }
+            else
+            {
+                ImGui::TextUnformatted(entry.name);
+            }
             ImGui::EndDragDropSource();
         }
         DrawEntryMenu(entry.record->relativePath, false);
@@ -206,6 +369,23 @@ namespace JBro
         }
         if (clicked)
         {
+            const ImGuiIO& io = ImGui::GetIO();
+            if (io.KeyShift && false == m_anchor.empty())
+            {
+                SelectRange(entry.record->relativePath);
+            }
+            else if (io.KeyCtrl)
+            {
+                ToggleSelected(entry.record->relativePath);
+                m_anchor = entry.record->relativePath;
+            }
+            else
+            {
+                SelectOnly(entry.record->relativePath);
+                m_anchor = entry.record->relativePath;
+            }
+            // **인스펙터는 마지막에 누른 것 하나를 본다.** 여럿의 임포트 옵션을 한 화면에
+            // 겹쳐 보이면 어느 값이 어느 파일의 것인지 알 수 없다.
             m_editor->SetSelectedAsset(entry.record->id);
         }
         ImGui::PopID();
@@ -323,6 +503,8 @@ namespace JBro
         }
 
         bool any = false;
+        // 이번 프레임에 그린 차례를 새로 모은다. 범위 선택이 이 차례를 쓴다.
+        m_visible.Clear();
         for (std::size_t index = 0; index < m_entries.Size(); ++index)
         {
             const Entry& entry = m_entries[index];
@@ -335,6 +517,7 @@ namespace JBro
                 continue;
             }
             any = true;
+            m_visible.Add(entry.record->relativePath);
             DrawFile(entry);
         }
         if (false == any)
@@ -443,16 +626,39 @@ namespace JBro
             return;
         }
         // **되돌릴 수 없다.** 그러니 무엇을 지우는지 보여 주고 묻는다.
-        ImGui::TextUnformatted(m_pendingIsFolder
-            ? Loc::TextOr(LocKeys::AssetsDeleteFolderAsk, "delete this folder and everything in it?")
-            : Loc::TextOr(LocKeys::AssetsDeleteAsk, "delete this asset?"));
-        ImGui::TextDisabled("%s", m_pending.c_str());
+        const bool many = false == m_pendingIsFolder && m_selection.Size() > 1;
+        if (many)
+        {
+            ImGui::Text(Loc::TextOr(LocKeys::AssetsDeleteManyAsk, "delete these %d assets?"),
+                static_cast<int>(m_selection.Size()));
+            // 무엇이 사라지는지 한 줄씩 보여 준다. 개수만으로는 잘못 고른 것을 알 수 없다.
+            for (std::size_t index = 0; index < m_selection.Size(); ++index)
+            {
+                ImGui::TextDisabled("%s", m_selection[index].c_str());
+            }
+        }
+        else
+        {
+            ImGui::TextUnformatted(m_pendingIsFolder
+                ? Loc::TextOr(LocKeys::AssetsDeleteFolderAsk,
+                    "delete this folder and everything in it?")
+                : Loc::TextOr(LocKeys::AssetsDeleteAsk, "delete this asset?"));
+            ImGui::TextDisabled("%s", m_pending.c_str());
+        }
         ImGui::Spacing();
         if (ImGui::Button(Loc::TextOr(LocKeys::AssetsDelete, "Delete")))
         {
-            if (false == m_editor->DeleteAsset(m_pending.c_str()))
+            if (m_pendingIsFolder)
             {
-                m_message = Loc::TextOr(LocKeys::AssetsDeleteFailed, "that could not be deleted");
+                if (false == m_editor->DeleteAsset(m_pending.c_str()))
+                {
+                    m_message =
+                        Loc::TextOr(LocKeys::AssetsDeleteFailed, "that could not be deleted");
+                }
+            }
+            else
+            {
+                DeleteSelection();
             }
             ImGui::CloseCurrentPopup();
         }

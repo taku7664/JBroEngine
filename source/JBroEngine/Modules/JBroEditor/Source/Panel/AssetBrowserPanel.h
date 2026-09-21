@@ -21,6 +21,10 @@ namespace JBro
     //
     // 파일을 **다루기도 한다**: 새 폴더·이름 바꾸기·삭제·폴더로 끌어 옮기기·탐색기에서 보기.
     // 그 길은 `EditorApplication` 에 있고 `.jmeta` 가 늘 함께 움직인다.
+    //
+    // **파일은 여러 개를 고를 수 있다**(D-141). 옮기고 지우는 일은 하나씩 하는 일이 아니다.
+    // Ctrl 은 하나를 더하고 빼며, Shift 는 닻에서 누른 줄까지를 고른다. 폴더는 하나씩만
+    // 고른다 - 폴더와 파일을 섞어 고르면 "이 폴더와 그 안의 것" 이 무엇을 뜻하는지 흐려진다.
     class AssetBrowserPanel final : public EditorPanel
     {
     public:
@@ -46,6 +50,14 @@ namespace JBro
         void DrawContents();
         bool FolderHasMatch(const String& folder) const;
         void DrawFile(const Entry& entry);
+        // 고른 것들. 상대경로로 기억한다 - 레코드 포인터는 다시 훑으면 다른 것을 가리킨다.
+        bool IsSelected(const String& path) const;
+        void SelectOnly(const String& path);
+        void ToggleSelected(const String& path);
+        // 닻에서 이 줄까지. **이번 프레임에 그린 순서**를 쓴다 - 사람이 보는 순서가 그것이다.
+        void SelectRange(const String& to);
+        // 고른 것들을 지운다. 하나든 여럿이든 같은 길로 간다.
+        void DeleteSelection();
         // 길잡이 줄. 누르면 그 자리로 간다.
         void DrawBreadcrumb();
         // 빈자리·줄의 우클릭 메뉴. 같은 항목을 쓴다.
@@ -72,6 +84,13 @@ namespace JBro
         String m_openFolder;
         // 왼쪽 칸의 폭. 사람이 끌어 옮길 수 있다.
         float m_treeWidth = 200.0f;
+
+        // 고른 파일들의 상대경로다. 폴더는 여기 들어오지 않는다.
+        Array<String> m_selection;
+        // 범위 선택의 닻. Shift 로 누르면 여기서부터 누른 줄까지다.
+        String m_anchor;
+        // 이번 프레임에 오른쪽 칸이 그린 파일들의 차례다. 범위 선택이 이것을 쓴다.
+        Array<String> m_visible;
 
         // 물어보는 중인 것. 비어 있으면 묻지 않는다.
         String m_pending;

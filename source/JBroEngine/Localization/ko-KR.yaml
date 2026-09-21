@@ -121,6 +121,7 @@ Entries:
   assets.delete: 삭제
   assets.delete_ask: 이 에셋을 삭제할까요?
   assets.delete_folder_ask: 이 폴더와 그 안의 것을 모두 삭제할까요?
+  assets.delete_many_ask: 에셋 %d 개를 삭제할까요?
   assets.delete_failed: 삭제하지 못했습니다
   assets.move_failed: 옮기지 못했습니다
   assets.reveal: 탐색기에서 보기

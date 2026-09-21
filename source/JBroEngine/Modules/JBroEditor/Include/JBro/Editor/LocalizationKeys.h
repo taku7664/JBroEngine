@@ -129,6 +129,7 @@ namespace JBro::LocKeys
     inline constexpr const char* AssetsDelete = "assets.delete";
     inline constexpr const char* AssetsDeleteAsk = "assets.delete_ask";
     inline constexpr const char* AssetsDeleteFolderAsk = "assets.delete_folder_ask";
+    inline constexpr const char* AssetsDeleteManyAsk = "assets.delete_many_ask";
     inline constexpr const char* AssetsDeleteFailed = "assets.delete_failed";
     inline constexpr const char* AssetsMoveFailed = "assets.move_failed";
     inline constexpr const char* AssetsReveal = "assets.reveal";
