@@ -108,6 +108,11 @@ namespace JBro
         void GetSessionCamera(float& centerX, float& centerY, float& size) const;
         // 지금 캔버스 뷰가 보고 있는 자리다. 패널이 없으면 `size` 가 0 이다.
         void GetCanvasViewCamera(float& centerX, float& centerY, float& size);
+        // 창 배치가 사는 파일이다(`<프로젝트파일>.layout.ini`). 프로젝트를 파일로 열지
+        // 않았으면 빈 글자다. ImGui 의 형식을 그대로 쓰므로 우리가 파싱할 일은 없다.
+        String GetLayoutFilePath() const;
+        // 적힌 배치가 있으면 읽고 기본 배치를 건너뛴다. UI 가 켜진 뒤에만 뜻이 있다.
+        void RestoreEditorLayout();
 
         // 에디터 언어를 바꾼다. 글자 표를 다시 읽고, 성공하면 다음 프레임부터 그 언어다.
         // 파일이 없으면 거짓이고 지금 언어는 그대로다.
@@ -424,6 +429,9 @@ namespace JBro
         float m_sessionCameraX = 0.0f;
         float m_sessionCameraY = 0.0f;
         float m_sessionCameraSize = 0.0f;
+        // 적힌 배치를 읽었는가. 읽었으면 기본 배치를 만들지 않는다 - 둘이 같은 프레임에
+        // 겹치면 사람이 옮겨 둔 자리가 매번 지워진다.
+        bool m_layoutRestored = false;
 
         GraphicsApi m_graphicsApi = GraphicsApi::D3D12;
         FrameStatus m_lastFrameStatus = FrameStatus::InvalidState;

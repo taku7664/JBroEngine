@@ -4855,6 +4855,7 @@ namespace
         float savedX = 0.0f;
         float savedY = 0.0f;
         float savedSize = 0.0f;
+        float savedInspectorWidth = 0.0f;
         {
             JBro::EditorApplication editor;
             JBro::EditorApplicationConfig config;
@@ -4901,6 +4902,24 @@ namespace
             editor.GetCanvasViewCamera(savedX, savedY, savedSize);
             Check(savedSize > 0.0f, "the canvas view must report a camera");
 
+            // **창 배치도 남아야 한다.** 인스펙터가 붙은 칸을 좁혀 두고, 다시 열었을 때
+            // 그 폭이 살아 있는지 본다 - 기본 배치가 다시 돌면 원래 폭으로 되돌아간다.
+            ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
+            Check(inspector != nullptr && inspector->DockNode != nullptr,
+                "the inspector must be docked");
+            const ImVec2 nodeSize = inspector->DockNode->Size;
+            ImGui::DockBuilderSetNodeSize(inspector->DockNode->ID,
+                ImVec2(nodeSize.x * 0.5f, nodeSize.y));
+            for (int frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must settle after the resize");
+            }
+            inspector = ImGui::FindWindowByName("Inspector");
+            Check(inspector != nullptr && inspector->DockNode != nullptr,
+                "the inspector must still be docked");
+            savedInspectorWidth = inspector->DockNode->Size.x;
+            Check(savedInspectorWidth < nodeSize.x - 1.0f, "and the dock must have narrowed");
+
             // 닫으면 적힌다.
             editor.CloseProject();
             editor.Shutdown();
@@ -4915,6 +4934,12 @@ namespace
                 "the project file names the canvas that was open, relative to the asset folder");
             Check(text.find("CanvasViewCameraSize:") != std::string::npos,
                 "and the camera it was seen from");
+            // 배치는 ImGui 의 형식 그대로 옆 파일에 있다. `.jproject` 안에 넣으면 여러 줄짜리
+            // 덩어리가 YAML 한가운데 앉는다.
+            const JBro::String layoutPath =
+                TempPath("JBroSessionProbe\\Session.jproject.layout.ini");
+            Check(std::filesystem::exists(std::filesystem::path(layoutPath.c_str())),
+                "the window layout is written beside the project file");
         }
 
         {
@@ -4946,6 +4971,12 @@ namespace
             editor.GetCanvasViewCamera(x, y, size);
             Check(std::fabs(size - savedSize) < 0.001f,
                 "and the canvas view starts where it was left");
+
+            ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
+            Check(inspector != nullptr && inspector->DockNode != nullptr,
+                "the inspector must be docked again");
+            Check(std::fabs(inspector->DockNode->Size.x - savedInspectorWidth) < 2.0f,
+                "and the dock keeps the width it was left at");
 
             editor.Shutdown();
         }

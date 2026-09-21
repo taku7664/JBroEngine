@@ -288,6 +288,7 @@ namespace JBro
             // 실패해도 그냥 간다. 지금 언어로 계속 쓸 수 있고, 열리지 않는 것보다 낫다.
             SetEditorLocale(file.editorLocale.c_str());
         }
+        RestoreEditorLayout();
         m_sessionCameraX = file.canvasViewCameraX;
         m_sessionCameraY = file.canvasViewCameraY;
         m_sessionCameraSize = file.canvasViewCameraSize;
@@ -329,6 +330,38 @@ namespace JBro
             centerY = view->GetCameraY();
             size = view->GetCameraSize();
         }
+    }
+
+    String EditorApplication::GetLayoutFilePath() const
+    {
+        if (m_projectFilePath.empty())
+        {
+            return String();
+        }
+        String path = m_projectFilePath;
+        path.append(".layout.ini", 11);
+        return path;
+    }
+
+    void EditorApplication::RestoreEditorLayout()
+    {
+        // ImGui 가 있어야 읽을 수 있다. UI 를 켜기 전이면 켜는 쪽이 다시 부른다.
+        if (m_layoutRestored || false == m_uiEnabled)
+        {
+            return;
+        }
+        const String path = GetLayoutFilePath();
+        if (path.empty() || false == m_platform->FileExists(path.c_str()))
+        {
+            return;
+        }
+        ImGui::LoadIniSettingsFromDisk(path.c_str());
+        // **적힌 배치가 이긴다.** 기본 배치를 만드는 쪽(D-134)은 노드를 지우고 다시
+        // 만들므로, 둘 다 돌면 사람이 옮겨 둔 자리가 매 실행 지워진다.
+        m_layoutRestored = true;
+        m_rootLayoutBuilt = true;
+        m_dockLayoutBuilt = true;
+        Log::Write(LogLevel::Info, "editor", "the window layout was read from %s", path.c_str());
     }
 
     bool EditorApplication::SetEditorLocale(const char* locale)
@@ -430,6 +463,17 @@ namespace JBro
             settings.canvasViewCameraX = cameraX;
             settings.canvasViewCameraY = cameraY;
             settings.canvasViewCameraSize = cameraSize;
+        }
+
+        // 배치는 ImGui 의 형식 그대로 옆 파일에 적는다. `.jproject` 안에 넣으면 여러 줄짜리
+        // 덩어리가 YAML 한가운데 앉고, 그 파일을 손으로 고치기 어려워진다.
+        if (m_uiEnabled)
+        {
+            const String layoutPath = GetLayoutFilePath();
+            if (false == layoutPath.empty())
+            {
+                ImGui::SaveIniSettingsToDisk(layoutPath.c_str());
+            }
         }
 
         ProjectFileError error;
@@ -1059,6 +1103,8 @@ namespace JBro
 
         m_gameViewExtent = gameViewExtent;
         m_uiEnabled = true;
+        // 프로젝트가 먼저 열렸으면 그때는 읽을 ImGui 가 없었다. 여기서 한 번 더 본다.
+        RestoreEditorLayout();
 
         // **에디터는 멈춘 상태로 뜬다**(D-131). 재생을 누르기 전까지 스크립트와 물리는
         // 돌지 않는다 - 편집하는 동안 게임이 돌면 방금 놓은 값이 다음 프레임에 덮어써진다.
