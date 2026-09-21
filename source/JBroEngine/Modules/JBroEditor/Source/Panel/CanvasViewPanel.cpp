@@ -20,6 +20,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <utility>
 
 namespace JBro
@@ -393,7 +394,18 @@ namespace JBro
             return;
         }
 
+        // **눈금에 숫자를 붙인다**(D-144). 선만 있으면 몇 번째 칸인지 세어야 하고, 배율이
+        // 바뀌면 그 셈이 다시 시작된다. 기존 엔진의 캔버스 뷰도 이 숫자를 적었다.
+        const ImU32 labelColor = IM_COL32(185, 195, 210, 210);
+        ImFont* labelFont = ImGui::GetFont();
+        const float labelSize = ImGui::GetFontSize() * 0.8f;
+        // 숫자는 테두리 안쪽에 붙인다. X 는 아래, Y 는 왼쪽 - 기존과 같은 자리다.
+        const float labelBottom = rect.top + rect.height - labelSize - 2.0f;
+        const float labelLeft = rect.left + 3.0f;
+
         const float startX = std::floor(minX / step) * step;
+        // 지난 숫자의 오른쪽 끝. 겹치면 건너뛴다 - 겹친 숫자는 둘 다 못 읽는다.
+        float lastLabelEnd = -1.0e9f;
         for (float x = startX; x <= maxX; x += step)
         {
             float screenX = 0.0f;
@@ -403,8 +415,21 @@ namespace JBro
             const bool tenth = std::fabs(std::fmod(x / step, 10.0f)) < 0.001f;
             draw->AddLine(ImVec2(screenX, rect.top), ImVec2(screenX, rect.top + rect.height),
                 tenth ? strong : line);
+
+            char text[32] = {};
+            std::snprintf(text, sizeof(text), "%.4g", x);
+            const ImVec2 extent = labelFont->CalcTextSizeA(labelSize, FLT_MAX, 0.0f, text);
+            const float textLeft = screenX - extent.x * 0.5f;
+            // 넉넉히 띄운다. 닿을 듯 말 듯 붙은 숫자는 읽는 데 눈이 더 든다.
+            if (textLeft < lastLabelEnd + 24.0f)
+            {
+                continue;
+            }
+            lastLabelEnd = textLeft + extent.x;
+            draw->AddText(labelFont, labelSize, ImVec2(textLeft, labelBottom), labelColor, text);
         }
         const float startY = std::floor(minY / step) * step;
+        float lastLabelY = -1.0e9f;
         for (float y = startY; y <= maxY; y += step)
         {
             float screenY = 0.0f;
@@ -413,6 +438,16 @@ namespace JBro
             const bool tenth = std::fabs(std::fmod(y / step, 10.0f)) < 0.001f;
             draw->AddLine(ImVec2(rect.left, screenY), ImVec2(rect.left + rect.width, screenY),
                 tenth ? strong : line);
+
+            if (std::fabs(screenY - lastLabelY) < labelSize * 2.2f)
+            {
+                continue;
+            }
+            lastLabelY = screenY;
+            char text[32] = {};
+            std::snprintf(text, sizeof(text), "%.4g", y);
+            draw->AddText(labelFont, labelSize,
+                ImVec2(labelLeft, screenY - labelSize * 0.5f), labelColor, text);
         }
 
         // 원점의 두 축. 어디가 (0,0) 인지 화면에서 바로 보여야 한다.
