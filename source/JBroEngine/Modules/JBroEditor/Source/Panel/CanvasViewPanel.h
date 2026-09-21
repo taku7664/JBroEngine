@@ -57,6 +57,9 @@ namespace JBro
         // 가로지르면 양 끝만으로는 그릴 수 없기 때문이다.
         void DrawGrid3D(const ViewRect& rect);
         void DrawSelectionOutlines(const ViewRect& rect);
+        // 콜라이더의 모양을 그린다(D-143). 물리는 눈에 보이지 않아서, 그려 주지 않으면
+        // 충돌 칸이 스프라이트와 어긋난 것을 부딪혀 봐야만 안다.
+        void DrawColliders(const ViewRect& rect);
         void DrawGizmo(const ViewRect& rect);
         // 화면과 월드를 잇는 카메라를 만든다. 2D 는 우리가 아는 직교 행렬로, 3D 는
         // **렌더러가 이번 프레임에 실제로 쓴 편집 카메라**로 만든다(D-140) - 여기서 같은
@@ -101,6 +104,8 @@ namespace JBro
         Widget::GizmoState m_gizmoState;
         GizmoEditing m_editing;
         bool m_showGrid = true;
+        // 콜라이더를 보일지. 늘 그리면 그림을 다듬는 동안 녹색 선이 방해가 된다.
+        bool m_showColliders = true;
         // 오른쪽 단추로 끌고 있는 중인가. 끌었으면 놓을 때 맥락 메뉴를 열지 않는다 -
         // 화면을 옮기려던 것이지 메뉴를 부르려던 것이 아니다.
         bool m_panning = false;

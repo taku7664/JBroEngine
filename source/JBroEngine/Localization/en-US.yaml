@@ -29,6 +29,8 @@ Entries:
   canvas_view.grid: Grid
   canvas_view.frame: Frame
   canvas_view.grid_tooltip: show or hide the grid
+  canvas_view.colliders: Colliders
+  canvas_view.colliders_tooltip: show or hide collider shapes
   canvas_view.frame_tooltip: fit the view to the selection
   game_view.playing: Playing
   game_view.stopped: Stopped

@@ -11,6 +11,7 @@
 #include <JBro/Editor/Widget/Button.h>
 #include <JBro/Editor/Widget/Common.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
+#include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
 #include <JBro/Runtime/GameObject.h>
@@ -218,6 +219,10 @@ namespace JBro
             {
                 DrawGrid(rect);
             }
+            if (m_showColliders)
+            {
+                DrawColliders(rect);
+            }
             DrawSelectionOutlines(rect);
         }
         else
@@ -258,6 +263,17 @@ namespace JBro
             m_showGrid = false == m_showGrid;
         }
         Widget::HoveredTooltip(Loc::TextOr(LocKeys::CanvasViewGridTooltip, "show or hide the grid"));
+        if (false == Is3D())
+        {
+            // 3D 에는 그릴 콜라이더가 없다. 누를 수 없는 단추를 두면 무엇이 되는 것인지 흐려진다.
+            ImGui::SameLine(0.0f, 6.0f);
+            if (ImGui::Button(Loc::TextOr(LocKeys::CanvasViewColliders, "Colliders")))
+            {
+                m_showColliders = false == m_showColliders;
+            }
+            Widget::HoveredTooltip(
+                Loc::TextOr(LocKeys::CanvasViewCollidersTooltip, "show or hide collider shapes"));
+        }
         ImGui::SameLine(0.0f, 6.0f);
         if (ImGui::Button(Loc::TextOr(LocKeys::CanvasViewFrame, "Frame")))
         {
@@ -455,6 +471,94 @@ namespace JBro
         minY = center.y + offsetY - halfHeight;
         maxY = center.y + offsetY + halfHeight;
         return true;
+    }
+
+    void CanvasViewPanel::DrawColliders(const ViewRect& rect)
+    {
+        Canvas* canvas = m_editor->GetCanvas();
+        if (canvas == nullptr)
+        {
+            return;
+        }
+        // **물리는 눈에 보이지 않는다.** 충돌 칸이 그림과 어긋나 있어도 화면에는 아무 표시가
+        // 없어서, 부딪혀 보고 나서야 안다. 기존 엔진의 캔버스 뷰도 여기서 이것을 그렸다.
+        ImDrawList* draw = ImGui::GetWindowDrawList();
+        const ImU32 normal = IM_COL32(80, 255, 140, 179);
+        const ImU32 selected = IM_COL32(80, 180, 255, 220);
+        // 트리거는 **막는 것이 아니라 알리는 것**이라 색을 달리한다. 같은 색으로 두면
+        // 왜 통과하는지 화면에서 알 수 없다.
+        const ImU32 trigger = IM_COL32(255, 210, 90, 179);
+
+        canvas->ForEachObject([&](GameObject& object)
+        {
+            Component::Collider2D* collider =
+                canvas->FindComponentRaw<Component::Collider2D>(&object);
+            if (collider == nullptr || false == collider->IsEnabled())
+            {
+                return;
+            }
+            Component::Transform2D* transform =
+                canvas->FindComponentRaw<Component::Transform2D>(&object);
+            if (transform == nullptr)
+            {
+                return;
+            }
+            const Vec2 center =
+                transform->worldValid ? transform->worldPosition : transform->position;
+            const Vec2 scale = transform->worldValid ? transform->worldScale : transform->scale;
+            const float angle =
+                transform->worldValid ? transform->worldRotation : transform->rotation;
+            const float cosine = std::cos(angle);
+            const float sine = std::sin(angle);
+            // 콜라이더의 `offset` 은 오브젝트의 로컬 좌표다. 돌고 커진 뒤에 얹힌다.
+            const float offsetX = collider->offset.x * scale.x;
+            const float offsetY = collider->offset.y * scale.y;
+            const Vec2 origin{
+                center.x + offsetX * cosine - offsetY * sine,
+                center.y + offsetX * sine + offsetY * cosine};
+
+            const bool isSelected = m_editor->IsSelected(&object);
+            const ImU32 color = collider->isTrigger
+                ? trigger
+                : (isSelected ? selected : normal);
+            const float thickness = isSelected ? 2.0f : 1.0f;
+
+            if (collider->shape == Component::ColliderShape2D::Circle)
+            {
+                // 원은 한 축으로만 커져도 원으로 남는다(물리가 그렇게 다룬다).
+                // 그러니 **더 큰 쪽**으로 잰다 - 작은 쪽으로 재면 그림보다 작은 원이 되어
+                // 실제로 부딪히는 자리를 가린다.
+                const float scaleX = std::fabs(scale.x);
+                const float scaleY = std::fabs(scale.y);
+                const float radius = collider->radius * (scaleX > scaleY ? scaleX : scaleY);
+                float screenX = 0.0f;
+                float screenY = 0.0f;
+                float edgeX = 0.0f;
+                float edgeY = 0.0f;
+                WorldToScreen(rect, origin.x, origin.y, screenX, screenY);
+                WorldToScreen(rect, origin.x + radius, origin.y, edgeX, edgeY);
+                draw->AddCircle(ImVec2(screenX, screenY), edgeX - screenX, color, 48, thickness);
+                return;
+            }
+
+            // 상자는 **돌면 기울어진다.** 외접 사각형으로 그리면 돌려 놓은 오브젝트의
+            // 충돌 칸이 실제보다 커 보인다.
+            const float halfWidth = collider->size.x * std::fabs(scale.x) * 0.5f;
+            const float halfHeight = collider->size.y * std::fabs(scale.y) * 0.5f;
+            const float cornerX[4] = {-halfWidth, halfWidth, halfWidth, -halfWidth};
+            const float cornerY[4] = {-halfHeight, -halfHeight, halfHeight, halfHeight};
+            ImVec2 points[4];
+            for (int index = 0; index < 4; ++index)
+            {
+                const float worldX = origin.x + cornerX[index] * cosine - cornerY[index] * sine;
+                const float worldY = origin.y + cornerX[index] * sine + cornerY[index] * cosine;
+                float screenX = 0.0f;
+                float screenY = 0.0f;
+                WorldToScreen(rect, worldX, worldY, screenX, screenY);
+                points[index] = ImVec2(screenX, screenY);
+            }
+            draw->AddPolyline(points, 4, color, ImDrawFlags_Closed, thickness);
+        });
     }
 
     void CanvasViewPanel::DrawSelectionOutlines(const ViewRect& rect)

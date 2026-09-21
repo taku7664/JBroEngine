@@ -4830,6 +4830,72 @@ namespace
 
     // **이름과 활성은 커맨드를 거친다**(D-142). 예전에는 인스펙터가 값을 그대로 썼고
     // 이름은 아예 고칠 수 없었다 - 만든 오브젝트의 이름이 `GameObject` 인 채로 굳었다.
+    // **콜라이더의 모양이 캔버스 뷰에 보인다**(D-143). 물리는 눈에 보이지 않아서,
+    // 그려 주지 않으면 충돌 칸이 그림과 어긋난 것을 부딪혀 봐야만 안다.
+    void TestTheCanvasViewDrawsColliderShapes()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 640;
+        config.windowHeight = 480;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; collider shapes not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "ColliderViewProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* body = canvas->CreateObject("Body");
+        Check(canvas->AttachComponent<JBro::Component::Transform2D>(body) != nullptr,
+            "the object needs a transform");
+        JBro::Component::Collider2D* collider =
+            canvas->AttachComponent<JBro::Component::Collider2D>(body);
+        Check(collider != nullptr, "and a collider to show");
+        collider->shape = JBro::Component::ColliderShape2D::Circle;
+        collider->radius = 1.5f;
+
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
+        Check(view != nullptr, "the canvas view must have a window");
+        const char* collidersLabel =
+            JBro::Loc::TextOr(JBro::LocKeys::CanvasViewColliders, "Colliders");
+        Spot toggle;
+        Check(FindItemAnywhereInWindow(editor, hwnd, view, LabelId(view->ID, collidersLabel), toggle),
+            "the collider button must be on the canvas view tool bar");
+
+        JBro::Renderer* renderer = editor.GetRenderer();
+        Check(renderer != nullptr, "the editor must expose its renderer");
+        JBro::Array<std::byte> without;
+        JBro::Array<std::byte> with;
+        JBro::TextureReadback readback;
+        // 마우스는 단추 위에 그대로 둔 채 두 번 누른다. 자리를 옮기면 단추의 강조가
+        // 달라져 그 픽셀까지 차이에 섞인다.
+        ClickAt(editor, hwnd, toggle);
+        Check(editor.Tick(Frame), "the editor must settle with the shapes hidden");
+        ReadBackBufferInto(*renderer, 640, 480, without, readback);
+        ClickAt(editor, hwnd, toggle);
+        Check(editor.Tick(Frame), "the editor must settle with the shapes shown");
+        ReadBackBufferInto(*renderer, 640, 480, with, readback);
+        const std::size_t painted = CountDifferingPixels(without, with, readback, 640, 480);
+        std::cout << "  the collider outline painted " << painted << " pixels" << std::endl;
+        Check(painted > 100, "the collider outline must reach the screen");
+        SaveScreenshot(*renderer, 640, 480, "colliders");
+
+        editor.Shutdown();
+    }
+
     void TestTheInspectorRenamesAndTogglesThroughCommands()
     {
         JBro::EditorApplication editor;
@@ -5196,6 +5262,7 @@ int RunEditorApplicationTests()
     TestBoxSelectInTheCanvasViewPicksWhatItTouches();
     TestTheCanvasViewDrawsInA3DProject();
     TestProjectSettingsAreWrittenBackToTheFile();
+    TestTheCanvasViewDrawsColliderShapes();
     TestTheInspectorRenamesAndTogglesThroughCommands();
     TestTheAssetBrowserSelectsManyFilesAtOnce();
     TestAssetFileOperationsCarryTheMeta();
