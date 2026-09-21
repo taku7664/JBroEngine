@@ -218,4 +218,193 @@ namespace JBro
         }
         return ids;
     }
+
+    RenameObjectCommand::RenameObjectCommand(EditorObjectRegistry& registry,
+        EditorObjectId objectId, const char* name)
+        : m_registry(&registry)
+        , m_objectId(objectId)
+        , m_after(name != nullptr ? name : "")
+    {
+        GameObject* object = registry.Resolve(objectId);
+        if (object == nullptr)
+        {
+            return;
+        }
+        const char* tag = object->GetTag();
+        m_before = tag != nullptr ? tag : "";
+        m_captured = true;
+    }
+
+    const char* RenameObjectCommand::GetName() const
+    {
+        return "Rename Object";
+    }
+
+    void RenameObjectCommand::Apply(const String& name)
+    {
+        if (GameObject* object = m_registry->Resolve(m_objectId))
+        {
+            object->SetTag(name.c_str());
+        }
+    }
+
+    bool RenameObjectCommand::Execute()
+    {
+        if (false == m_captured || m_before == m_after)
+        {
+            return false;
+        }
+        Apply(m_after);
+        return true;
+    }
+
+    void RenameObjectCommand::Undo()
+    {
+        Apply(m_before);
+    }
+
+    void RenameObjectCommand::Redo()
+    {
+        Apply(m_after);
+    }
+
+    bool RenameObjectCommand::CanMerge(const EditorCommand& newer) const
+    {
+        // **같은 오브젝트를 잇달아 고치는 중일 때만 합친다.** 다른 오브젝트로 옮겨 갔는데
+        // 합치면 그 이름이 되돌리기에서 사라진다.
+        const auto* other = dynamic_cast<const RenameObjectCommand*>(&newer);
+        return other != nullptr && other->m_objectId == m_objectId;
+    }
+
+    bool RenameObjectCommand::TryMerge(const EditorCommand& newer)
+    {
+        if (false == CanMerge(newer))
+        {
+            return false;
+        }
+        // 처음 이름은 이쪽 것을 지킨다 - 친 글자 전체를 한 번에 되돌려야 한다.
+        m_after = static_cast<const RenameObjectCommand&>(newer).m_after;
+        return true;
+    }
+
+    SetObjectActiveCommand::SetObjectActiveCommand(EditorObjectRegistry& registry,
+        const Array<EditorObjectId>& objects, bool active)
+        : m_registry(&registry)
+        , m_after(active)
+    {
+        for (std::size_t index = 0; index < objects.Size(); ++index)
+        {
+            GameObject* object = registry.Resolve(objects[index]);
+            if (object == nullptr)
+            {
+                continue;
+            }
+            // **되살릴 값을 먼저 뜬다**(§11.5). 못 뜬 것은 목록에 넣지 않는다.
+            m_objects.Add(objects[index]);
+            m_before.Add(object->IsActiveSelf() ? std::uint8_t{1} : std::uint8_t{0});
+        }
+    }
+
+    const char* SetObjectActiveCommand::GetName() const
+    {
+        return "Set Active";
+    }
+
+    void SetObjectActiveCommand::Apply(bool active)
+    {
+        for (std::size_t index = 0; index < m_objects.Size(); ++index)
+        {
+            if (GameObject* object = m_registry->Resolve(m_objects[index]))
+            {
+                object->SetActive(active);
+            }
+        }
+    }
+
+    bool SetObjectActiveCommand::Execute()
+    {
+        if (m_objects.IsEmpty())
+        {
+            return false;
+        }
+        // 이미 다 그 값이면 바뀌는 것이 없다. 빈 칸을 쌓아 두면 되돌리기가 한 번 헛돈다.
+        bool changes = false;
+        for (std::size_t index = 0; index < m_before.Size(); ++index)
+        {
+            if ((m_before[index] != 0) != m_after)
+            {
+                changes = true;
+            }
+        }
+        if (false == changes)
+        {
+            return false;
+        }
+        Apply(m_after);
+        return true;
+    }
+
+    void SetObjectActiveCommand::Undo()
+    {
+        for (std::size_t index = 0; index < m_objects.Size(); ++index)
+        {
+            if (GameObject* object = m_registry->Resolve(m_objects[index]))
+            {
+                object->SetActive(m_before[index] != 0);
+            }
+        }
+    }
+
+    void SetObjectActiveCommand::Redo()
+    {
+        Apply(m_after);
+    }
+
+    SetComponentEnabledCommand::SetComponentEnabledCommand(EditorObjectRegistry& registry,
+        const ComponentAddress& address, bool enabled)
+        : m_registry(&registry)
+        , m_address(address)
+        , m_after(enabled)
+    {
+        ComponentBase* component = ResolveComponent(registry, address);
+        if (component == nullptr)
+        {
+            return;
+        }
+        m_before = component->IsEnabled();
+        m_captured = true;
+    }
+
+    const char* SetComponentEnabledCommand::GetName() const
+    {
+        return "Set Component Enabled";
+    }
+
+    void SetComponentEnabledCommand::Apply(bool enabled)
+    {
+        if (ComponentBase* component = ResolveComponent(*m_registry, m_address))
+        {
+            component->SetEnabled(enabled);
+        }
+    }
+
+    bool SetComponentEnabledCommand::Execute()
+    {
+        if (false == m_captured || m_before == m_after)
+        {
+            return false;
+        }
+        Apply(m_after);
+        return true;
+    }
+
+    void SetComponentEnabledCommand::Undo()
+    {
+        Apply(m_before);
+    }
+
+    void SetComponentEnabledCommand::Redo()
+    {
+        Apply(m_after);
+    }
 }

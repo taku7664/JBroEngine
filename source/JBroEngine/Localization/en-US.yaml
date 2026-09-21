@@ -46,6 +46,7 @@ Entries:
   hierarchy.search: Search
   inspector.nothing_selected: nothing is selected
   inspector.active: Active
+  inspector.name: Name
   inspector.enabled: Enabled
   inspector.add_component: Add Component
   inspector.move_up: Move Up

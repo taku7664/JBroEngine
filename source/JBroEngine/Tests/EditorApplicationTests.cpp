@@ -4828,6 +4828,99 @@ namespace
         fs::remove_all(root, ignored);
     }
 
+    // **이름과 활성은 커맨드를 거친다**(D-142). 예전에는 인스펙터가 값을 그대로 썼고
+    // 이름은 아예 고칠 수 없었다 - 만든 오브젝트의 이름이 `GameObject` 인 채로 굳었다.
+    void TestTheInspectorRenamesAndTogglesThroughCommands()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the inspector header not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "InspectorHeaderProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* alpha = canvas->CreateObject("Alpha");
+        JBro::GameObject* beta = canvas->CreateObject("Beta");
+        Check(alpha != nullptr && beta != nullptr, "the probe objects must be made");
+        editor.SetSelectedObject(alpha);
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
+        Check(inspector != nullptr, "the inspector must have a window");
+        const ImGuiID header = LabelId(inspector->ID, "##object");
+
+        // ── 이름 ────────────────────────────────────────────────────────────
+        Spot nameField;
+        Check(FindItemAnywhereInWindow(editor, hwnd, inspector, LabelId(header, "##name"), nameField),
+            "the name field must be in the inspector header");
+        const std::size_t undoBefore = editor.GetCommands().GetUndoCount();
+        ClickAt(editor, hwnd, nameField);
+        Check(editor.Tick(Frame), "the field must take focus");
+        // 커서를 끝에 두고 친다. 누른 자리에 따라 글자가 가운데 끼면 무엇이 붙었는지 흐려진다.
+        PostMessageW(hwnd, WM_KEYDOWN, VK_END, 0);
+        Check(editor.Tick(Frame), "the editor must tick");
+        PostMessageW(hwnd, WM_KEYUP, VK_END, 0);
+        Check(editor.Tick(Frame), "the editor must tick");
+        for (const char* at = "One"; *at != '\0'; ++at)
+        {
+            PostMessageW(hwnd, WM_CHAR, static_cast<WPARAM>(*at), 0);
+            Check(editor.Tick(Frame), "the editor must tick while typing");
+        }
+        Check(editor.GetCommands().GetUndoCount() == undoBefore,
+            "nothing is recorded while the letters are still being typed");
+        // 편집이 끝나야 값이 커맨드로 남는다. Enter 가 그 끝이다.
+        PostMessageW(hwnd, WM_KEYDOWN, VK_RETURN, 0);
+        Check(editor.Tick(Frame), "the editor must tick");
+        PostMessageW(hwnd, WM_KEYUP, VK_RETURN, 0);
+        Check(editor.Tick(Frame), "the editor must tick");
+        Check(std::strcmp(alpha->GetTag(), "AlphaOne") == 0,
+            "typing in the name field renames the object");
+        // **친 글자 전체가 커맨드 하나다.** 글자마다 한 칸씩 쌓이면 되돌리기가 글자 수만큼 필요해진다.
+        Check(editor.GetCommands().GetUndoCount() == undoBefore + 1,
+            "and the three keystrokes are one command");
+        Check(editor.GetCommands().Undo(), "the rename must undo");
+        Check(std::strcmp(alpha->GetTag(), "Alpha") == 0, "back to the name it had");
+        Check(editor.Tick(Frame), "the editor must tick after the undo");
+        Check(editor.Tick(Frame), "and once more so the field reads the object again");
+
+        // ── 활성 ────────────────────────────────────────────────────────────
+        // 둘을 골라 둔다. 하나만 꺼지면 나머지는 화면에서 그대로라 무엇이 바뀌었는지 알 수 없다.
+        editor.SetSelectedObject(alpha);
+        editor.AddToSelection(beta);
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle on the pair");
+        }
+        Spot activeBox;
+        Check(FindItemAnywhereInWindow(editor, hwnd, inspector, LabelId(header, "##active"), activeBox),
+            "the active checkbox must be in the inspector header");
+        const std::size_t undoActive = editor.GetCommands().GetUndoCount();
+        ClickAt(editor, hwnd, activeBox);
+        Check(editor.Tick(Frame), "the editor must tick after the toggle");
+        Check(false == alpha->IsActiveSelf() && false == beta->IsActiveSelf(),
+            "one click turns off everything that is selected");
+        Check(editor.GetCommands().GetUndoCount() == undoActive + 1, "through one command");
+        Check(editor.GetCommands().Undo(), "the toggle must undo");
+        Check(alpha->IsActiveSelf() && beta->IsActiveSelf(), "and both come back on");
+
+        editor.Shutdown();
+    }
+
     void TestAssetFileOperationsCarryTheMeta()
     {
         // 이 파일의 다른 검사들과 같은 별칭이다. 그쪽은 제 함수 안에서 들여온다.
@@ -5103,6 +5196,7 @@ int RunEditorApplicationTests()
     TestBoxSelectInTheCanvasViewPicksWhatItTouches();
     TestTheCanvasViewDrawsInA3DProject();
     TestProjectSettingsAreWrittenBackToTheFile();
+    TestTheInspectorRenamesAndTogglesThroughCommands();
     TestTheAssetBrowserSelectsManyFilesAtOnce();
     TestAssetFileOperationsCarryTheMeta();
     TestDraggingInTheHierarchyReordersAndUnparents();

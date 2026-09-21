@@ -42,6 +42,12 @@ namespace JBro::Widget
         return *this;
     }
 
+    TextField& TextField::CommitOnFinish(bool commit)
+    {
+        m_commitOnFinish = commit;
+        return *this;
+    }
+
     TextField& TextField::Invalid(bool invalid)
     {
         m_invalid = invalid;
@@ -97,6 +103,11 @@ namespace JBro::Widget
         if (changed)
         {
             m_text = buffer;
+        }
+        if (m_commitOnFinish)
+        {
+            // 글자는 이미 들어갔다. 확정만 편집이 끝나는 프레임으로 미룬다.
+            return ImGui::IsItemDeactivatedAfterEdit();
         }
         return changed;
     }

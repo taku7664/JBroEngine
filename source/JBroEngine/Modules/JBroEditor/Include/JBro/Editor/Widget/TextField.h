@@ -21,6 +21,13 @@ namespace JBro::Widget
         TextField& Multiline(bool multiline = true, float lines = 4.5f);
         // 참이면 Enter 를 눌러야 값이 반영된다. 거짓이면 글자마다 반영한다.
         TextField& CommitOnEnter(bool commit = true);
+        // 참이면 **편집이 끝날 때 한 번** 참을 돌려준다(포커스를 잃거나 Enter). 글자는 치는
+        // 대로 들어가되 부르는 쪽이 값을 확정하는 시점만 미뤄진다.
+        //
+        // 값을 커맨드로 남기는 자리가 이것을 쓴다. 글자마다 커맨드를 만들면 되돌리기가
+        // 글자 수만큼 필요해지고, 커맨드 병합은 마우스를 누른 채일 때만 일어나므로
+        // 타이핑에는 걸리지 않는다.
+        TextField& CommitOnFinish(bool commit = true);
         TextField& Invalid(bool invalid = true);
         TextField& Width(float width);
 
@@ -36,6 +43,7 @@ namespace JBro::Widget
         float m_width = 0.0f;
         bool m_multiline = false;
         bool m_commitOnEnter = false;
+        bool m_commitOnFinish = false;
         bool m_invalid = false;
     };
 }

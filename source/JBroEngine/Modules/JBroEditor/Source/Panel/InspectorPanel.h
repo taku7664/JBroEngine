@@ -172,5 +172,12 @@ namespace JBro
             Context& context);
 
         EditorApplication* m_editor = nullptr;
+
+        // 이름 칸이 들고 있는 글자와, 그것이 누구의 것인지. 고른 것이 바뀌면 다시 든다 -
+        // 치던 글자를 그대로 두면 다음 오브젝트의 이름이 엉뚱한 것으로 보인다.
+        String m_name;
+        const GameObject* m_namedObject = nullptr;
+        // 지난 프레임에 이름 칸이 글자를 받고 있었는가. 그렇지 않으면 칸의 글자를 다시 든다.
+        bool m_nameEditing = false;
     };
 }

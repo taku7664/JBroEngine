@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <JBro/Editor/Command/ComponentAddress.h>
 #include <JBro/Editor/Command/ComponentSnapshot.h>
 #include <JBro/Editor/Command/ObjectTreeSnapshot.h>
 #include <JBro/Editor/Command/SetPropertyCommand.h>
@@ -44,6 +45,83 @@ namespace JBro
         String m_name;
         EditorObjectId m_parentId = InvalidEditorObjectId;
         EditorObjectId m_objectId = InvalidEditorObjectId;
+    };
+
+    // 오브젝트의 이름을 바꾼다(D-142).
+    //
+    // 이름은 태그다(D-51). 문자열은 `NameTable` 에만 있고 오브젝트는 번호만 든다.
+    //
+    // **글자를 치는 동안 커맨드가 하나여야 한다.** 한 글자마다 한 칸씩 쌓이면 되돌리기가
+    // 글자 수만큼 필요해진다 - 그래서 같은 오브젝트를 잇달아 고치는 것끼리는 합친다.
+    class RenameObjectCommand final : public EditorCommand
+    {
+    public:
+        RenameObjectCommand(EditorObjectRegistry& registry, EditorObjectId objectId,
+            const char* name);
+
+        const char* GetName() const override;
+        bool Execute() override;
+        void Undo() override;
+        void Redo() override;
+        bool CanMerge(const EditorCommand& newer) const override;
+        bool TryMerge(const EditorCommand& newer) override;
+
+    private:
+        void Apply(const String& name);
+
+        EditorObjectRegistry* m_registry = nullptr;
+        EditorObjectId m_objectId = InvalidEditorObjectId;
+        String m_before;
+        String m_after;
+        bool m_captured = false;
+    };
+
+    // 오브젝트의 활성 상태를 바꾼다(D-142). 여럿을 한 번에 바꿔도 커맨드는 하나다.
+    //
+    // 예전에는 인스펙터가 `SetActive` 를 그대로 불렀다. 화면에서는 같아 보이지만
+    // **되돌릴 수 없었다** - 에디터의 편집은 커맨드로만 한다(§11.5).
+    class SetObjectActiveCommand final : public EditorCommand
+    {
+    public:
+        SetObjectActiveCommand(EditorObjectRegistry& registry,
+            const Array<EditorObjectId>& objects, bool active);
+
+        const char* GetName() const override;
+        bool Execute() override;
+        void Undo() override;
+        void Redo() override;
+
+    private:
+        void Apply(bool active);
+
+        EditorObjectRegistry* m_registry = nullptr;
+        Array<EditorObjectId> m_objects;
+        // 오브젝트마다 바꾸기 전의 값이다. 다 같은 값이라고 볼 수 없다 - 여럿을 골랐을 때
+        // 하나는 켜져 있고 하나는 꺼져 있을 수 있고, 되돌리면 각자 제 값으로 가야 한다.
+        Array<std::uint8_t> m_before;
+        bool m_after = true;
+    };
+
+    // 컴포넌트의 사용 여부를 바꾼다(D-142). 이쪽도 예전에는 커맨드 없이 바로 바꿨다.
+    class SetComponentEnabledCommand final : public EditorCommand
+    {
+    public:
+        SetComponentEnabledCommand(EditorObjectRegistry& registry,
+            const ComponentAddress& address, bool enabled);
+
+        const char* GetName() const override;
+        bool Execute() override;
+        void Undo() override;
+        void Redo() override;
+
+    private:
+        void Apply(bool enabled);
+
+        EditorObjectRegistry* m_registry = nullptr;
+        ComponentAddress m_address;
+        bool m_before = true;
+        bool m_after = true;
+        bool m_captured = false;
     };
 
     // 오브젝트와 그 아래 전부를 지운다. 되돌리면 스냅샷에서 되살린다.

@@ -46,6 +46,7 @@ Entries:
   hierarchy.search: 검색
   inspector.nothing_selected: 선택한 오브젝트가 없습니다
   inspector.active: 활성
+  inspector.name: 이름
   inspector.enabled: 사용
   inspector.add_component: 컴포넌트 추가
   inspector.move_up: 위로 이동

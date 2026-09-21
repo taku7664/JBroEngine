@@ -82,6 +82,7 @@ namespace JBro::LocKeys
     // ── 인스펙터 ─────────────────────────────────────────────────────────
     inline constexpr const char* InspectorNothingSelected = "inspector.nothing_selected";
     inline constexpr const char* InspectorActive = "inspector.active";
+    inline constexpr const char* InspectorName = "inspector.name";
     inline constexpr const char* InspectorEnabled = "inspector.enabled";
     inline constexpr const char* InspectorAddComponent = "inspector.add_component";
     inline constexpr const char* InspectorMoveComponentUp = "inspector.move_up";

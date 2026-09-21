@@ -2,6 +2,7 @@
 
 #include <JBro/Canvas/ComponentRegistry.h>
 #include <JBro/Editor/Command/ComponentCommands.h>
+#include <JBro/Editor/Command/ObjectCommands.h>
 #include <JBro/Editor/Command/CompoundCommand.h>
 #include <JBro/Editor/Command/ListEdit.h>
 #include <JBro/Editor/EditorApplication.h>
@@ -155,20 +156,57 @@ namespace JBro
                 static_cast<int>(chosen));
         }
 
-        const char* name = object->GetTag();
-        ImGui::TextUnformatted(name != nullptr && *name != '\0'
-            ? name
-            : Loc::TextOr(LocKeys::HierarchyUnnamed, "(unnamed)"));
-
         {
             Widget::FormLayout header("##object");
             header.Row(
                 Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorActive, "Active")),
                 [&]() {
                     bool active = object->IsActiveSelf();
-                    if (ImGui::Checkbox("##active", &active))
+                    if (Widget::Checkbox("##active", active))
                     {
-                        object->SetActive(active);
+                        // **고른 것이 다 따라간다**(D-142). 여럿을 골라 놓고 하나만 꺼지면
+                        // 나머지는 화면에서 그대로라 무엇이 바뀌었는지 알 수 없다.
+                        Array<EditorObjectId> ids;
+                        const Array<GameObject*> chosenObjects = m_editor->GetSelectedObjects();
+                        for (std::size_t index = 0; index < chosenObjects.Size(); ++index)
+                        {
+                            if (chosenObjects[index] != nullptr)
+                            {
+                                ids.Add(m_editor->GetObjectIds().Track(chosenObjects[index]));
+                            }
+                        }
+                        if (ids.IsEmpty())
+                        {
+                            ids.Add(m_editor->GetObjectIds().Track(object));
+                        }
+                        m_editor->GetCommands().Execute(
+                            MakeOwnerPtr<SetObjectActiveCommand>(
+                                m_editor->GetObjectIds(), ids, active));
+                    }
+                });
+            // **이름을 고칠 수 있다**(D-142). 예전에는 글자로 보여 주기만 해서, 만든
+            // 오브젝트의 이름이 `GameObject` 인 채로 굳었다. 이름은 태그다(D-51).
+            header.Row(
+                Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorName, "Name")),
+                [&]() {
+                    const char* tag = object->GetTag();
+                    // **치는 중이 아니면 늘 오브젝트의 이름을 든다.** 고른 것이 바뀔 때만
+                    // 다시 읽으면, 이름 바꾸기를 되돌린 뒤에도 칸에는 옛 글자가 남는다.
+                    if (m_namedObject != object || false == m_nameEditing)
+                    {
+                        m_namedObject = object;
+                        m_name = tag != nullptr ? tag : "";
+                    }
+                    // **편집이 끝날 때 한 번 커맨드를 만든다.** 글자마다 만들면 되돌리기가
+                    // 글자 수만큼 필요해진다 - 커맨드 병합은 마우스 드래그에만 걸린다.
+                    const bool finished =
+                        Widget::TextField("##name", m_name).CommitOnFinish().Draw();
+                    m_nameEditing = ImGui::IsItemActive();
+                    if (finished)
+                    {
+                        m_editor->GetCommands().Execute(
+                            MakeOwnerPtr<RenameObjectCommand>(m_editor->GetObjectIds(),
+                                m_editor->GetObjectIds().Track(object), m_name.c_str()));
                     }
                 });
         }
@@ -256,7 +294,15 @@ namespace JBro
                         bool enabled = component->IsEnabled();
                         if (Widget::Checkbox("##enabled", enabled))
                         {
-                            component->SetEnabled(enabled);
+                            // 이것도 커맨드다(D-142). 끈 것을 되돌릴 수 없으면 편집이 아니다.
+                            ComponentAddress address;
+                            if (MakeComponentAddress(
+                                    m_editor->GetObjectIds(), *object, *component, address))
+                            {
+                                m_editor->GetCommands().Execute(
+                                    MakeOwnerPtr<SetComponentEnabledCommand>(
+                                        m_editor->GetObjectIds(), address, enabled));
+                            }
                         }
                     });
 
