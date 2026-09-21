@@ -393,6 +393,41 @@ namespace JBro
         return m_layers[index].Get();
     }
 
+    void Canvas::ForEachComponentPool(
+        const std::function<void(const ComponentPoolUsage&)>& visit) const
+    {
+        if (false == static_cast<bool>(visit))
+        {
+            return;
+        }
+        for (auto iterator = m_componentBuckets.begin();
+            iterator != m_componentBuckets.end(); ++iterator)
+        {
+            const IComponentBucket* bucket = iterator->MappedValue.Get();
+            if (bucket == nullptr)
+            {
+                continue;
+            }
+            ComponentPoolUsage usage;
+            usage.typeId = iterator->KeyValue;
+            usage.live = bucket->GetLiveCount();
+            usage.capacity = bucket->GetCapacity();
+            visit(usage);
+        }
+    }
+
+    void Canvas::GetObjectPoolUsage(std::size_t& live, std::size_t& capacity) const
+    {
+        live = 0;
+        capacity = 0;
+        if (m_objects.Get() == nullptr)
+        {
+            return;
+        }
+        live = m_objects->GetLiveCount();
+        capacity = m_objects->GetCapacity();
+    }
+
     std::size_t Canvas::GetLayerCount() const
     {
         return m_layers.Size();

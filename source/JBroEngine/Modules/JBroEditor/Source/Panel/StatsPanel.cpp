@@ -1,5 +1,7 @@
 ﻿#include "StatsPanel.h"
 
+#include <JBro/Canvas/Canvas.h>
+#include <JBro/Types/NameTable.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Graphics/Renderer.h>
 
@@ -79,5 +81,56 @@ namespace JBro
                 Loc::TextOr(LocKeys::StatsDropped, "dropped %u view(s), %u sprite(s)"),
                 stats.droppedViewCount, stats.droppedSpriteCount);
         }
+
+        // **캔버스가 얼마나 찼는지**(D-145). 기존 엔진의 CPU 프로파일러가 이 숫자들을 냈다.
+        // 오브젝트가 몇인지, 고른 것이 몇인지, 되돌릴 것이 남았는지 - 화면에 없으면
+        // 캔버스가 무거워진 까닭을 짐작으로 찾게 된다.
+        Canvas* canvas = m_editor->GetCanvas();
+        if (canvas != nullptr)
+        {
+            ImGui::Separator();
+            std::size_t objectLive = 0;
+            std::size_t objectCapacity = 0;
+            canvas->GetObjectPoolUsage(objectLive, objectCapacity);
+            ImGui::Text(Loc::TextOr(LocKeys::StatsObjects, "objects %llu / %llu"),
+                static_cast<unsigned long long>(objectLive),
+                static_cast<unsigned long long>(objectCapacity));
+            ImGui::Text(Loc::TextOr(LocKeys::StatsLayers, "layers %llu"),
+                static_cast<unsigned long long>(canvas->GetLayerCount()));
+            ImGui::Text(Loc::TextOr(LocKeys::StatsSelected, "selected %llu"),
+                static_cast<unsigned long long>(m_editor->GetSelectionCount()));
+
+            // 컴포넌트 풀은 타입마다 따로 산다. **늘어나는 순간이 프레임을 늘어지게 만드는
+            // 자리**라, 얼마나 남았는지가 보여야 한다.
+            if (ImGui::TreeNodeEx(Loc::TextOr(LocKeys::StatsPools, "component pools"),
+                    ImGuiTreeNodeFlags_DefaultOpen))
+            {
+                bool any = false;
+                canvas->ForEachComponentPool([&](const Canvas::ComponentPoolUsage& usage) {
+                    any = true;
+                    const char* typeName = NameTable::Get().Resolve(usage.typeId);
+                    ImGui::Text("%s  %llu / %llu",
+                        typeName != nullptr ? typeName : "?",
+                        static_cast<unsigned long long>(usage.live),
+                        static_cast<unsigned long long>(usage.capacity));
+                });
+                if (false == any)
+                {
+                    ImGui::TextDisabled("%s",
+                        Loc::TextOr(LocKeys::StatsNoPools, "no component pool has been made yet"));
+                }
+                ImGui::TreePop();
+            }
+        }
+
+        // 되돌리기의 상태. 기존도 같은 세 줄을 냈다.
+        ImGui::Separator();
+        const EditorCommandManager& commands = m_editor->GetCommands();
+        ImGui::Text(Loc::TextOr(LocKeys::StatsUndo, "undo %llu / redo %llu"),
+            static_cast<unsigned long long>(commands.GetUndoCount()),
+            static_cast<unsigned long long>(commands.GetRedoCount()));
+        ImGui::Text("%s", commands.IsDirty()
+            ? Loc::TextOr(LocKeys::StatsDirty, "there are unsaved changes")
+            : Loc::TextOr(LocKeys::StatsClean, "everything is saved"));
     }
 }

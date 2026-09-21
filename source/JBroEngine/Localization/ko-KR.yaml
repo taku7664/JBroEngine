@@ -67,6 +67,14 @@ Entries:
   stats.views: 뷰 %u개
   stats.sprites: 스프라이트 %u개
   stats.dropped: 그리지 못한 뷰 %u개, 스프라이트 %u개
+  stats.objects: 오브젝트 %llu / %llu
+  stats.layers: 레이어 %llu
+  stats.selected: 선택 %llu
+  stats.pools: 컴포넌트 풀
+  stats.no_pools: 아직 만들어진 컴포넌트 풀이 없습니다
+  stats.undo: 실행 취소 %llu / 다시 실행 %llu
+  stats.dirty: 저장되지 않은 변경이 있습니다
+  stats.clean: 모두 저장되었습니다
   list.add_element: 항목 추가
   list.remove_element: 항목 삭제
   list.element_count: %d개

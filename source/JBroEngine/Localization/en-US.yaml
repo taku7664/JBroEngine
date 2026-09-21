@@ -67,6 +67,14 @@ Entries:
   stats.views: views %u
   stats.sprites: sprites %u
   stats.dropped: dropped %u view(s), %u sprite(s)
+  stats.objects: objects %llu / %llu
+  stats.layers: layers %llu
+  stats.selected: selected %llu
+  stats.pools: component pools
+  stats.no_pools: no component pool has been made yet
+  stats.undo: undo %llu / redo %llu
+  stats.dirty: there are unsaved changes
+  stats.clean: everything is saved
   list.add_element: Add element
   list.remove_element: Remove element
   list.element_count: %d item(s)

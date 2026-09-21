@@ -2,6 +2,8 @@
 
 #include <JBro/Core/Core.h>
 #include <JBro/Core/ObjectPool.h>
+
+#include <functional>
 #include <JBro/Core/StableTypeId.h>
 #include <JBro/Runtime/Component.h>
 #include <JBro/Runtime/GameScriptBase.h>
@@ -69,6 +71,22 @@ namespace JBro
         bool        SetObjectLayer(GameObject* object, LayerId layer);
         Layer*      FindLayer(LayerId layer);
         std::size_t GetLayerCount() const;
+
+        // 컴포넌트 풀 하나의 쓰임새다(D-145). 에디터의 통계 창이 이것을 보여 준다 -
+        // **풀이 언제 늘어났는지는 화면에 나오지 않으면 알 수 없고**, 늘어나는 순간이
+        // 프레임을 늘어지게 만드는 자리다.
+        struct ComponentPoolUsage
+        {
+            ComponentTypeId typeId = 0;
+            std::size_t live = 0;
+            std::size_t capacity = 0;
+        };
+
+        // 풀마다 한 번씩 부른다. 만들어지지 않은 풀은 없는 것이라 들르지 않는다.
+        void ForEachComponentPool(
+            const std::function<void(const ComponentPoolUsage&)>& visit) const;
+        // 오브젝트 풀의 쓰임새다. 오브젝트는 풀이 하나뿐이라 따로 낸다.
+        void GetObjectPoolUsage(std::size_t& live, std::size_t& capacity) const;
         Layer*      GetLayerAt(std::size_t index);
         LayerId  GetDefaultLayer() const;
 
@@ -152,6 +170,9 @@ namespace JBro
             virtual void AppendScripts(Array<GameScriptBase*>& results) = 0;
             // 파괴할 때 실행 목록을 헌 것으로 표시할지 가른다. 타입은 컴파일 타임에 안다.
             virtual bool HoldsScripts() const = 0;
+            // 풀의 쓰임새. 통계가 이것만 묻는다.
+            virtual std::size_t GetLiveCount() const = 0;
+            virtual std::size_t GetCapacity() const = 0;
         };
 
         template<typename T>
@@ -185,6 +206,16 @@ namespace JBro
             bool HoldsScripts() const override
             {
                 return std::is_base_of_v<GameScriptBase, T>;
+            }
+
+            std::size_t GetLiveCount() const override
+            {
+                return Pool.GetLiveCount();
+            }
+
+            std::size_t GetCapacity() const override
+            {
+                return Pool.GetCapacity();
             }
 
             TObjectPool<T> Pool;

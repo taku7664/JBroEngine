@@ -107,6 +107,14 @@ namespace JBro::LocKeys
     inline constexpr const char* StatsViews = "stats.views";
     inline constexpr const char* StatsSprites = "stats.sprites";
     inline constexpr const char* StatsDropped = "stats.dropped";
+    inline constexpr const char* StatsObjects = "stats.objects";
+    inline constexpr const char* StatsLayers = "stats.layers";
+    inline constexpr const char* StatsSelected = "stats.selected";
+    inline constexpr const char* StatsPools = "stats.pools";
+    inline constexpr const char* StatsNoPools = "stats.no_pools";
+    inline constexpr const char* StatsUndo = "stats.undo";
+    inline constexpr const char* StatsDirty = "stats.dirty";
+    inline constexpr const char* StatsClean = "stats.clean";
 
     // ── 목록 위젯 ────────────────────────────────────────────────────────
     inline constexpr const char* ListAddElement = "list.add_element";

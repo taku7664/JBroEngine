@@ -4832,6 +4832,60 @@ namespace
     // 이름은 아예 고칠 수 없었다 - 만든 오브젝트의 이름이 `GameObject` 인 채로 굳었다.
     // **콜라이더의 모양이 캔버스 뷰에 보인다**(D-143). 물리는 눈에 보이지 않아서,
     // 그려 주지 않으면 충돌 칸이 그림과 어긋난 것을 부딪혀 봐야만 안다.
+    // **통계 창이 캔버스의 쓰임새를 보인다**(D-145). 기존 엔진의 CPU 프로파일러가 내던
+    // 숫자들(오브젝트·풀·선택·되돌리기)이 우리에게는 없었다.
+    void TestTheStatsPanelShowsWhatTheCanvasHolds()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the stats panel not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "StatsProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        for (int index = 0; index < 3; ++index)
+        {
+            JBro::GameObject* object = canvas->CreateObject("Counted");
+            Check(canvas->AttachComponent<JBro::Component::Transform2D>(object) != nullptr,
+                "each probe object needs a transform");
+        }
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        // 통계는 아래 독의 탭이다. 앞으로 꺼내야 그려진다.
+        ImGui::SetWindowFocus("Stats");
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle on the stats tab");
+        }
+        ImGuiWindow* stats = ImGui::FindWindowByName("Stats");
+        Check(stats != nullptr && stats->DockTabIsVisible, "the stats tab must be in front");
+
+        // 풀의 숫자는 캔버스가 내준다. 창이 그 값을 쓰는지는 화면 한 장으로 남긴다(§11.4).
+        std::size_t live = 0;
+        std::size_t capacity = 0;
+        canvas->GetObjectPoolUsage(live, capacity);
+        Check(live == 3, "the canvas holds the three objects that were made");
+        if (JBro::Renderer* renderer = editor.GetRenderer())
+        {
+            SaveScreenshot(*renderer, 1024, 768, "stats");
+        }
+
+        editor.Shutdown();
+    }
+
     void TestTheCanvasViewDrawsColliderShapes()
     {
         JBro::EditorApplication editor;
@@ -5262,6 +5316,7 @@ int RunEditorApplicationTests()
     TestBoxSelectInTheCanvasViewPicksWhatItTouches();
     TestTheCanvasViewDrawsInA3DProject();
     TestProjectSettingsAreWrittenBackToTheFile();
+    TestTheStatsPanelShowsWhatTheCanvasHolds();
     TestTheCanvasViewDrawsColliderShapes();
     TestTheInspectorRenamesAndTogglesThroughCommands();
     TestTheAssetBrowserSelectsManyFilesAtOnce();

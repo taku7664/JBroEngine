@@ -369,6 +369,44 @@ namespace
         Check(results.IsEmpty(), "foreign canvas owner must not expose components");
     }
 
+    // **풀이 얼마나 찼는지 밖에서 물을 수 있다**(D-145). 에디터의 통계 창이 이것을 쓴다 -
+    // 풀이 늘어나는 순간이 프레임을 늘어지게 만드는 자리인데, 화면에 없으면 알 수 없다.
+    void TestCanvasReportsPoolUsage()
+    {
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        std::size_t live = 0;
+        std::size_t capacity = 0;
+        canvas.GetObjectPoolUsage(live, capacity);
+        Check(live == 0, "a fresh canvas holds no objects");
+
+        auto* object = canvas.CreateObject("counted");
+        canvas.AttachComponent<JBro::Component::Transform2D>(object);
+        canvas.AttachComponent<JBro::Component::Collider2D>(object);
+        canvas.GetObjectPoolUsage(live, capacity);
+        Check(live == 1 && capacity >= live, "the object pool counts what it holds");
+
+        std::size_t pools = 0;
+        std::size_t transforms = 0;
+        canvas.ForEachComponentPool([&](const JBro::Canvas::ComponentPoolUsage& usage) {
+            ++pools;
+            if (usage.typeId
+                == JBro::MakeStableTypeId(JBro::Component::Transform2D::StaticTypeName()))
+            {
+                transforms = usage.live;
+            }
+            Check(usage.capacity >= usage.live, "a pool cannot hold more than it has room for");
+        });
+        // **만들어지지 않은 풀은 없는 것이다.** 붙인 두 타입만 방문한다.
+        Check(pools == 2, "only the pools that were made are visited");
+        Check(transforms == 1, "and the transform pool holds the one that was attached");
+
+        Check(canvas.DestroyObject(object), "the object must go");
+        canvas.GetObjectPoolUsage(live, capacity);
+        Check(live == 0, "and the pool reports it left");
+        // 자리는 남는다. **줄어들지 않는 것이 풀의 성질**이고, 그래서 얼마나 남았는지가 뜻이 있다.
+        Check(capacity > 0, "the room it took stays");
+    }
+
     void TestFramework2DComponentsArePolymorphic()
     {
         static_assert(std::is_base_of_v<JBro::ComponentBase, JBro::Component::Transform2D>);
@@ -414,6 +452,7 @@ int RunCanvasFoundationTests()
     TestStableTypeIdIsStable();
     TestFramework2DComponentsArePolymorphic();
     TestCanvasCollectsComponents();
+    TestCanvasReportsPoolUsage();
     std::cout << "Canvas foundation tests passed.\n";
     return 0;
 }
