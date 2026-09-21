@@ -210,9 +210,8 @@ namespace JBro
         draw->PushClipRect(
             ImVec2(rect.left, rect.top),
             ImVec2(rect.left + rect.width, rect.top + rect.height), true);
-        // **격자와 선택 테두리는 평면 좌표에 기댄다.** 3D 에서는 화면 좌표와 월드가
-        // 나눗셈 하나로 이어지지 않아 그대로 쓰면 엉뚱한 자리에 그린다.
-        // 3D 의 격자·윤곽은 기즈모와 같은 투영을 거쳐야 하고, 그것은 아직 없다(계획서 §4).
+        // **격자와 선택 테두리는 차원마다 다른 길로 간다.** 2D 는 화면과 월드가 나눗셈
+        // 하나로 이어지지만, 3D 는 기즈모와 **같은 투영**을 거쳐야 한다(D-140).
         if (false == Is3D())
         {
             if (m_showGrid)
@@ -223,6 +222,10 @@ namespace JBro
         }
         else
         {
+            if (m_showGrid)
+            {
+                DrawGrid3D(rect);
+            }
             DrawSelectionMarkers3D(rect);
         }
         draw->PopClipRect();
@@ -809,6 +812,107 @@ namespace JBro
             0.0f, 0.0f, 0.0f, 1.0f}};
         return GizmoModel::MakeCamera(
             view, projection, rect.left, rect.top, rect.width, rect.height, camera);
+    }
+
+    void CanvasViewPanel::DrawGrid3D(const ViewRect& rect)
+    {
+        GizmoCamera camera;
+        if (false == MakeGizmoCamera(rect, camera))
+        {
+            return;
+        }
+        // **바닥은 y=0 평면이다.** 격자를 카메라의 높이에 맞춰 띄우면 무엇이 바닥인지
+        // 알 수 없게 되고, 오브젝트를 놓을 때 기준이 사라진다.
+        const Vec3 look{m_centerX, m_centerY, m_centerZ};
+
+        // 간격은 2D 와 같은 눈금(1·2·5·10 …)을 쓴다. 다만 배율을 직교 크기가 아니라
+        // **바라보는 점에서 한 단위가 몇 픽셀로 보이는지**로 잰다 - 원근에서는 거리가
+        // 배율이고, 그 거리는 바라보는 점의 것을 대표로 삼는다.
+        float centerScreenX = 0.0f;
+        float centerScreenY = 0.0f;
+        float unitScreenX = 0.0f;
+        float unitScreenY = 0.0f;
+        if (false == GizmoModel::Project(camera, look, centerScreenX, centerScreenY)
+            || false == GizmoModel::Project(
+                camera, Vec3{look.x + 1.0f, look.y, look.z}, unitScreenX, unitScreenY))
+        {
+            return;
+        }
+        const float dx = unitScreenX - centerScreenX;
+        const float dy = unitScreenY - centerScreenY;
+        const float pixelsPerUnit = std::sqrt(dx * dx + dy * dy);
+        if (false == std::isfinite(pixelsPerUnit) || pixelsPerUnit <= 0.001f)
+        {
+            return;
+        }
+        const float step = ChooseGridStep(1.0f / pixelsPerUnit);
+        if (false == std::isfinite(step) || step <= 0.0f)
+        {
+            return;
+        }
+
+        // **끝이 있는 격자다.** 평면은 지평선까지 이어지지만, 거기까지 선을 그으면
+        // 먼 쪽이 한 덩어리로 뭉쳐 잡음이 된다. 바라보는 점 둘레의 칸만 그린다.
+        constexpr int HalfLines = 20;
+        const float half = step * static_cast<float>(HalfLines);
+        const float baseX = std::floor(look.x / step) * step;
+        const float baseZ = std::floor(look.z / step) * step;
+
+        ImDrawList* draw = ImGui::GetWindowDrawList();
+        const ImU32 line = IM_COL32(255, 255, 255, 18);
+        const ImU32 strong = IM_COL32(255, 255, 255, 38);
+        const ImU32 axisX = IM_COL32(220, 90, 90, 160);
+        const ImU32 axisZ = IM_COL32(90, 130, 220, 160);
+
+        // 한 선을 토막 내어 잇는다. **양 끝만 투영하면 안 된다** - 선이 카메라 평면을
+        // 가로지르면 한쪽 끝이 뒤에 있어 투영이 없고, 그러면 선 전체가 사라진다.
+        constexpr int Segments = 16;
+        auto drawWorldLine = [&](const Vec3& from, const Vec3& to, ImU32 color, float thickness)
+        {
+            float previousX = 0.0f;
+            float previousY = 0.0f;
+            bool hasPrevious = false;
+            for (int index = 0; index <= Segments; ++index)
+            {
+                const float t = static_cast<float>(index) / static_cast<float>(Segments);
+                const Vec3 point{
+                    from.x + (to.x - from.x) * t,
+                    from.y + (to.y - from.y) * t,
+                    from.z + (to.z - from.z) * t};
+                float x = 0.0f;
+                float y = 0.0f;
+                if (false == GizmoModel::Project(camera, point, x, y))
+                {
+                    hasPrevious = false;
+                    continue;
+                }
+                if (hasPrevious)
+                {
+                    draw->AddLine(ImVec2(previousX, previousY), ImVec2(x, y), color, thickness);
+                }
+                previousX = x;
+                previousY = y;
+                hasPrevious = true;
+            }
+        };
+
+        for (int index = -HalfLines; index <= HalfLines; ++index)
+        {
+            const float offset = step * static_cast<float>(index);
+            const float x = baseX + offset;
+            const float z = baseZ + offset;
+            // 열 칸마다 한 줄은 진하게. 2D 와 같은 규칙이라 배율이 같은 방식으로 읽힌다.
+            const bool tenthX = std::fabs(std::fmod(x / step, 10.0f)) < 0.001f;
+            const bool tenthZ = std::fabs(std::fmod(z / step, 10.0f)) < 0.001f;
+            drawWorldLine(Vec3{x, 0.0f, baseZ - half}, Vec3{x, 0.0f, baseZ + half},
+                tenthX ? strong : line, 1.0f);
+            drawWorldLine(Vec3{baseX - half, 0.0f, z}, Vec3{baseX + half, 0.0f, z},
+                tenthZ ? strong : line, 1.0f);
+        }
+
+        // 원점의 두 축. 어디가 (0,0,0) 인지 바닥에서 바로 보여야 한다.
+        drawWorldLine(Vec3{baseX - half, 0.0f, 0.0f}, Vec3{baseX + half, 0.0f, 0.0f}, axisX, 1.5f);
+        drawWorldLine(Vec3{0.0f, 0.0f, baseZ - half}, Vec3{0.0f, 0.0f, baseZ + half}, axisZ, 1.5f);
     }
 
     void CanvasViewPanel::DrawSelectionMarkers3D(const ViewRect& rect)

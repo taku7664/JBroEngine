@@ -53,6 +53,9 @@ namespace JBro
         // 팬(가운데·오른쪽 끌기)과 줌(휠). 그림 위에 마우스가 있을 때만.
         void HandleCameraInput(const ViewRect& rect, bool hovered);
         void DrawGrid(const ViewRect& rect);
+        // 3D 의 바닥 격자다(y=0 평면). 선을 토막 내어 투영한다 - 한 선이 카메라 평면을
+        // 가로지르면 양 끝만으로는 그릴 수 없기 때문이다.
+        void DrawGrid3D(const ViewRect& rect);
         void DrawSelectionOutlines(const ViewRect& rect);
         void DrawGizmo(const ViewRect& rect);
         // 화면과 월드를 잇는 카메라를 만든다. 2D 는 우리가 아는 직교 행렬로, 3D 는

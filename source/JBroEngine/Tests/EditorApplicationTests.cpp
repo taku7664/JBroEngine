@@ -299,6 +299,41 @@ namespace
         std::cout << "  wrote " << path << std::endl;
     }
 
+    // 백버퍼를 그대로 받아 온다. 두 프레임을 견주려면 센 값이 아니라 픽셀이 필요하다.
+    void ReadBackBufferInto(JBro::Renderer& renderer, std::uint32_t width, std::uint32_t height,
+        JBro::Array<std::byte>& image, JBro::TextureReadback& readback)
+    {
+        image.Resize(static_cast<std::size_t>(width) * height * 4);
+        Check(renderer.ReadBackBuffer(image.Data(), image.Size(), readback),
+            "the editor window must read back");
+    }
+
+    // 두 프레임에서 달라진 픽셀의 수다. 무엇이 달라졌는지가 아니라 **달라지기는 했는지**를
+    // 묻는 자리에 쓴다 - 겹쳐 그리는 것이 실제로 화면에 닿았음은 이것으로 드러난다.
+    std::size_t CountDifferingPixels(const JBro::Array<std::byte>& first,
+        const JBro::Array<std::byte>& second, const JBro::TextureReadback& readback,
+        std::uint32_t width, std::uint32_t height)
+    {
+        std::size_t differing = 0;
+        for (std::uint32_t y = 0; y < height; ++y)
+        {
+            for (std::uint32_t x = 0; x < width; ++x)
+            {
+                const std::size_t offset = static_cast<std::size_t>(y) * readback.rowPitch
+                    + static_cast<std::size_t>(x) * 4;
+                const unsigned char* a =
+                    reinterpret_cast<const unsigned char*>(first.Data() + offset);
+                const unsigned char* b =
+                    reinterpret_cast<const unsigned char*>(second.Data() + offset);
+                if (a[0] != b[0] || a[1] != b[1] || a[2] != b[2])
+                {
+                    ++differing;
+                }
+            }
+        }
+        return differing;
+    }
+
     std::size_t CountPaintedPixels(JBro::Renderer& renderer, std::uint32_t width,
         std::uint32_t height)
     {
@@ -4496,6 +4531,28 @@ namespace
         Check(FindItemAnywhereInWindow(editor, hwnd, view, LabelId(view->ID, "##gizmo_x"), spot),
             "the x handle must be on screen in a 3D project too");
         SaveScreenshot(*renderer, 640, 480, "canvas3d");
+
+        // **바닥 격자가 실제로 화면에 닿는다**(D-140). 켠 프레임과 끈 프레임의 픽셀이
+        // 달라야 한다 - 그리는 함수를 불렀는지가 아니라 그림이 바뀌었는지를 묻는다.
+        const char* gridLabel = JBro::Loc::TextOr(JBro::LocKeys::CanvasViewGrid, "Grid");
+        Spot gridButton;
+        Check(FindItemAnywhereInWindow(editor, hwnd, view, LabelId(view->ID, gridLabel), gridButton),
+            "the grid button must be on the canvas view tool bar");
+        JBro::Array<std::byte> withoutGrid;
+        JBro::Array<std::byte> withGrid;
+        JBro::TextureReadback readback;
+        ClickAt(editor, hwnd, gridButton);
+        Check(editor.Tick(Frame), "the editor must settle with the grid off");
+        ReadBackBufferInto(*renderer, 640, 480, withoutGrid, readback);
+        // 마우스는 단추 위에 그대로 둔 채 다시 누른다. 자리를 옮기면 단추의 강조가
+        // 달라져 그 픽셀까지 차이에 섞인다.
+        ClickAt(editor, hwnd, gridButton);
+        Check(editor.Tick(Frame), "the editor must settle with the grid on");
+        ReadBackBufferInto(*renderer, 640, 480, withGrid, readback);
+        const std::size_t gridPixels =
+            CountDifferingPixels(withoutGrid, withGrid, readback, 640, 480);
+        std::cout << "  the 3D floor grid painted " << gridPixels << " pixels" << std::endl;
+        Check(gridPixels > 500, "the floor grid must paint something the empty view does not");
 
         editor.Shutdown();
     }
