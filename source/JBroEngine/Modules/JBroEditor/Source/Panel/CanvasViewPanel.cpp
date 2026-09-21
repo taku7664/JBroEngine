@@ -125,30 +125,39 @@ namespace JBro
     void CanvasViewPanel::WorldToScreen(const ViewRect& rect, float worldX, float worldY,
         float& screenX, float& screenY) const
     {
+        // **엔진이 그린 화면의 크기로 센다**(D-150). 패널 크기로 세면 월드 원점이 패널
+        // 한가운데라고 여기게 되는데, 실제로는 텍스처 한가운데다.
+        const float drawWidth = rect.drawWidth > 0.0f ? rect.drawWidth : rect.width;
+        const float drawHeight = rect.drawHeight > 0.0f ? rect.drawHeight : rect.height;
         const float halfHeight = m_orthographicSize;
-        const float halfWidth = rect.height > 0.0f
-            ? halfHeight * rect.width / rect.height
+        const float halfWidth = drawHeight > 0.0f
+            ? halfHeight * drawWidth / drawHeight
             : halfHeight;
         // 월드는 위가 +y, 화면은 아래가 +y 다.
-        screenX = rect.left + (worldX - m_centerX) / halfWidth * rect.width * 0.5f + rect.width * 0.5f;
-        screenY = rect.top - (worldY - m_centerY) / halfHeight * rect.height * 0.5f + rect.height * 0.5f;
+        screenX = rect.left + (worldX - m_centerX) / halfWidth * drawWidth * 0.5f + drawWidth * 0.5f;
+        screenY = rect.top - (worldY - m_centerY) / halfHeight * drawHeight * 0.5f + drawHeight * 0.5f;
     }
 
     void CanvasViewPanel::ScreenToWorld(const ViewRect& rect, float screenX, float screenY,
         float& worldX, float& worldY) const
     {
+        // `WorldToScreen` 의 거꾸로다. 같은 크기로 세지 않으면 누른 자리와 잡히는 자리가 갈린다.
+        const float drawWidth = rect.drawWidth > 0.0f ? rect.drawWidth : rect.width;
+        const float drawHeight = rect.drawHeight > 0.0f ? rect.drawHeight : rect.height;
         const float halfHeight = m_orthographicSize;
-        const float halfWidth = rect.height > 0.0f
-            ? halfHeight * rect.width / rect.height
+        const float halfWidth = drawHeight > 0.0f
+            ? halfHeight * drawWidth / drawHeight
             : halfHeight;
-        if (rect.width <= 0.0f || rect.height <= 0.0f)
+        if (drawWidth <= 0.0f || drawHeight <= 0.0f)
         {
             worldX = m_centerX;
             worldY = m_centerY;
             return;
         }
-        worldX = m_centerX + (screenX - rect.left - rect.width * 0.5f) / (rect.width * 0.5f) * halfWidth;
-        worldY = m_centerY - (screenY - rect.top - rect.height * 0.5f) / (rect.height * 0.5f) * halfHeight;
+        worldX = m_centerX
+            + (screenX - rect.left - drawWidth * 0.5f) / (drawWidth * 0.5f) * halfWidth;
+        worldY = m_centerY
+            - (screenY - rect.top - drawHeight * 0.5f) / (drawHeight * 0.5f) * halfHeight;
     }
 
     void CanvasViewPanel::OnDraw()
@@ -186,6 +195,11 @@ namespace JBro
         rect.top = origin.y;
         rect.width = available.x;
         rect.height = available.y;
+        // 엔진이 그린 화면의 크기다(D-150). 아직 텍스처가 없으면 패널 크기로 둔다 -
+        // 첫 프레임에는 그림도 없어 어긋날 것이 없다.
+        const Extent2D drawn = m_editor->GetCanvasViewExtent();
+        rect.drawWidth = drawn.width != 0 ? static_cast<float>(drawn.width) : available.x;
+        rect.drawHeight = drawn.height != 0 ? static_cast<float>(drawn.height) : available.y;
 
         ImDrawList* draw = ImGui::GetWindowDrawList();
         const TextureHandle texture = m_editor->GetCanvasViewTexture();
@@ -322,14 +336,18 @@ namespace JBro
                 }
                 else
                 {
+                    // 끈 픽셀을 월드 길이로 바꾼다. **그린 화면의 크기로 센다**(D-150) -
+                    // 다른 크기로 세면 끈 만큼 움직이지 않아 그림이 손을 따라오지 않는다.
+                    const float drawWidth = rect.drawWidth > 0.0f ? rect.drawWidth : rect.width;
+                    const float drawHeight = rect.drawHeight > 0.0f ? rect.drawHeight : rect.height;
                     const float halfHeight = m_orthographicSize;
-                    const float halfWidth = rect.height > 0.0f
-                        ? halfHeight * rect.width / rect.height
+                    const float halfWidth = drawHeight > 0.0f
+                        ? halfHeight * drawWidth / drawHeight
                         : halfHeight;
-                    if (rect.width > 0.0f && rect.height > 0.0f)
+                    if (drawWidth > 0.0f && drawHeight > 0.0f)
                     {
-                        m_centerX -= delta.x / (rect.width * 0.5f) * halfWidth;
-                        m_centerY += delta.y / (rect.height * 0.5f) * halfHeight;
+                        m_centerX -= delta.x / (drawWidth * 0.5f) * halfWidth;
+                        m_centerY += delta.y / (drawHeight * 0.5f) * halfHeight;
                     }
                 }
             }
@@ -377,7 +395,8 @@ namespace JBro
         {
             return;
         }
-        const float worldPerPixel = (m_orthographicSize * 2.0f) / rect.height;
+        const float drawHeight = rect.drawHeight > 0.0f ? rect.drawHeight : rect.height;
+        const float worldPerPixel = (m_orthographicSize * 2.0f) / drawHeight;
         const float step = ChooseGridStep(worldPerPixel);
         if (false == std::isfinite(step) || step <= 0.0f)
         {
@@ -667,8 +686,96 @@ namespace JBro
             const ImU32 color = object == primary
                 ? IM_COL32(255, 168, 64, 255)
                 : IM_COL32(255, 168, 64, 140);
+            // **그림의 모양을 두를 수 있으면 그렇게 한다**(D-149). 사각형만 두르면 그림이
+            // 칸의 한 귀퉁이에만 있을 때 빈자리까지 테두리가 둘러쳐진다.
+            if (DrawSpriteContour(rect, *object, color))
+            {
+                continue;
+            }
             draw->AddRect(ImVec2(x0, y0), ImVec2(x1, y1), color, 0.0f, 0, 1.5f);
         }
+    }
+
+    bool CanvasViewPanel::DrawSpriteContour(
+        const ViewRect& rect, GameObject& object, ImU32 color)
+    {
+        Canvas* canvas = m_editor->GetCanvas();
+        const AssetSystem* assets = m_editor->GetAssetSystem();
+        if (canvas == nullptr || assets == nullptr)
+        {
+            return false;
+        }
+        Component::SpriteRenderer2D* sprite =
+            canvas->FindComponentRaw<Component::SpriteRenderer2D>(&object);
+        Component::Transform2D* transform =
+            canvas->FindComponentRaw<Component::Transform2D>(&object);
+        if (sprite == nullptr || transform == nullptr)
+        {
+            return false;
+        }
+        const SpriteData* data = assets->GetSprite(sprite->sprite);
+        if (data == nullptr || data->frames.IsEmpty() || data->options.pixelsPerUnit <= 0.0f)
+        {
+            return false;
+        }
+        const std::size_t frameIndex = sprite->frameIndex < data->frames.Size()
+            ? sprite->frameIndex
+            : data->frames.Size() - 1;
+        const SpriteFrame& frame = data->frames[frameIndex];
+        // 모양을 가진 쪽은 텍스처다. 스프라이트는 그 텍스처의 어느 칸인지를 안다.
+        const Array<EditorSpriteContours::Segment>* segments =
+            m_editor->GetSpriteContour(data->texture, frame);
+        if (segments == nullptr || segments->IsEmpty())
+        {
+            return false;
+        }
+
+        // 칸 안의 비율을 월드로 편다. 크기와 피벗은 `GetWorldBounds` 와 같은 셈이다 -
+        // 둘이 갈리면 두른 선과 집는 칸이 서로 다른 자리를 가리킨다.
+        float widthUnits = static_cast<float>(frame.width) / data->options.pixelsPerUnit;
+        float heightUnits = static_cast<float>(frame.height) / data->options.pixelsPerUnit;
+        float pivotX = frame.pivotX;
+        float pivotY = frame.pivotY;
+        if (sprite->sizeMode == Component::SpriteSizeMode::Custom)
+        {
+            widthUnits = sprite->size.x;
+            heightUnits = sprite->size.y;
+        }
+        if (sprite->pivotMode == Component::SpritePivotMode::Custom)
+        {
+            pivotX = sprite->pivot.x;
+            pivotY = sprite->pivot.y;
+        }
+        const Vec2 center = transform->worldValid ? transform->worldPosition : transform->position;
+        const Vec2 scale = transform->worldValid ? transform->worldScale : transform->scale;
+        const float angle = transform->worldValid ? transform->worldRotation : transform->rotation;
+        const float cosine = std::cos(angle);
+        const float sine = std::sin(angle);
+        const float worldWidth = widthUnits * scale.x;
+        const float worldHeight = heightUnits * scale.y;
+
+        // 칸 좌표의 y 는 **아래로** 간다(그림의 왼쪽 위가 원점). 월드의 y 는 위로 가므로 뒤집는다.
+        const auto toScreen = [&](float u, float v, float& screenX, float& screenY) {
+            const float localX = (u - pivotX) * worldWidth;
+            const float localY = (pivotY - v) * worldHeight;
+            const float worldX = center.x + localX * cosine - localY * sine;
+            const float worldY = center.y + localX * sine + localY * cosine;
+            WorldToScreen(rect, worldX, worldY, screenX, screenY);
+        };
+
+        ImDrawList* draw = ImGui::GetWindowDrawList();
+        for (std::size_t index = 0; index < segments->Size(); ++index)
+        {
+            const EditorSpriteContours::Segment& segment = (*segments)[index];
+            float x0 = 0.0f;
+            float y0 = 0.0f;
+            float x1 = 0.0f;
+            float y1 = 0.0f;
+            toScreen(segment.x0, segment.y0, x0, y0);
+            toScreen(segment.x1, segment.y1, x1, y1);
+            draw->AddLine(ImVec2(x0, y0), ImVec2(x1, y1), color, 1.5f);
+        }
+        return true;
     }
 
     GameObject* CanvasViewPanel::PickAt(
@@ -972,9 +1079,12 @@ namespace JBro
         }
 
         // 2D 는 우리가 카메라를 다 안다. 엔진이 캔버스 뷰를 그릴 때 쓰는 것과 같은 식이다.
+        // **크기는 그린 화면의 것이다**(D-150) - 3D 가 텍스처 크기를 쓰는 것과 같은 이유다.
+        const float drawWidth = rect.drawWidth > 0.0f ? rect.drawWidth : rect.width;
+        const float drawHeight = rect.drawHeight > 0.0f ? rect.drawHeight : rect.height;
         const float halfHeight = m_orthographicSize;
-        const float halfWidth = rect.height > 0.0f
-            ? halfHeight * rect.width / rect.height
+        const float halfWidth = drawHeight > 0.0f
+            ? halfHeight * drawWidth / drawHeight
             : halfHeight;
         constexpr float NearPlane = -100.0f;
         constexpr float FarPlane = 100.0f;
@@ -990,7 +1100,7 @@ namespace JBro
             0.0f, 0.0f, 1.0f / Depth, -NearPlane / Depth,
             0.0f, 0.0f, 0.0f, 1.0f}};
         return GizmoModel::MakeCamera(
-            view, projection, rect.left, rect.top, rect.width, rect.height, camera);
+            view, projection, rect.left, rect.top, drawWidth, drawHeight, camera);
     }
 
     void CanvasViewPanel::DrawGrid3D(const ViewRect& rect)

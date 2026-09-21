@@ -4,6 +4,7 @@
 #include <JBro/Canvas/CanvasFile.h>
 #include <JBro/Editor/Command/ObjectTreeSnapshot.h>
 #include <JBro/Editor/EditorCommand.h>
+#include <JBro/Editor/EditorSpriteContours.h>
 #include <JBro/Editor/EditorObjectRegistry.h>
 #include <JBro/Editor/EditorPanel.h>
 #include <JBro/Editor/EditorPopup.h>
@@ -117,6 +118,10 @@ namespace JBro
         // 만드는 일은 프레임마다 몇 개로 막혀 있어, 목록을 처음 열면 몇 프레임에 걸쳐 채워진다.
         // 스프라이트 아이디를 주면 그 짝 텍스처의 그림을 준다.
         TextureHandle GetAssetThumbnail(AssetId asset);
+        // 스프라이트가 그리는 **실제 모양**이다(D-149). 칸 안의 비율 좌표로 된 선분들이고,
+        // 아직 재지 못했으면 nullptr 다. 크기·피벗·회전은 부르는 쪽이 얹는다.
+        const Array<EditorSpriteContours::Segment>* GetSpriteContour(
+            AssetHandle texture, const SpriteFrame& frame);
         // 적힌 배치가 있으면 읽고 기본 배치를 건너뛴다. UI 가 켜진 뒤에만 뜻이 있다.
         void RestoreEditorLayout();
 
@@ -440,6 +445,8 @@ namespace JBro
         bool m_layoutRestored = false;
         // 에셋의 작은 그림들. 프로젝트를 닫을 때 비운다 - 다음 프로젝트의 아이디는 다른 파일이다.
         OwnerPtr<EditorThumbnails> m_thumbnails;
+        // 스프라이트의 실제 모양. 같은 이유로 프로젝트를 닫을 때 비운다.
+        OwnerPtr<EditorSpriteContours> m_contours;
 
         GraphicsApi m_graphicsApi = GraphicsApi::D3D12;
         FrameStatus m_lastFrameStatus = FrameStatus::InvalidState;

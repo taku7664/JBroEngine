@@ -357,6 +357,16 @@ namespace JBro
         return m_thumbnails->Get(asset);
     }
 
+    const Array<EditorSpriteContours::Segment>* EditorApplication::GetSpriteContour(
+        AssetHandle texture, const SpriteFrame& frame)
+    {
+        if (m_contours.Get() == nullptr)
+        {
+            return nullptr;
+        }
+        return m_contours->Get(texture, frame);
+    }
+
     String EditorApplication::GetLayoutFilePath() const
     {
         if (m_projectFilePath.empty())
@@ -1134,6 +1144,8 @@ namespace JBro
         {
             m_thumbnails = MakeOwnerPtr<EditorThumbnails>();
             m_thumbnails->Initialize(*device, *assets);
+            m_contours = MakeOwnerPtr<EditorSpriteContours>();
+            m_contours->Initialize(*assets);
         }
         // 프로젝트가 먼저 열렸으면 그때는 읽을 ImGui 가 없었다. 여기서 한 번 더 본다.
         RestoreEditorLayout();
@@ -1700,6 +1712,11 @@ namespace JBro
             m_thumbnails->Shutdown();
             m_thumbnails.Reset();
         }
+        if (m_contours.Get() != nullptr)
+        {
+            m_contours->Shutdown();
+            m_contours.Reset();
+        }
         // 팝업은 UI 와 함께 사라진다. 뜨지 않은 채 기다리던 것은 훅을 받지 않는다.
         m_popups.Clear();
         // 게임을 백버퍼로 되돌리고 오버레이를 뗀다. 둘 중 하나만 하면 다음 프레임에
@@ -2261,6 +2278,10 @@ namespace JBro
         {
             m_thumbnails->BeginFrame();
         }
+        if (m_contours.Get() != nullptr)
+        {
+            m_contours->BeginFrame();
+        }
         // UI 를 먼저 만든다. 텍스처와 정점 버퍼가 RHI 프레임 **밖에서** 올라가야
         // 하는데, 엔진 Tick 이 그 프레임을 연다.
         if (m_uiEnabled && false == BuildEditorUi(deltaTime))
@@ -2337,6 +2358,10 @@ namespace JBro
         if (m_thumbnails.Get() != nullptr)
         {
             m_thumbnails->Clear();
+        }
+        if (m_contours.Get() != nullptr)
+        {
+            m_contours->Clear();
         }
         // 캔버스 경로는 프로젝트의 것이다. 다음 프로젝트의 저장이 옛 파일에 가면 안 된다.
         m_canvasPath.clear();

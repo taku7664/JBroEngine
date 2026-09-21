@@ -47,6 +47,15 @@ namespace JBro
             float top = 0.0f;
             float width = 0.0f;
             float height = 0.0f;
+            // **엔진이 그린 화면의 크기다**(D-150). 패널의 크기가 아니다 - 편집 화면 텍스처는
+            // 64 의 배수로 올려 잡히고(`RequestCanvasView`), 엔진은 **그 텍스처 전체**를
+            // 화면으로 보고 그린다. 패널은 그중 왼쪽 위만 잘라 붙인다.
+            //
+            // 겹쳐 그리는 것들이 패널 크기로 좌표를 세면, 월드 원점이 패널 한가운데라고
+            // 여기게 된다. 실제로는 **텍스처 한가운데**라, 그 차이(보통 수십 픽셀)만큼
+            // 격자도 테두리도 기즈모도 그림과 어긋난다.
+            float drawWidth = 0.0f;
+            float drawHeight = 0.0f;
         };
 
         void DrawToolBar();
@@ -57,6 +66,9 @@ namespace JBro
         // 가로지르면 양 끝만으로는 그릴 수 없기 때문이다.
         void DrawGrid3D(const ViewRect& rect);
         void DrawSelectionOutlines(const ViewRect& rect);
+        // 고른 것이 스프라이트면 **그림의 실제 모양**을 두른다(D-149). 아직 재지 못했거나
+        // 스프라이트가 아니면 거짓이고, 부르는 쪽이 사각형으로 두른다.
+        bool DrawSpriteContour(const ViewRect& rect, GameObject& object, ImU32 color);
         // 콜라이더의 모양을 그린다(D-143). 물리는 눈에 보이지 않아서, 그려 주지 않으면
         // 충돌 칸이 스프라이트와 어긋난 것을 부딪혀 봐야만 안다.
         void DrawColliders(const ViewRect& rect);

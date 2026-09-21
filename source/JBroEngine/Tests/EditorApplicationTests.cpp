@@ -334,6 +334,51 @@ namespace
         return differing;
     }
 
+    struct PixelBox
+    {
+        int minX = 1 << 30;
+        int minY = 1 << 30;
+        int maxX = -1;
+        int maxY = -1;
+
+        bool IsEmpty() const { return maxX < minX || maxY < minY; }
+    };
+
+    // 화면에서 조건에 맞는 픽셀이 차지한 사각형이다. **겹쳐 그린 것이 그림과 같은 자리에
+    // 있는지**는 화면을 읽어야만 알 수 있다 - 그리는 쪽과 재는 쪽이 같은 셈을 쓰면 서로
+    // 어긋나 있어도 둘 다 같은 답을 내놓기 때문이다(D-150).
+    template <typename Fn>
+    PixelBox MeasurePixels(const JBro::Array<std::byte>& image,
+        const JBro::TextureReadback& readback, const ImRect& area, Fn&& matches)
+    {
+        // **재는 자리를 좁힌다.** 같은 색이 다른 창에도 있다(인스펙터의 강조 같은 것) -
+        // 화면 전체를 재면 그것들까지 한 상자에 들어온다.
+        PixelBox box;
+        const std::uint32_t left = static_cast<std::uint32_t>((std::max)(0.0f, area.Min.x));
+        const std::uint32_t top = static_cast<std::uint32_t>((std::max)(0.0f, area.Min.y));
+        const std::uint32_t right = static_cast<std::uint32_t>((std::max)(0.0f, area.Max.x));
+        const std::uint32_t bottom = static_cast<std::uint32_t>((std::max)(0.0f, area.Max.y));
+        for (std::uint32_t y = top; y < bottom; ++y)
+        {
+            for (std::uint32_t x = left; x < right; ++x)
+            {
+                const std::size_t offset = static_cast<std::size_t>(y) * readback.rowPitch
+                    + static_cast<std::size_t>(x) * 4;
+                const unsigned char* pixel =
+                    reinterpret_cast<const unsigned char*>(image.Data() + offset);
+                if (false == matches(pixel))
+                {
+                    continue;
+                }
+                box.minX = (std::min)(box.minX, static_cast<int>(x));
+                box.minY = (std::min)(box.minY, static_cast<int>(y));
+                box.maxX = (std::max)(box.maxX, static_cast<int>(x));
+                box.maxY = (std::max)(box.maxY, static_cast<int>(y));
+            }
+        }
+        return box;
+    }
+
     std::size_t CountPaintedPixels(JBro::Renderer& renderer, std::uint32_t width,
         std::uint32_t height)
     {
@@ -4982,6 +5027,79 @@ namespace
         inside.y = static_cast<int>(centerY);
         ClickAt(editor, hwnd, inside);
         Check(editor.GetSelectedObject() == object, "the middle of the picture picks it");
+
+        // **고른 것의 테두리는 그림의 모양을 따른다**(D-149). 모양을 재는 데 한 프레임이
+        // 더 걸리므로(프레임마다 몇 개로 막혀 있다) 몇 번 더 돌린 뒤에 묻는다.
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle on the selection");
+        }
+        {
+            const JBro::AssetSystem* assets = editor.GetAssetSystem();
+            Check(assets != nullptr, "the editor must have an asset system");
+            const JBro::SpriteData* data = assets->GetSprite(sprite->sprite);
+            Check(data != nullptr && false == data->frames.IsEmpty(),
+                "the sprite must be loaded with a frame");
+            const JBro::Array<JBro::EditorSpriteContours::Segment>* contour =
+                editor.GetSpriteContour(data->texture, data->frames[0]);
+            Check(contour != nullptr && contour->Size() >= 4,
+                "the editor must have measured the picture's shape");
+
+            // **테두리가 그림과 같은 자리에 있는가**(D-150). 화면을 읽어 둘의 사각형을
+            // 견준다 - 그리는 쪽과 재는 쪽이 같은 셈을 쓰면, 둘이 함께 어긋나 있어도
+            // 코드로는 드러나지 않는다.
+            JBro::Renderer* pixels = editor.GetRenderer();
+            Check(pixels != nullptr, "the editor must expose its renderer");
+            JBro::Array<std::byte> frameImage;
+            JBro::TextureReadback readback;
+            ReadBackBufferInto(*pixels, 800, 600, frameImage, readback);
+            // 그림은 순색 빨강·초록·파랑을 담고 있다. 격자의 축선(220,90,90 과 110,200,110)은
+            // 순색이 아니라 걸리지 않는다.
+            // 캔버스 뷰 창 안만 본다.
+            const ImRect area(view->Pos, ImVec2(view->Pos.x + view->Size.x,
+                view->Pos.y + view->Size.y));
+            const PixelBox picture = MeasurePixels(frameImage, readback, area,
+                [](const unsigned char* p) {
+                    // 읽어 온 픽셀은 BGRA 다.
+                    const int blue = p[0];
+                    const int green = p[1];
+                    const int red = p[2];
+                    return (red > 180 && green < 60 && blue < 60)
+                        || (green > 180 && red < 60 && blue < 60)
+                        || (blue > 180 && red < 60 && green < 60);
+                });
+            // 선택 테두리의 색이다. 기즈모의 축은 빨강·초록·파랑이고 가운데 손잡이는 흰색이라
+            // 이 색을 쓰는 것은 테두리뿐이다.
+            const PixelBox outline = MeasurePixels(frameImage, readback, area,
+                [](const unsigned char* p) {
+                    return std::abs(static_cast<int>(p[2]) - 255) < 40
+                        && std::abs(static_cast<int>(p[1]) - 168) < 40
+                        && std::abs(static_cast<int>(p[0]) - 64) < 40;
+                });
+            Check(false == picture.IsEmpty(), "the picture must be on screen");
+            Check(false == outline.IsEmpty(), "and so must the outline");
+            std::cout << "  [measure] picture x " << picture.minX << ".." << picture.maxX
+                << " y " << picture.minY << ".." << picture.maxY
+                << " / outline x " << outline.minX << ".." << outline.maxX
+                << " y " << outline.minY << ".." << outline.maxY << std::endl;
+            // 선 두께(1.5px)와 가장자리의 반투명 픽셀만큼은 어긋난다. 그보다 크게 벌어지면
+            // 겹쳐 그리는 좌표가 그림과 다른 기준으로 세어진 것이다.
+            constexpr int Tolerance = 5;
+            Check(std::abs(outline.minX - picture.minX) <= Tolerance
+                    && std::abs(outline.maxX - picture.maxX) <= Tolerance
+                    && std::abs(outline.minY - picture.minY) <= Tolerance
+                    && std::abs(outline.maxY - picture.maxY) <= Tolerance,
+                "the outline must sit on the picture, not beside it");
+            std::cout << "  the sprite contour has " << contour->Size() << " segments" << std::endl;
+            std::cout << "  [measure] frame " << data->frames[0].x << "," << data->frames[0].y
+                << " " << data->frames[0].width << "x" << data->frames[0].height
+                << " pivot " << data->frames[0].pivotX << "," << data->frames[0].pivotY
+                << " ppu " << data->options.pixelsPerUnit << std::endl;
+            if (JBro::Renderer* shotRenderer = editor.GetRenderer())
+            {
+                SaveScreenshot(*shotRenderer, 800, 600, "contour");
+            }
+        }
 
         // 두 유닛 옆은 **그림 밖**이다. 예전 셈으로는 아직 한참 안쪽이었다.
         Spot outside;
