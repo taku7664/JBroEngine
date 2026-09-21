@@ -216,6 +216,8 @@ namespace JBro
         m_lastPresentedBackBuffer = {};
         m_lastViewCamera = {};
         m_hasLastViewCamera = false;
+        m_lastEditorViewCamera = {};
+        m_hasLastEditorViewCamera = false;
         m_frameOverlay = nullptr;
         m_frameOverlayUser = nullptr;
         m_activeView = InvalidViewIndex;
@@ -686,21 +688,30 @@ namespace JBro
 
         const FrameStatus status = m_device->EndFrame(m_frame);
         m_lastStats = m_currentStats;
-        if (m_frameTarget.recordViews)
+        // 그리지 않은 프레임의 카메라는 화면에 없다. 기즈모는 보이는 그림의 카메라를 써야 한다.
+        //
+        // **자기 타깃을 든 뷰는 화면 프레임과 따로 논다**(D-130·D-140). 그쪽은 에디터가
+        // 스스로 카메라를 정해 자기 텍스처에 그린 화면이라, 부르는 쪽이 찾는 "게임이 보는
+        // 카메라" 가 아니고, 기록 조건도 다르다 - 게임 뷰가 닫혀 `recordViews` 가 꺼진
+        // 프레임에도 편집 화면은 그려지므로(RecordViews 가 같은 규칙으로 통과시킨다),
+        // 편집 카메라는 그 깃발과 무관하게 든다.
+        bool tookGameCamera = false;
+        for (std::size_t index = 0; index < m_views.Size(); ++index)
         {
-            // 그리지 않은 프레임의 카메라는 화면에 없다. 기즈모는 보이는 그림의 카메라를 써야 한다.
-            //
-            // **자기 타깃을 든 뷰는 건너뛴다**(D-130). 그쪽은 에디터가 스스로 카메라를
-            // 정해 그린 화면이라, 부르는 쪽이 찾는 "게임이 보는 카메라" 가 아니다.
-            for (std::size_t index = 0; index < m_views.Size(); ++index)
+            if (m_views[index].camera.target.IsValid())
             {
-                if (m_views[index].camera.target.IsValid())
-                {
-                    continue;
-                }
+                // **편집 뷰는 따로 든다**(D-140). 에디터가 같은 행렬을 한 번 더 세우면
+                // 둘로 갈리므로, 그린 쪽이 쓴 것을 그대로 내준다.
+                m_lastEditorViewCamera = m_views[index].camera;
+                m_hasLastEditorViewCamera = true;
+                continue;
+            }
+            // 게임 쪽은 **첫 뷰**다. 여럿이면 앞의 것이 화면을 대표한다.
+            if (m_frameTarget.recordViews && false == tookGameCamera)
+            {
                 m_lastViewCamera = m_views[index].camera;
                 m_hasLastViewCamera = true;
-                break;
+                tookGameCamera = true;
             }
         }
         m_lastPresentedBackBuffer = m_frame.backBuffer;
@@ -804,6 +815,16 @@ namespace JBro
             return false;
         }
         camera = m_lastViewCamera;
+        return true;
+    }
+
+    bool Renderer::GetLastEditorViewCamera(CameraParams& camera) const
+    {
+        if (false == m_hasLastEditorViewCamera)
+        {
+            return false;
+        }
+        camera = m_lastEditorViewCamera;
         return true;
     }
 

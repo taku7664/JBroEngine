@@ -55,6 +55,13 @@ namespace JBro
         void DrawGrid(const ViewRect& rect);
         void DrawSelectionOutlines(const ViewRect& rect);
         void DrawGizmo(const ViewRect& rect);
+        // 화면과 월드를 잇는 카메라를 만든다. 2D 는 우리가 아는 직교 행렬로, 3D 는
+        // **렌더러가 이번 프레임에 실제로 쓴 편집 카메라**로 만든다(D-140) - 여기서 같은
+        // 행렬을 한 번 더 세우면 둘로 갈려 손잡이가 그림과 다른 자리에 선다.
+        bool MakeGizmoCamera(const ViewRect& rect, GizmoCamera& camera) const;
+        // 3D 의 고르기와 표시. 평면 좌표에 기대지 않고 **그린 카메라의 투영**을 거친다.
+        void DrawSelectionMarkers3D(const ViewRect& rect);
+        void HandlePicking3D(const ViewRect& rect, bool hovered);
         // 빈 곳을 누르면 그 자리의 오브젝트를 고른다. 아무것도 없으면 선택을 비운다.
         void HandlePicking(const ViewRect& rect, bool hovered);
         // 빈 곳에서 끌면 상자가 따라오고, 놓으면 그 안에 **닿은** 것을 모두 고른다

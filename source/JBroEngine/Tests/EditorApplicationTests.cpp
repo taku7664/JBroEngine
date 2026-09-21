@@ -16,6 +16,7 @@
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
+#include <JBro/Framework3D/Component/Transform3D.h>
 #include <JBro/Graphics/Renderer.h>
 #include <JBro/Reflection/PropertyInfo.h>
 #include <JBro/Reflection/PropertyRegistry.h>
@@ -4470,6 +4471,31 @@ namespace
         const JBro::RendererFrameStats stats = renderer->GetLastFrameStats();
         Check(stats.viewCount >= 1,
             "and a view must be recorded for it even with no camera in the canvas");
+
+        // **그린 편집 카메라를 렌더러가 내준다**(D-140). 3D 의 기즈모가 화면과 월드를
+        // 이으려면 이것이 있어야 하고, 여기서 같은 행렬을 다시 세우면 둘로 갈린다.
+        JBro::CameraParams editorCamera;
+        Check(renderer->GetLastEditorViewCamera(editorCamera),
+            "the renderer must hand back the editor camera it drew with");
+
+        // 그 카메라로 손잡이가 선다. 오브젝트를 하나 놓고 골라 본다.
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* box = canvas->CreateObject("Box");
+        Check(canvas->AttachComponent<JBro::Component::Transform3D>(box) != nullptr,
+            "the box needs a 3D transform for the gizmo to hold");
+        editor.SetSelectedObject(box);
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle on the selection");
+        }
+        ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
+        Check(view != nullptr, "the canvas view must have a window");
+        Spot spot;
+        Check(FindItemAnywhereInWindow(editor, hwnd, view, LabelId(view->ID, "##gizmo_x"), spot),
+            "the x handle must be on screen in a 3D project too");
+        SaveScreenshot(*renderer, 640, 480, "canvas3d");
 
         editor.Shutdown();
     }

@@ -5,12 +5,14 @@
 #include <JBro/Host/ProjectFile.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/EditorUI.h>
+#include <JBro/Graphics/Renderer.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Editor/Widget/Button.h>
 #include <JBro/Editor/Widget/Common.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
+#include <JBro/Framework3D/Component/Transform3D.h>
 #include <JBro/Runtime/GameObject.h>
 
 #include <imgui.h>
@@ -219,11 +221,19 @@ namespace JBro
             }
             DrawSelectionOutlines(rect);
         }
+        else
+        {
+            DrawSelectionMarkers3D(rect);
+        }
         draw->PopClipRect();
 
         HandleCameraInput(rect, hovered);
         DrawGizmo(rect);
-        if (false == Is3D())
+        if (Is3D())
+        {
+            HandlePicking3D(rect, hovered);
+        }
+        else
         {
             HandleBoxSelect(rect, hovered);
             HandlePicking(rect, hovered);
@@ -753,38 +763,33 @@ namespace JBro
             MinOrthographicSize, MaxOrthographicSize);
     }
 
-    void CanvasViewPanel::DrawGizmo(const ViewRect& rect)
+    bool CanvasViewPanel::MakeGizmoCamera(const ViewRect& rect, GizmoCamera& camera) const
     {
-        GameObject* selected = m_editor->GetSelectedObject();
-        GizmoSubject subject;
-        const bool hasSubject = selected != nullptr
-            && GizmoEditing::ReadSubject(*m_editor, *selected, subject);
-        if (false == hasSubject && false == m_gizmoState.dragging)
-        {
-            return;
-        }
-        if (m_gizmoState.dragging && false == hasSubject)
-        {
-            m_editing.Cancel(*m_editor);
-            m_gizmoState.dragging = false;
-            return;
-        }
-
-        // 편집 카메라의 뷰·투영이다. 엔진이 캔버스 뷰를 그릴 때 쓰는 것과 같은 식이라야
-        // 손잡이가 그림과 같은 자리에 온다.
         if (Is3D())
         {
-            // **3D 의 손잡이는 아직 없다.** 궤도 카메라의 뷰·투영을 여기서 한 번 더
-            // 만들면 엔진이 만드는 것과 둘로 갈린다 - 같은 값을 두 곳에서 세우면
-            // 한쪽만 고쳐졌을 때 손잡이가 그림과 다른 자리에 선다.
-            // 렌더러가 이번 프레임에 쓴 편집 카메라를 내주는 길이 먼저 있어야 한다(계획서 §4).
-            if (m_gizmoState.dragging || m_editing.IsActive())
+            // **렌더러가 이번 프레임에 쓴 편집 카메라를 그대로 쓴다**(D-140). 여기서 같은
+            // 궤도 행렬을 한 번 더 세우면 둘로 갈려, 한쪽만 고쳐졌을 때 손잡이가 그림과
+            // 다른 자리에 선다. UI 가 엔진 프레임보다 먼저 만들어지므로 한 프레임 전의 것이다.
+            Renderer* renderer = m_editor->GetRenderer();
+            CameraParams drawn;
+            if (renderer == nullptr || false == renderer->GetLastEditorViewCamera(drawn))
             {
-                m_editing.Cancel(*m_editor);
-                m_gizmoState.dragging = false;
+                return false;
             }
-            return;
+            // 그 카메라의 뷰포트는 편집 화면 텍스처의 픽셀이다. 텍스처는 패널보다 크게
+            // 잡혀 있고(64 의 배수) 패널 크기만큼만 잘라 붙였으므로, NDC 가 앉는 자리는
+            // **텍스처 크기**의 사각형이다 - 그 왼쪽 위가 그림의 왼쪽 위와 같다.
+            const Extent2D extent = m_editor->GetCanvasViewExtent();
+            if (extent.width == 0 || extent.height == 0)
+            {
+                return false;
+            }
+            return GizmoModel::MakeCamera(drawn.view, drawn.projection,
+                rect.left, rect.top,
+                static_cast<float>(extent.width), static_cast<float>(extent.height), camera);
         }
+
+        // 2D 는 우리가 카메라를 다 안다. 엔진이 캔버스 뷰를 그릴 때 쓰는 것과 같은 식이다.
         const float halfHeight = m_orthographicSize;
         const float halfWidth = rect.height > 0.0f
             ? halfHeight * rect.width / rect.height
@@ -802,11 +807,158 @@ namespace JBro
             0.0f, 1.0f / halfHeight, 0.0f, 0.0f,
             0.0f, 0.0f, 1.0f / Depth, -NearPlane / Depth,
             0.0f, 0.0f, 0.0f, 1.0f}};
+        return GizmoModel::MakeCamera(
+            view, projection, rect.left, rect.top, rect.width, rect.height, camera);
+    }
+
+    void CanvasViewPanel::DrawSelectionMarkers3D(const ViewRect& rect)
+    {
+        Canvas* canvas = m_editor->GetCanvas();
+        const Array<GameObject*> selected = m_editor->GetSelectedObjects();
+        if (canvas == nullptr || selected.Size() == 0)
+        {
+            return;
+        }
+        GizmoCamera camera;
+        if (false == MakeGizmoCamera(rect, camera))
+        {
+            return;
+        }
+        // **점 하나를 찍는다.** 메시의 실제 크기를 에디터가 알 길이 아직 없어서
+        // 상자를 두르지 못한다 - 짐작한 크기로 두르면 맞지 않는 테두리가 되고,
+        // 맞지 않는 테두리는 없는 것보다 나쁘다.
+        ImDrawList* draw = ImGui::GetWindowDrawList();
+        GameObject* primary = m_editor->GetSelectedObject();
+        for (std::size_t index = 0; index < selected.Size(); ++index)
+        {
+            GameObject* object = selected[index];
+            if (object == nullptr)
+            {
+                continue;
+            }
+            Component::Transform3D* transform =
+                canvas->FindComponentRaw<Component::Transform3D>(object);
+            if (transform == nullptr)
+            {
+                continue;
+            }
+            const Vec3 at = transform->worldValid ? transform->worldPosition : transform->position;
+            float x = 0.0f;
+            float y = 0.0f;
+            if (false == GizmoModel::Project(camera, at, x, y))
+            {
+                continue;
+            }
+            const ImU32 color = object == primary
+                ? IM_COL32(255, 168, 64, 255)
+                : IM_COL32(255, 168, 64, 140);
+            constexpr float Half = 6.0f;
+            draw->AddRect(ImVec2(x - Half, y - Half), ImVec2(x + Half, y + Half), color, 0.0f, 0, 1.5f);
+        }
+    }
+
+    void CanvasViewPanel::HandlePicking3D(const ViewRect& rect, bool hovered)
+    {
+        if (false == hovered || m_gizmoState.dragging || m_editing.IsActive()
+            || m_gizmoState.hovered != GizmoAxis::None)
+        {
+            return;
+        }
+        if (false == ImGui::IsMouseReleased(ImGuiMouseButton_Left)
+            || Widget::MouseWasDragged(ImGuiMouseButton_Left))
+        {
+            return;
+        }
+        Canvas* canvas = m_editor->GetCanvas();
+        GizmoCamera camera;
+        if (canvas == nullptr || false == MakeGizmoCamera(rect, camera))
+        {
+            return;
+        }
+
+        // **화면에서 가까운 것을 고른다.** 메시의 크기를 모르므로 월드의 광선 교차 대신
+        // 오브젝트의 자리를 화면으로 투영해 마우스와의 거리를 잰다 - 이것이 3D 에서
+        // "눌러서 고르기" 가 실제로 하는 일에 가장 가깝고, 짐작한 상자보다 덜 틀린다.
+        const ImGuiIO& io = ImGui::GetIO();
+        constexpr float PickRadius = 18.0f;
+        GameObject* best = nullptr;
+        float bestDistance = PickRadius * PickRadius;
+        canvas->ForEachObject([&](GameObject& object)
+        {
+            Component::Transform3D* transform =
+                canvas->FindComponentRaw<Component::Transform3D>(&object);
+            if (transform == nullptr)
+            {
+                return;
+            }
+            const Vec3 at = transform->worldValid ? transform->worldPosition : transform->position;
+            float x = 0.0f;
+            float y = 0.0f;
+            if (false == GizmoModel::Project(camera, at, x, y))
+            {
+                return;
+            }
+            const float dx = x - io.MousePos.x;
+            const float dy = y - io.MousePos.y;
+            const float distance = dx * dx + dy * dy;
+            if (distance < bestDistance)
+            {
+                best = &object;
+                bestDistance = distance;
+            }
+        });
+
+        if (best == nullptr)
+        {
+            if (false == io.KeyCtrl && false == io.KeyShift)
+            {
+                m_editor->ClearSelection();
+            }
+            return;
+        }
+        if (io.KeyCtrl || io.KeyShift)
+        {
+            if (m_editor->IsSelected(best))
+            {
+                m_editor->RemoveFromSelection(best);
+            }
+            else
+            {
+                m_editor->AddToSelection(best);
+            }
+        }
+        else
+        {
+            m_editor->SetSelectedObject(best);
+        }
+    }
+
+    void CanvasViewPanel::DrawGizmo(const ViewRect& rect)
+    {
+        GameObject* selected = m_editor->GetSelectedObject();
+        GizmoSubject subject;
+        const bool hasSubject = selected != nullptr
+            && GizmoEditing::ReadSubject(*m_editor, *selected, subject);
+        if (false == hasSubject && false == m_gizmoState.dragging)
+        {
+            return;
+        }
+        if (m_gizmoState.dragging && false == hasSubject)
+        {
+            m_editing.Cancel(*m_editor);
+            m_gizmoState.dragging = false;
+            return;
+        }
 
         GizmoCamera camera;
-        if (false == GizmoModel::MakeCamera(
-                view, projection, rect.left, rect.top, rect.width, rect.height, camera))
+        if (false == MakeGizmoCamera(rect, camera))
         {
+            // 아직 그린 프레임이 없다(3D 의 첫 프레임). 끌던 것이 있으면 놓는다.
+            if (m_gizmoState.dragging || m_editing.IsActive())
+            {
+                m_editing.Cancel(*m_editor);
+                m_gizmoState.dragging = false;
+            }
             return;
         }
 
