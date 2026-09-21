@@ -4899,6 +4899,102 @@ namespace
     // 숫자들(오브젝트·풀·선택·되돌리기)이 우리에게는 없었다.
     // **다시 열면 보던 자리에서 이어 본다**(D-146). 보던 캔버스와 편집 카메라, 에디터 언어가
     // 프로젝트 파일에 남는다. 기존 엔진도 이 셋을 프로젝트에 적었다.
+    // **집는 칸이 에셋이 정한 크기를 따른다**(D-148). `sizeMode` 가 `FromSprite` 면 실제 크기는
+    // 칸 픽셀을 그 에셋의 PPU 로 나눈 값이다(D-117). 선언된 `size` 를 대신 쓰면 집는 칸이
+    // 그림과 어긋나, 그림 밖 빈 곳을 눌러도 잡히고 그림 가장자리를 눌러도 놓친다.
+    void TestPickingFollowsTheSpriteAssetSize()
+    {
+        namespace fs = std::filesystem;
+        const fs::path root(TempPath("JBroPickSizeProbe").c_str());
+        std::error_code ignored;
+        fs::remove_all(root, ignored);
+        fs::create_directories(root / "Assets", ignored);
+        {
+            std::ofstream png(root / "Assets" / "hero.png", std::ios::binary);
+            png.write(reinterpret_cast<const char*>(TinyPng), sizeof(TinyPng));
+        }
+        const JBro::String projectPath = TempPath("JBroPickSizeProbe\\PickSize.jproject");
+        Check(WriteTextFile(projectPath,
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 2D\n"
+            "RootPath: .\n"
+            "AssetDirectory: Assets\n"),
+            "the test must be able to write its own project file");
+
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 800;
+        config.windowHeight = 600;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; picking size not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.c_str(), error), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        const JBro::AssetRegistry& registry = editor.GetAssetRegistry();
+        JBro::AssetId spriteAsset;
+        for (std::size_t index = 0; index < registry.GetCount(); ++index)
+        {
+            const JBro::AssetRecord& record = registry.GetRecord(index);
+            if (record.type == JBro::AssetType::Sprite && record.relativePath == "hero.png")
+            {
+                spriteAsset = record.id;
+            }
+        }
+        Check(false == spriteAsset.IsNull(), "the scan must have registered hero.png as a sprite");
+
+        // 그림은 2x2 픽셀이고 기본 PPU 는 100 이라 0.02 유닛이다. 100 배로 키우면 2 유닛이 되어
+        // 반폭이 1 유닛이다. 선언된 `size`(1x1)를 쓰던 예전 셈이라면 반폭이 50 유닛이라,
+        // 두 칸은 화면에서 확실히 갈린다.
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* object = canvas->CreateObject("Hero");
+        auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(object);
+        auto* sprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(object);
+        Check(transform != nullptr && sprite != nullptr, "the hero needs both components");
+        transform->scale = JBro::Vec2{100.0f, 100.0f};
+        sprite->spriteId = spriteAsset;
+        // 해석은 커맨드가 돌 때 따라 도는데(D-115) 여기서는 값을 손으로 놓았다.
+        // 다시 훑으면 해석도 함께 돈다.
+        Check(editor.RescanAssets(), "the registry must rescan so the handle resolves");
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+        Check(sprite->sprite.index != 0 || sprite->sprite.generation != 0,
+            "the sprite id must resolve to a handle");
+
+        ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
+        Check(view != nullptr, "the canvas view must have a window");
+        // 화면 한가운데가 월드 원점이고, 세로 절반이 5 유닛이다.
+        const float centerX = view->Pos.x + view->Size.x * 0.5f;
+        const float centerY = view->Pos.y + view->Size.y * 0.5f;
+        const float pixelsPerUnit = view->Size.y * 0.5f / 5.0f;
+
+        Spot inside;
+        inside.x = static_cast<int>(centerX);
+        inside.y = static_cast<int>(centerY);
+        ClickAt(editor, hwnd, inside);
+        Check(editor.GetSelectedObject() == object, "the middle of the picture picks it");
+
+        // 두 유닛 옆은 **그림 밖**이다. 예전 셈으로는 아직 한참 안쪽이었다.
+        Spot outside;
+        outside.x = static_cast<int>(centerX + pixelsPerUnit * 2.0f);
+        outside.y = static_cast<int>(centerY);
+        ClickAt(editor, hwnd, outside);
+        Check(editor.GetSelectedObject() == nullptr,
+            "and two units to the side is outside the picture, so nothing is picked");
+
+        editor.Shutdown();
+        fs::remove_all(root, ignored);
+    }
+
     void TestTheEditorSessionSurvivesReopening()
     {
         namespace fs = std::filesystem;
@@ -5528,6 +5624,7 @@ int RunEditorApplicationTests()
     TestBoxSelectInTheCanvasViewPicksWhatItTouches();
     TestTheCanvasViewDrawsInA3DProject();
     TestProjectSettingsAreWrittenBackToTheFile();
+    TestPickingFollowsTheSpriteAssetSize();
     TestTheEditorSessionSurvivesReopening();
     TestTheStatsPanelShowsWhatTheCanvasHolds();
     TestTheCanvasViewDrawsColliderShapes();

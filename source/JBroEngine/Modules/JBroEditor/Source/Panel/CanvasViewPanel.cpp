@@ -11,6 +11,7 @@
 #include <JBro/Editor/Widget/Button.h>
 #include <JBro/Editor/Widget/Common.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
+#include <JBro/Asset/Asset.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
@@ -496,13 +497,41 @@ namespace JBro
         if (Component::SpriteRenderer2D* sprite =
                 canvas->FindComponentRaw<Component::SpriteRenderer2D>(&mutableObject))
         {
-            // `sizeMode` 가 `FromSprite` 면 실제 크기는 에셋이 정하고 추출 단계에서 풀린다.
-            // 에디터는 그 결과를 볼 길이 아직 없어 선언된 `size` 를 쓴다 - 스프라이트를 건
-            // 오브젝트를 집을 수는 있고, 칸이 정확하지 않을 뿐이다.
-            halfWidth = std::fabs(sprite->size.x * scale.x) * 0.5f;
-            halfHeight = std::fabs(sprite->size.y * scale.y) * 0.5f;
-            offsetX = (0.5f - sprite->pivot.x) * sprite->size.x * scale.x;
-            offsetY = (0.5f - sprite->pivot.y) * sprite->size.y * scale.y;
+            // **에셋이 정한 크기를 에셋에게 묻는다**(D-148). `sizeMode` 가 `FromSprite` 면
+            // 실제 크기는 스프라이트의 칸 픽셀을 그 에셋의 PPU 로 나눈 값이고, 그리는 쪽도
+            // 그렇게 푼다(D-117). 선언된 `size` 를 대신 쓰면 집는 칸이 그림과 어긋나,
+            // 눈에 보이는 그림의 가장자리를 눌러도 잡히지 않는다.
+            float widthUnits = sprite->size.x;
+            float heightUnits = sprite->size.y;
+            float pivotX = sprite->pivot.x;
+            float pivotY = sprite->pivot.y;
+            const AssetSystem* assets = m_editor->GetAssetSystem();
+            const SpriteData* data =
+                assets != nullptr ? assets->GetSprite(sprite->sprite) : nullptr;
+            if (data != nullptr && false == data->frames.IsEmpty()
+                && data->options.pixelsPerUnit > 0.0f)
+            {
+                // 칸 번호가 넘치면 마지막 칸이다. 그리는 쪽(`SpriteLibrary::Resolve`)과 같다.
+                const std::size_t frameIndex =
+                    sprite->frameIndex < data->frames.Size()
+                        ? sprite->frameIndex
+                        : data->frames.Size() - 1;
+                const SpriteFrame& frame = data->frames[frameIndex];
+                if (sprite->sizeMode == Component::SpriteSizeMode::FromSprite)
+                {
+                    widthUnits = static_cast<float>(frame.width) / data->options.pixelsPerUnit;
+                    heightUnits = static_cast<float>(frame.height) / data->options.pixelsPerUnit;
+                }
+                if (sprite->pivotMode == Component::SpritePivotMode::FromSprite)
+                {
+                    pivotX = frame.pivotX;
+                    pivotY = frame.pivotY;
+                }
+            }
+            halfWidth = std::fabs(widthUnits * scale.x) * 0.5f;
+            halfHeight = std::fabs(heightUnits * scale.y) * 0.5f;
+            offsetX = (0.5f - pivotX) * widthUnits * scale.x;
+            offsetY = (0.5f - pivotY) * heightUnits * scale.y;
         }
         if (halfWidth < 0.001f)
         {
