@@ -137,6 +137,32 @@ namespace JBro
             (void)utf8Path;
             return false;
         }
+        // 폴더를 만든다(중간 폴더도 함께). **이미 있으면 참이다** - 부르는 쪽이 "있는가" 를
+        // 먼저 묻고 만들면 그 사이에 생긴 경우를 다루지 못한다(D-139).
+        virtual bool CreateDirectoryAt(const char* utf8Path)
+        {
+            (void)utf8Path;
+            return false;
+        }
+        // 파일 하나를 지운다. 없으면 거짓이다 - "지웠다" 와 "없었다" 를 같게 보면
+        // 부르는 쪽이 지워졌다고 믿는다.
+        virtual bool DeleteFileAt(const char* utf8Path)
+        {
+            (void)utf8Path;
+            return false;
+        }
+        // 폴더와 그 아래를 통째로 지운다. **되돌릴 수 없다** - 부르는 쪽이 먼저 물어야 한다.
+        virtual bool DeleteDirectoryAt(const char* utf8Path)
+        {
+            (void)utf8Path;
+            return false;
+        }
+        // 그 경로를 운영체제의 파일 탐색기에서 연다. 없는 플랫폼이면 거짓이다.
+        virtual bool RevealInFileBrowser(const char* utf8Path)
+        {
+            (void)utf8Path;
+            return false;
+        }
         virtual bool DirectoryExists(const char* utf8Path) const
         {
             (void)utf8Path;

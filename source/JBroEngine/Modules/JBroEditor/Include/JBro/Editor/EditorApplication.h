@@ -103,6 +103,27 @@ namespace JBro
         // 열린 프로젝트의 에셋 폴더가 감시되고 있는가. 거짓이면 밖에서 바꾼 파일이 반영되지 않는다.
         bool IsWatchingAssets() const;
 
+        // ── 에셋 파일 (D-139) ────────────────────────────────────────────
+        //
+        // 에셋 브라우저가 폴더를 만들고 이름을 바꾸고 옮기고 지우는 길이다. 경로는
+        // **에셋 폴더 기준 상대경로**이고, 레지스트리가 적는 것과 같은 모양이다.
+        //
+        // **`.jmeta` 가 늘 함께 간다.** 짝을 잃으면 그 에셋의 아이디가 사라지고,
+        // 그것을 가리키던 컴포넌트의 참조가 전부 풀린다(D-111).
+        //
+        // 어느 것이든 성공하면 레지스트리를 다시 스캔하고 캔버스의 참조를 다시 잇는다.
+        const String& GetAssetRoot() const;
+        // 에셋 폴더를 지금 다시 훑는다. 감시가 서지 않은 자리에서 사람이 새로 고치는 길이다.
+        bool RescanAssets();
+        bool CreateAssetFolder(const char* relativeFolder, const char* name);
+        // 이름만 바꾼다. 확장자는 부르는 쪽이 붙인 그대로 쓴다.
+        bool RenameAsset(const char* relativePath, const char* newName);
+        // 다른 폴더로 옮긴다. `targetFolder` 가 비면 에셋 폴더의 뿌리다.
+        bool MoveAsset(const char* relativePath, const char* targetFolder);
+        // **되돌릴 수 없다.** 부르는 쪽이 먼저 물어야 한다.
+        bool DeleteAsset(const char* relativePath);
+        bool RevealAsset(const char* relativePath);
+
         // **에셋 선택**(D-120). 에셋 브라우저가 고르고 인스펙터가 임포트 옵션을 보여 준다. 오브젝트 선택과 배타다 -
         // 에셋을 고르면 오브젝트 선택이 비고, 오브젝트를 고르면 에셋 선택이 빈다. 인스펙터는 하나만 보인다.
         void SetSelectedAsset(AssetId id);

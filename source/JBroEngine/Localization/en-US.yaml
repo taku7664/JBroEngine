@@ -112,3 +112,17 @@ Entries:
   profiler.calls: calls
   profiler.share: share
   profiler.frame: frame
+  assets.root: Assets
+  assets.folder_empty: this folder has no assets
+  assets.new_folder: New Folder
+  assets.new_folder_failed: that folder could not be made
+  assets.rename: Rename
+  assets.rename_failed: that name is taken, or the file could not be renamed
+  assets.delete: Delete
+  assets.delete_ask: delete this asset?
+  assets.delete_folder_ask: delete this folder and everything in it?
+  assets.delete_failed: that could not be deleted
+  assets.move_failed: that could not be moved
+  assets.reveal: Show in Explorer
+  common.cancel: Cancel
+  assets.rescan: Rescan

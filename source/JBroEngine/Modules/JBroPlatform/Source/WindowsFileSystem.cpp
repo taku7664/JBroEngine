@@ -1,6 +1,8 @@
 ﻿#include <JBro/Platform/WindowsPlatform.h>
 
 #include <windows.h>
+// `ShellExecuteW` 가 여기 있다. 탐색기에서 보여 주는 데만 쓴다.
+#include <shellapi.h>
 
 #include <filesystem>
 #include <fstream>
@@ -122,6 +124,72 @@ namespace JBro
             return false;
         }
         return MoveFileExW(from.c_str(), to.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != FALSE;
+    }
+
+    bool WindowsPlatform::CreateDirectoryAt(const char* utf8Path)
+    {
+        const fs::path path = ToPath(utf8Path);
+        if (path.empty())
+        {
+            return false;
+        }
+        std::error_code errorCode;
+        // 이미 있으면 `create_directories` 는 거짓을 돌려주되 오류는 아니다.
+        // 있는 것도 만든 것과 같게 본다 - 부르는 쪽이 원하는 것은 "그 폴더가 있는 상태" 다.
+        fs::create_directories(path, errorCode);
+        return (false == static_cast<bool>(errorCode)) && fs::is_directory(path, errorCode);
+    }
+
+    bool WindowsPlatform::DeleteFileAt(const char* utf8Path)
+    {
+        const fs::path path = ToPath(utf8Path);
+        std::error_code errorCode;
+        if (path.empty() || false == fs::is_regular_file(path, errorCode))
+        {
+            return false;
+        }
+        return fs::remove(path, errorCode) && (false == static_cast<bool>(errorCode));
+    }
+
+    bool WindowsPlatform::DeleteDirectoryAt(const char* utf8Path)
+    {
+        const fs::path path = ToPath(utf8Path);
+        std::error_code errorCode;
+        if (path.empty() || false == fs::is_directory(path, errorCode))
+        {
+            return false;
+        }
+        fs::remove_all(path, errorCode);
+        return false == static_cast<bool>(errorCode);
+    }
+
+    bool WindowsPlatform::RevealInFileBrowser(const char* utf8Path)
+    {
+        const fs::path path = ToPath(utf8Path);
+        std::error_code errorCode;
+        if (path.empty())
+        {
+            return false;
+        }
+        // 파일이면 그 파일을 고른 채로, 폴더면 그 폴더를 연다.
+        const bool isFile = fs::is_regular_file(path, errorCode);
+        std::wstring parameters;
+        if (isFile)
+        {
+            parameters = L"/select,\"";
+            parameters += path.wstring();
+            parameters += L"\"";
+        }
+        else
+        {
+            parameters = L"\"";
+            parameters += path.wstring();
+            parameters += L"\"";
+        }
+        // `ShellExecuteW` 의 성공은 32 보다 큰 값이다(옛 API 의 규약이다).
+        const HINSTANCE result = ShellExecuteW(
+            nullptr, L"open", L"explorer.exe", parameters.c_str(), nullptr, SW_SHOWNORMAL);
+        return reinterpret_cast<INT_PTR>(result) > 32;
     }
 
     bool WindowsPlatform::FileExists(const char* utf8Path) const

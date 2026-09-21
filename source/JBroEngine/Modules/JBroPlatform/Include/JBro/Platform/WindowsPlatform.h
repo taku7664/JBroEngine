@@ -28,6 +28,10 @@ namespace JBro
         bool ReadWholeFile(const char* utf8Path, Array<std::byte>& contents) override;
         bool WriteWholeFile(const char* utf8Path, JArrayView<std::byte> contents) override;
         bool MoveFileTo(const char* fromUtf8Path, const char* toUtf8Path) override;
+        bool CreateDirectoryAt(const char* utf8Path) override;
+        bool DeleteFileAt(const char* utf8Path) override;
+        bool DeleteDirectoryAt(const char* utf8Path) override;
+        bool RevealInFileBrowser(const char* utf8Path) override;
         bool FileExists(const char* utf8Path) const override;
         bool DirectoryExists(const char* utf8Path) const override;
         bool EnumerateDirectory(const char* utf8Root, DirectoryVisitor visitor, void* user) override;

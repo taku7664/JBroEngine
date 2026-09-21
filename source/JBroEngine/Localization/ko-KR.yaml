@@ -112,3 +112,17 @@ Entries:
   profiler.calls: 횟수
   profiler.share: 비중
   profiler.frame: 프레임
+  assets.root: 에셋
+  assets.folder_empty: 이 폴더에 에셋이 없습니다
+  assets.new_folder: 새 폴더
+  assets.new_folder_failed: 폴더를 만들지 못했습니다
+  assets.rename: 이름 바꾸기
+  assets.rename_failed: 같은 이름이 이미 있거나 이름을 바꾸지 못했습니다
+  assets.delete: 삭제
+  assets.delete_ask: 이 에셋을 삭제할까요?
+  assets.delete_folder_ask: 이 폴더와 그 안의 것을 모두 삭제할까요?
+  assets.delete_failed: 삭제하지 못했습니다
+  assets.move_failed: 옮기지 못했습니다
+  assets.reveal: 탐색기에서 보기
+  common.cancel: 취소
+  assets.rescan: 새로 고침

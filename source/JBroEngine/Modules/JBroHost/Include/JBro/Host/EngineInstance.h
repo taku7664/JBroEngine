@@ -131,6 +131,8 @@ namespace JBro
         bool RescanAssets();
         // 프로젝트를 열 때 감시가 섰고 아직 살아 있는가. 거짓이면 폴더 변경이 오지 않는다 - 에디터가 알릴 수 있게 둔다.
         bool IsWatchingAssets() const;
+        // 에셋 폴더의 실제 경로다. 프로젝트 파일이 없으면 비어 있다.
+        const String& GetAssetRoot() const { return m_assetRoot; }
         // 프로젝트 파일로 열었을 때 그 에셋 폴더를 스캔한 결과다. 파일 없이 열면 비어 있다.
         const AssetRegistry& GetAssetRegistry() const;
         const AssetScanReport& GetAssetScanReport() const;

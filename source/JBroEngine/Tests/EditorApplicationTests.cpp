@@ -641,6 +641,25 @@ namespace
         return LabelId(PushedId(table, static_cast<int>(field)), label);
     }
 
+    // ImGui 의 자식 창은 `"<부모 이름>/<자식 이름>_<16진 Id>"` 로 이름 붙는다. 그 16진 값을
+    // 손으로 맞추기보다 접두사로 찾는 쪽이 덜 깨진다 - ImGui 가 이름 짓는 법을 바꿔도 앞부분은 남는다.
+    ImGuiWindow* FindChildWindow(ImGuiWindow* parent, const char* childName)
+    {
+        Check(parent != nullptr && childName != nullptr, "a child needs a parent and a name");
+        char prefix[256] = {};
+        ImFormatString(prefix, IM_ARRAYSIZE(prefix), "%s/%s_", parent->Name, childName);
+        const std::size_t length = std::strlen(prefix);
+        ImGuiContext& context = *ImGui::GetCurrentContext();
+        for (ImGuiWindow* window : context.Windows)
+        {
+            if (std::strncmp(window->Name, prefix, length) == 0)
+            {
+                return window;
+            }
+        }
+        return nullptr;
+    }
+
     struct Spot
     {
         int x = 0;
@@ -2708,15 +2727,46 @@ namespace
             assets = ImGui::FindWindowByName("Assets");
         }
         Check(assets != nullptr && assets->DockTabIsVisible, "the asset browser tab must be in front");
-        // 줄의 Id: 창 → PushID("art") → 열린 폴더 마디 "##folder" → PushID("art/hero.png") → "##file".
-        const ImGuiID folder = LabelId(LabelId(assets->ID, "art"), "##folder");
-        const ImGuiID heroRow = LabelId(LabelId(folder, "art/hero.png"), "##file");
+        // **에셋 브라우저는 두 칸이다**(D-139). 왼쪽 나무에서 `art` 를 눌러 열고,
+        // 오른쪽 칸에서 그 안의 파일을 찾는다.
         Spot spot;
+        {
+            ImGuiWindow* tree = FindChildWindow(assets, "##tree");
+            Check(tree != nullptr, "the folder tree pane must exist");
+            const ImGuiID artRow = LabelId(LabelId(tree->ID, "art"), "##folder");
+            bool foundFolder = false;
+            const int x = static_cast<int>(tree->Pos.x + 40.0f);
+            const int bottom = static_cast<int>(tree->Pos.y + tree->Size.y);
+            for (int y = static_cast<int>(tree->Pos.y); y < bottom && false == foundFolder; y += 3)
+            {
+                PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
+                Check(editor.Tick(Frame), "the editor must tick while looking for the folder");
+                if (ImGui::GetHoveredID() == artRow)
+                {
+                    spot.x = x;
+                    spot.y = y;
+                    foundFolder = true;
+                }
+            }
+            Check(foundFolder, "the art folder must be a row in the tree");
+            ClickAt(editor, hwnd, spot);
+            for (int frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must settle on the folder");
+            }
+        }
+
         bool found = false;
         {
-            const int x = static_cast<int>(assets->Pos.x + 48.0f);
-            const int bottom = static_cast<int>(assets->Pos.y + assets->Size.y);
-            for (int y = static_cast<int>(assets->Pos.y); y < bottom && false == found; y += 3)
+            assets = ImGui::FindWindowByName("Assets");
+            Check(assets != nullptr, "the asset browser must still have a window");
+            ImGuiWindow* contents = FindChildWindow(assets, "##contents");
+            Check(contents != nullptr, "the contents pane must exist");
+            // 줄의 Id: 자식 창 → PushID("art/hero.png") → "##file".
+            const ImGuiID heroRow = LabelId(LabelId(contents->ID, "art/hero.png"), "##file");
+            const int x = static_cast<int>(contents->Pos.x + 40.0f);
+            const int bottom = static_cast<int>(contents->Pos.y + contents->Size.y);
+            for (int y = static_cast<int>(contents->Pos.y); y < bottom && false == found; y += 3)
             {
                 PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
                 Check(editor.Tick(Frame), "the editor must tick while looking");
@@ -2728,7 +2778,12 @@ namespace
                 }
             }
         }
-        Check(found, "hero.png must be a row under the art folder");
+        Check(found, "hero.png must be a row in the art folder");
+        // 두 칸이 어떻게 보이는지 한 장 남긴다(§11.4).
+        if (JBro::Renderer* shotRenderer = editor.GetRenderer())
+        {
+            SaveScreenshot(*shotRenderer, 1024, 768, "assets");
+        }
         ClickAt(editor, hwnd, spot);
         Check(editor.GetSelectedAsset() == hero->id, "clicking the row selects the texture record");
         Check(editor.GetSelectedObject() == nullptr, "and no object");
@@ -4484,6 +4539,87 @@ namespace
         std::remove(projectPath.c_str());
     }
 
+    // **에셋 파일을 다루면 `.jmeta` 가 함께 움직인다**(D-139). 짝을 잃으면 그 에셋의
+    // 아이디가 사라지고, 그것을 가리키던 컴포넌트의 참조가 전부 풀린다.
+    void TestAssetFileOperationsCarryTheMeta()
+    {
+        // 이 파일의 다른 검사들과 같은 별칭이다. 그쪽은 제 함수 안에서 들여온다.
+        namespace fs = std::filesystem;
+        const fs::path root = fs::temp_directory_path() / "JBroAssetOpsProbe";
+        std::error_code errorCode;
+        fs::remove_all(root, errorCode);
+        fs::create_directories(root / "Assets" / "art", errorCode);
+        {
+            std::ofstream image(root / "Assets" / "art" / "hero.png", std::ios::binary);
+            image.write(reinterpret_cast<const char*>(TinyPng), sizeof(TinyPng));
+        }
+        const JBro::String projectPath((root / "Probe.jproject").string().c_str());
+        Check(WriteTextFile(projectPath,
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 2D\n"
+            "AssetDirectory: Assets\n"
+            "ScriptOutputLibraryPath: \"\"\n"),
+            "the test must be able to write its own project file");
+
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        JBro::EditorApplication editor;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; asset file operations not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.c_str(), error), "the probe project must open");
+        Check(editor.GetAssetRegistry().FindByPath("art/hero.png") != nullptr,
+            "the scan must have registered the image");
+        // 메타는 스캔이 만든다(D-111). 그 파일이 따라다니는지가 이 검사의 요점이다.
+        Check(fs::exists(root / "Assets" / "art" / "hero.png.jmeta", errorCode),
+            "the scan must have written a meta beside it");
+
+        // ── 폴더 만들기 ──────────────────────────────────────────────────
+        Check(editor.CreateAssetFolder("", "sprites"), "a folder can be made at the root");
+        Check(fs::is_directory(root / "Assets" / "sprites", errorCode), "and it is there");
+
+        // ── 옮기기: 메타도 함께 ─────────────────────────────────────────
+        Check(editor.MoveAsset("art/hero.png", "sprites"), "an asset can move to another folder");
+        Check(fs::exists(root / "Assets" / "sprites" / "hero.png", errorCode), "the file moved");
+        Check(fs::exists(root / "Assets" / "sprites" / "hero.png.jmeta", errorCode),
+            "and so did its meta, or the asset would lose its id");
+        Check(false == fs::exists(root / "Assets" / "art" / "hero.png", errorCode),
+            "nothing is left behind");
+        Check(editor.GetAssetRegistry().FindByPath("sprites/hero.png") != nullptr,
+            "and the registry knows where it went");
+
+        // ── 이름 바꾸기 ──────────────────────────────────────────────────
+        Check(editor.RenameAsset("sprites/hero.png", "villain.png"), "an asset can be renamed");
+        Check(fs::exists(root / "Assets" / "sprites" / "villain.png", errorCode), "under the new name");
+        Check(fs::exists(root / "Assets" / "sprites" / "villain.png.jmeta", errorCode),
+            "with its meta beside it");
+
+        // **덮어쓰지 않는다.** 같은 이름이 이미 있으면 그 에셋을 잃는다.
+        {
+            std::ofstream other(root / "Assets" / "sprites" / "taken.png", std::ios::binary);
+            other.write(reinterpret_cast<const char*>(TinyPng), sizeof(TinyPng));
+        }
+        Check(editor.RescanAssets(), "the folder must be rescannable");
+        Check(false == editor.RenameAsset("sprites/villain.png", "taken.png"),
+            "renaming onto a name that is taken must be refused");
+        Check(fs::exists(root / "Assets" / "sprites" / "villain.png", errorCode),
+            "and must leave the file where it was");
+
+        // ── 지우기: 메타도 함께 ─────────────────────────────────────────
+        Check(editor.DeleteAsset("sprites/villain.png"), "an asset can be deleted");
+        Check(false == fs::exists(root / "Assets" / "sprites" / "villain.png", errorCode),
+            "the file is gone");
+        Check(false == fs::exists(root / "Assets" / "sprites" / "villain.png.jmeta", errorCode),
+            "and the meta with it, or the next scan makes a meta with no file");
+
+        editor.Shutdown();
+        fs::remove_all(root, errorCode);
+    }
+
     // 계층의 줄 하나가 차지한 Id.
     //
     // 줄마다 `PushID(&object)` 를 쌓고 트리 마디가 `"##node"` 로 선다. **펼친 마디는
@@ -4680,6 +4816,7 @@ int RunEditorApplicationTests()
     TestBoxSelectInTheCanvasViewPicksWhatItTouches();
     TestTheCanvasViewDrawsInA3DProject();
     TestProjectSettingsAreWrittenBackToTheFile();
+    TestAssetFileOperationsCarryTheMeta();
     TestDraggingInTheHierarchyReordersAndUnparents();
     TestCreatingAnObjectCanBeUndone();
     TestDeletingAnObjectCanBeUndoneWithItsValues();

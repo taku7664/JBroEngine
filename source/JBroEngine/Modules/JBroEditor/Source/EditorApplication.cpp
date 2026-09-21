@@ -241,6 +241,215 @@ namespace JBro
         return true;
     }
 
+    namespace
+    {
+        // 에셋 폴더 기준 상대경로를 실제 경로로. 둘 다 비면 빈 글자다.
+        String JoinPath(const String& root, const char* relative)
+        {
+            String result = root;
+            if (relative == nullptr || relative[0] == '\0')
+            {
+                return result;
+            }
+            if (false == result.empty() && result.back() != '/' && result.back() != '\\')
+            {
+                result.append("/", 1);
+            }
+            result.append(relative, std::strlen(relative));
+            return result;
+        }
+
+        // `art/enemy.png` 의 폴더는 `art` 다. 슬래시가 없으면 빈 글자(뿌리)다.
+        String FolderOf(const char* relative)
+        {
+            const String path(relative != nullptr ? relative : "");
+            const std::size_t slash = path.find_last_of("/\\");
+            return slash == String::npos ? String() : String(path.substr(0, slash).c_str());
+        }
+
+        String LeafOfPath(const char* relative)
+        {
+            const String path(relative != nullptr ? relative : "");
+            const std::size_t slash = path.find_last_of("/\\");
+            return slash == String::npos ? path : String(path.substr(slash + 1).c_str());
+        }
+    }
+
+    const String& EditorApplication::GetAssetRoot() const
+    {
+        static const String empty;
+        return m_engine.Get() != nullptr ? m_engine->GetAssetRoot() : empty;
+    }
+
+    bool EditorApplication::RescanAssets()
+    {
+        if (m_engine.Get() == nullptr || false == m_engine->RescanAssets())
+        {
+            return false;
+        }
+        if (m_framework.Get() != nullptr)
+        {
+            m_framework->BindCanvasAssets();
+        }
+        return true;
+    }
+
+    bool EditorApplication::CreateAssetFolder(const char* relativeFolder, const char* name)
+    {
+        if (name == nullptr || name[0] == '\0' || GetAssetRoot().empty())
+        {
+            return false;
+        }
+        String relative(relativeFolder != nullptr ? relativeFolder : "");
+        if (false == relative.empty())
+        {
+            relative.append("/", 1);
+        }
+        relative.append(name, std::strlen(name));
+        const String path = JoinPath(GetAssetRoot(), relative.c_str());
+        if (false == m_platform->CreateDirectoryAt(path.c_str()))
+        {
+            return false;
+        }
+        // 빈 폴더는 레지스트리에 없다. 그래도 다시 스캔해 두면 다음 파일이 바로 보인다.
+        m_engine->RescanAssets();
+        return true;
+    }
+
+    bool EditorApplication::RenameAsset(const char* relativePath, const char* newName)
+    {
+        if (relativePath == nullptr || newName == nullptr || newName[0] == '\0'
+            || GetAssetRoot().empty())
+        {
+            return false;
+        }
+        String target = FolderOf(relativePath);
+        if (false == target.empty())
+        {
+            target.append("/", 1);
+        }
+        target.append(newName, std::strlen(newName));
+        if (target == relativePath)
+        {
+            return true;
+        }
+        const String from = JoinPath(GetAssetRoot(), relativePath);
+        const String to = JoinPath(GetAssetRoot(), target.c_str());
+        // **덮어쓰지 않는다.** 같은 이름이 이미 있으면 그 에셋을 잃는다.
+        if (m_platform->FileExists(to.c_str()) || m_platform->DirectoryExists(to.c_str()))
+        {
+            return false;
+        }
+        if (false == m_platform->MoveFileTo(from.c_str(), to.c_str()))
+        {
+            return false;
+        }
+        // **`.jmeta` 도 함께 간다.** 두고 오면 아이디가 사라져 참조가 전부 풀린다.
+        String fromMeta = from;
+        fromMeta.append(".jmeta", 6);
+        if (m_platform->FileExists(fromMeta.c_str()))
+        {
+            String toMeta = to;
+            toMeta.append(".jmeta", 6);
+            m_platform->MoveFileTo(fromMeta.c_str(), toMeta.c_str());
+        }
+        m_engine->RescanAssets();
+        if (m_framework.Get() != nullptr)
+        {
+            m_framework->BindCanvasAssets();
+        }
+        return true;
+    }
+
+    bool EditorApplication::MoveAsset(const char* relativePath, const char* targetFolder)
+    {
+        if (relativePath == nullptr || GetAssetRoot().empty())
+        {
+            return false;
+        }
+        const String leaf = LeafOfPath(relativePath);
+        String target(targetFolder != nullptr ? targetFolder : "");
+        if (false == target.empty())
+        {
+            target.append("/", 1);
+        }
+        target.append(leaf.c_str(), leaf.size());
+        if (target == relativePath)
+        {
+            return true;
+        }
+        const String from = JoinPath(GetAssetRoot(), relativePath);
+        const String to = JoinPath(GetAssetRoot(), target.c_str());
+        if (m_platform->FileExists(to.c_str()) || m_platform->DirectoryExists(to.c_str()))
+        {
+            return false;
+        }
+        if (false == m_platform->MoveFileTo(from.c_str(), to.c_str()))
+        {
+            return false;
+        }
+        String fromMeta = from;
+        fromMeta.append(".jmeta", 6);
+        if (m_platform->FileExists(fromMeta.c_str()))
+        {
+            String toMeta = to;
+            toMeta.append(".jmeta", 6);
+            m_platform->MoveFileTo(fromMeta.c_str(), toMeta.c_str());
+        }
+        m_engine->RescanAssets();
+        if (m_framework.Get() != nullptr)
+        {
+            m_framework->BindCanvasAssets();
+        }
+        return true;
+    }
+
+    bool EditorApplication::DeleteAsset(const char* relativePath)
+    {
+        if (relativePath == nullptr || GetAssetRoot().empty())
+        {
+            return false;
+        }
+        const String path = JoinPath(GetAssetRoot(), relativePath);
+        bool removed = false;
+        if (m_platform->DirectoryExists(path.c_str()))
+        {
+            removed = m_platform->DeleteDirectoryAt(path.c_str());
+        }
+        else
+        {
+            removed = m_platform->DeleteFileAt(path.c_str());
+            String meta = path;
+            meta.append(".jmeta", 6);
+            if (removed && m_platform->FileExists(meta.c_str()))
+            {
+                m_platform->DeleteFileAt(meta.c_str());
+            }
+        }
+        if (false == removed)
+        {
+            return false;
+        }
+        // 고른 것이 방금 사라졌을 수 있다. 인스펙터가 죽은 것을 읽지 않게 비운다.
+        SetSelectedAsset(AssetId{});
+        m_engine->RescanAssets();
+        if (m_framework.Get() != nullptr)
+        {
+            m_framework->BindCanvasAssets();
+        }
+        return true;
+    }
+
+    bool EditorApplication::RevealAsset(const char* relativePath)
+    {
+        if (GetAssetRoot().empty())
+        {
+            return false;
+        }
+        const String path = JoinPath(GetAssetRoot(), relativePath);
+        return m_platform->RevealInFileBrowser(path.c_str());
+    }
+
     bool EditorApplication::SaveProjectSettings(const ProjectFile& settings, ProjectFileError& error)
     {
         error = ProjectFileError{};
