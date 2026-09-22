@@ -36,9 +36,21 @@ namespace JBro
         }
     }
 
+    AddComponentCommand::AddComponentCommand(
+        Canvas& canvas,
+        EditorObjectRegistry& registry,
+        EditorObjectId objectId,
+        NameId typeName,
+        const ComponentSnapshot& values)
+        : AddComponentCommand(canvas, registry, objectId, typeName)
+    {
+        m_values = values;
+        m_hasValues = true;
+    }
+
     const char* AddComponentCommand::GetName() const
     {
-        return "Add Component";
+        return m_hasValues ? "Paste Component" : "Add Component";
     }
 
     bool AddComponentCommand::Attach()
@@ -58,6 +70,16 @@ namespace JBro
         // 붙이는 쪽이 언젠가 순서를 정하게 될 때 조용히 틀린다.
         if (false == FindComponentOrdinal(*object, *component, m_address.ordinal))
         {
+            return false;
+        }
+        // **값을 못 써 넣으면 붙인 것도 도로 뗀다**(D-167). 반쪽만 붙은 컴포넌트를 두면
+        // 붙여넣기가 성공했다고 말하면서 기본값짜리를 남긴다.
+        if (m_hasValues && false == ApplyComponent(*component, m_values))
+        {
+            if (info->Detach != nullptr)
+            {
+                info->Detach(*m_canvas, object, component);
+            }
             return false;
         }
         m_added = true;
@@ -195,6 +217,71 @@ namespace JBro
     void RemoveComponentCommand::Redo()
     {
         Detach();
+    }
+
+    // -- PasteComponentValuesCommand -----------------------------------------
+
+    PasteComponentValuesCommand::PasteComponentValuesCommand(
+        EditorObjectRegistry& registry,
+        const ComponentAddress& address,
+        const ComponentSnapshot& values)
+        : m_registry(&registry)
+        , m_address(address)
+        , m_values(values)
+    {
+        GameObject* object = registry.Resolve(address.objectId);
+        if (object == nullptr)
+        {
+            return;
+        }
+        ComponentBase* component =
+            FindComponentAt(*object, address.typeId, address.ordinal);
+        if (component == nullptr)
+        {
+            return;
+        }
+        m_captured = CaptureComponent(*component, m_before);
+    }
+
+    const char* PasteComponentValuesCommand::GetName() const
+    {
+        return "Paste Component Values";
+    }
+
+    bool PasteComponentValuesCommand::Apply(const ComponentSnapshot& values)
+    {
+        GameObject* object = m_registry->Resolve(m_address.objectId);
+        if (object == nullptr)
+        {
+            return false;
+        }
+        ComponentBase* component =
+            FindComponentAt(*object, m_address.typeId, m_address.ordinal);
+        if (component == nullptr)
+        {
+            return false;
+        }
+        return ApplyComponent(*component, values);
+    }
+
+    bool PasteComponentValuesCommand::Execute()
+    {
+        if (false == m_captured || m_values.typeId != m_address.typeId)
+        {
+            // 덮기 전 값을 못 떴거나, 떠 둔 것이 다른 타입이다. 둘 다 덮지 않는다.
+            return false;
+        }
+        return Apply(m_values);
+    }
+
+    void PasteComponentValuesCommand::Undo()
+    {
+        Apply(m_before);
+    }
+
+    void PasteComponentValuesCommand::Redo()
+    {
+        Apply(m_values);
     }
 
     // -- MoveComponentCommand ------------------------------------------------

@@ -63,6 +63,9 @@ Entries:
   inspector.add_component: 컴포넌트 추가
   inspector.move_up: 위로 이동
   inspector.move_down: 아래로 이동
+  inspector.copy_component: 컴포넌트 복사
+  inspector.paste_component: 컴포넌트 붙여넣기
+  inspector.paste_component_values: 값만 붙여넣기
   inspector.remove_component: 컴포넌트 제거
   inspector.no_component_types: 추가할 수 있는 컴포넌트가 없습니다
   inspector.unregistered_type: 속성 정보가 등록되지 않은 컴포넌트입니다

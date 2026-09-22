@@ -25,6 +25,15 @@ namespace JBro
             EditorObjectId objectId,
             NameId typeName);
 
+        // 값을 들고 붙인다(D-167, 컴포넌트 붙여넣기). 붙인 직후 떠 둔 값을 써 넣으므로
+        // 되돌리기는 그냥 떼는 것이고, 다시 하기는 값까지 돌아온다.
+        AddComponentCommand(
+            Canvas& canvas,
+            EditorObjectRegistry& registry,
+            EditorObjectId objectId,
+            NameId typeName,
+            const ComponentSnapshot& values);
+
         const char* GetName() const override;
         bool Execute() override;
         void Undo() override;
@@ -40,6 +49,9 @@ namespace JBro
         EditorObjectRegistry* m_registry = nullptr;
         ComponentAddress m_address;
         NameId m_typeName = InvalidNameId;
+        // 붙이면서 써 넣을 값이다. 비어 있으면 맨 컴포넌트를 붙인다.
+        ComponentSnapshot m_values;
+        bool m_hasValues = false;
         bool m_added = false;
     };
 
@@ -74,6 +86,36 @@ namespace JBro
         // 앞서 쌓인 커맨드의 "몇 번째" 가 다른 컴포넌트를 가리킨다.
         std::size_t m_slotIndex = 0;
         // 값을 다 떴는가. 못 떴으면 떼지 않는다.
+        bool m_captured = false;
+    };
+
+    // 이미 붙어 있는 컴포넌트에 떠 둔 값을 덮어쓴다(D-167, `컴포넌트 값 붙여넣기`).
+    //
+    // 기존 엔진에는 붙이는 쪽(새로 하나 더 붙이기)만 있었다. `Transform2D` 처럼 하나만 있어야
+    // 뜻이 서는 타입에서는 그것이 쓸 수 있는 손짓이 아니다 - 같은 타입을 하나 더 얹으면
+    // 어느 쪽이 쓰이는지 화면에서 알 수 없다.
+    //
+    // **덮기 전의 값을 못 뜨면 덮지 않는다**(D-76 과 같은 규칙).
+    class PasteComponentValuesCommand final : public EditorCommand
+    {
+    public:
+        PasteComponentValuesCommand(
+            EditorObjectRegistry& registry,
+            const ComponentAddress& address,
+            const ComponentSnapshot& values);
+
+        const char* GetName() const override;
+        bool Execute() override;
+        void Undo() override;
+        void Redo() override;
+
+    private:
+        bool Apply(const ComponentSnapshot& values);
+
+        EditorObjectRegistry* m_registry = nullptr;
+        ComponentAddress m_address;
+        ComponentSnapshot m_values;
+        ComponentSnapshot m_before;
         bool m_captured = false;
     };
 

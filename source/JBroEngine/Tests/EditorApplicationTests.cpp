@@ -2241,6 +2241,110 @@ namespace
         editor.Shutdown();
     }
 
+    // **컴포넌트 하나를 값째로 옮긴다**(D-167, 기존 `DrawCopyComponentMenuItem`·
+    // `DrawPasteComponentMenuItem`). 붙여넣기는 같은 타입을 하나 더 붙이고, 되돌리면 뗀다.
+    void TestCopyingAComponentPastesItsValuesOntoAnotherObject()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = WindowWidth;
+        config.windowHeight = WindowHeight;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; component clipboard not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "ComponentClipboardProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* source = canvas->CreateObject("Source");
+        JBro::GameObject* target = canvas->CreateObject("Target");
+        auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(source);
+        Check(transform != nullptr, "the source needs a transform to copy");
+        transform->position = {3.0f, -4.0f};
+        transform->rotation = 1.25f;
+
+        Check(false == editor.HasComponentClipboard(), "the component clipboard starts empty");
+        Check(false == editor.PasteComponent(*target), "and pasting it does nothing");
+
+        Check(editor.CopyComponent(*transform), "copying the component must go through");
+        Check(editor.HasComponentClipboard(), "and fill its own clipboard");
+        Check(editor.GetComponentClipboardTypeName() != nullptr
+                && std::strstr(editor.GetComponentClipboardTypeName(), "Transform2D") != nullptr,
+            "which knows what type it holds");
+        // **오브젝트 클립보드와 따로 산다.** 하나를 채운다고 다른 하나가 비면 안 된다.
+        Check(false == editor.HasClipboard(),
+            "copying a component must leave the object clipboard alone");
+
+        const std::size_t undo = editor.GetCommands().GetUndoCount();
+        Check(editor.PasteComponent(*target), "pasting onto another object must go through");
+        Check(editor.GetCommands().GetUndoCount() == undo + 1, "as one undo");
+        auto* pasted = canvas->FindComponentRaw<JBro::Component::Transform2D>(target);
+        Check(pasted != nullptr, "the target must have the component now");
+        Check(pasted->position.x == 3.0f && pasted->position.y == -4.0f
+                && pasted->rotation == 1.25f,
+            "with the copied values, not the defaults");
+        Check(transform->rotation == 1.25f, "and the source is untouched");
+        Check(editor.GetCommands().Undo(), "undo must run");
+        Check(canvas->FindComponentRaw<JBro::Component::Transform2D>(target) == nullptr,
+            "and take the pasted component back off");
+        Check(editor.GetCommands().Redo(), "redo must run");
+        pasted = canvas->FindComponentRaw<JBro::Component::Transform2D>(target);
+        Check(pasted != nullptr && pasted->rotation == 1.25f,
+            "and bring the values back with it");
+
+        // 같은 타입을 하나 더 붙인다. 있는 것을 덮어쓰지 않는다.
+        const std::size_t slots = target->GetComponents().Size();
+        Check(editor.PasteComponent(*target), "pasting again must go through");
+        Check(target->GetComponents().Size() == slots + 1,
+            "and add another slot instead of overwriting the first");
+        Check(editor.GetCommands().Undo(), "undo must run");
+
+        // **값만 붙여넣기**는 있는 컴포넌트를 덮는다. 슬롯이 늘지 않는다.
+        auto* targetTransform = canvas->FindComponentRaw<JBro::Component::Transform2D>(target);
+        Check(targetTransform != nullptr, "the target still has the pasted component");
+        targetTransform->rotation = 0.0f;
+        targetTransform->position = {0.0f, 0.0f};
+        const std::size_t before = target->GetComponents().Size();
+        Check(editor.CanPasteComponentValues(*targetTransform),
+            "the clipboard holds that very type");
+        Check(editor.PasteComponentValues(*target, *targetTransform),
+            "pasting the values must go through");
+        Check(target->GetComponents().Size() == before, "without adding a slot");
+        Check(targetTransform->rotation == 1.25f && targetTransform->position.x == 3.0f,
+            "and write the copied values over the old ones");
+        Check(editor.GetCommands().Undo(), "undo must run");
+        Check(targetTransform->rotation == 0.0f && targetTransform->position.x == 0.0f,
+            "and bring the overwritten values back");
+
+        // **다른 타입에는 덮지 않는다.** 이름이 다른 것에 값을 밀어 넣을 길이 있으면 안 된다.
+        auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(target);
+        Check(camera != nullptr, "the probe camera must attach");
+        Check(false == editor.CanPasteComponentValues(*camera),
+            "a transform cannot be pasted over a camera");
+        Check(false == editor.PasteComponentValues(*target, *camera),
+            "and asking for it anyway does nothing");
+
+        // **뜰 수 없는 타입은 복사도 거절한다.** 붙여 봐야 기본값 하나가 생길 뿐이다.
+        auto* opaque = canvas->AttachComponent<Opaque>(source);
+        Check(opaque != nullptr, "the opaque component must attach");
+        Check(false == editor.CopyComponent(*opaque),
+            "a component whose properties were never registered cannot be copied");
+        Check(editor.GetComponentClipboardTypeName() != nullptr
+                && std::strstr(editor.GetComponentClipboardTypeName(), "Transform2D") != nullptr,
+            "and the refused copy must leave the clipboard as it was");
+
+        editor.CloseProject();
+        Check(false == editor.HasComponentClipboard(),
+            "closing the project must empty the component clipboard too");
+
+        editor.Shutdown();
+    }
+
     // **게임 뷰는 패널이 보이는 프레임에만 그린다**(D-63). 닫힌 패널 뒤에서 매 프레임 게임을
     // 텍스처에 그릴 이유가 없다. 다시 열면 그 프레임부터 이어진다 - 텍스처는 파기하지 않는다.
     void TestTheGameViewIsRenderedOnlyWhileItsPanelShows()
@@ -6795,6 +6899,7 @@ int RunEditorApplicationTests()
     TestSavingAsksForAPathOnceAndReportsFailure();
     TestMovingAComponentFromItsHeaderMenuCanBeUndone();
     TestCopyAndPasteMakeASiblingAndSelectIt();
+    TestCopyingAComponentPastesItsValuesOntoAnotherObject();
     TestAStructElementOpensAndEditsEveryChosenList();
     TestDraggingAStructElementReordersEveryChosenList();
     TestFlagCountAndToneElementsEditByMouseOnEveryChosenList();

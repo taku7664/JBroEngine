@@ -114,6 +114,9 @@ namespace JBro::LocKeys
     inline constexpr const char* InspectorAddComponent = "inspector.add_component";
     inline constexpr const char* InspectorMoveComponentUp = "inspector.move_up";
     inline constexpr const char* InspectorMoveComponentDown = "inspector.move_down";
+    inline constexpr const char* InspectorCopyComponent = "inspector.copy_component";
+    inline constexpr const char* InspectorPasteComponent = "inspector.paste_component";
+    inline constexpr const char* InspectorPasteComponentValues = "inspector.paste_component_values";
     inline constexpr const char* InspectorRemoveComponent = "inspector.remove_component";
     inline constexpr const char* InspectorNoComponentTypes = "inspector.no_component_types";
     inline constexpr const char* InspectorUnregisteredType = "inspector.unregistered_type";

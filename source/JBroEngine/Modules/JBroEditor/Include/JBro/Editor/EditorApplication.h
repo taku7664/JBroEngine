@@ -359,6 +359,24 @@ namespace JBro
         {
             return false == m_clipboard.IsEmpty();
         }
+        // **컴포넌트 복사·붙여넣기**(D-167, 기존 `DrawCopyComponentMenuItem`·
+        // `DrawPasteComponentMenuItem`). 오브젝트 클립보드와 **따로 산다** - 오브젝트를 복사해 둔
+        // 채로 컴포넌트를 옮기고 싶은 것이 보통이고, 하나로 합치면 둘 중 하나가 늘 지워진다.
+        // 붙여넣기는 같은 타입을 하나 **더** 붙인다(기존과 같다) - 있는 것을 덮어쓰면 덮인 값이
+        // 어디로 갔는지 보이지 않는다.
+        bool CopyComponent(ComponentBase& component);
+        bool PasteComponent(GameObject& object);
+        // 이미 붙어 있는 컴포넌트에 값만 덮는다. 떠 둔 것이 그 타입이 아니면 거짓이다.
+        bool PasteComponentValues(GameObject& object, ComponentBase& component);
+        // 그 컴포넌트에 값을 덮을 수 있는가. 메뉴가 회색으로 그릴지 정하는 값이다.
+        bool CanPasteComponentValues(const ComponentBase& component) const;
+        bool HasComponentClipboard() const
+        {
+            return m_hasComponentClipboard;
+        }
+        // 클립보드에 든 컴포넌트의 타입 이름이다. 없으면 nullptr 이다. 메뉴가 무엇이 붙을지
+        // 말하는 데 쓴다.
+        const char* GetComponentClipboardTypeName() const;
         // 저장 메뉴와 Ctrl+S 가 부른다. 이 프레임의 UI 가 끝난 뒤 처리한다 - 아는 경로가 있으면
         // 거기에, 없으면 대화상자로 경로를 받아 저장하고, 실패하면 팝업으로 알린다.
         void RequestSaveCanvas();
@@ -475,6 +493,8 @@ namespace JBro
         // 만든 프로젝트. 프레임이 끝나면 그리로 넘어간다 - 팝업 안(프레임 안)에서 프로젝트를 닫을 수 없다.
         String m_pendingProjectPath;
         Array<ObjectTreeSnapshot> m_clipboard;
+        ComponentSnapshot m_componentClipboard;
+        bool m_hasComponentClipboard = false;
         bool (*m_fileDialog)(const FileDialogDesc& desc, String& outPath, void* user) = nullptr;
         void* m_fileDialogUser = nullptr;
         // 고른 것들. 0번이 주된 것은 아니다 - 주된 것은 따로 든다(기존 엔진과

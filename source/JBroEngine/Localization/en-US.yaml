@@ -63,6 +63,9 @@ Entries:
   inspector.add_component: Add Component
   inspector.move_up: Move Up
   inspector.move_down: Move Down
+  inspector.copy_component: Copy Component
+  inspector.paste_component: Paste Component
+  inspector.paste_component_values: Paste Values Only
   inspector.remove_component: Remove Component
   inspector.no_component_types: no component type has registered itself
   inspector.unregistered_type: this type never registered its properties

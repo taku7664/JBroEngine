@@ -206,7 +206,7 @@
 | `Main/CanvasView/CanvasViewEditContext` | `MapToLevel`·들어가 고르기 | 완료 (D-157) |
 | `Main/GameView/GameViewTool` | `GameViewPanel` (보기만, 상태 글자) | 완료 (D-130) |
 | `Main/Guizmo/Guizmo2D`·`Guizmo3D`·`EditorGuizmoController` | `GizmoModel`·`GizmoEditing`·`Widget::Gizmo` | 완료 (D-109·D-140) |
-| `Main/Inspector/InspectorTool` | `InspectorPanel` (이름·활성·필드·다중 편집·프레임 고르기) | 완료 (D-142·D-165), 레이어·캔버스 인스펙터는 열림 |
+| `Main/Inspector/InspectorTool` | `InspectorPanel` (이름·활성·필드·다중 편집·프레임 고르기·컴포넌트 복사와 붙여넣기) | 완료 (D-142·D-165·D-167), 레이어·캔버스 인스펙터는 열림 |
 | `Main/Importer/SpriteFramePick` | `EditorApplication::BeginSpriteFramePick` + 뷰어의 고르기 줄 | 완료 (D-165) |
 | `Main/Inspector/AssetInspectorPreview` | 인스펙터 미리보기 | 완료 (D-147) |
 | `Main/Inspector/EditorAudioPreview` | — | 해당 없음 (오디오 없음) |
@@ -232,7 +232,7 @@
 | `EditorSimulationGuard` | `SaveCanvas` 의 재생 중 거절 | 완료 (D-153) |
 | `EditorDragDrop` | `Widget/AssetDrag.h` | 완료 (D-154), `.jlayer` 드롭은 해당 없음(레이어 에셋 없음) |
 | `EditorContext` | `EditorApplication` | 완료 |
-| `Gui/EditorGuiActions` | `EditorActions` | 완료 (D-132), `PasteObjectsAsChild` 는 D-166 |
+| `Gui/EditorGuiActions` | `EditorActions` | 완료 (D-132), `PasteObjectsAsChild` 는 D-166, 컴포넌트 복사·붙여넣기는 D-167 |
 | `Gui/EditorMessagePopup` | `MessagePopup` | 완료 |
 | `Shortcut/EditorShortcutManager` | `EditorShortcuts` | 완료 (D-132), 표를 항목마다 견주어 빠져 있던 `PasteObjectsAsChild` 를 채웠다 (D-166) |
 | `Theme/EditorTheme` | `EditorTheme` | 완료 |

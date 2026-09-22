@@ -1,6 +1,7 @@
 ﻿#include <JBro/Core/Log.h>
 #include <JBro/Core/Version.h>
 #include <JBro/Editor/EditorApplication.h>
+#include <JBro/Editor/Command/ComponentCommands.h>
 #include <JBro/Editor/Command/ObjectCommands.h>
 #include <JBro/Editor/EditorShortcuts.h>
 #include <JBro/Editor/EditorTheme.h>
@@ -1017,6 +1018,66 @@ namespace JBro
         }
         SelectObjects({objects.Data(), static_cast<std::uint32_t>(objects.Size())});
         return true;
+    }
+
+    bool EditorApplication::CopyComponent(ComponentBase& component)
+    {
+        // **뜨지 못하면 클립보드를 건드리지 않는다**(오브젝트 복사와 같은 규칙). 프로퍼티를
+        // 등록하지 않은 타입이 그렇다 - 붙여 봐야 기본값이 하나 더 생길 뿐이다.
+        ComponentSnapshot snapshot;
+        if (false == CaptureComponent(component, snapshot))
+        {
+            return false;
+        }
+        m_componentClipboard = std::move(snapshot);
+        m_hasComponentClipboard = true;
+        return true;
+    }
+
+    bool EditorApplication::PasteComponent(GameObject& object)
+    {
+        Canvas* canvas = GetCanvas();
+        if (canvas == nullptr || false == m_hasComponentClipboard)
+        {
+            return false;
+        }
+        const char* typeName = NameTable::Get().Resolve(m_componentClipboard.typeId);
+        if (typeName == nullptr)
+        {
+            return false;
+        }
+        return m_commands.Execute(MakeOwnerPtr<AddComponentCommand>(
+            *canvas, m_objectIds, m_objectIds.Track(&object),
+            NameTable::Get().Intern(typeName), m_componentClipboard));
+    }
+
+    bool EditorApplication::CanPasteComponentValues(const ComponentBase& component) const
+    {
+        return m_hasComponentClipboard && m_componentClipboard.typeId == component.GetTypeId();
+    }
+
+    bool EditorApplication::PasteComponentValues(GameObject& object, ComponentBase& component)
+    {
+        if (false == CanPasteComponentValues(component))
+        {
+            return false;
+        }
+        ComponentAddress address;
+        if (false == MakeComponentAddress(m_objectIds, object, component, address))
+        {
+            return false;
+        }
+        return m_commands.Execute(MakeOwnerPtr<PasteComponentValuesCommand>(
+            m_objectIds, address, m_componentClipboard));
+    }
+
+    const char* EditorApplication::GetComponentClipboardTypeName() const
+    {
+        if (false == m_hasComponentClipboard)
+        {
+            return nullptr;
+        }
+        return NameTable::Get().Resolve(m_componentClipboard.typeId);
     }
 
     void EditorApplication::RequestOpenProject()
@@ -2846,6 +2907,9 @@ namespace JBro
         m_saveRequested = false;
         // 클립보드의 번호는 이 프로젝트의 것이다. 다음 프로젝트에서 그 번호를 믿지 않도록 비운다.
         m_clipboard.Clear();
+        // 컴포넌트 클립보드에는 에셋 번호가 든 값이 있다. 그 번호도 이 프로젝트의 것이다(D-167).
+        m_componentClipboard = ComponentSnapshot();
+        m_hasComponentClipboard = false;
         m_engine->CloseProject();
         m_lastFrameStatus = m_engine->GetLastFrameStatus();
         if (m_engine->GetFramework() == nullptr)

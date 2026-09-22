@@ -282,6 +282,58 @@ namespace JBro
                     return;
                 }
                 ImGui::Separator();
+                // **복사·붙여넣기**(D-167). 기존 엔진도 이 메뉴에 둘을 나란히 두었다.
+                // 복사는 값만 뜨므로 화면이 그대로고, 붙여넣기는 같은 타입을 하나 더 붙인다.
+                if (Widget::MenuItem(Loc::TextOr(LocKeys::InspectorCopyComponent,
+                        "Copy Component")))
+                {
+                    m_editor->CopyComponent(*component);
+                }
+                bool pasted = false;
+                {
+                    const bool canPaste = m_editor->HasComponentClipboard();
+                    if (false == canPaste)
+                    {
+                        ImGui::BeginDisabled();
+                    }
+                    if (Widget::MenuItem(Loc::TextOr(LocKeys::InspectorPasteComponent,
+                            "Paste Component")))
+                    {
+                        m_editor->PasteComponent(*object);
+                        pasted = true;
+                    }
+                    if (false == canPaste)
+                    {
+                        ImGui::EndDisabled();
+                    }
+                }
+                if (pasted)
+                {
+                    Widget::EndContextMenu();
+                    ImGui::PopID();
+                    // 슬롯이 하나 늘었다. 이 프레임의 배열은 더 이상 맞지 않는다.
+                    return;
+                }
+                {
+                    // **값만 덮어쓰기.** 떠 둔 것이 같은 타입일 때만 켜진다. `Transform2D` 처럼
+                    // 하나만 있어야 뜻이 서는 타입에서는 이쪽이 쓰는 손짓이다(D-167) -
+                    // 기존 엔진에는 새로 하나 더 붙이는 쪽만 있었다.
+                    const bool canPasteValues = m_editor->CanPasteComponentValues(*component);
+                    if (false == canPasteValues)
+                    {
+                        ImGui::BeginDisabled();
+                    }
+                    if (Widget::MenuItem(Loc::TextOr(LocKeys::InspectorPasteComponentValues,
+                            "Paste Component Values")))
+                    {
+                        m_editor->PasteComponentValues(*object, *component);
+                    }
+                    if (false == canPasteValues)
+                    {
+                        ImGui::EndDisabled();
+                    }
+                }
+                ImGui::Separator();
                 if (Widget::MenuItem(Loc::TextOr(LocKeys::InspectorRemoveComponent,
                         "Remove Component")))
                 {
