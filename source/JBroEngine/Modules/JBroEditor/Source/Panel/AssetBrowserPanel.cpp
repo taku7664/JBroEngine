@@ -1,5 +1,6 @@
 ﻿#include "AssetBrowserPanel.h"
 
+#include <JBro/Editor/Widget/AssetDrag.h>
 #include <JBro/Editor/Widget/Basic.h>
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Asset/AssetTypeRules.h>
@@ -24,8 +25,6 @@ namespace JBro
 {
     namespace
     {
-        // 끌고 다니는 꾸러미의 이름이다. 에셋 브라우저 안에서만 받는다.
-        constexpr const char* AssetDragPayload = "JBRO_ASSET_MOVE";
         // 상대경로가 이보다 길면 꾸러미에 담지 않는다. 담을 수 없는 것을 끌게 두면
         // 놓는 순간 엉뚱한 파일이 움직인다.
         constexpr std::size_t MaxDragPath = 260;
@@ -157,10 +156,11 @@ namespace JBro
         {
             return;
         }
-        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(AssetDragPayload))
+        Widget::AssetDragHeader header;
+        String bundle;
+        if (Widget::AcceptAssetDrop(header, &bundle))
         {
             // 꾸러미에는 여럿이 줄로 갈려 들어 있다. 하나든 여럿이든 같은 길로 푼다.
-            const String bundle(static_cast<const char*>(payload->Data));
             std::size_t start = 0;
             bool failed = false;
             while (start <= bundle.size())
@@ -291,7 +291,12 @@ namespace JBro
 
     void AssetBrowserPanel::HandleEntryInput(const Entry& entry)
     {
-        const bool clicked = ImGui::IsItemClicked();
+        // **누를 때가 아니라 끌지 않고 뗄 때 고른다**(D-154). 누르는 순간 고르면, 에셋을 끌어
+        // 인스펙터의 칸에 놓으려는 손짓이 시작하자마자 인스펙터를 그 에셋의 화면으로 바꿔
+        // 놓을 칸이 사라진다.
+        const bool clicked = ImGui::IsItemHovered()
+            && ImGui::IsMouseReleased(ImGuiMouseButton_Left)
+            && false == Widget::MouseWasDragged(ImGuiMouseButton_Left);
         // 오른쪽 누름은 **고른 것을 뒤엎지 않는다.** 여럿을 골라 놓고 그중 하나에 대고
         // 메뉴를 열었을 때 선택이 하나로 줄면, 여럿에 하려던 일이 하나에만 간다.
         if (ImGui::IsItemClicked(ImGuiMouseButton_Right)
@@ -334,7 +339,20 @@ namespace JBro
                 bundle = entry.record->relativePath;
                 count = 1;
             }
-            ImGui::SetDragDropPayload(AssetDragPayload, bundle.c_str(), bundle.size() + 1);
+            // 에셋 칸에 놓을 수도 있다(D-154). 칸은 경로가 아니라 아이디를 보므로 함께 싣는다 -
+            // 그림이면 짝 Sprite 도 싣는다. 스프라이트 칸이 받는 것은 그쪽이다.
+            AssetId paired;
+            const AssetRegistry& registry = m_editor->GetAssetRegistry();
+            for (std::size_t index = 0; index < registry.GetCount(); ++index)
+            {
+                const AssetRecord& record = registry.GetRecord(index);
+                if (record.owner == entry.record->id)
+                {
+                    paired = record.id;
+                    break;
+                }
+            }
+            Widget::SetAssetDragPayload(entry.record->id, paired, bundle);
             if (count > 1)
             {
                 Widget::TextF("%s +%d", entry.name, static_cast<int>(count - 1));

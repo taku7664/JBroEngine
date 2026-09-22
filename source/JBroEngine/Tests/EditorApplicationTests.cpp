@@ -4964,6 +4964,114 @@ namespace
     // **패널은 공용 위젯 계층을 거친다**(§11.1, D-152). 글자·단추·메뉴·팝업·콤보를 패널이
     // `ImGui::` 로 곧장 부르면 같은 자리가 패널마다 다른 모양이 된다. 소스를 읽어 막는다 -
     // 눈으로 훑는 검사는 새 패널이 생길 때마다 다시 해야 하고, 다시 하지 않게 된다.
+    // **에셋 브라우저에서 끌어 에셋 칸에 놓으면 고른다**(D-154, 기존 `ImAssetField::AllowDrop`).
+    // 목록의 줄은 그림의 Texture 레코드인데 스프라이트 칸은 Sprite 를 받는다 - 꾸러미가 짝을
+    // 함께 싣고 오지 않으면 이 드롭은 조용히 무시된다.
+    void TestDraggingAnAssetOntoTheFieldPicksIt()
+    {
+        namespace fs = std::filesystem;
+        const fs::path root(TempPath("JBroAssetDropProbe").c_str());
+        std::error_code ignored;
+        fs::remove_all(root, ignored);
+        fs::create_directories(root / "Assets", ignored);
+        {
+            std::ofstream png(root / "Assets" / "hero.png", std::ios::binary);
+            png.write(reinterpret_cast<const char*>(TinyPng), sizeof(TinyPng));
+        }
+        const JBro::String projectPath = TempPath("JBroAssetDropProbe\\Drop.jproject");
+        Check(WriteTextFile(projectPath,
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 2D\n"
+            "RootPath: .\n"
+            "AssetDirectory: Assets\n"),
+            "the test must be able to write its own project file");
+
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; asset drop not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.c_str(), error), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        const JBro::AssetRegistry& registry = editor.GetAssetRegistry();
+        JBro::AssetId spriteAsset;
+        for (std::size_t index = 0; index < registry.GetCount(); ++index)
+        {
+            const JBro::AssetRecord& record = registry.GetRecord(index);
+            if (record.type == JBro::AssetType::Sprite && record.relativePath == "hero.png")
+            {
+                spriteAsset = record.id;
+            }
+        }
+        Check(false == spriteAsset.IsNull(), "the scan must have registered hero.png as a sprite");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* object = canvas->CreateObject("Hero");
+        auto* sprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(object);
+        Check(sprite != nullptr, "the hero must have a sprite renderer");
+        editor.SetSelectedObject(object);
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        // 에셋 창을 앞으로 꺼내고, 뿌리 폴더(처음 열린 자리)에서 hero.png 줄을 찾는다.
+        ImGui::SetWindowFocus("Assets");
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle on the asset tab");
+        }
+        ImGuiWindow* assets = ImGui::FindWindowByName("Assets");
+        ImGuiWindow* contents = FindChildWindow(assets, "##contents");
+        Check(contents != nullptr, "the contents pane must exist");
+        const ImGuiID heroRow = LabelId(LabelId(contents->ID, "hero.png"), "##file");
+        Spot from;
+        bool found = false;
+        const int x = static_cast<int>(contents->Pos.x + 40.0f);
+        const int bottom = static_cast<int>(contents->Pos.y + contents->Size.y);
+        for (int y = static_cast<int>(contents->Pos.y); y < bottom && false == found; y += 3)
+        {
+            PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
+            Check(editor.Tick(Frame), "the editor must tick while looking for the row");
+            if (ImGui::GetHoveredID() == heroRow)
+            {
+                from.x = x;
+                from.y = y;
+                found = true;
+            }
+        }
+        Check(found, "hero.png must be a row in the asset browser");
+
+        const JBro::PropertyTable* table = JBro::PropertyRegistry::Lookup(
+            JBro::NameTable::Get().Intern("Component::SpriteRenderer2D"));
+        Check(table != nullptr, "the sprite renderer must have registered its properties");
+        Spot to;
+        Check(FindInspectorItem(editor, hwnd,
+                InspectorFieldId(0, FieldIndexOf(*table, "spriteId"), "##value"), to),
+            "the spriteId row must be in the inspector");
+
+        const std::size_t undoBefore = editor.GetCommands().GetUndoCount();
+        DragTo(editor, hwnd, from, to);
+        Check(sprite->spriteId == spriteAsset,
+            "dropping the image on the sprite field picks its sprite record");
+        Check(editor.GetCommands().GetUndoCount() == undoBefore + 1, "through one command");
+        Check(editor.GetCommands().Undo(), "and it undoes");
+        Check(sprite->spriteId.IsNull(), "back to no sprite");
+
+        editor.Shutdown();
+        fs::remove_all(root, ignored);
+    }
+
     void TestPanelsGoThroughTheWidgetLayer()
     {
         namespace fs = std::filesystem;
@@ -5820,6 +5928,7 @@ int RunEditorApplicationTests()
     TestBoxSelectInTheCanvasViewPicksWhatItTouches();
     TestTheCanvasViewDrawsInA3DProject();
     TestProjectSettingsAreWrittenBackToTheFile();
+    TestDraggingAnAssetOntoTheFieldPicksIt();
     TestPanelsGoThroughTheWidgetLayer();
     TestPickingFollowsTheSpriteAssetSize();
     TestTheEditorSessionSurvivesReopening();
