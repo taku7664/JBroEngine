@@ -436,16 +436,20 @@ namespace JBro
         const float labelBottom = rect.top + rect.height - labelSize - 2.0f;
         const float labelLeft = rect.left + 3.0f;
 
-        const float startX = std::floor(minX / step) * step;
+        // **선마다 번호로 센다**(D-162). `x += step` 으로 더해 가면 오차가 쌓여 0 이어야 할 선이
+        // `-2.98e-08` 로 적혔다(실제 에디터에서 그랬다). 번호에 간격을 곱하면 0 은 정확히 0 이다.
+        const long long firstX = static_cast<long long>(std::floor(minX / step));
+        const long long lastX = static_cast<long long>(std::floor(maxX / step));
         // 지난 숫자의 오른쪽 끝. 겹치면 건너뛴다 - 겹친 숫자는 둘 다 못 읽는다.
         float lastLabelEnd = -1.0e9f;
-        for (float x = startX; x <= maxX; x += step)
+        for (long long index = firstX; index <= lastX; ++index)
         {
+            const float x = static_cast<float>(index) * step;
             float screenX = 0.0f;
             float unused = 0.0f;
             WorldToScreen(rect, x, 0.0f, screenX, unused);
             // 열 칸마다 한 줄은 진하게. 눈금을 세지 않아도 배율이 읽힌다.
-            const bool tenth = std::fabs(std::fmod(x / step, 10.0f)) < 0.001f;
+            const bool tenth = index % 10 == 0;
             draw->AddLine(ImVec2(screenX, rect.top), ImVec2(screenX, rect.top + rect.height),
                 tenth ? strong : line);
 
@@ -461,18 +465,22 @@ namespace JBro
             lastLabelEnd = textLeft + extent.x;
             draw->AddText(labelFont, labelSize, ImVec2(textLeft, labelBottom), labelColor, text);
         }
-        const float startY = std::floor(minY / step) * step;
+        const long long firstY = static_cast<long long>(std::floor(minY / step));
+        const long long lastY = static_cast<long long>(std::floor(maxY / step));
         float lastLabelY = -1.0e9f;
-        for (float y = startY; y <= maxY; y += step)
+        for (long long index = firstY; index <= lastY; ++index)
         {
+            const float y = static_cast<float>(index) * step;
             float screenY = 0.0f;
             float unused = 0.0f;
             WorldToScreen(rect, 0.0f, y, unused, screenY);
-            const bool tenth = std::fabs(std::fmod(y / step, 10.0f)) < 0.001f;
+            const bool tenth = index % 10 == 0;
             draw->AddLine(ImVec2(rect.left, screenY), ImVec2(rect.left + rect.width, screenY),
                 tenth ? strong : line);
 
-            if (std::fabs(screenY - lastLabelY) < labelSize * 2.2f)
+            // 아래쪽 X 숫자 줄과 겹치는 자리는 건너뛴다. 왼쪽 아래 구석에서 두 숫자가 포개져 읽히지 않았다.
+            if (std::fabs(screenY - lastLabelY) < labelSize * 2.2f
+                || screenY + labelSize * 0.5f > labelBottom - 2.0f)
             {
                 continue;
             }
