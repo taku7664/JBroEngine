@@ -156,6 +156,11 @@ namespace JBro::LocKeys
     inline constexpr const char* AssetsReveal = "assets.reveal";
     inline constexpr const char* AssetsRescan = "assets.rescan";
     inline constexpr const char* AssetsOpenInSpriteViewer = "assets.open_in_sprite_viewer";
+    inline constexpr const char* AssetsImport = "assets.import";
+    inline constexpr const char* MenuImportSprite = "menu.import_sprite";
+    inline constexpr const char* DialogImportTitle = "dialog.import_title";
+    inline constexpr const char* DialogImportImages = "dialog.import_images";
+    inline constexpr const char* PopupImportFailed = "popup.import_failed";
     inline constexpr const char* SpriteViewerTitle = "sprite_viewer.title";
     inline constexpr const char* SpriteViewerLoading = "sprite_viewer.loading";
     inline constexpr const char* SpriteViewerFrame = "sprite_viewer.frame";

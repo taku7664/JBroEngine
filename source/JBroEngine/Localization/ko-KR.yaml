@@ -151,6 +151,11 @@ Entries:
   common.cancel: 취소
   assets.rescan: 새로 고침
   assets.open_in_sprite_viewer: 스프라이트 뷰어에서 열기
+  assets.import: 가져오기...
+  menu.import_sprite: 스프라이트 가져오기
+  dialog.import_title: 가져오기
+  dialog.import_images: 그림
+  popup.import_failed: 파일을 가져오지 못했습니다
   sprite_viewer.title: 스프라이트 뷰어
   sprite_viewer.loading: 그림을 읽는 중입니다
   sprite_viewer.frame: 프레임

@@ -151,6 +151,11 @@ Entries:
   common.cancel: Cancel
   assets.rescan: Rescan
   assets.open_in_sprite_viewer: Open in Sprite Viewer
+  assets.import: Import...
+  menu.import_sprite: Import Sprite
+  dialog.import_title: Import
+  dialog.import_images: Images
+  popup.import_failed: The file could not be imported
   sprite_viewer.title: Sprite Viewer
   sprite_viewer.loading: reading the picture
   sprite_viewer.frame: Frame

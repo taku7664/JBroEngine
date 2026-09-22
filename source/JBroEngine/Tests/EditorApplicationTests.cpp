@@ -5181,6 +5181,84 @@ namespace
         fs::remove_all(root, ignored);
     }
 
+    // **밖의 그림을 가져온다**(D-156, 기존 `SpriteImporterWindow`). 에셋 폴더로 복사되고 스캔이
+    // 등록하며 `.jmeta` 가 선다. 그림이면 바로 스프라이트 뷰어가 열린다. 같은 이름은 덮어쓰지 않는다.
+    void TestImportingAPictureCopiesAndRegistersIt()
+    {
+        namespace fs = std::filesystem;
+        const fs::path root(TempPath("JBroImportProbe").c_str());
+        const fs::path outside(TempPath("JBroImportSource").c_str());
+        std::error_code ignored;
+        fs::remove_all(root, ignored);
+        fs::remove_all(outside, ignored);
+        fs::create_directories(root / "Assets", ignored);
+        fs::create_directories(outside, ignored);
+        {
+            std::ofstream png(outside / "walk.png", std::ios::binary);
+            png.write(reinterpret_cast<const char*>(TinyPng), sizeof(TinyPng));
+            std::ofstream text(outside / "notes.txt", std::ios::binary);
+            text << "not an asset";
+        }
+        const JBro::String projectPath = TempPath("JBroImportProbe\\Import.jproject");
+        Check(WriteTextFile(projectPath,
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 2D\n"
+            "RootPath: .\n"
+            "AssetDirectory: Assets\n"),
+            "the test must be able to write its own project file");
+
+        DialogProbe dialog;
+        dialog.path = TempPath("JBroImportSource/walk.png");
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        config.fileDialog = &DialogProbe::Answer;
+        config.fileDialogUser = &dialog;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; importing not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.c_str(), error), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        Check(editor.Tick(Frame), "the editor must settle");
+
+        editor.RequestImportAsset("art");
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick through the import");
+        }
+        Check(dialog.calls == 1 && false == dialog.save, "importing asks for a file to open");
+        Check(fs::exists(root / "Assets" / "art" / "walk.png", ignored),
+            "the picture is copied into the folder it was imported to");
+        Check(fs::exists(outside / "walk.png", ignored), "and the original stays where it was");
+        Check(fs::exists(root / "Assets" / "art" / "walk.png.jmeta", ignored),
+            "the scan gives it a meta, so it has an id from the start");
+        Check(editor.GetAssetRegistry().FindByPath("art/walk.png") != nullptr,
+            "the registry knows it without a manual rescan");
+        Check(editor.GetSpriteViewerTabCount() == 1,
+            "a picture opens in the sprite viewer right away, to set up its slicing");
+
+        // **같은 이름은 덮어쓰지 않는다.** 이미 있는 파일은 아이디를 들고 있다.
+        const auto sizeBefore = fs::file_size(root / "Assets" / "art" / "walk.png", ignored);
+        Check(false == editor.ImportAssetFile(dialog.path.c_str(), "art"),
+            "importing over an existing asset is refused");
+        Check(fs::file_size(root / "Assets" / "art" / "walk.png", ignored) == sizeBefore,
+            "and the file there is untouched");
+        // 에셋이 아닌 것은 복사하지 않는다 - 복사돼도 목록에 나오지 않는다.
+        const JBro::String notes = TempPath("JBroImportSource/notes.txt");
+        Check(false == editor.ImportAssetFile(notes.c_str(), "art"), "a file the engine cannot use is refused");
+        Check(false == fs::exists(root / "Assets" / "art" / "notes.txt", ignored), "and not copied");
+
+        editor.Shutdown();
+        fs::remove_all(root, ignored);
+        fs::remove_all(outside, ignored);
+    }
+
     void TestPanelsGoThroughTheWidgetLayer()
     {
         namespace fs = std::filesystem;
@@ -6039,6 +6117,7 @@ int RunEditorApplicationTests()
     TestProjectSettingsAreWrittenBackToTheFile();
     TestDraggingAnAssetOntoTheFieldPicksIt();
     TestTheSpriteViewerDocksBesideTheMainDock();
+    TestImportingAPictureCopiesAndRegistersIt();
     TestPanelsGoThroughTheWidgetLayer();
     TestPickingFollowsTheSpriteAssetSize();
     TestTheEditorSessionSurvivesReopening();

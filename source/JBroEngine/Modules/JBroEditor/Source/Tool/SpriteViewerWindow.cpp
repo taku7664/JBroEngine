@@ -80,7 +80,9 @@ namespace JBro
         }
         const AssetRegistry& registry = m_editor->GetAssetRegistry();
         const AssetRecord* record = registry.Find(asset);
-        if (record == nullptr || false == AssetTypeRules::IsImageType(record->type))
+        // 그림 파일은 Texture 와 Sprite 두 레코드다. 어느 쪽을 받아도 연다.
+        if (record == nullptr
+            || (false == AssetTypeRules::IsImageType(record->type) && record->type != AssetType::Sprite))
         {
             return false;
         }

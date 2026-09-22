@@ -1122,6 +1122,103 @@ namespace JBro
         }
     }
 
+    bool EditorApplication::ImportAssetFile(
+        const char* sourcePath, const char* relativeFolder, String* importedPath)
+    {
+        if (sourcePath == nullptr || sourcePath[0] == '\0' || GetAssetRoot().empty())
+        {
+            return false;
+        }
+        const String leaf = LeafOfPath(sourcePath);
+        if (leaf.empty() || AssetTypeRules::DetectTypeFromPath(leaf.c_str()) == AssetType::Unknown)
+        {
+            Log::Write(LogLevel::Warning, "asset", "not an asset type the engine knows: %s", sourcePath);
+            return false;
+        }
+        String relative = relativeFolder != nullptr ? String(relativeFolder) : String();
+        if (false == relative.empty())
+        {
+            relative.append("/", 1);
+        }
+        relative.append(leaf.c_str(), leaf.size());
+        const String target = JoinPath(GetAssetRoot(), relative.c_str());
+        if (m_platform->FileExists(target.c_str()))
+        {
+            // **덮어쓰지 않는다.** 이미 있는 파일은 아이디를 들고 있고, 그 아이디를 가리키는
+            // 컴포넌트가 있다 - 내용을 바꿔치면 그것들이 모르는 사이에 다른 그림을 그린다.
+            Log::Write(LogLevel::Warning, "asset", "an asset with that name already exists: %s",
+                relative.c_str());
+            return false;
+        }
+        Array<std::byte> bytes;
+        if (false == m_platform->ReadWholeFile(sourcePath, bytes))
+        {
+            Log::Write(LogLevel::Error, "asset", "the file could not be read: %s", sourcePath);
+            return false;
+        }
+        const String folder = JoinPath(GetAssetRoot(), relativeFolder != nullptr ? relativeFolder : "");
+        m_platform->CreateDirectoryAt(folder.c_str());
+        if (false == m_platform->WriteWholeFile(target.c_str(),
+                {bytes.Data(), static_cast<std::uint32_t>(bytes.Size())}))
+        {
+            Log::Write(LogLevel::Error, "asset", "the file could not be written: %s", target.c_str());
+            return false;
+        }
+        // 등록은 스캔이 한다. `.jmeta` 도 그때 선다(에디터는 메타를 만드는 쪽으로 훑는다).
+        RescanAssets();
+        Log::Write(LogLevel::Info, "asset", "imported %s", relative.c_str());
+        if (importedPath != nullptr)
+        {
+            *importedPath = relative;
+        }
+        return true;
+    }
+
+    void EditorApplication::RequestImportAsset(const char* relativeFolder)
+    {
+        m_importRequested = true;
+        m_importFolder = relativeFolder != nullptr ? relativeFolder : "";
+    }
+
+    void EditorApplication::PerformImportRequest()
+    {
+        if (false == m_importRequested)
+        {
+            return;
+        }
+        m_importRequested = false;
+        if (GetAssetRoot().empty())
+        {
+            return;
+        }
+        FileDialogDesc desc;
+        desc.title = Loc::TextOr(LocKeys::DialogImportTitle, "Import");
+        desc.filterName = Loc::TextOr(LocKeys::DialogImportImages, "Images");
+        desc.filterPattern = "*.png;*.jpg;*.jpeg;*.bmp;*.tga";
+        desc.save = false;
+        String path;
+        const bool chosen = m_fileDialog != nullptr
+            ? m_fileDialog(desc, path, m_fileDialogUser)
+            : m_platform->ShowFileDialog(m_engine->GetMainWindow(), desc, path);
+        if (false == chosen || path.empty())
+        {
+            return;
+        }
+        String imported;
+        if (false == ImportAssetFile(path.c_str(), m_importFolder.c_str(), &imported))
+        {
+            OpenPopup(MakeOwnerPtr<MessagePopup>(
+                Loc::TextOr(LocKeys::PopupImportFailed, "The file could not be imported"),
+                path.c_str(), "import_failed"));
+            return;
+        }
+        // 그림이면 바로 뷰어로 연다 - 자르는 옵션을 가져온 자리에서 고칠 수 있게.
+        if (const AssetRecord* record = GetAssetRegistry().FindByPath(imported.c_str()))
+        {
+            OpenSpriteViewer(record->id);
+        }
+    }
+
     void EditorApplication::RequestSaveProject()
     {
         m_saveProjectRequested = true;
@@ -1964,6 +2061,11 @@ namespace JBro
             {
                 const AssetRecord* chosen = GetAssetRegistry().Find(GetSelectedAsset());
                 const bool image = chosen != nullptr && AssetTypeRules::IsImageType(chosen->type);
+                if (Widget::MenuItem(Loc::TextOr(LocKeys::MenuImportSprite, "Import Sprite"),
+                        nullptr, false == GetAssetRoot().empty()))
+                {
+                    RequestImportAsset("");
+                }
                 if (Widget::MenuItem(Loc::TextOr(LocKeys::SpriteViewerTitle, "Sprite Viewer"),
                         nullptr, image))
                 {
@@ -2445,6 +2547,7 @@ namespace JBro
         // 어느 프레임도 열려 있지 않다.
         PerformSaveRequest();
         PerformOpenProjectRequest();
+        PerformImportRequest();
         if (m_exitRequested)
         {
             // 메뉴에서 끝내기를 골랐다. UI 를 먼저 놓고 내려간다 -

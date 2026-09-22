@@ -619,6 +619,11 @@ namespace JBro
 
     void AssetBrowserPanel::DrawBackgroundMenu()
     {
+        // 지금 연 폴더로 가져온다(D-156). 어디로 갈지 따로 묻지 않는다 - 보고 있는 폴더가 그 답이다.
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsImport, "Import...")))
+        {
+            m_editor->RequestImportAsset(m_openFolder.c_str());
+        }
         if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsNewFolder, "New Folder")))
         {
             m_pending = m_openFolder;

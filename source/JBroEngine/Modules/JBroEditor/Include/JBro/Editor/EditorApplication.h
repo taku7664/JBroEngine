@@ -125,6 +125,15 @@ namespace JBro
         // **스프라이트 뷰어**에서 연다(D-155). 뿌리 도크에 메인 도크와 나란히 붙는 창이고,
         // 파일마다 탭이 하나다. 그림이 아니면 거짓이다.
         bool OpenSpriteViewer(AssetId asset);
+
+        // **밖의 파일을 에셋 폴더로 가져온다**(D-156, 기존 `SpriteImporterWindow`·`ImporterWindowBase`).
+        // 파일을 `relativeFolder` 아래로 **복사**하고 다시 훑어 등록한다 - `.jmeta` 는 스캔이 만든다.
+        // 같은 이름이 이미 있으면 거절한다(덮어쓰면 그 파일을 가리키던 아이디가 다른 그림을 가리킨다).
+        // 에셋이 아닌 확장자도 거절한다 - 복사는 되는데 목록에 나오지 않으면 가져온 것이 사라진 것처럼 보인다.
+        bool ImportAssetFile(const char* sourcePath, const char* relativeFolder, String* importedPath = nullptr);
+        // 파일 대화상자로 고르고 가져온다. 대화상자는 프레임 밖에서 뜬다. 그림이면 스프라이트 뷰어로 연다 -
+        // 기존 임포터가 가져오기 전에 옵션을 보였듯, 가져온 뒤 바로 자르는 옵션을 고칠 수 있게.
+        void RequestImportAsset(const char* relativeFolder);
         std::size_t GetSpriteViewerTabCount() const;
         // 앞에 있는 뷰어 탭의 칸 번호다. 탭이 없으면 거짓이다.
         bool GetSpriteViewerFrame(std::uint32_t& frame) const;
@@ -379,6 +388,7 @@ namespace JBro
         void PerformSaveRequest();
         // 프로젝트 열기도 저장과 같다: **막히는 대화상자라 프레임 밖에서** 한다(D-93).
         void PerformOpenProjectRequest();
+        void PerformImportRequest();
         void ReleaseEditorUi();
         void DestroyPanels();
         // 디바이스가 이미 사라진 뒤에 부른다.
@@ -462,6 +472,9 @@ namespace JBro
         bool m_layoutRestored = false;
         // 이번 저장 요청이 프로젝트 저장인가. 캔버스 저장이 성공하면 세션도 적는다.
         bool m_saveProjectRequested = false;
+        // 가져오기 대화상자를 띄울 차례인가, 그리고 어느 폴더로 가져올 것인가.
+        bool m_importRequested = false;
+        String m_importFolder;
         // 에셋의 작은 그림들. 프로젝트를 닫을 때 비운다 - 다음 프로젝트의 아이디는 다른 파일이다.
         OwnerPtr<EditorThumbnails> m_thumbnails;
         // 스프라이트의 실제 모양. 같은 이유로 프로젝트를 닫을 때 비운다.
