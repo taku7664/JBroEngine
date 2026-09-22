@@ -46,6 +46,13 @@ namespace JBro::Widget
     // `ofWindow` 가 참이면 항목이 아니라 창의 빈 곳에 붙는다(항목 위에서는 열리지 않는다).
     bool BeginContextMenu(const char* id, bool ofWindow = false);
     void EndContextMenu();
+
+    // **부르는 쪽이 여는 우클릭 메뉴**다(D-170). 창 메뉴(`ofWindow`)는 그 자리에 위젯이 있으면
+    // 열지 않는데(`NoOpenOverItems`), 캔버스 뷰에서는 기즈모 손잡이가 늘 고른 것 위에 있어
+    // **오브젝트의 한가운데를 우클릭하면 메뉴가 열리지 않았다**. 열 때를 부르는 쪽이 정하고
+    // (끌지 않은 오른쪽 버튼), 여기서는 열려 있을 때만 그린다.
+    void OpenContextMenu(const char* id);
+    bool BeginOpenedContextMenu(const char* id);
     // 묻는 창이다. `OpenModal` 로 열고, `BeginModal` 이 참일 때만 `EndModal` 을 부른다.
     void OpenModal(const char* id);
     bool BeginModal(const char* id);

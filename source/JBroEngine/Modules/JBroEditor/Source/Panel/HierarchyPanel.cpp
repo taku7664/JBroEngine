@@ -695,48 +695,9 @@ namespace JBro
         {
             return true;
         }
-        // 우클릭한 것을 고른 것으로 삼는다. 메뉴가 무엇에 대한 것인지
-        // 보이는 것과 어긋나면 안 된다.
-        //
-        // **이미 골라져 있으면 선택을 흩뜨리지 않는다** - 여럿 골라 놓고
-        // 그중 하나에 우클릭하는 것은 "이것들에 대해" 라는 뜻이다.
-        if (false == m_editor->IsSelected(&object))
-        {
-            m_editor->SetSelectedObject(&object);
-        }
-        // 항목은 공용 한 벌이다(D-132). 캔버스 뷰와 메뉴 막대가 같은 것을 쓴다.
-        bool alive = true;
-        if (EditorActions::DrawCreateChildItem(*m_editor, object))
-        {
-            alive = false;
-        }
-        if (alive && EditorActions::DrawUnparentItem(*m_editor, object))
-        {
-            // 부모가 바뀌면 지금 도는 자식 배열이 그 자리에서 달라진다.
-            alive = false;
-        }
-        if (alive)
-        {
-            ImGui::Separator();
-            EditorActions::DrawCopyItem(*m_editor);
-            if (EditorActions::DrawPasteItem(*m_editor))
-            {
-                alive = false;
-            }
-        }
-        if (alive && EditorActions::DrawPasteAsChildItem(*m_editor, object))
-        {
-            alive = false;
-        }
-        if (alive)
-        {
-            ImGui::Separator();
-            if (EditorActions::DrawDeleteItem(*m_editor, object))
-            {
-                // **여기서 `object` 는 이미 없을 수 있다.**
-                alive = false;
-            }
-        }
+        // 항목은 공용 한 벌이다(D-132·D-170). 캔버스 뷰에서 오브젝트를 우클릭한 자리가
+        // 같은 것을 쓴다.
+        const bool alive = EditorActions::DrawObjectMenu(*m_editor, object);
         Widget::EndContextMenu();
         return alive;
     }

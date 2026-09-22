@@ -1078,22 +1078,49 @@ namespace JBro
         {
             return;
         }
-        if (false == Widget::BeginContextMenu("##CanvasViewMenu"))
+        // **메뉴를 여는 때를 우리가 정한다**(D-170). ImGui 의 창 메뉴는 그 자리에 위젯이 있으면
+        // 열지 않는데, 고른 오브젝트 위에는 늘 기즈모 손잡이가 있다 - 그래서 오브젝트의
+        // 한가운데를 우클릭하면 아무 메뉴도 열리지 않았다.
+        //
+        // 입력 자리(`##canvas`)의 hover 도 쓰지 못한다. 그것은 기즈모를 그리기 **전에** 재는데,
+        // 손잡이가 앞 프레임부터 hover 를 쥐고 있으면 거짓이다 - 같은 자리가 또 막힌다.
+        // 창 위에 마우스가 있고 그 자리가 뷰 안이면 그것으로 충분하다.
+        const ImVec2 mouse = ImGui::GetIO().MousePos;
+        const bool inView = mouse.x >= rect.left && mouse.x < rect.left + rect.width
+            && mouse.y >= rect.top && mouse.y < rect.top + rect.height;
+        if (inView && ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem)
+            && ImGui::IsMouseReleased(ImGuiMouseButton_Right))
+        {
+            Widget::OpenContextMenu("##CanvasViewMenu");
+        }
+        if (false == Widget::BeginOpenedContextMenu("##CanvasViewMenu"))
         {
             return;
         }
         // **누른 자리에 만든다**(D-168, 기존 `spawnWorldPos`). 원점에 만들면 화면 밖에
         // 생기기도 해서, 만든 것을 찾으러 화면을 끌어야 했다. 메뉴가 열릴 때의 자리를
         // 묻는다 - 그 뒤에 마우스가 항목 위로 움직이기 때문이다.
+        const ImVec2 opened = ImGui::GetMousePosOnOpeningCurrentPopup();
         ObjectPlacement placement;
         if (false == Is3D())
         {
-            const ImVec2 opened = ImGui::GetMousePosOnOpeningCurrentPopup();
             ScreenToWorld(rect, opened.x, opened.y, placement.position[0], placement.position[1]);
             placement.hasPosition = true;
         }
-        // 계층의 빈자리와 **같은 한 벌**이다(D-132). 두 화면의 메뉴가 갈라지지 않는다.
-        EditorActions::DrawBackgroundMenu(*m_editor, placement);
+        // **누른 자리에 오브젝트가 있으면 그것의 메뉴다**(D-170, 기존 캔버스 뷰도 같다).
+        // 빈 곳이면 빈자리 메뉴다. 둘 다 계층과 **같은 한 벌**이다(D-132) -
+        // 두 화면의 메뉴가 갈라지지 않는다.
+        GameObject* under = Is3D()
+            ? nullptr
+            : MapToLevel(PickAt(rect, opened.x, opened.y));
+        if (under != nullptr)
+        {
+            EditorActions::DrawObjectMenu(*m_editor, *under, placement);
+        }
+        else
+        {
+            EditorActions::DrawBackgroundMenu(*m_editor, placement);
+        }
         Widget::EndContextMenu();
     }
 

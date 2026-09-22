@@ -7025,6 +7025,115 @@ namespace
         editor.Shutdown();
     }
 
+    // **캔버스 뷰에서 오브젝트를 우클릭하면 그 오브젝트의 메뉴가 뜬다**(D-170).
+    // 기존 캔버스 뷰도 그 자리에서 추가·복사·붙여넣기·삭제를 냈는데, 우리는 무엇을
+    // 눌러도 빈자리 메뉴(`오브젝트 추가`·`붙여넣기`)만 나왔다.
+    void TestRightClickingAnObjectInTheCanvasViewOpensItsMenu()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; canvas view menu not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "CanvasMenuProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* target = canvas->CreateObject("Target");
+        auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(target);
+        Check(transform != nullptr, "the object needs a transform to be pickable");
+        transform->position = JBro::Vec2{0.0f, 0.0f};
+        // **집는 칸을 넉넉히 키운다.** 뷰의 한가운데는 툴바 높이만큼 창의 한가운데와
+        // 어긋나 있어서, 빈 오브젝트의 기본 칸으로는 그 차이에 빗나간다.
+        transform->scale = JBro::Vec2{8.0f, 8.0f};
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
+        Check(view != nullptr, "the canvas view must have a window");
+        const int centerX = static_cast<int>(view->Pos.x + view->Size.x * 0.5f);
+        const int centerY = static_cast<int>(view->Pos.y + view->Size.y * 0.5f);
+
+        const auto rightClick = [&](int x, int y) {
+            PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
+            Check(editor.Tick(Frame), "the editor must tick before the right press");
+            PostMessageW(hwnd, WM_RBUTTONDOWN, MK_RBUTTON, MAKELPARAM(x, y));
+            Check(editor.Tick(Frame), "the editor must tick on the right press");
+            PostMessageW(hwnd, WM_RBUTTONUP, 0, MAKELPARAM(x, y));
+            for (int frame = 0; frame < 2; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must tick after the right release");
+            }
+        };
+
+        // **오브젝트가 화면의 어디에 있는지는 찾아서 쓴다.** 뷰의 한가운데는 툴바와 탭 줄만큼
+        // 창의 한가운데와 어긋나 있어서, 창 좌표로 짐작하면 빗나간다.
+        Spot onObject;
+        onObject.x = centerX;
+        onObject.y = centerY;
+        bool foundSpot = false;
+        for (int y = static_cast<int>(view->Pos.y) + 40;
+             y < static_cast<int>(view->Pos.y + view->Size.y) - 10 && false == foundSpot;
+             y += 15)
+        {
+            Spot probe;
+            probe.x = centerX;
+            probe.y = y;
+            ClickAt(editor, hwnd, probe);
+            if (editor.IsSelected(target))
+            {
+                onObject = probe;
+                foundSpot = true;
+            }
+        }
+        Check(foundSpot, "the object must be clickable somewhere in the view");
+        editor.ClearSelection();
+        Check(editor.Tick(Frame), "the editor must tick after clearing the selection");
+
+        // 그 자리에서 우클릭한다.
+        rightClick(onObject.x, onObject.y);
+        ImGuiWindow* menu = FindContextMenuWindow();
+        Check(menu != nullptr, "right-clicking an object must open a menu");
+        Spot item;
+        const char* deleteLabel = JBro::Loc::TextOr(JBro::LocKeys::HierarchyDelete, "Delete");
+        Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, deleteLabel), item),
+            "and that menu must be the object's, so it offers to delete it");
+        Check(editor.IsSelected(target),
+            "right-clicking an object also makes it the chosen one");
+
+        const std::size_t before = canvas->GetObjectCount();
+        ClickAt(editor, hwnd, item);
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle after the delete");
+        }
+        Check(canvas->GetObjectCount() == before - 1, "choosing delete must take it away");
+        Check(editor.GetCommands().Undo(), "undo must run");
+
+        // **빈 곳은 여전히 빈자리 메뉴다.** 지우기는 거기 없다.
+        rightClick(static_cast<int>(view->Pos.x) + 30,
+            static_cast<int>(view->Pos.y + view->Size.y) - 30);
+        menu = FindContextMenuWindow();
+        Check(menu != nullptr, "right-clicking empty space must open a menu too");
+        Check(false == FindItemAnywhereInWindow(
+                editor, hwnd, menu, LabelId(menu->ID, deleteLabel), item),
+            "but the empty-space menu has nothing to delete");
+
+        editor.Shutdown();
+    }
+
     // **Shift 로 찍으면 기준 줄까지 통째로 골라진다**(D-169, 기존 `LayerTool` 의 선택 기준점).
     // 우리는 Shift 를 Ctrl 과 똑같이 하나씩 넣고 빼는 것으로 두어, 줄이 여럿일 때
     // 한 벌을 고르려면 Ctrl 로 하나씩 찍어야 했다.
@@ -7158,6 +7267,7 @@ int RunEditorApplicationTests()
     TestAssetFileOperationsCarryTheMeta();
     TestDraggingInTheHierarchyReordersAndUnparents();
     TestShiftClickingTheHierarchyPicksTheWholeRange();
+    TestRightClickingAnObjectInTheCanvasViewOpensItsMenu();
     TestEditorHiddenObjectsLeaveOnlyTheCanvasView();
     TestCreatingAnObjectCanBeUndone();
     TestDeletingAnObjectCanBeUndoneWithItsValues();

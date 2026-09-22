@@ -56,13 +56,24 @@ namespace JBro
 
         bool DrawCreateObjectItem(EditorApplication& editor, GameObject* parent,
             const ObjectPlacement& placement = {});
-        bool DrawCreateChildItem(EditorApplication& editor, GameObject& parent);
+        bool DrawCreateChildItem(EditorApplication& editor, GameObject& parent,
+            const ObjectPlacement& placement = {});
         bool DrawUnparentItem(EditorApplication& editor, GameObject& object);
         bool DrawCopyItem(EditorApplication& editor);
         bool DrawPasteItem(EditorApplication& editor);
         // 그 오브젝트의 자식으로 붙인다(D-166). 줄에서 연 메뉴가 쓴다.
         bool DrawPasteAsChildItem(EditorApplication& editor, GameObject& object);
         bool DrawDeleteItem(EditorApplication& editor, GameObject& object);
+
+        // 오브젝트 하나를 두고 여는 메뉴 한 벌이다(D-170). 계층의 줄과 캔버스 뷰에서
+        // 오브젝트를 우클릭한 자리가 같은 것을 쓴다 - 기존 엔진도 두 화면의 메뉴가 같다.
+        // **`placement` 는 `자식 오브젝트 추가` 가 쓸 자리**다(캔버스 뷰에서 누른 곳).
+        //
+        // **거짓이면 그 오브젝트가 더 이상 없을 수 있다.** 삭제·붙여넣기·부모 해제가
+        // 계층을 그 자리에서 바꾸므로, 부르는 쪽은 그 프레임에 그 오브젝트를 더 그리지 않는다.
+        // 메뉴를 열지 못했으면(우클릭이 아니면) 참이다.
+        bool DrawObjectMenu(EditorApplication& editor, GameObject& object,
+            const ObjectPlacement& placement = {});
 
         // 빈자리(계층의 배경, 캔버스 뷰의 빈 곳)에서 여는 메뉴 한 벌이다.
         // `추가`·`붙여넣기` 로, 둘 다 뿌리에 붙는다. **무언가 바뀌었으면 참이다** -

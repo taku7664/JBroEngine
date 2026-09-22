@@ -204,6 +204,7 @@
 | `Main/CanvasView/CanvasViewContour` | `EditorSpriteContours` | 완료 (D-149) |
 | `Main/CanvasView/CanvasViewCoordinates` | `WorldToScreen`·`ScreenToWorld` (그린 화면 기준) | 완료 (D-150) |
 | `Main/CanvasView/CanvasViewEditContext` | `MapToLevel`·들어가 고르기 | 완료 (D-157) |
+| 캔버스 뷰의 오브젝트 우클릭 메뉴 | `EditorActions::DrawObjectMenu` (계층 줄과 같은 한 벌) | 완료 (D-170) |
 | `Main/GameView/GameViewTool` | `GameViewPanel` (보기만, 상태 글자) | 완료 (D-130) |
 | `Main/Guizmo/Guizmo2D`·`Guizmo3D`·`EditorGuizmoController` | `GizmoModel`·`GizmoEditing`·`Widget::Gizmo` | 완료 (D-109·D-140) |
 | `Main/Inspector/InspectorTool` | `InspectorPanel` (이름·활성·필드·다중 편집·프레임 고르기·컴포넌트 복사와 붙여넣기) | 완료 (D-142·D-165·D-167), 레이어·캔버스 인스펙터는 열림 |

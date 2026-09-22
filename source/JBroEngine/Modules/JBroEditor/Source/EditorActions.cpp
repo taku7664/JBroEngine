@@ -164,7 +164,8 @@ namespace JBro::EditorActions
         return CreateObject(editor, parent, placement) != nullptr;
     }
 
-    bool DrawCreateChildItem(EditorApplication& editor, GameObject& parent)
+    bool DrawCreateChildItem(EditorApplication& editor, GameObject& parent,
+        const ObjectPlacement& placement)
     {
         const DisabledIf disabled(editor.GetCanvas() == nullptr);
         if (false == ImGui::MenuItem(
@@ -172,7 +173,7 @@ namespace JBro::EditorActions
         {
             return false;
         }
-        return CreateObject(editor, &parent) != nullptr;
+        return CreateObject(editor, &parent, placement) != nullptr;
     }
 
     bool DrawUnparentItem(EditorApplication& editor, GameObject& object)
@@ -231,6 +232,52 @@ namespace JBro::EditorActions
             return false;
         }
         return DeleteObject(editor, object);
+    }
+
+    bool DrawObjectMenu(EditorApplication& editor, GameObject& object,
+        const ObjectPlacement& placement)
+    {
+        // 우클릭한 것을 고른 것으로 삼는다. 메뉴가 무엇에 대한 것인지 보이는 것과 어긋나면 안 된다.
+        //
+        // **이미 골라져 있으면 선택을 흩뜨리지 않는다** - 여럿 골라 놓고 그중 하나에
+        // 우클릭하는 것은 "이것들에 대해" 라는 뜻이다.
+        if (false == editor.IsSelected(&object))
+        {
+            editor.SetSelectedObject(&object);
+        }
+        bool alive = true;
+        if (DrawCreateChildItem(editor, object, placement))
+        {
+            alive = false;
+        }
+        if (alive && DrawUnparentItem(editor, object))
+        {
+            // 부모가 바뀌면 지금 도는 자식 배열이 그 자리에서 달라진다.
+            alive = false;
+        }
+        if (alive)
+        {
+            ImGui::Separator();
+            DrawCopyItem(editor);
+            if (DrawPasteItem(editor))
+            {
+                alive = false;
+            }
+        }
+        if (alive && DrawPasteAsChildItem(editor, object))
+        {
+            alive = false;
+        }
+        if (alive)
+        {
+            ImGui::Separator();
+            if (DrawDeleteItem(editor, object))
+            {
+                // **여기서 `object` 는 이미 없을 수 있다.**
+                alive = false;
+            }
+        }
+        return alive;
     }
 
     bool DrawBackgroundMenu(EditorApplication& editor, const ObjectPlacement& placement)

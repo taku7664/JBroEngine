@@ -85,6 +85,16 @@ namespace JBro::Widget
         ImGui::EndPopup();
     }
 
+    void OpenContextMenu(const char* id)
+    {
+        ImGui::OpenPopup(id);
+    }
+
+    bool BeginOpenedContextMenu(const char* id)
+    {
+        return ImGui::BeginPopup(id);
+    }
+
     void OpenModal(const char* id)
     {
         ImGui::OpenPopup(id);
