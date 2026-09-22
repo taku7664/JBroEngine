@@ -184,3 +184,56 @@
   콜라이더가 생기면 그 UI 와 함께 볼 자리다.
 - `AssetInspectorPreview`·`EffectEditor`·오디오 관련은 엔진에 해당 기능이 없어 보류한다.
   보류의 근거는 "없어서" 이지 "안 옮겨서" 가 아니다.
+
+## 5. 기존 에디터 파일 대조표 (2026-09-22)
+
+기존 `Application/Editor/` 의 소스 74개를 하나씩 우리 쪽과 맞댔다. "기억으로 없다고 적지 않는다" 는 규칙(§11.0)을
+표로 지킨 것이다. **상태**: 완료 = 같은 일을 하는 것이 있다 · 열림 = 없고 이유가 적혀 있다 · 해당 없음 = 그 기능이
+엔진에 없거나 다른 곳이 맡는다.
+
+| 기존 파일 | 우리 쪽 | 상태 |
+|---|---|---|
+| `RootDockWindow` | `EditorApplication::DrawRootDock` + 뿌리 탭(메인·파일 창) | 완료 (D-134·D-155) |
+| `Main/MainDockWindow` | `DrawMainDock` · 메뉴 · 가려져도 도크 유지 | 완료 (D-134·D-151·D-155) |
+| `Main/CanvasView/CanvasViewTool` | `CanvasViewPanel` (격자·눈금·콜라이더·기즈모·상자 선택·맞춤) | 완료 (D-136·D-143·D-144) |
+| `Main/CanvasView/CanvasViewContour` | `EditorSpriteContours` | 완료 (D-149) |
+| `Main/CanvasView/CanvasViewCoordinates` | `WorldToScreen`·`ScreenToWorld` (그린 화면 기준) | 완료 (D-150) |
+| `Main/CanvasView/CanvasViewEditContext` | `MapToLevel`·들어가 고르기 | 완료 (D-157) |
+| `Main/GameView/GameViewTool` | `GameViewPanel` (보기만, 상태 글자) | 완료 (D-130) |
+| `Main/Guizmo/Guizmo2D`·`Guizmo3D`·`EditorGuizmoController` | `GizmoModel`·`GizmoEditing`·`Widget::Gizmo` | 완료 (D-109·D-140) |
+| `Main/Inspector/InspectorTool` | `InspectorPanel` (이름·활성·필드·다중 편집) | 완료 (D-142), 레이어·캔버스 인스펙터는 열림 |
+| `Main/Inspector/AssetInspectorPreview` | 인스펙터 미리보기 | 완료 (D-147) |
+| `Main/Inspector/EditorAudioPreview` | — | 해당 없음 (오디오 없음) |
+| `Main/Inspector/EffectEditorWidget`·`EffectEditorWindow` | — | 해당 없음 (이펙트 없음) |
+| `Main/Inspector/ButtonRectFit` | — | 해당 없음 (`Button2D` 없음) |
+| `Main/Layers/LayerTool` | `HierarchyPanel` (레이어 머리·순서·부모 해제·보임) | 완료 (D-129·D-135) |
+| `Main/AssetBrowser/AssetBrowserTool`·`Utils`·`AssetHandler` | `AssetBrowserPanel` (두 칸·파일 다루기·다중 선택·아이콘·끌어 놓기) | 완료 (D-139·D-141·D-147·D-154) |
+| `Main/EditorAssetPickDialog` | 에셋 칸의 검색 드롭다운 + 브라우저에서 열기 | 완료 (D-118·D-155) |
+| `Main/Importer/SpriteImporterWindow`·`ImporterWindowBase` | `ImportAssetFile`·"가져오기..." | 완료 (D-156) |
+| `Main/Importer/SpriteViewerWindow`·`SpriteFramePick`·`SpriteImportOptionsEditor` | `SpriteViewerWindow` + `InspectorPanel::DrawAssetOptions` | 완료 (D-155) |
+| `Main/Importer/AudioImporterWindow` | — | 해당 없음 (오디오 없음) |
+| `Main/Log/LogTool` | `LogPanel` | 완료 (D-133) |
+| `Main/ShortcutReference/ShortcutReferenceTool` | `ShortcutPanel` | 완료 (D-132) |
+| `Main/Debug/CpuProfilerWindow` | `ProfilerPanel` + `StatsPanel` | 완료 (D-138·D-145), 스크립트 풀·코루틴은 해당 없음 |
+| `Main/Debug/GpuProfilerWindow` | — | 열림 (RHI 타임스탬프 질의 없음) |
+| `Main/ProjectSettingsWindow` | `ProjectSettingsPanel` (일반·경로·빌드·언어) | 완료 (D-137·D-146), 입력·오디오·폰트는 해당 없음 |
+| `Main/BuildSettingsWindow`·`Build/*` | — | 열림 (빌드 시스템 없음) |
+| `Command/EditorCommandManager` | `EditorCommandManager` | 완료 |
+| `Command/EditorObjectCommands`·`EditorLayerCommands` | `ObjectCommands`·`HierarchyCommands`·`LayerCommands` | 완료 (D-135·D-142) |
+| `Command/EditorCanvasCommands`·`EditorFileCommands` | 캔버스 저장·열기 요청, 에셋 파일 조작 | 완료 (D-139) |
+| `EditorSessionPersistence` | `SaveEditorSession`·`.layout.ini` | 완료 (D-146) |
+| `EditorSimulationGuard` | `SaveCanvas` 의 재생 중 거절 | 완료 (D-153) |
+| `EditorDragDrop` | `Widget/AssetDrag.h` | 완료 (D-154), `.jlayer` 드롭은 해당 없음(레이어 에셋 없음) |
+| `EditorContext` | `EditorApplication` | 완료 |
+| `Gui/EditorGuiActions` | `EditorActions` | 완료 (D-132) |
+| `Gui/EditorMessagePopup` | `MessagePopup` | 완료 |
+| `Shortcut/EditorShortcutManager` | `EditorShortcuts` | 완료 (D-132) |
+| `Theme/EditorTheme` | `EditorTheme` | 완료 |
+| `ImItem/*` (20여 종) | `Widget/*` (+ `Basic.h`) · 패널 소스 검사 | 완료 (D-152), 오디오 위젯·`ImPathField`·`ImReferenceField` 는 열림 |
+| `Localization/EditorReflectionLabels` | — | 해당 없음 (필드는 필드 이름으로 보인다, §11.2) |
+| `Path/EditorPathUtils` | `JoinPath`·`FolderOf`·`LeafOfPath` | 완료 |
+| `Script/ScriptSchema` | — | 해당 없음 (JBroScript 미구현) |
+
+`ImPathField` 는 경로 칸에 "찾아보기" 단추를 단다. 플랫폼에 폴더 고르기 대화상자가 없어 열림으로 둔다 -
+지금 경로 칸은 글자로만 고친다. `ImReferenceField` 는 오브젝트 참조 칸인데, 그런 필드를 가진 컴포넌트가 아직
+없다(스크립트가 생기면 필요해진다).
