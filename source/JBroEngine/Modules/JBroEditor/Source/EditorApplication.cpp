@@ -212,6 +212,8 @@ namespace JBro
             return false;
         }
         m_frameworkKind = project.framework;
+        // 이 프로젝트의 에셋 시스템에 그림·외곽선 캐시를 잇는다(D-165).
+        BindAssetTools();
         return true;
     }
 
@@ -288,6 +290,8 @@ namespace JBro
         }
         m_frameworkKind = framework;
         m_projectFilePath = projectFilePath != nullptr ? projectFilePath : "";
+        // 이 프로젝트의 에셋 시스템에 그림·외곽선 캐시를 잇는다(D-165).
+        BindAssetTools();
 
         // ── 세션을 되살린다(D-146) ──────────────────────────────────────────
         const ProjectFile& file = GetProjectFile();
@@ -1046,14 +1050,8 @@ namespace JBro
 
     bool EditorApplication::SwitchToProject(const char* projectFilePath)
     {
-        // **지금 연 것을 먼저 닫는다.** 고른 것·번호·되돌리기는 이 프로젝트의 것이라
+        // **지금 연 것을 먼저 닫는다.** 고른 것·번호·되돌리기도 `CloseProject` 가 비운다 - 이 프로젝트의 것이라
         // 다음 프로젝트에서 그 번호를 믿으면 엉뚱한 오브젝트를 가리킨다.
-        ClearSelection();
-        SetSelectedObject(nullptr);
-        SetSelectedAsset(AssetId{});
-        m_commands.Clear();
-        m_objectIds.Clear();
-        StopSimulation();
         CloseProject();
 
         ProjectFileError error;
@@ -1105,6 +1103,103 @@ namespace JBro
             return;
         }
         OpenPopup(MakeOwnerPtr<NewProjectPopup>(folder.c_str()));
+    }
+
+    bool EditorApplication::BeginSpriteFramePick(AssetId sprite, const ComponentAddress& target)
+    {
+        CancelSpriteFramePick();
+        const AssetRecord* record = GetAssetRegistry().Find(sprite);
+        if (record == nullptr)
+        {
+            return false;
+        }
+        // 뷰어는 텍스처로 탭을 가른다. 스프라이트 레코드면 짝 텍스처가 그 탭이다.
+        const AssetId texture = record->type == AssetType::Sprite && false == record->owner.IsNull()
+            ? record->owner
+            : record->id;
+        // **고르는 상태를 먼저 세운다.** 뷰어는 열면서 그 그림을 고른 에셋으로 삼는데(옵션 칸 때문이다), 고르기에서는
+        // 그러면 안 된다 - 인스펙터가 오브젝트에서 그림으로 넘어가, 칸을 고르고 돌아오면 방금 고친 `frameIndex` 가
+        // 보이지 않았다(실제 에디터에서 그랬다). 뷰어는 이 상태를 보고 선택을 건드리지 않는다.
+        m_framePickTarget = target;
+        m_framePickTexture = texture;
+        m_framePickActive = true;
+        if (false == OpenSpriteViewer(sprite))
+        {
+            CancelSpriteFramePick();
+            return false;
+        }
+        return true;
+    }
+
+    void EditorApplication::CancelSpriteFramePick()
+    {
+        m_framePickActive = false;
+        m_framePickTexture = AssetId{};
+        m_framePickTarget = ComponentAddress{};
+    }
+
+    bool EditorApplication::IsSpriteFramePickFor(const ComponentAddress& target) const
+    {
+        return m_framePickActive && m_framePickTarget.Equals(target);
+    }
+
+    bool EditorApplication::CompleteSpriteFramePick(std::uint32_t frame)
+    {
+        if (false == m_framePickActive)
+        {
+            return false;
+        }
+        const ComponentAddress target = m_framePickTarget;
+        CancelSpriteFramePick();
+        ComponentBase* component = ResolveComponent(m_objectIds, target);
+        SetPropertyCommand::Path path;
+        String before;
+        if (component == nullptr
+            || false == SetPropertyCommand::MakeFieldPath(target.typeId, "frameIndex", path)
+            || false == SetPropertyCommand::ReadValue(*component, target.typeId, path, before))
+        {
+            return false;
+        }
+        char text[16] = {};
+        std::snprintf(text, sizeof(text), "%u", frame);
+        if (before == text)
+        {
+            return true;
+        }
+        // **고른 칸은 커맨드로 쓴다**(§11.5). 되돌리면 전의 칸으로 간다.
+        return m_commands.Execute(MakeOwnerPtr<SetPropertyCommand>(m_objectIds, target, path, before, String(text)));
+    }
+
+    void EditorApplication::BindAssetTools()
+    {
+        // **그림과 외곽선 캐시는 지금 프로젝트의 에셋 시스템을 본다**(D-165). 그것은 프로젝트를 열 때 만들어지고 닫을 때
+        // 사라지므로, 한 번 이어 두고 말면 **프로젝트를 다시 열었을 때 죽은 것을 가리킨다** - 그 상태로 그림을 하나
+        // 달라고 하면 그 자리에서 터졌다(테스트가 거기서 죽었다). 열 때마다 다시 잇고, 닫을 때 끊는다.
+        if (m_thumbnails.Get() != nullptr)
+        {
+            m_thumbnails->Shutdown();
+        }
+        if (m_contours.Get() != nullptr)
+        {
+            m_contours->Shutdown();
+        }
+        Renderer* renderer = GetRenderer();
+        IRHIDevice* device = renderer != nullptr ? renderer->GetDevice() : nullptr;
+        AssetSystem* assets = GetAssetSystem();
+        if (false == m_uiEnabled || device == nullptr || assets == nullptr)
+        {
+            return;
+        }
+        if (m_thumbnails.Get() == nullptr)
+        {
+            m_thumbnails = MakeOwnerPtr<EditorThumbnails>();
+        }
+        m_thumbnails->Initialize(*device, *assets);
+        if (m_contours.Get() == nullptr)
+        {
+            m_contours = MakeOwnerPtr<EditorSpriteContours>();
+        }
+        m_contours->Initialize(*assets);
     }
 
     void EditorApplication::RequestBrowsePath(const PathBrowseRequest& request)
@@ -1388,15 +1483,8 @@ namespace JBro
 
         m_gameViewExtent = gameViewExtent;
         m_uiEnabled = true;
-        // 그림을 만들려면 장치와 에셋이 있어야 한다. 프로젝트가 아직 없으면 에셋도 없고,
-        // 그때는 물어도 빈 핸들이 나올 뿐이라 여기서 한 번 잇는다.
-        if (AssetSystem* assets = GetAssetSystem())
-        {
-            m_thumbnails = MakeOwnerPtr<EditorThumbnails>();
-            m_thumbnails->Initialize(*device, *assets);
-            m_contours = MakeOwnerPtr<EditorSpriteContours>();
-            m_contours->Initialize(*assets);
-        }
+        // 그림을 만들려면 장치와 에셋이 있어야 한다. 프로젝트가 아직 없으면 에셋도 없다.
+        BindAssetTools();
         m_spriteViewer = MakeOwnerPtr<SpriteViewerWindow>();
         m_spriteViewer->Initialize(*this);
         // 프로젝트가 먼저 열렸으면 그때는 읽을 ImGui 가 없었다. 여기서 한 번 더 본다.
@@ -2720,16 +2808,29 @@ namespace JBro
         {
             return;
         }
+        // 재생 중이면 재생 전 캔버스로 되돌린 뒤 닫는다 - 되살린 캔버스가 이 프로젝트의 마지막 모습이다.
+        StopSimulation();
         // **닫기 전에 적는다.** 닫고 나면 무엇을 보고 있었는지 아는 것이 아무도 없다.
         SaveEditorSession();
-        // 그림은 이 프로젝트의 것이다. 다음 프로젝트의 같은 아이디는 다른 파일이다.
+        // **이 프로젝트를 가리키는 것은 여기서 다 비운다**(D-165). 고른 것·오브젝트 번호·되돌리기 더미는 이 캔버스의
+        // 오브젝트를 가리킨다. 예전에는 프로젝트를 바꾸는 쪽(`SwitchToProject`)만 비워, `CloseProject` 를 바로 부른 뒤
+        // 다시 열면 옛 번호가 죽은 오브젝트를 가리켰다(테스트가 거기서 죽었다).
+        ClearSelection();
+        SetSelectedObject(nullptr);
+        SetSelectedAsset(AssetId{});
+        m_commands.Clear();
+        m_objectIds.Clear();
+        // 고르던 프레임은 이 프로젝트의 컴포넌트를 가리킨다. 다음 프로젝트의 같은 번호에 쓰면 안 된다.
+        CancelSpriteFramePick();
+        // 그림은 이 프로젝트의 것이다. 다음 프로젝트의 같은 아이디는 다른 파일이다. **에셋 시스템과도 끊는다** -
+        // 그것은 프로젝트와 함께 사라진다.
         if (m_thumbnails.Get() != nullptr)
         {
-            m_thumbnails->Clear();
+            m_thumbnails->Shutdown();
         }
         if (m_contours.Get() != nullptr)
         {
-            m_contours->Clear();
+            m_contours->Shutdown();
         }
         if (m_spriteViewer.Get() != nullptr)
         {

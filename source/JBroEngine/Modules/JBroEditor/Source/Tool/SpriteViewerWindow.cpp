@@ -111,7 +111,7 @@ namespace JBro
             if (m_tabs[index].texture == texture)
             {
                 m_selectNext = index;
-                m_editor->SetSelectedAsset(texture);
+                SelectPicture(texture);
                 return true;
             }
         }
@@ -136,8 +136,18 @@ namespace JBro
         m_tabs.Add(std::move(tab));
         m_selectNext = m_tabs.Size() - 1;
         // 옵션은 고른 에셋의 것을 고친다. 연 그림을 고른다.
-        m_editor->SetSelectedAsset(texture);
+        SelectPicture(texture);
         return true;
+    }
+
+    void SpriteViewerWindow::SelectPicture(AssetId texture)
+    {
+        // **프레임을 고르는 중이면 고른 것을 바꾸지 않는다**(D-165). 인스펙터는 고르는 대상 오브젝트를 계속 보여야 한다.
+        if (m_editor->IsSpriteFramePickActive() && m_editor->GetSpriteFramePickTexture() == texture)
+        {
+            return;
+        }
+        m_editor->SetSelectedAsset(texture);
     }
 
     bool SpriteViewerWindow::GetActiveFrame(std::uint32_t& frame) const
@@ -190,7 +200,7 @@ namespace JBro
                     {
                         // 탭을 바꾸면 그 그림을 고른다 - 옵션 칸이 그 그림의 것이어야 한다.
                         m_active = index;
-                        m_editor->SetSelectedAsset(tab.texture);
+                        SelectPicture(tab.texture);
                     }
                     DrawTab(tab, deltaTime);
                     Widget::EndTab();
@@ -214,6 +224,18 @@ namespace JBro
 
     void SpriteViewerWindow::DrawTab(Tab& tab, float deltaTime)
     {
+        // **고르는 중이면 위에 말해 준다**(D-165, 기존 `SpriteFramePick`). 누르면 칸이 바로 들어가므로, 보기만 하려던
+        // 사람이 모르고 고치지 않게 한 줄로 알리고 그만둘 길을 둔다.
+        if (m_editor->IsSpriteFramePickActive() && m_editor->GetSpriteFramePickTexture() == tab.texture)
+        {
+            Widget::SeverityTextF(Widget::Severity::Info, "%s",
+                Loc::TextOr(LocKeys::SpriteViewerPickHint, "click a cell to use that frame"));
+            ImGui::SameLine();
+            if (Widget::Button(Loc::TextOr(LocKeys::CommonCancel, "Cancel")))
+            {
+                m_editor->CancelSpriteFramePick();
+            }
+        }
         const ImVec2 available = ImGui::GetContentRegionAvail();
         if (m_sheetWidth <= 0.0f)
         {
@@ -302,6 +324,11 @@ namespace JBro
                 {
                     tab.frame = static_cast<std::uint32_t>(index);
                     tab.playing = false;
+                    // 인스펙터가 이 그림으로 고르는 중이면 누른 칸이 곧 답이다.
+                    if (m_editor->IsSpriteFramePickActive() && m_editor->GetSpriteFramePickTexture() == tab.texture)
+                    {
+                        m_editor->CompleteSpriteFramePick(tab.frame);
+                    }
                     break;
                 }
             }

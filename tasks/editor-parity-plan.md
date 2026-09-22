@@ -206,7 +206,8 @@
 | `Main/CanvasView/CanvasViewEditContext` | `MapToLevel`·들어가 고르기 | 완료 (D-157) |
 | `Main/GameView/GameViewTool` | `GameViewPanel` (보기만, 상태 글자) | 완료 (D-130) |
 | `Main/Guizmo/Guizmo2D`·`Guizmo3D`·`EditorGuizmoController` | `GizmoModel`·`GizmoEditing`·`Widget::Gizmo` | 완료 (D-109·D-140) |
-| `Main/Inspector/InspectorTool` | `InspectorPanel` (이름·활성·필드·다중 편집) | 완료 (D-142), 레이어·캔버스 인스펙터는 열림 |
+| `Main/Inspector/InspectorTool` | `InspectorPanel` (이름·활성·필드·다중 편집·프레임 고르기) | 완료 (D-142·D-165), 레이어·캔버스 인스펙터는 열림 |
+| `Main/Importer/SpriteFramePick` | `EditorApplication::BeginSpriteFramePick` + 뷰어의 고르기 줄 | 완료 (D-165) |
 | `Main/Inspector/AssetInspectorPreview` | 인스펙터 미리보기 | 완료 (D-147) |
 | `Main/Inspector/EditorAudioPreview` | — | 해당 없음 (오디오 없음) |
 | `Main/Inspector/EffectEditorWidget`·`EffectEditorWindow` | — | 해당 없음 (이펙트 없음) |

@@ -183,6 +183,10 @@ namespace JBro::LocKeys
     inline constexpr const char* SpriteViewerStop = "sprite_viewer.stop";
     inline constexpr const char* SpriteViewerSelectToEdit = "sprite_viewer.select_to_edit";
     inline constexpr const char* SpriteViewerSelect = "sprite_viewer.select";
+    // 프레임 고르기(D-165, 기존 `InspectorSpritePickFrame`·`...NoSheet`)
+    inline constexpr const char* SpriteViewerPickHint = "sprite_viewer.pick_hint";
+    inline constexpr const char* InspectorPickFrame = "inspector.pick_frame";
+    inline constexpr const char* InspectorPickFrameNoSprite = "inspector.pick_frame_no_sprite";
     inline constexpr const char* AssetsIconView = "assets.icon_view";
     inline constexpr const char* AssetsListView = "assets.list_view";
     inline constexpr const char* AssetsViewTooltip = "assets.view_tooltip";

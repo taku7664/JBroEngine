@@ -6,6 +6,9 @@
 #include <JBro/Reflection/PropertyRegistry.h>
 #include <JBro/Reflection/ReflectedYaml.h>
 
+#include <JBro/Types/NameTable.h>
+
+#include <cstring>
 #include <utility>
 
 namespace JBro
@@ -212,6 +215,27 @@ namespace JBro
         // 처음 값은 이쪽 것을 지킨다 - 드래그 전체를 한 번에 되돌려야 한다.
         m_newValue = static_cast<const SetPropertyCommand&>(newer).m_newValue;
         return true;
+    }
+
+    bool SetPropertyCommand::MakeFieldPath(ComponentTypeId typeId, const char* name, Path& path)
+    {
+        const PropertyTable* table = PropertyRegistry::Lookup(typeId);
+        if (table == nullptr || name == nullptr)
+        {
+            return false;
+        }
+        for (std::uint32_t index = 0; index < table->count; ++index)
+        {
+            const char* found = NameTable::Get().Resolve(table->properties[index].name);
+            if (found != nullptr && std::strcmp(found, name) == 0)
+            {
+                path = {};
+                path.indices[0] = index;
+                path.depth = 1;
+                return true;
+            }
+        }
+        return false;
     }
 
     bool SetPropertyCommand::ReadValue(

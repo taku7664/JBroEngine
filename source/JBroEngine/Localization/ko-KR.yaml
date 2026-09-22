@@ -183,3 +183,6 @@ Entries:
   common.browse: 찾아보기
   dialog.browse_folder: 폴더 선택
   dialog.browse_file: 파일 선택
+  sprite_viewer.pick_hint: 시트에서 칸을 누르면 그 프레임이 스프라이트에 들어갑니다
+  inspector.pick_frame: 프레임 고르기
+  inspector.pick_frame_no_sprite: 스프라이트를 먼저 지정하세요

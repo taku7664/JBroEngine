@@ -2,6 +2,7 @@
 
 #include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Canvas/CanvasFile.h>
+#include <JBro/Editor/Command/ComponentAddress.h>
 #include <JBro/Editor/Command/ObjectTreeSnapshot.h>
 #include <JBro/Editor/EditorCommand.h>
 #include <JBro/Editor/EditorSpriteContours.h>
@@ -374,6 +375,25 @@ namespace JBro
         // 실패하면 거짓이고 `failure` 에 까닭이 온다. 팝업이 그것으로 번역된 문장을 고른다.
         bool CreateProject(const char* parentFolder, const char* name, FrameworkKind framework,
             ProjectCreateFailure* failure = nullptr);
+        // ── 스프라이트 프레임 고르기(D-165, 기존 `SpriteFramePick`) ─────────────────────────────
+        // 인스펙터의 "프레임 고르기" 가 시작하고, 스프라이트 뷰어에서 칸을 누르면 끝난다. 끝나면 대상 컴포넌트의
+        // `frameIndex` 를 커맨드로 고친다. 대상은 포인터가 아니라 주소다 - 고르는 사이 지웠다 되살려도 찾는다.
+        // 한 번에 하나다. 새로 시작하면 앞의 것은 취소된다.
+        bool BeginSpriteFramePick(AssetId sprite, const ComponentAddress& target);
+        void CancelSpriteFramePick();
+        bool IsSpriteFramePickActive() const
+        {
+            return m_framePickActive;
+        }
+        bool IsSpriteFramePickFor(const ComponentAddress& target) const;
+        // 고르는 중인 스프라이트의 텍스처다. 뷰어가 어느 탭에서 고르는지 안다.
+        AssetId GetSpriteFramePickTexture() const
+        {
+            return m_framePickTexture;
+        }
+        // 뷰어가 부른다. 대상이 사라졌거나 쓸 수 없으면 거짓이고, 어느 쪽이든 고르기는 끝난다.
+        bool CompleteSpriteFramePick(std::uint32_t frame);
+
         // 경로 칸의 "찾아보기" 를 프레임 밖에서 처리하게 맡긴다(D-164). 한 프레임에 하나다 - 뒤의 것이 앞의 것을 덮는다.
         void RequestBrowsePath(const PathBrowseRequest& request);
         // 마지막으로 열거나 저장한 캔버스 경로. 없으면 빈 글자다.
@@ -419,6 +439,8 @@ namespace JBro
         void PerformOpenProjectRequest();
         void PerformNewProjectRequest();
         void PerformBrowseRequest();
+        // 그림·외곽선 캐시를 지금 프로젝트의 에셋 시스템에 잇는다. 프로젝트가 없으면 끊는다(D-165).
+        void BindAssetTools();
         // 지금 연 것을 닫고 그 프로젝트를 연다. 열기와 새 프로젝트가 같은 길로 간다. 프레임 밖에서 부른다.
         bool SwitchToProject(const char* projectFilePath);
         void PerformImportRequest();
@@ -446,6 +468,9 @@ namespace JBro
         bool m_newProjectRequested = false;
         PathBrowseRequest m_browseRequest;
         bool m_browseRequested = false;
+        ComponentAddress m_framePickTarget;
+        AssetId m_framePickTexture;
+        bool m_framePickActive = false;
         // 만든 프로젝트. 프레임이 끝나면 그리로 넘어간다 - 팝업 안(프레임 안)에서 프로젝트를 닫을 수 없다.
         String m_pendingProjectPath;
         Array<ObjectTreeSnapshot> m_clipboard;

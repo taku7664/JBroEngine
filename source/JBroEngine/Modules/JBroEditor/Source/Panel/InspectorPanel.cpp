@@ -1,4 +1,5 @@
 ﻿#include "InspectorPanel.h"
+#include "InspectorFieldExtras.h"
 
 #include <JBro/Editor/Widget/Basic.h>
 #include <JBro/Canvas/ComponentRegistry.h>
@@ -1133,6 +1134,21 @@ namespace JBro
                     DrawValue(label != nullptr ? label : "?", *property.type, address,
                         property.edit, context);
                 });
+
+            // **이 필드에 붙는 줄이 있으면 바로 밑에 그린다**(D-165). 무엇을 붙일지는 인스펙터가 모른다 - 표가 안다.
+            if (false == inElement && context.path.depth == 1 && context.asset == nullptr
+                && context.component != nullptr && context.owner != nullptr)
+            {
+                if (const FieldExtraDraw extra = FindFieldExtra(context.typeId, property.name))
+                {
+                    FieldExtraContext extraContext;
+                    extraContext.editor = m_editor;
+                    extraContext.owner = context.owner;
+                    extraContext.component = context.component;
+                    extraContext.typeId = context.typeId;
+                    extra(layout, extraContext);
+                }
+            }
 
             leave();
         }

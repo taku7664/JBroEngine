@@ -65,6 +65,10 @@ namespace JBro
             void*& address,
             const TypeDescriptor*& type);
 
+        // 맨 위 필드의 이름으로 길을 만든다(D-165). 기즈모와 프레임 고르기처럼 **정해진 필드 하나**를 고치는 자리가 쓴다.
+        // 그 타입에 그 이름이 없으면 거짓이다.
+        static bool MakeFieldPath(ComponentTypeId typeId, const char* name, Path& path);
+
         // 현재 값을 글자로 읽는다. 편집 전 값을 잡아 두는 데 쓴다.
         static bool ReadValue(
             ComponentBase& component,

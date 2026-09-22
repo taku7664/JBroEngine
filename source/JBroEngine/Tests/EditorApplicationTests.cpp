@@ -1,4 +1,4 @@
-﻿#include <JBro/Editor/EditorApplication.h>
+#include <JBro/Editor/EditorApplication.h>
 #include <JBro/Core/Version.h>
 
 #include <JBro/Asset/Asset.h>
@@ -5170,6 +5170,71 @@ namespace
         fs::remove_all(root, ignored);
     }
 
+    // **프로젝트를 다시 열어도 그림 캐시가 산 것을 가리킨다**(D-165). 그림·외곽선 캐시는 에셋 시스템을 들고 있는데,
+    // 그것은 프로젝트와 함께 생기고 사라진다. 한 번 이어 두고 말았더니 다시 연 프로젝트에서 그림을 달라고 하는 순간
+    // 죽은 것을 건드려 터졌다 - 실제 에디터에서 프로젝트를 바꾸면 그림 하나에 꺼졌다는 뜻이다.
+    void TestAssetToolsFollowTheOpenProject()
+    {
+        namespace fs = std::filesystem;
+        std::error_code ignored;
+        const fs::path first(TempPath("JBroAssetToolsA").c_str());
+        const fs::path second(TempPath("JBroAssetToolsB").c_str());
+        for (const fs::path& root : {first, second})
+        {
+            fs::remove_all(root, ignored);
+            fs::create_directories(root / "Assets", ignored);
+            std::ofstream png(root / "Assets" / "hero.png", std::ios::binary);
+            png.write(reinterpret_cast<const char*>(TinyPng), sizeof(TinyPng));
+        }
+        const JBro::String firstPath = TempPath("JBroAssetToolsA\\A.jproject");
+        const JBro::String secondPath = TempPath("JBroAssetToolsB\\B.jproject");
+        const char* const projectText =
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 2D\n"
+            "RootPath: .\n"
+            "AssetDirectory: Assets\n";
+        Check(WriteTextFile(firstPath, projectText) && WriteTextFile(secondPath, projectText),
+            "the test must be able to write its own project files");
+
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 640;
+        config.windowHeight = 480;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; asset tools not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(firstPath.c_str(), error), "the first project opens");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        const JBro::AssetRecord* firstHero = editor.GetAssetRegistry().FindByPath("hero.png");
+        Check(firstHero != nullptr, "the first project has its picture");
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+        Check(editor.GetAssetThumbnail(firstHero->id).IsValid(), "and a thumbnail for it");
+
+        editor.CloseProject();
+        Check(editor.OpenProjectFile(secondPath.c_str(), error), "the second project opens");
+        const JBro::AssetRecord* secondHero = editor.GetAssetRegistry().FindByPath("hero.png");
+        Check(secondHero != nullptr, "the second project has its own picture");
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle in the second project");
+        }
+        // 이 줄이 예전에는 죽은 에셋 시스템을 건드렸다.
+        Check(editor.GetAssetThumbnail(secondHero->id).IsValid(),
+            "a thumbnail in the reopened project comes from the living asset system");
+
+        editor.Shutdown();
+        fs::remove_all(first, ignored);
+        fs::remove_all(second, ignored);
+    }
+
     // **스프라이트 뷰어는 메인 도크와 나란히 뿌리에 붙는다**(D-155, 기존 `CSpriteViewerDockWindow`).
     // 도구 창(패널)은 메인 도크 안에, 파일을 여는 창은 뿌리에 - 두 겹 도크의 나눔이다(D-134).
     void TestTheSpriteViewerDocksBesideTheMainDock()
@@ -5293,11 +5358,64 @@ namespace
                 heroSprite = record.id;
             }
         }
+
+        // **프레임 고르기**(D-165, 기존 `SpriteFramePick`). 인스펙터가 시작하고 뷰어가 끝내며, 칸은 커맨드로 들어간다.
+        {
+            JBro::Canvas* canvas = editor.GetCanvas();
+            JBro::GameObject* hero = canvas->CreateObject("Hero");
+            canvas->AttachComponent<JBro::Component::Transform2D>(hero);
+            auto* renderer = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(hero);
+            Check(renderer != nullptr, "the hero must have a sprite renderer");
+            renderer->spriteId = heroSprite;
+            renderer->frameIndex = 5;
+            JBro::ComponentAddress address;
+            Check(JBro::MakeComponentAddress(editor.GetObjectIds(), *hero, *renderer, address),
+                "the renderer must have an address");
+
+            Check(false == editor.CompleteSpriteFramePick(0), "nothing to complete before a pick starts");
+            editor.CloseProject();
+            JBro::ProjectFileError reopenError;
+            Check(editor.OpenProjectFile(projectPath.c_str(), reopenError), "the probe project reopens with no viewer tab");
+            canvas = editor.GetCanvas();
+            hero = canvas->CreateObject("Hero");
+            canvas->AttachComponent<JBro::Component::Transform2D>(hero);
+            renderer = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(hero);
+            renderer->spriteId = heroSprite;
+            renderer->frameIndex = 5;
+            Check(JBro::MakeComponentAddress(editor.GetObjectIds(), *hero, *renderer, address),
+                "the renderer must have an address");
+            editor.SetSelectedObject(hero);
+            Check(editor.BeginSpriteFramePick(heroSprite, address), "a pick starts on the hero's sprite");
+            Check(editor.IsSpriteFramePickFor(address) && editor.GetSpriteFramePickTexture() == heroTexture,
+                "for that renderer, in the tab of the picture the sprite comes from");
+            for (int frame = 0; frame < 4; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must draw the viewer while picking");
+            }
+            // **고르는 동안 고른 것이 바뀌지 않는다.** 뷰어가 그림을 고르면 인스펙터가 오브젝트를 떠났다(실제 에디터에서 그랬다).
+            Check(editor.GetSelectedObject() == hero && editor.GetSelectedAsset().IsNull(),
+                "picking keeps the object selected; the viewer does not select the picture");
+            const std::size_t undoBefore = editor.GetCommands().GetUndoCount();
+            Check(editor.CompleteSpriteFramePick(0), "picking a cell completes it");
+            Check(renderer->frameIndex == 0, "the frame index is the picked cell");
+            Check(editor.GetCommands().GetUndoCount() == undoBefore + 1, "through one command");
+            Check(false == editor.IsSpriteFramePickActive(), "and the pick is over");
+            Check(editor.GetCommands().Undo() && renderer->frameIndex == 5, "undo goes back to the old frame");
+
+            Check(editor.BeginSpriteFramePick(heroSprite, address), "a second pick starts");
+            editor.CancelSpriteFramePick();
+            Check(false == editor.IsSpriteFramePickActive(), "and cancelling ends it without writing");
+            Check(renderer->frameIndex == 5, "the frame is untouched");
+            Check(editor.BeginSpriteFramePick(heroSprite, address), "a third pick starts");
+            // 프로젝트를 다시 열었다. 앞에서 받은 에셋 시스템은 그 프로젝트의 것이었다.
+            assets = editor.GetAssetSystem();
+        }
         const JBro::AssetHandle held = assets->Find(heroSprite);
         const std::uint32_t heldCount = assets->GetReferenceCount(held);
         Check(heldCount >= 1, "the open tab holds the sprite");
         editor.CloseProject();
         Check(editor.GetSpriteViewerTabCount() == 0, "closing the project closes the viewer's tabs");
+        Check(false == editor.IsSpriteFramePickActive(), "and ends a pick, which pointed into that project");
 
         editor.Shutdown();
         fs::remove_all(root, ignored);
@@ -6657,6 +6775,7 @@ int RunEditorApplicationTests()
     TestTheCanvasViewDrawsInA3DProject();
     TestProjectSettingsAreWrittenBackToTheFile();
     TestDraggingAnAssetOntoTheFieldPicksIt();
+    TestAssetToolsFollowTheOpenProject();
     TestTheSpriteViewerDocksBesideTheMainDock();
     TestImportingAPictureCopiesAndRegistersIt();
     TestNewProjectCreatesAndOpensIt();

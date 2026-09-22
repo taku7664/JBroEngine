@@ -183,3 +183,6 @@ Entries:
   common.browse: Browse
   dialog.browse_folder: Choose a folder
   dialog.browse_file: Choose a file
+  sprite_viewer.pick_hint: click a cell on the sheet to use that frame
+  inspector.pick_frame: Pick Frame
+  inspector.pick_frame_no_sprite: set a sprite first

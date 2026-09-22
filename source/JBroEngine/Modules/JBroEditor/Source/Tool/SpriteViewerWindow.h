@@ -66,6 +66,8 @@ namespace JBro
         void DrawSheet(Tab& tab, const ImVec2& area);
         void DrawPreview(Tab& tab, float deltaTime);
         void CloseTab(std::size_t index);
+        // 그 그림을 고른 에셋으로 삼는다. 프레임 고르기 중이면 하지 않는다.
+        void SelectPicture(AssetId texture);
 
         EditorApplication* m_editor = nullptr;
         Array<Tab> m_tabs;

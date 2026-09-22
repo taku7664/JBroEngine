@@ -26,28 +26,6 @@ namespace JBro
             return FromAxisAngle({0.0f, 0.0f, 1.0f}, degrees * DegreesToRadians);
         }
 
-        // 필드 이름으로 표의 자리를 찾는다. 커맨드의 길은 인덱스다.
-        bool FieldPath(ComponentTypeId typeId, const char* name, SetPropertyCommand::Path& path)
-        {
-            const PropertyTable* table = PropertyRegistry::Lookup(typeId);
-            if (table == nullptr)
-            {
-                return false;
-            }
-            for (std::uint32_t index = 0; index < table->count; ++index)
-            {
-                const char* found = NameTable::Get().Resolve(table->properties[index].name);
-                if (found != nullptr && std::strcmp(found, name) == 0)
-                {
-                    path = {};
-                    path.indices[0] = index;
-                    path.depth = 1;
-                    return true;
-                }
-            }
-            return false;
-        }
-
         const char* FieldNameFor(GizmoMode mode)
         {
             switch (mode)
@@ -136,7 +114,7 @@ namespace JBro
         {
             constexpr ComponentTypeId typeId = MakeStableTypeId(Component::Transform3D::StaticTypeName());
             if (false == MakeComponentAddress(editor.GetObjectIds(), object, *transform, target.address)
-                || false == FieldPath(typeId, field, target.path)
+                || false == SetPropertyCommand::MakeFieldPath(typeId, field, target.path)
                 || false == SetPropertyCommand::ReadValue(*transform, typeId, target.path, target.before))
             {
                 return false;
@@ -152,7 +130,7 @@ namespace JBro
         {
             constexpr ComponentTypeId typeId = MakeStableTypeId(Component::Transform2D::StaticTypeName());
             if (false == MakeComponentAddress(editor.GetObjectIds(), object, *transform, target.address)
-                || false == FieldPath(typeId, field, target.path)
+                || false == SetPropertyCommand::MakeFieldPath(typeId, field, target.path)
                 || false == SetPropertyCommand::ReadValue(*transform, typeId, target.path, target.before))
             {
                 return false;
