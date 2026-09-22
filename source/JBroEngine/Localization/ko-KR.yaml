@@ -20,6 +20,7 @@ Entries:
   menu.simulation_pause: 일시정지
   menu.save_canvas: 캔버스 저장
   menu.save_project: 프로젝트 저장
+  popup.save_blocked_while_playing: 시뮬레이션을 정지한 뒤에 저장하세요
   menu.settings: 설정
   menu.settings_project: 프로젝트 설정
   menu.debug: 디버그

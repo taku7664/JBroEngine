@@ -4520,6 +4520,20 @@ namespace
         transform->position = JBro::Vec2{-9.0f, -9.0f};
         Check(editor.Tick(Frame), "the editor must tick while playing");
 
+        // **재생 중에는 캔버스를 파일로 쓰지 않는다**(D-153). 게임이 만든 오브젝트가 파일이 되면
+        // 정지로 되돌린 뒤에도 파일에 남는다.
+        {
+            const JBro::String blockedPath = TempPath("JBroPlaySaveProbe.jcanvas");
+            std::error_code ignoredError;
+            std::filesystem::remove(std::filesystem::path(blockedPath.c_str()), ignoredError);
+            JBro::CanvasFileError saveError;
+            Check(false == editor.SaveCanvas(blockedPath.c_str(), saveError),
+                "saving while the simulation runs must be refused");
+            Check(false == std::filesystem::exists(std::filesystem::path(blockedPath.c_str()),
+                    ignoredError),
+                "and nothing may be written");
+        }
+
         editor.StopSimulation();
         Check(false == editor.IsSimulationPlaying(), "stop must stop");
         Check(canvas->GetObjectCount() == 1, "what the game made must be gone");

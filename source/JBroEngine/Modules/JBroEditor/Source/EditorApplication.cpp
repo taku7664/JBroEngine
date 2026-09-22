@@ -892,6 +892,15 @@ namespace JBro
             error.message = "no project is open";
             return false;
         }
+        // **돌고 있는 동안은 쓰지 않는다**(D-153, 기존 `EditorSimulationGuard`). 재생 중의 캔버스는
+        // 게임이 움직여 놓은 상태라, 그것이 파일이 되면 정지로 되돌린 뒤에도 파일에 남는다.
+        // 단축키만 막아 두면 메뉴·프로젝트 저장 같은 다른 길로 새므로, 쓰는 길 하나에서 막는다.
+        if (IsSimulationPlaying())
+        {
+            error.message = Loc::TextOr(LocKeys::PopupSaveBlockedWhilePlaying,
+                "stop the simulation before saving");
+            return false;
+        }
         String text;
         if (false == WriteCanvasText(*canvas, text, error))
         {
@@ -1816,7 +1825,7 @@ namespace JBro
                 Loc::TextOr(LocKeys::MenuSaveCanvas, "Save Canvas"));
             {
                 // 파일로 연 프로젝트만 적을 자리가 있다.
-                Widget::DisableScope disabled(m_projectFilePath.empty());
+                Widget::DisableScope disabled(m_projectFilePath.empty() || IsSimulationPlaying());
                 if (ImGui::MenuItem(Loc::TextOr(LocKeys::MenuSaveProject, "Save Project")))
                 {
                     RequestSaveProject();

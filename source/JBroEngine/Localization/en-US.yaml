@@ -20,6 +20,7 @@ Entries:
   menu.simulation_pause: Pause
   menu.save_canvas: Save Canvas
   menu.save_project: Save Project
+  popup.save_blocked_while_playing: stop the simulation before saving
   menu.settings: Settings
   menu.settings_project: Project Settings
   menu.debug: Debug
