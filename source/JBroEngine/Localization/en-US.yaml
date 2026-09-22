@@ -2,7 +2,7 @@ Locale: en-US
 Entries:
   panel.game: Game
   panel.canvas_view: Canvas
-  panel.hierarchy: Hierarchy
+  panel.hierarchy: Layers
   panel.inspector: Inspector
   panel.assets: Asset Browser
   panel.shortcuts: Shortcut Reference
