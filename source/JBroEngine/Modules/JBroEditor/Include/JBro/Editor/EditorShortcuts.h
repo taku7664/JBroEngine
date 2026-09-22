@@ -20,6 +20,7 @@ namespace JBro
         Redo,
         Copy,
         Paste,
+        PasteAsChild,
         DeleteSelection,
         TogglePlay,
         TogglePause,

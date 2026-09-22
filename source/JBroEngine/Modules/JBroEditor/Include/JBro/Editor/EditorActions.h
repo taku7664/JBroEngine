@@ -41,6 +41,8 @@ namespace JBro
         bool DrawUnparentItem(EditorApplication& editor, GameObject& object);
         bool DrawCopyItem(EditorApplication& editor);
         bool DrawPasteItem(EditorApplication& editor);
+        // 그 오브젝트의 자식으로 붙인다(D-166). 줄에서 연 메뉴가 쓴다.
+        bool DrawPasteAsChildItem(EditorApplication& editor, GameObject& object);
         bool DrawDeleteItem(EditorApplication& editor, GameObject& object);
 
         // 빈자리(계층의 배경, 캔버스 뷰의 빈 곳)에서 여는 메뉴 한 벌이다.

@@ -29,6 +29,9 @@ namespace JBro::EditorShortcuts
                 Bind(ImGuiKey_C, true), {}},
             {EditorShortcut::Paste, LocKeys::HierarchyPaste, LocKeys::MenuEdit,
                 Bind(ImGuiKey_V, true), {}},
+            // Shift 를 정확히 견주므로 Ctrl+Shift+V 가 위의 Ctrl+V 를 오발동시키지 않는다(기존과 같다).
+            {EditorShortcut::PasteAsChild, LocKeys::HierarchyPasteAsChild, LocKeys::MenuEdit,
+                Bind(ImGuiKey_V, true, true), {}},
             {EditorShortcut::DeleteSelection, LocKeys::HierarchyDelete, LocKeys::MenuEdit,
                 Bind(ImGuiKey_Delete), {}},
             {EditorShortcut::TogglePlay, LocKeys::MenuSimulationPlay, LocKeys::MenuSimulation,
@@ -94,6 +97,9 @@ namespace JBro::EditorShortcuts
             return editor.GetSelectionCount() != 0;
         case EditorShortcut::Paste:
             return hasCanvas && editor.HasClipboard();
+        case EditorShortcut::PasteAsChild:
+            // 자식으로 붙이려면 들어갈 곳이 있어야 한다.
+            return hasCanvas && editor.HasClipboard() && editor.GetSelectedObject() != nullptr;
         case EditorShortcut::DeleteSelection:
             return editor.GetSelectionCount() != 0;
         case EditorShortcut::TogglePlay:
@@ -124,6 +130,8 @@ namespace JBro::EditorShortcuts
             return editor.CopySelection();
         case EditorShortcut::Paste:
             return editor.PasteClipboard();
+        case EditorShortcut::PasteAsChild:
+            return editor.PasteClipboard(true);
         case EditorShortcut::DeleteSelection:
             return EditorActions::DeleteSelection(editor);
         case EditorShortcut::TogglePlay:

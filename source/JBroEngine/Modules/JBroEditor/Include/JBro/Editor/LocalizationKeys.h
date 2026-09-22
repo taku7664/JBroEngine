@@ -96,6 +96,7 @@ namespace JBro::LocKeys
     inline constexpr const char* HierarchyDelete = "hierarchy.delete";
     inline constexpr const char* HierarchyCopy = "hierarchy.copy";
     inline constexpr const char* HierarchyPaste = "hierarchy.paste";
+    inline constexpr const char* HierarchyPasteAsChild = "hierarchy.paste_as_child";
     inline constexpr const char* HierarchyUnparent = "hierarchy.unparent";
     inline constexpr const char* HierarchyUnnamed = "hierarchy.unnamed";
     inline constexpr const char* HierarchySearch = "hierarchy.search";

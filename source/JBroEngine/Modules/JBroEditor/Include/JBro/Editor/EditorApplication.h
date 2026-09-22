@@ -353,7 +353,8 @@ namespace JBro
         // 클립보드는 그대로다). 붙여넣기는 커맨드 하나로 가고, 붙인 뿌리들을 고른다 -
         // 주된 선택의 형제로 붙이고, 고른 것이 없으면 캔버스 뿌리에 붙인다.
         bool CopySelection();
-        bool PasteClipboard();
+        // `asChild` 면 고른 것의 자식으로 붙인다(D-166, 기존 `PasteObjectsAsChild`·Ctrl+Shift+V).
+        bool PasteClipboard(bool asChild = false);
         bool HasClipboard() const
         {
             return false == m_clipboard.IsEmpty();

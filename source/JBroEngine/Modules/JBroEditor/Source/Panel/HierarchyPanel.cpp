@@ -685,6 +685,10 @@ namespace JBro
                 alive = false;
             }
         }
+        if (alive && EditorActions::DrawPasteAsChildItem(*m_editor, object))
+        {
+            alive = false;
+        }
         if (alive)
         {
             ImGui::Separator();

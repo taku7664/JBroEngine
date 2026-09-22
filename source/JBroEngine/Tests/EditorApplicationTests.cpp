@@ -13,6 +13,7 @@
 #include <JBro/Editor/EditorPanel.h>
 #include <JBro/Editor/EditorTheme.h>
 #include <JBro/Editor/EditorPopup.h>
+#include <JBro/Editor/EditorShortcuts.h>
 #include <JBro/Editor/EditorActions.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
@@ -2202,6 +2203,36 @@ namespace
         pasted = editor.GetSelectedObject();
         Check(pasted != nullptr && pasted->GetParent() == nullptr, "and land at the canvas root");
         Check(editor.GetCommands().Undo(), "undo must run");
+
+        // **자식으로 붙여넣기**(Ctrl+Shift+V)는 형제가 아니라 고른 것 **안에** 붙인다(D-166).
+        editor.SetSelectedObject(leaf);
+        Check(editor.PasteClipboard(true), "pasting as a child must go through");
+        pasted = editor.GetSelectedObject();
+        Check(pasted != nullptr && pasted->GetParent() == leaf,
+            "and land inside the chosen object, not beside it");
+        Check(leaf->GetChildren().Size() == 1, "as its only child");
+        Check(editor.GetCommands().Undo(), "undo must run");
+        Check(leaf->GetChildren().Size() == 0, "and take the pasted tree back out");
+
+        // 고른 것이 없으면 형제 붙이기와 똑같이 뿌리에 붙는다 - 붙일 곳이 없다고 거절하지 않는다.
+        editor.ClearSelection();
+        Check(editor.PasteClipboard(true),
+            "pasting as a child with nothing chosen must still go through");
+        pasted = editor.GetSelectedObject();
+        Check(pasted != nullptr && pasted->GetParent() == nullptr, "and land at the canvas root");
+        Check(editor.GetCommands().Undo(), "undo must run");
+
+        // 메뉴에 적히는 글자와 회색 여부는 단축키 표 한 곳에서 나온다(§11.2).
+        const JBro::EditorShortcutText combination
+            = JBro::EditorShortcuts::Describe(JBro::EditorShortcut::PasteAsChild);
+        Check(std::strcmp(combination.value, "Ctrl+Shift+V") == 0,
+            "paste as child must read Ctrl+Shift+V");
+        editor.ClearSelection();
+        Check(false == JBro::EditorShortcuts::CanExecute(editor, JBro::EditorShortcut::PasteAsChild),
+            "with nothing chosen there is no object to paste into");
+        editor.SetSelectedObject(leaf);
+        Check(JBro::EditorShortcuts::CanExecute(editor, JBro::EditorShortcut::PasteAsChild),
+            "and with an object chosen and a full clipboard it must be available");
 
         // 프로젝트를 닫으면 클립보드도 비운다.
         editor.CloseProject();

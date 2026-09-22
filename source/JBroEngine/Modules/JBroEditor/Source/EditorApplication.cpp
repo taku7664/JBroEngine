@@ -982,7 +982,7 @@ namespace JBro
         return true;
     }
 
-    bool EditorApplication::PasteClipboard()
+    bool EditorApplication::PasteClipboard(bool asChild)
     {
         Canvas* canvas = GetCanvas();
         if (canvas == nullptr || m_clipboard.IsEmpty())
@@ -990,10 +990,12 @@ namespace JBro
             return false;
         }
         // 주된 선택의 형제로 붙인다. 고른 것이 없거나 뿌리면 캔버스 뿌리다.
+        // `asChild` 면 고른 것 **안에** 붙인다(D-166, 기존 `PasteObjectsAsChild`). 고른 것이 없으면 형제 붙이기와 같다.
         EditorObjectId parentId = InvalidEditorObjectId;
         if (GameObject* selected = GetSelectedObject())
         {
-            if (GameObject* parent = selected->GetParent())
+            GameObject* parent = asChild ? selected : selected->GetParent();
+            if (parent != nullptr)
             {
                 parentId = m_objectIds.Track(parent);
             }
@@ -2211,6 +2213,8 @@ namespace JBro
             ImGui::Separator();
             DrawShortcutItem(EditorShortcut::Copy, Loc::TextOr(LocKeys::HierarchyCopy, "Copy"));
             DrawShortcutItem(EditorShortcut::Paste, Loc::TextOr(LocKeys::HierarchyPaste, "Paste"));
+            DrawShortcutItem(EditorShortcut::PasteAsChild,
+                Loc::TextOr(LocKeys::HierarchyPasteAsChild, "Paste As Child"));
             DrawShortcutItem(EditorShortcut::DeleteSelection,
                 Loc::TextOr(LocKeys::HierarchyDelete, "Delete"));
             ImGui::EndMenu();

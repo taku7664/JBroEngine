@@ -189,6 +189,19 @@ namespace JBro::EditorActions
         return editor.PasteClipboard();
     }
 
+    bool DrawPasteAsChildItem(EditorApplication& editor, GameObject& object)
+    {
+        // **고른 것 안으로 붙인다**(D-166, 기존 `PasteObjectsAsChild`). 줄에서 연 메뉴이므로 그 줄이 곧 부모다.
+        const DisabledIf disabled(false == editor.HasClipboard());
+        if (false == ImGui::MenuItem(
+                Loc::TextOr(LocKeys::HierarchyPasteAsChild, "Paste As Child"), "Ctrl+Shift+V"))
+        {
+            return false;
+        }
+        editor.SetSelectedObject(&object);
+        return editor.PasteClipboard(true);
+    }
+
     bool DrawDeleteItem(EditorApplication& editor, GameObject& object)
     {
         const DisabledIf disabled(editor.GetCanvas() == nullptr);

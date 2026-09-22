@@ -186,3 +186,4 @@ Entries:
   sprite_viewer.pick_hint: click a cell on the sheet to use that frame
   inspector.pick_frame: Pick Frame
   inspector.pick_frame_no_sprite: set a sprite first
+  hierarchy.paste_as_child: Paste As Child
