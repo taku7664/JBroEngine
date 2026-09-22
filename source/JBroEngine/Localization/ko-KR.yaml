@@ -20,6 +20,7 @@ Entries:
   menu.simulation_pause: 일시정지
   menu.save_canvas: 캔버스 저장
   menu.save_project: 프로젝트 저장
+  dock.main: 메인
   popup.save_blocked_while_playing: 시뮬레이션을 정지한 뒤에 저장하세요
   menu.settings: 설정
   menu.settings_project: 프로젝트 설정
@@ -106,6 +107,7 @@ Entries:
   log.error: 오류
   menu.open_project: 프로젝트 열기
   menu.window_editor: 에디터
+  menu.window_importer: 임포터
   popup.open_project_failed: 프로젝트를 열지 못했습니다
   dialog.open_project_title: 프로젝트 열기
   dialog.project_filter: JBro 프로젝트 파일
@@ -148,6 +150,15 @@ Entries:
   assets.reveal: 탐색기에서 보기
   common.cancel: 취소
   assets.rescan: 새로 고침
+  assets.open_in_sprite_viewer: 스프라이트 뷰어에서 열기
+  sprite_viewer.title: 스프라이트 뷰어
+  sprite_viewer.loading: 그림을 읽는 중입니다
+  sprite_viewer.frame: 프레임
+  sprite_viewer.fps: 초당 프레임
+  sprite_viewer.play: 재생
+  sprite_viewer.stop: 정지
+  sprite_viewer.select_to_edit: 임포트 옵션을 고치려면 이 그림을 선택하세요
+  sprite_viewer.select: 선택
   assets.icon_view: 아이콘
   assets.list_view: 목록
   assets.view_tooltip: 목록과 아이콘 보기를 오갑니다

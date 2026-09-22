@@ -20,6 +20,7 @@ Entries:
   menu.simulation_pause: Pause
   menu.save_canvas: Save Canvas
   menu.save_project: Save Project
+  dock.main: Main
   popup.save_blocked_while_playing: stop the simulation before saving
   menu.settings: Settings
   menu.settings_project: Project Settings
@@ -106,6 +107,7 @@ Entries:
   log.error: Error
   menu.open_project: Open Project
   menu.window_editor: Editor
+  menu.window_importer: Importer
   popup.open_project_failed: The project could not be opened
   dialog.open_project_title: Open Project
   dialog.project_filter: JBro project file
@@ -148,6 +150,15 @@ Entries:
   assets.reveal: Show in Explorer
   common.cancel: Cancel
   assets.rescan: Rescan
+  assets.open_in_sprite_viewer: Open in Sprite Viewer
+  sprite_viewer.title: Sprite Viewer
+  sprite_viewer.loading: reading the picture
+  sprite_viewer.frame: Frame
+  sprite_viewer.fps: Frames per second
+  sprite_viewer.play: Play
+  sprite_viewer.stop: Stop
+  sprite_viewer.select_to_edit: select this picture to edit its import options
+  sprite_viewer.select: Select
   assets.icon_view: Icons
   assets.list_view: List
   assets.view_tooltip: switch between the list and the icons

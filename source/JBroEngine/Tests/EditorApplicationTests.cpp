@@ -3839,7 +3839,7 @@ namespace
         // 그래서 두 막대를 다 훑는다.
         ImGuiWindow* root = ImGui::FindWindowByName("##EditorRoot");
         Check(root != nullptr, "the editor must have its root window");
-        ImGuiWindow* main = ImGui::FindWindowByName("MainDock");
+        ImGuiWindow* main = ImGui::FindWindowByName("###MainDock");
         Check(main != nullptr, "and its main dock");
 
         bool found[3] = {};
@@ -5072,6 +5072,115 @@ namespace
         fs::remove_all(root, ignored);
     }
 
+    // **스프라이트 뷰어는 메인 도크와 나란히 뿌리에 붙는다**(D-155, 기존 `CSpriteViewerDockWindow`).
+    // 도구 창(패널)은 메인 도크 안에, 파일을 여는 창은 뿌리에 - 두 겹 도크의 나눔이다(D-134).
+    void TestTheSpriteViewerDocksBesideTheMainDock()
+    {
+        namespace fs = std::filesystem;
+        const fs::path root(TempPath("JBroSpriteViewerProbe").c_str());
+        std::error_code ignored;
+        fs::remove_all(root, ignored);
+        fs::create_directories(root / "Assets", ignored);
+        {
+            std::ofstream png(root / "Assets" / "hero.png", std::ios::binary);
+            png.write(reinterpret_cast<const char*>(TinyPng), sizeof(TinyPng));
+        }
+        const JBro::String projectPath = TempPath("JBroSpriteViewerProbe\\Viewer.jproject");
+        Check(WriteTextFile(projectPath,
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 2D\n"
+            "RootPath: .\n"
+            "AssetDirectory: Assets\n"),
+            "the test must be able to write its own project file");
+
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the sprite viewer not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.c_str(), error), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        const JBro::AssetRecord* hero = editor.GetAssetRegistry().FindByPath("hero.png");
+        Check(hero != nullptr, "the scan must have registered hero.png");
+        const JBro::AssetId heroTexture = hero->id;
+        Check(false == editor.OpenSpriteViewer(JBro::AssetId{}), "nothing to open is refused");
+        Check(editor.OpenSpriteViewer(heroTexture), "an image opens in the sprite viewer");
+        Check(editor.OpenSpriteViewer(heroTexture), "opening it again only brings its tab forward");
+        Check(editor.GetSpriteViewerTabCount() == 1, "so there is still one tab");
+        for (int frame = 0; frame < 6; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle on the viewer");
+        }
+
+        ImGuiWindow* viewer = ImGui::FindWindowByName("###SpriteViewer");
+        if (viewer == nullptr)
+        {
+            // 보이는 이름이 앞에 붙는다. 식별자만으로 찾는다.
+            for (ImGuiWindow* window : ImGui::GetCurrentContext()->Windows)
+            {
+                if (std::strstr(window->Name, "###SpriteViewer") != nullptr)
+                {
+                    viewer = window;
+                }
+            }
+        }
+        ImGuiWindow* mainDock = ImGui::FindWindowByName("###MainDock");
+        Check(viewer != nullptr && mainDock != nullptr, "the viewer and the main dock must both exist");
+        Check(viewer->DockNode != nullptr && mainDock->DockNode != nullptr
+                && viewer->DockNode == mainDock->DockNode,
+            "the viewer docks into the same root node as the main dock, as a tab beside it");
+        // **뷰어가 앞에 있어도 메인 도크의 패널들은 제자리에 붙어 있다.** 가려진 메인 도크가
+        // 안쪽 도크 공간을 살려 두지 않으면 패널들이 떠 있는 창으로 흩어진다(실제로 그랬다).
+        for (const char* panel : {"Hierarchy", "Inspector", "CanvasView", "Log"})
+        {
+            ImGuiWindow* window = ImGui::FindWindowByName(panel);
+            Check(window != nullptr && window->DockId != 0,
+                "every main-dock panel stays docked while the viewer is in front");
+        }
+        // 옵션 칸은 인스펙터와 같은 것을 고친다 - 연 그림이 고른 에셋이다.
+        Check(editor.GetSelectedAsset() == heroTexture, "opening the viewer selects the picture");
+        std::uint32_t frameIndex = 99;
+        Check(editor.GetSpriteViewerFrame(frameIndex) && frameIndex == 0, "the first frame is shown");
+        if (JBro::Renderer* renderer = editor.GetRenderer())
+        {
+            SaveScreenshot(*renderer, 1024, 768, "sprite_viewer");
+        }
+
+        // 탭을 닫으면 창도 사라지고 잡고 있던 스프라이트를 놓는다.
+        JBro::AssetSystem* assets = editor.GetAssetSystem();
+        JBro::AssetId heroSprite;
+        for (std::size_t index = 0; index < editor.GetAssetRegistry().GetCount(); ++index)
+        {
+            const JBro::AssetRecord& record = editor.GetAssetRegistry().GetRecord(index);
+            if (record.owner == heroTexture)
+            {
+                heroSprite = record.id;
+            }
+        }
+        const JBro::AssetHandle held = assets->Find(heroSprite);
+        const std::uint32_t heldCount = assets->GetReferenceCount(held);
+        Check(heldCount >= 1, "the open tab holds the sprite");
+        editor.CloseProject();
+        Check(editor.GetSpriteViewerTabCount() == 0, "closing the project closes the viewer's tabs");
+
+        editor.Shutdown();
+        fs::remove_all(root, ignored);
+    }
+
     void TestPanelsGoThroughTheWidgetLayer()
     {
         namespace fs = std::filesystem;
@@ -5929,6 +6038,7 @@ int RunEditorApplicationTests()
     TestTheCanvasViewDrawsInA3DProject();
     TestProjectSettingsAreWrittenBackToTheFile();
     TestDraggingAnAssetOntoTheFieldPicksIt();
+    TestTheSpriteViewerDocksBesideTheMainDock();
     TestPanelsGoThroughTheWidgetLayer();
     TestPickingFollowsTheSpriteAssetSize();
     TestTheEditorSessionSurvivesReopening();

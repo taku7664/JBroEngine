@@ -364,6 +364,12 @@ namespace JBro
             ImGui::EndDragDropSource();
         }
         DrawEntryMenu(entry.record->relativePath, false);
+        // 그림을 두 번 누르면 스프라이트 뷰어에서 연다(D-155). 기존 브라우저도 그랬다.
+        if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)
+            && AssetTypeRules::IsImageType(entry.record->type))
+        {
+            m_editor->OpenSpriteViewer(entry.record->id);
+        }
 
         if (false == clicked)
         {
@@ -650,6 +656,18 @@ namespace JBro
             m_pending = relativePath;
             m_pendingIsFolder = isFolder;
             m_openDelete = true;
+        }
+        if (false == isFolder)
+        {
+            // 그림이면 뷰어에서 열 수 있다. 그림이 아니면 항목을 잠근다 - 숨기면 그런 창이
+            // 있다는 것조차 알 수 없다.
+            const AssetRecord* record = m_editor->GetAssetRegistry().FindByPath(relativePath.c_str());
+            const bool image = record != nullptr && AssetTypeRules::IsImageType(record->type);
+            if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsOpenInSpriteViewer,
+                    "Open in Sprite Viewer"), nullptr, image))
+            {
+                m_editor->OpenSpriteViewer(record->id);
+            }
         }
         ImGui::Separator();
         if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsReveal, "Show in Explorer")))

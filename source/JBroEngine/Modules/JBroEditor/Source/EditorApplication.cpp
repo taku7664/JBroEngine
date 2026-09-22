@@ -18,12 +18,15 @@
 #include <JBro/Asset/Asset.h>
 #include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetRegistry.h>
+#include <JBro/Editor/Widget/Basic.h>
+#include <JBro/Asset/AssetTypeRules.h>
 #include <JBro/Editor/Command/SetAssetMetaCommand.h>
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/CanvasFile.h>
 #include <JBro/Runtime/GameObject.h>
 
 #include "EditorThumbnails.h"
+#include "Tool/SpriteViewerWindow.h"
 
 #include "Panel/AssetBrowserPanel.h"
 #include "Panel/CanvasViewPanel.h"
@@ -79,7 +82,8 @@ namespace JBro
 
         // 메인 도크 창의 ImGui 이름이다. `###` 뒤가 식별자라 보이는 이름이 바뀌어도
         // 도킹 자리를 잃지 않는다(패널과 같은 규칙, D-80).
-        constexpr const char* MainDockLabel = "MainDock";
+        // 보이는 이름은 앞에 붙는다 - 뿌리에 파일 창이 붙으면 탭으로 이 이름이 보인다(D-155).
+        constexpr const char* MainDockLabel = "###MainDock";
     }
 
     EditorApplication::EditorApplication() = default;
@@ -334,7 +338,28 @@ namespace JBro
         }
     }
 
-    TextureHandle EditorApplication::GetAssetThumbnail(AssetId asset)
+    bool EditorApplication::GetAssetSourceSize(
+        AssetId asset, std::uint32_t& width, std::uint32_t& height) const
+    {
+        return m_thumbnails.Get() != nullptr && m_thumbnails->GetSourceSize(asset, width, height);
+    }
+
+    bool EditorApplication::OpenSpriteViewer(AssetId asset)
+    {
+        return m_spriteViewer.Get() != nullptr && m_spriteViewer->Open(asset);
+    }
+
+    std::size_t EditorApplication::GetSpriteViewerTabCount() const
+    {
+        return m_spriteViewer.Get() != nullptr ? m_spriteViewer->GetTabCount() : 0;
+    }
+
+    bool EditorApplication::GetSpriteViewerFrame(std::uint32_t& frame) const
+    {
+        return m_spriteViewer.Get() != nullptr && m_spriteViewer->GetActiveFrame(frame);
+    }
+
+    TextureHandle EditorApplication::GetAssetThumbnail(AssetId asset, std::uint32_t maxSide)
     {
         if (m_thumbnails.Get() == nullptr || asset.IsNull())
         {
@@ -347,14 +372,14 @@ namespace JBro
         {
             if (record->type == AssetType::Sprite && false == record->owner.IsNull())
             {
-                return m_thumbnails->Get(record->owner);
+                return m_thumbnails->Get(record->owner, maxSide);
             }
             if (record->type != AssetType::Texture)
             {
                 return TextureHandle{};
             }
         }
-        return m_thumbnails->Get(asset);
+        return m_thumbnails->Get(asset, maxSide);
     }
 
     const Array<EditorSpriteContours::Segment>* EditorApplication::GetSpriteContour(
@@ -1169,6 +1194,8 @@ namespace JBro
             m_contours = MakeOwnerPtr<EditorSpriteContours>();
             m_contours->Initialize(*assets);
         }
+        m_spriteViewer = MakeOwnerPtr<SpriteViewerWindow>();
+        m_spriteViewer->Initialize(*this);
         // 프로젝트가 먼저 열렸으면 그때는 읽을 ImGui 가 없었다. 여기서 한 번 더 본다.
         RestoreEditorLayout();
 
@@ -1734,6 +1761,12 @@ namespace JBro
             m_thumbnails->Shutdown();
             m_thumbnails.Reset();
         }
+        if (m_spriteViewer.Get() != nullptr)
+        {
+            // 뷰어는 스프라이트를 잡고 있다. 에셋보다 먼저 놓는다.
+            m_spriteViewer->Shutdown();
+            m_spriteViewer.Reset();
+        }
         if (m_contours.Get() != nullptr)
         {
             m_contours->Shutdown();
@@ -1925,6 +1958,19 @@ namespace JBro
                 }
                 ImGui::EndMenu();
             }
+            // **파일을 여는 창들**이다(기존 `MenuWindowImporter`). 고른 에셋이 그림일 때만 열 수 있다 -
+            // 무엇을 열지 모르는 뷰어는 빈 창이다.
+            if (ImGui::BeginMenu(Loc::TextOr(LocKeys::MenuWindowImporter, "Importer")))
+            {
+                const AssetRecord* chosen = GetAssetRegistry().Find(GetSelectedAsset());
+                const bool image = chosen != nullptr && AssetTypeRules::IsImageType(chosen->type);
+                if (Widget::MenuItem(Loc::TextOr(LocKeys::SpriteViewerTitle, "Sprite Viewer"),
+                        nullptr, image))
+                {
+                    OpenSpriteViewer(GetSelectedAsset());
+                }
+                ImGui::EndMenu();
+            }
             ImGui::EndMenu();
         }
         ImGui::EndMenuBar();
@@ -1968,6 +2014,7 @@ namespace JBro
         DrawRootMenuBar();
 
         const ImGuiID rootDock = ImGui::GetID("EditorRootDockSpace");
+        m_rootDockId = rootDock;
         if (false == m_rootLayoutBuilt)
         {
             // 배치를 먼저 잡는다(안쪽 도크와 같은 이유다).
@@ -2003,7 +2050,9 @@ namespace JBro
         // `IMWINDOW_FLAG_NO_CLOSE_BUTTON` 을 여기에 세웠다.
         ImGui::SetNextWindowClass(&RootDockClass());
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-        const bool open = ImGui::Begin(MainDockLabel, nullptr,
+        String mainTitle = Loc::TextOr(LocKeys::DockMain, "Main");
+        mainTitle.append(MainDockLabel, std::strlen(MainDockLabel));
+        const bool open = ImGui::Begin(mainTitle.c_str(), nullptr,
             ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove
                 | ImGuiWindowFlags_NoTitleBar
                 | ImGuiWindowFlags_MenuBar);
@@ -2053,6 +2102,14 @@ namespace JBro
                 m_dockLayoutBuilt = true;
             }
             ImGui::DockSpace(mainDock, ImVec2(0.0f, 0.0f), EditorDockNodeFlags);
+        }
+        else
+        {
+            // **가려진 프레임에도 안쪽 도크를 살려 둔다**(D-155). 뿌리에 파일 창(스프라이트 뷰어)이
+            // 붙어 그 탭이 앞에 오면 이 창은 그려지지 않는데, 그 프레임에 도크 공간을 내지 않으면
+            // ImGui 는 노드가 사라졌다고 보고 붙어 있던 패널을 전부 떠 있는 창으로 흩어 놓는다.
+            ImGui::DockSpace(ImGui::GetID("EditorDockSpace"), ImVec2(0.0f, 0.0f),
+                EditorDockNodeFlags | ImGuiDockNodeFlags_KeepAliveOnly);
         }
         ImGui::End();
 
@@ -2125,6 +2182,11 @@ namespace JBro
 
         DrawRootDock(display);
         DrawMainDock(deltaTime);
+        // 뿌리에 붙는 파일 창들이다(D-155). 메인 도크 뒤에 그려야 처음 뜰 때 그 옆 탭으로 선다.
+        if (m_spriteViewer.Get() != nullptr)
+        {
+            m_spriteViewer->Draw(m_rootDockId, RootDockClass());
+        }
 
         DrawPopups();
 
@@ -2426,6 +2488,11 @@ namespace JBro
         if (m_contours.Get() != nullptr)
         {
             m_contours->Clear();
+        }
+        if (m_spriteViewer.Get() != nullptr)
+        {
+            // 탭이 잡은 스프라이트는 이 프로젝트의 것이다. 닫기 전에 놓는다.
+            m_spriteViewer->Clear();
         }
         // 캔버스 경로는 프로젝트의 것이다. 다음 프로젝트의 저장이 옛 파일에 가면 안 된다.
         m_canvasPath.clear();

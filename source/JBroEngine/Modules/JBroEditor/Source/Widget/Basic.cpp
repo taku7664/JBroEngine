@@ -115,7 +115,7 @@ namespace JBro::Widget
             defaultOpen ? ImGuiTreeNodeFlags_DefaultOpen : ImGuiTreeNodeFlags_None);
     }
 
-    void Image(TextureHandle texture, const ImVec2& size, const ImVec2& uvMax)
+    void Image(TextureHandle texture, const ImVec2& size, const ImVec2& uvMin, const ImVec2& uvMax)
     {
         if (false == texture.IsValid())
         {
@@ -123,7 +123,26 @@ namespace JBro::Widget
             ImGui::Dummy(size);
             return;
         }
-        ImGui::Image(static_cast<ImTextureID>(EditorUI::ToTextureId(texture)), size,
-            ImVec2(0.0f, 0.0f), uvMax);
+        ImGui::Image(static_cast<ImTextureID>(EditorUI::ToTextureId(texture)), size, uvMin, uvMax);
+    }
+
+    bool BeginTabs(const char* id)
+    {
+        return ImGui::BeginTabBar(id, ImGuiTabBarFlags_Reorderable | ImGuiTabBarFlags_FittingPolicyScroll);
+    }
+
+    void EndTabs()
+    {
+        ImGui::EndTabBar();
+    }
+
+    bool BeginTab(const char* label, bool* open, bool select)
+    {
+        return ImGui::BeginTabItem(label, open, select ? ImGuiTabItemFlags_SetSelected : 0);
+    }
+
+    void EndTab()
+    {
+        ImGui::EndTabItem();
     }
 }

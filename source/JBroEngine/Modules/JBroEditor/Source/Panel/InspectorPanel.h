@@ -34,6 +34,11 @@ namespace JBro
     class InspectorPanel final : public EditorPanel
     {
     public:
+        // 고른 에셋의 임포트 옵션 칸들이다(D-155). **스프라이트 뷰어도 이것을 그린다** - 기존의
+        // `SpriteImportOptionsEditor` 처럼 두 창이 같은 값을 같은 길로 고친다. 각자 그리면
+        // 한쪽의 편집이 다른 쪽에서 조용히 사라진다. 쓰는 길은 고른 에셋의 메타 하나다.
+        void DrawAssetOptions(const AssetMetaFile& meta);
+
         const char* GetTitle() const override;
         const char* GetDisplayTitle() const override;
         bool OnCreate(EditorApplication& editor) override;

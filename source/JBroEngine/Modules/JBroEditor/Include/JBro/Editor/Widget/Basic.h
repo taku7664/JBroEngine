@@ -58,6 +58,16 @@ namespace JBro::Widget
     void TreePop();
     // 접는 머리다. 펼쳐져 있으면 참이다.
     bool CollapsingSection(const char* title, bool defaultOpen = true);
-    // RHI 텍스처를 붙인다. `uvMax` 로 텍스처의 일부만 보일 수 있다.
-    void Image(TextureHandle texture, const ImVec2& size, const ImVec2& uvMax = ImVec2(1.0f, 1.0f));
+    // RHI 텍스처를 붙인다. `uvMin`·`uvMax` 로 텍스처의 일부(시트의 한 칸)만 보일 수 있다.
+    void Image(TextureHandle texture, const ImVec2& size,
+        const ImVec2& uvMin = ImVec2(0.0f, 0.0f), const ImVec2& uvMax = ImVec2(1.0f, 1.0f));
+
+    // ── 탭 ──────────────────────────────────────────────────────────────────
+    // 탭 줄이다. `BeginTabs` 가 참일 때만 `EndTabs` 를 부른다.
+    bool BeginTabs(const char* id);
+    void EndTabs();
+    // 탭 하나다. `open` 을 주면 닫기 단추가 서고, 눌리면 거짓이 된다. 앞에 있으면 참이고
+    // 그때만 `EndTab` 을 부른다. `select` 가 참이면 이번 프레임에 앞으로 꺼낸다.
+    bool BeginTab(const char* label, bool* open = nullptr, bool select = false);
+    void EndTab();
 }

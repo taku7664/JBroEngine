@@ -38,11 +38,11 @@ namespace JBro
         m_entries.Clear();
     }
 
-    EditorThumbnails::Entry* EditorThumbnails::Find(AssetId asset)
+    EditorThumbnails::Entry* EditorThumbnails::Find(AssetId asset, std::uint32_t maxSide)
     {
         for (std::size_t index = 0; index < m_entries.Size(); ++index)
         {
-            if (m_entries[index].asset == asset)
+            if (m_entries[index].asset == asset && m_entries[index].maxSide == maxSide)
             {
                 return &m_entries[index];
             }
@@ -52,10 +52,12 @@ namespace JBro
 
     void EditorThumbnails::Invalidate(AssetId asset)
     {
-        for (std::size_t index = 0; index < m_entries.Size(); ++index)
+        // 크기마다 따로 들고 있으니 **그 에셋의 것을 모두** 버린다.
+        for (std::size_t index = 0; index < m_entries.Size();)
         {
             if (false == (m_entries[index].asset == asset))
             {
+                ++index;
                 continue;
             }
             if (m_entries[index].texture.IsValid() && m_device != nullptr)
@@ -63,8 +65,23 @@ namespace JBro
                 m_device->DestroyTexture(m_entries[index].texture);
             }
             m_entries.RemoveAt(index);
-            return;
         }
+    }
+
+    bool EditorThumbnails::GetSourceSize(
+        AssetId asset, std::uint32_t& width, std::uint32_t& height) const
+    {
+        for (std::size_t index = 0; index < m_entries.Size(); ++index)
+        {
+            const Entry& entry = m_entries[index];
+            if (entry.asset == asset && false == entry.failed && entry.sourceWidth != 0)
+            {
+                width = entry.sourceWidth;
+                height = entry.sourceHeight;
+                return true;
+            }
+        }
+        return false;
     }
 
     bool EditorThumbnails::Build(AssetId asset, Entry& entry)
@@ -87,8 +104,10 @@ namespace JBro
         // 긴 변이 `MaxSide` 를 넘으면 정수 배로 건너뛴다. 가중 평균이 아니라 건너뛰기다 -
         // 픽셀 아트의 또렷한 가장자리가 평균에 뭉개지면 그림을 알아보기 어려워진다.
         const std::uint32_t longest = data->width > data->height ? data->width : data->height;
+        entry.sourceWidth = data->width;
+        entry.sourceHeight = data->height;
         std::uint32_t step = 1;
-        while (longest / step > MaxSide)
+        while (longest / step > entry.maxSide)
         {
             ++step;
         }
@@ -136,13 +155,13 @@ namespace JBro
         return true;
     }
 
-    TextureHandle EditorThumbnails::Get(AssetId asset)
+    TextureHandle EditorThumbnails::Get(AssetId asset, std::uint32_t maxSide)
     {
         if (m_device == nullptr || m_assets == nullptr || asset.IsNull())
         {
             return TextureHandle{};
         }
-        if (Entry* found = Find(asset))
+        if (Entry* found = Find(asset, maxSide))
         {
             if (found->failed)
             {
@@ -156,7 +175,7 @@ namespace JBro
                 if (data != nullptr && data->pixelGeneration != found->pixelGeneration)
                 {
                     Invalidate(asset);
-                    return Get(asset);
+                    return Get(asset, maxSide);
                 }
             }
             return found->texture;
@@ -170,6 +189,7 @@ namespace JBro
 
         Entry entry;
         entry.asset = asset;
+        entry.maxSide = maxSide > 0 ? maxSide : MaxSide;
         if (false == Build(asset, entry))
         {
             // **실패도 기억한다.** 기억하지 않으면 프레임마다 같은 파일을 다시 읽는다.

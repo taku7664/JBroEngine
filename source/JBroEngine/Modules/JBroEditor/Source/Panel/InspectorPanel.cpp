@@ -587,7 +587,11 @@ namespace JBro
             Widget::Image(preview, ImVec2(side, side));
             ImGui::Spacing();
         }
+        DrawAssetOptions(meta);
+    }
 
+    void InspectorPanel::DrawAssetOptions(const AssetMetaFile& meta)
+    {
         // 편집본은 프레임마다 원본에서 새로 뜬다. 위젯이 고친 값은 커맨드가 파일에 쓰고, 다음 프레임의 원본이 그것을
         // 다시 읽어 온다 - 쓰는 길이 하나다(D-89 와 같은 이유).
         AssetMetaFile scratch = meta;

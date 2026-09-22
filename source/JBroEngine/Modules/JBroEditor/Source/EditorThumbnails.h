@@ -39,7 +39,12 @@ namespace JBro
 
         // 이 에셋의 그림이다. 아직 없으면 만들어 본다(이번 프레임의 몫이 남아 있을 때).
         // 텍스처가 아닌 에셋이거나 읽지 못하면 빈 핸들이다.
-        TextureHandle Get(AssetId asset);
+        // `maxSide` 는 긴 변의 한계다. 목록의 칸은 `MaxSide` 로, 스프라이트 뷰어의 시트는
+        // 더 크게 묻는다(D-155) - 크기마다 따로 든다. 칸을 고르려면 칸의 경계가 보여야 하는데,
+        // 128 로 줄인 시트에서는 32 픽셀짜리 칸이 몇 픽셀로 뭉친다.
+        TextureHandle Get(AssetId asset, std::uint32_t maxSide = MaxSide);
+        // 그 그림의 원본 크기다. 아직 만들지 않았으면 거짓이다.
+        bool GetSourceSize(AssetId asset, std::uint32_t& width, std::uint32_t& height) const;
         // 다시 읽힌 에셋의 그림을 버린다. 다음에 물으면 새로 만든다.
         void Invalidate(AssetId asset);
         void Clear();
@@ -50,6 +55,10 @@ namespace JBro
         struct Entry
         {
             AssetId asset;
+            std::uint32_t maxSide = MaxSide;
+            // 원본 그림의 크기다. 시트 위에 칸을 그을 때 픽셀 자리를 화면 자리로 바꾸는 데 쓴다.
+            std::uint32_t sourceWidth = 0;
+            std::uint32_t sourceHeight = 0;
             TextureHandle texture;
             // 만들 때 본 픽셀 세대다. 에셋이 제자리에서 다시 읽히면 이 값이 달라진다.
             std::uint32_t pixelGeneration = 0;
@@ -57,7 +66,7 @@ namespace JBro
             bool failed = false;
         };
 
-        Entry* Find(AssetId asset);
+        Entry* Find(AssetId asset, std::uint32_t maxSide);
         bool Build(AssetId asset, Entry& entry);
 
         IRHIDevice* m_device = nullptr;

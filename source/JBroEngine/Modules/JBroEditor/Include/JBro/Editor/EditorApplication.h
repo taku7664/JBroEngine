@@ -22,6 +22,7 @@ namespace JBro
 {
     class Canvas;
     class EditorThumbnails;
+    class SpriteViewerWindow;
     class GameObject;
     class Renderer;
     class EngineInstance;
@@ -117,7 +118,16 @@ namespace JBro
         // 에셋의 작은 그림이다(D-147). 텍스처가 아닌 에셋이나 아직 만들지 못한 것은 빈 핸들이다 -
         // 만드는 일은 프레임마다 몇 개로 막혀 있어, 목록을 처음 열면 몇 프레임에 걸쳐 채워진다.
         // 스프라이트 아이디를 주면 그 짝 텍스처의 그림을 준다.
-        TextureHandle GetAssetThumbnail(AssetId asset);
+        TextureHandle GetAssetThumbnail(AssetId asset, std::uint32_t maxSide = 128);
+        // 그 그림의 원본 크기다. 그림을 아직 만들지 않았으면 거짓이다.
+        bool GetAssetSourceSize(AssetId asset, std::uint32_t& width, std::uint32_t& height) const;
+
+        // **스프라이트 뷰어**에서 연다(D-155). 뿌리 도크에 메인 도크와 나란히 붙는 창이고,
+        // 파일마다 탭이 하나다. 그림이 아니면 거짓이다.
+        bool OpenSpriteViewer(AssetId asset);
+        std::size_t GetSpriteViewerTabCount() const;
+        // 앞에 있는 뷰어 탭의 칸 번호다. 탭이 없으면 거짓이다.
+        bool GetSpriteViewerFrame(std::uint32_t& frame) const;
         // 스프라이트가 그리는 **실제 모양**이다(D-149). 칸 안의 비율 좌표로 된 선분들이고,
         // 아직 재지 못했으면 nullptr 다. 크기·피벗·회전은 부르는 쪽이 얹는다.
         const Array<EditorSpriteContours::Segment>* GetSpriteContour(
@@ -456,6 +466,10 @@ namespace JBro
         OwnerPtr<EditorThumbnails> m_thumbnails;
         // 스프라이트의 실제 모양. 같은 이유로 프로젝트를 닫을 때 비운다.
         OwnerPtr<EditorSpriteContours> m_contours;
+        // 뿌리 도크에 붙는 파일 창들(D-155). 지금은 스프라이트 뷰어 하나다.
+        OwnerPtr<SpriteViewerWindow> m_spriteViewer;
+        // 뿌리 도크 노드다. 파일 창을 처음 띄울 때 여기 붙인다.
+        std::uint32_t m_rootDockId = 0;
 
         GraphicsApi m_graphicsApi = GraphicsApi::D3D12;
         FrameStatus m_lastFrameStatus = FrameStatus::InvalidState;

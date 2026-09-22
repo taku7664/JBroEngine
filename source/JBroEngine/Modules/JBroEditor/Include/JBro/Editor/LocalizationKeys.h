@@ -50,8 +50,10 @@ namespace JBro::LocKeys
     inline constexpr const char* MenuSimulationPause = "menu.simulation_pause";
     inline constexpr const char* MenuOpenProject = "menu.open_project";
     inline constexpr const char* MenuWindowEditor = "menu.window_editor";
+    inline constexpr const char* MenuWindowImporter = "menu.window_importer";
     inline constexpr const char* MenuSaveCanvas = "menu.save_canvas";
     inline constexpr const char* MenuSaveProject = "menu.save_project";
+    inline constexpr const char* DockMain = "dock.main";
     inline constexpr const char* PopupSaveBlockedWhilePlaying = "popup.save_blocked_while_playing";
     inline constexpr const char* MenuSettings = "menu.settings";
     inline constexpr const char* MenuSettingsProject = "menu.settings_project";
@@ -153,6 +155,15 @@ namespace JBro::LocKeys
     inline constexpr const char* AssetsMoveFailed = "assets.move_failed";
     inline constexpr const char* AssetsReveal = "assets.reveal";
     inline constexpr const char* AssetsRescan = "assets.rescan";
+    inline constexpr const char* AssetsOpenInSpriteViewer = "assets.open_in_sprite_viewer";
+    inline constexpr const char* SpriteViewerTitle = "sprite_viewer.title";
+    inline constexpr const char* SpriteViewerLoading = "sprite_viewer.loading";
+    inline constexpr const char* SpriteViewerFrame = "sprite_viewer.frame";
+    inline constexpr const char* SpriteViewerFps = "sprite_viewer.fps";
+    inline constexpr const char* SpriteViewerPlay = "sprite_viewer.play";
+    inline constexpr const char* SpriteViewerStop = "sprite_viewer.stop";
+    inline constexpr const char* SpriteViewerSelectToEdit = "sprite_viewer.select_to_edit";
+    inline constexpr const char* SpriteViewerSelect = "sprite_viewer.select";
     inline constexpr const char* AssetsIconView = "assets.icon_view";
     inline constexpr const char* AssetsListView = "assets.list_view";
     inline constexpr const char* AssetsViewTooltip = "assets.view_tooltip";
