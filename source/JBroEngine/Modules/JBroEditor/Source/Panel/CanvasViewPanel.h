@@ -96,6 +96,21 @@ namespace JBro
             float& worldX, float& worldY) const;
         // 이 화면 점에 걸리는 오브젝트. 없으면 nullptr 이다. 앞에 그려지는 것이 먼저 잡힌다.
         GameObject* PickAt(const ViewRect& rect, float screenX, float screenY) const;
+
+        // ── 들어가 고르기(D-157, 기존 `CCanvasViewEditContext`) ──────────────────
+        //
+        // **누르면 맨 위 부모를 고른다.** 여러 조각으로 된 오브젝트(몸통·팔·무기)의 한 조각을
+        // 눌렀는데 그 조각만 고르면, 오브젝트를 통째로 옮기려는 손짓이 조각 하나만 떼어 낸다.
+        // 조각을 고치려면 **두 번 눌러 그 안으로 들어간다** - 그 뒤로는 그 오브젝트의 직계 자식이
+        // 고르는 단위다. 빈 곳을 두 번 누르면 한 층 나온다.
+        //
+        // 지금 들어가 있는 오브젝트다. 없으면(뿌리) nullptr 이다. 번호로 들고 있어 지워져도 안전하다.
+        GameObject* GetFocus() const;
+        // 걸린 오브젝트를 **지금 층의 오브젝트**로 올린다. 뿌리에서는 맨 위 조상, 들어가 있으면
+        // 그 오브젝트의 직계 자식(또는 그 오브젝트 자신). 들어간 오브젝트 밖이면 nullptr 이다.
+        GameObject* MapToLevel(GameObject* hit) const;
+        // 들어가 있을 때 화면 위에 그 사실과 나오는 법을 적는다. 모르면 왜 부모가 안 잡히는지 알 수 없다.
+        void DrawFocusBanner(const ViewRect& rect);
         // 오브젝트가 화면에서 차지하는 사각형(회전은 무시한 외접 사각형)을 월드로 낸다.
         bool GetWorldBounds(const GameObject& object,
             float& minX, float& minY, float& maxX, float& maxY) const;
@@ -118,6 +133,10 @@ namespace JBro
         bool m_showGrid = true;
         // 콜라이더를 보일지. 늘 그리면 그림을 다듬는 동안 녹색 선이 방해가 된다.
         bool m_showColliders = true;
+        // 들어가 있는 오브젝트의 번호다(D-157). 0 이면 뿌리다.
+        std::uint64_t m_focus = 0;
+        // 이번 누름이 두 번째 누름인가. 누를 때 알고 뗄 때 쓴다 - 고르기는 뗄 때 한다.
+        bool m_doubleClick = false;
         // 오른쪽 단추로 끌고 있는 중인가. 끌었으면 놓을 때 맥락 메뉴를 열지 않는다 -
         // 화면을 옮기려던 것이지 메뉴를 부르려던 것이 아니다.
         bool m_panning = false;

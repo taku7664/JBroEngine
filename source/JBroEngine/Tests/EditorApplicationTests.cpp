@@ -5259,6 +5259,114 @@ namespace
         fs::remove_all(outside, ignored);
     }
 
+    // **캔버스 뷰에서 누르면 맨 위 부모를 고르고, 두 번 누르면 그 안으로 들어간다**(D-157,
+    // 기존 `CCanvasViewEditContext`). 조각 하나를 눌렀는데 조각만 고르면, 오브젝트를 통째로
+    // 옮기려는 손짓이 조각 하나를 떼어 낸다.
+    void TestTheCanvasViewPicksTheRootUntilYouStepInside()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 800;
+        config.windowHeight = 600;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; stepping inside not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "StepInsideProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* body = canvas->CreateObject("Body");
+        JBro::GameObject* arm = canvas->CreateObject("Arm");
+        auto* bodyTransform = canvas->AttachComponent<JBro::Component::Transform2D>(body);
+        auto* armTransform = canvas->AttachComponent<JBro::Component::Transform2D>(arm);
+        Check(bodyTransform != nullptr && armTransform != nullptr, "both need transforms");
+        arm->SetParent(body);
+        // 팔은 몸에서 왼쪽 아래로 두 유닛이다. 둘의 집는 칸이 겹치지 않고, 몸을 고르면 서는
+        // 기즈모의 손잡이(오른쪽·위)와도 겹치지 않는다 - 겹치면 누름이 손잡이로 간다.
+        armTransform->position = JBro::Vec2{-2.0f, -2.0f};
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        // 그림의 왼쪽 위를 찾는다. 툴바 아래에서 그림의 누름 자리(`##canvas`)가 시작하는 줄이다.
+        ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
+        Check(view != nullptr, "the canvas view must have a window");
+        const ImGuiID canvasId = LabelId(view->ID, "##canvas");
+        const int probeX = static_cast<int>(view->Pos.x + view->Size.x * 0.5f);
+        int top = -1;
+        for (int y = static_cast<int>(view->Pos.y); y < static_cast<int>(view->Pos.y + view->Size.y); ++y)
+        {
+            PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(probeX, y));
+            Check(editor.Tick(Frame), "the editor must tick while looking for the picture");
+            if (ImGui::GetHoveredID() == canvasId)
+            {
+                top = y;
+                break;
+            }
+        }
+        Check(top >= 0, "the picture must be under the tool bar");
+        // 월드 원점은 **그린 화면(텍스처)의 한가운데**다(D-150). 세로 절반이 5 유닛이다.
+        const JBro::Extent2D drawn = editor.GetCanvasViewExtent();
+        const float left = view->ContentRegionRect.Min.x;
+        const float originX = left + static_cast<float>(drawn.width) * 0.5f;
+        const float originY = static_cast<float>(top) + static_cast<float>(drawn.height) * 0.5f;
+        const float pixelsPerUnit = static_cast<float>(drawn.height) * 0.5f / 5.0f;
+        Spot onBody;
+        onBody.x = static_cast<int>(originX);
+        onBody.y = static_cast<int>(originY);
+        Spot onArm;
+        onArm.x = static_cast<int>(originX - pixelsPerUnit * 2.0f);
+        onArm.y = static_cast<int>(originY + pixelsPerUnit * 2.0f);
+        Spot empty;
+        empty.x = static_cast<int>(originX + pixelsPerUnit * 3.0f);
+        empty.y = static_cast<int>(originY + pixelsPerUnit * 3.0f);
+        const auto waitOutDoubleClick = [&]() {
+            // 다음 누름이 두 번 누르기로 읽히지 않게 시간을 둔다.
+            for (int frame = 0; frame < 30; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must wait out the double-click time");
+            }
+        };
+
+        ClickAt(editor, hwnd, onArm);
+        Check(editor.GetSelectedObject() == body, "clicking the arm selects the body while not inside it");
+        waitOutDoubleClick();
+
+        // 두 번 눌러 몸 안으로 들어간다. 그 뒤 팔을 한 번 누르면 팔이 골라진다.
+        ClickAt(editor, hwnd, onArm);
+        ClickAt(editor, hwnd, onArm);
+        Check(editor.GetSelectedObject() == body, "a double-click steps inside the body and keeps it selected");
+        waitOutDoubleClick();
+        ClickAt(editor, hwnd, onArm);
+        Check(editor.GetSelectedObject() == arm, "inside the body, clicking the arm selects the arm");
+        // 고르기는 뗀 프레임의 뒤쪽에서 일어난다. 테두리가 새 선택을 두른 그림은 그다음 프레임이다.
+        Check(editor.Tick(Frame), "the editor must draw the new selection");
+        if (JBro::Renderer* renderer = editor.GetRenderer())
+        {
+            SaveScreenshot(*renderer, 800, 600, "inside");
+        }
+        waitOutDoubleClick();
+
+        // 빈 곳을 두 번 누르면 나온다. 다시 팔을 누르면 몸이 골라진다.
+        ClickAt(editor, hwnd, empty);
+        ClickAt(editor, hwnd, empty);
+        Check(editor.GetSelectedObject() == body, "double-clicking empty space steps out, selecting what was left");
+        waitOutDoubleClick();
+        ClickAt(editor, hwnd, onArm);
+        Check(editor.GetSelectedObject() == body, "and outside again, the arm picks the body");
+
+        editor.Shutdown();
+    }
+
     void TestPanelsGoThroughTheWidgetLayer()
     {
         namespace fs = std::filesystem;
@@ -6118,6 +6226,7 @@ int RunEditorApplicationTests()
     TestDraggingAnAssetOntoTheFieldPicksIt();
     TestTheSpriteViewerDocksBesideTheMainDock();
     TestImportingAPictureCopiesAndRegistersIt();
+    TestTheCanvasViewPicksTheRootUntilYouStepInside();
     TestPanelsGoThroughTheWidgetLayer();
     TestPickingFollowsTheSpriteAssetSize();
     TestTheEditorSessionSurvivesReopening();

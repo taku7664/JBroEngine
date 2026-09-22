@@ -39,6 +39,7 @@ Entries:
   canvas_view.frame: Frame
   canvas_view.grid_tooltip: show or hide the grid
   canvas_view.colliders: Colliders
+  canvas_view.inside_format: "inside %s - double-click empty space to leave"
   canvas_view.colliders_tooltip: show or hide collider shapes
   canvas_view.frame_tooltip: fit the view to the selection
   game_view.playing: Playing

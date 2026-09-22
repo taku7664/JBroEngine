@@ -39,6 +39,7 @@ Entries:
   canvas_view.frame: 맞춤
   canvas_view.grid_tooltip: 격자를 보이거나 감춥니다
   canvas_view.colliders: 충돌
+  canvas_view.inside_format: "%s 안에서 고르는 중 - 빈 곳을 두 번 누르면 나옵니다"
   canvas_view.colliders_tooltip: 콜라이더 모양을 보이거나 감춥니다
   canvas_view.frame_tooltip: 선택한 오브젝트가 보이도록 화면을 맞춥니다
   game_view.playing: 실행 중

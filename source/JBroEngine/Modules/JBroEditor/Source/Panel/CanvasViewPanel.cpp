@@ -252,6 +252,7 @@ namespace JBro
                 DrawColliders(rect);
             }
             DrawSelectionOutlines(rect);
+            DrawFocusBanner(rect);
         }
         else
         {
@@ -818,12 +819,60 @@ namespace JBro
         return best;
     }
 
+    GameObject* CanvasViewPanel::GetFocus() const
+    {
+        return m_focus != 0 ? m_editor->GetObjectIds().Resolve(m_focus) : nullptr;
+    }
+
+    GameObject* CanvasViewPanel::MapToLevel(GameObject* hit) const
+    {
+        GameObject* focus = GetFocus();
+        for (GameObject* at = hit; at != nullptr; at = at->GetParent())
+        {
+            if (focus != nullptr && at == focus)
+            {
+                // 들어간 오브젝트 자신의 몸을 눌렀다. 자식이 아니어도 그것은 고를 수 있어야 한다.
+                return focus;
+            }
+            GameObject* parent = at->GetParent();
+            if (focus == nullptr ? parent == nullptr : parent == focus)
+            {
+                return at;
+            }
+        }
+        return nullptr;
+    }
+
+    void CanvasViewPanel::DrawFocusBanner(const ViewRect& rect)
+    {
+        GameObject* focus = GetFocus();
+        if (focus == nullptr)
+        {
+            return;
+        }
+        const char* name = focus->GetTag();
+        char text[256] = {};
+        std::snprintf(text, sizeof(text),
+            Loc::TextOr(LocKeys::CanvasViewInsideFormat, "inside %s - double-click empty space to leave"),
+            name != nullptr && name[0] != '\0' ? name : "?");
+        ImDrawList* draw = ImGui::GetWindowDrawList();
+        const ImVec2 extent = ImGui::CalcTextSize(text);
+        const ImVec2 at(rect.left + 8.0f, rect.top + 8.0f);
+        draw->AddRectFilled(ImVec2(at.x - 4.0f, at.y - 2.0f),
+            ImVec2(at.x + extent.x + 4.0f, at.y + extent.y + 2.0f), IM_COL32(20, 21, 26, 210), 3.0f);
+        draw->AddText(at, IM_COL32(255, 200, 120, 255), text);
+    }
+
     void CanvasViewPanel::HandlePicking(const ViewRect& rect, bool hovered)
     {
         // 기즈모를 잡고 있는 중이면 고르지 않는다. 손잡이를 놓는 것이 빈 곳을 누른 것이
         // 되면 끌 때마다 선택이 풀린다.
         // 손잡이 위에서 놓은 것은 고르기가 아니다. 끌지 않고 눌렀다 뗀 것도 마찬가지다 -
         // 기즈모를 건드릴 때마다 선택이 바뀌면 여럿 골라 놓고 옮길 수 없다.
+        if (hovered && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+        {
+            m_doubleClick = true;
+        }
         if (false == hovered || m_gizmoState.dragging || m_editing.IsActive()
             || m_boxSelecting || m_gizmoState.hovered != GizmoAxis::None)
         {
@@ -835,7 +884,26 @@ namespace JBro
             return;
         }
         const ImGuiIO& io = ImGui::GetIO();
-        GameObject* picked = PickAt(rect, io.MousePos.x, io.MousePos.y);
+        GameObject* picked = MapToLevel(PickAt(rect, io.MousePos.x, io.MousePos.y));
+        if (m_doubleClick)
+        {
+            m_doubleClick = false;
+            GameObject* focus = GetFocus();
+            if (picked != nullptr && picked != focus)
+            {
+                // **두 번 누르면 그 안으로 들어간다.** 그 뒤로는 이것의 직계 자식이 고르는 단위다.
+                m_focus = m_editor->GetObjectIds().Track(picked);
+                m_editor->SetSelectedObject(picked);
+            }
+            else if (picked == nullptr && focus != nullptr)
+            {
+                // 빈 곳을 두 번 누르면 **한 층 나온다.** 나온 오브젝트를 골라 두어 어디서 나왔는지 보인다.
+                GameObject* parent = focus->GetParent();
+                m_focus = parent != nullptr ? m_editor->GetObjectIds().Track(parent) : 0;
+                m_editor->SetSelectedObject(focus);
+            }
+            return;
+        }
         if (picked == nullptr)
         {
             if (false == io.KeyCtrl && false == io.KeyShift)
@@ -945,7 +1013,20 @@ namespace JBro
             {
                 return;
             }
-            hit.Add(&object);
+            // 지금 층의 오브젝트로 올린다(D-157). 한 부모의 조각 여럿이 걸려도 부모는 한 번만 든다.
+            GameObject* level = MapToLevel(&object);
+            if (level == nullptr)
+            {
+                return;
+            }
+            for (std::size_t index = 0; index < hit.Size(); ++index)
+            {
+                if (hit[index] == level)
+                {
+                    return;
+                }
+            }
+            hit.Add(level);
         });
 
         // Ctrl·Shift 는 더한다. 맨 끌기는 통째로 바꾼다 - 계층·클릭과 같은 손놀림이다.
@@ -1302,6 +1383,7 @@ namespace JBro
             }
         });
 
+        best = MapToLevel(best);
         if (best == nullptr)
         {
             if (false == io.KeyCtrl && false == io.KeyShift)
