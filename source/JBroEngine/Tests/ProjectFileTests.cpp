@@ -374,6 +374,25 @@ namespace
             "and what was not touched is untouched");
     }
 
+    // **고른 경로를 프로젝트 기준으로 적는다**(D-164). 절대경로로 적으면 프로젝트를 옮기는 순간 깨진다.
+    void TestPathsAreMadeRelativeToTheProject()
+    {
+        const char* project = "C:\\Games\\Space\\Space.jproject";
+        Check(JBro::MakeProjectRelativePath("C:\\Games\\Space\\Contents\\Assets", project) == "Contents/Assets",
+            "a folder inside the project becomes relative with forward slashes");
+        Check(JBro::MakeProjectRelativePath("c:/games/space/Build", project) == "Build",
+            "case and separators do not matter on Windows");
+        Check(JBro::MakeProjectRelativePath("C:\\Games\\Space", project) == ".",
+            "the project folder itself is '.'");
+        Check(JBro::MakeProjectRelativePath("C:\\Games\\SpaceAssets\\x", project) == "C:\\Games\\SpaceAssets\\x",
+            "a sibling whose name starts the same is outside");
+        Check(JBro::MakeProjectRelativePath("D:\\Elsewhere", project) == "D:\\Elsewhere",
+            "a path outside the project stays as it was");
+        Check(JBro::MakeFolderRelativePath("C:\\Games\\Space\\Contents\\Assets\\Levels\\One.jcanvas",
+                  "C:\\Games\\Space\\Contents\\Assets\\") == "Levels/One.jcanvas",
+            "canvas paths are relative to the asset folder, trailing slash or not");
+    }
+
     // **새 프로젝트를 세운다**(D-160, 기존 `CProjectManager::CreateProject`). 폴더·프로젝트 파일·에셋 폴더가
     // 서고 그대로 열린다. 이미 있는 폴더 위에는 세우지 않고, 파일 이름이 될 수 없는 이름은 거절한다.
     void TestCreatesANewProject()
@@ -455,6 +474,7 @@ int RunProjectFileTests()
     TestDefaultsSurviveAnEmptyProject();
     TestRewritingKeepsWhatItDoesNotKnow();
     TestCreatesANewProject();
+    TestPathsAreMadeRelativeToTheProject();
     std::cout << "Project file tests passed.\n";
     return 0;
 }

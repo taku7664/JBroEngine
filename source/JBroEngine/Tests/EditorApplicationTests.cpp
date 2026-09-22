@@ -5399,6 +5399,38 @@ namespace
         Check(editor.GetCanvas() != nullptr, "and a canvas to edit");
         Check(editor.GetFrameworkKind() == JBro::FrameworkKind::Framework2D, "as a 2D project by default");
 
+        // **경로 칸의 "찾아보기"**(D-164). 대화상자는 프레임 밖에서 열리고, 고른 경로는 프로젝트 기준으로 돌아온다.
+        {
+            struct Delivered
+            {
+                JBro::String path;
+                int calls = 0;
+            } delivered;
+            const JBro::String projectFolder = TempPath("JBroNewProjectProbe\\Parent\\Space Game");
+            dialog.path = projectFolder;
+            dialog.path.append("\\Contents\\Art", 13);
+            dialog.calls = 0;
+            JBro::PathBrowseRequest request;
+            request.folder = true;
+            request.deliver = [](void* user, const JBro::String& path) {
+                auto& target = *static_cast<Delivered*>(user);
+                target.path = path;
+                ++target.calls;
+            };
+            request.user = &delivered;
+            editor.RequestBrowsePath(request);
+            Check(delivered.calls == 0, "nothing is delivered inside the frame that asked");
+            Check(editor.Tick(Frame), "the editor must tick through the browse");
+            Check(dialog.calls == 1 && dialog.pickFolder, "a folder is asked for, once");
+            Check(delivered.calls == 1 && delivered.path == "Contents/Art",
+                "and it comes back relative to the project, with forward slashes");
+            dialog.path.clear();
+            editor.RequestBrowsePath(request);
+            Check(editor.Tick(Frame), "the editor must tick through a cancelled browse");
+            Check(delivered.calls == 1, "a cancelled dialog delivers nothing");
+            dialog.path = TempPath("JBroNewProjectProbe\\Parent");
+        }
+
         // 3D 를 고르면 프레임워크까지 바뀐다.
         JBro::ProjectCreateFailure failure = JBro::ProjectCreateFailure::None;
         Check(false == editor.CreateProject(dialog.path.c_str(), "Space Game", JBro::FrameworkKind::Framework3D, &failure)

@@ -187,6 +187,10 @@ namespace JBro::LocKeys
     inline constexpr const char* AssetsListView = "assets.list_view";
     inline constexpr const char* AssetsViewTooltip = "assets.view_tooltip";
     inline constexpr const char* CommonCancel = "common.cancel";
+    // 경로 칸의 단추(D-164, 기존 `CommonBrowse`)
+    inline constexpr const char* CommonBrowse = "common.browse";
+    inline constexpr const char* DialogBrowseFolder = "dialog.browse_folder";
+    inline constexpr const char* DialogBrowseFile = "dialog.browse_file";
     inline constexpr const char* InspectorTextureImportOptions = "inspector.texture_import_options";
     inline constexpr const char* InspectorSpriteImportOptions = "inspector.sprite_import_options";
     inline constexpr const char* CommonOk = "common.ok";

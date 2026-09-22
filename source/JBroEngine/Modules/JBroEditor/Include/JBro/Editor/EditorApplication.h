@@ -48,6 +48,23 @@ namespace JBro
         GraphicsApi graphicsApi = GraphicsApi::D3D12;
     };
 
+    // 경로 칸의 "찾아보기" 요청이다(D-164). 대화상자는 막히는 호출이라 프레임이 끝난 뒤 열리고, 고른 경로는
+    // `deliver` 로 돌아온다. 고르지 않았으면 부르지 않는다.
+    struct PathBrowseRequest
+    {
+        // 참이면 폴더, 거짓이면 파일을 고른다.
+        bool folder = true;
+        // 파일일 때의 종류("JBro 캔버스 파일", "*.jcanvas"). 비면 가리지 않는다.
+        String filterName;
+        String filterPattern;
+        // 참이면 기준 폴더 안의 경로를 그 폴더 기준 상대경로로 바꿔 준다. 기준 폴더가 비면 프로젝트 폴더다 -
+        // 프로젝트 파일의 경로 값 대부분이 그렇고, 캔버스 경로는 에셋 폴더를 준다.
+        bool relative = true;
+        String baseFolder;
+        void (*deliver)(void* user, const String& path) = nullptr;
+        void* user = nullptr;
+    };
+
     struct EditorApplicationConfig
     {
         GraphicsApi graphicsApi = GraphicsApi::D3D12;
@@ -357,6 +374,8 @@ namespace JBro
         // 실패하면 거짓이고 `failure` 에 까닭이 온다. 팝업이 그것으로 번역된 문장을 고른다.
         bool CreateProject(const char* parentFolder, const char* name, FrameworkKind framework,
             ProjectCreateFailure* failure = nullptr);
+        // 경로 칸의 "찾아보기" 를 프레임 밖에서 처리하게 맡긴다(D-164). 한 프레임에 하나다 - 뒤의 것이 앞의 것을 덮는다.
+        void RequestBrowsePath(const PathBrowseRequest& request);
         // 마지막으로 열거나 저장한 캔버스 경로. 없으면 빈 글자다.
         const String& GetCanvasPath() const
         {
@@ -399,6 +418,7 @@ namespace JBro
         // 프로젝트 열기도 저장과 같다: **막히는 대화상자라 프레임 밖에서** 한다(D-93).
         void PerformOpenProjectRequest();
         void PerformNewProjectRequest();
+        void PerformBrowseRequest();
         // 지금 연 것을 닫고 그 프로젝트를 연다. 열기와 새 프로젝트가 같은 길로 간다. 프레임 밖에서 부른다.
         bool SwitchToProject(const char* projectFilePath);
         void PerformImportRequest();
@@ -424,6 +444,8 @@ namespace JBro
         bool m_saveRequested = false;
         bool m_openProjectRequested = false;
         bool m_newProjectRequested = false;
+        PathBrowseRequest m_browseRequest;
+        bool m_browseRequested = false;
         // 만든 프로젝트. 프레임이 끝나면 그리로 넘어간다 - 팝업 안(프레임 안)에서 프로젝트를 닫을 수 없다.
         String m_pendingProjectPath;
         Array<ObjectTreeSnapshot> m_clipboard;

@@ -1107,6 +1107,52 @@ namespace JBro
         OpenPopup(MakeOwnerPtr<NewProjectPopup>(folder.c_str()));
     }
 
+    void EditorApplication::RequestBrowsePath(const PathBrowseRequest& request)
+    {
+        if (request.deliver == nullptr)
+        {
+            return;
+        }
+        m_browseRequest = request;
+        m_browseRequested = true;
+    }
+
+    void EditorApplication::PerformBrowseRequest()
+    {
+        if (false == m_browseRequested)
+        {
+            return;
+        }
+        m_browseRequested = false;
+        const PathBrowseRequest request = m_browseRequest;
+        // **막히는 대화상자라 프레임 밖이다**(D-93).
+        FileDialogDesc desc;
+        desc.pickFolder = request.folder;
+        desc.title = request.folder
+            ? Loc::TextOr(LocKeys::DialogBrowseFolder, "Choose a folder")
+            : Loc::TextOr(LocKeys::DialogBrowseFile, "Choose a file");
+        if (false == request.folder && false == request.filterPattern.empty())
+        {
+            desc.filterName = request.filterName.c_str();
+            desc.filterPattern = request.filterPattern.c_str();
+        }
+        String chosen;
+        const bool picked = m_fileDialog != nullptr
+            ? m_fileDialog(desc, chosen, m_fileDialogUser)
+            : m_platform->ShowFileDialog(m_engine->GetMainWindow(), desc, chosen);
+        if (false == picked || chosen.empty())
+        {
+            return;
+        }
+        if (request.relative)
+        {
+            chosen = false == request.baseFolder.empty()
+                ? MakeFolderRelativePath(chosen.c_str(), request.baseFolder.c_str())
+                : MakeProjectRelativePath(chosen.c_str(), m_projectFilePath.c_str());
+        }
+        request.deliver(request.user, chosen);
+    }
+
     bool EditorApplication::CreateProject(
         const char* parentFolder, const char* name, FrameworkKind framework, ProjectCreateFailure* failure)
     {
@@ -2639,6 +2685,7 @@ namespace JBro
         PerformSaveRequest();
         PerformOpenProjectRequest();
         PerformNewProjectRequest();
+        PerformBrowseRequest();
         PerformImportRequest();
         if (m_exitRequested)
         {

@@ -160,4 +160,10 @@ namespace JBro
     String ResolveScriptModulePath(const ProjectFile& project, const char* projectFilePath);
     // 프로젝트 파일이 있는 폴더 기준의 상대경로를 푼다. 절대경로면 그대로다. 에셋 폴더(`AssetDirectory`)가 이것을 쓴다.
     String ResolveProjectRelativePath(const char* relative, const char* projectFilePath);
+    // 위의 거꾸로다(D-164). 프로젝트 폴더 **안**의 경로면 그 폴더 기준 상대경로(`/` 로 가른다)를, 밖이면 받은 그대로를
+    // 돌려준다. 프로젝트 폴더 자신은 `.` 이다. 윈도우 경로라 대소문자와 `\`·`/` 를 가리지 않고 견준다.
+    // 대화상자로 고른 경로를 프로젝트 파일에 적을 때 쓴다 - 절대경로로 적으면 프로젝트를 옮기는 순간 깨진다.
+    String MakeProjectRelativePath(const char* absolutePath, const char* projectFilePath);
+    // 같은 일을 폴더를 받아 한다. 캔버스 경로처럼 에셋 폴더 기준으로 적는 값이 쓴다.
+    String MakeFolderRelativePath(const char* absolutePath, const char* folder);
 }

@@ -29,6 +29,11 @@ namespace JBro
         // 파일에서 읽은 값을 편집본으로 옮긴다. 창을 열 때와 저장한 뒤에 부른다.
         void Reload();
 
+        // 경로 값 한 줄: 글자 칸과 "찾아보기"(D-164, 기존 `DrawReadOnlyPathWithFolderBrowse`). 고른 경로는 프로젝트
+        // 폴더(`assetRelative` 면 에셋 폴더) 기준 상대경로로 편집본에 들어간다. `filterPattern` 이 없으면 폴더를 고른다.
+        void DrawPathValue(const char* id, String& value, const char* filterName = nullptr,
+            const char* filterPattern = nullptr, bool assetRelative = false);
+
         EditorApplication* m_editor = nullptr;
         // 편집본이다. 저장을 누를 때까지 파일에 가지 않는다.
         ProjectFile m_draft;

@@ -914,4 +914,74 @@ namespace JBro
         directory.append(relative.c_str(), relative.size());
         return directory;
     }
+
+    String MakeProjectRelativePath(const char* absolutePath, const char* projectFilePath)
+    {
+        const String path(absolutePath != nullptr ? absolutePath : "");
+        if (path.empty() || projectFilePath == nullptr)
+        {
+            return path;
+        }
+        String root(projectFilePath);
+        const std::size_t slash = root.find_last_of("/\\");
+        if (slash == String::npos)
+        {
+            return path;
+        }
+        root.resize(slash);
+        return MakeFolderRelativePath(path.c_str(), root.c_str());
+    }
+
+    String MakeFolderRelativePath(const char* absolutePath, const char* folder)
+    {
+        const String path(absolutePath != nullptr ? absolutePath : "");
+        String root(folder != nullptr ? folder : "");
+        while (false == root.empty() && (root.back() == '/' || root.back() == '\\'))
+        {
+            root.pop_back();
+        }
+        if (path.empty() || root.empty())
+        {
+            return path;
+        }
+        const auto same = [](char left, char right) {
+            const auto fold = [](char value) {
+                if (value == '\\')
+                {
+                    return '/';
+                }
+                return (value >= 'A' && value <= 'Z') ? static_cast<char>(value - 'A' + 'a') : value;
+            };
+            return fold(left) == fold(right);
+        };
+        if (path.size() < root.size())
+        {
+            return path;
+        }
+        for (std::size_t index = 0; index < root.size(); ++index)
+        {
+            if (false == same(path[index], root[index]))
+            {
+                return path;
+            }
+        }
+        if (path.size() == root.size())
+        {
+            return String(".");
+        }
+        // `C:/Game` 과 `C:/GameAssets` 는 다른 폴더다. 뿌리 뒤가 가르개여야 그 안이다.
+        if (path[root.size()] != '/' && path[root.size()] != '\\')
+        {
+            return path;
+        }
+        String relative(path.c_str() + root.size() + 1);
+        for (char& character : relative)
+        {
+            if (character == '\\')
+            {
+                character = '/';
+            }
+        }
+        return relative.empty() ? String(".") : relative;
+    }
 }

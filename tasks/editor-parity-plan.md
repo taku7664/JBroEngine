@@ -235,11 +235,10 @@
 | `Gui/EditorMessagePopup` | `MessagePopup` | 완료 |
 | `Shortcut/EditorShortcutManager` | `EditorShortcuts` | 완료 (D-132) |
 | `Theme/EditorTheme` | `EditorTheme` | 완료 |
-| `ImItem/*` (20여 종) | `Widget/*` (+ `Basic.h`) · 패널 소스 검사 | 완료 (D-152), 오디오 위젯·`ImPathField`·`ImReferenceField` 는 열림 |
+| `ImItem/*` (20여 종) | `Widget/*` (+ `Basic.h`·`PathField.h`) · 패널 소스 검사 | 완료 (D-152·D-164), 오디오 위젯·`ImReferenceField` 는 열림 |
 | `Localization/EditorReflectionLabels` | — | 해당 없음 (필드는 필드 이름으로 보인다, §11.2) |
 | `Path/EditorPathUtils` | `JoinPath`·`FolderOf`·`LeafOfPath` | 완료 |
 | `Script/ScriptSchema` | — | 해당 없음 (JBroScript 미구현) |
 
-`ImPathField` 는 경로 칸에 "찾아보기" 단추를 단다. 플랫폼의 폴더 고르기 대화상자는 D-160 에서 섰으므로 이제
-막힌 것은 없다 - 다음 차례다. 지금 경로 칸은 글자로만 고친다. `ImReferenceField` 는 오브젝트 참조 칸인데, 그런 필드를 가진 컴포넌트가 아직
+`ImPathField` 는 경로 칸에 "찾아보기" 단추를 단다. `Widget::PathField` 로 섰다(D-164) - 프로젝트 설정의 경로 여섯이 쓴다. `ImReferenceField` 는 오브젝트 참조 칸인데, 그런 필드를 가진 컴포넌트가 아직
 없다(스크립트가 생기면 필요해진다).

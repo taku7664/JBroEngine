@@ -2683,6 +2683,24 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. 레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-164. 경로 칸에 "찾아보기" 가 선다(기존 `ImPathField`).** (2026-09-23)
+  열림으로 두었던 까닭(플랫폼에 폴더 고르기가 없다)이 D-160 에서 풀렸다. 기존은 경로 칸과 단추를 짝지은 함수
+  (`DrawReadOnlyPathWithFolderBrowse`·`...FileBrowse`)를 빌드 설정 창에서 썼다. 우리는:
+  - **`Widget::PathField`**: 글자 칸 + 폴더 그림 단추(툴팁 "찾아보기"). 단추는 **알리기만 한다** - 대화상자는 막히는
+    호출이라 프레임 안에서 열 수 없다(D-93).
+  - **`EditorApplication::RequestBrowsePath`**: 프레임이 끝난 뒤 폴더 또는 파일(종류를 걸어) 대화상자를 열고, 고른 경로를
+    **기준 폴더 기준 상대경로**로 돌려준다. 기준은 프로젝트 폴더이고, 캔버스 경로는 에셋 폴더다. 절대경로로 적으면
+    프로젝트를 옮기는 순간 깨진다. 취소하면 아무것도 돌려주지 않는다.
+  - **`MakeProjectRelativePath`·`MakeFolderRelativePath`**(JBroHost): `ResolveProjectRelativePath` 의 거꾸로. 대소문자와
+    `\`·`/` 를 가리지 않고, `C:/Game` 과 `C:/GameAssets` 를 가른다. 밖의 경로는 그대로다.
+  - 프로젝트 설정의 경로 여섯(`AssetDirectory`·`ScriptSourceDirectory`·`ScriptOutputLibraryPath`(*.dll)·
+    `LastOpenedCanvasPath`(*.jcanvas)·`OutputDirectory`·`StartupCanvas`(*.jcanvas))이 한 함수(`DrawPathValue`)로 선다.
+  처음에는 기존처럼 "찾아보기..." 글자 단추였는데, 오른쪽 도크의 좁은 설정 창에서 단추가 칸을 먹어 경로가 몇 글자만
+  보이고 단추마저 잘렸다(실제 에디터에서 그랬다). 폴더 그림 단추로 바꿔 경로가 읽힌다.
+  확인: 실제 에디터에서 폴더 단추 → "폴더 선택" 대화상자 → 프로젝트의 `Assets\art` 를 고르면 칸에 `Assets/art` 가 들어간다.
+  테스트: 상대경로 여섯 경우, 요청이 그 프레임에는 돌아오지 않고 다음 틱에 한 번 폴더로 묻고 `Contents/Art` 로 돌아오며,
+  취소하면 돌아오는 것이 없다. 상대경로 바꾸기를 빼면 테스트가 죽는다.
+
 ## Assumptions
 
 - 대상은 `Documents/GitHub/JBroEngine` 신규 리포다. 기존 엔진은 **읽기 전용 기준**으로만 쓴다.

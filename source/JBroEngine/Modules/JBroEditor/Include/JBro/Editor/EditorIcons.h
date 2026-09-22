@@ -15,6 +15,7 @@ namespace JBro::Icons
     inline constexpr const char* EyeSlash = "\xEF\x81\xB0";  // f070
     inline constexpr const char* Filter = "\xEF\x82\xB0";    // f0b0
     inline constexpr const char* Search = "\xEF\x80\x82";    // f002
+    inline constexpr const char* FolderOpen = "\xEF\x81\xBC"; // f07c
 
     // 아이콘 글꼴이 덮는 유니코드 범위다. 글꼴을 합칠 때 이 범위만 아이콘 글꼴에서 가져온다.
     inline constexpr unsigned short RangeBegin = 0xF000;

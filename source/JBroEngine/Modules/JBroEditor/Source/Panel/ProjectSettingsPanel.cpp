@@ -10,6 +10,7 @@
 #include <JBro/Editor/Widget/FieldLabel.h>
 #include <JBro/Editor/Widget/Fields.h>
 #include <JBro/Editor/Widget/FormLayout.h>
+#include <JBro/Editor/Widget/PathField.h>
 #include <JBro/Editor/Widget/Scalar.h>
 #include <JBro/Editor/Widget/TextField.h>
 
@@ -50,6 +51,29 @@ namespace JBro
         m_loaded = true;
         m_message.clear();
         m_messageIsError = false;
+    }
+
+    void ProjectSettingsPanel::DrawPathValue(const char* id, String& value, const char* filterName,
+        const char* filterPattern, bool assetRelative)
+    {
+        const Widget::PathFieldResult result = Widget::PathField(id, value).Draw();
+        if (false == result.browse)
+        {
+            return;
+        }
+        PathBrowseRequest request;
+        request.folder = filterPattern == nullptr;
+        request.filterName = filterName != nullptr ? filterName : "";
+        request.filterPattern = filterPattern != nullptr ? filterPattern : "";
+        request.relative = true;
+        if (assetRelative)
+        {
+            request.baseFolder = m_editor->GetAssetRoot();
+        }
+        // 편집본의 그 칸에 넣는다. 패널은 에디터와 수명을 같이하고, 편집본은 다시 읽어도 자리가 그대로다.
+        request.deliver = [](void* user, const String& path) { *static_cast<String*>(user) = path; };
+        request.user = &value;
+        m_editor->RequestBrowsePath(request);
     }
 
     void ProjectSettingsPanel::OnDraw()
@@ -176,18 +200,19 @@ namespace JBro
             Loc::TextOr(LocKeys::ProjectSettingsPaths, "Paths")).SpacingBefore().Draw();
         {
             Widget::FormLayout layout("##paths");
+            const char* canvasFilter = Loc::TextOr(LocKeys::DialogCanvasFilter, "JBro canvas file");
             layout.Row(
                 [] { Widget::Text("AssetDirectory"); },
-                [&] { Widget::TextField("##assets", m_draft.assetDirectory).Draw(); });
+                [&] { DrawPathValue("##assets", m_draft.assetDirectory); });
             layout.Row(
                 [] { Widget::Text("ScriptSourceDirectory"); },
-                [&] { Widget::TextField("##scriptSource", m_draft.scriptSourceDirectory).Draw(); });
+                [&] { DrawPathValue("##scriptSource", m_draft.scriptSourceDirectory); });
             layout.Row(
                 [] { Widget::Text("ScriptOutputLibraryPath"); },
-                [&] { Widget::TextField("##scriptOut", m_draft.scriptOutputLibraryPath).Draw(); });
+                [&] { DrawPathValue("##scriptOut", m_draft.scriptOutputLibraryPath, "DLL", "*.dll"); });
             layout.Row(
                 [] { Widget::Text("LastOpenedCanvasPath"); },
-                [&] { Widget::TextField("##lastCanvas", m_draft.lastOpenedCanvasPath).Draw(); });
+                [&] { DrawPathValue("##lastCanvas", m_draft.lastOpenedCanvasPath, canvasFilter, "*.jcanvas", true); });
         }
 
         Widget::SectionHeader(
@@ -199,10 +224,13 @@ namespace JBro
                 [&] { Widget::TextField("##product", m_draft.build.productName).Draw(); });
             layout.Row(
                 [] { Widget::Text("OutputDirectory"); },
-                [&] { Widget::TextField("##output", m_draft.build.outputDirectory).Draw(); });
+                [&] { DrawPathValue("##output", m_draft.build.outputDirectory); });
             layout.Row(
                 [] { Widget::Text("StartupCanvas"); },
-                [&] { Widget::TextField("##startup", m_draft.build.startupCanvas).Draw(); });
+                [&] {
+                    DrawPathValue("##startup", m_draft.build.startupCanvas,
+                        Loc::TextOr(LocKeys::DialogCanvasFilter, "JBro canvas file"), "*.jcanvas", true);
+                });
             layout.Row(
                 [] { Widget::Text("EnableWindows"); },
                 [&] { Widget::Checkbox("##windows", m_draft.build.enableWindows); });

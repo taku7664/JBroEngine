@@ -180,3 +180,6 @@ Entries:
   new_project.already_exists: 이 폴더에 같은 이름이 이미 있습니다
   new_project.cannot_write: 프로젝트 파일을 만들 수 없습니다
   hierarchy.object_hidden: 캔버스 뷰에서 이 오브젝트를 보이거나 감춥니다
+  common.browse: 찾아보기
+  dialog.browse_folder: 폴더 선택
+  dialog.browse_file: 파일 선택
