@@ -232,7 +232,7 @@
 | `EditorSimulationGuard` | `SaveCanvas` 의 재생 중 거절 | 완료 (D-153) |
 | `EditorDragDrop` | `Widget/AssetDrag.h` | 완료 (D-154), `.jlayer` 드롭은 해당 없음(레이어 에셋 없음) |
 | `EditorContext` | `EditorApplication` | 완료 |
-| `Gui/EditorGuiActions` | `EditorActions` | 완료 (D-132), `PasteObjectsAsChild` 는 D-166, 컴포넌트 복사·붙여넣기는 D-167 |
+| `Gui/EditorGuiActions` | `EditorActions` | 완료 (D-132), `PasteObjectsAsChild` 는 D-166, 컴포넌트 복사·붙여넣기는 D-167, `spawnWorldPos`·`ResolveTargetLayer` 는 D-168 |
 | `Gui/EditorMessagePopup` | `MessagePopup` | 완료 |
 | `Shortcut/EditorShortcutManager` | `EditorShortcuts` | 완료 (D-132), 표를 항목마다 견주어 빠져 있던 `PasteObjectsAsChild` 를 채웠다 (D-166) |
 | `Theme/EditorTheme` | `EditorTheme` | 완료 |

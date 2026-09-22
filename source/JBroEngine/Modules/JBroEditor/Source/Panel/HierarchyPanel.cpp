@@ -397,14 +397,13 @@ namespace JBro
         ImGui::Separator();
         if (Widget::MenuItem(Loc::TextOr(LocKeys::HierarchyCreateObject, "Create Object")))
         {
-            if (GameObject* made = EditorActions::CreateObject(*m_editor, nullptr))
-            {
-                // 만든 것은 우클릭한 레이어에 놓는다. 기본 레이어로 가면 방금 연 칸에
-                // 나타나지 않아 만들어지지 않은 것처럼 보인다.
-                m_editor->GetCommands().Execute(MakeOwnerPtr<SetObjectLayerCommand>(
-                    *canvas, m_editor->GetObjectIds(),
-                    m_editor->GetObjectIds().Track(made), layerId));
-            }
+            // 만든 것은 우클릭한 레이어에 놓는다. 기본 레이어로 가면 방금 연 칸에
+            // 나타나지 않아 만들어지지 않은 것처럼 보인다.
+            // **커맨드는 하나다**(D-168). 만들기와 레이어 옮기기를 둘로 쌓으면 한 손짓을
+            // 되돌리는 데 실행 취소가 두 번 든다.
+            ObjectPlacement placement;
+            placement.layer = layerId;
+            EditorActions::CreateObject(*m_editor, nullptr, placement);
             alive = false;
         }
         ImGui::Separator();

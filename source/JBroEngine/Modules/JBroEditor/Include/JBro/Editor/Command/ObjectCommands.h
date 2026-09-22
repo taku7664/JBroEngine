@@ -26,12 +26,17 @@ namespace JBro
         // `defaultComponent` 는 만들자마자 붙일 컴포넌트의 등록 이름이다(D-158). 에디터는 프레임워크의
         // 트랜스폼(`Component::Transform2D`·`Transform3D`)을 준다 - 트랜스폼이 없는 오브젝트는 캔버스 뷰에
         // 보이지도 않고 옮길 수도 없다. 기존 엔진은 트랜스폼이 오브젝트의 멤버라 늘 있었다.
+        // `position` 은 널이 아니면 만들자마자 트랜스폼의 `position` 에 앞에서부터 써 넣는
+        // 세 값이다(D-168, 기존 `DrawAddObjectMenu` 의 `spawnWorldPos`). `Vec2` 면 둘만 쓴다 -
+        // 커맨드는 차원을 모른다. `layer` 는 놓을 레이어이고, 없는 번호면 캔버스 기본 레이어다.
         CreateObjectCommand(
             Canvas& canvas,
             EditorObjectRegistry& registry,
             const char* name,
             EditorObjectId parentId,
-            const char* defaultComponent = nullptr);
+            const char* defaultComponent = nullptr,
+            const float* position = nullptr,
+            LayerId layer = InvalidLayerId);
 
         const char* GetName() const override;
         bool Execute() override;
@@ -50,6 +55,9 @@ namespace JBro
         String m_defaultComponent;
         EditorObjectId m_parentId = InvalidEditorObjectId;
         EditorObjectId m_objectId = InvalidEditorObjectId;
+        float m_position[3] = {};
+        bool m_hasPosition = false;
+        LayerId m_layer = InvalidLayerId;
     };
 
     // 오브젝트의 이름을 바꾼다(D-142).

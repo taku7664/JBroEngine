@@ -44,7 +44,22 @@ namespace JBro::EditorActions
         };
     }
 
-    GameObject* CreateObject(EditorApplication& editor, GameObject* parent)
+    LayerId ResolveTargetLayer(EditorApplication& editor, GameObject* parent)
+    {
+        // 부모가 있으면 부모를 따른다. 자식만 다른 칸에 있으면 부모를 감춰도 자식이 남는다.
+        if (parent != nullptr)
+        {
+            return parent->GetLayerId();
+        }
+        if (GameObject* selected = editor.GetSelectedObject())
+        {
+            return selected->GetLayerId();
+        }
+        return InvalidLayerId;
+    }
+
+    GameObject* CreateObject(EditorApplication& editor, GameObject* parent,
+        const ObjectPlacement& placement)
     {
         Canvas* canvas = editor.GetCanvas();
         if (canvas == nullptr)
@@ -58,8 +73,13 @@ namespace JBro::EditorActions
         const char* transform = editor.GetFrameworkKind() == FrameworkKind::Framework3D
             ? "Component::Transform3D"
             : "Component::Transform2D";
+        // 부르는 쪽이 레이어를 대지 않았으면 규칙이 정한다(D-168).
+        const LayerId layer = placement.layer != InvalidLayerId
+            ? placement.layer
+            : ResolveTargetLayer(editor, parent);
         auto command = MakeOwnerPtr<CreateObjectCommand>(
-            *canvas, ids, "GameObject", parentId, transform);
+            *canvas, ids, "GameObject", parentId, transform,
+            placement.hasPosition ? placement.position : nullptr, layer);
         CreateObjectCommand* raw = command.Get();
         if (false == editor.GetCommands().Execute(std::move(command)))
         {
@@ -132,7 +152,8 @@ namespace JBro::EditorActions
         return any;
     }
 
-    bool DrawCreateObjectItem(EditorApplication& editor, GameObject* parent)
+    bool DrawCreateObjectItem(EditorApplication& editor, GameObject* parent,
+        const ObjectPlacement& placement)
     {
         const DisabledIf disabled(editor.GetCanvas() == nullptr);
         if (false == ImGui::MenuItem(
@@ -140,7 +161,7 @@ namespace JBro::EditorActions
         {
             return false;
         }
-        return CreateObject(editor, parent) != nullptr;
+        return CreateObject(editor, parent, placement) != nullptr;
     }
 
     bool DrawCreateChildItem(EditorApplication& editor, GameObject& parent)
@@ -212,9 +233,9 @@ namespace JBro::EditorActions
         return DeleteObject(editor, object);
     }
 
-    bool DrawBackgroundMenu(EditorApplication& editor)
+    bool DrawBackgroundMenu(EditorApplication& editor, const ObjectPlacement& placement)
     {
-        bool changed = DrawCreateObjectItem(editor, nullptr);
+        bool changed = DrawCreateObjectItem(editor, nullptr, placement);
         if (changed)
         {
             return true;

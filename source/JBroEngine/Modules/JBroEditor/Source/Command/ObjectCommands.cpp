@@ -7,24 +7,75 @@
 #include <JBro/Runtime/GameObject.h>
 #include <JBro/Types/NameTable.h>
 
+#include <cstdio>
 #include <utility>
 
 namespace JBro
 {
     // ── CreateObjectCommand ──────────────────────────────────────────────────
 
+    namespace
+    {
+        // 만들 자리를 트랜스폼에 써 넣는다(D-168).
+        //
+        // **커맨드는 `Vec2` 인지 `Vec3` 인지 모른다.** 잎사귀가 내놓는 필드를 앞에서부터
+        // 채우므로 둘 다 맞는다 - 타입을 견주기 시작하면 프레임워크가 늘 때마다 여기가 는다.
+        void WriteSpawnPosition(
+            ComponentBase& component, ComponentTypeId typeId, const float (&position)[3])
+        {
+            SetPropertyCommand::Path path;
+            void* address = nullptr;
+            const TypeDescriptor* type = nullptr;
+            if (false == SetPropertyCommand::MakeFieldPath(typeId, "position", path)
+                || false == SetPropertyCommand::ResolveLeaf(component, typeId, path, address, type)
+                || type->fields == nullptr)
+            {
+                return;
+            }
+            const std::uint32_t count = type->fields->count < 3u ? type->fields->count : 3u;
+            for (std::uint32_t index = 0; index < count; ++index)
+            {
+                const PropertyInfo& field = type->fields->properties[index];
+                if (field.Address == nullptr || field.type == nullptr
+                    || field.type->codec == nullptr || field.type->codec->FromText == nullptr)
+                {
+                    continue;
+                }
+                char text[32] = {};
+                const int written = std::snprintf(
+                    text, sizeof(text), "%g", static_cast<double>(position[index]));
+                if (written <= 0)
+                {
+                    continue;
+                }
+                field.type->codec->FromText(
+                    field.Address(address), text, static_cast<std::size_t>(written));
+            }
+        }
+    }
+
     CreateObjectCommand::CreateObjectCommand(
         Canvas& canvas,
         EditorObjectRegistry& registry,
         const char* name,
         EditorObjectId parentId,
-        const char* defaultComponent)
+        const char* defaultComponent,
+        const float* position,
+        LayerId layer)
         : m_canvas(&canvas)
         , m_registry(&registry)
         , m_name(name != nullptr ? name : "GameObject")
         , m_defaultComponent(defaultComponent != nullptr ? defaultComponent : "")
         , m_parentId(parentId)
+        , m_layer(layer)
     {
+        if (position != nullptr)
+        {
+            m_position[0] = position[0];
+            m_position[1] = position[1];
+            m_position[2] = position[2];
+            m_hasPosition = true;
+        }
     }
 
     const char* CreateObjectCommand::GetName() const
@@ -47,7 +98,11 @@ namespace JBro
             {
                 if (info->Attach != nullptr)
                 {
-                    info->Attach(*m_canvas, object);
+                    ComponentBase* component = info->Attach(*m_canvas, object);
+                    if (component != nullptr && m_hasPosition)
+                    {
+                        WriteSpawnPosition(*component, info->typeId, m_position);
+                    }
                 }
             }
         }
@@ -59,6 +114,12 @@ namespace JBro
             {
                 object->SetParent(parent);
             }
+        }
+        // **놓을 레이어가 있으면 거기 둔다**(D-168). 그 사이에 사라진 레이어면 캔버스가
+        // 준 기본 레이어 그대로다 - 없는 번호를 들고 있으면 어느 칸에도 나오지 않는다.
+        if (m_layer != InvalidLayerId)
+        {
+            m_canvas->SetObjectLayer(object, m_layer);
         }
 
         if (m_objectId == InvalidEditorObjectId)

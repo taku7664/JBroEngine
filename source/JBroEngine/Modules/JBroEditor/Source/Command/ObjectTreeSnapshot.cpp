@@ -24,6 +24,7 @@ namespace JBro
         entry.name = name != nullptr ? name : "";
         entry.active = object.IsActiveSelf();
         entry.flags = object.GetFlags();
+        entry.layer = object.GetLayerId();
         entry.parentIndex = parentIndex;
 
         const Array<ComponentSlot>& components = object.GetComponents();
@@ -84,6 +85,13 @@ namespace JBro
             }
             object->SetActive(entry.active);
             object->SetFlags(entry.flags);
+            // **떠 둔 레이어로 보낸다**(D-168). 그 레이어가 그 사이에 사라졌으면 캔버스가
+            // 새로 만든 것에 준 레이어(기본 레이어)로 둔다 - 없는 번호를 들고 있으면
+            // 그 오브젝트는 어느 칸에도 나오지 않는다.
+            if (entry.layer != InvalidLayerId && canvas.FindLayer(entry.layer) != nullptr)
+            {
+                canvas.SetObjectLayer(object, entry.layer);
+            }
             if (rebind)
             {
                 // **옛 번호에 다시 건다.** 이 오브젝트를 가리키던 커맨드들이 계속 찾아야 한다.

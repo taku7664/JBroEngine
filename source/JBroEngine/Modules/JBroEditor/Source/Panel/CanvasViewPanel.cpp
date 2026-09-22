@@ -275,7 +275,7 @@ namespace JBro
             HandleBoxSelect(rect, hovered);
             HandlePicking(rect, hovered);
         }
-        DrawContextMenu();
+        DrawContextMenu(rect);
     }
 
     void CanvasViewPanel::DrawToolBar()
@@ -1063,7 +1063,7 @@ namespace JBro
         }
     }
 
-    void CanvasViewPanel::DrawContextMenu()
+    void CanvasViewPanel::DrawContextMenu(const ViewRect& rect)
     {
         // 화면을 옮기려고 오른쪽 단추를 끌었으면 메뉴를 열지 않는다.
         if (m_panMoved)
@@ -1082,8 +1082,18 @@ namespace JBro
         {
             return;
         }
+        // **누른 자리에 만든다**(D-168, 기존 `spawnWorldPos`). 원점에 만들면 화면 밖에
+        // 생기기도 해서, 만든 것을 찾으러 화면을 끌어야 했다. 메뉴가 열릴 때의 자리를
+        // 묻는다 - 그 뒤에 마우스가 항목 위로 움직이기 때문이다.
+        ObjectPlacement placement;
+        if (false == Is3D())
+        {
+            const ImVec2 opened = ImGui::GetMousePosOnOpeningCurrentPopup();
+            ScreenToWorld(rect, opened.x, opened.y, placement.position[0], placement.position[1]);
+            placement.hasPosition = true;
+        }
         // 계층의 빈자리와 **같은 한 벌**이다(D-132). 두 화면의 메뉴가 갈라지지 않는다.
-        EditorActions::DrawBackgroundMenu(*m_editor);
+        EditorActions::DrawBackgroundMenu(*m_editor, placement);
         Widget::EndContextMenu();
     }
 

@@ -2241,6 +2241,162 @@ namespace
         editor.Shutdown();
     }
 
+    // **새로 만든 것은 누른 자리와 고른 레이어로 간다**(D-168, 기존 `spawnWorldPos`·
+    // `ResolveTargetLayer`). 자리와 레이어가 만들기 커맨드 안에 있으므로 되돌리기도 한 번이다.
+    void TestANewObjectLandsWhereItWasAskedFor()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = WindowWidth;
+        config.windowHeight = WindowHeight;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; object placement not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "PlacementProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        JBro::Canvas* canvas = editor.GetCanvas();
+        const JBro::LayerId defaultLayer = canvas->GetDefaultLayer();
+        JBro::Layer& other = canvas->CreateLayer("Above");
+        const JBro::LayerId otherId = other.GetId();
+
+        // 자리를 대지 않으면 원점이다.
+        JBro::GameObject* plain = JBro::EditorActions::CreateObject(editor, nullptr);
+        Check(plain != nullptr, "creating an object must go through");
+        auto* plainTransform = canvas->FindComponentRaw<JBro::Component::Transform2D>(plain);
+        Check(plainTransform != nullptr && plainTransform->position.x == 0.0f
+                && plainTransform->position.y == 0.0f,
+            "and leave it at the origin");
+        Check(plain->GetLayerId() == defaultLayer, "in the default layer");
+
+        // 자리와 레이어를 대면 그리로 간다. 만들기 하나가 되돌리기 하나다.
+        const std::size_t undo = editor.GetCommands().GetUndoCount();
+        JBro::ObjectPlacement placement;
+        placement.hasPosition = true;
+        placement.position[0] = 2.5f;
+        placement.position[1] = -7.25f;
+        placement.layer = otherId;
+        JBro::GameObject* placed = JBro::EditorActions::CreateObject(editor, nullptr, placement);
+        Check(placed != nullptr, "creating a placed object must go through");
+        Check(editor.GetCommands().GetUndoCount() == undo + 1, "as one undo, not two");
+        auto* placedTransform = canvas->FindComponentRaw<JBro::Component::Transform2D>(placed);
+        Check(placedTransform != nullptr && placedTransform->position.x == 2.5f
+                && placedTransform->position.y == -7.25f,
+            "and put it where it was asked for");
+        Check(placed->GetLayerId() == otherId, "in the layer it was asked for");
+        Check(editor.GetCommands().Undo(), "undo must run");
+        Check(editor.GetCommands().Redo(), "redo must run");
+
+        // **고른 것의 레이어를 따른다.** 규칙은 한 곳에 있고 메뉴와 단축키가 함께 쓴다.
+        JBro::GameObject* inOther = nullptr;
+        canvas->ForEachObject([&](JBro::GameObject& each) {
+            if (each.GetLayerId() == otherId)
+            {
+                inOther = &each;
+            }
+        });
+        Check(inOther != nullptr, "the redone object must be back in the probe layer");
+        editor.SetSelectedObject(inOther);
+        Check(JBro::EditorActions::ResolveTargetLayer(editor, nullptr) == otherId,
+            "with that object chosen, new objects belong in its layer");
+        JBro::GameObject* sibling = JBro::EditorActions::CreateObject(editor, nullptr);
+        Check(sibling != nullptr && sibling->GetLayerId() == otherId,
+            "and that is where the next one lands");
+
+        // 부모가 있으면 부모를 따른다 - 고른 것보다 부모가 먼저다.
+        JBro::GameObject* base = canvas->CreateObject("Base");
+        Check(canvas->SetObjectLayer(base, defaultLayer), "the base must sit in the default layer");
+        Check(JBro::EditorActions::ResolveTargetLayer(editor, base) == defaultLayer,
+            "a child belongs in its parent's layer");
+        JBro::GameObject* child = JBro::EditorActions::CreateObject(editor, base);
+        Check(child != nullptr && child->GetLayerId() == defaultLayer,
+            "so the created child lands there, not in the chosen object's layer");
+
+        editor.Shutdown();
+    }
+
+    // **오브젝트가 어느 레이어에 있었는지는 지웠다 되살려도, 복사해 붙여도 따라간다**(D-168).
+    // 나무 스냅샷이 레이어를 안 담고 있어서, 기본 레이어가 아닌 곳의 오브젝트를 지웠다 되돌리면
+    // 조용히 기본 레이어로 돌아왔다 - 화면에서는 레이어 칸이 바뀐 것으로만 보인다.
+    void TestAnObjectKeepsItsLayerThroughDeleteAndPaste()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = WindowWidth;
+        config.windowHeight = WindowHeight;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; layer round trip not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "LayerRoundTripProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::Layer& other = canvas->CreateLayer("Above");
+        const JBro::LayerId otherId = other.GetId();
+        Check(otherId != canvas->GetDefaultLayer(), "the probe layer must not be the default one");
+
+        JBro::GameObject* object = canvas->CreateObject("Painted");
+        JBro::GameObject* child = canvas->CreateObject("PaintedChild");
+        child->SetParent(object);
+        Check(canvas->AttachComponent<JBro::Component::Transform2D>(object) != nullptr,
+            "the object needs a transform");
+        Check(canvas->SetObjectLayer(object, otherId), "the object must move to the probe layer");
+        Check(canvas->SetObjectLayer(child, otherId), "and so must its child");
+        Check(object->GetLayerId() == otherId, "which the object must report");
+
+        // 지우기의 되돌리기다.
+        editor.SetSelectedObject(object);
+        Check(JBro::EditorActions::DeleteSelection(editor), "deleting must go through");
+        Check(editor.GetCommands().Undo(), "undo must run");
+        JBro::GameObject* restored = nullptr;
+        JBro::GameObject* restoredChild = nullptr;
+        canvas->ForEachObject([&](JBro::GameObject& each) {
+            if (std::strcmp(each.GetTag(), "Painted") == 0)
+            {
+                restored = &each;
+            }
+            else if (std::strcmp(each.GetTag(), "PaintedChild") == 0)
+            {
+                restoredChild = &each;
+            }
+        });
+        Check(restored != nullptr, "the object must come back");
+        Check(restored->GetLayerId() == otherId, "in the layer it was in, not the default one");
+        Check(restoredChild != nullptr && restoredChild->GetLayerId() == otherId,
+            "and so must its child");
+
+        // 복사와 붙여넣기다.
+        editor.SetSelectedObject(restored);
+        Check(editor.CopySelection(), "copying must go through");
+        Check(editor.PasteClipboard(), "pasting must go through");
+        JBro::GameObject* pasted = editor.GetSelectedObject();
+        Check(pasted != nullptr && pasted != restored, "the pasted object must be a new one");
+        Check(pasted->GetLayerId() == otherId, "and land in the copied object's layer");
+        Check(editor.GetCommands().Undo(), "undo must run");
+
+        // **사라진 레이어에는 놓지 않는다.** 그 자리는 기본 레이어다 - 없는 번호를 들고 있으면
+        // 그 오브젝트는 어느 칸에도 나오지 않는다.
+        editor.SetSelectedObject(restored);
+        Check(editor.CopySelection(), "copying again must go through");
+        Check(canvas->DestroyLayer(otherId), "the probe layer must go away");
+        Check(editor.PasteClipboard(), "pasting into a canvas without that layer must go through");
+        pasted = editor.GetSelectedObject();
+        Check(pasted != nullptr && pasted->GetLayerId() == canvas->GetDefaultLayer(),
+            "and land in the default layer instead");
+
+        editor.Shutdown();
+    }
+
     // **컴포넌트 하나를 값째로 옮긴다**(D-167, 기존 `DrawCopyComponentMenuItem`·
     // `DrawPasteComponentMenuItem`). 붙여넣기는 같은 타입을 하나 더 붙이고, 되돌리면 뗀다.
     void TestCopyingAComponentPastesItsValuesOntoAnotherObject()
@@ -6900,6 +7056,8 @@ int RunEditorApplicationTests()
     TestMovingAComponentFromItsHeaderMenuCanBeUndone();
     TestCopyAndPasteMakeASiblingAndSelectIt();
     TestCopyingAComponentPastesItsValuesOntoAnotherObject();
+    TestANewObjectLandsWhereItWasAskedFor();
+    TestAnObjectKeepsItsLayerThroughDeleteAndPaste();
     TestAStructElementOpensAndEditsEveryChosenList();
     TestDraggingAStructElementReordersEveryChosenList();
     TestFlagCountAndToneElementsEditByMouseOnEveryChosenList();

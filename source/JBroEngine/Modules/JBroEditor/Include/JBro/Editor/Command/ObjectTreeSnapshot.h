@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <JBro/Canvas/Layer.h>
 #include <JBro/Editor/Command/ComponentSnapshot.h>
 #include <JBro/Editor/EditorObjectRegistry.h>
 #include <JBro/Types/Array.h>
@@ -27,6 +28,9 @@ namespace JBro
         bool active = true;
         // 오브젝트 플래그다(D-163). 없으면 지웠다 되돌린 감춘 오브젝트가 보이는 채로 돌아온다.
         std::uint32_t flags = 0;
+        // 어느 레이어에 있었는가(D-168). 없으면 지웠다 되돌린 오브젝트가 기본 레이어로 돌아와,
+        // 되돌리기가 레이어를 조용히 바꾼 것이 된다. 그 번호의 레이어가 사라졌으면 기본 레이어다.
+        LayerId layer = InvalidLayerId;
         // 이 배열 안에서의 부모 위치다. -1 이면 뜬 나무의 뿌리다.
         std::int64_t parentIndex = -1;
         Array<ComponentSnapshot> components;
