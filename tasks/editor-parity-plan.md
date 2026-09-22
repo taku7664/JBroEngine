@@ -206,7 +206,7 @@
 | `Main/Inspector/EditorAudioPreview` | — | 해당 없음 (오디오 없음) |
 | `Main/Inspector/EffectEditorWidget`·`EffectEditorWindow` | — | 해당 없음 (이펙트 없음) |
 | `Main/Inspector/ButtonRectFit` | — | 해당 없음 (`Button2D` 없음) |
-| `Main/Layers/LayerTool` | `HierarchyPanel` (레이어 머리·순서·부모 해제·보임) | 완료 (D-129·D-135) |
+| `Main/Layers/LayerTool` | `HierarchyPanel` (레이어 머리·순서·부모 해제·보임) | 완료 (D-128·D-135) |
 | `Main/AssetBrowser/AssetBrowserTool`·`Utils`·`AssetHandler` | `AssetBrowserPanel` (두 칸·파일 다루기·다중 선택·아이콘·끌어 놓기) | 완료 (D-139·D-141·D-147·D-154) |
 | `Main/EditorAssetPickDialog` | 에셋 칸의 검색 드롭다운 + 브라우저에서 열기 | 완료 (D-118·D-155) |
 | `Main/Importer/SpriteImporterWindow`·`ImporterWindowBase` | `ImportAssetFile`·"가져오기..." | 완료 (D-156) |
